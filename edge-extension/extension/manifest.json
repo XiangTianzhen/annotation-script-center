@@ -1,0 +1,112 @@
+{
+  "manifest_version": 3,
+  "name": "标注脚本中心",
+  "description": "多平台标注脚本中心与当前页面脚本状态入口。",
+  "version": "0.2.0",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://labelx.alibaba-inc.com/*",
+    "https://label-cloud.lightwheel.net/*",
+    "http://47.108.254.138:3101/*",
+    "http://127.0.0.1:3101/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "options_page": "options/options.html",
+  "action": {
+    "default_title": "标注脚本中心",
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://labelx.alibaba-inc.com/*"
+      ],
+      "js": [
+        "sites/alibaba-labelx/asr-transcription/runtime-contract.js",
+        "sites/alibaba-labelx/asr-transcription/page-world/bridge.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://labelx.alibaba-inc.com/*"
+      ],
+      "js": [
+        "shared/constants.js",
+        "shared/storage.js",
+        "sites/alibaba-labelx/asr-transcription/runtime-contract.js",
+        "sites/alibaba-labelx/asr-judgement/page-detector.js",
+        "sites/alibaba-labelx/asr-judgement/audio-controller.js",
+        "sites/alibaba-labelx/asr-judgement/content.js",
+        "sites/alibaba-labelx/asr-transcription/document-start.js",
+        "sites/alibaba-labelx/asr-transcription/site-contract.js",
+        "sites/alibaba-labelx/asr-transcription/page-detector.js",
+        "sites/alibaba-labelx/asr-transcription/route-observer.js",
+        "sites/alibaba-labelx/asr-transcription/page-state-collector.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-runtime-config.js",
+        "sites/alibaba-labelx/asr-transcription/runtime-gate.js",
+        "sites/alibaba-labelx/asr-transcription/legacy-api-client.js",
+        "sites/alibaba-labelx/asr-transcription/legacy-user-context.js",
+        "sites/alibaba-labelx/asr-transcription/legacy-dictionary-sync.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-item-collector.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-item-validator.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-feedback.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-item-writer.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-validity-writer.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-text-pipeline.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-quickfill-runner.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-apply-runner.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-apply-policy.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-policy-executor.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-page-plan-preview.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-page-report.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-page-apply-runner.js",
+        "sites/alibaba-labelx/asr-transcription/legacy-save-coordinator.js",
+        "sites/alibaba-labelx/asr-transcription/legacy-ai-punctuation.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-save-runner.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-submit-runner.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-page-flow-runner.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-flow-report.js",
+        "sites/alibaba-labelx/asr-transcription/legacy-export.js",
+        "sites/alibaba-labelx/asr-transcription/legacy-leaderboard.js",
+        "sites/alibaba-labelx/asr-transcription/legacy-version-check.js",
+        "sites/alibaba-labelx/asr-transcription/legacy-auto-assign.js",
+        "sites/alibaba-labelx/asr-transcription/legacy-batch-flow.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-active-item.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-duration-controller.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-audio-controller.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-interaction-runner.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-toolbar.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-control-panel.js",
+        "sites/alibaba-labelx/asr-transcription/settings-panel.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-shortcut-bus.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-action-history.js",
+        "sites/alibaba-labelx/asr-transcription/annotation-debug-snapshot.js",
+        "sites/alibaba-labelx/asr-transcription/runtime-debug.js",
+        "sites/alibaba-labelx/asr-transcription/content.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sites/alibaba-labelx/asr-transcription/page-world/*.js",
+        "sites/alibaba-labelx/asr-transcription/page-world-hook.js"
+      ],
+      "matches": [
+        "https://labelx.alibaba-inc.com/*"
+      ],
+      "use_dynamic_url": true
+    }
+  ]
+}

@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>标注脚本中心</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        min-width: 376px;
+        background:
+          radial-gradient(circle at top left, rgba(22, 119, 255, 0.12), transparent 32%),
+          linear-gradient(160deg, rgba(16, 185, 129, 0.12), rgba(14, 165, 233, 0.08)),
+          #f8fafc;
+        color: #0f172a;
+      }
+
+      .shell {
+        padding: 16px;
+      }
+
+      .panel {
+        display: grid;
+        gap: 14px;
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 20px;
+        padding: 18px;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+      }
+
+      .head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 22px;
+        line-height: 1.2;
+      }
+
+      .copy {
+        margin: 8px 0 0;
+        color: #475569;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .stage {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: rgba(22, 119, 255, 0.1);
+        color: #0f5bd8;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .status-card {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(241, 245, 249, 0.9);
+      }
+
+      .status-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .status-copy strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 14px;
+      }
+
+      .status-copy span {
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .pill.success {
+        background: rgba(16, 185, 129, 0.14);
+        color: #047857;
+      }
+
+      .pill.error {
+        background: rgba(239, 68, 68, 0.14);
+        color: #b91c1c;
+      }
+
+      .pill.disabled {
+        background: rgba(239, 68, 68, 0.14);
+        color: #b91c1c;
+      }
+
+      .pill.pending {
+        background: rgba(148, 163, 184, 0.16);
+        color: #475569;
+      }
+
+      .pill.info {
+        background: rgba(22, 119, 255, 0.1);
+        color: #0f5bd8;
+      }
+
+      .status-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .helper {
+        min-height: 20px;
+        color: #475569;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .actions {
+        display: grid;
+        gap: 8px;
+      }
+
+      button {
+        width: 100%;
+        border: none;
+        border-radius: 12px;
+        padding: 11px 14px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      button:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .primary-button {
+        background: linear-gradient(135deg, #1677ff, #0958d9);
+        color: #ffffff;
+      }
+
+      .secondary-button {
+        background: #e2e8f0;
+        color: #0f172a;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <div class="head">
+          <div>
+            <h1 id="extension-name">标注脚本中心</h1>
+            <p class="copy">外层面板只检测当前页面命中了哪个平台、哪个脚本会生效，以及当前是否成功注入。</p>
+          </div>
+          <div id="stage-label" class="stage">脚本中心</div>
+        </div>
+
+        <section class="status-card">
+          <div class="status-row">
+            <div class="status-copy">
+              <strong id="detected-title">正在检测当前页面...</strong>
+              <span id="detected-description">请稍候。</span>
+            </div>
+            <span id="detected-status-pill" class="pill pending">检测中</span>
+          </div>
+          <div class="status-meta">
+            <span id="detected-platform-pill" class="pill info">平台</span>
+            <span id="detected-script-pill" class="pill pending">脚本</span>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button id="open-script-settings" class="primary-button" type="button" disabled>打开当前脚本设置</button>
+          <button id="open-options" class="secondary-button" type="button">打开脚本中心</button>
+        </div>
+
+        <div id="popup-status" class="helper" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script src="../shared/constants.js"></script>
+    <script src="../shared/storage.js"></script>
+    <script src="./popup.js"></script>
+  </body>
+</html>

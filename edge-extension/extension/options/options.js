@@ -1,0 +1,785 @@
+(function () {
+  const constants = globalThis.ASREdgeConstants || {};
+  const storage = globalThis.ASREdgeStorage || null;
+  const settingsPanel = globalThis.__ASREdgeAlibabaLabelxSettingsPanel || null;
+  const platformLibrary = constants.PLATFORM_LIBRARY || {};
+  const scriptLibrary = constants.SCRIPT_LIBRARY || {};
+  const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
+  const judgementProjectId = constants.JUDGEMENT_PROJECT_ID || "judgement";
+  const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
+  const judgementShortcutActions = constants.JUDGEMENT_SHORTCUT_ACTIONS || [
+    { key: "choiceFirstBetter", label: "选择：第一个更好" },
+    { key: "choiceSecondBetter", label: "选择：第二个更好" },
+    { key: "choiceBothBad", label: "选择：都不好" },
+    { key: "choiceUnsure", label: "选择：不确定或差不多" },
+    { key: "choiceOtherDialect", label: "选择：其他方言或语种" },
+    { key: "volumeUp", label: "增大音量" },
+    { key: "volumeDown", label: "减小音量" },
+    { key: "volumeReset", label: "重置音量" },
+    { key: "rateUp", label: "提高倍速" },
+    { key: "rateDown", label: "降低倍速" },
+    { key: "rateReset", label: "重置倍速" },
+    { key: "playPause", label: "播放/暂停当前音频" },
+  ];
+  const mouseButtonLabels = {
+    0: "MouseLeft",
+    1: "MouseMiddle",
+    2: "MouseRight",
+    3: "MouseBack",
+    4: "MouseForward",
+  };
+  let currentSettings = null;
+  let transcriptionPanelHandle = null;
+  let judgementShortcutsDraft = {};
+  let judgementRecordingKey = null;
+  let stopJudgementRecordingListeners = null;
+
+  function getElement(id) {
+    return document.getElementById(id);
+  }
+
+  function getSearchParams() {
+    return new URLSearchParams(location.search || "");
+  }
+
+  function getCurrentDetailScriptId() {
+    const scriptId = getSearchParams().get("script");
+    return typeof scriptId === "string" && scriptLibrary[scriptId] ? scriptId : null;
+  }
+
+  function navigateToScript(scriptId) {
+    const nextUrl = new URL(location.href);
+    if (scriptId) {
+      nextUrl.searchParams.set("script", scriptId);
+    } else {
+      nextUrl.searchParams.delete("script");
+    }
+
+    history.replaceState({}, "", nextUrl.toString());
+    renderCurrentView();
+  }
+
+  function showError(message) {
+    const node = getElement("options-error");
+    node.textContent = String(message || "脚本中心加载失败。");
+    node.classList.remove("hidden");
+  }
+
+  function hideError() {
+    getElement("options-error").classList.add("hidden");
+  }
+
+  function clone(value) {
+    return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function clampNumber(value, fallback, min, max, precision) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return fallback;
+    }
+
+    const clamped = Math.max(min, Math.min(max, numericValue));
+    return typeof precision === "number" ? Number(clamped.toFixed(precision)) : clamped;
+  }
+
+  function hasOwn(target, key) {
+    return Boolean(target) && Object.prototype.hasOwnProperty.call(target, key);
+  }
+
+  function isLabelxScript(scriptId) {
+    return scriptId === transcriptionProjectId || scriptId === judgementProjectId;
+  }
+
+  function getLabelxActiveScriptId(settings) {
+    return settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId || transcriptionProjectId;
+  }
+
+  function isScriptEnabled(settings, scriptId) {
+    if (scriptId === lightwheelScriptId) {
+      return Boolean(
+        settings?.platforms?.lightwheel?.enabled &&
+          settings?.platforms?.lightwheel?.scripts?.viewPanel?.enabled
+      );
+    }
+
+    if (isLabelxScript(scriptId)) {
+      return Boolean(
+        settings?.platforms?.alibabaLabelx?.enabled &&
+          getLabelxActiveScriptId(settings) === scriptId
+      );
+    }
+
+    return false;
+  }
+
+  function getScriptStatus(settings, scriptId) {
+    if (scriptId === lightwheelScriptId) {
+      return isScriptEnabled(settings, scriptId)
+        ? { text: "已启用", tone: "enabled" }
+        : { text: "未启用", tone: "disabled" };
+    }
+
+    const labelxEnabled = Boolean(settings?.platforms?.alibabaLabelx?.enabled);
+    const activeScriptId = getLabelxActiveScriptId(settings);
+
+    if (!labelxEnabled) {
+      return { text: "未启用", tone: "disabled" };
+    }
+
+    if (activeScriptId === scriptId) {
+      return { text: "当前生效", tone: "enabled" };
+    }
+
+    const activeScript = scriptLibrary[activeScriptId] || {};
+    return {
+      text: "同平台当前为 " + String(activeScript.shortLabel || activeScript.label || activeScriptId),
+      tone: "pending",
+    };
+  }
+
+  function getScriptHostText(scriptId) {
+    if (scriptId === lightwheelScriptId) {
+      return "https://label-cloud.lightwheel.net/w/video3/index.html?access=1";
+    }
+
+    return "https://labelx.alibaba-inc.com/corpora/labeling/*";
+  }
+
+  function setScriptStatusNode(node, status) {
+    node.textContent = status.text;
+    node.className = "script-pill " + status.tone;
+  }
+
+  function unmountTranscriptionPanel() {
+    if (settingsPanel && typeof settingsPanel.unmount === "function") {
+      settingsPanel.unmount();
+    }
+    transcriptionPanelHandle = null;
+    const root = getElement("transcription-settings-root");
+    if (root) {
+      root.innerHTML = "";
+    }
+  }
+
+  function mountTranscriptionPanel() {
+    if (!settingsPanel || typeof settingsPanel.mount !== "function") {
+      showError("语音转写设置面板未加载，无法显示脚本详情。");
+      return null;
+    }
+
+    if (transcriptionPanelHandle) {
+      return transcriptionPanelHandle;
+    }
+
+    const container = getElement("transcription-settings-root");
+    if (!(container instanceof HTMLElement)) {
+      return null;
+    }
+
+    transcriptionPanelHandle = settingsPanel.mount({
+      mode: "page",
+      container: container,
+    });
+    return transcriptionPanelHandle;
+  }
+
+  function normalizeJudgementConfig(settings) {
+    const projectState =
+      settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[judgementProjectId] || {};
+    const asrConfig = projectState.asrConfig || {};
+    const defaults = constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {
+      autoPlay: true,
+      autoResetRate: true,
+      resetRateValue: 1.0,
+      playbackRateValue: 1.0,
+      rateStepValue: 0.25,
+      volumeValue: 100,
+      shortcuts: {},
+    };
+    const shortcuts = {};
+
+    judgementShortcutActions.forEach(function (action) {
+      const shortcut = hasOwn(asrConfig.shortcuts || {}, action.key)
+        ? asrConfig.shortcuts[action.key]
+        : hasOwn(defaults.shortcuts || {}, action.key)
+        ? defaults.shortcuts[action.key]
+        : null;
+      shortcuts[action.key] = normalizeShortcut(shortcut);
+    });
+
+    return {
+      autoPlay: asrConfig.autoPlay !== false,
+      autoResetRate: true,
+      resetRateValue:
+        typeof asrConfig.resetRateValue === "number" && asrConfig.resetRateValue > 0
+          ? asrConfig.resetRateValue
+          : defaults.resetRateValue,
+      playbackRateValue:
+        typeof asrConfig.playbackRateValue === "number" && asrConfig.playbackRateValue > 0
+          ? asrConfig.playbackRateValue
+          : defaults.playbackRateValue,
+      rateStepValue:
+        typeof asrConfig.rateStepValue === "number" && asrConfig.rateStepValue > 0
+          ? asrConfig.rateStepValue
+          : defaults.rateStepValue,
+      volumeValue:
+        typeof asrConfig.volumeValue === "number" && asrConfig.volumeValue >= 0
+          ? asrConfig.volumeValue
+          : defaults.volumeValue,
+      shortcuts: shortcuts,
+    };
+  }
+
+  function normalizeShortcut(shortcut) {
+    if (!shortcut || typeof shortcut !== "object") {
+      return null;
+    }
+
+    const hasKey = typeof shortcut.key === "string" && shortcut.key.length > 0;
+    const hasButton = typeof shortcut.button === "number";
+    if (!hasKey && !hasButton) {
+      return null;
+    }
+
+    return {
+      ctrl: shortcut.ctrl === true,
+      alt: shortcut.alt === true,
+      shift: shortcut.shift === true,
+      meta: shortcut.meta === true,
+      key: hasKey ? shortcut.key : null,
+      button: hasButton ? shortcut.button : null,
+    };
+  }
+
+  function normalizeKeyName(key) {
+    if (key === " ") {
+      return "Space";
+    }
+    return String(key || "");
+  }
+
+  function formatShortcut(shortcut) {
+    const normalized = normalizeShortcut(shortcut);
+    if (!normalized) {
+      return "未设置";
+    }
+
+    const parts = [];
+    if (normalized.ctrl) {
+      parts.push("Ctrl");
+    }
+    if (normalized.alt) {
+      parts.push("Alt");
+    }
+    if (normalized.shift) {
+      parts.push("Shift");
+    }
+    if (normalized.meta) {
+      parts.push("Meta");
+    }
+
+    if (typeof normalized.button === "number") {
+      parts.push(mouseButtonLabels[normalized.button] || "Mouse" + normalized.button);
+    } else {
+      parts.push(normalizeKeyName(normalized.key));
+    }
+
+    return parts.join(" + ");
+  }
+
+  function isModifierOnlyKey(key) {
+    return ["Control", "Alt", "Shift", "Meta"].indexOf(key) >= 0;
+  }
+
+  function shortcutFromKeyboardEvent(event) {
+    if (event.key === "Escape") {
+      return null;
+    }
+
+    if (isModifierOnlyKey(event.key)) {
+      return false;
+    }
+
+    return {
+      ctrl: event.ctrlKey === true,
+      alt: event.altKey === true,
+      shift: event.shiftKey === true,
+      meta: event.metaKey === true,
+      key: event.key === " " ? "Space" : String(event.key),
+      button: null,
+    };
+  }
+
+  function shortcutFromMouseEvent(event) {
+    return {
+      ctrl: event.ctrlKey === true,
+      alt: event.altKey === true,
+      shift: event.shiftKey === true,
+      meta: event.metaKey === true,
+      key: null,
+      button: event.button,
+    };
+  }
+
+  function ensureShortcutDraft() {
+    judgementShortcutActions.forEach(function (action) {
+      if (!Object.prototype.hasOwnProperty.call(judgementShortcutsDraft, action.key)) {
+        judgementShortcutsDraft[action.key] = null;
+      }
+    });
+  }
+
+  function renderJudgementShortcutGrid() {
+    const grid = getElement("judgement-shortcut-grid");
+    if (!grid) {
+      return;
+    }
+
+    ensureShortcutDraft();
+    grid.innerHTML = judgementShortcutActions
+      .map(function (action) {
+        const recording = judgementRecordingKey === action.key;
+        return [
+          '<div class="shortcut-row">',
+          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
+          '<span class="shortcut-value">' +
+            escapeHtml(recording ? "录制中..." : formatShortcut(judgementShortcutsDraft[action.key])) +
+            "</span>",
+          '<button type="button" class="secondary-button" data-record-judgement-shortcut="' +
+            escapeHtml(action.key) +
+            '">' +
+            (recording ? "录制中" : "录制") +
+            "</button>",
+          '<button type="button" class="ghost-button" data-clear-judgement-shortcut="' +
+            escapeHtml(action.key) +
+            '">删除</button>',
+          "</div>",
+        ].join("");
+      })
+      .join("");
+
+    Array.from(grid.querySelectorAll("[data-record-judgement-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        startJudgementShortcutRecording(button.getAttribute("data-record-judgement-shortcut"));
+      });
+    });
+
+    Array.from(grid.querySelectorAll("[data-clear-judgement-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        const key = button.getAttribute("data-clear-judgement-shortcut");
+        judgementShortcutsDraft[key] = null;
+        if (judgementRecordingKey === key) {
+          stopJudgementShortcutRecording("快捷键录制已取消。");
+          return;
+        }
+        setJudgementRecordingStatus("快捷键已删除，保存后生效。");
+        renderJudgementShortcutGrid();
+      });
+    });
+  }
+
+  function setJudgementRecordingStatus(text) {
+    const node = getElement("judgement-recording-status");
+    if (!node) {
+      return;
+    }
+
+    node.textContent = text || "";
+    node.classList.toggle("hidden", !text);
+  }
+
+  function stopJudgementShortcutRecording(statusText) {
+    if (typeof stopJudgementRecordingListeners === "function") {
+      stopJudgementRecordingListeners();
+      stopJudgementRecordingListeners = null;
+    }
+
+    judgementRecordingKey = null;
+    setJudgementRecordingStatus(statusText || "");
+    renderJudgementShortcutGrid();
+  }
+
+  function applyRecordedJudgementShortcut(shortcut) {
+    if (!judgementRecordingKey || shortcut === false) {
+      return;
+    }
+
+    if (!shortcut) {
+      stopJudgementShortcutRecording("已取消快捷键录制。");
+      return;
+    }
+
+    judgementShortcutsDraft[judgementRecordingKey] = normalizeShortcut(shortcut);
+    stopJudgementShortcutRecording("快捷键已录制，保存后生效。");
+  }
+
+  function startJudgementShortcutRecording(actionKey) {
+    if (!actionKey) {
+      return;
+    }
+
+    if (typeof stopJudgementRecordingListeners === "function") {
+      stopJudgementRecordingListeners();
+    }
+
+    judgementRecordingKey = actionKey;
+    const action = judgementShortcutActions.find(function (item) {
+      return item.key === actionKey;
+    });
+
+    setJudgementRecordingStatus(
+      "正在录制「" + String(action?.label || actionKey) + "」：按键盘组合或鼠标按键，Esc 取消。"
+    );
+
+    function preventMouseDefaultOnce(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+    }
+
+    function suppressMouseFollowup() {
+      ["mouseup", "auxclick", "contextmenu"].forEach(function (eventName) {
+        window.addEventListener(eventName, preventMouseDefaultOnce, {
+          capture: true,
+          once: true,
+        });
+      });
+      window.setTimeout(function () {
+        ["mouseup", "auxclick", "contextmenu"].forEach(function (eventName) {
+          window.removeEventListener(eventName, preventMouseDefaultOnce, true);
+        });
+      }, 800);
+    }
+
+    const keydownListener = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+      applyRecordedJudgementShortcut(shortcutFromKeyboardEvent(event));
+    };
+    const mousedownListener = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+      suppressMouseFollowup();
+      applyRecordedJudgementShortcut(shortcutFromMouseEvent(event));
+    };
+
+    window.addEventListener("keydown", keydownListener, true);
+    window.addEventListener("mousedown", mousedownListener, true);
+    stopJudgementRecordingListeners = function () {
+      window.removeEventListener("keydown", keydownListener, true);
+      window.removeEventListener("mousedown", mousedownListener, true);
+    };
+
+    renderJudgementShortcutGrid();
+  }
+
+  function applyJudgementForm(settings) {
+    const config = normalizeJudgementConfig(settings);
+    judgementShortcutsDraft = clone(config.shortcuts) || {};
+    getElement("judgement-volume").value = String(config.volumeValue);
+    getElement("judgement-playback-rate").value = String(config.playbackRateValue);
+    getElement("judgement-rate-step").value = String(config.rateStepValue);
+    getElement("judgement-reset-rate").value = String(config.resetRateValue);
+    getElement("judgement-auto-play").checked = config.autoPlay === true;
+    stopJudgementShortcutRecording("");
+    renderJudgementShortcutGrid();
+  }
+
+  function renderScriptCenter(settings) {
+    const center = getElement("script-center-view");
+    const platformIds = Object.keys(platformLibrary);
+
+    center.innerHTML = platformIds
+      .map(function (platformId) {
+        const platform = platformLibrary[platformId] || {};
+        const scriptIds = Object.keys(scriptLibrary).filter(function (scriptId) {
+          return scriptLibrary[scriptId]?.platformId === platformId;
+        });
+
+        const scriptMarkup = scriptIds
+          .map(function (scriptId) {
+            const script = scriptLibrary[scriptId] || {};
+            const status = getScriptStatus(settings, scriptId);
+            const active = status.tone === "enabled";
+
+            return [
+              '<article class="script-card' + (active ? " active" : "") + '">',
+              '<div class="script-head">',
+              '<div class="script-title">',
+              "<h3>" + String(script.label || scriptId) + "</h3>",
+              '<div class="meta-row">',
+              '<span class="script-pill info">' + String(script.statusLabel || "脚本") + "</span>",
+              '<span class="script-pill ' + status.tone + '">' + status.text + "</span>",
+              "</div>",
+              "</div>",
+              "</div>",
+              '<p class="script-copy">' + String(script.description || "") + "</p>",
+              '<p class="script-copy">匹配 URL：' + getScriptHostText(scriptId) + "</p>",
+              '<div class="script-actions">',
+              '<button type="button" class="primary-button" data-open-script="' + scriptId + '">打开设置</button>',
+              isScriptEnabled(settings, scriptId)
+                ? '<button type="button" class="danger-button" data-disable-script="' + scriptId + '">关闭脚本</button>'
+                : '<button type="button" class="secondary-button" data-enable-script="' + scriptId + '">启用脚本</button>',
+              "</div>",
+              "</article>",
+            ].join("");
+          })
+          .join("");
+
+        return [
+          '<section class="platform-section">',
+          '<div class="platform-head">',
+          "<div>",
+          "<h2>" + String(platform.label || platformId) + "</h2>",
+          '<p class="platform-copy">' + String(platform.description || "") + "</p>",
+          "</div>",
+          '<div class="status-row">',
+          '<span class="pill info">' + String(platform.host || "") + "</span>",
+          "</div>",
+          "</div>",
+          '<div class="script-grid">' + scriptMarkup + "</div>",
+          "</section>",
+        ].join("");
+      })
+      .join("");
+
+    Array.from(center.querySelectorAll("[data-open-script]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        navigateToScript(button.getAttribute("data-open-script"));
+      });
+    });
+
+    Array.from(center.querySelectorAll("[data-enable-script]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        void toggleScript(button.getAttribute("data-enable-script"), true);
+      });
+    });
+
+    Array.from(center.querySelectorAll("[data-disable-script]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        void toggleScript(button.getAttribute("data-disable-script"), false);
+      });
+    });
+  }
+
+  function renderDetailHeader(settings, scriptId) {
+    const script = scriptLibrary[scriptId] || {};
+    const platform = platformLibrary[script.platformId] || {};
+    const status = getScriptStatus(settings, scriptId);
+
+    getElement("detail-script-name").textContent = script.label || scriptId;
+    getElement("detail-script-description").textContent = script.description || "";
+    getElement("detail-script-note").textContent =
+      script.note ||
+      (isLabelxScript(scriptId)
+        ? "同平台脚本互斥：启用这个脚本后，另一个 LabelX 脚本会自动切换为非生效状态。"
+        : "当前脚本属于独立平台。");
+
+    const statusNode = getElement("detail-script-status");
+    statusNode.textContent = status.text;
+    statusNode.className = "pill " + status.tone;
+
+    const platformNode = getElement("detail-platform-pill");
+    platformNode.textContent = String(platform.label || script.platformId || "未知平台");
+
+    const enableButton = getElement("detail-enable-button");
+    const disableButton = getElement("detail-disable-button");
+    const enabled = isScriptEnabled(settings, scriptId);
+
+    enableButton.disabled = enabled;
+    disableButton.disabled = !enabled;
+  }
+
+  function showDetailPanel(scriptId) {
+    getElement("detail-transcription-panel").classList.toggle("hidden", scriptId !== transcriptionProjectId);
+    getElement("detail-judgement-panel").classList.toggle("hidden", scriptId !== judgementProjectId);
+    getElement("detail-lightwheel-panel").classList.toggle("hidden", scriptId !== lightwheelScriptId);
+  }
+
+  function renderDetail(settings, scriptId) {
+    renderDetailHeader(settings, scriptId);
+    showDetailPanel(scriptId);
+    setStatus("detail-status", "");
+
+    if (scriptId === transcriptionProjectId) {
+      const handle = mountTranscriptionPanel();
+      if (handle && typeof handle.refresh === "function") {
+        void handle.refresh();
+      }
+      return;
+    }
+
+    unmountTranscriptionPanel();
+
+    if (scriptId === judgementProjectId) {
+      applyJudgementForm(settings);
+      setStatus("judgement-status", "");
+      return;
+    }
+
+    if (scriptId === lightwheelScriptId) {
+      const enabled = isScriptEnabled(settings, scriptId);
+      setStatus(
+        "lightwheel-status",
+        enabled
+          ? "当前只启用了脚本中心状态位；Lightwheel 扩展运行时还没有迁入。"
+          : "当前脚本未启用。启用后会先纳入 URL 检测和脚本中心管理。"
+      );
+    }
+  }
+
+  function setStatus(targetId, text) {
+    const node = getElement(targetId);
+    if (node) {
+      node.textContent = text || "";
+    }
+  }
+
+  async function loadSettings() {
+    if (!storage || typeof storage.getSettings !== "function") {
+      throw new Error("扩展存储不可用。");
+    }
+
+    currentSettings = await storage.getSettings();
+    return currentSettings;
+  }
+
+  async function toggleScript(scriptId, enabled) {
+    if (!storage || typeof storage.setScriptEnabled !== "function") {
+      setStatus("detail-status", "当前扩展版本不支持脚本启停。");
+      return;
+    }
+
+    const script = scriptLibrary[scriptId] || {};
+    const targetStatus = enabled ? "启用" : "关闭";
+    setStatus("detail-status", "正在" + targetStatus + " " + String(script.label || scriptId) + "...");
+
+    try {
+      currentSettings = await storage.setScriptEnabled(scriptId, enabled);
+      renderCurrentView();
+      setStatus(
+        "detail-status",
+        String(script.label || scriptId) +
+          (enabled
+            ? " 已启用。如当前平台页面已打开，建议刷新一次。"
+            : " 已关闭。")
+      );
+    } catch (error) {
+      setStatus(
+        "detail-status",
+        targetStatus + "失败：" + (error && error.message ? error.message : String(error))
+      );
+    }
+  }
+
+  async function saveJudgementSettings() {
+    if (!storage || typeof storage.saveProjectSettings !== "function") {
+      setStatus("judgement-status", "当前扩展版本不支持保存语音判别设置。");
+      return;
+    }
+
+    const volumeValue = Number(getElement("judgement-volume").value);
+    const playbackRateValue = Number(getElement("judgement-playback-rate").value);
+    const rateStepValue = Number(getElement("judgement-rate-step").value);
+    const resetRateValue = Number(getElement("judgement-reset-rate").value);
+    const autoPlay = Boolean(getElement("judgement-auto-play").checked);
+    const shortcuts = {};
+
+    ensureShortcutDraft();
+    judgementShortcutActions.forEach(function (action) {
+      shortcuts[action.key] = normalizeShortcut(judgementShortcutsDraft[action.key]);
+    });
+
+    setStatus("judgement-status", "正在保存语音判别设置...");
+
+    try {
+      currentSettings = await storage.saveProjectSettings(judgementProjectId, {
+        volumeValue: clampNumber(volumeValue, 100, 0, 1000, 0),
+        playbackRateValue: clampNumber(playbackRateValue, 1.0, 0.25, 5, 2),
+        rateStepValue: clampNumber(rateStepValue, 0.25, 0.05, 1, 2),
+        autoResetRate: true,
+        resetRateValue: clampNumber(resetRateValue, 1.0, 0.25, 5, 2),
+        autoPlay: autoPlay,
+        shortcuts: shortcuts,
+      });
+      renderCurrentView();
+      setStatus("judgement-status", "语音判别设置已保存；已打开的 LabelX 页面会尽量实时同步，未生效时请刷新页面。");
+    } catch (error) {
+      setStatus(
+        "judgement-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+    }
+  }
+
+  async function renderCurrentView() {
+    hideError();
+    const scriptId = getCurrentDetailScriptId();
+    const settings = currentSettings || (await loadSettings());
+
+    document.title = (constants.EXTENSION_NAME || "标注脚本中心") + " - 设置";
+    getElement("extension-name").textContent = constants.EXTENSION_NAME || "标注脚本中心";
+    getElement("stage-label").textContent = constants.STAGE_LABEL || "脚本中心";
+
+    if (!scriptId) {
+      getElement("script-center-view").classList.remove("hidden");
+      getElement("script-detail-view").classList.add("hidden");
+      unmountTranscriptionPanel();
+      renderScriptCenter(settings);
+      return;
+    }
+
+    getElement("script-center-view").classList.add("hidden");
+    getElement("script-detail-view").classList.remove("hidden");
+    renderDetail(settings, scriptId);
+  }
+
+  document.addEventListener("DOMContentLoaded", async function () {
+    getElement("back-to-center").addEventListener("click", function () {
+      navigateToScript(null);
+    });
+
+    getElement("detail-enable-button").addEventListener("click", function () {
+      const scriptId = getCurrentDetailScriptId();
+      if (scriptId) {
+        void toggleScript(scriptId, true);
+      }
+    });
+
+    getElement("detail-disable-button").addEventListener("click", function () {
+      const scriptId = getCurrentDetailScriptId();
+      if (scriptId) {
+        void toggleScript(scriptId, false);
+      }
+    });
+
+    getElement("save-judgement-settings").addEventListener("click", function () {
+      void saveJudgementSettings();
+    });
+
+    try {
+      await loadSettings();
+      await renderCurrentView();
+    } catch (error) {
+      showError(error && error.message ? error.message : String(error));
+    }
+  });
+})();
