@@ -39,15 +39,27 @@
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-head {",
       "  display: flex;",
-      "  align-items: center;",
+      "  align-items: flex-start;",
       "  justify-content: space-between;",
       "  gap: 8px;",
       "  margin-bottom: 4px;",
+      "  min-width: 0;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-title {",
+      "  min-width: 0;",
       "  color: #075985;",
       "  font-weight: 700;",
       "  white-space: nowrap;",
+      "  overflow: hidden;",
+      "  text-overflow: ellipsis;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-meta {",
+      "  display: flex;",
+      "  flex-direction: column;",
+      "  align-items: stretch;",
+      "  gap: 3px;",
+      "  min-width: 118px;",
+      "  max-width: 46%;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-choice {",
       "  min-width: 0;",
@@ -56,6 +68,7 @@
       "  background: #e0f2fe;",
       "  color: #075985;",
       "  font-weight: 700;",
+      "  text-align: right;",
       "  white-space: nowrap;",
       "  overflow: hidden;",
       "  text-overflow: ellipsis;",
@@ -63,6 +76,18 @@
       "[" + ROOT_ATTR + "] .asr-edge-compact-choice[data-empty='true'] {",
       "  background: #f1f5f9;",
       "  color: #64748b;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-audio-time {",
+      "  min-width: 0;",
+      "  padding: 1px 6px;",
+      "  border-radius: 4px;",
+      "  background: #eef2ff;",
+      "  color: #4338ca;",
+      "  font-weight: 700;",
+      "  text-align: right;",
+      "  white-space: nowrap;",
+      "  overflow: hidden;",
+      "  text-overflow: ellipsis;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-row {",
       "  display: grid;",
@@ -81,6 +106,43 @@
       "  text-overflow: ellipsis;",
       "  white-space: nowrap;",
       "  word-break: keep-all;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-row[data-diff='true'] .asr-edge-compact-text {",
+      "  font-family: Consolas, 'Microsoft YaHei UI', 'Microsoft YaHei', monospace;",
+      "  line-height: 1.7;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-diff-summary {",
+      "  display: inline-flex;",
+      "  align-items: center;",
+      "  width: fit-content;",
+      "  max-width: 100%;",
+      "  margin: 0 0 4px 0;",
+      "  padding: 1px 6px;",
+      "  border-radius: 4px;",
+      "  background: #e0f2fe;",
+      "  color: #075985;",
+      "  font-weight: 700;",
+      "  white-space: nowrap;",
+      "  overflow: hidden;",
+      "  text-overflow: ellipsis;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-diff-equal {",
+      "  color: #0f172a;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-diff-change {",
+      "  background: #fef3c7;",
+      "  color: #92400e;",
+      "  border-radius: 3px;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-diff-gap {",
+      "  background: #fee2e2;",
+      "  color: transparent;",
+      "  border-radius: 3px;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-diff-punctuation {",
+      "  background: #ede9fe;",
+      "  color: #5b21b6;",
+      "  border-radius: 3px;",
       "}",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
@@ -114,6 +176,80 @@
       first: parts[0].trim(),
       second: parts.slice(1).join("\n---\n").trim(),
     };
+  }
+
+  function buildFastAlignment(first, second) {
+    const firstChars = Array.from(first || "");
+    const secondChars = Array.from(second || "");
+    const maxLength = Math.max(firstChars.length, secondChars.length);
+    const result = [];
+    for (let index = 0; index < maxLength; index += 1) {
+      result.push({
+        left: firstChars[index] || "",
+        right: secondChars[index] || "",
+        type: firstChars[index] === secondChars[index] ? "equal" : "change",
+      });
+    }
+    return result;
+  }
+
+  function getDiffModule() {
+    return globalThis.__ASREdgeAlibabaLabelxJudgementAsrDiffView || null;
+  }
+
+  function buildAlignment(first, second) {
+    const diffModule = getDiffModule();
+    if (diffModule && typeof diffModule.buildAlignment === "function") {
+      return diffModule.buildAlignment(first || "", second || "");
+    }
+
+    return buildFastAlignment(first, second);
+  }
+
+  function isPunctuation(char) {
+    const diffModule = getDiffModule();
+    if (diffModule && typeof diffModule.isPunctuation === "function") {
+      return diffModule.isPunctuation(char);
+    }
+
+    return /^[\s\p{P}\p{S}]$/u.test(char || "");
+  }
+
+  function summarizeDiff(first, second, alignment) {
+    const diffModule = getDiffModule();
+    if (diffModule && typeof diffModule.summarize === "function") {
+      return diffModule.summarize(first || "", second || "", alignment || []);
+    }
+
+    return first === second ? "完全相同" : "存在差异";
+  }
+
+  function formatSeconds(seconds) {
+    const value = Number(seconds);
+    if (!Number.isFinite(value) || value < 0) {
+      return "--:--";
+    }
+
+    const totalSeconds = Math.floor(value);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const secondPart = String(totalSeconds % 60).padStart(2, "0");
+    if (hours > 0) {
+      return String(hours) + ":" + String(minutes).padStart(2, "0") + ":" + secondPart;
+    }
+
+    return String(minutes) + ":" + secondPart;
+  }
+
+  function getAudioTimeText(item) {
+    const audio = item?.querySelector?.(".dt-audio-base-container audio[controls], audio[controls]");
+    if (!audio) {
+      return "--:-- / --:--";
+    }
+
+    const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : NaN;
+    const currentTime = Number.isFinite(audio.currentTime) && audio.currentTime >= 0 ? audio.currentTime : 0;
+    return formatSeconds(currentTime) + " / " + formatSeconds(duration);
   }
 
   function findWrapByTitle(item, wrapSelector, titleSelector, targetTitle) {
@@ -195,6 +331,35 @@
     parent.appendChild(row);
   }
 
+  function appendDiffChar(parent, char, type) {
+    const span = document.createElement("span");
+    span.textContent = char || "\u00a0";
+    if (type === "equal") {
+      span.className = "asr-edge-compact-diff-equal";
+    } else if (!char) {
+      span.className = "asr-edge-compact-diff-gap";
+      span.title = "此处为空，用于对齐另一条 ASR 文本。";
+    } else if (isPunctuation(char)) {
+      span.className = "asr-edge-compact-diff-punctuation";
+    } else {
+      span.className = "asr-edge-compact-diff-change";
+    }
+    parent.appendChild(span);
+  }
+
+  function appendDiffRow(parent, label, side, alignment) {
+    const row = document.createElement("div");
+    row.className = "asr-edge-compact-row";
+    row.setAttribute("data-diff", "true");
+    appendText(row, "asr-edge-compact-label", label);
+    const textNode = appendText(row, "asr-edge-compact-text", "");
+    alignment.forEach(function (part) {
+      appendDiffChar(textNode, side === "left" ? part.left : part.right, part.type);
+    });
+    textNode.title = textNode.textContent || "";
+    parent.appendChild(row);
+  }
+
   function renderCompactCard(data) {
     const root = document.createElement("div");
     root.setAttribute(ROOT_ATTR, "true");
@@ -202,23 +367,41 @@
     const head = document.createElement("div");
     head.className = "asr-edge-compact-head";
     appendText(head, "asr-edge-compact-title", "两个ASR文本 · " + data.questionText);
+    const meta = document.createElement("div");
+    meta.className = "asr-edge-compact-meta";
     appendText(
-      head,
+      meta,
       "asr-edge-compact-choice",
       "哪个ASR更优：" + (data.choiceText || "未选择"),
       {
         "data-empty": data.choiceText ? "false" : "true",
       }
     );
+    appendText(meta, "asr-edge-compact-audio-time", data.audioTimeText || "--:-- / --:--");
+    head.appendChild(meta);
     root.appendChild(head);
 
-    appendRow(root, "asr_text1", data.first);
-    appendRow(root, "asr_text2", data.second);
+    if (data.renderDiff === true) {
+      const alignment = buildAlignment(data.first, data.second);
+      appendText(root, "asr-edge-compact-diff-summary", summarizeDiff(data.first, data.second, alignment));
+      appendDiffRow(root, "asr_text1", "left", alignment);
+      appendDiffRow(root, "asr_text2", "right", alignment);
+    } else {
+      appendRow(root, "asr_text1", data.first);
+      appendRow(root, "asr_text2", data.second);
+    }
     return root;
   }
 
   function getSignature(data) {
-    return [data.questionText, data.choiceText || "", data.first || "", data.second || ""].join("\n---\n");
+    return [
+      data.questionText,
+      data.choiceText || "",
+      data.audioTimeText || "",
+      data.renderDiff === true ? "diff" : "plain",
+      data.first || "",
+      data.second || "",
+    ].join("\n---\n");
   }
 
   function getItemKey(item) {
@@ -258,7 +441,7 @@
     });
   }
 
-  function upsertCompactCard(item) {
+  function upsertCompactCard(item, renderDiff) {
     const host = getCompactHost(item);
     const key = getItemKey(item);
     if (!host || !key) {
@@ -274,6 +457,8 @@
     const data = {
       questionText: getQuestionText(item),
       choiceText: getChoiceText(item),
+      audioTimeText: getAudioTimeText(item),
+      renderDiff: renderDiff === true,
       first: pair.first,
       second: pair.second,
     };
@@ -315,6 +500,7 @@
 
   function createRuntime(deps) {
     const options = deps && typeof deps === "object" ? deps : {};
+    const audioEvents = ["timeupdate", "loadedmetadata", "durationchange", "seeked", "play", "pause", "ended"];
     let observer = null;
     let timer = null;
     let started = false;
@@ -335,6 +521,7 @@
       let visibleCount = 0;
       let updatedCount = 0;
       const hostActiveKeys = new Map();
+      const renderDiff = options.shouldRenderDiff ? options.shouldRenderDiff() === true : false;
       const items = Array.from(document.querySelectorAll(".labelRender-item[data-index]"));
       items.forEach(function (item) {
         try {
@@ -347,7 +534,7 @@
             hostActiveKeys.get(host).add(key);
           }
           visibleCount += 1;
-          if (upsertCompactCard(item)) {
+          if (upsertCompactCard(item, renderDiff)) {
             updatedCount += 1;
           }
         } catch (error) {
@@ -389,6 +576,9 @@
         characterData: true,
       });
       document.addEventListener("change", scheduleScan, true);
+      audioEvents.forEach(function (eventName) {
+        document.addEventListener(eventName, scheduleScan, true);
+      });
       scan();
     }
 
@@ -403,6 +593,9 @@
         observer = null;
       }
       document.removeEventListener("change", scheduleScan, true);
+      audioEvents.forEach(function (eventName) {
+        document.removeEventListener(eventName, scheduleScan, true);
+      });
       document.querySelectorAll("[" + ROOT_ATTR + "]").forEach(function (node) {
         node.remove();
       });

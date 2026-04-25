@@ -396,5 +396,7 @@
     createRuntime: createRuntime,
     parseAsrText: parseAsrText,
     buildAlignment: buildAlignment,
+    summarize: summarize,
+    isPunctuation: isPunctuation,
   };
 })();

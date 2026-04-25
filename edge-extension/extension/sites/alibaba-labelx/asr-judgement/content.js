@@ -633,6 +633,9 @@
       shouldApply: function () {
         return Boolean(runtimeEnabled && isTopLevelContext());
       },
+      shouldRenderDiff: function () {
+        return getJudgementConfig(settings).asrDiffViewEnabled !== false;
+      },
     });
     return compactCardRuntime;
   }
