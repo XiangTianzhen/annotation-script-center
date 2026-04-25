@@ -2,6 +2,20 @@
   const HIDDEN_CLASS = "asr-edge-judgement-window-hidden";
   const STYLE_ID = "asr-edge-judgement-virtual-window-style";
   const DEFAULT_RADIUS = 5;
+  const STYLE_BACKUP_ATTR = "data-asr-edge-window-style-backup";
+  const HIDDEN_STYLE_PROPS = [
+    ["--labelRender-item-columnCount", "1"],
+    ["--labelRender-item-flexDirection", "row"],
+    ["--labelRender-item-content-flexDirection", "column"],
+    ["--labelRender-item-content-width", "0%"],
+    ["--labelRender-item-content-fontSize", "14"],
+    ["--labelRender-item-answer-fontSize", "14"],
+    ["--labelRender-item-review-flexDirection", "column"],
+    ["--labelRender-item-review-width", "35%"],
+    ["--labelRender-item-review-fontSize", "14"],
+    ["--labelRender-item-content-display", "none"],
+    ["--labelRender-item-answer-display", "none"],
+  ];
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
@@ -12,9 +26,9 @@
     style.id = STYLE_ID;
     style.textContent = [
       "." + HIDDEN_CLASS + " {",
-      "  height: 0 !important;",
-      "  min-height: 0 !important;",
-      "  max-height: 0 !important;",
+      "  height: 2px !important;",
+      "  min-height: 2px !important;",
+      "  max-height: 2px !important;",
       "  margin-top: 0 !important;",
       "  margin-bottom: 0 !important;",
       "  padding-top: 0 !important;",
@@ -30,6 +44,57 @@
       "}",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
+  }
+
+  function readStyleBackup(item) {
+    try {
+      const rawBackup = item.getAttribute(STYLE_BACKUP_ATTR);
+      return rawBackup ? JSON.parse(rawBackup) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeStyleBackup(item) {
+    if (item.hasAttribute(STYLE_BACKUP_ATTR)) {
+      return;
+    }
+
+    const backup = {};
+    HIDDEN_STYLE_PROPS.forEach(function (entry) {
+      const prop = entry[0];
+      backup[prop] = {
+        hasValue: item.style.getPropertyValue(prop) !== "",
+        value: item.style.getPropertyValue(prop),
+        priority: item.style.getPropertyPriority(prop),
+      };
+    });
+    item.setAttribute(STYLE_BACKUP_ATTR, JSON.stringify(backup));
+  }
+
+  function applyHiddenStyleProps(item) {
+    writeStyleBackup(item);
+    HIDDEN_STYLE_PROPS.forEach(function (entry) {
+      item.style.setProperty(entry[0], entry[1]);
+    });
+  }
+
+  function restoreStyleProps(item) {
+    const backup = readStyleBackup(item);
+    if (!backup) {
+      return;
+    }
+
+    HIDDEN_STYLE_PROPS.forEach(function (entry) {
+      const prop = entry[0];
+      const previous = backup[prop];
+      if (previous && previous.hasValue) {
+        item.style.setProperty(prop, previous.value, previous.priority || "");
+      } else {
+        item.style.removeProperty(prop);
+      }
+    });
+    item.removeAttribute(STYLE_BACKUP_ATTR);
   }
 
   function parseQuestionNumber(text) {
@@ -87,6 +152,7 @@
     items.forEach(function (item) {
       item.classList.remove(HIDDEN_CLASS);
       item.removeAttribute("data-asr-edge-window-hidden");
+      restoreStyleProps(item);
     });
   }
 
@@ -153,9 +219,11 @@
         item.classList.toggle(HIDDEN_CLASS, shouldHide);
         if (shouldHide) {
           item.setAttribute("data-asr-edge-window-hidden", "true");
+          applyHiddenStyleProps(item);
           hiddenCount += 1;
         } else {
           item.removeAttribute("data-asr-edge-window-hidden");
+          restoreStyleProps(item);
         }
       });
 

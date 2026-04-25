@@ -13,7 +13,7 @@
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
 - options 快判详情页负责保存快判专属设置：全局音量、当前倍速、倍速步进、切换倍速重置、默认每页条数、自动播放音频、快捷键。
-- 快判提供实验性窗口化显示开关，开启后只展开当前题前后 5 题，其他题卡折叠为 0 高度。
+- 快判提供实验性窗口化显示开关，开启后只展开当前题前后 5 题，其他题卡折叠为 2px 高度。
 - `page-structure/` 负责沉淀快判详情页和任务列表页 DOM 资料，供后续运行时实现使用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
@@ -67,7 +67,8 @@
 
 - 设置字段为 `virtualWindowEnabled`，默认关闭。
 - 开启后，`judgement-virtual-window.js` 会优先从当前选中题卡的 `.labelRender-answerNav-status` 文本解析题号，例如 `第 1 题`；解析失败时回退到 `.labelRender-item[data-index]`。
-- 当前题前后各 5 题保持展开，其余 `.labelRender-item[data-index]` 会添加 `asr-edge-judgement-window-hidden`，通过高度、边距、内边距和边框归零降低页面渲染压力。
+- 当前题前后各 5 题保持展开，其余 `.labelRender-item[data-index]` 会添加 `asr-edge-judgement-window-hidden`，高度压缩为 2px，并按 LabelX 官方 inline style 方式设置 `--labelRender-item-content-display: none` 与 `--labelRender-item-answer-display: none` 等 CSS 变量。
+- 被折叠题卡的原始 CSS 变量会暂存在 `data-asr-edge-window-style-backup`，题卡重新进入窗口或关闭功能时恢复。
 - 该功能不删除 DOM、不主动保存、不改写 LabelX 数据，只做样式折叠；如果发现滚动定位、题卡选中或校验异常，可以在 options 中关闭。
 
 ## 人工验证步骤
