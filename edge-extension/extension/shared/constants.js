@@ -24,7 +24,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 10;
+  const SCHEMA_VERSION = 11;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
@@ -180,6 +180,7 @@
     rateStepValue: 0.25,
     volumeValue: 100,
     virtualWindowEnabled: false,
+    asrDiffViewEnabled: true,
     autoAdvanceAfterChoice: false,
     shortcuts: {
       choiceFirstBetter: createShortcut("1"),
@@ -221,6 +222,7 @@
     "rateStepValue",
     "volumeValue",
     "virtualWindowEnabled",
+    "asrDiffViewEnabled",
     "autoAdvanceAfterChoice",
     "shortcuts",
   ];

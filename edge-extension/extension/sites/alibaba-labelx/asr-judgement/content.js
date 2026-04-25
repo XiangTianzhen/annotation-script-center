@@ -104,6 +104,7 @@
       resetRateValue: 1.0,
       volumeValue: 100,
       virtualWindowEnabled: false,
+      asrDiffViewEnabled: true,
       autoAdvanceAfterChoice: false,
       shortcuts: {
         playPause: {
@@ -579,6 +580,11 @@
   }
 
   function startDiffView() {
+    if (getJudgementConfig(settings).asrDiffViewEnabled === false) {
+      stopDiffView();
+      return;
+    }
+
     const runtime = ensureDiffViewRuntime();
     if (runtime && typeof runtime.start === "function") {
       runtime.start();

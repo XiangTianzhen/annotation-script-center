@@ -246,6 +246,7 @@
       volumeValue: 100,
       itemsPerPage: "100 条/页",
       virtualWindowEnabled: false,
+      asrDiffViewEnabled: true,
       autoAdvanceAfterChoice: false,
       shortcuts: {},
     };
@@ -284,6 +285,7 @@
         defaults.itemsPerPage || "100 条/页"
       ),
       virtualWindowEnabled: false,
+      asrDiffViewEnabled: asrConfig.asrDiffViewEnabled !== false,
       autoAdvanceAfterChoice: asrConfig.autoAdvanceAfterChoice === true,
       shortcuts: shortcuts,
     };
@@ -549,6 +551,7 @@
     getElement("judgement-reset-rate").value = String(config.resetRateValue);
     getElement("judgement-items-per-page").value = config.itemsPerPage;
     getElement("judgement-auto-play").checked = config.autoPlay === true;
+    getElement("judgement-asr-diff-view").checked = config.asrDiffViewEnabled !== false;
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     stopJudgementShortcutRecording("");
     renderJudgementShortcutGrid();
@@ -756,6 +759,7 @@
       "100 条/页"
     );
     const autoPlay = Boolean(getElement("judgement-auto-play").checked);
+    const asrDiffViewEnabled = Boolean(getElement("judgement-asr-diff-view").checked);
     const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
     const shortcuts = {};
 
@@ -776,6 +780,7 @@
         itemsPerPage: itemsPerPage,
         autoPlay: autoPlay,
         virtualWindowEnabled: false,
+        asrDiffViewEnabled: asrDiffViewEnabled,
         autoAdvanceAfterChoice: autoAdvanceAfterChoice,
         shortcuts: shortcuts,
       });
