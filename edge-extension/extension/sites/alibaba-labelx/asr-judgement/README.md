@@ -73,8 +73,9 @@
 
 ## 统计数据上传
 
-- `asr-judgement-server.js` 同时承担两类职责：作为扩展侧统计上传运行时被 content script 注入；也可以用 Node 直接启动本地统计接收服务。
-- 本地启动命令：在仓库根目录运行 `node edge-extension/extension/sites/alibaba-labelx/asr-judgement/asr-judgement-server.js`，默认监听 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`。
+- `asr-judgement-server.js` 只负责扩展侧统计上传运行时，被 content script 注入到 LabelX 页面。
+- `backend/` 只负责 Node 本地统计接收服务，不会被 manifest 注入；启动入口是 `backend/server.js`。
+- 本地启动命令：在仓库根目录运行 `node edge-extension/extension/sites/alibaba-labelx/asr-judgement/backend/server.js`，默认监听 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`。
 - 本地服务会把上传事件写入 `statistics-data/statistics-upload-events.jsonl`，并按 `分包ID` 合并生成 `statistics-data/statistics-merged.csv`；该目录是本地调试产物，不应提交。
 - 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 列顺序：`任务名称`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
 - 扩展只能可靠识别当前页面所属的一个子任务，因此上传的是“分包级补丁记录”：基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端需要以 `mergeKey.batchId` / `分包ID` 做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
@@ -210,6 +211,14 @@ asr-judgement/
   judgement-asr-diff-view.js
   judgement-compact-card.js
   asr-judgement-server.js
+  backend/
+    server.js
+    http-server.js
+    payload-merge.js
+    file-store.js
+    csv-columns.js
+    csv-writer.js
+    README.md
   judgement-auto-advance.js
   audio-controller.js
   audio-volume-controller.js
@@ -264,7 +273,8 @@ asr-judgement/
 - `judgement-virtual-window.js`：暂存未完成的实验性窗口化显示代码，当前不启用。
 - `judgement-asr-diff-view.js`：维护 ASR 文本对齐差异视图、差异摘要、对齐算法和高亮颜色。
 - `judgement-compact-card.js`：维护轻量题卡摘要，在 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，并支持配合隐藏内容区 / 回答区和卡片宽度调整使用。
-- `asr-judgement-server.js`：维护统计数据采集、options 手动上传、定时上传、远程时间配置 URL 预留，并可用 Node 启动本地调试接收服务。
+- `asr-judgement-server.js`：维护扩展侧统计数据采集、options 手动上传、定时上传和远程时间配置 URL 预留。
+- `backend/`：维护 Node 本地调试接收服务，`server.js` 是启动入口，其余小文件分别处理 HTTP、CSV 列、CSV 写入、文件存储和分包合并。
 - `judgement-auto-advance.js`：维护选择判别结果后的当前页自动下一题。
 - `audio-controller.js`：只保留音频扫描、配置、状态和动作路由。
 - `audio-volume-controller.js`：维护音量与 Web Audio gain 逻辑。
