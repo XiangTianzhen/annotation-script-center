@@ -111,6 +111,11 @@
 - 每条题卡由“内容区 + 回答区”组成：
   - 内容区：音频播放器 + 两个 ASR 文本 + `wav_id`
   - 回答区：单选组 + 特殊情况文本框 + 历史标注按钮
+- 两个 ASR 文本的 DOM 结构：
+  - 外层内容块：`.labelRender-item-content-wrap`
+  - 标题：`.labelRender-item-content-title`，文本为 `两个ASR文本`
+  - 原始文本容器：`.dt-text-wrapper .dt-text-container`
+  - 原始文本形态：`asr_text1: ...\nasr_text2: ...`
 - 初始化模板中的 `transcription-textarea.html` 在本页不适用，因为没有独立转写文本框。
 
 ## 当前扩展脚本开发建议
@@ -126,6 +131,7 @@
 - 自定义快判工具栏当前由 `judgement-toolbar.js` 挂载到 `.mark-toolbox`。
 - 顶部总时长当前由 `judgement-toolbar.js` 挂载到 `.header-component-container`。
 - 默认每页条数切换由 `judgement-page-size.js` 驱动，网络层由 `page-world/network-url-rewriter.js` 改写 data 请求。
+- ASR 对齐差异视图应以标题文本 `两个ASR文本` 定位内容块，再解析 `asr_text1:` 与 `asr_text2:`，不要依赖具体 ASR 文本内容。
 
 ## 采集备注
 

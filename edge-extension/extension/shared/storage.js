@@ -62,6 +62,7 @@
         "rateStepValue",
         "volumeValue",
         "virtualWindowEnabled",
+        "autoAdvanceAfterChoice",
         "shortcuts",
       ],
       SHORTCUT_COMPATIBILITY_MAP: {},

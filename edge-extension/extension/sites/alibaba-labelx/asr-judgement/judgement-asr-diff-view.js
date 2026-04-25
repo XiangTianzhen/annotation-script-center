@@ -1,0 +1,400 @@
+(function () {
+  const ROOT_ATTR = "data-asr-edge-judgement-diff-view";
+  const RAW_HIDDEN_ATTR = "data-asr-edge-judgement-diff-raw-hidden";
+  const STYLE_ID = "asr-edge-judgement-diff-view-style";
+  const MAX_DP_CELLS = 160000;
+
+  function ensureStyle() {
+    if (document.getElementById(STYLE_ID)) {
+      return;
+    }
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = [
+      "[" + ROOT_ATTR + "] {",
+      "  margin-top: 8px;",
+      "  padding: 8px 10px;",
+      "  border: 1px solid #bfdbfe;",
+      "  border-radius: 6px;",
+      "  background: #f8fbff;",
+      "  color: #0f172a;",
+      "  font-size: 13px;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-diff-summary {",
+      "  display: inline-flex;",
+      "  align-items: center;",
+      "  gap: 6px;",
+      "  margin-bottom: 6px;",
+      "  padding: 2px 6px;",
+      "  border-radius: 4px;",
+      "  background: #e0f2fe;",
+      "  color: #075985;",
+      "  font-weight: 700;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-diff-row {",
+      "  display: grid;",
+      "  grid-template-columns: 74px minmax(0, 1fr);",
+      "  gap: 8px;",
+      "  align-items: start;",
+      "  margin-top: 4px;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-diff-label {",
+      "  color: #475569;",
+      "  font-weight: 700;",
+      "  white-space: nowrap;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-diff-text {",
+      "  font-family: Consolas, 'Microsoft YaHei UI', 'Microsoft YaHei', monospace;",
+      "  white-space: pre-wrap;",
+      "  word-break: break-all;",
+      "  line-height: 1.75;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-diff-equal {",
+      "  color: #0f172a;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-diff-change {",
+      "  background: #fef3c7;",
+      "  color: #92400e;",
+      "  border-radius: 3px;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-diff-gap {",
+      "  background: #fee2e2;",
+      "  color: transparent;",
+      "  border-radius: 3px;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-diff-punctuation {",
+      "  background: #ede9fe;",
+      "  color: #5b21b6;",
+      "  border-radius: 3px;",
+      "}",
+    ].join("\n");
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function isPunctuation(char) {
+    return /^[\s\p{P}\p{S}]$/u.test(char || "");
+  }
+
+  function normalizeForPunctuationCompare(text) {
+    return Array.from(String(text || ""))
+      .filter(function (char) {
+        return !isPunctuation(char);
+      })
+      .join("");
+  }
+
+  function parseAsrText(rawText) {
+    const text = String(rawText || "").replace(/\r\n/g, "\n");
+    const match = text.match(/asr_text1\s*:\s*([\s\S]*?)\s*asr_text2\s*:\s*([\s\S]*)$/);
+    if (!match) {
+      return null;
+    }
+
+    return {
+      first: match[1].trim(),
+      second: match[2].trim(),
+    };
+  }
+
+  function buildFastAlignment(first, second) {
+    const firstChars = Array.from(first);
+    const secondChars = Array.from(second);
+    const maxLength = Math.max(firstChars.length, secondChars.length);
+    const result = [];
+    for (let index = 0; index < maxLength; index += 1) {
+      result.push({
+        left: firstChars[index] || "",
+        right: secondChars[index] || "",
+        type: firstChars[index] === secondChars[index] ? "equal" : "change",
+      });
+    }
+    return result;
+  }
+
+  function buildAlignment(first, second) {
+    const firstChars = Array.from(first);
+    const secondChars = Array.from(second);
+    const rowCount = firstChars.length + 1;
+    const colCount = secondChars.length + 1;
+    if (rowCount * colCount > MAX_DP_CELLS) {
+      return buildFastAlignment(first, second);
+    }
+
+    const scores = Array.from({ length: rowCount }, function () {
+      return Array(colCount).fill(0);
+    });
+    const steps = Array.from({ length: rowCount }, function () {
+      return Array(colCount).fill("");
+    });
+
+    for (let row = 1; row < rowCount; row += 1) {
+      scores[row][0] = row;
+      steps[row][0] = "delete";
+    }
+    for (let col = 1; col < colCount; col += 1) {
+      scores[0][col] = col;
+      steps[0][col] = "insert";
+    }
+
+    for (let row = 1; row < rowCount; row += 1) {
+      for (let col = 1; col < colCount; col += 1) {
+        const same = firstChars[row - 1] === secondChars[col - 1];
+        const substituteCost = same ? 0 : 1.2;
+        const candidates = [
+          { score: scores[row - 1][col - 1] + substituteCost, step: same ? "equal" : "change" },
+          { score: scores[row - 1][col] + 1, step: "delete" },
+          { score: scores[row][col - 1] + 1, step: "insert" },
+        ].sort(function (left, right) {
+          return left.score - right.score;
+        });
+        scores[row][col] = candidates[0].score;
+        steps[row][col] = candidates[0].step;
+      }
+    }
+
+    const alignment = [];
+    let row = firstChars.length;
+    let col = secondChars.length;
+    while (row > 0 || col > 0) {
+      const step = steps[row][col];
+      if (step === "equal" || step === "change") {
+        alignment.push({
+          left: firstChars[row - 1],
+          right: secondChars[col - 1],
+          type: step,
+        });
+        row -= 1;
+        col -= 1;
+      } else if (step === "delete") {
+        alignment.push({
+          left: firstChars[row - 1],
+          right: "",
+          type: "gap",
+        });
+        row -= 1;
+      } else {
+        alignment.push({
+          left: "",
+          right: secondChars[col - 1],
+          type: "gap",
+        });
+        col -= 1;
+      }
+    }
+
+    return alignment.reverse();
+  }
+
+  function summarize(first, second, alignment) {
+    if (first === second) {
+      return "完全相同";
+    }
+
+    if (normalizeForPunctuationCompare(first) === normalizeForPunctuationCompare(second)) {
+      return "仅标点或空格不同";
+    }
+
+    let gapCount = 0;
+    let changeCount = 0;
+    alignment.forEach(function (part) {
+      if (part.type === "gap") {
+        gapCount += 1;
+      } else if (part.type === "change") {
+        changeCount += 1;
+      }
+    });
+
+    if (gapCount > 0 && changeCount === 0) {
+      return "存在缺字或多字";
+    }
+    if (Math.abs(Array.from(first).length - Array.from(second).length) >= 4) {
+      return "长度差异较大";
+    }
+    return "存在 " + String(gapCount + changeCount) + " 处差异";
+  }
+
+  function appendChar(parent, char, type) {
+    const span = document.createElement("span");
+    const normalizedChar = char || "\u00a0";
+    span.textContent = normalizedChar;
+
+    if (type === "equal") {
+      span.className = "asr-edge-diff-equal";
+    } else if (!char) {
+      span.className = "asr-edge-diff-gap";
+      span.title = "此处为空，用于对齐另一条 ASR 文本。";
+    } else if (isPunctuation(char)) {
+      span.className = "asr-edge-diff-punctuation";
+    } else {
+      span.className = "asr-edge-diff-change";
+    }
+
+    parent.appendChild(span);
+  }
+
+  function createTextRow(label, side, alignment) {
+    const row = document.createElement("div");
+    row.className = "asr-edge-diff-row";
+
+    const labelNode = document.createElement("div");
+    labelNode.className = "asr-edge-diff-label";
+    labelNode.textContent = label;
+    row.appendChild(labelNode);
+
+    const textNode = document.createElement("div");
+    textNode.className = "asr-edge-diff-text";
+    alignment.forEach(function (part) {
+      const char = side === "left" ? part.left : part.right;
+      appendChar(textNode, char, part.type);
+    });
+    row.appendChild(textNode);
+    return row;
+  }
+
+  function renderDiffView(pair) {
+    const alignment = buildAlignment(pair.first, pair.second);
+    const root = document.createElement("div");
+    root.setAttribute(ROOT_ATTR, "true");
+
+    const summary = document.createElement("div");
+    summary.className = "asr-edge-diff-summary";
+    summary.textContent = summarize(pair.first, pair.second, alignment);
+    root.appendChild(summary);
+    root.appendChild(createTextRow("asr_text1", "left", alignment));
+    root.appendChild(createTextRow("asr_text2", "right", alignment));
+    return root;
+  }
+
+  function findAsrTextWraps() {
+    return Array.from(document.querySelectorAll(".labelRender-item-content-wrap")).filter(function (wrap) {
+      const title = wrap.querySelector(".labelRender-item-content-title");
+      return String(title?.textContent || "").trim() === "两个ASR文本";
+    });
+  }
+
+  function processWrap(wrap) {
+    const sourceWrapper = wrap.querySelector(".dt-text-wrapper");
+    const sourceContainer = sourceWrapper?.querySelector(".dt-text-container");
+    if (!sourceWrapper || !sourceContainer) {
+      return false;
+    }
+
+    const pair = parseAsrText(sourceContainer.textContent || "");
+    if (!pair) {
+      return false;
+    }
+
+    const signature = pair.first + "\n---\n" + pair.second;
+    const existing = wrap.querySelector("[" + ROOT_ATTR + "]");
+    if (existing && existing.getAttribute("data-asr-edge-signature") === signature) {
+      sourceWrapper.style.display = "none";
+      sourceWrapper.setAttribute(RAW_HIDDEN_ATTR, "true");
+      return false;
+    }
+
+    const nextView = renderDiffView(pair);
+    nextView.setAttribute("data-asr-edge-signature", signature);
+    if (existing) {
+      existing.replaceWith(nextView);
+    } else {
+      sourceWrapper.insertAdjacentElement("afterend", nextView);
+    }
+
+    sourceWrapper.style.display = "none";
+    sourceWrapper.setAttribute(RAW_HIDDEN_ATTR, "true");
+    return true;
+  }
+
+  function createRuntime(deps) {
+    const options = deps && typeof deps === "object" ? deps : {};
+    let observer = null;
+    let timer = null;
+    let started = false;
+    let state = {
+      processedCount: 0,
+      lastUpdatedAt: null,
+    };
+
+    function scan() {
+      timer = null;
+      if (!started || (options.shouldApply && !options.shouldApply())) {
+        return;
+      }
+
+      ensureStyle();
+      let processedCount = 0;
+      findAsrTextWraps().forEach(function (wrap) {
+        if (processWrap(wrap)) {
+          processedCount += 1;
+        }
+      });
+
+      state = {
+        processedCount: processedCount,
+        lastUpdatedAt: new Date().toISOString(),
+      };
+    }
+
+    function scheduleScan() {
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+      timer = window.setTimeout(scan, 180);
+    }
+
+    function start() {
+      if (started) {
+        scheduleScan();
+        return;
+      }
+
+      started = true;
+      observer = new MutationObserver(scheduleScan);
+      observer.observe(document.documentElement || document, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+      scheduleScan();
+    }
+
+    function stop() {
+      started = false;
+      if (timer) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+
+      document.querySelectorAll("[" + ROOT_ATTR + "]").forEach(function (node) {
+        node.remove();
+      });
+      document.querySelectorAll("[" + RAW_HIDDEN_ATTR + "]").forEach(function (node) {
+        node.style.display = "";
+        node.removeAttribute(RAW_HIDDEN_ATTR);
+      });
+    }
+
+    function getState() {
+      return Object.assign({}, state, {
+        started: started,
+      });
+    }
+
+    return {
+      start: start,
+      stop: stop,
+      getState: getState,
+    };
+  }
+
+  globalThis.__ASREdgeAlibabaLabelxJudgementAsrDiffView = {
+    createRuntime: createRuntime,
+    parseAsrText: parseAsrText,
+    buildAlignment: buildAlignment,
+  };
+})();

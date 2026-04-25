@@ -246,6 +246,7 @@
       volumeValue: 100,
       itemsPerPage: "100 条/页",
       virtualWindowEnabled: false,
+      autoAdvanceAfterChoice: false,
       shortcuts: {},
     };
     const shortcuts = {};
@@ -283,6 +284,7 @@
         defaults.itemsPerPage || "100 条/页"
       ),
       virtualWindowEnabled: false,
+      autoAdvanceAfterChoice: asrConfig.autoAdvanceAfterChoice === true,
       shortcuts: shortcuts,
     };
   }
@@ -547,6 +549,7 @@
     getElement("judgement-reset-rate").value = String(config.resetRateValue);
     getElement("judgement-items-per-page").value = config.itemsPerPage;
     getElement("judgement-auto-play").checked = config.autoPlay === true;
+    getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     stopJudgementShortcutRecording("");
     renderJudgementShortcutGrid();
   }
@@ -753,6 +756,7 @@
       "100 条/页"
     );
     const autoPlay = Boolean(getElement("judgement-auto-play").checked);
+    const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
     const shortcuts = {};
 
     ensureShortcutDraft();
@@ -772,6 +776,7 @@
         itemsPerPage: itemsPerPage,
         autoPlay: autoPlay,
         virtualWindowEnabled: false,
+        autoAdvanceAfterChoice: autoAdvanceAfterChoice,
         shortcuts: shortcuts,
       });
       renderCurrentView();

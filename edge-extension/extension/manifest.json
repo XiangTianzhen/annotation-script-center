@@ -65,6 +65,8 @@
         "sites/alibaba-labelx/asr-judgement/judgement-page-size.js",
         "sites/alibaba-labelx/asr-judgement/judgement-duration-summary.js",
         "sites/alibaba-labelx/asr-judgement/judgement-virtual-window.js",
+        "sites/alibaba-labelx/asr-judgement/judgement-asr-diff-view.js",
+        "sites/alibaba-labelx/asr-judgement/judgement-auto-advance.js",
         "sites/alibaba-labelx/asr-judgement/judgement-actions.js",
         "sites/alibaba-labelx/asr-judgement/judgement-toast.js",
         "sites/alibaba-labelx/asr-judgement/judgement-shortcuts.js",

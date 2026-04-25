@@ -7,6 +7,8 @@
   const pageSizeModule = globalThis.__ASREdgeAlibabaLabelxJudgementPageSize || null;
   const durationSummaryModule = globalThis.__ASREdgeAlibabaLabelxJudgementDurationSummary || null;
   const virtualWindowModule = globalThis.__ASREdgeAlibabaLabelxJudgementVirtualWindow || null;
+  const diffViewModule = globalThis.__ASREdgeAlibabaLabelxJudgementAsrDiffView || null;
+  const autoAdvanceModule = globalThis.__ASREdgeAlibabaLabelxJudgementAutoAdvance || null;
   const actionModule = globalThis.__ASREdgeAlibabaLabelxJudgementActions || null;
   const toastModule = globalThis.__ASREdgeAlibabaLabelxJudgementToast || null;
   const shortcutModule = globalThis.__ASREdgeAlibabaLabelxJudgementShortcuts || null;
@@ -28,6 +30,8 @@
   let toastRuntime = null;
   let toolbarRuntime = null;
   let virtualWindowRuntime = null;
+  let diffViewRuntime = null;
+  let autoAdvanceRuntime = null;
   let durationSummary = {
     status: "idle",
     totalSeconds: 0,
@@ -100,6 +104,7 @@
       resetRateValue: 1.0,
       volumeValue: 100,
       virtualWindowEnabled: false,
+      autoAdvanceAfterChoice: false,
       shortcuts: {
         playPause: {
           ctrl: false,
@@ -283,6 +288,44 @@
     );
   }
 
+  function isChoiceAction(actionKey) {
+    return Boolean(getChoiceAction(actionKey));
+  }
+
+  function ensureAutoAdvanceRuntime() {
+    if (
+      autoAdvanceRuntime ||
+      !autoAdvanceModule ||
+      typeof autoAdvanceModule.createRuntime !== "function"
+    ) {
+      return autoAdvanceRuntime;
+    }
+
+    autoAdvanceRuntime = autoAdvanceModule.createRuntime({
+      shouldApply: function () {
+        return Boolean(runtimeEnabled && isTopLevelContext());
+      },
+    });
+    return autoAdvanceRuntime;
+  }
+
+  function maybeAutoAdvanceAfterChoice(actionKey, result) {
+    if (!isChoiceAction(actionKey) || result?.ok !== true) {
+      return Promise.resolve(null);
+    }
+
+    if (getJudgementConfig(settings).autoAdvanceAfterChoice !== true) {
+      return Promise.resolve(null);
+    }
+
+    const runtime = ensureAutoAdvanceRuntime();
+    if (!runtime || typeof runtime.advance !== "function") {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve(runtime.advance(result));
+  }
+
   function ensureToastRuntime() {
     if (toastRuntime || !toastModule || typeof toastModule.createRuntime !== "function") {
       return toastRuntime;
@@ -306,15 +349,20 @@
   function runActionWithFeedback(actionKey, source, statusReason, statusKey) {
     void runRuntimeAction(actionKey, source)
       .then(function (result) {
-        lastStatus = buildStatus(statusReason + actionKey);
-        lastStatus[statusKey] = {
-          actionKey: actionKey,
-          result: result || null,
-        };
-        showRuntimeToast(
-          result?.message || (source === "shortcut" ? "快捷键已执行。" : "操作已执行。"),
-          result?.ok === false ? "error" : "info"
-        );
+        return maybeAutoAdvanceAfterChoice(actionKey, result).then(function (advanceResult) {
+          lastStatus = buildStatus(statusReason + actionKey);
+          lastStatus[statusKey] = {
+            actionKey: actionKey,
+            result: result || null,
+            advance: advanceResult || null,
+          };
+          showRuntimeToast(
+            advanceResult?.message ||
+              result?.message ||
+              (source === "shortcut" ? "快捷键已执行。" : "操作已执行。"),
+            result?.ok === false || advanceResult?.ok === false ? "error" : "info"
+          );
+        });
       })
       .catch(function (error) {
         showRuntimeToast(
@@ -517,6 +565,32 @@
     }
   }
 
+  function ensureDiffViewRuntime() {
+    if (diffViewRuntime || !diffViewModule || typeof diffViewModule.createRuntime !== "function") {
+      return diffViewRuntime;
+    }
+
+    diffViewRuntime = diffViewModule.createRuntime({
+      shouldApply: function () {
+        return Boolean(runtimeEnabled && isTopLevelContext());
+      },
+    });
+    return diffViewRuntime;
+  }
+
+  function startDiffView() {
+    const runtime = ensureDiffViewRuntime();
+    if (runtime && typeof runtime.start === "function") {
+      runtime.start();
+    }
+  }
+
+  function stopDiffView() {
+    if (diffViewRuntime && typeof diffViewRuntime.stop === "function") {
+      diffViewRuntime.stop();
+    }
+  }
+
   function getMissingRequiredModules() {
     return [
       { name: "page-detector", value: detector },
@@ -524,6 +598,8 @@
       { name: "judgement-page-size", value: pageSizeModule },
       { name: "judgement-duration-summary", value: durationSummaryModule },
       { name: "judgement-virtual-window", value: virtualWindowModule },
+      { name: "judgement-asr-diff-view", value: diffViewModule },
+      { name: "judgement-auto-advance", value: autoAdvanceModule },
       { name: "judgement-actions", value: actionModule },
       { name: "judgement-toast", value: toastModule },
       { name: "judgement-shortcuts", value: shortcutModule },
@@ -590,6 +666,14 @@
         virtualWindowRuntime && typeof virtualWindowRuntime.getState === "function"
           ? virtualWindowRuntime.getState()
           : null,
+      diffView:
+        diffViewRuntime && typeof diffViewRuntime.getState === "function"
+          ? diffViewRuntime.getState()
+          : null,
+      autoAdvance:
+        autoAdvanceRuntime && typeof autoAdvanceRuntime.getState === "function"
+          ? autoAdvanceRuntime.getState()
+          : null,
     };
   }
 
@@ -652,6 +736,7 @@
     stopToolbar();
     stopConfiguredPageSizeApply();
     stopVirtualWindow();
+    stopDiffView();
     if (audioController && typeof audioController.stop === "function") {
       audioController.stop();
     }
@@ -698,6 +783,7 @@
         bindShortcutListeners();
         startToolbar();
         startVirtualWindow();
+        startDiffView();
         postNetworkConfig(reason || "runtime-started");
         refreshDurationSummary(reason || "runtime-started");
         scheduleConfiguredPageSizeApply(reason || "runtime-started");
