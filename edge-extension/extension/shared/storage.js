@@ -163,7 +163,6 @@
   }
 
   const JUDGEMENT_ITEMS_PER_PAGE_VALUES = [
-    "all",
     "1 条/页",
     "2 条/页",
     "3 条/页",
@@ -174,6 +173,10 @@
     "30 条/页",
     "40 条/页",
     "50 条/页",
+    "100 条/页",
+    "150 条/页",
+    "200 条/页",
+    "400 条/页",
   ];
 
   function normalizeJudgementItemsPerPage(value, fallback) {
@@ -187,19 +190,19 @@
       text === "400 条/页" ||
       text === "400条/页"
     ) {
-      return "all";
+      return "400 条/页";
     }
 
     if (JUDGEMENT_ITEMS_PER_PAGE_VALUES.indexOf(text) >= 0) {
       return text;
     }
 
-    return JUDGEMENT_ITEMS_PER_PAGE_VALUES.indexOf(fallback) >= 0 ? fallback : "all";
+    return JUDGEMENT_ITEMS_PER_PAGE_VALUES.indexOf(fallback) >= 0 ? fallback : "100 条/页";
   }
 
   function normalizeJudgementAsrConfig(config) {
     const constants = getConstants();
-    const fallback = constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "all";
+    const fallback = constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "100 条/页";
     const nextConfig = isPlainObject(config) ? config : {};
     nextConfig.itemsPerPage = normalizeJudgementItemsPerPage(
       nextConfig.itemsPerPage,
@@ -596,7 +599,7 @@
     ) {
       settings.asr = isPlainObject(settings.asr) ? settings.asr : {};
       settings.asr.itemsPerPage =
-        constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "all";
+        constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "100 条/页";
     }
 
     if (currentSchemaVersion < 6) {

@@ -471,9 +471,8 @@
 
             <label class="field-card">
               <strong>默认每页条数</strong>
-              <span>进入快判详情页后自动尝试切换分页；“全部”会尝试一次加载 400 条。</span>
+              <span>进入快判详情页后自动尝试切换分页；100/150/200/400 会通过 data 请求改写实现，数值越大页面越容易卡顿。</span>
               <select id="judgement-items-per-page">
-                <option value="all">全部（400 条）</option>
                 <option value="1 条/页">1 条/页</option>
                 <option value="2 条/页">2 条/页</option>
                 <option value="3 条/页">3 条/页</option>
@@ -484,6 +483,10 @@
                 <option value="30 条/页">30 条/页</option>
                 <option value="40 条/页">40 条/页</option>
                 <option value="50 条/页">50 条/页</option>
+                <option value="100 条/页">100 条/页</option>
+                <option value="150 条/页">150 条/页</option>
+                <option value="200 条/页">200 条/页</option>
+                <option value="400 条/页">400 条/页</option>
               </select>
             </label>
           </div>

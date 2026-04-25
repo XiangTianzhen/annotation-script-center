@@ -17,7 +17,7 @@
   const contentMessageSource = "ASR_EDGE_JUDGEMENT_CONTENT";
   const networkConfigMessageType = "ASR_EDGE_JUDGEMENT_NETWORK_CONFIG";
   const networkSummaryMessageType = "ASR_EDGE_JUDGEMENT_SUBTASK_DATA_SUMMARY";
-  const allPageSizeValue = 400;
+  const maxCustomPageSizeValue = 400;
   let settings = null;
   let runtimeEnabled = false;
   let messageBridgeBound = false;
@@ -92,7 +92,7 @@
 
   function getJudgementConfig(nextSettings) {
     const defaults = constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {
-      itemsPerPage: "all",
+      itemsPerPage: "100 条/页",
       autoPlay: true,
       autoResetRate: true,
       resetRateValue: 1.0,
@@ -116,13 +116,13 @@
 
   function normalizePageSizeSetting(value) {
     if (pageSizeModule && typeof pageSizeModule.normalizePageSizeSetting === "function") {
-      return pageSizeModule.normalizePageSizeSetting(value, allPageSizeValue);
+      return pageSizeModule.normalizePageSizeSetting(value, maxCustomPageSizeValue);
     }
 
     return {
-      mode: "all",
-      pageSize: allPageSizeValue,
-      label: "全部",
+      mode: "custom",
+      pageSize: 100,
+      label: "100 条/页",
       nativeLabel: "50 条/页",
     };
   }
@@ -191,7 +191,7 @@
       durationSummaryModule &&
       typeof durationSummaryModule.fetchCompleteSubtaskDurationSummary === "function"
     ) {
-      return durationSummaryModule.fetchCompleteSubtaskDurationSummary(subTaskId, allPageSizeValue);
+      return durationSummaryModule.fetchCompleteSubtaskDurationSummary(subTaskId, maxCustomPageSizeValue);
     }
 
     throw new Error("总时长模块未加载。");
@@ -208,7 +208,7 @@
       return;
     }
 
-    const cacheKey = subTaskId + "|" + String(allPageSizeValue);
+    const cacheKey = subTaskId + "|" + String(maxCustomPageSizeValue);
     if (
       durationFetchPromise ||
       (durationFetchKey === cacheKey && durationSummary.status === "ready")
@@ -393,14 +393,13 @@
 
   function getPageSizeStatText() {
     const pageSize = getConfiguredPageSize(settings);
-    return pageSize.mode === "all"
-      ? "每页 全部(" + String(pageSize.pageSize) + ")"
-      : "每页 " + pageSize.label;
+    return "每页 " + pageSize.label;
   }
 
   function getPageSizeStatTitle() {
-    return getConfiguredPageSize(settings).mode === "all"
-      ? "全部模式会尝试把 LabelX data 请求 pageSize 改为 400。"
+    const pageSize = getConfiguredPageSize(settings);
+    return pageSize.mode === "custom"
+      ? "自定义页数会尝试把 LabelX data 请求 pageSize 改为 " + String(pageSize.pageSize) + "。数值越大，页面渲染压力越高。"
       : "进入页面后会尝试切换原生分页选择器。";
   }
 

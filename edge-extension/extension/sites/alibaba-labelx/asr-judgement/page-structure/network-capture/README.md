@@ -27,6 +27,7 @@
 - 提交后返回首页的列表加载请求
 - 首页已完成子任务列表
 - 详情页每页条数切换、真实翻页与筛选请求
+- 详情页不同 `pageSize` 档位的接口负载测试脚本
 
 本阶段未采集、未触发以下动作：
 
@@ -83,6 +84,7 @@
 | `20-submit-client-validation.md` | 无新增网络请求 | 未完成包点击提交时前端必填校验阻断 |
 | `21-item-selection-navigation.md` | 无新增业务请求 | 题卡选中、W/S、Shift+方向键上下题观察 |
 | `22-home-open-subtask-detail.md` | 详情页初始化请求链 | 首页“标注”打开新详情页标签页 |
+| `page-size-load-test-snippet.md` | DevTools Console 脚本 | 对比 `50/100/150/200/400` 的 data 接口耗时、响应体大小和当前 DOM 压力 |
 | `pending-capture.md` | 待采集 | 提交后 response、自动领取成功进入新详情页、回答区筛选和异常路径等待采集动作 |
 | `next-session-handoff.md` | 接续说明 | 新对话继续采集时的上下文与优先级 |
 

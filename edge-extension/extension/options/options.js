@@ -22,7 +22,6 @@
     { key: "playPause", label: "播放/暂停当前音频" },
   ];
   const judgementItemsPerPageOptions = [
-    { value: "all", label: "全部（400 条）" },
     { value: "1 条/页", label: "1 条/页" },
     { value: "2 条/页", label: "2 条/页" },
     { value: "3 条/页", label: "3 条/页" },
@@ -33,6 +32,10 @@
     { value: "30 条/页", label: "30 条/页" },
     { value: "40 条/页", label: "40 条/页" },
     { value: "50 条/页", label: "50 条/页" },
+    { value: "100 条/页", label: "100 条/页" },
+    { value: "150 条/页", label: "150 条/页" },
+    { value: "200 条/页", label: "200 条/页" },
+    { value: "400 条/页", label: "400 条/页" },
   ];
   const mouseButtonLabels = {
     0: "MouseLeft",
@@ -116,7 +119,7 @@
       text === "400 条/页" ||
       text === "400条/页"
     ) {
-      return "all";
+      return "400 条/页";
     }
 
     const validValues = judgementItemsPerPageOptions.map(function (option) {
@@ -126,7 +129,7 @@
       return text;
     }
 
-    return validValues.indexOf(fallback) >= 0 ? fallback : "all";
+    return validValues.indexOf(fallback) >= 0 ? fallback : "100 条/页";
   }
 
   function hasOwn(target, key) {
@@ -241,7 +244,7 @@
       playbackRateValue: 1.0,
       rateStepValue: 0.25,
       volumeValue: 100,
-      itemsPerPage: "all",
+      itemsPerPage: "100 条/页",
       shortcuts: {},
     };
     const shortcuts = {};
@@ -276,7 +279,7 @@
           : defaults.volumeValue,
       itemsPerPage: normalizeJudgementItemsPerPage(
         asrConfig.itemsPerPage,
-        defaults.itemsPerPage || "all"
+        defaults.itemsPerPage || "100 条/页"
       ),
       shortcuts: shortcuts,
     };
@@ -745,7 +748,7 @@
     const resetRateValue = Number(getElement("judgement-reset-rate").value);
     const itemsPerPage = normalizeJudgementItemsPerPage(
       getElement("judgement-items-per-page").value,
-      "all"
+      "100 条/页"
     );
     const autoPlay = Boolean(getElement("judgement-auto-play").checked);
     const shortcuts = {};
