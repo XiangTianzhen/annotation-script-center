@@ -1,6 +1,9 @@
 (function () {
   const LOG_PREFIX = "[ASR Edge][content]";
-  const runtimeContract = window.__ASREdgeAlibabaLabelxRuntimeContract;
+  const runtimeContract =
+    globalThis.__ASREdgeAlibabaLabelxRuntimeContract ||
+    window.__ASREdgeAlibabaLabelxRuntimeContract ||
+    null;
   let runtimeHandles = null;
   let runtimeStartPromise = null;
   let pendingDomReadyRefresh = false;
@@ -137,7 +140,10 @@
 
   function resolveRuntimeModules() {
     return runtimeContract.RUNTIME_MODULES.reduce(function (modules, moduleDescriptor) {
-      modules[moduleDescriptor.id] = window[moduleDescriptor.globalKey] || null;
+      modules[moduleDescriptor.id] =
+        globalThis[moduleDescriptor.globalKey] ||
+        window[moduleDescriptor.globalKey] ||
+        null;
       return modules;
     }, {});
   }
