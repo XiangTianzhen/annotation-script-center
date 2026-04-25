@@ -159,4 +159,4 @@ GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/board?filterPassedVote=fa
 
 ## 未确认项
 
-- 保存失败时的响应结构未采集。
+- 保存失败时的响应结构未采集；该路径需要构造异常或网络失败，用户确认实际使用中基本不会出现，因此不再主动构造采集。

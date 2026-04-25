@@ -10,6 +10,7 @@
 - “自动领取”开关处于开启状态。
 - 点击“提交任务”后页面返回标注首页。
 - 未出现可停留观察的确认弹窗。
+- 2026-04-25 二次采集使用页面内 `fetch` / `XMLHttpRequest` 钩子在导航前读取到响应体摘要。
 
 另一次未完成包中点击 `提交任务` 时，前端必填校验先阻断，没有发出本接口。见 `20-submit-client-validation.md`。
 
@@ -34,7 +35,7 @@
 ```
 
 - Status：`200`
-- Response Body：本次提交后发生页面导航，DevTools 中响应体已不可读取。
+- Response Body：成功响应，业务 `code=0`，`data=true`，`success=true`。
 
 ## 脱敏请求示例
 
@@ -53,8 +54,15 @@ Cookie: <REDACTED>
 
 ```json
 {
-  "status": 200,
-  "body": "<UNAVAILABLE_AFTER_NAVIGATION>"
+  "code": 0,
+  "message": null,
+  "log": null,
+  "data": true,
+  "traceId": "<REDACTED_TRACE_ID>",
+  "traceSql": null,
+  "extraInfo": null,
+  "cost": 0,
+  "success": true
 }
 ```
 
@@ -66,12 +74,14 @@ Cookie: <REDACTED>
 2. 返回标注首页：`/corpora/labeling/labelingTask?projectId=<REDACTED_PROJECT_ID>`
 3. 首页加载“我的任务”和“可领取的任务”列表接口。
 
+2026-04-25 二次采集中，`commit` 本身提交成功；后续自动领取因为任务池没有可领取数据，`label/fetch` 返回业务空池响应 `code=500`、`message="暂无待标注数据"`，因此没有进入新详情页，最终返回标注首页。
+
 ## 字段推断
 
 - URL path 中的 `subTaskId` 与 body 中 `subTaskId` 一致。
 - `labelsessionid` 是详情页会话相关请求头，不能记录真实值。
 - 请求体只包含当前子任务 ID，未观察到提交当前页答案列表或 dataId 列表。
-- 状态码 `200` 加后续页面跳转可判断提交请求被前端视为成功。
+- 状态码 `200` 且响应 `code=0`、`data=true`、`success=true` 表示当前子任务提交成功。
 
 ## Content Script 建议
 
@@ -84,4 +94,3 @@ Cookie: <REDACTED>
 
 - 自动领取关闭时，提交成功后的跳转行为是否相同未采集。
 - 服务端提交失败、网络失败的响应结构未采集。
-- `commit` 成功响应 body 的结构本次不可读取，仍需在可安全复现时二次采集。
