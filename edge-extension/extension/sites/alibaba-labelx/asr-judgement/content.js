@@ -6,6 +6,7 @@
   const audioController = globalThis.__ASREdgeAlibabaLabelxJudgementAudioController || null;
   const pageSizeModule = globalThis.__ASREdgeAlibabaLabelxJudgementPageSize || null;
   const durationSummaryModule = globalThis.__ASREdgeAlibabaLabelxJudgementDurationSummary || null;
+  const virtualWindowModule = globalThis.__ASREdgeAlibabaLabelxJudgementVirtualWindow || null;
   const actionModule = globalThis.__ASREdgeAlibabaLabelxJudgementActions || null;
   const toastModule = globalThis.__ASREdgeAlibabaLabelxJudgementToast || null;
   const shortcutModule = globalThis.__ASREdgeAlibabaLabelxJudgementShortcuts || null;
@@ -26,6 +27,7 @@
   let shortcutRuntime = null;
   let toastRuntime = null;
   let toolbarRuntime = null;
+  let virtualWindowRuntime = null;
   let durationSummary = {
     status: "idle",
     totalSeconds: 0,
@@ -97,6 +99,7 @@
       autoResetRate: true,
       resetRateValue: 1.0,
       volumeValue: 100,
+      virtualWindowEnabled: false,
       shortcuts: {
         playPause: {
           ctrl: false,
@@ -480,12 +483,45 @@
     }
   }
 
+  function ensureVirtualWindowRuntime() {
+    if (
+      virtualWindowRuntime ||
+      !virtualWindowModule ||
+      typeof virtualWindowModule.createRuntime !== "function"
+    ) {
+      return virtualWindowRuntime;
+    }
+
+    virtualWindowRuntime = virtualWindowModule.createRuntime({
+      shouldApply: function () {
+        return Boolean(runtimeEnabled && isTopLevelContext());
+      },
+    });
+    return virtualWindowRuntime;
+  }
+
+  function startVirtualWindow() {
+    const runtime = ensureVirtualWindowRuntime();
+    if (!runtime || typeof runtime.start !== "function") {
+      return;
+    }
+
+    runtime.start(getJudgementConfig(settings));
+  }
+
+  function stopVirtualWindow() {
+    if (virtualWindowRuntime && typeof virtualWindowRuntime.stop === "function") {
+      virtualWindowRuntime.stop();
+    }
+  }
+
   function getMissingRequiredModules() {
     return [
       { name: "page-detector", value: detector },
       { name: "audio-controller", value: audioController },
       { name: "judgement-page-size", value: pageSizeModule },
       { name: "judgement-duration-summary", value: durationSummaryModule },
+      { name: "judgement-virtual-window", value: virtualWindowModule },
       { name: "judgement-actions", value: actionModule },
       { name: "judgement-toast", value: toastModule },
       { name: "judgement-shortcuts", value: shortcutModule },
@@ -548,6 +584,10 @@
         : null,
       duration: clone(durationSummary),
       pageSize: getConfiguredPageSize(settings),
+      virtualWindow:
+        virtualWindowRuntime && typeof virtualWindowRuntime.getState === "function"
+          ? virtualWindowRuntime.getState()
+          : null,
     };
   }
 
@@ -609,6 +649,7 @@
     postNetworkConfig(reason || "runtime-stopped");
     stopToolbar();
     stopConfiguredPageSizeApply();
+    stopVirtualWindow();
     if (audioController && typeof audioController.stop === "function") {
       audioController.stop();
     }
@@ -654,6 +695,7 @@
         audioController.start(getJudgementConfig(settings));
         bindShortcutListeners();
         startToolbar();
+        startVirtualWindow();
         postNetworkConfig(reason || "runtime-started");
         refreshDurationSummary(reason || "runtime-started");
         scheduleConfiguredPageSizeApply(reason || "runtime-started");

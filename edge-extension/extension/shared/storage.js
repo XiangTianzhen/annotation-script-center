@@ -61,6 +61,7 @@
         "playbackRateValue",
         "rateStepValue",
         "volumeValue",
+        "virtualWindowEnabled",
         "shortcuts",
       ],
       SHORTCUT_COMPATIBILITY_MAP: {},

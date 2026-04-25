@@ -15,6 +15,9 @@
   - `.labelRender-scrollable`
 - 单条任务卡片容器：
   - `.labelRender-item[data-index][data-id]`
+- 题号导航区域：
+  - `.labelRender-answerNav`
+  - `.labelRender-answerNav-status`，文本形态如 `第 1 题`
 - 顶部状态区：
   - `.mark-toolbox`
   - `.mark-toolbox-statistic`
@@ -79,7 +82,8 @@
   - `projectId` / `subTaskId`
   - 完成度数字
   - `.labelRender-item` 的 `data-id`
-  - 当前选中题卡的 `.labelRender-item-selected`
+- 当前选中题卡的 `.labelRender-item-selected`
+  - 题号文本 `.labelRender-answerNav-status`
   - 单选组的 `name="rc_unique_*"`
   - 音频 `src`
   - `wav_id`
@@ -112,6 +116,7 @@
 ## 当前扩展脚本开发建议
 
 - 题卡遍历逻辑以 `.labelRender-item[data-index]` 为主，不依赖 `.labelRender-item-selected`。
+- 实验性窗口化显示优先以 `.labelRender-item-selected .labelRender-answerNav-status` 判断当前题号，解析失败时回退到 `.labelRender-item[data-index]`。
 - 音频控制逻辑以 `.dt-audio-base-container` 内的按钮和 `audio` 元素为主。
 - 单选写入逻辑直接定位 `.ant-v5-radio-wrapper input[type="radio"]`，值文本以页面实际选项为准。
 - 文本写入逻辑只针对 `textarea[title="填空"]`，不要误判为转写输入框。

@@ -13,6 +13,7 @@
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
 - options 快判详情页负责保存快判专属设置：全局音量、当前倍速、倍速步进、切换倍速重置、默认每页条数、自动播放音频、快捷键。
+- 快判提供实验性窗口化显示开关，开启后只展开当前题前后 5 题，其他题卡折叠为 0 高度。
 - `page-structure/` 负责沉淀快判详情页和任务列表页 DOM 资料，供后续运行时实现使用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
@@ -62,6 +63,13 @@
 - 总时长统计仍按完整子任务包读取，先尝试 `pageSize=400`；如果响应不足总数，会按 50 条分页只读补齐并求和。总时长不依赖当前页面实际渲染条数。
 - `400 条/页` 会让 LabelX 页面一次渲染大量题卡、音频控件、单选项和文本框，卡顿主要来自宿主页面 DOM / React 渲染压力。扩展侧更稳的方案是默认使用 `100` 或 `150`，保留总时长全量统计；真正想让 400 条不卡，需要宿主列表虚拟滚动或窗口化渲染，这属于侵入式改造，当前不建议由 content script 强行接管。
 
+## 窗口化显示
+
+- 设置字段为 `virtualWindowEnabled`，默认关闭。
+- 开启后，`judgement-virtual-window.js` 会优先从当前选中题卡的 `.labelRender-answerNav-status` 文本解析题号，例如 `第 1 题`；解析失败时回退到 `.labelRender-item[data-index]`。
+- 当前题前后各 5 题保持展开，其余 `.labelRender-item[data-index]` 会添加 `asr-edge-judgement-window-hidden`，通过高度、边距、内边距和边框归零降低页面渲染压力。
+- 该功能不删除 DOM、不主动保存、不改写 LabelX 数据，只做样式折叠；如果发现滚动定位、题卡选中或校验异常，可以在 options 中关闭。
+
 ## 人工验证步骤
 
 1. 重新加载扩展。
@@ -72,11 +80,12 @@
 6. 打开 DevTools Network，确认 `subTask/{id}/data` 请求的 `pageSize` 被改写为设置页选择的档位；若总时长接口未返回全量，确认后续只读分页请求能补齐总时长。
 7. 在快判设置中改为 `20 条/页` 保存并刷新详情页，确认页面原生分页切换到 `20 条/页`。
 8. 需要压测时，再分别设置 `100/150/200/400 条/页`，记录页面渲染耗时、DOM 数量和操作流畅度。
-9. 在快判详情页验证音量、重置音量、倍速、重置倍速、播放/暂停快捷键。
-10. 在快判详情页按 `1`~`5`，确认当前选中题卡的“哪个ASR更优”会切换到对应选项。
-11. 确认工具栏按钮可执行判别、音量和倍速动作；播放/暂停不额外添加按钮。
-12. 触发快捷键或按钮后，确认页面右上角会出现短提示。
-13. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
+9. 开启“窗口化显示”，确认只展开当前题前后 5 题，切换当前题后可见窗口同步移动；关闭后确认题卡恢复展开。
+10. 在快判详情页验证音量、重置音量、倍速、重置倍速、播放/暂停快捷键。
+11. 在快判详情页按 `1`~`5`，确认当前选中题卡的“哪个ASR更优”会切换到对应选项。
+12. 确认工具栏按钮可执行判别、音量和倍速动作；播放/暂停不额外添加按钮。
+13. 触发快捷键或按钮后，确认页面右上角会出现短提示。
+14. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
 
 ## 已知限制
 
@@ -101,6 +110,7 @@ asr-judgement/
   judgement-toolbar.js
   judgement-page-size.js
   judgement-duration-summary.js
+  judgement-virtual-window.js
   audio-controller.js
   audio-volume-controller.js
   audio-rate-controller.js
@@ -151,6 +161,7 @@ asr-judgement/
 - `judgement-toolbar.js`：维护 `.mark-toolbox` 工具栏和顶部主导航总时长挂载。
 - `judgement-page-size.js`：维护默认每页条数、原生分页选择器点击和重试逻辑。
 - `judgement-duration-summary.js`：维护总时长请求、分页补齐和网络摘要归一化。
+- `judgement-virtual-window.js`：维护实验性窗口化显示，按当前题号折叠窗口外题卡。
 - `audio-controller.js`：只保留音频扫描、配置、状态和动作路由。
 - `audio-volume-controller.js`：维护音量与 Web Audio gain 逻辑。
 - `audio-rate-controller.js`：维护倍速、倍速显示和重置逻辑。
@@ -166,7 +177,7 @@ asr-judgement/
 快判依赖 `manifest.json` 的数组顺序加载，不使用打包器或 ES module：
 
 - MAIN world：`network-protocol.js`、`network-config.js`、`network-url-rewriter.js`、`network-summary.js`、`network-observer.js`。
-- ISOLATED world：`page-detector.js`、音频小模块、`audio-controller.js`、分页/总时长模块、判别/提示/快捷键/工具栏模块、`content.js`。
+- ISOLATED world：`page-detector.js`、音频小模块、`audio-controller.js`、分页/总时长/窗口化模块、判别/提示/快捷键/工具栏模块、`content.js`。
 
 调整文件名或新增模块时，必须同步更新 `manifest.json` 并验证脚本路径存在。
 
