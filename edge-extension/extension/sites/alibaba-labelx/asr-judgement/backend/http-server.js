@@ -3,11 +3,14 @@
 const http = require("http");
 const url = require("url");
 const { createStatisticsStore } = require("./file-store");
-const { mergeUploadPayload } = require("./payload-merge");
+const { mergeUploadPayloads } = require("./payload-merge");
 
 const UPLOAD_PATH = "/api/asr-judgement/statistics/upload";
+const CONFIG_PATH = "/api/asr-judgement/statistics/config";
 const HEALTH_PATH = "/api/asr-judgement/statistics/health";
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
+const DEFAULT_UPLOAD_TIMES = ["10:00", "16:00"];
+const DEFAULT_JITTER_MINUTES = 10;
 
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, {
@@ -40,7 +43,7 @@ async function handleUpload(request, response, store) {
   try {
     const body = await readRequestBody(request);
     const payload = JSON.parse(body || "{}");
-    const result = mergeUploadPayload(payload, store);
+    const result = mergeUploadPayloads(payload, store);
     sendJson(response, 200, {
       success: true,
       data: result,
@@ -53,11 +56,23 @@ async function handleUpload(request, response, store) {
   }
 }
 
+function createScheduleConfig() {
+  return {
+    enabled: true,
+    times: DEFAULT_UPLOAD_TIMES.slice(),
+    uploadTimes: DEFAULT_UPLOAD_TIMES.slice(),
+    scheduleTimes: DEFAULT_UPLOAD_TIMES.slice(),
+    jitterMinutes: DEFAULT_JITTER_MINUTES,
+  };
+}
+
 function createLocalServer(options) {
   const store = createStatisticsStore(options);
 
   return http.createServer(function (request, response) {
-    const pathname = url.parse(request.url || "").pathname || "/";
+    const parsedUrl = url.parse(request.url || "", true);
+    const pathname = parsedUrl.pathname || "/";
+    const purpose = String(parsedUrl.query?.purpose || "").toLowerCase();
     if (request.method === "OPTIONS") {
       sendJson(response, 204, {});
       return;
@@ -68,7 +83,19 @@ function createLocalServer(options) {
         success: true,
         service: "asr-judgement-statistics",
         uploadPath: UPLOAD_PATH,
+        configPath: CONFIG_PATH,
         csvPath: store.getPaths().csvPath,
+      });
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      (pathname === CONFIG_PATH || (pathname === UPLOAD_PATH && purpose === "schedule"))
+    ) {
+      sendJson(response, 200, {
+        success: true,
+        data: createScheduleConfig(),
       });
       return;
     }
@@ -86,8 +113,10 @@ function createLocalServer(options) {
 }
 
 module.exports = {
+  CONFIG_PATH,
   HEALTH_PATH,
   UPLOAD_PATH,
+  createScheduleConfig,
   createLocalServer,
   readRequestBody,
   sendJson,

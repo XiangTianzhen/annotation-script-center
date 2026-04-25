@@ -43,3 +43,5 @@
 - 新增快判统计上传框架：创建 `asr-judgement-server.js`，按 CSV 样例生成分包级补丁记录，支持进入子任务后上传、工具栏手动上传、10:00 / 16:00 定时上传和远程时间配置 URL 预留。
 - 调整快判统计上传入口：上传按钮移到 options 快判设置面板，取消进入子任务详情自动上传；上传地址改为服务器 / 本机两个选项，默认服务器 `47.108.254.138:3333`，并让 `asr-judgement-server.js` 可直接启动本地接收服务。
 - 拆分快判统计本地服务：`asr-judgement-server.js` 回归扩展侧上传运行时，新增 `backend/server.js` 作为 Node 启动入口，并按 HTTP、CSV 列、CSV 写入、文件存储和分包合并拆成小文件。
+- 调整快判统计上传到 LabelX 标注首页：在 `labelingTask?projectId=...` 页面显示“上传统计”按钮，使用首页 `tasks`、`subTasks` 和 `/subTask/{subTaskId}/data` 批量采集后上传，options 不再提供手动上传按钮和单独的定时时间输入框。
+- 快判统计定时配置改为从“上传接口地址”追加 `purpose=schedule` 获取，本地 `backend` 服务支持批量 `payloads` 合并，并新增定时配置响应。

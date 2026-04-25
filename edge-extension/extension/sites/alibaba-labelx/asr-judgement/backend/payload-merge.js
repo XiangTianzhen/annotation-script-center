@@ -90,9 +90,39 @@ function mergeUploadPayload(payload, store) {
   };
 }
 
+function normalizePayloads(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (Array.isArray(payload?.payloads)) {
+    return payload.payloads;
+  }
+  return [payload];
+}
+
+function mergeUploadPayloads(payload, store) {
+  const payloads = normalizePayloads(payload).filter(function (item) {
+    return item && typeof item === "object";
+  });
+  if (payloads.length === 0) {
+    throw new Error("payloads 为空，无法合并统计数据。");
+  }
+
+  const results = payloads.map(function (item) {
+    return mergeUploadPayload(item, store);
+  });
+  return {
+    batchCount: results.length,
+    results: results,
+    rowCount: results[results.length - 1]?.rowCount || 0,
+  };
+}
+
 module.exports = {
   applyRoleRecord,
   createEmptyRow,
   findLabelSlot,
   mergeUploadPayload,
+  mergeUploadPayloads,
+  normalizePayloads,
 };

@@ -274,10 +274,7 @@
     if (!nextConfig.statsUploadEndpoint && typeof defaults.statsUploadEndpoint === "string") {
       nextConfig.statsUploadEndpoint = defaults.statsUploadEndpoint;
     }
-    nextConfig.statsScheduleUrl =
-      typeof nextConfig.statsScheduleUrl === "string"
-        ? nextConfig.statsScheduleUrl.trim()
-        : "";
+    nextConfig.statsScheduleUrl = "";
     nextConfig.statsUploadTimes = normalizeTimeList(
       nextConfig.statsUploadTimes,
       defaults.statsUploadTimes

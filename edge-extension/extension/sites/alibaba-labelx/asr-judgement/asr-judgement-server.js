@@ -1,6 +1,7 @@
 (function () {
   const LOG_PREFIX = "[ASR Edge][judgement-stats]";
   const DEFAULT_PAGE_SIZE = 400;
+  const DEFAULT_HOME_PAGE_SIZE = 100;
   const DEFAULT_UPLOAD_PATH = "/api/asr-judgement/statistics/upload";
   const DEFAULT_SERVER_UPLOAD_ENDPOINT =
     "http://47.108.254.138:3333" + DEFAULT_UPLOAD_PATH;
@@ -84,6 +85,21 @@
     return normalizedBaseUrl ? trimSlash(normalizedBaseUrl) + DEFAULT_UPLOAD_PATH : DEFAULT_SERVER_UPLOAD_ENDPOINT;
   }
 
+  function resolveScheduleEndpoint(config) {
+    const uploadEndpoint = resolveUploadEndpoint(config);
+    if (!uploadEndpoint) {
+      return "";
+    }
+
+    try {
+      const url = new URL(uploadEndpoint);
+      url.searchParams.set("purpose", "schedule");
+      return url.toString();
+    } catch (error) {
+      return "";
+    }
+  }
+
   function normalizeTimeList(value) {
     const source = Array.isArray(value)
       ? value
@@ -152,6 +168,29 @@
     return url;
   }
 
+  function buildHomeTasksUrl(projectId, page, pageSize) {
+    const url = new URL("/api/v1/label/center/tasks", location.origin);
+    url.searchParams.set("subTaskType", "label");
+    url.searchParams.set("keyword", "");
+    url.searchParams.set("appId", String(projectId || ""));
+    url.searchParams.set("page", String(page || 1));
+    url.searchParams.set("pageSize", String(pageSize || DEFAULT_HOME_PAGE_SIZE));
+    url.searchParams.set("_", String(Date.now()));
+    return url;
+  }
+
+  function buildHomeSubTasksUrl(projectId, finished, page, pageSize) {
+    const url = new URL("/api/v1/label/center/subTasks", location.origin);
+    url.searchParams.set("type", "label");
+    url.searchParams.set("keyword", "");
+    url.searchParams.set("appId", String(projectId || ""));
+    url.searchParams.set("finished", finished ? "true" : "false");
+    url.searchParams.set("page", String(page || 1));
+    url.searchParams.set("pageSize", String(pageSize || DEFAULT_HOME_PAGE_SIZE));
+    url.searchParams.set("_", String(Date.now()));
+    return url;
+  }
+
   async function fetchJson(url, init) {
     const response = await fetch(url.toString(), init || {});
     if (!response.ok) {
@@ -175,6 +214,57 @@
       },
     });
     return body?.data || {};
+  }
+
+  function normalizeListPage(body) {
+    const data = body?.data && typeof body.data === "object" ? body.data : {};
+    const list = Array.isArray(data.data) ? data.data : Array.isArray(data.list) ? data.list : [];
+    const recordCount = Number(data.recordCount ?? data.total ?? list.length);
+    return {
+      list: list,
+      recordCount: Number.isFinite(recordCount) && recordCount >= 0 ? recordCount : list.length,
+    };
+  }
+
+  async function fetchPagedList(buildUrl, pageSize) {
+    const normalizedPageSize = pageSize || DEFAULT_HOME_PAGE_SIZE;
+    const result = [];
+    let page = 1;
+    let recordCount = 0;
+
+    while (page <= 50) {
+      const body = await fetchJson(buildUrl(page, normalizedPageSize), {
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json, text/plain, */*",
+        },
+      });
+      const normalized = normalizeListPage(body);
+      recordCount = normalized.recordCount;
+      result.push.apply(result, normalized.list);
+      if (result.length >= recordCount || normalized.list.length < normalizedPageSize) {
+        break;
+      }
+      page += 1;
+    }
+
+    return {
+      list: result,
+      recordCount: recordCount || result.length,
+    };
+  }
+
+  async function fetchHomeTasks(projectId) {
+    return fetchPagedList(function (page, pageSize) {
+      return buildHomeTasksUrl(projectId, page, pageSize);
+    }, DEFAULT_HOME_PAGE_SIZE);
+  }
+
+  async function fetchHomeSubTasks(projectId, finished) {
+    return fetchPagedList(function (page, pageSize) {
+      return buildHomeSubTasksUrl(projectId, finished, page, pageSize);
+    }, DEFAULT_HOME_PAGE_SIZE);
   }
 
   function sumDurationSeconds(dataList) {
@@ -300,6 +390,51 @@
     };
   }
 
+  function isHomePage() {
+    return (
+      location.hostname === "labelx.alibaba-inc.com" &&
+      String(location.pathname || "").toLowerCase().indexOf("/corpora/labeling/labelingtask") >= 0
+    );
+  }
+
+  function getProjectIdFromUrl() {
+    const params = new URLSearchParams(location.search || "");
+    return normalizeUrlParam(params.get("projectId") || params.get("appId") || "");
+  }
+
+  function enrichSubtaskData(detailData, summary, taskMap) {
+    const taskId = String(detailData?.taskId || summary?.taskId || "");
+    const task = taskMap[taskId] || {};
+    return Object.assign({}, detailData || {}, {
+      id: detailData?.id || summary?.id,
+      type: detailData?.type || summary?.type,
+      taskId: taskId,
+      batchId: detailData?.batchId || summary?.batchId,
+      status: detailData?.status ?? summary?.status,
+      gmtCreate: detailData?.gmtCreate || summary?.gmtCreate,
+      gmtCommit: detailData?.gmtCommit || summary?.gmtCommit,
+      taskName: detailData?.taskName || summary?.taskName || task.name,
+      size: detailData?.size || summary?.size,
+      labelModel: detailData?.labelModel || summary?.labelModel || task.labelModel,
+    });
+  }
+
+  async function mapLimit(items, limit, handler) {
+    const result = [];
+    let cursor = 0;
+    const workers = new Array(Math.max(1, Math.min(limit, items.length || 1)))
+      .fill(null)
+      .map(async function () {
+        while (cursor < items.length) {
+          const index = cursor;
+          cursor += 1;
+          result[index] = await handler(items[index], index);
+        }
+      });
+    await Promise.all(workers);
+    return result;
+  }
+
   function createState() {
     return {
       started: false,
@@ -322,6 +457,8 @@
     const options = deps && typeof deps === "object" ? deps : {};
     let state = createState();
     let scheduleTimer = null;
+    let homePanelTimer = null;
+    let homePanelRoot = null;
 
     function getConfig() {
       return typeof options.getConfig === "function" ? options.getConfig() || {} : {};
@@ -358,6 +495,110 @@
       }
     }
 
+    function clearHomePanelTimer() {
+      if (homePanelTimer) {
+        window.clearInterval(homePanelTimer);
+        homePanelTimer = null;
+      }
+    }
+
+    function removeHomePanel() {
+      if (homePanelRoot && homePanelRoot.parentNode) {
+        homePanelRoot.parentNode.removeChild(homePanelRoot);
+      }
+      homePanelRoot = null;
+    }
+
+    function setHomePanelStatus(message, tone) {
+      const status = homePanelRoot?.querySelector("[data-asr-edge-stats-home-status]");
+      if (!status) {
+        return;
+      }
+      status.textContent = message || "";
+      status.style.color = tone === "error" ? "#b91c1c" : tone === "success" ? "#047857" : "#475569";
+    }
+
+    function ensureHomePanel() {
+      if (!state.started || !isHomePage() || getConfig().statsUploadEnabled === false) {
+        removeHomePanel();
+        return;
+      }
+
+      if (homePanelRoot && document.documentElement.contains(homePanelRoot)) {
+        return;
+      }
+
+      homePanelRoot = document.createElement("div");
+      homePanelRoot.id = "asr-edge-judgement-stats-home-panel";
+      Object.assign(homePanelRoot.style, {
+        position: "fixed",
+        right: "22px",
+        top: "118px",
+        zIndex: "2147483646",
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "8px 10px",
+        border: "1px solid rgba(22, 119, 255, 0.28)",
+        borderRadius: "8px",
+        background: "rgba(255, 255, 255, 0.96)",
+        boxShadow: "0 8px 22px rgba(15, 23, 42, 0.12)",
+        fontSize: "12px",
+        color: "#0f172a",
+      });
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "上传统计";
+      Object.assign(button.style, {
+        border: "1px solid rgba(22, 119, 255, 0.42)",
+        borderRadius: "6px",
+        padding: "5px 10px",
+        background: "#1677ff",
+        color: "#ffffff",
+        fontSize: "12px",
+        fontWeight: "700",
+        cursor: "pointer",
+      });
+      button.addEventListener("click", function () {
+        button.disabled = true;
+        button.style.opacity = "0.72";
+        setHomePanelStatus("正在上传...", "info");
+        void uploadNow("home-manual")
+          .then(function (result) {
+            if (result?.ok === true) {
+              setHomePanelStatus(
+                "已上传 " + String(result.payload?.payloadCount || 0) + " 个子任务",
+                "success"
+              );
+              return;
+            }
+            setHomePanelStatus(result?.message || "上传失败。", "error");
+          })
+          .catch(function (error) {
+            setHomePanelStatus(error && error.message ? error.message : String(error), "error");
+          })
+          .finally(function () {
+            button.disabled = false;
+            button.style.opacity = "1";
+          });
+      });
+
+      const status = document.createElement("span");
+      status.setAttribute("data-asr-edge-stats-home-status", "true");
+      status.textContent = "首页统计";
+
+      homePanelRoot.appendChild(button);
+      homePanelRoot.appendChild(status);
+      document.documentElement.appendChild(homePanelRoot);
+    }
+
+    function startHomePanel() {
+      clearHomePanelTimer();
+      ensureHomePanel();
+      homePanelTimer = window.setInterval(ensureHomePanel, 1500);
+    }
+
     async function refreshSchedule() {
       const config = getConfig();
       const fallback = {
@@ -367,7 +608,7 @@
           Math.min(120, Number(config.statsUploadJitterMinutes) || DEFAULT_UPLOAD_JITTER_MINUTES)
         ),
       };
-      const scheduleUrl = normalizeEndpoint(config.statsScheduleUrl);
+      const scheduleUrl = normalizeEndpoint(resolveScheduleEndpoint(config));
       if (!scheduleUrl) {
         state.schedule = Object.assign({ enabled: true, source: "local" }, fallback);
         notify();
@@ -453,6 +694,10 @@
     }
 
     async function collectPayload(reason) {
+      if (isHomePage()) {
+        return collectHomePayloads(reason);
+      }
+
       const params = getUrlParams();
       if (!params.subTaskId) {
         throw new Error("当前 URL 中没有 subTaskId，无法上传统计。");
@@ -461,6 +706,74 @@
       const subtaskData = await fetchSubtaskData(params.subTaskId);
       const durationSeconds = sumDurationSeconds(subtaskData.dataList);
       return buildPayload(subtaskData, durationSeconds, reason);
+    }
+
+    async function collectHomePayloads(reason) {
+      const projectId = getProjectIdFromUrl();
+      if (!projectId) {
+        throw new Error("当前首页 URL 中没有 projectId，无法上传统计。");
+      }
+
+      const tasksPage = await fetchHomeTasks(projectId);
+      const taskMap = {};
+      tasksPage.list.forEach(function (task) {
+        const taskId = String(task?.taskId || "");
+        if (taskId) {
+          taskMap[taskId] = task;
+        }
+      });
+
+      const unfinishedPage = await fetchHomeSubTasks(projectId, false);
+      const finishedPage = await fetchHomeSubTasks(projectId, true);
+      const subtaskMap = {};
+      unfinishedPage.list.concat(finishedPage.list).forEach(function (subtask) {
+        const id = String(subtask?.id || "").trim();
+        if (id) {
+          subtaskMap[id] = subtask;
+        }
+      });
+      const subtasks = Object.keys(subtaskMap).map(function (id) {
+        return subtaskMap[id];
+      });
+
+      if (subtasks.length === 0) {
+        throw new Error("首页未读取到可上传的我的子任务。");
+      }
+
+      const payloads = await mapLimit(subtasks, 3, async function (summary) {
+        const detailData = await fetchSubtaskData(String(summary.id || "").trim());
+        const enrichedData = enrichSubtaskData(detailData, summary, taskMap);
+        const durationSeconds = sumDurationSeconds(enrichedData.dataList);
+        const payload = buildPayload(enrichedData, durationSeconds, reason || "home-manual");
+        payload.homeContext = {
+          projectId: projectId,
+          taskCount: tasksPage.recordCount,
+          subTaskCount: subtasks.length,
+          unfinishedCount: unfinishedPage.recordCount,
+          finishedCount: finishedPage.recordCount,
+          source: "labelingTask tasks/subTasks + subTask data",
+        };
+        return payload;
+      });
+
+      return {
+        schemaVersion: 1,
+        source: "edge-extension",
+        project: "alibaba-labelx/asr-judgement",
+        reason: reason || "home-manual",
+        uploadedAt: new Date().toISOString(),
+        mode: "home-batch",
+        mergeKey: {
+          projectId: projectId,
+        },
+        payloads: payloads,
+        summary: {
+          projectId: projectId,
+          taskCount: tasksPage.recordCount,
+          subTaskCount: subtasks.length,
+          payloadCount: payloads.length,
+        },
+      };
     }
 
     async function postPayload(payload) {
@@ -513,7 +826,7 @@
         return {
           ok: false,
           reason: "runtime-disabled",
-          message: "当前不是快判详情运行态，未上传统计。",
+          message: "当前不是快判统计运行态，未上传统计。",
         };
       }
       if (config.statsUploadEnabled === false) {
@@ -538,14 +851,18 @@
         await postPayload(payload);
         setMessage(true, uploadReason, "统计数据已上传。");
         showToast("统计数据已上传。", "info");
+        const uploadPayload = Array.isArray(payload.payloads) ? payload.payloads : [payload];
         return {
           ok: true,
           reason: uploadReason,
           message: "统计数据已上传。",
           payload: {
-            batchId: payload.mergeKey.batchId,
-            subTaskId: payload.roleRecord.subTaskId,
-            itemCount: payload.metrics.itemCount,
+            batchId: uploadPayload[0]?.mergeKey?.batchId || "",
+            subTaskId: uploadPayload[0]?.roleRecord?.subTaskId || "",
+            itemCount: uploadPayload.reduce(function (total, item) {
+              return total + (Number(item?.metrics?.itemCount) || 0);
+            }, 0),
+            payloadCount: uploadPayload.length,
           },
         };
       } catch (error) {
@@ -565,6 +882,7 @@
 
     function start() {
       state.started = true;
+      startHomePanel();
       void refreshSchedule().finally(scheduleNextUpload);
       notify();
     }
@@ -573,6 +891,8 @@
       state.started = false;
       state.nextScheduleAt = null;
       clearScheduleTimer();
+      clearHomePanelTimer();
+      removeHomePanel();
       notify();
     }
 

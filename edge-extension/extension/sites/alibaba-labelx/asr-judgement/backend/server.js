@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("path");
-const { UPLOAD_PATH, createLocalServer } = require("./http-server");
+const { CONFIG_PATH, UPLOAD_PATH, createLocalServer } = require("./http-server");
 const { createStatisticsStore } = require("./file-store");
 
 const host = process.env.ASR_JUDGEMENT_SERVER_HOST || "127.0.0.1";
@@ -21,6 +21,13 @@ server.listen(port, host, function () {
       ":" +
       String(port) +
       UPLOAD_PATH
+  );
+  console.info(
+    "[ASR Edge][judgement-stats-server] config on http://" +
+      host +
+      ":" +
+      String(port) +
+      CONFIG_PATH
   );
   console.info("[ASR Edge][judgement-stats-server] csv:", store.getPaths().csvPath);
 });

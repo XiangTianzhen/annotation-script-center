@@ -78,12 +78,13 @@
 - 本地启动命令：在仓库根目录运行 `node edge-extension/extension/sites/alibaba-labelx/asr-judgement/backend/server.js`，默认监听 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`。
 - 本地服务会把上传事件写入 `statistics-data/statistics-upload-events.jsonl`，并按 `分包ID` 合并生成 `statistics-data/statistics-merged.csv`；该目录是本地调试产物，不应提交。
 - 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 列顺序：`任务名称`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
-- 扩展只能可靠识别当前页面所属的一个子任务，因此上传的是“分包级补丁记录”：基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端需要以 `mergeKey.batchId` / `分包ID` 做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
-- 手动上传按钮位于 options 的快判脚本设置面板“统计数据上传”区域；点击后会保存设置，再向已打开的快判详情页发送上传指令。快判页面工具栏不显示统计上传按钮。
+- 详情页只能可靠识别当前页面所属的一个子任务，因此详情页上传的是“分包级补丁记录”：基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端以 `mergeKey.batchId` / `分包ID` 做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
+- 标注首页会显示“上传统计”浮动按钮。点击后在 `labelingTask?projectId=...` 页面直接使用 LabelX 登录态请求首页任务数据，先读取 `/api/v1/label/center/tasks` 和 `/api/v1/label/center/subTasks`，再对每个子任务调用 `/api/v1/label/center/subTask/{subTaskId}/data` 获取完整题目与时长，最后批量上传 `payloads`。
+- options 的“统计数据上传”区域只保留启用开关、上传接口地址和定时上传开关，不再提供手动上传按钮。
 - 不再支持进入快判详情页自动上传，避免仅打开页面就产生统计写入。
 - 上传接口地址只保留两个选项：服务器 `http://47.108.254.138:3333/api/asr-judgement/statistics/upload` 和本机 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`，默认使用服务器地址。
 - 定时上传默认时间固定写在代码中，为 `10:00`、`16:00`；到点后会增加随机延迟，避免大量客户端同时请求服务器。options 不再配置本地默认时间和随机延迟。
-- 预留 `statsScheduleUrl`：后续每个项目的上传时间优先由该 URL 返回。当前支持响应形态中包含 `data.times`、`data.uploadTimes` 或 `data.scheduleTimes`，例如 `["10:00","16:00"]`；请求会附带当前 URL 的 `projectId` 和 `subTaskId`。请求失败时再回退到本地默认时间。
+- 定时时间配置不再单独填写地址，而是使用当前“上传接口地址”发起 `GET` 请求并追加 `purpose=schedule`。当前支持响应形态中包含 `data.times`、`data.uploadTimes` 或 `data.scheduleTimes`，例如 `["10:00","16:00"]`；请求会附带当前 URL 的 `projectId` 和 `subTaskId`。请求失败时回退到代码内默认时间。本地服务也额外提供 `/api/asr-judgement/statistics/config` 便于直接检查配置。
 - 服务端更推荐的抗峰值方案是：上传接口只做快速校验和入队 / upsert，返回 `202` 或轻量成功响应；后端队列再异步合并 CSV 和写数据库。这样比只靠客户端随机延迟更稳。
 
 ## 半自动功能池
@@ -178,9 +179,9 @@
 22. 在快判详情页验证音量、重置音量、倍速、重置倍速、播放/暂停快捷键；默认增大音量为 `[`，减小音量为 `]`，重置音量为 `\`。
 23. 确认工具栏按钮可执行判别、音量和倍速动作；播放/暂停不额外添加按钮。
 24. 触发快捷键或按钮后，确认页面右上角会出现短提示。
-25. 在 options 中确认“统计数据上传”区域只提供服务器 / 本机两个上传地址选项、时间配置 URL、定时上传开关和“上传统计”按钮。
-26. 启动本地服务后，在 options 选择“本机：127.0.0.1:3333”，点击“上传统计”，确认已打开的快判详情页会发送一次 JSON，payload 包含 `mergeKey.batchId`、`csvColumns`、`csvPatch` 和 `roleRecord`。
-27. 确认快判页面工具栏不出现“统计 / 上传统计”按钮；若上传接口尚未部署，点击 options 里的“上传统计”应只提示上传失败，不应影响题卡判别、保存或页面操作。
+25. 在 options 中确认“统计数据上传”区域只提供启用开关、服务器 / 本机两个上传地址选项和定时上传开关，不再出现时间配置 URL 与“上传统计”按钮。
+26. 启动本地服务后，在 options 选择“本机：127.0.0.1:3333”，打开 `labelingTask?projectId=...` 标注首页，点击页面浮动“上传统计”，确认扩展会请求首页 `tasks`、`subTasks` 和每个 `/subTask/{subTaskId}/data`，并向本地服务发送批量 `payloads`。
+27. 确认快判详情页工具栏不出现“统计 / 上传统计”按钮；若上传接口尚未部署，首页点击“上传统计”应只提示上传失败，不应影响题卡判别、保存或页面操作。
 28. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
 29. 打开一个未标注的全新快判详情页，不按快捷键、不点工具栏，确认脚本不会自动选中“哪个ASR更优”的任一选项；若页面本身返回了已保存答案，应以接口数据或页面原始状态为准。
 
@@ -273,7 +274,7 @@ asr-judgement/
 - `judgement-virtual-window.js`：暂存未完成的实验性窗口化显示代码，当前不启用。
 - `judgement-asr-diff-view.js`：维护 ASR 文本对齐差异视图、差异摘要、对齐算法和高亮颜色。
 - `judgement-compact-card.js`：维护轻量题卡摘要，在 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，并支持配合隐藏内容区 / 回答区和卡片宽度调整使用。
-- `asr-judgement-server.js`：维护扩展侧统计数据采集、options 手动上传、定时上传和远程时间配置 URL 预留。
+- `asr-judgement-server.js`：维护扩展侧统计数据采集、首页手动上传、详情页 / 首页定时上传和基于上传接口的远程时间配置读取。
 - `backend/`：维护 Node 本地调试接收服务，`server.js` 是启动入口，其余小文件分别处理 HTTP、CSV 列、CSV 写入、文件存储和分包合并。
 - `judgement-auto-advance.js`：维护选择判别结果后的当前页自动下一题。
 - `audio-controller.js`：只保留音频扫描、配置、状态和动作路由。

@@ -469,6 +469,15 @@
     );
   }
 
+  function isLabelingTaskHome() {
+    return Boolean(
+      runtimeEnabled &&
+        isTopLevelContext() &&
+        location.hostname === constants?.TARGET_PLATFORM?.host &&
+        String(location.pathname || "").toLowerCase().indexOf("/corpora/labeling/labelingtask") >= 0
+    );
+  }
+
   function getDurationSummaryText() {
     if (durationSummary.status === "ready" || durationSummary.status === "partial") {
       const countText = durationSummary.expectedCount
@@ -703,7 +712,7 @@
 
     judgementServerRuntime = judgementServerModule.createRuntime({
       shouldApply: function () {
-        return Boolean(runtimeEnabled && isTopLevelContext() && shouldShowToolbar());
+        return Boolean(runtimeEnabled && isTopLevelContext() && (shouldShowToolbar() || isLabelingTaskHome()));
       },
       getConfig: getJudgementServerConfig,
       showToast: showRuntimeToast,

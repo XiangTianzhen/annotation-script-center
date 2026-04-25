@@ -2,7 +2,6 @@
   const constants = globalThis.ASREdgeConstants || {};
   const storage = globalThis.ASREdgeStorage || null;
   const settingsPanel = globalThis.__ASREdgeAlibabaLabelxSettingsPanel || null;
-  const messageTypes = constants.MESSAGE_TYPES || {};
   const platformLibrary = constants.PLATFORM_LIBRARY || {};
   const scriptLibrary = constants.SCRIPT_LIBRARY || {};
   const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
@@ -74,38 +73,6 @@
 
     history.replaceState({}, "", nextUrl.toString());
     renderCurrentView();
-  }
-
-  function queryTabs(queryInfo) {
-    return new Promise(function (resolve) {
-      if (typeof chrome === "undefined" || !chrome.tabs || !chrome.tabs.query) {
-        resolve([]);
-        return;
-      }
-
-      chrome.tabs.query(queryInfo, function (tabs) {
-        resolve(Array.isArray(tabs) ? tabs : []);
-      });
-    });
-  }
-
-  function sendMessageToTab(tabId, message) {
-    return new Promise(function (resolve) {
-      if (typeof chrome === "undefined" || !chrome.tabs || !chrome.tabs.sendMessage) {
-        resolve({ ok: false, message: "当前扩展版本不支持向 LabelX 页面发送消息。" });
-        return;
-      }
-
-      chrome.tabs.sendMessage(tabId, message, function (response) {
-        const error = chrome.runtime && chrome.runtime.lastError;
-        if (error) {
-          resolve({ ok: false, message: error.message });
-          return;
-        }
-
-        resolve(response || { ok: false, message: "未收到快判页面响应。" });
-      });
-    });
   }
 
   function showError(message) {
@@ -738,7 +705,6 @@
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     getElement("judgement-stats-upload-enabled").checked = config.statsUploadEnabled !== false;
     getElement("judgement-stats-upload-endpoint").value = config.statsUploadEndpoint || "";
-    getElement("judgement-stats-schedule-url").value = config.statsScheduleUrl || "";
     getElement("judgement-stats-auto-schedule").checked =
       config.statsAutoUploadOnSchedule !== false;
     stopJudgementShortcutRecording("");
@@ -962,7 +928,6 @@
     const statsUploadEndpoint = normalizeJudgementStatsEndpoint(
       getElement("judgement-stats-upload-endpoint").value
     );
-    const statsScheduleUrl = String(getElement("judgement-stats-schedule-url").value || "").trim();
     const statsAutoUploadOnSchedule = Boolean(getElement("judgement-stats-auto-schedule").checked);
     const shortcuts = {};
 
@@ -989,7 +954,7 @@
         autoAdvanceAfterChoice: autoAdvanceAfterChoice,
         statsUploadEnabled: statsUploadEnabled,
         statsUploadEndpoint: statsUploadEndpoint,
-        statsScheduleUrl: statsScheduleUrl,
+        statsScheduleUrl: "",
         statsUploadTimes: constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.statsUploadTimes || ["10:00", "16:00"],
         statsUploadJitterMinutes: constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.statsUploadJitterMinutes || 10,
         statsAutoUploadOnSubtaskOpen: false,
@@ -1007,78 +972,6 @@
       );
       return false;
     }
-  }
-
-  function isJudgementDetailTab(tab) {
-    if (!tab || !tab.url) {
-      return false;
-    }
-
-    try {
-      const url = new URL(tab.url);
-      return (
-        url.hostname === "labelx.alibaba-inc.com" &&
-        url.pathname.toLowerCase().startsWith("/corpora/labeling/") &&
-        Boolean(url.searchParams.get("subTaskId"))
-      );
-    } catch (error) {
-      return false;
-    }
-  }
-
-  async function findJudgementDetailTab() {
-    const tabs = await queryTabs({
-      url: "https://labelx.alibaba-inc.com/corpora/labeling/*",
-    });
-    const detailTabs = tabs.filter(isJudgementDetailTab);
-    return (
-      detailTabs.find(function (tab) {
-        return tab.active === true && tab.highlighted === true;
-      }) ||
-      detailTabs.find(function (tab) {
-        return tab.active === true;
-      }) ||
-      detailTabs[0] ||
-      null
-    );
-  }
-
-  async function uploadJudgementStatsFromOptions() {
-    const saved = await saveJudgementSettings();
-    if (saved === false) {
-      return;
-    }
-
-    setStatus("judgement-status", "正在查找已打开的快判详情页...");
-    const tab = await findJudgementDetailTab();
-    if (!tab || typeof tab.id !== "number") {
-      setStatus("judgement-status", "未找到已打开的快判详情页，请先打开 LabelX 快判子任务详情页。");
-      return;
-    }
-
-    setStatus("judgement-status", "正在请求快判详情页上传统计...");
-    const response = await sendMessageToTab(tab.id, {
-      type: messageTypes.JUDGEMENT_STATS_UPLOAD || "ASR_EDGE_JUDGEMENT_STATS_UPLOAD",
-      source: "options-panel",
-    });
-
-    if (response && response.ok === true) {
-      const payload = response.payload || {};
-      setStatus(
-        "judgement-status",
-        "统计上传已触发：分包ID " +
-          String(payload.batchId || "--") +
-          "，子任务ID " +
-          String(payload.subTaskId || "--") +
-          "。"
-      );
-      return;
-    }
-
-    setStatus(
-      "judgement-status",
-      "上传失败：" + String(response?.message || response?.error || "快判页面未返回成功状态。")
-    );
   }
 
   async function renderCurrentView() {
@@ -1124,10 +1017,6 @@
 
     getElement("save-judgement-settings").addEventListener("click", function () {
       void saveJudgementSettings();
-    });
-
-    getElement("judgement-stats-upload-now").addEventListener("click", function () {
-      void uploadJudgementStatsFromOptions();
     });
 
     try {
