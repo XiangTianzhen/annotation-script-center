@@ -368,7 +368,7 @@
 
     function scheduleScan() {
       if (timer) {
-        window.clearTimeout(timer);
+        return;
       }
       timer = window.setTimeout(scan, 120);
     }
@@ -389,7 +389,7 @@
         characterData: true,
       });
       document.addEventListener("change", scheduleScan, true);
-      scheduleScan();
+      scan();
     }
 
     function stop() {

@@ -338,7 +338,7 @@
 
     function scheduleScan() {
       if (timer) {
-        window.clearTimeout(timer);
+        return;
       }
       timer = window.setTimeout(scan, 180);
     }
@@ -356,7 +356,7 @@
         subtree: true,
         characterData: true,
       });
-      scheduleScan();
+      scan();
     }
 
     function stop() {

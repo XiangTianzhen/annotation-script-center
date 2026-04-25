@@ -30,6 +30,7 @@
 ## ASR 对齐差异视图
 
 - `judgement-asr-diff-view.js` 会读取“两个ASR文本”中的 `asr_text1` 与 `asr_text2`，隐藏原始双行文本，并生成扩展自己的对齐差异视图。
+- 差异视图启动时会立即扫描一次题卡；后续 DOM 变化使用节流扫描，避免 LabelX 持续异步更新时防抖计时器一直被重置。
 - 对齐算法使用字符级编辑距离：缺字 / 多字位置会用空白占位对齐；同一位置不同字会高亮显示；仅标点或空格不同会使用独立颜色。
 - 题卡内会显示差异摘要，例如“完全相同”“仅标点或空格不同”“存在缺字或多字”“长度差异较大”“存在 N 处差异”。
 - 该功能属于提效脚本，只增强阅读，不自动判断哪个 ASR 更好，不写入答案。
@@ -56,6 +57,7 @@
 
 - 设置字段为 `compactCardEnabled`，默认开启；可在 options 快判设置中关闭，关闭后运行时会移除已生成的摘要块。
 - `judgement-compact-card.js` 会监听 `.labelRender-item[data-index]`，开关开启时在 `.labelRender-scrollable` 下、对应原题卡前方插入扩展摘要块，并给原题卡根节点添加 `data-asr-edge-judgement-compact-item` 作为关联标记。
+- 轻量摘要启动时会立即扫描一次题卡；后续 DOM 变化使用节流扫描，避免 LabelX 持续异步更新时防抖计时器一直被重置，导致摘要块不生成。
 - 摘要块不放进 `.labelRender-item`、`.labelRender-item-content` 或 `.labelRender-item-answer`，因此开启 LabelX 的“隐藏内容区 / 隐藏回答区”并压缩原题卡后仍可见。
 - ASR 文本优先从原始 `.dt-text-container` 解析；如果原始容器被 ASR 差异视图隐藏或重绘，则回退读取差异视图的 `data-asr-edge-signature`。
 - 摘要块显示 `asr_text1`、`asr_text2` 和“哪个ASR更优”的当前选择；未选中时显示“未选择”。
