@@ -1,5 +1,6 @@
 (function () {
   const ROOT_ATTR = "data-asr-edge-judgement-compact-card";
+  const ITEM_ATTR = "data-asr-edge-judgement-compact-item";
   const STYLE_ID = "asr-edge-judgement-compact-card-style";
 
   function ensureStyle() {
@@ -10,6 +11,16 @@
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = [
+      ".labelRender-item[" + ITEM_ATTR + "] {",
+      "  flex-wrap: wrap !important;",
+      "  align-items: stretch;",
+      "}",
+      ".labelRender-item[" + ITEM_ATTR + "] > [" + ROOT_ATTR + "] {",
+      "  flex: 0 0 calc(100% - 12px);",
+      "  max-width: calc(100% - 12px);",
+      "  grid-column: 1 / -1;",
+      "  order: 99;",
+      "}",
       "[" + ROOT_ATTR + "] {",
       "  box-sizing: border-box;",
       "  width: 100%;",
@@ -89,6 +100,19 @@
     };
   }
 
+  function parseDiffSignature(signature) {
+    const text = String(signature || "").replace(/\r\n/g, "\n");
+    const parts = text.split("\n---\n");
+    if (parts.length < 2) {
+      return null;
+    }
+
+    return {
+      first: parts[0].trim(),
+      second: parts.slice(1).join("\n---\n").trim(),
+    };
+  }
+
   function findWrapByTitle(item, wrapSelector, titleSelector, targetTitle) {
     const wraps = Array.from(item.querySelectorAll(wrapSelector));
     return (
@@ -108,7 +132,13 @@
       "两个ASR文本"
     );
     const container = wrap?.querySelector(".dt-text-container");
-    return parseAsrText(container?.textContent || "");
+    const rawPair = parseAsrText(container?.textContent || "");
+    if (rawPair) {
+      return rawPair;
+    }
+
+    const diffView = wrap?.querySelector("[data-asr-edge-judgement-diff-view]");
+    return parseDiffSignature(diffView?.getAttribute("data-asr-edge-signature") || "");
   }
 
   function getChoiceText(item) {
@@ -188,6 +218,14 @@
     return [data.questionText, data.choiceText || "", data.first || "", data.second || ""].join("\n---\n");
   }
 
+  function getDirectCompactCard(item) {
+    return (
+      Array.from(item.children || []).find(function (child) {
+        return child instanceof HTMLElement && child.hasAttribute(ROOT_ATTR);
+      }) || null
+    );
+  }
+
   function upsertCompactCard(item) {
     const pair = getAsrPair(item);
     if (!pair) {
@@ -202,13 +240,14 @@
       second: pair.second,
     };
     const signature = getSignature(data);
-    const existing = item.querySelector(":scope > [" + ROOT_ATTR + "]");
+    const existing = getDirectCompactCard(item);
     if (existing && existing.getAttribute("data-asr-edge-signature") === signature) {
       return false;
     }
 
     const nextNode = renderCompactCard(data);
     nextNode.setAttribute("data-asr-edge-signature", signature);
+    item.setAttribute(ITEM_ATTR, "true");
     if (existing) {
       existing.replaceWith(nextNode);
     } else {
@@ -218,7 +257,8 @@
   }
 
   function removeCompactCard(item) {
-    const existing = item.querySelector(":scope > [" + ROOT_ATTR + "]");
+    const existing = getDirectCompactCard(item);
+    item.removeAttribute(ITEM_ATTR);
     if (existing) {
       existing.remove();
       return true;
@@ -249,9 +289,13 @@
       let visibleCount = 0;
       let updatedCount = 0;
       Array.from(document.querySelectorAll(".labelRender-item[data-index]")).forEach(function (item) {
-        visibleCount += 1;
-        if (upsertCompactCard(item)) {
-          updatedCount += 1;
+        try {
+          visibleCount += 1;
+          if (upsertCompactCard(item)) {
+            updatedCount += 1;
+          }
+        } catch (error) {
+          removeCompactCard(item);
         }
       });
 
@@ -282,7 +326,7 @@
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["class", "style", "checked", "data-index"],
+        attributeFilter: ["class", "style", "checked", "data-index", "data-asr-edge-signature"],
         characterData: true,
       });
       document.addEventListener("change", scheduleScan, true);
@@ -303,6 +347,9 @@
       document.querySelectorAll("[" + ROOT_ATTR + "]").forEach(function (node) {
         node.remove();
       });
+      document.querySelectorAll("[" + ITEM_ATTR + "]").forEach(function (node) {
+        node.removeAttribute(ITEM_ATTR);
+      });
     }
 
     function getState() {
@@ -321,5 +368,6 @@
   globalThis.__ASREdgeAlibabaLabelxJudgementCompactCard = {
     createRuntime: createRuntime,
     parseAsrText: parseAsrText,
+    parseDiffSignature: parseDiffSignature,
   };
 })();
