@@ -52,21 +52,21 @@
 - 差异导航：一题内如果差异较多，提供跳转到上一个 / 下一个差异的轻量按钮或快捷键。
 - 文本布局增强：已将两条 ASR 文本改成更容易对齐阅读的双行显示，保留原文内容，不改变 LabelX 原始数据。
 - 选择后辅助流转：已支持在选择 `1~5` 后自动滚动到当前页下一题，仍不自动提交。
-- 轻量题卡摘要：已支持在每个题卡前方显示“两个ASR文本”和“哪个ASR更优”的当前状态，可在 options 中开启或关闭；配合 LabelX 样式设置隐藏内容区 / 回答区和卡片大小调整，可以减少需要关注的可见内容。
+- 轻量题卡摘要：已支持在每个题卡内部顶部显示“两个ASR文本”和“哪个ASR更优”的当前状态，可在 options 中开启或关闭；配合 LabelX 样式设置隐藏内容区 / 回答区和卡片大小调整，可以减少需要关注的可见内容。
 
 ## 轻量题卡摘要
 
 - 设置字段为 `compactCardEnabled`，默认开启；可在 options 快判设置中关闭，关闭后运行时会移除已生成的摘要块。
-- `judgement-compact-card.js` 会监听 `.labelRender-item[data-index]`，开关开启时在 `.labelRender-scrollable` 下、对应原题卡前方插入扩展摘要块，并给原题卡根节点添加 `data-asr-edge-judgement-compact-item` 作为关联标记。
+- `judgement-compact-card.js` 会监听 `.labelRender-item[data-index]`，开关开启时在对应 `.labelRender-item` 根节点内部顶部插入扩展摘要块，并给原题卡根节点添加 `data-asr-edge-judgement-compact-item` 作为关联标记。
 - 轻量摘要启动时会立即扫描一次题卡；后续 DOM 变化使用节流扫描，避免 LabelX 持续异步更新时防抖计时器一直被重置，导致摘要块不生成。
-- 摘要块不放进 `.labelRender-item`、`.labelRender-item-content` 或 `.labelRender-item-answer`，因此开启 LabelX 的“隐藏内容区 / 隐藏回答区”并压缩原题卡后仍可见。
-- 摘要外层占整行，内部可视卡片宽度会读取对应 `.labelRender-item` 的实际宽度，跟随 LabelX “卡片大小”或列数设置缩放，避免题卡变窄后摘要仍占满整行或与原题卡并排。
+- 摘要块不放进 `.labelRender-item-content` 或 `.labelRender-item-answer`，因此开启 LabelX 的“隐藏内容区 / 隐藏回答区”并压缩原题卡后仍可见。
+- 摘要块作为 `.labelRender-item` 的直接子节点挂载，使用内部首行显示方式占满当前题卡宽度，但不作为 `.labelRender-scrollable` 的独立子项参与布局，避免破坏 LabelX 原生多列 / flex 排列。
 - ASR 文本优先从原始 `.dt-text-container` 解析；如果原始容器被 ASR 差异视图隐藏或重绘，则回退读取差异视图的 `data-asr-edge-signature`。
 - 摘要块显示 `asr_text1`、`asr_text2` 和“哪个ASR更优”的当前选择；未选中时显示“未选择”。
 - 摘要块会在“哪个ASR更优”当前选择下方显示当前音频时间，例如 `0:07 / 0:07`；音频播放、跳转或元数据加载后会随题卡状态刷新。
 - 当“ASR 对齐差异视图”开启时，轻量摘要里的 `asr_text1` 和 `asr_text2` 也会使用同一套对齐高亮样式；关闭该功能后恢复为普通单行文本。
 - 该能力不替代原生单选写入；选择仍通过 `1~5` 快捷键、快判工具栏按钮或关闭隐藏样式后操作原页面完成。
-- 卡片大小仍由 LabelX 的“样式设置”控制，扩展只补充轻量摘要内容；摘要外层占行用于避免和原题卡并排，内部宽度跟随宿主题卡。
+- 卡片大小仍由 LabelX 的“样式设置”控制，扩展只补充轻量摘要内容；摘要宽度跟随宿主题卡，不额外占用滚动容器的布局槽位。
 - 如果不使用 LabelX 隐藏样式，摘要块也会显示，但会与原内容 / 原回答区并存；不需要时直接在 options 关闭。
 
 ## 半自动功能池
@@ -145,10 +145,10 @@
 6. 打开 DevTools Network，确认 `subTask/{id}/data` 请求的 `pageSize` 与 LabelX 原生分页档位一致，且点击第 2 页或更后页时 `page` 保持为页面真实页码，不会被改回 `1`；若总时长接口未返回全量，确认后续只读分页请求能补齐总时长。
 7. 在快判设置中改为 `20 条/页` 保存并刷新详情页，确认页面原生分页切换到 `20 条/页`。
 8. 确认 options 前端不能选择 `100/150/200/400 条/页`，历史保存过的大页数配置会回退显示为 `50 条/页`。
-9. 在快判设置中确认“轻量题卡摘要”开启，保存并刷新详情页，确认 `.labelRender-scrollable` 下每个原题卡前方出现 `data-asr-edge-judgement-compact-card` 摘要块，并包含 `asr_text1`、`asr_text2`、“哪个ASR更优”的当前状态和音频时间比。
+9. 在快判设置中确认“轻量题卡摘要”开启，保存并刷新详情页，确认每个 `.labelRender-item` 根节点内部顶部出现 `data-asr-edge-judgement-compact-card` 摘要块，并包含 `asr_text1`、`asr_text2`、“哪个ASR更优”的当前状态和音频时间比。
 10. 在快判设置中关闭“轻量题卡摘要”，保存并刷新详情页，确认扩展摘要块被移除；重新开启后摘要块恢复。
 11. 在 LabelX 样式设置中开启“隐藏内容区”和“隐藏回答区”，确认每个题卡仍显示扩展轻量摘要块。
-12. 在 LabelX 样式设置中调整“卡片大小”，确认轻量摘要的可视宽度跟随原题卡宽度缩放，且原题卡仍显示在摘要下方，不挤出分页和顶部工具栏。
+12. 在 LabelX 样式设置中调整“卡片大小”或多列布局，确认 `.labelRender-scrollable > .labelRender-item` 仍按 LabelX 原生多列 / flex 规则排列，轻量摘要位于每个题卡内部并跟随该题卡宽度。
 13. 在隐藏内容区和回答区的状态下，按 `1`~`5` 或点击快判工具栏判别按钮，确认轻量摘要里的当前选择会更新。
 14. 确认“两个ASR文本”位置和轻量题卡摘要内都显示扩展生成的对齐差异视图，缺字位置为空白占位，不同字符高亮。
 15. 在快判设置中修改 ASR 差异颜色并保存刷新，确认普通差异视图和轻量题卡摘要同步使用新颜色。
@@ -241,7 +241,7 @@ asr-judgement/
 - `judgement-duration-summary.js`：维护总时长请求、分页补齐和网络摘要归一化。
 - `judgement-virtual-window.js`：暂存未完成的实验性窗口化显示代码，当前不启用。
 - `judgement-asr-diff-view.js`：维护 ASR 文本对齐差异视图、差异摘要、对齐算法和高亮颜色。
-- `judgement-compact-card.js`：维护轻量题卡摘要，并支持配合隐藏内容区 / 回答区和卡片宽度调整使用。
+- `judgement-compact-card.js`：维护轻量题卡摘要，在 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，并支持配合隐藏内容区 / 回答区和卡片宽度调整使用。
 - `judgement-auto-advance.js`：维护选择判别结果后的当前页自动下一题。
 - `audio-controller.js`：只保留音频扫描、配置、状态和动作路由。
 - `audio-volume-controller.js`：维护音量与 Web Audio gain 逻辑。

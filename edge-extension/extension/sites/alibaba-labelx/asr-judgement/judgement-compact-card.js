@@ -14,19 +14,19 @@
       "  flex-wrap: wrap !important;",
       "  align-items: stretch;",
       "}",
-      ".labelRender-scrollable > [" + ROOT_ATTR + "] {",
+      ".labelRender-item > [" + ROOT_ATTR + "] {",
       "  display: block !important;",
       "  flex: 0 0 100%;",
       "  align-self: stretch;",
       "  max-width: 100%;",
-      "  grid-column: 1 / -1;",
+      "  order: -1;",
       "  position: relative;",
       "  z-index: 1;",
       "}",
       "[" + ROOT_ATTR + "] {",
       "  box-sizing: border-box;",
-      "  width: 100%;",
-      "  margin: 4px 0;",
+      "  width: calc(100% - 12px);",
+      "  margin: 4px 6px 8px;",
       "  padding: 0;",
       "  border: 0;",
       "  background: transparent;",
@@ -37,8 +37,7 @@
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-shell {",
       "  box-sizing: border-box;",
-      "  width: var(--asr-edge-compact-width, calc(100% - 12px));",
-      "  margin-left: var(--asr-edge-compact-offset, 6px);",
+      "  width: 100%;",
       "  padding: 6px 8px;",
       "  border: 1px solid #bfdbfe;",
       "  border-radius: 4px;",
@@ -496,7 +495,7 @@
   }
 
   function getCompactHost(item) {
-    return item?.closest?.(".labelRender-scrollable") || item?.parentElement || null;
+    return item instanceof HTMLElement ? item : null;
   }
 
   function getHostCompactCards(host) {
@@ -513,33 +512,18 @@
     );
   }
 
-  function syncCompactCardLayout(card, item) {
-    if (!card || !item || typeof item.getBoundingClientRect !== "function") {
-      return;
-    }
-
-    const rect = item.getBoundingClientRect();
-    if (!Number.isFinite(rect.width) || rect.width <= 0) {
-      card.style.removeProperty("--asr-edge-compact-width");
-      card.style.removeProperty("--asr-edge-compact-offset");
-      return;
-    }
-
-    const targetWidth = Math.max(80, Math.round((rect.width - 12) * 100) / 100);
-    card.style.width = "100%";
-    card.style.maxWidth = "100%";
-    card.style.flexBasis = "100%";
-    card.style.alignSelf = "stretch";
-    card.style.setProperty("--asr-edge-compact-width", String(targetWidth) + "px");
-    card.style.setProperty("--asr-edge-compact-offset", "6px");
-  }
-
-  function removeOrphanCompactCards(host, activeKeys) {
-    getHostCompactCards(host).forEach(function (child) {
+  function removeStaleCompactCards(item, activeKey) {
+    getHostCompactCards(item).forEach(function (child) {
       const key = child.getAttribute("data-asr-edge-source-key") || "";
-      if (!activeKeys.has(key)) {
+      if (key !== activeKey) {
         child.remove();
       }
+    });
+  }
+
+  function removeLegacyExternalCompactCards() {
+    document.querySelectorAll(".labelRender-scrollable > [" + ROOT_ATTR + "]").forEach(function (node) {
+      node.remove();
     });
   }
 
@@ -549,6 +533,7 @@
     if (!host || !key) {
       return false;
     }
+    removeStaleCompactCards(item, key);
 
     const pair = getAsrPair(item);
     if (!pair) {
@@ -570,9 +555,8 @@
     if (
       existing &&
       existing.getAttribute("data-asr-edge-signature") === signature &&
-      existing.nextElementSibling === item
+      existing.parentElement === item
     ) {
-      syncCompactCardLayout(existing, item);
       return false;
     }
 
@@ -582,12 +566,11 @@
     nextNode.setAttribute("data-asr-edge-source-id", String(item.getAttribute("data-id") || ""));
     nextNode.setAttribute("data-asr-edge-signature", signature);
     item.setAttribute(ITEM_ATTR, "true");
-    syncCompactCardLayout(nextNode, item);
     if (existing) {
       existing.replaceWith(nextNode);
+      return true;
     }
-    host.insertBefore(nextNode, item);
-    syncCompactCardLayout(nextNode, item);
+    item.insertBefore(nextNode, item.firstElementChild || item.firstChild);
     return true;
   }
 
@@ -626,22 +609,14 @@
       ensureStyle();
       let visibleCount = 0;
       let updatedCount = 0;
-      const hostActiveKeys = new Map();
       const renderDiff = options.shouldRenderDiff ? options.shouldRenderDiff() === true : false;
       const diffColors = normalizeDiffColors(
         typeof options.getDiffColors === "function" ? options.getDiffColors() : null
       );
+      removeLegacyExternalCompactCards();
       const items = Array.from(document.querySelectorAll(".labelRender-item[data-index]"));
       items.forEach(function (item) {
         try {
-          const host = getCompactHost(item);
-          const key = getItemKey(item);
-          if (host && key) {
-            if (!hostActiveKeys.has(host)) {
-              hostActiveKeys.set(host, new Set());
-            }
-            hostActiveKeys.get(host).add(key);
-          }
           visibleCount += 1;
           if (upsertCompactCard(item, renderDiff, diffColors)) {
             updatedCount += 1;
@@ -649,9 +624,6 @@
         } catch (error) {
           removeCompactCard(item);
         }
-      });
-      hostActiveKeys.forEach(function (activeKeys, host) {
-        removeOrphanCompactCards(host, activeKeys);
       });
 
       state = {
