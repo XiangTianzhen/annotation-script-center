@@ -35,6 +35,7 @@
 - `judgement-virtual-window.js`：未完成的实验性窗口化显示代码，当前前端不展示开关，运行时强制关闭。
 - `judgement-asr-diff-view.js`：ASR 文本对齐差异视图，隐藏原始双行文本并生成高亮对齐阅读区，维护差异高亮颜色。
 - `judgement-compact-card.js`：轻量题卡摘要，在对应 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，可视宽度跟随原题卡且不破坏 LabelX 原生多列布局。
+- `asr-judgement-server.js`：快判统计上传模块，采集当前子任务统计并上传给外部服务端，由服务端按 `batchId` / 分包ID 合并 CSV 宽表。
 - `judgement-auto-advance.js`：选择判别结果后的当前页自动下一题。
 - `audio-controller.js`：音频扫描、配置、状态和动作路由。
 - `audio-volume-controller.js`：音量和 Web Audio gain。

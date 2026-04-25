@@ -9,6 +9,7 @@
   const virtualWindowModule = globalThis.__ASREdgeAlibabaLabelxJudgementVirtualWindow || null;
   const diffViewModule = globalThis.__ASREdgeAlibabaLabelxJudgementAsrDiffView || null;
   const compactCardModule = globalThis.__ASREdgeAlibabaLabelxJudgementCompactCard || null;
+  const judgementServerModule = globalThis.__ASREdgeAlibabaLabelxJudgementServer || null;
   const autoAdvanceModule = globalThis.__ASREdgeAlibabaLabelxJudgementAutoAdvance || null;
   const actionModule = globalThis.__ASREdgeAlibabaLabelxJudgementActions || null;
   const toastModule = globalThis.__ASREdgeAlibabaLabelxJudgementToast || null;
@@ -21,6 +22,7 @@
   const contentMessageSource = "ASR_EDGE_JUDGEMENT_CONTENT";
   const networkConfigMessageType = "ASR_EDGE_JUDGEMENT_NETWORK_CONFIG";
   const networkSummaryMessageType = "ASR_EDGE_JUDGEMENT_SUBTASK_DATA_SUMMARY";
+  const statsUploadActionKey = "statsUpload";
   const maxCustomPageSizeValue = 400;
   let settings = null;
   let runtimeEnabled = false;
@@ -33,6 +35,7 @@
   let virtualWindowRuntime = null;
   let diffViewRuntime = null;
   let compactCardRuntime = null;
+  let judgementServerRuntime = null;
   let autoAdvanceRuntime = null;
   let durationSummary = {
     status: "idle",
@@ -114,6 +117,14 @@
       },
       compactCardEnabled: true,
       autoAdvanceAfterChoice: false,
+      statsUploadEnabled: true,
+      statsUploadEndpoint: "",
+      statsScheduleUrl: "",
+      statsUploadTimes: ["10:00", "16:00"],
+      statsUploadJitterMinutes: 10,
+      statsAutoUploadOnSubtaskOpen: true,
+      statsAutoUploadOnSchedule: true,
+      statsUploadRequestTimeoutMs: 20000,
       shortcuts: {
         volumeUp: {
           ctrl: false,
@@ -154,6 +165,12 @@
 
     return Object.assign(deepMerge(defaults, projectConfig), {
       virtualWindowEnabled: false,
+    });
+  }
+
+  function getJudgementServerConfig() {
+    return Object.assign({}, getJudgementConfig(settings), {
+      legacyServer: clone(getPlatformSettings(settings)?.legacyServer || {}),
     });
   }
 
@@ -304,6 +321,10 @@
   }
 
   function runRuntimeAction(actionKey, source) {
+    if (actionKey === statsUploadActionKey) {
+      return uploadJudgementStats(source);
+    }
+
     if (getChoiceAction(actionKey) && actionModule && typeof actionModule.selectJudgementChoice === "function") {
       return Promise.resolve(actionModule.selectJudgementChoice(actionKey));
     }
@@ -506,6 +527,9 @@
       getDurationSummaryTitle: getDurationSummaryTitle,
       getPageSizeStatText: getPageSizeStatText,
       getPageSizeStatTitle: getPageSizeStatTitle,
+      getStatsActions: function () {
+        return [{ key: statsUploadActionKey, label: "上传统计", shortLabel: "上传统计" }];
+      },
       runActionWithFeedback: runActionWithFeedback,
     });
     return toolbarRuntime;
@@ -669,6 +693,54 @@
     }
   }
 
+  function ensureJudgementServerRuntime() {
+    if (
+      judgementServerRuntime ||
+      !judgementServerModule ||
+      typeof judgementServerModule.createRuntime !== "function"
+    ) {
+      return judgementServerRuntime;
+    }
+
+    judgementServerRuntime = judgementServerModule.createRuntime({
+      shouldApply: function () {
+        return Boolean(runtimeEnabled && isTopLevelContext() && shouldShowToolbar());
+      },
+      getConfig: getJudgementServerConfig,
+      showToast: showRuntimeToast,
+      onStateChange: updateToolbarRuntimeStats,
+    });
+    return judgementServerRuntime;
+  }
+
+  function startJudgementServer() {
+    const runtime = ensureJudgementServerRuntime();
+    if (runtime && typeof runtime.start === "function") {
+      runtime.start();
+    }
+  }
+
+  function stopJudgementServer() {
+    if (judgementServerRuntime && typeof judgementServerRuntime.stop === "function") {
+      judgementServerRuntime.stop();
+    }
+  }
+
+  function uploadJudgementStats(source) {
+    const runtime = ensureJudgementServerRuntime();
+    if (!runtime || typeof runtime.uploadNow !== "function") {
+      return Promise.resolve(
+        buildActionResult(statsUploadActionKey, false, {
+          reason: "stats-uploader-missing",
+          source: source || "unknown",
+          message: "统计上传模块不可用。",
+        })
+      );
+    }
+
+    return Promise.resolve(runtime.uploadNow(source || "manual"));
+  }
+
   function getMissingRequiredModules() {
     return [
       { name: "page-detector", value: detector },
@@ -678,6 +750,7 @@
       { name: "judgement-virtual-window", value: virtualWindowModule },
       { name: "judgement-asr-diff-view", value: diffViewModule },
       { name: "judgement-compact-card", value: compactCardModule },
+      { name: "asr-judgement-server", value: judgementServerModule },
       { name: "judgement-auto-advance", value: autoAdvanceModule },
       { name: "judgement-actions", value: actionModule },
       { name: "judgement-toast", value: toastModule },
@@ -753,6 +826,10 @@
         compactCardRuntime && typeof compactCardRuntime.getState === "function"
           ? compactCardRuntime.getState()
           : null,
+      statsUpload:
+        judgementServerRuntime && typeof judgementServerRuntime.getState === "function"
+          ? judgementServerRuntime.getState()
+          : null,
       autoAdvance:
         autoAdvanceRuntime && typeof autoAdvanceRuntime.getState === "function"
           ? autoAdvanceRuntime.getState()
@@ -821,6 +898,7 @@
     stopVirtualWindow();
     stopDiffView();
     stopCompactCard();
+    stopJudgementServer();
     if (audioController && typeof audioController.stop === "function") {
       audioController.stop();
     }
@@ -869,6 +947,7 @@
         startVirtualWindow();
         startDiffView();
         startCompactCard();
+        startJudgementServer();
         postNetworkConfig(reason || "runtime-started");
         refreshDurationSummary(reason || "runtime-started");
         scheduleConfiguredPageSizeApply(reason || "runtime-started");

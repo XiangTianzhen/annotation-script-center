@@ -66,6 +66,14 @@
         "asrDiffColors",
         "compactCardEnabled",
         "autoAdvanceAfterChoice",
+        "statsUploadEnabled",
+        "statsUploadEndpoint",
+        "statsScheduleUrl",
+        "statsUploadTimes",
+        "statsUploadJitterMinutes",
+        "statsAutoUploadOnSubtaskOpen",
+        "statsAutoUploadOnSchedule",
+        "statsUploadRequestTimeoutMs",
         "shortcuts",
       ],
       SHORTCUT_COMPATIBILITY_MAP: {},
@@ -229,6 +237,68 @@
     return result;
   }
 
+  function normalizeTimeList(value, fallback) {
+    const source = Array.isArray(value)
+      ? value
+      : typeof value === "string"
+        ? value.split(/[,，\n]/)
+        : Array.isArray(fallback)
+          ? fallback
+          : [];
+    const result = [];
+
+    source.forEach(function (item) {
+      const text = String(item || "").trim();
+      const match = text.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+      if (!match) {
+        return;
+      }
+
+      const normalized = String(Number(match[1])).padStart(2, "0") + ":" + match[2];
+      if (result.indexOf(normalized) < 0) {
+        result.push(normalized);
+      }
+    });
+
+    return result.length > 0 ? result : ["10:00", "16:00"];
+  }
+
+  function normalizeJudgementStatsConfig(config) {
+    const defaults = getConstants().DEFAULT_JUDGEMENT_ASR_CONFIG || {};
+    const nextConfig = isPlainObject(config) ? config : {};
+    nextConfig.statsUploadEnabled = nextConfig.statsUploadEnabled !== false;
+    nextConfig.statsUploadEndpoint =
+      typeof nextConfig.statsUploadEndpoint === "string"
+        ? nextConfig.statsUploadEndpoint.trim()
+        : "";
+    nextConfig.statsScheduleUrl =
+      typeof nextConfig.statsScheduleUrl === "string"
+        ? nextConfig.statsScheduleUrl.trim()
+        : "";
+    nextConfig.statsUploadTimes = normalizeTimeList(
+      nextConfig.statsUploadTimes,
+      defaults.statsUploadTimes
+    );
+    nextConfig.statsUploadJitterMinutes = Math.max(
+      0,
+      Math.min(120, normalizeNumber(nextConfig.statsUploadJitterMinutes, defaults.statsUploadJitterMinutes || 10))
+    );
+    nextConfig.statsAutoUploadOnSubtaskOpen =
+      nextConfig.statsAutoUploadOnSubtaskOpen !== false;
+    nextConfig.statsAutoUploadOnSchedule = nextConfig.statsAutoUploadOnSchedule !== false;
+    nextConfig.statsUploadRequestTimeoutMs = Math.max(
+      1000,
+      Math.min(
+        120000,
+        normalizeNumber(
+          nextConfig.statsUploadRequestTimeoutMs,
+          defaults.statsUploadRequestTimeoutMs || 20000
+        )
+      )
+    );
+    return nextConfig;
+  }
+
   function normalizeJudgementAsrConfig(config) {
     const constants = getConstants();
     const fallback = constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "50 条/页";
@@ -238,7 +308,7 @@
       fallback
     );
     nextConfig.asrDiffColors = normalizeJudgementAsrDiffColors(nextConfig.asrDiffColors);
-    return nextConfig;
+    return normalizeJudgementStatsConfig(nextConfig);
   }
 
   function createStoragePromise(method, payload) {

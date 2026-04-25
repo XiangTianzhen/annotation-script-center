@@ -24,7 +24,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 13;
+  const SCHEMA_VERSION = 14;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
@@ -190,6 +190,14 @@
     asrDiffColors: clone(DEFAULT_JUDGEMENT_ASR_DIFF_COLORS),
     compactCardEnabled: true,
     autoAdvanceAfterChoice: false,
+    statsUploadEnabled: true,
+    statsUploadEndpoint: "",
+    statsScheduleUrl: "",
+    statsUploadTimes: ["10:00", "16:00"],
+    statsUploadJitterMinutes: 10,
+    statsAutoUploadOnSubtaskOpen: true,
+    statsAutoUploadOnSchedule: true,
+    statsUploadRequestTimeoutMs: 20000,
     shortcuts: {
       choiceFirstBetter: createShortcut("1"),
       choiceSecondBetter: createShortcut("2"),
@@ -234,6 +242,14 @@
     "asrDiffColors",
     "compactCardEnabled",
     "autoAdvanceAfterChoice",
+    "statsUploadEnabled",
+    "statsUploadEndpoint",
+    "statsScheduleUrl",
+    "statsUploadTimes",
+    "statsUploadJitterMinutes",
+    "statsAutoUploadOnSubtaskOpen",
+    "statsAutoUploadOnSchedule",
+    "statsUploadRequestTimeoutMs",
     "shortcuts",
   ];
 

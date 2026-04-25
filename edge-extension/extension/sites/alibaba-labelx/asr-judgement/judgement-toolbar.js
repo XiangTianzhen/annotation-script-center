@@ -319,6 +319,11 @@
           { key: "rateReset", label: audioActionLabels.rateReset },
         ])
       );
+      const statsActions =
+        typeof options.getStatsActions === "function" ? options.getStatsActions() || [] : [];
+      if (statsActions.length > 0) {
+        toolbarRoot.appendChild(createToolbarGroup("统计", statsActions));
+      }
 
       const breadcrumb = toolbox.querySelector(".mark-toolbox-breadcrumb-wrapper");
       if (breadcrumb && breadcrumb.nextSibling) {

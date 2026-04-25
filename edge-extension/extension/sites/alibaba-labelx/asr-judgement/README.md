@@ -6,13 +6,13 @@
 
 - 已归档真实页面结构资料：`page-structure/`
 - 快判在 options 中拥有独立脚本详情页和简化设置表单。
-- 快判已接入独立运行时，入口文件为 `content.js`、`audio-controller.js`、`page-world/network-observer.js`；音量、倍速、播放、分页、总时长、判别动作、快捷键、toast、工具栏、网络协议、ASR 差异视图和轻量题卡摘要等能力已拆成小文件。
+- 快判已接入独立运行时，入口文件为 `content.js`、`audio-controller.js`、`page-world/network-observer.js`；音量、倍速、播放、分页、总时长、判别动作、快捷键、toast、工具栏、网络协议、ASR 差异视图、轻量题卡摘要和统计上传等能力已拆成小文件。
 - `content.js` 当前只作为入口编排层，不再承载具体功能实现。
 
 ## 负责范围
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
-- options 快判详情页负责保存快判专属设置：全局音量、当前倍速、倍速步进、切换倍速重置、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、选择后辅助流转、快捷键。
+- options 快判详情页负责保存快判专属设置：全局音量、当前倍速、倍速步进、切换倍速重置、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、选择后辅助流转、统计上传、快捷键。
 - `page-structure/` 负责沉淀快判详情页和任务列表页 DOM 资料，供后续运行时实现使用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
@@ -70,6 +70,18 @@
 - 该能力不替代原生单选写入；选择仍通过 `1~5` 快捷键、快判工具栏按钮或关闭隐藏样式后操作原页面完成。
 - 卡片大小仍由 LabelX 的“样式设置”控制，扩展只补充轻量摘要内容；摘要宽度跟随宿主题卡，不额外占用滚动容器的布局槽位。
 - 如果不使用 LabelX 隐藏样式，摘要块也会显示，但会与原内容 / 原回答区并存；不需要时直接在 options 关闭。
+
+## 统计数据上传
+
+- `asr-judgement-server.js` 是扩展侧统计上传模块，不是真正的 Node 后端服务；真正的数据库写入和 CSV 合并应由外部服务端完成。
+- 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 列顺序：`任务名称`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
+- 扩展只能可靠识别当前页面所属的一个子任务，因此上传的是“分包级补丁记录”：基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端需要以 `mergeKey.batchId` / `分包ID` 做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
+- 进入新的快判详情页后，如果 `statsAutoUploadOnSubtaskOpen` 开启，会延迟约 2.5 秒自动上传一次，等价于“领取数据后进入详情页触发上传”。
+- 快判工具栏新增“统计 / 上传统计”按钮，可在当前详情页手动触发上传。
+- 定时上传默认使用 `10:00`、`16:00`；到点后会按 `statsUploadJitterMinutes` 增加随机延迟，避免大量客户端同时请求服务器。
+- 预留 `statsScheduleUrl`：后续每个项目的上传时间可由该 URL 返回。当前支持响应形态中包含 `data.times`、`data.uploadTimes` 或 `data.scheduleTimes`，例如 `["10:00","16:00"]`；请求会附带当前 URL 的 `projectId` 和 `subTaskId`。
+- 上传接口默认使用 `legacyServer.apiBaseUrl + /api/asr-judgement/statistics/upload`；也可以在 options 的“统计数据上传”中填写完整 `statsUploadEndpoint` 覆盖。
+- 服务端更推荐的抗峰值方案是：上传接口只做快速校验和入队 / upsert，返回 `202` 或轻量成功响应；后端队列再异步合并 CSV 和写数据库。这样比只靠客户端随机延迟更稳。
 
 ## 半自动功能池
 
@@ -163,8 +175,11 @@
 22. 在快判详情页验证音量、重置音量、倍速、重置倍速、播放/暂停快捷键；默认增大音量为 `[`，减小音量为 `]`，重置音量为 `\`。
 23. 确认工具栏按钮可执行判别、音量和倍速动作；播放/暂停不额外添加按钮。
 24. 触发快捷键或按钮后，确认页面右上角会出现短提示。
-25. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
-26. 打开一个未标注的全新快判详情页，不按快捷键、不点工具栏，确认脚本不会自动选中“哪个ASR更优”的任一选项；若页面本身返回了已保存答案，应以接口数据或页面原始状态为准。
+25. 在 options 中确认“统计数据上传”区域可配置上传接口、时间配置 URL、默认上传时间和随机延迟分钟。
+26. 在快判详情页确认工具栏出现“统计 / 上传统计”按钮；点击后应向配置的上传接口发送一次 JSON，payload 包含 `mergeKey.batchId`、`csvColumns`、`csvPatch` 和 `roleRecord`。
+27. 若上传接口尚未部署，点击“上传统计”应只提示上传失败，不应影响题卡判别、保存或页面操作。
+28. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
+29. 打开一个未标注的全新快判详情页，不按快捷键、不点工具栏，确认脚本不会自动选中“哪个ASR更优”的任一选项；若页面本身返回了已保存答案，应以接口数据或页面原始状态为准。
 
 ## 已知限制
 
@@ -173,6 +188,7 @@
 - 快捷键动作只改变当前页面运行态，不自动写回存储；需要持久化默认值时仍在 options 中保存。
 - 鼠标左键这类通用按键可以录制，但会拦截页面点击，建议优先使用组合键或侧键。
 - `100/150/200/400 条/页` 自定义大页数入口已暂停开放；如后续恢复，必须重新验证翻页、保存、答案回显和页面渲染稳定性。
+- 统计上传依赖外部服务端接口；当前扩展只负责采集和发送分包级补丁记录，不在浏览器内合并最终 CSV。
 - 本目录不包含提交、保存、自动领取、自动流转逻辑。
 
 ## 当前文件结构
@@ -191,6 +207,7 @@ asr-judgement/
   judgement-virtual-window.js
   judgement-asr-diff-view.js
   judgement-compact-card.js
+  asr-judgement-server.js
   judgement-auto-advance.js
   audio-controller.js
   audio-volume-controller.js
@@ -245,6 +262,7 @@ asr-judgement/
 - `judgement-virtual-window.js`：暂存未完成的实验性窗口化显示代码，当前不启用。
 - `judgement-asr-diff-view.js`：维护 ASR 文本对齐差异视图、差异摘要、对齐算法和高亮颜色。
 - `judgement-compact-card.js`：维护轻量题卡摘要，在 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，并支持配合隐藏内容区 / 回答区和卡片宽度调整使用。
+- `asr-judgement-server.js`：维护统计数据采集、手动上传、进入子任务后的自动上传、定时上传和远程时间配置 URL 预留。
 - `judgement-auto-advance.js`：维护选择判别结果后的当前页自动下一题。
 - `audio-controller.js`：只保留音频扫描、配置、状态和动作路由。
 - `audio-volume-controller.js`：维护音量与 Web Audio gain 逻辑。
@@ -261,7 +279,7 @@ asr-judgement/
 快判依赖 `manifest.json` 的数组顺序加载，不使用打包器或 ES module：
 
 - MAIN world：`network-protocol.js`、`network-config.js`、`network-url-rewriter.js`、`network-summary.js`、`network-observer.js`。
-- ISOLATED world：`page-detector.js`、音频小模块、`audio-controller.js`、分页/总时长模块、暂存窗口化模块、ASR 差异视图、轻量题卡摘要、自动下一题、判别/提示/快捷键/工具栏模块、`content.js`。
+- ISOLATED world：`page-detector.js`、音频小模块、`audio-controller.js`、分页/总时长模块、暂存窗口化模块、ASR 差异视图、轻量题卡摘要、统计上传、自动下一题、判别/提示/快捷键/工具栏模块、`content.js`。
 
 调整文件名或新增模块时，必须同步更新 `manifest.json` 并验证脚本路径存在。
 

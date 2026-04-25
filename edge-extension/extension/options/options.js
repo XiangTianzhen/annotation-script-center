@@ -166,6 +166,32 @@
     };
   }
 
+  function normalizeTimeList(value, fallback) {
+    const source = Array.isArray(value)
+      ? value
+      : typeof value === "string"
+        ? value.split(/[,，\n]/)
+        : Array.isArray(fallback)
+          ? fallback
+          : [];
+    const result = [];
+
+    source.forEach(function (item) {
+      const text = String(item || "").trim();
+      const match = text.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+      if (!match) {
+        return;
+      }
+
+      const normalized = String(Number(match[1])).padStart(2, "0") + ":" + match[2];
+      if (result.indexOf(normalized) < 0) {
+        result.push(normalized);
+      }
+    });
+
+    return result.length > 0 ? result : ["10:00", "16:00"];
+  }
+
   function hasOwn(target, key) {
     return Boolean(target) && Object.prototype.hasOwnProperty.call(target, key);
   }
@@ -288,6 +314,14 @@
       },
       compactCardEnabled: true,
       autoAdvanceAfterChoice: false,
+      statsUploadEnabled: true,
+      statsUploadEndpoint: "",
+      statsScheduleUrl: "",
+      statsUploadTimes: ["10:00", "16:00"],
+      statsUploadJitterMinutes: 10,
+      statsAutoUploadOnSubtaskOpen: true,
+      statsAutoUploadOnSchedule: true,
+      statsUploadRequestTimeoutMs: 20000,
       shortcuts: {
         volumeUp: {
           ctrl: false,
@@ -358,6 +392,33 @@
       asrDiffColors: asrDiffColors,
       compactCardEnabled: asrConfig.compactCardEnabled !== false,
       autoAdvanceAfterChoice: asrConfig.autoAdvanceAfterChoice === true,
+      statsUploadEnabled: asrConfig.statsUploadEnabled !== false,
+      statsUploadEndpoint:
+        typeof asrConfig.statsUploadEndpoint === "string"
+          ? asrConfig.statsUploadEndpoint.trim()
+          : "",
+      statsScheduleUrl:
+        typeof asrConfig.statsScheduleUrl === "string" ? asrConfig.statsScheduleUrl.trim() : "",
+      statsUploadTimes: normalizeTimeList(
+        asrConfig.statsUploadTimes,
+        defaults.statsUploadTimes
+      ),
+      statsUploadJitterMinutes: clampNumber(
+        asrConfig.statsUploadJitterMinutes,
+        defaults.statsUploadJitterMinutes || 10,
+        0,
+        120,
+        0
+      ),
+      statsAutoUploadOnSubtaskOpen: asrConfig.statsAutoUploadOnSubtaskOpen !== false,
+      statsAutoUploadOnSchedule: asrConfig.statsAutoUploadOnSchedule !== false,
+      statsUploadRequestTimeoutMs: clampNumber(
+        asrConfig.statsUploadRequestTimeoutMs,
+        defaults.statsUploadRequestTimeoutMs || 20000,
+        1000,
+        120000,
+        0
+      ),
       shortcuts: shortcuts,
     };
   }
@@ -629,6 +690,15 @@
       config.asrDiffColors.punctuationBackground;
     getElement("judgement-compact-card").checked = config.compactCardEnabled !== false;
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
+    getElement("judgement-stats-upload-enabled").checked = config.statsUploadEnabled !== false;
+    getElement("judgement-stats-upload-endpoint").value = config.statsUploadEndpoint || "";
+    getElement("judgement-stats-schedule-url").value = config.statsScheduleUrl || "";
+    getElement("judgement-stats-upload-times").value = (config.statsUploadTimes || []).join(",");
+    getElement("judgement-stats-jitter-minutes").value = String(config.statsUploadJitterMinutes);
+    getElement("judgement-stats-auto-open").checked =
+      config.statsAutoUploadOnSubtaskOpen !== false;
+    getElement("judgement-stats-auto-schedule").checked =
+      config.statsAutoUploadOnSchedule !== false;
     stopJudgementShortcutRecording("");
     renderJudgementShortcutGrid();
   }
@@ -846,6 +916,16 @@
     );
     const compactCardEnabled = Boolean(getElement("judgement-compact-card").checked);
     const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
+    const statsUploadEnabled = Boolean(getElement("judgement-stats-upload-enabled").checked);
+    const statsUploadEndpoint = String(getElement("judgement-stats-upload-endpoint").value || "").trim();
+    const statsScheduleUrl = String(getElement("judgement-stats-schedule-url").value || "").trim();
+    const statsUploadTimes = normalizeTimeList(
+      getElement("judgement-stats-upload-times").value,
+      constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.statsUploadTimes || ["10:00", "16:00"]
+    );
+    const statsUploadJitterMinutes = Number(getElement("judgement-stats-jitter-minutes").value);
+    const statsAutoUploadOnSubtaskOpen = Boolean(getElement("judgement-stats-auto-open").checked);
+    const statsAutoUploadOnSchedule = Boolean(getElement("judgement-stats-auto-schedule").checked);
     const shortcuts = {};
 
     ensureShortcutDraft();
@@ -869,6 +949,14 @@
         asrDiffColors: asrDiffColors,
         compactCardEnabled: compactCardEnabled,
         autoAdvanceAfterChoice: autoAdvanceAfterChoice,
+        statsUploadEnabled: statsUploadEnabled,
+        statsUploadEndpoint: statsUploadEndpoint,
+        statsScheduleUrl: statsScheduleUrl,
+        statsUploadTimes: statsUploadTimes,
+        statsUploadJitterMinutes: clampNumber(statsUploadJitterMinutes, 10, 0, 120, 0),
+        statsAutoUploadOnSubtaskOpen: statsAutoUploadOnSubtaskOpen,
+        statsAutoUploadOnSchedule: statsAutoUploadOnSchedule,
+        statsUploadRequestTimeoutMs: 20000,
         shortcuts: shortcuts,
       });
       renderCurrentView();

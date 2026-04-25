@@ -571,6 +571,39 @@
             </label>
           </div>
 
+          <div class="field-card">
+            <strong>统计数据上传</strong>
+            <span>进入快判详情页和定时时间点会上传当前子任务统计；服务器按分包ID合并为总 CSV。</span>
+            <label class="field-toggle">
+              <input id="judgement-stats-upload-enabled" type="checkbox" />
+              <span>启用统计上传</span>
+            </label>
+            <label>
+              <span>上传接口地址</span>
+              <input id="judgement-stats-upload-endpoint" type="text" placeholder="留空则使用默认服务器路径" />
+            </label>
+            <label>
+              <span>定时时间配置地址</span>
+              <input id="judgement-stats-schedule-url" type="text" placeholder="预留：每个项目对应的时间配置 URL" />
+            </label>
+            <label>
+              <span>本地默认上传时间</span>
+              <input id="judgement-stats-upload-times" type="text" placeholder="10:00,16:00" />
+            </label>
+            <label>
+              <span>定时随机延迟分钟</span>
+              <input id="judgement-stats-jitter-minutes" type="number" min="0" max="120" step="1" />
+            </label>
+            <label class="field-toggle">
+              <input id="judgement-stats-auto-open" type="checkbox" />
+              <span>进入子任务详情后自动上传</span>
+            </label>
+            <label class="field-toggle">
+              <input id="judgement-stats-auto-schedule" type="checkbox" />
+              <span>启用定时上传</span>
+            </label>
+          </div>
+
           <div class="field-card shortcut-panel">
             <strong>快捷键配置</strong>
             <span>默认 1~5 分别选择五个“哪个ASR更优”选项；默认增大音量为 [，减小音量为 ]，重置音量为 \，播放/暂停当前音频为 Space。点击“录制”后按键或点击鼠标按键；按 Esc 取消录制，不保存。</span>
