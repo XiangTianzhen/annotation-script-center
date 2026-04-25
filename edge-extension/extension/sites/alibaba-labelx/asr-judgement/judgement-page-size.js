@@ -1,36 +1,30 @@
 (function () {
   const DEFAULT_MAX_PAGE_SIZE = 400;
+  const nativePageSizes = [1, 2, 3, 4, 5, 10, 20, 30, 40, 50];
+
+  function buildNativePageSize(pageSize) {
+    return {
+      mode: "native",
+      pageSize: pageSize,
+      label: String(pageSize) + " 条/页",
+      nativeLabel: String(pageSize) + " 条/页",
+    };
+  }
 
   function normalizePageSizeSetting(value, allPageSizeValue) {
     const maxPageSize = Number(allPageSizeValue) || DEFAULT_MAX_PAGE_SIZE;
     if (value === "all" || value === "全部") {
-      return {
-        mode: "custom",
-        pageSize: maxPageSize,
-        label: String(maxPageSize) + " 条/页",
-        nativeLabel: "50 条/页",
-      };
+      return buildNativePageSize(50);
     }
 
     const match = String(value || "").match(/\d+/);
     const numericValue = match ? Number(match[0]) : NaN;
     if (!Number.isFinite(numericValue) || numericValue <= 0) {
-      return {
-        mode: "custom",
-        pageSize: 100,
-        label: "100 条/页",
-        nativeLabel: "50 条/页",
-      };
+      return buildNativePageSize(50);
     }
 
     const pageSize = Math.max(1, Math.min(maxPageSize, Math.floor(numericValue)));
-    const isNativePageSize = [1, 2, 3, 4, 5, 10, 20, 30, 40, 50].indexOf(pageSize) >= 0;
-    return {
-      mode: isNativePageSize ? "native" : "custom",
-      pageSize: pageSize,
-      label: String(pageSize) + " 条/页",
-      nativeLabel: isNativePageSize ? String(pageSize) + " 条/页" : "50 条/页",
-    };
+    return nativePageSizes.indexOf(pageSize) >= 0 ? buildNativePageSize(pageSize) : buildNativePageSize(50);
   }
 
   function getCurrentNativePageSizeLabel() {

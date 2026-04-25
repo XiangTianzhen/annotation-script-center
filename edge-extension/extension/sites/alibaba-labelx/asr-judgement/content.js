@@ -98,7 +98,7 @@
 
   function getJudgementConfig(nextSettings) {
     const defaults = constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {
-      itemsPerPage: "100 条/页",
+      itemsPerPage: "50 条/页",
       autoPlay: true,
       autoResetRate: true,
       resetRateValue: 1.0,
@@ -131,9 +131,9 @@
     }
 
     return {
-      mode: "custom",
-      pageSize: 100,
-      label: "100 条/页",
+      mode: "native",
+      pageSize: 50,
+      label: "50 条/页",
       nativeLabel: "50 条/页",
     };
   }

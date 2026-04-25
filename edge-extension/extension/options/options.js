@@ -32,10 +32,6 @@
     { value: "30 条/页", label: "30 条/页" },
     { value: "40 条/页", label: "40 条/页" },
     { value: "50 条/页", label: "50 条/页" },
-    { value: "100 条/页", label: "100 条/页" },
-    { value: "150 条/页", label: "150 条/页" },
-    { value: "200 条/页", label: "200 条/页" },
-    { value: "400 条/页", label: "400 条/页" },
   ];
   const mouseButtonLabels = {
     0: "MouseLeft",
@@ -116,10 +112,16 @@
       text === "全部/400条" ||
       text === "全部（400 条）" ||
       text === "全部（400条）" ||
+      text === "100 条/页" ||
+      text === "100条/页" ||
+      text === "150 条/页" ||
+      text === "150条/页" ||
+      text === "200 条/页" ||
+      text === "200条/页" ||
       text === "400 条/页" ||
       text === "400条/页"
     ) {
-      return "400 条/页";
+      return "50 条/页";
     }
 
     const validValues = judgementItemsPerPageOptions.map(function (option) {
@@ -129,7 +131,7 @@
       return text;
     }
 
-    return validValues.indexOf(fallback) >= 0 ? fallback : "100 条/页";
+    return validValues.indexOf(fallback) >= 0 ? fallback : "50 条/页";
   }
 
   function hasOwn(target, key) {
@@ -244,7 +246,7 @@
       playbackRateValue: 1.0,
       rateStepValue: 0.25,
       volumeValue: 100,
-      itemsPerPage: "100 条/页",
+      itemsPerPage: "50 条/页",
       virtualWindowEnabled: false,
       asrDiffViewEnabled: true,
       autoAdvanceAfterChoice: false,
@@ -282,7 +284,7 @@
           : defaults.volumeValue,
       itemsPerPage: normalizeJudgementItemsPerPage(
         asrConfig.itemsPerPage,
-        defaults.itemsPerPage || "100 条/页"
+        defaults.itemsPerPage || "50 条/页"
       ),
       virtualWindowEnabled: false,
       asrDiffViewEnabled: asrConfig.asrDiffViewEnabled !== false,
@@ -756,7 +758,7 @@
     const resetRateValue = Number(getElement("judgement-reset-rate").value);
     const itemsPerPage = normalizeJudgementItemsPerPage(
       getElement("judgement-items-per-page").value,
-      "100 条/页"
+      "50 条/页"
     );
     const autoPlay = Boolean(getElement("judgement-auto-play").checked);
     const asrDiffViewEnabled = Boolean(getElement("judgement-asr-diff-view").checked);

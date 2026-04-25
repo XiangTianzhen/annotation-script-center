@@ -172,7 +172,7 @@
   };
 
   const DEFAULT_JUDGEMENT_ASR_CONFIG = {
-    itemsPerPage: "100 条/页",
+    itemsPerPage: "50 条/页",
     autoPlay: true,
     autoResetRate: true,
     resetRateValue: 1.0,
