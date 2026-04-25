@@ -114,7 +114,9 @@
     const projectConfig =
       getPlatformSettings(nextSettings)?.scriptCenter?.projects?.[judgementProjectId]?.asrConfig || {};
 
-    return deepMerge(defaults, projectConfig);
+    return Object.assign(deepMerge(defaults, projectConfig), {
+      virtualWindowEnabled: false,
+    });
   }
 
   function normalizePageSizeSetting(value) {

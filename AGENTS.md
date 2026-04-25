@@ -32,7 +32,7 @@
 - `judgement-toolbar.js`：`.mark-toolbox` 工具栏和顶部主导航总时长挂载。
 - `judgement-page-size.js`：默认每页条数、原生分页选择器点击和重试。
 - `judgement-duration-summary.js`：总时长请求、分页补齐和网络摘要归一化。
-- `judgement-virtual-window.js`：实验性窗口化显示，只展开当前题前后 5 题，折叠其他题卡。
+- `judgement-virtual-window.js`：未完成的实验性窗口化显示代码，当前前端不展示开关，运行时强制关闭。
 - `audio-controller.js`：音频扫描、配置、状态和动作路由。
 - `audio-volume-controller.js`：音量和 Web Audio gain。
 - `audio-rate-controller.js`：倍速、倍速显示和重置。
