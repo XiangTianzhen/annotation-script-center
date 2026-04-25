@@ -8,6 +8,7 @@
   const durationSummaryModule = globalThis.__ASREdgeAlibabaLabelxJudgementDurationSummary || null;
   const virtualWindowModule = globalThis.__ASREdgeAlibabaLabelxJudgementVirtualWindow || null;
   const diffViewModule = globalThis.__ASREdgeAlibabaLabelxJudgementAsrDiffView || null;
+  const compactCardModule = globalThis.__ASREdgeAlibabaLabelxJudgementCompactCard || null;
   const autoAdvanceModule = globalThis.__ASREdgeAlibabaLabelxJudgementAutoAdvance || null;
   const actionModule = globalThis.__ASREdgeAlibabaLabelxJudgementActions || null;
   const toastModule = globalThis.__ASREdgeAlibabaLabelxJudgementToast || null;
@@ -31,6 +32,7 @@
   let toolbarRuntime = null;
   let virtualWindowRuntime = null;
   let diffViewRuntime = null;
+  let compactCardRuntime = null;
   let autoAdvanceRuntime = null;
   let durationSummary = {
     status: "idle",
@@ -597,6 +599,32 @@
     }
   }
 
+  function ensureCompactCardRuntime() {
+    if (compactCardRuntime || !compactCardModule || typeof compactCardModule.createRuntime !== "function") {
+      return compactCardRuntime;
+    }
+
+    compactCardRuntime = compactCardModule.createRuntime({
+      shouldApply: function () {
+        return Boolean(runtimeEnabled && isTopLevelContext());
+      },
+    });
+    return compactCardRuntime;
+  }
+
+  function startCompactCard() {
+    const runtime = ensureCompactCardRuntime();
+    if (runtime && typeof runtime.start === "function") {
+      runtime.start();
+    }
+  }
+
+  function stopCompactCard() {
+    if (compactCardRuntime && typeof compactCardRuntime.stop === "function") {
+      compactCardRuntime.stop();
+    }
+  }
+
   function getMissingRequiredModules() {
     return [
       { name: "page-detector", value: detector },
@@ -605,6 +633,7 @@
       { name: "judgement-duration-summary", value: durationSummaryModule },
       { name: "judgement-virtual-window", value: virtualWindowModule },
       { name: "judgement-asr-diff-view", value: diffViewModule },
+      { name: "judgement-compact-card", value: compactCardModule },
       { name: "judgement-auto-advance", value: autoAdvanceModule },
       { name: "judgement-actions", value: actionModule },
       { name: "judgement-toast", value: toastModule },
@@ -676,6 +705,10 @@
         diffViewRuntime && typeof diffViewRuntime.getState === "function"
           ? diffViewRuntime.getState()
           : null,
+      compactCard:
+        compactCardRuntime && typeof compactCardRuntime.getState === "function"
+          ? compactCardRuntime.getState()
+          : null,
       autoAdvance:
         autoAdvanceRuntime && typeof autoAdvanceRuntime.getState === "function"
           ? autoAdvanceRuntime.getState()
@@ -743,6 +776,7 @@
     stopConfiguredPageSizeApply();
     stopVirtualWindow();
     stopDiffView();
+    stopCompactCard();
     if (audioController && typeof audioController.stop === "function") {
       audioController.stop();
     }
@@ -790,6 +824,7 @@
         startToolbar();
         startVirtualWindow();
         startDiffView();
+        startCompactCard();
         postNetworkConfig(reason || "runtime-started");
         refreshDurationSummary(reason || "runtime-started");
         scheduleConfiguredPageSizeApply(reason || "runtime-started");
