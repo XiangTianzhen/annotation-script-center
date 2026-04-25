@@ -42,7 +42,6 @@
       };
     }
 
-    url.searchParams.set("page", "1");
     url.searchParams.set("pageSize", String(pageSize));
     state.lastRewriteAt = new Date().toISOString();
 

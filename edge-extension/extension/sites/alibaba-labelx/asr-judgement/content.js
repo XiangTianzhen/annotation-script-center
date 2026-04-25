@@ -693,7 +693,7 @@
         type: networkConfigMessageType,
         payload: {
           enabled: enabled,
-          pageSizeOverride: enabled ? pageSize.pageSize : null,
+          pageSizeOverride: enabled && pageSize.mode === "custom" ? pageSize.pageSize : null,
           reason: reason || "",
         },
       },
