@@ -468,6 +468,24 @@
               <span>该规则已强制启用；遇到新音频或音频源变化时，会自动重置为这里配置的倍速。</span>
               <input id="judgement-reset-rate" type="number" min="0.1" max="8" step="0.1" />
             </label>
+
+            <label class="field-card">
+              <strong>默认每页条数</strong>
+              <span>进入快判详情页后自动尝试切换分页；“全部”会尝试一次加载 400 条。</span>
+              <select id="judgement-items-per-page">
+                <option value="all">全部（400 条）</option>
+                <option value="1 条/页">1 条/页</option>
+                <option value="2 条/页">2 条/页</option>
+                <option value="3 条/页">3 条/页</option>
+                <option value="4 条/页">4 条/页</option>
+                <option value="5 条/页">5 条/页</option>
+                <option value="10 条/页">10 条/页</option>
+                <option value="20 条/页">20 条/页</option>
+                <option value="30 条/页">30 条/页</option>
+                <option value="40 条/页">40 条/页</option>
+                <option value="50 条/页">50 条/页</option>
+              </select>
+            </label>
           </div>
 
           <div class="field-card">

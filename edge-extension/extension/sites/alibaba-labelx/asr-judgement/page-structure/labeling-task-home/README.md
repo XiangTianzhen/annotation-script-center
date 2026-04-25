@@ -17,7 +17,7 @@
 
 ## 真实 URL 样例
 
-- `https://labelx.alibaba-inc.com/corpora/labeling/labelingTask?projectId=1023`
+- `https://labelx.alibaba-inc.com/corpora/labeling/labelingTask?projectId=<REDACTED_PROJECT_ID>`
 
 建议路由识别拆成：
 
@@ -49,6 +49,8 @@
   - 两类分页控件代表性结构。
 - `action-buttons.html`
   - `标注` / `释放` / `领取` 行内按钮结构。
+- `../common-top-nav-avatar-dropdown.html`
+  - 顶部导航右侧头像下拉菜单，包含用户、组织和退出登录入口，属于共享导航结构。
 
 ## 推荐选择器
 
@@ -70,6 +72,9 @@
 - 行内动作按钮：
   - `button.label-center-task-link`
   - 按按钮文本区分 `标注`、`释放`、`领取`
+- 顶部导航头像：
+  - `.ant-v5-avatar.ant-v5-avatar-circle`
+  - 下拉菜单 `.ant-v5-dropdown-menu[role="menu"]`
 - 分页：
   - `ul.label-center-pagination`
 
@@ -92,5 +97,15 @@
 ## 与详情页的关系
 
 - 从“我的任务”表格点击 `标注` 会进入详情页路由 `/corpora/labeling/sdk?...`。
+- “我的任务 / 已完成”进入详情页时可能带 `disableEdit=true` 和 `isFinished=true`。
+- 首页点击 `领取` 会触发 `/api/v1/label/center/{taskId}/label/fetch`。
+- 首页点击 `释放` 会触发 `/api/v1/label/center/subTask/{subTaskId}/release`。
 - 本目录只记录首页结构，不记录详情页题卡结构。
 - 详情页结构见 `../asr-judgement-detail/`。
+
+## 与当前快判运行时的关系
+
+- 当前快判运行时主要在详情页生效。
+- 首页结构资料主要服务于后续领取、释放、打开详情页等流程分析。
+- 当前扩展默认不自动点击首页的 `标注`、`释放`、`领取` 按钮。
+- 若后续实现首页辅助能力，应新增独立模块，不要把首页逻辑写入详情页相关模块。

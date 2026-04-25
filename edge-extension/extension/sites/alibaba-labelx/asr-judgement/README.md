@@ -6,12 +6,13 @@
 
 - 已归档真实页面结构资料：`page-structure/`
 - 快判在 options 中拥有独立脚本详情页和简化设置表单。
-- 快判已接入独立最小运行时：`page-detector.js`、`audio-controller.js`、`content.js`。
+- 快判已接入独立运行时，入口文件为 `content.js`、`audio-controller.js`、`page-world/network-observer.js`；音量、倍速、播放、分页、总时长、判别动作、快捷键、toast、工具栏、网络协议等能力已拆成小文件。
+- `content.js` 当前只作为入口编排层，不再承载具体功能实现。
 
 ## 负责范围
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
-- options 快判详情页负责保存快判专属设置：全局音量、当前倍速、倍速步进、切换倍速重置、自动播放音频、快捷键。
+- options 快判详情页负责保存快判专属设置：全局音量、当前倍速、倍速步进、切换倍速重置、默认每页条数、自动播放音频、快捷键。
 - `page-structure/` 负责沉淀快判详情页和任务列表页 DOM 资料，供后续运行时实现使用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
@@ -44,24 +45,35 @@
 - 当前选中题卡：`.labelRender-item-selected`
 - 音频播放器容器：`.dt-audio-base-container`
 - 音频元素：`audio[controls]`
-- 顶部区域：`.mark-toolbox`
+- 顶部工具栏区域：`.mark-toolbox`
+- 顶部主导航区域：`.header-component-container`
 
-运行时工具栏挂载在 `.mark-toolbox` 内，优先放在 `.mark-toolbox-breadcrumb-wrapper` 后方；如果页面结构变化，则回退到 `.mark-toolbox` 内部首位或末尾。
+运行时工具栏挂载在 `.mark-toolbox` 内，优先放在 `.mark-toolbox-breadcrumb-wrapper` 后方；如果页面结构变化，则回退到 `.mark-toolbox` 内部首位或末尾。总时长挂载在顶部主导航栏，优先插入 `.header-component-container` 的菜单后方。
 后续新增快判运行时动作时，除页面已有等价控件的动作外，应同步在这个工具栏中增加按钮入口。
 
 题卡列表和音频节点是异步加载的，运行时使用 `MutationObserver` 监听新增节点，并对已有和后续加载的 `audio` 同步音量与倍速。
+
+## 分页与总时长
+
+- 快判设置字段为 `itemsPerPage`，默认值为 `all`，表示尝试将详情页数据请求切换为 400 条。
+- 页面原生分页选择器只包含 `1/2/3/4/5/10/20/30/40/50 条/页`；运行时在 `all` 模式下会尝试把页面 `data` 请求的 `pageSize` 改写为 `400`。
+- 顶部主导航栏会展示总时长，来源是 `/api/v1/label/center/subTask/{subTaskId}/data` 返回的 `data.dataList[].data.duration`。
+- 总时长统计先尝试读取 `pageSize=400`；如果响应不足总数，会按 50 条分页只读补齐并求和。
 
 ## 人工验证步骤
 
 1. 重新加载扩展。
 2. 在 options 脚本中心启用“阿里ASR语音判别”。
-3. 打开快判详情页，确认 popup 状态不是“注入失败”。
-4. 在快判设置中配置音量、当前倍速、倍速步进、自动播放和快捷键，保存后刷新或等待页面实时同步。
-5. 在快判详情页验证音量、重置音量、倍速、重置倍速、播放/暂停快捷键。
-6. 在快判详情页按 `1`~`5`，确认当前选中题卡的“哪个ASR更优”会切换到对应选项。
-7. 确认页面顶部 `.mark-toolbox` 附近出现快判工具栏，工具栏按钮可执行判别、音量和倍速动作；播放/暂停不额外添加按钮。
-8. 触发快捷键或按钮后，确认页面右上角会出现短提示。
-9. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
+3. 在快判设置中将“默认每页条数”设为“全部（400 条）”，保存。
+4. 打开快判详情页，确认 popup 状态不是“注入失败”。
+5. 确认页面最顶部主导航空白区域显示 `总时长`，并确认 `.mark-toolbox` 附近的快判工具栏显示 `每页 全部(400)`。
+6. 打开 DevTools Network，确认 `subTask/{id}/data` 请求优先尝试 `pageSize=400`；若服务端未返回全量，确认后续只读分页请求能补齐总时长。
+7. 在快判设置中改为 `20 条/页` 保存并刷新详情页，确认页面原生分页切换到 `20 条/页`。
+8. 在快判详情页验证音量、重置音量、倍速、重置倍速、播放/暂停快捷键。
+9. 在快判详情页按 `1`~`5`，确认当前选中题卡的“哪个ASR更优”会切换到对应选项。
+10. 确认工具栏按钮可执行判别、音量和倍速动作；播放/暂停不额外添加按钮。
+11. 触发快捷键或按钮后，确认页面右上角会出现短提示。
+12. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
 
 ## 已知限制
 
@@ -69,17 +81,43 @@
 - 快判的“切换倍速重置”已强制启用；设置页不再提供开关，只保留重置目标倍速。
 - 快捷键动作只改变当前页面运行态，不自动写回存储；需要持久化默认值时仍在 options 中保存。
 - 鼠标左键这类通用按键可以录制，但会拦截页面点击，建议优先使用组合键或侧键。
+- `all` 模式依赖当前 LabelX 接口接受 `pageSize=400`；如果页面或服务端限制条数，扩展只保证总时长通过只读分页补齐，页面是否一次渲染 400 条需要以实测为准。
 - 本目录不包含提交、保存、自动领取、自动流转逻辑。
 
-## 当前归属文件
+## 当前文件结构
 
-- `README.md`
-- `page-detector.js`
-- `audio-controller.js`
-- `content.js`
-- `page-structure/README.md`
-- `page-structure/asr-judgement-detail/`
-- `page-structure/labeling-task-home/`
+```text
+asr-judgement/
+  README.md
+  content.js
+  page-detector.js
+  judgement-actions.js
+  judgement-shortcuts.js
+  judgement-toast.js
+  judgement-toolbar.js
+  judgement-page-size.js
+  judgement-duration-summary.js
+  audio-controller.js
+  audio-volume-controller.js
+  audio-rate-controller.js
+  audio-playback-controller.js
+  page-world/
+    network-protocol.js
+    network-config.js
+    network-url-rewriter.js
+    network-summary.js
+    network-observer.js
+  page-structure/
+    README.md
+    asr-judgement-detail/
+    labeling-task-home/
+    network-capture/
+```
+
+项目级维护规则与修改日志放在仓库根目录：
+
+- `AGENTS.md`
+- `log.md`
 
 ## 页面结构资料
 
@@ -100,16 +138,33 @@
   - 可领取任务
   - 领取 / 标注 / 释放按钮结构
 
-## 后续运行时代码建议
+## 运行时模块边界
 
-后续真正拆分运行时代码时，建议从这些能力开始：
+- `content.js`：只保留设置加载、启停编排、状态聚合、网络桥接、总时长状态和模块串联。
+- `judgement-actions.js`：维护判别选项定义、快捷键动作顺序和“哪个ASR更优”写入逻辑。
+- `judgement-shortcuts.js`：维护键盘 / 鼠标快捷键匹配、事件拦截和 follow-up 事件抑制。
+- `judgement-toast.js`：维护右上角运行时提示。
+- `judgement-toolbar.js`：维护 `.mark-toolbox` 工具栏和顶部主导航总时长挂载。
+- `judgement-page-size.js`：维护默认每页条数、原生分页选择器点击和重试逻辑。
+- `judgement-duration-summary.js`：维护总时长请求、分页补齐和网络摘要归一化。
+- `audio-controller.js`：只保留音频扫描、配置、状态和动作路由。
+- `audio-volume-controller.js`：维护音量与 Web Audio gain 逻辑。
+- `audio-rate-controller.js`：维护倍速、倍速显示和重置逻辑。
+- `audio-playback-controller.js`：维护播放、暂停、自动播放和相邻音频播放。
+- `page-world/network-*.js`：运行在 MAIN world，负责 data 请求改写、响应摘要和 `postMessage`。
 
-1. 快判题卡采集逻辑。
-2. 快判选择结果写入逻辑。
-3. 快判快捷键。
-4. 快判设置页字段扩展。
+后续继续拆分时，优先保持 `content.js` 作为入口编排层，不要把具体 DOM 操作重新塞回入口。
 
 新增快判 JS 时应直接放入 `asr-judgement/`，并同步更新 `manifest.json` 或相应动态加载入口。不要复制 `asr-transcription/settings-panel.js` 给快判；快判保持独立简化设置页。
+
+## 加载顺序要求
+
+快判依赖 `manifest.json` 的数组顺序加载，不使用打包器或 ES module：
+
+- MAIN world：`network-protocol.js`、`network-config.js`、`network-url-rewriter.js`、`network-summary.js`、`network-observer.js`。
+- ISOLATED world：`page-detector.js`、音频小模块、`audio-controller.js`、分页/总时长模块、判别/提示/快捷键/工具栏模块、`content.js`。
+
+调整文件名或新增模块时，必须同步更新 `manifest.json` 并验证脚本路径存在。
 
 ## 公共目录策略
 

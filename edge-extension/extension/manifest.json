@@ -39,11 +39,35 @@
         "https://labelx.alibaba-inc.com/*"
       ],
       "js": [
+        "sites/alibaba-labelx/asr-judgement/page-world/network-protocol.js",
+        "sites/alibaba-labelx/asr-judgement/page-world/network-config.js",
+        "sites/alibaba-labelx/asr-judgement/page-world/network-url-rewriter.js",
+        "sites/alibaba-labelx/asr-judgement/page-world/network-summary.js",
+        "sites/alibaba-labelx/asr-judgement/page-world/network-observer.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://labelx.alibaba-inc.com/*"
+      ],
+      "js": [
         "shared/constants.js",
         "shared/storage.js",
         "sites/alibaba-labelx/asr-transcription/runtime-contract.js",
         "sites/alibaba-labelx/asr-judgement/page-detector.js",
+        "sites/alibaba-labelx/asr-judgement/audio-volume-controller.js",
+        "sites/alibaba-labelx/asr-judgement/audio-rate-controller.js",
+        "sites/alibaba-labelx/asr-judgement/audio-playback-controller.js",
         "sites/alibaba-labelx/asr-judgement/audio-controller.js",
+        "sites/alibaba-labelx/asr-judgement/judgement-page-size.js",
+        "sites/alibaba-labelx/asr-judgement/judgement-duration-summary.js",
+        "sites/alibaba-labelx/asr-judgement/judgement-actions.js",
+        "sites/alibaba-labelx/asr-judgement/judgement-toast.js",
+        "sites/alibaba-labelx/asr-judgement/judgement-shortcuts.js",
+        "sites/alibaba-labelx/asr-judgement/judgement-toolbar.js",
         "sites/alibaba-labelx/asr-judgement/content.js",
         "sites/alibaba-labelx/asr-transcription/document-start.js",
         "sites/alibaba-labelx/asr-transcription/site-contract.js",

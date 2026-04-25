@@ -42,7 +42,7 @@
         },
         cache: {},
         meta: {
-          schemaVersion: 6,
+          schemaVersion: 7,
         },
       },
       DEFAULT_ASR_CONFIG: {},
@@ -54,6 +54,7 @@
       JUDGEMENT_PROJECT_ID: "judgement",
       LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: "lightwheelViewPanel",
       JUDGEMENT_PROJECT_ASR_KEYS: [
+        "itemsPerPage",
         "autoPlay",
         "autoResetRate",
         "resetRateValue",
@@ -159,6 +160,52 @@
   function normalizeNumber(value, fallback) {
     const numericValue = Number(value);
     return Number.isFinite(numericValue) ? numericValue : fallback;
+  }
+
+  const JUDGEMENT_ITEMS_PER_PAGE_VALUES = [
+    "all",
+    "1 条/页",
+    "2 条/页",
+    "3 条/页",
+    "4 条/页",
+    "5 条/页",
+    "10 条/页",
+    "20 条/页",
+    "30 条/页",
+    "40 条/页",
+    "50 条/页",
+  ];
+
+  function normalizeJudgementItemsPerPage(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (
+      text === "all" ||
+      text === "全部" ||
+      text === "全部/400条" ||
+      text === "全部（400 条）" ||
+      text === "全部（400条）" ||
+      text === "400 条/页" ||
+      text === "400条/页"
+    ) {
+      return "all";
+    }
+
+    if (JUDGEMENT_ITEMS_PER_PAGE_VALUES.indexOf(text) >= 0) {
+      return text;
+    }
+
+    return JUDGEMENT_ITEMS_PER_PAGE_VALUES.indexOf(fallback) >= 0 ? fallback : "all";
+  }
+
+  function normalizeJudgementAsrConfig(config) {
+    const constants = getConstants();
+    const fallback = constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "all";
+    const nextConfig = isPlainObject(config) ? config : {};
+    nextConfig.itemsPerPage = normalizeJudgementItemsPerPage(
+      nextConfig.itemsPerPage,
+      fallback
+    );
+    return nextConfig;
   }
 
   function createStoragePromise(method, payload) {
@@ -282,9 +329,11 @@
       nextProject.active = projectId === activeProjectId;
 
       if (projectId === constants.JUDGEMENT_PROJECT_ID) {
-        nextProject.asrConfig = deepMerge(
-          constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {},
-          nextProject.asrConfig || {}
+        nextProject.asrConfig = normalizeJudgementAsrConfig(
+          deepMerge(
+            constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {},
+            nextProject.asrConfig || {}
+          )
         );
       } else {
         const fallbackAsrConfig =
@@ -310,7 +359,10 @@
         ? constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {}
         : constants.DEFAULT_ASR_CONFIG || {};
 
-    return deepMerge(defaultProjectConfig, projectConfig);
+    const nextConfig = deepMerge(defaultProjectConfig, projectConfig);
+    return normalizedProjectId === constants.JUDGEMENT_PROJECT_ID
+      ? normalizeJudgementAsrConfig(nextConfig)
+      : nextConfig;
   }
 
   function syncProjectCenterFromActiveAsr(settings) {
@@ -323,9 +375,11 @@
     });
 
     if (activeProjectId === constants.JUDGEMENT_PROJECT_ID) {
-      scriptCenter.projects[activeProjectId].asrConfig = deepMerge(
-        constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {},
-        pickAsrFields(settings.asr || {}, constants.JUDGEMENT_PROJECT_ASR_KEYS || [])
+      scriptCenter.projects[activeProjectId].asrConfig = normalizeJudgementAsrConfig(
+        deepMerge(
+          constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {},
+          pickAsrFields(settings.asr || {}, constants.JUDGEMENT_PROJECT_ASR_KEYS || [])
+        )
       );
       return;
     }
@@ -528,6 +582,23 @@
     ensureScriptCenter(settings);
     ensureLightwheelRoot(settings);
 
+    const activeProjectId =
+      settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId ||
+      constants.TRANSCRIPTION_PROJECT_ID ||
+      "transcription";
+    const storedJudgementConfig =
+      input?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[
+        constants.JUDGEMENT_PROJECT_ID
+      ]?.asrConfig || {};
+    if (
+      activeProjectId === constants.JUDGEMENT_PROJECT_ID &&
+      !hasOwn(storedJudgementConfig, "itemsPerPage")
+    ) {
+      settings.asr = isPlainObject(settings.asr) ? settings.asr : {};
+      settings.asr.itemsPerPage =
+        constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "all";
+    }
+
     if (currentSchemaVersion < 6) {
       const judgementProject =
         settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[constants.JUDGEMENT_PROJECT_ID] || null;
@@ -561,7 +632,7 @@
     syncProjectCenterFromActiveAsr(settings);
     settings.stage = defaults.stage || settings.stage || "mv3-legacy-migration";
     settings.meta = deepMerge(defaults.meta || {}, settings.meta || {});
-    settings.meta.schemaVersion = constants.SCHEMA_VERSION || 6;
+    settings.meta.schemaVersion = constants.SCHEMA_VERSION || 7;
     return settings;
   }
 
@@ -673,6 +744,9 @@
       deepMerge(defaultProjectConfig, currentProjectConfig),
       projectPatch
     );
+    if (normalizedProjectId === constants.JUDGEMENT_PROJECT_ID) {
+      targetProject.asrConfig = normalizeJudgementAsrConfig(targetProject.asrConfig);
+    }
 
     if (scriptCenter.activeProjectId === normalizedProjectId) {
       next.asr = resolveProjectAsrConfig(next, normalizedProjectId);

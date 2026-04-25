@@ -4,80 +4,41 @@
   const storage = globalThis.ASREdgeStorage || null;
   const detector = globalThis.__ASREdgeAlibabaLabelxJudgementPageDetector || null;
   const audioController = globalThis.__ASREdgeAlibabaLabelxJudgementAudioController || null;
+  const pageSizeModule = globalThis.__ASREdgeAlibabaLabelxJudgementPageSize || null;
+  const durationSummaryModule = globalThis.__ASREdgeAlibabaLabelxJudgementDurationSummary || null;
+  const actionModule = globalThis.__ASREdgeAlibabaLabelxJudgementActions || null;
+  const toastModule = globalThis.__ASREdgeAlibabaLabelxJudgementToast || null;
+  const shortcutModule = globalThis.__ASREdgeAlibabaLabelxJudgementShortcuts || null;
+  const toolbarModule = globalThis.__ASREdgeAlibabaLabelxJudgementToolbar || null;
   const messageTypes = constants.MESSAGE_TYPES || {};
   const storageKey = constants.STORAGE_KEY || "asrEdgeSettings";
   const judgementProjectId = constants.JUDGEMENT_PROJECT_ID || "judgement";
-  const judgementChoiceActions = [
-    {
-      key: "choiceFirstBetter",
-      label: "第一个更好",
-      shortLabel: "1 第一个",
-      value: "第一个更好",
-      index: 0,
-    },
-    {
-      key: "choiceSecondBetter",
-      label: "第二个更好",
-      shortLabel: "2 第二个",
-      value: "第二个更好",
-      index: 1,
-    },
-    {
-      key: "choiceBothBad",
-      label: "都不好",
-      shortLabel: "3 都不好",
-      value: "都不好",
-      index: 2,
-    },
-    {
-      key: "choiceUnsure",
-      label: "不确定或差不多",
-      shortLabel: "4 不确定",
-      value: "不确定或差不多",
-      index: 3,
-    },
-    {
-      key: "choiceOtherDialect",
-      label: "其他方言或语种",
-      shortLabel: "5 其他",
-      value: "其他方言或语种",
-      index: 4,
-    },
-  ];
-  const audioActionLabels = {
-    volumeUp: "音量 +",
-    volumeDown: "音量 -",
-    volumeReset: "重置音量",
-    rateUp: "倍速 +",
-    rateDown: "倍速 -",
-    rateReset: "重置倍速",
-  };
-  const shortcutActionOrder = [
-    "choiceFirstBetter",
-    "choiceSecondBetter",
-    "choiceBothBad",
-    "choiceUnsure",
-    "choiceOtherDialect",
-    "volumeUp",
-    "volumeDown",
-    "volumeReset",
-    "rateUp",
-    "rateDown",
-    "rateReset",
-    "playPause",
-  ];
+  const networkMessageSource = "ASR_EDGE_JUDGEMENT_PAGE_WORLD";
+  const contentMessageSource = "ASR_EDGE_JUDGEMENT_CONTENT";
+  const networkConfigMessageType = "ASR_EDGE_JUDGEMENT_NETWORK_CONFIG";
+  const networkSummaryMessageType = "ASR_EDGE_JUDGEMENT_SUBTASK_DATA_SUMMARY";
+  const allPageSizeValue = 400;
   let settings = null;
   let runtimeEnabled = false;
   let messageBridgeBound = false;
-  let shortcutListenersBound = false;
-  let lastMouseShortcutSuppression = null;
+  let networkBridgeBound = false;
   let refreshPromise = null;
-  let toastContainer = null;
-  let toastTimer = null;
-  let toolbarRoot = null;
-  let toolbarObserver = null;
-  let toolbarMountTimer = null;
-  let suppressedKeyupShortcuts = [];
+  let shortcutRuntime = null;
+  let toastRuntime = null;
+  let toolbarRuntime = null;
+  let durationSummary = {
+    status: "idle",
+    totalSeconds: 0,
+    itemCount: 0,
+    durationCount: 0,
+    expectedCount: 0,
+    source: "",
+    updatedAt: null,
+    error: "",
+  };
+  let durationFetchPromise = null;
+  let durationFetchKey = "";
+  let pageSizeRuntime = null;
   let lastStatus = {
     ok: false,
     scriptId: judgementProjectId,
@@ -131,6 +92,7 @@
 
   function getJudgementConfig(nextSettings) {
     const defaults = constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {
+      itemsPerPage: "all",
       autoPlay: true,
       autoResetRate: true,
       resetRateValue: 1.0,
@@ -152,210 +114,142 @@
     return deepMerge(defaults, projectConfig);
   }
 
-  function normalizeShortcut(shortcut) {
-    if (!shortcut || typeof shortcut !== "object") {
-      return null;
-    }
-
-    const hasKey = typeof shortcut.key === "string" && shortcut.key.length > 0;
-    const hasButton = typeof shortcut.button === "number";
-    if (!hasKey && !hasButton) {
-      return null;
+  function normalizePageSizeSetting(value) {
+    if (pageSizeModule && typeof pageSizeModule.normalizePageSizeSetting === "function") {
+      return pageSizeModule.normalizePageSizeSetting(value, allPageSizeValue);
     }
 
     return {
-      ctrl: shortcut.ctrl === true,
-      alt: shortcut.alt === true,
-      shift: shortcut.shift === true,
-      meta: shortcut.meta === true,
-      key: hasKey ? normalizeKeyName(shortcut.key) : null,
-      button: hasButton ? shortcut.button : null,
+      mode: "all",
+      pageSize: allPageSizeValue,
+      label: "全部",
+      nativeLabel: "50 条/页",
     };
   }
 
-  function normalizeKeyName(key) {
-    if (key === " ") {
-      return "Space";
-    }
-    return String(key || "");
+  function getConfiguredPageSize(nextSettings) {
+    return normalizePageSizeSetting(getJudgementConfig(nextSettings || settings).itemsPerPage);
   }
 
-  function isEditableNode(node) {
-    if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+  function formatDuration(totalSeconds) {
+    if (durationSummaryModule && typeof durationSummaryModule.formatDuration === "function") {
+      return durationSummaryModule.formatDuration(totalSeconds);
+    }
+
+    return "--";
+  }
+
+  function normalizeUrlParam(value) {
+    try {
+      return decodeURIComponent(String(value || "")).trim();
+    } catch (error) {
+      return String(value || "").trim();
+    }
+  }
+
+  function getCurrentSubTaskId() {
+    const params = new URLSearchParams(location.search || "");
+    return normalizeUrlParam(params.get("subTaskId") || "");
+  }
+
+  function shouldUseDurationSummary(nextSummary) {
+    if (!nextSummary || nextSummary.status === "empty") {
       return false;
     }
 
-    const element = node;
-    const tagName = String(element.tagName || "").toLowerCase();
-    const inputType = String(element.getAttribute?.("type") || "").toLowerCase();
-    const nonTextInputTypes = [
-      "button",
-      "checkbox",
-      "color",
-      "file",
-      "hidden",
-      "image",
-      "radio",
-      "range",
-      "reset",
-      "submit",
-    ];
-    return (
-      (tagName === "input" && nonTextInputTypes.indexOf(inputType) < 0) ||
-      tagName === "textarea" ||
-      tagName === "select" ||
-      element.isContentEditable === true ||
-      Boolean(element.closest && element.closest("[contenteditable='true']"))
-    );
-  }
-
-  function isEditableEventTarget(event) {
-    const path = typeof event.composedPath === "function" ? event.composedPath() : [];
-    if (path.some(isEditableNode)) {
+    if (nextSummary.status === "ready") {
       return true;
     }
 
-    return isEditableNode(event.target);
-  }
-
-  function isToolbarEventTarget(event) {
-    const path = typeof event.composedPath === "function" ? event.composedPath() : [];
-    if (
-      path.some(function (node) {
-        return node?.getAttribute?.("data-asr-edge-judgement-toolbar") === "true";
-      })
-    ) {
-      return true;
-    }
-
-    return Boolean(
-      event.target?.closest &&
-        event.target.closest("[data-asr-edge-judgement-toolbar='true']")
-    );
-  }
-
-  function isShortcutMatch(event, shortcut) {
-    const normalized = normalizeShortcut(shortcut);
-    if (!normalized) {
-      return false;
-    }
-
-    if (
-      normalized.ctrl !== event.ctrlKey ||
-      normalized.alt !== event.altKey ||
-      normalized.shift !== event.shiftKey ||
-      normalized.meta !== event.metaKey
-    ) {
-      return false;
-    }
-
-    if (event.type === "keydown") {
-      return normalized.button === null && normalized.key === normalizeKeyName(event.key);
-    }
-
-    if (
-      event.type === "mousedown" ||
-      event.type === "mouseup" ||
-      event.type === "auxclick" ||
-      event.type === "contextmenu"
-    ) {
-      return normalized.key === null && normalized.button === event.button;
+    if (durationSummary.status !== "ready") {
+      return (nextSummary.durationCount || 0) >= (durationSummary.durationCount || 0);
     }
 
     return false;
   }
 
-  function findShortcutAction(event) {
-    const shortcuts = getJudgementConfig(settings).shortcuts || {};
-    return shortcutActionOrder.find(function (actionKey) {
-      return isShortcutMatch(event, shortcuts[actionKey]);
-    }) || null;
+  function setDurationSummary(nextSummary) {
+    if (!shouldUseDurationSummary(nextSummary)) {
+      return;
+    }
+
+    durationSummary = Object.assign({}, durationSummary, nextSummary);
+    updateToolbarRuntimeStats();
+  }
+
+  function setDurationError(message) {
+    durationSummary = Object.assign({}, durationSummary, {
+      status: "error",
+      error: String(message || "总时长读取失败。"),
+      updatedAt: new Date().toISOString(),
+    });
+    updateToolbarRuntimeStats();
+  }
+
+  async function fetchCompleteSubtaskDurationSummary(subTaskId) {
+    if (
+      durationSummaryModule &&
+      typeof durationSummaryModule.fetchCompleteSubtaskDurationSummary === "function"
+    ) {
+      return durationSummaryModule.fetchCompleteSubtaskDurationSummary(subTaskId, allPageSizeValue);
+    }
+
+    throw new Error("总时长模块未加载。");
+  }
+
+  function refreshDurationSummary(reason) {
+    if (!runtimeEnabled || !isTopLevelContext()) {
+      return;
+    }
+
+    const subTaskId = getCurrentSubTaskId();
+    if (!subTaskId) {
+      setDurationError("URL 中未找到 subTaskId。");
+      return;
+    }
+
+    const cacheKey = subTaskId + "|" + String(allPageSizeValue);
+    if (
+      durationFetchPromise ||
+      (durationFetchKey === cacheKey && durationSummary.status === "ready")
+    ) {
+      return;
+    }
+
+    durationFetchKey = cacheKey;
+    durationSummary = Object.assign({}, durationSummary, {
+      status: "loading",
+      source: reason || "runtime",
+      error: "",
+    });
+    updateToolbarRuntimeStats();
+
+    durationFetchPromise = fetchCompleteSubtaskDurationSummary(subTaskId)
+      .then(function (summary) {
+        setDurationSummary(summary);
+      })
+      .catch(function (error) {
+        durationFetchKey = "";
+        setDurationError(error && error.message ? error.message : String(error));
+      })
+      .finally(function () {
+        durationFetchPromise = null;
+      });
   }
 
   function getChoiceAction(actionKey) {
-    return judgementChoiceActions.find(function (choice) {
-      return choice.key === actionKey;
-    }) || null;
-  }
-
-  function getTaskItems() {
-    return Array.from(document.querySelectorAll(".labelRender-item[data-index]")).sort(function (left, right) {
-      const leftIndex = Number(left.getAttribute("data-index"));
-      const rightIndex = Number(right.getAttribute("data-index"));
-      return (Number.isFinite(leftIndex) ? leftIndex : 0) - (Number.isFinite(rightIndex) ? rightIndex : 0);
-    });
-  }
-
-  function getItemLabel(item) {
-    const index = item ? Number(item.getAttribute("data-index")) : -1;
-    return Number.isFinite(index) && index >= 0 ? "第 " + String(index + 1) + " 条题卡" : "当前题卡";
-  }
-
-  function resolveCurrentItem() {
-    const selectedItem = document.querySelector(".labelRender-item-selected.labelRender-item[data-index]");
-    if (selectedItem) {
-      return selectedItem;
+    if (actionModule && typeof actionModule.getChoiceAction === "function") {
+      return actionModule.getChoiceAction(actionKey);
     }
 
-    const playingAudio = Array.from(document.querySelectorAll("audio[controls]")).find(function (audio) {
-      return audio && !audio.paused && !audio.ended;
-    });
-    const playingItem = playingAudio?.closest ? playingAudio.closest(".labelRender-item[data-index]") : null;
-    if (playingItem) {
-      return playingItem;
-    }
-
-    return getTaskItems()[0] || null;
-  }
-
-  function getChoiceInputs(item) {
-    if (!item) {
-      return [];
-    }
-
-    const answerWraps = Array.from(item.querySelectorAll(".labelRender-item-answer-wrap"));
-    const targetWrap = answerWraps.find(function (wrap) {
-      const title = wrap.querySelector(".labelRender-item-answer-title");
-      return String(title?.textContent || "").indexOf("哪个ASR更优") >= 0;
-    });
-    const scope = targetWrap || item;
-    return Array.from(scope.querySelectorAll(".ant-v5-radio-wrapper input[type='radio'], input[type='radio']"));
-  }
-
-  function getInputLabel(input) {
-    const label = input?.closest ? input.closest("label") : null;
-    const labelNode = label ? label.querySelector(".ant-v5-radio-label") : null;
-    return String(labelNode?.textContent || input?.value || "").trim();
-  }
-
-  function resolveChoiceInput(item, choice) {
-    const inputs = getChoiceInputs(item);
-    if (inputs.length === 0) {
-      return null;
-    }
-
-    return (
-      inputs.find(function (input) {
-        return input.value === choice.value || getInputLabel(input) === choice.value;
-      }) ||
-      inputs[choice.index] ||
-      null
-    );
-  }
-
-  function forceRadioChange(input) {
-    const checkedDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
-    if (checkedDescriptor && typeof checkedDescriptor.set === "function") {
-      checkedDescriptor.set.call(input, true);
-    } else {
-      input.checked = true;
-    }
-
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
+    return null;
   }
 
   function buildActionResult(action, ok, extra) {
+    if (actionModule && typeof actionModule.buildActionResult === "function") {
+      return actionModule.buildActionResult(action, ok, extra);
+    }
+
     return Object.assign(
       {
         action: action,
@@ -366,67 +260,9 @@
     );
   }
 
-  function selectJudgementChoice(actionKey) {
-    const choice = getChoiceAction(actionKey);
-    if (!choice) {
-      return buildActionResult(actionKey, false, {
-        reason: "unknown-choice-action",
-        message: "未识别的判别选项动作：" + String(actionKey),
-      });
-    }
-
-    const item = resolveCurrentItem();
-    if (!item) {
-      return buildActionResult(actionKey, false, {
-        reason: "item-not-found",
-        message: "未找到可选择的题卡。",
-      });
-    }
-
-    const input = resolveChoiceInput(item, choice);
-    if (!input) {
-      return buildActionResult(actionKey, false, {
-        reason: "radio-not-found",
-        message: getItemLabel(item) + "未找到“" + choice.label + "”选项。",
-      });
-    }
-
-    if (input.disabled) {
-      return buildActionResult(actionKey, false, {
-        reason: "radio-disabled",
-        message: getItemLabel(item) + "的“" + choice.label + "”不可选择。",
-      });
-    }
-
-    if (input.checked) {
-      return buildActionResult(actionKey, true, {
-        choice: choice.value,
-        itemIndex: Number(item.getAttribute("data-index")),
-        message: getItemLabel(item) + "已是：" + choice.label,
-      });
-    }
-
-    const label = input.closest ? input.closest("label") : null;
-    if (typeof input.click === "function") {
-      input.click();
-    } else if (label && typeof label.click === "function") {
-      label.click();
-    }
-
-    if (!input.checked) {
-      forceRadioChange(input);
-    }
-
-    return buildActionResult(actionKey, true, {
-      choice: choice.value,
-      itemIndex: Number(item.getAttribute("data-index")),
-      message: getItemLabel(item) + "已选择：" + choice.label,
-    });
-  }
-
   function runRuntimeAction(actionKey, source) {
-    if (getChoiceAction(actionKey)) {
-      return Promise.resolve(selectJudgementChoice(actionKey));
+    if (getChoiceAction(actionKey) && actionModule && typeof actionModule.selectJudgementChoice === "function") {
+      return Promise.resolve(actionModule.selectJudgementChoice(actionKey));
     }
 
     if (audioController && typeof audioController.runAction === "function") {
@@ -442,153 +278,24 @@
     );
   }
 
-  function ensureToastContainer() {
-    if (toastContainer && toastContainer.isConnected) {
-      return toastContainer;
+  function ensureToastRuntime() {
+    if (toastRuntime || !toastModule || typeof toastModule.createRuntime !== "function") {
+      return toastRuntime;
     }
 
-    toastContainer = document.createElement("div");
-    toastContainer.setAttribute("data-asr-edge-judgement-toast", "true");
-    Object.assign(toastContainer.style, {
-      position: "fixed",
-      top: "18px",
-      right: "18px",
-      zIndex: "2147483647",
-      maxWidth: "320px",
-      padding: "10px 14px",
-      borderRadius: "12px",
-      background: "rgba(15, 23, 42, 0.92)",
-      color: "#f8fafc",
-      fontSize: "13px",
-      lineHeight: "1.5",
-      boxShadow: "0 10px 28px rgba(15, 23, 42, 0.28)",
-      pointerEvents: "none",
-      opacity: "0",
-      transform: "translateY(-6px)",
-      transition: "opacity 140ms ease, transform 140ms ease",
+    toastRuntime = toastModule.createRuntime({
+      isTopLevelContext: isTopLevelContext,
     });
-
-    (document.body || document.documentElement || document).appendChild(toastContainer);
-    return toastContainer;
+    return toastRuntime;
   }
 
   function showRuntimeToast(message, tone) {
-    if (!message || !isTopLevelContext()) {
+    const runtime = ensureToastRuntime();
+    if (!runtime || typeof runtime.show !== "function") {
       return;
     }
 
-    const node = ensureToastContainer();
-    node.textContent = String(message);
-    node.style.background =
-      tone === "error" ? "rgba(185, 28, 28, 0.94)" : "rgba(15, 23, 42, 0.92)";
-    node.style.opacity = "1";
-    node.style.transform = "translateY(0)";
-
-    if (toastTimer) {
-      window.clearTimeout(toastTimer);
-    }
-
-    toastTimer = window.setTimeout(function () {
-      node.style.opacity = "0";
-      node.style.transform = "translateY(-6px)";
-      toastTimer = null;
-    }, 1600);
-  }
-
-  function haltShortcutEvent(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (typeof event.stopImmediatePropagation === "function") {
-      event.stopImmediatePropagation();
-    }
-  }
-
-  function getKeyboardShortcutSignature(event) {
-    return {
-      key: normalizeKeyName(event.key),
-      ctrl: event.ctrlKey === true,
-      alt: event.altKey === true,
-      shift: event.shiftKey === true,
-      meta: event.metaKey === true,
-    };
-  }
-
-  function isSameKeyboardShortcut(left, right) {
-    return Boolean(
-      left &&
-        right &&
-        left.key === right.key &&
-        left.ctrl === right.ctrl &&
-        left.alt === right.alt &&
-        left.shift === right.shift &&
-        left.meta === right.meta
-    );
-  }
-
-  function rememberKeyboardShortcutSuppression(event) {
-    if (event.type !== "keydown") {
-      return;
-    }
-
-    const now = Date.now();
-    const signature = getKeyboardShortcutSignature(event);
-    suppressedKeyupShortcuts = suppressedKeyupShortcuts
-      .filter(function (entry) {
-        return entry.expiresAt > now && !isSameKeyboardShortcut(entry, signature);
-      })
-      .concat([
-        Object.assign({}, signature, {
-          expiresAt: now + 1200,
-        }),
-      ]);
-  }
-
-  function shouldSuppressKeyboardFollowup(event) {
-    const now = Date.now();
-    const signature = getKeyboardShortcutSignature(event);
-    const matched = suppressedKeyupShortcuts.some(function (entry) {
-      return entry.expiresAt > now && isSameKeyboardShortcut(entry, signature);
-    });
-
-    suppressedKeyupShortcuts = suppressedKeyupShortcuts.filter(function (entry) {
-      return entry.expiresAt > now && !isSameKeyboardShortcut(entry, signature);
-    });
-
-    if (!matched) {
-      return false;
-    }
-
-    return true;
-  }
-
-  function rememberMouseShortcutSuppression(event) {
-    if (event.type !== "mousedown") {
-      return;
-    }
-
-    lastMouseShortcutSuppression = {
-      button: event.button,
-      ctrl: event.ctrlKey === true,
-      alt: event.altKey === true,
-      shift: event.shiftKey === true,
-      meta: event.metaKey === true,
-      expiresAt: Date.now() + 800,
-    };
-  }
-
-  function shouldSuppressMouseFollowup(event) {
-    if (!lastMouseShortcutSuppression || Date.now() > lastMouseShortcutSuppression.expiresAt) {
-      lastMouseShortcutSuppression = null;
-      return false;
-    }
-
-    return (
-      event.button === lastMouseShortcutSuppression.button &&
-      event.ctrlKey === lastMouseShortcutSuppression.ctrl &&
-      event.altKey === lastMouseShortcutSuppression.alt &&
-      event.shiftKey === lastMouseShortcutSuppression.shift &&
-      event.metaKey === lastMouseShortcutSuppression.meta
-    );
+    runtime.show(message, tone);
   }
 
   function runActionWithFeedback(actionKey, source, statusReason, statusKey) {
@@ -613,74 +320,33 @@
       });
   }
 
-  function scheduleShortcutAction(actionKey) {
-    const run = function () {
-      window.setTimeout(function () {
-        runActionWithFeedback(actionKey, "shortcut", "shortcut-", "lastShortcutAction");
-      }, 0);
-    };
-
-    if (typeof window.requestAnimationFrame === "function") {
-      window.requestAnimationFrame(run);
-      return;
+  function ensureShortcutRuntime() {
+    if (shortcutRuntime || !shortcutModule || typeof shortcutModule.createRuntime !== "function") {
+      return shortcutRuntime;
     }
 
-    window.setTimeout(run, 16);
-  }
-
-  function handleShortcutEvent(event) {
-    if (!runtimeEnabled || !settings || isEditableEventTarget(event) || isToolbarEventTarget(event)) {
-      return;
-    }
-
-    const actionKey = findShortcutAction(event);
-    if (!actionKey) {
-      return;
-    }
-
-    haltShortcutEvent(event);
-    rememberKeyboardShortcutSuppression(event);
-    rememberMouseShortcutSuppression(event);
-
-    if (event.repeat === true) {
-      return;
-    }
-
-    scheduleShortcutAction(actionKey);
-  }
-
-  function handleKeyupFollowupEvent(event) {
-    if (!runtimeEnabled || !settings || isToolbarEventTarget(event)) {
-      return;
-    }
-
-    if (shouldSuppressKeyboardFollowup(event)) {
-      haltShortcutEvent(event);
-    }
-  }
-
-  function handleMouseFollowupEvent(event) {
-    if (!runtimeEnabled || !settings || isEditableEventTarget(event) || isToolbarEventTarget(event)) {
-      return;
-    }
-
-    if (shouldSuppressMouseFollowup(event) || findShortcutAction(event)) {
-      haltShortcutEvent(event);
-    }
+    shortcutRuntime = shortcutModule.createRuntime({
+      getShortcuts: function () {
+        return getJudgementConfig(settings).shortcuts || {};
+      },
+      getShortcutActionOrder: function () {
+        return (actionModule && actionModule.shortcutActionOrder) || [];
+      },
+      isEnabled: function () {
+        return Boolean(runtimeEnabled && settings);
+      },
+      runActionWithFeedback: runActionWithFeedback,
+    });
+    return shortcutRuntime;
   }
 
   function bindShortcutListeners() {
-    if (shortcutListenersBound) {
+    const runtime = ensureShortcutRuntime();
+    if (!runtime || typeof runtime.bind !== "function") {
       return;
     }
 
-    window.addEventListener("keydown", handleShortcutEvent, true);
-    window.addEventListener("keyup", handleKeyupFollowupEvent, true);
-    window.addEventListener("mousedown", handleShortcutEvent, true);
-    window.addEventListener("mouseup", handleMouseFollowupEvent, true);
-    window.addEventListener("auxclick", handleMouseFollowupEvent, true);
-    window.addEventListener("contextmenu", handleMouseFollowupEvent, true);
-    shortcutListenersBound = true;
+    runtime.bind();
   }
 
   function shouldShowToolbar() {
@@ -694,172 +360,144 @@
     );
   }
 
-  function styleToolbarButton(button) {
-    Object.assign(button.style, {
-      minHeight: "26px",
-      padding: "0 8px",
-      border: "1px solid #d6e4ff",
-      borderRadius: "6px",
-      background: "#ffffff",
-      color: "#0958d9",
-      fontSize: "12px",
-      lineHeight: "24px",
-      fontWeight: "600",
-      cursor: "pointer",
-      whiteSpace: "nowrap",
-    });
-  }
-
-  function createToolbarButton(actionKey, label, title) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = label;
-    button.title = title || label;
-    button.setAttribute("data-asr-edge-judgement-action", actionKey);
-    styleToolbarButton(button);
-    button.addEventListener("click", function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      runActionWithFeedback(actionKey, "toolbar", "toolbar-", "lastToolbarAction");
-    });
-    return button;
-  }
-
-  function createToolbarGroup(label, actions) {
-    const group = document.createElement("div");
-    Object.assign(group.style, {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: "4px",
-      flexWrap: "wrap",
-    });
-
-    const title = document.createElement("span");
-    title.textContent = label;
-    Object.assign(title.style, {
-      color: "#475569",
-      fontSize: "12px",
-      fontWeight: "700",
-      marginRight: "2px",
-      whiteSpace: "nowrap",
-    });
-    group.appendChild(title);
-
-    actions.forEach(function (action) {
-      group.appendChild(createToolbarButton(action.key, action.shortLabel || action.label, action.label));
-    });
-    return group;
-  }
-
-  function removeToolbar() {
-    if (toolbarRoot && toolbarRoot.parentNode) {
-      toolbarRoot.parentNode.removeChild(toolbarRoot);
+  function getDurationSummaryText() {
+    if (durationSummary.status === "ready" || durationSummary.status === "partial") {
+      const countText = durationSummary.expectedCount
+        ? String(durationSummary.durationCount || durationSummary.itemCount || 0) + "/" + String(durationSummary.expectedCount)
+        : String(durationSummary.durationCount || durationSummary.itemCount || 0);
+      return "总时长 " + formatDuration(durationSummary.totalSeconds) + " (" + countText + "条)";
     }
-    toolbarRoot = null;
+
+    if (durationSummary.status === "loading") {
+      return "总时长 读取中";
+    }
+
+    if (durationSummary.status === "error") {
+      return "总时长 读取失败";
+    }
+
+    return "总时长 --";
   }
 
-  function ensureToolbar() {
-    if (!shouldShowToolbar()) {
-      removeToolbar();
+  function getDurationSummaryTitle() {
+    if (durationSummary.status === "error") {
+      return durationSummary.error || "总时长读取失败。";
+    }
+
+    return [
+      "来源：" + String(durationSummary.source || "未读取"),
+      "样本：" + String(durationSummary.durationCount || durationSummary.itemCount || 0) + "/" + String(durationSummary.expectedCount || 0),
+      "更新时间：" + String(durationSummary.updatedAt || "--"),
+    ].join("\n");
+  }
+
+  function getPageSizeStatText() {
+    const pageSize = getConfiguredPageSize(settings);
+    return pageSize.mode === "all"
+      ? "每页 全部(" + String(pageSize.pageSize) + ")"
+      : "每页 " + pageSize.label;
+  }
+
+  function getPageSizeStatTitle() {
+    return getConfiguredPageSize(settings).mode === "all"
+      ? "全部模式会尝试把 LabelX data 请求 pageSize 改为 400。"
+      : "进入页面后会尝试切换原生分页选择器。";
+  }
+
+  function ensureToolbarRuntime() {
+    if (toolbarRuntime || !toolbarModule || typeof toolbarModule.createRuntime !== "function") {
+      return toolbarRuntime;
+    }
+
+    toolbarRuntime = toolbarModule.createRuntime({
+      shouldShowToolbar: shouldShowToolbar,
+      getChoiceActions: function () {
+        return (actionModule && actionModule.choiceActions) || [];
+      },
+      getAudioActionLabels: function () {
+        return (actionModule && actionModule.audioActionLabels) || {};
+      },
+      getDurationSummaryText: getDurationSummaryText,
+      getDurationSummaryTitle: getDurationSummaryTitle,
+      getPageSizeStatText: getPageSizeStatText,
+      getPageSizeStatTitle: getPageSizeStatTitle,
+      runActionWithFeedback: runActionWithFeedback,
+    });
+    return toolbarRuntime;
+  }
+
+  function updateToolbarRuntimeStats() {
+    const runtime = ensureToolbarRuntime();
+    if (!runtime || typeof runtime.update !== "function") {
       return;
     }
 
-    const toolbox = document.querySelector(".mark-toolbox");
-    if (!toolbox) {
-      return;
-    }
-
-    if (toolbarRoot && toolbarRoot.isConnected && toolbarRoot.parentNode === toolbox) {
-      return;
-    }
-
-    removeToolbar();
-    toolbarRoot = document.createElement("div");
-    toolbarRoot.setAttribute("data-asr-edge-judgement-toolbar", "true");
-    Object.assign(toolbarRoot.style, {
-      display: "flex",
-      alignItems: "center",
-      flex: "1 1 520px",
-      gap: "8px",
-      flexWrap: "wrap",
-      minWidth: "280px",
-      maxWidth: "760px",
-      margin: "4px 12px",
-      padding: "4px 6px",
-      border: "1px solid #dbeafe",
-      borderRadius: "8px",
-      background: "rgba(248, 250, 252, 0.92)",
-      boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
-    });
-
-    toolbarRoot.appendChild(createToolbarGroup("判别", judgementChoiceActions));
-    toolbarRoot.appendChild(
-      createToolbarGroup("音量", [
-        { key: "volumeDown", label: audioActionLabels.volumeDown },
-        { key: "volumeUp", label: audioActionLabels.volumeUp },
-        { key: "volumeReset", label: audioActionLabels.volumeReset },
-      ])
-    );
-    toolbarRoot.appendChild(
-      createToolbarGroup("倍速", [
-        { key: "rateDown", label: audioActionLabels.rateDown },
-        { key: "rateUp", label: audioActionLabels.rateUp },
-        { key: "rateReset", label: audioActionLabels.rateReset },
-      ])
-    );
-
-    const breadcrumb = toolbox.querySelector(".mark-toolbox-breadcrumb-wrapper");
-    if (breadcrumb && breadcrumb.nextSibling) {
-      toolbox.insertBefore(toolbarRoot, breadcrumb.nextSibling);
-      return;
-    }
-
-    if (breadcrumb) {
-      toolbox.appendChild(toolbarRoot);
-      return;
-    }
-
-    toolbox.insertBefore(toolbarRoot, toolbox.firstChild);
-  }
-
-  function scheduleToolbarMount() {
-    if (toolbarMountTimer) {
-      window.clearTimeout(toolbarMountTimer);
-    }
-
-    toolbarMountTimer = window.setTimeout(function () {
-      toolbarMountTimer = null;
-      ensureToolbar();
-    }, 120);
+    runtime.update();
   }
 
   function startToolbar() {
-    scheduleToolbarMount();
-    if (toolbarObserver) {
+    const runtime = ensureToolbarRuntime();
+    if (!runtime || typeof runtime.start !== "function") {
       return;
     }
 
-    toolbarObserver = new MutationObserver(function () {
-      scheduleToolbarMount();
-    });
-    toolbarObserver.observe(document.documentElement || document, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["class"],
-    });
+    runtime.start();
   }
 
   function stopToolbar() {
-    if (toolbarMountTimer) {
-      window.clearTimeout(toolbarMountTimer);
-      toolbarMountTimer = null;
+    if (toolbarRuntime && typeof toolbarRuntime.stop === "function") {
+      toolbarRuntime.stop();
     }
-    if (toolbarObserver) {
-      toolbarObserver.disconnect();
-      toolbarObserver = null;
+  }
+
+  function ensurePageSizeRuntime() {
+    if (pageSizeRuntime || !pageSizeModule || typeof pageSizeModule.createRuntime !== "function") {
+      return pageSizeRuntime;
     }
-    removeToolbar();
+
+    pageSizeRuntime = pageSizeModule.createRuntime({
+      getPageSize: function () {
+        return getConfiguredPageSize(settings);
+      },
+      shouldApply: function () {
+        return Boolean(runtimeEnabled && settings && shouldShowToolbar());
+      },
+    });
+    return pageSizeRuntime;
+  }
+
+  function scheduleConfiguredPageSizeApply(reason) {
+    const runtime = ensurePageSizeRuntime();
+    if (!runtime || typeof runtime.scheduleApply !== "function") {
+      return;
+    }
+
+    runtime.scheduleApply(reason);
+  }
+
+  function stopConfiguredPageSizeApply() {
+    if (pageSizeRuntime && typeof pageSizeRuntime.stop === "function") {
+      pageSizeRuntime.stop();
+    }
+  }
+
+  function getMissingRequiredModules() {
+    return [
+      { name: "page-detector", value: detector },
+      { name: "audio-controller", value: audioController },
+      { name: "judgement-page-size", value: pageSizeModule },
+      { name: "judgement-duration-summary", value: durationSummaryModule },
+      { name: "judgement-actions", value: actionModule },
+      { name: "judgement-toast", value: toastModule },
+      { name: "judgement-shortcuts", value: shortcutModule },
+      { name: "judgement-toolbar", value: toolbarModule },
+    ]
+      .filter(function (entry) {
+        return !entry.value;
+      })
+      .map(function (entry) {
+        return entry.name;
+      });
   }
 
   async function loadSettings() {
@@ -909,12 +547,69 @@
       audio: audioController && typeof audioController.getState === "function"
         ? audioController.getState()
         : null,
+      duration: clone(durationSummary),
+      pageSize: getConfiguredPageSize(settings),
     };
+  }
+
+  function postNetworkConfig(reason) {
+    const pageSize = getConfiguredPageSize(settings);
+    const enabled = Boolean(runtimeEnabled && isTopLevelContext());
+
+    window.postMessage(
+      {
+        source: contentMessageSource,
+        type: networkConfigMessageType,
+        payload: {
+          enabled: enabled,
+          pageSizeOverride: enabled ? pageSize.pageSize : null,
+          reason: reason || "",
+        },
+      },
+      "*"
+    );
+  }
+
+  function normalizeNetworkDurationSummary(summary) {
+    if (durationSummaryModule && typeof durationSummaryModule.normalizeNetworkDurationSummary === "function") {
+      return durationSummaryModule.normalizeNetworkDurationSummary(summary);
+    }
+
+    return null;
+  }
+
+  function handleNetworkMessage(event) {
+    const message = event && event.data && typeof event.data === "object" ? event.data : null;
+    if (!runtimeEnabled) {
+      return;
+    }
+
+    if (
+      !message ||
+      message.source !== networkMessageSource ||
+      message.type !== networkSummaryMessageType
+    ) {
+      return;
+    }
+
+    const summary = normalizeNetworkDurationSummary(message.payload?.summary);
+    setDurationSummary(summary);
+  }
+
+  function bindNetworkBridge() {
+    if (networkBridgeBound) {
+      return;
+    }
+
+    window.addEventListener("message", handleNetworkMessage);
+    networkBridgeBound = true;
   }
 
   function stopRuntime(reason) {
     runtimeEnabled = false;
+    postNetworkConfig(reason || "runtime-stopped");
     stopToolbar();
+    stopConfiguredPageSizeApply();
     if (audioController && typeof audioController.stop === "function") {
       audioController.stop();
     }
@@ -947,9 +642,12 @@
           return lastStatus;
         }
 
-        if (!detector || !audioController) {
+        const missingModules = getMissingRequiredModules();
+        if (missingModules.length > 0) {
           runtimeEnabled = false;
-          lastStatus = buildStatus("required-module-missing");
+          lastStatus = Object.assign(buildStatus("required-module-missing"), {
+            missingModules: missingModules,
+          });
           return lastStatus;
         }
 
@@ -957,6 +655,9 @@
         audioController.start(getJudgementConfig(settings));
         bindShortcutListeners();
         startToolbar();
+        postNetworkConfig(reason || "runtime-started");
+        refreshDurationSummary(reason || "runtime-started");
+        scheduleConfiguredPageSizeApply(reason || "runtime-started");
         lastStatus = buildStatus(reason || "runtime-started");
         console.info(LOG_PREFIX, "Judgement runtime refreshed.", lastStatus);
         return lastStatus;
@@ -1028,6 +729,7 @@
   }
 
   bindMessageBridge();
+  bindNetworkBridge();
   bindStorageRefresh();
   void refreshRuntime("script-load");
 

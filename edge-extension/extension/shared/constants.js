@@ -24,7 +24,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 6;
+  const SCHEMA_VERSION = 7;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
@@ -172,6 +172,7 @@
   };
 
   const DEFAULT_JUDGEMENT_ASR_CONFIG = {
+    itemsPerPage: "all",
     autoPlay: true,
     autoResetRate: true,
     resetRateValue: 1.0,
@@ -210,6 +211,7 @@
   ];
 
   const JUDGEMENT_PROJECT_ASR_KEYS = [
+    "itemsPerPage",
     "autoPlay",
     "autoResetRate",
     "resetRateValue",

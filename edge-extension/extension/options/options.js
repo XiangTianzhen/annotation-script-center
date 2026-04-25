@@ -21,6 +21,19 @@
     { key: "rateReset", label: "重置倍速" },
     { key: "playPause", label: "播放/暂停当前音频" },
   ];
+  const judgementItemsPerPageOptions = [
+    { value: "all", label: "全部（400 条）" },
+    { value: "1 条/页", label: "1 条/页" },
+    { value: "2 条/页", label: "2 条/页" },
+    { value: "3 条/页", label: "3 条/页" },
+    { value: "4 条/页", label: "4 条/页" },
+    { value: "5 条/页", label: "5 条/页" },
+    { value: "10 条/页", label: "10 条/页" },
+    { value: "20 条/页", label: "20 条/页" },
+    { value: "30 条/页", label: "30 条/页" },
+    { value: "40 条/页", label: "40 条/页" },
+    { value: "50 条/页", label: "50 条/页" },
+  ];
   const mouseButtonLabels = {
     0: "MouseLeft",
     1: "MouseMiddle",
@@ -90,6 +103,30 @@
 
     const clamped = Math.max(min, Math.min(max, numericValue));
     return typeof precision === "number" ? Number(clamped.toFixed(precision)) : clamped;
+  }
+
+  function normalizeJudgementItemsPerPage(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (
+      text === "all" ||
+      text === "全部" ||
+      text === "全部/400条" ||
+      text === "全部（400 条）" ||
+      text === "全部（400条）" ||
+      text === "400 条/页" ||
+      text === "400条/页"
+    ) {
+      return "all";
+    }
+
+    const validValues = judgementItemsPerPageOptions.map(function (option) {
+      return option.value;
+    });
+    if (validValues.indexOf(text) >= 0) {
+      return text;
+    }
+
+    return validValues.indexOf(fallback) >= 0 ? fallback : "all";
   }
 
   function hasOwn(target, key) {
@@ -204,6 +241,7 @@
       playbackRateValue: 1.0,
       rateStepValue: 0.25,
       volumeValue: 100,
+      itemsPerPage: "all",
       shortcuts: {},
     };
     const shortcuts = {};
@@ -236,6 +274,10 @@
         typeof asrConfig.volumeValue === "number" && asrConfig.volumeValue >= 0
           ? asrConfig.volumeValue
           : defaults.volumeValue,
+      itemsPerPage: normalizeJudgementItemsPerPage(
+        asrConfig.itemsPerPage,
+        defaults.itemsPerPage || "all"
+      ),
       shortcuts: shortcuts,
     };
   }
@@ -498,6 +540,7 @@
     getElement("judgement-playback-rate").value = String(config.playbackRateValue);
     getElement("judgement-rate-step").value = String(config.rateStepValue);
     getElement("judgement-reset-rate").value = String(config.resetRateValue);
+    getElement("judgement-items-per-page").value = config.itemsPerPage;
     getElement("judgement-auto-play").checked = config.autoPlay === true;
     stopJudgementShortcutRecording("");
     renderJudgementShortcutGrid();
@@ -700,6 +743,10 @@
     const playbackRateValue = Number(getElement("judgement-playback-rate").value);
     const rateStepValue = Number(getElement("judgement-rate-step").value);
     const resetRateValue = Number(getElement("judgement-reset-rate").value);
+    const itemsPerPage = normalizeJudgementItemsPerPage(
+      getElement("judgement-items-per-page").value,
+      "all"
+    );
     const autoPlay = Boolean(getElement("judgement-auto-play").checked);
     const shortcuts = {};
 
@@ -717,6 +764,7 @@
         rateStepValue: clampNumber(rateStepValue, 0.25, 0.05, 1, 2),
         autoResetRate: true,
         resetRateValue: clampNumber(resetRateValue, 1.0, 0.25, 5, 2),
+        itemsPerPage: itemsPerPage,
         autoPlay: autoPlay,
         shortcuts: shortcuts,
       });
