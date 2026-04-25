@@ -107,8 +107,33 @@
       volumeValue: 100,
       virtualWindowEnabled: false,
       asrDiffViewEnabled: true,
+      compactCardEnabled: true,
       autoAdvanceAfterChoice: false,
       shortcuts: {
+        volumeUp: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "[",
+          button: null,
+        },
+        volumeDown: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "]",
+          button: null,
+        },
+        volumeReset: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "\\",
+          button: null,
+        },
         playPause: {
           ctrl: false,
           alt: false,
@@ -613,6 +638,11 @@
   }
 
   function startCompactCard() {
+    if (getJudgementConfig(settings).compactCardEnabled === false) {
+      stopCompactCard();
+      return;
+    }
+
     const runtime = ensureCompactCardRuntime();
     if (runtime && typeof runtime.start === "function") {
       runtime.start();

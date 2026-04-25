@@ -63,6 +63,7 @@
         "volumeValue",
         "virtualWindowEnabled",
         "asrDiffViewEnabled",
+        "compactCardEnabled",
         "autoAdvanceAfterChoice",
         "shortcuts",
       ],
@@ -200,12 +201,12 @@
       return text;
     }
 
-    return JUDGEMENT_ITEMS_PER_PAGE_VALUES.indexOf(fallback) >= 0 ? fallback : "100 条/页";
+    return JUDGEMENT_ITEMS_PER_PAGE_VALUES.indexOf(fallback) >= 0 ? fallback : "50 条/页";
   }
 
   function normalizeJudgementAsrConfig(config) {
     const constants = getConstants();
-    const fallback = constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "100 条/页";
+    const fallback = constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "50 条/页";
     const nextConfig = isPlainObject(config) ? config : {};
     nextConfig.itemsPerPage = normalizeJudgementItemsPerPage(
       nextConfig.itemsPerPage,
@@ -602,7 +603,41 @@
     ) {
       settings.asr = isPlainObject(settings.asr) ? settings.asr : {};
       settings.asr.itemsPerPage =
-        constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "100 条/页";
+        constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "50 条/页";
+    }
+
+    if (currentSchemaVersion < 12) {
+      const judgementProject =
+        settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[constants.JUDGEMENT_PROJECT_ID] || null;
+      const judgementConfigsToPatch = [];
+      if (judgementProject && isPlainObject(judgementProject.asrConfig)) {
+        judgementConfigsToPatch.push(judgementProject.asrConfig);
+      }
+      if (activeProjectId === constants.JUDGEMENT_PROJECT_ID && isPlainObject(settings.asr)) {
+        judgementConfigsToPatch.push(settings.asr);
+      }
+
+      judgementConfigsToPatch.forEach(function (asrConfig) {
+        if (!hasOwn(asrConfig, "compactCardEnabled")) {
+          asrConfig.compactCardEnabled =
+            constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.compactCardEnabled !== false;
+        }
+
+        if (!isPlainObject(asrConfig.shortcuts)) {
+          asrConfig.shortcuts = {};
+        }
+
+        ["volumeUp", "volumeDown", "volumeReset"].forEach(function (shortcutKey) {
+          if (
+            !hasOwn(asrConfig.shortcuts, shortcutKey) ||
+            asrConfig.shortcuts[shortcutKey] === null
+          ) {
+            asrConfig.shortcuts[shortcutKey] = clone(
+              constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.shortcuts?.[shortcutKey] || null
+            );
+          }
+        });
+      });
     }
 
     if (currentSchemaVersion < 6) {

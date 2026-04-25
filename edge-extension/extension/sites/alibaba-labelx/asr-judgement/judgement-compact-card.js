@@ -142,35 +142,6 @@
     return Number.isFinite(index) && index >= 0 ? "第 " + String(index + 1) + " 题" : "当前题";
   }
 
-  function getCssVar(element, name) {
-    if (!(element instanceof HTMLElement)) {
-      return "";
-    }
-
-    return String(window.getComputedStyle(element).getPropertyValue(name) || "").trim();
-  }
-
-  function isHiddenElement(element) {
-    if (!(element instanceof HTMLElement)) {
-      return false;
-    }
-
-    const style = window.getComputedStyle(element);
-    return style.display === "none" || style.visibility === "hidden" || element.getClientRects().length === 0;
-  }
-
-  function shouldShowCompactCard(item) {
-    if (!(item instanceof HTMLElement)) {
-      return false;
-    }
-
-    const contentHiddenByVar = getCssVar(item, "--labelRender-item-content-display") === "none";
-    const answerHiddenByVar = getCssVar(item, "--labelRender-item-answer-display") === "none";
-    const content = item.querySelector(".labelRender-item-content");
-    const answer = item.querySelector(".labelRender-item-answer");
-    return (contentHiddenByVar || isHiddenElement(content)) && (answerHiddenByVar || isHiddenElement(answer));
-  }
-
   function appendText(parent, className, text, attrs) {
     const node = document.createElement("div");
     node.className = className;
@@ -277,22 +248,17 @@
       ensureStyle();
       let visibleCount = 0;
       let updatedCount = 0;
-      let removedCount = 0;
       Array.from(document.querySelectorAll(".labelRender-item[data-index]")).forEach(function (item) {
-        if (shouldShowCompactCard(item)) {
-          visibleCount += 1;
-          if (upsertCompactCard(item)) {
-            updatedCount += 1;
-          }
-        } else if (removeCompactCard(item)) {
-          removedCount += 1;
+        visibleCount += 1;
+        if (upsertCompactCard(item)) {
+          updatedCount += 1;
         }
       });
 
       state = {
         visibleCount: visibleCount,
         updatedCount: updatedCount,
-        removedCount: removedCount,
+        removedCount: 0,
         lastUpdatedAt: new Date().toISOString(),
       };
     }

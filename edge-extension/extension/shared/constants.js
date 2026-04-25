@@ -24,7 +24,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 11;
+  const SCHEMA_VERSION = 12;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
@@ -181,6 +181,7 @@
     volumeValue: 100,
     virtualWindowEnabled: false,
     asrDiffViewEnabled: true,
+    compactCardEnabled: true,
     autoAdvanceAfterChoice: false,
     shortcuts: {
       choiceFirstBetter: createShortcut("1"),
@@ -188,9 +189,9 @@
       choiceBothBad: createShortcut("3"),
       choiceUnsure: createShortcut("4"),
       choiceOtherDialect: createShortcut("5"),
-      volumeUp: null,
-      volumeDown: null,
-      volumeReset: null,
+      volumeUp: createShortcut("["),
+      volumeDown: createShortcut("]"),
+      volumeReset: createShortcut("\\"),
       rateUp: null,
       rateDown: null,
       rateReset: null,
@@ -223,6 +224,7 @@
     "volumeValue",
     "virtualWindowEnabled",
     "asrDiffViewEnabled",
+    "compactCardEnabled",
     "autoAdvanceAfterChoice",
     "shortcuts",
   ];

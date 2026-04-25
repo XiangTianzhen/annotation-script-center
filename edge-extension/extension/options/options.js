@@ -249,8 +249,34 @@
       itemsPerPage: "50 条/页",
       virtualWindowEnabled: false,
       asrDiffViewEnabled: true,
+      compactCardEnabled: true,
       autoAdvanceAfterChoice: false,
-      shortcuts: {},
+      shortcuts: {
+        volumeUp: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "[",
+          button: null,
+        },
+        volumeDown: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "]",
+          button: null,
+        },
+        volumeReset: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "\\",
+          button: null,
+        },
+      },
     };
     const shortcuts = {};
 
@@ -288,6 +314,7 @@
       ),
       virtualWindowEnabled: false,
       asrDiffViewEnabled: asrConfig.asrDiffViewEnabled !== false,
+      compactCardEnabled: asrConfig.compactCardEnabled !== false,
       autoAdvanceAfterChoice: asrConfig.autoAdvanceAfterChoice === true,
       shortcuts: shortcuts,
     };
@@ -554,6 +581,7 @@
     getElement("judgement-items-per-page").value = config.itemsPerPage;
     getElement("judgement-auto-play").checked = config.autoPlay === true;
     getElement("judgement-asr-diff-view").checked = config.asrDiffViewEnabled !== false;
+    getElement("judgement-compact-card").checked = config.compactCardEnabled !== false;
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     stopJudgementShortcutRecording("");
     renderJudgementShortcutGrid();
@@ -762,6 +790,7 @@
     );
     const autoPlay = Boolean(getElement("judgement-auto-play").checked);
     const asrDiffViewEnabled = Boolean(getElement("judgement-asr-diff-view").checked);
+    const compactCardEnabled = Boolean(getElement("judgement-compact-card").checked);
     const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
     const shortcuts = {};
 
@@ -783,6 +812,7 @@
         autoPlay: autoPlay,
         virtualWindowEnabled: false,
         asrDiffViewEnabled: asrDiffViewEnabled,
+        compactCardEnabled: compactCardEnabled,
         autoAdvanceAfterChoice: autoAdvanceAfterChoice,
         shortcuts: shortcuts,
       });

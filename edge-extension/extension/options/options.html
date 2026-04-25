@@ -506,6 +506,15 @@
           </div>
 
           <div class="field-card">
+            <strong>轻量题卡摘要</strong>
+            <span>在每个题卡内显示两个 ASR 文本和当前判别状态；配合 LabelX 隐藏内容区 / 回答区与卡片大小设置使用。</span>
+            <label class="field-toggle">
+              <input id="judgement-compact-card" type="checkbox" />
+              <span>启用轻量题卡摘要</span>
+            </label>
+          </div>
+
+          <div class="field-card">
             <strong>选择后辅助流转</strong>
             <span>通过 1~5 快捷键或快判工具栏选择判别结果后，自动跳转到当前页下一题。</span>
             <label class="field-toggle">
@@ -516,7 +525,7 @@
 
           <div class="field-card shortcut-panel">
             <strong>快捷键配置</strong>
-            <span>默认 1~5 分别选择五个“哪个ASR更优”选项；默认“播放/暂停当前音频”为 Space，其他动作默认不设置。点击“录制”后按键或点击鼠标按键；按 Esc 取消录制，不保存。</span>
+            <span>默认 1~5 分别选择五个“哪个ASR更优”选项；默认增大音量为 [，减小音量为 ]，重置音量为 \，播放/暂停当前音频为 Space。点击“录制”后按键或点击鼠标按键；按 Esc 取消录制，不保存。</span>
             <div id="judgement-shortcut-grid" class="shortcut-grid"></div>
             <div id="judgement-recording-status" class="shortcut-recording hidden"></div>
           </div>
