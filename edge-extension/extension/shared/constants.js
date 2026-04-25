@@ -24,7 +24,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 14;
+  const SCHEMA_VERSION = 15;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
@@ -35,6 +35,7 @@
     OPEN_SETTINGS_PANEL: "ASR_EDGE_OPEN_SETTINGS_PANEL",
     TOGGLE_SETTINGS_PANEL: "ASR_EDGE_TOGGLE_SETTINGS_PANEL",
     PANEL_PING: "ASR_EDGE_SETTINGS_PANEL_PING",
+    JUDGEMENT_STATS_UPLOAD: "ASR_EDGE_JUDGEMENT_STATS_UPLOAD",
   };
 
   const TARGET_PLATFORM = {
@@ -191,11 +192,11 @@
     compactCardEnabled: true,
     autoAdvanceAfterChoice: false,
     statsUploadEnabled: true,
-    statsUploadEndpoint: "",
+    statsUploadEndpoint: "http://47.108.254.138:3333/api/asr-judgement/statistics/upload",
     statsScheduleUrl: "",
     statsUploadTimes: ["10:00", "16:00"],
     statsUploadJitterMinutes: 10,
-    statsAutoUploadOnSubtaskOpen: true,
+    statsAutoUploadOnSubtaskOpen: false,
     statsAutoUploadOnSchedule: true,
     statsUploadRequestTimeoutMs: 20000,
     shortcuts: {

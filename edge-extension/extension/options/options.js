@@ -2,11 +2,16 @@
   const constants = globalThis.ASREdgeConstants || {};
   const storage = globalThis.ASREdgeStorage || null;
   const settingsPanel = globalThis.__ASREdgeAlibabaLabelxSettingsPanel || null;
+  const messageTypes = constants.MESSAGE_TYPES || {};
   const platformLibrary = constants.PLATFORM_LIBRARY || {};
   const scriptLibrary = constants.SCRIPT_LIBRARY || {};
   const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
   const judgementProjectId = constants.JUDGEMENT_PROJECT_ID || "judgement";
   const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
+  const judgementStatsServerEndpoint =
+    "http://47.108.254.138:3333/api/asr-judgement/statistics/upload";
+  const judgementStatsLocalEndpoint =
+    "http://127.0.0.1:3333/api/asr-judgement/statistics/upload";
   const judgementShortcutActions = constants.JUDGEMENT_SHORTCUT_ACTIONS || [
     { key: "choiceFirstBetter", label: "选择：第一个更好" },
     { key: "choiceSecondBetter", label: "选择：第二个更好" },
@@ -69,6 +74,38 @@
 
     history.replaceState({}, "", nextUrl.toString());
     renderCurrentView();
+  }
+
+  function queryTabs(queryInfo) {
+    return new Promise(function (resolve) {
+      if (typeof chrome === "undefined" || !chrome.tabs || !chrome.tabs.query) {
+        resolve([]);
+        return;
+      }
+
+      chrome.tabs.query(queryInfo, function (tabs) {
+        resolve(Array.isArray(tabs) ? tabs : []);
+      });
+    });
+  }
+
+  function sendMessageToTab(tabId, message) {
+    return new Promise(function (resolve) {
+      if (typeof chrome === "undefined" || !chrome.tabs || !chrome.tabs.sendMessage) {
+        resolve({ ok: false, message: "当前扩展版本不支持向 LabelX 页面发送消息。" });
+        return;
+      }
+
+      chrome.tabs.sendMessage(tabId, message, function (response) {
+        const error = chrome.runtime && chrome.runtime.lastError;
+        if (error) {
+          resolve({ ok: false, message: error.message });
+          return;
+        }
+
+        resolve(response || { ok: false, message: "未收到快判页面响应。" });
+      });
+    });
   }
 
   function showError(message) {
@@ -190,6 +227,14 @@
     });
 
     return result.length > 0 ? result : ["10:00", "16:00"];
+  }
+
+  function normalizeJudgementStatsEndpoint(value) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (text.indexOf("127.0.0.1:3333") >= 0 || text.indexOf("localhost:3333") >= 0) {
+      return judgementStatsLocalEndpoint;
+    }
+    return judgementStatsServerEndpoint;
   }
 
   function hasOwn(target, key) {
@@ -315,11 +360,11 @@
       compactCardEnabled: true,
       autoAdvanceAfterChoice: false,
       statsUploadEnabled: true,
-      statsUploadEndpoint: "",
+      statsUploadEndpoint: judgementStatsServerEndpoint,
       statsScheduleUrl: "",
       statsUploadTimes: ["10:00", "16:00"],
       statsUploadJitterMinutes: 10,
-      statsAutoUploadOnSubtaskOpen: true,
+      statsAutoUploadOnSubtaskOpen: false,
       statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: 20000,
       shortcuts: {
@@ -393,10 +438,11 @@
       compactCardEnabled: asrConfig.compactCardEnabled !== false,
       autoAdvanceAfterChoice: asrConfig.autoAdvanceAfterChoice === true,
       statsUploadEnabled: asrConfig.statsUploadEnabled !== false,
-      statsUploadEndpoint:
+      statsUploadEndpoint: normalizeJudgementStatsEndpoint(
         typeof asrConfig.statsUploadEndpoint === "string"
-          ? asrConfig.statsUploadEndpoint.trim()
-          : "",
+          ? asrConfig.statsUploadEndpoint
+          : defaults.statsUploadEndpoint
+      ),
       statsScheduleUrl:
         typeof asrConfig.statsScheduleUrl === "string" ? asrConfig.statsScheduleUrl.trim() : "",
       statsUploadTimes: normalizeTimeList(
@@ -410,7 +456,7 @@
         120,
         0
       ),
-      statsAutoUploadOnSubtaskOpen: asrConfig.statsAutoUploadOnSubtaskOpen !== false,
+      statsAutoUploadOnSubtaskOpen: false,
       statsAutoUploadOnSchedule: asrConfig.statsAutoUploadOnSchedule !== false,
       statsUploadRequestTimeoutMs: clampNumber(
         asrConfig.statsUploadRequestTimeoutMs,
@@ -693,10 +739,6 @@
     getElement("judgement-stats-upload-enabled").checked = config.statsUploadEnabled !== false;
     getElement("judgement-stats-upload-endpoint").value = config.statsUploadEndpoint || "";
     getElement("judgement-stats-schedule-url").value = config.statsScheduleUrl || "";
-    getElement("judgement-stats-upload-times").value = (config.statsUploadTimes || []).join(",");
-    getElement("judgement-stats-jitter-minutes").value = String(config.statsUploadJitterMinutes);
-    getElement("judgement-stats-auto-open").checked =
-      config.statsAutoUploadOnSubtaskOpen !== false;
     getElement("judgement-stats-auto-schedule").checked =
       config.statsAutoUploadOnSchedule !== false;
     stopJudgementShortcutRecording("");
@@ -893,7 +935,7 @@
   async function saveJudgementSettings() {
     if (!storage || typeof storage.saveProjectSettings !== "function") {
       setStatus("judgement-status", "当前扩展版本不支持保存语音判别设置。");
-      return;
+      return false;
     }
 
     const volumeValue = Number(getElement("judgement-volume").value);
@@ -917,14 +959,10 @@
     const compactCardEnabled = Boolean(getElement("judgement-compact-card").checked);
     const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
     const statsUploadEnabled = Boolean(getElement("judgement-stats-upload-enabled").checked);
-    const statsUploadEndpoint = String(getElement("judgement-stats-upload-endpoint").value || "").trim();
-    const statsScheduleUrl = String(getElement("judgement-stats-schedule-url").value || "").trim();
-    const statsUploadTimes = normalizeTimeList(
-      getElement("judgement-stats-upload-times").value,
-      constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.statsUploadTimes || ["10:00", "16:00"]
+    const statsUploadEndpoint = normalizeJudgementStatsEndpoint(
+      getElement("judgement-stats-upload-endpoint").value
     );
-    const statsUploadJitterMinutes = Number(getElement("judgement-stats-jitter-minutes").value);
-    const statsAutoUploadOnSubtaskOpen = Boolean(getElement("judgement-stats-auto-open").checked);
+    const statsScheduleUrl = String(getElement("judgement-stats-schedule-url").value || "").trim();
     const statsAutoUploadOnSchedule = Boolean(getElement("judgement-stats-auto-schedule").checked);
     const shortcuts = {};
 
@@ -952,21 +990,95 @@
         statsUploadEnabled: statsUploadEnabled,
         statsUploadEndpoint: statsUploadEndpoint,
         statsScheduleUrl: statsScheduleUrl,
-        statsUploadTimes: statsUploadTimes,
-        statsUploadJitterMinutes: clampNumber(statsUploadJitterMinutes, 10, 0, 120, 0),
-        statsAutoUploadOnSubtaskOpen: statsAutoUploadOnSubtaskOpen,
+        statsUploadTimes: constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.statsUploadTimes || ["10:00", "16:00"],
+        statsUploadJitterMinutes: constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.statsUploadJitterMinutes || 10,
+        statsAutoUploadOnSubtaskOpen: false,
         statsAutoUploadOnSchedule: statsAutoUploadOnSchedule,
         statsUploadRequestTimeoutMs: 20000,
         shortcuts: shortcuts,
       });
       renderCurrentView();
       setStatus("judgement-status", "语音判别设置已保存；已打开的 LabelX 页面会尽量实时同步，未生效时请刷新页面。");
+      return true;
     } catch (error) {
       setStatus(
         "judgement-status",
         "保存失败：" + (error && error.message ? error.message : String(error))
       );
+      return false;
     }
+  }
+
+  function isJudgementDetailTab(tab) {
+    if (!tab || !tab.url) {
+      return false;
+    }
+
+    try {
+      const url = new URL(tab.url);
+      return (
+        url.hostname === "labelx.alibaba-inc.com" &&
+        url.pathname.toLowerCase().startsWith("/corpora/labeling/") &&
+        Boolean(url.searchParams.get("subTaskId"))
+      );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async function findJudgementDetailTab() {
+    const tabs = await queryTabs({
+      url: "https://labelx.alibaba-inc.com/corpora/labeling/*",
+    });
+    const detailTabs = tabs.filter(isJudgementDetailTab);
+    return (
+      detailTabs.find(function (tab) {
+        return tab.active === true && tab.highlighted === true;
+      }) ||
+      detailTabs.find(function (tab) {
+        return tab.active === true;
+      }) ||
+      detailTabs[0] ||
+      null
+    );
+  }
+
+  async function uploadJudgementStatsFromOptions() {
+    const saved = await saveJudgementSettings();
+    if (saved === false) {
+      return;
+    }
+
+    setStatus("judgement-status", "正在查找已打开的快判详情页...");
+    const tab = await findJudgementDetailTab();
+    if (!tab || typeof tab.id !== "number") {
+      setStatus("judgement-status", "未找到已打开的快判详情页，请先打开 LabelX 快判子任务详情页。");
+      return;
+    }
+
+    setStatus("judgement-status", "正在请求快判详情页上传统计...");
+    const response = await sendMessageToTab(tab.id, {
+      type: messageTypes.JUDGEMENT_STATS_UPLOAD || "ASR_EDGE_JUDGEMENT_STATS_UPLOAD",
+      source: "options-panel",
+    });
+
+    if (response && response.ok === true) {
+      const payload = response.payload || {};
+      setStatus(
+        "judgement-status",
+        "统计上传已触发：分包ID " +
+          String(payload.batchId || "--") +
+          "，子任务ID " +
+          String(payload.subTaskId || "--") +
+          "。"
+      );
+      return;
+    }
+
+    setStatus(
+      "judgement-status",
+      "上传失败：" + String(response?.message || response?.error || "快判页面未返回成功状态。")
+    );
   }
 
   async function renderCurrentView() {
@@ -1012,6 +1124,10 @@
 
     getElement("save-judgement-settings").addEventListener("click", function () {
       void saveJudgementSettings();
+    });
+
+    getElement("judgement-stats-upload-now").addEventListener("click", function () {
+      void uploadJudgementStatsFromOptions();
     });
 
     try {

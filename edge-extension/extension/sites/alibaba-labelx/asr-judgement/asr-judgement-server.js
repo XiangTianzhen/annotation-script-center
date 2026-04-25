@@ -2,7 +2,10 @@
   const LOG_PREFIX = "[ASR Edge][judgement-stats]";
   const DEFAULT_PAGE_SIZE = 400;
   const DEFAULT_UPLOAD_PATH = "/api/asr-judgement/statistics/upload";
+  const DEFAULT_SERVER_UPLOAD_ENDPOINT =
+    "http://47.108.254.138:3333" + DEFAULT_UPLOAD_PATH;
   const DEFAULT_UPLOAD_TIMES = ["10:00", "16:00"];
+  const DEFAULT_UPLOAD_JITTER_MINUTES = 10;
   const CSV_COLUMNS = [
     "任务名称",
     "任务ID",
@@ -78,7 +81,7 @@
     const server = config?.legacyServer || {};
     const baseUrl = server.useDebugApiBaseUrl === true ? server.debugApiBaseUrl : server.apiBaseUrl;
     const normalizedBaseUrl = normalizeEndpoint(baseUrl);
-    return normalizedBaseUrl ? trimSlash(normalizedBaseUrl) + DEFAULT_UPLOAD_PATH : "";
+    return normalizedBaseUrl ? trimSlash(normalizedBaseUrl) + DEFAULT_UPLOAD_PATH : DEFAULT_SERVER_UPLOAD_ENDPOINT;
   }
 
   function normalizeTimeList(value) {
@@ -117,7 +120,13 @@
       times: times,
       jitterMinutes: Number.isFinite(jitterMinutes)
         ? Math.max(0, Math.min(120, jitterMinutes))
-        : Math.max(0, Math.min(120, Number(fallbackConfig.statsUploadJitterMinutes) || 10)),
+        : Math.max(
+            0,
+            Math.min(
+              120,
+              Number(fallbackConfig.statsUploadJitterMinutes) || DEFAULT_UPLOAD_JITTER_MINUTES
+            )
+          ),
       source: body && typeof body === "object" ? "remote" : "local",
       fetchedAt: new Date().toISOString(),
     };
@@ -303,7 +312,7 @@
       schedule: {
         enabled: true,
         times: DEFAULT_UPLOAD_TIMES.slice(),
-        jitterMinutes: 10,
+        jitterMinutes: DEFAULT_UPLOAD_JITTER_MINUTES,
         source: "local",
       },
     };
@@ -313,8 +322,6 @@
     const options = deps && typeof deps === "object" ? deps : {};
     let state = createState();
     let scheduleTimer = null;
-    let autoUploadTimer = null;
-    let lastAutoSubtaskId = "";
 
     function getConfig() {
       return typeof options.getConfig === "function" ? options.getConfig() || {} : {};
@@ -351,18 +358,14 @@
       }
     }
 
-    function clearAutoUploadTimer() {
-      if (autoUploadTimer) {
-        window.clearTimeout(autoUploadTimer);
-        autoUploadTimer = null;
-      }
-    }
-
     async function refreshSchedule() {
       const config = getConfig();
       const fallback = {
         times: normalizeTimeList(config.statsUploadTimes),
-        jitterMinutes: Math.max(0, Math.min(120, Number(config.statsUploadJitterMinutes) || 10)),
+        jitterMinutes: Math.max(
+          0,
+          Math.min(120, Number(config.statsUploadJitterMinutes) || DEFAULT_UPLOAD_JITTER_MINUTES)
+        ),
       };
       const scheduleUrl = normalizeEndpoint(config.statsScheduleUrl);
       if (!scheduleUrl) {
@@ -560,31 +563,8 @@
       }
     }
 
-    function scheduleAutoUploadOnOpen() {
-      clearAutoUploadTimer();
-      const config = getConfig();
-      const subTaskId = getUrlParams().subTaskId;
-      if (
-        !state.started ||
-        !shouldApply() ||
-        config.statsUploadEnabled === false ||
-        config.statsAutoUploadOnSubtaskOpen === false ||
-        !subTaskId ||
-        subTaskId === lastAutoSubtaskId
-      ) {
-        return;
-      }
-
-      lastAutoSubtaskId = subTaskId;
-      autoUploadTimer = window.setTimeout(function () {
-        autoUploadTimer = null;
-        void uploadNow("subtask-open");
-      }, 2500);
-    }
-
     function start() {
       state.started = true;
-      scheduleAutoUploadOnOpen();
       void refreshSchedule().finally(scheduleNextUpload);
       notify();
     }
@@ -593,7 +573,6 @@
       state.started = false;
       state.nextScheduleAt = null;
       clearScheduleTimer();
-      clearAutoUploadTimer();
       notify();
     }
 
@@ -613,5 +592,252 @@
     createRuntime: createRuntime,
     buildPayload: buildPayload,
     CSV_COLUMNS: CSV_COLUMNS.slice(),
+  };
+})();
+
+(function () {
+  const isNodeRuntime =
+    typeof module !== "undefined" &&
+    module.exports &&
+    typeof require === "function" &&
+    typeof process !== "undefined" &&
+    process.versions &&
+    process.versions.node;
+
+  if (!isNodeRuntime) {
+    return;
+  }
+
+  const http = require("http");
+  const fs = require("fs");
+  const path = require("path");
+  const url = require("url");
+  const api = globalThis.__ASREdgeAlibabaLabelxJudgementServer || {};
+  const csvColumns = Array.isArray(api.CSV_COLUMNS) ? api.CSV_COLUMNS.slice() : [];
+  const uploadPath = "/api/asr-judgement/statistics/upload";
+  const healthPath = "/api/asr-judgement/statistics/health";
+  const host = process.env.ASR_JUDGEMENT_SERVER_HOST || "127.0.0.1";
+  const port = Number(process.env.ASR_JUDGEMENT_SERVER_PORT || 3333);
+  const dataDir =
+    process.env.ASR_JUDGEMENT_STATS_DIR || path.join(__dirname, "statistics-data");
+  const rowsPath = path.join(dataDir, "statistics-rows.json");
+  const eventsPath = path.join(dataDir, "statistics-upload-events.jsonl");
+  const csvPath = path.join(dataDir, "statistics-merged.csv");
+
+  function ensureDataDir() {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+
+  function sendJson(response, statusCode, body) {
+    response.writeHead(statusCode, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type,Accept",
+    });
+    response.end(JSON.stringify(body));
+  }
+
+  function readJsonFile(filePath, fallback) {
+    try {
+      return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function writeJsonFile(filePath, value) {
+    fs.writeFileSync(filePath, JSON.stringify(value, null, 2), "utf8");
+  }
+
+  function escapeCsvCell(value) {
+    const text = value === undefined || value === null ? "" : String(value);
+    return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+  }
+
+  function writeMergedCsv(rowsByBatchId) {
+    const rows = Object.keys(rowsByBatchId)
+      .sort()
+      .map(function (batchId) {
+        return rowsByBatchId[batchId] || {};
+      });
+    const lines = [
+      csvColumns.map(escapeCsvCell).join(","),
+    ].concat(
+      rows.map(function (row) {
+        return csvColumns
+          .map(function (column) {
+            return escapeCsvCell(row[column]);
+          })
+          .join(",");
+      })
+    );
+    fs.writeFileSync(csvPath, lines.join("\n"), "utf8");
+  }
+
+  function createEmptyRow() {
+    const row = {};
+    csvColumns.forEach(function (column) {
+      row[column] = "";
+    });
+    return row;
+  }
+
+  function findLabelSlot(row, subTaskId) {
+    const slots = [1, 2, 3];
+    const existing = slots.find(function (slot) {
+      return row["标注员" + slot + "子任务ID"] === subTaskId;
+    });
+    if (existing) {
+      return existing;
+    }
+
+    return (
+      slots.find(function (slot) {
+        return !row["标注员" + slot + "子任务ID"];
+      }) || 3
+    );
+  }
+
+  function applyRoleRecord(row, roleRecord) {
+    const role = String(roleRecord.role || "");
+    const subTaskId = String(roleRecord.subTaskId || "");
+    if (!subTaskId) {
+      return;
+    }
+
+    if (role === "audit") {
+      row["审核子任务ID"] = subTaskId;
+      row["审核员"] = String(roleRecord.userName || roleRecord.userId || "");
+      row["审核领取时间"] = String(roleRecord.receiveTime || "");
+      row["审核提交时间"] = String(roleRecord.submitTime || "");
+      row["审核是否完成"] = String(roleRecord.completed || "");
+      return;
+    }
+
+    const slot = findLabelSlot(row, subTaskId);
+    row["标注员" + slot + "子任务ID"] = subTaskId;
+    row["标注员" + slot] = String(roleRecord.userName || roleRecord.userId || "");
+    row["标注员" + slot + "领取时间"] = String(roleRecord.receiveTime || "");
+    row["标注员" + slot + "提交时间"] = String(roleRecord.submitTime || "");
+    row["标注员" + slot + "是否完成"] = String(roleRecord.completed || "");
+  }
+
+  function mergeUploadPayload(payload) {
+    const patch = payload && typeof payload.csvPatch === "object" ? payload.csvPatch : {};
+    const roleRecord =
+      payload && typeof payload.roleRecord === "object" ? payload.roleRecord : {};
+    const batchId = String(
+      payload?.mergeKey?.batchId || roleRecord.batchId || patch["分包ID"] || ""
+    ).trim();
+    if (!batchId) {
+      throw new Error("payload 缺少 mergeKey.batchId / 分包ID。");
+    }
+
+    ensureDataDir();
+    const rowsByBatchId = readJsonFile(rowsPath, {});
+    const row = Object.assign(createEmptyRow(), rowsByBatchId[batchId] || {});
+    Object.keys(patch).forEach(function (key) {
+      if (csvColumns.indexOf(key) >= 0) {
+        row[key] = String(patch[key] || "");
+      }
+    });
+    applyRoleRecord(row, roleRecord);
+    rowsByBatchId[batchId] = row;
+    writeJsonFile(rowsPath, rowsByBatchId);
+    writeMergedCsv(rowsByBatchId);
+    fs.appendFileSync(eventsPath, JSON.stringify(payload) + "\n", "utf8");
+
+    return {
+      batchId: batchId,
+      rowCount: Object.keys(rowsByBatchId).length,
+      csvPath: csvPath,
+      rowsPath: rowsPath,
+      eventsPath: eventsPath,
+    };
+  }
+
+  function readRequestBody(request) {
+    return new Promise(function (resolve, reject) {
+      let body = "";
+      request.on("data", function (chunk) {
+        body += chunk;
+        if (Buffer.byteLength(body, "utf8") > 20 * 1024 * 1024) {
+          reject(new Error("请求体超过 20MB。"));
+          request.destroy();
+        }
+      });
+      request.on("end", function () {
+        resolve(body);
+      });
+      request.on("error", reject);
+    });
+  }
+
+  async function handleUpload(request, response) {
+    try {
+      const body = await readRequestBody(request);
+      const payload = JSON.parse(body || "{}");
+      const result = mergeUploadPayload(payload);
+      sendJson(response, 200, {
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      sendJson(response, 400, {
+        success: false,
+        message: error && error.message ? error.message : String(error),
+      });
+    }
+  }
+
+  function createLocalServer() {
+    return http.createServer(function (request, response) {
+      const pathname = url.parse(request.url || "").pathname || "/";
+      if (request.method === "OPTIONS") {
+        sendJson(response, 204, {});
+        return;
+      }
+
+      if (request.method === "GET" && (pathname === "/" || pathname === healthPath)) {
+        sendJson(response, 200, {
+          success: true,
+          service: "asr-judgement-statistics",
+          uploadPath: uploadPath,
+          csvPath: csvPath,
+        });
+        return;
+      }
+
+      if (request.method === "POST" && pathname === uploadPath) {
+        void handleUpload(request, response);
+        return;
+      }
+
+      sendJson(response, 404, {
+        success: false,
+        message: "接口不存在。",
+      });
+    });
+  }
+
+  if (require.main === module) {
+    ensureDataDir();
+    createLocalServer().listen(port, host, function () {
+      console.info(
+        "[ASR Edge][judgement-stats-server] listening on http://" +
+          host +
+          ":" +
+          String(port) +
+          uploadPath
+      );
+      console.info("[ASR Edge][judgement-stats-server] csv:", csvPath);
+    });
+  }
+
+  module.exports = {
+    createLocalServer: createLocalServer,
+    mergeUploadPayload: mergeUploadPayload,
+    csvColumns: csvColumns,
   };
 })();

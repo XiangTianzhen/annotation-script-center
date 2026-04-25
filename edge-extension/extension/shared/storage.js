@@ -271,6 +271,9 @@
       typeof nextConfig.statsUploadEndpoint === "string"
         ? nextConfig.statsUploadEndpoint.trim()
         : "";
+    if (!nextConfig.statsUploadEndpoint && typeof defaults.statsUploadEndpoint === "string") {
+      nextConfig.statsUploadEndpoint = defaults.statsUploadEndpoint;
+    }
     nextConfig.statsScheduleUrl =
       typeof nextConfig.statsScheduleUrl === "string"
         ? nextConfig.statsScheduleUrl.trim()
@@ -283,8 +286,7 @@
       0,
       Math.min(120, normalizeNumber(nextConfig.statsUploadJitterMinutes, defaults.statsUploadJitterMinutes || 10))
     );
-    nextConfig.statsAutoUploadOnSubtaskOpen =
-      nextConfig.statsAutoUploadOnSubtaskOpen !== false;
+    nextConfig.statsAutoUploadOnSubtaskOpen = false;
     nextConfig.statsAutoUploadOnSchedule = nextConfig.statsAutoUploadOnSchedule !== false;
     nextConfig.statsUploadRequestTimeoutMs = Math.max(
       1000,

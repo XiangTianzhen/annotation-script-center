@@ -16,6 +16,8 @@
   const shortcutModule = globalThis.__ASREdgeAlibabaLabelxJudgementShortcuts || null;
   const toolbarModule = globalThis.__ASREdgeAlibabaLabelxJudgementToolbar || null;
   const messageTypes = constants.MESSAGE_TYPES || {};
+  const judgementStatsUploadMessageType =
+    messageTypes.JUDGEMENT_STATS_UPLOAD || "ASR_EDGE_JUDGEMENT_STATS_UPLOAD";
   const storageKey = constants.STORAGE_KEY || "asrEdgeSettings";
   const judgementProjectId = constants.JUDGEMENT_PROJECT_ID || "judgement";
   const networkMessageSource = "ASR_EDGE_JUDGEMENT_PAGE_WORLD";
@@ -118,11 +120,11 @@
       compactCardEnabled: true,
       autoAdvanceAfterChoice: false,
       statsUploadEnabled: true,
-      statsUploadEndpoint: "",
+      statsUploadEndpoint: "http://47.108.254.138:3333/api/asr-judgement/statistics/upload",
       statsScheduleUrl: "",
       statsUploadTimes: ["10:00", "16:00"],
       statsUploadJitterMinutes: 10,
-      statsAutoUploadOnSubtaskOpen: true,
+      statsAutoUploadOnSubtaskOpen: false,
       statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: 20000,
       shortcuts: {
@@ -527,9 +529,6 @@
       getDurationSummaryTitle: getDurationSummaryTitle,
       getPageSizeStatText: getPageSizeStatText,
       getPageSizeStatTitle: getPageSizeStatTitle,
-      getStatsActions: function () {
-        return [{ key: statsUploadActionKey, label: "上传统计", shortLabel: "上传统计" }];
-      },
       runActionWithFeedback: runActionWithFeedback,
     });
     return toolbarRuntime;
@@ -989,7 +988,27 @@
       }
 
       if (message.type !== messageTypes.PANEL_PING) {
-        return undefined;
+        if (message.type !== judgementStatsUploadMessageType) {
+          return undefined;
+        }
+
+        refreshRuntime("stats-upload-message")
+          .then(function () {
+            return uploadJudgementStats(message.source || "options-panel");
+          })
+          .then(function (result) {
+            sendResponse(result);
+          })
+          .catch(function (error) {
+            sendResponse(
+              buildActionResult(statsUploadActionKey, false, {
+                reason: "stats-upload-message-failed",
+                source: message.source || "options-panel",
+                message: error && error.message ? error.message : String(error),
+              })
+            );
+          });
+        return true;
       }
 
       if (lastStatus.activeProjectId !== judgementProjectId && !runtimeEnabled) {

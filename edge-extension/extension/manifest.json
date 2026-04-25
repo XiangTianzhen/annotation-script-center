@@ -11,7 +11,9 @@
     "https://labelx.alibaba-inc.com/*",
     "https://label-cloud.lightwheel.net/*",
     "http://47.108.254.138:3101/*",
-    "http://127.0.0.1:3101/*"
+    "http://127.0.0.1:3101/*",
+    "http://47.108.254.138:3333/*",
+    "http://127.0.0.1:3333/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js"
