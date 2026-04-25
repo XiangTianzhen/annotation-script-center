@@ -2,6 +2,7 @@
   const ROOT_ATTR = "data-asr-edge-judgement-compact-card";
   const ITEM_ATTR = "data-asr-edge-judgement-compact-item";
   const STYLE_ID = "asr-edge-judgement-compact-card-style";
+  const RENDER_VERSION = "compact-card-v3";
   const DEFAULT_DIFF_COLORS = {
     changeBackground: "#fef3c7",
     gapBackground: "#fee2e2",
@@ -43,7 +44,7 @@
       "  border-radius: 4px;",
       "  background: #f8fbff;",
       "  color: #0f172a;",
-      "  overflow: hidden;",
+      "  overflow: visible;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-head {",
       "  display: flex;",
@@ -51,6 +52,14 @@
       "  justify-content: space-between;",
       "  gap: 8px;",
       "  margin-bottom: 4px;",
+      "  min-width: 0;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-main {",
+      "  display: flex;",
+      "  flex: 1 1 auto;",
+      "  flex-direction: column;",
+      "  align-items: flex-start;",
+      "  gap: 3px;",
       "  min-width: 0;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-title {",
@@ -81,6 +90,26 @@
       "  overflow: hidden;",
       "  text-overflow: ellipsis;",
       "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-choice[data-choice='first'] {",
+      "  background: #dbeafe;",
+      "  color: #1d4ed8;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-choice[data-choice='second'] {",
+      "  background: #dcfce7;",
+      "  color: #166534;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-choice[data-choice='bad'] {",
+      "  background: #ffe4e6;",
+      "  color: #be123c;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-choice[data-choice='uncertain'] {",
+      "  background: #fef3c7;",
+      "  color: #92400e;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-choice[data-choice='other'] {",
+      "  background: #ede9fe;",
+      "  color: #6d28d9;",
+      "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-choice[data-empty='true'] {",
       "  background: #f1f5f9;",
       "  color: #64748b;",
@@ -110,21 +139,23 @@
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-text {",
       "  min-width: 0;",
-      "  overflow: hidden;",
-      "  text-overflow: ellipsis;",
-      "  white-space: nowrap;",
-      "  word-break: keep-all;",
+      "  overflow: visible;",
+      "  text-overflow: clip;",
+      "  white-space: normal;",
+      "  word-break: break-word;",
+      "  overflow-wrap: anywhere;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-row[data-diff='true'] .asr-edge-compact-text {",
       "  font-family: Consolas, 'Microsoft YaHei UI', 'Microsoft YaHei', monospace;",
       "  line-height: 1.7;",
+      "  word-break: break-all;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-diff-summary {",
       "  display: inline-flex;",
       "  align-items: center;",
       "  width: fit-content;",
       "  max-width: 100%;",
-      "  margin: 0 0 4px 0;",
+      "  margin: 0;",
       "  padding: 1px 6px;",
       "  border-radius: 4px;",
       "  background: #e0f2fe;",
@@ -374,6 +405,26 @@
     return "";
   }
 
+  function getChoiceKey(choiceText) {
+    const text = String(choiceText || "").trim();
+    if (text === "第一个更好") {
+      return "first";
+    }
+    if (text === "第二个更好") {
+      return "second";
+    }
+    if (text === "都不好") {
+      return "bad";
+    }
+    if (text === "不确定或差不多") {
+      return "uncertain";
+    }
+    if (text === "其他方言或语种") {
+      return "other";
+    }
+    return "";
+  }
+
   function getQuestionText(item) {
     const status = item.querySelector(".labelRender-answerNav-status");
     const text = getText(status);
@@ -438,13 +489,22 @@
     const root = document.createElement("div");
     root.setAttribute(ROOT_ATTR, "true");
     applyDiffColors(root, data.diffColors);
+    const alignment = data.renderDiff === true ? buildAlignment(data.first, data.second) : null;
+    const diffSummary =
+      data.renderDiff === true ? summarizeDiff(data.first, data.second, alignment) : "";
 
     const shell = document.createElement("div");
     shell.className = "asr-edge-compact-shell";
 
     const head = document.createElement("div");
     head.className = "asr-edge-compact-head";
-    appendText(head, "asr-edge-compact-title", "两个ASR文本 · " + data.questionText);
+    const main = document.createElement("div");
+    main.className = "asr-edge-compact-main";
+    appendText(main, "asr-edge-compact-title", "两个ASR文本 · " + data.questionText);
+    if (diffSummary) {
+      appendText(main, "asr-edge-compact-diff-summary", diffSummary);
+    }
+    head.appendChild(main);
     const meta = document.createElement("div");
     meta.className = "asr-edge-compact-meta";
     appendText(
@@ -452,6 +512,7 @@
       "asr-edge-compact-choice",
       "哪个ASR更优：" + (data.choiceText || "未选择"),
       {
+        "data-choice": getChoiceKey(data.choiceText),
         "data-empty": data.choiceText ? "false" : "true",
       }
     );
@@ -460,8 +521,6 @@
     shell.appendChild(head);
 
     if (data.renderDiff === true) {
-      const alignment = buildAlignment(data.first, data.second);
-      appendText(shell, "asr-edge-compact-diff-summary", summarizeDiff(data.first, data.second, alignment));
       appendDiffRow(shell, "asr_text1", "left", alignment);
       appendDiffRow(shell, "asr_text2", "right", alignment);
     } else {
@@ -474,6 +533,7 @@
 
   function getSignature(data) {
     return [
+      RENDER_VERSION,
       data.questionText,
       data.choiceText || "",
       data.audioTimeText || "",
