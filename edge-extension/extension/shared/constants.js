@@ -24,7 +24,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 12;
+  const SCHEMA_VERSION = 13;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
@@ -171,6 +171,12 @@
     shortcutAllValid: createShortcut("o"),
   };
 
+  const DEFAULT_JUDGEMENT_ASR_DIFF_COLORS = {
+    changeBackground: "#fef3c7",
+    gapBackground: "#fee2e2",
+    punctuationBackground: "#ede9fe",
+  };
+
   const DEFAULT_JUDGEMENT_ASR_CONFIG = {
     itemsPerPage: "50 条/页",
     autoPlay: true,
@@ -181,6 +187,7 @@
     volumeValue: 100,
     virtualWindowEnabled: false,
     asrDiffViewEnabled: true,
+    asrDiffColors: clone(DEFAULT_JUDGEMENT_ASR_DIFF_COLORS),
     compactCardEnabled: true,
     autoAdvanceAfterChoice: false,
     shortcuts: {
@@ -224,6 +231,7 @@
     "volumeValue",
     "virtualWindowEnabled",
     "asrDiffViewEnabled",
+    "asrDiffColors",
     "compactCardEnabled",
     "autoAdvanceAfterChoice",
     "shortcuts",

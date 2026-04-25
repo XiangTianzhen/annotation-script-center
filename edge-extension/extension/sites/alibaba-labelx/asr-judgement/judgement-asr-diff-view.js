@@ -3,15 +3,14 @@
   const RAW_HIDDEN_ATTR = "data-asr-edge-judgement-diff-raw-hidden";
   const STYLE_ID = "asr-edge-judgement-diff-view-style";
   const MAX_DP_CELLS = 160000;
+  const DEFAULT_DIFF_COLORS = {
+    changeBackground: "#fef3c7",
+    gapBackground: "#fee2e2",
+    punctuationBackground: "#ede9fe",
+  };
 
-  function ensureStyle() {
-    if (document.getElementById(STYLE_ID)) {
-      return;
-    }
-
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = [
+  function getStyleText() {
+    return [
       "[" + ROOT_ATTR + "] {",
       "  margin-top: 8px;",
       "  padding: 8px 10px;",
@@ -54,26 +53,82 @@
       "  color: #0f172a;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-diff-change {",
-      "  background: #fef3c7;",
+      "  background: var(--asr-edge-diff-change-bg, #fef3c7);",
       "  color: #92400e;",
       "  border-radius: 3px;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-diff-gap {",
-      "  background: #fee2e2;",
+      "  background: var(--asr-edge-diff-gap-bg, #fee2e2);",
       "  color: transparent;",
       "  border-radius: 3px;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-diff-punctuation {",
-      "  background: #ede9fe;",
+      "  background: var(--asr-edge-diff-punctuation-bg, #ede9fe);",
       "  color: #5b21b6;",
       "  border-radius: 3px;",
       "}",
     ].join("\n");
+  }
+
+  function ensureStyle() {
+    const styleText = getStyleText();
+    const existing = document.getElementById(STYLE_ID);
+    if (existing) {
+      if (existing.textContent !== styleText) {
+        existing.textContent = styleText;
+      }
+      return;
+    }
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = styleText;
     (document.head || document.documentElement).appendChild(style);
   }
 
   function isPunctuation(char) {
     return /^[\s\p{P}\p{S}]$/u.test(char || "");
+  }
+
+  function normalizeHexColor(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+      return text.toLowerCase();
+    }
+
+    return fallback;
+  }
+
+  function normalizeDiffColors(colors) {
+    const source = colors && typeof colors === "object" ? colors : {};
+    return {
+      changeBackground: normalizeHexColor(
+        source.changeBackground,
+        DEFAULT_DIFF_COLORS.changeBackground
+      ),
+      gapBackground: normalizeHexColor(source.gapBackground, DEFAULT_DIFF_COLORS.gapBackground),
+      punctuationBackground: normalizeHexColor(
+        source.punctuationBackground,
+        DEFAULT_DIFF_COLORS.punctuationBackground
+      ),
+    };
+  }
+
+  function getColorSignature(colors) {
+    const normalized = normalizeDiffColors(colors);
+    return [
+      normalized.changeBackground,
+      normalized.gapBackground,
+      normalized.punctuationBackground,
+    ].join("|");
+  }
+
+  function applyDiffColors(root, colors) {
+    const normalized = normalizeDiffColors(colors);
+    root.style.setProperty("--asr-edge-diff-change-bg", normalized.changeBackground);
+    root.style.setProperty("--asr-edge-diff-gap-bg", normalized.gapBackground);
+    root.style.setProperty("--asr-edge-diff-punctuation-bg", normalized.punctuationBackground);
+    root.setAttribute("data-asr-edge-color-signature", getColorSignature(normalized));
   }
 
   function normalizeForPunctuationCompare(text) {
@@ -129,24 +184,41 @@
     });
 
     for (let row = 1; row < rowCount; row += 1) {
-      scores[row][0] = row;
+      scores[row][0] = scores[row - 1][0] + getGapCost(firstChars[row - 1]);
       steps[row][0] = "delete";
     }
     for (let col = 1; col < colCount; col += 1) {
-      scores[0][col] = col;
+      scores[0][col] = scores[0][col - 1] + getGapCost(secondChars[col - 1]);
       steps[0][col] = "insert";
     }
 
     for (let row = 1; row < rowCount; row += 1) {
       for (let col = 1; col < colCount; col += 1) {
-        const same = firstChars[row - 1] === secondChars[col - 1];
-        const substituteCost = same ? 0 : 1.2;
+        const leftChar = firstChars[row - 1];
+        const rightChar = secondChars[col - 1];
+        const same = leftChar === rightChar;
+        const substituteCost = getSubstituteCost(leftChar, rightChar);
         const candidates = [
-          { score: scores[row - 1][col - 1] + substituteCost, step: same ? "equal" : "change" },
-          { score: scores[row - 1][col] + 1, step: "delete" },
-          { score: scores[row][col - 1] + 1, step: "insert" },
+          {
+            score: scores[row - 1][col - 1] + substituteCost,
+            step: same ? "equal" : "change",
+            priority: same ? 0 : 2,
+          },
+          {
+            score: scores[row - 1][col] + getGapCost(leftChar),
+            step: "delete",
+            priority: isPunctuation(leftChar) ? 1 : 3,
+          },
+          {
+            score: scores[row][col - 1] + getGapCost(rightChar),
+            step: "insert",
+            priority: isPunctuation(rightChar) ? 1 : 3,
+          },
         ].sort(function (left, right) {
-          return left.score - right.score;
+          if (left.score !== right.score) {
+            return left.score - right.score;
+          }
+          return left.priority - right.priority;
         });
         scores[row][col] = candidates[0].score;
         steps[row][col] = candidates[0].step;
@@ -184,6 +256,26 @@
     }
 
     return alignment.reverse();
+  }
+
+  function getGapCost(char) {
+    return isPunctuation(char) ? 0.35 : 1;
+  }
+
+  function getSubstituteCost(leftChar, rightChar) {
+    if (leftChar === rightChar) {
+      return 0;
+    }
+
+    const leftPunctuation = isPunctuation(leftChar);
+    const rightPunctuation = isPunctuation(rightChar);
+    if (leftPunctuation && rightPunctuation) {
+      return 0.3;
+    }
+    if (leftPunctuation || rightPunctuation) {
+      return 2.2;
+    }
+    return 1.45;
   }
 
   function summarize(first, second, alignment) {
@@ -252,10 +344,11 @@
     return row;
   }
 
-  function renderDiffView(pair) {
+  function renderDiffView(pair, colors) {
     const alignment = buildAlignment(pair.first, pair.second);
     const root = document.createElement("div");
     root.setAttribute(ROOT_ATTR, "true");
+    applyDiffColors(root, colors);
 
     const summary = document.createElement("div");
     summary.className = "asr-edge-diff-summary";
@@ -273,7 +366,7 @@
     });
   }
 
-  function processWrap(wrap) {
+  function processWrap(wrap, colors) {
     const sourceWrapper = wrap.querySelector(".dt-text-wrapper");
     const sourceContainer = sourceWrapper?.querySelector(".dt-text-container");
     if (!sourceWrapper || !sourceContainer) {
@@ -286,14 +379,18 @@
     }
 
     const signature = pair.first + "\n---\n" + pair.second;
+    const colorSignature = getColorSignature(colors);
     const existing = wrap.querySelector("[" + ROOT_ATTR + "]");
     if (existing && existing.getAttribute("data-asr-edge-signature") === signature) {
+      if (existing.getAttribute("data-asr-edge-color-signature") !== colorSignature) {
+        applyDiffColors(existing, colors);
+      }
       sourceWrapper.style.display = "none";
       sourceWrapper.setAttribute(RAW_HIDDEN_ATTR, "true");
       return false;
     }
 
-    const nextView = renderDiffView(pair);
+    const nextView = renderDiffView(pair, colors);
     nextView.setAttribute("data-asr-edge-signature", signature);
     if (existing) {
       existing.replaceWith(nextView);
@@ -323,9 +420,12 @@
       }
 
       ensureStyle();
+      const colors = normalizeDiffColors(
+        typeof options.getColors === "function" ? options.getColors() : null
+      );
       let processedCount = 0;
       findAsrTextWraps().forEach(function (wrap) {
-        if (processWrap(wrap)) {
+        if (processWrap(wrap, colors)) {
           processedCount += 1;
         }
       });
@@ -398,5 +498,7 @@
     buildAlignment: buildAlignment,
     summarize: summarize,
     isPunctuation: isPunctuation,
+    normalizeDiffColors: normalizeDiffColors,
+    getColorSignature: getColorSignature,
   };
 })();

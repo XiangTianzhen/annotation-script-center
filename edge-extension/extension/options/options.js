@@ -134,6 +134,38 @@
     return validValues.indexOf(fallback) >= 0 ? fallback : "50 条/页";
   }
 
+  function normalizeHexColor(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+      return text.toLowerCase();
+    }
+
+    return fallback;
+  }
+
+  function normalizeJudgementDiffColors(value, defaults) {
+    const colorDefaults = defaults || {
+      changeBackground: "#fef3c7",
+      gapBackground: "#fee2e2",
+      punctuationBackground: "#ede9fe",
+    };
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      changeBackground: normalizeHexColor(
+        source.changeBackground,
+        colorDefaults.changeBackground || "#fef3c7"
+      ),
+      gapBackground: normalizeHexColor(
+        source.gapBackground,
+        colorDefaults.gapBackground || "#fee2e2"
+      ),
+      punctuationBackground: normalizeHexColor(
+        source.punctuationBackground,
+        colorDefaults.punctuationBackground || "#ede9fe"
+      ),
+    };
+  }
+
   function hasOwn(target, key) {
     return Boolean(target) && Object.prototype.hasOwnProperty.call(target, key);
   }
@@ -249,6 +281,11 @@
       itemsPerPage: "50 条/页",
       virtualWindowEnabled: false,
       asrDiffViewEnabled: true,
+      asrDiffColors: {
+        changeBackground: "#fef3c7",
+        gapBackground: "#fee2e2",
+        punctuationBackground: "#ede9fe",
+      },
       compactCardEnabled: true,
       autoAdvanceAfterChoice: false,
       shortcuts: {
@@ -279,6 +316,10 @@
       },
     };
     const shortcuts = {};
+    const asrDiffColors = normalizeJudgementDiffColors(
+      asrConfig.asrDiffColors,
+      defaults.asrDiffColors
+    );
 
     judgementShortcutActions.forEach(function (action) {
       const shortcut = hasOwn(asrConfig.shortcuts || {}, action.key)
@@ -314,6 +355,7 @@
       ),
       virtualWindowEnabled: false,
       asrDiffViewEnabled: asrConfig.asrDiffViewEnabled !== false,
+      asrDiffColors: asrDiffColors,
       compactCardEnabled: asrConfig.compactCardEnabled !== false,
       autoAdvanceAfterChoice: asrConfig.autoAdvanceAfterChoice === true,
       shortcuts: shortcuts,
@@ -581,6 +623,10 @@
     getElement("judgement-items-per-page").value = config.itemsPerPage;
     getElement("judgement-auto-play").checked = config.autoPlay === true;
     getElement("judgement-asr-diff-view").checked = config.asrDiffViewEnabled !== false;
+    getElement("judgement-diff-change-bg").value = config.asrDiffColors.changeBackground;
+    getElement("judgement-diff-gap-bg").value = config.asrDiffColors.gapBackground;
+    getElement("judgement-diff-punctuation-bg").value =
+      config.asrDiffColors.punctuationBackground;
     getElement("judgement-compact-card").checked = config.compactCardEnabled !== false;
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     stopJudgementShortcutRecording("");
@@ -790,6 +836,14 @@
     );
     const autoPlay = Boolean(getElement("judgement-auto-play").checked);
     const asrDiffViewEnabled = Boolean(getElement("judgement-asr-diff-view").checked);
+    const asrDiffColors = normalizeJudgementDiffColors(
+      {
+        changeBackground: getElement("judgement-diff-change-bg").value,
+        gapBackground: getElement("judgement-diff-gap-bg").value,
+        punctuationBackground: getElement("judgement-diff-punctuation-bg").value,
+      },
+      constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.asrDiffColors
+    );
     const compactCardEnabled = Boolean(getElement("judgement-compact-card").checked);
     const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
     const shortcuts = {};
@@ -812,6 +866,7 @@
         autoPlay: autoPlay,
         virtualWindowEnabled: false,
         asrDiffViewEnabled: asrDiffViewEnabled,
+        asrDiffColors: asrDiffColors,
         compactCardEnabled: compactCardEnabled,
         autoAdvanceAfterChoice: autoAdvanceAfterChoice,
         shortcuts: shortcuts,

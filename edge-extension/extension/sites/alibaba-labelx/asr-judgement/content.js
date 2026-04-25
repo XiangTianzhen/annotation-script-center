@@ -107,6 +107,11 @@
       volumeValue: 100,
       virtualWindowEnabled: false,
       asrDiffViewEnabled: true,
+      asrDiffColors: {
+        changeBackground: "#fef3c7",
+        gapBackground: "#fee2e2",
+        punctuationBackground: "#ede9fe",
+      },
       compactCardEnabled: true,
       autoAdvanceAfterChoice: false,
       shortcuts: {
@@ -602,6 +607,9 @@
       shouldApply: function () {
         return Boolean(runtimeEnabled && isTopLevelContext());
       },
+      getColors: function () {
+        return getJudgementConfig(settings).asrDiffColors;
+      },
     });
     return diffViewRuntime;
   }
@@ -635,6 +643,9 @@
       },
       shouldRenderDiff: function () {
         return getJudgementConfig(settings).asrDiffViewEnabled !== false;
+      },
+      getDiffColors: function () {
+        return getJudgementConfig(settings).asrDiffColors;
       },
     });
     return compactCardRuntime;

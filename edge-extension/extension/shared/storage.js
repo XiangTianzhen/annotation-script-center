@@ -63,6 +63,7 @@
         "volumeValue",
         "virtualWindowEnabled",
         "asrDiffViewEnabled",
+        "asrDiffColors",
         "compactCardEnabled",
         "autoAdvanceAfterChoice",
         "shortcuts",
@@ -204,6 +205,30 @@
     return JUDGEMENT_ITEMS_PER_PAGE_VALUES.indexOf(fallback) >= 0 ? fallback : "50 条/页";
   }
 
+  function normalizeHexColor(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+      return text.toLowerCase();
+    }
+
+    return fallback;
+  }
+
+  function normalizeJudgementAsrDiffColors(value) {
+    const constants = getConstants();
+    const defaults = constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.asrDiffColors || {
+      changeBackground: "#fef3c7",
+      gapBackground: "#fee2e2",
+      punctuationBackground: "#ede9fe",
+    };
+    const source = isPlainObject(value) ? value : {};
+    const result = {};
+    Object.keys(defaults).forEach(function (key) {
+      result[key] = normalizeHexColor(source[key], defaults[key]);
+    });
+    return result;
+  }
+
   function normalizeJudgementAsrConfig(config) {
     const constants = getConstants();
     const fallback = constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "50 条/页";
@@ -212,6 +237,7 @@
       nextConfig.itemsPerPage,
       fallback
     );
+    nextConfig.asrDiffColors = normalizeJudgementAsrDiffColors(nextConfig.asrDiffColors);
     return nextConfig;
   }
 
@@ -637,6 +663,22 @@
             );
           }
         });
+      });
+    }
+
+    if (currentSchemaVersion < 13) {
+      const judgementProject =
+        settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[constants.JUDGEMENT_PROJECT_ID] || null;
+      const judgementConfigsToPatch = [];
+      if (judgementProject && isPlainObject(judgementProject.asrConfig)) {
+        judgementConfigsToPatch.push(judgementProject.asrConfig);
+      }
+      if (activeProjectId === constants.JUDGEMENT_PROJECT_ID && isPlainObject(settings.asr)) {
+        judgementConfigsToPatch.push(settings.asr);
+      }
+
+      judgementConfigsToPatch.forEach(function (asrConfig) {
+        asrConfig.asrDiffColors = normalizeJudgementAsrDiffColors(asrConfig.asrDiffColors);
       });
     }
 

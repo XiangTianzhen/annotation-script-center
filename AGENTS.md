@@ -33,8 +33,8 @@
 - `judgement-page-size.js`：默认每页条数、原生分页选择器点击和重试。
 - `judgement-duration-summary.js`：总时长请求、分页补齐和网络摘要归一化。
 - `judgement-virtual-window.js`：未完成的实验性窗口化显示代码，当前前端不展示开关，运行时强制关闭。
-- `judgement-asr-diff-view.js`：ASR 文本对齐差异视图，隐藏原始双行文本并生成高亮对齐阅读区。
-- `judgement-compact-card.js`：轻量题卡摘要，在每个题卡内补充 ASR 文本和当前判别状态。
+- `judgement-asr-diff-view.js`：ASR 文本对齐差异视图，隐藏原始双行文本并生成高亮对齐阅读区，维护差异高亮颜色。
+- `judgement-compact-card.js`：轻量题卡摘要，在对应题卡前方补充 ASR 文本、音频时间比和当前判别状态，可视宽度跟随原题卡。
 - `judgement-auto-advance.js`：选择判别结果后的当前页自动下一题。
 - `audio-controller.js`：音频扫描、配置、状态和动作路由。
 - `audio-volume-controller.js`：音量和 Web Audio gain。

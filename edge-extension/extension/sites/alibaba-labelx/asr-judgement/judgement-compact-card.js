@@ -2,24 +2,23 @@
   const ROOT_ATTR = "data-asr-edge-judgement-compact-card";
   const ITEM_ATTR = "data-asr-edge-judgement-compact-item";
   const STYLE_ID = "asr-edge-judgement-compact-card-style";
+  const DEFAULT_DIFF_COLORS = {
+    changeBackground: "#fef3c7",
+    gapBackground: "#fee2e2",
+    punctuationBackground: "#ede9fe",
+  };
 
-  function ensureStyle() {
-    if (document.getElementById(STYLE_ID)) {
-      return;
-    }
-
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = [
+  function getStyleText() {
+    return [
       ".labelRender-item[" + ITEM_ATTR + "] {",
       "  flex-wrap: wrap !important;",
       "  align-items: stretch;",
       "}",
       ".labelRender-scrollable > [" + ROOT_ATTR + "] {",
       "  display: block !important;",
-      "  flex: 0 0 auto;",
+      "  flex: 0 0 100%;",
       "  align-self: stretch;",
-      "  max-width: none;",
+      "  max-width: 100%;",
       "  grid-column: 1 / -1;",
       "  position: relative;",
       "  z-index: 1;",
@@ -27,14 +26,24 @@
       "[" + ROOT_ATTR + "] {",
       "  box-sizing: border-box;",
       "  width: 100%;",
-      "  margin: 4px 6px;",
+      "  margin: 4px 0;",
+      "  padding: 0;",
+      "  border: 0;",
+      "  background: transparent;",
+      "  color: #0f172a;",
+      "  font-size: 12px;",
+      "  line-height: 1.5;",
+      "  overflow: visible;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-shell {",
+      "  box-sizing: border-box;",
+      "  width: var(--asr-edge-compact-width, calc(100% - 12px));",
+      "  margin-left: var(--asr-edge-compact-offset, 6px);",
       "  padding: 6px 8px;",
       "  border: 1px solid #bfdbfe;",
       "  border-radius: 4px;",
       "  background: #f8fbff;",
       "  color: #0f172a;",
-      "  font-size: 12px;",
-      "  line-height: 1.5;",
       "  overflow: hidden;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-head {",
@@ -130,21 +139,36 @@
       "  color: #0f172a;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-diff-change {",
-      "  background: #fef3c7;",
+      "  background: var(--asr-edge-diff-change-bg, #fef3c7);",
       "  color: #92400e;",
       "  border-radius: 3px;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-diff-gap {",
-      "  background: #fee2e2;",
+      "  background: var(--asr-edge-diff-gap-bg, #fee2e2);",
       "  color: transparent;",
       "  border-radius: 3px;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-diff-punctuation {",
-      "  background: #ede9fe;",
+      "  background: var(--asr-edge-diff-punctuation-bg, #ede9fe);",
       "  color: #5b21b6;",
       "  border-radius: 3px;",
       "}",
     ].join("\n");
+  }
+
+  function ensureStyle() {
+    const styleText = getStyleText();
+    const existing = document.getElementById(STYLE_ID);
+    if (existing) {
+      if (existing.textContent !== styleText) {
+        existing.textContent = styleText;
+      }
+      return;
+    }
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = styleText;
     (document.head || document.documentElement).appendChild(style);
   }
 
@@ -176,6 +200,57 @@
       first: parts[0].trim(),
       second: parts.slice(1).join("\n---\n").trim(),
     };
+  }
+
+  function normalizeHexColor(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+      return text.toLowerCase();
+    }
+
+    return fallback;
+  }
+
+  function normalizeDiffColors(colors) {
+    const diffModule = getDiffModule();
+    if (diffModule && typeof diffModule.normalizeDiffColors === "function") {
+      return diffModule.normalizeDiffColors(colors);
+    }
+
+    const source = colors && typeof colors === "object" ? colors : {};
+    return {
+      changeBackground: normalizeHexColor(
+        source.changeBackground,
+        DEFAULT_DIFF_COLORS.changeBackground
+      ),
+      gapBackground: normalizeHexColor(source.gapBackground, DEFAULT_DIFF_COLORS.gapBackground),
+      punctuationBackground: normalizeHexColor(
+        source.punctuationBackground,
+        DEFAULT_DIFF_COLORS.punctuationBackground
+      ),
+    };
+  }
+
+  function getColorSignature(colors) {
+    const diffModule = getDiffModule();
+    if (diffModule && typeof diffModule.getColorSignature === "function") {
+      return diffModule.getColorSignature(colors);
+    }
+
+    const normalized = normalizeDiffColors(colors);
+    return [
+      normalized.changeBackground,
+      normalized.gapBackground,
+      normalized.punctuationBackground,
+    ].join("|");
+  }
+
+  function applyDiffColors(root, colors) {
+    const normalized = normalizeDiffColors(colors);
+    root.style.setProperty("--asr-edge-diff-change-bg", normalized.changeBackground);
+    root.style.setProperty("--asr-edge-diff-gap-bg", normalized.gapBackground);
+    root.style.setProperty("--asr-edge-diff-punctuation-bg", normalized.punctuationBackground);
+    root.setAttribute("data-asr-edge-color-signature", getColorSignature(normalized));
   }
 
   function buildFastAlignment(first, second) {
@@ -363,6 +438,10 @@
   function renderCompactCard(data) {
     const root = document.createElement("div");
     root.setAttribute(ROOT_ATTR, "true");
+    applyDiffColors(root, data.diffColors);
+
+    const shell = document.createElement("div");
+    shell.className = "asr-edge-compact-shell";
 
     const head = document.createElement("div");
     head.className = "asr-edge-compact-head";
@@ -379,17 +458,18 @@
     );
     appendText(meta, "asr-edge-compact-audio-time", data.audioTimeText || "--:-- / --:--");
     head.appendChild(meta);
-    root.appendChild(head);
+    shell.appendChild(head);
 
     if (data.renderDiff === true) {
       const alignment = buildAlignment(data.first, data.second);
-      appendText(root, "asr-edge-compact-diff-summary", summarizeDiff(data.first, data.second, alignment));
-      appendDiffRow(root, "asr_text1", "left", alignment);
-      appendDiffRow(root, "asr_text2", "right", alignment);
+      appendText(shell, "asr-edge-compact-diff-summary", summarizeDiff(data.first, data.second, alignment));
+      appendDiffRow(shell, "asr_text1", "left", alignment);
+      appendDiffRow(shell, "asr_text2", "right", alignment);
     } else {
-      appendRow(root, "asr_text1", data.first);
-      appendRow(root, "asr_text2", data.second);
+      appendRow(shell, "asr_text1", data.first);
+      appendRow(shell, "asr_text2", data.second);
     }
+    root.appendChild(shell);
     return root;
   }
 
@@ -399,6 +479,7 @@
       data.choiceText || "",
       data.audioTimeText || "",
       data.renderDiff === true ? "diff" : "plain",
+      data.renderDiff === true ? getColorSignature(data.diffColors) : "",
       data.first || "",
       data.second || "",
     ].join("\n---\n");
@@ -432,6 +513,27 @@
     );
   }
 
+  function syncCompactCardLayout(card, item) {
+    if (!card || !item || typeof item.getBoundingClientRect !== "function") {
+      return;
+    }
+
+    const rect = item.getBoundingClientRect();
+    if (!Number.isFinite(rect.width) || rect.width <= 0) {
+      card.style.removeProperty("--asr-edge-compact-width");
+      card.style.removeProperty("--asr-edge-compact-offset");
+      return;
+    }
+
+    const targetWidth = Math.max(80, Math.round((rect.width - 12) * 100) / 100);
+    card.style.width = "100%";
+    card.style.maxWidth = "100%";
+    card.style.flexBasis = "100%";
+    card.style.alignSelf = "stretch";
+    card.style.setProperty("--asr-edge-compact-width", String(targetWidth) + "px");
+    card.style.setProperty("--asr-edge-compact-offset", "6px");
+  }
+
   function removeOrphanCompactCards(host, activeKeys) {
     getHostCompactCards(host).forEach(function (child) {
       const key = child.getAttribute("data-asr-edge-source-key") || "";
@@ -441,7 +543,7 @@
     });
   }
 
-  function upsertCompactCard(item, renderDiff) {
+  function upsertCompactCard(item, renderDiff, diffColors) {
     const host = getCompactHost(item);
     const key = getItemKey(item);
     if (!host || !key) {
@@ -459,6 +561,7 @@
       choiceText: getChoiceText(item),
       audioTimeText: getAudioTimeText(item),
       renderDiff: renderDiff === true,
+      diffColors: normalizeDiffColors(diffColors),
       first: pair.first,
       second: pair.second,
     };
@@ -469,6 +572,7 @@
       existing.getAttribute("data-asr-edge-signature") === signature &&
       existing.nextElementSibling === item
     ) {
+      syncCompactCardLayout(existing, item);
       return false;
     }
 
@@ -478,10 +582,12 @@
     nextNode.setAttribute("data-asr-edge-source-id", String(item.getAttribute("data-id") || ""));
     nextNode.setAttribute("data-asr-edge-signature", signature);
     item.setAttribute(ITEM_ATTR, "true");
+    syncCompactCardLayout(nextNode, item);
     if (existing) {
       existing.replaceWith(nextNode);
     }
     host.insertBefore(nextNode, item);
+    syncCompactCardLayout(nextNode, item);
     return true;
   }
 
@@ -522,6 +628,9 @@
       let updatedCount = 0;
       const hostActiveKeys = new Map();
       const renderDiff = options.shouldRenderDiff ? options.shouldRenderDiff() === true : false;
+      const diffColors = normalizeDiffColors(
+        typeof options.getDiffColors === "function" ? options.getDiffColors() : null
+      );
       const items = Array.from(document.querySelectorAll(".labelRender-item[data-index]"));
       items.forEach(function (item) {
         try {
@@ -534,7 +643,7 @@
             hostActiveKeys.get(host).add(key);
           }
           visibleCount += 1;
-          if (upsertCompactCard(item, renderDiff)) {
+          if (upsertCompactCard(item, renderDiff, diffColors)) {
             updatedCount += 1;
           }
         } catch (error) {
@@ -576,6 +685,7 @@
         characterData: true,
       });
       document.addEventListener("change", scheduleScan, true);
+      window.addEventListener("resize", scheduleScan, true);
       audioEvents.forEach(function (eventName) {
         document.addEventListener(eventName, scheduleScan, true);
       });
@@ -593,6 +703,7 @@
         observer = null;
       }
       document.removeEventListener("change", scheduleScan, true);
+      window.removeEventListener("resize", scheduleScan, true);
       audioEvents.forEach(function (eventName) {
         document.removeEventListener(eventName, scheduleScan, true);
       });
