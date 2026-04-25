@@ -247,7 +247,12 @@
     }
 
     function handleShortcutEvent(event) {
-      if (!isEnabled() || isEditableEventTarget(event) || isToolbarEventTarget(event)) {
+      if (
+        event.isTrusted !== true ||
+        !isEnabled() ||
+        isEditableEventTarget(event) ||
+        isToolbarEventTarget(event)
+      ) {
         return;
       }
 
@@ -268,7 +273,7 @@
     }
 
     function handleKeyupFollowupEvent(event) {
-      if (!isEnabled() || isToolbarEventTarget(event)) {
+      if (event.isTrusted !== true || !isEnabled() || isToolbarEventTarget(event)) {
         return;
       }
 
@@ -278,7 +283,12 @@
     }
 
     function handleMouseFollowupEvent(event) {
-      if (!isEnabled() || isEditableEventTarget(event) || isToolbarEventTarget(event)) {
+      if (
+        event.isTrusted !== true ||
+        !isEnabled() ||
+        isEditableEventTarget(event) ||
+        isToolbarEventTarget(event)
+      ) {
         return;
       }
 

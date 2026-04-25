@@ -86,6 +86,32 @@
     });
   }
 
+  function parseAnswerNavIndex(text) {
+    const match = String(text || "").match(/第\s*(\d+)\s*题/);
+    if (!match) {
+      return null;
+    }
+
+    const questionNumber = Number(match[1]);
+    return Number.isFinite(questionNumber) && questionNumber > 0 ? questionNumber - 1 : null;
+  }
+
+  function resolveAnswerNavItem() {
+    const selectedStatus = document.querySelector(
+      ".labelRender-item-selected .labelRender-answerNav-status"
+    );
+    const statusNode = selectedStatus || document.querySelector(".labelRender-answerNav-status");
+    const itemIndex = parseAnswerNavIndex(statusNode?.textContent || "");
+    if (itemIndex === null) {
+      return null;
+    }
+
+    return (
+      document.querySelector('.labelRender-item[data-index="' + String(itemIndex) + '"]') ||
+      null
+    );
+  }
+
   function getItemLabel(item) {
     const index = item ? Number(item.getAttribute("data-index")) : -1;
     return Number.isFinite(index) && index >= 0 ? "第 " + String(index + 1) + " 条题卡" : "当前题卡";
@@ -105,7 +131,7 @@
       return playingItem;
     }
 
-    return getTaskItems()[0] || null;
+    return resolveAnswerNavItem();
   }
 
   function getChoiceInputs(item) {
@@ -167,8 +193,8 @@
     const item = resolveCurrentItem();
     if (!item) {
       return buildActionResult(actionKey, false, {
-        reason: "item-not-found",
-        message: "未找到可选择的题卡。",
+        reason: "current-item-not-found",
+        message: "未找到当前题卡，请先点击要判别的题卡。",
       });
     }
 
