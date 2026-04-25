@@ -15,11 +15,14 @@
       "  flex-wrap: wrap !important;",
       "  align-items: stretch;",
       "}",
-      ".labelRender-item[" + ITEM_ATTR + "] > [" + ROOT_ATTR + "] {",
-      "  flex: 0 0 calc(100% - 12px);",
-      "  max-width: calc(100% - 12px);",
+      ".labelRender-scrollable > [" + ROOT_ATTR + "] {",
+      "  display: block !important;",
+      "  flex: 0 0 auto;",
+      "  align-self: stretch;",
+      "  max-width: none;",
       "  grid-column: 1 / -1;",
-      "  order: 99;",
+      "  position: relative;",
+      "  z-index: 1;",
       "}",
       "[" + ROOT_ATTR + "] {",
       "  box-sizing: border-box;",
@@ -218,15 +221,50 @@
     return [data.questionText, data.choiceText || "", data.first || "", data.second || ""].join("\n---\n");
   }
 
-  function getDirectCompactCard(item) {
+  function getItemKey(item) {
+    const id = String(item?.getAttribute?.("data-id") || "").trim();
+    if (id) {
+      return "id:" + id;
+    }
+
+    const index = String(item?.getAttribute?.("data-index") || "").trim();
+    return index ? "index:" + index : "";
+  }
+
+  function getCompactHost(item) {
+    return item?.closest?.(".labelRender-scrollable") || item?.parentElement || null;
+  }
+
+  function getHostCompactCards(host) {
+    return Array.from(host?.children || []).filter(function (child) {
+      return child instanceof HTMLElement && child.hasAttribute(ROOT_ATTR);
+    });
+  }
+
+  function findCompactCard(host, key) {
     return (
-      Array.from(item.children || []).find(function (child) {
-        return child instanceof HTMLElement && child.hasAttribute(ROOT_ATTR);
+      getHostCompactCards(host).find(function (child) {
+        return child.getAttribute("data-asr-edge-source-key") === key;
       }) || null
     );
   }
 
+  function removeOrphanCompactCards(host, activeKeys) {
+    getHostCompactCards(host).forEach(function (child) {
+      const key = child.getAttribute("data-asr-edge-source-key") || "";
+      if (!activeKeys.has(key)) {
+        child.remove();
+      }
+    });
+  }
+
   function upsertCompactCard(item) {
+    const host = getCompactHost(item);
+    const key = getItemKey(item);
+    if (!host || !key) {
+      return false;
+    }
+
     const pair = getAsrPair(item);
     if (!pair) {
       removeCompactCard(item);
@@ -240,24 +278,32 @@
       second: pair.second,
     };
     const signature = getSignature(data);
-    const existing = getDirectCompactCard(item);
-    if (existing && existing.getAttribute("data-asr-edge-signature") === signature) {
+    const existing = findCompactCard(host, key);
+    if (
+      existing &&
+      existing.getAttribute("data-asr-edge-signature") === signature &&
+      existing.nextElementSibling === item
+    ) {
       return false;
     }
 
     const nextNode = renderCompactCard(data);
+    nextNode.setAttribute("data-asr-edge-source-key", key);
+    nextNode.setAttribute("data-asr-edge-source-index", String(item.getAttribute("data-index") || ""));
+    nextNode.setAttribute("data-asr-edge-source-id", String(item.getAttribute("data-id") || ""));
     nextNode.setAttribute("data-asr-edge-signature", signature);
     item.setAttribute(ITEM_ATTR, "true");
     if (existing) {
       existing.replaceWith(nextNode);
-    } else {
-      item.appendChild(nextNode);
     }
+    host.insertBefore(nextNode, item);
     return true;
   }
 
   function removeCompactCard(item) {
-    const existing = getDirectCompactCard(item);
+    const host = getCompactHost(item);
+    const key = getItemKey(item);
+    const existing = host && key ? findCompactCard(host, key) : null;
     item.removeAttribute(ITEM_ATTR);
     if (existing) {
       existing.remove();
@@ -288,8 +334,18 @@
       ensureStyle();
       let visibleCount = 0;
       let updatedCount = 0;
-      Array.from(document.querySelectorAll(".labelRender-item[data-index]")).forEach(function (item) {
+      const hostActiveKeys = new Map();
+      const items = Array.from(document.querySelectorAll(".labelRender-item[data-index]"));
+      items.forEach(function (item) {
         try {
+          const host = getCompactHost(item);
+          const key = getItemKey(item);
+          if (host && key) {
+            if (!hostActiveKeys.has(host)) {
+              hostActiveKeys.set(host, new Set());
+            }
+            hostActiveKeys.get(host).add(key);
+          }
           visibleCount += 1;
           if (upsertCompactCard(item)) {
             updatedCount += 1;
@@ -297,6 +353,9 @@
         } catch (error) {
           removeCompactCard(item);
         }
+      });
+      hostActiveKeys.forEach(function (activeKeys, host) {
+        removeOrphanCompactCards(host, activeKeys);
       });
 
       state = {

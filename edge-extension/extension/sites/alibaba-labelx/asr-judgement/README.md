@@ -55,8 +55,8 @@
 ## 轻量题卡摘要
 
 - 设置字段为 `compactCardEnabled`，默认开启；可在 options 快判设置中关闭，关闭后运行时会移除已生成的摘要块。
-- `judgement-compact-card.js` 会监听 `.labelRender-item[data-index]`，开关开启时在每个题卡根节点下显示扩展摘要块，并给题卡根节点添加 `data-asr-edge-judgement-compact-item` 以确保摘要在 LabelX 的横向题卡布局里占满一整行。
-- 摘要块不放进 `.labelRender-item-content` 或 `.labelRender-item-answer`，因此开启 LabelX 的“隐藏内容区 / 隐藏回答区”后仍可见。
+- `judgement-compact-card.js` 会监听 `.labelRender-item[data-index]`，开关开启时在 `.labelRender-scrollable` 下、对应原题卡前方插入扩展摘要块，并给原题卡根节点添加 `data-asr-edge-judgement-compact-item` 作为关联标记。
+- 摘要块不放进 `.labelRender-item`、`.labelRender-item-content` 或 `.labelRender-item-answer`，因此开启 LabelX 的“隐藏内容区 / 隐藏回答区”并压缩原题卡后仍可见。
 - ASR 文本优先从原始 `.dt-text-container` 解析；如果原始容器被 ASR 差异视图隐藏或重绘，则回退读取差异视图的 `data-asr-edge-signature`。
 - 摘要块显示 `asr_text1`、`asr_text2` 和“哪个ASR更优”的当前选择；未选中时显示“未选择”。
 - 该能力不替代原生单选写入；选择仍通过 `1~5` 快捷键、快判工具栏按钮或关闭隐藏样式后操作原页面完成。
@@ -139,7 +139,7 @@
 6. 打开 DevTools Network，确认 `subTask/{id}/data` 请求的 `pageSize` 与 LabelX 原生分页档位一致，且点击第 2 页或更后页时 `page` 保持为页面真实页码，不会被改回 `1`；若总时长接口未返回全量，确认后续只读分页请求能补齐总时长。
 7. 在快判设置中改为 `20 条/页` 保存并刷新详情页，确认页面原生分页切换到 `20 条/页`。
 8. 确认 options 前端不能选择 `100/150/200/400 条/页`，历史保存过的大页数配置会回退显示为 `50 条/页`。
-9. 在快判设置中确认“轻量题卡摘要”开启，保存并刷新详情页，确认每个 `.labelRender-item[data-index]` 根节点出现 `data-asr-edge-judgement-compact-card` 摘要块，并包含 `asr_text1`、`asr_text2` 与“哪个ASR更优”的当前状态。
+9. 在快判设置中确认“轻量题卡摘要”开启，保存并刷新详情页，确认 `.labelRender-scrollable` 下每个原题卡前方出现 `data-asr-edge-judgement-compact-card` 摘要块，并包含 `asr_text1`、`asr_text2` 与“哪个ASR更优”的当前状态。
 10. 在快判设置中关闭“轻量题卡摘要”，保存并刷新详情页，确认扩展摘要块被移除；重新开启后摘要块恢复。
 11. 在 LabelX 样式设置中开启“隐藏内容区”和“隐藏回答区”，确认每个题卡仍显示扩展轻量摘要块。
 12. 在 LabelX 样式设置中调整“卡片大小”，确认轻量摘要块跟随题卡保留，不挤出分页和顶部工具栏。
