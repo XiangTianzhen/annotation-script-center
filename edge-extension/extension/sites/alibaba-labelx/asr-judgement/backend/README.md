@@ -33,13 +33,15 @@ http://127.0.0.1:3333/api/asr-judgement/statistics/upload?purpose=schedule
 - `ASR_JUDGEMENT_SERVER_HOST`：监听地址，默认 `127.0.0.1`。
 - `ASR_JUDGEMENT_SERVER_PORT`：监听端口，默认 `3333`。
 - `ASR_JUDGEMENT_STATS_DIR`：统计输出目录，默认 `asr-judgement/statistics-data/`。
+- `ASR_JUDGEMENT_PERSIST_ROWS_JSON`：设为 `1` 时额外写入 `statistics-rows.json`，默认不写。
+- `ASR_JUDGEMENT_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外写入 `statistics-upload-events.jsonl`，默认不写。
 
 ## 文件职责
 
 - `server.js`：本地服务启动入口。
 - `http-server.js`：HTTP 路由、健康检查、上传接口、定时配置接口和请求体读取。
 - `payload-merge.js`：按 `分包ID` 合并上传补丁记录，填充标注员 / 审核员宽表列。
-- `file-store.js`：读写 `statistics-rows.json`、`statistics-upload-events.jsonl` 和 `statistics-merged.csv`。
+- `file-store.js`：默认以 `statistics-merged.csv` 作为唯一落盘数据源，必要时可兼容读取旧 `statistics-rows.json`。
 - `csv-columns.js`：CSV 列顺序定义。
 - `csv-writer.js`：CSV 转义和写入。
 
@@ -54,8 +56,8 @@ http://127.0.0.1:3333/api/asr-judgement/statistics/upload?purpose=schedule
 
 默认输出在 `../statistics-data/`：
 
-- `statistics-upload-events.jsonl`：原始上传事件追加日志。
-- `statistics-rows.json`：按 `分包ID` 聚合后的中间行数据。
 - `statistics-merged.csv`：最终合并 CSV。
+
+默认不再写入 `statistics-upload-events.jsonl` 和 `statistics-rows.json`，避免 10 万级分包数据重复占用磁盘。需要临时排查时，可以把 `ASR_JUDGEMENT_PERSIST_ROWS_JSON=1` 或 `ASR_JUDGEMENT_PERSIST_UPLOAD_EVENTS=1` 加到启动环境变量中。
 
 `statistics-data/` 是本地调试产物，已在上级 `.gitignore` 中忽略。

@@ -56,8 +56,7 @@ function getBatchId(payload, patch, roleRecord) {
   ).trim();
 }
 
-function mergeUploadPayload(payload, store) {
-  const csvColumns = store.csvColumns || CSV_COLUMNS;
+function applyPayloadToRows(payload, rowsByBatchId, csvColumns) {
   const patch = payload && typeof payload.csvPatch === "object" ? payload.csvPatch : {};
   const roleRecord = payload && typeof payload.roleRecord === "object" ? payload.roleRecord : {};
   const batchId = getBatchId(payload || {}, patch, roleRecord);
@@ -65,7 +64,6 @@ function mergeUploadPayload(payload, store) {
     throw new Error("payload 缺少 mergeKey.batchId / 分包ID。");
   }
 
-  const rowsByBatchId = store.loadRows();
   const row = Object.assign(createEmptyRow(csvColumns), rowsByBatchId[batchId] || {});
 
   Object.keys(patch).forEach(function (key) {
@@ -76,13 +74,23 @@ function mergeUploadPayload(payload, store) {
 
   applyRoleRecord(row, roleRecord);
   rowsByBatchId[batchId] = row;
+  return {
+    batchId,
+    row,
+  };
+}
+
+function mergeUploadPayload(payload, store) {
+  const csvColumns = store.csvColumns || CSV_COLUMNS;
+  const rowsByBatchId = store.loadRows();
+  const result = applyPayloadToRows(payload, rowsByBatchId, csvColumns);
   store.saveRows(rowsByBatchId);
   store.writeCsv(rowsByBatchId);
   store.appendUploadEvent(payload);
 
   const paths = store.getPaths();
   return {
-    batchId,
+    batchId: result.batchId,
     rowCount: Object.keys(rowsByBatchId).length,
     csvPath: paths.csvPath,
     rowsPath: paths.rowsPath,
@@ -108,18 +116,35 @@ function mergeUploadPayloads(payload, store) {
     throw new Error("payloads 为空，无法合并统计数据。");
   }
 
+  const csvColumns = store.csvColumns || CSV_COLUMNS;
+  const rowsByBatchId = store.loadRows();
   const results = payloads.map(function (item) {
-    return mergeUploadPayload(item, store);
+    const result = applyPayloadToRows(item, rowsByBatchId, csvColumns);
+    store.appendUploadEvent(item);
+    return result;
   });
+  store.saveRows(rowsByBatchId);
+  store.writeCsv(rowsByBatchId);
+
+  const paths = store.getPaths();
   return {
     batchCount: results.length,
-    results: results,
-    rowCount: results[results.length - 1]?.rowCount || 0,
+    results: results.map(function (item) {
+      return {
+        batchId: item.batchId,
+        csvPath: paths.csvPath,
+      };
+    }),
+    rowCount: Object.keys(rowsByBatchId).length,
+    csvPath: paths.csvPath,
+    rowsPath: paths.rowsPath,
+    eventsPath: paths.eventsPath,
   };
 }
 
 module.exports = {
   applyRoleRecord,
+  applyPayloadToRows,
   createEmptyRow,
   findLabelSlot,
   mergeUploadPayload,

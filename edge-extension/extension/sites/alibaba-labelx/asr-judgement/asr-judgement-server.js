@@ -303,18 +303,20 @@
   }
 
   function sumDurationSeconds(dataList) {
-    return (Array.isArray(dataList) ? dataList : []).reduce(function (total, item) {
+    const total = (Array.isArray(dataList) ? dataList : []).reduce(function (sum, item) {
       const duration = Number(item?.data?.duration);
-      return Number.isFinite(duration) && duration >= 0 ? total + duration : total;
+      return Number.isFinite(duration) && duration >= 0 ? sum + duration : sum;
     }, 0);
+    return roundDurationSeconds(total);
+  }
+
+  function roundDurationSeconds(totalSeconds) {
+    const seconds = Math.max(0, Number(totalSeconds) || 0);
+    return Math.round((seconds + Number.EPSILON) * 10000) / 10000;
   }
 
   function formatDurationForCsv(totalSeconds) {
-    const seconds = Math.max(0, Number(totalSeconds) || 0);
-    const minutes = Math.floor(seconds / 60);
-    const rest = Math.floor(seconds % 60);
-    const decimal = Math.round((seconds - Math.floor(seconds)) * 10);
-    return String(minutes) + ":" + String(rest).padStart(2, "0") + "." + String(decimal);
+    return roundDurationSeconds(totalSeconds).toFixed(4);
   }
 
   function getFirstRecordValue(records, keys) {
@@ -574,6 +576,7 @@
     const urlParams = getUrlParams();
     const dataList = Array.isArray(subtaskData?.dataList) ? subtaskData.dataList : [];
     const firstItem = dataList[0] || {};
+    const normalizedDurationSeconds = roundDurationSeconds(durationSeconds);
     const role = inferRole(subtaskData, payloadContext.role);
     const batchId = String(subtaskData?.batchId || "");
     const subTaskId = String(subtaskData?.id || urlParams.subTaskId || "");
@@ -600,7 +603,7 @@
         missionType: urlParams.missionType,
       },
       csvColumns: CSV_COLUMNS.slice(),
-      csvPatch: buildCsvBasePatch(subtaskData, durationSeconds),
+      csvPatch: buildCsvBasePatch(subtaskData, normalizedDurationSeconds),
       roleRecord: {
         role: role,
         subTaskId: subTaskId,
@@ -615,8 +618,8 @@
       metrics: {
         itemCount: Number(subtaskData?.size) || dataList.length,
         fetchedItemCount: dataList.length,
-        durationSeconds: durationSeconds,
-        durationText: formatDurationForCsv(durationSeconds),
+        durationSeconds: normalizedDurationSeconds,
+        durationText: formatDurationForCsv(normalizedDurationSeconds),
         answeredCount: dataList.filter(function (item) {
           return Array.isArray(item?.result?.markResult) && item.result.markResult.some(Boolean);
         }).length,
@@ -972,7 +975,7 @@
     }
 
     async function collectPayload(reason) {
-      if (isHomePage()) {
+      if (getProjectIdFromUrl()) {
         return collectHomePayloads(reason);
       }
 
@@ -995,7 +998,7 @@
     async function collectHomePayloads(reason) {
       const projectId = getProjectIdFromUrl();
       if (!projectId) {
-        throw new Error("当前首页 URL 中没有 projectId，无法上传统计。");
+        throw new Error("当前页面 URL 中没有 projectId，无法上传全量统计。");
       }
 
       const userName = await resolveCurrentUserText();
@@ -1108,7 +1111,7 @@
         project: "alibaba-labelx/asr-judgement",
         reason: reason || "home-manual",
         uploadedAt: new Date().toISOString(),
-        mode: "home-batch",
+        mode: "project-batch",
         mergeKey: {
           projectId: projectId,
         },

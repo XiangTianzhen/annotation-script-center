@@ -76,10 +76,11 @@
 - `asr-judgement-server.js` 只负责扩展侧统计上传运行时，被 content script 注入到 LabelX 页面。
 - `backend/` 只负责 Node 本地统计接收服务，不会被 manifest 注入；启动入口是 `backend/server.js`。
 - 本地启动命令：在仓库根目录运行 `node edge-extension/extension/sites/alibaba-labelx/asr-judgement/backend/server.js`，默认监听 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`。
-- 本地服务会把上传事件写入 `statistics-data/statistics-upload-events.jsonl`，并按 `分包ID` 合并生成 `statistics-data/statistics-merged.csv`；该目录是本地调试产物，不应提交。
+- 本地服务默认只按 `分包ID` 合并生成 `statistics-data/statistics-merged.csv`；`statistics-rows.json` 和 `statistics-upload-events.jsonl` 默认不再写入，避免 10 万级数据长期占用磁盘。需要排查时可用环境变量临时开启。
 - 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 列顺序：`任务名称`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
-- 详情页只能可靠识别当前页面所属的一个子任务，因此详情页上传的是“分包级补丁记录”：基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端以 `mergeKey.batchId` / `分包ID` 做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
+- 单条分包 payload 的基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端以 `mergeKey.batchId` / `分包ID` 做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
 - 顶部导航右侧头像旁会显示“上传统计”按钮；标注首页、审核首页和快判详情页都使用同一个入口，快判工具栏内不再放统计按钮。
+- 只要当前 URL 带有 `projectId`，手动上传和定时上传都会按项目维度采集该账号下的标注 / 审核首页数据；详情页不再只上传当前打开的一个子任务。
 - 标注首页 URL 为 `/corpora/labeling/labelingTask?projectId=...`，按标注角色写入 CSV；审核首页 URL 为 `/corpora/labeling/checkTask?projectId=...`，按审核角色写入 CSV。点击首页按钮时会同时尝试读取标注和审核两类列表，避免只上传当前页类型。
 - 首页上传会直接使用 LabelX 登录态请求首页任务数据：先读取 `/api/v1/label/center/tasks` 和 `/api/v1/label/center/subTasks`，再对每个子任务调用 `/api/v1/label/center/subTask/{subTaskId}/data` 获取完整题目与时长，最后批量上传 `payloads`。已通过 DevTools 确认：标注首页使用 `type=label` / `subTaskType=label`，审核首页使用 `type=check` / `subTaskType=check`；两类首页的已完成列表都通过 `subTasks?finished=true` 读取。
 - 首页上传只保留 ASR 更优判断数据：优先按 `labelModel=vote` 判断；如果接口缺少该字段，再用 `taskName` 包含 `ASR更优结果判断` / `ASR更优` 且 `size=400` 作为补充判断。`labelModel=single`、`taskName=中文普通话asr任务` 或 `size=50` 会视为历史转写数据并跳过。
@@ -184,7 +185,7 @@
 23. 确认工具栏按钮可执行判别、音量和倍速动作；播放/暂停不额外添加按钮。
 24. 触发快捷键或按钮后，确认页面右上角会出现短提示。
 25. 在 options 中确认“统计数据上传”区域只提供启用开关、服务器 / 本机两个上传地址选项和定时上传开关，不再出现时间配置 URL 与“上传统计”按钮。
-26. 启动本地服务后，在 options 选择“本机：127.0.0.1:3333”，打开 `labelingTask?projectId=...` 标注首页或 `checkTask?projectId=...` 审核首页，点击顶部导航头像旁的“上传统计”，确认扩展会同时请求标注和审核两类首页的 `tasks`、`subTasks`、`subTasks?finished=true` 和每个 ASR 更优判断分包的 `/subTask/{subTaskId}/data`，并向本地服务发送批量 `payloads`；历史转写任务应被跳过，不进入上传 payload。
+26. 启动本地服务后，在 options 选择“本机：127.0.0.1:3333”，打开 `labelingTask?projectId=...`、`checkTask?projectId=...` 或任一快判详情页，点击顶部导航头像旁的“上传统计”，确认扩展会同时请求标注和审核两类首页的 `tasks`、`subTasks`、`subTasks?finished=true` 和每个 ASR 更优判断分包的 `/subTask/{subTaskId}/data`，并向本地服务发送批量 `payloads`；历史转写任务应被跳过，不进入上传 payload。
 27. 确认快判详情页工具栏不出现“统计 / 上传统计”按钮；若上传接口尚未部署，顶部导航点击“上传统计”应只提示上传失败，不应影响题卡判别、保存或页面操作。
 28. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
 29. 打开一个未标注的全新快判详情页，不按快捷键、不点工具栏，确认脚本不会自动选中“哪个ASR更优”的任一选项；若页面本身返回了已保存答案，应以接口数据或页面原始状态为准。
@@ -278,8 +279,8 @@ asr-judgement/
 - `judgement-virtual-window.js`：暂存未完成的实验性窗口化显示代码，当前不启用。
 - `judgement-asr-diff-view.js`：维护 ASR 文本对齐差异视图、差异摘要、对齐算法和高亮颜色。
 - `judgement-compact-card.js`：维护轻量题卡摘要，在 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，并支持配合隐藏内容区 / 回答区和卡片宽度调整使用。
-- `asr-judgement-server.js`：维护扩展侧统计数据采集、首页手动上传、详情页 / 首页定时上传和基于上传接口的远程时间配置读取。
-- `backend/`：维护 Node 本地调试接收服务，`server.js` 是启动入口，其余小文件分别处理 HTTP、CSV 列、CSV 写入、文件存储和分包合并。
+- `asr-judgement-server.js`：维护扩展侧统计数据采集、首页 / 详情页手动上传、定时上传和基于上传接口的远程时间配置读取。
+- `backend/`：维护 Node 本地调试接收服务，`server.js` 是启动入口，其余小文件分别处理 HTTP、CSV 列、CSV 读写、文件存储和分包合并。
 - `judgement-auto-advance.js`：维护选择判别结果后的当前页自动下一题。
 - `audio-controller.js`：只保留音频扫描、配置、状态和动作路由。
 - `audio-volume-controller.js`：维护音量与 Web Audio gain 逻辑。
