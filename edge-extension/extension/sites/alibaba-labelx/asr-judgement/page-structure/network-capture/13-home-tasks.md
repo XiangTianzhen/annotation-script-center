@@ -69,16 +69,17 @@ Cookie: <REDACTED>
 - `data.data[]` 是可领取任务列表。
 - `taskId` 是领取接口 `/label/center/{taskId}/label/fetch` 使用的任务 ID。
 - `labelModel` 表示任务标注模式，本次看到 `vote` 和 `single` 两类。
+- 当前 ASR 更优判断任务使用 `labelModel=vote`；历史转写任务可出现 `labelModel=single`。
+- 任务名也可辅助判断：ASR 更优判断任务名包含 `ASR更优结果判断` / `ASR更优`，历史转写任务名可为 `中文普通话asr任务`。
 - `total`、`left` 在本次响应中为 `null`，不能依赖它们判断是否有可领取数据。
 
 ## Content Script 建议
 
 - 该请求只适合首页任务列表页面使用。
-- 若扩展需要从首页识别目标任务，可监听该接口并用任务名/任务 ID 做脱敏后的匹配策略。
+- 若扩展需要从首页识别 ASR 更优判断任务，优先使用 `labelModel=vote`，再结合脱敏后的任务名和后续 `subTasks` 摘要中的 `size=400` 判断；`labelModel=single` 应视为转写任务并跳过。
 - 不要记录完整任务名；任务名可能包含业务信息。
 
 ## 未确认项
 
 - 任务列表搜索 `keyword` 时响应结构是否变化未采集。
 - 下一页 `page>1` 的结构未采集。
-

@@ -57,6 +57,7 @@
 - 快判统计上传在首页点击“上传统计”时会同时采集标注和审核两类首页列表。
 - 审核列表中的子任务在统计 payload 中应写入 `roleRecord.role = "audit"`。
 - 后续仍通过 `/api/v1/label/center/subTask/{subTaskId}/data` 获取完整 `dataList` 和 `duration`，再生成 CSV 补丁记录。
+- 首页批量采集前需要过滤非 ASR 更优判断数据：`labelModel=vote` 是强判断；`taskName` 包含 `ASR更优结果判断` / `ASR更优` 且 `size=400` 是补充判断；`labelModel=single`、`taskName=中文普通话asr任务` 或 `size=50` 视为历史转写任务并跳过。
 
 ## 脱敏要求
 

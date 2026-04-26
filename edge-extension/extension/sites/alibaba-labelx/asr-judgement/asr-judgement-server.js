@@ -7,6 +7,10 @@
     "http://47.108.254.138:3333" + DEFAULT_UPLOAD_PATH;
   const DEFAULT_UPLOAD_TIMES = ["10:00", "16:00"];
   const DEFAULT_UPLOAD_JITTER_MINUTES = 10;
+  const JUDGEMENT_LABEL_MODEL = "vote";
+  const TRANSCRIPTION_LABEL_MODEL = "single";
+  const JUDGEMENT_TASK_SIZE = 400;
+  const TRANSCRIPTION_TASK_SIZE = 50;
   const HOME_TASK_KINDS = [
     {
       key: "label",
@@ -311,6 +315,86 @@
     const rest = Math.floor(seconds % 60);
     const decimal = Math.round((seconds - Math.floor(seconds)) * 10);
     return String(minutes) + ":" + String(rest).padStart(2, "0") + "." + String(decimal);
+  }
+
+  function getFirstRecordValue(records, keys) {
+    const recordList = Array.isArray(records) ? records : [records];
+    for (let recordIndex = 0; recordIndex < recordList.length; recordIndex += 1) {
+      const record = recordList[recordIndex];
+      if (!record || typeof record !== "object") {
+        continue;
+      }
+
+      for (let keyIndex = 0; keyIndex < keys.length; keyIndex += 1) {
+        const value = record[keys[keyIndex]];
+        if (value !== undefined && value !== null && String(value).trim() !== "") {
+          return value;
+        }
+      }
+    }
+
+    return "";
+  }
+
+  function normalizeTaskName(value) {
+    return String(value || "").replace(/\s+/g, "").toLowerCase();
+  }
+
+  function getTaskSizeFromRecords(records) {
+    const size = Number(getFirstRecordValue(records, ["size", "total", "itemCount"]));
+    return Number.isFinite(size) ? size : null;
+  }
+
+  function hasJudgementTaskName(name) {
+    const normalized = normalizeTaskName(name);
+    return (
+      normalized.indexOf("asr更优结果判断") >= 0 ||
+      normalized.indexOf("asr更优") >= 0 ||
+      normalized.indexOf("更优结果判断") >= 0
+    );
+  }
+
+  function hasTranscriptionTaskName(name) {
+    const normalized = normalizeTaskName(name);
+    return normalized.indexOf("中文普通话asr任务") >= 0;
+  }
+
+  function getTaskIdentityRecords(record, linkedTask) {
+    return [record || {}, linkedTask || {}];
+  }
+
+  function isKnownTranscriptionTaskRecord(record, linkedTask) {
+    const records = getTaskIdentityRecords(record, linkedTask);
+    const labelModel = String(getFirstRecordValue(records, ["labelModel"]) || "").toLowerCase();
+    const taskName = getFirstRecordValue(records, ["taskName", "name"]);
+    const size = getTaskSizeFromRecords(records);
+
+    return (
+      labelModel === TRANSCRIPTION_LABEL_MODEL ||
+      hasTranscriptionTaskName(taskName) ||
+      size === TRANSCRIPTION_TASK_SIZE
+    );
+  }
+
+  function isAsrJudgementTaskRecord(record, linkedTask) {
+    const records = getTaskIdentityRecords(record, linkedTask);
+    const labelModel = String(getFirstRecordValue(records, ["labelModel"]) || "").toLowerCase();
+    const taskName = getFirstRecordValue(records, ["taskName", "name"]);
+    const size = getTaskSizeFromRecords(records);
+
+    if (labelModel === JUDGEMENT_LABEL_MODEL) {
+      return true;
+    }
+    if (isKnownTranscriptionTaskRecord(record, linkedTask)) {
+      return false;
+    }
+
+    const judgementName = hasJudgementTaskName(taskName);
+    if (judgementName) {
+      return size === null || size === JUDGEMENT_TASK_SIZE;
+    }
+
+    return size === JUDGEMENT_TASK_SIZE;
   }
 
   function isIgnoredUserText(text) {
@@ -898,6 +982,9 @@
       }
 
       const subtaskData = await fetchSubtaskData(params.subTaskId);
+      if (!isAsrJudgementTaskRecord(subtaskData)) {
+        throw new Error("当前子任务不是 ASR 更优判断项目，已跳过统计上传。");
+      }
       const durationSeconds = sumDurationSeconds(subtaskData.dataList);
       const userName = await resolveCurrentUserText();
       return buildPayload(subtaskData, durationSeconds, reason, {
@@ -915,6 +1002,8 @@
       const kinds = getHomeTaskKindsToFetch();
       const kindPages = [];
       const errors = [];
+      let skippedSubTaskCount = 0;
+      let skippedDetailCount = 0;
 
       for (let index = 0; index < kinds.length; index += 1) {
         const kind = kinds[index];
@@ -950,9 +1039,17 @@
         const subtaskMap = {};
         pageGroup.unfinishedPage.list.concat(pageGroup.finishedPage.list).forEach(function (subtask) {
           const id = String(subtask?.id || "").trim();
-          if (id) {
-            subtaskMap[pageGroup.kind.key + ":" + id] = subtask;
+          if (!id) {
+            return;
           }
+
+          const linkedTask = pageGroup.taskMap[String(subtask?.taskId || "")] || {};
+          if (!isAsrJudgementTaskRecord(subtask, linkedTask)) {
+            skippedSubTaskCount += 1;
+            return;
+          }
+
+          subtaskMap[pageGroup.kind.key + ":" + id] = subtask;
         });
         Object.keys(subtaskMap).forEach(function (id) {
           subtasks.push({
@@ -964,19 +1061,24 @@
 
       if (subtasks.length === 0) {
         throw new Error(
-          "首页未读取到可上传的标注或审核子任务。" +
+          "首页未读取到 ASR 更优判断子任务，已跳过转写或其他项目数据。" +
             (errors.length ? " 失败：" + errors.map(function (item) {
               return item.kind + "=" + item.message;
             }).join("；") : "")
         );
       }
 
-      const payloads = await mapLimit(subtasks, 3, async function (entry) {
+      const payloads = (await mapLimit(subtasks, 3, async function (entry) {
         const summary = entry.summary;
         const pageGroup = entry.pageGroup;
         const kind = pageGroup.kind;
+        const linkedTask = pageGroup.taskMap[String(summary?.taskId || "")] || {};
         const detailData = await fetchSubtaskData(String(summary.id || "").trim());
         const enrichedData = enrichSubtaskData(detailData, summary, pageGroup.taskMap, kind);
+        if (!isAsrJudgementTaskRecord(enrichedData, linkedTask)) {
+          skippedDetailCount += 1;
+          return null;
+        }
         const durationSeconds = sumDurationSeconds(enrichedData.dataList);
         const payload = buildPayload(enrichedData, durationSeconds, reason || "home-manual", {
           role: kind.role,
@@ -994,7 +1096,11 @@
           source: kind.route + " tasks/subTasks + subTask data",
         };
         return payload;
-      });
+      })).filter(Boolean);
+
+      if (payloads.length === 0) {
+        throw new Error("首页列表中没有可上传的 ASR 更优判断统计数据。");
+      }
 
       return {
         schemaVersion: 1,
@@ -1014,6 +1120,8 @@
           }, 0),
           subTaskCount: subtasks.length,
           payloadCount: payloads.length,
+          skippedSubTaskCount: skippedSubTaskCount,
+          skippedDetailCount: skippedDetailCount,
           kinds: kindPages.map(function (item) {
             return {
               kind: item.kind.key,
@@ -1163,6 +1271,7 @@
   globalThis.__ASREdgeAlibabaLabelxJudgementServer = {
     createRuntime: createRuntime,
     buildPayload: buildPayload,
+    isAsrJudgementTaskRecord: isAsrJudgementTaskRecord,
     CSV_COLUMNS: CSV_COLUMNS.slice(),
   };
 })();

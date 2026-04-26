@@ -31,6 +31,7 @@
 
 - 快判统计上传在首页点击“上传统计”时会同时采集标注和审核两类首页列表。
 - 审核首页采集使用 `type=check` / `subTaskType=check`。
+- 统计上传只保留 ASR 更优判断任务：`labelModel=vote` 是强判断，`taskName` 包含 `ASR更优结果判断` / `ASR更优` 且 `size=400` 是补充判断；`labelModel=single`、`taskName=中文普通话asr任务` 或 `size=50` 会被视为历史转写任务并跳过。
 - 审核分包构造统计 payload 时写入 `roleRecord.role = "audit"`。
 - 人员名称优先从顶部头像 hover 后出现的下拉菜单第一个 `role="menuitem"` 读取；读取失败时再回退到接口字段。
 
