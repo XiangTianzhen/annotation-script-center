@@ -469,12 +469,14 @@
     );
   }
 
-  function isLabelingTaskHome() {
+  function isLabelingCenterHome() {
+    const path = String(location.pathname || "").toLowerCase();
     return Boolean(
       runtimeEnabled &&
         isTopLevelContext() &&
         location.hostname === constants?.TARGET_PLATFORM?.host &&
-        String(location.pathname || "").toLowerCase().indexOf("/corpora/labeling/labelingtask") >= 0
+        (path.indexOf("/corpora/labeling/labelingtask") >= 0 ||
+          path.indexOf("/corpora/labeling/checktask") >= 0)
     );
   }
 
@@ -712,7 +714,7 @@
 
     judgementServerRuntime = judgementServerModule.createRuntime({
       shouldApply: function () {
-        return Boolean(runtimeEnabled && isTopLevelContext() && (shouldShowToolbar() || isLabelingTaskHome()));
+        return Boolean(runtimeEnabled && isTopLevelContext() && (shouldShowToolbar() || isLabelingCenterHome()));
       },
       getConfig: getJudgementServerConfig,
       showToast: showRuntimeToast,

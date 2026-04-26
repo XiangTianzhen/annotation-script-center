@@ -45,3 +45,4 @@
 - 拆分快判统计本地服务：`asr-judgement-server.js` 回归扩展侧上传运行时，新增 `backend/server.js` 作为 Node 启动入口，并按 HTTP、CSV 列、CSV 写入、文件存储和分包合并拆成小文件。
 - 调整快判统计上传到 LabelX 标注首页：在 `labelingTask?projectId=...` 页面显示“上传统计”按钮，使用首页 `tasks`、`subTasks` 和 `/subTask/{subTaskId}/data` 批量采集后上传，options 不再提供手动上传按钮和单独的定时时间输入框。
 - 快判统计定时配置改为从“上传接口地址”追加 `purpose=schedule` 获取，本地 `backend` 服务支持批量 `payloads` 合并，并新增定时配置响应。
+- 优化快判统计上传首页采集：通过 DevTools 确认审核首页 `/checkTask` 使用 `type=check` / `subTaskType=check`，上传按钮改为挂载在顶部头像旁，首页点击时同时采集标注和审核两类分包；补充头像 hover 用户名结构、审核首页结构和网络采集文档。

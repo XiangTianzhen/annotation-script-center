@@ -21,6 +21,18 @@
   - LabelX 标注首页 / 标注任务列表页
   - 实际路由：`/corpora/labeling/labelingTask?projectId=...`
   - 页面包含“我的任务”和“可领取的任务”两个主要列表区域
+- `check-task-home/`
+  - LabelX 审核首页 / 审核任务列表页
+  - 实际路由：`/corpora/labeling/checkTask?projectId=...`
+  - 页面布局与标注首页相近，首页接口参数切换为 `type=check` / `subTaskType=check`
+
+## 页面命名边界
+
+- “标注首页”只指 `/corpora/labeling/labelingTask?projectId=...`。
+- “审核首页”只指 `/corpora/labeling/checkTask?projectId=...`。
+- “详情页”只指 `/corpora/labeling/sdk?...&subTaskId=...`。
+- 旧文档里如果只写“首页”，默认指已采集的标注首页，不代表 LabelX 站点总首页，也不代表审核首页。
+- 审核首页已通过 `chrome_devtools` 确认路由、左侧菜单入口和核心首页接口参数：`subTasks?type=check`、`tasks?subTaskType=check`、`tasks/process?subTaskType=check`。
 
 ## 这份资料服务哪些脚本
 
@@ -66,7 +78,7 @@
   - 详情页样式设置浮层。
   - `network-capture/`
     - LabelX ASR 更优判断详情页网络请求采集资料。
-  - 当前包含初始化、数据读取、模板读取、统计/面板读取、音频加载、心跳、保存、提交任务、手动领取、释放、自动领取空池路径、分页/筛选、提交后首页列表请求和已完成子任务列表。
+  - 当前包含初始化、数据读取、模板读取、统计/面板读取、音频加载、心跳、保存、提交任务、手动领取、释放、自动领取空池路径、分页/筛选、提交后首页列表请求、标注首页已完成子任务列表和审核首页列表接口。
   - 快判运行时的总时长统计和 `pageSize=400` 改写主要参考 `network-capture/03-subtask-data.md` 与 `network-capture/19-subtask-data-pagination-filter.md`。
   - 自动领取成功进入新详情页、下一条、切换任务、服务端提交失败仍待二次采集。
 
@@ -96,4 +108,4 @@
 - 如果要继续采集判断项目的页面，建议在当前目录下新增独立子目录，而不是混进 `asr-judgement-detail/`。
 - 如果要采集转写项目页面，应放到 `extension/sites/alibaba-labelx/asr-transcription/page-structure/`。
 - 如果后续确认某个页面结构被判断和转写共同使用，再讨论提升为站点公共资料目录，并同步更新仓库根目录 `AGENTS.md` 和 `log.md`。
-- 标注首页已记录在 `labeling-task-home/`，后续如采集质检/验收首页，应另建平级目录。
+- 标注首页已记录在 `labeling-task-home/`，审核首页已记录在 `check-task-home/`。后续如采集质检/验收首页，应另建平级目录。

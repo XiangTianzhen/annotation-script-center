@@ -7,6 +7,24 @@
     "http://47.108.254.138:3333" + DEFAULT_UPLOAD_PATH;
   const DEFAULT_UPLOAD_TIMES = ["10:00", "16:00"];
   const DEFAULT_UPLOAD_JITTER_MINUTES = 10;
+  const HOME_TASK_KINDS = [
+    {
+      key: "label",
+      role: "label",
+      route: "/corpora/labeling/labelingtask",
+      listType: "label",
+      taskType: "label",
+      label: "标注",
+    },
+    {
+      key: "check",
+      role: "audit",
+      route: "/corpora/labeling/checktask",
+      listType: "check",
+      taskType: "check",
+      label: "审核",
+    },
+  ];
   const CSV_COLUMNS = [
     "任务名称",
     "任务ID",
@@ -168,9 +186,22 @@
     return url;
   }
 
-  function buildHomeTasksUrl(projectId, page, pageSize) {
+  function getHomeTaskKind(pathname) {
+    const path = String(pathname || location.pathname || "").toLowerCase();
+    return (
+      HOME_TASK_KINDS.find(function (kind) {
+        return path.indexOf(kind.route) >= 0;
+      }) || null
+    );
+  }
+
+  function getHomeTaskKindsToFetch() {
+    return HOME_TASK_KINDS.slice();
+  }
+
+  function buildHomeTasksUrl(projectId, page, pageSize, kind) {
     const url = new URL("/api/v1/label/center/tasks", location.origin);
-    url.searchParams.set("subTaskType", "label");
+    url.searchParams.set("subTaskType", String(kind?.taskType || "label"));
     url.searchParams.set("keyword", "");
     url.searchParams.set("appId", String(projectId || ""));
     url.searchParams.set("page", String(page || 1));
@@ -179,9 +210,9 @@
     return url;
   }
 
-  function buildHomeSubTasksUrl(projectId, finished, page, pageSize) {
+  function buildHomeSubTasksUrl(projectId, finished, page, pageSize, kind) {
     const url = new URL("/api/v1/label/center/subTasks", location.origin);
-    url.searchParams.set("type", "label");
+    url.searchParams.set("type", String(kind?.listType || "label"));
     url.searchParams.set("keyword", "");
     url.searchParams.set("appId", String(projectId || ""));
     url.searchParams.set("finished", finished ? "true" : "false");
@@ -255,15 +286,15 @@
     };
   }
 
-  async function fetchHomeTasks(projectId) {
+  async function fetchHomeTasks(projectId, kind) {
     return fetchPagedList(function (page, pageSize) {
-      return buildHomeTasksUrl(projectId, page, pageSize);
+      return buildHomeTasksUrl(projectId, page, pageSize, kind);
     }, DEFAULT_HOME_PAGE_SIZE);
   }
 
-  async function fetchHomeSubTasks(projectId, finished) {
+  async function fetchHomeSubTasks(projectId, finished, kind) {
     return fetchPagedList(function (page, pageSize) {
-      return buildHomeSubTasksUrl(projectId, finished, page, pageSize);
+      return buildHomeSubTasksUrl(projectId, finished, page, pageSize, kind);
     }, DEFAULT_HOME_PAGE_SIZE);
   }
 
@@ -282,6 +313,19 @@
     return String(minutes) + ":" + String(rest).padStart(2, "0") + "." + String(decimal);
   }
 
+  function isIgnoredUserText(text) {
+    return (
+      !text ||
+      text === "填写问卷" ||
+      text === "退出登录" ||
+      text === "标注中心" ||
+      text === "帮助文档" ||
+      text === "智能标注" ||
+      text.indexOf("总时长") >= 0 ||
+      text.indexOf("上传统计") >= 0
+    );
+  }
+
   function getCurrentUserText() {
     const candidates = Array.from(
       document.querySelectorAll(
@@ -293,7 +337,7 @@
       const text = String(candidates[index].textContent || candidates[index].getAttribute("title") || "")
         .replace(/\s+/g, " ")
         .trim();
-      if (text && text !== "填写问卷" && text.length <= 40) {
+      if (!isIgnoredUserText(text) && text.length <= 40) {
         return text;
       }
     }
@@ -301,9 +345,110 @@
     return "";
   }
 
-  function inferRole(subtaskData) {
+  function delay(ms) {
+    return new Promise(function (resolve) {
+      window.setTimeout(resolve, ms);
+    });
+  }
+
+  function getVisibleText(node) {
+    return String(node?.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function dispatchMouseEvent(element, type) {
+    if (!element) {
+      return;
+    }
+
+    element.dispatchEvent(
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+      })
+    );
+  }
+
+  function findAvatarTrigger() {
+    return (
+      document.querySelector(
+        ".ant-v5-dropdown-trigger[class*='NavAvatar-module__userInfoWrapper'], .ant-v5-dropdown-trigger.avatar, [class*='NavAvatar-module__userInfoWrapper'], .header-component-container .ant-v5-avatar"
+      ) || null
+    );
+  }
+
+  function readVisibleAvatarDropdownUserText() {
+    const menuItems = Array.from(
+      document.querySelectorAll(
+        ".ant-v5-dropdown:not(.ant-v5-dropdown-hidden) .ant-v5-dropdown-menu-item, .ant-v5-dropdown-menu:not(.ant-v5-dropdown-menu-hidden) .ant-v5-dropdown-menu-item"
+      )
+    );
+
+    const userItem =
+      menuItems.find(function (item) {
+        return String(item.className || "").indexOf("NavAvatar-module__userAvatar") >= 0;
+      }) || menuItems[0] || null;
+    const candidates = userItem
+      ? Array.from(
+          userItem.querySelectorAll(
+            ".ant-v5-dropdown-menu-title-content, [class*='title-content'], span, div"
+          )
+        )
+      : [];
+    if (userItem) {
+      candidates.unshift(userItem);
+    }
+
+    for (let index = 0; index < candidates.length; index += 1) {
+      const text = getVisibleText(candidates[index]);
+      if (!isIgnoredUserText(text) && text.length <= 50) {
+        return text;
+      }
+    }
+
+    return "";
+  }
+
+  async function resolveCurrentUserText() {
+    const avatar = findAvatarTrigger();
+    if (avatar) {
+      dispatchMouseEvent(avatar, "mouseenter");
+      dispatchMouseEvent(avatar, "mouseover");
+      dispatchMouseEvent(avatar, "mousemove");
+      await delay(180);
+      const dropdownText = readVisibleAvatarDropdownUserText();
+      dispatchMouseEvent(avatar, "mouseleave");
+      if (dropdownText) {
+        return dropdownText;
+      }
+    }
+
+    return getCurrentUserText();
+  }
+
+  function inferRole(subtaskData, overrideRole) {
+    if (overrideRole === "audit" || overrideRole === "label") {
+      return overrideRole;
+    }
+
+    const currentKind = getHomeTaskKind();
+    if (currentKind?.role) {
+      return currentKind.role;
+    }
+
+    const missionType = String(getUrlParams().missionType || "").toLowerCase();
+    if (missionType === "check" || missionType === "audit" || missionType === "review") {
+      return "audit";
+    }
+
     const type = String(subtaskData?.type || "").toUpperCase();
-    if (type.indexOf("CHECK") >= 0 || type.indexOf("REVIEW") >= 0 || type.indexOf("AUDIT") >= 0) {
+    const sourceType = String(subtaskData?.sourceType || "").toUpperCase();
+    if (
+      type.indexOf("CHECK") >= 0 ||
+      type.indexOf("REVIEW") >= 0 ||
+      type.indexOf("AUDIT") >= 0 ||
+      sourceType.indexOf("CHECK") >= 0
+    ) {
       return "audit";
     }
 
@@ -329,14 +474,30 @@
     };
   }
 
-  function buildPayload(subtaskData, durationSeconds, reason) {
+  function getUserNameFromRecord(record) {
+    return String(
+      record?.userName ||
+        record?.operatorName ||
+        record?.operator ||
+        record?.nickName ||
+        record?.displayName ||
+        ""
+    ).trim();
+  }
+
+  function buildPayload(subtaskData, durationSeconds, reason, context) {
+    const payloadContext = context && typeof context === "object" ? context : {};
     const urlParams = getUrlParams();
     const dataList = Array.isArray(subtaskData?.dataList) ? subtaskData.dataList : [];
     const firstItem = dataList[0] || {};
-    const role = inferRole(subtaskData);
+    const role = inferRole(subtaskData, payloadContext.role);
     const batchId = String(subtaskData?.batchId || "");
     const subTaskId = String(subtaskData?.id || urlParams.subTaskId || "");
-    const userName = getCurrentUserText();
+    const userName =
+      payloadContext.userName ||
+      getUserNameFromRecord(subtaskData) ||
+      getUserNameFromRecord(firstItem) ||
+      "";
     const completed = getCompletionText(subtaskData);
     const now = new Date().toISOString();
 
@@ -378,6 +539,7 @@
       },
       rawKeys: {
         subTaskType: String(subtaskData?.type || ""),
+        sourceType: String(subtaskData?.sourceType || ""),
         status: subtaskData?.status ?? null,
         labelModel: String(subtaskData?.labelModel || ""),
       },
@@ -393,7 +555,15 @@
   function isHomePage() {
     return (
       location.hostname === "labelx.alibaba-inc.com" &&
-      String(location.pathname || "").toLowerCase().indexOf("/corpora/labeling/labelingtask") >= 0
+      Boolean(getHomeTaskKind())
+    );
+  }
+
+  function isStatsPage() {
+    return (
+      isHomePage() ||
+      (location.hostname === "labelx.alibaba-inc.com" &&
+        String(location.pathname || "").toLowerCase().indexOf("/corpora/labeling/sdk") >= 0)
     );
   }
 
@@ -402,7 +572,7 @@
     return normalizeUrlParam(params.get("projectId") || params.get("appId") || "");
   }
 
-  function enrichSubtaskData(detailData, summary, taskMap) {
+  function enrichSubtaskData(detailData, summary, taskMap, kind) {
     const taskId = String(detailData?.taskId || summary?.taskId || "");
     const task = taskMap[taskId] || {};
     return Object.assign({}, detailData || {}, {
@@ -416,6 +586,7 @@
       taskName: detailData?.taskName || summary?.taskName || task.name,
       size: detailData?.size || summary?.size,
       labelModel: detailData?.labelModel || summary?.labelModel || task.labelModel,
+      sourceType: kind?.key || summary?.sourceType || "",
     });
   }
 
@@ -457,8 +628,8 @@
     const options = deps && typeof deps === "object" ? deps : {};
     let state = createState();
     let scheduleTimer = null;
-    let homePanelTimer = null;
-    let homePanelRoot = null;
+    let uploadButtonTimer = null;
+    let uploadButtonRoot = null;
 
     function getConfig() {
       return typeof options.getConfig === "function" ? options.getConfig() || {} : {};
@@ -495,56 +666,75 @@
       }
     }
 
-    function clearHomePanelTimer() {
-      if (homePanelTimer) {
-        window.clearInterval(homePanelTimer);
-        homePanelTimer = null;
+    function clearUploadButtonTimer() {
+      if (uploadButtonTimer) {
+        window.clearInterval(uploadButtonTimer);
+        uploadButtonTimer = null;
       }
     }
 
-    function removeHomePanel() {
-      if (homePanelRoot && homePanelRoot.parentNode) {
-        homePanelRoot.parentNode.removeChild(homePanelRoot);
+    function removeUploadButton() {
+      if (uploadButtonRoot && uploadButtonRoot.parentNode) {
+        uploadButtonRoot.parentNode.removeChild(uploadButtonRoot);
       }
-      homePanelRoot = null;
+      uploadButtonRoot = null;
     }
 
-    function setHomePanelStatus(message, tone) {
-      const status = homePanelRoot?.querySelector("[data-asr-edge-stats-home-status]");
-      if (!status) {
+    function setUploadButtonStatus(message, tone) {
+      const button = uploadButtonRoot?.querySelector("button");
+      if (!button) {
         return;
       }
-      status.textContent = message || "";
-      status.style.color = tone === "error" ? "#b91c1c" : tone === "success" ? "#047857" : "#475569";
+      button.title = message || "上传统计";
+      button.style.borderColor =
+        tone === "error" ? "#fecaca" : tone === "success" ? "#bbf7d0" : "#bfdbfe";
+      button.style.background =
+        tone === "error" ? "#fef2f2" : tone === "success" ? "#f0fdf4" : "#eff6ff";
+      button.style.color =
+        tone === "error" ? "#b91c1c" : tone === "success" ? "#047857" : "#0958d9";
     }
 
-    function ensureHomePanel() {
-      if (!state.started || !isHomePage() || getConfig().statsUploadEnabled === false) {
-        removeHomePanel();
+    function resolveTopNavUploadMountPoint() {
+      const avatar = findAvatarTrigger();
+      if (avatar && avatar.parentNode) {
+        return {
+          host: avatar.parentNode,
+          before: avatar,
+        };
+      }
+
+      const header = document.querySelector(".header-component-container");
+      return header ? { host: header, before: null } : null;
+    }
+
+    function ensureUploadButton() {
+      if (!state.started || !isStatsPage() || getConfig().statsUploadEnabled === false) {
+        removeUploadButton();
         return;
       }
 
-      if (homePanelRoot && document.documentElement.contains(homePanelRoot)) {
+      const mountPoint = resolveTopNavUploadMountPoint();
+      if (!mountPoint || !mountPoint.host) {
         return;
       }
 
-      homePanelRoot = document.createElement("div");
-      homePanelRoot.id = "asr-edge-judgement-stats-home-panel";
-      Object.assign(homePanelRoot.style, {
-        position: "fixed",
-        right: "22px",
-        top: "118px",
-        zIndex: "2147483646",
+      if (
+        uploadButtonRoot &&
+        uploadButtonRoot.isConnected &&
+        uploadButtonRoot.parentNode === mountPoint.host
+      ) {
+        return;
+      }
+
+      removeUploadButton();
+      uploadButtonRoot = document.createElement("span");
+      uploadButtonRoot.id = "asr-edge-judgement-stats-upload-entry";
+      Object.assign(uploadButtonRoot.style, {
         display: "flex",
         alignItems: "center",
-        gap: "8px",
-        padding: "8px 10px",
-        border: "1px solid rgba(22, 119, 255, 0.28)",
-        borderRadius: "8px",
-        background: "rgba(255, 255, 255, 0.96)",
-        boxShadow: "0 8px 22px rgba(15, 23, 42, 0.12)",
-        fontSize: "12px",
-        color: "#0f172a",
+        flex: "0 0 auto",
+        marginLeft: "8px",
+        marginRight: "8px",
       });
 
       const button = document.createElement("button");
@@ -553,50 +743,54 @@
       Object.assign(button.style, {
         border: "1px solid rgba(22, 119, 255, 0.42)",
         borderRadius: "6px",
-        padding: "5px 10px",
-        background: "#1677ff",
-        color: "#ffffff",
+        minHeight: "28px",
+        padding: "0 12px",
+        background: "#eff6ff",
+        color: "#0958d9",
         fontSize: "12px",
         fontWeight: "700",
+        lineHeight: "26px",
         cursor: "pointer",
+        whiteSpace: "nowrap",
       });
       button.addEventListener("click", function () {
         button.disabled = true;
         button.style.opacity = "0.72";
-        setHomePanelStatus("正在上传...", "info");
-        void uploadNow("home-manual")
+        button.textContent = "上传中";
+        setUploadButtonStatus("正在上传统计数据...", "info");
+        void uploadNow(isHomePage() ? "home-manual" : "detail-manual")
           .then(function (result) {
             if (result?.ok === true) {
-              setHomePanelStatus(
+              setUploadButtonStatus(
                 "已上传 " + String(result.payload?.payloadCount || 0) + " 个子任务",
                 "success"
               );
               return;
             }
-            setHomePanelStatus(result?.message || "上传失败。", "error");
+            setUploadButtonStatus(result?.message || "上传失败。", "error");
           })
           .catch(function (error) {
-            setHomePanelStatus(error && error.message ? error.message : String(error), "error");
+            setUploadButtonStatus(error && error.message ? error.message : String(error), "error");
           })
           .finally(function () {
             button.disabled = false;
             button.style.opacity = "1";
+            button.textContent = "上传统计";
           });
       });
 
-      const status = document.createElement("span");
-      status.setAttribute("data-asr-edge-stats-home-status", "true");
-      status.textContent = "首页统计";
-
-      homePanelRoot.appendChild(button);
-      homePanelRoot.appendChild(status);
-      document.documentElement.appendChild(homePanelRoot);
+      uploadButtonRoot.appendChild(button);
+      if (mountPoint.before && mountPoint.before.parentNode === mountPoint.host) {
+        mountPoint.host.insertBefore(uploadButtonRoot, mountPoint.before);
+      } else {
+        mountPoint.host.appendChild(uploadButtonRoot);
+      }
     }
 
-    function startHomePanel() {
-      clearHomePanelTimer();
-      ensureHomePanel();
-      homePanelTimer = window.setInterval(ensureHomePanel, 1500);
+    function startUploadButton() {
+      clearUploadButtonTimer();
+      ensureUploadButton();
+      uploadButtonTimer = window.setInterval(ensureUploadButton, 1500);
     }
 
     async function refreshSchedule() {
@@ -705,7 +899,10 @@
 
       const subtaskData = await fetchSubtaskData(params.subTaskId);
       const durationSeconds = sumDurationSeconds(subtaskData.dataList);
-      return buildPayload(subtaskData, durationSeconds, reason);
+      const userName = await resolveCurrentUserText();
+      return buildPayload(subtaskData, durationSeconds, reason, {
+        userName: userName,
+      });
     }
 
     async function collectHomePayloads(reason) {
@@ -714,44 +911,87 @@
         throw new Error("当前首页 URL 中没有 projectId，无法上传统计。");
       }
 
-      const tasksPage = await fetchHomeTasks(projectId);
-      const taskMap = {};
-      tasksPage.list.forEach(function (task) {
-        const taskId = String(task?.taskId || "");
-        if (taskId) {
-          taskMap[taskId] = task;
-        }
-      });
+      const userName = await resolveCurrentUserText();
+      const kinds = getHomeTaskKindsToFetch();
+      const kindPages = [];
+      const errors = [];
 
-      const unfinishedPage = await fetchHomeSubTasks(projectId, false);
-      const finishedPage = await fetchHomeSubTasks(projectId, true);
-      const subtaskMap = {};
-      unfinishedPage.list.concat(finishedPage.list).forEach(function (subtask) {
-        const id = String(subtask?.id || "").trim();
-        if (id) {
-          subtaskMap[id] = subtask;
+      for (let index = 0; index < kinds.length; index += 1) {
+        const kind = kinds[index];
+        try {
+          const tasksPage = await fetchHomeTasks(projectId, kind);
+          const taskMap = {};
+          tasksPage.list.forEach(function (task) {
+            const taskId = String(task?.taskId || "");
+            if (taskId) {
+              taskMap[taskId] = task;
+            }
+          });
+
+          const unfinishedPage = await fetchHomeSubTasks(projectId, false, kind);
+          const finishedPage = await fetchHomeSubTasks(projectId, true, kind);
+          kindPages.push({
+            kind: kind,
+            tasksPage: tasksPage,
+            taskMap: taskMap,
+            unfinishedPage: unfinishedPage,
+            finishedPage: finishedPage,
+          });
+        } catch (error) {
+          errors.push({
+            kind: kind.key,
+            message: error && error.message ? error.message : String(error),
+          });
         }
-      });
-      const subtasks = Object.keys(subtaskMap).map(function (id) {
-        return subtaskMap[id];
+      }
+
+      const subtasks = [];
+      kindPages.forEach(function (pageGroup) {
+        const subtaskMap = {};
+        pageGroup.unfinishedPage.list.concat(pageGroup.finishedPage.list).forEach(function (subtask) {
+          const id = String(subtask?.id || "").trim();
+          if (id) {
+            subtaskMap[pageGroup.kind.key + ":" + id] = subtask;
+          }
+        });
+        Object.keys(subtaskMap).forEach(function (id) {
+          subtasks.push({
+            summary: subtaskMap[id],
+            pageGroup: pageGroup,
+          });
+        });
       });
 
       if (subtasks.length === 0) {
-        throw new Error("首页未读取到可上传的我的子任务。");
+        throw new Error(
+          "首页未读取到可上传的标注或审核子任务。" +
+            (errors.length ? " 失败：" + errors.map(function (item) {
+              return item.kind + "=" + item.message;
+            }).join("；") : "")
+        );
       }
 
-      const payloads = await mapLimit(subtasks, 3, async function (summary) {
+      const payloads = await mapLimit(subtasks, 3, async function (entry) {
+        const summary = entry.summary;
+        const pageGroup = entry.pageGroup;
+        const kind = pageGroup.kind;
         const detailData = await fetchSubtaskData(String(summary.id || "").trim());
-        const enrichedData = enrichSubtaskData(detailData, summary, taskMap);
+        const enrichedData = enrichSubtaskData(detailData, summary, pageGroup.taskMap, kind);
         const durationSeconds = sumDurationSeconds(enrichedData.dataList);
-        const payload = buildPayload(enrichedData, durationSeconds, reason || "home-manual");
+        const payload = buildPayload(enrichedData, durationSeconds, reason || "home-manual", {
+          role: kind.role,
+          userName: userName || getUserNameFromRecord(summary),
+        });
         payload.homeContext = {
           projectId: projectId,
-          taskCount: tasksPage.recordCount,
+          kind: kind.key,
+          role: kind.role,
+          kindLabel: kind.label,
+          taskCount: pageGroup.tasksPage.recordCount,
           subTaskCount: subtasks.length,
-          unfinishedCount: unfinishedPage.recordCount,
-          finishedCount: finishedPage.recordCount,
-          source: "labelingTask tasks/subTasks + subTask data",
+          unfinishedCount: pageGroup.unfinishedPage.recordCount,
+          finishedCount: pageGroup.finishedPage.recordCount,
+          source: kind.route + " tasks/subTasks + subTask data",
         };
         return payload;
       });
@@ -769,9 +1009,21 @@
         payloads: payloads,
         summary: {
           projectId: projectId,
-          taskCount: tasksPage.recordCount,
+          taskCount: kindPages.reduce(function (total, item) {
+            return total + (Number(item.tasksPage.recordCount) || 0);
+          }, 0),
           subTaskCount: subtasks.length,
           payloadCount: payloads.length,
+          kinds: kindPages.map(function (item) {
+            return {
+              kind: item.kind.key,
+              role: item.kind.role,
+              taskCount: item.tasksPage.recordCount,
+              unfinishedCount: item.unfinishedPage.recordCount,
+              finishedCount: item.finishedPage.recordCount,
+            };
+          }),
+          errors: errors,
         },
       };
     }
@@ -882,7 +1134,7 @@
 
     function start() {
       state.started = true;
-      startHomePanel();
+      startUploadButton();
       void refreshSchedule().finally(scheduleNextUpload);
       notify();
     }
@@ -891,8 +1143,8 @@
       state.started = false;
       state.nextScheduleAt = null;
       clearScheduleTimer();
-      clearHomePanelTimer();
-      removeHomePanel();
+      clearUploadButtonTimer();
+      removeUploadButton();
       notify();
     }
 

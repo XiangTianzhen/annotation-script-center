@@ -4,6 +4,8 @@
 
 本目录记录 LabelX 标注首页，也就是标注任务列表页。该页面用于查看当前账号已领取的标注子任务，并展示可领取任务列表。
 
+注意：这里的“标注首页”只指 `/corpora/labeling/labelingTask?projectId=...`。审核首页是另一个路由 `/corpora/labeling/checkTask?projectId=...`，结构资料见 `../check-task-home/`。
+
 当前页面包含两个主区域：
 
 - `我的任务`
@@ -18,6 +20,12 @@
 ## 真实 URL 样例
 
 - `https://labelx.alibaba-inc.com/corpora/labeling/labelingTask?projectId=<REDACTED_PROJECT_ID>`
+
+对应首页接口使用标注参数：
+
+- `/api/v1/label/center/subTasks?type=label&...`
+- `/api/v1/label/center/tasks?subTaskType=label&...`
+- `/api/v1/label/center/tasks/process?subTaskType=label&...`
 
 建议路由识别拆成：
 
