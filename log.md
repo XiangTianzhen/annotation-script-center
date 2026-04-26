@@ -48,3 +48,4 @@
 - 优化快判统计上传首页采集：通过 DevTools 确认审核首页 `/checkTask` 使用 `type=check` / `subTaskType=check`，上传按钮改为挂载在顶部头像旁，首页点击时同时采集标注和审核两类分包；补充头像 hover 用户名结构、审核首页结构和网络采集文档。
 - 为快判统计上传新增 ASR 更优判断任务过滤：优先按 `labelModel=vote` 识别，结合 `taskName` 和 `size=400` 兜底，自动跳过 `labelModel=single`、`size=50` 或 `中文普通话asr任务` 的历史转写数据。
 - 优化快判统计上传数据规模处理：时长秒数统一保留 4 位小数，详情页上传和定时上传改为按 `projectId` 采集全账号数据；本地统计服务默认只落合并 CSV，不再写 `statistics-rows.json` 和上传事件日志，并将批量合并改为一次读写。
+- 修正快判详情页统计上传：移除当前 `subTaskId` 单条上传回退，详情页、首页和定时上传统一走 `projectId` 项目级批量采集，保证同一账号同一项目上传行数一致。

@@ -80,7 +80,7 @@
 - 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 列顺序：`任务名称`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
 - 单条分包 payload 的基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端以 `mergeKey.batchId` / `分包ID` 做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
 - 顶部导航右侧头像旁会显示“上传统计”按钮；标注首页、审核首页和快判详情页都使用同一个入口，快判工具栏内不再放统计按钮。
-- 只要当前 URL 带有 `projectId`，手动上传和定时上传都会按项目维度采集该账号下的标注 / 审核首页数据；详情页不再只上传当前打开的一个子任务。
+- 只要当前 URL 带有 `projectId`，手动上传和定时上传都会按项目维度采集该账号下的标注 / 审核首页数据；详情页与首页走同一条批量采集路径，不再保留“当前 `subTaskId` 单条上传”回退。若页面 URL 没有 `projectId`，统计上传会直接失败并提示。
 - 标注首页 URL 为 `/corpora/labeling/labelingTask?projectId=...`，按标注角色写入 CSV；审核首页 URL 为 `/corpora/labeling/checkTask?projectId=...`，按审核角色写入 CSV。点击首页按钮时会同时尝试读取标注和审核两类列表，避免只上传当前页类型。
 - 首页上传会直接使用 LabelX 登录态请求首页任务数据：先读取 `/api/v1/label/center/tasks` 和 `/api/v1/label/center/subTasks`，再对每个子任务调用 `/api/v1/label/center/subTask/{subTaskId}/data` 获取完整题目与时长，最后批量上传 `payloads`。已通过 DevTools 确认：标注首页使用 `type=label` / `subTaskType=label`，审核首页使用 `type=check` / `subTaskType=check`；两类首页的已完成列表都通过 `subTasks?finished=true` 读取。
 - 首页上传只保留 ASR 更优判断数据：优先按 `labelModel=vote` 判断；如果接口缺少该字段，再用 `taskName` 包含 `ASR更优结果判断` / `ASR更优` 且 `size=400` 作为补充判断。`labelModel=single`、`taskName=中文普通话asr任务` 或 `size=50` 会视为历史转写数据并跳过。
@@ -185,7 +185,7 @@
 23. 确认工具栏按钮可执行判别、音量和倍速动作；播放/暂停不额外添加按钮。
 24. 触发快捷键或按钮后，确认页面右上角会出现短提示。
 25. 在 options 中确认“统计数据上传”区域只提供启用开关、服务器 / 本机两个上传地址选项和定时上传开关，不再出现时间配置 URL 与“上传统计”按钮。
-26. 启动本地服务后，在 options 选择“本机：127.0.0.1:3333”，打开 `labelingTask?projectId=...`、`checkTask?projectId=...` 或任一快判详情页，点击顶部导航头像旁的“上传统计”，确认扩展会同时请求标注和审核两类首页的 `tasks`、`subTasks`、`subTasks?finished=true` 和每个 ASR 更优判断分包的 `/subTask/{subTaskId}/data`，并向本地服务发送批量 `payloads`；历史转写任务应被跳过，不进入上传 payload。
+26. 启动本地服务后，在 options 选择“本机：127.0.0.1:3333”，打开 `labelingTask?projectId=...`、`checkTask?projectId=...` 或任一快判详情页，点击顶部导航头像旁的“上传统计”，确认扩展会同时请求标注和审核两类首页的 `tasks`、`subTasks`、`subTasks?finished=true` 和每个 ASR 更优判断分包的 `/subTask/{subTaskId}/data`，并向本地服务发送批量 `payloads`；详情页上传的 payload 行数应与同一账号同一项目首页上传一致，历史转写任务应被跳过，不进入上传 payload。
 27. 确认快判详情页工具栏不出现“统计 / 上传统计”按钮；若上传接口尚未部署，顶部导航点击“上传统计”应只提示上传失败，不应影响题卡判别、保存或页面操作。
 28. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
 29. 打开一个未标注的全新快判详情页，不按快捷键、不点工具栏，确认脚本不会自动选中“哪个ASR更优”的任一选项；若页面本身返回了已保存答案，应以接口数据或页面原始状态为准。

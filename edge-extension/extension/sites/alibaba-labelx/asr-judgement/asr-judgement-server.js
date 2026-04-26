@@ -975,24 +975,7 @@
     }
 
     async function collectPayload(reason) {
-      if (getProjectIdFromUrl()) {
-        return collectHomePayloads(reason);
-      }
-
-      const params = getUrlParams();
-      if (!params.subTaskId) {
-        throw new Error("当前 URL 中没有 subTaskId，无法上传统计。");
-      }
-
-      const subtaskData = await fetchSubtaskData(params.subTaskId);
-      if (!isAsrJudgementTaskRecord(subtaskData)) {
-        throw new Error("当前子任务不是 ASR 更优判断项目，已跳过统计上传。");
-      }
-      const durationSeconds = sumDurationSeconds(subtaskData.dataList);
-      const userName = await resolveCurrentUserText();
-      return buildPayload(subtaskData, durationSeconds, reason, {
-        userName: userName,
-      });
+      return collectHomePayloads(reason);
     }
 
     async function collectHomePayloads(reason) {
