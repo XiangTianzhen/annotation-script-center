@@ -15,13 +15,15 @@
 ## 上传规则
 
 - 扩展侧统计上传模块：`edge-extension/extension/sites/alibaba-labelx/asr-judgement/asr-judgement-server.js`。
-- 本地调试服务：`platform-resources/alibaba-labelx/asr-judgement/backend/server.js`。
+- 推荐本地调试服务入口：`platform-resources/backend/server.js`。
+- 快判项目兼容入口：`platform-resources/alibaba-labelx/asr-judgement/backend/server.js`。
 - 首页、详情页和定时上传统一按 `projectId` 采集该账号在当前项目下的标注 / 审核分包。
 - 不再保留“详情页当前 `subTaskId` 单条上传”回退。
 - 统计只保留 ASR 更优判断数据：优先按 `labelModel=vote` 判断；接口缺失时用 `taskName` 包含 `ASR更优结果判断` / `ASR更优` 且 `size=400` 兜底。
 - `labelModel=single`、`taskName=中文普通话asr任务` 或 `size=50` 视为历史转写数据并跳过。
 - 有效时长以秒为单位，保留 4 位小数。
 - 本地调试服务默认输出到 `platform-resources/alibaba-labelx/asr-judgement/backend/statistics-data/statistics-merged.csv`。
+- CSV 下载接口：`GET /api/alibaba-labelx/asr-judgement/statistics/download`；当前兼容旧路径 `GET /api/asr-judgement/statistics/download`。
 
 ## 服务端合并契约
 

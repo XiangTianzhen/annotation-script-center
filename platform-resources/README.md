@@ -18,6 +18,13 @@
 
 ```text
 platform-resources/
+  backend/
+    server.js
+    app.js
+    router.js
+    registry.js
+    response.js
+    config.js
   alibaba-labelx/
     README.md
     asr-judgement/
@@ -37,5 +44,6 @@ platform-resources/
 - `page-structure/` 放页面结构、稳定选择器和代表性 HTML 片段。
 - `network/` 放请求 URL、请求 / 响应结构、采集结论和待采集项。
 - `statistics/` 放统计 CSV、上传 payload、服务端合并契约等资料。
-- `backend/` 放浏览器无关的本地调试服务，不被扩展 manifest 加载。
+- 根级 `backend/` 是统一 Node 后端入口，只负责启动、基础路由、响应工具和项目 API 注册。
+- 项目级 `backend/` 放浏览器无关的本地调试服务，不被扩展 manifest 加载。
 - `unfinished.md` 放未完成方案、风险和后续验证条件。

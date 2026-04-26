@@ -15,7 +15,7 @@ edge-extension/extension/sites/alibaba-labelx/asr-judgement/
 - `page-structure/`：快判详情页、标注首页、审核首页 DOM 结构和代表性 HTML 片段。
 - `network/`：LabelX 快判相关请求采集，包含详情页 data、首页 tasks / subTasks、保存、提交、领取、释放等接口记录。
 - `statistics/`：统计 CSV、上传 payload 和本地调试服务契约说明。
-- `backend/`：快判统计上传本地 Node 调试服务，按分包 ID 合并 CSV 宽表。
+- `backend/`：快判统计上传本地 Node 调试服务，按分包 ID 合并 CSV 宽表，并提供 CSV 下载接口。
 - `unfinished.md`：未完成能力、风险点和后续验证条件。
 
 ## 当前已迁移资料

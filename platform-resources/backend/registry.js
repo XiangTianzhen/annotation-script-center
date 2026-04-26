@@ -1,0 +1,24 @@
+"use strict";
+
+const path = require("path");
+const { registerRoutes: registerAsrJudgementRoutes } = require("../alibaba-labelx/asr-judgement/backend");
+
+function registerProjectRoutes(router, options) {
+  const config = options && typeof options === "object" ? options : {};
+  registerAsrJudgementRoutes(router, {
+    dataDir:
+      config.asrJudgement?.dataDir ||
+      process.env.ASR_JUDGEMENT_STATS_DIR ||
+      path.join(__dirname, "..", "alibaba-labelx", "asr-judgement", "backend", "statistics-data"),
+    persistRowsJson:
+      config.asrJudgement?.persistRowsJson ||
+      process.env.ASR_JUDGEMENT_PERSIST_ROWS_JSON === "1",
+    persistUploadEvents:
+      config.asrJudgement?.persistUploadEvents ||
+      process.env.ASR_JUDGEMENT_PERSIST_UPLOAD_EVENTS === "1",
+  });
+}
+
+module.exports = {
+  registerProjectRoutes,
+};

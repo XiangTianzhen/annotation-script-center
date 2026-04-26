@@ -9,25 +9,44 @@
 在仓库根目录运行：
 
 ```powershell
-node platform-resources\alibaba-labelx\asr-judgement\backend\server.js
+node platform-resources\backend\server.js
 ```
 
 默认监听：
 
 ```text
-http://127.0.0.1:3333/api/asr-judgement/statistics/upload
+http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload
 ```
 
 定时配置检查地址：
 
 ```text
-http://127.0.0.1:3333/api/asr-judgement/statistics/config
+http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/config
 ```
 
 扩展实际会优先对“上传接口地址”发起 `GET` 请求并追加 `purpose=schedule`，例如：
 
 ```text
-http://127.0.0.1:3333/api/asr-judgement/statistics/upload?purpose=schedule
+http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload?purpose=schedule
+```
+
+CSV 下载地址：
+
+```text
+http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download
+```
+
+旧启动入口仍可用：
+
+```powershell
+node platform-resources\alibaba-labelx\asr-judgement\backend\server.js
+```
+
+旧接口路径也继续兼容：
+
+```text
+http://127.0.0.1:3333/api/asr-judgement/statistics/upload
+http://127.0.0.1:3333/api/asr-judgement/statistics/download
 ```
 
 可用环境变量：
@@ -40,8 +59,10 @@ http://127.0.0.1:3333/api/asr-judgement/statistics/upload?purpose=schedule
 
 ## 文件职责
 
-- `server.js`：本地服务启动入口。
-- `http-server.js`：HTTP 路由、健康检查、上传接口、定时配置接口和请求体读取。
+- `index.js`：供统一后端入口注册本项目 API。
+- `routes.js`：HTTP 路由、健康检查、上传接口、定时配置接口、CSV 下载接口和请求体读取。
+- `server.js`：兼容旧用法的本项目独立启动入口。
+- `http-server.js`：兼容旧用法的本项目 HTTP server 包装层。
 - `payload-merge.js`：按 `分包ID` 合并上传补丁记录，填充标注员 / 审核员宽表列。
 - `file-store.js`：默认以 `statistics-merged.csv` 作为唯一落盘数据源，必要时可兼容读取旧 `statistics-rows.json`。
 - `csv-columns.js`：CSV 列顺序定义。
@@ -49,10 +70,13 @@ http://127.0.0.1:3333/api/asr-judgement/statistics/upload?purpose=schedule
 
 ## 接口约定
 
-- `POST /api/asr-judgement/statistics/upload`：接收单个分包补丁 payload，也接收首页批量上传的 `{ payloads: [...] }` 信封。服务端会逐条按 `mergeKey.batchId` / `分包ID` 合并。
-- `GET /api/asr-judgement/statistics/upload?purpose=schedule`：返回定时上传配置，供扩展从同一个上传接口地址读取时间。
-- `GET /api/asr-judgement/statistics/config`：返回同样的定时上传配置，便于本地直接调试。
-- `GET /api/asr-judgement/statistics/health`：健康检查和当前 CSV 路径。
+- `POST /api/alibaba-labelx/asr-judgement/statistics/upload`：接收单个分包补丁 payload，也接收首页批量上传的 `{ payloads: [...] }` 信封。服务端会逐条按 `mergeKey.batchId` / `分包ID` 合并。
+- `GET /api/alibaba-labelx/asr-judgement/statistics/upload?purpose=schedule`：返回定时上传配置，供扩展从同一个上传接口地址读取时间。
+- `GET /api/alibaba-labelx/asr-judgement/statistics/config`：返回同样的定时上传配置，便于本地直接调试。
+- `GET /api/alibaba-labelx/asr-judgement/statistics/health`：健康检查和当前 CSV 路径。
+- `GET /api/alibaba-labelx/asr-judgement/statistics/download`：下载当前 `statistics-merged.csv`。
+
+为了兼容当前扩展默认地址，上述接口同时保留 `/api/asr-judgement/statistics/...` 旧路径。
 
 ## 输出文件
 

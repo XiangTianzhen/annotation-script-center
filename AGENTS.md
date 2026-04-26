@@ -20,6 +20,7 @@
 - `edge-extension/extension/sites/alibaba-labelx/asr-judgement/`：快判运行时代码。
 - `edge-extension/extension/sites/alibaba-labelx/asr-transcription/`：转写运行时代码。
 - `platform-resources/`：Edge / Chrome 共用的平台资源库，保存 LabelX 页面结构、网络请求、统计格式、未完成事项和浏览器无关调试工具。
+- `platform-resources/backend/`：平台资源统一 Node 后端入口，后续新增平台 / 项目 API 时优先接入这里。
 - `platform-resources/alibaba-labelx/asr-judgement/backend/`：快判统计上传本地 Node 调试服务，按 `batchId` / 分包ID 合并 CSV 宽表。
 - 新任务如果是快判，不要误改 `asr-transcription/`，除非任务明确要求。
 - `edge-extension/extension/sites/alibaba-labelx/` 根目录不放业务 JS，业务运行时代码放在具体脚本目录里。
@@ -38,7 +39,8 @@
 - `judgement-asr-diff-view.js`：ASR 文本对齐差异视图，隐藏原始双行文本并生成高亮对齐阅读区，维护差异高亮颜色。
 - `judgement-compact-card.js`：轻量题卡摘要，在对应 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，可视宽度跟随原题卡且不破坏 LabelX 原生多列布局。
 - `asr-judgement-server.js`：快判扩展侧统计上传模块，顶部导航头像旁挂载“上传统计”，详情页、标注首页、审核首页和定时上传统一通过 LabelX `tasks` / `subTasks` / `subTask/{id}/data` 按 `projectId` 批量采集，并上传给外部服务端。
-- `platform-resources/alibaba-labelx/asr-judgement/backend/`：快判统计本地 Node 调试服务目录，`server.js` 是启动入口。
+- `platform-resources/backend/`：统一 Node 后端启动入口和基础路由工具，`server.js` 是推荐启动入口。
+- `platform-resources/alibaba-labelx/asr-judgement/backend/`：快判统计本地 Node 调试服务目录，`index.js` 注册项目 API，`server.js` 保留为兼容启动入口。
 - `judgement-auto-advance.js`：选择判别结果后的当前页自动下一题。
 - `audio-controller.js`：音频扫描、配置、状态和动作路由。
 - `audio-volume-controller.js`：音量和 Web Audio gain。

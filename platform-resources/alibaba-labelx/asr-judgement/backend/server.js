@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("path");
-const { CONFIG_PATH, UPLOAD_PATH, createLocalServer } = require("./http-server");
+const { CONFIG_PATH, DOWNLOAD_PATH, UPLOAD_PATH, createLocalServer } = require("./http-server");
 const { createStatisticsStore } = require("./file-store");
 
 const host = process.env.ASR_JUDGEMENT_SERVER_HOST || "127.0.0.1";
@@ -30,6 +30,13 @@ server.listen(port, host, function () {
       ":" +
       String(port) +
       CONFIG_PATH
+  );
+  console.info(
+    "[ASR Judgement][stats-server] csv download on http://" +
+      host +
+      ":" +
+      String(port) +
+      DOWNLOAD_PATH
   );
   console.info("[ASR Judgement][stats-server] csv:", store.getPaths().csvPath);
 });

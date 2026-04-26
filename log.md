@@ -51,3 +51,4 @@
 - 修正快判详情页统计上传：移除当前 `subTaskId` 单条上传回退，详情页、首页和定时上传统一走 `projectId` 项目级批量采集，保证同一账号同一项目上传行数一致。
 - 新增根目录 `platform-resources/` 平台资源库，迁移 Alibaba LabelX 快判的页面结构、网络采集、统计格式、未完成事项和本地调试后端；后续跨 Edge / Chrome 共用的资料与工具统一写入该目录。
 - 移除快判扩展目录中的旧 `page-structure/` 内容；将快判统计本地 Node 服务迁移到 `platform-resources/alibaba-labelx/asr-judgement/backend/`，并更新启动路径和统计输出目录。
+- 新增 `platform-resources/backend/` 统一 Node 后端入口和路由注册结构，快判项目后端改为通过 `index.js` 注册 API；新增统计 CSV 下载接口 `/api/alibaba-labelx/asr-judgement/statistics/download`，并兼容旧路径 `/api/asr-judgement/statistics/download`。
