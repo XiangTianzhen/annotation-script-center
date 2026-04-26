@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 已归档真实页面结构和网络资料：`platform-knowledge/alibaba-labelx/asr-judgement/`
+- 已归档真实页面结构和网络资料：`platform-resources/alibaba-labelx/asr-judgement/`
 - 快判在 options 中拥有独立脚本详情页和简化设置表单。
 - 快判已接入独立运行时，入口文件为 `content.js`、`audio-controller.js`、`page-world/network-observer.js`；音量、倍速、播放、分页、总时长、判别动作、快捷键、toast、工具栏、网络协议、ASR 差异视图、轻量题卡摘要和统计上传等能力已拆成小文件。
 - `content.js` 当前只作为入口编排层，不再承载具体功能实现。
@@ -13,7 +13,7 @@
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
 - options 快判详情页负责保存快判专属设置：全局音量、当前倍速、倍速步进、切换倍速重置、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、选择后辅助流转、统计上传、快捷键。
-- 快判详情页和任务列表页 DOM / 网络资料统一沉淀到根目录 `platform-knowledge/alibaba-labelx/asr-judgement/`，供 Edge 和未来 Chrome 共用。
+- 快判详情页和任务列表页 DOM / 网络资料统一沉淀到根目录 `platform-resources/alibaba-labelx/asr-judgement/`，供 Edge 和未来 Chrome 共用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
 
@@ -36,7 +36,7 @@
 - 该功能属于提效脚本，只增强阅读，不自动判断哪个 ASR 更好，不写入答案。
 - 设置字段为 `asrDiffViewEnabled`，默认开启；可在 options 快判设置中关闭，关闭后恢复 LabelX 原始文本展示。
 - 高亮颜色字段为 `asrDiffColors.changeBackground`、`asrDiffColors.gapBackground`、`asrDiffColors.punctuationBackground`，可在 options 中分别调整“替换 / 不同字”“缺字 / 多字”“标点 / 空格”的背景色；普通差异视图和轻量题卡摘要共用同一套颜色。
-- 如果后续发现页面结构变更导致误判，应先更新 `platform-knowledge/alibaba-labelx/asr-judgement/page-structure/` 再调整选择器。
+- 如果后续发现页面结构变更导致误判，应先更新 `platform-resources/alibaba-labelx/asr-judgement/page-structure/` 再调整选择器。
 
 ## 选择后辅助流转
 
@@ -74,8 +74,8 @@
 ## 统计数据上传
 
 - `asr-judgement-server.js` 只负责扩展侧统计上传运行时，被 content script 注入到 LabelX 页面。
-- Node 本地统计接收服务已迁移到根目录 `backend/alibaba-labelx/asr-judgement/`，不会被 manifest 注入；启动入口是 `backend/alibaba-labelx/asr-judgement/server.js`。
-- 本地启动命令：在仓库根目录运行 `node backend/alibaba-labelx/asr-judgement/server.js`，默认监听 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`。
+- Node 本地统计接收服务已迁移到根目录 `platform-resources/alibaba-labelx/asr-judgement/backend/`，不会被 manifest 注入；启动入口是 `platform-resources/alibaba-labelx/asr-judgement/backend/server.js`。
+- 本地启动命令：在仓库根目录运行 `node platform-resources/alibaba-labelx/asr-judgement/backend/server.js`，默认监听 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`。
 - 本地服务默认只按 `分包ID` 合并生成 `statistics-data/statistics-merged.csv`；`statistics-rows.json` 和 `statistics-upload-events.jsonl` 默认不再写入，避免 10 万级数据长期占用磁盘。需要排查时可用环境变量临时开启。
 - 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 列顺序：`任务名称`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
 - 单条分包 payload 的基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端以 `mergeKey.batchId` / `分包ID` 做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
@@ -101,7 +101,7 @@
 ## 全自动边界
 
 - 自动选择、自动保存、自动提交、自动领取和自动流转属于全自动能力。
-- 进入全自动前必须补齐保存、提交、失败响应、校验阻断、自动领取成功 / 失败等网络采集，并在 `README.md`、`platform-knowledge/` 和 `log.md` 中记录验证范围。
+- 进入全自动前必须补齐保存、提交、失败响应、校验阻断、自动领取成功 / 失败等网络采集，并在 `README.md`、`platform-resources/` 和 `log.md` 中记录验证范围。
 - 未验证前，不允许让脚本静默提交或批量改写标注结果。
 
 ## 快捷键动作清单
@@ -228,14 +228,12 @@ asr-judgement/
     network-url-rewriter.js
     network-summary.js
     network-observer.js
-  page-structure/
-    README.md  # 迁移跳转说明，新资料维护在 platform-knowledge/
 ```
 
-根目录后端服务结构：
+平台资源后端服务结构：
 
 ```text
-backend/alibaba-labelx/asr-judgement/
+platform-resources/alibaba-labelx/asr-judgement/backend/
   README.md
   server.js
   http-server.js
@@ -255,10 +253,10 @@ backend/alibaba-labelx/asr-judgement/
 LabelX 快判页面结构、网络请求、统计格式和未完成事项已经迁移到根目录：
 
 ```text
-platform-knowledge/alibaba-labelx/asr-judgement/
+platform-resources/alibaba-labelx/asr-judgement/
 ```
 
-旧目录 `page-structure/` 只保留跳转 README，不再保留页面结构和网络采集内容。
+旧目录 `page-structure/` 已移除，不再保留页面结构和网络采集内容。
 
 已包含：
 
@@ -297,7 +295,7 @@ platform-knowledge/alibaba-labelx/asr-judgement/
 - `judgement-asr-diff-view.js`：维护 ASR 文本对齐差异视图、差异摘要、对齐算法和高亮颜色。
 - `judgement-compact-card.js`：维护轻量题卡摘要，在 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，并支持配合隐藏内容区 / 回答区和卡片宽度调整使用。
 - `asr-judgement-server.js`：维护扩展侧统计数据采集、首页 / 详情页手动上传、定时上传和基于上传接口的远程时间配置读取。
-- `backend/alibaba-labelx/asr-judgement/`：维护 Node 本地调试接收服务，`server.js` 是启动入口，其余小文件分别处理 HTTP、CSV 列、CSV 读写、文件存储和分包合并。
+- `platform-resources/alibaba-labelx/asr-judgement/backend/`：维护 Node 本地调试接收服务，`server.js` 是启动入口，其余小文件分别处理 HTTP、CSV 列、CSV 读写、文件存储和分包合并。
 - `judgement-auto-advance.js`：维护选择判别结果后的当前页自动下一题。
 - `audio-controller.js`：只保留音频扫描、配置、状态和动作路由。
 - `audio-volume-controller.js`：维护音量与 Web Audio gain 逻辑。

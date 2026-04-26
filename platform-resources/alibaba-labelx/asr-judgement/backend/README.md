@@ -1,6 +1,6 @@
 # 快判统计本地服务
 
-该目录是 ASR 快判统计上传的 Node 本地调试服务代码，按“平台 / 项目”从 Edge 扩展目录迁移到仓库根目录。
+该目录是 ASR 快判统计上传的 Node 本地调试服务代码，按“平台 / 项目”放在 `platform-resources/` 中。
 
 它不会被 Edge 扩展 manifest 注入到 LabelX 页面，也不属于浏览器扩展运行时代码。Edge 扩展和未来 Chrome 扩展都可以共用这个本地调试服务。
 
@@ -9,7 +9,7 @@
 在仓库根目录运行：
 
 ```powershell
-node backend\alibaba-labelx\asr-judgement\server.js
+node platform-resources\alibaba-labelx\asr-judgement\backend\server.js
 ```
 
 默认监听：
@@ -34,7 +34,7 @@ http://127.0.0.1:3333/api/asr-judgement/statistics/upload?purpose=schedule
 
 - `ASR_JUDGEMENT_SERVER_HOST`：监听地址，默认 `127.0.0.1`。
 - `ASR_JUDGEMENT_SERVER_PORT`：监听端口，默认 `3333`。
-- `ASR_JUDGEMENT_STATS_DIR`：统计输出目录，默认 `backend/alibaba-labelx/asr-judgement/statistics-data/`。
+- `ASR_JUDGEMENT_STATS_DIR`：统计输出目录，默认 `platform-resources/alibaba-labelx/asr-judgement/backend/statistics-data/`。
 - `ASR_JUDGEMENT_PERSIST_ROWS_JSON`：设为 `1` 时额外写入 `statistics-rows.json`，默认不写。
 - `ASR_JUDGEMENT_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外写入 `statistics-upload-events.jsonl`，默认不写。
 

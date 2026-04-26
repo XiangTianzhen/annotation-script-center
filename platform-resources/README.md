@@ -1,22 +1,23 @@
-# 平台资料库
+# 平台资源库
 
 ## 目录定位
 
-`platform-knowledge/` 是浏览器无关的平台资料库，用来沉淀 LabelX 等平台的页面结构、网络请求、接口字段、统计格式和已知限制。
+`platform-resources/` 是浏览器无关的平台资源库，用来沉淀 LabelX 等平台的页面结构、网络请求、接口字段、统计格式、已知限制和本地调试工具。
 
-这些资料服务于 Edge 扩展和未来 Chrome 扩展，避免同一份 DOM / 网络知识在两套扩展目录中重复维护。
+这些资源服务于 Edge 扩展和未来 Chrome 扩展，避免同一份 DOM / 网络知识或本地后端调试工具在两套扩展目录中重复维护。
 
 ## 维护边界
 
-- 这里不放运行时代码，不参与扩展 manifest 加载。
+- 这里不放扩展运行时代码，不参与扩展 manifest 加载。
+- 可以放浏览器无关的本地调试工具，例如统计上传接收服务。
 - 这里记录跨浏览器通用的平台事实，例如 URL、DOM 片段、接口样例、字段含义和验证结论。
 - Edge / Chrome 差异仍应收敛到扩展 manifest、浏览器 API 兼容层、打包配置或少量适配文件。
-- 新增资料时按“平台 / 脚本项目 / 资料类型”归档。
+- 新增资料或工具时按“平台 / 脚本项目 / 资源类型”归档。
 
 ## 当前结构
 
 ```text
-platform-knowledge/
+platform-resources/
   alibaba-labelx/
     README.md
     asr-judgement/
@@ -24,6 +25,7 @@ platform-knowledge/
       page-structure/
       network/
       statistics/
+      backend/
       unfinished.md
     asr-transcription/
       README.md
@@ -35,4 +37,5 @@ platform-knowledge/
 - `page-structure/` 放页面结构、稳定选择器和代表性 HTML 片段。
 - `network/` 放请求 URL、请求 / 响应结构、采集结论和待采集项。
 - `statistics/` 放统计 CSV、上传 payload、服务端合并契约等资料。
+- `backend/` 放浏览器无关的本地调试服务，不被扩展 manifest 加载。
 - `unfinished.md` 放未完成方案、风险和后续验证条件。

@@ -14,4 +14,4 @@ edge-extension/extension/sites/alibaba-labelx/asr-transcription/
 
 - 转写页面结构、网络请求和统计资料后续按需迁入本目录。
 - 不从快判目录提前抽公共 shared。
-- 如果确认某些 LabelX 平台事实同时服务转写和快判，再提升到 `platform-knowledge/alibaba-labelx/README.md`。
+- 如果确认某些 LabelX 平台事实同时服务转写和快判，再提升到 `platform-resources/alibaba-labelx/README.md`。
