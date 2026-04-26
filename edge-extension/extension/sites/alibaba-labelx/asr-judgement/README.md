@@ -289,8 +289,8 @@ platform-resources/alibaba-labelx/asr-judgement/
   - 审核首页接口参数和页面入口
 - `network/`
   - 详情页 data、保存、提交、领取、释放和首页 tasks / subTasks 等网络采集资料
-- `statistics/`
-  - 统计 CSV、上传 payload 和本地调试服务契约说明
+- `backend/`
+  - 统计 CSV、上传 payload、本地调试服务契约和服务端合并逻辑说明
 - `unfinished.md`
   - 未完成能力、风险点和后续验证条件
 

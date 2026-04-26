@@ -53,3 +53,4 @@
 - 移除快判扩展目录中的旧 `page-structure/` 内容；将快判统计本地 Node 服务迁移到 `platform-resources/alibaba-labelx/asr-judgement/backend/`，并更新启动路径和统计输出目录。
 - 新增 `platform-resources/backend/` 统一 Node 后端入口和路由注册结构，快判项目后端改为通过 `index.js` 注册 API；新增统计 CSV 下载接口 `/api/alibaba-labelx/asr-judgement/statistics/download`。
 - 将快判统计服务器上传地址改为域名 `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload`，扩展 manifest 版本提升到 `0.2.1` 并新增域名 host permission；移除 CSV 下载旧接口 `/api/asr-judgement/statistics/download`。
+- 合并快判统计资料目录：删除仅含 README 的 `platform-resources/alibaba-labelx/asr-judgement/statistics/`，统计宽表字段、上传规则和服务端合并契约统一维护到 `backend/README.md`。
