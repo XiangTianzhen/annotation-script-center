@@ -19,9 +19,10 @@
 
 - `edge-extension/extension/sites/alibaba-labelx/asr-judgement/`：快判运行时代码。
 - `edge-extension/extension/sites/alibaba-labelx/asr-transcription/`：转写运行时代码。
+- `platform-knowledge/`：Edge / Chrome 共用的平台资料库，保存 LabelX 页面结构、网络请求、统计格式和未完成事项。
 - 新任务如果是快判，不要误改 `asr-transcription/`，除非任务明确要求。
 - `edge-extension/extension/sites/alibaba-labelx/` 根目录不放业务 JS，业务运行时代码放在具体脚本目录里。
-- 快判页面 DOM 相关修改，优先参考 `page-structure/` 文档和 HTML 片段，不要凭印象猜结构。
+- 快判页面 DOM 或网络相关修改，优先参考 `platform-knowledge/alibaba-labelx/asr-judgement/` 下的文档和 HTML 片段，不要凭印象猜结构。
 
 ## 快判模块归属
 
@@ -35,7 +36,7 @@
 - `judgement-virtual-window.js`：未完成的实验性窗口化显示代码，当前前端不展示开关，运行时强制关闭。
 - `judgement-asr-diff-view.js`：ASR 文本对齐差异视图，隐藏原始双行文本并生成高亮对齐阅读区，维护差异高亮颜色。
 - `judgement-compact-card.js`：轻量题卡摘要，在对应 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，可视宽度跟随原题卡且不破坏 LabelX 原生多列布局。
-- `asr-judgement-server.js`：快判扩展侧统计上传模块，顶部导航头像旁挂载“上传统计”，详情页采集当前子任务，标注 / 审核首页通过 LabelX `tasks` / `subTasks` / `subTask/{id}/data` 批量采集，并上传给外部服务端。
+- `asr-judgement-server.js`：快判扩展侧统计上传模块，顶部导航头像旁挂载“上传统计”，详情页、标注首页、审核首页和定时上传统一通过 LabelX `tasks` / `subTasks` / `subTask/{id}/data` 按 `projectId` 批量采集，并上传给外部服务端。
 - `backend/`：快判统计本地 Node 调试服务目录，`server.js` 是启动入口，服务端按 `batchId` / 分包ID 合并 CSV 宽表。
 - `judgement-auto-advance.js`：选择判别结果后的当前页自动下一题。
 - `audio-controller.js`：音频扫描、配置、状态和动作路由。
@@ -52,8 +53,9 @@
   - `edge-extension/extension/shared/storage.js`
   - `edge-extension/extension/options/options.js`
   - `edge-extension/extension/sites/alibaba-labelx/asr-judgement/README.md`
-  - `edge-extension/extension/sites/alibaba-labelx/asr-judgement/page-structure/asr-judgement-detail/page-meta.md`
-- 涉及页面结构时，再读对应 `page-structure/` 下的 HTML 或 Markdown。
+  - `platform-knowledge/alibaba-labelx/asr-judgement/README.md`
+  - `platform-knowledge/alibaba-labelx/asr-judgement/page-structure/asr-judgement-detail/page-meta.md`
+- 涉及页面结构、网络请求或统计格式时，再读 `platform-knowledge/alibaba-labelx/asr-judgement/` 下对应资料。
 - 这是浏览器扩展 content script / MAIN world 注入环境，不是 Tampermonkey 脚本。
 - MAIN world 与 ISOLATED world 只能通过 `window.postMessage` 等桥接通信，注意 source/type 字符串一致。
 
@@ -62,7 +64,7 @@
 - 所有 Markdown 文档使用中文书写；技术文件名、API 名、选择器、代码标识可以保留英文。
 - 每次有功能、目录结构、模块归属、选择器或验证步骤变化，都要同步更新相关 README。
 - 每次有有意义的代码或行为变更，都要更新根目录 `log.md`。
-- 如果新增或确认 LabelX DOM 结构，优先整理到对应脚本目录下的 `page-structure/`。
+- 如果新增或确认 LabelX DOM 结构、网络请求或统计契约，优先整理到 `platform-knowledge/` 对应平台和脚本项目目录。
 
 ## 验证要求
 

@@ -1,5 +1,9 @@
 # LabelX ASR 更优判断网络采集索引
 
+## 目录定位
+
+本目录是 ASR 快判网络请求资料的主维护位置。旧目录 `edge-extension/extension/sites/alibaba-labelx/asr-judgement/page-structure/network-capture/` 暂时保留为迁移兼容快照；后续新增或修正网络采集资料时，应优先更新本目录。
+
 ## 当前阶段
 
 本目录记录通过 Chrome DevTools MCP 采集到的 LabelX ASR 更优判断相关网络请求结构。当前阶段已覆盖：

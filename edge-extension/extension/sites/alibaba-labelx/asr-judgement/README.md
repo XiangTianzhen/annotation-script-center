@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 已归档真实页面结构资料：`page-structure/`
+- 已归档真实页面结构和网络资料：`platform-knowledge/alibaba-labelx/asr-judgement/`
 - 快判在 options 中拥有独立脚本详情页和简化设置表单。
 - 快判已接入独立运行时，入口文件为 `content.js`、`audio-controller.js`、`page-world/network-observer.js`；音量、倍速、播放、分页、总时长、判别动作、快捷键、toast、工具栏、网络协议、ASR 差异视图、轻量题卡摘要和统计上传等能力已拆成小文件。
 - `content.js` 当前只作为入口编排层，不再承载具体功能实现。
@@ -13,7 +13,7 @@
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
 - options 快判详情页负责保存快判专属设置：全局音量、当前倍速、倍速步进、切换倍速重置、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、选择后辅助流转、统计上传、快捷键。
-- `page-structure/` 负责沉淀快判详情页和任务列表页 DOM 资料，供后续运行时实现使用。
+- 快判详情页和任务列表页 DOM / 网络资料统一沉淀到根目录 `platform-knowledge/alibaba-labelx/asr-judgement/`，供 Edge 和未来 Chrome 共用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
 
@@ -36,7 +36,7 @@
 - 该功能属于提效脚本，只增强阅读，不自动判断哪个 ASR 更好，不写入答案。
 - 设置字段为 `asrDiffViewEnabled`，默认开启；可在 options 快判设置中关闭，关闭后恢复 LabelX 原始文本展示。
 - 高亮颜色字段为 `asrDiffColors.changeBackground`、`asrDiffColors.gapBackground`、`asrDiffColors.punctuationBackground`，可在 options 中分别调整“替换 / 不同字”“缺字 / 多字”“标点 / 空格”的背景色；普通差异视图和轻量题卡摘要共用同一套颜色。
-- 如果后续发现页面结构变更导致误判，应先更新 `page-structure/` 再调整选择器。
+- 如果后续发现页面结构变更导致误判，应先更新 `platform-knowledge/alibaba-labelx/asr-judgement/page-structure/` 再调整选择器。
 
 ## 选择后辅助流转
 
@@ -101,7 +101,7 @@
 ## 全自动边界
 
 - 自动选择、自动保存、自动提交、自动领取和自动流转属于全自动能力。
-- 进入全自动前必须补齐保存、提交、失败响应、校验阻断、自动领取成功 / 失败等网络采集，并在 `README.md`、`page-structure/` 和 `log.md` 中记录验证范围。
+- 进入全自动前必须补齐保存、提交、失败响应、校验阻断、自动领取成功 / 失败等网络采集，并在 `README.md`、`platform-knowledge/` 和 `log.md` 中记录验证范围。
 - 未验证前，不允许让脚本静默提交或批量改写标注结果。
 
 ## 快捷键动作清单
@@ -237,10 +237,7 @@ asr-judgement/
     network-summary.js
     network-observer.js
   page-structure/
-    README.md
-    asr-judgement-detail/
-    labeling-task-home/
-    network-capture/
+    README.md  # 迁移兼容快照，新资料维护在 platform-knowledge/
 ```
 
 项目级维护规则与修改日志放在仓库根目录：
@@ -248,24 +245,39 @@ asr-judgement/
 - `AGENTS.md`
 - `log.md`
 
-## 页面结构资料
+## 平台资料
 
-`page-structure/` 记录通过 Google Chrome DevTools MCP 采集到的 LabelX 快判页面 DOM 结构。
+LabelX 快判页面结构、网络请求、统计格式和未完成事项已经迁移到根目录：
+
+```text
+platform-knowledge/alibaba-labelx/asr-judgement/
+```
+
+旧目录 `page-structure/` 暂时保留为兼容快照，不再作为新增资料的首选位置。
 
 已包含：
 
-- `asr-judgement-detail/`
+- `page-structure/asr-judgement-detail/`
   - 快判详情页
   - 多题卡结构
   - 音频播放器
   - ASR 更优单选组
   - 特殊情况文本框
   - 顶部提交与自动领取区域
-- `labeling-task-home/`
+- `page-structure/labeling-task-home/`
   - 标注任务列表页
   - 我的任务
   - 可领取任务
   - 领取 / 标注 / 释放按钮结构
+- `page-structure/check-task-home/`
+  - 审核任务列表页
+  - 审核首页接口参数和页面入口
+- `network/`
+  - 详情页 data、保存、提交、领取、释放和首页 tasks / subTasks 等网络采集资料
+- `statistics/`
+  - 统计 CSV、上传 payload 和本地调试服务契约说明
+- `unfinished.md`
+  - 未完成能力、风险点和后续验证条件
 
 ## 运行时模块边界
 
