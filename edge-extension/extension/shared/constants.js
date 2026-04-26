@@ -190,6 +190,7 @@
     asrDiffViewEnabled: true,
     asrDiffColors: clone(DEFAULT_JUDGEMENT_ASR_DIFF_COLORS),
     compactCardEnabled: true,
+    thunderQuestionEnabled: true,
     autoAdvanceAfterChoice: false,
     statsUploadEnabled: true,
     statsUploadEndpoint:

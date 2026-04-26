@@ -37,6 +37,7 @@
 - `judgement-duration-summary.js`：总时长请求、分页补齐和网络摘要归一化。
 - `judgement-virtual-window.js`：未完成的实验性窗口化显示代码，当前前端不展示开关，运行时强制关闭。
 - `judgement-asr-diff-view.js`：ASR 文本对齐差异视图，隐藏原始双行文本并生成高亮对齐阅读区，维护差异高亮颜色。
+- `judgement-thunder-question.js`：雷题库读取、题卡匹配、标准答案提示和当前选择不一致告警。
 - `judgement-compact-card.js`：轻量题卡摘要，在对应 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，可视宽度跟随原题卡且不破坏 LabelX 原生多列布局。
 - `asr-judgement-server.js`：快判扩展侧统计上传模块，顶部导航头像旁挂载“上传统计”，详情页、标注首页、审核首页和定时上传统一通过 LabelX `tasks` / `subTasks` / `subTask/{id}/data` 按 `projectId` 批量采集，并上传给外部服务端。
 - `platform-resources/backend/`：统一 Node 后端启动入口和基础路由工具，`server.js` 是推荐启动入口。

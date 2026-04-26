@@ -6,13 +6,13 @@
 
 - 已归档真实页面结构和网络资料：`platform-resources/alibaba-labelx/asr-judgement/`
 - 快判在 options 中拥有独立脚本详情页和简化设置表单。
-- 快判已接入独立运行时，入口文件为 `content.js`、`audio-controller.js`、`page-world/network-observer.js`；音量、倍速、播放、分页、总时长、判别动作、快捷键、toast、工具栏、网络协议、ASR 差异视图、轻量题卡摘要和统计上传等能力已拆成小文件。
+- 快判已接入独立运行时，入口文件为 `content.js`、`audio-controller.js`、`page-world/network-observer.js`；音量、倍速、播放、分页、总时长、判别动作、快捷键、toast、工具栏、网络协议、ASR 差异视图、轻量题卡摘要、雷题判断和统计上传等能力已拆成小文件。
 - `content.js` 当前只作为入口编排层，不再承载具体功能实现。
 
 ## 负责范围
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
-- options 快判详情页负责保存快判专属设置：全局音量、当前倍速、倍速步进、切换倍速重置、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、选择后辅助流转、统计上传、快捷键。
+- options 快判详情页负责保存快判专属设置：全局音量、当前倍速、倍速步进、切换倍速重置、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、雷题判断、选择后辅助流转、统计上传、快捷键。
 - 快判详情页和任务列表页 DOM / 网络资料统一沉淀到根目录 `platform-resources/alibaba-labelx/asr-judgement/`，供 Edge 和未来 Chrome 共用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
@@ -53,6 +53,7 @@
 - 文本布局增强：已将两条 ASR 文本改成更容易对齐阅读的双行显示，保留原文内容，不改变 LabelX 原始数据。
 - 选择后辅助流转：已支持在选择 `1~5` 后自动滚动到当前页下一题，仍不自动提交。
 - 轻量题卡摘要：已支持在每个题卡内部顶部显示“两个ASR文本”和“哪个ASR更优”的当前状态，可在 options 中开启或关闭；配合 LabelX 样式设置隐藏内容区 / 回答区和卡片大小调整，可以减少需要关注的可见内容。
+- 雷题判断：已支持基于本地 CSV 雷题库提示标准答案，并在当前选择与标准答案不一致时显示严重提示。
 
 ## 轻量题卡摘要
 
@@ -67,9 +68,18 @@
 - “哪个ASR更优”当前选择会按五个选项使用不同底色，便于在多题卡视图中快速区分。
 - 摘要块会在“哪个ASR更优”当前选择下方显示当前音频时间，例如 `0:07 / 0:07`；音频播放、跳转或元数据加载后会随题卡状态刷新。
 - 当“ASR 对齐差异视图”开启时，轻量摘要里的 `asr_text1` 和 `asr_text2` 也会使用同一套对齐高亮样式，并把差异摘要放在标题下方，尽量与右侧音频时间处于同一视觉高度；关闭该功能后恢复为普通文本。
+- 如果雷题判断开启且当前题卡命中雷题库，摘要块会显示“雷题：标准答案：...”；当前选择与标准答案不一致时显示“严重提示：该雷题与标准答案不一致”。
 - 该能力不替代原生单选写入；选择仍通过 `1~5` 快捷键、快判工具栏按钮或关闭隐藏样式后操作原页面完成。
 - 卡片大小仍由 LabelX 的“样式设置”控制，扩展只补充轻量摘要内容；摘要宽度跟随宿主题卡，不额外占用滚动容器的布局槽位。
 - 如果不使用 LabelX 隐藏样式，摘要块也会显示，但会与原内容 / 原回答区并存；不需要时直接在 options 关闭。
+
+## 雷题判断
+
+- 设置字段为 `thunderQuestionEnabled`，默认开启；可在 options 快判设置中关闭。
+- 雷题库文件为 `data/thunder-question-bank.csv`，随扩展打包，当前列为 `online_rec` 和 `better_asr`。
+- `judgement-thunder-question.js` 会解析雷题库中的 `asr_text1/asr_text2`，按两条 ASR 文本归一化后匹配当前题卡，不依赖题号或分页位置。
+- 命中雷题时，会在轻量题卡摘要和回答区“特殊情况标注”题块内插入提示，仅提示标准答案，不写入文本框，不自动选择答案。
+- 如果当前“哪个ASR更优”的选择与雷题库标准答案不一致，会在摘要和特殊情况标注区域显示红色严重提示，并弹出一次错误 toast。
 
 ## 统计数据上传
 
@@ -175,6 +185,13 @@
 12. 在 LabelX 样式设置中调整“卡片大小”或多列布局，确认 `.labelRender-scrollable > .labelRender-item` 仍按 LabelX 原生多列 / flex 规则排列，轻量摘要位于每个题卡内部并跟随该题卡宽度。
 13. 确认轻量摘要中的长 ASR 文本会自动换行并完整显示，不再出现单行省略号截断。
 14. 在隐藏内容区和回答区的状态下，按 `1`~`5` 或点击快判工具栏判别按钮，确认轻量摘要里的当前选择会更新，并且五种选项显示为不同颜色。
+
+雷题判断补充验证：
+
+- 在快判设置中确认“雷题判断”默认开启；打开命中雷题库的题卡，确认轻量题卡摘要和回答区“特殊情况标注”区域显示雷题标准答案。
+- 对命中雷题的题卡选择一个非标准答案，确认轻量题卡摘要和特殊情况标注区域显示红色“严重提示：该雷题与标准答案不一致”，并出现一次错误 toast。
+- 关闭“雷题判断”并保存刷新，确认雷题提示被移除，且不影响原有 ASR 差异视图和单选操作。
+
 15. 确认“两个ASR文本”位置和轻量题卡摘要内都显示扩展生成的对齐差异视图，缺字位置为空白占位，不同字符高亮，且摘要标签靠近标题区域。
 16. 在快判设置中修改 ASR 差异颜色并保存刷新，确认普通差异视图和轻量题卡摘要同步使用新颜色。
 17. 在快判设置中关闭“ASR 差异高亮”，保存并刷新详情页，确认恢复 LabelX 原始双行文本。
@@ -216,6 +233,7 @@ asr-judgement/
   judgement-duration-summary.js
   judgement-virtual-window.js
   judgement-asr-diff-view.js
+  judgement-thunder-question.js
   judgement-compact-card.js
   asr-judgement-server.js
   judgement-auto-advance.js
@@ -229,6 +247,8 @@ asr-judgement/
     network-url-rewriter.js
     network-summary.js
     network-observer.js
+  data/
+    thunder-question-bank.csv
 ```
 
 平台资源后端服务结构：
@@ -305,6 +325,7 @@ platform-resources/alibaba-labelx/asr-judgement/
 - `judgement-duration-summary.js`：维护总时长请求、分页补齐和网络摘要归一化。
 - `judgement-virtual-window.js`：暂存未完成的实验性窗口化显示代码，当前不启用。
 - `judgement-asr-diff-view.js`：维护 ASR 文本对齐差异视图、差异摘要、对齐算法和高亮颜色。
+- `judgement-thunder-question.js`：维护雷题库 CSV 读取、题卡匹配、特殊情况标注提示和标准答案不一致告警。
 - `judgement-compact-card.js`：维护轻量题卡摘要，在 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，并支持配合隐藏内容区 / 回答区和卡片宽度调整使用。
 - `asr-judgement-server.js`：维护扩展侧统计数据采集、首页 / 详情页手动上传、定时上传和基于上传接口的远程时间配置读取。
 - `platform-resources/backend/`：维护统一 Node 后端启动入口、基础路由、响应工具和项目 API 注册。
@@ -325,7 +346,7 @@ platform-resources/alibaba-labelx/asr-judgement/
 快判依赖 `manifest.json` 的数组顺序加载，不使用打包器或 ES module：
 
 - MAIN world：`network-protocol.js`、`network-config.js`、`network-url-rewriter.js`、`network-summary.js`、`network-observer.js`。
-- ISOLATED world：`page-detector.js`、音频小模块、`audio-controller.js`、分页/总时长模块、暂存窗口化模块、ASR 差异视图、轻量题卡摘要、统计上传、自动下一题、判别/提示/快捷键/工具栏模块、`content.js`。
+- ISOLATED world：`page-detector.js`、音频小模块、`audio-controller.js`、分页/总时长模块、暂存窗口化模块、ASR 差异视图、雷题判断、轻量题卡摘要、统计上传、自动下一题、判别/提示/快捷键/工具栏模块、`content.js`。
 
 调整文件名或新增模块时，必须同步更新 `manifest.json` 并验证脚本路径存在。
 

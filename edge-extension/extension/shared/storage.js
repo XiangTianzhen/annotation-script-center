@@ -333,6 +333,7 @@
       fallback
     );
     nextConfig.asrDiffColors = normalizeJudgementAsrDiffColors(nextConfig.asrDiffColors);
+    nextConfig.thunderQuestionEnabled = nextConfig.thunderQuestionEnabled !== false;
     return normalizeJudgementStatsConfig(nextConfig);
   }
 

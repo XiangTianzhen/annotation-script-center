@@ -331,6 +331,7 @@
         punctuationBackground: "#ede9fe",
       },
       compactCardEnabled: true,
+      thunderQuestionEnabled: true,
       autoAdvanceAfterChoice: false,
       statsUploadEnabled: true,
       statsUploadEndpoint: judgementStatsServerEndpoint,
@@ -409,6 +410,7 @@
       asrDiffViewEnabled: asrConfig.asrDiffViewEnabled !== false,
       asrDiffColors: asrDiffColors,
       compactCardEnabled: asrConfig.compactCardEnabled !== false,
+      thunderQuestionEnabled: asrConfig.thunderQuestionEnabled !== false,
       autoAdvanceAfterChoice: asrConfig.autoAdvanceAfterChoice === true,
       statsUploadEnabled: asrConfig.statsUploadEnabled !== false,
       statsUploadEndpoint: normalizeJudgementStatsEndpoint(
@@ -708,6 +710,7 @@
     getElement("judgement-diff-punctuation-bg").value =
       config.asrDiffColors.punctuationBackground;
     getElement("judgement-compact-card").checked = config.compactCardEnabled !== false;
+    getElement("judgement-thunder-question").checked = config.thunderQuestionEnabled !== false;
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     getElement("judgement-stats-upload-enabled").checked = config.statsUploadEnabled !== false;
     getElement("judgement-stats-upload-endpoint").value = config.statsUploadEndpoint || "";
@@ -929,6 +932,7 @@
       constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.asrDiffColors
     );
     const compactCardEnabled = Boolean(getElement("judgement-compact-card").checked);
+    const thunderQuestionEnabled = Boolean(getElement("judgement-thunder-question").checked);
     const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
     const statsUploadEnabled = Boolean(getElement("judgement-stats-upload-enabled").checked);
     const statsUploadEndpoint = normalizeJudgementStatsEndpoint(
@@ -957,6 +961,7 @@
         asrDiffViewEnabled: asrDiffViewEnabled,
         asrDiffColors: asrDiffColors,
         compactCardEnabled: compactCardEnabled,
+        thunderQuestionEnabled: thunderQuestionEnabled,
         autoAdvanceAfterChoice: autoAdvanceAfterChoice,
         statsUploadEnabled: statsUploadEnabled,
         statsUploadEndpoint: statsUploadEndpoint,

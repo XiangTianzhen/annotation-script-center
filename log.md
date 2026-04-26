@@ -55,3 +55,4 @@
 - 将快判统计服务器上传地址改为域名 `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload`，扩展 manifest 版本提升到 `0.2.1` 并新增域名 host permission；移除 CSV 下载旧接口 `/api/asr-judgement/statistics/download`。
 - 合并快判统计资料目录：删除仅含 README 的 `platform-resources/alibaba-labelx/asr-judgement/statistics/`，统计宽表字段、上传规则和服务端合并契约统一维护到 `backend/README.md`。
 - 恢复快判默认每页条数中的 `400 条/页` 入口：options 只新增 400 档位，运行时将 400 识别为自定义全量请求并改写详情页 `data` 请求，`100/150/200 条/页` 继续不开放并回退到 `50 条/页`。
+- 新增快判“雷题判断”能力：manifest 版本提升到 `0.2.2`，打包本地 `thunder-question-bank.csv` 雷题库，options 默认开启开关；命中雷题时在轻量题卡摘要和回答区“特殊情况标注”显示标准答案，当前选择与标准答案不一致时显示红色严重提示和错误 toast。

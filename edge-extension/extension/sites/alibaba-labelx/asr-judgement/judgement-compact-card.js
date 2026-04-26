@@ -126,6 +126,20 @@
       "  overflow: hidden;",
       "  text-overflow: ellipsis;",
       "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-thunder {",
+      "  margin: 4px 0 5px;",
+      "  padding: 4px 6px;",
+      "  border: 1px solid #fbbf24;",
+      "  border-radius: 4px;",
+      "  background: #fffbeb;",
+      "  color: #92400e;",
+      "  font-weight: 700;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-compact-thunder[data-mismatch='true'] {",
+      "  border-color: #ef4444;",
+      "  background: #fef2f2;",
+      "  color: #991b1b;",
+      "}",
       "[" + ROOT_ATTR + "] .asr-edge-compact-row {",
       "  display: grid;",
       "  grid-template-columns: 62px minmax(0, 1fr);",
@@ -300,6 +314,19 @@
 
   function getDiffModule() {
     return globalThis.__ASREdgeAlibabaLabelxJudgementAsrDiffView || null;
+  }
+
+  function getThunderModule() {
+    return globalThis.__ASREdgeAlibabaLabelxJudgementThunderQuestion || null;
+  }
+
+  function getThunderInfo(item) {
+    const thunderModule = getThunderModule();
+    if (thunderModule && typeof thunderModule.getItemInfo === "function") {
+      return thunderModule.getItemInfo(item);
+    }
+
+    return null;
   }
 
   function buildAlignment(first, second) {
@@ -520,6 +547,23 @@
     head.appendChild(meta);
     shell.appendChild(head);
 
+    if (data.thunderInfo) {
+      const thunderNode = appendText(
+        shell,
+        "asr-edge-compact-thunder",
+        data.thunderInfo.mismatch
+          ? "严重提示：该雷题与标准答案不一致。标准答案：" +
+              String(data.thunderInfo.standardAnswer || "未知") +
+              "；当前选择：" +
+              String(data.thunderInfo.selectedAnswer || "未选择")
+          : "雷题：标准答案：" +
+              String(data.thunderInfo.standardAnswer || "未知") +
+              "；当前选择：" +
+              String(data.thunderInfo.selectedAnswer || "未选择")
+      );
+      thunderNode.setAttribute("data-mismatch", data.thunderInfo.mismatch ? "true" : "false");
+    }
+
     if (data.renderDiff === true) {
       appendDiffRow(shell, "asr_text1", "left", alignment);
       appendDiffRow(shell, "asr_text2", "right", alignment);
@@ -539,6 +583,13 @@
       data.audioTimeText || "",
       data.renderDiff === true ? "diff" : "plain",
       data.renderDiff === true ? getColorSignature(data.diffColors) : "",
+      data.thunderInfo
+        ? [
+            data.thunderInfo.standardAnswer || "",
+            data.thunderInfo.selectedAnswer || "",
+            data.thunderInfo.mismatch ? "mismatch" : "ok",
+          ].join("|")
+        : "",
       data.first || "",
       data.second || "",
     ].join("\n---\n");
@@ -607,6 +658,7 @@
       audioTimeText: getAudioTimeText(item),
       renderDiff: renderDiff === true,
       diffColors: normalizeDiffColors(diffColors),
+      thunderInfo: getThunderInfo(item),
       first: pair.first,
       second: pair.second,
     };
@@ -650,6 +702,8 @@
   function createRuntime(deps) {
     const options = deps && typeof deps === "object" ? deps : {};
     const audioEvents = ["timeupdate", "loadedmetadata", "durationchange", "seeked", "play", "pause", "ended"];
+    const thunderModule = getThunderModule();
+    const thunderUpdatedEvent = thunderModule?.EVENT_UPDATED || "ASR_EDGE_JUDGEMENT_THUNDER_UPDATED";
     let observer = null;
     let timer = null;
     let started = false;
@@ -718,6 +772,7 @@
       });
       document.addEventListener("change", scheduleScan, true);
       window.addEventListener("resize", scheduleScan, true);
+      document.addEventListener(thunderUpdatedEvent, scheduleScan, true);
       audioEvents.forEach(function (eventName) {
         document.addEventListener(eventName, scheduleScan, true);
       });
@@ -736,6 +791,7 @@
       }
       document.removeEventListener("change", scheduleScan, true);
       window.removeEventListener("resize", scheduleScan, true);
+      document.removeEventListener(thunderUpdatedEvent, scheduleScan, true);
       audioEvents.forEach(function (eventName) {
         document.removeEventListener(eventName, scheduleScan, true);
       });

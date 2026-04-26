@@ -8,6 +8,7 @@
   const durationSummaryModule = globalThis.__ASREdgeAlibabaLabelxJudgementDurationSummary || null;
   const virtualWindowModule = globalThis.__ASREdgeAlibabaLabelxJudgementVirtualWindow || null;
   const diffViewModule = globalThis.__ASREdgeAlibabaLabelxJudgementAsrDiffView || null;
+  const thunderQuestionModule = globalThis.__ASREdgeAlibabaLabelxJudgementThunderQuestion || null;
   const compactCardModule = globalThis.__ASREdgeAlibabaLabelxJudgementCompactCard || null;
   const judgementServerModule = globalThis.__ASREdgeAlibabaLabelxJudgementServer || null;
   const autoAdvanceModule = globalThis.__ASREdgeAlibabaLabelxJudgementAutoAdvance || null;
@@ -36,6 +37,7 @@
   let toolbarRuntime = null;
   let virtualWindowRuntime = null;
   let diffViewRuntime = null;
+  let thunderQuestionRuntime = null;
   let compactCardRuntime = null;
   let judgementServerRuntime = null;
   let autoAdvanceRuntime = null;
@@ -118,6 +120,7 @@
         punctuationBackground: "#ede9fe",
       },
       compactCardEnabled: true,
+      thunderQuestionEnabled: true,
       autoAdvanceAfterChoice: false,
       statsUploadEnabled: true,
       statsUploadEndpoint:
@@ -667,6 +670,40 @@
     }
   }
 
+  function ensureThunderQuestionRuntime() {
+    if (
+      thunderQuestionRuntime ||
+      !thunderQuestionModule ||
+      typeof thunderQuestionModule.createRuntime !== "function"
+    ) {
+      return thunderQuestionRuntime;
+    }
+
+    thunderQuestionRuntime = thunderQuestionModule.createRuntime({
+      shouldApply: function () {
+        return Boolean(runtimeEnabled && isTopLevelContext());
+      },
+      getConfig: function () {
+        return getJudgementConfig(settings);
+      },
+      showToast: showRuntimeToast,
+    });
+    return thunderQuestionRuntime;
+  }
+
+  function startThunderQuestion() {
+    const runtime = ensureThunderQuestionRuntime();
+    if (runtime && typeof runtime.start === "function") {
+      runtime.start();
+    }
+  }
+
+  function stopThunderQuestion() {
+    if (thunderQuestionRuntime && typeof thunderQuestionRuntime.stop === "function") {
+      thunderQuestionRuntime.stop();
+    }
+  }
+
   function ensureCompactCardRuntime() {
     if (compactCardRuntime || !compactCardModule || typeof compactCardModule.createRuntime !== "function") {
       return compactCardRuntime;
@@ -760,6 +797,7 @@
       { name: "judgement-duration-summary", value: durationSummaryModule },
       { name: "judgement-virtual-window", value: virtualWindowModule },
       { name: "judgement-asr-diff-view", value: diffViewModule },
+      { name: "judgement-thunder-question", value: thunderQuestionModule },
       { name: "judgement-compact-card", value: compactCardModule },
       { name: "asr-judgement-server", value: judgementServerModule },
       { name: "judgement-auto-advance", value: autoAdvanceModule },
@@ -837,6 +875,10 @@
         compactCardRuntime && typeof compactCardRuntime.getState === "function"
           ? compactCardRuntime.getState()
           : null,
+      thunderQuestion:
+        thunderQuestionRuntime && typeof thunderQuestionRuntime.getState === "function"
+          ? thunderQuestionRuntime.getState()
+          : null,
       statsUpload:
         judgementServerRuntime && typeof judgementServerRuntime.getState === "function"
           ? judgementServerRuntime.getState()
@@ -908,6 +950,7 @@
     stopConfiguredPageSizeApply();
     stopVirtualWindow();
     stopDiffView();
+    stopThunderQuestion();
     stopCompactCard();
     stopJudgementServer();
     if (audioController && typeof audioController.stop === "function") {
@@ -957,6 +1000,7 @@
         startToolbar();
         startVirtualWindow();
         startDiffView();
+        startThunderQuestion();
         startCompactCard();
         startJudgementServer();
         postNetworkConfig(reason || "runtime-started");

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "标注脚本中心",
   "description": "多平台标注脚本中心与当前页面脚本状态入口。",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "permissions": [
     "storage",
     "tabs"
@@ -68,6 +68,7 @@
         "sites/alibaba-labelx/asr-judgement/judgement-duration-summary.js",
         "sites/alibaba-labelx/asr-judgement/judgement-virtual-window.js",
         "sites/alibaba-labelx/asr-judgement/judgement-asr-diff-view.js",
+        "sites/alibaba-labelx/asr-judgement/judgement-thunder-question.js",
         "sites/alibaba-labelx/asr-judgement/judgement-compact-card.js",
         "sites/alibaba-labelx/asr-judgement/asr-judgement-server.js",
         "sites/alibaba-labelx/asr-judgement/judgement-auto-advance.js",
@@ -133,6 +134,15 @@
       "resources": [
         "sites/alibaba-labelx/asr-transcription/page-world/*.js",
         "sites/alibaba-labelx/asr-transcription/page-world-hook.js"
+      ],
+      "matches": [
+        "https://labelx.alibaba-inc.com/*"
+      ],
+      "use_dynamic_url": true
+    },
+    {
+      "resources": [
+        "sites/alibaba-labelx/asr-judgement/data/thunder-question-bank.csv"
       ],
       "matches": [
         "https://labelx.alibaba-inc.com/*"
