@@ -95,6 +95,29 @@
     }
   }
 
+  function summarizeUploadResponseBody(body) {
+    if (!body) {
+      return "";
+    }
+
+    const text =
+      typeof body === "string"
+        ? body
+        : body.message
+          ? body.message
+          : JSON.stringify(body);
+    return String(text || "").replace(/\s+/g, " ").trim().slice(0, 300);
+  }
+
+  function getEndpointLabel(endpoint) {
+    try {
+      const url = new URL(endpoint);
+      return url.origin + url.pathname;
+    } catch (error) {
+      return String(endpoint || "").trim();
+    }
+  }
+
   function resolveUploadEndpoint(config) {
     const explicitEndpoint = normalizeEndpoint(config?.statsUploadEndpoint);
     if (explicitEndpoint) {
@@ -1152,12 +1175,42 @@
         const contentType = response.headers.get("content-type") || "";
         const body = contentType.indexOf("application/json") >= 0 ? await response.json() : await response.text();
         if (!response.ok) {
-          throw new Error("上传失败：" + String(response.status));
+          const responseSummary = summarizeUploadResponseBody(body);
+          throw new Error(
+            "上传失败：" +
+              String(response.status) +
+              (response.statusText ? " " + response.statusText : "") +
+              "；地址：" +
+              getEndpointLabel(endpoint) +
+              (responseSummary ? "；响应：" + responseSummary : "")
+          );
         }
         if (body && typeof body === "object" && body.success === false) {
-          throw new Error(body.message || "统计上传业务失败。");
+          throw new Error(
+            (body.message || "统计上传业务失败。") +
+              "；地址：" +
+              getEndpointLabel(endpoint)
+          );
         }
         return body;
+      } catch (error) {
+        if (error && error.name === "AbortError") {
+          throw new Error(
+            "上传请求超时：" +
+              String(timeoutMs) +
+              "ms；地址：" +
+              getEndpointLabel(endpoint)
+          );
+        }
+        if (error instanceof TypeError) {
+          throw new Error(
+            "上传请求未发出或被浏览器/网络拦截：" +
+              (error.message || String(error)) +
+              "；地址：" +
+              getEndpointLabel(endpoint)
+          );
+        }
+        throw error;
       } finally {
         if (timeoutId) {
           window.clearTimeout(timeoutId);

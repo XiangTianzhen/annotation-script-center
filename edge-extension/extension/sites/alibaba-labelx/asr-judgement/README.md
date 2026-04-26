@@ -101,6 +101,7 @@
 - 上传接口地址只保留两个选项：服务器 `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload` 和本机 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload`，默认使用服务器地址。历史保存的 `47.108.254.138:3333` 或旧 `/api/asr-judgement/statistics/upload` 配置会迁移到新地址。
 - 定时上传默认时间固定写在代码中，为 `10:00`、`16:00`；到点后会增加随机延迟，避免大量客户端同时请求服务器。options 不再配置本地默认时间和随机延迟。
 - 定时时间配置不再单独填写地址，而是使用当前“上传接口地址”发起 `GET` 请求并追加 `purpose=schedule`。当前支持响应形态中包含 `data.times`、`data.uploadTimes` 或 `data.scheduleTimes`，例如 `["10:00","16:00"]`；请求会附带当前 URL 的 `projectId` 和 `subTaskId`。请求失败时回退到代码内默认时间。本地服务也额外提供 `/api/asr-judgement/statistics/config` 便于直接检查配置。
+- 统计上传失败提示会包含 HTTP 状态码、上传接口地址和最多 300 字响应摘要；如果是浏览器权限、CORS、证书或网络拦截导致请求未发出，会明确提示“上传请求未发出或被浏览器/网络拦截”。
 - 服务端更推荐的抗峰值方案是：上传接口只做快速校验和入队 / upsert，返回 `202` 或轻量成功响应；后端队列再异步合并 CSV 和写数据库。这样比只靠客户端随机延迟更稳。
 
 ## 半自动功能池
