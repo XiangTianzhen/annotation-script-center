@@ -4,7 +4,7 @@
 
 本目录保存通过 Chrome DevTools、playwright-edge 或页面控制台采集的 LabelX ASR 快判页面结构资料，是当前主维护页面结构入口。
 
-旧位置 `edge-extension/extension/sites/alibaba-labelx/asr-judgement/page-structure/` 暂时保留为迁移兼容快照；后续新增或修正页面结构时，应优先更新本目录。
+旧位置 `edge-extension/extension/sites/alibaba-labelx/asr-judgement/page-structure/` 只保留跳转 README；后续新增或修正页面结构时，应优先更新本目录。
 
 ## 当前已采集页面
 

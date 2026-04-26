@@ -30,4 +30,4 @@ edge-extension/extension/sites/alibaba-labelx/asr-judgement/
 
 - 新增 LabelX DOM、网络请求或统计契约时，优先更新本目录。
 - 如果运行时代码仍引用旧路径，应同步更新对应 README，避免资料入口分裂。
-- `edge-extension/.../asr-judgement/page-structure/` 目前作为迁移兼容快照保留，后续新增资料不再写入旧目录。
+- `edge-extension/.../asr-judgement/page-structure/` 目前只保留跳转 README，不再保留页面结构和网络采集内容。

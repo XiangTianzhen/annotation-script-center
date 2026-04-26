@@ -7,7 +7,7 @@ const { createStatisticsStore } = require("./file-store");
 const host = process.env.ASR_JUDGEMENT_SERVER_HOST || "127.0.0.1";
 const port = Number(process.env.ASR_JUDGEMENT_SERVER_PORT || 3333);
 const dataDir =
-  process.env.ASR_JUDGEMENT_STATS_DIR || path.join(__dirname, "..", "statistics-data");
+  process.env.ASR_JUDGEMENT_STATS_DIR || path.join(__dirname, "statistics-data");
 const persistRowsJson = process.env.ASR_JUDGEMENT_PERSIST_ROWS_JSON === "1";
 const persistUploadEvents = process.env.ASR_JUDGEMENT_PERSIST_UPLOAD_EVENTS === "1";
 
@@ -18,20 +18,20 @@ const server = createLocalServer({ dataDir, persistRowsJson, persistUploadEvents
 
 server.listen(port, host, function () {
   console.info(
-    "[ASR Edge][judgement-stats-server] listening on http://" +
+    "[ASR Judgement][stats-server] listening on http://" +
       host +
       ":" +
       String(port) +
       UPLOAD_PATH
   );
   console.info(
-    "[ASR Edge][judgement-stats-server] config on http://" +
+    "[ASR Judgement][stats-server] config on http://" +
       host +
       ":" +
       String(port) +
       CONFIG_PATH
   );
-  console.info("[ASR Edge][judgement-stats-server] csv:", store.getPaths().csvPath);
+  console.info("[ASR Judgement][stats-server] csv:", store.getPaths().csvPath);
 });
 
 module.exports = server;
