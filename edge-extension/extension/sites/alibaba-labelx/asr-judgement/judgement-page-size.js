@@ -11,10 +11,19 @@
     };
   }
 
+  function buildCustomPageSize(pageSize) {
+    return {
+      mode: "custom",
+      pageSize: pageSize,
+      label: String(pageSize) + " 条/页",
+      nativeLabel: "50 条/页",
+    };
+  }
+
   function normalizePageSizeSetting(value, allPageSizeValue) {
     const maxPageSize = Number(allPageSizeValue) || DEFAULT_MAX_PAGE_SIZE;
     if (value === "all" || value === "全部") {
-      return buildNativePageSize(50);
+      return buildCustomPageSize(maxPageSize);
     }
 
     const match = String(value || "").match(/\d+/);
@@ -24,7 +33,11 @@
     }
 
     const pageSize = Math.max(1, Math.min(maxPageSize, Math.floor(numericValue)));
-    return nativePageSizes.indexOf(pageSize) >= 0 ? buildNativePageSize(pageSize) : buildNativePageSize(50);
+    if (nativePageSizes.indexOf(pageSize) >= 0) {
+      return buildNativePageSize(pageSize);
+    }
+
+    return pageSize === maxPageSize ? buildCustomPageSize(pageSize) : buildNativePageSize(50);
   }
 
   function getCurrentNativePageSizeLabel() {
