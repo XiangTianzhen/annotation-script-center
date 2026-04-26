@@ -46,8 +46,9 @@ node platform-resources\alibaba-labelx\asr-judgement\backend\server.js
 
 ```text
 http://127.0.0.1:3333/api/asr-judgement/statistics/upload
-http://127.0.0.1:3333/api/asr-judgement/statistics/download
 ```
+
+CSV 下载旧路径 `/api/asr-judgement/statistics/download` 已移除，不再兼容。
 
 可用环境变量：
 
@@ -76,7 +77,7 @@ http://127.0.0.1:3333/api/asr-judgement/statistics/download
 - `GET /api/alibaba-labelx/asr-judgement/statistics/health`：健康检查和当前 CSV 路径。
 - `GET /api/alibaba-labelx/asr-judgement/statistics/download`：下载当前 `statistics-merged.csv`。
 
-为了兼容当前扩展默认地址，上述接口同时保留 `/api/asr-judgement/statistics/...` 旧路径。
+为了兼容旧版扩展默认地址，上传、定时配置和健康检查仍保留 `/api/asr-judgement/statistics/...` 旧路径；CSV 下载旧路径不保留。
 
 ## 输出文件
 

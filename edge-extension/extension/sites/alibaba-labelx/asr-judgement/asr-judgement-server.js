@@ -2,9 +2,9 @@
   const LOG_PREFIX = "[ASR Edge][judgement-stats]";
   const DEFAULT_PAGE_SIZE = 400;
   const DEFAULT_HOME_PAGE_SIZE = 100;
-  const DEFAULT_UPLOAD_PATH = "/api/asr-judgement/statistics/upload";
+  const DEFAULT_UPLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/upload";
   const DEFAULT_SERVER_UPLOAD_ENDPOINT =
-    "http://47.108.254.138:3333" + DEFAULT_UPLOAD_PATH;
+    "https://script.xiangtianzhen.store" + DEFAULT_UPLOAD_PATH;
   const DEFAULT_UPLOAD_TIMES = ["10:00", "16:00"];
   const DEFAULT_UPLOAD_JITTER_MINUTES = 10;
   const JUDGEMENT_LABEL_MODEL = "vote";

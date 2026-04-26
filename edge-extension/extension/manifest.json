@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "标注脚本中心",
   "description": "多平台标注脚本中心与当前页面脚本状态入口。",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "permissions": [
     "storage",
     "tabs"
@@ -10,9 +10,9 @@
   "host_permissions": [
     "https://labelx.alibaba-inc.com/*",
     "https://label-cloud.lightwheel.net/*",
+    "https://script.xiangtianzhen.store/*",
     "http://47.108.254.138:3101/*",
     "http://127.0.0.1:3101/*",
-    "http://47.108.254.138:3333/*",
     "http://127.0.0.1:3333/*"
   ],
   "background": {

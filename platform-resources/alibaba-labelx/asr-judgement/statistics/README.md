@@ -23,7 +23,7 @@
 - `labelModel=single`、`taskName=中文普通话asr任务` 或 `size=50` 视为历史转写数据并跳过。
 - 有效时长以秒为单位，保留 4 位小数。
 - 本地调试服务默认输出到 `platform-resources/alibaba-labelx/asr-judgement/backend/statistics-data/statistics-merged.csv`。
-- CSV 下载接口：`GET /api/alibaba-labelx/asr-judgement/statistics/download`；当前兼容旧路径 `GET /api/asr-judgement/statistics/download`。
+- CSV 下载接口：`GET /api/alibaba-labelx/asr-judgement/statistics/download`；旧路径 `GET /api/asr-judgement/statistics/download` 已移除。
 
 ## 服务端合并契约
 

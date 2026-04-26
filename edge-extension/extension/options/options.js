@@ -8,9 +8,9 @@
   const judgementProjectId = constants.JUDGEMENT_PROJECT_ID || "judgement";
   const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
   const judgementStatsServerEndpoint =
-    "http://47.108.254.138:3333/api/asr-judgement/statistics/upload";
+    "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload";
   const judgementStatsLocalEndpoint =
-    "http://127.0.0.1:3333/api/asr-judgement/statistics/upload";
+    "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload";
   const judgementShortcutActions = constants.JUDGEMENT_SHORTCUT_ACTIONS || [
     { key: "choiceFirstBetter", label: "选择：第一个更好" },
     { key: "choiceSecondBetter", label: "选择：第二个更好" },

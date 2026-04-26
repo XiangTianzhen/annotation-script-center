@@ -15,7 +15,6 @@ const DOWNLOAD_PATH = API_BASE_PATH + "/download";
 const LEGACY_UPLOAD_PATH = LEGACY_API_BASE_PATH + "/upload";
 const LEGACY_CONFIG_PATH = LEGACY_API_BASE_PATH + "/config";
 const LEGACY_HEALTH_PATH = LEGACY_API_BASE_PATH + "/health";
-const LEGACY_DOWNLOAD_PATH = LEGACY_API_BASE_PATH + "/download";
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const DEFAULT_UPLOAD_TIMES = ["10:00", "16:00"];
 const DEFAULT_JITTER_MINUTES = 10;
@@ -73,7 +72,6 @@ function sendHealth(response, store) {
     configPath: CONFIG_PATH,
     legacyConfigPath: LEGACY_CONFIG_PATH,
     downloadPath: DOWNLOAD_PATH,
-    legacyDownloadPath: LEGACY_DOWNLOAD_PATH,
     csvPath: store.getPaths().csvPath,
   });
 }
@@ -173,7 +171,7 @@ function registerAsrJudgementRoutes(router, options) {
   addAliases(
     router,
     "GET",
-    [DOWNLOAD_PATH, LEGACY_DOWNLOAD_PATH],
+    [DOWNLOAD_PATH],
     function ({ request, response }) {
       handleDownloadCsv(request, response, store);
     }
@@ -181,7 +179,7 @@ function registerAsrJudgementRoutes(router, options) {
   addAliases(
     router,
     "HEAD",
-    [DOWNLOAD_PATH, LEGACY_DOWNLOAD_PATH],
+    [DOWNLOAD_PATH],
     function ({ request, response }) {
       handleDownloadCsv(request, response, store);
     }
@@ -195,7 +193,6 @@ module.exports = {
   HEALTH_PATH,
   LEGACY_API_BASE_PATH,
   LEGACY_CONFIG_PATH,
-  LEGACY_DOWNLOAD_PATH,
   LEGACY_HEALTH_PATH,
   LEGACY_UPLOAD_PATH,
   UPLOAD_PATH,

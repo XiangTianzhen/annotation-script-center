@@ -8,7 +8,6 @@ const {
   DOWNLOAD_PATH,
   HEALTH_PATH,
   LEGACY_CONFIG_PATH,
-  LEGACY_DOWNLOAD_PATH,
   LEGACY_HEALTH_PATH,
   LEGACY_UPLOAD_PATH,
   UPLOAD_PATH,
@@ -31,7 +30,6 @@ function createLocalServer(options) {
       healthPath: HEALTH_PATH,
       legacyHealthPath: LEGACY_HEALTH_PATH,
       downloadPath: DOWNLOAD_PATH,
-      legacyDownloadPath: LEGACY_DOWNLOAD_PATH,
     });
   });
 
@@ -42,7 +40,7 @@ function createLocalServer(options) {
 
 module.exports = {
   CONFIG_PATH: LEGACY_CONFIG_PATH,
-  DOWNLOAD_PATH: LEGACY_DOWNLOAD_PATH,
+  DOWNLOAD_PATH,
   HEALTH_PATH: LEGACY_HEALTH_PATH,
   UPLOAD_PATH: LEGACY_UPLOAD_PATH,
   NEW_CONFIG_PATH: CONFIG_PATH,

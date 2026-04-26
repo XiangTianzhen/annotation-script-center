@@ -263,17 +263,35 @@
     return result.length > 0 ? result : ["10:00", "16:00"];
   }
 
+  function normalizeJudgementStatsEndpoint(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    const defaultEndpoint = typeof fallback === "string" ? fallback : "";
+    const localEndpoint =
+      "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload";
+
+    if (!text) {
+      return defaultEndpoint;
+    }
+    if (text.indexOf("127.0.0.1:3333") >= 0 || text.indexOf("localhost:3333") >= 0) {
+      return localEndpoint;
+    }
+    if (
+      text.indexOf("47.108.254.138:3333") >= 0 ||
+      text.indexOf("/api/asr-judgement/statistics/upload") >= 0
+    ) {
+      return defaultEndpoint;
+    }
+    return text;
+  }
+
   function normalizeJudgementStatsConfig(config) {
     const defaults = getConstants().DEFAULT_JUDGEMENT_ASR_CONFIG || {};
     const nextConfig = isPlainObject(config) ? config : {};
     nextConfig.statsUploadEnabled = nextConfig.statsUploadEnabled !== false;
-    nextConfig.statsUploadEndpoint =
-      typeof nextConfig.statsUploadEndpoint === "string"
-        ? nextConfig.statsUploadEndpoint.trim()
-        : "";
-    if (!nextConfig.statsUploadEndpoint && typeof defaults.statsUploadEndpoint === "string") {
-      nextConfig.statsUploadEndpoint = defaults.statsUploadEndpoint;
-    }
+    nextConfig.statsUploadEndpoint = normalizeJudgementStatsEndpoint(
+      nextConfig.statsUploadEndpoint,
+      defaults.statsUploadEndpoint
+    );
     nextConfig.statsScheduleUrl = "";
     nextConfig.statsUploadTimes = normalizeTimeList(
       nextConfig.statsUploadTimes,

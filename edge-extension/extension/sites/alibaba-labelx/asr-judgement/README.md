@@ -76,7 +76,7 @@
 - `asr-judgement-server.js` 只负责扩展侧统计上传运行时，被 content script 注入到 LabelX 页面。
 - Node 本地统计接收服务已迁移到 `platform-resources/alibaba-labelx/asr-judgement/backend/`，不会被 manifest 注入；推荐统一启动入口是 `platform-resources/backend/server.js`。
 - 本地启动命令：在仓库根目录运行 `node platform-resources/backend/server.js`，默认监听 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload`，并兼容旧地址 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`。
-- CSV 下载接口：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download`，兼容旧地址 `http://127.0.0.1:3333/api/asr-judgement/statistics/download`。
+- CSV 下载接口：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download`；旧地址 `/api/asr-judgement/statistics/download` 已移除，不再兼容。
 - 本地服务默认只按 `分包ID` 合并生成 `statistics-data/statistics-merged.csv`；`statistics-rows.json` 和 `statistics-upload-events.jsonl` 默认不再写入，避免 10 万级数据长期占用磁盘。需要排查时可用环境变量临时开启。
 - 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 列顺序：`任务名称`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
 - 单条分包 payload 的基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端以 `mergeKey.batchId` / `分包ID` 做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
@@ -88,7 +88,7 @@
 - 标注员 / 审核员姓名优先从顶部头像下拉读取：脚本会对 `.NavAvatar-module__userInfoWrapper...avatar` 触发 hover，再读取下拉菜单中的用户展示名；读取失败时回退到接口字段。
 - options 的“统计数据上传”区域只保留启用开关、上传接口地址和定时上传开关，不再提供手动上传按钮。
 - 不再支持进入快判详情页自动上传，避免仅打开页面就产生统计写入。
-- 上传接口地址只保留两个选项：服务器 `http://47.108.254.138:3333/api/asr-judgement/statistics/upload` 和本机 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`，默认使用服务器地址。
+- 上传接口地址只保留两个选项：服务器 `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload` 和本机 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload`，默认使用服务器地址。历史保存的 `47.108.254.138:3333` 或旧 `/api/asr-judgement/statistics/upload` 配置会迁移到新地址。
 - 定时上传默认时间固定写在代码中，为 `10:00`、`16:00`；到点后会增加随机延迟，避免大量客户端同时请求服务器。options 不再配置本地默认时间和随机延迟。
 - 定时时间配置不再单独填写地址，而是使用当前“上传接口地址”发起 `GET` 请求并追加 `purpose=schedule`。当前支持响应形态中包含 `data.times`、`data.uploadTimes` 或 `data.scheduleTimes`，例如 `["10:00","16:00"]`；请求会附带当前 URL 的 `projectId` 和 `subTaskId`。请求失败时回退到代码内默认时间。本地服务也额外提供 `/api/asr-judgement/statistics/config` 便于直接检查配置。
 - 服务端更推荐的抗峰值方案是：上传接口只做快速校验和入队 / upsert，返回 `202` 或轻量成功响应；后端队列再异步合并 CSV 和写数据库。这样比只靠客户端随机延迟更稳。

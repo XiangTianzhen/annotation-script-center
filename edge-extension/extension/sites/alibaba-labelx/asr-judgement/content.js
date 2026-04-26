@@ -120,7 +120,8 @@
       compactCardEnabled: true,
       autoAdvanceAfterChoice: false,
       statsUploadEnabled: true,
-      statsUploadEndpoint: "http://47.108.254.138:3333/api/asr-judgement/statistics/upload",
+      statsUploadEndpoint:
+        "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload",
       statsScheduleUrl: "",
       statsUploadTimes: ["10:00", "16:00"],
       statsUploadJitterMinutes: 10,
