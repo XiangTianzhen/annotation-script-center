@@ -3,15 +3,16 @@
 ## 项目定位
 
 - 当前仓库根目录是 `C:\Projects\annotation-script-center`。
-- 当前重点项目是 `edge-extension/`，这是“标注脚本中心”的 Edge MV3 扩展版本。
+- 当前重点项目是 `edge-extension/extension/`，这是“标注脚本中心”的 Chrome / Chromium MV3 兼容扩展源码目录。
 - 当前重点平台是 `Alibaba LabelX`。
 - 当前重点脚本是 `edge-extension/extension/sites/alibaba-labelx/asr-judgement/`，即“阿里ASR语音判别 / ASR快判”。
-- `edge-extension` 是事实上的功能源头。Edge 扩展稳定后，再整体移植到 Chrome 扩展。
+- `edge-extension/extension/` 是唯一业务运行时代码源。Chrome 和 Edge 本地加载、打包、调试都应优先使用同一目录，不再复制一套业务逻辑。
 
 ## 开发策略
 
-- 先集中调试 Edge 扩展，不要同时维护 Edge 和 Chrome 两套业务逻辑。
-- 如果涉及 Edge / Chrome 差异，优先收敛到 `manifest`、浏览器 API 兼容层、打包配置或少量适配文件，业务运行时代码不要拆成两套。
+- 先继续以 Edge 作为主要人工验证浏览器，同时保持源码为 Chrome / Chromium MV3 通用形态。
+- 不要同时维护 Edge 和 Chrome 两套业务逻辑；Chrome、Edge 应加载同一个 `extension/` 目录或同一份打包产物。
+- 如果涉及 Edge / Chrome 差异，优先收敛到 `manifest`、浏览器 API 兼容层、打包配置、发布说明或少量适配文件，业务运行时代码不要拆成两套。
 - 判断和转写先完全独立，不提前抽公共 `shared` 业务目录。
 - 只有后续确认某些能力确实复用时，才允许提取公共目录，并在对应 README 和 `log.md` 里记录原因、调用方和验证步骤。
 
