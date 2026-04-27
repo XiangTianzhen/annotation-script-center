@@ -201,6 +201,52 @@ CSV 下载地址：
 https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/download
 ```
 
+### 扩展压缩包下载目录
+
+如果要让用户打开一个固定页面后自行选择下载哪个扩展压缩包，推荐把所有扩展 zip 放到服务器的 `dist/` 目录，并用 Nginx 的 `autoindex` 展示目录列表。
+
+服务器文件目录：
+
+```text
+/var/www/annotation-script-center/dist/
+```
+
+用户访问地址：
+
+```text
+https://script.xiangtianzhen.store/downloads/
+```
+
+Nginx 配置中需要把 `/downloads/` 放在 `location /` 反向代理之前：
+
+```nginx
+location /downloads/ {
+    alias /var/www/annotation-script-center/dist/;
+    autoindex on;
+    autoindex_exact_size off;
+    autoindex_localtime on;
+    default_type application/octet-stream;
+    add_header Cache-Control "no-store";
+}
+
+location / {
+    proxy_pass http://127.0.0.1:3333;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+注意：
+
+- `alias` 路径和 `location /downloads/` 都要以 `/` 结尾。
+- `dist/` 目录里建议只放对外分发的扩展压缩包，例如 `annotation-script-center-v0.2.5.zip`。
+- 如果访问 `https://script.xiangtianzhen.store/downloads` 没有尾部 `/` 出现异常，改用 `https://script.xiangtianzhen.store/downloads/`。
+- 配置后执行 `sudo nginx -t` 和 `sudo systemctl reload nginx`。
+- 验证目录列表：`curl -I https://script.xiangtianzhen.store/downloads/`。
+- 验证单个文件：`curl -I https://script.xiangtianzhen.store/downloads/annotation-script-center-v0.2.5.zip`。
+
 ## 维护规则
 
 - 所有 Markdown 文档使用中文。
