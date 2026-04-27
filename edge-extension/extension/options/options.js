@@ -23,6 +23,8 @@
     { key: "rateUp", label: "提高倍速" },
     { key: "rateDown", label: "降低倍速" },
     { key: "rateReset", label: "重置倍速" },
+    { key: "seekBackward", label: "后退当前音频" },
+    { key: "seekForward", label: "前进当前音频" },
     { key: "playPause", label: "播放/暂停当前音频" },
   ];
   const judgementItemsPerPageOptions = [
@@ -210,6 +212,16 @@
     return judgementStatsServerEndpoint;
   }
 
+  function normalizeJudgementRateStep(value, fallback) {
+    const allowedValues = [0.1, 0.25, 0.5, 1];
+    const numericValue = Number(value);
+    if (allowedValues.indexOf(numericValue) >= 0) {
+      return numericValue;
+    }
+
+    return allowedValues.indexOf(fallback) >= 0 ? fallback : 0.25;
+  }
+
   function hasOwn(target, key) {
     return Boolean(target) && Object.prototype.hasOwnProperty.call(target, key);
   }
@@ -321,6 +333,7 @@
       resetRateValue: 1.0,
       playbackRateValue: 1.0,
       rateStepValue: 0.25,
+      seekStepSeconds: 0.5,
       volumeValue: 100,
       itemsPerPage: "50 条/页",
       virtualWindowEnabled: false,
@@ -366,6 +379,22 @@
           key: "\\",
           button: null,
         },
+        seekBackward: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "ArrowLeft",
+          button: null,
+        },
+        seekForward: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "ArrowRight",
+          button: null,
+        },
       },
     };
     const shortcuts = {};
@@ -383,21 +412,30 @@
       shortcuts[action.key] = normalizeShortcut(shortcut);
     });
 
+    const defaultPlaybackRate = clampNumber(
+      hasOwn(asrConfig, "resetRateValue") ? asrConfig.resetRateValue : asrConfig.playbackRateValue,
+      defaults.resetRateValue || defaults.playbackRateValue || 1,
+      0.25,
+      5,
+      2
+    );
+
     return {
       autoPlay: asrConfig.autoPlay !== false,
       autoResetRate: true,
-      resetRateValue:
-        typeof asrConfig.resetRateValue === "number" && asrConfig.resetRateValue > 0
-          ? asrConfig.resetRateValue
-          : defaults.resetRateValue,
-      playbackRateValue:
-        typeof asrConfig.playbackRateValue === "number" && asrConfig.playbackRateValue > 0
-          ? asrConfig.playbackRateValue
-          : defaults.playbackRateValue,
-      rateStepValue:
-        typeof asrConfig.rateStepValue === "number" && asrConfig.rateStepValue > 0
-          ? asrConfig.rateStepValue
-          : defaults.rateStepValue,
+      resetRateValue: defaultPlaybackRate,
+      playbackRateValue: defaultPlaybackRate,
+      rateStepValue: normalizeJudgementRateStep(
+        asrConfig.rateStepValue,
+        defaults.rateStepValue || 0.25
+      ),
+      seekStepSeconds: clampNumber(
+        asrConfig.seekStepSeconds,
+        defaults.seekStepSeconds || 0.5,
+        0.1,
+        30,
+        2
+      ),
       volumeValue:
         typeof asrConfig.volumeValue === "number" && asrConfig.volumeValue >= 0
           ? asrConfig.volumeValue
@@ -699,9 +737,9 @@
     const config = normalizeJudgementConfig(settings);
     judgementShortcutsDraft = clone(config.shortcuts) || {};
     getElement("judgement-volume").value = String(config.volumeValue);
-    getElement("judgement-playback-rate").value = String(config.playbackRateValue);
     getElement("judgement-rate-step").value = String(config.rateStepValue);
     getElement("judgement-reset-rate").value = String(config.resetRateValue);
+    getElement("judgement-seek-step").value = String(config.seekStepSeconds);
     getElement("judgement-items-per-page").value = config.itemsPerPage;
     getElement("judgement-auto-play").checked = config.autoPlay === true;
     getElement("judgement-asr-diff-view").checked = config.asrDiffViewEnabled !== false;
@@ -914,9 +952,9 @@
     }
 
     const volumeValue = Number(getElement("judgement-volume").value);
-    const playbackRateValue = Number(getElement("judgement-playback-rate").value);
     const rateStepValue = Number(getElement("judgement-rate-step").value);
     const resetRateValue = Number(getElement("judgement-reset-rate").value);
+    const seekStepSeconds = Number(getElement("judgement-seek-step").value);
     const itemsPerPage = normalizeJudgementItemsPerPage(
       getElement("judgement-items-per-page").value,
       "50 条/页"
@@ -949,12 +987,14 @@
     setStatus("judgement-status", "正在保存语音判别设置...");
 
     try {
+      const defaultPlaybackRate = clampNumber(resetRateValue, 1.0, 0.25, 5, 2);
       currentSettings = await storage.saveProjectSettings(judgementProjectId, {
         volumeValue: clampNumber(volumeValue, 100, 0, 1000, 0),
-        playbackRateValue: clampNumber(playbackRateValue, 1.0, 0.25, 5, 2),
-        rateStepValue: clampNumber(rateStepValue, 0.25, 0.05, 1, 2),
+        playbackRateValue: defaultPlaybackRate,
+        rateStepValue: normalizeJudgementRateStep(rateStepValue, 0.25),
+        seekStepSeconds: clampNumber(seekStepSeconds, 0.5, 0.1, 30, 2),
         autoResetRate: true,
-        resetRateValue: clampNumber(resetRateValue, 1.0, 0.25, 5, 2),
+        resetRateValue: defaultPlaybackRate,
         itemsPerPage: itemsPerPage,
         autoPlay: autoPlay,
         virtualWindowEnabled: false,

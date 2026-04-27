@@ -107,11 +107,68 @@
     return playAudio(nextAudio, offset > 0 ? "play-next" : "play-previous", deps);
   }
 
+  function formatSeconds(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return "0 秒";
+    }
+
+    return Number(numericValue.toFixed(2)).toString() + " 秒";
+  }
+
+  function seekCurrent(direction, deps) {
+    const audio = deps.resolveCurrentAudio();
+    const reason = direction > 0 ? "seek-forward" : "seek-backward";
+    if (!audio) {
+      return Promise.resolve(
+        deps.buildActionResult(reason, false, {
+          reason: "audio-not-found",
+          message: "未找到可前进 / 后退的音频。",
+        })
+      );
+    }
+
+    const stepSeconds = deps.getSeekStepSeconds();
+    const currentTime = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : null;
+    const nextTime = Math.max(
+      0,
+      duration === null
+        ? currentTime + direction * stepSeconds
+        : Math.min(duration, currentTime + direction * stepSeconds)
+    );
+
+    try {
+      deps.applyAudio(audio, reason);
+      audio.currentTime = nextTime;
+      deps.updateCurrentAudioState(audio);
+      return Promise.resolve(
+        deps.buildActionResult(reason, true, {
+          currentAudioIndex: deps.getCurrentAudioIndex(),
+          currentTime: nextTime,
+          seekStepSeconds: stepSeconds,
+          message:
+            deps.getCurrentItemLabel() +
+            (direction > 0 ? "已前进 " : "已后退 ") +
+            formatSeconds(stepSeconds),
+        })
+      );
+    } catch (error) {
+      const result = deps.buildActionResult(reason, false, {
+        reason: error && error.message ? error.message : String(error),
+        message: "调整播放位置失败：" + (error && error.message ? error.message : String(error)),
+      });
+      deps.setLastError(result.reason);
+      return Promise.resolve(result);
+    }
+  }
+
   globalThis.__ASREdgeAlibabaLabelxJudgementPlaybackController = {
     playAudio: playAudio,
     autoplay: autoplay,
     resolveAutoplayTarget: resolveAutoplayTarget,
     playPauseCurrent: playPauseCurrent,
     playRelative: playRelative,
+    seekCurrent: seekCurrent,
   };
 })();

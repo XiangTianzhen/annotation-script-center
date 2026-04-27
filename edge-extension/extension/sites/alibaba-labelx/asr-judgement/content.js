@@ -111,6 +111,9 @@
       autoPlay: true,
       autoResetRate: true,
       resetRateValue: 1.0,
+      playbackRateValue: 1.0,
+      rateStepValue: 0.25,
+      seekStepSeconds: 0.5,
       volumeValue: 100,
       virtualWindowEnabled: false,
       asrDiffViewEnabled: true,
@@ -154,6 +157,22 @@
           shift: false,
           meta: false,
           key: "\\",
+          button: null,
+        },
+        seekBackward: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "ArrowLeft",
+          button: null,
+        },
+        seekForward: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "ArrowRight",
           button: null,
         },
         playPause: {
@@ -422,6 +441,7 @@
               (source === "shortcut" ? "快捷键已执行。" : "操作已执行。"),
             result?.ok === false || advanceResult?.ok === false ? "error" : "info"
           );
+          updateToolbarRuntimeStats();
         });
       })
       .catch(function (error) {
@@ -527,6 +547,43 @@
       : "进入页面后会尝试切换原生分页选择器。";
   }
 
+  function formatPlaybackRate(rateValue) {
+    const numericValue = Number(rateValue);
+    if (!Number.isFinite(numericValue)) {
+      return "1x";
+    }
+
+    return Number.isInteger(numericValue)
+      ? String(numericValue) + "x"
+      : Number(numericValue.toFixed(2)).toString() + "x";
+  }
+
+  function getAudioDefaultStatText() {
+    const config = getJudgementConfig(settings);
+    return [
+      "默认倍速 " + formatPlaybackRate(config.resetRateValue ?? config.playbackRateValue),
+      "默认音量 " + String(config.volumeValue) + "%",
+    ].join(" / ");
+  }
+
+  function getAudioDefaultStatTitle() {
+    const config = getJudgementConfig(settings);
+    return [
+      "默认倍速：" + formatPlaybackRate(config.resetRateValue ?? config.playbackRateValue),
+      "倍速步进：" + String(config.rateStepValue || 0.25),
+      "默认音量：" + String(config.volumeValue) + "%",
+      "前进 / 后退步长：" + String(config.seekStepSeconds || 0.5) + " 秒",
+    ].join("\n");
+  }
+
+  function getTopSummaryText() {
+    return [getDurationSummaryText(), getPageSizeStatText(), getAudioDefaultStatText()].join(" | ");
+  }
+
+  function getTopSummaryTitle() {
+    return [getDurationSummaryTitle(), getPageSizeStatTitle(), getAudioDefaultStatTitle()].join("\n\n");
+  }
+
   function ensureToolbarRuntime() {
     if (toolbarRuntime || !toolbarModule || typeof toolbarModule.createRuntime !== "function") {
       return toolbarRuntime;
@@ -544,6 +601,8 @@
       getDurationSummaryTitle: getDurationSummaryTitle,
       getPageSizeStatText: getPageSizeStatText,
       getPageSizeStatTitle: getPageSizeStatTitle,
+      getTopSummaryText: getTopSummaryText,
+      getTopSummaryTitle: getTopSummaryTitle,
       runActionWithFeedback: runActionWithFeedback,
     });
     return toolbarRuntime;

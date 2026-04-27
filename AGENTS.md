@@ -32,7 +32,7 @@
 - `judgement-actions.js`：判别选项、快捷键动作顺序和“哪个ASR更优”单选写入。
 - `judgement-shortcuts.js`：键盘 / 鼠标快捷键匹配、事件拦截和后续事件抑制。
 - `judgement-toast.js`：右上角运行时提示。
-- `judgement-toolbar.js`：`.mark-toolbox` 工具栏和顶部主导航总时长挂载。
+- `judgement-toolbar.js`：`.mark-toolbox` 工具栏和顶部主导航总时长 / 默认音频参数 / 每页条数挂载。
 - `judgement-page-size.js`：默认每页条数、原生分页选择器点击和重试。
 - `judgement-duration-summary.js`：总时长请求、分页补齐和网络摘要归一化。
 - `judgement-virtual-window.js`：未完成的实验性窗口化显示代码，当前前端不展示开关，运行时强制关闭。
@@ -43,10 +43,10 @@
 - `platform-resources/backend/`：统一 Node 后端启动入口和基础路由工具，`server.js` 是推荐启动入口。
 - `platform-resources/alibaba-labelx/asr-judgement/backend/`：快判统计本地 Node 调试服务目录，`index.js` 注册项目 API，`server.js` 保留为兼容启动入口。
 - `judgement-auto-advance.js`：选择判别结果后的当前页自动下一题。
-- `audio-controller.js`：音频扫描、配置、状态和动作路由。
-- `audio-volume-controller.js`：音量和 Web Audio gain。
-- `audio-rate-controller.js`：倍速、倍速显示和重置。
-- `audio-playback-controller.js`：播放、暂停、自动播放和相邻音频播放。
+- `audio-controller.js`：音频扫描、默认配置、单音频临时状态和动作路由。
+- `audio-volume-controller.js`：当前音频音量和 Web Audio gain；重置回 options 默认音量。
+- `audio-rate-controller.js`：当前音频倍速、倍速显示和重置；重置回 options 默认倍速。
+- `audio-playback-controller.js`：播放、暂停、自动播放、相邻音频播放和当前音频前进 / 后退。
 - `page-world/network-*.js`：运行在 MAIN world，负责 data 请求改写、响应摘要和 `postMessage`。
 
 ## 修改前检查

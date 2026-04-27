@@ -24,7 +24,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 15;
+  const SCHEMA_VERSION = 16;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
@@ -185,6 +185,7 @@
     resetRateValue: 1.0,
     playbackRateValue: 1.0,
     rateStepValue: 0.25,
+    seekStepSeconds: 0.5,
     volumeValue: 100,
     virtualWindowEnabled: false,
     asrDiffViewEnabled: true,
@@ -213,6 +214,8 @@
       rateUp: null,
       rateDown: null,
       rateReset: null,
+      seekBackward: createShortcut("ArrowLeft"),
+      seekForward: createShortcut("ArrowRight"),
       playPause: createShortcut("Space"),
     },
   };
@@ -229,6 +232,8 @@
     { key: "rateUp", label: "提高倍速" },
     { key: "rateDown", label: "降低倍速" },
     { key: "rateReset", label: "重置倍速" },
+    { key: "seekBackward", label: "后退当前音频" },
+    { key: "seekForward", label: "前进当前音频" },
     { key: "playPause", label: "播放/暂停当前音频" },
   ];
 
@@ -239,6 +244,7 @@
     "resetRateValue",
     "playbackRateValue",
     "rateStepValue",
+    "seekStepSeconds",
     "volumeValue",
     "virtualWindowEnabled",
     "asrDiffViewEnabled",

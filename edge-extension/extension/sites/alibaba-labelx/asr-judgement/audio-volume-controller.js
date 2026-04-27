@@ -32,32 +32,45 @@
   }
 
   function setRuntimeVolume(volumeValue, reason, deps) {
-    const nextVolumeValue = deps.clampNumber(volumeValue, deps.getRuntimeVolume(), 0, 1000, 0);
-    deps.setRuntimeVolume(nextVolumeValue);
+    const audio = deps.resolveCurrentAudio();
+    if (!audio) {
+      return deps.buildActionResult(reason || "volume", false, {
+        reason: "audio-not-found",
+        message: "未找到可调整音量的音频。",
+      });
+    }
 
-    deps.getAudios().forEach(function (audio) {
-      deps.applyAudio(audio, reason || "volume");
-    });
+    const fallbackVolume =
+      typeof deps.getCurrentAudioVolume === "function"
+        ? deps.getCurrentAudioVolume(audio)
+        : deps.getDefaultVolume();
+    const nextVolumeValue = deps.clampNumber(volumeValue, fallbackVolume, 0, 1000, 0);
+    if (typeof deps.setCurrentAudioVolume === "function") {
+      deps.setCurrentAudioVolume(audio, nextVolumeValue, reason || "volume");
+    } else {
+      setAudioVolume(audio, nextVolumeValue, deps);
+      deps.updateCurrentAudioState(audio);
+    }
 
     return deps.buildActionResult(reason || "volume", true, {
       volumeValue: nextVolumeValue,
       message:
         reason === "volume-reset"
-          ? "音量已重置为 " + String(nextVolumeValue) + "%"
-          : "音量已调整为 " + String(nextVolumeValue) + "%",
+          ? deps.getCurrentItemLabel() + "音量已重置为 " + String(nextVolumeValue) + "%"
+          : deps.getCurrentItemLabel() + "音量已调整为 " + String(nextVolumeValue) + "%",
     });
   }
 
   function adjustVolume(direction, deps) {
     return setRuntimeVolume(
-      deps.getRuntimeVolume() + direction * VOLUME_STEP_VALUE,
+      deps.getCurrentAudioVolume() + direction * VOLUME_STEP_VALUE,
       direction > 0 ? "volume-up" : "volume-down",
       deps
     );
   }
 
   function resetVolume(deps) {
-    return setRuntimeVolume(deps.getConfig().volumeValue, "volume-reset", deps);
+    return setRuntimeVolume(deps.getDefaultVolume(), "volume-reset", deps);
   }
 
   globalThis.__ASREdgeAlibabaLabelxJudgementVolumeController = {

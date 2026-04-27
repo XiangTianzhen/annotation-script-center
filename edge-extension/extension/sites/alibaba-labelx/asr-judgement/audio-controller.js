@@ -17,6 +17,7 @@
     resetRateValue: 1.0,
     playbackRateValue: 1.0,
     rateStepValue: 0.25,
+    seekStepSeconds: 0.5,
     volumeValue: 100,
   };
   let state = {
@@ -45,12 +46,24 @@
 
   function normalizeConfig(nextConfig) {
     const input = nextConfig && typeof nextConfig === "object" ? nextConfig : {};
+    const defaultPlaybackRate = clampNumber(
+      input.resetRateValue ?? input.playbackRateValue,
+      1.0,
+      0.25,
+      5,
+      2
+    );
+    const allowedRateSteps = [0.1, 0.25, 0.5, 1];
+    const inputRateStep = Number(input.rateStepValue);
+    const rateStepValue =
+      allowedRateSteps.indexOf(inputRateStep) >= 0 ? inputRateStep : 0.25;
     return {
       autoPlay: input.autoPlay !== false,
       autoResetRate: true,
-      resetRateValue: clampNumber(input.resetRateValue, 1.0, 0.25, 5, 2),
-      playbackRateValue: clampNumber(input.playbackRateValue, 1.0, 0.25, 5, 2),
-      rateStepValue: clampNumber(input.rateStepValue, 0.25, 0.05, 1, 2),
+      resetRateValue: defaultPlaybackRate,
+      playbackRateValue: defaultPlaybackRate,
+      rateStepValue: rateStepValue,
+      seekStepSeconds: clampNumber(input.seekStepSeconds, 0.5, 0.1, 30, 2),
       volumeValue: clampNumber(input.volumeValue, 100, 0, 1000, 0),
     };
   }
@@ -84,6 +97,8 @@
         lastSourceSignature: "",
         resettingRate: false,
         listenersBound: false,
+        volumeValue: runtimeVolumeValue,
+        playbackRateValue: runtimePlaybackRateValue,
       };
       audioNodes.set(audio, meta);
     }
@@ -94,11 +109,83 @@
     return audio.currentSrc || audio.src || audio.querySelector("source")?.src || "inline-audio";
   }
 
+  function getDefaultVolume() {
+    return clampNumber(config.volumeValue, 100, 0, 1000, 0);
+  }
+
+  function getDefaultPlaybackRate() {
+    return clampNumber(config.resetRateValue ?? config.playbackRateValue, 1.0, 0.25, 5, 2);
+  }
+
+  function resetAudioMetaToDefaults(meta) {
+    meta.volumeValue = getDefaultVolume();
+    meta.playbackRateValue = getDefaultPlaybackRate();
+    meta.lastApplySignature = "";
+  }
+
+  function ensureAudioMetaValues(meta) {
+    if (!Number.isFinite(Number(meta.volumeValue))) {
+      meta.volumeValue = getDefaultVolume();
+    }
+
+    if (!Number.isFinite(Number(meta.playbackRateValue))) {
+      meta.playbackRateValue = getDefaultPlaybackRate();
+    }
+  }
+
+  function getAudioVolumeValue(audio) {
+    if (!audio) {
+      return getDefaultVolume();
+    }
+
+    const meta = getAudioMeta(audio);
+    ensureAudioMetaValues(meta);
+    return clampNumber(meta.volumeValue, getDefaultVolume(), 0, 1000, 0);
+  }
+
+  function getAudioPlaybackRateValue(audio) {
+    if (!audio) {
+      return getDefaultPlaybackRate();
+    }
+
+    const meta = getAudioMeta(audio);
+    ensureAudioMetaValues(meta);
+    return clampNumber(meta.playbackRateValue, getDefaultPlaybackRate(), 0.25, 5, 2);
+  }
+
+  function setAudioVolumeValue(audio, volumeValue, reason) {
+    if (!audio) {
+      return getDefaultVolume();
+    }
+
+    const meta = getAudioMeta(audio);
+    meta.volumeValue = clampNumber(volumeValue, getDefaultVolume(), 0, 1000, 0);
+    meta.lastApplySignature = "";
+    applyAudio(audio, reason || "volume");
+    updateCurrentAudioState(audio);
+    return meta.volumeValue;
+  }
+
+  function setAudioPlaybackRateValue(audio, playbackRateValue, reason) {
+    if (!audio) {
+      return getDefaultPlaybackRate();
+    }
+
+    const meta = getAudioMeta(audio);
+    meta.playbackRateValue = clampNumber(playbackRateValue, getDefaultPlaybackRate(), 0.25, 5, 2);
+    meta.lastApplySignature = "";
+    applyAudio(audio, reason || "rate");
+    updateCurrentAudioState(audio);
+    return meta.playbackRateValue;
+  }
+
   function getAudioApplySignature(audio) {
+    const meta = getAudioMeta(audio);
+    ensureAudioMetaValues(meta);
     return [
       getAudioSourceSignature(audio),
-      runtimeVolumeValue,
-      runtimePlaybackRateValue,
+      getAudioVolumeValue(audio),
+      getAudioPlaybackRateValue(audio),
       config.autoPlay === true ? "autoplay" : "manual",
     ].join("|");
   }
@@ -152,11 +239,28 @@
       getRuntimeVolume: function () {
         return runtimeVolumeValue;
       },
+      getDefaultPlaybackRate: getDefaultPlaybackRate,
+      getDefaultVolume: getDefaultVolume,
+      getSeekStepSeconds: function () {
+        return config.seekStepSeconds;
+      },
+      getCurrentAudioPlaybackRate: function (audio) {
+        return getAudioPlaybackRateValue(audio || resolveCurrentAudio());
+      },
+      getCurrentAudioVolume: function (audio) {
+        return getAudioVolumeValue(audio || resolveCurrentAudio());
+      },
       getTaskItems: getTaskItems,
       pauseOtherAudios: pauseOtherAudios,
       resolveCurrentAudio: resolveCurrentAudio,
       setLastAutoplay: setLastAutoplay,
       setLastError: setLastError,
+      setCurrentAudioPlaybackRate: function (audio, rateValue, reason) {
+        return setAudioPlaybackRateValue(audio, rateValue, reason);
+      },
+      setCurrentAudioVolume: function (audio, volumeValue, reason) {
+        return setAudioVolumeValue(audio, volumeValue, reason);
+      },
       setRuntimePlaybackRate: function (rateValue) {
         runtimePlaybackRateValue = rateValue;
       },
@@ -186,7 +290,14 @@
       if (meta.resettingRate) {
         return;
       }
-      runtimePlaybackRateValue = clampNumber(audio.playbackRate, runtimePlaybackRateValue, 0.25, 5, 2);
+      meta.playbackRateValue = clampNumber(
+        audio.playbackRate,
+        meta.playbackRateValue || getDefaultPlaybackRate(),
+        0.25,
+        5,
+        2
+      );
+      meta.lastApplySignature = "";
       scheduleScan("ratechange");
     });
 
@@ -203,25 +314,27 @@
     const sourceSignature = getAudioSourceSignature(audio);
 
     if (meta.lastSourceSignature && meta.lastSourceSignature !== sourceSignature) {
-      runtimePlaybackRateValue = config.resetRateValue;
+      resetAudioMetaToDefaults(meta);
     }
+    ensureAudioMetaValues(meta);
     meta.lastSourceSignature = sourceSignature;
 
     const applySignature = getAudioApplySignature(audio);
-    const needsRateApply = Math.abs(audio.playbackRate - runtimePlaybackRateValue) > 0.001;
+    const audioPlaybackRate = getAudioPlaybackRateValue(audio);
+    const needsRateApply = Math.abs(audio.playbackRate - audioPlaybackRate) > 0.001;
     if (meta.lastApplySignature === applySignature && !needsRateApply) {
       return;
     }
 
     if (volumeController && typeof volumeController.setAudioVolume === "function") {
-      volumeController.setAudioVolume(audio, runtimeVolumeValue, getActionDeps());
+      volumeController.setAudioVolume(audio, getAudioVolumeValue(audio), getActionDeps());
     }
 
     if (needsRateApply) {
       meta.resettingRate = true;
-      audio.playbackRate = runtimePlaybackRateValue;
+      audio.playbackRate = audioPlaybackRate;
       if (rateController && typeof rateController.updateVisibleRate === "function") {
-        rateController.updateVisibleRate(audio, runtimePlaybackRateValue);
+        rateController.updateVisibleRate(audio, audioPlaybackRate);
       }
       window.setTimeout(function () {
         meta.resettingRate = false;
@@ -287,6 +400,12 @@
     state.currentAudioIndex = Number.isFinite(index) ? index : -1;
   }
 
+  function resetVisibleAudioDefaults() {
+    getAudios().forEach(function (audio) {
+      resetAudioMetaToDefaults(getAudioMeta(audio));
+    });
+  }
+
   function scan(reason) {
     if (!started) {
       return;
@@ -331,7 +450,8 @@
   function start(nextConfig) {
     config = normalizeConfig(nextConfig || config);
     runtimeVolumeValue = config.volumeValue;
-    runtimePlaybackRateValue = config.playbackRateValue;
+    runtimePlaybackRateValue = getDefaultPlaybackRate();
+    resetVisibleAudioDefaults();
 
     if (started) {
       scheduleScan("config-update");
@@ -366,7 +486,8 @@
   function updateConfig(nextConfig) {
     config = normalizeConfig(nextConfig || config);
     runtimeVolumeValue = config.volumeValue;
-    runtimePlaybackRateValue = config.playbackRateValue;
+    runtimePlaybackRateValue = getDefaultPlaybackRate();
+    resetVisibleAudioDefaults();
     scheduleScan("config-update");
   }
 
@@ -417,6 +538,18 @@
       }
       return Promise.resolve(rateController.resetRate(deps));
     }
+    if (actionKey === "seekBackward") {
+      if (!playbackController || typeof playbackController.seekCurrent !== "function") {
+        return buildMissingModuleResult(actionKey, "playback");
+      }
+      return playbackController.seekCurrent(-1, deps);
+    }
+    if (actionKey === "seekForward") {
+      if (!playbackController || typeof playbackController.seekCurrent !== "function") {
+        return buildMissingModuleResult(actionKey, "playback");
+      }
+      return playbackController.seekCurrent(1, deps);
+    }
     if (actionKey === "playPause") {
       if (!playbackController || typeof playbackController.playPauseCurrent !== "function") {
         return buildMissingModuleResult(actionKey, "playback");
@@ -438,6 +571,8 @@
       config: clone(config),
       runtimeVolumeValue: runtimeVolumeValue,
       runtimePlaybackRateValue: runtimePlaybackRateValue,
+      defaultVolumeValue: getDefaultVolume(),
+      defaultPlaybackRateValue: getDefaultPlaybackRate(),
     });
   }
 

@@ -43,6 +43,8 @@
     rateUp: "倍速 +",
     rateDown: "倍速 -",
     rateReset: "重置倍速",
+    seekBackward: "后退",
+    seekForward: "前进",
   };
   const shortcutActionOrder = [
     "choiceFirstBetter",
@@ -56,6 +58,8 @@
     "rateUp",
     "rateDown",
     "rateReset",
+    "seekBackward",
+    "seekForward",
     "playPause",
   ];
 

@@ -125,7 +125,7 @@
         alignItems: "center",
         justifyContent: "center",
         minHeight: "28px",
-        minWidth: "220px",
+        minWidth: "520px",
         marginLeft: "12px",
         marginRight: "12px",
         padding: "0 12px",
@@ -204,8 +204,14 @@
 
     function update() {
       if (topDurationRoot && topDurationRoot.isConnected) {
-        topDurationRoot.textContent = options.getDurationSummaryText();
-        topDurationRoot.title = options.getDurationSummaryTitle();
+        topDurationRoot.textContent =
+          typeof options.getTopSummaryText === "function"
+            ? options.getTopSummaryText()
+            : options.getDurationSummaryText();
+        topDurationRoot.title =
+          typeof options.getTopSummaryTitle === "function"
+            ? options.getTopSummaryTitle()
+            : options.getDurationSummaryTitle();
       }
 
       if (!toolbarRoot || !toolbarRoot.isConnected) {
@@ -303,7 +309,6 @@
         boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
       });
 
-      toolbarRoot.appendChild(createToolbarStat("page-size"));
       toolbarRoot.appendChild(createToolbarGroup("判别", options.getChoiceActions()));
       toolbarRoot.appendChild(
         createToolbarGroup("音量", [
@@ -317,6 +322,12 @@
           { key: "rateDown", label: audioActionLabels.rateDown },
           { key: "rateUp", label: audioActionLabels.rateUp },
           { key: "rateReset", label: audioActionLabels.rateReset },
+        ])
+      );
+      toolbarRoot.appendChild(
+        createToolbarGroup("进退", [
+          { key: "seekBackward", label: audioActionLabels.seekBackward },
+          { key: "seekForward", label: audioActionLabels.seekForward },
         ])
       );
       const breadcrumb = toolbox.querySelector(".mark-toolbox-breadcrumb-wrapper");

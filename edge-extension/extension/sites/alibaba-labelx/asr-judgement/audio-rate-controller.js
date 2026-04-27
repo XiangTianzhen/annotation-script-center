@@ -18,29 +18,43 @@
   }
 
   function setRuntimeRate(rateValue, reason, deps) {
-    const nextRateValue = deps.clampNumber(rateValue, deps.getRuntimePlaybackRate(), 0.25, 5, 2);
-    deps.setRuntimePlaybackRate(nextRateValue);
+    const audio = deps.resolveCurrentAudio();
+    if (!audio) {
+      return deps.buildActionResult(reason || "rate", false, {
+        reason: "audio-not-found",
+        message: "未找到可调整倍速的音频。",
+      });
+    }
 
-    deps.getAudios().forEach(function (audio) {
-      deps.applyAudio(audio, reason || "rate");
-    });
+    const fallbackRate =
+      typeof deps.getCurrentAudioPlaybackRate === "function"
+        ? deps.getCurrentAudioPlaybackRate(audio)
+        : deps.getDefaultPlaybackRate();
+    const nextRateValue = deps.clampNumber(rateValue, fallbackRate, 0.25, 5, 2);
+    if (typeof deps.setCurrentAudioPlaybackRate === "function") {
+      deps.setCurrentAudioPlaybackRate(audio, nextRateValue, reason || "rate");
+    } else {
+      audio.playbackRate = nextRateValue;
+      updateVisibleRate(audio, nextRateValue);
+      deps.updateCurrentAudioState(audio);
+    }
 
     return deps.buildActionResult(reason || "rate", true, {
       playbackRateValue: nextRateValue,
       message:
         reason === "rate-reset"
-          ? "倍速已重置为 " + formatRate(nextRateValue)
-          : "倍速已调整为 " + formatRate(nextRateValue),
+          ? deps.getCurrentItemLabel() + "倍速已重置为 " + formatRate(nextRateValue)
+          : deps.getCurrentItemLabel() + "倍速已调整为 " + formatRate(nextRateValue),
     });
   }
 
   function adjustRate(direction, deps) {
-    const nextRate = deps.getRuntimePlaybackRate() + direction * deps.getConfig().rateStepValue;
+    const nextRate = deps.getCurrentAudioPlaybackRate() + direction * deps.getConfig().rateStepValue;
     return setRuntimeRate(nextRate, direction > 0 ? "rate-up" : "rate-down", deps);
   }
 
   function resetRate(deps) {
-    return setRuntimeRate(deps.getConfig().resetRateValue, "rate-reset", deps);
+    return setRuntimeRate(deps.getDefaultPlaybackRate(), "rate-reset", deps);
   }
 
   globalThis.__ASREdgeAlibabaLabelxJudgementRateController = {

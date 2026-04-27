@@ -468,15 +468,15 @@
         <section id="detail-judgement-panel" class="detail-panel hidden">
           <div class="detail-grid two">
             <label class="field-card">
-              <strong>全局音量调节 (0~1000%)</strong>
-              <span>对页面上已有和后续加载的音频生效；快捷键调节步进固定为 50%。</span>
+              <strong>默认音量 (0~1000%)</strong>
+              <span>新加载音频默认使用该音量；快捷键只临时调整当前音频，重置音量回到这里的默认值。</span>
               <input id="judgement-volume" type="number" min="0" max="1000" step="50" />
             </label>
 
             <label class="field-card">
-              <strong>当前倍速</strong>
-              <span>保存后会应用到页面上已有和后续加载的音频。</span>
-              <input id="judgement-playback-rate" type="number" min="0.25" max="5" step="0.05" list="judgement-rate-options" />
+              <strong>默认倍速</strong>
+              <span>新加载音频默认使用该倍速；快捷键只临时调整当前音频，重置倍速回到这里的默认值。</span>
+              <input id="judgement-reset-rate" type="number" min="0.25" max="5" step="0.05" list="judgement-rate-options" />
               <datalist id="judgement-rate-options">
                 <option value="0.5"></option>
                 <option value="0.75"></option>
@@ -493,14 +493,19 @@
           <div class="detail-grid two">
             <label class="field-card">
               <strong>倍速步进</strong>
-              <span>用于“提高倍速 / 降低倍速”快捷键，建议 0.1 或 0.25。</span>
-              <input id="judgement-rate-step" type="number" min="0.05" max="1" step="0.05" />
+              <span>用于“提高倍速 / 降低倍速”快捷键，只影响当前音频。</span>
+              <select id="judgement-rate-step">
+                <option value="0.1">0.1</option>
+                <option value="0.25">0.25</option>
+                <option value="0.5">0.5</option>
+                <option value="1">1</option>
+              </select>
             </label>
 
             <label class="field-card">
-              <strong>切换倍速重置为</strong>
-              <span>该规则已强制启用；遇到新音频或音频源变化时，会自动重置为这里配置的倍速。</span>
-              <input id="judgement-reset-rate" type="number" min="0.1" max="8" step="0.1" />
+              <strong>前进 / 后退步长</strong>
+              <span>用于当前音频的快进和快退快捷键，默认 0.5 秒。</span>
+              <input id="judgement-seek-step" type="number" min="0.1" max="30" step="0.1" />
             </label>
 
             <label class="field-card">
@@ -603,7 +608,7 @@
 
           <div class="field-card shortcut-panel">
             <strong>快捷键配置</strong>
-            <span>默认 1~5 分别选择五个“哪个ASR更优”选项；默认增大音量为 [，减小音量为 ]，重置音量为 \，播放/暂停当前音频为 Space。点击“录制”后按键或点击鼠标按键；按 Esc 取消录制，不保存。</span>
+            <span>默认 1~5 分别选择五个“哪个ASR更优”选项；默认增大音量为 [，减小音量为 ]，重置音量为 \，后退/前进当前音频为方向键，播放/暂停当前音频为 Space。点击“录制”后按键或点击鼠标按键；按 Esc 取消录制，不保存。</span>
             <div id="judgement-shortcut-grid" class="shortcut-grid"></div>
             <div id="judgement-recording-status" class="shortcut-recording hidden"></div>
           </div>

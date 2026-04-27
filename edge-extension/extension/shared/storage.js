@@ -60,6 +60,7 @@
         "resetRateValue",
         "playbackRateValue",
         "rateStepValue",
+        "seekStepSeconds",
         "volumeValue",
         "virtualWindowEnabled",
         "asrDiffViewEnabled",
@@ -324,13 +325,62 @@
     return nextConfig;
   }
 
+  function normalizeClampedNumber(value, fallback, min, max, precision) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return fallback;
+    }
+
+    const clamped = Math.max(min, Math.min(max, numericValue));
+    return typeof precision === "number" ? Number(clamped.toFixed(precision)) : clamped;
+  }
+
+  function normalizeJudgementRateStep(value, fallback) {
+    const allowedValues = [0.1, 0.25, 0.5, 1];
+    const numericValue = Number(value);
+    if (allowedValues.indexOf(numericValue) >= 0) {
+      return numericValue;
+    }
+
+    return allowedValues.indexOf(fallback) >= 0 ? fallback : 0.25;
+  }
+
   function normalizeJudgementAsrConfig(config) {
     const constants = getConstants();
-    const fallback = constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.itemsPerPage || "50 条/页";
+    const defaults = constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {};
+    const fallback = defaults.itemsPerPage || "50 条/页";
     const nextConfig = isPlainObject(config) ? config : {};
     nextConfig.itemsPerPage = normalizeJudgementItemsPerPage(
       nextConfig.itemsPerPage,
       fallback
+    );
+    const defaultPlaybackRate = normalizeClampedNumber(
+      hasOwn(nextConfig, "resetRateValue") ? nextConfig.resetRateValue : nextConfig.playbackRateValue,
+      defaults.resetRateValue || defaults.playbackRateValue || 1,
+      0.25,
+      5,
+      2
+    );
+    nextConfig.autoResetRate = true;
+    nextConfig.resetRateValue = defaultPlaybackRate;
+    nextConfig.playbackRateValue = defaultPlaybackRate;
+    nextConfig.rateStepValue = normalizeJudgementRateStep(
+      nextConfig.rateStepValue,
+      defaults.rateStepValue || 0.25
+    );
+    nextConfig.seekStepSeconds = normalizeClampedNumber(
+      nextConfig.seekStepSeconds,
+      defaults.seekStepSeconds || 0.5,
+      0.1,
+      30,
+      2
+    );
+    nextConfig.volumeValue = normalizeClampedNumber(
+      nextConfig.volumeValue,
+      defaults.volumeValue || 100,
+      0,
+      1000,
+      0
     );
     nextConfig.asrDiffColors = normalizeJudgementAsrDiffColors(nextConfig.asrDiffColors);
     nextConfig.thunderQuestionEnabled = nextConfig.thunderQuestionEnabled !== false;
