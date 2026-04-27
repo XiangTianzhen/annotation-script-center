@@ -64,6 +64,40 @@ Chrome：
 - 浏览器差异优先收敛到 manifest、浏览器 API 兼容层、打包配置或发布说明，不复制 `sites/` 下的业务运行时代码。
 - 发布产物建议输出到 `dist/` 或 `extension/dist/`，这些目录已被 `.gitignore` 忽略。
 
+### 生成扩展压缩包
+
+在仓库根目录用 PowerShell 运行：
+
+```powershell
+$manifest = Get-Content -Raw extension\manifest.json | ConvertFrom-Json
+$zipPath = "dist\annotation-script-center-v$($manifest.version).zip"
+New-Item -ItemType Directory -Force dist | Out-Null
+if (Test-Path $zipPath) {
+  Remove-Item $zipPath
+}
+Compress-Archive -Path extension\* -DestinationPath $zipPath -Force
+Write-Host "已生成：$zipPath"
+```
+
+生成后的压缩包路径示例：
+
+```text
+dist\annotation-script-center-v0.2.5.zip
+```
+
+压缩包内部第一层必须能直接看到这些内容：
+
+```text
+manifest.json
+background/
+options/
+popup/
+shared/
+sites/
+```
+
+不要把整个 `extension/` 文件夹作为压缩包内的第一层目录；否则 Chrome Web Store、Edge Add-ons 或本地安装都会找不到根级 `manifest.json`。
+
 ## 本地后端
 
 在仓库根目录运行：

@@ -2,6 +2,7 @@
 
 ## 2026-04-27
 
+- 补充根目录 README 和扩展源码 README 的扩展压缩包生成命令，明确压缩包根级必须直接包含 `manifest.json`；同步补强 `.gitignore` 对旧 `edge-extension/dist/` 的忽略规则。
 - 将扩展源码从 `edge-extension/extension/` 迁移到仓库根目录 `extension/`，将历史文档迁移到 `docs/extension/`，将旧参考脚本迁移到 `legacy-reference/`；新增根目录 README 的本地加载、打包和服务器部署说明，并新增 `.gitignore` 忽略 `dist/` 等构建产物。
 - 将扩展定位调整为 Chrome / Chromium MV3 单源码形态：Chrome 和 Edge 都加载同一个 `extension/` 目录，不再规划复制一套业务运行时代码；同步更新维护说明、本地加载说明和扩展源码目录 README。
 - 为快判新增当前音频前进 / 后退快捷键动作，默认 `ArrowLeft` 后退、`ArrowRight` 前进，前进 / 后退步长默认 `0.5` 秒并可在 options 中配置。

@@ -20,7 +20,7 @@
 
 - `extension/sites/alibaba-labelx/asr-judgement/`：快判运行时代码。
 - `extension/sites/alibaba-labelx/asr-transcription/`：转写运行时代码。
-- `platform-resources/`：Edge / Chrome 共用的平台资源库，保存 LabelX 页面结构、网络请求、统计格式、未完成事项和浏览器无关调试工具。
+- `platform-resources/`：Chrome / Edge 共用的平台资源库，保存 LabelX 页面结构、网络请求、统计格式、未完成事项和浏览器无关调试工具。
 - `platform-resources/backend/`：平台资源统一 Node 后端入口，后续新增平台 / 项目 API 时优先接入这里。
 - `platform-resources/alibaba-labelx/asr-judgement/backend/`：快判统计上传本地 Node 调试服务，按 `batchId` / 分包ID 合并 CSV 宽表。
 - 新任务如果是快判，不要误改 `asr-transcription/`，除非任务明确要求。

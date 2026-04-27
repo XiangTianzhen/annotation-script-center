@@ -1,5 +1,6 @@
 # 构建和发布产物
 /dist/
+/edge-extension/dist/
 /extension/dist/
 *.zip
 *.crx

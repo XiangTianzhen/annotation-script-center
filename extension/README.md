@@ -13,3 +13,19 @@
 - 浏览器差异优先放到 manifest、浏览器 API 兼容层、打包配置或发布说明里处理。
 - 打包发布时，压缩包根目录必须直接包含 `manifest.json`、`background/`、`options/`、`popup/`、`shared/` 和 `sites/`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
+
+## 生成压缩包
+
+在仓库根目录运行：
+
+```powershell
+$manifest = Get-Content -Raw extension\manifest.json | ConvertFrom-Json
+$zipPath = "dist\annotation-script-center-v$($manifest.version).zip"
+New-Item -ItemType Directory -Force dist | Out-Null
+if (Test-Path $zipPath) {
+  Remove-Item $zipPath
+}
+Compress-Archive -Path extension\* -DestinationPath $zipPath -Force
+```
+
+上传商城或分发给同事时使用生成的 `dist\annotation-script-center-v版本号.zip`。压缩包内部第一层必须直接包含 `manifest.json`，不要多套一层 `extension/` 目录。
