@@ -345,6 +345,16 @@
     return allowedValues.indexOf(fallback) >= 0 ? fallback : 0.25;
   }
 
+  function normalizeJudgementSeekStep(value, fallback) {
+    const allowedValues = [0.1, 0.25, 0.5, 1];
+    const numericValue = Number(value);
+    if (allowedValues.indexOf(numericValue) >= 0) {
+      return numericValue;
+    }
+
+    return allowedValues.indexOf(fallback) >= 0 ? fallback : 0.5;
+  }
+
   function normalizeJudgementAsrConfig(config) {
     const constants = getConstants();
     const defaults = constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {};
@@ -368,12 +378,9 @@
       nextConfig.rateStepValue,
       defaults.rateStepValue || 0.25
     );
-    nextConfig.seekStepSeconds = normalizeClampedNumber(
+    nextConfig.seekStepSeconds = normalizeJudgementSeekStep(
       nextConfig.seekStepSeconds,
-      defaults.seekStepSeconds || 0.5,
-      0.1,
-      30,
-      2
+      defaults.seekStepSeconds || 0.5
     );
     nextConfig.volumeValue = normalizeClampedNumber(
       nextConfig.volumeValue,

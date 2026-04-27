@@ -57,13 +57,17 @@
     const inputRateStep = Number(input.rateStepValue);
     const rateStepValue =
       allowedRateSteps.indexOf(inputRateStep) >= 0 ? inputRateStep : 0.25;
+    const allowedSeekSteps = [0.1, 0.25, 0.5, 1];
+    const inputSeekStep = Number(input.seekStepSeconds);
+    const seekStepSeconds =
+      allowedSeekSteps.indexOf(inputSeekStep) >= 0 ? inputSeekStep : 0.5;
     return {
       autoPlay: input.autoPlay !== false,
       autoResetRate: true,
       resetRateValue: defaultPlaybackRate,
       playbackRateValue: defaultPlaybackRate,
       rateStepValue: rateStepValue,
-      seekStepSeconds: clampNumber(input.seekStepSeconds, 0.5, 0.1, 30, 2),
+      seekStepSeconds: seekStepSeconds,
       volumeValue: clampNumber(input.volumeValue, 100, 0, 1000, 0),
     };
   }

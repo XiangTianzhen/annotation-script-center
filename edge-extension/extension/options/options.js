@@ -222,6 +222,16 @@
     return allowedValues.indexOf(fallback) >= 0 ? fallback : 0.25;
   }
 
+  function normalizeJudgementSeekStep(value, fallback) {
+    const allowedValues = [0.1, 0.25, 0.5, 1];
+    const numericValue = Number(value);
+    if (allowedValues.indexOf(numericValue) >= 0) {
+      return numericValue;
+    }
+
+    return allowedValues.indexOf(fallback) >= 0 ? fallback : 0.5;
+  }
+
   function hasOwn(target, key) {
     return Boolean(target) && Object.prototype.hasOwnProperty.call(target, key);
   }
@@ -429,12 +439,9 @@
         asrConfig.rateStepValue,
         defaults.rateStepValue || 0.25
       ),
-      seekStepSeconds: clampNumber(
+      seekStepSeconds: normalizeJudgementSeekStep(
         asrConfig.seekStepSeconds,
-        defaults.seekStepSeconds || 0.5,
-        0.1,
-        30,
-        2
+        defaults.seekStepSeconds || 0.5
       ),
       volumeValue:
         typeof asrConfig.volumeValue === "number" && asrConfig.volumeValue >= 0
@@ -992,7 +999,7 @@
         volumeValue: clampNumber(volumeValue, 100, 0, 1000, 0),
         playbackRateValue: defaultPlaybackRate,
         rateStepValue: normalizeJudgementRateStep(rateStepValue, 0.25),
-        seekStepSeconds: clampNumber(seekStepSeconds, 0.5, 0.1, 30, 2),
+        seekStepSeconds: normalizeJudgementSeekStep(seekStepSeconds, 0.5),
         autoResetRate: true,
         resetRateValue: defaultPlaybackRate,
         itemsPerPage: itemsPerPage,
