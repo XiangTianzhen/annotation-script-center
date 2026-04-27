@@ -2,7 +2,7 @@
 
 ## 目录定位
 
-本目录是 ASR 快判网络请求资料的主维护位置。旧目录 `edge-extension/extension/sites/alibaba-labelx/asr-judgement/page-structure/network-capture/` 已移除；后续新增或修正网络采集资料时，应优先更新本目录。
+本目录是 ASR 快判网络请求资料的主维护位置。扩展运行时代码目录 `extension/sites/alibaba-labelx/asr-judgement/` 不再保存网络采集资料；后续新增或修正网络采集资料时，应优先更新本目录。
 
 ## 当前阶段
 

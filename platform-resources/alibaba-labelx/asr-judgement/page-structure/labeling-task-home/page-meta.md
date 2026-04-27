@@ -4,9 +4,9 @@
 - 页面类型：LabelX 标注首页 / 标注任务列表页
 - 页面 URL 样例：`https://labelx.alibaba-inc.com/corpora/labeling/labelingTask?projectId=<REDACTED_PROJECT_ID>`
 - 页面用途：展示已领取标注子任务和可领取任务，并提供进入标注详情、释放任务、领取任务的入口
-- 本地 Console 导出文件：
-  - `C:\Projects\annotation-script-center\edge-extension\脚本输出文件\首页1.json`
-  - `C:\Projects\annotation-script-center\edge-extension\脚本输出文件\首页2.json`
+- 历史本地 Console 导出文件：
+  - `C:\Projects\annotation-script-center\platform-resources\alibaba-labelx\asr-judgement\page-structure\labeling-task-home\首页1.json`
+  - `C:\Projects\annotation-script-center\platform-resources\alibaba-labelx\asr-judgement\page-structure\labeling-task-home\首页2.json`
 - Console 导出概要：
   - buttons：13
   - radios：0

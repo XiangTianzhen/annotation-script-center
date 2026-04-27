@@ -7,7 +7,7 @@
 转写运行时代码仍在：
 
 ```text
-edge-extension/extension/sites/alibaba-labelx/asr-transcription/
+extension/sites/alibaba-labelx/asr-transcription/
 ```
 
 ## 后续迁移规则

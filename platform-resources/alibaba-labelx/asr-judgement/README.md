@@ -2,12 +2,12 @@
 
 ## 目录用途
 
-本目录是 ASR 快判的平台资源入口，记录页面结构、网络请求、统计数据格式、本地调试后端和未完成能力。这里是 Edge / Chrome 共用资源，不放扩展运行时代码。
+本目录是 ASR 快判的平台资源入口，记录页面结构、网络请求、统计数据格式、本地调试后端和未完成能力。这里是 Chrome / Edge 共用资源，不放扩展运行时代码。
 
 对应运行时代码仍在：
 
 ```text
-edge-extension/extension/sites/alibaba-labelx/asr-judgement/
+extension/sites/alibaba-labelx/asr-judgement/
 ```
 
 ## 子目录
@@ -30,4 +30,4 @@ edge-extension/extension/sites/alibaba-labelx/asr-judgement/
 
 - 新增 LabelX DOM、网络请求或统计契约时，优先更新本目录。
 - 如果运行时代码仍引用旧路径，应同步更新对应 README，避免资料入口分裂。
-- `edge-extension/.../asr-judgement/page-structure/` 已移除；页面结构和网络采集内容统一维护在本目录。
+- `extension/sites/alibaba-labelx/asr-judgement/page-structure/` 不再保存快判页面结构；页面结构和网络采集内容统一维护在本目录。

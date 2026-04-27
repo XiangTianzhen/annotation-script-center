@@ -2,7 +2,7 @@
 
 ## 平台范围
 
-本目录保存 Alibaba LabelX 相关的平台资料和调试工具，供 Edge 扩展和未来 Chrome 扩展共同参考。
+本目录保存 Alibaba LabelX 相关的平台资料和调试工具，供 Chrome / Edge 共用的 `extension/` 扩展源码共同参考。
 
 当前已整理的脚本项目：
 

@@ -3,10 +3,10 @@
 ## 项目定位
 
 - 当前仓库根目录是 `C:\Projects\annotation-script-center`。
-- 当前重点项目是 `edge-extension/extension/`，这是“标注脚本中心”的 Chrome / Chromium MV3 兼容扩展源码目录。
+- 当前重点项目是 `extension/`，这是“标注脚本中心”的 Chrome / Chromium MV3 兼容扩展源码目录。
 - 当前重点平台是 `Alibaba LabelX`。
-- 当前重点脚本是 `edge-extension/extension/sites/alibaba-labelx/asr-judgement/`，即“阿里ASR语音判别 / ASR快判”。
-- `edge-extension/extension/` 是唯一业务运行时代码源。Chrome 和 Edge 本地加载、打包、调试都应优先使用同一目录，不再复制一套业务逻辑。
+- 当前重点脚本是 `extension/sites/alibaba-labelx/asr-judgement/`，即“阿里ASR语音判别 / ASR快判”。
+- `extension/` 是唯一业务运行时代码源。Chrome 和 Edge 本地加载、打包、调试都应优先使用同一目录，不再复制一套业务逻辑。
 
 ## 开发策略
 
@@ -18,13 +18,13 @@
 
 ## 目录边界
 
-- `edge-extension/extension/sites/alibaba-labelx/asr-judgement/`：快判运行时代码。
-- `edge-extension/extension/sites/alibaba-labelx/asr-transcription/`：转写运行时代码。
+- `extension/sites/alibaba-labelx/asr-judgement/`：快判运行时代码。
+- `extension/sites/alibaba-labelx/asr-transcription/`：转写运行时代码。
 - `platform-resources/`：Edge / Chrome 共用的平台资源库，保存 LabelX 页面结构、网络请求、统计格式、未完成事项和浏览器无关调试工具。
 - `platform-resources/backend/`：平台资源统一 Node 后端入口，后续新增平台 / 项目 API 时优先接入这里。
 - `platform-resources/alibaba-labelx/asr-judgement/backend/`：快判统计上传本地 Node 调试服务，按 `batchId` / 分包ID 合并 CSV 宽表。
 - 新任务如果是快判，不要误改 `asr-transcription/`，除非任务明确要求。
-- `edge-extension/extension/sites/alibaba-labelx/` 根目录不放业务 JS，业务运行时代码放在具体脚本目录里。
+- `extension/sites/alibaba-labelx/` 根目录不放业务 JS，业务运行时代码放在具体脚本目录里。
 - 快判页面 DOM 或网络相关修改，优先参考 `platform-resources/alibaba-labelx/asr-judgement/` 下的文档和 HTML 片段，不要凭印象猜结构。
 
 ## 快判模块归属
@@ -53,11 +53,11 @@
 ## 修改前检查
 
 - 修改快判前先读：
-  - `edge-extension/extension/manifest.json`
-  - `edge-extension/extension/shared/constants.js`
-  - `edge-extension/extension/shared/storage.js`
-  - `edge-extension/extension/options/options.js`
-  - `edge-extension/extension/sites/alibaba-labelx/asr-judgement/README.md`
+  - `extension/manifest.json`
+  - `extension/shared/constants.js`
+  - `extension/shared/storage.js`
+  - `extension/options/options.js`
+  - `extension/sites/alibaba-labelx/asr-judgement/README.md`
   - `platform-resources/alibaba-labelx/asr-judgement/README.md`
   - `platform-resources/alibaba-labelx/asr-judgement/page-structure/asr-judgement-detail/page-meta.md`
 - 涉及页面结构、网络请求或统计格式时，再读 `platform-resources/alibaba-labelx/asr-judgement/` 下对应资料。

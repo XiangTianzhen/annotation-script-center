@@ -613,7 +613,7 @@
 
     return {
       schemaVersion: 1,
-      source: "edge-extension",
+      source: "chromium-extension",
       project: "alibaba-labelx/asr-judgement",
       reason: reason || "manual",
       uploadedAt: now,
@@ -1113,7 +1113,7 @@
 
       return {
         schemaVersion: 1,
-        source: "edge-extension",
+        source: "chromium-extension",
         project: "alibaba-labelx/asr-judgement",
         reason: reason || "home-manual",
         uploadedAt: new Date().toISOString(),

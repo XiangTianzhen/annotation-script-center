@@ -7,14 +7,14 @@
 ```text
 extension/sites/alibaba-labelx/
   README.md
-  asr-judgement/
-    README.md
-    content.js
-    page-detector.js
-    judgement-*.js
-    audio-*.js
-    page-world/
-    page-structure/
+    asr-judgement/
+      README.md
+      content.js
+      page-detector.js
+      judgement-*.js
+      audio-*.js
+      page-world/
+      data/
   asr-transcription/
     README.md
     page-structure/
@@ -28,7 +28,8 @@ extension/sites/alibaba-labelx/
   - 中文名：阿里 ASR 语音判别 / ASR 快判
   - 负责快判 / 更优判断项目的资料、运行时和脚本详情页配置。
   - 当前已具备独立 content script、音频控制、分页设置、总时长统计、判别快捷键、工具栏和 MAIN world 网络监听。
-  - 当前归属文件：`content.js`、`page-detector.js`、`judgement-*.js`、`audio-*.js`、`page-world/`、`page-structure/`。
+  - 当前归属文件：`content.js`、`page-detector.js`、`judgement-*.js`、`audio-*.js`、`page-world/`、`data/`。
+  - 页面结构、网络采集和统计契约统一维护在 `platform-resources/alibaba-labelx/asr-judgement/`。
   - 设置入口：options 快判详情页使用独立简化表单，不复用转写完整设置面板。
 - `asr-transcription/`
   - 中文名：阿里 ASR 语音转写
