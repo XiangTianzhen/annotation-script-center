@@ -1,9 +1,6 @@
 (function () {
   const LOG_PREFIX = "[ASR Edge][content]";
-  const runtimeContract =
-    globalThis.__ASREdgeAlibabaLabelxRuntimeContract ||
-    window.__ASREdgeAlibabaLabelxRuntimeContract ||
-    null;
+  let runtimeContract = getRuntimeContract();
   let runtimeHandles = null;
   let runtimeStartPromise = null;
   let pendingDomReadyRefresh = false;
@@ -12,10 +9,41 @@
   let settingsSavedBridgeBound = false;
   let legacyBridgeReadyBound = false;
   let transcriptionRuntimeAllowed = false;
+  let pageBridgeHandle = null;
 
-  if (!runtimeContract) {
-    console.warn(LOG_PREFIX, "Runtime contract is not loaded.");
-    return;
+  function getRuntimeContract() {
+    return (
+      globalThis.__ASREdgeAlibabaLabelxRuntimeContract ||
+      window.__ASREdgeAlibabaLabelxRuntimeContract ||
+      null
+    );
+  }
+
+  function waitForRuntimeContract(timeoutMs) {
+    runtimeContract = getRuntimeContract();
+    if (runtimeContract) {
+      return Promise.resolve(runtimeContract);
+    }
+
+    const deadline = Date.now() + Math.max(0, Number(timeoutMs) || 0);
+    return new Promise(function (resolve) {
+      function poll() {
+        runtimeContract = getRuntimeContract();
+        if (runtimeContract) {
+          resolve(runtimeContract);
+          return;
+        }
+
+        if (Date.now() >= deadline) {
+          resolve(null);
+          return;
+        }
+
+        window.setTimeout(poll, 50);
+      }
+
+      poll();
+    });
   }
 
   function isPlainObject(value) {
@@ -135,8 +163,6 @@
       },
     };
   }
-
-  const pageBridgeHandle = createPageBridgeHandle(runtimeContract);
 
   function resolveRuntimeModules() {
     return runtimeContract.RUNTIME_MODULES.reduce(function (modules, moduleDescriptor) {
@@ -872,12 +898,24 @@
     });
   }
 
-  void assemble("script-load");
+  function startContentRuntime() {
+    pageBridgeHandle = createPageBridgeHandle(runtimeContract);
+    void assemble("script-load");
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function onDomContentLoaded() {
-      pendingDomReadyRefresh = true;
-      void assemble("dom-content-loaded");
-    }, { once: true });
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", function onDomContentLoaded() {
+        pendingDomReadyRefresh = true;
+        void assemble("dom-content-loaded");
+      }, { once: true });
+    }
   }
+
+  void waitForRuntimeContract(1000).then(function (contract) {
+    if (!contract) {
+      console.info(LOG_PREFIX, "Runtime contract is not loaded, transcription runtime skipped.");
+      return;
+    }
+
+    startContentRuntime();
+  });
 })();
