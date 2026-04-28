@@ -19,6 +19,16 @@ server.listen(config.port, config.host, function () {
       baseUrl +
       "/api/alibaba-labelx/asr-judgement/statistics/download"
   );
+  console.info(
+    "[Platform Resources][backend] ASR judgement AI health: " +
+      baseUrl +
+      "/api/alibaba-labelx/asr-judgement/ai/health"
+  );
+  console.info(
+    "[Platform Resources][backend] ASR judgement AI suggest: " +
+      baseUrl +
+      "/api/alibaba-labelx/asr-judgement/ai/suggest"
+  );
 });
 
 module.exports = server;

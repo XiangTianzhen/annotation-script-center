@@ -10,6 +10,7 @@
   const diffViewModule = globalThis.__ASREdgeAlibabaLabelxJudgementAsrDiffView || null;
   const thunderQuestionModule = globalThis.__ASREdgeAlibabaLabelxJudgementThunderQuestion || null;
   const compactCardModule = globalThis.__ASREdgeAlibabaLabelxJudgementCompactCard || null;
+  const aiSuggestionModule = globalThis.__ASREdgeAlibabaLabelxJudgementAiSuggestion || null;
   const judgementServerModule = globalThis.__ASREdgeAlibabaLabelxJudgementServer || null;
   const autoAdvanceModule = globalThis.__ASREdgeAlibabaLabelxJudgementAutoAdvance || null;
   const actionModule = globalThis.__ASREdgeAlibabaLabelxJudgementActions || null;
@@ -26,6 +27,7 @@
   const networkConfigMessageType = "ASR_EDGE_JUDGEMENT_NETWORK_CONFIG";
   const networkSummaryMessageType = "ASR_EDGE_JUDGEMENT_SUBTASK_DATA_SUMMARY";
   const statsUploadActionKey = "statsUpload";
+  const aiSuggestActionKey = "aiSuggestCurrentItem";
   const maxCustomPageSizeValue = 400;
   let settings = null;
   let runtimeEnabled = false;
@@ -39,6 +41,7 @@
   let diffViewRuntime = null;
   let thunderQuestionRuntime = null;
   let compactCardRuntime = null;
+  let aiSuggestionRuntime = null;
   let judgementServerRuntime = null;
   let autoAdvanceRuntime = null;
   let durationSummary = {
@@ -134,6 +137,12 @@
       statsAutoUploadOnSubtaskOpen: false,
       statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: 20000,
+      aiSuggestionEnabled: false,
+      aiSuggestionEndpoint: "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest",
+      aiSuggestionRequestTimeoutMs: 120000,
+      aiSuggestionModel: "qwen3-omni-flash",
+      aiSuggestionAvailableModels: ["qwen3-omni-flash", "qwen3.5-omni-plus"],
+      aiSuggestionShortcut: null,
       shortcuts: {
         volumeUp: {
           ctrl: false,
@@ -183,6 +192,7 @@
           key: "Space",
           button: null,
         },
+        aiSuggestCurrentItem: null,
       },
     };
     const projectConfig =
@@ -348,6 +358,10 @@
   function runRuntimeAction(actionKey, source) {
     if (actionKey === statsUploadActionKey) {
       return uploadJudgementStats(source);
+    }
+
+    if (actionKey === aiSuggestActionKey) {
+      return suggestCurrentItemWithAi(source);
     }
 
     if (getChoiceAction(actionKey) && actionModule && typeof actionModule.selectJudgementChoice === "function") {
@@ -603,6 +617,20 @@
       getPageSizeStatTitle: getPageSizeStatTitle,
       getTopSummaryText: getTopSummaryText,
       getTopSummaryTitle: getTopSummaryTitle,
+      getExtraActionGroups: function () {
+        return [
+          {
+            label: "AI",
+            actions: [
+              {
+                key: aiSuggestActionKey,
+                label: "AI 分析当前题",
+                shortLabel: "AI 分析",
+              },
+            ],
+          },
+        ];
+      },
       runActionWithFeedback: runActionWithFeedback,
     });
     return toolbarRuntime;
@@ -848,6 +876,90 @@
     return Promise.resolve(runtime.uploadNow(source || "manual"));
   }
 
+  async function getThunderInfoForItem(item) {
+    if (!item || !thunderQuestionModule || typeof thunderQuestionModule.getItemInfo !== "function") {
+      return null;
+    }
+    if (getJudgementConfig(settings).thunderQuestionEnabled === false) {
+      return null;
+    }
+
+    if (typeof thunderQuestionModule.ensureBankLoaded === "function") {
+      await thunderQuestionModule.ensureBankLoaded();
+    }
+    return thunderQuestionModule.getItemInfo(item);
+  }
+
+  function ensureAiSuggestionRuntime() {
+    if (
+      aiSuggestionRuntime ||
+      !aiSuggestionModule ||
+      typeof aiSuggestionModule.createRuntime !== "function"
+    ) {
+      return aiSuggestionRuntime;
+    }
+
+    aiSuggestionRuntime = aiSuggestionModule.createRuntime({
+      shouldApply: function () {
+        return Boolean(runtimeEnabled && isTopLevelContext() && shouldShowToolbar());
+      },
+      getConfig: function () {
+        return getJudgementConfig(settings);
+      },
+      applySuggestion: function (choiceActionKey) {
+        if (!actionModule || typeof actionModule.selectJudgementChoice !== "function") {
+          return buildActionResult(choiceActionKey, false, {
+            reason: "judgement-action-missing",
+            message: "判别动作不可用。",
+          });
+        }
+        return actionModule.selectJudgementChoice(choiceActionKey);
+      },
+      getThunderInfo: getThunderInfoForItem,
+      showToast: showRuntimeToast,
+      onResult: function (info) {
+        if (!info) {
+          return;
+        }
+        console.info(LOG_PREFIX, "AI suggest completed.", {
+          requestId: info.requestId || "",
+          hostname: info.hostname || "",
+          itemIndex: Number(info.itemIndex),
+          model: info.model || "",
+        });
+      },
+    });
+    return aiSuggestionRuntime;
+  }
+
+  function startAiSuggestion() {
+    const runtime = ensureAiSuggestionRuntime();
+    if (runtime && typeof runtime.start === "function") {
+      runtime.start();
+    }
+  }
+
+  function stopAiSuggestion() {
+    if (aiSuggestionRuntime && typeof aiSuggestionRuntime.stop === "function") {
+      aiSuggestionRuntime.stop();
+    }
+  }
+
+  function suggestCurrentItemWithAi(source) {
+    const runtime = ensureAiSuggestionRuntime();
+    if (!runtime || typeof runtime.suggestCurrentItem !== "function") {
+      return Promise.resolve(
+        buildActionResult(aiSuggestActionKey, false, {
+          reason: "ai-suggestion-module-missing",
+          source: source || "unknown",
+          message: "AI 建议模块不可用。",
+        })
+      );
+    }
+
+    return Promise.resolve(runtime.suggestCurrentItem(source || "manual"));
+  }
+
   function getMissingRequiredModules() {
     return [
       { name: "page-detector", value: detector },
@@ -858,6 +970,7 @@
       { name: "judgement-asr-diff-view", value: diffViewModule },
       { name: "judgement-thunder-question", value: thunderQuestionModule },
       { name: "judgement-compact-card", value: compactCardModule },
+      { name: "judgement-ai-suggestion", value: aiSuggestionModule },
       { name: "asr-judgement-server", value: judgementServerModule },
       { name: "judgement-auto-advance", value: autoAdvanceModule },
       { name: "judgement-actions", value: actionModule },
@@ -938,6 +1051,10 @@
         thunderQuestionRuntime && typeof thunderQuestionRuntime.getState === "function"
           ? thunderQuestionRuntime.getState()
           : null,
+      aiSuggestion:
+        aiSuggestionRuntime && typeof aiSuggestionRuntime.getState === "function"
+          ? aiSuggestionRuntime.getState()
+          : null,
       statsUpload:
         judgementServerRuntime && typeof judgementServerRuntime.getState === "function"
           ? judgementServerRuntime.getState()
@@ -1011,6 +1128,7 @@
     stopDiffView();
     stopThunderQuestion();
     stopCompactCard();
+    stopAiSuggestion();
     stopJudgementServer();
     if (audioController && typeof audioController.stop === "function") {
       audioController.stop();
@@ -1061,6 +1179,7 @@
         startDiffView();
         startThunderQuestion();
         startCompactCard();
+        startAiSuggestion();
         startJudgementServer();
         postNetworkConfig(reason || "runtime-started");
         refreshDurationSummary(reason || "runtime-started");

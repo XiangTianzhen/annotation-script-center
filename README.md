@@ -118,6 +118,29 @@ http://127.0.0.1:3333
 - 健康检查：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/health`
 - CSV 下载：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download`
 
+当前快判 AI 建议接口：
+
+- 健康检查：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/health`
+- 建议接口：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`
+
+快判 AI 建议说明：
+
+- 第一版默认模型：`qwen3-omni-flash`。
+- 已预留模型：`qwen3.5-omni-plus`（不默认使用）。
+- 已取消 MiniMax 接入，本仓库不包含 MiniMax client。
+- 扩展不直连 Qwen，API Key 只放后端环境变量 `DASHSCOPE_API_KEY`。
+- AI 建议默认关闭，只支持“按钮/快捷键分析当前题”，不会自动分析全页。
+- AI 建议不自动保存、不自动提交、不自动领取、不自动流转。
+- 不记录完整 `audioUrl` 到扩展存储、DOM 属性或日志。
+
+快判 AI 相关环境变量（后端）：
+
+- `DASHSCOPE_API_KEY`：DashScope Key，未配置时服务仍可启动，`health` 返回 `missing-api-key`，`suggest` 返回清晰错误。
+- `DASHSCOPE_BASE_URL`：可选，默认 `https://dashscope.aliyuncs.com/compatible-mode/v1`。
+- `ASR_JUDGEMENT_AI_MODEL`：默认模型，默认 `qwen3-omni-flash`。
+- `ASR_JUDGEMENT_AI_TIMEOUT_MS`：请求超时，默认 `120000`。
+- `ASR_JUDGEMENT_AI_MOCK`：设为 `1` 才启用 mock；默认关闭，主流程是真实调用。
+
 ## 服务器部署
 
 当前服务器信息：

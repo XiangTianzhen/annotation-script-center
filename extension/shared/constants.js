@@ -24,7 +24,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 16;
+  const SCHEMA_VERSION = 17;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
@@ -72,6 +72,8 @@
     { value: "glm-5", label: "GLM-5" },
     { value: "kimi/kimi-k2.5", label: "Kimi-K2.5" },
   ];
+
+  const JUDGEMENT_AI_AVAILABLE_MODELS = ["qwen3-omni-flash", "qwen3.5-omni-plus"];
 
   const DEFAULT_CUSTOM_REPLACEMENTS = [
     { from: "小二,小恶,小乐,小额", to: "小饿" },
@@ -202,6 +204,12 @@
     statsAutoUploadOnSubtaskOpen: false,
     statsAutoUploadOnSchedule: true,
     statsUploadRequestTimeoutMs: 20000,
+    aiSuggestionEnabled: false,
+    aiSuggestionEndpoint: "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest",
+    aiSuggestionRequestTimeoutMs: 120000,
+    aiSuggestionModel: "qwen3-omni-flash",
+    aiSuggestionAvailableModels: clone(JUDGEMENT_AI_AVAILABLE_MODELS),
+    aiSuggestionShortcut: null,
     shortcuts: {
       choiceFirstBetter: createShortcut("1"),
       choiceSecondBetter: createShortcut("2"),
@@ -217,6 +225,7 @@
       seekBackward: createShortcut("ArrowLeft"),
       seekForward: createShortcut("ArrowRight"),
       playPause: createShortcut("Space"),
+      aiSuggestCurrentItem: null,
     },
   };
 
@@ -235,6 +244,7 @@
     { key: "seekBackward", label: "后退当前音频" },
     { key: "seekForward", label: "前进当前音频" },
     { key: "playPause", label: "播放/暂停当前音频" },
+    { key: "aiSuggestCurrentItem", label: "AI 分析当前题" },
   ];
 
   const JUDGEMENT_PROJECT_ASR_KEYS = [
@@ -259,6 +269,12 @@
     "statsAutoUploadOnSubtaskOpen",
     "statsAutoUploadOnSchedule",
     "statsUploadRequestTimeoutMs",
+    "aiSuggestionEnabled",
+    "aiSuggestionEndpoint",
+    "aiSuggestionRequestTimeoutMs",
+    "aiSuggestionModel",
+    "aiSuggestionAvailableModels",
+    "aiSuggestionShortcut",
     "shortcuts",
   ];
 
@@ -633,6 +649,7 @@
     MESSAGE_TYPES: MESSAGE_TYPES,
     PAGE_OPTIONS: PAGE_OPTIONS,
     AI_MODEL_OPTIONS: AI_MODEL_OPTIONS,
+    JUDGEMENT_AI_AVAILABLE_MODELS: clone(JUDGEMENT_AI_AVAILABLE_MODELS),
     DEFAULT_CUSTOM_REPLACEMENTS: clone(DEFAULT_CUSTOM_REPLACEMENTS),
     DEFAULT_CUSTOM_RATES: clone(DEFAULT_CUSTOM_RATES),
     SHORTCUT_DEFINITIONS: SHORTCUT_DEFINITIONS,

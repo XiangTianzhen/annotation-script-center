@@ -29,6 +29,7 @@ platform-resources/
     README.md
     asr-judgement/
       README.md
+      ai/
       page-structure/
       network/
       backend/
@@ -42,6 +43,7 @@ platform-resources/
 - 涉及 LabelX 页面 DOM 或网络接口时，优先读本目录，再修改扩展运行时代码。
 - `page-structure/` 放页面结构、稳定选择器和代表性 HTML 片段。
 - `network/` 放请求 URL、请求 / 响应结构、采集结论和待采集项。
+- `ai/` 放快判 AI 规则、提示词模板和少量 few-shot 示例，不放完整雷题库。
 - 根级 `backend/` 是统一 Node 后端入口，只负责启动、基础路由、响应工具和项目 API 注册。
 - 项目级 `backend/` 放浏览器无关的本地调试服务，并维护统计 CSV、上传 payload、服务端合并契约等资料；不被扩展 manifest 加载。
 - `unfinished.md` 放未完成方案、风险和后续验证条件。

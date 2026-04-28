@@ -61,6 +61,7 @@
     "seekBackward",
     "seekForward",
     "playPause",
+    "aiSuggestCurrentItem",
   ];
 
   function buildActionResult(action, ok, extra) {

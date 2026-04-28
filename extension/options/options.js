@@ -11,6 +11,11 @@
     "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload";
   const judgementStatsLocalEndpoint =
     "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload";
+  const judgementAiSuggestionEndpointDefault =
+    "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest";
+  const judgementAiSuggestionModels = Array.isArray(constants.JUDGEMENT_AI_AVAILABLE_MODELS)
+    ? constants.JUDGEMENT_AI_AVAILABLE_MODELS
+    : ["qwen3-omni-flash", "qwen3.5-omni-plus"];
   const judgementShortcutActions = constants.JUDGEMENT_SHORTCUT_ACTIONS || [
     { key: "choiceFirstBetter", label: "选择：第一个更好" },
     { key: "choiceSecondBetter", label: "选择：第二个更好" },
@@ -212,6 +217,87 @@
     return judgementStatsServerEndpoint;
   }
 
+  function normalizeJudgementAiEndpoint(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    const fallbackEndpoint =
+      typeof fallback === "string" && fallback.trim()
+        ? fallback.trim()
+        : judgementAiSuggestionEndpointDefault;
+    if (!text) {
+      return fallbackEndpoint;
+    }
+
+    try {
+      const url = new URL(text);
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        return fallbackEndpoint;
+      }
+      return url.toString();
+    } catch (error) {
+      return fallbackEndpoint;
+    }
+  }
+
+  function normalizeJudgementAiAvailableModels(value, fallback) {
+    const source = Array.isArray(value) ? value : Array.isArray(fallback) ? fallback : judgementAiSuggestionModels;
+    const result = [];
+    source.forEach(function (item) {
+      const model = String(item || "").trim();
+      if (
+        !model ||
+        judgementAiSuggestionModels.indexOf(model) < 0 ||
+        result.indexOf(model) >= 0
+      ) {
+        return;
+      }
+      result.push(model);
+    });
+    return result.length > 0 ? result : judgementAiSuggestionModels.slice();
+  }
+
+  function normalizeJudgementAiModel(value, availableModels, fallback) {
+    const model = String(value || "").trim();
+    if (model && availableModels.indexOf(model) >= 0) {
+      return model;
+    }
+
+    const fallbackModel = String(fallback || "").trim();
+    if (fallbackModel && availableModels.indexOf(fallbackModel) >= 0) {
+      return fallbackModel;
+    }
+    return availableModels[0] || "qwen3-omni-flash";
+  }
+
+  function formatJudgementAiModelLabel(model) {
+    if (model === "qwen3-omni-flash") {
+      return "qwen3-omni-flash（默认）";
+    }
+    if (model === "qwen3.5-omni-plus") {
+      return "qwen3.5-omni-plus（预留）";
+    }
+    return model;
+  }
+
+  function renderJudgementAiModelOptions(models, selectedModel) {
+    const select = getElement("judgement-ai-suggestion-model");
+    if (!(select instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    select.innerHTML = models
+      .map(function (model) {
+        return (
+          '<option value="' +
+          escapeHtml(model) +
+          '">' +
+          escapeHtml(formatJudgementAiModelLabel(model)) +
+          "</option>"
+        );
+      })
+      .join("");
+    select.value = normalizeJudgementAiModel(selectedModel, models, models[0]);
+  }
+
   function normalizeJudgementRateStep(value, fallback) {
     const allowedValues = [0.1, 0.25, 0.5, 1];
     const numericValue = Number(value);
@@ -364,6 +450,12 @@
       statsAutoUploadOnSubtaskOpen: false,
       statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: 20000,
+      aiSuggestionEnabled: false,
+      aiSuggestionEndpoint: judgementAiSuggestionEndpointDefault,
+      aiSuggestionRequestTimeoutMs: 120000,
+      aiSuggestionModel: "qwen3-omni-flash",
+      aiSuggestionAvailableModels: judgementAiSuggestionModels.slice(),
+      aiSuggestionShortcut: null,
       shortcuts: {
         volumeUp: {
           ctrl: false,
@@ -484,6 +576,30 @@
         1000,
         120000,
         0
+      ),
+      aiSuggestionEnabled: asrConfig.aiSuggestionEnabled === true,
+      aiSuggestionEndpoint: normalizeJudgementAiEndpoint(
+        asrConfig.aiSuggestionEndpoint,
+        defaults.aiSuggestionEndpoint
+      ),
+      aiSuggestionRequestTimeoutMs: clampNumber(
+        asrConfig.aiSuggestionRequestTimeoutMs,
+        defaults.aiSuggestionRequestTimeoutMs || 120000,
+        1000,
+        180000,
+        0
+      ),
+      aiSuggestionAvailableModels: normalizeJudgementAiAvailableModels(
+        asrConfig.aiSuggestionAvailableModels,
+        defaults.aiSuggestionAvailableModels
+      ),
+      aiSuggestionModel: normalizeJudgementAiModel(
+        asrConfig.aiSuggestionModel,
+        normalizeJudgementAiAvailableModels(
+          asrConfig.aiSuggestionAvailableModels,
+          defaults.aiSuggestionAvailableModels
+        ),
+        defaults.aiSuggestionModel || "qwen3-omni-flash"
       ),
       shortcuts: shortcuts,
     };
@@ -761,6 +877,10 @@
     getElement("judgement-stats-upload-endpoint").value = config.statsUploadEndpoint || "";
     getElement("judgement-stats-auto-schedule").checked =
       config.statsAutoUploadOnSchedule !== false;
+    getElement("judgement-ai-suggestion-enabled").checked = config.aiSuggestionEnabled === true;
+    getElement("judgement-ai-suggestion-endpoint").value = config.aiSuggestionEndpoint || "";
+    getElement("judgement-ai-suggestion-timeout").value = String(config.aiSuggestionRequestTimeoutMs);
+    renderJudgementAiModelOptions(config.aiSuggestionAvailableModels, config.aiSuggestionModel);
     stopJudgementShortcutRecording("");
     renderJudgementShortcutGrid();
   }
@@ -984,6 +1104,27 @@
       getElement("judgement-stats-upload-endpoint").value
     );
     const statsAutoUploadOnSchedule = Boolean(getElement("judgement-stats-auto-schedule").checked);
+    const aiSuggestionEnabled = Boolean(getElement("judgement-ai-suggestion-enabled").checked);
+    const aiSuggestionEndpoint = normalizeJudgementAiEndpoint(
+      getElement("judgement-ai-suggestion-endpoint").value,
+      judgementAiSuggestionEndpointDefault
+    );
+    const aiSuggestionRequestTimeoutMs = clampNumber(
+      Number(getElement("judgement-ai-suggestion-timeout").value),
+      120000,
+      1000,
+      180000,
+      0
+    );
+    const aiSuggestionAvailableModels = normalizeJudgementAiAvailableModels(
+      constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.aiSuggestionAvailableModels,
+      judgementAiSuggestionModels
+    );
+    const aiSuggestionModel = normalizeJudgementAiModel(
+      getElement("judgement-ai-suggestion-model").value,
+      aiSuggestionAvailableModels,
+      "qwen3-omni-flash"
+    );
     const shortcuts = {};
 
     ensureShortcutDraft();
@@ -1018,6 +1159,12 @@
         statsAutoUploadOnSubtaskOpen: false,
         statsAutoUploadOnSchedule: statsAutoUploadOnSchedule,
         statsUploadRequestTimeoutMs: 20000,
+        aiSuggestionEnabled: aiSuggestionEnabled,
+        aiSuggestionEndpoint: aiSuggestionEndpoint,
+        aiSuggestionRequestTimeoutMs: aiSuggestionRequestTimeoutMs,
+        aiSuggestionModel: aiSuggestionModel,
+        aiSuggestionAvailableModels: aiSuggestionAvailableModels,
+        aiSuggestionShortcut: shortcuts.aiSuggestCurrentItem || null,
         shortcuts: shortcuts,
       });
       renderCurrentView();

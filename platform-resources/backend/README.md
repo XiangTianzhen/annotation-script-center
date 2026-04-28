@@ -35,7 +35,7 @@ http://127.0.0.1:3333
 
 ## 当前已注册 API
 
-- `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查和 CSV 下载。
+- `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、CSV 下载，以及 AI 建议 `health/suggest` 接口。
 
 ## 新增项目 API 规则
 

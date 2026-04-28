@@ -14,6 +14,7 @@ extension/sites/alibaba-labelx/asr-judgement/
 
 - `page-structure/`：快判详情页、标注首页、审核首页 DOM 结构和代表性 HTML 片段。
 - `network/`：LabelX 快判相关请求采集，包含详情页 data、首页 tasks / subTasks、保存、提交、领取、释放等接口记录。
+- `ai/`：快判 AI 半自动建议规则资料，包含规则压缩版、prompt 模板和 few-shot 示例。
 - `backend/`：快判统计上传本地 Node 调试服务，按分包 ID 合并 CSV 宽表，并提供统计接口、CSV 下载接口和数据契约说明。
 - `unfinished.md`：未完成能力、风险点和后续验证条件。
 
@@ -25,6 +26,8 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 审核首页：`/corpora/labeling/checkTask?projectId=...`
 - 顶部头像下拉用户信息结构。
 - 快判网络采集 `01` 到 `23`，以及待采集项和大页数负载测试片段。
+- 快判 AI 半自动建议接口：`/api/alibaba-labelx/asr-judgement/ai/health`、`/api/alibaba-labelx/asr-judgement/ai/suggest`。
+- AI 第一版模型固定走 `qwen3-omni-flash`（后续预留 `qwen3.5-omni-plus`），已取消 MiniMax 接入计划。
 
 ## 维护规则
 

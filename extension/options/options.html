@@ -592,6 +592,27 @@
           </div>
 
           <div class="field-card">
+            <strong>AI 半自动参考建议</strong>
+            <span>默认关闭。只在你手动点击“AI 分析当前题”按钮或快捷键后分析当前题，不会自动分析全页。</span>
+            <label class="field-toggle">
+              <input id="judgement-ai-suggestion-enabled" type="checkbox" />
+              <span>启用 AI 建议</span>
+            </label>
+            <label>
+              <span>后端接口地址</span>
+              <input id="judgement-ai-suggestion-endpoint" type="text" />
+            </label>
+            <label>
+              <span>请求超时时间 (ms)</span>
+              <input id="judgement-ai-suggestion-timeout" type="number" min="1000" max="180000" step="1000" />
+            </label>
+            <label>
+              <span>模型</span>
+              <select id="judgement-ai-suggestion-model"></select>
+            </label>
+          </div>
+
+          <div class="field-card">
             <strong>统计数据上传</strong>
             <span>首页会显示“上传统计”按钮；定时时间从当前上传接口地址读取，服务器按分包ID合并为总 CSV。</span>
             <label class="field-toggle">
@@ -613,7 +634,7 @@
 
           <div class="field-card shortcut-panel">
             <strong>快捷键配置</strong>
-            <span>默认 1~5 分别选择五个“哪个ASR更优”选项；默认增大音量为 [，减小音量为 ]，重置音量为 \，后退/前进当前音频为方向键，播放/暂停当前音频为 Space。点击“录制”后按键或点击鼠标按键；按 Esc 取消录制，不保存。</span>
+            <span>默认 1~5 分别选择五个“哪个ASR更优”选项；默认增大音量为 [，减小音量为 ]，重置音量为 \，后退/前进当前音频为方向键，播放/暂停当前音频为 Space，AI 分析当前题默认未绑定。点击“录制”后按键或点击鼠标按键；按 Esc 取消录制，不保存。</span>
             <div id="judgement-shortcut-grid" class="shortcut-grid"></div>
             <div id="judgement-recording-status" class="shortcut-recording hidden"></div>
           </div>

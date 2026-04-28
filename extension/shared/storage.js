@@ -75,6 +75,12 @@
         "statsAutoUploadOnSubtaskOpen",
         "statsAutoUploadOnSchedule",
         "statsUploadRequestTimeoutMs",
+        "aiSuggestionEnabled",
+        "aiSuggestionEndpoint",
+        "aiSuggestionRequestTimeoutMs",
+        "aiSuggestionModel",
+        "aiSuggestionAvailableModels",
+        "aiSuggestionShortcut",
         "shortcuts",
       ],
       SHORTCUT_COMPATIBILITY_MAP: {},
@@ -325,6 +331,58 @@
     return nextConfig;
   }
 
+  function normalizeJudgementAiEndpoint(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    const fallbackEndpoint = typeof fallback === "string" ? fallback.trim() : "";
+    if (!text) {
+      return fallbackEndpoint;
+    }
+
+    try {
+      const url = new URL(text);
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        return fallbackEndpoint;
+      }
+      return url.toString();
+    } catch (error) {
+      return fallbackEndpoint;
+    }
+  }
+
+  function normalizeJudgementAiAvailableModels(value, fallback) {
+    const constants = getConstants();
+    const whitelist = Array.isArray(constants.JUDGEMENT_AI_AVAILABLE_MODELS)
+      ? constants.JUDGEMENT_AI_AVAILABLE_MODELS
+      : ["qwen3-omni-flash", "qwen3.5-omni-plus"];
+    const source = Array.isArray(value) ? value : Array.isArray(fallback) ? fallback : whitelist;
+    const result = [];
+
+    source.forEach(function (item) {
+      const model = String(item || "").trim();
+      if (!model || whitelist.indexOf(model) < 0 || result.indexOf(model) >= 0) {
+        return;
+      }
+      result.push(model);
+    });
+
+    return result.length > 0 ? result : whitelist.slice();
+  }
+
+  function normalizeJudgementAiModel(value, fallback, availableModels) {
+    const source = String(value || "").trim();
+    const models = Array.isArray(availableModels) ? availableModels : [];
+    if (source && models.indexOf(source) >= 0) {
+      return source;
+    }
+
+    const fallbackModel = String(fallback || "").trim();
+    if (fallbackModel && models.indexOf(fallbackModel) >= 0) {
+      return fallbackModel;
+    }
+
+    return models[0] || "qwen3-omni-flash";
+  }
+
   function normalizeClampedNumber(value, fallback, min, max, precision) {
     const numericValue = Number(value);
     if (!Number.isFinite(numericValue)) {
@@ -391,7 +449,47 @@
     );
     nextConfig.asrDiffColors = normalizeJudgementAsrDiffColors(nextConfig.asrDiffColors);
     nextConfig.thunderQuestionEnabled = nextConfig.thunderQuestionEnabled !== false;
-    return normalizeJudgementStatsConfig(nextConfig);
+    if (!isPlainObject(nextConfig.shortcuts)) {
+      nextConfig.shortcuts = {};
+    }
+
+    const aiShortcut = normalizeShortcut(
+      hasOwn(nextConfig.shortcuts, "aiSuggestCurrentItem")
+        ? nextConfig.shortcuts.aiSuggestCurrentItem
+        : nextConfig.aiSuggestionShortcut,
+      defaults.aiSuggestionShortcut || null
+    );
+    nextConfig.shortcuts.aiSuggestCurrentItem = aiShortcut;
+    nextConfig.aiSuggestionShortcut = clone(aiShortcut);
+
+    const normalizedStatsConfig = normalizeJudgementStatsConfig(nextConfig);
+    normalizedStatsConfig.aiSuggestionEnabled = normalizedStatsConfig.aiSuggestionEnabled === true;
+    normalizedStatsConfig.aiSuggestionEndpoint = normalizeJudgementAiEndpoint(
+      normalizedStatsConfig.aiSuggestionEndpoint,
+      defaults.aiSuggestionEndpoint ||
+        "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest"
+    );
+    normalizedStatsConfig.aiSuggestionRequestTimeoutMs = Math.max(
+      1000,
+      Math.min(
+        180000,
+        normalizeNumber(
+          normalizedStatsConfig.aiSuggestionRequestTimeoutMs,
+          defaults.aiSuggestionRequestTimeoutMs || 120000
+        )
+      )
+    );
+    normalizedStatsConfig.aiSuggestionAvailableModels = normalizeJudgementAiAvailableModels(
+      normalizedStatsConfig.aiSuggestionAvailableModels,
+      defaults.aiSuggestionAvailableModels
+    );
+    normalizedStatsConfig.aiSuggestionModel = normalizeJudgementAiModel(
+      normalizedStatsConfig.aiSuggestionModel,
+      defaults.aiSuggestionModel || "qwen3-omni-flash",
+      normalizedStatsConfig.aiSuggestionAvailableModels
+    );
+    normalizedStatsConfig.aiSuggestionShortcut = clone(aiShortcut);
+    return normalizedStatsConfig;
   }
 
   function createStoragePromise(method, payload) {

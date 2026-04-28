@@ -266,6 +266,22 @@
       return group;
     }
 
+    function appendExtraToolbarGroups() {
+      if (typeof options.getExtraActionGroups !== "function") {
+        return;
+      }
+
+      const groups = Array.isArray(options.getExtraActionGroups())
+        ? options.getExtraActionGroups()
+        : [];
+      groups.forEach(function (group) {
+        if (!group || !Array.isArray(group.actions) || group.actions.length <= 0) {
+          return;
+        }
+        toolbarRoot.appendChild(createToolbarGroup(group.label || "扩展", group.actions));
+      });
+    }
+
     function removeToolbar() {
       if (toolbarRoot && toolbarRoot.parentNode) {
         toolbarRoot.parentNode.removeChild(toolbarRoot);
@@ -330,6 +346,7 @@
           { key: "seekForward", label: audioActionLabels.seekForward },
         ])
       );
+      appendExtraToolbarGroups();
       const breadcrumb = toolbox.querySelector(".mark-toolbox-breadcrumb-wrapper");
       if (breadcrumb && breadcrumb.nextSibling) {
         toolbox.insertBefore(toolbarRoot, breadcrumb.nextSibling);

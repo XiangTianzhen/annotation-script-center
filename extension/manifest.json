@@ -70,6 +70,7 @@
         "sites/alibaba-labelx/asr-judgement/judgement-asr-diff-view.js",
         "sites/alibaba-labelx/asr-judgement/judgement-thunder-question.js",
         "sites/alibaba-labelx/asr-judgement/judgement-compact-card.js",
+        "sites/alibaba-labelx/asr-judgement/judgement-ai-suggestion.js",
         "sites/alibaba-labelx/asr-judgement/asr-judgement-server.js",
         "sites/alibaba-labelx/asr-judgement/judgement-auto-advance.js",
         "sites/alibaba-labelx/asr-judgement/judgement-actions.js",

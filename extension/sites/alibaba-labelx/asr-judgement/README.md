@@ -6,16 +6,31 @@
 
 - 已归档真实页面结构和网络资料：`platform-resources/alibaba-labelx/asr-judgement/`
 - 快判在 options 中拥有独立脚本详情页和简化设置表单。
-- 快判已接入独立运行时，入口文件为 `content.js`、`audio-controller.js`、`page-world/network-observer.js`；音量、倍速、播放、分页、总时长、判别动作、快捷键、toast、工具栏、网络协议、ASR 差异视图、轻量题卡摘要、雷题判断和统计上传等能力已拆成小文件。
+- 快判已接入独立运行时，入口文件为 `content.js`、`audio-controller.js`、`page-world/network-observer.js`；音量、倍速、播放、分页、总时长、判别动作、快捷键、toast、工具栏、网络协议、ASR 差异视图、轻量题卡摘要、雷题判断、AI 半自动建议和统计上传等能力已拆成小文件。
 - `content.js` 当前只作为入口编排层，不再承载具体功能实现。
 
 ## 负责范围
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
-- options 快判详情页负责保存快判专属设置：默认音量、默认倍速、倍速步进、前进 / 后退步长、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、雷题判断、选择后辅助流转、统计上传、快捷键。
+- options 快判详情页负责保存快判专属设置：默认音量、默认倍速、倍速步进、前进 / 后退步长、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、雷题判断、AI 半自动建议、选择后辅助流转、统计上传、快捷键。
 - 快判详情页和任务列表页 DOM / 网络资料统一沉淀到根目录 `platform-resources/alibaba-labelx/asr-judgement/`，供 Chrome / Edge 共用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
+
+## AI 半自动参考建议（v1）
+
+- 前端开关字段：`aiSuggestionEnabled`，默认关闭。
+- 请求地址字段：`aiSuggestionEndpoint`，默认 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`。
+- 请求超时字段：`aiSuggestionRequestTimeoutMs`，默认 `120000`。
+- 模型字段：`aiSuggestionModel`，第一版默认 `qwen3-omni-flash`，预留 `qwen3.5-omni-plus`。
+- 快捷键动作：`aiSuggestCurrentItem`（默认未绑定）。
+- 触发方式：只支持工具栏按钮或快捷键手动触发，且只分析“当前题卡”；不会自动分析全页或批量请求。
+- 扩展不直连 Qwen，API Key 只在后端环境变量 `DASHSCOPE_API_KEY` 中配置。
+- AI 返回后仅展示参考答案、置信度、简短理由、风险等级、是否需要人工搜索、模型和 requestId。
+- 只有点击“采用建议”才会调用 `selectJudgementChoice(choiceActionKey)` 写入单选；不采用可以忽略。
+- 雷题优先级高于 AI：命中雷题会提示“雷题优先”；若 AI 与雷题标准答案冲突，会禁用“采用建议”。
+- 不记录完整 `audioUrl` 到 `chrome.storage`、DOM 属性或日志。
+- AI 建议能力本身不自动保存、不自动提交、不自动领取、不自动流转。
 
 ## 能力路线
 
@@ -109,7 +124,7 @@
 
 - 规则建议：根据文本差异类型给出“疑似第一个更好 / 疑似第二个更好 / 建议人工复听”的可解释提示，但不自动选中。
 - 风险提示：当两条文本完全相同、只有标点差异、长度差异过大或疑似漏字时，在题卡内提醒复核。
-- 一键采用建议：只有在建议足够可解释并经过人工验证后，才考虑提供按钮写入单选项。
+- 一键采用建议：已提供“采用建议”按钮，但仅在人工确认后写入单选，且雷题冲突时会禁用。
 
 ## 全自动边界
 
@@ -135,6 +150,7 @@
 - 后退当前音频
 - 前进当前音频
 - 播放/暂停当前音频
+- AI 分析当前题
 
 快捷键支持键盘组合和鼠标按键。运行时如果焦点在 `input`、`textarea`、`select` 或 `contenteditable` 内，不触发全局快捷键。
 运行时只响应浏览器真实用户事件；页面初始化、脚本派发的合成点击或合成按键不会触发判别动作。
@@ -216,6 +232,17 @@
 31. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
 32. 打开一个未标注的全新快判详情页，不按快捷键、不点工具栏，确认脚本不会自动选中“哪个ASR更优”的任一选项；若页面本身返回了已保存答案，应以接口数据或页面原始状态为准。
 
+AI 建议补充验证：
+
+33. 在 options 快判详情页开启“AI 半自动参考建议”，确认默认模型是 `qwen3-omni-flash`，`qwen3.5-omni-plus` 仅作为预留可选项。
+34. 确认 AI 接口地址为 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`，并保存设置。
+35. 启动后端后访问 `GET /api/alibaba-labelx/asr-judgement/ai/health`，确认返回 `provider/defaultModel/availableModels` 等字段。
+36. 若未配置 `DASHSCOPE_API_KEY`，触发“AI 分析当前题”，确认返回 `missing-api-key` 类错误且页面不崩溃。
+37. 若已配置 `DASHSCOPE_API_KEY`，点击“AI 分析当前题”或快捷键，确认只分析当前题卡，不会自动分析其他题卡。
+38. 确认题卡旁出现 AI 建议卡，展示建议答案、置信度、理由、风险等级、是否需要人工搜索、模型和 requestId。
+39. 点击“采用建议”，确认最终写入动作来自 `selectJudgementChoice(choiceActionKey)`，且不会触发自动保存、自动提交、自动领取或自动流转。
+40. 命中雷题时确认“雷题优先”提示存在；若 AI 与雷题标准答案冲突，“采用建议”按钮应禁用。
+
 ## 已知限制
 
 - 浏览器自动播放策略可能拒绝无用户手势的 `audio.play()`，运行时只记录失败原因，不重复刷屏。
@@ -224,6 +251,8 @@
 - 鼠标左键这类通用按键可以录制，但会拦截页面点击，建议优先使用组合键或侧键。
 - `100/150/200 条/页` 自定义大页数入口仍暂停开放；`400 条/页` 已恢复为全量显示入口，如页面卡顿或答案回显异常，需要重新评估窗口化或其他降载方案。
 - 生产统计上传依赖外部服务端接口；本地 Node 服务只用于调试和验证 CSV 合并形态，不替代正式数据库。
+- AI 建议默认依赖本地/服务端后端代理；扩展前端不直接调用 DashScope。
+- 未配置 `DASHSCOPE_API_KEY` 时，AI 建议接口会返回缺 key 错误，不会自动降级为 mock 成功。
 - 本目录不包含提交、保存、自动领取、自动流转逻辑。
 
 ## 当前文件结构
@@ -243,6 +272,7 @@ asr-judgement/
   judgement-asr-diff-view.js
   judgement-thunder-question.js
   judgement-compact-card.js
+  judgement-ai-suggestion.js
   asr-judgement-server.js
   judgement-auto-advance.js
   audio-controller.js
@@ -335,6 +365,7 @@ platform-resources/alibaba-labelx/asr-judgement/
 - `judgement-asr-diff-view.js`：维护 ASR 文本对齐差异视图、差异摘要、对齐算法和高亮颜色。
 - `judgement-thunder-question.js`：维护雷题库 CSV 读取、题卡匹配、特殊情况标注提示和标准答案不一致告警。
 - `judgement-compact-card.js`：维护轻量题卡摘要，在 `.labelRender-item` 根节点内部补充 ASR 文本、音频时间比和当前判别状态，并支持配合隐藏内容区 / 回答区和卡片宽度调整使用。
+- `judgement-ai-suggestion.js`：维护 AI 建议请求、当前题定位、建议卡片渲染、雷题优先提示和“采用建议”动作调用。
 - `asr-judgement-server.js`：维护扩展侧统计数据采集、首页 / 详情页手动上传、定时上传和基于上传接口的远程时间配置读取。
 - `platform-resources/backend/`：维护统一 Node 后端启动入口、基础路由、响应工具和项目 API 注册。
 - `platform-resources/alibaba-labelx/asr-judgement/backend/`：维护快判项目的 Node 本地调试接收服务，`index.js` 负责注册项目 API，`routes.js` 处理 HTTP 路由，其余小文件分别处理 CSV 列、CSV 读写、文件存储和分包合并。

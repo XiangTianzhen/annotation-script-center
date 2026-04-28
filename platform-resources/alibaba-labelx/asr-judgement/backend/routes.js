@@ -5,6 +5,7 @@ const path = require("path");
 const { createCorsHeaders, sendJson } = require("../../../backend/response");
 const { createStatisticsStore } = require("./file-store");
 const { mergeUploadPayloads } = require("./payload-merge");
+const { registerAiRoutes } = require("./ai-routes");
 
 const API_BASE_PATH = "/api/alibaba-labelx/asr-judgement/statistics";
 const LEGACY_API_BASE_PATH = "/api/asr-judgement/statistics";
@@ -140,6 +141,7 @@ function addAliases(router, method, paths, handler) {
 function registerAsrJudgementRoutes(router, options) {
   const store = createStatisticsStore(options);
   store.ensureDataDir();
+  registerAiRoutes(router);
 
   addAliases(router, "GET", [HEALTH_PATH, LEGACY_HEALTH_PATH], function ({ response }) {
     sendHealth(response, store);
