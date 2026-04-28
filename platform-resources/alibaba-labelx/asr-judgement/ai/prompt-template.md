@@ -13,6 +13,8 @@ few-shot 示例：
 当前输入：
 {{inputJson}}
 
+说明：`inputJson` 只包含 `asrText1` 与 `asrText2`，不包含 `projectId/subTaskId/itemId/itemIndex/audioUrl`。
+
 输出要求（必须是单个 JSON 对象）：
 
 {

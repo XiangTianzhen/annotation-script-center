@@ -4,7 +4,7 @@ const { sendJson } = require("../../../backend/response");
 const {
   AVAILABLE_MODELS,
   getClientConfig,
-  normalizeModel,
+  resolveRequestModel,
   requestSuggestion,
 } = require("./ai-client-qwen");
 const { buildPrompt } = require("./ai-prompt");
@@ -34,7 +34,10 @@ function readRequestBody(request) {
     request.on("data", function (chunk) {
       body += chunk;
       if (Buffer.byteLength(body, "utf8") > MAX_BODY_BYTES) {
-        reject(new Error("请求体超过 2MB。"));
+        const tooLargeError = new Error("请求体超过 2MB。");
+        tooLargeError.statusCode = 413;
+        tooLargeError.code = "payload-too-large";
+        reject(tooLargeError);
         request.destroy();
       }
     });
@@ -84,7 +87,9 @@ function normalizeSuggestRequest(body) {
     rawItemIndex === undefined || rawItemIndex === null || rawItemIndex === ""
       ? null
       : Number(rawItemIndex);
-  const model = normalizeModel(source.model || "");
+  const modelText = source.model === undefined || source.model === null ? "" : String(source.model).trim();
+  const clientConfig = getClientConfig();
+  const modelResult = resolveRequestModel(modelText, clientConfig.defaultModel);
 
   if (!projectId) {
     throw createHttpError(400, "projectId 不能为空。", "invalid-project-id");
@@ -101,7 +106,7 @@ function normalizeSuggestRequest(body) {
   if (rawItemIndex !== undefined && rawItemIndex !== null && !Number.isFinite(itemIndex)) {
     throw createHttpError(400, "itemIndex 必须是数字。", "invalid-item-index");
   }
-  if (AVAILABLE_MODELS.indexOf(model) < 0) {
+  if (modelText && !modelResult.valid) {
     throw createHttpError(400, "model 不在允许列表中。", "invalid-model");
   }
 
@@ -115,7 +120,7 @@ function normalizeSuggestRequest(body) {
     asrText2,
     ruleVersion,
     clientVersion,
-    model,
+    model: modelResult.model,
   };
 }
 
@@ -134,6 +139,8 @@ function sendHealth(response) {
     service: "asr-judgement-ai",
     provider: "dashscope-qwen",
     defaultModel: config.defaultModel,
+    configuredDefaultModel: config.configuredDefaultModel || "",
+    effectiveDefaultModel: config.effectiveDefaultModel || config.defaultModel,
     availableModels: config.availableModels,
     mockEnabled: config.mockEnabled,
     hasApiKey: config.hasApiKey,
@@ -146,7 +153,12 @@ async function handleSuggest(request, response) {
   let requestId = createRequestId();
   try {
     const rawBody = await readRequestBody(request);
-    const body = JSON.parse(rawBody || "{}");
+    let body = {};
+    try {
+      body = JSON.parse(rawBody || "{}");
+    } catch (error) {
+      throw createHttpError(400, "请求体 JSON 解析失败。", "invalid-json");
+    }
     const suggestRequest = normalizeSuggestRequest(body);
     requestId = String(body.requestId || requestId);
 
@@ -181,12 +193,19 @@ async function handleSuggest(request, response) {
   } catch (error) {
     const statusCode = Number(error?.statusCode) || (error?.code === "timeout" ? 504 : 500);
     const message = String(error?.message || "AI suggest 请求失败。").slice(0, 240);
-    sendJson(response, statusCode, {
+    const responseBody = {
       success: false,
       message,
       requestId,
       code: String(error?.code || ""),
-    });
+    };
+    if (error?.code === "provider-http-error" && error?.statusCode) {
+      responseBody.providerStatus = Number(error.statusCode);
+    }
+    if (error?.code === "provider-http-error" && error?.summary) {
+      responseBody.summary = String(error.summary || "").slice(0, 200);
+    }
+    sendJson(response, statusCode, responseBody);
   }
 }
 

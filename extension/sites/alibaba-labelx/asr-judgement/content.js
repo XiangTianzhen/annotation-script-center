@@ -142,7 +142,6 @@
       aiSuggestionRequestTimeoutMs: 120000,
       aiSuggestionModel: "qwen3-omni-flash",
       aiSuggestionAvailableModels: ["qwen3-omni-flash", "qwen3.5-omni-plus"],
-      aiSuggestionShortcut: null,
       shortcuts: {
         volumeUp: {
           ctrl: false,

@@ -12,27 +12,55 @@ function isMockEnabled() {
   return String(process.env.ASR_JUDGEMENT_AI_MOCK || "").trim() === "1";
 }
 
-function normalizeModel(model) {
+function isAllowedModel(model) {
   const value = String(model || "").trim();
-  if (AVAILABLE_MODELS.indexOf(value) >= 0) {
+  return AVAILABLE_MODELS.indexOf(value) >= 0;
+}
+
+function resolveDefaultModel(model) {
+  const value = String(model || "").trim();
+  if (isAllowedModel(value)) {
     return value;
   }
-
-  const envModel = String(process.env.ASR_JUDGEMENT_AI_MODEL || "").trim();
-  if (AVAILABLE_MODELS.indexOf(envModel) >= 0) {
-    return envModel;
-  }
   return DEFAULT_MODEL;
+}
+
+function resolveRequestModel(requestedModel, defaultModel) {
+  const text = String(requestedModel || "").trim();
+  if (!text) {
+    return {
+      model: resolveDefaultModel(defaultModel),
+      source: "default",
+      valid: true,
+    };
+  }
+
+  if (!isAllowedModel(text)) {
+    return {
+      model: text,
+      source: "request",
+      valid: false,
+    };
+  }
+
+  return {
+    model: text,
+    source: "request",
+    valid: true,
+  };
 }
 
 function getClientConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
-  const defaultModel = normalizeModel(process.env.ASR_JUDGEMENT_AI_MODEL || DEFAULT_MODEL);
+  const configuredDefaultModel = String(process.env.ASR_JUDGEMENT_AI_MODEL || "").trim();
+  const effectiveDefaultModel = resolveDefaultModel(configuredDefaultModel || DEFAULT_MODEL);
   return {
     apiKey,
     baseUrl,
-    defaultModel,
+    configuredDefaultModel,
+    effectiveDefaultModel,
+    defaultModel: effectiveDefaultModel,
     availableModels: AVAILABLE_MODELS.slice(),
     mockEnabled: isMockEnabled(),
     hasApiKey: Boolean(apiKey),
@@ -167,7 +195,14 @@ async function readStreamText(response) {
 
 async function requestSuggestion(input, prompt, options) {
   const config = getClientConfig();
-  const model = normalizeModel(options?.model || config.defaultModel);
+  const modelResult = resolveRequestModel(options?.model, config.defaultModel);
+  if (!modelResult.valid) {
+    const invalidModelError = new Error("invalid-model");
+    invalidModelError.code = "invalid-model";
+    invalidModelError.statusCode = 400;
+    throw invalidModelError;
+  }
+  const model = modelResult.model;
 
   if (config.mockEnabled) {
     return {
@@ -234,6 +269,23 @@ async function requestSuggestion(input, prompt, options) {
     temperature: 0.1,
   };
 
+  function sanitizeProviderErrorSummary(text) {
+    const source = String(text || "");
+    return source
+      .replace(/https?:\/\/[^\s"'\\]+/g, function (matchText) {
+        try {
+          const parsedUrl = new URL(matchText);
+          return parsedUrl.protocol + "//" + parsedUrl.host + "/[redacted]";
+        } catch (error) {
+          return "[url-redacted]";
+        }
+      })
+      .replace(/(api[_-]?key["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 200);
+  }
+
   try {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -247,9 +299,13 @@ async function requestSuggestion(input, prompt, options) {
 
     if (!response.ok) {
       const bodyText = await response.text();
-      throw new Error(
-        "Qwen 接口请求失败（HTTP " + String(response.status) + "）: " + String(bodyText || "").slice(0, 200)
+      const providerError = new Error(
+        "Qwen 接口请求失败（HTTP " + String(response.status) + "）。"
       );
+      providerError.code = "provider-http-error";
+      providerError.statusCode = response.status;
+      providerError.summary = sanitizeProviderErrorSummary(bodyText);
+      throw providerError;
     }
 
     const rawText = await readStreamText(response);
@@ -267,6 +323,7 @@ async function requestSuggestion(input, prompt, options) {
     if (error?.name === "AbortError") {
       const timeoutError = new Error("Qwen 请求超时。");
       timeoutError.code = "timeout";
+      timeoutError.statusCode = 504;
       throw timeoutError;
     }
     throw error;
@@ -282,7 +339,9 @@ module.exports = {
   DEFAULT_MODEL,
   buildMockResponse,
   getClientConfig,
+  isAllowedModel,
   isMockEnabled,
-  normalizeModel,
+  resolveDefaultModel,
+  resolveRequestModel,
   requestSuggestion,
 };

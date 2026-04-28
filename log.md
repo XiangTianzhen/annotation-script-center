@@ -3,7 +3,7 @@
 ## 2026-04-28
 
 - 为 Alibaba LabelX ASR 快判新增“AI 半自动参考建议”第一版：新增 `judgement-ai-suggestion.js`，仅支持按钮/快捷键手动分析当前题卡，不自动分析全页，不自动保存/提交/领取/流转。
-- 快判设置新增 AI 建议配置：`aiSuggestionEnabled`（默认 false）、`aiSuggestionEndpoint`、`aiSuggestionRequestTimeoutMs`、`aiSuggestionModel`（默认 `qwen3-omni-flash`）、`aiSuggestionAvailableModels`（预留 `qwen3.5-omni-plus`）和 `aiSuggestionShortcut`；并新增快捷键动作 `aiSuggestCurrentItem`。
+- 快判设置新增 AI 建议配置：`aiSuggestionEnabled`（默认 false）、`aiSuggestionEndpoint`、`aiSuggestionRequestTimeoutMs`、`aiSuggestionModel`（默认 `qwen3-omni-flash`）、`aiSuggestionAvailableModels`（预留 `qwen3.5-omni-plus`）；快捷键动作统一为 `shortcuts.aiSuggestCurrentItem`。
 - 快判工具栏新增“AI 分析当前题”按钮；建议卡支持“采用建议/忽略”，采用建议统一调用 `selectJudgementChoice(choiceActionKey)`，不重写单选逻辑。
 - AI 建议与雷题联动：命中雷题时显示“雷题优先”；若 AI 与雷题标准答案冲突，禁用“采用建议”。
 - 快判后端新增 AI 路由与客户端：
@@ -13,6 +13,11 @@
 - AI 后端默认真实调用 DashScope Qwen（`stream=true`），默认模型 `qwen3-omni-flash`；仅 `ASR_JUDGEMENT_AI_MOCK=1` 才走 mock；未配置 `DASHSCOPE_API_KEY` 时 health 返回 `missing-api-key`，suggest 返回清晰错误且服务不崩溃。
 - 新增 AI 规则资料：`platform-resources/alibaba-labelx/asr-judgement/ai/rules.ai.md`、`prompt-template.md`、`fewshot-examples.json`；并在相关 README 同步文档说明。已明确取消 MiniMax 接入，不新增 MiniMax client。
 - 安全约束补充：不在日志/存储/DOM 持久化完整 `audioUrl`，后端日志仅记录 requestId、hostname、itemIndex、model。
+
+- 修正 AI prompt 输入最小化：`ai-prompt.js` 仅向模型文本 prompt 提供 `asrText1/asrText2`，不再包含 `projectId/subTaskId/itemId/itemIndex`，`audioUrl` 仅作为模型音频输入字段。
+- 修正模型校验链路：请求显式传入非法 `model` 时 `suggest` 返回 `HTTP 400` + `code=invalid-model`；未传 `model` 时才使用 `ASR_JUDGEMENT_AI_MODEL` 或默认 `qwen3-omni-flash`。
+- 清理冗余配置字段：移除旧快捷键独立字段，统一使用 `shortcuts.aiSuggestCurrentItem` 并兼容迁移旧配置。
+- 提升扩展版本到 `0.2.6`，并同步更新相关 README 与验证说明。
 
 ## 2026-04-27
 

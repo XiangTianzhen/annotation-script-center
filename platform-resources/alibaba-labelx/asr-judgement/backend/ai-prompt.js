@@ -50,10 +50,6 @@ function buildPrompt(request) {
   const templateText = loadTemplateText();
   const fewshotExamples = loadFewshotExamples();
   const inputJson = {
-    projectId: String(request?.projectId || ""),
-    subTaskId: String(request?.subTaskId || ""),
-    itemIndex: Number(request?.itemIndex),
-    itemId: String(request?.itemId || ""),
     asrText1: String(request?.asrText1 || ""),
     asrText2: String(request?.asrText2 || ""),
   };

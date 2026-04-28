@@ -455,7 +455,6 @@
       aiSuggestionRequestTimeoutMs: 120000,
       aiSuggestionModel: "qwen3-omni-flash",
       aiSuggestionAvailableModels: judgementAiSuggestionModels.slice(),
-      aiSuggestionShortcut: null,
       shortcuts: {
         volumeUp: {
           ctrl: false,
@@ -1164,7 +1163,6 @@
         aiSuggestionRequestTimeoutMs: aiSuggestionRequestTimeoutMs,
         aiSuggestionModel: aiSuggestionModel,
         aiSuggestionAvailableModels: aiSuggestionAvailableModels,
-        aiSuggestionShortcut: shortcuts.aiSuggestCurrentItem || null,
         shortcuts: shortcuts,
       });
       renderCurrentView();

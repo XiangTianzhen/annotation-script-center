@@ -82,7 +82,7 @@ Write-Host "已生成：$zipPath"
 生成后的压缩包路径示例：
 
 ```text
-dist\annotation-script-center-v0.2.5.zip
+dist\annotation-script-center-v0.2.6.zip
 ```
 
 压缩包内部第一层必须能直接看到这些内容：
@@ -125,13 +125,18 @@ http://127.0.0.1:3333
 
 快判 AI 建议说明：
 
+- 当前扩展版本：`0.2.6`。
 - 第一版默认模型：`qwen3-omni-flash`。
 - 已预留模型：`qwen3.5-omni-plus`（不默认使用）。
 - 已取消 MiniMax 接入，本仓库不包含 MiniMax client。
 - 扩展不直连 Qwen，API Key 只放后端环境变量 `DASHSCOPE_API_KEY`。
+- 后端发给模型的文本 prompt 只包含 `asrText1/asrText2`，不包含 `projectId/subTaskId/itemId/itemIndex/audioUrl`。
+- `audioUrl` 只作为模型音频输入字段，不进入文本 prompt。
 - AI 建议默认关闭，只支持“按钮/快捷键分析当前题”，不会自动分析全页。
 - AI 建议不自动保存、不自动提交、不自动领取、不自动流转。
 - 不记录完整 `audioUrl` 到扩展存储、DOM 属性或日志。
+- 请求体传非法 `model` 时，`suggest` 返回 `HTTP 400` 和 `code=invalid-model`。
+- 真实 Qwen 联调需要 `DASHSCOPE_API_KEY` 与可公开访问音频 URL；未满足时不能声称真实 suggest 已跑通。
 
 快判 AI 相关环境变量（后端）：
 
@@ -264,11 +269,11 @@ location / {
 注意：
 
 - `alias` 路径和 `location /downloads/` 都要以 `/` 结尾。
-- `dist/` 目录里建议只放对外分发的扩展压缩包，例如 `annotation-script-center-v0.2.5.zip`。
+- `dist/` 目录里建议只放对外分发的扩展压缩包，例如 `annotation-script-center-v0.2.6.zip`。
 - 如果访问 `https://script.xiangtianzhen.store/downloads` 没有尾部 `/` 出现异常，改用 `https://script.xiangtianzhen.store/downloads/`。
 - 配置后执行 `sudo nginx -t` 和 `sudo systemctl reload nginx`。
 - 验证目录列表：`curl -I https://script.xiangtianzhen.store/downloads/`。
-- 验证单个文件：`curl -I https://script.xiangtianzhen.store/downloads/annotation-script-center-v0.2.5.zip`。
+- 验证单个文件：`curl -I https://script.xiangtianzhen.store/downloads/annotation-script-center-v0.2.6.zip`。
 
 ## 维护规则
 

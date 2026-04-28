@@ -28,6 +28,9 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 快判网络采集 `01` 到 `23`，以及待采集项和大页数负载测试片段。
 - 快判 AI 半自动建议接口：`/api/alibaba-labelx/asr-judgement/ai/health`、`/api/alibaba-labelx/asr-judgement/ai/suggest`。
 - AI 第一版模型固定走 `qwen3-omni-flash`（后续预留 `qwen3.5-omni-plus`），已取消 MiniMax 接入计划。
+- 当前扩展版本：`0.2.6`。
+- AI 文本 prompt 仅包含 `asrText1/asrText2`；`projectId/subTaskId/itemId/itemIndex/audioUrl` 不进入模型文本上下文。
+- `audioUrl` 仅用于模型音频输入字段。
 
 ## 维护规则
 

@@ -80,7 +80,6 @@
         "aiSuggestionRequestTimeoutMs",
         "aiSuggestionModel",
         "aiSuggestionAvailableModels",
-        "aiSuggestionShortcut",
         "shortcuts",
       ],
       SHORTCUT_COMPATIBILITY_MAP: {},
@@ -453,14 +452,17 @@
       nextConfig.shortcuts = {};
     }
 
+    const legacyAiShortcut = hasOwn(nextConfig, "aiSuggestionShortcut")
+      ? nextConfig.aiSuggestionShortcut
+      : null;
     const aiShortcut = normalizeShortcut(
       hasOwn(nextConfig.shortcuts, "aiSuggestCurrentItem")
         ? nextConfig.shortcuts.aiSuggestCurrentItem
-        : nextConfig.aiSuggestionShortcut,
-      defaults.aiSuggestionShortcut || null
+        : legacyAiShortcut,
+      null
     );
     nextConfig.shortcuts.aiSuggestCurrentItem = aiShortcut;
-    nextConfig.aiSuggestionShortcut = clone(aiShortcut);
+    delete nextConfig.aiSuggestionShortcut;
 
     const normalizedStatsConfig = normalizeJudgementStatsConfig(nextConfig);
     normalizedStatsConfig.aiSuggestionEnabled = normalizedStatsConfig.aiSuggestionEnabled === true;
@@ -488,7 +490,6 @@
       defaults.aiSuggestionModel || "qwen3-omni-flash",
       normalizedStatsConfig.aiSuggestionAvailableModels
     );
-    normalizedStatsConfig.aiSuggestionShortcut = clone(aiShortcut);
     return normalizedStatsConfig;
   }
 

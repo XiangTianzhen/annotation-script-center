@@ -209,7 +209,6 @@
     aiSuggestionRequestTimeoutMs: 120000,
     aiSuggestionModel: "qwen3-omni-flash",
     aiSuggestionAvailableModels: clone(JUDGEMENT_AI_AVAILABLE_MODELS),
-    aiSuggestionShortcut: null,
     shortcuts: {
       choiceFirstBetter: createShortcut("1"),
       choiceSecondBetter: createShortcut("2"),
@@ -274,7 +273,6 @@
     "aiSuggestionRequestTimeoutMs",
     "aiSuggestionModel",
     "aiSuggestionAvailableModels",
-    "aiSuggestionShortcut",
     "shortcuts",
   ];
 
