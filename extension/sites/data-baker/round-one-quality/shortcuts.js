@@ -13,6 +13,18 @@
   };
   const HANDLED_FLAG = "__asrEdgeDataBakerShortcutHandled";
   const FOCUS_SENTINEL_ID = "asr-edge-data-baker-focus-sentinel";
+  const FOCUS_RECOVERY_DELAYS = [0, 50, 120, 250, 500, 900];
+  const PLATFORM_ACTION_KEYWORDS = [
+    "确定",
+    "合格",
+    "不合格",
+    "通过",
+    "部分驳回",
+    "全部驳回",
+    "上一条",
+    "下一条",
+  ];
+  let lastFocusRecoveryDebugAt = 0;
 
   function normalizeShortcut(shortcut) {
     if (!shortcut || typeof shortcut !== "object") {
@@ -123,6 +135,26 @@
     focusSafeBody();
   }
 
+  function scheduleFocusRecovery(reason) {
+    if (
+      typeof console !== "undefined" &&
+      typeof console.debug === "function" &&
+      Date.now() - lastFocusRecoveryDebugAt > 2000
+    ) {
+      lastFocusRecoveryDebugAt = Date.now();
+      console.debug(
+        "[DataBaker][round-one-quality][shortcut] schedule focus recovery: " +
+          String(reason || "unknown")
+      );
+    }
+
+    FOCUS_RECOVERY_DELAYS.forEach(function (delay) {
+      window.setTimeout(function () {
+        blurActiveElementForShortcut();
+      }, delay);
+    });
+  }
+
   function shortcutMatchesEvent(shortcut, event) {
     if (!shortcut || shortcut.button !== null) {
       return false;
@@ -148,6 +180,32 @@
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, "").trim();
+  }
+
+  function isPlatformActionButton(target) {
+    const element = target instanceof Element ? target : null;
+    const button = element?.closest("button, .el-button");
+    if (!button) {
+      return false;
+    }
+
+    const text = normalizeText(button.textContent || "");
+    return PLATFORM_ACTION_KEYWORDS.some(function (keyword) {
+      return text.indexOf(normalizeText(keyword)) >= 0;
+    });
+  }
+
+  function getActiveSentenceSignature() {
+    const items = Array.from(document.querySelectorAll(".sentence-list .sentence-item"));
+    const active = document.querySelector(".sentence-list .sentence-item.active");
+    if (!active) {
+      return "";
+    }
+    const index = items.indexOf(active);
+    const title = normalizeText(
+      active.querySelector(".title")?.textContent || active.textContent || ""
+    );
+    return String(index) + "|" + String(active.className || "") + "|" + title.slice(0, 80);
   }
 
   function findButtonInContainers(containerSelector, headingText, buttonText) {
@@ -180,6 +238,7 @@
       return false;
     }
     button.click();
+    scheduleFocusRecovery("shortcut-click-button");
     showStatus("已触发：" + normalizeText(button.textContent), "success", actions);
     return true;
   }
@@ -261,6 +320,9 @@
     let shortcuts = normalizeShortcutMap(config.shortcuts);
     let actions = config.actions || {};
     let started = false;
+    let activeObserver = null;
+    let activeCheckTimer = null;
+    let lastActiveSignature = "";
 
     function findMatchedAction(event) {
       return Object.keys(shortcuts).find(function (key) {
@@ -290,12 +352,74 @@
 
     function handleDocumentClick(event) {
       const target = event.target instanceof Element ? event.target : null;
-      if (!target || !target.closest(".sentence-list .sentence-item")) {
+      if (!target) {
         return;
       }
 
-      window.setTimeout(blurActiveElementForShortcut, 80);
-      window.setTimeout(blurActiveElementForShortcut, 200);
+      if (target.closest(".sentence-list .sentence-item")) {
+        scheduleFocusRecovery("sentence-item-click");
+        return;
+      }
+
+      if (isPlatformActionButton(target)) {
+        scheduleFocusRecovery("platform-action-button-click");
+      }
+    }
+
+    function checkActiveSentenceChanged() {
+      const nextSignature = getActiveSentenceSignature();
+      if (!nextSignature) {
+        return;
+      }
+      if (!lastActiveSignature) {
+        lastActiveSignature = nextSignature;
+        return;
+      }
+      if (nextSignature === lastActiveSignature) {
+        return;
+      }
+      lastActiveSignature = nextSignature;
+      scheduleFocusRecovery("active-item-changed");
+    }
+
+    function scheduleActiveSentenceCheck() {
+      if (activeCheckTimer) {
+        return;
+      }
+      activeCheckTimer = window.setTimeout(function () {
+        activeCheckTimer = null;
+        checkActiveSentenceChanged();
+      }, 80);
+    }
+
+    function startActiveObserver() {
+      if (activeObserver) {
+        return;
+      }
+      lastActiveSignature = getActiveSentenceSignature();
+      activeObserver = new MutationObserver(scheduleActiveSentenceCheck);
+      activeObserver.observe(document.body || document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    function stopActiveObserver() {
+      if (activeObserver) {
+        activeObserver.disconnect();
+        activeObserver = null;
+      }
+      if (activeCheckTimer) {
+        window.clearTimeout(activeCheckTimer);
+        activeCheckTimer = null;
+      }
+      lastActiveSignature = "";
+    }
+
+    function handleWindowFocus() {
+      scheduleFocusRecovery("window-focus");
     }
 
     function start() {
@@ -306,6 +430,8 @@
       window.addEventListener("keydown", handleKeydown, true);
       document.addEventListener("keydown", handleKeydown, true);
       document.addEventListener("click", handleDocumentClick, true);
+      window.addEventListener("focus", handleWindowFocus, true);
+      startActiveObserver();
     }
 
     function stop() {
@@ -316,6 +442,8 @@
       window.removeEventListener("keydown", handleKeydown, true);
       document.removeEventListener("keydown", handleKeydown, true);
       document.removeEventListener("click", handleDocumentClick, true);
+      window.removeEventListener("focus", handleWindowFocus, true);
+      stopActiveObserver();
     }
 
     function refresh(nextOptions) {
@@ -336,5 +464,6 @@
     createRuntime,
     focusSafeBody,
     normalizeShortcut,
+    scheduleFocusRecovery,
   };
 })();
