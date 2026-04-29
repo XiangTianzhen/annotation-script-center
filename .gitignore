@@ -7,6 +7,7 @@
 
 # DataBaker AI 调用日志
 /platform-resources/data-baker/round-one-quality/backend/logs/
+/platform-resources/data-baker/round-one-quality/backend/exports/
 
 # 环境密钥文件
 .env

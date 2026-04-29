@@ -25,6 +25,7 @@ extension/sites/data-baker/round-one-quality/
 - 专属设置页可配置 AI 推荐接口地址、请求超时时间和 AI 推荐开关。
 - 专属设置页新增自动每页条数，默认启用并设置为 `50条/页`，只点击页面原生分页控件。
 - 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
+- `group/detail?taskId=...` 页面新增“导出数据总表”按钮，调用本地后端全量翻页导出 `queryByCondition` CSV。
 - 默认推荐接口走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
 - 本机接口 `http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend` 仅用于开发调试。
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
@@ -47,6 +48,10 @@ round-one-quality/
     ai-prompts.js
     ai-response-schema.js
     ai-routes.js
+    export-auth.js
+    export-client.js
+    export-csv.js
+    export-routes.js
 ```
 
 - `page-structure.md`：页面 DOM 结构、稳定选择器和当前可编辑文本框判断。
@@ -84,9 +89,22 @@ DataBaker AI 推荐接口：
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
 
+DataBaker 任务总表导出接口：
+
+- `GET /api/data-baker/round-one-quality/export/health`
+- `POST /api/data-baker/round-one-quality/export/task`
+- `GET /api/data-baker/round-one-quality/export/download?fileName=...`
+
 扩展默认请求服务器完整路径：
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
+
+导出接口默认由本地扩展调用 `http://127.0.0.1:3333`，并把 CSV 另外保存到 `platform-resources/data-baker/round-one-quality/backend/exports/`（可由 `DATABAKER_EXPORT_DIR` 覆盖）。
+
+登录接口调研说明：
+
+- 当前仓库无法在本地直接固定抓到 DataBaker 登录请求，`DATABAKER_EXPORT_LOGIN_URL` 默认留空。
+- 登录请求字段与 token 字段路径均改为环境变量可配置，文档和日志不记录真实账号、密码、token、cookie。
 
 ## 闽南方言词表
 

@@ -82,6 +82,8 @@ Chrome：
 - 自动每页条数默认启用，进入 DataBaker 一检详情页后会尝试设置为 `50条/页`，只改页面分页，不自动提交任务。
 - 快捷键配置默认全部未设置，可手动绑定 AI 推荐、复制听音文本、复制推荐文本、填入、忽略、句子判定和任务判定动作；普通输入不拦截，按下已配置快捷键时会先退出输入焦点再执行。
 - DataBaker 快捷键运行时会先判断按键是否命中已配置动作，未命中时不阻止输入；点击左侧题目、平台动作按钮或平台自动切换 active 题目后会延迟恢复页面焦点，避免必须手动点击空白区域才能继续使用快捷键。
+- DataBaker 焦点恢复分为被动恢复和强制恢复：被动恢复不会打断正在编辑的 `input/textarea/select/contenteditable`，且用户最近 1200ms 手动点入输入框时会跳过恢复；命中已配置快捷键时仍可强制失焦并执行动作。
+- DataBaker `group/detail?taskId=...` 页面新增“导出数据总表”按钮，点击后调用本地后端按 `taskId` 全量翻页 `queryByCondition` 并下载 CSV。
 
 扩展前端只保存接口地址、超时时间、开关、分页和快捷键设置，不保存 API Key、cookie、access token 或完整音频 URL。真实模型密钥仍由后端通过 `config/env/ai.env` 读取。
 
@@ -155,6 +157,13 @@ http://127.0.0.1:3333
 - 健康检查：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
 - 推荐接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
 - 扩展默认推荐接口：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
+
+当前 DataBaker 任务总表导出接口：
+
+- 健康检查：`http://127.0.0.1:3333/api/data-baker/round-one-quality/export/health`
+- 触发导出：`POST http://127.0.0.1:3333/api/data-baker/round-one-quality/export/task`
+- 下载 CSV：`http://127.0.0.1:3333/api/data-baker/round-one-quality/export/download?fileName=...`
+- 默认本地导出目录：`platform-resources/data-baker/round-one-quality/backend/exports/`（可用 `DATABAKER_EXPORT_DIR` 覆盖）
 
 ## 统一 AI 环境配置文件
 
@@ -232,6 +241,7 @@ DataBaker AI 推荐文本说明：
 - 普通输入不会被快捷键拦截；如果焦点仍在 `input`、`textarea`、`select` 或 `contenteditable` 中，只有按下已配置的 DataBaker 快捷键时才会自动失焦并执行动作。
 - 点击左侧 `.sentence-list .sentence-item` 切换当前句子后，脚本会在不阻止页面点击的前提下延迟恢复快捷键焦点。
 - 点击平台“确定”等动作按钮并由平台自动切换下一条后，脚本会监听 `.sentence-list .sentence-item.active` 变化并恢复快捷键焦点；该恢复只做 blur + 隐藏焦点哨兵，不模拟点击页面空白处。
+- 用户手动点击“本句话文本”输入框后，1200ms 内被动焦点恢复会自动跳过，不再抢走输入光标。
 - “填入推荐文本”写入“本句话文本”输入框后会立即和延迟退出输入框，方便继续使用快捷键；仍不会自动保存、自动提交或自动点击合格 / 不合格。
 - AI 听音文本、AI 推荐文本、复制内容和“填入推荐文本”前会自动删除普通空格、全角空格、Tab 和换行；页面候选文本原文不被修改。
 - 推荐卡展示和“填入推荐文本”前会自动补全中文句末标点；英文句末 `.?!;` 会转为 `。？！；`，无句末标点时默认补 `。`。
@@ -261,6 +271,19 @@ DataBaker AI 相关环境变量（后端）：
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
+
+DataBaker 任务总表导出环境变量（后端）：
+
+- `DATABAKER_EXPORT_USERNAME`：DataBaker 登录账号（仅放 `config/env/ai.env` 或系统环境变量）。
+- `DATABAKER_EXPORT_PASSWORD`：DataBaker 登录密码（仅放 `config/env/ai.env` 或系统环境变量）。
+- `DATABAKER_EXPORT_LOGIN_URL`：登录接口 URL；当前仓库无法在本地直接抓包确认默认值，必须按实际接口配置。
+- `DATABAKER_EXPORT_BASE_URL`：导出查询接口域名，默认 `https://datafactory.data-baker.com`。
+- `DATABAKER_EXPORT_TOKEN_REFRESH_MS`：token 重新登录间隔，默认 `3600000`（1 小时）。
+- `DATABAKER_EXPORT_PAGE_SIZE`：导出分页大小，默认 `100`。
+- `DATABAKER_EXPORT_DIR`：CSV 本地保存目录，未配置时默认 `platform-resources/data-baker/round-one-quality/backend/exports/`。
+- `DATABAKER_EXPORT_LOGIN_METHOD` / `DATABAKER_EXPORT_LOGIN_USERNAME_FIELD` / `DATABAKER_EXPORT_LOGIN_PASSWORD_FIELD`：登录请求方法和账号字段可配置。
+- `DATABAKER_EXPORT_LOGIN_EXTRA_BODY_JSON` / `DATABAKER_EXPORT_LOGIN_PAYLOAD_TEMPLATE_JSON`：登录请求额外字段或模板（用于未公开登录契约）。
+- `DATABAKER_EXPORT_ACCESS_TOKEN_PATH` / `DATABAKER_EXPORT_REFRESH_TOKEN_PATH`：登录响应 token 字段路径（点路径）。
 
 ## 服务器部署
 
@@ -403,4 +426,3 @@ location / {
 - 有功能、目录结构、模块归属、选择器或验证步骤变化时，同步更新相关 README 和根目录 `log.md`。
 - 修改 `manifest.json` 后必须确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 - 修改 JS 后运行 `node --check` 检查变更文件。
-

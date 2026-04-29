@@ -25,6 +25,7 @@
     "下一条",
   ];
   let lastFocusRecoveryDebugAt = 0;
+  let lastManualEditableFocusAt = 0;
 
   function normalizeShortcut(shortcut) {
     if (!shortcut || typeof shortcut !== "object") {
@@ -107,8 +108,25 @@
     }
   }
 
-  function blurActiveElementForShortcut() {
+  function markManualEditableFocus(target) {
+    if (isEditableTarget(target)) {
+      lastManualEditableFocusAt = Date.now();
+    }
+  }
+
+  function blurActiveElementForShortcut(options) {
+    const config = options && typeof options === "object" ? options : {};
+    const force = config.force === true;
     const activeElement = document.activeElement;
+
+    if (!force) {
+      if (isEditableTarget(activeElement)) {
+        return false;
+      }
+      if (Date.now() - lastManualEditableFocusAt < 1200) {
+        return false;
+      }
+    }
 
     if (
       activeElement &&
@@ -133,6 +151,7 @@
     }
 
     focusSafeBody();
+    return true;
   }
 
   function scheduleFocusRecovery(reason) {
@@ -150,7 +169,7 @@
 
     FOCUS_RECOVERY_DELAYS.forEach(function (delay) {
       window.setTimeout(function () {
-        blurActiveElementForShortcut();
+        blurActiveElementForShortcut({ force: false, reason: reason });
       }, delay);
     });
   }
@@ -341,13 +360,21 @@
       }
 
       event[HANDLED_FLAG] = true;
-      blurActiveElementForShortcut();
+      blurActiveElementForShortcut({ force: true, reason: "shortcut" });
       event.preventDefault();
       event.stopPropagation();
       if (typeof event.stopImmediatePropagation === "function") {
         event.stopImmediatePropagation();
       }
       runAction(actionKey, actions);
+    }
+
+    function handleFocusIn(event) {
+      markManualEditableFocus(event.target);
+    }
+
+    function handlePointerDown(event) {
+      markManualEditableFocus(event.target);
     }
 
     function handleDocumentClick(event) {
@@ -429,6 +456,8 @@
       started = true;
       window.addEventListener("keydown", handleKeydown, true);
       document.addEventListener("keydown", handleKeydown, true);
+      document.addEventListener("focusin", handleFocusIn, true);
+      document.addEventListener("mousedown", handlePointerDown, true);
       document.addEventListener("click", handleDocumentClick, true);
       window.addEventListener("focus", handleWindowFocus, true);
       startActiveObserver();
@@ -441,6 +470,8 @@
       started = false;
       window.removeEventListener("keydown", handleKeydown, true);
       document.removeEventListener("keydown", handleKeydown, true);
+      document.removeEventListener("focusin", handleFocusIn, true);
+      document.removeEventListener("mousedown", handlePointerDown, true);
       document.removeEventListener("click", handleDocumentClick, true);
       window.removeEventListener("focus", handleWindowFocus, true);
       stopActiveObserver();

@@ -2,6 +2,10 @@
 
 ## 2026-04-29
 
+- 新增 DataBaker 一检质检导出后端：`/api/data-baker/round-one-quality/export/health` 与 `/api/data-baker/round-one-quality/export/task`；账号密码从环境变量读取，导出链路支持 token 内存缓存、过期刷新与 401/403 自动重登，按 `taskId` 自动翻页 `queryByCondition` 并生成 CSV 到 `platform-resources/data-baker/round-one-quality/backend/exports/`，响应不返回 token。
+- 新增 DataBaker `group/detail?taskId=...` 页面“导出数据总表”按钮：点击后调用本地导出接口并触发浏览器下载，同时展示“正在导出/已导出/失败原因”状态。
+- 修复 DataBaker 一检质检输入框误失焦：快捷键焦点恢复拆分为被动恢复与强制恢复；被动恢复会跳过编辑态和最近 1200ms 手动点入输入框场景，命中已配置快捷键时仍可强制失焦执行动作。
+- 新增导出环境变量模板 `DATABAKER_EXPORT_*` 与登录字段/token 路径可配置项；同步 `.gitignore` 忽略 `platform-resources/data-baker/round-one-quality/backend/exports/`。
 - DataBaker AI 推荐文本新增去空格兜底：后端统一清理 `heardText` 和最终 `recommendedText` 中的普通空格、全角空格、Tab 和换行；前端展示、复制和填入前也做兼容兜底，不修改页面候选文本原文，不自动保存或提交。
 - 更新 AGENTS.md 项目定位：当前重点平台收口为 Alibaba LabelX 与 DataBaker / DataFactory，重点脚本包含快判、转写和 DataBaker 一检质检。
 - 固化单人项目 Git 工作流：默认 main 分支直接执行，验证通过后 commit 并 push，不创建分支、不创建 PR。

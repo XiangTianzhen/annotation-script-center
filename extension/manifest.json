@@ -153,6 +153,7 @@
         "sites/data-baker/round-one-quality/ui-panel.js",
         "sites/data-baker/round-one-quality/page-size-controller.js",
         "sites/data-baker/round-one-quality/shortcuts.js",
+        "sites/data-baker/round-one-quality/group-export.js",
         "sites/data-baker/round-one-quality/content.js"
       ],
       "all_frames": false,

@@ -42,6 +42,21 @@ server.listen(config.port, config.host, function () {
       baseUrl +
       "/api/data-baker/round-one-quality/ai/recommend"
   );
+  console.info(
+    "[Platform Resources][backend] DataBaker export health: " +
+      baseUrl +
+      "/api/data-baker/round-one-quality/export/health"
+  );
+  console.info(
+    "[Platform Resources][backend] DataBaker export task: " +
+      baseUrl +
+      "/api/data-baker/round-one-quality/export/task"
+  );
+  console.info(
+    "[Platform Resources][backend] DataBaker export download: " +
+      baseUrl +
+      "/api/data-baker/round-one-quality/export/download?fileName=..."
+  );
 });
 
 module.exports = server;

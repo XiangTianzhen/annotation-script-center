@@ -4,6 +4,7 @@
 
 - 首页：`https://datafactory.data-baker.com/v2/#/quality/roundOne`
 - 详情页：`https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0`
+- 任务组详情页：`https://datafactory.data-baker.com/v2/#/group/detail?taskId=...`
 
 这是独立新增站点，不属于 Alibaba LabelX，也不复用 `extension/sites/alibaba-labelx/asr-judgement/` 或 `extension/sites/alibaba-labelx/asr-transcription/` 的业务代码。
 
@@ -19,6 +20,7 @@
 - “填入推荐文本”只在用户点击后触发，只写入页面的“本句话文本”输入框，不自动保存、不自动提交、不自动点击合格 / 不合格。
 - AI 听音文本、AI 推荐文本展示和填入前会自动删除普通空格、全角空格、Tab 和换行；页面候选文本保持平台原文。
 - AI 推荐文本展示和填入前会自动补全中文句末标点；英文句末 `.?!;` 会转为 `。？！；`，无句末标点时默认补 `。`。
+- `group/detail` 页面新增“导出数据总表”按钮，按 `taskId` 调用本地后端全量翻页 `queryByCondition` 并下载 CSV。
 - 支持自动每页条数，默认进入详情页后尝试设置为 `50条/页`，只点击页面原生分页控件。
 - 支持 DataBaker 专属快捷键配置，默认全部未设置；快捷键只处理当前题或当前推荐卡。
 
@@ -32,6 +34,7 @@ round-one-quality/
   ui-panel.js
   page-size-controller.js
   shortcuts.js
+  group-export.js
   page-world/
     network-observer.js
 ```
@@ -41,7 +44,8 @@ round-one-quality/
 - `ai-recommendation.js`：调用本地后端 `POST /api/data-baker/round-one-quality/ai/recommend`，请求体只传必要字段。
 - `ui-panel.js`：注入按钮和推荐结果卡，支持复制和用户点击后填入推荐文本。
 - `page-size-controller.js`：在详情页有限重试点击分页大小选择器，按设置切换到目标每页条数。
-- `shortcuts.js`：监听 DataBaker 专属快捷键；先匹配已配置快捷键再处理输入焦点，普通输入不拦截；命中快捷键时会用隐藏焦点哨兵退出输入框再执行，并在左侧句子点击、平台动作按钮点击和 active 题目变化后恢复快捷键焦点，不绕过 disabled 按钮。
+- `shortcuts.js`：监听 DataBaker 专属快捷键；先匹配已配置快捷键再处理输入焦点，普通输入不拦截。被动焦点恢复（平台按钮、active 题目变化）不会打断正在编辑输入框；命中已配置快捷键时按强制模式退出输入框再执行动作。
+- `group-export.js`：仅在 `group/detail?taskId=...` 页面注入“导出数据总表”按钮，调用本地导出接口并触发 CSV 下载。
 - `page-world/network-observer.js`：运行在 MAIN world，观察 `queryCollectStatementByCondtion` 列表接口响应，只在内存中缓存当前页题目记录。
 
 ## options 设置
@@ -57,6 +61,7 @@ round-one-quality/
 - 普通输入不会被快捷键拦截；如果焦点停留在“本句话文本”输入框，只有按下已配置快捷键时才会自动 blur 输入框并执行动作。
 - 点击左侧 `.sentence-list .sentence-item` 切换题目后，脚本会在不阻止平台点击行为的前提下延迟恢复页面焦点，避免必须手动再点空白区域才能继续使用快捷键。
 - 点击平台“确定”“合格”“不合格”“通过”“部分驳回”“全部驳回”“上一条”“下一条”等动作按钮后，或平台自动切换 `.sentence-list .sentence-item.active` 后，脚本会通过 blur + 隐藏焦点哨兵恢复快捷键焦点；不模拟点击页面空白处，不绕过 disabled。
+- 用户手动点击“本句话文本”输入框后，1200ms 内被动焦点恢复会跳过，不会再把光标抢走。
 - “填入推荐文本”成功后会立即并延迟退出“本句话文本”输入框，方便继续使用快捷键；不会自动保存、自动提交或自动判定。
 
 扩展前端只保存接口地址、超时时间、开关、分页和快捷键设置，不保存 API Key、access token、cookie 或完整 `audioUrl`。模型密钥仍由后端通过 `config/env/ai.env` 读取。
@@ -105,10 +110,14 @@ node platform-resources\backend\server.js
 
 - `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
 - `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
+- `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/export/health`
+- `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/export/task`
 
 扩展默认请求服务器接口：
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
+
+任务总表导出仅调用本地后端（默认 `127.0.0.1:3333`），后端会把 CSV 额外保存到 `platform-resources/data-baker/round-one-quality/backend/exports/`（可由 `DATABAKER_EXPORT_DIR` 覆盖）。
 
 第一版固定模型：
 
@@ -158,6 +167,7 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 20. 填入后不点击页面，直接按快捷键，确认仍可继续响应。
 21. 关闭 DataBaker 脚本后刷新详情页，确认工具卡、自动分页和快捷键都停止；只关闭 AI 推荐时不显示工具卡。
 22. 打开非 `roundOneCollect` 页面，确认不注入该工具卡。
+23. 打开 `group/detail?taskId=...` 页面，确认出现“导出数据总表”按钮，点击后状态依次展示“正在导出/已导出 N 条或失败原因”。
 
 ## 已知限制
 
