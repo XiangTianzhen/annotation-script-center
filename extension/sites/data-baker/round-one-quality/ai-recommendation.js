@@ -12,6 +12,29 @@
     }
   }
 
+  function normalizeText(text) {
+    return String(text || "").replace(/\s+/g, " ").trim();
+  }
+
+  function getAnnotatorName() {
+    const rightMenu = document.querySelector(".right-menu");
+    if (!rightMenu) {
+      return "";
+    }
+
+    const candidates = Array.from(
+      rightMenu.querySelectorAll(".avatar-container.el-dropdown > .el-dropdown-selfdefine, .avatar-container.el-dropdown [role='button']")
+    )
+      .map(function (node) {
+        return normalizeText(node.textContent || "");
+      })
+      .filter(function (text) {
+        return text && text !== "帮助文档" && text !== "简体中文" && text !== "English";
+      });
+
+    return candidates.length > 0 ? candidates[candidates.length - 1].slice(0, 40) : "";
+  }
+
   function createRuntime(options) {
     const config = options && typeof options === "object" ? options : {};
 
@@ -54,6 +77,7 @@
         readRequire: String(source.readRequire || ""),
         audioUrl: String(source.audioUrl || ""),
         pageText: String(source.pageText || ""),
+        annotatorName: String(source.annotatorName || getAnnotatorName() || ""),
         effectiveStartTime: source.effectiveStartTime,
         effectiveEndTime: source.effectiveEndTime,
         effectiveTime: source.effectiveTime,
@@ -101,5 +125,6 @@
     DEFAULT_ENDPOINT,
     DEFAULT_TIMEOUT_MS,
     createRuntime,
+    getAnnotatorName,
   };
 })();
