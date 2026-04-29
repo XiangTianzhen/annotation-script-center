@@ -2,6 +2,10 @@
 
 ## 2026-04-29
 
+- 优化 DataBaker group/detail 总表导出为“平台原生分页全量导出”：`group-export.js` 点击后先切换 `100条/页`，再通过跳页控件逐页触发 `queryByCondition`，由 MAIN world 拦截响应并合并去重后下载 CSV。
+- DataBaker 总表 CSV 字段移除“采集ID”列，继续保留中文表头、UTF-8 BOM 与“原始JSON”脱敏列；导出过程不写入 `access_token`、`refresh_token`、cookie 或 authorization。
+- 导出失败时增加明确提示和当前页兜底导出提示：分页控件不可用会提示手动切换 `100条/页` 后重试，避免静默失败。
+
 - 修复 DataBaker group/detail 导出 `code=51000`：`group-export.js` 不再直接 `fetch /cms/tbAudioUserTask/queryByCondition`，改为触发页面原生查询并等待 MAIN world 拦截响应后导出。
 - 扩展 `page-world/network-observer.js`：新增 `queryByCondition` 拦截、`DATABAKER_ROUND_ONE_QUALITY_GROUP_QUERY_RESPONSE` 消息类型，以及 `window.__ASREdgeDataBakerRoundOneGroupQueryCache`（最多 20 条）缓存；保留原有 `queryCollectStatementByCondtion` 逻辑不变。
 - 导出流程第一版调整为“当前页导出”：按钮文案改为“导出当前页数据”，文件名包含 `pageNum`；支持查询按钮触发、分页触发和 `location.reload()` 兜底，并通过 `sessionStorage` 恢复等待状态。

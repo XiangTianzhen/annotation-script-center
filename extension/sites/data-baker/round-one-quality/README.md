@@ -20,7 +20,7 @@
 - “填入推荐文本”只在用户点击后触发，只写入页面的“本句话文本”输入框，不自动保存、不自动提交、不自动点击合格 / 不合格。
 - AI 听音文本、AI 推荐文本展示和填入前会自动删除普通空格、全角空格、Tab 和换行；页面候选文本保持平台原文。
 - AI 推荐文本展示和填入前会自动补全中文句末标点；英文句末 `.?!;` 会转为 `。？！；`，无句末标点时默认补 `。`。
-- `group/detail` 页面新增“导出当前页数据”按钮，通过 MAIN world 拦截页面原生 `queryByCondition` 响应导出当前页 CSV（含 BOM）。
+- `group/detail` 页面新增“导出数据总表”按钮，通过 MAIN world 拦截页面原生 `queryByCondition` 响应，按分页控件逐页合并导出全量 CSV（含 BOM）。
 - 支持自动每页条数，默认进入详情页后尝试设置为 `50条/页`，只点击页面原生分页控件。
 - 支持 DataBaker 专属快捷键配置，默认全部未设置；快捷键只处理当前题或当前推荐卡。
 
@@ -45,7 +45,7 @@ round-one-quality/
 - `ui-panel.js`：注入按钮和推荐结果卡，支持复制和用户点击后填入推荐文本。
 - `page-size-controller.js`：在详情页有限重试点击分页大小选择器，按设置切换到目标每页条数。
 - `shortcuts.js`：监听 DataBaker 专属快捷键；先匹配已配置快捷键再处理输入焦点，普通输入不拦截。被动焦点恢复（平台按钮、active 题目变化）不会打断正在编辑输入框；命中已配置快捷键时按强制模式退出输入框再执行动作。
-- `group-export.js`：仅在 `group/detail?taskId=...` 页面注入“导出当前页数据”按钮，触发页面原生查询并等待 MAIN world 的 `queryByCondition` 响应消息后下载 CSV。
+- `group-export.js`：仅在 `group/detail?taskId=...` 页面注入“导出数据总表”按钮，先尝试切换 `100条/页`，再通过跳页控件逐页触发平台原生查询并等待 MAIN world 的 `queryByCondition` 响应消息后合并下载 CSV。
 - `page-world/network-observer.js`：运行在 MAIN world，观察 `queryCollectStatementByCondtion`（一检详情页）和 `queryByCondition`（group/detail）响应并以内存消息通知 ISOLATED world。
 
 ## options 设置
@@ -115,7 +115,7 @@ node platform-resources\backend\server.js
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 
-任务总表导出不再由 content script 直接 `fetch /cms/tbAudioUserTask/queryByCondition`。原因是平台可能对扩展直接请求返回 `code=51000`。当前方案改为触发页面原生查询并拦截响应，第一版稳定导出当前页，不依赖本地后端或账号密码配置。
+任务总表导出不再由 content script 直接 `fetch /cms/tbAudioUserTask/queryByCondition`。原因是平台可能对扩展直接请求返回 `code=51000`。当前方案改为触发页面原生分页查询并拦截响应：先切换 `100条/页`，再逐页触发并合并导出，不依赖本地后端或账号密码配置。CSV 已移除“采集ID”列，保留 UTF-8 BOM 与“原始JSON”脱敏列。
 
 第一版固定模型：
 
@@ -165,12 +165,13 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 20. 填入后不点击页面，直接按快捷键，确认仍可继续响应。
 21. 关闭 DataBaker 脚本后刷新详情页，确认工具卡、自动分页和快捷键都停止；只关闭 AI 推荐时不显示工具卡。
 22. 打开非 `roundOneCollect` 页面，确认不注入该工具卡。
-23. 打开 `group/detail?taskId=...` 页面，确认出现“导出当前页数据”按钮；在不启动本地后端时点击，状态应展示“正在刷新页面数据/等待平台响应”，最终提示“已导出当前页 N 条 / 总计 total 条”或明确失败原因。
+23. 打开 `group/detail?taskId=...` 页面，确认出现“导出数据总表”按钮；在不启动本地后端时点击，状态应展示“准备导出，正在切换到 100条/页”“正在导出：第 x / y 页”，最终提示“已导出 N 条 / 总计 total 条，已下载 CSV”或明确失败原因。
 
 ## 已知限制
 
 - 当前不实现自动保存、自动提交、批量识别、自动流转或自动判定。
 - 如果当前页面还没有触发列表接口，运行时会尝试同源读取当前页数据；若浏览器限制导致读取失败，需要刷新详情页或点击左侧句子后再触发。
 - 若 15 秒内未捕获到 `queryByCondition` 响应，页面会提示“未捕获到平台 queryByCondition 响应，请点击页面查询按钮后重试。”。
+- 如果分页控件无法自动切到 `100条/页` 或无法跳页，页面会提示手动切换分页后重试；必要时会降级导出当前页并给出明确提示。
 - 如果无法安全定位可编辑的“本句话文本”输入框，结果卡仍保留复制入口，但不会强行填入。
 - 有效音频裁剪第一版未启用；后端只保留环境变量和代码结构，默认把完整 `audioUrl` 交给听音模型。
