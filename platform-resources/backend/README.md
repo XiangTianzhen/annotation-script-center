@@ -23,6 +23,12 @@ http://127.0.0.1:3333
 - `PLATFORM_RESOURCES_SERVER_HOST`：统一后端监听地址，默认 `127.0.0.1`。
 - `PLATFORM_RESOURCES_SERVER_PORT`：统一后端监听端口，默认 `3333`。
 - `ASR_JUDGEMENT_SERVER_HOST` / `ASR_JUDGEMENT_SERVER_PORT`：兼容旧快判本地服务启动配置。
+- `DATABAKER_AI_LISTEN_MODEL`：DataBaker AI 听音模型，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_AI_COMPARE_MODEL`：DataBaker AI 对比模型，默认 `qwen3.5-plus`。
+- `DATABAKER_AI_TIMEOUT_MS`：DataBaker AI 请求超时，默认 `120000`。
+- `DATABAKER_AI_MOCK`：设为 `1` 时 DataBaker AI 推荐接口走 mock。
+- `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留 DataBaker 有效音频裁剪开关，默认 `0`。
+- `DATABAKER_AI_CROP_PADDING_SECONDS`：预留 DataBaker 裁剪前后补齐秒数，默认 `0.12`。
 
 ## 文件职责
 
@@ -36,6 +42,7 @@ http://127.0.0.1:3333
 ## 当前已注册 API
 
 - `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、CSV 下载，以及 AI 建议 `health/suggest` 接口。
+- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend` 接口。
 
 ## 新增项目 API 规则
 

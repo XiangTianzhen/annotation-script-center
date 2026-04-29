@@ -2,7 +2,7 @@
 
 ## 目录定位
 
-`platform-resources/` 是浏览器无关的平台资源库，用来沉淀 LabelX 等平台的页面结构、网络请求、接口字段、统计格式、已知限制和本地调试工具。
+`platform-resources/` 是浏览器无关的平台资源库，用来沉淀 LabelX、DataBaker 等平台的页面结构、网络请求、接口字段、统计格式、已知限制和本地调试工具。
 
 这些资源服务于 Chrome / Edge 共用的 `extension/` 扩展源码，避免同一份 DOM / 网络知识或本地后端调试工具在多个目录中重复维护。
 
@@ -36,11 +36,18 @@ platform-resources/
       unfinished.md
     asr-transcription/
       README.md
+  data-baker/
+    round-one-quality/
+      README.md
+      page-structure.md
+      network.md
+      backend/
 ```
 
 ## 使用规则
 
 - 涉及 LabelX 页面 DOM 或网络接口时，优先读本目录，再修改扩展运行时代码。
+- 涉及 DataBaker 页面 DOM 或网络接口时，优先读 `data-baker/round-one-quality/`，不要把 DataBaker 逻辑写入 Alibaba LabelX 目录。
 - `page-structure/` 放页面结构、稳定选择器和代表性 HTML 片段。
 - `network/` 放请求 URL、请求 / 响应结构、采集结论和待采集项。
 - `ai/` 放快判 AI 规则、提示词模板和少量 few-shot 示例，不放完整雷题库。

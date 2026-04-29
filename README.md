@@ -5,8 +5,8 @@
 ## 当前重点
 
 - 当前通用扩展源码目录：`extension/`
-- 当前重点平台：`Alibaba LabelX`
-- 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`
+- 当前重点平台：`Alibaba LabelX`、`DataBaker / DataFactory`
+- 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/data-baker/round-one-quality/`
 - 当前后端入口：`platform-resources/backend/server.js`
 
 ## 目录结构
@@ -23,6 +23,8 @@ annotation-script-center/
       alibaba-labelx/
         asr-transcription/
         asr-judgement/
+      data-baker/
+        round-one-quality/
   platform-resources/
     backend/
     alibaba-labelx/
@@ -32,6 +34,11 @@ annotation-script-center/
         backend/
         unfinished.md
       asr-transcription/
+    data-baker/
+      round-one-quality/
+        backend/
+        page-structure.md
+        network.md
   docs/
     extension/
   legacy-reference/
@@ -82,7 +89,7 @@ Write-Host "已生成：$zipPath"
 生成后的压缩包路径示例：
 
 ```text
-dist\annotation-script-center-v0.2.6.zip
+dist\annotation-script-center-v0.2.7.zip
 ```
 
 压缩包内部第一层必须能直接看到这些内容：
@@ -123,9 +130,14 @@ http://127.0.0.1:3333
 - 健康检查：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/health`
 - 建议接口：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`
 
+当前 DataBaker 一检质检 AI 推荐文本接口：
+
+- 健康检查：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
+- 推荐接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
+
 快判 AI 建议说明：
 
-- 当前扩展版本：`0.2.6`。
+- 当前扩展版本：`0.2.7`。
 - 第一版默认模型：`qwen3-omni-flash`。
 - 已预留模型：`qwen3.5-omni-plus`（不默认使用）。
 - 已取消 MiniMax 接入，本仓库不包含 MiniMax client。
@@ -145,6 +157,24 @@ http://127.0.0.1:3333
 - `ASR_JUDGEMENT_AI_MODEL`：默认模型，默认 `qwen3-omni-flash`。
 - `ASR_JUDGEMENT_AI_TIMEOUT_MS`：请求超时，默认 `120000`。
 - `ASR_JUDGEMENT_AI_MOCK`：设为 `1` 才启用 mock；默认关闭，主流程是真实调用。
+
+DataBaker AI 推荐文本说明：
+
+- 当前目标页面：`https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0`。
+- 当前只做“单条 AI 推荐文本”，不自动保存、不自动提交、不自动点击合格 / 不合格、不做批量识别或自动流转。
+- 前端通过页面同源请求和 MAIN world 内存缓存读取当前题数据，不硬编码或持久化 `access_token`、cookie、完整签名音频 URL。
+- 推荐结果只展示给用户；“填入推荐文本”必须由用户点击触发，且只能写入可安全定位的“本句话文本”输入框。
+- 第一版默认模型：听音 `qwen3.5-omni-flash`，对比 `qwen3.5-plus`。
+
+DataBaker AI 相关环境变量（后端）：
+
+- `DASHSCOPE_API_KEY`：DashScope Key，未配置且未开启 mock 时 recommend 返回 `missing-api-key`。
+- `DATABAKER_AI_LISTEN_MODEL`：听音模型，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
+- `DATABAKER_AI_TIMEOUT_MS`：请求超时，默认 `120000`。
+- `DATABAKER_AI_MOCK`：设为 `1` 时走 mock。
+- `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
+- `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
 
 ## 服务器部署
 
@@ -269,11 +299,11 @@ location / {
 注意：
 
 - `alias` 路径和 `location /downloads/` 都要以 `/` 结尾。
-- `dist/` 目录里建议只放对外分发的扩展压缩包，例如 `annotation-script-center-v0.2.6.zip`。
+- `dist/` 目录里建议只放对外分发的扩展压缩包，例如 `annotation-script-center-v0.2.7.zip`。
 - 如果访问 `https://script.xiangtianzhen.store/downloads` 没有尾部 `/` 出现异常，改用 `https://script.xiangtianzhen.store/downloads/`。
 - 配置后执行 `sudo nginx -t` 和 `sudo systemctl reload nginx`。
 - 验证目录列表：`curl -I https://script.xiangtianzhen.store/downloads/`。
-- 验证单个文件：`curl -I https://script.xiangtianzhen.store/downloads/annotation-script-center-v0.2.6.zip`。
+- 验证单个文件：`curl -I https://script.xiangtianzhen.store/downloads/annotation-script-center-v0.2.7.zip`。
 
 ## 维护规则
 

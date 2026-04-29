@@ -14,6 +14,21 @@
 - 打包发布时，压缩包根目录必须直接包含 `manifest.json`、`background/`、`options/`、`popup/`、`shared/` 和 `sites/`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 
+## 当前站点脚本
+
+```text
+sites/
+  alibaba-labelx/
+    asr-transcription/
+    asr-judgement/
+  data-baker/
+    round-one-quality/
+```
+
+- `alibaba-labelx/asr-judgement/`：Alibaba LabelX ASR 快判。
+- `alibaba-labelx/asr-transcription/`：Alibaba LabelX ASR 转写。
+- `data-baker/round-one-quality/`：DataBaker / DataFactory 一检质检 AI 推荐文本，只在 `datafactory.data-baker.com` 的 `roundOneCollect` 详情页注入。
+
 ## 生成压缩包
 
 在仓库根目录运行：

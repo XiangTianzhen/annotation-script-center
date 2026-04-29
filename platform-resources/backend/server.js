@@ -29,6 +29,16 @@ server.listen(config.port, config.host, function () {
       baseUrl +
       "/api/alibaba-labelx/asr-judgement/ai/suggest"
   );
+  console.info(
+    "[Platform Resources][backend] DataBaker AI health: " +
+      baseUrl +
+      "/api/data-baker/round-one-quality/ai/recommend/health"
+  );
+  console.info(
+    "[Platform Resources][backend] DataBaker AI recommend: " +
+      baseUrl +
+      "/api/data-baker/round-one-quality/ai/recommend"
+  );
 });
 
 module.exports = server;

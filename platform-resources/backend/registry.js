@@ -2,6 +2,7 @@
 
 const path = require("path");
 const { registerRoutes: registerAsrJudgementRoutes } = require("../alibaba-labelx/asr-judgement/backend");
+const { registerRoutes: registerDataBakerRoundOneRoutes } = require("../data-baker/round-one-quality/backend");
 
 function registerProjectRoutes(router, options) {
   const config = options && typeof options === "object" ? options : {};
@@ -17,6 +18,7 @@ function registerProjectRoutes(router, options) {
       config.asrJudgement?.persistUploadEvents ||
       process.env.ASR_JUDGEMENT_PERSIST_UPLOAD_EVENTS === "1",
   });
+  registerDataBakerRoundOneRoutes(router, config.dataBakerRoundOneQuality || {});
 }
 
 module.exports = {

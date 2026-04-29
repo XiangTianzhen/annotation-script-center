@@ -1,5 +1,16 @@
 # 标注脚本中心修改日志
 
+## 2026-04-29
+
+- 新增 DataBaker / DataFactory 一检质检站点目录 `extension/sites/data-baker/round-one-quality/`，仅在 `datafactory.data-baker.com` 的 `roundOneCollect` 详情页注入“AI 推荐文本”工具卡。
+- DataBaker 前端新增 MAIN world 网络观察脚本，只在内存中缓存 `queryCollectStatementByCondtion` 当前页响应；ISOLATED world 根据 `.sentence-list .sentence-item.active`、右侧“本句话文本” textarea 和接口记录定位当前单条。
+- DataBaker 推荐结果卡支持展示页面候选文本、AI 听音文本、AI 推荐文本、变更标记、置信度、模型和复核提示，并提供“复制推荐文本”“填入推荐文本”“忽略”；填入必须由用户点击触发，不自动保存、提交、判定或流转。
+- 统一后端新增 DataBaker AI 推荐接口：
+  - `GET /api/data-baker/round-one-quality/ai/recommend/health`
+  - `POST /api/data-baker/round-one-quality/ai/recommend`
+- DataBaker 后端默认使用听音模型 `qwen3.5-omni-flash` 和对比模型 `qwen3.5-plus`，沿用原生 `fetch` 调 DashScope，支持 `DATABAKER_AI_MOCK=1` mock、费用估算和有效音频裁剪环境变量预留。
+- `manifest.json` 新增 `https://datafactory.data-baker.com/*` 权限与 content script，扩展版本提升到 `0.2.7`；同步更新根 README、扩展 README、平台资源 README、统一后端 README 和 DataBaker 页面 / 网络资料。
+
 ## 2026-04-28
 
 - 为 Alibaba LabelX ASR 快判新增“AI 半自动参考建议”第一版：新增 `judgement-ai-suggestion.js`，仅支持按钮/快捷键手动分析当前题卡，不自动分析全页，不自动保存/提交/领取/流转。

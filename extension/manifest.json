@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "标注脚本中心",
   "description": "多平台标注脚本中心与当前页面脚本状态入口。",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "permissions": [
     "storage",
     "tabs"
@@ -11,6 +11,7 @@
     "https://labelx.alibaba-inc.com/*",
     "https://label-cloud.lightwheel.net/*",
     "https://script.xiangtianzhen.store/*",
+    "https://datafactory.data-baker.com/*",
     "http://47.108.254.138:3101/*",
     "http://127.0.0.1:3101/*",
     "http://127.0.0.1:3333/*"
@@ -31,6 +32,17 @@
       "js": [
         "sites/alibaba-labelx/asr-transcription/runtime-contract.js",
         "sites/alibaba-labelx/asr-transcription/page-world/bridge.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://datafactory.data-baker.com/*"
+      ],
+      "js": [
+        "sites/data-baker/round-one-quality/page-world/network-observer.js"
       ],
       "all_frames": false,
       "run_at": "document_start",
@@ -124,6 +136,20 @@
         "sites/alibaba-labelx/asr-transcription/annotation-debug-snapshot.js",
         "sites/alibaba-labelx/asr-transcription/runtime-debug.js",
         "sites/alibaba-labelx/asr-transcription/content.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "https://datafactory.data-baker.com/*"
+      ],
+      "js": [
+        "sites/data-baker/round-one-quality/data-api.js",
+        "sites/data-baker/round-one-quality/ai-recommendation.js",
+        "sites/data-baker/round-one-quality/ui-panel.js",
+        "sites/data-baker/round-one-quality/content.js"
       ],
       "all_frames": false,
       "run_at": "document_start",
