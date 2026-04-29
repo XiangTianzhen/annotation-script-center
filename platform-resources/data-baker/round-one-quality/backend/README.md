@@ -30,11 +30,20 @@
 
 ## 环境变量
 
-- `DASHSCOPE_API_KEY`：DashScope API Key，真实调用必需。
+- `DASHSCOPE_API_KEY`：DashScope API Key，真实调用必需；统一后端启动时默认从仓库根目录 `config/env/ai.env` 自动读取。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
-- `DATABAKER_AI_MOCK`：设为 `1` 时走 mock。
+- `DATABAKER_AI_MOCK`：设为 `1` 时走 mock，可直接写入 `config/env/ai.env`。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
+
+后端入口 `platform-resources/backend/server.js` 会自动加载：
+
+1. `config/env/ai.env`
+2. `config/env/ai.local.env`
+3. `.env.local`
+4. 可选 `ASC_ENV_FILE` 指向的外部文件
+
+因此本地不需要每次手动 `set DASHSCOPE_API_KEY`。如果 `config/env/ai.env` 和系统环境变量都没有配置 `DASHSCOPE_API_KEY`，且未开启 `DATABAKER_AI_MOCK=1`，health 会返回 `status=missing-api-key`。
 
 未配置 `DASHSCOPE_API_KEY` 且未开启 mock 时：
 

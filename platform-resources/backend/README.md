@@ -18,6 +18,15 @@ node platform-resources\backend\server.js
 http://127.0.0.1:3333
 ```
 
+启动时会自动读取统一 AI 环境配置文件，顺序为：
+
+1. `config/env/ai.env`
+2. `config/env/ai.local.env`
+3. `.env.local`
+4. 可选 `ASC_ENV_FILE` 指向的外部文件
+
+系统环境变量优先级最高，不会被配置文件覆盖。文件不存在时跳过；读取失败时只输出脱敏 `warn`，不输出文件内容。
+
 可用环境变量：
 
 - `PLATFORM_RESOURCES_SERVER_HOST`：统一后端监听地址，默认 `127.0.0.1`。
@@ -33,6 +42,7 @@ http://127.0.0.1:3333
 ## 文件职责
 
 - `server.js`：统一启动入口。
+- `env-loader.js`：原生 Node.js 环境配置文件加载器。
 - `app.js`：创建 HTTP server，并挂载根路径和项目路由。
 - `router.js`：轻量路由注册与分发。
 - `registry.js`：显式注册启用哪些平台 / 项目 API。

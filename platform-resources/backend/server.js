@@ -1,7 +1,10 @@
 "use strict";
 
+const { loadDefaultEnvFiles } = require("./env-loader");
 const { createPlatformResourcesServer } = require("./app");
 const { getServerConfig } = require("./config");
+
+loadDefaultEnvFiles();
 
 const config = getServerConfig();
 const server = createPlatformResourcesServer();

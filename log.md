@@ -2,6 +2,9 @@
 
 ## 2026-04-29
 
+- 新增统一 AI 环境配置文件 `config/env/ai.env` 自动加载能力，统一后端启动时会先加载仓库内 AI 环境配置，不再要求每次手动设置 `DASHSCOPE_API_KEY`。
+- 新增 `config/env/ai.env.example`，覆盖 DashScope、OpenRouter、MiniMax、其他模型服务和 DataBaker AI 推荐文本配置项。
+- `.gitignore` 新增真实密钥文件忽略规则：`config/env/ai.env`、`config/env/ai.local.env`、`.env`、`.env.*`，保留模板文件可提交。
 - 新增 DataBaker / DataFactory 一检质检站点目录 `extension/sites/data-baker/round-one-quality/`，仅在 `datafactory.data-baker.com` 的 `roundOneCollect` 详情页注入“AI 推荐文本”工具卡。
 - DataBaker 前端新增 MAIN world 网络观察脚本，只在内存中缓存 `queryCollectStatementByCondtion` 当前页响应；ISOLATED world 根据 `.sentence-list .sentence-item.active`、右侧“本句话文本” textarea 和接口记录定位当前单条。
 - DataBaker 推荐结果卡支持展示页面候选文本、AI 听音文本、AI 推荐文本、变更标记、置信度、模型和复核提示，并提供“复制推荐文本”“填入推荐文本”“忽略”；填入必须由用户点击触发，不自动保存、提交、判定或流转。

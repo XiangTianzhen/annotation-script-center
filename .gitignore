@@ -8,6 +8,14 @@
 # DataBaker AI 调用日志
 /platform-resources/data-baker/round-one-quality/backend/logs/
 
+# 环境密钥文件
+.env
+.env.*
+!.env.example
+/config/env/ai.env
+/config/env/ai.local.env
+!/config/env/ai.env.example
+
 # 系统和编辑器临时文件
 .DS_Store
 Thumbs.db

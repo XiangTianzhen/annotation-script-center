@@ -135,6 +135,47 @@ http://127.0.0.1:3333
 - 健康检查：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
 - 推荐接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
 
+## 统一 AI 环境配置文件
+
+后端启动时会自动读取仓库内固定环境文件，默认不需要每次手动设置系统环境变量。
+
+自动加载顺序：
+
+1. `config/env/ai.env`
+2. `config/env/ai.local.env`
+3. `.env.local`
+4. 可选 `ASC_ENV_FILE` 指向的外部文件
+
+启动前已经存在的系统环境变量优先级最高，不会被文件覆盖。`ASC_ENV_FILE` 只用于后续多项目共享外部密钥文件，默认不需要配置。
+
+本地使用方式：
+
+```powershell
+copy config\env\ai.env.example config\env\ai.env
+```
+
+然后编辑 `config/env/ai.env`，填入真实密钥。
+
+启动统一后端：
+
+```powershell
+node platform-resources\backend\server.js
+```
+
+服务器使用方式是在项目目录创建：
+
+```text
+/var/www/annotation-script-center/config/env/ai.env
+```
+
+填入真实密钥后重启：
+
+```bash
+pm2 restart annotation-script-center --update-env
+```
+
+真实 `config/env/ai.env` 不要提交 GitHub；`config/env/ai.env`、`config/env/ai.local.env`、`.env` 和 `.env.*` 都已加入 `.gitignore`。模板文件 `config/env/ai.env.example` 可以提交。
+
 快判 AI 建议说明：
 
 - 当前扩展版本：`0.2.7`。
