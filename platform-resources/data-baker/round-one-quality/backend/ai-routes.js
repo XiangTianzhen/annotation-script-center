@@ -4,6 +4,7 @@ const { sendJson } = require("../../../backend/response");
 const { DEFAULT_COMPARE_MODEL, DEFAULT_LISTEN_MODEL, getClientConfig, requestCompare, requestListen } =
   require("./ai-client-qwen");
 const { estimateCost } = require("./ai-cost");
+const { appendAiCallLog, getLogDir } = require("./ai-call-log");
 const { buildComparePrompt, buildListenPrompt, RULE_VERSION } = require("./ai-prompts");
 const {
   buildRecommendResponse,
@@ -81,6 +82,11 @@ function normalizeNullableNumber(value) {
   return Number.isFinite(numericValue) ? numericValue : null;
 }
 
+function normalizeAnnotatorName(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.slice(0, 40);
+}
+
 function normalizeRecommendRequest(body) {
   const source = body && typeof body === "object" ? body : {};
   const collectId = String(source.collectId || "").trim();
@@ -91,6 +97,7 @@ function normalizeRecommendRequest(body) {
   const readRequire = String(source.readRequire || "").trim();
   const clientVersion = String(source.clientVersion || "").trim();
   const sentenceNumber = normalizeNullableNumber(source.sentenceNumber);
+  const annotatorName = normalizeAnnotatorName(source.annotatorName);
 
   if (!collectId) {
     throw createHttpError(400, "collectId 不能为空。", "invalid-collect-id");
@@ -113,12 +120,24 @@ function normalizeRecommendRequest(body) {
     readRequire,
     audioUrl,
     pageText,
+    annotatorName,
     effectiveStartTime: normalizeNullableNumber(source.effectiveStartTime),
     effectiveEndTime: normalizeNullableNumber(source.effectiveEndTime),
     effectiveTime: normalizeNullableNumber(source.effectiveTime),
     audioDuration: normalizeNullableNumber(source.audioDuration),
     clientVersion,
   };
+}
+
+function appendCallLogSafe(record) {
+  try {
+    appendAiCallLog(record);
+  } catch (error) {
+    console.warn("[DataBaker][round-one-quality][ai] 写入调用日志失败", {
+      requestId: record?.requestId,
+      message: error && error.message ? error.message : String(error),
+    });
+  }
 }
 
 function sendHealth(response) {
@@ -135,12 +154,16 @@ function sendHealth(response) {
     cropEffectiveAudio: config.cropEffectiveAudio,
     cropPaddingSeconds: config.cropPaddingSeconds,
     cropStatus: config.cropEffectiveAudio ? "reserved-fallback-to-full-audio-url" : "disabled",
+    callLogDir: getLogDir(),
     status: config.hasApiKey || config.mockEnabled ? "ready" : "missing-api-key",
   });
 }
 
 async function handleRecommend(request, response) {
+  const startedAtMs = Date.now();
   let requestId = createRequestId();
+  let recommendRequest = null;
+  let config = null;
   try {
     const rawBody = await readRequestBody(request);
     let body = {};
@@ -149,10 +172,10 @@ async function handleRecommend(request, response) {
     } catch (error) {
       throw createHttpError(400, "请求体 JSON 解析失败。", "invalid-json");
     }
-    const recommendRequest = normalizeRecommendRequest(body);
+    recommendRequest = normalizeRecommendRequest(body);
     requestId = String(body.requestId || requestId);
 
-    const config = getClientConfig();
+    config = getClientConfig();
     if (!config.hasApiKey && !config.mockEnabled) {
       throw createHttpError(503, "missing-api-key", "missing-api-key");
     }
@@ -208,6 +231,19 @@ async function handleRecommend(request, response) {
       }),
     });
 
+    appendCallLogSafe({
+      createdAt: new Date().toISOString(),
+      requestId,
+      success: true,
+      durationMs: Date.now() - startedAtMs,
+      request: recommendRequest,
+      response: responseData,
+      listenModel: listenResult.model,
+      compareModel: compareResult.model,
+      audioHostname: parseAudioHostname(recommendRequest.audioUrl),
+      mock: Boolean(config.mockEnabled || listenResult.mock || compareResult.mock),
+    });
+
     sendJson(response, 200, {
       success: true,
       data: responseData,
@@ -226,6 +262,22 @@ async function handleRecommend(request, response) {
     if (error?.code === "provider-http-error" && error?.summary) {
       responseBody.summary = String(error.summary || "").slice(0, 200);
     }
+
+    appendCallLogSafe({
+      createdAt: new Date().toISOString(),
+      requestId,
+      success: false,
+      durationMs: Date.now() - startedAtMs,
+      request: recommendRequest || {},
+      response: {},
+      listenModel: config?.listenModel || DEFAULT_LISTEN_MODEL,
+      compareModel: config?.compareModel || DEFAULT_COMPARE_MODEL,
+      audioHostname: parseAudioHostname(recommendRequest?.audioUrl || ""),
+      mock: Boolean(config?.mockEnabled),
+      errorCode: String(error?.code || ""),
+      errorMessage: responseBody.message,
+    });
+
     sendJson(response, statusCode, responseBody);
   }
 }
@@ -244,6 +296,7 @@ module.exports = {
   AI_BASE_PATH,
   AI_HEALTH_PATH,
   handleRecommend,
+  normalizeAnnotatorName,
   normalizeRecommendRequest,
   registerAiRoutes,
 };
