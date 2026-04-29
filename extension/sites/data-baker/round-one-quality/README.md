@@ -45,7 +45,7 @@ round-one-quality/
 - `ui-panel.js`：注入按钮和推荐结果卡，支持复制和用户点击后填入推荐文本。
 - `page-size-controller.js`：在详情页有限重试点击分页大小选择器，按设置切换到目标每页条数。
 - `shortcuts.js`：监听 DataBaker 专属快捷键；先匹配已配置快捷键再处理输入焦点，普通输入不拦截。被动焦点恢复（平台按钮、active 题目变化）不会打断正在编辑输入框；命中已配置快捷键时按强制模式退出输入框再执行动作。
-- `group-export.js`：仅在 `group/detail?taskId=...` 页面注入“导出数据总表”按钮，先尝试切换 `100条/页`，再通过跳页控件逐页触发平台原生查询并等待 MAIN world 的 `queryByCondition` 响应消息后合并下载 CSV。
+- `group-export.js`：仅在 `group/detail?taskId=...` 页面注入“导出数据总表”按钮；切换分页大小时会先点击 `.el-pagination__sizes .el-select` 内的 `.el-input.el-input--mini.el-input--suffix`，等待下拉出现后选择 `100条/页`，再通过跳页控件逐页触发平台原生查询并等待 MAIN world 的 `queryByCondition` 响应消息后合并下载 CSV。
 - `page-world/network-observer.js`：运行在 MAIN world，观察 `queryCollectStatementByCondtion`（一检详情页）和 `queryByCondition`（group/detail）响应并以内存消息通知 ISOLATED world。
 
 ## options 设置
@@ -115,7 +115,7 @@ node platform-resources\backend\server.js
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 
-任务总表导出不再由 content script 直接 `fetch /cms/tbAudioUserTask/queryByCondition`。原因是平台可能对扩展直接请求返回 `code=51000`。当前方案改为触发页面原生分页查询并拦截响应：先切换 `100条/页`，再逐页触发并合并导出，不依赖本地后端或账号密码配置。CSV 已移除“采集ID”列，保留 UTF-8 BOM 与“原始JSON”脱敏列。
+任务总表导出不再由 content script 直接 `fetch /cms/tbAudioUserTask/queryByCondition`。原因是平台可能对扩展直接请求返回 `code=51000`。当前方案改为触发页面原生分页查询并拦截响应：先展开 Element UI 分页大小下拉并选择 `100条/页`，再逐页触发并合并导出，不依赖本地后端或账号密码配置。CSV 已移除“采集ID”列，保留 UTF-8 BOM 与“原始JSON”脱敏列。
 
 第一版固定模型：
 
@@ -172,6 +172,6 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 - 当前不实现自动保存、自动提交、批量识别、自动流转或自动判定。
 - 如果当前页面还没有触发列表接口，运行时会尝试同源读取当前页数据；若浏览器限制导致读取失败，需要刷新详情页或点击左侧句子后再触发。
 - 若 15 秒内未捕获到 `queryByCondition` 响应，页面会提示“未捕获到平台 queryByCondition 响应，请点击页面查询按钮后重试。”。
-- 如果分页控件无法自动切到 `100条/页` 或无法跳页，页面会提示手动切换分页后重试；必要时会降级导出当前页并给出明确提示。
+- 如果分页大小下拉无法自动展开或未找到 `100条/页`，页面会提示手动切换到 `100条/页` 后重试；必要时会降级导出当前页并给出明确提示。
 - 如果无法安全定位可编辑的“本句话文本”输入框，结果卡仍保留复制入口，但不会强行填入。
 - 有效音频裁剪第一版未启用；后端只保留环境变量和代码结构，默认把完整 `audioUrl` 交给听音模型。

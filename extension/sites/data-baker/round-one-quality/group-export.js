@@ -329,9 +329,7 @@
     }
 
     try {
-      element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-      element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
-      element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      dispatchMouseClick(element);
       if (typeof element.click === "function") {
         element.click();
       }
@@ -341,15 +339,34 @@
     }
   }
 
+  function dispatchMouseClick(element) {
+    if (!element) {
+      return false;
+    }
+    const eventTypes = ["mousedown", "mouseup", "click"];
+    for (let index = 0; index < eventTypes.length; index += 1) {
+      element.dispatchEvent(
+        new MouseEvent(eventTypes[index], {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        })
+      );
+    }
+    return true;
+  }
+
   function findGroupPagination() {
     const nodes = Array.from(document.querySelectorAll(".el-pagination"));
-    const candidates = [];
+    const visible = [];
+    const preferred = [];
 
     for (let index = 0; index < nodes.length; index += 1) {
       const node = nodes[index];
       if (!isElementVisible(node)) {
         continue;
       }
+      visible.push(node);
       const totalNode = node.querySelector(".el-pagination__total");
       if (!totalNode) {
         continue;
@@ -358,13 +375,23 @@
       if (totalText.indexOf("共") < 0) {
         continue;
       }
-      candidates.push(node);
+      preferred.push(node);
     }
 
-    if (candidates.length === 0) {
+    if (preferred.length > 0) {
+      return preferred[preferred.length - 1];
+    }
+    if (visible.length === 0) {
       return null;
     }
-    return candidates[candidates.length - 1];
+    return visible[visible.length - 1];
+  }
+
+  function findPageSizeSelect(pagination) {
+    if (!pagination) {
+      return null;
+    }
+    return pagination.querySelector(".el-pagination__sizes .el-select");
   }
 
   function readPaginationCurrentPageSize(pagination) {
@@ -379,73 +406,151 @@
     return normalizeText(text).replace(/\s+/g, "") === "100条/页";
   }
 
-  async function findVisiblePageSizeOption100() {
+  function isPageSizeDropdown(dropdown, targetText) {
+    if (!dropdown || !isElementVisible(dropdown)) {
+      return false;
+    }
+    const optionNodes = Array.from(dropdown.querySelectorAll(".el-select-dropdown__item span"));
+    if (optionNodes.length === 0) {
+      return false;
+    }
+
+    const normalizedTarget = normalizeText(targetText).replace(/\s+/g, "");
+    const texts = optionNodes.map(function (node) {
+      return normalizeText(node.textContent || "").replace(/\s+/g, "");
+    });
+    if (texts.indexOf(normalizedTarget) < 0) {
+      return false;
+    }
+
+    const required = ["10条/页", "20条/页", "50条/页", "100条/页"];
+    let matched = 0;
+    for (let index = 0; index < required.length; index += 1) {
+      if (texts.indexOf(required[index]) >= 0) {
+        matched += 1;
+      }
+    }
+    return matched >= 3;
+  }
+
+  function findVisiblePageSizeOption(targetText) {
+    const dropdowns = Array.from(document.querySelectorAll(".el-select-dropdown.el-popper"));
+    const matchedDropdowns = [];
+    for (let index = 0; index < dropdowns.length; index += 1) {
+      const dropdown = dropdowns[index];
+      if (!isPageSizeDropdown(dropdown, targetText)) {
+        continue;
+      }
+      matchedDropdowns.push(dropdown);
+    }
+    if (matchedDropdowns.length === 0) {
+      return null;
+    }
+
+    const selectedDropdown = matchedDropdowns[matchedDropdowns.length - 1];
+    const optionNodes = Array.from(selectedDropdown.querySelectorAll(".el-select-dropdown__item"));
+    const normalizedTarget = normalizeText(targetText).replace(/\s+/g, "");
+    for (let index = 0; index < optionNodes.length; index += 1) {
+      const optionNode = optionNodes[index];
+      if (!isElementVisible(optionNode) || isElementDisabled(optionNode)) {
+        continue;
+      }
+      const text = normalizeText(optionNode.textContent || "").replace(/\s+/g, "");
+      if (text === normalizedTarget) {
+        return optionNode;
+      }
+    }
+    return null;
+  }
+
+  function openPageSizeDropdown(select) {
+    if (!select) {
+      return false;
+    }
+    const preferredTargets = [
+      ".el-input.el-input--mini.el-input--suffix",
+      ".el-input",
+      ".el-input__inner",
+    ];
+
+    for (let index = 0; index < preferredTargets.length; index += 1) {
+      const target = select.querySelector(preferredTargets[index]);
+      if (!target || !isElementVisible(target)) {
+        continue;
+      }
+      dispatchMouseClick(target);
+      return true;
+    }
+
+    dispatchMouseClick(select);
+    return true;
+  }
+
+  function clickPageSizeOption(option) {
+    if (!option) {
+      return false;
+    }
+    dispatchMouseClick(option);
+    const span = option.querySelector("span");
+    if (span) {
+      dispatchMouseClick(span);
+      if (typeof span.click === "function") {
+        span.click();
+      }
+    }
+    if (typeof option.click === "function") {
+      option.click();
+    }
+    return true;
+  }
+
+  async function waitForPageSizeOption(targetText, timeoutMs) {
+    const safeTimeout = Math.max(200, Number(timeoutMs) || 2500);
     const startedAt = Date.now();
-    while (Date.now() - startedAt < 1500) {
-      const dropdowns = Array.from(document.querySelectorAll(".el-select-dropdown.el-popper"));
-      for (let index = 0; index < dropdowns.length; index += 1) {
-        const dropdown = dropdowns[index];
-        if (!isElementVisible(dropdown)) {
-          continue;
-        }
-        const items = Array.from(dropdown.querySelectorAll(".el-select-dropdown__item"));
-        for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
-          const item = items[itemIndex];
-          if (!isElementVisible(item) || isElementDisabled(item)) {
-            continue;
-          }
-          const text = normalizeText(item.textContent || "").replace(/\s+/g, "");
-          if (text === "100条/页") {
-            return item;
-          }
-        }
+    while (Date.now() - startedAt < safeTimeout) {
+      const option = findVisiblePageSizeOption(targetText);
+      if (option) {
+        return option;
       }
       await sleep(80);
     }
     return null;
   }
 
-  async function triggerSetPageSize100(pagination) {
-    if (!pagination) {
-      return false;
-    }
-    const selectTrigger = pagination.querySelector(".el-pagination__sizes .el-select");
-    const selectInput = pagination.querySelector(".el-pagination__sizes .el-input__inner");
-    if (!selectTrigger && !selectInput) {
-      return false;
-    }
-
-    if (selectInput) {
-      clickElement(selectInput);
-    }
-    if (selectTrigger) {
-      clickElement(selectTrigger);
-    }
-
-    const option = await findVisiblePageSizeOption100();
-    if (!option) {
-      return false;
-    }
-    return clickElement(option);
-  }
-
   async function setPageSizeTo100(taskId) {
+    const statusPrefix = buildTaskStatusPrefix(taskId);
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       const pagination = findGroupPagination();
       if (!pagination) {
         throw new Error("未找到分页控件，请确认当前页面已加载表格。");
       }
+      const pageSizeSelect = findPageSizeSelect(pagination);
+      if (!pageSizeSelect) {
+        throw new Error("未找到每页条数选择器，请确认页面分页控件可用。");
+      }
 
       const currentPageSizeText = readPaginationCurrentPageSize(pagination);
       if (isPageSize100Text(currentPageSizeText)) {
+        setStatus(statusPrefix + "\n已切换到100条/页。", "info");
         return true;
       }
 
-      const afterTime = Date.now();
-      const triggered = await triggerSetPageSize100(pagination);
-      if (!triggered) {
+      setStatus(statusPrefix + "\n正在展开每页条数下拉...", "info");
+      const opened = openPageSizeDropdown(pageSizeSelect);
+      if (!opened) {
         continue;
       }
+
+      const option = await waitForPageSizeOption("100条/页", 2500);
+      if (!option) {
+        await sleep(80);
+        continue;
+      }
+
+      setStatus(statusPrefix + "\n正在切换到100条/页...", "info");
+      const afterTime = Date.now();
+      clickPageSizeOption(option);
+      setStatus(statusPrefix + "\n已选择100条/页，正在等待平台响应...", "info");
 
       const payload = await waitForGroupQueryResponse({
         taskId: taskId,
@@ -457,11 +562,18 @@
       });
 
       if (payload) {
+        setStatus(statusPrefix + "\n已切换到100条/页。", "info");
+        return true;
+      }
+
+      const afterSwitchText = readPaginationCurrentPageSize(pagination);
+      if (isPageSize100Text(afterSwitchText)) {
+        setStatus(statusPrefix + "\n已切换到100条/页，等待后续分页响应。", "info");
         return true;
       }
     }
 
-    throw new Error("无法切换到 100条/页，请手动切换后重试。");
+    throw new Error("无法展开每页条数下拉或未找到100条/页，请手动切换到100条/页后重试。");
   }
 
   function readActivePageNum(pagination) {

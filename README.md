@@ -161,9 +161,10 @@ http://127.0.0.1:3333
 DataBaker 任务总表导出默认模式（扩展前端）：
 
 - 平台对扩展直接请求 `queryByCondition` 可能返回 `code=51000`。现行方案改为：触发页面原生请求，再由 MAIN world 拦截响应导出。
-- 点击导出后会先尝试切换 `100条/页`，再通过分页控件逐页触发平台原生请求并合并导出全量数据。
+- 点击导出后会先点击 Element UI 分页大小选择器（优先 `.el-input.el-input--mini.el-input--suffix`）并选择 `100条/页`，再通过分页控件逐页触发平台原生请求并合并导出全量数据。
 - 当前导出不需要账号密码配置，CSV 带 UTF-8 BOM，避免 Excel 中文乱码。
 - 导出过程和 CSV 内容不写入 `access_token`、`refresh_token`、cookie、authorization；CSV 已移除“采集ID”列。
+- 如果页面下拉未能自动展开或未找到 `100条/页`，可手动切换到 `100条/页` 后重试导出。
 
 ## 统一 AI 环境配置文件
 

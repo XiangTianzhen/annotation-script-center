@@ -2,6 +2,10 @@
 
 ## 2026-04-29
 
+- 修复 DataBaker 总表导出分页大小下拉稳定性：`group-export.js` 切换 `100条/页` 前先点击 `.el-pagination__sizes .el-select` 内的 `.el-input.el-input--mini.el-input--suffix`，等待 `.el-select-dropdown.el-popper` 渲染后再选择 `100条/页`。
+- 分页大小下拉匹配增加防误点规则：仅选择包含 `10/20/50/100条/页` 组合的可见 dropdown，优先最后一个可见项，避免误点筛选条件下拉。
+- 切换 `100条/页` 后新增状态提示与兜底：支持“已选择100条/页，正在等待平台响应”；若响应未及时捕获但分页显示已变更为 `100条/页`，允许继续全量导出。
+
 - 优化 DataBaker group/detail 总表导出为“平台原生分页全量导出”：`group-export.js` 点击后先切换 `100条/页`，再通过跳页控件逐页触发 `queryByCondition`，由 MAIN world 拦截响应并合并去重后下载 CSV。
 - DataBaker 总表 CSV 字段移除“采集ID”列，继续保留中文表头、UTF-8 BOM 与“原始JSON”脱敏列；导出过程不写入 `access_token`、`refresh_token`、cookie 或 authorization。
 - 导出失败时增加明确提示和当前页兜底导出提示：分页控件不可用会提示手动切换 `100条/页` 后重试，避免静默失败。
