@@ -1,11 +1,11 @@
 "use strict";
 
-const ESTIMATE_NOTE = "按当前测试估算，可后续调整。";
+const ESTIMATE_NOTE = "按当前 qwen3.5-omni-flash + qwen3.5-plus 测试估算，可后续按百炼账单调整。";
 const EFFECTIVE_REVENUE_CNY_PER_HOUR = 350;
 
 const TOKEN_PRICE_CNY_PER_1K = {
-  listenPrompt: 0.003,
-  listenCompletion: 0.006,
+  listenPrompt: 0.018,
+  listenCompletion: 0.0133,
   comparePrompt: 0.0008,
   compareCompletion: 0.002,
 };
