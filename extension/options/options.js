@@ -7,12 +7,20 @@
   const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
   const judgementProjectId = constants.JUDGEMENT_PROJECT_ID || "judgement";
   const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
+  const dataBakerRoundOneQualityScriptId =
+    constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
   const judgementStatsServerEndpoint =
     "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload";
   const judgementStatsLocalEndpoint =
     "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload";
   const judgementAiSuggestionEndpointDefault =
     "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest";
+  const dataBakerAiRecommendServerEndpoint =
+    constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
+    "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
+  const dataBakerAiRecommendLocalEndpoint =
+    constants.DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT ||
+    "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
   const judgementAiSuggestionModels = Array.isArray(constants.JUDGEMENT_AI_AVAILABLE_MODELS)
     ? constants.JUDGEMENT_AI_AVAILABLE_MODELS
     : ["qwen3-omni-flash", "qwen3.5-omni-plus"];
@@ -326,8 +334,57 @@
     return scriptId === transcriptionProjectId || scriptId === judgementProjectId;
   }
 
+  function isDataBakerScript(scriptId) {
+    return scriptId === dataBakerRoundOneQualityScriptId;
+  }
+
+  function normalizeDataBakerEndpoint(value) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (!text) {
+      return dataBakerAiRecommendServerEndpoint;
+    }
+
+    try {
+      const url = new URL(text);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        return url.toString();
+      }
+    } catch (error) {
+      // Keep the configured server endpoint on invalid input.
+    }
+
+    return dataBakerAiRecommendServerEndpoint;
+  }
+
+  function normalizeDataBakerTimeout(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return 120000;
+    }
+    return Math.min(180000, Math.max(1000, Math.round(number)));
+  }
+
   function getLabelxActiveScriptId(settings) {
     return settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId || transcriptionProjectId;
+  }
+
+  function getDataBakerRoundOneConfig(settings) {
+    const defaults =
+      constants.DEFAULT_SETTINGS?.platforms?.dataBaker?.scripts?.roundOneQuality || {};
+    const current =
+      settings?.platforms?.dataBaker?.scripts?.roundOneQuality || {};
+
+    return Object.assign(
+      {
+        id: dataBakerRoundOneQualityScriptId,
+        enabled: true,
+        aiRecommendEnabled: true,
+        aiRecommendEndpoint: dataBakerAiRecommendServerEndpoint,
+        aiRecommendRequestTimeoutMs: 120000,
+      },
+      defaults,
+      current
+    );
   }
 
   function isScriptEnabled(settings, scriptId) {
@@ -336,6 +393,11 @@
         settings?.platforms?.lightwheel?.enabled &&
           settings?.platforms?.lightwheel?.scripts?.viewPanel?.enabled
       );
+    }
+
+    if (isDataBakerScript(scriptId)) {
+      const config = getDataBakerRoundOneConfig(settings);
+      return Boolean(settings?.platforms?.dataBaker?.enabled !== false && config.enabled !== false);
     }
 
     if (isLabelxScript(scriptId)) {
@@ -353,6 +415,16 @@
       return isScriptEnabled(settings, scriptId)
         ? { text: "已启用", tone: "enabled" }
         : { text: "未启用", tone: "disabled" };
+    }
+
+    if (isDataBakerScript(scriptId)) {
+      const config = getDataBakerRoundOneConfig(settings);
+      if (!isScriptEnabled(settings, scriptId)) {
+        return { text: "未启用", tone: "disabled" };
+      }
+      return config.aiRecommendEnabled === false
+        ? { text: "脚本已启用，AI 推荐已关闭", tone: "pending" }
+        : { text: "已启用", tone: "enabled" };
     }
 
     const labelxEnabled = Boolean(settings?.platforms?.alibabaLabelx?.enabled);
@@ -376,6 +448,10 @@
   function getScriptHostText(scriptId) {
     if (scriptId === lightwheelScriptId) {
       return "https://label-cloud.lightwheel.net/w/video3/index.html?access=1";
+    }
+
+    if (isDataBakerScript(scriptId)) {
+      return "https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0";
     }
 
     return "https://labelx.alibaba-inc.com/corpora/labeling/*";
@@ -993,6 +1069,10 @@
     getElement("detail-transcription-panel").classList.toggle("hidden", scriptId !== transcriptionProjectId);
     getElement("detail-judgement-panel").classList.toggle("hidden", scriptId !== judgementProjectId);
     getElement("detail-lightwheel-panel").classList.toggle("hidden", scriptId !== lightwheelScriptId);
+    getElement("detail-data-baker-round-one-quality-panel").classList.toggle(
+      "hidden",
+      scriptId !== dataBakerRoundOneQualityScriptId
+    );
   }
 
   function renderDetail(settings, scriptId) {
@@ -1024,6 +1104,92 @@
           ? "当前只启用了脚本中心状态位；Lightwheel 扩展运行时还没有迁入。"
           : "当前脚本未启用。启用后会先纳入 URL 检测和脚本中心管理。"
       );
+    }
+
+    if (scriptId === dataBakerRoundOneQualityScriptId) {
+      applyDataBakerForm(settings);
+      setStatus("data-baker-status", "");
+    }
+  }
+
+  function getDataBakerEndpointPreset(endpoint) {
+    const normalized = normalizeDataBakerEndpoint(endpoint);
+    if (normalized === normalizeDataBakerEndpoint(dataBakerAiRecommendServerEndpoint)) {
+      return "server";
+    }
+    if (normalized === normalizeDataBakerEndpoint(dataBakerAiRecommendLocalEndpoint)) {
+      return "local";
+    }
+    return "custom";
+  }
+
+  function applyDataBakerForm(settings) {
+    const config = getDataBakerRoundOneConfig(settings);
+    const endpoint = normalizeDataBakerEndpoint(config.aiRecommendEndpoint);
+    getElement("data-baker-ai-recommend-enabled").checked =
+      config.aiRecommendEnabled !== false;
+    getElement("data-baker-ai-recommend-timeout").value = String(
+      normalizeDataBakerTimeout(config.aiRecommendRequestTimeoutMs)
+    );
+    getElement("data-baker-ai-recommend-endpoint").value = endpoint;
+    getElement("data-baker-ai-recommend-endpoint-preset").value =
+      getDataBakerEndpointPreset(endpoint);
+  }
+
+  function applyDataBakerEndpointPreset() {
+    const preset = getElement("data-baker-ai-recommend-endpoint-preset").value;
+    if (preset === "server") {
+      getElement("data-baker-ai-recommend-endpoint").value =
+        dataBakerAiRecommendServerEndpoint;
+      return;
+    }
+    if (preset === "local") {
+      getElement("data-baker-ai-recommend-endpoint").value =
+        dataBakerAiRecommendLocalEndpoint;
+    }
+  }
+
+  async function saveDataBakerSettings() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      setStatus("data-baker-status", "当前扩展版本不支持保存 DataBaker 设置。");
+      return false;
+    }
+
+    const endpointInput = getElement("data-baker-ai-recommend-endpoint").value;
+    const timeoutInput = getElement("data-baker-ai-recommend-timeout").value;
+    const aiRecommendEnabled = getElement("data-baker-ai-recommend-enabled").checked;
+    const endpoint = normalizeDataBakerEndpoint(endpointInput);
+    const timeoutMs = normalizeDataBakerTimeout(timeoutInput);
+
+    setStatus("data-baker-status", "正在保存 DataBaker 设置...");
+
+    try {
+      currentSettings = await storage.patchSettings({
+        platforms: {
+          dataBaker: {
+            scripts: {
+              roundOneQuality: {
+                id: dataBakerRoundOneQualityScriptId,
+                aiRecommendEnabled: aiRecommendEnabled,
+                aiRecommendEndpoint: endpoint,
+                aiRecommendRequestTimeoutMs: timeoutMs,
+              },
+            },
+          },
+        },
+      });
+      renderCurrentView();
+      setStatus(
+        "data-baker-status",
+        "DataBaker 设置已保存；已打开的 DataBaker 页面未同步时请刷新页面。"
+      );
+      return true;
+    } catch (error) {
+      setStatus(
+        "data-baker-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+      return false;
     }
   }
 
@@ -1220,6 +1386,20 @@
 
     getElement("save-judgement-settings").addEventListener("click", function () {
       void saveJudgementSettings();
+    });
+
+    getElement("data-baker-ai-recommend-endpoint-preset").addEventListener("change", function () {
+      applyDataBakerEndpointPreset();
+    });
+
+    getElement("data-baker-ai-recommend-endpoint").addEventListener("input", function () {
+      getElement("data-baker-ai-recommend-endpoint-preset").value = getDataBakerEndpointPreset(
+        getElement("data-baker-ai-recommend-endpoint").value
+      );
+    });
+
+    getElement("save-data-baker-settings").addEventListener("click", function () {
+      void saveDataBakerSettings();
     });
 
     try {

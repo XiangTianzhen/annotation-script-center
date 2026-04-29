@@ -35,6 +35,19 @@
               },
             },
           },
+          dataBaker: {
+            enabled: true,
+            scripts: {
+              roundOneQuality: {
+                id: "dataBakerRoundOneQuality",
+                enabled: true,
+                aiRecommendEnabled: true,
+                aiRecommendEndpoint:
+                  "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
+                aiRecommendRequestTimeoutMs: 120000,
+              },
+            },
+          },
         },
         asr: {},
         debug: {
@@ -53,6 +66,9 @@
       TRANSCRIPTION_PROJECT_ID: "transcription",
       JUDGEMENT_PROJECT_ID: "judgement",
       LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: "lightwheelViewPanel",
+      DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: "dataBakerRoundOneQuality",
+      DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT:
+        "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
       JUDGEMENT_PROJECT_ASR_KEYS: [
         "itemsPerPage",
         "autoPlay",
@@ -552,6 +568,106 @@
     return settings.platforms.lightwheel;
   }
 
+  function normalizeDataBakerAiEndpoint(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    const fallbackEndpoint =
+      typeof fallback === "string" && fallback.trim()
+        ? fallback.trim()
+        : "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
+
+    if (!text) {
+      return fallbackEndpoint;
+    }
+
+    try {
+      const url = new URL(text);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        return url.toString();
+      }
+    } catch (error) {
+      // Fall through to the safe default.
+    }
+
+    return fallbackEndpoint;
+  }
+
+  function normalizeDataBakerTimeout(value, fallback) {
+    const number = Number(value);
+    const fallbackNumber = Number(fallback);
+    const base = Number.isFinite(fallbackNumber) ? fallbackNumber : 120000;
+    if (!Number.isFinite(number)) {
+      return Math.min(180000, Math.max(1000, Math.round(base)));
+    }
+    return Math.min(180000, Math.max(1000, Math.round(number)));
+  }
+
+  function normalizeDataBakerRoundOneQualityConfig(config, defaults) {
+    const source = isPlainObject(config) ? config : {};
+    const defaultConfig = isPlainObject(defaults) ? defaults : {};
+    const result = deepMerge(defaultConfig, source);
+    const constants = getConstants();
+
+    result.id =
+      constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID ||
+      result.id ||
+      "dataBakerRoundOneQuality";
+    result.enabled = result.enabled !== false;
+    result.aiRecommendEnabled = result.aiRecommendEnabled !== false;
+    result.aiRecommendEndpoint = normalizeDataBakerAiEndpoint(
+      result.aiRecommendEndpoint,
+      defaultConfig.aiRecommendEndpoint ||
+        constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT
+    );
+    result.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeout(
+      result.aiRecommendRequestTimeoutMs,
+      defaultConfig.aiRecommendRequestTimeoutMs || 120000
+    );
+
+    return result;
+  }
+
+  function ensureDataBakerRoot(settings) {
+    const constants = getConstants();
+    const defaults = clone(constants.DEFAULT_SETTINGS || {});
+    const defaultPlatform =
+      defaults?.platforms?.dataBaker || constants.DEFAULT_DATA_BAKER_PLATFORM_SETTINGS || {
+        enabled: true,
+        scripts: {
+          roundOneQuality: {
+            id: constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality",
+            enabled: true,
+            aiRecommendEnabled: true,
+            aiRecommendEndpoint:
+              constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
+              "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
+            aiRecommendRequestTimeoutMs: 120000,
+          },
+        },
+      };
+
+    if (!isPlainObject(settings.platforms)) {
+      settings.platforms = {};
+    }
+
+    settings.platforms.dataBaker = deepMerge(
+      defaultPlatform,
+      settings.platforms.dataBaker || {}
+    );
+
+    if (!isPlainObject(settings.platforms.dataBaker.scripts)) {
+      settings.platforms.dataBaker.scripts = {};
+    }
+
+    settings.platforms.dataBaker.enabled = settings.platforms.dataBaker.enabled !== false;
+    settings.platforms.dataBaker.scripts.roundOneQuality =
+      normalizeDataBakerRoundOneQualityConfig(
+        settings.platforms.dataBaker.scripts.roundOneQuality,
+        defaultPlatform.scripts?.roundOneQuality || {}
+      );
+
+    return settings.platforms.dataBaker;
+  }
+
   function getProjectDefinitions(constants) {
     return isPlainObject(constants?.SCRIPT_PROJECTS) ? constants.SCRIPT_PROJECTS : {};
   }
@@ -866,6 +982,7 @@
 
     ensureScriptCenter(settings);
     ensureLightwheelRoot(settings);
+    ensureDataBakerRoot(settings);
 
     const activeProjectId =
       settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId ||
@@ -1043,6 +1160,11 @@
       nextSettings.platforms.lightwheel.scripts = clone(current.platforms.lightwheel.scripts || {});
     }
 
+    if (preservePlatformEnabled && current?.platforms?.dataBaker) {
+      nextSettings.platforms.dataBaker.enabled = Boolean(current.platforms.dataBaker.enabled);
+      nextSettings.platforms.dataBaker.scripts = clone(current.platforms.dataBaker.scripts || {});
+    }
+
     return saveSettings(nextSettings);
   }
 
@@ -1117,6 +1239,24 @@
             enabled: nextEnabled,
             scripts: {
               viewPanel: {
+                enabled: nextEnabled,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    if (scriptId === constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID) {
+      return patchSettings({
+        platforms: {
+          dataBaker: {
+            enabled: nextEnabled,
+            scripts: {
+              roundOneQuality: {
+                id:
+                  constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID ||
+                  "dataBakerRoundOneQuality",
                 enabled: nextEnabled,
               },
             },

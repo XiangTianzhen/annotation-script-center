@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "标注脚本中心",
   "description": "多平台标注脚本中心与当前页面脚本状态入口。",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "permissions": [
     "storage",
     "tabs"
@@ -146,6 +146,8 @@
         "https://datafactory.data-baker.com/*"
       ],
       "js": [
+        "shared/constants.js",
+        "shared/storage.js",
         "sites/data-baker/round-one-quality/data-api.js",
         "sites/data-baker/round-one-quality/ai-recommendation.js",
         "sites/data-baker/round-one-quality/ui-panel.js",

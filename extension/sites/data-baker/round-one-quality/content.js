@@ -2,10 +2,108 @@
   const CHECK_INTERVAL_MS = 1000;
 
   let runtime = null;
+  let runtimeConfigKey = "";
   let pageTimer = null;
   let observer = null;
+  let evaluating = false;
+  let pendingEvaluate = false;
 
-  function createRuntime() {
+  function normalizeEndpoint(value, fallback) {
+    const defaultEndpoint =
+      fallback ||
+      "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
+    const text = typeof value === "string" ? value.trim() : "";
+    if (!text) {
+      return defaultEndpoint;
+    }
+
+    try {
+      const url = new URL(text);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        return url.toString();
+      }
+    } catch (error) {
+      // Use the safe default endpoint.
+    }
+
+    return defaultEndpoint;
+  }
+
+  function normalizeTimeout(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return 120000;
+    }
+    return Math.min(180000, Math.max(1000, Math.round(number)));
+  }
+
+  function getDefaultRoundOneConfig() {
+    const constants = globalThis.ASREdgeConstants || {};
+    return (
+      constants.DEFAULT_SETTINGS?.platforms?.dataBaker?.scripts?.roundOneQuality || {
+        id: constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality",
+        enabled: true,
+        aiRecommendEnabled: true,
+        aiRecommendEndpoint:
+          constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
+          "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
+        aiRecommendRequestTimeoutMs: 120000,
+      }
+    );
+  }
+
+  async function loadRuntimeConfig() {
+    const constants = globalThis.ASREdgeConstants || {};
+    const storage = globalThis.ASREdgeStorage || null;
+    const defaultPlatform =
+      constants.DEFAULT_SETTINGS?.platforms?.dataBaker || {
+        enabled: true,
+        scripts: {
+          roundOneQuality: getDefaultRoundOneConfig(),
+        },
+      };
+    let settings = null;
+
+    if (storage && typeof storage.getSettings === "function") {
+      try {
+        settings = await storage.getSettings();
+      } catch (error) {
+        settings = null;
+      }
+    }
+
+    const platform = Object.assign(
+      {},
+      defaultPlatform,
+      settings?.platforms?.dataBaker || {}
+    );
+    const script = Object.assign(
+      {},
+      getDefaultRoundOneConfig(),
+      platform?.scripts?.roundOneQuality || {}
+    );
+    const endpoint = normalizeEndpoint(
+      script.aiRecommendEndpoint,
+      getDefaultRoundOneConfig().aiRecommendEndpoint
+    );
+    const timeoutMs = normalizeTimeout(script.aiRecommendRequestTimeoutMs);
+
+    return {
+      scriptEnabled: platform.enabled !== false && script.enabled !== false,
+      aiRecommendEnabled: script.aiRecommendEnabled !== false,
+      endpoint,
+      timeoutMs,
+      key: [
+        platform.enabled !== false ? "1" : "0",
+        script.enabled !== false ? "1" : "0",
+        script.aiRecommendEnabled !== false ? "1" : "0",
+        endpoint,
+        String(timeoutMs),
+      ].join("|"),
+    };
+  }
+
+  function createRuntime(config) {
     const dataApiFactory = globalThis.__ASREdgeDataBakerRoundOneDataApi;
     const aiFactory = globalThis.__ASREdgeDataBakerRoundOneAiRecommendation;
     const uiFactory = globalThis.__ASREdgeDataBakerRoundOneUiPanel;
@@ -15,7 +113,10 @@
     }
 
     const dataApi = dataApiFactory.createRuntime();
-    const ai = aiFactory.createRuntime();
+    const ai = aiFactory.createRuntime({
+      endpoint: config.endpoint,
+      timeoutMs: config.timeoutMs,
+    });
     const ui = uiFactory.createRuntime({
       canFillPageText: dataApi.canFillPageText,
       fillPageText: dataApi.fillPageText,
@@ -80,36 +181,72 @@
     return Boolean(dataApiFactory?.isRoundOneCollectPage?.());
   }
 
-  function evaluatePage() {
-    if (!shouldRun()) {
-      if (runtime) {
-        runtime.stop();
-        runtime = null;
-      }
+  function stopRuntime() {
+    if (runtime) {
+      runtime.stop();
+      runtime = null;
+      runtimeConfigKey = "";
+    }
+  }
+
+  async function evaluatePage() {
+    if (evaluating) {
+      pendingEvaluate = true;
       return;
     }
 
-    if (!runtime) {
-      runtime = createRuntime();
-      if (runtime) {
-        runtime.start();
+    evaluating = true;
+    try {
+      if (!shouldRun()) {
+        stopRuntime();
+        return;
       }
-      return;
-    }
 
-    runtime.refresh();
+      const config = await loadRuntimeConfig();
+      if (!config.scriptEnabled || !config.aiRecommendEnabled) {
+        stopRuntime();
+        return;
+      }
+
+      if (runtime && runtimeConfigKey !== config.key) {
+        stopRuntime();
+      }
+
+      if (!runtime) {
+        runtime = createRuntime(config);
+        if (runtime) {
+          runtimeConfigKey = config.key;
+          runtime.start();
+        }
+        return;
+      }
+
+      runtime.refresh();
+    } finally {
+      evaluating = false;
+      if (pendingEvaluate) {
+        pendingEvaluate = false;
+        window.setTimeout(function () {
+          void evaluatePage();
+        }, 0);
+      }
+    }
+  }
+
+  function scheduleEvaluatePage() {
+    void evaluatePage();
   }
 
   function installRouteWatch() {
-    window.addEventListener("hashchange", evaluatePage);
-    window.addEventListener("popstate", evaluatePage);
-    window.setInterval(evaluatePage, CHECK_INTERVAL_MS);
+    window.addEventListener("hashchange", scheduleEvaluatePage);
+    window.addEventListener("popstate", scheduleEvaluatePage);
+    window.setInterval(scheduleEvaluatePage, CHECK_INTERVAL_MS);
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", evaluatePage, { once: true });
+    document.addEventListener("DOMContentLoaded", scheduleEvaluatePage, { once: true });
   } else {
-    evaluatePage();
+    scheduleEvaluatePage();
   }
   installRouteWatch();
 })();

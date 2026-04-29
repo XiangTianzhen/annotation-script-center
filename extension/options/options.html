@@ -282,6 +282,10 @@
         font: inherit;
       }
 
+      .field-card input.wide-field {
+        max-width: 100%;
+      }
+
       .field-card input[type="color"] {
         width: 44px;
         height: 34px;
@@ -660,6 +664,44 @@
             </div>
           </div>
           <div id="lightwheel-status" class="status-text"></div>
+        </section>
+
+        <section id="detail-data-baker-round-one-quality-panel" class="detail-panel hidden">
+          <div class="detail-grid two">
+            <label class="field-card">
+              <strong>启用 AI 推荐</strong>
+              <span>关闭后，DataBaker 详情页不显示 AI 推荐工具卡，也不会触发推荐请求。</span>
+              <span class="field-toggle">
+                <input id="data-baker-ai-recommend-enabled" type="checkbox" />
+                启用 AI 推荐文本
+              </span>
+            </label>
+
+            <label class="field-card">
+              <strong>请求超时时间 (ms)</strong>
+              <span>用于前端等待 AI 推荐接口返回，默认 120000 ms。</span>
+              <input id="data-baker-ai-recommend-timeout" type="number" min="1000" max="180000" step="1000" />
+            </label>
+          </div>
+
+          <div class="field-card" style="margin-top: 18px;">
+            <strong>AI 推荐接口地址</strong>
+            <span>默认走服务器接口；本机地址仅用于开发调试。扩展前端不保存 API Key。</span>
+            <label>
+              快捷选择
+              <select id="data-baker-ai-recommend-endpoint-preset">
+                <option value="server">服务器：script.xiangtianzhen.store</option>
+                <option value="local">本机：127.0.0.1:3333</option>
+                <option value="custom">自定义 URL</option>
+              </select>
+            </label>
+            <input id="data-baker-ai-recommend-endpoint" class="wide-field" type="text" />
+          </div>
+
+          <div class="field-actions">
+            <button id="save-data-baker-settings" class="primary-button" type="button">保存 DataBaker 设置</button>
+          </div>
+          <div id="data-baker-status" class="status-text"></div>
         </section>
 
         <div id="detail-status" class="status-text"></div>

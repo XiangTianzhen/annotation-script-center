@@ -24,12 +24,18 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 17;
+  const SCHEMA_VERSION = 18;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
+  const DATA_BAKER_PLATFORM_ID = "dataBaker";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
   const JUDGEMENT_PROJECT_ID = "judgement";
   const LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID = "lightwheelViewPanel";
+  const DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID = "dataBakerRoundOneQuality";
+  const DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT =
+    "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
+  const DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT =
+    "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
 
   const MESSAGE_TYPES = {
     OPEN_SETTINGS_PANEL: "ASR_EDGE_OPEN_SETTINGS_PANEL",
@@ -50,6 +56,13 @@
     label: "Lightwheel",
     host: "label-cloud.lightwheel.net",
     matches: ["https://label-cloud.lightwheel.net/*"],
+  };
+
+  const DATA_BAKER_PLATFORM = {
+    id: "data-baker",
+    label: "DataBaker / DataFactory",
+    host: "datafactory.data-baker.com",
+    matches: ["https://datafactory.data-baker.com/*"],
   };
 
   const PAGE_OPTIONS = [
@@ -312,6 +325,14 @@
       runtimeBridge: "none",
       description: "Lightwheel 视频标注查看态平台。",
     },
+    dataBaker: {
+      id: DATA_BAKER_PLATFORM_ID,
+      label: "DataBaker / DataFactory",
+      host: DATA_BAKER_PLATFORM.host,
+      matches: clone(DATA_BAKER_PLATFORM.matches),
+      runtimeBridge: "data-baker-round-one-quality",
+      description: "DataBaker / DataFactory 质检站点。",
+    },
   };
 
   const SCRIPT_LIBRARY = {
@@ -353,6 +374,21 @@
       requiredQuery: {
         access: "1",
       },
+    },
+    dataBakerRoundOneQuality: {
+      id: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
+      platformId: DATA_BAKER_PLATFORM_ID,
+      label: "DataBaker 一检质检",
+      shortLabel: "一检质检",
+      description: "一检质检 roundOneCollect 页面 AI 推荐文本能力。",
+      note:
+        "当前只提供单条 AI 推荐文本，不自动保存、提交、批量识别或自动流转。",
+      capabilityScope: "ai-recommend-text",
+      statusLabel: "已接入 AI 推荐文本",
+      detailView: "data-baker-round-one-quality",
+      host: DATA_BAKER_PLATFORM.host,
+      matchUrl:
+        "https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0",
     },
   };
 
@@ -611,11 +647,27 @@
     };
   }
 
+  function createDefaultDataBakerPlatformSettings() {
+    return {
+      enabled: true,
+      scripts: {
+        roundOneQuality: {
+          id: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
+          enabled: true,
+          aiRecommendEnabled: true,
+          aiRecommendEndpoint: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
+          aiRecommendRequestTimeoutMs: 120000,
+        },
+      },
+    };
+  }
+
   const DEFAULT_SETTINGS = {
     stage: STAGE_ID,
     platforms: {
       alibabaLabelx: createDefaultPlatformSettings(),
       lightwheel: createDefaultLightwheelPlatformSettings(),
+      dataBaker: createDefaultDataBakerPlatformSettings(),
     },
     asr: clone(DEFAULT_ASR_CONFIG),
     debug: {
@@ -637,12 +689,13 @@
     STAGE_DESCRIPTION:
       "脚本中心统一管理 LabelX 下的多个同域项目，options 页为主入口，页面内浮层只保留给语音转写项目联调。",
     CAPABILITY_SCOPE:
-      "当前支持多平台脚本中心、LabelX 语音转写全量设置迁移、语音判别音频能力，以及 Lightwheel 脚本占位管理。",
+      "当前支持多平台脚本中心、LabelX 语音转写全量设置迁移、语音判别音频能力、Lightwheel 脚本占位管理，以及 DataBaker 一检质检 AI 推荐文本。",
     SCHEMA_VERSION: SCHEMA_VERSION,
     STORAGE_KEY: "asrEdgeSettings",
     PRESENCE_BADGE_ID: "asr-edge-presence-host",
     TARGET_PLATFORM: TARGET_PLATFORM,
     LIGHTWHEEL_PLATFORM: LIGHTWHEEL_PLATFORM,
+    DATA_BAKER_PLATFORM: DATA_BAKER_PLATFORM,
     PLATFORM_LIBRARY: clone(PLATFORM_LIBRARY),
     MESSAGE_TYPES: MESSAGE_TYPES,
     PAGE_OPTIONS: PAGE_OPTIONS,
@@ -656,6 +709,10 @@
     TRANSCRIPTION_PROJECT_ID: TRANSCRIPTION_PROJECT_ID,
     JUDGEMENT_PROJECT_ID: JUDGEMENT_PROJECT_ID,
     LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID,
+    DATA_BAKER_PLATFORM_ID: DATA_BAKER_PLATFORM_ID,
+    DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
+    DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
+    DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,
     SCRIPT_PROJECTS: clone(SCRIPT_PROJECTS),
     SCRIPT_LIBRARY: clone(SCRIPT_LIBRARY),
     JUDGEMENT_SHORTCUT_ACTIONS: clone(JUDGEMENT_SHORTCUT_ACTIONS),
@@ -670,6 +727,7 @@
     DEFAULT_CACHE: clone(DEFAULT_CACHE),
     DEFAULT_PLATFORM_SETTINGS: createDefaultPlatformSettings(),
     DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: createDefaultLightwheelPlatformSettings(),
+    DEFAULT_DATA_BAKER_PLATFORM_SETTINGS: createDefaultDataBakerPlatformSettings(),
     DEFAULT_SETTINGS: clone(DEFAULT_SETTINGS),
     LEGACY_ROOT_DEBUG_KEY: LEGACY_ROOT_DEBUG_KEY,
     LEGACY_ROOT_CACHE_KEYS: Object.assign({}, LEGACY_ROOT_CACHE_KEYS),

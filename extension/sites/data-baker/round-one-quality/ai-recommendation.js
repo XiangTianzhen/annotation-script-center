@@ -1,6 +1,6 @@
 (function () {
   const DEFAULT_ENDPOINT =
-    "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
+    "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
   const DEFAULT_TIMEOUT_MS = 120000;
 
   function getClientVersion() {

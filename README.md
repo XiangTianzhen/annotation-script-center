@@ -65,6 +65,23 @@ Chrome：
 4. 选择 `C:\Projects\annotation-script-center\extension`。
 5. 确认扩展名称显示为“标注脚本中心”。
 
+## 脚本中心控制面板
+
+扩展 options 页面现在按平台管理脚本：
+
+- `Alibaba LabelX`：语音转写、ASR 语音判别。
+- `Lightwheel`：查看态面板占位管理。
+- `DataBaker / DataFactory`：`DataBaker 一检质检`，用于 `roundOneCollect` 页面单条 AI 推荐文本。
+
+`DataBaker 一检质检` 可在 options 首页单独启停，并在专属设置页配置：
+
+- AI 推荐接口地址，默认走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
+- 本机调试接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
+- 请求超时时间，默认 `120000` ms。
+- 是否启用 AI 推荐文本。
+
+扩展前端只保存接口地址、超时时间和开关，不保存 API Key、cookie、access token 或完整音频 URL。真实模型密钥仍由后端通过 `config/env/ai.env` 读取。
+
 ## 打包发布
 
 - 打包 Chrome Web Store 或 Edge Add-ons 时，压缩包根目录必须直接包含 `manifest.json`，也就是压缩 `extension/` 目录内的内容，而不是压缩仓库根目录。
@@ -89,7 +106,7 @@ Write-Host "已生成：$zipPath"
 生成后的压缩包路径示例：
 
 ```text
-dist\annotation-script-center-v0.2.7.zip
+dist\annotation-script-center-v0.2.8.zip
 ```
 
 压缩包内部第一层必须能直接看到这些内容：
@@ -134,6 +151,7 @@ http://127.0.0.1:3333
 
 - 健康检查：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
 - 推荐接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
+- 扩展默认推荐接口：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 
 ## 统一 AI 环境配置文件
 
@@ -202,8 +220,11 @@ pm2 restart annotation-script-center --update-env
 DataBaker AI 推荐文本说明：
 
 - 当前目标页面：`https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0`。
+- 脚本已接入 options “标注脚本中心”，可在 DataBaker / DataFactory 平台区域启停，并在专属设置页配置 AI 推荐接口地址。
+- 默认前端请求服务器接口 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`；本机 `http://127.0.0.1:3333/...` 仅用于开发调试。
 - 当前只做“单条 AI 推荐文本”，不自动保存、不自动提交、不自动点击合格 / 不合格、不做批量识别或自动流转。
 - 前端通过页面同源请求和 MAIN world 内存缓存读取当前题数据，不硬编码或持久化 `access_token`、cookie、完整签名音频 URL。
+- 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
 - 推荐结果只展示给用户；“填入推荐文本”必须由用户点击触发，且只能写入可安全定位的“本句话文本”输入框。
 - 第一版默认模型：听音 `qwen3.5-omni-flash`，对比 `qwen3.5-plus`。
 

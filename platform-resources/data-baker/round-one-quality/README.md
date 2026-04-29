@@ -16,6 +16,17 @@ extension/sites/data-baker/round-one-quality/
 
 该站点与 Alibaba LabelX 无关，不应把 DataBaker 逻辑放入 `extension/sites/alibaba-labelx/`。
 
+## 扩展 options 接入
+
+`DataBaker 一检质检` 已接入扩展 options “标注脚本中心”：
+
+- options 首页展示 `DataBaker / DataFactory` 平台区域和 `DataBaker 一检质检` 脚本卡片。
+- 脚本可在卡片中启停，默认启用，便于上线验证。
+- 专属设置页可配置 AI 推荐接口地址、请求超时时间和 AI 推荐开关。
+- 默认推荐接口走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
+- 本机接口 `http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend` 仅用于开发调试。
+- 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
+
 ## 当前资料
 
 ```text
@@ -56,6 +67,10 @@ DataBaker AI 推荐接口：
 
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
+
+扩展默认请求服务器完整路径：
+
+- `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 
 环境变量：
 

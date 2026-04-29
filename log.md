@@ -2,6 +2,11 @@
 
 ## 2026-04-29
 
+- options “标注脚本中心”新增 `DataBaker / DataFactory` 平台区域和 `DataBaker 一检质检` 脚本卡片，支持在控制面板启停该脚本。
+- 新增 DataBaker 一检质检专属设置页，可配置 AI 推荐接口地址、请求超时时间和 AI 推荐开关；默认 endpoint 为 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`，本机 `127.0.0.1:3333` 仅用于开发调试。
+- DataBaker content script 改为读取 `chrome.storage` 中的脚本启停、AI 推荐开关、endpoint 和 timeout；关闭脚本或关闭 AI 推荐后不显示推荐工具卡。
+- 扩展前端仍不保存 API Key、access token、cookie 或完整音频 URL，DataBaker 模型密钥继续由后端通过 `config/env/ai.env` 读取。
+- manifest 版本提升到 `0.2.8`。
 - 新增统一 AI 环境配置文件 `config/env/ai.env` 自动加载能力，统一后端启动时会先加载仓库内 AI 环境配置，不再要求每次手动设置 `DASHSCOPE_API_KEY`。
 - 新增 `config/env/ai.env.example`，覆盖 DashScope、OpenRouter、MiniMax、其他模型服务和 DataBaker AI 推荐文本配置项。
 - `.gitignore` 新增真实密钥文件忽略规则：`config/env/ai.env`、`config/env/ai.local.env`、`.env`、`.env.*`，保留模板文件可提交。
