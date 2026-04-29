@@ -11,8 +11,12 @@
     taskPartialReject: "任务判定：部分驳回",
     taskFullReject: "任务判定：全部驳回",
   };
+
   const HANDLED_FLAG = "__asrEdgeDataBakerShortcutHandled";
-  const FOCUS_SENTINEL_ID = "asr-edge-data-baker-focus-sentinel";
+  const PAGE_TEXT_CHECK_INTERVAL_MS = 500;
+  const PAGE_TEXT_CHANGE_DELAY_MS = 120;
+  const PAGE_TEXT_BLUR_DELAY_MS = 60;
+  const USER_EDIT_GRACE_MS = 1500;
 
   function normalizeShortcut(shortcut) {
     if (!shortcut || typeof shortcut !== "object") {
@@ -50,6 +54,10 @@
     return result;
   }
 
+  function normalizeText(value) {
+    return String(value || "").replace(/\s+/g, "").trim();
+  }
+
   function isEditableTarget(target) {
     if (!(target instanceof Element)) {
       return false;
@@ -64,41 +72,26 @@
     return Boolean(target.closest("[contenteditable='true'], [contenteditable='']"));
   }
 
-  function focusSafeBody() {
+  function focusBody() {
+    if (!(document.body instanceof HTMLElement)) {
+      return;
+    }
     try {
-      let focusNode = document.getElementById(FOCUS_SENTINEL_ID);
-      if (!focusNode) {
-        focusNode = document.createElement("button");
-        focusNode.id = FOCUS_SENTINEL_ID;
-        focusNode.type = "button";
-        focusNode.setAttribute("aria-hidden", "true");
-        focusNode.tabIndex = -1;
-        focusNode.style.position = "fixed";
-        focusNode.style.left = "-9999px";
-        focusNode.style.top = "-9999px";
-        focusNode.style.width = "1px";
-        focusNode.style.height = "1px";
-        focusNode.style.opacity = "0";
-        document.documentElement.appendChild(focusNode);
+      if (!document.body.hasAttribute("tabindex")) {
+        document.body.setAttribute("tabindex", "-1");
       }
-
-      focusNode.focus({ preventScroll: true });
-
-      if (document.body instanceof HTMLElement) {
-        if (!document.body.hasAttribute("tabindex")) {
-          document.body.setAttribute("tabindex", "-1");
-        }
-        document.body.focus({ preventScroll: true });
-      }
+      document.body.focus({ preventScroll: true });
     } catch (error) {
-      // Ignore focus restoration failures; the shortcut action can still run.
+      try {
+        document.body.focus();
+      } catch (innerError) {
+        // Ignore focus failures.
+      }
     }
   }
 
-  function blurActiveElementForShortcut(options) {
-    const config = options && typeof options === "object" ? options : {};
+  function blurActiveElementForShortcut() {
     const activeElement = document.activeElement;
-
     if (
       activeElement &&
       activeElement instanceof HTMLElement &&
@@ -118,10 +111,57 @@
         nextActiveElement.blur();
       }
     } catch (error) {
-      // Ignore focus restoration failures; the shortcut action can still run.
+      // Ignore blur failures.
     }
 
-    focusSafeBody();
+    focusBody();
+    return true;
+  }
+
+  function findPageTextArea() {
+    const textBoxes = Array.from(document.querySelectorAll(".waver-page .text-box"));
+    const textBox = textBoxes.find(function (node) {
+      return String(node.textContent || "").indexOf("本句话文本") >= 0;
+    });
+
+    return (
+      textBox?.querySelector("textarea.el-textarea__inner, textarea") ||
+      document.querySelector(".waver-page .text-box textarea.el-textarea__inner") ||
+      document.querySelector(".el-textarea textarea.el-textarea__inner") ||
+      null
+    );
+  }
+
+  function getPageTextValue() {
+    const textarea = findPageTextArea();
+    return textarea ? String(textarea.value || "") : "";
+  }
+
+  function focusPageTextThenExit() {
+    const textarea = findPageTextArea();
+    if (!textarea || !(textarea instanceof HTMLElement)) {
+      return false;
+    }
+
+    try {
+      textarea.focus({ preventScroll: true });
+    } catch (error) {
+      try {
+        textarea.focus();
+      } catch (innerError) {
+        return false;
+      }
+    }
+
+    window.setTimeout(function () {
+      try {
+        textarea.blur();
+      } catch (error) {
+        // Ignore blur failures.
+      }
+      focusBody();
+    }, PAGE_TEXT_BLUR_DELAY_MS);
+
     return true;
   }
 
@@ -148,10 +188,6 @@
     );
   }
 
-  function normalizeText(value) {
-    return String(value || "").replace(/\s+/g, "").trim();
-  }
-
   function findButtonInContainers(containerSelector, headingText, buttonText) {
     const heading = normalizeText(headingText);
     const target = normalizeText(buttonText);
@@ -172,6 +208,16 @@
     return null;
   }
 
+  function showStatus(message, tone, actions) {
+    if (actions && typeof actions.showStatus === "function") {
+      actions.showStatus(message, tone);
+      return;
+    }
+    if (typeof console !== "undefined" && typeof console.debug === "function") {
+      console.debug("[DataBaker][round-one-quality][shortcut] " + String(message || ""));
+    }
+  }
+
   function clickButton(button, failureMessage, actions) {
     if (!button) {
       showStatus(failureMessage || "未找到对应按钮。", "error", actions);
@@ -184,16 +230,6 @@
     button.click();
     showStatus("已触发：" + normalizeText(button.textContent), "success", actions);
     return true;
-  }
-
-  function showStatus(message, tone, actions) {
-    if (actions && typeof actions.showStatus === "function") {
-      actions.showStatus(message, tone);
-      return;
-    }
-    if (typeof console !== "undefined" && typeof console.debug === "function") {
-      console.debug("[DataBaker][round-one-quality][shortcut] " + String(message || ""));
-    }
   }
 
   function runPromiseAction(promise, actions) {
@@ -238,23 +274,43 @@
       return;
     }
     if (actionKey === "sentenceQualified") {
-      clickButton(findButtonInContainers(".submit-btn", "句子判定", "合格"), "未找到句子判定合格按钮。", safeActions);
+      clickButton(
+        findButtonInContainers(".submit-btn", "句子判定", "合格"),
+        "未找到句子判定合格按钮。",
+        safeActions
+      );
       return;
     }
     if (actionKey === "sentenceUnqualified") {
-      clickButton(findButtonInContainers(".submit-btn", "句子判定", "不合格"), "未找到句子判定不合格按钮。", safeActions);
+      clickButton(
+        findButtonInContainers(".submit-btn", "句子判定", "不合格"),
+        "未找到句子判定不合格按钮。",
+        safeActions
+      );
       return;
     }
     if (actionKey === "taskPass") {
-      clickButton(findButtonInContainers(".operate-btn", "任务判定", "通过"), "未找到任务判定通过按钮。", safeActions);
+      clickButton(
+        findButtonInContainers(".operate-btn", "任务判定", "通过"),
+        "未找到任务判定通过按钮。",
+        safeActions
+      );
       return;
     }
     if (actionKey === "taskPartialReject") {
-      clickButton(findButtonInContainers(".operate-btn", "任务判定", "部分驳回"), "未找到任务判定部分驳回按钮。", safeActions);
+      clickButton(
+        findButtonInContainers(".operate-btn", "任务判定", "部分驳回"),
+        "未找到任务判定部分驳回按钮。",
+        safeActions
+      );
       return;
     }
     if (actionKey === "taskFullReject") {
-      clickButton(findButtonInContainers(".operate-btn", "任务判定", "全部驳回"), "未找到任务判定全部驳回按钮。", safeActions);
+      clickButton(
+        findButtonInContainers(".operate-btn", "任务判定", "全部驳回"),
+        "未找到任务判定全部驳回按钮。",
+        safeActions
+      );
     }
   }
 
@@ -263,6 +319,19 @@
     let shortcuts = normalizeShortcutMap(config.shortcuts);
     let actions = config.actions || {};
     let started = false;
+
+    let lastPageTextValue = "";
+    let hasPageTextSnapshot = false;
+    let lastUserEditingAt = 0;
+    let pageTextCheckTimer = null;
+    let pageTextObserver = null;
+    let pageTextIntervalTimer = null;
+    const handleFocusIn = function (event) {
+      markUserEditingByTarget(event.target);
+    };
+    const handleInput = function (event) {
+      markUserEditingByTarget(event.target);
+    };
 
     function findMatchedAction(event) {
       return Object.keys(shortcuts).find(function (key) {
@@ -290,6 +359,110 @@
       runAction(actionKey, actions);
     }
 
+    function markUserEditingByTarget(target) {
+      const element = target instanceof Element ? target : null;
+      if (!element) {
+        return;
+      }
+      const textarea = findPageTextArea();
+      if (textarea && element === textarea) {
+        lastUserEditingAt = Date.now();
+        return;
+      }
+      if (isEditableTarget(element)) {
+        lastUserEditingAt = Date.now();
+      }
+    }
+
+    function checkPageTextChanged() {
+      const textarea = findPageTextArea();
+      if (!textarea) {
+        hasPageTextSnapshot = false;
+        lastPageTextValue = "";
+        return;
+      }
+
+      const nextValue = getPageTextValue();
+      if (!hasPageTextSnapshot) {
+        hasPageTextSnapshot = true;
+        lastPageTextValue = nextValue;
+        return;
+      }
+
+      if (nextValue === lastPageTextValue) {
+        return;
+      }
+
+      lastPageTextValue = nextValue;
+
+      if (
+        document.activeElement === textarea &&
+        Date.now() - lastUserEditingAt < USER_EDIT_GRACE_MS
+      ) {
+        return;
+      }
+
+      window.setTimeout(function () {
+        const currentTextarea = findPageTextArea();
+        if (
+          currentTextarea &&
+          document.activeElement === currentTextarea &&
+          Date.now() - lastUserEditingAt < USER_EDIT_GRACE_MS
+        ) {
+          return;
+        }
+        focusPageTextThenExit("page-text-changed");
+      }, PAGE_TEXT_CHANGE_DELAY_MS);
+    }
+
+    function schedulePageTextCheck() {
+      if (pageTextCheckTimer) {
+        return;
+      }
+      pageTextCheckTimer = window.setTimeout(function () {
+        pageTextCheckTimer = null;
+        checkPageTextChanged();
+      }, 80);
+    }
+
+    function startPageTextWatchers() {
+      if (!pageTextObserver) {
+        pageTextObserver = new MutationObserver(schedulePageTextCheck);
+        pageTextObserver.observe(document.body || document.documentElement, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+        });
+      }
+
+      if (!pageTextIntervalTimer) {
+        pageTextIntervalTimer = window.setInterval(
+          checkPageTextChanged,
+          PAGE_TEXT_CHECK_INTERVAL_MS
+        );
+      }
+
+      schedulePageTextCheck();
+    }
+
+    function stopPageTextWatchers() {
+      if (pageTextObserver) {
+        pageTextObserver.disconnect();
+        pageTextObserver = null;
+      }
+      if (pageTextIntervalTimer) {
+        window.clearInterval(pageTextIntervalTimer);
+        pageTextIntervalTimer = null;
+      }
+      if (pageTextCheckTimer) {
+        window.clearTimeout(pageTextCheckTimer);
+        pageTextCheckTimer = null;
+      }
+      hasPageTextSnapshot = false;
+      lastPageTextValue = "";
+      lastUserEditingAt = 0;
+    }
+
     function start() {
       if (started) {
         return;
@@ -297,6 +470,9 @@
       started = true;
       window.addEventListener("keydown", handleKeydown, true);
       document.addEventListener("keydown", handleKeydown, true);
+      document.addEventListener("focusin", handleFocusIn, true);
+      document.addEventListener("input", handleInput, true);
+      startPageTextWatchers();
     }
 
     function stop() {
@@ -306,6 +482,9 @@
       started = false;
       window.removeEventListener("keydown", handleKeydown, true);
       document.removeEventListener("keydown", handleKeydown, true);
+      document.removeEventListener("focusin", handleFocusIn, true);
+      document.removeEventListener("input", handleInput, true);
+      stopPageTextWatchers();
     }
 
     function refresh(nextOptions) {
@@ -324,7 +503,8 @@
   globalThis.__ASREdgeDataBakerRoundOneShortcuts = {
     blurActiveElementForShortcut,
     createRuntime,
-    focusSafeBody,
+    findPageTextArea,
+    focusPageTextThenExit,
     normalizeShortcut,
   };
 })();
