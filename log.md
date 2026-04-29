@@ -2,6 +2,12 @@
 
 ## 2026-04-29
 
+- 更新 AGENTS.md 项目定位：当前重点平台收口为 Alibaba LabelX 与 DataBaker / DataFactory，重点脚本包含快判、转写和 DataBaker 一检质检。
+- 固化单人项目 Git 工作流：默认 main 分支直接执行，验证通过后 commit 并 push，不创建分支、不创建 PR。
+- 固化复杂任务优先使用 subagent / parallel agents；不支持时按相同分工串行执行。
+- 固化默认由网页端指挥 AI 通过 GitHub 直接验收，不再默认输出验收 Prompt。
+- 本轮仅更新协作文档，不改扩展业务代码、不改后端 API、不改 manifest。
+
 - 修复 DataBaker 点击平台“确定”后自动切题导致快捷键失焦的问题：快捷键运行时新增平台动作按钮点击、`.sentence-list .sentence-item.active` 变化、快捷键触发平台按钮和窗口重新聚焦后的多次焦点恢复；只做 blur + 隐藏焦点哨兵，不模拟点击页面空白处。
 - 修复 DataBaker 一检质检快捷键焦点恢复：快捷键运行时先匹配已配置动作，未命中时不拦截普通输入；命中后通过隐藏焦点哨兵退出输入框并执行动作，同时监听左侧句子点击后延迟恢复焦点。
 - DataBaker “填入推荐文本”后增加立即、50ms、180ms 三次失焦兜底，避免 Element UI / Vue 在 input/change 后重新聚焦 textarea；仍不自动保存、提交或判定。
@@ -133,3 +139,4 @@
 - 新增快判“雷题判断”能力：manifest 版本提升到 `0.2.2`，打包本地 `thunder-question-bank.csv` 雷题库，options 默认开启开关；命中雷题时在轻量题卡摘要和回答区“特殊情况标注”显示标准答案，当前选择与标准答案不一致时显示红色严重提示和错误 toast。
 - 增强快判统计上传失败诊断：非 2xx 响应会显示状态码、目标上传地址和响应摘要；浏览器权限、CORS、证书或网络拦截导致请求未发出时会显示更明确的错误来源。
 - 修正转写脚本在 LabelX 非转写页面的契约缺失告警：manifest 版本提升到 `0.2.3`，`content.js` 改为等待 `runtime-contract.js` 注入后再启动，超时仍缺失时以 info 级日志跳过，避免在快判首页出现 `Runtime contract is not loaded` 扩展错误。
+

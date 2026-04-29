@@ -3,10 +3,53 @@
 ## 项目定位
 
 - 当前仓库根目录是 `C:\Projects\annotation-script-center`。
-- 当前重点项目是 `extension/`，这是“标注脚本中心”的 Chrome / Chromium MV3 兼容扩展源码目录。
-- 当前重点平台是 `Alibaba LabelX`。
-- 当前重点脚本是 `extension/sites/alibaba-labelx/asr-judgement/`，即“阿里ASR语音判别 / ASR快判”。
+- 当前仓库是“标注脚本中心 annotation-script-center”。
+- 当前项目处于“Chrome / Chromium MV3 单源码扩展 + 多平台脚本增强阶段”，不是初始化、骨架或 Demo。
+- 当前通用扩展源码目录是 `extension/`，这是“标注脚本中心”的 Chrome / Chromium MV3 兼容扩展源码目录。
+- 当前重点平台包括：`Alibaba LabelX`、`DataBaker / DataFactory`。
+- 当前重点脚本包括：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/alibaba-labelx/asr-transcription/`、`extension/sites/data-baker/round-one-quality/`。
+- 当前统一后端入口是 `platform-resources/backend/server.js`。
 - `extension/` 是唯一业务运行时代码源。Chrome 和 Edge 本地加载、打包、调试都应优先使用同一目录，不再复制一套业务逻辑。
+
+## 协作执行规则
+
+### 单人项目 Git 工作流
+
+- 当前项目为单人维护项目。
+- 默认直接在 `main` 分支完成执行类任务。
+- 默认不创建 feature branch。
+- 默认不创建 Pull Request。
+- 只有用户明确要求“开分支 / 开 PR / 不直接改 main”时，才允许走分支或 PR。
+- 执行类任务验证通过后，默认直接 `git add` / `git commit` / `git push` 到 `main`。
+- 只读审计任务不提交。
+- 验证失败不提交、不 push。
+- 用户明确说“不要提交”时不提交。
+- 如果当前不在 `main`，必须先说明并切回 `main`，不得在非 `main` 分支悄悄完成并 push 后结束。
+
+### subagent / parallel agents 使用规则
+
+- 文档小修、小 UI、小 bug 可以不使用 subagent。
+- 涉及多平台、多脚本、多模块、MAIN world / ISOLATED world 通信、后端 AI 调用、网络拦截、快捷键、DOM 结构、日志脱敏、部署联动等复杂任务时，优先使用 subagent / parallel agents。
+- 如果当前 Codex 环境不支持 subagent / parallel agents，则按相同分工串行执行。
+- 执行 Prompt 中应明确是否使用 subagent / parallel agents。
+
+### 默认 GitHub 直接验收规则
+
+- Codex 执行并 push 到 `main` 后，默认由网页端指挥 AI 直接通过 GitHub 验收。
+- 默认不再输出“验收检测 Prompt”。
+- 网页端指挥 AI 默认检查：
+  - `main` 最新 commit。
+  - 是否已 push 到 `main`。
+  - diff 与修改文件。
+  - 关键代码实现。
+  - 文档同步。
+  - GitHub Actions / CI（如存在）。
+  - 是否通过、明显问题、风险点、是否建议保留提交、下一步建议。
+- 仅在以下情况输出验收 Prompt：
+  - 用户明确要求“给我验收 Prompt”。
+  - 需要 Codex 在本地环境重新跑命令。
+  - GitHub `main` 看不到最新代码。
+  - 需要浏览器手工测试且用户希望 Codex 或本地环境辅助执行。
 
 ## 开发策略
 
@@ -70,6 +113,17 @@
 - 每次有功能、目录结构、模块归属、选择器或验证步骤变化，都要同步更新相关 README。
 - 每次有有意义的代码或行为变更，都要更新根目录 `log.md`。
 - 如果新增或确认 LabelX DOM 结构、网络请求或统计契约，优先整理到 `platform-resources/` 对应平台和脚本项目目录。
+## 安全规则
+
+- 扩展前端不保存 API Key、cookie、access token、完整签名音频 URL 或完整音频 URL。
+- 模型 API Key 只放后端环境变量或 `config/env/ai.env`。
+- 真实 `config/env/ai.env`、`config/env/ai.local.env`、`.env`、`.env.*` 不得提交。
+- 模板 `config/env/ai.env.example` 可以提交。
+- 日志、错误提示和调试输出必须脱敏。
+- 不输出 API Key、cookie、token、完整签名 URL、完整音频 URL。
+- AI 建议 / AI 推荐文本默认是辅助能力，不自动保存、不自动提交、不自动领取、不自动流转。
+- DataBaker “填入推荐文本”必须由用户主动点击或快捷键触发，不自动提交平台任务。
+- 快判 AI 建议必须保持人工确认，不绕过雷题或平台限制。
 
 ## 验证要求
 
@@ -83,4 +137,6 @@
 - 提交前先查看 `git status`，确认只暂存本轮相关文件。
 - 如果工作区存在明显无关或无法确认归属的改动，不要混入提交，应在最终回复中说明。
 - 提交信息使用中文，简明说明本轮改动目的。
-- 除非用户明确要求，不主动 `git push`。
+- 当前项目按单人维护流程，执行类任务验证通过后默认直接 push 到 `main`；仅在只读审计、验证失败或用户明确禁止提交时不 push。
+
+

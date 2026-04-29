@@ -392,8 +392,14 @@ location / {
 
 ## 维护规则
 
+- 当前项目为单人维护项目。
+- 执行类任务验证通过后默认 `git add` / `git commit` / `git push` 到 `main`。
+- 只读审计、验证失败、用户明确禁止提交时不提交。
+- 默认不创建分支、不创建 PR。
+- Codex push 后默认由网页端指挥 AI 直接通过 GitHub 验收。
+- 复杂任务优先使用 subagent / parallel agents。
 - 所有 Markdown 文档使用中文。
 - 有功能、目录结构、模块归属、选择器或验证步骤变化时，同步更新相关 README 和根目录 `log.md`。
 - 修改 `manifest.json` 后必须确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 - 修改 JS 后运行 `node --check` 检查变更文件。
-- 完成修改并验证后提交到 git；默认不主动 `git push`。
+
