@@ -17,6 +17,8 @@
 - 结果卡展示页面候选文本、AI 听音文本、AI 推荐文本、是否相对页面文本变更、置信度、模型、流水线模式、阶段耗时、决策和复核提示。
 - 结果卡提供“复制推荐文本”“填入推荐文本”“忽略”。
 - “填入推荐文本”只在用户点击后触发，只写入页面的“本句话文本”输入框，不自动保存、不自动提交、不自动点击合格 / 不合格。
+- 支持自动每页条数，默认进入详情页后尝试设置为 `50条/页`，只点击页面原生分页控件。
+- 支持 DataBaker 专属快捷键配置，默认全部未设置；快捷键只处理当前题或当前推荐卡。
 
 ## 文件职责
 
@@ -26,6 +28,8 @@ round-one-quality/
   data-api.js
   ai-recommendation.js
   ui-panel.js
+  page-size-controller.js
+  shortcuts.js
   page-world/
     network-observer.js
 ```
@@ -34,6 +38,8 @@ round-one-quality/
 - `data-api.js`：解析 `collectId/checkType`，监听 MAIN world 缓存的列表接口响应，定位当前选中题并生成后端请求数据。
 - `ai-recommendation.js`：调用本地后端 `POST /api/data-baker/round-one-quality/ai/recommend`，请求体只传必要字段。
 - `ui-panel.js`：注入按钮和推荐结果卡，支持复制和用户点击后填入推荐文本。
+- `page-size-controller.js`：在详情页有限重试点击分页大小选择器，按设置切换到目标每页条数。
+- `shortcuts.js`：监听 DataBaker 专属快捷键；输入框聚焦时不触发，不绕过 disabled 按钮。
 - `page-world/network-observer.js`：运行在 MAIN world，观察 `queryCollectStatementByCondtion` 列表接口响应，只在内存中缓存当前页题目记录。
 
 ## options 设置
@@ -44,8 +50,10 @@ round-one-quality/
 - AI 推荐接口地址只能选择服务器或本机，默认服务器地址：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
 - 本机调试地址：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`，仅用于开发调试；员工默认走服务器。
 - 配置前端请求超时时间，页面以秒展示，默认 `120` 秒；扩展内部仍按毫秒存储到 `aiRecommendRequestTimeoutMs`。
+- 启用 / 关闭自动每页条数，默认启用，默认目标为 `50条/页`，可选 `5条/页`、`10条/页`、`20条/页`、`50条/页`、`100条/页`。
+- 配置快捷键，默认全部未设置。支持动作：AI 推荐文本、复制 AI 听音文本、复制 AI 推荐文本、填入推荐文本、忽略 AI 推荐结果、句子判定合格 / 不合格、任务判定通过 / 部分驳回 / 全部驳回。
 
-扩展前端只保存接口地址、超时时间和开关，不保存 API Key、access token、cookie 或完整 `audioUrl`。模型密钥仍由后端通过 `config/env/ai.env` 读取。
+扩展前端只保存接口地址、超时时间、开关、分页和快捷键设置，不保存 API Key、access token、cookie 或完整 `audioUrl`。模型密钥仍由后端通过 `config/env/ai.env` 读取。
 
 ## 页面选择器依据
 
@@ -125,17 +133,20 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 1. 重新加载扩展。
 2. 打开 options 页面，确认首页出现 `DataBaker / DataFactory` 平台和 `DataBaker 一检质检` 卡片。
 3. 点击“打开设置”，确认默认 AI 推荐接口地址是服务器地址，并可切换成本机调试地址。
-4. 保存后刷新 options 页面，确认配置仍存在。
-5. 如需本机调试，启动本地后端：`node platform-resources\backend\server.js`。
-6. 访问 health 接口，确认返回 `success=true`。
-7. 打开 `https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0`。
-8. 等待列表和右侧题目加载，确认右侧“本句话文本”下方出现 `DataBaker AI 推荐文本` 工具卡。
-9. 点击左侧不同句子，确认旧推荐结果会清空或提示需要重新生成。
-10. 点击“AI 推荐文本”，确认只请求当前选中单条，且请求使用 options 中配置的 endpoint。
-11. 点击“复制推荐文本”，确认剪贴板内容为推荐文本。
-12. 点击“填入推荐文本”，确认只写入“本句话文本”输入框；不会自动保存、提交、合格、不合格或任务判定。
-13. 关闭 DataBaker 脚本或关闭 AI 推荐后刷新详情页，确认不再显示工具卡或无法触发推荐。
-14. 打开非 `roundOneCollect` 页面，确认不注入该工具卡。
+4. 确认自动每页条数默认启用且目标为 `50条/页`；快捷键配置区域默认全部未设置。
+5. 录制一个快捷键，例如 `Alt+A` 绑定“AI 推荐文本”，保存后刷新 options 页面，确认配置仍存在。
+6. 如需本机调试，启动本地后端：`node platform-resources\backend\server.js`。
+7. 访问 health 接口，确认返回 `success=true`。
+8. 打开 `https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0`。
+9. 等待列表和右侧题目加载，确认右侧“本句话文本”下方出现 `DataBaker AI 推荐文本` 工具卡，并观察页面自动尝试切换为 `50条/页`。
+10. 点击左侧不同句子，确认旧推荐结果会清空或提示需要重新生成。
+11. 点击“AI 推荐文本”或按已绑定快捷键，确认只请求当前选中单条，且请求使用 options 中配置的 endpoint。
+12. 推荐结果出来后，验证复制 AI 听音文本、复制推荐文本、填入和忽略快捷键只作用于当前推荐卡。
+13. 验证合格 / 不合格快捷键只点击 `.submit-btn` 中对应按钮；任务判定按钮 disabled 时快捷键不会绕过平台限制。
+14. 输入框聚焦时按快捷键，确认不触发脚本动作。
+15. 点击“填入推荐文本”，确认只写入“本句话文本”输入框；不会自动保存、提交、合格、不合格或任务判定。
+16. 关闭 DataBaker 脚本后刷新详情页，确认工具卡、自动分页和快捷键都停止；只关闭 AI 推荐时不显示工具卡。
+17. 打开非 `roundOneCollect` 页面，确认不注入该工具卡。
 
 ## 已知限制
 

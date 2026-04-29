@@ -21,6 +21,25 @@
   const dataBakerAiRecommendLocalEndpoint =
     constants.DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT ||
     "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
+  const dataBakerPageSizeOptions = (
+    Array.isArray(constants.DATABAKER_PAGE_SIZE_OPTIONS)
+      ? constants.DATABAKER_PAGE_SIZE_OPTIONS
+      : ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"]
+  ).map(function (item) {
+    return String(item || "").replace(/\s+/g, "");
+  });
+  const dataBakerShortcutActions = constants.DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS || [
+    { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
+    { key: "copyAiHeardText", label: "复制 AI 听音文本" },
+    { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
+    { key: "fillRecommendedText", label: "填入推荐文本" },
+    { key: "ignoreAiResult", label: "忽略 AI 推荐结果" },
+    { key: "sentenceQualified", label: "句子判定：合格" },
+    { key: "sentenceUnqualified", label: "句子判定：不合格" },
+    { key: "taskPass", label: "任务判定：通过" },
+    { key: "taskPartialReject", label: "任务判定：部分驳回" },
+    { key: "taskFullReject", label: "任务判定：全部驳回" },
+  ];
   const judgementAiSuggestionModels = Array.isArray(constants.JUDGEMENT_AI_AVAILABLE_MODELS)
     ? constants.JUDGEMENT_AI_AVAILABLE_MODELS
     : ["qwen3-omni-flash", "qwen3.5-omni-plus"];
@@ -65,6 +84,9 @@
   let judgementShortcutsDraft = {};
   let judgementRecordingKey = null;
   let stopJudgementRecordingListeners = null;
+  let dataBakerShortcutsDraft = {};
+  let dataBakerRecordingKey = null;
+  let stopDataBakerRecordingListeners = null;
 
   function getElement(id) {
     return document.getElementById(id);
@@ -382,6 +404,37 @@
     return Math.min(300, Math.max(1, Math.round(seconds))) * 1000;
   }
 
+  function normalizeDataBakerPageSize(value, fallback) {
+    const text = String(value || "").replace(/\s+/g, "");
+    const fallbackText = String(fallback || "50条/页").replace(/\s+/g, "");
+
+    if (dataBakerPageSizeOptions.indexOf(text) >= 0) {
+      return text;
+    }
+    if (dataBakerPageSizeOptions.indexOf(fallbackText) >= 0) {
+      return fallbackText;
+    }
+    return "50条/页";
+  }
+
+  function normalizeNullableShortcut(shortcut) {
+    const normalized = normalizeShortcut(shortcut);
+    return normalized && (normalized.key || typeof normalized.button === "number")
+      ? normalized
+      : null;
+  }
+
+  function normalizeDataBakerShortcuts(shortcuts) {
+    const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
+    const result = {};
+    dataBakerShortcutActions.forEach(function (action) {
+      result[action.key] = hasOwn(source, action.key)
+        ? normalizeNullableShortcut(source[action.key])
+        : null;
+    });
+    return result;
+  }
+
   function getLabelxActiveScriptId(settings) {
     return settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId || transcriptionProjectId;
   }
@@ -392,17 +445,29 @@
     const current =
       settings?.platforms?.dataBaker?.scripts?.roundOneQuality || {};
 
-    return Object.assign(
+    const config = Object.assign(
       {
         id: dataBakerRoundOneQualityScriptId,
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendEndpoint: dataBakerAiRecommendServerEndpoint,
         aiRecommendRequestTimeoutMs: 120000,
+        autoPageSizeEnabled: true,
+        defaultPageSize: "50条/页",
+        shortcuts: {},
       },
       defaults,
       current
     );
+
+    config.aiRecommendEndpoint = normalizeDataBakerEndpoint(config.aiRecommendEndpoint);
+    config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
+      config.aiRecommendRequestTimeoutMs
+    );
+    config.autoPageSizeEnabled = config.autoPageSizeEnabled !== false;
+    config.defaultPageSize = normalizeDataBakerPageSize(config.defaultPageSize, "50条/页");
+    config.shortcuts = normalizeDataBakerShortcuts(config.shortcuts);
+    return config;
   }
 
   function isScriptEnabled(settings, scriptId) {
@@ -949,6 +1014,133 @@
     renderJudgementShortcutGrid();
   }
 
+  function ensureDataBakerShortcutDraft() {
+    dataBakerShortcutActions.forEach(function (action) {
+      if (!hasOwn(dataBakerShortcutsDraft, action.key)) {
+        dataBakerShortcutsDraft[action.key] = null;
+      }
+    });
+  }
+
+  function renderDataBakerShortcutGrid() {
+    const grid = getElement("data-baker-shortcut-grid");
+    if (!grid) {
+      return;
+    }
+
+    ensureDataBakerShortcutDraft();
+    grid.innerHTML = dataBakerShortcutActions
+      .map(function (action) {
+        const recording = dataBakerRecordingKey === action.key;
+        return [
+          '<div class="shortcut-row">',
+          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
+          '<span class="shortcut-value">' +
+            escapeHtml(recording ? "录制中..." : formatShortcut(dataBakerShortcutsDraft[action.key])) +
+            "</span>",
+          '<button type="button" class="secondary-button" data-record-data-baker-shortcut="' +
+            escapeHtml(action.key) +
+            '">' +
+            (recording ? "录制中" : "录制") +
+            "</button>",
+          '<button type="button" class="ghost-button" data-clear-data-baker-shortcut="' +
+            escapeHtml(action.key) +
+            '">删除</button>',
+          "</div>",
+        ].join("");
+      })
+      .join("");
+
+    Array.from(grid.querySelectorAll("[data-record-data-baker-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        startDataBakerShortcutRecording(button.getAttribute("data-record-data-baker-shortcut"));
+      });
+    });
+
+    Array.from(grid.querySelectorAll("[data-clear-data-baker-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        const key = button.getAttribute("data-clear-data-baker-shortcut");
+        dataBakerShortcutsDraft[key] = null;
+        if (dataBakerRecordingKey === key) {
+          stopDataBakerShortcutRecording("快捷键录制已取消。");
+          return;
+        }
+        setDataBakerRecordingStatus("快捷键已删除，保存后生效。");
+        renderDataBakerShortcutGrid();
+      });
+    });
+  }
+
+  function setDataBakerRecordingStatus(text) {
+    const node = getElement("data-baker-recording-status");
+    if (!node) {
+      return;
+    }
+
+    node.textContent = text || "";
+    node.classList.toggle("hidden", !text);
+  }
+
+  function stopDataBakerShortcutRecording(statusText) {
+    if (typeof stopDataBakerRecordingListeners === "function") {
+      stopDataBakerRecordingListeners();
+      stopDataBakerRecordingListeners = null;
+    }
+
+    dataBakerRecordingKey = null;
+    setDataBakerRecordingStatus(statusText || "");
+    renderDataBakerShortcutGrid();
+  }
+
+  function applyRecordedDataBakerShortcut(shortcut) {
+    if (!dataBakerRecordingKey || shortcut === false) {
+      return;
+    }
+
+    if (!shortcut) {
+      stopDataBakerShortcutRecording("已取消快捷键录制。");
+      return;
+    }
+
+    dataBakerShortcutsDraft[dataBakerRecordingKey] = normalizeNullableShortcut(shortcut);
+    stopDataBakerShortcutRecording("快捷键已录制，保存后生效。");
+  }
+
+  function startDataBakerShortcutRecording(actionKey) {
+    if (!actionKey) {
+      return;
+    }
+
+    if (typeof stopDataBakerRecordingListeners === "function") {
+      stopDataBakerRecordingListeners();
+    }
+
+    dataBakerRecordingKey = actionKey;
+    const action = dataBakerShortcutActions.find(function (item) {
+      return item.key === actionKey;
+    });
+
+    setDataBakerRecordingStatus(
+      "正在录制「" + String(action?.label || actionKey) + "」：按键盘组合，Esc 取消。"
+    );
+
+    const keydownListener = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+      applyRecordedDataBakerShortcut(shortcutFromKeyboardEvent(event));
+    };
+
+    window.addEventListener("keydown", keydownListener, true);
+    stopDataBakerRecordingListeners = function () {
+      window.removeEventListener("keydown", keydownListener, true);
+    };
+
+    renderDataBakerShortcutGrid();
+  }
+
   function applyJudgementForm(settings) {
     const config = normalizeJudgementConfig(settings);
     judgementShortcutsDraft = clone(config.shortcuts) || {};
@@ -1133,12 +1325,21 @@
   function applyDataBakerForm(settings) {
     const config = getDataBakerRoundOneConfig(settings);
     const endpoint = normalizeDataBakerEndpoint(config.aiRecommendEndpoint);
+    dataBakerShortcutsDraft = clone(config.shortcuts) || {};
     getElement("data-baker-ai-recommend-enabled").checked =
       config.aiRecommendEnabled !== false;
     getElement("data-baker-ai-recommend-timeout").value = String(
       dataBakerTimeoutMsToSeconds(config.aiRecommendRequestTimeoutMs)
     );
     getElement("data-baker-ai-recommend-endpoint").value = endpoint;
+    getElement("data-baker-auto-page-size-enabled").checked =
+      config.autoPageSizeEnabled !== false;
+    getElement("data-baker-default-page-size").value = normalizeDataBakerPageSize(
+      config.defaultPageSize,
+      "50条/页"
+    );
+    stopDataBakerShortcutRecording("");
+    renderDataBakerShortcutGrid();
   }
 
   async function saveDataBakerSettings() {
@@ -1150,8 +1351,19 @@
     const endpointInput = getElement("data-baker-ai-recommend-endpoint").value;
     const timeoutInput = getElement("data-baker-ai-recommend-timeout").value;
     const aiRecommendEnabled = getElement("data-baker-ai-recommend-enabled").checked;
+    const autoPageSizeEnabled = getElement("data-baker-auto-page-size-enabled").checked;
+    const defaultPageSize = normalizeDataBakerPageSize(
+      getElement("data-baker-default-page-size").value,
+      "50条/页"
+    );
     const endpoint = normalizeDataBakerEndpoint(endpointInput);
     const timeoutMs = dataBakerTimeoutSecondsToMs(timeoutInput);
+    const shortcuts = {};
+
+    ensureDataBakerShortcutDraft();
+    dataBakerShortcutActions.forEach(function (action) {
+      shortcuts[action.key] = normalizeNullableShortcut(dataBakerShortcutsDraft[action.key]);
+    });
 
     setStatus("data-baker-status", "正在保存 DataBaker 设置...");
 
@@ -1165,6 +1377,9 @@
                 aiRecommendEnabled: aiRecommendEnabled,
                 aiRecommendEndpoint: endpoint,
                 aiRecommendRequestTimeoutMs: timeoutMs,
+                autoPageSizeEnabled: autoPageSizeEnabled,
+                defaultPageSize: defaultPageSize,
+                shortcuts: shortcuts,
               },
             },
           },

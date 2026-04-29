@@ -45,6 +45,20 @@
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
                 aiRecommendRequestTimeoutMs: 120000,
+                autoPageSizeEnabled: true,
+                defaultPageSize: "50条/页",
+                shortcuts: {
+                  aiRecommendCurrentItem: null,
+                  copyAiHeardText: null,
+                  copyRecommendedText: null,
+                  fillRecommendedText: null,
+                  ignoreAiResult: null,
+                  sentenceQualified: null,
+                  sentenceUnqualified: null,
+                  taskPass: null,
+                  taskPartialReject: null,
+                  taskFullReject: null,
+                },
               },
             },
           },
@@ -71,6 +85,19 @@
         "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
       DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT:
         "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend",
+      DATABAKER_PAGE_SIZE_OPTIONS: ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"],
+      DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: [
+        { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
+        { key: "copyAiHeardText", label: "复制 AI 听音文本" },
+        { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
+        { key: "fillRecommendedText", label: "填入推荐文本" },
+        { key: "ignoreAiResult", label: "忽略 AI 推荐结果" },
+        { key: "sentenceQualified", label: "句子判定：合格" },
+        { key: "sentenceUnqualified", label: "句子判定：不合格" },
+        { key: "taskPass", label: "任务判定：通过" },
+        { key: "taskPartialReject", label: "任务判定：部分驳回" },
+        { key: "taskFullReject", label: "任务判定：全部驳回" },
+      ],
       JUDGEMENT_PROJECT_ASR_KEYS: [
         "itemsPerPage",
         "autoPlay",
@@ -616,6 +643,64 @@
     return Math.min(300000, Math.max(1000, Math.round(number)));
   }
 
+  function normalizeDataBakerPageSize(value, fallback) {
+    const constants = getConstants();
+    const options = Array.isArray(constants.DATABAKER_PAGE_SIZE_OPTIONS)
+      ? constants.DATABAKER_PAGE_SIZE_OPTIONS
+      : ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
+    const normalizedOptions = options.map(function (item) {
+      return String(item || "").replace(/\s+/g, "");
+    });
+    const text = String(value || "").replace(/\s+/g, "");
+    const fallbackText = String(fallback || "50条/页").replace(/\s+/g, "");
+
+    if (normalizedOptions.indexOf(text) >= 0) {
+      return options[normalizedOptions.indexOf(text)];
+    }
+    if (normalizedOptions.indexOf(fallbackText) >= 0) {
+      return options[normalizedOptions.indexOf(fallbackText)];
+    }
+    return "50条/页";
+  }
+
+  function normalizeNullableShortcut(shortcut, fallback) {
+    if (shortcut === null) {
+      return null;
+    }
+    const normalized = normalizeShortcut(shortcut, fallback || null);
+    return normalized.key || typeof normalized.button === "number" ? normalized : null;
+  }
+
+  function normalizeDataBakerShortcuts(value, fallback) {
+    const constants = getConstants();
+    const actions = Array.isArray(constants.DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS)
+      ? constants.DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS
+      : [
+          { key: "aiRecommendCurrentItem" },
+          { key: "copyAiHeardText" },
+          { key: "copyRecommendedText" },
+          { key: "fillRecommendedText" },
+          { key: "ignoreAiResult" },
+          { key: "sentenceQualified" },
+          { key: "sentenceUnqualified" },
+          { key: "taskPass" },
+          { key: "taskPartialReject" },
+          { key: "taskFullReject" },
+        ];
+    const source = isPlainObject(value) ? value : {};
+    const fallbackSource = isPlainObject(fallback) ? fallback : {};
+    const result = {};
+
+    actions.forEach(function (action) {
+      const key = action.key;
+      result[key] = hasOwn(source, key)
+        ? normalizeNullableShortcut(source[key], fallbackSource[key] || null)
+        : normalizeNullableShortcut(fallbackSource[key] || null, null);
+    });
+
+    return result;
+  }
+
   function normalizeDataBakerRoundOneQualityConfig(config, defaults) {
     const source = isPlainObject(config) ? config : {};
     const defaultConfig = isPlainObject(defaults) ? defaults : {};
@@ -637,6 +722,15 @@
       result.aiRecommendRequestTimeoutMs,
       defaultConfig.aiRecommendRequestTimeoutMs || 120000
     );
+    result.autoPageSizeEnabled = result.autoPageSizeEnabled !== false;
+    result.defaultPageSize = normalizeDataBakerPageSize(
+      result.defaultPageSize,
+      defaultConfig.defaultPageSize || "50条/页"
+    );
+    result.shortcuts = normalizeDataBakerShortcuts(
+      result.shortcuts,
+      defaultConfig.shortcuts || {}
+    );
 
     return result;
   }
@@ -656,6 +750,20 @@
               constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
             aiRecommendRequestTimeoutMs: 120000,
+            autoPageSizeEnabled: true,
+            defaultPageSize: "50条/页",
+            shortcuts: {
+              aiRecommendCurrentItem: null,
+              copyAiHeardText: null,
+              copyRecommendedText: null,
+              fillRecommendedText: null,
+              ignoreAiResult: null,
+              sentenceQualified: null,
+              sentenceUnqualified: null,
+              taskPass: null,
+              taskPartialReject: null,
+              taskFullReject: null,
+            },
           },
         },
       };

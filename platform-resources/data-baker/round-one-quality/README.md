@@ -23,6 +23,8 @@ extension/sites/data-baker/round-one-quality/
 - options 首页展示 `DataBaker / DataFactory` 平台区域和 `DataBaker 一检质检` 脚本卡片。
 - 脚本可在卡片中启停，默认启用，便于上线验证。
 - 专属设置页可配置 AI 推荐接口地址、请求超时时间和 AI 推荐开关。
+- 专属设置页新增自动每页条数，默认启用并设置为 `50条/页`，只点击页面原生分页控件。
+- 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
 - 默认推荐接口走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
 - 本机接口 `http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend` 仅用于开发调试。
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
@@ -51,6 +53,16 @@ round-one-quality/
 - `network.md`：列表接口路径、请求参数、响应字段和缓存策略。
 - `ai/minnan-lexicon.csv`：闽南方言字词表，用于 DataBaker AI 推荐文本后端 prompt 上下文。
 - `backend/`：DataBaker AI 推荐文本本地 Node 接口。
+
+## 自动分页与快捷键
+
+- 运行时只在 `roundOneCollect` 详情页生效。
+- 自动分页目标 DOM 为 `.roundOneCollect-el-pagination span.el-pagination__sizes .el-select`，会读取当前分页 input 值，若不是目标值则打开下拉并点击可见的 `5条/页`、`10条/页`、`20条/页`、`50条/页` 或 `100条/页`。
+- 自动分页有限重试，默认最多 5 次，失败只输出简短 `console.debug`，不影响 AI 推荐主流程。
+- 快捷键默认全部未设置，用户需在 options DataBaker 专属设置页手动录制。
+- 快捷键不会在 `input`、`textarea`、`select` 或 `contenteditable` 聚焦时触发。
+- 句子判定只点击 `.submit-btn` 中的“合格 / 不合格”；任务判定只点击 `.operate-btn` 中包含“任务判定”的“通过 / 部分驳回 / 全部驳回”按钮。
+- 任务判定按钮 disabled 时不会绕过平台限制；该能力不自动保存、不自动提交、不自动流转。
 
 ## 安全记录规则
 

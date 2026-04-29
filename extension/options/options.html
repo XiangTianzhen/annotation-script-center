@@ -696,6 +696,36 @@
             </label>
           </div>
 
+          <div class="detail-grid two" style="margin-top: 18px;">
+            <label class="field-card">
+              <strong>自动每页条数</strong>
+              <span>用于减少翻页次数。脚本只尝试设置页面分页，不自动提交任何任务。</span>
+              <span class="field-toggle">
+                <input id="data-baker-auto-page-size-enabled" type="checkbox" />
+                进入 DataBaker 一检详情页后，自动设置每页条数
+              </span>
+            </label>
+
+            <label class="field-card">
+              <strong>默认每页条数</strong>
+              <span>默认 50 条/页；可按 DataBaker 页面原生选项调整。</span>
+              <select id="data-baker-default-page-size">
+                <option value="5条/页">5条/页</option>
+                <option value="10条/页">10条/页</option>
+                <option value="20条/页">20条/页</option>
+                <option value="50条/页">50条/页</option>
+                <option value="100条/页">100条/页</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-card shortcut-panel" style="margin-top: 18px;">
+            <strong>快捷键配置</strong>
+            <span>默认全部未设置。点击“录制”后按键盘组合，按 Esc 取消录制；快捷键不会在输入框聚焦时触发。</span>
+            <div id="data-baker-shortcut-grid" class="shortcut-grid"></div>
+            <div id="data-baker-recording-status" class="shortcut-recording hidden"></div>
+          </div>
+
           <div class="field-actions">
             <button id="save-data-baker-settings" class="primary-button" type="button">保存 DataBaker 设置</button>
           </div>

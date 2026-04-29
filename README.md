@@ -79,8 +79,10 @@ Chrome：
 - 本机调试接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`，仅用于开发调试。
 - 请求超时时间在 options 中以秒展示，默认 `120` 秒；扩展内部仍按毫秒保存和请求。
 - 是否启用 AI 推荐文本。
+- 自动每页条数默认启用，进入 DataBaker 一检详情页后会尝试设置为 `50条/页`，只改页面分页，不自动提交任务。
+- 快捷键配置默认全部未设置，可手动绑定 AI 推荐、复制听音文本、复制推荐文本、填入、忽略、句子判定和任务判定动作；输入框聚焦时不会触发快捷键。
 
-扩展前端只保存接口地址、超时时间和开关，不保存 API Key、cookie、access token 或完整音频 URL。真实模型密钥仍由后端通过 `config/env/ai.env` 读取。
+扩展前端只保存接口地址、超时时间、开关、分页和快捷键设置，不保存 API Key、cookie、access token 或完整音频 URL。真实模型密钥仍由后端通过 `config/env/ai.env` 读取。
 
 ## 打包发布
 
@@ -224,6 +226,9 @@ DataBaker AI 推荐文本说明：
 - 默认前端请求服务器接口 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`；本机 `http://127.0.0.1:3333/...` 仅用于开发调试，员工默认走服务器。
 - options 中请求超时时间以秒展示，默认 `120` 秒；运行时仍使用毫秒值。
 - 当前只做“单条 AI 推荐文本”，不自动保存、不自动提交、不自动点击合格 / 不合格、不做批量识别或自动流转。
+- DataBaker 设置页新增自动每页条数，默认 `50条/页`，运行时会有限重试点击页面原生分页下拉，不改接口参数、不死循环。
+- DataBaker 设置页新增快捷键配置，默认全部未设置；支持 AI 推荐文本、复制 AI 听音文本、复制 AI 推荐文本、填入推荐文本、忽略 AI 推荐结果、句子判定合格 / 不合格、任务判定通过 / 部分驳回 / 全部驳回。
+- 快捷键不会在 `input`、`textarea`、`select` 或 `contenteditable` 中触发；任务判定按钮处于 disabled 时不会绕过平台限制。
 - 前端通过页面同源请求和 MAIN world 内存缓存读取当前题数据，不硬编码或持久化 `access_token`、cookie、完整签名音频 URL。
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
 - 听音模型请求使用 Qwen-Omni `input_audio` 格式，`data` 为完整音频 URL，`format` 从 URL pathname 后缀推断；听音请求不传 `response_format`，只在 prompt 中要求 JSON 输出。
@@ -386,4 +391,3 @@ location / {
 - 修改 `manifest.json` 后必须确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 - 修改 JS 后运行 `node --check` 检查变更文件。
 - 完成修改并验证后提交到 git；默认不主动 `git push`。
-

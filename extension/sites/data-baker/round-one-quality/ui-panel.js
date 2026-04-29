@@ -121,6 +121,7 @@
     let root = null;
     let resultNode = null;
     let statusNode = null;
+    let recommendButtonNode = null;
     let currentResult = null;
     let currentItemKey = "";
 
@@ -310,7 +311,10 @@
         return;
       }
 
-      button.disabled = true;
+      const triggerButton = button || recommendButtonNode;
+      if (triggerButton) {
+        triggerButton.disabled = true;
+      }
       setStatus("正在生成 AI 推荐文本...", "info");
       clearResult();
       try {
@@ -320,8 +324,65 @@
       } catch (error) {
         setStatus(error?.message || String(error), "error");
       } finally {
-        button.disabled = false;
+        if (triggerButton) {
+          triggerButton.disabled = false;
+        }
       }
+    }
+
+    async function requestAiRecommend() {
+      if (!ensureMounted()) {
+        return { ok: false, message: "AI 推荐工具卡未就绪。" };
+      }
+      await handleRecommendClick(recommendButtonNode);
+      return { ok: true };
+    }
+
+    async function copyHeardText() {
+      const text = currentResult?.heardText || "";
+      if (!text) {
+        setStatus("暂无 AI 听音文本。", "error");
+        return { ok: false };
+      }
+      await copyText(text);
+      setStatus("AI 听音文本已复制。", "success");
+      return { ok: true };
+    }
+
+    async function copyRecommendedText() {
+      const text = currentResult?.recommendedText || "";
+      if (!text) {
+        setStatus("暂无 AI 推荐文本。", "error");
+        return { ok: false };
+      }
+      await copyText(text);
+      setStatus("AI 推荐文本已复制。", "success");
+      return { ok: true };
+    }
+
+    function fillRecommendedText() {
+      const text = currentResult?.recommendedText || "";
+      if (!text) {
+        setStatus("暂无 AI 推荐文本。", "error");
+        return { ok: false };
+      }
+      if (typeof deps.fillPageText !== "function") {
+        setStatus("无法安全定位可编辑文本框，已保留复制入口。", "error");
+        return { ok: false };
+      }
+      const fillResult = deps.fillPageText(text);
+      setStatus(fillResult?.message || "已填入推荐文本。", fillResult?.ok === false ? "error" : "success");
+      return fillResult || { ok: true };
+    }
+
+    function ignoreAiResult() {
+      if (!currentResult) {
+        setStatus("暂无 AI 推荐结果。", "error");
+        return { ok: false };
+      }
+      clearResult();
+      setStatus("已忽略本次推荐。", "info");
+      return { ok: true };
     }
 
     function ensureMounted() {
@@ -346,6 +407,7 @@
       const actions = document.createElement("div");
       actions.className = "asr-edge-db-actions";
       const recommendButton = createButton("AI 推荐文本", { "data-primary": "true" });
+      recommendButtonNode = recommendButton;
       recommendButton.addEventListener("click", function () {
         handleRecommendClick(recommendButton);
       });
@@ -387,15 +449,21 @@
       root = null;
       resultNode = null;
       statusNode = null;
+      recommendButtonNode = null;
       currentResult = null;
       currentItemKey = "";
     }
 
     return {
       clearResult,
+      copyHeardText,
+      copyRecommendedText,
       ensureMounted,
+      fillRecommendedText,
       getCurrentResult,
+      ignoreAiResult,
       remove,
+      requestAiRecommend,
       setStatus,
       updateCurrentItemKey,
     };

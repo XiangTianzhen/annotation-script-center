@@ -1,5 +1,18 @@
 (function () {
   const CHECK_INTERVAL_MS = 1000;
+  const PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
+  const SHORTCUT_KEYS = [
+    "aiRecommendCurrentItem",
+    "copyAiHeardText",
+    "copyRecommendedText",
+    "fillRecommendedText",
+    "ignoreAiResult",
+    "sentenceQualified",
+    "sentenceUnqualified",
+    "taskPass",
+    "taskPartialReject",
+    "taskFullReject",
+  ];
 
   let runtime = null;
   let runtimeConfigKey = "";
@@ -46,6 +59,39 @@
     return Math.min(300000, Math.max(1000, Math.round(number)));
   }
 
+  function normalizePageSize(value) {
+    const text = String(value || "").replace(/\s+/g, "");
+    return PAGE_SIZE_OPTIONS.indexOf(text) >= 0 ? text : "50条/页";
+  }
+
+  function normalizeShortcut(shortcut) {
+    if (!shortcut || typeof shortcut !== "object") {
+      return null;
+    }
+    const hasKey = typeof shortcut.key === "string" && shortcut.key.length > 0;
+    const hasButton = typeof shortcut.button === "number";
+    if (!hasKey && !hasButton) {
+      return null;
+    }
+    return {
+      ctrl: shortcut.ctrl === true,
+      alt: shortcut.alt === true,
+      shift: shortcut.shift === true,
+      meta: shortcut.meta === true,
+      key: hasKey ? shortcut.key : null,
+      button: hasButton ? shortcut.button : null,
+    };
+  }
+
+  function normalizeShortcuts(shortcuts) {
+    const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
+    const result = {};
+    SHORTCUT_KEYS.forEach(function (key) {
+      result[key] = normalizeShortcut(source[key]);
+    });
+    return result;
+  }
+
   function getDefaultRoundOneConfig() {
     const constants = globalThis.ASREdgeConstants || {};
     return (
@@ -57,6 +103,9 @@
           constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
           "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
         aiRecommendRequestTimeoutMs: 120000,
+        autoPageSizeEnabled: true,
+        defaultPageSize: "50条/页",
+        shortcuts: {},
       }
     );
   }
@@ -96,18 +145,26 @@
       getDefaultRoundOneConfig().aiRecommendEndpoint
     );
     const timeoutMs = normalizeTimeout(script.aiRecommendRequestTimeoutMs);
+    const defaultPageSize = normalizePageSize(script.defaultPageSize);
+    const shortcuts = normalizeShortcuts(script.shortcuts);
 
     return {
       scriptEnabled: platform.enabled !== false && script.enabled !== false,
       aiRecommendEnabled: script.aiRecommendEnabled !== false,
+      autoPageSizeEnabled: script.autoPageSizeEnabled !== false,
+      defaultPageSize,
+      shortcuts,
       endpoint,
       timeoutMs,
       key: [
         platform.enabled !== false ? "1" : "0",
         script.enabled !== false ? "1" : "0",
         script.aiRecommendEnabled !== false ? "1" : "0",
+        script.autoPageSizeEnabled !== false ? "1" : "0",
+        defaultPageSize,
         endpoint,
         String(timeoutMs),
+        JSON.stringify(shortcuts),
       ].join("|"),
     };
   }
@@ -116,6 +173,8 @@
     const dataApiFactory = globalThis.__ASREdgeDataBakerRoundOneDataApi;
     const aiFactory = globalThis.__ASREdgeDataBakerRoundOneAiRecommendation;
     const uiFactory = globalThis.__ASREdgeDataBakerRoundOneUiPanel;
+    const pageSizeFactory = globalThis.__ASREdgeDataBakerRoundOnePageSizeController;
+    const shortcutsFactory = globalThis.__ASREdgeDataBakerRoundOneShortcuts;
 
     if (!dataApiFactory || !aiFactory || !uiFactory) {
       return null;
@@ -135,12 +194,66 @@
         return ai.recommend(item);
       },
     });
+    const pageSize = pageSizeFactory?.createRuntime?.({
+      defaultPageSize: config.defaultPageSize,
+    });
+
+    function showShortcutStatus(message, tone) {
+      if (config.aiRecommendEnabled !== false) {
+        ui.ensureMounted();
+        ui.setStatus(message, tone);
+        return;
+      }
+      if (typeof console !== "undefined" && typeof console.debug === "function") {
+        console.debug("[DataBaker][round-one-quality][shortcut] " + String(message || ""));
+      }
+    }
+
+    const shortcutActions = {
+      requestAiRecommend: function () {
+        if (config.aiRecommendEnabled === false) {
+          showShortcutStatus("AI 推荐已在 DataBaker 设置中关闭。", "error");
+          return Promise.resolve({ ok: false });
+        }
+        return ui.requestAiRecommend();
+      },
+      copyHeardText: function () {
+        return ui.copyHeardText();
+      },
+      copyRecommendedText: function () {
+        return ui.copyRecommendedText();
+      },
+      fillRecommendedText: function () {
+        return ui.fillRecommendedText();
+      },
+      ignoreAiResult: function () {
+        return ui.ignoreAiResult();
+      },
+      showStatus: showShortcutStatus,
+    };
+    const shortcuts = shortcutsFactory?.createRuntime?.({
+      shortcuts: config.shortcuts,
+      actions: shortcutActions,
+    });
 
     function refresh() {
       if (!dataApiFactory.isRoundOneCollectPage()) {
         return;
       }
-      ui.ensureMounted();
+      if (config.aiRecommendEnabled !== false) {
+        ui.ensureMounted();
+      } else {
+        ui.remove();
+      }
+      if (config.autoPageSizeEnabled !== false) {
+        pageSize?.refresh?.({
+          defaultPageSize: config.defaultPageSize,
+        });
+      }
+      shortcuts?.refresh?.({
+        shortcuts: config.shortcuts,
+        actions: shortcutActions,
+      });
       dataApi
         .getCurrentItem({ allowFetch: false })
         .then(function (item) {
@@ -153,7 +266,13 @@
 
     function start() {
       dataApi.start();
-      ui.ensureMounted();
+      if (config.aiRecommendEnabled !== false) {
+        ui.ensureMounted();
+      }
+      if (config.autoPageSizeEnabled !== false) {
+        pageSize?.start?.();
+      }
+      shortcuts?.start?.();
       observer = new MutationObserver(function () {
         window.clearTimeout(pageTimer);
         pageTimer = window.setTimeout(refresh, 150);
@@ -175,6 +294,8 @@
         pageTimer = null;
       }
       dataApi.stop();
+      pageSize?.stop?.();
+      shortcuts?.stop?.();
       ui.remove();
     }
 
@@ -212,7 +333,7 @@
       }
 
       const config = await loadRuntimeConfig();
-      if (!config.scriptEnabled || !config.aiRecommendEnabled) {
+      if (!config.scriptEnabled) {
         stopRuntime();
         return;
       }

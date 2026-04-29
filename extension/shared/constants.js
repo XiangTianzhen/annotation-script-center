@@ -24,7 +24,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 18;
+  const SCHEMA_VERSION = 19;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const DATA_BAKER_PLATFORM_ID = "dataBaker";
@@ -36,6 +36,19 @@
     "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
   const DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT =
     "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
+  const DATABAKER_PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
+  const DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS = [
+    { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
+    { key: "copyAiHeardText", label: "复制 AI 听音文本" },
+    { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
+    { key: "fillRecommendedText", label: "填入推荐文本" },
+    { key: "ignoreAiResult", label: "忽略 AI 推荐结果" },
+    { key: "sentenceQualified", label: "句子判定：合格" },
+    { key: "sentenceUnqualified", label: "句子判定：不合格" },
+    { key: "taskPass", label: "任务判定：通过" },
+    { key: "taskPartialReject", label: "任务判定：部分驳回" },
+    { key: "taskFullReject", label: "任务判定：全部驳回" },
+  ];
 
   const MESSAGE_TYPES = {
     OPEN_SETTINGS_PANEL: "ASR_EDGE_OPEN_SETTINGS_PANEL",
@@ -648,6 +661,11 @@
   }
 
   function createDefaultDataBakerPlatformSettings() {
+    const shortcuts = {};
+    DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS.forEach(function (action) {
+      shortcuts[action.key] = null;
+    });
+
     return {
       enabled: true,
       scripts: {
@@ -657,6 +675,9 @@
           aiRecommendEnabled: true,
           aiRecommendEndpoint: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
           aiRecommendRequestTimeoutMs: 120000,
+          autoPageSizeEnabled: true,
+          defaultPageSize: "50条/页",
+          shortcuts: shortcuts,
         },
       },
     };
@@ -713,6 +734,8 @@
     DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
     DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
     DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,
+    DATABAKER_PAGE_SIZE_OPTIONS: clone(DATABAKER_PAGE_SIZE_OPTIONS),
+    DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
     SCRIPT_PROJECTS: clone(SCRIPT_PROJECTS),
     SCRIPT_LIBRARY: clone(SCRIPT_LIBRARY),
     JUDGEMENT_SHORTCUT_ACTIONS: clone(JUDGEMENT_SHORTCUT_ACTIONS),
