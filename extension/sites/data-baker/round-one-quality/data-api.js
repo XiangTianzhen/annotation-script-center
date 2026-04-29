@@ -2,6 +2,7 @@
   const SOURCE = "ASR_EDGE_DATABAKER_ROUND_ONE_QUALITY_PAGE";
   const MESSAGE_TYPE = "DATABAKER_ROUND_ONE_QUALITY_COLLECT_RESPONSE";
   const API_PATH = "/cms/tbAudioUserTask/queryCollectStatementByCondtion";
+  const FOCUS_SENTINEL_ID = "asr-edge-data-baker-focus-sentinel";
 
   function isRoundOneCollectPage() {
     return (
@@ -52,12 +53,44 @@
     return value + "。";
   }
 
-  function exitEditingFocus(element) {
-    if (element && typeof element.blur === "function") {
-      element.blur();
+  function isEditableElement(element) {
+    if (!(element instanceof Element)) {
+      return false;
     }
+    const tagName = String(element.tagName || "").toLowerCase();
+    if (tagName === "input" || tagName === "textarea" || tagName === "select") {
+      return true;
+    }
+    if (element.isContentEditable) {
+      return true;
+    }
+    return Boolean(
+      element.closest(
+        "textarea.el-textarea__inner, .el-textarea textarea, input.el-input__inner, [contenteditable='true'], [contenteditable='']"
+      )
+    );
+  }
 
+  function focusSafeBody() {
     try {
+      let focusNode = document.getElementById(FOCUS_SENTINEL_ID);
+      if (!focusNode) {
+        focusNode = document.createElement("button");
+        focusNode.id = FOCUS_SENTINEL_ID;
+        focusNode.type = "button";
+        focusNode.setAttribute("aria-hidden", "true");
+        focusNode.tabIndex = -1;
+        focusNode.style.position = "fixed";
+        focusNode.style.left = "-9999px";
+        focusNode.style.top = "-9999px";
+        focusNode.style.width = "1px";
+        focusNode.style.height = "1px";
+        focusNode.style.opacity = "0";
+        document.documentElement.appendChild(focusNode);
+      }
+
+      focusNode.focus({ preventScroll: true });
+
       if (document.body instanceof HTMLElement) {
         if (!document.body.hasAttribute("tabindex")) {
           document.body.setAttribute("tabindex", "-1");
@@ -67,6 +100,31 @@
     } catch (error) {
       // Ignore focus restoration failures; text has already been filled.
     }
+  }
+
+  function exitEditingFocus(element) {
+    try {
+      if (element && typeof element.blur === "function") {
+        element.blur();
+      }
+    } catch (error) {
+      // Ignore focus restoration failures; text has already been filled.
+    }
+
+    try {
+      const activeElement = document.activeElement;
+      if (
+        isEditableElement(activeElement) &&
+        activeElement instanceof HTMLElement &&
+        typeof activeElement.blur === "function"
+      ) {
+        activeElement.blur();
+      }
+    } catch (error) {
+      // Ignore focus restoration failures; text has already been filled.
+    }
+
+    focusSafeBody();
   }
 
   function toNumberOrNull(value) {
@@ -362,6 +420,12 @@
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
       textarea.dispatchEvent(new Event("change", { bubbles: true }));
       exitEditingFocus(textarea);
+      window.setTimeout(function () {
+        exitEditingFocus(textarea);
+      }, 50);
+      window.setTimeout(function () {
+        exitEditingFocus(textarea);
+      }, 180);
       return {
         ok: true,
         message: "已填入推荐文本，并退出输入框。",
@@ -434,6 +498,7 @@
     createRuntime,
     ensureChineseSentencePunctuation,
     exitEditingFocus,
+    focusSafeBody,
     isRoundOneCollectPage,
     parseHashParams,
   };

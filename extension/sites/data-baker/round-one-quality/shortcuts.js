@@ -11,6 +11,8 @@
     taskPartialReject: "任务判定：部分驳回",
     taskFullReject: "任务判定：全部驳回",
   };
+  const HANDLED_FLAG = "__asrEdgeDataBakerShortcutHandled";
+  const FOCUS_SENTINEL_ID = "asr-edge-data-baker-focus-sentinel";
 
   function normalizeShortcut(shortcut) {
     if (!shortcut || typeof shortcut !== "object") {
@@ -62,6 +64,37 @@
     return Boolean(target.closest("[contenteditable='true'], [contenteditable='']"));
   }
 
+  function focusSafeBody() {
+    try {
+      let focusNode = document.getElementById(FOCUS_SENTINEL_ID);
+      if (!focusNode) {
+        focusNode = document.createElement("button");
+        focusNode.id = FOCUS_SENTINEL_ID;
+        focusNode.type = "button";
+        focusNode.setAttribute("aria-hidden", "true");
+        focusNode.tabIndex = -1;
+        focusNode.style.position = "fixed";
+        focusNode.style.left = "-9999px";
+        focusNode.style.top = "-9999px";
+        focusNode.style.width = "1px";
+        focusNode.style.height = "1px";
+        focusNode.style.opacity = "0";
+        document.documentElement.appendChild(focusNode);
+      }
+
+      focusNode.focus({ preventScroll: true });
+
+      if (document.body instanceof HTMLElement) {
+        if (!document.body.hasAttribute("tabindex")) {
+          document.body.setAttribute("tabindex", "-1");
+        }
+        document.body.focus({ preventScroll: true });
+      }
+    } catch (error) {
+      // Ignore focus restoration failures; the shortcut action can still run.
+    }
+  }
+
   function blurActiveElementForShortcut() {
     const activeElement = document.activeElement;
 
@@ -75,15 +108,19 @@
     }
 
     try {
-      if (document.body instanceof HTMLElement) {
-        if (!document.body.hasAttribute("tabindex")) {
-          document.body.setAttribute("tabindex", "-1");
-        }
-        document.body.focus({ preventScroll: true });
+      const nextActiveElement = document.activeElement;
+      if (
+        isEditableTarget(nextActiveElement) &&
+        nextActiveElement instanceof HTMLElement &&
+        typeof nextActiveElement.blur === "function"
+      ) {
+        nextActiveElement.blur();
       }
     } catch (error) {
       // Ignore focus restoration failures; the shortcut action can still run.
     }
+
+    focusSafeBody();
   }
 
   function shortcutMatchesEvent(shortcut, event) {
@@ -225,14 +262,23 @@
     let actions = config.actions || {};
     let started = false;
 
-    function handleKeydown(event) {
-      const actionKey = Object.keys(shortcuts).find(function (key) {
+    function findMatchedAction(event) {
+      return Object.keys(shortcuts).find(function (key) {
         return shortcutMatchesEvent(shortcuts[key], event);
       });
+    }
+
+    function handleKeydown(event) {
+      if (event[HANDLED_FLAG]) {
+        return;
+      }
+
+      const actionKey = findMatchedAction(event);
       if (!actionKey) {
         return;
       }
 
+      event[HANDLED_FLAG] = true;
       blurActiveElementForShortcut();
       event.preventDefault();
       event.stopPropagation();
@@ -242,12 +288,24 @@
       runAction(actionKey, actions);
     }
 
+    function handleDocumentClick(event) {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target || !target.closest(".sentence-list .sentence-item")) {
+        return;
+      }
+
+      window.setTimeout(blurActiveElementForShortcut, 80);
+      window.setTimeout(blurActiveElementForShortcut, 200);
+    }
+
     function start() {
       if (started) {
         return;
       }
       started = true;
       window.addEventListener("keydown", handleKeydown, true);
+      document.addEventListener("keydown", handleKeydown, true);
+      document.addEventListener("click", handleDocumentClick, true);
     }
 
     function stop() {
@@ -256,6 +314,8 @@
       }
       started = false;
       window.removeEventListener("keydown", handleKeydown, true);
+      document.removeEventListener("keydown", handleKeydown, true);
+      document.removeEventListener("click", handleDocumentClick, true);
     }
 
     function refresh(nextOptions) {
@@ -274,6 +334,7 @@
   globalThis.__ASREdgeDataBakerRoundOneShortcuts = {
     blurActiveElementForShortcut,
     createRuntime,
+    focusSafeBody,
     normalizeShortcut,
   };
 })();
