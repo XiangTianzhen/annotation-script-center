@@ -5,6 +5,7 @@ const { DEFAULT_COMPARE_MODEL, DEFAULT_LISTEN_MODEL, getClientConfig, requestCom
   require("./ai-client-qwen");
 const { estimateCost } = require("./ai-cost");
 const { appendAiCallLog, getLogDir } = require("./ai-call-log");
+const { buildLexiconContext } = require("./ai-lexicon");
 const { buildComparePrompt, buildListenPrompt, RULE_VERSION } = require("./ai-prompts");
 const {
   buildRecommendResponse,
@@ -189,7 +190,12 @@ async function handleRecommend(request, response) {
       mock: config.mockEnabled,
     });
 
-    const listenPrompt = buildListenPrompt(recommendRequest);
+    const listenLexiconContext = buildLexiconContext({
+      pageText: recommendRequest.pageText,
+      heardText: "",
+      limit: 40,
+    });
+    const listenPrompt = buildListenPrompt(recommendRequest, listenLexiconContext);
     const listenResult = await requestListen(recommendRequest, listenPrompt, {
       model: config.listenModel,
       timeoutMs: config.timeoutMs,
@@ -197,7 +203,16 @@ async function handleRecommend(request, response) {
     const listenJson = parseModelJsonText(listenResult.rawText, requestId);
     const normalizedListen = normalizeListenResponse(listenJson);
 
-    const comparePrompt = buildComparePrompt(recommendRequest, normalizedListen.heardText);
+    const compareLexiconContext = buildLexiconContext({
+      pageText: recommendRequest.pageText,
+      heardText: normalizedListen.heardText,
+      limit: 60,
+    });
+    const comparePrompt = buildComparePrompt(
+      recommendRequest,
+      normalizedListen.heardText,
+      compareLexiconContext
+    );
     const compareResult = await requestCompare(
       recommendRequest,
       comparePrompt,
@@ -230,6 +245,10 @@ async function handleRecommend(request, response) {
         compareUsage,
       }),
     });
+    responseData.lexicon = {
+      enabled: Boolean(listenLexiconContext.enabled || compareLexiconContext.enabled),
+      matchedCount: Number(compareLexiconContext.matchedCount || 0),
+    };
 
     appendCallLogSafe({
       createdAt: new Date().toISOString(),

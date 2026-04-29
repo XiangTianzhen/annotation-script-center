@@ -7,6 +7,7 @@
 - DataBaker options 设置页将 AI 推荐接口地址收敛为“服务器 / 本机”两个选项，旧的自定义地址会回退到默认服务器接口，员工默认走服务器，本机仅用于开发调试。
 - DataBaker options 请求超时时间改为按秒展示，默认 `120` 秒，保存后仍写入毫秒字段 `aiRecommendRequestTimeoutMs` 供运行时使用。
 - DataBaker AI 调用日志 CSV 新建时使用中文表头，JSONL 继续保留英文 key，便于人工查看和后续程序处理。
+- 新增 DataBaker 闽南方言字词表 `platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv`，后端 `ai-lexicon.js` 会解析 CSV 并为听音 / 对比 prompt 注入短上下文；词表只辅助字形判断，不强行替换文本。
 - options “标注脚本中心”新增 `DataBaker / DataFactory` 平台区域和 `DataBaker 一检质检` 脚本卡片，支持在控制面板启停该脚本。
 - 新增 DataBaker 一检质检专属设置页，可配置 AI 推荐接口地址、请求超时时间和 AI 推荐开关；默认 endpoint 为 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`，本机 `127.0.0.1:3333` 仅用于开发调试。
 - DataBaker content script 改为读取 `chrome.storage` 中的脚本启停、AI 推荐开关、endpoint 和 timeout；关闭脚本或关闭 AI 推荐后不显示推荐工具卡。

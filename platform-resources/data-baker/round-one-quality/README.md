@@ -34,8 +34,11 @@ round-one-quality/
   README.md
   page-structure.md
   network.md
+  ai/
+    minnan-lexicon.csv
   backend/
     README.md
+    ai-lexicon.js
     index.js
     ai-client-qwen.js
     ai-cost.js
@@ -46,6 +49,7 @@ round-one-quality/
 
 - `page-structure.md`：页面 DOM 结构、稳定选择器和当前可编辑文本框判断。
 - `network.md`：列表接口路径、请求参数、响应字段和缓存策略。
+- `ai/minnan-lexicon.csv`：闽南方言字词表，用于 DataBaker AI 推荐文本后端 prompt 上下文。
 - `backend/`：DataBaker AI 推荐文本本地 Node 接口。
 
 ## 安全记录规则
@@ -71,6 +75,16 @@ DataBaker AI 推荐接口：
 扩展默认请求服务器完整路径：
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
+
+## 闽南方言词表
+
+后端已接入闽南方言字词表 CSV：
+
+```text
+platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
+```
+
+词表只作为 Qwen prompt 上下文辅助，用于帮助模型在“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“他/伊”等场景中选择更合适的字形；它不会强行替换页面文本，也不会触发自动提交、自动保存或批量识别。词表缺失时后端仍可运行，但推荐文本效果会下降。后续更新词表时直接替换该 CSV 文件即可。
 
 环境变量：
 

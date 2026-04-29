@@ -12,6 +12,7 @@
 - `index.js`：项目路由注册入口。
 - `ai-routes.js`：HTTP health / recommend 路由、请求校验、日志和响应组装。
 - `ai-client-qwen.js`：DashScope Qwen 原生 `fetch` 调用，不依赖 OpenAI SDK。
+- `ai-lexicon.js`：读取闽南方言字词表 CSV，按当前页面文本和听音文本生成 prompt 上下文。
 - `ai-prompts.js`：听音 prompt 和文本对比 prompt。
 - `ai-response-schema.js`：模型 JSON 解析、字段归一化和响应体组装。
 - `ai-cost.js`：费用估算常量和计算函数。
@@ -53,11 +54,13 @@
 ## 推荐流程
 
 1. 校验请求体中的 `collectId`、`itemId`、`audioUrl`、`pageText`。
-2. 调用听音模型 `qwen3.5-omni-flash`，以 `input_audio` 传入完整 `audioUrl` 和根据路径后缀推断的音频格式，并在 prompt 中要求 JSON 输出。
-3. 解析听音 JSON：`heardText`、`confidence`、`isValid`、`invalidReasons`。
-4. 调用对比模型 `qwen3.5-plus`，输入 `pageText`、`heardText` 和规则。
-5. 解析对比 JSON：`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`。
-6. 组装统一响应，包含推荐文本、听音文本、变更标记、置信度、模型、usage、费用估算和 `requestId`。
+2. 从 `platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv` 读取闽南方言字词表，生成听音 prompt 上下文。
+3. 调用听音模型 `qwen3.5-omni-flash`，以 `input_audio` 传入完整 `audioUrl` 和根据路径后缀推断的音频格式，并在 prompt 中要求 JSON 输出。
+4. 解析听音 JSON：`heardText`、`confidence`、`isValid`、`invalidReasons`。
+5. 结合 `pageText` 和 `heardText` 重新筛选词表上下文。
+6. 调用对比模型 `qwen3.5-plus`，输入 `pageText`、`heardText`、词表上下文和规则。
+7. 解析对比 JSON：`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`。
+8. 组装统一响应，包含推荐文本、听音文本、变更标记、置信度、模型、usage、费用估算、词表启用状态和 `requestId`。
 
 听音模型请求中的音频片段格式：
 
@@ -72,6 +75,18 @@
 ```
 
 `format` 会从 URL pathname 后缀推断，支持 `wav`、`mp3`、`aac`、`m4a`、`amr`、`3gp`、`3gpp`，无法识别时默认 `wav`。`data` 必须保留完整音频 URL，包括签名 query 参数，但日志和文档中不得记录完整 URL。
+
+## 闽南方言字词表
+
+词表 CSV 路径：
+
+```text
+platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
+```
+
+CSV 表头至少包含 `编号`、`建议用字`、`对应华语`。后端使用原生 Node.js 解析 CSV，支持 UTF-8 BOM、双引号包裹和双引号转义。
+
+词表只作为 prompt 上下文辅助，不会强行替换页面文本或听音文本。听音 prompt 会先注入基础易混规则，再按 `pageText` 筛选最多 40 条上下文；对比 prompt 会结合 `pageText` 与 `heardText` 筛选最多 60 条上下文。词表缺失时后端仍可运行，但会跳过词表上下文，推荐效果可能下降。后续更新词表时只需要替换 CSV 文件，不要把词表内容硬编码进 JS。
 
 ## 真实调用排查
 

@@ -103,6 +103,14 @@ node platform-resources\backend\server.js
 
 后端听音请求使用 Qwen-Omni `input_audio` 音频输入格式，`data` 保留完整音频 URL，`format` 从 URL pathname 后缀推断；听音请求不传 `response_format`。后端调用日志 JSONL 保留英文 key，CSV 新建时使用中文表头。
 
+后端已接入闽南方言字词表 CSV：
+
+```text
+platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
+```
+
+词表只用于听音和对比 prompt 的上下文提示，不会让扩展自动替换、保存、提交或批量处理。词表缺失时功能仍可运行，但“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“他/伊”等易混场景的推荐质量可能下降；更新词表时只替换 CSV 文件即可。
+
 ## 人工验证步骤
 
 1. 重新加载扩展。
