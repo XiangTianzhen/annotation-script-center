@@ -110,14 +110,12 @@ node platform-resources\backend\server.js
 
 - `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
 - `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
-- `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/export/health`
-- `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/export/task`
 
 扩展默认请求服务器接口：
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 
-任务总表导出默认走前端同源请求，不依赖本地后端、账号密码或 token 配置。后端导出接口仍保留为备用能力，默认本地导出目录 `platform-resources/data-baker/round-one-quality/backend/exports/`（可由 `DATABAKER_EXPORT_DIR` 覆盖）。
+任务总表导出默认走前端同源请求，使用当前浏览器登录态，不依赖本地后端或账号密码配置。导出请求默认 `pageSize=100`，自动翻页并本地下载 UTF-8 BOM CSV。
 
 第一版固定模型：
 

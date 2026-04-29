@@ -2,6 +2,10 @@
 
 ## 2026-04-29
 
+- 删除 DataBaker 后端自动导出链路：移除 `export-auth.js`、`export-client.js`、`export-csv.js`、`export-routes.js`，并在 `backend/index.js` 取消导出路由注册，仅保留 AI 推荐文本路由。
+- 清理导出登录配置模板：`config/env/ai.env.example` 删除全部 `DATABAKER_EXPORT_*`、`ticket`、`nounce` 相关变量，避免继续配置账号密码或 token 链路。
+- 清理文档现行说明：根 README、DataBaker 扩展 README、平台 README、后端 README 全部移除后端导出接口与自动登录说明，统一为前端同源导出（`/cms/tbAudioUserTask/queryByCondition`、`credentials: include`、默认 `pageSize=100`、CSV UTF-8 BOM 本地下载）。
+
 - DataBaker `group/detail?taskId=...` 总表导出默认链路切换为前端同源导出：扩展直接使用当前页面登录态请求 `/cms/tbAudioUserTask/queryByCondition`（`credentials: include`），默认 `pageSize=100` 自动翻页并下载本地 CSV（含 UTF-8 BOM）。
 - `group-export.js` 导出流程新增分页进度状态（第 x / y 页、已获取 n / total 条）、最大页数保护（`10000`）与登录态失效错误提示；不再默认依赖 `127.0.0.1:3333` 本地后端。
 - CSV 导出列改为中文表头并新增“原始JSON”脱敏列；导出时过滤 `token/cookie/authorization/signature/ossaccesskeyid` 敏感字段，不导出完整 URL。

@@ -48,10 +48,6 @@ round-one-quality/
     ai-prompts.js
     ai-response-schema.js
     ai-routes.js
-    export-auth.js
-    export-client.js
-    export-csv.js
-    export-routes.js
 ```
 
 - `page-structure.md`：页面 DOM 结构、稳定选择器和当前可编辑文本框判断。
@@ -89,27 +85,11 @@ DataBaker AI 推荐接口：
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
 
-DataBaker 任务总表导出接口（后端备用）：
-
-- `GET /api/data-baker/round-one-quality/export/health`
-- `POST /api/data-baker/round-one-quality/export/task`
-- `GET /api/data-baker/round-one-quality/export/download?fileName=...`
-
 扩展默认请求服务器完整路径：
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 
-导出默认走前端同源链路：扩展直接使用页面登录态请求 `/cms/tbAudioUserTask/queryByCondition`，自动翻页后本地下载 CSV。后端导出接口保留为备用，CSV 会保存到 `platform-resources/data-baker/round-one-quality/backend/exports/`（可由 `DATABAKER_EXPORT_DIR` 覆盖）。
-
-登录接口调研说明（后端备用导出）：
-
-- 已通过 `chrome_devtools` 抓到真实登录请求（2026-04-29，脱敏）：`POST /cms/authentication/form`。
-- 登录参数在 query 中：`username`、`password`、`ticket`、`nounce`；请求 body 为空。
-- 登录响应 token 字段：`data.access_token`、`data.refresh_token`。
-- 响应会设置 `JSESSIONID`，后续业务请求同时使用 `access_token` 请求头和 Cookie（含 `JSESSIONID`）。
-- 后续业务请求观测到 `language: zh` 头；导出后端默认按该头发送。
-- `ticket` 为滑块验证码参数，通常一次性，复用会触发“滑块验证码校验不通过”，因此后端自动登录不适合作为默认导出链路。
-- 文档和日志只记录字段名/路径，不记录真实账号、密码、token、cookie。
+导出默认走前端同源链路：扩展直接使用页面登录态请求 `/cms/tbAudioUserTask/queryByCondition`，默认 `pageSize=100` 自动翻页后本地下载 CSV（UTF-8 BOM）。导出不依赖本地后端，也不需要账号密码配置。
 
 ## 闽南方言词表
 

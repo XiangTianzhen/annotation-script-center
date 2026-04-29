@@ -2,15 +2,12 @@
 
 本目录是 DataBaker / DataFactory 一检质检“AI 推荐文本”的本地 Node 后端实现，通过统一入口 `platform-resources/backend/server.js` 注册。
 
-说明：`group/detail` 总表导出当前默认推荐前端同源导出（扩展直接使用当前页面登录态请求 DataBaker 接口）。本目录中的导出接口保留为备用能力。
+说明：`group/detail` 总表导出由扩展前端同源实现（直接使用页面登录态请求 DataBaker 接口），不依赖本目录后端导出接口。
 
 ## 接口
 
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
-- `GET /api/data-baker/round-one-quality/export/health`
-- `POST /api/data-baker/round-one-quality/export/task`
-- `GET /api/data-baker/round-one-quality/export/download?fileName=...`
 
 ## 文件职责
 
@@ -21,10 +18,6 @@
 - `ai-prompts.js`：听音 prompt 和文本对比 prompt。
 - `ai-response-schema.js`：模型 JSON 解析、字段归一化和响应体组装。
 - `ai-cost.js`：费用估算常量和计算函数。
-- `export-auth.js`：DataBaker 登录认证、token 内存缓存与定时重新登录。
-- `export-client.js`：按 `taskId` 调用 `queryByCondition`，自动翻页拉取全部数据。
-- `export-csv.js`：CSV 中文表头与本地文件写入。
-- `export-routes.js`：导出 health/task/download 接口与请求校验。
 
 ## 模型
 
@@ -37,33 +30,6 @@
 
 - `DATABAKER_AI_LISTEN_MODEL`
 - `DATABAKER_AI_COMPARE_MODEL`
-
-导出相关环境变量：
-
-- `DATABAKER_EXPORT_USERNAME`：DataBaker 导出账号。
-- `DATABAKER_EXPORT_PASSWORD`：DataBaker 导出密码。
-- `DATABAKER_EXPORT_BASE_URL`：导出 API 基础域名，默认 `https://datafactory.data-baker.com`。
-- `DATABAKER_EXPORT_LOGIN_URL`：登录接口完整 URL，默认 `https://datafactory.data-baker.com/cms/authentication/form`。
-- `DATABAKER_EXPORT_LOGIN_CREDENTIAL_IN_QUERY`：登录账号密码是否放 query，默认 `1`（实测契约）。
-- `DATABAKER_EXPORT_LOGIN_TICKET`：登录 captcha `ticket`（必填，敏感，不提交）。
-- `DATABAKER_EXPORT_LOGIN_NOUNCE`：登录 captcha `nounce`（必填，敏感，不提交）。
-- `DATABAKER_EXPORT_LANGUAGE`：请求头 `language`，默认 `zh`。
-- `DATABAKER_EXPORT_QUERY_PATH`：任务查询接口路径，默认 `/cms/tbAudioUserTask/queryByCondition`。
-- `DATABAKER_EXPORT_PAGE_SIZE`：默认导出分页大小，默认 `100`。
-- `DATABAKER_EXPORT_MAX_PAGES`：默认最大分页数，默认 `10000`。
-- `DATABAKER_EXPORT_TOKEN_REFRESH_MS`：token 兜底有效期（毫秒），默认 `3600000`。
-- `DATABAKER_EXPORT_TOKEN_REFRESH_SKEW_MS`：过期前提前刷新窗口（毫秒），默认 `30000`。
-
-登录契约（2026-04-29，DevTools 脱敏实测）：
-
-- URL：`POST /cms/authentication/form`
-- 参数位置：`username/password/ticket/nounce` 在 query 中，body 为空（`content-length: 0`）
-- 响应 token 字段：`data.access_token`、`data.refresh_token`
-- 响应会下发 `Set-Cookie: JSESSIONID=...; Path=/cms; HttpOnly`
-- 后续业务请求同时出现 `access_token` 请求头与 Cookie（`JSESSIONID/access_token/refresh_token`）
-- 后续请求观测到 `language: zh` 请求头
-- 文档与日志严禁记录真实账号、密码、token、cookie
-- `ticket` 通常为一次性验证码参数，过期或复用会返回“滑块验证码校验不通过”
 
 ## 环境变量
 
@@ -119,65 +85,6 @@
 ```
 
 `format` 会从 URL pathname 后缀推断，支持 `wav`、`mp3`、`aac`、`m4a`、`amr`、`3gp`、`3gpp`，无法识别时默认 `wav`。`data` 必须保留完整音频 URL，包括签名 query 参数，但日志和文档中不得记录完整 URL。
-
-## 任务总表导出（后端备用）
-
-目标页面示例：
-
-```text
-https://datafactory.data-baker.com/v2/#/group/detail?taskId=1254789592545341441
-```
-
-导出流程（备用链路）：
-
-1. 扩展前端传入 `taskId`（可选 `pageSize`）。
-2. 后端先检查导出登录配置并获取 token（内存缓存，默认 1 小时重新登录）。
-3. 调用 `GET /cms/tbAudioUserTask/queryByCondition`，按 `pageNum/pageSize` 自动翻页，直到拉完全部数据。
-4. 写入中文表头 CSV，并保留“原始JSON”列。
-5. 返回 `downloadUrl` 给前端触发下载；后端保留本地文件。
-
-默认首选说明：
-
-- 默认首选前端同源导出，不依赖后端账号密码配置。
-- 后端导出用于备用场景，受滑块验证码 `ticket/nounce` 影响，长期稳定性低于前端同源导出。
-
-CSV 默认目录：
-
-```text
-platform-resources/data-baker/round-one-quality/backend/exports/
-```
-
-已加入仓库 `.gitignore`，避免导出文件进入版本控制。
-
-导出环境变量：
-
-- `DATABAKER_EXPORT_USERNAME`
-- `DATABAKER_EXPORT_PASSWORD`
-- `DATABAKER_EXPORT_LOGIN_URL`
-- `DATABAKER_EXPORT_BASE_URL`（默认 `https://datafactory.data-baker.com`）
-- `DATABAKER_EXPORT_TOKEN_REFRESH_MS`（默认 `3600000`）
-- `DATABAKER_EXPORT_PAGE_SIZE`（默认 `100`）
-- `DATABAKER_EXPORT_DIR`（可覆盖导出目录）
-
-登录契约可配置环境变量（用于当前无法固定抓包的场景）：
-
-- `DATABAKER_EXPORT_LOGIN_METHOD`（默认 `POST`）
-- `DATABAKER_EXPORT_LOGIN_USERNAME_FIELD`（默认 `username`）
-- `DATABAKER_EXPORT_LOGIN_PASSWORD_FIELD`（默认 `password`）
-- `DATABAKER_EXPORT_LOGIN_EXTRA_BODY_JSON`
-- `DATABAKER_EXPORT_LOGIN_PAYLOAD_TEMPLATE_JSON`（支持 `{{username}}` / `{{password}}`）
-- `DATABAKER_EXPORT_ACCESS_TOKEN_PATH`（默认 `data.access_token`）
-- `DATABAKER_EXPORT_REFRESH_TOKEN_PATH`（默认 `data.refresh_token`）
-
-`health` 行为：
-
-- 未配置 `DATABAKER_EXPORT_USERNAME/PASSWORD/LOGIN_URL` 或 captcha 参数 `DATABAKER_EXPORT_LOGIN_TICKET/NOUNCE` 时返回缺少配置提示，不崩溃。
-- 配置完整后 `ready=true`，可执行导出。
-
-日志安全：
-
-- 只记录登录成功、token 过期时间、`taskId`、`pageNum/pageSize`、行数。
-- 不记录账号、密码、token、cookie、完整签名 URL。
 
 ## 闽南方言字词表
 
