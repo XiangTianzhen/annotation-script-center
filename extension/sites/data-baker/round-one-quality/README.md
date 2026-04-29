@@ -41,9 +41,9 @@ round-one-quality/
 `DataBaker 一检质检` 在 options 首页默认启用，方便上线验证；用户可在卡片中关闭脚本。专属设置页支持：
 
 - 启用 / 关闭 AI 推荐文本；关闭后页面不显示 AI 推荐工具卡，也不会触发推荐请求。
-- 配置 AI 推荐接口地址，默认服务器地址：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
-- 快捷切换本机调试地址：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`。
-- 配置前端请求超时时间，默认 `120000` ms。
+- AI 推荐接口地址只能选择服务器或本机，默认服务器地址：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
+- 本机调试地址：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`，仅用于开发调试；员工默认走服务器。
+- 配置前端请求超时时间，页面以秒展示，默认 `120` 秒；扩展内部仍按毫秒存储到 `aiRecommendRequestTimeoutMs`。
 
 扩展前端只保存接口地址、超时时间和开关，不保存 API Key、access token、cookie 或完整 `audioUrl`。模型密钥仍由后端通过 `config/env/ai.env` 读取。
 
@@ -100,6 +100,8 @@ node platform-resources\backend\server.js
 
 - 听音：`qwen3.5-omni-flash`
 - 对比：`qwen3.5-plus`
+
+后端听音请求使用 Qwen-Omni `input_audio` 音频输入格式，`data` 保留完整音频 URL，`format` 从 URL pathname 后缀推断；听音请求不传 `response_format`。后端调用日志 JSONL 保留英文 key，CSV 新建时使用中文表头。
 
 ## 人工验证步骤
 

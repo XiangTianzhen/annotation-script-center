@@ -69,6 +69,8 @@
       DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: "dataBakerRoundOneQuality",
       DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT:
         "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
+      DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT:
+        "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend",
       JUDGEMENT_PROJECT_ASR_KEYS: [
         "itemsPerPage",
         "autoPlay",
@@ -569,26 +571,39 @@
   }
 
   function normalizeDataBakerAiEndpoint(value, fallback) {
-    const text = typeof value === "string" ? value.trim() : "";
+    const constants = getConstants();
+    const serverEndpoint =
+      constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
+      "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
+    const localEndpoint =
+      constants.DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT ||
+      "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
     const fallbackEndpoint =
-      typeof fallback === "string" && fallback.trim()
-        ? fallback.trim()
-        : "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
+      normalizeDataBakerAiEndpointUrl(fallback) === normalizeDataBakerAiEndpointUrl(localEndpoint)
+        ? localEndpoint
+        : serverEndpoint;
+    const normalized = normalizeDataBakerAiEndpointUrl(value);
 
-    if (!text) {
-      return fallbackEndpoint;
+    if (normalized && normalized === normalizeDataBakerAiEndpointUrl(localEndpoint)) {
+      return localEndpoint;
     }
-
-    try {
-      const url = new URL(text);
-      if (url.protocol === "http:" || url.protocol === "https:") {
-        return url.toString();
-      }
-    } catch (error) {
-      // Fall through to the safe default.
+    if (normalized && normalized === normalizeDataBakerAiEndpointUrl(serverEndpoint)) {
+      return serverEndpoint;
     }
 
     return fallbackEndpoint;
+  }
+
+  function normalizeDataBakerAiEndpointUrl(value) {
+    try {
+      const url = new URL(String(value || "").trim());
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        return "";
+      }
+      return url.toString();
+    } catch (error) {
+      return "";
+    }
   }
 
   function normalizeDataBakerTimeout(value, fallback) {
@@ -596,9 +611,9 @@
     const fallbackNumber = Number(fallback);
     const base = Number.isFinite(fallbackNumber) ? fallbackNumber : 120000;
     if (!Number.isFinite(number)) {
-      return Math.min(180000, Math.max(1000, Math.round(base)));
+      return Math.min(300000, Math.max(1000, Math.round(base)));
     }
-    return Math.min(180000, Math.max(1000, Math.round(number)));
+    return Math.min(300000, Math.max(1000, Math.round(number)));
   }
 
   function normalizeDataBakerRoundOneQualityConfig(config, defaults) {

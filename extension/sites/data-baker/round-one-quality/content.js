@@ -9,24 +9,33 @@
   let pendingEvaluate = false;
 
   function normalizeEndpoint(value, fallback) {
-    const defaultEndpoint =
+    const serverEndpoint =
       fallback ||
       "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
-    const text = typeof value === "string" ? value.trim() : "";
-    if (!text) {
-      return defaultEndpoint;
+    const localEndpoint =
+      "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
+    const normalized = normalizeEndpointUrl(value);
+
+    if (normalized && normalized === normalizeEndpointUrl(localEndpoint)) {
+      return localEndpoint;
+    }
+    if (normalized && normalized === normalizeEndpointUrl(serverEndpoint)) {
+      return serverEndpoint;
     }
 
+    return serverEndpoint;
+  }
+
+  function normalizeEndpointUrl(value) {
     try {
-      const url = new URL(text);
-      if (url.protocol === "http:" || url.protocol === "https:") {
-        return url.toString();
+      const url = new URL(String(value || "").trim());
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        return "";
       }
+      return url.toString();
     } catch (error) {
-      // Use the safe default endpoint.
+      return "";
     }
-
-    return defaultEndpoint;
   }
 
   function normalizeTimeout(value) {
@@ -34,7 +43,7 @@
     if (!Number.isFinite(number)) {
       return 120000;
     }
-    return Math.min(180000, Math.max(1000, Math.round(number)));
+    return Math.min(300000, Math.max(1000, Math.round(number)));
   }
 
   function getDefaultRoundOneConfig() {

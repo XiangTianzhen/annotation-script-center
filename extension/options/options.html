@@ -678,24 +678,22 @@
             </label>
 
             <label class="field-card">
-              <strong>请求超时时间 (ms)</strong>
-              <span>用于前端等待 AI 推荐接口返回，默认 120000 ms。</span>
-              <input id="data-baker-ai-recommend-timeout" type="number" min="1000" max="180000" step="1000" />
+              <strong>请求超时时间（秒）</strong>
+              <span>用于前端等待 AI 推荐接口返回，默认 120 秒；内部仍按毫秒保存和请求。</span>
+              <input id="data-baker-ai-recommend-timeout" type="number" min="1" max="300" step="1" />
             </label>
           </div>
 
           <div class="field-card" style="margin-top: 18px;">
             <strong>AI 推荐接口地址</strong>
-            <span>默认走服务器接口；本机地址仅用于开发调试。扩展前端不保存 API Key。</span>
+            <span>员工默认走服务器接口；本机地址仅用于开发调试。扩展前端不保存 API Key。</span>
             <label>
-              快捷选择
-              <select id="data-baker-ai-recommend-endpoint-preset">
-                <option value="server">服务器：script.xiangtianzhen.store</option>
-                <option value="local">本机：127.0.0.1:3333</option>
-                <option value="custom">自定义 URL</option>
+              接口环境
+              <select id="data-baker-ai-recommend-endpoint">
+                <option value="https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend">服务器：script.xiangtianzhen.store</option>
+                <option value="http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend">本机：127.0.0.1:3333</option>
               </select>
             </label>
-            <input id="data-baker-ai-recommend-endpoint" class="wide-field" type="text" />
           </div>
 
           <div class="field-actions">

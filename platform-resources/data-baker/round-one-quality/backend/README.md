@@ -86,6 +86,13 @@
 
 ## 日志安全
 
+每次 recommend 调用都会尝试写入：
+
+- `platform-resources/data-baker/round-one-quality/backend/logs/recommend-calls.jsonl`
+- `platform-resources/data-baker/round-one-quality/backend/logs/recommend-calls.csv`
+
+可通过 `DATABAKER_AI_CALL_LOG_DIR` 覆盖日志目录。JSONL 保留英文 key，便于后续程序处理；CSV 新建时写入中文表头，字段包含标注员、token、费用、有效时间、音频总时长、mock 状态和错误信息。已有旧 CSV 文件第一版不自动迁移，删除旧文件后会按中文表头重新创建。
+
 后端日志只允许输出：
 
 - `requestId`

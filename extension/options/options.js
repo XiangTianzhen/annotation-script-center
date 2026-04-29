@@ -339,29 +339,47 @@
   }
 
   function normalizeDataBakerEndpoint(value) {
-    const text = typeof value === "string" ? value.trim() : "";
-    if (!text) {
-      return dataBakerAiRecommendServerEndpoint;
+    const normalized = normalizeDataBakerEndpointUrl(value);
+    if (normalized && normalized === normalizeDataBakerEndpointUrl(dataBakerAiRecommendLocalEndpoint)) {
+      return dataBakerAiRecommendLocalEndpoint;
     }
-
-    try {
-      const url = new URL(text);
-      if (url.protocol === "http:" || url.protocol === "https:") {
-        return url.toString();
-      }
-    } catch (error) {
-      // Keep the configured server endpoint on invalid input.
+    if (normalized && normalized === normalizeDataBakerEndpointUrl(dataBakerAiRecommendServerEndpoint)) {
+      return dataBakerAiRecommendServerEndpoint;
     }
 
     return dataBakerAiRecommendServerEndpoint;
   }
 
-  function normalizeDataBakerTimeout(value) {
+  function normalizeDataBakerEndpointUrl(value) {
+    try {
+      const url = new URL(String(value || "").trim());
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        return "";
+      }
+      return url.toString();
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function normalizeDataBakerTimeoutMs(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
       return 120000;
     }
-    return Math.min(180000, Math.max(1000, Math.round(number)));
+    return Math.min(300000, Math.max(1000, Math.round(number)));
+  }
+
+  function dataBakerTimeoutMsToSeconds(value) {
+    return Math.round(normalizeDataBakerTimeoutMs(value) / 1000);
+  }
+
+  function dataBakerTimeoutSecondsToMs(value) {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds)) {
+      return 120000;
+    }
+    return Math.min(300, Math.max(1, Math.round(seconds))) * 1000;
   }
 
   function getLabelxActiveScriptId(settings) {
@@ -1112,41 +1130,15 @@
     }
   }
 
-  function getDataBakerEndpointPreset(endpoint) {
-    const normalized = normalizeDataBakerEndpoint(endpoint);
-    if (normalized === normalizeDataBakerEndpoint(dataBakerAiRecommendServerEndpoint)) {
-      return "server";
-    }
-    if (normalized === normalizeDataBakerEndpoint(dataBakerAiRecommendLocalEndpoint)) {
-      return "local";
-    }
-    return "custom";
-  }
-
   function applyDataBakerForm(settings) {
     const config = getDataBakerRoundOneConfig(settings);
     const endpoint = normalizeDataBakerEndpoint(config.aiRecommendEndpoint);
     getElement("data-baker-ai-recommend-enabled").checked =
       config.aiRecommendEnabled !== false;
     getElement("data-baker-ai-recommend-timeout").value = String(
-      normalizeDataBakerTimeout(config.aiRecommendRequestTimeoutMs)
+      dataBakerTimeoutMsToSeconds(config.aiRecommendRequestTimeoutMs)
     );
     getElement("data-baker-ai-recommend-endpoint").value = endpoint;
-    getElement("data-baker-ai-recommend-endpoint-preset").value =
-      getDataBakerEndpointPreset(endpoint);
-  }
-
-  function applyDataBakerEndpointPreset() {
-    const preset = getElement("data-baker-ai-recommend-endpoint-preset").value;
-    if (preset === "server") {
-      getElement("data-baker-ai-recommend-endpoint").value =
-        dataBakerAiRecommendServerEndpoint;
-      return;
-    }
-    if (preset === "local") {
-      getElement("data-baker-ai-recommend-endpoint").value =
-        dataBakerAiRecommendLocalEndpoint;
-    }
   }
 
   async function saveDataBakerSettings() {
@@ -1159,7 +1151,7 @@
     const timeoutInput = getElement("data-baker-ai-recommend-timeout").value;
     const aiRecommendEnabled = getElement("data-baker-ai-recommend-enabled").checked;
     const endpoint = normalizeDataBakerEndpoint(endpointInput);
-    const timeoutMs = normalizeDataBakerTimeout(timeoutInput);
+    const timeoutMs = dataBakerTimeoutSecondsToMs(timeoutInput);
 
     setStatus("data-baker-status", "正在保存 DataBaker 设置...");
 
@@ -1386,16 +1378,6 @@
 
     getElement("save-judgement-settings").addEventListener("click", function () {
       void saveJudgementSettings();
-    });
-
-    getElement("data-baker-ai-recommend-endpoint-preset").addEventListener("change", function () {
-      applyDataBakerEndpointPreset();
-    });
-
-    getElement("data-baker-ai-recommend-endpoint").addEventListener("input", function () {
-      getElement("data-baker-ai-recommend-endpoint-preset").value = getDataBakerEndpointPreset(
-        getElement("data-baker-ai-recommend-endpoint").value
-      );
     });
 
     getElement("save-data-baker-settings").addEventListener("click", function () {

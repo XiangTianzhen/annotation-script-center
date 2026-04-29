@@ -8,45 +8,45 @@ const JSONL_FILE_NAME = "recommend-calls.jsonl";
 const CSV_FILE_NAME = "recommend-calls.csv";
 
 const CSV_COLUMNS = [
-  "createdAt",
-  "requestId",
-  "success",
-  "durationMs",
-  "annotatorName",
-  "collectId",
-  "itemId",
-  "textId",
-  "sentenceNumber",
-  "readRequire",
-  "audioHostname",
-  "pageText",
-  "heardText",
-  "recommendedText",
-  "isChanged",
-  "needHumanReview",
-  "decision",
-  "listenConfidence",
-  "compareConfidence",
-  "listenModel",
-  "compareModel",
-  "listenPromptTokens",
-  "listenCompletionTokens",
-  "listenTotalTokens",
-  "comparePromptTokens",
-  "compareCompletionTokens",
-  "compareTotalTokens",
-  "totalTokens",
-  "estimatedCostCny",
-  "effectiveRevenueCny",
-  "grossProfitCny",
-  "effectiveStartTime",
-  "effectiveEndTime",
-  "effectiveTime",
-  "audioDuration",
-  "clientVersion",
-  "mock",
-  "errorCode",
-  "errorMessage",
+  { key: "createdAt", header: "创建时间" },
+  { key: "requestId", header: "请求ID" },
+  { key: "success", header: "是否成功" },
+  { key: "durationMs", header: "耗时毫秒" },
+  { key: "annotatorName", header: "标注员" },
+  { key: "collectId", header: "采集ID" },
+  { key: "itemId", header: "记录ID" },
+  { key: "textId", header: "文本ID" },
+  { key: "sentenceNumber", header: "句子编号" },
+  { key: "readRequire", header: "朗读要求" },
+  { key: "audioHostname", header: "音频域名" },
+  { key: "pageText", header: "页面候选文本" },
+  { key: "heardText", header: "AI听音文本" },
+  { key: "recommendedText", header: "AI推荐文本" },
+  { key: "isChanged", header: "是否变更" },
+  { key: "needHumanReview", header: "需要人工复核" },
+  { key: "decision", header: "决策" },
+  { key: "listenConfidence", header: "听音置信度" },
+  { key: "compareConfidence", header: "对比置信度" },
+  { key: "listenModel", header: "听音模型" },
+  { key: "compareModel", header: "对比模型" },
+  { key: "listenPromptTokens", header: "听音输入Token" },
+  { key: "listenCompletionTokens", header: "听音输出Token" },
+  { key: "listenTotalTokens", header: "听音总Token" },
+  { key: "comparePromptTokens", header: "对比输入Token" },
+  { key: "compareCompletionTokens", header: "对比输出Token" },
+  { key: "compareTotalTokens", header: "对比总Token" },
+  { key: "totalTokens", header: "总Token" },
+  { key: "estimatedCostCny", header: "预估AI成本人民币" },
+  { key: "effectiveRevenueCny", header: "有效时长收入人民币" },
+  { key: "grossProfitCny", header: "预估毛利润人民币" },
+  { key: "effectiveStartTime", header: "有效开始时间" },
+  { key: "effectiveEndTime", header: "有效结束时间" },
+  { key: "effectiveTime", header: "有效时长" },
+  { key: "audioDuration", header: "音频总时长" },
+  { key: "clientVersion", header: "扩展版本" },
+  { key: "mock", header: "是否Mock" },
+  { key: "errorCode", header: "错误码" },
+  { key: "errorMessage", header: "错误信息" },
 ];
 
 function getLogDir() {
@@ -150,7 +150,7 @@ function escapeCsvCell(value) {
 
 function toCsvLine(record) {
   return CSV_COLUMNS.map(function (column) {
-    return escapeCsvCell(record[column]);
+    return escapeCsvCell(record[column.key]);
   }).join(",") + "\n";
 }
 
@@ -160,7 +160,10 @@ function appendJsonl(filePath, record) {
 
 function appendCsv(filePath, record) {
   if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, CSV_COLUMNS.join(",") + "\n", "utf8");
+    const headerLine = CSV_COLUMNS.map(function (column) {
+      return escapeCsvCell(column.header);
+    }).join(",") + "\n";
+    fs.writeFileSync(filePath, headerLine, "utf8");
   }
   fs.appendFileSync(filePath, toCsvLine(record), "utf8");
 }

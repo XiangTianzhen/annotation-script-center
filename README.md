@@ -75,9 +75,9 @@ Chrome：
 
 `DataBaker 一检质检` 可在 options 首页单独启停，并在专属设置页配置：
 
-- AI 推荐接口地址，默认走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
-- 本机调试接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
-- 请求超时时间，默认 `120000` ms。
+- AI 推荐接口地址只能在服务器和本机之间选择，默认走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
+- 本机调试接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`，仅用于开发调试。
+- 请求超时时间在 options 中以秒展示，默认 `120` 秒；扩展内部仍按毫秒保存和请求。
 - 是否启用 AI 推荐文本。
 
 扩展前端只保存接口地址、超时时间和开关，不保存 API Key、cookie、access token 或完整音频 URL。真实模型密钥仍由后端通过 `config/env/ai.env` 读取。
@@ -220,13 +220,15 @@ pm2 restart annotation-script-center --update-env
 DataBaker AI 推荐文本说明：
 
 - 当前目标页面：`https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0`。
-- 脚本已接入 options “标注脚本中心”，可在 DataBaker / DataFactory 平台区域启停，并在专属设置页配置 AI 推荐接口地址。
-- 默认前端请求服务器接口 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`；本机 `http://127.0.0.1:3333/...` 仅用于开发调试。
+- 脚本已接入 options “标注脚本中心”，可在 DataBaker / DataFactory 平台区域启停，并在专属设置页选择 AI 推荐接口地址。
+- 默认前端请求服务器接口 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`；本机 `http://127.0.0.1:3333/...` 仅用于开发调试，员工默认走服务器。
+- options 中请求超时时间以秒展示，默认 `120` 秒；运行时仍使用毫秒值。
 - 当前只做“单条 AI 推荐文本”，不自动保存、不自动提交、不自动点击合格 / 不合格、不做批量识别或自动流转。
 - 前端通过页面同源请求和 MAIN world 内存缓存读取当前题数据，不硬编码或持久化 `access_token`、cookie、完整签名音频 URL。
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
 - 听音模型请求使用 Qwen-Omni `input_audio` 格式，`data` 为完整音频 URL，`format` 从 URL pathname 后缀推断；听音请求不传 `response_format`，只在 prompt 中要求 JSON 输出。
 - 如果真实调用返回 HTTP 400，先查看前端错误中的后端脱敏 `summary`，再确认音频 URL 可访问、`requestListen` 使用 `input_audio`、`config/env/ai.env` 中 `DASHSCOPE_API_KEY` 正确；可用 `DATABAKER_AI_MOCK=1` 排除前端和路由问题。
+- 调用日志同时写入 JSONL 和 CSV；JSONL 保留英文 key 方便程序处理，CSV 新建时使用中文表头。
 - 推荐结果只展示给用户；“填入推荐文本”必须由用户点击触发，且只能写入可安全定位的“本句话文本”输入框。
 - 第一版默认模型：听音 `qwen3.5-omni-flash`，对比 `qwen3.5-plus`。
 
