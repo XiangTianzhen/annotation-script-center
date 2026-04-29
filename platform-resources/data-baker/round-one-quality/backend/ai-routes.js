@@ -93,6 +93,11 @@ function getLexiconRewriteMode() {
   return mode === "off" ? "off" : "aggressive";
 }
 
+function getPipelineMode() {
+  const mode = String(process.env.DATABAKER_AI_PIPELINE_MODE || "two_stage").trim();
+  return mode === "listen_only" ? "listen_only" : "two_stage";
+}
+
 function normalizeRecommendRequest(body) {
   const source = body && typeof body === "object" ? body : {};
   const collectId = String(source.collectId || "").trim();
@@ -161,6 +166,7 @@ function sendHealth(response) {
     cropPaddingSeconds: config.cropPaddingSeconds,
     cropStatus: config.cropEffectiveAudio ? "reserved-fallback-to-full-audio-url" : "disabled",
     callLogDir: getLogDir(),
+    pipelineMode: getPipelineMode(),
     status: config.hasApiKey || config.mockEnabled ? "ready" : "missing-api-key",
   });
 }
@@ -172,6 +178,7 @@ async function handleRecommend(request, response) {
   let config = null;
   let listenDurationMs = 0;
   let compareDurationMs = 0;
+  let pipelineMode = getPipelineMode();
   try {
     const rawBody = await readRequestBody(request);
     let body = {};
@@ -184,6 +191,7 @@ async function handleRecommend(request, response) {
     requestId = String(body.requestId || requestId);
 
     config = getClientConfig();
+    pipelineMode = getPipelineMode();
     if (!config.hasApiKey && !config.mockEnabled) {
       throw createHttpError(503, "missing-api-key", "missing-api-key");
     }
@@ -194,6 +202,7 @@ async function handleRecommend(request, response) {
       sentenceNumber: recommendRequest.sentenceNumber,
       listenModel: config.listenModel,
       compareModel: config.compareModel,
+      pipelineMode,
       mock: config.mockEnabled,
     });
 
@@ -221,31 +230,47 @@ async function handleRecommend(request, response) {
       heardText: normalizedListen.heardText,
       limit: 60,
     });
-    const comparePrompt = buildComparePrompt(
-      recommendRequest,
-      normalizedListen.heardText,
-      compareLexiconContext
-    );
-    const compareStartedAtMs = Date.now();
-    let compareResult = null;
-    try {
-      compareResult = await requestCompare(
+    let compareResult = {
+      model: "skipped",
+      rawText: "",
+      usage: {},
+      mock: false,
+      thinkingDisabledRequested: false,
+      thinkingDisableFallbackUsed: false,
+    };
+    let normalizedCompare = {
+      recommendedText: normalizedListen.heardText || recommendRequest.pageText,
+      decision: "listen_only",
+      changePoints: [],
+      confidence: 0,
+      needHumanReview: true,
+    };
+    if (pipelineMode === "two_stage") {
+      const comparePrompt = buildComparePrompt(
         recommendRequest,
-        comparePrompt,
         normalizedListen.heardText,
-        {
-          model: config.compareModel,
-          timeoutMs: config.timeoutMs,
-        }
+        compareLexiconContext
       );
-    } finally {
-      compareDurationMs = Date.now() - compareStartedAtMs;
+      const compareStartedAtMs = Date.now();
+      try {
+        compareResult = await requestCompare(
+          recommendRequest,
+          comparePrompt,
+          normalizedListen.heardText,
+          {
+            model: config.compareModel,
+            timeoutMs: config.timeoutMs,
+          }
+        );
+      } finally {
+        compareDurationMs = Date.now() - compareStartedAtMs;
+      }
+      const compareJson = parseModelJsonText(compareResult.rawText, requestId);
+      normalizedCompare = normalizeCompareResponse(compareJson, {
+        pageText: recommendRequest.pageText,
+        heardText: normalizedListen.heardText,
+      });
     }
-    const compareJson = parseModelJsonText(compareResult.rawText, requestId);
-    const normalizedCompare = normalizeCompareResponse(compareJson, {
-      pageText: recommendRequest.pageText,
-      heardText: normalizedListen.heardText,
-    });
     const rewriteMode = getLexiconRewriteMode();
     const rewriteResult = applyLexiconRewrite(normalizedCompare.recommendedText, {
       pageText: recommendRequest.pageText,
@@ -287,6 +312,15 @@ async function handleRecommend(request, response) {
       compareDurationMs,
       totalDurationMs,
     };
+    responseData.pipelineMode = pipelineMode;
+    responseData.thinking = {
+      disabledRequested: Boolean(
+        listenResult.thinkingDisabledRequested || compareResult.thinkingDisabledRequested
+      ),
+      disableFallbackUsed: Boolean(
+        listenResult.thinkingDisableFallbackUsed || compareResult.thinkingDisableFallbackUsed
+      ),
+    };
 
     appendCallLogSafe({
       createdAt: new Date().toISOString(),
@@ -299,6 +333,7 @@ async function handleRecommend(request, response) {
       response: responseData,
       listenModel: listenResult.model,
       compareModel: compareResult.model,
+      pipelineMode,
       audioHostname: parseAudioHostname(recommendRequest.audioUrl),
       mock: Boolean(config.mockEnabled || listenResult.mock || compareResult.mock),
     });
@@ -333,6 +368,7 @@ async function handleRecommend(request, response) {
       response: {},
       listenModel: config?.listenModel || DEFAULT_LISTEN_MODEL,
       compareModel: config?.compareModel || DEFAULT_COMPARE_MODEL,
+      pipelineMode,
       audioHostname: parseAudioHostname(recommendRequest?.audioUrl || ""),
       mock: Boolean(config?.mockEnabled),
       errorCode: String(error?.code || ""),

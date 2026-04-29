@@ -2,6 +2,10 @@
 
 ## 2026-04-29
 
+- 优化 DataBaker AI 推荐速度定位：Qwen 原生 `fetch` 请求默认改为顶层 `enable_thinking=false`，不再使用 `extra_body`，并在供应商不支持该参数时自动移除字段重试一次；可通过 `DATABAKER_AI_ENABLE_THINKING=1` 开启 thinking。
+- 新增 DataBaker `DATABAKER_AI_PIPELINE_MODE=two_stage|listen_only`，默认保留听音 + 对比双模型，`listen_only` 极速模式只调用 `qwen3.5-omni-flash` 并结合本地词表强替换生成推荐文本。
+- DataBaker AI 响应、推荐卡和调用日志补充流水线模式、听音耗时、对比耗时和总耗时，便于区分真实 Qwen 调用慢在听音阶段还是对比阶段。
+- 补充 DataBaker 当前页 AI 推荐预生成方案：后续可由前端按钮触发当前页记录预生成、后端限制并发、前端按 `itemId` 内存缓存；默认不自动执行，避免成本失控。
 - 修复 DataBaker Qwen-Omni 听音请求格式：`requestListen` 改用 `input_audio`，按音频 URL pathname 后缀推断 `wav/mp3/aac/m4a/amr/3gp/3gpp`，并移除听音请求的 `response_format`，避免多模态请求触发 HTTP 400。
 - DataBaker 前端错误提示补充后端脱敏 `summary`，方便排查 provider 400，同时继续避免暴露完整音频 URL、token、cookie、`OSSAccessKeyId`、`Signature` 或 API Key。
 - DataBaker options 设置页将 AI 推荐接口地址收敛为“服务器 / 本机”两个选项，旧的自定义地址会回退到默认服务器接口，员工默认走服务器，本机仅用于开发调试。

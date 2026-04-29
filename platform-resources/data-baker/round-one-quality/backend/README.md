@@ -34,6 +34,8 @@
 - `DASHSCOPE_API_KEY`：DashScope API Key，真实调用必需；统一后端启动时默认从仓库根目录 `config/env/ai.env` 自动读取。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_MOCK`：设为 `1` 时走 mock，可直接写入 `config/env/ai.env`。
+- `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，原生 `fetch` 请求体顶层传 `enable_thinking=false` 尝试关闭 thinking；设为 `1` 时不传该字段。
+- `DATABAKER_AI_PIPELINE_MODE`：默认 `two_stage`，即听音模型 + 对比模型；设为 `listen_only` 时跳过 `qwen3.5-plus`，只使用听音文本和本地词表强替换生成推荐文本。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
@@ -59,10 +61,14 @@
 3. 调用听音模型 `qwen3.5-omni-flash`，以 `input_audio` 传入完整 `audioUrl` 和根据路径后缀推断的音频格式，并在 prompt 中要求 JSON 输出。
 4. 解析听音 JSON：`heardText`、`confidence`、`isValid`、`invalidReasons`。
 5. 结合 `pageText` 和 `heardText` 重新筛选词表上下文。
-6. 调用对比模型 `qwen3.5-plus`，输入 `pageText`、`heardText`、词表上下文和规则。
-7. 解析对比 JSON：`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`。
+6. `two_stage` 模式继续调用对比模型 `qwen3.5-plus`，输入 `pageText`、`heardText`、词表上下文和规则；`listen_only` 模式跳过该步骤。
+7. `two_stage` 模式解析对比 JSON：`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`；`listen_only` 模式直接以 `heardText` 作为推荐文本并标记 `decision=listen_only`。
 8. 默认使用 `aggressive` 模式对最终 `recommendedText` 做闽南方言词表强替换；替换后强制 `needHumanReview=true`。
-9. 组装统一响应，包含推荐文本、听音文本、变更标记、置信度、模型、usage、费用估算、词表启用 / 改写状态、阶段耗时和 `requestId`。
+9. 组装统一响应，包含推荐文本、听音文本、变更标记、置信度、模型、usage、费用估算、词表启用 / 改写状态、流水线模式、阶段耗时和 `requestId`。
+
+后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。
+
+`listen_only` 是极速推荐模式，只适合“AI 推荐文本”人工复核场景，不适合自动保存或自动提交。本仓库不会因为该模式自动保存、自动提交、批量识别或流转。
 
 听音模型请求中的音频片段格式：
 
@@ -113,7 +119,7 @@ CSV 表头至少包含 `编号`、`建议用字`、`对应华语`。后端使用
 - `platform-resources/data-baker/round-one-quality/backend/logs/recommend-calls.jsonl`
 - `platform-resources/data-baker/round-one-quality/backend/logs/recommend-calls.csv`
 
-可通过 `DATABAKER_AI_CALL_LOG_DIR` 覆盖日志目录。JSONL 保留英文 key，便于后续程序处理；CSV 新建时写入中文表头，字段包含标注员、token、费用、有效时间、音频总时长、mock 状态、词表改写明细、听音阶段耗时、对比阶段耗时和错误信息。已有旧 CSV 文件第一版不自动迁移，删除旧文件后会按中文表头重新创建。
+可通过 `DATABAKER_AI_CALL_LOG_DIR` 覆盖日志目录。JSONL 保留英文 key，便于后续程序处理；CSV 新建时写入中文表头，字段包含标注员、token、费用、有效时间、音频总时长、mock 状态、流水线模式、词表改写明细、听音阶段耗时、对比阶段耗时和错误信息。已有旧 CSV 文件第一版不自动迁移，删除旧文件后会按中文表头重新创建。
 
 `mock=true` 的耗时只代表本地 mock 链路，不代表真实 Qwen 听音 / 对比耗时；真实调用应以 `mock=false` 记录中的 `listenDurationMs`、`compareDurationMs` 和总 `durationMs` 为准。
 

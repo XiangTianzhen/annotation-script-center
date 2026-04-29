@@ -159,6 +159,14 @@
       grid.appendChild(valueNode);
     }
 
+    function formatDurationSeconds(value) {
+      const ms = Number(value);
+      if (!Number.isFinite(ms) || ms < 0) {
+        return "-";
+      }
+      return (ms / 1000).toFixed(1) + " 秒";
+    }
+
     async function copyText(text) {
       const value = String(text || "");
       if (navigator.clipboard?.writeText) {
@@ -182,6 +190,7 @@
       const data = result || {};
       const model = data.model || {};
       const lexicon = data.lexicon && typeof data.lexicon === "object" ? data.lexicon : {};
+      const timing = data.timing && typeof data.timing === "object" ? data.timing : null;
       const rewriteChanges = Array.isArray(lexicon.rewriteChanges) ? lexicon.rewriteChanges : [];
       const resultWrap = document.createElement("div");
       resultWrap.className = "asr-edge-db-result";
@@ -208,6 +217,21 @@
           " + " +
           String(model.compare || "qwen3.5-plus")
       );
+      if (data.pipelineMode === "listen_only" || model.compare === "skipped") {
+        createRow(grid, "模式", "极速听音模式");
+      }
+      if (timing) {
+        createRow(
+          grid,
+          "耗时",
+          "听音 " +
+            formatDurationSeconds(timing.listenDurationMs) +
+            " / 对比 " +
+            formatDurationSeconds(timing.compareDurationMs) +
+            " / 总计 " +
+            formatDurationSeconds(timing.totalDurationMs)
+        );
+      }
       createRow(grid, "决策", data.decision || "");
       if (lexicon.rewriteChanged === true) {
         createRow(grid, "词表替换", "已替换 " + String(rewriteChanges.length || 0) + " 处");

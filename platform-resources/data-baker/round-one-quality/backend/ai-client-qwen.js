@@ -20,6 +20,39 @@ function parseTimeoutMs() {
   return Math.max(1000, Math.min(300000, value));
 }
 
+function shouldDisableThinking() {
+  return String(process.env.DATABAKER_AI_ENABLE_THINKING || "0").trim() !== "1";
+}
+
+function withThinkingDisabled(requestBody) {
+  if (!shouldDisableThinking()) {
+    return requestBody;
+  }
+
+  return Object.assign({}, requestBody, {
+    enable_thinking: false,
+  });
+}
+
+function withoutThinkingDisabled(requestBody) {
+  const nextBody = Object.assign({}, requestBody || {});
+  delete nextBody.enable_thinking;
+  return nextBody;
+}
+
+function isEnableThinkingUnsupportedError(error) {
+  if (!error || error.code !== "provider-http-error") {
+    return false;
+  }
+
+  const summary = String(error.summary || error.message || "").toLowerCase();
+  return (
+    summary.indexOf("enable_thinking") >= 0 ||
+    (summary.indexOf("unsupported") >= 0 && summary.indexOf("parameter") >= 0) ||
+    (summary.indexOf("invalid") >= 0 && summary.indexOf("parameter") >= 0)
+  );
+}
+
 function inferAudioFormat(audioUrl) {
   let pathname = "";
   try {
@@ -279,6 +312,29 @@ async function requestChatCompletion(requestBody, options) {
   }
 }
 
+async function requestChatCompletionWithFallback(requestBody, options) {
+  const thinkingDisabledRequested = shouldDisableThinking();
+  const initialBody = thinkingDisabledRequested ? withThinkingDisabled(requestBody) : requestBody;
+
+  try {
+    const result = await requestChatCompletion(initialBody, options);
+    return Object.assign({}, result, {
+      thinkingDisabledRequested,
+      thinkingDisableFallbackUsed: false,
+    });
+  } catch (error) {
+    if (!thinkingDisabledRequested || !isEnableThinkingUnsupportedError(error)) {
+      throw error;
+    }
+
+    const fallbackResult = await requestChatCompletion(withoutThinkingDisabled(initialBody), options);
+    return Object.assign({}, fallbackResult, {
+      thinkingDisabledRequested,
+      thinkingDisableFallbackUsed: true,
+    });
+  }
+}
+
 async function requestListen(input, prompt, options) {
   const config = getClientConfig();
   const model = String(options?.model || config.listenModel || DEFAULT_LISTEN_MODEL);
@@ -292,6 +348,8 @@ async function requestListen(input, prompt, options) {
         total_tokens: 160,
       },
       mock: true,
+      thinkingDisabledRequested: shouldDisableThinking(),
+      thinkingDisableFallbackUsed: false,
     };
   }
 
@@ -300,9 +358,6 @@ async function requestListen(input, prompt, options) {
     stream: true,
     stream_options: {
       include_usage: true,
-    },
-    extra_body: {
-      enable_thinking: false,
     },
     modalities: ["text"],
     messages: [
@@ -329,13 +384,15 @@ async function requestListen(input, prompt, options) {
     ],
     temperature: 0.1,
   };
-  const result = await requestChatCompletion(requestBody, options);
+  const result = await requestChatCompletionWithFallback(requestBody, options);
 
   return {
     model,
     rawText: result.text,
     usage: result.usage,
     mock: false,
+    thinkingDisabledRequested: result.thinkingDisabledRequested,
+    thinkingDisableFallbackUsed: result.thinkingDisableFallbackUsed,
   };
 }
 
@@ -352,6 +409,8 @@ async function requestCompare(input, prompt, heardText, options) {
         total_tokens: 250,
       },
       mock: true,
+      thinkingDisabledRequested: shouldDisableThinking(),
+      thinkingDisableFallbackUsed: false,
     };
   }
 
@@ -360,9 +419,6 @@ async function requestCompare(input, prompt, heardText, options) {
     stream: true,
     stream_options: {
       include_usage: true,
-    },
-    extra_body: {
-      enable_thinking: false,
     },
     messages: [
       {
@@ -379,13 +435,15 @@ async function requestCompare(input, prompt, heardText, options) {
     },
     temperature: 0.1,
   };
-  const result = await requestChatCompletion(requestBody, options);
+  const result = await requestChatCompletionWithFallback(requestBody, options);
 
   return {
     model,
     rawText: result.text,
     usage: result.usage,
     mock: false,
+    thinkingDisabledRequested: result.thinkingDisabledRequested,
+    thinkingDisableFallbackUsed: result.thinkingDisableFallbackUsed,
   };
 }
 
@@ -395,7 +453,11 @@ module.exports = {
   DEFAULT_LISTEN_MODEL,
   getClientConfig,
   inferAudioFormat,
+  isEnableThinkingUnsupportedError,
   isMockEnabled,
   requestCompare,
+  requestChatCompletionWithFallback,
   requestListen,
+  shouldDisableThinking,
+  withThinkingDisabled,
 };

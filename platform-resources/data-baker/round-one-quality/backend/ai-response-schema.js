@@ -119,9 +119,11 @@ function normalizeCompareResponse(modelJson, context) {
 
 function normalizeUsage(usage) {
   const source = usage && typeof usage === "object" ? usage : {};
-  const promptTokens = Number(source.prompt_tokens || source.input_tokens || 0);
-  const completionTokens = Number(source.completion_tokens || source.output_tokens || 0);
-  const totalTokens = Number(source.total_tokens || promptTokens + completionTokens || 0);
+  const promptTokens = Number(source.promptTokens || source.prompt_tokens || source.input_tokens || 0);
+  const completionTokens = Number(
+    source.completionTokens || source.completion_tokens || source.output_tokens || 0
+  );
+  const totalTokens = Number(source.totalTokens || source.total_tokens || promptTokens + completionTokens || 0);
 
   return {
     promptTokens: Number.isFinite(promptTokens) ? promptTokens : 0,

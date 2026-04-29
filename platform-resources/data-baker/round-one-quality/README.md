@@ -93,9 +93,19 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_MOCK`：设为 `1` 时返回 mock 结果。
+- `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
+- `DATABAKER_AI_PIPELINE_MODE`：默认 `two_stage`，即听音 + 对比双模型；设为 `listen_only` 时只调用 `qwen3.5-omni-flash`，再做本地词表强替换。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
+
+## 速度与预生成方案
+
+- 默认 `two_stage` 模式会串行调用 `qwen3.5-omni-flash` 和 `qwen3.5-plus`，日志会记录听音耗时、对比耗时、总耗时和流水线模式。
+- `listen_only` 是极速听音模式，只返回听音文本并做词表强替换，仍然只作为人工复核推荐，不自动保存或提交。
+- `mock=true` 的耗时只代表本地链路，不代表真实 Qwen 调用耗时；真实耗时以日志中 `mock=false` 的听音 / 对比阶段耗时为准。
+- 后续可新增“预生成当前页 AI 推荐”按钮：前端读取当前页 10/50 条接口记录，后端批量接口限制并发，例如 2，前端以内存缓存 `itemId -> result`，当前题点击 AI 推荐时优先读缓存。
+- 当前页预生成默认不自动执行，避免在翻页或误触时产生不可控模型成本。
 
 ## 当前边界
 
