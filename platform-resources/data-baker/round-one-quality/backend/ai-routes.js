@@ -9,6 +9,7 @@ const { applyLexiconRewrite, buildLexiconContext } = require("./ai-lexicon");
 const { buildComparePrompt, buildListenPrompt, RULE_VERSION } = require("./ai-prompts");
 const {
   buildRecommendResponse,
+  ensureChineseSentencePunctuation,
   normalizeCompareResponse,
   normalizeListenResponse,
   normalizeUsage,
@@ -281,6 +282,9 @@ async function handleRecommend(request, response) {
       normalizedCompare.recommendedText = rewriteResult.text;
       normalizedCompare.needHumanReview = true;
     }
+    normalizedCompare.recommendedText = ensureChineseSentencePunctuation(
+      normalizedCompare.recommendedText
+    );
 
     const listenUsage = normalizeUsage(listenResult.usage);
     const compareUsage = normalizeUsage(compareResult.usage);

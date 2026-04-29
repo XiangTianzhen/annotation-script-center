@@ -28,6 +28,30 @@
     return normalizeText(text).replace(/^\d+\s*/, "").trim();
   }
 
+  function ensureChineseSentencePunctuation(text) {
+    const value = String(text || "").trim();
+    if (!value) {
+      return "";
+    }
+    const last = value[value.length - 1];
+    if ("。！？；…".indexOf(last) >= 0) {
+      return value;
+    }
+    if (last === ".") {
+      return value.slice(0, -1) + "。";
+    }
+    if (last === "?") {
+      return value.slice(0, -1) + "？";
+    }
+    if (last === "!") {
+      return value.slice(0, -1) + "！";
+    }
+    if (last === ";") {
+      return value.slice(0, -1) + "；";
+    }
+    return value + "。";
+  }
+
   function exitEditingFocus(element) {
     if (element && typeof element.blur === "function") {
       element.blur();
@@ -332,7 +356,7 @@
         };
       }
 
-      const nextText = String(text || "");
+      const nextText = ensureChineseSentencePunctuation(text);
       textarea.focus();
       textarea.value = nextText;
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
@@ -408,6 +432,7 @@
 
   globalThis.__ASREdgeDataBakerRoundOneDataApi = {
     createRuntime,
+    ensureChineseSentencePunctuation,
     exitEditingFocus,
     isRoundOneCollectPage,
     parseHashParams,

@@ -8,6 +8,31 @@ function normalizeConfidence(value) {
   return Math.max(0, Math.min(1, numericValue));
 }
 
+function ensureChineseSentencePunctuation(text) {
+  const value = String(text || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  const last = value[value.length - 1];
+  if ("。！？；…".includes(last)) {
+    return value;
+  }
+  if (last === ".") {
+    return value.slice(0, -1) + "。";
+  }
+  if (last === "?") {
+    return value.slice(0, -1) + "？";
+  }
+  if (last === "!") {
+    return value.slice(0, -1) + "！";
+  }
+  if (last === ";") {
+    return value.slice(0, -1) + "；";
+  }
+  return value + "。";
+}
+
 function parseModelJsonText(rawText, requestId) {
   const source = String(rawText || "").trim();
   if (!source) {
@@ -98,11 +123,11 @@ function normalizeCompareResponse(modelJson, context) {
   const source = modelJson && typeof modelJson === "object" ? modelJson : {};
   const pageText = String(context?.pageText || "");
   const heardText = String(context?.heardText || "");
-  const recommendedText = String(
+  const recommendedText = ensureChineseSentencePunctuation(String(
     source.recommendedText === undefined || source.recommendedText === null
       ? heardText || pageText
       : source.recommendedText
-  ).trim();
+  ));
   const decision = String(source.decision || "").trim() || "need_human_review";
   const confidence = normalizeConfidence(source.confidence);
   const needHumanReview =
@@ -138,7 +163,9 @@ function buildRecommendResponse(parts) {
   const compare = parts?.compare || {};
   const request = parts?.request || {};
   const pageText = String(request.pageText || "");
-  const recommendedText = String(compare.recommendedText || listen.heardText || pageText);
+  const recommendedText = ensureChineseSentencePunctuation(
+    compare.recommendedText || listen.heardText || pageText
+  );
   const isChanged = recommendedText.trim() !== pageText.trim();
   const listenUsage = normalizeUsage(parts?.listenUsage);
   const compareUsage = normalizeUsage(parts?.compareUsage);
@@ -174,6 +201,7 @@ function buildRecommendResponse(parts) {
 
 module.exports = {
   buildRecommendResponse,
+  ensureChineseSentencePunctuation,
   normalizeCompareResponse,
   normalizeConfidence,
   normalizeListenResponse,

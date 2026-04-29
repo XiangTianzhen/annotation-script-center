@@ -6,6 +6,30 @@
     return String(text || "").replace(/\s+/g, " ").trim();
   }
 
+  function ensureChineseSentencePunctuation(text) {
+    const value = String(text || "").trim();
+    if (!value) {
+      return "";
+    }
+    const last = value[value.length - 1];
+    if ("。！？；…".indexOf(last) >= 0) {
+      return value;
+    }
+    if (last === ".") {
+      return value.slice(0, -1) + "。";
+    }
+    if (last === "?") {
+      return value.slice(0, -1) + "？";
+    }
+    if (last === "!") {
+      return value.slice(0, -1) + "！";
+    }
+    if (last === ";") {
+      return value.slice(0, -1) + "；";
+    }
+    return value + "。";
+  }
+
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
       return;
@@ -187,8 +211,9 @@
 
     function renderResult(result) {
       clearResult();
-      currentResult = result || null;
-      const data = result || {};
+      const data = Object.assign({}, result || {});
+      data.recommendedText = ensureChineseSentencePunctuation(data.recommendedText || "");
+      currentResult = data || null;
       const model = data.model || {};
       const lexicon = data.lexicon && typeof data.lexicon === "object" ? data.lexicon : {};
       const timing = data.timing && typeof data.timing === "object" ? data.timing : null;
@@ -471,6 +496,7 @@
 
   globalThis.__ASREdgeDataBakerRoundOneUiPanel = {
     createRuntime,
+    ensureChineseSentencePunctuation,
     normalizeText,
   };
 })();
