@@ -14,6 +14,7 @@ const {
   normalizeListenResponse,
   normalizeUsage,
   parseModelJsonText,
+  removeTextSpaces,
 } = require("./ai-response-schema");
 
 const AI_BASE_PATH = "/api/data-baker/round-one-quality/ai/recommend";
@@ -225,6 +226,7 @@ async function handleRecommend(request, response) {
     }
     const listenJson = parseModelJsonText(listenResult.rawText, requestId);
     const normalizedListen = normalizeListenResponse(listenJson);
+    normalizedListen.heardText = removeTextSpaces(normalizedListen.heardText);
 
     const compareLexiconContext = buildLexiconContext({
       pageText: recommendRequest.pageText,
@@ -271,6 +273,7 @@ async function handleRecommend(request, response) {
         pageText: recommendRequest.pageText,
         heardText: normalizedListen.heardText,
       });
+      normalizedCompare.recommendedText = removeTextSpaces(normalizedCompare.recommendedText);
     }
     const rewriteMode = getLexiconRewriteMode();
     const rewriteResult = applyLexiconRewrite(normalizedCompare.recommendedText, {
@@ -282,6 +285,7 @@ async function handleRecommend(request, response) {
       normalizedCompare.recommendedText = rewriteResult.text;
       normalizedCompare.needHumanReview = true;
     }
+    normalizedCompare.recommendedText = removeTextSpaces(normalizedCompare.recommendedText);
     normalizedCompare.recommendedText = ensureChineseSentencePunctuation(
       normalizedCompare.recommendedText
     );

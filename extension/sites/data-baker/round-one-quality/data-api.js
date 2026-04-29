@@ -53,6 +53,10 @@
     return value + "。";
   }
 
+  function removeTextSpaces(text) {
+    return String(text || "").replace(/[\s\u3000]+/g, "");
+  }
+
   function isEditableElement(element) {
     if (!(element instanceof Element)) {
       return false;
@@ -414,7 +418,7 @@
         };
       }
 
-      const nextText = ensureChineseSentencePunctuation(text);
+      const nextText = ensureChineseSentencePunctuation(removeTextSpaces(text));
       textarea.focus();
       textarea.value = nextText;
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
@@ -501,5 +505,6 @@
     focusSafeBody,
     isRoundOneCollectPage,
     parseHashParams,
+    removeTextSpaces,
   };
 })();

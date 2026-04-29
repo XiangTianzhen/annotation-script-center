@@ -30,6 +30,10 @@
     return value + "。";
   }
 
+  function removeTextSpaces(text) {
+    return String(text || "").replace(/[\s\u3000]+/g, "");
+  }
+
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
       return;
@@ -212,7 +216,10 @@
     function renderResult(result) {
       clearResult();
       const data = Object.assign({}, result || {});
-      data.recommendedText = ensureChineseSentencePunctuation(data.recommendedText || "");
+      data.heardText = removeTextSpaces(data.heardText || "");
+      data.recommendedText = ensureChineseSentencePunctuation(
+        removeTextSpaces(data.recommendedText || "")
+      );
       currentResult = data || null;
       const model = data.model || {};
       const lexicon = data.lexicon && typeof data.lexicon === "object" ? data.lexicon : {};
@@ -295,7 +302,7 @@
       fillButton.disabled = typeof deps.canFillPageText === "function" && !deps.canFillPageText();
 
       copyButton.addEventListener("click", function () {
-        copyText(data.recommendedText || "")
+        copyText(removeTextSpaces(data.recommendedText || ""))
           .then(function () {
             setStatus("推荐文本已复制。", "success");
           })
@@ -308,7 +315,7 @@
           setStatus("无法安全定位可编辑文本框，已保留复制入口。", "error");
           return;
         }
-        const fillResult = deps.fillPageText(data.recommendedText || "");
+        const fillResult = deps.fillPageText(removeTextSpaces(data.recommendedText || ""));
         setStatus(fillResult?.message || "已填入推荐文本。", fillResult?.ok === false ? "error" : "success");
       });
       ignoreButton.addEventListener("click", function () {
@@ -364,7 +371,7 @@
     }
 
     async function copyHeardText() {
-      const text = currentResult?.heardText || "";
+      const text = removeTextSpaces(currentResult?.heardText || "");
       if (!text) {
         setStatus("暂无 AI 听音文本。", "error");
         return { ok: false };
@@ -375,7 +382,7 @@
     }
 
     async function copyRecommendedText() {
-      const text = currentResult?.recommendedText || "";
+      const text = removeTextSpaces(currentResult?.recommendedText || "");
       if (!text) {
         setStatus("暂无 AI 推荐文本。", "error");
         return { ok: false };
@@ -386,7 +393,7 @@
     }
 
     function fillRecommendedText() {
-      const text = currentResult?.recommendedText || "";
+      const text = removeTextSpaces(currentResult?.recommendedText || "");
       if (!text) {
         setStatus("暂无 AI 推荐文本。", "error");
         return { ok: false };
@@ -497,6 +504,7 @@
   globalThis.__ASREdgeDataBakerRoundOneUiPanel = {
     createRuntime,
     ensureChineseSentencePunctuation,
+    removeTextSpaces,
     normalizeText,
   };
 })();

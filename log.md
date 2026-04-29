@@ -2,6 +2,7 @@
 
 ## 2026-04-29
 
+- DataBaker AI 推荐文本新增去空格兜底：后端统一清理 `heardText` 和最终 `recommendedText` 中的普通空格、全角空格、Tab 和换行；前端展示、复制和填入前也做兼容兜底，不修改页面候选文本原文，不自动保存或提交。
 - 更新 AGENTS.md 项目定位：当前重点平台收口为 Alibaba LabelX 与 DataBaker / DataFactory，重点脚本包含快判、转写和 DataBaker 一检质检。
 - 固化单人项目 Git 工作流：默认 main 分支直接执行，验证通过后 commit 并 push，不创建分支、不创建 PR。
 - 固化复杂任务优先使用 subagent / parallel agents；不支持时按相同分工串行执行。

@@ -59,11 +59,11 @@
 1. 校验请求体中的 `collectId`、`itemId`、`audioUrl`、`pageText`。
 2. 从 `platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv` 读取闽南方言字词表，生成听音 prompt 上下文。
 3. 调用听音模型 `qwen3.5-omni-flash`，以 `input_audio` 传入完整 `audioUrl` 和根据路径后缀推断的音频格式，并在 prompt 中要求 JSON 输出。
-4. 解析听音 JSON：`heardText`、`confidence`、`isValid`、`invalidReasons`。
+4. 解析听音 JSON：`heardText`、`confidence`、`isValid`、`invalidReasons`，并删除 `heardText` 中的普通空格、全角空格、Tab 和换行。
 5. 结合 `pageText` 和 `heardText` 重新筛选词表上下文。
 6. `two_stage` 模式继续调用对比模型 `qwen3.5-plus`，输入 `pageText`、`heardText`、词表上下文和规则；`listen_only` 模式跳过该步骤。
 7. `two_stage` 模式解析对比 JSON：`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`；`listen_only` 模式直接以 `heardText` 作为推荐文本并标记 `decision=listen_only`。
-8. 默认使用 `aggressive` 模式对最终 `recommendedText` 做闽南方言词表强替换；替换后强制 `needHumanReview=true`。
+8. 对 `recommendedText` 先删除普通空格、全角空格、Tab 和换行，再默认使用 `aggressive` 模式做闽南方言词表强替换；替换后再次去空格并补全中文句末标点，强制 `needHumanReview=true`。
 9. 组装统一响应，包含推荐文本、听音文本、变更标记、置信度、模型、usage、费用估算、词表启用 / 改写状态、流水线模式、阶段耗时和 `requestId`。
 
 后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。
@@ -99,7 +99,7 @@ CSV 表头至少包含 `编号`、`建议用字`、`对应华语`。后端使用
 1. prompt 上下文：听音 prompt 会先注入基础易混规则，再按 `pageText` 筛选最多 40 条上下文；对比 prompt 会结合 `pageText` 与 `heardText` 筛选最多 60 条上下文。
 2. 最终推荐文本强替换：默认 `aggressive`，按“对应华语 -> 建议用字”做长词优先替换，例如 `他 -> 伊`、`喜欢 -> 欢喜`、`的 -> 诶`。
 
-强替换只修改返回给前端展示的 `recommendedText`，不会修改原始 `pageText` / `heardText`，也不会触发自动保存、自动提交、批量识别或流转。可通过 `DATABAKER_AI_LEXICON_REWRITE_MODE=off` 关闭强替换，只保留 prompt 上下文。词表缺失时后端仍可运行，但会跳过 CSV 上下文，推荐效果可能下降。后续更新词表时只需要替换 CSV 文件，不要把词表内容硬编码进 JS。
+强替换只修改返回给前端展示的 `recommendedText`，不会修改原始 `pageText`，也不会触发自动保存、自动提交、批量识别或流转。后端会对 `heardText` 和最终 `recommendedText` 删除空格、Tab、换行和全角空格，日志记录的也是清理后的文本，不额外保存清理前文本。可通过 `DATABAKER_AI_LEXICON_REWRITE_MODE=off` 关闭强替换，只保留 prompt 上下文。词表缺失时后端仍可运行，但会跳过 CSV 上下文，推荐效果可能下降。后续更新词表时只需要替换 CSV 文件，不要把词表内容硬编码进 JS。
 
 词表清洗规则：
 

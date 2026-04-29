@@ -100,6 +100,8 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 
 词表括号内容全部按拼音 / 批注处理，不参与建议用字或对应华语，例如 `家（gei、dao）、厝（cuo）` 只会清洗出 `家`、`厝`。拉丁字母、拼音音调字母、数字注音和残留连接符也不会参与替换。CSV 单字映射默认跳过强替换，避免误伤 `家庭` 这类复合词；基础高频单字仍由后端 `BASE_ENTRIES` 显式维护，例如 `他 -> 伊`、`的 -> 诶`、`很 -> 真`、`吃 -> 食`。如果出现异常替换，优先检查 `minnan-lexicon.csv` 中是否含有括号批注或单字映射。
 
+后端会对 AI 听音文本和最终 AI 推荐文本删除普通空格、全角空格、Tab 和换行，推荐卡展示、复制、填入和调用日志都使用清理后的文本；页面候选文本原文不做去空格处理。
+
 环境变量：
 
 - `DASHSCOPE_API_KEY`：DashScope API Key，只由后端读取。

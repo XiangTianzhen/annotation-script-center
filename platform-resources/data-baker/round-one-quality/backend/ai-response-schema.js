@@ -33,6 +33,10 @@ function ensureChineseSentencePunctuation(text) {
   return value + "。";
 }
 
+function removeTextSpaces(text) {
+  return String(text || "").replace(/[\s\u3000]+/g, "");
+}
+
 function parseModelJsonText(rawText, requestId) {
   const source = String(rawText || "").trim();
   if (!source) {
@@ -106,7 +110,7 @@ function normalizeChangePoints(value) {
 
 function normalizeListenResponse(modelJson) {
   const source = modelJson && typeof modelJson === "object" ? modelJson : {};
-  const heardText = String(source.heardText || source.text || "").trim();
+  const heardText = removeTextSpaces(source.heardText || source.text || "");
   if (!heardText && source.isValid !== false) {
     throw new Error("听音模型未返回 heardText。");
   }
@@ -122,12 +126,12 @@ function normalizeListenResponse(modelJson) {
 function normalizeCompareResponse(modelJson, context) {
   const source = modelJson && typeof modelJson === "object" ? modelJson : {};
   const pageText = String(context?.pageText || "");
-  const heardText = String(context?.heardText || "");
-  const recommendedText = ensureChineseSentencePunctuation(String(
+  const heardText = removeTextSpaces(context?.heardText || "");
+  const recommendedText = removeTextSpaces(
     source.recommendedText === undefined || source.recommendedText === null
       ? heardText || pageText
       : source.recommendedText
-  ));
+  );
   const decision = String(source.decision || "").trim() || "need_human_review";
   const confidence = normalizeConfidence(source.confidence);
   const needHumanReview =
@@ -164,7 +168,7 @@ function buildRecommendResponse(parts) {
   const request = parts?.request || {};
   const pageText = String(request.pageText || "");
   const recommendedText = ensureChineseSentencePunctuation(
-    compare.recommendedText || listen.heardText || pageText
+    removeTextSpaces(compare.recommendedText || listen.heardText || pageText)
   );
   const isChanged = recommendedText.trim() !== pageText.trim();
   const listenUsage = normalizeUsage(parts?.listenUsage);
@@ -172,7 +176,7 @@ function buildRecommendResponse(parts) {
 
   return {
     recommendedText,
-    heardText: String(listen.heardText || ""),
+    heardText: removeTextSpaces(listen.heardText || ""),
     pageText,
     isChanged,
     needHumanReview: compare.needHumanReview !== false || listen.isValid === false,
@@ -207,4 +211,5 @@ module.exports = {
   normalizeListenResponse,
   normalizeUsage,
   parseModelJsonText,
+  removeTextSpaces,
 };
