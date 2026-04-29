@@ -1,5 +1,11 @@
 # 标注脚本中心修改日志
 
+## 2026-04-30
+
+- 修复 DataBaker 一检质检快捷键被动焦点恢复可能影响音频播放的问题：`shortcuts.js` 移除平台按钮点击、左侧句子切换、active 题目变化、窗口 focus 等被动 blur/focus 恢复链路。
+- DataBaker 快捷键策略收敛为“仅命中已配置快捷键时强制退出输入框并执行动作”；未命中快捷键时不拦截普通输入、不干预平台切题和音频组件初始化。
+- 保留“填入推荐文本”后的主动失焦能力（`data-api.js`），仅在用户点击填入成功后触发，不影响平台自动切题流程。
+
 ## 2026-04-29
 
 - 修复 DataBaker 总表导出分页大小下拉稳定性：`group-export.js` 切换 `100条/页` 前先点击 `.el-pagination__sizes .el-select` 内的 `.el-input.el-input--mini.el-input--suffix`，等待 `.el-select-dropdown.el-popper` 渲染后再选择 `100条/页`。

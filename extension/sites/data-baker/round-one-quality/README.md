@@ -44,7 +44,7 @@ round-one-quality/
 - `ai-recommendation.js`：调用本地后端 `POST /api/data-baker/round-one-quality/ai/recommend`，请求体只传必要字段。
 - `ui-panel.js`：注入按钮和推荐结果卡，支持复制和用户点击后填入推荐文本。
 - `page-size-controller.js`：在详情页有限重试点击分页大小选择器，按设置切换到目标每页条数。
-- `shortcuts.js`：监听 DataBaker 专属快捷键；先匹配已配置快捷键再处理输入焦点，普通输入不拦截。被动焦点恢复（平台按钮、active 题目变化）不会打断正在编辑输入框；命中已配置快捷键时按强制模式退出输入框再执行动作。
+- `shortcuts.js`：监听 DataBaker 专属快捷键；先匹配已配置快捷键再处理输入焦点，普通输入不拦截。为避免影响音频播放器与波形组件，被动焦点恢复默认关闭；仅命中已配置快捷键时按强制模式退出输入框再执行动作。
 - `group-export.js`：仅在 `group/detail?taskId=...` 页面注入“导出数据总表”按钮；切换分页大小时会先点击 `.el-pagination__sizes .el-select` 内的 `.el-input.el-input--mini.el-input--suffix`，等待下拉出现后选择 `100条/页`，再通过跳页控件逐页触发平台原生查询并等待 MAIN world 的 `queryByCondition` 响应消息后合并下载 CSV。
 - `page-world/network-observer.js`：运行在 MAIN world，观察 `queryCollectStatementByCondtion`（一检详情页）和 `queryByCondition`（group/detail）响应并以内存消息通知 ISOLATED world。
 
@@ -59,9 +59,8 @@ round-one-quality/
 - 启用 / 关闭自动每页条数，默认启用，默认目标为 `50条/页`，可选 `5条/页`、`10条/页`、`20条/页`、`50条/页`、`100条/页`。
 - 配置快捷键，默认全部未设置。支持动作：AI 推荐文本、复制 AI 听音文本、复制 AI 推荐文本、填入推荐文本、忽略 AI 推荐结果、句子判定合格 / 不合格、任务判定通过 / 部分驳回 / 全部驳回。
 - 普通输入不会被快捷键拦截；如果焦点停留在“本句话文本”输入框，只有按下已配置快捷键时才会自动 blur 输入框并执行动作。
-- 点击左侧 `.sentence-list .sentence-item` 切换题目后，脚本会在不阻止平台点击行为的前提下延迟恢复页面焦点，避免必须手动再点空白区域才能继续使用快捷键。
-- 点击平台“确定”“合格”“不合格”“通过”“部分驳回”“全部驳回”“上一条”“下一条”等动作按钮后，或平台自动切换 `.sentence-list .sentence-item.active` 后，脚本会通过 blur + 隐藏焦点哨兵恢复快捷键焦点；不模拟点击页面空白处，不绕过 disabled。
-- 用户手动点击“本句话文本”输入框后，1200ms 内被动焦点恢复会跳过，不会再把光标抢走。
+- 点击左侧 `.sentence-list .sentence-item` 切换题目、点击平台动作按钮、或平台自动切换 `.sentence-list .sentence-item.active` 后，脚本不再做被动 blur/focus，避免干扰音频区域加载。
+- 只有按下已配置快捷键时才会主动退出输入框并执行动作；普通输入与平台切题流程保持原生行为，不绕过 disabled。
 - “填入推荐文本”成功后会立即并延迟退出“本句话文本”输入框，方便继续使用快捷键；不会自动保存、自动提交或自动判定。
 
 扩展前端只保存接口地址、超时时间、开关、分页和快捷键设置，不保存 API Key、access token、cookie 或完整 `audioUrl`。模型密钥仍由后端通过 `config/env/ai.env` 读取。
