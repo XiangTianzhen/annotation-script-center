@@ -28,24 +28,30 @@ function estimateTokenCost(usage, promptPrice, completionPrice) {
 
 function estimateCost(input) {
   const effectiveTime = safeNumber(input?.effectiveTime);
+  const listenUsage = input?.listenUsage && typeof input.listenUsage === "object" ? input.listenUsage : {};
+  const compareUsage = input?.compareUsage && typeof input.compareUsage === "object" ? input.compareUsage : {};
   const effectiveRevenueCny = (effectiveTime / 3600) * EFFECTIVE_REVENUE_CNY_PER_HOUR;
   const listenCost = estimateTokenCost(
-    input?.listenUsage,
+    listenUsage,
     TOKEN_PRICE_CNY_PER_1K.listenPrompt,
     TOKEN_PRICE_CNY_PER_1K.listenCompletion
   );
   const compareCost = estimateTokenCost(
-    input?.compareUsage,
+    compareUsage,
     TOKEN_PRICE_CNY_PER_1K.comparePrompt,
     TOKEN_PRICE_CNY_PER_1K.compareCompletion
   );
   const estimatedCostCny = listenCost + compareCost;
+  const totalTokens = safeNumber(listenUsage.totalTokens) + safeNumber(compareUsage.totalTokens);
+  const note = totalTokens > 0
+    ? ESTIMATE_NOTE
+    : ESTIMATE_NOTE + " 模型 usage 未返回或未解析，成本可能低估。";
 
   return {
     estimatedCostCny: roundMoney(estimatedCostCny),
     effectiveRevenueCny: roundMoney(effectiveRevenueCny),
     grossProfitCny: roundMoney(effectiveRevenueCny - estimatedCostCny),
-    note: ESTIMATE_NOTE,
+    note,
   };
 }
 

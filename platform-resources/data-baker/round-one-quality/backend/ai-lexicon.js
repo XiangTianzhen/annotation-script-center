@@ -217,6 +217,117 @@ function formatEntry(entry) {
   return "- 对应华语：" + normalizeText(entry.mandarin) + "；建议用字：" + normalizeText(entry.suggested);
 }
 
+function getFirstSuggestedTerm(value) {
+  return normalizeText(value)
+    .split(/[、，,；;\/\s]+/)
+    .map(normalizeText)
+    .filter(Boolean)[0] || "";
+}
+
+function addRewriteRule(rules, seen, mandarin, suggested, source) {
+  const to = getFirstSuggestedTerm(suggested);
+  if (!to) {
+    return;
+  }
+
+  splitTerms(mandarin).forEach(function (from) {
+    if (!from || from === to) {
+      return;
+    }
+    const key = from + "\u0000" + to;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    rules.push({
+      from,
+      to,
+      source,
+      reason: "命中闽南方言词表",
+    });
+  });
+}
+
+function buildRewriteRules() {
+  const state = getLexiconState();
+  const rules = [];
+  const seen = new Set();
+
+  BASE_ENTRIES.forEach(function (entry) {
+    addRewriteRule(rules, seen, entry.mandarin, entry.suggested, "base");
+  });
+
+  state.rows.forEach(function (entry) {
+    addRewriteRule(rules, seen, entry.mandarin, entry.suggested, "csv");
+  });
+
+  return rules.sort(function (left, right) {
+    return right.from.length - left.from.length;
+  });
+}
+
+function countOccurrences(text, searchText) {
+  if (!searchText) {
+    return 0;
+  }
+  let count = 0;
+  let index = 0;
+  while (index < text.length) {
+    const foundIndex = text.indexOf(searchText, index);
+    if (foundIndex < 0) {
+      break;
+    }
+    count += 1;
+    index = foundIndex + searchText.length;
+  }
+  return count;
+}
+
+function applyLexiconRewrite(text, options) {
+  const source = options && typeof options === "object" ? options : {};
+  const mode = String(source.mode || "aggressive").trim() || "aggressive";
+  const originalText = String(text || "");
+  if (mode === "off" || !originalText) {
+    return {
+      text: originalText,
+      changed: false,
+      changes: [],
+    };
+  }
+
+  let rewrittenText = originalText;
+  const changes = [];
+  buildRewriteRules().forEach(function (rule) {
+    if (!rule.from || !rule.to || rewrittenText.indexOf(rule.from) < 0) {
+      return;
+    }
+    if (rewrittenText.indexOf(rule.to) >= 0) {
+      return;
+    }
+
+    const occurrenceCount = countOccurrences(rewrittenText, rule.from);
+    if (occurrenceCount <= 0) {
+      return;
+    }
+
+    rewrittenText = rewrittenText.split(rule.from).join(rule.to);
+    for (let index = 0; index < occurrenceCount; index += 1) {
+      changes.push({
+        from: rule.from,
+        to: rule.to,
+        source: rule.source,
+        reason: rule.reason,
+      });
+    }
+  });
+
+  return {
+    text: rewrittenText,
+    changed: rewrittenText !== originalText,
+    changes,
+  };
+}
+
 function buildLexiconContext(options) {
   const source = options && typeof options === "object" ? options : {};
   const state = getLexiconState();
@@ -277,6 +388,7 @@ function buildLexiconContext(options) {
 
 module.exports = {
   MINNAN_LEXICON_PATH,
+  applyLexiconRewrite,
   buildLexiconContext,
   loadMinnanLexicon,
   parseLexiconCsv,

@@ -228,8 +228,8 @@ DataBaker AI 推荐文本说明：
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
 - 听音模型请求使用 Qwen-Omni `input_audio` 格式，`data` 为完整音频 URL，`format` 从 URL pathname 后缀推断；听音请求不传 `response_format`，只在 prompt 中要求 JSON 输出。
 - 如果真实调用返回 HTTP 400，先查看前端错误中的后端脱敏 `summary`，再确认音频 URL 可访问、`requestListen` 使用 `input_audio`、`config/env/ai.env` 中 `DASHSCOPE_API_KEY` 正确；可用 `DATABAKER_AI_MOCK=1` 排除前端和路由问题。
-- 后端已接入闽南方言字词表 CSV：`platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv`，只作为 prompt 上下文辅助，不强行替换文本；词表缺失时后端仍可运行但效果会下降。
-- 调用日志同时写入 JSONL 和 CSV；JSONL 保留英文 key 方便程序处理，CSV 新建时使用中文表头。
+- 后端已接入闽南方言字词表 CSV：`platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv`，既作为 prompt 上下文，也会默认以 `aggressive` 模式对最终推荐文本做词表强替换；该能力只影响推荐文本展示，不会自动保存或提交。
+- 调用日志同时写入 JSONL 和 CSV；JSONL 保留英文 key 方便程序处理，CSV 新建时使用中文表头，并记录词表改写明细、听音阶段耗时和对比阶段耗时。`mock=true` 的耗时只代表本地链路，不代表真实 Qwen 调用耗时。
 - 推荐结果只展示给用户；“填入推荐文本”必须由用户点击触发，且只能写入可安全定位的“本句话文本”输入框。
 - 第一版默认模型：听音 `qwen3.5-omni-flash`，对比 `qwen3.5-plus`。
 
@@ -240,6 +240,7 @@ DataBaker AI 相关环境变量（后端）：
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：请求超时，默认 `120000`。
 - `DATABAKER_AI_MOCK`：设为 `1` 时走 mock。
+- `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
 

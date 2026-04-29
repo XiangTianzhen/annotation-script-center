@@ -12,6 +12,8 @@ const CSV_COLUMNS = [
   { key: "requestId", header: "请求ID" },
   { key: "success", header: "是否成功" },
   { key: "durationMs", header: "耗时毫秒" },
+  { key: "listenDurationMs", header: "听音耗时毫秒" },
+  { key: "compareDurationMs", header: "对比耗时毫秒" },
   { key: "annotatorName", header: "标注员" },
   { key: "collectId", header: "采集ID" },
   { key: "itemId", header: "记录ID" },
@@ -25,6 +27,11 @@ const CSV_COLUMNS = [
   { key: "isChanged", header: "是否变更" },
   { key: "needHumanReview", header: "需要人工复核" },
   { key: "decision", header: "决策" },
+  { key: "lexiconEnabled", header: "是否启用词表" },
+  { key: "lexiconRewriteMode", header: "词表替换模式" },
+  { key: "lexiconRewriteChanged", header: "词表是否改写" },
+  { key: "lexiconRewriteChangeCount", header: "词表改写数量" },
+  { key: "lexiconRewriteChanges", header: "词表改写明细" },
   { key: "listenConfidence", header: "听音置信度" },
   { key: "compareConfidence", header: "对比置信度" },
   { key: "listenModel", header: "听音模型" },
@@ -74,6 +81,14 @@ function safeBoolean(value) {
   return value === true;
 }
 
+function safeJsonStringify(value) {
+  try {
+    return JSON.stringify(value === undefined ? null : value);
+  } catch (error) {
+    return "";
+  }
+}
+
 function parseAudioHostname(audioUrl) {
   try {
     return new URL(String(audioUrl || "")).hostname || "";
@@ -96,12 +111,27 @@ function sanitizeForLog(record) {
   const compareUsage = usage.compare && typeof usage.compare === "object" ? usage.compare : {};
   const cost = response.cost && typeof response.cost === "object" ? response.cost : {};
   const model = response.model && typeof response.model === "object" ? response.model : {};
+  const lexicon = response.lexicon && typeof response.lexicon === "object" ? response.lexicon : {};
+  const timing = response.timing && typeof response.timing === "object" ? response.timing : {};
+  const rewriteChanges = Array.isArray(lexicon.rewriteChanges)
+    ? lexicon.rewriteChanges.map(function (item) {
+        const change = item && typeof item === "object" ? item : {};
+        return {
+          from: safeString(change.from),
+          to: safeString(change.to),
+          source: safeString(change.source),
+          reason: safeString(change.reason),
+        };
+      })
+    : [];
 
   return {
     createdAt: safeString(source.createdAt || new Date().toISOString()),
     requestId: safeString(source.requestId),
     success: safeBoolean(source.success),
     durationMs: safeNumber(source.durationMs),
+    listenDurationMs: safeNumber(source.listenDurationMs || timing.listenDurationMs),
+    compareDurationMs: safeNumber(source.compareDurationMs || timing.compareDurationMs),
     annotatorName: safeString(request.annotatorName),
     collectId: safeString(request.collectId),
     itemId: safeString(request.itemId),
@@ -115,6 +145,11 @@ function sanitizeForLog(record) {
     isChanged: response.isChanged === true,
     needHumanReview: response.needHumanReview === true,
     decision: safeString(response.decision),
+    lexiconEnabled: lexicon.enabled === true,
+    lexiconRewriteMode: safeString(lexicon.rewriteMode),
+    lexiconRewriteChanged: lexicon.rewriteChanged === true,
+    lexiconRewriteChangeCount: rewriteChanges.length,
+    lexiconRewriteChanges: safeJsonStringify(rewriteChanges),
     listenConfidence: safeNumber(response.listenConfidence),
     compareConfidence: safeNumber(response.compareConfidence),
     listenModel: safeString(model.listen || source.listenModel),

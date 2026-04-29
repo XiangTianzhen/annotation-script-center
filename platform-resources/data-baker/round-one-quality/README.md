@@ -84,7 +84,7 @@ DataBaker AI 推荐接口：
 platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 ```
 
-词表只作为 Qwen prompt 上下文辅助，用于帮助模型在“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“他/伊”等场景中选择更合适的字形；它不会强行替换页面文本，也不会触发自动提交、自动保存或批量识别。词表缺失时后端仍可运行，但推荐文本效果会下降。后续更新词表时直接替换该 CSV 文件即可。
+词表既作为 Qwen prompt 上下文，也会默认以 `aggressive` 模式对最终推荐文本做强替换，用于帮助模型在“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“他/伊”等场景中选择更合适的字形。强替换只影响推荐文本展示，不会触发自动提交、自动保存或批量识别；如需关闭，可设置 `DATABAKER_AI_LEXICON_REWRITE_MODE=off`。词表缺失时后端仍可运行，但推荐文本效果会下降。后续更新词表时直接替换该 CSV 文件即可。
 
 环境变量：
 
@@ -93,6 +93,7 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_MOCK`：设为 `1` 时返回 mock 结果。
+- `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
 

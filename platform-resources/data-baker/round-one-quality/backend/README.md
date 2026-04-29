@@ -34,6 +34,7 @@
 - `DASHSCOPE_API_KEY`：DashScope API Key，真实调用必需；统一后端启动时默认从仓库根目录 `config/env/ai.env` 自动读取。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_MOCK`：设为 `1` 时走 mock，可直接写入 `config/env/ai.env`。
+- `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
 
@@ -60,7 +61,8 @@
 5. 结合 `pageText` 和 `heardText` 重新筛选词表上下文。
 6. 调用对比模型 `qwen3.5-plus`，输入 `pageText`、`heardText`、词表上下文和规则。
 7. 解析对比 JSON：`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`。
-8. 组装统一响应，包含推荐文本、听音文本、变更标记、置信度、模型、usage、费用估算、词表启用状态和 `requestId`。
+8. 默认使用 `aggressive` 模式对最终 `recommendedText` 做闽南方言词表强替换；替换后强制 `needHumanReview=true`。
+9. 组装统一响应，包含推荐文本、听音文本、变更标记、置信度、模型、usage、费用估算、词表启用 / 改写状态、阶段耗时和 `requestId`。
 
 听音模型请求中的音频片段格式：
 
@@ -86,7 +88,12 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 
 CSV 表头至少包含 `编号`、`建议用字`、`对应华语`。后端使用原生 Node.js 解析 CSV，支持 UTF-8 BOM、双引号包裹和双引号转义。
 
-词表只作为 prompt 上下文辅助，不会强行替换页面文本或听音文本。听音 prompt 会先注入基础易混规则，再按 `pageText` 筛选最多 40 条上下文；对比 prompt 会结合 `pageText` 与 `heardText` 筛选最多 60 条上下文。词表缺失时后端仍可运行，但会跳过词表上下文，推荐效果可能下降。后续更新词表时只需要替换 CSV 文件，不要把词表内容硬编码进 JS。
+词表有两层用途：
+
+1. prompt 上下文：听音 prompt 会先注入基础易混规则，再按 `pageText` 筛选最多 40 条上下文；对比 prompt 会结合 `pageText` 与 `heardText` 筛选最多 60 条上下文。
+2. 最终推荐文本强替换：默认 `aggressive`，按“对应华语 -> 建议用字”做长词优先替换，例如 `他 -> 伊`、`喜欢 -> 欢喜`、`的 -> 诶`。
+
+强替换只修改返回给前端展示的 `recommendedText`，不会修改原始 `pageText` / `heardText`，也不会触发自动保存、自动提交、批量识别或流转。可通过 `DATABAKER_AI_LEXICON_REWRITE_MODE=off` 关闭强替换，只保留 prompt 上下文。词表缺失时后端仍可运行，但会跳过 CSV 上下文，推荐效果可能下降。后续更新词表时只需要替换 CSV 文件，不要把词表内容硬编码进 JS。
 
 ## 真实调用排查
 
@@ -106,7 +113,9 @@ CSV 表头至少包含 `编号`、`建议用字`、`对应华语`。后端使用
 - `platform-resources/data-baker/round-one-quality/backend/logs/recommend-calls.jsonl`
 - `platform-resources/data-baker/round-one-quality/backend/logs/recommend-calls.csv`
 
-可通过 `DATABAKER_AI_CALL_LOG_DIR` 覆盖日志目录。JSONL 保留英文 key，便于后续程序处理；CSV 新建时写入中文表头，字段包含标注员、token、费用、有效时间、音频总时长、mock 状态和错误信息。已有旧 CSV 文件第一版不自动迁移，删除旧文件后会按中文表头重新创建。
+可通过 `DATABAKER_AI_CALL_LOG_DIR` 覆盖日志目录。JSONL 保留英文 key，便于后续程序处理；CSV 新建时写入中文表头，字段包含标注员、token、费用、有效时间、音频总时长、mock 状态、词表改写明细、听音阶段耗时、对比阶段耗时和错误信息。已有旧 CSV 文件第一版不自动迁移，删除旧文件后会按中文表头重新创建。
+
+`mock=true` 的耗时只代表本地 mock 链路，不代表真实 Qwen 听音 / 对比耗时；真实调用应以 `mock=false` 记录中的 `listenDurationMs`、`compareDurationMs` 和总 `durationMs` 为准。
 
 后端日志只允许输出：
 
@@ -133,6 +142,7 @@ CSV 表头至少包含 `编号`、`建议用字`、`对应华语`。后端使用
 - 收入估算：`effectiveTime / 3600 * 350`
 - AI 成本：按 usage token 估算。
 - 价格表在 `ai-cost.js` 中维护，并标注“按当前测试估算，可后续调整”。
+- 如果模型 usage 未返回或未解析，`cost.note` 会提示成本可能低估。
 
 ## 有效音频裁剪
 

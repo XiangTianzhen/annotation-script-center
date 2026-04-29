@@ -93,6 +93,11 @@
       "  color: #b45309;",
       "  font-weight: 700;",
       "}",
+      "[" + ROOT_ATTR + "] .asr-edge-db-lexicon-list {",
+      "  margin: 6px 0 8px 120px;",
+      "  color: #0f766e;",
+      "  overflow-wrap: anywhere;",
+      "}",
       "[" + ROOT_ATTR + "] .asr-edge-db-foot {",
       "  margin-top: 8px;",
       "  color: #64748b;",
@@ -176,6 +181,8 @@
       currentResult = result || null;
       const data = result || {};
       const model = data.model || {};
+      const lexicon = data.lexicon && typeof data.lexicon === "object" ? data.lexicon : {};
+      const rewriteChanges = Array.isArray(lexicon.rewriteChanges) ? lexicon.rewriteChanges : [];
       const resultWrap = document.createElement("div");
       resultWrap.className = "asr-edge-db-result";
 
@@ -202,8 +209,26 @@
           String(model.compare || "qwen3.5-plus")
       );
       createRow(grid, "决策", data.decision || "");
+      if (lexicon.rewriteChanged === true) {
+        createRow(grid, "词表替换", "已替换 " + String(rewriteChanges.length || 0) + " 处");
+      }
       createRow(grid, "requestId", data.requestId || "");
       resultWrap.appendChild(grid);
+
+      if (lexicon.rewriteChanged === true && rewriteChanges.length > 0) {
+        const lexiconList = document.createElement("div");
+        lexiconList.className = "asr-edge-db-lexicon-list";
+        lexiconList.textContent = rewriteChanges
+          .slice(0, 8)
+          .map(function (change) {
+            return String(change.from || "") + " → " + String(change.to || "");
+          })
+          .filter(function (text) {
+            return text.trim() !== "→";
+          })
+          .join("；");
+        resultWrap.appendChild(lexiconList);
+      }
 
       const review = document.createElement("div");
       review.className = "asr-edge-db-review";

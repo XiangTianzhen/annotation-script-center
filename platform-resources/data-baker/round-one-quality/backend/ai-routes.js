@@ -5,7 +5,7 @@ const { DEFAULT_COMPARE_MODEL, DEFAULT_LISTEN_MODEL, getClientConfig, requestCom
   require("./ai-client-qwen");
 const { estimateCost } = require("./ai-cost");
 const { appendAiCallLog, getLogDir } = require("./ai-call-log");
-const { buildLexiconContext } = require("./ai-lexicon");
+const { applyLexiconRewrite, buildLexiconContext } = require("./ai-lexicon");
 const { buildComparePrompt, buildListenPrompt, RULE_VERSION } = require("./ai-prompts");
 const {
   buildRecommendResponse,
@@ -88,6 +88,11 @@ function normalizeAnnotatorName(value) {
   return text.slice(0, 40);
 }
 
+function getLexiconRewriteMode() {
+  const mode = String(process.env.DATABAKER_AI_LEXICON_REWRITE_MODE || "aggressive").trim();
+  return mode === "off" ? "off" : "aggressive";
+}
+
 function normalizeRecommendRequest(body) {
   const source = body && typeof body === "object" ? body : {};
   const collectId = String(source.collectId || "").trim();
@@ -165,6 +170,8 @@ async function handleRecommend(request, response) {
   let requestId = createRequestId();
   let recommendRequest = null;
   let config = null;
+  let listenDurationMs = 0;
+  let compareDurationMs = 0;
   try {
     const rawBody = await readRequestBody(request);
     let body = {};
@@ -196,10 +203,16 @@ async function handleRecommend(request, response) {
       limit: 40,
     });
     const listenPrompt = buildListenPrompt(recommendRequest, listenLexiconContext);
-    const listenResult = await requestListen(recommendRequest, listenPrompt, {
-      model: config.listenModel,
-      timeoutMs: config.timeoutMs,
-    });
+    const listenStartedAtMs = Date.now();
+    let listenResult = null;
+    try {
+      listenResult = await requestListen(recommendRequest, listenPrompt, {
+        model: config.listenModel,
+        timeoutMs: config.timeoutMs,
+      });
+    } finally {
+      listenDurationMs = Date.now() - listenStartedAtMs;
+    }
     const listenJson = parseModelJsonText(listenResult.rawText, requestId);
     const normalizedListen = normalizeListenResponse(listenJson);
 
@@ -213,23 +226,40 @@ async function handleRecommend(request, response) {
       normalizedListen.heardText,
       compareLexiconContext
     );
-    const compareResult = await requestCompare(
-      recommendRequest,
-      comparePrompt,
-      normalizedListen.heardText,
-      {
-        model: config.compareModel,
-        timeoutMs: config.timeoutMs,
-      }
-    );
+    const compareStartedAtMs = Date.now();
+    let compareResult = null;
+    try {
+      compareResult = await requestCompare(
+        recommendRequest,
+        comparePrompt,
+        normalizedListen.heardText,
+        {
+          model: config.compareModel,
+          timeoutMs: config.timeoutMs,
+        }
+      );
+    } finally {
+      compareDurationMs = Date.now() - compareStartedAtMs;
+    }
     const compareJson = parseModelJsonText(compareResult.rawText, requestId);
     const normalizedCompare = normalizeCompareResponse(compareJson, {
       pageText: recommendRequest.pageText,
       heardText: normalizedListen.heardText,
     });
+    const rewriteMode = getLexiconRewriteMode();
+    const rewriteResult = applyLexiconRewrite(normalizedCompare.recommendedText, {
+      pageText: recommendRequest.pageText,
+      heardText: normalizedListen.heardText,
+      mode: rewriteMode,
+    });
+    if (rewriteResult.changed) {
+      normalizedCompare.recommendedText = rewriteResult.text;
+      normalizedCompare.needHumanReview = true;
+    }
 
     const listenUsage = normalizeUsage(listenResult.usage);
     const compareUsage = normalizeUsage(compareResult.usage);
+    const totalDurationMs = Date.now() - startedAtMs;
     const responseData = buildRecommendResponse({
       requestId,
       request: recommendRequest,
@@ -246,15 +276,25 @@ async function handleRecommend(request, response) {
       }),
     });
     responseData.lexicon = {
-      enabled: Boolean(listenLexiconContext.enabled || compareLexiconContext.enabled),
+      enabled: Boolean(listenLexiconContext.enabled || compareLexiconContext.enabled || rewriteMode !== "off"),
+      rewriteMode,
       matchedCount: Number(compareLexiconContext.matchedCount || 0),
+      rewriteChanged: rewriteResult.changed === true,
+      rewriteChanges: rewriteResult.changes,
+    };
+    responseData.timing = {
+      listenDurationMs,
+      compareDurationMs,
+      totalDurationMs,
     };
 
     appendCallLogSafe({
       createdAt: new Date().toISOString(),
       requestId,
       success: true,
-      durationMs: Date.now() - startedAtMs,
+      durationMs: totalDurationMs,
+      listenDurationMs,
+      compareDurationMs,
       request: recommendRequest,
       response: responseData,
       listenModel: listenResult.model,
@@ -287,6 +327,8 @@ async function handleRecommend(request, response) {
       requestId,
       success: false,
       durationMs: Date.now() - startedAtMs,
+      listenDurationMs,
+      compareDurationMs,
       request: recommendRequest || {},
       response: {},
       listenModel: config?.listenModel || DEFAULT_LISTEN_MODEL,
