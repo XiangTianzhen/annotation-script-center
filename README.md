@@ -83,7 +83,7 @@ Chrome：
 - 快捷键配置默认全部未设置，可手动绑定 AI 推荐、复制听音文本、复制推荐文本、填入、忽略、句子判定和任务判定动作；普通输入不拦截，按下已配置快捷键时会先退出输入焦点再执行。
 - DataBaker 快捷键运行时会先判断按键是否命中已配置动作，未命中时不阻止输入；点击左侧题目、平台动作按钮或平台自动切换 active 题目后会延迟恢复页面焦点，避免必须手动点击空白区域才能继续使用快捷键。
 - DataBaker 焦点恢复分为被动恢复和强制恢复：被动恢复不会打断正在编辑的 `input/textarea/select/contenteditable`，且用户最近 1200ms 手动点入输入框时会跳过恢复；命中已配置快捷键时仍可强制失焦并执行动作。
-- DataBaker `group/detail?taskId=...` 页面新增“导出数据总表”按钮，点击后在当前页面同源请求 `/cms/tbAudioUserTask/queryByCondition`（`credentials: include`）按 `taskId` 全量翻页并下载 CSV（含 BOM）；默认不依赖本地后端和账号密码配置。
+- DataBaker `group/detail?taskId=...` 页面提供“导出当前页数据”按钮。导出不再由扩展直接 `fetch queryByCondition`，而是触发页面原生查询并由 MAIN world 拦截响应后导出当前页 CSV（含 BOM）；默认不依赖本地后端和账号密码配置。
 
 扩展前端只保存接口地址、超时时间、开关、分页和快捷键设置，不保存 API Key、cookie、access token 或完整音频 URL。真实模型密钥仍由后端通过 `config/env/ai.env` 读取。
 
@@ -160,10 +160,10 @@ http://127.0.0.1:3333
 
 DataBaker 任务总表导出默认模式（扩展前端）：
 
-- 默认推荐：前端同源导出。用户在 DataBaker 页面已登录时，扩展直接使用当前登录态请求 `GET /cms/tbAudioUserTask/queryByCondition`，自动翻页并本地下载 CSV。
-- 前端导出不需要账号密码配置，也不需要本地后端在线。
-- CSV 默认 `pageSize=100`，并带 UTF-8 BOM，避免 Excel 中文乱码。
-- 导出过程和 CSV 内容不写入 `access_token`、`refresh_token`、cookie。
+- 平台对扩展直接请求 `queryByCondition` 可能返回 `code=51000`。现行方案改为：触发页面原生请求，再由 MAIN world 拦截响应导出。
+- 第一版默认导出当前页数据，文件名包含页码；不依赖本地后端在线。
+- 当前导出不需要账号密码配置，CSV 带 UTF-8 BOM，避免 Excel 中文乱码。
+- 导出过程和 CSV 内容不写入 `access_token`、`refresh_token`、cookie、authorization。
 
 ## 统一 AI 环境配置文件
 

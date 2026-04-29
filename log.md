@@ -2,6 +2,10 @@
 
 ## 2026-04-29
 
+- 修复 DataBaker group/detail 导出 `code=51000`：`group-export.js` 不再直接 `fetch /cms/tbAudioUserTask/queryByCondition`，改为触发页面原生查询并等待 MAIN world 拦截响应后导出。
+- 扩展 `page-world/network-observer.js`：新增 `queryByCondition` 拦截、`DATABAKER_ROUND_ONE_QUALITY_GROUP_QUERY_RESPONSE` 消息类型，以及 `window.__ASREdgeDataBakerRoundOneGroupQueryCache`（最多 20 条）缓存；保留原有 `queryCollectStatementByCondtion` 逻辑不变。
+- 导出流程第一版调整为“当前页导出”：按钮文案改为“导出当前页数据”，文件名包含 `pageNum`；支持查询按钮触发、分页触发和 `location.reload()` 兜底，并通过 `sessionStorage` 恢复等待状态。
+
 - 删除 DataBaker 后端自动导出链路：移除 `export-auth.js`、`export-client.js`、`export-csv.js`、`export-routes.js`，并在 `backend/index.js` 取消导出路由注册，仅保留 AI 推荐文本路由。
 - 清理导出登录配置模板：`config/env/ai.env.example` 删除全部 `DATABAKER_EXPORT_*`、`ticket`、`nounce` 相关变量，避免继续配置账号密码或 token 链路。
 - 清理文档现行说明：根 README、DataBaker 扩展 README、平台 README、后端 README 全部移除后端导出接口与自动登录说明，统一为前端同源导出（`/cms/tbAudioUserTask/queryByCondition`、`credentials: include`、默认 `pageSize=100`、CSV UTF-8 BOM 本地下载）。

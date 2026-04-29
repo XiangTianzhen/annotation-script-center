@@ -1,8 +1,11 @@
 (function () {
   const SOURCE = "ASR_EDGE_DATABAKER_ROUND_ONE_QUALITY_PAGE";
-  const MESSAGE_TYPE = "DATABAKER_ROUND_ONE_QUALITY_COLLECT_RESPONSE";
-  const TARGET_PATH = "/cms/tbAudioUserTask/queryCollectStatementByCondtion";
-  const CACHE_LIMIT = 8;
+  const COLLECT_MESSAGE_TYPE = "DATABAKER_ROUND_ONE_QUALITY_COLLECT_RESPONSE";
+  const GROUP_MESSAGE_TYPE = "DATABAKER_ROUND_ONE_QUALITY_GROUP_QUERY_RESPONSE";
+  const COLLECT_PATH = "/cms/tbAudioUserTask/queryCollectStatementByCondtion";
+  const GROUP_PATH = "/cms/tbAudioUserTask/queryByCondition";
+  const COLLECT_CACHE_LIMIT = 8;
+  const GROUP_CACHE_LIMIT = 20;
 
   if (window.__ASREdgeDataBakerRoundOneNetworkObserverInstalled) {
     return;
@@ -10,39 +13,65 @@
   window.__ASREdgeDataBakerRoundOneNetworkObserverInstalled = true;
 
   const state = {
-    entries: [],
+    collectEntries: [],
+    groupEntries: [],
   };
 
-  function isTargetUrl(rawUrl) {
+  function resolveTarget(rawUrl) {
     try {
       const url = new URL(String(rawUrl || ""), location.href);
-      return url.hostname === location.hostname && url.pathname === TARGET_PATH;
+      if (url.hostname !== location.hostname) {
+        return null;
+      }
+      if (url.pathname === COLLECT_PATH) {
+        return { path: COLLECT_PATH, kind: "collect", url: url };
+      }
+      if (url.pathname === GROUP_PATH) {
+        return { path: GROUP_PATH, kind: "group", url: url };
+      }
+      return null;
     } catch (error) {
-      return false;
+      return null;
     }
   }
 
-  function readParams(rawUrl) {
-    try {
-      const url = new URL(String(rawUrl || ""), location.href);
-      return {
-        collectId: String(url.searchParams.get("collectId") || ""),
-        pageNum: Number(url.searchParams.get("pageNum") || 1) || 1,
-        pageSize: Number(url.searchParams.get("pageSize") || 10) || 10,
-        audioText: String(url.searchParams.get("audioText") || ""),
-        sentenceNumber: String(url.searchParams.get("sentenceNumber") || ""),
-        vadStatus: String(url.searchParams.get("vadStatus") || ""),
-      };
-    } catch (error) {
-      return {
-        collectId: "",
-        pageNum: 1,
-        pageSize: 10,
-        audioText: "",
-        sentenceNumber: "",
-        vadStatus: "",
-      };
+  function toPositiveNumber(value, fallbackValue) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return fallbackValue;
     }
+    return Math.floor(parsed);
+  }
+
+  function readCollectParams(url) {
+    return {
+      collectId: String(url.searchParams.get("collectId") || ""),
+      pageNum: toPositiveNumber(url.searchParams.get("pageNum"), 1),
+      pageSize: toPositiveNumber(url.searchParams.get("pageSize"), 10),
+      audioText: String(url.searchParams.get("audioText") || ""),
+      sentenceNumber: String(url.searchParams.get("sentenceNumber") || ""),
+      vadStatus: String(url.searchParams.get("vadStatus") || ""),
+    };
+  }
+
+  function readGroupParams(url) {
+    return {
+      taskId: String(url.searchParams.get("taskId") || ""),
+      pageNum: toPositiveNumber(url.searchParams.get("pageNum"), 1),
+      pageSize: toPositiveNumber(url.searchParams.get("pageSize"), 10),
+      collectName: String(url.searchParams.get("collectName") || ""),
+      mobile: String(url.searchParams.get("mobile") || ""),
+      status: String(url.searchParams.get("status") || ""),
+      startTime: String(url.searchParams.get("startTime") || ""),
+      endTime: String(url.searchParams.get("endTime") || ""),
+      retrieveStatus: String(url.searchParams.get("retrieveStatus") || ""),
+      forceRecover: String(url.searchParams.get("forceRecover") || ""),
+      textNumber: String(url.searchParams.get("textNumber") || ""),
+      checkName: String(url.searchParams.get("checkName") || ""),
+      acceptCheckName: String(url.searchParams.get("acceptCheckName") || ""),
+      noPassType: String(url.searchParams.get("noPassType") || ""),
+      submitOrder: String(url.searchParams.get("submitOrder") || ""),
+    };
   }
 
   function extractRecords(payload) {
@@ -86,7 +115,7 @@
     return Array.isArray(records) ? records.length : 0;
   }
 
-  function normalizeRecord(record, index) {
+  function normalizeCollectRecord(record, index) {
     const sourceRecord = record && typeof record === "object" ? record : {};
     return {
       id: sourceRecord.id,
@@ -109,12 +138,12 @@
     };
   }
 
-  function notify(entry) {
+  function notify(type, entry) {
     try {
       window.postMessage(
         {
           source: SOURCE,
-          type: MESSAGE_TYPE,
+          type: type,
           payload: entry,
         },
         location.origin
@@ -124,32 +153,72 @@
     }
   }
 
-  function storeResponse(rawUrl, payload) {
-    const params = readParams(rawUrl);
-    const records = extractRecords(payload).map(normalizeRecord);
+  function storeCollectResponse(url, payload) {
+    const params = readCollectParams(url);
+    const records = extractRecords(payload).map(normalizeCollectRecord);
     const entry = {
       at: Date.now(),
-      params,
+      path: COLLECT_PATH,
+      params: params,
       total: extractTotal(payload, records),
-      records,
+      records: records,
     };
 
-    state.entries.unshift(entry);
-    state.entries = state.entries.slice(0, CACHE_LIMIT);
+    state.collectEntries.unshift(entry);
+    state.collectEntries = state.collectEntries.slice(0, COLLECT_CACHE_LIMIT);
     window.__ASREdgeDataBakerRoundOneCollectCache = {
-      entries: state.entries,
-      latest: state.entries[0] || null,
+      entries: state.collectEntries,
+      latest: state.collectEntries[0] || null,
     };
-    notify(entry);
+    notify(COLLECT_MESSAGE_TYPE, entry);
+  }
+
+  function storeGroupResponse(url, payload) {
+    const params = readGroupParams(url);
+    const data = payload && typeof payload === "object" ? payload.data : null;
+    const records = Array.isArray(data?.list) ? data.list : [];
+    const pageNum = toPositiveNumber(data?.pageNum, params.pageNum || 1);
+    const pageSize = toPositiveNumber(data?.pageSize, params.pageSize || 10);
+    const total = toPositiveNumber(data?.total, records.length);
+    const pages = toPositiveNumber(data?.pages, Math.max(Math.ceil(total / Math.max(pageSize, 1)), 1));
+
+    const entry = {
+      at: Date.now(),
+      path: GROUP_PATH,
+      params: params,
+      code: payload?.code,
+      message: String(payload?.message || ""),
+      success: payload?.success,
+      total: total,
+      pages: pages,
+      pageNum: pageNum,
+      pageSize: pageSize,
+      records: records,
+      rawData: data,
+    };
+
+    state.groupEntries.unshift(entry);
+    state.groupEntries = state.groupEntries.slice(0, GROUP_CACHE_LIMIT);
+    window.__ASREdgeDataBakerRoundOneGroupQueryCache = {
+      entries: state.groupEntries,
+      latest: state.groupEntries[0] || null,
+    };
+    notify(GROUP_MESSAGE_TYPE, entry);
   }
 
   function observeResponse(rawUrl, responseText) {
-    if (!isTargetUrl(rawUrl)) {
+    const target = resolveTarget(rawUrl);
+    if (!target) {
       return;
     }
 
     try {
-      storeResponse(rawUrl, JSON.parse(String(responseText || "{}")));
+      const payload = JSON.parse(String(responseText || "{}"));
+      if (target.kind === "collect") {
+        storeCollectResponse(target.url, payload);
+      } else if (target.kind === "group") {
+        storeGroupResponse(target.url, payload);
+      }
     } catch (error) {
       // ignore non-json or partial responses
     }
@@ -165,9 +234,10 @@
           : args[0] && typeof args[0].url === "string"
             ? args[0].url
             : "";
+      const target = resolveTarget(rawUrl);
 
       return nativeFetch.apply(this, args).then(function (response) {
-        if (!isTargetUrl(rawUrl)) {
+        if (!target) {
           return response;
         }
 
@@ -201,7 +271,7 @@
     NativeXhr.prototype.send = function () {
       const xhr = this;
       const rawUrl = xhr.__asrEdgeDataBakerRequestUrl || "";
-      if (isTargetUrl(rawUrl)) {
+      if (resolveTarget(rawUrl)) {
         xhr.addEventListener("load", function () {
           observeResponse(rawUrl, xhr.responseText);
         });

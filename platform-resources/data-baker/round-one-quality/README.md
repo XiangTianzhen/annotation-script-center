@@ -25,7 +25,7 @@ extension/sites/data-baker/round-one-quality/
 - 专属设置页可配置 AI 推荐接口地址、请求超时时间和 AI 推荐开关。
 - 专属设置页新增自动每页条数，默认启用并设置为 `50条/页`，只点击页面原生分页控件。
 - 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
-- `group/detail?taskId=...` 页面新增“导出数据总表”按钮，默认在当前页面同源请求 `queryByCondition` 全量翻页导出 CSV（使用当前登录态，不依赖本地后端）。
+- `group/detail?taskId=...` 页面新增“导出当前页数据”按钮，触发页面原生请求并由 MAIN world 拦截 `queryByCondition` 响应导出 CSV（使用当前登录态，不依赖本地后端）。
 - 默认推荐接口走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
 - 本机接口 `http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend` 仅用于开发调试。
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
@@ -89,7 +89,7 @@ DataBaker AI 推荐接口：
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 
-导出默认走前端同源链路：扩展直接使用页面登录态请求 `/cms/tbAudioUserTask/queryByCondition`，默认 `pageSize=100` 自动翻页后本地下载 CSV（UTF-8 BOM）。导出不依赖本地后端，也不需要账号密码配置。
+导出默认走前端拦截链路：扩展不直接 `fetch /cms/tbAudioUserTask/queryByCondition`，而是触发页面原生查询并拦截响应。背景是平台可能对扩展直接请求返回 `code=51000`。第一版先稳定导出当前页，CSV 带 UTF-8 BOM，不依赖本地后端和账号密码配置。
 
 ## 闽南方言词表
 
