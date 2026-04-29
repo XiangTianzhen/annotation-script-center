@@ -230,6 +230,7 @@ DataBaker AI 推荐文本说明：
 - 后端原生 `fetch` 请求默认在顶层传 `enable_thinking=false` 尝试关闭 thinking，不再使用 OpenAI SDK 风格的 `extra_body`；如供应商不支持该参数，会自动移除该字段重试一次。
 - 如果真实调用返回 HTTP 400，先查看前端错误中的后端脱敏 `summary`，再确认音频 URL 可访问、`requestListen` 使用 `input_audio`、`config/env/ai.env` 中 `DASHSCOPE_API_KEY` 正确；可用 `DATABAKER_AI_MOCK=1` 排除前端和路由问题。
 - 后端已接入闽南方言字词表 CSV：`platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv`，既作为 prompt 上下文，也会默认以 `aggressive` 模式对最终推荐文本做词表强替换；该能力只影响推荐文本展示，不会自动保存或提交。
+- 词表括号内容全部视为拼音 / 批注，不参与建议用字或对应华语；CSV 单字映射默认跳过强替换，避免误伤 `家庭` 这类复合词，基础高频单字仍由后端 `BASE_ENTRIES` 显式控制。
 - 后端支持 `DATABAKER_AI_PIPELINE_MODE=two_stage|listen_only`：`two_stage` 为听音 + 对比双模型模式；`listen_only` 为极速听音模式，只调用 `qwen3.5-omni-flash` 后做本地词表强替换，仅适合推荐文本展示，不适合自动提交。
 - 调用日志同时写入 JSONL 和 CSV；JSONL 保留英文 key 方便程序处理，CSV 新建时使用中文表头，并记录词表改写明细、听音阶段耗时、对比阶段耗时和流水线模式。`mock=true` 的耗时只代表本地链路，不代表真实 Qwen 调用耗时。
 - 当前页批量预生成暂不默认执行，后续方案是新增“预生成当前页 AI 推荐”按钮，前端读取当前页 10/50 条记录，后端批量接口限制并发，例如 2，并以内存缓存 `itemId -> result`，当前题优先读缓存，避免成本失控。
@@ -267,14 +268,14 @@ cd /var/www/annotation-script-center
 git pull
 ```
 
-2. 确认 Node.js 和 PM2 可用：
+1. 确认 Node.js 和 PM2 可用：
 
 ```bash
 node --version
 pm2 --version
 ```
 
-3. 启动或重启统一后端：
+1. 启动或重启统一后端：
 
 ```bash
 pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center
@@ -287,7 +288,7 @@ pm2 save
 pm2 restart annotation-script-center --update-env
 ```
 
-4. Nginx 反向代理到本机 `3333` 端口，站点配置文件示例：
+1. Nginx 反向代理到本机 `3333` 端口，站点配置文件示例：
 
 ```nginx
 server {
@@ -313,14 +314,14 @@ server {
 }
 ```
 
-5. 检查 Nginx 并重载：
+1. 检查 Nginx 并重载：
 
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-6. 验证接口：
+1. 验证接口：
 
 ```bash
 curl https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/health
@@ -385,3 +386,4 @@ location / {
 - 修改 `manifest.json` 后必须确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 - 修改 JS 后运行 `node --check` 检查变更文件。
 - 完成修改并验证后提交到 git；默认不主动 `git push`。
+

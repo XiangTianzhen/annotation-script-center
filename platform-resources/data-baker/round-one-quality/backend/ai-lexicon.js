@@ -37,6 +37,29 @@ function normalizeHeader(value) {
   return normalizeText(value).replace(/\s+/g, "");
 }
 
+function cleanLexiconTerm(value) {
+  return normalizeText(value)
+    .replace(/（[^）]*）/g, "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[（(][^、，,；;／/\s]*/g, "")
+    .replace(/[A-Za-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜüńňǹḿ]+/gi, "")
+    .replace(/\d+/g, "")
+    .replace(/[-_.：:]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function splitTerms(value) {
+  const text = cleanLexiconTerm(value);
+  if (!text) {
+    return [];
+  }
+  return text
+    .split(/[、，,；;／/\s]+/)
+    .map(cleanLexiconTerm)
+    .filter(Boolean);
+}
+
 function parseCsvRecords(text) {
   const source = String(text || "").replace(/^\uFEFF/, "");
   const records = [];
@@ -116,7 +139,7 @@ function parseLexiconCsv(text) {
       const id = normalizeText(row["编号"]);
       const suggested = normalizeText(row["建议用字"]);
       const mandarin = normalizeText(row["对应华语"]);
-      if (!suggested || !mandarin) {
+      if (!splitTerms(suggested).length || !splitTerms(mandarin).length) {
         return null;
       }
 
@@ -184,22 +207,7 @@ function normalizeLimit(value) {
 }
 
 function getEntryKey(entry) {
-  return normalizeText(entry.mandarin) + "\u0000" + normalizeText(entry.suggested);
-}
-
-function splitTerms(value) {
-  const text = normalizeText(value);
-  if (!text) {
-    return [];
-  }
-  const parts = text
-    .split(/[、，,；;\/\s]+/)
-    .map(normalizeText)
-    .filter(Boolean);
-  if (parts.indexOf(text) < 0) {
-    parts.unshift(text);
-  }
-  return parts;
+  return splitTerms(entry.mandarin).join("/") + "\u0000" + splitTerms(entry.suggested).join("/");
 }
 
 function entryMatchesText(entry, text) {
@@ -214,24 +222,28 @@ function entryMatchesText(entry, text) {
 }
 
 function formatEntry(entry) {
-  return "- 对应华语：" + normalizeText(entry.mandarin) + "；建议用字：" + normalizeText(entry.suggested);
+  const mandarin = splitTerms(entry.mandarin).join("、");
+  const suggested = splitTerms(entry.suggested).join("、");
+  if (!mandarin || !suggested) {
+    return "";
+  }
+  return "- 对应华语：" + mandarin + "；建议用字：" + suggested;
 }
 
-function getFirstSuggestedTerm(value) {
-  return normalizeText(value)
-    .split(/[、，,；;\/\s]+/)
-    .map(normalizeText)
-    .filter(Boolean)[0] || "";
+function getSuggestedTermForFrom(suggested, from) {
+  return splitTerms(suggested).find(function (term) {
+    return term && term !== from;
+  }) || "";
 }
 
 function addRewriteRule(rules, seen, mandarin, suggested, source) {
-  const to = getFirstSuggestedTerm(suggested);
-  if (!to) {
-    return;
-  }
-
   splitTerms(mandarin).forEach(function (from) {
-    if (!from || from === to) {
+    if (!from || (source === "csv" && from.length < 2)) {
+      return;
+    }
+
+    const to = getSuggestedTermForFrom(suggested, from);
+    if (!to || from === to) {
       return;
     }
     const key = from + "\u0000" + to;
@@ -382,12 +394,16 @@ function buildLexiconContext(options) {
     enabled: true,
     matchedCount: matchedRows.length,
     items,
-    text: items.map(formatEntry).join("\n"),
+    text: items.map(formatEntry).filter(Boolean).join("\n"),
   };
 }
 
 module.exports = {
   MINNAN_LEXICON_PATH,
+  __testOnly: {
+    cleanLexiconTerm,
+    splitTerms,
+  },
   applyLexiconRewrite,
   buildLexiconContext,
   loadMinnanLexicon,

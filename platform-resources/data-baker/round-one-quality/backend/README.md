@@ -101,6 +101,24 @@ CSV 表头至少包含 `编号`、`建议用字`、`对应华语`。后端使用
 
 强替换只修改返回给前端展示的 `recommendedText`，不会修改原始 `pageText` / `heardText`，也不会触发自动保存、自动提交、批量识别或流转。可通过 `DATABAKER_AI_LEXICON_REWRITE_MODE=off` 关闭强替换，只保留 prompt 上下文。词表缺失时后端仍可运行，但会跳过 CSV 上下文，推荐效果可能下降。后续更新词表时只需要替换 CSV 文件，不要把词表内容硬编码进 JS。
 
+词表清洗规则：
+
+- 中文括号和英文括号中的内容全部视为拼音或批注，例如 `家（gei、dao）、厝（cuo）` 会清洗为 `家`、`厝`，`床（眠床）(min ceng)` 会清洗为 `床`。
+- 拉丁字母、拼音音调字母、数字注音和残留连接符不会参与 prompt 上下文匹配或强替换。
+- CSV 来源的单字“对应华语”默认不进入强替换规则，避免把 `家庭` 误改成 `厝庭` 之类的异常文本。
+- 基础高频单字仍由 `BASE_ENTRIES` 显式控制，例如 `我 -> 阮`、`你 -> 汝`、`他 -> 伊`、`的 -> 诶`、`很 -> 真`、`吃 -> 食`。
+- 如果出现异常替换，优先检查 `minnan-lexicon.csv` 中是否存在括号批注、拼音残留或 CSV 单字映射。
+
+PowerShell 下可用以下命令做最小清洗回归：
+
+```powershell
+@'
+const { __testOnly } = require('./platform-resources/data-baker/round-one-quality/backend/ai-lexicon');
+console.log(__testOnly.splitTerms('家（gei、dao）、厝（cuo）'));
+console.log(__testOnly.splitTerms('透早(tao za )'));
+'@ | node -
+```
+
 ## 真实调用排查
 
 如果前端显示 `Qwen 接口请求失败（HTTP 400）`：

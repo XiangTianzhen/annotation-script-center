@@ -2,6 +2,7 @@
 
 ## 2026-04-29
 
+- 修复 DataBaker 闽南方言词表拼音批注误替换：括号内容、拉丁拼音、数字注音和残留连接符不再参与建议用字 / 对应华语解析；CSV 单字映射默认跳过强替换，避免把 `家庭` 误改成异常文本。
 - 优化 DataBaker AI 推荐速度定位：Qwen 原生 `fetch` 请求默认改为顶层 `enable_thinking=false`，不再使用 `extra_body`，并在供应商不支持该参数时自动移除字段重试一次；可通过 `DATABAKER_AI_ENABLE_THINKING=1` 开启 thinking。
 - 新增 DataBaker `DATABAKER_AI_PIPELINE_MODE=two_stage|listen_only`，默认保留听音 + 对比双模型，`listen_only` 极速模式只调用 `qwen3.5-omni-flash` 并结合本地词表强替换生成推荐文本。
 - DataBaker AI 响应、推荐卡和调用日志补充流水线模式、听音耗时、对比耗时和总耗时，便于区分真实 Qwen 调用慢在听音阶段还是对比阶段。
