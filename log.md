@@ -2,6 +2,11 @@
 
 ## 2026-04-29
 
+- 使用 `chrome_devtools` 完成 DataBaker 登录请求脱敏调研：确认真实接口为 `POST /cms/authentication/form`，`username/password/ticket/nounce` 走 query，响应 token 路径为 `data.access_token` / `data.refresh_token`，并会设置 `JSESSIONID`。
+- DataBaker 导出后端对齐真实登录契约：`export-auth.js` 新增 query 传参登录、captcha `ticket/nounce` 配置、Cookie/JSESSIONID 缓存与 `language` 头兼容；`export-client.js` 请求侧同步带 `language` 与 Cookie。
+- 更新导出环境模板与文档：`ai.env.example`、根 README、平台 README、后端 README 同步登录契约字段与安全要求（不记录真实账号、密码、token、cookie）。
+- 实测导出验证：`health` 在补全配置后可 `ready=true`；复用已使用的 `ticket` 会返回“滑块验证码校验不通过”，后端现已透传明确业务错误，不再误报缺少 token。
+
 - 新增 DataBaker 一检质检导出后端：`/api/data-baker/round-one-quality/export/health` 与 `/api/data-baker/round-one-quality/export/task`；账号密码从环境变量读取，导出链路支持 token 内存缓存、过期刷新与 401/403 自动重登，按 `taskId` 自动翻页 `queryByCondition` 并生成 CSV 到 `platform-resources/data-baker/round-one-quality/backend/exports/`，响应不返回 token。
 - 新增 DataBaker `group/detail?taskId=...` 页面“导出数据总表”按钮：点击后调用本地导出接口并触发浏览器下载，同时展示“正在导出/已导出/失败原因”状态。
 - 修复 DataBaker 一检质检输入框误失焦：快捷键焦点恢复拆分为被动恢复与强制恢复；被动恢复会跳过编辑态和最近 1200ms 手动点入输入框场景，命中已配置快捷键时仍可强制失焦执行动作。

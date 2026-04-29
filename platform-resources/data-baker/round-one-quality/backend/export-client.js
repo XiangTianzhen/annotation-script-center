@@ -111,6 +111,7 @@ function createExportClient() {
     const forceRefresh = options?.forceRefresh === true;
     const queryOverrides = options?.queryOverrides || {};
     const token = await authManager.ensureAccessToken({ forceRefresh: forceRefresh });
+    const cookieHeader = authManager.getCookieHeader ? authManager.getCookieHeader() : "";
     const requestUrl = new URL(clientConfig.queryPath || "/cms/tbAudioUserTask/queryByCondition", clientConfig.baseUrl);
     requestUrl.search = buildQueryParams(taskId, pageNum, pageSize, queryOverrides).toString();
 
@@ -118,9 +119,11 @@ function createExportClient() {
       method: "GET",
       headers: {
         Accept: "application/json",
+        language: trimText(process.env.DATABAKER_EXPORT_LANGUAGE || "zh"),
         Authorization: "Bearer " + token,
         access_token: token,
         token: token,
+        Cookie: cookieHeader || "",
       },
     });
 

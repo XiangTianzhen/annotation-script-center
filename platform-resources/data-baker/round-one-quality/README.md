@@ -103,8 +103,13 @@ DataBaker 任务总表导出接口：
 
 登录接口调研说明：
 
-- 当前仓库无法在本地直接固定抓到 DataBaker 登录请求，`DATABAKER_EXPORT_LOGIN_URL` 默认留空。
-- 登录请求字段与 token 字段路径均改为环境变量可配置，文档和日志不记录真实账号、密码、token、cookie。
+- 已通过 `chrome_devtools` 抓到真实登录请求（2026-04-29，脱敏）：`POST /cms/authentication/form`。
+- 登录参数在 query 中：`username`、`password`、`ticket`、`nounce`；请求 body 为空。
+- 登录响应 token 字段：`data.access_token`、`data.refresh_token`。
+- 响应会设置 `JSESSIONID`，后续业务请求同时使用 `access_token` 请求头和 Cookie（含 `JSESSIONID`）。
+- 后续业务请求观测到 `language: zh` 头；导出后端默认按该头发送。
+- `ticket` 为滑块验证码参数，通常一次性，复用会触发“滑块验证码校验不通过”。
+- 文档和日志只记录字段名/路径，不记录真实账号、密码、token、cookie。
 
 ## 闽南方言词表
 

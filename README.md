@@ -165,6 +165,15 @@ http://127.0.0.1:3333
 - 下载 CSV：`http://127.0.0.1:3333/api/data-baker/round-one-quality/export/download?fileName=...`
 - 默认本地导出目录：`platform-resources/data-baker/round-one-quality/backend/exports/`（可用 `DATABAKER_EXPORT_DIR` 覆盖）
 
+DataBaker 登录契约（2026-04-29，DevTools 脱敏实测）：
+
+- 登录请求：`POST /cms/authentication/form`
+- 参数位置：`username/password/ticket/nounce` 在 query，body 为空
+- token 字段路径：`data.access_token`、`data.refresh_token`
+- 会设置 `JSESSIONID`，后续请求观测到 `access_token` 头 + Cookie 同时存在
+- 后续请求包含 `language: zh` 头
+- `ticket` 为滑块验证码参数，通常一次性，复用会触发“滑块验证码校验不通过”
+
 ## 统一 AI 环境配置文件
 
 后端启动时会自动读取仓库内固定环境文件，默认不需要每次手动设置系统环境变量。
@@ -276,12 +285,15 @@ DataBaker 任务总表导出环境变量（后端）：
 
 - `DATABAKER_EXPORT_USERNAME`：DataBaker 登录账号（仅放 `config/env/ai.env` 或系统环境变量）。
 - `DATABAKER_EXPORT_PASSWORD`：DataBaker 登录密码（仅放 `config/env/ai.env` 或系统环境变量）。
-- `DATABAKER_EXPORT_LOGIN_URL`：登录接口 URL；当前仓库无法在本地直接抓包确认默认值，必须按实际接口配置。
+- `DATABAKER_EXPORT_LOGIN_URL`：登录接口 URL，实测默认 `https://datafactory.data-baker.com/cms/authentication/form`。
 - `DATABAKER_EXPORT_BASE_URL`：导出查询接口域名，默认 `https://datafactory.data-baker.com`。
+- `DATABAKER_EXPORT_LANGUAGE`：后续业务请求头 `language`，默认 `zh`。
 - `DATABAKER_EXPORT_TOKEN_REFRESH_MS`：token 重新登录间隔，默认 `3600000`（1 小时）。
 - `DATABAKER_EXPORT_PAGE_SIZE`：导出分页大小，默认 `100`。
 - `DATABAKER_EXPORT_DIR`：CSV 本地保存目录，未配置时默认 `platform-resources/data-baker/round-one-quality/backend/exports/`。
-- `DATABAKER_EXPORT_LOGIN_METHOD` / `DATABAKER_EXPORT_LOGIN_USERNAME_FIELD` / `DATABAKER_EXPORT_LOGIN_PASSWORD_FIELD`：登录请求方法和账号字段可配置。
+- `DATABAKER_EXPORT_LOGIN_METHOD` / `DATABAKER_EXPORT_LOGIN_CREDENTIAL_IN_QUERY` / `DATABAKER_EXPORT_LOGIN_USERNAME_FIELD` / `DATABAKER_EXPORT_LOGIN_PASSWORD_FIELD`：登录请求方法与账号参数位置可配置（实测契约为 query 传参）。
+- `DATABAKER_EXPORT_LOGIN_TICKET_FIELD` / `DATABAKER_EXPORT_LOGIN_NOUNCE_FIELD`：captcha 字段名，默认 `ticket` / `nounce`。
+- `DATABAKER_EXPORT_LOGIN_TICKET` / `DATABAKER_EXPORT_LOGIN_NOUNCE`：captcha 参数值（敏感，不提交到仓库）。
 - `DATABAKER_EXPORT_LOGIN_EXTRA_BODY_JSON` / `DATABAKER_EXPORT_LOGIN_PAYLOAD_TEMPLATE_JSON`：登录请求额外字段或模板（用于未公开登录契约）。
 - `DATABAKER_EXPORT_ACCESS_TOKEN_PATH` / `DATABAKER_EXPORT_REFRESH_TOKEN_PATH`：登录响应 token 字段路径（点路径）。
 

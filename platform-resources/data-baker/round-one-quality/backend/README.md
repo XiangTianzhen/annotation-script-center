@@ -9,8 +9,6 @@
 - `GET /api/data-baker/round-one-quality/export/health`
 - `POST /api/data-baker/round-one-quality/export/task`
 - `GET /api/data-baker/round-one-quality/export/download?fileName=...`
-- `GET /api/data-baker/round-one-quality/export/health`
-- `POST /api/data-baker/round-one-quality/export/task`
 
 ## 文件职责
 
@@ -25,10 +23,6 @@
 - `export-client.js`：按 `taskId` 调用 `queryByCondition`，自动翻页拉取全部数据。
 - `export-csv.js`：CSV 中文表头与本地文件写入。
 - `export-routes.js`：导出 health/task/download 接口与请求校验。
-- `export-auth.js`：DataBaker 导出登录配置读取、token 缓存与过期刷新。
-- `export-client.js`：调用 `queryByCondition` 分页拉取任务数据，401/403 自动刷新 token 重试。
-- `export-csv.js`：导出 CSV 生成与敏感字段脱敏，输出到 `backend/exports/`。
-- `export-routes.js`：导出 health/task 路由与请求校验。
 
 ## 模型
 
@@ -47,13 +41,27 @@
 - `DATABAKER_EXPORT_USERNAME`：DataBaker 导出账号。
 - `DATABAKER_EXPORT_PASSWORD`：DataBaker 导出密码。
 - `DATABAKER_EXPORT_BASE_URL`：导出 API 基础域名，默认 `https://datafactory.data-baker.com`。
-- `DATABAKER_EXPORT_LOGIN_URL`：登录接口完整 URL（可选；为空时按 `BASE_URL + LOGIN_PATH` 组合）。
-- `DATABAKER_EXPORT_LOGIN_PATH`：登录接口路径，默认 `/cms/user/login`。
+- `DATABAKER_EXPORT_LOGIN_URL`：登录接口完整 URL，默认 `https://datafactory.data-baker.com/cms/authentication/form`。
+- `DATABAKER_EXPORT_LOGIN_CREDENTIAL_IN_QUERY`：登录账号密码是否放 query，默认 `1`（实测契约）。
+- `DATABAKER_EXPORT_LOGIN_TICKET`：登录 captcha `ticket`（必填，敏感，不提交）。
+- `DATABAKER_EXPORT_LOGIN_NOUNCE`：登录 captcha `nounce`（必填，敏感，不提交）。
+- `DATABAKER_EXPORT_LANGUAGE`：请求头 `language`，默认 `zh`。
 - `DATABAKER_EXPORT_QUERY_PATH`：任务查询接口路径，默认 `/cms/tbAudioUserTask/queryByCondition`。
 - `DATABAKER_EXPORT_PAGE_SIZE`：默认导出分页大小，默认 `100`。
 - `DATABAKER_EXPORT_MAX_PAGES`：默认最大分页数，默认 `10000`。
 - `DATABAKER_EXPORT_TOKEN_REFRESH_MS`：token 兜底有效期（毫秒），默认 `3600000`。
 - `DATABAKER_EXPORT_TOKEN_REFRESH_SKEW_MS`：过期前提前刷新窗口（毫秒），默认 `30000`。
+
+登录契约（2026-04-29，DevTools 脱敏实测）：
+
+- URL：`POST /cms/authentication/form`
+- 参数位置：`username/password/ticket/nounce` 在 query 中，body 为空（`content-length: 0`）
+- 响应 token 字段：`data.access_token`、`data.refresh_token`
+- 响应会下发 `Set-Cookie: JSESSIONID=...; Path=/cms; HttpOnly`
+- 后续业务请求同时出现 `access_token` 请求头与 Cookie（`JSESSIONID/access_token/refresh_token`）
+- 后续请求观测到 `language: zh` 请求头
+- 文档与日志严禁记录真实账号、密码、token、cookie
+- `ticket` 通常为一次性验证码参数，过期或复用会返回“滑块验证码校验不通过”
 
 ## 环境变量
 
@@ -156,7 +164,7 @@ platform-resources/data-baker/round-one-quality/backend/exports/
 
 `health` 行为：
 
-- 未配置 `DATABAKER_EXPORT_USERNAME/PASSWORD/LOGIN_URL` 时返回缺少配置提示，不崩溃。
+- 未配置 `DATABAKER_EXPORT_USERNAME/PASSWORD/LOGIN_URL` 或 captcha 参数 `DATABAKER_EXPORT_LOGIN_TICKET/NOUNCE` 时返回缺少配置提示，不崩溃。
 - 配置完整后 `ready=true`，可执行导出。
 
 日志安全：
