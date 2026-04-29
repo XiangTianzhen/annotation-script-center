@@ -62,6 +62,30 @@
     return Boolean(target.closest("[contenteditable='true'], [contenteditable='']"));
   }
 
+  function blurActiveElementForShortcut() {
+    const activeElement = document.activeElement;
+
+    if (
+      activeElement &&
+      activeElement instanceof HTMLElement &&
+      activeElement !== document.body &&
+      typeof activeElement.blur === "function"
+    ) {
+      activeElement.blur();
+    }
+
+    try {
+      if (document.body instanceof HTMLElement) {
+        if (!document.body.hasAttribute("tabindex")) {
+          document.body.setAttribute("tabindex", "-1");
+        }
+        document.body.focus({ preventScroll: true });
+      }
+    } catch (error) {
+      // Ignore focus restoration failures; the shortcut action can still run.
+    }
+  }
+
   function shortcutMatchesEvent(shortcut, event) {
     if (!shortcut || shortcut.button !== null) {
       return false;
@@ -202,9 +226,6 @@
     let started = false;
 
     function handleKeydown(event) {
-      if (isEditableTarget(event.target)) {
-        return;
-      }
       const actionKey = Object.keys(shortcuts).find(function (key) {
         return shortcutMatchesEvent(shortcuts[key], event);
       });
@@ -212,6 +233,7 @@
         return;
       }
 
+      blurActiveElementForShortcut();
       event.preventDefault();
       event.stopPropagation();
       if (typeof event.stopImmediatePropagation === "function") {
@@ -250,6 +272,7 @@
   }
 
   globalThis.__ASREdgeDataBakerRoundOneShortcuts = {
+    blurActiveElementForShortcut,
     createRuntime,
     normalizeShortcut,
   };

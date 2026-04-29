@@ -28,6 +28,23 @@
     return normalizeText(text).replace(/^\d+\s*/, "").trim();
   }
 
+  function exitEditingFocus(element) {
+    if (element && typeof element.blur === "function") {
+      element.blur();
+    }
+
+    try {
+      if (document.body instanceof HTMLElement) {
+        if (!document.body.hasAttribute("tabindex")) {
+          document.body.setAttribute("tabindex", "-1");
+        }
+        document.body.focus({ preventScroll: true });
+      }
+    } catch (error) {
+      // Ignore focus restoration failures; text has already been filled.
+    }
+  }
+
   function toNumberOrNull(value) {
     if (value === undefined || value === null || value === "") {
       return null;
@@ -320,9 +337,10 @@
       textarea.value = nextText;
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
       textarea.dispatchEvent(new Event("change", { bubbles: true }));
+      exitEditingFocus(textarea);
       return {
         ok: true,
-        message: "已填入推荐文本，请人工确认后再保存或判定。",
+        message: "已填入推荐文本，并退出输入框。",
       };
     }
 
@@ -390,6 +408,7 @@
 
   globalThis.__ASREdgeDataBakerRoundOneDataApi = {
     createRuntime,
+    exitEditingFocus,
     isRoundOneCollectPage,
     parseHashParams,
   };

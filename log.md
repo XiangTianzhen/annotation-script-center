@@ -2,9 +2,11 @@
 
 ## 2026-04-29
 
+- 优化 DataBaker 一检质检快捷键焦点行为：普通输入不拦截，只有命中已配置 DataBaker 快捷键时才会自动 blur 当前输入焦点并执行动作。
+- DataBaker “填入推荐文本”成功后自动退出“本句话文本”输入框并把焦点交回页面，便于继续使用快捷键；仍不自动保存、提交或判定。
 - 新增 DataBaker 一检质检自动每页条数设置：options 默认启用 `50条/页`，运行时在 `roundOneCollect` 详情页有限重试点击页面原生分页下拉，不自动提交任务。
 - 新增 DataBaker 一检质检快捷键配置，默认全部未设置，支持 AI 推荐、复制 AI 听音文本、复制推荐文本、填入、忽略、句子判定合格 / 不合格、任务判定通过 / 部分驳回 / 全部驳回。
-- DataBaker 快捷键运行时只在详情页生效，输入框聚焦时不触发，任务判定按钮 disabled 时不绕过平台限制；脚本总开关关闭时工具卡、自动分页和快捷键全部停止。
+- DataBaker 快捷键运行时只在详情页生效，普通输入不拦截，任务判定按钮 disabled 时不绕过平台限制；脚本总开关关闭时工具卡、自动分页和快捷键全部停止。
 - 修复 DataBaker 闽南方言词表拼音批注误替换：括号内容、拉丁拼音、数字注音和残留连接符不再参与建议用字 / 对应华语解析；CSV 单字映射默认跳过强替换，避免把 `家庭` 误改成异常文本。
 - 优化 DataBaker AI 推荐速度定位：Qwen 原生 `fetch` 请求默认改为顶层 `enable_thinking=false`，不再使用 `extra_body`，并在供应商不支持该参数时自动移除字段重试一次；可通过 `DATABAKER_AI_ENABLE_THINKING=1` 开启 thinking。
 - 新增 DataBaker `DATABAKER_AI_PIPELINE_MODE=two_stage|listen_only`，默认保留听音 + 对比双模型，`listen_only` 极速模式只调用 `qwen3.5-omni-flash` 并结合本地词表强替换生成推荐文本。
