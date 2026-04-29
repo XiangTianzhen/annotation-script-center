@@ -98,9 +98,10 @@
           return null;
         });
         if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
+          const detail = responseBody?.summary ? "：" + String(responseBody.summary || "") : "";
           throw new Error(
-            responseBody?.message ||
-              "AI 推荐接口请求失败（HTTP " + String(response.status) + "）。"
+            (responseBody?.message ||
+              "AI 推荐接口请求失败（HTTP " + String(response.status) + "）。") + detail
           );
         }
         return responseBody.data;

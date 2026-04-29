@@ -2,6 +2,8 @@
 
 ## 2026-04-29
 
+- 修复 DataBaker Qwen-Omni 听音请求格式：`requestListen` 改用 `input_audio`，按音频 URL pathname 后缀推断 `wav/mp3/aac/m4a/amr/3gp/3gpp`，并移除听音请求的 `response_format`，避免多模态请求触发 HTTP 400。
+- DataBaker 前端错误提示补充后端脱敏 `summary`，方便排查 provider 400，同时继续避免暴露完整音频 URL、token、cookie、`OSSAccessKeyId`、`Signature` 或 API Key。
 - options “标注脚本中心”新增 `DataBaker / DataFactory` 平台区域和 `DataBaker 一检质检` 脚本卡片，支持在控制面板启停该脚本。
 - 新增 DataBaker 一检质检专属设置页，可配置 AI 推荐接口地址、请求超时时间和 AI 推荐开关；默认 endpoint 为 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`，本机 `127.0.0.1:3333` 仅用于开发调试。
 - DataBaker content script 改为读取 `chrome.storage` 中的脚本启停、AI 推荐开关、endpoint 和 timeout；关闭脚本或关闭 AI 推荐后不显示推荐工具卡。

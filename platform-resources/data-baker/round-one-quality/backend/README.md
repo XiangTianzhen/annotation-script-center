@@ -53,11 +53,36 @@
 ## 推荐流程
 
 1. 校验请求体中的 `collectId`、`itemId`、`audioUrl`、`pageText`。
-2. 调用听音模型 `qwen3.5-omni-flash`，输入 `audioUrl` 和听音 prompt。
+2. 调用听音模型 `qwen3.5-omni-flash`，以 `input_audio` 传入完整 `audioUrl` 和根据路径后缀推断的音频格式，并在 prompt 中要求 JSON 输出。
 3. 解析听音 JSON：`heardText`、`confidence`、`isValid`、`invalidReasons`。
 4. 调用对比模型 `qwen3.5-plus`，输入 `pageText`、`heardText` 和规则。
 5. 解析对比 JSON：`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`。
 6. 组装统一响应，包含推荐文本、听音文本、变更标记、置信度、模型、usage、费用估算和 `requestId`。
+
+听音模型请求中的音频片段格式：
+
+```json
+{
+  "type": "input_audio",
+  "input_audio": {
+    "data": "完整音频 URL",
+    "format": "wav"
+  }
+}
+```
+
+`format` 会从 URL pathname 后缀推断，支持 `wav`、`mp3`、`aac`、`m4a`、`amr`、`3gp`、`3gpp`，无法识别时默认 `wav`。`data` 必须保留完整音频 URL，包括签名 query 参数，但日志和文档中不得记录完整 URL。
+
+## 真实调用排查
+
+如果前端显示 `Qwen 接口请求失败（HTTP 400）`：
+
+1. 先查看后端返回给前端的 `summary`，该字段已脱敏，不应包含完整音频 URL、token、cookie、`OSSAccessKeyId` 或 `Signature`。
+2. 确认 `requestListen` 使用的是 `input_audio`，不是旧的 `audio_url`。
+3. 确认听音请求没有传 `response_format`；JSON 输出只由 prompt 约束。
+4. 确认当前音频 URL 在服务端可访问，且签名参数没有过期。
+5. 确认 `config/env/ai.env` 中 `DASHSCOPE_API_KEY` 正确。
+6. 将 `DATABAKER_AI_MOCK=1` 写入 `config/env/ai.env` 后重启后端，可排除前端、路由和日志链路问题。
 
 ## 日志安全
 

@@ -20,6 +20,30 @@ function parseTimeoutMs() {
   return Math.max(1000, Math.min(300000, value));
 }
 
+function inferAudioFormat(audioUrl) {
+  let pathname = "";
+  try {
+    pathname = new URL(String(audioUrl || "")).pathname || "";
+  } catch (error) {
+    pathname = String(audioUrl || "").split("?")[0] || "";
+  }
+
+  const lowerPathname = pathname.toLowerCase();
+  const matched = lowerPathname.match(/\.([a-z0-9]+)$/);
+  const ext = matched ? matched[1] : "";
+  const supportedFormats = {
+    wav: "wav",
+    mp3: "mp3",
+    aac: "aac",
+    m4a: "m4a",
+    amr: "amr",
+    "3gp": "3gp",
+    "3gpp": "3gpp",
+  };
+
+  return supportedFormats[ext] || "wav";
+}
+
 function getClientConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
@@ -290,9 +314,10 @@ async function requestListen(input, prompt, options) {
         role: "user",
         content: [
           {
-            type: "audio_url",
-            audio_url: {
-              url: String(input?.audioUrl || ""),
+            type: "input_audio",
+            input_audio: {
+              data: String(input?.audioUrl || ""),
+              format: inferAudioFormat(input?.audioUrl || ""),
             },
           },
           {
@@ -302,9 +327,6 @@ async function requestListen(input, prompt, options) {
         ],
       },
     ],
-    response_format: {
-      type: "json_object",
-    },
     temperature: 0.1,
   };
   const result = await requestChatCompletion(requestBody, options);
@@ -372,6 +394,7 @@ module.exports = {
   DEFAULT_COMPARE_MODEL,
   DEFAULT_LISTEN_MODEL,
   getClientConfig,
+  inferAudioFormat,
   isMockEnabled,
   requestCompare,
   requestListen,
