@@ -25,7 +25,7 @@ extension/sites/data-baker/round-one-quality/
 - 专属设置页可配置 AI 推荐接口地址、请求超时时间和 AI 推荐开关。
 - 专属设置页新增自动每页条数，默认启用并设置为 `50条/页`，只点击页面原生分页控件。
 - 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
-- `group/detail?taskId=...` 页面新增“导出数据总表”按钮，调用本地后端全量翻页导出 `queryByCondition` CSV。
+- `group/detail?taskId=...` 页面新增“导出数据总表”按钮，默认在当前页面同源请求 `queryByCondition` 全量翻页导出 CSV（使用当前登录态，不依赖本地后端）。
 - 默认推荐接口走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
 - 本机接口 `http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend` 仅用于开发调试。
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
@@ -89,7 +89,7 @@ DataBaker AI 推荐接口：
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
 
-DataBaker 任务总表导出接口：
+DataBaker 任务总表导出接口（后端备用）：
 
 - `GET /api/data-baker/round-one-quality/export/health`
 - `POST /api/data-baker/round-one-quality/export/task`
@@ -99,16 +99,16 @@ DataBaker 任务总表导出接口：
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 
-导出接口默认由本地扩展调用 `http://127.0.0.1:3333`，并把 CSV 另外保存到 `platform-resources/data-baker/round-one-quality/backend/exports/`（可由 `DATABAKER_EXPORT_DIR` 覆盖）。
+导出默认走前端同源链路：扩展直接使用页面登录态请求 `/cms/tbAudioUserTask/queryByCondition`，自动翻页后本地下载 CSV。后端导出接口保留为备用，CSV 会保存到 `platform-resources/data-baker/round-one-quality/backend/exports/`（可由 `DATABAKER_EXPORT_DIR` 覆盖）。
 
-登录接口调研说明：
+登录接口调研说明（后端备用导出）：
 
 - 已通过 `chrome_devtools` 抓到真实登录请求（2026-04-29，脱敏）：`POST /cms/authentication/form`。
 - 登录参数在 query 中：`username`、`password`、`ticket`、`nounce`；请求 body 为空。
 - 登录响应 token 字段：`data.access_token`、`data.refresh_token`。
 - 响应会设置 `JSESSIONID`，后续业务请求同时使用 `access_token` 请求头和 Cookie（含 `JSESSIONID`）。
 - 后续业务请求观测到 `language: zh` 头；导出后端默认按该头发送。
-- `ticket` 为滑块验证码参数，通常一次性，复用会触发“滑块验证码校验不通过”。
+- `ticket` 为滑块验证码参数，通常一次性，复用会触发“滑块验证码校验不通过”，因此后端自动登录不适合作为默认导出链路。
 - 文档和日志只记录字段名/路径，不记录真实账号、密码、token、cookie。
 
 ## 闽南方言词表

@@ -20,7 +20,7 @@
 - “填入推荐文本”只在用户点击后触发，只写入页面的“本句话文本”输入框，不自动保存、不自动提交、不自动点击合格 / 不合格。
 - AI 听音文本、AI 推荐文本展示和填入前会自动删除普通空格、全角空格、Tab 和换行；页面候选文本保持平台原文。
 - AI 推荐文本展示和填入前会自动补全中文句末标点；英文句末 `.?!;` 会转为 `。？！；`，无句末标点时默认补 `。`。
-- `group/detail` 页面新增“导出数据总表”按钮，按 `taskId` 调用本地后端全量翻页 `queryByCondition` 并下载 CSV。
+- `group/detail` 页面新增“导出数据总表”按钮，按 `taskId` 在当前页面同源请求 `queryByCondition` 全量翻页并下载 CSV（含 BOM）。
 - 支持自动每页条数，默认进入详情页后尝试设置为 `50条/页`，只点击页面原生分页控件。
 - 支持 DataBaker 专属快捷键配置，默认全部未设置；快捷键只处理当前题或当前推荐卡。
 
@@ -45,7 +45,7 @@ round-one-quality/
 - `ui-panel.js`：注入按钮和推荐结果卡，支持复制和用户点击后填入推荐文本。
 - `page-size-controller.js`：在详情页有限重试点击分页大小选择器，按设置切换到目标每页条数。
 - `shortcuts.js`：监听 DataBaker 专属快捷键；先匹配已配置快捷键再处理输入焦点，普通输入不拦截。被动焦点恢复（平台按钮、active 题目变化）不会打断正在编辑输入框；命中已配置快捷键时按强制模式退出输入框再执行动作。
-- `group-export.js`：仅在 `group/detail?taskId=...` 页面注入“导出数据总表”按钮，调用本地导出接口并触发 CSV 下载。
+- `group-export.js`：仅在 `group/detail?taskId=...` 页面注入“导出数据总表”按钮，使用当前页面登录态同源分页拉取 `queryByCondition` 并触发 CSV 下载。
 - `page-world/network-observer.js`：运行在 MAIN world，观察 `queryCollectStatementByCondtion` 列表接口响应，只在内存中缓存当前页题目记录。
 
 ## options 设置
@@ -117,7 +117,7 @@ node platform-resources\backend\server.js
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 
-任务总表导出仅调用本地后端（默认 `127.0.0.1:3333`），后端会把 CSV 额外保存到 `platform-resources/data-baker/round-one-quality/backend/exports/`（可由 `DATABAKER_EXPORT_DIR` 覆盖）。
+任务总表导出默认走前端同源请求，不依赖本地后端、账号密码或 token 配置。后端导出接口仍保留为备用能力，默认本地导出目录 `platform-resources/data-baker/round-one-quality/backend/exports/`（可由 `DATABAKER_EXPORT_DIR` 覆盖）。
 
 第一版固定模型：
 
@@ -167,7 +167,7 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 20. 填入后不点击页面，直接按快捷键，确认仍可继续响应。
 21. 关闭 DataBaker 脚本后刷新详情页，确认工具卡、自动分页和快捷键都停止；只关闭 AI 推荐时不显示工具卡。
 22. 打开非 `roundOneCollect` 页面，确认不注入该工具卡。
-23. 打开 `group/detail?taskId=...` 页面，确认出现“导出数据总表”按钮，点击后状态依次展示“正在导出/已导出 N 条或失败原因”。
+23. 打开 `group/detail?taskId=...` 页面，确认出现“导出数据总表”按钮；在不启动本地后端时点击，状态应展示“正在导出：第 x / y 页”，最终提示“已导出 N 条，已下载 CSV”或明确失败原因。
 
 ## 已知限制
 

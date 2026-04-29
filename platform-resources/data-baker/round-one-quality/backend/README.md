@@ -2,6 +2,8 @@
 
 本目录是 DataBaker / DataFactory 一检质检“AI 推荐文本”的本地 Node 后端实现，通过统一入口 `platform-resources/backend/server.js` 注册。
 
+说明：`group/detail` 总表导出当前默认推荐前端同源导出（扩展直接使用当前页面登录态请求 DataBaker 接口）。本目录中的导出接口保留为备用能力。
+
 ## 接口
 
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
@@ -118,7 +120,7 @@
 
 `format` 会从 URL pathname 后缀推断，支持 `wav`、`mp3`、`aac`、`m4a`、`amr`、`3gp`、`3gpp`，无法识别时默认 `wav`。`data` 必须保留完整音频 URL，包括签名 query 参数，但日志和文档中不得记录完整 URL。
 
-## 任务总表导出
+## 任务总表导出（后端备用）
 
 目标页面示例：
 
@@ -126,13 +128,18 @@
 https://datafactory.data-baker.com/v2/#/group/detail?taskId=1254789592545341441
 ```
 
-导出流程：
+导出流程（备用链路）：
 
 1. 扩展前端传入 `taskId`（可选 `pageSize`）。
 2. 后端先检查导出登录配置并获取 token（内存缓存，默认 1 小时重新登录）。
 3. 调用 `GET /cms/tbAudioUserTask/queryByCondition`，按 `pageNum/pageSize` 自动翻页，直到拉完全部数据。
 4. 写入中文表头 CSV，并保留“原始JSON”列。
 5. 返回 `downloadUrl` 给前端触发下载；后端保留本地文件。
+
+默认首选说明：
+
+- 默认首选前端同源导出，不依赖后端账号密码配置。
+- 后端导出用于备用场景，受滑块验证码 `ticket/nounce` 影响，长期稳定性低于前端同源导出。
 
 CSV 默认目录：
 

@@ -1,9 +1,53 @@
 (function () {
   const ROOT_ATTR = "data-asr-edge-databaker-group-export";
   const STYLE_ID = "asr-edge-databaker-group-export-style";
-  const BACKEND_BASE_URL = "http://127.0.0.1:3333";
-  const EXPORT_API_PATH = "/api/data-baker/round-one-quality/export/task";
   const STATUS_POLL_MS = 1000;
+  const QUERY_API_PATH = "/cms/tbAudioUserTask/queryByCondition";
+  const DEFAULT_PAGE_SIZE = 100;
+  const MAX_PAGES = 10000;
+
+  const REQUEST_HEADERS = {
+    accept: "application/json, text/plain, */*",
+    language: "zh",
+    "cache-control": "no-cache",
+    pragma: "no-cache",
+  };
+
+  const CSV_COLUMNS = [
+    { title: "采集ID", keys: ["collectId"] },
+    { title: "任务ID", keys: ["taskId"] },
+    { title: "项目名称", keys: ["projectName"] },
+    { title: "任务名称", keys: ["taskName"] },
+    { title: "团队名称", keys: ["teamName"] },
+    { title: "采集人", keys: ["userName", "collectName"] },
+    { title: "手机号", keys: ["mobile"] },
+    { title: "年龄", keys: ["collectAge"] },
+    { title: "性别", keys: ["collectSexName", "collectSex"] },
+    { title: "省", keys: ["collectProvince"] },
+    { title: "市", keys: ["collectCity"] },
+    { title: "区县", keys: ["collectTown"] },
+    { title: "文本编号", keys: ["textNumber"] },
+    { title: "文本数量", keys: ["audioTextNum"] },
+    { title: "上传音频数", keys: ["uploadAudioNum"] },
+    { title: "状态", keys: ["statusName", "status"] },
+    { title: "驳回类型", keys: ["noPassType"] },
+    { title: "质检人", keys: ["checkName"] },
+    { title: "质检时间", keys: ["checkTime"] },
+    { title: "提交时间", keys: ["submitTime"] },
+    { title: "更新时间", keys: ["updateTime"] },
+    { title: "有效总时长", keys: ["effectiveTotalTime"] },
+    { title: "有效合格时长", keys: ["effectivePassTotalTime"] },
+    { title: "有效不合格时长", keys: ["effectiveNoPassTotalTime"] },
+    { title: "文件名", keys: ["fileName"] },
+    { title: "段编号", keys: ["segmentNumber"] },
+    { title: "手机型号", keys: ["phoneModel"] },
+    { title: "版本", keys: ["version"] },
+    { title: "质检驳回原因", keys: ["checkRejectReason"] },
+    { title: "验收驳回原因", keys: ["acceptCheckRejectReason"] },
+  ];
+
+  const RAW_JSON_COLUMN = "原始JSON";
+  const SENSITIVE_KEYWORDS = ["token", "cookie", "authorization", "signature", "ossaccesskeyid"];
 
   let root = null;
   let statusNode = null;
@@ -68,7 +112,8 @@
       "  right: 16px;",
       "  bottom: 20px;",
       "  z-index: 2147483647;",
-      "  min-width: 180px;",
+      "  min-width: 220px;",
+      "  max-width: 360px;",
       "  padding: 10px 12px;",
       "  border-radius: 8px;",
       "  border: 1px solid #bfdbfe;",
@@ -117,24 +162,294 @@
     statusNode.setAttribute("data-tone", String(tone || "info"));
   }
 
-  function resolveDownloadUrl(downloadUrl) {
+  function toPositiveInt(value, fallbackValue) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return fallbackValue;
+    }
+    return Math.floor(parsed);
+  }
+
+  function buildQueryParams(taskId, pageNum, pageSize) {
+    const params = new URLSearchParams();
+    params.set("collectName", "");
+    params.set("mobile", "");
+    params.set("status", "");
+    params.set("startTime", "");
+    params.set("endTime", "");
+    params.set("retrieveStatus", "");
+    params.set("forceRecover", "");
+    params.set("textNumber", "");
+    params.set("checkName", "");
+    params.set("acceptCheckName", "");
+    params.set("noPassType", "");
+    params.set("taskId", taskId);
+    params.set("pageSize", String(pageSize));
+    params.set("pageNum", String(pageNum));
+    params.set("submitOrder", "");
+    return params;
+  }
+
+  function buildPageUrl(taskId, pageNum, pageSize) {
+    const params = buildQueryParams(taskId, pageNum, pageSize);
+    return QUERY_API_PATH + "?" + params.toString();
+  }
+
+  function isLikelyLoginExpired(message) {
+    const text = normalizeText(message).toLowerCase();
+    if (!text) {
+      return false;
+    }
+    return (
+      text.indexOf("登录") >= 0 ||
+      text.indexOf("token") >= 0 ||
+      text.indexOf("unauthorized") >= 0 ||
+      text.indexOf("forbidden") >= 0 ||
+      text.indexOf("请先登录") >= 0
+    );
+  }
+
+  async function fetchQueryPage(taskId, pageNum, pageSize) {
+    const response = await fetch(buildPageUrl(taskId, pageNum, pageSize), {
+      method: "GET",
+      credentials: "include",
+      headers: REQUEST_HEADERS,
+      cache: "no-store",
+    });
+    const body = await response.json().catch(function () {
+      return null;
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error("请求失败，登录态可能已失效，请重新登录后重试。");
+      }
+      throw new Error("请求失败（HTTP " + String(response.status) + "）。");
+    }
+
+    const success = body?.success === true || Number(body?.code) === 0;
+    if (!success || !body || typeof body !== "object") {
+      const message = normalizeText(body?.message || body?.msg || "");
+      if (isLikelyLoginExpired(message)) {
+        throw new Error("导出失败：登录态可能已失效，请刷新页面后重新登录。");
+      }
+      throw new Error(message || "导出失败：接口返回异常。");
+    }
+
+    const data = body.data || {};
+    const list = Array.isArray(data.list) ? data.list : [];
+    return {
+      total: toPositiveInt(data.total, 0),
+      pages: toPositiveInt(data.pages, 0),
+      pageNum: toPositiveInt(data.pageNum, pageNum),
+      pageSize: toPositiveInt(data.pageSize, pageSize),
+      list: list,
+    };
+  }
+
+  function redactUrlString(value) {
+    const text = normalizeText(value);
+    if (!/^https?:\/\//i.test(text)) {
+      return value;
+    }
     try {
-      return new URL(String(downloadUrl || ""), BACKEND_BASE_URL).toString();
+      const parsed = new URL(text);
+      return "[url:" + parsed.hostname + "]";
     } catch (error) {
-      return "";
+      return "[url-redacted]";
     }
   }
 
-  function triggerDownload(downloadUrl, fileName) {
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    if (fileName) {
-      link.download = fileName;
+  function shouldDropKey(key) {
+    const lowerKey = normalizeText(key).toLowerCase();
+    if (!lowerKey) {
+      return false;
     }
+    for (let index = 0; index < SENSITIVE_KEYWORDS.length; index += 1) {
+      if (lowerKey.indexOf(SENSITIVE_KEYWORDS[index]) >= 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function sanitizeValue(value, key) {
+    if (shouldDropKey(key)) {
+      return undefined;
+    }
+
+    if (Array.isArray(value)) {
+      const result = [];
+      for (let index = 0; index < value.length; index += 1) {
+        const sanitized = sanitizeValue(value[index], key);
+        if (sanitized !== undefined) {
+          result.push(sanitized);
+        }
+      }
+      return result;
+    }
+
+    if (value && typeof value === "object") {
+      const output = {};
+      const objectKeys = Object.keys(value);
+      for (let index = 0; index < objectKeys.length; index += 1) {
+        const objectKey = objectKeys[index];
+        const sanitized = sanitizeValue(value[objectKey], objectKey);
+        if (sanitized !== undefined) {
+          output[objectKey] = sanitized;
+        }
+      }
+      return output;
+    }
+
+    if (typeof value === "string") {
+      return redactUrlString(value);
+    }
+
+    return value;
+  }
+
+  function sanitizeRawJson(row) {
+    try {
+      return JSON.stringify(sanitizeValue(row, "") || {});
+    } catch (error) {
+      return "{}";
+    }
+  }
+
+  function readFieldValue(row, keys) {
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      const value = row ? row[key] : "";
+      if (value !== undefined && value !== null && String(value) !== "") {
+        if (typeof value === "string") {
+          return redactUrlString(value);
+        }
+        return value;
+      }
+    }
+    return "";
+  }
+
+  function toCsvCell(value) {
+    if (value === undefined || value === null) {
+      return "";
+    }
+    const text = String(value);
+    if (text.indexOf("\"") >= 0 || text.indexOf(",") >= 0 || text.indexOf("\n") >= 0) {
+      return "\"" + text.replace(/\"/g, "\"\"") + "\"";
+    }
+    return text;
+  }
+
+  function buildCsv(rows) {
+    const headers = CSV_COLUMNS.map(function (column) {
+      return column.title;
+    }).concat([RAW_JSON_COLUMN]);
+    const lines = [headers.map(toCsvCell).join(",")];
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index] || {};
+      const values = CSV_COLUMNS.map(function (column) {
+        return readFieldValue(row, column.keys);
+      });
+      values.push(sanitizeRawJson(row));
+      lines.push(values.map(toCsvCell).join(","));
+    }
+
+    return lines.join("\n");
+  }
+
+  function pad2(value) {
+    return String(value).padStart(2, "0");
+  }
+
+  function formatTimeStamp(date) {
+    return (
+      String(date.getFullYear()) +
+      pad2(date.getMonth() + 1) +
+      pad2(date.getDate()) +
+      "-" +
+      pad2(date.getHours()) +
+      pad2(date.getMinutes()) +
+      pad2(date.getSeconds())
+    );
+  }
+
+  function triggerCsvDownload(fileName, csvText) {
+    const withBom = "\uFEFF" + String(csvText || "");
+    const blob = new Blob([withBom], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
     link.style.display = "none";
     document.body.appendChild(link);
     link.click();
     link.remove();
+    window.setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  async function exportByTaskId(taskId) {
+    const pageSize = DEFAULT_PAGE_SIZE;
+    const firstPage = await fetchQueryPage(taskId, 1, pageSize);
+    const rows = firstPage.list.slice();
+    const total = toPositiveInt(firstPage.total, rows.length);
+
+    let pages = toPositiveInt(firstPage.pages, 0);
+    if (pages <= 0) {
+      if (total > 0) {
+        pages = Math.ceil(total / pageSize);
+      } else {
+        pages = rows.length > 0 ? 1 : 0;
+      }
+    }
+    pages = Math.min(Math.max(pages, rows.length > 0 ? 1 : 0), MAX_PAGES);
+
+    setStatus(
+      "正在导出：第 1 / " +
+        String(Math.max(pages, 1)) +
+        " 页，已获取 " +
+        String(rows.length) +
+        " / " +
+        String(total) +
+        " 条",
+      "info"
+    );
+
+    if (pages >= MAX_PAGES) {
+      setStatus(
+        "正在导出：页数超过上限，已按 " + String(MAX_PAGES) + " 页截断继续处理。",
+        "info"
+      );
+    }
+
+    for (let pageNum = 2; pageNum <= pages; pageNum += 1) {
+      const pageData = await fetchQueryPage(taskId, pageNum, pageSize);
+      if (Array.isArray(pageData.list) && pageData.list.length > 0) {
+        rows.push.apply(rows, pageData.list);
+      }
+
+      setStatus(
+        "正在导出：第 " +
+          String(pageNum) +
+          " / " +
+          String(pages) +
+          " 页，已获取 " +
+          String(rows.length) +
+          " / " +
+          String(total) +
+          " 条",
+        "info"
+      );
+    }
+
+    return {
+      total: total,
+      rows: rows,
+    };
   }
 
   async function handleExportClick() {
@@ -145,44 +460,27 @@
     }
 
     exportButton.disabled = true;
-    setStatus("正在导出，请稍候...", "info");
-    try {
-      const response = await fetch(BACKEND_BASE_URL + EXPORT_API_PATH, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          taskId: taskId,
-          pageSize: 100,
-        }),
-      });
-      const responseBody = await response.json().catch(function () {
-        return null;
-      });
-      if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
-        throw new Error(
-          responseBody?.message ||
-            "导出失败（HTTP " + String(response.status) + "），请检查本地后端配置。"
-        );
-      }
+    setStatus("正在导出：准备拉取第 1 页。", "info");
 
-      const data = responseBody.data;
-      const downloadUrl = resolveDownloadUrl(data.downloadUrl);
-      if (!downloadUrl) {
-        throw new Error("导出完成但下载地址无效。");
-      }
-      triggerDownload(downloadUrl, data.fileName || "");
+    try {
+      const startedAt = Date.now();
+      const result = await exportByTaskId(taskId);
+      const csv = buildCsv(result.rows);
+      const fileName = "data-baker-task-" + taskId + "-" + formatTimeStamp(new Date()) + ".csv";
+      triggerCsvDownload(fileName, csv);
+
+      const durationMs = Date.now() - startedAt;
       setStatus(
         "已导出 " +
-          String(Number(data.rows || 0)) +
-          " 条（total " +
-          String(Number(data.total || 0)) +
-          "），已触发下载。",
+          String(result.rows.length) +
+          " 条，已下载 CSV。耗时 " +
+          String(durationMs) +
+          " ms。",
         "success"
       );
     } catch (error) {
-      setStatus(String(error?.message || "导出失败。"), "error");
+      const message = normalizeText(error?.message || "导出失败，请稍后重试。");
+      setStatus(message, "error");
     } finally {
       exportButton.disabled = false;
     }
@@ -209,7 +507,7 @@
 
     statusNode = document.createElement("div");
     statusNode.className = "asr-edge-db-export-status";
-    statusNode.textContent = "按 taskId 全量翻页导出 CSV。";
+    statusNode.textContent = "按 taskId 全量翻页导出 CSV（同源登录态）。";
 
     root.appendChild(title);
     root.appendChild(exportButton);
@@ -251,6 +549,8 @@
       ensureMounted();
       if (!taskId) {
         setStatus("当前页面缺少 taskId，无法导出。", "error");
+      } else if (exportButton && exportButton.disabled) {
+        return;
       } else {
         setStatus("taskId: " + taskId, "info");
       }

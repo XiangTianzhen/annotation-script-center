@@ -83,7 +83,7 @@ Chrome：
 - 快捷键配置默认全部未设置，可手动绑定 AI 推荐、复制听音文本、复制推荐文本、填入、忽略、句子判定和任务判定动作；普通输入不拦截，按下已配置快捷键时会先退出输入焦点再执行。
 - DataBaker 快捷键运行时会先判断按键是否命中已配置动作，未命中时不阻止输入；点击左侧题目、平台动作按钮或平台自动切换 active 题目后会延迟恢复页面焦点，避免必须手动点击空白区域才能继续使用快捷键。
 - DataBaker 焦点恢复分为被动恢复和强制恢复：被动恢复不会打断正在编辑的 `input/textarea/select/contenteditable`，且用户最近 1200ms 手动点入输入框时会跳过恢复；命中已配置快捷键时仍可强制失焦并执行动作。
-- DataBaker `group/detail?taskId=...` 页面新增“导出数据总表”按钮，点击后调用本地后端按 `taskId` 全量翻页 `queryByCondition` 并下载 CSV。
+- DataBaker `group/detail?taskId=...` 页面新增“导出数据总表”按钮，点击后在当前页面同源请求 `/cms/tbAudioUserTask/queryByCondition`（`credentials: include`）按 `taskId` 全量翻页并下载 CSV（含 BOM）；默认不依赖本地后端和账号密码配置。
 
 扩展前端只保存接口地址、超时时间、开关、分页和快捷键设置，不保存 API Key、cookie、access token 或完整音频 URL。真实模型密钥仍由后端通过 `config/env/ai.env` 读取。
 
@@ -165,7 +165,15 @@ http://127.0.0.1:3333
 - 下载 CSV：`http://127.0.0.1:3333/api/data-baker/round-one-quality/export/download?fileName=...`
 - 默认本地导出目录：`platform-resources/data-baker/round-one-quality/backend/exports/`（可用 `DATABAKER_EXPORT_DIR` 覆盖）
 
-DataBaker 登录契约（2026-04-29，DevTools 脱敏实测）：
+DataBaker 任务总表导出默认模式（扩展前端）：
+
+- 默认推荐：前端同源导出。用户在 DataBaker 页面已登录时，扩展直接使用当前登录态请求 `GET /cms/tbAudioUserTask/queryByCondition`，自动翻页并本地下载 CSV。
+- 前端导出不需要配置 `DATABAKER_EXPORT_USERNAME/PASSWORD`，也不需要本地后端在线。
+- CSV 默认 `pageSize=100`，并带 UTF-8 BOM，避免 Excel 中文乱码。
+- 导出过程和 CSV 内容不写入 `access_token`、`refresh_token`、cookie。
+- 本地后端导出接口保留为备用能力；由于自动登录依赖滑块验证码 `ticket/nounce`，不作为默认首选链路。
+
+DataBaker 登录契约（2026-04-29，DevTools 脱敏实测，后端备用导出使用）：
 
 - 登录请求：`POST /cms/authentication/form`
 - 参数位置：`username/password/ticket/nounce` 在 query，body 为空
@@ -281,7 +289,7 @@ DataBaker AI 相关环境变量（后端）：
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
 
-DataBaker 任务总表导出环境变量（后端）：
+DataBaker 任务总表导出环境变量（后端备用导出）：
 
 - `DATABAKER_EXPORT_USERNAME`：DataBaker 登录账号（仅放 `config/env/ai.env` 或系统环境变量）。
 - `DATABAKER_EXPORT_PASSWORD`：DataBaker 登录密码（仅放 `config/env/ai.env` 或系统环境变量）。

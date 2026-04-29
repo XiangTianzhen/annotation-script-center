@@ -2,6 +2,11 @@
 
 ## 2026-04-29
 
+- DataBaker `group/detail?taskId=...` 总表导出默认链路切换为前端同源导出：扩展直接使用当前页面登录态请求 `/cms/tbAudioUserTask/queryByCondition`（`credentials: include`），默认 `pageSize=100` 自动翻页并下载本地 CSV（含 UTF-8 BOM）。
+- `group-export.js` 导出流程新增分页进度状态（第 x / y 页、已获取 n / total 条）、最大页数保护（`10000`）与登录态失效错误提示；不再默认依赖 `127.0.0.1:3333` 本地后端。
+- CSV 导出列改为中文表头并新增“原始JSON”脱敏列；导出时过滤 `token/cookie/authorization/signature/ossaccesskeyid` 敏感字段，不导出完整 URL。
+- 同步更新 README 文档口径：前端同源导出为默认推荐，后端导出保留为备用能力；后端自动登录受滑块验证码 `ticket/nounce` 限制，不作为首选。
+
 - 使用 `chrome_devtools` 完成 DataBaker 登录请求脱敏调研：确认真实接口为 `POST /cms/authentication/form`，`username/password/ticket/nounce` 走 query，响应 token 路径为 `data.access_token` / `data.refresh_token`，并会设置 `JSESSIONID`。
 - DataBaker 导出后端对齐真实登录契约：`export-auth.js` 新增 query 传参登录、captcha `ticket/nounce` 配置、Cookie/JSESSIONID 缓存与 `language` 头兼容；`export-client.js` 请求侧同步带 `language` 与 Cookie。
 - 更新导出环境模板与文档：`ai.env.example`、根 README、平台 README、后端 README 同步登录契约字段与安全要求（不记录真实账号、密码、token、cookie）。
