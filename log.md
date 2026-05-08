@@ -9,6 +9,9 @@
 - options 转写详情页继续保持轻量模式，不恢复旧完整设置表单，仅新增统计导出小卡（开关、上传地址、本地保存目录和下载地址说明）。
 - 本轮仍保持 `extension/manifest.json` 版本 `0.2.10`，因为当前属于 `0.2.10` 测试修复阶段，不提前升到 `0.2.11`。
 - 修正转写统计前后端命名与边界：扩展侧文件从 `transcription-stats-server.js` 重命名为 `transcription-stats-client.js`，只保留采集/上传客户端职责；Node 服务继续只在 `platform-resources/alibaba-labelx/asr-transcription/backend/`。
+- 修复转写统计取数逻辑：详情接口改为 `pageSize=10` 分页抓取（含最大页数保护），新增 `subTaskId` 空白清洗（空格/Tab/换行/全角空格）后再请求 `/subTask/{id}/data`。
+- 修复转写任务识别：排除 `labelModel=vote` 与“ASR更优结果判断”类快判任务，采集 `labelModel=single`、`size=50`、任务名含“中文普通话asr任务”等转写任务。
+- 修复有效时长汇总：转写统计改为从分页 `dataList` 聚合 `item.data.duration/item.duration/item.audioDuration/...` 候选字段，不再只依赖单一路径。
 
 - ASR 转写轻量工具栏完成页面内布局改造：新增 `toolbar.js`，工具栏优先注入 `.mark-toolbox`（优先 breadcrumb 后），无 `.mark-toolbox` 时回退到首条题卡前，不再默认固定悬浮在页面顶部中央。
 - ASR 转写工具栏改为分组结构：`当前题/文本/音频/倍速/音量/状态`；状态块新增当前题定位、当前音频状态和最近动作结果，按钮动作继续只作用于当前题/当前音频。

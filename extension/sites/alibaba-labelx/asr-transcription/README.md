@@ -2,6 +2,7 @@
 
 ## 当前状态（2026-05-08）
 
+- 当前仍处于 `0.2.10` 修复阶段，`manifest.version` 保持 `0.2.10`。
 - `asr-transcription` 已删除独立设置页和页面内 overlay 设置面板。
 - 已删除转写快捷键配置与快捷键运行时。
 - 当前只保留转写详情页的工具栏按钮能力。
@@ -67,6 +68,11 @@
 
 - 页面入口：顶部导航头像附近“上传转写统计”按钮；工具栏“上传统计”按钮也可触发。
 - 默认定时：`10:00`、`16:00`，jitter `10` 分钟；会优先读取上传接口返回的 schedule。
+- 转写详情数据接口按 `pageSize=10` 分页抓取（最多 20 页保护），不再沿用快判 `400` 条详情取数逻辑。
+- `subTaskId` 会在请求前清洗：去除普通空格、Tab、换行、回车、全角空格以及 decode 后残留空白。
+- 任务识别规则：
+  - 排除快判：`labelModel=vote`，或任务名包含 `ASR更优结果判断/ASR更优/更优结果判断/更优判断`。
+  - 采集转写：`labelModel=single`，或任务名包含 `中文普通话asr任务/中文普通话asr/asr任务/普通话asr`，或 `size=50`（且未命中快判排除）。
 - 上传接口：
   - 服务器：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload`
   - 本机：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload`
@@ -75,6 +81,7 @@
   - 本机：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
 - CSV 列固定为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
 - 统计导出只采集和上传统计数据，不保存平台、不提交平台、不自动流转平台任务。
+- 统计日志和提示不输出 cookie、token、完整音频 URL、完整签名 URL。
 
 ## 文件职责
 

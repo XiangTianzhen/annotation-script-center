@@ -2,6 +2,7 @@
 
 ## 当前状态（2026-05-08）
 
+- 当前仍处于 `0.2.10` 修复阶段，版本不升级到 `0.2.11`。
 - `extension/sites/alibaba-labelx/asr-transcription/` 已切换为轻量工具栏版。
 - 独立设置页、页面 overlay 设置面板、快捷键配置已全部移除。
 - 运行时只保留当前题与当前音频基础动作，不包含保存/提交/自动化/AI链路。
@@ -47,6 +48,13 @@
 - 前端上传入口：
   - 顶部导航头像旁“上传转写统计”按钮。
   - 转写工具栏“上传统计”按钮。
+- 详情接口取数口径：
+  - 使用 `GET /api/v1/label/center/subTask/{subTaskId}/data?page=1&pageSize=10...` 分页抓取。
+  - 默认 `pageSize=10`，按 `recordCount` 持续翻页，含最大页数保护，避免死循环。
+  - `subTaskId` 在拼 URL 前必须先做空白清洗（普通空格、Tab、换行、回车、全角空格）。
+- 转写/快判识别口径：
+  - 快判排除：`labelModel=vote` 或任务名命中 `ASR更优结果判断/ASR更优/更优结果判断/更优判断`（典型 `size=400`）。
+  - 转写采集：`labelModel=single` 或任务名命中 `中文普通话asr任务/中文普通话asr/asr任务/普通话asr`（典型 `size=50`）。
 - 上传接口：
   - `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload`
   - `http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload`
@@ -60,6 +68,7 @@
   `任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
 - 同一分包按 `mergeKey.batchId` 合并标注与审核记录。
 - 服务器下载地址需部署最新后端后可用；本地可先用 `127.0.0.1:3333` 验证。
+- 资料与代码均不记录 cookie、token、完整音频 URL、完整签名 URL。
 
 ## 后续约束
 

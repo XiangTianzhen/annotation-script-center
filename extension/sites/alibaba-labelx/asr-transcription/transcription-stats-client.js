@@ -1,6 +1,7 @@
 (function () {
   const LOG_PREFIX = "[ASR Edge][transcription-stats]";
-  const DEFAULT_PAGE_SIZE = 400;
+  const TRANSCRIPTION_DETAIL_PAGE_SIZE = 10;
+  const TRANSCRIPTION_DETAIL_MAX_PAGES = 20;
   const DEFAULT_HOME_PAGE_SIZE = 100;
   const DEFAULT_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
   const DEFAULT_SERVER_UPLOAD_ENDPOINT =
@@ -59,11 +60,21 @@
     }
   }
 
+  function sanitizeSubTaskId(value) {
+    let decoded = "";
+    try {
+      decoded = decodeURIComponent(String(value || ""));
+    } catch (error) {
+      decoded = String(value || "");
+    }
+    return decoded.replace(/[\s\u3000]+/g, "").trim();
+  }
+
   function getUrlParams() {
     const params = new URLSearchParams(location.search || "");
     return {
       projectId: normalizeUrlParam(params.get("projectId") || ""),
-      subTaskId: normalizeUrlParam(params.get("subTaskId") || ""),
+      subTaskId: sanitizeSubTaskId(params.get("subTaskId") || ""),
       missionType: normalizeUrlParam(params.get("missionType") || ""),
     };
   }
@@ -189,7 +200,7 @@
       location.origin
     );
     url.searchParams.set("page", String(page || 1));
-    url.searchParams.set("pageSize", String(pageSize || DEFAULT_PAGE_SIZE));
+    url.searchParams.set("pageSize", String(pageSize || TRANSCRIPTION_DETAIL_PAGE_SIZE));
     url.searchParams.set("filterPassedVote", "false");
     url.searchParams.set(
       "filter",
@@ -252,15 +263,111 @@
     return body;
   }
 
-  async function fetchSubtaskData(subTaskId) {
-    const body = await fetchJson(buildSubtaskDataUrl(subTaskId, DEFAULT_PAGE_SIZE, 1), {
-      credentials: "include",
-      cache: "no-store",
-      headers: {
-        Accept: "application/json, text/plain, */*",
-      },
+  async function fetchSubtaskDataPage(cleanSubTaskId, page, pageSize) {
+    const requestPage = Math.max(1, Number(page) || 1);
+    const requestPageSize = Math.max(1, Number(pageSize) || TRANSCRIPTION_DETAIL_PAGE_SIZE);
+    try {
+      const body = await fetchJson(buildSubtaskDataUrl(cleanSubTaskId, requestPageSize, requestPage), {
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json, text/plain, */*",
+        },
+      });
+      const data = body?.data && typeof body.data === "object" ? body.data : {};
+      const list = Array.isArray(data.data) ? data.data : Array.isArray(data.list) ? data.list : [];
+      const recordCount = Number(data.recordCount ?? data.total ?? list.length);
+      return {
+        list: list,
+        recordCount: Number.isFinite(recordCount) && recordCount >= 0 ? recordCount : list.length,
+        raw: data,
+      };
+    } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      throw new Error(
+        "子任务详情请求失败（subTaskId=" +
+          cleanSubTaskId +
+          ", page=" +
+          String(requestPage) +
+          "）：" +
+          message
+      );
+    }
+  }
+
+  async function fetchSubtaskDataPages(subTaskId) {
+    const cleanSubTaskId = sanitizeSubTaskId(subTaskId);
+    if (!cleanSubTaskId) {
+      console.warn(LOG_PREFIX, "Skip subtask data fetch: empty sanitized subTaskId.");
+      return {
+        subTaskId: "",
+        dataList: [],
+        recordCount: 0,
+        fetchedItemCount: 0,
+        rawPageData: [],
+      };
+    }
+
+    const allItems = [];
+    const rawPageData = [];
+    let recordCount = 0;
+    for (let page = 1; page <= TRANSCRIPTION_DETAIL_MAX_PAGES; page += 1) {
+      const pageResult = await fetchSubtaskDataPage(
+        cleanSubTaskId,
+        page,
+        TRANSCRIPTION_DETAIL_PAGE_SIZE
+      );
+      rawPageData.push({
+        page: page,
+        itemCount: pageResult.list.length,
+        recordCount: pageResult.recordCount,
+      });
+      if (page === 1) {
+        recordCount = pageResult.recordCount;
+      } else if (recordCount <= 0 && pageResult.recordCount > 0) {
+        recordCount = pageResult.recordCount;
+      }
+
+      if (pageResult.list.length === 0) {
+        break;
+      }
+      allItems.push.apply(allItems, pageResult.list);
+
+      if ((recordCount > 0 && allItems.length >= recordCount) || pageResult.list.length < TRANSCRIPTION_DETAIL_PAGE_SIZE) {
+        break;
+      }
+    }
+
+    return {
+      subTaskId: cleanSubTaskId,
+      dataList: allItems,
+      recordCount: recordCount > 0 ? recordCount : allItems.length,
+      fetchedItemCount: allItems.length,
+      rawPageData: rawPageData,
+    };
+  }
+
+  async function fetchSubtaskDetail(summary) {
+    const safeSummary = summary && typeof summary === "object" ? summary : {};
+    const cleanSubTaskId = sanitizeSubTaskId(getSummarySubTaskId(safeSummary));
+    if (!cleanSubTaskId) {
+      console.warn(LOG_PREFIX, "Skip subtask detail: invalid subTaskId in summary.");
+      return Object.assign({}, safeSummary, {
+        id: "",
+        dataList: [],
+        recordCount: 0,
+        fetchedItemCount: 0,
+      });
+    }
+
+    const pageResult = await fetchSubtaskDataPages(cleanSubTaskId);
+    return Object.assign({}, safeSummary, {
+      id: cleanSubTaskId,
+      dataList: pageResult.dataList,
+      recordCount: pageResult.recordCount,
+      fetchedItemCount: pageResult.fetchedItemCount,
+      rawPageData: pageResult.rawPageData,
     });
-    return body?.data || {};
   }
 
   function normalizeListPage(body) {
@@ -281,12 +388,12 @@
 
     while (page <= 50) {
       const body = await fetchJson(buildUrl(page, normalizedPageSize), {
-        credentials: "include",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json, text/plain, */*",
-        },
-      });
+      credentials: "include",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json, text/plain, */*",
+      },
+    });
       const normalized = normalizeListPage(body);
       recordCount = normalized.recordCount;
       result.push.apply(result, normalized.list);
@@ -324,10 +431,27 @@
     return text.replace(/\.?0+$/, "");
   }
 
+  function getItemDurationSeconds(item) {
+    const candidates = [
+      item?.data?.duration,
+      item?.duration,
+      item?.audioDuration,
+      item?.data?.audioDuration,
+      item?.data?.audio?.duration,
+    ];
+
+    for (let index = 0; index < candidates.length; index += 1) {
+      const duration = Number(candidates[index]);
+      if (Number.isFinite(duration) && duration >= 0) {
+        return duration;
+      }
+    }
+    return 0;
+  }
+
   function sumDurationSeconds(dataList) {
     const total = (Array.isArray(dataList) ? dataList : []).reduce(function (sum, item) {
-      const duration = Number(item?.data?.duration);
-      return Number.isFinite(duration) && duration >= 0 ? sum + duration : sum;
+      return sum + getItemDurationSeconds(item);
     }, 0);
     return roundDurationSeconds(total);
   }
@@ -365,7 +489,8 @@
     return (
       normalized.indexOf("asr更优结果判断") >= 0 ||
       normalized.indexOf("asr更优") >= 0 ||
-      normalized.indexOf("更优结果判断") >= 0
+      normalized.indexOf("更优结果判断") >= 0 ||
+      normalized.indexOf("更优判断") >= 0
     );
   }
 
@@ -374,7 +499,8 @@
     return (
       normalized.indexOf("中文普通话asr任务") >= 0 ||
       normalized.indexOf("中文普通话asr") >= 0 ||
-      normalized.indexOf("asr任务") >= 0
+      normalized.indexOf("asr任务") >= 0 ||
+      normalized.indexOf("普通话asr") >= 0
     );
   }
 
@@ -387,16 +513,32 @@
     const labelModel = String(getFirstRecordValue(records, ["labelModel"]) || "").toLowerCase();
     const taskName = getFirstRecordValue(records, ["taskName", "name"]);
     const size = getTaskSizeFromRecords(records);
+    const hasJudgementName = hasJudgementTaskName(taskName);
+    const hasTranscriptionName = hasTranscriptionTaskName(taskName);
+    const normalizedTaskName = normalizeTaskName(taskName);
 
-    if (labelModel === JUDGEMENT_LABEL_MODEL || hasJudgementTaskName(taskName) || size === JUDGEMENT_TASK_SIZE) {
+    if (labelModel === JUDGEMENT_LABEL_MODEL) {
       return false;
     }
-
-    return (
-      labelModel === TRANSCRIPTION_LABEL_MODEL ||
-      hasTranscriptionTaskName(taskName) ||
-      size === TRANSCRIPTION_TASK_SIZE
-    );
+    if (hasJudgementName) {
+      return false;
+    }
+    if (
+      size === JUDGEMENT_TASK_SIZE &&
+      (normalizedTaskName.indexOf("更优") >= 0 || normalizedTaskName.indexOf("判断") >= 0)
+    ) {
+      return false;
+    }
+    if (labelModel === TRANSCRIPTION_LABEL_MODEL) {
+      return true;
+    }
+    if (hasTranscriptionName) {
+      return true;
+    }
+    if (size === TRANSCRIPTION_TASK_SIZE && !hasJudgementName) {
+      return true;
+    }
+    return false;
   }
 
   function isIgnoredUserText(text) {
@@ -645,7 +787,7 @@
     const normalizedDurationSeconds = roundDurationSeconds(durationSeconds);
     const role = inferRole(subtaskData, payloadContext.role);
     const batchId = String(subtaskData?.batchId || "");
-    const subTaskId = String(subtaskData?.id || urlParams.subTaskId || "");
+    const subTaskId = sanitizeSubTaskId(subtaskData?.id || urlParams.subTaskId || "");
     const userName =
       payloadContext.userName ||
       getUserNameFromRecord(subtaskData) ||
@@ -704,28 +846,36 @@
   }
 
   function getSummarySubTaskId(summary) {
-    return String(
+    return sanitizeSubTaskId(
       summary?.id || summary?.subTaskId || summary?.subtaskId || summary?.subtaskID || ""
-    ).trim();
+    );
   }
 
   function enrichSubtaskData(detailData, summary, taskMap, kind) {
     const summaryTaskId = String(summary?.taskId || "").trim();
     const linkedTask = summaryTaskId ? taskMap[summaryTaskId] || {} : {};
+    const detailDataList = Array.isArray(detailData?.dataList) ? detailData.dataList : [];
+    const resolvedSize =
+      Number(summary?.size) ||
+      Number(detailData?.recordCount) ||
+      detailDataList.length ||
+      Number(detailData?.size) ||
+      0;
     return Object.assign({}, detailData || {}, {
-      id: String(detailData?.id || getSummarySubTaskId(summary)),
-      taskId: String(detailData?.taskId || summaryTaskId),
-      batchId: String(detailData?.batchId || summary?.batchId || ""),
-      gmtCreate: detailData?.gmtCreate || summary?.gmtCreate,
-      gmtCommit: detailData?.gmtCommit || summary?.gmtCommit,
-      taskName: detailData?.taskName || summary?.taskName || linkedTask?.name || "",
-      size: detailData?.size || summary?.size,
-      labelModel: detailData?.labelModel || summary?.labelModel || linkedTask?.labelModel,
-      sourceType: kind?.key || summary?.sourceType || "",
+      id: sanitizeSubTaskId(detailData?.id || getSummarySubTaskId(summary)),
+      taskId: String(summaryTaskId || detailData?.taskId || ""),
+      batchId: String(summary?.batchId || detailData?.batchId || ""),
+      gmtCreate: summary?.gmtCreate || detailData?.gmtCreate,
+      gmtCommit: summary?.gmtCommit || detailData?.gmtCommit,
+      taskName: summary?.taskName || detailData?.taskName || linkedTask?.name || "",
+      size: resolvedSize > 0 ? resolvedSize : "",
+      recordCount: Number(detailData?.recordCount) || resolvedSize || detailDataList.length,
+      labelModel: summary?.labelModel || detailData?.labelModel || linkedTask?.labelModel,
+      sourceType: summary?.sourceType || kind?.key || "",
       status:
-        detailData?.status !== undefined && detailData?.status !== null
-          ? detailData.status
-          : summary?.status,
+        summary?.status !== undefined && summary?.status !== null
+          ? summary.status
+          : detailData?.status,
     });
   }
 
@@ -1026,7 +1176,10 @@
     }
 
     async function collectPayload(reason) {
-      return collectHomePayloads(reason);
+      if (isHomePage()) {
+        return collectHomePayloads(reason);
+      }
+      return collectDetailPayload(reason);
     }
 
     async function collectHomePayloads(reason) {
@@ -1116,8 +1269,11 @@
           const pageGroup = entry.pageGroup;
           const kind = pageGroup.kind;
           const linkedTask = pageGroup.taskMap[String(summary?.taskId || "")] || {};
-          const subTaskId = getSummarySubTaskId(summary);
-          const detailData = await fetchSubtaskData(subTaskId);
+          const detailData = await fetchSubtaskDetail(summary);
+          if (!detailData?.id) {
+            skippedDetailCount += 1;
+            return null;
+          }
           const enrichedData = enrichSubtaskData(detailData, summary, pageGroup.taskMap, kind);
           if (!isAsrTranscriptionTaskRecord(enrichedData, linkedTask)) {
             skippedDetailCount += 1;
@@ -1179,6 +1335,35 @@
           errors: errors,
         },
       };
+    }
+
+    async function collectDetailPayload(reason) {
+      const params = getUrlParams();
+      const cleanSubTaskId = sanitizeSubTaskId(params.subTaskId || "");
+      if (!cleanSubTaskId) {
+        throw new Error("详情页缺少有效 subTaskId，无法上传转写统计。");
+      }
+
+      const detailData = await fetchSubtaskDetail({ id: cleanSubTaskId });
+      const userName = await resolveCurrentUserText();
+      const durationSeconds = sumDurationSeconds(detailData.dataList);
+      const payload = buildPayload(
+        Object.assign({}, detailData, {
+          id: cleanSubTaskId,
+          size:
+            Number(detailData?.size) ||
+            Number(detailData?.recordCount) ||
+            Number(detailData?.fetchedItemCount) ||
+            (Array.isArray(detailData?.dataList) ? detailData.dataList.length : 0),
+        }),
+        durationSeconds,
+        reason || "detail-manual",
+        {
+          role: inferRole(detailData),
+          userName: userName,
+        }
+      );
+      return payload;
     }
 
     async function postPayload(payload) {
@@ -1364,5 +1549,6 @@
     createRuntime: createRuntime,
     CSV_COLUMNS: CSV_COLUMNS.slice(),
     isAsrTranscriptionTaskRecord: isAsrTranscriptionTaskRecord,
+    sanitizeSubTaskId: sanitizeSubTaskId,
   };
 })();
