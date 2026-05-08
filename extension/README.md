@@ -12,6 +12,9 @@
 - 不要为 Chrome 和 Edge 复制两套 `sites/` 业务运行时代码。
 - 浏览器差异优先放到 manifest、浏览器 API 兼容层、打包配置或发布说明里处理。
 - 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
+- 修复当前待验证版本 BUG 时，可保持 `manifest.version` 不变，不因同一版本的连续修复重复升 patch。
+- 当前 `0.2.10` 属于待修复与待验证版本，修复完成并通过真实浏览器验证前不升到 `0.2.11`。
+- 当前测试打包文件应为 `dist/annotation-script-center-v0.2.10.zip`。
 - 打包发布时，压缩包根目录必须直接包含 `manifest.json`、`background/`、`options/`、`popup/`、`shared/` 和 `sites/`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 

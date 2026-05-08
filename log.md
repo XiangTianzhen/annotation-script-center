@@ -2,6 +2,10 @@
 
 ## 2026-05-08
 
+- 修正版本策略：当前 ASR 转写属于 `0.2.10` 实际使用 BUG 修复过程，版本号回退并保持为 `0.2.10`，不提前升到 `0.2.11`。
+- 明确 `0.2.11` 仅在 `0.2.10` 修复完成且通过真实浏览器验证后再使用。
+- 重新生成 `dist/annotation-script-center-v0.2.10.zip` 作为当前有效测试包。
+
 - 修复 Alibaba LabelX 转写轻量脚本注入时机：`content.js` 改为持续重试命中（`DOMContentLoaded`、`load`、`MutationObserver`、`pushState/replaceState/popstate`、短轮询），不再在 `document_start` 首次 DOM 未就绪时永久停机。
 - 修复 popup 误报“注入失败”：转写 `PANEL_PING` 改为脚本注入后恒响应，新增 `injected/matched/reason`；popup 新增“已注入，等待转写详情页”状态，仅在真正无响应时显示“注入失败”。
 - 删除转写独立设置链路：移除 `settings-panel.js`、options 页转写设置表单挂载、页面内 overlay 设置入口与“设置”工具栏按钮。
