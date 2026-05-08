@@ -2,6 +2,13 @@
 
 ## 2026-05-08
 
+- ASR 转写新增统计导出能力：新增 `transcription-stats-server.js`，提供顶部“上传转写统计”入口、工具栏“上传统计”动作、定时上传调度（默认 `10:00` / `16:00`，jitter `10` 分钟）和上传状态提示。
+- ASR 转写新增独立统计后端：新增 `platform-resources/alibaba-labelx/asr-transcription/backend/`，包含 `health/config/upload/download` 路由、分包合并、CSV 写入与下载；默认输出 `statistics-data/statistics-merged.csv`。
+- 转写统计 CSV 列固定为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`，同一分包按 `mergeKey.batchId` 合并标注/审核记录。
+- 统一后端注册新增 `alibaba-labelx/asr-transcription` 项目路由与环境变量支持（`ASR_TRANSCRIPTION_STATS_DIR`、`ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`、`ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`）。
+- options 转写详情页继续保持轻量模式，不恢复旧完整设置表单，仅新增统计导出小卡（开关、上传地址、本地保存目录和下载地址说明）。
+- 本轮仍保持 `extension/manifest.json` 版本 `0.2.10`，因为当前属于 `0.2.10` 测试修复阶段，不提前升到 `0.2.11`。
+
 - ASR 转写轻量工具栏完成页面内布局改造：新增 `toolbar.js`，工具栏优先注入 `.mark-toolbox`（优先 breadcrumb 后），无 `.mark-toolbox` 时回退到首条题卡前，不再默认固定悬浮在页面顶部中央。
 - ASR 转写工具栏改为分组结构：`当前题/文本/音频/倍速/音量/状态`；状态块新增当前题定位、当前音频状态和最近动作结果，按钮动作继续只作用于当前题/当前音频。
 - 转写运行时编排收敛：`content.js` 只负责命中重试、动作分发、popup ping 与工具栏状态更新；保留 DOMContentLoaded/load/MutationObserver/SPA/轮询重试链路，避免过早判定失败。
@@ -233,7 +240,14 @@
 - 新增快判“雷题判断”能力：manifest 版本提升到 `0.2.2`，打包本地 `thunder-question-bank.csv` 雷题库，options 默认开启开关；命中雷题时在轻量题卡摘要和回答区“特殊情况标注”显示标准答案，当前选择与标准答案不一致时显示红色严重提示和错误 toast。
 - 增强快判统计上传失败诊断：非 2xx 响应会显示状态码、目标上传地址和响应摘要；浏览器权限、CORS、证书或网络拦截导致请求未发出时会显示更明确的错误来源。
 - 修正转写脚本在 LabelX 非转写页面的契约缺失告警：manifest 版本提升到 `0.2.3`，`content.js` 改为等待 `runtime-contract.js` 注入后再启动，超时仍缺失时以 info 级日志跳过，避免在快判首页出现 `Runtime contract is not loaded` 扩展错误。
+## 2026-05-08
 
-
-
-
+- 新增 Magic Data ANNOTATOR 平台前置采集文档目录：`platform-resources/magic-data/annotator/`。
+- 新增并维护文档：`README.md`、`page-structure.md`、`network.md`、`safety-boundary.md`、`development-plan.md`。
+- 本轮采集页面范围：首页、标注任务页、标注任务详情页、标注单条页、审核任务页、审核任务详情页、审核单条页。
+- 已通过 `chrome_devtools` 完成真实页面只读采集，记录请求摘要并脱敏处理。
+- 明确敏感动作边界：领取、开始（会改状态）、保存、提交、审核通过、审核驳回、退回、批量流转等均禁止自动触发。
+- 本轮未修改扩展运行时代码；未修改 `extension/manifest.json`；未修改 `extension/options/`；未修改 `extension/popup/`。
+- 按 `platform-resources/alibaba-labelx/asr-judgement` 目录方式重构 Magic Data 文档：新增 `platform-resources/magic-data/annotator/page-structure/` 与 `network/` 子目录。
+- `page-structure.md` 与 `network.md` 改为兼容索引入口，详细内容拆分到子目录多文件。
+- 补全 `network.md` 缺失项：新增欢迎页、标注链路、审核链路、音频脱敏、敏感写操作清单与待补采项。
