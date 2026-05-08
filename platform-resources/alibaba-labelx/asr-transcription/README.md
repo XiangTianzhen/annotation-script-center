@@ -5,6 +5,7 @@
 - `extension/sites/alibaba-labelx/asr-transcription/` 已切换为轻量工具栏版。
 - 独立设置页、页面 overlay 设置面板、快捷键配置已全部移除。
 - 运行时只保留当前题与当前音频基础动作，不包含保存/提交/自动化/AI链路。
+- 工具栏已改为页面内注入：优先 `.mark-toolbox`，找不到时回退到首条题卡前，不再默认顶部固定悬浮。
 
 ## 当前业务口径（与扩展运行时一致）
 
@@ -30,7 +31,8 @@
 
 ## 目录职责（轻量版）
 
-- `content.js`：页面命中重试 + 工具栏 + ping。
+- `content.js`：页面命中重试 + 运行时编排 + ping。
+- `toolbar.js`：页面内工具栏挂载、分组渲染、状态块与重挂载。
 - `runtime-config.js`：启用状态与固定默认值。
 - `active-item.js`：当前题定位。
 - `item-actions.js`：当前题动作。

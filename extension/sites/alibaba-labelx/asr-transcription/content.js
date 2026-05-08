@@ -5,10 +5,57 @@
   const activeItemApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionActiveItem || null;
   const itemActions = globalThis.__ASREdgeAlibabaLabelxTranscriptionItemActions || null;
   const audioApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionAudioController || null;
+  const toolbarApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionToolbar || null;
   const messageTypes = constants.MESSAGE_TYPES || {};
   const PANEL_PING = messageTypes.PANEL_PING || "ASR_EDGE_SETTINGS_PANEL_PING";
   const PROJECT_ID = configApi?.PROJECT_ID || "transcription";
   const TARGET_HOST = constants?.TARGET_PLATFORM?.host || "labelx.alibaba-inc.com";
+  const ACTION_GROUPS = [
+    {
+      label: "当前题",
+      actions: [
+        { key: "quickFill", label: "填入当前题源文本", shortLabel: "填入" },
+        { key: "markValid", label: "标记当前题为有效", shortLabel: "有效" },
+        { key: "markInvalid", label: "标记当前题为无效", shortLabel: "无效" },
+      ],
+    },
+    {
+      label: "文本",
+      actions: [
+        { key: "removeSpaces", label: "当前题去空格", shortLabel: "去空格" },
+        { key: "convertNumbers", label: "当前题数字转换", shortLabel: "转数字" },
+        { key: "toggleFocus", label: "切换当前题焦点", shortLabel: "焦点" },
+      ],
+    },
+    {
+      label: "音频",
+      actions: [
+        { key: "playPause", label: "播放或暂停当前音频", shortLabel: "播/停" },
+        { key: "seekBackward", label: "当前音频后退", shortLabel: "后退" },
+        { key: "seekForward", label: "当前音频前进", shortLabel: "前进" },
+      ],
+    },
+    {
+      label: "倍速",
+      actions: [
+        { key: "speedDown", label: "降低倍速", shortLabel: "减速" },
+        { key: "speedUp", label: "提高倍速", shortLabel: "加速" },
+        { key: "speedReset", label: "重置倍速", shortLabel: "重置" },
+      ],
+    },
+    {
+      label: "音量",
+      actions: [
+        { key: "volumeDown", label: "降低音量", shortLabel: "减音" },
+        { key: "volumeUp", label: "提高音量", shortLabel: "加音" },
+        { key: "volumeReset", label: "重置音量", shortLabel: "重置" },
+      ],
+    },
+    {
+      label: "辅助",
+      actions: [{ key: "copyDuration", label: "复制当前音频时长", shortLabel: "复制时长" }],
+    },
+  ];
 
   const runtime = {
     injected: true,
@@ -16,7 +63,7 @@
     matched: false,
     reason: "waiting-for-transcription-detail",
     config: null,
-    toolbarNode: null,
+    toolbarRuntime: null,
     autoPlayObserver: null,
     refreshTimer: null,
     refreshInFlight: false,
@@ -24,6 +71,7 @@
     mutationObserver: null,
     pollTimer: null,
     lastHref: String(location.href || ""),
+    lastActionText: "最近操作：--",
   };
 
   function warn(message, extra) {
@@ -109,79 +157,92 @@
     return { matched: true, reason: "matched" };
   }
 
-  function clearToolbar() {
-    if (runtime.toolbarNode) {
-      runtime.toolbarNode.remove();
-      runtime.toolbarNode = null;
+  function ensureToolbarRuntime() {
+    if (runtime.toolbarRuntime || !toolbarApi || typeof toolbarApi.createRuntime !== "function") {
+      return runtime.toolbarRuntime;
+    }
+    runtime.toolbarRuntime = toolbarApi.createRuntime({
+      shouldShowToolbar: function () {
+        return runtime.enabled === true && runtime.matched === true;
+      },
+      getActionGroups: function () {
+        return ACTION_GROUPS;
+      },
+      getStatus: getToolbarStatus,
+      onAction: function (actionKey) {
+        return runAction(actionKey);
+      },
+    });
+    return runtime.toolbarRuntime;
+  }
+
+  function getCurrentItemText() {
+    if (!activeItemApi || typeof activeItemApi.getCurrentContext !== "function") {
+      return "当前题：未定位";
+    }
+    const context = activeItemApi.getCurrentContext();
+    if (!context || !context.item) {
+      return "当前题：未定位";
+    }
+    const index = Number(context.item.getAttribute("data-index"));
+    if (Number.isFinite(index) && index >= 0) {
+      return "当前题：第 " + String(index + 1) + " 条";
+    }
+    if (context.source === "fallback-first-visible") {
+      return "当前题：兜底首条可见题";
+    }
+    return "当前题：已定位";
+  }
+
+  function formatRate(rate) {
+    const number = Number(rate);
+    if (!Number.isFinite(number)) {
+      return "1x";
+    }
+    return Number.isInteger(number)
+      ? String(number) + "x"
+      : Number(number.toFixed(2)).toString() + "x";
+  }
+
+  function getAudioText() {
+    if (!audioApi || typeof audioApi.getCurrentAudioSnapshot !== "function") {
+      return "音频：--";
+    }
+    const snapshot = audioApi.getCurrentAudioSnapshot();
+    if (!snapshot || snapshot.found !== true) {
+      return "音频：未定位";
+    }
+    const playText = snapshot.paused === true ? "暂停" : "播放";
+    const rateText = formatRate(snapshot.playbackRate);
+    const volumeValue = Number(snapshot.volumePercent);
+    const volumeText = Number.isFinite(volumeValue) ? String(Math.round(volumeValue)) + "%" : "--";
+    return "音频：" + playText + " " + rateText + " / " + volumeText;
+  }
+
+  function getToolbarStatus() {
+    return {
+      enabledText: runtime.enabled ? "转写工具栏已启用" : "转写工具栏待命中",
+      itemText: getCurrentItemText(),
+      audioText: getAudioText(),
+      lastActionText: runtime.lastActionText || "最近操作：--",
+    };
+  }
+
+  function updateToolbarStatus() {
+    const runtimeInstance = ensureToolbarRuntime();
+    if (runtimeInstance && typeof runtimeInstance.update === "function") {
+      runtimeInstance.update();
     }
   }
 
-  function createToolbarButton(label, action) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = label;
-    button.style.border = "1px solid #d1d5db";
-    button.style.background = "#fff";
-    button.style.fontSize = "12px";
-    button.style.padding = "4px 8px";
-    button.style.borderRadius = "6px";
-    button.style.cursor = "pointer";
-    button.addEventListener("click", function () {
-      void runAction(action);
-    });
-    return button;
-  }
-
-  function mountToolbar() {
-    if (runtime.toolbarNode && document.contains(runtime.toolbarNode)) {
-      return;
-    }
-
-    clearToolbar();
-    const host = document.createElement("div");
-    host.id = "asr-edge-transcription-toolbar";
-    host.style.position = "fixed";
-    host.style.top = "14px";
-    host.style.left = "50%";
-    host.style.transform = "translateX(-50%)";
-    host.style.zIndex = "2147483646";
-    host.style.display = "flex";
-    host.style.flexWrap = "wrap";
-    host.style.gap = "6px";
-    host.style.padding = "8px";
-    host.style.maxWidth = "92vw";
-    host.style.background = "rgba(255,255,255,.95)";
-    host.style.border = "1px solid #d1d5db";
-    host.style.borderRadius = "10px";
-    host.style.boxShadow = "0 4px 20px rgba(0,0,0,.12)";
-
-    [
-      ["填入", "quickFill"],
-      ["有效", "markValid"],
-      ["无效", "markInvalid"],
-      ["去空格", "removeSpaces"],
-      ["转数字", "convertNumbers"],
-      ["焦点", "toggleFocus"],
-      ["播/停", "playPause"],
-      ["后退", "seekBackward"],
-      ["前进", "seekForward"],
-      ["减速", "speedDown"],
-      ["加速", "speedUp"],
-      ["重置倍速", "speedReset"],
-      ["减音", "volumeDown"],
-      ["加音", "volumeUp"],
-      ["重置音量", "volumeReset"],
-      ["复制时长", "copyDuration"],
-    ].forEach(function (entry) {
-      host.appendChild(createToolbarButton(entry[0], entry[1]));
-    });
-
-    document.documentElement.appendChild(host);
-    runtime.toolbarNode = host;
+  function setLastActionText(message) {
+    runtime.lastActionText = "最近操作：" + String(message || "--");
+    updateToolbarStatus();
   }
 
   async function runAction(action) {
     if (!runtime.config) {
+      setLastActionText("当前配置未初始化。");
       return;
     }
 
@@ -244,6 +305,9 @@
 
     if (result && result.message) {
       showToast(result.message);
+      setLastActionText(result.message);
+    } else {
+      setLastActionText("操作已执行。");
     }
   }
 
@@ -274,14 +338,20 @@
     runtime.enabled = false;
     runtime.autoPlayObserver?.disconnect();
     runtime.autoPlayObserver = null;
-    clearToolbar();
+    if (runtime.toolbarRuntime && typeof runtime.toolbarRuntime.stop === "function") {
+      runtime.toolbarRuntime.stop();
+    }
     runtime.reason = reason || runtime.reason || "waiting-for-transcription-detail";
   }
 
   function enableRuntime() {
     runtime.enabled = true;
     runtime.reason = "matched";
-    mountToolbar();
+    const toolbarRuntime = ensureToolbarRuntime();
+    if (toolbarRuntime && typeof toolbarRuntime.start === "function") {
+      toolbarRuntime.start();
+    }
+    updateToolbarStatus();
     bindAutoPlay();
     void audioApi.autoPlayCurrentAudioIfNeeded(runtime.config?.autoPlay === true);
   }
@@ -306,6 +376,11 @@
         warn("required module missing");
         return;
       }
+      if (!toolbarApi || typeof toolbarApi.createRuntime !== "function") {
+        disableRuntime("module-missing-toolbar");
+        warn("toolbar module missing");
+        return;
+      }
 
       const loaded = await configApi.loadConfig();
       runtime.config = loaded.config;
@@ -328,6 +403,7 @@
 
       if (!page.matched) {
         disableRuntime(page.reason);
+        updateToolbarStatus();
         return;
       }
 

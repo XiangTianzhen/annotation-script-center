@@ -1328,7 +1328,10 @@
     setStatus("detail-status", "");
 
     if (scriptId === transcriptionProjectId) {
-      setStatus("detail-status", "ASR 转写当前为轻量工具栏模式，暂无独立设置项。");
+      setStatus(
+        "detail-status",
+        "ASR 转写当前为轻量工具栏模式（0.2.10）：仅保留页面内工具栏按钮，不提供独立设置和快捷键配置。"
+      );
       return;
     }
 

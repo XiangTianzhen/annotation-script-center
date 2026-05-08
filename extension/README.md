@@ -30,7 +30,7 @@ sites/
 ```
 
 - `alibaba-labelx/asr-judgement/`：Alibaba LabelX ASR 快判。
-- `alibaba-labelx/asr-transcription/`：Alibaba LabelX ASR 转写（轻量工具栏版；无独立设置页、无快捷键配置）。
+- `alibaba-labelx/asr-transcription/`：Alibaba LabelX ASR 转写（轻量工具栏版；无独立设置页、无快捷键配置；工具栏优先注入 `.mark-toolbox`）。
 - `data-baker/round-one-quality/`：标贝易采一检质检 AI 推荐文本，只在 `datafactory.data-baker.com` 的 `roundOneCollect` 详情页注入。
 
 ## 生成压缩包

@@ -144,6 +144,23 @@
     return safePlay(audio);
   }
 
+  function getCurrentAudioSnapshot() {
+    const audio = resolveCurrentAudio();
+    if (!audio) {
+      return { found: false };
+    }
+    const duration = Number.isFinite(audio.duration) ? Number(audio.duration.toFixed(3)) : null;
+    const currentTime = Number.isFinite(audio.currentTime) ? Number(audio.currentTime.toFixed(3)) : null;
+    return {
+      found: true,
+      paused: audio.paused === true,
+      playbackRate: Number(audio.playbackRate || 1),
+      volumePercent: Math.round(Number(audio.volume || 0) * 100),
+      duration: duration,
+      currentTime: currentTime,
+    };
+  }
+
   globalThis.__ASREdgeAlibabaLabelxTranscriptionAudioController = {
     resolveCurrentAudio: resolveCurrentAudio,
     playPauseCurrentAudio: playPauseCurrentAudio,
@@ -154,5 +171,6 @@
     setVolumePercent: setVolumePercent,
     copyCurrentAudioDuration: copyCurrentAudioDuration,
     autoPlayCurrentAudioIfNeeded: autoPlayCurrentAudioIfNeeded,
+    getCurrentAudioSnapshot: getCurrentAudioSnapshot,
   };
 })();
