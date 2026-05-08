@@ -12,6 +12,30 @@
     (globalThis.ASREdgeConstants &&
       globalThis.ASREdgeConstants.TRANSCRIPTION_STATS_LOCAL_ENDPOINT) ||
     "http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload";
+  const DEFAULT_ASR_CONFIG =
+    (globalThis.ASREdgeConstants && globalThis.ASREdgeConstants.DEFAULT_ASR_CONFIG) || {};
+  const SHORTCUT_COMPATIBILITY_MAP =
+    (globalThis.ASREdgeConstants && globalThis.ASREdgeConstants.SHORTCUT_COMPATIBILITY_MAP) || {};
+
+  const SAFE_SHORTCUT_KEYS = [
+    "shortcutPlayPause",
+    "shortcutValid",
+    "shortcutInvalid",
+    "shortcutFill",
+    "shortcutRemoveSpaces",
+    "shortcutConvertNum",
+    "shortcutToggleFocus",
+    "shortcutBackward",
+    "shortcutForward",
+    "shortcutSpeedDown",
+    "shortcutSpeedUp",
+    "shortcutResetSpeed",
+    "shortcutVolDown",
+    "shortcutVolUp",
+    "shortcutResetVol",
+    "shortcutCopyDuration",
+    "shortcutUploadStats",
+  ];
 
   const FIXED_DEFAULTS = {
     autoPlay: false,
@@ -23,8 +47,23 @@
     fillOnValid: true,
     clearOnInvalid: true,
     defaultValid: false,
-    customReplacements: [],
-    customRates: [],
+    shortcutPlayPause: null,
+    shortcutValid: null,
+    shortcutInvalid: null,
+    shortcutFill: null,
+    shortcutRemoveSpaces: null,
+    shortcutConvertNum: null,
+    shortcutToggleFocus: null,
+    shortcutBackward: null,
+    shortcutForward: null,
+    shortcutSpeedDown: null,
+    shortcutSpeedUp: null,
+    shortcutResetSpeed: null,
+    shortcutVolDown: null,
+    shortcutVolUp: null,
+    shortcutResetVol: null,
+    shortcutCopyDuration: null,
+    shortcutUploadStats: null,
   };
   const FIXED_STATS_DEFAULTS = {
     statsUploadEnabled: true,
@@ -48,20 +87,120 @@
     return typeof precision === "number" ? Number(bounded.toFixed(precision)) : bounded;
   }
 
+  function normalizeShortcut(shortcut) {
+    if (!shortcut || typeof shortcut !== "object") {
+      return null;
+    }
+
+    const hasKey = typeof shortcut.key === "string" && shortcut.key.length > 0;
+    const hasButton = typeof shortcut.button === "number";
+    if (!hasKey && !hasButton) {
+      return null;
+    }
+
+    return {
+      ctrl: shortcut.ctrl === true,
+      alt: shortcut.alt === true,
+      shift: shortcut.shift === true,
+      meta: shortcut.meta === true,
+      key: hasKey ? String(shortcut.key) : null,
+      button: hasButton ? shortcut.button : null,
+    };
+  }
+
+  function normalizeTimeList(value, fallback) {
+    const source = Array.isArray(value)
+      ? value
+      : typeof value === "string"
+        ? value.split(/[,，\n]/)
+        : Array.isArray(fallback)
+          ? fallback
+          : FIXED_STATS_DEFAULTS.statsUploadTimes;
+    const result = [];
+    source.forEach(function (item) {
+      const text = String(item || "").trim();
+      const match = text.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+      if (!match) {
+        return;
+      }
+      const normalized = String(Number(match[1])).padStart(2, "0") + ":" + match[2];
+      if (result.indexOf(normalized) < 0) {
+        result.push(normalized);
+      }
+    });
+    return result.length > 0 ? result : FIXED_STATS_DEFAULTS.statsUploadTimes.slice();
+  }
+
+  function getShortcutFromSource(source, shortcutKey) {
+    if (source && Object.prototype.hasOwnProperty.call(source, shortcutKey)) {
+      return source[shortcutKey];
+    }
+
+    const compatEntry = Object.entries(SHORTCUT_COMPATIBILITY_MAP).find(function (entry) {
+      return entry[1] === shortcutKey;
+    });
+    const compatKey = compatEntry ? compatEntry[0] : "";
+    if (
+      compatKey &&
+      source &&
+      source.shortcuts &&
+      Object.prototype.hasOwnProperty.call(source.shortcuts, compatKey)
+    ) {
+      return source.shortcuts[compatKey];
+    }
+
+    return null;
+  }
+
   function normalizeRuntimeConfig(config) {
     const source = config && typeof config === "object" ? config : {};
+    const shortcuts = {};
+    SAFE_SHORTCUT_KEYS.forEach(function (shortcutKey) {
+      shortcuts[shortcutKey] = normalizeShortcut(getShortcutFromSource(source, shortcutKey));
+    });
+
+    const resetRateValue = toNumber(
+      hasOwn(source, "resetRateValue") ? source.resetRateValue : source.playbackRateValue,
+      1,
+      0.25,
+      5,
+      2
+    );
+
     return {
       autoPlay: source.autoPlay === true,
-      playbackRateValue: toNumber(source.playbackRateValue, 1, 0.25, 5, 2),
-      resetRateValue: toNumber(source.resetRateValue, 1, 0.25, 5, 2),
-      rateStepValue: toNumber(source.rateStepValue, 0.1, 0.01, 2, 2),
+      playbackRateValue: toNumber(
+        hasOwn(source, "playbackRateValue") ? source.playbackRateValue : resetRateValue,
+        resetRateValue,
+        0.25,
+        5,
+        2
+      ),
+      resetRateValue: resetRateValue,
+      rateStepValue: toNumber(source.rateStepValue, 0.1, 0.05, 2, 2),
       seekStepSeconds: toNumber(source.seekStepSeconds, 1, 0.1, 10, 2),
       volumeValue: toNumber(source.volumeValue, 100, 0, 1000, 0),
       fillOnValid: source.fillOnValid !== false,
       clearOnInvalid: source.clearOnInvalid !== false,
       defaultValid: source.defaultValid === true,
-      customReplacements: Array.isArray(source.customReplacements) ? clone(source.customReplacements) : [],
-      customRates: Array.isArray(source.customRates) ? clone(source.customRates) : [],
+      shortcuts: shortcuts,
+      shortcutPlayPause: shortcuts.shortcutPlayPause,
+      shortcutValid: shortcuts.shortcutValid,
+      shortcutInvalid: shortcuts.shortcutInvalid,
+      shortcutFill: shortcuts.shortcutFill,
+      shortcutRemoveSpaces: shortcuts.shortcutRemoveSpaces,
+      shortcutConvertNum: shortcuts.shortcutConvertNum,
+      shortcutToggleFocus: shortcuts.shortcutToggleFocus,
+      shortcutBackward: shortcuts.shortcutBackward,
+      shortcutForward: shortcuts.shortcutForward,
+      shortcutSpeedDown: shortcuts.shortcutSpeedDown,
+      shortcutSpeedUp: shortcuts.shortcutSpeedUp,
+      shortcutResetSpeed: shortcuts.shortcutResetSpeed,
+      shortcutVolDown: shortcuts.shortcutVolDown,
+      shortcutVolUp: shortcuts.shortcutVolUp,
+      shortcutResetVol: shortcuts.shortcutResetVol,
+      shortcutCopyDuration: shortcuts.shortcutCopyDuration,
+      shortcutUploadStats: shortcuts.shortcutUploadStats,
     };
   }
 
@@ -78,34 +217,21 @@
       endpoint = endpointText;
     }
 
-    const timesSource = Array.isArray(source.statsUploadTimes)
-      ? source.statsUploadTimes
-      : FIXED_STATS_DEFAULTS.statsUploadTimes;
-    const times = timesSource
-      .map(function (item) {
-        const text = String(item || "").trim();
-        const match = text.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
-        if (!match) {
-          return "";
-        }
-        return String(Number(match[1])).padStart(2, "0") + ":" + match[2];
-      })
-      .filter(Boolean);
-
     return {
       statsUploadEnabled: source.statsUploadEnabled !== false,
       statsUploadEndpoint: endpoint,
-      statsUploadTimes: times.length > 0 ? times : FIXED_STATS_DEFAULTS.statsUploadTimes.slice(),
+      statsUploadTimes: normalizeTimeList(
+        source.statsUploadTimes,
+        FIXED_STATS_DEFAULTS.statsUploadTimes
+      ),
       statsUploadJitterMinutes: toNumber(source.statsUploadJitterMinutes, 10, 0, 120, 0),
       statsAutoUploadOnSchedule: source.statsAutoUploadOnSchedule !== false,
-      statsUploadRequestTimeoutMs: toNumber(
-        source.statsUploadRequestTimeoutMs,
-        20000,
-        1000,
-        120000,
-        0
-      ),
+      statsUploadRequestTimeoutMs: toNumber(source.statsUploadRequestTimeoutMs, 20000, 1000, 120000, 0),
     };
+  }
+
+  function hasOwn(target, key) {
+    return Boolean(target) && Object.prototype.hasOwnProperty.call(target, key);
   }
 
   function getActiveProjectId(settings) {
@@ -137,13 +263,14 @@
     const settings = await loadSettings();
     const projectAsrConfig =
       settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[PROJECT_ID]?.asrConfig || {};
+    const defaultRuntime = Object.assign({}, FIXED_DEFAULTS, DEFAULT_ASR_CONFIG || {});
     return {
       settings: settings,
       activeProjectId: getActiveProjectId(settings),
       enabledBySettings: isProjectEnabled(settings),
-      config: normalizeRuntimeConfig(FIXED_DEFAULTS),
+      config: normalizeRuntimeConfig(Object.assign({}, defaultRuntime, projectAsrConfig)),
       statsConfig: normalizeStatsConfig(
-        Object.assign({}, FIXED_STATS_DEFAULTS, projectAsrConfig)
+        Object.assign({}, FIXED_STATS_DEFAULTS, DEFAULT_ASR_CONFIG || {}, projectAsrConfig)
       ),
       storageKey: STORAGE_KEY,
     };

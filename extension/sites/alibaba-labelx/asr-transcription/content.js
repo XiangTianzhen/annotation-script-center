@@ -7,6 +7,7 @@
   const audioApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionAudioController || null;
   const toolbarApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionToolbar || null;
   const statsApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionStatsClient || null;
+  const shortcutApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionShortcutBus || null;
   const messageTypes = constants.MESSAGE_TYPES || {};
   const PANEL_PING = messageTypes.PANEL_PING || "ASR_EDGE_SETTINGS_PANEL_PING";
   const PROJECT_ID = configApi?.PROJECT_ID || "transcription";
@@ -80,6 +81,7 @@
     statsConfig: null,
     statsRuntime: null,
     statsState: null,
+    shortcutRuntime: null,
   };
 
   function warn(message, extra) {
@@ -223,6 +225,25 @@
       onStateChange: syncStatsState,
     });
     return runtime.statsRuntime;
+  }
+
+  function ensureShortcutRuntime() {
+    if (runtime.shortcutRuntime || !shortcutApi || typeof shortcutApi.createRuntime !== "function") {
+      return runtime.shortcutRuntime;
+    }
+
+    runtime.shortcutRuntime = shortcutApi.createRuntime({
+      isEnabled: function () {
+        return runtime.enabled === true && runtime.matched === true;
+      },
+      getConfig: function () {
+        return runtime.config || {};
+      },
+      runAction: function (actionName) {
+        return runAction(actionName, "shortcut");
+      },
+    });
+    return runtime.shortcutRuntime;
   }
 
   function startStatsRuntime() {
@@ -422,6 +443,9 @@
 
   function disableRuntime(reason) {
     runtime.enabled = false;
+    if (runtime.shortcutRuntime && typeof runtime.shortcutRuntime.unbind === "function") {
+      runtime.shortcutRuntime.unbind();
+    }
     runtime.autoPlayObserver?.disconnect();
     runtime.autoPlayObserver = null;
     if (runtime.toolbarRuntime && typeof runtime.toolbarRuntime.stop === "function") {
@@ -439,6 +463,10 @@
     }
     updateToolbarStatus();
     bindAutoPlay();
+    const shortcutRuntime = ensureShortcutRuntime();
+    if (shortcutRuntime && typeof shortcutRuntime.bind === "function") {
+      shortcutRuntime.bind();
+    }
     void audioApi.autoPlayCurrentAudioIfNeeded(runtime.config?.autoPlay === true);
   }
 

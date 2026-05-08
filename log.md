@@ -2,6 +2,13 @@
 
 ## 2026-05-08
 
+- ASR 转写统计取数按 `platform-resources/alibaba-labelx/asr-transcription/network.md` 修正：详情接口分页解析改为 `data.dataList[]`，并保持 `pageSize=10` + `maxPages=20`。
+- 转写统计新增详情页元信息合并：`fetchSubtaskDetail` 会把分页首屏 metadata（`taskId/batchId/taskName/status/gmtCreate/gmtCommit`）与首页 summary 合并，避免只拿题目列表导致字段缺失。
+- ASR 转写恢复轻量设置面板：options 转写详情页新增自动播放、默认倍速/重置倍速、倍速步进、前进/后退步长、默认音量、当前题行为和转写统计上传配置。
+- ASR 转写恢复快捷键配置与运行时：新增 `shortcut-bus.js`，仅支持当前保留动作（含“上传转写统计”），并加入“输入框普通字符不拦截”保护。
+- `runtime-config.js` 改为读取 `scriptCenter.projects.transcription.asrConfig` 并规范化安全字段，不再仅使用固定硬编码值；转写运行时参数与 options 保存值打通。
+- `manifest.json` 为转写注入链路新增 `sites/alibaba-labelx/asr-transcription/shortcut-bus.js`（在 `content.js` 前），版本保持 `0.2.10`。
+
 - ASR 转写新增统计导出能力：新增 `transcription-stats-client.js`（浏览器端上传客户端），提供顶部“上传转写统计”入口、工具栏“上传统计”动作、定时上传调度（默认 `10:00` / `16:00`，jitter `10` 分钟）和上传状态提示。
 - ASR 转写新增独立统计后端：新增 `platform-resources/alibaba-labelx/asr-transcription/backend/`，包含 `health/config/upload/download` 路由、分包合并、CSV 写入与下载；默认输出 `statistics-data/statistics-merged.csv`。
 - 转写统计 CSV 列固定为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`，同一分包按 `mergeKey.batchId` 合并标注/审核记录。

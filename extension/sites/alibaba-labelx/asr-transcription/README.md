@@ -3,9 +3,9 @@
 ## 当前状态（2026-05-08）
 
 - 当前仍处于 `0.2.10` 修复阶段，`manifest.version` 保持 `0.2.10`。
-- `asr-transcription` 已删除独立设置页和页面内 overlay 设置面板。
-- 已删除转写快捷键配置与快捷键运行时。
-- 当前只保留转写详情页的工具栏按钮能力。
+- `asr-transcription` 已删除旧版独立大表单与页面内 overlay 设置面板。
+- 已恢复转写轻量设置面板与快捷键运行时（仅覆盖当前保留功能）。
+- 当前保留转写详情页工具栏按钮能力，并允许通过 options 调整基础参数。
 - 工具栏已改为页面内注入结构：优先挂载 `.mark-toolbox`，其次挂到首条题卡上方，不再默认固定悬浮在页面顶部中央。
 - 新增转写统计导出能力：支持手动上传与定时上传，后端按分包合并 CSV。
 
@@ -24,17 +24,17 @@
   - 音量提高 / 降低 / 重置
   - 复制时长
 
-## 固定默认值（不再提供 UI 配置）
+## 默认值与可配置项
 
-- `autoPlay=false`
-- `playbackRateValue=1`
-- `resetRateValue=1`
-- `rateStepValue=0.1`
-- `seekStepSeconds=1`
-- `volumeValue=100`
-- `fillOnValid=true`
-- `clearOnInvalid=true`
-- `defaultValid=false`
+- 默认值基于 `shared/constants.js -> DEFAULT_ASR_CONFIG`，运行时会从 `chrome.storage` 读取并覆盖。
+- options 转写轻量设置面板可配置：
+  - 自动播放 `autoPlay`
+  - 默认倍速 `playbackRateValue` / 重置倍速 `resetRateValue`
+  - 倍速步进 `rateStepValue`
+  - 前进/后退步长 `seekStepSeconds`
+  - 默认音量 `volumeValue`
+  - 当前题行为 `defaultValid/fillOnValid/clearOnInvalid`
+  - 当前保留功能快捷键（含“上传转写统计”）
 
 ## 注入与页面命中策略
 
@@ -62,7 +62,7 @@
 - 不强制保存、不点击保存按钮。
 - 不自动提交、不自动领取、不自动流转、不自动跳转下一任务。
 - 不做整页受控执行与全页批量修改。
-- 不提供独立完整设置页、overlay 设置面板或快捷键配置。
+- 不提供旧版独立完整大表单和 overlay 设置面板。
 
 ## 转写统计导出（新增）
 
@@ -86,12 +86,13 @@
 ## 文件职责
 
 - `content.js`：页面命中重试、运行时编排、工具栏、popup ping 响应。
-- `runtime-config.js`：脚本中心启用状态读取 + 固定默认值输出。
+- `runtime-config.js`：脚本中心启用状态读取 + 转写轻量设置规范化（含快捷键与统计配置）。
 - `active-item.js`：当前题与当前音频定位（含“首个可见题卡”兜底）。
 - `item-actions.js`：当前题文本与有效/无效动作。
 - `audio-controller.js`：当前音频控制与时长复制。
 - `text-utils.js`：去空格、轻量数字转换。
 - `transcription-stats-client.js`：浏览器端转写统计上传客户端，仅负责统计采集、手动/定时上传、按钮状态回传。
+- `shortcut-bus.js`：转写快捷键运行时，仅映射当前保留动作，普通输入不误拦截。
 - `platform-resources/alibaba-labelx/asr-transcription/backend/`：Node 后端服务目录，负责路由、分包合并、CSV 落盘与下载。
 
 ## 真实浏览器验证步骤

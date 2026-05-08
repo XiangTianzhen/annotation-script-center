@@ -84,6 +84,7 @@
         "sites/alibaba-labelx/asr-transcription/audio-controller.js",
         "sites/alibaba-labelx/asr-transcription/toolbar.js",
         "sites/alibaba-labelx/asr-transcription/transcription-stats-client.js",
+        "sites/alibaba-labelx/asr-transcription/shortcut-bus.js",
         "sites/alibaba-labelx/asr-transcription/content.js"
       ],
       "all_frames": false,

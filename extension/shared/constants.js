@@ -185,6 +185,7 @@
     shortcutFill: createShortcut("f"),
     shortcutConvertNum: createShortcut("v"),
     shortcutCopyDuration: createShortcut("b"),
+    shortcutUploadStats: null,
     statsUploadEnabled: true,
     statsUploadEndpoint: TRANSCRIPTION_STATS_SERVER_ENDPOINT,
     statsUploadTimes: ["10:00", "16:00"],
@@ -416,6 +417,7 @@
     { key: "shortcutVolUp", label: "音量 +50%" },
     { key: "shortcutResetVol", label: "重置音量 (100%)" },
     { key: "shortcutRemoveSpaces", label: "去除当前空格" },
+    { key: "shortcutUploadStats", label: "上传转写统计" },
   ];
 
   const SHORTCUT_KEYS = SHORTCUT_DEFINITIONS.map(function (item) {
@@ -440,6 +442,7 @@
     volumeUp: "shortcutVolUp",
     resetVolume: "shortcutResetVol",
     removeSpaces: "shortcutRemoveSpaces",
+    uploadStats: "shortcutUploadStats",
   };
 
   const BOOLEAN_CONFIG_KEYS = [

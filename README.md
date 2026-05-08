@@ -96,9 +96,9 @@ Chrome：
 - 不新增自定义后端保存接口。
 - 不构建、不注入自定义保存 payload。
 - 不自动提交、不自动领取、不自动流转。
-- 转写脚本不再提供独立设置页、页面内 overlay 设置面板和快捷键配置。
+- 转写脚本不提供旧版独立大表单与页面 overlay 设置面板；当前改为 options 轻量设置面板。
 - 转写工具栏改为页面内注入，优先挂载 `.mark-toolbox`，不再默认固定悬浮在页面顶部中央。
-- options 转写详情页保留轻量说明 + 转写统计上传小卡（开关、上传地址、本机/服务器下载地址说明）。
+- options 转写详情页提供轻量可配置项：自动播放、默认倍速/重置倍速、倍速步进、前进/后退步长、默认音量、当前功能快捷键和转写统计上传设置。
 - popup 状态区分为：已注入等待详情页、运行成功、真正注入失败。
 - 转写新增统计导出能力：支持顶部“上传转写统计”手动上传与定时上传（默认 `10:00`、`16:00`，jitter `10` 分钟），后端按分包合并 CSV。
 - 转写扩展侧统计文件为 `extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只做采集与上传客户端；CSV 落盘与下载服务仅在 `platform-resources/alibaba-labelx/asr-transcription/backend/`。

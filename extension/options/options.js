@@ -62,7 +62,26 @@
     { key: "rateReset", label: "重置倍速" },
     { key: "seekBackward", label: "后退当前音频" },
     { key: "seekForward", label: "前进当前音频" },
-    { key: "playPause", label: "播放/暂停当前音频" },
+      { key: "playPause", label: "播放/暂停当前音频" },
+  ];
+  const transcriptionShortcutActions = [
+    { key: "shortcutPlayPause", label: "播放 / 暂停" },
+    { key: "shortcutValid", label: "当前题标有效" },
+    { key: "shortcutInvalid", label: "当前题标无效" },
+    { key: "shortcutFill", label: "当前题快速填入" },
+    { key: "shortcutRemoveSpaces", label: "当前题去空格" },
+    { key: "shortcutConvertNum", label: "当前题数字转换" },
+    { key: "shortcutToggleFocus", label: "焦点切换" },
+    { key: "shortcutBackward", label: "当前音频后退" },
+    { key: "shortcutForward", label: "当前音频前进" },
+    { key: "shortcutSpeedDown", label: "降低倍速" },
+    { key: "shortcutSpeedUp", label: "提高倍速" },
+    { key: "shortcutResetSpeed", label: "重置倍速" },
+    { key: "shortcutVolDown", label: "降低音量" },
+    { key: "shortcutVolUp", label: "提高音量" },
+    { key: "shortcutResetVol", label: "重置音量" },
+    { key: "shortcutCopyDuration", label: "复制当前音频时长" },
+    { key: "shortcutUploadStats", label: "上传转写统计" },
   ];
   const judgementItemsPerPageOptions = [
     { value: "1 条/页", label: "1 条/页" },
@@ -85,6 +104,9 @@
     4: "MouseForward",
   };
   let currentSettings = null;
+  let transcriptionShortcutsDraft = {};
+  let transcriptionRecordingKey = null;
+  let stopTranscriptionRecordingListeners = null;
   let judgementShortcutsDraft = {};
   let judgementRecordingKey = null;
   let stopJudgementRecordingListeners = null;
@@ -360,6 +382,24 @@
     return allowedValues.indexOf(fallback) >= 0 ? fallback : 0.5;
   }
 
+  function normalizeTranscriptionRateStep(value, fallback) {
+    const allowedValues = [0.1, 0.25, 0.5, 1];
+    const numericValue = Number(value);
+    if (allowedValues.indexOf(numericValue) >= 0) {
+      return numericValue;
+    }
+    return allowedValues.indexOf(fallback) >= 0 ? fallback : 0.1;
+  }
+
+  function normalizeTranscriptionSeekStep(value, fallback) {
+    const allowedValues = [0.5, 1, 2, 3, 5];
+    const numericValue = Number(value);
+    if (allowedValues.indexOf(numericValue) >= 0) {
+      return numericValue;
+    }
+    return allowedValues.indexOf(fallback) >= 0 ? fallback : 1;
+  }
+
   function hasOwn(target, key) {
     return Boolean(target) && Object.prototype.hasOwnProperty.call(target, key);
   }
@@ -562,11 +602,37 @@
     node.className = "script-pill " + status.tone;
   }
 
-  function normalizeTranscriptionStatsConfig(settings) {
+  function normalizeTranscriptionConfig(settings) {
     const projectState =
       settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[transcriptionProjectId] || {};
     const asrConfig = projectState.asrConfig || {};
     const defaults = constants.DEFAULT_ASR_CONFIG || {
+      autoPlay: false,
+      defaultValid: false,
+      fillOnValid: true,
+      clearOnInvalid: true,
+      playbackRateValue: 1,
+      resetRateValue: 1,
+      rateStepValue: 0.1,
+      seekStepSeconds: 1,
+      volumeValue: 100,
+      shortcutPlayPause: null,
+      shortcutValid: null,
+      shortcutInvalid: null,
+      shortcutFill: null,
+      shortcutRemoveSpaces: null,
+      shortcutConvertNum: null,
+      shortcutToggleFocus: null,
+      shortcutBackward: null,
+      shortcutForward: null,
+      shortcutSpeedDown: null,
+      shortcutSpeedUp: null,
+      shortcutResetSpeed: null,
+      shortcutVolDown: null,
+      shortcutVolUp: null,
+      shortcutResetVol: null,
+      shortcutCopyDuration: null,
+      shortcutUploadStats: null,
       statsUploadEnabled: true,
       statsUploadEndpoint: transcriptionStatsServerEndpoint,
       statsUploadTimes: ["10:00", "16:00"],
@@ -575,7 +641,57 @@
       statsUploadRequestTimeoutMs: 20000,
     };
 
+    const shortcuts = {};
+    transcriptionShortcutActions.forEach(function (action) {
+      const sourceShortcut = hasOwn(asrConfig, action.key)
+        ? asrConfig[action.key]
+        : hasOwn(defaults, action.key)
+          ? defaults[action.key]
+          : null;
+      shortcuts[action.key] = normalizeShortcut(sourceShortcut);
+    });
+
+    const resetRateValue = clampNumber(
+      hasOwn(asrConfig, "resetRateValue")
+        ? asrConfig.resetRateValue
+        : hasOwn(asrConfig, "playbackRateValue")
+          ? asrConfig.playbackRateValue
+          : defaults.resetRateValue || defaults.playbackRateValue || 1,
+      defaults.resetRateValue || defaults.playbackRateValue || 1,
+      0.25,
+      5,
+      2
+    );
+
     return {
+      autoPlay: asrConfig.autoPlay === true,
+      defaultValid: asrConfig.defaultValid === true,
+      fillOnValid: asrConfig.fillOnValid !== false,
+      clearOnInvalid: asrConfig.clearOnInvalid !== false,
+      playbackRateValue: clampNumber(
+        hasOwn(asrConfig, "playbackRateValue") ? asrConfig.playbackRateValue : resetRateValue,
+        resetRateValue,
+        0.25,
+        5,
+        2
+      ),
+      resetRateValue: resetRateValue,
+      rateStepValue: normalizeTranscriptionRateStep(
+        asrConfig.rateStepValue,
+        defaults.rateStepValue || 0.1
+      ),
+      seekStepSeconds: normalizeTranscriptionSeekStep(
+        asrConfig.seekStepSeconds,
+        defaults.seekStepSeconds || 1
+      ),
+      volumeValue: clampNumber(
+        asrConfig.volumeValue,
+        defaults.volumeValue || 100,
+        0,
+        1000,
+        0
+      ),
+      shortcuts: shortcuts,
       statsUploadEnabled: asrConfig.statsUploadEnabled !== false,
       statsUploadEndpoint: normalizeTranscriptionStatsEndpoint(
         hasOwn(asrConfig, "statsUploadEndpoint")
@@ -1193,20 +1309,147 @@
     renderJudgementShortcutGrid();
   }
 
-  function applyTranscriptionStatsForm(settings) {
-    const config = normalizeTranscriptionStatsConfig(settings);
-    const enabledNode = getElement("transcription-stats-enabled");
-    const endpointNode = getElement("transcription-stats-endpoint");
-    if (!(enabledNode instanceof HTMLInputElement) || !(endpointNode instanceof HTMLSelectElement)) {
+  function ensureTranscriptionShortcutDraft() {
+    transcriptionShortcutActions.forEach(function (action) {
+      if (!hasOwn(transcriptionShortcutsDraft, action.key)) {
+        transcriptionShortcutsDraft[action.key] = null;
+      }
+    });
+  }
+
+  function renderTranscriptionShortcutGrid() {
+    const grid = getElement("transcription-shortcut-grid");
+    if (!grid) {
+      return;
+    }
+    ensureTranscriptionShortcutDraft();
+    grid.innerHTML = transcriptionShortcutActions
+      .map(function (action) {
+        const recording = transcriptionRecordingKey === action.key;
+        return [
+          '<div class="shortcut-row">',
+          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
+          '<span class="shortcut-value">' +
+            escapeHtml(recording ? "录制中..." : formatShortcut(transcriptionShortcutsDraft[action.key])) +
+            "</span>",
+          '<button type="button" class="secondary-button" data-record-transcription-shortcut="' +
+            escapeHtml(action.key) +
+            '">' +
+            (recording ? "录制中" : "录制") +
+            "</button>",
+          '<button type="button" class="ghost-button" data-clear-transcription-shortcut="' +
+            escapeHtml(action.key) +
+            '">删除</button>',
+          "</div>",
+        ].join("");
+      })
+      .join("");
+
+    Array.from(grid.querySelectorAll("[data-record-transcription-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        startTranscriptionShortcutRecording(button.getAttribute("data-record-transcription-shortcut"));
+      });
+    });
+
+    Array.from(grid.querySelectorAll("[data-clear-transcription-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        const key = button.getAttribute("data-clear-transcription-shortcut");
+        transcriptionShortcutsDraft[key] = null;
+        if (transcriptionRecordingKey === key) {
+          stopTranscriptionShortcutRecording("快捷键录制已取消。");
+          return;
+        }
+        setTranscriptionRecordingStatus("快捷键已删除，保存后生效。");
+        renderTranscriptionShortcutGrid();
+      });
+    });
+  }
+
+  function setTranscriptionRecordingStatus(text) {
+    const node = getElement("transcription-recording-status");
+    if (!node) {
+      return;
+    }
+    node.textContent = text || "";
+    node.classList.toggle("hidden", !text);
+  }
+
+  function stopTranscriptionShortcutRecording(statusText) {
+    if (typeof stopTranscriptionRecordingListeners === "function") {
+      stopTranscriptionRecordingListeners();
+      stopTranscriptionRecordingListeners = null;
+    }
+    transcriptionRecordingKey = null;
+    setTranscriptionRecordingStatus(statusText || "");
+    renderTranscriptionShortcutGrid();
+  }
+
+  function applyRecordedTranscriptionShortcut(shortcut) {
+    if (!transcriptionRecordingKey || shortcut === false) {
+      return;
+    }
+    if (!shortcut) {
+      stopTranscriptionShortcutRecording("已取消快捷键录制。");
       return;
     }
 
-    enabledNode.checked = config.statsUploadEnabled !== false;
-    endpointNode.value =
+    transcriptionShortcutsDraft[transcriptionRecordingKey] = normalizeShortcut(shortcut);
+    stopTranscriptionShortcutRecording("快捷键已录制，保存后生效。");
+  }
+
+  function startTranscriptionShortcutRecording(actionKey) {
+    if (!actionKey) {
+      return;
+    }
+    if (typeof stopTranscriptionRecordingListeners === "function") {
+      stopTranscriptionRecordingListeners();
+    }
+
+    transcriptionRecordingKey = actionKey;
+    const action = transcriptionShortcutActions.find(function (item) {
+      return item.key === actionKey;
+    });
+    setTranscriptionRecordingStatus(
+      "正在录制「" + String(action?.label || actionKey) + "」：按键盘组合，Esc 取消。"
+    );
+
+    const keydownListener = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+      applyRecordedTranscriptionShortcut(shortcutFromKeyboardEvent(event));
+    };
+    window.addEventListener("keydown", keydownListener, true);
+    stopTranscriptionRecordingListeners = function () {
+      window.removeEventListener("keydown", keydownListener, true);
+    };
+
+    renderTranscriptionShortcutGrid();
+  }
+
+  function applyTranscriptionForm(settings) {
+    const config = normalizeTranscriptionConfig(settings);
+    transcriptionShortcutsDraft = clone(config.shortcuts) || {};
+
+    getElement("transcription-auto-play").checked = config.autoPlay === true;
+    getElement("transcription-playback-rate").value = String(config.playbackRateValue);
+    getElement("transcription-reset-rate").value = String(config.resetRateValue);
+    getElement("transcription-rate-step").value = String(config.rateStepValue);
+    getElement("transcription-seek-step").value = String(config.seekStepSeconds);
+    getElement("transcription-volume").value = String(config.volumeValue);
+    getElement("transcription-default-valid").checked = config.defaultValid === true;
+    getElement("transcription-fill-on-valid").checked = config.fillOnValid !== false;
+    getElement("transcription-clear-on-invalid").checked = config.clearOnInvalid !== false;
+    getElement("transcription-stats-enabled").checked = config.statsUploadEnabled !== false;
+    getElement("transcription-stats-endpoint").value =
       config.statsUploadEndpoint === transcriptionStatsLocalEndpoint ? "local" : "server";
 
+    stopTranscriptionShortcutRecording("");
+    renderTranscriptionShortcutGrid();
     setStatus(
-      "transcription-stats-status",
+      "transcription-status",
       "当前定时上传：" +
         config.statsUploadTimes.join("、") +
         "（jitter " +
@@ -1215,42 +1458,80 @@
     );
   }
 
-  async function saveTranscriptionStatsSettings() {
+  async function saveTranscriptionSettings() {
     if (!storage || typeof storage.saveProjectSettings !== "function") {
-      setStatus("transcription-stats-status", "当前扩展版本不支持保存转写统计设置。");
+      setStatus("transcription-status", "当前扩展版本不支持保存转写设置。");
       return false;
     }
 
-    const enabledNode = getElement("transcription-stats-enabled");
-    const endpointNode = getElement("transcription-stats-endpoint");
-    if (!(enabledNode instanceof HTMLInputElement) || !(endpointNode instanceof HTMLSelectElement)) {
-      setStatus("transcription-stats-status", "转写统计设置控件不存在。");
-      return false;
-    }
+    const current = normalizeTranscriptionConfig(currentSettings || {});
+    const endpointMode = getElement("transcription-stats-endpoint").value;
+    const endpoint = endpointMode === "local" ? transcriptionStatsLocalEndpoint : transcriptionStatsServerEndpoint;
+    const shortcuts = {};
+    transcriptionShortcutActions.forEach(function (action) {
+      shortcuts[action.key] = normalizeShortcut(transcriptionShortcutsDraft[action.key]);
+    });
 
-    const current = normalizeTranscriptionStatsConfig(currentSettings || {});
-    const endpoint =
-      endpointNode.value === "local"
-        ? transcriptionStatsLocalEndpoint
-        : transcriptionStatsServerEndpoint;
-
-    setStatus("transcription-stats-status", "正在保存转写统计设置...");
-
+    setStatus("transcription-status", "正在保存转写设置...");
     try {
       currentSettings = await storage.saveProjectSettings(transcriptionProjectId, {
-        statsUploadEnabled: enabledNode.checked === true,
+        autoPlay: getElement("transcription-auto-play").checked === true,
+        playbackRateValue: clampNumber(
+          getElement("transcription-playback-rate").value,
+          current.playbackRateValue,
+          0.25,
+          5,
+          2
+        ),
+        resetRateValue: clampNumber(
+          getElement("transcription-reset-rate").value,
+          current.resetRateValue,
+          0.25,
+          5,
+          2
+        ),
+        rateStepValue: normalizeTranscriptionRateStep(
+          getElement("transcription-rate-step").value,
+          current.rateStepValue
+        ),
+        seekStepSeconds: normalizeTranscriptionSeekStep(
+          getElement("transcription-seek-step").value,
+          current.seekStepSeconds
+        ),
+        volumeValue: clampNumber(getElement("transcription-volume").value, current.volumeValue, 0, 1000, 0),
+        defaultValid: getElement("transcription-default-valid").checked === true,
+        fillOnValid: getElement("transcription-fill-on-valid").checked === true,
+        clearOnInvalid: getElement("transcription-clear-on-invalid").checked === true,
+        statsUploadEnabled: getElement("transcription-stats-enabled").checked === true,
         statsUploadEndpoint: endpoint,
         statsUploadTimes: current.statsUploadTimes,
         statsUploadJitterMinutes: current.statsUploadJitterMinutes,
         statsAutoUploadOnSchedule: current.statsAutoUploadOnSchedule,
         statsUploadRequestTimeoutMs: current.statsUploadRequestTimeoutMs,
+        shortcutPlayPause: shortcuts.shortcutPlayPause,
+        shortcutValid: shortcuts.shortcutValid,
+        shortcutInvalid: shortcuts.shortcutInvalid,
+        shortcutFill: shortcuts.shortcutFill,
+        shortcutRemoveSpaces: shortcuts.shortcutRemoveSpaces,
+        shortcutConvertNum: shortcuts.shortcutConvertNum,
+        shortcutToggleFocus: shortcuts.shortcutToggleFocus,
+        shortcutBackward: shortcuts.shortcutBackward,
+        shortcutForward: shortcuts.shortcutForward,
+        shortcutSpeedDown: shortcuts.shortcutSpeedDown,
+        shortcutSpeedUp: shortcuts.shortcutSpeedUp,
+        shortcutResetSpeed: shortcuts.shortcutResetSpeed,
+        shortcutVolDown: shortcuts.shortcutVolDown,
+        shortcutVolUp: shortcuts.shortcutVolUp,
+        shortcutResetVol: shortcuts.shortcutResetVol,
+        shortcutCopyDuration: shortcuts.shortcutCopyDuration,
+        shortcutUploadStats: shortcuts.shortcutUploadStats,
       });
-      applyTranscriptionStatsForm(currentSettings);
-      setStatus("transcription-stats-status", "转写统计设置已保存。");
+      applyTranscriptionForm(currentSettings);
+      setStatus("transcription-status", "转写设置已保存；已打开详情页请刷新或等待自动同步。");
       return true;
     } catch (error) {
       setStatus(
-        "transcription-stats-status",
+        "transcription-status",
         "保存失败：" + (error && error.message ? error.message : String(error))
       );
       return false;
@@ -1445,10 +1726,10 @@
     setStatus("detail-status", "");
 
     if (scriptId === transcriptionProjectId) {
-      applyTranscriptionStatsForm(settings);
+      applyTranscriptionForm(settings);
       setStatus(
         "detail-status",
-        "ASR 转写当前为轻量工具栏模式（0.2.10）：仅保留页面内工具栏按钮 + 统计导出开关，不提供独立完整设置和快捷键配置。"
+        "ASR 转写当前为轻量工具栏模式（0.2.10）：可配置自动播放、倍速、步长、音量、快捷键和统计上传；不包含保存、提交、AI、批量与流转。"
       );
       return;
     }
@@ -1744,8 +2025,8 @@
       void saveJudgementSettings();
     });
 
-    getElement("save-transcription-stats-settings").addEventListener("click", function () {
-      void saveTranscriptionStatsSettings();
+    getElement("save-transcription-settings").addEventListener("click", function () {
+      void saveTranscriptionSettings();
     });
 
     getElement("save-data-baker-settings").addEventListener("click", function () {

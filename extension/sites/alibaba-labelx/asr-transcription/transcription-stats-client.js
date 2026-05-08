@@ -275,12 +275,27 @@
         },
       });
       const data = body?.data && typeof body.data === "object" ? body.data : {};
-      const list = Array.isArray(data.data) ? data.data : Array.isArray(data.list) ? data.list : [];
-      const recordCount = Number(data.recordCount ?? data.total ?? list.length);
+      const list = Array.isArray(data.dataList)
+        ? data.dataList
+        : Array.isArray(data.data)
+          ? data.data
+          : Array.isArray(data.list)
+            ? data.list
+            : [];
+      const recordCount = Number(data.recordCount ?? data.size ?? data.total ?? list.length);
       return {
         list: list,
         recordCount: Number.isFinite(recordCount) && recordCount >= 0 ? recordCount : list.length,
-        raw: data,
+        metadata: {
+          id: sanitizeSubTaskId(data.id || cleanSubTaskId),
+          taskId: String(data.taskId || ""),
+          batchId: String(data.batchId || ""),
+          status: data.status,
+          gmtCreate: data.gmtCreate || data.receiveTime || "",
+          gmtCommit: data.gmtCommit || data.submitTime || "",
+          taskName: data.taskName || data.name || "",
+          size: Number(data.size),
+        },
       };
     } catch (error) {
       const message = error && error.message ? error.message : String(error);
@@ -301,6 +316,7 @@
       console.warn(LOG_PREFIX, "Skip subtask data fetch: empty sanitized subTaskId.");
       return {
         subTaskId: "",
+        metadata: {},
         dataList: [],
         recordCount: 0,
         fetchedItemCount: 0,
@@ -310,6 +326,7 @@
 
     const allItems = [];
     const rawPageData = [];
+    let metadata = {};
     let recordCount = 0;
     for (let page = 1; page <= TRANSCRIPTION_DETAIL_MAX_PAGES; page += 1) {
       const pageResult = await fetchSubtaskDataPage(
@@ -322,6 +339,9 @@
         itemCount: pageResult.list.length,
         recordCount: pageResult.recordCount,
       });
+      if (page === 1) {
+        metadata = pageResult.metadata || {};
+      }
       if (page === 1) {
         recordCount = pageResult.recordCount;
       } else if (recordCount <= 0 && pageResult.recordCount > 0) {
@@ -340,6 +360,7 @@
 
     return {
       subTaskId: cleanSubTaskId,
+      metadata: metadata,
       dataList: allItems,
       recordCount: recordCount > 0 ? recordCount : allItems.length,
       fetchedItemCount: allItems.length,
@@ -361,7 +382,7 @@
     }
 
     const pageResult = await fetchSubtaskDataPages(cleanSubTaskId);
-    return Object.assign({}, safeSummary, {
+    return Object.assign({}, safeSummary, pageResult.metadata || {}, {
       id: cleanSubTaskId,
       dataList: pageResult.dataList,
       recordCount: pageResult.recordCount,

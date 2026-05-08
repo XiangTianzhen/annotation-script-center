@@ -4,7 +4,8 @@
 
 - 当前仍处于 `0.2.10` 修复阶段，版本不升级到 `0.2.11`。
 - `extension/sites/alibaba-labelx/asr-transcription/` 已切换为轻量工具栏版。
-- 独立设置页、页面 overlay 设置面板、快捷键配置已全部移除。
+- 旧版独立大表单、页面 overlay 设置面板已移除。
+- options 已恢复转写轻量设置面板与当前功能快捷键配置。
 - 运行时只保留当前题与当前音频基础动作，不包含保存/提交/自动化/AI链路。
 - 工具栏已改为页面内注入：优先 `.mark-toolbox`，找不到时回退到首条题卡前，不再默认顶部固定悬浮。
 - 新增“转写统计导出”链路：复用快判上传架构口径，独立后端目录与独立 CSV 列。
@@ -15,10 +16,11 @@
 - 仅保留按钮能力：
   - 当前题：快速填入、标有效、标无效、去空格、数字转换、焦点切换。
   - 当前音频：播放/暂停、前进/后退、倍速提高/降低/重置、音量提高/降低/重置、复制时长。
-- 固定默认值由运行时内置，不在 options 暴露：
-  - `autoPlay=false`、`playbackRateValue=1`、`resetRateValue=1`、`rateStepValue=0.1`
-  - `seekStepSeconds=1`、`volumeValue=100`
-  - `fillOnValid=true`、`clearOnInvalid=true`、`defaultValid=false`
+- 默认值由 `shared/constants.js -> DEFAULT_ASR_CONFIG` 提供，运行时读取项目 `asrConfig` 覆盖。
+- options 转写轻量设置面板可配置：
+  - 自动播放、默认倍速、重置倍速、倍速步进、前进/后退步长、默认音量
+  - 当前题行为（默认有效、标有效自动填入、标无效自动清空）
+  - 当前保留功能快捷键（含上传统计）
 - 仍不实现时间戳、说话人区分、AI 初稿/校对/格式化/标点。
 - 仍不实现自动保存、自动提交、自动跳转、全页批量修改。
 
@@ -37,6 +39,7 @@
 - `toolbar.js`：页面内工具栏挂载、分组渲染、状态块与重挂载。
 - `runtime-config.js`：启用状态与固定默认值。
 - `transcription-stats-client.js`：浏览器端统计上传客户端，只做采集、上传、按钮和定时调度，不做 CSV 落盘。
+- `shortcut-bus.js`：浏览器端转写快捷键运行时，只调当前保留动作，不引入保存/提交/AI/批量动作。
 - `backend/`：Node 后端统计服务，负责 health/config/upload/download、分包合并、CSV 写入与下载。
 - `active-item.js`：当前题定位。
 - `item-actions.js`：当前题动作。

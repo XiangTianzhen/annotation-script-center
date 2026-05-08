@@ -511,52 +511,111 @@
         </section>
 
         <section id="detail-transcription-panel" class="detail-panel hidden">
-          <div class="detail-grid">
-            <div class="field-card">
-              <strong>当前模式</strong>
-              <span>轻量工具栏版（版本 0.2.10）。</span>
-              <span>ASR 转写详情页只保留页面内工具栏按钮，不提供独立设置项。</span>
-            </div>
-            <div class="field-card">
-              <strong>当前支持</strong>
-              <span>当前题处理：填入、有效、无效、去空格、数字转换、焦点切换。</span>
-              <span>当前音频控制：播停、前进后退、倍速、音量、复制时长。</span>
-            </div>
-            <div class="field-card">
-              <strong>当前不支持</strong>
-              <span>保存、提交、AI、批量、流转、快捷键配置、独立设置页、overlay 设置面板。</span>
-            </div>
-            <div class="field-card">
-              <strong>使用说明</strong>
-              <span>1. 打开 LabelX 转写详情页并等待题目加载。</span>
-              <span>2. 在平台工具栏区域附近使用“ASR 转写工具栏”。</span>
-              <span>3. 若当前页面不是转写详情页，脚本保持已注入待命中状态。</span>
-            </div>
-            <div class="field-card">
-              <strong>转写统计导出</strong>
-              <span>模仿 ASR 快判统计上传链路，支持手动上传与定时上传（默认 10:00 / 16:00，jitter 10 分钟）。</span>
-              <label class="field-toggle">
-                <input id="transcription-stats-enabled" type="checkbox" />
-                <span>启用转写统计上传</span>
-              </label>
-              <label>
-                <span>上传地址</span>
-                <select id="transcription-stats-endpoint">
-                  <option value="server">服务器：script.xiangtianzhen.store</option>
-                  <option value="local">本机：127.0.0.1:3333</option>
-                </select>
-              </label>
-              <span>本地保存目录：platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/</span>
-              <span>本机下载地址：http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download</span>
-              <span>服务器下载地址：https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download（需服务器部署最新后端）</span>
-            </div>
+          <div class="detail-grid two">
+            <label class="field-card">
+              <strong>自动播放</strong>
+              <span>进入当前题时尝试自动播放当前音频。</span>
+              <span class="field-toggle">
+                <input id="transcription-auto-play" type="checkbox" />
+                <span>启用自动播放</span>
+              </span>
+            </label>
+
+            <label class="field-card">
+              <strong>默认音量 (0~1000%)</strong>
+              <span>重置音量和新音频默认使用此值。</span>
+              <input id="transcription-volume" type="number" min="0" max="1000" step="10" />
+            </label>
           </div>
+
+          <div class="detail-grid two">
+            <label class="field-card">
+              <strong>默认倍速</strong>
+              <span>新音频和重置倍速时使用该值。</span>
+              <input id="transcription-playback-rate" type="number" min="0.25" max="5" step="0.05" />
+            </label>
+
+            <label class="field-card">
+              <strong>重置倍速</strong>
+              <span>点击“重置倍速”时使用该值。</span>
+              <input id="transcription-reset-rate" type="number" min="0.25" max="5" step="0.05" />
+            </label>
+          </div>
+
+          <div class="detail-grid two">
+            <label class="field-card">
+              <strong>倍速步进</strong>
+              <span>用于“提高倍速 / 降低倍速”。</span>
+              <select id="transcription-rate-step">
+                <option value="0.1">0.1</option>
+                <option value="0.25">0.25</option>
+                <option value="0.5">0.5</option>
+                <option value="1">1</option>
+              </select>
+            </label>
+
+            <label class="field-card">
+              <strong>前进 / 后退步长</strong>
+              <span>用于当前音频前进、后退。</span>
+              <select id="transcription-seek-step">
+                <option value="0.5">0.5 秒</option>
+                <option value="1">1 秒</option>
+                <option value="2">2 秒</option>
+                <option value="3">3 秒</option>
+                <option value="5">5 秒</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="detail-grid two">
+            <label class="field-card field-toggle">
+              <input id="transcription-default-valid" type="checkbox" />
+              <span>默认有效行为（仅影响当前题动作）</span>
+            </label>
+
+            <label class="field-card field-toggle">
+              <input id="transcription-fill-on-valid" type="checkbox" />
+              <span>标有效时自动填入当前题文本</span>
+            </label>
+
+            <label class="field-card field-toggle">
+              <input id="transcription-clear-on-invalid" type="checkbox" />
+              <span>标无效时清空当前题文本</span>
+            </label>
+          </div>
+
+          <div class="field-card shortcut-panel">
+            <strong>转写快捷键</strong>
+            <span>只支持当前保留功能动作；普通输入不会被普通字符快捷键打断。</span>
+            <div id="transcription-shortcut-grid" class="shortcut-grid"></div>
+            <div id="transcription-recording-status" class="shortcut-recording hidden"></div>
+          </div>
+
+          <div class="field-card">
+            <strong>转写统计导出</strong>
+            <span>支持手动上传与定时上传（默认 10:00 / 16:00，jitter 10 分钟）。</span>
+            <label class="field-toggle">
+              <input id="transcription-stats-enabled" type="checkbox" />
+              <span>启用转写统计上传</span>
+            </label>
+            <label>
+              <span>上传地址</span>
+              <select id="transcription-stats-endpoint">
+                <option value="server">服务器：script.xiangtianzhen.store</option>
+                <option value="local">本机：127.0.0.1:3333</option>
+              </select>
+            </label>
+            <span>本地保存目录：platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/</span>
+            <span>本机下载地址：http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download</span>
+            <span>服务器下载地址：https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download（需服务器部署最新后端）</span>
+          </div>
+
           <div class="field-actions" style="margin-top: 12px;">
-            <button id="save-transcription-stats-settings" class="primary-button" type="button">
-              保存转写统计设置
+            <button id="save-transcription-settings" class="primary-button" type="button">
+              保存转写设置
             </button>
           </div>
-          <div id="transcription-stats-status" class="status-text"></div>
+          <div id="transcription-status" class="status-text"></div>
         </section>
 
         <section id="detail-judgement-panel" class="detail-panel hidden">
