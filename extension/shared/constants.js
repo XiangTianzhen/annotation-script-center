@@ -73,7 +73,7 @@
 
   const DATA_BAKER_PLATFORM = {
     id: "data-baker",
-    label: "DataBaker / DataFactory",
+    label: "标贝易采",
     host: "datafactory.data-baker.com",
     matches: ["https://datafactory.data-baker.com/*"],
   };
@@ -152,7 +152,6 @@
     clearOnInvalid: true,
     autoNext: false,
     shortcutRemoveSpaces: createShortcut("h"),
-    shortcutRemoveAllSpaces: createShortcut("g"),
     autoResetRate: false,
     resetRateValue: 1.0,
     playbackRateValue: 1.0,
@@ -181,8 +180,6 @@
     shortcutFill: createShortcut("f"),
     shortcutConvertNum: createShortcut("v"),
     shortcutCopyDuration: createShortcut("b"),
-    shortcutValidateItems: createShortcut("r"),
-    shortcutAllValid: createShortcut("o"),
   };
 
   const DEFAULT_JUDGEMENT_ASR_DIFF_COLORS = {
@@ -325,11 +322,11 @@
     },
     dataBaker: {
       id: DATA_BAKER_PLATFORM_ID,
-      label: "DataBaker / DataFactory",
+      label: "标贝易采",
       host: DATA_BAKER_PLATFORM.host,
       matches: clone(DATA_BAKER_PLATFORM.matches),
       runtimeBridge: "data-baker-round-one-quality",
-      description: "DataBaker / DataFactory 质检站点。",
+      description: "标贝易采质检站点。",
     },
   };
 
@@ -376,9 +373,9 @@
     dataBakerRoundOneQuality: {
       id: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
       platformId: DATA_BAKER_PLATFORM_ID,
-      label: "DataBaker 一检质检",
+      label: "标贝易采一检质检",
       shortLabel: "一检质检",
-      description: "一检质检 roundOneCollect 页面 AI 推荐文本能力。",
+      description: "标贝易采一检质检 roundOneCollect 页面 AI 推荐文本能力。",
       note:
         "当前只提供单条 AI 推荐文本，不自动保存、提交、批量识别或自动流转。",
       capabilityScope: "ai-recommend-text",
@@ -392,13 +389,11 @@
 
   const SHORTCUT_DEFINITIONS = [
     { key: "shortcutPanel", label: "面板开关" },
-    { key: "shortcutAllValid", label: "全页标有效并填充" },
     { key: "shortcutPlayPause", label: "播放 / 暂停" },
     { key: "shortcutValid", label: "标记有效" },
     { key: "shortcutInvalid", label: "标记无效" },
     { key: "shortcutFill", label: "快速填入" },
     { key: "shortcutToggleFocus", label: "切换输入(焦点)" },
-    { key: "shortcutValidateItems", label: "全页数据校验" },
     { key: "shortcutConvertNum", label: "转当前选择阿拉伯数字" },
     { key: "shortcutSpeedDown", label: "倍速 -0.1" },
     { key: "shortcutSpeedUp", label: "倍速 +0.1" },
@@ -410,7 +405,6 @@
     { key: "shortcutVolUp", label: "音量 +50%" },
     { key: "shortcutResetVol", label: "重置音量 (100%)" },
     { key: "shortcutRemoveSpaces", label: "去除当前空格" },
-    { key: "shortcutRemoveAllSpaces", label: "全页空格消除" },
   ];
 
   const SHORTCUT_KEYS = SHORTCUT_DEFINITIONS.map(function (item) {
@@ -419,13 +413,11 @@
 
   const SHORTCUT_COMPATIBILITY_MAP = {
     panel: "shortcutPanel",
-    markAllValidFill: "shortcutAllValid",
     playPause: "shortcutPlayPause",
     valid: "shortcutValid",
     invalid: "shortcutInvalid",
     quickfill: "shortcutFill",
     toggleFocus: "shortcutToggleFocus",
-    validatePage: "shortcutValidateItems",
     convertNumbers: "shortcutConvertNum",
     speedDown: "shortcutSpeedDown",
     speedUp: "shortcutSpeedUp",
@@ -437,7 +429,6 @@
     volumeUp: "shortcutVolUp",
     resetVolume: "shortcutResetVol",
     removeSpaces: "shortcutRemoveSpaces",
-    removeAllSpaces: "shortcutRemoveAllSpaces",
   };
 
   const BOOLEAN_CONFIG_KEYS = [
@@ -671,7 +662,7 @@
     STAGE_DESCRIPTION:
       "脚本中心统一管理 LabelX 下的多个同域项目，options 页为主入口，页面内浮层只保留给语音转写项目联调。",
     CAPABILITY_SCOPE:
-      "当前支持多平台脚本中心、LabelX 语音转写全量设置迁移、语音判别音频能力、Lightwheel 脚本占位管理，以及 DataBaker 一检质检 AI 推荐文本。",
+      "当前支持多平台脚本中心、LabelX 语音转写全量设置迁移、语音判别音频能力、Lightwheel 脚本占位管理，以及标贝易采一检质检 AI 推荐文本。",
     SCHEMA_VERSION: SCHEMA_VERSION,
     STORAGE_KEY: "asrEdgeSettings",
     PRESENCE_BADGE_ID: "asr-edge-presence-host",

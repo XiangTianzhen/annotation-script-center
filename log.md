@@ -2,10 +2,20 @@
 
 ## 2026-05-08
 
+- 继续清理 `asr-transcription`：删除全页批量修改动作（全页标有效并填充、全页去空格、全页校验自动修复）在工具栏、快捷键和交互执行器中的入口与逻辑，仅保留当前题级别操作。
+- 物理删除旧自动化与旧保存链路文件：`annotation-save-runner.js`、`annotation-submit-runner.js`、`annotation-page-flow-runner.js`、`legacy-save-coordinator.js`、`legacy-ai-punctuation.js`、`legacy-auto-assign.js`、`legacy-batch-flow.js`、`legacy-export.js`、`legacy-leaderboard.js`。
+- 同步收口引用链路：更新 `manifest.json`、`runtime-contract.js`、`content.js`、`annotation-control-panel.js`、`runtime-debug.js`、`annotation-debug-snapshot.js`，移除上述模块依赖与暴露。
+- 同步收口配置与兼容迁移：更新 `shared/constants.js` 与 `shared/storage.js`，删除全页批量快捷键定义，旧字段统一清理为 `null` 或运行时忽略。
+- 文档口径更新为“旧功能已删除，后续如需恢复必须重新设计并重新验收，不从旧脚本直接恢复”。
+
 - 对 `asr-transcription` 执行基础收口重构：禁用扩展侧自定义保存 payload 注入、手动强制保存、提交闭环、自动提交、自动领取、自动流转入口；保留兼容空实现以避免 manifest/注入链路断链。
 - 收口转写快捷键和配置：移除 AI 标点、自动批量提交、校验后自动提交、排行榜等危险快捷键入口；新增并统一使用 `playbackRateValue`、`rateStepValue`、`seekStepSeconds`，音频步进/倍速/音量重置改为读取统一配置。
 - 收口运行时自动链路：`content.js` 不再启动自动抢单和批量流转轮询；`legacy-batch-flow`、`legacy-auto-assign`、`legacy-ai-punctuation` 默认返回 `disabled-in-basic-stage`。
 - 同步文档口径：更新根 `README.md`、`extension/sites/alibaba-labelx/asr-transcription/README.md`、`platform-resources/alibaba-labelx/asr-transcription/README.md`，明确“基础转写阶段”规则与真实页面验收步骤。
+- 文档目录迁移：将 `docs` 下旧 `extension` 子目录文件全量迁移到 `docs` 根目录，并清理空子目录。
+- 文档引用修正：README、AGENTS、docs 与平台资料中的旧子目录引用统一改为 `docs/`。
+- 用户可见命名统一：文档中的平台名称统一为“标贝易采”，脚本名称统一为“标贝易采一检质检”；保留 `data-baker` 目录与 API 路径等历史技术标识。
+- 环境模板收敛：`config/env/ai.env.example` 仅保留 DashScope、DeepSeek、MiniMax、OpenRouter 四类配置，移除 mock 与其他 Provider 示例项。
 
 ## 2026-05-07
 
@@ -21,7 +31,7 @@
 - 重做 DataBaker 快捷键焦点恢复策略：`shortcuts.js` 删除旧焦点哨兵与被动恢复依赖，不再在平台按钮点击、active 题目变化或窗口 focus 时盲目 blur/focus。
 - 新增“本句话文本”变化检测机制：当平台自动切题导致 textarea 内容变化且用户不在手动编辑时，脚本会短暂 focus 文本框再 blur 退出，用于恢复快捷键焦点。
 - 手动输入保护增强：用户在“本句话文本”中输入时不会被定时检查抢走光标；仅命中已配置快捷键时才强制退出输入框并执行动作。
-- 修复 DataBaker 一检质检快捷键被动焦点恢复可能影响音频播放的问题：`shortcuts.js` 移除平台按钮点击、左侧句子切换、active 题目变化、窗口 focus 等被动 blur/focus 恢复链路。
+- 修复 标贝易采一检质检快捷键被动焦点恢复可能影响音频播放的问题：`shortcuts.js` 移除平台按钮点击、左侧句子切换、active 题目变化、窗口 focus 等被动 blur/focus 恢复链路。
 - DataBaker 快捷键策略收敛为“仅命中已配置快捷键时强制退出输入框并执行动作”；未命中快捷键时不拦截普通输入、不干预平台切题和音频组件初始化。
 - 保留“填入推荐文本”后的主动失焦能力（`data-api.js`），仅在用户点击填入成功后触发，不影响平台自动切题流程。
 
@@ -53,25 +63,25 @@
 - 更新导出环境模板与文档：`ai.env.example`、根 README、平台 README、后端 README 同步登录契约字段与安全要求（不记录真实账号、密码、token、cookie）。
 - 实测导出验证：`health` 在补全配置后可 `ready=true`；复用已使用的 `ticket` 会返回“滑块验证码校验不通过”，后端现已透传明确业务错误，不再误报缺少 token。
 
-- 新增 DataBaker 一检质检导出后端：`/api/data-baker/round-one-quality/export/health` 与 `/api/data-baker/round-one-quality/export/task`；账号密码从环境变量读取，导出链路支持 token 内存缓存、过期刷新与 401/403 自动重登，按 `taskId` 自动翻页 `queryByCondition` 并生成 CSV 到 `platform-resources/data-baker/round-one-quality/backend/exports/`，响应不返回 token。
+- 新增 标贝易采一检质检导出后端：`/api/data-baker/round-one-quality/export/health` 与 `/api/data-baker/round-one-quality/export/task`；账号密码从环境变量读取，导出链路支持 token 内存缓存、过期刷新与 401/403 自动重登，按 `taskId` 自动翻页 `queryByCondition` 并生成 CSV 到 `platform-resources/data-baker/round-one-quality/backend/exports/`，响应不返回 token。
 - 新增 DataBaker `group/detail?taskId=...` 页面“导出数据总表”按钮：点击后调用本地导出接口并触发浏览器下载，同时展示“正在导出/已导出/失败原因”状态。
-- 修复 DataBaker 一检质检输入框误失焦：快捷键焦点恢复拆分为被动恢复与强制恢复；被动恢复会跳过编辑态和最近 1200ms 手动点入输入框场景，命中已配置快捷键时仍可强制失焦执行动作。
+- 修复 标贝易采一检质检输入框误失焦：快捷键焦点恢复拆分为被动恢复与强制恢复；被动恢复会跳过编辑态和最近 1200ms 手动点入输入框场景，命中已配置快捷键时仍可强制失焦执行动作。
 - 新增导出环境变量模板 `DATABAKER_EXPORT_*` 与登录字段/token 路径可配置项；同步 `.gitignore` 忽略 `platform-resources/data-baker/round-one-quality/backend/exports/`。
 - DataBaker AI 推荐文本新增去空格兜底：后端统一清理 `heardText` 和最终 `recommendedText` 中的普通空格、全角空格、Tab 和换行；前端展示、复制和填入前也做兼容兜底，不修改页面候选文本原文，不自动保存或提交。
-- 更新 AGENTS.md 项目定位：当前重点平台收口为 Alibaba LabelX 与 DataBaker / DataFactory，重点脚本包含快判、转写和 DataBaker 一检质检。
+- 更新 AGENTS.md 项目定位：当前重点平台收口为 Alibaba LabelX 与 标贝易采，重点脚本包含快判、转写和 标贝易采一检质检。
 - 固化单人项目 Git 工作流：默认 main 分支直接执行，验证通过后 commit 并 push，不创建分支、不创建 PR。
 - 固化复杂任务优先使用 subagent / parallel agents；不支持时按相同分工串行执行。
 - 固化默认由网页端指挥 AI 通过 GitHub 直接验收，不再默认输出验收 Prompt。
 - 本轮仅更新协作文档，不改扩展业务代码、不改后端 API、不改 manifest。
 
 - 修复 DataBaker 点击平台“确定”后自动切题导致快捷键失焦的问题：快捷键运行时新增平台动作按钮点击、`.sentence-list .sentence-item.active` 变化、快捷键触发平台按钮和窗口重新聚焦后的多次焦点恢复；只做 blur + 隐藏焦点哨兵，不模拟点击页面空白处。
-- 修复 DataBaker 一检质检快捷键焦点恢复：快捷键运行时先匹配已配置动作，未命中时不拦截普通输入；命中后通过隐藏焦点哨兵退出输入框并执行动作，同时监听左侧句子点击后延迟恢复焦点。
+- 修复 标贝易采一检质检快捷键焦点恢复：快捷键运行时先匹配已配置动作，未命中时不拦截普通输入；命中后通过隐藏焦点哨兵退出输入框并执行动作，同时监听左侧句子点击后延迟恢复焦点。
 - DataBaker “填入推荐文本”后增加立即、50ms、180ms 三次失焦兜底，避免 Element UI / Vue 在 input/change 后重新聚焦 textarea；仍不自动保存、提交或判定。
 - DataBaker AI 推荐文本新增中文句末标点兜底：后端在对比结果和词表强替换后统一补全 `。！？；…`，前端展示和填入前也做旧后端兼容兜底；仍不自动保存或提交。
-- 优化 DataBaker 一检质检快捷键焦点行为：普通输入不拦截，只有命中已配置 DataBaker 快捷键时才会自动 blur 当前输入焦点并执行动作。
+- 优化 标贝易采一检质检快捷键焦点行为：普通输入不拦截，只有命中已配置 DataBaker 快捷键时才会自动 blur 当前输入焦点并执行动作。
 - DataBaker “填入推荐文本”成功后自动退出“本句话文本”输入框并把焦点交回页面，便于继续使用快捷键；仍不自动保存、提交或判定。
-- 新增 DataBaker 一检质检自动每页条数设置：options 默认启用 `50条/页`，运行时在 `roundOneCollect` 详情页有限重试点击页面原生分页下拉，不自动提交任务。
-- 新增 DataBaker 一检质检快捷键配置，默认全部未设置，支持 AI 推荐、复制 AI 听音文本、复制推荐文本、填入、忽略、句子判定合格 / 不合格、任务判定通过 / 部分驳回 / 全部驳回。
+- 新增 标贝易采一检质检自动每页条数设置：options 默认启用 `50条/页`，运行时在 `roundOneCollect` 详情页有限重试点击页面原生分页下拉，不自动提交任务。
+- 新增 标贝易采一检质检快捷键配置，默认全部未设置，支持 AI 推荐、复制 AI 听音文本、复制推荐文本、填入、忽略、句子判定合格 / 不合格、任务判定通过 / 部分驳回 / 全部驳回。
 - DataBaker 快捷键运行时只在详情页生效，普通输入不拦截，任务判定按钮 disabled 时不绕过平台限制；脚本总开关关闭时工具卡、自动分页和快捷键全部停止。
 - 修复 DataBaker 闽南方言词表拼音批注误替换：括号内容、拉丁拼音、数字注音和残留连接符不再参与建议用字 / 对应华语解析；CSV 单字映射默认跳过强替换，避免把 `家庭` 误改成异常文本。
 - 优化 DataBaker AI 推荐速度定位：Qwen 原生 `fetch` 请求默认改为顶层 `enable_thinking=false`，不再使用 `extra_body`，并在供应商不支持该参数时自动移除字段重试一次；可通过 `DATABAKER_AI_ENABLE_THINKING=1` 开启 thinking。
@@ -80,22 +90,22 @@
 - 补充 DataBaker 当前页 AI 推荐预生成方案：后续可由前端按钮触发当前页记录预生成、后端限制并发、前端按 `itemId` 内存缓存；默认不自动执行，避免成本失控。
 - 修复 DataBaker Qwen-Omni 听音请求格式：`requestListen` 改用 `input_audio`，按音频 URL pathname 后缀推断 `wav/mp3/aac/m4a/amr/3gp/3gpp`，并移除听音请求的 `response_format`，避免多模态请求触发 HTTP 400。
 - DataBaker 前端错误提示补充后端脱敏 `summary`，方便排查 provider 400，同时继续避免暴露完整音频 URL、token、cookie、`OSSAccessKeyId`、`Signature` 或 API Key。
-- DataBaker options 设置页将 AI 推荐接口地址收敛为“服务器 / 本机”两个选项，旧的自定义地址会回退到默认服务器接口，员工默认走服务器，本机仅用于开发调试。
+- DataBaker options 设置页将 后端接口地址收敛为“服务器 / 本机”两个选项，旧的自定义地址会回退到默认服务器接口，员工默认走服务器，本机仅用于开发调试。
 - DataBaker options 请求超时时间改为按秒展示，默认 `120` 秒，保存后仍写入毫秒字段 `aiRecommendRequestTimeoutMs` 供运行时使用。
 - DataBaker AI 调用日志 CSV 新建时使用中文表头，JSONL 继续保留英文 key，便于人工查看和后续程序处理。
 - 新增 DataBaker 闽南方言字词表 `platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv`，后端 `ai-lexicon.js` 会解析 CSV 并为听音 / 对比 prompt 注入短上下文；词表只辅助字形判断，不强行替换文本。
 - 增强 DataBaker 词表策略：默认 `DATABAKER_AI_LEXICON_REWRITE_MODE=aggressive`，对最终推荐文本做“对应华语 -> 建议用字”的强替换并记录替换明细；设置为 `off` 时仅保留 prompt 上下文。
 - DataBaker AI 响应和调用日志新增阶段耗时：听音耗时、对比耗时和总耗时；日志同步记录词表启用状态、替换模式、替换数量和替换明细，便于区分 `mock=true` 本地耗时与 `mock=false` 真实 Qwen 调用耗时。
 - DataBaker 推荐卡新增词表替换提示，返回词表强替换时显示替换数量和最多 8 个替换项，复制和填入继续使用最终 `recommendedText`。
-- options “标注脚本中心”新增 `DataBaker / DataFactory` 平台区域和 `DataBaker 一检质检` 脚本卡片，支持在控制面板启停该脚本。
-- 新增 DataBaker 一检质检专属设置页，可配置 AI 推荐接口地址、请求超时时间和 AI 推荐开关；默认 endpoint 为 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`，本机 `127.0.0.1:3333` 仅用于开发调试。
+- options “标注脚本中心”新增 `标贝易采` 平台区域和 `标贝易采一检质检` 脚本卡片，支持在控制面板启停该脚本。
+- 新增 标贝易采一检质检专属设置页，可配置 后端接口地址、请求超时时间和 AI 推荐开关；默认 endpoint 为 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`，本机 `127.0.0.1:3333` 仅用于开发调试。
 - DataBaker content script 改为读取 `chrome.storage` 中的脚本启停、AI 推荐开关、endpoint 和 timeout；关闭脚本或关闭 AI 推荐后不显示推荐工具卡。
 - 扩展前端仍不保存 API Key、access token、cookie 或完整音频 URL，DataBaker 模型密钥继续由后端通过 `config/env/ai.env` 读取。
 - manifest 版本提升到 `0.2.8`。
 - 新增统一 AI 环境配置文件 `config/env/ai.env` 自动加载能力，统一后端启动时会先加载仓库内 AI 环境配置，不再要求每次手动设置 `DASHSCOPE_API_KEY`。
 - 新增 `config/env/ai.env.example`，覆盖 DashScope、OpenRouter、MiniMax、其他模型服务和 DataBaker AI 推荐文本配置项。
 - `.gitignore` 新增真实密钥文件忽略规则：`config/env/ai.env`、`config/env/ai.local.env`、`.env`、`.env.*`，保留模板文件可提交。
-- 新增 DataBaker / DataFactory 一检质检站点目录 `extension/sites/data-baker/round-one-quality/`，仅在 `datafactory.data-baker.com` 的 `roundOneCollect` 详情页注入“AI 推荐文本”工具卡。
+- 新增 标贝易采 一检质检站点目录 `extension/sites/data-baker/round-one-quality/`，仅在 `datafactory.data-baker.com` 的 `roundOneCollect` 详情页注入“AI 推荐文本”工具卡。
 - DataBaker 前端新增 MAIN world 网络观察脚本，只在内存中缓存 `queryCollectStatementByCondtion` 当前页响应；ISOLATED world 根据 `.sentence-list .sentence-item.active`、右侧“本句话文本” textarea 和接口记录定位当前单条。
 - DataBaker 推荐结果卡支持展示页面候选文本、AI 听音文本、AI 推荐文本、变更标记、置信度、模型和复核提示，并提供“复制推荐文本”“填入推荐文本”“忽略”；填入必须由用户点击触发，不自动保存、提交、判定或流转。
 - 统一后端新增 DataBaker AI 推荐接口：
@@ -127,7 +137,7 @@
 
 - 补充服务器扩展压缩包下载目录说明：记录 Nginx `autoindex` 配置、`/downloads/` 访问地址、`dist/` 目录约定和验证命令，便于用户选择不同版本 zip 下载。
 - 补充根目录 README 和扩展源码 README 的扩展压缩包生成命令，明确压缩包根级必须直接包含 `manifest.json`；同步补强 `.gitignore` 对旧 `edge-extension/dist/` 的忽略规则。
-- 将扩展源码从 `edge-extension/extension/` 迁移到仓库根目录 `extension/`，将历史文档迁移到 `docs/extension/`，将旧参考脚本迁移到 `legacy-reference/`；新增根目录 README 的本地加载、打包和服务器部署说明，并新增 `.gitignore` 忽略 `dist/` 等构建产物。
+- 将扩展源码从 `edge-extension/extension/` 迁移到仓库根目录 `extension/`，将历史文档迁移到 `docs/`，将旧参考脚本迁移到 `legacy-reference/`；新增根目录 README 的本地加载、打包和服务器部署说明，并新增 `.gitignore` 忽略 `dist/` 等构建产物。
 - 将扩展定位调整为 Chrome / Chromium MV3 单源码形态：Chrome 和 Edge 都加载同一个 `extension/` 目录，不再规划复制一套业务运行时代码；同步更新维护说明、本地加载说明和扩展源码目录 README。
 - 为快判新增当前音频前进 / 后退快捷键动作，默认 `ArrowLeft` 后退、`ArrowRight` 前进，前进 / 后退步长默认 `0.5` 秒并可在 options 中配置。
 - 调整快判倍速与音量语义：options 只保存默认倍速和默认音量；快捷键只临时调整当前音频，重置倍速 / 重置音量恢复到面板默认值，不再扩散到其他题卡音频。
@@ -195,4 +205,5 @@
 - 新增快判“雷题判断”能力：manifest 版本提升到 `0.2.2`，打包本地 `thunder-question-bank.csv` 雷题库，options 默认开启开关；命中雷题时在轻量题卡摘要和回答区“特殊情况标注”显示标准答案，当前选择与标准答案不一致时显示红色严重提示和错误 toast。
 - 增强快判统计上传失败诊断：非 2xx 响应会显示状态码、目标上传地址和响应摘要；浏览器权限、CORS、证书或网络拦截导致请求未发出时会显示更明确的错误来源。
 - 修正转写脚本在 LabelX 非转写页面的契约缺失告警：manifest 版本提升到 `0.2.3`，`content.js` 改为等待 `runtime-contract.js` 注入后再启动，超时仍缺失时以 info 级日志跳过，避免在快判首页出现 `Runtime contract is not loaded` 扩展错误。
+
 

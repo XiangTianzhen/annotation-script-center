@@ -313,7 +313,7 @@
           "No local phase summary was generated.",
         ];
         report.warnings = [
-          "The acceptance report can only explain a real annotation-page-flow-runner result object.",
+          "The acceptance report can only explain a real annotation flow result object.",
         ];
         return report;
       }

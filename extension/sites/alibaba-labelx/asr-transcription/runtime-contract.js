@@ -95,44 +95,8 @@
       phase: "interaction",
     },
     {
-      id: "legacySaveCoordinator",
-      globalKey: "__ASREdgeAlibabaLabelxLegacySaveCoordinator",
-      required: false,
-      phase: "annotation-flow",
-    },
-    {
-      id: "legacyAiPunctuation",
-      globalKey: "__ASREdgeAlibabaLabelxLegacyAiPunctuation",
-      required: false,
-      phase: "annotation-flow",
-    },
-    {
-      id: "legacyExport",
-      globalKey: "__ASREdgeAlibabaLabelxLegacyExport",
-      required: false,
-      phase: "ui",
-    },
-    {
-      id: "legacyLeaderboard",
-      globalKey: "__ASREdgeAlibabaLabelxLegacyLeaderboard",
-      required: false,
-      phase: "ui",
-    },
-    {
       id: "legacyVersionCheck",
       globalKey: "__ASREdgeAlibabaLabelxLegacyVersionCheck",
-      required: false,
-      phase: "ui",
-    },
-    {
-      id: "legacyAutoAssign",
-      globalKey: "__ASREdgeAlibabaLabelxLegacyAutoAssign",
-      required: false,
-      phase: "ui",
-    },
-    {
-      id: "legacyBatchFlow",
-      globalKey: "__ASREdgeAlibabaLabelxLegacyBatchFlow",
       required: false,
       phase: "ui",
     },
@@ -215,24 +179,6 @@
       phase: "annotation-flow",
     },
     {
-      id: "annotationSaveRunner",
-      globalKey: "__ASREdgeAlibabaLabelxAnnotationSaveRunner",
-      required: true,
-      phase: "annotation-flow",
-    },
-    {
-      id: "annotationSubmitRunner",
-      globalKey: "__ASREdgeAlibabaLabelxAnnotationSubmitRunner",
-      required: true,
-      phase: "annotation-flow",
-    },
-    {
-      id: "annotationPageFlowRunner",
-      globalKey: "__ASREdgeAlibabaLabelxAnnotationPageFlowRunner",
-      required: true,
-      phase: "annotation-flow",
-    },
-    {
       id: "annotationFlowReport",
       globalKey: "__ASREdgeAlibabaLabelxAnnotationFlowReport",
       required: true,
@@ -293,7 +239,7 @@
   }
 
   globalThis.__ASREdgeAlibabaLabelxRuntimeContract = {
-    STAGE_ID: "legacy-parity-foundation",
+    STAGE_ID: "basic-transcription-foundation",
     PAGE_WORLD_BRIDGE: PAGE_WORLD_BRIDGE,
     RUNTIME_MODULES: RUNTIME_MODULES,
     STARTUP_SEQUENCE: STARTUP_SEQUENCE,

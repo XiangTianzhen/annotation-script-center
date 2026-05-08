@@ -841,6 +841,9 @@
     next.shortcutToggleAutoBatchSubmit = null;
     next.shortcutToggleAutoSubmitAfterValidation = null;
     next.shortcutLeaderboard = null;
+    next.shortcutAllValid = null;
+    next.shortcutValidateItems = null;
+    next.shortcutRemoveAllSpaces = null;
 
     next.resetRateValue = normalizeClampedNumber(next.resetRateValue, 1.0, 0.25, 8, 2);
     next.playbackRateValue = normalizeClampedNumber(
@@ -1022,6 +1025,9 @@
         platform.annotation.shortcuts[shortcutKey]
       );
     });
+    delete platform.annotation.shortcuts.markAllValidFill;
+    delete platform.annotation.shortcuts.validatePage;
+    delete platform.annotation.shortcuts.removeAllSpaces;
 
     platform.automation.autoAssignCheckTasks = false;
     platform.automation.autoAssignTaskKeyword = "";
@@ -1124,6 +1130,11 @@
         nextAsr[asrKey]
       );
     });
+    if (isPlainObject(annotation.shortcuts)) {
+      delete annotation.shortcuts.markAllValidFill;
+      delete annotation.shortcuts.validatePage;
+      delete annotation.shortcuts.removeAllSpaces;
+    }
 
     settings.asr = sanitizeTranscriptionAsrConfig(nextAsr, defaultAsr);
     settings.debug = deepMerge(defaults.debug || {}, settings.debug || {});

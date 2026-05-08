@@ -355,10 +355,6 @@
       replacementList: shadowRoot.querySelector("[data-role='replacement-list']"),
       addRate: shadowRoot.querySelector("[data-role='add-rate']"),
       rateList: shadowRoot.querySelector("[data-role='rate-list']"),
-      autoAssignAll: shadowRoot.querySelector("[data-role='auto-assign-all']"),
-      autoAssignKeyword: shadowRoot.querySelector("[data-role='auto-assign-keyword']"),
-      autoAssignFetchAll: shadowRoot.querySelector("[data-role='auto-assign-fetch-all']"),
-      autoAssignBatch: shadowRoot.querySelector("[data-role='auto-assign-batch']"),
       clearCacheButton: shadowRoot.querySelector("[data-role='clear-cache-button']"),
       resetButton: shadowRoot.querySelector("[data-role='reset-button']"),
       saveButton: shadowRoot.querySelector("[data-role='save-button']"),
@@ -433,17 +429,7 @@
   }
 
   function updateDependentFields(instance) {
-    if (instance.ui.autoAssignKeyword) {
-      instance.ui.autoAssignKeyword.disabled = Boolean(
-        instance.ui.autoAssignAll && instance.ui.autoAssignAll.checked
-      );
-    }
-
-    if (instance.ui.autoAssignBatch) {
-      instance.ui.autoAssignBatch.disabled = Boolean(
-        instance.ui.autoAssignFetchAll && instance.ui.autoAssignFetchAll.checked
-      );
-    }
+    return instance;
   }
 
   function renderDebugIndicator(instance) {
@@ -1034,18 +1020,6 @@
       instance.state.settings.asr.customRates.push({ rate: 1.0, shortcut: null });
       renderRateList(instance);
     });
-
-    if (instance.ui.autoAssignAll) {
-      instance.ui.autoAssignAll.addEventListener("change", function () {
-        updateDependentFields(instance);
-      });
-    }
-
-    if (instance.ui.autoAssignFetchAll) {
-      instance.ui.autoAssignFetchAll.addEventListener("change", function () {
-        updateDependentFields(instance);
-      });
-    }
 
     instance.ui.clearCacheButton.addEventListener("click", function () {
       void clearCache(instance);

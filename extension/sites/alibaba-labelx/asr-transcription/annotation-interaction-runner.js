@@ -8,11 +8,8 @@
   const annotationValidityWriter = window.__ASREdgeAlibabaLabelxAnnotationValidityWriter;
   const annotationTextPipeline = window.__ASREdgeAlibabaLabelxAnnotationTextPipeline;
   const annotationQuickfillRunner = window.__ASREdgeAlibabaLabelxAnnotationQuickfillRunner;
-  const annotationItemValidator = window.__ASREdgeAlibabaLabelxAnnotationItemValidator;
-  const annotationFeedback = window.__ASREdgeAlibabaLabelxAnnotationFeedback;
   const listeners = [];
   let started = false;
-  let isBulkMode = false;
   let observer = null;
   let lastActionResult = {
     actionName: "idle",
@@ -28,9 +25,7 @@
     !annotationItemWriter ||
     !annotationValidityWriter ||
     !annotationTextPipeline ||
-    !annotationQuickfillRunner ||
-    !annotationItemValidator ||
-    !annotationFeedback
+    !annotationQuickfillRunner
   ) {
     console.warn(LOG_PREFIX, "Required dependencies are not loaded.");
     return;
@@ -123,30 +118,6 @@
 
     const items = Array.from(document.querySelectorAll(".labelRender-item"));
     return items.indexOf(item);
-  }
-
-  function highlightItem(itemIndex, message) {
-    const locateResult =
-      typeof annotationItemCollector.locate === "function"
-        ? annotationItemCollector.locate(itemIndex)
-        : null;
-    const item = locateResult?.item || null;
-
-    if (!item) {
-      return;
-    }
-
-    item.scrollIntoView({ behavior: "smooth", block: "center" });
-    item.style.boxShadow = "0 0 0 3px #ff4d4f";
-    item.style.transition = "box-shadow 0.3s";
-    window.setTimeout(function () {
-      item.style.boxShadow = "";
-    }, 3000);
-
-    console.warn(LOG_PREFIX, "Highlighted item:", {
-      itemIndex: itemIndex,
-      message: message,
-    });
   }
 
   function resolveActiveItemIndex() {
@@ -437,285 +408,6 @@
     );
   }
 
-  async function markAllValidFill(options) {
-    const snapshotResult = getSnapshotResult();
-    const totalItems = snapshotResult?.itemCount || 0;
-
-    if (totalItems <= 0) {
-      return publishResult(
-        toActionResult("mark-all-valid-fill", {
-          ok: false,
-          reason: "no-items",
-          summaryText: "当前页面没有可执行的标注项。",
-        }),
-        options
-      );
-    }
-
-    const result = toActionResult("mark-all-valid-fill", {
-      ok: true,
-      reason: "ok",
-      itemCount: totalItems,
-      successCount: 0,
-      failedCount: 0,
-      results: [],
-      summaryText: "",
-    });
-
-    isBulkMode = true;
-
-    try {
-      for (let itemIndex = 0; itemIndex < totalItems; itemIndex += 1) {
-        const validityResult =
-          typeof annotationValidityWriter.toggle === "function"
-            ? annotationValidityWriter.toggle({
-                itemIndex: itemIndex,
-                targetValidity: "有效",
-              })
-            : null;
-        const quickfillResult =
-          typeof annotationQuickfillRunner.run === "function"
-            ? annotationQuickfillRunner.run({ itemIndex: itemIndex })
-            : null;
-        const entryOk = Boolean(validityResult?.toggled) && Boolean(quickfillResult?.filled);
-
-        if (entryOk) {
-          blurItemTextarea(itemIndex);
-          result.successCount += 1;
-        } else {
-          result.failedCount += 1;
-        }
-
-        result.results.push({
-          itemIndex: itemIndex,
-          validityResult: validityResult,
-          quickfillResult: quickfillResult,
-          ok: entryOk,
-        });
-      }
-    } finally {
-      isBulkMode = false;
-      durationController.refresh("mark-all-valid-fill");
-    }
-
-    result.ok = result.failedCount === 0;
-    result.reason = result.ok ? "ok" : "partial-failure";
-    result.summaryText =
-      "全页标有效并填充已执行，共 " +
-      totalItems +
-      " 条，成功 " +
-      result.successCount +
-      " 条，失败 " +
-      result.failedCount +
-      " 条。";
-
-    return publishResult(result, options);
-  }
-
-  async function removeAllSpaces(options) {
-    const snapshotResult = getSnapshotResult();
-    const totalItems = snapshotResult?.itemCount || 0;
-    const result = toActionResult("remove-all-spaces", {
-      ok: true,
-      reason: "ok",
-      itemCount: totalItems,
-      changedCount: 0,
-      failedCount: 0,
-      results: [],
-      summaryText: "",
-    });
-
-    for (let itemIndex = 0; itemIndex < totalItems; itemIndex += 1) {
-      const locateResult =
-        typeof annotationItemCollector.locate === "function"
-          ? annotationItemCollector.locate(itemIndex)
-          : null;
-      const currentText = locateResult?.snapshot?.targetText || "";
-      if (!currentText) {
-        continue;
-      }
-
-      const removeResult = annotationTextPipeline.removeSpaces(currentText);
-      if (!removeResult.changed) {
-        continue;
-      }
-
-      const writeResult =
-        typeof annotationItemWriter.write === "function"
-          ? annotationItemWriter.write({
-              itemIndex: itemIndex,
-              targetText: removeResult.outputText,
-            })
-          : null;
-
-      if (writeResult?.wrote) {
-        blurItemTextarea(itemIndex);
-        result.changedCount += 1;
-      } else {
-        result.failedCount += 1;
-      }
-
-      result.results.push({
-        itemIndex: itemIndex,
-        removeResult: removeResult,
-        writeResult: writeResult,
-      });
-    }
-
-    durationController.refresh("remove-all-spaces");
-    result.ok = result.failedCount === 0;
-    result.reason = result.ok ? "ok" : "partial-failure";
-    result.summaryText =
-      result.changedCount > 0
-        ? "全页去空格完成，共处理 " + result.changedCount + " 条，失败 " + result.failedCount + " 条。"
-        : "全页没有发现需要去除的空格。";
-
-    return publishResult(result, options);
-  }
-
-  async function validatePage(options) {
-    const config = getConfigSnapshot();
-    const snapshotResult = getSnapshotResult();
-    const result = toActionResult("validate-page", {
-      ok: true,
-      reason: "ok",
-      itemCount: snapshotResult?.itemCount || 0,
-      modifiedCount: 0,
-      stoppedAtIndex: -1,
-      validationAfter: null,
-      feedbackAfter: null,
-      issue: null,
-      summaryText: "",
-    });
-
-    for (let itemIndex = 0; itemIndex < (snapshotResult?.items || []).length; itemIndex += 1) {
-      const item = snapshotResult.items[itemIndex];
-      const selectedValidity = item?.selectedValidity || null;
-      const targetText = annotationItemValidator.normalizeTargetText(item?.targetText);
-
-      if (!selectedValidity) {
-        result.ok = false;
-        result.reason = "missing-validity";
-        result.stoppedAtIndex = itemIndex;
-        result.issue = {
-          index: itemIndex,
-          code: "missing-validity",
-          message: "当前标注项未选择有效性。",
-        };
-        highlightItem(itemIndex, result.issue.message);
-        break;
-      }
-
-      if (selectedValidity === "特殊") {
-        result.ok = false;
-        result.reason = "special-selected";
-        result.stoppedAtIndex = itemIndex;
-        result.issue = {
-          index: itemIndex,
-          code: "special-selected",
-          message: "当前标注项不能保持“特殊”。",
-        };
-        highlightItem(itemIndex, result.issue.message);
-        break;
-      }
-
-      if (selectedValidity === "无效" && targetText) {
-        if (!config.autoClearInvalidValidation) {
-          result.ok = false;
-          result.reason = "invalid-has-text";
-          result.stoppedAtIndex = itemIndex;
-          result.issue = {
-            index: itemIndex,
-            code: "invalid-has-text",
-            message: "当前标注项选择“无效”时文本必须为空。",
-          };
-          highlightItem(itemIndex, result.issue.message);
-          break;
-        }
-
-        const clearResult = await clearItemText(itemIndex, {
-          silentHistory: true,
-          silentNotify: true,
-        });
-        if (!clearResult.ok) {
-          result.ok = false;
-          result.reason = "invalid-clear-failed";
-          result.stoppedAtIndex = itemIndex;
-          result.issue = {
-            index: itemIndex,
-            code: "invalid-clear-failed",
-            message: "自动清空无效文本失败。",
-          };
-          highlightItem(itemIndex, result.issue.message);
-          break;
-        }
-
-        result.modifiedCount += 1;
-        continue;
-      }
-
-      if (selectedValidity === "有效" && !targetText) {
-        if (!config.autoFillOnValidValidation) {
-          result.ok = false;
-          result.reason = "valid-empty-text";
-          result.stoppedAtIndex = itemIndex;
-          result.issue = {
-            index: itemIndex,
-            code: "valid-empty-text",
-            message: "当前标注项选择“有效”时文本不能为空。",
-          };
-          highlightItem(itemIndex, result.issue.message);
-          break;
-        }
-
-        const fillResult = await quickfillItem(itemIndex, {
-          silentHistory: true,
-          silentNotify: true,
-        });
-        if (!fillResult.ok) {
-          result.ok = false;
-          result.reason = "valid-fill-failed";
-          result.stoppedAtIndex = itemIndex;
-          result.issue = {
-            index: itemIndex,
-            code: "valid-fill-failed",
-            message: "自动填充有效文本失败。",
-          };
-          highlightItem(itemIndex, result.issue.message);
-          break;
-        }
-
-        result.modifiedCount += 1;
-      }
-    }
-
-    result.validationAfter =
-      typeof annotationItemValidator.validate === "function"
-        ? annotationItemValidator.validate()
-        : null;
-    result.feedbackAfter =
-      typeof annotationFeedback.summarize === "function"
-        ? annotationFeedback.summarize(result.validationAfter)
-        : null;
-    durationController.refresh("validate-page");
-
-    if (result.ok) {
-      result.summaryText =
-        result.modifiedCount > 0
-          ? "全页校验通过，并自动修复了 " + result.modifiedCount + " 条数据。"
-          : "全页校验通过，未发现需要修复的问题。";
-    } else {
-      result.summaryText =
-        "全页校验在第 " +
-        (result.stoppedAtIndex + 1) +
-        " 条停止，reason=" +
-        result.reason +
-        "。";
-    }
-
-    return publishResult(result, options);
-  }
-
   function getTargetTitleNode(item) {
     const directTitle = item.querySelector(".labelRender-item-answer-title");
     if (directTitle) {
@@ -762,7 +454,7 @@
   }
 
   function scheduleRadioSideEffects(item) {
-    if (!item || isBulkMode) {
+    if (!item) {
       return;
     }
 
@@ -917,18 +609,6 @@
       return toggleFocus(payload);
     }
 
-    if (actionName === "mark-all-valid-fill") {
-      return markAllValidFill(payload);
-    }
-
-    if (actionName === "remove-all-spaces") {
-      return removeAllSpaces(payload);
-    }
-
-    if (actionName === "validate-page") {
-      return validatePage(payload);
-    }
-
     return publishResult(
       toActionResult(actionName, {
         ok: false,
@@ -945,9 +625,6 @@
     execute: execute,
     getLastActionResult: function () {
       return lastActionResult;
-    },
-    isBulkMode: function () {
-      return isBulkMode;
     },
     LOG_PREFIX: LOG_PREFIX,
   };

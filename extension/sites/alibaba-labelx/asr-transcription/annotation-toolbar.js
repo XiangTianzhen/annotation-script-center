@@ -151,9 +151,6 @@
       '    <button type="button" class="button" data-action="toggle-focus">切换焦点</button>',
       "  </div>",
       '  <div class="row">',
-      '    <button type="button" class="button" data-action="mark-all-valid-fill">全页标有效并填充</button>',
-      '    <button type="button" class="button" data-action="remove-all-spaces">全页去空格</button>',
-      '    <button type="button" class="button" data-action="validate-page">全页校验</button>',
       '    <button type="button" class="button" data-action="copy-duration">复制时长</button>',
       "  </div>",
       '  <div class="row">',
@@ -209,10 +206,7 @@
         actionName === "set-invalid-active" ||
         actionName === "remove-active-spaces" ||
         actionName === "convert-active-numbers" ||
-        actionName === "toggle-focus" ||
-        actionName === "mark-all-valid-fill" ||
-        actionName === "remove-all-spaces" ||
-        actionName === "validate-page"
+        actionName === "toggle-focus"
       ) {
         const result = await interactionRunner.execute(actionName);
         updateStatus(result.summaryText);

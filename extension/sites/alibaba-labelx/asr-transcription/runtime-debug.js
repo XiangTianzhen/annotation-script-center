@@ -241,26 +241,8 @@
       getLegacyDictionarySync: function () {
         return runtime && runtime.legacyDictionarySync ? runtime.legacyDictionarySync : null;
       },
-      getLegacySaveCoordinator: function () {
-        return runtime && runtime.legacySaveCoordinator ? runtime.legacySaveCoordinator : null;
-      },
-      getLegacyAiPunctuation: function () {
-        return runtime && runtime.legacyAiPunctuation ? runtime.legacyAiPunctuation : null;
-      },
-      getLegacyExport: function () {
-        return runtime && runtime.legacyExport ? runtime.legacyExport : null;
-      },
-      getLegacyLeaderboard: function () {
-        return runtime && runtime.legacyLeaderboard ? runtime.legacyLeaderboard : null;
-      },
       getLegacyVersionCheck: function () {
         return runtime && runtime.legacyVersionCheck ? runtime.legacyVersionCheck : null;
-      },
-      getLegacyAutoAssign: function () {
-        return runtime && runtime.legacyAutoAssign ? runtime.legacyAutoAssign : null;
-      },
-      getLegacyBatchFlow: function () {
-        return runtime && runtime.legacyBatchFlow ? runtime.legacyBatchFlow : null;
       },
       getAnnotationItemCollector: function () {
         return runtime && runtime.annotationItemCollector ? runtime.annotationItemCollector : null;
@@ -303,15 +285,6 @@
         return runtime && runtime.annotationPageApplyRunner
           ? runtime.annotationPageApplyRunner
           : null;
-      },
-      getAnnotationSaveRunner: function () {
-        return runtime && runtime.annotationSaveRunner ? runtime.annotationSaveRunner : null;
-      },
-      getAnnotationSubmitRunner: function () {
-        return runtime && runtime.annotationSubmitRunner ? runtime.annotationSubmitRunner : null;
-      },
-      getAnnotationPageFlowRunner: function () {
-        return runtime && runtime.annotationPageFlowRunner ? runtime.annotationPageFlowRunner : null;
       },
       getAnnotationFlowReport: function () {
         return runtime && runtime.annotationFlowReport ? runtime.annotationFlowReport : null;

@@ -14,12 +14,6 @@
   const BLOCKED_ACTIONS = new Set([
     "save",
     "submit",
-    "smartSubmit",
-    "aiPunctuation",
-    "exportTasks",
-    "leaderboard",
-    "manualAssign",
-    "batchNow",
   ]);
 
   const COMPACT_KEYS = [
@@ -101,8 +95,6 @@
         note: "No action has been triggered yet.",
       },
       lastPageApplyResult: null,
-      lastFlowResult: null,
-      lastFlowReport: null,
       currentPageState: null,
     };
   }
@@ -128,29 +120,7 @@
       return state.lastPageApplyResult;
     }
 
-    if (isObject(state.lastFlowResult) && isObject(state.lastFlowResult.applyResult)) {
-      return state.lastFlowResult.applyResult;
-    }
-
     return null;
-  }
-
-  function buildFlowDisplayResult(flowResult, flowReportResult) {
-    return compactValue(
-      {
-        flow: {
-          reason: flowResult.reason,
-          completed: flowResult.completed,
-          applyPhase: flowResult.applyPhase,
-          savePhase: flowResult.savePhase,
-          submitPhase: flowResult.submitPhase,
-          saveResult: flowResult.saveResult,
-          submitResult: flowResult.submitResult,
-        },
-        report: flowReportResult,
-      },
-      0
-    );
   }
 
   function summarize(actionLabel, result) {
@@ -414,17 +384,6 @@
 
     try {
       const rawResult = await executeAction(instance, actionKey);
-      if (actionKey === "smartSubmit" && isObject(rawResult?.flow) && isObject(rawResult?.report)) {
-        updateResultState(
-          instance,
-          action.label,
-          rawResult.summaryText,
-          rawResult,
-          buildFlowDisplayResult(rawResult.flow, rawResult.report)
-        );
-        return rawResult;
-      }
-
       updateResultState(
         instance,
         action.label,
@@ -484,9 +443,6 @@
       "annotationPagePlanPreview",
       "annotationPageApplyRunner",
       "annotationPageReport",
-      "annotationSaveRunner",
-      "annotationSubmitRunner",
-      "annotationPageFlowRunner",
       "annotationFlowReport",
     ];
 
@@ -543,7 +499,6 @@
           lastAction: instance.state.lastAction,
           lastSummary: instance.state.lastSummary,
           lastResult: instance.state.lastResult,
-          lastFlowReport: instance.state.lastFlowReport,
         };
       },
     };

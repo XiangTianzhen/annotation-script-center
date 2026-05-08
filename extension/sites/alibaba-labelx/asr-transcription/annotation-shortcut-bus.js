@@ -102,33 +102,15 @@
       return;
     }
 
-    if (isShortcutMatch(event, shortcuts.removeAllSpaces)) {
-      haltEvent(event);
-      void interactionRunner.execute("remove-all-spaces");
-      return;
-    }
-
     if (isShortcutMatch(event, shortcuts.toggleFocus)) {
       haltEvent(event);
       void interactionRunner.execute("toggle-focus");
       return;
     }
 
-    if (isShortcutMatch(event, shortcuts.markAllValidFill)) {
-      haltEvent(event);
-      void interactionRunner.execute("mark-all-valid-fill");
-      return;
-    }
-
     if (isShortcutMatch(event, shortcuts.copyDuration)) {
       haltEvent(event);
       void durationController.copyCurrentDuration();
-      return;
-    }
-
-    if (isShortcutMatch(event, shortcuts.validatePage)) {
-      haltEvent(event);
-      void interactionRunner.execute("validate-page");
       return;
     }
 

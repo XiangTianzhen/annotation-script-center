@@ -358,27 +358,8 @@
       return null;
     }
 
-    if (actionKey === "manualAssign") {
-      if (reason === "not-check-task-list") {
-        return "当前页面不是审核任务列表，无法执行自动抢单。";
-      }
-      if (reason === "target-users-missing") {
-        return "自动抢单目标人员为空，请先在设置中填写目标人员。";
-      }
-      if (reason === "task-keywords-missing") {
-        return "自动抢单关键词为空，请先配置关键词或开启全部任务。";
-      }
-      if (reason === "auto-assign-already-running") {
-        return "自动抢单正在执行中，请稍后重试。";
-      }
-    }
-
     if (actionKey === "checkUpdate" && reason === "version-check-missing") {
       return "更新检查模块未接入。";
-    }
-
-    if (actionKey === "leaderboard" && reason === "leaderboard-missing") {
-      return "排行榜模块未接入。";
     }
 
     return "reason=" + reason;
@@ -400,44 +381,15 @@
       return "已上传 " + (Number.isFinite(result?.count) ? result.count : 0) + " 条词库待审记录。";
     }
 
-    if (actionKey === "exportTasks") {
-      const exportedCount = Number.isFinite(result?.count) ? result.count : 0;
-      if (result?.uploadResult && result.uploadResult.success === false) {
-        return "已导出 " + exportedCount + " 条任务，但统计上传失败。";
-      }
-      const uploaded = result?.uploadResult?.success === true ? " 并上传统计。" : "。";
-      return "已导出 " + exportedCount + " 条任务" + uploaded;
-    }
-
-    if (actionKey === "leaderboard") {
-      if (result?.success === false) {
-        return result?.error || "排行榜加载失败。";
-      }
-      if (result?.hidden) {
-        return "排行榜面板已关闭。";
-      }
-      return "排行榜已加载 " + (Number.isFinite(result?.count) ? result.count : 0) + " 条记录。";
-    }
-
-    if (actionKey === "manualAssign") {
-      return mapLegacyReason(actionKey, result?.reason) || "自动抢单已执行。";
-    }
-
     if (actionKey === "checkUpdate") {
       return "更新检查已完成。";
-    }
-
-    if (actionKey === "aiPunctuation") {
-      return "AI 标点修复已执行。";
     }
 
     return result?.message || mapLegacyReason(actionKey, result?.reason) || "动作已执行。";
   }
 
   function buildLegacyActionResponse(actionKey, result) {
-    const isError =
-      result?.success === false ||
-      (actionKey === "exportTasks" && result?.uploadResult && result.uploadResult.success === false);
+    const isError = result?.success === false;
 
     return {
       statusText: buildLegacyActionStatus(actionKey, result),
@@ -483,13 +435,6 @@
 
     if (legacyBridge && typeof legacyBridge.setAutosaveInterceptionEnabled === "function") {
       legacyBridge.setAutosaveInterceptionEnabled(autosaveInterceptionEnabled);
-    }
-
-    if (modules.legacyAutoAssign && typeof modules.legacyAutoAssign.stopPolling === "function") {
-      modules.legacyAutoAssign.stopPolling();
-    }
-    if (modules.legacyBatchFlow && typeof modules.legacyBatchFlow.stop === "function") {
-      modules.legacyBatchFlow.stop();
     }
 
     if (!platformEnabled) {
@@ -594,13 +539,7 @@
       legacyApiClient: modules.legacyApiClient,
       legacyUserContext: modules.legacyUserContext,
       legacyDictionarySync: modules.legacyDictionarySync,
-      legacySaveCoordinator: modules.legacySaveCoordinator,
-      legacyAiPunctuation: modules.legacyAiPunctuation,
-      legacyExport: modules.legacyExport,
-      legacyLeaderboard: modules.legacyLeaderboard,
       legacyVersionCheck: modules.legacyVersionCheck,
-      legacyAutoAssign: modules.legacyAutoAssign,
-      legacyBatchFlow: modules.legacyBatchFlow,
       annotationItemCollector: modules.annotationItemCollector,
       annotationItemValidator: modules.annotationItemValidator,
       annotationFeedback: modules.annotationFeedback,
@@ -613,9 +552,6 @@
       annotationPagePlanPreview: modules.annotationPagePlanPreview,
       annotationPageReport: modules.annotationPageReport,
       annotationPageApplyRunner: modules.annotationPageApplyRunner,
-      annotationSaveRunner: modules.annotationSaveRunner,
-      annotationSubmitRunner: modules.annotationSubmitRunner,
-      annotationPageFlowRunner: modules.annotationPageFlowRunner,
       annotationFlowReport: modules.annotationFlowReport,
       annotationControlPanel: controlPanel,
       settingsPanel: settingsPanel,
@@ -680,20 +616,11 @@
         annotationPagePlanPreview: modules.annotationPagePlanPreview,
         annotationPageApplyRunner: modules.annotationPageApplyRunner,
         annotationPageReport: modules.annotationPageReport,
-        annotationSaveRunner: modules.annotationSaveRunner,
-        annotationSubmitRunner: modules.annotationSubmitRunner,
-        annotationPageFlowRunner: modules.annotationPageFlowRunner,
         annotationFlowReport: modules.annotationFlowReport,
         legacyApiClient: modules.legacyApiClient,
         legacyUserContext: modules.legacyUserContext,
         legacyDictionarySync: modules.legacyDictionarySync,
-        legacySaveCoordinator: modules.legacySaveCoordinator,
-        legacyAiPunctuation: modules.legacyAiPunctuation,
-        legacyExport: modules.legacyExport,
-        legacyLeaderboard: modules.legacyLeaderboard,
         legacyVersionCheck: modules.legacyVersionCheck,
-        legacyAutoAssign: modules.legacyAutoAssign,
-        legacyBatchFlow: modules.legacyBatchFlow,
       });
     }
 
