@@ -183,7 +183,7 @@
 - 日志、错误提示和调试输出必须脱敏。
 - 不输出 API Key、cookie、token、完整签名 URL、完整音频 URL。
 - AI 建议 / AI 推荐文本默认是辅助能力，不自动保存、不自动提交、不自动领取、不自动流转。
-- DataBaker “填入推荐文本”必须由用户主动点击或快捷键触发，不自动提交平台任务。
+- 标贝易采 “填入推荐文本”必须由用户主动点击或快捷键触发，不自动提交平台任务。
 - 快判 AI 建议必须保持人工确认，不绕过雷题或平台限制。
 
 ## 验证要求
@@ -197,6 +197,30 @@
 - 先做审计后做改造的任务，审计报告只能作为中间产物；若 Prompt 要求落地修改，必须继续执行到满足验收标准。
 - 若当前轮只完成审计未完成修改，必须明确标注“未完成执行目标”，不得将审计输出视为任务完成。
 
+## 版本与打包发布规则
+
+- 每次执行类任务只要修改了扩展源码、manifest、options、popup、content script、shared、平台脚本、后端接口契约、用户可见文案、文档发布说明或会影响扩展分发的内容，都必须同步检查是否需要提升 `extension/manifest.json` 版本号。
+- 默认只要本轮有代码或用户可见行为变化，就提升 patch 版本（例如 `0.2.9 -> 0.2.10`）。
+- 纯只读审计、不改文件、不提交时不改版本号。
+- 只改内部文档且不影响扩展使用时，可以不提升版本号；但如果用户明确要求“更新版本 / 打包 / 发布”，必须提升版本号。
+- 修改 `manifest.json` 后必须验证 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
+- 执行类任务验证通过后，如果本轮有扩展源码、manifest、options、popup、content script、shared、平台脚本或用户可见行为变更，默认生成扩展压缩包到 `dist/`。
+- 如果用户明确要求打包，即使本轮只改文档，也必须生成压缩包。
+- 压缩包命名规则：`dist/annotation-script-center-v<manifest.version>.zip`。
+- 压缩包内容必须直接来自 `extension/` 目录内部文件；根目录必须直接包含 `manifest.json`、`background/`、`options/`、`popup/`、`shared/`、`sites/`，禁止多套一层 `extension/` 目录。
+- `dist/` 是构建产物目录，默认不提交 git。
+- 如果系统缺少压缩工具导致打包失败，验证失败，不得提交和 push。
+- 推荐 PowerShell 打包命令：
+  ```powershell
+  $manifest = Get-Content -Raw extension\manifest.json | ConvertFrom-Json
+  $zipPath = "dist\annotation-script-center-v$($manifest.version).zip"
+  New-Item -ItemType Directory -Force dist | Out-Null
+  if (Test-Path $zipPath) { Remove-Item $zipPath }
+  Compress-Archive -Path extension\* -DestinationPath $zipPath -Force
+  Write-Host "已生成：$zipPath"
+  ```
+- Codex 最终输出必须包含：旧版本号、新版本号、是否已生成 `dist` 压缩包、压缩包路径、压缩包根目录检查结果。
+
 ## Git 提交要求
 
 - 每次完成代码或文档修改后，验证通过再提交到 git。
@@ -204,6 +228,7 @@
 - 如果工作区存在明显无关或无法确认归属的改动，不要混入提交，应在最终回复中说明。
 - 提交信息使用中文，简明说明本轮改动目的。
 - 当前项目按单人维护流程，执行类任务验证通过后默认直接 push 到 `main`；仅在只读审计、验证失败或用户明确禁止提交时不 push。
+
 
 
 

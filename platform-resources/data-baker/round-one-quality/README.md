@@ -14,7 +14,7 @@
 extension/sites/data-baker/round-one-quality/
 ```
 
-该站点与 Alibaba LabelX 无关，不应把 DataBaker 逻辑放入 `extension/sites/alibaba-labelx/`。
+该站点与 Alibaba LabelX 无关，不应把 标贝易采 逻辑放入 `extension/sites/alibaba-labelx/`。
 
 ## 扩展 options 接入
 
@@ -52,15 +52,15 @@ round-one-quality/
 
 - `page-structure.md`：页面 DOM 结构、稳定选择器和当前可编辑文本框判断。
 - `network.md`：列表接口路径、请求参数、响应字段和缓存策略。
-- `ai/minnan-lexicon.csv`：闽南方言字词表，用于 DataBaker AI 推荐文本后端 prompt 上下文。
-- `backend/`：DataBaker AI 推荐文本本地 Node 接口。
+- `ai/minnan-lexicon.csv`：闽南方言字词表，用于 标贝易采 AI 推荐文本后端 prompt 上下文。
+- `backend/`：标贝易采 AI 推荐文本本地 Node 接口。
 
 ## 自动分页与快捷键
 
 - 运行时只在 `roundOneCollect` 详情页生效。
 - 自动分页目标 DOM 为 `.roundOneCollect-el-pagination span.el-pagination__sizes .el-select`，会读取当前分页 input 值，若不是目标值则打开下拉并点击可见的 `5条/页`、`10条/页`、`20条/页`、`50条/页` 或 `100条/页`。
 - 自动分页有限重试，默认最多 5 次，失败只输出简短 `console.debug`，不影响 AI 推荐主流程。
-- 快捷键默认全部未设置，用户需在 options DataBaker 专属设置页手动录制。
+- 快捷键默认全部未设置，用户需在 options 标贝易采 专属设置页手动录制。
 - 快捷键不会在 `input`、`textarea`、`select` 或 `contenteditable` 聚焦时触发。
 - 句子判定只点击 `.submit-btn` 中的“合格 / 不合格”；任务判定只点击 `.operate-btn` 中包含“任务判定”的“通过 / 部分驳回 / 全部驳回”按钮。
 - 任务判定按钮 disabled 时不会绕过平台限制；该能力不自动保存、不自动提交、不自动流转。
@@ -80,7 +80,7 @@ round-one-quality/
 node platform-resources\backend\server.js
 ```
 
-DataBaker AI 推荐接口：
+标贝易采 AI 推荐接口：
 
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
@@ -130,4 +130,5 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 - 不做自动保存、不做自动提交、不做批量识别、不做自动流转。
 - 结果写入页面输入框必须由用户点击“填入推荐文本”触发。
 - 如果页面结构变化导致无法安全定位输入框，扩展只保留复制能力。
+
 
