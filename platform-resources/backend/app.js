@@ -12,7 +12,11 @@ function createPlatformResourcesServer(options) {
     sendJson(response, 200, {
       success: true,
       service: "platform-resources-backend",
-      projects: ["alibaba-labelx/asr-judgement", "data-baker/round-one-quality"],
+      projects: [
+        "alibaba-labelx/asr-judgement",
+        "alibaba-labelx/asr-transcription",
+        "data-baker/round-one-quality",
+      ],
     });
   });
 

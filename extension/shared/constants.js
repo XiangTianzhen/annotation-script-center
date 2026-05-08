@@ -36,6 +36,13 @@
     "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
   const DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT =
     "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
+  const TRANSCRIPTION_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
+  const TRANSCRIPTION_STATS_DOWNLOAD_PATH =
+    "/api/alibaba-labelx/asr-transcription/statistics/download";
+  const TRANSCRIPTION_STATS_SERVER_ENDPOINT =
+    "https://script.xiangtianzhen.store" + TRANSCRIPTION_STATS_UPLOAD_PATH;
+  const TRANSCRIPTION_STATS_LOCAL_ENDPOINT =
+    "http://127.0.0.1:3333" + TRANSCRIPTION_STATS_UPLOAD_PATH;
   const DATABAKER_PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS = [
     { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
@@ -178,6 +185,12 @@
     shortcutFill: createShortcut("f"),
     shortcutConvertNum: createShortcut("v"),
     shortcutCopyDuration: createShortcut("b"),
+    statsUploadEnabled: true,
+    statsUploadEndpoint: TRANSCRIPTION_STATS_SERVER_ENDPOINT,
+    statsUploadTimes: ["10:00", "16:00"],
+    statsUploadJitterMinutes: 10,
+    statsAutoUploadOnSchedule: true,
+    statsUploadRequestTimeoutMs: 20000,
   };
 
   const DEFAULT_JUDGEMENT_ASR_DIFF_COLORS = {
@@ -288,7 +301,7 @@
       shortLabel: "语音转写",
       label: "阿里ASR语音转写",
       description: "基础转写能力（当前题处理 + 当前音频控制 + 页面工具栏）。",
-      note: "当前不提供独立设置页和快捷键配置，不做保存/提交/自动化/AI链路。",
+      note: "当前不提供独立大表单和快捷键配置；支持轻量统计导出，不做保存/提交/自动化/AI链路。",
       capabilityScope: "basic-transcription",
     },
     judgement: {
@@ -660,7 +673,7 @@
     STAGE_DESCRIPTION:
       "脚本中心统一管理多平台脚本，options 页负责启停与必要配置，运行时功能由各脚本独立维护。",
     CAPABILITY_SCOPE:
-      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏、语音判别音频能力、Lightwheel 脚本占位管理，以及标贝易采一检质检 AI 推荐文本。",
+      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏与统计导出、语音判别音频能力、Lightwheel 脚本占位管理，以及标贝易采一检质检 AI 推荐文本。",
     SCHEMA_VERSION: SCHEMA_VERSION,
     STORAGE_KEY: "asrEdgeSettings",
     PRESENCE_BADGE_ID: "asr-edge-presence-host",
@@ -684,6 +697,10 @@
     DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
     DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
     DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,
+    TRANSCRIPTION_STATS_UPLOAD_PATH: TRANSCRIPTION_STATS_UPLOAD_PATH,
+    TRANSCRIPTION_STATS_DOWNLOAD_PATH: TRANSCRIPTION_STATS_DOWNLOAD_PATH,
+    TRANSCRIPTION_STATS_SERVER_ENDPOINT: TRANSCRIPTION_STATS_SERVER_ENDPOINT,
+    TRANSCRIPTION_STATS_LOCAL_ENDPOINT: TRANSCRIPTION_STATS_LOCAL_ENDPOINT,
     DATABAKER_PAGE_SIZE_OPTIONS: clone(DATABAKER_PAGE_SIZE_OPTIONS),
     DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
     SCRIPT_PROJECTS: clone(SCRIPT_PROJECTS),

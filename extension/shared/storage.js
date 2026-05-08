@@ -85,6 +85,10 @@
         "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
       DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT:
         "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend",
+      TRANSCRIPTION_STATS_SERVER_ENDPOINT:
+        "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload",
+      TRANSCRIPTION_STATS_LOCAL_ENDPOINT:
+        "http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload",
       DATABAKER_PAGE_SIZE_OPTIONS: ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"],
       DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: [
         { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
@@ -856,6 +860,40 @@
     next.rateStepValue = normalizeClampedNumber(next.rateStepValue, 0.1, 0.05, 2, 2);
     next.seekStepSeconds = normalizeClampedNumber(next.seekStepSeconds, 1, 0.1, 10, 2);
     next.volumeValue = normalizeClampedNumber(next.volumeValue, 100, 0, 1000, 0);
+    next.statsUploadEnabled = next.statsUploadEnabled !== false;
+    next.statsUploadTimes = normalizeTimeList(next.statsUploadTimes, ["10:00", "16:00"]);
+    next.statsUploadJitterMinutes = Math.max(
+      0,
+      Math.min(120, normalizeNumber(next.statsUploadJitterMinutes, 10))
+    );
+    next.statsAutoUploadOnSchedule = next.statsAutoUploadOnSchedule !== false;
+    next.statsUploadRequestTimeoutMs = Math.max(
+      1000,
+      Math.min(120000, normalizeNumber(next.statsUploadRequestTimeoutMs, 20000))
+    );
+    next.statsUploadEndpoint = (function () {
+      const text = String(next.statsUploadEndpoint || "").trim();
+      const constants = getConstants();
+      const serverEndpoint =
+        constants.TRANSCRIPTION_STATS_SERVER_ENDPOINT ||
+        "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload";
+      const localEndpoint =
+        constants.TRANSCRIPTION_STATS_LOCAL_ENDPOINT ||
+        "http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload";
+      if (!text) {
+        return serverEndpoint;
+      }
+      if (text.indexOf("127.0.0.1:3333") >= 0 || text.indexOf("localhost:3333") >= 0) {
+        return localEndpoint;
+      }
+      if (text.indexOf("/api/asr-transcription/statistics/upload") >= 0) {
+        return text;
+      }
+      if (text.indexOf("/api/alibaba-labelx/asr-transcription/statistics/upload") >= 0) {
+        return text;
+      }
+      return serverEndpoint;
+    })();
 
     return next;
   }

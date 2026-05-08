@@ -32,6 +32,9 @@ http://127.0.0.1:3333
 - `PLATFORM_RESOURCES_SERVER_HOST`：统一后端监听地址，默认 `127.0.0.1`。
 - `PLATFORM_RESOURCES_SERVER_PORT`：统一后端监听端口，默认 `3333`。
 - `ASR_JUDGEMENT_SERVER_HOST` / `ASR_JUDGEMENT_SERVER_PORT`：兼容旧快判本地服务启动配置。
+- `ASR_TRANSCRIPTION_STATS_DIR`：ASR 转写统计输出目录（默认 `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`）。
+- `ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`：设为 `1` 时额外保存 `statistics-rows.json`。
+- `ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外保存 `statistics-upload-events.jsonl`。
 - `DATABAKER_AI_LISTEN_MODEL`：标贝易采 AI 听音模型，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：标贝易采 AI 对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：标贝易采 AI 请求超时，默认 `120000`。
@@ -51,6 +54,7 @@ http://127.0.0.1:3333
 ## 当前已注册 API
 
 - `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、CSV 下载，以及 AI 建议 `health/suggest` 接口。
+- `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、CSV 下载（CSV 列与快判不同，按转写统计格式输出）。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend` 接口。
 
 ## 新增项目 API 规则

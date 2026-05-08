@@ -6,6 +6,7 @@
 - 已删除转写快捷键配置与快捷键运行时。
 - 当前只保留转写详情页的工具栏按钮能力。
 - 工具栏已改为页面内注入结构：优先挂载 `.mark-toolbox`，其次挂到首条题卡上方，不再默认固定悬浮在页面顶部中央。
+- 新增转写统计导出能力：支持手动上传与定时上传，后端按分包合并 CSV。
 
 ## 保留能力（仅当前题 / 当前音频）
 
@@ -60,7 +61,20 @@
 - 不强制保存、不点击保存按钮。
 - 不自动提交、不自动领取、不自动流转、不自动跳转下一任务。
 - 不做整页受控执行与全页批量修改。
-- 不提供独立设置页、overlay 设置面板或快捷键配置。
+- 不提供独立完整设置页、overlay 设置面板或快捷键配置。
+
+## 转写统计导出（新增）
+
+- 页面入口：顶部导航头像附近“上传转写统计”按钮；工具栏“上传统计”按钮也可触发。
+- 默认定时：`10:00`、`16:00`，jitter `10` 分钟；会优先读取上传接口返回的 schedule。
+- 上传接口：
+  - 服务器：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload`
+  - 本机：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload`
+- 下载接口：
+  - 服务器：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download`
+  - 本机：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
+- CSV 列固定为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
+- 统计导出只采集和上传统计数据，不保存平台、不提交平台、不自动流转平台任务。
 
 ## 文件职责
 
@@ -70,6 +84,7 @@
 - `item-actions.js`：当前题文本与有效/无效动作。
 - `audio-controller.js`：当前音频控制与时长复制。
 - `text-utils.js`：去空格、轻量数字转换。
+- `transcription-stats-server.js`：转写统计采集、手动上传入口、定时上传调度、上传状态回传。
 
 ## 真实浏览器验证步骤
 

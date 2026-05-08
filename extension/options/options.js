@@ -12,6 +12,12 @@
     "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload";
   const judgementStatsLocalEndpoint =
     "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload";
+  const transcriptionStatsServerEndpoint =
+    constants.TRANSCRIPTION_STATS_SERVER_ENDPOINT ||
+    "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload";
+  const transcriptionStatsLocalEndpoint =
+    constants.TRANSCRIPTION_STATS_LOCAL_ENDPOINT ||
+    "http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload";
   const judgementAiSuggestionEndpointDefault =
     "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest";
   const dataBakerAiRecommendServerEndpoint =
@@ -243,6 +249,14 @@
       return judgementStatsLocalEndpoint;
     }
     return judgementStatsServerEndpoint;
+  }
+
+  function normalizeTranscriptionStatsEndpoint(value) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (text.indexOf("127.0.0.1:3333") >= 0 || text.indexOf("localhost:3333") >= 0) {
+      return transcriptionStatsLocalEndpoint;
+    }
+    return transcriptionStatsServerEndpoint;
   }
 
   function normalizeJudgementAiEndpoint(value, fallback) {
@@ -546,6 +560,45 @@
   function setScriptStatusNode(node, status) {
     node.textContent = status.text;
     node.className = "script-pill " + status.tone;
+  }
+
+  function normalizeTranscriptionStatsConfig(settings) {
+    const projectState =
+      settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[transcriptionProjectId] || {};
+    const asrConfig = projectState.asrConfig || {};
+    const defaults = constants.DEFAULT_ASR_CONFIG || {
+      statsUploadEnabled: true,
+      statsUploadEndpoint: transcriptionStatsServerEndpoint,
+      statsUploadTimes: ["10:00", "16:00"],
+      statsUploadJitterMinutes: 10,
+      statsAutoUploadOnSchedule: true,
+      statsUploadRequestTimeoutMs: 20000,
+    };
+
+    return {
+      statsUploadEnabled: asrConfig.statsUploadEnabled !== false,
+      statsUploadEndpoint: normalizeTranscriptionStatsEndpoint(
+        hasOwn(asrConfig, "statsUploadEndpoint")
+          ? asrConfig.statsUploadEndpoint
+          : defaults.statsUploadEndpoint
+      ),
+      statsUploadTimes: normalizeTimeList(asrConfig.statsUploadTimes, defaults.statsUploadTimes),
+      statsUploadJitterMinutes: clampNumber(
+        asrConfig.statsUploadJitterMinutes,
+        defaults.statsUploadJitterMinutes || 10,
+        0,
+        120,
+        0
+      ),
+      statsAutoUploadOnSchedule: asrConfig.statsAutoUploadOnSchedule !== false,
+      statsUploadRequestTimeoutMs: clampNumber(
+        asrConfig.statsUploadRequestTimeoutMs,
+        defaults.statsUploadRequestTimeoutMs || 20000,
+        1000,
+        120000,
+        0
+      ),
+    };
   }
 
   function normalizeJudgementConfig(settings) {
@@ -1140,6 +1193,70 @@
     renderJudgementShortcutGrid();
   }
 
+  function applyTranscriptionStatsForm(settings) {
+    const config = normalizeTranscriptionStatsConfig(settings);
+    const enabledNode = getElement("transcription-stats-enabled");
+    const endpointNode = getElement("transcription-stats-endpoint");
+    if (!(enabledNode instanceof HTMLInputElement) || !(endpointNode instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    enabledNode.checked = config.statsUploadEnabled !== false;
+    endpointNode.value =
+      config.statsUploadEndpoint === transcriptionStatsLocalEndpoint ? "local" : "server";
+
+    setStatus(
+      "transcription-stats-status",
+      "当前定时上传：" +
+        config.statsUploadTimes.join("、") +
+        "（jitter " +
+        String(config.statsUploadJitterMinutes) +
+        " 分钟）"
+    );
+  }
+
+  async function saveTranscriptionStatsSettings() {
+    if (!storage || typeof storage.saveProjectSettings !== "function") {
+      setStatus("transcription-stats-status", "当前扩展版本不支持保存转写统计设置。");
+      return false;
+    }
+
+    const enabledNode = getElement("transcription-stats-enabled");
+    const endpointNode = getElement("transcription-stats-endpoint");
+    if (!(enabledNode instanceof HTMLInputElement) || !(endpointNode instanceof HTMLSelectElement)) {
+      setStatus("transcription-stats-status", "转写统计设置控件不存在。");
+      return false;
+    }
+
+    const current = normalizeTranscriptionStatsConfig(currentSettings || {});
+    const endpoint =
+      endpointNode.value === "local"
+        ? transcriptionStatsLocalEndpoint
+        : transcriptionStatsServerEndpoint;
+
+    setStatus("transcription-stats-status", "正在保存转写统计设置...");
+
+    try {
+      currentSettings = await storage.saveProjectSettings(transcriptionProjectId, {
+        statsUploadEnabled: enabledNode.checked === true,
+        statsUploadEndpoint: endpoint,
+        statsUploadTimes: current.statsUploadTimes,
+        statsUploadJitterMinutes: current.statsUploadJitterMinutes,
+        statsAutoUploadOnSchedule: current.statsAutoUploadOnSchedule,
+        statsUploadRequestTimeoutMs: current.statsUploadRequestTimeoutMs,
+      });
+      applyTranscriptionStatsForm(currentSettings);
+      setStatus("transcription-stats-status", "转写统计设置已保存。");
+      return true;
+    } catch (error) {
+      setStatus(
+        "transcription-stats-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+      return false;
+    }
+  }
+
   function renderScriptCenter(settings) {
     renderHomeDataBakerEndpoint(settings);
 
@@ -1328,9 +1445,10 @@
     setStatus("detail-status", "");
 
     if (scriptId === transcriptionProjectId) {
+      applyTranscriptionStatsForm(settings);
       setStatus(
         "detail-status",
-        "ASR 转写当前为轻量工具栏模式（0.2.10）：仅保留页面内工具栏按钮，不提供独立设置和快捷键配置。"
+        "ASR 转写当前为轻量工具栏模式（0.2.10）：仅保留页面内工具栏按钮 + 统计导出开关，不提供独立完整设置和快捷键配置。"
       );
       return;
     }
@@ -1624,6 +1742,10 @@
 
     getElement("save-judgement-settings").addEventListener("click", function () {
       void saveJudgementSettings();
+    });
+
+    getElement("save-transcription-stats-settings").addEventListener("click", function () {
+      void saveTranscriptionStatsSettings();
     });
 
     getElement("save-data-baker-settings").addEventListener("click", function () {

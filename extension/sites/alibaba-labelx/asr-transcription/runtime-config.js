@@ -4,6 +4,14 @@
   const PROJECT_ID =
     (globalThis.ASREdgeConstants && globalThis.ASREdgeConstants.TRANSCRIPTION_PROJECT_ID) ||
     "transcription";
+  const STATS_SERVER_ENDPOINT =
+    (globalThis.ASREdgeConstants &&
+      globalThis.ASREdgeConstants.TRANSCRIPTION_STATS_SERVER_ENDPOINT) ||
+    "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload";
+  const STATS_LOCAL_ENDPOINT =
+    (globalThis.ASREdgeConstants &&
+      globalThis.ASREdgeConstants.TRANSCRIPTION_STATS_LOCAL_ENDPOINT) ||
+    "http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload";
 
   const FIXED_DEFAULTS = {
     autoPlay: false,
@@ -17,6 +25,14 @@
     defaultValid: false,
     customReplacements: [],
     customRates: [],
+  };
+  const FIXED_STATS_DEFAULTS = {
+    statsUploadEnabled: true,
+    statsUploadEndpoint: STATS_SERVER_ENDPOINT,
+    statsUploadTimes: ["10:00", "16:00"],
+    statsUploadJitterMinutes: 10,
+    statsAutoUploadOnSchedule: true,
+    statsUploadRequestTimeoutMs: 20000,
   };
 
   function clone(value) {
@@ -49,6 +65,49 @@
     };
   }
 
+  function normalizeStatsConfig(config) {
+    const source = config && typeof config === "object" ? config : {};
+    const endpointText = String(source.statsUploadEndpoint || "").trim();
+    let endpoint = STATS_SERVER_ENDPOINT;
+    if (endpointText.indexOf("127.0.0.1:3333") >= 0 || endpointText.indexOf("localhost:3333") >= 0) {
+      endpoint = STATS_LOCAL_ENDPOINT;
+    } else if (
+      endpointText.indexOf("/api/alibaba-labelx/asr-transcription/statistics/upload") >= 0 ||
+      endpointText.indexOf("/api/asr-transcription/statistics/upload") >= 0
+    ) {
+      endpoint = endpointText;
+    }
+
+    const timesSource = Array.isArray(source.statsUploadTimes)
+      ? source.statsUploadTimes
+      : FIXED_STATS_DEFAULTS.statsUploadTimes;
+    const times = timesSource
+      .map(function (item) {
+        const text = String(item || "").trim();
+        const match = text.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+        if (!match) {
+          return "";
+        }
+        return String(Number(match[1])).padStart(2, "0") + ":" + match[2];
+      })
+      .filter(Boolean);
+
+    return {
+      statsUploadEnabled: source.statsUploadEnabled !== false,
+      statsUploadEndpoint: endpoint,
+      statsUploadTimes: times.length > 0 ? times : FIXED_STATS_DEFAULTS.statsUploadTimes.slice(),
+      statsUploadJitterMinutes: toNumber(source.statsUploadJitterMinutes, 10, 0, 120, 0),
+      statsAutoUploadOnSchedule: source.statsAutoUploadOnSchedule !== false,
+      statsUploadRequestTimeoutMs: toNumber(
+        source.statsUploadRequestTimeoutMs,
+        20000,
+        1000,
+        120000,
+        0
+      ),
+    };
+  }
+
   function getActiveProjectId(settings) {
     return settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId || "";
   }
@@ -76,11 +135,16 @@
 
   async function loadConfig() {
     const settings = await loadSettings();
+    const projectAsrConfig =
+      settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[PROJECT_ID]?.asrConfig || {};
     return {
       settings: settings,
       activeProjectId: getActiveProjectId(settings),
       enabledBySettings: isProjectEnabled(settings),
       config: normalizeRuntimeConfig(FIXED_DEFAULTS),
+      statsConfig: normalizeStatsConfig(
+        Object.assign({}, FIXED_STATS_DEFAULTS, projectAsrConfig)
+      ),
       storageKey: STORAGE_KEY,
     };
   }
@@ -88,7 +152,9 @@
   globalThis.__ASREdgeAlibabaLabelxTranscriptionRuntimeConfig = {
     PROJECT_ID: PROJECT_ID,
     FIXED_DEFAULTS: clone(FIXED_DEFAULTS),
+    FIXED_STATS_DEFAULTS: clone(FIXED_STATS_DEFAULTS),
     normalizeRuntimeConfig: normalizeRuntimeConfig,
+    normalizeStatsConfig: normalizeStatsConfig,
     loadConfig: loadConfig,
   };
 })();

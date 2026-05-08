@@ -23,6 +23,16 @@ server.listen(config.port, config.host, function () {
       "/api/alibaba-labelx/asr-judgement/statistics/download"
   );
   console.info(
+    "[Platform Resources][backend] ASR transcription upload: " +
+      baseUrl +
+      "/api/alibaba-labelx/asr-transcription/statistics/upload"
+  );
+  console.info(
+    "[Platform Resources][backend] ASR transcription CSV: " +
+      baseUrl +
+      "/api/alibaba-labelx/asr-transcription/statistics/download"
+  );
+  console.info(
     "[Platform Resources][backend] ASR judgement AI health: " +
       baseUrl +
       "/api/alibaba-labelx/asr-judgement/ai/health"

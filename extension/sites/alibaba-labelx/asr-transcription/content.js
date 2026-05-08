@@ -6,6 +6,7 @@
   const itemActions = globalThis.__ASREdgeAlibabaLabelxTranscriptionItemActions || null;
   const audioApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionAudioController || null;
   const toolbarApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionToolbar || null;
+  const statsApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionStatsServer || null;
   const messageTypes = constants.MESSAGE_TYPES || {};
   const PANEL_PING = messageTypes.PANEL_PING || "ASR_EDGE_SETTINGS_PANEL_PING";
   const PROJECT_ID = configApi?.PROJECT_ID || "transcription";
@@ -53,7 +54,10 @@
     },
     {
       label: "辅助",
-      actions: [{ key: "copyDuration", label: "复制当前音频时长", shortLabel: "复制时长" }],
+      actions: [
+        { key: "copyDuration", label: "复制当前音频时长", shortLabel: "复制时长" },
+        { key: "uploadStats", label: "上传转写统计", shortLabel: "上传统计" },
+      ],
     },
   ];
 
@@ -72,6 +76,10 @@
     pollTimer: null,
     lastHref: String(location.href || ""),
     lastActionText: "最近操作：--",
+    scriptActive: false,
+    statsConfig: null,
+    statsRuntime: null,
+    statsState: null,
   };
 
   function warn(message, extra) {
@@ -176,6 +184,61 @@
     return runtime.toolbarRuntime;
   }
 
+  function isStatsCandidatePage() {
+    if (location.hostname !== TARGET_HOST) {
+      return false;
+    }
+    const path = String(location.pathname || "").toLowerCase();
+    if (path.indexOf("/corpora/labeling/") < 0) {
+      return false;
+    }
+    if (hasJudgementHint()) {
+      return false;
+    }
+    return true;
+  }
+
+  function shouldRunStatsRuntime() {
+    return runtime.scriptActive === true && isStatsCandidatePage();
+  }
+
+  function syncStatsState(nextState) {
+    runtime.statsState = nextState && typeof nextState === "object" ? nextState : null;
+    updateToolbarStatus();
+  }
+
+  function ensureStatsRuntime() {
+    if (runtime.statsRuntime || !statsApi || typeof statsApi.createRuntime !== "function") {
+      return runtime.statsRuntime;
+    }
+
+    runtime.statsRuntime = statsApi.createRuntime({
+      shouldApply: shouldRunStatsRuntime,
+      getConfig: function () {
+        return runtime.statsConfig || {};
+      },
+      showToast: function (message) {
+        showToast(message);
+      },
+      onStateChange: syncStatsState,
+    });
+    return runtime.statsRuntime;
+  }
+
+  function startStatsRuntime() {
+    const runtimeInstance = ensureStatsRuntime();
+    if (runtimeInstance && typeof runtimeInstance.start === "function") {
+      runtimeInstance.start();
+    }
+  }
+
+  function stopStatsRuntime() {
+    if (runtime.statsRuntime && typeof runtime.statsRuntime.stop === "function") {
+      runtime.statsRuntime.stop();
+    }
+    syncStatsState(null);
+  }
+
   function getCurrentItemText() {
     if (!activeItemApi || typeof activeItemApi.getCurrentContext !== "function") {
       return "当前题：未定位";
@@ -220,8 +283,17 @@
   }
 
   function getToolbarStatus() {
+    const statsState = runtime.statsState || {};
+    const statsSummary =
+      statsState.uploading === true
+        ? "（统计上传中）"
+        : statsState.lastUploadOk === true
+          ? "（统计上传成功）"
+          : statsState.lastUploadOk === false
+            ? "（统计上传失败）"
+            : "";
     return {
-      enabledText: runtime.enabled ? "转写工具栏已启用" : "转写工具栏待命中",
+      enabledText: runtime.enabled ? "转写工具栏已启用" + statsSummary : "转写工具栏待命中" + statsSummary,
       itemText: getCurrentItemText(),
       audioText: getAudioText(),
       lastActionText: runtime.lastActionText || "最近操作：--",
@@ -298,6 +370,20 @@
       case "copyDuration":
         result = await audioApi.copyCurrentAudioDuration();
         break;
+      case "uploadStats":
+        if (runtime.statsRuntime && typeof runtime.statsRuntime.uploadNow === "function") {
+          result = await runtime.statsRuntime.uploadNow("toolbar-manual");
+          if (result && result.ok === true) {
+            result.message = "转写统计已上传。";
+          } else if (result && result.message) {
+            result.message = "转写统计上传失败：" + result.message;
+          } else {
+            result = { ok: false, message: "转写统计上传失败。" };
+          }
+        } else {
+          result = { ok: false, message: "统计上传模块未加载。" };
+        }
+        break;
       default:
         result = { ok: false, message: "未知动作。" };
         break;
@@ -372,11 +458,13 @@
 
     try {
       if (!configApi || !activeItemApi || !itemActions || !audioApi) {
+        stopStatsRuntime();
         disableRuntime("module-missing");
         warn("required module missing");
         return;
       }
       if (!toolbarApi || typeof toolbarApi.createRuntime !== "function") {
+        stopStatsRuntime();
         disableRuntime("module-missing-toolbar");
         warn("toolbar module missing");
         return;
@@ -384,6 +472,14 @@
 
       const loaded = await configApi.loadConfig();
       runtime.config = loaded.config;
+      runtime.statsConfig = loaded.statsConfig || null;
+      runtime.scriptActive = loaded.enabledBySettings === true && loaded.activeProjectId === PROJECT_ID;
+
+      if (runtime.scriptActive) {
+        startStatsRuntime();
+      } else {
+        stopStatsRuntime();
+      }
 
       if (loaded.enabledBySettings !== true) {
         runtime.matched = false;
@@ -409,6 +505,7 @@
 
       enableRuntime();
     } catch (error) {
+      stopStatsRuntime();
       disableRuntime("runtime-error");
       warn("runtime refresh failed", {
         trigger: trigger,
