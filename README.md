@@ -6,7 +6,7 @@
 
 - 当前通用扩展源码目录：`extension/`
 - 当前重点平台：`Alibaba LabelX`、`DataBaker / DataFactory`
-- 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/data-baker/round-one-quality/`
+- 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/alibaba-labelx/asr-transcription/`、`extension/sites/data-baker/round-one-quality/`
 - 当前后端入口：`platform-resources/backend/server.js`
 
 ## 目录结构
@@ -86,6 +86,17 @@ Chrome：
 - DataBaker `group/detail?taskId=...` 页面提供“导出数据总表”按钮。导出不再由扩展直接 `fetch queryByCondition`，而是触发页面原生分页查询并由 MAIN world 拦截响应后合并全量 CSV（含 BOM）；默认不依赖本地后端和账号密码配置。
 
 扩展前端只保存接口地址、超时时间、开关、分页和快捷键设置，不保存 API Key、cookie、access token 或完整音频 URL。真实模型密钥仍由后端通过 `config/env/ai.env` 读取。
+
+## ASR 转写当前口径
+
+- `asr-transcription` 当前只做基础功能，不做“全自动闭环”。
+- 一条音频对应一个完整文本框。
+- 当前不实现时间戳、说话人区分、AI 初稿、AI 校对、AI 格式化。
+- 保存方式以 LabelX 平台自动保存为准。
+- 不新增自定义后端保存接口。
+- 不构建、不注入自定义保存 payload。
+- 不自动提交、不自动领取、不自动流转。
+- 快捷键只保留基础能力相关动作：播放/暂停、前进/后退、倍速、音量、焦点切换、基础文本处理。
 
 ## 打包发布
 

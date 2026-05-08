@@ -24,7 +24,7 @@
   const EXTENSION_NAME = "标注脚本中心";
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 19;
+  const SCHEMA_VERSION = 20;
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const DATA_BAKER_PLATFORM_ID = "dataBaker";
@@ -151,31 +151,17 @@
     fillOnValid: true,
     clearOnInvalid: true,
     autoNext: false,
-    autoAssignCheckTasks: false,
-    autoAssignTaskKeyword: "",
-    autoAssignTargetUser: "",
-    autoAssignBatchSize: 99999,
-    autoAssignAllTasks: false,
-    autoAssignFetchAll: true,
-    autoBatchSubmit: false,
     shortcutRemoveSpaces: createShortcut("h"),
     shortcutRemoveAllSpaces: createShortcut("g"),
-    shortcutFixPunctuationAll: createShortcut("j"),
-    shortcutToggleAutoBatchSubmit: createShortcut("l"),
-    shortcutToggleAutoSubmitAfterValidation: createShortcut("k"),
-    shortcutLeaderboard: createShortcut("m"),
     autoResetRate: false,
     resetRateValue: 1.0,
+    playbackRateValue: 1.0,
+    rateStepValue: 0.1,
+    seekStepSeconds: 1.0,
     volumeValue: 100,
-    autoReceiveOnSubmit: false,
-    validateBeforeSubmit: false,
     autoClearInvalidValidation: false,
     autoFillOnValidValidation: false,
-    autoSubmitAfterValidation: false,
     autoFillOnLoad: false,
-    qwenApiKey: "",
-    useAdvancedRules: false,
-    qwenModel: "qwen3.5-flash",
     numConvertMode: "千问",
     customReplacements: clone(DEFAULT_CUSTOM_REPLACEMENTS),
     customRates: clone(DEFAULT_CUSTOM_RATES),
@@ -195,7 +181,6 @@
     shortcutFill: createShortcut("f"),
     shortcutConvertNum: createShortcut("v"),
     shortcutCopyDuration: createShortcut("b"),
-    shortcutSubmit: createShortcut("t"),
     shortcutValidateItems: createShortcut("r"),
     shortcutAllValid: createShortcut("o"),
   };
@@ -307,9 +292,9 @@
       id: TRANSCRIPTION_PROJECT_ID,
       shortLabel: "语音转写",
       label: "阿里ASR语音转写",
-      description: "完整迁移旧脚本的标注 / 审核增强能力。",
-      note: "沿用旧脚本布局、快捷键、词库、AI、保存与批量流转能力。",
-      capabilityScope: "full-transcription",
+      description: "基础转写能力（音频播放控制 + 文本处理 + 页面内配置）。",
+      note: "当前阶段禁用自定义保存payload、自动提交、自动流转和AI相关动作。",
+      capabilityScope: "basic-transcription",
     },
     judgement: {
       id: JUDGEMENT_PROJECT_ID,
@@ -357,7 +342,7 @@
       description: SCRIPT_PROJECTS.transcription.description,
       note: SCRIPT_PROJECTS.transcription.note,
       capabilityScope: SCRIPT_PROJECTS.transcription.capabilityScope,
-      statusLabel: "完整迁移中",
+      statusLabel: "基础能力阶段",
       detailView: "labelx-transcription",
     },
     judgement: {
@@ -426,11 +411,6 @@
     { key: "shortcutResetVol", label: "重置音量 (100%)" },
     { key: "shortcutRemoveSpaces", label: "去除当前空格" },
     { key: "shortcutRemoveAllSpaces", label: "全页空格消除" },
-    { key: "shortcutSubmit", label: "智能提交" },
-    { key: "shortcutFixPunctuationAll", label: "AI 标点修复" },
-    { key: "shortcutToggleAutoBatchSubmit", label: "开关全自动批量提交" },
-    { key: "shortcutToggleAutoSubmitAfterValidation", label: "开关校验后自动提交" },
-    { key: "shortcutLeaderboard", label: "排行榜开关" },
   ];
 
   const SHORTCUT_KEYS = SHORTCUT_DEFINITIONS.map(function (item) {
@@ -458,11 +438,6 @@
     resetVolume: "shortcutResetVol",
     removeSpaces: "shortcutRemoveSpaces",
     removeAllSpaces: "shortcutRemoveAllSpaces",
-    submit: "shortcutSubmit",
-    fixPunctuationAll: "shortcutFixPunctuationAll",
-    toggleAutoBatchSubmit: "shortcutToggleAutoBatchSubmit",
-    toggleAutoSubmitAfterValidation: "shortcutToggleAutoSubmitAfterValidation",
-    leaderboard: "shortcutLeaderboard",
   };
 
   const BOOLEAN_CONFIG_KEYS = [
@@ -471,30 +446,21 @@
     "fillOnValid",
     "clearOnInvalid",
     "autoNext",
-    "autoAssignCheckTasks",
-    "autoAssignAllTasks",
-    "autoAssignFetchAll",
-    "autoBatchSubmit",
     "autoResetRate",
-    "autoReceiveOnSubmit",
-    "validateBeforeSubmit",
     "autoClearInvalidValidation",
     "autoFillOnValidValidation",
-    "autoSubmitAfterValidation",
     "autoFillOnLoad",
-    "useAdvancedRules",
   ];
 
-  const NUMBER_CONFIG_KEYS = ["autoAssignBatchSize", "resetRateValue", "volumeValue"];
-
-  const STRING_CONFIG_KEYS = [
-    "itemsPerPage",
-    "autoAssignTaskKeyword",
-    "autoAssignTargetUser",
-    "qwenApiKey",
-    "qwenModel",
-    "numConvertMode",
+  const NUMBER_CONFIG_KEYS = [
+    "resetRateValue",
+    "playbackRateValue",
+    "rateStepValue",
+    "seekStepSeconds",
+    "volumeValue",
   ];
+
+  const STRING_CONFIG_KEYS = ["itemsPerPage", "numConvertMode"];
 
   const ASR_CONFIG_KEYS = Object.keys(DEFAULT_ASR_CONFIG);
 
@@ -519,12 +485,8 @@
 
   const BUSINESS_ACTIONS = [
     { key: "checkUpdate", label: "手动检查更新", placeholder: "待接版本检查" },
-    { key: "aiPunctuation", label: "AI 标点", placeholder: "待接 AI 请求链路" },
     { key: "syncDictionary", label: "同步云端词库", placeholder: "待接云端词库同步" },
     { key: "uploadDictionary", label: "上传本地数据", placeholder: "待接词库上传" },
-    { key: "exportTasks", label: "导出统计", placeholder: "待接导出/上传逻辑" },
-    { key: "leaderboard", label: "排行榜", placeholder: "待接排行榜逻辑" },
-    { key: "manualAssign", label: "手动立即执行", placeholder: "待接手动抢单逻辑" },
   ];
 
   function createShortcutMapFromAsr(asrConfig) {
@@ -573,15 +535,14 @@
         fillOnValid: asr.fillOnValid,
         clearOnInvalid: asr.clearOnInvalid,
         autoNext: asr.autoNext,
-        autoBatchSubmit: asr.autoBatchSubmit,
         autoResetRate: asr.autoResetRate,
         resetRateValue: asr.resetRateValue,
+        playbackRateValue: asr.playbackRateValue,
+        rateStepValue: asr.rateStepValue,
+        seekStepSeconds: asr.seekStepSeconds,
         volumeValue: asr.volumeValue,
-        autoReceiveOnSubmit: asr.autoReceiveOnSubmit,
-        validateBeforeSubmit: asr.validateBeforeSubmit,
         autoClearInvalidValidation: asr.autoClearInvalidValidation,
         autoFillOnValidValidation: asr.autoFillOnValidValidation,
-        autoSubmitAfterValidation: asr.autoSubmitAfterValidation,
         autoFillOnLoad: asr.autoFillOnLoad,
         numConvertMode: asr.numConvertMode,
         shortcuts: createShortcutMapFromAsr(asr),
@@ -589,30 +550,30 @@
         customRates: clone(asr.customRates),
       },
       automation: {
-        autoAssignCheckTasks: asr.autoAssignCheckTasks,
-        autoAssignTaskKeyword: asr.autoAssignTaskKeyword,
-        autoAssignTargetUser: asr.autoAssignTargetUser,
-        autoAssignBatchSize: asr.autoAssignBatchSize,
-        autoAssignAllTasks: asr.autoAssignAllTasks,
-        autoAssignFetchAll: asr.autoAssignFetchAll,
+        autoAssignCheckTasks: false,
+        autoAssignTaskKeyword: "",
+        autoAssignTargetUser: "",
+        autoAssignBatchSize: 0,
+        autoAssignAllTasks: false,
+        autoAssignFetchAll: false,
         autoAssignPollIntervalMs: 60000,
-        autoBatchSubmit: asr.autoBatchSubmit,
+        autoBatchSubmit: false,
         autoBatchSubmitDelayMs: 10000,
-        autoNavigateNextTask: true,
+        autoNavigateNextTask: false,
         autoFillOnLoad: asr.autoFillOnLoad,
-        validateBeforeSubmit: asr.validateBeforeSubmit,
-        autoSubmitAfterValidation: asr.autoSubmitAfterValidation,
-        autoReceiveOnSubmit: asr.autoReceiveOnSubmit,
+        validateBeforeSubmit: false,
+        autoSubmitAfterValidation: false,
+        autoReceiveOnSubmit: false,
       },
       aiPunctuation: {
-        apiKey: asr.qwenApiKey,
-        useAdvancedRules: asr.useAdvancedRules,
-        model: asr.qwenModel,
+        apiKey: "",
+        useAdvancedRules: false,
+        model: "",
       },
       ai: {
-        qwenApiKey: asr.qwenApiKey,
-        useAdvancedRules: asr.useAdvancedRules,
-        qwenModel: asr.qwenModel,
+        qwenApiKey: "",
+        useAdvancedRules: false,
+        qwenModel: "",
       },
       dictionary: {
         customReplacements: clone(asr.customReplacements),
@@ -621,15 +582,15 @@
       },
       safety: {
         interceptPlatformAutosave: true,
-        blurBeforeManualSave: true,
-        submitRequiresManualSave: true,
-        uploadStatsBeforeSubmit: true,
-        reloadAfterBulkSave: true,
+        blurBeforeManualSave: false,
+        submitRequiresManualSave: false,
+        uploadStatsBeforeSubmit: false,
+        reloadAfterBulkSave: false,
         saveReloadDelayMs: 1200,
-        validateBeforeSubmit: asr.validateBeforeSubmit,
+        validateBeforeSubmit: false,
         autoClearInvalidValidation: asr.autoClearInvalidValidation,
         autoFillOnValidValidation: asr.autoFillOnValidValidation,
-        autoSubmitAfterValidation: asr.autoSubmitAfterValidation,
+        autoSubmitAfterValidation: false,
       },
       legacyServer: {
         apiBaseUrl: "http://47.108.254.138:3101",

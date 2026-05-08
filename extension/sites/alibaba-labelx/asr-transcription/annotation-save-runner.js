@@ -274,35 +274,14 @@
         return result;
       }
 
-      const manualSaveHandled = await attemptManualSave(request, result);
-      if (manualSaveHandled) {
-        result.matched = true;
-        return result;
-      }
-
-      const locatedBefore = locateSaveControl(pageState);
-      result.controlBefore = locatedBefore.state;
-      result.matched = locatedBefore.state.found;
-
-      if (!locatedBefore.element) {
-        result.reason = "save-control-not-found";
-        result.controlAfter = readControlState(null);
-        return result;
-      }
-
-      result.clickable = isControlClickable(locatedBefore.state, request.forceClick);
-      if (!result.clickable) {
-        result.reason = "save-control-disabled";
-        result.controlAfter = readControlState(locatedBefore.element);
-        return result;
-      }
-
-      result.clicked = dispatchLocalClick(locatedBefore.element, request.forceClick) === true;
-      result.dispatched = result.clicked;
+      result.matched = true;
+      result.reason = "disabled-in-basic-stage";
+      result.manualSaveSupported = false;
+      result.clickable = false;
+      result.clicked = false;
+      result.dispatched = false;
       result.saved = false;
       result.persisted = false;
-      result.controlAfter = readControlState(locatedBefore.element);
-      result.reason = result.clicked ? "local-click-dispatched" : "save-dispatch-failed";
       return result;
     } catch (error) {
       console.warn(LOG_PREFIX, "Failed to trigger save control:", error);

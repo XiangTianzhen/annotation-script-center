@@ -12,6 +12,9 @@
         autoPlay: true,
         autoResetRate: false,
         resetRateValue: 1.0,
+        playbackRateValue: 1.0,
+        rateStepValue: 0.1,
+        seekStepSeconds: 1.0,
         volumeValue: 100,
       };
 
@@ -95,9 +98,11 @@
     setAudioVolume(audio, configSnapshot.volumeValue);
 
     if (configSnapshot.autoResetRate === true) {
-      const resetRate =
-        typeof configSnapshot.resetRateValue === "number" && configSnapshot.resetRateValue > 0
-          ? configSnapshot.resetRateValue
+      const resetRate = 
+        typeof configSnapshot.playbackRateValue === "number" && configSnapshot.playbackRateValue > 0
+          ? configSnapshot.playbackRateValue
+          : typeof configSnapshot.resetRateValue === "number" && configSnapshot.resetRateValue > 0
+            ? configSnapshot.resetRateValue
           : 1.0;
       audio.playbackRate = resetRate;
       updateVisibleRate(audio, resetRate);
@@ -352,7 +357,10 @@
       paused: audio ? audio.paused : true,
       currentTime: audio ? audio.currentTime : 0,
       duration: audio && Number.isFinite(audio.duration) ? audio.duration : 0,
-      playbackRate: audio ? audio.playbackRate : configSnapshot.resetRateValue,
+      playbackRate:
+        audio
+          ? audio.playbackRate
+          : configSnapshot.playbackRateValue || configSnapshot.resetRateValue,
       volumeValue: configSnapshot.volumeValue,
       activeItemIndex: activeItemTracker.getActiveIndex(),
     };

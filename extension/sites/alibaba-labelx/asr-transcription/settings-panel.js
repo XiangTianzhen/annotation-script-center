@@ -190,15 +190,6 @@
         : {
             label: "阿里ASR语音转写",
           };
-    const aiOptions = constants.AI_MODEL_OPTIONS.map(function (option) {
-      return (
-        '<option value="' +
-        escapeHtml(option.value) +
-        '">' +
-        escapeHtml(option.label) +
-        "</option>"
-      );
-    }).join("");
     const pageOptions = constants.PAGE_OPTIONS.map(function (option) {
       return '<option value="' + escapeHtml(option) + '">' + escapeHtml(option) + "</option>";
     }).join("");
@@ -325,24 +316,18 @@
       '<label class="check-item"><input type="checkbox" data-field="autoPlay" /> 自动播放音频</label>',
       '<label class="check-item"><input type="checkbox" data-field="autoNext" /> 播完切下条(S)</label>',
       '<label class="check-item"><input type="checkbox" data-field="defaultValid" /> 切入标"有效"</label>',
-      '<label class="check-item highlight"><input type="checkbox" data-field="autoBatchSubmit" /> 🤖 开启全自动批量提交引擎 (10s 自动流转)</label>',
       '<label class="check-item blue"><input type="checkbox" data-field="fillOnValid" /> 标有效时填入</label>',
       '<label class="check-item red"><input type="checkbox" data-field="clearOnInvalid" /> 标无效时清空</label>',
       '<label class="check-item green span-3"><input type="checkbox" data-field="autoFillOnLoad" /> ⚡ 进入页面自动全页填充</label>',
-      '<label class="check-item purple"><input type="checkbox" data-field="validateBeforeSubmit" /> 加载完成后自动校验数据</label>',
       '<label class="check-item purple span-2"><input type="checkbox" data-field="autoClearInvalidValidation" /> 校验时遇到"无效"自动清空文本</label>',
       '<label class="check-item purple span-2"><input type="checkbox" data-field="autoFillOnValidValidation" /> 校验时遇到"有效"自动填入文本</label>',
-      '<label class="check-item purple"><input type="checkbox" data-field="autoSubmitAfterValidation" /> 校验完毕后自动提交</label>',
-      '<label class="check-item span-3"><input type="checkbox" data-field="autoReceiveOnSubmit" /> 自动领取 (开启: 快捷键点"提交任务" / 关闭: 点"提交并结束")</label>',
       "</section>",
-      '<section class="card ai"><div class="card-title ai">🤖 AI 标点修复 (通义千问 Qwen3.5-Flash，由服务器代理调用)</div><div class="field-row"><label class="field-label" for="asr-qwen-key">API Key:</label><input id="asr-qwen-key" class="field-password" type="password" data-field="qwenApiKey" placeholder="sk-..." /></div><label class="check-item" style="color:#1d39c4;font-weight:600;"><input type="checkbox" data-field="useAdvancedRules" /> 启用 AI 标点严格规则（无引号/无省略号/加书名号）</label><div class="field-row"><label class="field-label" for="asr-qwen-model">模型:</label><select id="asr-qwen-model" class="field-select" data-field="qwenModel">' + aiOptions + '</select><button type="button" class="mini-button blue" data-action-key="aiPunctuation">🤖 AI 标点</button><span class="status-chip tone-pending" data-role="action-status-aiPunctuation">待接 AI 请求链路</span></div></section>',
-      '<section class="card"><div class="dual-grid"><div class="field-pair"><label class="field-label" for="asr-volume"><strong>全局音量调节 (0~1000%):</strong></label><div class="field-row"><input id="asr-volume" class="field-number inline" type="number" min="0" max="1000" step="50" data-field="volumeValue" /><span>%</span></div></div><div class="field-pair"><label class="check-item" style="font-weight:700;"><input type="checkbox" data-field="autoResetRate" /> 切换倍速重置为:</label><input class="field-number inline" type="number" min="0.1" max="8" step="0.1" data-field="resetRateValue" /></div></div><div class="dual-grid" style="margin-top:12px;padding-top:12px;border-top:1px dashed #eee;"><div class="field-pair"><label class="field-label" for="asr-num-mode"><strong>数字转换模式:</strong></label><select id="asr-num-mode" class="field-select" data-field="numConvertMode"><option value="千问">千问模式</option><option value="蜂鸟众包">蜂鸟众包</option></select></div><div class="field-pair"><label class="field-label" for="asr-items-per-page"><strong>默认每页条数:</strong></label><select id="asr-items-per-page" class="field-select" data-field="itemsPerPage">' + pageOptions + "</select></div></div></section>",
+      '<section class="card"><div class="dual-grid"><div class="field-pair"><label class="field-label" for="asr-volume"><strong>默认音量 (0~1000%):</strong></label><div class="field-row"><input id="asr-volume" class="field-number inline" type="number" min="0" max="1000" step="10" data-field="volumeValue" /><span>%</span></div></div><div class="field-pair"><label class="field-label" for="asr-reset-rate"><strong>默认倍速:</strong></label><input id="asr-reset-rate" class="field-number inline" type="number" min="0.25" max="8" step="0.05" data-field="resetRateValue" /></div></div><div class="dual-grid" style="margin-top:12px;padding-top:12px;border-top:1px dashed #eee;"><div class="field-pair"><label class="field-label" for="asr-rate-step"><strong>倍速步进:</strong></label><input id="asr-rate-step" class="field-number inline" type="number" min="0.05" max="2" step="0.05" data-field="rateStepValue" /></div><div class="field-pair"><label class="field-label" for="asr-seek-step"><strong>前进/后退步长(秒):</strong></label><input id="asr-seek-step" class="field-number inline" type="number" min="0.1" max="10" step="0.1" data-field="seekStepSeconds" /></div></div><div class="dual-grid" style="margin-top:12px;padding-top:12px;border-top:1px dashed #eee;"><div class="field-pair"><label class="field-label" for="asr-num-mode"><strong>数字转换模式:</strong></label><select id="asr-num-mode" class="field-select" data-field="numConvertMode"><option value="千问">千问模式</option><option value="蜂鸟众包">蜂鸟众包</option></select></div><div class="field-pair"><label class="field-label" for="asr-items-per-page"><strong>默认每页条数:</strong></label><select id="asr-items-per-page" class="field-select" data-field="itemsPerPage">' + pageOptions + "</select></div></div></section>",
+      '<section class="card"><div class="card-title">当前基础阶段说明</div><div class="field-row"><span class="status-chip tone-pending">已禁用：自定义保存 payload、手动强制保存、自动提交、自动流转、AI 标点、抢单、排行榜/导出动作。</span></div></section>',
       '<div class="shortcut-toggle" data-role="shortcut-toggle"><span>⌨️ 键盘快捷键录制 (点击展开 / 收起)</span><span class="shortcut-icon" data-role="shortcut-icon">▼</span></div>',
       '<div class="shortcut-wrap" data-role="shortcut-wrap"><div class="shortcut-grid" data-role="shortcut-grid"></div></div>',
       '<section class="card rules"><div class="field-pair"><span class="card-title rules" style="margin-bottom:0;">自定义文本纠错规则 (支持多对一，原词用逗号分隔)：</span><div class="action-row"><button type="button" class="mini-button blue" data-action-key="syncDictionary">🔄 同步云端词库(覆盖本地)</button><button type="button" class="mini-button orange" data-action-key="uploadDictionary">⬆️ 上传本地数据</button><button type="button" class="mini-button green" data-role="add-replacement">+ 本地添加</button></div></div><div class="action-row"><span class="status-chip tone-pending" data-role="action-status-syncDictionary">待接云端词库同步</span><span class="status-chip tone-pending" data-role="action-status-uploadDictionary">待接词库上传</span></div><div class="list-box" data-role="replacement-list"></div></section>',
       '<section class="card rates"><div class="field-pair"><span class="card-title rates" style="margin-bottom:0;">自定义定速快捷键 (范围 0.1 ~ 8.0)：</span><button type="button" class="mini-button blue" data-role="add-rate">+ 添加定速</button></div><div class="list-box" data-role="rate-list"></div></section>',
-      '<section class="card assign"><div class="field-pair"><label class="check-item green"><input type="checkbox" data-field="autoAssignCheckTasks" /> 🚀 开启定时轮询抢单 (每 60 秒)</label><div class="action-row"><button type="button" class="mini-button green" data-action-key="manualAssign">⚡ 手动立即执行</button><span class="status-chip tone-pending" data-role="action-status-manualAssign">待接手动抢单逻辑</span></div></div><div class="field-row"><label class="check-item" style="white-space:nowrap;"><input type="checkbox" data-field="autoAssignAllTasks" data-role="auto-assign-all" /> 检查全部任务</label><input class="field-input" type="text" data-field="autoAssignTaskKeyword" data-role="auto-assign-keyword" placeholder="或输入任务词/ID (逗号分隔)" /></div><div class="field-row"><input class="field-input" type="text" data-field="autoAssignTargetUser" placeholder="目标人员名称 (逗号分隔)" /><label class="check-item" style="white-space:nowrap;"><input type="checkbox" data-field="autoAssignFetchAll" data-role="auto-assign-fetch-all" /> 全部领取</label><input class="field-number inline" type="number" min="1" max="99999" data-field="autoAssignBatchSize" data-role="auto-assign-batch" /></div></section>',
-      '<section class="card"><div class="field-pair"><span class="card-title" style="margin-bottom:0;">业务入口与状态位</span><div class="action-row"><button type="button" class="mini-button gray" data-action-key="exportTasks">📤 导出数据</button><button type="button" class="mini-button gray" data-action-key="leaderboard">🏆 排行榜</button></div></div><div class="integration-grid"><div class="integration-item"><div><strong>导出数据</strong><span class="desc">保留扩展接线位，当前不硬编码导出逻辑。</span></div><span class="status-chip tone-pending" data-role="action-status-exportTasks">待接导出能力</span></div><div class="integration-item"><div><strong>排行榜</strong><span class="desc">保留页面内入口和状态位，待其他模块接入。</span></div><span class="status-chip tone-pending" data-role="action-status-leaderboard">待接排行榜能力</span></div></div></section>',
       '<div class="footer-actions"><button type="button" class="save-button clear" data-role="clear-cache-button">清除所有缓存</button><button type="button" class="save-button reset" data-role="reset-button">恢复默认(覆写现有)</button><button type="button" class="save-button primary" data-role="save-button">保存并生效</button></div>',
       '<div class="footer-status tone-muted" data-role="footer-status"></div>',
       "</div></section></div>",
@@ -688,6 +673,25 @@
 
     nextSettings.asr.customReplacements = clone(instance.state.settings.asr.customReplacements);
     nextSettings.asr.customRates = clone(instance.state.settings.asr.customRates);
+    nextSettings.asr.playbackRateValue = Number(nextSettings.asr.resetRateValue) || 1;
+    nextSettings.asr.autoBatchSubmit = false;
+    nextSettings.asr.autoSubmitAfterValidation = false;
+    nextSettings.asr.autoReceiveOnSubmit = false;
+    nextSettings.asr.validateBeforeSubmit = false;
+    nextSettings.asr.autoAssignCheckTasks = false;
+    nextSettings.asr.autoAssignAllTasks = false;
+    nextSettings.asr.autoAssignFetchAll = false;
+    nextSettings.asr.autoAssignTaskKeyword = "";
+    nextSettings.asr.autoAssignTargetUser = "";
+    nextSettings.asr.autoAssignBatchSize = 0;
+    nextSettings.asr.qwenApiKey = "";
+    nextSettings.asr.useAdvancedRules = false;
+    nextSettings.asr.qwenModel = "";
+    nextSettings.asr.shortcutSubmit = null;
+    nextSettings.asr.shortcutFixPunctuationAll = null;
+    nextSettings.asr.shortcutToggleAutoBatchSubmit = null;
+    nextSettings.asr.shortcutToggleAutoSubmitAfterValidation = null;
+    nextSettings.asr.shortcutLeaderboard = null;
     return nextSettings;
   }
 
@@ -1031,13 +1035,17 @@
       renderRateList(instance);
     });
 
-    instance.ui.autoAssignAll.addEventListener("change", function () {
-      updateDependentFields(instance);
-    });
+    if (instance.ui.autoAssignAll) {
+      instance.ui.autoAssignAll.addEventListener("change", function () {
+        updateDependentFields(instance);
+      });
+    }
 
-    instance.ui.autoAssignFetchAll.addEventListener("change", function () {
-      updateDependentFields(instance);
-    });
+    if (instance.ui.autoAssignFetchAll) {
+      instance.ui.autoAssignFetchAll.addEventListener("change", function () {
+        updateDependentFields(instance);
+      });
+    }
 
     instance.ui.clearCacheButton.addEventListener("click", function () {
       void clearCache(instance);

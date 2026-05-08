@@ -157,18 +157,14 @@
       '    <button type="button" class="button" data-action="copy-duration">复制时长</button>',
       "  </div>",
       '  <div class="row">',
-      '    <button type="button" class="button" data-action="manual-save">安全保存</button>',
-      '    <button type="button" class="button" data-action="smart-submit">智能提交</button>',
-      '    <button type="button" class="button" data-action="ai-punctuation">AI 标点</button>',
-      '    <button type="button" class="button" data-action="leaderboard">排行榜</button>',
       '    <button type="button" class="button" data-action="open-settings">设置</button>',
       "  </div>",
       '  <div class="row">',
       '    <button type="button" class="button" data-action="play-pause">播放/暂停</button>',
-      '    <button type="button" class="button" data-action="seek-backward">后退1s</button>',
-      '    <button type="button" class="button" data-action="seek-forward">前进1s</button>',
-      '    <button type="button" class="button" data-action="speed-down">倍速-0.1</button>',
-      '    <button type="button" class="button" data-action="speed-up">倍速+0.1</button>',
+      '    <button type="button" class="button" data-action="seek-backward">后退</button>',
+      '    <button type="button" class="button" data-action="seek-forward">前进</button>',
+      '    <button type="button" class="button" data-action="speed-down">降速</button>',
+      '    <button type="button" class="button" data-action="speed-up">提速</button>',
       '    <button type="button" class="button" data-action="speed-reset">重置倍速</button>',
       '    <button type="button" class="button" data-action="volume-down">音量-50%</button>',
       '    <button type="button" class="button" data-action="volume-up">音量+50%</button>',
@@ -225,30 +221,6 @@
         return;
       }
 
-      if (actionName === "manual-save") {
-        const result = await runPanelAction("save");
-        updateStatus(result?.summaryText || "已触发安全保存。");
-        return;
-      }
-
-      if (actionName === "smart-submit") {
-        const result = await runPanelAction("smartSubmit");
-        updateStatus(result?.summaryText || "已触发智能提交。");
-        return;
-      }
-
-      if (actionName === "ai-punctuation") {
-        const result = await runPanelAction("aiPunctuation");
-        updateStatus(result?.summaryText || "已触发 AI 标点修复。");
-        return;
-      }
-
-      if (actionName === "leaderboard") {
-        const result = await runPanelAction("leaderboard");
-        updateStatus(result?.summaryText || "已切换排行榜。");
-        return;
-      }
-
       if (actionName === "open-settings") {
         const settingsPanel = getSettingsPanelApi();
         if (!settingsPanel || typeof settingsPanel.toggle !== "function") {
@@ -274,35 +246,41 @@
       }
 
       if (actionName === "seek-backward") {
-        const result = audioController.seek(-1);
-        updateStatus(result.summaryText || "已后退 1 秒。");
+        const seekStepSeconds = runtimeConfig.getSnapshot().seekStepSeconds || 1;
+        const result = audioController.seek(-seekStepSeconds);
+        updateStatus(result.summaryText || "已后退当前音频。");
         updateAudioStatus();
         return;
       }
 
       if (actionName === "seek-forward") {
-        const result = audioController.seek(1);
-        updateStatus(result.summaryText || "已前进 1 秒。");
+        const seekStepSeconds = runtimeConfig.getSnapshot().seekStepSeconds || 1;
+        const result = audioController.seek(seekStepSeconds);
+        updateStatus(result.summaryText || "已前进当前音频。");
         updateAudioStatus();
         return;
       }
 
       if (actionName === "speed-down") {
-        const result = audioController.adjustRate(-0.1);
+        const rateStepValue = runtimeConfig.getSnapshot().rateStepValue || 0.1;
+        const result = audioController.adjustRate(-rateStepValue);
         updateStatus(result.summaryText || "已降低倍速。");
         updateAudioStatus();
         return;
       }
 
       if (actionName === "speed-up") {
-        const result = audioController.adjustRate(0.1);
+        const rateStepValue = runtimeConfig.getSnapshot().rateStepValue || 0.1;
+        const result = audioController.adjustRate(rateStepValue);
         updateStatus(result.summaryText || "已提高倍速。");
         updateAudioStatus();
         return;
       }
 
       if (actionName === "speed-reset") {
-        const result = audioController.adjustRate(0, runtimeConfig.getSnapshot().resetRateValue);
+        const snapshot = runtimeConfig.getSnapshot();
+        const resetRateValue = snapshot.playbackRateValue || snapshot.resetRateValue;
+        const result = audioController.adjustRate(0, resetRateValue);
         updateStatus(result.summaryText || "已重置倍速。");
         updateAudioStatus();
         return;
@@ -323,7 +301,8 @@
       }
 
       if (actionName === "volume-reset") {
-        const result = audioController.adjustVolume(0, 100);
+        const resetVolumeValue = runtimeConfig.getSnapshot().volumeValue || 100;
+        const result = audioController.adjustVolume(0, resetVolumeValue);
         updateStatus(result.summaryText || "已重置音量。");
         updateAudioStatus();
       }

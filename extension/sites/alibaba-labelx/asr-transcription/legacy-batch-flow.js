@@ -185,136 +185,20 @@
   }
 
   async function runNow(request) {
-    const options = request && typeof request === "object" ? request : {};
-    const platformSettings = await getPlatformSettings();
-    const pageState = getPageState();
-
-    if (!options.manual && platformSettings?.automation?.autoBatchSubmit !== true) {
-      return {
-        success: false,
-        reason: "auto-batch-disabled",
-        summaryText: "自动批量提交流程当前未启用。",
-      };
-    }
-
-    if (runLock) {
-      return {
-        success: false,
-        reason: "batch-flow-locked",
-        summaryText: "自动批量提交流程正在执行中。",
-      };
-    }
-
-    if (pageState.pageType === "task-list") {
-      return navigateToNextTask({
-        pageState: pageState,
-        delayMs: options.delayMs || 0,
-        navigate: options.navigate !== false,
-      });
-    }
-
-    if (pageState.pageType !== "task-detail") {
-      return {
-        success: false,
-        reason: "non-task-page",
-        pageType: pageState.pageType,
-        summaryText: "当前页面不是可执行批量闭环的任务页。",
-      };
-    }
-
-    runLock = true;
-
-    try {
-      const validationResult = await runValidationIfNeeded(platformSettings);
-      if (validationResult.success !== true) {
-        return {
-          success: false,
-          reason: validationResult.reason,
-          validationResult: validationResult,
-          summaryText: "批量闭环在校验阶段停止。",
-        };
-      }
-
-      const flowResult = await annotationPageFlowRunner.run(
-        {
-          onlyActionable: true,
-          maxItems: null,
-          forceSaveClick: false,
-          forceSubmitClick: false,
-          preferSubmitTask: platformSettings?.automation?.autoReceiveOnSubmit === true,
-        },
-        pageState
-      );
-      const report =
-        annotationFlowReport && typeof annotationFlowReport.report === "function"
-          ? annotationFlowReport.report(flowResult)
-          : null;
-
-      let navigationResult = null;
-      if (
-        flowResult?.reason === "ok" &&
-        platformSettings?.automation?.autoNavigateNextTask !== false
-      ) {
-        navigationResult = await navigateToNextTask({
-          pageState: pageState,
-          delayMs: 3000,
-          navigate: options.navigate !== false,
-        });
-      }
-
-      return {
-        success: flowResult?.reason === "ok",
-        reason: flowResult?.reason || "flow-error",
-        validationResult: validationResult,
-        flowResult: flowResult,
-        report: report,
-        navigationResult: navigationResult,
-        summaryText:
-          report?.summaryText ||
-          (flowResult?.reason === "ok"
-            ? "单页批量闭环已执行完成。"
-            : "单页批量闭环未达到继续条件。"),
-      };
-    } finally {
-      runLock = false;
-    }
+    return {
+      success: false,
+      reason: "disabled-in-basic-stage",
+      summaryText: "当前基础转写阶段已禁用批量提交和自动流转。",
+    };
   }
 
   async function refresh(trigger) {
     clearScheduledTimer();
-    const platformSettings = await getPlatformSettings();
-    const pageState = getPageState();
-
-    if (platformSettings?.automation?.autoBatchSubmit !== true) {
-      return {
-        success: false,
-        reason: "auto-batch-disabled",
-        trigger: trigger || "manual",
-      };
-    }
-
-    const delayMs =
-      pageState.pageType === "task-list"
-        ? 1000
-        : Math.max(
-            0,
-            Number.parseInt(platformSettings?.automation?.autoBatchSubmitDelayMs, 10) || 10000
-          );
-
-    scheduledTimer = window.setTimeout(function () {
-      scheduledTimer = null;
-      void runNow({
-        manual: false,
-        trigger: trigger || "scheduled",
-      });
-    }, delayMs);
-
     return {
-      success: true,
-      reason: "scheduled",
+      success: false,
+      reason: "disabled-in-basic-stage",
       trigger: trigger || "manual",
-      delayMs: delayMs,
-      pageType: pageState.pageType,
+      summaryText: "当前基础转写阶段已禁用批量提交和自动流转。",
     };
   }
 

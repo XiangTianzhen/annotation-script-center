@@ -4,7 +4,6 @@
   const interactionRunner = window.__ASREdgeAlibabaLabelxAnnotationInteractionRunner;
   const audioController = window.__ASREdgeAlibabaLabelxAnnotationAudioController;
   const durationController = window.__ASREdgeAlibabaLabelxAnnotationDurationController;
-  const storage = globalThis.ASREdgeStorage || null;
   let started = false;
 
   if (!runtimeConfig || !interactionRunner || !audioController || !durationController) {
@@ -81,80 +80,21 @@
     return controlPanel.runAction(actionKey);
   }
 
-  async function patchAutomationSetting(patch, label) {
-    if (!storage || typeof storage.patchSettings !== "function") {
-      return null;
-    }
-
-    const nextSettings = await storage.patchSettings(patch);
-    window.dispatchEvent(
-      new CustomEvent("ASR_EDGE_SETTINGS_SAVED", {
-        detail: {
-          settings: nextSettings,
-        },
-      })
-    );
-    console.info(LOG_PREFIX, label, nextSettings.platforms?.alibabaLabelx?.automation || {});
-    return nextSettings;
-  }
-
-  async function toggleAutoBatchSubmit() {
-    if (!storage || typeof storage.getSettings !== "function") {
-      return null;
-    }
-
-    const settings = await storage.getSettings();
-    const current = settings?.platforms?.alibabaLabelx?.automation?.autoBatchSubmit === true;
-    return patchAutomationSetting(
-      {
-        asr: {
-          autoBatchSubmit: !current,
-        },
-        platforms: {
-          alibabaLabelx: {
-            automation: {
-              autoBatchSubmit: !current,
-            },
-          },
-        },
-      },
-      !current ? "Auto batch submit enabled." : "Auto batch submit disabled."
-    );
-  }
-
-  async function toggleAutoSubmitAfterValidation() {
-    if (!storage || typeof storage.getSettings !== "function") {
-      return null;
-    }
-
-    const settings = await storage.getSettings();
-    const current =
-      settings?.platforms?.alibabaLabelx?.automation?.autoSubmitAfterValidation === true;
-    return patchAutomationSetting(
-      {
-        asr: {
-          autoSubmitAfterValidation: !current,
-        },
-        platforms: {
-          alibabaLabelx: {
-            automation: {
-              autoSubmitAfterValidation: !current,
-            },
-            safety: {
-              autoSubmitAfterValidation: !current,
-            },
-          },
-        },
-      },
-      !current
-        ? "Auto submit after validation enabled."
-        : "Auto submit after validation disabled."
-    );
-  }
-
   function handleGlobalInput(event) {
     const config = runtimeConfig.getSnapshot();
     const shortcuts = config.shortcuts || {};
+    const rateStepValue =
+      typeof config.rateStepValue === "number" && config.rateStepValue > 0
+        ? config.rateStepValue
+        : 0.1;
+    const seekStepSeconds =
+      typeof config.seekStepSeconds === "number" && config.seekStepSeconds > 0
+        ? config.seekStepSeconds
+        : 1.0;
+    const resetVolumeValue =
+      typeof config.volumeValue === "number" && config.volumeValue >= 0
+        ? config.volumeValue
+        : 100;
 
     if (isShortcutMatch(event, shortcuts.removeSpaces)) {
       haltEvent(event);
@@ -165,30 +105,6 @@
     if (isShortcutMatch(event, shortcuts.removeAllSpaces)) {
       haltEvent(event);
       void interactionRunner.execute("remove-all-spaces");
-      return;
-    }
-
-    if (isShortcutMatch(event, shortcuts.fixPunctuationAll)) {
-      haltEvent(event);
-      void runPanelAction("aiPunctuation");
-      return;
-    }
-
-    if (isShortcutMatch(event, shortcuts.toggleAutoBatchSubmit)) {
-      haltEvent(event);
-      void toggleAutoBatchSubmit();
-      return;
-    }
-
-    if (isShortcutMatch(event, shortcuts.toggleAutoSubmitAfterValidation)) {
-      haltEvent(event);
-      void toggleAutoSubmitAfterValidation();
-      return;
-    }
-
-    if (isShortcutMatch(event, shortcuts.leaderboard)) {
-      haltEvent(event);
-      void runPanelAction("leaderboard");
       return;
     }
 
@@ -219,12 +135,6 @@
     if (isShortcutMatch(event, shortcuts.convertNumbers)) {
       haltEvent(event);
       void interactionRunner.execute("convert-active-numbers");
-      return;
-    }
-
-    if (isShortcutMatch(event, shortcuts.submit)) {
-      haltEvent(event);
-      void runPanelAction("smartSubmit");
       return;
     }
 
@@ -267,20 +177,20 @@
 
     if (isShortcutMatch(event, shortcuts.forward)) {
       haltEvent(event);
-      audioController.seek(1);
+      audioController.seek(seekStepSeconds);
       return;
     }
 
     if (isShortcutMatch(event, shortcuts.backward)) {
       haltEvent(event);
-      audioController.seek(-1);
+      audioController.seek(-seekStepSeconds);
       return;
     }
 
     if (isShortcutMatch(event, shortcuts.speedUp)) {
       haltEvent(event);
       if (!event.repeat) {
-        audioController.adjustRate(0.1);
+        audioController.adjustRate(rateStepValue);
       }
       return;
     }
@@ -288,14 +198,14 @@
     if (isShortcutMatch(event, shortcuts.speedDown)) {
       haltEvent(event);
       if (!event.repeat) {
-        audioController.adjustRate(-0.1);
+        audioController.adjustRate(-rateStepValue);
       }
       return;
     }
 
     if (isShortcutMatch(event, shortcuts.resetSpeed)) {
       haltEvent(event);
-      audioController.adjustRate(0, config.resetRateValue);
+      audioController.adjustRate(0, config.playbackRateValue || config.resetRateValue);
       return;
     }
 
@@ -313,7 +223,7 @@
 
     if (isShortcutMatch(event, shortcuts.resetVolume)) {
       haltEvent(event);
-      audioController.adjustVolume(0, 100);
+      audioController.adjustVolume(0, resetVolumeValue);
       return;
     }
 

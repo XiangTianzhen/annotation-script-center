@@ -334,17 +334,6 @@
         : null;
     }
 
-    if (actionKey === "aiPunctuation") {
-      return modules.legacyAiPunctuation && typeof modules.legacyAiPunctuation.run === "function"
-        ? function () {
-            return modules.legacyAiPunctuation.run({
-              saveAfter: true,
-              reloadAfter: true,
-            });
-          }
-        : null;
-    }
-
     if (actionKey === "syncDictionary") {
       return modules.legacyDictionarySync && typeof modules.legacyDictionarySync.syncFromServer === "function"
         ? function () {
@@ -357,34 +346,6 @@
       return modules.legacyDictionarySync && typeof modules.legacyDictionarySync.uploadPendingReview === "function"
         ? function () {
             return modules.legacyDictionarySync.uploadPendingReview();
-          }
-        : null;
-    }
-
-    if (actionKey === "exportTasks") {
-      return modules.legacyExport && typeof modules.legacyExport.exportTasks === "function"
-        ? function () {
-            return modules.legacyExport.exportTasks({
-              uploadToServer: true,
-            });
-          }
-        : null;
-    }
-
-    if (actionKey === "leaderboard") {
-      return modules.legacyLeaderboard && typeof modules.legacyLeaderboard.toggle === "function"
-        ? function () {
-            return modules.legacyLeaderboard.toggle();
-          }
-        : null;
-    }
-
-    if (actionKey === "manualAssign") {
-      return modules.legacyAutoAssign && typeof modules.legacyAutoAssign.execute === "function"
-        ? function () {
-            return modules.legacyAutoAssign.execute({
-              manual: true,
-            });
           }
         : null;
     }
@@ -492,12 +453,8 @@
 
     [
       "checkUpdate",
-      "aiPunctuation",
       "syncDictionary",
       "uploadDictionary",
-      "exportTasks",
-      "leaderboard",
-      "manualAssign",
     ].forEach(function (actionKey) {
       const runner = getLegacyActionRunner(modules, controlPanel, actionKey);
       if (!runner) {
@@ -528,13 +485,14 @@
       legacyBridge.setAutosaveInterceptionEnabled(autosaveInterceptionEnabled);
     }
 
+    if (modules.legacyAutoAssign && typeof modules.legacyAutoAssign.stopPolling === "function") {
+      modules.legacyAutoAssign.stopPolling();
+    }
+    if (modules.legacyBatchFlow && typeof modules.legacyBatchFlow.stop === "function") {
+      modules.legacyBatchFlow.stop();
+    }
+
     if (!platformEnabled) {
-      if (modules.legacyAutoAssign && typeof modules.legacyAutoAssign.stopPolling === "function") {
-        modules.legacyAutoAssign.stopPolling();
-      }
-      if (modules.legacyBatchFlow && typeof modules.legacyBatchFlow.stop === "function") {
-        modules.legacyBatchFlow.stop();
-      }
 
       console.info(LOG_PREFIX, "Legacy runtime sync skipped because platform is disabled.", {
         trigger: trigger || "manual",
@@ -543,23 +501,6 @@
         enabled: false,
         autosaveInterceptionEnabled: autosaveInterceptionEnabled,
       };
-    }
-
-    if (modules.legacyAutoAssign && typeof modules.legacyAutoAssign.startPolling === "function") {
-      try {
-        const pollingResult = await modules.legacyAutoAssign.startPolling();
-        console.info(LOG_PREFIX, "Legacy auto-assign polling sync result:", pollingResult);
-      } catch (error) {
-        console.warn(LOG_PREFIX, "Failed to sync legacy auto-assign polling:", error);
-      }
-    }
-
-    if (modules.legacyBatchFlow && typeof modules.legacyBatchFlow.start === "function") {
-      try {
-        await modules.legacyBatchFlow.start();
-      } catch (error) {
-        console.warn(LOG_PREFIX, "Failed to sync legacy batch flow:", error);
-      }
     }
 
     console.info(LOG_PREFIX, "Legacy runtime settings synced.", {

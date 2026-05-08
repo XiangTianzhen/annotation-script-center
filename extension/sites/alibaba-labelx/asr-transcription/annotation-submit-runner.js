@@ -477,60 +477,11 @@
         return result;
       }
 
-      result.validationBefore =
-        typeof annotationItemValidator.validate === "function"
-          ? annotationItemValidator.validate(pageState)
-          : null;
-      result.feedbackBefore =
-        typeof annotationFeedback.summarize === "function"
-          ? annotationFeedback.summarize(result.validationBefore)
-          : null;
-
-      const locatedBefore = locateSubmitControl(pageState);
-      result.controlBefore = locatedBefore.state;
-
-      if (!locatedBefore.element) {
-        result.reason = "submit-control-not-found";
-        result.controlAfter = readControlState(null, null);
-        return result;
-      }
-
-      result.clickable = isControlClickable(
-        locatedBefore.state,
-        result.validationBefore,
-        result.feedbackBefore,
-        request.forceClick
-      );
-
-      if (
-        !request.forceClick &&
-        isValidationBlocked(result.validationBefore, result.feedbackBefore, false)
-      ) {
-        result.reason = "submit-blocked-by-validation";
-        result.controlAfter = readControlState(locatedBefore.element, locatedBefore.state.kind);
-        return result;
-      }
-
-      if (!result.clickable) {
-        result.reason = "submit-control-disabled";
-        result.controlAfter = readControlState(locatedBefore.element, locatedBefore.state.kind);
-        return result;
-      }
-
-      const safeSaveResult = await maybeRunSafeSave(request, result);
-      if (request.requireSafeSave === true && !isConfirmedSafeSaveResult(safeSaveResult)) {
-        result.reason = deriveSafeSaveBlockReason(safeSaveResult);
-        result.controlAfter = readControlState(locatedBefore.element, locatedBefore.state.kind);
-        return result;
-      }
-
-      result.statsUploadResult = await maybeUploadStats(request);
-      const submitDispatchResult = await dispatchSubmit(locatedBefore, request);
-      result.submitAction = submitDispatchResult.action;
-      result.clicked = submitDispatchResult.success === true;
-      result.submitted = result.clicked;
-      result.controlAfter = readControlState(locatedBefore.element, locatedBefore.state.kind);
-      result.reason = result.clicked ? "submit-dispatched" : "submit-dispatch-failed";
+      result.reason = "disabled-in-basic-stage";
+      result.clickable = false;
+      result.clicked = false;
+      result.submitted = false;
+      result.submitAction = null;
       return result;
     } catch (error) {
       console.warn(LOG_PREFIX, "Failed to trigger submit control:", error);

@@ -1,5 +1,12 @@
 # 标注脚本中心修改日志
 
+## 2026-05-08
+
+- 对 `asr-transcription` 执行基础收口重构：禁用扩展侧自定义保存 payload 注入、手动强制保存、提交闭环、自动提交、自动领取、自动流转入口；保留兼容空实现以避免 manifest/注入链路断链。
+- 收口转写快捷键和配置：移除 AI 标点、自动批量提交、校验后自动提交、排行榜等危险快捷键入口；新增并统一使用 `playbackRateValue`、`rateStepValue`、`seekStepSeconds`，音频步进/倍速/音量重置改为读取统一配置。
+- 收口运行时自动链路：`content.js` 不再启动自动抢单和批量流转轮询；`legacy-batch-flow`、`legacy-auto-assign`、`legacy-ai-punctuation` 默认返回 `disabled-in-basic-stage`。
+- 同步文档口径：更新根 `README.md`、`extension/sites/alibaba-labelx/asr-transcription/README.md`、`platform-resources/alibaba-labelx/asr-transcription/README.md`，明确“基础转写阶段”规则与真实页面验收步骤。
+
 ## 2026-05-07
 
 - 强化 `AGENTS.md` 协作规则：新增“网页端指挥 AI + Codex 执行 AI”模式，明确网页端 Prompt 是当前任务直接执行依据，冲突时当前任务优先按 Prompt 执行并同步文档。

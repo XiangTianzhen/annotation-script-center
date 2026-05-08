@@ -107,73 +107,11 @@
   }
 
   function buildAndInjectPayloadFromDOM() {
-    const cachedDataList =
-      legacyBridge && typeof legacyBridge.getCachedDataList === "function"
-        ? legacyBridge.getCachedDataList()
-        : [];
-
-    if (!Array.isArray(cachedDataList) || cachedDataList.length === 0) {
-      return {
-        success: false,
-        reason: "cached-data-missing",
-        count: 0,
-        changedItems: [],
-      };
-    }
-
-    const domMap = buildFilenameToDomSnapshotMap();
-    const changedItems = [];
-    let matchedCount = 0;
-    let missingAudioCount = 0;
-    let missingDomCount = 0;
-
-    cachedDataList.forEach(function (cachedItem) {
-      const filename = getItemFilename(cachedItem);
-      if (!filename) {
-        missingAudioCount += 1;
-        return;
-      }
-
-      const domSnapshot = domMap[filename];
-      if (!domSnapshot) {
-        missingDomCount += 1;
-        return;
-      }
-
-      matchedCount += 1;
-      const nextValidity = domSnapshot.selectedValidity || readCachedValidity(cachedItem);
-      const nextText = domSnapshot.targetText;
-      const cachedValidity = readCachedValidity(cachedItem);
-      const cachedText = normalizeText(readCachedText(cachedItem));
-
-      if (cachedValidity === nextValidity && cachedText === nextText) {
-        return;
-      }
-
-      const nextItem = clone(cachedItem);
-      writeMarkResultEntry(nextItem, "是否有效", [nextValidity || "无效"]);
-      writeMarkResultEntry(nextItem, "转写文本", nextText);
-      changedItems.push(nextItem);
-    });
-
-    if (changedItems.length > 0 && legacyBridge && typeof legacyBridge.injectPendingSaves === "function") {
-      legacyBridge.injectPendingSaves({
-        dataList: changedItems,
-      });
-    }
-
     return {
-      success: true,
-      reason: changedItems.length > 0 ? "pending-saves-built" : "no-dom-delta",
-      count: changedItems.length,
-      matchedCount: matchedCount,
-      missingAudioCount: missingAudioCount,
-      missingDomCount: missingDomCount,
-      changedItems: changedItems,
-      pendingSaveCountAfter:
-        legacyBridge && typeof legacyBridge.getPendingSaveCount === "function"
-          ? legacyBridge.getPendingSaveCount()
-          : changedItems.length,
+      success: false,
+      reason: "disabled-in-basic-stage",
+      count: 0,
+      changedItems: [],
     };
   }
 
@@ -211,105 +149,24 @@
   }
 
   async function performManualSave(request) {
-    if (!legacyBridge || typeof legacyBridge.requestManualSave !== "function") {
-      return {
-        success: false,
-        reason: "legacy-bridge-missing",
-      };
-    }
-
-    if (manualSaveLock) {
-      return {
-        success: false,
-        reason: "manual-save-locked",
-      };
-    }
-
-    manualSaveLock = true;
-
-    try {
-      const options = request && typeof request === "object" ? request : {};
-      const safetySettings = await getSafetySettings();
-      const blurFirst = options.blurFirst !== false && safetySettings.blurBeforeManualSave !== false;
-      const reloadAfter = options.reloadAfter === true;
-
-      const result = await withAutosaveCapture(async function () {
-        await blurActiveFieldIfNeeded(blurFirst);
-
-        const buildResult =
-          options.buildPayload === false
-            ? {
-                success: true,
-                reason: "build-skipped",
-                count: 0,
-                changedItems: [],
-              }
-            : buildAndInjectPayloadFromDOM();
-        const pendingSaveCountBefore = legacyBridge.getPendingSaveCount();
-        const manualSaveResult = await legacyBridge.requestManualSave({
-          reason: options.reason || "manual-save",
-        });
-        const summary = {
-          success: manualSaveResult.success === true,
-          reason: manualSaveResult.success === true ? "manual-save-success" : "manual-save-failed",
-          count: Number.isFinite(manualSaveResult.count) ? manualSaveResult.count : 0,
-          pendingSaveCountBefore: pendingSaveCountBefore,
-          buildResult: buildResult,
-          manualSaveResult: manualSaveResult,
-          reloadScheduled: reloadAfter && manualSaveResult.success === true && manualSaveResult.count > 0,
-        };
-
-        if (summary.reloadScheduled) {
-          const reloadDelay = Number.parseInt(safetySettings.saveReloadDelayMs, 10) || 1200;
-          window.setTimeout(function () {
-            location.reload();
-          }, reloadDelay);
-        }
-
-        return summary;
-      });
-
-      return result;
-    } finally {
-      manualSaveLock = false;
-    }
+    return {
+      success: false,
+      reason: "disabled-in-basic-stage",
+      count: 0,
+      buildResult: buildAndInjectPayloadFromDOM(),
+      manualSaveResult: null,
+      reloadScheduled: false,
+    };
   }
 
   async function flushValidationChanges(request) {
-    const options = request && typeof request === "object" ? request : {};
-
-    return withAutosaveCapture(async function () {
-      const buildResult = buildAndInjectPayloadFromDOM();
-      const hasPendingChanges =
-        (buildResult && buildResult.count > 0) ||
-        (legacyBridge && typeof legacyBridge.getPendingSaveCount === "function"
-          ? legacyBridge.getPendingSaveCount() > 0
-          : false);
-
-      if (!hasPendingChanges) {
-        return {
-          success: true,
-          flushed: false,
-          reason: "no-pending-changes",
-          buildResult: buildResult,
-        };
-      }
-
-      const manualSaveResult = await performManualSave({
-        buildPayload: false,
-        blurFirst: options.blurFirst !== false,
-        reloadAfter: options.reloadAfter === true,
-        reason: options.reason || "flush-validation-changes",
-      });
-
-      return {
-        success: manualSaveResult.success === true,
-        flushed: manualSaveResult.success === true,
-        reason: manualSaveResult.reason,
-        buildResult: buildResult,
-        manualSaveResult: manualSaveResult,
-      };
-    });
+    return {
+      success: false,
+      flushed: false,
+      reason: "disabled-in-basic-stage",
+      buildResult: buildAndInjectPayloadFromDOM(),
+      manualSaveResult: null,
+    };
   }
 
   window.__ASREdgeAlibabaLabelxLegacySaveCoordinator = {

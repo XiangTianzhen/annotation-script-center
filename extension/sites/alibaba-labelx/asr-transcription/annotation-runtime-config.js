@@ -15,6 +15,9 @@
           autoClearInvalidValidation: false,
           autoFillOnValidValidation: false,
           resetRateValue: 1.0,
+          playbackRateValue: 1.0,
+          rateStepValue: 0.1,
+          seekStepSeconds: 1.0,
           volumeValue: 100,
           numConvertMode: "千问",
           shortcuts: {},
@@ -152,6 +155,20 @@
       resetRateValue:
         typeof merged.resetRateValue === "number" && merged.resetRateValue > 0
           ? merged.resetRateValue
+          : 1.0,
+      playbackRateValue:
+        typeof merged.playbackRateValue === "number" && merged.playbackRateValue > 0
+          ? merged.playbackRateValue
+          : typeof merged.resetRateValue === "number" && merged.resetRateValue > 0
+            ? merged.resetRateValue
+            : 1.0,
+      rateStepValue:
+        typeof merged.rateStepValue === "number" && merged.rateStepValue > 0
+          ? merged.rateStepValue
+          : 0.1,
+      seekStepSeconds:
+        typeof merged.seekStepSeconds === "number" && merged.seekStepSeconds > 0
+          ? merged.seekStepSeconds
           : 1.0,
       volumeValue:
         typeof merged.volumeValue === "number" && merged.volumeValue >= 0

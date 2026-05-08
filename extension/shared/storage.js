@@ -818,6 +818,45 @@
     return result;
   }
 
+  function sanitizeTranscriptionAsrConfig(config, fallback) {
+    const defaults = isPlainObject(fallback) ? fallback : {};
+    const next = deepMerge(defaults, isPlainObject(config) ? config : {});
+
+    next.autoAssignCheckTasks = false;
+    next.autoAssignTaskKeyword = "";
+    next.autoAssignTargetUser = "";
+    next.autoAssignBatchSize = 0;
+    next.autoAssignAllTasks = false;
+    next.autoAssignFetchAll = false;
+    next.autoBatchSubmit = false;
+    next.autoReceiveOnSubmit = false;
+    next.validateBeforeSubmit = false;
+    next.autoSubmitAfterValidation = false;
+    next.qwenApiKey = "";
+    next.useAdvancedRules = false;
+    next.qwenModel = "";
+
+    next.shortcutSubmit = null;
+    next.shortcutFixPunctuationAll = null;
+    next.shortcutToggleAutoBatchSubmit = null;
+    next.shortcutToggleAutoSubmitAfterValidation = null;
+    next.shortcutLeaderboard = null;
+
+    next.resetRateValue = normalizeClampedNumber(next.resetRateValue, 1.0, 0.25, 8, 2);
+    next.playbackRateValue = normalizeClampedNumber(
+      hasOwn(next, "playbackRateValue") ? next.playbackRateValue : next.resetRateValue,
+      next.resetRateValue,
+      0.25,
+      8,
+      2
+    );
+    next.rateStepValue = normalizeClampedNumber(next.rateStepValue, 0.1, 0.05, 2, 2);
+    next.seekStepSeconds = normalizeClampedNumber(next.seekStepSeconds, 1, 0.1, 10, 2);
+    next.volumeValue = normalizeClampedNumber(next.volumeValue, 100, 0, 1000, 0);
+
+    return next;
+  }
+
   function ensureScriptCenter(settings) {
     const constants = getConstants();
     const defaults = clone(constants.DEFAULT_SETTINGS || {});
@@ -864,7 +903,10 @@
           isPlainObject(nextProject.asrConfig) && Object.keys(nextProject.asrConfig).length > 0
             ? nextProject.asrConfig
             : settings.asr || {};
-        nextProject.asrConfig = deepMerge(constants.DEFAULT_ASR_CONFIG || {}, fallbackAsrConfig);
+        nextProject.asrConfig = sanitizeTranscriptionAsrConfig(
+          fallbackAsrConfig,
+          constants.DEFAULT_ASR_CONFIG || {}
+        );
       }
 
       platform.scriptCenter.projects[projectId] = nextProject;
@@ -886,7 +928,7 @@
     const nextConfig = deepMerge(defaultProjectConfig, projectConfig);
     return normalizedProjectId === constants.JUDGEMENT_PROJECT_ID
       ? normalizeJudgementAsrConfig(nextConfig)
-      : nextConfig;
+      : sanitizeTranscriptionAsrConfig(nextConfig, constants.DEFAULT_ASR_CONFIG || {});
   }
 
   function syncProjectCenterFromActiveAsr(settings) {
@@ -908,9 +950,9 @@
       return;
     }
 
-    scriptCenter.projects[activeProjectId].asrConfig = deepMerge(
-      constants.DEFAULT_ASR_CONFIG || {},
-      settings.asr || {}
+    scriptCenter.projects[activeProjectId].asrConfig = sanitizeTranscriptionAsrConfig(
+      settings.asr || {},
+      constants.DEFAULT_ASR_CONFIG || {}
     );
   }
 
@@ -925,7 +967,7 @@
     const defaultPlatform = defaults?.platforms?.alibabaLabelx || {};
     const defaultAsr = defaults?.asr || constants.DEFAULT_ASR_CONFIG || {};
     const platform = ensurePlatformRoot(settings);
-    const asr = deepMerge(defaultAsr, settings.asr || {});
+    const asr = sanitizeTranscriptionAsrConfig(settings.asr || {}, defaultAsr);
     const debug = deepMerge(defaults.debug || { enabled: false }, settings.debug || {});
 
     platform.annotation = deepMerge(defaultPlatform.annotation || {}, platform.annotation || {});
@@ -948,15 +990,17 @@
     platform.annotation.fillOnValid = asr.fillOnValid !== false;
     platform.annotation.clearOnInvalid = asr.clearOnInvalid !== false;
     platform.annotation.autoNext = asr.autoNext === true;
-    platform.annotation.autoBatchSubmit = asr.autoBatchSubmit === true;
     platform.annotation.autoResetRate = asr.autoResetRate === true;
     platform.annotation.resetRateValue = normalizeNumber(asr.resetRateValue, 1.0);
+    platform.annotation.playbackRateValue = normalizeNumber(
+      hasOwn(asr, "playbackRateValue") ? asr.playbackRateValue : asr.resetRateValue,
+      platform.annotation.resetRateValue || 1.0
+    );
+    platform.annotation.rateStepValue = normalizeNumber(asr.rateStepValue, 0.1);
+    platform.annotation.seekStepSeconds = normalizeNumber(asr.seekStepSeconds, 1.0);
     platform.annotation.volumeValue = normalizeNumber(asr.volumeValue, 100);
-    platform.annotation.autoReceiveOnSubmit = asr.autoReceiveOnSubmit === true;
-    platform.annotation.validateBeforeSubmit = asr.validateBeforeSubmit === true;
     platform.annotation.autoClearInvalidValidation = asr.autoClearInvalidValidation === true;
     platform.annotation.autoFillOnValidValidation = asr.autoFillOnValidValidation === true;
-    platform.annotation.autoSubmitAfterValidation = asr.autoSubmitAfterValidation === true;
     platform.annotation.autoFillOnLoad = asr.autoFillOnLoad === true;
     platform.annotation.numConvertMode =
       asr.numConvertMode === "蜂鸟众包" ? "蜂鸟众包" : "千问";
@@ -979,31 +1023,29 @@
       );
     });
 
-    platform.automation.autoAssignCheckTasks = asr.autoAssignCheckTasks === true;
-    platform.automation.autoAssignTaskKeyword = String(asr.autoAssignTaskKeyword || "");
-    platform.automation.autoAssignTargetUser = String(asr.autoAssignTargetUser || "");
-    platform.automation.autoAssignBatchSize = Math.max(
-      1,
-      normalizeNumber(asr.autoAssignBatchSize, 99999)
-    );
-    platform.automation.autoAssignAllTasks = asr.autoAssignAllTasks === true;
-    platform.automation.autoAssignFetchAll = asr.autoAssignFetchAll !== false;
+    platform.automation.autoAssignCheckTasks = false;
+    platform.automation.autoAssignTaskKeyword = "";
+    platform.automation.autoAssignTargetUser = "";
+    platform.automation.autoAssignBatchSize = 0;
+    platform.automation.autoAssignAllTasks = false;
+    platform.automation.autoAssignFetchAll = false;
     platform.automation.autoAssignPollIntervalMs = Math.max(
       5000,
       normalizeNumber(asr.autoAssignPollIntervalMs, platform.automation.autoAssignPollIntervalMs || 60000)
     );
-    platform.automation.autoBatchSubmit = asr.autoBatchSubmit === true;
+    platform.automation.autoBatchSubmit = false;
     platform.automation.autoFillOnLoad = asr.autoFillOnLoad === true;
-    platform.automation.validateBeforeSubmit = asr.validateBeforeSubmit === true;
-    platform.automation.autoSubmitAfterValidation = asr.autoSubmitAfterValidation === true;
-    platform.automation.autoReceiveOnSubmit = asr.autoReceiveOnSubmit === true;
+    platform.automation.validateBeforeSubmit = false;
+    platform.automation.autoSubmitAfterValidation = false;
+    platform.automation.autoReceiveOnSubmit = false;
+    platform.automation.autoNavigateNextTask = false;
     platform.automation.autoPlay = asr.autoPlay === true;
     platform.automation.autoNext = asr.autoNext === true;
     platform.automation.defaultValid = asr.defaultValid === true;
 
-    platform.aiPunctuation.apiKey = String(asr.qwenApiKey || "");
-    platform.aiPunctuation.useAdvancedRules = asr.useAdvancedRules === true;
-    platform.aiPunctuation.model = String(asr.qwenModel || platform.aiPunctuation.model || "");
+    platform.aiPunctuation.apiKey = "";
+    platform.aiPunctuation.useAdvancedRules = false;
+    platform.aiPunctuation.model = "";
 
     platform.dictionary.customReplacements = normalizeReplacementRules(
       asr.customReplacements || platform.dictionary.customReplacements
@@ -1029,7 +1071,7 @@
     const legacyServer = platform.legacyServer || {};
     const reporting = platform.reporting || {};
     const compatibilityMap = constants.SHORTCUT_COMPATIBILITY_MAP || {};
-    const nextAsr = deepMerge(defaultAsr, settings.asr || {});
+    const nextAsr = sanitizeTranscriptionAsrConfig(settings.asr || {}, defaultAsr);
 
     nextAsr.itemsPerPage = reporting.itemsPerPage || annotation.itemsPerPage || nextAsr.itemsPerPage;
     nextAsr.autoPlay = annotation.autoPlay === true || automation.autoPlay === true;
@@ -1038,40 +1080,33 @@
     nextAsr.fillOnValid = annotation.fillOnValid !== false;
     nextAsr.clearOnInvalid = annotation.clearOnInvalid !== false;
     nextAsr.autoNext = annotation.autoNext === true || automation.autoNext === true;
-    nextAsr.autoAssignCheckTasks = automation.autoAssignCheckTasks === true;
-    nextAsr.autoAssignTaskKeyword = String(automation.autoAssignTaskKeyword || "");
-    nextAsr.autoAssignTargetUser = String(automation.autoAssignTargetUser || "");
-    nextAsr.autoAssignBatchSize = Math.max(
-      1,
-      normalizeNumber(automation.autoAssignBatchSize, nextAsr.autoAssignBatchSize || 99999)
-    );
-    nextAsr.autoAssignAllTasks = automation.autoAssignAllTasks === true;
-    nextAsr.autoAssignFetchAll = automation.autoAssignFetchAll !== false;
-    nextAsr.autoAssignPollIntervalMs = Math.max(
-      5000,
-      normalizeNumber(automation.autoAssignPollIntervalMs, nextAsr.autoAssignPollIntervalMs || 60000)
-    );
-    nextAsr.autoBatchSubmit =
-      annotation.autoBatchSubmit === true || automation.autoBatchSubmit === true;
+    nextAsr.autoAssignCheckTasks = false;
+    nextAsr.autoAssignTaskKeyword = "";
+    nextAsr.autoAssignTargetUser = "";
+    nextAsr.autoAssignBatchSize = 0;
+    nextAsr.autoAssignAllTasks = false;
+    nextAsr.autoAssignFetchAll = false;
+    nextAsr.autoAssignPollIntervalMs = 60000;
+    nextAsr.autoBatchSubmit = false;
     nextAsr.autoResetRate = annotation.autoResetRate === true;
     nextAsr.resetRateValue = normalizeNumber(annotation.resetRateValue, 1.0);
+    nextAsr.playbackRateValue = normalizeNumber(
+      annotation.playbackRateValue,
+      nextAsr.resetRateValue
+    );
+    nextAsr.rateStepValue = normalizeNumber(annotation.rateStepValue, 0.1);
+    nextAsr.seekStepSeconds = normalizeNumber(annotation.seekStepSeconds, 1.0);
     nextAsr.volumeValue = normalizeNumber(annotation.volumeValue, 100);
-    nextAsr.autoReceiveOnSubmit =
-      annotation.autoReceiveOnSubmit === true || automation.autoReceiveOnSubmit === true;
-    nextAsr.validateBeforeSubmit =
-      annotation.validateBeforeSubmit === true || automation.validateBeforeSubmit === true;
+    nextAsr.autoReceiveOnSubmit = false;
+    nextAsr.validateBeforeSubmit = false;
     nextAsr.autoClearInvalidValidation = annotation.autoClearInvalidValidation === true;
     nextAsr.autoFillOnValidValidation = annotation.autoFillOnValidValidation === true;
-    nextAsr.autoSubmitAfterValidation =
-      annotation.autoSubmitAfterValidation === true ||
-      automation.autoSubmitAfterValidation === true;
+    nextAsr.autoSubmitAfterValidation = false;
     nextAsr.autoFillOnLoad =
       annotation.autoFillOnLoad === true || automation.autoFillOnLoad === true;
-    nextAsr.qwenApiKey = String(aiPunctuation.apiKey || aiPunctuation.qwenApiKey || "");
-    nextAsr.useAdvancedRules = aiPunctuation.useAdvancedRules === true;
-    nextAsr.qwenModel = String(
-      aiPunctuation.model || aiPunctuation.qwenModel || nextAsr.qwenModel || ""
-    );
+    nextAsr.qwenApiKey = "";
+    nextAsr.useAdvancedRules = false;
+    nextAsr.qwenModel = "";
     nextAsr.numConvertMode =
       annotation.numConvertMode === "蜂鸟众包" ? "蜂鸟众包" : "千问";
     nextAsr.customReplacements = normalizeReplacementRules(
@@ -1090,7 +1125,7 @@
       );
     });
 
-    settings.asr = nextAsr;
+    settings.asr = sanitizeTranscriptionAsrConfig(nextAsr, defaultAsr);
     settings.debug = deepMerge(defaults.debug || {}, settings.debug || {});
     settings.debug.enabled = legacyServer.useDebugApiBaseUrl === true;
     settings.cache = deepMerge(defaults.cache || {}, settings.cache || {});
@@ -1326,6 +1361,11 @@
     );
     if (normalizedProjectId === constants.JUDGEMENT_PROJECT_ID) {
       targetProject.asrConfig = normalizeJudgementAsrConfig(targetProject.asrConfig);
+    } else {
+      targetProject.asrConfig = sanitizeTranscriptionAsrConfig(
+        targetProject.asrConfig,
+        constants.DEFAULT_ASR_CONFIG || {}
+      );
     }
 
     if (scriptCenter.activeProjectId === normalizedProjectId) {

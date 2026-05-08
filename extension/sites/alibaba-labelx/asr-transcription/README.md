@@ -1,39 +1,54 @@
 # 阿里 ASR 语音转写
 
-这个目录对应 LabelX 上的 ASR 语音转写脚本。
+本目录对应 LabelX 的 ASR 转写运行时代码。
 
-## 当前状态
+## 当前阶段定位
 
-- 转写运行时代码和完整设置面板已归入当前目录。
-- `options/options.html` 中的转写详情页加载当前目录下的 `settings-panel.js`。
-- 当前没有把判断脚本的页面结构资料放入这里，避免两个项目继续混在一起。
-- `content.js` 会等待 `runtime-contract.js` 完成注入后再组装转写运行时；如果当前扩展包缺失该契约或注入失败，会以 info 级日志跳过转写运行时，避免在快判首页等非转写场景刷扩展错误。
+- 当前为“基础转写阶段”。
+- 一条音频对应一个完整文本框。
+- 以平台自动保存为准，不额外接管保存链路。
 
-## 负责范围
+## 当前范围
 
-- 在 LabelX 转写页面注入完整转写运行时。
-- 响应 popup 的 LabelX runtime ping，用于显示当前页面注入状态。
-- 提供转写脚本详情页的完整设置面板。
-- 承载转写相关的文本处理、快捷键、批量填充、AI 标点、保存提交、批量流转等能力。
+- 保留基础音频与文本能力：
+  - 播放 / 暂停
+  - 当前音频前进 / 后退
+  - 当前音频倍速调整 / 重置
+  - 当前音频音量调整 / 重置
+  - 基础焦点切换
+  - 基础文本处理（如去空格、数字转换、快速填入）
+- 保留设置项：
+  - `itemsPerPage`
+  - `autoPlay`
+  - `resetRateValue` / `playbackRateValue`
+  - `rateStepValue`
+  - `seekStepSeconds`
+  - `volumeValue`
+  - `shortcuts`
+  - `customReplacements`
 
-## 当前归属文件
+## 当前禁用项
 
-当前目录包含：
+- 不实现时间戳。
+- 不实现说话人区分。
+- 不实现 AI 初稿、AI 校对、AI 格式化。
+- 不新增自定义后端保存接口。
+- 不构建/注入自定义保存 payload。
+- 不触发扩展侧手动强制保存、保存后 reload。
+- 不自动提交、不自动领取、不自动跳转下一任务、不批量流转。
+- 不启用 AI 标点、自动抢单、排行榜、导出等与基础转写无关入口。
 
-- `content.js`
-- `document-start.js`
-- `settings-panel.js`
-- `runtime-*.js`
-- `annotation-*.js`
-- `legacy-*.js`
-- `site-contract.js`
-- `page-detector.js`
-- `route-observer.js`
-- `page-state-collector.js`
-- `page-world/`
-- `page-world-hook.js`
-- `page-structure/`
+## 运行时说明
 
-## 暂不创建公共目录
+- 为避免 `manifest` 与注入顺序断链，仍保留部分 legacy 文件与桥接对象。
+- 这些文件中的危险入口已统一降级为安全返回（`disabled-in-basic-stage`），用于兼容旧调用方而非执行旧逻辑。
 
-判断和转写先完全分开。只有当能力已经在两个脚本里都需要，并且选择器、消息协议或行为确实一致时，再提升到公共目录。抽取前需要先在两个脚本 README 中记录实际复用点和验证步骤。
+## 真实页面人工验证步骤
+
+1. 在 Edge 或 Chrome 重新加载 `extension/`。
+2. 打开 LabelX ASR 转写任务详情页。
+3. 确认转写运行时只在转写页面生效。
+4. 验证播放/暂停、前进/后退、音量、倍速、自动播放可用。
+5. 验证普通文本输入不被无关快捷键打断。
+6. 验证不会触发扩展自定义保存、强制保存、reload、自动提交、自动跳转、批量流转。
+7. 切换到 `asr-judgement` 页面，确认快判功能不受影响。

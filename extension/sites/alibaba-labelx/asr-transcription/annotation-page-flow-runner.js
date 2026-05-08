@@ -225,80 +225,17 @@
   }
 
   async function runPageFlow(flowRequest, pageStateInput) {
-    const request = normalizeRequest(flowRequest);
+    normalizeRequest(flowRequest);
     const pageState = resolvePageState(pageStateInput);
     const result = createBaseResult(pageState);
-    const platformSettings = await getPlatformSettings();
-    const preferSubmitTask =
-      request.preferSubmitTask === true || platformSettings?.automation?.autoReceiveOnSubmit === true;
+    await getPlatformSettings();
 
     try {
-      result.applyResult = annotationPageApplyRunner.run(
-        {
-          onlyActionable: request.onlyActionable,
-          maxItems: request.maxItems,
-        },
-        pageState
-      );
-      syncMeta(result, result.applyResult);
-
-      result.pageReportAfterApply =
-        typeof annotationPageReport.report === "function"
-          ? annotationPageReport.report(result.applyResult)
-          : null;
-      syncMeta(result, result.pageReportAfterApply);
-      result.applyPhase = deriveApplyPhase(result.applyResult);
-
-      if (result.applyPhase.reason === "non-target") {
-        result.completed = true;
-        result.reason = "non-target";
-        return result;
-      }
-
-      if (result.applyPhase.reason === "non-task-detail") {
-        result.completed = true;
-        result.reason = "non-task-detail";
-        return result;
-      }
-
-      if (result.applyPhase.reason === "apply-failed") {
-        result.completed = true;
-        result.reason = "apply-failed";
-        return result;
-      }
-
-      result.saveResult = await annotationSaveRunner.run(
-        {
-          forceClick: request.forceSaveClick,
-          blurFirst: true,
-          reloadAfter: false,
-          buildPayload: true,
-        },
-        resolvePageState(null)
-      );
-      syncMeta(result, result.saveResult);
-      result.savePhase = deriveSavePhase(result.saveResult);
-
-      if (!result.savePhase.succeeded) {
-        result.completed = true;
-        result.reason = result.savePhase.reason;
-        return result;
-      }
-
-      result.submitResult = await annotationSubmitRunner.run(
-        {
-          forceClick: request.forceSubmitClick,
-          requireSafeSave: true,
-          uploadStats: true,
-          preferSubmitTask: preferSubmitTask,
-        },
-        resolvePageState(null)
-      );
-      syncMeta(result, result.submitResult);
-      result.submitPhase = deriveSubmitPhase(result.submitResult);
-
       result.completed = true;
-      result.reason = result.submitPhase.succeeded ? "ok" : result.submitPhase.reason;
+      result.reason = "disabled-in-basic-stage";
+      result.applyPhase = createPhase("disabled-in-basic-stage", { skipped: true });
+      result.savePhase = createPhase("disabled-in-basic-stage", { skipped: true });
+      result.submitPhase = createPhase("disabled-in-basic-stage", { skipped: true });
       return result;
     } catch (error) {
       console.warn(LOG_PREFIX, "Failed to run page flow runner:", error);

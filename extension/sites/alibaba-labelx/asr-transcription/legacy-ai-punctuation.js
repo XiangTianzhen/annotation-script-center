@@ -157,93 +157,11 @@
   }
 
   async function run(request) {
-    const options = request && typeof request === "object" ? request : {};
-    const entries = collectNonEmptyTexts();
-
-    if (entries.length === 0) {
-      return {
-        success: false,
-        reason: "no-non-empty-text",
-        summaryText: "当前页面没有可用于 AI 标点修复的非空文本。",
-      };
-    }
-
-    const payloadResult = await buildRequestPayload(entries, options);
-    if (!payloadResult.ok) {
-      return {
-        success: false,
-        reason: payloadResult.reason,
-        summaryText: payloadResult.message,
-      };
-    }
-
-    const hadAutosaveDisabled =
-      document.documentElement?.getAttribute("data-asr-disable-autosave") === "true";
-    if (!hadAutosaveDisabled) {
-      setAutosaveDisabled(true);
-    }
-
-    try {
-      const response = await legacyApiClient.postJson("/asr/fix-punctuation", payloadResult.payload);
-      if (!response?.success || !Array.isArray(response.results)) {
-        return {
-          success: false,
-          reason: "legacy-api-failed",
-          response: response,
-          summaryText: "AI 标点修复请求失败，未拿到可消费结果。",
-        };
-      }
-
-      const applyResult = await applyResults(entries, response);
-      let saveResult = null;
-      if (
-        applyResult.successCount > 0 &&
-        options.saveAfter !== false &&
-        hasCachedTaskData() &&
-        legacySaveCoordinator &&
-        typeof legacySaveCoordinator.performManualSave === "function"
-      ) {
-        saveResult = await legacySaveCoordinator.performManualSave({
-          buildPayload: true,
-          blurFirst: true,
-          reloadAfter: options.reloadAfter === true,
-          reason: "legacy-ai-punctuation",
-        });
-      }
-
-      return {
-        success: applyResult.successCount > 0,
-        reason: applyResult.successCount > 0 ? "ok" : "no-write-success",
-        count: entries.length,
-        successCount: applyResult.successCount,
-        failCount: applyResult.failCount,
-        response: response,
-        meta: payloadResult.meta,
-        saveResult: saveResult,
-        summaryText:
-          "AI 标点修复完成：成功 " +
-          applyResult.successCount +
-          " 条，失败 " +
-          applyResult.failCount +
-          " 条。" +
-          (saveResult
-            ? saveResult.success === true
-              ? " 已触发手动安全保存。"
-              : " 手动安全保存失败。"
-            : ""),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        reason: "ai-punctuation-error",
-        error: error && error.message ? error.message : String(error),
-        summaryText: "AI 标点修复失败：" + (error && error.message ? error.message : String(error)),
-      };
-    } finally {
-      if (!hadAutosaveDisabled) {
-        setAutosaveDisabled(false);
-      }
-    }
+    return {
+      success: false,
+      reason: "disabled-in-basic-stage",
+      summaryText: "当前基础转写阶段已禁用 AI 标点修复。",
+    };
   }
 
   window.__ASREdgeAlibabaLabelxLegacyAiPunctuation = {

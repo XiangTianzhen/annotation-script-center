@@ -7,18 +7,20 @@
     preview: { label: "页面计划预览", requiresTaskDetail: true },
     apply: { label: "整页受控执行", requiresTaskDetail: true },
     report: { label: "整页结果报告", requiresTaskDetail: false },
-    save: { label: "手动安全保存", requiresTaskDetail: true },
-    submit: { label: "提交当前任务", requiresTaskDetail: true },
-    smartSubmit: { label: "智能提交闭环", requiresTaskDetail: true },
-    aiPunctuation: { label: "AI 标点修复", requiresTaskDetail: true },
     syncDictionary: { label: "同步词库", requiresTaskDetail: false },
     uploadDictionary: { label: "上传词库待审", requiresTaskDetail: false },
-    exportTasks: { label: "导出任务", requiresTaskDetail: false },
-    leaderboard: { label: "排行榜", requiresTaskDetail: false },
     checkUpdate: { label: "检查更新", requiresTaskDetail: false },
-    manualAssign: { label: "手动抢单", requiresTaskDetail: false },
-    batchNow: { label: "批量闭环", requiresTaskDetail: false },
   };
+  const BLOCKED_ACTIONS = new Set([
+    "save",
+    "submit",
+    "smartSubmit",
+    "aiPunctuation",
+    "exportTasks",
+    "leaderboard",
+    "manualAssign",
+    "batchNow",
+  ]);
 
   const COMPACT_KEYS = [
     "pageType",
@@ -188,8 +190,8 @@
     instance.state.currentPageState = pageState;
     const isTaskDetail = isTaskDetailPage(pageState);
     instance.ui.pageStatus.textContent = isTaskDetail
-      ? "当前页面已命中 task-detail，可安全触发保存/提交/AI 入口。"
-      : "当前页面不是 task-detail。列表页入口仍可用于导出、抢单、排行榜和批量流转。";
+      ? "当前页面已命中 task-detail，可执行基础转写能力。"
+      : "当前页面不是 task-detail。仅保留基础只读/词库/更新能力入口。";
 
     Object.keys(instance.ui.actionButtons).forEach(function (actionKey) {
       const action = ACTIONS[actionKey];
@@ -328,6 +330,13 @@
   }
 
   async function executeAction(instance, actionKey) {
+    if (BLOCKED_ACTIONS.has(actionKey)) {
+      return createLocalResult(
+        "disabled-in-basic-stage",
+        "当前基础转写阶段已禁用该动作入口。"
+      );
+    }
+
     const pageState = refreshPanelContext(instance);
 
     if (ACTIONS[actionKey]?.requiresTaskDetail && !isTaskDetailPage(pageState)) {
@@ -370,62 +379,6 @@
       return instance.deps.annotationPageReport.report(source);
     }
 
-    if (actionKey === "save") {
-      return instance.deps.annotationSaveRunner.run(
-        {
-          forceClick: false,
-          blurFirst: true,
-          buildPayload: true,
-          reloadAfter: false,
-        },
-        pageState
-      );
-    }
-
-    if (actionKey === "submit") {
-      return instance.deps.annotationSubmitRunner.run(
-        {
-          forceClick: false,
-          requireSafeSave: true,
-          uploadStats: true,
-        },
-        pageState
-      );
-    }
-
-    if (actionKey === "smartSubmit") {
-      const flowResult = await instance.deps.annotationPageFlowRunner.run(
-        {
-          onlyActionable: true,
-          maxItems: null,
-          forceSaveClick: false,
-          forceSubmitClick: false,
-        },
-        pageState
-      );
-      const flowReport = instance.deps.annotationFlowReport.report(flowResult);
-      instance.state.lastFlowResult = flowResult;
-      instance.state.lastFlowReport = flowReport;
-      if (isObject(flowResult.applyResult)) {
-        instance.state.lastPageApplyResult = flowResult.applyResult;
-      }
-      return {
-        flow: flowResult,
-        report: flowReport,
-        summaryText: flowReport.summaryText,
-      };
-    }
-
-    if (actionKey === "aiPunctuation") {
-      if (!instance.deps.legacyAiPunctuation) {
-        return createLocalResult("legacy-ai-missing", "AI 标点修复模块未接入。");
-      }
-      return instance.deps.legacyAiPunctuation.run({
-        saveAfter: true,
-        reloadAfter: true,
-      });
-    }
-
     if (actionKey === "syncDictionary") {
       if (!instance.deps.legacyDictionarySync) {
         return createLocalResult("dictionary-sync-missing", "词库同步模块未接入。");
@@ -440,45 +393,11 @@
       return instance.deps.legacyDictionarySync.uploadPendingReview();
     }
 
-    if (actionKey === "exportTasks") {
-      if (!instance.deps.legacyExport) {
-        return createLocalResult("legacy-export-missing", "导出模块未接入。");
-      }
-      return instance.deps.legacyExport.exportTasks({
-        uploadToServer: true,
-      });
-    }
-
-    if (actionKey === "leaderboard") {
-      if (!instance.deps.legacyLeaderboard) {
-        return createLocalResult("leaderboard-missing", "排行榜模块未接入。");
-      }
-      return instance.deps.legacyLeaderboard.toggle();
-    }
-
     if (actionKey === "checkUpdate") {
       if (!instance.deps.legacyVersionCheck) {
         return createLocalResult("version-check-missing", "更新检查模块未接入。");
       }
       return instance.deps.legacyVersionCheck.checkNow();
-    }
-
-    if (actionKey === "manualAssign") {
-      if (!instance.deps.legacyAutoAssign) {
-        return createLocalResult("auto-assign-missing", "自动抢单模块未接入。");
-      }
-      return instance.deps.legacyAutoAssign.execute({
-        manual: true,
-      });
-    }
-
-    if (actionKey === "batchNow") {
-      if (!instance.deps.legacyBatchFlow) {
-        return createLocalResult("batch-flow-missing", "批量闭环模块未接入。");
-      }
-      return instance.deps.legacyBatchFlow.runNow({
-        manual: true,
-      });
     }
 
     return createLocalResult("unknown-action", "未识别的动作：" + actionKey);
