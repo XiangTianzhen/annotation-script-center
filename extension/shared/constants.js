@@ -51,8 +51,6 @@
   ];
 
   const MESSAGE_TYPES = {
-    OPEN_SETTINGS_PANEL: "ASR_EDGE_OPEN_SETTINGS_PANEL",
-    TOGGLE_SETTINGS_PANEL: "ASR_EDGE_TOGGLE_SETTINGS_PANEL",
     PANEL_PING: "ASR_EDGE_SETTINGS_PANEL_PING",
     JUDGEMENT_STATS_UPLOAD: "ASR_EDGE_JUDGEMENT_STATS_UPLOAD",
   };
@@ -289,8 +287,8 @@
       id: TRANSCRIPTION_PROJECT_ID,
       shortLabel: "语音转写",
       label: "阿里ASR语音转写",
-      description: "基础转写能力（音频播放控制 + 文本处理 + 页面内配置）。",
-      note: "当前阶段禁用自定义保存payload、自动提交、自动流转和AI相关动作。",
+      description: "基础转写能力（当前题处理 + 当前音频控制 + 页面工具栏）。",
+      note: "当前不提供独立设置页和快捷键配置，不做保存/提交/自动化/AI链路。",
       capabilityScope: "basic-transcription",
     },
     judgement: {
@@ -660,9 +658,9 @@
     STAGE_ID: STAGE_ID,
     STAGE_LABEL: STAGE_LABEL,
     STAGE_DESCRIPTION:
-      "脚本中心统一管理 LabelX 下的多个同域项目，options 页为主入口，页面内浮层只保留给语音转写项目联调。",
+      "脚本中心统一管理多平台脚本，options 页负责启停与必要配置，运行时功能由各脚本独立维护。",
     CAPABILITY_SCOPE:
-      "当前支持多平台脚本中心、LabelX 语音转写全量设置迁移、语音判别音频能力、Lightwheel 脚本占位管理，以及标贝易采一检质检 AI 推荐文本。",
+      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏、语音判别音频能力、Lightwheel 脚本占位管理，以及标贝易采一检质检 AI 推荐文本。",
     SCHEMA_VERSION: SCHEMA_VERSION,
     STORAGE_KEY: "asrEdgeSettings",
     PRESENCE_BADGE_ID: "asr-edge-presence-host",

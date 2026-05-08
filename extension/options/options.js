@@ -1,7 +1,6 @@
 (function () {
   const constants = globalThis.ASREdgeConstants || {};
   const storage = globalThis.ASREdgeStorage || null;
-  const settingsPanel = globalThis.__ASREdgeAlibabaLabelxSettingsPanel || null;
   const platformLibrary = constants.PLATFORM_LIBRARY || {};
   const scriptLibrary = constants.SCRIPT_LIBRARY || {};
   const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
@@ -80,7 +79,6 @@
     4: "MouseForward",
   };
   let currentSettings = null;
-  let transcriptionPanelHandle = null;
   let judgementShortcutsDraft = {};
   let judgementRecordingKey = null;
   let stopJudgementRecordingListeners = null;
@@ -548,39 +546,6 @@
   function setScriptStatusNode(node, status) {
     node.textContent = status.text;
     node.className = "script-pill " + status.tone;
-  }
-
-  function unmountTranscriptionPanel() {
-    if (settingsPanel && typeof settingsPanel.unmount === "function") {
-      settingsPanel.unmount();
-    }
-    transcriptionPanelHandle = null;
-    const root = getElement("transcription-settings-root");
-    if (root) {
-      root.innerHTML = "";
-    }
-  }
-
-  function mountTranscriptionPanel() {
-    if (!settingsPanel || typeof settingsPanel.mount !== "function") {
-      showError("语音转写设置面板未加载，无法显示脚本详情。");
-      return null;
-    }
-
-    if (transcriptionPanelHandle) {
-      return transcriptionPanelHandle;
-    }
-
-    const container = getElement("transcription-settings-root");
-    if (!(container instanceof HTMLElement)) {
-      return null;
-    }
-
-    transcriptionPanelHandle = settingsPanel.mount({
-      mode: "page",
-      container: container,
-    });
-    return transcriptionPanelHandle;
   }
 
   function normalizeJudgementConfig(settings) {
@@ -1363,14 +1328,9 @@
     setStatus("detail-status", "");
 
     if (scriptId === transcriptionProjectId) {
-      const handle = mountTranscriptionPanel();
-      if (handle && typeof handle.refresh === "function") {
-        void handle.refresh();
-      }
+      setStatus("detail-status", "ASR 转写当前为轻量工具栏模式，暂无独立设置项。");
       return;
     }
-
-    unmountTranscriptionPanel();
 
     if (scriptId === judgementProjectId) {
       applyJudgementForm(settings);
@@ -1630,7 +1590,6 @@
       getElement("script-center-view").classList.remove("hidden");
       getElement("script-detail-view").classList.add("hidden");
       getElement("home-endpoint-card").classList.remove("hidden");
-      unmountTranscriptionPanel();
       renderScriptCenter(settings);
       return;
     }

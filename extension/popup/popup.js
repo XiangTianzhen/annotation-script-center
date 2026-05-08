@@ -256,6 +256,26 @@
         type: messageTypes.PANEL_PING,
       });
 
+      if (
+        response &&
+        response.ok === true &&
+        context.scriptId === transcriptionProjectId &&
+        response.scriptId === transcriptionProjectId &&
+        response.injected === true
+      ) {
+        if (response.matched === true) {
+          context.statusText = "运行成功";
+          context.statusTone = "success";
+          context.description += " 页面内转写运行时已命中详情页并启动。";
+          return context;
+        }
+
+        context.statusText = "已注入";
+        context.statusTone = "pending";
+        context.description += " 转写脚本已注入，正在等待转写详情页 DOM 加载。";
+        return context;
+      }
+
       if (response && response.ok === true) {
         context.statusText = "运行成功";
         context.statusTone = "success";

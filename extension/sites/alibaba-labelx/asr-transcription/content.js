@@ -5,23 +5,25 @@
   const activeItemApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionActiveItem || null;
   const itemActions = globalThis.__ASREdgeAlibabaLabelxTranscriptionItemActions || null;
   const audioApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionAudioController || null;
-  const shortcutBus = globalThis.__ASREdgeAlibabaLabelxTranscriptionShortcutBus || null;
-  const settingsPanel = globalThis.__ASREdgeAlibabaLabelxSettingsPanel || null;
   const messageTypes = constants.MESSAGE_TYPES || {};
   const PANEL_PING = messageTypes.PANEL_PING || "ASR_EDGE_SETTINGS_PANEL_PING";
-  const OPEN_SETTINGS_PANEL = messageTypes.OPEN_SETTINGS_PANEL || "ASR_EDGE_OPEN_SETTINGS_PANEL";
-  const TOGGLE_SETTINGS_PANEL = messageTypes.TOGGLE_SETTINGS_PANEL || "ASR_EDGE_TOGGLE_SETTINGS_PANEL";
   const PROJECT_ID = configApi?.PROJECT_ID || "transcription";
   const TARGET_HOST = constants?.TARGET_PLATFORM?.host || "labelx.alibaba-inc.com";
 
-  let runtime = {
+  const runtime = {
+    injected: true,
     enabled: false,
+    matched: false,
+    reason: "waiting-for-transcription-detail",
     config: null,
-    shortcutRuntime: null,
-    overlayRuntime: null,
     toolbarNode: null,
     autoPlayObserver: null,
-    stopStorageListen: null,
+    refreshTimer: null,
+    refreshInFlight: false,
+    refreshQueued: false,
+    mutationObserver: null,
+    pollTimer: null,
+    lastHref: String(location.href || ""),
   };
 
   function warn(message, extra) {
@@ -62,28 +64,49 @@
     }, 1600);
   }
 
-  function isTranscriptionDetailPage() {
+  function isVisibleEditableTextarea(node) {
+    if (!(node instanceof HTMLTextAreaElement) || node.disabled || node.readOnly) {
+      return false;
+    }
+    const rect = node.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  function hasJudgementHint() {
+    if (document.querySelector("#asr-edge-judgement-toolbar")) {
+      return true;
+    }
+    const nodes = Array.from(document.querySelectorAll(".mark-toolbox, .labelRender-item, body")).slice(0, 8);
+    return nodes.some(function (node) {
+      const text = String(node.textContent || "").replace(/\s+/g, "");
+      return text.includes("哪个ASR更优");
+    });
+  }
+
+  function evaluatePageMatch() {
     if (location.hostname !== TARGET_HOST) {
-      return false;
+      return { matched: false, reason: "host-not-matched" };
     }
+
     const path = String(location.pathname || "").toLowerCase();
-    if (!path.includes("/corpora/labeling/sdk")) {
-      return false;
+    if (!path.includes("/corpora/labeling/")) {
+      return { matched: false, reason: "waiting-for-transcription-detail" };
     }
-    const hasTextareaInItem = Boolean(document.querySelector(".labelRender-item textarea"));
-    if (!hasTextareaInItem) {
-      return false;
+
+    if (hasJudgementHint()) {
+      return { matched: false, reason: "judgement-page" };
     }
-    const judgementHint = Array.from(document.querySelectorAll(".labelRender-item, .mark-toolbox, body"))
-      .slice(0, 8)
-      .some(function (node) {
-        const text = String(node.textContent || "").replace(/\s+/g, "");
-        return text.includes("哪个ASR更优");
-      });
-    if (judgementHint) {
-      return false;
+
+    const hasItemTextarea = Boolean(document.querySelector(".labelRender-item textarea"));
+    const hasEditableTextarea = Array.from(document.querySelectorAll("textarea")).some(
+      isVisibleEditableTextarea
+    );
+
+    if (!hasItemTextarea && !hasEditableTextarea) {
+      return { matched: false, reason: "waiting-for-transcription-detail" };
     }
-    return true;
+
+    return { matched: true, reason: "matched" };
   }
 
   function clearToolbar() {
@@ -104,12 +127,16 @@
     button.style.borderRadius = "6px";
     button.style.cursor = "pointer";
     button.addEventListener("click", function () {
-      runAction(action);
+      void runAction(action);
     });
     return button;
   }
 
   function mountToolbar() {
+    if (runtime.toolbarNode && document.contains(runtime.toolbarNode)) {
+      return;
+    }
+
     clearToolbar();
     const host = document.createElement("div");
     host.id = "asr-edge-transcription-toolbar";
@@ -145,7 +172,6 @@
       ["加音", "volumeUp"],
       ["重置音量", "volumeReset"],
       ["复制时长", "copyDuration"],
-      ["设置", "togglePanel"],
     ].forEach(function (entry) {
       host.appendChild(createToolbarButton(entry[0], entry[1]));
     });
@@ -154,10 +180,11 @@
     runtime.toolbarNode = host;
   }
 
-  async function runAction(action, payload) {
+  async function runAction(action) {
     if (!runtime.config) {
       return;
     }
+
     let result = null;
     switch (action) {
       case "quickFill":
@@ -198,9 +225,6 @@
           Number(runtime.config.playbackRateValue || runtime.config.resetRateValue || 1)
         );
         break;
-      case "setRate":
-        result = audioApi.setPlaybackRate(payload?.rate);
-        break;
       case "volumeUp":
         result = audioApi.adjustVolumePercent(10);
         break;
@@ -213,14 +237,11 @@
       case "copyDuration":
         result = await audioApi.copyCurrentAudioDuration();
         break;
-      case "togglePanel":
-        runtime.overlayRuntime?.toggle();
-        result = { ok: true, message: "设置面板已切换。" };
-        break;
       default:
         result = { ok: false, message: "未知动作。" };
         break;
     }
+
     if (result && result.message) {
       showToast(result.message);
     }
@@ -231,121 +252,188 @@
       runtime.autoPlayObserver.disconnect();
       runtime.autoPlayObserver = null;
     }
+
     const observer = new MutationObserver(function () {
       if (!runtime.enabled || !runtime.config?.autoPlay) {
         return;
       }
-      audioApi.autoPlayCurrentAudioIfNeeded(true);
+      void audioApi.autoPlayCurrentAudioIfNeeded(true);
     });
-    observer.observe(document.body, {
+
+    observer.observe(document.body || document.documentElement, {
       childList: true,
       subtree: true,
       attributes: true,
       attributeFilter: ["class"],
     });
+
     runtime.autoPlayObserver = observer;
   }
 
-  function stopRuntime(reason) {
+  function disableRuntime(reason) {
     runtime.enabled = false;
-    runtime.shortcutRuntime?.unbind();
-    runtime.shortcutRuntime = null;
-    runtime.overlayRuntime?.stop();
-    runtime.overlayRuntime = null;
     runtime.autoPlayObserver?.disconnect();
     runtime.autoPlayObserver = null;
-    runtime.stopStorageListen?.();
-    runtime.stopStorageListen = null;
     clearToolbar();
-    if (reason) {
-      warn("runtime stopped", { reason: reason });
-    }
+    runtime.reason = reason || runtime.reason || "waiting-for-transcription-detail";
   }
 
-  async function startRuntime() {
-    if (!configApi || !activeItemApi || !itemActions || !audioApi || !shortcutBus || !settingsPanel) {
-      warn("required module missing");
-      return;
-    }
-
-    const loaded = await configApi.loadConfig();
-    runtime.config = loaded.config;
-    if (loaded.activeProjectId !== PROJECT_ID) {
-      stopRuntime("inactive-project");
-      return;
-    }
-    if (!isTranscriptionDetailPage()) {
-      stopRuntime("not-matched");
-      warn("未命中转写详情页，转写运行时不启动。");
-      return;
-    }
-
+  function enableRuntime() {
     runtime.enabled = true;
+    runtime.reason = "matched";
     mountToolbar();
-    runtime.overlayRuntime = settingsPanel.createOverlayRuntime({
-      onSaved: function (nextConfig) {
-        runtime.config = clone(nextConfig);
-      },
-    });
-    runtime.overlayRuntime.start();
-
-    runtime.shortcutRuntime = shortcutBus.createRuntime({
-      getConfig: function () {
-        return runtime.config;
-      },
-      onAction: function (action, payload) {
-        runAction(action, payload);
-      },
-    });
-    runtime.shortcutRuntime.bind();
     bindAutoPlay();
-    audioApi.autoPlayCurrentAudioIfNeeded(runtime.config.autoPlay);
-    runtime.stopStorageListen = configApi.subscribeStorage(function () {
-      startRuntime();
+    void audioApi.autoPlayCurrentAudioIfNeeded(runtime.config?.autoPlay === true);
+  }
+
+  function scheduleRefresh(trigger, delay) {
+    clearTimeout(runtime.refreshTimer);
+    runtime.refreshTimer = setTimeout(function () {
+      void refreshRuntime(trigger || "retry");
+    }, typeof delay === "number" ? delay : 120);
+  }
+
+  async function refreshRuntime(trigger) {
+    if (runtime.refreshInFlight) {
+      runtime.refreshQueued = true;
+      return;
+    }
+    runtime.refreshInFlight = true;
+
+    try {
+      if (!configApi || !activeItemApi || !itemActions || !audioApi) {
+        disableRuntime("module-missing");
+        warn("required module missing");
+        return;
+      }
+
+      const loaded = await configApi.loadConfig();
+      runtime.config = loaded.config;
+
+      if (loaded.enabledBySettings !== true) {
+        runtime.matched = false;
+        disableRuntime("script-disabled");
+        return;
+      }
+
+      if (loaded.activeProjectId !== PROJECT_ID) {
+        runtime.matched = false;
+        disableRuntime("inactive-project");
+        return;
+      }
+
+      const page = evaluatePageMatch();
+      runtime.matched = page.matched;
+      runtime.reason = page.reason;
+
+      if (!page.matched) {
+        disableRuntime(page.reason);
+        return;
+      }
+
+      enableRuntime();
+    } catch (error) {
+      disableRuntime("runtime-error");
+      warn("runtime refresh failed", {
+        trigger: trigger,
+        message: error && error.message ? error.message : String(error),
+      });
+    } finally {
+      runtime.refreshInFlight = false;
+      if (runtime.refreshQueued) {
+        runtime.refreshQueued = false;
+        scheduleRefresh("queued-refresh", 0);
+      }
+    }
+  }
+
+  function patchHistoryForSpa() {
+    if (window.__asrEdgeTranscriptionHistoryPatched) {
+      return;
+    }
+    window.__asrEdgeTranscriptionHistoryPatched = true;
+
+    ["pushState", "replaceState"].forEach(function (methodName) {
+      const original = history[methodName];
+      if (typeof original !== "function") {
+        return;
+      }
+
+      history[methodName] = function () {
+        const result = original.apply(this, arguments);
+        scheduleRefresh("history-" + methodName, 30);
+        return result;
+      };
+    });
+
+    window.addEventListener("popstate", function () {
+      scheduleRefresh("history-popstate", 30);
     });
   }
 
-  function clone(value) {
-    return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+  function startRetryWatchers() {
+    document.addEventListener("DOMContentLoaded", function () {
+      scheduleRefresh("dom-content-loaded", 0);
+    });
+
+    window.addEventListener("load", function () {
+      scheduleRefresh("window-load", 0);
+    });
+
+    if (runtime.mutationObserver) {
+      runtime.mutationObserver.disconnect();
+    }
+
+    runtime.mutationObserver = new MutationObserver(function () {
+      scheduleRefresh("dom-mutated", 80);
+    });
+
+    runtime.mutationObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+
+    patchHistoryForSpa();
+
+    runtime.pollTimer = setInterval(function () {
+      const href = String(location.href || "");
+      if (href !== runtime.lastHref) {
+        runtime.lastHref = href;
+        scheduleRefresh("href-changed", 30);
+      }
+    }, 1200);
   }
 
   function bindMessageBridge() {
     if (!chrome?.runtime?.onMessage) {
       return;
     }
+
     chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       if (!message || typeof message !== "object") {
         return undefined;
       }
+
       if (message.type === PANEL_PING) {
-        if (!runtime.enabled) {
-          return undefined;
-        }
         sendResponse({
           ok: true,
           scriptId: PROJECT_ID,
-          enabled: runtime.enabled,
+          injected: true,
+          enabled: runtime.enabled === true,
+          matched: runtime.matched === true,
+          reason:
+            runtime.matched === true
+              ? "matched"
+              : runtime.reason || "waiting-for-transcription-detail",
         });
         return false;
       }
-      if (message.type === OPEN_SETTINGS_PANEL) {
-        runtime.overlayRuntime?.open();
-        sendResponse({ ok: true });
-        return false;
-      }
-      if (message.type === TOGGLE_SETTINGS_PANEL) {
-        runtime.overlayRuntime?.toggle();
-        sendResponse({ ok: true });
-        return false;
-      }
+
       return undefined;
     });
   }
 
   bindMessageBridge();
-  startRuntime().catch(function (error) {
-    warn("runtime start failed", {
-      message: error && error.message ? error.message : String(error),
-    });
-  });
+  startRetryWatchers();
+  scheduleRefresh("script-load", 0);
 })();

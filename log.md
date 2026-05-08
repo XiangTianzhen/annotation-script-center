@@ -2,6 +2,13 @@
 
 ## 2026-05-08
 
+- 修复 Alibaba LabelX 转写轻量脚本注入时机：`content.js` 改为持续重试命中（`DOMContentLoaded`、`load`、`MutationObserver`、`pushState/replaceState/popstate`、短轮询），不再在 `document_start` 首次 DOM 未就绪时永久停机。
+- 修复 popup 误报“注入失败”：转写 `PANEL_PING` 改为脚本注入后恒响应，新增 `injected/matched/reason`；popup 新增“已注入，等待转写详情页”状态，仅在真正无响应时显示“注入失败”。
+- 删除转写独立设置链路：移除 `settings-panel.js`、options 页转写设置表单挂载、页面内 overlay 设置入口与“设置”工具栏按钮。
+- 删除转写快捷键链路：移除 `shortcut-bus.js`、content 侧快捷键绑定与配置依赖；转写仅保留页面工具栏按钮触发。
+- 精简 `runtime-config.js`：仅保留脚本中心启用状态读取与固定默认值输出，不再保存或订阅转写独立配置。
+- `manifest.json` 删除 `settings-panel.js` 和 `shortcut-bus.js` 引用，版本从 `0.2.10` 提升到 `0.2.11`。
+
 - `asr-transcription` 按“删除旧目录 + 轻量重写”执行：先 `git rm -r extension/sites/alibaba-labelx/asr-transcription/`，再重建为最小文件集（`content.js`、`settings-panel.js`、`runtime-config.js`、`audio-controller.js`、`active-item.js`、`item-actions.js`、`shortcut-bus.js`、`text-utils.js`、`README.md`）。
 - `manifest.json` 删除转写旧 MAIN world 与旧 ISOLATED world 链路引用，移除所有旧 legacy/save/submit/batch/ai/export/leaderboard/page-flow 相关脚本路径，仅保留轻量版转写脚本引用；快判与 DataBaker 链路保持不变。
 - 转写运行时收敛为“当前题 + 当前音频”能力：快速填入、标有效/无效、去空格、数字转换、焦点切换、播放/暂停、前进/后退、倍速调整/重置、音量调整/重置、复制时长；不做自动保存/提交/流转与整页批量动作。
