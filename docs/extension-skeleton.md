@@ -219,3 +219,4 @@
 单脚本迁移主线见 `docs/single-script-migration-roadmap.md`。
 字段来源边界见 `docs/context-fields-contract.md`。
 装配边界见 `docs/content-assembly-plan.md`。
+

@@ -49,6 +49,42 @@
         padding: 24px 26px;
       }
 
+      .home-endpoint-card {
+        display: grid;
+        gap: 10px;
+        padding: 14px 16px;
+        border: 1px solid #dbe4ef;
+        border-radius: 16px;
+        background: #ffffff;
+      }
+
+      .home-endpoint-card strong {
+        font-size: 16px;
+      }
+
+      .segmented-control {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        background: #f8fafc;
+        gap: 6px;
+      }
+
+      .segmented-button {
+        min-width: 92px;
+        border-radius: 999px;
+        padding: 8px 12px;
+        background: transparent;
+        color: #334155;
+      }
+
+      .segmented-button.active {
+        background: linear-gradient(135deg, #1677ff, #0958d9);
+        color: #ffffff;
+      }
+
       .hero-top,
       .detail-top {
         display: flex;
@@ -440,6 +476,15 @@
             <span id="stage-label" class="badge stage">脚本中心</span>
           </div>
         </div>
+        <div class="home-endpoint-card" id="home-endpoint-card">
+          <strong>后端接口地址</strong>
+          <div class="segmented-control" role="group" aria-label="后端接口地址">
+            <button id="home-endpoint-server" class="segmented-button" type="button">服务器</button>
+            <button id="home-endpoint-local" class="segmented-button" type="button">本机</button>
+          </div>
+          <span>服务器供日常使用，本机仅用于开发调试。扩展前端不保存 API Key。</span>
+          <div id="home-endpoint-status" class="status-text"></div>
+        </div>
       </section>
 
       <section id="script-center-view" class="platform-grid"></section>
@@ -670,7 +715,7 @@
           <div class="detail-grid two">
             <label class="field-card">
               <strong>启用 AI 推荐</strong>
-              <span>关闭后，DataBaker 详情页不显示 AI 推荐工具卡，也不会触发推荐请求。</span>
+              <span>关闭后，标贝易采详情页不显示 AI 推荐工具卡，也不会触发推荐请求。</span>
               <span class="field-toggle">
                 <input id="data-baker-ai-recommend-enabled" type="checkbox" />
                 启用 AI 推荐文本
@@ -684,31 +729,19 @@
             </label>
           </div>
 
-          <div class="field-card" style="margin-top: 18px;">
-            <strong>AI 推荐接口地址</strong>
-            <span>员工默认走服务器接口；本机地址仅用于开发调试。扩展前端不保存 API Key。</span>
-            <label>
-              接口环境
-              <select id="data-baker-ai-recommend-endpoint">
-                <option value="https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend">服务器：script.xiangtianzhen.store</option>
-                <option value="http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend">本机：127.0.0.1:3333</option>
-              </select>
-            </label>
-          </div>
-
           <div class="detail-grid two" style="margin-top: 18px;">
             <label class="field-card">
               <strong>自动每页条数</strong>
               <span>用于减少翻页次数。脚本只尝试设置页面分页，不自动提交任何任务。</span>
               <span class="field-toggle">
                 <input id="data-baker-auto-page-size-enabled" type="checkbox" />
-                进入 DataBaker 一检详情页后，自动设置每页条数
+                进入标贝易采一检详情页后，自动设置每页条数
               </span>
             </label>
 
             <label class="field-card">
               <strong>默认每页条数</strong>
-              <span>默认 50 条/页；可按 DataBaker 页面原生选项调整。</span>
+              <span>默认 50 条/页；可按标贝易采页面原生选项调整。</span>
               <select id="data-baker-default-page-size">
                 <option value="5条/页">5条/页</option>
                 <option value="10条/页">10条/页</option>
@@ -727,7 +760,7 @@
           </div>
 
           <div class="field-actions">
-            <button id="save-data-baker-settings" class="primary-button" type="button">保存 DataBaker 设置</button>
+            <button id="save-data-baker-settings" class="primary-button" type="button">保存标贝易采设置</button>
           </div>
           <div id="data-baker-status" class="status-text"></div>
         </section>

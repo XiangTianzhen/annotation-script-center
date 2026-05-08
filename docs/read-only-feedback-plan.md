@@ -163,3 +163,4 @@ interface AnnotationFeedbackSummary {
 - 进入“单条 validity 最小切换（不保存）”评估与首轮实现
 
 但在这一轮内不做该判断对应的实现。
+

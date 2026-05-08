@@ -1,6 +1,6 @@
-# DataBaker 一检质检 AI 推荐后端
+# 标贝易采一检质检 AI 推荐后端
 
-本目录是 DataBaker / DataFactory 一检质检“AI 推荐文本”的本地 Node 后端实现，通过统一入口 `platform-resources/backend/server.js` 注册。
+本目录是 标贝易采 一检质检“AI 推荐文本”的本地 Node 后端实现，通过统一入口 `platform-resources/backend/server.js` 注册。
 
 说明：`group/detail` 总表导出由扩展前端同源实现（直接使用页面登录态请求 DataBaker 接口），不依赖本目录后端导出接口。
 
@@ -178,3 +178,4 @@ console.log(__testOnly.splitTerms('透早(tao za )'));
 - `DATABAKER_AI_CROP_PADDING_SECONDS`
 
 后续如启用裁剪，需要下载完整音频、按有效起止时间裁剪、转 16k 单声道 wav、base64 传给 Qwen；裁剪失败必须 fallback 到完整 `audioUrl`，且全过程不得记录完整音频 URL。
+

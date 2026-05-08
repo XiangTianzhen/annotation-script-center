@@ -514,3 +514,4 @@ legacy-reference/
 
 单脚本迁移主线阶段图见 `docs/single-script-migration-roadmap.md`。
 详细边界见 `docs/content-assembly-plan.md`、`docs/low-risk-migration-plan.md`、`docs/read-only-validation-plan.md`、`docs/read-only-feedback-plan.md`、`docs/minimal-writeback-plan.md`、`docs/minimal-validity-toggle-plan.md`。
+

@@ -1,4 +1,4 @@
-# DataBaker 一检质检网络资料
+# 标贝易采一检质检网络资料
 
 本文档记录 `roundOneCollect` 详情页当前已知网络接口。所有内容均为脱敏结构，不记录真实 token、cookie、完整签名音频 URL 或客户数据。
 
@@ -193,3 +193,4 @@ POST /api/data-baker/round-one-quality/ai/recommend
 - iframe 内部播放器是否稳定暴露 `audio.currentSrc`。
 - “本句话文本”在不同状态下是否可能变为只读。
 - 保存 / 判定接口不属于本轮范围，暂不采集。
+

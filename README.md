@@ -5,7 +5,7 @@
 ## 当前重点
 
 - 当前通用扩展源码目录：`extension/`
-- 当前重点平台：`Alibaba LabelX`、`DataBaker / DataFactory`
+- 当前重点平台：`Alibaba LabelX`、`标贝易采`
 - 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/alibaba-labelx/asr-transcription/`、`extension/sites/data-baker/round-one-quality/`
 - 当前后端入口：`platform-resources/backend/server.js`
 
@@ -40,7 +40,6 @@ annotation-script-center/
         page-structure.md
         network.md
   docs/
-    extension/
   legacy-reference/
   AGENTS.md
   log.md
@@ -71,11 +70,12 @@ Chrome：
 
 - `Alibaba LabelX`：语音转写、ASR 语音判别。
 - `Lightwheel`：查看态面板占位管理。
-- `DataBaker / DataFactory`：`DataBaker 一检质检`，用于 `roundOneCollect` 页面单条 AI 推荐文本。
+- `标贝易采`：`标贝易采一检质检`，用于 `roundOneCollect` 页面单条 AI 推荐文本。
+- 说明：代码目录、API 路径、常量 ID 和环境变量前缀仍保留 `data-baker` / `dataBaker` / `DATABAKER_` 作为历史技术标识。
 
-`DataBaker 一检质检` 可在 options 首页单独启停，并在专属设置页配置：
+`标贝易采一检质检` 可在 options 首页单独启停，并在专属设置页配置：
 
-- AI 推荐接口地址只能在服务器和本机之间选择，默认走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
+- 后端接口地址只能在服务器和本机之间选择，默认走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 - 本机调试接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`，仅用于开发调试。
 - 请求超时时间在 options 中以秒展示，默认 `120` 秒；扩展内部仍按毫秒保存和请求。
 - 是否启用 AI 推荐文本。
@@ -163,7 +163,7 @@ http://127.0.0.1:3333
 - 健康检查：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/health`
 - 建议接口：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`
 
-当前 DataBaker 一检质检 AI 推荐文本接口：
+当前 标贝易采一检质检 AI 推荐文本接口：
 
 - 健康检查：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
 - 推荐接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
@@ -217,6 +217,7 @@ pm2 restart annotation-script-center --update-env
 ```
 
 真实 `config/env/ai.env` 不要提交 GitHub；`config/env/ai.env`、`config/env/ai.local.env`、`.env` 和 `.env.*` 都已加入 `.gitignore`。模板文件 `config/env/ai.env.example` 可以提交。
+当前模板仅保留四类 Provider：阿里百炼（DashScope）、DeepSeek、MiniMax、OpenRouter；不再引导配置 mock 或其他 Provider。
 
 快判 AI 建议说明：
 
@@ -239,12 +240,11 @@ pm2 restart annotation-script-center --update-env
 - `DASHSCOPE_BASE_URL`：可选，默认 `https://dashscope.aliyuncs.com/compatible-mode/v1`。
 - `ASR_JUDGEMENT_AI_MODEL`：默认模型，默认 `qwen3-omni-flash`。
 - `ASR_JUDGEMENT_AI_TIMEOUT_MS`：请求超时，默认 `120000`。
-- `ASR_JUDGEMENT_AI_MOCK`：设为 `1` 才启用 mock；默认关闭，主流程是真实调用。
 
 DataBaker AI 推荐文本说明：
 
 - 当前目标页面：`https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0`。
-- 脚本已接入 options “标注脚本中心”，可在 DataBaker / DataFactory 平台区域启停，并在专属设置页选择 AI 推荐接口地址。
+- 脚本已接入 options “标注脚本中心”，可在 标贝易采 平台区域启停，并在专属设置页选择 后端接口地址。
 - 默认前端请求服务器接口 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`；本机 `http://127.0.0.1:3333/...` 仅用于开发调试，员工默认走服务器。
 - options 中请求超时时间以秒展示，默认 `120` 秒；运行时仍使用毫秒值。
 - 当前只做“单条 AI 推荐文本”，不自动保存、不自动提交、不自动点击合格 / 不合格、不做批量识别或自动流转。
@@ -261,22 +261,21 @@ DataBaker AI 推荐文本说明：
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
 - 听音模型请求使用 Qwen-Omni `input_audio` 格式，`data` 为完整音频 URL，`format` 从 URL pathname 后缀推断；听音请求不传 `response_format`，只在 prompt 中要求 JSON 输出。
 - 后端原生 `fetch` 请求默认在顶层传 `enable_thinking=false` 尝试关闭 thinking，不再使用 OpenAI SDK 风格的 `extra_body`；如供应商不支持该参数，会自动移除该字段重试一次。
-- 如果真实调用返回 HTTP 400，先查看前端错误中的后端脱敏 `summary`，再确认音频 URL 可访问、`requestListen` 使用 `input_audio`、`config/env/ai.env` 中 `DASHSCOPE_API_KEY` 正确；可用 `DATABAKER_AI_MOCK=1` 排除前端和路由问题。
+- 如果真实调用返回 HTTP 400，先查看前端错误中的后端脱敏 `summary`，再确认音频 URL 可访问、`requestListen` 使用 `input_audio`、`config/env/ai.env` 中 `DASHSCOPE_API_KEY` 正确。
 - 后端已接入闽南方言字词表 CSV：`platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv`，既作为 prompt 上下文，也会默认以 `aggressive` 模式对最终推荐文本做词表强替换；该能力只影响推荐文本展示，不会自动保存或提交。
 - 词表括号内容全部视为拼音 / 批注，不参与建议用字或对应华语；CSV 单字映射默认跳过强替换，避免误伤 `家庭` 这类复合词，基础高频单字仍由后端 `BASE_ENTRIES` 显式控制。
 - 后端支持 `DATABAKER_AI_PIPELINE_MODE=two_stage|listen_only`：`two_stage` 为听音 + 对比双模型模式；`listen_only` 为极速听音模式，只调用 `qwen3.5-omni-flash` 后做本地词表强替换，仅适合推荐文本展示，不适合自动提交。
-- 调用日志同时写入 JSONL 和 CSV；JSONL 保留英文 key 方便程序处理，CSV 新建时使用中文表头，并记录词表改写明细、听音阶段耗时、对比阶段耗时和流水线模式。`mock=true` 的耗时只代表本地链路，不代表真实 Qwen 调用耗时。
+- 调用日志同时写入 JSONL 和 CSV；JSONL 保留英文 key 方便程序处理，CSV 新建时使用中文表头，并记录词表改写明细、听音阶段耗时、对比阶段耗时和流水线模式。
 - 当前页批量预生成暂不默认执行，后续方案是新增“预生成当前页 AI 推荐”按钮，前端读取当前页 10/50 条记录，后端批量接口限制并发，例如 2，并以内存缓存 `itemId -> result`，当前题优先读缓存，避免成本失控。
 - 推荐结果只展示给用户；“填入推荐文本”必须由用户点击触发，且只能写入可安全定位的“本句话文本”输入框。
 - 第一版默认模型：听音 `qwen3.5-omni-flash`，对比 `qwen3.5-plus`。
 
 DataBaker AI 相关环境变量（后端）：
 
-- `DASHSCOPE_API_KEY`：DashScope Key，未配置且未开启 mock 时 recommend 返回 `missing-api-key`。
+- `DASHSCOPE_API_KEY`：DashScope Key，未配置时 recommend 返回 `missing-api-key`。
 - `DATABAKER_AI_LISTEN_MODEL`：听音模型，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：请求超时，默认 `120000`。
-- `DATABAKER_AI_MOCK`：设为 `1` 时走 mock。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端会在原生 `fetch` 请求体顶层传 `enable_thinking=false`；设为 `1` 时不传该字段。
 - `DATABAKER_AI_PIPELINE_MODE`：默认 `two_stage`；设为 `listen_only` 时跳过 `qwen3.5-plus`，只用听音结果和词表改写生成推荐文本。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
@@ -424,3 +423,4 @@ location / {
 - 有功能、目录结构、模块归属、选择器或验证步骤变化时，同步更新相关 README 和根目录 `log.md`。
 - 修改 `manifest.json` 后必须确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 - 修改 JS 后运行 `node --check` 检查变更文件。
+

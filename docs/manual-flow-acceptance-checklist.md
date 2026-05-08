@@ -235,3 +235,4 @@ await rt.getStateCollector().collectForced("list-page-check");
 - shortcut 冲突真页验证
 - 列表页自动流转真页验证
 - 统计上报链路真页验证
+

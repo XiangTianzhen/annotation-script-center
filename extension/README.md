@@ -27,7 +27,7 @@ sites/
 
 - `alibaba-labelx/asr-judgement/`：Alibaba LabelX ASR 快判。
 - `alibaba-labelx/asr-transcription/`：Alibaba LabelX ASR 转写。
-- `data-baker/round-one-quality/`：DataBaker / DataFactory 一检质检 AI 推荐文本，只在 `datafactory.data-baker.com` 的 `roundOneCollect` 详情页注入。
+- `data-baker/round-one-quality/`：标贝易采 一检质检 AI 推荐文本，只在 `datafactory.data-baker.com` 的 `roundOneCollect` 详情页注入。
 
 ## 生成压缩包
 
@@ -44,3 +44,4 @@ Compress-Archive -Path extension\* -DestinationPath $zipPath -Force
 ```
 
 上传商城或分发给同事时使用生成的 `dist\annotation-script-center-v版本号.zip`。压缩包内部第一层必须直接包含 `manifest.json`，不要多套一层 `extension/` 目录。
+

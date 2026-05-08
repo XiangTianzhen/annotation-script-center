@@ -297,3 +297,4 @@
 3. `routeKey` 必须编码 mission/project/subTask，而不是只看 pathname。
 4. page-world document-start 槽位必须保留，不能再退回 isolated-only。
 5. 新增业务模块时，优先追加契约和 manifest，不要把 `content.js` 再变回“大杂烩入口”。
+

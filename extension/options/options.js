@@ -372,6 +372,11 @@
     return dataBakerAiRecommendServerEndpoint;
   }
 
+  function getDataBakerEndpointMode(endpoint) {
+    const normalized = normalizeDataBakerEndpoint(endpoint);
+    return normalized === dataBakerAiRecommendLocalEndpoint ? "local" : "server";
+  }
+
   function normalizeDataBakerEndpointUrl(value) {
     try {
       const url = new URL(String(value || "").trim());
@@ -1171,6 +1176,8 @@
   }
 
   function renderScriptCenter(settings) {
+    renderHomeDataBakerEndpoint(settings);
+
     const center = getElement("script-center-view");
     const platformIds = Object.keys(platformLibrary);
 
@@ -1245,6 +1252,71 @@
         void toggleScript(button.getAttribute("data-disable-script"), false);
       });
     });
+  }
+
+  function renderHomeDataBakerEndpoint(settings) {
+    const serverButton = getElement("home-endpoint-server");
+    const localButton = getElement("home-endpoint-local");
+    if (!(serverButton instanceof HTMLButtonElement) || !(localButton instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const config = getDataBakerRoundOneConfig(settings);
+    const mode = getDataBakerEndpointMode(config.aiRecommendEndpoint);
+    const statusNode = getElement("home-endpoint-status");
+    const isLocal = mode === "local";
+
+    serverButton.classList.toggle("active", !isLocal);
+    localButton.classList.toggle("active", isLocal);
+    serverButton.setAttribute("aria-pressed", String(!isLocal));
+    localButton.setAttribute("aria-pressed", String(isLocal));
+
+    if (statusNode) {
+      statusNode.textContent =
+        "当前已选择：" + (isLocal ? "本机（127.0.0.1:3333）" : "服务器（script.xiangtianzhen.store）");
+    }
+  }
+
+  async function setHomeDataBakerEndpoint(mode) {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      const statusNode = getElement("home-endpoint-status");
+      if (statusNode) {
+        statusNode.textContent = "当前扩展版本不支持保存后端接口地址。";
+      }
+      return;
+    }
+
+    const nextEndpoint =
+      mode === "local" ? dataBakerAiRecommendLocalEndpoint : dataBakerAiRecommendServerEndpoint;
+    const statusNode = getElement("home-endpoint-status");
+    if (statusNode) {
+      statusNode.textContent = "正在保存后端接口地址...";
+    }
+
+    try {
+      currentSettings = await storage.patchSettings({
+        platforms: {
+          dataBaker: {
+            scripts: {
+              roundOneQuality: {
+                id: dataBakerRoundOneQualityScriptId,
+                aiRecommendEndpoint: nextEndpoint,
+              },
+            },
+          },
+        },
+      });
+      renderHomeDataBakerEndpoint(currentSettings);
+      if (statusNode) {
+        statusNode.textContent =
+          "后端接口地址已保存为" + (mode === "local" ? "本机" : "服务器") + "。";
+      }
+    } catch (error) {
+      if (statusNode) {
+        statusNode.textContent =
+          "保存失败：" + (error && error.message ? error.message : String(error));
+      }
+    }
   }
 
   function renderDetailHeader(settings, scriptId) {
@@ -1324,14 +1396,12 @@
 
   function applyDataBakerForm(settings) {
     const config = getDataBakerRoundOneConfig(settings);
-    const endpoint = normalizeDataBakerEndpoint(config.aiRecommendEndpoint);
     dataBakerShortcutsDraft = clone(config.shortcuts) || {};
     getElement("data-baker-ai-recommend-enabled").checked =
       config.aiRecommendEnabled !== false;
     getElement("data-baker-ai-recommend-timeout").value = String(
       dataBakerTimeoutMsToSeconds(config.aiRecommendRequestTimeoutMs)
     );
-    getElement("data-baker-ai-recommend-endpoint").value = endpoint;
     getElement("data-baker-auto-page-size-enabled").checked =
       config.autoPageSizeEnabled !== false;
     getElement("data-baker-default-page-size").value = normalizeDataBakerPageSize(
@@ -1344,11 +1414,10 @@
 
   async function saveDataBakerSettings() {
     if (!storage || typeof storage.patchSettings !== "function") {
-      setStatus("data-baker-status", "当前扩展版本不支持保存 DataBaker 设置。");
+      setStatus("data-baker-status", "当前扩展版本不支持保存标贝易采设置。");
       return false;
     }
 
-    const endpointInput = getElement("data-baker-ai-recommend-endpoint").value;
     const timeoutInput = getElement("data-baker-ai-recommend-timeout").value;
     const aiRecommendEnabled = getElement("data-baker-ai-recommend-enabled").checked;
     const autoPageSizeEnabled = getElement("data-baker-auto-page-size-enabled").checked;
@@ -1356,7 +1425,6 @@
       getElement("data-baker-default-page-size").value,
       "50条/页"
     );
-    const endpoint = normalizeDataBakerEndpoint(endpointInput);
     const timeoutMs = dataBakerTimeoutSecondsToMs(timeoutInput);
     const shortcuts = {};
 
@@ -1365,7 +1433,7 @@
       shortcuts[action.key] = normalizeNullableShortcut(dataBakerShortcutsDraft[action.key]);
     });
 
-    setStatus("data-baker-status", "正在保存 DataBaker 设置...");
+    setStatus("data-baker-status", "正在保存标贝易采设置...");
 
     try {
       currentSettings = await storage.patchSettings({
@@ -1375,7 +1443,6 @@
               roundOneQuality: {
                 id: dataBakerRoundOneQualityScriptId,
                 aiRecommendEnabled: aiRecommendEnabled,
-                aiRecommendEndpoint: endpoint,
                 aiRecommendRequestTimeoutMs: timeoutMs,
                 autoPageSizeEnabled: autoPageSizeEnabled,
                 defaultPageSize: defaultPageSize,
@@ -1388,7 +1455,7 @@
       renderCurrentView();
       setStatus(
         "data-baker-status",
-        "DataBaker 设置已保存；已打开的 DataBaker 页面未同步时请刷新页面。"
+        "标贝易采设置已保存；已打开的标贝易采页面未同步时请刷新页面。"
       );
       return true;
     } catch (error) {
@@ -1562,6 +1629,7 @@
     if (!scriptId) {
       getElement("script-center-view").classList.remove("hidden");
       getElement("script-detail-view").classList.add("hidden");
+      getElement("home-endpoint-card").classList.remove("hidden");
       unmountTranscriptionPanel();
       renderScriptCenter(settings);
       return;
@@ -1569,6 +1637,7 @@
 
     getElement("script-center-view").classList.add("hidden");
     getElement("script-detail-view").classList.remove("hidden");
+    getElement("home-endpoint-card").classList.add("hidden");
     renderDetail(settings, scriptId);
   }
 
@@ -1597,6 +1666,14 @@
 
     getElement("save-data-baker-settings").addEventListener("click", function () {
       void saveDataBakerSettings();
+    });
+
+    getElement("home-endpoint-server").addEventListener("click", function () {
+      void setHomeDataBakerEndpoint("server");
+    });
+
+    getElement("home-endpoint-local").addEventListener("click", function () {
+      void setHomeDataBakerEndpoint("local");
     });
 
     try {

@@ -6,7 +6,7 @@
 - 当前仓库是“标注脚本中心 annotation-script-center”。
 - 当前项目处于“Chrome / Chromium MV3 单源码扩展 + 多平台脚本增强阶段”，不是初始化、骨架或 Demo。
 - 当前通用扩展源码目录是 `extension/`，这是“标注脚本中心”的 Chrome / Chromium MV3 兼容扩展源码目录。
-- 当前重点平台包括：`Alibaba LabelX`、`DataBaker / DataFactory`。
+- 当前重点平台包括：`Alibaba LabelX`、`标贝易采`。
 - 当前重点脚本包括：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/alibaba-labelx/asr-transcription/`、`extension/sites/data-baker/round-one-quality/`。
 - 当前统一后端入口是 `platform-resources/backend/server.js`。
 - `extension/` 是唯一业务运行时代码源。Chrome 和 Edge 本地加载、打包、调试都应优先使用同一目录，不再复制一套业务逻辑。
@@ -78,7 +78,7 @@
   - `extension/sites/alibaba-labelx/asr-judgement/README.md`
   - `extension/sites/alibaba-labelx/asr-transcription/README.md`
   - `platform-resources/alibaba-labelx/...`
-  - `docs/extension/...`
+  - `docs/...`
 - 若暂不确定文档落点，先更新对应模块 README，并在最终输出说明后续可迁移到更细文档。
 
 ### Codex 最终输出要求
@@ -204,5 +204,6 @@
 - 如果工作区存在明显无关或无法确认归属的改动，不要混入提交，应在最终回复中说明。
 - 提交信息使用中文，简明说明本轮改动目的。
 - 当前项目按单人维护流程，执行类任务验证通过后默认直接 push 到 `main`；仅在只读审计、验证失败或用户明确禁止提交时不 push。
+
 
 

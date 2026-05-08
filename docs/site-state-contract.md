@@ -188,3 +188,4 @@ interface AlibabaLabelxDomAdapterResult {
 1. 先改 `site-contract.js`
 2. 再改相关 consumer
 3. 同步更新 `docs/alibaba-labelx-legacy-foundation-baseline.md`
+

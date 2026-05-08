@@ -245,7 +245,7 @@
 - `README.md`
 - `docs/current-architecture.md`
 - `docs/edge-migration-plan.md`
-- `docs/extension-skeleton.md`
+- `docs/` 下的 `extension-skeleton.md`
 - `docs/module-boundaries.md`
 - `docs/site-state-contract.md`
 - `docs/dom-adapter-plan.md`
@@ -279,3 +279,4 @@
 - 是否进入更接近完整快速填入的中风险业务迁移
 
 高风险链路仍应最后迁移。
+

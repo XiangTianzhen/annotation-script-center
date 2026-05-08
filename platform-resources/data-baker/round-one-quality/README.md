@@ -1,6 +1,6 @@
-# DataBaker 一检质检平台资料
+# 标贝易采一检质检平台资料
 
-本目录记录 DataBaker / DataFactory 质检站点“一检质检”页面结构、网络接口和本地后端调试资料。
+本目录记录 标贝易采 质检站点“一检质检”页面结构、网络接口和本地后端调试资料。
 
 ## 页面范围
 
@@ -18,11 +18,11 @@ extension/sites/data-baker/round-one-quality/
 
 ## 扩展 options 接入
 
-`DataBaker 一检质检` 已接入扩展 options “标注脚本中心”：
+`标贝易采一检质检` 已接入扩展 options “标注脚本中心”：
 
-- options 首页展示 `DataBaker / DataFactory` 平台区域和 `DataBaker 一检质检` 脚本卡片。
+- options 首页展示 `标贝易采` 平台区域和 `标贝易采一检质检` 脚本卡片。
 - 脚本可在卡片中启停，默认启用，便于上线验证。
-- 专属设置页可配置 AI 推荐接口地址、请求超时时间和 AI 推荐开关。
+- 专属设置页可配置 后端接口地址、请求超时时间和 AI 推荐开关。
 - 专属设置页新增自动每页条数，默认启用并设置为 `50条/页`，只点击页面原生分页控件。
 - 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
@@ -111,7 +111,6 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 - `DATABAKER_AI_LISTEN_MODEL`：听音模型，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
-- `DATABAKER_AI_MOCK`：设为 `1` 时返回 mock 结果。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
 - `DATABAKER_AI_PIPELINE_MODE`：默认 `two_stage`，即听音 + 对比双模型；设为 `listen_only` 时只调用 `qwen3.5-omni-flash`，再做本地词表强替换。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文。
@@ -122,7 +121,6 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 
 - 默认 `two_stage` 模式会串行调用 `qwen3.5-omni-flash` 和 `qwen3.5-plus`，日志会记录听音耗时、对比耗时、总耗时和流水线模式。
 - `listen_only` 是极速听音模式，只返回听音文本并做词表强替换，仍然只作为人工复核推荐，不自动保存或提交。
-- `mock=true` 的耗时只代表本地链路，不代表真实 Qwen 调用耗时；真实耗时以日志中 `mock=false` 的听音 / 对比阶段耗时为准。
 - 后续可新增“预生成当前页 AI 推荐”按钮：前端读取当前页 10/50 条接口记录，后端批量接口限制并发，例如 2，前端以内存缓存 `itemId -> result`，当前题点击 AI 推荐时优先读缓存。
 - 当前页预生成默认不自动执行，避免在翻页或误触时产生不可控模型成本。
 
@@ -132,3 +130,4 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 - 不做自动保存、不做自动提交、不做批量识别、不做自动流转。
 - 结果写入页面输入框必须由用户点击“填入推荐文本”触发。
 - 如果页面结构变化导致无法安全定位输入框，扩展只保留复制能力。
+

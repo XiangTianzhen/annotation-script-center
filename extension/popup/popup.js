@@ -7,6 +7,8 @@
   const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
   const judgementProjectId = constants.JUDGEMENT_PROJECT_ID || "judgement";
   const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
+  const dataBakerRoundOneQualityScriptId =
+    constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
   let currentDetectedScriptId = null;
 
   function queryTabs(queryInfo) {
@@ -160,6 +162,73 @@
       };
     }
 
+    if (url.hostname === (constants.DATA_BAKER_PLATFORM || {}).host) {
+      const pathname = String(url.pathname || "").toLowerCase();
+      const hash = String(url.hash || "").toLowerCase();
+      const isV2Path =
+        pathname === "/v2" || pathname === "/v2/" || pathname.startsWith("/v2/");
+      const platformEnabled = settings?.platforms?.dataBaker?.enabled !== false;
+      const scriptEnabled =
+        settings?.platforms?.dataBaker?.scripts?.roundOneQuality?.enabled !== false;
+      const enabledDescriptionSuffix =
+        platformEnabled && scriptEnabled
+          ? ""
+          : " 当前平台或脚本未启用，可在脚本中心启用后再使用。";
+
+      if (!isV2Path) {
+        return {
+          scriptId: dataBakerRoundOneQualityScriptId,
+          platformId: "dataBaker",
+          url: url,
+          platformEnabled: platformEnabled,
+          scriptEnabled: scriptEnabled,
+          statusText: "未触发",
+          statusTone: "pending",
+          title: "当前页面属于标贝易采",
+          description: "当前 URL 不在标贝易采 /v2 页面范围内。" + enabledDescriptionSuffix,
+        };
+      }
+
+      if (hash.indexOf("#/quality/roundonecollect") >= 0) {
+        return {
+          scriptId: dataBakerRoundOneQualityScriptId,
+          platformId: "dataBaker",
+          url: url,
+          platformEnabled: platformEnabled,
+          scriptEnabled: scriptEnabled,
+          title: "当前页面命中标贝易采",
+          description:
+            "当前会尝试触发“标贝易采一检质检”。" + enabledDescriptionSuffix,
+        };
+      }
+
+      if (hash.indexOf("#/group/detail") >= 0) {
+        return {
+          scriptId: dataBakerRoundOneQualityScriptId,
+          platformId: "dataBaker",
+          url: url,
+          platformEnabled: platformEnabled,
+          scriptEnabled: scriptEnabled,
+          title: "当前页面命中标贝易采",
+          description:
+            "当前支持任务组详情页导出能力。" + enabledDescriptionSuffix,
+        };
+      }
+
+      return {
+        scriptId: dataBakerRoundOneQualityScriptId,
+        platformId: "dataBaker",
+        url: url,
+        platformEnabled: platformEnabled,
+        scriptEnabled: scriptEnabled,
+        statusText: "待进入一检页面",
+        statusTone: "pending",
+        title: "当前页面属于标贝易采",
+        description:
+          "进入一检详情页后会尝试触发“标贝易采一检质检”。" + enabledDescriptionSuffix,
+      };
+    }
+
     return {
       scriptId: null,
       platformId: null,
@@ -210,6 +279,22 @@
       context.statusText = context.statusText || "待迁移";
       context.statusTone = context.statusTone || "pending";
       context.description += " 当前扩展版还没有把运行时逻辑迁过来。";
+      return context;
+    }
+
+    if (context.platformId === "dataBaker") {
+      if (!context.platformEnabled || context.scriptEnabled === false) {
+        context.statusText = "未启用";
+        context.statusTone = "disabled";
+        return context;
+      }
+
+      if (!context.statusText) {
+        context.statusText = "已启用";
+      }
+      if (!context.statusTone) {
+        context.statusTone = "success";
+      }
       return context;
     }
 

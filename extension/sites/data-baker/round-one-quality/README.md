@@ -1,6 +1,6 @@
-# DataBaker 一检质检 AI 推荐文本
+# 标贝易采一检质检 AI 推荐文本
 
-本目录是 DataBaker / DataFactory 质检站点的扩展运行时代码，目标页面为：
+本目录是 标贝易采 质检站点的扩展运行时代码，目标页面为：
 
 - 首页：`https://datafactory.data-baker.com/v2/#/quality/roundOne`
 - 详情页：`https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0`
@@ -11,7 +11,7 @@
 ## 当前能力
 
 - 仅在 `roundOneCollect` 详情页注入小工具卡。
-- 已接入扩展 options “标注脚本中心”，在 `DataBaker / DataFactory` 平台区域提供脚本启停和专属设置页。
+- 已接入扩展 options “标注脚本中心”，在 `标贝易采` 平台区域提供脚本启停和专属设置页。
 - 只处理左侧当前选中的单条句子。
 - 工具卡提供“AI 推荐文本”按钮，由用户手动点击触发。
 - 点击后读取当前题的 `audioUrl`、页面候选文本、句子编号、朗读要求、有效时间和音频时长，再调用 options 中配置的后端接口。
@@ -50,10 +50,10 @@ round-one-quality/
 
 ## options 设置
 
-`DataBaker 一检质检` 在 options 首页默认启用，方便上线验证；用户可在卡片中关闭脚本。专属设置页支持：
+`标贝易采一检质检` 在 options 首页默认启用，方便上线验证；用户可在卡片中关闭脚本。专属设置页支持：
 
 - 启用 / 关闭 AI 推荐文本；关闭后页面不显示 AI 推荐工具卡，也不会触发推荐请求。
-- AI 推荐接口地址只能选择服务器或本机，默认服务器地址：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
+- 后端接口地址只能选择服务器或本机，默认服务器地址：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
 - 本机调试地址：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`，仅用于开发调试；员工默认走服务器。
 - 配置前端请求超时时间，页面以秒展示，默认 `120` 秒；扩展内部仍按毫秒存储到 `aiRecommendRequestTimeoutMs`。
 - 启用 / 关闭自动每页条数，默认启用，默认目标为 `50条/页`，可选 `5条/页`、`10条/页`、`20条/页`、`50条/页`、`100条/页`。
@@ -143,8 +143,8 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 ## 人工验证步骤
 
 1. 重新加载扩展。
-2. 打开 options 页面，确认首页出现 `DataBaker / DataFactory` 平台和 `DataBaker 一检质检` 卡片。
-3. 点击“打开设置”，确认默认 AI 推荐接口地址是服务器地址，并可切换成本机调试地址。
+2. 打开 options 页面，确认首页出现 `标贝易采` 平台和 `标贝易采一检质检` 卡片。
+3. 点击“打开设置”，确认默认 后端接口地址是服务器地址，并可切换成本机调试地址。
 4. 确认自动每页条数默认启用且目标为 `50条/页`；快捷键配置区域默认全部未设置。
 5. 录制一个快捷键，例如 `Alt+A` 绑定“AI 推荐文本”，保存后刷新 options 页面，确认配置仍存在。
 6. 如需本机调试，启动本地后端：`node platform-resources\backend\server.js`。
@@ -174,3 +174,4 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 - 如果分页大小下拉无法自动展开或未找到 `100条/页`，页面会提示手动切换到 `100条/页` 后重试；必要时会降级导出当前页并给出明确提示。
 - 如果无法安全定位可编辑的“本句话文本”输入框，结果卡仍保留复制入口，但不会强行填入。
 - 有效音频裁剪第一版未启用；后端只保留环境变量和代码结构，默认把完整 `audioUrl` 交给听音模型。
+
