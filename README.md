@@ -79,17 +79,17 @@ Chrome：
 - 本机调试接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`，仅用于开发调试。
 - 请求超时时间在 options 中以秒展示，默认 `120` 秒；扩展内部仍按毫秒保存和请求。
 - 是否启用 AI 推荐文本。
-- 自动每页条数默认启用，进入 DataBaker 一检详情页后会尝试设置为 `50条/页`，只改页面分页，不自动提交任务。
+- 自动每页条数默认启用，进入 标贝易采一检详情页后会尝试设置为 `50条/页`，只改页面分页，不自动提交任务。
 - 快捷键配置默认全部未设置，可手动绑定 AI 推荐、复制听音文本、复制推荐文本、填入、忽略、句子判定和任务判定动作；普通输入不拦截，按下已配置快捷键时会先退出输入焦点再执行。
-- DataBaker 快捷键运行时会先判断按键是否命中已配置动作，未命中时不阻止输入、不做任何 blur/focus 干预。
-- 为避免影响平台音频播放器与波形组件初始化，DataBaker 已移除旧的被动焦点恢复；仅通过“本句话文本变化检测”在平台自动切题后短暂进入输入框再退出，以恢复快捷键焦点。
-- DataBaker `group/detail?taskId=...` 页面提供“导出数据总表”按钮。导出不再由扩展直接 `fetch queryByCondition`，而是触发页面原生分页查询并由 MAIN world 拦截响应后合并全量 CSV（含 BOM）；默认不依赖本地后端和账号密码配置。
+- 标贝易采快捷键运行时会先判断按键是否命中已配置动作，未命中时不阻止输入、不做任何 blur/focus 干预。
+- 为避免影响平台音频播放器与波形组件初始化，标贝易采 已移除旧的被动焦点恢复；仅通过“本句话文本变化检测”在平台自动切题后短暂进入输入框再退出，以恢复快捷键焦点。
+- 标贝易采 `group/detail?taskId=...` 页面提供“导出数据总表”按钮。导出不再由扩展直接 `fetch queryByCondition`，而是触发页面原生分页查询并由 MAIN world 拦截响应后合并全量 CSV（含 BOM）；默认不依赖本地后端和账号密码配置。
 
 扩展前端只保存接口地址、超时时间、开关、分页和快捷键设置，不保存 API Key、cookie、access token 或完整音频 URL。真实模型密钥仍由后端通过 `config/env/ai.env` 读取。
 
 ## ASR 转写当前口径
 
-- `asr-transcription` 当前只做基础功能，不做“全自动闭环”。
+- `asr-transcription` 已在 2026-05-08 执行“删除旧目录 + 轻量重写”，当前只做基础功能，不做“全自动闭环”。
 - 一条音频对应一个完整文本框。
 - 当前不实现时间戳、说话人区分、AI 初稿、AI 校对、AI 格式化。
 - 保存方式以 LabelX 平台自动保存为准。
@@ -97,12 +97,16 @@ Chrome：
 - 不构建、不注入自定义保存 payload。
 - 不自动提交、不自动领取、不自动流转。
 - 快捷键只保留基础能力相关动作：播放/暂停、前进/后退、倍速、音量、焦点切换、基础文本处理。
+- 旧 legacy、保存、提交、批量、自动化、AI、导出、排行榜、整页执行链路已删除。
+- 若未来要恢复旧能力，必须按新需求重新设计与验收，不能直接恢复旧脚本。
 
 ## 打包发布
 
+- 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
 - 打包 Chrome Web Store 或 Edge Add-ons 时，压缩包根目录必须直接包含 `manifest.json`，也就是压缩 `extension/` 目录内的内容，而不是压缩仓库根目录。
 - 浏览器差异优先收敛到 manifest、浏览器 API 兼容层、打包配置或发布说明，不复制 `sites/` 下的业务运行时代码。
-- 发布产物建议输出到 `dist/` 或 `extension/dist/`，这些目录已被 `.gitignore` 忽略。
+- 默认打包输出到 `dist/`，命名规则为 `annotation-script-center-v<manifest.version>.zip`。
+- 生成压缩包后默认不提交 `dist/` 构建产物（除非任务明确要求提交发布产物）。
 
 ### 生成扩展压缩包
 
@@ -122,7 +126,7 @@ Write-Host "已生成：$zipPath"
 生成后的压缩包路径示例：
 
 ```text
-dist\annotation-script-center-v0.2.8.zip
+dist\annotation-script-center-v<manifest.version>.zip
 ```
 
 压缩包内部第一层必须能直接看到这些内容：
@@ -136,7 +140,7 @@ shared/
 sites/
 ```
 
-不要把整个 `extension/` 文件夹作为压缩包内的第一层目录；否则 Chrome Web Store、Edge Add-ons 或本地安装都会找不到根级 `manifest.json`。
+不要把整个 `extension/` 文件夹作为压缩包内的第一层目录；否则 Chrome Web Store、Edge Add-ons 或本地安装都会找不到根级 `manifest.json`。上传商城或发给同事时，直接使用 `dist/` 中生成的 zip。
 
 ## 本地后端
 
@@ -169,7 +173,7 @@ http://127.0.0.1:3333
 - 推荐接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
 - 扩展默认推荐接口：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
 
-DataBaker 任务总表导出默认模式（扩展前端）：
+标贝易采任务总表导出默认模式（扩展前端）：
 
 - 平台对扩展直接请求 `queryByCondition` 可能返回 `code=51000`。现行方案改为：触发页面原生请求，再由 MAIN world 拦截响应导出。
 - 点击导出后会先点击 Element UI 分页大小选择器（优先 `.el-input.el-input--mini.el-input--suffix`）并选择 `100条/页`，再通过分页控件逐页触发平台原生请求并合并导出全量数据。
@@ -221,7 +225,7 @@ pm2 restart annotation-script-center --update-env
 
 快判 AI 建议说明：
 
-- 当前扩展版本：`0.2.7`。
+- 当前扩展版本请以 `extension/manifest.json` 的 `version` 字段为准。
 - 第一版默认模型：`qwen3-omni-flash`。
 - 已预留模型：`qwen3.5-omni-plus`（不默认使用）。
 - 已取消 MiniMax 接入，本仓库不包含 MiniMax client。
@@ -241,16 +245,16 @@ pm2 restart annotation-script-center --update-env
 - `ASR_JUDGEMENT_AI_MODEL`：默认模型，默认 `qwen3-omni-flash`。
 - `ASR_JUDGEMENT_AI_TIMEOUT_MS`：请求超时，默认 `120000`。
 
-DataBaker AI 推荐文本说明：
+标贝易采 AI 推荐文本说明：
 
 - 当前目标页面：`https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0`。
 - 脚本已接入 options “标注脚本中心”，可在 标贝易采 平台区域启停，并在专属设置页选择 后端接口地址。
 - 默认前端请求服务器接口 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`；本机 `http://127.0.0.1:3333/...` 仅用于开发调试，员工默认走服务器。
 - options 中请求超时时间以秒展示，默认 `120` 秒；运行时仍使用毫秒值。
 - 当前只做“单条 AI 推荐文本”，不自动保存、不自动提交、不自动点击合格 / 不合格、不做批量识别或自动流转。
-- DataBaker 设置页新增自动每页条数，默认 `50条/页`，运行时会有限重试点击页面原生分页下拉，不改接口参数、不死循环。
-- DataBaker 设置页新增快捷键配置，默认全部未设置；支持 AI 推荐文本、复制 AI 听音文本、复制 AI 推荐文本、填入推荐文本、忽略 AI 推荐结果、句子判定合格 / 不合格、任务判定通过 / 部分驳回 / 全部驳回。
-- 普通输入不会被快捷键拦截；如果焦点仍在 `input`、`textarea`、`select` 或 `contenteditable` 中，只有按下已配置的 DataBaker 快捷键时才会自动失焦并执行动作。
+- 标贝易采设置页新增自动每页条数，默认 `50条/页`，运行时会有限重试点击页面原生分页下拉，不改接口参数、不死循环。
+- 标贝易采设置页新增快捷键配置，默认全部未设置；支持 AI 推荐文本、复制 AI 听音文本、复制 AI 推荐文本、填入推荐文本、忽略 AI 推荐结果、句子判定合格 / 不合格、任务判定通过 / 部分驳回 / 全部驳回。
+- 普通输入不会被快捷键拦截；如果焦点仍在 `input`、`textarea`、`select` 或 `contenteditable` 中，只有按下已配置的 标贝易采快捷键时才会自动失焦并执行动作。
 - 点击左侧句子、点击平台“确定/合格/不合格/上一条/下一条”或平台自动切换下一条时，脚本不再执行被动 blur/focus，避免干扰音频区域初始化。
 - 检测到“本句话文本”发生变化且用户不在手动编辑时，脚本会短暂 focus 该 textarea 再 blur 退出，用于恢复快捷键焦点；普通输入保持原生行为。
 - “填入推荐文本”写入“本句话文本”输入框后会立即和延迟退出输入框，方便继续使用快捷键；仍不会自动保存、自动提交或自动点击合格 / 不合格。
@@ -270,7 +274,7 @@ DataBaker AI 推荐文本说明：
 - 推荐结果只展示给用户；“填入推荐文本”必须由用户点击触发，且只能写入可安全定位的“本句话文本”输入框。
 - 第一版默认模型：听音 `qwen3.5-omni-flash`，对比 `qwen3.5-plus`。
 
-DataBaker AI 相关环境变量（后端）：
+标贝易采 AI 相关环境变量（后端，技术前缀 `DATABAKER_`）：
 
 - `DASHSCOPE_API_KEY`：DashScope Key，未配置时 recommend 返回 `missing-api-key`。
 - `DATABAKER_AI_LISTEN_MODEL`：听音模型，默认 `qwen3.5-omni-flash`。
@@ -405,11 +409,11 @@ location / {
 注意：
 
 - `alias` 路径和 `location /downloads/` 都要以 `/` 结尾。
-- `dist/` 目录里建议只放对外分发的扩展压缩包，例如 `annotation-script-center-v0.2.7.zip`。
+- `dist/` 目录里建议只放对外分发的扩展压缩包，例如 `annotation-script-center-v<manifest.version>.zip`。
 - 如果访问 `https://script.xiangtianzhen.store/downloads` 没有尾部 `/` 出现异常，改用 `https://script.xiangtianzhen.store/downloads/`。
 - 配置后执行 `sudo nginx -t` 和 `sudo systemctl reload nginx`。
 - 验证目录列表：`curl -I https://script.xiangtianzhen.store/downloads/`。
-- 验证单个文件：`curl -I https://script.xiangtianzhen.store/downloads/annotation-script-center-v0.2.7.zip`。
+- 验证单个文件：`curl -I https://script.xiangtianzhen.store/downloads/annotation-script-center-v<manifest.version>.zip`。
 
 ## 维护规则
 
@@ -423,4 +427,6 @@ location / {
 - 有功能、目录结构、模块归属、选择器或验证步骤变化时，同步更新相关 README 和根目录 `log.md`。
 - 修改 `manifest.json` 后必须确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 - 修改 JS 后运行 `node --check` 检查变更文件。
+
+
 
