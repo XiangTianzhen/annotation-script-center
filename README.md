@@ -101,6 +101,7 @@ Chrome：
 - options 转写详情页保留轻量说明 + 转写统计上传小卡（开关、上传地址、本机/服务器下载地址说明）。
 - popup 状态区分为：已注入等待详情页、运行成功、真正注入失败。
 - 转写新增统计导出能力：支持顶部“上传转写统计”手动上传与定时上传（默认 `10:00`、`16:00`，jitter `10` 分钟），后端按分包合并 CSV。
+- 转写扩展侧统计文件为 `extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只做采集与上传客户端；CSV 落盘与下载服务仅在 `platform-resources/alibaba-labelx/asr-transcription/backend/`。
 - 转写统计 CSV 列固定为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
 - 转写统计后端目录为 `platform-resources/alibaba-labelx/asr-transcription/backend/`，下载地址为 `/api/alibaba-labelx/asr-transcription/statistics/download`。
 - 旧 legacy、保存、提交、批量、自动化、AI、导出、排行榜、整页执行链路已删除。

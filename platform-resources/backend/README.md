@@ -57,6 +57,10 @@ http://127.0.0.1:3333
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、CSV 下载（CSV 列与快判不同，按转写统计格式输出）。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend` 接口。
 
+ASR 转写职责边界：
+- 扩展前端客户端：`extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只负责采集、上传、按钮和调度。
+- Node 后端服务：`platform-resources/alibaba-labelx/asr-transcription/backend/`，负责路由、合并、CSV 写入与下载。
+
 ## 新增项目 API 规则
 
 1. 在对应项目目录下创建 `backend/index.js`，导出 `registerRoutes(router, options)`。

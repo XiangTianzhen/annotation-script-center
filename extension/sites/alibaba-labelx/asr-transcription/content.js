@@ -6,7 +6,7 @@
   const itemActions = globalThis.__ASREdgeAlibabaLabelxTranscriptionItemActions || null;
   const audioApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionAudioController || null;
   const toolbarApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionToolbar || null;
-  const statsApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionStatsServer || null;
+  const statsApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionStatsClient || null;
   const messageTypes = constants.MESSAGE_TYPES || {};
   const PANEL_PING = messageTypes.PANEL_PING || "ASR_EDGE_SETTINGS_PANEL_PING";
   const PROJECT_ID = configApi?.PROJECT_ID || "transcription";

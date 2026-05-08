@@ -35,7 +35,8 @@
 - `content.js`：页面命中重试 + 运行时编排 + ping。
 - `toolbar.js`：页面内工具栏挂载、分组渲染、状态块与重挂载。
 - `runtime-config.js`：启用状态与固定默认值。
-- `transcription-stats-server.js`：统计采集、手动上传按钮、自动上传调度。
+- `transcription-stats-client.js`：浏览器端统计上传客户端，只做采集、上传、按钮和定时调度，不做 CSV 落盘。
+- `backend/`：Node 后端统计服务，负责 health/config/upload/download、分包合并、CSV 写入与下载。
 - `active-item.js`：当前题定位。
 - `item-actions.js`：当前题动作。
 - `audio-controller.js`：当前音频动作。

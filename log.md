@@ -2,12 +2,13 @@
 
 ## 2026-05-08
 
-- ASR 转写新增统计导出能力：新增 `transcription-stats-server.js`，提供顶部“上传转写统计”入口、工具栏“上传统计”动作、定时上传调度（默认 `10:00` / `16:00`，jitter `10` 分钟）和上传状态提示。
+- ASR 转写新增统计导出能力：新增 `transcription-stats-client.js`（浏览器端上传客户端），提供顶部“上传转写统计”入口、工具栏“上传统计”动作、定时上传调度（默认 `10:00` / `16:00`，jitter `10` 分钟）和上传状态提示。
 - ASR 转写新增独立统计后端：新增 `platform-resources/alibaba-labelx/asr-transcription/backend/`，包含 `health/config/upload/download` 路由、分包合并、CSV 写入与下载；默认输出 `statistics-data/statistics-merged.csv`。
 - 转写统计 CSV 列固定为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`，同一分包按 `mergeKey.batchId` 合并标注/审核记录。
 - 统一后端注册新增 `alibaba-labelx/asr-transcription` 项目路由与环境变量支持（`ASR_TRANSCRIPTION_STATS_DIR`、`ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`、`ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`）。
 - options 转写详情页继续保持轻量模式，不恢复旧完整设置表单，仅新增统计导出小卡（开关、上传地址、本地保存目录和下载地址说明）。
 - 本轮仍保持 `extension/manifest.json` 版本 `0.2.10`，因为当前属于 `0.2.10` 测试修复阶段，不提前升到 `0.2.11`。
+- 修正转写统计前后端命名与边界：扩展侧文件从 `transcription-stats-server.js` 重命名为 `transcription-stats-client.js`，只保留采集/上传客户端职责；Node 服务继续只在 `platform-resources/alibaba-labelx/asr-transcription/backend/`。
 
 - ASR 转写轻量工具栏完成页面内布局改造：新增 `toolbar.js`，工具栏优先注入 `.mark-toolbox`（优先 breadcrumb 后），无 `.mark-toolbox` 时回退到首条题卡前，不再默认固定悬浮在页面顶部中央。
 - ASR 转写工具栏改为分组结构：`当前题/文本/音频/倍速/音量/状态`；状态块新增当前题定位、当前音频状态和最近动作结果，按钮动作继续只作用于当前题/当前音频。

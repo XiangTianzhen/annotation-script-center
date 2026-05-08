@@ -4,6 +4,8 @@
 
 本目录提供 ASR 转写统计上传、合并与 CSV 下载能力，路由由 `platform-resources/backend/server.js` 统一启动注册。
 
+说明：浏览器扩展前端只保留 `extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js` 作为统计上传客户端，不在前端实现 Node 服务或 CSV 落盘。
+
 ## 默认数据目录
 
 - `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`

@@ -204,10 +204,10 @@
   }
 
   function getHomeTaskKind(pathname) {
-    const path = String(pathname || location.pathname || "").toLowerCase();
+    const routeText = String(pathname || location.pathname || "").toLowerCase();
     return (
       HOME_TASK_KINDS.find(function (kind) {
-        return path.indexOf(kind.route) >= 0;
+        return routeText.indexOf(kind.route) >= 0;
       }) || null
     );
   }
@@ -1347,8 +1347,8 @@
     if (location.hostname !== "labelx.alibaba-inc.com") {
       return false;
     }
-    const path = String(location.pathname || "").toLowerCase();
-    if (path.indexOf("/corpora/labeling/") < 0) {
+    const routeText = String(location.pathname || "").toLowerCase();
+    if (routeText.indexOf("/corpora/labeling/") < 0) {
       return false;
     }
     const text = String(document.body?.textContent || "").replace(/\s+/g, "");
@@ -1356,11 +1356,11 @@
   }
 
   function isHomePage() {
-    const path = String(location.pathname || "").toLowerCase();
-    return path.indexOf("/corpora/labeling/labelingtask") >= 0 || path.indexOf("/corpora/labeling/checktask") >= 0;
+    const routeText = String(location.pathname || "").toLowerCase();
+    return routeText.indexOf("/corpora/labeling/labelingtask") >= 0 || routeText.indexOf("/corpora/labeling/checktask") >= 0;
   }
 
-  globalThis.__ASREdgeAlibabaLabelxTranscriptionStatsServer = {
+  globalThis.__ASREdgeAlibabaLabelxTranscriptionStatsClient = {
     createRuntime: createRuntime,
     CSV_COLUMNS: CSV_COLUMNS.slice(),
     isAsrTranscriptionTaskRecord: isAsrTranscriptionTaskRecord,

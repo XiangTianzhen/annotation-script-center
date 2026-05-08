@@ -84,7 +84,8 @@
 - `item-actions.js`：当前题文本与有效/无效动作。
 - `audio-controller.js`：当前音频控制与时长复制。
 - `text-utils.js`：去空格、轻量数字转换。
-- `transcription-stats-server.js`：转写统计采集、手动上传入口、定时上传调度、上传状态回传。
+- `transcription-stats-client.js`：浏览器端转写统计上传客户端，仅负责统计采集、手动/定时上传、按钮状态回传。
+- `platform-resources/alibaba-labelx/asr-transcription/backend/`：Node 后端服务目录，负责路由、分包合并、CSV 落盘与下载。
 
 ## 真实浏览器验证步骤
 
