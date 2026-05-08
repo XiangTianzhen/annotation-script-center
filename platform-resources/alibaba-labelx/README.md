@@ -7,7 +7,7 @@
 当前已整理的脚本项目：
 
 - `asr-judgement/`：阿里 ASR 语音判别 / ASR 快判。
-- `asr-transcription/`：阿里 ASR 语音转写，目前仅建立占位说明，后续按需迁移。
+- `asr-transcription/`：阿里 ASR 语音转写，已补充转写首页与详情页的脱敏网络请求文档（见 `asr-transcription/network.md`）。
 
 ## 通用约定
 

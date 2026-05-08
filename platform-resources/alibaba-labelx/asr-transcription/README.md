@@ -70,6 +70,13 @@
 - 服务器下载地址需部署最新后端后可用；本地可先用 `127.0.0.1:3333` 验证。
 - 资料与代码均不记录 cookie、token、完整音频 URL、完整签名 URL。
 
+## 网络采集文档
+
+- 已补充真实采集网络口径文档：`network.md`。
+- 文档覆盖首页 `tasks/subTasks/tasks/process` 与详情页 `subTask/{id}/data|summary|board|getLabelTaskInfo`。
+- 已明确 `subTaskId` 可能包含换行和空格编码，接口构造前必须先清洗。
+- 已明确详情页转写数据按 `pageSize=10` 分页抓取。
+
 ## 后续约束
 
 - 若未来要恢复已删旧能力，必须走“新需求 -> 新设计 -> 新实现 -> 新验收”，不能直接恢复旧文件或旧架构。

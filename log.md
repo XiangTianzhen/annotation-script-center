@@ -246,6 +246,11 @@
 - 修正转写脚本在 LabelX 非转写页面的契约缺失告警：manifest 版本提升到 `0.2.3`，`content.js` 改为等待 `runtime-contract.js` 注入后再启动，超时仍缺失时以 info 级日志跳过，避免在快判首页出现 `Runtime contract is not loaded` 扩展错误。
 ## 2026-05-08
 
+- ASR 转写网络请求文档补录：新增 `platform-resources/alibaba-labelx/asr-transcription/network.md`，基于真实 DevTools 采集沉淀首页与详情页接口结构（脱敏）。
+- 明确转写取数关键约束：详情接口 `subTask/{id}/data` 使用 `pageSize=10`；`subTaskId` 需先 `decode + 去空白` 后再拼接请求。
+- 明确任务识别边界：`labelModel=vote` / “ASR更优结果判断”类任务排除，`labelModel=single` / `size=50` / “中文普通话asr任务”类任务采集。
+- 同步更新 `platform-resources/alibaba-labelx/asr-transcription/README.md` 与 `platform-resources/alibaba-labelx/README.md`，将转写网络文档从占位说明升级为可执行口径文档。
+
 - 新增 Magic Data ANNOTATOR 平台前置采集文档目录：`platform-resources/magic-data/annotator/`。
 - 新增并维护文档：`README.md`、`page-structure.md`、`network.md`、`safety-boundary.md`、`development-plan.md`。
 - 本轮采集页面范围：首页、标注任务页、标注任务详情页、标注单条页、审核任务页、审核任务详情页、审核单条页。
