@@ -653,7 +653,7 @@
         0
       ),
       shortcuts: shortcuts,
-      statsUploadEnabled: asrConfig.statsUploadEnabled !== false,
+      statsUploadEnabled: true,
       statsUploadTimes: normalizeTimeList(asrConfig.statsUploadTimes, defaults.statsUploadTimes),
       statsUploadJitterMinutes: clampNumber(
         asrConfig.statsUploadJitterMinutes,
@@ -662,7 +662,7 @@
         120,
         0
       ),
-      statsAutoUploadOnSchedule: asrConfig.statsAutoUploadOnSchedule !== false,
+      statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: clampNumber(
         asrConfig.statsUploadRequestTimeoutMs,
         defaults.statsUploadRequestTimeoutMs || 20000,
@@ -800,7 +800,7 @@
       compactCardEnabled: asrConfig.compactCardEnabled !== false,
       thunderQuestionEnabled: asrConfig.thunderQuestionEnabled !== false,
       autoAdvanceAfterChoice: asrConfig.autoAdvanceAfterChoice === true,
-      statsUploadEnabled: asrConfig.statsUploadEnabled !== false,
+      statsUploadEnabled: true,
       statsScheduleUrl:
         typeof asrConfig.statsScheduleUrl === "string" ? asrConfig.statsScheduleUrl.trim() : "",
       statsUploadTimes: normalizeTimeList(
@@ -815,7 +815,7 @@
         0
       ),
       statsAutoUploadOnSubtaskOpen: false,
-      statsAutoUploadOnSchedule: asrConfig.statsAutoUploadOnSchedule !== false,
+      statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: clampNumber(
         asrConfig.statsUploadRequestTimeoutMs,
         defaults.statsUploadRequestTimeoutMs || 20000,
@@ -1242,9 +1242,6 @@
     getElement("judgement-compact-card").checked = config.compactCardEnabled !== false;
     getElement("judgement-thunder-question").checked = config.thunderQuestionEnabled !== false;
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
-    getElement("judgement-stats-upload-enabled").checked = config.statsUploadEnabled !== false;
-    getElement("judgement-stats-auto-schedule").checked =
-      config.statsAutoUploadOnSchedule !== false;
     getElement("judgement-ai-suggestion-enabled").checked = config.aiSuggestionEnabled === true;
     getElement("judgement-ai-suggestion-timeout").value = String(config.aiSuggestionRequestTimeoutMs);
     renderJudgementAiModelOptions(config.aiSuggestionAvailableModels, config.aiSuggestionModel);
@@ -1389,18 +1386,13 @@
     getElement("transcription-default-valid").checked = config.defaultValid === true;
     getElement("transcription-fill-on-valid").checked = config.fillOnValid !== false;
     getElement("transcription-clear-on-invalid").checked = config.clearOnInvalid !== false;
-    getElement("transcription-stats-enabled").checked = config.statsUploadEnabled !== false;
 
     stopTranscriptionShortcutRecording("");
     renderTranscriptionShortcutGrid();
     const backendLabel = formatBackendModeLabel(settings);
     setStatus(
       "transcription-status",
-      "当前定时上传：" +
-        config.statsUploadTimes.join("、") +
-        "（jitter " +
-        String(config.statsUploadJitterMinutes) +
-        " 分钟）；后端地址：全局 " +
+      "数据统计上传为脚本默认能力，已强制启用；定时上传按脚本能力强制启用。后端地址：全局 " +
         backendLabel
     );
   }
@@ -1447,11 +1439,6 @@
         defaultValid: getElement("transcription-default-valid").checked === true,
         fillOnValid: getElement("transcription-fill-on-valid").checked === true,
         clearOnInvalid: getElement("transcription-clear-on-invalid").checked === true,
-        statsUploadEnabled: getElement("transcription-stats-enabled").checked === true,
-        statsUploadTimes: current.statsUploadTimes,
-        statsUploadJitterMinutes: current.statsUploadJitterMinutes,
-        statsAutoUploadOnSchedule: current.statsAutoUploadOnSchedule,
-        statsUploadRequestTimeoutMs: current.statsUploadRequestTimeoutMs,
         shortcutPlayPause: shortcuts.shortcutPlayPause,
         shortcutValid: shortcuts.shortcutValid,
         shortcutInvalid: shortcuts.shortcutInvalid,
@@ -1667,7 +1654,7 @@
       applyTranscriptionForm(settings);
       setStatus(
         "detail-status",
-        "ASR 转写当前为轻量工具栏模式（0.2.10）：可配置自动播放、倍速、步长、音量、快捷键和统计上传；不包含保存、提交、AI、批量与流转。"
+        "ASR 转写当前为轻量工具栏模式（0.2.10）：可配置自动播放、倍速、步长、音量与快捷键；统计上传和定时上传已按脚本规则强制启用。"
       );
       return;
     }
@@ -1838,8 +1825,6 @@
     const compactCardEnabled = Boolean(getElement("judgement-compact-card").checked);
     const thunderQuestionEnabled = Boolean(getElement("judgement-thunder-question").checked);
     const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
-    const statsUploadEnabled = Boolean(getElement("judgement-stats-upload-enabled").checked);
-    const statsAutoUploadOnSchedule = Boolean(getElement("judgement-stats-auto-schedule").checked);
     const aiSuggestionEnabled = Boolean(getElement("judgement-ai-suggestion-enabled").checked);
     const aiSuggestionRequestTimeoutMs = clampNumber(
       Number(getElement("judgement-ai-suggestion-timeout").value),
@@ -1883,12 +1868,12 @@
         compactCardEnabled: compactCardEnabled,
         thunderQuestionEnabled: thunderQuestionEnabled,
         autoAdvanceAfterChoice: autoAdvanceAfterChoice,
-        statsUploadEnabled: statsUploadEnabled,
+        statsUploadEnabled: true,
         statsScheduleUrl: "",
         statsUploadTimes: constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.statsUploadTimes || ["10:00", "16:00"],
         statsUploadJitterMinutes: constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.statsUploadJitterMinutes || 10,
         statsAutoUploadOnSubtaskOpen: false,
-        statsAutoUploadOnSchedule: statsAutoUploadOnSchedule,
+        statsAutoUploadOnSchedule: true,
         statsUploadRequestTimeoutMs: 20000,
         aiSuggestionEnabled: aiSuggestionEnabled,
         aiSuggestionRequestTimeoutMs: aiSuggestionRequestTimeoutMs,

@@ -829,7 +829,7 @@
     }
 
     function ensureUploadButton() {
-      if (!state.started || !isStatsPage() || getConfig().statsUploadEnabled === false) {
+      if (!state.started || !isStatsPage()) {
         removeUploadButton();
         return;
       }
@@ -988,8 +988,6 @@
       if (
         !state.started ||
         !shouldApply() ||
-        config.statsUploadEnabled === false ||
-        config.statsAutoUploadOnSchedule === false ||
         state.schedule.enabled === false
       ) {
         state.nextScheduleAt = null;
@@ -1237,13 +1235,6 @@
           ok: false,
           reason: "runtime-disabled",
           message: "当前不是快判统计运行态，未上传统计。",
-        };
-      }
-      if (config.statsUploadEnabled === false) {
-        return {
-          ok: false,
-          reason: "stats-upload-disabled",
-          message: "统计上传已关闭。",
         };
       }
       if (state.uploading) {

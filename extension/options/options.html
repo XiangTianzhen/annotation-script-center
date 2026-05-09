@@ -591,19 +591,6 @@
             <div id="transcription-recording-status" class="shortcut-recording hidden"></div>
           </div>
 
-          <div class="field-card">
-            <strong>转写统计导出</strong>
-            <span>支持手动上传与定时上传（默认 10:00 / 16:00，jitter 10 分钟）。</span>
-            <label class="field-toggle">
-              <input id="transcription-stats-enabled" type="checkbox" />
-              <span>启用转写统计上传</span>
-            </label>
-            <span>上传地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
-            <span>本地保存目录：platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/</span>
-            <span>本机下载地址：http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download</span>
-            <span>服务器下载地址：https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download（需服务器部署最新后端）</span>
-          </div>
-
           <div class="field-actions" style="margin-top: 12px;">
             <button id="save-transcription-settings" class="primary-button" type="button">
               保存转写设置
@@ -758,16 +745,8 @@
 
           <div class="field-card">
             <strong>统计数据上传</strong>
-            <span>首页会显示“上传统计”按钮；定时时间从当前上传接口地址读取，服务器按分包ID合并为总 CSV。</span>
-            <label class="field-toggle">
-              <input id="judgement-stats-upload-enabled" type="checkbox" />
-              <span>启用统计上传</span>
-            </label>
+            <span>统计上传为脚本默认能力，已强制启用；定时上传按脚本能力强制启用，不在此处配置。</span>
             <span>上传接口地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
-            <label class="field-toggle">
-              <input id="judgement-stats-auto-schedule" type="checkbox" />
-              <span>启用定时上传</span>
-            </label>
           </div>
 
           <div class="field-card shortcut-panel">

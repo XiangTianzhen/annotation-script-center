@@ -82,6 +82,56 @@
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
   }
 
+  function describeError(error) {
+    if (error instanceof Error) {
+      return {
+        message: error.message || error.name || "unknown error",
+        stack:
+          typeof error.stack === "string" && error.stack.length > 0
+            ? error.stack.slice(0, 500)
+            : "",
+      };
+    }
+    try {
+      return {
+        message: JSON.stringify(error),
+        stack: "",
+      };
+    } catch (stringifyError) {
+      return {
+        message: String(error),
+        stack: "",
+      };
+    }
+  }
+
+  function createSafeSettingsFallback() {
+    const constants = globalThis.ASREdgeConstants || {};
+    const defaults =
+      (constants.DEFAULT_SETTINGS && typeof constants.DEFAULT_SETTINGS === "object"
+        ? constants.DEFAULT_SETTINGS
+        : {}) || {};
+    const next = clone(defaults);
+    if (
+      next &&
+      next.platforms &&
+      next.platforms.alibabaLabelx &&
+      next.platforms.alibabaLabelx.scriptCenter &&
+      next.platforms.alibabaLabelx.scriptCenter.projects &&
+      next.platforms.alibabaLabelx.scriptCenter.projects[PROJECT_ID]
+    ) {
+      const currentConfig =
+        next.platforms.alibabaLabelx.scriptCenter.projects[PROJECT_ID].asrConfig || {};
+      next.platforms.alibabaLabelx.scriptCenter.projects[PROJECT_ID].asrConfig = Object.assign(
+        {},
+        currentConfig,
+        FIXED_DEFAULTS,
+        FIXED_STATS_DEFAULTS
+      );
+    }
+    return next;
+  }
+
   function toNumber(value, fallback, min, max, precision) {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) {
@@ -234,7 +284,7 @@
             : "https://script.xiangtianzhen.store") + STATS_UPLOAD_PATH;
 
     return {
-      statsUploadEnabled: source.statsUploadEnabled !== false,
+      statsUploadEnabled: true,
       statsUploadEndpoint: endpoint,
       backendEndpointMode: endpointMode,
       statsUploadTimes: normalizeTimeList(
@@ -242,7 +292,7 @@
         FIXED_STATS_DEFAULTS.statsUploadTimes
       ),
       statsUploadJitterMinutes: toNumber(source.statsUploadJitterMinutes, 10, 0, 120, 0),
-      statsAutoUploadOnSchedule: source.statsAutoUploadOnSchedule !== false,
+      statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: toNumber(source.statsUploadRequestTimeoutMs, 20000, 1000, 120000, 0),
     };
   }
@@ -263,16 +313,18 @@
   async function loadSettings() {
     const storage = globalThis.ASREdgeStorage || null;
     if (!storage || typeof storage.getSettings !== "function") {
-      return {};
+      return createSafeSettingsFallback();
     }
 
     try {
       return await storage.getSettings();
     } catch (error) {
-      console.warn("[ASR Edge][transcription] load settings failed", {
-        message: error && error.message ? error.message : String(error),
-      });
-      return {};
+      const details = describeError(error);
+      console.warn(
+        "[ASR Edge][transcription] load settings failed",
+        details.message + (details.stack ? " | " + details.stack : "")
+      );
+      return createSafeSettingsFallback();
     }
   }
 
@@ -280,7 +332,7 @@
     const settings = await loadSettings();
     const projectAsrConfig =
       settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[PROJECT_ID]?.asrConfig || {};
-    const defaultRuntime = Object.assign({}, FIXED_DEFAULTS, DEFAULT_ASR_CONFIG || {});
+    const defaultRuntime = Object.assign({}, DEFAULT_ASR_CONFIG || {}, FIXED_DEFAULTS);
     return {
       settings: settings,
       activeProjectId: getActiveProjectId(settings),
@@ -291,7 +343,7 @@
           settings: settings,
         },
         normalizeStatsConfig(
-          Object.assign({}, FIXED_STATS_DEFAULTS, DEFAULT_ASR_CONFIG || {}, projectAsrConfig),
+          Object.assign({}, DEFAULT_ASR_CONFIG || {}, FIXED_STATS_DEFAULTS, projectAsrConfig),
           settings
         )
       ),

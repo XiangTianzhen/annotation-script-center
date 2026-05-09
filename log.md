@@ -2,6 +2,13 @@
 
 ## 2026-05-09
 
+- 配置收口：删除 ASR 转写详情页“转写统计导出”配置板块，移除“启用转写统计上传”等可关闭控件，转写面板仅保留自动播放、倍速、步长、音量和快捷键配置。
+- 配置收口：快判详情页移除“启用统计上传 / 启用定时上传”可关闭控件，统计上传改为只读强制启用说明。
+- 运行时收口：转写与快判统计上传改为默认强制启用；已实现定时上传能力的脚本，定时上传也按脚本规则强制启用，不再受 options 开关控制。
+- 存储收口：`shared/storage.js` 在转写/快判 normalize 阶段强制 `statsUploadEnabled=true`、`statsAutoUploadOnSchedule=true`，忽略旧存储中的 `false`。
+- 修复转写运行时报错可读性：`runtime-config.js` 新增错误摘要与安全回退，避免控制台出现 `[ASR Edge][transcription] load settings failed [object Object]`，加载失败时回退到安全默认配置并继续运行。
+- 本轮仍保持 `extension/manifest.json` 版本 `0.2.10`。
+
 - 统一后端接口地址配置入口：options 首页顶部“后端接口地址”改为全局 `meta.backendEndpointMode`（`server/local`），不再通过 DataBaker 脚本字段间接承载。
 - 删除脚本详情页重复 endpoint 配置控件：移除转写“上传地址”、快判“上传接口地址”和快判 AI“后端接口地址”输入。
 - options 详情页仅保留业务开关和参数（转写/快判/标贝），后端地址统一只读说明“由首页全局控制”。

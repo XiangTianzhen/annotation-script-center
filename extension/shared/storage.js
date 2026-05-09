@@ -422,7 +422,7 @@
   function normalizeJudgementStatsConfig(config) {
     const defaults = getConstants().DEFAULT_JUDGEMENT_ASR_CONFIG || {};
     const nextConfig = isPlainObject(config) ? config : {};
-    nextConfig.statsUploadEnabled = nextConfig.statsUploadEnabled !== false;
+    nextConfig.statsUploadEnabled = true;
     nextConfig.statsUploadEndpoint = normalizeJudgementStatsEndpoint(
       nextConfig.statsUploadEndpoint,
       defaults.statsUploadEndpoint
@@ -437,7 +437,7 @@
       Math.min(120, normalizeNumber(nextConfig.statsUploadJitterMinutes, defaults.statsUploadJitterMinutes || 10))
     );
     nextConfig.statsAutoUploadOnSubtaskOpen = false;
-    nextConfig.statsAutoUploadOnSchedule = nextConfig.statsAutoUploadOnSchedule !== false;
+    nextConfig.statsAutoUploadOnSchedule = true;
     nextConfig.statsUploadRequestTimeoutMs = Math.max(
       1000,
       Math.min(
@@ -932,13 +932,13 @@
     next.rateStepValue = normalizeClampedNumber(next.rateStepValue, 0.1, 0.05, 2, 2);
     next.seekStepSeconds = normalizeClampedNumber(next.seekStepSeconds, 1, 0.1, 10, 2);
     next.volumeValue = normalizeClampedNumber(next.volumeValue, 100, 0, 1000, 0);
-    next.statsUploadEnabled = next.statsUploadEnabled !== false;
+    next.statsUploadEnabled = true;
     next.statsUploadTimes = normalizeTimeList(next.statsUploadTimes, ["10:00", "16:00"]);
     next.statsUploadJitterMinutes = Math.max(
       0,
       Math.min(120, normalizeNumber(next.statsUploadJitterMinutes, 10))
     );
-    next.statsAutoUploadOnSchedule = next.statsAutoUploadOnSchedule !== false;
+    next.statsAutoUploadOnSchedule = true;
     next.statsUploadRequestTimeoutMs = Math.max(
       1000,
       Math.min(120000, normalizeNumber(next.statsUploadRequestTimeoutMs, 20000))

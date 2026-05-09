@@ -64,6 +64,7 @@ ASR 转写职责边界：
 后端地址配置规则：
 - 扩展前端只有一个全局后端地址入口：options 首页顶部“后端接口地址”（`server` / `local`）。
 - 各脚本详情页不再提供独立后端地址、上传接口地址或 AI 接口地址配置。
+- 统计上传能力默认强制启用；若脚本实现了定时上传能力，定时上传也按脚本规则强制启用，不在脚本详情页提供关闭开关。
 - 运行时统一按“全局 baseUrl + 固定 API path”拼接：
   - ASR 转写统计：`/api/alibaba-labelx/asr-transcription/statistics/*`
   - ASR 快判统计：`/api/alibaba-labelx/asr-judgement/statistics/*`

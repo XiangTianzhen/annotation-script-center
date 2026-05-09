@@ -12,7 +12,7 @@
 ## 负责范围
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
-- options 快判详情页负责保存快判专属设置：默认音量、默认倍速、倍速步进、前进 / 后退步长、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、雷题判断、AI 半自动建议、选择后辅助流转、统计上传、快捷键。
+- options 快判详情页负责保存快判专属设置：默认音量、默认倍速、倍速步进、前进 / 后退步长、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、雷题判断、AI 半自动建议、选择后辅助流转、快捷键。
 - 快判详情页和任务列表页 DOM / 网络资料统一沉淀到根目录 `platform-resources/alibaba-labelx/asr-judgement/`，供 Chrome / Edge 共用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
@@ -118,7 +118,7 @@
 - 首页上传会直接使用 LabelX 登录态请求首页任务数据：先读取 `/api/v1/label/center/tasks` 和 `/api/v1/label/center/subTasks`，再对每个子任务调用 `/api/v1/label/center/subTask/{subTaskId}/data` 获取完整题目与时长，最后批量上传 `payloads`。已通过 DevTools 确认：标注首页使用 `type=label` / `subTaskType=label`，审核首页使用 `type=check` / `subTaskType=check`；两类首页的已完成列表都通过 `subTasks?finished=true` 读取。
 - 首页上传只保留 ASR 更优判断数据：优先按 `labelModel=vote` 判断；如果接口缺少该字段，再用 `taskName` 包含 `ASR更优结果判断` / `ASR更优` 且 `size=400` 作为补充判断。`labelModel=single`、`taskName=中文普通话asr任务` 或 `size=50` 会视为历史转写数据并跳过。
 - 标注员 / 审核员姓名优先从顶部头像下拉读取：脚本会对 `.NavAvatar-module__userInfoWrapper...avatar` 触发 hover，再读取下拉菜单中的用户展示名；读取失败时回退到接口字段。
-- options 的“统计数据上传”区域只保留启用开关和定时上传开关，不再提供脚本级上传接口地址配置，也不提供手动上传按钮。
+- 快判统计上传与定时上传为脚本默认能力，运行时强制启用；options 不再提供统计开关、上传地址下拉、时间配置 URL 或手动上传按钮。
 - 不再支持进入快判详情页自动上传，避免仅打开页面就产生统计写入。
 - 上传接口地址由全局后端模式拼接：
   - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload`
@@ -235,7 +235,7 @@
 25. 确认页面最顶部主导航区域同时显示总时长、`每页 50 条/页`、默认倍速和默认音量。
 26. 确认工具栏按钮可执行判别、音量、倍速和进退动作；播放/暂停不额外添加按钮。
 27. 触发快捷键或按钮后，确认页面右上角会出现短提示。
-28. 在 options 中确认“统计数据上传”区域只提供启用开关和定时上传开关，不再出现上传地址下拉、时间配置 URL 与“上传统计”按钮。
+28. 在 options 中确认“统计数据上传”区域不再出现启用/定时开关、上传地址下拉、时间配置 URL 与“上传统计”按钮，只保留强制启用说明。
 29. 在 options 首页顶部把“后端接口地址”切到“本机”，再打开 `labelingTask?projectId=...`、`checkTask?projectId=...` 或任一快判详情页，点击顶部导航头像旁的“上传统计”，确认扩展会同时请求标注和审核两类首页的 `tasks`、`subTasks`、`subTasks?finished=true` 和每个 ASR 更优判断分包的 `/subTask/{subTaskId}/data`，并向本地服务发送批量 `payloads`；详情页上传的 payload 行数应与同一账号同一项目首页上传一致，历史转写任务应被跳过，不进入上传 payload。
 30. 确认快判详情页工具栏不出现“统计 / 上传统计”按钮；若上传接口尚未部署，顶部导航点击“上传统计”应只提示上传失败，不应影响题卡判别、保存或页面操作。
 31. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
