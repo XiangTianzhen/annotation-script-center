@@ -8,6 +8,8 @@
 
 - `asr-judgement/`：阿里 ASR 语音判别 / ASR 快判。
 - `asr-transcription/`：阿里 ASR 语音转写，已补充转写首页与详情页的脱敏网络请求文档（见 `asr-transcription/network.md`）。
+- `network.md`：LabelX 标注 / 审核首页和详情页中已确认可被转写、快判共用的网络接口结构。
+- `page-structure.md`：LabelX 通用顶部导航、首页列表、详情页工具栏、题卡和音频结构。
 
 ## 通用约定
 
@@ -21,3 +23,7 @@
 - LabelX 是 React 单页应用，页面主要挂载在 `#root`。
 - 顶部导航右侧头像下拉结构可用于读取当前用户展示名，当前共享片段保存在 `asr-judgement/page-structure/common-top-nav-avatar-dropdown.html`。
 - 页面中的 `data-aplus-*`、`data-spm-*`、`aria-describedby` 和运行时随机 class 不作为稳定选择器依据。
+- 标注首页和审核首页共用 `tasks`、`subTasks`、`tasks/process` 三类列表接口，差异主要是 `type` / `subTaskType`。
+- 详情页共用 `subTask/{id}/data`、`summary`、`board`、`getLabelTaskInfo` 初始化接口。
+- 详情页保存当前题数据使用 `POST /api/v1/label/center/subTask/{subTaskId}/data`，提交当前包使用 `POST /api/v1/label/center/subTask/{subTaskId}/commit`。
+- 当前已采集响应中没有独立 `supplier/vendor/company/provider/供应商` 字段；供应商只能从任务名称前缀推断。

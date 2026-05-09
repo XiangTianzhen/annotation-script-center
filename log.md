@@ -308,3 +308,11 @@
 - 按 `platform-resources/alibaba-labelx/asr-judgement` 目录方式重构 Magic Data 文档：新增 `platform-resources/magic-data/annotator/page-structure/` 与 `network/` 子目录。
 - `page-structure.md` 与 `network.md` 改为兼容索引入口，详细内容拆分到子目录多文件。
 - 补全 `network.md` 缺失项：新增欢迎页、标注链路、审核链路、音频脱敏、敏感写操作清单与待补采项。
+
+## 2026-05-09
+
+- 补充 Alibaba LabelX 平台公共资料：新增 `platform-resources/alibaba-labelx/network.md`，将转写和快判共用的 `data/summary/board/getLabelTaskInfo/tasks/subTasks/tasks/process/save/commit/fetch/audio` 接口沉淀为公共网络口径。
+- 新增 `platform-resources/alibaba-labelx/page-structure.md`，记录通用顶部导航、标注/审核首页、详情页 `.mark-toolbox`、`.labelRender-item`、音频控件和高风险按钮边界。
+- 新增 `platform-resources/alibaba-labelx/asr-transcription/page-structure.md`，记录 ASR 转写审核首页和 `missionType=check` 详情页 HTML/DOM 结构、音频结构、有效性切换、文本编辑和提交任务行为。
+- 更新 `platform-resources/alibaba-labelx/asr-transcription/network.md`，补充审核首页 `type=check/subTaskType=check`、审核详情页字段、自动保存、`mistake`、`subTask/{id}/data` 保存、`commit` 和 `check/fetch` 链路。
+- 明确当前真实接口未发现 `supplier/vendor/company/provider/供应商` 字段；后续供应商统计只能按 `payload` 显式字段、`csvPatch["供应商"]` 或 `taskName/name` 前缀推断，当前样例包括 `棋燊` 和历史样例 `希尔贝壳`。

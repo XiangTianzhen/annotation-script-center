@@ -83,6 +83,9 @@
 - 文档覆盖首页 `tasks/subTasks/tasks/process` 与详情页 `subTask/{id}/data|summary|board|getLabelTaskInfo`。
 - 已明确 `subTaskId` 可能包含换行和空格编码，接口构造前必须先清洗。
 - 已明确页面请求常见 `pageSize=10`，扩展统计上传策略为 `pageSize=100 + 硬上限`。
+- 已新增转写页面结构文档：`page-structure.md`。
+- 2026-05-09 已补充审核首页和审核详情页采集：`missionType=check`、`type=check`、`subTaskType=check`、有效性切换、转写文本自动保存、提交任务和自动领取链路。
+- 已确认当前接口没有独立供应商字段；后续统计只能优先从 `taskName` / `name` 前缀推断，例如 `棋燊`、`希尔贝壳`。
 
 ## 后续约束
 

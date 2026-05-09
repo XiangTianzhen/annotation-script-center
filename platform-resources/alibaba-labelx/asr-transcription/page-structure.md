@@ -1,0 +1,170 @@
+# Alibaba LabelX ASR 转写页面结构（脱敏）
+
+## 采集范围
+
+- 采集日期：2026-05-09
+- 采集方式：Chrome DevTools MCP。
+- 详情页：`/corpora/labeling/sdk?missionType=check&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`
+- 首页：`/corpora/labeling/checkTask?projectId=<REDACTED_PROJECT_ID>`
+- 本轮采集任务：ASR 转写审核任务，`labelModel=single`，`size=50`。
+
+## 审核首页
+
+页面：ASR 转写审核首页
+
+URL：
+
+```text
+/corpora/labeling/checkTask?projectId
+```
+
+关键 DOM：
+
+- 顶部导航：`.header-component-container`
+- 用户区域：顶部导航右侧头像 / 用户信息区域，结构与快判公共头像下拉一致。
+- 任务列表：`我的任务` 下的 Ant Design 表格。
+- 任务项：表格行内显示 `任务名称`、`任务ID`、`子任务ID`、`分包ID`、`任务状态`、`领取时间`、`操作`。
+- 操作按钮：`检查`、`释放`、`驳回原因`。
+- 分页：Ant Design Pagination，包含页码、上一页、下一页、跳页输入框。
+- 可领取任务：`可领取的任务` 区域，显示任务名称、任务 ID、已领取/总数、`领取`、`分人员领取`。
+
+供应商是否可从 DOM 直接读取：
+
+- 无独立供应商字段。
+- 可从任务名称前缀推断，例如 `棋燊-...`。
+
+## 审核详情页
+
+页面：ASR 转写详情页（审核态）
+
+URL：
+
+```text
+/corpora/labeling/sdk?missionType&projectId&subTaskId
+```
+
+关键 DOM：
+
+- `mark-toolbox`：存在，选择器 `.mark-toolbox`。
+- 工具栏挂载点：
+  - 页面原生顶部工具栏为 `.mark-toolbox`。
+  - 面包屑容器为 `.mark-toolbox-breadcrumb-wrapper`。
+  - 本轮未检测到扩展转写工具栏或 `#asr-edge-transcription-stats-upload-entry`。
+- 题卡：`.labelRender-item`
+- 当前题：`.labelRender-item-selected`
+- 题卡列表：`.labelRender-scrollable`
+- 题卡工具栏：`.labelRender-toolbox`
+- 当前题导航：`.labelRender-answerNav`
+- 文本框：题卡内 `textarea`
+- 有效按钮：题卡内 `input[type=radio][value="有效"]`
+- 无效按钮：题卡内 `input[type=radio][value="无效"]`
+- 特殊按钮：题卡内 `input[type=radio][value="特殊"]`
+- 特殊备注：第二个 `textarea`
+- audio：存在，原生 `audio` 标签。
+- 播放按钮：原生 audio 控件。
+- 前进 / 后退：平台按钮 `fast-forward`、`fast-backward`。
+- 倍速：题卡内 `倍速` 下拉，当前显示 `1x`。
+- 音量：原生 audio 控件音量 slider。
+- 任务名 DOM：面包屑内文本。
+- 供应商 DOM：无独立节点，只能从任务名推断。
+
+## 当前页题卡字段
+
+每条题卡包含：
+
+- 内容区：
+  - 音频播放器。
+  - 平台前进 / 后退 / 重载 / 倍速控件。
+  - `文本` 展示区，显示原始识别文本。
+- 回答区：
+  - 标注人提示。
+  - 审核态订正提示，例如 `答案已订正`。
+  - `是否有效` 单选组：`有效 / 无效 / 特殊`。
+  - `转写文本` textarea。
+  - `特殊备注` textarea。
+  - `历史标注`。
+  - `标记错误` / `取消标记错误`。
+
+## 已测试交互
+
+### 音频
+
+- 播放 / 暂停：可用。
+- 后退：可将当前音频时间归零。
+- 前进：可将当前音频推进到结尾。
+- 未触发业务保存请求。
+
+### 有效性切换
+
+测试步骤：
+
+1. 记录当前题原始状态。
+2. 将 `有效` 切到 `无效`。
+3. 等待平台自动保存。
+4. 切回 `有效`。
+5. 刷新页面确认恢复。
+
+观察：
+
+- 会触发 `POST /api/v1/label/center/mistake`。
+- 会触发 `POST /api/v1/label/center/subTask/{subTaskId}/data`。
+- 会刷新 `summary` 和 `board`。
+- 最终刷新后确认可恢复。
+
+### 文本编辑
+
+测试步骤：
+
+1. 记录当前题转写文本原文。
+2. 临时追加测试后缀。
+3. 触发 input/change/blur。
+4. 等待平台自动保存。
+5. 恢复原文。
+6. 刷新页面确认恢复。
+
+观察：
+
+- 会触发 `POST /api/v1/label/center/subTask/{subTaskId}/data`。
+- 保存体包含单条 `dataList` 和 `timestamp`。
+- 最终刷新后确认原文恢复。
+
+### 提交任务
+
+测试步骤：
+
+1. 用户授权后点击 `提交任务`。
+2. 页面顶部按钮进入 loading。
+3. 自动领取开关处于开启状态。
+4. 最终返回审核首页。
+
+观察：
+
+- 触发 `POST /api/v1/label/center/subTask/{subTaskId}/commit`。
+- 随后触发 `POST /api/v1/label/center/{taskId}/check/fetch`。
+- 未跳转到新详情页，返回 `/corpora/labeling/checkTask?projectId=<REDACTED_PROJECT_ID>`。
+
+## 未检测到的扩展 DOM
+
+本轮 Chrome 页面未检测到：
+
+- `#asr-edge-transcription-stats-upload-entry`
+- `#asr-edge-judgement-stats-upload-entry`
+- `[id*=asr-edge]`
+- `[class*=asr-edge]`
+- `window.__ASREdgeAlibabaLabelxTranscriptionStatsClient`
+- `window.__ASREdgeAlibabaLabelxJudgementServer`
+
+可能原因：
+
+- 当前 Chrome 未加载本仓库 `extension/`。
+- 扩展未启用对应脚本。
+- options 当前 active project 不匹配。
+- 页面刷新后 content script 未注入或未命中。
+
+## 待补采
+
+- 转写标注详情页 `missionType=label`。
+- 扩展启用后的工具栏 DOM 和快捷键行为。
+- 全页一键填充所需的当前页 10 条题卡 DOM 稳定性。
+- 提交下拉按钮展开后的 `提交并结束` 结构与行为。
+- 筛选面板、样式设置面板 DOM。
