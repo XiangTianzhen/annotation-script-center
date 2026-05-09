@@ -244,6 +244,148 @@
 - 提交信息使用中文，简明说明本轮改动目的。
 - 当前项目按单人维护流程，执行类任务验证通过后默认直接 push 到 `main`；仅在只读审计、验证失败或用户明确禁止提交时不 push。
 
+## 2026-05 稳定协作规则补充（网页端已确认）
+
+本节用于同步网页端已长期确认且需强约束执行的规则；若与历史口径冲突，以本节和当轮用户 Prompt 为准，并在后续文档中持续去重收敛。
+
+### 1) 项目阶段和协作模式
+
+- 当前项目是“标注脚本中心 annotation-script-center”。
+- 当前阶段是“Chrome / Chromium MV3 单源码扩展 + 多平台脚本增强阶段”。
+- 当前仅使用 Codex 执行，不再使用 MiniMax。
+- 网页端 ChatGPT 是项目指挥 AI，负责需求整理、任务拆分、Codex Prompt 输出、GitHub 验收和风险判断。
+- Codex 是本地执行 AI，负责读取代码、修改代码/文档、验证、`git status`、`git add`、`git commit`、`git push`。
+- 执行类任务默认验证通过后直接 commit 并 push 到 `main`。
+- 只读审计任务不得修改、不得提交、不得 push。
+- 验证失败不得 commit / push。
+- 默认不创建分支，不创建 PR；仅当用户明确要求时才允许例外。
+
+### 2) 核心目录（固定认知）
+
+- `extension/`
+- `extension/background/`
+- `extension/options/`
+- `extension/popup/`
+- `extension/shared/`
+- `extension/sites/alibaba-labelx/asr-judgement/`
+- `extension/sites/alibaba-labelx/asr-transcription/`
+- `extension/sites/data-baker/round-one-quality/`
+- `platform-resources/`
+- `platform-resources/alibaba-labelx/`
+- `platform-resources/alibaba-labelx/asr-judgement/backend/`
+- `platform-resources/alibaba-labelx/asr-transcription/backend/`
+- `platform-resources/data-baker/round-one-quality/backend/`
+- `platform-resources/backend/server.js`
+- `platform-resources/backend/registry.js`
+- `config/env/`
+- `log.md`
+- `AGENTS.md`
+- 用户可见名称优先使用“标贝易采”；代码路径、常量、环境变量可保留 `data-baker` / `dataBaker` / `DATABAKER_`。
+
+### 3) 稳定业务规则
+
+- `extension/` 是唯一扩展运行时代码源，Chrome / Edge 共用，不复制两套业务逻辑。
+- 本项目是浏览器扩展，不是 Tampermonkey 脚本。
+- MAIN world 与 ISOLATED world 仅通过 `window.postMessage` 等桥接通信，`source/type` 必须一致。
+- 后端统一入口是 `platform-resources/backend/server.js`，默认监听 `127.0.0.1:3333`。
+- 新增平台 API 时，业务逻辑优先放在 `platform-resources/<platform>/<script>/backend/`，再通过 `platform-resources/backend/registry.js` 注册。
+- 后端地址只有一个全局入口：options 首页顶部“后端接口地址”（`server` / `local`）。
+- 各脚本详情页不得新增独立后端地址、上传接口地址或 AI 接口地址配置。
+- 各脚本运行时仅按 `baseUrl + API path` 拼接后端接口。
+- 数据导出/统计上传属于默认能力时，上传必须强制启用，详情页不得提供关闭开关。
+- 若脚本已实现定时上传，定时上传按脚本规则强制启用；未实现者不强制新增。
+- `extension/` 前端只负责采集、生成 CSV、本地下载、POST 上传；Node 落盘、CSV 合并、下载接口必须放在 `platform-resources/.../backend/`。
+- 运行数据目录（如 `statistics-data/`、`export-data/`）必须加入 `.gitignore`，不得提交。
+- ASR 转写当前是轻量工具栏 + options 轻量设置面板 + 快捷键配置 + 音频配置 + 统计上传能力，不恢复 legacy 保存/提交/AI/批量流转能力。
+- ASR 转写不做时间戳、说话人区分、AI 初稿/校对/格式化/标点、强制保存、自定义保存 payload、自动提交/领取/流转/跳转、整页受控执行、全页批量修改。
+- ASR 转写统计取数以 `platform-resources/alibaba-labelx/asr-transcription/network.md` 为准，不得套用快判 `pageSize=400` 逻辑。
+- 标贝易采 group/detail 导出必须保留本地下载，同时自动上传统一后端；上传失败不得阻断本地下载。
+- AI 建议/推荐文本属于辅助能力，不自动保存、不自动提交、不自动领取、不自动流转。
+- 标贝易采“填入推荐文本”必须由用户主动点击或快捷键触发。
+- 快判 AI 建议必须人工确认，不得绕过雷题或平台限制。
+- 扩展重新加载后旧页面可能出现 `Extension context invalidated`；应识别并停止旧实例或提示刷新，不得持续刷屏。
+
+### 4) 版本与打包规则
+
+- 修复当前测试版本 BUG 时不要自动升版本（例如当前在修 `0.2.10`，可保持 `manifest.version = 0.2.10`）。
+- 只有用户确认当前版本通过真实浏览器验证并准备发布下一版时，才提升 patch 版本。
+- 修改 `manifest.json` 后必须检查 JSON 可解析，并确认引用脚本路径存在。
+- 打包 zip 根目录必须直接包含 `manifest.json`、`background/`、`options/`、`popup/`、`shared/`、`sites/`，不得多套一层 `extension/`。
+- `dist` 构建产物默认不提交；若当前版本 zip 已被仓库追踪或用户明确要求提交测试包，则重新生成后可一并提交，并必须检查 zip 根目录结构。
+
+### 5) 每轮优先阅读与按需补充阅读
+
+- 每轮优先阅读：`AGENTS.md`、`README.md`、`extension/README.md`、`platform-resources/backend/README.md`、`log.md`、`extension/manifest.json`、与本轮任务直接相关的平台/脚本 README 与代码文件。
+- LabelX 通用补充：`platform-resources/alibaba-labelx/README.md`、`page-structure.md`、`network.md`。
+- 快判补充：`extension/sites/alibaba-labelx/asr-judgement/`、`platform-resources/alibaba-labelx/asr-judgement/`。
+- 转写补充：`extension/sites/alibaba-labelx/asr-transcription/`、`platform-resources/alibaba-labelx/asr-transcription/`。
+- 标贝易采补充：`extension/sites/data-baker/round-one-quality/`、`platform-resources/data-baker/round-one-quality/`。
+- 后端补充：`platform-resources/backend/server.js`、`platform-resources/backend/registry.js`、对应项目 backend 目录。
+
+### 6) Codex 执行 Prompt 必备字段
+
+每次输出 Codex 执行 Prompt，必须包含：
+
+- 当前阶段判断
+- 推荐模型
+- 推荐推理强度
+- 是否使用 subagent / parallel agents
+- 任务目标
+- 修改范围
+- 不允许修改的内容
+- 验证命令
+- 验收标准
+- 是否自动提交
+- commit message
+- 必须 push 到 main
+- 验证失败不得 commit / push
+
+### 7) 验收规则
+
+- 用户要求“检查项目/验收/看 Codex 结果”时，网页端直接通过 GitHub 检查 `main` 最新 commit、diff、代码和文档。
+- 验收结论必须明确：是否通过、当前 `main` 最新 commit、是否已 push 到 `main`、明显问题、风险点、是否建议保留提交、下一步建议。
+- 若存在并行 agent 或多次提交，不得只看 `main~1..main`，必须检查最近多次提交或用户指定 commit 范围。
+- 真实浏览器行为必须明确列出需复测的页面、按钮、Network、Console、CSV 或下载结果。
+- GitHub `main` 看不到最新改动时，应提示可能未 push，并要求提供 commit hash 或先执行 `git push`。
+
+### 8) 验证规则
+
+- 修改 JS 后，必须对实际改动 JS 运行 `node --check`。
+- 修改 `manifest.json` 后，必须检查 JSON 可解析和脚本路径存在。
+- 修改 Node 后端后，至少运行相关 JS `node --check`；可行时启动 `node platform-resources/backend/server.js` 做 smoke test。
+- 修改 AI 后端路由后，优先验证 health；无真实 API Key 时不得声称真实模型调用已跑通。
+- 修改平台后端接口后，必须验证本轮涉及的 `health/config/upload/download`。
+- 修改 CSV/统计上传/导出下载后，必须验证表头、字段归属、合并规则、下载接口、保存目录，以及运行数据目录未提交。
+- 修改 content script 后，最终必须列出人工浏览器验证步骤。
+- 修改 options/popup 后，需检查扩展重载后的配置页或 popup。
+- 涉及 `chrome.storage` / `chrome.runtime` 时，必须考虑 `Extension context invalidated`。
+
+### 9) 安全与脱敏
+
+- 不提交 API Key、cookie、token、authorization、access token。
+- 不提交完整签名音频 URL、完整敏感音频地址。
+- 不把完整音频 URL 写入扩展存储、DOM 属性、日志或 Markdown。
+- 用户提供 fetch 示例、Network 请求、DevTools 截图若包含 cookie、SSO token、authorization、完整签名 URL，应先提醒脱敏；代码和文档不得写入这些内容。
+- CSV 原始 JSON 列、导出文件、统计文件不得包含 cookie、token、authorization、完整音频 URL、完整签名 URL；如存在 URL，必须脱敏或截断。
+- 错误提示和日志仅保留脱敏 summary、hostname、requestId、模型名、耗时、状态码等必要信息。
+
+### 10) 文档要求
+
+- 所有 Markdown 文档使用中文。
+- 功能、目录结构、模块归属、选择器、接口契约、验证步骤变化时，必须同步更新相关 README。
+- 每次有有意义的代码或行为变更，都要更新根目录 `log.md`。
+- 新增或确认平台 DOM / Network / 统计契约时，优先沉淀到 `platform-resources` 对应平台和脚本目录。
+- 新增后端保存目录时，必须同步更新 README 与 `.gitignore`，并明确运行数据目录不得提交。
+- 网页端确认的新业务规则必须写入 `AGENTS.md` / README / `log.md`，避免后续执行回退旧口径。
+
+### 11) 禁止事项
+
+- 不要把项目描述为初始化、骨架或 Demo。
+- 不要建议重建项目。
+- 不要建议复制一套 Chrome / Edge 业务运行时代码。
+- 不要建议无关大重构。
+- 默认优先保持扩展可用、小步增强、真实平台口径优先。
+
 
 
 
