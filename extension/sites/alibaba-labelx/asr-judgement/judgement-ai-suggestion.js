@@ -10,6 +10,9 @@
     uncertain_or_similar: "choiceUnsure",
     other_dialect_or_language: "choiceOtherDialect",
   };
+  const CONSTANTS = globalThis.ASREdgeConstants || {};
+  const AI_SUGGEST_PATH =
+    CONSTANTS.JUDGEMENT_AI_SUGGEST_PATH || "/api/alibaba-labelx/asr-judgement/ai/suggest";
   const CHOICE_LABELS = {
     choiceFirstBetter: "第一个更好",
     choiceSecondBetter: "第二个更好",
@@ -480,14 +483,16 @@
 
       let endpoint = "";
       try {
-        endpoint = new URL(
-          String(
-            config.aiSuggestionEndpoint ||
-              "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest"
-          )
-        ).toString();
+        const modeText = String(config.backendEndpointMode || "").trim().toLowerCase();
+        const mode = modeText === "local" ? "local" : "server";
+        endpoint =
+          typeof CONSTANTS.buildBackendUrl === "function"
+            ? CONSTANTS.buildBackendUrl(AI_SUGGEST_PATH, mode)
+            : (mode === "local" ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store") +
+              AI_SUGGEST_PATH;
+        endpoint = new URL(String(endpoint)).toString();
       } catch (error) {
-        return buildActionResult(false, "AI 接口地址无效，请在 options 中检查。", {
+        return buildActionResult(false, "AI 接口地址无效，请检查全局后端接口地址设置。", {
           reason: "invalid-endpoint",
           source: source || "unknown",
         });

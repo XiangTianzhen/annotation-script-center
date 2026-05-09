@@ -13,6 +13,10 @@
     "taskPartialReject",
     "taskFullReject",
   ];
+  const CONSTANTS = globalThis.ASREdgeConstants || {};
+  const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
+  const DATABAKER_AI_RECOMMEND_PATH =
+    CONSTANTS.DATABAKER_AI_RECOMMEND_PATH || "/api/data-baker/round-one-quality/ai/recommend";
 
   let runtime = null;
   let runtimeConfigKey = "";
@@ -22,21 +26,11 @@
   let pendingEvaluate = false;
 
   function normalizeEndpoint(value, fallback) {
-    const serverEndpoint =
-      fallback ||
-      "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
-    const localEndpoint =
-      "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
     const normalized = normalizeEndpointUrl(value);
-
-    if (normalized && normalized === normalizeEndpointUrl(localEndpoint)) {
-      return localEndpoint;
+    if (normalized) {
+      return normalized;
     }
-    if (normalized && normalized === normalizeEndpointUrl(serverEndpoint)) {
-      return serverEndpoint;
-    }
-
-    return serverEndpoint;
+    return normalizeEndpointUrl(fallback) || "";
   }
 
   function normalizeEndpointUrl(value) {
@@ -93,15 +87,11 @@
   }
 
   function getDefaultRoundOneConfig() {
-    const constants = globalThis.ASREdgeConstants || {};
     return (
-      constants.DEFAULT_SETTINGS?.platforms?.dataBaker?.scripts?.roundOneQuality || {
-        id: constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality",
+      CONSTANTS.DEFAULT_SETTINGS?.platforms?.dataBaker?.scripts?.roundOneQuality || {
+        id: CONSTANTS.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality",
         enabled: true,
         aiRecommendEnabled: true,
-        aiRecommendEndpoint:
-          constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
-          "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
         aiRecommendRequestTimeoutMs: 120000,
         autoPageSizeEnabled: true,
         defaultPageSize: "50条/页",
@@ -111,10 +101,9 @@
   }
 
   async function loadRuntimeConfig() {
-    const constants = globalThis.ASREdgeConstants || {};
     const storage = globalThis.ASREdgeStorage || null;
     const defaultPlatform =
-      constants.DEFAULT_SETTINGS?.platforms?.dataBaker || {
+      CONSTANTS.DEFAULT_SETTINGS?.platforms?.dataBaker || {
         enabled: true,
         scripts: {
           roundOneQuality: getDefaultRoundOneConfig(),
@@ -140,9 +129,19 @@
       getDefaultRoundOneConfig(),
       platform?.scripts?.roundOneQuality || {}
     );
+    const backendMode =
+      typeof CONSTANTS.getBackendEndpointModeFromSettings === "function"
+        ? CONSTANTS.getBackendEndpointModeFromSettings(settings || {})
+        : String(settings?.meta?.backendEndpointMode || "").trim().toLowerCase() === BACKEND_MODE_LOCAL
+          ? BACKEND_MODE_LOCAL
+          : "server";
     const endpoint = normalizeEndpoint(
-      script.aiRecommendEndpoint,
-      getDefaultRoundOneConfig().aiRecommendEndpoint
+      typeof CONSTANTS.buildBackendUrl === "function"
+        ? CONSTANTS.buildBackendUrl(DATABAKER_AI_RECOMMEND_PATH, backendMode)
+        : (backendMode === BACKEND_MODE_LOCAL
+            ? "http://127.0.0.1:3333"
+            : "https://script.xiangtianzhen.store") + DATABAKER_AI_RECOMMEND_PATH,
+      "https://script.xiangtianzhen.store" + DATABAKER_AI_RECOMMEND_PATH
     );
     const timeoutMs = normalizeTimeout(script.aiRecommendRequestTimeoutMs);
     const defaultPageSize = normalizePageSize(script.defaultPageSize);

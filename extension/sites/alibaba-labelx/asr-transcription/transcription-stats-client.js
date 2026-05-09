@@ -7,6 +7,9 @@
   const HOME_LIST_MAX_PAGES = 5;
   const HOME_DETAIL_CONCURRENCY = 2;
   const HOME_MAX_TRANSCRIPTION_SUBTASKS_PER_UPLOAD = 50;
+  const CONSTANTS = globalThis.ASREdgeConstants || {};
+  const BACKEND_MODE_SERVER = CONSTANTS.BACKEND_ENDPOINT_MODE_SERVER || "server";
+  const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const DEFAULT_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
   const DEFAULT_SERVER_UPLOAD_ENDPOINT =
     "https://script.xiangtianzhen.store" + DEFAULT_UPLOAD_PATH;
@@ -126,15 +129,23 @@
   }
 
   function resolveUploadEndpoint(config) {
-    const explicitEndpoint = normalizeEndpoint(config?.statsUploadEndpoint);
-    if (explicitEndpoint) {
-      return explicitEndpoint;
+    const modeText = String(config?.backendEndpointMode || "").trim().toLowerCase();
+    const endpointMode = modeText === BACKEND_MODE_LOCAL ? BACKEND_MODE_LOCAL : BACKEND_MODE_SERVER;
+    if (typeof CONSTANTS.buildBackendUrl === "function") {
+      const byMode = normalizeEndpoint(CONSTANTS.buildBackendUrl(DEFAULT_UPLOAD_PATH, endpointMode));
+      if (byMode) {
+        return byMode;
+      }
+    }
+    if (config?.settings && typeof CONSTANTS.buildBackendUrl === "function") {
+      const bySettings = normalizeEndpoint(CONSTANTS.buildBackendUrl(DEFAULT_UPLOAD_PATH, config.settings));
+      if (bySettings) {
+        return bySettings;
+      }
     }
 
-    const server = config?.legacyServer || {};
-    const baseUrl = server.useDebugApiBaseUrl === true ? server.debugApiBaseUrl : server.apiBaseUrl;
-    const normalizedBaseUrl = normalizeEndpoint(baseUrl);
-    return normalizedBaseUrl ? trimSlash(normalizedBaseUrl) + DEFAULT_UPLOAD_PATH : DEFAULT_SERVER_UPLOAD_ENDPOINT;
+    const baseUrl = endpointMode === BACKEND_MODE_LOCAL ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store";
+    return trimSlash(baseUrl) + DEFAULT_UPLOAD_PATH;
   }
 
   function resolveScheduleEndpoint(config) {

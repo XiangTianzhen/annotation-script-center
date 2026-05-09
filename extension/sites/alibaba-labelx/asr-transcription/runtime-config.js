@@ -4,14 +4,18 @@
   const PROJECT_ID =
     (globalThis.ASREdgeConstants && globalThis.ASREdgeConstants.TRANSCRIPTION_PROJECT_ID) ||
     "transcription";
-  const STATS_SERVER_ENDPOINT =
+  const STATS_UPLOAD_PATH =
     (globalThis.ASREdgeConstants &&
-      globalThis.ASREdgeConstants.TRANSCRIPTION_STATS_SERVER_ENDPOINT) ||
-    "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload";
-  const STATS_LOCAL_ENDPOINT =
+      globalThis.ASREdgeConstants.TRANSCRIPTION_STATS_UPLOAD_PATH) ||
+    "/api/alibaba-labelx/asr-transcription/statistics/upload";
+  const BACKEND_MODE_SERVER =
     (globalThis.ASREdgeConstants &&
-      globalThis.ASREdgeConstants.TRANSCRIPTION_STATS_LOCAL_ENDPOINT) ||
-    "http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload";
+      globalThis.ASREdgeConstants.BACKEND_ENDPOINT_MODE_SERVER) ||
+    "server";
+  const BACKEND_MODE_LOCAL =
+    (globalThis.ASREdgeConstants &&
+      globalThis.ASREdgeConstants.BACKEND_ENDPOINT_MODE_LOCAL) ||
+    "local";
   const DEFAULT_ASR_CONFIG =
     (globalThis.ASREdgeConstants && globalThis.ASREdgeConstants.DEFAULT_ASR_CONFIG) || {};
   const SHORTCUT_COMPATIBILITY_MAP =
@@ -67,7 +71,7 @@
   };
   const FIXED_STATS_DEFAULTS = {
     statsUploadEnabled: true,
-    statsUploadEndpoint: STATS_SERVER_ENDPOINT,
+    statsUploadEndpoint: "",
     statsUploadTimes: ["10:00", "16:00"],
     statsUploadJitterMinutes: 10,
     statsAutoUploadOnSchedule: true,
@@ -204,22 +208,35 @@
     };
   }
 
-  function normalizeStatsConfig(config) {
-    const source = config && typeof config === "object" ? config : {};
-    const endpointText = String(source.statsUploadEndpoint || "").trim();
-    let endpoint = STATS_SERVER_ENDPOINT;
-    if (endpointText.indexOf("127.0.0.1:3333") >= 0 || endpointText.indexOf("localhost:3333") >= 0) {
-      endpoint = STATS_LOCAL_ENDPOINT;
-    } else if (
-      endpointText.indexOf("/api/alibaba-labelx/asr-transcription/statistics/upload") >= 0 ||
-      endpointText.indexOf("/api/asr-transcription/statistics/upload") >= 0
-    ) {
-      endpoint = endpointText;
+  function inferModeFromEndpoint(endpointText) {
+    const text = String(endpointText || "").trim().toLowerCase();
+    if (text.indexOf("127.0.0.1") >= 0 || text.indexOf("localhost") >= 0) {
+      return BACKEND_MODE_LOCAL;
     }
+    return BACKEND_MODE_SERVER;
+  }
+
+  function normalizeStatsConfig(config, settings) {
+    const constants = globalThis.ASREdgeConstants || {};
+    const source = config && typeof config === "object" ? config : {};
+    const modeFromSettings =
+      typeof constants.getBackendEndpointModeFromSettings === "function"
+        ? constants.getBackendEndpointModeFromSettings(settings || {})
+        : String(settings?.meta?.backendEndpointMode || "").trim().toLowerCase() === BACKEND_MODE_LOCAL
+          ? BACKEND_MODE_LOCAL
+          : "";
+    const endpointMode = modeFromSettings || inferModeFromEndpoint(source.statsUploadEndpoint);
+    const endpoint =
+      typeof constants.buildBackendUrl === "function"
+        ? constants.buildBackendUrl(STATS_UPLOAD_PATH, endpointMode)
+        : (endpointMode === BACKEND_MODE_LOCAL
+            ? "http://127.0.0.1:3333"
+            : "https://script.xiangtianzhen.store") + STATS_UPLOAD_PATH;
 
     return {
       statsUploadEnabled: source.statsUploadEnabled !== false,
       statsUploadEndpoint: endpoint,
+      backendEndpointMode: endpointMode,
       statsUploadTimes: normalizeTimeList(
         source.statsUploadTimes,
         FIXED_STATS_DEFAULTS.statsUploadTimes
@@ -269,8 +286,14 @@
       activeProjectId: getActiveProjectId(settings),
       enabledBySettings: isProjectEnabled(settings),
       config: normalizeRuntimeConfig(Object.assign({}, defaultRuntime, projectAsrConfig)),
-      statsConfig: normalizeStatsConfig(
-        Object.assign({}, FIXED_STATS_DEFAULTS, DEFAULT_ASR_CONFIG || {}, projectAsrConfig)
+      statsConfig: Object.assign(
+        {
+          settings: settings,
+        },
+        normalizeStatsConfig(
+          Object.assign({}, FIXED_STATS_DEFAULTS, DEFAULT_ASR_CONFIG || {}, projectAsrConfig),
+          settings
+        )
       ),
       storageKey: STORAGE_KEY,
     };

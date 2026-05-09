@@ -108,6 +108,14 @@
     );
   }
 
+  function getGlobalBackendEndpointMode(nextSettings) {
+    if (typeof constants.getBackendEndpointModeFromSettings === "function") {
+      return constants.getBackendEndpointModeFromSettings(nextSettings || {});
+    }
+    const mode = String(nextSettings?.meta?.backendEndpointMode || "").trim().toLowerCase();
+    return mode === "local" ? "local" : "server";
+  }
+
   function getJudgementConfig(nextSettings) {
     const defaults = constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {
       itemsPerPage: "50 条/页",
@@ -199,12 +207,14 @@
 
     return Object.assign(deepMerge(defaults, projectConfig), {
       virtualWindowEnabled: false,
+      backendEndpointMode: getGlobalBackendEndpointMode(nextSettings),
     });
   }
 
   function getJudgementServerConfig() {
     return Object.assign({}, getJudgementConfig(settings), {
       legacyServer: clone(getPlatformSettings(settings)?.legacyServer || {}),
+      settings: clone(settings || {}),
     });
   }
 

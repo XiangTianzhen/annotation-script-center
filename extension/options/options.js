@@ -8,24 +8,37 @@
   const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
   const dataBakerRoundOneQualityScriptId =
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
-  const judgementStatsServerEndpoint =
-    "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload";
-  const judgementStatsLocalEndpoint =
-    "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload";
-  const transcriptionStatsServerEndpoint =
-    constants.TRANSCRIPTION_STATS_SERVER_ENDPOINT ||
-    "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload";
-  const transcriptionStatsLocalEndpoint =
-    constants.TRANSCRIPTION_STATS_LOCAL_ENDPOINT ||
-    "http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload";
-  const judgementAiSuggestionEndpointDefault =
-    "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest";
-  const dataBakerAiRecommendServerEndpoint =
-    constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
-    "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
-  const dataBakerAiRecommendLocalEndpoint =
-    constants.DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT ||
-    "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
+  const backendModeServer = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
+  const backendModeLocal = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
+  const getBackendModeFromSettings =
+    typeof constants.getBackendEndpointModeFromSettings === "function"
+      ? constants.getBackendEndpointModeFromSettings
+      : function (settings) {
+          const mode = settings?.meta?.backendEndpointMode;
+          return String(mode || "").trim().toLowerCase() === backendModeLocal
+            ? backendModeLocal
+            : backendModeServer;
+        };
+  const getBackendBaseUrlByMode =
+    typeof constants.getBackendBaseUrlByMode === "function"
+      ? constants.getBackendBaseUrlByMode
+      : function (mode) {
+          return String(mode || "").trim().toLowerCase() === backendModeLocal
+            ? "http://127.0.0.1:3333"
+            : "https://script.xiangtianzhen.store";
+        };
+  const buildBackendUrl =
+    typeof constants.buildBackendUrl === "function"
+      ? constants.buildBackendUrl
+      : function (path, settingsOrMode) {
+          const mode =
+            typeof settingsOrMode === "string"
+              ? settingsOrMode
+              : getBackendModeFromSettings(settingsOrMode || {});
+          const baseUrl = String(getBackendBaseUrlByMode(mode) || "").replace(/\/+$/, "");
+          const normalizedPath = String(path || "").charAt(0) === "/" ? String(path || "") : "/" + String(path || "");
+          return baseUrl + normalizedPath;
+        };
   const dataBakerPageSizeOptions = (
     Array.isArray(constants.DATABAKER_PAGE_SIZE_OPTIONS)
       ? constants.DATABAKER_PAGE_SIZE_OPTIONS
@@ -265,41 +278,15 @@
     return result.length > 0 ? result : ["10:00", "16:00"];
   }
 
-  function normalizeJudgementStatsEndpoint(value) {
-    const text = typeof value === "string" ? value.trim() : "";
-    if (text.indexOf("127.0.0.1:3333") >= 0 || text.indexOf("localhost:3333") >= 0) {
-      return judgementStatsLocalEndpoint;
+  function inferBackendModeFromEndpoint(endpointText, fallbackMode) {
+    const text = String(endpointText || "").trim().toLowerCase();
+    if (text.indexOf("127.0.0.1") >= 0 || text.indexOf("localhost") >= 0) {
+      return backendModeLocal;
     }
-    return judgementStatsServerEndpoint;
-  }
-
-  function normalizeTranscriptionStatsEndpoint(value) {
-    const text = typeof value === "string" ? value.trim() : "";
-    if (text.indexOf("127.0.0.1:3333") >= 0 || text.indexOf("localhost:3333") >= 0) {
-      return transcriptionStatsLocalEndpoint;
+    if (text.indexOf("http://") === 0 || text.indexOf("https://") === 0) {
+      return backendModeServer;
     }
-    return transcriptionStatsServerEndpoint;
-  }
-
-  function normalizeJudgementAiEndpoint(value, fallback) {
-    const text = typeof value === "string" ? value.trim() : "";
-    const fallbackEndpoint =
-      typeof fallback === "string" && fallback.trim()
-        ? fallback.trim()
-        : judgementAiSuggestionEndpointDefault;
-    if (!text) {
-      return fallbackEndpoint;
-    }
-
-    try {
-      const url = new URL(text);
-      if (url.protocol !== "http:" && url.protocol !== "https:") {
-        return fallbackEndpoint;
-      }
-      return url.toString();
-    } catch (error) {
-      return fallbackEndpoint;
-    }
+    return fallbackMode === backendModeLocal ? backendModeLocal : backendModeServer;
   }
 
   function normalizeJudgementAiAvailableModels(value, fallback) {
@@ -404,41 +391,18 @@
     return Boolean(target) && Object.prototype.hasOwnProperty.call(target, key);
   }
 
+  function formatBackendModeLabel(settings) {
+    return getBackendModeFromSettings(settings) === backendModeLocal
+      ? "本机（127.0.0.1:3333）"
+      : "服务器（script.xiangtianzhen.store）";
+  }
+
   function isLabelxScript(scriptId) {
     return scriptId === transcriptionProjectId || scriptId === judgementProjectId;
   }
 
   function isDataBakerScript(scriptId) {
     return scriptId === dataBakerRoundOneQualityScriptId;
-  }
-
-  function normalizeDataBakerEndpoint(value) {
-    const normalized = normalizeDataBakerEndpointUrl(value);
-    if (normalized && normalized === normalizeDataBakerEndpointUrl(dataBakerAiRecommendLocalEndpoint)) {
-      return dataBakerAiRecommendLocalEndpoint;
-    }
-    if (normalized && normalized === normalizeDataBakerEndpointUrl(dataBakerAiRecommendServerEndpoint)) {
-      return dataBakerAiRecommendServerEndpoint;
-    }
-
-    return dataBakerAiRecommendServerEndpoint;
-  }
-
-  function getDataBakerEndpointMode(endpoint) {
-    const normalized = normalizeDataBakerEndpoint(endpoint);
-    return normalized === dataBakerAiRecommendLocalEndpoint ? "local" : "server";
-  }
-
-  function normalizeDataBakerEndpointUrl(value) {
-    try {
-      const url = new URL(String(value || "").trim());
-      if (url.protocol !== "http:" && url.protocol !== "https:") {
-        return "";
-      }
-      return url.toString();
-    } catch (error) {
-      return "";
-    }
   }
 
   function normalizeDataBakerTimeoutMs(value) {
@@ -507,7 +471,6 @@
         id: dataBakerRoundOneQualityScriptId,
         enabled: true,
         aiRecommendEnabled: true,
-        aiRecommendEndpoint: dataBakerAiRecommendServerEndpoint,
         aiRecommendRequestTimeoutMs: 120000,
         autoPageSizeEnabled: true,
         defaultPageSize: "50条/页",
@@ -517,7 +480,6 @@
       current
     );
 
-    config.aiRecommendEndpoint = normalizeDataBakerEndpoint(config.aiRecommendEndpoint);
     config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
       config.aiRecommendRequestTimeoutMs
     );
@@ -634,7 +596,6 @@
       shortcutCopyDuration: null,
       shortcutUploadStats: null,
       statsUploadEnabled: true,
-      statsUploadEndpoint: transcriptionStatsServerEndpoint,
       statsUploadTimes: ["10:00", "16:00"],
       statsUploadJitterMinutes: 10,
       statsAutoUploadOnSchedule: true,
@@ -693,11 +654,6 @@
       ),
       shortcuts: shortcuts,
       statsUploadEnabled: asrConfig.statsUploadEnabled !== false,
-      statsUploadEndpoint: normalizeTranscriptionStatsEndpoint(
-        hasOwn(asrConfig, "statsUploadEndpoint")
-          ? asrConfig.statsUploadEndpoint
-          : defaults.statsUploadEndpoint
-      ),
       statsUploadTimes: normalizeTimeList(asrConfig.statsUploadTimes, defaults.statsUploadTimes),
       statsUploadJitterMinutes: clampNumber(
         asrConfig.statsUploadJitterMinutes,
@@ -741,7 +697,6 @@
       thunderQuestionEnabled: true,
       autoAdvanceAfterChoice: false,
       statsUploadEnabled: true,
-      statsUploadEndpoint: judgementStatsServerEndpoint,
       statsScheduleUrl: "",
       statsUploadTimes: ["10:00", "16:00"],
       statsUploadJitterMinutes: 10,
@@ -749,7 +704,6 @@
       statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: 20000,
       aiSuggestionEnabled: false,
-      aiSuggestionEndpoint: judgementAiSuggestionEndpointDefault,
       aiSuggestionRequestTimeoutMs: 120000,
       aiSuggestionModel: "qwen3-omni-flash",
       aiSuggestionAvailableModels: judgementAiSuggestionModels.slice(),
@@ -847,11 +801,6 @@
       thunderQuestionEnabled: asrConfig.thunderQuestionEnabled !== false,
       autoAdvanceAfterChoice: asrConfig.autoAdvanceAfterChoice === true,
       statsUploadEnabled: asrConfig.statsUploadEnabled !== false,
-      statsUploadEndpoint: normalizeJudgementStatsEndpoint(
-        typeof asrConfig.statsUploadEndpoint === "string"
-          ? asrConfig.statsUploadEndpoint
-          : defaults.statsUploadEndpoint
-      ),
       statsScheduleUrl:
         typeof asrConfig.statsScheduleUrl === "string" ? asrConfig.statsScheduleUrl.trim() : "",
       statsUploadTimes: normalizeTimeList(
@@ -875,10 +824,6 @@
         0
       ),
       aiSuggestionEnabled: asrConfig.aiSuggestionEnabled === true,
-      aiSuggestionEndpoint: normalizeJudgementAiEndpoint(
-        asrConfig.aiSuggestionEndpoint,
-        defaults.aiSuggestionEndpoint
-      ),
       aiSuggestionRequestTimeoutMs: clampNumber(
         asrConfig.aiSuggestionRequestTimeoutMs,
         defaults.aiSuggestionRequestTimeoutMs || 120000,
@@ -1298,15 +1243,17 @@
     getElement("judgement-thunder-question").checked = config.thunderQuestionEnabled !== false;
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     getElement("judgement-stats-upload-enabled").checked = config.statsUploadEnabled !== false;
-    getElement("judgement-stats-upload-endpoint").value = config.statsUploadEndpoint || "";
     getElement("judgement-stats-auto-schedule").checked =
       config.statsAutoUploadOnSchedule !== false;
     getElement("judgement-ai-suggestion-enabled").checked = config.aiSuggestionEnabled === true;
-    getElement("judgement-ai-suggestion-endpoint").value = config.aiSuggestionEndpoint || "";
     getElement("judgement-ai-suggestion-timeout").value = String(config.aiSuggestionRequestTimeoutMs);
     renderJudgementAiModelOptions(config.aiSuggestionAvailableModels, config.aiSuggestionModel);
     stopJudgementShortcutRecording("");
     renderJudgementShortcutGrid();
+    setStatus(
+      "judgement-status",
+      "当前后端地址由首页统一控制：" + formatBackendModeLabel(settings)
+    );
   }
 
   function ensureTranscriptionShortcutDraft() {
@@ -1443,18 +1390,18 @@
     getElement("transcription-fill-on-valid").checked = config.fillOnValid !== false;
     getElement("transcription-clear-on-invalid").checked = config.clearOnInvalid !== false;
     getElement("transcription-stats-enabled").checked = config.statsUploadEnabled !== false;
-    getElement("transcription-stats-endpoint").value =
-      config.statsUploadEndpoint === transcriptionStatsLocalEndpoint ? "local" : "server";
 
     stopTranscriptionShortcutRecording("");
     renderTranscriptionShortcutGrid();
+    const backendLabel = formatBackendModeLabel(settings);
     setStatus(
       "transcription-status",
       "当前定时上传：" +
         config.statsUploadTimes.join("、") +
         "（jitter " +
         String(config.statsUploadJitterMinutes) +
-        " 分钟）"
+        " 分钟）；后端地址：全局 " +
+        backendLabel
     );
   }
 
@@ -1465,8 +1412,6 @@
     }
 
     const current = normalizeTranscriptionConfig(currentSettings || {});
-    const endpointMode = getElement("transcription-stats-endpoint").value;
-    const endpoint = endpointMode === "local" ? transcriptionStatsLocalEndpoint : transcriptionStatsServerEndpoint;
     const shortcuts = {};
     transcriptionShortcutActions.forEach(function (action) {
       shortcuts[action.key] = normalizeShortcut(transcriptionShortcutsDraft[action.key]);
@@ -1503,7 +1448,6 @@
         fillOnValid: getElement("transcription-fill-on-valid").checked === true,
         clearOnInvalid: getElement("transcription-clear-on-invalid").checked === true,
         statsUploadEnabled: getElement("transcription-stats-enabled").checked === true,
-        statsUploadEndpoint: endpoint,
         statsUploadTimes: current.statsUploadTimes,
         statsUploadJitterMinutes: current.statsUploadJitterMinutes,
         statsAutoUploadOnSchedule: current.statsAutoUploadOnSchedule,
@@ -1539,7 +1483,7 @@
   }
 
   function renderScriptCenter(settings) {
-    renderHomeDataBakerEndpoint(settings);
+    renderHomeBackendEndpoint(settings);
 
     const center = getElement("script-center-view");
     const platformIds = Object.keys(platformLibrary);
@@ -1617,17 +1561,16 @@
     });
   }
 
-  function renderHomeDataBakerEndpoint(settings) {
+  function renderHomeBackendEndpoint(settings) {
     const serverButton = getElement("home-endpoint-server");
     const localButton = getElement("home-endpoint-local");
     if (!(serverButton instanceof HTMLButtonElement) || !(localButton instanceof HTMLButtonElement)) {
       return;
     }
 
-    const config = getDataBakerRoundOneConfig(settings);
-    const mode = getDataBakerEndpointMode(config.aiRecommendEndpoint);
+    const mode = getBackendModeFromSettings(settings);
     const statusNode = getElement("home-endpoint-status");
-    const isLocal = mode === "local";
+    const isLocal = mode === backendModeLocal;
 
     serverButton.classList.toggle("active", !isLocal);
     localButton.classList.toggle("active", isLocal);
@@ -1635,12 +1578,14 @@
     localButton.setAttribute("aria-pressed", String(isLocal));
 
     if (statusNode) {
-      statusNode.textContent =
-        "当前已选择：" + (isLocal ? "本机（127.0.0.1:3333）" : "服务器（script.xiangtianzhen.store）");
+      statusNode.textContent = [
+        "当前已选择：" + (isLocal ? "本机（127.0.0.1:3333）" : "服务器（script.xiangtianzhen.store）"),
+        "该设置统一控制 ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。",
+      ].join(" ");
     }
   }
 
-  async function setHomeDataBakerEndpoint(mode) {
+  async function setHomeBackendEndpoint(mode) {
     if (!storage || typeof storage.patchSettings !== "function") {
       const statusNode = getElement("home-endpoint-status");
       if (statusNode) {
@@ -1649,8 +1594,8 @@
       return;
     }
 
-    const nextEndpoint =
-      mode === "local" ? dataBakerAiRecommendLocalEndpoint : dataBakerAiRecommendServerEndpoint;
+    const normalizedMode =
+      String(mode || "").trim().toLowerCase() === backendModeLocal ? backendModeLocal : backendModeServer;
     const statusNode = getElement("home-endpoint-status");
     if (statusNode) {
       statusNode.textContent = "正在保存后端接口地址...";
@@ -1658,21 +1603,14 @@
 
     try {
       currentSettings = await storage.patchSettings({
-        platforms: {
-          dataBaker: {
-            scripts: {
-              roundOneQuality: {
-                id: dataBakerRoundOneQualityScriptId,
-                aiRecommendEndpoint: nextEndpoint,
-              },
-            },
-          },
+        meta: {
+          backendEndpointMode: normalizedMode,
         },
       });
-      renderHomeDataBakerEndpoint(currentSettings);
+      renderHomeBackendEndpoint(currentSettings);
       if (statusNode) {
         statusNode.textContent =
-          "后端接口地址已保存为" + (mode === "local" ? "本机" : "服务器") + "。";
+          "后端接口地址已保存为" + (normalizedMode === backendModeLocal ? "本机" : "服务器") + "。";
       }
     } catch (error) {
       if (statusNode) {
@@ -1901,15 +1839,8 @@
     const thunderQuestionEnabled = Boolean(getElement("judgement-thunder-question").checked);
     const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
     const statsUploadEnabled = Boolean(getElement("judgement-stats-upload-enabled").checked);
-    const statsUploadEndpoint = normalizeJudgementStatsEndpoint(
-      getElement("judgement-stats-upload-endpoint").value
-    );
     const statsAutoUploadOnSchedule = Boolean(getElement("judgement-stats-auto-schedule").checked);
     const aiSuggestionEnabled = Boolean(getElement("judgement-ai-suggestion-enabled").checked);
-    const aiSuggestionEndpoint = normalizeJudgementAiEndpoint(
-      getElement("judgement-ai-suggestion-endpoint").value,
-      judgementAiSuggestionEndpointDefault
-    );
     const aiSuggestionRequestTimeoutMs = clampNumber(
       Number(getElement("judgement-ai-suggestion-timeout").value),
       120000,
@@ -1953,7 +1884,6 @@
         thunderQuestionEnabled: thunderQuestionEnabled,
         autoAdvanceAfterChoice: autoAdvanceAfterChoice,
         statsUploadEnabled: statsUploadEnabled,
-        statsUploadEndpoint: statsUploadEndpoint,
         statsScheduleUrl: "",
         statsUploadTimes: constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.statsUploadTimes || ["10:00", "16:00"],
         statsUploadJitterMinutes: constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.statsUploadJitterMinutes || 10,
@@ -1961,7 +1891,6 @@
         statsAutoUploadOnSchedule: statsAutoUploadOnSchedule,
         statsUploadRequestTimeoutMs: 20000,
         aiSuggestionEnabled: aiSuggestionEnabled,
-        aiSuggestionEndpoint: aiSuggestionEndpoint,
         aiSuggestionRequestTimeoutMs: aiSuggestionRequestTimeoutMs,
         aiSuggestionModel: aiSuggestionModel,
         aiSuggestionAvailableModels: aiSuggestionAvailableModels,
@@ -2034,11 +1963,11 @@
     });
 
     getElement("home-endpoint-server").addEventListener("click", function () {
-      void setHomeDataBakerEndpoint("server");
+      void setHomeBackendEndpoint("server");
     });
 
     getElement("home-endpoint-local").addEventListener("click", function () {
-      void setHomeDataBakerEndpoint("local");
+      void setHomeBackendEndpoint("local");
     });
 
     try {

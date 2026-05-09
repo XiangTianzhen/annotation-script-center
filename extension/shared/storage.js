@@ -70,6 +70,7 @@
         cache: {},
         meta: {
           schemaVersion: 7,
+          backendEndpointMode: "server",
         },
       },
       DEFAULT_ASR_CONFIG: {},
@@ -89,6 +90,8 @@
         "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload",
       TRANSCRIPTION_STATS_LOCAL_ENDPOINT:
         "http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload",
+      BACKEND_ENDPOINT_MODE_SERVER: "server",
+      BACKEND_ENDPOINT_MODE_LOCAL: "local",
       DATABAKER_PAGE_SIZE_OPTIONS: ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"],
       DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: [
         { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
@@ -228,6 +231,75 @@
   function normalizeNumber(value, fallback) {
     const numericValue = Number(value);
     return Number.isFinite(numericValue) ? numericValue : fallback;
+  }
+
+  function normalizeBackendEndpointMode(value, fallback) {
+    const constants = getConstants();
+    const localMode = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
+    const serverMode = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
+    const fallbackMode = String(fallback || "").trim().toLowerCase() === localMode ? localMode : serverMode;
+    const text = String(value || "").trim().toLowerCase();
+    if (text === localMode || text === "localhost" || text === "127.0.0.1") {
+      return localMode;
+    }
+    if (text === serverMode) {
+      return serverMode;
+    }
+    return fallbackMode;
+  }
+
+  function inferBackendModeFromEndpoint(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (!text) {
+      return "";
+    }
+    if (text.indexOf("127.0.0.1") >= 0 || text.indexOf("localhost") >= 0) {
+      return "local";
+    }
+    if (text.indexOf("http://") === 0 || text.indexOf("https://") === 0) {
+      return "server";
+    }
+    return "";
+  }
+
+  function ensureGlobalBackendEndpointMode(settings, input, defaults) {
+    const constants = getConstants();
+    const defaultMode = normalizeBackendEndpointMode(
+      defaults?.meta?.backendEndpointMode,
+      constants.BACKEND_ENDPOINT_MODE_SERVER || "server"
+    );
+    settings.meta = deepMerge(defaults?.meta || {}, settings.meta || {});
+    const existingMode = normalizeBackendEndpointMode(
+      settings.meta.backendEndpointMode,
+      defaultMode
+    );
+    const inputMeta = isPlainObject(input?.meta) ? input.meta : {};
+    const hasExplicitInputMode = hasOwn(inputMeta, "backendEndpointMode");
+    if (hasExplicitInputMode) {
+      settings.meta.backendEndpointMode = existingMode;
+      return;
+    }
+
+    const candidates = [
+      input?.platforms?.alibabaLabelx?.scriptCenter?.projects?.transcription?.asrConfig?.statsUploadEndpoint,
+      input?.platforms?.alibabaLabelx?.scriptCenter?.projects?.judgement?.asrConfig?.statsUploadEndpoint,
+      input?.platforms?.alibabaLabelx?.scriptCenter?.projects?.judgement?.asrConfig?.aiSuggestionEndpoint,
+      input?.platforms?.dataBaker?.scripts?.roundOneQuality?.aiRecommendEndpoint,
+      input?.asr?.statsUploadEndpoint,
+      input?.asr?.aiSuggestionEndpoint,
+      settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.transcription?.asrConfig?.statsUploadEndpoint,
+      settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.judgement?.asrConfig?.statsUploadEndpoint,
+      settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.judgement?.asrConfig?.aiSuggestionEndpoint,
+      settings?.platforms?.dataBaker?.scripts?.roundOneQuality?.aiRecommendEndpoint,
+    ];
+
+    const inferredMode =
+      candidates
+        .map(inferBackendModeFromEndpoint)
+        .find(function (mode) {
+          return mode === "local" || mode === "server";
+        }) || defaultMode;
+    settings.meta.backendEndpointMode = normalizeBackendEndpointMode(inferredMode, defaultMode);
   }
 
   const JUDGEMENT_ITEMS_PER_PAGE_VALUES = [
@@ -1190,6 +1262,7 @@
     ensureScriptCenter(settings);
     ensureLightwheelRoot(settings);
     ensureDataBakerRoot(settings);
+    ensureGlobalBackendEndpointMode(settings, input || {}, defaults);
 
     const activeProjectId =
       settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId ||
@@ -1291,6 +1364,10 @@
     syncProjectCenterFromActiveAsr(settings);
     settings.stage = defaults.stage || settings.stage || "mv3-legacy-migration";
     settings.meta = deepMerge(defaults.meta || {}, settings.meta || {});
+    settings.meta.backendEndpointMode = normalizeBackendEndpointMode(
+      settings.meta.backendEndpointMode,
+      defaults?.meta?.backendEndpointMode || "server"
+    );
     settings.meta.schemaVersion = constants.SCHEMA_VERSION || 7;
     return settings;
   }

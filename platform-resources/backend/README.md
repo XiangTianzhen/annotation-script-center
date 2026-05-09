@@ -61,6 +61,15 @@ ASR 转写职责边界：
 - 扩展前端客户端：`extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只负责采集、上传、按钮和调度。
 - Node 后端服务：`platform-resources/alibaba-labelx/asr-transcription/backend/`，负责路由、合并、CSV 写入与下载。
 
+后端地址配置规则：
+- 扩展前端只有一个全局后端地址入口：options 首页顶部“后端接口地址”（`server` / `local`）。
+- 各脚本详情页不再提供独立后端地址、上传接口地址或 AI 接口地址配置。
+- 运行时统一按“全局 baseUrl + 固定 API path”拼接：
+  - ASR 转写统计：`/api/alibaba-labelx/asr-transcription/statistics/*`
+  - ASR 快判统计：`/api/alibaba-labelx/asr-judgement/statistics/*`
+  - ASR 快判 AI 建议：`/api/alibaba-labelx/asr-judgement/ai/suggest`
+  - 标贝易采 AI 推荐：`/api/data-baker/round-one-quality/ai/recommend`
+
 ## 新增项目 API 规则
 
 1. 在对应项目目录下创建 `backend/index.js`，导出 `registerRoutes(router, options)`。

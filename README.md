@@ -75,8 +75,7 @@ Chrome：
 
 `标贝易采一检质检` 可在 options 首页单独启停，并在专属设置页配置：
 
-- 后端接口地址只能在服务器和本机之间选择，默认走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
-- 本机调试接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`，仅用于开发调试。
+- 后端接口地址由 options 首页顶部“后端接口地址”统一控制（服务器 / 本机），不再在脚本详情页单独配置。
 - 请求超时时间在 options 中以秒展示，默认 `120` 秒；扩展内部仍按毫秒保存和请求。
 - 是否启用 AI 推荐文本。
 - 自动每页条数默认启用，进入 标贝易采一检详情页后会尝试设置为 `50条/页`，只改页面分页，不自动提交任务。
@@ -255,8 +254,8 @@ pm2 restart annotation-script-center --update-env
 标贝易采 AI 推荐文本说明：
 
 - 当前目标页面：`https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0`。
-- 脚本已接入 options “标注脚本中心”，可在 标贝易采 平台区域启停，并在专属设置页选择 后端接口地址。
-- 默认前端请求服务器接口 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`；本机 `http://127.0.0.1:3333/...` 仅用于开发调试，员工默认走服务器。
+- 脚本已接入 options “标注脚本中心”，可在 标贝易采 平台区域启停；后端地址统一由 options 首页顶部“后端接口地址”控制。
+- 全局模式为服务器时，请求 `https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`；全局模式为本机时，请求 `http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`。
 - options 中请求超时时间以秒展示，默认 `120` 秒；运行时仍使用毫秒值。
 - 当前只做“单条 AI 推荐文本”，不自动保存、不自动提交、不自动点击合格 / 不合格、不做批量识别或自动流转。
 - 标贝易采设置页新增自动每页条数，默认 `50条/页`，运行时会有限重试点击页面原生分页下拉，不改接口参数、不死循环。

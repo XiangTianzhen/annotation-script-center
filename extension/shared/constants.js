@@ -32,17 +32,35 @@
   const JUDGEMENT_PROJECT_ID = "judgement";
   const LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID = "lightwheelViewPanel";
   const DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID = "dataBakerRoundOneQuality";
-  const DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT =
-    "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
-  const DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT =
-    "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend";
+  const BACKEND_ENDPOINT_MODE_SERVER = "server";
+  const BACKEND_ENDPOINT_MODE_LOCAL = "local";
+  const BACKEND_ENDPOINTS = {
+    server: "https://script.xiangtianzhen.store",
+    local: "http://127.0.0.1:3333",
+  };
+  const DATABAKER_AI_RECOMMEND_PATH = "/api/data-baker/round-one-quality/ai/recommend";
+  const JUDGEMENT_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/upload";
+  const JUDGEMENT_STATS_DOWNLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/download";
+  const JUDGEMENT_AI_SUGGEST_PATH = "/api/alibaba-labelx/asr-judgement/ai/suggest";
   const TRANSCRIPTION_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
   const TRANSCRIPTION_STATS_DOWNLOAD_PATH =
     "/api/alibaba-labelx/asr-transcription/statistics/download";
+  const DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT =
+    BACKEND_ENDPOINTS.server + DATABAKER_AI_RECOMMEND_PATH;
+  const DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT =
+    BACKEND_ENDPOINTS.local + DATABAKER_AI_RECOMMEND_PATH;
   const TRANSCRIPTION_STATS_SERVER_ENDPOINT =
-    "https://script.xiangtianzhen.store" + TRANSCRIPTION_STATS_UPLOAD_PATH;
+    BACKEND_ENDPOINTS.server + TRANSCRIPTION_STATS_UPLOAD_PATH;
   const TRANSCRIPTION_STATS_LOCAL_ENDPOINT =
-    "http://127.0.0.1:3333" + TRANSCRIPTION_STATS_UPLOAD_PATH;
+    BACKEND_ENDPOINTS.local + TRANSCRIPTION_STATS_UPLOAD_PATH;
+  const JUDGEMENT_STATS_SERVER_ENDPOINT =
+    BACKEND_ENDPOINTS.server + JUDGEMENT_STATS_UPLOAD_PATH;
+  const JUDGEMENT_STATS_LOCAL_ENDPOINT =
+    BACKEND_ENDPOINTS.local + JUDGEMENT_STATS_UPLOAD_PATH;
+  const JUDGEMENT_AI_SUGGEST_SERVER_ENDPOINT =
+    BACKEND_ENDPOINTS.server + JUDGEMENT_AI_SUGGEST_PATH;
+  const JUDGEMENT_AI_SUGGEST_LOCAL_ENDPOINT =
+    BACKEND_ENDPOINTS.local + JUDGEMENT_AI_SUGGEST_PATH;
   const DATABAKER_PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS = [
     { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
@@ -61,6 +79,72 @@
     PANEL_PING: "ASR_EDGE_SETTINGS_PANEL_PING",
     JUDGEMENT_STATS_UPLOAD: "ASR_EDGE_JUDGEMENT_STATS_UPLOAD",
   };
+
+  function normalizeBackendEndpointMode(value, fallback) {
+    const fallbackMode =
+      fallback === BACKEND_ENDPOINT_MODE_LOCAL
+        ? BACKEND_ENDPOINT_MODE_LOCAL
+        : BACKEND_ENDPOINT_MODE_SERVER;
+    const text = String(value || "").trim().toLowerCase();
+    if (text === BACKEND_ENDPOINT_MODE_LOCAL || text === "localhost" || text === "127.0.0.1") {
+      return BACKEND_ENDPOINT_MODE_LOCAL;
+    }
+    if (text === BACKEND_ENDPOINT_MODE_SERVER) {
+      return BACKEND_ENDPOINT_MODE_SERVER;
+    }
+    return fallbackMode;
+  }
+
+  function inferBackendEndpointModeFromEndpoint(value, fallback) {
+    const fallbackMode = normalizeBackendEndpointMode(fallback, BACKEND_ENDPOINT_MODE_SERVER);
+    const text = String(value || "").trim().toLowerCase();
+    if (!text) {
+      return fallbackMode;
+    }
+    if (text.indexOf("127.0.0.1") >= 0 || text.indexOf("localhost") >= 0) {
+      return BACKEND_ENDPOINT_MODE_LOCAL;
+    }
+    if (text.indexOf("script.xiangtianzhen.store") >= 0 || text.indexOf("http://") >= 0 || text.indexOf("https://") >= 0) {
+      return BACKEND_ENDPOINT_MODE_SERVER;
+    }
+    return fallbackMode;
+  }
+
+  function getBackendEndpointModeFromSettings(settings) {
+    const mode =
+      settings?.meta?.backendEndpointMode ||
+      settings?.backend?.endpointMode ||
+      settings?.backendEndpointMode;
+    return normalizeBackendEndpointMode(mode, BACKEND_ENDPOINT_MODE_SERVER);
+  }
+
+  function getBackendBaseUrlByMode(mode) {
+    const normalizedMode = normalizeBackendEndpointMode(mode, BACKEND_ENDPOINT_MODE_SERVER);
+    return normalizedMode === BACKEND_ENDPOINT_MODE_LOCAL
+      ? BACKEND_ENDPOINTS.local
+      : BACKEND_ENDPOINTS.server;
+  }
+
+  function getBackendBaseUrlFromSettings(settings) {
+    return getBackendBaseUrlByMode(getBackendEndpointModeFromSettings(settings));
+  }
+
+  function buildBackendUrl(path, settingsOrMode) {
+    const text = String(path || "").trim();
+    if (!text) {
+      return "";
+    }
+    if (/^https?:\/\//i.test(text)) {
+      return text;
+    }
+    const mode =
+      typeof settingsOrMode === "string"
+        ? settingsOrMode
+        : getBackendEndpointModeFromSettings(settingsOrMode || {});
+    const baseUrl = getBackendBaseUrlByMode(mode).replace(/\/+$/, "");
+    const normalizedPath = text.charAt(0) === "/" ? text : "/" + text;
+    return baseUrl + normalizedPath;
+  }
 
   const TARGET_PLATFORM = {
     id: "alibaba-labelx",
@@ -217,7 +301,7 @@
     autoAdvanceAfterChoice: false,
     statsUploadEnabled: true,
     statsUploadEndpoint:
-      "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload",
+      JUDGEMENT_STATS_SERVER_ENDPOINT,
     statsScheduleUrl: "",
     statsUploadTimes: ["10:00", "16:00"],
     statsUploadJitterMinutes: 10,
@@ -225,7 +309,7 @@
     statsAutoUploadOnSchedule: true,
     statsUploadRequestTimeoutMs: 20000,
     aiSuggestionEnabled: false,
-    aiSuggestionEndpoint: "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest",
+    aiSuggestionEndpoint: JUDGEMENT_AI_SUGGEST_SERVER_ENDPOINT,
     aiSuggestionRequestTimeoutMs: 120000,
     aiSuggestionModel: "qwen3-omni-flash",
     aiSuggestionAvailableModels: clone(JUDGEMENT_AI_AVAILABLE_MODELS),
@@ -664,6 +748,7 @@
     cache: clone(DEFAULT_CACHE),
     meta: {
       schemaVersion: SCHEMA_VERSION,
+      backendEndpointMode: BACKEND_ENDPOINT_MODE_SERVER,
       lastBootstrapReason: null,
       lastBootstrappedAt: null,
     },
@@ -700,8 +785,25 @@
     DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
     DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
     DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,
+    DATABAKER_AI_RECOMMEND_PATH: DATABAKER_AI_RECOMMEND_PATH,
+    JUDGEMENT_STATS_UPLOAD_PATH: JUDGEMENT_STATS_UPLOAD_PATH,
+    JUDGEMENT_STATS_DOWNLOAD_PATH: JUDGEMENT_STATS_DOWNLOAD_PATH,
+    JUDGEMENT_AI_SUGGEST_PATH: JUDGEMENT_AI_SUGGEST_PATH,
     TRANSCRIPTION_STATS_UPLOAD_PATH: TRANSCRIPTION_STATS_UPLOAD_PATH,
     TRANSCRIPTION_STATS_DOWNLOAD_PATH: TRANSCRIPTION_STATS_DOWNLOAD_PATH,
+    BACKEND_ENDPOINT_MODE_SERVER: BACKEND_ENDPOINT_MODE_SERVER,
+    BACKEND_ENDPOINT_MODE_LOCAL: BACKEND_ENDPOINT_MODE_LOCAL,
+    BACKEND_ENDPOINTS: clone(BACKEND_ENDPOINTS),
+    JUDGEMENT_STATS_SERVER_ENDPOINT: JUDGEMENT_STATS_SERVER_ENDPOINT,
+    JUDGEMENT_STATS_LOCAL_ENDPOINT: JUDGEMENT_STATS_LOCAL_ENDPOINT,
+    JUDGEMENT_AI_SUGGEST_SERVER_ENDPOINT: JUDGEMENT_AI_SUGGEST_SERVER_ENDPOINT,
+    JUDGEMENT_AI_SUGGEST_LOCAL_ENDPOINT: JUDGEMENT_AI_SUGGEST_LOCAL_ENDPOINT,
+    normalizeBackendEndpointMode: normalizeBackendEndpointMode,
+    inferBackendEndpointModeFromEndpoint: inferBackendEndpointModeFromEndpoint,
+    getBackendEndpointModeFromSettings: getBackendEndpointModeFromSettings,
+    getBackendBaseUrlByMode: getBackendBaseUrlByMode,
+    getBackendBaseUrlFromSettings: getBackendBaseUrlFromSettings,
+    buildBackendUrl: buildBackendUrl,
     TRANSCRIPTION_STATS_SERVER_ENDPOINT: TRANSCRIPTION_STATS_SERVER_ENDPOINT,
     TRANSCRIPTION_STATS_LOCAL_ENDPOINT: TRANSCRIPTION_STATS_LOCAL_ENDPOINT,
     DATABAKER_PAGE_SIZE_OPTIONS: clone(DATABAKER_PAGE_SIZE_OPTIONS),

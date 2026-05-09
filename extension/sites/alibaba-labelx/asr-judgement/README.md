@@ -22,7 +22,9 @@
 - 当前扩展版本：`0.2.6`。
 
 - 前端开关字段：`aiSuggestionEnabled`，默认关闭。
-- 请求地址字段：`aiSuggestionEndpoint`，默认 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`。
+- AI 建议地址不再由脚本详情页单独配置；统一使用 options 首页顶部“后端接口地址”拼接：
+  - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/ai/suggest`
+  - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`
 - 请求超时字段：`aiSuggestionRequestTimeoutMs`，默认 `120000`。
 - 模型字段：`aiSuggestionModel`，第一版默认 `qwen3-omni-flash`，预留 `qwen3.5-omni-plus`。
 - 快捷键动作：`shortcuts.aiSuggestCurrentItem`（默认未绑定）。
@@ -116,11 +118,14 @@
 - 首页上传会直接使用 LabelX 登录态请求首页任务数据：先读取 `/api/v1/label/center/tasks` 和 `/api/v1/label/center/subTasks`，再对每个子任务调用 `/api/v1/label/center/subTask/{subTaskId}/data` 获取完整题目与时长，最后批量上传 `payloads`。已通过 DevTools 确认：标注首页使用 `type=label` / `subTaskType=label`，审核首页使用 `type=check` / `subTaskType=check`；两类首页的已完成列表都通过 `subTasks?finished=true` 读取。
 - 首页上传只保留 ASR 更优判断数据：优先按 `labelModel=vote` 判断；如果接口缺少该字段，再用 `taskName` 包含 `ASR更优结果判断` / `ASR更优` 且 `size=400` 作为补充判断。`labelModel=single`、`taskName=中文普通话asr任务` 或 `size=50` 会视为历史转写数据并跳过。
 - 标注员 / 审核员姓名优先从顶部头像下拉读取：脚本会对 `.NavAvatar-module__userInfoWrapper...avatar` 触发 hover，再读取下拉菜单中的用户展示名；读取失败时回退到接口字段。
-- options 的“统计数据上传”区域只保留启用开关、上传接口地址和定时上传开关，不再提供手动上传按钮。
+- options 的“统计数据上传”区域只保留启用开关和定时上传开关，不再提供脚本级上传接口地址配置，也不提供手动上传按钮。
 - 不再支持进入快判详情页自动上传，避免仅打开页面就产生统计写入。
-- 上传接口地址只保留两个选项：服务器 `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload` 和本机 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload`，默认使用服务器地址。历史保存的 `47.108.254.138:3333` 或旧 `/api/asr-judgement/statistics/upload` 配置会迁移到新地址。
+- 上传接口地址由全局后端模式拼接：
+  - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload`
+  - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload`
+- 历史保存的 `statsUploadEndpoint/aiSuggestionEndpoint` 仅用于兼容迁移全局模式，不再作为运行时主配置。
 - 定时上传默认时间固定写在代码中，为 `10:00`、`16:00`；到点后会增加随机延迟，避免大量客户端同时请求服务器。options 不再配置本地默认时间和随机延迟。
-- 定时时间配置不再单独填写地址，而是使用当前“上传接口地址”发起 `GET` 请求并追加 `purpose=schedule`。当前支持响应形态中包含 `data.times`、`data.uploadTimes` 或 `data.scheduleTimes`，例如 `["10:00","16:00"]`；请求会附带当前 URL 的 `projectId` 和 `subTaskId`。请求失败时回退到代码内默认时间。本地服务也额外提供 `/api/asr-judgement/statistics/config` 便于直接检查配置。
+- 定时时间配置通过“全局后端地址 + 统计 upload path”发起 `GET` 请求并追加 `purpose=schedule`。当前支持响应形态中包含 `data.times`、`data.uploadTimes` 或 `data.scheduleTimes`，例如 `["10:00","16:00"]`；请求会附带当前 URL 的 `projectId` 和 `subTaskId`。请求失败时回退到代码内默认时间。
 - 统计上传失败提示会包含 HTTP 状态码、上传接口地址和最多 300 字响应摘要；如果是浏览器权限、CORS、证书或网络拦截导致请求未发出，会明确提示“上传请求未发出或被浏览器/网络拦截”。
 - 服务端更推荐的抗峰值方案是：上传接口只做快速校验和入队 / upsert，返回 `202` 或轻量成功响应；后端队列再异步合并 CSV 和写数据库。这样比只靠客户端随机延迟更稳。
 
@@ -230,8 +235,8 @@
 25. 确认页面最顶部主导航区域同时显示总时长、`每页 50 条/页`、默认倍速和默认音量。
 26. 确认工具栏按钮可执行判别、音量、倍速和进退动作；播放/暂停不额外添加按钮。
 27. 触发快捷键或按钮后，确认页面右上角会出现短提示。
-28. 在 options 中确认“统计数据上传”区域只提供启用开关、服务器 / 本机两个上传地址选项和定时上传开关，不再出现时间配置 URL 与“上传统计”按钮。
-29. 启动本地服务后，在 options 选择“本机：127.0.0.1:3333”，打开 `labelingTask?projectId=...`、`checkTask?projectId=...` 或任一快判详情页，点击顶部导航头像旁的“上传统计”，确认扩展会同时请求标注和审核两类首页的 `tasks`、`subTasks`、`subTasks?finished=true` 和每个 ASR 更优判断分包的 `/subTask/{subTaskId}/data`，并向本地服务发送批量 `payloads`；详情页上传的 payload 行数应与同一账号同一项目首页上传一致，历史转写任务应被跳过，不进入上传 payload。
+28. 在 options 中确认“统计数据上传”区域只提供启用开关和定时上传开关，不再出现上传地址下拉、时间配置 URL 与“上传统计”按钮。
+29. 在 options 首页顶部把“后端接口地址”切到“本机”，再打开 `labelingTask?projectId=...`、`checkTask?projectId=...` 或任一快判详情页，点击顶部导航头像旁的“上传统计”，确认扩展会同时请求标注和审核两类首页的 `tasks`、`subTasks`、`subTasks?finished=true` 和每个 ASR 更优判断分包的 `/subTask/{subTaskId}/data`，并向本地服务发送批量 `payloads`；详情页上传的 payload 行数应与同一账号同一项目首页上传一致，历史转写任务应被跳过，不进入上传 payload。
 30. 确认快判详情页工具栏不出现“统计 / 上传统计”按钮；若上传接口尚未部署，顶部导航点击“上传统计”应只提示上传失败，不应影响题卡判别、保存或页面操作。
 31. 将 active project 切回“阿里ASR语音转写”，刷新 LabelX 页面，确认快判快捷键和工具栏不再触发。
 32. 打开一个未标注的全新快判详情页，不按快捷键、不点工具栏，确认脚本不会自动选中“哪个ASR更优”的任一选项；若页面本身返回了已保存答案，应以接口数据或页面原始状态为准。
@@ -239,7 +244,7 @@
 AI 建议补充验证：
 
 33. 在 options 快判详情页开启“AI 半自动参考建议”，确认默认模型是 `qwen3-omni-flash`，`qwen3.5-omni-plus` 仅作为预留可选项。
-34. 确认 AI 接口地址为 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`，并保存设置。
+34. 在 options 首页顶部将“后端接口地址”切到“本机”，确认 AI 请求地址随之为 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`。
 35. 启动后端后访问 `GET /api/alibaba-labelx/asr-judgement/ai/health`，确认返回 `provider/defaultModel/availableModels` 等字段。
 36. 用非法模型调用 `POST /api/alibaba-labelx/asr-judgement/ai/suggest`，确认返回 `HTTP 400`、`success=false`、`code=invalid-model`。
 37. 若未配置 `DASHSCOPE_API_KEY`，触发“AI 分析当前题”，确认返回 `missing-api-key` 类错误且页面不崩溃。

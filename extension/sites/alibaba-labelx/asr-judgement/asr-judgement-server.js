@@ -1,5 +1,8 @@
 (function () {
   const LOG_PREFIX = "[ASR Edge][judgement-stats]";
+  const CONSTANTS = globalThis.ASREdgeConstants || {};
+  const BACKEND_MODE_SERVER = CONSTANTS.BACKEND_ENDPOINT_MODE_SERVER || "server";
+  const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const DEFAULT_PAGE_SIZE = 400;
   const DEFAULT_HOME_PAGE_SIZE = 100;
   const DEFAULT_UPLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/upload";
@@ -119,15 +122,23 @@
   }
 
   function resolveUploadEndpoint(config) {
-    const explicitEndpoint = normalizeEndpoint(config?.statsUploadEndpoint);
-    if (explicitEndpoint) {
-      return explicitEndpoint;
+    const modeText = String(config?.backendEndpointMode || "").trim().toLowerCase();
+    const endpointMode = modeText === BACKEND_MODE_LOCAL ? BACKEND_MODE_LOCAL : BACKEND_MODE_SERVER;
+    if (typeof CONSTANTS.buildBackendUrl === "function") {
+      const byMode = normalizeEndpoint(CONSTANTS.buildBackendUrl(DEFAULT_UPLOAD_PATH, endpointMode));
+      if (byMode) {
+        return byMode;
+      }
+    }
+    if (config?.settings && typeof CONSTANTS.buildBackendUrl === "function") {
+      const bySettings = normalizeEndpoint(CONSTANTS.buildBackendUrl(DEFAULT_UPLOAD_PATH, config.settings));
+      if (bySettings) {
+        return bySettings;
+      }
     }
 
-    const server = config?.legacyServer || {};
-    const baseUrl = server.useDebugApiBaseUrl === true ? server.debugApiBaseUrl : server.apiBaseUrl;
-    const normalizedBaseUrl = normalizeEndpoint(baseUrl);
-    return normalizedBaseUrl ? trimSlash(normalizedBaseUrl) + DEFAULT_UPLOAD_PATH : DEFAULT_SERVER_UPLOAD_ENDPOINT;
+    const baseUrl = endpointMode === BACKEND_MODE_LOCAL ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store";
+    return trimSlash(baseUrl) + DEFAULT_UPLOAD_PATH;
   }
 
   function resolveScheduleEndpoint(config) {

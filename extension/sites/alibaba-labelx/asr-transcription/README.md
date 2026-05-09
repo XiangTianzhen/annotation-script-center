@@ -8,6 +8,7 @@
 - 当前保留转写详情页工具栏按钮能力，并允许通过 options 调整基础参数。
 - 工具栏已改为页面内注入结构：优先挂载 `.mark-toolbox`，其次挂到首条题卡上方，不再默认固定悬浮在页面顶部中央。
 - 新增转写统计导出能力：支持手动上传与定时上传，后端按分包合并 CSV。
+- 转写统计上传地址不再在脚本详情页单独配置，统一由 options 首页顶部“后端接口地址”（`server/local`）控制。
 
 ## 保留能力（仅当前题 / 当前音频）
 
@@ -77,12 +78,12 @@
 - 任务识别规则：
   - 排除快判：`labelModel=vote`，或任务名包含 `ASR更优结果判断/ASR更优/更优结果判断/更优判断`。
   - 采集转写：`labelModel=single`，或任务名包含 `中文普通话asr任务/中文普通话asr/asr任务/普通话asr`，或 `size=50`（且未命中快判排除）。
-- 上传接口：
-  - 服务器：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload`
-  - 本机：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload`
-- 下载接口：
-  - 服务器：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download`
-  - 本机：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
+- 上传接口由全局后端模式拼接：
+  - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload`
+  - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload`
+- 下载接口由全局后端模式拼接：
+  - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download`
+  - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
 - CSV 列固定为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
 - `csvPatch` 只承载基础字段：`任务名称/任务ID/分包ID/题数/有效时长(秒)`。
 - 标注/审核字段只允许由 `roleRecord` 按 `role` 写入；`role=label` 仅写标注字段，`role=audit` 仅写审核字段。
@@ -109,7 +110,7 @@
 3. 打开 LabelX 转写详情页并等待题目 DOM 出现，确认工具栏自动出现。
 4. 确认工具栏没有“设置”按钮。
 5. 验证所有保留按钮动作。
-6. 打开 options 转写详情页，确认不再出现完整设置表单。
+6. 打开 options 转写详情页，确认仅保留轻量设置面板，不出现独立后端地址下拉框。
 7. 切换到 `asr-judgement` 页面，确认不出现转写工具栏，快判功能不受影响。
 
 ## 后续约束

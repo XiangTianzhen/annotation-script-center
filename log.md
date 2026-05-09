@@ -2,6 +2,13 @@
 
 ## 2026-05-09
 
+- 统一后端接口地址配置入口：options 首页顶部“后端接口地址”改为全局 `meta.backendEndpointMode`（`server/local`），不再通过 DataBaker 脚本字段间接承载。
+- 删除脚本详情页重复 endpoint 配置控件：移除转写“上传地址”、快判“上传接口地址”和快判 AI“后端接口地址”输入。
+- options 详情页仅保留业务开关和参数（转写/快判/标贝），后端地址统一只读说明“由首页全局控制”。
+- 转写统计、快判统计、快判 AI 建议、标贝易采 AI 推荐运行时统一改为“全局 baseUrl + 固定 API path”拼接，不再以脚本级 endpoint 字段作为运行时主来源。
+- `shared/storage.js` 新增旧字段迁移：当 `meta.backendEndpointMode` 缺失时，会从历史 `statsUploadEndpoint/aiSuggestionEndpoint/aiRecommendEndpoint` 推断 `local/server`，避免旧配置报错。
+- 本轮仍保持 `extension/manifest.json` 版本 `0.2.10`。
+
 - 修复 ASR 转写统计 CSV 角色污染：前端 `csvPatch` 收敛为基础字段（`任务名称/任务ID/分包ID/题数/有效时长(秒)`），不再写入标注/审核字段。
 - 修复转写后端合并边界：`applyBasePatch` 忽略全部角色字段；标注/审核字段仅允许 `applyRoleRecord` 按 `role` 写入。
 - 修复 `role` 容错风险：`roleRecord.role` 不再默认回退 label，缺失或非法时直接拒绝写入并返回错误，避免误把审核数据写入标注列。

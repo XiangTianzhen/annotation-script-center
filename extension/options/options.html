@@ -482,7 +482,7 @@
             <button id="home-endpoint-server" class="segmented-button" type="button">服务器</button>
             <button id="home-endpoint-local" class="segmented-button" type="button">本机</button>
           </div>
-          <span>服务器供日常使用，本机仅用于开发调试。扩展前端不保存 API Key。</span>
+          <span>该设置统一控制所有脚本的后端请求：ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。各脚本详情页不再单独设置后端地址。</span>
           <div id="home-endpoint-status" class="status-text"></div>
         </div>
       </section>
@@ -598,13 +598,7 @@
               <input id="transcription-stats-enabled" type="checkbox" />
               <span>启用转写统计上传</span>
             </label>
-            <label>
-              <span>上传地址</span>
-              <select id="transcription-stats-endpoint">
-                <option value="server">服务器：script.xiangtianzhen.store</option>
-                <option value="local">本机：127.0.0.1:3333</option>
-              </select>
-            </label>
+            <span>上传地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
             <span>本地保存目录：platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/</span>
             <span>本机下载地址：http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download</span>
             <span>服务器下载地址：https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download（需服务器部署最新后端）</span>
@@ -751,10 +745,7 @@
               <input id="judgement-ai-suggestion-enabled" type="checkbox" />
               <span>启用 AI 建议</span>
             </label>
-            <label>
-              <span>后端接口地址</span>
-              <input id="judgement-ai-suggestion-endpoint" type="text" />
-            </label>
+            <span>AI 建议后端地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
             <label>
               <span>请求超时时间 (ms)</span>
               <input id="judgement-ai-suggestion-timeout" type="number" min="1000" max="180000" step="1000" />
@@ -772,13 +763,7 @@
               <input id="judgement-stats-upload-enabled" type="checkbox" />
               <span>启用统计上传</span>
             </label>
-            <label>
-              <span>上传接口地址</span>
-              <select id="judgement-stats-upload-endpoint">
-                <option value="https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload">服务器：script.xiangtianzhen.store</option>
-                <option value="http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload">本机：127.0.0.1:3333</option>
-              </select>
-            </label>
+            <span>上传接口地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
             <label class="field-toggle">
               <input id="judgement-stats-auto-schedule" type="checkbox" />
               <span>启用定时上传</span>
@@ -820,6 +805,7 @@
             <label class="field-card">
               <strong>启用 AI 推荐</strong>
               <span>关闭后，标贝易采详情页不显示 AI 推荐工具卡，也不会触发推荐请求。</span>
+              <span>AI 推荐后端地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
               <span class="field-toggle">
                 <input id="data-baker-ai-recommend-enabled" type="checkbox" />
                 启用 AI 推荐文本
