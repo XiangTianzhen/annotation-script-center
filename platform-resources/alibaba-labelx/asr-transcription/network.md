@@ -336,6 +336,66 @@
   - textarea 触发 input/change/blur 后会自动保存。
   - 刷新页面后确认恢复值来自平台接口。
 
+## 标注详情页自动保存与批量写入验证
+
+页面：`/corpora/labeling/sdk?missionType=label&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`
+
+### 1) 转写文本编辑保存
+
+- 操作：在标注详情页临时编辑转写文本，触发 `input/change/blur`，等待平台自动保存，再恢复原值并刷新核验。
+- 自动保存请求：
+  - Method：`POST`
+  - Path：`/api/v1/label/center/subTask/{subTaskId}/data`
+- Request body 顶层字段：
+  - `dataList`
+  - `timestamp`
+- 本轮保存体字段树：
+  - `dataList[]`
+    - `dataId`
+    - `batchId`
+    - `data`
+    - `result`
+      - `markResult[]`
+  - `timestamp`
+- `markResult[]` 可见题目：
+  - `是否有效`
+  - `转写文本`
+- Response 字段树：
+  - `code`
+  - `message`
+  - `log`
+  - `data`
+  - `traceId`
+  - `traceSql`
+  - `extraInfo`
+  - `cost`
+  - `success`
+- 本轮观察：
+  - HTTP status `200`。
+  - 保存成功时 `code=0`、`success=true`、`data=true`。
+  - 标注详情页文本编辑未观察到 `POST /api/v1/label/center/mistake`，与审核态有效性切换不同。
+  - 请求体中的 `data.raw_audio_path` / `data.audio_path` 可能包含完整签名音频 URL，文档和日志必须脱敏，只记录字段路径和 hostname / pathname 后缀。
+
+### 2) 50 条/页批量写入验证
+
+- 操作：将详情页从 `10 条/页` 切换到 `50 条/页`，页面一次渲染 50 个音频题卡。
+- 触发请求：
+  - `GET /api/v1/label/center/subTask/{subTaskId}/data?page=1&pageSize=50&filterPassedVote=false&filter=...`
+  - `GET /api/v1/label/center/subTask/{subTaskId}/summary`
+  - `GET /api/v1/label/center/subTask/{subTaskId}/board`
+- DOM 观察：
+  - `audio`：50 个。
+  - `textarea`：101 个，包含每题转写文本、特殊备注以及页面附加输入结构。
+- 批量写入验证：
+  - 对当前页 10 个非空转写 textarea 进行快速连续写入并触发输入事件。
+  - 平台只产生 1 次 `POST /api/v1/label/center/subTask/{subTaskId}/data`。
+  - 保存体 `dataList.length=1`，刷新后只确认 1 条数据被保存。
+  - 随后已恢复临时测试内容，刷新并切回 `50 条/页` 后确认临时标记计数为 0。
+- 结论：
+  - 不能依赖“快速批量修改多个 textarea + blur”完成整页保存。
+  - 后续全页一键填充若需要真实写入，必须串行逐题触发并等待每题自动保存完成，或在完全理解平台保存契约后构造受控保存流程。
+  - 自动保存会修改真实任务数据，批量能力必须默认提供明显风险提示和可中止/可恢复策略。
+
 ## 审核详情页提交
 
 - 操作：用户授权后点击 `提交任务`。
@@ -444,6 +504,60 @@
   - 内容区关键词筛选后的具体字段。
   - 任务状态 `dataStatus` 非 `ALL` 的真实枚举值。
 
+## 标注详情页提交与自动领取
+
+页面：`/corpora/labeling/sdk?missionType=label&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`
+
+### 普通提交
+
+- 操作：用户授权后点击 `提交任务`。
+- 提交请求：
+  - Method：`POST`
+  - Path：`/api/v1/label/center/subTask/{subTaskId}/commit`
+  - Request body：`subTaskId`
+- Response：
+  - HTTP status `200`
+  - `code=0`
+  - `success=true`
+  - `data=true`
+- 页面行为：
+  - 顶部按钮进入 `loading 提交任务`。
+  - 当前页面自动领取开关为开启状态。
+
+### 自动领取
+
+- 自动领取请求：
+  - Method：`POST`
+  - Path：`/api/v1/label/center/{taskId}/label/fetch`
+  - Request body：
+    - `taskId`
+    - `type`
+    - `autoFetch`
+- 本轮字段类型：
+  - `taskId`：number
+  - `type`：string，语义为 `label`
+  - `autoFetch`：boolean
+- Response：
+  - HTTP status `200`
+  - 业务 `code=500`
+  - `success=false`
+- 页面行为：
+  - 未进入新标注详情页。
+  - 最终回到标注首页 `/corpora/labeling/labelingTask?projectId=<REDACTED_PROJECT_ID>`。
+  - 首页重新显示 `我的任务` 和 `可领取的任务`。
+
+### 标注首页回跳后的请求
+
+- 回到标注首页后可见资源请求：
+  - `GET /api/v1/label/surveyResults`
+  - `GET /api/v1/label/center/subTasks`
+  - `GET /api/v1/label/center/tasks`
+  - `GET /api/v1/label/center/tasks/process`
+- Query 参数名：
+  - `subTasks`：`type`、`keyword`、`appId`、`finished`、`page`、`pageSize`、`_`
+  - `tasks`：`subTaskType`、`keyword`、`appId`、`page`、`pageSize`、`_`
+  - `tasks/process`：`subTaskType`、`taskIds`、`_`
+
 ## 对转写统计取数的约束结论
 
 - 平台页面实测详情请求常见 `pageSize=10`；扩展统计上传策略为降低请求数量，优先使用 `pageSize=100` 抓取。
@@ -463,6 +577,7 @@
 本轮在以下响应中均未发现 `supplier/vendor/company/provider/供应商` 字段：
 
 - 转写标注首页历史采集：无。
+- 转写标注详情页本轮采集：无。
 - 转写审核首页本轮采集：无。
 - 转写审核详情页本轮采集：无。
 - `getLabelTaskInfo`：无。
@@ -482,7 +597,6 @@
 
 ## 待补采（下一轮可选）
 
-- 转写标注详情页 `missionType=label` 的保存、提交和自动领取链路。
 - 不同 `missionType`（`label/audit/review`）在详情页的数据字段差异。
-- 筛选面板 `OR`、内容区关键词和任务状态非 `ALL` 的真实请求结构。
 - 扩展加载后的转写工具栏 DOM、按钮与快捷键行为。
+- 驳回数据请求链路，等待用户切换到可操作账号后采集。

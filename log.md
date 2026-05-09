@@ -318,3 +318,7 @@
 - 明确当前真实接口未发现 `supplier/vendor/company/provider/供应商` 字段；后续供应商统计只能按 `payload` 显式字段、`csvPatch["供应商"]` 或 `taskName/name` 前缀推断，当前样例包括 `棋燊` 和历史样例 `希尔贝壳`。
 - 追加采集 LabelX ASR 转写审核详情页：确认 `提交并结束` 复用 `subTask/{subTaskId}/commit`，但不会触发 `check/fetch` 自动领取，会直接返回审核首页。
 - 补充详情页分页、每页条数和筛选契约：第 2/3 页会重拉 `data/summary/board`；原生每页条数可见 `1/2/3/4/5/10/20/30/40/50 条/页`；回答区选择题筛选写入 `filter.questions[].title/value`。
+- 补采 Alibaba LabelX ASR 转写标注详情页：确认 `missionType=label` 普通提交触发 `POST /api/v1/label/center/subTask/{subTaskId}/commit`，自动领取开启时继续触发 `POST /api/v1/label/center/{taskId}/label/fetch`。
+- 验证转写标注详情页 `50 条/页`：页面一次渲染 50 个音频题卡，快速批量写入 10 个 textarea 只产生 1 条 `dataList` 保存，后续全页一键填充不能依赖批量 DOM 写入后统一失焦。
+- 补充转写标注保存契约：文本编辑自动保存仍走 `POST /api/v1/label/center/subTask/{subTaskId}/data`，保存体顶层为 `dataList` 和 `timestamp`，音频 URL 字段必须持续脱敏。
+- 本轮只更新平台资料 Markdown 和日志，未修改扩展运行时代码、manifest、后端代码或运行数据。

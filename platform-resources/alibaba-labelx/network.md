@@ -277,6 +277,28 @@
   - 返回 `200`。
   - 点击后返回审核首页。
 
+#### 标注详情页补采
+
+- 页面：`/corpora/labeling/sdk?missionType=label&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`
+- 触发：标注详情页点击 `提交任务`。
+- Request body：
+  - `subTaskId`
+- Response 字段树：
+  - `code`
+  - `message`
+  - `log`
+  - `data`
+  - `traceId`
+  - `traceSql`
+  - `extraInfo`
+  - `cost`
+  - `success`
+- 本轮观察：
+  - HTTP status `200`。
+  - 业务 `code=0`、`success=true`。
+  - 顶部按钮进入 `loading 提交任务` 状态。
+  - 自动领取开启时，提交成功后继续触发标注自动领取请求。
+
 ### 2. 自动领取下一包
 
 - Method：`POST`
@@ -291,6 +313,35 @@
 - 本轮观察：
   - 请求返回 `200`。
   - 未跳转到新详情页，最终回到审核首页。
+
+#### 标注自动领取补采
+
+- Method：`POST`
+- Path：`/api/v1/label/center/{taskId}/label/fetch`
+- 触发：标注详情页开启 `自动领取` 后，普通 `提交任务` 成功时由平台触发。
+- Request body：
+  - `taskId`
+  - `type`
+  - `autoFetch`
+- 本轮标注实测字段类型：
+  - `taskId`：number
+  - `type`：string，值语义为 `label`
+  - `autoFetch`：boolean
+- Response 字段树：
+  - `code`
+  - `message`
+  - `log`
+  - `data`
+  - `traceId`
+  - `traceSql`
+  - `extraInfo`
+  - `cost`
+  - `success`
+- 本轮观察：
+  - HTTP status `200`。
+  - 自动领取返回业务失败：`code=500`、`success=false`。
+  - 页面未进入新标注详情页，最终返回标注首页 `/corpora/labeling/labelingTask?projectId=<REDACTED_PROJECT_ID>`。
+  - 返回首页后可见 `我的任务` 和 `可领取的任务` 列表。
 
 ### 3. 提交并结束
 
@@ -347,6 +398,7 @@
   - 平台没有自动重置到第 1 页，而是保留当前页码。
   - 页面题号随 `page/pageSize` 变化，例如第 3 页、20 条/页从第 41 题开始。
   - 切换后同步刷新 `summary` 和 `board`。
+  - 标注详情页从 `10 条/页` 切到 `50 条/页` 后，请求为 `page=1&pageSize=50`，页面一次渲染 50 个音频题卡。
 
 ### 3. 筛选条件
 
@@ -415,6 +467,8 @@
 - `board`
 - `getLabelTaskInfo`
 
+补采 `missionType=label` 标注详情页的初始化、保存、提交和自动领取链路时，仍未发现上述供应商字段。
+
 当前可用供应商来源只能从任务名推断，例如：
 
 - `棋燊-...`
@@ -429,7 +483,6 @@
 
 ## 待补采
 
-- 转写标注详情页 `missionType=label` 的保存、提交和自动领取链路。
 - 转写详情页提交失败、必填校验阻断和保存失败响应。
 - 扩展加载并启用后的转写工具栏 DOM 与按钮事件。
 - 快判页面在当前项目中的最新实时样例，用于对比历史快判资料是否仍完全适用。

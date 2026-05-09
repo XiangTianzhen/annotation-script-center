@@ -9,6 +9,8 @@
 
 ## 已确认页面
 
+- 标注首页：`/corpora/labeling/labelingTask?projectId=<REDACTED_PROJECT_ID>`
+- 标注详情页：`/corpora/labeling/sdk?missionType=label&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`
 - 审核首页：`/corpora/labeling/checkTask?projectId=<REDACTED_PROJECT_ID>`
 - 审核详情页：`/corpora/labeling/sdk?missionType=check&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`
 
@@ -91,7 +93,8 @@
   - `总数 : N`
   - `准确率 : N%`
 - 顶部操作：
-  - `驳 回`
+  - 审核详情页可见 `驳 回`
+  - 标注详情页本轮未见 `驳 回`
   - `自动领取` switch
   - `提交任务`
   - 下拉按钮
@@ -126,6 +129,8 @@
 ## 音频结构
 
 当前转写审核详情页使用原生 `audio` 标签。
+
+补采转写标注详情页时，音频结构与审核详情页一致，仍是原生 `audio` 标签加平台自定义前进、后退、重载和倍速控件。
 
 可见结构：
 
@@ -169,7 +174,6 @@
 
 ## 待补采
 
-- 标注详情页 `missionType=label` 的实时 DOM。
 - 快判详情页当前项目实时 DOM 与历史资料差异。
 - 样式设置面板展开后的 DOM。
 - 扩展启用后的转写工具栏 DOM 和按钮状态。
