@@ -803,30 +803,17 @@
   }
 
   function buildCsvBasePatch(subtaskData, durationSeconds) {
-    const role = inferRole(subtaskData);
-    const completed = getCompletionText(subtaskData);
-    const receiveTime = formatDateTime(
-      subtaskData?.gmtCreate || subtaskData?.receiveTime || subtaskData?.createTime
-    );
-    const submitTime = formatDateTime(
-      subtaskData?.gmtCommit || subtaskData?.submitTime || subtaskData?.commitTime
-    );
     return {
       任务名称: String(subtaskData?.taskName || ""),
       任务ID: String(subtaskData?.taskId || ""),
-      标注子任务ID: role === "label" ? String(subtaskData?.id || "") : "",
-      审核子任务ID: role === "audit" ? String(subtaskData?.id || "") : "",
       分包ID: String(subtaskData?.batchId || ""),
-      题数: String(subtaskData?.size || ""),
+      题数: String(
+        subtaskData?.size ||
+          subtaskData?.recordCount ||
+          (Array.isArray(subtaskData?.dataList) ? subtaskData.dataList.length : "") ||
+          ""
+      ),
       "有效时长(秒)": formatDurationForCsv(durationSeconds),
-      标注员: "",
-      审核员: "",
-      标注领取时间: role === "label" ? receiveTime : "",
-      标注提交时间: role === "label" ? submitTime : "",
-      审核领取时间: role === "audit" ? receiveTime : "",
-      审核提交时间: role === "audit" ? submitTime : "",
-      标注是否完成: role === "label" ? completed : "",
-      审核是否完成: role === "audit" ? completed : "",
     };
   }
 
@@ -880,6 +867,7 @@
         batchId: batchId,
         userId: String(firstItem?.userId || ""),
         userName: userName,
+        status: subtaskData?.status,
         receiveTime: formatDateTime(
           subtaskData?.gmtCreate || subtaskData?.receiveTime || subtaskData?.createTime
         ),

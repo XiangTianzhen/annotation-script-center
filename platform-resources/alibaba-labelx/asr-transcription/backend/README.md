@@ -5,7 +5,7 @@
 本目录提供 ASR 转写统计上传、合并与 CSV 下载能力，路由由 `platform-resources/backend/server.js` 统一启动注册。
 
 说明：浏览器扩展前端只保留 `extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js` 作为统计上传客户端，不在前端实现 Node 服务或 CSV 落盘。
-当前 `0.2.10` 修复中，前端详情取数已改为 `pageSize=10` 分页并清洗 `subTaskId` 空白；本后端 CSV 字段与合并规则保持不变。
+当前 `0.2.10` 修复中，前端详情取数优先 `pageSize=100`（带上限）并清洗 `subTaskId` 空白；本后端 CSV 字段与合并规则保持不变。
 
 ## 默认数据目录
 
@@ -48,9 +48,12 @@
 ## 合并规则
 
 1. 以 `分包ID`（`mergeKey.batchId`）合并。
-2. `role=label` 写入标注字段；`role=audit` 写入审核字段。
-3. 有提交时间优先判定“已完成”；否则按状态值；无法判断写“未完成”。
-4. `有效时长(秒)` 使用自然小数格式（最多 4 位，去尾零）。
+2. `csvPatch` 只用于基础字段：`任务名称/任务ID/分包ID/题数/有效时长(秒)`。
+3. 后端 `applyBasePatch` 会忽略 `csvPatch` 里所有角色字段（标注/审核字段），避免前端误传污染 CSV。
+4. `role=label` 仅写标注字段；`role=audit` 仅写审核字段，双方互不覆盖。
+5. `roleRecord.role` 必须为 `label` 或 `audit`，缺失/非法会直接拒绝写入并返回错误。
+6. 有提交时间优先判定“已完成”；否则按状态值；无法判断写“未完成”。
+7. `有效时长(秒)` 使用自然小数格式（最多 4 位，去尾零）。
 
 ## 安全要求
 

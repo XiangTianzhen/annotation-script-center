@@ -47,4 +47,9 @@
 
 - 页面 Network 实测 `pageSize=10` 仅说明平台页面默认取数方式。
 - 扩展统计上传使用 `pageSize=100 + 硬上限` 是为减少请求数量与异常循环风险。
+- 前端 `csvPatch` 只发送基础字段：`任务名称/任务ID/分包ID/题数/有效时长(秒)`。
+- 标注/审核字段只由 `roleRecord` 按 `role` 写入：
+  - `label` 仅写标注字段；
+  - `audit` 仅写审核字段。
+- 后端会忽略 `csvPatch` 里误传的角色字段；`roleRecord.role` 非 `label|audit` 会拒绝写入。
 - 当前版本策略保持 `manifest.version = 0.2.10`。

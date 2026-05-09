@@ -1,6 +1,25 @@
 "use strict";
 
 const { CSV_COLUMNS } = require("./csv-columns");
+const BASE_PATCH_COLUMNS = new Set([
+  "任务名称",
+  "任务ID",
+  "分包ID",
+  "题数",
+  "有效时长(秒)",
+]);
+const ROLE_SPECIFIC_COLUMNS = new Set([
+  "标注子任务ID",
+  "审核子任务ID",
+  "标注员",
+  "审核员",
+  "标注领取时间",
+  "标注提交时间",
+  "审核领取时间",
+  "审核提交时间",
+  "标注是否完成",
+  "审核是否完成",
+]);
 
 function createEmptyRow(csvColumns) {
   const row = {};
@@ -41,11 +60,9 @@ function normalizeCompletedValue(value) {
   return text;
 }
 
-function inferCompleted(roleRecord, patch, payload) {
+function inferCompleted(role, roleRecord, payload) {
   const hasSubmitTime = Boolean(
     roleRecord?.submitTime ||
-      patch?.标注提交时间 ||
-      patch?.审核提交时间 ||
       payload?.rawKeys?.gmtCommit ||
       payload?.rawKeys?.commitTime ||
       payload?.rawKeys?.submitTime
@@ -69,7 +86,11 @@ function inferCompleted(roleRecord, patch, payload) {
 }
 
 function applyRoleRecord(row, roleRecord, patch, payload) {
-  const role = String(roleRecord?.role || "").toLowerCase() === "audit" ? "audit" : "label";
+  const role = String(roleRecord?.role || "").toLowerCase();
+  if (role !== "label" && role !== "audit") {
+    throw new Error("payload roleRecord.role 必须为 label 或 audit。");
+  }
+
   if (role === "audit") {
     if (roleRecord?.subTaskId) {
       row["审核子任务ID"] = String(roleRecord.subTaskId);
@@ -83,7 +104,8 @@ function applyRoleRecord(row, roleRecord, patch, payload) {
     if (roleRecord?.submitTime) {
       row["审核提交时间"] = String(roleRecord.submitTime);
     }
-    row["审核是否完成"] = normalizeCompletedValue(roleRecord?.completed) || inferCompleted(roleRecord, patch, payload);
+    row["审核是否完成"] =
+      normalizeCompletedValue(roleRecord?.completed) || inferCompleted(role, roleRecord, payload);
     return;
   }
 
@@ -99,7 +121,8 @@ function applyRoleRecord(row, roleRecord, patch, payload) {
   if (roleRecord?.submitTime) {
     row["标注提交时间"] = String(roleRecord.submitTime);
   }
-  row["标注是否完成"] = normalizeCompletedValue(roleRecord?.completed) || inferCompleted(roleRecord, patch, payload);
+  row["标注是否完成"] =
+    normalizeCompletedValue(roleRecord?.completed) || inferCompleted(role, roleRecord, payload);
 }
 
 function getBatchId(payload, patch, roleRecord) {
@@ -111,6 +134,12 @@ function getBatchId(payload, patch, roleRecord) {
 function applyBasePatch(row, patch, csvColumns) {
   Object.keys(patch).forEach(function (key) {
     if (csvColumns.indexOf(key) < 0) {
+      return;
+    }
+    if (ROLE_SPECIFIC_COLUMNS.has(key)) {
+      return;
+    }
+    if (!BASE_PATCH_COLUMNS.has(key)) {
       return;
     }
     if (key === "有效时长(秒)") {
@@ -191,6 +220,8 @@ function mergeUploadPayloads(payload, store) {
 }
 
 module.exports = {
+  BASE_PATCH_COLUMNS,
+  ROLE_SPECIFIC_COLUMNS,
   applyBasePatch,
   applyPayloadToRows,
   applyRoleRecord,

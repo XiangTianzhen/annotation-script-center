@@ -84,6 +84,9 @@
   - 服务器：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download`
   - 本机：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
 - CSV 列固定为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
+- `csvPatch` 只承载基础字段：`任务名称/任务ID/分包ID/题数/有效时长(秒)`。
+- 标注/审核字段只允许由 `roleRecord` 按 `role` 写入；`role=label` 仅写标注字段，`role=audit` 仅写审核字段。
+- 后端会忽略 `csvPatch` 里误传的角色字段；`role` 缺失或非法会拒绝写入，避免污染 CSV。
 - 统计导出只采集和上传统计数据，不保存平台、不提交平台、不自动流转平台任务。
 - 统计日志和提示不输出 cookie、token、完整音频 URL、完整签名 URL。
 

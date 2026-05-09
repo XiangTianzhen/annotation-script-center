@@ -2,6 +2,12 @@
 
 ## 2026-05-09
 
+- 修复 ASR 转写统计 CSV 角色污染：前端 `csvPatch` 收敛为基础字段（`任务名称/任务ID/分包ID/题数/有效时长(秒)`），不再写入标注/审核字段。
+- 修复转写后端合并边界：`applyBasePatch` 忽略全部角色字段；标注/审核字段仅允许 `applyRoleRecord` 按 `role` 写入。
+- 修复 `role` 容错风险：`roleRecord.role` 不再默认回退 label，缺失或非法时直接拒绝写入并返回错误，避免误把审核数据写入标注列。
+- 本地自测覆盖 `audit-only` / `label-only` / `label->audit` / `audit->label` / 缺失 role 五种场景，验证分包合并和顺序无关性。
+- 本轮仍保持 `extension/manifest.json` 版本 `0.2.10`。
+
 - 修复 ASR 转写统计上传请求风暴风险：详情抓取从 `pageSize=10` 调整为 `pageSize=100`，并增加 `maxPages=3`、`maxItems=300` 硬上限。
 - 修复详情分页停止条件：遇空页、重复页签名、`recordCount` 缺失、`recordCount` 已满足或达到上限即停止，避免疑似无限循环请求。
 - 修复首页分页抓取边界：列表分页最多 `5` 页，去除旧的大范围循环策略。
