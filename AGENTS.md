@@ -386,6 +386,31 @@
 - 不要建议无关大重构。
 - 默认优先保持扩展可用、小步增强、真实平台口径优先。
 
+### 12) 页面采集与验证工具工作流（长期规则）
+
+- 获取网页 HTML 结构与 Network 请求时，默认优先使用 Google Chrome DevTools / MCP。
+- 只有真实操作验证（按钮、快捷键、行为回归）或 Chrome DevTools 不可用时，才使用 Playwright Edge。
+- Codex 默认只负责打开浏览器，不自动输入账号密码，不保存账号、cookie、token。
+- 用户自行打开网址、登录并进入目标页面；用户回复“处理好了”后，Codex 再继续采集或测试。
+- LabelX 公共资料沉淀到 `platform-resources/alibaba-labelx/`，转写专项资料沉淀到 `platform-resources/alibaba-labelx/asr-transcription/`。
+
+### 13) LabelX 统计供应商分表规则（0.2.11 起）
+
+- ASR 转写与 ASR 快判统计都按“供应商 + 分包ID”合并，避免同分包跨供应商互相覆盖。
+- 供应商识别优先级：
+  1. `payload.supplier.name`
+  2. `payload.vendor.name`
+  3. `payload.supplier`
+  4. `payload.vendor`
+  5. `csvPatch["供应商"]`
+  6. `taskName/name` 规则推断（含 `棋燊`、`希尔贝壳`）
+  7. `未识别供应商`
+- 不再维护根级总表，不再写入 `statistics-data/statistics-merged.csv`。
+- 统计 CSV 仅写入：
+  - `statistics-data/suppliers/<供应商>/statistics-merged.csv`
+- 下载接口必须显式指定 `supplier`；未传时返回 `400` 并提示调用 `.../statistics/suppliers`。
+- 历史根级 `statistics-merged.csv` 仅作为迁移输入读取，不删除、不继续写回。
+
 
 
 

@@ -17,6 +17,9 @@
 - 项目级资料放到具体脚本项目目录，不提前抽公共 shared。
 - 只有确认判断和转写确实复用的 LabelX 平台级事实，才放在本目录根级 README 中。
 - 涉及人员、任务、音频签名、token、cookie、session 的内容必须脱敏。
+- 采集 HTML 结构和 Network 默认只用 Google Chrome DevTools / MCP。
+- Playwright Edge 仅用于真实按钮/快捷键行为验证，或 DevTools 不可用时兜底。
+- Codex 默认只负责打开浏览器；用户自行登录并进入目标页面，回复“处理好了”后再继续采集或测试。
 
 ## 已确认通用事实
 
@@ -27,3 +30,16 @@
 - 详情页共用 `subTask/{id}/data`、`summary`、`board`、`getLabelTaskInfo` 初始化接口。
 - 详情页保存当前题数据使用 `POST /api/v1/label/center/subTask/{subTaskId}/data`，提交当前包使用 `POST /api/v1/label/center/subTask/{subTaskId}/commit`。
 - 当前已采集响应中没有独立 `supplier/vendor/company/provider/供应商` 字段；供应商只能从任务名称前缀推断。
+
+## 0.2.11 统计供应商分表（转写/快判共识）
+
+- 统计 CSV 新增 `供应商` 列。
+- 供应商识别优先级：
+  1. `payload.supplier.name` / `payload.vendor.name`
+  2. `payload.supplier` / `payload.vendor`
+  3. `csvPatch["供应商"]`
+  4. `taskName/name` 推断（当前已知：`棋燊`、`希尔贝壳`）
+  5. `未识别供应商`
+- 后端不再维护根级总表，统一写入 `statistics-data/suppliers/<供应商>/statistics-merged.csv`。
+- 下载必须指定供应商：`.../statistics/download?supplier=棋燊`。
+- 供应商列表通过 `.../statistics/suppliers` 查询。

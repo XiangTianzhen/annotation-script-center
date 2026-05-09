@@ -1,9 +1,9 @@
-# Alibaba LabelX ASR 转写统计上传策略（0.2.10）
+# Alibaba LabelX ASR 转写统计上传策略（0.2.11）
 
 ## 目标
 
 - 降低首页手动“上传转写统计”时的详情请求数量，避免 `subTask/{id}/data` 请求风暴。
-- 保持 CSV 字段与后端合并规则不变。
+- 升级为供应商分表：CSV 新增 `供应商`，后端按 `供应商 + 分包ID` 合并。
 - 统计上传与定时上传作为脚本默认能力，运行时强制启用，不在转写详情页提供关闭开关。
 
 ## 取数与限流策略
@@ -48,9 +48,20 @@
 
 - 页面 Network 实测 `pageSize=10` 仅说明平台页面默认取数方式。
 - 扩展统计上传使用 `pageSize=100 + 硬上限` 是为减少请求数量与异常循环风险。
-- 前端 `csvPatch` 只发送基础字段：`任务名称/任务ID/分包ID/题数/有效时长(秒)`。
+- 前端 `csvPatch` 只发送基础字段：`任务名称/供应商/任务ID/分包ID/题数/有效时长(秒)`。
 - 标注/审核字段只由 `roleRecord` 按 `role` 写入：
   - `label` 仅写标注字段；
   - `audit` 仅写审核字段。
 - 后端会忽略 `csvPatch` 里误传的角色字段；`roleRecord.role` 非 `label|audit` 会拒绝写入。
-- 当前版本策略保持 `manifest.version = 0.2.10`。
+- 供应商识别优先级：
+  1. `payload.supplier.name`
+  2. `payload.vendor.name`
+  3. `payload.supplier`
+  4. `payload.vendor`
+  5. `csvPatch["供应商"]`
+  6. `taskName/name` 推断（当前已知：`棋燊`、`希尔贝壳`）
+  7. `未识别供应商`
+- 后端不再维护根级 `statistics-data/statistics-merged.csv`，统一写入 `statistics-data/suppliers/<供应商>/statistics-merged.csv`。
+- 下载必须显式带 `supplier` 参数：`/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`。
+- 供应商列表接口：`/api/alibaba-labelx/asr-transcription/statistics/suppliers`。
+- 当前版本策略为 `manifest.version = 0.2.11`。

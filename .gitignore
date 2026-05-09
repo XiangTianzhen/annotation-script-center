@@ -4,6 +4,7 @@
 
 # 本地统计输出
 /platform-resources/alibaba-labelx/asr-judgement/backend/statistics-data/
+/platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/
 
 # DataBaker AI 调用日志
 /platform-resources/data-baker/round-one-quality/backend/logs/

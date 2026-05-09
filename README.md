@@ -8,6 +8,35 @@
 - 当前重点平台：`Alibaba LabelX`、`标贝易采`
 - 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/alibaba-labelx/asr-transcription/`、`extension/sites/data-baker/round-one-quality/`
 - 当前后端入口：`platform-resources/backend/server.js`
+- 当前扩展版本：`0.2.11`
+
+## 0.2.11 升级要点（LabelX 供应商分表）
+
+- ASR 转写与 ASR 快判统计均升级为“按供应商拆分保存”。
+- 不再维护根级总表，不再写入 `statistics-data/statistics-merged.csv`。
+- 新落盘路径统一为：
+  - `statistics-data/suppliers/<供应商>/statistics-merged.csv`
+- 两条链路都按 `供应商 + 分包ID` 合并，避免同分包跨供应商覆盖。
+- CSV 新增 `供应商` 列。
+- 供应商识别优先级：
+  1. `payload.supplier` / `payload.vendor`
+  2. `csvPatch["供应商"]`
+  3. `taskName/name` 推断（当前已知：`棋燊`、`希尔贝壳`）
+  4. `未识别供应商`
+- 下载接口必须带 `supplier` 参数：
+  - `/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
+  - `/api/alibaba-labelx/asr-judgement/statistics/download?supplier=棋燊`
+- 供应商列表接口：
+  - `/api/alibaba-labelx/asr-transcription/statistics/suppliers`
+  - `/api/alibaba-labelx/asr-judgement/statistics/suppliers`
+- 历史根级 `statistics-merged.csv` 仅兼容读取用于迁移，不再写回旧文件。
+
+## 页面采集与验证工作流
+
+- 采集 HTML 结构和 Network 时，默认优先使用 **Google Chrome DevTools / MCP**。
+- Playwright Edge 仅用于真实操作验证（按钮/快捷键/行为）或 DevTools 不可用兜底。
+- Codex 默认只负责打开浏览器；用户自行登录并进入页面，回复“处理好了”后再继续采集/测试。
+- LabelX 公共资料沉淀到 `platform-resources/alibaba-labelx/`，转写专项资料沉淀到 `platform-resources/alibaba-labelx/asr-transcription/`。
 
 ## 目录结构
 
@@ -101,10 +130,10 @@ Chrome：
 - options 转写详情页提供轻量可配置项：自动播放、默认倍速/重置倍速、倍速步进、前进/后退步长、默认音量、当前功能快捷键。
 - 转写统计上传与定时上传为脚本默认能力，运行时强制启用，不在转写详情页提供开关。
 - popup 状态区分为：已注入等待详情页、运行成功、真正注入失败。
-- 转写新增统计导出能力：支持顶部“上传转写统计”手动上传与定时上传（默认 `10:00`、`16:00`，jitter `10` 分钟），后端按分包合并 CSV。
+- 转写新增统计导出能力：支持顶部“上传转写统计”手动上传与定时上传（默认 `10:00`、`16:00`，jitter `10` 分钟），后端按 `供应商 + 分包ID` 合并 CSV。
 - 转写扩展侧统计文件为 `extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只做采集与上传客户端；CSV 落盘与下载服务仅在 `platform-resources/alibaba-labelx/asr-transcription/backend/`。
-- 转写统计 CSV 列固定为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
-- 转写统计后端目录为 `platform-resources/alibaba-labelx/asr-transcription/backend/`，下载地址为 `/api/alibaba-labelx/asr-transcription/statistics/download`。
+- 转写统计 CSV 列固定为：`任务名称,供应商,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
+- 转写统计后端目录为 `platform-resources/alibaba-labelx/asr-transcription/backend/`，供应商列表地址为 `/api/alibaba-labelx/asr-transcription/statistics/suppliers`，下载地址为 `/api/alibaba-labelx/asr-transcription/statistics/download?supplier=...`。
 - 旧 legacy、保存、提交、批量、自动化、AI、导出、排行榜、整页执行链路已删除。
 - 若未来要恢复旧能力，必须按新需求重新设计与验收，不能直接恢复旧脚本。
 
@@ -168,7 +197,15 @@ http://127.0.0.1:3333
 
 - 上传：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload`
 - 健康检查：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/health`
-- CSV 下载：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download`
+- 供应商列表：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/suppliers`
+- CSV 下载（必须带 supplier）：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download?supplier=棋燊`
+
+当前转写统计接口：
+
+- 上传：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload`
+- 健康检查：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/health`
+- 供应商列表：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/suppliers`
+- CSV 下载（必须带 supplier）：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
 
 当前快判 AI 建议接口：
 
@@ -376,10 +413,11 @@ sudo systemctl reload nginx
 curl https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/health
 ```
 
-CSV 下载地址：
+CSV 下载相关地址：
 
 ```text
-https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/download
+https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/suppliers
+https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/download?supplier=棋燊
 ```
 
 ### 扩展压缩包下载目录
@@ -440,4 +478,3 @@ location / {
 - 有功能、目录结构、模块归属、选择器或验证步骤变化时，同步更新相关 README 和根目录 `log.md`。
 - 修改 `manifest.json` 后必须确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 - 修改 JS 后运行 `node --check` 检查变更文件。
-

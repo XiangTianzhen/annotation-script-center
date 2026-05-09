@@ -56,8 +56,8 @@ http://127.0.0.1:3333
 
 ## 当前已注册 API
 
-- `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、CSV 下载，以及 AI 建议 `health/suggest` 接口。
-- `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、CSV 下载（CSV 列与快判不同，按转写统计格式输出）。
+- `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与按供应商 CSV 下载，以及 AI 建议 `health/suggest` 接口。
+- `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与按供应商 CSV 下载（CSV 列与快判不同，按转写统计格式输出）。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口。
 
 ASR 转写职责边界：
@@ -75,6 +75,17 @@ ASR 转写职责边界：
   - 标贝易采 AI 推荐：`/api/data-baker/round-one-quality/ai/recommend`
   - 标贝易采导出上传：`/api/data-baker/round-one-quality/export/upload`
   - 标贝易采导出下载：`/api/data-baker/round-one-quality/export/download`
+
+## 0.2.11 供应商分表规则
+
+- LabelX 转写与快判统计均不再维护根级总表，不再写入 `statistics-data/statistics-merged.csv`。
+- 统计数据统一落盘到 `statistics-data/suppliers/<供应商>/statistics-merged.csv`。
+- CSV 下载接口必须显式带 `supplier` 参数；未传时返回 `400`，并提示调用 `.../statistics/suppliers`。
+- 当前接口示例：
+  - 转写供应商列表：`/api/alibaba-labelx/asr-transcription/statistics/suppliers`
+  - 转写按供应商下载：`/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
+  - 快判供应商列表：`/api/alibaba-labelx/asr-judgement/statistics/suppliers`
+  - 快判按供应商下载：`/api/alibaba-labelx/asr-judgement/statistics/download?supplier=棋燊`
 
 ## 新增项目 API 规则
 

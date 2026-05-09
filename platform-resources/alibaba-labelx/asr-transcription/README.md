@@ -2,7 +2,7 @@
 
 ## 当前状态（2026-05-09）
 
-- 当前仍处于 `0.2.10` 修复阶段，版本不升级到 `0.2.11`。
+- 当前已进入 `0.2.11` 功能升级阶段。
 - `extension/sites/alibaba-labelx/asr-transcription/` 已切换为轻量工具栏版。
 - 旧版独立大表单、页面 overlay 设置面板已移除。
 - options 已恢复转写轻量设置面板与当前功能快捷键配置（不包含统计上传开关）。
@@ -22,6 +22,7 @@
   - 当前题行为（默认有效、标有效自动填入、标无效自动清空）
   - 当前保留功能快捷键（含上传统计）
 - 统计上传与定时上传不在 options 转写详情页提供开关。
+- 统计按供应商分表保存，不再维护根级总表。
 - 仍不实现时间戳、说话人区分、AI 初稿/校对/格式化/标点。
 - 仍不实现自动保存、自动提交、自动跳转、全页批量修改。
 
@@ -65,15 +66,19 @@
 - 上传接口：
   - `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload`
   - `http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload`
-- 下载接口：
-  - `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download`
-  - `http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
+- 供应商列表接口：
+  - `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/suppliers`
+  - `http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/suppliers`
+- 下载接口（必须指定 `supplier`）：
+  - `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
+  - `http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
 - 默认定时上传：`10:00`、`16:00`，jitter `10` 分钟。
 - 后端目录：`platform-resources/alibaba-labelx/asr-transcription/backend/`。
-- 统计写入目录：`platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`。
+- 统计写入目录：`platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/suppliers/<供应商>/statistics-merged.csv`。
 - CSV 列：
-  `任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
-- 同一分包按 `mergeKey.batchId` 合并标注与审核记录。
+  `任务名称,供应商,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
+- 同一分包按 `供应商 + 分包ID` 合并标注与审核记录。
+- 历史根级 `statistics-data/statistics-merged.csv` 仅兼容读取迁移，不再写回。
 - 服务器下载地址需部署最新后端后可用；本地可先用 `127.0.0.1:3333` 验证。
 - 资料与代码均不记录 cookie、token、完整音频 URL、完整签名 URL。
 

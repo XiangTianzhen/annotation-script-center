@@ -39,6 +39,7 @@
   ];
   const CSV_COLUMNS = [
     "任务名称",
+    "供应商",
     "任务ID",
     "标注子任务ID",
     "审核子任务ID",
@@ -54,6 +55,8 @@
     "标注是否完成",
     "审核是否完成",
   ];
+  const SUPPLIER_HELPER = globalThis.ASREdgeStatisticsSupplier || {};
+  const UNKNOWN_SUPPLIER_NAME = SUPPLIER_HELPER.UNKNOWN_SUPPLIER_NAME || "未识别供应商";
 
   function clone(value) {
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
@@ -577,6 +580,32 @@
     );
   }
 
+  function resolveSupplierInfoForStats(subtaskData, payloadContext, draftPatch) {
+    const basePatch = draftPatch && typeof draftPatch === "object" ? draftPatch : {};
+    const context = payloadContext && typeof payloadContext === "object" ? payloadContext : {};
+    const taskName =
+      subtaskData?.taskName || subtaskData?.name || basePatch["任务名称"] || "";
+    if (typeof SUPPLIER_HELPER.resolveSupplierInfo === "function") {
+      return SUPPLIER_HELPER.resolveSupplierInfo({
+        payload: {
+          supplier: context.supplier,
+          vendor: context.vendor,
+        },
+        supplier: context.supplier,
+        vendor: context.vendor,
+        csvPatch: basePatch,
+        taskName: taskName,
+        name: taskName,
+      });
+    }
+    return {
+      key: String(taskName || "").trim() ? "task-name" : "unknown-supplier",
+      name: UNKNOWN_SUPPLIER_NAME,
+      safeName: UNKNOWN_SUPPLIER_NAME,
+      source: "fallback",
+    };
+  }
+
   function getTaskIdentityRecords(record, linkedTask) {
     return [record || {}, linkedTask || {}];
   }
@@ -813,9 +842,12 @@
     );
   }
 
-  function buildCsvBasePatch(subtaskData, durationSeconds) {
+  function buildCsvBasePatch(subtaskData, durationSeconds, supplierInfo) {
+    const resolvedSupplier =
+      supplierInfo && typeof supplierInfo === "object" ? supplierInfo : {};
     return {
       任务名称: String(subtaskData?.taskName || ""),
+      供应商: String(resolvedSupplier.name || UNKNOWN_SUPPLIER_NAME),
       任务ID: String(subtaskData?.taskId || ""),
       分包ID: String(subtaskData?.batchId || ""),
       题数: String(
@@ -854,6 +886,12 @@
       getUserNameFromRecord(firstItem) ||
       "";
     const completed = getCompletionText(subtaskData);
+    const draftPatch = buildCsvBasePatch(subtaskData, normalizedDurationSeconds);
+    const supplierInfo = resolveSupplierInfoForStats(subtaskData, payloadContext, draftPatch);
+    const csvPatch = buildCsvBasePatch(subtaskData, normalizedDurationSeconds, supplierInfo);
+    const supplierName = String(supplierInfo?.name || UNKNOWN_SUPPLIER_NAME);
+    const supplierKey = String(supplierInfo?.key || "unknown-supplier");
+    const supplierSource = String(supplierInfo?.source || "fallback");
 
     return {
       schemaVersion: 1,
@@ -862,6 +900,8 @@
       reason: reason || "manual",
       uploadedAt: new Date().toISOString(),
       mergeKey: {
+        supplierKey: supplierKey,
+        supplierName: supplierName,
         batchId: batchId,
       },
       url: {
@@ -870,7 +910,12 @@
         missionType: urlParams.missionType,
       },
       csvColumns: CSV_COLUMNS.slice(),
-      csvPatch: buildCsvBasePatch(subtaskData, normalizedDurationSeconds),
+      csvPatch: csvPatch,
+      supplier: {
+        key: supplierKey,
+        name: supplierName,
+        source: supplierSource,
+      },
       roleRecord: {
         role: role,
         subTaskId: subTaskId,
@@ -901,8 +946,10 @@
         taskId: String(subtaskData?.taskId || ""),
         batchId: batchId,
         subTaskId: subTaskId,
+        supplierName: supplierName,
+        supplierSource: supplierSource,
       },
-      dedupeKey: [batchId, role, subTaskId].join(":"),
+      dedupeKey: [supplierKey, batchId, role, subTaskId].join(":"),
     };
   }
 

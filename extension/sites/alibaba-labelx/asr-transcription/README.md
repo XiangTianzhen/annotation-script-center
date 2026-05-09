@@ -1,13 +1,13 @@
 # 阿里 ASR 转写（轻量工具栏版）
 
-## 当前状态（2026-05-08）
+## 当前状态（2026-05-09）
 
-- 当前仍处于 `0.2.10` 修复阶段，`manifest.version` 保持 `0.2.10`。
+- 当前已进入 `0.2.11` 功能升级阶段，核心升级是 LabelX 统计按供应商分表。
 - `asr-transcription` 已删除旧版独立大表单与页面内 overlay 设置面板。
 - 已恢复转写轻量设置面板与快捷键运行时（仅覆盖当前保留功能）。
 - 当前保留转写详情页工具栏按钮能力，并允许通过 options 调整基础参数。
 - 工具栏已改为页面内注入结构：优先挂载 `.mark-toolbox`，其次挂到首条题卡上方，不再默认固定悬浮在页面顶部中央。
-- 新增转写统计导出能力：支持手动上传与定时上传，后端按分包合并 CSV。
+- 新增转写统计导出能力：支持手动上传与定时上传，后端按“供应商 + 分包ID”合并 CSV。
 - 转写统计上传地址不再在脚本详情页单独配置，统一由 options 首页顶部“后端接口地址”（`server/local`）控制。
 - 转写统计上传与定时上传为脚本默认能力，运行时强制启用；转写详情页不提供统计开关。
 
@@ -85,11 +85,24 @@
 - 上传接口由全局后端模式拼接：
   - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload`
   - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload`
-- 下载接口由全局后端模式拼接：
-  - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download`
-  - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
-- CSV 列固定为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
-- `csvPatch` 只承载基础字段：`任务名称/任务ID/分包ID/题数/有效时长(秒)`。
+- 供应商列表接口由全局后端模式拼接：
+  - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/suppliers`
+  - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/suppliers`
+- 下载接口由全局后端模式拼接，且必须携带 `supplier`：
+  - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
+  - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
+- CSV 列固定为：`任务名称,供应商,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
+- `csvPatch` 只承载基础字段：`任务名称/供应商/任务ID/分包ID/题数/有效时长(秒)`。
+- 供应商识别优先级：
+  1. `payload.supplier.name`
+  2. `payload.vendor.name`
+  3. `payload.supplier`
+  4. `payload.vendor`
+  5. `csvPatch["供应商"]`
+  6. `taskName/name` 推断（已知：`棋燊`、`希尔贝壳`）
+  7. `未识别供应商`
+- 统计落盘路径：`statistics-data/suppliers/<供应商>/statistics-merged.csv`。
+- 不再维护根级总表，不再写入 `statistics-data/statistics-merged.csv`；历史根级 CSV 只做兼容读取迁移，不删除旧文件。
 - 标注/审核字段只允许由 `roleRecord` 按 `role` 写入；`role=label` 仅写标注字段，`role=audit` 仅写审核字段。
 - 后端会忽略 `csvPatch` 里误传的角色字段；`role` 缺失或非法会拒绝写入，避免污染 CSV。
 - 统计导出只采集和上传统计数据，不保存平台、不提交平台、不自动流转平台任务。

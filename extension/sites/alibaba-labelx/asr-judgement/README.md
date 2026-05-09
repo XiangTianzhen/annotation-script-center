@@ -19,7 +19,7 @@
 
 ## AI 半自动参考建议（v1）
 
-- 当前扩展版本：`0.2.6`。
+- 当前扩展版本：`0.2.11`。
 
 - 前端开关字段：`aiSuggestionEnabled`，默认关闭。
 - AI 建议地址不再由脚本详情页单独配置；统一使用 options 首页顶部“后端接口地址”拼接：
@@ -103,15 +103,17 @@
 - 命中雷题时，会在轻量题卡摘要和回答区“特殊情况标注”题块内插入提示，仅提示标准答案，不写入文本框，不自动选择答案。
 - 如果当前“哪个ASR更优”的选择与雷题库标准答案不一致，会在摘要和特殊情况标注区域显示红色严重提示，并弹出一次错误 toast。
 
-## 统计数据上传
+## 统计数据上传（0.2.11）
 
 - `asr-judgement-server.js` 只负责扩展侧统计上传运行时，被 content script 注入到 LabelX 页面。
 - Node 本地统计接收服务已迁移到 `platform-resources/alibaba-labelx/asr-judgement/backend/`，不会被 manifest 注入；推荐统一启动入口是 `platform-resources/backend/server.js`。
 - 本地启动命令：在仓库根目录运行 `node platform-resources/backend/server.js`，默认监听 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload`，并兼容旧地址 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`。
-- CSV 下载接口：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download`；旧地址 `/api/asr-judgement/statistics/download` 已移除，不再兼容。
-- 本地服务默认只按 `分包ID` 合并生成 `statistics-data/statistics-merged.csv`；`statistics-rows.json` 和 `statistics-upload-events.jsonl` 默认不再写入，避免 10 万级数据长期占用磁盘。需要排查时可用环境变量临时开启。
-- 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 列顺序：`任务名称`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
-- 单条分包 payload 的基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端以 `mergeKey.batchId` / `分包ID` 做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
+- 供应商列表接口：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/suppliers`。
+- CSV 下载接口必须带 `supplier`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download?supplier=棋燊`；旧地址 `/api/asr-judgement/statistics/download` 已移除，不再兼容。
+- 本地服务不再维护根级总表；统计文件写入 `statistics-data/suppliers/<供应商>/statistics-merged.csv`。
+- 历史根级 `statistics-data/statistics-merged.csv` 若存在，仅作为迁移输入读取，不再写回。
+- 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 列顺序：`任务名称`、`供应商`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
+- 单条分包 payload 的基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端以 `mergeKey.supplierKey + "::" + mergeKey.batchId`（等价于 `供应商 + 分包ID`）做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
 - 顶部导航右侧头像旁会显示“上传统计”按钮；标注首页、审核首页和快判详情页都使用同一个入口，快判工具栏内不再放统计按钮。
 - 只要当前 URL 带有 `projectId`，手动上传和定时上传都会按项目维度采集该账号下的标注 / 审核首页数据；详情页与首页走同一条批量采集路径，不再保留“当前 `subTaskId` 单条上传”回退。若页面 URL 没有 `projectId`，统计上传会直接失败并提示。
 - 标注首页 URL 为 `/corpora/labeling/labelingTask?projectId=...`，按标注角色写入 CSV；审核首页 URL 为 `/corpora/labeling/checkTask?projectId=...`，按审核角色写入 CSV。点击首页按钮时会同时尝试读取标注和审核两类列表，避免只上传当前页类型。

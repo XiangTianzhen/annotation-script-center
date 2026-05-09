@@ -1,8 +1,11 @@
 "use strict";
 
 const { CSV_COLUMNS } = require("./csv-columns");
+const { resolveSupplierInfo } = require("../../supplier-utils");
+
 const BASE_PATCH_COLUMNS = new Set([
   "任务名称",
+  "供应商",
   "任务ID",
   "分包ID",
   "题数",
@@ -60,7 +63,7 @@ function normalizeCompletedValue(value) {
   return text;
 }
 
-function inferCompleted(role, roleRecord, payload) {
+function inferCompleted(roleRecord, payload) {
   const hasSubmitTime = Boolean(
     roleRecord?.submitTime ||
       payload?.rawKeys?.gmtCommit ||
@@ -81,11 +84,10 @@ function inferCompleted(role, roleRecord, payload) {
   if (Number.isFinite(numericStatus)) {
     return numericStatus > 0 ? "已完成" : "未完成";
   }
-
   return "未完成";
 }
 
-function applyRoleRecord(row, roleRecord, patch, payload) {
+function applyRoleRecord(row, roleRecord, payload) {
   const role = String(roleRecord?.role || "").toLowerCase();
   if (role !== "label" && role !== "audit") {
     throw new Error("payload roleRecord.role 必须为 label 或 audit。");
@@ -105,7 +107,7 @@ function applyRoleRecord(row, roleRecord, patch, payload) {
       row["审核提交时间"] = String(roleRecord.submitTime);
     }
     row["审核是否完成"] =
-      normalizeCompletedValue(roleRecord?.completed) || inferCompleted(role, roleRecord, payload);
+      normalizeCompletedValue(roleRecord?.completed) || inferCompleted(roleRecord, payload);
     return;
   }
 
@@ -122,7 +124,7 @@ function applyRoleRecord(row, roleRecord, patch, payload) {
     row["标注提交时间"] = String(roleRecord.submitTime);
   }
   row["标注是否完成"] =
-    normalizeCompletedValue(roleRecord?.completed) || inferCompleted(role, roleRecord, payload);
+    normalizeCompletedValue(roleRecord?.completed) || inferCompleted(roleRecord, payload);
 }
 
 function getBatchId(payload, patch, roleRecord) {
@@ -131,17 +133,38 @@ function getBatchId(payload, patch, roleRecord) {
   ).trim();
 }
 
+function resolveRowSupplier(payload, patch, existingRow) {
+  const fallbackPatch = Object.assign({}, patch || {});
+  if (!fallbackPatch["供应商"] && existingRow?.["供应商"]) {
+    fallbackPatch["供应商"] = existingRow["供应商"];
+  }
+  return resolveSupplierInfo({
+    payload: payload,
+    supplier: payload?.supplier,
+    vendor: payload?.vendor,
+    csvPatch: fallbackPatch,
+    taskName:
+      fallbackPatch["任务名称"] ||
+      payload?.rawKeys?.taskName ||
+      payload?.taskName ||
+      payload?.name ||
+      "",
+  });
+}
+
+function createMergeRowId(supplierKey, batchId) {
+  return String(supplierKey || "unknown-supplier") + "::" + String(batchId || "");
+}
+
 function applyBasePatch(row, patch, csvColumns) {
   Object.keys(patch).forEach(function (key) {
     if (csvColumns.indexOf(key) < 0) {
       return;
     }
-    if (ROLE_SPECIFIC_COLUMNS.has(key)) {
+    if (ROLE_SPECIFIC_COLUMNS.has(key) || !BASE_PATCH_COLUMNS.has(key)) {
       return;
     }
-    if (!BASE_PATCH_COLUMNS.has(key)) {
-      return;
-    }
+
     if (key === "有效时长(秒)") {
       const normalizedDuration = formatDuration(patch[key]);
       if (normalizedDuration !== "") {
@@ -149,6 +172,7 @@ function applyBasePatch(row, patch, csvColumns) {
       }
       return;
     }
+
     const value = patch[key];
     if (value !== undefined && value !== null && String(value).trim() !== "") {
       row[key] = String(value);
@@ -156,7 +180,7 @@ function applyBasePatch(row, patch, csvColumns) {
   });
 }
 
-function applyPayloadToRows(payload, rowsByBatchId, csvColumns) {
+function applyPayloadToRows(payload, rowsByMergeRowId, csvColumns) {
   const patch = payload && typeof payload.csvPatch === "object" ? payload.csvPatch : {};
   const roleRecord = payload && typeof payload.roleRecord === "object" ? payload.roleRecord : {};
   const batchId = getBatchId(payload || {}, patch, roleRecord);
@@ -164,14 +188,22 @@ function applyPayloadToRows(payload, rowsByBatchId, csvColumns) {
     throw new Error("payload 缺少 mergeKey.batchId / 分包ID。");
   }
 
-  const row = Object.assign(createEmptyRow(csvColumns), rowsByBatchId[batchId] || {});
-  applyBasePatch(row, patch, csvColumns);
-  applyRoleRecord(row, roleRecord, patch, payload || {});
-  rowsByBatchId[batchId] = row;
+  const supplierInfo = resolveRowSupplier(payload || {}, patch, null);
+  const mergeRowId = createMergeRowId(supplierInfo.key, batchId);
+  const existingRow = rowsByMergeRowId[mergeRowId] || {};
+  const row = Object.assign(createEmptyRow(csvColumns), existingRow);
+  const stableSupplierInfo = resolveRowSupplier(payload || {}, patch, row);
 
+  applyBasePatch(row, patch, csvColumns);
+  row["供应商"] = String(stableSupplierInfo.name || row["供应商"] || "");
+  row["分包ID"] = String(batchId);
+  applyRoleRecord(row, roleRecord, payload || {});
+
+  rowsByMergeRowId[mergeRowId] = row;
   return {
+    mergeRowId: mergeRowId,
     batchId: batchId,
-    row: row,
+    supplierName: row["供应商"],
   };
 }
 
@@ -194,26 +226,26 @@ function mergeUploadPayloads(payload, store) {
   }
 
   const csvColumns = store.csvColumns || CSV_COLUMNS;
-  const rowsByBatchId = store.loadRows();
+  const rowsByMergeRowId = store.loadRows();
   const results = payloads.map(function (item) {
-    const result = applyPayloadToRows(item, rowsByBatchId, csvColumns);
+    const result = applyPayloadToRows(item, rowsByMergeRowId, csvColumns);
     store.appendUploadEvent(item);
     return result;
   });
-  store.saveRows(rowsByBatchId);
-  store.writeCsv(rowsByBatchId);
+  store.saveRows(rowsByMergeRowId);
+  store.writeCsv(rowsByMergeRowId);
 
   const paths = store.getPaths();
   return {
     batchCount: results.length,
     results: results.map(function (item) {
       return {
+        supplier: item.supplierName,
         batchId: item.batchId,
-        csvPath: paths.csvPath,
       };
     }),
-    rowCount: Object.keys(rowsByBatchId).length,
-    csvPath: paths.csvPath,
+    rowCount: Object.keys(rowsByMergeRowId).length,
+    suppliersDir: paths.suppliersDir,
     rowsPath: paths.rowsPath,
     eventsPath: paths.eventsPath,
   };
@@ -226,9 +258,11 @@ module.exports = {
   applyPayloadToRows,
   applyRoleRecord,
   createEmptyRow,
+  createMergeRowId,
   formatDuration,
   inferCompleted,
   mergeUploadPayloads,
   normalizeCompletedValue,
   normalizePayloads,
+  resolveRowSupplier,
 };

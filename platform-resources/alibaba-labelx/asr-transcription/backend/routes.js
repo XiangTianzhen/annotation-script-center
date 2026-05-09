@@ -5,6 +5,7 @@ const path = require("path");
 const { createCorsHeaders, sendJson } = require("../../../backend/response");
 const { createStatisticsStore } = require("./file-store");
 const { mergeUploadPayloads } = require("./payload-merge");
+const { resolveSupplierInfo, sanitizeSupplierPathSegment } = require("../../supplier-utils");
 
 const API_BASE_PATH = "/api/alibaba-labelx/asr-transcription/statistics";
 const LEGACY_API_BASE_PATH = "/api/asr-transcription/statistics";
@@ -12,6 +13,7 @@ const UPLOAD_PATH = API_BASE_PATH + "/upload";
 const CONFIG_PATH = API_BASE_PATH + "/config";
 const HEALTH_PATH = API_BASE_PATH + "/health";
 const DOWNLOAD_PATH = API_BASE_PATH + "/download";
+const SUPPLIERS_PATH = API_BASE_PATH + "/suppliers";
 const LEGACY_UPLOAD_PATH = LEGACY_API_BASE_PATH + "/upload";
 const LEGACY_CONFIG_PATH = LEGACY_API_BASE_PATH + "/config";
 const LEGACY_HEALTH_PATH = LEGACY_API_BASE_PATH + "/health";
@@ -55,11 +57,16 @@ function extractLogInfo(payload, result) {
         firstPayload?.csvPatch?.["分包ID"] ||
         ""
     ),
+    supplierName: String(
+      firstPayload?.supplier?.name ||
+        firstPayload?.mergeKey?.supplierName ||
+        firstPayload?.csvPatch?.["供应商"] ||
+        ""
+    ),
     payloadCount: payloads.filter(function (item) {
       return item && typeof item === "object";
     }).length,
     rowCount: Number(result?.rowCount || 0),
-    csvPath: String(result?.csvPath || ""),
   };
 }
 
@@ -76,10 +83,11 @@ async function handleUpload(request, response, store) {
         {
           requestId: requestId,
           projectId: logInfo.projectId,
+          supplierName: logInfo.supplierName,
           batchId: logInfo.batchId,
           payloadCount: logInfo.payloadCount,
           rowCount: logInfo.rowCount,
-          csvPath: logInfo.csvPath,
+          suppliersDir: store.getPaths().suppliersDir,
         },
         null,
         0
@@ -110,6 +118,7 @@ function createScheduleConfig() {
 }
 
 function sendHealth(response, store) {
+  const paths = store.getPaths();
   sendJson(response, 200, {
     success: true,
     service: "asr-transcription-statistics",
@@ -118,7 +127,11 @@ function sendHealth(response, store) {
     configPath: CONFIG_PATH,
     legacyConfigPath: LEGACY_CONFIG_PATH,
     downloadPath: DOWNLOAD_PATH,
-    csvPath: store.getPaths().csvPath,
+    suppliersPath: SUPPLIERS_PATH,
+    downloadRequiresSupplier: true,
+    suppliersDir: paths.suppliersDir,
+    csvPath: "",
+    deprecatedCsvPath: paths.legacyCsvPath,
   });
 }
 
@@ -136,34 +149,100 @@ function createCsvDownloadHeaders(csvPath, fileSize) {
   });
 }
 
-function handleDownloadCsv(request, response, store) {
-  const csvPath = store.getPaths().csvPath;
-  if (!fs.existsSync(csvPath)) {
-    sendJson(response, 404, {
+function findSupplierEntry(store, supplierQuery) {
+  const requested = String(supplierQuery || "").trim();
+  if (!requested) {
+    return null;
+  }
+  const requestedSafe = sanitizeSupplierPathSegment(requested);
+  const requestedInfo = resolveSupplierInfo({
+    supplier: requested,
+    taskName: requested,
+    csvPatch: { 供应商: requested },
+  });
+  const requestedKey = String(requestedInfo.key || "");
+  return store.listSuppliers().find(function (item) {
+    const entryInfo = resolveSupplierInfo({
+      supplier: item.supplier,
+      csvPatch: { 供应商: item.supplier },
+    });
+    return (
+      item.supplier === requested ||
+      item.safeSupplier === requested ||
+      item.safeSupplier === requestedSafe ||
+      String(entryInfo.key || "") === requestedKey
+    );
+  });
+}
+
+function handleSuppliers(response, store) {
+  const data = store.listSuppliers().map(function (item) {
+    return {
+      supplier: item.supplier,
+      safeSupplier: item.safeSupplier,
+      rowCount: item.rowCount,
+      csvPath: item.csvPath,
+      downloadPath:
+        DOWNLOAD_PATH + "?supplier=" + encodeURIComponent(String(item.supplier || "")),
+    };
+  });
+  sendJson(response, 200, {
+    success: true,
+    data: data,
+  });
+}
+
+function handleDownloadCsv(request, response, query, store) {
+  const supplierQuery = String(query?.supplier || "").trim();
+  if (!supplierQuery) {
+    sendJson(response, 400, {
       success: false,
-      message: "CSV 文件不存在，请先上传或生成统计数据。",
-      csvPath: csvPath,
+      message:
+        "请通过 supplier 参数指定供应商，例如 /download?supplier=棋燊。",
+      suppliersPath: SUPPLIERS_PATH,
     });
     return;
   }
 
-  const stat = fs.statSync(csvPath);
+  const supplierEntry = findSupplierEntry(store, supplierQuery);
+  if (!supplierEntry) {
+    sendJson(response, 404, {
+      success: false,
+      message: "未找到指定供应商对应的 CSV。",
+      supplier: supplierQuery,
+      suppliersPath: SUPPLIERS_PATH,
+    });
+    return;
+  }
+
+  if (!fs.existsSync(supplierEntry.csvPath)) {
+    sendJson(response, 404, {
+      success: false,
+      message: "供应商 CSV 文件不存在，请先上传或生成统计数据。",
+      supplier: supplierEntry.supplier,
+      csvPath: supplierEntry.csvPath,
+    });
+    return;
+  }
+
+  const stat = fs.statSync(supplierEntry.csvPath);
   if (!stat.isFile()) {
     sendJson(response, 404, {
       success: false,
-      message: "CSV 路径不是文件。",
-      csvPath: csvPath,
+      message: "供应商 CSV 路径不是文件。",
+      supplier: supplierEntry.supplier,
+      csvPath: supplierEntry.csvPath,
     });
     return;
   }
 
-  response.writeHead(200, createCsvDownloadHeaders(csvPath, stat.size));
+  response.writeHead(200, createCsvDownloadHeaders(supplierEntry.csvPath, stat.size));
   if (request.method === "HEAD") {
     response.end();
     return;
   }
 
-  const stream = fs.createReadStream(csvPath);
+  const stream = fs.createReadStream(supplierEntry.csvPath);
   stream.on("error", function (error) {
     if (!response.headersSent) {
       sendJson(response, 500, {
@@ -214,12 +293,16 @@ function registerAsrTranscriptionRoutes(router, options) {
     return handleUpload(request, response, store);
   });
 
-  addAliases(router, "GET", [DOWNLOAD_PATH], function ({ request, response }) {
-    handleDownloadCsv(request, response, store);
+  addAliases(router, "GET", [SUPPLIERS_PATH], function ({ response }) {
+    handleSuppliers(response, store);
   });
 
-  addAliases(router, "HEAD", [DOWNLOAD_PATH], function ({ request, response }) {
-    handleDownloadCsv(request, response, store);
+  addAliases(router, "GET", [DOWNLOAD_PATH], function ({ request, response, query }) {
+    handleDownloadCsv(request, response, query, store);
+  });
+
+  addAliases(router, "HEAD", [DOWNLOAD_PATH], function ({ request, response, query }) {
+    handleDownloadCsv(request, response, query, store);
   });
 }
 
@@ -232,6 +315,7 @@ module.exports = {
   LEGACY_CONFIG_PATH,
   LEGACY_HEALTH_PATH,
   LEGACY_UPLOAD_PATH,
+  SUPPLIERS_PATH,
   UPLOAD_PATH,
   createScheduleConfig,
   handleDownloadCsv,

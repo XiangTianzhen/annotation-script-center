@@ -34,6 +34,7 @@
   ];
   const CSV_COLUMNS = [
     "任务名称",
+    "供应商",
     "任务ID",
     "标注员1子任务ID",
     "标注员2子任务ID",
@@ -59,6 +60,8 @@
     "标注员3是否完成",
     "审核是否完成",
   ];
+  const SUPPLIER_HELPER = globalThis.ASREdgeStatisticsSupplier || {};
+  const UNKNOWN_SUPPLIER_NAME = SUPPLIER_HELPER.UNKNOWN_SUPPLIER_NAME || "未识别供应商";
 
   function clone(value) {
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
@@ -433,6 +436,32 @@
     return size === JUDGEMENT_TASK_SIZE;
   }
 
+  function resolveSupplierInfoForStats(subtaskData, payloadContext, draftPatch) {
+    const basePatch = draftPatch && typeof draftPatch === "object" ? draftPatch : {};
+    const context = payloadContext && typeof payloadContext === "object" ? payloadContext : {};
+    const taskName =
+      subtaskData?.taskName || subtaskData?.name || basePatch["任务名称"] || "";
+    if (typeof SUPPLIER_HELPER.resolveSupplierInfo === "function") {
+      return SUPPLIER_HELPER.resolveSupplierInfo({
+        payload: {
+          supplier: context.supplier,
+          vendor: context.vendor,
+        },
+        supplier: context.supplier,
+        vendor: context.vendor,
+        csvPatch: basePatch,
+        taskName: taskName,
+        name: taskName,
+      });
+    }
+    return {
+      key: String(taskName || "").trim() ? "task-name" : "unknown-supplier",
+      name: UNKNOWN_SUPPLIER_NAME,
+      safeName: UNKNOWN_SUPPLIER_NAME,
+      source: "fallback",
+    };
+  }
+
   function isIgnoredUserText(text) {
     return (
       !text ||
@@ -584,9 +613,12 @@
     return Number.isFinite(status) && status > 0 ? "已完成" : "未完成";
   }
 
-  function buildCsvBasePatch(subtaskData, durationSeconds) {
+  function buildCsvBasePatch(subtaskData, durationSeconds, supplierInfo) {
+    const resolvedSupplier =
+      supplierInfo && typeof supplierInfo === "object" ? supplierInfo : {};
     return {
       任务名称: String(subtaskData?.taskName || ""),
+      供应商: String(resolvedSupplier.name || UNKNOWN_SUPPLIER_NAME),
       任务ID: String(subtaskData?.taskId || ""),
       分包ID: String(subtaskData?.batchId || ""),
       题数: String(subtaskData?.size || ""),
@@ -621,6 +653,12 @@
       "";
     const completed = getCompletionText(subtaskData);
     const now = new Date().toISOString();
+    const draftPatch = buildCsvBasePatch(subtaskData, normalizedDurationSeconds);
+    const supplierInfo = resolveSupplierInfoForStats(subtaskData, payloadContext, draftPatch);
+    const csvPatch = buildCsvBasePatch(subtaskData, normalizedDurationSeconds, supplierInfo);
+    const supplierName = String(supplierInfo?.name || UNKNOWN_SUPPLIER_NAME);
+    const supplierKey = String(supplierInfo?.key || "unknown-supplier");
+    const supplierSource = String(supplierInfo?.source || "fallback");
 
     return {
       schemaVersion: 1,
@@ -629,6 +667,8 @@
       reason: reason || "manual",
       uploadedAt: now,
       mergeKey: {
+        supplierKey: supplierKey,
+        supplierName: supplierName,
         batchId: batchId,
       },
       url: {
@@ -637,7 +677,12 @@
         missionType: urlParams.missionType,
       },
       csvColumns: CSV_COLUMNS.slice(),
-      csvPatch: buildCsvBasePatch(subtaskData, normalizedDurationSeconds),
+      csvPatch: csvPatch,
+      supplier: {
+        key: supplierKey,
+        name: supplierName,
+        source: supplierSource,
+      },
       roleRecord: {
         role: role,
         subTaskId: subTaskId,
@@ -659,12 +704,19 @@
         }).length,
       },
       rawKeys: {
+        taskName: String(subtaskData?.taskName || ""),
+        taskId: String(subtaskData?.taskId || ""),
+        batchId: batchId,
+        subTaskId: subTaskId,
         subTaskType: String(subtaskData?.type || ""),
         sourceType: String(subtaskData?.sourceType || ""),
         status: subtaskData?.status ?? null,
         labelModel: String(subtaskData?.labelModel || ""),
+        supplierName: supplierName,
+        supplierSource: supplierSource,
       },
       dedupeKey: [
+        supplierKey,
         batchId,
         subTaskId,
         reason || "manual",

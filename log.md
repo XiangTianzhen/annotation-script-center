@@ -322,3 +322,10 @@
 - 验证转写标注详情页 `50 条/页`：页面一次渲染 50 个音频题卡，快速批量写入 10 个 textarea 只产生 1 条 `dataList` 保存，后续全页一键填充不能依赖批量 DOM 写入后统一失焦。
 - 补充转写标注保存契约：文本编辑自动保存仍走 `POST /api/v1/label/center/subTask/{subTaskId}/data`，保存体顶层为 `dataList` 和 `timestamp`，音频 URL 字段必须持续脱敏。
 - 本轮只更新平台资料 Markdown 和日志，未修改扩展运行时代码、manifest、后端代码或运行数据。
+
+- 升级扩展版本到 `0.2.11`，新增 Alibaba LabelX 转写/快判统计“按供应商分表”能力，新增扩展侧 `extension/shared/statistics-supplier.js` 和后端侧 `platform-resources/alibaba-labelx/supplier-utils.js` 统一供应商识别工具。
+- 转写与快判统计 CSV 新增 `供应商` 列，上传 payload 新增 `supplier` 对象、`mergeKey.supplierKey/supplierName`，并将幂等合并键升级为 `供应商 + 分包ID`，避免跨供应商同分包冲突覆盖。
+- 两套后端统计服务均改为仅写入 `statistics-data/suppliers/<供应商>/statistics-merged.csv`；不再维护根级 `statistics-data/statistics-merged.csv`，但继续兼容读取历史根级 CSV 作为迁移输入，不删除旧文件。
+- 新增并统一下载契约：`/statistics/download` 必须带 `supplier` 参数；未传返回 `400` 且提示 `suppliers` 列表接口。新增 `.../statistics/suppliers` 用于列出可下载供应商与下载链接。
+- 更新统一后端启动日志和 health 返回口径，显式提供 `suppliersPath`、`downloadRequiresSupplier`、`suppliersDir`，并将旧 `csvPath` 标记为 deprecated 空值。
+- 同步更新协作与文档规则：新增 Chrome DevTools / MCP 优先采集、Playwright Edge 仅用于真实操作验证或兜底、用户回复“处理好了”后再继续采集测试，以及 LabelX 公共资料与转写专项资料目录沉淀要求。

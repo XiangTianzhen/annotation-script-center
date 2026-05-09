@@ -38,7 +38,19 @@ server.listen(port, host, function () {
       String(port) +
       DOWNLOAD_PATH
   );
-  console.info("[ASR Judgement][stats-server] csv:", store.getPaths().csvPath);
+  console.info(
+    "[ASR Judgement][stats-server] suppliers dir:",
+    store.getPaths().suppliersDir
+  );
+  console.info(
+    "[ASR Judgement][stats-server] download requires supplier query, e.g. " +
+      "http://" +
+      host +
+      ":" +
+      String(port) +
+      DOWNLOAD_PATH +
+      "?supplier=棋燊"
+  );
 });
 
 module.exports = server;
