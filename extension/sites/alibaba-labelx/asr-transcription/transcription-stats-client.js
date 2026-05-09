@@ -1,8 +1,12 @@
 (function () {
   const LOG_PREFIX = "[ASR Edge][transcription-stats]";
-  const TRANSCRIPTION_DETAIL_PAGE_SIZE = 10;
-  const TRANSCRIPTION_DETAIL_MAX_PAGES = 20;
+  const TRANSCRIPTION_DETAIL_PAGE_SIZE = 100;
+  const TRANSCRIPTION_DETAIL_MAX_PAGES = 3;
+  const TRANSCRIPTION_DETAIL_MAX_ITEMS = 300;
   const DEFAULT_HOME_PAGE_SIZE = 100;
+  const HOME_LIST_MAX_PAGES = 5;
+  const HOME_DETAIL_CONCURRENCY = 2;
+  const HOME_MAX_TRANSCRIPTION_SUBTASKS_PER_UPLOAD = 50;
   const DEFAULT_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
   const DEFAULT_SERVER_UPLOAD_ENDPOINT =
     "https://script.xiangtianzhen.store" + DEFAULT_UPLOAD_PATH;
@@ -282,10 +286,14 @@
           : Array.isArray(data.list)
             ? data.list
             : [];
-      const recordCount = Number(data.recordCount ?? data.size ?? data.total ?? list.length);
+      const rawRecordCount = data.recordCount ?? data.size ?? data.total;
+      const parsedRecordCount = Number(rawRecordCount);
       return {
         list: list,
-        recordCount: Number.isFinite(recordCount) && recordCount >= 0 ? recordCount : list.length,
+        recordCount:
+          Number.isFinite(parsedRecordCount) && parsedRecordCount >= 0
+            ? parsedRecordCount
+            : null,
         metadata: {
           id: sanitizeSubTaskId(data.id || cleanSubTaskId),
           taskId: String(data.taskId || ""),
@@ -327,7 +335,8 @@
     const allItems = [];
     const rawPageData = [];
     let metadata = {};
-    let recordCount = 0;
+    let recordCount = null;
+    let previousPageSignature = "";
     for (let page = 1; page <= TRANSCRIPTION_DETAIL_MAX_PAGES; page += 1) {
       const pageResult = await fetchSubtaskDataPage(
         cleanSubTaskId,
@@ -344,16 +353,37 @@
       }
       if (page === 1) {
         recordCount = pageResult.recordCount;
-      } else if (recordCount <= 0 && pageResult.recordCount > 0) {
+      } else if ((!Number.isFinite(recordCount) || recordCount <= 0) && pageResult.recordCount > 0) {
         recordCount = pageResult.recordCount;
       }
 
       if (pageResult.list.length === 0) {
         break;
       }
+      const pageSignature = pageResult.list
+        .map(function (item) {
+          return String(item?.dataId || item?.id || "");
+        })
+        .join("|");
+      if (pageSignature && pageSignature === previousPageSignature) {
+        break;
+      }
+      previousPageSignature = pageSignature;
       allItems.push.apply(allItems, pageResult.list);
 
-      if ((recordCount > 0 && allItems.length >= recordCount) || pageResult.list.length < TRANSCRIPTION_DETAIL_PAGE_SIZE) {
+      if (allItems.length >= TRANSCRIPTION_DETAIL_MAX_ITEMS) {
+        break;
+      }
+      if (!Number.isFinite(recordCount) || recordCount <= 0) {
+        break;
+      }
+      if (recordCount <= TRANSCRIPTION_DETAIL_PAGE_SIZE) {
+        break;
+      }
+      if (allItems.length >= recordCount) {
+        break;
+      }
+      if (pageResult.list.length < TRANSCRIPTION_DETAIL_PAGE_SIZE) {
         break;
       }
     }
@@ -362,7 +392,7 @@
       subTaskId: cleanSubTaskId,
       metadata: metadata,
       dataList: allItems,
-      recordCount: recordCount > 0 ? recordCount : allItems.length,
+      recordCount: Number.isFinite(recordCount) && recordCount > 0 ? recordCount : allItems.length,
       fetchedItemCount: allItems.length,
       rawPageData: rawPageData,
     };
@@ -394,20 +424,24 @@
   function normalizeListPage(body) {
     const data = body?.data && typeof body.data === "object" ? body.data : {};
     const list = Array.isArray(data.data) ? data.data : Array.isArray(data.list) ? data.list : [];
-    const recordCount = Number(data.recordCount ?? data.total ?? list.length);
+    const rawRecordCount = data.recordCount ?? data.total;
+    const parsedRecordCount = Number(rawRecordCount);
     return {
       list: list,
-      recordCount: Number.isFinite(recordCount) && recordCount >= 0 ? recordCount : list.length,
+      recordCount:
+        Number.isFinite(parsedRecordCount) && parsedRecordCount >= 0
+          ? parsedRecordCount
+          : null,
     };
   }
 
-  async function fetchPagedList(buildUrl, pageSize) {
+  async function fetchPagedList(buildUrl, pageSize, maxPages) {
     const normalizedPageSize = pageSize || DEFAULT_HOME_PAGE_SIZE;
+    const normalizedMaxPages = Math.max(1, Number(maxPages) || HOME_LIST_MAX_PAGES);
     const result = [];
-    let page = 1;
-    let recordCount = 0;
+    let recordCount = null;
 
-    while (page <= 50) {
+    for (let page = 1; page <= normalizedMaxPages; page += 1) {
       const body = await fetchJson(buildUrl(page, normalizedPageSize), {
       credentials: "include",
       cache: "no-store",
@@ -416,30 +450,37 @@
       },
     });
       const normalized = normalizeListPage(body);
-      recordCount = normalized.recordCount;
+      if (recordCount === null) {
+        recordCount = normalized.recordCount;
+      }
+      if (normalized.list.length === 0) {
+        break;
+      }
       result.push.apply(result, normalized.list);
+      if (!Number.isFinite(recordCount) || recordCount <= 0) {
+        break;
+      }
       if (result.length >= recordCount || normalized.list.length < normalizedPageSize) {
         break;
       }
-      page += 1;
     }
 
     return {
       list: result,
-      recordCount: recordCount || result.length,
+      recordCount: Number.isFinite(recordCount) && recordCount >= 0 ? recordCount : result.length,
     };
   }
 
   async function fetchHomeTasks(projectId, kind) {
     return fetchPagedList(function (page, pageSize) {
       return buildHomeTasksUrl(projectId, page, pageSize, kind);
-    }, DEFAULT_HOME_PAGE_SIZE);
+    }, DEFAULT_HOME_PAGE_SIZE, HOME_LIST_MAX_PAGES);
   }
 
   async function fetchHomeSubTasks(projectId, finished, kind) {
     return fetchPagedList(function (page, pageSize) {
       return buildHomeSubTasksUrl(projectId, finished, page, pageSize, kind);
-    }, DEFAULT_HOME_PAGE_SIZE);
+    }, DEFAULT_HOME_PAGE_SIZE, HOME_LIST_MAX_PAGES);
   }
 
   function roundDurationSeconds(totalSeconds) {
@@ -1076,6 +1117,10 @@
               );
               return;
             }
+            if (result?.skipped === true && result?.reason === "upload-in-progress") {
+              setUploadButtonStatus(result?.message || "转写统计上传中，请勿重复点击。", "info");
+              return;
+            }
             setUploadButtonStatus(result?.message || "上传失败。", "error");
           })
           .catch(function (error) {
@@ -1246,10 +1291,15 @@
       }
 
       const subtasks = [];
+      const seenSubTaskIds = new Set();
+      let scannedTranscriptionSubTaskCount = 0;
+      let skippedDuplicateSubTaskCount = 0;
+      let detailRequestCount = 0;
+      let reachedUploadLimit = false;
       kindPages.forEach(function (pageGroup) {
         const subtaskMap = {};
         pageGroup.unfinishedPage.list.concat(pageGroup.finishedPage.list).forEach(function (subtask) {
-          const id = getSummarySubTaskId(subtask);
+          const id = sanitizeSubTaskId(getSummarySubTaskId(subtask));
           if (!id) {
             return;
           }
@@ -1259,10 +1309,24 @@
             skippedSubTaskCount += 1;
             return;
           }
+          scannedTranscriptionSubTaskCount += 1;
+          if (seenSubTaskIds.has(id)) {
+            skippedDuplicateSubTaskCount += 1;
+            return;
+          }
+          if (subtasks.length >= HOME_MAX_TRANSCRIPTION_SUBTASKS_PER_UPLOAD) {
+            reachedUploadLimit = true;
+            return;
+          }
 
+          seenSubTaskIds.add(id);
           subtaskMap[pageGroup.kind.key + ":" + id] = subtask;
         });
         Object.keys(subtaskMap).forEach(function (id) {
+          if (subtasks.length >= HOME_MAX_TRANSCRIPTION_SUBTASKS_PER_UPLOAD) {
+            reachedUploadLimit = true;
+            return;
+          }
           subtasks.push({
             summary: subtaskMap[id],
             pageGroup: pageGroup,
@@ -1285,11 +1349,12 @@
       }
 
       const payloads = (
-        await mapLimit(subtasks, 3, async function (entry) {
+        await mapLimit(subtasks, HOME_DETAIL_CONCURRENCY, async function (entry) {
           const summary = entry.summary;
           const pageGroup = entry.pageGroup;
           const kind = pageGroup.kind;
           const linkedTask = pageGroup.taskMap[String(summary?.taskId || "")] || {};
+          detailRequestCount += 1;
           const detailData = await fetchSubtaskDetail(summary);
           if (!detailData?.id) {
             skippedDetailCount += 1;
@@ -1341,9 +1406,14 @@
             return total + (Number(item.tasksPage.recordCount) || 0);
           }, 0),
           subTaskCount: subtasks.length,
+          scannedTranscriptionSubTaskCount: scannedTranscriptionSubTaskCount,
+          detailRequestCount: detailRequestCount,
           payloadCount: payloads.length,
           skippedSubTaskCount: skippedSubTaskCount,
+          skippedDuplicateSubTaskCount: skippedDuplicateSubTaskCount,
           skippedDetailCount: skippedDetailCount,
+          reachedUploadLimit: reachedUploadLimit,
+          maxSubtasksPerUpload: HOME_MAX_TRANSCRIPTION_SUBTASKS_PER_UPLOAD,
           kinds: kindPages.map(function (item) {
             return {
               kind: item.kind.key,
@@ -1479,9 +1549,11 @@
       }
       if (state.uploading) {
         return {
+          success: false,
           ok: false,
-          reason: "uploading",
-          message: "统计上传正在进行中。",
+          skipped: true,
+          reason: "upload-in-progress",
+          message: "转写统计上传中，请勿重复点击。",
         };
       }
 
@@ -1490,13 +1562,27 @@
       try {
         const payload = await collectPayload(uploadReason);
         await postPayload(payload);
-        setMessage(true, uploadReason, "转写统计数据已上传。");
-        showToast("转写统计数据已上传。", "info");
+        const summary = payload?.summary && typeof payload.summary === "object" ? payload.summary : {};
+        const summaryMessage =
+          "转写统计已上传：扫描 " +
+          String(summary.scannedTranscriptionSubTaskCount || summary.subTaskCount || 0) +
+          "，详情 " +
+          String(summary.detailRequestCount || 1) +
+          "，上传 " +
+          String(summary.payloadCount || 1) +
+          "，跳过快判 " +
+          String(summary.skippedSubTaskCount || 0) +
+          "，跳过重复 " +
+          String(summary.skippedDuplicateSubTaskCount || 0) +
+          (summary.reachedUploadLimit ? "（达到本次上传上限）" : "");
+        setMessage(true, uploadReason, summaryMessage);
+        showToast(summaryMessage, "info");
         const uploadPayload = Array.isArray(payload.payloads) ? payload.payloads : [payload];
         return {
+          success: true,
           ok: true,
           reason: uploadReason,
-          message: "转写统计数据已上传。",
+          message: summaryMessage,
           payload: {
             batchId: uploadPayload[0]?.mergeKey?.batchId || "",
             subTaskId: uploadPayload[0]?.roleRecord?.subTaskId || "",
@@ -1511,6 +1597,7 @@
         setMessage(false, uploadReason, message);
         showToast("转写统计上传失败：" + message, "error");
         return {
+          success: false,
           ok: false,
           reason: uploadReason,
           message: message,

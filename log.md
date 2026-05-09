@@ -1,5 +1,15 @@
 # 标注脚本中心修改日志
 
+## 2026-05-09
+
+- 修复 ASR 转写统计上传请求风暴风险：详情抓取从 `pageSize=10` 调整为 `pageSize=100`，并增加 `maxPages=3`、`maxItems=300` 硬上限。
+- 修复详情分页停止条件：遇空页、重复页签名、`recordCount` 缺失、`recordCount` 已满足或达到上限即停止，避免疑似无限循环请求。
+- 修复首页分页抓取边界：列表分页最多 `5` 页，去除旧的大范围循环策略。
+- 新增首页采集限流：详情请求并发限制为 `2`，单次上传最多处理 `50` 个转写子任务，并按清洗后的 `subTaskId` 去重，单轮只请求一次详情。
+- 新增上传互斥锁反馈：上传进行中返回 `upload-in-progress` + `skipped=true`，手动连点与定时触发不会并发第二轮上传。
+- 同步补充转写统计策略文档：新增 `platform-resources/alibaba-labelx/asr-transcription/statistics.md`，并更新 `network.md` 与转写 README。
+- 本轮仍保持 `extension/manifest.json` 版本 `0.2.10`。
+
 ## 2026-05-08
 
 - ASR 转写统计取数按 `platform-resources/alibaba-labelx/asr-transcription/network.md` 修正：详情接口分页解析改为 `data.dataList[]`，并保持 `pageSize=10` + `maxPages=20`。

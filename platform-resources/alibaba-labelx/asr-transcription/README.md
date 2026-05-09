@@ -1,6 +1,6 @@
 # Alibaba LabelX ASR 转写资料
 
-## 当前状态（2026-05-08）
+## 当前状态（2026-05-09）
 
 - 当前仍处于 `0.2.10` 修复阶段，版本不升级到 `0.2.11`。
 - `extension/sites/alibaba-labelx/asr-transcription/` 已切换为轻量工具栏版。
@@ -52,9 +52,12 @@
   - 顶部导航头像旁“上传转写统计”按钮。
   - 转写工具栏“上传统计”按钮。
 - 详情接口取数口径：
-  - 使用 `GET /api/v1/label/center/subTask/{subTaskId}/data?page=1&pageSize=10...` 分页抓取。
-  - 默认 `pageSize=10`，按 `recordCount` 持续翻页，含最大页数保护，避免死循环。
+  - 页面实测常见 `GET /api/v1/label/center/subTask/{subTaskId}/data?page=1&pageSize=10...`。
+  - 扩展统计上传默认用 `pageSize=100`，并限制 `maxPages=3`、`maxItems=300` 以减少请求数。
+  - 详情请求遇空页、重复页签名、`recordCount` 缺失会提前停止，避免请求风暴。
   - `subTaskId` 在拼 URL 前必须先做空白清洗（普通空格、Tab、换行、回车、全角空格）。
+  - 首页列表最多抓 `5` 页，详情并发 `2`，单次上传最多处理 `50` 个转写子任务，且同一 `subTaskId` 单次只请求一次。
+  - 上传锁：若上传中再次触发，返回 `upload-in-progress` 并跳过，不并发第二轮。
 - 转写/快判识别口径：
   - 快判排除：`labelModel=vote` 或任务名命中 `ASR更优结果判断/ASR更优/更优结果判断/更优判断`（典型 `size=400`）。
   - 转写采集：`labelModel=single` 或任务名命中 `中文普通话asr任务/中文普通话asr/asr任务/普通话asr`（典型 `size=50`）。
@@ -78,7 +81,7 @@
 - 已补充真实采集网络口径文档：`network.md`。
 - 文档覆盖首页 `tasks/subTasks/tasks/process` 与详情页 `subTask/{id}/data|summary|board|getLabelTaskInfo`。
 - 已明确 `subTaskId` 可能包含换行和空格编码，接口构造前必须先清洗。
-- 已明确详情页转写数据按 `pageSize=10` 分页抓取。
+- 已明确页面请求常见 `pageSize=10`，扩展统计上传策略为 `pageSize=100 + 硬上限`。
 
 ## 后续约束
 
