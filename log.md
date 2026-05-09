@@ -2,6 +2,11 @@
 
 ## 2026-05-09
 
+- 修复扩展重载后的旧页面刷错：`shared/storage.js` 新增扩展上下文可用性检测与 `EXTENSION_CONTEXT_INVALIDATED` 结构化错误，统一识别 `Extension context invalidated`。
+- 转写运行时生命周期修复：`runtime-config.js` 对上下文失效改为一次性 info + 安全 fallback，不再按普通设置加载失败反复 `warn`。
+- 转写 content runtime 新增 `extension-context-invalidated` 停机分支：命中后停止工具栏/快捷键/统计调度与重试观察器，`PANEL_PING` 返回“扩展上下文已失效，请刷新页面”。
+- 本轮仍保持 `extension/manifest.json` 版本 `0.2.10`。
+
 - 标贝易采一检质检新增“导出后上传后端”能力：`group/detail` 导出总表生成 CSV 后，保持本地下载，同时自动 `POST /api/data-baker/round-one-quality/export/upload` 上传。
 - 新增 DataBaker 导出后端模块：`export-routes.js`、`export-store.js`，统一挂载到 `platform-resources/backend/server.js`，提供 `health/config/upload/download(含 HEAD)/list`。
 - 新增 DataBaker 导出保存目录：`platform-resources/data-baker/round-one-quality/backend/export-data/`，默认写 `latest.csv` 与 `latest.json`，可通过环境变量开启 history/events。

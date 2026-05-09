@@ -142,6 +142,40 @@
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
   }
 
+  const EXTENSION_CONTEXT_INVALIDATED_CODE = "EXTENSION_CONTEXT_INVALIDATED";
+
+  function isExtensionContextInvalidatedError(error) {
+    const message = String((error && (error.message || error)) || "").toLowerCase();
+    return (
+      message.indexOf("extension context invalidated") >= 0 ||
+      message.indexOf("context invalidated") >= 0
+    );
+  }
+
+  function createExtensionContextInvalidatedError(rawError) {
+    const error = new Error("Extension context invalidated");
+    error.code = EXTENSION_CONTEXT_INVALIDATED_CODE;
+    if (rawError && rawError !== error) {
+      error.cause = rawError;
+    }
+    return error;
+  }
+
+  function isChromeExtensionContextAvailable() {
+    try {
+      return Boolean(
+        globalThis.chrome &&
+          chrome.runtime &&
+          typeof chrome.runtime.id === "string" &&
+          chrome.runtime.id &&
+          chrome.storage &&
+          chrome.storage.local
+      );
+    } catch (error) {
+      return false;
+    }
+  }
+
   function isPlainObject(value) {
     return Object.prototype.toString.call(value) === "[object Object]";
   }
@@ -615,19 +649,37 @@
   }
 
   function createStoragePromise(method, payload) {
+    if (!isChromeExtensionContextAvailable()) {
+      return Promise.reject(createExtensionContextInvalidatedError());
+    }
+
     if (!chrome?.storage?.local?.[method]) {
-      return Promise.resolve(method === "get" ? {} : undefined);
+      return Promise.reject(createExtensionContextInvalidatedError());
     }
 
     return new Promise(function (resolve, reject) {
-      chrome.storage.local[method](payload, function (result) {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
+      try {
+        chrome.storage.local[method](payload, function (result) {
+          const runtimeLastError = chrome?.runtime?.lastError || null;
+          if (runtimeLastError) {
+            const runtimeError = new Error(runtimeLastError.message || "chrome.runtime.lastError");
+            if (isExtensionContextInvalidatedError(runtimeError)) {
+              reject(createExtensionContextInvalidatedError(runtimeError));
+              return;
+            }
+            reject(runtimeError);
+            return;
+          }
+
+          resolve(result);
+        });
+      } catch (error) {
+        if (isExtensionContextInvalidatedError(error) || !isChromeExtensionContextAvailable()) {
+          reject(createExtensionContextInvalidatedError(error));
           return;
         }
-
-        resolve(result);
-      });
+        reject(error);
+      }
     });
   }
 
@@ -1568,5 +1620,8 @@
     setActiveProject: setActiveProject,
     saveProjectSettings: saveProjectSettings,
     setScriptEnabled: setScriptEnabled,
+    EXTENSION_CONTEXT_INVALIDATED_CODE: EXTENSION_CONTEXT_INVALIDATED_CODE,
+    isExtensionContextInvalidatedError: isExtensionContextInvalidatedError,
+    isChromeExtensionContextAvailable: isChromeExtensionContextAvailable,
   };
 })();

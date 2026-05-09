@@ -82,6 +82,8 @@
     statsRuntime: null,
     statsState: null,
     shortcutRuntime: null,
+    contextInvalidated: false,
+    contextInvalidatedNotified: false,
   };
 
   function warn(message, extra) {
@@ -454,6 +456,27 @@
     runtime.reason = reason || runtime.reason || "waiting-for-transcription-detail";
   }
 
+  function stopRetryWatchers() {
+    clearTimeout(runtime.refreshTimer);
+    runtime.refreshTimer = null;
+    if (runtime.mutationObserver) {
+      runtime.mutationObserver.disconnect();
+      runtime.mutationObserver = null;
+    }
+    if (runtime.pollTimer) {
+      clearInterval(runtime.pollTimer);
+      runtime.pollTimer = null;
+    }
+  }
+
+  function stopRuntime(reason, options) {
+    stopStatsRuntime();
+    disableRuntime(reason);
+    if (options && options.stopWatchers === true) {
+      stopRetryWatchers();
+    }
+  }
+
   function enableRuntime() {
     runtime.enabled = true;
     runtime.reason = "matched";
@@ -471,6 +494,9 @@
   }
 
   function scheduleRefresh(trigger, delay) {
+    if (runtime.contextInvalidated === true) {
+      return;
+    }
     clearTimeout(runtime.refreshTimer);
     runtime.refreshTimer = setTimeout(function () {
       void refreshRuntime(trigger || "retry");
@@ -486,22 +512,31 @@
 
     try {
       if (!configApi || !activeItemApi || !itemActions || !audioApi) {
-        stopStatsRuntime();
-        disableRuntime("module-missing");
+        stopRuntime("module-missing");
         warn("required module missing");
         return;
       }
       if (!toolbarApi || typeof toolbarApi.createRuntime !== "function") {
-        stopStatsRuntime();
-        disableRuntime("module-missing-toolbar");
+        stopRuntime("module-missing-toolbar");
         warn("toolbar module missing");
         return;
       }
 
       const loaded = await configApi.loadConfig();
+      runtime.contextInvalidated = loaded.contextInvalidated === true;
       runtime.config = loaded.config;
       runtime.statsConfig = loaded.statsConfig || null;
       runtime.scriptActive = loaded.enabledBySettings === true && loaded.activeProjectId === PROJECT_ID;
+
+      if (runtime.contextInvalidated) {
+        stopRuntime("extension-context-invalidated", { stopWatchers: true });
+        if (!runtime.contextInvalidatedNotified) {
+          runtime.contextInvalidatedNotified = true;
+          showToast("扩展上下文已失效，请刷新页面。");
+        }
+        return;
+      }
+      runtime.contextInvalidatedNotified = false;
 
       if (runtime.scriptActive) {
         startStatsRuntime();
@@ -533,8 +568,7 @@
 
       enableRuntime();
     } catch (error) {
-      stopStatsRuntime();
-      disableRuntime("runtime-error");
+      stopRuntime("runtime-error");
       warn("runtime refresh failed", {
         trigger: trigger,
         message: error && error.message ? error.message : String(error),
@@ -616,6 +650,18 @@
       }
 
       if (message.type === PANEL_PING) {
+        if (runtime.contextInvalidated === true) {
+          sendResponse({
+            ok: false,
+            scriptId: PROJECT_ID,
+            injected: false,
+            enabled: false,
+            matched: false,
+            reason: "extension-context-invalidated",
+            message: "扩展上下文已失效，请刷新页面。",
+          });
+          return false;
+        }
         sendResponse({
           ok: true,
           scriptId: PROJECT_ID,

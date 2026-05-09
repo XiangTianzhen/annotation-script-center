@@ -49,6 +49,7 @@
   - 已注入未命中：`injected=true, matched=false`
   - 已命中并运行：`injected=true, matched=true`
   - 真无响应才应视为注入失败
+- 扩展在 `chrome://extensions` 重新加载后，旧页面可能出现 `Extension context invalidated`；当前已在 `shared/storage.js` 统一识别，并让转写运行时进入 `extension-context-invalidated` 停机状态（提示刷新页面），不再把它当普通配置错误反复告警。
 
 ## 工具栏布局（仿快判结构）
 

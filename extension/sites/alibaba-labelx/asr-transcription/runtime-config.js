@@ -105,6 +105,26 @@
     }
   }
 
+  function isExtensionContextInvalidatedError(storage, error) {
+    if (storage && typeof storage.isExtensionContextInvalidatedError === "function") {
+      try {
+        if (storage.isExtensionContextInvalidatedError(error)) {
+          return true;
+        }
+      } catch (innerError) {
+        // Ignore checker failures and continue with local fallback.
+      }
+    }
+    if (String(error?.code || "") === "EXTENSION_CONTEXT_INVALIDATED") {
+      return true;
+    }
+    const message = String((error && (error.message || error)) || "").toLowerCase();
+    return (
+      message.indexOf("extension context invalidated") >= 0 ||
+      message.indexOf("context invalidated") >= 0
+    );
+  }
+
   function createSafeSettingsFallback() {
     const constants = globalThis.ASREdgeConstants || {};
     const defaults =
@@ -310,26 +330,50 @@
     return platformEnabled && getActiveProjectId(settings) === PROJECT_ID;
   }
 
+  let contextInvalidatedLogEmitted = false;
+
   async function loadSettings() {
     const storage = globalThis.ASREdgeStorage || null;
     if (!storage || typeof storage.getSettings !== "function") {
-      return createSafeSettingsFallback();
+      return {
+        settings: createSafeSettingsFallback(),
+        contextInvalidated: false,
+      };
     }
 
     try {
-      return await storage.getSettings();
+      return {
+        settings: await storage.getSettings(),
+        contextInvalidated: false,
+      };
     } catch (error) {
+      if (isExtensionContextInvalidatedError(storage, error)) {
+        if (!contextInvalidatedLogEmitted) {
+          contextInvalidatedLogEmitted = true;
+          console.info(
+            "[ASR Edge][transcription] extension context invalidated; waiting for page refresh."
+          );
+        }
+        return {
+          settings: createSafeSettingsFallback(),
+          contextInvalidated: true,
+        };
+      }
       const details = describeError(error);
       console.warn(
         "[ASR Edge][transcription] load settings failed",
         details.message + (details.stack ? " | " + details.stack : "")
       );
-      return createSafeSettingsFallback();
+      return {
+        settings: createSafeSettingsFallback(),
+        contextInvalidated: false,
+      };
     }
   }
 
   async function loadConfig() {
-    const settings = await loadSettings();
+    const loaded = await loadSettings();
+    const settings = loaded.settings;
     const projectAsrConfig =
       settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[PROJECT_ID]?.asrConfig || {};
     const defaultRuntime = Object.assign({}, DEFAULT_ASR_CONFIG || {}, FIXED_DEFAULTS);
@@ -348,6 +392,8 @@
         )
       ),
       storageKey: STORAGE_KEY,
+      contextInvalidated: loaded.contextInvalidated === true,
+      status: loaded.contextInvalidated === true ? "extension-context-invalidated" : "ok",
     };
   }
 
