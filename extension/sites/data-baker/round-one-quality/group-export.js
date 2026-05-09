@@ -8,6 +8,8 @@
   const TARGET_PAGE_SIZE = 100;
   const WAIT_RESPONSE_TIMEOUT_MS = 12000;
   const MAX_EXPORT_PAGES = 10000;
+  const UPLOAD_TIMEOUT_MS = 20000;
+  const MAX_UPLOAD_CSV_BYTES = 20 * 1024 * 1024;
 
   const CSV_COLUMNS = [
     { title: "任务ID", keys: ["taskId"] },
@@ -43,6 +45,12 @@
 
   const RAW_JSON_COLUMN = "原始JSON";
   const SENSITIVE_KEYWORDS = ["token", "cookie", "authorization", "signature", "ossaccesskeyid"];
+  const CONSTANTS = globalThis.ASREdgeConstants || {};
+  const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
+  const DATABAKER_EXPORT_UPLOAD_PATH =
+    CONSTANTS.DATABAKER_EXPORT_UPLOAD_PATH || "/api/data-baker/round-one-quality/export/upload";
+  const DATABAKER_EXPORT_DOWNLOAD_PATH =
+    CONSTANTS.DATABAKER_EXPORT_DOWNLOAD_PATH || "/api/data-baker/round-one-quality/export/download";
 
   let root = null;
   let statusNode = null;
@@ -147,6 +155,51 @@
     } catch (error) {
       return true;
     }
+  }
+
+  async function loadExtensionSettings() {
+    const storage = globalThis.ASREdgeStorage || null;
+    if (!storage || typeof storage.getSettings !== "function") {
+      return {};
+    }
+    try {
+      return (await storage.getSettings()) || {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function normalizeBackendMode(value) {
+    const text = normalizeText(value).toLowerCase();
+    return text === BACKEND_MODE_LOCAL ? BACKEND_MODE_LOCAL : "server";
+  }
+
+  function getBackendMode(settings) {
+    if (typeof CONSTANTS.getBackendEndpointModeFromSettings === "function") {
+      return normalizeBackendMode(CONSTANTS.getBackendEndpointModeFromSettings(settings || {}));
+    }
+    return normalizeBackendMode(settings?.meta?.backendEndpointMode);
+  }
+
+  function buildBackendUrl(path, settings) {
+    if (typeof CONSTANTS.buildBackendUrl === "function") {
+      const built = normalizeText(CONSTANTS.buildBackendUrl(path, settings || {}));
+      if (built) {
+        return built;
+      }
+    }
+    const mode = getBackendMode(settings || {});
+    const baseUrl = mode === BACKEND_MODE_LOCAL ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store";
+    const normalizedPath = String(path || "").startsWith("/") ? String(path || "") : "/" + String(path || "");
+    return baseUrl + normalizedPath;
+  }
+
+  function buildDataBakerExportUploadUrl(settings) {
+    return buildBackendUrl(DATABAKER_EXPORT_UPLOAD_PATH, settings || {});
+  }
+
+  function buildDataBakerExportDownloadUrl(settings) {
+    return buildBackendUrl(DATABAKER_EXPORT_DOWNLOAD_PATH, settings || {});
   }
 
   function ensureStyle() {
@@ -880,6 +933,147 @@
     return lines.join("\n");
   }
 
+  function estimateCsvRowCount(csvText) {
+    const text = String(csvText || "");
+    if (!text) {
+      return 0;
+    }
+    const lines = text.split(/\r?\n/).filter(function (line) {
+      return line.trim() !== "";
+    });
+    if (lines.length <= 1) {
+      return 0;
+    }
+    return lines.length - 1;
+  }
+
+  function readSummaryField(rows, keys) {
+    const keyList = Array.isArray(keys) ? keys : [];
+    const list = Array.isArray(rows) ? rows : [];
+    for (let rowIndex = 0; rowIndex < list.length; rowIndex += 1) {
+      const row = list[rowIndex] || {};
+      for (let keyIndex = 0; keyIndex < keyList.length; keyIndex += 1) {
+        const key = keyList[keyIndex];
+        const value = normalizeText(row[key]);
+        if (value) {
+          return value;
+        }
+      }
+    }
+    return "";
+  }
+
+  function buildExportSummary(rows) {
+    return {
+      projectName: readSummaryField(rows, ["projectName"]),
+      taskName: readSummaryField(rows, ["taskName"]),
+      teamName: readSummaryField(rows, ["teamName"]),
+      collectCount: Array.isArray(rows) ? rows.length : 0,
+    };
+  }
+
+  function buildExportUploadPayload(csvText, rows, meta) {
+    const taskId = normalizeText(meta?.taskId);
+    const fileName = normalizeText(meta?.fileName);
+    const rowCount = Array.isArray(rows) ? rows.length : estimateCsvRowCount(csvText);
+    const summary = buildExportSummary(rows);
+    return {
+      schemaVersion: 1,
+      source: "extension/sites/data-baker/round-one-quality/group-export",
+      project: "data-baker/round-one-quality",
+      exportedAt: new Date().toISOString(),
+      fileName: fileName || "data-baker-round-one-quality-export.csv",
+      csvText: String(csvText || ""),
+      rowCount: rowCount,
+      taskId: taskId,
+      route: {
+        hash: String(location.hash || ""),
+        pathname: parseHashRoute().pathname,
+      },
+      summary: summary,
+    };
+  }
+
+  async function uploadExportCsvToBackend(csvText, rows, meta) {
+    const payload = buildExportUploadPayload(csvText, rows, meta || {});
+    const csvContent = String(payload.csvText || "");
+    const csvBytes =
+      typeof TextEncoder === "function"
+        ? new TextEncoder().encode(csvContent).length
+        : encodeURIComponent(csvContent).replace(/%[A-F\d]{2}/gi, "U").length;
+    if (csvBytes <= 0) {
+      return {
+        success: false,
+        message: "导出 CSV 为空，已跳过后端上传。",
+      };
+    }
+    if (csvBytes > MAX_UPLOAD_CSV_BYTES) {
+      return {
+        success: false,
+        message: "导出 CSV 超过 20MB，已跳过后端上传。",
+      };
+    }
+
+    const settings = await loadExtensionSettings();
+    const uploadUrl = buildDataBakerExportUploadUrl(settings);
+    const fallbackDownloadUrl = buildDataBakerExportDownloadUrl(settings);
+    if (!uploadUrl) {
+      return {
+        success: false,
+        message: "未解析出后端上传地址，已跳过后端上传。",
+      };
+    }
+
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timeoutId = window.setTimeout(function () {
+      if (controller) {
+        controller.abort();
+      }
+    }, UPLOAD_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: controller ? controller.signal : undefined,
+      });
+      const bodyText = await response.text();
+      let body = {};
+      try {
+        body = bodyText ? JSON.parse(bodyText) : {};
+      } catch (error) {
+        body = {};
+      }
+      if (!response.ok || body?.success !== true) {
+        const summary = normalizeText(body?.message || response.statusText || "上传失败");
+        return {
+          success: false,
+          message: "后端上传失败（HTTP " + String(response.status) + "）：" + summary,
+        };
+      }
+
+      const data = body?.data && typeof body.data === "object" ? body.data : {};
+      const downloadUrl = normalizeText(data.downloadUrl) || fallbackDownloadUrl;
+      return {
+        success: true,
+        downloadUrl: downloadUrl,
+        fileName: normalizeText(data.fileName) || payload.fileName,
+        rowCount: Number(data.rowCount) || payload.rowCount,
+      };
+    } catch (error) {
+      const message = normalizeText(error?.message || "网络异常");
+      return {
+        success: false,
+        message: "后端上传失败：" + message,
+      };
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
   function pad2(value) {
     return String(value).padStart(2, "0");
   }
@@ -1036,6 +1230,11 @@
       formatTimeStamp(new Date()) +
       ".csv";
 
+    const uploadResult = await uploadExportCsvToBackend(csv, dedupedRows, {
+      taskId: taskId,
+      fileName: fileName,
+    });
+
     triggerCsvDownload(fileName, csv);
 
     setStatus(
@@ -1044,12 +1243,15 @@
         String(dedupedRows.length) +
         " 条 / 总计 " +
         String(total) +
-        " 条，已下载 CSV。",
-      "success"
+        " 条，已下载 CSV。" +
+        (uploadResult.success
+          ? "\n后端上传成功，可下载：" + String(uploadResult.downloadUrl || "（未返回下载地址）")
+          : "\n后端上传失败（不影响本地下载）：" + String(uploadResult.message || "未知错误。")),
+      uploadResult.success ? "success" : "error"
     );
   }
 
-  function tryFallbackExportCurrentPage(taskId, reason) {
+  async function tryFallbackExportCurrentPage(taskId, reason) {
     const payload = findMatchedPayloadFromCache({
       taskId: taskId,
       afterTime: 0,
@@ -1069,6 +1271,10 @@
       "-" +
       formatTimeStamp(new Date()) +
       ".csv";
+    const uploadResult = await uploadExportCsvToBackend(csv, records, {
+      taskId: taskId,
+      fileName: fileName,
+    });
     triggerCsvDownload(fileName, csv);
 
     setStatus(
@@ -1077,8 +1283,11 @@
         String(reason || "未知错误") +
         "\n已导出当前页 " +
         String(records.length) +
-        " 条。",
-      "error"
+        " 条。" +
+        (uploadResult.success
+          ? "\n当前页 CSV 已上传后端，可下载：" + String(uploadResult.downloadUrl || "（未返回下载地址）")
+          : "\n当前页 CSV 后端上传失败（不影响本地下载）：" + String(uploadResult.message || "未知错误。")),
+      uploadResult.success ? "success" : "error"
     );
     return true;
   }
@@ -1102,7 +1311,7 @@
       await runExportAll(taskId);
     } catch (error) {
       const errorMessage = normalizeText(error?.message || "导出失败，请重试。");
-      const fallbackDone = tryFallbackExportCurrentPage(taskId, errorMessage);
+      const fallbackDone = await tryFallbackExportCurrentPage(taskId, errorMessage);
       if (!fallbackDone) {
         setStatus(buildTaskStatusPrefix(taskId) + "\n导出失败：" + errorMessage, "error");
       }

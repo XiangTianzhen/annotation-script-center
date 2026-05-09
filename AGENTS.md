@@ -127,6 +127,8 @@
 - 各脚本详情页不得新增独立后端地址、上传接口地址或 AI 接口地址配置。
 - 后端地址统一由 options 首页顶部“后端接口地址”（`server` / `local`）控制，运行时统一按 `baseUrl + API path` 拼接。
 - 脚本详情页只保留业务参数配置（例如快捷键、倍速、音量、AI 推荐启用），不暴露基础数据上传能力开关。
+- 标贝易采导出上传能力必须采用“前端导出 + 后端保存”边界：`extension/sites/data-baker/round-one-quality/group-export.js` 只负责采集、生成 CSV、本地下载和上传请求；Node 落盘与下载接口必须放在 `platform-resources/data-baker/round-one-quality/backend/`。
+- `platform-resources/data-baker/round-one-quality/backend/export-data/` 属于运行数据目录，必须加入 `.gitignore` 且不得提交。
 
 ## 目录边界
 

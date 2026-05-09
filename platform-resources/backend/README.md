@@ -40,6 +40,9 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_TIMEOUT_MS`：标贝易采 AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留 标贝易采 有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留 标贝易采 裁剪前后补齐秒数，默认 `0.12`。
+- `DATABAKER_ROUND_ONE_EXPORT_DIR`：标贝易采导出 CSV 保存目录（默认 `platform-resources/data-baker/round-one-quality/backend/export-data/`）。
+- `DATABAKER_ROUND_ONE_EXPORT_HISTORY`：设为 `1` 时保存历史导出 CSV。
+- `DATABAKER_ROUND_ONE_EXPORT_EVENTS`：设为 `1` 时写入导出上传事件日志 JSONL。
 
 ## 文件职责
 
@@ -55,7 +58,7 @@ http://127.0.0.1:3333
 
 - `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、CSV 下载，以及 AI 建议 `health/suggest` 接口。
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、CSV 下载（CSV 列与快判不同，按转写统计格式输出）。
-- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend` 接口。
+- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口。
 
 ASR 转写职责边界：
 - 扩展前端客户端：`extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只负责采集、上传、按钮和调度。
@@ -70,6 +73,8 @@ ASR 转写职责边界：
   - ASR 快判统计：`/api/alibaba-labelx/asr-judgement/statistics/*`
   - ASR 快判 AI 建议：`/api/alibaba-labelx/asr-judgement/ai/suggest`
   - 标贝易采 AI 推荐：`/api/data-baker/round-one-quality/ai/recommend`
+  - 标贝易采导出上传：`/api/data-baker/round-one-quality/export/upload`
+  - 标贝易采导出下载：`/api/data-baker/round-one-quality/export/download`
 
 ## 新增项目 API 规则
 

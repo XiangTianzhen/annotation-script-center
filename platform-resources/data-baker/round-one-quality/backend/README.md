@@ -1,18 +1,27 @@
-# 标贝易采一检质检 AI 推荐后端
+# 标贝易采一检质检后端（AI 推荐 + 导出上传）
 
-本目录是 标贝易采一检质检“AI 推荐文本”的本地 Node 后端实现，通过统一入口 `platform-resources/backend/server.js` 注册。
+本目录是 标贝易采一检质检本地 Node 后端实现，通过统一入口 `platform-resources/backend/server.js` 注册。
+当前同时提供两类能力：
 
-说明：`group/detail` 总表导出由扩展前端同源实现（直接使用页面登录态请求 标贝易采 接口），不依赖本目录后端导出接口。
+- AI 推荐文本接口。
+- 导出 CSV 上传与下载接口（扩展前端导出后自动上传，后端保存 `latest.csv` 并提供下载）。
 
 ## 接口
 
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
+- `GET /api/data-baker/round-one-quality/export/health`
+- `GET /api/data-baker/round-one-quality/export/config`
+- `POST /api/data-baker/round-one-quality/export/upload`
+- `GET /api/data-baker/round-one-quality/export/download`
+- `HEAD /api/data-baker/round-one-quality/export/download`
 
 ## 文件职责
 
 - `index.js`：项目路由注册入口。
 - `ai-routes.js`：HTTP health / recommend 路由、请求校验、日志和响应组装。
+- `export-routes.js`：导出 health / config / upload / download 路由。
+- `export-store.js`：导出文件落盘、latest/history/events 存储能力。
 - `ai-client-qwen.js`：DashScope Qwen 原生 `fetch` 调用，不依赖 OpenAI SDK。
 - `ai-lexicon.js`：读取闽南方言字词表 CSV，按当前页面文本和听音文本生成 prompt 上下文。
 - `ai-prompts.js`：听音 prompt 和文本对比 prompt。
@@ -41,6 +50,9 @@
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
+- `DATABAKER_ROUND_ONE_EXPORT_DIR`：导出文件保存目录，默认 `platform-resources/data-baker/round-one-quality/backend/export-data/`。
+- `DATABAKER_ROUND_ONE_EXPORT_HISTORY`：设为 `1` 时保存历史 CSV 到 `history/`。
+- `DATABAKER_ROUND_ONE_EXPORT_EVENTS`：设为 `1` 时追加 `upload-events.jsonl`。
 
 后端入口 `platform-resources/backend/server.js` 会自动加载：
 
@@ -55,6 +67,21 @@
 
 - health 返回 `status=missing-api-key`。
 - recommend 返回 `success=false` 和 `code=missing-api-key`。
+
+## 导出上传与下载
+
+- 扩展前端在 `group/detail` 导出 CSV 后，会调用：
+  - `POST /api/data-baker/round-one-quality/export/upload`
+- 后端默认写入：
+  - `platform-resources/data-baker/round-one-quality/backend/export-data/latest.csv`
+  - `platform-resources/data-baker/round-one-quality/backend/export-data/latest.json`
+- 下载最新 CSV：
+  - `GET /api/data-baker/round-one-quality/export/download`
+  - `HEAD /api/data-baker/round-one-quality/export/download`
+- 仅当开启 `DATABAKER_ROUND_ONE_EXPORT_HISTORY=1` 时才写入 `history/*.csv`。
+- 仅当开启 `DATABAKER_ROUND_ONE_EXPORT_EVENTS=1` 时才写入 `upload-events.jsonl`。
+- 上传接口只接受 JSON 且 `csvText` 非空，CSV 超过 `20MB` 会拒绝。
+- 后端日志只输出 `requestId`、`rowCount`、`fileName`、`csvPath`、`uploadedAt`，不打印完整 CSV 内容。
 
 ## 推荐流程
 

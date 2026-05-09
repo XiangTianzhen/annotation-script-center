@@ -70,7 +70,7 @@ Chrome：
 
 - `Alibaba LabelX`：语音转写、ASR 语音判别。
 - `Lightwheel`：查看态面板占位管理。
-- `标贝易采`：`标贝易采一检质检`，用于 `roundOneCollect` 页面单条 AI 推荐文本。
+- `标贝易采`：`标贝易采一检质检`，用于 `roundOneCollect` 页面单条 AI 推荐文本，以及 `group/detail` 页面任务组总表导出。
 - 说明：代码目录、API 路径、常量 ID 和环境变量前缀仍保留 `data-baker` / `dataBaker` / `DATABAKER_` 作为历史技术标识。
 
 `标贝易采一检质检` 可在 options 首页单独启停，并在专属设置页配置：
@@ -83,7 +83,7 @@ Chrome：
 - 快捷键配置默认全部未设置，可手动绑定 AI 推荐、复制听音文本、复制推荐文本、填入、忽略、句子判定和任务判定动作；普通输入不拦截，按下已配置快捷键时会先退出输入焦点再执行。
 - 标贝易采快捷键运行时会先判断按键是否命中已配置动作，未命中时不阻止输入、不做任何 blur/focus 干预。
 - 为避免影响平台音频播放器与波形组件初始化，标贝易采 已移除旧的被动焦点恢复；仅通过“本句话文本变化检测”在平台自动切题后短暂进入输入框再退出，以恢复快捷键焦点。
-- 标贝易采 `group/detail?taskId=...` 页面提供“导出数据总表”按钮。导出不再由扩展直接 `fetch queryByCondition`，而是触发页面原生分页查询并由 MAIN world 拦截响应后合并全量 CSV（含 BOM）；默认不依赖本地后端和账号密码配置。
+- 标贝易采 `group/detail?taskId=...` 页面提供“导出数据总表”按钮。导出不再由扩展直接 `fetch queryByCondition`，而是触发页面原生分页查询并由 MAIN world 拦截响应后合并全量 CSV（含 BOM）；导出完成后会自动上传到统一后端保存，上传失败不影响本地下载。
 
 扩展前端只保存接口地址、超时时间、开关、分页和快捷键设置，不保存 API Key、cookie、access token 或完整音频 URL。真实模型密钥仍由后端通过 `config/env/ai.env` 读取。
 
@@ -180,12 +180,17 @@ http://127.0.0.1:3333
 - 健康检查：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
 - 推荐接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
 - 扩展默认推荐接口：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
+- 导出健康检查：`http://127.0.0.1:3333/api/data-baker/round-one-quality/export/health`
+- 导出上传接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/export/upload`
+- 导出下载接口：`http://127.0.0.1:3333/api/data-baker/round-one-quality/export/download`
+- 服务器导出上传接口：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/export/upload`
+- 服务器导出下载接口：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/export/download`
 
 标贝易采任务总表导出默认模式（扩展前端）：
 
 - 平台对扩展直接请求 `queryByCondition` 可能返回 `code=51000`。现行方案改为：触发页面原生请求，再由 MAIN world 拦截响应导出。
 - 点击导出后会先点击 Element UI 分页大小选择器（优先 `.el-input.el-input--mini.el-input--suffix`）并选择 `100条/页`，再通过分页控件逐页触发平台原生请求并合并导出全量数据。
-- 当前导出不需要账号密码配置，CSV 带 UTF-8 BOM，避免 Excel 中文乱码。
+- 当前导出不需要账号密码配置，CSV 带 UTF-8 BOM，避免 Excel 中文乱码；导出后会自动上传到当前全局后端地址并写入后端 `latest.csv`。
 - 导出过程和 CSV 内容不写入 `access_token`、`refresh_token`、cookie、authorization；CSV 已移除“采集ID”列。
 - 如果页面下拉未能自动展开或未找到 `100条/页`，可手动切换到 `100条/页` 后重试导出。
 
@@ -435,6 +440,4 @@ location / {
 - 有功能、目录结构、模块归属、选择器或验证步骤变化时，同步更新相关 README 和根目录 `log.md`。
 - 修改 `manifest.json` 后必须确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 - 修改 JS 后运行 `node --check` 检查变更文件。
-
-
 

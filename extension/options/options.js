@@ -1677,7 +1677,10 @@
 
     if (scriptId === dataBakerRoundOneQualityScriptId) {
       applyDataBakerForm(settings);
-      setStatus("data-baker-status", "");
+      setStatus(
+        "data-baker-status",
+        "DataBaker 导出数据会在本地下载的同时自动上传到后端；上传地址由首页顶部“后端接口地址”统一控制。"
+      );
     }
   }
 

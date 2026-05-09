@@ -2,6 +2,12 @@
 
 ## 2026-05-09
 
+- 标贝易采一检质检新增“导出后上传后端”能力：`group/detail` 导出总表生成 CSV 后，保持本地下载，同时自动 `POST /api/data-baker/round-one-quality/export/upload` 上传。
+- 新增 DataBaker 导出后端模块：`export-routes.js`、`export-store.js`，统一挂载到 `platform-resources/backend/server.js`，提供 `health/config/upload/download(含 HEAD)/list`。
+- 新增 DataBaker 导出保存目录：`platform-resources/data-baker/round-one-quality/backend/export-data/`，默认写 `latest.csv` 与 `latest.json`，可通过环境变量开启 history/events。
+- 收口安全边界：导出上传失败不阻断本地下载；后端限制 `csvText` 最大 20MB；日志仅输出 `requestId/rowCount/fileName/csvPath/uploadedAt`；`export-data` 已加入 `.gitignore`。
+- 本轮仍保持 `extension/manifest.json` 版本 `0.2.10`。
+
 - 配置收口：删除 ASR 转写详情页“转写统计导出”配置板块，移除“启用转写统计上传”等可关闭控件，转写面板仅保留自动播放、倍速、步长、音量和快捷键配置。
 - 配置收口：快判详情页移除“启用统计上传 / 启用定时上传”可关闭控件，统计上传改为只读强制启用说明。
 - 运行时收口：转写与快判统计上传改为默认强制启用；已实现定时上传能力的脚本，定时上传也按脚本规则强制启用，不再受 options 开关控制。

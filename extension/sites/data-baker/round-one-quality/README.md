@@ -21,6 +21,7 @@
 - AI 听音文本、AI 推荐文本展示和填入前会自动删除普通空格、全角空格、Tab 和换行；页面候选文本保持平台原文。
 - AI 推荐文本展示和填入前会自动补全中文句末标点；英文句末 `.?!;` 会转为 `。？！；`，无句末标点时默认补 `。`。
 - `group/detail` 页面新增“导出数据总表”按钮，通过 MAIN world 拦截页面原生 `queryByCondition` 响应，按分页控件逐页合并导出全量 CSV（含 BOM）。
+- 导出完成后会自动上传 CSV 到统一后端保存，同时保留浏览器本地下载；上传失败不影响本地下载。
 - 支持自动每页条数，默认进入详情页后尝试设置为 `50条/页`，只点击页面原生分页控件。
 - 支持 标贝易采 专属快捷键配置，默认全部未设置；快捷键只处理当前题或当前推荐卡。
 
@@ -45,7 +46,7 @@ round-one-quality/
 - `ui-panel.js`：注入按钮和推荐结果卡，支持复制和用户点击后填入推荐文本。
 - `page-size-controller.js`：在详情页有限重试点击分页大小选择器，按设置切换到目标每页条数。
 - `shortcuts.js`：监听 标贝易采 专属快捷键；先匹配已配置快捷键再处理输入焦点，普通输入不拦截。旧的被动焦点恢复已移除；脚本通过检测“本句话文本”变化，在平台自动切题后短暂 focus/blur 文本框恢复快捷键焦点。
-- `group-export.js`：仅在 `group/detail?taskId=...` 页面注入“导出数据总表”按钮；切换分页大小时会先点击 `.el-pagination__sizes .el-select` 内的 `.el-input.el-input--mini.el-input--suffix`，等待下拉出现后选择 `100条/页`，再通过跳页控件逐页触发平台原生查询并等待 MAIN world 的 `queryByCondition` 响应消息后合并下载 CSV。
+- `group-export.js`：仅在 `group/detail?taskId=...` 页面注入“导出数据总表”按钮；切换分页大小时会先点击 `.el-pagination__sizes .el-select` 内的 `.el-input.el-input--mini.el-input--suffix`，等待下拉出现后选择 `100条/页`，再通过跳页控件逐页触发平台原生查询并等待 MAIN world 的 `queryByCondition` 响应消息后合并下载 CSV；导出后自动 `POST /api/data-baker/round-one-quality/export/upload` 上传 CSV。
 - `page-world/network-observer.js`：运行在 MAIN world，观察 `queryCollectStatementByCondtion`（一检详情页）和 `queryByCondition`（group/detail）响应并以内存消息通知 ISOLATED world。
 
 ## options 设置
@@ -65,6 +66,7 @@ round-one-quality/
 - “填入推荐文本”成功后会立即并延迟退出“本句话文本”输入框，方便继续使用快捷键；不会自动保存、自动提交或自动判定。
 
 扩展前端只保存超时时间、开关、分页和快捷键设置，不保存 API Key、access token、cookie 或完整 `audioUrl`。模型密钥仍由后端通过 `config/env/ai.env` 读取。
+导出上传能力为脚本默认能力，不在详情页提供关闭开关；后端地址继续由 options 首页顶部“后端接口地址”统一控制。
 
 ## 页面选择器依据
 
@@ -110,12 +112,18 @@ node platform-resources\backend\server.js
 
 - `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
 - `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
+- `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/export/health`
+- `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/export/config`
+- `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/export/upload`
+- `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/export/download`
 
 扩展默认请求服务器接口：
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
+- `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/export/upload`
+- `GET https://script.xiangtianzhen.store/api/data-baker/round-one-quality/export/download`
 
-任务总表导出不再由 content script 直接 `fetch /cms/tbAudioUserTask/queryByCondition`。原因是平台可能对扩展直接请求返回 `code=51000`。当前方案改为触发页面原生分页查询并拦截响应：先展开 Element UI 分页大小下拉并选择 `100条/页`，再逐页触发并合并导出，不依赖本地后端或账号密码配置。CSV 已移除“采集ID”列，保留 UTF-8 BOM 与“原始JSON”脱敏列。
+任务总表导出不再由 content script 直接 `fetch /cms/tbAudioUserTask/queryByCondition`。原因是平台可能对扩展直接请求返回 `code=51000`。当前方案改为触发页面原生分页查询并拦截响应：先展开 Element UI 分页大小下拉并选择 `100条/页`，再逐页触发并合并导出；导出后会自动上传到统一后端保存。CSV 已移除“采集ID”列，保留 UTF-8 BOM 与“原始JSON”脱敏列。
 
 第一版固定模型：
 
@@ -165,7 +173,8 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 20. 填入后不点击页面，直接按快捷键，确认仍可继续响应。
 21. 关闭 标贝易采 脚本后刷新详情页，确认工具卡、自动分页和快捷键都停止；只关闭 AI 推荐时不显示工具卡。
 22. 打开非 `roundOneCollect` 页面，确认不注入该工具卡。
-23. 打开 `group/detail?taskId=...` 页面，确认出现“导出数据总表”按钮；在不启动本地后端时点击，状态应展示“准备导出，正在切换到 100条/页”“正在导出：第 x / y 页”，最终提示“已导出 N 条 / 总计 total 条，已下载 CSV”或明确失败原因。
+23. 打开 `group/detail?taskId=...` 页面，确认出现“导出数据总表”按钮；点击后状态应展示“准备导出，正在切换到 100条/页”“正在导出：第 x / y 页”，最终提示“已下载 CSV”，并显示后端上传成功或失败（失败不影响本地下载）。
+24. 导出后访问 `http://127.0.0.1:3333/api/data-baker/round-one-quality/export/download`，确认可下载后端保存的最新 CSV。
 
 ## 已知限制
 
@@ -173,6 +182,7 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 - 如果当前页面还没有触发列表接口，运行时会尝试同源读取当前页数据；若浏览器限制导致读取失败，需要刷新详情页或点击左侧句子后再触发。
 - 若 15 秒内未捕获到 `queryByCondition` 响应，页面会提示“未捕获到平台 queryByCondition 响应，请点击页面查询按钮后重试。”。
 - 如果分页大小下拉无法自动展开或未找到 `100条/页`，页面会提示手动切换到 `100条/页` 后重试；必要时会降级导出当前页并给出明确提示。
+- 如果后端未启动或服务器接口未部署最新版本，导出状态会提示“后端上传失败”，但本地下载仍会成功。
 - 如果无法安全定位可编辑的“本句话文本”输入框，结果卡仍保留复制入口，但不会强行填入。
 - 有效音频裁剪第一版未启用；后端只保留环境变量和代码结构，默认把完整 `audioUrl` 交给听音模型。
 

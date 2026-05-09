@@ -52,6 +52,16 @@ server.listen(config.port, config.host, function () {
       baseUrl +
       "/api/data-baker/round-one-quality/ai/recommend"
   );
+  console.info(
+    "[Platform Resources][backend] DataBaker export upload: " +
+      baseUrl +
+      "/api/data-baker/round-one-quality/export/upload"
+  );
+  console.info(
+    "[Platform Resources][backend] DataBaker export CSV: " +
+      baseUrl +
+      "/api/data-baker/round-one-quality/export/download"
+  );
 });
 
 module.exports = server;
