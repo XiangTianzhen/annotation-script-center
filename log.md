@@ -316,3 +316,5 @@
 - 新增 `platform-resources/alibaba-labelx/asr-transcription/page-structure.md`，记录 ASR 转写审核首页和 `missionType=check` 详情页 HTML/DOM 结构、音频结构、有效性切换、文本编辑和提交任务行为。
 - 更新 `platform-resources/alibaba-labelx/asr-transcription/network.md`，补充审核首页 `type=check/subTaskType=check`、审核详情页字段、自动保存、`mistake`、`subTask/{id}/data` 保存、`commit` 和 `check/fetch` 链路。
 - 明确当前真实接口未发现 `supplier/vendor/company/provider/供应商` 字段；后续供应商统计只能按 `payload` 显式字段、`csvPatch["供应商"]` 或 `taskName/name` 前缀推断，当前样例包括 `棋燊` 和历史样例 `希尔贝壳`。
+- 追加采集 LabelX ASR 转写审核详情页：确认 `提交并结束` 复用 `subTask/{subTaskId}/commit`，但不会触发 `check/fetch` 自动领取，会直接返回审核首页。
+- 补充详情页分页、每页条数和筛选契约：第 2/3 页会重拉 `data/summary/board`；原生每页条数可见 `1/2/3/4/5/10/20/30/40/50 条/页`；回答区选择题筛选写入 `filter.questions[].title/value`。

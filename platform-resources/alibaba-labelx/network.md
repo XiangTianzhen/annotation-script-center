@@ -292,6 +292,103 @@
   - 请求返回 `200`。
   - 未跳转到新详情页，最终回到审核首页。
 
+### 3. 提交并结束
+
+- Method：`POST`
+- Path：`/api/v1/label/center/subTask/{subTaskId}/commit`
+- 触发：详情页点击 `提交任务` 旁下拉菜单中的 `提交并结束`。
+- Request body：
+  - `subTaskId`
+- 本轮观察：
+  - 返回 `200`。
+  - 随后跳转审核首页 `/corpora/labeling/checkTask`。
+  - 首页重拉 `subTasks?type=check`、`tasks?subTaskType=check`、`tasks/process?subTaskType=check`。
+  - 未触发 `/api/v1/label/center/{taskId}/check/fetch`，即不会自动领取下一包。
+
+## 详情页分页、每页条数和筛选
+
+以下行为在转写审核详情页实测，接口路径和 query 结构属于 LabelX 详情页通用形态。
+
+### 1. 翻页
+
+- Method：`GET`
+- Path：`/api/v1/label/center/subTask/{subTaskId}/data`
+- 触发：点击详情页题卡分页页码。
+- Query：
+  - `page`
+  - `pageSize`
+  - `filterPassedVote`
+  - `filter`
+  - `_`
+- 本轮观察：
+  - 点击第 2 页：`page=2&pageSize=10`。
+  - 点击第 3 页：`page=3&pageSize=10`。
+  - 每次翻页都会同步刷新 `summary` 和 `board`。
+  - `board` 使用相同 `filterPassedVote` 与 `filter`，不带 `page/pageSize`。
+
+### 2. 每页条数
+
+- Method：`GET`
+- Path：`/api/v1/label/center/subTask/{subTaskId}/data`
+- 触发：详情页分页器 `10 条/页` 下拉切换。
+- 可见选项：
+  - `1 条/页`
+  - `2 条/页`
+  - `3 条/页`
+  - `4 条/页`
+  - `5 条/页`
+  - `10 条/页`
+  - `20 条/页`
+  - `30 条/页`
+  - `40 条/页`
+  - `50 条/页`
+- 本轮观察：
+  - 在第 3 页切换到 `20 条/页` 后，请求为 `page=3&pageSize=20`。
+  - 平台没有自动重置到第 1 页，而是保留当前页码。
+  - 页面题号随 `page/pageSize` 变化，例如第 3 页、20 条/页从第 41 题开始。
+  - 切换后同步刷新 `summary` 和 `board`。
+
+### 3. 筛选条件
+
+- 入口：详情页顶部 `筛选`。
+- 筛选请求仍使用：
+  - `GET /api/v1/label/center/subTask/{subTaskId}/data`
+  - `GET /api/v1/label/center/subTask/{subTaskId}/board`
+- Query：
+  - `filterPassedVote`
+  - `filter`
+  - `_`
+- 默认 `filter` 字段结构：
+
+```json
+{
+  "questions": [],
+  "dataStatus": "ALL",
+  "questionsQueryConditions": "AND"
+}
+```
+
+- 回答区选择题筛选实测结构：
+
+```json
+{
+  "questions": [
+    {
+      "title": "是否有效",
+      "value": "有效"
+    }
+  ],
+  "dataStatus": "ALL",
+  "questionsQueryConditions": "AND"
+}
+```
+
+- 本轮观察：
+  - 筛选面板 `按回答区数据(仅支持选择题)` 中可新增条件。
+  - `条件关系` 可见 `且(AND)` 与 `或(OR)`。
+  - 本轮只确认了 `AND` 请求；`OR` 未触发采集。
+  - 点击 `确定` 后 `data` 和 `board` 带同一份筛选条件。
+
 ## 音频请求
 
 - Method：`GET`
@@ -333,10 +430,6 @@
 ## 待补采
 
 - 转写标注详情页 `missionType=label` 的保存、提交和自动领取链路。
-- 转写详情页下拉 `提交并结束` 的真实请求。
 - 转写详情页提交失败、必填校验阻断和保存失败响应。
-- 转写详情页第 2 页及之后的分页请求。
-- 转写详情页 `pageSize` 下拉切换后的真实请求。
-- 转写详情页筛选条件变化时 `filter.questions` 的结构。
 - 扩展加载并启用后的转写工具栏 DOM 与按钮事件。
 - 快判页面在当前项目中的最新实时样例，用于对比历史快判资料是否仍完全适用。

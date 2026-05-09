@@ -355,6 +355,95 @@
   - 提交后未进入新详情页，返回审核首页。
   - 审核首页随后请求 `subTasks?type=check`、`tasks?subTaskType=check`、`tasks/process?subTaskType=check`。
 
+### 提交并结束
+
+- 操作：用户授权后点击 `提交任务` 旁下拉菜单中的 `提交并结束`。
+- 提交请求：
+  - Method：`POST`
+  - Path：`/api/v1/label/center/subTask/{subTaskId}/commit`
+  - Request body：`subTaskId`
+- 本轮页面行为：
+  - 返回 `200`。
+  - 随后进入审核首页 `/corpora/labeling/checkTask?projectId=<REDACTED_PROJECT_ID>`。
+  - 首页重拉：
+    - `GET /api/v1/label/center/subTasks?type=check`
+    - `GET /api/v1/label/center/tasks?subTaskType=check`
+    - `GET /api/v1/label/center/tasks/process?subTaskType=check`
+  - 未触发 `/api/v1/label/center/{taskId}/check/fetch`。
+- 结论：
+  - 普通 `提交任务` 在自动领取开启时会触发 `check/fetch`。
+  - `提交并结束` 只提交并返回首页，不自动领取下一包。
+
+## 审核详情页分页与筛选
+
+本轮补采页面为转写审核详情页，`missionType=check`、`labelModel=single`、`size=50`。
+
+### 1) 第 2 页及后续分页
+
+- 触发：点击顶部题卡分页页码。
+- 第 2 页请求：
+  - `GET /api/v1/label/center/subTask/{subTaskId}/data`
+  - Query：`page=2`、`pageSize=10`、`filterPassedVote=false`、`filter`、`_`
+- 第 3 页请求：
+  - `GET /api/v1/label/center/subTask/{subTaskId}/data`
+  - Query：`page=3`、`pageSize=10`、`filterPassedVote=false`、`filter`、`_`
+- 同步请求：
+  - `GET /api/v1/label/center/subTask/{subTaskId}/summary`
+  - `GET /api/v1/label/center/subTask/{subTaskId}/board`
+- 结论：
+  - 翻页会重拉 `data/summary/board`。
+  - `board` 带相同 `filter`，不带 `page/pageSize`。
+
+### 2) pageSize 下拉
+
+- 触发：点击分页器的每页条数下拉。
+- 可见选项：`1/2/3/4/5/10/20/30/40/50 条/页`。
+- 实测：
+  - 从第 3 页、`10 条/页` 切换为 `20 条/页`。
+  - 请求为 `page=3&pageSize=20`。
+  - 平台保留当前页码，不自动回到第 1 页。
+  - 页面题号从第 41 题开始。
+- 结论：
+  - 转写真实页面原生最大可见 `pageSize=50`。
+  - 快判曾使用的 `pageSize=400` 仍不应套用到转写原生页面交互。
+
+### 3) filter.questions
+
+- 筛选入口：顶部 `筛选`。
+- 默认 `filter`：
+
+```json
+{
+  "questions": [],
+  "dataStatus": "ALL",
+  "questionsQueryConditions": "AND"
+}
+```
+
+- 本轮实测：筛选回答区选择题 `是否有效=有效`。
+- 请求 `filter`：
+
+```json
+{
+  "questions": [
+    {
+      "title": "是否有效",
+      "value": "有效"
+    }
+  ],
+  "dataStatus": "ALL",
+  "questionsQueryConditions": "AND"
+}
+```
+
+- 影响接口：
+  - `GET /api/v1/label/center/subTask/{subTaskId}/data`
+  - `GET /api/v1/label/center/subTask/{subTaskId}/board`
+- 未采集：
+  - `questionsQueryConditions=OR` 的真实请求。
+  - 内容区关键词筛选后的具体字段。
+  - 任务状态 `dataStatus` 非 `ALL` 的真实枚举值。
+
 ## 对转写统计取数的约束结论
 
 - 平台页面实测详情请求常见 `pageSize=10`；扩展统计上传策略为降低请求数量，优先使用 `pageSize=100` 抓取。
@@ -394,9 +483,6 @@
 ## 待补采（下一轮可选）
 
 - 转写标注详情页 `missionType=label` 的保存、提交和自动领取链路。
-- 详情页提交下拉中的 `提交并结束` 行为。
 - 不同 `missionType`（`label/audit/review`）在详情页的数据字段差异。
-- 详情页第 2 页及后续页的真实请求样例和返回稳定性。
-- 详情页 `pageSize` 下拉切换后的真实请求。
-- 筛选面板展开后 `filter.questions` 结构。
+- 筛选面板 `OR`、内容区关键词和任务状态非 `ALL` 的真实请求结构。
 - 扩展加载后的转写工具栏 DOM、按钮与快捷键行为。
