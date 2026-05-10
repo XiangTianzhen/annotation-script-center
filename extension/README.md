@@ -136,3 +136,11 @@ Compress-Archive -Path extension\* -DestinationPath $zipPath -Force
 - `exists=true && complete=false` 仍需继续拉取并上传补齐，不可误跳过。
 - 无待上传 payload 时不调用 upload，前端显示“已全部完整，无需上传”。
 - 共享进度组件改为水平居中显示，完成态与进行中态复用同一紧凑卡片布局，避免完成后样式撑满或关键数字不可见。
+
+## 2026-05-10 0.2.11 进度悬浮窗样式小修
+
+- 保持 `0.2.11`，本轮只修前端显示，不改统计导出业务逻辑。
+- `shared/progress-indicator.js` 改为顶部居中悬浮窗（fixed），不再挤占 LabelX 顶部导航区域。
+- 进行中/成功/失败/警告统一使用同一紧凑卡片布局，完成态不再拉伸成横向绿色长条。
+- 上传按钮状态不再设置长 `title` 文案，鼠标悬停不再出现黑色长 tooltip。
+- 转写与快判继续共用同一进度组件与样式。

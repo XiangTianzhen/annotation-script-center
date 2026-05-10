@@ -1489,7 +1489,7 @@
       if (!button) {
         return;
       }
-      button.title = message || "上传转写统计";
+      button.removeAttribute("title");
       button.style.borderColor =
         tone === "error" ? "#fecaca" : tone === "success" ? "#bbf7d0" : "#bfdbfe";
       button.style.background =

@@ -25,62 +25,89 @@
     const config = options && typeof options === "object" ? options : {};
     const id = String(config.id || "asr-edge-progress-indicator");
     const title = String(config.title || "上传进度");
-    const mountTarget = config.mount && config.mount.nodeType === 1 ? config.mount : document.body;
+    const mountTarget = document.body || (config.mount && config.mount.nodeType === 1 ? config.mount : null);
+    if (!mountTarget) {
+      return {
+        update: function () {},
+        complete: function () {},
+        fail: function () {},
+        destroy: function () {},
+      };
+    }
 
     const frame = createNode("div", {
-      display: "flex",
-      width: "100%",
-      flex: "1 0 100%",
-      justifyContent: "center",
-      alignItems: "center",
-      marginTop: "6px",
-      marginBottom: "6px",
+      position: "fixed",
+      top: "88px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      zIndex: "2147483647",
+      width: "min(720px, calc(100vw - 48px))",
+      minWidth: "420px",
+      maxWidth: "720px",
       boxSizing: "border-box",
-      paddingLeft: "8px",
-      paddingRight: "8px",
+      marginInline: "auto",
       overflow: "visible",
+      pointerEvents: "none",
     });
     frame.id = id;
 
     const root = createNode("div", {
       display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      flexWrap: "wrap",
+      flexDirection: "column",
       gap: "8px",
-      padding: "4px 8px",
+      width: "100%",
+      padding: "10px 14px",
       border: "1px solid #bfdbfe",
-      borderRadius: "8px",
+      borderRadius: "10px",
       background: "#eff6ff",
       color: "#0958d9",
-      fontSize: "12px",
-      lineHeight: "1.5",
+      fontSize: "13px",
+      lineHeight: "1.45",
       boxSizing: "border-box",
-      width: "min(860px, calc(100vw - 48px))",
-      minWidth: "560px",
-      maxWidth: "860px",
-      marginInline: "auto",
-      alignSelf: "center",
+      boxShadow: "0 10px 30px rgba(15, 23, 42, 0.18)",
       whiteSpace: "normal",
       overflow: "visible",
+      pointerEvents: "auto",
+    });
+
+    const headerNode = createNode("div", {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "10px",
     });
 
     const titleNode = createNode("span", {
       fontWeight: "700",
       flex: "0 0 auto",
+      color: "inherit",
     });
     titleNode.textContent = title;
 
-    const barWrap = createNode("span", {
-      width: "180px",
-      minWidth: "180px",
-      flex: "0 0 180px",
-      height: "6px",
+    const phaseNode = createNode("span", {
+      fontSize: "12px",
+      fontWeight: "600",
+      color: "inherit",
+      opacity: "0.92",
+      textAlign: "right",
+      minWidth: "0",
+      flex: "1 1 auto",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    });
+    phaseNode.textContent = "初始化";
+    headerNode.appendChild(titleNode);
+    headerNode.appendChild(phaseNode);
+
+    const barWrap = createNode("div", {
+      width: "100%",
+      height: "8px",
       borderRadius: "999px",
       background: "rgba(9, 88, 217, 0.16)",
       overflow: "hidden",
     });
-    const bar = createNode("span", {
+    const bar = createNode("div", {
       display: "block",
       width: "0%",
       height: "100%",
@@ -90,15 +117,15 @@
     });
     barWrap.appendChild(bar);
 
-    const textNode = createNode("span", {
+    const textNode = createNode("div", {
       minWidth: "0",
       whiteSpace: "normal",
       overflowWrap: "anywhere",
       wordBreak: "break-word",
-      flex: "1 1 auto",
+      color: "inherit",
     });
 
-    root.appendChild(titleNode);
+    root.appendChild(headerNode);
     root.appendChild(barWrap);
     root.appendChild(textNode);
     frame.appendChild(root);
@@ -142,6 +169,7 @@
         text += "，" + String(state.message);
       }
       textNode.textContent = text;
+      phaseNode.textContent = String(state.phase || "处理中");
 
       if (state.status === "failed") {
         root.style.borderColor = "#fecaca";

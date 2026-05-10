@@ -2,6 +2,12 @@
 
 ## 2026-05-10
 
+- 保持 `extension/manifest.json` 版本 `0.2.11`，本轮不升级 `0.2.12`。
+- 共享上传进度组件 `extension/shared/progress-indicator.js` 改为“页面顶部居中悬浮窗”显示（`position: fixed`），不再挤占 LabelX 顶部工具栏布局。
+- 进度进行中/完成/失败统一使用同一紧凑卡片布局，完成态不再出现横向铺满的绿色长条。
+- 上传按钮状态更新不再写入长 `title` 文案，移除转写/快判按钮 tooltip 动态赋值，避免鼠标悬停出现黑色长文本框。
+- 转写与快判继续共用同一 `shared/progress-indicator.js` 组件，仅修样式，不改统计业务逻辑、existing 判断、并发规则、定时规则和后端接口。
+
 - 继续保持 `extension/manifest.json` 版本 `0.2.11`，本轮不升级 `0.2.12`。
 - 修复转写待补任务名称链路：`enrichSubtaskData` 改为健康文本优先（`detail -> summary -> taskMap` 多源回退），并补充 `summary.name`、`taskMap.taskName/name`、`task.id` 等候选来源。
 - 修复转写合并键复用：同 `分包ID + role + subTaskId` 命中旧行时优先复用旧 mergeRow，避免“未识别供应商旧行”与“新识别供应商新行”并存导致任务名称始终不补齐。
