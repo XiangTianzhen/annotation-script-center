@@ -467,3 +467,9 @@ platform-resources/alibaba-labelx/asr-judgement/
 - 上传进度板块宽度已增大（`min-width:560px`、`max-width:780px`、允许换行），四位数成功/失败数量可见。
 - 主存储仍为根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
 - 版本保持 `0.2.11`。
+
+## 2026-05-10 0.2.11 进度样式同步
+
+- 快判继续使用共享进度组件，样式与转写同步为水平居中紧凑卡片。
+- 完成态不再切换为大块面板，关键数字（成功/失败）保持可见。
+- 无待上传 payload 时同样不调用 upload，直接提示“已全部完整，无需上传”。

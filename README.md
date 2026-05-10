@@ -549,3 +549,13 @@ location / {
 - 上传进度板块宽度已增大（`min-width:560px`、`max-width:780px`、允许换行），四位数成功/失败数量可见。
 - 主存储仍为根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
 - 版本保持 `0.2.11`。
+
+## 2026-05-10 0.2.11 待补任务名称与进度样式修正
+
+- 版本继续保持 `0.2.11`。
+- `existing` 语义继续明确：`exists=true` 不等于 `complete=true`。任务名称为空不算失败，但必须判为 `complete=false`，下次继续补齐。
+- 转写任务名称补齐链路改为健康值优先：`detail -> summary -> taskMap`，且 `detail` 空值不得覆盖 `summary/taskMap` 的健康值。
+- 转写后端合并改为优先复用同 `分包ID + role + subTaskId` 的旧行，确保新任务名称能覆盖旧空值，不再残留“始终空任务名称”行。
+- 进度条改为水平居中，完成态与进行中保持同一紧凑卡片布局；4 位数成功/失败统计可见。
+- 无待上传数据时不调用 upload，显示“已全部完整，无需上传”。
+- 主存储继续为根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。

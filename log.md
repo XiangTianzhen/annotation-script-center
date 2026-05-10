@@ -2,6 +2,15 @@
 
 ## 2026-05-10
 
+- 继续保持 `extension/manifest.json` 版本 `0.2.11`，本轮不升级 `0.2.12`。
+- 修复转写待补任务名称链路：`enrichSubtaskData` 改为健康文本优先（`detail -> summary -> taskMap` 多源回退），并补充 `summary.name`、`taskMap.taskName/name`、`task.id` 等候选来源。
+- 修复转写合并键复用：同 `分包ID + role + subTaskId` 命中旧行时优先复用旧 mergeRow，避免“未识别供应商旧行”与“新识别供应商新行”并存导致任务名称始终不补齐。
+- 保持规则：`exists=true` 不等于 `complete=true`；任务名称为空仍视为 `complete=false`，必须继续拉详情并上传补齐。
+- 修复共享进度组件样式：新增居中外层容器，进行中/完成态保持同一紧凑卡片布局；宽度提升到 `560~860px` 并支持换行，四位数成功/失败数字可见。
+- 转写完成态摘要文案压缩为核心数字（扫描/补齐/上传/跳过完整/待补/废弃/失败/并发），避免完成态绿色块被超长文本撑坏。
+- 保持规则：无待上传数据不调用 `/statistics/upload`，显示“已全部完整，无需上传”。
+- 主存储继续保持根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
+
 - 继续保持 `extension/manifest.json` 版本 `0.2.11`，不升级 `0.2.12`，本轮聚焦统计小修正。
 - 新增统计 CSV 统一字段清洗：转写/快判后端写出前统一去 BOM、去首尾空白（含全角空格/Tab/换行/零宽字符），任务名称、任务ID、子任务ID、分包ID、人员、时间、完成状态、供应商都不再保留前后空格。
 - 修正供应商回退识别：当前后端/前端 helper 遇到 `未识别供应商` / `unknown-supplier` / 空值时，不再直接沿用，统一回退到任务名称重新推断（`棋燊`、`希尔贝壳`）。

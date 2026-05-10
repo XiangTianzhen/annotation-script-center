@@ -27,25 +27,43 @@
     const title = String(config.title || "上传进度");
     const mountTarget = config.mount && config.mount.nodeType === 1 ? config.mount : document.body;
 
+    const frame = createNode("div", {
+      display: "flex",
+      width: "100%",
+      flex: "1 0 100%",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: "6px",
+      marginBottom: "6px",
+      boxSizing: "border-box",
+      paddingLeft: "8px",
+      paddingRight: "8px",
+      overflow: "visible",
+    });
+    frame.id = id;
+
     const root = createNode("div", {
-      display: "inline-flex",
-      alignItems: "flex-start",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
       flexWrap: "wrap",
       gap: "8px",
-      marginLeft: "8px",
       padding: "4px 8px",
       border: "1px solid #bfdbfe",
       borderRadius: "8px",
       background: "#eff6ff",
       color: "#0958d9",
       fontSize: "12px",
-      lineHeight: "1.4",
+      lineHeight: "1.5",
+      boxSizing: "border-box",
+      width: "min(860px, calc(100vw - 48px))",
       minWidth: "560px",
-      maxWidth: "780px",
+      maxWidth: "860px",
+      marginInline: "auto",
+      alignSelf: "center",
       whiteSpace: "normal",
       overflow: "visible",
     });
-    root.id = id;
 
     const titleNode = createNode("span", {
       fontWeight: "700",
@@ -54,12 +72,13 @@
     titleNode.textContent = title;
 
     const barWrap = createNode("span", {
-      width: "120px",
+      width: "180px",
+      minWidth: "180px",
+      flex: "0 0 180px",
       height: "6px",
       borderRadius: "999px",
       background: "rgba(9, 88, 217, 0.16)",
       overflow: "hidden",
-      flex: "0 0 auto",
     });
     const bar = createNode("span", {
       display: "block",
@@ -72,8 +91,9 @@
     barWrap.appendChild(bar);
 
     const textNode = createNode("span", {
-      minWidth: "320px",
+      minWidth: "0",
       whiteSpace: "normal",
+      overflowWrap: "anywhere",
       wordBreak: "break-word",
       flex: "1 1 auto",
     });
@@ -81,12 +101,13 @@
     root.appendChild(titleNode);
     root.appendChild(barWrap);
     root.appendChild(textNode);
+    frame.appendChild(root);
 
     const old = document.getElementById(id);
     if (old && old.parentNode) {
       old.parentNode.removeChild(old);
     }
-    mountTarget.appendChild(root);
+    mountTarget.appendChild(frame);
 
     const state = {
       phase: "初始化",
@@ -185,8 +206,8 @@
     }
 
     function destroy() {
-      if (root.parentNode) {
-        root.parentNode.removeChild(root);
+      if (frame.parentNode) {
+        frame.parentNode.removeChild(frame);
       }
     }
 

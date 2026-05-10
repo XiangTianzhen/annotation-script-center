@@ -127,3 +127,12 @@ Compress-Archive -Path extension\* -DestinationPath $zipPath -Force
 - 上传进度板块宽度已增大（`min-width:560px`、`max-width:780px`、允许换行），四位数成功/失败数量可见。
 - 主存储仍为根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
 - 版本保持 `0.2.11`。
+
+## 2026-05-10 0.2.11 待补任务名称与进度样式修正
+
+- 版本继续保持 `0.2.11`，不升级到 `0.2.12`。
+- 转写待补任务名称链路更新为健康文本优先：`detail.taskName/name -> summary.taskName/name -> taskMap.taskName/name`。
+- `detail` 返回空任务名称时，不得覆盖 `summary/taskMap` 中已存在的健康任务名称。
+- `exists=true && complete=false` 仍需继续拉取并上传补齐，不可误跳过。
+- 无待上传 payload 时不调用 upload，前端显示“已全部完整，无需上传”。
+- 共享进度组件改为水平居中显示，完成态与进行中态复用同一紧凑卡片布局，避免完成后样式撑满或关键数字不可见。

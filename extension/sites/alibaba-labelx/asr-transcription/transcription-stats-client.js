@@ -1338,23 +1338,50 @@
     );
   }
 
+  function resolveLinkedTask(taskMap, taskId) {
+    const map = taskMap && typeof taskMap === "object" ? taskMap : {};
+    const normalizedTaskId = cleanText(taskId || "");
+    if (!normalizedTaskId) {
+      return {};
+    }
+    return (
+      map[normalizedTaskId] ||
+      map[String(Number(normalizedTaskId))] ||
+      map[String(parseInt(normalizedTaskId, 10))] ||
+      {}
+    );
+  }
+
+  function resolveSubtaskTaskName(detailData, summary, linkedTask) {
+    return pickHealthyText([
+      detailData?.taskName,
+      detailData?.name,
+      summary?.taskName,
+      summary?.name,
+      linkedTask?.taskName,
+      linkedTask?.name,
+    ]);
+  }
+
   function enrichSubtaskData(detailData, summary, taskMap, kind) {
-    const summaryTaskId = String(summary?.taskId || "").trim();
-    const linkedTask = summaryTaskId ? taskMap[summaryTaskId] || {} : {};
+    const summaryTaskId = cleanText(summary?.taskId || detailData?.taskId || "");
+    const linkedTask = resolveLinkedTask(taskMap, summaryTaskId);
     const detailDataList = Array.isArray(detailData?.dataList) ? detailData.dataList : [];
     const resolvedSize =
       Number(summary?.size) ||
       Number(detailData?.recordCount) ||
-      detailDataList.length ||
       Number(detailData?.size) ||
+      Number(linkedTask?.size) ||
+      detailDataList.length ||
       0;
+    const resolvedTaskName = resolveSubtaskTaskName(detailData, summary, linkedTask);
     return Object.assign({}, detailData || {}, {
       id: sanitizeSubTaskId(detailData?.id || getSummarySubTaskId(summary)),
-      taskId: String(summaryTaskId || detailData?.taskId || ""),
-      batchId: String(summary?.batchId || detailData?.batchId || ""),
+      taskId: cleanText(summaryTaskId || detailData?.taskId || linkedTask?.taskId || linkedTask?.id || ""),
+      batchId: cleanText(summary?.batchId || detailData?.batchId || ""),
       gmtCreate: summary?.gmtCreate || detailData?.gmtCreate,
       gmtCommit: summary?.gmtCommit || detailData?.gmtCommit,
-      taskName: summary?.taskName || detailData?.taskName || linkedTask?.name || "",
+      taskName: resolvedTaskName,
       size: resolvedSize > 0 ? resolvedSize : "",
       recordCount: Number(detailData?.recordCount) || resolvedSize || detailDataList.length,
       labelModel: summary?.labelModel || detailData?.labelModel || linkedTask?.labelModel,
@@ -1758,10 +1785,21 @@
           const tasksPage = await fetchHomeTasks(projectId, kind);
           const taskMap = {};
           tasksPage.list.forEach(function (task) {
-            const taskId = String(task?.taskId || "");
-            if (taskId) {
-              taskMap[taskId] = task;
-            }
+          const taskId = String(task?.taskId || "");
+            const taskIdCandidates = [
+              task?.taskId,
+              task?.id,
+              task?.taskID,
+              task?.task_id,
+              task?.taskIdStr,
+            ];
+            taskIdCandidates.forEach(function (candidate) {
+              const normalizedTaskId = cleanText(candidate || "");
+              if (!normalizedTaskId) {
+                return;
+              }
+              taskMap[normalizedTaskId] = task;
+            });
           });
 
           const unfinishedPage = await fetchHomeSubTasks(projectId, false, kind);
@@ -1829,8 +1867,23 @@
             return;
           }
 
-          const linkedTask = pageGroup.taskMap[String(subtask?.taskId || "")] || {};
-          if (!isAsrTranscriptionTaskRecord(subtask, linkedTask)) {
+          const linkedTask = resolveLinkedTask(pageGroup.taskMap, subtask?.taskId || "");
+          const normalizedSummary = Object.assign({}, subtask || {});
+          const normalizedTaskName = resolveSubtaskTaskName({}, normalizedSummary, linkedTask);
+          if (normalizedTaskName) {
+            normalizedSummary.taskName = normalizedTaskName;
+          }
+          normalizedSummary.taskId = cleanText(
+            normalizedSummary.taskId ||
+              linkedTask?.taskId ||
+              linkedTask?.id ||
+              ""
+          );
+          normalizedSummary.size =
+            Number(normalizedSummary.size) ||
+            Number(linkedTask?.size) ||
+            normalizedSummary.size;
+          if (!isAsrTranscriptionTaskRecord(normalizedSummary, linkedTask)) {
             skippedSubTaskCount += 1;
             return;
           }
@@ -1841,7 +1894,7 @@
           }
 
           seenSubTaskIds.add(id);
-          subtaskMap[pageGroup.kind.key + ":" + id] = subtask;
+          subtaskMap[pageGroup.kind.key + ":" + id] = normalizedSummary;
         });
         Object.keys(subtaskMap).forEach(function (id) {
           const summary = subtaskMap[id];
@@ -2378,29 +2431,31 @@
         const failedCount = Number(summary.failedCount || 0) + backendFailedCount;
         const warningCount = Number(summary.warningPayloadCount || 0);
         const incompleteFoundCount = Number(summary.incompleteFoundCount || 0);
+        const scannedCount = Number(summary.scannedTranscriptionSubTaskCount || summary.subTaskCount || 0);
+        const detailCount = Number(summary.detailRequestCount || 0);
+        const uploadCount = Number(summary.payloadCount || uploadPayloadList.length || 0);
+        const skippedCompleteCount = Number(summary.skippedCompleteCount || 0);
+        const discardedNoBatchCount = Number(summary.discardedNoBatchCount || 0);
+        const concurrencyCount = Number(
+          summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1)
+        );
         const summaryMessage =
-          "转写统计已处理：扫描 " +
-          String(summary.scannedTranscriptionSubTaskCount || summary.subTaskCount || 0) +
-          "，详情 " +
-          String(summary.detailRequestCount || 0) +
+          "上传完成：扫描 " +
+          String(scannedCount) +
+          "，补齐 " +
+          String(detailCount) +
           "，上传 " +
-          String(summary.payloadCount || uploadPayloadList.length || 0) +
-          "，跳过快判 " +
-          String(summary.skippedSubTaskCount || 0) +
-          "，跳过重复 " +
-          String(summary.skippedDuplicateSubTaskCount || 0) +
+          String(uploadCount) +
           "，跳过完整 " +
-          String(summary.skippedCompleteCount || 0) +
+          String(skippedCompleteCount) +
           "，字段待补 " +
           String(incompleteFoundCount) +
           "，废弃(无分包ID) " +
-          String(summary.discardedNoBatchCount || 0) +
-          "，警告 " +
-          String(warningCount) +
+          String(discardedNoBatchCount) +
           "，失败 " +
           String(failedCount) +
           "，并发 " +
-          String(summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1)) +
+          String(concurrencyCount) +
           (summary.listPageOverflowCount || summary.detailPageOverflowCount
             ? "（分页超上限，已截断）"
             : "") +

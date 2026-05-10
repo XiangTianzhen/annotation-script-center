@@ -208,3 +208,13 @@
 - 上传进度板块宽度已增大（`min-width:560px`、`max-width:780px`、允许换行），四位数成功/失败数量可见。
 - 主存储仍为根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
 - 版本保持 `0.2.11`。
+
+## 2026-05-10 0.2.11 待补任务名称与进度样式修正
+
+- 版本保持 `0.2.11`。
+- `existing` 中 `exists=true` 不等于 `complete=true`；任务名称为空时需继续补齐，不可误跳过。
+- 任务名称补齐链路改为健康值优先：`detail.taskName/name -> summary.taskName/name -> taskMap.taskName/name`。
+- `detail` 空任务名称不得覆盖 `summary/taskMap` 健康任务名称。
+- 分包 `15982950` 这类“旧行任务名称为空”场景，上传后会复用旧行并补齐任务名称与供应商。
+- 进度条水平居中，完成态与进行中保持同一紧凑样式；四位数成功/失败统计可见。
+- 无待上传数据时不调用 upload，显示“已全部完整，无需上传”。

@@ -164,3 +164,11 @@ ASR 转写职责边界：
 - 上传进度板块宽度已增大（`min-width:560px`、`max-width:780px`、允许换行），四位数成功/失败数量可见。
 - 主存储仍为根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
 - 版本保持 `0.2.11`。
+
+## 2026-05-10 0.2.11 待补任务名称与进度样式补充
+
+- `existing` 返回 `exists=true` 时仍必须以 `complete` 判定是否跳过；`complete=false` 继续补齐，不算失败。
+- 转写任务名称补齐支持 `detail/summary/taskMap` 多源回退；`detail` 空值不得覆盖健康任务名称。
+- 转写后端合并优先复用同 `分包ID + role + subTaskId` 的已有行，避免“旧空任务名称行”和“新补齐行”并存。
+- 无待上传 payload 时前端不调用 upload，仅提示“已全部完整，无需上传”。
+- 共享进度组件改为水平居中，完成态与进行中保持同一紧凑卡片布局。

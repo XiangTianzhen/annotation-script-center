@@ -111,3 +111,9 @@
 - 上传进度板块宽度已增大（`min-width:560px`、`max-width:780px`、允许换行），四位数成功/失败数量可见。
 - 主存储仍为根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
 - 版本保持 `0.2.11`。
+
+## 2026-05-10 0.2.11 转写待补补齐口径
+
+- `existing` 判断中 `exists=true` 不等于 `complete=true`，仍需按 `missingFields` 判断是否回流补齐。
+- 任务名称为空的数据可保存但不算 complete；下次导出必须继续补齐。
+- 转写任务名称补齐优先从 `detail/summary/taskMap` 汇总健康值，不允许 `detail` 空值覆盖健康值。

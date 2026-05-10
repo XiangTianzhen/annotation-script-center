@@ -169,6 +169,49 @@ function createMergeRowId(supplierKey, batchId) {
   return String(supplierKey || "unknown-supplier") + "::" + String(batchId || "");
 }
 
+function normalizeRole(role) {
+  const text = cleanCsvValue(role || "").toLowerCase();
+  if (text === "audit" || text === "check") {
+    return "audit";
+  }
+  return "label";
+}
+
+function findExistingMergeRowId(rowsByMergeRowId, batchId, roleRecord) {
+  const rows = rowsByMergeRowId && typeof rowsByMergeRowId === "object" ? rowsByMergeRowId : {};
+  const normalizedBatchId = cleanCsvValue(batchId || "");
+  if (!normalizedBatchId) {
+    return "";
+  }
+  const role = normalizeRole(roleRecord?.role || "label");
+  const subTaskId = cleanCsvValue(roleRecord?.subTaskId || "");
+  const roleField = role === "audit" ? "审核子任务ID" : "标注子任务ID";
+
+  if (subTaskId) {
+    for (const mergeRowId of Object.keys(rows)) {
+      const row = rows[mergeRowId] || {};
+      if (cleanCsvValue(row["分包ID"] || "") !== normalizedBatchId) {
+        continue;
+      }
+      if (cleanCsvValue(row[roleField] || "") === subTaskId) {
+        return mergeRowId;
+      }
+    }
+  }
+
+  for (const mergeRowId of Object.keys(rows)) {
+    const row = rows[mergeRowId] || {};
+    if (cleanCsvValue(row["分包ID"] || "") !== normalizedBatchId) {
+      continue;
+    }
+    if (cleanCsvValue(row[roleField] || "")) {
+      return mergeRowId;
+    }
+  }
+
+  return "";
+}
+
 function applyBasePatch(row, patch, csvColumns) {
   Object.keys(patch).forEach(function (key) {
     if (csvColumns.indexOf(key) < 0) {
@@ -207,7 +250,9 @@ function applyPayloadToRows(payload, rowsByMergeRowId, csvColumns) {
   }
 
   const supplierInfo = resolveRowSupplier(payload || {}, patch, null);
-  const mergeRowId = createMergeRowId(supplierInfo.key, batchId);
+  const preferredMergeRowId = createMergeRowId(supplierInfo.key, batchId);
+  const mergeRowId =
+    findExistingMergeRowId(rowsByMergeRowId, batchId, roleRecord) || preferredMergeRowId;
   const existingRow = rowsByMergeRowId[mergeRowId] || {};
   const row = Object.assign(createEmptyRow(csvColumns), existingRow);
   const stableSupplierInfo = resolveRowSupplier(payload || {}, patch, row);
