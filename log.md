@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-11
+
+- 0.3.0 配置体验优化：统一项目数据下载私有配置文件模板，新增 `config/env/backend.env.example`，提供 `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256` 与 `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET` 示例占位。
+- 后端环境加载顺序升级：`platform-resources/backend/env-loader.js` 默认改为优先读取 `config/env/backend.env`、`config/env/backend.local.env`，并保持 `ai.env` / `ai.local.env` / `.env.local` / `ASC_ENV_FILE` 兼容。
+- `.gitignore` 补充忽略 `config/env/backend.env`、`config/env/backend.local.env`，并允许提交模板 `config/env/backend.env.example`。
+- 文档同步：更新 `README.md` 与 `platform-resources/backend/README.md` 的项目数据下载配置教程，补充创建 backend.env、生成密码 hash、生成随机 JWT secret、Linux/PM2 重启与 `project-data-download-auth-not-configured` 排查。
+- `config/env/ai.env.example` 增加提示注释：项目数据下载配置应放在 `backend.env`，AI 配置继续放在 `ai.env`。
+
 ## 2026-05-10
 
 - 0.3.0 测试版 BUG 修复：修复 `extension/background/service-worker.js` 的 `importScripts` 路径，改为 MV3 service worker 可加载的根相对路径 `shared/constants.js`、`shared/storage.js`，避免扩展后台报 `Failed to execute 'importScripts' ... constants.js failed to load`。

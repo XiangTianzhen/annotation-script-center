@@ -18,12 +18,14 @@ node platform-resources\backend\server.js
 http://127.0.0.1:3333
 ```
 
-启动时会自动读取统一 AI 环境配置文件，顺序为：
+启动时会自动读取统一后端环境配置文件，顺序为：
 
-1. `config/env/ai.env`
-2. `config/env/ai.local.env`
-3. `.env.local`
-4. 可选 `ASC_ENV_FILE` 指向的外部文件
+1. `config/env/backend.env`
+2. `config/env/backend.local.env`
+3. `config/env/ai.env`
+4. `config/env/ai.local.env`
+5. `.env.local`
+6. 可选 `ASC_ENV_FILE` 指向的外部文件
 
 系统环境变量优先级最高，不会被配置文件覆盖。文件不存在时跳过；读取失败时只输出脱敏 `warn`，不输出文件内容。
 
@@ -50,6 +52,12 @@ http://127.0.0.1:3333
 
 项目数据下载不保存明文密码。后端仅校验 SHA256，并使用 JWT Secret 生成短期下载 token。
 
+创建真实配置文件：
+
+```powershell
+copy config\env\backend.env.example config\env\backend.env
+```
+
 主推变量：
 - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`
 - `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`
@@ -62,6 +70,19 @@ http://127.0.0.1:3333
 
 ```powershell
 node -e "const crypto=require('crypto'); console.log(crypto.createHash('sha256').update(process.argv[1]).digest('hex'))" "你的下载密码"
+```
+
+随机生成 JWT_SECRET：
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+填入 `config/env/backend.env`：
+
+```text
+ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256=上一步生成的密码hash
+ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET=上一步生成的随机字符串
 ```
 
 本地临时运行：
@@ -79,16 +100,12 @@ Windows 用户级持久化：
 [Environment]::SetEnvironmentVariable("ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET", "一段足够长的随机字符串", "User")
 ```
 
-Linux / 服务器（可写入私有 `config/env/ai.env`）：
+Linux / 服务器：
 
 ```bash
-ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256=上一步生成的hash
-ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET=一段足够长的随机字符串
-```
-
-PM2 更新环境并重启：
-
-```bash
+cd /var/www/annotation-script-center
+cp config/env/backend.env.example config/env/backend.env
+nano config/env/backend.env
 pm2 restart annotation-script-center --update-env
 ```
 
@@ -96,6 +113,7 @@ pm2 restart annotation-script-center --update-env
 
 安全要求：
 - 禁止把真实密码、真实 hash、JWT secret 提交到仓库。
+- 不要提交 `config/env/backend.env`、`config/env/backend.local.env`。
 - 下载密码只允许在 `POST /api/admin/project-data-download/request` 的 body 中传输，不允许放 query。
 - 审计日志只记录必要追踪字段，不记录密码和完整 token。
 

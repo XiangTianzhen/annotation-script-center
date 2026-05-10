@@ -5,6 +5,8 @@ const path = require("path");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const DEFAULT_ENV_FILES = [
+  path.join(REPO_ROOT, "config", "env", "backend.env"),
+  path.join(REPO_ROOT, "config", "env", "backend.local.env"),
   path.join(REPO_ROOT, "config", "env", "ai.env"),
   path.join(REPO_ROOT, "config", "env", "ai.local.env"),
   path.join(REPO_ROOT, ".env.local"),

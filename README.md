@@ -259,6 +259,12 @@ http://127.0.0.1:3333
 
 项目数据下载不会在代码中保存明文密码。后端只读取密码 SHA256 和 JWT 签名密钥。
 
+创建真实配置文件：
+
+```powershell
+copy config\env\backend.env.example config\env\backend.env
+```
+
 主推环境变量：
 - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`
 - `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`
@@ -271,6 +277,19 @@ http://127.0.0.1:3333
 
 ```powershell
 node -e "const crypto=require('crypto'); console.log(crypto.createHash('sha256').update(process.argv[1]).digest('hex'))" "你的下载密码"
+```
+
+随机生成 JWT_SECRET：
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+填入 `config/env/backend.env`：
+
+```text
+ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256=上一步生成的密码hash
+ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET=上一步生成的随机字符串
 ```
 
 本地临时运行（当前终端会话）：
@@ -290,16 +309,12 @@ Windows 用户级持久化：
 
 设置后请关闭并重新打开 PowerShell，再启动后端。
 
-Linux / 服务器（可写入私有 `config/env/ai.env`）：
+Linux / 服务器：
 
 ```bash
-ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256=上一步生成的hash
-ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET=一段足够长的随机字符串
-```
-
-PM2 重启：
-
-```bash
+cd /var/www/annotation-script-center
+cp config/env/backend.env.example config/env/backend.env
+nano config/env/backend.env
 pm2 restart annotation-script-center --update-env
 ```
 
@@ -309,7 +324,8 @@ pm2 restart annotation-script-center --update-env
 - 不要把真实密码、真实 hash、真实 JWT secret 写入 README 或提交到 GitHub。
 - 下载密码只通过 `POST` body 传给后端校验，不允许放到 URL query。
 - 审计日志只记录获取人姓名、IP、数据类型、供应商、时间和 UA，不记录密码和完整 token。
-- `config/env/ai.env` 已被 `.gitignore` 忽略，可用于服务器私有配置。
+- 不要提交 `config/env/backend.env`、`config/env/backend.local.env`。
+- `config/env/backend.env` 与 `config/env/ai.env` 都可用于服务器私有配置，且已被 `.gitignore` 忽略。
 
 当前快判统计接口：
 
@@ -349,20 +365,22 @@ pm2 restart annotation-script-center --update-env
 - 导出过程和 CSV 内容不写入 `access_token`、`refresh_token`、cookie、authorization；CSV 已移除“采集ID”列。
 - 如果页面下拉未能自动展开或未找到 `100条/页`，可手动切换到 `100条/页` 后重试导出。
 
-## 统一 AI 环境配置文件
+## 统一后端环境配置文件
 
 后端启动时会自动读取仓库内固定环境文件，默认不需要每次手动设置系统环境变量。
 
 自动加载顺序：
 
-1. `config/env/ai.env`
-2. `config/env/ai.local.env`
-3. `.env.local`
-4. 可选 `ASC_ENV_FILE` 指向的外部文件
+1. `config/env/backend.env`
+2. `config/env/backend.local.env`
+3. `config/env/ai.env`
+4. `config/env/ai.local.env`
+5. `.env.local`
+6. 可选 `ASC_ENV_FILE` 指向的外部文件
 
 启动前已经存在的系统环境变量优先级最高，不会被文件覆盖。`ASC_ENV_FILE` 只用于后续多项目共享外部密钥文件，默认不需要配置。
 
-本地使用方式：
+本地使用方式（AI 配置）：
 
 ```powershell
 copy config\env\ai.env.example config\env\ai.env
@@ -376,7 +394,7 @@ copy config\env\ai.env.example config\env\ai.env
 node platform-resources\backend\server.js
 ```
 
-服务器使用方式是在项目目录创建：
+服务器使用方式（AI 配置）是在项目目录创建：
 
 ```text
 /var/www/annotation-script-center/config/env/ai.env
@@ -388,7 +406,7 @@ node platform-resources\backend\server.js
 pm2 restart annotation-script-center --update-env
 ```
 
-真实 `config/env/ai.env` 不要提交 GitHub；`config/env/ai.env`、`config/env/ai.local.env`、`.env` 和 `.env.*` 都已加入 `.gitignore`。模板文件 `config/env/ai.env.example` 可以提交。
+真实 `config/env/backend.env`、`config/env/backend.local.env`、`config/env/ai.env`、`config/env/ai.local.env` 不要提交 GitHub；`.env` 和 `.env.*` 也都已加入 `.gitignore`。模板文件 `config/env/backend.env.example`、`config/env/ai.env.example` 可以提交。
 当前模板仅保留四类 Provider：阿里百炼（DashScope）、DeepSeek、MiniMax、OpenRouter；不再引导配置 mock 或其他 Provider。
 
 快判 AI 建议说明：
