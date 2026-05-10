@@ -3,9 +3,15 @@
 const fs = require("fs");
 const {
   cleanCsvValue,
+  cleanHealthyCsvValue,
+  hasReplacementChar,
+  isCorruptedText,
+  preferHealthyText,
   resolveSupplierInfo,
   UNKNOWN_SUPPLIER_NAME,
 } = require("../../supplier-utils");
+
+const QUALITY_CRITICAL_FIELDS = new Set(["任务名称", "标注员", "审核员", "供应商"]);
 
 function escapeCsvCell(value) {
   const text = cleanCsvValue(value);
@@ -16,7 +22,12 @@ function cleanCsvRow(row) {
   const source = row && typeof row === "object" ? row : {};
   const result = {};
   Object.keys(source).forEach(function (key) {
-    result[key] = cleanCsvValue(source[key]);
+    const cleaned = cleanCsvValue(source[key]);
+    if (QUALITY_CRITICAL_FIELDS.has(key) && hasReplacementChar(cleaned)) {
+      result[key] = cleanHealthyCsvValue(cleaned);
+      return;
+    }
+    result[key] = cleaned;
   });
   return result;
 }
@@ -40,11 +51,20 @@ function collectDistinctSuppliers(rows) {
 function enrichRowsWithSuppliers(rows) {
   return (Array.isArray(rows) ? rows : []).map(function (row) {
     const normalizedRow = cleanCsvRow(row || {});
+    normalizedRow["任务名称"] = preferHealthyText(
+      normalizedRow["任务名称"] || "",
+      row?.["任务名称"] || ""
+    );
     const supplierInfo = resolveSupplierInfo({
       csvPatch: normalizedRow,
       taskName: normalizedRow["任务名称"] || "",
     });
-    normalizedRow["供应商"] = String(supplierInfo?.name || UNKNOWN_SUPPLIER_NAME);
+    normalizedRow["供应商"] = cleanHealthyCsvValue(
+      String(supplierInfo?.name || UNKNOWN_SUPPLIER_NAME)
+    );
+    if (isCorruptedText(normalizedRow["供应商"])) {
+      normalizedRow["供应商"] = UNKNOWN_SUPPLIER_NAME;
+    }
     return normalizedRow;
   });
 }
@@ -87,7 +107,7 @@ function writeMergedCsv(filePath, rowsByBatchId, csvColumns) {
     })
   );
 
-  fs.writeFileSync(filePath, lines.join("\n"), "utf8");
+  fs.writeFileSync(filePath, "\uFEFF" + lines.join("\n"), "utf8");
 }
 
 module.exports = {

@@ -6,12 +6,17 @@ const { CSV_COLUMNS } = require("./csv-columns");
 const { writeMergedCsv } = require("./csv-writer");
 const {
   cleanCsvValue,
+  cleanHealthyCsvValue,
+  hasReplacementChar,
+  isCorruptedText,
+  preferHealthyText,
   UNKNOWN_SUPPLIER_NAME,
   resolveSupplierInfo,
   sanitizeSupplierPathSegment,
 } = require("../../supplier-utils");
 
 const MERGED_CSV_FILE_NAME = "statistics-merged.csv";
+const QUALITY_CRITICAL_FIELDS = new Set(["任务名称", "标注员", "审核员", "供应商"]);
 
 function readJsonFile(filePath, fallback) {
   try {
@@ -93,7 +98,12 @@ function readCsvRowList(filePath) {
 
     const row = {};
     headers.forEach(function (header, index) {
-      row[header] = cleanCsvValue(cells[index] || "");
+      const cleanedCell = cleanCsvValue(cells[index] || "");
+      if (QUALITY_CRITICAL_FIELDS.has(header) && hasReplacementChar(cleanedCell)) {
+        row[header] = cleanHealthyCsvValue(cleanedCell);
+        return;
+      }
+      row[header] = cleanedCell;
     });
     row["分包ID"] = batchId;
     rows.push(row);
@@ -128,6 +138,11 @@ function createMergeRowId(supplierKey, batchId) {
 function resolveRowSupplier(row, fallbackSupplierName) {
   const fallbackName = cleanCsvValue(fallbackSupplierName || "");
   const patch = Object.assign({}, row || {});
+  patch["任务名称"] = preferHealthyText(patch["任务名称"] || "", "");
+  patch["供应商"] = cleanCsvValue(patch["供应商"] || "");
+  if (isCorruptedText(patch["供应商"])) {
+    patch["供应商"] = "";
+  }
   if (!patch["供应商"] && fallbackName && fallbackName !== UNKNOWN_SUPPLIER_NAME) {
     patch["供应商"] = fallbackName;
   }
@@ -160,7 +175,8 @@ function createStatisticsStore(options) {
         return;
       }
       const supplierInfo = resolveRowSupplier(row, fallbackSupplierName);
-      row["供应商"] = cleanCsvValue(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
+      row["供应商"] = cleanHealthyCsvValue(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
+      row["任务名称"] = cleanHealthyCsvValue(row["任务名称"] || "");
       row["分包ID"] = batchId;
       const mergeRowId = createMergeRowId(supplierInfo.key, batchId);
       rowsByMergeRowId[mergeRowId] = row;
@@ -195,7 +211,8 @@ function createStatisticsStore(options) {
         return;
       }
       const supplierInfo = resolveRowSupplier(row, UNKNOWN_SUPPLIER_NAME);
-      row["供应商"] = cleanCsvValue(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
+      row["供应商"] = cleanHealthyCsvValue(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
+      row["任务名称"] = cleanHealthyCsvValue(row["任务名称"] || "");
       row["分包ID"] = batchId;
       const stableMergeRowId = createMergeRowId(supplierInfo.key, batchId);
       rowsByMergedKey[stableMergeRowId] = row;

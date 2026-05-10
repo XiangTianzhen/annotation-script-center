@@ -57,6 +57,56 @@
   const SUPPLIER_HELPER = globalThis.ASREdgeStatisticsSupplier || {};
   const PROGRESS_HELPER = globalThis.ASREdgeProgressIndicator || {};
   const UNKNOWN_SUPPLIER_NAME = SUPPLIER_HELPER.UNKNOWN_SUPPLIER_NAME || "未识别供应商";
+  const REPLACEMENT_CHAR = "\uFFFD";
+
+  function cleanText(value) {
+    if (typeof SUPPLIER_HELPER.cleanCsvValue === "function") {
+      return SUPPLIER_HELPER.cleanCsvValue(value);
+    }
+    return String(value || "")
+      .replace(/\uFEFF/g, "")
+      .replace(/[\u200B-\u200D\u2060]/g, "")
+      .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\t\r\n\f\v]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function hasReplacementChar(value) {
+    if (typeof SUPPLIER_HELPER.hasReplacementChar === "function") {
+      return SUPPLIER_HELPER.hasReplacementChar(value);
+    }
+    return String(value || "").indexOf(REPLACEMENT_CHAR) >= 0;
+  }
+
+  function stripReplacementChars(value) {
+    return String(value || "").replace(/\uFFFD+/g, "");
+  }
+
+  function isCorruptedText(value) {
+    if (typeof SUPPLIER_HELPER.isCorruptedText === "function") {
+      return SUPPLIER_HELPER.isCorruptedText(value);
+    }
+    const text = cleanText(value);
+    return Boolean(text) && hasReplacementChar(text);
+  }
+
+  function pickHealthyText(candidates) {
+    const list = Array.isArray(candidates) ? candidates : [candidates];
+    let fallback = "";
+    for (let index = 0; index < list.length; index += 1) {
+      const cleaned = cleanText(list[index]);
+      if (!cleaned) {
+        continue;
+      }
+      if (!fallback) {
+        fallback = cleaned;
+      }
+      if (!isCorruptedText(cleaned)) {
+        return cleaned;
+      }
+    }
+    return cleanText(stripReplacementChars(fallback));
+  }
 
   function clone(value) {
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
@@ -344,7 +394,7 @@
       historyList.find(function (item) {
         return Number(item?.type) === 0;
       }) || historyList[historyList.length - 1];
-    return String(initial?.userName || "").trim();
+    return pickHealthyText(initial?.userName || "");
   }
 
   async function fetchSubtaskDataPage(cleanSubTaskId, page, pageSize) {
@@ -382,7 +432,7 @@
           status: data.status,
           gmtCreate: data.gmtCreate || data.receiveTime || "",
           gmtCommit: data.gmtCommit || data.submitTime || "",
-          taskName: data.taskName || data.name || "",
+          taskName: pickHealthyText([data.taskName, data.name]),
           size: Number(data.size),
           historyUserName: historyUserName,
         },
@@ -757,8 +807,11 @@
   function resolveSupplierInfoForStats(subtaskData, payloadContext, draftPatch) {
     const basePatch = draftPatch && typeof draftPatch === "object" ? draftPatch : {};
     const context = payloadContext && typeof payloadContext === "object" ? payloadContext : {};
-    const taskName =
-      subtaskData?.taskName || subtaskData?.name || basePatch["任务名称"] || "";
+    const taskName = pickHealthyText([
+      subtaskData?.taskName,
+      subtaskData?.name,
+      basePatch["任务名称"],
+    ]);
     if (typeof SUPPLIER_HELPER.resolveSupplierInfo === "function") {
       return SUPPLIER_HELPER.resolveSupplierInfo({
         payload: {
@@ -1019,11 +1072,13 @@
   function buildCsvBasePatch(subtaskData, durationSeconds, supplierInfo) {
     const resolvedSupplier =
       supplierInfo && typeof supplierInfo === "object" ? supplierInfo : {};
+    const safeTaskName = pickHealthyText([subtaskData?.taskName, subtaskData?.name]);
+    const safeSupplierName = pickHealthyText([resolvedSupplier.name, UNKNOWN_SUPPLIER_NAME]);
     return {
-      任务名称: String(subtaskData?.taskName || ""),
-      供应商: String(resolvedSupplier.name || UNKNOWN_SUPPLIER_NAME),
-      任务ID: String(subtaskData?.taskId || ""),
-      分包ID: String(subtaskData?.batchId || ""),
+      任务名称: safeTaskName,
+      供应商: safeSupplierName || UNKNOWN_SUPPLIER_NAME,
+      任务ID: cleanText(subtaskData?.taskId || ""),
+      分包ID: cleanText(subtaskData?.batchId || ""),
       题数: String(
         subtaskData?.size ||
           subtaskData?.recordCount ||
@@ -1035,14 +1090,13 @@
   }
 
   function getUserNameFromRecord(record) {
-    return String(
-      record?.userName ||
-        record?.operatorName ||
-        record?.operator ||
-        record?.nickName ||
-        record?.displayName ||
-        ""
-    ).trim();
+    return pickHealthyText([
+      record?.userName,
+      record?.operatorName,
+      record?.operator,
+      record?.nickName,
+      record?.displayName,
+    ]);
   }
 
   function buildPayload(subtaskData, durationSeconds, reason, context) {
@@ -1052,19 +1106,19 @@
     const firstItem = dataList[0] || {};
     const normalizedDurationSeconds = roundDurationSeconds(durationSeconds);
     const role = inferRole(subtaskData, payloadContext.role);
-    const batchId = String(subtaskData?.batchId || "");
+    const batchId = cleanText(subtaskData?.batchId || "");
     const subTaskId = sanitizeSubTaskId(subtaskData?.id || urlParams.subTaskId || "");
-    const userName =
-      payloadContext.userName ||
-      String(subtaskData?.historyUserName || "").trim() ||
-      getUserNameFromRecord(subtaskData) ||
-      getUserNameFromRecord(firstItem) ||
-      "";
+    const userName = pickHealthyText([
+      payloadContext.userName,
+      subtaskData?.historyUserName,
+      getUserNameFromRecord(subtaskData),
+      getUserNameFromRecord(firstItem),
+    ]);
     const completed = getCompletionText(subtaskData);
     const draftPatch = buildCsvBasePatch(subtaskData, normalizedDurationSeconds);
     const supplierInfo = resolveSupplierInfoForStats(subtaskData, payloadContext, draftPatch);
     const csvPatch = buildCsvBasePatch(subtaskData, normalizedDurationSeconds, supplierInfo);
-    const supplierName = String(supplierInfo?.name || UNKNOWN_SUPPLIER_NAME);
+    const supplierName = pickHealthyText([supplierInfo?.name, UNKNOWN_SUPPLIER_NAME]);
     const supplierKey = String(supplierInfo?.key || "unknown-supplier");
     const supplierSource = String(supplierInfo?.source || "fallback");
 
@@ -1094,9 +1148,9 @@
       roleRecord: {
         role: role,
         subTaskId: subTaskId,
-        taskId: String(subtaskData?.taskId || ""),
+        taskId: cleanText(subtaskData?.taskId || ""),
         batchId: batchId,
-        userId: String(firstItem?.userId || ""),
+        userId: cleanText(firstItem?.userId || ""),
         userName: userName,
         status: subtaskData?.status,
         receiveTime: formatDateTime(
@@ -1117,8 +1171,8 @@
         }).length,
       },
       rawKeys: {
-        taskName: String(subtaskData?.taskName || ""),
-        taskId: String(subtaskData?.taskId || ""),
+        taskName: pickHealthyText([subtaskData?.taskName, subtaskData?.name]),
+        taskId: cleanText(subtaskData?.taskId || ""),
         batchId: batchId,
         subTaskId: subTaskId,
         supplierName: supplierName,

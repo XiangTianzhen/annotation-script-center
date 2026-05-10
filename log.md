@@ -353,3 +353,13 @@
 - 新增并统一下载契约：`/statistics/download` 必须带 `supplier` 参数；未传返回 `400` 且提示 `suppliers` 列表接口。新增 `.../statistics/suppliers` 用于列出可下载供应商与下载链接。
 - 更新统一后端启动日志和 health 返回口径，显式提供 `suppliersPath`、`downloadRequiresSupplier`、`suppliersDir`，并将旧 `csvPath` 标记为 deprecated 空值。
 - 同步更新协作与文档规则：新增 Chrome DevTools / MCP 优先采集、Playwright Edge 仅用于真实操作验证或兜底、用户回复“处理好了”后再继续采集测试，以及 LabelX 公共资料与转写专项资料目录沉淀要求。
+
+## 2026-05-10（0.2.11 小修正：统计 CSV 中文乱码与健康值覆盖）
+
+- 修复 LabelX 转写/快判统计链路中的中文替换字符 `�` 问题，重点覆盖 `任务名称`、`标注员/审核员`、`供应商`。
+- 新增/统一文本质量规则：识别 `U+FFFD` 为损坏文本，合并时“新健康值优先覆盖旧损坏值”。
+- 供应商解析增强：`供应商=未识别供应商/unknown-supplier/含�` 时回退任务名推断，不再保留损坏供应商值。
+- CSV writer 统一改为 UTF-8 with BOM 写入，兼容 Excel 直接打开中文显示。
+- CSV/file-store/payload-merge 三层同步收敛清洗规则，避免旧损坏值持续污染新导出。
+- 主存储口径保持根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
+- 转写/快判前端 payload 构造增加健康文本优先选择，降低源头携带损坏值概率。

@@ -1,7 +1,13 @@
 "use strict";
 
 const { CSV_COLUMNS } = require("./csv-columns");
-const { cleanCsvValue, resolveSupplierInfo } = require("../../supplier-utils");
+const {
+  cleanCsvValue,
+  cleanHealthyCsvValue,
+  isCorruptedText,
+  preferHealthyText,
+  resolveSupplierInfo,
+} = require("../../supplier-utils");
 
 const BASE_PATCH_COLUMNS = new Set([
   "任务名称",
@@ -23,6 +29,7 @@ const ROLE_SPECIFIC_COLUMNS = new Set([
   "标注是否完成",
   "审核是否完成",
 ]);
+const QUALITY_CRITICAL_COLUMNS = new Set(["任务名称", "标注员", "审核员", "供应商"]);
 
 function createEmptyRow(csvColumns) {
   const row = {};
@@ -98,7 +105,10 @@ function applyRoleRecord(row, roleRecord, payload) {
       row["审核子任务ID"] = cleanCsvValue(roleRecord.subTaskId);
     }
     if (roleRecord?.userName || roleRecord?.userId) {
-      row["审核员"] = cleanCsvValue(roleRecord.userName || roleRecord.userId || "");
+      row["审核员"] = preferHealthyText(
+        cleanCsvValue(roleRecord.userName || roleRecord.userId || ""),
+        row["审核员"] || ""
+      );
     }
     if (roleRecord?.receiveTime) {
       row["审核领取时间"] = cleanCsvValue(roleRecord.receiveTime);
@@ -115,7 +125,10 @@ function applyRoleRecord(row, roleRecord, payload) {
     row["标注子任务ID"] = cleanCsvValue(roleRecord.subTaskId);
   }
   if (roleRecord?.userName || roleRecord?.userId) {
-    row["标注员"] = cleanCsvValue(roleRecord.userName || roleRecord.userId || "");
+    row["标注员"] = preferHealthyText(
+      cleanCsvValue(roleRecord.userName || roleRecord.userId || ""),
+      row["标注员"] || ""
+    );
   }
   if (roleRecord?.receiveTime) {
     row["标注领取时间"] = cleanCsvValue(roleRecord.receiveTime);
@@ -176,6 +189,10 @@ function applyBasePatch(row, patch, csvColumns) {
     const value = patch[key];
     const normalizedValue = cleanCsvValue(value);
     if (normalizedValue !== "") {
+      if (QUALITY_CRITICAL_COLUMNS.has(key)) {
+        row[key] = preferHealthyText(normalizedValue, row[key] || "");
+        return;
+      }
       row[key] = normalizedValue;
     }
   });
@@ -196,7 +213,13 @@ function applyPayloadToRows(payload, rowsByMergeRowId, csvColumns) {
   const stableSupplierInfo = resolveRowSupplier(payload || {}, patch, row);
 
   applyBasePatch(row, patch, csvColumns);
-  row["供应商"] = cleanCsvValue(stableSupplierInfo.name || row["供应商"] || "");
+  row["供应商"] = cleanHealthyCsvValue(
+    preferHealthyText(stableSupplierInfo.name || "", row["供应商"] || "")
+  );
+  if (isCorruptedText(row["供应商"])) {
+    row["供应商"] = "";
+  }
+  row["任务名称"] = cleanHealthyCsvValue(row["任务名称"] || "");
   row["分包ID"] = cleanCsvValue(batchId);
   applyRoleRecord(row, roleRecord, payload || {});
 

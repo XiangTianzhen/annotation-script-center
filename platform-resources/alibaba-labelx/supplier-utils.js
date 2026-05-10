@@ -2,12 +2,14 @@
 
 const UNKNOWN_SUPPLIER_NAME = "未识别供应商";
 const KNOWN_SUPPLIERS = ["希尔贝壳", "棋燊"];
+const REPLACEMENT_CHAR = "\uFFFD";
 const SENSITIVE_SUPPLIER_PATTERN =
   /(https?:\/\/|cookie|authorization|access[_-]?token|bearer|signature=|ossaccesskeyid=)/i;
 
 function normalizeWhitespace(value) {
   return String(value || "")
     .replace(/\uFEFF/g, "")
+    .replace(/[\u200B-\u200D\u2060]/g, "")
     .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\t\r\n\f\v]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -17,13 +19,49 @@ function cleanCsvValue(value) {
   return normalizeWhitespace(value);
 }
 
+function hasReplacementChar(value) {
+  return String(value || "").indexOf(REPLACEMENT_CHAR) >= 0;
+}
+
+function isCorruptedText(value) {
+  const text = cleanCsvValue(value);
+  return Boolean(text) && hasReplacementChar(text);
+}
+
+function stripReplacementChars(value) {
+  return String(value || "").replace(/\uFFFD+/g, "");
+}
+
+function cleanHealthyCsvValue(value) {
+  return cleanCsvValue(stripReplacementChars(value));
+}
+
+function preferHealthyText(primary, fallback) {
+  const first = cleanCsvValue(primary);
+  const second = cleanCsvValue(fallback);
+  if (first && !isCorruptedText(first)) {
+    return first;
+  }
+  if (second && !isCorruptedText(second)) {
+    return second;
+  }
+  return cleanHealthyCsvValue(first || second || "");
+}
+
 function safeDecodeText(value) {
   const text = String(value || "");
   if (!text) {
     return "";
   }
+  if (!/%[0-9a-fA-F]{2}/.test(text)) {
+    return text;
+  }
   try {
-    return decodeURIComponent(text);
+    const decoded = decodeURIComponent(text);
+    if (hasReplacementChar(decoded) && !hasReplacementChar(text)) {
+      return text;
+    }
+    return decoded;
   } catch (error) {
     return text;
   }
@@ -42,12 +80,18 @@ function compactTaskNameForSupplier(value) {
 
 function normalizeSupplierName(value) {
   const text = normalizeWhitespace(value);
+  if (isCorruptedText(text)) {
+    return UNKNOWN_SUPPLIER_NAME;
+  }
   return text || UNKNOWN_SUPPLIER_NAME;
 }
 
 function isUnknownSupplierName(value) {
   const normalized = normalizeSupplierName(value);
   if (!normalized) {
+    return true;
+  }
+  if (isCorruptedText(normalized)) {
     return true;
   }
   const compact = normalized.replace(/\s+/g, "").toLowerCase();
@@ -96,14 +140,21 @@ function inferSupplierFromTaskName(taskName) {
     }
   }
 
+  if (isCorruptedText(text)) {
+    return { name: UNKNOWN_SUPPLIER_NAME, source: "fallback" };
+  }
+
   const separatorMatch = text.match(/^(.+?)[\-－—]/);
   if (separatorMatch && separatorMatch[1] && separatorMatch[1].trim()) {
-    return { name: separatorMatch[1].trim(), source: "task-name-prefix" };
+    const prefix = cleanHealthyCsvValue(separatorMatch[1]);
+    if (prefix) {
+      return { name: prefix, source: "task-name-prefix" };
+    }
   }
 
   const plainAsrIndex = text.indexOf("中文普通话");
   if (plainAsrIndex > 0) {
-    const prefix = text.slice(0, plainAsrIndex).trim();
+    const prefix = cleanHealthyCsvValue(text.slice(0, plainAsrIndex));
     if (prefix) {
       return { name: prefix, source: "task-name-prefix" };
     }
@@ -135,6 +186,9 @@ function resolveSupplierInfo(input) {
     if (!candidate) {
       continue;
     }
+    if (isCorruptedText(candidate)) {
+      continue;
+    }
     const name = normalizeSupplierName(candidate);
     if (isUnknownSupplierName(name)) {
       continue;
@@ -151,6 +205,7 @@ function resolveSupplierInfo(input) {
 
   const csvSupplier = cleanCsvValue(csvPatch["供应商"] || "");
   if (csvSupplier) {
+    if (!isCorruptedText(csvSupplier)) {
     const name = normalizeSupplierName(csvSupplier);
     if (!isUnknownSupplierName(name)) {
       const safeName = sanitizeSupplierPathSegment(name);
@@ -162,10 +217,11 @@ function resolveSupplierInfo(input) {
         source: "csv-patch",
       };
     }
+    }
   }
 
   const inferred = inferSupplierFromTaskName(
-    options.taskName || options.name || csvPatch["任务名称"] || ""
+    preferHealthyText(options.taskName || options.name, csvPatch["任务名称"] || "")
   );
   const inferredName = normalizeSupplierName(inferred.name);
   const inferredSafe = sanitizeSupplierPathSegment(inferredName);
@@ -182,7 +238,11 @@ module.exports = {
   KNOWN_SUPPLIERS,
   UNKNOWN_SUPPLIER_NAME,
   cleanCsvValue,
+  cleanHealthyCsvValue,
   getSupplierKey,
+  hasReplacementChar,
+  isCorruptedText,
+  preferHealthyText,
   inferSupplierFromTaskName,
   compactTaskNameForSupplier,
   isUnknownSupplierName,
