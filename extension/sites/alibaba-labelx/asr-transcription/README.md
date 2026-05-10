@@ -7,7 +7,7 @@
 - 已恢复转写轻量设置面板与快捷键运行时（仅覆盖当前保留功能）。
 - 当前保留转写详情页工具栏按钮能力，并允许通过 options 调整基础参数。
 - 工具栏已改为页面内注入结构：优先挂载 `.mark-toolbox`，其次挂到首条题卡上方，不再默认固定悬浮在页面顶部中央。
-- 新增转写统计导出能力：支持手动上传与定时上传，后端按“供应商 + 分包ID”合并 CSV。
+- 新增转写统计导出能力：支持手动上传与定时上传，后端内部按“供应商 + 分包ID”合并 CSV。
 - 转写统计上传地址不再在脚本详情页单独配置，统一由 options 首页顶部“后端接口地址”（`server/local`）控制。
 - 转写统计上传与定时上传为脚本默认能力，运行时强制启用；转写详情页不提供统计开关。
 
@@ -73,9 +73,11 @@
 - 页面入口：顶部导航头像附近“上传转写统计”按钮；工具栏“上传统计”按钮也可触发。
 - 上传能力强制启用：`statsUploadEnabled=true`、`statsAutoUploadOnSchedule=true`。
 - 默认定时：`10:00`、`16:00`，jitter `10` 分钟；会优先读取上传接口返回的 schedule。
-- 平台页面实测详情请求常见 `pageSize=10`；扩展统计上传为减少请求量，优先使用 `pageSize=100` 一次抓取。
-- 详情抓取硬上限：最多 `3` 页、最多 `300` 条；遇空页、重复页签名、`recordCount` 缺失均会提前停止，避免请求风暴。
-- 首页列表抓取上限：最多 `5` 页；详情并发上限 `2`；单次上传最多处理 `50` 个转写子任务。
+- 平台页面实测详情请求常见 `pageSize=10`；扩展统计上传按全量口径优先使用 `pageSize=5000` 抓取详情。
+- 首页与详情都按 `recordCount` 计算总页数，不再固定只抓前 `5` 页、前 `50` 个子任务或前 `300` 条详情。
+- 首页列表和详情分页最大页数上限均为 `999`；超过上限会明确告警并截断，不再静默漏数。
+- 首页分页和详情抓取都支持并发；详情并发默认 `5`，动态不超过当前任务数，硬上限 `999`。
+- 首页会同时抓取 `finished=false` 与 `finished=true` 的 `subTasks`，并按清洗后的 `subTaskId` 去重。
 - 单次上传内同一 `subTaskId` 只请求一次详情（按清洗后 ID 去重）。
 - 上传锁：上传中重复点击或定时触发会返回 `upload-in-progress` 并跳过，不会并发第二轮上传。
 - `subTaskId` 会在请求前清洗：去除普通空格、Tab、换行、回车、全角空格以及 decode 后残留空白。
@@ -91,7 +93,10 @@
 - 下载接口由全局后端模式拼接，且必须携带 `supplier`：
   - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
   - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
-- CSV 列固定为：`任务名称,供应商,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
+- CSV 基础列为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
+- 供应商列动态输出：
+  - 单供应商数据集不输出 `供应商` 列。
+  - 多供应商数据集在最后一列追加 `供应商`。
 - `csvPatch` 只承载基础字段：`任务名称/供应商/任务ID/分包ID/题数/有效时长(秒)`。
 - 供应商识别优先级：
   1. `payload.supplier.name`
@@ -103,6 +108,9 @@
   7. `未识别供应商`
 - 统计落盘路径：`statistics-data/suppliers/<供应商>/statistics-merged.csv`。
 - 不再维护根级总表，不再写入 `statistics-data/statistics-merged.csv`；历史根级 CSV 只做兼容读取迁移，不删除旧文件。
+- 有效时长统计只累计“是否有效”严格等于“有效”的题目 `duration`；不使用 `includes("有效")`，避免“无效”误算。
+- 标注员/审核员解析新增 `dataResultHistory` 兜底：优先 `type===0`，找不到时使用最后一条。
+- `legacy-reference/asr-script.user.js` 仅作为分页、并发、有效时长与 `dataResultHistory` 解析逻辑参考，不恢复 Tampermonkey 架构。
 - 标注/审核字段只允许由 `roleRecord` 按 `role` 写入；`role=label` 仅写标注字段，`role=audit` 仅写审核字段。
 - 后端会忽略 `csvPatch` 里误传的角色字段；`role` 缺失或非法会拒绝写入，避免污染 CSV。
 - 统计导出只采集和上传统计数据，不保存平台、不提交平台、不自动流转平台任务。

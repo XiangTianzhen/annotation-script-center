@@ -9,6 +9,7 @@
 - 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/alibaba-labelx/asr-transcription/`、`extension/sites/data-baker/round-one-quality/`
 - 当前后端入口：`platform-resources/backend/server.js`
 - 当前扩展版本：`0.2.11`
+- 当前处于 `0.2.11` 修正增强阶段，本轮保持 `0.2.11`，不升级 `0.2.12`。
 
 ## 0.2.11 升级要点（LabelX 供应商分表）
 
@@ -17,7 +18,9 @@
 - 新落盘路径统一为：
   - `statistics-data/suppliers/<供应商>/statistics-merged.csv`
 - 两条链路都按 `供应商 + 分包ID` 合并，避免同分包跨供应商覆盖。
-- CSV 新增 `供应商` 列。
+- CSV 供应商列改为动态输出：
+  - 单供应商数据：不输出 `供应商` 列。
+  - 多供应商数据：在最后一列追加 `供应商`。
 - 供应商识别优先级：
   1. `payload.supplier` / `payload.vendor`
   2. `csvPatch["供应商"]`
@@ -30,6 +33,7 @@
   - `/api/alibaba-labelx/asr-transcription/statistics/suppliers`
   - `/api/alibaba-labelx/asr-judgement/statistics/suppliers`
 - 历史根级 `statistics-merged.csv` 仅兼容读取用于迁移，不再写回旧文件。
+- 内部 payload / mergeKey 仍保留 supplier 信息，继续避免跨供应商同分包覆盖。
 
 ## 页面采集与验证工作流
 
@@ -132,8 +136,12 @@ Chrome：
 - popup 状态区分为：已注入等待详情页、运行成功、真正注入失败。
 - 转写新增统计导出能力：支持顶部“上传转写统计”手动上传与定时上传（默认 `10:00`、`16:00`，jitter `10` 分钟），后端按 `供应商 + 分包ID` 合并 CSV。
 - 转写扩展侧统计文件为 `extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只做采集与上传客户端；CSV 落盘与下载服务仅在 `platform-resources/alibaba-labelx/asr-transcription/backend/`。
-- 转写统计 CSV 列固定为：`任务名称,供应商,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
+- 转写统计 CSV 基础列为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`；仅在多供应商时最后追加 `供应商` 列。
 - 转写统计后端目录为 `platform-resources/alibaba-labelx/asr-transcription/backend/`，供应商列表地址为 `/api/alibaba-labelx/asr-transcription/statistics/suppliers`，下载地址为 `/api/alibaba-labelx/asr-transcription/statistics/download?supplier=...`。
+- 转写统计抓取按 `recordCount` 分页，不再固定只拉前 `5` 页、前 `50` 个子任务或前 `300` 条详情。
+- 转写详情优先 `pageSize=5000`，并在 `recordCount > 5000` 时继续分页补齐；详情并发默认 `5`，并发上限 `999`。
+- 有效时长仅统计“是否有效”严格等于“有效”的题目时长，不使用 `includes("有效")`。
+- 标注员/审核员解析新增 `dataResultHistory` 兜底（优先 `type===0`，否则取最后一条）。
 - 旧 legacy、保存、提交、批量、自动化、AI、导出、排行榜、整页执行链路已删除。
 - 若未来要恢复旧能力，必须按新需求重新设计与验收，不能直接恢复旧脚本。
 

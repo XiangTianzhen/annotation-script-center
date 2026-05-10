@@ -33,7 +33,11 @@
 
 ## 0.2.11 统计供应商分表（转写/快判共识）
 
-- 统计 CSV 新增 `供应商` 列。
+- 当前版本维持 `0.2.11`，本轮为 `0.2.11` 修正增强，不升级 `0.2.12`。
+- 统计 CSV 采用动态供应商列：
+  - 单供应商数据集不输出 `供应商` 列。
+  - 多供应商数据集在最后一列追加 `供应商` 列。
+- 内部 payload / mergeKey 继续保留 supplier 信息，保证跨供应商同分包 ID 不覆盖。
 - 供应商识别优先级：
   1. `payload.supplier.name` / `payload.vendor.name`
   2. `payload.supplier` / `payload.vendor`

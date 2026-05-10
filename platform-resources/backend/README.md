@@ -78,8 +78,15 @@ ASR 转写职责边界：
 
 ## 0.2.11 供应商分表规则
 
+- 当前保持 `0.2.11` 修正增强，不升级 `0.2.12`。
 - LabelX 转写与快判统计均不再维护根级总表，不再写入 `statistics-data/statistics-merged.csv`。
 - 统计数据统一落盘到 `statistics-data/suppliers/<供应商>/statistics-merged.csv`。
+- CSV 导出供应商列采用动态策略：
+  - 单供应商数据集：不输出“供应商”列。
+  - 多供应商数据集：在最后一列追加“供应商”列。
+- 内部 `payload/mergeKey` 继续保留 supplier 信息，用于避免跨供应商同分包 ID 覆盖。
+- 转写统计抓取按 `recordCount` 全量分页：不再固定前 `5` 页/`50` 子任务/`300` 详情条目，详情默认并发 `5`、上限 `999`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。
+- 有效时长口径为“是否有效”严格等于“有效”。
 - CSV 下载接口必须显式带 `supplier` 参数；未传时返回 `400`，并提示调用 `.../statistics/suppliers`。
 - 当前接口示例：
   - 转写供应商列表：`/api/alibaba-labelx/asr-transcription/statistics/suppliers`

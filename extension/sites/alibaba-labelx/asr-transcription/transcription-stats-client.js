@@ -1,12 +1,11 @@
 (function () {
   const LOG_PREFIX = "[ASR Edge][transcription-stats]";
-  const TRANSCRIPTION_DETAIL_PAGE_SIZE = 100;
-  const TRANSCRIPTION_DETAIL_MAX_PAGES = 3;
-  const TRANSCRIPTION_DETAIL_MAX_ITEMS = 300;
-  const DEFAULT_HOME_PAGE_SIZE = 100;
-  const HOME_LIST_MAX_PAGES = 5;
-  const HOME_DETAIL_CONCURRENCY = 2;
-  const HOME_MAX_TRANSCRIPTION_SUBTASKS_PER_UPLOAD = 50;
+  const DETAIL_PAGE_SIZE = 5000;
+  const LIST_PAGE_SIZE = 50;
+  const DEFAULT_EXPORT_CONCURRENCY = 5;
+  const MAX_EXPORT_CONCURRENCY = 999;
+  const MAX_LIST_PAGES = 999;
+  const MAX_DETAIL_PAGES = 999;
   const CONSTANTS = globalThis.ASREdgeConstants || {};
   const BACKEND_MODE_SERVER = CONSTANTS.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
@@ -218,7 +217,7 @@
       location.origin
     );
     url.searchParams.set("page", String(page || 1));
-    url.searchParams.set("pageSize", String(pageSize || TRANSCRIPTION_DETAIL_PAGE_SIZE));
+    url.searchParams.set("pageSize", String(pageSize || DETAIL_PAGE_SIZE));
     url.searchParams.set("filterPassedVote", "false");
     url.searchParams.set(
       "filter",
@@ -251,7 +250,7 @@
     url.searchParams.set("keyword", "");
     url.searchParams.set("appId", String(projectId || ""));
     url.searchParams.set("page", String(page || 1));
-    url.searchParams.set("pageSize", String(pageSize || DEFAULT_HOME_PAGE_SIZE));
+    url.searchParams.set("pageSize", String(pageSize || LIST_PAGE_SIZE));
     url.searchParams.set("_", String(Date.now()));
     return url;
   }
@@ -263,9 +262,44 @@
     url.searchParams.set("appId", String(projectId || ""));
     url.searchParams.set("finished", finished ? "true" : "false");
     url.searchParams.set("page", String(page || 1));
-    url.searchParams.set("pageSize", String(pageSize || DEFAULT_HOME_PAGE_SIZE));
+    url.searchParams.set("pageSize", String(pageSize || LIST_PAGE_SIZE));
     url.searchParams.set("_", String(Date.now()));
     return url;
+  }
+
+  function normalizeConcurrency(value, fallbackValue) {
+    const fallback = Math.max(1, Number(fallbackValue) || DEFAULT_EXPORT_CONCURRENCY);
+    const parsed = Math.floor(Number(value));
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      return Math.min(fallback, MAX_EXPORT_CONCURRENCY);
+    }
+    return Math.max(1, Math.min(parsed, MAX_EXPORT_CONCURRENCY));
+  }
+
+  function resolveConcurrency(itemCount, preferred) {
+    const total = Math.max(1, Math.floor(Number(itemCount) || 1));
+    const normalizedPreferred = normalizeConcurrency(preferred, DEFAULT_EXPORT_CONCURRENCY);
+    return Math.max(1, Math.min(total, normalizedPreferred, MAX_EXPORT_CONCURRENCY));
+  }
+
+  async function runConcurrent(items, maxConcurrent, handler) {
+    const list = Array.isArray(items) ? items : [];
+    if (list.length === 0) {
+      return [];
+    }
+
+    const results = new Array(list.length);
+    const workerCount = resolveConcurrency(list.length, maxConcurrent);
+    let cursor = 0;
+    const workers = new Array(workerCount).fill(null).map(async function () {
+      while (cursor < list.length) {
+        const index = cursor;
+        cursor += 1;
+        results[index] = await handler(list[index], index);
+      }
+    });
+    await Promise.all(workers);
+    return results;
   }
 
   async function fetchJson(url, init) {
@@ -281,9 +315,28 @@
     return body;
   }
 
+  function extractHistoryUserNameFromDataResultHistory(historyMap) {
+    if (!historyMap || typeof historyMap !== "object") {
+      return "";
+    }
+    const firstKey = Object.keys(historyMap)[0];
+    if (!firstKey) {
+      return "";
+    }
+    const historyList = historyMap[firstKey];
+    if (!Array.isArray(historyList) || historyList.length === 0) {
+      return "";
+    }
+    const initial =
+      historyList.find(function (item) {
+        return Number(item?.type) === 0;
+      }) || historyList[historyList.length - 1];
+    return String(initial?.userName || "").trim();
+  }
+
   async function fetchSubtaskDataPage(cleanSubTaskId, page, pageSize) {
     const requestPage = Math.max(1, Number(page) || 1);
-    const requestPageSize = Math.max(1, Number(pageSize) || TRANSCRIPTION_DETAIL_PAGE_SIZE);
+    const requestPageSize = Math.max(1, Number(pageSize) || DETAIL_PAGE_SIZE);
     try {
       const body = await fetchJson(buildSubtaskDataUrl(cleanSubTaskId, requestPageSize, requestPage), {
         credentials: "include",
@@ -302,6 +355,7 @@
             : [];
       const rawRecordCount = data.recordCount ?? data.size ?? data.total;
       const parsedRecordCount = Number(rawRecordCount);
+      const historyUserName = extractHistoryUserNameFromDataResultHistory(data.dataResultHistory);
       return {
         list: list,
         recordCount:
@@ -317,6 +371,7 @@
           gmtCommit: data.gmtCommit || data.submitTime || "",
           taskName: data.taskName || data.name || "",
           size: Number(data.size),
+          historyUserName: historyUserName,
         },
       };
     } catch (error) {
@@ -346,68 +401,85 @@
       };
     }
 
-    const allItems = [];
-    const rawPageData = [];
-    let metadata = {};
-    let recordCount = null;
-    let previousPageSignature = "";
-    for (let page = 1; page <= TRANSCRIPTION_DETAIL_MAX_PAGES; page += 1) {
-      const pageResult = await fetchSubtaskDataPage(
-        cleanSubTaskId,
-        page,
-        TRANSCRIPTION_DETAIL_PAGE_SIZE
-      );
-      rawPageData.push({
-        page: page,
-        itemCount: pageResult.list.length,
-        recordCount: pageResult.recordCount,
+    const firstPageResult = await fetchSubtaskDataPage(cleanSubTaskId, 1, DETAIL_PAGE_SIZE);
+    const metadata = firstPageResult.metadata || {};
+    const recordCount =
+      Number.isFinite(firstPageResult.recordCount) && firstPageResult.recordCount >= 0
+        ? firstPageResult.recordCount
+        : firstPageResult.list.length;
+    const computedTotalPages =
+      recordCount > 0 ? Math.ceil(recordCount / DETAIL_PAGE_SIZE) : firstPageResult.list.length > 0 ? 1 : 0;
+    const totalPages = Math.max(0, computedTotalPages);
+    const boundedTotalPages = Math.min(totalPages, MAX_DETAIL_PAGES);
+    const overflow = totalPages > MAX_DETAIL_PAGES;
+
+    const pageResults = [{ page: 1, pageResult: firstPageResult }];
+    if (boundedTotalPages > 1) {
+      const pages = [];
+      for (let page = 2; page <= boundedTotalPages; page += 1) {
+        pages.push(page);
+      }
+      const pageConcurrency = resolveConcurrency(pages.length, DEFAULT_EXPORT_CONCURRENCY);
+      const restResults = await runConcurrent(pages, pageConcurrency, async function (page) {
+        return {
+          page: page,
+          pageResult: await fetchSubtaskDataPage(cleanSubTaskId, page, DETAIL_PAGE_SIZE),
+        };
       });
-      if (page === 1) {
-        metadata = pageResult.metadata || {};
-      }
-      if (page === 1) {
-        recordCount = pageResult.recordCount;
-      } else if ((!Number.isFinite(recordCount) || recordCount <= 0) && pageResult.recordCount > 0) {
-        recordCount = pageResult.recordCount;
-      }
+      pageResults.push.apply(pageResults, restResults);
+    }
 
-      if (pageResult.list.length === 0) {
-        break;
-      }
-      const pageSignature = pageResult.list
-        .map(function (item) {
-          return String(item?.dataId || item?.id || "");
-        })
-        .join("|");
-      if (pageSignature && pageSignature === previousPageSignature) {
-        break;
-      }
-      previousPageSignature = pageSignature;
-      allItems.push.apply(allItems, pageResult.list);
+    pageResults.sort(function (left, right) {
+      return left.page - right.page;
+    });
 
-      if (allItems.length >= TRANSCRIPTION_DETAIL_MAX_ITEMS) {
-        break;
-      }
-      if (!Number.isFinite(recordCount) || recordCount <= 0) {
-        break;
-      }
-      if (recordCount <= TRANSCRIPTION_DETAIL_PAGE_SIZE) {
-        break;
-      }
-      if (allItems.length >= recordCount) {
-        break;
-      }
-      if (pageResult.list.length < TRANSCRIPTION_DETAIL_PAGE_SIZE) {
-        break;
-      }
+    const rawPageData = [];
+    const allItems = [];
+    const itemSeen = new Set();
+    pageResults.forEach(function (entry) {
+      const list = Array.isArray(entry.pageResult?.list) ? entry.pageResult.list : [];
+      rawPageData.push({
+        page: entry.page,
+        itemCount: list.length,
+        recordCount: entry.pageResult?.recordCount,
+      });
+
+      list.forEach(function (item, index) {
+        const keyCandidate = String(item?.dataId || item?.id || "").trim();
+        const key =
+          keyCandidate ||
+          "page" + String(entry.page) + "-index" + String(index) + "-" + JSON.stringify(item || {});
+        if (itemSeen.has(key)) {
+          return;
+        }
+        itemSeen.add(key);
+        allItems.push(item);
+      });
+    });
+
+    if (overflow) {
+      console.warn(
+        LOG_PREFIX,
+        "subtask detail pages exceed max limit, truncated to " +
+          String(MAX_DETAIL_PAGES) +
+          " pages:",
+        {
+          subTaskId: cleanSubTaskId,
+          totalPages: totalPages,
+          maxPages: MAX_DETAIL_PAGES,
+        }
+      );
     }
 
     return {
       subTaskId: cleanSubTaskId,
       metadata: metadata,
       dataList: allItems,
-      recordCount: Number.isFinite(recordCount) && recordCount > 0 ? recordCount : allItems.length,
+      recordCount: Number.isFinite(recordCount) && recordCount >= 0 ? recordCount : allItems.length,
       fetchedItemCount: allItems.length,
+      totalPages: totalPages,
+      fetchedPages: boundedTotalPages > 0 ? boundedTotalPages : pageResults.length,
+      pageOverflow: overflow,
       rawPageData: rawPageData,
     };
   }
@@ -431,6 +503,9 @@
       dataList: pageResult.dataList,
       recordCount: pageResult.recordCount,
       fetchedItemCount: pageResult.fetchedItemCount,
+      totalPages: pageResult.totalPages,
+      fetchedPages: pageResult.fetchedPages,
+      pageOverflow: pageResult.pageOverflow,
       rawPageData: pageResult.rawPageData,
     });
   }
@@ -449,52 +524,111 @@
     };
   }
 
-  async function fetchPagedList(buildUrl, pageSize, maxPages) {
-    const normalizedPageSize = pageSize || DEFAULT_HOME_PAGE_SIZE;
-    const normalizedMaxPages = Math.max(1, Number(maxPages) || HOME_LIST_MAX_PAGES);
-    const result = [];
-    let recordCount = null;
+  async function fetchPagedList(buildUrl, pageSize, maxPages, preferredConcurrency) {
+    const normalizedPageSize = Math.max(1, Number(pageSize) || LIST_PAGE_SIZE);
+    const normalizedMaxPages = Math.max(1, Number(maxPages) || MAX_LIST_PAGES);
 
-    for (let page = 1; page <= normalizedMaxPages; page += 1) {
-      const body = await fetchJson(buildUrl(page, normalizedPageSize), {
+    const firstBody = await fetchJson(buildUrl(1, normalizedPageSize), {
       credentials: "include",
       cache: "no-store",
       headers: {
         Accept: "application/json, text/plain, */*",
       },
     });
-      const normalized = normalizeListPage(body);
-      if (recordCount === null) {
-        recordCount = normalized.recordCount;
+    const firstPage = normalizeListPage(firstBody);
+    const recordCount =
+      Number.isFinite(firstPage.recordCount) && firstPage.recordCount >= 0
+        ? firstPage.recordCount
+        : firstPage.list.length;
+    const computedTotalPages =
+      recordCount > 0
+        ? Math.ceil(recordCount / normalizedPageSize)
+        : firstPage.list.length > 0
+          ? 1
+          : 0;
+    const totalPages = Math.max(0, computedTotalPages);
+    const boundedTotalPages = Math.min(totalPages, normalizedMaxPages);
+    const overflow = totalPages > normalizedMaxPages;
+
+    const pageResults = [{ page: 1, normalized: firstPage }];
+    if (boundedTotalPages > 1) {
+      const pages = [];
+      for (let page = 2; page <= boundedTotalPages; page += 1) {
+        pages.push(page);
       }
-      if (normalized.list.length === 0) {
-        break;
-      }
-      result.push.apply(result, normalized.list);
-      if (!Number.isFinite(recordCount) || recordCount <= 0) {
-        break;
-      }
-      if (result.length >= recordCount || normalized.list.length < normalizedPageSize) {
-        break;
-      }
+      const pageConcurrency = resolveConcurrency(
+        pages.length,
+        normalizeConcurrency(preferredConcurrency, DEFAULT_EXPORT_CONCURRENCY)
+      );
+      const rest = await runConcurrent(pages, pageConcurrency, async function (page) {
+        const body = await fetchJson(buildUrl(page, normalizedPageSize), {
+          credentials: "include",
+          cache: "no-store",
+          headers: {
+            Accept: "application/json, text/plain, */*",
+          },
+        });
+        return { page: page, normalized: normalizeListPage(body) };
+      });
+      pageResults.push.apply(pageResults, rest);
+    }
+
+    pageResults.sort(function (left, right) {
+      return left.page - right.page;
+    });
+
+    const list = [];
+    const seenIds = new Set();
+    pageResults.forEach(function (entry) {
+      const pageList = Array.isArray(entry.normalized?.list) ? entry.normalized.list : [];
+      pageList.forEach(function (item, index) {
+        const keyCandidate = sanitizeSubTaskId(item?.id || item?.subTaskId || item?.subtaskId || "");
+        const fallbackKey = "p" + String(entry.page) + "_i" + String(index) + "_" + String(item?.taskId || "");
+        const key = keyCandidate || fallbackKey;
+        if (seenIds.has(key)) {
+          return;
+        }
+        seenIds.add(key);
+        list.push(item);
+      });
+    });
+
+    if (overflow) {
+      console.warn(LOG_PREFIX, "list pages exceed max limit and were truncated", {
+        totalPages: totalPages,
+        maxPages: normalizedMaxPages,
+      });
     }
 
     return {
-      list: result,
-      recordCount: Number.isFinite(recordCount) && recordCount >= 0 ? recordCount : result.length,
+      list: list,
+      recordCount: recordCount,
+      totalPages: totalPages,
+      fetchedPages: boundedTotalPages > 0 ? boundedTotalPages : pageResults.length,
+      pageOverflow: overflow,
     };
   }
 
   async function fetchHomeTasks(projectId, kind) {
-    return fetchPagedList(function (page, pageSize) {
-      return buildHomeTasksUrl(projectId, page, pageSize, kind);
-    }, DEFAULT_HOME_PAGE_SIZE, HOME_LIST_MAX_PAGES);
+    return fetchPagedList(
+      function (page, pageSize) {
+        return buildHomeTasksUrl(projectId, page, pageSize, kind);
+      },
+      LIST_PAGE_SIZE,
+      MAX_LIST_PAGES,
+      DEFAULT_EXPORT_CONCURRENCY
+    );
   }
 
   async function fetchHomeSubTasks(projectId, finished, kind) {
-    return fetchPagedList(function (page, pageSize) {
-      return buildHomeSubTasksUrl(projectId, finished, page, pageSize, kind);
-    }, DEFAULT_HOME_PAGE_SIZE, HOME_LIST_MAX_PAGES);
+    return fetchPagedList(
+      function (page, pageSize) {
+        return buildHomeSubTasksUrl(projectId, finished, page, pageSize, kind);
+      },
+      LIST_PAGE_SIZE,
+      MAX_LIST_PAGES,
+      DEFAULT_EXPORT_CONCURRENCY
+    );
   }
 
   function roundDurationSeconds(totalSeconds) {
@@ -525,8 +659,35 @@
     return 0;
   }
 
+  function getItemMarkResultList(item) {
+    const resultMark = item?.result?.markResult;
+    if (!Array.isArray(resultMark)) {
+      return [];
+    }
+    return resultMark;
+  }
+
+  function getItemValidLabel(item) {
+    const markResultList = getItemMarkResultList(item);
+    const validRecord = markResultList.find(function (entry) {
+      return String(entry?.title || "").trim() === "是否有效";
+    });
+    if (!validRecord) {
+      return "";
+    }
+    const value = validRecord?.value;
+    if (Array.isArray(value)) {
+      return String(value[0] || "").trim();
+    }
+    return String(value || "").trim();
+  }
+
   function sumDurationSeconds(dataList) {
     const total = (Array.isArray(dataList) ? dataList : []).reduce(function (sum, item) {
+      const validLabel = getItemValidLabel(item);
+      if (validLabel !== "有效") {
+        return sum;
+      }
       return sum + getItemDurationSeconds(item);
     }, 0);
     return roundDurationSeconds(total);
@@ -882,6 +1043,7 @@
     const subTaskId = sanitizeSubTaskId(subtaskData?.id || urlParams.subTaskId || "");
     const userName =
       payloadContext.userName ||
+      String(subtaskData?.historyUserName || "").trim() ||
       getUserNameFromRecord(subtaskData) ||
       getUserNameFromRecord(firstItem) ||
       "";
@@ -985,22 +1147,6 @@
           ? summary.status
           : detailData?.status,
     });
-  }
-
-  async function mapLimit(items, limit, handler) {
-    const result = [];
-    let cursor = 0;
-    const workers = new Array(Math.max(1, Math.min(limit, items.length || 1)))
-      .fill(null)
-      .map(async function () {
-        while (cursor < items.length) {
-          const index = cursor;
-          cursor += 1;
-          result[index] = await handler(items[index], index);
-        }
-      });
-    await Promise.all(workers);
-    return result;
   }
 
   function createState() {
@@ -1339,7 +1485,8 @@
       let scannedTranscriptionSubTaskCount = 0;
       let skippedDuplicateSubTaskCount = 0;
       let detailRequestCount = 0;
-      let reachedUploadLimit = false;
+      let listPageOverflowCount = 0;
+      let detailPageOverflowCount = 0;
       kindPages.forEach(function (pageGroup) {
         const subtaskMap = {};
         pageGroup.unfinishedPage.list.concat(pageGroup.finishedPage.list).forEach(function (subtask) {
@@ -1358,24 +1505,26 @@
             skippedDuplicateSubTaskCount += 1;
             return;
           }
-          if (subtasks.length >= HOME_MAX_TRANSCRIPTION_SUBTASKS_PER_UPLOAD) {
-            reachedUploadLimit = true;
-            return;
-          }
 
           seenSubTaskIds.add(id);
           subtaskMap[pageGroup.kind.key + ":" + id] = subtask;
         });
         Object.keys(subtaskMap).forEach(function (id) {
-          if (subtasks.length >= HOME_MAX_TRANSCRIPTION_SUBTASKS_PER_UPLOAD) {
-            reachedUploadLimit = true;
-            return;
-          }
           subtasks.push({
             summary: subtaskMap[id],
             pageGroup: pageGroup,
           });
         });
+
+        if (pageGroup.tasksPage.pageOverflow) {
+          listPageOverflowCount += 1;
+        }
+        if (pageGroup.unfinishedPage.pageOverflow) {
+          listPageOverflowCount += 1;
+        }
+        if (pageGroup.finishedPage.pageOverflow) {
+          listPageOverflowCount += 1;
+        }
       });
 
       if (subtasks.length === 0) {
@@ -1392,8 +1541,9 @@
         );
       }
 
+      const detailConcurrency = resolveConcurrency(subtasks.length, DEFAULT_EXPORT_CONCURRENCY);
       const payloads = (
-        await mapLimit(subtasks, HOME_DETAIL_CONCURRENCY, async function (entry) {
+        await runConcurrent(subtasks, detailConcurrency, async function (entry) {
           const summary = entry.summary;
           const pageGroup = entry.pageGroup;
           const kind = pageGroup.kind;
@@ -1403,6 +1553,9 @@
           if (!detailData?.id) {
             skippedDetailCount += 1;
             return null;
+          }
+          if (detailData.pageOverflow) {
+            detailPageOverflowCount += 1;
           }
           const enrichedData = enrichSubtaskData(detailData, summary, pageGroup.taskMap, kind);
           if (!isAsrTranscriptionTaskRecord(enrichedData, linkedTask)) {
@@ -1456,8 +1609,9 @@
           skippedSubTaskCount: skippedSubTaskCount,
           skippedDuplicateSubTaskCount: skippedDuplicateSubTaskCount,
           skippedDetailCount: skippedDetailCount,
-          reachedUploadLimit: reachedUploadLimit,
-          maxSubtasksPerUpload: HOME_MAX_TRANSCRIPTION_SUBTASKS_PER_UPLOAD,
+          detailConcurrency: detailConcurrency,
+          listPageOverflowCount: listPageOverflowCount,
+          detailPageOverflowCount: detailPageOverflowCount,
           kinds: kindPages.map(function (item) {
             return {
               kind: item.kind.key,
@@ -1465,6 +1619,12 @@
               taskCount: item.tasksPage.recordCount,
               unfinishedCount: item.unfinishedPage.recordCount,
               finishedCount: item.finishedPage.recordCount,
+              taskPages: item.tasksPage.totalPages,
+              unfinishedPages: item.unfinishedPage.totalPages,
+              finishedPages: item.finishedPage.totalPages,
+              taskPageOverflow: Boolean(item.tasksPage.pageOverflow),
+              unfinishedPageOverflow: Boolean(item.unfinishedPage.pageOverflow),
+              finishedPageOverflow: Boolean(item.finishedPage.pageOverflow),
             };
           }),
           errors: errors,
@@ -1611,7 +1771,11 @@
           String(summary.skippedSubTaskCount || 0) +
           "，跳过重复 " +
           String(summary.skippedDuplicateSubTaskCount || 0) +
-          (summary.reachedUploadLimit ? "（达到本次上传上限）" : "");
+          "，并发 " +
+          String(summary.detailConcurrency || DEFAULT_EXPORT_CONCURRENCY) +
+          (summary.listPageOverflowCount || summary.detailPageOverflowCount
+            ? "（分页超上限，已截断）"
+            : "");
         setMessage(true, uploadReason, summaryMessage);
         showToast(summaryMessage, "info");
         const uploadPayload = Array.isArray(payload.payloads) ? payload.payloads : [payload];

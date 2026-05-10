@@ -1,5 +1,16 @@
 # 标注脚本中心修改日志
 
+## 2026-05-10
+
+- 保持扩展版本 `0.2.11` 不升级 `0.2.12`，修正 LabelX 统计导出策略并重新按 `0.2.11` 口径验证与打包。
+- 修正转写统计抓取完整性：`transcription-stats-client.js` 移除旧硬上限（5 页/50 子任务/300 详情），改为按 `recordCount` 计算分页；首页与详情分页上限 `999`，详情默认并发 `5`、上限 `999`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。
+- 修正转写有效时长口径：仅累计“是否有效”严格等于“有效”的题目时长，不使用 `includes(\"有效\")`，避免“无效”误算。
+- 修正转写人员解析：新增 `dataResultHistory` 兜底（优先 `type===0`，否则最后一条）。
+- 修正快判统计采集并发与分页上限：首页分页上限放宽到 `999`，详情并发默认 `5`，并发硬上限 `999`，保持快判 `pageSize=400` 业务口径不变。
+- 修正转写/快判后端 CSV 写出规则：供应商信息仍保留在内部 payload/mergeKey/行数据中用于防冲突；CSV 导出改为动态供应商列（单供应商不输出，多供应商在最后一列追加）。
+- 文档同步更新：`AGENTS.md`、根 `README.md`、`extension/README.md`、`platform-resources/backend/README.md`、转写/快判模块 README、LabelX 平台 README、转写统计策略文档，统一到 0.2.11 修正口径。
+- 本轮继续遵循页面采集工作流：结构和 Network 采集优先 Chrome DevTools / MCP；Playwright Edge 仅用于真实操作验证或 DevTools 不可用兜底；Codex 仅负责打开浏览器，登录与进页面由用户完成。
+
 ## 2026-05-09
 
 - 修复扩展重载后的旧页面刷错：`shared/storage.js` 新增扩展上下文可用性检测与 `EXTENSION_CONTEXT_INVALIDATED` 结构化错误，统一识别 `Extension context invalidated`。

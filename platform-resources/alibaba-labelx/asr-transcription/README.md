@@ -9,6 +9,7 @@
 - 运行时只保留当前题与当前音频基础动作，不包含保存/提交/自动化/AI链路。
 - 工具栏已改为页面内注入：优先 `.mark-toolbox`，找不到时回退到首条题卡前，不再默认顶部固定悬浮。
 - 新增“转写统计导出”链路：复用快判上传架构口径，独立后端目录与独立 CSV 列；统计上传与定时上传运行时强制启用。
+- 当前版本保持 `0.2.11`，本轮为 0.2.11 修正增强，不升级 `0.2.12`。
 
 ## 当前业务口径（与扩展运行时一致）
 
@@ -55,10 +56,12 @@
   - 转写工具栏“上传统计”按钮。
 - 详情接口取数口径：
   - 页面实测常见 `GET /api/v1/label/center/subTask/{subTaskId}/data?page=1&pageSize=10...`。
-  - 扩展统计上传默认用 `pageSize=100`，并限制 `maxPages=3`、`maxItems=300` 以减少请求数。
-  - 详情请求遇空页、重复页签名、`recordCount` 缺失会提前停止，避免请求风暴。
+  - 扩展统计上传默认详情请求 `pageSize=5000`；如果 `recordCount > 5000`，继续按页补齐。
+  - 首页和详情都按 `recordCount` 计算 `totalPages`，不再固定只抓前 `5` 页、`50` 个子任务或 `300` 条详情。
+  - 首页与详情分页最大页数上限均为 `999`；超过上限会输出告警并截断，不再静默漏抓。
+  - 首页会同时抓 `finished=false` 与 `finished=true` 的 `subTasks`；同一轮上传按清洗后的 `subTaskId` 去重。
   - `subTaskId` 在拼 URL 前必须先做空白清洗（普通空格、Tab、换行、回车、全角空格）。
-  - 首页列表最多抓 `5` 页，详情并发 `2`，单次上传最多处理 `50` 个转写子任务，且同一 `subTaskId` 单次只请求一次。
+  - 首页分页抓取和详情抓取都支持并发；详情并发默认 `5`，动态不超过任务数，硬上限 `999`。
   - 上传锁：若上传中再次触发，返回 `upload-in-progress` 并跳过，不并发第二轮。
 - 转写/快判识别口径：
   - 快判排除：`labelModel=vote` 或任务名命中 `ASR更优结果判断/ASR更优/更优结果判断/更优判断`（典型 `size=400`）。
@@ -75,9 +78,15 @@
 - 默认定时上传：`10:00`、`16:00`，jitter `10` 分钟。
 - 后端目录：`platform-resources/alibaba-labelx/asr-transcription/backend/`。
 - 统计写入目录：`platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/suppliers/<供应商>/statistics-merged.csv`。
-- CSV 列：
-  `任务名称,供应商,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
+- CSV 基础列：
+  `任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
+- 供应商列动态输出：
+  - 单供应商数据集不输出 `供应商` 列。
+  - 多供应商数据集在最后一列追加 `供应商` 列。
 - 同一分包按 `供应商 + 分包ID` 合并标注与审核记录。
+- 有效时长仅统计“是否有效”严格等于“有效”的题目时长，不使用 `includes("有效")`，避免“无效”误算。
+- 标注员/审核员解析新增 `dataResultHistory` 兜底：优先 `type===0`，否则取最后一条。
+- `legacy-reference/asr-script.user.js` 仅用于分页、并发、详情补齐、有效时长和 `dataResultHistory` 解析逻辑参考，不恢复 Tampermonkey 架构。
 - 历史根级 `statistics-data/statistics-merged.csv` 仅兼容读取迁移，不再写回。
 - 服务器下载地址需部署最新后端后可用；本地可先用 `127.0.0.1:3333` 验证。
 - 资料与代码均不记录 cookie、token、完整音频 URL、完整签名 URL。
@@ -87,7 +96,7 @@
 - 已补充真实采集网络口径文档：`network.md`。
 - 文档覆盖首页 `tasks/subTasks/tasks/process` 与详情页 `subTask/{id}/data|summary|board|getLabelTaskInfo`。
 - 已明确 `subTaskId` 可能包含换行和空格编码，接口构造前必须先清洗。
-- 已明确页面请求常见 `pageSize=10`，扩展统计上传策略为 `pageSize=100 + 硬上限`。
+- 已明确页面请求常见 `pageSize=10`，扩展统计上传策略改为 `pageSize=5000 + 按 recordCount 分页补齐`。
 - 已新增转写页面结构文档：`page-structure.md`。
 - 2026-05-09 已补充审核首页和审核详情页采集：`missionType=check`、`type=check`、`subTaskType=check`、有效性切换、转写文本自动保存、提交任务和自动领取链路。
 - 已确认当前接口没有独立供应商字段；后续统计只能优先从 `taskName` / `name` 前缀推断，例如 `棋燊`、`希尔贝壳`。

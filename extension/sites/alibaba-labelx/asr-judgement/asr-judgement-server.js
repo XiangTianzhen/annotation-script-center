@@ -5,6 +5,9 @@
   const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const DEFAULT_PAGE_SIZE = 400;
   const DEFAULT_HOME_PAGE_SIZE = 100;
+  const DEFAULT_EXPORT_CONCURRENCY = 5;
+  const MAX_EXPORT_CONCURRENCY = 999;
+  const MAX_HOME_LIST_PAGES = 999;
   const DEFAULT_UPLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/upload";
   const DEFAULT_SERVER_UPLOAD_ENDPOINT =
     "https://script.xiangtianzhen.store" + DEFAULT_UPLOAD_PATH;
@@ -304,7 +307,7 @@
     let page = 1;
     let recordCount = 0;
 
-    while (page <= 50) {
+    while (page <= MAX_HOME_LIST_PAGES) {
       const body = await fetchJson(buildUrl(page, normalizedPageSize), {
         credentials: "include",
         cache: "no-store",
@@ -766,7 +769,11 @@
   async function mapLimit(items, limit, handler) {
     const result = [];
     let cursor = 0;
-    const workers = new Array(Math.max(1, Math.min(limit, items.length || 1)))
+    const normalizedLimit = Math.max(
+      1,
+      Math.min(Math.floor(Number(limit) || DEFAULT_EXPORT_CONCURRENCY), MAX_EXPORT_CONCURRENCY)
+    );
+    const workers = new Array(Math.max(1, Math.min(normalizedLimit, items.length || 1)))
       .fill(null)
       .map(async function () {
         while (cursor < items.length) {
@@ -1138,7 +1145,7 @@
         );
       }
 
-      const payloads = (await mapLimit(subtasks, 3, async function (entry) {
+      const payloads = (await mapLimit(subtasks, DEFAULT_EXPORT_CONCURRENCY, async function (entry) {
         const summary = entry.summary;
         const pageGroup = entry.pageGroup;
         const kind = pageGroup.kind;

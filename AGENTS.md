@@ -396,7 +396,7 @@
 
 ### 13) LabelX 统计供应商分表规则（0.2.11 起）
 
-- ASR 转写与 ASR 快判统计都按“供应商 + 分包ID”合并，避免同分包跨供应商互相覆盖。
+- ASR 转写与 ASR 快判统计内部都按“供应商 + 分包ID”合并，避免同分包跨供应商互相覆盖。
 - 供应商识别优先级：
   1. `payload.supplier.name`
   2. `payload.vendor.name`
@@ -405,8 +405,15 @@
   5. `csvPatch["供应商"]`
   6. `taskName/name` 规则推断（含 `棋燊`、`希尔贝壳`）
   7. `未识别供应商`
-- 不再维护根级总表，不再写入 `statistics-data/statistics-merged.csv`。
-- 统计 CSV 仅写入：
+- 统计 CSV 使用动态供应商列策略：
+  - 单供应商数据集：CSV 不输出“供应商”列。
+  - 多供应商数据集：CSV 在最后一列追加“供应商”列。
+- 不再无条件把“供应商”固定在中间列。
+- ASR 转写统计抓取按 `recordCount` 全量分页，不再固定只抓前 `5` 页、`50` 子任务或 `300` 详情条目。
+- ASR 转写详情抓取默认并发 `5`、并发上限 `999`；详情优先 `pageSize=5000`，不足时继续分页补齐（分页上限 `999`）。
+- 有效时长仅统计“是否有效”严格等于“有效”的题目时长，不使用 `includes("有效")`。
+- `legacy-reference/asr-script.user.js` 仅用于分页/并发/有效时长/`dataResultHistory` 兜底逻辑参考，不恢复 Tampermonkey 架构。
+- 当前实现仍保留按供应商目录保存：
   - `statistics-data/suppliers/<供应商>/statistics-merged.csv`
 - 下载接口必须显式指定 `supplier`；未传时返回 `400` 并提示调用 `.../statistics/suppliers`。
 - 历史根级 `statistics-merged.csv` 仅作为迁移输入读取，不删除、不继续写回。
