@@ -37,7 +37,7 @@
 
     const frame = createNode("div", {
       position: "fixed",
-      top: "88px",
+      top: "68px",
       left: "50%",
       transform: "translateX(-50%)",
       zIndex: "2147483647",
@@ -54,9 +54,9 @@
     const root = createNode("div", {
       display: "flex",
       flexDirection: "column",
-      gap: "8px",
+      gap: "10px",
       width: "100%",
-      padding: "10px 14px",
+      padding: "12px 16px",
       border: "1px solid #bfdbfe",
       borderRadius: "10px",
       background: "#eff6ff",

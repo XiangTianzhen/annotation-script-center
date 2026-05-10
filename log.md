@@ -2,6 +2,9 @@
 
 ## 2026-05-10
 
+- 继续保持 `extension/manifest.json` 版本 `0.2.11`，仅做上传统计进度悬浮窗样式微调（不改统计业务逻辑）。
+- `shared/progress-indicator.js` 悬浮窗位置上移到页面顶部中间附近（`top: 68px`），并增加卡片内边距与间距（`padding: 12px 16px`、`gap: 10px`），提升完成态和进行中态阅读舒适度。
+
 - 保持 `extension/manifest.json` 版本 `0.2.11`，本轮不升级 `0.2.12`。
 - 共享上传进度组件 `extension/shared/progress-indicator.js` 改为“页面顶部居中悬浮窗”显示（`position: fixed`），不再挤占 LabelX 顶部工具栏布局。
 - 进度进行中/完成/失败统一使用同一紧凑卡片布局，完成态不再出现横向铺满的绿色长条。
