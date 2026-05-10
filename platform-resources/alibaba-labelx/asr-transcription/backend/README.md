@@ -5,12 +5,13 @@
 本目录提供 ASR 转写统计上传、合并与 CSV 下载能力，路由由 `platform-resources/backend/server.js` 统一启动注册。
 
 说明：浏览器扩展前端只保留 `extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js` 作为统计上传客户端，不在前端实现 Node 服务或 CSV 落盘。
-当前 `0.2.10` 修复中，前端详情取数优先 `pageSize=100`（带上限）并清洗 `subTaskId` 空白；本后端 CSV 字段与合并规则保持不变。
+当前 `0.2.11` 起，转写统计按“供应商 + 分包ID”合并并按供应商目录落盘；历史根级 CSV 仅作为迁移输入读取，不删除、不继续写回。
 
 ## 默认数据目录
 
 - `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`
-- 默认 CSV：`statistics-merged.csv`
+- 供应商 CSV：`statistics-data/suppliers/<供应商>/statistics-merged.csv`
+- 历史根级 CSV：`statistics-data/statistics-merged.csv`，仅兼容读取迁移，不再写回。
 
 ## 环境变量
 
@@ -24,8 +25,11 @@
 - `GET /api/alibaba-labelx/asr-transcription/statistics/config`
 - `GET /api/alibaba-labelx/asr-transcription/statistics/upload?purpose=schedule`
 - `POST /api/alibaba-labelx/asr-transcription/statistics/upload`
-- `GET /api/alibaba-labelx/asr-transcription/statistics/download`
-- `HEAD /api/alibaba-labelx/asr-transcription/statistics/download`
+- `GET /api/alibaba-labelx/asr-transcription/statistics/suppliers`
+- `GET /api/alibaba-labelx/asr-transcription/statistics/download?supplier=<供应商>`
+- `HEAD /api/alibaba-labelx/asr-transcription/statistics/download?supplier=<供应商>`
+
+下载接口必须显式指定 `supplier`；未传时返回 `400`，并提示先调用 `.../statistics/suppliers` 查询可下载供应商。
 
 兼容短路径：
 
@@ -41,19 +45,27 @@
 
 ## CSV 列顺序
 
+CSV 写出时按当前供应商集合动态决定是否输出“供应商”列：
+
+- 单供应商数据集：不输出“供应商”列。
+- 多供应商数据集：在最后一列追加“供应商”列。
+
+单供应商数据集默认列顺序：
+
 ```
 任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成
 ```
 
 ## 合并规则
 
-1. 以 `分包ID`（`mergeKey.batchId`）合并。
-2. `csvPatch` 只用于基础字段：`任务名称/任务ID/分包ID/题数/有效时长(秒)`。
-3. 后端 `applyBasePatch` 会忽略 `csvPatch` 里所有角色字段（标注/审核字段），避免前端误传污染 CSV。
-4. `role=label` 仅写标注字段；`role=audit` 仅写审核字段，双方互不覆盖。
-5. `roleRecord.role` 必须为 `label` 或 `audit`，缺失/非法会直接拒绝写入并返回错误。
-6. 有提交时间优先判定“已完成”；否则按状态值；无法判断写“未完成”。
-7. `有效时长(秒)` 使用自然小数格式（最多 4 位，去尾零）。
+1. 以“供应商 + 分包ID”（`mergeKey.supplierKey + "::" + mergeKey.batchId`）合并。
+2. 供应商识别优先级：`payload.supplier.name`、`payload.vendor.name`、`payload.supplier`、`payload.vendor`、`csvPatch["供应商"]`、`taskName/name` 规则推断、`未识别供应商`。
+3. `csvPatch` 只用于基础字段：`任务名称/任务ID/分包ID/题数/有效时长(秒)`，可带 `供应商` 作为识别兜底。
+4. 后端 `applyBasePatch` 会忽略 `csvPatch` 里所有角色字段（标注/审核字段），避免前端误传污染 CSV。
+5. `role=label` 仅写标注字段；`role=audit` 仅写审核字段，双方互不覆盖。
+6. `roleRecord.role` 必须为 `label` 或 `audit`，缺失/非法会直接拒绝写入并返回错误。
+7. 有提交时间优先判定“已完成”；否则按状态值；无法判断写“未完成”。
+8. `有效时长(秒)` 使用自然小数格式（最多 4 位，去尾零）。
 
 ## 安全要求
 

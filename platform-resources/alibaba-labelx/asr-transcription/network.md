@@ -4,8 +4,8 @@
 
 - 采集日期：2026-05-08
 - 采集方式：Chrome DevTools / MCP（已登录会话，只读）
-- 首页：`/corpora/labeling/labelingTask?projectId=1023`
-- 详情页：`/corpora/labeling/sdk?...&missionType=label&projectId=1023&subTaskId=17863539...`
+- 首页：`/corpora/labeling/labelingTask?projectId=<REDACTED_PROJECT_ID>`
+- 详情页：`/corpora/labeling/sdk?...&missionType=label&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`
 - 追加采集日期：2026-05-09
 - 追加页面：
   - 审核首页：`/corpora/labeling/checkTask?projectId=<REDACTED_PROJECT_ID>`
@@ -677,9 +677,12 @@
 
 ## 对转写统计取数的约束结论
 
-- 平台页面实测详情请求常见 `pageSize=10`；扩展统计上传策略为降低请求数量，优先使用 `pageSize=100` 抓取。
-- 扩展侧详情抓取硬上限：`maxPages=3`、`maxItems=300`；遇空页、重复页签名、`recordCount` 缺失会提前停止。
-- 首页列表抓取硬上限：`maxPages=5`；详情并发 `2`；单次上传最多处理 `50` 个转写子任务。
+- 平台页面实测详情请求常见 `pageSize=10`；扩展统计上传为降低请求数量，优先使用 `pageSize=5000` 请求详情第一页。
+- 首页列表与详情列表都按 `recordCount` 计算总页数，不再固定只抓前 `5` 页、`50` 子任务或 `300` 详情条目。
+- 详情接口若 `recordCount > 5000`，继续分页补齐。
+- 首页分页上限 `999` 页；详情分页上限 `999` 页，超限时明确告警并截断，不静默漏数。
+- 详情抓取默认并发 `5`，并发硬上限 `999`，根据任务数量动态收敛。
+- 遇空页、重复页签名或 `recordCount` 缺失时，会按运行态保护提前停止或告警。
 - 上传运行态带全局锁：`upload-in-progress` 时跳过重复触发，避免手动连点和定时任务并发。
 - `subTaskId` 必须先 `decode` 再清洗空白字符：
   - 普通空格、Tab、换行、回车、全角空格。
@@ -707,10 +710,13 @@
 
 推荐后续供应商识别优先级：
 
-1. `payload.supplier` / `payload.vendor`
-2. `csvPatch["供应商"]`
-3. `taskName` / `name` 前缀规则推断
-4. `未识别供应商`
+1. `payload.supplier.name`
+2. `payload.vendor.name`
+3. `payload.supplier`
+4. `payload.vendor`
+5. `csvPatch["供应商"]`
+6. `taskName` / `name` 前缀规则推断
+7. `未识别供应商`
 
 ## 待补采（下一轮可选）
 

@@ -529,10 +529,13 @@
 
 后续实现建议的供应商优先级：
 
-1. `payload.supplier` / `payload.vendor`
-2. `csvPatch["供应商"]`
-3. `taskName` / `name` 前缀规则推断
-4. `未识别供应商`
+1. `payload.supplier.name`
+2. `payload.vendor.name`
+3. `payload.supplier`
+4. `payload.vendor`
+5. `csvPatch["供应商"]`
+6. `taskName` / `name` 前缀规则推断
+7. `未识别供应商`
 
 ## 待补采
 
