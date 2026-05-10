@@ -461,3 +461,5 @@
 - 未解锁前 `home-endpoint-status` 不再显示“当前已选择：服务器（script.xiangtianzhen.store）...”文案；仅在解锁后显示当前后端选择状态。
 - 点击绑定仍只挂在“后端接口地址”标题节点，不绑定整个卡片；鼠标样式保持默认（非 pointer）。
 - 页面刷新后解锁状态不持久化，符合“每次进入 options 重新隐藏”的测试口径。
+- 0.3.0 测试版 service worker 路径修复：`extension/background/service-worker.js` 的 `importScripts` 改为 `chrome.runtime.getURL("shared/constants.js")` 与 `chrome.runtime.getURL("shared/storage.js")`，避免被解析为错误的 `background/shared/*` 路径。
+- 修复后 service worker 将从扩展根目录加载共享模块，解决 `Failed to execute 'importScripts' ... background/shared/constants.js failed to load` 与注册失败 `Status code: 15` 问题。

@@ -1,4 +1,6 @@
-importScripts("shared/constants.js", "shared/storage.js");
+const sharedConstantsUrl = chrome.runtime.getURL("shared/constants.js");
+const sharedStorageUrl = chrome.runtime.getURL("shared/storage.js");
+importScripts(sharedConstantsUrl, sharedStorageUrl);
 
 const constants = globalThis.ASREdgeConstants;
 const storage = globalThis.ASREdgeStorage;
