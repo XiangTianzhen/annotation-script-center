@@ -2,6 +2,11 @@
 
 ## 2026-05-10
 
+- 0.3.0 测试版 BUG 修复：修复 `extension/background/service-worker.js` 的 `importScripts` 路径，改为 MV3 service worker 可加载的根相对路径 `shared/constants.js`、`shared/storage.js`，避免扩展后台报 `Failed to execute 'importScripts' ... constants.js failed to load`。
+- 0.3.0 隐藏入口逻辑修正：options 首页不再“点击 1 次显示切换”，改为连续点击“后端接口地址”文案 10 次后，同时显示“服务器/本机”切换按钮与“项目数据下载”面板。
+- 0.3.0 默认后端模式修正：options 初始化阶段将 `meta.backendEndpointMode` 归一到 `server`，确保隐藏入口未解锁时默认仍为服务器口径。
+- 文档补充：在 `README.md` 与 `platform-resources/backend/README.md` 新增“项目数据下载密码配置教程”，覆盖 PowerShell 生成 SHA256、Windows 临时/持久化、Linux/PM2、`project-data-download-auth-not-configured` 排查和安全注意事项。
+
 - 扩展版本升级：`extension/manifest.json` 从 `0.2.11` 升级到 `0.3.0`，用于交付“项目数据下载鉴权与供应商筛选下载”第一轮能力。
 - options 首页改造：
   - “后端接口地址”默认仅显示文案，点击一次文案后才显示“服务器 / 本机”切换按钮；

@@ -1,4 +1,4 @@
-importScripts("../shared/constants.js", "../shared/storage.js");
+importScripts("shared/constants.js", "shared/storage.js");
 
 const constants = globalThis.ASREdgeConstants;
 const storage = globalThis.ASREdgeStorage;

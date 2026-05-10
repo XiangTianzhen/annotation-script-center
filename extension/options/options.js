@@ -130,7 +130,6 @@
   let dataBakerShortcutsDraft = {};
   let dataBakerRecordingKey = null;
   let stopDataBakerRecordingListeners = null;
-  let homeEndpointControlRevealed = false;
   let projectDataDownloadRevealCount = 0;
   let projectDataDownloadPanelUnlocked = false;
   let projectDataDownloadDatasets = [];
@@ -1573,15 +1572,15 @@
     localButton.setAttribute("aria-pressed", String(isLocal));
     const toggleNode = getElement("home-endpoint-toggle");
     if (toggleNode) {
-      toggleNode.classList.toggle("hidden", homeEndpointControlRevealed !== true);
+      toggleNode.classList.toggle("hidden", projectDataDownloadPanelUnlocked !== true);
     }
 
     if (statusNode) {
       statusNode.textContent = [
         "当前已选择：" + (isLocal ? "本机（127.0.0.1:3333）" : "服务器（script.xiangtianzhen.store）"),
-        homeEndpointControlRevealed
+        projectDataDownloadPanelUnlocked
           ? "该设置统一控制 ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。"
-          : "点击“后端接口地址”文案可展开服务器/本机切换。",
+          : "连续点击“后端接口地址”文案 10 次后可显示切换与项目数据下载。",
       ].join(" ");
     }
   }
@@ -1795,15 +1794,6 @@
     }
   }
 
-  function showHomeEndpointControls() {
-    homeEndpointControlRevealed = true;
-    const toggleNode = getElement("home-endpoint-toggle");
-    if (toggleNode) {
-      toggleNode.classList.remove("hidden");
-    }
-    renderHomeBackendEndpoint(currentSettings || {});
-  }
-
   function unlockProjectDataDownloadPanel() {
     if (projectDataDownloadPanelUnlocked) {
       return;
@@ -1815,6 +1805,21 @@
     }
     setProjectDataDownloadStatus("项目数据下载已解锁，正在拉取可下载类型...");
     void loadProjectDataDownloadOptions();
+  }
+
+  async function ensureBackendModeServerOnInit() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      return;
+    }
+    const mode = getBackendModeFromSettings(currentSettings || {});
+    if (mode === backendModeServer) {
+      return;
+    }
+    currentSettings = await storage.patchSettings({
+      meta: {
+        backendEndpointMode: backendModeServer,
+      },
+    });
   }
 
   function renderProjectDataDownloadPanel(settings) {
@@ -2240,14 +2245,13 @@
     const homeEndpointTitle = getElement("home-endpoint-title");
     if (homeEndpointTitle) {
       homeEndpointTitle.addEventListener("click", function () {
-        showHomeEndpointControls();
         projectDataDownloadRevealCount += 1;
         if (projectDataDownloadRevealCount >= 10) {
           unlockProjectDataDownloadPanel();
           return;
         }
         setProjectDataDownloadStatus(
-          "继续点击“后端接口地址”文案可解锁项目数据下载（" +
+          "继续点击“后端接口地址”文案可解锁切换与项目数据下载（" +
             String(projectDataDownloadRevealCount) +
             "/10）。"
         );
@@ -2317,6 +2321,7 @@
 
     try {
       await loadSettings();
+      await ensureBackendModeServerOnInit();
       await renderCurrentView();
     } catch (error) {
       showError(error && error.message ? error.message : String(error));

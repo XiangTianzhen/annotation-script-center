@@ -255,6 +255,62 @@ node platform-resources\backend\server.js
 http://127.0.0.1:3333
 ```
 
+## 项目数据下载密码配置
+
+项目数据下载不会在代码中保存明文密码。后端只读取密码 SHA256 和 JWT 签名密钥。
+
+主推环境变量：
+- `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`
+- `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`
+
+兼容旧变量（不推荐新配置继续使用）：
+- `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`
+- `ASC_DATA_DOWNLOAD_JWT_SECRET`
+
+生成密码 SHA256（PowerShell）：
+
+```powershell
+node -e "const crypto=require('crypto'); console.log(crypto.createHash('sha256').update(process.argv[1]).digest('hex'))" "你的下载密码"
+```
+
+本地临时运行（当前终端会话）：
+
+```powershell
+$env:ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256="上一步生成的hash"
+$env:ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET="一段足够长的随机字符串"
+node platform-resources\backend\server.js
+```
+
+Windows 用户级持久化：
+
+```powershell
+[Environment]::SetEnvironmentVariable("ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256", "上一步生成的hash", "User")
+[Environment]::SetEnvironmentVariable("ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET", "一段足够长的随机字符串", "User")
+```
+
+设置后请关闭并重新打开 PowerShell，再启动后端。
+
+Linux / 服务器（可写入私有 `config/env/ai.env`）：
+
+```bash
+ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256=上一步生成的hash
+ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET=一段足够长的随机字符串
+```
+
+PM2 重启：
+
+```bash
+pm2 restart annotation-script-center --update-env
+```
+
+若接口返回 `project-data-download-auth-not-configured`，表示环境变量未配置，或已配置但当前后端进程尚未读取（通常是未重启进程）。
+
+安全注意：
+- 不要把真实密码、真实 hash、真实 JWT secret 写入 README 或提交到 GitHub。
+- 下载密码只通过 `POST` body 传给后端校验，不允许放到 URL query。
+- 审计日志只记录获取人姓名、IP、数据类型、供应商、时间和 UA，不记录密码和完整 token。
+- `config/env/ai.env` 已被 `.gitignore` 忽略，可用于服务器私有配置。
+
 当前快判统计接口：
 
 - 上传：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload`

@@ -46,6 +46,59 @@ http://127.0.0.1:3333
 - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`：项目数据下载密码的 SHA256（兼容旧 `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`）。
 - `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`：项目数据下载 token 签名密钥（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）。
 
+## 项目数据下载密码配置教程
+
+项目数据下载不保存明文密码。后端仅校验 SHA256，并使用 JWT Secret 生成短期下载 token。
+
+主推变量：
+- `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`
+- `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`
+
+兼容旧变量：
+- `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`
+- `ASC_DATA_DOWNLOAD_JWT_SECRET`
+
+生成 SHA256（PowerShell）：
+
+```powershell
+node -e "const crypto=require('crypto'); console.log(crypto.createHash('sha256').update(process.argv[1]).digest('hex'))" "你的下载密码"
+```
+
+本地临时运行：
+
+```powershell
+$env:ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256="上一步生成的hash"
+$env:ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET="一段足够长的随机字符串"
+node platform-resources\backend\server.js
+```
+
+Windows 用户级持久化：
+
+```powershell
+[Environment]::SetEnvironmentVariable("ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256", "上一步生成的hash", "User")
+[Environment]::SetEnvironmentVariable("ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET", "一段足够长的随机字符串", "User")
+```
+
+Linux / 服务器（可写入私有 `config/env/ai.env`）：
+
+```bash
+ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256=上一步生成的hash
+ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET=一段足够长的随机字符串
+```
+
+PM2 更新环境并重启：
+
+```bash
+pm2 restart annotation-script-center --update-env
+```
+
+如果接口返回 `project-data-download-auth-not-configured`，说明环境变量缺失或当前进程未读取到，需检查配置并重启后端。
+
+安全要求：
+- 禁止把真实密码、真实 hash、JWT secret 提交到仓库。
+- 下载密码只允许在 `POST /api/admin/project-data-download/request` 的 body 中传输，不允许放 query。
+- 审计日志只记录必要追踪字段，不记录密码和完整 token。
+
 ## 文件职责
 
 - `server.js`：统一启动入口。
