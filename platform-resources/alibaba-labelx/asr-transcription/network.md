@@ -434,6 +434,67 @@
   - 普通 `提交任务` 在自动领取开启时会触发 `check/fetch`。
   - `提交并结束` 只提交并返回首页，不自动领取下一包。
 
+## 审核详情页驳回
+
+页面：`/corpora/labeling/sdk?missionType=check&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`
+
+### 弹窗结构
+
+- 入口：顶部工具栏 `驳 回` 按钮。
+- 弹窗标题：`驳回至上个环节`。
+- 字段：
+  - `驳回理由`
+  - 必填 textarea
+  - 字数计数，例如 `0 / 500`
+- 按钮：
+  - `取 消`
+  - `确 定`
+
+### 驳回请求
+
+- 操作：填写驳回理由后点击 `确 定`。
+- Method：`POST`
+- Path：`/api/v1/label/center/subTask/{subTaskId}/reject`
+- Request body：
+  - `subTaskId`
+  - `rejectReason`
+  - `type`
+  - `userIdList`
+- 本轮字段类型：
+  - `subTaskId`：string
+  - `rejectReason`：string
+  - `type`：string
+  - `userIdList`：array
+- Response：
+  - HTTP status `200`
+  - `code=0`
+  - `success=true`
+  - `data=true`
+- Response 字段树：
+  - `code`
+  - `message`
+  - `log`
+  - `data`
+  - `traceId`
+  - `traceSql`
+  - `extraInfo`
+  - `cost`
+  - `success`
+- 页面行为：
+  - 弹出成功提示：`驳回成功！跳转回标注中心`。
+  - 随后跳转审核首页 `/corpora/labeling/checkTask?projectId=<REDACTED_PROJECT_ID>`。
+  - 首页重新请求：
+    - `GET /api/v1/label/surveyResults`
+    - `GET /api/v1/label/center/tasks?subTaskType=check`
+    - `GET /api/v1/label/center/subTasks?type=check`
+    - `GET /api/v1/label/center/tasks/process?subTaskType=check`
+
+### 安全记录要求
+
+- 不记录真实驳回理由全文。
+- 不记录完整子任务 ID。
+- 不记录请求头、cookie、authorization 或 token。
+
 ## 审核详情页分页与筛选
 
 本轮补采页面为转写审核详情页，`missionType=check`、`labelModel=single`、`size=50`。
@@ -599,4 +660,3 @@
 
 - 不同 `missionType`（`label/audit/review`）在详情页的数据字段差异。
 - 扩展加载后的转写工具栏 DOM、按钮与快捷键行为。
-- 驳回数据请求链路，等待用户切换到可操作账号后采集。

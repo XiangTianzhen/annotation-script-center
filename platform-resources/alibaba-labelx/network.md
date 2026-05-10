@@ -356,6 +356,45 @@
   - 首页重拉 `subTasks?type=check`、`tasks?subTaskType=check`、`tasks/process?subTaskType=check`。
   - 未触发 `/api/v1/label/center/{taskId}/check/fetch`，即不会自动领取下一包。
 
+### 4. 审核驳回至上个环节
+
+- 页面：`/corpora/labeling/sdk?missionType=check&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`
+- 入口：详情页顶部 `驳 回` 按钮。
+- 弹窗标题：`驳回至上个环节`。
+- 弹窗字段：
+  - `驳回理由`，必填 textarea，计数上限 `500`。
+- 弹窗按钮：
+  - `取 消`
+  - `确 定`
+- Method：`POST`
+- Path：`/api/v1/label/center/subTask/{subTaskId}/reject`
+- Request body：
+  - `subTaskId`
+  - `rejectReason`
+  - `type`
+  - `userIdList`
+- 本轮字段类型：
+  - `subTaskId`：string
+  - `rejectReason`：string
+  - `type`：string
+  - `userIdList`：array
+- Response 字段树：
+  - `code`
+  - `message`
+  - `log`
+  - `data`
+  - `traceId`
+  - `traceSql`
+  - `extraInfo`
+  - `cost`
+  - `success`
+- 本轮观察：
+  - HTTP status `200`。
+  - 业务 `code=0`、`success=true`、`data=true`。
+  - 页面提示 `驳回成功！跳转回标注中心`。
+  - 随后返回审核首页 `/corpora/labeling/checkTask?projectId=<REDACTED_PROJECT_ID>`。
+  - 返回首页后重拉 `surveyResults`、`tasks?subTaskType=check`、`subTasks?type=check`、`tasks/process?subTaskType=check`。
+
 ## 详情页分页、每页条数和筛选
 
 以下行为在转写审核详情页实测，接口路径和 query 结构属于 LabelX 详情页通用形态。
