@@ -2,6 +2,26 @@
 
 ## 2026-05-10
 
+- 扩展版本升级：`extension/manifest.json` 从 `0.2.11` 升级到 `0.3.0`，用于交付“项目数据下载鉴权与供应商筛选下载”第一轮能力。
+- options 首页改造：
+  - “后端接口地址”默认仅显示文案，点击一次文案后才显示“服务器 / 本机”切换按钮；
+  - 连续点击同一文案 10 次后，解锁隐藏面板“项目数据下载”；
+  - 新增获取人姓名、数据类型、供应商条件渲染、导出按钮和状态提示；
+  - 获取人姓名可保存，下载密码仅在请求体使用，不保存到 storage。
+- 统一后端新增聚合下载模块：`platform-resources/backend/project-data-download/`
+  - 新增接口：`/api/admin/project-data-download/options`、`/request`、`/file`（GET/HEAD）；
+  - 使用环境变量 SHA256 密码校验 + 内置 `crypto` HMAC 短期 token（120 秒）；
+  - 三类数据集统一下载：ASR 快判统计、ASR 转写统计、标贝易采导出 latest；
+  - 多供应商 CSV 强制先选供应商，服务端筛选后输出 UTF-8 with BOM；
+  - 下载流程新增审计日志（IP、获取人、数据类型、供应商、状态、时间、UA 等），不记录 password/token 全文/cookie/authorization。
+- 后端接入与规范：
+  - `platform-resources/backend/registry.js` 注册 `project-data-download`；
+  - `platform-resources/backend/server.js` 启动日志新增三条项目数据下载接口提示；
+  - `.gitignore` 新增 `platform-resources/backend/project-data-download/audit-data/`，避免提交运行审计数据。
+- 文档同步：
+  - 更新 `README.md`、`extension/README.md`、`platform-resources/backend/README.md`、`platform-resources/data-baker/round-one-quality/README.md`；
+  - 第二轮“自动更新扩展”仅沉淀方案：明确采用 `XiangTianzhen/ops_monitor` 本地 exe 路线，本轮不实现跨仓代码。
+
 - 文档同步：全仓 README 与 `AGENTS.md` 稳定规则对齐。重点修正转写/快判 backend README 中“supplier 必传下载”和“suppliers 目录主写入”旧口径，统一为根级总表 `statistics-data/statistics-merged.csv` 主存储、`/statistics/download` 默认总表下载。
 - 文档同步：修正 README 中旧“jitter 10 分钟”与并发上限 `500` 口径，统一为定时上传前随机延迟 `0~300` 秒（`100ms` 步进，手动上传不延迟）与动态并发上限 `999`。
 - 本轮仅修改 Markdown 文档（README/log），未修改 JS/manifest，未升级版本，未打包 dist。

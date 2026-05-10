@@ -8,8 +8,57 @@
 - 当前重点平台：`Alibaba LabelX`、`标贝易采`
 - 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/alibaba-labelx/asr-transcription/`、`extension/sites/data-baker/round-one-quality/`
 - 当前后端入口：`platform-resources/backend/server.js`
-- 当前扩展版本：`0.2.11`
-- 当前处于 `0.2.11` 修正增强阶段，本轮保持 `0.2.11`，不升级 `0.2.12`。
+- 当前扩展版本：`0.3.0`
+- 当前处于“项目数据下载鉴权与供应商筛选下载”阶段，第二轮自动更新方案仅做文档设计。
+
+## 0.3.0 第一轮能力（已实现）
+
+- options 首页“后端接口地址”改为隐藏交互：
+  - 默认只显示文案，不显示“服务器 / 本机”切换按钮。
+  - 点击一次“后端接口地址”文案后才显示“服务器 / 本机”切换按钮。
+  - 连续点击同一文案 10 次后，解锁“项目数据下载”隐藏面板。
+- “项目数据下载”面板字段：
+  - 获取人姓名（可保存到 `chrome.storage` 对应 settings）。
+  - 数据类型下拉。
+  - 多供应商时显示供应商下拉。
+  - 导出按钮与状态提示。
+- 下载流程：
+  - 前端点击导出后弹窗输入密码（密码不保存）。
+  - 前端 `POST /api/admin/project-data-download/request`（密码只在 body，不走 query）。
+  - 后端校验密码后返回 120 秒短期 token 下载链接。
+  - 前端打开 `GET /api/admin/project-data-download/file?token=...` 触发下载。
+- 新增统一后端聚合下载模块（不归属单平台）：
+  - 目录：`platform-resources/backend/project-data-download/`
+  - 路由：
+    - `GET /api/admin/project-data-download/options`
+    - `POST /api/admin/project-data-download/request`
+    - `GET /api/admin/project-data-download/file?token=...`
+    - `HEAD /api/admin/project-data-download/file?token=...`
+- 鉴权与 token：
+  - 密码哈希环境变量：`ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`（兼容旧 `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`）。
+  - JWT 密钥环境变量：`ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）。
+  - token 使用 Node 内置 `crypto` HMAC 签名，默认有效期 120 秒。
+- CSV 下载策略：
+  - 数据源来自现有总表：快判 `statistics-merged.csv`、转写 `statistics-merged.csv`、标贝 `export-data/latest.csv`。
+  - 若 CSV 有“供应商”列且供应商数量大于 1，必须先选供应商。
+  - 服务端按供应商筛选并返回 UTF-8 with BOM CSV。
+  - 不暴露真实文件路径；CSV 输出会做敏感字段清洗。
+- 审计日志：
+  - 目录：`platform-resources/backend/project-data-download/audit-data/`
+  - 记录请求/下载成功失败、IP、获取人、数据类型、供应商、UA、时间等。
+  - 不记录 password、token 全文、cookie、authorization。
+
+## 第二轮方案（仅文档，不在本轮实现）
+
+- 自动更新扩展路线明确使用 `XiangTianzhen/ops_monitor` 本地 Python 打包 exe。
+- 规划在 `ops_monitor` 新增 `annotation-script-center` 更新模块，扩展本体不直接替换本地文件。
+- 预期流程：
+  1. 检测版本；
+  2. 下载扩展 zip；
+  3. 校验 sha256；
+  4. 解压覆盖本地 `extension/`；
+  5. 提示或触发刷新扩展页面。
+- Chrome/Edge 商店版仍走官方审核发布，不作为内部快速迭代主路径。
 
 ## 0.2.11 修正要点（LabelX 统计总表 + 动态供应商列）
 

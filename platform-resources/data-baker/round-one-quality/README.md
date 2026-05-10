@@ -22,13 +22,15 @@ extension/sites/data-baker/round-one-quality/
 
 - options 首页展示 `标贝易采` 平台区域和 `标贝易采一检质检` 脚本卡片。
 - 脚本可在卡片中启停，默认启用，便于上线验证。
-- 专属设置页可配置 后端接口地址、请求超时时间和 AI 推荐开关。
+- 后端接口地址统一由 options 首页顶部“后端接口地址”控制；专属设置页不再提供独立后端地址。
+- 专属设置页可配置请求超时时间和 AI 推荐开关。
 - 专属设置页新增自动每页条数，默认启用并设置为 `50条/页`，只点击页面原生分页控件。
 - 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
 - 默认推荐接口走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
 - 本机接口 `http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend` 仅用于开发调试。
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
+- 该平台导出的 `latest.csv` 已纳入统一“项目数据下载”聚合接口数据集，可按供应商规则筛选下载（若 CSV 存在多供应商）。
 
 ## 当前资料
 

@@ -62,6 +62,11 @@
         font-size: 16px;
       }
 
+      #home-endpoint-card,
+      #home-endpoint-title {
+        cursor: default;
+      }
+
       .segmented-control {
         display: inline-flex;
         align-items: center;
@@ -341,6 +346,22 @@
         background: #ffffff;
       }
 
+      .project-download-row {
+        display: grid;
+        gap: 8px;
+      }
+
+      .project-download-row input[type="text"],
+      .project-download-row select {
+        width: 100%;
+        max-width: 360px;
+        padding: 9px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        font: inherit;
+        background: #ffffff;
+      }
+
       .field-toggle {
         display: inline-flex;
         align-items: center;
@@ -477,13 +498,36 @@
           </div>
         </div>
         <div class="home-endpoint-card" id="home-endpoint-card">
-          <strong>后端接口地址</strong>
-          <div class="segmented-control" role="group" aria-label="后端接口地址">
+          <strong id="home-endpoint-title">后端接口地址</strong>
+          <div id="home-endpoint-toggle" class="segmented-control hidden" role="group" aria-label="后端接口地址">
             <button id="home-endpoint-server" class="segmented-button" type="button">服务器</button>
             <button id="home-endpoint-local" class="segmented-button" type="button">本机</button>
           </div>
           <span>该设置统一控制所有脚本的后端请求：ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。各脚本详情页不再单独设置后端地址。</span>
           <div id="home-endpoint-status" class="status-text"></div>
+        </div>
+        <div id="project-data-download-panel" class="home-endpoint-card hidden">
+          <strong>项目数据下载</strong>
+          <div class="project-download-row">
+            <span>获取人姓名</span>
+            <input id="project-download-operator" type="text" maxlength="60" placeholder="请输入获取人姓名" />
+          </div>
+          <div class="project-download-row">
+            <span>数据类型</span>
+            <select id="project-download-dataset">
+              <option value="">请选择数据类型</option>
+            </select>
+          </div>
+          <div id="project-download-supplier-row" class="project-download-row hidden">
+            <span>供应商</span>
+            <select id="project-download-supplier">
+              <option value="">请选择供应商</option>
+            </select>
+          </div>
+          <div class="field-actions">
+            <button id="project-download-export" class="primary-button" type="button">导出</button>
+          </div>
+          <div id="project-download-status" class="status-text"></div>
         </div>
       </section>
 

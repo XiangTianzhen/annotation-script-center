@@ -43,6 +43,8 @@ http://127.0.0.1:3333
 - `DATABAKER_ROUND_ONE_EXPORT_DIR`：标贝易采导出 CSV 保存目录（默认 `platform-resources/data-baker/round-one-quality/backend/export-data/`）。
 - `DATABAKER_ROUND_ONE_EXPORT_HISTORY`：设为 `1` 时保存历史导出 CSV。
 - `DATABAKER_ROUND_ONE_EXPORT_EVENTS`：设为 `1` 时写入导出上传事件日志 JSONL。
+- `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`：项目数据下载密码的 SHA256（兼容旧 `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`）。
+- `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`：项目数据下载 token 签名密钥（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）。
 
 ## 文件职责
 
@@ -53,12 +55,21 @@ http://127.0.0.1:3333
 - `registry.js`：显式注册启用哪些平台 / 项目 API。
 - `response.js`：JSON 响应、空响应和 CORS header。
 - `config.js`：统一后端 host / port 配置。
+- `project-data-download/`：统一“项目数据下载”聚合模块（options/request/file、token、审计、CSV 筛选）。
 
 ## 当前已注册 API
 
 - `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载，以及 AI 建议 `health/suggest` 接口。
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出）。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口。
+- `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
+
+项目数据下载接口：
+- `GET /api/admin/project-data-download/options`
+- `POST /api/admin/project-data-download/request`
+- `GET /api/admin/project-data-download/file?token=...`
+- `HEAD /api/admin/project-data-download/file?token=...`
+- 审计目录：`platform-resources/backend/project-data-download/audit-data/`（运行数据，不提交 git）
 
 ASR 转写职责边界：
 - 扩展前端客户端：`extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只负责采集、上传、按钮和调度。

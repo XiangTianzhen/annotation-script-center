@@ -13,10 +13,17 @@
 - 浏览器差异优先放到 manifest、浏览器 API 兼容层、打包配置或发布说明里处理。
 - 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
 - 修复当前待验证版本 BUG 时，可保持 `manifest.version` 不变，不因同一版本的连续修复重复升 patch。
-- 当前处于 `0.2.11` 修正增强阶段：保持 `manifest.version = 0.2.11`，修正 LabelX 统计导出策略与抓取完整性。
-- 当前测试打包文件应为 `dist/annotation-script-center-v0.2.11.zip`。
+- 当前版本为 `0.3.0`，包含“项目数据下载”隐藏入口、后端密码校验、短期下载链接和审计日志能力。
+- 当前测试打包文件应为 `dist/annotation-script-center-v0.3.0.zip`。
 - 打包发布时，压缩包根目录必须直接包含 `manifest.json`、`background/`、`options/`、`popup/`、`shared/` 和 `sites/`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
+
+## Options 首页下载入口规则
+
+- “后端接口地址”在 options 首页默认只显示文案，不直接显示“服务器 / 本机”切换按钮。
+- 点击一次“后端接口地址”文案后，才显示“服务器 / 本机”切换按钮。
+- 连续点击同一文案 10 次后，解锁“项目数据下载”隐藏面板。
+- “项目数据下载”只保存“获取人姓名”；下载密码只在请求体中使用，不写入存储。
 
 ## 当前站点脚本
 

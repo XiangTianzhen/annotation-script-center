@@ -39,6 +39,10 @@
           const normalizedPath = String(path || "").charAt(0) === "/" ? String(path || "") : "/" + String(path || "");
           return baseUrl + normalizedPath;
         };
+  const projectDataDownloadOptionsPath =
+    constants.PROJECT_DATA_DOWNLOAD_OPTIONS_PATH || "/api/admin/project-data-download/options";
+  const projectDataDownloadRequestPath =
+    constants.PROJECT_DATA_DOWNLOAD_REQUEST_PATH || "/api/admin/project-data-download/request";
   const dataBakerPageSizeOptions = (
     Array.isArray(constants.DATABAKER_PAGE_SIZE_OPTIONS)
       ? constants.DATABAKER_PAGE_SIZE_OPTIONS
@@ -126,6 +130,10 @@
   let dataBakerShortcutsDraft = {};
   let dataBakerRecordingKey = null;
   let stopDataBakerRecordingListeners = null;
+  let homeEndpointControlRevealed = false;
+  let projectDataDownloadRevealCount = 0;
+  let projectDataDownloadPanelUnlocked = false;
+  let projectDataDownloadDatasets = [];
 
   function getElement(id) {
     return document.getElementById(id);
@@ -1563,11 +1571,17 @@
     localButton.classList.toggle("active", isLocal);
     serverButton.setAttribute("aria-pressed", String(!isLocal));
     localButton.setAttribute("aria-pressed", String(isLocal));
+    const toggleNode = getElement("home-endpoint-toggle");
+    if (toggleNode) {
+      toggleNode.classList.toggle("hidden", homeEndpointControlRevealed !== true);
+    }
 
     if (statusNode) {
       statusNode.textContent = [
         "当前已选择：" + (isLocal ? "本机（127.0.0.1:3333）" : "服务器（script.xiangtianzhen.store）"),
-        "该设置统一控制 ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。",
+        homeEndpointControlRevealed
+          ? "该设置统一控制 ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。"
+          : "点击“后端接口地址”文案可展开服务器/本机切换。",
       ].join(" ");
     }
   }
@@ -1599,11 +1613,312 @@
         statusNode.textContent =
           "后端接口地址已保存为" + (normalizedMode === backendModeLocal ? "本机" : "服务器") + "。";
       }
+      if (projectDataDownloadPanelUnlocked) {
+        void loadProjectDataDownloadOptions();
+      }
     } catch (error) {
       if (statusNode) {
         statusNode.textContent =
           "保存失败：" + (error && error.message ? error.message : String(error));
       }
+    }
+  }
+
+  function parseJsonSafely(text) {
+    try {
+      return JSON.parse(String(text || "{}"));
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function normalizeText(value) {
+    return String(value === undefined || value === null ? "" : value).trim();
+  }
+
+  function getProjectDataDownloadDatasetById(datasetId) {
+    const targetId = normalizeText(datasetId);
+    if (!targetId) {
+      return null;
+    }
+    for (let index = 0; index < projectDataDownloadDatasets.length; index += 1) {
+      const item = projectDataDownloadDatasets[index] || {};
+      if (normalizeText(item.id) === targetId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  function setProjectDataDownloadStatus(text) {
+    const node = getElement("project-download-status");
+    if (node) {
+      node.textContent = String(text || "");
+    }
+  }
+
+  function updateProjectDataDownloadSupplierVisibility() {
+    const datasetSelect = getElement("project-download-dataset");
+    const supplierRow = getElement("project-download-supplier-row");
+    const supplierSelect = getElement("project-download-supplier");
+    if (
+      !(datasetSelect instanceof HTMLSelectElement) ||
+      !(supplierRow instanceof HTMLElement) ||
+      !(supplierSelect instanceof HTMLSelectElement)
+    ) {
+      return;
+    }
+
+    const selectedDataset = getProjectDataDownloadDatasetById(datasetSelect.value);
+    const suppliers = Array.isArray(selectedDataset?.suppliers) ? selectedDataset.suppliers : [];
+    const needSupplier = Boolean(selectedDataset?.supplierRequired);
+
+    supplierSelect.innerHTML = ['<option value="">请选择供应商</option>']
+      .concat(
+        suppliers.map(function (supplier) {
+          const text = escapeHtml(supplier);
+          return '<option value="' + text + '">' + text + "</option>";
+        })
+      )
+      .join("");
+    supplierRow.classList.toggle("hidden", !needSupplier);
+    if (!needSupplier) {
+      supplierSelect.value = "";
+    }
+  }
+
+  function renderProjectDataDownloadDatasets(datasets) {
+    const datasetSelect = getElement("project-download-dataset");
+    if (!(datasetSelect instanceof HTMLSelectElement)) {
+      return;
+    }
+    projectDataDownloadDatasets = Array.isArray(datasets) ? clone(datasets) : [];
+    datasetSelect.innerHTML = ['<option value="">请选择数据类型</option>']
+      .concat(
+        projectDataDownloadDatasets.map(function (item) {
+          const id = escapeHtml(item.id || "");
+          const label = escapeHtml(item.label || item.id || "");
+          return '<option value="' + id + '">' + label + "</option>";
+        })
+      )
+      .join("");
+    updateProjectDataDownloadSupplierVisibility();
+  }
+
+  function getProjectDataDownloadOperatorName(settings) {
+    const name = settings?.meta?.projectDataDownloadOperatorName;
+    return normalizeText(name);
+  }
+
+  async function persistProjectDataDownloadOperatorName(operatorName) {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      return;
+    }
+    const normalizedName = normalizeText(operatorName);
+    const currentName = getProjectDataDownloadOperatorName(currentSettings || {});
+    if (normalizedName === currentName) {
+      return;
+    }
+    currentSettings = await storage.patchSettings({
+      meta: {
+        projectDataDownloadOperatorName: normalizedName,
+      },
+    });
+  }
+
+  function getProjectDataDownloadClientInfo() {
+    const screenText =
+      globalThis.screen && Number(screen.width) > 0 && Number(screen.height) > 0
+        ? String(screen.width) + "x" + String(screen.height)
+        : "";
+    return {
+      userAgent: normalizeText(globalThis.navigator?.userAgent || ""),
+      platform: normalizeText(globalThis.navigator?.platform || ""),
+      language: normalizeText(globalThis.navigator?.language || ""),
+      screen: screenText,
+    };
+  }
+
+  function getProjectDataDownloadErrorMessage(body, statusCode) {
+    const message = normalizeText(body?.message || "");
+    const code = normalizeText(body?.code || "");
+    if (code === "project-data-download-auth-not-configured") {
+      return "后端未配置项目数据下载鉴权环境变量。";
+    }
+    if (code === "project-data-download-password-invalid") {
+      return "下载密码错误，请重试。";
+    }
+    if (code === "project-data-download-supplier-required") {
+      return "当前数据包含多个供应商，请先选择供应商。";
+    }
+    if (code === "project-data-download-csv-not-found") {
+      return "当前数据文件不存在，请先生成数据后再下载。";
+    }
+    if (code === "project-data-download-token-invalid") {
+      return "下载链接无效或已过期，请重新申请。";
+    }
+    if (message) {
+      return message;
+    }
+    if (Number(statusCode) >= 500) {
+      return "后端服务异常，请稍后重试。";
+    }
+    return "请求失败，请稍后重试。";
+  }
+
+  async function loadProjectDataDownloadOptions() {
+    if (!projectDataDownloadPanelUnlocked) {
+      return;
+    }
+    setProjectDataDownloadStatus("正在加载可下载数据类型...");
+    const url = buildBackendUrl(projectDataDownloadOptionsPath, currentSettings || {});
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        cache: "no-store",
+      });
+      const body = parseJsonSafely(await response.text());
+      if (!response.ok || body?.success !== true) {
+        setProjectDataDownloadStatus(getProjectDataDownloadErrorMessage(body, response.status));
+        return;
+      }
+      renderProjectDataDownloadDatasets(body?.data || []);
+      if (projectDataDownloadDatasets.length <= 0) {
+        setProjectDataDownloadStatus("暂无可下载数据类型。");
+        return;
+      }
+      setProjectDataDownloadStatus("可下载数据类型已更新。");
+    } catch (error) {
+      setProjectDataDownloadStatus(
+        "加载失败：" + (error && error.message ? error.message : String(error))
+      );
+    }
+  }
+
+  function showHomeEndpointControls() {
+    homeEndpointControlRevealed = true;
+    const toggleNode = getElement("home-endpoint-toggle");
+    if (toggleNode) {
+      toggleNode.classList.remove("hidden");
+    }
+    renderHomeBackendEndpoint(currentSettings || {});
+  }
+
+  function unlockProjectDataDownloadPanel() {
+    if (projectDataDownloadPanelUnlocked) {
+      return;
+    }
+    projectDataDownloadPanelUnlocked = true;
+    const panel = getElement("project-data-download-panel");
+    if (panel) {
+      panel.classList.remove("hidden");
+    }
+    setProjectDataDownloadStatus("项目数据下载已解锁，正在拉取可下载类型...");
+    void loadProjectDataDownloadOptions();
+  }
+
+  function renderProjectDataDownloadPanel(settings) {
+    const panel = getElement("project-data-download-panel");
+    const operatorInput = getElement("project-download-operator");
+    if (panel) {
+      panel.classList.toggle("hidden", projectDataDownloadPanelUnlocked !== true);
+    }
+    if (operatorInput instanceof HTMLInputElement) {
+      operatorInput.value = getProjectDataDownloadOperatorName(settings || {});
+    }
+    updateProjectDataDownloadSupplierVisibility();
+  }
+
+  async function handleProjectDataDownloadExport() {
+    const operatorInput = getElement("project-download-operator");
+    const datasetSelect = getElement("project-download-dataset");
+    const supplierSelect = getElement("project-download-supplier");
+    if (
+      !(operatorInput instanceof HTMLInputElement) ||
+      !(datasetSelect instanceof HTMLSelectElement) ||
+      !(supplierSelect instanceof HTMLSelectElement)
+    ) {
+      return;
+    }
+
+    const operatorName = normalizeText(operatorInput.value);
+    if (!operatorName) {
+      setProjectDataDownloadStatus("请先填写获取人姓名。");
+      operatorInput.focus();
+      return;
+    }
+
+    const datasetId = normalizeText(datasetSelect.value);
+    const datasetInfo = getProjectDataDownloadDatasetById(datasetId);
+    if (!datasetId || !datasetInfo) {
+      setProjectDataDownloadStatus("请先选择数据类型。");
+      datasetSelect.focus();
+      return;
+    }
+
+    const supplier = normalizeText(supplierSelect.value);
+    if (datasetInfo.supplierRequired && !supplier) {
+      setProjectDataDownloadStatus("该数据类型需要先选择供应商。");
+      supplierSelect.focus();
+      return;
+    }
+
+    const password = globalThis.prompt("请输入下载密码");
+    if (password === null) {
+      setProjectDataDownloadStatus("已取消下载。");
+      return;
+    }
+    if (!normalizeText(password)) {
+      setProjectDataDownloadStatus("下载密码不能为空。");
+      return;
+    }
+
+    setProjectDataDownloadStatus("正在申请短期下载链接...");
+    try {
+      await persistProjectDataDownloadOperatorName(operatorName);
+      const response = await fetch(buildBackendUrl(projectDataDownloadRequestPath, currentSettings || {}), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          dataset: datasetId,
+          supplier: supplier,
+          password: String(password),
+          operatorName: operatorName,
+          clientInfo: getProjectDataDownloadClientInfo(),
+        }),
+      });
+      const body = parseJsonSafely(await response.text());
+      if (!response.ok || body?.success !== true) {
+        setProjectDataDownloadStatus(getProjectDataDownloadErrorMessage(body, response.status));
+        return;
+      }
+
+      const downloadUrl = normalizeText(body?.data?.downloadUrl);
+      if (!downloadUrl) {
+        setProjectDataDownloadStatus("后端未返回下载链接，请重试。");
+        return;
+      }
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      const expiresInSeconds = Number(body?.data?.expiresInSeconds || 0);
+      if (expiresInSeconds > 0) {
+        setProjectDataDownloadStatus("下载链接已生成（" + String(expiresInSeconds) + " 秒内有效）。");
+      } else {
+        setProjectDataDownloadStatus("下载链接已生成。");
+      }
+    } catch (error) {
+      setProjectDataDownloadStatus(
+        "申请下载失败：" + (error && error.message ? error.message : String(error))
+      );
     }
   }
 
@@ -1909,6 +2224,7 @@
       getElement("script-center-view").classList.remove("hidden");
       getElement("script-detail-view").classList.add("hidden");
       getElement("home-endpoint-card").classList.remove("hidden");
+      renderProjectDataDownloadPanel(settings);
       renderScriptCenter(settings);
       return;
     }
@@ -1916,10 +2232,28 @@
     getElement("script-center-view").classList.add("hidden");
     getElement("script-detail-view").classList.remove("hidden");
     getElement("home-endpoint-card").classList.add("hidden");
+    getElement("project-data-download-panel").classList.add("hidden");
     renderDetail(settings, scriptId);
   }
 
   document.addEventListener("DOMContentLoaded", async function () {
+    const homeEndpointTitle = getElement("home-endpoint-title");
+    if (homeEndpointTitle) {
+      homeEndpointTitle.addEventListener("click", function () {
+        showHomeEndpointControls();
+        projectDataDownloadRevealCount += 1;
+        if (projectDataDownloadRevealCount >= 10) {
+          unlockProjectDataDownloadPanel();
+          return;
+        }
+        setProjectDataDownloadStatus(
+          "继续点击“后端接口地址”文案可解锁项目数据下载（" +
+            String(projectDataDownloadRevealCount) +
+            "/10）。"
+        );
+      });
+    }
+
     getElement("back-to-center").addEventListener("click", function () {
       navigateToScript(null);
     });
@@ -1957,6 +2291,29 @@
     getElement("home-endpoint-local").addEventListener("click", function () {
       void setHomeBackendEndpoint("local");
     });
+
+    const projectDownloadDataset = getElement("project-download-dataset");
+    if (projectDownloadDataset instanceof HTMLSelectElement) {
+      projectDownloadDataset.addEventListener("change", function () {
+        updateProjectDataDownloadSupplierVisibility();
+      });
+    }
+
+    const projectDownloadOperator = getElement("project-download-operator");
+    if (projectDownloadOperator instanceof HTMLInputElement) {
+      projectDownloadOperator.addEventListener("blur", function () {
+        void persistProjectDataDownloadOperatorName(projectDownloadOperator.value).catch(function () {
+          setProjectDataDownloadStatus("保存获取人姓名失败，请稍后重试。");
+        });
+      });
+    }
+
+    const projectDownloadExportButton = getElement("project-download-export");
+    if (projectDownloadExportButton instanceof HTMLButtonElement) {
+      projectDownloadExportButton.addEventListener("click", function () {
+        void handleProjectDataDownloadExport();
+      });
+    }
 
     try {
       await loadSettings();

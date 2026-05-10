@@ -72,6 +72,21 @@ server.listen(config.port, config.host, function () {
       baseUrl +
       "/api/data-baker/round-one-quality/export/download"
   );
+  console.info(
+    "[Platform Resources][backend] Project data download options: " +
+      baseUrl +
+      "/api/admin/project-data-download/options"
+  );
+  console.info(
+    "[Platform Resources][backend] Project data download request: " +
+      baseUrl +
+      "/api/admin/project-data-download/request"
+  );
+  console.info(
+    "[Platform Resources][backend] Project data download file: " +
+      baseUrl +
+      "/api/admin/project-data-download/file?token=..."
+  );
 });
 
 module.exports = server;
