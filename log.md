@@ -3,6 +3,8 @@
 ## 2026-05-10
 
 - 保持扩展版本 `0.2.11` 不升级 `0.2.12`，修正 LabelX 统计导出策略并重新按 `0.2.11` 口径验证与打包。
+- 修正 LabelX 统计主存储口径：转写与快判后端主写入恢复为根级 `statistics-data/statistics-merged.csv`，`/statistics/download` 默认下载总表，不再强制 `supplier` 参数；历史 `suppliers/<供应商>/statistics-merged.csv` 仅兼容读取迁移，不删除旧运行数据。
+- 新增共享上传进度组件 `extension/shared/progress-indicator.js`，并接入转写统计上传流程，展示阶段、完成数/总数、百分比、并发、成功/失败，长任务期间不再只显示“上传中”。
 - 修正转写统计抓取完整性：`transcription-stats-client.js` 移除旧硬上限（5 页/50 子任务/300 详情），改为按 `recordCount` 计算分页；首页与详情分页上限 `999`，详情默认并发 `5`、上限 `999`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。
 - 修正转写有效时长口径：仅累计“是否有效”严格等于“有效”的题目时长，不使用 `includes(\"有效\")`，避免“无效”误算。
 - 修正转写人员解析：新增 `dataResultHistory` 兜底（优先 `type===0`，否则最后一条）。

@@ -2,12 +2,12 @@
 
 ## 当前状态（2026-05-09）
 
-- 当前已进入 `0.2.11` 功能升级阶段，核心升级是 LabelX 统计按供应商分表。
+- 当前已进入 `0.2.11` 功能修正阶段，核心升级是 LabelX 统计“根级总表 + 动态供应商列”。
 - `asr-transcription` 已删除旧版独立大表单与页面内 overlay 设置面板。
 - 已恢复转写轻量设置面板与快捷键运行时（仅覆盖当前保留功能）。
 - 当前保留转写详情页工具栏按钮能力，并允许通过 options 调整基础参数。
 - 工具栏已改为页面内注入结构：优先挂载 `.mark-toolbox`，其次挂到首条题卡上方，不再默认固定悬浮在页面顶部中央。
-- 新增转写统计导出能力：支持手动上传与定时上传，后端内部按“供应商 + 分包ID”合并 CSV。
+- 新增转写统计导出能力：支持手动上传与定时上传，后端内部按“供应商 + 分包ID”合并 CSV，主写入根级总表。
 - 转写统计上传地址不再在脚本详情页单独配置，统一由 options 首页顶部“后端接口地址”（`server/local`）控制。
 - 转写统计上传与定时上传为脚本默认能力，运行时强制启用；转写详情页不提供统计开关。
 
@@ -71,6 +71,8 @@
 ## 转写统计导出（新增）
 
 - 页面入口：顶部导航头像附近“上传转写统计”按钮；工具栏“上传统计”按钮也可触发。
+- 上传过程中显示进度条：当前阶段、完成数/总数、百分比、并发数、成功/失败数。
+- 进度组件由 `shared/progress-indicator.js` 提供，后续快判/标贝易采可复用同一套 UI 与状态字段。
 - 上传能力强制启用：`statsUploadEnabled=true`、`statsAutoUploadOnSchedule=true`。
 - 默认定时：`10:00`、`16:00`，jitter `10` 分钟；会优先读取上传接口返回的 schedule。
 - 平台页面实测详情请求常见 `pageSize=10`；扩展统计上传按全量口径优先使用 `pageSize=5000` 抓取详情。
@@ -90,9 +92,9 @@
 - 供应商列表接口由全局后端模式拼接：
   - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/suppliers`
   - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/suppliers`
-- 下载接口由全局后端模式拼接，且必须携带 `supplier`：
-  - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
-  - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
+- 下载接口由全局后端模式拼接，默认下载总表（不要求 `supplier`）：
+  - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download`
+  - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
 - CSV 基础列为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
 - 供应商列动态输出：
   - 单供应商数据集不输出 `供应商` 列。
@@ -106,8 +108,8 @@
   5. `csvPatch["供应商"]`
   6. `taskName/name` 推断（已知：`棋燊`、`希尔贝壳`）
   7. `未识别供应商`
-- 统计落盘路径：`statistics-data/suppliers/<供应商>/statistics-merged.csv`。
-- 不再维护根级总表，不再写入 `statistics-data/statistics-merged.csv`；历史根级 CSV 只做兼容读取迁移，不删除旧文件。
+- 统计主落盘路径：`statistics-data/statistics-merged.csv`。
+- 历史 `statistics-data/suppliers/<供应商>/statistics-merged.csv` 仅兼容读取迁移，不删除旧文件；新写入主路径为根级总表。
 - 有效时长统计只累计“是否有效”严格等于“有效”的题目 `duration`；不使用 `includes("有效")`，避免“无效”误算。
 - 标注员/审核员解析新增 `dataResultHistory` 兜底：优先 `type===0`，找不到时使用最后一条。
 - `legacy-reference/asr-script.user.js` 仅作为分页、并发、有效时长与 `dataResultHistory` 解析逻辑参考，不恢复 Tampermonkey 架构。

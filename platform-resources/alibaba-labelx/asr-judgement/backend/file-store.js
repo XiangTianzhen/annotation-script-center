@@ -60,9 +60,9 @@ function parseCsvLine(line) {
   return cells;
 }
 
-function readCsvRows(filePath) {
+function readCsvRowList(filePath) {
   if (!fs.existsSync(filePath)) {
-    return {};
+    return [];
   }
 
   const lines = fs
@@ -72,26 +72,40 @@ function readCsvRows(filePath) {
       return line.trim() !== "";
     });
   if (lines.length <= 1) {
-    return {};
+    return [];
   }
 
   const headers = parseCsvLine(lines[0]);
   const batchIdIndex = headers.indexOf("分包ID");
   if (batchIdIndex < 0) {
-    return {};
+    return [];
   }
 
-  const rowsByBatchId = {};
+  const rows = [];
   lines.slice(1).forEach(function (line) {
     const cells = parseCsvLine(line);
     const batchId = String(cells[batchIdIndex] || "").trim();
     if (!batchId) {
       return;
     }
+
     const row = {};
     headers.forEach(function (header, index) {
       row[header] = cells[index] || "";
     });
+    row["分包ID"] = batchId;
+    rows.push(row);
+  });
+  return rows;
+}
+
+function readCsvRows(filePath) {
+  const rowsByBatchId = {};
+  readCsvRowList(filePath).forEach(function (row) {
+    const batchId = String(row?.["分包ID"] || "").trim();
+    if (!batchId) {
+      return;
+    }
     rowsByBatchId[batchId] = row;
   });
   return rowsByBatchId;
@@ -127,7 +141,7 @@ function createStatisticsStore(options) {
   const suppliersDir = path.join(dataDir, SUPPLIERS_DIR_NAME);
   const rowsPath = path.join(dataDir, "statistics-rows.json");
   const eventsPath = path.join(dataDir, "statistics-upload-events.jsonl");
-  const legacyCsvPath = path.join(dataDir, MERGED_CSV_FILE_NAME);
+  const csvPath = path.join(dataDir, MERGED_CSV_FILE_NAME);
   const csvColumns = Array.isArray(config.csvColumns) ? config.csvColumns : CSV_COLUMNS;
   const persistRowsJson = config.persistRowsJson === true;
   const persistUploadEvents = config.persistUploadEvents === true;
@@ -156,15 +170,18 @@ function createStatisticsStore(options) {
       });
   }
 
-  function readRowsFromSupplierCsv(csvPath, fallbackSupplierName) {
-    const rows = readCsvRows(csvPath);
+  function readRowsFromCsv(sourceCsvPath, fallbackSupplierName) {
     const rowsByMergeRowId = {};
-    Object.keys(rows).forEach(function (batchId) {
-      const row = Object.assign(createEmptyRow(csvColumns), rows[batchId] || {});
+    readCsvRowList(sourceCsvPath).forEach(function (csvRow) {
+      const row = Object.assign(createEmptyRow(csvColumns), csvRow || {});
+      const batchId = String(row["分包ID"] || "").trim();
+      if (!batchId) {
+        return;
+      }
       const supplierInfo = resolveRowSupplier(row, fallbackSupplierName);
       row["供应商"] = String(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
-      row["分包ID"] = String(batchId || row["分包ID"] || "");
-      const mergeRowId = createMergeRowId(supplierInfo.key, row["分包ID"]);
+      row["分包ID"] = batchId;
+      const mergeRowId = createMergeRowId(supplierInfo.key, batchId);
       rowsByMergeRowId[mergeRowId] = row;
     });
     return rowsByMergeRowId;
@@ -174,22 +191,22 @@ function createStatisticsStore(options) {
     ensureDataDir();
     const rowsByMergeRowId = {};
 
-    listSupplierDirs().forEach(function (safeSupplierName) {
-      const supplierCsvPath = getSupplierCsvPathBySafeName(safeSupplierName);
-      const rows = readRowsFromSupplierCsv(supplierCsvPath, safeSupplierName);
-      Object.keys(rows).forEach(function (mergeRowId) {
-        rowsByMergeRowId[mergeRowId] = rows[mergeRowId];
-      });
-    });
-
-    if (fs.existsSync(legacyCsvPath)) {
-      const legacyRows = readRowsFromSupplierCsv(legacyCsvPath, UNKNOWN_SUPPLIER_NAME);
-      Object.keys(legacyRows).forEach(function (mergeRowId) {
-        if (!rowsByMergeRowId[mergeRowId]) {
-          rowsByMergeRowId[mergeRowId] = legacyRows[mergeRowId];
-        }
+    if (fs.existsSync(csvPath)) {
+      const mergedCsvRows = readRowsFromCsv(csvPath, UNKNOWN_SUPPLIER_NAME);
+      Object.keys(mergedCsvRows).forEach(function (mergeRowId) {
+        rowsByMergeRowId[mergeRowId] = mergedCsvRows[mergeRowId];
       });
     }
+
+    listSupplierDirs().forEach(function (safeSupplierName) {
+      const supplierCsvPath = getSupplierCsvPathBySafeName(safeSupplierName);
+      const supplierRows = readRowsFromCsv(supplierCsvPath, safeSupplierName);
+      Object.keys(supplierRows).forEach(function (mergeRowId) {
+        if (!rowsByMergeRowId[mergeRowId]) {
+          rowsByMergeRowId[mergeRowId] = supplierRows[mergeRowId];
+        }
+      });
+    });
 
     if (Object.keys(rowsByMergeRowId).length > 0) {
       return rowsByMergeRowId;
@@ -207,7 +224,7 @@ function createStatisticsStore(options) {
 
   function writeCsv(rowsByMergeRowId) {
     ensureDataDir();
-    const grouped = {};
+    const rowsByMergedKey = {};
 
     Object.keys(rowsByMergeRowId || {}).forEach(function (mergeRowId) {
       const row = Object.assign(createEmptyRow(csvColumns), rowsByMergeRowId[mergeRowId] || {});
@@ -216,22 +233,13 @@ function createStatisticsStore(options) {
         return;
       }
       const supplierInfo = resolveRowSupplier(row, UNKNOWN_SUPPLIER_NAME);
-      const safeSupplierName = sanitizeSupplierPathSegment(supplierInfo.safeName || supplierInfo.name);
-      if (!grouped[safeSupplierName]) {
-        grouped[safeSupplierName] = {
-          supplierName: supplierInfo.name || UNKNOWN_SUPPLIER_NAME,
-          rowsByBatchId: {},
-        };
-      }
-      row["供应商"] = grouped[safeSupplierName].supplierName;
-      grouped[safeSupplierName].rowsByBatchId[batchId] = row;
+      row["供应商"] = String(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
+      row["分包ID"] = batchId;
+      const stableMergeRowId = createMergeRowId(supplierInfo.key, batchId);
+      rowsByMergedKey[stableMergeRowId] = row;
     });
 
-    Object.keys(grouped).forEach(function (safeSupplierName) {
-      const supplierCsvPath = getSupplierCsvPathBySafeName(safeSupplierName);
-      fs.mkdirSync(path.dirname(supplierCsvPath), { recursive: true });
-      writeMergedCsv(supplierCsvPath, grouped[safeSupplierName].rowsByBatchId, csvColumns);
-    });
+    writeMergedCsv(csvPath, rowsByMergedKey, csvColumns);
   }
 
   function appendUploadEvent(payload) {
@@ -244,65 +252,42 @@ function createStatisticsStore(options) {
 
   function listSuppliers() {
     ensureDataDir();
-    const suppliers = listSupplierDirs()
-      .map(function (safeSupplierName) {
-        const csvPath = getSupplierCsvPathBySafeName(safeSupplierName);
-        const rowsByBatchId = readCsvRows(csvPath);
-        const firstBatchId = Object.keys(rowsByBatchId)[0];
-        const firstRow = firstBatchId ? rowsByBatchId[firstBatchId] : {};
-        const supplierInfo = resolveRowSupplier(firstRow, safeSupplierName);
-        return {
-          supplier: supplierInfo.name || UNKNOWN_SUPPLIER_NAME,
-          safeSupplier: safeSupplierName,
-          rowCount: Object.keys(rowsByBatchId).length,
+    const rowsByMergeRowId = loadRows();
+    const supplierMap = {};
+
+    Object.keys(rowsByMergeRowId).forEach(function (mergeRowId) {
+      const row = rowsByMergeRowId[mergeRowId] || {};
+      const supplierInfo = resolveRowSupplier(row, UNKNOWN_SUPPLIER_NAME);
+      const supplierName = String(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
+      const safeSupplier = sanitizeSupplierPathSegment(supplierInfo.safeName || supplierName);
+      if (!supplierMap[safeSupplier]) {
+        supplierMap[safeSupplier] = {
+          supplier: supplierName,
+          safeSupplier: safeSupplier,
+          rowCount: 0,
           csvPath: csvPath,
         };
-      });
-
-    if (suppliers.length === 0 && fs.existsSync(legacyCsvPath)) {
-      const legacyRowsByBatchId = readCsvRows(legacyCsvPath);
-      const legacyGrouped = {};
-      Object.keys(legacyRowsByBatchId).forEach(function (batchId) {
-        const row = legacyRowsByBatchId[batchId] || {};
-        const supplierInfo = resolveRowSupplier(row, UNKNOWN_SUPPLIER_NAME);
-        const safeSupplierName = sanitizeSupplierPathSegment(
-          supplierInfo.safeName || supplierInfo.name
-        );
-        if (!legacyGrouped[safeSupplierName]) {
-          legacyGrouped[safeSupplierName] = {
-            supplier: supplierInfo.name || UNKNOWN_SUPPLIER_NAME,
-            safeSupplier: safeSupplierName,
-            rowCount: 0,
-            csvPath: legacyCsvPath,
-          };
-        }
-        legacyGrouped[safeSupplierName].rowCount += 1;
-      });
-      return Object.keys(legacyGrouped)
-        .map(function (safeSupplierName) {
-          return legacyGrouped[safeSupplierName];
-        })
-        .sort(function (left, right) {
-          return String(left.supplier || "").localeCompare(
-            String(right.supplier || ""),
-            "zh-Hans-CN"
-          );
-        });
-    }
-
-    return suppliers.sort(function (left, right) {
-      return String(left.supplier || "").localeCompare(String(right.supplier || ""), "zh-Hans-CN");
+      }
+      supplierMap[safeSupplier].rowCount += 1;
     });
+
+    return Object.keys(supplierMap)
+      .map(function (safeSupplier) {
+        return supplierMap[safeSupplier];
+      })
+      .sort(function (left, right) {
+        return String(left.supplier || "").localeCompare(String(right.supplier || ""), "zh-Hans-CN");
+      });
   }
 
   function getPaths() {
     return {
       dataDir: dataDir,
       suppliersDir: suppliersDir,
-      legacyCsvPath: legacyCsvPath,
+      legacyCsvPath: "",
       rowsPath: persistRowsJson ? rowsPath : "",
       eventsPath: persistUploadEvents ? eventsPath : "",
-      csvPath: "",
+      csvPath: csvPath,
     };
   }
 
@@ -324,6 +309,7 @@ module.exports = {
   SUPPLIERS_DIR_NAME,
   createStatisticsStore,
   parseCsvLine,
+  readCsvRowList,
   readCsvRows,
   readJsonFile,
   writeJsonFile,

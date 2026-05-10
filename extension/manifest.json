@@ -58,6 +58,7 @@
       "js": [
         "shared/constants.js",
         "shared/storage.js",
+        "shared/progress-indicator.js",
         "shared/statistics-supplier.js",
         "sites/alibaba-labelx/asr-judgement/page-detector.js",
         "sites/alibaba-labelx/asr-judgement/audio-volume-controller.js",

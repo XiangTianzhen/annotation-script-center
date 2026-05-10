@@ -394,7 +394,7 @@
 - 用户自行打开网址、登录并进入目标页面；用户回复“处理好了”后，Codex 再继续采集或测试。
 - LabelX 公共资料沉淀到 `platform-resources/alibaba-labelx/`，转写专项资料沉淀到 `platform-resources/alibaba-labelx/asr-transcription/`。
 
-### 13) LabelX 统计供应商分表规则（0.2.11 起）
+### 13) LabelX 统计总表与供应商列规则（0.2.11 修正）
 
 - ASR 转写与 ASR 快判统计内部都按“供应商 + 分包ID”合并，避免同分包跨供应商互相覆盖。
 - 供应商识别优先级：
@@ -413,10 +413,14 @@
 - ASR 转写详情抓取默认并发 `5`、并发上限 `999`；详情优先 `pageSize=5000`，不足时继续分页补齐（分页上限 `999`）。
 - 有效时长仅统计“是否有效”严格等于“有效”的题目时长，不使用 `includes("有效")`。
 - `legacy-reference/asr-script.user.js` 仅用于分页/并发/有效时长/`dataResultHistory` 兜底逻辑参考，不恢复 Tampermonkey 架构。
-- 当前实现仍保留按供应商目录保存：
-  - `statistics-data/suppliers/<供应商>/statistics-merged.csv`
-- 下载接口必须显式指定 `supplier`；未传时返回 `400` 并提示调用 `.../statistics/suppliers`。
-- 历史根级 `statistics-merged.csv` 仅作为迁移输入读取，不删除、不继续写回。
+- 当前主存储恢复为根级总表：
+  - `statistics-data/statistics-merged.csv`
+- `/statistics/download` 默认下载根级总表，不要求 `supplier` 参数。
+- `.../statistics/suppliers` 可保留为辅助信息接口，但不影响默认总表下载。
+- 历史 `suppliers/<供应商>/statistics-merged.csv` 可兼容读取迁移，不删除旧运行数据；新写入主路径为根级总表。
+- LabelX 转写上传流程已接入共享进度组件（`shared/progress-indicator.js`）：
+  - 显示阶段、完成数/总数、百分比、并发、成功/失败。
+  - 默认并发 `5`，并发上限 `999`。
 
 
 

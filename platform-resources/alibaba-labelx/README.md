@@ -31,7 +31,7 @@
 - 详情页保存当前题数据使用 `POST /api/v1/label/center/subTask/{subTaskId}/data`，提交当前包使用 `POST /api/v1/label/center/subTask/{subTaskId}/commit`。
 - 当前已采集响应中没有独立 `supplier/vendor/company/provider/供应商` 字段；供应商只能从任务名称前缀推断。
 
-## 0.2.11 统计供应商分表（转写/快判共识）
+## 0.2.11 统计总表修正（转写/快判共识）
 
 - 当前版本维持 `0.2.11`，本轮为 `0.2.11` 修正增强，不升级 `0.2.12`。
 - 统计 CSV 采用动态供应商列：
@@ -44,6 +44,7 @@
   3. `csvPatch["供应商"]`
   4. `taskName/name` 推断（当前已知：`棋燊`、`希尔贝壳`）
   5. `未识别供应商`
-- 后端不再维护根级总表，统一写入 `statistics-data/suppliers/<供应商>/statistics-merged.csv`。
-- 下载必须指定供应商：`.../statistics/download?supplier=棋燊`。
-- 供应商列表通过 `.../statistics/suppliers` 查询。
+- 后端主存储恢复为根级总表：`statistics-data/statistics-merged.csv`。
+- 默认下载总表：`.../statistics/download`（不要求 supplier 参数）。
+- 供应商列表 `.../statistics/suppliers` 保留为辅助信息接口，不影响总表下载。
+- 历史 `suppliers/<供应商>/statistics-merged.csv` 目录仅兼容读取迁移，不删除旧运行数据。

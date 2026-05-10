@@ -87,7 +87,7 @@ async function handleUpload(request, response, store) {
           batchId: logInfo.batchId,
           payloadCount: logInfo.payloadCount,
           rowCount: logInfo.rowCount,
-          suppliersDir: store.getPaths().suppliersDir,
+          csvPath: store.getPaths().csvPath,
         },
         null,
         0
@@ -128,10 +128,10 @@ function sendHealth(response, store) {
     legacyConfigPath: LEGACY_CONFIG_PATH,
     downloadPath: DOWNLOAD_PATH,
     suppliersPath: SUPPLIERS_PATH,
-    downloadRequiresSupplier: true,
+    downloadRequiresSupplier: false,
     suppliersDir: paths.suppliersDir,
-    csvPath: "",
-    deprecatedCsvPath: paths.legacyCsvPath,
+    csvPath: paths.csvPath,
+    deprecatedCsvPath: "",
   });
 }
 
@@ -193,56 +193,42 @@ function handleSuppliers(response, store) {
 }
 
 function handleDownloadCsv(request, response, query, store) {
+  const defaultCsvPath = String(store.getPaths().csvPath || "");
   const supplierQuery = String(query?.supplier || "").trim();
-  if (!supplierQuery) {
-    sendJson(response, 400, {
-      success: false,
-      message:
-        "请通过 supplier 参数指定供应商，例如 /download?supplier=棋燊。",
-      suppliersPath: SUPPLIERS_PATH,
-    });
-    return;
+  let targetCsvPath = defaultCsvPath;
+  if (supplierQuery) {
+    const supplierEntry = findSupplierEntry(store, supplierQuery);
+    if (supplierEntry?.csvPath) {
+      targetCsvPath = supplierEntry.csvPath;
+    }
   }
 
-  const supplierEntry = findSupplierEntry(store, supplierQuery);
-  if (!supplierEntry) {
+  if (!targetCsvPath || !fs.existsSync(targetCsvPath)) {
     sendJson(response, 404, {
       success: false,
-      message: "未找到指定供应商对应的 CSV。",
-      supplier: supplierQuery,
-      suppliersPath: SUPPLIERS_PATH,
+      message: "统计 CSV 文件不存在，请先上传或生成统计数据。",
+      csvPath: targetCsvPath || defaultCsvPath,
     });
     return;
   }
 
-  if (!fs.existsSync(supplierEntry.csvPath)) {
-    sendJson(response, 404, {
-      success: false,
-      message: "供应商 CSV 文件不存在，请先上传或生成统计数据。",
-      supplier: supplierEntry.supplier,
-      csvPath: supplierEntry.csvPath,
-    });
-    return;
-  }
-
-  const stat = fs.statSync(supplierEntry.csvPath);
+  const stat = fs.statSync(targetCsvPath);
   if (!stat.isFile()) {
     sendJson(response, 404, {
       success: false,
-      message: "供应商 CSV 路径不是文件。",
-      supplier: supplierEntry.supplier,
-      csvPath: supplierEntry.csvPath,
+      message: "统计 CSV 路径不是文件。",
+      csvPath: targetCsvPath,
     });
     return;
   }
 
-  response.writeHead(200, createCsvDownloadHeaders(supplierEntry.csvPath, stat.size));
+  response.writeHead(200, createCsvDownloadHeaders(targetCsvPath, stat.size));
   if (request.method === "HEAD") {
     response.end();
     return;
   }
 
-  const stream = fs.createReadStream(supplierEntry.csvPath);
+  const stream = fs.createReadStream(targetCsvPath);
   stream.on("error", function (error) {
     if (!response.headersSent) {
       sendJson(response, 500, {

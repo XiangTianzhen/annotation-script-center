@@ -47,6 +47,17 @@
   - 详情最大 `999` 页。
   - 超限时明确告警并截断，不静默漏数。
 
+## 上传进度显示
+
+- 上传过程新增进度条（共享组件：`extension/shared/progress-indicator.js`）。
+- 进度项包含：
+  - 当前阶段
+  - 已完成 / 总数
+  - 百分比
+  - 当前并发
+  - 成功 / 失败数量
+- 默认并发显示为 `5`，并发上限 `999`。
+
 ## 有效时长与人员解析
 
 - 有效时长只累计“是否有效”严格等于“有效”的题目 `duration`。
@@ -57,11 +68,9 @@
 
 ## 落盘与下载
 
-- 统计文件写入：`statistics-data/suppliers/<供应商>/statistics-merged.csv`。
-- 不再写回根级 `statistics-data/statistics-merged.csv`。
-- 历史根级 CSV 仅兼容读取迁移，不删除旧文件。
-- 下载接口必须显式带 `supplier`：
-  - `/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
+- 统计主写入：`statistics-data/statistics-merged.csv`。
+- 历史 `statistics-data/suppliers/<供应商>/statistics-merged.csv` 仅兼容读取迁移，不删除旧文件。
+- 默认下载接口（总表）：`/api/alibaba-labelx/asr-transcription/statistics/download`
 - 供应商列表接口：
   - `/api/alibaba-labelx/asr-transcription/statistics/suppliers`
 

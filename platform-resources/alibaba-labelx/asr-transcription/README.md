@@ -23,7 +23,7 @@
   - 当前题行为（默认有效、标有效自动填入、标无效自动清空）
   - 当前保留功能快捷键（含上传统计）
 - 统计上传与定时上传不在 options 转写详情页提供开关。
-- 统计按供应商分表保存，不再维护根级总表。
+- 统计主存储为根级总表 `statistics-data/statistics-merged.csv`，历史供应商目录仅兼容读取迁移。
 - 仍不实现时间戳、说话人区分、AI 初稿/校对/格式化/标点。
 - 仍不实现自动保存、自动提交、自动跳转、全页批量修改。
 
@@ -54,6 +54,8 @@
 - 前端上传入口：
   - 顶部导航头像旁“上传转写统计”按钮。
   - 转写工具栏“上传统计”按钮。
+  - 上传期间显示进度条：阶段、完成数/总数、百分比、并发、成功/失败。
+  - 进度组件由 `extension/shared/progress-indicator.js` 提供，后续可复用到快判和其他平台脚本。
 - 详情接口取数口径：
   - 页面实测常见 `GET /api/v1/label/center/subTask/{subTaskId}/data?page=1&pageSize=10...`。
   - 扩展统计上传默认详情请求 `pageSize=5000`；如果 `recordCount > 5000`，继续按页补齐。
@@ -72,12 +74,12 @@
 - 供应商列表接口：
   - `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/suppliers`
   - `http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/suppliers`
-- 下载接口（必须指定 `supplier`）：
-  - `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
-  - `http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
+- 下载接口（默认总表，不要求 `supplier`）：
+  - `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download`
+  - `http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
 - 默认定时上传：`10:00`、`16:00`，jitter `10` 分钟。
 - 后端目录：`platform-resources/alibaba-labelx/asr-transcription/backend/`。
-- 统计写入目录：`platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/suppliers/<供应商>/statistics-merged.csv`。
+- 统计写入目录：`platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/statistics-merged.csv`。
 - CSV 基础列：
   `任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`。
 - 供应商列动态输出：
@@ -87,7 +89,7 @@
 - 有效时长仅统计“是否有效”严格等于“有效”的题目时长，不使用 `includes("有效")`，避免“无效”误算。
 - 标注员/审核员解析新增 `dataResultHistory` 兜底：优先 `type===0`，否则取最后一条。
 - `legacy-reference/asr-script.user.js` 仅用于分页、并发、详情补齐、有效时长和 `dataResultHistory` 解析逻辑参考，不恢复 Tampermonkey 架构。
-- 历史根级 `statistics-data/statistics-merged.csv` 仅兼容读取迁移，不再写回。
+- 历史 `statistics-data/suppliers/<供应商>/statistics-merged.csv` 仅兼容读取迁移，不删除旧运行数据；新写入主路径是根级总表。
 - 服务器下载地址需部署最新后端后可用；本地可先用 `127.0.0.1:3333` 验证。
 - 资料与代码均不记录 cookie、token、完整音频 URL、完整签名 URL。
 

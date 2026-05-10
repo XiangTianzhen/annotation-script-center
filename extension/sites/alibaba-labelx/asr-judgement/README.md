@@ -109,9 +109,9 @@
 - Node 本地统计接收服务已迁移到 `platform-resources/alibaba-labelx/asr-judgement/backend/`，不会被 manifest 注入；推荐统一启动入口是 `platform-resources/backend/server.js`。
 - 本地启动命令：在仓库根目录运行 `node platform-resources/backend/server.js`，默认监听 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/upload`，并兼容旧地址 `http://127.0.0.1:3333/api/asr-judgement/statistics/upload`。
 - 供应商列表接口：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/suppliers`。
-- CSV 下载接口必须带 `supplier`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download?supplier=棋燊`；旧地址 `/api/asr-judgement/statistics/download` 已移除，不再兼容。
-- 本地服务不再维护根级总表；统计文件写入 `statistics-data/suppliers/<供应商>/statistics-merged.csv`。
-- 历史根级 `statistics-data/statistics-merged.csv` 若存在，仅作为迁移输入读取，不再写回。
+- CSV 下载接口默认总表：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download`。
+- 本地服务主写入根级总表：`statistics-data/statistics-merged.csv`。
+- 历史 `statistics-data/suppliers/<供应商>/statistics-merged.csv` 若存在，仅作为迁移输入兼容读取，不删除旧文件。
 - 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 基础列顺序为：`任务名称`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
 - 供应商列动态输出：单供应商数据集不输出 `供应商`；多供应商数据集在最后一列追加 `供应商`。
 - 单条分包 payload 的基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端以 `mergeKey.supplierKey + "::" + mergeKey.batchId`（等价于 `供应商 + 分包ID`）做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。

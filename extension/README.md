@@ -33,10 +33,10 @@ sites/
 - `alibaba-labelx/asr-transcription/`：Alibaba LabelX ASR 转写（轻量工具栏版；保留 options 轻量设置面板与当前功能快捷键配置；无旧版独立大表单和 overlay 设置；工具栏优先注入 `.mark-toolbox`，支持转写统计上传/下载）。
   - 统计上传前端为 `sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，仅做采集与上传，不做本地 CSV 写文件。
   - 扩展在 `chrome://extensions` 重新加载后，旧页面中的历史 content script 可能出现 `Extension context invalidated`；当前已在 `shared/storage.js` 统一识别并在转写运行时做停机降噪处理，刷新业务页面即可恢复。
-- `alibaba-labelx/asr-judgement/` 与 `alibaba-labelx/asr-transcription/` 统计上传从 `0.2.11` 起都按供应商分表落盘，下载需指定 `supplier`。
+- `alibaba-labelx/asr-judgement/` 与 `alibaba-labelx/asr-transcription/` 统计上传从 `0.2.11` 修正后都写入根级总表 `statistics-data/statistics-merged.csv`，下载默认走 `/statistics/download`（不要求 `supplier`）。
   - CSV 供应商列策略：单供应商不输出；多供应商时在最后一列追加 `供应商`。
   - suppliers 列表：`/api/alibaba-labelx/asr-judgement/statistics/suppliers`、`/api/alibaba-labelx/asr-transcription/statistics/suppliers`
-  - 下载示例：`/api/alibaba-labelx/asr-judgement/statistics/download?supplier=棋燊`
+  - 下载示例：`/api/alibaba-labelx/asr-judgement/statistics/download`
 - 统计上传能力默认强制启用；若脚本实现了定时上传能力，则定时上传也按脚本规则强制启用，不在脚本详情页提供关闭开关。
 - `data-baker/round-one-quality/`：标贝易采一检质检 AI 推荐文本（`roundOneCollect`）+ 任务组总表导出（`group/detail`）；导出会本地下载并自动上传到统一后端，后端可下载最新 CSV。
 - 后端地址配置统一入口：options 首页顶部“后端接口地址”（`server` / `local`）。各脚本详情页不再提供独立后端地址、上传地址或 AI 接口地址配置。

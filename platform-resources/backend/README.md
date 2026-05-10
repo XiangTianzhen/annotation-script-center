@@ -76,23 +76,24 @@ ASR 转写职责边界：
   - 标贝易采导出上传：`/api/data-baker/round-one-quality/export/upload`
   - 标贝易采导出下载：`/api/data-baker/round-one-quality/export/download`
 
-## 0.2.11 供应商分表规则
+## 0.2.11 统计总表修正规则
 
 - 当前保持 `0.2.11` 修正增强，不升级 `0.2.12`。
-- LabelX 转写与快判统计均不再维护根级总表，不再写入 `statistics-data/statistics-merged.csv`。
-- 统计数据统一落盘到 `statistics-data/suppliers/<供应商>/statistics-merged.csv`。
+- LabelX 转写与快判统计主存储恢复为根级总表：`statistics-data/statistics-merged.csv`。
 - CSV 导出供应商列采用动态策略：
   - 单供应商数据集：不输出“供应商”列。
   - 多供应商数据集：在最后一列追加“供应商”列。
 - 内部 `payload/mergeKey` 继续保留 supplier 信息，用于避免跨供应商同分包 ID 覆盖。
 - 转写统计抓取按 `recordCount` 全量分页：不再固定前 `5` 页/`50` 子任务/`300` 详情条目，详情默认并发 `5`、上限 `999`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。
 - 有效时长口径为“是否有效”严格等于“有效”。
-- CSV 下载接口必须显式带 `supplier` 参数；未传时返回 `400`，并提示调用 `.../statistics/suppliers`。
+- CSV 下载接口默认下载总表，不强制 `supplier` 参数。
+- 供应商目录 `statistics-data/suppliers/<供应商>/statistics-merged.csv` 仅兼容读取迁移，不删除历史运行数据。
+- 转写上传进度显示新增共享组件 `extension/shared/progress-indicator.js`，展示阶段、完成/总数、百分比、并发、成功/失败。
 - 当前接口示例：
   - 转写供应商列表：`/api/alibaba-labelx/asr-transcription/statistics/suppliers`
-  - 转写按供应商下载：`/api/alibaba-labelx/asr-transcription/statistics/download?supplier=棋燊`
+  - 转写默认总表下载：`/api/alibaba-labelx/asr-transcription/statistics/download`
   - 快判供应商列表：`/api/alibaba-labelx/asr-judgement/statistics/suppliers`
-  - 快判按供应商下载：`/api/alibaba-labelx/asr-judgement/statistics/download?supplier=棋燊`
+  - 快判默认总表下载：`/api/alibaba-labelx/asr-judgement/statistics/download`
 
 ## 新增项目 API 规则
 

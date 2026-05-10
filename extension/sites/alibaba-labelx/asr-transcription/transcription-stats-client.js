@@ -55,6 +55,7 @@
     "审核是否完成",
   ];
   const SUPPLIER_HELPER = globalThis.ASREdgeStatisticsSupplier || {};
+  const PROGRESS_HELPER = globalThis.ASREdgeProgressIndicator || {};
   const UNKNOWN_SUPPLIER_NAME = SUPPLIER_HELPER.UNKNOWN_SUPPLIER_NAME || "未识别供应商";
 
   function clone(value) {
@@ -1173,6 +1174,8 @@
     let scheduleTimer = null;
     let uploadButtonTimer = null;
     let uploadButtonRoot = null;
+    let progressIndicator = null;
+    let progressIndicatorTimer = null;
 
     function getConfig() {
       return typeof options.getConfig === "function" ? options.getConfig() || {} : {};
@@ -1216,11 +1219,26 @@
       }
     }
 
+    function clearProgressIndicatorTimer() {
+      if (progressIndicatorTimer) {
+        window.clearTimeout(progressIndicatorTimer);
+        progressIndicatorTimer = null;
+      }
+    }
+
     function removeUploadButton() {
       if (uploadButtonRoot && uploadButtonRoot.parentNode) {
         uploadButtonRoot.parentNode.removeChild(uploadButtonRoot);
       }
       uploadButtonRoot = null;
+    }
+
+    function removeProgressIndicator() {
+      clearProgressIndicatorTimer();
+      if (progressIndicator && typeof progressIndicator.destroy === "function") {
+        progressIndicator.destroy();
+      }
+      progressIndicator = null;
     }
 
     function setUploadButtonStatus(message, tone) {
@@ -1247,6 +1265,53 @@
       }
       const header = document.querySelector(".header-component-container");
       return header ? { host: header, before: null } : null;
+    }
+
+    function ensureProgressIndicator() {
+      if (typeof PROGRESS_HELPER.createProgressIndicator !== "function") {
+        return null;
+      }
+      const mountPoint = resolveTopNavUploadMountPoint();
+      if (!mountPoint || !mountPoint.host) {
+        return null;
+      }
+      if (progressIndicator) {
+        return progressIndicator;
+      }
+      progressIndicator = PROGRESS_HELPER.createProgressIndicator({
+        id: "asr-edge-transcription-stats-progress",
+        title: "上传转写统计",
+        mount: mountPoint.host,
+      });
+      return progressIndicator;
+    }
+
+    function updateUploadProgress(patch) {
+      const indicator = ensureProgressIndicator();
+      if (!indicator || typeof indicator.update !== "function") {
+        return;
+      }
+      indicator.update(patch || {});
+    }
+
+    function completeUploadProgress(message) {
+      const indicator = ensureProgressIndicator();
+      if (!indicator || typeof indicator.complete !== "function") {
+        return;
+      }
+      indicator.complete(message || "");
+      clearProgressIndicatorTimer();
+      progressIndicatorTimer = window.setTimeout(removeProgressIndicator, 20000);
+    }
+
+    function failUploadProgress(message) {
+      const indicator = ensureProgressIndicator();
+      if (!indicator || typeof indicator.fail !== "function") {
+        return;
+      }
+      indicator.fail(message || "");
+      clearProgressIndicatorTimer();
+      progressIndicatorTimer = window.setTimeout(removeProgressIndicator, 25000);
     }
 
     function ensureUploadButton() {
@@ -1431,14 +1496,14 @@
       }, next.delayMs);
     }
 
-    async function collectPayload(reason) {
+    async function collectPayload(reason, progressReporter) {
       if (isHomePage()) {
-        return collectHomePayloads(reason);
+        return collectHomePayloads(reason, progressReporter);
       }
-      return collectDetailPayload(reason);
+      return collectDetailPayload(reason, progressReporter);
     }
 
-    async function collectHomePayloads(reason) {
+    async function collectHomePayloads(reason, progressReporter) {
       const projectId = getProjectIdFromUrl();
       if (!projectId) {
         throw new Error("当前页面 URL 中没有 projectId，无法上传全量统计。");
@@ -1450,6 +1515,21 @@
       const errors = [];
       let skippedSubTaskCount = 0;
       let skippedDetailCount = 0;
+      const listTotal = Math.max(1, kinds.length);
+      let listCompleted = 0;
+      let listSuccess = 0;
+      let listFailed = 0;
+
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "拉取任务列表",
+          total: listTotal,
+          completed: 0,
+          concurrency: 1,
+          success: 0,
+          failed: 0,
+        });
+      }
 
       for (let index = 0; index < kinds.length; index += 1) {
         const kind = kinds[index];
@@ -1472,7 +1552,31 @@
             unfinishedPage: unfinishedPage,
             finishedPage: finishedPage,
           });
+          listCompleted += 1;
+          listSuccess += 1;
+          if (progressReporter && typeof progressReporter.update === "function") {
+            progressReporter.update({
+              phase: "拉取任务列表(" + String(kind.label || kind.key || "") + ")",
+              total: listTotal,
+              completed: listCompleted,
+              concurrency: 1,
+              success: listSuccess,
+              failed: listFailed,
+            });
+          }
         } catch (error) {
+          listCompleted += 1;
+          listFailed += 1;
+          if (progressReporter && typeof progressReporter.update === "function") {
+            progressReporter.update({
+              phase: "拉取任务列表(" + String(kind.label || kind.key || "") + ")",
+              total: listTotal,
+              completed: listCompleted,
+              concurrency: 1,
+              success: listSuccess,
+              failed: listFailed,
+            });
+          }
           errors.push({
             kind: kind.key,
             message: error && error.message ? error.message : String(error),
@@ -1542,6 +1646,21 @@
       }
 
       const detailConcurrency = resolveConcurrency(subtasks.length, DEFAULT_EXPORT_CONCURRENCY);
+      const detailProgress = {
+        completed: 0,
+        success: 0,
+        failed: 0,
+      };
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "拉取详情",
+          total: subtasks.length,
+          completed: 0,
+          concurrency: detailConcurrency,
+          success: 0,
+          failed: 0,
+        });
+      }
       const payloads = (
         await runConcurrent(subtasks, detailConcurrency, async function (entry) {
           const summary = entry.summary;
@@ -1549,41 +1668,84 @@
           const kind = pageGroup.kind;
           const linkedTask = pageGroup.taskMap[String(summary?.taskId || "")] || {};
           detailRequestCount += 1;
-          const detailData = await fetchSubtaskDetail(summary);
-          if (!detailData?.id) {
+          try {
+            const detailData = await fetchSubtaskDetail(summary);
+            if (!detailData?.id) {
+              skippedDetailCount += 1;
+              detailProgress.completed += 1;
+              detailProgress.failed += 1;
+              return null;
+            }
+            if (detailData.pageOverflow) {
+              detailPageOverflowCount += 1;
+            }
+            const enrichedData = enrichSubtaskData(detailData, summary, pageGroup.taskMap, kind);
+            if (!isAsrTranscriptionTaskRecord(enrichedData, linkedTask)) {
+              skippedDetailCount += 1;
+              detailProgress.completed += 1;
+              detailProgress.failed += 1;
+              return null;
+            }
+            const durationSeconds = sumDurationSeconds(enrichedData.dataList);
+            const payload = buildPayload(enrichedData, durationSeconds, reason || "home-manual", {
+              role: kind.role,
+              userName: userName || getUserNameFromRecord(summary),
+            });
+            payload.homeContext = {
+              projectId: projectId,
+              kind: kind.key,
+              role: kind.role,
+              kindLabel: kind.label,
+              taskCount: pageGroup.tasksPage.recordCount,
+              subTaskCount: subtasks.length,
+              unfinishedCount: pageGroup.unfinishedPage.recordCount,
+              finishedCount: pageGroup.finishedPage.recordCount,
+              source: kind.route + " tasks/subTasks + subTask data",
+            };
+            detailProgress.completed += 1;
+            detailProgress.success += 1;
+            return payload;
+          } catch (error) {
             skippedDetailCount += 1;
+            detailProgress.completed += 1;
+            detailProgress.failed += 1;
+            errors.push({
+              kind: kind.key,
+              message:
+                "subTaskId=" +
+                sanitizeSubTaskId(getSummarySubTaskId(summary)) +
+                " " +
+                (error && error.message ? error.message : String(error)),
+            });
             return null;
+          } finally {
+            if (progressReporter && typeof progressReporter.update === "function") {
+              progressReporter.update({
+                phase: "拉取详情",
+                total: subtasks.length,
+                completed: detailProgress.completed,
+                concurrency: detailConcurrency,
+                success: detailProgress.success,
+                failed: detailProgress.failed,
+              });
+            }
           }
-          if (detailData.pageOverflow) {
-            detailPageOverflowCount += 1;
-          }
-          const enrichedData = enrichSubtaskData(detailData, summary, pageGroup.taskMap, kind);
-          if (!isAsrTranscriptionTaskRecord(enrichedData, linkedTask)) {
-            skippedDetailCount += 1;
-            return null;
-          }
-          const durationSeconds = sumDurationSeconds(enrichedData.dataList);
-          const payload = buildPayload(enrichedData, durationSeconds, reason || "home-manual", {
-            role: kind.role,
-            userName: userName || getUserNameFromRecord(summary),
-          });
-          payload.homeContext = {
-            projectId: projectId,
-            kind: kind.key,
-            role: kind.role,
-            kindLabel: kind.label,
-            taskCount: pageGroup.tasksPage.recordCount,
-            subTaskCount: subtasks.length,
-            unfinishedCount: pageGroup.unfinishedPage.recordCount,
-            finishedCount: pageGroup.finishedPage.recordCount,
-            source: kind.route + " tasks/subTasks + subTask data",
-          };
-          return payload;
         })
       ).filter(Boolean);
 
       if (payloads.length === 0) {
         throw new Error("首页列表中没有可上传的 ASR 转写统计数据。");
+      }
+
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "合并数据",
+          total: payloads.length,
+          completed: payloads.length,
+          concurrency: 1,
+          success: payloads.length,
+          failed: 0,
+        });
       }
 
       return {
@@ -1632,14 +1794,35 @@
       };
     }
 
-    async function collectDetailPayload(reason) {
+    async function collectDetailPayload(reason, progressReporter) {
       const params = getUrlParams();
       const cleanSubTaskId = sanitizeSubTaskId(params.subTaskId || "");
       if (!cleanSubTaskId) {
         throw new Error("详情页缺少有效 subTaskId，无法上传转写统计。");
       }
 
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "拉取详情",
+          total: 1,
+          completed: 0,
+          concurrency: 1,
+          success: 0,
+          failed: 0,
+        });
+      }
+
       const detailData = await fetchSubtaskDetail({ id: cleanSubTaskId });
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "拉取详情",
+          total: 1,
+          completed: 1,
+          concurrency: 1,
+          success: 1,
+          failed: 0,
+        });
+      }
       const userName = await resolveCurrentUserText();
       const durationSeconds = sumDurationSeconds(detailData.dataList);
       const payload = buildPayload(
@@ -1658,6 +1841,16 @@
           userName: userName,
         }
       );
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "合并数据",
+          total: 1,
+          completed: 1,
+          concurrency: 1,
+          success: 1,
+          failed: 0,
+        });
+      }
       return payload;
     }
 
@@ -1755,10 +1948,37 @@
       }
 
       state.uploading = true;
+      removeProgressIndicator();
+      updateUploadProgress({
+        phase: "初始化",
+        total: 1,
+        completed: 0,
+        concurrency: 1,
+        success: 0,
+        failed: 0,
+      });
       notify();
       try {
-        const payload = await collectPayload(uploadReason);
+        const payload = await collectPayload(uploadReason, {
+          update: updateUploadProgress,
+        });
+        updateUploadProgress({
+          phase: "上传后端",
+          total: 1,
+          completed: 0,
+          concurrency: 1,
+          success: 0,
+          failed: 0,
+        });
         await postPayload(payload);
+        updateUploadProgress({
+          phase: "上传后端",
+          total: 1,
+          completed: 1,
+          concurrency: 1,
+          success: 1,
+          failed: 0,
+        });
         const summary = payload?.summary && typeof payload.summary === "object" ? payload.summary : {};
         const summaryMessage =
           "转写统计已上传：扫描 " +
@@ -1771,11 +1991,14 @@
           String(summary.skippedSubTaskCount || 0) +
           "，跳过重复 " +
           String(summary.skippedDuplicateSubTaskCount || 0) +
+          "，失败 " +
+          String(summary.skippedDetailCount || 0) +
           "，并发 " +
           String(summary.detailConcurrency || DEFAULT_EXPORT_CONCURRENCY) +
           (summary.listPageOverflowCount || summary.detailPageOverflowCount
             ? "（分页超上限，已截断）"
             : "");
+        completeUploadProgress(summaryMessage);
         setMessage(true, uploadReason, summaryMessage);
         showToast(summaryMessage, "info");
         const uploadPayload = Array.isArray(payload.payloads) ? payload.payloads : [payload];
@@ -1795,6 +2018,7 @@
         };
       } catch (error) {
         const message = error && error.message ? error.message : String(error);
+        failUploadProgress(message);
         setMessage(false, uploadReason, message);
         showToast("转写统计上传失败：" + message, "error");
         return {
@@ -1822,6 +2046,7 @@
       clearScheduleTimer();
       clearUploadButtonTimer();
       removeUploadButton();
+      removeProgressIndicator();
       notify();
     }
 
