@@ -5,6 +5,7 @@ const path = require("path");
 const { CSV_COLUMNS } = require("./csv-columns");
 const { writeMergedCsv } = require("./csv-writer");
 const {
+  cleanCsvValue,
   UNKNOWN_SUPPLIER_NAME,
   resolveSupplierInfo,
   sanitizeSupplierPathSegment,
@@ -74,7 +75,9 @@ function readCsvRowList(filePath) {
     return [];
   }
 
-  const headers = parseCsvLine(lines[0]);
+  const headers = parseCsvLine(lines[0]).map(function (header) {
+    return cleanCsvValue(header);
+  });
   const batchIdIndex = headers.indexOf("分包ID");
   if (batchIdIndex < 0) {
     return [];
@@ -83,14 +86,14 @@ function readCsvRowList(filePath) {
   const rows = [];
   lines.slice(1).forEach(function (line) {
     const cells = parseCsvLine(line);
-    const batchId = String(cells[batchIdIndex] || "").trim();
+    const batchId = cleanCsvValue(cells[batchIdIndex] || "");
     if (!batchId) {
       return;
     }
 
     const row = {};
     headers.forEach(function (header, index) {
-      row[header] = cells[index] || "";
+      row[header] = cleanCsvValue(cells[index] || "");
     });
     row["分包ID"] = batchId;
     rows.push(row);
@@ -101,7 +104,7 @@ function readCsvRowList(filePath) {
 function readCsvRows(filePath) {
   const rowsByBatchId = {};
   readCsvRowList(filePath).forEach(function (row) {
-    const batchId = String(row?.["分包ID"] || "").trim();
+    const batchId = cleanCsvValue(row?.["分包ID"] || "");
     if (!batchId) {
       return;
     }
@@ -123,7 +126,7 @@ function createMergeRowId(supplierKey, batchId) {
 }
 
 function resolveRowSupplier(row, fallbackSupplierName) {
-  const fallbackName = String(fallbackSupplierName || "").trim();
+  const fallbackName = cleanCsvValue(fallbackSupplierName || "");
   const patch = Object.assign({}, row || {});
   if (!patch["供应商"] && fallbackName && fallbackName !== UNKNOWN_SUPPLIER_NAME) {
     patch["供应商"] = fallbackName;
@@ -152,12 +155,12 @@ function createStatisticsStore(options) {
     const rowsByMergeRowId = {};
     readCsvRowList(sourceCsvPath).forEach(function (csvRow) {
       const row = Object.assign(createEmptyRow(csvColumns), csvRow || {});
-      const batchId = String(row["分包ID"] || "").trim();
+      const batchId = cleanCsvValue(row["分包ID"] || "");
       if (!batchId) {
         return;
       }
       const supplierInfo = resolveRowSupplier(row, fallbackSupplierName);
-      row["供应商"] = String(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
+      row["供应商"] = cleanCsvValue(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
       row["分包ID"] = batchId;
       const mergeRowId = createMergeRowId(supplierInfo.key, batchId);
       rowsByMergeRowId[mergeRowId] = row;
@@ -187,12 +190,12 @@ function createStatisticsStore(options) {
 
     Object.keys(rowsByMergeRowId || {}).forEach(function (mergeRowId) {
       const row = Object.assign(createEmptyRow(csvColumns), rowsByMergeRowId[mergeRowId] || {});
-      const batchId = String(row["分包ID"] || "").trim();
+      const batchId = cleanCsvValue(row["分包ID"] || "");
       if (!batchId) {
         return;
       }
       const supplierInfo = resolveRowSupplier(row, UNKNOWN_SUPPLIER_NAME);
-      row["供应商"] = String(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
+      row["供应商"] = cleanCsvValue(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
       row["分包ID"] = batchId;
       const stableMergeRowId = createMergeRowId(supplierInfo.key, batchId);
       rowsByMergedKey[stableMergeRowId] = row;
@@ -217,7 +220,7 @@ function createStatisticsStore(options) {
     Object.keys(rowsByMergeRowId).forEach(function (mergeRowId) {
       const row = rowsByMergeRowId[mergeRowId] || {};
       const supplierInfo = resolveRowSupplier(row, UNKNOWN_SUPPLIER_NAME);
-      const supplierName = String(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
+      const supplierName = cleanCsvValue(supplierInfo.name || UNKNOWN_SUPPLIER_NAME);
       const safeSupplier = sanitizeSupplierPathSegment(supplierInfo.safeName || supplierName);
       if (!supplierMap[safeSupplier]) {
         supplierMap[safeSupplier] = {

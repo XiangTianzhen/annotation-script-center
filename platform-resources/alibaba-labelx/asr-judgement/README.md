@@ -37,3 +37,23 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 新增 LabelX DOM、网络请求或统计契约时，优先更新本目录。
 - 如果运行时代码仍引用旧路径，应同步更新对应 README，避免资料入口分裂。
 - `extension/sites/alibaba-labelx/asr-judgement/page-structure/` 不再保存快判页面结构；页面结构和网络采集内容统一维护在本目录。
+
+## 0.2.11 当前统计口径（快判）
+
+- 当前版本保持 `0.2.11`，本轮为小修正，不升级 `0.2.12`。
+- 统计主存储保持根级总表：`statistics-data/statistics-merged.csv`。
+- 不再主动创建 `statistics-data/suppliers/`；若本地已存在，属于旧方案残留，可忽略或手动清理。
+- CSV 供应商列动态策略：
+  - 单供应商不输出 `供应商` 列。
+  - 多供应商在最后一列输出 `供应商`。
+- CSV 写出前统一清洗字段：去 BOM、去首尾空白（含全角空格/Tab/换行/零宽字符），任务名称/ID/人员/时间/完成状态/供应商都不保留前后空格。
+- 供应商识别优先级：
+  1. `payload.supplier/vendor`
+  2. `csvPatch["供应商"]`
+  3. `taskName` 推断（含 `棋燊`、`希尔贝壳`）
+  4. `未识别供应商`
+- 若 `csvPatch["供应商"]` 为 `未识别供应商` / `unknown-supplier` / 空值，必须回退到任务名重新识别。
+- 快判首页和详情按 `recordCount` 补齐，不再静默截断。
+- 快判详情保持 `pageSize=400` 业务口径。
+- 快判并发规则：`Math.floor(total/5)`，最小 `1`，最大 `500`（并发显示值需与实际一致）。
+- 快判上传已接入共享进度组件 `extension/shared/progress-indicator.js`，显示阶段、完成/总数、百分比、并发、成功/失败。

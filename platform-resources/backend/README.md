@@ -83,12 +83,16 @@ ASR 转写职责边界：
 - CSV 导出供应商列采用动态策略：
   - 单供应商数据集：不输出“供应商”列。
   - 多供应商数据集：在最后一列追加“供应商”列。
+- CSV 写出前统一清洗字段前后空白（含 BOM/全角空格/Tab/换行/零宽字符）；任务名、ID、人员、时间、完成状态、供应商均不保留前后空格。
 - 内部 `payload/mergeKey` 继续保留 supplier 信息，用于避免跨供应商同分包 ID 覆盖。
+- 当已有供应商字段为 `未识别供应商` / `unknown-supplier` / 空值时，必须回退任务名重新识别，不得固化错误供应商值。
 - 转写统计抓取按 `recordCount` 全量分页：不再固定前 `5` 页/`50` 子任务/`300` 详情条目，详情默认并发 `5`、上限 `500`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。
+- 快判统计抓取同样按 `recordCount` 补齐，`finished=true/false` 都抓；快判详情保持 `pageSize=400`，并发规则同样是 `Math.floor(total/5)`、最小 `1`、最大 `500`。
+- 页数上限与并发上限分离：页数上限用于防无限分页，并发上限固定 `500`。
 - 有效时长口径为“是否有效”严格等于“有效”。
 - CSV 下载接口默认下载总表，不强制 `supplier` 参数。
 - 不再主动创建 `statistics-data/suppliers/`；该目录若本地已存在，属于旧方案残留，可忽略或手动清理。
-- 转写上传进度显示新增共享组件 `extension/shared/progress-indicator.js`，展示阶段、完成/总数、百分比、并发、成功/失败。
+- 转写与快判上传进度都使用共享组件 `extension/shared/progress-indicator.js`，展示阶段、完成/总数、百分比、并发、成功/失败；后续平台长耗时统计/导出任务默认复用该组件。
 - 当前接口示例：
   - 转写供应商列表：`/api/alibaba-labelx/asr-transcription/statistics/suppliers`
   - 转写默认总表下载：`/api/alibaba-labelx/asr-transcription/statistics/download`

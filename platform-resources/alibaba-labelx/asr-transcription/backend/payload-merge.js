@@ -1,7 +1,7 @@
 "use strict";
 
 const { CSV_COLUMNS } = require("./csv-columns");
-const { resolveSupplierInfo } = require("../../supplier-utils");
+const { cleanCsvValue, resolveSupplierInfo } = require("../../supplier-utils");
 
 const BASE_PATCH_COLUMNS = new Set([
   "任务名称",
@@ -41,7 +41,7 @@ function formatDuration(value) {
 }
 
 function normalizeCompletedValue(value) {
-  const text = String(value || "").trim();
+  const text = cleanCsvValue(value);
   if (!text) {
     return "";
   }
@@ -95,16 +95,16 @@ function applyRoleRecord(row, roleRecord, payload) {
 
   if (role === "audit") {
     if (roleRecord?.subTaskId) {
-      row["审核子任务ID"] = String(roleRecord.subTaskId);
+      row["审核子任务ID"] = cleanCsvValue(roleRecord.subTaskId);
     }
     if (roleRecord?.userName || roleRecord?.userId) {
-      row["审核员"] = String(roleRecord.userName || roleRecord.userId || "");
+      row["审核员"] = cleanCsvValue(roleRecord.userName || roleRecord.userId || "");
     }
     if (roleRecord?.receiveTime) {
-      row["审核领取时间"] = String(roleRecord.receiveTime);
+      row["审核领取时间"] = cleanCsvValue(roleRecord.receiveTime);
     }
     if (roleRecord?.submitTime) {
-      row["审核提交时间"] = String(roleRecord.submitTime);
+      row["审核提交时间"] = cleanCsvValue(roleRecord.submitTime);
     }
     row["审核是否完成"] =
       normalizeCompletedValue(roleRecord?.completed) || inferCompleted(roleRecord, payload);
@@ -112,25 +112,25 @@ function applyRoleRecord(row, roleRecord, payload) {
   }
 
   if (roleRecord?.subTaskId) {
-    row["标注子任务ID"] = String(roleRecord.subTaskId);
+    row["标注子任务ID"] = cleanCsvValue(roleRecord.subTaskId);
   }
   if (roleRecord?.userName || roleRecord?.userId) {
-    row["标注员"] = String(roleRecord.userName || roleRecord.userId || "");
+    row["标注员"] = cleanCsvValue(roleRecord.userName || roleRecord.userId || "");
   }
   if (roleRecord?.receiveTime) {
-    row["标注领取时间"] = String(roleRecord.receiveTime);
+    row["标注领取时间"] = cleanCsvValue(roleRecord.receiveTime);
   }
   if (roleRecord?.submitTime) {
-    row["标注提交时间"] = String(roleRecord.submitTime);
+    row["标注提交时间"] = cleanCsvValue(roleRecord.submitTime);
   }
   row["标注是否完成"] =
     normalizeCompletedValue(roleRecord?.completed) || inferCompleted(roleRecord, payload);
 }
 
 function getBatchId(payload, patch, roleRecord) {
-  return String(
+  return cleanCsvValue(
     payload?.mergeKey?.batchId || roleRecord?.batchId || patch?.["分包ID"] || ""
-  ).trim();
+  );
 }
 
 function resolveRowSupplier(payload, patch, existingRow) {
@@ -174,8 +174,9 @@ function applyBasePatch(row, patch, csvColumns) {
     }
 
     const value = patch[key];
-    if (value !== undefined && value !== null && String(value).trim() !== "") {
-      row[key] = String(value);
+    const normalizedValue = cleanCsvValue(value);
+    if (normalizedValue !== "") {
+      row[key] = normalizedValue;
     }
   });
 }
@@ -195,8 +196,8 @@ function applyPayloadToRows(payload, rowsByMergeRowId, csvColumns) {
   const stableSupplierInfo = resolveRowSupplier(payload || {}, patch, row);
 
   applyBasePatch(row, patch, csvColumns);
-  row["供应商"] = String(stableSupplierInfo.name || row["供应商"] || "");
-  row["分包ID"] = String(batchId);
+  row["供应商"] = cleanCsvValue(stableSupplierInfo.name || row["供应商"] || "");
+  row["分包ID"] = cleanCsvValue(batchId);
   applyRoleRecord(row, roleRecord, payload || {});
 
   rowsByMergeRowId[mergeRowId] = row;

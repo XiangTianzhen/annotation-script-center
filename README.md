@@ -19,11 +19,13 @@
 - CSV 供应商列改为动态输出：
   - 单供应商数据：不输出 `供应商` 列。
   - 多供应商数据：在最后一列追加 `供应商`。
+- CSV 写出前统一清洗字段：去 BOM、去首尾空白（含全角空格/Tab/换行/零宽字符）；任务名称、任务ID、子任务ID、分包ID、人员、时间、完成状态、供应商都不保留前后空格。
 - 供应商识别优先级：
   1. `payload.supplier` / `payload.vendor`
   2. `csvPatch["供应商"]`
   3. `taskName/name` 推断（当前已知：`棋燊`、`希尔贝壳`）
   4. `未识别供应商`
+- 若 `csvPatch["供应商"]` 为 `未识别供应商` / `unknown-supplier` / 空值，必须回退到任务名重新识别（例如任务名包含 `棋燊` 则输出 `棋燊`）。
 - 下载接口默认下载总表（不要求 `supplier` 参数）：
   - `/api/alibaba-labelx/asr-transcription/statistics/download`
   - `/api/alibaba-labelx/asr-judgement/statistics/download`
@@ -33,6 +35,8 @@
 - 不再主动创建或写入 `statistics-data/suppliers/`；该目录若本地已存在，属于旧方案残留，可忽略或手动清理。
 - 内部 payload / mergeKey 仍保留 supplier 信息，继续避免跨供应商同分包覆盖。
 - 转写统计上传新增进度条（阶段、完成/总数、百分比、并发、成功/失败），共享实现位于 `extension/shared/progress-indicator.js`。
+- 快判统计上传同步接入同一进度条组件；后续所有平台长耗时统计/导出任务默认复用该组件。
+- 页数上限与并发上限分开管理：页数上限用于防无限分页；并发上限固定 `500`。
 
 ## 页面采集与验证工作流
 
@@ -139,6 +143,7 @@ Chrome：
 - 转写统计后端目录为 `platform-resources/alibaba-labelx/asr-transcription/backend/`，供应商列表地址为 `/api/alibaba-labelx/asr-transcription/statistics/suppliers`，默认下载地址为 `/api/alibaba-labelx/asr-transcription/statistics/download`。
 - 转写统计抓取按 `recordCount` 分页，不再固定只拉前 `5` 页、前 `50` 个子任务或前 `300` 条详情。
 - 转写详情优先 `pageSize=5000`，并在 `recordCount > 5000` 时继续分页补齐；详情阶段并发按 `Math.floor(total/5)` 动态计算（最小 `1`，最大 `500`，例如 `1854 -> 370`、`8000 -> 500`）。
+- 快判首页与详情抓取按 `recordCount` 分页补齐；快判详情保持 `pageSize=400` 口径，详情并发同样按 `Math.floor(total/5)` 动态计算（最小 `1`，最大 `500`）。
 - 有效时长仅统计“是否有效”严格等于“有效”的题目时长，不使用 `includes("有效")`。
 - 标注员/审核员解析新增 `dataResultHistory` 兜底（优先 `type===0`，否则取最后一条）。
 - 供应商识别会先做任务名规范化（`decodeURIComponent` 容错 + 去除 `BOM` + 清理前后空白与全角空格 + 连续空白规整），并生成去空白匹配串，再优先按任务名包含关系识别 `希尔贝壳` / `棋燊`。

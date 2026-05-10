@@ -35,7 +35,10 @@ sites/
   - 扩展在 `chrome://extensions` 重新加载后，旧页面中的历史 content script 可能出现 `Extension context invalidated`；当前已在 `shared/storage.js` 统一识别并在转写运行时做停机降噪处理，刷新业务页面即可恢复。
 - `alibaba-labelx/asr-judgement/` 与 `alibaba-labelx/asr-transcription/` 统计上传从 `0.2.11` 修正后都写入根级总表 `statistics-data/statistics-merged.csv`，下载默认走 `/statistics/download`（不要求 `supplier`）。
   - CSV 供应商列策略：单供应商不输出；多供应商时在最后一列追加 `供应商`。
+  - CSV 写出前统一清洗字段前后空白；当供应商为 `未识别供应商/unknown-supplier` 时会回退任务名重新识别（`棋燊`、`希尔贝壳`）。
   - 转写详情抓取动态并发：`Math.floor(total/5)`，最小 `1`，最大 `500`（例如 `1854 -> 370`，`8000 -> 500`）。
+  - 快判详情抓取动态并发：`Math.floor(total/5)`，最小 `1`，最大 `500`；快判详情保持 `pageSize=400`。
+  - 转写与快判都接入 `shared/progress-indicator.js`，展示阶段、完成/总数、百分比、并发、成功/失败；后续平台长耗时统计/导出任务默认复用此组件。
   - 不再主动创建 `statistics-data/suppliers/`；该目录若本地已存在，属于旧方案残留，可忽略或手动清理。
   - suppliers 列表：`/api/alibaba-labelx/asr-judgement/statistics/suppliers`、`/api/alibaba-labelx/asr-transcription/statistics/suppliers`
   - 下载示例：`/api/alibaba-labelx/asr-judgement/statistics/download`

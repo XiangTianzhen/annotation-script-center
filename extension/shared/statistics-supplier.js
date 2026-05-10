@@ -12,6 +12,10 @@
       .trim();
   }
 
+  function cleanCsvValue(value) {
+    return normalizeWhitespace(value);
+  }
+
   function safeDecodeText(value) {
     const text = String(value || "");
     if (!text) {
@@ -40,9 +44,22 @@
     return text || UNKNOWN_SUPPLIER_NAME;
   }
 
+  function isUnknownSupplierName(value) {
+    const normalized = normalizeSupplierName(value);
+    if (!normalized) {
+      return true;
+    }
+    const compact = normalized.replace(/\s+/g, "").toLowerCase();
+    return (
+      normalized === UNKNOWN_SUPPLIER_NAME ||
+      compact === "unknown-supplier" ||
+      compact === "unknownsupplier"
+    );
+  }
+
   function getSupplierKey(value) {
     const normalized = normalizeSupplierName(value);
-    if (!normalized || normalized === UNKNOWN_SUPPLIER_NAME) {
+    if (isUnknownSupplierName(normalized)) {
       return "unknown-supplier";
     }
     return normalized.replace(/\s+/g, "").toLowerCase();
@@ -50,7 +67,7 @@
 
   function sanitizeSupplierPathSegment(value) {
     const normalized = normalizeSupplierName(value);
-    if (!normalized || normalized === UNKNOWN_SUPPLIER_NAME) {
+    if (isUnknownSupplierName(normalized)) {
       return UNKNOWN_SUPPLIER_NAME;
     }
     if (SENSITIVE_SUPPLIER_PATTERN.test(normalized)) {
@@ -113,11 +130,14 @@
       extractSupplierValue(options.vendor),
     ];
     for (let index = 0; index < payloadCandidates.length; index += 1) {
-      const candidate = String(payloadCandidates[index] || "").trim();
+      const candidate = cleanCsvValue(payloadCandidates[index]);
       if (!candidate) {
         continue;
       }
       const name = normalizeSupplierName(candidate);
+      if (isUnknownSupplierName(name)) {
+        continue;
+      }
       const safeName = sanitizeSupplierPathSegment(name);
       const finalName = safeName === UNKNOWN_SUPPLIER_NAME ? UNKNOWN_SUPPLIER_NAME : name;
       return {
@@ -128,17 +148,19 @@
       };
     }
 
-    const csvSupplier = String(csvPatch["供应商"] || "").trim();
+    const csvSupplier = cleanCsvValue(csvPatch["供应商"] || "");
     if (csvSupplier) {
       const name = normalizeSupplierName(csvSupplier);
-      const safeName = sanitizeSupplierPathSegment(name);
-      const finalName = safeName === UNKNOWN_SUPPLIER_NAME ? UNKNOWN_SUPPLIER_NAME : name;
-      return {
-        key: getSupplierKey(finalName),
-        name: finalName,
-        safeName: safeName,
-        source: "csv-patch",
-      };
+      if (!isUnknownSupplierName(name)) {
+        const safeName = sanitizeSupplierPathSegment(name);
+        const finalName = safeName === UNKNOWN_SUPPLIER_NAME ? UNKNOWN_SUPPLIER_NAME : name;
+        return {
+          key: getSupplierKey(finalName),
+          name: finalName,
+          safeName: safeName,
+          source: "csv-patch",
+        };
+      }
     }
 
     const inferred = inferSupplierFromTaskName(
@@ -157,7 +179,9 @@
 
   globalThis.ASREdgeStatisticsSupplier = {
     UNKNOWN_SUPPLIER_NAME: UNKNOWN_SUPPLIER_NAME,
+    cleanCsvValue: cleanCsvValue,
     normalizeSupplierName: normalizeSupplierName,
+    isUnknownSupplierName: isUnknownSupplierName,
     normalizeTaskNameForSupplier: normalizeTaskNameForSupplier,
     compactTaskNameForSupplier: compactTaskNameForSupplier,
     inferSupplierFromTaskName: inferSupplierFromTaskName,

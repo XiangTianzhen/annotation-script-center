@@ -114,12 +114,16 @@
 - 不再主动创建 `statistics-data/suppliers/`；该目录若本地已存在，属于旧方案残留，可忽略或手动清理。
 - 统计格式参考 `希尔数据示例.csv`，扩展内置 CSV 基础列顺序为：`任务名称`、`任务ID`、`标注员1子任务ID`、`标注员2子任务ID`、`标注员3子任务ID`、`审核子任务ID`、`分包ID`、`题数`、`有效时长(秒)`、人员、领取 / 提交时间和完成状态。
 - 供应商列动态输出：单供应商数据集不输出 `供应商`；多供应商数据集在最后一列追加 `供应商`。
+- CSV 写出前统一清洗字段：去 BOM、去首尾空白（含全角空格/Tab/换行/零宽字符），避免输出 ` 任务名称` 或 ` 未识别供应商` 这类脏值。
+- 当 `csvPatch["供应商"]` 为 `未识别供应商` / `unknown-supplier` / 空值时，后端会回退任务名重新识别供应商。
 - 单条分包 payload 的基础字段放在 `csvPatch`，当前子任务身份放在 `roleRecord`。服务端以 `mergeKey.supplierKey + "::" + mergeKey.batchId`（等价于 `供应商 + 分包ID`）做幂等合并，把多个标注员和审核员的补丁记录合并成一行 CSV 宽表。
 - 顶部导航右侧头像旁会显示“上传统计”按钮；标注首页、审核首页和快判详情页都使用同一个入口，快判工具栏内不再放统计按钮。
 - 只要当前 URL 带有 `projectId`，手动上传和定时上传都会按项目维度采集该账号下的标注 / 审核首页数据；详情页与首页走同一条批量采集路径，不再保留“当前 `subTaskId` 单条上传”回退。若页面 URL 没有 `projectId`，统计上传会直接失败并提示。
 - 标注首页 URL 为 `/corpora/labeling/labelingTask?projectId=...`，按标注角色写入 CSV；审核首页 URL 为 `/corpora/labeling/checkTask?projectId=...`，按审核角色写入 CSV。点击首页按钮时会同时尝试读取标注和审核两类列表，避免只上传当前页类型。
 - 首页上传会直接使用 LabelX 登录态请求首页任务数据：先读取 `/api/v1/label/center/tasks` 和 `/api/v1/label/center/subTasks`，再对每个子任务调用 `/api/v1/label/center/subTask/{subTaskId}/data` 获取完整题目与时长，最后批量上传 `payloads`。已通过 DevTools 确认：标注首页使用 `type=label` / `subTaskType=label`，审核首页使用 `type=check` / `subTaskType=check`；两类首页的已完成列表都通过 `subTasks?finished=true` 读取。
-- 快判首页统计分页保留保护阈值，详情抓取并发默认 `5`、并按脚本当前上限保护；仍保持快判详情 `pageSize=400` 的业务口径，不套用转写 `pageSize=5000`。
+- 快判首页统计分页按 `recordCount` 补齐并保留页数保护阈值（防无限分页）；仍保持快判详情 `pageSize=400` 的业务口径，不套用转写 `pageSize=5000`。
+- 快判详情抓取并发改为动态规则：`Math.floor(total/5)`，最小 `1`，最大 `500`，并发显示值与实际执行并发一致。
+- 快判统计上传已接入 `shared/progress-indicator.js`：显示阶段、完成/总数、百分比、并发、成功/失败，不再只显示“上传中”。
 - 首页上传只保留 ASR 更优判断数据：优先按 `labelModel=vote` 判断；如果接口缺少该字段，再用 `taskName` 包含 `ASR更优结果判断` / `ASR更优` 且 `size=400` 作为补充判断。`labelModel=single`、`taskName=中文普通话asr任务` 或 `size=50` 会视为历史转写数据并跳过。
 - 标注员 / 审核员姓名优先从顶部头像下拉读取：脚本会对 `.NavAvatar-module__userInfoWrapper...avatar` 触发 hover，再读取下拉菜单中的用户展示名；读取失败时回退到接口字段。
 - 快判统计上传与定时上传为脚本默认能力，运行时强制启用；options 不再提供统计开关、上传地址下拉、时间配置 URL 或手动上传按钮。

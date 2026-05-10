@@ -6,8 +6,9 @@
   const DEFAULT_PAGE_SIZE = 400;
   const DEFAULT_HOME_PAGE_SIZE = 100;
   const DEFAULT_EXPORT_CONCURRENCY = 5;
-  const MAX_EXPORT_CONCURRENCY = 999;
+  const MAX_EXPORT_CONCURRENCY = 500;
   const MAX_HOME_LIST_PAGES = 999;
+  const MAX_DETAIL_PAGES = 999;
   const DEFAULT_UPLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/upload";
   const DEFAULT_SERVER_UPLOAD_ENDPOINT =
     "https://script.xiangtianzhen.store" + DEFAULT_UPLOAD_PATH;
@@ -64,6 +65,7 @@
     "审核是否完成",
   ];
   const SUPPLIER_HELPER = globalThis.ASREdgeStatisticsSupplier || {};
+  const PROGRESS_HELPER = globalThis.ASREdgeProgressIndicator || {};
   const UNKNOWN_SUPPLIER_NAME = SUPPLIER_HELPER.UNKNOWN_SUPPLIER_NAME || "未识别供应商";
 
   function clone(value) {
@@ -76,6 +78,16 @@
     } catch (error) {
       return String(value || "").trim();
     }
+  }
+
+  function sanitizeSubTaskId(value) {
+    let decoded = "";
+    try {
+      decoded = decodeURIComponent(String(value || ""));
+    } catch (error) {
+      decoded = String(value || "");
+    }
+    return decoded.replace(/[\s\u3000]+/g, "").trim();
   }
 
   function getUrlParams() {
@@ -280,15 +292,96 @@
     return body;
   }
 
-  async function fetchSubtaskData(subTaskId) {
-    const body = await fetchJson(buildSubtaskDataUrl(subTaskId, DEFAULT_PAGE_SIZE, 1), {
+  function normalizeDetailPage(body, cleanSubTaskId) {
+    const data = body?.data && typeof body.data === "object" ? body.data : {};
+    const list = Array.isArray(data.dataList)
+      ? data.dataList
+      : Array.isArray(data.data)
+        ? data.data
+        : Array.isArray(data.list)
+          ? data.list
+          : [];
+    const recordCount = Number(data.recordCount ?? data.size ?? data.total ?? list.length);
+    return {
+      data: data,
+      list: list,
+      recordCount: Number.isFinite(recordCount) && recordCount >= 0 ? recordCount : list.length,
+      id: sanitizeSubTaskId(data.id || cleanSubTaskId),
+    };
+  }
+
+  async function fetchSubtaskDataPage(cleanSubTaskId, page, pageSize) {
+    const requestPage = Math.max(1, Number(page) || 1);
+    const requestPageSize = Math.max(1, Number(pageSize) || DEFAULT_PAGE_SIZE);
+    const body = await fetchJson(buildSubtaskDataUrl(cleanSubTaskId, requestPageSize, requestPage), {
       credentials: "include",
       cache: "no-store",
       headers: {
         Accept: "application/json, text/plain, */*",
       },
     });
-    return body?.data || {};
+    return normalizeDetailPage(body, cleanSubTaskId);
+  }
+
+  async function fetchSubtaskData(subTaskId) {
+    const cleanSubTaskId = sanitizeSubTaskId(subTaskId);
+    if (!cleanSubTaskId) {
+      return {
+        id: "",
+        dataList: [],
+        recordCount: 0,
+        size: 0,
+        pageOverflow: false,
+      };
+    }
+
+    const firstPage = await fetchSubtaskDataPage(cleanSubTaskId, 1, DEFAULT_PAGE_SIZE);
+    const recordCount =
+      Number.isFinite(firstPage.recordCount) && firstPage.recordCount >= 0
+        ? firstPage.recordCount
+        : firstPage.list.length;
+    const totalPages =
+      recordCount > 0 ? Math.ceil(recordCount / DEFAULT_PAGE_SIZE) : firstPage.list.length > 0 ? 1 : 0;
+    const boundedTotalPages = Math.min(totalPages, MAX_DETAIL_PAGES);
+    const pageOverflow = totalPages > MAX_DETAIL_PAGES;
+
+    let allItems = firstPage.list.slice();
+    if (boundedTotalPages > 1) {
+      const pages = [];
+      for (let page = 2; page <= boundedTotalPages; page += 1) {
+        pages.push(page);
+      }
+      const pageConcurrency = Math.max(1, Math.min(resolveDynamicConcurrency(pages.length), pages.length));
+      const restPages = await mapLimit(pages, pageConcurrency, async function (page) {
+        const pageData = await fetchSubtaskDataPage(cleanSubTaskId, page, DEFAULT_PAGE_SIZE);
+        return pageData.list;
+      });
+      restPages.forEach(function (list) {
+        if (Array.isArray(list) && list.length > 0) {
+          allItems = allItems.concat(list);
+        }
+      });
+    }
+
+    const seenDataIds = new Set();
+    const mergedList = [];
+    allItems.forEach(function (item) {
+      const keyCandidate = String(item?.dataId || item?.id || "").trim();
+      const key = keyCandidate || JSON.stringify(item);
+      if (seenDataIds.has(key)) {
+        return;
+      }
+      seenDataIds.add(key);
+      mergedList.push(item);
+    });
+
+    return Object.assign({}, firstPage.data || {}, {
+      id: firstPage.id || cleanSubTaskId,
+      dataList: mergedList,
+      recordCount: Number.isFinite(recordCount) && recordCount >= 0 ? recordCount : mergedList.length,
+      size: Number(firstPage.data?.size) || mergedList.length,
+      pageOverflow: pageOverflow,
+    });
   }
 
   function normalizeListPage(body) {
@@ -786,6 +879,18 @@
     return result;
   }
 
+  function resolveDynamicConcurrency(total) {
+    const parsedTotal = Math.floor(Number(total));
+    if (!Number.isFinite(parsedTotal) || parsedTotal < 1) {
+      return 1;
+    }
+    const computed = Math.floor(parsedTotal / 5);
+    if (!Number.isFinite(computed)) {
+      return 1;
+    }
+    return Math.max(1, Math.min(computed, MAX_EXPORT_CONCURRENCY));
+  }
+
   function createState() {
     return {
       started: false,
@@ -810,6 +915,8 @@
     let scheduleTimer = null;
     let uploadButtonTimer = null;
     let uploadButtonRoot = null;
+    let progressIndicator = null;
+    let progressIndicatorTimer = null;
 
     function getConfig() {
       return typeof options.getConfig === "function" ? options.getConfig() || {} : {};
@@ -853,11 +960,26 @@
       }
     }
 
+    function clearProgressIndicatorTimer() {
+      if (progressIndicatorTimer) {
+        window.clearTimeout(progressIndicatorTimer);
+        progressIndicatorTimer = null;
+      }
+    }
+
     function removeUploadButton() {
       if (uploadButtonRoot && uploadButtonRoot.parentNode) {
         uploadButtonRoot.parentNode.removeChild(uploadButtonRoot);
       }
       uploadButtonRoot = null;
+    }
+
+    function removeProgressIndicator() {
+      clearProgressIndicatorTimer();
+      if (progressIndicator && typeof progressIndicator.destroy === "function") {
+        progressIndicator.destroy();
+      }
+      progressIndicator = null;
     }
 
     function setUploadButtonStatus(message, tone) {
@@ -885,6 +1007,53 @@
 
       const header = document.querySelector(".header-component-container");
       return header ? { host: header, before: null } : null;
+    }
+
+    function ensureProgressIndicator() {
+      if (typeof PROGRESS_HELPER.createProgressIndicator !== "function") {
+        return null;
+      }
+      const mountPoint = resolveTopNavUploadMountPoint();
+      if (!mountPoint || !mountPoint.host) {
+        return null;
+      }
+      if (progressIndicator) {
+        return progressIndicator;
+      }
+      progressIndicator = PROGRESS_HELPER.createProgressIndicator({
+        id: "asr-edge-judgement-stats-progress",
+        title: "上传快判统计",
+        mount: mountPoint.host,
+      });
+      return progressIndicator;
+    }
+
+    function updateUploadProgress(patch) {
+      const indicator = ensureProgressIndicator();
+      if (!indicator || typeof indicator.update !== "function") {
+        return;
+      }
+      indicator.update(patch || {});
+    }
+
+    function completeUploadProgress(message) {
+      const indicator = ensureProgressIndicator();
+      if (!indicator || typeof indicator.complete !== "function") {
+        return;
+      }
+      indicator.complete(message || "");
+      clearProgressIndicatorTimer();
+      progressIndicatorTimer = window.setTimeout(removeProgressIndicator, 20000);
+    }
+
+    function failUploadProgress(message) {
+      const indicator = ensureProgressIndicator();
+      if (!indicator || typeof indicator.fail !== "function") {
+        return;
+      }
+      indicator.fail(message || "");
+      clearProgressIndicatorTimer();
+      progressIndicatorTimer = window.setTimeout(removeProgressIndicator, 25000);
     }
 
     function ensureUploadButton() {
@@ -1065,11 +1234,11 @@
       }, next.delayMs);
     }
 
-    async function collectPayload(reason) {
-      return collectHomePayloads(reason);
+    async function collectPayload(reason, progressReporter) {
+      return collectHomePayloads(reason, progressReporter);
     }
 
-    async function collectHomePayloads(reason) {
+    async function collectHomePayloads(reason, progressReporter) {
       const projectId = getProjectIdFromUrl();
       if (!projectId) {
         throw new Error("当前页面 URL 中没有 projectId，无法上传全量统计。");
@@ -1081,6 +1250,21 @@
       const errors = [];
       let skippedSubTaskCount = 0;
       let skippedDetailCount = 0;
+      const listTotal = Math.max(1, kinds.length);
+      let listCompleted = 0;
+      let listSuccess = 0;
+      let listFailed = 0;
+
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "拉取任务列表",
+          total: listTotal,
+          completed: 0,
+          concurrency: 1,
+          success: 0,
+          failed: 0,
+        });
+      }
 
       for (let index = 0; index < kinds.length; index += 1) {
         const kind = kinds[index];
@@ -1103,7 +1287,31 @@
             unfinishedPage: unfinishedPage,
             finishedPage: finishedPage,
           });
+          listCompleted += 1;
+          listSuccess += 1;
+          if (progressReporter && typeof progressReporter.update === "function") {
+            progressReporter.update({
+              phase: "拉取任务列表(" + String(kind.label || kind.key || "") + ")",
+              total: listTotal,
+              completed: listCompleted,
+              concurrency: 1,
+              success: listSuccess,
+              failed: listFailed,
+            });
+          }
         } catch (error) {
+          listCompleted += 1;
+          listFailed += 1;
+          if (progressReporter && typeof progressReporter.update === "function") {
+            progressReporter.update({
+              phase: "拉取任务列表(" + String(kind.label || kind.key || "") + ")",
+              total: listTotal,
+              completed: listCompleted,
+              concurrency: 1,
+              success: listSuccess,
+              failed: listFailed,
+            });
+          }
           errors.push({
             kind: kind.key,
             message: error && error.message ? error.message : String(error),
@@ -1145,38 +1353,96 @@
         );
       }
 
-      const payloads = (await mapLimit(subtasks, DEFAULT_EXPORT_CONCURRENCY, async function (entry) {
+      const detailConcurrency = resolveDynamicConcurrency(subtasks.length);
+      const detailProgress = {
+        completed: 0,
+        success: 0,
+        failed: 0,
+      };
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "拉取详情",
+          total: subtasks.length,
+          completed: 0,
+          concurrency: detailConcurrency,
+          success: 0,
+          failed: 0,
+        });
+      }
+
+      const payloads = (await mapLimit(subtasks, detailConcurrency, async function (entry) {
         const summary = entry.summary;
         const pageGroup = entry.pageGroup;
         const kind = pageGroup.kind;
         const linkedTask = pageGroup.taskMap[String(summary?.taskId || "")] || {};
-        const detailData = await fetchSubtaskData(String(summary.id || "").trim());
-        const enrichedData = enrichSubtaskData(detailData, summary, pageGroup.taskMap, kind);
-        if (!isAsrJudgementTaskRecord(enrichedData, linkedTask)) {
+        try {
+          const detailData = await fetchSubtaskData(String(summary.id || "").trim());
+          const enrichedData = enrichSubtaskData(detailData, summary, pageGroup.taskMap, kind);
+          if (!isAsrJudgementTaskRecord(enrichedData, linkedTask)) {
+            skippedDetailCount += 1;
+            detailProgress.completed += 1;
+            detailProgress.failed += 1;
+            return null;
+          }
+          const durationSeconds = sumDurationSeconds(enrichedData.dataList);
+          const payload = buildPayload(enrichedData, durationSeconds, reason || "home-manual", {
+            role: kind.role,
+            userName: userName || getUserNameFromRecord(summary),
+          });
+          payload.homeContext = {
+            projectId: projectId,
+            kind: kind.key,
+            role: kind.role,
+            kindLabel: kind.label,
+            taskCount: pageGroup.tasksPage.recordCount,
+            subTaskCount: subtasks.length,
+            unfinishedCount: pageGroup.unfinishedPage.recordCount,
+            finishedCount: pageGroup.finishedPage.recordCount,
+            source: kind.route + " tasks/subTasks + subTask data",
+          };
+          detailProgress.completed += 1;
+          detailProgress.success += 1;
+          return payload;
+        } catch (error) {
           skippedDetailCount += 1;
+          detailProgress.completed += 1;
+          detailProgress.failed += 1;
+          errors.push({
+            kind: kind.key,
+            message:
+              "subTaskId=" +
+              sanitizeSubTaskId(summary?.id || "") +
+              " " +
+              (error && error.message ? error.message : String(error)),
+          });
           return null;
+        } finally {
+          if (progressReporter && typeof progressReporter.update === "function") {
+            progressReporter.update({
+              phase: "拉取详情",
+              total: subtasks.length,
+              completed: detailProgress.completed,
+              concurrency: detailConcurrency,
+              success: detailProgress.success,
+              failed: detailProgress.failed,
+            });
+          }
         }
-        const durationSeconds = sumDurationSeconds(enrichedData.dataList);
-        const payload = buildPayload(enrichedData, durationSeconds, reason || "home-manual", {
-          role: kind.role,
-          userName: userName || getUserNameFromRecord(summary),
-        });
-        payload.homeContext = {
-          projectId: projectId,
-          kind: kind.key,
-          role: kind.role,
-          kindLabel: kind.label,
-          taskCount: pageGroup.tasksPage.recordCount,
-          subTaskCount: subtasks.length,
-          unfinishedCount: pageGroup.unfinishedPage.recordCount,
-          finishedCount: pageGroup.finishedPage.recordCount,
-          source: kind.route + " tasks/subTasks + subTask data",
-        };
-        return payload;
       })).filter(Boolean);
 
       if (payloads.length === 0) {
         throw new Error("首页列表中没有可上传的 ASR 更优判断统计数据。");
+      }
+
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "合并数据",
+          total: payloads.length,
+          completed: payloads.length,
+          concurrency: 1,
+          success: payloads.length,
+          failed: 0,
+        });
       }
 
       return {
@@ -1199,6 +1465,7 @@
           payloadCount: payloads.length,
           skippedSubTaskCount: skippedSubTaskCount,
           skippedDetailCount: skippedDetailCount,
+          detailConcurrency: detailConcurrency,
           kinds: kindPages.map(function (item) {
             return {
               kind: item.kind.key,
@@ -1298,24 +1565,67 @@
       }
       if (state.uploading) {
         return {
+          success: false,
           ok: false,
-          reason: "uploading",
-          message: "统计上传正在进行中。",
+          skipped: true,
+          reason: "upload-in-progress",
+          message: "快判统计上传中，请勿重复点击。",
         };
       }
 
       state.uploading = true;
+      removeProgressIndicator();
+      updateUploadProgress({
+        phase: "初始化",
+        total: 1,
+        completed: 0,
+        concurrency: 1,
+        success: 0,
+        failed: 0,
+      });
       notify();
       try {
-        const payload = await collectPayload(uploadReason);
+        const payload = await collectPayload(uploadReason, {
+          update: updateUploadProgress,
+        });
+        updateUploadProgress({
+          phase: "上传后端",
+          total: 1,
+          completed: 0,
+          concurrency: 1,
+          success: 0,
+          failed: 0,
+        });
         await postPayload(payload);
-        setMessage(true, uploadReason, "统计数据已上传。");
-        showToast("统计数据已上传。", "info");
+        updateUploadProgress({
+          phase: "上传后端",
+          total: 1,
+          completed: 1,
+          concurrency: 1,
+          success: 1,
+          failed: 0,
+        });
+        const summary = payload?.summary && typeof payload.summary === "object" ? payload.summary : {};
+        const summaryMessage =
+          "快判统计已上传：详情 " +
+          String(summary.subTaskCount || 0) +
+          "，上传 " +
+          String(summary.payloadCount || 0) +
+          "，跳过 " +
+          String(summary.skippedSubTaskCount || 0) +
+          "，失败 " +
+          String(summary.skippedDetailCount || 0) +
+          "，并发 " +
+          String(summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1));
+        completeUploadProgress(summaryMessage);
+        setMessage(true, uploadReason, summaryMessage);
+        showToast(summaryMessage, "info");
         const uploadPayload = Array.isArray(payload.payloads) ? payload.payloads : [payload];
         return {
+          success: true,
           ok: true,
           reason: uploadReason,
-          message: "统计数据已上传。",
+          message: summaryMessage,
           payload: {
             batchId: uploadPayload[0]?.mergeKey?.batchId || "",
             subTaskId: uploadPayload[0]?.roleRecord?.subTaskId || "",
@@ -1327,9 +1637,11 @@
         };
       } catch (error) {
         const message = error && error.message ? error.message : String(error);
+        failUploadProgress(message);
         setMessage(false, uploadReason, message);
-        showToast("统计上传失败：" + message, "error");
+        showToast("快判统计上传失败：" + message, "error");
         return {
+          success: false,
           ok: false,
           reason: uploadReason,
           message: message,
@@ -1353,6 +1665,7 @@
       clearScheduleTimer();
       clearUploadButtonTimer();
       removeUploadButton();
+      removeProgressIndicator();
       notify();
     }
 
@@ -1372,6 +1685,8 @@
     createRuntime: createRuntime,
     buildPayload: buildPayload,
     isAsrJudgementTaskRecord: isAsrJudgementTaskRecord,
+    resolveDynamicConcurrency: resolveDynamicConcurrency,
+    sanitizeSubTaskId: sanitizeSubTaskId,
     CSV_COLUMNS: CSV_COLUMNS.slice(),
   };
 })();

@@ -1,11 +1,24 @@
 "use strict";
 
 const fs = require("fs");
-const { resolveSupplierInfo, UNKNOWN_SUPPLIER_NAME } = require("../../supplier-utils");
+const {
+  cleanCsvValue,
+  resolveSupplierInfo,
+  UNKNOWN_SUPPLIER_NAME,
+} = require("../../supplier-utils");
 
 function escapeCsvCell(value) {
-  const text = value === undefined || value === null ? "" : String(value);
+  const text = cleanCsvValue(value);
   return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+}
+
+function cleanCsvRow(row) {
+  const source = row && typeof row === "object" ? row : {};
+  const result = {};
+  Object.keys(source).forEach(function (key) {
+    result[key] = cleanCsvValue(source[key]);
+  });
+  return result;
 }
 
 function collectDistinctSuppliers(rows) {
@@ -26,7 +39,7 @@ function collectDistinctSuppliers(rows) {
 
 function enrichRowsWithSuppliers(rows) {
   return (Array.isArray(rows) ? rows : []).map(function (row) {
-    const normalizedRow = Object.assign({}, row || {});
+    const normalizedRow = cleanCsvRow(row || {});
     const supplierInfo = resolveSupplierInfo({
       csvPatch: normalizedRow,
       taskName: normalizedRow["任务名称"] || "",
@@ -77,6 +90,7 @@ function writeMergedCsv(filePath, rowsByBatchId, csvColumns) {
 }
 
 module.exports = {
+  cleanCsvRow,
   enrichRowsWithSuppliers,
   collectDistinctSuppliers,
   escapeCsvCell,
