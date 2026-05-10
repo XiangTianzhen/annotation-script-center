@@ -37,7 +37,7 @@
 
     const frame = createNode("div", {
       position: "fixed",
-      top: "68px",
+      top: "10px",
       left: "50%",
       transform: "translateX(-50%)",
       zIndex: "2147483647",
