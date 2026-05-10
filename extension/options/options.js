@@ -130,8 +130,8 @@
   let dataBakerShortcutsDraft = {};
   let dataBakerRecordingKey = null;
   let stopDataBakerRecordingListeners = null;
-  let projectDataDownloadRevealCount = 0;
-  let projectDataDownloadPanelUnlocked = false;
+  let endpointAdvancedRevealCount = 0;
+  let endpointAdvancedUnlocked = false;
   let projectDataDownloadDatasets = [];
 
   function getElement(id) {
@@ -1572,16 +1572,13 @@
     localButton.setAttribute("aria-pressed", String(isLocal));
     const toggleNode = getElement("home-endpoint-toggle");
     if (toggleNode) {
-      toggleNode.classList.toggle("hidden", projectDataDownloadPanelUnlocked !== true);
+      toggleNode.classList.toggle("hidden", endpointAdvancedUnlocked !== true);
     }
 
     if (statusNode) {
-      statusNode.textContent = [
-        "当前已选择：" + (isLocal ? "本机（127.0.0.1:3333）" : "服务器（script.xiangtianzhen.store）"),
-        projectDataDownloadPanelUnlocked
-          ? "该设置统一控制 ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。"
-          : "连续点击“后端接口地址”文案 10 次后可显示切换与项目数据下载。",
-      ].join(" ");
+      statusNode.textContent = endpointAdvancedUnlocked
+        ? "当前已选择：" + (isLocal ? "本机（127.0.0.1:3333）" : "服务器（script.xiangtianzhen.store）")
+        : "";
     }
   }
 
@@ -1612,7 +1609,7 @@
         statusNode.textContent =
           "后端接口地址已保存为" + (normalizedMode === backendModeLocal ? "本机" : "服务器") + "。";
       }
-      if (projectDataDownloadPanelUnlocked) {
+      if (endpointAdvancedUnlocked) {
         void loadProjectDataDownloadOptions();
       }
     } catch (error) {
@@ -1766,7 +1763,7 @@
   }
 
   async function loadProjectDataDownloadOptions() {
-    if (!projectDataDownloadPanelUnlocked) {
+    if (!endpointAdvancedUnlocked) {
       return;
     }
     setProjectDataDownloadStatus("正在加载可下载数据类型...");
@@ -1794,16 +1791,17 @@
     }
   }
 
-  function unlockProjectDataDownloadPanel() {
-    if (projectDataDownloadPanelUnlocked) {
+  function unlockEndpointAdvancedPanel() {
+    if (endpointAdvancedUnlocked) {
       return;
     }
-    projectDataDownloadPanelUnlocked = true;
+    endpointAdvancedUnlocked = true;
+    renderHomeBackendEndpoint(currentSettings || {});
     const panel = getElement("project-data-download-panel");
     if (panel) {
       panel.classList.remove("hidden");
     }
-    setProjectDataDownloadStatus("项目数据下载已解锁，正在拉取可下载类型...");
+    setProjectDataDownloadStatus("正在拉取可下载类型...");
     void loadProjectDataDownloadOptions();
   }
 
@@ -1826,7 +1824,7 @@
     const panel = getElement("project-data-download-panel");
     const operatorInput = getElement("project-download-operator");
     if (panel) {
-      panel.classList.toggle("hidden", projectDataDownloadPanelUnlocked !== true);
+      panel.classList.toggle("hidden", endpointAdvancedUnlocked !== true);
     }
     if (operatorInput instanceof HTMLInputElement) {
       operatorInput.value = getProjectDataDownloadOperatorName(settings || {});
@@ -2245,16 +2243,10 @@
     const homeEndpointTitle = getElement("home-endpoint-title");
     if (homeEndpointTitle) {
       homeEndpointTitle.addEventListener("click", function () {
-        projectDataDownloadRevealCount += 1;
-        if (projectDataDownloadRevealCount >= 10) {
-          unlockProjectDataDownloadPanel();
-          return;
+        endpointAdvancedRevealCount += 1;
+        if (endpointAdvancedRevealCount >= 10) {
+          unlockEndpointAdvancedPanel();
         }
-        setProjectDataDownloadStatus(
-          "继续点击“后端接口地址”文案可解锁切换与项目数据下载（" +
-            String(projectDataDownloadRevealCount) +
-            "/10）。"
-        );
       });
     }
 
