@@ -393,8 +393,51 @@
   - 随后已恢复临时测试内容，刷新并切回 `50 条/页` 后确认临时标记计数为 0。
 - 结论：
   - 不能依赖“快速批量修改多个 textarea + blur”完成整页保存。
-  - 后续全页一键填充若需要真实写入，必须串行逐题触发并等待每题自动保存完成，或在完全理解平台保存契约后构造受控保存流程。
+  - 后续全页一键填充若需要真实写入，优先继续验证直接多条 `dataList[]` 保存或小批量保存；逐题触发并等待自动保存只能作为低速兜底，不作为目标方案。
   - 自动保存会修改真实任务数据，批量能力必须默认提供明显风险提示和可中止/可恢复策略。
+
+### 3) 直接批量 POST 尝试
+
+页面：`/corpora/labeling/sdk?missionType=check&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`，页面状态为 `驳回中`。
+
+目标：验证是否可以不逐题等待自动保存，而是一次提交多条 `dataList[]`。
+
+尝试一：直接使用详情 `GET data` 返回的完整题卡对象，修改 3 条 `result.markResult[].value` 后 POST。
+
+- Method：`POST`
+- Path：`/api/v1/label/center/subTask/{subTaskId}/data`
+- Request body：
+  - `dataList.length=3`
+  - `timestamp`
+- Response：
+  - HTTP status `200`
+  - 业务 `code=400`
+  - `success=false`
+- 验证：
+  - 刷新详情数据后临时标记计数为 0。
+
+尝试二：按已知保存体最小字段构造 3 条数据，只保留：
+
+- `dataId`
+- `batchId`
+- `data`
+- `result`
+
+结果：
+
+- HTTP status `200`
+- 业务 `code=400`
+- `success=false`
+- 临时标记计数为 0。
+
+补充验证：在同一个 `驳回中` 审核详情页，通过真实 DOM 单条 textarea 编辑触发平台自动保存，平台自身也返回 `code=400`；刷新后页面恢复 `保存成功`，临时标记计数为 0。
+
+结论：
+
+- 当前 `驳回中` 页面不能验证“保存成功型”的批量写入方案。
+- `dataList[]` 批量接口是否支持多条保存，还需要在 `处理中` 或正常可编辑子任务上复测。
+- 当前已确认的方向：如果后续要做高速全页填充，优先继续验证“一次 POST 多条 `dataList`”或“小批量 POST 多条 `dataList`”，而不是逐题等待自动保存。
+- 由于失败响应没有写入，测试未留下临时文本。
 
 ## 审核详情页提交
 
@@ -560,10 +603,23 @@
 - 影响接口：
   - `GET /api/v1/label/center/subTask/{subTaskId}/data`
   - `GET /api/v1/label/center/subTask/{subTaskId}/board`
-- 未采集：
-  - `questionsQueryConditions=OR` 的真实请求。
-  - 内容区关键词筛选后的具体字段。
-  - 任务状态 `dataStatus` 非 `ALL` 的真实枚举值。
+- 内容区关键词 + 未完成 + OR 实测结构：
+
+```json
+{
+  "questions": [],
+  "dataStatus": "UNFINISHED",
+  "questionsQueryConditions": "OR",
+  "content": "<KEYWORD>"
+}
+```
+
+- 观察：
+  - `data` 请求带 `page/pageSize/filterPassedVote/filter/_`。
+  - `board` 请求带 `filterPassedVote/filter/_`。
+  - `summary` 会同步刷新，但不带 `filter`。
+  - 任务状态下拉可见 `全部`、`已完成`、`未完成`。
+  - 本轮确认 `未完成 -> dataStatus=UNFINISHED`；`已完成` 的真实枚举值未单独触发采集。
 
 ## 标注详情页提交与自动领取
 
@@ -660,3 +716,4 @@
 
 - 不同 `missionType`（`label/audit/review`）在详情页的数据字段差异。
 - 扩展加载后的转写工具栏 DOM、按钮与快捷键行为。
+- 在 `处理中` 或正常可编辑详情页复测多条 `dataList[]` 直接保存，确认高速全页填充是否可行。

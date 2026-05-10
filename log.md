@@ -334,6 +334,8 @@
 - 补充转写标注保存契约：文本编辑自动保存仍走 `POST /api/v1/label/center/subTask/{subTaskId}/data`，保存体顶层为 `dataList` 和 `timestamp`，音频 URL 字段必须持续脱敏。
 - 本轮只更新平台资料 Markdown 和日志，未修改扩展运行时代码、manifest、后端代码或运行数据。
 - 补采 Alibaba LabelX ASR 转写审核详情页驳回链路：顶部 `驳 回` 打开 `驳回至上个环节` 弹窗，提交后触发 `POST /api/v1/label/center/subTask/{subTaskId}/reject`，请求体字段为 `subTaskId/rejectReason/type/userIdList`，成功后返回审核首页。
+- 补采转写详情页筛选面板：记录 dropdown / filter 面板 class、内容区关键词 `filter.content`、`questionsQueryConditions=OR` 和 `dataStatus=UNFINISHED`。
+- 尝试高速全页填充保存方案：在 `驳回中` 审核详情页直接 POST 3 条 `dataList[]` 和最小字段保存均返回业务 `code=400`，页面自身单条自动保存也返回 `code=400`；确认该状态页面不能验证保存成功型批量写入，需要后续在正常可编辑详情页复测。
 
 - 升级扩展版本到 `0.2.11`，新增 Alibaba LabelX 转写/快判统计“按供应商分表”能力，新增扩展侧 `extension/shared/statistics-supplier.js` 和后端侧 `platform-resources/alibaba-labelx/supplier-utils.js` 统一供应商识别工具。
 - 转写与快判统计 CSV 新增 `供应商` 列，上传 payload 新增 `supplier` 对象、`mergeKey.supplierKey/supplierName`，并将幂等合并键升级为 `供应商 + 分包ID`，避免跨供应商同分包冲突覆盖。

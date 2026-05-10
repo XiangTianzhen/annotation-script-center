@@ -300,7 +300,8 @@ DOM 观察：
 
 - 快速批量改多个 textarea 不能保证全部保存。
 - 后续全页一键填充不能直接采用“批量写 DOM 后统一 blur”的策略。
-- 若必须写入真实任务数据，需要逐题串行触发、等待保存成功，并提供中止与恢复方案。
+- 后续目标方案应优先验证直接多条 `dataList[]` 保存或小批量保存；逐题等待自动保存只适合作为低速兜底。
+- 必须提供中止、恢复和保存结果校验方案。
 
 ### 筛选面板
 
@@ -315,6 +316,7 @@ DOM 观察：
   - 输入框 placeholder：`请输入内容关键词`
 - `按任务状态：`
   - Select，默认 `全部`
+  - 可见选项：`全部`、`已完成`、`未完成`
 - `按回答区数据(仅支持选择题)：`
   - `新增筛选条件`
   - 题目 Select，当前转写样例可选 `是否有效`
@@ -329,7 +331,29 @@ DOM 观察：
 行为观察：
 
 - 选择 `是否有效=有效` 并点击 `确定` 后，会通过 `filter.questions` 影响 `data` 和 `board` 请求。
-- 本轮只验证筛选请求结构，没有修改题目数据。
+- 选择 `或(OR)` 后，radio label 增加 `ant-v5-radio-button-wrapper-checked`。
+- 设置内容区关键词和任务状态 `未完成` 后，`filter.content` 与 `dataStatus=UNFINISHED` 写入 `data` 和 `board` 请求。
+- 点击 `重 置` 后关键词清空、任务状态回到 `全部`。
+- 筛选测试不修改题目数据。
+
+CSS / DOM 观察：
+
+- 筛选面板由 Ant Design dropdown 挂载到 `body` 尾部。
+- 外层 class：
+  - `ant-v5-dropdown css-11ftrgp css-var- ant-v5-dropdown-css-var ant-v5-dropdown-placement-bottomLeft`
+- 面板背景 class：
+  - `labelRender-toolbox-filter-background`
+- 标题 class：
+  - `labelRender-toolbox-item-filter-title`
+- 内容 class：
+  - `labelRender-toolbox-item-filter-content`
+- dropdown inline style 包含：
+  - `--arrow-x`
+  - `--arrow-y`
+  - `inset`
+  - `box-sizing`
+  - `min-width`
+- 打开筛选面板时，`.mark-toolbox`、`.labelRender-toolbox`、`.labelRender-scrollable`、`.labelRender-item-selected` 的 class 未变化。
 
 ## 未检测到的扩展 DOM
 
@@ -352,5 +376,5 @@ DOM 观察：
 ## 待补采
 
 - 扩展启用后的工具栏 DOM 和快捷键行为。
-- 全页一键填充的安全交互方案和逐题保存策略。
+- 在正常可编辑详情页复测高速全页一键填充保存方案。
 - 样式设置面板 DOM。

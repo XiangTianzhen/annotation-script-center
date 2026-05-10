@@ -477,8 +477,22 @@
 - 本轮观察：
   - 筛选面板 `按回答区数据(仅支持选择题)` 中可新增条件。
   - `条件关系` 可见 `且(AND)` 与 `或(OR)`。
-  - 本轮只确认了 `AND` 请求；`OR` 未触发采集。
   - 点击 `确定` 后 `data` 和 `board` 带同一份筛选条件。
+  - `或(OR)` 会写入 `questionsQueryConditions=OR`。
+  - 内容区关键词会写入 `filter.content`。
+  - 任务状态 `未完成` 会写入 `dataStatus=UNFINISHED`。
+  - 任务状态下拉可见 `全部`、`已完成`、`未完成`。
+
+- 内容区关键词 + 未完成 + OR 实测结构：
+
+```json
+{
+  "questions": [],
+  "dataStatus": "UNFINISHED",
+  "questionsQueryConditions": "OR",
+  "content": "<KEYWORD>"
+}
+```
 
 ## 音频请求
 
