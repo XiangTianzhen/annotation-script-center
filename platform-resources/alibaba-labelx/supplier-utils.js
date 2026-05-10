@@ -5,8 +5,31 @@ const KNOWN_SUPPLIERS = ["棋燊", "希尔贝壳"];
 const SENSITIVE_SUPPLIER_PATTERN =
   /(https?:\/\/|cookie|authorization|access[_-]?token|bearer|signature=|ossaccesskeyid=)/i;
 
+function normalizeWhitespace(value) {
+  return String(value || "")
+    .replace(/[\u3000\t\r\n\f\v]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function safeDecodeText(value) {
+  const text = String(value || "");
+  if (!text) {
+    return "";
+  }
+  try {
+    return decodeURIComponent(text);
+  } catch (error) {
+    return text;
+  }
+}
+
+function normalizeTaskNameForSupplier(value) {
+  return normalizeWhitespace(safeDecodeText(value));
+}
+
 function normalizeSupplierName(value) {
-  const text = String(value || "").replace(/[\r\n\t]+/g, " ").trim();
+  const text = normalizeWhitespace(value);
   return text || UNKNOWN_SUPPLIER_NAME;
 }
 
@@ -35,14 +58,15 @@ function sanitizeSupplierPathSegment(value) {
 }
 
 function inferSupplierFromTaskName(taskName) {
-  const text = String(taskName || "").trim();
+  const text = normalizeTaskNameForSupplier(taskName);
   if (!text) {
     return { name: UNKNOWN_SUPPLIER_NAME, source: "fallback" };
   }
+  const compactText = text.replace(/\s+/g, "");
 
   for (let index = 0; index < KNOWN_SUPPLIERS.length; index += 1) {
     const known = KNOWN_SUPPLIERS[index];
-    if (text.indexOf(known) >= 0) {
+    if (text.indexOf(known) >= 0 || compactText.indexOf(known) >= 0) {
       return { name: known, source: "task-name-rule" };
     }
   }
@@ -129,6 +153,7 @@ module.exports = {
   UNKNOWN_SUPPLIER_NAME,
   getSupplierKey,
   inferSupplierFromTaskName,
+  normalizeTaskNameForSupplier,
   normalizeSupplierName,
   resolveSupplierInfo,
   sanitizeSupplierPathSegment,

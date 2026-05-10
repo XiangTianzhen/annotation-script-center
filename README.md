@@ -138,9 +138,10 @@ Chrome：
 - 转写统计 CSV 基础列为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`；仅在多供应商时最后追加 `供应商` 列。
 - 转写统计后端目录为 `platform-resources/alibaba-labelx/asr-transcription/backend/`，供应商列表地址为 `/api/alibaba-labelx/asr-transcription/statistics/suppliers`，默认下载地址为 `/api/alibaba-labelx/asr-transcription/statistics/download`。
 - 转写统计抓取按 `recordCount` 分页，不再固定只拉前 `5` 页、前 `50` 个子任务或前 `300` 条详情。
-- 转写详情优先 `pageSize=5000`，并在 `recordCount > 5000` 时继续分页补齐；详情并发默认 `5`，并发上限 `999`。
+- 转写详情优先 `pageSize=5000`，并在 `recordCount > 5000` 时继续分页补齐；详情阶段并发按 `Math.floor(total/5)` 动态计算（最小 `1`，最大 `999`）。
 - 有效时长仅统计“是否有效”严格等于“有效”的题目时长，不使用 `includes("有效")`。
 - 标注员/审核员解析新增 `dataResultHistory` 兜底（优先 `type===0`，否则取最后一条）。
+- 供应商识别会先做任务名规范化（decode + 清理前后空白 + 连续空白规整），再优先按任务名包含关系识别 `希尔贝壳` / `棋燊`。
 - 旧 legacy、保存、提交、批量、自动化、AI、导出、排行榜、整页执行链路已删除。
 - 若未来要恢复旧能力，必须按新需求重新设计与验收，不能直接恢复旧脚本。
 

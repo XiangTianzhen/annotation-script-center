@@ -283,6 +283,18 @@
     return Math.max(1, Math.min(total, normalizedPreferred, MAX_EXPORT_CONCURRENCY));
   }
 
+  function resolveDynamicConcurrency(total) {
+    const parsedTotal = Math.floor(Number(total));
+    if (!Number.isFinite(parsedTotal) || parsedTotal < 1) {
+      return 1;
+    }
+    const computed = Math.floor(parsedTotal / 5);
+    if (!Number.isFinite(computed)) {
+      return 1;
+    }
+    return Math.max(1, Math.min(computed, MAX_EXPORT_CONCURRENCY));
+  }
+
   async function runConcurrent(items, maxConcurrent, handler) {
     const list = Array.isArray(items) ? items : [];
     if (list.length === 0) {
@@ -1645,7 +1657,7 @@
         );
       }
 
-      const detailConcurrency = resolveConcurrency(subtasks.length, DEFAULT_EXPORT_CONCURRENCY);
+      const detailConcurrency = resolveDynamicConcurrency(subtasks.length);
       const detailProgress = {
         completed: 0,
         success: 0,
@@ -1806,7 +1818,7 @@
           phase: "拉取详情",
           total: 1,
           completed: 0,
-          concurrency: 1,
+          concurrency: resolveDynamicConcurrency(1),
           success: 0,
           failed: 0,
         });
@@ -1818,7 +1830,7 @@
           phase: "拉取详情",
           total: 1,
           completed: 1,
-          concurrency: 1,
+          concurrency: resolveDynamicConcurrency(1),
           success: 1,
           failed: 0,
         });
@@ -1994,7 +2006,7 @@
           "，失败 " +
           String(summary.skippedDetailCount || 0) +
           "，并发 " +
-          String(summary.detailConcurrency || DEFAULT_EXPORT_CONCURRENCY) +
+          String(summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1)) +
           (summary.listPageOverflowCount || summary.detailPageOverflowCount
             ? "（分页超上限，已截断）"
             : "");
@@ -2083,6 +2095,7 @@
     createRuntime: createRuntime,
     CSV_COLUMNS: CSV_COLUMNS.slice(),
     isAsrTranscriptionTaskRecord: isAsrTranscriptionTaskRecord,
+    resolveDynamicConcurrency: resolveDynamicConcurrency,
     sanitizeSubTaskId: sanitizeSubTaskId,
   };
 })();

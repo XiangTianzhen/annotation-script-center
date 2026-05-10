@@ -3,6 +3,8 @@
 ## 2026-05-10
 
 - 保持扩展版本 `0.2.11` 不升级 `0.2.12`，修正 LabelX 统计导出策略并重新按 `0.2.11` 口径验证与打包。
+- 修正转写统计进度并发显示：详情阶段并发改为 `Math.floor(total/5)`，最小 `1`、最大 `999`，进度条显示并发与实际执行并发保持一致（例如 `total=1854 -> 370`，`total=8000 -> 999`）。
+- 修正供应商识别稳定性：`statistics-supplier.js` 与 `supplier-utils.js` 统一任务名规范化（decode + 清理前后空白 + 连续空白规整），优先按任务名包含关系识别 `希尔贝壳` / `棋燊`，修复前导空格与全角空格场景误判。
 - 修正 LabelX 统计主存储口径：转写与快判后端主写入恢复为根级 `statistics-data/statistics-merged.csv`，`/statistics/download` 默认下载总表，不再强制 `supplier` 参数；历史 `suppliers/<供应商>/statistics-merged.csv` 仅兼容读取迁移，不删除旧运行数据。
 - 新增共享上传进度组件 `extension/shared/progress-indicator.js`，并接入转写统计上传流程，展示阶段、完成数/总数、百分比、并发、成功/失败，长任务期间不再只显示“上传中”。
 - 修正转写统计抓取完整性：`transcription-stats-client.js` 移除旧硬上限（5 页/50 子任务/300 详情），改为按 `recordCount` 计算分页；首页与详情分页上限 `999`，详情默认并发 `5`、上限 `999`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。

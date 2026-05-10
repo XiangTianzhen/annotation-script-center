@@ -44,6 +44,8 @@
   3. `csvPatch["供应商"]`
   4. `taskName/name` 推断（当前已知：`棋燊`、`希尔贝壳`）
   5. `未识别供应商`
+- 任务名会先做规范化（decode + 清理前后空白 + 连续空白规整），再优先按包含关系识别 `希尔贝壳` / `棋燊`。
+- 详情阶段并发按 `Math.floor(total/5)` 动态计算（最小 `1`，最大 `999`），并在进度条中显示真实执行并发。
 - 后端主存储恢复为根级总表：`statistics-data/statistics-merged.csv`。
 - 默认下载总表：`.../statistics/download`（不要求 supplier 参数）。
 - 供应商列表 `.../statistics/suppliers` 保留为辅助信息接口，不影响总表下载。
