@@ -6,14 +6,18 @@
   const DEFAULT_PAGE_SIZE = 400;
   const DEFAULT_HOME_PAGE_SIZE = 100;
   const DEFAULT_EXPORT_CONCURRENCY = 5;
-  const MAX_EXPORT_CONCURRENCY = 500;
+  const MAX_EXPORT_CONCURRENCY = 999;
   const MAX_HOME_LIST_PAGES = 999;
   const MAX_DETAIL_PAGES = 999;
   const DEFAULT_UPLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/upload";
+  const DEFAULT_EXISTING_PATH = "/api/alibaba-labelx/asr-judgement/statistics/existing";
   const DEFAULT_SERVER_UPLOAD_ENDPOINT =
     "https://script.xiangtianzhen.store" + DEFAULT_UPLOAD_PATH;
   const DEFAULT_UPLOAD_TIMES = ["10:00", "16:00"];
-  const DEFAULT_UPLOAD_JITTER_MINUTES = 10;
+  const DEFAULT_UPLOAD_JITTER_MINUTES = 0;
+  const SCHEDULE_UPLOAD_DELAY_MAX_MS = 300000;
+  const SCHEDULE_UPLOAD_DELAY_STEP_MS = 100;
+  const EXISTING_CHECK_CHUNK_SIZE = 1000;
   const JUDGEMENT_LABEL_MODEL = "vote";
   const TRANSCRIPTION_LABEL_MODEL = "single";
   const JUDGEMENT_TASK_SIZE = 400;
@@ -207,6 +211,170 @@
 
     const baseUrl = endpointMode === BACKEND_MODE_LOCAL ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store";
     return trimSlash(baseUrl) + DEFAULT_UPLOAD_PATH;
+  }
+
+  function resolveExistingEndpoint(config) {
+    const modeText = String(config?.backendEndpointMode || "").trim().toLowerCase();
+    const endpointMode = modeText === BACKEND_MODE_LOCAL ? BACKEND_MODE_LOCAL : BACKEND_MODE_SERVER;
+    if (typeof CONSTANTS.buildBackendUrl === "function") {
+      const byMode = normalizeEndpoint(CONSTANTS.buildBackendUrl(DEFAULT_EXISTING_PATH, endpointMode));
+      if (byMode) {
+        return byMode;
+      }
+    }
+    const baseUrl = endpointMode === BACKEND_MODE_LOCAL ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store";
+    return trimSlash(baseUrl) + DEFAULT_EXISTING_PATH;
+  }
+
+  function sanitizeBatchId(value) {
+    let decoded = "";
+    try {
+      decoded = decodeURIComponent(String(value || ""));
+    } catch (error) {
+      decoded = String(value || "");
+    }
+    return cleanText(decoded);
+  }
+
+  function createScheduleUploadDelayMs() {
+    const maxSteps = Math.floor(SCHEDULE_UPLOAD_DELAY_MAX_MS / SCHEDULE_UPLOAD_DELAY_STEP_MS);
+    const step = Math.floor(Math.random() * (maxSteps + 1));
+    return step * SCHEDULE_UPLOAD_DELAY_STEP_MS;
+  }
+
+  function isManualReason(reason) {
+    const text = String(reason || "").toLowerCase();
+    return text === "manual" || text === "home-manual" || text === "detail-manual";
+  }
+
+  function chunkItems(items, chunkSize) {
+    const result = [];
+    const size = Math.max(1, Number(chunkSize) || 1);
+    for (let index = 0; index < items.length; index += size) {
+      result.push(items.slice(index, index + size));
+    }
+    return result;
+  }
+
+  async function fetchExistingStatuses(config, items, progressReporter) {
+    const endpoint = resolveExistingEndpoint(config);
+    if (!endpoint || !Array.isArray(items) || items.length === 0) {
+      return {
+        ok: true,
+        byKey: {},
+      };
+    }
+    const chunks = chunkItems(items, EXISTING_CHECK_CHUNK_SIZE);
+    const byKey = {};
+    let completed = 0;
+    for (let index = 0; index < chunks.length; index += 1) {
+      const chunk = chunks[index];
+      const body = await fetchJson(endpoint, {
+        method: "POST",
+        cache: "no-store",
+        credentials: "omit",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/plain, */*",
+        },
+        body: JSON.stringify({ items: chunk }),
+      });
+      const responseItems = Array.isArray(body?.data?.items) ? body.data.items : [];
+      responseItems.forEach(function (entry, entryIndex) {
+        const requestItem = chunk[entryIndex] || {};
+        const key = [
+          sanitizeBatchId(entry?.batchId || requestItem.batchId || ""),
+          String(entry?.role || requestItem.role || "label").toLowerCase(),
+          sanitizeSubTaskId(entry?.subTaskId || requestItem.subTaskId || ""),
+        ].join("|");
+        byKey[key] = entry;
+      });
+      completed += chunk.length;
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "检查已有数据",
+          total: items.length,
+          completed: completed,
+          concurrency: 1,
+          success: completed,
+          failed: 0,
+        });
+      }
+    }
+    return {
+      ok: true,
+      byKey: byKey,
+    };
+  }
+
+  function getDurationValueForCheck(payload) {
+    const value = payload?.csvPatch?.["有效时长(秒)"];
+    return value === 0 || value === "0" ? "0" : cleanText(value);
+  }
+
+  function validateJudgementPayload(payload) {
+    const missingFields = [];
+    const csvPatch = payload?.csvPatch || {};
+    const roleRecord = payload?.roleRecord || {};
+    const role = String(roleRecord.role || "").toLowerCase();
+
+    ["任务名称", "任务ID", "分包ID", "题数"].forEach(function (field) {
+      if (!cleanText(csvPatch[field])) {
+        missingFields.push(field);
+      }
+    });
+    if (!getDurationValueForCheck(payload)) {
+      missingFields.push("有效时长(秒)");
+    }
+
+    if (role === "audit") {
+      if (!cleanText(roleRecord.subTaskId || "")) {
+        missingFields.push("审核子任务ID");
+      }
+      if (!cleanText(roleRecord.userName || roleRecord.userId || "")) {
+        missingFields.push("审核员");
+      }
+      if (!cleanText(roleRecord.receiveTime || "")) {
+        missingFields.push("审核领取时间");
+      }
+      if (!cleanText(csvPatch["审核是否完成"])) {
+        missingFields.push("审核是否完成");
+      }
+      if (cleanText(csvPatch["审核是否完成"]) === "已完成" && !cleanText(roleRecord.submitTime || "")) {
+        missingFields.push("审核提交时间");
+      }
+      return {
+        ok: missingFields.length === 0,
+        missingFields: missingFields,
+      };
+    }
+
+    if (!cleanText(roleRecord.subTaskId || "")) {
+      missingFields.push("标注员子任务ID");
+    }
+    if (!cleanText(roleRecord.userName || roleRecord.userId || "")) {
+      missingFields.push("标注员");
+    }
+    if (!cleanText(roleRecord.receiveTime || "")) {
+      missingFields.push("标注员领取时间");
+    }
+    if (!cleanText(csvPatch["标注员1是否完成"]) && !cleanText(csvPatch["标注员2是否完成"]) && !cleanText(csvPatch["标注员3是否完成"])) {
+      missingFields.push("标注员是否完成");
+    }
+    if (cleanText(csvPatch["标注员1是否完成"]) === "已完成" && !cleanText(csvPatch["标注员1提交时间"])) {
+      missingFields.push("标注员1提交时间");
+    }
+    if (cleanText(csvPatch["标注员2是否完成"]) === "已完成" && !cleanText(csvPatch["标注员2提交时间"])) {
+      missingFields.push("标注员2提交时间");
+    }
+    if (cleanText(csvPatch["标注员3是否完成"]) === "已完成" && !cleanText(csvPatch["标注员3提交时间"])) {
+      missingFields.push("标注员3提交时间");
+    }
+
+    return {
+      ok: missingFields.length === 0,
+      missingFields: missingFields,
+    };
   }
 
   function resolveScheduleEndpoint(config) {
@@ -1258,10 +1426,9 @@
         }
       });
 
-      const jitterMs = Math.floor(Math.random() * ((Number(schedule?.jitterMinutes) || 0) * 60000 + 1));
       return {
         targetTime: bestTime,
-        delayMs: Math.max(1000, bestTime.getTime() - now.getTime() + jitterMs),
+        delayMs: Math.max(1000, bestTime.getTime() - now.getTime()),
       };
     }
 
@@ -1305,6 +1472,10 @@
       const errors = [];
       let skippedSubTaskCount = 0;
       let skippedDetailCount = 0;
+      let skippedCompleteCount = 0;
+      let discardedNoBatchCount = 0;
+      let failedPayloadValidationCount = 0;
+      let existingCheckFailed = false;
       const listTotal = Math.max(1, kinds.length);
       let listCompleted = 0;
       let listSuccess = 0;
@@ -1382,6 +1553,15 @@
           if (!id) {
             return;
           }
+          const batchId = sanitizeBatchId(subtask?.batchId || "");
+          if (!batchId) {
+            discardedNoBatchCount += 1;
+            errors.push({
+              kind: pageGroup.kind.key,
+              message: "subTaskId=" + sanitizeSubTaskId(id) + " 缺少分包ID，已废弃。",
+            });
+            return;
+          }
 
           const linkedTask = pageGroup.taskMap[String(subtask?.taskId || "")] || {};
           if (!isAsrJudgementTaskRecord(subtask, linkedTask)) {
@@ -1392,8 +1572,11 @@
           subtaskMap[pageGroup.kind.key + ":" + id] = subtask;
         });
         Object.keys(subtaskMap).forEach(function (id) {
+          const summary = subtaskMap[id];
           subtasks.push({
-            summary: subtaskMap[id],
+            summary: summary,
+            batchId: sanitizeBatchId(summary?.batchId || ""),
+            subTaskId: sanitizeSubTaskId(summary?.id || ""),
             pageGroup: pageGroup,
           });
         });
@@ -1408,7 +1591,51 @@
         );
       }
 
-      const detailConcurrency = resolveDynamicConcurrency(subtasks.length);
+      const config = getConfig();
+      const existingItems = subtasks.map(function (entry) {
+        return {
+          batchId: entry.batchId,
+          role: entry.pageGroup?.kind?.role || "label",
+          taskName: cleanText(entry.summary?.taskName || ""),
+          subTaskId: entry.subTaskId,
+        };
+      });
+      let existingStatusByKey = {};
+      if (progressReporter && typeof progressReporter.update === "function") {
+        progressReporter.update({
+          phase: "检查已有数据",
+          total: existingItems.length,
+          completed: 0,
+          concurrency: 1,
+          success: 0,
+          failed: 0,
+        });
+      }
+      try {
+        const existingResult = await fetchExistingStatuses(config, existingItems, progressReporter);
+        existingStatusByKey = existingResult.byKey || {};
+      } catch (error) {
+        existingCheckFailed = true;
+        errors.push({
+          kind: "existing",
+          message: "existing 检查失败，已回退全量拉取：" + (error?.message || String(error)),
+        });
+      }
+
+      const detailTargets = subtasks.filter(function (entry) {
+        if (existingCheckFailed) {
+          return true;
+        }
+        const statusKey = [entry.batchId, String(entry.pageGroup?.kind?.role || "label"), entry.subTaskId].join("|");
+        const status = existingStatusByKey[statusKey];
+        if (status && status.complete === true) {
+          skippedCompleteCount += 1;
+          return false;
+        }
+        return true;
+      });
+
+      const detailConcurrency = resolveDynamicConcurrency(detailTargets.length || 1);
       const detailProgress = {
         completed: 0,
         success: 0,
@@ -1417,15 +1644,20 @@
       if (progressReporter && typeof progressReporter.update === "function") {
         progressReporter.update({
           phase: "拉取详情",
-          total: subtasks.length,
+          total: detailTargets.length,
           completed: 0,
           concurrency: detailConcurrency,
           success: 0,
           failed: 0,
+          message:
+            "跳过 " +
+            String(skippedCompleteCount) +
+            "，废弃 " +
+            String(discardedNoBatchCount),
         });
       }
 
-      const payloads = (await mapLimit(subtasks, detailConcurrency, async function (entry) {
+      const payloads = (await mapLimit(detailTargets, detailConcurrency, async function (entry) {
         const summary = entry.summary;
         const pageGroup = entry.pageGroup;
         const kind = pageGroup.kind;
@@ -1444,13 +1676,28 @@
             role: kind.role,
             userName: userName || getUserNameFromRecord(summary),
           });
+          const validation = validateJudgementPayload(payload);
+          if (!validation.ok) {
+            failedPayloadValidationCount += 1;
+            detailProgress.completed += 1;
+            detailProgress.failed += 1;
+            errors.push({
+              kind: kind.key,
+              message:
+                "subTaskId=" +
+                sanitizeSubTaskId(summary?.id || "") +
+                " 关键字段缺失：" +
+                validation.missingFields.join(","),
+            });
+            return null;
+          }
           payload.homeContext = {
             projectId: projectId,
             kind: kind.key,
             role: kind.role,
             kindLabel: kind.label,
             taskCount: pageGroup.tasksPage.recordCount,
-            subTaskCount: subtasks.length,
+              subTaskCount: detailTargets.length,
             unfinishedCount: pageGroup.unfinishedPage.recordCount,
             finishedCount: pageGroup.finishedPage.recordCount,
             source: kind.route + " tasks/subTasks + subTask data",
@@ -1475,19 +1722,20 @@
           if (progressReporter && typeof progressReporter.update === "function") {
             progressReporter.update({
               phase: "拉取详情",
-              total: subtasks.length,
+              total: detailTargets.length,
               completed: detailProgress.completed,
               concurrency: detailConcurrency,
               success: detailProgress.success,
               failed: detailProgress.failed,
+              message:
+                "跳过 " +
+                String(skippedCompleteCount) +
+                "，废弃 " +
+                String(discardedNoBatchCount),
             });
           }
         }
       })).filter(Boolean);
-
-      if (payloads.length === 0) {
-        throw new Error("首页列表中没有可上传的 ASR 更优判断统计数据。");
-      }
 
       if (progressReporter && typeof progressReporter.update === "function") {
         progressReporter.update({
@@ -1500,6 +1748,7 @@
         });
       }
 
+      const failedCount = skippedDetailCount + discardedNoBatchCount + failedPayloadValidationCount;
       return {
         schemaVersion: 1,
         source: "chromium-extension",
@@ -1516,10 +1765,15 @@
           taskCount: kindPages.reduce(function (total, item) {
             return total + (Number(item.tasksPage.recordCount) || 0);
           }, 0),
-          subTaskCount: subtasks.length,
+          subTaskCount: detailTargets.length,
           payloadCount: payloads.length,
           skippedSubTaskCount: skippedSubTaskCount,
+          skippedCompleteCount: skippedCompleteCount,
+          discardedNoBatchCount: discardedNoBatchCount,
           skippedDetailCount: skippedDetailCount,
+          failedPayloadValidationCount: failedPayloadValidationCount,
+          existingCheckFailed: existingCheckFailed,
+          failedCount: failedCount,
           detailConcurrency: detailConcurrency,
           kinds: kindPages.map(function (item) {
             return {
@@ -1535,11 +1789,28 @@
       };
     }
 
-    async function postPayload(payload) {
+    async function postPayload(payload, reason, progressReporter) {
       const config = getConfig();
       const endpoint = resolveUploadEndpoint(config);
       if (!endpoint) {
         throw new Error("统计上传地址未配置。");
+      }
+
+      const payloadList = Array.isArray(payload?.payloads) ? payload.payloads : [payload];
+      if (!isManualReason(reason) && payloadList.filter(Boolean).length > 0) {
+        const delayMs = createScheduleUploadDelayMs();
+        if (progressReporter && typeof progressReporter.update === "function") {
+          progressReporter.update({
+            phase: "等待随机延迟",
+            total: 1,
+            completed: 0,
+            concurrency: 1,
+            success: 0,
+            failed: 0,
+            message: String((delayMs / 1000).toFixed(1)) + " 秒后上传",
+          });
+        }
+        await delay(delayMs);
       }
 
       const controller = typeof AbortController === "function" ? new AbortController() : null;
@@ -1651,7 +1922,12 @@
           success: 0,
           failed: 0,
         });
-        await postPayload(payload);
+        let postResult = null;
+        if ((Array.isArray(payload?.payloads) ? payload.payloads : [payload]).filter(Boolean).length > 0) {
+          postResult = await postPayload(payload, uploadReason, {
+            update: updateUploadProgress,
+          });
+        }
         updateUploadProgress({
           phase: "上传后端",
           total: 1,
@@ -1661,20 +1937,27 @@
           failed: 0,
         });
         const summary = payload?.summary && typeof payload.summary === "object" ? payload.summary : {};
+        const backendFailedCount = Number(postResult?.data?.failedCount || 0);
+        const failedCount = Number(summary.failedCount || 0) + backendFailedCount;
         const summaryMessage =
-          "快判统计已上传：详情 " +
+          "快判统计已处理：详情 " +
           String(summary.subTaskCount || 0) +
           "，上传 " +
           String(summary.payloadCount || 0) +
           "，跳过 " +
           String(summary.skippedSubTaskCount || 0) +
+          "，跳过完整 " +
+          String(summary.skippedCompleteCount || 0) +
+          "，废弃(无分包ID) " +
+          String(summary.discardedNoBatchCount || 0) +
           "，失败 " +
-          String(summary.skippedDetailCount || 0) +
+          String(failedCount) +
           "，并发 " +
-          String(summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1));
+          String(summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1)) +
+          (failedCount > 0 ? "。有数据导出失败，请再次点击导出" : "");
         completeUploadProgress(summaryMessage);
-        setMessage(true, uploadReason, summaryMessage);
-        showToast(summaryMessage, "info");
+        setMessage(failedCount === 0, uploadReason, summaryMessage);
+        showToast(summaryMessage, failedCount > 0 ? "error" : "info");
         const uploadPayload = Array.isArray(payload.payloads) ? payload.payloads : [payload];
         return {
           success: true,
@@ -1741,6 +2024,7 @@
     buildPayload: buildPayload,
     isAsrJudgementTaskRecord: isAsrJudgementTaskRecord,
     resolveDynamicConcurrency: resolveDynamicConcurrency,
+    createScheduleUploadDelayMs: createScheduleUploadDelayMs,
     sanitizeSubTaskId: sanitizeSubTaskId,
     CSV_COLUMNS: CSV_COLUMNS.slice(),
   };

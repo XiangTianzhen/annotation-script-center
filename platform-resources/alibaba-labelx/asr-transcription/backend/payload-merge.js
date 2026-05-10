@@ -241,6 +241,24 @@ function normalizePayloads(payload) {
   return [payload];
 }
 
+function extractFailedPayloadInfo(payload, error) {
+  const role = String(payload?.roleRecord?.role || "").toLowerCase();
+  const batchId = cleanCsvValue(
+    payload?.mergeKey?.batchId || payload?.roleRecord?.batchId || payload?.csvPatch?.["分包ID"] || ""
+  );
+  const message = error && error.message ? error.message : String(error);
+  const missingFields = [];
+  if (!batchId) {
+    missingFields.push("分包ID");
+  }
+  return {
+    batchId: batchId,
+    role: role || "label",
+    message: message,
+    missingFields: missingFields,
+  };
+}
+
 function mergeUploadPayloads(payload, store) {
   const payloads = normalizePayloads(payload).filter(function (item) {
     return item && typeof item === "object";
@@ -251,17 +269,27 @@ function mergeUploadPayloads(payload, store) {
 
   const csvColumns = store.csvColumns || CSV_COLUMNS;
   const rowsByMergeRowId = store.loadRows();
-  const results = payloads.map(function (item) {
-    const result = applyPayloadToRows(item, rowsByMergeRowId, csvColumns);
-    store.appendUploadEvent(item);
-    return result;
+  const results = [];
+  const failures = [];
+  payloads.forEach(function (item) {
+    try {
+      const result = applyPayloadToRows(item, rowsByMergeRowId, csvColumns);
+      store.appendUploadEvent(item);
+      results.push(result);
+    } catch (error) {
+      failures.push(extractFailedPayloadInfo(item, error));
+    }
   });
-  store.saveRows(rowsByMergeRowId);
-  store.writeCsv(rowsByMergeRowId);
+  if (results.length > 0) {
+    store.saveRows(rowsByMergeRowId);
+    store.writeCsv(rowsByMergeRowId);
+  }
 
   const paths = store.getPaths();
   return {
     batchCount: results.length,
+    failedCount: failures.length,
+    failures: failures,
     results: results.map(function (item) {
       return {
         supplier: item.supplierName,

@@ -15,12 +15,15 @@ const CONFIG_PATH = API_BASE_PATH + "/config";
 const HEALTH_PATH = API_BASE_PATH + "/health";
 const DOWNLOAD_PATH = API_BASE_PATH + "/download";
 const SUPPLIERS_PATH = API_BASE_PATH + "/suppliers";
+const EXISTING_PATH = API_BASE_PATH + "/existing";
 const LEGACY_UPLOAD_PATH = LEGACY_API_BASE_PATH + "/upload";
 const LEGACY_CONFIG_PATH = LEGACY_API_BASE_PATH + "/config";
 const LEGACY_HEALTH_PATH = LEGACY_API_BASE_PATH + "/health";
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const DEFAULT_UPLOAD_TIMES = ["10:00", "16:00"];
-const DEFAULT_JITTER_MINUTES = 10;
+const DEFAULT_JITTER_MINUTES = 0;
+const DEFAULT_RANDOM_DELAY_MAX_SECONDS = 300;
+const DEFAULT_RANDOM_DELAY_STEP_MS = 100;
 
 function readRequestBody(request) {
   return new Promise(function (resolve, reject) {
@@ -63,7 +66,204 @@ function createScheduleConfig() {
     uploadTimes: DEFAULT_UPLOAD_TIMES.slice(),
     scheduleTimes: DEFAULT_UPLOAD_TIMES.slice(),
     jitterMinutes: DEFAULT_JITTER_MINUTES,
+    randomDelayMaxSeconds: DEFAULT_RANDOM_DELAY_MAX_SECONDS,
+    randomDelayStepMs: DEFAULT_RANDOM_DELAY_STEP_MS,
   };
+}
+
+function isBlank(value) {
+  return String(value === undefined || value === null ? "" : value).trim() === "";
+}
+
+function hasDurationValue(value) {
+  if (value === 0 || value === "0") {
+    return true;
+  }
+  return !isBlank(value);
+}
+
+function normalizeRole(role) {
+  const text = String(role || "").trim().toLowerCase();
+  if (text === "audit" || text === "check") {
+    return "audit";
+  }
+  return "label";
+}
+
+function buildRowsByBatchId(store) {
+  const rowsByBatch = {};
+  const rows = store.loadRows() || {};
+  Object.keys(rows).forEach(function (mergeRowId) {
+    const row = rows[mergeRowId] || {};
+    const batchId = String(row["分包ID"] || "").trim();
+    if (!batchId) {
+      return;
+    }
+    if (!rowsByBatch[batchId]) {
+      rowsByBatch[batchId] = [];
+    }
+    rowsByBatch[batchId].push(row);
+  });
+  return rowsByBatch;
+}
+
+function pickJudgementRowByRole(rows, role, subTaskId) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length === 0) {
+    return null;
+  }
+  const subTaskIdText = String(subTaskId || "").trim();
+  if (role === "audit") {
+    if (subTaskIdText) {
+      const byId = list.find(function (row) {
+        return String(row["审核子任务ID"] || "").trim() === subTaskIdText;
+      });
+      if (byId) {
+        return byId;
+      }
+    }
+    return (
+      list.find(function (row) {
+        return !isBlank(row["审核子任务ID"]);
+      }) || list[0]
+    );
+  }
+
+  if (!subTaskIdText) {
+    return list[0];
+  }
+
+  const slotFields = ["标注员1子任务ID", "标注员2子任务ID", "标注员3子任务ID"];
+  for (let i = 0; i < list.length; i += 1) {
+    const row = list[i];
+    const matched = slotFields.some(function (field) {
+      return String(row[field] || "").trim() === subTaskIdText;
+    });
+    if (matched) {
+      return row;
+    }
+  }
+  return list[0];
+}
+
+function resolveLabelSlot(row, subTaskId) {
+  const id = String(subTaskId || "").trim();
+  const slots = [1, 2, 3];
+  if (id) {
+    const matched = slots.find(function (slot) {
+      return String(row["标注员" + slot + "子任务ID"] || "").trim() === id;
+    });
+    if (matched) {
+      return matched;
+    }
+  }
+  return (
+    slots.find(function (slot) {
+      return !isBlank(row["标注员" + slot + "子任务ID"]);
+    }) || 1
+  );
+}
+
+function evaluateJudgementCompletion(row, role, subTaskId) {
+  const missing = [];
+  const target = row || {};
+  ["任务名称", "任务ID", "分包ID", "题数"].forEach(function (field) {
+    if (isBlank(target[field])) {
+      missing.push(field);
+    }
+  });
+  if (!hasDurationValue(target["有效时长(秒)"])) {
+    missing.push("有效时长(秒)");
+  }
+
+  if (role === "audit") {
+    ["审核子任务ID", "审核员", "审核领取时间", "审核是否完成"].forEach(function (field) {
+      if (isBlank(target[field])) {
+        missing.push(field);
+      }
+    });
+    if (String(target["审核是否完成"] || "").trim() === "已完成" && isBlank(target["审核提交时间"])) {
+      missing.push("审核提交时间");
+    }
+  } else {
+    const slot = resolveLabelSlot(target, subTaskId);
+    ["子任务ID", "", "领取时间", "是否完成"].forEach(function (suffix) {
+      const field = "标注员" + slot + suffix;
+      if (isBlank(target[field])) {
+        missing.push(field);
+      }
+    });
+    if (
+      String(target["标注员" + slot + "是否完成"] || "").trim() === "已完成" &&
+      isBlank(target["标注员" + slot + "提交时间"])
+    ) {
+      missing.push("标注员" + slot + "提交时间");
+    }
+  }
+
+  return {
+    complete: missing.length === 0,
+    missingFields: missing,
+  };
+}
+
+async function handleExisting(request, response, store) {
+  try {
+    const body = await readRequestBody(request);
+    const payload = JSON.parse(body || "{}");
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    const rowsByBatch = buildRowsByBatchId(store);
+    const resultItems = items.map(function (item) {
+      const batchId = String(item?.batchId || "").trim();
+      const role = normalizeRole(item?.role || "label");
+      const subTaskId = String(item?.subTaskId || "").trim();
+      if (!batchId) {
+        return {
+          batchId: "",
+          role: role,
+          subTaskId: subTaskId,
+          exists: false,
+          complete: false,
+          missingFields: ["分包ID"],
+        };
+      }
+
+      const rows = rowsByBatch[batchId] || [];
+      if (rows.length === 0) {
+        return {
+          batchId: batchId,
+          role: role,
+          subTaskId: subTaskId,
+          exists: false,
+          complete: false,
+          missingFields: role === "audit" ? ["审核子任务ID"] : ["标注员1子任务ID"],
+        };
+      }
+
+      const matchedRow = pickJudgementRowByRole(rows, role, subTaskId) || {};
+      const check = evaluateJudgementCompletion(matchedRow, role, subTaskId);
+      return {
+        batchId: batchId,
+        role: role,
+        subTaskId: subTaskId,
+        exists: true,
+        complete: check.complete,
+        missingFields: check.missingFields,
+      };
+    });
+
+    sendJson(response, 200, {
+      success: true,
+      data: {
+        items: resultItems,
+      },
+    });
+  } catch (error) {
+    sendJson(response, 400, {
+      success: false,
+      message: error && error.message ? error.message : String(error),
+    });
+  }
 }
 
 function sendHealth(response, store) {
@@ -77,6 +277,7 @@ function sendHealth(response, store) {
     legacyConfigPath: LEGACY_CONFIG_PATH,
     downloadPath: DOWNLOAD_PATH,
     suppliersPath: SUPPLIERS_PATH,
+    existingPath: EXISTING_PATH,
     downloadRequiresSupplier: false,
     csvPath: paths.csvPath,
     deprecatedCsvPath: "",
@@ -228,6 +429,10 @@ function registerAsrJudgementRoutes(router, options) {
     return handleUpload(request, response, store);
   });
 
+  addAliases(router, "POST", [EXISTING_PATH], function ({ request, response }) {
+    return handleExisting(request, response, store);
+  });
+
   addAliases(router, "GET", [SUPPLIERS_PATH], function ({ response }) {
     handleSuppliers(response, store);
   });
@@ -251,6 +456,7 @@ module.exports = {
   LEGACY_HEALTH_PATH,
   LEGACY_UPLOAD_PATH,
   SUPPLIERS_PATH,
+  EXISTING_PATH,
   UPLOAD_PATH,
   createScheduleConfig,
   handleDownloadCsv,

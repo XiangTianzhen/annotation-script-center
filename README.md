@@ -505,3 +505,25 @@ location / {
 - 转写与快判后端都使用同一套“中文清洗 + 健康值优先”策略。
 - 日志与错误信息继续脱敏，不记录 cookie、token、authorization、完整音频 URL。
 
+
+## 0.2.11 导出完整性与断点跳过增强
+
+- 当前版本保持 `0.2.11`，本轮不升级 `0.2.12`。
+- 统计以 `分包ID` 作为关键定位点：分包ID 为空的数据直接废弃，不写入 CSV、不上传。
+- 后端新增 existing 检查接口（转写/快判）：
+  - `POST /api/alibaba-labelx/asr-transcription/statistics/existing`
+  - `POST /api/alibaba-labelx/asr-judgement/statistics/existing`
+- 导出前先检查已有根级总表 `statistics-data/statistics-merged.csv`：
+  - `complete=true` 的分包数据直接跳过详情拉取。
+  - `complete=false` 或不存在的数据继续拉取详情并重试。
+- existing 检查失败时回退全量拉取，不阻断导出流程。
+- 失败数据定义覆盖关键字段缺失、详情请求失败、分包ID缺失等场景；失败计数会进入进度与最终摘要。
+- 结束时若存在失败数据，提示：`有数据导出失败，请再次点击导出`。
+- 再次点击导出时会优先跳过已完整数据，重点补失败/不完整数据。
+- 动态并发规则统一为：`Math.floor(total / 5)`，最小 `1`，最大 `999`。
+- 转写与快判进度条都展示：阶段、完成/总数、并发、成功、失败，并支持 skipped/discarded 摘要。
+- 定时上传时间统一：每天 `10:00`、`16:00`。
+- 定时上传到服务器前新增随机延迟：`0~300` 秒、`100ms` 步进；手动上传不延迟。
+- CSV 主存储继续为根级总表：`statistics-data/statistics-merged.csv`；不主动生成 `statistics-data/suppliers/`。
+- CSV 继续使用 UTF-8 with BOM，单供应商不输出“供应商”列，多供应商在最后一列输出“供应商”。
+- 全流程继续脱敏：不记录 cookie、token、authorization、完整音频 URL。

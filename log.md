@@ -363,3 +363,15 @@
 - CSV/file-store/payload-merge 三层同步收敛清洗规则，避免旧损坏值持续污染新导出。
 - 主存储口径保持根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
 - 转写/快判前端 payload 构造增加健康文本优先选择，降低源头携带损坏值概率。
+
+## 2026-05-10（0.2.11 小修正：导出完整性校验 + 断点跳过 + 定时延迟）
+
+- 新增转写/快判 existing 检查接口：导出前按分包ID批量判断是否已完整，完整数据跳过详情拉取。
+- 分包ID为空的数据直接废弃，不写 CSV、不上传，并计入失败/废弃统计。
+- 后端合并结果新增失败列表（failedCount/failures），不中断整批处理，便于前端二次重试。
+- 前端上传流程新增 skippedComplete/discardedNoBatch/failedPayloadValidation 汇总与失败提示。
+- 结束时若失败数 > 0，统一提示“有数据导出失败，请再次点击导出”。
+- 动态并发上限由 500 调整为 999：`Math.floor(total/5)`，最小1、最大999。
+- 定时上传改为 10:00/16:00；新增 schedule 上传前随机延迟 0~300 秒（100ms 步进）；手动上传不延迟。
+- 主存储继续根级 `statistics-data/statistics-merged.csv`，不主动创建 `statistics-data/suppliers/`。
+- CSV 继续 UTF-8 with BOM、单供应商不出“供应商”列、多供应商末列追加“供应商”。
