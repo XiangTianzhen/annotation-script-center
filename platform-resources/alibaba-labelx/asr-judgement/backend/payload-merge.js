@@ -213,7 +213,6 @@ function mergeUploadPayload(payload, store) {
     supplier: result.supplierName,
     batchId: result.batchId,
     rowCount: Object.keys(rowsByMergeRowId).length,
-    suppliersDir: paths.suppliersDir,
     rowsPath: paths.rowsPath,
     eventsPath: paths.eventsPath,
   };
@@ -257,7 +256,6 @@ function mergeUploadPayloads(payload, store) {
       };
     }),
     rowCount: Object.keys(rowsByMergeRowId).length,
-    suppliersDir: paths.suppliersDir,
     rowsPath: paths.rowsPath,
     eventsPath: paths.eventsPath,
   };

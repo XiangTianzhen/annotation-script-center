@@ -245,7 +245,6 @@ function mergeUploadPayloads(payload, store) {
       };
     }),
     rowCount: Object.keys(rowsByMergeRowId).length,
-    suppliersDir: paths.suppliersDir,
     rowsPath: paths.rowsPath,
     eventsPath: paths.eventsPath,
   };

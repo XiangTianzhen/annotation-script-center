@@ -3,14 +3,15 @@
 ## 2026-05-10
 
 - 保持扩展版本 `0.2.11` 不升级 `0.2.12`，修正 LabelX 统计导出策略并重新按 `0.2.11` 口径验证与打包。
-- 修正转写统计进度并发显示：详情阶段并发改为 `Math.floor(total/5)`，最小 `1`、最大 `999`，进度条显示并发与实际执行并发保持一致（例如 `total=1854 -> 370`，`total=8000 -> 999`）。
+- 修正转写统计进度并发显示：详情阶段并发改为 `Math.floor(total/5)`，最小 `1`、最大 `500`，进度条显示并发与实际执行并发保持一致（例如 `total=1854 -> 370`，`total=8000 -> 500`）。
 - 修正供应商识别稳定性：`statistics-supplier.js` 与 `supplier-utils.js` 统一任务名规范化（decode + 清理前后空白 + 连续空白规整），优先按任务名包含关系识别 `希尔贝壳` / `棋燊`，修复前导空格与全角空格场景误判。
 - 修正 LabelX 统计主存储口径：转写与快判后端主写入恢复为根级 `statistics-data/statistics-merged.csv`，`/statistics/download` 默认下载总表，不再强制 `supplier` 参数；历史 `suppliers/<供应商>/statistics-merged.csv` 仅兼容读取迁移，不删除旧运行数据。
+- 修正后端目录行为：`ensureDataDir()` 不再主动创建 `statistics-data/suppliers/`，新上传仅写根级 `statistics-data/statistics-merged.csv`。
 - 新增共享上传进度组件 `extension/shared/progress-indicator.js`，并接入转写统计上传流程，展示阶段、完成数/总数、百分比、并发、成功/失败，长任务期间不再只显示“上传中”。
-- 修正转写统计抓取完整性：`transcription-stats-client.js` 移除旧硬上限（5 页/50 子任务/300 详情），改为按 `recordCount` 计算分页；首页与详情分页上限 `999`，详情默认并发 `5`、上限 `999`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。
+- 修正转写统计抓取完整性：`transcription-stats-client.js` 移除旧硬上限（5 页/50 子任务/300 详情），改为按 `recordCount` 计算分页；首页与详情分页保留保护阈值，详情默认并发 `5`、上限 `500`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。
 - 修正转写有效时长口径：仅累计“是否有效”严格等于“有效”的题目时长，不使用 `includes(\"有效\")`，避免“无效”误算。
 - 修正转写人员解析：新增 `dataResultHistory` 兜底（优先 `type===0`，否则最后一条）。
-- 修正快判统计采集并发与分页上限：首页分页上限放宽到 `999`，详情并发默认 `5`，并发硬上限 `999`，保持快判 `pageSize=400` 业务口径不变。
+- 修正快判统计采集并发与分页上限：首页分页保留保护阈值，详情并发默认 `5`，保持快判 `pageSize=400` 业务口径不变。
 - 修正转写/快判后端 CSV 写出规则：供应商信息仍保留在内部 payload/mergeKey/行数据中用于防冲突；CSV 导出改为动态供应商列（单供应商不输出，多供应商在最后一列追加）。
 - 文档同步更新：`AGENTS.md`、根 `README.md`、`extension/README.md`、`platform-resources/backend/README.md`、转写/快判模块 README、LabelX 平台 README、转写统计策略文档，统一到 0.2.11 修正口径。
 - 本轮继续遵循页面采集工作流：结构和 Network 采集优先 Chrome DevTools / MCP；Playwright Edge 仅用于真实操作验证或 DevTools 不可用兜底；Codex 仅负责打开浏览器，登录与进页面由用户完成。

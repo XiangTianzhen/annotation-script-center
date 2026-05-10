@@ -56,8 +56,8 @@ http://127.0.0.1:3333
 
 ## 当前已注册 API
 
-- `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与按供应商 CSV 下载，以及 AI 建议 `health/suggest` 接口。
-- `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与按供应商 CSV 下载（CSV 列与快判不同，按转写统计格式输出）。
+- `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载，以及 AI 建议 `health/suggest` 接口。
+- `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出）。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口。
 
 ASR 转写职责边界：
@@ -84,10 +84,10 @@ ASR 转写职责边界：
   - 单供应商数据集：不输出“供应商”列。
   - 多供应商数据集：在最后一列追加“供应商”列。
 - 内部 `payload/mergeKey` 继续保留 supplier 信息，用于避免跨供应商同分包 ID 覆盖。
-- 转写统计抓取按 `recordCount` 全量分页：不再固定前 `5` 页/`50` 子任务/`300` 详情条目，详情默认并发 `5`、上限 `999`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。
+- 转写统计抓取按 `recordCount` 全量分页：不再固定前 `5` 页/`50` 子任务/`300` 详情条目，详情默认并发 `5`、上限 `500`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。
 - 有效时长口径为“是否有效”严格等于“有效”。
 - CSV 下载接口默认下载总表，不强制 `supplier` 参数。
-- 供应商目录 `statistics-data/suppliers/<供应商>/statistics-merged.csv` 仅兼容读取迁移，不删除历史运行数据。
+- 不再主动创建 `statistics-data/suppliers/`；该目录若本地已存在，属于旧方案残留，可忽略或手动清理。
 - 转写上传进度显示新增共享组件 `extension/shared/progress-indicator.js`，展示阶段、完成/总数、百分比、并发、成功/失败。
 - 当前接口示例：
   - 转写供应商列表：`/api/alibaba-labelx/asr-transcription/statistics/suppliers`

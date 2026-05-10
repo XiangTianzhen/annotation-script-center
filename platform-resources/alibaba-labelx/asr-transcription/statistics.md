@@ -29,7 +29,7 @@
 6. `taskName/name` 推断（当前已知：`棋燊`、`希尔贝壳`）
 7. `未识别供应商`
 
-- 任务名识别前先做规范化：`decodeURIComponent`（失败回退原文）+ 清理前后空白（普通空格/Tab/换行/回车/全角空格）+ 连续空白规整。
+- 任务名识别前先做规范化：`decodeURIComponent`（失败回退原文）+ 去除 `BOM` + 清理前后空白（普通空格/Tab/换行/回车/全角空格）+ 连续空白规整，并生成去空白匹配串。
 - 优先包含匹配：
   - 命中 `希尔贝壳` -> `希尔贝壳`
   - 命中 `棋燊` -> `棋燊`
@@ -49,10 +49,9 @@
 - 并发策略：
   - 详情阶段并发：`Math.floor(total / 5)`（`total` 为当前阶段待处理总数）。
   - 并发最小 `1`。
-  - 并发硬上限 `999`。
+  - 并发硬上限 `500`（例如 `1854 -> 370`、`8000 -> 500`）。
 - 分页上限：
-  - 首页最大 `999` 页。
-  - 详情最大 `999` 页。
+  - 首页与详情都保留保护阈值。
   - 超限时明确告警并截断，不静默漏数。
 
 ## 上传进度显示
@@ -64,7 +63,7 @@
   - 百分比
   - 当前并发
   - 成功 / 失败数量
-- 进度条并发显示值与实际执行并发一致（详情阶段同样按 `Math.floor(total / 5)`，最小 `1`，最大 `999`）。
+- 进度条并发显示值与实际执行并发一致（详情阶段同样按 `Math.floor(total / 5)`，最小 `1`，最大 `500`）。
 
 ## 有效时长与人员解析
 
@@ -77,7 +76,7 @@
 ## 落盘与下载
 
 - 统计主写入：`statistics-data/statistics-merged.csv`。
-- 历史 `statistics-data/suppliers/<供应商>/statistics-merged.csv` 仅兼容读取迁移，不删除旧文件。
+- 不再主动创建 `statistics-data/suppliers/`；该目录若本地已存在，属于旧方案残留，可忽略或手动清理。
 - 默认下载接口（总表）：`/api/alibaba-labelx/asr-transcription/statistics/download`
 - 供应商列表接口：
   - `/api/alibaba-labelx/asr-transcription/statistics/suppliers`

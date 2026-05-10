@@ -10,7 +10,6 @@ const {
   sanitizeSupplierPathSegment,
 } = require("../../supplier-utils");
 
-const SUPPLIERS_DIR_NAME = "suppliers";
 const MERGED_CSV_FILE_NAME = "statistics-merged.csv";
 
 function readJsonFile(filePath, fallback) {
@@ -138,7 +137,6 @@ function resolveRowSupplier(row, fallbackSupplierName) {
 function createStatisticsStore(options) {
   const config = options && typeof options === "object" ? options : {};
   const dataDir = config.dataDir || path.join(__dirname, "..", "statistics-data");
-  const suppliersDir = path.join(dataDir, SUPPLIERS_DIR_NAME);
   const rowsPath = path.join(dataDir, "statistics-rows.json");
   const eventsPath = path.join(dataDir, "statistics-upload-events.jsonl");
   const csvPath = path.join(dataDir, MERGED_CSV_FILE_NAME);
@@ -148,26 +146,6 @@ function createStatisticsStore(options) {
 
   function ensureDataDir() {
     fs.mkdirSync(dataDir, { recursive: true });
-    fs.mkdirSync(suppliersDir, { recursive: true });
-  }
-
-  function getSupplierCsvPathBySafeName(safeSupplierName) {
-    const safeName = sanitizeSupplierPathSegment(safeSupplierName || UNKNOWN_SUPPLIER_NAME);
-    return path.join(suppliersDir, safeName, MERGED_CSV_FILE_NAME);
-  }
-
-  function listSupplierDirs() {
-    if (!fs.existsSync(suppliersDir)) {
-      return [];
-    }
-    return fs
-      .readdirSync(suppliersDir, { withFileTypes: true })
-      .filter(function (entry) {
-        return entry.isDirectory();
-      })
-      .map(function (entry) {
-        return entry.name;
-      });
   }
 
   function readRowsFromCsv(sourceCsvPath, fallbackSupplierName) {
@@ -189,29 +167,10 @@ function createStatisticsStore(options) {
 
   function loadRows() {
     ensureDataDir();
-    const rowsByMergeRowId = {};
-
     if (fs.existsSync(csvPath)) {
-      const mergedCsvRows = readRowsFromCsv(csvPath, UNKNOWN_SUPPLIER_NAME);
-      Object.keys(mergedCsvRows).forEach(function (mergeRowId) {
-        rowsByMergeRowId[mergeRowId] = mergedCsvRows[mergeRowId];
-      });
+      return readRowsFromCsv(csvPath, UNKNOWN_SUPPLIER_NAME);
     }
-
-    listSupplierDirs().forEach(function (safeSupplierName) {
-      const supplierCsvPath = getSupplierCsvPathBySafeName(safeSupplierName);
-      const supplierRows = readRowsFromCsv(supplierCsvPath, safeSupplierName);
-      Object.keys(supplierRows).forEach(function (mergeRowId) {
-        if (!rowsByMergeRowId[mergeRowId]) {
-          rowsByMergeRowId[mergeRowId] = supplierRows[mergeRowId];
-        }
-      });
-    });
-
-    if (Object.keys(rowsByMergeRowId).length > 0) {
-      return rowsByMergeRowId;
-    }
-    return readJsonFile(rowsPath, {});
+    return readJsonFile(rowsPath, {}) || {};
   }
 
   function saveRows(rowsByMergeRowId) {
@@ -283,7 +242,6 @@ function createStatisticsStore(options) {
   function getPaths() {
     return {
       dataDir: dataDir,
-      suppliersDir: suppliersDir,
       legacyCsvPath: "",
       rowsPath: persistRowsJson ? rowsPath : "",
       eventsPath: persistUploadEvents ? eventsPath : "",
@@ -299,14 +257,12 @@ function createStatisticsStore(options) {
     writeCsv: writeCsv,
     appendUploadEvent: appendUploadEvent,
     listSuppliers: listSuppliers,
-    getSupplierCsvPathBySafeName: getSupplierCsvPathBySafeName,
     getPaths: getPaths,
   };
 }
 
 module.exports = {
   MERGED_CSV_FILE_NAME,
-  SUPPLIERS_DIR_NAME,
   createStatisticsStore,
   parseCsvLine,
   readCsvRowList,

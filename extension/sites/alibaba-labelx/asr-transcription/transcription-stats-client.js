@@ -3,7 +3,7 @@
   const DETAIL_PAGE_SIZE = 5000;
   const LIST_PAGE_SIZE = 50;
   const DEFAULT_EXPORT_CONCURRENCY = 5;
-  const MAX_EXPORT_CONCURRENCY = 999;
+  const MAX_EXPORT_CONCURRENCY = 500;
   const MAX_LIST_PAGES = 999;
   const MAX_DETAIL_PAGES = 999;
   const CONSTANTS = globalThis.ASREdgeConstants || {};

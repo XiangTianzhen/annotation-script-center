@@ -78,7 +78,6 @@ function sendHealth(response, store) {
     downloadPath: DOWNLOAD_PATH,
     suppliersPath: SUPPLIERS_PATH,
     downloadRequiresSupplier: false,
-    suppliersDir: paths.suppliersDir,
     csvPath: paths.csvPath,
     deprecatedCsvPath: "",
   });

@@ -1,7 +1,7 @@
 "use strict";
 
 const fs = require("fs");
-const { UNKNOWN_SUPPLIER_NAME } = require("../../supplier-utils");
+const { resolveSupplierInfo, UNKNOWN_SUPPLIER_NAME } = require("../../supplier-utils");
 
 function escapeCsvCell(value) {
   const text = value === undefined || value === null ? "" : String(value);
@@ -11,13 +11,29 @@ function escapeCsvCell(value) {
 function collectDistinctSuppliers(rows) {
   const supplierSet = new Set();
   rows.forEach(function (row) {
-    const supplierName = String(row?.["供应商"] || "").trim();
+    const supplierInfo = resolveSupplierInfo({
+      csvPatch: row || {},
+      taskName: row?.["任务名称"] || "",
+    });
+    const supplierName = String(supplierInfo?.name || "").trim();
     if (!supplierName) {
       return;
     }
     supplierSet.add(supplierName);
   });
   return supplierSet;
+}
+
+function enrichRowsWithSuppliers(rows) {
+  return (Array.isArray(rows) ? rows : []).map(function (row) {
+    const normalizedRow = Object.assign({}, row || {});
+    const supplierInfo = resolveSupplierInfo({
+      csvPatch: normalizedRow,
+      taskName: normalizedRow["任务名称"] || "",
+    });
+    normalizedRow["供应商"] = String(supplierInfo?.name || UNKNOWN_SUPPLIER_NAME);
+    return normalizedRow;
+  });
 }
 
 function getOutputCsvColumns(baseColumns, rows) {
@@ -39,11 +55,13 @@ function getOutputCsvColumns(baseColumns, rows) {
 }
 
 function writeMergedCsv(filePath, rowsByBatchId, csvColumns) {
-  const rows = Object.keys(rowsByBatchId)
+  const rows = enrichRowsWithSuppliers(
+    Object.keys(rowsByBatchId)
     .sort()
     .map(function (batchId) {
       return rowsByBatchId[batchId] || {};
-    });
+    })
+  );
   const outputColumns = getOutputCsvColumns(csvColumns, rows);
 
   const lines = [outputColumns.map(escapeCsvCell).join(",")].concat(
@@ -60,6 +78,7 @@ function writeMergedCsv(filePath, rowsByBatchId, csvColumns) {
 }
 
 module.exports = {
+  enrichRowsWithSuppliers,
   collectDistinctSuppliers,
   escapeCsvCell,
   getOutputCsvColumns,
