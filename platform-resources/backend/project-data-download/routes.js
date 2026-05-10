@@ -20,6 +20,7 @@ const REQUEST_PATH = "/api/admin/project-data-download/request";
 const FILE_PATH = "/api/admin/project-data-download/file";
 const MAX_BODY_BYTES = 1024 * 1024;
 const DEFAULT_EXPIRES_IN_SECONDS = 120;
+const TRAILING_PUNCTUATION_PATTERN = /[；;。，“”"'’)\]】}》>\s]+$/u;
 
 function createRequestId() {
   return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
@@ -201,6 +202,26 @@ function sendError(response, code, message, requestId) {
   });
 }
 
+function sendErrorWithData(response, code, message, requestId, data) {
+  sendJson(response, toStatusCodeForCode(code), {
+    success: false,
+    code: code,
+    message: message,
+    requestId: requestId,
+    data: data && typeof data === "object" ? data : {},
+  });
+}
+
+function normalizeTokenText(value) {
+  let text = normalizeText(value);
+  let guard = 0;
+  while (TRAILING_PUNCTUATION_PATTERN.test(text) && guard < 5) {
+    text = text.replace(TRAILING_PUNCTUATION_PATTERN, "");
+    guard += 1;
+  }
+  return text;
+}
+
 function formatIsoTimeFromUnixSeconds(secondsValue) {
   const seconds = Number(secondsValue);
   if (!Number.isFinite(seconds) || seconds <= 0) {
@@ -234,13 +255,14 @@ function buildAuditPayload(input) {
 
 function createCsvHeaders(fileName, fileSize) {
   const safeFileName = normalizeText(fileName).replace(/"/g, "") || "project-data-download.csv";
+  const asciiFileName = safeFileName.replace(/[^\x20-\x7E]/g, "_");
   return createCorsHeaders({
     "Cache-Control": "no-store",
     "Content-Type": "text/csv; charset=utf-8",
     "Content-Length": String(fileSize),
     "Content-Disposition":
       'attachment; filename="' +
-      safeFileName +
+      asciiFileName +
       '"; filename*=UTF-8\'\'' +
       encodeURIComponent(safeFileName),
   });
@@ -440,7 +462,11 @@ function registerProjectDataDownloadRoutes(router, options) {
             requestedAt: new Date().toISOString(),
           })
         );
-        sendError(response, code, "所选供应商暂无可下载数据。", requestId);
+        sendErrorWithData(response, code, "所选供应商暂无可下载数据。", requestId, {
+          dataset: dataset.id,
+          supplier: supplier,
+          suppliers: meta.suppliers,
+        });
         return;
       }
 
@@ -516,7 +542,7 @@ function registerProjectDataDownloadRoutes(router, options) {
       return;
     }
 
-    const token = normalizeText(query?.token);
+    const token = normalizeTokenText(query?.token);
     const verified = verifySignedToken(token, authConfig.jwtSecret);
     if (!verified.ok) {
       auditStore.append(
@@ -533,7 +559,16 @@ function registerProjectDataDownloadRoutes(router, options) {
           tokenExpiresAt: formatIsoTimeFromUnixSeconds(verified?.payload?.exp),
         })
       );
-      sendError(response, verified.code || "project-data-download-token-invalid", verified.message || "下载 token 无效。", requestId);
+      sendErrorWithData(
+        response,
+        verified.code || "project-data-download-token-invalid",
+        verified.message || "下载 token 无效。",
+        requestId,
+        {
+          dataset: normalizeText(verified?.payload?.dataset),
+          supplier: normalizeText(verified?.payload?.supplier),
+        }
+      );
       return;
     }
 
@@ -618,11 +653,31 @@ function registerProjectDataDownloadRoutes(router, options) {
           tokenExpiresAt: formatIsoTimeFromUnixSeconds(payload.exp),
         })
       );
-      sendError(response, "project-data-download-supplier-no-data", "所选供应商暂无可下载数据。", requestId);
+      sendErrorWithData(response, "project-data-download-supplier-no-data", "所选供应商暂无可下载数据。", requestId, {
+        dataset: dataset.id,
+        supplier: supplier,
+        suppliers: meta.suppliers,
+      });
       return;
     }
 
     const filteredRows = supplier ? filterRowsBySupplier(meta, supplier) : meta.rows.slice();
+    console.info(
+      "[ProjectDataDownload][file]",
+      JSON.stringify(
+        {
+          requestId: requestId,
+          jti: normalizeText(payload.jti),
+          dataset: dataset.id,
+          supplier: supplier,
+          supplierCount: meta.suppliers.length,
+          filteredRowCount: filteredRows.length,
+          csvExists: meta.exists,
+        },
+        null,
+        0
+      )
+    );
     if (supplier && filteredRows.length <= 0) {
       auditStore.append(
         buildAuditPayload({
@@ -639,7 +694,11 @@ function registerProjectDataDownloadRoutes(router, options) {
           tokenExpiresAt: formatIsoTimeFromUnixSeconds(payload.exp),
         })
       );
-      sendError(response, "project-data-download-supplier-no-data", "该供应商没有可下载数据。", requestId);
+      sendErrorWithData(response, "project-data-download-supplier-no-data", "该供应商没有可下载数据。", requestId, {
+        dataset: dataset.id,
+        supplier: supplier,
+        suppliers: meta.suppliers,
+      });
       return;
     }
 

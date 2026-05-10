@@ -463,3 +463,8 @@
 - 页面刷新后解锁状态不持久化，符合“每次进入 options 重新隐藏”的测试口径。
 - 0.3.0 测试版 service worker 路径修复：`extension/background/service-worker.js` 的 `importScripts` 改为 `chrome.runtime.getURL("shared/constants.js")` 与 `chrome.runtime.getURL("shared/storage.js")`，避免被解析为错误的 `background/shared/*` 路径。
 - 修复后 service worker 将从扩展根目录加载共享模块，解决 `Failed to execute 'importScripts' ... background/shared/constants.js failed to load` 与注册失败 `Status code: 15` 问题。
+- 0.3.0 测试修复：标贝易采导出 CSV 与原始记录分离。前端导出与上传的 `csvText` 不再包含“原始JSON”列；原始记录改为脱敏 `rawRecords` 独立上传。
+- 标贝易采后端导出存储新增 `latest-raw.json`，`latest.csv` 只保存 CSV，`latest.json` 继续保存 meta；开启 history 时同步写入 `*.raw.json`。
+- 标贝易采导出上传路由增强：兼容 `rawRecords/rawJson`，新增原始记录大小限制，health/config 返回 `latestRawJsonPath`。
+- 项目数据下载 CSV 清洗增强：`sanitizeParsedCsv` 强制剔除“原始JSON”列，避免历史 CSV 泄露原始记录。
+- 项目数据下载供应商链路增强：下载 token 读取增加尾部中文标点容错；供应商错误返回补充 dataset/supplier/suppliers；下载链路新增安全调试摘要（仅 requestId/jti/dataset/supplier/计数，不记录完整 token）。

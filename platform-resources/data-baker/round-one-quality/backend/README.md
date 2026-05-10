@@ -4,7 +4,7 @@
 当前同时提供两类能力：
 
 - AI 推荐文本接口。
-- 导出 CSV 上传与下载接口（扩展前端导出后自动上传，后端保存 `latest.csv` 并提供下载）。
+- 导出 CSV 上传与下载接口（扩展前端导出后自动上传，后端保存 `latest.csv` 并提供下载；原始记录脱敏后单独保存 `latest-raw.json`）。
 
 ## 接口
 
@@ -74,11 +74,13 @@
   - `POST /api/data-baker/round-one-quality/export/upload`
 - 后端默认写入：
   - `platform-resources/data-baker/round-one-quality/backend/export-data/latest.csv`
+  - `platform-resources/data-baker/round-one-quality/backend/export-data/latest-raw.json`
   - `platform-resources/data-baker/round-one-quality/backend/export-data/latest.json`
+- 说明：`latest.csv` 不包含“原始JSON”列；`latest-raw.json` 保存脱敏后的原始记录数组；`latest.json` 继续只保存元信息。
 - 下载最新 CSV：
   - `GET /api/data-baker/round-one-quality/export/download`
   - `HEAD /api/data-baker/round-one-quality/export/download`
-- 仅当开启 `DATABAKER_ROUND_ONE_EXPORT_HISTORY=1` 时才写入 `history/*.csv`。
+- 仅当开启 `DATABAKER_ROUND_ONE_EXPORT_HISTORY=1` 时才写入 `history/*.csv` 和对应 `history/*.raw.json`。
 - 仅当开启 `DATABAKER_ROUND_ONE_EXPORT_EVENTS=1` 时才写入 `upload-events.jsonl`。
 - 上传接口只接受 JSON 且 `csvText` 非空，CSV 超过 `20MB` 会拒绝。
 - 后端日志只输出 `requestId`、`rowCount`、`fileName`、`csvPath`、`uploadedAt`，不打印完整 CSV 内容。

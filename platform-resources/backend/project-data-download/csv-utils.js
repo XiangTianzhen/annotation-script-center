@@ -14,6 +14,10 @@ function normalizeText(value) {
     .trim();
 }
 
+function normalizeColumnName(value) {
+  return normalizeText(value).replace(/\s+/g, "");
+}
+
 function parseCsv(text) {
   const input = String(text || "");
   if (!input) {
@@ -109,12 +113,12 @@ function stringifyCsv(headers, rows, includeBom) {
 
 function findColumnIndex(headers, targetName) {
   const list = Array.isArray(headers) ? headers : [];
-  const target = normalizeText(targetName);
+  const target = normalizeColumnName(targetName);
   if (!target) {
     return -1;
   }
   for (let index = 0; index < list.length; index += 1) {
-    if (normalizeText(list[index]) === target) {
+    if (normalizeColumnName(list[index]) === target) {
       return index;
     }
   }
@@ -182,6 +186,10 @@ function sanitizeParsedCsv(headers, rows) {
 
   sourceHeaders.forEach(function (header, index) {
     const normalized = normalizeText(header);
+    const normalizedColumn = normalizeColumnName(header);
+    if (normalizedColumn === "原始JSON") {
+      return;
+    }
     if (isSensitiveHeader(normalized)) {
       return;
     }

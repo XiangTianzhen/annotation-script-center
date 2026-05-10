@@ -43,7 +43,6 @@
     { title: "验收驳回原因", keys: ["acceptCheckRejectReason"] },
   ];
 
-  const RAW_JSON_COLUMN = "原始JSON";
   const SENSITIVE_KEYWORDS = ["token", "cookie", "authorization", "signature", "ossaccesskeyid"];
   const CONSTANTS = globalThis.ASREdgeConstants || {};
   const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
@@ -882,11 +881,11 @@
     return value;
   }
 
-  function sanitizeRawJson(row) {
+  function sanitizeRawJsonRecord(row) {
     try {
-      return JSON.stringify(sanitizeValue(row, "") || {});
+      return sanitizeValue(row, "") || {};
     } catch (error) {
-      return "{}";
+      return {};
     }
   }
 
@@ -918,7 +917,7 @@
   function buildCsv(rows) {
     const headers = CSV_COLUMNS.map(function (column) {
       return column.title;
-    }).concat([RAW_JSON_COLUMN]);
+    });
     const lines = [headers.map(toCsvCell).join(",")];
 
     for (let index = 0; index < rows.length; index += 1) {
@@ -926,11 +925,17 @@
       const values = CSV_COLUMNS.map(function (column) {
         return readFieldValue(row, column.keys);
       });
-      values.push(sanitizeRawJson(row));
       lines.push(values.map(toCsvCell).join(","));
     }
 
     return lines.join("\n");
+  }
+
+  function buildRawRecords(rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    return list.map(function (row) {
+      return sanitizeRawJsonRecord(row);
+    });
   }
 
   function estimateCsvRowCount(csvText) {
@@ -984,6 +989,7 @@
       exportedAt: new Date().toISOString(),
       fileName: fileName || "data-baker-round-one-quality-export.csv",
       csvText: String(csvText || ""),
+      rawRecords: buildRawRecords(rows),
       rowCount: rowCount,
       taskId: taskId,
       route: {

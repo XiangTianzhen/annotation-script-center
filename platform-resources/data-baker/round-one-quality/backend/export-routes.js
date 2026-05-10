@@ -11,7 +11,8 @@ const EXPORT_CONFIG_PATH = EXPORT_BASE_PATH + "/config";
 const EXPORT_UPLOAD_PATH = EXPORT_BASE_PATH + "/upload";
 const EXPORT_DOWNLOAD_PATH = EXPORT_BASE_PATH + "/download";
 const EXPORT_LIST_PATH = EXPORT_BASE_PATH + "/list";
-const MAX_BODY_BYTES = MAX_CSV_BYTES + 1024 * 1024;
+const MAX_RAW_RECORDS_BYTES = 10 * 1024 * 1024;
+const MAX_BODY_BYTES = MAX_CSV_BYTES + MAX_RAW_RECORDS_BYTES + 1024 * 1024;
 
 function createRequestId() {
   return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
@@ -58,6 +59,7 @@ function sendHealth(response, store) {
     configPath: EXPORT_CONFIG_PATH,
     dataDir: store.getPaths().dataDir,
     latestCsvPath: store.getPaths().latestCsvPath,
+    latestRawJsonPath: store.getPaths().latestRawPath,
   });
 }
 
@@ -69,6 +71,7 @@ function sendConfig(response, store) {
       exportEnabled: true,
       dataDir: paths.dataDir,
       latestCsvPath: paths.latestCsvPath,
+      latestRawJsonPath: paths.latestRawPath,
       latestMetaPath: paths.latestMetaPath,
       historyDirPath: paths.historyDirPath || "",
       maxCsvBytes: MAX_CSV_BYTES,
@@ -157,6 +160,15 @@ function normalizeUploadPayload(value) {
   if (csvBytes > MAX_CSV_BYTES) {
     throw new Error("csvText 超过 20MB 限制。");
   }
+  const rawRecords = Array.isArray(body.rawRecords)
+    ? body.rawRecords
+    : Array.isArray(body.rawJson)
+      ? body.rawJson
+      : [];
+  const rawRecordsBytes = Buffer.byteLength(JSON.stringify(rawRecords), "utf8");
+  if (rawRecordsBytes > MAX_RAW_RECORDS_BYTES) {
+    throw new Error("rawRecords 超过 10MB 限制。");
+  }
   return {
     schemaVersion: Number(body.schemaVersion) || 1,
     source: String(body.source || ""),
@@ -164,6 +176,7 @@ function normalizeUploadPayload(value) {
     exportedAt: String(body.exportedAt || ""),
     fileName: String(body.fileName || ""),
     csvText: csvText,
+    rawRecords: rawRecords,
     rowCount: Number(body.rowCount),
     taskId: String(body.taskId || ""),
     route: body.route && typeof body.route === "object" ? body.route : {},
@@ -206,6 +219,7 @@ async function handleUpload(request, response, store) {
         fileName: saved.fileName,
         rowCount: saved.rowCount,
         csvPath: saved.csvPath,
+        rawJsonPath: saved.rawJsonPath,
         downloadUrl: downloadUrl,
         uploadedAt: saved.uploadedAt,
       },

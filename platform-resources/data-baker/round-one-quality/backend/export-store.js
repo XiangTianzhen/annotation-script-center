@@ -5,6 +5,7 @@ const path = require("path");
 
 const DEFAULT_LATEST_FILE_NAME = "latest.csv";
 const DEFAULT_META_FILE_NAME = "latest.json";
+const DEFAULT_RAW_FILE_NAME = "latest-raw.json";
 const DEFAULT_HISTORY_DIR_NAME = "history";
 const DEFAULT_EVENTS_FILE_NAME = "upload-events.jsonl";
 
@@ -57,6 +58,7 @@ function createExportStore(options) {
   const dataDir = config.dataDir || path.join(__dirname, "export-data");
   const latestCsvPath = path.join(dataDir, DEFAULT_LATEST_FILE_NAME);
   const latestMetaPath = path.join(dataDir, DEFAULT_META_FILE_NAME);
+  const latestRawPath = path.join(dataDir, DEFAULT_RAW_FILE_NAME);
   const historyDirPath = path.join(dataDir, DEFAULT_HISTORY_DIR_NAME);
   const eventsPath = path.join(dataDir, DEFAULT_EVENTS_FILE_NAME);
   const persistHistory = config.persistHistory === true;
@@ -69,21 +71,31 @@ function createExportStore(options) {
     }
   }
 
-  function writeLatest(csvText, meta) {
+  function writeLatest(csvText, rawRecords, meta) {
     ensureDataDir();
     fs.writeFileSync(latestCsvPath, String(csvText || ""), "utf8");
+    fs.writeFileSync(latestRawPath, JSON.stringify(Array.isArray(rawRecords) ? rawRecords : [], null, 2), "utf8");
     fs.writeFileSync(latestMetaPath, JSON.stringify(meta || {}, null, 2), "utf8");
   }
 
-  function writeHistory(csvText, fileName) {
+  function writeHistory(csvText, rawRecords, fileName) {
     if (!persistHistory) {
-      return "";
+      return {
+        csvPath: "",
+        rawPath: "",
+      };
     }
     ensureDataDir();
     const safeFileName = ensureCsvExtension(fileName, "history-export.csv");
-    const historyPath = path.join(historyDirPath, safeFileName);
-    fs.writeFileSync(historyPath, String(csvText || ""), "utf8");
-    return historyPath;
+    const historyCsvPath = path.join(historyDirPath, safeFileName);
+    const rawFileName = safeFileName.replace(/\.csv$/i, ".raw.json");
+    const historyRawPath = path.join(historyDirPath, rawFileName);
+    fs.writeFileSync(historyCsvPath, String(csvText || ""), "utf8");
+    fs.writeFileSync(historyRawPath, JSON.stringify(Array.isArray(rawRecords) ? rawRecords : [], null, 2), "utf8");
+    return {
+      csvPath: historyCsvPath,
+      rawPath: historyRawPath,
+    };
   }
 
   function appendEvent(eventPayload) {
@@ -102,6 +114,11 @@ function createExportStore(options) {
       ? Math.floor(rowCountFromPayload)
       : readCsvRowCount(csvText);
     const uploadedAt = new Date().toISOString();
+    const rawRecords = Array.isArray(payload?.rawRecords)
+      ? payload.rawRecords
+      : Array.isArray(payload?.rawJson)
+        ? payload.rawJson
+        : [];
     const meta = {
       schemaVersion: 1,
       source: String(payload?.source || ""),
@@ -115,23 +132,31 @@ function createExportStore(options) {
       summary: payload?.summary && typeof payload.summary === "object" ? payload.summary : {},
     };
 
-    writeLatest(csvText, meta);
-    const historyPath = writeHistory(csvText, uploadedAt.replace(/[^\dTZ:-]/g, "") + "-" + fileName);
+    writeLatest(csvText, rawRecords, meta);
+    const history = writeHistory(
+      csvText,
+      rawRecords,
+      uploadedAt.replace(/[^\dTZ:-]/g, "") + "-" + fileName
+    );
     appendEvent({
       uploadedAt: uploadedAt,
       fileName: fileName,
       rowCount: rowCount,
       taskId: meta.taskId,
       latestCsvPath: latestCsvPath,
-      historyPath: historyPath,
+      rawJsonPath: latestRawPath,
+      historyPath: history.csvPath,
+      historyRawJsonPath: history.rawPath,
     });
 
     return {
       fileName: fileName,
       rowCount: rowCount,
       csvPath: latestCsvPath,
+      rawJsonPath: latestRawPath,
       latestMetaPath: latestMetaPath,
-      historyPath: historyPath,
+      historyPath: history.csvPath,
+      historyRawJsonPath: history.rawPath,
       uploadedAt: uploadedAt,
     };
   }
@@ -140,6 +165,7 @@ function createExportStore(options) {
     return {
       dataDir: dataDir,
       latestCsvPath: latestCsvPath,
+      latestRawPath: latestRawPath,
       latestMetaPath: latestMetaPath,
       historyDirPath: persistHistory ? historyDirPath : "",
       eventsPath: persistEvents ? eventsPath : "",
