@@ -1731,6 +1731,7 @@
       let skippedSubTaskCount = 0;
       let skippedDetailCount = 0;
       let skippedCompleteCount = 0;
+      let incompleteFoundCount = 0;
       let discardedNoBatchCount = 0;
       let failedPayloadValidationCount = 0;
       let warningPayloadCount = 0;
@@ -1918,6 +1919,9 @@
           skippedCompleteCount += 1;
           return false;
         }
+        if (status && status.exists === true && status.complete === false) {
+          incompleteFoundCount += 1;
+        }
         return true;
       });
 
@@ -1938,6 +1942,8 @@
           message:
             "跳过 " +
             String(skippedCompleteCount) +
+            "，待补 " +
+            String(incompleteFoundCount) +
             "，废弃 " +
             String(discardedNoBatchCount),
         });
@@ -2029,6 +2035,8 @@
                 message:
                   "跳过 " +
                   String(skippedCompleteCount) +
+                  "，待补 " +
+                  String(incompleteFoundCount) +
                   "，废弃 " +
                   String(discardedNoBatchCount),
               });
@@ -2073,6 +2081,7 @@
           skippedSubTaskCount: skippedSubTaskCount,
           skippedDuplicateSubTaskCount: skippedDuplicateSubTaskCount,
           skippedCompleteCount: skippedCompleteCount,
+          incompleteFoundCount: incompleteFoundCount,
           discardedNoBatchCount: discardedNoBatchCount,
           skippedDetailCount: skippedDetailCount,
           failedPayloadValidationCount: failedPayloadValidationCount,
@@ -2153,6 +2162,56 @@
       if (!validation.ok) {
         throw new Error("详情统计缺少分包ID，已拒绝上传。");
       }
+
+      const config = getConfig();
+      try {
+        const existingResult = await fetchExistingStatuses(
+          config,
+          [
+            {
+              batchId: sanitizeBatchId(payload?.mergeKey?.batchId || payload?.csvPatch?.["分包ID"] || ""),
+              role: String(payload?.roleRecord?.role || "label").toLowerCase(),
+              taskName: cleanText(payload?.csvPatch?.["任务名称"] || ""),
+              subTaskId: sanitizeSubTaskId(payload?.roleRecord?.subTaskId || ""),
+            },
+          ],
+          null
+        );
+        const statusKey = [
+          sanitizeBatchId(payload?.mergeKey?.batchId || payload?.csvPatch?.["分包ID"] || ""),
+          String(payload?.roleRecord?.role || "label").toLowerCase(),
+          sanitizeSubTaskId(payload?.roleRecord?.subTaskId || ""),
+        ].join("|");
+        const status = existingResult?.byKey?.[statusKey];
+        if (status && status.complete === true) {
+          return {
+            schemaVersion: 1,
+            source: "chromium-extension",
+            project: "alibaba-labelx/asr-transcription",
+            reason: reason || "detail-manual",
+            uploadedAt: new Date().toISOString(),
+            mode: "project-batch",
+            mergeKey: {
+              projectId: payload?.mergeKey?.projectId || payload?.rawKeys?.projectId || "",
+            },
+            payloads: [],
+            summary: {
+              subTaskCount: 1,
+              detailRequestCount: 0,
+              payloadCount: 0,
+              skippedCompleteCount: 1,
+              incompleteFoundCount: 0,
+              discardedNoBatchCount: 0,
+              warningPayloadCount: 0,
+              failedCount: 0,
+              detailConcurrency: resolveDynamicConcurrency(1),
+            },
+          };
+        }
+      } catch (error) {
+        // existing 检查失败时回退原流程，不阻断详情上传。
+      }
+
       if (progressReporter && typeof progressReporter.update === "function") {
         progressReporter.update({
           phase: "合并数据",
@@ -2291,48 +2350,52 @@
         const payload = await collectPayload(uploadReason, {
           update: updateUploadProgress,
         });
-        updateUploadProgress({
-          phase: "上传后端",
-          total: 1,
-          completed: 0,
-          concurrency: 1,
-          success: 0,
-          failed: 0,
-        });
+        const uploadPayloadList = (Array.isArray(payload?.payloads) ? payload.payloads : [payload]).filter(Boolean);
         let postResult = null;
-        if ((Array.isArray(payload?.payloads) ? payload.payloads : [payload]).filter(Boolean).length > 0) {
+        if (uploadPayloadList.length > 0) {
+          updateUploadProgress({
+            phase: "上传后端",
+            total: 1,
+            completed: 0,
+            concurrency: 1,
+            success: 0,
+            failed: 0,
+          });
           postResult = await postPayload(payload, uploadReason, {
             update: updateUploadProgress,
           });
+          updateUploadProgress({
+            phase: "上传后端",
+            total: 1,
+            completed: 1,
+            concurrency: 1,
+            success: 1,
+            failed: 0,
+          });
         }
-        updateUploadProgress({
-          phase: "上传后端",
-          total: 1,
-          completed: 1,
-          concurrency: 1,
-          success: 1,
-          failed: 0,
-        });
         const summary = payload?.summary && typeof payload.summary === "object" ? payload.summary : {};
         const backendFailedCount = Number(postResult?.data?.failedCount || 0);
         const failedCount = Number(summary.failedCount || 0) + backendFailedCount;
         const warningCount = Number(summary.warningPayloadCount || 0);
+        const incompleteFoundCount = Number(summary.incompleteFoundCount || 0);
         const summaryMessage =
           "转写统计已处理：扫描 " +
           String(summary.scannedTranscriptionSubTaskCount || summary.subTaskCount || 0) +
           "，详情 " +
-          String(summary.detailRequestCount || 1) +
+          String(summary.detailRequestCount || 0) +
           "，上传 " +
-          String(summary.payloadCount || 1) +
+          String(summary.payloadCount || uploadPayloadList.length || 0) +
           "，跳过快判 " +
           String(summary.skippedSubTaskCount || 0) +
           "，跳过重复 " +
           String(summary.skippedDuplicateSubTaskCount || 0) +
           "，跳过完整 " +
           String(summary.skippedCompleteCount || 0) +
+          "，字段待补 " +
+          String(incompleteFoundCount) +
           "，废弃(无分包ID) " +
           String(summary.discardedNoBatchCount || 0) +
-          "，字段待补 " +
+          "，警告 " +
           String(warningCount) +
           "，失败 " +
           String(failedCount) +
@@ -2340,6 +2403,9 @@
           String(summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1)) +
           (summary.listPageOverflowCount || summary.detailPageOverflowCount
             ? "（分页超上限，已截断）"
+            : "") +
+          (uploadPayloadList.length === 0
+            ? "。已全部完整，无需上传"
             : "") +
           (failedCount > 0
             ? "。有数据导出失败，请再次点击导出"

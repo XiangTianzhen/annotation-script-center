@@ -1468,6 +1468,7 @@
       let skippedSubTaskCount = 0;
       let skippedDetailCount = 0;
       let skippedCompleteCount = 0;
+      let incompleteFoundCount = 0;
       let discardedNoBatchCount = 0;
       let failedPayloadValidationCount = 0;
       let warningPayloadCount = 0;
@@ -1628,6 +1629,9 @@
           skippedCompleteCount += 1;
           return false;
         }
+        if (status && status.exists === true && status.complete === false) {
+          incompleteFoundCount += 1;
+        }
         return true;
       });
 
@@ -1648,6 +1652,8 @@
           message:
             "跳过 " +
             String(skippedCompleteCount) +
+            "，待补 " +
+            String(incompleteFoundCount) +
             "，废弃 " +
             String(discardedNoBatchCount),
         });
@@ -1729,6 +1735,8 @@
               message:
                 "跳过 " +
                 String(skippedCompleteCount) +
+                "，待补 " +
+                String(incompleteFoundCount) +
                 "，废弃 " +
                 String(discardedNoBatchCount),
             });
@@ -1768,6 +1776,7 @@
           payloadCount: payloads.length,
           skippedSubTaskCount: skippedSubTaskCount,
           skippedCompleteCount: skippedCompleteCount,
+          incompleteFoundCount: incompleteFoundCount,
           discardedNoBatchCount: discardedNoBatchCount,
           skippedDetailCount: skippedDetailCount,
           failedPayloadValidationCount: failedPayloadValidationCount,
@@ -1914,49 +1923,56 @@
         const payload = await collectPayload(uploadReason, {
           update: updateUploadProgress,
         });
-        updateUploadProgress({
-          phase: "上传后端",
-          total: 1,
-          completed: 0,
-          concurrency: 1,
-          success: 0,
-          failed: 0,
-        });
+        const uploadPayloadList = (Array.isArray(payload?.payloads) ? payload.payloads : [payload]).filter(Boolean);
         let postResult = null;
-        if ((Array.isArray(payload?.payloads) ? payload.payloads : [payload]).filter(Boolean).length > 0) {
+        if (uploadPayloadList.length > 0) {
+          updateUploadProgress({
+            phase: "上传后端",
+            total: 1,
+            completed: 0,
+            concurrency: 1,
+            success: 0,
+            failed: 0,
+          });
           postResult = await postPayload(payload, uploadReason, {
             update: updateUploadProgress,
           });
+          updateUploadProgress({
+            phase: "上传后端",
+            total: 1,
+            completed: 1,
+            concurrency: 1,
+            success: 1,
+            failed: 0,
+          });
         }
-        updateUploadProgress({
-          phase: "上传后端",
-          total: 1,
-          completed: 1,
-          concurrency: 1,
-          success: 1,
-          failed: 0,
-        });
         const summary = payload?.summary && typeof payload.summary === "object" ? payload.summary : {};
         const backendFailedCount = Number(postResult?.data?.failedCount || 0);
         const failedCount = Number(summary.failedCount || 0) + backendFailedCount;
         const warningCount = Number(summary.warningPayloadCount || 0);
+        const incompleteFoundCount = Number(summary.incompleteFoundCount || 0);
         const summaryMessage =
           "快判统计已处理：详情 " +
           String(summary.subTaskCount || 0) +
           "，上传 " +
-          String(summary.payloadCount || 0) +
+          String(summary.payloadCount || uploadPayloadList.length || 0) +
           "，跳过 " +
           String(summary.skippedSubTaskCount || 0) +
           "，跳过完整 " +
           String(summary.skippedCompleteCount || 0) +
+          "，字段待补 " +
+          String(incompleteFoundCount) +
           "，废弃(无分包ID) " +
           String(summary.discardedNoBatchCount || 0) +
-          "，字段待补 " +
+          "，警告 " +
           String(warningCount) +
           "，失败 " +
           String(failedCount) +
           "，并发 " +
           String(summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1)) +
+          (uploadPayloadList.length === 0
+            ? "。已全部完整，无需上传"
+            : "") +
           (failedCount > 0
             ? "。有数据导出失败，请再次点击导出"
             : warningCount > 0

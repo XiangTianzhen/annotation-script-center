@@ -159,11 +159,20 @@ function resolveLabelSlot(row, subTaskId) {
 
 function evaluateJudgementCompletion(row, role, subTaskId) {
   const target = row || {};
+  const missingFields = [];
+  ["分包ID", "任务名称", "任务ID", "题数"].forEach(function (field) {
+    if (isBlank(target[field])) {
+      missingFields.push(field);
+    }
+  });
   if (role === "audit") {
-    const complete = !isBlank(target["审核子任务ID"]);
+    if (isBlank(target["审核子任务ID"])) {
+      missingFields.push("审核子任务ID");
+    }
+    const complete = missingFields.length === 0;
     return {
       complete: complete,
-      missingFields: complete ? [] : ["审核子任务ID"],
+      missingFields: complete ? [] : missingFields,
     };
   } else {
     const slotFields = ["标注员1子任务ID", "标注员2子任务ID", "标注员3子任务ID"];
@@ -177,15 +186,18 @@ function evaluateJudgementCompletion(row, role, subTaskId) {
         })
       : hasAnyLabelSlot;
     const complete = hasExactSlot || hasAnyLabelSlot;
-    if (complete) {
+    if (complete && missingFields.length === 0) {
       return {
         complete: true,
         missingFields: [],
       };
     }
+    if (!complete) {
+      missingFields.push("标注员子任务ID");
+    }
     return {
       complete: false,
-      missingFields: ["标注员子任务ID"],
+      missingFields: missingFields,
     };
   }
 }

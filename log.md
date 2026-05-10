@@ -385,3 +385,13 @@
 - 修正后端批量上传返回结构：新增 `acceptedCount/rejectedCount/rejectedItems`，保留 `failedCount/failures` 兼容字段，确保“部分失败不影响成功写入”。
 - 保持主存储为根级 `statistics-data/statistics-merged.csv`，不主动创建 `statistics-data/suppliers/`。
 - 保持并发规则 `Math.floor(total/5)`（最小 1，最大 999）、定时上传 `10:00/16:00`、定时随机延迟 `0~300s`（100ms 步进）。
+
+## 2026-05-10（修正统计跳过完整判断和进度宽度）
+
+- 修正 `existing complete` 判定过宽问题：`exists=true` 不再直接跳过，转写/快判都改为“基础字段 + 当前 role 子任务ID”最低完整条件。
+- 转写/快判均支持：任务名称空值判 `complete=false`（待补），而非失败；下一次导出会继续拉详情补齐。
+- 修正前端跳过逻辑：仅 `complete=true` 计入 `skippedComplete`；`exists=true && complete=false` 继续拉详情并可上传补齐。
+- 修正无意义上传：当 `payloads.length===0` 时不调用上传接口，显示“已全部完整，无需上传”，不再出现“上传 1”占位行为。
+- 进度面板样式优化：宽度提升到 `min-width:560px / max-width:780px`，文本允许换行，四位数成功/失败计数可见。
+- 保持主存储口径：根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
+- 版本保持 `0.2.11`，并发规则保持 `Math.floor(total/5)`（最小1、最大999）。

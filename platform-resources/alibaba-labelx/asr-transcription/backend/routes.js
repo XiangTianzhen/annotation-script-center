@@ -189,17 +189,29 @@ function pickTranscriptionRowByRole(rows, role, subTaskId) {
 
 function evaluateTranscriptionCompletion(row, role) {
   const target = row || {};
+  const missingFields = [];
+  ["分包ID", "任务名称", "任务ID", "题数"].forEach(function (field) {
+    if (isBlank(target[field])) {
+      missingFields.push(field);
+    }
+  });
   if (role === "audit") {
-    const complete = !isBlank(target["审核子任务ID"]);
+    if (isBlank(target["审核子任务ID"])) {
+      missingFields.push("审核子任务ID");
+    }
+    const complete = missingFields.length === 0;
     return {
       complete: complete,
-      missingFields: complete ? [] : ["审核子任务ID"],
+      missingFields: complete ? [] : missingFields,
     };
   }
-  const complete = !isBlank(target["标注子任务ID"]);
+  if (isBlank(target["标注子任务ID"])) {
+    missingFields.push("标注子任务ID");
+  }
+  const complete = missingFields.length === 0;
   return {
     complete: complete,
-    missingFields: complete ? [] : ["标注子任务ID"],
+    missingFields: complete ? [] : missingFields,
   };
 }
 

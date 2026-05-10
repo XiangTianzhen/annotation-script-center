@@ -29,7 +29,8 @@
 
     const root = createNode("div", {
       display: "inline-flex",
-      alignItems: "center",
+      alignItems: "flex-start",
+      flexWrap: "wrap",
       gap: "8px",
       marginLeft: "8px",
       padding: "4px 8px",
@@ -39,9 +40,10 @@
       color: "#0958d9",
       fontSize: "12px",
       lineHeight: "1.4",
-      maxWidth: "560px",
-      whiteSpace: "nowrap",
-      overflow: "hidden",
+      minWidth: "560px",
+      maxWidth: "780px",
+      whiteSpace: "normal",
+      overflow: "visible",
     });
     root.id = id;
 
@@ -70,9 +72,9 @@
     barWrap.appendChild(bar);
 
     const textNode = createNode("span", {
-      minWidth: "180px",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
+      minWidth: "320px",
+      whiteSpace: "normal",
+      wordBreak: "break-word",
       flex: "1 1 auto",
     });
 
