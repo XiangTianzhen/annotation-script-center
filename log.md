@@ -2,6 +2,10 @@
 
 ## 2026-05-10
 
+- 文档同步：全仓 README 与 `AGENTS.md` 稳定规则对齐。重点修正转写/快判 backend README 中“supplier 必传下载”和“suppliers 目录主写入”旧口径，统一为根级总表 `statistics-data/statistics-merged.csv` 主存储、`/statistics/download` 默认总表下载。
+- 文档同步：修正 README 中旧“jitter 10 分钟”与并发上限 `500` 口径，统一为定时上传前随机延迟 `0~300` 秒（`100ms` 步进，手动上传不延迟）与动态并发上限 `999`。
+- 本轮仅修改 Markdown 文档（README/log），未修改 JS/manifest，未升级版本，未打包 dist。
+
 - 文档治理：更新 `AGENTS.md` 协作入口，补齐 `0.2.11` 稳定统计规则沉淀，覆盖 DevTools/Playwright 工作流、根级总表主存储、分包ID唯一定位、`existing/complete/upload` 跳过与上传边界、CSV UTF-8 with BOM 与健康值覆盖规则、供应商回退识别、进度悬浮窗与动态并发（`Math.floor(total/5)`，最小 `1` 最大 `999`）、定时上传 `10:00/16:00` 与 `0~300s`（`100ms` 步进）延迟规则。
 - 本轮仅更新文档（`AGENTS.md`、`log.md`），未修改 JS/后端代码、未修改 `extension/manifest.json`、未升级版本、未打包 dist。
 

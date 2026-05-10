@@ -77,7 +77,7 @@
 - 下载接口（默认总表，不要求 `supplier`）：
   - `https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download`
   - `http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
-- 默认定时上传：`10:00`、`16:00`，jitter `10` 分钟。
+- 默认定时上传：`10:00`、`16:00`；定时上传在真正 POST 前增加随机延迟 `0~300` 秒（`100ms` 步进），手动上传不延迟。
 - 后端目录：`platform-resources/alibaba-labelx/asr-transcription/backend/`。
 - 统计写入目录：`platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/statistics-merged.csv`。
 - CSV 基础列：

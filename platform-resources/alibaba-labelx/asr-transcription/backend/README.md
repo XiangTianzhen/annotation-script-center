@@ -5,13 +5,13 @@
 本目录提供 ASR 转写统计上传、合并与 CSV 下载能力，路由由 `platform-resources/backend/server.js` 统一启动注册。
 
 说明：浏览器扩展前端只保留 `extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js` 作为统计上传客户端，不在前端实现 Node 服务或 CSV 落盘。
-当前 `0.2.11` 起，转写统计按“供应商 + 分包ID”合并并按供应商目录落盘；历史根级 CSV 仅作为迁移输入读取，不删除、不继续写回。
+当前 `0.2.11` 稳定口径：转写统计内部按“供应商 + 分包ID”合并，主写入根级总表；历史供应商目录仅兼容读取，不作为主输出。
 
 ## 默认数据目录
 
 - `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`
-- 供应商 CSV：`statistics-data/suppliers/<供应商>/statistics-merged.csv`
-- 历史根级 CSV：`statistics-data/statistics-merged.csv`，仅兼容读取迁移，不再写回。
+- 主 CSV：`statistics-data/statistics-merged.csv`
+- 历史 `statistics-data/suppliers/<供应商>/statistics-merged.csv` 若本地存在，仅作为兼容读取迁移，不主动创建、不继续写入。
 
 ## 环境变量
 
@@ -26,10 +26,10 @@
 - `GET /api/alibaba-labelx/asr-transcription/statistics/upload?purpose=schedule`
 - `POST /api/alibaba-labelx/asr-transcription/statistics/upload`
 - `GET /api/alibaba-labelx/asr-transcription/statistics/suppliers`
-- `GET /api/alibaba-labelx/asr-transcription/statistics/download?supplier=<供应商>`
-- `HEAD /api/alibaba-labelx/asr-transcription/statistics/download?supplier=<供应商>`
+- `GET /api/alibaba-labelx/asr-transcription/statistics/download`
+- `HEAD /api/alibaba-labelx/asr-transcription/statistics/download`
 
-下载接口必须显式指定 `supplier`；未传时返回 `400`，并提示先调用 `.../statistics/suppliers` 查询可下载供应商。
+下载接口默认返回根级总表，不要求 `supplier` 参数；`suppliers` 接口仅作为辅助信息接口。
 
 兼容短路径：
 
@@ -41,7 +41,7 @@
 ## 默认定时配置
 
 - `times`: `["10:00","16:00"]`
-- `jitterMinutes`: `10`
+- 定时上传在真正 POST 前增加随机延迟：`0~300` 秒、`100ms` 步进（手动上传不延迟）。
 
 ## CSV 列顺序
 

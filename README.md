@@ -36,7 +36,7 @@
 - 内部 payload / mergeKey 仍保留 supplier 信息，继续避免跨供应商同分包覆盖。
 - 转写统计上传新增进度条（阶段、完成/总数、百分比、并发、成功/失败），共享实现位于 `extension/shared/progress-indicator.js`。
 - 快判统计上传同步接入同一进度条组件；后续所有平台长耗时统计/导出任务默认复用该组件。
-- 页数上限与并发上限分开管理：页数上限用于防无限分页；并发上限固定 `500`。
+- 页数上限与并发上限分开管理：页数上限用于防无限分页；并发上限固定 `999`。
 
 ## 页面采集与验证工作流
 
@@ -137,7 +137,7 @@ Chrome：
 - options 转写详情页提供轻量可配置项：自动播放、默认倍速/重置倍速、倍速步进、前进/后退步长、默认音量、当前功能快捷键。
 - 转写统计上传与定时上传为脚本默认能力，运行时强制启用，不在转写详情页提供开关。
 - popup 状态区分为：已注入等待详情页、运行成功、真正注入失败。
-- 转写新增统计导出能力：支持顶部“上传转写统计”手动上传与定时上传（默认 `10:00`、`16:00`，jitter `10` 分钟），后端按 `供应商 + 分包ID` 合并 CSV。
+- 转写新增统计导出能力：支持顶部“上传转写统计”手动上传与定时上传（默认 `10:00`、`16:00`）；定时上传在 POST 前随机延迟 `0~300` 秒（`100ms` 步进），手动上传不延迟；后端按 `供应商 + 分包ID` 合并 CSV。
 - 转写扩展侧统计文件为 `extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只做采集与上传客户端；CSV 落盘与下载服务仅在 `platform-resources/alibaba-labelx/asr-transcription/backend/`。
 - 转写统计 CSV 基础列为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`；仅在多供应商时最后追加 `供应商` 列。
 - 转写统计后端目录为 `platform-resources/alibaba-labelx/asr-transcription/backend/`，供应商列表地址为 `/api/alibaba-labelx/asr-transcription/statistics/suppliers`，默认下载地址为 `/api/alibaba-labelx/asr-transcription/statistics/download`。
