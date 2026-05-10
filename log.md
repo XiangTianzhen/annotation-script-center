@@ -2,6 +2,9 @@
 
 ## 2026-05-10
 
+- 文档治理：更新 `AGENTS.md` 协作入口，补齐 `0.2.11` 稳定统计规则沉淀，覆盖 DevTools/Playwright 工作流、根级总表主存储、分包ID唯一定位、`existing/complete/upload` 跳过与上传边界、CSV UTF-8 with BOM 与健康值覆盖规则、供应商回退识别、进度悬浮窗与动态并发（`Math.floor(total/5)`，最小 `1` 最大 `999`）、定时上传 `10:00/16:00` 与 `0~300s`（`100ms` 步进）延迟规则。
+- 本轮仅更新文档（`AGENTS.md`、`log.md`），未修改 JS/后端代码、未修改 `extension/manifest.json`、未升级版本、未打包 dist。
+
 - 继续保持 `extension/manifest.json` 版本 `0.2.11`，仅做上传统计进度悬浮窗样式微调（不改统计业务逻辑）。
 - `shared/progress-indicator.js` 悬浮窗位置上移到页面顶部中间附近（`top: 68px`），并增加卡片内边距与间距（`padding: 12px 16px`、`gap: 10px`），提升完成态和进行中态阅读舒适度。
 
