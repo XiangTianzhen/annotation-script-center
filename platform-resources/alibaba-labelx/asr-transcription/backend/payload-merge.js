@@ -287,6 +287,9 @@ function mergeUploadPayloads(payload, store) {
 
   const paths = store.getPaths();
   return {
+    acceptedCount: results.length,
+    rejectedCount: failures.length,
+    rejectedItems: failures,
     batchCount: results.length,
     failedCount: failures.length,
     failures: failures,

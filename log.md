@@ -375,3 +375,13 @@
 - 定时上传改为 10:00/16:00；新增 schedule 上传前随机延迟 0~300 秒（100ms 步进）；手动上传不延迟。
 - 主存储继续根级 `statistics-data/statistics-merged.csv`，不主动创建 `statistics-data/suppliers/`。
 - CSV 继续 UTF-8 with BOM、单供应商不出“供应商”列、多供应商末列追加“供应商”。
+
+## 2026-05-10（修正统计失败判断并保留部分成功数据）
+
+- 修正转写/快判前端 payload 校验口径：仅 `分包ID` 缺失才拒绝上传；其余关键字段空值改为 warning/incomplete，不再计入 failed。
+- 修正转写/快判进度汇总：`failed` 仅统计真正失败（详情请求异常、校验拒绝、上传失败等），`discardedNoBatchId` 与 `warningPayloadCount` 单独展示。
+- 修正转写/快判最终提示：仅 `failed > 0` 才提示“有数据导出失败，请再次点击导出”；仅 warning 时提示“部分字段待后续角色补齐”。
+- 修正后端 existing complete 判定：转写按 `label=标注子任务ID`、`audit=审核子任务ID`；快判按 `label=任一标注员子任务ID`、`audit=审核子任务ID`，不再要求另一角色字段完整。
+- 修正后端批量上传返回结构：新增 `acceptedCount/rejectedCount/rejectedItems`，保留 `failedCount/failures` 兼容字段，确保“部分失败不影响成功写入”。
+- 保持主存储为根级 `statistics-data/statistics-merged.csv`，不主动创建 `statistics-data/suppliers/`。
+- 保持并发规则 `Math.floor(total/5)`（最小 1，最大 999）、定时上传 `10:00/16:00`、定时随机延迟 `0~300s`（100ms 步进）。

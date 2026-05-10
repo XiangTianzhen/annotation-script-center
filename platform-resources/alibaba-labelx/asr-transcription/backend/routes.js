@@ -126,13 +126,6 @@ function isBlank(value) {
   return String(value === undefined || value === null ? "" : value).trim() === "";
 }
 
-function hasDurationValue(value) {
-  if (value === 0 || value === "0") {
-    return true;
-  }
-  return !isBlank(value);
-}
-
 function normalizeRole(role) {
   const text = String(role || "").trim().toLowerCase();
   if (text === "audit" || text === "check") {
@@ -195,48 +188,18 @@ function pickTranscriptionRowByRole(rows, role, subTaskId) {
 }
 
 function evaluateTranscriptionCompletion(row, role) {
-  const missing = [];
   const target = row || {};
-
-  ["任务名称", "任务ID", "分包ID", "题数"].forEach(function (field) {
-    if (isBlank(target[field])) {
-      missing.push(field);
-    }
-  });
-
   if (role === "audit") {
-    ["审核子任务ID", "审核员", "审核领取时间", "审核是否完成"].forEach(function (field) {
-      if (isBlank(target[field])) {
-        missing.push(field);
-      }
-    });
-    if (String(target["审核是否完成"] || "").trim() === "已完成") {
-      if (isBlank(target["审核提交时间"])) {
-        missing.push("审核提交时间");
-      }
-      if (!hasDurationValue(target["有效时长(秒)"])) {
-        missing.push("有效时长(秒)");
-      }
-    }
-  } else {
-    ["标注子任务ID", "标注员", "标注领取时间", "标注是否完成"].forEach(function (field) {
-      if (isBlank(target[field])) {
-        missing.push(field);
-      }
-    });
-    if (String(target["标注是否完成"] || "").trim() === "已完成") {
-      if (isBlank(target["标注提交时间"])) {
-        missing.push("标注提交时间");
-      }
-      if (!hasDurationValue(target["有效时长(秒)"])) {
-        missing.push("有效时长(秒)");
-      }
-    }
+    const complete = !isBlank(target["审核子任务ID"]);
+    return {
+      complete: complete,
+      missingFields: complete ? [] : ["审核子任务ID"],
+    };
   }
-
+  const complete = !isBlank(target["标注子任务ID"]);
   return {
-    complete: missing.length === 0,
-    missingFields: missing,
+    complete: complete,
+    missingFields: complete ? [] : ["标注子任务ID"],
   };
 }
 

@@ -312,68 +312,63 @@
     return value === 0 || value === "0" ? "0" : cleanText(value);
   }
 
+  function pushIfBlank(list, value, field) {
+    if (!cleanText(value)) {
+      list.push(field);
+    }
+  }
+
   function validateJudgementPayload(payload) {
-    const missingFields = [];
+    const warningFields = [];
     const csvPatch = payload?.csvPatch || {};
     const roleRecord = payload?.roleRecord || {};
     const role = String(roleRecord.role || "").toLowerCase();
+    const batchId = sanitizeBatchId(
+      payload?.mergeKey?.batchId || roleRecord?.batchId || csvPatch?.["分包ID"] || ""
+    );
 
-    ["任务名称", "任务ID", "分包ID", "题数"].forEach(function (field) {
-      if (!cleanText(csvPatch[field])) {
-        missingFields.push(field);
-      }
-    });
+    pushIfBlank(warningFields, csvPatch["任务名称"], "任务名称");
+    pushIfBlank(warningFields, csvPatch["任务ID"], "任务ID");
+    pushIfBlank(warningFields, csvPatch["题数"], "题数");
     if (!getDurationValueForCheck(payload)) {
-      missingFields.push("有效时长(秒)");
+      warningFields.push("有效时长(秒)");
     }
 
     if (role === "audit") {
-      if (!cleanText(roleRecord.subTaskId || "")) {
-        missingFields.push("审核子任务ID");
-      }
-      if (!cleanText(roleRecord.userName || roleRecord.userId || "")) {
-        missingFields.push("审核员");
-      }
-      if (!cleanText(roleRecord.receiveTime || "")) {
-        missingFields.push("审核领取时间");
-      }
-      if (!cleanText(csvPatch["审核是否完成"])) {
-        missingFields.push("审核是否完成");
-      }
-      if (cleanText(csvPatch["审核是否完成"]) === "已完成" && !cleanText(roleRecord.submitTime || "")) {
-        missingFields.push("审核提交时间");
+      pushIfBlank(warningFields, roleRecord.subTaskId || "", "审核子任务ID");
+      pushIfBlank(warningFields, roleRecord.userName || roleRecord.userId || "", "审核员");
+      pushIfBlank(warningFields, roleRecord.receiveTime || "", "审核领取时间");
+      pushIfBlank(warningFields, csvPatch["审核是否完成"], "审核是否完成");
+      if (cleanText(csvPatch["审核是否完成"]) === "已完成") {
+        pushIfBlank(warningFields, roleRecord.submitTime || "", "审核提交时间");
       }
       return {
-        ok: missingFields.length === 0,
-        missingFields: missingFields,
+        ok: Boolean(batchId),
+        rejectedReason: batchId ? "" : "分包ID",
+        warningFields: warningFields,
       };
     }
 
-    if (!cleanText(roleRecord.subTaskId || "")) {
-      missingFields.push("标注员子任务ID");
-    }
-    if (!cleanText(roleRecord.userName || roleRecord.userId || "")) {
-      missingFields.push("标注员");
-    }
-    if (!cleanText(roleRecord.receiveTime || "")) {
-      missingFields.push("标注员领取时间");
-    }
+    pushIfBlank(warningFields, roleRecord.subTaskId || "", "标注员子任务ID");
+    pushIfBlank(warningFields, roleRecord.userName || roleRecord.userId || "", "标注员");
+    pushIfBlank(warningFields, roleRecord.receiveTime || "", "标注员领取时间");
     if (!cleanText(csvPatch["标注员1是否完成"]) && !cleanText(csvPatch["标注员2是否完成"]) && !cleanText(csvPatch["标注员3是否完成"])) {
-      missingFields.push("标注员是否完成");
+      warningFields.push("标注员是否完成");
     }
-    if (cleanText(csvPatch["标注员1是否完成"]) === "已完成" && !cleanText(csvPatch["标注员1提交时间"])) {
-      missingFields.push("标注员1提交时间");
+    if (cleanText(csvPatch["标注员1是否完成"]) === "已完成") {
+      pushIfBlank(warningFields, csvPatch["标注员1提交时间"], "标注员1提交时间");
     }
-    if (cleanText(csvPatch["标注员2是否完成"]) === "已完成" && !cleanText(csvPatch["标注员2提交时间"])) {
-      missingFields.push("标注员2提交时间");
+    if (cleanText(csvPatch["标注员2是否完成"]) === "已完成") {
+      pushIfBlank(warningFields, csvPatch["标注员2提交时间"], "标注员2提交时间");
     }
-    if (cleanText(csvPatch["标注员3是否完成"]) === "已完成" && !cleanText(csvPatch["标注员3提交时间"])) {
-      missingFields.push("标注员3提交时间");
+    if (cleanText(csvPatch["标注员3是否完成"]) === "已完成") {
+      pushIfBlank(warningFields, csvPatch["标注员3提交时间"], "标注员3提交时间");
     }
 
     return {
-      ok: missingFields.length === 0,
-      missingFields: missingFields,
+      ok: Boolean(batchId),
+      rejectedReason: batchId ? "" : "分包ID",
+      warningFields: warningFields,
     };
   }
 
@@ -1475,6 +1470,7 @@
       let skippedCompleteCount = 0;
       let discardedNoBatchCount = 0;
       let failedPayloadValidationCount = 0;
+      let warningPayloadCount = 0;
       let existingCheckFailed = false;
       const listTotal = Math.max(1, kinds.length);
       let listCompleted = 0;
@@ -1668,7 +1664,6 @@
           if (!isAsrJudgementTaskRecord(enrichedData, linkedTask)) {
             skippedDetailCount += 1;
             detailProgress.completed += 1;
-            detailProgress.failed += 1;
             return null;
           }
           const durationSeconds = sumDurationSeconds(enrichedData.dataList);
@@ -1686,10 +1681,13 @@
               message:
                 "subTaskId=" +
                 sanitizeSubTaskId(summary?.id || "") +
-                " 关键字段缺失：" +
-                validation.missingFields.join(","),
+                " 拒绝上传：" +
+                (validation.rejectedReason || "缺少必要字段"),
             });
             return null;
+          }
+          if (validation.warningFields.length > 0) {
+            warningPayloadCount += 1;
           }
           payload.homeContext = {
             projectId: projectId,
@@ -1701,6 +1699,7 @@
             unfinishedCount: pageGroup.unfinishedPage.recordCount,
             finishedCount: pageGroup.finishedPage.recordCount,
             source: kind.route + " tasks/subTasks + subTask data",
+            warningFields: validation.warningFields,
           };
           detailProgress.completed += 1;
           detailProgress.success += 1;
@@ -1748,7 +1747,7 @@
         });
       }
 
-      const failedCount = skippedDetailCount + discardedNoBatchCount + failedPayloadValidationCount;
+      const failedCount = detailProgress.failed;
       return {
         schemaVersion: 1,
         source: "chromium-extension",
@@ -1772,6 +1771,7 @@
           discardedNoBatchCount: discardedNoBatchCount,
           skippedDetailCount: skippedDetailCount,
           failedPayloadValidationCount: failedPayloadValidationCount,
+          warningPayloadCount: warningPayloadCount,
           existingCheckFailed: existingCheckFailed,
           failedCount: failedCount,
           detailConcurrency: detailConcurrency,
@@ -1939,6 +1939,7 @@
         const summary = payload?.summary && typeof payload.summary === "object" ? payload.summary : {};
         const backendFailedCount = Number(postResult?.data?.failedCount || 0);
         const failedCount = Number(summary.failedCount || 0) + backendFailedCount;
+        const warningCount = Number(summary.warningPayloadCount || 0);
         const summaryMessage =
           "快判统计已处理：详情 " +
           String(summary.subTaskCount || 0) +
@@ -1950,11 +1951,17 @@
           String(summary.skippedCompleteCount || 0) +
           "，废弃(无分包ID) " +
           String(summary.discardedNoBatchCount || 0) +
+          "，字段待补 " +
+          String(warningCount) +
           "，失败 " +
           String(failedCount) +
           "，并发 " +
           String(summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1)) +
-          (failedCount > 0 ? "。有数据导出失败，请再次点击导出" : "");
+          (failedCount > 0
+            ? "。有数据导出失败，请再次点击导出"
+            : warningCount > 0
+              ? "。上传完成，部分字段待后续角色补齐"
+              : "");
         completeUploadProgress(summaryMessage);
         setMessage(failedCount === 0, uploadReason, summaryMessage);
         showToast(summaryMessage, failedCount > 0 ? "error" : "info");

@@ -87,7 +87,7 @@ ASR 转写职责边界：
 - 内部 `payload/mergeKey` 继续保留 supplier 信息，用于避免跨供应商同分包 ID 覆盖。
 - 当已有供应商字段为 `未识别供应商` / `unknown-supplier` / 空值时，必须回退任务名重新识别，不得固化错误供应商值。
 - 转写统计抓取按 `recordCount` 全量分页：不再固定前 `5` 页/`50` 子任务/`300` 详情条目，详情默认并发 `5`、上限 `500`，详情优先 `pageSize=5000` 并在必要时继续分页补齐。
-- 快判统计抓取同样按 `recordCount` 补齐，`finished=true/false` 都抓；快判详情保持 `pageSize=400`，并发规则同样是 `Math.floor(total/5)`、最小 `1`、最大 `500`。
+- 快判统计抓取同样按 `recordCount` 补齐，`finished=true/false` 都抓；快判详情保持 `pageSize=400`，并发规则同样是 `Math.floor(total/5)`、最小 `1`、最大 `999`。
 - 页数上限与并发上限分离：页数上限用于防无限分页，并发上限固定 `500`。
 - 有效时长口径为“是否有效”严格等于“有效”。
 - CSV 下载接口默认下载总表，不强制 `supplier` 参数。
@@ -132,7 +132,7 @@ ASR 转写职责边界：
   - `complete=true` 的分包数据直接跳过详情拉取。
   - `complete=false` 或不存在的数据继续拉取详情并重试。
 - existing 检查失败时回退全量拉取，不阻断导出流程。
-- 失败数据定义覆盖关键字段缺失、详情请求失败、分包ID缺失等场景；失败计数会进入进度与最终摘要。
+- 失败数据定义调整为：分包ID为空（废弃/拒绝）、详情请求失败、JSON解析失败、上传请求失败等真正失败；字段空白默认记为 warning/incomplete，不计入 failed。
 - 结束时若存在失败数据，提示：`有数据导出失败，请再次点击导出`。
 - 再次点击导出时会优先跳过已完整数据，重点补失败/不完整数据。
 - 动态并发规则统一为：`Math.floor(total / 5)`，最小 `1`，最大 `999`。
@@ -142,3 +142,14 @@ ASR 转写职责边界：
 - CSV 主存储继续为根级总表：`statistics-data/statistics-merged.csv`；不主动生成 `statistics-data/suppliers/`。
 - CSV 继续使用 UTF-8 with BOM，单供应商不输出“供应商”列，多供应商在最后一列输出“供应商”。
 - 全流程继续脱敏：不记录 cookie、token、authorization、完整音频 URL。
+
+## 2026-05-10 0.2.11 失败判定修正
+- LabelX 统计按标注/审核分角色逐步合并：另一角色字段为空属于正常情况，不再判失败。
+- 只有 `分包ID` 为空时才直接废弃（discardedNoBatchId），不写 CSV、不上传。
+- `任务名称/任务ID/人员/领取时间/提交时间/有效时长` 为空默认记为 warning/incomplete，不阻断上传。
+- 批量上传改为“部分失败不影响成功数据保存”，后端返回 `acceptedCount/rejectedCount/rejectedItems`。
+- 结束提示规则：仅当 `failed > 0` 才提示“有数据导出失败，请再次点击导出”；仅 warning 时提示“部分字段待后续角色补齐”。
+- existing `complete` 按当前 role 最小条件判断：转写 `label=标注子任务ID`、`audit=审核子任务ID`；快判 `label=任一标注员子任务ID`、`audit=审核子任务ID`。
+- 统计主存储继续为根级 `statistics-data/statistics-merged.csv`，不主动创建 `statistics-data/suppliers/`。
+- 并发规则保持 `Math.floor(total / 5)`，最小 `1`，最大 `999`；定时上传保持 `10:00/16:00`，上传前随机延迟 `0~300s`（`100ms` 步进）。
+

@@ -75,13 +75,6 @@ function isBlank(value) {
   return String(value === undefined || value === null ? "" : value).trim() === "";
 }
 
-function hasDurationValue(value) {
-  if (value === 0 || value === "0") {
-    return true;
-  }
-  return !isBlank(value);
-}
-
 function normalizeRole(role) {
   const text = String(role || "").trim().toLowerCase();
   if (text === "audit" || text === "check") {
@@ -165,46 +158,36 @@ function resolveLabelSlot(row, subTaskId) {
 }
 
 function evaluateJudgementCompletion(row, role, subTaskId) {
-  const missing = [];
   const target = row || {};
-  ["任务名称", "任务ID", "分包ID", "题数"].forEach(function (field) {
-    if (isBlank(target[field])) {
-      missing.push(field);
-    }
-  });
-  if (!hasDurationValue(target["有效时长(秒)"])) {
-    missing.push("有效时长(秒)");
-  }
-
   if (role === "audit") {
-    ["审核子任务ID", "审核员", "审核领取时间", "审核是否完成"].forEach(function (field) {
-      if (isBlank(target[field])) {
-        missing.push(field);
-      }
-    });
-    if (String(target["审核是否完成"] || "").trim() === "已完成" && isBlank(target["审核提交时间"])) {
-      missing.push("审核提交时间");
-    }
+    const complete = !isBlank(target["审核子任务ID"]);
+    return {
+      complete: complete,
+      missingFields: complete ? [] : ["审核子任务ID"],
+    };
   } else {
-    const slot = resolveLabelSlot(target, subTaskId);
-    ["子任务ID", "", "领取时间", "是否完成"].forEach(function (suffix) {
-      const field = "标注员" + slot + suffix;
-      if (isBlank(target[field])) {
-        missing.push(field);
-      }
+    const slotFields = ["标注员1子任务ID", "标注员2子任务ID", "标注员3子任务ID"];
+    const targetSubTaskId = String(subTaskId || "").trim();
+    const hasAnyLabelSlot = slotFields.some(function (field) {
+      return !isBlank(target[field]);
     });
-    if (
-      String(target["标注员" + slot + "是否完成"] || "").trim() === "已完成" &&
-      isBlank(target["标注员" + slot + "提交时间"])
-    ) {
-      missing.push("标注员" + slot + "提交时间");
+    const hasExactSlot = targetSubTaskId
+      ? slotFields.some(function (field) {
+          return String(target[field] || "").trim() === targetSubTaskId;
+        })
+      : hasAnyLabelSlot;
+    const complete = hasExactSlot || hasAnyLabelSlot;
+    if (complete) {
+      return {
+        complete: true,
+        missingFields: [],
+      };
     }
+    return {
+      complete: false,
+      missingFields: ["标注员子任务ID"],
+    };
   }
-
-  return {
-    complete: missing.length === 0,
-    missingFields: missing,
-  };
 }
 
 async function handleExisting(request, response, store) {

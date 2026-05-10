@@ -142,8 +142,8 @@ Chrome：
 - 转写统计 CSV 基础列为：`任务名称,任务ID,标注子任务ID,审核子任务ID,分包ID,题数,有效时长(秒),标注员,审核员,标注领取时间,标注提交时间,审核领取时间,审核提交时间,标注是否完成,审核是否完成`；仅在多供应商时最后追加 `供应商` 列。
 - 转写统计后端目录为 `platform-resources/alibaba-labelx/asr-transcription/backend/`，供应商列表地址为 `/api/alibaba-labelx/asr-transcription/statistics/suppliers`，默认下载地址为 `/api/alibaba-labelx/asr-transcription/statistics/download`。
 - 转写统计抓取按 `recordCount` 分页，不再固定只拉前 `5` 页、前 `50` 个子任务或前 `300` 条详情。
-- 转写详情优先 `pageSize=5000`，并在 `recordCount > 5000` 时继续分页补齐；详情阶段并发按 `Math.floor(total/5)` 动态计算（最小 `1`，最大 `500`，例如 `1854 -> 370`、`8000 -> 500`）。
-- 快判首页与详情抓取按 `recordCount` 分页补齐；快判详情保持 `pageSize=400` 口径，详情并发同样按 `Math.floor(total/5)` 动态计算（最小 `1`，最大 `500`）。
+- 转写详情优先 `pageSize=5000`，并在 `recordCount > 5000` 时继续分页补齐；详情阶段并发按 `Math.floor(total/5)` 动态计算（最小 `1`，最大 `999`，例如 `1854 -> 370`、`8000 -> 999`）。
+- 快判首页与详情抓取按 `recordCount` 分页补齐；快判详情保持 `pageSize=400` 口径，详情并发同样按 `Math.floor(total/5)` 动态计算（最小 `1`，最大 `999`）。
 - 有效时长仅统计“是否有效”严格等于“有效”的题目时长，不使用 `includes("有效")`。
 - 标注员/审核员解析新增 `dataResultHistory` 兜底（优先 `type===0`，否则取最后一条）。
 - 供应商识别会先做任务名规范化（`decodeURIComponent` 容错 + 去除 `BOM` + 清理前后空白与全角空格 + 连续空白规整），并生成去空白匹配串，再优先按任务名包含关系识别 `希尔贝壳` / `棋燊`。
@@ -517,7 +517,7 @@ location / {
   - `complete=true` 的分包数据直接跳过详情拉取。
   - `complete=false` 或不存在的数据继续拉取详情并重试。
 - existing 检查失败时回退全量拉取，不阻断导出流程。
-- 失败数据定义覆盖关键字段缺失、详情请求失败、分包ID缺失等场景；失败计数会进入进度与最终摘要。
+- 失败数据定义调整为：分包ID为空（废弃/拒绝）、详情请求失败、JSON解析失败、上传请求失败等真正失败；字段空白默认记为 warning/incomplete，不计入 failed。
 - 结束时若存在失败数据，提示：`有数据导出失败，请再次点击导出`。
 - 再次点击导出时会优先跳过已完整数据，重点补失败/不完整数据。
 - 动态并发规则统一为：`Math.floor(total / 5)`，最小 `1`，最大 `999`。
@@ -527,3 +527,14 @@ location / {
 - CSV 主存储继续为根级总表：`statistics-data/statistics-merged.csv`；不主动生成 `statistics-data/suppliers/`。
 - CSV 继续使用 UTF-8 with BOM，单供应商不输出“供应商”列，多供应商在最后一列输出“供应商”。
 - 全流程继续脱敏：不记录 cookie、token、authorization、完整音频 URL。
+
+## 2026-05-10 0.2.11 失败判定修正
+- LabelX 统计按标注/审核分角色逐步合并：另一角色字段为空属于正常情况，不再判失败。
+- 只有 `分包ID` 为空时才直接废弃（discardedNoBatchId），不写 CSV、不上传。
+- `任务名称/任务ID/人员/领取时间/提交时间/有效时长` 为空默认记为 warning/incomplete，不阻断上传。
+- 批量上传改为“部分失败不影响成功数据保存”，后端返回 `acceptedCount/rejectedCount/rejectedItems`。
+- 结束提示规则：仅当 `failed > 0` 才提示“有数据导出失败，请再次点击导出”；仅 warning 时提示“部分字段待后续角色补齐”。
+- existing `complete` 按当前 role 最小条件判断：转写 `label=标注子任务ID`、`audit=审核子任务ID`；快判 `label=任一标注员子任务ID`、`audit=审核子任务ID`。
+- 统计主存储继续为根级 `statistics-data/statistics-merged.csv`，不主动创建 `statistics-data/suppliers/`。
+- 并发规则保持 `Math.floor(total / 5)`，最小 `1`，最大 `999`；定时上传保持 `10:00/16:00`，上传前随机延迟 `0~300s`（`100ms` 步进）。
+

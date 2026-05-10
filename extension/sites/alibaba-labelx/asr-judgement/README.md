@@ -122,7 +122,7 @@
 - 标注首页 URL 为 `/corpora/labeling/labelingTask?projectId=...`，按标注角色写入 CSV；审核首页 URL 为 `/corpora/labeling/checkTask?projectId=...`，按审核角色写入 CSV。点击首页按钮时会同时尝试读取标注和审核两类列表，避免只上传当前页类型。
 - 首页上传会直接使用 LabelX 登录态请求首页任务数据：先读取 `/api/v1/label/center/tasks` 和 `/api/v1/label/center/subTasks`，再对每个子任务调用 `/api/v1/label/center/subTask/{subTaskId}/data` 获取完整题目与时长，最后批量上传 `payloads`。已通过 DevTools 确认：标注首页使用 `type=label` / `subTaskType=label`，审核首页使用 `type=check` / `subTaskType=check`；两类首页的已完成列表都通过 `subTasks?finished=true` 读取。
 - 快判首页统计分页按 `recordCount` 补齐并保留页数保护阈值（防无限分页）；仍保持快判详情 `pageSize=400` 的业务口径，不套用转写 `pageSize=5000`。
-- 快判详情抓取并发改为动态规则：`Math.floor(total/5)`，最小 `1`，最大 `500`，并发显示值与实际执行并发一致。
+- 快判详情抓取并发改为动态规则：`Math.floor(total/5)`，最小 `1`，最大 `999`，并发显示值与实际执行并发一致。
 - 快判统计上传已接入 `shared/progress-indicator.js`：显示阶段、完成/总数、百分比、并发、成功/失败，不再只显示“上传中”。
 - 首页上传只保留 ASR 更优判断数据：优先按 `labelModel=vote` 判断；如果接口缺少该字段，再用 `taskName` 包含 `ASR更优结果判断` / `ASR更优` 且 `size=400` 作为补充判断。`labelModel=single`、`taskName=中文普通话asr任务` 或 `size=50` 会视为历史转写数据并跳过。
 - 标注员 / 审核员姓名优先从顶部头像下拉读取：脚本会对 `.NavAvatar-module__userInfoWrapper...avatar` 触发 hover，再读取下拉菜单中的用户展示名；读取失败时回退到接口字段。
@@ -435,7 +435,7 @@ platform-resources/alibaba-labelx/asr-judgement/
   - `complete=true` 的分包数据直接跳过详情拉取。
   - `complete=false` 或不存在的数据继续拉取详情并重试。
 - existing 检查失败时回退全量拉取，不阻断导出流程。
-- 失败数据定义覆盖关键字段缺失、详情请求失败、分包ID缺失等场景；失败计数会进入进度与最终摘要。
+- 失败数据定义调整为：分包ID为空（废弃/拒绝）、详情请求失败、JSON解析失败、上传请求失败等真正失败；字段空白默认记为 warning/incomplete，不计入 failed。
 - 结束时若存在失败数据，提示：`有数据导出失败，请再次点击导出`。
 - 再次点击导出时会优先跳过已完整数据，重点补失败/不完整数据。
 - 动态并发规则统一为：`Math.floor(total / 5)`，最小 `1`，最大 `999`。
@@ -445,3 +445,14 @@ platform-resources/alibaba-labelx/asr-judgement/
 - CSV 主存储继续为根级总表：`statistics-data/statistics-merged.csv`；不主动生成 `statistics-data/suppliers/`。
 - CSV 继续使用 UTF-8 with BOM，单供应商不输出“供应商”列，多供应商在最后一列输出“供应商”。
 - 全流程继续脱敏：不记录 cookie、token、authorization、完整音频 URL。
+
+## 2026-05-10 0.2.11 失败判定修正
+- LabelX 统计按标注/审核分角色逐步合并：另一角色字段为空属于正常情况，不再判失败。
+- 只有 `分包ID` 为空时才直接废弃（discardedNoBatchId），不写 CSV、不上传。
+- `任务名称/任务ID/人员/领取时间/提交时间/有效时长` 为空默认记为 warning/incomplete，不阻断上传。
+- 批量上传改为“部分失败不影响成功数据保存”，后端返回 `acceptedCount/rejectedCount/rejectedItems`。
+- 结束提示规则：仅当 `failed > 0` 才提示“有数据导出失败，请再次点击导出”；仅 warning 时提示“部分字段待后续角色补齐”。
+- existing `complete` 按当前 role 最小条件判断：转写 `label=标注子任务ID`、`audit=审核子任务ID`；快判 `label=任一标注员子任务ID`、`audit=审核子任务ID`。
+- 统计主存储继续为根级 `statistics-data/statistics-merged.csv`，不主动创建 `statistics-data/suppliers/`。
+- 并发规则保持 `Math.floor(total / 5)`，最小 `1`，最大 `999`；定时上传保持 `10:00/16:00`，上传前随机延迟 `0~300s`（`100ms` 步进）。
+

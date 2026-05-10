@@ -244,40 +244,48 @@
     return value === 0 || value === "0" ? "0" : cleanText(value);
   }
 
+  function pushIfBlank(list, value, field) {
+    if (!cleanText(value)) {
+      list.push(field);
+    }
+  }
+
   function validateTranscriptionPayload(payload) {
-    const missingFields = [];
+    const warningFields = [];
     const csvPatch = payload?.csvPatch || {};
     const roleRecord = payload?.roleRecord || {};
     const role = String(roleRecord.role || "").toLowerCase();
+    const batchId = sanitizeBatchId(
+      payload?.mergeKey?.batchId || roleRecord?.batchId || csvPatch?.["分包ID"] || ""
+    );
     const completedField = role === "audit" ? "审核是否完成" : "标注是否完成";
     const submitField = role === "audit" ? "审核提交时间" : "标注提交时间";
 
-    ["任务名称", "任务ID", "分包ID", "题数"].forEach(function (field) {
-      if (!cleanText(csvPatch[field])) {
-        missingFields.push(field);
+    pushIfBlank(warningFields, csvPatch["任务名称"], "任务名称");
+    pushIfBlank(warningFields, csvPatch["任务ID"], "任务ID");
+    pushIfBlank(warningFields, csvPatch["题数"], "题数");
+    pushIfBlank(warningFields, roleRecord.subTaskId, role === "audit" ? "审核子任务ID" : "标注子任务ID");
+    pushIfBlank(
+      warningFields,
+      roleRecord.userName || roleRecord.userId || "",
+      role === "audit" ? "审核员" : "标注员"
+    );
+    pushIfBlank(
+      warningFields,
+      roleRecord.receiveTime || "",
+      role === "audit" ? "审核领取时间" : "标注领取时间"
+    );
+    pushIfBlank(warningFields, csvPatch[completedField], completedField);
+    if (cleanText(csvPatch[completedField]) === "已完成") {
+      pushIfBlank(warningFields, roleRecord.submitTime || "", submitField);
+      if (!getDurationValueForCheck(payload)) {
+        warningFields.push("有效时长(秒)");
       }
-    });
-    if (!cleanText(roleRecord.subTaskId || "")) {
-      missingFields.push(role === "audit" ? "审核子任务ID" : "标注子任务ID");
-    }
-    if (!cleanText(roleRecord.userName || roleRecord.userId || "")) {
-      missingFields.push(role === "audit" ? "审核员" : "标注员");
-    }
-    if (!cleanText(roleRecord.receiveTime || "")) {
-      missingFields.push(role === "audit" ? "审核领取时间" : "标注领取时间");
-    }
-    if (!cleanText(csvPatch[completedField])) {
-      missingFields.push(completedField);
-    }
-    if (cleanText(csvPatch[completedField]) === "已完成" && !cleanText(roleRecord.submitTime || "")) {
-      missingFields.push(submitField);
-    }
-    if (cleanText(csvPatch[completedField]) === "已完成" && !getDurationValueForCheck(payload)) {
-      missingFields.push("有效时长(秒)");
     }
     return {
-      ok: missingFields.length === 0,
-      missingFields: missingFields,
+      ok: Boolean(batchId),
+      rejectedReason: batchId ? "" : "分包ID",
+      warningFields: warningFields,
     };
   }
 
@@ -1725,6 +1733,7 @@
       let skippedCompleteCount = 0;
       let discardedNoBatchCount = 0;
       let failedPayloadValidationCount = 0;
+      let warningPayloadCount = 0;
       let existingCheckFailed = false;
       const listTotal = Math.max(1, kinds.length);
       let listCompleted = 0;
@@ -1955,7 +1964,6 @@
             if (!isAsrTranscriptionTaskRecord(enrichedData, linkedTask)) {
               skippedDetailCount += 1;
               detailProgress.completed += 1;
-              detailProgress.failed += 1;
               return null;
             }
             const durationSeconds = sumDurationSeconds(enrichedData.dataList);
@@ -1973,10 +1981,13 @@
                 message:
                   "subTaskId=" +
                   sanitizeSubTaskId(getSummarySubTaskId(summary)) +
-                  " 关键字段缺失：" +
-                  validation.missingFields.join(","),
+                  " 拒绝上传：" +
+                  (validation.rejectedReason || "缺少必要字段"),
               });
               return null;
+            }
+            if (validation.warningFields.length > 0) {
+              warningPayloadCount += 1;
             }
             payload.homeContext = {
               projectId: projectId,
@@ -1988,6 +1999,7 @@
               unfinishedCount: pageGroup.unfinishedPage.recordCount,
               finishedCount: pageGroup.finishedPage.recordCount,
               source: kind.route + " tasks/subTasks + subTask data",
+              warningFields: validation.warningFields,
             };
             detailProgress.completed += 1;
             detailProgress.success += 1;
@@ -2036,7 +2048,7 @@
         });
       }
 
-      const failedCount = skippedDetailCount + discardedNoBatchCount + failedPayloadValidationCount;
+      const failedCount = detailProgress.failed;
 
       return {
         schemaVersion: 1,
@@ -2064,6 +2076,7 @@
           discardedNoBatchCount: discardedNoBatchCount,
           skippedDetailCount: skippedDetailCount,
           failedPayloadValidationCount: failedPayloadValidationCount,
+          warningPayloadCount: warningPayloadCount,
           existingCheckFailed: existingCheckFailed,
           failedCount: failedCount,
           detailConcurrency: detailConcurrency,
@@ -2138,7 +2151,7 @@
       );
       const validation = validateTranscriptionPayload(payload);
       if (!validation.ok) {
-        throw new Error("详情统计关键字段缺失：" + validation.missingFields.join(","));
+        throw new Error("详情统计缺少分包ID，已拒绝上传。");
       }
       if (progressReporter && typeof progressReporter.update === "function") {
         progressReporter.update({
@@ -2303,6 +2316,7 @@
         const summary = payload?.summary && typeof payload.summary === "object" ? payload.summary : {};
         const backendFailedCount = Number(postResult?.data?.failedCount || 0);
         const failedCount = Number(summary.failedCount || 0) + backendFailedCount;
+        const warningCount = Number(summary.warningPayloadCount || 0);
         const summaryMessage =
           "转写统计已处理：扫描 " +
           String(summary.scannedTranscriptionSubTaskCount || summary.subTaskCount || 0) +
@@ -2318,6 +2332,8 @@
           String(summary.skippedCompleteCount || 0) +
           "，废弃(无分包ID) " +
           String(summary.discardedNoBatchCount || 0) +
+          "，字段待补 " +
+          String(warningCount) +
           "，失败 " +
           String(failedCount) +
           "，并发 " +
@@ -2325,7 +2341,11 @@
           (summary.listPageOverflowCount || summary.detailPageOverflowCount
             ? "（分页超上限，已截断）"
             : "") +
-          (failedCount > 0 ? "。有数据导出失败，请再次点击导出" : "");
+          (failedCount > 0
+            ? "。有数据导出失败，请再次点击导出"
+            : warningCount > 0
+              ? "。上传完成，部分字段待后续角色补齐"
+              : "");
         completeUploadProgress(summaryMessage);
         setMessage(failedCount === 0, uploadReason, summaryMessage);
         showToast(summaryMessage, failedCount > 0 ? "error" : "info");
