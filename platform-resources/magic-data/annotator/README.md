@@ -17,6 +17,46 @@ extension/sites/magic-data/annotator/
 - 采集方式：`chrome_devtools` 真实页面导航 + Network 脱敏记录 + 前端 bundle 关键词校验
 - 本轮未执行：领取、保存、提交、审核通过、审核驳回、退回、批量流转
 
+## 2026-05 AI 复核调试后端
+
+已新增本地调试后端（不接入扩展前端自动动作）：
+
+- `GET /api/magic-data/annotator/ai/review-current/health`
+- `POST /api/magic-data/annotator/ai/review-current`
+
+后端路径：
+
+- `platform-resources/magic-data/annotator/backend/`
+
+词表路径：
+
+- `platform-resources/magic-data/annotator/lexicon/客家话-正字表.xlsx`
+- `platform-resources/magic-data/annotator/lexicon/hakka-lexicon.csv`
+
+本轮口径：
+
+- AI 仅做复核建议，不自动保存、不自动提交、不自动审核、不自动领取。
+- 默认两阶段模型：`qwen3.5-omni-flash`（听音）+ `qwen3.5-plus`（对比）。
+- 收益估算按有效时长：`estimatedIncome = effectiveTime / 3600 * 120`。
+- 日志严格脱敏，不记录完整签名音频 URL、token、cookie、authorization、API Key。
+
+## 2026-05 前端按钮接入（asrmark）
+
+已在扩展端接入 Magic Data `#/asrmark` 右下角面板“Magic Data AI 复核助手”：
+
+- AI 复核当前条
+- 复制 AI 方言文本
+- 复制 AI 普通话文本
+- 填入第一行
+- 填入第二行
+- 忽略结果
+
+本轮前端口径：
+
+- 只支持当前条测试，不做批量。
+- 允许手动填入两行文本，但不自动保存、不自动提交、不自动下一条。
+- `#/asrmarkCheck` 仅提示“暂未接入填入”，不写审核页 DOM 自动化。
+
 ## 子目录
 
 - `page-structure/`：页面结构记录（首页、标注任务、标注详情、标注单条、审核任务、审核详情、审核单条）。

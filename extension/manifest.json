@@ -13,6 +13,7 @@
     "https://label-cloud.lightwheel.net/*",
     "https://script.xiangtianzhen.store/*",
     "https://datafactory.data-baker.com/*",
+    "https://work.magicdatatech.com/*",
     "http://47.108.254.138:3101/*",
     "http://127.0.0.1:3101/*",
     "http://127.0.0.1:3333/*"
@@ -108,6 +109,23 @@
         "sites/data-baker/round-one-quality/shortcuts.js",
         "sites/data-baker/round-one-quality/group-export.js",
         "sites/data-baker/round-one-quality/content.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "https://work.magicdatatech.com/*"
+      ],
+      "js": [
+        "shared/constants.js",
+        "shared/storage.js",
+        "sites/magic-data/annotator/page-detector.js",
+        "sites/magic-data/annotator/data-collector.js",
+        "sites/magic-data/annotator/ai-review-client.js",
+        "sites/magic-data/annotator/ui-panel.js",
+        "sites/magic-data/annotator/content.js"
       ],
       "all_frames": false,
       "run_at": "document_start",
