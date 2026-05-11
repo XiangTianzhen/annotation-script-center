@@ -12,22 +12,32 @@ function isMockEnabled() {
   return String(process.env.MAGIC_DATA_AI_MOCK || "0").trim() === "1";
 }
 
-function shouldDisableThinking() {
-  return String(process.env.MAGIC_DATA_AI_ENABLE_THINKING || "0").trim() !== "1";
-}
-
-function withThinkingDisabled(requestBody) {
-  if (!shouldDisableThinking()) {
-    return requestBody;
-  }
-  return Object.assign({}, requestBody, {
-    enable_thinking: false,
-  });
-}
-
-function withoutThinkingDisabled(requestBody) {
+function removeThinkingField(requestBody) {
   const nextBody = Object.assign({}, requestBody || {});
   delete nextBody.enable_thinking;
+  return nextBody;
+}
+
+function parseEnableThinkingDefault() {
+  return String(process.env.MAGIC_DATA_AI_ENABLE_THINKING || "0").trim() === "1";
+}
+
+function resolveThinkingPreference(options) {
+  if (options && typeof options.enableThinking === "boolean") {
+    return {
+      source: "request",
+      enabled: options.enableThinking === true,
+    };
+  }
+  return {
+    source: "env",
+    enabled: parseEnableThinkingDefault(),
+  };
+}
+
+function withThinkingPreference(requestBody, preference) {
+  const nextBody = Object.assign({}, requestBody || {});
+  nextBody.enable_thinking = preference?.enabled === true;
   return nextBody;
 }
 
@@ -84,6 +94,7 @@ function getClientConfig() {
   const pipelineMode = String(process.env.MAGIC_DATA_AI_PIPELINE_MODE || "two_stage").trim();
   const lexiconRewriteMode = String(process.env.MAGIC_DATA_AI_LEXICON_REWRITE_MODE || "off").trim();
   const allowClientModelOverride = parseBooleanEnv("MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE", true);
+  const enableThinkingDefault = parseEnableThinkingDefault();
   return {
     apiKey,
     baseUrl,
@@ -95,6 +106,7 @@ function getClientConfig() {
     pipelineMode: pipelineMode === "listen_only" ? "listen_only" : "two_stage",
     lexiconRewriteMode: lexiconRewriteMode || "off",
     allowClientModelOverride,
+    enableThinkingDefault,
   };
 }
 
@@ -304,22 +316,38 @@ function isEnableThinkingUnsupportedError(error) {
 }
 
 async function requestChatCompletionWithFallback(requestBody, options) {
-  const thinkingDisabledRequested = shouldDisableThinking();
-  const initialBody = thinkingDisabledRequested ? withThinkingDisabled(requestBody) : requestBody;
+  const thinkingPreference = resolveThinkingPreference(options);
+  const initialBody = withThinkingPreference(requestBody, thinkingPreference);
   try {
-    const result = await requestChatCompletion(initialBody, options);
+    const result = await requestChatCompletion(initialBody, options || {});
     return Object.assign({}, result, {
-      thinkingDisabledRequested,
-      thinkingDisableFallbackUsed: false,
+      enableThinkingRequested: true,
+      enableThinking: thinkingPreference.enabled === true,
+      thinkingPreferenceSource: thinkingPreference.source,
+      thinkingFallbackUsed: false,
+      thinkingFallbackMode: "",
     });
   } catch (error) {
-    if (!thinkingDisabledRequested || !isEnableThinkingUnsupportedError(error)) {
+    if (!isEnableThinkingUnsupportedError(error)) {
       throw error;
     }
-    const fallbackResult = await requestChatCompletion(withoutThinkingDisabled(initialBody), options);
+
+    let fallbackBody = removeThinkingField(initialBody);
+    let fallbackMode = "remove";
+    if (thinkingPreference.enabled === true) {
+      fallbackBody = Object.assign({}, removeThinkingField(initialBody), {
+        enable_thinking: false,
+      });
+      fallbackMode = "disable";
+    }
+
+    const fallbackResult = await requestChatCompletion(fallbackBody, options || {});
     return Object.assign({}, fallbackResult, {
-      thinkingDisabledRequested,
-      thinkingDisableFallbackUsed: true,
+      enableThinkingRequested: true,
+      enableThinking: thinkingPreference.enabled === true,
+      thinkingPreferenceSource: thinkingPreference.source,
+      thinkingFallbackUsed: true,
+      thinkingFallbackMode: fallbackMode,
     });
   }
 }
@@ -373,8 +401,11 @@ async function requestListen(input, prompt, options) {
         total_tokens: 240,
       },
       mock: true,
-      thinkingDisabledRequested: shouldDisableThinking(),
-      thinkingDisableFallbackUsed: false,
+      enableThinkingRequested: true,
+      enableThinking: resolveThinkingPreference(options).enabled === true,
+      thinkingPreferenceSource: resolveThinkingPreference(options).source,
+      thinkingFallbackUsed: false,
+      thinkingFallbackMode: "",
     };
   }
 
@@ -415,8 +446,11 @@ async function requestListen(input, prompt, options) {
     rawText: result.text,
     usage: result.usage,
     mock: false,
-    thinkingDisabledRequested: result.thinkingDisabledRequested,
-    thinkingDisableFallbackUsed: result.thinkingDisableFallbackUsed,
+    enableThinkingRequested: result.enableThinkingRequested,
+    enableThinking: result.enableThinking,
+    thinkingPreferenceSource: result.thinkingPreferenceSource,
+    thinkingFallbackUsed: result.thinkingFallbackUsed,
+    thinkingFallbackMode: result.thinkingFallbackMode,
   };
 }
 
@@ -433,8 +467,11 @@ async function requestCompare(input, prompt, options) {
         total_tokens: 310,
       },
       mock: true,
-      thinkingDisabledRequested: shouldDisableThinking(),
-      thinkingDisableFallbackUsed: false,
+      enableThinkingRequested: true,
+      enableThinking: resolveThinkingPreference(options).enabled === true,
+      thinkingPreferenceSource: resolveThinkingPreference(options).source,
+      thinkingFallbackUsed: false,
+      thinkingFallbackMode: "",
     };
   }
 
@@ -465,8 +502,11 @@ async function requestCompare(input, prompt, options) {
     rawText: result.text,
     usage: result.usage,
     mock: false,
-    thinkingDisabledRequested: result.thinkingDisabledRequested,
-    thinkingDisableFallbackUsed: result.thinkingDisableFallbackUsed,
+    enableThinkingRequested: result.enableThinkingRequested,
+    enableThinking: result.enableThinking,
+    thinkingPreferenceSource: result.thinkingPreferenceSource,
+    thinkingFallbackUsed: result.thinkingFallbackUsed,
+    thinkingFallbackMode: result.thinkingFallbackMode,
   };
 }
 

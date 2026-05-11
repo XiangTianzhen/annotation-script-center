@@ -10,6 +10,7 @@
     reviewMode: "rule_first",
     showHeardText: true,
     showEstimatedIncome: true,
+    enableThinking: false,
     shortcuts: {},
   };
 
@@ -91,6 +92,7 @@
       reviewMode: normalizeReviewMode(source.reviewMode),
       showHeardText: source.showHeardText !== false,
       showEstimatedIncome: source.showEstimatedIncome !== false,
+      enableThinking: source.enableThinking === true,
       shortcuts: shortcuts,
     };
   }

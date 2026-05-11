@@ -137,6 +137,7 @@
       reviewMode: "rule_first",
       showHeardText: true,
       showEstimatedIncome: true,
+      enableThinking: false,
     };
 
     let root = null;
@@ -320,7 +321,7 @@
       if (!data) {
         const emptyNode = document.createElement("div");
         emptyNode.className = "md-empty";
-        emptyNode.textContent = "暂无质检结果。";
+        emptyNode.textContent = "暂无质检结果，请点击 AI 质检当前条。";
         resultNode.appendChild(emptyNode);
         refreshButtons();
         return;
@@ -339,8 +340,8 @@
         ["正字表检查", joinIssues(textRuleCheck.lexiconIssues)],
         ["音频有效性检查", joinIssues(audioCheck.riskFlags)],
         ["性别年龄辅助判断", [audioCheck.genderGuess || "-", audioCheck.ageRangeGuess || "-"].join(" / ")],
-        ["AI 听到的客家话文本", showHeardText ? (audioCheck.heardDialectText || data?.listen?.heardDialectText || "-") : "已关闭显示"],
-        ["AI 理解的普通话意思", showHeardText ? (audioCheck.heardMandarinMeaning || data?.listen?.heardMandarinMeaning || "-") : "已关闭显示"],
+        ["AI 辅助听音（客家话，仅供参考）", showHeardText ? (audioCheck.heardDialectText || data?.listen?.heardDialectText || "-") : "已关闭显示"],
+        ["AI 辅助听音（普通话理解，仅供参考）", showHeardText ? (audioCheck.heardMandarinMeaning || data?.listen?.heardMandarinMeaning || "-") : "已关闭显示"],
         ["requestId", data.requestId || "-"],
         ["模型与耗时", "listen=" + String(data?.models?.listenModel || "-") + " / review=" + String(data?.models?.reviewModel || data?.models?.compareModel || "-") + " / total=" + String(timing.totalDurationMs || 0) + "ms"],
       ];
@@ -430,6 +431,7 @@
           reviewModel: runtimeSettings.reviewModel,
           reviewMode: runtimeSettings.reviewMode,
           showHeardText: runtimeSettings.showHeardText !== false,
+          enableThinking: runtimeSettings.enableThinking === true,
         });
         renderResult(response.data);
         renderSummary(snapshot, response.backend);

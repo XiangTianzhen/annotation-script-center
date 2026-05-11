@@ -6,10 +6,12 @@
   const GENDER_OPTIONS = ["男", "女"];
   const AGE_OPTIONS = ["0-5", "6-12", "13-18", "19-25", "26-36", "37-50", "51-65", "65以上"];
   const REJECT_BUTTON_TEXTS = ["清除结果", "清除文本", "挂起", "驳回", "拒绝"];
+  const FOCUS_SENTINEL_ATTR = "data-asc-magic-data-shortcut-focus-sentinel";
 
   const detailCacheByTaskItemId = new Map();
   const detailFetchInflightByTaskItemId = new Map();
   const detailFetchAtByTaskItemId = new Map();
+  let focusSentinel = null;
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -79,6 +81,7 @@
       element.value = nextText;
       element.dispatchEvent(new Event("input", { bubbles: true }));
       element.dispatchEvent(new Event("change", { bubbles: true }));
+      restoreShortcutFocusAfterAction();
       return true;
     }
     if (element.isContentEditable) {
@@ -86,9 +89,85 @@
       element.textContent = nextText;
       element.dispatchEvent(new Event("input", { bubbles: true }));
       element.dispatchEvent(new Event("change", { bubbles: true }));
+      restoreShortcutFocusAfterAction();
       return true;
     }
     return false;
+  }
+
+  function ensureFocusSentinel() {
+    if (focusSentinel && document.documentElement?.contains(focusSentinel)) {
+      return focusSentinel;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute(FOCUS_SENTINEL_ATTR, "true");
+    button.tabIndex = -1;
+    button.setAttribute("aria-hidden", "true");
+    button.style.position = "fixed";
+    button.style.left = "-9999px";
+    button.style.top = "-9999px";
+    button.style.width = "1px";
+    button.style.height = "1px";
+    button.style.opacity = "0";
+    button.style.pointerEvents = "none";
+    (document.body || document.documentElement).appendChild(button);
+    focusSentinel = button;
+    return focusSentinel;
+  }
+
+  function blurActiveElementSafe() {
+    const active = document.activeElement;
+    if (active && typeof active.blur === "function") {
+      try {
+        active.blur();
+      } catch (error) {
+        // keep stable
+      }
+    }
+  }
+
+  function focusSafeBody() {
+    const body = document.body || document.documentElement;
+    if (!body) {
+      return;
+    }
+    if (body instanceof HTMLElement) {
+      if (!body.hasAttribute("tabindex")) {
+        body.setAttribute("tabindex", "-1");
+      }
+      try {
+        body.focus({ preventScroll: true });
+      } catch (error) {
+        try {
+          body.focus();
+        } catch (ignoreError) {
+          // keep stable
+        }
+      }
+    }
+  }
+
+  function restoreShortcutFocusAfterAction() {
+    const intervals = [0, 50, 180];
+    intervals.forEach(function (delay) {
+      window.setTimeout(function () {
+        blurActiveElementSafe();
+        const sentinel = ensureFocusSentinel();
+        if (sentinel && typeof sentinel.focus === "function") {
+          try {
+            sentinel.focus({ preventScroll: true });
+          } catch (error) {
+            try {
+              sentinel.focus();
+            } catch (ignoreError) {
+              // keep stable
+            }
+          }
+        }
+        focusSafeBody();
+      }, delay);
+    });
   }
 
   function findTextNodeElementByKeyword(keyword) {
@@ -570,7 +649,9 @@
     const success = setEditableValue(fields.dialectField, normalizeText(text));
     return {
       ok: success,
-      message: success ? "已填入第一行，但未保存、未提交，请人工确认。" : "填入第一行失败。",
+      message: success
+        ? "已填入第一行，但未保存、未提交，请人工确认。快捷键焦点已恢复。"
+        : "填入第一行失败。",
     };
   }
 
@@ -585,7 +666,9 @@
     const success = setEditableValue(fields.mandarinField, normalizeText(text));
     return {
       ok: success,
-      message: success ? "已填入第二行，但未保存、未提交，请人工确认。" : "填入第二行失败。",
+      message: success
+        ? "已填入第二行，但未保存、未提交，请人工确认。快捷键焦点已恢复。"
+        : "填入第二行失败。",
     };
   }
 
@@ -617,9 +700,10 @@
       };
     }
     button.click();
+    restoreShortcutFocusAfterAction();
     return {
       ok: true,
-      message: "检测到" + text + "快捷键，已触发平台" + text + "按钮。",
+      message: "检测到" + text + "快捷键，已触发平台" + text + "按钮。快捷键焦点已恢复。",
     };
   }
 
@@ -666,9 +750,10 @@
       };
     }
     target.click();
+    restoreShortcutFocusAfterAction();
     return {
       ok: true,
-      message: "已触发“" + text + "”选项，未自动保存。",
+      message: "已选择" + text + "，快捷键焦点已恢复。未自动保存。",
     };
   }
 
@@ -697,6 +782,7 @@
     getCachedDetail,
     normalizeText,
     refreshCurrentItem,
+    restoreShortcutFocusAfterAction,
     selectSpeakerValue,
   };
 })();

@@ -144,6 +144,7 @@ function normalizeReviewRequest(body) {
     reviewModel: sanitizeModelName(source.reviewModel, ""),
     reviewMode: normalizeReviewMode(source.reviewMode),
     showHeardText: source.showHeardText !== false,
+    enableThinking: source.enableThinking === true,
   };
 }
 
@@ -194,6 +195,7 @@ function buildHealthResponse() {
     listenModel: config.listenModel || DEFAULT_LISTEN_MODEL,
     reviewModel: config.compareModel || DEFAULT_COMPARE_MODEL,
     allowClientModelOverride: config.allowClientModelOverride === true,
+    enableThinkingDefault: config.enableThinkingDefault === true,
     timeoutMs: config.timeoutMs,
     pipelineMode: config.pipelineMode,
     lexiconRewriteMode: config.lexiconRewriteMode,
@@ -252,6 +254,7 @@ async function handleReviewCurrent(request, response) {
     const listenResult = await requestListen(reviewRequest, listenPrompt, {
       timeoutMs: config.timeoutMs,
       model: listenModel,
+      enableThinking: reviewRequest.enableThinking,
     });
     listenDurationMs = Date.now() - listenStartedAt;
 
@@ -277,6 +280,7 @@ async function handleReviewCurrent(request, response) {
       {
         timeoutMs: config.timeoutMs,
         model: reviewModel,
+        enableThinking: reviewRequest.enableThinking,
       }
     );
     compareDurationMs = Date.now() - compareStartedAt;
@@ -342,6 +346,19 @@ async function handleReviewCurrent(request, response) {
         listen: listenUsage,
         compare: compareUsage,
       },
+      thinking: {
+        requested: reviewRequest.enableThinking === true,
+        listen: {
+          enableThinking: listenResult.enableThinking === true,
+          fallbackUsed: listenResult.thinkingFallbackUsed === true,
+          fallbackMode: listenResult.thinkingFallbackMode || "",
+        },
+        compare: {
+          enableThinking: compareResult.enableThinking === true,
+          fallbackUsed: compareResult.thinkingFallbackUsed === true,
+          fallbackMode: compareResult.thinkingFallbackMode || "",
+        },
+      },
       timing: {
         listenDurationMs,
         compareDurationMs,
@@ -378,6 +395,7 @@ async function handleReviewCurrent(request, response) {
       response: responseData,
       listenModel: responseData.models.listenModel,
       compareModel: responseData.models.reviewModel,
+      enableThinking: reviewRequest.enableThinking === true,
       audioHostname: parseAudioHostname(reviewRequest.audioUrl),
       mock: responseData.mock,
     });

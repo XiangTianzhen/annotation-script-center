@@ -59,6 +59,10 @@ extension/sites/magic-data/annotator/
 - 当前条数据采集优先级：`annotateDetailInfo` 响应缓存 -> 同源读取 `annotateDetailInfo/{taskItemId}` -> DOM/performance 兜底。
 - 快捷键设置迁移到 options 的 Magic Data 专区（默认未设置）：AI 质检、复制摘要、填入、保存、提交、性别/年龄选择。
 - AI 逻辑调整为“规则优先质检”：平台两行文本为基准，听音结果仅作辅助证据，不默认替换平台文本。
+- options 形态调整为“平台卡片 -> 脚本卡片 -> 打开设置”，不再在首页直接铺开 Magic Data 长表单。
+- 听音模型与质检模型改为“下拉候选 + 自定义模型名”双模式，避免模型列表过期导致不可用。
+- 新增 `enableThinking` 开关（默认关闭）；前端会随请求下发，后端按模型能力自动兼容/降级。
+- 页面内 `Magic Data AI 质检结果` 区域固定存在，默认显示空状态，点击 AI 后只更新既有区域内容。
 
 ## 子目录
 

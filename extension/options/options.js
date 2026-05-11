@@ -8,6 +8,8 @@
   const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
   const dataBakerRoundOneQualityScriptId =
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
+  const magicDataAnnotatorScriptId =
+    constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
   const backendModeServer = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const backendModeLocal = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const getBackendModeFromSettings =
@@ -108,8 +110,22 @@
     reviewMode: "rule_first",
     showHeardText: true,
     showEstimatedIncome: true,
+    enableThinking: false,
     shortcuts: {},
   };
+  const magicDataListenModelOptions = [
+    "qwen3.5-omni-flash",
+    "qwen3.5-omni",
+    "qwen-omni-turbo",
+    "qwen-audio-turbo",
+  ];
+  const magicDataReviewModelOptions = [
+    "qwen3.5-plus",
+    "qwen-plus",
+    "qwen-max",
+    "qwen-turbo",
+    "qwen-long",
+  ];
   const magicDataShortcutActions = [
     { key: "reviewCurrent", label: "AI 质检当前条" },
     { key: "copySummary", label: "复制 AI 质检摘要" },
@@ -443,6 +459,10 @@
     return scriptId === dataBakerRoundOneQualityScriptId;
   }
 
+  function isMagicDataScript(scriptId) {
+    return scriptId === magicDataAnnotatorScriptId;
+  }
+
   function normalizeDataBakerTimeoutMs(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
@@ -521,6 +541,53 @@
     return result;
   }
 
+  function isMagicDataPresetModel(modelName, presetList) {
+    return Array.isArray(presetList) && presetList.indexOf(modelName) >= 0;
+  }
+
+  function applyMagicDataModelField(selectId, customInputId, modelName, presetList) {
+    const selectNode = getElement(selectId);
+    const customNode = getElement(customInputId);
+    if (!(selectNode instanceof HTMLSelectElement) || !(customNode instanceof HTMLInputElement)) {
+      return;
+    }
+    const normalizedModel = normalizeMagicDataModel(modelName, "");
+    const useCustom = !normalizedModel || !isMagicDataPresetModel(normalizedModel, presetList);
+    selectNode.value = useCustom ? "custom" : normalizedModel;
+    customNode.value = useCustom ? normalizedModel : "";
+    customNode.classList.toggle("hidden", !useCustom);
+  }
+
+  function readMagicDataModelField(selectId, customInputId, fallback, presetList) {
+    const selectNode = getElement(selectId);
+    const customNode = getElement(customInputId);
+    if (!(selectNode instanceof HTMLSelectElement) || !(customNode instanceof HTMLInputElement)) {
+      return normalizeMagicDataModel(fallback, fallback);
+    }
+    if (selectNode.value === "custom") {
+      return normalizeMagicDataModel(customNode.value, fallback);
+    }
+    if (isMagicDataPresetModel(selectNode.value, presetList)) {
+      return normalizeMagicDataModel(selectNode.value, fallback);
+    }
+    return normalizeMagicDataModel(fallback, fallback);
+  }
+
+  function bindMagicDataModelSelect(selectId, customInputId) {
+    const selectNode = getElement(selectId);
+    const customNode = getElement(customInputId);
+    if (!(selectNode instanceof HTMLSelectElement) || !(customNode instanceof HTMLInputElement)) {
+      return;
+    }
+    selectNode.addEventListener("change", function () {
+      const useCustom = selectNode.value === "custom";
+      customNode.classList.toggle("hidden", !useCustom);
+      if (useCustom) {
+        customNode.focus();
+      }
+    });
+  }
+
   function getMagicDataConfig(settings) {
     const source = settings?.scriptCenter?.projects?.magicDataAnnotator || {};
     return {
@@ -540,6 +607,7 @@
       ),
       showHeardText: source.showHeardText !== false,
       showEstimatedIncome: source.showEstimatedIncome !== false,
+      enableThinking: source.enableThinking === true,
       shortcuts: normalizeMagicDataShortcuts(source.shortcuts),
     };
   }
@@ -590,6 +658,11 @@
       return Boolean(settings?.platforms?.dataBaker?.enabled !== false && config.enabled !== false);
     }
 
+    if (isMagicDataScript(scriptId)) {
+      const config = getMagicDataConfig(settings);
+      return config.enabled !== false && config.aiReviewEnabled !== false;
+    }
+
     if (isLabelxScript(scriptId)) {
       return Boolean(
         settings?.platforms?.alibabaLabelx?.enabled &&
@@ -614,6 +687,16 @@
       }
       return config.aiRecommendEnabled === false
         ? { text: "脚本已启用，AI 推荐已关闭", tone: "pending" }
+        : { text: "已启用", tone: "enabled" };
+    }
+
+    if (isMagicDataScript(scriptId)) {
+      const config = getMagicDataConfig(settings);
+      if (!isScriptEnabled(settings, scriptId)) {
+        return { text: "未启用", tone: "disabled" };
+      }
+      return config.aiReviewEnabled === false
+        ? { text: "脚本已启用，AI 质检已关闭", tone: "pending" }
         : { text: "已启用", tone: "enabled" };
     }
 
@@ -642,6 +725,10 @@
 
     if (isDataBakerScript(scriptId)) {
       return "https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0";
+    }
+
+    if (isMagicDataScript(scriptId)) {
+      return "https://work.magicdatatech.com/#/asrmark?taskItemId=...";
     }
 
     return "https://labelx.alibaba-inc.com/corpora/labeling/*";
@@ -1437,12 +1524,23 @@
     const config = getMagicDataConfig(settings);
     magicDataShortcutsDraft = clone(config.shortcuts) || {};
     getElement("magic-data-enabled").checked = config.enabled !== false;
-    getElement("magic-data-listen-model").value = config.listenModel;
-    getElement("magic-data-review-model").value = config.reviewModel;
+    applyMagicDataModelField(
+      "magic-data-listen-model-select",
+      "magic-data-listen-model-custom",
+      config.listenModel,
+      magicDataListenModelOptions
+    );
+    applyMagicDataModelField(
+      "magic-data-review-model-select",
+      "magic-data-review-model-custom",
+      config.reviewModel,
+      magicDataReviewModelOptions
+    );
     getElement("magic-data-review-mode").value = config.reviewMode;
     getElement("magic-data-show-heard-text").checked = config.showHeardText !== false;
     getElement("magic-data-show-estimated-income").checked =
       config.showEstimatedIncome !== false;
+    getElement("magic-data-enable-thinking").checked = config.enableThinking === true;
     stopMagicDataShortcutRecording("");
     renderMagicDataShortcutGrid();
     setStatus(
@@ -1464,13 +1562,17 @@
     });
 
     const enabled = getElement("magic-data-enabled").checked;
-    const listenModel = normalizeMagicDataModel(
-      getElement("magic-data-listen-model").value,
-      magicDataDefaultSettings.listenModel
+    const listenModel = readMagicDataModelField(
+      "magic-data-listen-model-select",
+      "magic-data-listen-model-custom",
+      magicDataDefaultSettings.listenModel,
+      magicDataListenModelOptions
     );
-    const reviewModel = normalizeMagicDataModel(
-      getElement("magic-data-review-model").value,
-      magicDataDefaultSettings.reviewModel
+    const reviewModel = readMagicDataModelField(
+      "magic-data-review-model-select",
+      "magic-data-review-model-custom",
+      magicDataDefaultSettings.reviewModel,
+      magicDataReviewModelOptions
     );
     const reviewMode = normalizeMagicDataReviewMode(
       getElement("magic-data-review-mode").value,
@@ -1478,6 +1580,7 @@
     );
     const showHeardText = getElement("magic-data-show-heard-text").checked;
     const showEstimatedIncome = getElement("magic-data-show-estimated-income").checked;
+    const enableThinking = getElement("magic-data-enable-thinking").checked === true;
 
     setStatus("magic-data-status", "正在保存 Magic Data 设置...");
     try {
@@ -1492,6 +1595,7 @@
               reviewMode: reviewMode,
               showHeardText: showHeardText,
               showEstimatedIncome: showEstimatedIncome,
+              enableThinking: enableThinking,
               shortcuts: shortcuts,
             },
           },
@@ -2238,6 +2342,10 @@
       "hidden",
       scriptId !== dataBakerRoundOneQualityScriptId
     );
+    getElement("detail-magic-data-annotator-panel").classList.toggle(
+      "hidden",
+      scriptId !== magicDataAnnotatorScriptId
+    );
   }
 
   function renderDetail(settings, scriptId) {
@@ -2275,6 +2383,15 @@
       setStatus(
         "data-baker-status",
         "DataBaker 导出数据会在本地下载的同时自动上传到后端；上传地址由首页顶部“后端接口地址”统一控制。"
+      );
+      return;
+    }
+
+    if (scriptId === magicDataAnnotatorScriptId) {
+      applyMagicDataSettingsForm(settings);
+      setStatus(
+        "magic-data-status",
+        "Magic Data 页面内结果区固定展示空状态，点击 AI 质检后仅更新内容，不会自动保存或提交。"
       );
     }
   }
@@ -2369,7 +2486,7 @@
   }
 
   async function toggleScript(scriptId, enabled) {
-    if (!storage || typeof storage.setScriptEnabled !== "function") {
+    if (!storage) {
       setStatus("detail-status", "当前扩展版本不支持脚本启停。");
       return;
     }
@@ -2379,7 +2496,22 @@
     setStatus("detail-status", "正在" + targetStatus + " " + String(script.label || scriptId) + "...");
 
     try {
-      currentSettings = await storage.setScriptEnabled(scriptId, enabled);
+      if (isMagicDataScript(scriptId) && typeof storage.patchSettings === "function") {
+        currentSettings = await storage.patchSettings({
+          scriptCenter: {
+            projects: {
+              magicDataAnnotator: {
+                enabled: enabled === true,
+                aiReviewEnabled: enabled === true,
+              },
+            },
+          },
+        });
+      } else if (typeof storage.setScriptEnabled === "function") {
+        currentSettings = await storage.setScriptEnabled(scriptId, enabled);
+      } else {
+        throw new Error("当前扩展版本不支持脚本启停。");
+      }
       renderCurrentView();
       setStatus(
         "detail-status",
@@ -2561,6 +2693,9 @@
     getElement("save-magic-data-settings").addEventListener("click", function () {
       void saveMagicDataSettings();
     });
+
+    bindMagicDataModelSelect("magic-data-listen-model-select", "magic-data-listen-model-custom");
+    bindMagicDataModelSelect("magic-data-review-model-select", "magic-data-review-model-custom");
 
     getElement("home-endpoint-server").addEventListener("click", function () {
       void setHomeBackendEndpoint("server");
