@@ -54,9 +54,9 @@
 - 规划在 `ops_monitor` 新增 `annotation-script-center` 更新模块，扩展本体不直接替换本地文件。
 - 预期流程：
   1. 检测版本；
-  2. 下载扩展 zip；
+  2. 下载 CRX 与 `annotation-script-center-crx-latest.json`；
   3. 校验 sha256；
-  4. 解压覆盖本地 `extension/`；
+  4. 通过企业策略更新或本地策略触发浏览器安装更新；
   5. 提示或触发刷新扩展页面。
 - Chrome/Edge 商店版仍走官方审核发布，不作为内部快速迭代主路径。
 
@@ -199,76 +199,14 @@ Chrome：
 - 旧 legacy、保存、提交、批量、自动化、AI、导出、排行榜、整页执行链路已删除。
 - 若未来要恢复旧能力，必须按新需求重新设计与验收，不能直接恢复旧脚本。
 
-## 打包发布
+## CRX 企业发布
 
-- 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
-- 打包 Chrome Web Store 或 Edge Add-ons 时，压缩包根目录必须直接包含 `manifest.json`，也就是压缩 `extension/` 目录内的内容，而不是压缩仓库根目录。
-- 浏览器差异优先收敛到 manifest、浏览器 API 兼容层、打包配置或发布说明，不复制 `sites/` 下的业务运行时代码。
-- 默认打包输出到 `dist/`，命名规则为 `annotation-script-center-v<manifest.version>.zip`。
-- 生成压缩包后默认不提交 `dist/` 构建产物（除非任务明确要求提交发布产物）。
-
-### 生成扩展压缩包
-
-在仓库根目录用 PowerShell 运行：
-
-```powershell
-$manifest = Get-Content -Raw extension\manifest.json | ConvertFrom-Json
-$zipPath = "dist\annotation-script-center-v$($manifest.version).zip"
-New-Item -ItemType Directory -Force dist | Out-Null
-if (Test-Path $zipPath) {
-  Remove-Item $zipPath
-}
-Compress-Archive -Path extension\* -DestinationPath $zipPath -Force
-Write-Host "已生成：$zipPath"
-```
-
-生成后的压缩包路径示例：
-
-```text
-dist\annotation-script-center-v<manifest.version>.zip
-```
-
-压缩包内部第一层必须能直接看到这些内容：
-
-```text
-manifest.json
-background/
-options/
-popup/
-shared/
-sites/
-```
-
-不要把整个 `extension/` 文件夹作为压缩包内的第一层目录；否则 Chrome Web Store、Edge Add-ons 或本地安装都会找不到根级 `manifest.json`。上传商城或发给同事时，直接使用 `dist/` 中生成的 zip。
-
-### 生成扩展版本清单（供 ops_monitor 检测更新）
-
-在仓库根目录运行：
-
-```powershell
-node scripts/generate-release-manifest.js --notes "准备接入 ops_monitor 自动更新"
-```
-
-脚本会读取 `extension/manifest.json` 的 `version`，并要求 `dist/annotation-script-center-v<version>.zip` 已存在。若 zip 缺失会直接报错退出。
-
-生成文件：
-
-```text
-dist/annotation-script-center-latest.json
-```
-
-默认下载地址前缀为 `https://script.xiangtianzhen.store/downloads/`，可通过环境变量覆盖：
-
-```powershell
-$env:ASC_DOWNLOAD_BASE_URL="https://script.xiangtianzhen.store/downloads/"
-node scripts/generate-release-manifest.js --notes "发布说明"
-```
-
-`annotation-script-center-latest.json` 包含 `latest_version`、`filename`、`download_url`、`sha256`、`size_bytes`、`created_at`、`min_agent_version`、`release_notes`，用于 `ops_monitor` 每日拉取并判定是否更新。
-
-### CRX 企业发布（Chrome/Edge 策略更新）
-
-3.0 正式发布建议以 CRX + `update.xml` 为主，zip 保留为调试/回退方案。
+- 3.0 起正式发布与自动更新路径统一为 CRX 体系，不再使用 zip 发布清单。
+- 正式发布产物固定为三件套：
+  - `dist/annotation-script-center-v<version>.crx`
+  - `dist/annotation-script-center-update.xml`
+  - `dist/annotation-script-center-crx-latest.json`
+- `dist/` 是构建产物目录，默认不提交 Git（除非任务明确要求提交发布产物）。
 
 1. 先确认 `extension/manifest.json` 包含：
 
@@ -281,19 +219,18 @@ node scripts/generate-release-manifest.js --notes "发布说明"
    - 不提交 Git，必须长期保存并离线备份
    - 丢失会导致 `extension_id` 变化，企业策略 `appid` 需重配
 
-3. 在仓库根目录执行：
+3. 在仓库根目录执行 CRX 发布脚本：
 
 ```powershell
 node scripts/package-crx-release.js --notes "CRX enterprise release test"
 ```
 
 脚本会自动：
-- 读取 `manifest.version`
-- 使用浏览器 `--pack-extension` 生成 CRX
-- 输出 `dist/annotation-script-center-v<version>.crx`
-- 生成 `dist/annotation-script-center-update.xml`
-- 生成 `dist/annotation-script-center-crx-latest.json`
-- 输出 `extension_id`
+- 读取 `manifest.version`；
+- 使用浏览器 `--pack-extension` 生成 CRX；
+- 生成 `update.xml` 与 `crx-latest.json`；
+- 校验 `update.xml appid/version/codebase` 与 `extension_id/manifest.version/download_url` 一致；
+- 输出要上传到 `downloads` 目录的三个文件路径和 `extension_id`。
 
 浏览器路径选择规则：
 - 优先读取 `ASC_CHROME_EXE`
@@ -308,6 +245,7 @@ node scripts/package-crx-release.js --notes "CRX enterprise release test"
 关键一致性要求：
 - `update.xml` 的 `appid` 必须等于 `extension_id`
 - `update.xml` 的 `version` 必须等于 `manifest.version`
+- `update.xml` 的 `codebase` 必须指向对应版本 CRX 下载地址
 - 新版本 CRX 必须持续使用同一 `annotation-script-center.pem`
 
 ## 本地后端
@@ -625,9 +563,9 @@ https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/s
 https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/download
 ```
 
-### 扩展压缩包下载目录
+### 扩展企业更新文件目录
 
-如果要让用户打开一个固定页面后自行选择下载哪个扩展压缩包，推荐把所有扩展 zip 放到服务器的 `dist/` 目录，并用 Nginx 的 `autoindex` 展示目录列表。
+企业发布建议把 CRX 三件套放到服务器 `dist/` 目录，并通过 `/downloads/` 提供下载与更新元数据访问。
 
 服务器文件目录：
 
@@ -665,11 +603,15 @@ location / {
 注意：
 
 - `alias` 路径和 `location /downloads/` 都要以 `/` 结尾。
-- `dist/` 目录里建议只放对外分发的扩展压缩包，例如 `annotation-script-center-v<manifest.version>.zip`。
+- `dist/` 目录里建议只放对外分发的 CRX 三件套：
+  - `annotation-script-center-v<manifest.version>.crx`
+  - `annotation-script-center-update.xml`
+  - `annotation-script-center-crx-latest.json`
 - 如果访问 `https://script.xiangtianzhen.store/downloads` 没有尾部 `/` 出现异常，改用 `https://script.xiangtianzhen.store/downloads/`。
 - 配置后执行 `sudo nginx -t` 和 `sudo systemctl reload nginx`。
 - 验证目录列表：`curl -I https://script.xiangtianzhen.store/downloads/`。
-- 验证单个文件：`curl -I https://script.xiangtianzhen.store/downloads/annotation-script-center-v<manifest.version>.zip`。
+- 验证 CRX：`curl -I https://script.xiangtianzhen.store/downloads/annotation-script-center-v<manifest.version>.crx`。
+- 验证 update.xml：`curl -I https://script.xiangtianzhen.store/downloads/annotation-script-center-update.xml`。
 
 ## 维护规则
 

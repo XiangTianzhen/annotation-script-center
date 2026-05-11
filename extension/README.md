@@ -14,8 +14,7 @@
 - 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
 - 修复当前待验证版本 BUG 时，可保持 `manifest.version` 不变，不因同一版本的连续修复重复升 patch。
 - 当前版本为 `0.3.0`，包含“项目数据下载”隐藏入口、后端密码校验、短期下载链接和审计日志能力。
-- 当前测试打包文件应为 `dist/annotation-script-center-v0.3.0.zip`。
-- 打包发布时，压缩包根目录必须直接包含 `manifest.json`、`background/`、`options/`、`popup/`、`shared/` 和 `sites/`。
+- 3.0 起正式发布产物为 CRX 三件套：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 
 ## Options 首页下载入口规则
@@ -60,39 +59,23 @@ sites/
 - Playwright Edge 只用于真实按钮/快捷键行为验证，或 DevTools 不可用时兜底。
 - Codex 只负责打开浏览器；用户自行登录并进入页面，回复“处理好了”后再继续。
 
-## 生成压缩包
+## CRX 企业发布
 
 在仓库根目录运行：
 
 ```powershell
-$manifest = Get-Content -Raw extension\manifest.json | ConvertFrom-Json
-$zipPath = "dist\annotation-script-center-v$($manifest.version).zip"
-New-Item -ItemType Directory -Force dist | Out-Null
-if (Test-Path $zipPath) {
-  Remove-Item $zipPath
-}
-Compress-Archive -Path extension\* -DestinationPath $zipPath -Force
+node scripts/package-crx-release.js --notes "CRX enterprise release"
 ```
 
-上传商城或分发给同事时使用生成的 `dist\annotation-script-center-v版本号.zip`。压缩包内部第一层必须直接包含 `manifest.json`，不要多套一层 `extension/` 目录。
-默认不提交 `dist/` 构建产物；如需提交发布产物，以任务要求为准。
-
-### 生成发布清单（ops_monitor 用）
-
-在仓库根目录运行：
-
-```powershell
-node scripts/generate-release-manifest.js --notes "准备接入 ops_monitor 自动更新"
-```
-
-- 依赖文件：`extension/manifest.json` 与 `dist/annotation-script-center-v<manifest.version>.zip`。
-- 输出文件：`dist/annotation-script-center-latest.json`。
-- 默认下载前缀：`https://script.xiangtianzhen.store/downloads/`。
-- 可覆盖下载前缀：设置环境变量 `ASC_DOWNLOAD_BASE_URL` 后再执行脚本。
+- 正式发布路径只保留 CRX 三件套：
+  - `dist/annotation-script-center-v<manifest.version>.crx`
+  - `dist/annotation-script-center-update.xml`
+  - `dist/annotation-script-center-crx-latest.json`
+- `dist/` 默认不提交 Git；仅在任务明确要求提交发布产物时提交。
 
 ### CRX 企业发布（策略自动更新）
 
-3.0 正式发布建议使用 CRX + `update.xml`，zip 仅保留调试/回退用途。
+3.0 正式发布与自动更新统一使用 CRX + `update.xml` + `crx-latest.json`。
 
 执行命令（仓库根目录）：
 
@@ -119,6 +102,7 @@ node scripts/package-crx-release.js --notes "CRX enterprise release test"
 发布校验要点：
 - `update.xml appid` 等于脚本输出的 `extension_id`
 - `update.xml version` 等于 `manifest.version`
+- `update.xml codebase` 指向对应版本 CRX 下载 URL
 - 所有后续版本 CRX 均使用同一个 `.pem` 打包
 
 

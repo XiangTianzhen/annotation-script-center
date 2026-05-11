@@ -4,14 +4,11 @@
 
 - CRX 企业发布能力：新增 `scripts/package-crx-release.js`，可基于 `extension/manifest.json` 版本和固定私钥 `config/secrets/annotation-script-center.pem` 生成 `dist/annotation-script-center-v<version>.crx`、`dist/annotation-script-center-update.xml`、`dist/annotation-script-center-crx-latest.json`。
 - CRX 脚本支持浏览器路径优先级：`ASC_CHROME_EXE` > Chrome/Edge 常见安装路径自动探测；支持 `ASC_DOWNLOAD_BASE_URL` 覆盖下载前缀，支持 `--notes` 写入发布说明。
-- 首次无私钥时允许调用浏览器打包自动产出 pem，并要求后续长期复用同一个 `.pem`；脚本会输出 `extension_id`，用于校验 `update.xml` 的 `appid`。
-- `extension/manifest.json` 新增 `update_url`：`https://script.xiangtianzhen.store/downloads/annotation-script-center-update.xml`。
-- `.gitignore` 新增 `config/secrets/*.pem|*.key|*.p12` 忽略规则，并新增 `config/secrets/README.md` 说明私钥保管要求（不提交真实私钥）。
-- 文档同步：`README.md`、`extension/README.md` 新增 CRX 企业发布流程说明；zip 继续保留为调试/回退方案。
-
-- 发布清单能力：新增 `scripts/generate-release-manifest.js`，按 `extension/manifest.json` 版本读取 `dist/annotation-script-center-v<version>.zip`，生成 `dist/annotation-script-center-latest.json`（包含版本、下载地址、sha256、包大小、创建时间、最小 agent 版本和发布说明）。
-- 发布清单支持 `ASC_DOWNLOAD_BASE_URL` 覆盖默认下载前缀 `https://script.xiangtianzhen.store/downloads/`，并支持 `--notes` 传入发布说明；zip 缺失时脚本会报错退出。
-- 文档同步：`README.md`、`extension/README.md` 新增“生成扩展版本清单”说明，供 `ops_monitor` 定时检测更新使用。
+- CRX 脚本增加发布后自检：校验 `crx-latest.json` 必填字段、`sha256` 64 位 hex，以及 `update.xml` 的 `appid/version/codebase` 一致性；并输出需要上传到 `downloads` 的三个文件路径。
+- `extension/manifest.json` 新增并保留 `update_url`：`https://script.xiangtianzhen.store/downloads/annotation-script-center-update.xml`。
+- 清理 zip 发布路线：删除 `scripts/generate-release-manifest.js`、删除 `dist/annotation-script-center-latest.json`，文档不再把 zip 作为正式更新方式。
+- `.gitignore` 保留 `config/secrets/*.pem|*.key|*.p12` 忽略规则；`config/secrets/README.md` 继续说明私钥长期保管要求（不提交真实私钥）。
+- 文档同步：`README.md`、`extension/README.md`、`AGENTS.md` 收敛为 3.0 正式发布默认 CRX 三件套；zip 仅作为历史遗留说明，不作为正式发布和自动更新路径。
 
 - 0.3.0 配置体验优化：统一项目数据下载私有配置文件模板，新增 `config/env/backend.env.example`，提供 `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256` 与 `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET` 示例占位。
 - 后端环境加载顺序升级：`platform-resources/backend/env-loader.js` 默认改为优先读取 `config/env/backend.env`、`config/env/backend.local.env`，并保持 `ai.env` / `ai.local.env` / `.env.local` / `ASC_ENV_FILE` 兼容。

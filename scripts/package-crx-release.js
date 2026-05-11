@@ -195,6 +195,47 @@ function buildUpdateXml(extensionId, codebaseUrl, version) {
   ].join("\n");
 }
 
+function validateCrxLatestPayload(payload) {
+  const required = [
+    "name",
+    "release_type",
+    "latest_version",
+    "extension_id",
+    "filename",
+    "download_url",
+    "update_xml_url",
+    "sha256",
+    "size_bytes",
+    "created_at",
+    "min_agent_version",
+    "release_notes"
+  ];
+  for (const key of required) {
+    if (!payload[key]) {
+      throw new Error(`crx latest json 缺少字段：${key}`);
+    }
+  }
+  if (!/^[a-f0-9]{64}$/i.test(String(payload.sha256))) {
+    throw new Error("crx latest json 的 sha256 不是 64 位 hex");
+  }
+}
+
+function validateUpdateXml(xmlText, extensionId, codebaseUrl, version) {
+  const requiredSnippets = [
+    "<gupdate",
+    "<app ",
+    "<updatecheck ",
+    `appid='${extensionId}'`,
+    `codebase='${codebaseUrl}'`,
+    `version='${version}'`
+  ];
+  for (const snippet of requiredSnippets) {
+    if (!xmlText.includes(snippet)) {
+      throw new Error(`update.xml 缺少关键片段：${snippet}`);
+    }
+  }
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const { version } = readManifestMeta();
@@ -219,6 +260,7 @@ function main() {
   const downloadUrl = `${downloadBaseUrl}${crxFilename}`;
   const updateXmlUrl = `${downloadBaseUrl}${UPDATE_XML_FILENAME}`;
   const updateXml = buildUpdateXml(extensionId, downloadUrl, version);
+  validateUpdateXml(updateXml, extensionId, downloadUrl, version);
   fs.writeFileSync(updateXmlPath, updateXml, "utf8");
 
   const stat = fs.statSync(crxOutputPath);
@@ -236,12 +278,17 @@ function main() {
     min_agent_version: DEFAULT_MIN_AGENT_VERSION,
     release_notes: releaseNotes
   };
+  validateCrxLatestPayload(crxLatestPayload);
   fs.writeFileSync(crxLatestPath, `${JSON.stringify(crxLatestPayload, null, 2)}\n`, "utf8");
 
   console.log(`crx release generated: ${crxOutputPath}`);
   console.log(`update xml generated: ${updateXmlPath}`);
   console.log(`crx latest json generated: ${crxLatestPath}`);
   console.log(`extension id: ${extensionId}`);
+  console.log("请上传到 downloads 目录的文件：");
+  console.log(`1. ${crxOutputPath}`);
+  console.log(`2. ${updateXmlPath}`);
+  console.log(`3. ${crxLatestPath}`);
   if (generatedNewKey) {
     console.log(
       `首次生成私钥：${KEY_PATH}。请离线备份该 pem；丢失会导致 extension ID 变化并需要重配企业策略。`

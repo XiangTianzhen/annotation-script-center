@@ -219,22 +219,15 @@
 - 纯只读审计、不改文件、不提交时不改版本号。
 - 只改内部文档且不影响扩展使用时，可以不提升版本号；但如果用户明确要求“更新版本 / 打包 / 发布”，必须提升版本号。
 - 修改 `manifest.json` 后必须验证 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
-- 执行类任务验证通过后，如果本轮有扩展源码、manifest、options、popup、content script、shared、平台脚本或用户可见行为变更，默认生成扩展压缩包到 `dist/`。
-- 如果用户明确要求打包，即使本轮只改文档，也必须生成压缩包。
-- 压缩包命名规则：`dist/annotation-script-center-v<manifest.version>.zip`。
-- 压缩包内容必须直接来自 `extension/` 目录内部文件；根目录必须直接包含 `manifest.json`、`background/`、`options/`、`popup/`、`shared/`、`sites/`，禁止多套一层 `extension/` 目录。
+- 执行类任务验证通过后，若本轮涉及发布体系或用户明确要求打包，默认使用 CRX 企业发布脚本生成三件套：`annotation-script-center-v<manifest.version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
+- 3.0 起 zip 仅为历史遗留调试产物，不作为正式发布或自动更新路径。
 - `dist/` 是构建产物目录，默认不提交 git。
-- 如果系统缺少压缩工具导致打包失败，验证失败，不得提交和 push。
-- 推荐 PowerShell 打包命令：
+- 如果系统缺少可用 Chrome/Edge 或 CRX 打包依赖导致发布失败，验证失败，不得提交和 push。
+- 推荐发布命令：
   ```powershell
-  $manifest = Get-Content -Raw extension\manifest.json | ConvertFrom-Json
-  $zipPath = "dist\annotation-script-center-v$($manifest.version).zip"
-  New-Item -ItemType Directory -Force dist | Out-Null
-  if (Test-Path $zipPath) { Remove-Item $zipPath }
-  Compress-Archive -Path extension\* -DestinationPath $zipPath -Force
-  Write-Host "已生成：$zipPath"
+  node scripts/package-crx-release.js --notes "CRX enterprise release"
   ```
-- Codex 最终输出必须包含：旧版本号、新版本号、是否已生成 `dist` 压缩包、压缩包路径、压缩包根目录检查结果。
+- Codex 最终输出必须包含：旧版本号、新版本号、是否已生成 CRX 三件套、产物路径、`update.xml` 与 `crx-latest.json` 校验结果。
 
 ## Git 提交要求
 
@@ -310,8 +303,9 @@
 - 修复当前测试版本 BUG 时不要自动升版本（例如当前在修 `0.2.10`，可保持 `manifest.version = 0.2.10`）。
 - 只有用户确认当前版本通过真实浏览器验证并准备发布下一版时，才提升 patch 版本。
 - 修改 `manifest.json` 后必须检查 JSON 可解析，并确认引用脚本路径存在。
-- 打包 zip 根目录必须直接包含 `manifest.json`、`background/`、`options/`、`popup/`、`shared/`、`sites/`，不得多套一层 `extension/`。
-- `dist` 构建产物默认不提交；若当前版本 zip 已被仓库追踪或用户明确要求提交测试包，则重新生成后可一并提交，并必须检查 zip 根目录结构。
+- 3.0 起正式发布与自动更新默认使用 CRX 三件套：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
+- zip 仅作为历史遗留调试产物，不作为正式发布和自动更新路径。
+- `dist` 构建产物默认不提交；仅在用户明确要求提交发布产物时，才提交本轮需要的 CRX 三件套。
 
 ### 5) 每轮优先阅读与按需补充阅读
 
