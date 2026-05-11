@@ -19,6 +19,9 @@
 /config/env/ai.local.env
 /config/env/backend.env
 /config/env/backend.local.env
+/config/secrets/*.pem
+/config/secrets/*.key
+/config/secrets/*.p12
 !/config/env/ai.env.example
 !/config/env/backend.env.example
 

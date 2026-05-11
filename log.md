@@ -2,6 +2,13 @@
 
 ## 2026-05-11
 
+- CRX 企业发布能力：新增 `scripts/package-crx-release.js`，可基于 `extension/manifest.json` 版本和固定私钥 `config/secrets/annotation-script-center.pem` 生成 `dist/annotation-script-center-v<version>.crx`、`dist/annotation-script-center-update.xml`、`dist/annotation-script-center-crx-latest.json`。
+- CRX 脚本支持浏览器路径优先级：`ASC_CHROME_EXE` > Chrome/Edge 常见安装路径自动探测；支持 `ASC_DOWNLOAD_BASE_URL` 覆盖下载前缀，支持 `--notes` 写入发布说明。
+- 首次无私钥时允许调用浏览器打包自动产出 pem，并要求后续长期复用同一个 `.pem`；脚本会输出 `extension_id`，用于校验 `update.xml` 的 `appid`。
+- `extension/manifest.json` 新增 `update_url`：`https://script.xiangtianzhen.store/downloads/annotation-script-center-update.xml`。
+- `.gitignore` 新增 `config/secrets/*.pem|*.key|*.p12` 忽略规则，并新增 `config/secrets/README.md` 说明私钥保管要求（不提交真实私钥）。
+- 文档同步：`README.md`、`extension/README.md` 新增 CRX 企业发布流程说明；zip 继续保留为调试/回退方案。
+
 - 发布清单能力：新增 `scripts/generate-release-manifest.js`，按 `extension/manifest.json` 版本读取 `dist/annotation-script-center-v<version>.zip`，生成 `dist/annotation-script-center-latest.json`（包含版本、下载地址、sha256、包大小、创建时间、最小 agent 版本和发布说明）。
 - 发布清单支持 `ASC_DOWNLOAD_BASE_URL` 覆盖默认下载前缀 `https://script.xiangtianzhen.store/downloads/`，并支持 `--notes` 传入发布说明；zip 缺失时脚本会报错退出。
 - 文档同步：`README.md`、`extension/README.md` 新增“生成扩展版本清单”说明，供 `ops_monitor` 定时检测更新使用。

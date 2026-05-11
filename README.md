@@ -266,6 +266,50 @@ node scripts/generate-release-manifest.js --notes "发布说明"
 
 `annotation-script-center-latest.json` 包含 `latest_version`、`filename`、`download_url`、`sha256`、`size_bytes`、`created_at`、`min_agent_version`、`release_notes`，用于 `ops_monitor` 每日拉取并判定是否更新。
 
+### CRX 企业发布（Chrome/Edge 策略更新）
+
+3.0 正式发布建议以 CRX + `update.xml` 为主，zip 保留为调试/回退方案。
+
+1. 先确认 `extension/manifest.json` 包含：
+
+```json
+"update_url": "https://script.xiangtianzhen.store/downloads/annotation-script-center-update.xml"
+```
+
+2. 准备私钥（首次运行会自动生成）：
+   - 固定路径：`config/secrets/annotation-script-center.pem`
+   - 不提交 Git，必须长期保存并离线备份
+   - 丢失会导致 `extension_id` 变化，企业策略 `appid` 需重配
+
+3. 在仓库根目录执行：
+
+```powershell
+node scripts/package-crx-release.js --notes "CRX enterprise release test"
+```
+
+脚本会自动：
+- 读取 `manifest.version`
+- 使用浏览器 `--pack-extension` 生成 CRX
+- 输出 `dist/annotation-script-center-v<version>.crx`
+- 生成 `dist/annotation-script-center-update.xml`
+- 生成 `dist/annotation-script-center-crx-latest.json`
+- 输出 `extension_id`
+
+浏览器路径选择规则：
+- 优先读取 `ASC_CHROME_EXE`
+- 未设置时自动尝试：
+  - `C:\Program Files\Google\Chrome\Application\chrome.exe`
+  - `C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`
+  - `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`
+  - `C:\Program Files\Microsoft\Edge\Application\msedge.exe`
+
+下载域名可用 `ASC_DOWNLOAD_BASE_URL` 覆盖，默认 `https://script.xiangtianzhen.store/downloads/`。
+
+关键一致性要求：
+- `update.xml` 的 `appid` 必须等于 `extension_id`
+- `update.xml` 的 `version` 必须等于 `manifest.version`
+- 新版本 CRX 必须持续使用同一 `annotation-script-center.pem`
+
 ## 本地后端
 
 在仓库根目录运行：
