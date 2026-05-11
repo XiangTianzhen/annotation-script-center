@@ -9,7 +9,8 @@
 - 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/alibaba-labelx/asr-transcription/`、`extension/sites/data-baker/round-one-quality/`
 - 当前后端入口：`platform-resources/backend/server.js`
 - 当前扩展版本：`0.3.0`
-- 当前处于“项目数据下载鉴权与供应商筛选下载”阶段，第二轮自动更新方案仅做文档设计。
+- 当前处于 `0.3.0` 稳定验收完成阶段；项目数据下载、供应商筛选、标贝易采 CSV/原始 JSON 分离、CRX 发布三件套和 `ops_monitor` 策略写入能力已完成。
+- CRX 企业托管自动安装因需要 AD/Entra ID/Intune/MDM 等企业托管环境，已作为未完成模块挂起，不阻塞 `0.3.0`。
 
 ## 0.3.0 第一轮能力（已实现）
 
@@ -48,17 +49,17 @@
   - 记录请求/下载成功失败、IP、获取人、数据类型、供应商、UA、时间等。
   - 不记录 password、token 全文、cookie、authorization。
 
-## 第二轮方案（仅文档，不在本轮实现）
+## CRX 发布与自动安装状态
 
-- 自动更新扩展路线明确使用 `XiangTianzhen/ops_monitor` 本地 Python 打包 exe。
-- 规划在 `ops_monitor` 新增 `annotation-script-center` 更新模块，扩展本体不直接替换本地文件。
-- 预期流程：
-  1. 检测版本；
-  2. 下载 CRX 与 `annotation-script-center-crx-latest.json`；
-  3. 校验 sha256；
-  4. 通过企业策略更新或本地策略触发浏览器安装更新；
-  5. 提示或触发刷新扩展页面。
-- Chrome/Edge 商店版仍走官方审核发布，不作为内部快速迭代主路径。
+- 已完成：
+  1. `annotation-script-center-v<version>.crx`
+  2. `annotation-script-center-update.xml`
+  3. `annotation-script-center-crx-latest.json`
+  4. `ops_monitor` 写入 Chrome / Edge `ExtensionSettings` 策略能力
+- 当前挂起：
+  - 企业托管自动安装（`force_installed`）在普通未企业托管 Windows 设备会被浏览器拦截。
+  - 该项需要 AD/Entra ID/Intune/MDM 等企业管理环境，不作为 `0.3.0` 阻塞项。
+- 详细说明见未完成模块文档：`docs/unfinished/crx-enterprise-managed-install.md`。
 
 ## 0.2.11 修正要点（LabelX 统计总表 + 动态供应商列）
 
