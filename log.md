@@ -2,6 +2,10 @@
 
 ## 2026-05-11
 
+- 发布清单能力：新增 `scripts/generate-release-manifest.js`，按 `extension/manifest.json` 版本读取 `dist/annotation-script-center-v<version>.zip`，生成 `dist/annotation-script-center-latest.json`（包含版本、下载地址、sha256、包大小、创建时间、最小 agent 版本和发布说明）。
+- 发布清单支持 `ASC_DOWNLOAD_BASE_URL` 覆盖默认下载前缀 `https://script.xiangtianzhen.store/downloads/`，并支持 `--notes` 传入发布说明；zip 缺失时脚本会报错退出。
+- 文档同步：`README.md`、`extension/README.md` 新增“生成扩展版本清单”说明，供 `ops_monitor` 定时检测更新使用。
+
 - 0.3.0 配置体验优化：统一项目数据下载私有配置文件模板，新增 `config/env/backend.env.example`，提供 `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256` 与 `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET` 示例占位。
 - 后端环境加载顺序升级：`platform-resources/backend/env-loader.js` 默认改为优先读取 `config/env/backend.env`、`config/env/backend.local.env`，并保持 `ai.env` / `ai.local.env` / `.env.local` / `ASC_ENV_FILE` 兼容。
 - `.gitignore` 补充忽略 `config/env/backend.env`、`config/env/backend.local.env`，并允许提交模板 `config/env/backend.env.example`。

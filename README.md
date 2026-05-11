@@ -241,6 +241,31 @@ sites/
 
 不要把整个 `extension/` 文件夹作为压缩包内的第一层目录；否则 Chrome Web Store、Edge Add-ons 或本地安装都会找不到根级 `manifest.json`。上传商城或发给同事时，直接使用 `dist/` 中生成的 zip。
 
+### 生成扩展版本清单（供 ops_monitor 检测更新）
+
+在仓库根目录运行：
+
+```powershell
+node scripts/generate-release-manifest.js --notes "准备接入 ops_monitor 自动更新"
+```
+
+脚本会读取 `extension/manifest.json` 的 `version`，并要求 `dist/annotation-script-center-v<version>.zip` 已存在。若 zip 缺失会直接报错退出。
+
+生成文件：
+
+```text
+dist/annotation-script-center-latest.json
+```
+
+默认下载地址前缀为 `https://script.xiangtianzhen.store/downloads/`，可通过环境变量覆盖：
+
+```powershell
+$env:ASC_DOWNLOAD_BASE_URL="https://script.xiangtianzhen.store/downloads/"
+node scripts/generate-release-manifest.js --notes "发布说明"
+```
+
+`annotation-script-center-latest.json` 包含 `latest_version`、`filename`、`download_url`、`sha256`、`size_bytes`、`created_at`、`min_agent_version`、`release_notes`，用于 `ops_monitor` 每日拉取并判定是否更新。
+
 ## 本地后端
 
 在仓库根目录运行：

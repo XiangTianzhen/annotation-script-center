@@ -77,6 +77,19 @@ Compress-Archive -Path extension\* -DestinationPath $zipPath -Force
 上传商城或分发给同事时使用生成的 `dist\annotation-script-center-v版本号.zip`。压缩包内部第一层必须直接包含 `manifest.json`，不要多套一层 `extension/` 目录。
 默认不提交 `dist/` 构建产物；如需提交发布产物，以任务要求为准。
 
+### 生成发布清单（ops_monitor 用）
+
+在仓库根目录运行：
+
+```powershell
+node scripts/generate-release-manifest.js --notes "准备接入 ops_monitor 自动更新"
+```
+
+- 依赖文件：`extension/manifest.json` 与 `dist/annotation-script-center-v<manifest.version>.zip`。
+- 输出文件：`dist/annotation-script-center-latest.json`。
+- 默认下载前缀：`https://script.xiangtianzhen.store/downloads/`。
+- 可覆盖下载前缀：设置环境变量 `ASC_DOWNLOAD_BASE_URL` 后再执行脚本。
+
 
 
 ## 0.2.11 中文乱码修正（CSV 健康值合并）
