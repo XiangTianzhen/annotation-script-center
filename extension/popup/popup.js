@@ -9,6 +9,8 @@
   const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
   const dataBakerRoundOneQualityScriptId =
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
+  const magicDataHost = "work.magicdatatech.com";
+  const magicDataScriptId = "magicDataAnnotatorAiReview";
   let currentDetectedScriptId = null;
 
   function queryTabs(queryInfo) {
@@ -229,6 +231,37 @@
       };
     }
 
+    if (url.hostname === magicDataHost) {
+      const hash = String(url.hash || "").toLowerCase();
+      const isAsrmark = hash.indexOf("#/asrmark") >= 0;
+      if (isAsrmark) {
+        return {
+          scriptId: magicDataScriptId,
+          scriptLabel: "Magic Data AI 复核助手",
+          platformId: "magicData",
+          platformLabel: "Magic Data ANNOTATOR",
+          url: url,
+          statusText: "已支持",
+          statusTone: "success",
+          title: "当前页面：Magic Data 标注单条页",
+          description: "脚本状态：已支持 AI 复核助手。请在页面右下角查看面板。",
+          openScriptSettings: false,
+        };
+      }
+      return {
+        scriptId: magicDataScriptId,
+        scriptLabel: "Magic Data AI 复核助手",
+        platformId: "magicData",
+        platformLabel: "Magic Data ANNOTATOR",
+        url: url,
+        statusText: "待进入标注单条页",
+        statusTone: "pending",
+        title: "当前页面属于 Magic Data",
+        description: "进入 #/asrmark 后可使用 AI 复核助手。",
+        openScriptSettings: false,
+      };
+    }
+
     return {
       scriptId: null,
       platformId: null,
@@ -318,6 +351,10 @@
       return context;
     }
 
+    if (context.platformId === "magicData") {
+      return context;
+    }
+
     return context;
   }
 
@@ -333,17 +370,19 @@
 
     setPill(
       "detected-platform-pill",
-      context.platformId ? String(platform.label || context.platformId) : "未命中平台",
+      context.platformId
+        ? String(context.platformLabel || platform.label || context.platformId)
+        : "未命中平台",
       context.platformId ? "info" : "pending"
     );
     setPill(
       "detected-script-pill",
-      context.scriptId ? String(script.label || context.scriptId) : "无脚本触发",
+      context.scriptId ? String(context.scriptLabel || script.label || context.scriptId) : "无脚本触发",
       context.scriptId ? "info" : "pending"
     );
 
     const openScriptSettingsButton = getElement("open-script-settings");
-    openScriptSettingsButton.disabled = !context.scriptId;
+    openScriptSettingsButton.disabled = !context.scriptId || context.openScriptSettings === false;
 
     if (!context.scriptId) {
       setPopupStatus("你可以直接打开脚本中心查看所有脚本。");
@@ -351,7 +390,9 @@
     }
 
     setPopupStatus(
-      "当前页面对应脚本：" + String(script.label || context.scriptId) + "。需要调整配置时，请进入该脚本详情页。"
+      "当前页面对应脚本：" +
+        String(context.scriptLabel || script.label || context.scriptId) +
+        "。需要调整配置时，请进入该脚本详情页。"
     );
   }
 

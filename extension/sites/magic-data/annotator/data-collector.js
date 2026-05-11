@@ -1,9 +1,22 @@
 (function () {
+  const MAIN_SOURCE = "ASC_MAGIC_DATA_MAIN";
+  const MAIN_DETAIL_TYPE = "ASC_MAGIC_DATA_ANNOTATE_DETAIL_RESPONSE";
+  const API_DETAIL_PATH_PREFIX = "/api/management-service/annotateTask/annotateDetailInfo/";
+  const DETAIL_FETCH_RETRY_INTERVAL_MS = 1500;
   const GENDER_OPTIONS = ["男", "女"];
   const AGE_OPTIONS = ["0-5", "6-12", "13-18", "19-25", "26-36", "37-50", "51-65", "65以上"];
+  const REJECT_BUTTON_TEXTS = ["清除结果", "清除文本", "挂起", "驳回", "拒绝"];
+
+  const detailCacheByTaskItemId = new Map();
+  const detailFetchInflightByTaskItemId = new Map();
+  const detailFetchAtByTaskItemId = new Map();
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeCompactText(value) {
+    return String(value || "").replace(/\s+/g, "").trim();
   }
 
   function toNumberOrNull(value) {
@@ -83,7 +96,11 @@
     if (!normalizedKeyword) {
       return null;
     }
-    const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT);
+    const root = document.body || document.documentElement;
+    if (!root) {
+      return null;
+    }
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     let current = walker.nextNode();
     while (current) {
       const text = normalizeText(current.textContent || "");
@@ -113,7 +130,7 @@
     return null;
   }
 
-  function findProjectName() {
+  function findProjectNameFromDom() {
     const anchor = findTextNodeElementByKeyword("项目名称");
     if (!anchor) {
       return "";
@@ -201,17 +218,15 @@
         anchor.parentElement;
       fields = collectEditableFieldsInContainer(container);
     }
-
     if (fields.length < 2) {
       fields = collectGlobalEditableFields();
     }
-
     if (fields.length > 2) {
       const ranked = fields
         .map(function (node, index) {
           return {
-            node,
-            index,
+            node: node,
+            index: index,
             score: normalizeText(getEditableValue(node)).length,
           };
         })
@@ -241,7 +256,7 @@
     };
   }
 
-  function parseSpeaker() {
+  function parseSpeakerFromDom() {
     const section = findTextNodeElementByKeyword("说话人属性");
     const scope = section?.closest("[class*='form'], [class*='panel'], [class*='card']") || document.body;
     const text = normalizeText(scope?.textContent || "");
@@ -265,14 +280,214 @@
     return speaker;
   }
 
-  function collectCurrentItem() {
+  function getRouteParams() {
     const detector = globalThis.__ASREdgeMagicDataAnnotatorPageDetector;
-    const routeParams = detector?.parseHashParams ? detector.parseHashParams() : {};
+    return detector?.parseHashParams ? detector.parseHashParams() : {};
+  }
+
+  function getCurrentTaskItemId() {
+    return normalizeText(getRouteParams().taskItemId);
+  }
+
+  function normalizeDetailEntry(input) {
+    const source = input && typeof input === "object" ? input : {};
+    const markInfo = Array.isArray(source.mark_info) ? source.mark_info : [];
+    return {
+      at: Number(source.at) || Date.now(),
+      taskItemId: normalizeText(source.taskItemId),
+      path: String(source.path || "").trim(),
+      wav_name: normalizeText(source.wav_name),
+      start_time: toNumberOrNull(source.start_time),
+      end_time: toNumberOrNull(source.end_time),
+      mark_info: markInfo.map(function (item) {
+        const row = item && typeof item === "object" ? item : {};
+        return {
+          mark_text: normalizeText(row.mark_text),
+          speak_people: row.speak_people,
+          mark_type: normalizeText(row.mark_type),
+        };
+      }),
+      statistics: source.statistics && typeof source.statistics === "object" ? source.statistics : null,
+      is_valid: source.is_valid,
+      base_speak: source.base_speak,
+      duration: toNumberOrNull(source.duration),
+    };
+  }
+
+  function rememberDetailEntry(entry) {
+    if (!entry || !entry.taskItemId) {
+      return;
+    }
+    detailCacheByTaskItemId.set(entry.taskItemId, normalizeDetailEntry(entry));
+  }
+
+  function parseDetailResponsePayload(payload, fallbackTaskItemId) {
+    const data = payload && typeof payload === "object" ? payload.data : {};
+    const normalized = normalizeDetailEntry({
+      taskItemId: normalizeText(data?.taskItemId || fallbackTaskItemId),
+      path: data?.path,
+      wav_name: data?.wav_name,
+      start_time: data?.start_time,
+      end_time: data?.end_time,
+      mark_info: data?.mark_info,
+      statistics: data?.statistics,
+      is_valid: data?.is_valid,
+      base_speak: data?.base_speak,
+      duration:
+        data?.duration !== undefined
+          ? data.duration
+          : data?.audio_duration !== undefined
+            ? data.audio_duration
+            : data?.total_duration,
+    });
+    return normalized.taskItemId ? normalized : null;
+  }
+
+  async function requestAnnotateDetail(taskItemId) {
+    const response = await fetch(
+      location.origin + API_DETAIL_PATH_PREFIX + encodeURIComponent(taskItemId),
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json;charset=UTF-8",
+          Accept: "application/json, text/plain, */*",
+          "md-language": "zh",
+        },
+        body: JSON.stringify({
+          taskItemId: taskItemId,
+        }),
+      }
+    );
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      payload = null;
+    }
+    return {
+      response: response,
+      payload: payload,
+    };
+  }
+
+  async function fetchAnnotateDetail(taskItemId) {
+    const normalizedTaskItemId = normalizeText(taskItemId);
+    if (!normalizedTaskItemId) {
+      return null;
+    }
+
+    const lastFetchAt = Number(detailFetchAtByTaskItemId.get(normalizedTaskItemId) || 0);
+    if (Date.now() - lastFetchAt < DETAIL_FETCH_RETRY_INTERVAL_MS) {
+      return detailCacheByTaskItemId.get(normalizedTaskItemId) || null;
+    }
+    detailFetchAtByTaskItemId.set(normalizedTaskItemId, Date.now());
+
+    const inflight = detailFetchInflightByTaskItemId.get(normalizedTaskItemId);
+    if (inflight) {
+      return inflight;
+    }
+
+    const requestPromise = requestAnnotateDetail(normalizedTaskItemId)
+      .then(function (result) {
+        if (!result.response.ok || !result.payload || !result.payload.data) {
+          return null;
+        }
+        const entry = parseDetailResponsePayload(result.payload, normalizedTaskItemId);
+        if (!entry) {
+          return null;
+        }
+        rememberDetailEntry(entry);
+        return entry;
+      })
+      .catch(function () {
+        return null;
+      })
+      .finally(function () {
+        detailFetchInflightByTaskItemId.delete(normalizedTaskItemId);
+      });
+
+    detailFetchInflightByTaskItemId.set(normalizedTaskItemId, requestPromise);
+    return requestPromise;
+  }
+
+  function getCachedDetail(taskItemId) {
+    const normalizedTaskItemId = normalizeText(taskItemId);
+    if (!normalizedTaskItemId) {
+      return null;
+    }
+    return detailCacheByTaskItemId.get(normalizedTaskItemId) || null;
+  }
+
+  function parseSpeakerFromDetail(detail, fallbackSpeaker) {
+    const speaker = Object.assign({}, fallbackSpeaker || {});
+    const markInfo = Array.isArray(detail?.mark_info) ? detail.mark_info : [];
+    const firstSpeakPeople = markInfo
+      .map(function (row) {
+        return row?.speak_people;
+      })
+      .find(function (value) {
+        return value !== undefined && value !== null && value !== "";
+      });
+    const candidates = [detail?.base_speak, firstSpeakPeople];
+    candidates.forEach(function (item) {
+      if (!item) {
+        return;
+      }
+      if (typeof item === "string") {
+        const text = normalizeText(item);
+        if (!speaker.gender && (text.indexOf("男") >= 0 || text.indexOf("女") >= 0)) {
+          speaker.gender = text.indexOf("女") >= 0 ? "女" : "男";
+        }
+        if (!speaker.ageRange) {
+          const matchedAge = AGE_OPTIONS.find(function (ageRange) {
+            return text.indexOf(ageRange) >= 0;
+          });
+          if (matchedAge) {
+            speaker.ageRange = matchedAge;
+          }
+        }
+        return;
+      }
+      if (typeof item === "object") {
+        const genderText = normalizeText(item.gender || item.sex || "");
+        if (!speaker.gender && (genderText === "男" || genderText === "女")) {
+          speaker.gender = genderText;
+        }
+        const ageRangeText = normalizeText(item.ageRange || item.age || "");
+        if (!speaker.ageRange) {
+          const matchedAge = AGE_OPTIONS.find(function (ageRange) {
+            return ageRange === ageRangeText;
+          });
+          if (matchedAge) {
+            speaker.ageRange = matchedAge;
+          }
+        }
+      }
+    });
+    return speaker;
+  }
+
+  function pickTextFromMarkInfo(detail, index, fallbackText) {
+    const markInfo = Array.isArray(detail?.mark_info) ? detail.mark_info : [];
+    const direct = normalizeText(markInfo[index]?.mark_text || "");
+    if (direct) {
+      return direct;
+    }
+    const list = markInfo
+      .map(function (row) {
+        return normalizeText(row?.mark_text || "");
+      })
+      .filter(Boolean);
+    return list[index] || normalizeText(fallbackText || "");
+  }
+
+  function collectDomSnapshot() {
+    const routeParams = getRouteParams();
     const textFields = pickDialectAndMandarinFields();
     const dialectText = normalizeText(getEditableValue(textFields.dialectField));
     const mandarinText = normalizeText(getEditableValue(textFields.mandarinField));
     const audioUrl = findAudioUrlFromDom() || findAudioUrlFromPerformance();
-    const audioHostname = parseAudioHostname(audioUrl);
 
     const effectiveTime =
       findNearbyNumberByKeyword("有效句子时长") ??
@@ -287,21 +502,61 @@
     return {
       taskItemId: normalizeText(routeParams.taskItemId),
       samplingRecordId: normalizeText(routeParams.samplingRecordId),
-      projectName: findProjectName(),
+      projectName: findProjectNameFromDom(),
       audioUrl: audioUrl,
-      audioHostname,
+      audioHostname: parseAudioHostname(audioUrl),
       audioDuration: toNumberOrNull(audioDuration),
       effectiveStartTime: toNumberOrNull(effectiveStartTime),
       effectiveEndTime: toNumberOrNull(effectiveEndTime),
       effectiveTime: toNumberOrNull(effectiveTime),
       platformDialectText: dialectText,
       platformMandarinText: mandarinText,
-      speaker: parseSpeaker(),
+      speaker: parseSpeakerFromDom(),
       fields: {
         dialectAvailable: Boolean(textFields.dialectField),
         mandarinAvailable: Boolean(textFields.mandarinField),
       },
     };
+  }
+
+  function mergeSnapshotWithDetail(domSnapshot, detail) {
+    const snapshot = Object.assign({}, domSnapshot || {});
+    if (!detail) {
+      return snapshot;
+    }
+    const startTime = toNumberOrNull(detail.start_time);
+    const endTime = toNumberOrNull(detail.end_time);
+    const effectiveTime =
+      startTime !== null && endTime !== null && endTime >= startTime ? Number((endTime - startTime).toFixed(3)) : null;
+    const audioUrl = String(detail.path || "").trim();
+    snapshot.taskItemId = normalizeText(detail.taskItemId || snapshot.taskItemId);
+    snapshot.audioUrl = audioUrl || snapshot.audioUrl || "";
+    snapshot.audioHostname = parseAudioHostname(snapshot.audioUrl);
+    snapshot.audioDuration = toNumberOrNull(detail.duration) ?? snapshot.audioDuration;
+    snapshot.effectiveStartTime = startTime ?? snapshot.effectiveStartTime;
+    snapshot.effectiveEndTime = endTime ?? snapshot.effectiveEndTime;
+    snapshot.effectiveTime = effectiveTime ?? snapshot.effectiveTime;
+    snapshot.platformDialectText = pickTextFromMarkInfo(detail, 0, snapshot.platformDialectText);
+    snapshot.platformMandarinText = pickTextFromMarkInfo(detail, 1, snapshot.platformMandarinText);
+    snapshot.speaker = parseSpeakerFromDetail(detail, snapshot.speaker);
+    return snapshot;
+  }
+
+  function collectCurrentItem() {
+    const domSnapshot = collectDomSnapshot();
+    const detail = getCachedDetail(domSnapshot.taskItemId);
+    return mergeSnapshotWithDetail(domSnapshot, detail);
+  }
+
+  async function refreshCurrentItem(options) {
+    const config = options && typeof options === "object" ? options : {};
+    const domSnapshot = collectDomSnapshot();
+    const taskItemId = normalizeText(config.taskItemId || domSnapshot.taskItemId || getCurrentTaskItemId());
+    if (!taskItemId) {
+      return domSnapshot;
+    }
+    const detail = await fetchAnnotateDetail(taskItemId);
+    return mergeSnapshotWithDetail(domSnapshot, detail);
   }
 
   function fillDialectLine(text) {
@@ -334,10 +589,114 @@
     };
   }
 
+  function findVisibleButtonsByExactText(text) {
+    const targetText = normalizeCompactText(text);
+    return Array.from(document.querySelectorAll("button, .el-button, [role='button']"))
+      .filter(isVisible)
+      .filter(function (node) {
+        return normalizeCompactText(node.textContent || "") === targetText;
+      });
+  }
+
+  function clickOperationButton(text) {
+    const targetText = normalizeCompactText(text);
+    const candidates = findVisibleButtonsByExactText(text).filter(function (node) {
+      const currentText = normalizeCompactText(node.textContent || "");
+      if (currentText !== targetText) {
+        return false;
+      }
+      return !REJECT_BUTTON_TEXTS.some(function (rejectText) {
+        return currentText === normalizeCompactText(rejectText);
+      });
+    });
+    const button = candidates[0] || null;
+    if (!button) {
+      return {
+        ok: false,
+        message: "未找到“" + text + "”按钮。",
+      };
+    }
+    button.click();
+    return {
+      ok: true,
+      message: "检测到" + text + "快捷键，已触发平台" + text + "按钮。",
+    };
+  }
+
+  function findSpeakerScope() {
+    const anchor = findTextNodeElementByKeyword("说话人属性");
+    return anchor?.closest("[class*='form'], [class*='panel'], [class*='card'], .el-form") || null;
+  }
+
+  function findClickableNodeByText(scope, text) {
+    if (!scope) {
+      return null;
+    }
+    const targetText = normalizeCompactText(text);
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+    let current = walker.nextNode();
+    while (current) {
+      const currentText = normalizeCompactText(current.textContent || "");
+      if (currentText === targetText) {
+        const parent = current.parentElement;
+        const clickable =
+          parent?.closest("label, button, [role='radio'], .el-radio, .el-checkbox, li, span, div") || null;
+        if (clickable && isVisible(clickable)) {
+          return clickable;
+        }
+      }
+      current = walker.nextNode();
+    }
+    return null;
+  }
+
+  function selectSpeakerValue(text) {
+    const scope = findSpeakerScope();
+    if (!scope) {
+      return {
+        ok: false,
+        message: "未找到说话人属性区域。",
+      };
+    }
+    const target = findClickableNodeByText(scope, text);
+    if (!target) {
+      return {
+        ok: false,
+        message: "未找到“" + text + "”选项。",
+      };
+    }
+    target.click();
+    return {
+      ok: true,
+      message: "已触发“" + text + "”选项，未自动保存。",
+    };
+  }
+
+  function handleMainWorldMessage(event) {
+    if (event.source !== window || event.origin !== location.origin) {
+      return;
+    }
+    const data = event.data || {};
+    if (data.source !== MAIN_SOURCE || data.type !== MAIN_DETAIL_TYPE) {
+      return;
+    }
+    const entry = normalizeDetailEntry(data.payload || {});
+    if (!entry.taskItemId) {
+      return;
+    }
+    rememberDetailEntry(entry);
+  }
+
+  window.addEventListener("message", handleMainWorldMessage);
+
   globalThis.__ASREdgeMagicDataAnnotatorDataCollector = {
+    clickOperationButton,
     collectCurrentItem,
     fillDialectLine,
     fillMandarinLine,
+    getCachedDetail,
     normalizeText,
+    refreshCurrentItem,
+    selectSpeakerValue,
   };
 })();

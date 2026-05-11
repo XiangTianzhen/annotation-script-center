@@ -119,12 +119,24 @@
         "https://work.magicdatatech.com/*"
       ],
       "js": [
+        "sites/magic-data/annotator/page-world/network-observer.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://work.magicdatatech.com/*"
+      ],
+      "js": [
         "shared/constants.js",
         "shared/storage.js",
         "sites/magic-data/annotator/page-detector.js",
         "sites/magic-data/annotator/data-collector.js",
         "sites/magic-data/annotator/ai-review-client.js",
         "sites/magic-data/annotator/ui-panel.js",
+        "sites/magic-data/annotator/shortcuts.js",
         "sites/magic-data/annotator/content.js"
       ],
       "all_frames": false,

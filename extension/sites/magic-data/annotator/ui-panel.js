@@ -64,6 +64,13 @@
       "[" + ROOT_ATTR + "] .md-result-empty{font-size:12px;color:#64748b;}",
       "[" + ROOT_ATTR + "] .md-safe{font-size:12px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;padding:8px;border-radius:8px;}",
       "[" + ROOT_ATTR + "] .md-loading::after{content:'...';display:inline-block;animation:mdDots 1.1s infinite;}",
+      "[" + ROOT_ATTR + "] .md-shortcuts-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}",
+      "[" + ROOT_ATTR + "] .md-shortcuts-body{display:none;margin-top:8px;}",
+      "[" + ROOT_ATTR + "] .md-shortcuts-body[data-open='true']{display:block;}",
+      "[" + ROOT_ATTR + "] .md-shortcut-row{display:grid;grid-template-columns:112px 1fr auto auto;gap:6px;align-items:center;margin-bottom:6px;}",
+      "[" + ROOT_ATTR + "] .md-shortcut-row .md-k{font-size:12px;color:#334155;}",
+      "[" + ROOT_ATTR + "] .md-shortcut-row .md-v{font-size:12px;color:#1e293b;overflow-wrap:anywhere;}",
+      "[" + ROOT_ATTR + "] .md-shortcuts-foot{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;}",
       "@keyframes mdDots{0%{content:'...';}33%{content:'.';}66%{content:'..';}100%{content:'...';}}",
     ].join("");
     (document.head || document.documentElement).appendChild(style);
@@ -95,7 +102,16 @@
     let latestBackend = null;
     let backendResolving = false;
     let mountedLogged = false;
-    let buttons = {
+    let shortcutsRuntime = null;
+    let shortcutsUnsubscribe = null;
+    let shortcutCaptureActionKey = "";
+    let shortcutCaptureHandler = null;
+
+    let shortcutBodyNode = null;
+    let shortcutStatusNode = null;
+    let shortcutRowsNode = null;
+
+    const buttons = {
       review: null,
       copyDialect: null,
       copyMandarin: null,
@@ -104,7 +120,14 @@
       ignore: null,
       refresh: null,
       collapse: null,
+      shortcutToggle: null,
     };
+
+    function setMessage(message) {
+      if (messageNode) {
+        messageNode.textContent = normalizeText(message) || "就绪。";
+      }
+    }
 
     function updateActionState() {
       const hasResult = Boolean(latestResult);
@@ -157,18 +180,10 @@
           };
           updateSummary(latestSnapshot || {}, latestBackend);
         })
-        .catch(function () {
-          // keep silent, fallback to "-"
-        })
+        .catch(function () {})
         .finally(function () {
           backendResolving = false;
         });
-    }
-
-    function setMessage(message) {
-      if (messageNode) {
-        messageNode.textContent = normalizeText(message) || "就绪。";
-      }
     }
 
     function updateSummary(snapshot, backend) {
@@ -310,32 +325,69 @@
       return normalizeText(comparisonText || latestResult?.listen?.heardMandarinMeaning || "");
     }
 
-    function fillDialectLine() {
+    function triggerFillDialect() {
       const text = getDialectFillText();
       if (!text) {
-        setMessage("暂无可填入的第一行文本。");
-        return;
+        const message = "暂无可填入的第一行文本。";
+        setMessage(message);
+        return { ok: false, message: message };
       }
       const result = options.fillDialectLine ? options.fillDialectLine(text) : { ok: false, message: "填入功能未就绪。" };
       setMessage(result?.message || "已填入第一行。");
+      return result || { ok: false, message: "填入失败。" };
     }
 
-    function fillMandarinLine() {
+    function triggerFillMandarin() {
       const text = getMandarinFillText();
       if (!text) {
-        setMessage("暂无可填入的第二行文本。");
-        return;
+        const message = "暂无可填入的第二行文本。";
+        setMessage(message);
+        return { ok: false, message: message };
       }
       const result = options.fillMandarinLine ? options.fillMandarinLine(text) : { ok: false, message: "填入功能未就绪。" };
       setMessage(result?.message || "已填入第二行。");
+      return result || { ok: false, message: "填入失败。" };
     }
 
-    async function collectAndRenderSnapshot() {
+    async function triggerCopyDialect() {
+      const text = getDialectFillText();
+      if (!text) {
+        const message = "暂无可复制的 AI 方言文本。";
+        setMessage(message);
+        return { ok: false, message: message };
+      }
+      await copyText(text);
+      setMessage("AI 方言文本已复制。");
+      return { ok: true, message: "AI 方言文本已复制。" };
+    }
+
+    async function triggerCopyMandarin() {
+      const text = getMandarinFillText();
+      if (!text) {
+        const message = "暂无可复制的 AI 普通话文本。";
+        setMessage(message);
+        return { ok: false, message: message };
+      }
+      await copyText(text);
+      setMessage("AI 普通话文本已复制。");
+      return { ok: true, message: "AI 普通话文本已复制。" };
+    }
+
+    async function collectAndRenderSnapshot(preferApi) {
       if (typeof options.collectCurrentItem !== "function") {
         setMessage("采集器未就绪，请刷新页面。");
         return null;
       }
-      const snapshot = options.collectCurrentItem() || {};
+      let snapshot = options.collectCurrentItem() || {};
+      if (preferApi && typeof options.refreshCurrentItem === "function") {
+        try {
+          snapshot = await options.refreshCurrentItem({
+            taskItemId: snapshot.taskItemId,
+          });
+        } catch (error) {
+          // keep DOM snapshot fallback
+        }
+      }
       snapshot.pageType = snapshot.pageType || latestSnapshot.pageType || "asrmark";
       updateSummary(snapshot, latestBackend);
       updatePlatformText(snapshot);
@@ -347,21 +399,23 @@
       return snapshot;
     }
 
-    async function handleReviewClick() {
+    async function triggerReview() {
       if (typeof options.collectCurrentItem !== "function" || typeof options.reviewCurrent !== "function") {
-        setMessage("运行时未就绪，请刷新页面后重试。");
-        return;
+        const message = "运行时未就绪，请刷新页面后重试。";
+        setMessage(message);
+        return { ok: false, message: message };
       }
-      const snapshot = await collectAndRenderSnapshot();
+      const snapshot = await collectAndRenderSnapshot(true);
       if (!snapshot) {
-        return;
+        return { ok: false, message: "采集失败。" };
       }
       if (!snapshot.audioUrl) {
-        return;
+        return { ok: false, message: "未获取到音频 URL。" };
       }
       if (!snapshot.platformDialectText && !snapshot.platformMandarinText) {
-        setMessage("未读取到平台两行文本，请先确认当前页面是标注单条页。");
-        return;
+        const message = "未读取到平台两行文本，请先确认当前页面是标注单条页。";
+        setMessage(message);
+        return { ok: false, message: message };
       }
 
       setLoading(true);
@@ -386,11 +440,133 @@
         updateSummary(snapshot, response.backend);
         updatePlatformText(snapshot);
         setMessage("AI 复核完成，请人工确认。");
+        return { ok: true, message: "AI 复核完成。" };
       } catch (error) {
-        setMessage(normalizeText(error?.message || "AI 复核失败。"));
+        const message = normalizeText(error?.message || "AI 复核失败。");
+        setMessage(message);
+        return { ok: false, message: message };
       } finally {
         setLoading(false);
       }
+    }
+
+    function updateShortcutStatus(text) {
+      if (shortcutStatusNode) {
+        shortcutStatusNode.textContent = text;
+      }
+    }
+
+    function detachShortcutCapture() {
+      if (shortcutCaptureHandler) {
+        window.removeEventListener("keydown", shortcutCaptureHandler, true);
+      }
+      shortcutCaptureActionKey = "";
+      shortcutCaptureHandler = null;
+    }
+
+    function renderShortcutRows() {
+      if (!shortcutRowsNode || !shortcutsRuntime) {
+        return;
+      }
+      const map = shortcutsRuntime.getShortcutMap();
+      const actions = shortcutsRuntime.getActionDefinitions();
+      shortcutRowsNode.innerHTML = "";
+      actions.forEach(function (action) {
+        const row = document.createElement("div");
+        row.className = "md-shortcut-row";
+
+        const keyCell = document.createElement("div");
+        keyCell.className = "md-k";
+        keyCell.textContent = action.label;
+
+        const valueCell = document.createElement("div");
+        valueCell.className = "md-v";
+        valueCell.textContent = shortcutsRuntime.shortcutToDisplayText(map[action.key]);
+
+        const setButton = createButton("设置");
+        setButton.addEventListener("click", function () {
+          detachShortcutCapture();
+          shortcutCaptureActionKey = action.key;
+          updateShortcutStatus("请按下“" + action.label + "”的快捷键，Esc 取消。");
+          shortcutCaptureHandler = function (event) {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              detachShortcutCapture();
+              updateShortcutStatus("已取消快捷键设置。");
+              return;
+            }
+            const nextShortcut = shortcutsRuntime.eventToShortcut(event);
+            if (!nextShortcut) {
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === "function") {
+              event.stopImmediatePropagation();
+            }
+            shortcutsRuntime
+              .setShortcut(shortcutCaptureActionKey, nextShortcut)
+              .then(function (result) {
+                detachShortcutCapture();
+                renderShortcutRows();
+                if (result.persisted) {
+                  updateShortcutStatus("快捷键已保存。");
+                } else {
+                  updateShortcutStatus("快捷键已设置，但 storage 保存失败（仅当前会话可用）。");
+                }
+              })
+              .catch(function () {
+                detachShortcutCapture();
+                updateShortcutStatus("快捷键设置失败。");
+              });
+          };
+          window.addEventListener("keydown", shortcutCaptureHandler, true);
+        });
+
+        const clearButton = createButton("清空");
+        clearButton.addEventListener("click", function () {
+          shortcutsRuntime
+            .setShortcut(action.key, null)
+            .then(function (result) {
+              renderShortcutRows();
+              if (result.persisted) {
+                updateShortcutStatus("已清空该快捷键。");
+              } else {
+                updateShortcutStatus("已清空该快捷键，但 storage 保存失败（仅当前会话可用）。");
+              }
+            })
+            .catch(function () {
+              updateShortcutStatus("清空快捷键失败。");
+            });
+        });
+
+        row.appendChild(keyCell);
+        row.appendChild(valueCell);
+        row.appendChild(setButton);
+        row.appendChild(clearButton);
+        shortcutRowsNode.appendChild(row);
+      });
+    }
+
+    function bindShortcutsRuntime(runtimeInstance) {
+      if (shortcutsUnsubscribe) {
+        shortcutsUnsubscribe();
+        shortcutsUnsubscribe = null;
+      }
+      shortcutsRuntime = runtimeInstance || null;
+      if (!shortcutsRuntime) {
+        updateShortcutStatus("快捷键模块未就绪。");
+        return;
+      }
+      shortcutsUnsubscribe = shortcutsRuntime.subscribe(function (state) {
+        renderShortcutRows();
+        if (state.persisted === false) {
+          updateShortcutStatus("storage 不可用，快捷键仅当前会话生效。");
+        }
+      });
+      renderShortcutRows();
+      updateShortcutStatus(shortcutsRuntime.isPersisted() ? "默认未设置，可按需配置。" : "storage 不可用，快捷键仅当前会话生效。");
     }
 
     function ensureMounted() {
@@ -423,7 +599,7 @@
       headActions.className = "md-head-actions";
       buttons.refresh = createButton("刷新采集");
       buttons.refresh.addEventListener("click", function () {
-        void collectAndRenderSnapshot();
+        void collectAndRenderSnapshot(true);
       });
       buttons.collapse = createButton("折叠");
       buttons.collapse.addEventListener("click", function () {
@@ -470,35 +646,27 @@
       actions.className = "md-actions";
       buttons.review = createButton("AI 复核当前条", "md-primary");
       buttons.review.addEventListener("click", function () {
-        void handleReviewClick();
+        void triggerReview();
       });
       buttons.copyDialect = createButton("复制 AI 方言文本");
       buttons.copyDialect.addEventListener("click", function () {
-        copyText(getDialectFillText())
-          .then(function () {
-            setMessage("AI 方言文本已复制。");
-          })
-          .catch(function (error) {
-            setMessage(error?.message || "复制失败。");
-          });
+        triggerCopyDialect().catch(function (error) {
+          setMessage(error?.message || "复制失败。");
+        });
       });
       buttons.copyMandarin = createButton("复制 AI 普通话文本");
       buttons.copyMandarin.addEventListener("click", function () {
-        copyText(getMandarinFillText())
-          .then(function () {
-            setMessage("AI 普通话文本已复制。");
-          })
-          .catch(function (error) {
-            setMessage(error?.message || "复制失败。");
-          });
+        triggerCopyMandarin().catch(function (error) {
+          setMessage(error?.message || "复制失败。");
+        });
       });
       buttons.fillDialect = createButton("填入第一行");
       buttons.fillDialect.addEventListener("click", function () {
-        fillDialectLine();
+        triggerFillDialect();
       });
       buttons.fillMandarin = createButton("填入第二行");
       buttons.fillMandarin.addEventListener("click", function () {
-        fillMandarinLine();
+        triggerFillMandarin();
       });
       buttons.ignore = createButton("忽略结果");
       buttons.ignore.addEventListener("click", function () {
@@ -512,6 +680,59 @@
       actions.appendChild(buttons.fillMandarin);
       actions.appendChild(buttons.ignore);
       bodyNode.appendChild(actions);
+
+      const shortcutsBlock = document.createElement("div");
+      shortcutsBlock.className = "md-block";
+      const shortcutsHead = document.createElement("div");
+      shortcutsHead.className = "md-shortcuts-head";
+      const shortcutsTitle = document.createElement("div");
+      shortcutsTitle.className = "md-block-title";
+      shortcutsTitle.textContent = "快捷键设置";
+      buttons.shortcutToggle = createButton("快捷键设置");
+      buttons.shortcutToggle.addEventListener("click", function () {
+        const isOpen = shortcutBodyNode?.getAttribute("data-open") === "true";
+        shortcutBodyNode?.setAttribute("data-open", isOpen ? "false" : "true");
+        buttons.shortcutToggle.textContent = isOpen ? "快捷键设置" : "收起快捷键";
+      });
+      shortcutsHead.appendChild(shortcutsTitle);
+      shortcutsHead.appendChild(buttons.shortcutToggle);
+      shortcutsBlock.appendChild(shortcutsHead);
+
+      shortcutBodyNode = document.createElement("div");
+      shortcutBodyNode.className = "md-shortcuts-body";
+      shortcutBodyNode.setAttribute("data-open", "false");
+      shortcutStatusNode = document.createElement("div");
+      shortcutStatusNode.className = "md-message";
+      shortcutStatusNode.textContent = "默认未设置，可按需配置。";
+      shortcutRowsNode = document.createElement("div");
+      const shortcutsFoot = document.createElement("div");
+      shortcutsFoot.className = "md-shortcuts-foot";
+      const clearAllButton = createButton("清空全部快捷键");
+      clearAllButton.addEventListener("click", function () {
+        if (!shortcutsRuntime) {
+          updateShortcutStatus("快捷键模块未就绪。");
+          return;
+        }
+        shortcutsRuntime
+          .clearAllShortcuts()
+          .then(function (result) {
+            renderShortcutRows();
+            if (result.persisted) {
+              updateShortcutStatus("已清空全部快捷键。");
+            } else {
+              updateShortcutStatus("已清空全部快捷键，但 storage 保存失败（仅当前会话可用）。");
+            }
+          })
+          .catch(function () {
+            updateShortcutStatus("清空全部快捷键失败。");
+          });
+      });
+      shortcutsFoot.appendChild(clearAllButton);
+      shortcutBodyNode.appendChild(shortcutStatusNode);
+      shortcutBodyNode.appendChild(shortcutRowsNode);
+      shortcutBodyNode.appendChild(shortcutsFoot);
+      shortcutsBlock.appendChild(shortcutBodyNode);
+      bodyNode.appendChild(shortcutsBlock);
 
       messageNode = document.createElement("div");
       messageNode.className = "md-message";
@@ -543,6 +764,7 @@
       updatePlatformText(latestSnapshot || {});
       renderResult(latestResult);
       updateActionState();
+      bindShortcutsRuntime(shortcutsRuntime);
       return root;
     }
 
@@ -580,7 +802,19 @@
       updatePlatformText(snapshot || {});
     }
 
+    function setShortcutsRuntime(runtimeInstance) {
+      shortcutsRuntime = runtimeInstance || null;
+      if (root) {
+        bindShortcutsRuntime(shortcutsRuntime);
+      }
+    }
+
     function remove() {
+      detachShortcutCapture();
+      if (shortcutsUnsubscribe) {
+        shortcutsUnsubscribe();
+        shortcutsUnsubscribe = null;
+      }
       if (root) {
         root.remove();
       }
@@ -590,34 +824,33 @@
       summaryNode = null;
       platformTextNode = null;
       resultNode = null;
+      shortcutBodyNode = null;
+      shortcutStatusNode = null;
+      shortcutRowsNode = null;
       latestResult = null;
       latestSnapshot = {};
       latestBackend = null;
       collapsed = false;
       loading = false;
-      buttons = {
-        review: null,
-        copyDialect: null,
-        copyMandarin: null,
-        fillDialect: null,
-        fillMandarin: null,
-        ignore: null,
-        refresh: null,
-        collapse: null,
-      };
     }
 
     return {
-      clearResult,
-      ensureMounted,
-      refreshPageSnapshot,
-      remove,
-      setMessage,
-      showAsrmarkCheckNotice,
+      clearResult: clearResult,
+      ensureMounted: ensureMounted,
+      refreshPageSnapshot: refreshPageSnapshot,
+      remove: remove,
+      setMessage: setMessage,
+      setShortcutsRuntime: setShortcutsRuntime,
+      showAsrmarkCheckNotice: showAsrmarkCheckNotice,
+      triggerCopyDialect: triggerCopyDialect,
+      triggerCopyMandarin: triggerCopyMandarin,
+      triggerFillDialect: triggerFillDialect,
+      triggerFillMandarin: triggerFillMandarin,
+      triggerReview: triggerReview,
     };
   }
 
   globalThis.__ASREdgeMagicDataAnnotatorUiPanel = {
-    createRuntime,
+    createRuntime: createRuntime,
   };
 })();

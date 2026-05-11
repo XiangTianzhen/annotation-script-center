@@ -10,6 +10,19 @@
   let contextInvalidated = false;
   let mountRetryCount = 0;
   let startLogged = false;
+  let lastRouteLog = "";
+
+  function safeInfo(text) {
+    if (typeof console !== "undefined" && typeof console.info === "function") {
+      console.info(text);
+    }
+  }
+
+  function safeWarn(text) {
+    if (typeof console !== "undefined" && typeof console.warn === "function") {
+      console.warn(text);
+    }
+  }
 
   function isContextInvalidatedError(error) {
     try {
@@ -41,6 +54,7 @@
     const collector = globalThis.__ASREdgeMagicDataAnnotatorDataCollector;
     const aiClient = globalThis.__ASREdgeMagicDataAnnotatorAiReviewClient;
     const panelFactory = globalThis.__ASREdgeMagicDataAnnotatorUiPanel;
+    const shortcutsFactory = globalThis.__ASREdgeMagicDataAnnotatorShortcuts;
     if (!detector || !collector || !aiClient || !panelFactory) {
       return null;
     }
@@ -50,10 +64,99 @@
       fillDialectLine: collector.fillDialectLine,
       fillMandarinLine: collector.fillMandarinLine,
       getClientVersion: aiClient.getClientVersion,
+      refreshCurrentItem: collector.refreshCurrentItem,
       resolveBackendConfig: aiClient.resolveBackendConfig,
       reviewCurrent: aiClient.reviewCurrent,
     });
+
+    const shortcutsRuntime = shortcutsFactory?.createRuntime
+      ? shortcutsFactory.createRuntime({
+          actions: {},
+        })
+      : null;
+    panel.setShortcutsRuntime(shortcutsRuntime);
+
     let lastTaskKey = "";
+
+    function runActionResult(result) {
+      if (result && typeof result.then === "function") {
+        return result
+          .then(function (finalResult) {
+            if (finalResult?.message) {
+              panel.setMessage(finalResult.message);
+            }
+          })
+          .catch(function (error) {
+            panel.setMessage(error?.message || "快捷键执行失败。");
+          });
+      }
+      if (result?.message) {
+        panel.setMessage(result.message);
+      }
+      return Promise.resolve();
+    }
+
+    function wireShortcutsActions() {
+      if (!shortcutsRuntime) {
+        return;
+      }
+      shortcutsRuntime.setActions({
+        age0_5: function () {
+          return runActionResult(collector.selectSpeakerValue("0-5"));
+        },
+        age13_18: function () {
+          return runActionResult(collector.selectSpeakerValue("13-18"));
+        },
+        age19_25: function () {
+          return runActionResult(collector.selectSpeakerValue("19-25"));
+        },
+        age26_36: function () {
+          return runActionResult(collector.selectSpeakerValue("26-36"));
+        },
+        age37_50: function () {
+          return runActionResult(collector.selectSpeakerValue("37-50"));
+        },
+        age51_65: function () {
+          return runActionResult(collector.selectSpeakerValue("51-65"));
+        },
+        age65Plus: function () {
+          return runActionResult(collector.selectSpeakerValue("65以上"));
+        },
+        age6_12: function () {
+          return runActionResult(collector.selectSpeakerValue("6-12"));
+        },
+        copyDialect: function () {
+          return runActionResult(panel.triggerCopyDialect());
+        },
+        copyMandarin: function () {
+          return runActionResult(panel.triggerCopyMandarin());
+        },
+        fillDialect: function () {
+          return runActionResult(panel.triggerFillDialect());
+        },
+        fillMandarin: function () {
+          return runActionResult(panel.triggerFillMandarin());
+        },
+        genderFemale: function () {
+          return runActionResult(collector.selectSpeakerValue("女"));
+        },
+        genderMale: function () {
+          return runActionResult(collector.selectSpeakerValue("男"));
+        },
+        onMissingAction: function (actionKey) {
+          panel.setMessage("未实现的快捷键动作：" + actionKey);
+        },
+        reviewCurrent: function () {
+          return runActionResult(panel.triggerReview());
+        },
+        triggerSave: function () {
+          return runActionResult(collector.clickOperationButton("保存"));
+        },
+        triggerSubmit: function () {
+          return runActionResult(collector.clickOperationButton("提交"));
+        },
+      });
+    }
 
     function refresh() {
       if (!detector.isMagicDataHost()) {
@@ -61,12 +164,23 @@
         return;
       }
       const pageType = detector.getPageType();
+      if (pageType !== lastRouteLog) {
+        lastRouteLog = pageType;
+        safeInfo("[MagicData][AI Review] route detected: " + pageType);
+      }
+
       if (pageType === "asrmark") {
         const mounted = panel.ensureMounted();
         if (!mounted) {
           return;
         }
-        const snapshot = collector.collectCurrentItem();
+        let snapshot = null;
+        try {
+          snapshot = collector.collectCurrentItem();
+        } catch (error) {
+          panel.setMessage("页面采集异常，请点击刷新采集后重试。");
+        }
+        snapshot = snapshot || {};
         snapshot.pageType = pageType;
         const nextTaskKey = String(snapshot.taskItemId || snapshot.samplingRecordId || "");
         if (nextTaskKey && lastTaskKey && nextTaskKey !== lastTaskKey) {
@@ -75,6 +189,23 @@
         }
         lastTaskKey = nextTaskKey;
         panel.refreshPageSnapshot(snapshot, null);
+        if (
+          snapshot.taskItemId &&
+          typeof collector.getCachedDetail === "function" &&
+          typeof collector.refreshCurrentItem === "function" &&
+          !collector.getCachedDetail(snapshot.taskItemId)
+        ) {
+          collector
+            .refreshCurrentItem({ taskItemId: snapshot.taskItemId })
+            .then(function (latestSnapshot) {
+              const nextSnapshot = latestSnapshot && typeof latestSnapshot === "object" ? latestSnapshot : snapshot;
+              nextSnapshot.pageType = "asrmark";
+              panel.refreshPageSnapshot(nextSnapshot, null);
+            })
+            .catch(function () {
+              // Keep DOM snapshot when API warmup fails.
+            });
+        }
         return;
       }
       if (pageType === "asrmarkCheck") {
@@ -100,6 +231,7 @@
         return;
       }
       if (mountRetryCount >= MOUNT_RETRY_LIMIT) {
+        safeWarn("[MagicData][AI Review] panel mount retry exhausted");
         return;
       }
       mountRetryCount += 1;
@@ -108,7 +240,11 @@
       }, MOUNT_RETRY_MS);
     }
 
-    function start() {
+    async function start() {
+      wireShortcutsActions();
+      if (shortcutsRuntime) {
+        await shortcutsRuntime.start();
+      }
       refresh();
       ensurePanelMountedWithRetry();
       observer = new MutationObserver(function () {
@@ -132,13 +268,16 @@
         window.clearTimeout(pageTimer);
         pageTimer = null;
       }
+      if (shortcutsRuntime) {
+        shortcutsRuntime.stop();
+      }
       panel.remove();
     }
 
     return {
-      refresh,
-      start,
-      stop,
+      refresh: refresh,
+      start: start,
+      stop: stop,
     };
   }
 
@@ -172,9 +311,10 @@
       if (!runtime) {
         runtime = createRuntime();
         if (!runtime) {
+          safeWarn("[MagicData][AI Review] runtime dependencies missing");
           return;
         }
-        runtime.start();
+        await runtime.start();
         return;
       }
       runtime.refresh();
@@ -183,6 +323,10 @@
         contextInvalidated = true;
         stopRuntime();
         return;
+      }
+      safeWarn("[MagicData][AI Review] runtime error: " + String(error?.message || error || "unknown"));
+      if (runtime) {
+        runtime.refresh();
       }
     } finally {
       evaluating = false;
@@ -205,9 +349,9 @@
     window.setInterval(scheduleEvaluatePage, CHECK_INTERVAL_MS);
   }
 
-  if (!startLogged && typeof console !== "undefined" && typeof console.info === "function") {
+  if (!startLogged) {
     startLogged = true;
-    console.info("[MagicData][AI Review] content started");
+    safeInfo("[MagicData][AI Review] content started");
   }
 
   if (document.readyState === "loading") {

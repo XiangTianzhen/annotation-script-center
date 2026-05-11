@@ -56,6 +56,8 @@ extension/sites/magic-data/annotator/
 - 只支持当前条测试，不做批量。
 - 允许手动填入两行文本，但不自动保存、不自动提交、不自动下一条。
 - `#/asrmarkCheck` 仅提示“暂未接入填入”，不写审核页 DOM 自动化。
+- 当前条数据采集优先级：`annotateDetailInfo` 响应缓存 -> 同源读取 `annotateDetailInfo/{taskItemId}` -> DOM/performance 兜底。
+- 新增面板快捷键设置（默认未设置）：AI 复核、复制、填入、保存、提交、性别/年龄选择。
 
 ## 子目录
 
