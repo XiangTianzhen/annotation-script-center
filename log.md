@@ -491,3 +491,10 @@
 - 标贝易采导出上传路由增强：兼容 `rawRecords/rawJson`，新增原始记录大小限制，health/config 返回 `latestRawJsonPath`。
 - 项目数据下载 CSV 清洗增强：`sanitizeParsedCsv` 强制剔除“原始JSON”列，避免历史 CSV 泄露原始记录。
 - 项目数据下载供应商链路增强：下载 token 读取增加尾部中文标点容错；供应商错误返回补充 dataset/supplier/suppliers；下载链路新增安全调试摘要（仅 requestId/jti/dataset/supplier/计数，不记录完整 token）。
+
+## 2026-05-11（协作规则更新：任务暗号与默认分支策略）
+
+- `AGENTS.md` 新增“任务暗号规则”章节，明确 `ASC_READONLY`、`ASC_NEW_BRANCH`、`ASC_CONTINUE_BRANCH`、`ASC_MAIN_HOTFIX`、`ASC_RELEASE_MERGE`、`ASC_ABORT_IF_DIRTY` 的执行约束。
+- 明确 Codex 无法读取网页端历史对话，每次执行 Prompt 必须携带任务暗号，并按暗号执行 Git 策略。
+- 调整单人项目分支口径：保留“小修/当前版本 BUG/单模块可直接 main”，同时明确“新对话新需求通常走新分支、同对话追问通常继续当前分支、用户明确要求直改 main 时从用户指令”。
+- 并行规则补充：谁先完成并通过验收，谁先进入 `ASC_RELEASE_MERGE`；发布合并阶段才执行 patch 提升、CRX 三件套生成与 tag。

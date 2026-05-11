@@ -19,14 +19,27 @@
 - 默认直接在 `main` 分支完成执行类任务。
 - 小修、当前版本 BUG 修复、单模块任务可直接在 `main` 执行。
 - 新功能、并行功能、跨模块改动默认使用独立分支，不直接在 `main` 并行开发。
-- 默认不创建 feature branch。
+- 新对话开启的新需求通常视为新分支任务。
+- 同一对话中继续追问、修 bug、优化细节通常视为继续当前分支任务。
 - 默认不创建 Pull Request。
 - 只有用户明确要求“开分支 / 开 PR / 不直接改 main”时，才允许走分支或 PR。
+- 用户明确要求直接改 `main` 时，以用户要求为准。
 - 执行类任务验证通过后，默认直接 `git add` / `git commit` / `git push` 到 `main`。
 - 只读审计任务不提交。
 - 验证失败不提交、不 push。
 - 用户明确说“不要提交”时不提交。
 - 如果当前不在 `main`，必须先说明并切回 `main`，不得在非 `main` 分支悄悄完成并 push 后结束。
+
+### 任务暗号规则
+
+- Codex 不能读取网页端历史对话；每次 Codex Prompt 必须带任务暗号。
+- Codex 必须按任务暗号执行 Git 策略，不得自行切换为其他流程。
+- `ASC_READONLY`：只读审计，不得修改、提交、push。
+- `ASC_NEW_BRANCH`：新功能 / 新需求，从最新 `main` 创建独立分支，不直接改 `main`。
+- `ASC_CONTINUE_BRANCH`：继续当前功能分支，不得切回 `main` 直接改。
+- `ASC_MAIN_HOTFIX`：明确允许直接修 `main`，仅用于小修、当前版本 BUG、文档收尾或用户明确要求。
+- `ASC_RELEASE_MERGE`：发布合并，将已验收分支合并 `main`，提升 patch，生成 CRX 三件套，打 tag。
+- `ASC_ABORT_IF_DIRTY`：工作区有无关改动或分支不符时停止并报告。
 
 ### 并行功能开发与动态版本号规则
 
@@ -47,6 +60,7 @@
 - 后完成的功能必须先同步最新 `main`，再作为下一个 patch 版本发布。
 - 功能分支不得直接生成正式 CRX 三件套；正式 CRX 只在合并 `main` 的发布阶段生成。
 - 每次发布到 `main` 后应打 tag（例如 `v0.3.1`）。
+- 谁先完成并通过验收，谁先进入 `ASC_RELEASE_MERGE`。
 
 ### subagent / parallel agents 使用规则
 
