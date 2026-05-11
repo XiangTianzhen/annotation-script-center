@@ -17,6 +17,8 @@
 
 - 当前项目为单人维护项目。
 - 默认直接在 `main` 分支完成执行类任务。
+- 小修、当前版本 BUG 修复、单模块任务可直接在 `main` 执行。
+- 新功能、并行功能、跨模块改动默认使用独立分支，不直接在 `main` 并行开发。
 - 默认不创建 feature branch。
 - 默认不创建 Pull Request。
 - 只有用户明确要求“开分支 / 开 PR / 不直接改 main”时，才允许走分支或 PR。
@@ -26,12 +28,34 @@
 - 用户明确说“不要提交”时不提交。
 - 如果当前不在 `main`，必须先说明并切回 `main`，不得在非 `main` 分支悄悄完成并 push 后结束。
 
+### 并行功能开发与动态版本号规则
+
+- 多个功能并行时，不提前占用具体版本号。
+- 并行任务默认使用独立分支（例如 `feature/<功能名>`、`fix/<修复名>`）。
+- 并行任务必须使用独立 `worktree` 或独立工作目录。
+- 禁止多个 Agent 同时在同一个 `main` 工作区修改。
+- 并行任务必须在开始前声明文件白名单和禁止修改范围。
+- 并行任务必须明确 push 目标分支。
+- 功能分支开发期间默认不修改：
+  - `extension/manifest.json`
+  - `dist/*`
+  - CRX 三件套
+  - 根 `README.md`
+  - `AGENTS.md`
+  - `log.md`
+- 谁先完成并通过验收，谁先合并到 `main`，并在发布合并阶段将 `manifest.version` 提升一个 patch。
+- 后完成的功能必须先同步最新 `main`，再作为下一个 patch 版本发布。
+- 功能分支不得直接生成正式 CRX 三件套；正式 CRX 只在合并 `main` 的发布阶段生成。
+- 每次发布到 `main` 后应打 tag（例如 `v0.3.1`）。
+
 ### subagent / parallel agents 使用规则
 
 - 文档小修、小 UI、小 bug 可以不使用 subagent。
 - 涉及多平台、多脚本、多模块、MAIN world / ISOLATED world 通信、后端 AI 调用、网络拦截、快捷键、DOM 结构、日志脱敏、部署联动等复杂任务时，优先使用 subagent / parallel agents。
+- subagent 用于并行审计、定位、风险分析和验证清单整理。
 - 如果当前 Codex 环境不支持 subagent / parallel agents，则按相同分工串行执行。
 - 执行 Prompt 中应明确是否使用 subagent / parallel agents。
+- 主线程必须整合 subagent 结论并继续落地修改，不能只输出审计报告。
 
 ### 默认 GitHub 直接验收规则
 
@@ -313,6 +337,9 @@
 - 除 CRX 三件套外，`dist` 其他临时构建产物默认不提交。
 - 3.0 当前不再把 AD 域控 / 企业托管自动安装作为 `0.3.0` 阻塞项；`0.3.0` 交付以 CRX 三件套与策略写入能力为准。
 - 若后续恢复“企业托管自动安装”模块，执行前必须先阅读：`docs/unfinished/crx-enterprise-managed-install.md`。
+- 并行功能分支不提前修改版本号。
+- 版本号在合并 `main` 的发布阶段，基于当前 `main` 提升一个 patch。
+- CRX 三件套只在发布合并阶段生成，不在并行功能分支生成正式发布产物。
 
 ### 5) 每轮优先阅读与按需补充阅读
 
@@ -340,6 +367,7 @@
 - commit message
 - 必须 push 到 main
 - 验证失败不得 commit / push
+- 并行开发场景必须额外包含：当前分支、工作目录（或 worktree）、文件白名单、禁止修改范围、push 目标分支。
 
 ### 7) 验收规则
 
@@ -348,6 +376,8 @@
 - 若存在并行 agent 或多次提交，不得只看 `main~1..main`，必须检查最近多次提交或用户指定 commit 范围。
 - 真实浏览器行为必须明确列出需复测的页面、按钮、Network、Console、CSV 或下载结果。
 - GitHub `main` 看不到最新改动时，应提示可能未 push，并要求提供 commit hash 或先执行 `git push`。
+- 并行任务验收要先检查指定功能分支，不得只查 `main`。
+- 合并发布阶段再检查 `main`、版本号、CRX 三件套和 tag。
 
 ### 8) 验证规则
 
