@@ -2,6 +2,10 @@
 
 ## 2026-05-11
 
+- 新增未完成模块文档：`docs/unfinished/crx-enterprise-managed-install.md`，明确记录“普通非企业托管 Windows 设备会拦截自托管 CRX force_installed 自动安装”的现实阻塞点。
+- 文档同步：`README.md` 新增“CRX 企业自动安装说明”并链接未完成模块文档；`AGENTS.md` 新增规则“该模块不作为 0.3.0 阻塞项，恢复前必须先读未完成模块文档”。
+- 当前 `0.3.0` 完成标准明确为：CRX 三件套发布能力 + 策略写入能力；企业托管自动安装暂挂起，不阻塞 0.3.0 发布。
+
 - 发布产物追踪规则调整：`.gitignore` 取消全局 `*.crx` 忽略，改为 `dist` 白名单追踪 CRX 三件套（`annotation-script-center-v*.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`），用于后续上传 `https://script.xiangtianzhen.store/downloads/`。
 - 安全规则保持不变：继续忽略 `config/secrets/*.pem|*.key|*.p12` 与私有 env 文件，私钥不得提交。
 - 文档同步更新：`README.md`、`extension/README.md`、`AGENTS.md` 已改为“3.0 起允许追踪并提交 CRX 三件套；其他 dist 临时产物默认不提交”口径。

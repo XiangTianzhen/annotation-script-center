@@ -252,6 +252,13 @@ node scripts/package-crx-release.js --notes "CRX enterprise release test"
 - `update.xml` 的 `codebase` 必须指向对应版本 CRX 下载地址
 - 新版本 CRX 必须持续使用同一 `annotation-script-center.pem`
 
+### CRX 企业自动安装说明
+
+- `0.3.0` 当前完成标准是：CRX 三件套发布能力 + 策略写入能力（`ops_monitor`）。
+- 普通未企业托管的 Windows 设备会被 Chrome / Edge 拦截自托管 CRX 的 `force_installed` 自动安装。
+- 企业托管自动安装模块当前暂挂起，不作为 `0.3.0` 阻塞项。
+- 详见未完成模块文档：[CRX 企业托管自动安装](docs/unfinished/crx-enterprise-managed-install.md)。
+
 ## 本地后端
 
 在仓库根目录运行：

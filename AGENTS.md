@@ -311,6 +311,8 @@
 - zip 仅作为历史遗留调试产物，不作为正式发布和自动更新路径。
 - 3.0 起 `dist` 中 CRX 发布三件套可默认追踪与提交：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - 除 CRX 三件套外，`dist` 其他临时构建产物默认不提交。
+- 3.0 当前不再把 AD 域控 / 企业托管自动安装作为 `0.3.0` 阻塞项；`0.3.0` 交付以 CRX 三件套与策略写入能力为准。
+- 若后续恢复“企业托管自动安装”模块，执行前必须先阅读：`docs/unfinished/crx-enterprise-managed-install.md`。
 
 ### 5) 每轮优先阅读与按需补充阅读
 
