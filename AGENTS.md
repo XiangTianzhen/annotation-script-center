@@ -221,7 +221,11 @@
 - 修改 `manifest.json` 后必须验证 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 - 执行类任务验证通过后，若本轮涉及发布体系或用户明确要求打包，默认使用 CRX 企业发布脚本生成三件套：`annotation-script-center-v<manifest.version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - 3.0 起 zip 仅为历史遗留调试产物，不作为正式发布或自动更新路径。
-- `dist/` 是构建产物目录，默认不提交 git。
+- 3.0 起 CRX 企业发布三件套允许提交并追踪：
+  - `dist/annotation-script-center-v<manifest.version>.crx`
+  - `dist/annotation-script-center-update.xml`
+  - `dist/annotation-script-center-crx-latest.json`
+- 除上述三件套外，其他临时构建产物默认不提交 git。
 - 如果系统缺少可用 Chrome/Edge 或 CRX 打包依赖导致发布失败，验证失败，不得提交和 push。
 - 推荐发布命令：
   ```powershell
@@ -305,7 +309,8 @@
 - 修改 `manifest.json` 后必须检查 JSON 可解析，并确认引用脚本路径存在。
 - 3.0 起正式发布与自动更新默认使用 CRX 三件套：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - zip 仅作为历史遗留调试产物，不作为正式发布和自动更新路径。
-- `dist` 构建产物默认不提交；仅在用户明确要求提交发布产物时，才提交本轮需要的 CRX 三件套。
+- 3.0 起 `dist` 中 CRX 发布三件套可默认追踪与提交：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
+- 除 CRX 三件套外，`dist` 其他临时构建产物默认不提交。
 
 ### 5) 每轮优先阅读与按需补充阅读
 

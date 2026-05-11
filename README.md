@@ -206,7 +206,11 @@ Chrome：
   - `dist/annotation-script-center-v<version>.crx`
   - `dist/annotation-script-center-update.xml`
   - `dist/annotation-script-center-crx-latest.json`
-- `dist/` 是构建产物目录，默认不提交 Git（除非任务明确要求提交发布产物）。
+- 3.0 起 `dist/` 允许并建议保留 CRX 发布三件套（用于上传到 `https://script.xiangtianzhen.store/downloads/`）：
+  - `dist/annotation-script-center-v<version>.crx`
+  - `dist/annotation-script-center-update.xml`
+  - `dist/annotation-script-center-crx-latest.json`
+- 除三件套外，其他临时构建产物默认不提交 Git。
 
 1. 先确认 `extension/manifest.json` 包含：
 
@@ -607,6 +611,8 @@ location / {
   - `annotation-script-center-v<manifest.version>.crx`
   - `annotation-script-center-update.xml`
   - `annotation-script-center-crx-latest.json`
+- CRX 三件套建议在仓库 `dist/` 保留并追踪，作为上传 `https://script.xiangtianzhen.store/downloads/` 的发布源文件。
+- `config/secrets/annotation-script-center.pem` 及其他私钥文件严禁提交 Git。
 - 如果访问 `https://script.xiangtianzhen.store/downloads` 没有尾部 `/` 出现异常，改用 `https://script.xiangtianzhen.store/downloads/`。
 - 配置后执行 `sudo nginx -t` 和 `sudo systemctl reload nginx`。
 - 验证目录列表：`curl -I https://script.xiangtianzhen.store/downloads/`。

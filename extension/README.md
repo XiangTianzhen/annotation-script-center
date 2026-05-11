@@ -71,7 +71,11 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
   - `dist/annotation-script-center-v<manifest.version>.crx`
   - `dist/annotation-script-center-update.xml`
   - `dist/annotation-script-center-crx-latest.json`
-- `dist/` 默认不提交 Git；仅在任务明确要求提交发布产物时提交。
+- 3.0 起 `dist/` 允许追踪 CRX 三件套（用于上传 `https://script.xiangtianzhen.store/downloads/`）：
+  - `dist/annotation-script-center-v<manifest.version>.crx`
+  - `dist/annotation-script-center-update.xml`
+  - `dist/annotation-script-center-crx-latest.json`
+- 除三件套外，其他临时构建产物默认不提交 Git。
 
 ### CRX 企业发布（策略自动更新）
 

@@ -1,5 +1,8 @@
 # 构建和发布产物
-*.crx
+/dist/*
+!/dist/annotation-script-center-v*.crx
+!/dist/annotation-script-center-update.xml
+!/dist/annotation-script-center-crx-latest.json
 *.pem
 
 # 本地统计输出

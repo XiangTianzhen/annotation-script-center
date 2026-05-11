@@ -2,6 +2,10 @@
 
 ## 2026-05-11
 
+- 发布产物追踪规则调整：`.gitignore` 取消全局 `*.crx` 忽略，改为 `dist` 白名单追踪 CRX 三件套（`annotation-script-center-v*.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`），用于后续上传 `https://script.xiangtianzhen.store/downloads/`。
+- 安全规则保持不变：继续忽略 `config/secrets/*.pem|*.key|*.p12` 与私有 env 文件，私钥不得提交。
+- 文档同步更新：`README.md`、`extension/README.md`、`AGENTS.md` 已改为“3.0 起允许追踪并提交 CRX 三件套；其他 dist 临时产物默认不提交”口径。
+
 - CRX 企业发布能力：新增 `scripts/package-crx-release.js`，可基于 `extension/manifest.json` 版本和固定私钥 `config/secrets/annotation-script-center.pem` 生成 `dist/annotation-script-center-v<version>.crx`、`dist/annotation-script-center-update.xml`、`dist/annotation-script-center-crx-latest.json`。
 - CRX 脚本支持浏览器路径优先级：`ASC_CHROME_EXE` > Chrome/Edge 常见安装路径自动探测；支持 `ASC_DOWNLOAD_BASE_URL` 覆盖下载前缀，支持 `--notes` 写入发布说明。
 - CRX 脚本增加发布后自检：校验 `crx-latest.json` 必填字段、`sha256` 64 位 hex，以及 `update.xml` 的 `appid/version/codebase` 一致性；并输出需要上传到 `downloads` 的三个文件路径。
