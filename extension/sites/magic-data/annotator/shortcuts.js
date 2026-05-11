@@ -1,22 +1,21 @@
 (function () {
-  const STORAGE_KEY = "scriptCenter.magicDataAnnotator.shortcuts";
+  const LEGACY_STORAGE_KEY = "scriptCenter.magicDataAnnotator.shortcuts";
   const ACTION_DEFINITIONS = [
-    { key: "reviewCurrent", label: "AI 复核当前条" },
-    { key: "copyDialect", label: "复制 AI 方言文本" },
-    { key: "copyMandarin", label: "复制 AI 普通话文本" },
-    { key: "fillDialect", label: "填入第一行" },
-    { key: "fillMandarin", label: "填入第二行" },
-    { key: "triggerSave", label: "保存" },
-    { key: "triggerSubmit", label: "提交" },
+    { key: "reviewCurrent", label: "AI 质检当前条" },
+    { key: "copySummary", label: "复制 AI 质检摘要" },
+    { key: "fillDialectLine", label: "填入第一行" },
+    { key: "fillMandarinLine", label: "填入第二行" },
+    { key: "save", label: "保存" },
+    { key: "submit", label: "提交" },
     { key: "genderMale", label: "性别男" },
     { key: "genderFemale", label: "性别女" },
-    { key: "age0_5", label: "年龄0-5" },
-    { key: "age6_12", label: "年龄6-12" },
-    { key: "age13_18", label: "年龄13-18" },
-    { key: "age19_25", label: "年龄19-25" },
-    { key: "age26_36", label: "年龄26-36" },
-    { key: "age37_50", label: "年龄37-50" },
-    { key: "age51_65", label: "年龄51-65" },
+    { key: "age0To5", label: "年龄0-5" },
+    { key: "age6To12", label: "年龄6-12" },
+    { key: "age13To18", label: "年龄13-18" },
+    { key: "age19To25", label: "年龄19-25" },
+    { key: "age26To36", label: "年龄26-36" },
+    { key: "age37To50", label: "年龄37-50" },
+    { key: "age51To65", label: "年龄51-65" },
     { key: "age65Plus", label: "年龄65以上" },
   ];
 
@@ -142,7 +141,30 @@
     return map;
   }
 
-  function loadShortcutMapFromStorage() {
+  async function loadShortcutMapFromSettings() {
+    const storage = globalThis.ASREdgeStorage || {};
+    if (typeof storage.getSettings !== "function") {
+      return {
+        map: createEmptyShortcutMap(),
+        persisted: false,
+      };
+    }
+    try {
+      const settings = await storage.getSettings();
+      const projectSettings = settings?.scriptCenter?.projects?.magicDataAnnotator || {};
+      return {
+        map: normalizeShortcutMap(projectSettings.shortcuts),
+        persisted: true,
+      };
+    } catch (error) {
+      return {
+        map: createEmptyShortcutMap(),
+        persisted: false,
+      };
+    }
+  }
+
+  function loadShortcutMapFromLegacyStorage() {
     return new Promise(function (resolve) {
       if (!chrome?.storage?.local) {
         resolve({
@@ -151,7 +173,7 @@
         });
         return;
       }
-      chrome.storage.local.get([STORAGE_KEY], function (result) {
+      chrome.storage.local.get([LEGACY_STORAGE_KEY], function (result) {
         if (chrome.runtime?.lastError) {
           resolve({
             map: createEmptyShortcutMap(),
@@ -160,25 +182,63 @@
           return;
         }
         resolve({
-          map: normalizeShortcutMap(result?.[STORAGE_KEY]),
+          map: normalizeShortcutMap(result?.[LEGACY_STORAGE_KEY]),
           persisted: true,
         });
       });
     });
   }
 
-  function saveShortcutMapToStorage(shortcutMap) {
+  async function loadShortcutMap() {
+    const fromSettings = await loadShortcutMapFromSettings();
+    const hasAnySetting = Object.values(fromSettings.map || {}).some(Boolean);
+    if (hasAnySetting || fromSettings.persisted) {
+      return fromSettings;
+    }
+    return loadShortcutMapFromLegacyStorage();
+  }
+
+  async function saveShortcutMapToSettings(shortcutMap) {
+    const storage = globalThis.ASREdgeStorage || {};
+    if (typeof storage.patchSettings !== "function") {
+      return false;
+    }
+    try {
+      await storage.patchSettings({
+        scriptCenter: {
+          projects: {
+            magicDataAnnotator: {
+              shortcuts: normalizeShortcutMap(shortcutMap),
+            },
+          },
+        },
+      });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function saveShortcutMapToLegacyStorage(shortcutMap) {
     return new Promise(function (resolve) {
       if (!chrome?.storage?.local) {
         resolve(false);
         return;
       }
       const payload = {};
-      payload[STORAGE_KEY] = normalizeShortcutMap(shortcutMap);
+      payload[LEGACY_STORAGE_KEY] = normalizeShortcutMap(shortcutMap);
       chrome.storage.local.set(payload, function () {
         resolve(!chrome.runtime?.lastError);
       });
     });
+  }
+
+  async function saveShortcutMap(shortcutMap) {
+    const ok = await saveShortcutMapToSettings(shortcutMap);
+    if (ok) {
+      return true;
+    }
+    return saveShortcutMapToLegacyStorage(shortcutMap);
   }
 
   function createRuntime(options) {
@@ -204,7 +264,7 @@
     }
 
     async function load() {
-      const loaded = await loadShortcutMapFromStorage();
+      const loaded = await loadShortcutMap();
       shortcuts = normalizeShortcutMap(loaded.map);
       persisted = loaded.persisted;
       emitChange();
@@ -266,7 +326,7 @@
         };
       }
       shortcuts[actionKey] = normalizeShortcut(shortcut);
-      const saveOk = await saveShortcutMapToStorage(shortcuts);
+      const saveOk = await saveShortcutMap(shortcuts);
       if (!saveOk) {
         persisted = false;
       }
@@ -279,7 +339,7 @@
 
     async function clearAllShortcuts() {
       shortcuts = createEmptyShortcutMap();
-      const saveOk = await saveShortcutMapToStorage(shortcuts);
+      const saveOk = await saveShortcutMap(shortcuts);
       if (!saveOk) {
         persisted = false;
       }

@@ -40,13 +40,13 @@ extension/sites/magic-data/annotator/
 - 收益估算按有效时长：`estimatedIncome = effectiveTime / 3600 * 120`。
 - 日志严格脱敏，不记录完整签名音频 URL、token、cookie、authorization、API Key。
 
-## 2026-05 前端按钮接入（asrmark）
+## 2026-05 前端质检区接入（asrmark）
 
-已在扩展端接入 Magic Data `#/asrmark` 右下角面板“Magic Data AI 复核助手”：
+已在扩展端接入 Magic Data `#/asrmark` 页面内“Magic Data AI 质检结果”区域（表格下方）：
 
-- AI 复核当前条
-- 复制 AI 方言文本
-- 复制 AI 普通话文本
+- 刷新采集
+- AI 质检当前条
+- 复制 AI 质检摘要
 - 填入第一行
 - 填入第二行
 - 忽略结果
@@ -57,7 +57,8 @@ extension/sites/magic-data/annotator/
 - 允许手动填入两行文本，但不自动保存、不自动提交、不自动下一条。
 - `#/asrmarkCheck` 仅提示“暂未接入填入”，不写审核页 DOM 自动化。
 - 当前条数据采集优先级：`annotateDetailInfo` 响应缓存 -> 同源读取 `annotateDetailInfo/{taskItemId}` -> DOM/performance 兜底。
-- 新增面板快捷键设置（默认未设置）：AI 复核、复制、填入、保存、提交、性别/年龄选择。
+- 快捷键设置迁移到 options 的 Magic Data 专区（默认未设置）：AI 质检、复制摘要、填入、保存、提交、性别/年龄选择。
+- AI 逻辑调整为“规则优先质检”：平台两行文本为基准，听音结果仅作辅助证据，不默认替换平台文本。
 
 ## 子目录
 

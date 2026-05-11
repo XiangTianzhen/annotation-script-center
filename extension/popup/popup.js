@@ -244,7 +244,7 @@
           statusText: "已支持",
           statusTone: "success",
           title: "当前页面：Magic Data 标注单条页",
-          description: "脚本状态：已支持 AI 复核助手。请在页面右下角查看面板。",
+          description: "脚本状态：已支持 AI 质检助手。请在页面说话内容表格下方查看结果区。",
           openScriptSettings: false,
         };
       }

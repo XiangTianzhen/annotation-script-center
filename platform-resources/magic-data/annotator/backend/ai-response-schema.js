@@ -2,6 +2,9 @@
 
 const VERDICT_SET = new Set(["same", "mostly_same", "different", "uncertain", "invalid_audio"]);
 const LINE_DECISION_SET = new Set(["same", "minor_diff", "different", "uncertain"]);
+const REVIEW_CONCLUSION_SET = new Set(["pass", "need_review", "risky", "uncertain"]);
+const VALIDITY_DECISION_SET = new Set(["valid", "invalid", "uncertain"]);
+const AGE_RANGE_SET = new Set(["0-5", "6-12", "13-18", "19-25", "26-36", "37-50", "51-65", "65以上", "uncertain"]);
 
 function normalizeConfidence(value) {
   const numericValue = Number(value);
@@ -54,7 +57,7 @@ function parseModelJsonText(rawText, requestId) {
     try {
       return JSON.parse(attempts[index]);
     } catch (error) {
-      // try next candidate
+      // try next
     }
   }
 
@@ -75,17 +78,112 @@ function normalizeVerdict(value) {
   return VERDICT_SET.has(verdict) ? verdict : "uncertain";
 }
 
+function normalizeReviewConclusion(value) {
+  const conclusion = String(value || "").trim();
+  return REVIEW_CONCLUSION_SET.has(conclusion) ? conclusion : "uncertain";
+}
+
+function normalizeValidityDecision(value, isValidAudio) {
+  const decision = String(value || "").trim();
+  if (VALIDITY_DECISION_SET.has(decision)) {
+    return decision;
+  }
+  return isValidAudio ? "valid" : "invalid";
+}
+
+function normalizeAgeRangeGuess(value) {
+  const text = String(value || "").trim();
+  return AGE_RANGE_SET.has(text) ? text : "uncertain";
+}
+
 function normalizeListenResponse(modelJson) {
   const source = modelJson && typeof modelJson === "object" ? modelJson : {};
+  const isValidAudio = source.isValidAudio !== false;
   return {
     heardDialectText: normalizeText(source.heardDialectText || source.heardText || source.text || ""),
     heardMandarinMeaning: normalizeText(
       source.heardMandarinMeaning || source.mandarinMeaning || source.meaning || ""
     ),
-    isValidAudio: source.isValidAudio !== false,
+    isValidAudio,
+    validityDecision: normalizeValidityDecision(source.validityDecision, isValidAudio),
     invalidReasons: normalizeStringArray(source.invalidReasons, 20),
     riskFlags: normalizeStringArray(source.riskFlags, 20),
+    genderGuess: ["男", "女", "uncertain"].includes(String(source.genderGuess || "").trim())
+      ? String(source.genderGuess || "").trim() || "uncertain"
+      : "uncertain",
+    ageRangeGuess: normalizeAgeRangeGuess(source.ageRangeGuess),
     confidence: normalizeConfidence(source.confidence),
+  };
+}
+
+function normalizeRuleFirstComparison(modelJson, request, listen) {
+  const source = modelJson && typeof modelJson === "object" ? modelJson : {};
+  const check = source.textRuleCheck && typeof source.textRuleCheck === "object" ? source.textRuleCheck : {};
+  const recommendations =
+    source.recommendations && typeof source.recommendations === "object" ? source.recommendations : {};
+
+  const conclusion = normalizeReviewConclusion(source.reviewConclusion);
+  return {
+    reviewConclusion: conclusion,
+    shouldReview:
+      source.shouldReview === true ||
+      conclusion === "need_review" ||
+      conclusion === "risky" ||
+      conclusion === "uncertain",
+    confidence: normalizeConfidence(source.confidence),
+    textRuleCheck: {
+      dialectIssues: normalizeStringArray(check.dialectIssues, 30),
+      mandarinIssues: normalizeStringArray(check.mandarinIssues, 30),
+      translationConsistencyIssues: normalizeStringArray(check.translationConsistencyIssues, 30),
+      punctuationIssues: normalizeStringArray(check.punctuationIssues, 30),
+      speakerAttributeIssues: normalizeStringArray(check.speakerAttributeIssues, 30),
+      lexiconIssues: normalizeStringArray(check.lexiconIssues, 30),
+      ruleIssues: normalizeStringArray(check.ruleIssues, 30),
+    },
+    recommendations: {
+      dialectText: normalizeText(recommendations.dialectText || request.platformDialectText),
+      mandarinText: normalizeText(recommendations.mandarinText || request.platformMandarinText),
+      summary: normalizeText(recommendations.summary),
+    },
+    legacyComparison: {
+      verdict:
+        conclusion === "pass"
+          ? "same"
+          : conclusion === "need_review"
+            ? "mostly_same"
+            : conclusion === "risky"
+              ? "different"
+              : "uncertain",
+      dialectLine: {
+        decision:
+          conclusion === "pass"
+            ? "same"
+            : conclusion === "need_review"
+              ? "minor_diff"
+              : conclusion === "risky"
+                ? "different"
+                : "uncertain",
+        platformText: normalizeText(request.platformDialectText),
+        aiText: normalizeText(listen.heardDialectText),
+        recommendedText: normalizeText(recommendations.dialectText || request.platformDialectText),
+        issues: normalizeStringArray(check.dialectIssues, 30),
+      },
+      mandarinLine: {
+        decision:
+          conclusion === "pass"
+            ? "same"
+            : conclusion === "need_review"
+              ? "minor_diff"
+              : conclusion === "risky"
+                ? "different"
+                : "uncertain",
+        platformText: normalizeText(request.platformMandarinText),
+        recommendedText: normalizeText(recommendations.mandarinText || request.platformMandarinText),
+        issues: normalizeStringArray(check.mandarinIssues, 30),
+      },
+      lexiconIssues: normalizeStringArray(check.lexiconIssues, 30),
+      ruleIssues: normalizeStringArray(check.ruleIssues, 30),
+    },
   };
 }
 
@@ -141,7 +239,10 @@ function normalizeUsage(usage) {
 module.exports = {
   normalizeComparisonResponse,
   normalizeConfidence,
+  normalizeLineDecision,
   normalizeListenResponse,
+  normalizeReviewConclusion,
+  normalizeRuleFirstComparison,
   normalizeUsage,
   parseModelJsonText,
 };

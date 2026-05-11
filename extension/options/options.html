@@ -506,6 +506,58 @@
           <span>该设置统一控制所有脚本的后端请求：ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。各脚本详情页不再单独设置后端地址。</span>
           <div id="home-endpoint-status" class="status-text"></div>
         </div>
+        <div id="magic-data-settings-card" class="home-endpoint-card">
+          <strong>Magic Data ANNOTATOR 设置</strong>
+          <span>仅用于 Magic Data 页面内 AI 质检结果区，不新增独立后端地址，仍使用首页顶部后端模式。</span>
+          <label class="field-toggle">
+            <input id="magic-data-enabled" type="checkbox" />
+            <span>启用 Magic Data AI 质检</span>
+          </label>
+          <div class="detail-grid two">
+            <label class="field-card">
+              <strong>听音模型</strong>
+              <span>主要用于音频有效性、性别年龄、粗略听音辅助。</span>
+              <input id="magic-data-listen-model" type="text" maxlength="80" />
+            </label>
+            <label class="field-card">
+              <strong>质检模型</strong>
+              <span>主要用于规则检查、正字表检查、翻译一致性检查。</span>
+              <input id="magic-data-review-model" type="text" maxlength="80" />
+            </label>
+          </div>
+          <div class="detail-grid two">
+            <label class="field-card">
+              <strong>AI 质检模式</strong>
+              <span>默认规则优先；第一版先保存并下发到后端。</span>
+              <select id="magic-data-review-mode">
+                <option value="rule_first">规则优先</option>
+                <option value="listen_assisted">听音辅助</option>
+                <option value="strict_review">严格复核</option>
+              </select>
+            </label>
+            <div class="field-card">
+              <strong>显示控制</strong>
+              <label class="field-toggle">
+                <input id="magic-data-show-heard-text" type="checkbox" />
+                <span>显示 AI 听音文本</span>
+              </label>
+              <label class="field-toggle">
+                <input id="magic-data-show-estimated-income" type="checkbox" />
+                <span>显示预计金额</span>
+              </label>
+            </div>
+          </div>
+          <div class="field-card shortcut-panel">
+            <strong>快捷键设置</strong>
+            <span>默认全部未设置。点击“录制”后输入组合键，Esc 取消录制。</span>
+            <div id="magic-data-shortcut-grid" class="shortcut-grid"></div>
+            <div id="magic-data-recording-status" class="shortcut-recording hidden"></div>
+          </div>
+          <div class="field-actions">
+            <button id="save-magic-data-settings" class="primary-button" type="button">保存 Magic Data 设置</button>
+          </div>
+          <div id="magic-data-status" class="status-text"></div>
+        </div>
         <div id="project-data-download-panel" class="home-endpoint-card hidden">
           <strong>项目数据下载</strong>
           <div class="project-download-row">

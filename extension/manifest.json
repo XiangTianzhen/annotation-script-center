@@ -135,8 +135,8 @@
         "sites/magic-data/annotator/page-detector.js",
         "sites/magic-data/annotator/data-collector.js",
         "sites/magic-data/annotator/ai-review-client.js",
-        "sites/magic-data/annotator/ui-panel.js",
         "sites/magic-data/annotator/shortcuts.js",
+        "sites/magic-data/annotator/inline-panel.js",
         "sites/magic-data/annotator/content.js"
       ],
       "all_frames": false,

@@ -1,7 +1,18 @@
 (function () {
   const CHECK_INTERVAL_MS = 1000;
-  const MOUNT_RETRY_MS = 200;
+  const MOUNT_RETRY_MS = 220;
   const MOUNT_RETRY_LIMIT = 30;
+  const DEFAULT_SETTINGS = {
+    enabled: true,
+    aiReviewEnabled: true,
+    listenModel: "qwen3.5-omni-flash",
+    reviewModel: "qwen3.5-plus",
+    reviewMode: "rule_first",
+    showHeardText: true,
+    showEstimatedIncome: true,
+    shortcuts: {},
+  };
+
   let runtime = null;
   let observer = null;
   let pageTimer = null;
@@ -11,6 +22,7 @@
   let mountRetryCount = 0;
   let startLogged = false;
   let lastRouteLog = "";
+  let runtimeSettings = Object.assign({}, DEFAULT_SETTINGS);
 
   function safeInfo(text) {
     if (typeof console !== "undefined" && typeof console.info === "function") {
@@ -49,11 +61,65 @@
     }
   }
 
+  function normalizeModelName(value, fallback) {
+    const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    if (!text) {
+      return fallback;
+    }
+    return text.slice(0, 80);
+  }
+
+  function normalizeReviewMode(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "strict" || text === "strict_review") {
+      return "strict_review";
+    }
+    if (text === "listen_first" || text === "listen_assisted") {
+      return "listen_assisted";
+    }
+    return "rule_first";
+  }
+
+  function normalizeSettings(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const shortcuts = source.shortcuts && typeof source.shortcuts === "object" ? source.shortcuts : {};
+    return {
+      enabled: source.enabled !== false,
+      aiReviewEnabled: source.aiReviewEnabled !== false,
+      listenModel: normalizeModelName(source.listenModel, DEFAULT_SETTINGS.listenModel),
+      reviewModel: normalizeModelName(source.reviewModel, DEFAULT_SETTINGS.reviewModel),
+      reviewMode: normalizeReviewMode(source.reviewMode),
+      showHeardText: source.showHeardText !== false,
+      showEstimatedIncome: source.showEstimatedIncome !== false,
+      shortcuts: shortcuts,
+    };
+  }
+
+  async function loadMagicDataSettings() {
+    const storage = globalThis.ASREdgeStorage || {};
+    if (typeof storage.getSettings !== "function") {
+      runtimeSettings = Object.assign({}, DEFAULT_SETTINGS);
+      return runtimeSettings;
+    }
+    try {
+      const settings = await storage.getSettings();
+      const projectSettings =
+        settings?.scriptCenter?.projects?.magicDataAnnotator ||
+        settings?.projects?.magicDataAnnotator ||
+        {};
+      runtimeSettings = normalizeSettings(projectSettings);
+      return runtimeSettings;
+    } catch (error) {
+      runtimeSettings = Object.assign({}, DEFAULT_SETTINGS);
+      return runtimeSettings;
+    }
+  }
+
   function createRuntime() {
     const detector = globalThis.__ASREdgeMagicDataAnnotatorPageDetector;
     const collector = globalThis.__ASREdgeMagicDataAnnotatorDataCollector;
     const aiClient = globalThis.__ASREdgeMagicDataAnnotatorAiReviewClient;
-    const panelFactory = globalThis.__ASREdgeMagicDataAnnotatorUiPanel;
+    const panelFactory = globalThis.__ASREdgeMagicDataAnnotatorInlinePanel;
     const shortcutsFactory = globalThis.__ASREdgeMagicDataAnnotatorShortcuts;
     if (!detector || !collector || !aiClient || !panelFactory) {
       return null;
@@ -65,7 +131,6 @@
       fillMandarinLine: collector.fillMandarinLine,
       getClientVersion: aiClient.getClientVersion,
       refreshCurrentItem: collector.refreshCurrentItem,
-      resolveBackendConfig: aiClient.resolveBackendConfig,
       reviewCurrent: aiClient.reviewCurrent,
     });
 
@@ -74,7 +139,6 @@
           actions: {},
         })
       : null;
-    panel.setShortcutsRuntime(shortcutsRuntime);
 
     let lastTaskKey = "";
 
@@ -101,40 +165,37 @@
         return;
       }
       shortcutsRuntime.setActions({
-        age0_5: function () {
+        age0To5: function () {
           return runActionResult(collector.selectSpeakerValue("0-5"));
         },
-        age13_18: function () {
+        age6To12: function () {
+          return runActionResult(collector.selectSpeakerValue("6-12"));
+        },
+        age13To18: function () {
           return runActionResult(collector.selectSpeakerValue("13-18"));
         },
-        age19_25: function () {
+        age19To25: function () {
           return runActionResult(collector.selectSpeakerValue("19-25"));
         },
-        age26_36: function () {
+        age26To36: function () {
           return runActionResult(collector.selectSpeakerValue("26-36"));
         },
-        age37_50: function () {
+        age37To50: function () {
           return runActionResult(collector.selectSpeakerValue("37-50"));
         },
-        age51_65: function () {
+        age51To65: function () {
           return runActionResult(collector.selectSpeakerValue("51-65"));
         },
         age65Plus: function () {
           return runActionResult(collector.selectSpeakerValue("65以上"));
         },
-        age6_12: function () {
-          return runActionResult(collector.selectSpeakerValue("6-12"));
+        copySummary: function () {
+          return runActionResult(panel.triggerCopySummary());
         },
-        copyDialect: function () {
-          return runActionResult(panel.triggerCopyDialect());
-        },
-        copyMandarin: function () {
-          return runActionResult(panel.triggerCopyMandarin());
-        },
-        fillDialect: function () {
+        fillDialectLine: function () {
           return runActionResult(panel.triggerFillDialect());
         },
-        fillMandarin: function () {
+        fillMandarinLine: function () {
           return runActionResult(panel.triggerFillMandarin());
         },
         genderFemale: function () {
@@ -147,12 +208,16 @@
           panel.setMessage("未实现的快捷键动作：" + actionKey);
         },
         reviewCurrent: function () {
+          if (runtimeSettings.aiReviewEnabled === false) {
+            panel.setMessage("Magic Data AI 质检已在 options 中关闭。");
+            return Promise.resolve();
+          }
           return runActionResult(panel.triggerReview());
         },
-        triggerSave: function () {
+        save: function () {
           return runActionResult(collector.clickOperationButton("保存"));
         },
-        triggerSubmit: function () {
+        submit: function () {
           return runActionResult(collector.clickOperationButton("提交"));
         },
       });
@@ -185,10 +250,11 @@
         const nextTaskKey = String(snapshot.taskItemId || snapshot.samplingRecordId || "");
         if (nextTaskKey && lastTaskKey && nextTaskKey !== lastTaskKey) {
           panel.clearResult();
-          panel.setMessage("当前条已变化，请重新点击 AI 复核当前条。");
+          panel.setMessage("当前条已变化，请重新点击 AI 质检当前条。");
         }
         lastTaskKey = nextTaskKey;
-        panel.refreshPageSnapshot(snapshot, null);
+        panel.setRuntimeSettings(runtimeSettings);
+        panel.refreshPageSnapshot(snapshot, null, runtimeSettings);
         if (
           snapshot.taskItemId &&
           typeof collector.getCachedDetail === "function" &&
@@ -200,7 +266,7 @@
             .then(function (latestSnapshot) {
               const nextSnapshot = latestSnapshot && typeof latestSnapshot === "object" ? latestSnapshot : snapshot;
               nextSnapshot.pageType = "asrmark";
-              panel.refreshPageSnapshot(nextSnapshot, null);
+              panel.refreshPageSnapshot(nextSnapshot, null, runtimeSettings);
             })
             .catch(function () {
               // Keep DOM snapshot when API warmup fails.
@@ -210,6 +276,7 @@
       }
       if (pageType === "asrmarkCheck") {
         lastTaskKey = "";
+        panel.setRuntimeSettings(runtimeSettings);
         panel.showAsrmarkCheckNotice();
         return;
       }
@@ -241,6 +308,8 @@
     }
 
     async function start() {
+      await loadMagicDataSettings();
+      panel.setRuntimeSettings(runtimeSettings);
       wireShortcutsActions();
       if (shortcutsRuntime) {
         await shortcutsRuntime.start();
@@ -251,7 +320,7 @@
         window.clearTimeout(pageTimer);
         pageTimer = window.setTimeout(function () {
           refresh();
-        }, 160);
+        }, 180);
       });
       observer.observe(document.documentElement || document.body, {
         childList: true,
@@ -317,6 +386,7 @@
         await runtime.start();
         return;
       }
+      await loadMagicDataSettings();
       runtime.refresh();
     } catch (error) {
       if (isContextInvalidatedError(error)) {

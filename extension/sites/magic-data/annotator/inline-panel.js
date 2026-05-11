@@ -1,0 +1,705 @@
+(function () {
+  const ROOT_ATTR = "data-asc-magic-data-review-inline";
+  const STYLE_ATTR = "data-asc-magic-data-review-inline-style";
+  const FAB_ATTR = "data-asc-magic-data-review-fab";
+  const INCOME_PER_EFFECTIVE_HOUR = 120;
+
+  function normalizeText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function toNumber(value) {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  }
+
+  function formatNumber(value, digits) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return "-";
+    }
+    return numericValue.toFixed(digits || 2);
+  }
+
+  function toSecondsText(value) {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? formatNumber(numericValue, 3) + "s" : "-";
+  }
+
+  function calcEstimatedIncome(effectiveTime) {
+    const seconds = Number(effectiveTime);
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return null;
+    }
+    return (seconds / 3600) * INCOME_PER_EFFECTIVE_HOUR;
+  }
+
+  function copyText(text) {
+    const value = String(text || "").trim();
+    if (!value) {
+      return Promise.reject(new Error("暂无可复制内容。"));
+    }
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      return navigator.clipboard.writeText(value);
+    }
+    return Promise.reject(new Error("当前页面不支持剪贴板 API。"));
+  }
+
+  function createButton(text, className) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = text;
+    if (className) {
+      button.className = className;
+    }
+    return button;
+  }
+
+  function ensureStyle() {
+    if (document.querySelector("style[" + STYLE_ATTR + "]")) {
+      return;
+    }
+    const style = document.createElement("style");
+    style.setAttribute(STYLE_ATTR, "true");
+    style.textContent = [
+      "[" + ROOT_ATTR + "]{margin:16px 0 6px;padding:14px;border:1px solid #334155;border-radius:10px;background:#0f172a;color:#e2e8f0;font-family:'Microsoft YaHei',sans-serif;line-height:1.55;}",
+      "[" + ROOT_ATTR + "] *{box-sizing:border-box;}",
+      "[" + ROOT_ATTR + "] .md-inline-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid #334155;padding-bottom:10px;margin-bottom:12px;}",
+      "[" + ROOT_ATTR + "] .md-inline-title{font-size:16px;font-weight:700;color:#f8fafc;}",
+      "[" + ROOT_ATTR + "] .md-inline-sub{font-size:12px;color:#94a3b8;margin-top:4px;}",
+      "[" + ROOT_ATTR + "] .md-inline-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}",
+      "[" + ROOT_ATTR + "] .md-inline-grid{display:grid;grid-template-columns:128px 1fr;gap:6px 10px;font-size:12px;}",
+      "[" + ROOT_ATTR + "] .md-k{color:#94a3b8;font-weight:700;}",
+      "[" + ROOT_ATTR + "] .md-v{white-space:pre-wrap;word-break:break-word;}",
+      "[" + ROOT_ATTR + "] .md-block{border:1px solid #334155;border-radius:8px;padding:10px;background:#111827;margin-bottom:10px;}",
+      "[" + ROOT_ATTR + "] .md-block-title{font-size:12px;font-weight:700;color:#cbd5e1;margin-bottom:8px;}",
+      "[" + ROOT_ATTR + "] .md-inline-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;}",
+      "[" + ROOT_ATTR + "] button{border:1px solid #475569;border-radius:8px;padding:8px 10px;background:#1e293b;color:#e2e8f0;font-size:12px;cursor:pointer;}",
+      "[" + ROOT_ATTR + "] button:hover{background:#334155;}",
+      "[" + ROOT_ATTR + "] button:disabled{opacity:.55;cursor:not-allowed;}",
+      "[" + ROOT_ATTR + "] .md-primary{background:#0ea5e9;border-color:#0ea5e9;color:#f8fafc;font-weight:700;}",
+      "[" + ROOT_ATTR + "] .md-message{font-size:12px;border:1px solid #334155;background:#172554;color:#bfdbfe;border-radius:8px;padding:8px;}",
+      "[" + ROOT_ATTR + "] .md-safe{font-size:12px;color:#fdba74;border:1px solid #7c2d12;background:#431407;border-radius:8px;padding:8px;}",
+      "[" + ROOT_ATTR + "] .md-empty{font-size:12px;color:#94a3b8;}",
+      "[" + FAB_ATTR + "]{position:fixed;right:24px;bottom:24px;z-index:2147483647;border:1px solid #0ea5e9;border-radius:999px;background:#0f172a;color:#67e8f9;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 10px 28px rgba(2,6,23,.4);}",
+      "[" + FAB_ATTR + "]:hover{background:#1e293b;}",
+      "@media (max-width: 900px){[" + ROOT_ATTR + "] .md-inline-buttons{grid-template-columns:repeat(2,minmax(0,1fr));}}",
+    ].join("");
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function findInlineMountTarget() {
+    const tableLike = Array.from(document.querySelectorAll("table, .el-table, [class*='table'], [class*='mark']"));
+    const directHit = tableLike.find(function (node) {
+      const text = normalizeText(node.textContent || "");
+      return text.indexOf("说话内容") >= 0 && text.indexOf("截取时长") >= 0;
+    });
+    if (directHit && directHit.parentElement) {
+      return {
+        anchor: directHit,
+        mode: "after",
+      };
+    }
+
+    const contentAnchor = Array.from(document.querySelectorAll("div,section,article"))
+      .find(function (node) {
+        const text = normalizeText(node.textContent || "");
+        return text.indexOf("说话内容") >= 0 && text.indexOf("句子列表") >= 0;
+      });
+    if (contentAnchor && contentAnchor.parentElement) {
+      return {
+        anchor: contentAnchor,
+        mode: "after",
+      };
+    }
+
+    const mainArea = document.querySelector("main, #app, .app-main, .layout-content, [class*='content']");
+    if (mainArea) {
+      return {
+        anchor: mainArea,
+        mode: "append",
+      };
+    }
+
+    return {
+      anchor: document.body || document.documentElement,
+      mode: "append",
+    };
+  }
+
+  function createRuntime(deps) {
+    const options = deps && typeof deps === "object" ? deps : {};
+    const runtimeSettingsDefault = {
+      enabled: true,
+      aiReviewEnabled: true,
+      listenModel: "qwen3.5-omni-flash",
+      reviewModel: "qwen3.5-plus",
+      reviewMode: "rule_first",
+      showHeardText: true,
+      showEstimatedIncome: true,
+    };
+
+    let root = null;
+    let fab = null;
+    let messageNode = null;
+    let summaryNode = null;
+    let platformNode = null;
+    let resultNode = null;
+    let loading = false;
+    let latestSnapshot = {};
+    let latestBackend = null;
+    let latestResult = null;
+    let runtimeSettings = Object.assign({}, runtimeSettingsDefault);
+
+    const buttons = {
+      refresh: null,
+      review: null,
+      copySummary: null,
+      fillDialect: null,
+      fillMandarin: null,
+      ignore: null,
+    };
+
+    function setMessage(text) {
+      if (messageNode) {
+        messageNode.textContent = normalizeText(text) || "就绪。";
+      }
+    }
+
+    function refreshButtons() {
+      const hasResult = Boolean(latestResult);
+      const dialectText = getDialectFillText();
+      const mandarinText = getMandarinFillText();
+      if (buttons.review) {
+        buttons.review.disabled = loading;
+        buttons.review.textContent = loading ? "AI 质检当前条（执行中）" : "AI 质检当前条";
+      }
+      if (buttons.refresh) {
+        buttons.refresh.disabled = loading;
+      }
+      if (buttons.copySummary) {
+        buttons.copySummary.disabled = loading || !hasResult;
+      }
+      if (buttons.fillDialect) {
+        buttons.fillDialect.disabled = loading || !dialectText;
+      }
+      if (buttons.fillMandarin) {
+        buttons.fillMandarin.disabled = loading || !mandarinText;
+      }
+      if (buttons.ignore) {
+        buttons.ignore.disabled = loading || !hasResult;
+      }
+    }
+
+    function setLoading(nextValue) {
+      loading = nextValue === true;
+      refreshButtons();
+    }
+
+    function resolveReviewConclusion(result) {
+      const text = String(result?.reviewConclusion || result?.verdict || "").trim();
+      if (text === "pass") {
+        return "通过";
+      }
+      if (text === "need_review" || text === "mostly_same" || text === "different") {
+        return "建议复核";
+      }
+      if (text === "risky" || text === "invalid_audio") {
+        return "明显风险";
+      }
+      return "无法判断";
+    }
+
+    function getDialectFillText() {
+      const text =
+        latestResult?.recommendations?.dialectText ||
+        latestResult?.comparison?.dialectLine?.recommendedText ||
+        latestResult?.listen?.heardDialectText ||
+        latestResult?.audioCheck?.heardDialectText ||
+        "";
+      return normalizeText(text);
+    }
+
+    function getMandarinFillText() {
+      const text =
+        latestResult?.recommendations?.mandarinText ||
+        latestResult?.comparison?.mandarinLine?.recommendedText ||
+        latestResult?.listen?.heardMandarinMeaning ||
+        latestResult?.audioCheck?.heardMandarinMeaning ||
+        "";
+      return normalizeText(text);
+    }
+
+    function buildSummaryText() {
+      if (!latestResult) {
+        return "暂无 AI 质检结果。";
+      }
+      const summary = normalizeText(latestResult?.recommendations?.summary || "");
+      if (summary) {
+        return summary;
+      }
+      const segments = [];
+      segments.push("结论：" + resolveReviewConclusion(latestResult));
+      if (Array.isArray(latestResult?.textRuleCheck?.ruleIssues) && latestResult.textRuleCheck.ruleIssues.length > 0) {
+        segments.push("规则问题：" + latestResult.textRuleCheck.ruleIssues.join("；"));
+      }
+      if (Array.isArray(latestResult?.textRuleCheck?.lexiconIssues) && latestResult.textRuleCheck.lexiconIssues.length > 0) {
+        segments.push("词表问题：" + latestResult.textRuleCheck.lexiconIssues.join("；"));
+      }
+      return segments.join("\n");
+    }
+
+    function renderSummary(snapshot, backend) {
+      latestSnapshot = snapshot || latestSnapshot || {};
+      if (backend) {
+        latestBackend = backend;
+      }
+      if (!summaryNode) {
+        return;
+      }
+      const estimatedIncome = Number.isFinite(Number(latestResult?.estimatedIncome))
+        ? Number(latestResult.estimatedIncome)
+        : calcEstimatedIncome(latestSnapshot.effectiveTime);
+      const speaker = latestSnapshot.speaker || {};
+      const rows = [
+        ["taskItemId", latestSnapshot.taskItemId || "-"],
+        ["有效句子时长", toSecondsText(latestSnapshot.effectiveTime)],
+        ["预计金额", runtimeSettings.showEstimatedIncome === false || estimatedIncome === null ? "已隐藏" : formatNumber(estimatedIncome, 4) + " 元"],
+        ["音频 hostname", latestSnapshot.audioHostname || "未获取"],
+        ["性别", speaker.gender || "-"],
+        ["年龄", speaker.ageRange || "-"],
+        ["后端", latestBackend?.baseUrl || "-"],
+      ];
+      summaryNode.innerHTML = "";
+      rows.forEach(function (row) {
+        const key = document.createElement("div");
+        key.className = "md-k";
+        key.textContent = row[0];
+        const value = document.createElement("div");
+        value.className = "md-v";
+        value.textContent = row[1];
+        summaryNode.appendChild(key);
+        summaryNode.appendChild(value);
+      });
+    }
+
+    function renderPlatform(snapshot) {
+      if (!platformNode) {
+        return;
+      }
+      const rows = [
+        ["平台方言行", snapshot?.platformDialectText || "未读取到平台文本"],
+        ["平台普通话行", snapshot?.platformMandarinText || "未读取到平台文本"],
+      ];
+      platformNode.innerHTML = "";
+      rows.forEach(function (row) {
+        const key = document.createElement("div");
+        key.className = "md-k";
+        key.textContent = row[0];
+        const value = document.createElement("div");
+        value.className = "md-v";
+        value.textContent = row[1];
+        platformNode.appendChild(key);
+        platformNode.appendChild(value);
+      });
+    }
+
+    function joinIssues(value) {
+      if (!Array.isArray(value)) {
+        return "-";
+      }
+      return value.length > 0 ? value.join("；") : "-";
+    }
+
+    function renderResult(data) {
+      latestResult = data || null;
+      if (!resultNode) {
+        return;
+      }
+      resultNode.innerHTML = "";
+      if (!data) {
+        const emptyNode = document.createElement("div");
+        emptyNode.className = "md-empty";
+        emptyNode.textContent = "暂无质检结果。";
+        resultNode.appendChild(emptyNode);
+        refreshButtons();
+        return;
+      }
+
+      const audioCheck = data.audioCheck || {};
+      const textRuleCheck = data.textRuleCheck || {};
+      const timing = data.timing || {};
+      const showHeardText = runtimeSettings.showHeardText !== false;
+      const rows = [
+        ["总结论", resolveReviewConclusion(data)],
+        ["shouldReview", String(Boolean(data.shouldReview))],
+        ["方言行规则检查", joinIssues(textRuleCheck.dialectIssues)],
+        ["普通话翻译检查", joinIssues(textRuleCheck.mandarinIssues)],
+        ["翻译一致性检查", joinIssues(textRuleCheck.translationConsistencyIssues)],
+        ["正字表检查", joinIssues(textRuleCheck.lexiconIssues)],
+        ["音频有效性检查", joinIssues(audioCheck.riskFlags)],
+        ["性别年龄辅助判断", [audioCheck.genderGuess || "-", audioCheck.ageRangeGuess || "-"].join(" / ")],
+        ["AI 听到的客家话文本", showHeardText ? (audioCheck.heardDialectText || data?.listen?.heardDialectText || "-") : "已关闭显示"],
+        ["AI 理解的普通话意思", showHeardText ? (audioCheck.heardMandarinMeaning || data?.listen?.heardMandarinMeaning || "-") : "已关闭显示"],
+        ["requestId", data.requestId || "-"],
+        ["模型与耗时", "listen=" + String(data?.models?.listenModel || "-") + " / review=" + String(data?.models?.reviewModel || data?.models?.compareModel || "-") + " / total=" + String(timing.totalDurationMs || 0) + "ms"],
+      ];
+
+      const grid = document.createElement("div");
+      grid.className = "md-inline-grid";
+      rows.forEach(function (row) {
+        const key = document.createElement("div");
+        key.className = "md-k";
+        key.textContent = row[0];
+        const value = document.createElement("div");
+        value.className = "md-v";
+        value.textContent = row[1];
+        grid.appendChild(key);
+        grid.appendChild(value);
+      });
+      resultNode.appendChild(grid);
+      refreshButtons();
+    }
+
+    async function collectAndRenderSnapshot(preferApi) {
+      if (typeof options.collectCurrentItem !== "function") {
+        setMessage("采集器未就绪，请刷新页面。");
+        return null;
+      }
+      let snapshot = options.collectCurrentItem() || {};
+      if (preferApi && typeof options.refreshCurrentItem === "function") {
+        try {
+          snapshot = await options.refreshCurrentItem({
+            taskItemId: snapshot.taskItemId,
+          });
+        } catch (error) {
+          // keep dom fallback
+        }
+      }
+      snapshot.pageType = snapshot.pageType || latestSnapshot.pageType || "asrmark";
+      renderSummary(snapshot, latestBackend);
+      renderPlatform(snapshot);
+      if (!snapshot.audioUrl) {
+        setMessage("未获取到音频 URL，请先播放一次音频后再点刷新采集或 AI 质检。");
+      } else {
+        setMessage("采集完成，可点击 AI 质检当前条。");
+      }
+      return snapshot;
+    }
+
+    async function triggerReview() {
+      if (typeof options.reviewCurrent !== "function") {
+        const message = "AI 客户端未就绪。";
+        setMessage(message);
+        return {
+          ok: false,
+          message: message,
+        };
+      }
+      const snapshot = await collectAndRenderSnapshot(true);
+      if (!snapshot) {
+        return { ok: false, message: "采集失败。" };
+      }
+      if (!snapshot.audioUrl) {
+        return { ok: false, message: "未获取到音频 URL。" };
+      }
+      if (!snapshot.platformDialectText && !snapshot.platformMandarinText) {
+        const message = "未读取到平台两行文本，请先确认当前页面是标注单条页。";
+        setMessage(message);
+        return { ok: false, message: message };
+      }
+
+      setLoading(true);
+      setMessage("正在调用 AI 质检后端...");
+      try {
+        const response = await options.reviewCurrent({
+          taskItemId: snapshot.taskItemId,
+          samplingRecordId: snapshot.samplingRecordId,
+          projectName: snapshot.projectName,
+          audioUrl: snapshot.audioUrl,
+          audioDuration: snapshot.audioDuration,
+          effectiveStartTime: snapshot.effectiveStartTime,
+          effectiveEndTime: snapshot.effectiveEndTime,
+          effectiveTime: snapshot.effectiveTime,
+          platformDialectText: snapshot.platformDialectText,
+          platformMandarinText: snapshot.platformMandarinText,
+          speaker: snapshot.speaker || {},
+          rulesProfile: "hakka",
+          clientVersion: options.getClientVersion ? options.getClientVersion() : "0.3.0",
+          listenModel: runtimeSettings.listenModel,
+          reviewModel: runtimeSettings.reviewModel,
+          reviewMode: runtimeSettings.reviewMode,
+          showHeardText: runtimeSettings.showHeardText !== false,
+        });
+        renderResult(response.data);
+        renderSummary(snapshot, response.backend);
+        renderPlatform(snapshot);
+        setMessage("AI 质检完成，请人工确认。AI 不会自动保存或提交。");
+        return { ok: true, message: "AI 质检完成。" };
+      } catch (error) {
+        const message = normalizeText(error?.message || "AI 质检失败。");
+        setMessage(message);
+        return { ok: false, message: message };
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function triggerCopySummary() {
+      const summary = buildSummaryText();
+      await copyText(summary);
+      setMessage("AI 质检摘要已复制。");
+      return { ok: true, message: "AI 质检摘要已复制。" };
+    }
+
+    function triggerFillDialect() {
+      const text = getDialectFillText();
+      if (!text) {
+        const message = "暂无可填入的第一行文本。";
+        setMessage(message);
+        return { ok: false, message: message };
+      }
+      const result = options.fillDialectLine ? options.fillDialectLine(text) : { ok: false, message: "填入能力未就绪。" };
+      setMessage(result?.message || "已填入第一行。\n");
+      return result;
+    }
+
+    function triggerFillMandarin() {
+      const text = getMandarinFillText();
+      if (!text) {
+        const message = "暂无可填入的第二行文本。";
+        setMessage(message);
+        return { ok: false, message: message };
+      }
+      const result = options.fillMandarinLine ? options.fillMandarinLine(text) : { ok: false, message: "填入能力未就绪。" };
+      setMessage(result?.message || "已填入第二行。\n");
+      return result;
+    }
+
+    function clearResult() {
+      latestResult = null;
+      renderResult(null);
+      renderSummary(latestSnapshot || {}, latestBackend);
+    }
+
+    function ensureFab() {
+      if (fab && document.documentElement && document.documentElement.contains(fab)) {
+        return fab;
+      }
+      fab = document.createElement("button");
+      fab.type = "button";
+      fab.textContent = "AI 质检";
+      fab.setAttribute(FAB_ATTR, "true");
+      fab.addEventListener("click", function () {
+        const node = ensureMounted();
+        if (node && typeof node.scrollIntoView === "function") {
+          node.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      });
+      (document.body || document.documentElement).appendChild(fab);
+      return fab;
+    }
+
+    function mountInlineRoot(nextRoot) {
+      const target = findInlineMountTarget();
+      if (!target || !target.anchor) {
+        (document.body || document.documentElement).appendChild(nextRoot);
+        return;
+      }
+      if (target.mode === "after" && target.anchor.parentElement) {
+        if (typeof target.anchor.after === "function") {
+          target.anchor.after(nextRoot);
+        } else {
+          target.anchor.parentElement.insertBefore(nextRoot, target.anchor.nextSibling);
+        }
+        return;
+      }
+      target.anchor.appendChild(nextRoot);
+    }
+
+    function ensureMounted() {
+      if (root && document.documentElement && document.documentElement.contains(root)) {
+        ensureFab();
+        return root;
+      }
+      ensureStyle();
+      root = document.createElement("section");
+      root.setAttribute(ROOT_ATTR, "true");
+      root.setAttribute("data-asc-magic-data-review-inline", "true");
+
+      const head = document.createElement("div");
+      head.className = "md-inline-head";
+      const headText = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "md-inline-title";
+      title.textContent = "Magic Data AI 质检结果";
+      const sub = document.createElement("div");
+      sub.className = "md-inline-sub";
+      sub.textContent = "以平台现有文本为基准，AI 仅做规则质检和风险提示，不自动保存、不自动提交。";
+      headText.appendChild(title);
+      headText.appendChild(sub);
+
+      const headActions = document.createElement("div");
+      headActions.className = "md-inline-actions";
+      buttons.refresh = createButton("刷新采集");
+      buttons.refresh.addEventListener("click", function () {
+        void collectAndRenderSnapshot(true);
+      });
+      buttons.review = createButton("AI 质检当前条", "md-primary");
+      buttons.review.addEventListener("click", function () {
+        void triggerReview();
+      });
+      headActions.appendChild(buttons.refresh);
+      headActions.appendChild(buttons.review);
+      head.appendChild(headText);
+      head.appendChild(headActions);
+      root.appendChild(head);
+
+      const summaryBlock = document.createElement("div");
+      summaryBlock.className = "md-block";
+      const summaryTitle = document.createElement("div");
+      summaryTitle.className = "md-block-title";
+      summaryTitle.textContent = "当前条摘要";
+      summaryNode = document.createElement("div");
+      summaryNode.className = "md-inline-grid";
+      summaryBlock.appendChild(summaryTitle);
+      summaryBlock.appendChild(summaryNode);
+      root.appendChild(summaryBlock);
+
+      const platformBlock = document.createElement("div");
+      platformBlock.className = "md-block";
+      const platformTitle = document.createElement("div");
+      platformTitle.className = "md-block-title";
+      platformTitle.textContent = "平台文本";
+      platformNode = document.createElement("div");
+      platformNode.className = "md-inline-grid";
+      platformBlock.appendChild(platformTitle);
+      platformBlock.appendChild(platformNode);
+      root.appendChild(platformBlock);
+
+      const actions = document.createElement("div");
+      actions.className = "md-inline-buttons";
+      buttons.copySummary = createButton("复制 AI 质检摘要");
+      buttons.copySummary.addEventListener("click", function () {
+        triggerCopySummary().catch(function (error) {
+          setMessage(error?.message || "复制失败。");
+        });
+      });
+      buttons.fillDialect = createButton("填入第一行");
+      buttons.fillDialect.addEventListener("click", function () {
+        triggerFillDialect();
+      });
+      buttons.fillMandarin = createButton("填入第二行");
+      buttons.fillMandarin.addEventListener("click", function () {
+        triggerFillMandarin();
+      });
+      buttons.ignore = createButton("忽略结果");
+      buttons.ignore.addEventListener("click", function () {
+        clearResult();
+        setMessage("已忽略当前 AI 结果。");
+      });
+      actions.appendChild(buttons.copySummary);
+      actions.appendChild(buttons.fillDialect);
+      actions.appendChild(buttons.fillMandarin);
+      actions.appendChild(buttons.ignore);
+      root.appendChild(actions);
+
+      messageNode = document.createElement("div");
+      messageNode.className = "md-message";
+      messageNode.textContent = "就绪。";
+      root.appendChild(messageNode);
+
+      const resultBlock = document.createElement("div");
+      resultBlock.className = "md-block";
+      const resultTitle = document.createElement("div");
+      resultTitle.className = "md-block-title";
+      resultTitle.textContent = "AI 质检结果";
+      resultNode = document.createElement("div");
+      resultBlock.appendChild(resultTitle);
+      resultBlock.appendChild(resultNode);
+      root.appendChild(resultBlock);
+
+      const safe = document.createElement("div");
+      safe.className = "md-safe";
+      safe.textContent = "AI 仅辅助复核，不会自动保存、提交、审核或领取任务。";
+      root.appendChild(safe);
+
+      mountInlineRoot(root);
+      ensureFab();
+      renderSummary(latestSnapshot || {}, latestBackend);
+      renderPlatform(latestSnapshot || {});
+      renderResult(latestResult);
+      refreshButtons();
+      return root;
+    }
+
+    function remove() {
+      if (root) {
+        root.remove();
+      }
+      if (fab) {
+        fab.remove();
+      }
+      root = null;
+      fab = null;
+      messageNode = null;
+      summaryNode = null;
+      platformNode = null;
+      resultNode = null;
+      latestResult = null;
+      latestSnapshot = {};
+      latestBackend = null;
+      loading = false;
+    }
+
+    function refreshPageSnapshot(snapshot, backend, settings) {
+      const node = ensureMounted();
+      if (!node) {
+        return;
+      }
+      if (settings && typeof settings === "object") {
+        runtimeSettings = Object.assign({}, runtimeSettingsDefault, settings);
+      }
+      renderSummary(snapshot || {}, backend || null);
+      renderPlatform(snapshot || {});
+      if (latestResult) {
+        renderResult(latestResult);
+      }
+    }
+
+    function setRuntimeSettings(settings) {
+      if (!settings || typeof settings !== "object") {
+        return;
+      }
+      runtimeSettings = Object.assign({}, runtimeSettingsDefault, settings);
+      renderSummary(latestSnapshot || {}, latestBackend);
+      if (latestResult) {
+        renderResult(latestResult);
+      }
+    }
+
+    function showAsrmarkCheckNotice() {
+      ensureMounted();
+      clearResult();
+      setMessage("审核页暂未接入填入，只支持后续扩展。");
+    }
+
+    return {
+      clearResult: clearResult,
+      ensureMounted: ensureMounted,
+      refreshPageSnapshot: refreshPageSnapshot,
+      remove: remove,
+      setMessage: setMessage,
+      setRuntimeSettings: setRuntimeSettings,
+      showAsrmarkCheckNotice: showAsrmarkCheckNotice,
+      triggerCopySummary: triggerCopySummary,
+      triggerFillDialect: triggerFillDialect,
+      triggerFillMandarin: triggerFillMandarin,
+      triggerReview: triggerReview,
+    };
+  }
+
+  globalThis.__ASREdgeMagicDataAnnotatorInlinePanel = {
+    createRuntime: createRuntime,
+  };
+})();

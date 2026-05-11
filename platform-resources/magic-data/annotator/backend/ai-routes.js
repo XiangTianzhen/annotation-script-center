@@ -7,14 +7,15 @@ const {
   getClientConfig,
   requestCompare,
   requestListen,
+  sanitizeModelName,
 } = require("./ai-client-qwen");
 const { appendAiCallLog, getLogDir } = require("./ai-call-log");
 const { estimateIncome } = require("./ai-cost");
 const { buildLexiconContext, getLexiconState } = require("./ai-lexicon");
 const { buildComparePrompt, buildListenPrompt, RULE_VERSION } = require("./ai-prompts");
 const {
-  normalizeComparisonResponse,
   normalizeListenResponse,
+  normalizeRuleFirstComparison,
   normalizeUsage,
   parseModelJsonText,
 } = require("./ai-response-schema");
@@ -89,10 +90,12 @@ function parseAudioHostname(audioUrl) {
   }
 }
 
-function normalizeVerdict(value) {
-  const verdict = String(value || "").trim();
-  const accepted = ["same", "mostly_same", "different", "uncertain", "invalid_audio"];
-  return accepted.includes(verdict) ? verdict : "uncertain";
+function normalizeReviewMode(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "listen_assisted" || text === "strict_review" || text === "rule_first") {
+    return text;
+  }
+  return "rule_first";
 }
 
 function normalizeReviewRequest(body) {
@@ -137,7 +140,22 @@ function normalizeReviewRequest(body) {
     },
     rulesProfile: normalizeText(source.rulesProfile) || "hakka",
     clientVersion: normalizeText(source.clientVersion),
+    listenModel: sanitizeModelName(source.listenModel, ""),
+    reviewModel: sanitizeModelName(source.reviewModel, ""),
+    reviewMode: normalizeReviewMode(source.reviewMode),
+    showHeardText: source.showHeardText !== false,
   };
+}
+
+function resolveModelOverride(requestModel, defaultModel, config) {
+  if (!config.allowClientModelOverride) {
+    return sanitizeModelName(defaultModel, defaultModel);
+  }
+  const normalizedRequestModel = sanitizeModelName(requestModel, "");
+  if (!normalizedRequestModel) {
+    return sanitizeModelName(defaultModel, defaultModel);
+  }
+  return normalizedRequestModel;
 }
 
 function computeEffectiveTimeSeconds(request) {
@@ -149,30 +167,6 @@ function computeEffectiveTimeSeconds(request) {
     return Math.max(0, Number.isFinite(diff) ? diff : 0);
   }
   return 0;
-}
-
-function createFallbackComparison(request, listen) {
-  const dialectSame = listen.heardDialectText && listen.heardDialectText === request.platformDialectText;
-  return {
-    verdict: dialectSame ? "same" : "uncertain",
-    shouldReview: true,
-    confidence: 0.6,
-    dialectLine: {
-      decision: dialectSame ? "same" : "uncertain",
-      platformText: request.platformDialectText,
-      aiText: listen.heardDialectText,
-      recommendedText: dialectSame ? request.platformDialectText : listen.heardDialectText,
-      issues: dialectSame ? [] : ["listen_only 模式下未进行二阶段语义对比，请人工复核。"],
-    },
-    mandarinLine: {
-      decision: "uncertain",
-      platformText: request.platformMandarinText,
-      recommendedText: request.platformMandarinText,
-      issues: ["listen_only 模式未覆盖普通话对比，请人工复核。"],
-    },
-    lexiconIssues: [],
-    ruleIssues: [],
-  };
 }
 
 function appendCallLogSafe(record) {
@@ -198,7 +192,8 @@ function buildHealthResponse() {
     mockEnabled: config.mockEnabled,
     hasApiKey: config.hasApiKey,
     listenModel: config.listenModel || DEFAULT_LISTEN_MODEL,
-    compareModel: config.compareModel || DEFAULT_COMPARE_MODEL,
+    reviewModel: config.compareModel || DEFAULT_COMPARE_MODEL,
+    allowClientModelOverride: config.allowClientModelOverride === true,
     timeoutMs: config.timeoutMs,
     pipelineMode: config.pipelineMode,
     lexiconRewriteMode: config.lexiconRewriteMode,
@@ -235,6 +230,17 @@ async function handleReviewCurrent(request, response) {
       throw createHttpError(503, "missing-api-key", "missing-api-key");
     }
 
+    const listenModel = resolveModelOverride(
+      reviewRequest.listenModel,
+      config.listenModel || DEFAULT_LISTEN_MODEL,
+      config
+    );
+    const reviewModel = resolveModelOverride(
+      reviewRequest.reviewModel,
+      config.compareModel || DEFAULT_COMPARE_MODEL,
+      config
+    );
+
     const beforeListenLexicon = buildLexiconContext({
       platformDialectText: reviewRequest.platformDialectText,
       platformMandarinText: reviewRequest.platformMandarinText,
@@ -245,7 +251,7 @@ async function handleReviewCurrent(request, response) {
     const listenStartedAt = Date.now();
     const listenResult = await requestListen(reviewRequest, listenPrompt, {
       timeoutMs: config.timeoutMs,
-      model: config.listenModel,
+      model: listenModel,
     });
     listenDurationMs = Date.now() - listenStartedAt;
 
@@ -258,67 +264,69 @@ async function handleReviewCurrent(request, response) {
       heardDialectText: listen.heardDialectText,
     });
 
-    let comparison = null;
-    let compareUsage = {};
-    let compareModel = config.compareModel;
-    let compareMock = false;
-    if (config.pipelineMode === "listen_only") {
-      comparison = createFallbackComparison(reviewRequest, listen);
-    } else {
-      const comparePrompt = buildComparePrompt(reviewRequest, listen, lexiconContext);
-      const compareStartedAt = Date.now();
-      const compareResult = await requestCompare(
-        {
-          platformDialectText: reviewRequest.platformDialectText,
-          platformMandarinText: reviewRequest.platformMandarinText,
-          heardDialectText: listen.heardDialectText,
-          heardMandarinMeaning: listen.heardMandarinMeaning,
-        },
-        comparePrompt,
-        {
-          timeoutMs: config.timeoutMs,
-          model: config.compareModel,
-        }
-      );
-      compareDurationMs = Date.now() - compareStartedAt;
-      compareModel = compareResult.model || compareModel;
-      compareUsage = compareResult.usage || {};
-      compareMock = compareResult.mock === true;
-      const compareJson = parseModelJsonText(compareResult.rawText, requestId);
-      comparison = normalizeComparisonResponse(compareJson, reviewRequest);
-    }
+    const comparePrompt = buildComparePrompt(reviewRequest, listen, lexiconContext);
+    const compareStartedAt = Date.now();
+    const compareResult = await requestCompare(
+      {
+        platformDialectText: reviewRequest.platformDialectText,
+        platformMandarinText: reviewRequest.platformMandarinText,
+        heardDialectText: listen.heardDialectText,
+        heardMandarinMeaning: listen.heardMandarinMeaning,
+      },
+      comparePrompt,
+      {
+        timeoutMs: config.timeoutMs,
+        model: reviewModel,
+      }
+    );
+    compareDurationMs = Date.now() - compareStartedAt;
+
+    const compareJson = parseModelJsonText(compareResult.rawText, requestId);
+    const ruleFirst = normalizeRuleFirstComparison(compareJson, reviewRequest, listen);
 
     if (!listen.isValidAudio) {
-      comparison.verdict = "invalid_audio";
-      comparison.shouldReview = true;
+      ruleFirst.reviewConclusion = "risky";
+      ruleFirst.shouldReview = true;
+      if (ruleFirst.textRuleCheck.ruleIssues.indexOf("音频无效或不清晰，建议人工复核。") < 0) {
+        ruleFirst.textRuleCheck.ruleIssues.push("音频无效或不清晰，建议人工复核。");
+      }
     }
 
     const effectiveTimeSeconds = computeEffectiveTimeSeconds(reviewRequest);
     const estimatedIncome = estimateIncome(effectiveTimeSeconds);
-
     const listenUsage = normalizeUsage(listenResult.usage);
-    const compareUsageNormalized = normalizeUsage(compareUsage);
+    const compareUsage = normalizeUsage(compareResult.usage);
     const totalDurationMs = Date.now() - startedAtMs;
+
+    const showHeardText = reviewRequest.showHeardText !== false;
+    const heardDialectText = showHeardText ? listen.heardDialectText : "";
+    const heardMandarinMeaning = showHeardText ? listen.heardMandarinMeaning : "";
+
     const responseData = {
       requestId,
-      verdict: normalizeVerdict(comparison.verdict),
-      shouldReview: comparison.shouldReview === true,
+      reviewConclusion: ruleFirst.reviewConclusion,
+      shouldReview: ruleFirst.shouldReview === true,
       effectiveTime: effectiveTimeSeconds,
       estimatedIncome,
-      listen: {
-        heardDialectText: listen.heardDialectText,
-        heardMandarinMeaning: listen.heardMandarinMeaning,
+      platformBaseline: {
+        dialectText: reviewRequest.platformDialectText,
+        mandarinText: reviewRequest.platformMandarinText,
+        gender: reviewRequest?.speaker?.gender || "",
+        ageRange: reviewRequest?.speaker?.ageRange || "",
+      },
+      audioCheck: {
         isValidAudio: listen.isValidAudio,
-        invalidReasons: listen.invalidReasons,
+        validityDecision: listen.validityDecision,
         riskFlags: listen.riskFlags,
+        invalidReasons: listen.invalidReasons,
+        genderGuess: listen.genderGuess,
+        ageRangeGuess: listen.ageRangeGuess,
+        heardDialectText,
+        heardMandarinMeaning,
         confidence: listen.confidence,
       },
-      comparison: {
-        dialectLine: comparison.dialectLine,
-        mandarinLine: comparison.mandarinLine,
-        lexiconIssues: comparison.lexiconIssues,
-        ruleIssues: comparison.ruleIssues,
-      },
+      textRuleCheck: ruleFirst.textRuleCheck,
+      recommendations: ruleFirst.recommendations,
       lexicon: {
         enabled: lexiconContext.enabled,
         status: lexiconContext.status,
@@ -326,22 +334,37 @@ async function handleReviewCurrent(request, response) {
         matches: lexiconContext.matches,
       },
       models: {
-        listenModel: listenResult.model || config.listenModel || DEFAULT_LISTEN_MODEL,
-        compareModel:
-          config.pipelineMode === "listen_only"
-            ? "listen_only"
-            : compareModel || config.compareModel || DEFAULT_COMPARE_MODEL,
+        listenModel: listenResult.model || listenModel || DEFAULT_LISTEN_MODEL,
+        reviewModel: compareResult.model || reviewModel || DEFAULT_COMPARE_MODEL,
+        compareModel: compareResult.model || reviewModel || DEFAULT_COMPARE_MODEL,
       },
       usage: {
         listen: listenUsage,
-        compare: compareUsageNormalized,
+        compare: compareUsage,
       },
       timing: {
         listenDurationMs,
         compareDurationMs,
         totalDurationMs,
       },
-      mock: Boolean(config.mockEnabled || listenResult.mock || compareMock),
+      mock: Boolean(config.mockEnabled || listenResult.mock || compareResult.mock),
+
+      // Legacy compatibility for previous frontend fields.
+      verdict: !listen.isValidAudio ? "invalid_audio" : ruleFirst.legacyComparison.verdict,
+      listen: {
+        heardDialectText,
+        heardMandarinMeaning,
+        isValidAudio: listen.isValidAudio,
+        invalidReasons: listen.invalidReasons,
+        riskFlags: listen.riskFlags,
+        confidence: listen.confidence,
+      },
+      comparison: {
+        dialectLine: ruleFirst.legacyComparison.dialectLine,
+        mandarinLine: ruleFirst.legacyComparison.mandarinLine,
+        lexiconIssues: ruleFirst.legacyComparison.lexiconIssues,
+        ruleIssues: ruleFirst.legacyComparison.ruleIssues,
+      },
     };
 
     appendCallLogSafe({
@@ -354,7 +377,7 @@ async function handleReviewCurrent(request, response) {
       request: reviewRequest,
       response: responseData,
       listenModel: responseData.models.listenModel,
-      compareModel: responseData.models.compareModel,
+      compareModel: responseData.models.reviewModel,
       audioHostname: parseAudioHostname(reviewRequest.audioUrl),
       mock: responseData.mock,
     });

@@ -39,6 +39,22 @@ function parseTimeoutMs() {
   return Math.max(1000, Math.min(300000, value));
 }
 
+function parseBooleanEnv(name, fallback) {
+  const value = String(process.env[name] || "").trim().toLowerCase();
+  if (!value) {
+    return fallback === true;
+  }
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function sanitizeModelName(value, fallback) {
+  const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+  if (!text) {
+    return String(fallback || "").trim();
+  }
+  return text.slice(0, 80);
+}
+
 function inferAudioFormat(audioUrl) {
   let pathname = "";
   try {
@@ -63,10 +79,11 @@ function inferAudioFormat(audioUrl) {
 function getClientConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
-  const listenModel = String(process.env.MAGIC_DATA_AI_LISTEN_MODEL || DEFAULT_LISTEN_MODEL).trim();
-  const compareModel = String(process.env.MAGIC_DATA_AI_COMPARE_MODEL || DEFAULT_COMPARE_MODEL).trim();
+  const listenModel = sanitizeModelName(process.env.MAGIC_DATA_AI_LISTEN_MODEL, DEFAULT_LISTEN_MODEL);
+  const compareModel = sanitizeModelName(process.env.MAGIC_DATA_AI_COMPARE_MODEL, DEFAULT_COMPARE_MODEL);
   const pipelineMode = String(process.env.MAGIC_DATA_AI_PIPELINE_MODE || "two_stage").trim();
   const lexiconRewriteMode = String(process.env.MAGIC_DATA_AI_LEXICON_REWRITE_MODE || "off").trim();
+  const allowClientModelOverride = parseBooleanEnv("MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE", true);
   return {
     apiKey,
     baseUrl,
@@ -77,6 +94,7 @@ function getClientConfig() {
     hasApiKey: Boolean(apiKey),
     pipelineMode: pipelineMode === "listen_only" ? "listen_only" : "two_stage",
     lexiconRewriteMode: lexiconRewriteMode || "off",
+    allowClientModelOverride,
   };
 }
 
@@ -344,7 +362,7 @@ function buildMockCompareResponse(input) {
 
 async function requestListen(input, prompt, options) {
   const config = getClientConfig();
-  const model = String(options?.model || config.listenModel || DEFAULT_LISTEN_MODEL);
+  const model = sanitizeModelName(options?.model, config.listenModel || DEFAULT_LISTEN_MODEL);
   if (config.mockEnabled) {
     return {
       model,
@@ -404,7 +422,7 @@ async function requestListen(input, prompt, options) {
 
 async function requestCompare(input, prompt, options) {
   const config = getClientConfig();
-  const model = String(options?.model || config.compareModel || DEFAULT_COMPARE_MODEL);
+  const model = sanitizeModelName(options?.model, config.compareModel || DEFAULT_COMPARE_MODEL);
   if (config.mockEnabled) {
     return {
       model,
@@ -457,6 +475,7 @@ module.exports = {
   DEFAULT_LISTEN_MODEL,
   getClientConfig,
   inferAudioFormat,
+  sanitizeModelName,
   requestCompare,
   requestListen,
 };

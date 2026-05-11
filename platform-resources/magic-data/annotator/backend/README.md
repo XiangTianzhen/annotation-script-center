@@ -31,14 +31,17 @@
 返回 `success=true`，主体在 `data`：
 
 - `requestId`
-- `verdict`：`same|mostly_same|different|uncertain|invalid_audio`
+- `reviewConclusion`：`pass|need_review|risky|uncertain`
 - `shouldReview`
 - `effectiveTime`、`estimatedIncome`
-- `listen`：听音结果与风险
-- `comparison`：两行对比结果、词表问题、规则问题
+- `platformBaseline`：平台文本与说话人属性基准
+- `audioCheck`：音频有效性、风险、性别年龄辅助判断、听音辅助文本
+- `textRuleCheck`：方言规则、翻译一致性、正字表、标点与属性冲突检查
+- `recommendations`：建议文本与摘要（仅辅助）
 - `lexicon`：词表状态
 - `models`、`usage`、`timing`
 - `mock`
+- 兼容字段：保留 `verdict/listen/comparison` 供旧前端过渡读取
 
 ## 响应体（失败）
 
@@ -61,6 +64,18 @@
 - `MAGIC_DATA_AI_PIPELINE_MODE`（默认 `two_stage`）
 - `MAGIC_DATA_AI_CALL_LOG_DIR`（可选）
 - `MAGIC_DATA_AI_LEXICON_REWRITE_MODE`（默认 `off`）
+- `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE`（默认 `1`，允许请求体覆盖模型名）
+
+## 请求体模型覆盖字段
+
+可选字段：
+
+- `listenModel`
+- `reviewModel`
+- `reviewMode`（`rule_first|listen_assisted|strict_review`）
+- `showHeardText`（默认 `true`）
+
+后端会对模型名做 trim/长度限制与换行清理；当 `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE=0` 时忽略请求体模型，回退环境变量默认模型。
 
 ## 词表文件
 
