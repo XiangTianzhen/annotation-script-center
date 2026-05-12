@@ -1,7 +1,6 @@
 (function () {
   const ROOT_ATTR = "data-asc-magic-data-review-inline";
   const STYLE_ATTR = "data-asc-magic-data-review-inline-style";
-  const FAB_ATTR = "data-asc-magic-data-review-fab";
   const INCOME_PER_EFFECTIVE_HOUR = 120;
 
   function normalizeText(value) {
@@ -62,27 +61,25 @@
     const style = document.createElement("style");
     style.setAttribute(STYLE_ATTR, "true");
     style.textContent = [
-      "[" + ROOT_ATTR + "]{width:100%;margin-top:8px;padding:8px;border:1px solid rgba(91,140,255,.45);border-radius:6px;background:rgba(15,23,42,.92);color:#e5e7eb;font-family:'Microsoft YaHei',sans-serif;font-size:12px;line-height:1.5;max-height:420px;overflow:auto;}",
+      "[" + ROOT_ATTR + "]{width:100%;margin-top:8px;padding:10px;border:1px solid rgba(91,140,255,.45);border-radius:6px;background:rgba(15,23,42,.92);color:#e5e7eb;font-family:'Microsoft YaHei',sans-serif;font-size:12px;line-height:1.5;min-height:260px;max-height:min(520px,calc(100vh - 390px));overflow-y:auto;overflow-x:hidden;}",
       "[" + ROOT_ATTR + "] *{box-sizing:border-box;}",
       "[" + ROOT_ATTR + "] .md-inline-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;border-bottom:1px solid #334155;padding-bottom:8px;margin-bottom:8px;}",
       "[" + ROOT_ATTR + "] .md-inline-title{font-size:13px;font-weight:700;color:#f8fafc;}",
-      "[" + ROOT_ATTR + "] .md-inline-sub{font-size:12px;color:#94a3b8;margin-top:4px;}",
+      "[" + ROOT_ATTR + "] .md-inline-sub{font-size:12px;color:#94a3b8;margin-top:2px;line-height:1.45;}",
       "[" + ROOT_ATTR + "] .md-inline-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}",
-      "[" + ROOT_ATTR + "] .md-inline-grid{display:grid;grid-template-columns:96px 1fr;gap:4px 8px;font-size:12px;}",
+      "[" + ROOT_ATTR + "] .md-inline-grid{display:grid;grid-template-columns:92px 1fr;gap:3px 8px;font-size:12px;line-height:1.45;}",
       "[" + ROOT_ATTR + "] .md-k{color:#94a3b8;font-weight:700;}",
       "[" + ROOT_ATTR + "] .md-v{white-space:pre-wrap;word-break:break-word;}",
-      "[" + ROOT_ATTR + "] .md-block{border:1px solid #334155;border-radius:6px;padding:8px;background:#111827;margin-bottom:8px;}",
-      "[" + ROOT_ATTR + "] .md-block-title{font-size:12px;font-weight:700;color:#cbd5e1;margin-bottom:8px;}",
-      "[" + ROOT_ATTR + "] .md-inline-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:8px;}",
+      "[" + ROOT_ATTR + "] .md-block{border:1px solid #334155;border-radius:6px;padding:7px;background:#111827;margin-bottom:7px;}",
+      "[" + ROOT_ATTR + "] .md-block-title{font-size:12px;font-weight:700;color:#cbd5e1;margin-bottom:6px;}",
+      "[" + ROOT_ATTR + "] .md-inline-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:7px;}",
       "[" + ROOT_ATTR + "] button{border:1px solid #475569;border-radius:6px;padding:6px 8px;background:#1e293b;color:#e2e8f0;font-size:12px;cursor:pointer;}",
       "[" + ROOT_ATTR + "] button:hover{background:#334155;}",
       "[" + ROOT_ATTR + "] button:disabled{opacity:.55;cursor:not-allowed;}",
       "[" + ROOT_ATTR + "] .md-primary{background:#0ea5e9;border-color:#0ea5e9;color:#f8fafc;font-weight:700;}",
       "[" + ROOT_ATTR + "] .md-message{font-size:12px;border:1px solid #334155;background:#172554;color:#bfdbfe;border-radius:8px;padding:8px;}",
-      "[" + ROOT_ATTR + "] .md-safe{font-size:12px;color:#fdba74;border:1px solid #7c2d12;background:#431407;border-radius:8px;padding:8px;}",
+      "[" + ROOT_ATTR + "] .md-safe{font-size:11px;line-height:1.4;color:#fdba74;border:1px solid #7c2d12;background:#431407;border-radius:6px;padding:6px 7px;}",
       "[" + ROOT_ATTR + "] .md-empty{font-size:12px;color:#94a3b8;}",
-      "[" + FAB_ATTR + "]{position:fixed;right:24px;bottom:24px;z-index:2147483647;border:1px solid #0ea5e9;border-radius:999px;background:#0f172a;color:#67e8f9;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 10px 28px rgba(2,6,23,.4);}",
-      "[" + FAB_ATTR + "]:hover{background:#1e293b;}",
       "@media (max-width: 900px){[" + ROOT_ATTR + "] .md-inline-buttons{grid-template-columns:repeat(2,minmax(0,1fr));}}",
     ].join("");
     (document.head || document.documentElement).appendChild(style);
@@ -169,7 +166,6 @@
     };
 
     let root = null;
-    let fab = null;
     let messageNode = null;
     let summaryNode = null;
     let platformNode = null;
@@ -512,24 +508,6 @@
       renderSummary(latestSnapshot || {}, latestBackend);
     }
 
-    function ensureFab() {
-      if (fab && document.documentElement && document.documentElement.contains(fab)) {
-        return fab;
-      }
-      fab = document.createElement("button");
-      fab.type = "button";
-      fab.textContent = "AI 质检";
-      fab.setAttribute(FAB_ATTR, "true");
-      fab.addEventListener("click", function () {
-        const node = ensureMounted();
-        if (node && typeof node.scrollIntoView === "function") {
-          node.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      });
-      (document.body || document.documentElement).appendChild(fab);
-      return fab;
-    }
-
     function mountInlineRoot(nextRoot) {
       const moved = ensureRootPlacement(nextRoot);
       if (!moved) {
@@ -540,14 +518,12 @@
     function ensureMounted() {
       if (root && document.documentElement && document.documentElement.contains(root)) {
         ensureRootPlacement(root);
-        ensureFab();
         return root;
       }
       const existing = document.querySelector("[" + ROOT_ATTR + "], [data-asc-magic-data-review-inline='true']");
       if (existing && existing instanceof HTMLElement) {
         root = existing;
         ensureRootPlacement(root);
-        ensureFab();
         return root;
       }
       ensureStyle();
@@ -653,7 +629,6 @@
       root.appendChild(safe);
 
       mountInlineRoot(root);
-      ensureFab();
       renderSummary(latestSnapshot || {}, latestBackend);
       renderPlatform(latestSnapshot || {});
       renderResult(latestResult);
@@ -665,11 +640,7 @@
       if (root) {
         root.remove();
       }
-      if (fab) {
-        fab.remove();
-      }
       root = null;
-      fab = null;
       messageNode = null;
       summaryNode = null;
       platformNode = null;
