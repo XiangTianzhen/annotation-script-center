@@ -2,6 +2,10 @@
   const ROOT_ATTR = "data-asc-magic-data-review-inline";
   const STYLE_ATTR = "data-asc-magic-data-review-inline-style";
   const INCOME_PER_EFFECTIVE_HOUR = 120;
+  const PANEL_HEIGHT_STORAGE_KEY = "scriptCenter.magicDataAnnotator.panelHeight";
+  const DEFAULT_PANEL_HEIGHT = 420;
+  const MIN_PANEL_HEIGHT = 260;
+  const RESIZE_BODY_CLASS = "asc-magic-data-review-resizing";
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -54,6 +58,50 @@
     return button;
   }
 
+  function getDynamicMaxPanelHeight() {
+    const viewportHeight = Number(window.innerHeight || 0);
+    const computed = Math.floor(viewportHeight - 320);
+    return Math.max(MIN_PANEL_HEIGHT, computed);
+  }
+
+  function clampPanelHeight(value) {
+    const numericValue = Number(value);
+    const fallback = DEFAULT_PANEL_HEIGHT;
+    const resolved = Number.isFinite(numericValue) ? numericValue : fallback;
+    const rounded = Math.round(resolved);
+    return Math.max(MIN_PANEL_HEIGHT, Math.min(getDynamicMaxPanelHeight(), rounded));
+  }
+
+  function loadStoredPanelHeight() {
+    return new Promise(function (resolve) {
+      if (!chrome?.storage?.local) {
+        resolve(null);
+        return;
+      }
+      chrome.storage.local.get([PANEL_HEIGHT_STORAGE_KEY], function (result) {
+        if (chrome.runtime?.lastError) {
+          resolve(null);
+          return;
+        }
+        resolve(clampPanelHeight(result?.[PANEL_HEIGHT_STORAGE_KEY]));
+      });
+    });
+  }
+
+  function saveStoredPanelHeight(panelHeight) {
+    return new Promise(function (resolve) {
+      if (!chrome?.storage?.local) {
+        resolve(false);
+        return;
+      }
+      const payload = {};
+      payload[PANEL_HEIGHT_STORAGE_KEY] = clampPanelHeight(panelHeight);
+      chrome.storage.local.set(payload, function () {
+        resolve(!chrome.runtime?.lastError);
+      });
+    });
+  }
+
   function ensureStyle() {
     if (document.querySelector("style[" + STYLE_ATTR + "]")) {
       return;
@@ -61,12 +109,13 @@
     const style = document.createElement("style");
     style.setAttribute(STYLE_ATTR, "true");
     style.textContent = [
-      "[" + ROOT_ATTR + "]{width:100%;margin-top:8px;padding:10px;border:1px solid rgba(91,140,255,.45);border-radius:6px;background:rgba(15,23,42,.92);color:#e5e7eb;font-family:'Microsoft YaHei',sans-serif;font-size:12px;line-height:1.5;min-height:260px;max-height:min(520px,calc(100vh - 390px));overflow-y:auto;overflow-x:hidden;}",
+      "[" + ROOT_ATTR + "]{width:100%;margin-top:8px;padding:10px;border:1px solid rgba(91,140,255,.45);border-radius:6px;background:rgba(15,23,42,.92);color:#e5e7eb;font-family:'Microsoft YaHei',sans-serif;font-size:12px;line-height:1.5;height:var(--asc-magic-data-review-height,420px);min-height:260px;max-height:calc(100vh - 320px);overflow:hidden;display:flex;flex-direction:column;}",
       "[" + ROOT_ATTR + "] *{box-sizing:border-box;}",
       "[" + ROOT_ATTR + "] .md-inline-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;border-bottom:1px solid #334155;padding-bottom:8px;margin-bottom:8px;}",
       "[" + ROOT_ATTR + "] .md-inline-title{font-size:13px;font-weight:700;color:#f8fafc;}",
       "[" + ROOT_ATTR + "] .md-inline-sub{font-size:12px;color:#94a3b8;margin-top:2px;line-height:1.45;}",
       "[" + ROOT_ATTR + "] .md-inline-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}",
+      "[" + ROOT_ATTR + "] .asc-magic-data-review-body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:2px;}",
       "[" + ROOT_ATTR + "] .md-inline-grid{display:grid;grid-template-columns:92px 1fr;gap:3px 8px;font-size:12px;line-height:1.45;}",
       "[" + ROOT_ATTR + "] .md-k{color:#94a3b8;font-weight:700;}",
       "[" + ROOT_ATTR + "] .md-v{white-space:pre-wrap;word-break:break-word;}",
@@ -79,7 +128,10 @@
       "[" + ROOT_ATTR + "] .md-primary{background:#0ea5e9;border-color:#0ea5e9;color:#f8fafc;font-weight:700;}",
       "[" + ROOT_ATTR + "] .md-message{font-size:12px;border:1px solid #334155;background:#172554;color:#bfdbfe;border-radius:8px;padding:8px;}",
       "[" + ROOT_ATTR + "] .md-safe{font-size:11px;line-height:1.4;color:#fdba74;border:1px solid #7c2d12;background:#431407;border-radius:6px;padding:6px 7px;}",
+      "[" + ROOT_ATTR + "] .asc-magic-data-review-resize-handle{height:8px;flex:0 0 auto;margin-top:8px;border-top:1px solid rgba(91,140,255,.25);background:rgba(148,163,184,.12);cursor:ns-resize;}",
+      "[" + ROOT_ATTR + "] .asc-magic-data-review-resize-handle:hover{background:rgba(91,140,255,.25);}",
       "[" + ROOT_ATTR + "] .md-empty{font-size:12px;color:#94a3b8;}",
+      "body." + RESIZE_BODY_CLASS + "{user-select:none!important;cursor:ns-resize!important;}",
       "@media (max-width: 900px){[" + ROOT_ATTR + "] .md-inline-buttons{grid-template-columns:repeat(2,minmax(0,1fr));}}",
     ].join("");
     (document.head || document.documentElement).appendChild(style);
@@ -166,6 +218,8 @@
     };
 
     let root = null;
+    let bodyScrollNode = null;
+    let resizeHandleNode = null;
     let messageNode = null;
     let summaryNode = null;
     let platformNode = null;
@@ -174,6 +228,10 @@
     let latestSnapshot = {};
     let latestBackend = null;
     let latestResult = null;
+    let currentPanelHeight = clampPanelHeight(DEFAULT_PANEL_HEIGHT);
+    let panelHeightHydrated = false;
+    let dragState = null;
+    let viewportResizeBound = false;
     let runtimeSettings = Object.assign({}, runtimeSettingsDefault);
 
     const buttons = {
@@ -183,7 +241,89 @@
       fillDialect: null,
       fillMandarin: null,
       ignore: null,
+      resetHeight: null,
     };
+
+    function applyPanelHeight(nextHeight) {
+      currentPanelHeight = clampPanelHeight(nextHeight);
+      if (root instanceof HTMLElement) {
+        root.style.setProperty("--asc-magic-data-review-height", String(currentPanelHeight) + "px");
+      }
+    }
+
+    async function persistPanelHeight(nextHeight) {
+      const saveOk = await saveStoredPanelHeight(nextHeight);
+      if (!saveOk && typeof console !== "undefined" && typeof console.info === "function") {
+        console.info("[MagicData][AI Review] panel height persistence failed");
+      }
+    }
+
+    function setResizingActive(active) {
+      const body = document.body;
+      if (!body) {
+        return;
+      }
+      body.classList.toggle(RESIZE_BODY_CLASS, active === true);
+    }
+
+    function onResizeMove(event) {
+      if (!dragState) {
+        return;
+      }
+      const nextHeight = dragState.startHeight + (event.clientY - dragState.startY);
+      applyPanelHeight(nextHeight);
+    }
+
+    function stopResizeDrag(shouldPersist) {
+      if (!dragState) {
+        return;
+      }
+      window.removeEventListener("mousemove", onResizeMove, true);
+      window.removeEventListener("mouseup", onResizeUp, true);
+      setResizingActive(false);
+      dragState = null;
+      if (shouldPersist) {
+        void persistPanelHeight(currentPanelHeight);
+      }
+    }
+
+    function onResizeUp() {
+      stopResizeDrag(true);
+    }
+
+    function startResizeDrag(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      dragState = {
+        startY: Number(event.clientY || 0),
+        startHeight: currentPanelHeight,
+      };
+      setResizingActive(true);
+      window.addEventListener("mousemove", onResizeMove, true);
+      window.addEventListener("mouseup", onResizeUp, true);
+    }
+
+    function ensurePanelHeightHydrated() {
+      if (panelHeightHydrated) {
+        return;
+      }
+      panelHeightHydrated = true;
+      void loadStoredPanelHeight().then(function (storedHeight) {
+        applyPanelHeight(storedHeight === null ? DEFAULT_PANEL_HEIGHT : storedHeight);
+      });
+    }
+
+    function handleViewportResize() {
+      applyPanelHeight(currentPanelHeight);
+    }
+
+    function ensureViewportResizeListener() {
+      if (viewportResizeBound) {
+        return;
+      }
+      viewportResizeBound = true;
+      window.addEventListener("resize", handleViewportResize, { passive: true });
+    }
 
     function setMessage(text) {
       if (messageNode) {
@@ -213,6 +353,9 @@
       }
       if (buttons.ignore) {
         buttons.ignore.disabled = loading || !hasResult;
+      }
+      if (buttons.resetHeight) {
+        buttons.resetHeight.disabled = loading;
       }
     }
 
@@ -518,18 +661,18 @@
     function ensureMounted() {
       if (root && document.documentElement && document.documentElement.contains(root)) {
         ensureRootPlacement(root);
+        applyPanelHeight(currentPanelHeight);
         return root;
       }
       const existing = document.querySelector("[" + ROOT_ATTR + "], [data-asc-magic-data-review-inline='true']");
       if (existing && existing instanceof HTMLElement) {
-        root = existing;
-        ensureRootPlacement(root);
-        return root;
+        existing.remove();
       }
       ensureStyle();
       root = document.createElement("section");
       root.setAttribute(ROOT_ATTR, "true");
       root.setAttribute("data-asc-magic-data-review-inline", "true");
+      root.className = "asc-magic-data-review-inline";
 
       const head = document.createElement("div");
       head.className = "md-inline-head";
@@ -553,11 +696,21 @@
       buttons.review.addEventListener("click", function () {
         void triggerReview();
       });
+      buttons.resetHeight = createButton("重置高度");
+      buttons.resetHeight.addEventListener("click", function () {
+        applyPanelHeight(DEFAULT_PANEL_HEIGHT);
+        void persistPanelHeight(DEFAULT_PANEL_HEIGHT);
+        setMessage("卡片高度已重置为默认值。");
+      });
       headActions.appendChild(buttons.refresh);
       headActions.appendChild(buttons.review);
+      headActions.appendChild(buttons.resetHeight);
       head.appendChild(headText);
       head.appendChild(headActions);
       root.appendChild(head);
+
+      bodyScrollNode = document.createElement("div");
+      bodyScrollNode.className = "asc-magic-data-review-body";
 
       const summaryBlock = document.createElement("div");
       summaryBlock.className = "md-block";
@@ -568,7 +721,7 @@
       summaryNode.className = "md-inline-grid";
       summaryBlock.appendChild(summaryTitle);
       summaryBlock.appendChild(summaryNode);
-      root.appendChild(summaryBlock);
+      bodyScrollNode.appendChild(summaryBlock);
 
       const platformBlock = document.createElement("div");
       platformBlock.className = "md-block";
@@ -579,7 +732,7 @@
       platformNode.className = "md-inline-grid";
       platformBlock.appendChild(platformTitle);
       platformBlock.appendChild(platformNode);
-      root.appendChild(platformBlock);
+      bodyScrollNode.appendChild(platformBlock);
 
       const actions = document.createElement("div");
       actions.className = "md-inline-buttons";
@@ -606,12 +759,12 @@
       actions.appendChild(buttons.fillDialect);
       actions.appendChild(buttons.fillMandarin);
       actions.appendChild(buttons.ignore);
-      root.appendChild(actions);
+      bodyScrollNode.appendChild(actions);
 
       messageNode = document.createElement("div");
       messageNode.className = "md-message";
       messageNode.textContent = "就绪。";
-      root.appendChild(messageNode);
+      bodyScrollNode.appendChild(messageNode);
 
       const resultBlock = document.createElement("div");
       resultBlock.className = "md-block";
@@ -621,14 +774,25 @@
       resultNode = document.createElement("div");
       resultBlock.appendChild(resultTitle);
       resultBlock.appendChild(resultNode);
-      root.appendChild(resultBlock);
+      bodyScrollNode.appendChild(resultBlock);
 
       const safe = document.createElement("div");
       safe.className = "md-safe";
       safe.textContent = "AI 仅辅助复核，不会自动保存、提交、审核或领取任务。";
-      root.appendChild(safe);
+      bodyScrollNode.appendChild(safe);
+
+      root.appendChild(bodyScrollNode);
+
+      resizeHandleNode = document.createElement("div");
+      resizeHandleNode.className = "asc-magic-data-review-resize-handle";
+      resizeHandleNode.title = "拖拽调整高度";
+      resizeHandleNode.addEventListener("mousedown", startResizeDrag);
+      root.appendChild(resizeHandleNode);
 
       mountInlineRoot(root);
+      ensurePanelHeightHydrated();
+      ensureViewportResizeListener();
+      applyPanelHeight(currentPanelHeight);
       renderSummary(latestSnapshot || {}, latestBackend);
       renderPlatform(latestSnapshot || {});
       renderResult(latestResult);
@@ -637,10 +801,18 @@
     }
 
     function remove() {
+      stopResizeDrag(false);
+      setResizingActive(false);
       if (root) {
         root.remove();
       }
       root = null;
+      bodyScrollNode = null;
+      resizeHandleNode = null;
+      if (viewportResizeBound) {
+        window.removeEventListener("resize", handleViewportResize);
+        viewportResizeBound = false;
+      }
       messageNode = null;
       summaryNode = null;
       platformNode = null;
@@ -671,6 +843,7 @@
         return;
       }
       runtimeSettings = Object.assign({}, runtimeSettingsDefault, settings);
+      applyPanelHeight(currentPanelHeight);
       renderSummary(latestSnapshot || {}, latestBackend);
       if (latestResult) {
         renderResult(latestResult);
