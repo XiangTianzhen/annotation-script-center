@@ -643,7 +643,8 @@ location / {
 - 当前项目为单人维护项目。
 - 执行类任务验证通过后默认 `git add` / `git commit` / `git push` 到 `main`。
 - 只读审计、验证失败、用户明确禁止提交时不提交。
-- 默认不创建分支、不创建 PR。
+- 默认不创建分支、不创建独立 worktree、不创建 PR。
+- 只有用户明确要求“开分支 / 独立 worktree / 不改 main / 开 PR / 并行开发”时，才切换到分支协作流程。
 - Codex push 后默认由网页端指挥 AI 直接通过 GitHub 验收。
 - 复杂任务优先使用 subagent / parallel agents。
 - 所有 Markdown 文档使用中文。

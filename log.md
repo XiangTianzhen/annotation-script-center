@@ -1,5 +1,15 @@
 # 标注脚本中心修改日志
 
+## 2026-05-12（协作规则收口：默认 main 单工作区）
+
+- `AGENTS.md` Git 工作流改为“默认 `main` 单工作区开发”：默认不建分支、不建独立 worktree、不建 PR。
+- 新增默认暗号体系：`ASC_MAIN_TASK`、`ASC_MAIN_HOTFIX`、`ASC_RELEASE`、`ASC_BRANCH_TASK`、`ASC_READONLY`、`ASC_ABORT_IF_DIRTY`。
+- `ASC_NEW_BRANCH` / `ASC_CONTINUE_BRANCH` / `ASC_RELEASE_MERGE` 保留为历史兼容识别，明确“不再作为默认流程”。
+- `AGENTS.md` 并行开发口径调整为“仅在用户明确要求时启用分支 + worktree”，并要求声明目录、白名单、禁止范围、push 目标。
+- `AGENTS.md` Prompt 必备字段更新：补充当前工作目录、当前分支、是否允许创建分支、是否允许直接改 main、是否允许生成 CRX、文件白名单与 push 目标分支。
+- `AGENTS.md` 新增 Magic Data 稳定口径（脚本/后端路径、页面挂载位置、规则优先质检、收益估算和安全边界）。
+- `README.md` 维护规则最小同步：默认不创建独立 worktree，仅在用户明确要求时使用分支/worktree/PR 流程。
+
 ## 2026-05-12（0.3.1 发布合并：Magic Data AI 质检助手）
 
 - 发布合并：`main` 合并 `feature/magic-data-ai-review-debug`，引入 Magic Data ANNOTATOR 前后端能力。

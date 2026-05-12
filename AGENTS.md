@@ -17,42 +17,38 @@
 
 - 当前项目为单人维护项目。
 - 执行类任务默认按网页端 Prompt 的任务暗号决定 Git 策略。
-- 没有明确暗号时，新功能、并行功能、跨模块改动默认使用独立分支。
-- 小修、当前版本 BUG 修复、单模块任务可直接在 `main` 执行。
-- 文档收尾任务可直接在 `main` 执行。
-- 新功能、并行功能、跨模块改动默认使用独立分支，不直接在 `main` 并行开发。
-- 新对话开启的新需求通常视为新分支任务。
-- 同一对话中继续追问、修 bug、优化细节通常视为继续当前分支任务。
+- 默认在 `main` 单工作区执行任务（包含新功能、小修、文档任务）。
+- 默认不创建分支。
+- 默认不创建独立 `worktree`。
 - 默认不创建 Pull Request。
-- 只有用户明确要求“开分支 / 开 PR / 不直接改 main”时，才允许走分支或 PR。
-- 用户明确要求直接改 `main` 时，以用户要求为准。
-- 执行类任务验证通过后，按任务暗号和目标分支执行 `git add` / `git commit` / `git push`。
+- Codex 执行前必须确认目录为 `C:\Projects\annotation-script-center`，当前分支为 `main`。
+- 如果目录不符、分支不符、存在无关改动，必须按 `ASC_ABORT_IF_DIRTY` 立即停止并报告，不得强行继续。
+- 只有用户明确要求“开分支 / 独立 worktree / 不改 main / 开 PR / 并行开发”时，才允许走分支或 PR 流程。
+- 执行类任务验证通过后，默认执行 `git add` / `git commit` / `git push origin main`。
 - 只读审计任务不提交。
 - 验证失败不提交、不 push。
 - 用户明确说“不要提交”时不提交。
-- 如果当前分支与任务暗号或目标分支不符，必须停止并报告，不得擅自切换分支继续。
-- `ASC_CONTINUE_BRANCH` 必须留在目标功能分支执行。
-- `ASC_RELEASE_MERGE` 才允许回到 `main` 做发布合并。
+- 如果当前分支与任务暗号或目标分支不符，必须停止并报告，不得擅自切换后继续。
 
 ### 任务暗号规则
 
 - Codex 不能读取网页端历史对话；每次 Codex Prompt 必须带任务暗号。
 - Codex 必须按任务暗号执行 Git 策略，不得自行切换为其他流程。
 - `ASC_READONLY`：只读审计，不得修改、提交、push。
-- `ASC_NEW_BRANCH`：新功能 / 新需求，从最新 `main` 创建独立分支，不直接改 `main`。
-- `ASC_CONTINUE_BRANCH`：继续当前功能分支，不得切回 `main` 直接改。
+- `ASC_MAIN_TASK`：默认执行类任务。必须在 `main` 执行，验证通过后 commit 并 push 到 `main`。
 - `ASC_MAIN_HOTFIX`：明确允许直接修 `main`，仅用于小修、当前版本 BUG、文档收尾或用户明确要求。
-- `ASC_RELEASE_MERGE`：发布合并，将已验收分支合并 `main`，提升 patch，生成 CRX 三件套，打 tag。
+- `ASC_RELEASE`：正式发布。提升版本号、生成 CRX 三件套、打 tag、push `main` 与 tag。
+- `ASC_BRANCH_TASK`：仅用户明确要求分支时使用。创建或继续指定分支，不直接改 `main`。
 - `ASC_ABORT_IF_DIRTY`：工作区有无关改动或分支不符时停止并报告。
+- 历史兼容暗号：`ASC_NEW_BRANCH`、`ASC_CONTINUE_BRANCH`、`ASC_RELEASE_MERGE` 保留识别，但不再作为默认流程。
 
 ### 并行功能开发与动态版本号规则
 
 - 多个功能并行时，不提前占用具体版本号。
-- 并行任务默认使用独立分支（例如 `feature/<功能名>`、`fix/<修复名>`）。
-- 并行任务必须使用独立 `worktree` 或独立工作目录。
-- 禁止多个 Agent 同时在同一个 `main` 工作区修改。
-- 并行任务必须在开始前声明文件白名单和禁止修改范围。
-- 并行任务必须明确 push 目标分支。
+- 默认不使用并行分支或独立 `worktree`。
+- 只有用户明确要求并行开发时，才允许创建独立分支和独立 `worktree`。
+- 并行开发启用时，必须声明：工作目录、目标分支、文件白名单、禁止修改范围、push 目标分支。
+- 并行开发不得影响 `main` 工作区。
 - 功能分支开发期间默认不修改：
   - `extension/manifest.json`
   - `dist/*`
@@ -64,7 +60,7 @@
 - 后完成的功能必须先同步最新 `main`，再作为下一个 patch 版本发布。
 - 功能分支不得直接生成正式 CRX 三件套；正式 CRX 只在合并 `main` 的发布阶段生成。
 - 每次发布到 `main` 后应打 tag（例如 `v0.3.1`）。
-- 谁先完成并通过验收，谁先进入 `ASC_RELEASE_MERGE`。
+- 谁先完成并通过验收，谁先进入 `ASC_RELEASE`。
 
 ### subagent / parallel agents 使用规则
 
@@ -297,7 +293,8 @@
 - 执行类任务必须按网页端 Prompt 的任务暗号与目标分支执行 commit/push。
 - 只读审计任务不得修改、不得提交、不得 push。
 - 验证失败不得 commit / push。
-- 新功能、新需求、并行功能、跨模块改动默认使用独立分支；小修、当前版本 BUG、单模块任务、文档收尾可按 `ASC_MAIN_HOTFIX` 直接在 `main` 执行。
+- 默认执行类任务在 `main` 单工作区执行（可用 `ASC_MAIN_TASK` 或 `ASC_MAIN_HOTFIX`）。
+- 仅当用户明确要求“开分支 / 独立 worktree / 并行开发 / 不改 main”时，才使用 `ASC_BRANCH_TASK`。
 - 默认不创建 PR；仅当用户明确要求时才创建 PR。
 
 ### 2) 核心目录（固定认知）
@@ -340,6 +337,18 @@
 - ASR 转写不做时间戳、说话人区分、AI 初稿/校对/格式化/标点、强制保存、自定义保存 payload、自动提交/领取/流转/跳转、整页受控执行、全页批量修改。
 - ASR 转写统计取数以 `platform-resources/alibaba-labelx/asr-transcription/network.md` 为准，不得套用快判 `pageSize=400` 逻辑。
 - 标贝易采 group/detail 导出必须保留本地下载，同时自动上传统一后端；上传失败不得阻断本地下载。
+- Magic Data ANNOTATOR 稳定口径：
+  - 扩展脚本路径：`extension/sites/magic-data/annotator/`
+  - 后端路径：`platform-resources/magic-data/annotator/backend/`
+  - 目标页面：`https://work.magicdatatech.com/#/asrmark?...`
+  - AI 质检结果区挂载在右侧“句子列表”下方（`.audio_list` 区域）。
+  - 平台已有两行文本视为基准答案，AI 只做规则质检和风险提示。
+  - 听音模型主要用于音频有效性、性别、年龄和粗略听音辅助判断。
+  - 质检模型主要检查标注规则、正字表、翻译一致性、标点和人工复核风险。
+  - 有效时长只按“有效句子时长”计算，不按音频总时长计算。
+  - 收益估算：`有效秒数 / 3600 * 120`。
+  - 保存/提交/性别/年龄快捷键仅允许用户主动触发。
+  - 不自动保存、不自动提交、不自动审核、不自动领取。
 - AI 建议/推荐文本属于辅助能力，不自动保存、不自动提交、不自动领取、不自动流转。
 - 标贝易采“填入推荐文本”必须由用户主动点击或快捷键触发。
 - 快判 AI 建议必须人工确认，不得绕过雷题或平台限制。
@@ -373,20 +382,36 @@
 
 每次输出 Codex 执行 Prompt，必须包含：
 
+- 任务暗号
 - 当前阶段判断
 - 推荐模型
 - 推荐推理强度
 - 是否使用 subagent / parallel agents
+- 当前工作目录
+- 当前分支
+- 是否允许创建分支
+- 是否允许直接改 main
+- 是否允许生成 CRX
 - 任务目标
 - 修改范围
+- 文件白名单
 - 不允许修改的内容
 - 验证命令
 - 验收标准
 - 是否自动提交
 - commit message
-- 必须 push 到 main
+- push 目标分支
 - 验证失败不得 commit / push
-- 并行开发场景必须额外包含：当前分支、工作目录（或 worktree）、文件白名单、禁止修改范围、push 目标分支。
+
+默认执行口径（未被用户显式覆盖时）：
+
+- 当前工作目录：`C:\Projects\annotation-script-center`
+- 当前分支：`main`
+- 是否允许创建分支：否
+- 是否允许直接改 main：是
+- push 目标分支：`main`
+
+并行开发场景必须额外包含：独立工作目录（或 `worktree`）、文件白名单、禁止修改范围、push 目标分支。
 
 ### 7) 验收规则
 
