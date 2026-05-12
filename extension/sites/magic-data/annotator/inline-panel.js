@@ -62,19 +62,19 @@
     const style = document.createElement("style");
     style.setAttribute(STYLE_ATTR, "true");
     style.textContent = [
-      "[" + ROOT_ATTR + "]{margin:16px 0 6px;padding:14px;border:1px solid #334155;border-radius:10px;background:#0f172a;color:#e2e8f0;font-family:'Microsoft YaHei',sans-serif;line-height:1.55;}",
+      "[" + ROOT_ATTR + "]{width:100%;margin-top:8px;padding:8px;border:1px solid rgba(91,140,255,.45);border-radius:6px;background:rgba(15,23,42,.92);color:#e5e7eb;font-family:'Microsoft YaHei',sans-serif;font-size:12px;line-height:1.5;max-height:420px;overflow:auto;}",
       "[" + ROOT_ATTR + "] *{box-sizing:border-box;}",
-      "[" + ROOT_ATTR + "] .md-inline-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid #334155;padding-bottom:10px;margin-bottom:12px;}",
-      "[" + ROOT_ATTR + "] .md-inline-title{font-size:16px;font-weight:700;color:#f8fafc;}",
+      "[" + ROOT_ATTR + "] .md-inline-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;border-bottom:1px solid #334155;padding-bottom:8px;margin-bottom:8px;}",
+      "[" + ROOT_ATTR + "] .md-inline-title{font-size:13px;font-weight:700;color:#f8fafc;}",
       "[" + ROOT_ATTR + "] .md-inline-sub{font-size:12px;color:#94a3b8;margin-top:4px;}",
-      "[" + ROOT_ATTR + "] .md-inline-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}",
-      "[" + ROOT_ATTR + "] .md-inline-grid{display:grid;grid-template-columns:128px 1fr;gap:6px 10px;font-size:12px;}",
+      "[" + ROOT_ATTR + "] .md-inline-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}",
+      "[" + ROOT_ATTR + "] .md-inline-grid{display:grid;grid-template-columns:96px 1fr;gap:4px 8px;font-size:12px;}",
       "[" + ROOT_ATTR + "] .md-k{color:#94a3b8;font-weight:700;}",
       "[" + ROOT_ATTR + "] .md-v{white-space:pre-wrap;word-break:break-word;}",
-      "[" + ROOT_ATTR + "] .md-block{border:1px solid #334155;border-radius:8px;padding:10px;background:#111827;margin-bottom:10px;}",
+      "[" + ROOT_ATTR + "] .md-block{border:1px solid #334155;border-radius:6px;padding:8px;background:#111827;margin-bottom:8px;}",
       "[" + ROOT_ATTR + "] .md-block-title{font-size:12px;font-weight:700;color:#cbd5e1;margin-bottom:8px;}",
-      "[" + ROOT_ATTR + "] .md-inline-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;}",
-      "[" + ROOT_ATTR + "] button{border:1px solid #475569;border-radius:8px;padding:8px 10px;background:#1e293b;color:#e2e8f0;font-size:12px;cursor:pointer;}",
+      "[" + ROOT_ATTR + "] .md-inline-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:8px;}",
+      "[" + ROOT_ATTR + "] button{border:1px solid #475569;border-radius:6px;padding:6px 8px;background:#1e293b;color:#e2e8f0;font-size:12px;cursor:pointer;}",
       "[" + ROOT_ATTR + "] button:hover{background:#334155;}",
       "[" + ROOT_ATTR + "] button:disabled{opacity:.55;cursor:not-allowed;}",
       "[" + ROOT_ATTR + "] .md-primary{background:#0ea5e9;border-color:#0ea5e9;color:#f8fafc;font-weight:700;}",
@@ -89,34 +89,34 @@
   }
 
   function findInlineMountTarget() {
-    const tableLike = Array.from(document.querySelectorAll("table, .el-table, [class*='table'], [class*='mark']"));
-    const directHit = tableLike.find(function (node) {
-      const text = normalizeText(node.textContent || "");
-      return text.indexOf("说话内容") >= 0 && text.indexOf("截取时长") >= 0;
-    });
-    if (directHit && directHit.parentElement) {
+    const audioList = document.querySelector(".audio_list");
+    const audioBodyBox = audioList?.querySelector(".body_box");
+    if (audioList && audioBodyBox && audioBodyBox.parentElement) {
       return {
-        anchor: directHit,
+        anchor: audioBodyBox,
         mode: "after",
       };
     }
 
-    const contentAnchor = Array.from(document.querySelectorAll("div,section,article"))
-      .find(function (node) {
-        const text = normalizeText(node.textContent || "");
-        return text.indexOf("说话内容") >= 0 && text.indexOf("句子列表") >= 0;
-      });
-    if (contentAnchor && contentAnchor.parentElement) {
+    if (audioList) {
       return {
-        anchor: contentAnchor,
-        mode: "after",
+        anchor: audioList,
+        mode: "append",
       };
     }
 
-    const mainArea = document.querySelector("main, #app, .app-main, .layout-content, [class*='content']");
-    if (mainArea) {
+    const entiretyBody = document.querySelector(".entirety_body");
+    if (entiretyBody) {
       return {
-        anchor: mainArea,
+        anchor: entiretyBody,
+        mode: "append",
+      };
+    }
+
+    const textContainer = document.querySelector(".text-container");
+    if (textContainer) {
+      return {
+        anchor: textContainer,
         mode: "append",
       };
     }
@@ -125,6 +125,34 @@
       anchor: document.body || document.documentElement,
       mode: "append",
     };
+  }
+
+  function ensureRootPlacement(node) {
+    if (!(node instanceof HTMLElement)) {
+      return false;
+    }
+    const target = findInlineMountTarget();
+    if (!target || !target.anchor) {
+      return false;
+    }
+    if (target.mode === "after" && target.anchor.parentElement) {
+      const shouldMove =
+        node.parentElement !== target.anchor.parentElement ||
+        node.previousElementSibling !== target.anchor;
+      if (shouldMove) {
+        if (typeof target.anchor.after === "function") {
+          target.anchor.after(node);
+        } else {
+          target.anchor.parentElement.insertBefore(node, target.anchor.nextSibling);
+        }
+      }
+      return true;
+    }
+
+    if (node.parentElement !== target.anchor) {
+      target.anchor.appendChild(node);
+    }
+    return true;
   }
 
   function createRuntime(deps) {
@@ -503,24 +531,22 @@
     }
 
     function mountInlineRoot(nextRoot) {
-      const target = findInlineMountTarget();
-      if (!target || !target.anchor) {
+      const moved = ensureRootPlacement(nextRoot);
+      if (!moved) {
         (document.body || document.documentElement).appendChild(nextRoot);
-        return;
       }
-      if (target.mode === "after" && target.anchor.parentElement) {
-        if (typeof target.anchor.after === "function") {
-          target.anchor.after(nextRoot);
-        } else {
-          target.anchor.parentElement.insertBefore(nextRoot, target.anchor.nextSibling);
-        }
-        return;
-      }
-      target.anchor.appendChild(nextRoot);
     }
 
     function ensureMounted() {
       if (root && document.documentElement && document.documentElement.contains(root)) {
+        ensureRootPlacement(root);
+        ensureFab();
+        return root;
+      }
+      const existing = document.querySelector("[" + ROOT_ATTR + "], [data-asc-magic-data-review-inline='true']");
+      if (existing && existing instanceof HTMLElement) {
+        root = existing;
+        ensureRootPlacement(root);
         ensureFab();
         return root;
       }

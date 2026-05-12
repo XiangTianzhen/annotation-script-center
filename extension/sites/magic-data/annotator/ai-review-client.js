@@ -76,11 +76,14 @@
     };
   }
 
-  function mapErrorMessage(code, message, summary) {
-    const mappedCode = String(code || "").trim();
-    if (mappedCode === "missing-api-key") {
-      return "后端未读取到 DASHSCOPE_API_KEY，请检查 config/env/ai.env 或环境变量。";
-    }
+function mapErrorMessage(code, message, summary, statusCode) {
+  const mappedCode = String(code || "").trim();
+  if (mappedCode === "request-error" && Number(statusCode) === 404) {
+    return "Magic Data AI 后端接口不存在，请确认启动的是功能分支 worktree 的后端：C:\\Projects\\annotation-script-center-magic-data-ai-review。请执行：cd C:\\Projects\\annotation-script-center-magic-data-ai-review && node platform-resources\\backend\\server.js";
+  }
+  if (mappedCode === "missing-api-key") {
+    return "后端未读取到 DASHSCOPE_API_KEY，请检查 config/env/ai.env 或环境变量。";
+  }
     if (mappedCode === "empty-provider-response") {
       return "Qwen 未返回有效文本，可能是音频 URL 过期或模型无法访问该音频，请刷新页面后重试。";
     }
@@ -129,7 +132,12 @@
 
       if (!response.ok || !json || json.success !== true || !json.data) {
         const code = json?.code || (response.status >= 500 ? "provider-http-error" : "request-error");
-        const message = mapErrorMessage(code, json?.message || "AI 复核失败。", json?.summary || "");
+        const message = mapErrorMessage(
+          code,
+          json?.message || "AI 复核失败。",
+          json?.summary || "",
+          response.status
+        );
         const error = new Error(message);
         error.code = code;
         error.requestId = json?.requestId || "";
