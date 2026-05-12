@@ -140,6 +140,8 @@
       shortcutResetVol: "volumeReset",
       shortcutCopyDuration: "copyDuration",
       shortcutUploadStats: "uploadStats",
+      shortcutAiSuggest: "aiSuggestCurrent",
+      shortcutApplyAiSuggestion: "applyAiSuggestion",
     };
 
     function isEnabled() {

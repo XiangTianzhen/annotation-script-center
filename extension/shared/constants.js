@@ -46,6 +46,8 @@
   const JUDGEMENT_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/upload";
   const JUDGEMENT_STATS_DOWNLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/download";
   const JUDGEMENT_AI_SUGGEST_PATH = "/api/alibaba-labelx/asr-judgement/ai/suggest";
+  const TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH =
+    "/api/alibaba-labelx/asr-transcription/ai/suggest-current";
   const TRANSCRIPTION_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
   const TRANSCRIPTION_STATS_DOWNLOAD_PATH =
     "/api/alibaba-labelx/asr-transcription/statistics/download";
@@ -76,6 +78,10 @@
     BACKEND_ENDPOINTS.server + JUDGEMENT_AI_SUGGEST_PATH;
   const JUDGEMENT_AI_SUGGEST_LOCAL_ENDPOINT =
     BACKEND_ENDPOINTS.local + JUDGEMENT_AI_SUGGEST_PATH;
+  const TRANSCRIPTION_AI_SUGGEST_CURRENT_SERVER_ENDPOINT =
+    BACKEND_ENDPOINTS.server + TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH;
+  const TRANSCRIPTION_AI_SUGGEST_CURRENT_LOCAL_ENDPOINT =
+    BACKEND_ENDPOINTS.local + TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH;
   const DATABAKER_PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS = [
     { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
@@ -292,6 +298,9 @@
     shortcutConvertNum: createShortcut("v"),
     shortcutCopyDuration: createShortcut("b"),
     shortcutUploadStats: null,
+    shortcutAiSuggest: null,
+    shortcutApplyAiSuggestion: null,
+    aiSuggestionRequestTimeoutMs: 120000,
     statsUploadEnabled: true,
     statsUploadEndpoint: TRANSCRIPTION_STATS_SERVER_ENDPOINT,
     statsUploadTimes: ["10:00", "16:00"],
@@ -408,7 +417,7 @@
       shortLabel: "语音转写",
       label: "阿里ASR语音转写",
       description: "基础转写能力（当前题处理 + 当前音频控制 + 页面工具栏）。",
-      note: "当前不提供独立大表单和快捷键配置；支持轻量统计导出，不做保存/提交/自动化/AI链路。",
+      note: "支持当前题 AI 推荐（人工确认填入），不自动保存/提交/流转；保持轻量统计导出能力。",
       capabilityScope: "basic-transcription",
     },
     judgement: {
@@ -545,6 +554,8 @@
     { key: "shortcutResetVol", label: "重置音量 (100%)" },
     { key: "shortcutRemoveSpaces", label: "去除当前空格" },
     { key: "shortcutUploadStats", label: "上传转写统计" },
+    { key: "shortcutAiSuggest", label: "AI 推荐当前题" },
+    { key: "shortcutApplyAiSuggestion", label: "填入 AI 推荐" },
   ];
 
   const SHORTCUT_KEYS = SHORTCUT_DEFINITIONS.map(function (item) {
@@ -570,6 +581,8 @@
     resetVolume: "shortcutResetVol",
     removeSpaces: "shortcutRemoveSpaces",
     uploadStats: "shortcutUploadStats",
+    aiSuggest: "shortcutAiSuggest",
+    applyAiSuggestion: "shortcutApplyAiSuggestion",
   };
 
   const BOOLEAN_CONFIG_KEYS = [
@@ -856,6 +869,7 @@
     JUDGEMENT_STATS_UPLOAD_PATH: JUDGEMENT_STATS_UPLOAD_PATH,
     JUDGEMENT_STATS_DOWNLOAD_PATH: JUDGEMENT_STATS_DOWNLOAD_PATH,
     JUDGEMENT_AI_SUGGEST_PATH: JUDGEMENT_AI_SUGGEST_PATH,
+    TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH: TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH,
     TRANSCRIPTION_STATS_UPLOAD_PATH: TRANSCRIPTION_STATS_UPLOAD_PATH,
     TRANSCRIPTION_STATS_DOWNLOAD_PATH: TRANSCRIPTION_STATS_DOWNLOAD_PATH,
     PROJECT_DATA_DOWNLOAD_OPTIONS_PATH: PROJECT_DATA_DOWNLOAD_OPTIONS_PATH,
@@ -868,6 +882,10 @@
     JUDGEMENT_STATS_LOCAL_ENDPOINT: JUDGEMENT_STATS_LOCAL_ENDPOINT,
     JUDGEMENT_AI_SUGGEST_SERVER_ENDPOINT: JUDGEMENT_AI_SUGGEST_SERVER_ENDPOINT,
     JUDGEMENT_AI_SUGGEST_LOCAL_ENDPOINT: JUDGEMENT_AI_SUGGEST_LOCAL_ENDPOINT,
+    TRANSCRIPTION_AI_SUGGEST_CURRENT_SERVER_ENDPOINT:
+      TRANSCRIPTION_AI_SUGGEST_CURRENT_SERVER_ENDPOINT,
+    TRANSCRIPTION_AI_SUGGEST_CURRENT_LOCAL_ENDPOINT:
+      TRANSCRIPTION_AI_SUGGEST_CURRENT_LOCAL_ENDPOINT,
     normalizeBackendEndpointMode: normalizeBackendEndpointMode,
     inferBackendEndpointModeFromEndpoint: inferBackendEndpointModeFromEndpoint,
     getBackendEndpointModeFromSettings: getBackendEndpointModeFromSettings,

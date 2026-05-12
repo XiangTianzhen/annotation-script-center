@@ -1,5 +1,35 @@
 # 标注脚本中心修改日志
 
+## 2026-05-12（0.3.2：阿里转写当前题 AI 推荐第一版）
+
+- 版本升级：`extension/manifest.json` 从 `0.3.1` 提升到 `0.3.2`（新增用户可见功能）。
+- 前端新增转写 AI 模块：
+  - `extension/sites/alibaba-labelx/asr-transcription/ai-suggestion-client.js`
+  - `extension/sites/alibaba-labelx/asr-transcription/ai-suggestion-collector.js`
+  - `extension/sites/alibaba-labelx/asr-transcription/ai-suggestion-panel.js`
+- 转写工具栏新增“AI推荐 / 填入AI”动作，且仅作用于当前题；填入后只写当前 textarea 并触发 `input/change`，不自动保存/提交/流转。
+- 转写快捷键新增：
+  - `shortcutAiSuggest`
+  - `shortcutApplyAiSuggestion`
+- 后端新增转写 AI 接口：
+  - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health`
+  - `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current`
+- 后端新增转写 AI 文件：
+  - `platform-resources/alibaba-labelx/asr-transcription/backend/ai-routes.js`
+  - `platform-resources/alibaba-labelx/asr-transcription/backend/ai-client-qwen.js`
+  - `platform-resources/alibaba-labelx/asr-transcription/backend/ai-prompts.js`
+  - `platform-resources/alibaba-labelx/asr-transcription/backend/ai-response-schema.js`
+  - `platform-resources/alibaba-labelx/asr-transcription/backend/ai-call-log.js`
+  - `platform-resources/alibaba-labelx/asr-transcription/ai-rules.md`
+- Qwen 调用口径：默认 `qwen3.5-omni-flash`（听音）+ `qwen3.5-plus`（文本比较）；支持 `response_format: { type: \"json_object\" }`，并在 `enable_thinking` 不支持时按“移除/关闭参数重试”兜底。
+- 降级策略：音频不可用或模型无法访问音频时，允许回退到纯文本比较，返回可读错误/风险提示，不阻断页面手工操作。
+- 安全与脱敏：API Key 仅后端读取；日志仅记录 requestId/hostname/模型/耗时/结果，不记录完整音频 URL、cookie、token、authorization、API Key。
+- 文档同步：
+  - `AGENTS.md` 增加“转写允许当前题 AI 推荐（人工确认填入）”规则。
+  - `extension/sites/alibaba-labelx/asr-transcription/README.md` 增加 AI 推荐能力、接口与实测清单。
+  - `platform-resources/backend/README.md`、`platform-resources/alibaba-labelx/asr-transcription/backend/README.md` 增加 AI 接口与环境变量。
+  - `config/env/ai.env.example` 增加 `ASR_TRANSCRIPTION_AI_*` 占位变量。
+
 ## 2026-05-12（协作规则收口：默认 main 单工作区）
 
 - `AGENTS.md` Git 工作流改为“默认 `main` 单工作区开发”：默认不建分支、不建独立 worktree、不建 PR。

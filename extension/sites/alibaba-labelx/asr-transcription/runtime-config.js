@@ -39,6 +39,8 @@
     "shortcutResetVol",
     "shortcutCopyDuration",
     "shortcutUploadStats",
+    "shortcutAiSuggest",
+    "shortcutApplyAiSuggestion",
   ];
 
   const FIXED_DEFAULTS = {
@@ -68,6 +70,9 @@
     shortcutResetVol: null,
     shortcutCopyDuration: null,
     shortcutUploadStats: null,
+    shortcutAiSuggest: null,
+    shortcutApplyAiSuggestion: null,
+    aiSuggestionRequestTimeoutMs: 120000,
   };
   const FIXED_STATS_DEFAULTS = {
     statsUploadEnabled: true,
@@ -275,6 +280,9 @@
       shortcutResetVol: shortcuts.shortcutResetVol,
       shortcutCopyDuration: shortcuts.shortcutCopyDuration,
       shortcutUploadStats: shortcuts.shortcutUploadStats,
+      shortcutAiSuggest: shortcuts.shortcutAiSuggest,
+      shortcutApplyAiSuggestion: shortcuts.shortcutApplyAiSuggestion,
+      aiSuggestionRequestTimeoutMs: toNumber(source.aiSuggestionRequestTimeoutMs, 120000, 1000, 300000, 0),
     };
   }
 

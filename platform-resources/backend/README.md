@@ -51,6 +51,12 @@ http://127.0.0.1:3333
 - `MAGIC_DATA_AI_MOCK`：设为 `1` 时启用 mock 调试模式。
 - `MAGIC_DATA_AI_ENABLE_THINKING`：默认 `0`，开启时尝试传 `enable_thinking=true`。
 - `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
+- `ASR_TRANSCRIPTION_AI_MOCK`：设为 `1` 时启用转写 AI mock 调试模式。
+- `ASR_TRANSCRIPTION_AI_LISTEN_MODEL`：转写 AI 听音模型，默认 `qwen3.5-omni-flash`。
+- `ASR_TRANSCRIPTION_AI_COMPARE_MODEL`：转写 AI 文本比较模型，默认 `qwen3.5-plus`。
+- `ASR_TRANSCRIPTION_AI_TIMEOUT_MS`：转写 AI 请求超时，默认 `120000`。
+- `ASR_TRANSCRIPTION_AI_ENABLE_THINKING`：默认 `0`，开启时尝试传 `enable_thinking=true`。
+- `ASR_TRANSCRIPTION_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`：项目数据下载密码的 SHA256（兼容旧 `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`）。
 - `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`：项目数据下载 token 签名密钥（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）。
 
@@ -137,7 +143,7 @@ pm2 restart annotation-script-center --update-env
 ## 当前已注册 API
 
 - `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载，以及 AI 建议 `health/suggest` 接口。
-- `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出）。
+- `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口；导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
 - `magic-data/annotator`：Magic Data AI 质检调试接口，包含 `review-current` 与 `health`。
@@ -157,6 +163,10 @@ Magic Data 接口：
 ASR 转写职责边界：
 - 扩展前端客户端：`extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只负责采集、上传、按钮和调度。
 - Node 后端服务：`platform-resources/alibaba-labelx/asr-transcription/backend/`，负责路由、合并、CSV 写入与下载。
+- 转写 AI 推荐接口：
+  - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health`
+  - `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current`
+  - 仅返回辅助推荐，不自动保存/提交。
 
 后端地址配置规则：
 - 扩展前端只有一个全局后端地址入口：options 首页顶部“后端接口地址”（`server` / `local`）。
@@ -166,6 +176,7 @@ ASR 转写职责边界：
   - ASR 转写统计：`/api/alibaba-labelx/asr-transcription/statistics/*`
   - ASR 快判统计：`/api/alibaba-labelx/asr-judgement/statistics/*`
   - ASR 快判 AI 建议：`/api/alibaba-labelx/asr-judgement/ai/suggest`
+  - ASR 转写 AI 推荐：`/api/alibaba-labelx/asr-transcription/ai/suggest-current`
   - 标贝易采 AI 推荐：`/api/data-baker/round-one-quality/ai/recommend`
   - 标贝易采导出上传：`/api/data-baker/round-one-quality/export/upload`
   - 标贝易采导出下载：`/api/data-baker/round-one-quality/export/download`

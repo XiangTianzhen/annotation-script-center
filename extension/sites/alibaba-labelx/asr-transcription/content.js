@@ -8,6 +8,12 @@
   const toolbarApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionToolbar || null;
   const statsApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionStatsClient || null;
   const shortcutApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionShortcutBus || null;
+  const aiSuggestionClientApi =
+    globalThis.__ASREdgeAlibabaLabelxTranscriptionAiSuggestionClient || null;
+  const aiSuggestionCollectorApi =
+    globalThis.__ASREdgeAlibabaLabelxTranscriptionAiSuggestionCollector || null;
+  const aiSuggestionPanelApi =
+    globalThis.__ASREdgeAlibabaLabelxTranscriptionAiSuggestionPanel || null;
   const messageTypes = constants.MESSAGE_TYPES || {};
   const PANEL_PING = messageTypes.PANEL_PING || "ASR_EDGE_SETTINGS_PANEL_PING";
   const PROJECT_ID = configApi?.PROJECT_ID || "transcription";
@@ -58,6 +64,8 @@
       actions: [
         { key: "copyDuration", label: "复制当前音频时长", shortLabel: "复制时长" },
         { key: "uploadStats", label: "上传转写统计", shortLabel: "上传统计" },
+        { key: "aiSuggestCurrent", label: "AI 推荐当前题", shortLabel: "AI推荐" },
+        { key: "applyAiSuggestion", label: "填入AI推荐", shortLabel: "填入AI" },
       ],
     },
   ];
@@ -81,6 +89,7 @@
     statsConfig: null,
     statsRuntime: null,
     statsState: null,
+    aiSuggestionRuntime: null,
     shortcutRuntime: null,
     contextInvalidated: false,
     contextInvalidatedNotified: false,
@@ -248,6 +257,46 @@
     return runtime.shortcutRuntime;
   }
 
+  function ensureAiSuggestionRuntime() {
+    if (
+      runtime.aiSuggestionRuntime ||
+      !aiSuggestionPanelApi ||
+      typeof aiSuggestionPanelApi.createRuntime !== "function"
+    ) {
+      return runtime.aiSuggestionRuntime;
+    }
+    if (
+      !aiSuggestionCollectorApi ||
+      typeof aiSuggestionCollectorApi.collectCurrentPayload !== "function"
+    ) {
+      return null;
+    }
+    if (
+      !aiSuggestionClientApi ||
+      typeof aiSuggestionClientApi.suggestCurrent !== "function"
+    ) {
+      return null;
+    }
+
+    runtime.aiSuggestionRuntime = aiSuggestionPanelApi.createRuntime({
+      shouldShow: function () {
+        return runtime.enabled === true && runtime.matched === true;
+      },
+      collectCurrentPayload: function () {
+        return aiSuggestionCollectorApi.collectCurrentPayload();
+      },
+      requestCurrentSuggestion: function (payload) {
+        return aiSuggestionClientApi.suggestCurrent(payload, {
+          timeoutMs: Number(runtime.config?.aiSuggestionRequestTimeoutMs || 120000) || 120000,
+        });
+      },
+      applySuggestionText: function (text) {
+        return itemActions.applyTextToCurrentItem(text);
+      },
+    });
+    return runtime.aiSuggestionRuntime;
+  }
+
   function startStatsRuntime() {
     const runtimeInstance = ensureStatsRuntime();
     if (runtimeInstance && typeof runtimeInstance.start === "function") {
@@ -260,6 +309,19 @@
       runtime.statsRuntime.stop();
     }
     syncStatsState(null);
+  }
+
+  function syncAiSuggestionRuntime() {
+    const aiRuntime = ensureAiSuggestionRuntime();
+    if (aiRuntime && typeof aiRuntime.syncCurrentItem === "function") {
+      aiRuntime.syncCurrentItem();
+    }
+  }
+
+  function clearAiSuggestionRuntime() {
+    if (runtime.aiSuggestionRuntime && typeof runtime.aiSuggestionRuntime.clearAll === "function") {
+      runtime.aiSuggestionRuntime.clearAll();
+    }
   }
 
   function getCurrentItemText() {
@@ -315,10 +377,17 @@
           : statsState.lastUploadOk === false
             ? "（统计上传失败）"
             : "";
+    const aiSummary =
+      runtime.aiSuggestionRuntime &&
+      typeof runtime.aiSuggestionRuntime.getStateSummary === "function"
+        ? runtime.aiSuggestionRuntime.getStateSummary()
+        : "AI 推荐：未加载";
     return {
-      enabledText: runtime.enabled ? "转写工具栏已启用" + statsSummary : "转写工具栏待命中" + statsSummary,
+      enabledText: runtime.enabled
+        ? "转写工具栏已启用" + statsSummary
+        : "转写工具栏待命中" + statsSummary,
       itemText: getCurrentItemText(),
-      audioText: getAudioText(),
+      audioText: getAudioText() + " | " + aiSummary,
       lastActionText: runtime.lastActionText || "最近操作：--",
     };
   }
@@ -407,6 +476,26 @@
           result = { ok: false, message: "统计上传模块未加载。" };
         }
         break;
+      case "aiSuggestCurrent":
+        if (
+          runtime.aiSuggestionRuntime &&
+          typeof runtime.aiSuggestionRuntime.requestCurrentSuggestion === "function"
+        ) {
+          result = await runtime.aiSuggestionRuntime.requestCurrentSuggestion("toolbar");
+        } else {
+          result = { ok: false, message: "AI 推荐模块未加载。" };
+        }
+        break;
+      case "applyAiSuggestion":
+        if (
+          runtime.aiSuggestionRuntime &&
+          typeof runtime.aiSuggestionRuntime.applyCurrentSuggestion === "function"
+        ) {
+          result = await runtime.aiSuggestionRuntime.applyCurrentSuggestion();
+        } else {
+          result = { ok: false, message: "AI 推荐模块未加载。" };
+        }
+        break;
       default:
         result = { ok: false, message: "未知动作。" };
         break;
@@ -453,6 +542,7 @@
     if (runtime.toolbarRuntime && typeof runtime.toolbarRuntime.stop === "function") {
       runtime.toolbarRuntime.stop();
     }
+    clearAiSuggestionRuntime();
     runtime.reason = reason || runtime.reason || "waiting-for-transcription-detail";
   }
 
@@ -490,6 +580,7 @@
     if (shortcutRuntime && typeof shortcutRuntime.bind === "function") {
       shortcutRuntime.bind();
     }
+    syncAiSuggestionRuntime();
     void audioApi.autoPlayCurrentAudioIfNeeded(runtime.config?.autoPlay === true);
   }
 

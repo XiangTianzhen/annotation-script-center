@@ -141,6 +141,18 @@
     return result(true, "已切换到当前题文本框焦点。");
   }
 
+  function applyTextToCurrentItem(text) {
+    const ctx = getCurrentContext();
+    if (!ctx || !ctx.textarea) {
+      return result(false, "未定位到当前题文本框。");
+    }
+    const changed = setTextareaValue(ctx.textarea, text);
+    if (changed) {
+      return result(true, "已填入推荐文本（未自动保存）。");
+    }
+    return result(true, "当前题文本与推荐一致，无需更新。");
+  }
+
   globalThis.__ASREdgeAlibabaLabelxTranscriptionItemActions = {
     quickFillCurrentItem: quickFillCurrentItem,
     markCurrentItemValid: function () {
@@ -152,5 +164,6 @@
     removeSpacesCurrentItem: removeSpacesCurrentItem,
     convertNumberCurrentItem: convertNumberCurrentItem,
     toggleFocusCurrentItem: toggleFocusCurrentItem,
+    applyTextToCurrentItem: applyTextToCurrentItem,
   };
 })();

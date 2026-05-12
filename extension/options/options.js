@@ -101,6 +101,8 @@
     { key: "shortcutResetVol", label: "重置音量" },
     { key: "shortcutCopyDuration", label: "复制当前音频时长" },
     { key: "shortcutUploadStats", label: "上传转写统计" },
+    { key: "shortcutAiSuggest", label: "AI 推荐当前题" },
+    { key: "shortcutApplyAiSuggestion", label: "填入 AI 推荐" },
   ];
   const magicDataDefaultSettings = {
     enabled: true,
@@ -770,6 +772,8 @@
       shortcutResetVol: null,
       shortcutCopyDuration: null,
       shortcutUploadStats: null,
+      shortcutAiSuggest: null,
+      shortcutApplyAiSuggestion: null,
       statsUploadEnabled: true,
       statsUploadTimes: ["10:00", "16:00"],
       statsUploadJitterMinutes: 10,
@@ -1781,7 +1785,8 @@
     setStatus(
       "transcription-status",
       "数据统计上传为脚本默认能力，已强制启用；定时上传按脚本能力强制启用。后端地址：全局 " +
-        backendLabel
+        backendLabel +
+        "；当前题 AI 推荐仅供参考，需手动点击“填入 AI 推荐”生效。"
     );
   }
 
@@ -1844,6 +1849,8 @@
         shortcutResetVol: shortcuts.shortcutResetVol,
         shortcutCopyDuration: shortcuts.shortcutCopyDuration,
         shortcutUploadStats: shortcuts.shortcutUploadStats,
+        shortcutAiSuggest: shortcuts.shortcutAiSuggest,
+        shortcutApplyAiSuggestion: shortcuts.shortcutApplyAiSuggestion,
       });
       applyTranscriptionForm(currentSettings);
       setStatus("transcription-status", "转写设置已保存；已打开详情页请刷新或等待自动同步。");
@@ -2357,7 +2364,7 @@
       applyTranscriptionForm(settings);
       setStatus(
         "detail-status",
-        "ASR 转写当前为轻量工具栏模式（0.2.10）：可配置自动播放、倍速、步长、音量与快捷键；统计上传和定时上传已按脚本规则强制启用。"
+        "ASR 转写当前为轻量工具栏模式：可配置自动播放、倍速、步长、音量与快捷键；支持当前题 AI 推荐（手动填入）；统计上传和定时上传按脚本规则强制启用。"
       );
       return;
     }

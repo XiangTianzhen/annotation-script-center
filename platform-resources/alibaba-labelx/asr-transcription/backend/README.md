@@ -6,6 +6,7 @@
 
 说明：浏览器扩展前端只保留 `extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js` 作为统计上传客户端，不在前端实现 Node 服务或 CSV 落盘。
 当前 `0.2.11` 稳定口径：转写统计内部按“供应商 + 分包ID”合并，主写入根级总表；历史供应商目录仅兼容读取，不作为主输出。
+当前 `0.3.2` 新增“当前题 AI 推荐”接口：只返回辅助推荐，不做自动保存/提交。
 
 ## 默认数据目录
 
@@ -18,6 +19,12 @@
 - `ASR_TRANSCRIPTION_STATS_DIR`：统计输出目录。
 - `ASR_TRANSCRIPTION_PERSIST_ROWS_JSON=1`：额外写入 `statistics-rows.json`。
 - `ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS=1`：额外写入 `statistics-upload-events.jsonl`。
+- `ASR_TRANSCRIPTION_AI_MOCK=1`：启用转写 AI mock 调试模式。
+- `ASR_TRANSCRIPTION_AI_LISTEN_MODEL`：听音模型，默认 `qwen3.5-omni-flash`。
+- `ASR_TRANSCRIPTION_AI_COMPARE_MODEL`：文本比较模型，默认 `qwen3.5-plus`。
+- `ASR_TRANSCRIPTION_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
+- `ASR_TRANSCRIPTION_AI_ENABLE_THINKING`：默认 `0`，开启时尝试传 `enable_thinking=true`。
+- `ASR_TRANSCRIPTION_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许请求体覆盖模型名。
 
 ## 接口
 
@@ -28,6 +35,8 @@
 - `GET /api/alibaba-labelx/asr-transcription/statistics/suppliers`
 - `GET /api/alibaba-labelx/asr-transcription/statistics/download`
 - `HEAD /api/alibaba-labelx/asr-transcription/statistics/download`
+- `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health`
+- `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current`
 
 下载接口默认返回根级总表，不要求 `supplier` 参数；`suppliers` 接口仅作为辅助信息接口。
 
