@@ -11,6 +11,14 @@
     "不确定或差不多",
     "其他方言或语种",
   ];
+  const ASR_TITLE_ALLOW_LIST = [
+    "两个asr文本",
+    "online_rec",
+    "online_recognition",
+    "asr",
+    "asr_text",
+  ];
+  const ASR_TITLE_IGNORE_LIST = ["上文", "音频地址", "wav_id", "音频", "音频文件"];
 
   let bankPromise = null;
   let bankIndex = new Map();
@@ -152,7 +160,7 @@
 
   function parseAsrText(rawText) {
     const text = String(rawText || "").replace(/\r\n/g, "\n");
-    const match = text.match(/asr_text1\s*:\s*([\s\S]*?)\s*asr_text2\s*:\s*([\s\S]*)$/);
+    const match = text.match(/asr_text1\s*:\s*([\s\S]*?)\s*asr_text2\s*:\s*([\s\S]*)$/i);
     if (!match) {
       return null;
     }
@@ -261,13 +269,49 @@
     );
   }
 
+  function normalizeTitle(title) {
+    return String(title || "").replace(/\s+/g, "").trim().toLowerCase();
+  }
+
+  function isIgnoredContentTitle(title) {
+    const normalized = normalizeTitle(title);
+    return ASR_TITLE_IGNORE_LIST.some(function (item) {
+      return normalized === normalizeTitle(item);
+    });
+  }
+
+  function isAllowedAsrTitle(title) {
+    const normalized = normalizeTitle(title);
+    return ASR_TITLE_ALLOW_LIST.some(function (item) {
+      return normalized === normalizeTitle(item);
+    });
+  }
+
+  function findAsrContentWrap(item) {
+    const wraps = Array.from(item.querySelectorAll(".labelRender-item-content-wrap"));
+    let fallbackWrap = null;
+    for (const wrap of wraps) {
+      const title = getText(wrap.querySelector(".labelRender-item-content-title"));
+      if (isIgnoredContentTitle(title)) {
+        continue;
+      }
+      const container = wrap.querySelector(".dt-text-wrapper .dt-text-container");
+      const pair = parseAsrText(container?.textContent || "");
+      if (!pair) {
+        continue;
+      }
+      if (isAllowedAsrTitle(title)) {
+        return wrap;
+      }
+      if (!fallbackWrap) {
+        fallbackWrap = wrap;
+      }
+    }
+    return fallbackWrap;
+  }
+
   function getAsrPair(item) {
-    const wrap = findWrapByTitle(
-      item,
-      ".labelRender-item-content-wrap",
-      ".labelRender-item-content-title",
-      "两个ASR文本"
-    );
+    const wrap = findAsrContentWrap(item);
     const container = wrap?.querySelector(".dt-text-container");
     const rawPair = parseAsrText(container?.textContent || "");
     if (rawPair) {

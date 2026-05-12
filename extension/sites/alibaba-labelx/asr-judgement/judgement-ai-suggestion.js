@@ -20,6 +20,14 @@
     choiceUnsure: "不确定或差不多",
     choiceOtherDialect: "其他方言或语种",
   };
+  const ASR_TITLE_ALLOW_LIST = [
+    "两个asr文本",
+    "online_rec",
+    "online_recognition",
+    "asr",
+    "asr_text",
+  ];
+  const ASR_TITLE_IGNORE_LIST = ["上文", "音频地址", "wav_id", "音频", "音频文件"];
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
@@ -149,7 +157,7 @@
 
   function parseAsrText(rawText) {
     const text = String(rawText || "").replace(/\r\n/g, "\n");
-    const match = text.match(/asr_text1\s*:\s*([\s\S]*?)\s*asr_text2\s*:\s*([\s\S]*)$/);
+    const match = text.match(/asr_text1\s*:\s*([\s\S]*?)\s*asr_text2\s*:\s*([\s\S]*)$/i);
     if (!match) {
       return null;
     }
@@ -173,12 +181,45 @@
   }
 
   function resolveItemAsrPair(item) {
-    const wrap = findWrapByTitle(
-      item,
-      ".labelRender-item-content-wrap",
-      ".labelRender-item-content-title",
-      "两个ASR文本"
-    );
+    function normalizeTitle(title) {
+      return String(title || "").replace(/\s+/g, "").trim().toLowerCase();
+    }
+    function isIgnoredContentTitle(title) {
+      const normalized = normalizeTitle(title);
+      return ASR_TITLE_IGNORE_LIST.some(function (itemTitle) {
+        return normalized === normalizeTitle(itemTitle);
+      });
+    }
+    function isAllowedAsrTitle(title) {
+      const normalized = normalizeTitle(title);
+      return ASR_TITLE_ALLOW_LIST.some(function (itemTitle) {
+        return normalized === normalizeTitle(itemTitle);
+      });
+    }
+    function findAsrContentWrap() {
+      const wraps = Array.from(item.querySelectorAll(".labelRender-item-content-wrap"));
+      let fallbackWrap = null;
+      for (const wrapItem of wraps) {
+        const title = getText(wrapItem.querySelector(".labelRender-item-content-title"));
+        if (isIgnoredContentTitle(title)) {
+          continue;
+        }
+        const container = wrapItem.querySelector(".dt-text-wrapper .dt-text-container");
+        const pair = parseAsrText(container?.textContent || "");
+        if (!pair) {
+          continue;
+        }
+        if (isAllowedAsrTitle(title)) {
+          return wrapItem;
+        }
+        if (!fallbackWrap) {
+          fallbackWrap = wrapItem;
+        }
+      }
+      return fallbackWrap;
+    }
+
+    const wrap = findAsrContentWrap();
     const rawPair = parseAsrText(wrap?.querySelector(".dt-text-container")?.textContent || "");
     if (rawPair) {
       return rawPair;

@@ -1,5 +1,20 @@
 # 标注脚本中心修改日志
 
+## 2026-05-12（0.3.2 热修：快判差异视图兼容新版内容区）
+
+- 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮为当前测试版本小修。
+- 修复 `judgement-asr-diff-view.js` 的 ASR 内容块识别：不再仅依赖标题 `两个ASR文本`，新增兼容 `online_rec` / `online_recognition` / `asr` / `asr_text`，并最终以 `asr_text1/asr_text2` 可解析作为判定。
+- 明确忽略新版内容区中的 `上文`、`音频地址`、`wav_id`（以及 `音频`、`音频文件`）块，避免误把长上下文当作 ASR 文本。
+- 差异视图继续仅隐藏真正 ASR 文本块的原始 `.dt-text-wrapper`，不隐藏 `上文` 内容块。
+- 同步修复依赖同类定位逻辑的模块：
+  - `judgement-compact-card.js`
+  - `judgement-thunder-question.js`
+  - `judgement-ai-suggestion.js`
+  以上模块均改为兼容 `online_rec` 并以 `asr_text1/asr_text2` 解析成功为准。
+- 文档同步：
+  - `extension/sites/alibaba-labelx/asr-judgement/README.md` 补充新版结构兼容规则。
+  - `platform-resources/alibaba-labelx/asr-judgement/page-structure/asr-judgement-detail/page-meta.md` 补充“上文 + online_rec + wav_id”结构与选择器建议。
+
 ## 2026-05-12（0.3.2：阿里转写当前题 AI 推荐第一版）
 
 - 版本升级：`extension/manifest.json` 从 `0.3.1` 提升到 `0.3.2`（新增用户可见功能）。

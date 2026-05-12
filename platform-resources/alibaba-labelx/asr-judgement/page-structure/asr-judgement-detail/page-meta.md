@@ -109,13 +109,13 @@
 - 分页右侧有每页条数选择器，选项为 1、2、3、4、5、10、20、30、40、50 条/页。
 - 页面正文是多条 `.labelRender-item` 组成的题卡列表，不是单条详情编辑页。
 - 每条题卡由“内容区 + 回答区”组成：
-  - 内容区：音频播放器 + 两个 ASR 文本 + `wav_id`
+  - 内容区：`上文` + `音频地址` + ASR 文本 + `wav_id`（新版结构）
   - 回答区：单选组 + 特殊情况文本框 + 历史标注按钮
-- 两个 ASR 文本的 DOM 结构：
-  - 外层内容块：`.labelRender-item-content-wrap`
-  - 标题：`.labelRender-item-content-title`，文本为 `两个ASR文本`
-  - 原始文本容器：`.dt-text-wrapper .dt-text-container`
-  - 原始文本形态：`asr_text1: ...\nasr_text2: ...`
+- 新版内容区示例：
+  - `上文`：标题为 `上文`，内容为 Q/A、参考材料或题目前文
+  - `音频地址`：标题为 `音频地址`，内部为 `.dt-audio-base-container` + `audio`
+  - `ASR 文本`：标题可能为 `online_rec` 或 `两个ASR文本`，正文为 `asr_text1: ... asr_text2: ...`
+  - `wav_id`：标题为 `wav_id`，正文为音频 id
 - 初始化模板中的 `transcription-textarea.html` 在本页不适用，因为没有独立转写文本框。
 
 ## 当前扩展脚本开发建议
@@ -131,7 +131,10 @@
 - 自定义快判工具栏当前由 `judgement-toolbar.js` 挂载到 `.mark-toolbox`。
 - 顶部总时长当前由 `judgement-toolbar.js` 挂载到 `.header-component-container`。
 - 默认每页条数切换由 `judgement-page-size.js` 驱动，网络层由 `page-world/network-url-rewriter.js` 改写 data 请求。
-- ASR 对齐差异视图应以标题文本 `两个ASR文本` 定位内容块，再解析 `asr_text1:` 与 `asr_text2:`，不要依赖具体 ASR 文本内容。
+- 不应按第一个 `.dt-text-container` 或最长文本容器读取 ASR。
+- 应按 `.labelRender-item-content-wrap` 分块读取，并最终以 `parseAsrText` 成功作为 ASR 文本块判定。
+- `上文`、`音频地址`、`wav_id` 不应参与 ASR 差异对比解析。
+- ASR 对齐差异视图只隐藏真正 ASR 文本块中的原始双行文本，`上文` 块必须保留显示。
 
 ## 采集备注
 

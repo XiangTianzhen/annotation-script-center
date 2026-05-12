@@ -8,6 +8,20 @@
     gapBackground: "#fee2e2",
     punctuationBackground: "#ede9fe",
   };
+  const ASR_TITLE_ALLOW_LIST = [
+    "两个asr文本",
+    "online_rec",
+    "online_recognition",
+    "asr",
+    "asr_text",
+  ];
+  const ASR_TITLE_IGNORE_LIST = [
+    "上文",
+    "音频地址",
+    "wav_id",
+    "音频",
+    "音频文件",
+  ];
 
   function getStyleText() {
     return [
@@ -141,7 +155,7 @@
 
   function parseAsrText(rawText) {
     const text = String(rawText || "").replace(/\r\n/g, "\n");
-    const match = text.match(/asr_text1\s*:\s*([\s\S]*?)\s*asr_text2\s*:\s*([\s\S]*)$/);
+    const match = text.match(/asr_text1\s*:\s*([\s\S]*?)\s*asr_text2\s*:\s*([\s\S]*)$/i);
     if (!match) {
       return null;
     }
@@ -150,6 +164,52 @@
       first: match[1].trim(),
       second: match[2].trim(),
     };
+  }
+
+  function normalizeTitle(title) {
+    return String(title || "").replace(/\s+/g, "").trim().toLowerCase();
+  }
+
+  function getContentWrapTitle(wrap) {
+    const titleNode = wrap?.querySelector?.(".labelRender-item-content-title");
+    return String(titleNode?.textContent || "").trim();
+  }
+
+  function isIgnoredContentTitle(title) {
+    const normalized = normalizeTitle(title);
+    return ASR_TITLE_IGNORE_LIST.some(function (item) {
+      return normalized === normalizeTitle(item);
+    });
+  }
+
+  function isAllowedAsrTitle(title) {
+    const normalized = normalizeTitle(title);
+    return ASR_TITLE_ALLOW_LIST.some(function (item) {
+      return normalized === normalizeTitle(item);
+    });
+  }
+
+  function hasAsrPairText(rawText) {
+    return Boolean(parseAsrText(rawText));
+  }
+
+  function isAsrTextWrap(wrap) {
+    const title = getContentWrapTitle(wrap);
+    if (isIgnoredContentTitle(title)) {
+      return false;
+    }
+
+    const sourceContainer = wrap?.querySelector?.(".dt-text-wrapper .dt-text-container");
+    const rawText = String(sourceContainer?.textContent || "");
+    if (!hasAsrPairText(rawText)) {
+      return false;
+    }
+
+    if (isAllowedAsrTitle(title)) {
+      return true;
+    }
+
+    return true;
   }
 
   function buildFastAlignment(first, second) {
@@ -360,10 +420,7 @@
   }
 
   function findAsrTextWraps() {
-    return Array.from(document.querySelectorAll(".labelRender-item-content-wrap")).filter(function (wrap) {
-      const title = wrap.querySelector(".labelRender-item-content-title");
-      return String(title?.textContent || "").trim() === "两个ASR文本";
-    });
+    return Array.from(document.querySelectorAll(".labelRender-item-content-wrap")).filter(isAsrTextWrap);
   }
 
   function processWrap(wrap, colors) {
