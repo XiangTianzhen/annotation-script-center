@@ -449,6 +449,10 @@
   }
 
   function runActionWithFeedback(actionKey, source, statusReason, statusKey) {
+    if (actionKey === aiSuggestActionKey) {
+      showRuntimeToast("AI 分析已开始，请等待结果。", "info");
+    }
+
     void runRuntimeAction(actionKey, source)
       .then(function (result) {
         return maybeAutoAdvanceAfterChoice(actionKey, result).then(function (advanceResult) {

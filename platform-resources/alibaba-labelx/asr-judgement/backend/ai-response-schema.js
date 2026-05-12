@@ -18,6 +18,13 @@ const ANSWER_TEXT_MAP = {
 
 const RISK_LEVELS = ["low", "medium", "high"];
 
+function createSchemaError(message, code) {
+  const error = new Error(message);
+  error.code = String(code || "invalid-model-schema");
+  error.statusCode = 502;
+  return error;
+}
+
 function normalizeConfidence(value) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) {
@@ -29,7 +36,10 @@ function normalizeConfidence(value) {
 function parseModelJsonText(rawText, requestId) {
   const source = String(rawText || "").trim();
   if (!source) {
-    throw new Error("模型未返回文本结果。");
+    const error = new Error("模型未返回文本结果。");
+    error.code = "empty-provider-response";
+    error.statusCode = 502;
+    throw error;
   }
 
   const withoutCodeFence = source
@@ -52,9 +62,12 @@ function parseModelJsonText(rawText, requestId) {
     }
   }
 
-  throw new Error(
+  const error = new Error(
     "模型输出 JSON 解析失败（requestId: " + String(requestId || "") + "）。"
   );
+  error.code = "invalid-model-json";
+  error.statusCode = 502;
+  throw error;
 }
 
 function normalizeModelResponse(modelJson, context) {
@@ -62,18 +75,21 @@ function normalizeModelResponse(modelJson, context) {
   const requestId = String(context?.requestId || "");
   const answer = String(source.answer || "").trim();
   if (!Object.prototype.hasOwnProperty.call(ANSWER_CHOICE_MAP, answer)) {
-    throw new Error("模型返回的 answer 不在允许范围内。");
+    throw createSchemaError("模型返回的 answer 不在允许范围内。", "invalid-model-schema");
   }
 
   const mappedChoiceActionKey = ANSWER_CHOICE_MAP[answer];
   const rawChoiceActionKey = String(source.choiceActionKey || "").trim();
   if (rawChoiceActionKey && rawChoiceActionKey !== mappedChoiceActionKey) {
-    throw new Error("模型返回的 choiceActionKey 与 answer 映射不一致。");
+    throw createSchemaError(
+      "模型返回的 choiceActionKey 与 answer 映射不一致。",
+      "invalid-model-schema"
+    );
   }
 
   const riskLevel = String(source.riskLevel || "").trim().toLowerCase() || "medium";
   if (RISK_LEVELS.indexOf(riskLevel) < 0) {
-    throw new Error("模型返回的 riskLevel 不在允许范围内。");
+    throw createSchemaError("模型返回的 riskLevel 不在允许范围内。", "invalid-model-schema");
   }
 
   const confidence = normalizeConfidence(source.confidence);

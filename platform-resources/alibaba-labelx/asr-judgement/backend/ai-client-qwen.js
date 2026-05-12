@@ -50,6 +50,37 @@ function resolveRequestModel(requestedModel, defaultModel) {
   };
 }
 
+function parseEnableThinking() {
+  const value = String(process.env.ASR_JUDGEMENT_AI_ENABLE_THINKING || "0")
+    .trim()
+    .toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function inferAudioFormat(audioUrl) {
+  let pathname = "";
+  try {
+    pathname = new URL(String(audioUrl || "")).pathname || "";
+  } catch (error) {
+    pathname = String(audioUrl || "").split("?")[0] || "";
+  }
+
+  const lowerPathname = pathname.toLowerCase();
+  const matched = lowerPathname.match(/\.([a-z0-9]+)$/);
+  const ext = matched ? matched[1] : "";
+  const supportedFormats = {
+    wav: "wav",
+    mp3: "mp3",
+    aac: "aac",
+    m4a: "m4a",
+    amr: "amr",
+    "3gp": "3gp",
+    "3gpp": "3gpp",
+  };
+
+  return supportedFormats[ext] || "wav";
+}
+
 function getClientConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
@@ -64,6 +95,7 @@ function getClientConfig() {
     availableModels: AVAILABLE_MODELS.slice(),
     mockEnabled: isMockEnabled(),
     hasApiKey: Boolean(apiKey),
+    enableThinking: parseEnableThinking(),
   };
 }
 
@@ -83,59 +115,135 @@ function buildMockResponse(input, model) {
   });
 }
 
-function extractDeltaText(chunk) {
-  const choice = Array.isArray(chunk?.choices) ? chunk.choices[0] : null;
+function sanitizeProviderErrorSummary(text) {
+  return String(text || "")
+    .replace(/https?:\/\/[^\s"'\\]+/g, function (matchText) {
+      try {
+        const parsedUrl = new URL(matchText);
+        return parsedUrl.protocol + "//" + parsedUrl.host + "/[redacted]";
+      } catch (error) {
+        return "[url-redacted]";
+      }
+    })
+    .replace(/(access_token["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
+    .replace(/(refresh_token["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
+    .replace(/(token["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
+    .replace(/(cookie["'\s:=]+)([^\n\r]+)/gi, "$1[redacted]")
+    .replace(/(authorization["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
+    .replace(/(ossaccesskeyid["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
+    .replace(/(signature["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
+    .replace(/(api[_-]?key["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+}
+
+function extractTextFromContent(content) {
+  if (typeof content === "string") {
+    return content;
+  }
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map(function (part) {
+      if (typeof part === "string") {
+        return part;
+      }
+      if (part && typeof part.text === "string") {
+        return part.text;
+      }
+      return "";
+    })
+    .join("");
+}
+
+function extractCompletionText(payload) {
+  const choice = Array.isArray(payload?.choices) ? payload.choices[0] : null;
   if (!choice) {
     return "";
   }
 
-  const deltaContent = choice?.delta?.content;
-  if (typeof deltaContent === "string") {
-    return deltaContent;
-  }
-  if (Array.isArray(deltaContent)) {
-    return deltaContent
-      .map(function (part) {
-        if (typeof part === "string") {
-          return part;
-        }
-        if (part && typeof part.text === "string") {
-          return part.text;
-        }
-        return "";
-      })
-      .join("");
+  const deltaText = extractTextFromContent(choice?.delta?.content);
+  if (deltaText) {
+    return deltaText;
   }
 
-  const messageContent = choice?.message?.content;
-  if (typeof messageContent === "string") {
-    return messageContent;
+  const messageText = extractTextFromContent(choice?.message?.content);
+  if (messageText) {
+    return messageText;
   }
-  if (Array.isArray(messageContent)) {
-    return messageContent
-      .map(function (part) {
-        if (typeof part === "string") {
-          return part;
-        }
-        if (part && typeof part.text === "string") {
-          return part.text;
-        }
-        return "";
-      })
-      .join("");
-  }
+
   return "";
 }
 
-async function readStreamText(response) {
+async function readStreamCompletion(response, options) {
+  const startedAtMs = Number(options?.startedAtMs) || Date.now();
+  let aggregatedText = "";
+  let usage = {};
+  let firstChunkAtMs = 0;
+  let chunkCount = 0;
+
+  function applyPayload(payload) {
+    if (!payload || typeof payload !== "object") {
+      return;
+    }
+    chunkCount += 1;
+    const chunkText = extractCompletionText(payload);
+    if (chunkText) {
+      aggregatedText += chunkText;
+      if (firstChunkAtMs <= 0) {
+        firstChunkAtMs = Math.max(0, Date.now() - startedAtMs);
+      }
+    }
+    if (payload.usage && typeof payload.usage === "object") {
+      usage = payload.usage;
+    }
+  }
+
   if (!response.body || typeof response.body.getReader !== "function") {
-    return await response.text();
+    const rawText = await response.text();
+    try {
+      const parsed = JSON.parse(rawText);
+      applyPayload(parsed);
+      if (!aggregatedText) {
+        aggregatedText = extractTextFromContent(parsed?.output_text) || "";
+      }
+    } catch (error) {
+      aggregatedText = rawText;
+    }
+
+    return {
+      text: aggregatedText,
+      usage,
+      firstChunkAtMs,
+      chunkCount,
+    };
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf8");
   let buffer = "";
-  let aggregatedText = "";
+
+  function consumeLine(line) {
+    const trimmed = String(line || "").trim();
+    if (!trimmed || !trimmed.startsWith("data:")) {
+      return;
+    }
+
+    const payloadText = trimmed.slice(5).trim();
+    if (!payloadText || payloadText === "[DONE]") {
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(payloadText);
+      applyPayload(payload);
+    } catch (error) {
+      // ignore non-json data lines
+    }
+  }
 
   while (true) {
     const result = await reader.read();
@@ -146,51 +254,173 @@ async function readStreamText(response) {
     buffer += decoder.decode(result.value, { stream: true });
     const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() || "";
-
-    lines.forEach(function (line) {
-      const trimmed = String(line || "").trim();
-      if (!trimmed || !trimmed.startsWith("data:")) {
-        return;
-      }
-      const payloadText = trimmed.slice(5).trim();
-      if (!payloadText || payloadText === "[DONE]") {
-        return;
-      }
-
-      try {
-        const payload = JSON.parse(payloadText);
-        aggregatedText += extractDeltaText(payload);
-      } catch (error) {
-        // ignore non-json lines
-      }
-    });
+    lines.forEach(consumeLine);
   }
 
   buffer += decoder.decode();
-  if (buffer.trim()) {
-    buffer
-      .split(/\r?\n/)
-      .map(function (line) {
-        return String(line || "").trim();
-      })
-      .filter(function (line) {
-        return line.startsWith("data:");
-      })
-      .forEach(function (line) {
-        const payloadText = line.slice(5).trim();
-        if (!payloadText || payloadText === "[DONE]") {
-          return;
-        }
-        try {
-          const payload = JSON.parse(payloadText);
-          aggregatedText += extractDeltaText(payload);
-        } catch (error) {
-          // ignore trailing non-json lines
-        }
-      });
+  buffer.split(/\r?\n/).forEach(consumeLine);
+
+  return {
+    text: aggregatedText,
+    usage,
+    firstChunkAtMs,
+    chunkCount,
+  };
+}
+
+function isEnableThinkingUnsupportedError(error) {
+  if (!error || error.code !== "provider-http-error") {
+    return false;
   }
 
-  return aggregatedText;
+  const summary = String(error.summary || error.message || "").toLowerCase();
+  return (
+    summary.indexOf("enable_thinking") >= 0 ||
+    (summary.indexOf("unsupported") >= 0 && summary.indexOf("parameter") >= 0) ||
+    (summary.indexOf("invalid") >= 0 && summary.indexOf("parameter") >= 0)
+  );
+}
+
+function createRequestBody(input, prompt, model, enableThinking) {
+  return {
+    model,
+    stream: true,
+    stream_options: {
+      include_usage: true,
+    },
+    modalities: ["text"],
+    messages: [
+      {
+        role: "system",
+        content: String(prompt?.systemPrompt || ""),
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_audio",
+            input_audio: {
+              data: String(input?.audioUrl || ""),
+              format: inferAudioFormat(input?.audioUrl || ""),
+            },
+          },
+          {
+            type: "text",
+            text: String(prompt?.userPrompt || ""),
+          },
+        ],
+      },
+    ],
+    response_format: {
+      type: "json_object",
+    },
+    temperature: 0.1,
+    enable_thinking: enableThinking === true,
+  };
+}
+
+async function requestChatCompletion(config, requestBody, options) {
+  if (typeof fetch !== "function") {
+    throw new Error("当前 Node 运行时不支持 fetch。");
+  }
+
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || 120000);
+  const timer = controller
+    ? setTimeout(function () {
+        controller.abort();
+      }, timeoutMs)
+    : null;
+
+  const endpoint = config.baseUrl + "/chat/completions";
+  const providerRequestStartedAt = Date.now();
+
+  console.info("[ASR Judgement][ai] provider request start", {
+    requestId: String(options?.requestId || ""),
+    hostname: String(options?.hostname || ""),
+    itemIndex: Number(options?.itemIndex || 0),
+    model: String(options?.model || ""),
+  });
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + config.apiKey,
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller ? controller.signal : undefined,
+    });
+
+    const providerStatus = Number(response.status) || 0;
+    console.info("[ASR Judgement][ai] provider response", {
+      requestId: String(options?.requestId || ""),
+      hostname: String(options?.hostname || ""),
+      itemIndex: Number(options?.itemIndex || 0),
+      model: String(options?.model || ""),
+      providerStatus,
+      durationMs: Math.max(0, Date.now() - providerRequestStartedAt),
+    });
+
+    if (!response.ok) {
+      const bodyText = await response.text();
+      const providerError = new Error(
+        "Qwen 接口请求失败（HTTP " + String(response.status) + "）。"
+      );
+      providerError.code = "provider-http-error";
+      providerError.statusCode = response.status;
+      providerError.providerStatus = response.status;
+      providerError.summary = sanitizeProviderErrorSummary(bodyText);
+      throw providerError;
+    }
+
+    const completion = await readStreamCompletion(response, {
+      startedAtMs: providerRequestStartedAt,
+    });
+    const text = String(completion.text || "");
+    if (!text.trim()) {
+      const emptyError = new Error("Qwen 接口未返回有效文本。");
+      emptyError.code = "empty-provider-response";
+      emptyError.statusCode = 502;
+      throw emptyError;
+    }
+
+    console.info("[ASR Judgement][ai] provider stream complete", {
+      requestId: String(options?.requestId || ""),
+      hostname: String(options?.hostname || ""),
+      itemIndex: Number(options?.itemIndex || 0),
+      model: String(options?.model || ""),
+      providerStatus,
+      chunkCount: Number(completion.chunkCount || 0),
+      rawTextLength: text.length,
+      usage: completion.usage || {},
+      durationMs: Math.max(0, Date.now() - providerRequestStartedAt),
+    });
+
+    return {
+      text,
+      usage: completion.usage || {},
+      firstChunkAtMs: Number(completion.firstChunkAtMs || 0),
+      chunkCount: Number(completion.chunkCount || 0),
+      providerStatus,
+      durationMs: Math.max(0, Date.now() - providerRequestStartedAt),
+    };
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      const timeoutError = new Error("Qwen 请求超时。",
+      );
+      timeoutError.code = "timeout";
+      timeoutError.statusCode = 504;
+      timeoutError.summary = "provider request aborted by timeout";
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 async function requestSuggestion(input, prompt, options) {
@@ -210,127 +440,82 @@ async function requestSuggestion(input, prompt, options) {
       model,
       rawText: buildMockResponse(input, model),
       mock: true,
+      usage: {},
+      chunkCount: 0,
+      firstChunkAtMs: 0,
+      providerStatus: 200,
+      durationMs: 0,
+      thinkingRequested: true,
+      enableThinking: config.enableThinking,
+      thinkingFallbackUsed: false,
+      thinkingFallbackMode: "",
     };
   }
 
   if (!config.apiKey) {
     const error = new Error("missing-api-key");
     error.code = "missing-api-key";
+    error.statusCode = 503;
     throw error;
   }
 
-  if (typeof fetch !== "function") {
-    throw new Error("当前 Node 运行时不支持 fetch。");
-  }
-
-  const controller = typeof AbortController === "function" ? new AbortController() : null;
-  const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || 120000);
-  const timer = controller
-    ? setTimeout(function () {
-        controller.abort();
-      }, timeoutMs)
-    : null;
-
-  const endpoint = config.baseUrl + "/chat/completions";
-  const requestBody = {
-    model,
-    stream: true,
-    stream_options: {
-      include_usage: true,
-    },
-    extra_body: {
-      enable_thinking: false,
-    },
-    modalities: ["text"],
-    messages: [
-      {
-        role: "system",
-        content: String(prompt?.systemPrompt || ""),
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "audio_url",
-            audio_url: {
-              url: String(input?.audioUrl || ""),
-            },
-          },
-          {
-            type: "text",
-            text: String(prompt?.userPrompt || ""),
-          },
-        ],
-      },
-    ],
-    response_format: {
-      type: "json_object",
-    },
-    temperature: 0.1,
-  };
-
-  function sanitizeProviderErrorSummary(text) {
-    const source = String(text || "");
-    return source
-      .replace(/https?:\/\/[^\s"'\\]+/g, function (matchText) {
-        try {
-          const parsedUrl = new URL(matchText);
-          return parsedUrl.protocol + "//" + parsedUrl.host + "/[redacted]";
-        } catch (error) {
-          return "[url-redacted]";
-        }
-      })
-      .replace(/(api[_-]?key["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 200);
-  }
+  const requestBody = createRequestBody(input, prompt, model, config.enableThinking);
 
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + config.apiKey,
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller ? controller.signal : undefined,
+    const completion = await requestChatCompletion(config, requestBody, {
+      requestId: options?.requestId,
+      hostname: options?.hostname,
+      itemIndex: options?.itemIndex,
+      model,
+      timeoutMs: options?.timeoutMs,
     });
-
-    if (!response.ok) {
-      const bodyText = await response.text();
-      const providerError = new Error(
-        "Qwen 接口请求失败（HTTP " + String(response.status) + "）。"
-      );
-      providerError.code = "provider-http-error";
-      providerError.statusCode = response.status;
-      providerError.summary = sanitizeProviderErrorSummary(bodyText);
-      throw providerError;
-    }
-
-    const rawText = await readStreamText(response);
-    if (!String(rawText || "").trim()) {
-      throw new Error("Qwen 接口未返回有效文本。");
-    }
 
     return {
       provider: "dashscope-qwen",
       model,
-      rawText,
+      rawText: completion.text,
+      usage: completion.usage,
+      chunkCount: completion.chunkCount,
+      firstChunkAtMs: completion.firstChunkAtMs,
+      providerStatus: completion.providerStatus,
+      durationMs: completion.durationMs,
       mock: false,
+      thinkingRequested: true,
+      enableThinking: config.enableThinking,
+      thinkingFallbackUsed: false,
+      thinkingFallbackMode: "",
     };
   } catch (error) {
-    if (error?.name === "AbortError") {
-      const timeoutError = new Error("Qwen 请求超时。");
-      timeoutError.code = "timeout";
-      timeoutError.statusCode = 504;
-      throw timeoutError;
+    if (!isEnableThinkingUnsupportedError(error)) {
+      throw error;
     }
-    throw error;
-  } finally {
-    if (timer) {
-      clearTimeout(timer);
-    }
+
+    const fallbackBody = Object.assign({}, requestBody);
+    delete fallbackBody.enable_thinking;
+
+    const completion = await requestChatCompletion(config, fallbackBody, {
+      requestId: options?.requestId,
+      hostname: options?.hostname,
+      itemIndex: options?.itemIndex,
+      model,
+      timeoutMs: options?.timeoutMs,
+    });
+
+    return {
+      provider: "dashscope-qwen",
+      model,
+      rawText: completion.text,
+      usage: completion.usage,
+      chunkCount: completion.chunkCount,
+      firstChunkAtMs: completion.firstChunkAtMs,
+      providerStatus: completion.providerStatus,
+      durationMs: completion.durationMs,
+      mock: false,
+      thinkingRequested: true,
+      enableThinking: config.enableThinking,
+      thinkingFallbackUsed: true,
+      thinkingFallbackMode: "remove",
+    };
   }
 }
 
@@ -339,8 +524,11 @@ module.exports = {
   DEFAULT_MODEL,
   buildMockResponse,
   getClientConfig,
+  inferAudioFormat,
   isAllowedModel,
+  isEnableThinkingUnsupportedError,
   isMockEnabled,
+  readStreamCompletion,
   resolveDefaultModel,
   resolveRequestModel,
   requestSuggestion,

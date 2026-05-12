@@ -132,6 +132,25 @@ function parseTimeoutMs() {
   return Math.max(1000, Math.min(180000, value));
 }
 
+function sanitizeLogSummary(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+}
+
+function normalizeUsage(usage) {
+  const source = usage && typeof usage === "object" ? usage : {};
+  const normalized = {};
+  ["prompt_tokens", "completion_tokens", "total_tokens"].forEach(function (key) {
+    const value = Number(source[key]);
+    if (Number.isFinite(value) && value >= 0) {
+      normalized[key] = Math.floor(value);
+    }
+  });
+  return normalized;
+}
+
 function sendHealth(response) {
   const config = getClientConfig();
   sendJson(response, 200, {
@@ -150,6 +169,8 @@ function sendHealth(response) {
 }
 
 async function handleSuggest(request, response) {
+  const startedAtMs = Date.now();
+  let suggestRequest = null;
   let requestId = createRequestId();
   try {
     const rawBody = await readRequestBody(request);
@@ -159,7 +180,7 @@ async function handleSuggest(request, response) {
     } catch (error) {
       throw createHttpError(400, "请求体 JSON 解析失败。", "invalid-json");
     }
-    const suggestRequest = normalizeSuggestRequest(body);
+    suggestRequest = normalizeSuggestRequest(body);
     requestId = String(body.requestId || requestId);
 
     const clientConfig = getClientConfig();
@@ -178,12 +199,42 @@ async function handleSuggest(request, response) {
     const modelResult = await requestSuggestion(suggestRequest, prompt, {
       model: suggestRequest.model,
       timeoutMs: parseTimeoutMs(),
+      requestId,
+      hostname: parseAudioHostname(suggestRequest.audioUrl),
+      itemIndex: suggestRequest.itemIndex,
     });
     const modelJson = parseModelJsonText(modelResult.rawText, requestId);
     const normalized = normalizeModelResponse(modelJson, {
       requestId,
       model: modelResult.model,
       ruleVersion: prompt.ruleVersion || suggestRequest.ruleVersion,
+    });
+    normalized.usage = normalizeUsage(modelResult.usage);
+    normalized.timing = {
+      totalDurationMs: Math.max(0, Date.now() - startedAtMs),
+      providerDurationMs: Number(modelResult.durationMs || 0),
+      firstChunkAtMs: Number(modelResult.firstChunkAtMs || 0),
+      chunkCount: Number(modelResult.chunkCount || 0),
+    };
+    normalized.mock = modelResult.mock === true;
+    normalized.thinking = {
+      requested: modelResult.thinkingRequested === true,
+      enableThinking: modelResult.enableThinking === true,
+      fallbackUsed: modelResult.thinkingFallbackUsed === true,
+      fallbackMode: String(modelResult.thinkingFallbackMode || ""),
+    };
+
+    console.info("[ASR Judgement][ai] suggest success", {
+      requestId,
+      hostname: parseAudioHostname(suggestRequest.audioUrl),
+      itemIndex: suggestRequest.itemIndex,
+      model: modelResult.model,
+      durationMs: Math.max(0, Date.now() - startedAtMs),
+      providerStatus: Number(modelResult.providerStatus || 0),
+      chunkCount: Number(modelResult.chunkCount || 0),
+      rawTextLength: String(modelResult.rawText || "").length,
+      usage: normalized.usage,
+      summary: "answer=" + String(normalized.answer || ""),
     });
 
     sendJson(response, 200, {
@@ -193,18 +244,31 @@ async function handleSuggest(request, response) {
   } catch (error) {
     const statusCode = Number(error?.statusCode) || (error?.code === "timeout" ? 504 : 500);
     const message = String(error?.message || "AI suggest 请求失败。").slice(0, 240);
+    const providerStatus = Number(error?.providerStatus || error?.statusCode || 0) || undefined;
+    const summaryText = sanitizeLogSummary(error?.summary || message);
     const responseBody = {
       success: false,
       message,
       requestId,
-      code: String(error?.code || ""),
+      code: String(error?.code || "internal-error"),
     };
-    if (error?.code === "provider-http-error" && error?.statusCode) {
-      responseBody.providerStatus = Number(error.statusCode);
+    if (providerStatus) {
+      responseBody.providerStatus = providerStatus;
     }
-    if (error?.code === "provider-http-error" && error?.summary) {
-      responseBody.summary = String(error.summary || "").slice(0, 200);
+    if (summaryText) {
+      responseBody.summary = summaryText;
     }
+
+    console.info("[ASR Judgement][ai] suggest failed", {
+      requestId,
+      hostname: parseAudioHostname(suggestRequest?.audioUrl || ""),
+      itemIndex: Number(suggestRequest?.itemIndex || 0),
+      model: String(suggestRequest?.model || ""),
+      durationMs: Math.max(0, Date.now() - startedAtMs),
+      providerStatus: Number(providerStatus || 0),
+      errorCode: String(error?.code || "internal-error"),
+      summary: summaryText || "ai suggest failed",
+    });
     sendJson(response, statusCode, responseBody);
   }
 }

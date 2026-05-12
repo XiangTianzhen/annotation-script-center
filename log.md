@@ -1,5 +1,18 @@
 # 标注脚本中心修改日志
 
+## 2026-05-12（0.3.2 热修：快判 AI 真实链路无返回提示）
+
+- 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮为当前测试版本 hotfix。
+- 修复快判 Qwen 音频输入格式：`platform-resources/alibaba-labelx/asr-judgement/backend/ai-client-qwen.js` 从 `audio_url` 切换为 `input_audio.data + input_audio.format`，`format` 按音频后缀推断（wav/mp3/aac/m4a/amr/3gp/3gpp，默认 wav）。
+- 增强快判后端流式读取：新增 `readStreamCompletion`，统一返回 `text/usage/firstChunkAtMs/chunkCount`，并兼容 SSE `data:`、非 stream 响应、`delta.content` 与 `message.content` 的 string/array 形态。
+- 修复 `enable_thinking` 兼容：先按配置发送 `enable_thinking`，若上游返回参数不支持/无效，自动移除该参数重试一次（非无限重试）。
+- 补齐后端阶段日志（脱敏）：`suggest start`、`provider request start`、`provider response`、`provider stream complete`、`suggest success`、`suggest failed`。
+- 补齐后端错误回传：统一返回 `code/message/requestId`，并按情况返回 `providerStatus/summary`，覆盖 `timeout/provider-http-error/empty-provider-response/invalid-model-json/invalid-model-schema/internal-error`。
+- 前端 `judgement-ai-suggestion.js` 增加状态反馈：点击即渲染“正在分析当前题...”卡片；成功替换建议卡；失败或超时替换错误卡（重试/忽略），并 toast 显示失败原因。
+- 前端增加同题防并发：当前题分析中重复触发会提示“当前题 AI 分析中，请稍候”，不并发发第二个请求。
+- `content.js` 增加发起即提示：工具栏按钮或快捷键触发 AI 时立即提示“AI 分析已开始，请等待结果。”。
+- 本轮明确真实验收要求：`GET /api/alibaba-labelx/asr-judgement/ai/health` 需确认 `mockEnabled=false`，不得以 mock 结果代替真实 Qwen 调用验证。
+
 ## 2026-05-12（0.3.2 热修：快判差异视图兼容新版内容区）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮为当前测试版本小修。

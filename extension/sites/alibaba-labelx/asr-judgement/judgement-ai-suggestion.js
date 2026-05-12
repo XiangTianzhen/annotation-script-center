@@ -28,6 +28,7 @@
     "asr_text",
   ];
   const ASR_TITLE_IGNORE_LIST = ["上文", "音频地址", "wav_id", "音频", "音频文件"];
+  const pendingStateByItem = new WeakMap();
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
@@ -70,6 +71,11 @@
       "[" + ROOT_ATTR + "] .asr-edge-ai-request {",
       "  color: #475569;",
       "  font-family: Consolas, 'Microsoft YaHei', monospace;",
+      "}",
+      "[" + ROOT_ATTR + "] .asr-edge-ai-status {",
+      "  margin: 2px 0 8px;",
+      "  color: #1e293b;",
+      "  font-weight: 700;",
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-ai-warning {",
       "  margin: 4px 0 6px;",
@@ -315,6 +321,185 @@
     });
   }
 
+  function setItemPending(item, pending, requestId) {
+    if (!(item instanceof HTMLElement)) {
+      return;
+    }
+    pendingStateByItem.set(item, {
+      pending: pending === true,
+      requestId: String(requestId || ""),
+    });
+  }
+
+  function getItemPendingState(item) {
+    if (!(item instanceof HTMLElement)) {
+      return {
+        pending: false,
+        requestId: "",
+      };
+    }
+    const state = pendingStateByItem.get(item);
+    if (!state || state.pending !== true) {
+      return {
+        pending: false,
+        requestId: "",
+      };
+    }
+    return {
+      pending: true,
+      requestId: String(state.requestId || ""),
+    };
+  }
+
+  function renderLoadingCard(item) {
+    removeCard(item);
+    ensureStyle();
+
+    const root = document.createElement("div");
+    root.setAttribute(ROOT_ATTR, "true");
+    root.setAttribute("data-tone", "info");
+
+    const head = document.createElement("div");
+    head.className = "asr-edge-ai-head";
+    const title = document.createElement("span");
+    title.className = "asr-edge-ai-title";
+    title.textContent = "AI 参考建议";
+    const request = document.createElement("span");
+    request.className = "asr-edge-ai-request";
+    request.textContent = "requestId: -";
+    head.appendChild(title);
+    head.appendChild(request);
+    root.appendChild(head);
+
+    const status = document.createElement("div");
+    status.className = "asr-edge-ai-status";
+    status.textContent = "正在分析当前题...";
+    root.appendChild(status);
+
+    const grid = document.createElement("div");
+    grid.className = "asr-edge-ai-grid";
+    [
+      createDetailRow("说明", "正在听音频并比较 asr_text1 / asr_text2，请稍候"),
+      createDetailRow("建议答案", "-"),
+      createDetailRow("模型", "-"),
+    ].forEach(function (nodes) {
+      grid.appendChild(nodes[0]);
+      grid.appendChild(nodes[1]);
+    });
+    root.appendChild(grid);
+
+    const actionWrap = document.createElement("div");
+    actionWrap.className = "asr-edge-ai-actions";
+    const applyButton = document.createElement("button");
+    applyButton.type = "button";
+    applyButton.setAttribute("data-action", "apply");
+    applyButton.textContent = "采用建议";
+    applyButton.disabled = true;
+    const ignoreButton = document.createElement("button");
+    ignoreButton.type = "button";
+    ignoreButton.setAttribute("data-action", "ignore");
+    ignoreButton.textContent = "忽略";
+    ignoreButton.addEventListener("click", function () {
+      removeCard(item);
+    });
+    actionWrap.appendChild(applyButton);
+    actionWrap.appendChild(ignoreButton);
+    root.appendChild(actionWrap);
+
+    const foot = document.createElement("div");
+    foot.className = "asr-edge-ai-foot";
+    foot.textContent =
+      "仅供参考：不会自动保存、不会自动提交、不会自动领取、不会自动流转。";
+    root.appendChild(foot);
+
+    item.insertBefore(root, item.firstElementChild || null);
+  }
+
+  function renderErrorCard(item, errorInfo, options) {
+    removeCard(item);
+    ensureStyle();
+
+    const detail = errorInfo && typeof errorInfo === "object" ? errorInfo : {};
+    const root = document.createElement("div");
+    root.setAttribute(ROOT_ATTR, "true");
+    root.setAttribute("data-tone", "danger");
+
+    const head = document.createElement("div");
+    head.className = "asr-edge-ai-head";
+    const title = document.createElement("span");
+    title.className = "asr-edge-ai-title";
+    title.textContent = "AI 参考建议";
+    const request = document.createElement("span");
+    request.className = "asr-edge-ai-request";
+    request.textContent = "requestId: " + String(detail.requestId || "-");
+    head.appendChild(title);
+    head.appendChild(request);
+    root.appendChild(head);
+
+    const status = document.createElement("div");
+    status.className = "asr-edge-ai-status";
+    status.textContent = "分析失败";
+    root.appendChild(status);
+
+    const grid = document.createElement("div");
+    grid.className = "asr-edge-ai-grid";
+    [
+      createDetailRow("错误原因", String(detail.message || "AI 分析失败。")),
+      createDetailRow("错误码", String(detail.code || "-")),
+      createDetailRow("模型", String(detail.model || "-")),
+    ].forEach(function (nodes) {
+      grid.appendChild(nodes[0]);
+      grid.appendChild(nodes[1]);
+    });
+    root.appendChild(grid);
+
+    const actionWrap = document.createElement("div");
+    actionWrap.className = "asr-edge-ai-actions";
+    const retryButton = document.createElement("button");
+    retryButton.type = "button";
+    retryButton.setAttribute("data-action", "retry");
+    retryButton.textContent = "重试";
+    const ignoreButton = document.createElement("button");
+    ignoreButton.type = "button";
+    ignoreButton.setAttribute("data-action", "ignore");
+    ignoreButton.textContent = "忽略";
+
+    retryButton.addEventListener("click", function () {
+      if (typeof options?.retrySuggestion !== "function") {
+        return;
+      }
+      Promise.resolve(options.retrySuggestion())
+        .then(function (result) {
+          if (result?.ok === false && typeof options?.showToast === "function") {
+            options.showToast(result.message || "AI 分析失败。", "error");
+          }
+        })
+        .catch(function (error) {
+          if (typeof options?.showToast === "function") {
+            options.showToast(
+              "AI 分析失败：" + (error && error.message ? error.message : String(error)),
+              "error"
+            );
+          }
+        });
+    });
+
+    ignoreButton.addEventListener("click", function () {
+      removeCard(item);
+    });
+    actionWrap.appendChild(retryButton);
+    actionWrap.appendChild(ignoreButton);
+    root.appendChild(actionWrap);
+
+    const foot = document.createElement("div");
+    foot.className = "asr-edge-ai-foot";
+    foot.textContent =
+      "仅供参考：不会自动保存、不会自动提交、不会自动领取、不会自动流转。";
+    root.appendChild(foot);
+
+    item.insertBefore(root, item.firstElementChild || null);
+  }
+
   function renderCard(item, result, options) {
     removeCard(item);
     ensureStyle();
@@ -463,6 +648,22 @@
       }
     }
 
+    function buildFailedActionResult(message, source, extra) {
+      return buildActionResult(false, "AI 分析失败：" + String(message || "未知错误"), {
+        reason: "ai-request-failed",
+        source: source || "unknown",
+        code: String(extra?.code || ""),
+        requestId: String(extra?.requestId || ""),
+      });
+    }
+
+    function extractErrorMessage(error) {
+      if (error?.name === "AbortError") {
+        return "AI 后端请求超时，请检查后端日志或模型接口。";
+      }
+      return String(error?.message || "AI 服务请求失败。");
+    }
+
     async function requestThunderInfo(item) {
       if (typeof options.getThunderInfo !== "function") {
         return null;
@@ -543,6 +744,15 @@
         1000,
         Math.min(180000, Number(config.aiSuggestionRequestTimeoutMs) || 120000)
       );
+      const pendingState = getItemPendingState(item);
+      if (pendingState.pending) {
+        return buildActionResult(true, "当前题 AI 分析中，请稍候。", {
+          reason: "ai-request-pending",
+          source: source || "unknown",
+          requestId: pendingState.requestId,
+        });
+      }
+
       const params = readUrlParams();
       const requestBody = {
         projectId: params.projectId || "",
@@ -565,6 +775,8 @@
         : null;
 
       let responseBody = null;
+      setItemPending(item, true, "");
+      renderLoadingCard(item);
       try {
         const response = await fetch(endpoint, {
           method: "POST",
@@ -578,17 +790,41 @@
           return null;
         });
         if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
-          throw new Error(
-            responseBody?.message ||
-              "AI 服务请求失败（HTTP " + String(response.status) + "）。"
+          const requestId = String(responseBody?.requestId || "");
+          const responseError = new Error(
+            responseBody?.message || "AI 服务请求失败（HTTP " + String(response.status) + "）。"
           );
+          responseError.code = String(responseBody?.code || "");
+          responseError.requestId = requestId;
+          throw responseError;
         }
       } catch (error) {
-        return buildActionResult(false, error && error.message ? error.message : "AI 服务请求失败。", {
-          reason: "ai-request-failed",
-          source: source || "unknown",
+        const message = extractErrorMessage(error);
+        const requestId = String(error?.requestId || responseBody?.requestId || "");
+        renderErrorCard(
+          item,
+          {
+            message,
+            requestId,
+            code: String(error?.code || ""),
+            model: String(requestBody.model || ""),
+          },
+          {
+            retrySuggestion: function () {
+              return suggestCurrentItem("retry");
+            },
+            showToast: options.showToast,
+          }
+        );
+        if (typeof options.showToast === "function") {
+          options.showToast("AI 分析失败：" + message, "error");
+        }
+        return buildFailedActionResult(message, source, {
+          code: String(error?.code || ""),
+          requestId,
         });
       } finally {
+        setItemPending(item, false, "");
         if (timer) {
           clearTimeout(timer);
         }
@@ -640,6 +876,10 @@
           itemIndex: Number(requestBody.itemIndex),
           model: cardData.model,
         });
+      }
+
+      if (typeof options.showToast === "function") {
+        options.showToast("AI 建议已生成，请人工确认后再采用。", "info");
       }
 
       return buildActionResult(true, "AI 建议已生成，请人工确认后再采用。", {
