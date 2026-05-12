@@ -10,6 +10,14 @@
 - `AGENTS.md` 新增 Magic Data 稳定口径（脚本/后端路径、页面挂载位置、规则优先质检、收益估算和安全边界）。
 - `README.md` 维护规则最小同步：默认不创建独立 worktree，仅在用户明确要求时使用分支/worktree/PR 流程。
 
+## 2026-05-12（清理旧分支与旧 worktree）
+
+- 已确认 `feature/magic-data-ai-review-debug` 完整合并到 `main` 后再执行清理。
+- 已删除旧 worktree：`C:\Projects\annotation-script-center-magic-data-ai-review`（通过 `git worktree remove`）。
+- 已删除本地分支：`feature/magic-data-ai-review-debug`。
+- 已删除远端分支：`origin/feature/magic-data-ai-review-debug`。
+- 协作口径保持：默认 `main` 单工作区开发；分支/worktree 仅在用户明确要求时启用。
+
 ## 2026-05-12（0.3.1 发布合并：Magic Data AI 质检助手）
 
 - 发布合并：`main` 合并 `feature/magic-data-ai-review-debug`，引入 Magic Data ANNOTATOR 前后端能力。
