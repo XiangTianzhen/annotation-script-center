@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "标注脚本中心",
   "description": "多平台标注脚本中心与当前页面脚本状态入口。",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "update_url": "https://script.xiangtianzhen.store/downloads/annotation-script-center-update.xml",
   "permissions": [
     "storage",

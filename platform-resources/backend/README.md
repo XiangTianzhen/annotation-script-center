@@ -45,6 +45,12 @@ http://127.0.0.1:3333
 - `DATABAKER_ROUND_ONE_EXPORT_DIR`：标贝易采导出 CSV 保存目录（默认 `platform-resources/data-baker/round-one-quality/backend/export-data/`）。
 - `DATABAKER_ROUND_ONE_EXPORT_HISTORY`：设为 `1` 时保存历史导出 CSV。
 - `DATABAKER_ROUND_ONE_EXPORT_EVENTS`：设为 `1` 时写入导出上传事件日志 JSONL。
+- `MAGIC_DATA_AI_LISTEN_MODEL`：Magic Data 听音模型，默认 `qwen3.5-omni-flash`。
+- `MAGIC_DATA_AI_COMPARE_MODEL`：Magic Data 质检模型，默认 `qwen3.5-plus`。
+- `MAGIC_DATA_AI_TIMEOUT_MS`：Magic Data AI 请求超时，默认 `120000`。
+- `MAGIC_DATA_AI_MOCK`：设为 `1` 时启用 mock 调试模式。
+- `MAGIC_DATA_AI_ENABLE_THINKING`：默认 `0`，开启时尝试传 `enable_thinking=true`。
+- `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`：项目数据下载密码的 SHA256（兼容旧 `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`）。
 - `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`：项目数据下载 token 签名密钥（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）。
 
@@ -134,7 +140,12 @@ pm2 restart annotation-script-center --update-env
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出）。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口；导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
+- `magic-data/annotator`：Magic Data AI 质检调试接口，包含 `review-current` 与 `health`。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
+
+Magic Data 接口：
+- `GET /api/magic-data/annotator/ai/review-current/health`
+- `POST /api/magic-data/annotator/ai/review-current`
 
 项目数据下载接口：
 - `GET /api/admin/project-data-download/options`

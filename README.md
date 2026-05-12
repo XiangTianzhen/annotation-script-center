@@ -5,12 +5,23 @@
 ## 当前重点
 
 - 当前通用扩展源码目录：`extension/`
-- 当前重点平台：`Alibaba LabelX`、`标贝易采`
-- 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/alibaba-labelx/asr-transcription/`、`extension/sites/data-baker/round-one-quality/`
+- 当前重点平台：`Alibaba LabelX`、`标贝易采`、`Magic Data ANNOTATOR`
+- 当前重点脚本：`extension/sites/alibaba-labelx/asr-judgement/`、`extension/sites/alibaba-labelx/asr-transcription/`、`extension/sites/data-baker/round-one-quality/`、`extension/sites/magic-data/annotator/`
 - 当前后端入口：`platform-resources/backend/server.js`
-- 当前扩展版本：`0.3.0`
-- 当前处于 `0.3.0` 稳定验收完成阶段；项目数据下载、供应商筛选、标贝易采 CSV/原始 JSON 分离、CRX 发布三件套和 `ops_monitor` 策略写入能力已完成。
-- CRX 企业托管自动安装因需要 AD/Entra ID/Intune/MDM 等企业托管环境，已作为未完成模块挂起，不阻塞 `0.3.0`。
+- 当前扩展版本：`0.3.1`
+- 当前处于 `0.3.1` 发布合并阶段；在 `0.3.0` 能力基础上新增 Magic Data AI 质检助手（当前条质检、页面内结果区、模型/思考开关/快捷键设置、统一后端调试接口）。
+- CRX 企业托管自动安装因需要 AD/Entra ID/Intune/MDM 等企业托管环境，已作为未完成模块挂起，不阻塞 `0.3.1`。
+
+## 0.3.1 发布能力（Magic Data AI 质检助手）
+
+- 新增 Magic Data 域名接入：`https://work.magicdatatech.com/*`。
+- 新增 `#/asrmark` 页面识别与页面内质检卡片（挂载在右侧“句子列表”下方）。
+- 新增当前条 AI 质检：平台文本基准 + 听音辅助 + 规则优先质检，不自动保存/提交/审核/领取。
+- 新增有效句子时长收益估算：`estimatedIncome = effectiveTime / 3600 * 120`。
+- 新增 options 侧 Magic Data 脚本设置：听音模型、质检模型（下拉+自定义）、启用思考、快捷键绑定。
+- 新增统一后端接口：
+  - `GET /api/magic-data/annotator/ai/review-current/health`
+  - `POST /api/magic-data/annotator/ai/review-current`
 
 ## 0.3.0 第一轮能力（已实现）
 

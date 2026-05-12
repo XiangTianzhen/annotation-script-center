@@ -1,5 +1,18 @@
 # 标注脚本中心修改日志
 
+## 2026-05-12（0.3.1 发布合并：Magic Data AI 质检助手）
+
+- 发布合并：`main` 合并 `feature/magic-data-ai-review-debug`，引入 Magic Data ANNOTATOR 前后端能力。
+- 版本升级：`extension/manifest.json` 从 `0.3.0` 提升到 `0.3.1`。
+- 前端接入：新增 `extension/sites/magic-data/annotator/`（页面识别、接口优先采集、页面内质检卡片、快捷键执行与焦点恢复、模型参数透传）。
+- 页面形态：`#/asrmark` 在右侧“句子列表”下方固定显示 `Magic Data AI 质检结果` 卡片，不再使用右下角悬浮入口。
+- 交互增强：质检卡片支持手动拖拽高度与持久化，支持重置默认高度；AI 结果仅在卡片内部更新，不新增弹窗大面板。
+- options/popup：新增 Magic Data 平台卡片与脚本设置入口，支持听音模型、质检模型（下拉 + 自定义）、启用思考、快捷键配置；popup 可识别 Magic Data 页面命中状态。
+- 后端接入：新增 `platform-resources/magic-data/annotator/backend/`，并通过 `platform-resources/backend/registry.js` 注册。
+- Magic Data 接口：`GET /api/magic-data/annotator/ai/review-current/health`、`POST /api/magic-data/annotator/ai/review-current`。
+- 安全边界：保持“只辅助、不自动保存/提交/审核/领取”；日志与响应继续脱敏，不记录完整签名音频 URL、token、cookie、authorization、API Key。
+- 发布产物：按 CRX 路径生成 `0.3.1` 三件套（CRX / update.xml / crx-latest.json），不使用 zip 作为正式发布路径。
+
 ## 2026-05-11
 
 - AGENTS 协作规则增强：新增“并行功能开发与动态版本号规则”，明确并行任务默认使用独立分支（`feature/<功能名>`、`fix/<修复名>`）与独立 `worktree`，禁止多 Agent 同时改同一 `main` 工作区。

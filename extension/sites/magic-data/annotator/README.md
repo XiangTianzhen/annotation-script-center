@@ -27,14 +27,15 @@
 
 ## 页面内结果区策略（本轮调整）
 
-- 主展示改为页面内结果区（`data-asc-magic-data-review-inline="true"`），优先插入“说话内容”表格下方。
-- 保留右下角小入口按钮 `AI 质检`，点击后滚动到页面内结果区。
+- 主展示改为页面内结果区（`data-asc-magic-data-review-inline="true"`），优先插入右侧“句子列表”`.audio_list .body_box` 后方。
+- 不再渲染右下角悬浮 `AI 质检` 小按钮，避免遮挡业务区。
 - 在 `document_start` 阶段启动并重试挂载，避免 `head/body` 未就绪导致静默失败。
 - 即使未获取到音频 URL 或未读取到平台文本，也会显示结果区和错误提示。
 - SPA hash 变化或任务切换后会重新采集；切换到新任务会清空旧 AI 结果，避免误填入。
 - 控制台仅输出最小安全日志（启动/挂载），不输出完整 `audioUrl`。
 - 快捷键配置从页面面板迁移到 options 的 Magic Data 专区；页面仅消费快捷键设置。
 - 保存/提交与性别/年龄仅在用户主动快捷键触发时执行，不自动触发。
+- 页面内卡片支持手动拖拽高度（默认 420px，最小 260px，最大 `calc(100vh - 320px)`），并持久化到 `scriptCenter.magicDataAnnotator.panelHeight`。
 
 ## 本地联调
 

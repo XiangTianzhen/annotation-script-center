@@ -13,7 +13,7 @@
 - 浏览器差异优先放到 manifest、浏览器 API 兼容层、打包配置或发布说明里处理。
 - 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
 - 修复当前待验证版本 BUG 时，可保持 `manifest.version` 不变，不因同一版本的连续修复重复升 patch。
-- 当前版本为 `0.3.0`，包含“项目数据下载”隐藏入口、后端密码校验、短期下载链接和审计日志能力。
+- 当前版本为 `0.3.1`，在 `0.3.0` 基础上新增 Magic Data AI 质检助手（页面内质检卡片、模型设置、快捷键和统一后端接口）。
 - 3.0 起正式发布产物为 CRX 三件套：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 
@@ -34,6 +34,8 @@ sites/
     asr-judgement/
   data-baker/
     round-one-quality/
+  magic-data/
+    annotator/
 ```
 
 - `alibaba-labelx/asr-judgement/`：Alibaba LabelX ASR 快判。
@@ -51,6 +53,7 @@ sites/
   - 下载示例：`/api/alibaba-labelx/asr-judgement/statistics/download`
 - 统计上传能力默认强制启用；若脚本实现了定时上传能力，则定时上传也按脚本规则强制启用，不在脚本详情页提供关闭开关。
 - `data-baker/round-one-quality/`：标贝易采一检质检 AI 推荐文本（`roundOneCollect`）+ 任务组总表导出（`group/detail`）；导出会本地下载并自动上传到统一后端，后端可下载最新 CSV。
+- `magic-data/annotator/`：Magic Data `#/asrmark` 当前条 AI 质检助手；结果区固定挂载在“句子列表”下方，支持模型/思考开关/快捷键配置，保持人工确认与手动保存提交。
 - 后端地址配置统一入口：options 首页顶部“后端接口地址”（`server` / `local`）。各脚本详情页不再提供独立后端地址、上传地址或 AI 接口地址配置。
 
 ## 页面采集工作流
