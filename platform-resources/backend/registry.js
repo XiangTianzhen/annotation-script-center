@@ -6,6 +6,7 @@ const {
   registerRoutes: registerAsrTranscriptionRoutes,
 } = require("../alibaba-labelx/asr-transcription/backend");
 const { registerRoutes: registerDataBakerRoundOneRoutes } = require("../data-baker/round-one-quality/backend");
+const { registerRoutes: registerMagicDataAnnotatorRoutes } = require("../magic-data/annotator/backend");
 const { registerRoutes: registerProjectDataDownloadRoutes } = require("./project-data-download");
 
 function registerProjectRoutes(router, options) {
@@ -42,6 +43,7 @@ function registerProjectRoutes(router, options) {
       process.env.ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS === "1",
   });
   registerDataBakerRoundOneRoutes(router, config.dataBakerRoundOneQuality || {});
+  registerMagicDataAnnotatorRoutes(router, config.magicDataAnnotator || {});
   registerProjectDataDownloadRoutes(router, config.projectDataDownload || {});
 }
 

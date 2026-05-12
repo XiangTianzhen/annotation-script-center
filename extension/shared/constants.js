@@ -28,10 +28,12 @@
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const DATA_BAKER_PLATFORM_ID = "dataBaker";
+  const MAGIC_DATA_PLATFORM_ID = "magicData";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
   const JUDGEMENT_PROJECT_ID = "judgement";
   const LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID = "lightwheelViewPanel";
   const DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID = "dataBakerRoundOneQuality";
+  const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
   const BACKEND_ENDPOINTS = {
@@ -178,6 +180,13 @@
     label: "标贝易采",
     host: "datafactory.data-baker.com",
     matches: ["https://datafactory.data-baker.com/*"],
+  };
+
+  const MAGIC_DATA_PLATFORM = {
+    id: "magic-data",
+    label: "Magic Data ANNOTATOR",
+    host: "work.magicdatatech.com",
+    matches: ["https://work.magicdatatech.com/*"],
   };
 
   const PAGE_OPTIONS = [
@@ -437,6 +446,14 @@
       runtimeBridge: "data-baker-round-one-quality",
       description: "标贝易采质检站点。",
     },
+    magicData: {
+      id: MAGIC_DATA_PLATFORM_ID,
+      label: "Magic Data ANNOTATOR",
+      host: MAGIC_DATA_PLATFORM.host,
+      matches: clone(MAGIC_DATA_PLATFORM.matches),
+      runtimeBridge: "magic-data-annotator-ai-review",
+      description: "Magic Data 当前条 AI 质检、快捷键与模型配置。",
+    },
   };
 
   const SCRIPT_LIBRARY = {
@@ -493,6 +510,19 @@
       host: DATA_BAKER_PLATFORM.host,
       matchUrl:
         "https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0",
+    },
+    magicDataAnnotatorAiReview: {
+      id: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
+      platformId: MAGIC_DATA_PLATFORM_ID,
+      label: "Magic Data AI 质检助手",
+      shortLabel: "AI 质检助手",
+      description: "用于 #/asrmark 当前条规则质检，不自动保存、不自动提交。",
+      note: "页面内结果区仅辅助复核，平台两行文本为基准答案，AI 输出以风险提示为主。",
+      capabilityScope: "rule-first-ai-review",
+      statusLabel: "已接入 AI 质检",
+      detailView: "magic-data-annotator-ai-review",
+      host: MAGIC_DATA_PLATFORM.host,
+      matchUrl: "https://work.magicdatatech.com/#/asrmark?taskItemId=...",
     },
   };
 
@@ -748,6 +778,21 @@
 
   const DEFAULT_SETTINGS = {
     stage: STAGE_ID,
+    scriptCenter: {
+      projects: {
+        magicDataAnnotator: {
+          enabled: true,
+          aiReviewEnabled: true,
+          listenModel: "qwen3.5-omni-flash",
+          reviewModel: "qwen3.5-plus",
+          reviewMode: "rule_first",
+          showHeardText: true,
+          showEstimatedIncome: true,
+          enableThinking: false,
+          shortcuts: {},
+        },
+      },
+    },
     platforms: {
       alibabaLabelx: createDefaultPlatformSettings(),
       lightwheel: createDefaultLightwheelPlatformSettings(),
@@ -781,6 +826,7 @@
     TARGET_PLATFORM: TARGET_PLATFORM,
     LIGHTWHEEL_PLATFORM: LIGHTWHEEL_PLATFORM,
     DATA_BAKER_PLATFORM: DATA_BAKER_PLATFORM,
+    MAGIC_DATA_PLATFORM: MAGIC_DATA_PLATFORM,
     PLATFORM_LIBRARY: clone(PLATFORM_LIBRARY),
     MESSAGE_TYPES: MESSAGE_TYPES,
     PAGE_OPTIONS: PAGE_OPTIONS,
@@ -795,7 +841,9 @@
     JUDGEMENT_PROJECT_ID: JUDGEMENT_PROJECT_ID,
     LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID,
     DATA_BAKER_PLATFORM_ID: DATA_BAKER_PLATFORM_ID,
+    MAGIC_DATA_PLATFORM_ID: MAGIC_DATA_PLATFORM_ID,
     DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
+    MAGIC_DATA_ANNOTATOR_SCRIPT_ID: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
     DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
     DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,
     DATABAKER_AI_RECOMMEND_PATH: DATABAKER_AI_RECOMMEND_PATH,

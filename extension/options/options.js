@@ -8,6 +8,8 @@
   const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
   const dataBakerRoundOneQualityScriptId =
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
+  const magicDataAnnotatorScriptId =
+    constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
   const backendModeServer = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const backendModeLocal = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const getBackendModeFromSettings =
@@ -100,6 +102,48 @@
     { key: "shortcutCopyDuration", label: "复制当前音频时长" },
     { key: "shortcutUploadStats", label: "上传转写统计" },
   ];
+  const magicDataDefaultSettings = {
+    enabled: true,
+    aiReviewEnabled: true,
+    listenModel: "qwen3.5-omni-flash",
+    reviewModel: "qwen3.5-plus",
+    reviewMode: "rule_first",
+    showHeardText: true,
+    showEstimatedIncome: true,
+    enableThinking: false,
+    shortcuts: {},
+  };
+  const magicDataListenModelOptions = [
+    "qwen3.5-omni-flash",
+    "qwen3.5-omni",
+    "qwen-omni-turbo",
+    "qwen-audio-turbo",
+  ];
+  const magicDataReviewModelOptions = [
+    "qwen3.5-plus",
+    "qwen-plus",
+    "qwen-max",
+    "qwen-turbo",
+    "qwen-long",
+  ];
+  const magicDataShortcutActions = [
+    { key: "reviewCurrent", label: "AI 质检当前条" },
+    { key: "copySummary", label: "复制 AI 质检摘要" },
+    { key: "fillDialectLine", label: "填入第一行" },
+    { key: "fillMandarinLine", label: "填入第二行" },
+    { key: "save", label: "保存" },
+    { key: "submit", label: "提交" },
+    { key: "genderMale", label: "性别男" },
+    { key: "genderFemale", label: "性别女" },
+    { key: "age0To5", label: "年龄0-5" },
+    { key: "age6To12", label: "年龄6-12" },
+    { key: "age13To18", label: "年龄13-18" },
+    { key: "age19To25", label: "年龄19-25" },
+    { key: "age26To36", label: "年龄26-36" },
+    { key: "age37To50", label: "年龄37-50" },
+    { key: "age51To65", label: "年龄51-65" },
+    { key: "age65Plus", label: "年龄65以上" },
+  ];
   const judgementItemsPerPageOptions = [
     { value: "1 条/页", label: "1 条/页" },
     { value: "2 条/页", label: "2 条/页" },
@@ -130,6 +174,9 @@
   let dataBakerShortcutsDraft = {};
   let dataBakerRecordingKey = null;
   let stopDataBakerRecordingListeners = null;
+  let magicDataShortcutsDraft = {};
+  let magicDataRecordingKey = null;
+  let stopMagicDataRecordingListeners = null;
   let endpointAdvancedRevealCount = 0;
   let endpointAdvancedUnlocked = false;
   let projectDataDownloadDatasets = [];
@@ -412,6 +459,10 @@
     return scriptId === dataBakerRoundOneQualityScriptId;
   }
 
+  function isMagicDataScript(scriptId) {
+    return scriptId === magicDataAnnotatorScriptId;
+  }
+
   function normalizeDataBakerTimeoutMs(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
@@ -463,6 +514,104 @@
     return result;
   }
 
+  function normalizeMagicDataModel(value, fallback) {
+    const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    if (!text) {
+      return fallback;
+    }
+    return text.slice(0, 80);
+  }
+
+  function normalizeMagicDataReviewMode(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "listen_assisted" || text === "strict_review" || text === "rule_first") {
+      return text;
+    }
+    return fallback || "rule_first";
+  }
+
+  function normalizeMagicDataShortcuts(shortcuts) {
+    const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
+    const result = {};
+    magicDataShortcutActions.forEach(function (action) {
+      result[action.key] = hasOwn(source, action.key)
+        ? normalizeNullableShortcut(source[action.key])
+        : null;
+    });
+    return result;
+  }
+
+  function isMagicDataPresetModel(modelName, presetList) {
+    return Array.isArray(presetList) && presetList.indexOf(modelName) >= 0;
+  }
+
+  function applyMagicDataModelField(selectId, customInputId, modelName, presetList) {
+    const selectNode = getElement(selectId);
+    const customNode = getElement(customInputId);
+    if (!(selectNode instanceof HTMLSelectElement) || !(customNode instanceof HTMLInputElement)) {
+      return;
+    }
+    const normalizedModel = normalizeMagicDataModel(modelName, "");
+    const useCustom = !normalizedModel || !isMagicDataPresetModel(normalizedModel, presetList);
+    selectNode.value = useCustom ? "custom" : normalizedModel;
+    customNode.value = useCustom ? normalizedModel : "";
+    customNode.classList.toggle("hidden", !useCustom);
+  }
+
+  function readMagicDataModelField(selectId, customInputId, fallback, presetList) {
+    const selectNode = getElement(selectId);
+    const customNode = getElement(customInputId);
+    if (!(selectNode instanceof HTMLSelectElement) || !(customNode instanceof HTMLInputElement)) {
+      return normalizeMagicDataModel(fallback, fallback);
+    }
+    if (selectNode.value === "custom") {
+      return normalizeMagicDataModel(customNode.value, fallback);
+    }
+    if (isMagicDataPresetModel(selectNode.value, presetList)) {
+      return normalizeMagicDataModel(selectNode.value, fallback);
+    }
+    return normalizeMagicDataModel(fallback, fallback);
+  }
+
+  function bindMagicDataModelSelect(selectId, customInputId) {
+    const selectNode = getElement(selectId);
+    const customNode = getElement(customInputId);
+    if (!(selectNode instanceof HTMLSelectElement) || !(customNode instanceof HTMLInputElement)) {
+      return;
+    }
+    selectNode.addEventListener("change", function () {
+      const useCustom = selectNode.value === "custom";
+      customNode.classList.toggle("hidden", !useCustom);
+      if (useCustom) {
+        customNode.focus();
+      }
+    });
+  }
+
+  function getMagicDataConfig(settings) {
+    const source = settings?.scriptCenter?.projects?.magicDataAnnotator || {};
+    return {
+      enabled: source.enabled !== false,
+      aiReviewEnabled: source.aiReviewEnabled !== false,
+      listenModel: normalizeMagicDataModel(
+        source.listenModel,
+        magicDataDefaultSettings.listenModel
+      ),
+      reviewModel: normalizeMagicDataModel(
+        source.reviewModel,
+        magicDataDefaultSettings.reviewModel
+      ),
+      reviewMode: normalizeMagicDataReviewMode(
+        source.reviewMode,
+        magicDataDefaultSettings.reviewMode
+      ),
+      showHeardText: source.showHeardText !== false,
+      showEstimatedIncome: source.showEstimatedIncome !== false,
+      enableThinking: source.enableThinking === true,
+      shortcuts: normalizeMagicDataShortcuts(source.shortcuts),
+    };
+  }
+
   function getLabelxActiveScriptId(settings) {
     return settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId || transcriptionProjectId;
   }
@@ -509,6 +658,11 @@
       return Boolean(settings?.platforms?.dataBaker?.enabled !== false && config.enabled !== false);
     }
 
+    if (isMagicDataScript(scriptId)) {
+      const config = getMagicDataConfig(settings);
+      return config.enabled !== false && config.aiReviewEnabled !== false;
+    }
+
     if (isLabelxScript(scriptId)) {
       return Boolean(
         settings?.platforms?.alibabaLabelx?.enabled &&
@@ -533,6 +687,16 @@
       }
       return config.aiRecommendEnabled === false
         ? { text: "脚本已启用，AI 推荐已关闭", tone: "pending" }
+        : { text: "已启用", tone: "enabled" };
+    }
+
+    if (isMagicDataScript(scriptId)) {
+      const config = getMagicDataConfig(settings);
+      if (!isScriptEnabled(settings, scriptId)) {
+        return { text: "未启用", tone: "disabled" };
+      }
+      return config.aiReviewEnabled === false
+        ? { text: "脚本已启用，AI 质检已关闭", tone: "pending" }
         : { text: "已启用", tone: "enabled" };
     }
 
@@ -561,6 +725,10 @@
 
     if (isDataBakerScript(scriptId)) {
       return "https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0";
+    }
+
+    if (isMagicDataScript(scriptId)) {
+      return "https://work.magicdatatech.com/#/asrmark?taskItemId=...";
     }
 
     return "https://labelx.alibaba-inc.com/corpora/labeling/*";
@@ -1230,6 +1398,219 @@
     };
 
     renderDataBakerShortcutGrid();
+  }
+
+  function ensureMagicDataShortcutDraft() {
+    magicDataShortcutActions.forEach(function (action) {
+      if (!hasOwn(magicDataShortcutsDraft, action.key)) {
+        magicDataShortcutsDraft[action.key] = null;
+      }
+    });
+  }
+
+  function setMagicDataRecordingStatus(text) {
+    const node = getElement("magic-data-recording-status");
+    if (!node) {
+      return;
+    }
+    node.textContent = text || "";
+    node.classList.toggle("hidden", !text);
+  }
+
+  function renderMagicDataShortcutGrid() {
+    const grid = getElement("magic-data-shortcut-grid");
+    if (!grid) {
+      return;
+    }
+    ensureMagicDataShortcutDraft();
+    grid.innerHTML = magicDataShortcutActions
+      .map(function (action) {
+        const recording = magicDataRecordingKey === action.key;
+        return [
+          '<div class="shortcut-row">',
+          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
+          '<span class="shortcut-value">' +
+            escapeHtml(recording ? "录制中..." : formatShortcut(magicDataShortcutsDraft[action.key])) +
+            "</span>",
+          '<button type="button" class="secondary-button" data-record-magic-data-shortcut="' +
+            escapeHtml(action.key) +
+            '">' +
+            (recording ? "录制中" : "录制") +
+            "</button>",
+          '<button type="button" class="ghost-button" data-clear-magic-data-shortcut="' +
+            escapeHtml(action.key) +
+            '">删除</button>',
+          "</div>",
+        ].join("");
+      })
+      .join("");
+
+    Array.from(grid.querySelectorAll("[data-record-magic-data-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        startMagicDataShortcutRecording(button.getAttribute("data-record-magic-data-shortcut"));
+      });
+    });
+
+    Array.from(grid.querySelectorAll("[data-clear-magic-data-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        const key = button.getAttribute("data-clear-magic-data-shortcut");
+        magicDataShortcutsDraft[key] = null;
+        if (magicDataRecordingKey === key) {
+          stopMagicDataShortcutRecording("快捷键录制已取消。");
+          return;
+        }
+        setMagicDataRecordingStatus("快捷键已删除，保存后生效。");
+        renderMagicDataShortcutGrid();
+      });
+    });
+  }
+
+  function stopMagicDataShortcutRecording(statusText) {
+    if (typeof stopMagicDataRecordingListeners === "function") {
+      stopMagicDataRecordingListeners();
+      stopMagicDataRecordingListeners = null;
+    }
+    magicDataRecordingKey = null;
+    setMagicDataRecordingStatus(statusText || "");
+    renderMagicDataShortcutGrid();
+  }
+
+  function applyRecordedMagicDataShortcut(shortcut) {
+    if (!magicDataRecordingKey || shortcut === false) {
+      return;
+    }
+    if (!shortcut) {
+      stopMagicDataShortcutRecording("已取消快捷键录制。");
+      return;
+    }
+    magicDataShortcutsDraft[magicDataRecordingKey] = normalizeNullableShortcut(shortcut);
+    stopMagicDataShortcutRecording("快捷键已录制，保存后生效。");
+  }
+
+  function startMagicDataShortcutRecording(actionKey) {
+    if (!actionKey) {
+      return;
+    }
+    if (typeof stopMagicDataRecordingListeners === "function") {
+      stopMagicDataRecordingListeners();
+    }
+    magicDataRecordingKey = actionKey;
+    const action = magicDataShortcutActions.find(function (item) {
+      return item.key === actionKey;
+    });
+
+    setMagicDataRecordingStatus(
+      "正在录制「" + String(action?.label || actionKey) + "」：按键盘组合，Esc 取消。"
+    );
+
+    const keydownListener = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+      applyRecordedMagicDataShortcut(shortcutFromKeyboardEvent(event));
+    };
+
+    window.addEventListener("keydown", keydownListener, true);
+    stopMagicDataRecordingListeners = function () {
+      window.removeEventListener("keydown", keydownListener, true);
+    };
+
+    renderMagicDataShortcutGrid();
+  }
+
+  function applyMagicDataSettingsForm(settings) {
+    const config = getMagicDataConfig(settings);
+    magicDataShortcutsDraft = clone(config.shortcuts) || {};
+    getElement("magic-data-enabled").checked = config.enabled !== false;
+    applyMagicDataModelField(
+      "magic-data-listen-model-select",
+      "magic-data-listen-model-custom",
+      config.listenModel,
+      magicDataListenModelOptions
+    );
+    applyMagicDataModelField(
+      "magic-data-review-model-select",
+      "magic-data-review-model-custom",
+      config.reviewModel,
+      magicDataReviewModelOptions
+    );
+    getElement("magic-data-review-mode").value = config.reviewMode;
+    getElement("magic-data-show-heard-text").checked = config.showHeardText !== false;
+    getElement("magic-data-show-estimated-income").checked =
+      config.showEstimatedIncome !== false;
+    getElement("magic-data-enable-thinking").checked = config.enableThinking === true;
+    stopMagicDataShortcutRecording("");
+    renderMagicDataShortcutGrid();
+    setStatus(
+      "magic-data-status",
+      "当前后端地址由首页统一控制：" + formatBackendModeLabel(settings)
+    );
+  }
+
+  async function saveMagicDataSettings() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      setStatus("magic-data-status", "当前扩展版本不支持保存 Magic Data 设置。");
+      return false;
+    }
+
+    ensureMagicDataShortcutDraft();
+    const shortcuts = {};
+    magicDataShortcutActions.forEach(function (action) {
+      shortcuts[action.key] = normalizeNullableShortcut(magicDataShortcutsDraft[action.key]);
+    });
+
+    const enabled = getElement("magic-data-enabled").checked;
+    const listenModel = readMagicDataModelField(
+      "magic-data-listen-model-select",
+      "magic-data-listen-model-custom",
+      magicDataDefaultSettings.listenModel,
+      magicDataListenModelOptions
+    );
+    const reviewModel = readMagicDataModelField(
+      "magic-data-review-model-select",
+      "magic-data-review-model-custom",
+      magicDataDefaultSettings.reviewModel,
+      magicDataReviewModelOptions
+    );
+    const reviewMode = normalizeMagicDataReviewMode(
+      getElement("magic-data-review-mode").value,
+      magicDataDefaultSettings.reviewMode
+    );
+    const showHeardText = getElement("magic-data-show-heard-text").checked;
+    const showEstimatedIncome = getElement("magic-data-show-estimated-income").checked;
+    const enableThinking = getElement("magic-data-enable-thinking").checked === true;
+
+    setStatus("magic-data-status", "正在保存 Magic Data 设置...");
+    try {
+      currentSettings = await storage.patchSettings({
+        scriptCenter: {
+          projects: {
+            magicDataAnnotator: {
+              enabled: enabled,
+              aiReviewEnabled: enabled,
+              listenModel: listenModel,
+              reviewModel: reviewModel,
+              reviewMode: reviewMode,
+              showHeardText: showHeardText,
+              showEstimatedIncome: showEstimatedIncome,
+              enableThinking: enableThinking,
+              shortcuts: shortcuts,
+            },
+          },
+        },
+      });
+      renderCurrentView();
+      setStatus("magic-data-status", "Magic Data 设置已保存；如页面未生效请刷新目标页面。");
+      return true;
+    } catch (error) {
+      setStatus(
+        "magic-data-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+      return false;
+    }
   }
 
   function applyJudgementForm(settings) {
@@ -1961,6 +2342,10 @@
       "hidden",
       scriptId !== dataBakerRoundOneQualityScriptId
     );
+    getElement("detail-magic-data-annotator-panel").classList.toggle(
+      "hidden",
+      scriptId !== magicDataAnnotatorScriptId
+    );
   }
 
   function renderDetail(settings, scriptId) {
@@ -1998,6 +2383,15 @@
       setStatus(
         "data-baker-status",
         "DataBaker 导出数据会在本地下载的同时自动上传到后端；上传地址由首页顶部“后端接口地址”统一控制。"
+      );
+      return;
+    }
+
+    if (scriptId === magicDataAnnotatorScriptId) {
+      applyMagicDataSettingsForm(settings);
+      setStatus(
+        "magic-data-status",
+        "Magic Data 页面内结果区固定展示空状态，点击 AI 质检后仅更新内容，不会自动保存或提交。"
       );
     }
   }
@@ -2092,7 +2486,7 @@
   }
 
   async function toggleScript(scriptId, enabled) {
-    if (!storage || typeof storage.setScriptEnabled !== "function") {
+    if (!storage) {
       setStatus("detail-status", "当前扩展版本不支持脚本启停。");
       return;
     }
@@ -2102,7 +2496,22 @@
     setStatus("detail-status", "正在" + targetStatus + " " + String(script.label || scriptId) + "...");
 
     try {
-      currentSettings = await storage.setScriptEnabled(scriptId, enabled);
+      if (isMagicDataScript(scriptId) && typeof storage.patchSettings === "function") {
+        currentSettings = await storage.patchSettings({
+          scriptCenter: {
+            projects: {
+              magicDataAnnotator: {
+                enabled: enabled === true,
+                aiReviewEnabled: enabled === true,
+              },
+            },
+          },
+        });
+      } else if (typeof storage.setScriptEnabled === "function") {
+        currentSettings = await storage.setScriptEnabled(scriptId, enabled);
+      } else {
+        throw new Error("当前扩展版本不支持脚本启停。");
+      }
       renderCurrentView();
       setStatus(
         "detail-status",
@@ -2222,6 +2631,7 @@
     document.title = (constants.EXTENSION_NAME || "标注脚本中心") + " - 设置";
     getElement("extension-name").textContent = constants.EXTENSION_NAME || "标注脚本中心";
     getElement("stage-label").textContent = constants.STAGE_LABEL || "脚本中心";
+    applyMagicDataSettingsForm(settings);
 
     if (!scriptId) {
       getElement("script-center-view").classList.remove("hidden");
@@ -2279,6 +2689,13 @@
     getElement("save-data-baker-settings").addEventListener("click", function () {
       void saveDataBakerSettings();
     });
+
+    getElement("save-magic-data-settings").addEventListener("click", function () {
+      void saveMagicDataSettings();
+    });
+
+    bindMagicDataModelSelect("magic-data-listen-model-select", "magic-data-listen-model-custom");
+    bindMagicDataModelSelect("magic-data-review-model-select", "magic-data-review-model-custom");
 
     getElement("home-endpoint-server").addEventListener("click", function () {
       void setHomeBackendEndpoint("server");

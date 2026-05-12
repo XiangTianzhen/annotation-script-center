@@ -1,0 +1,248 @@
+"use strict";
+
+const VERDICT_SET = new Set(["same", "mostly_same", "different", "uncertain", "invalid_audio"]);
+const LINE_DECISION_SET = new Set(["same", "minor_diff", "different", "uncertain"]);
+const REVIEW_CONCLUSION_SET = new Set(["pass", "need_review", "risky", "uncertain"]);
+const VALIDITY_DECISION_SET = new Set(["valid", "invalid", "uncertain"]);
+const AGE_RANGE_SET = new Set(["0-5", "6-12", "13-18", "19-25", "26-36", "37-50", "51-65", "65以上", "uncertain"]);
+
+function normalizeConfidence(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, numericValue));
+}
+
+function normalizeText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeStringArray(value, maxLength) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map(function (item) {
+      if (typeof item === "string") {
+        return item.trim();
+      }
+      if (item && typeof item === "object") {
+        return JSON.stringify(item);
+      }
+      return String(item || "").trim();
+    })
+    .filter(Boolean)
+    .slice(0, maxLength || 30);
+}
+
+function parseModelJsonText(rawText, requestId) {
+  const source = String(rawText || "").trim();
+  if (!source) {
+    throw new Error("模型未返回文本。");
+  }
+
+  const withoutFence = source
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+  const attempts = [withoutFence];
+  const firstBrace = withoutFence.indexOf("{");
+  const lastBrace = withoutFence.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    attempts.push(withoutFence.slice(firstBrace, lastBrace + 1));
+  }
+
+  for (let index = 0; index < attempts.length; index += 1) {
+    try {
+      return JSON.parse(attempts[index]);
+    } catch (error) {
+      // try next
+    }
+  }
+
+  const parseError = new Error(
+    "模型 JSON 解析失败（requestId: " + String(requestId || "") + "）。"
+  );
+  parseError.code = "invalid-json";
+  throw parseError;
+}
+
+function normalizeLineDecision(value) {
+  const decision = String(value || "").trim();
+  return LINE_DECISION_SET.has(decision) ? decision : "uncertain";
+}
+
+function normalizeVerdict(value) {
+  const verdict = String(value || "").trim();
+  return VERDICT_SET.has(verdict) ? verdict : "uncertain";
+}
+
+function normalizeReviewConclusion(value) {
+  const conclusion = String(value || "").trim();
+  return REVIEW_CONCLUSION_SET.has(conclusion) ? conclusion : "uncertain";
+}
+
+function normalizeValidityDecision(value, isValidAudio) {
+  const decision = String(value || "").trim();
+  if (VALIDITY_DECISION_SET.has(decision)) {
+    return decision;
+  }
+  return isValidAudio ? "valid" : "invalid";
+}
+
+function normalizeAgeRangeGuess(value) {
+  const text = String(value || "").trim();
+  return AGE_RANGE_SET.has(text) ? text : "uncertain";
+}
+
+function normalizeListenResponse(modelJson) {
+  const source = modelJson && typeof modelJson === "object" ? modelJson : {};
+  const isValidAudio = source.isValidAudio !== false;
+  return {
+    heardDialectText: normalizeText(source.heardDialectText || source.heardText || source.text || ""),
+    heardMandarinMeaning: normalizeText(
+      source.heardMandarinMeaning || source.mandarinMeaning || source.meaning || ""
+    ),
+    isValidAudio,
+    validityDecision: normalizeValidityDecision(source.validityDecision, isValidAudio),
+    invalidReasons: normalizeStringArray(source.invalidReasons, 20),
+    riskFlags: normalizeStringArray(source.riskFlags, 20),
+    genderGuess: ["男", "女", "uncertain"].includes(String(source.genderGuess || "").trim())
+      ? String(source.genderGuess || "").trim() || "uncertain"
+      : "uncertain",
+    ageRangeGuess: normalizeAgeRangeGuess(source.ageRangeGuess),
+    confidence: normalizeConfidence(source.confidence),
+  };
+}
+
+function normalizeRuleFirstComparison(modelJson, request, listen) {
+  const source = modelJson && typeof modelJson === "object" ? modelJson : {};
+  const check = source.textRuleCheck && typeof source.textRuleCheck === "object" ? source.textRuleCheck : {};
+  const recommendations =
+    source.recommendations && typeof source.recommendations === "object" ? source.recommendations : {};
+
+  const conclusion = normalizeReviewConclusion(source.reviewConclusion);
+  return {
+    reviewConclusion: conclusion,
+    shouldReview:
+      source.shouldReview === true ||
+      conclusion === "need_review" ||
+      conclusion === "risky" ||
+      conclusion === "uncertain",
+    confidence: normalizeConfidence(source.confidence),
+    textRuleCheck: {
+      dialectIssues: normalizeStringArray(check.dialectIssues, 30),
+      mandarinIssues: normalizeStringArray(check.mandarinIssues, 30),
+      translationConsistencyIssues: normalizeStringArray(check.translationConsistencyIssues, 30),
+      punctuationIssues: normalizeStringArray(check.punctuationIssues, 30),
+      speakerAttributeIssues: normalizeStringArray(check.speakerAttributeIssues, 30),
+      lexiconIssues: normalizeStringArray(check.lexiconIssues, 30),
+      ruleIssues: normalizeStringArray(check.ruleIssues, 30),
+    },
+    recommendations: {
+      dialectText: normalizeText(recommendations.dialectText || request.platformDialectText),
+      mandarinText: normalizeText(recommendations.mandarinText || request.platformMandarinText),
+      summary: normalizeText(recommendations.summary),
+    },
+    legacyComparison: {
+      verdict:
+        conclusion === "pass"
+          ? "same"
+          : conclusion === "need_review"
+            ? "mostly_same"
+            : conclusion === "risky"
+              ? "different"
+              : "uncertain",
+      dialectLine: {
+        decision:
+          conclusion === "pass"
+            ? "same"
+            : conclusion === "need_review"
+              ? "minor_diff"
+              : conclusion === "risky"
+                ? "different"
+                : "uncertain",
+        platformText: normalizeText(request.platformDialectText),
+        aiText: normalizeText(listen.heardDialectText),
+        recommendedText: normalizeText(recommendations.dialectText || request.platformDialectText),
+        issues: normalizeStringArray(check.dialectIssues, 30),
+      },
+      mandarinLine: {
+        decision:
+          conclusion === "pass"
+            ? "same"
+            : conclusion === "need_review"
+              ? "minor_diff"
+              : conclusion === "risky"
+                ? "different"
+                : "uncertain",
+        platformText: normalizeText(request.platformMandarinText),
+        recommendedText: normalizeText(recommendations.mandarinText || request.platformMandarinText),
+        issues: normalizeStringArray(check.mandarinIssues, 30),
+      },
+      lexiconIssues: normalizeStringArray(check.lexiconIssues, 30),
+      ruleIssues: normalizeStringArray(check.ruleIssues, 30),
+    },
+  };
+}
+
+function normalizeComparisonResponse(modelJson, request) {
+  const source = modelJson && typeof modelJson === "object" ? modelJson : {};
+  const dialectSource = source.dialectLine && typeof source.dialectLine === "object" ? source.dialectLine : {};
+  const mandarinSource =
+    source.mandarinLine && typeof source.mandarinLine === "object" ? source.mandarinLine : {};
+
+  return {
+    verdict: normalizeVerdict(source.verdict),
+    shouldReview:
+      source.shouldReview === true ||
+      source.should_review === true ||
+      normalizeVerdict(source.verdict) !== "same",
+    confidence: normalizeConfidence(source.confidence),
+    dialectLine: {
+      decision: normalizeLineDecision(dialectSource.decision),
+      platformText: normalizeText(dialectSource.platformText || request.platformDialectText),
+      aiText: normalizeText(dialectSource.aiText),
+      recommendedText: normalizeText(dialectSource.recommendedText || dialectSource.aiText),
+      issues: normalizeStringArray(dialectSource.issues, 30),
+    },
+    mandarinLine: {
+      decision: normalizeLineDecision(mandarinSource.decision),
+      platformText: normalizeText(mandarinSource.platformText || request.platformMandarinText),
+      recommendedText: normalizeText(mandarinSource.recommendedText),
+      issues: normalizeStringArray(mandarinSource.issues, 30),
+    },
+    lexiconIssues: normalizeStringArray(source.lexiconIssues, 30),
+    ruleIssues: normalizeStringArray(source.ruleIssues, 30),
+  };
+}
+
+function normalizeUsage(usage) {
+  const source = usage && typeof usage === "object" ? usage : {};
+  const promptTokens = Number(source.promptTokens || source.prompt_tokens || source.input_tokens || 0);
+  const completionTokens = Number(
+    source.completionTokens || source.completion_tokens || source.output_tokens || 0
+  );
+  const totalTokens = Number(
+    source.totalTokens || source.total_tokens || promptTokens + completionTokens || 0
+  );
+
+  return {
+    promptTokens: Number.isFinite(promptTokens) ? promptTokens : 0,
+    completionTokens: Number.isFinite(completionTokens) ? completionTokens : 0,
+    totalTokens: Number.isFinite(totalTokens) ? totalTokens : 0,
+    raw: source,
+  };
+}
+
+module.exports = {
+  normalizeComparisonResponse,
+  normalizeConfidence,
+  normalizeLineDecision,
+  normalizeListenResponse,
+  normalizeReviewConclusion,
+  normalizeRuleFirstComparison,
+  normalizeUsage,
+  parseModelJsonText,
+};

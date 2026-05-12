@@ -4,6 +4,7 @@
 
 - 本文用于约束后续脚本接入时的自动化边界。
 - 原则：默认只读、默认人工确认、默认不写操作。
+- 2026-05 新增本地 AI 复核调试后端后，仍保持“只给建议，不触发平台写操作”。
 
 ## 分类总表
 
@@ -80,3 +81,33 @@
 - 所有 AI 建议仅做辅助提示。
 - 最终保存/提交/审核动作必须由用户主动确认。
 - AI 不得绕过平台限制或权限控制。
+
+## 调试后端补充约束
+
+- 接口仅限：
+  - `GET /api/magic-data/annotator/ai/review-current/health`
+  - `POST /api/magic-data/annotator/ai/review-current`
+- 调试后端不得调用平台 save/submit/check 等写接口。
+- 日志仅允许记录脱敏摘要字段（requestId、耗时、模型、判定、hostname、文本长度/哈希）。
+- 日志禁止记录完整 `audioUrl`、`Signature`、`OSSAccessKeyId`、cookie、authorization、token、API Key、完整文本原文。
+
+## 前端页面内质检区补充约束（asrmark）
+
+- 页面内结果区按钮允许：
+  - AI 质检当前条
+  - 复制 AI 质检摘要
+  - 手动填入第一行/第二行
+  - 忽略结果
+- 快捷键允许（默认未设置，配置入口在 options）：
+  - AI 质检当前条、复制摘要、填入
+  - 保存、提交
+  - 性别/年龄选择
+  - 以上动作仅允许“用户主动按下已配置快捷键”触发。
+- 快捷键动作后会执行焦点恢复（blur + sentinel + body focus），确保连续按键可触发；该机制不触发自动保存/自动提交。
+- 填入动作仅触发目标输入框 `input/change`，不得自动点击保存/提交/挂起/清除/下一条。
+- 不在页面或控制台展示完整签名音频 URL；页面仅显示音频 hostname。
+- 不把完整签名音频 URL 写入 `chrome.storage`、`localStorage` 或持久日志。
+- 页面内质检区优先挂载到右侧 `.audio_list`（句子列表）区域，不自动扩展主业务区高度。
+- `#/asrmarkCheck` 当前只允许提示“暂未接入填入”，不得自动操作审核页。
+- AI 质检完成后不得自动触发保存/提交/审核/领取。
+- `enableThinking` 仅作为模型调用参数，失败时后端可降级重试；不得因此引入平台写操作。
