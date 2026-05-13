@@ -40,7 +40,6 @@ const FALLBACK_COMPARE_TEMPLATE = [
   "请结合听音结果和候选文本判断哪个更优。",
   "输出 JSON 字段：",
   "- answer: first_better|second_better|both_bad|uncertain_or_similar|other_dialect_or_language",
-  "- answerText: 中文短语",
   "- confidence: 0~1",
   "- reasonSummary: 30字以内",
   "- riskLevel: low|medium|high",
@@ -50,6 +49,11 @@ const FALLBACK_COMPARE_TEMPLATE = [
   "- evidence: { heardText, asrText1Match, asrText2Match, contextHint }",
   "",
   "注意：上文只能用于消歧，不能覆盖音频听感。",
+  "当两条文本主体语义一致时，不要默认 uncertain_or_similar。",
+  "若仅在标点、空格、数字/日期格式上有明显优劣，应选择更规范的一条：",
+  "- asrText1 更规范 -> first_better",
+  "- asrText2 更规范 -> second_better",
+  "只有格式差异轻微且无明显优劣时，才允许 uncertain_or_similar。",
   "不要输出 JSON 之外内容。",
 ].join("\n");
 

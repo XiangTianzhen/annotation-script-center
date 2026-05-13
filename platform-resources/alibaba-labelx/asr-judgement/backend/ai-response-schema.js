@@ -165,7 +165,7 @@ function normalizeCompareResponse(modelJson, context) {
 
   return {
     answer,
-    answerText: normalizeShortText(source.answerText, 40) || ANSWER_TEXT_MAP[answer],
+    answerText: ANSWER_TEXT_MAP[answer],
     choiceActionKey: mappedChoiceActionKey,
     confidence,
     reasonSummary: normalizeShortText(source.reasonSummary, 80) || "模型未提供理由。",
@@ -196,7 +196,7 @@ function buildSuggestResponse(parts) {
   return {
     requestId: String(parts?.requestId || ""),
     answer: String(compare.answer || ""),
-    answerText: String(compare.answerText || ANSWER_TEXT_MAP[compare.answer] || ""),
+    answerText: ANSWER_TEXT_MAP[String(compare.answer || "")] || "",
     choiceActionKey: String(compare.choiceActionKey || ANSWER_CHOICE_MAP[compare.answer] || ""),
     confidence: normalizeConfidence(compare.confidence),
     reasonSummary: normalizeShortText(compare.reasonSummary, 80) || "模型未提供理由。",

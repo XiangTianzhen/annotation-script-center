@@ -1,5 +1,20 @@
 # 标注脚本中心修改日志
 
+## 2026-05-13（0.3.2 热修：收口快判 AI 答案枚举与格式差异判定）
+
+- 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本小修。
+- 快判后端响应 schema 收口：
+  - `answer` 仍只允许 `first_better/second_better/both_bad/uncertain_or_similar/other_dialect_or_language`。
+  - `answerText` 改为后端固定映射五选一，不再允许模型返回文案覆盖：
+    - `first_better -> 第一个更好`
+    - `second_better -> 第二个更好`
+    - `both_bad -> 都不好`
+    - `uncertain_or_similar -> 不确定或差不多`
+    - `other_dialect_or_language -> 其他方言或语种`
+- 快判 compare 规则增强：当两条 ASR 主体语义一致但存在标点/空格/数字/日期格式差异时，若其中一条明显更规范，必须选择对应候选；不能把“仅标点不同”一律判为“不确定或差不多”。
+- `compare-prompt-template.md` 新增格式优劣判定规则和“机票疑问句”示例，强调示例输出仅包含 `answer` 等结构化字段，不使用 `answerText`。
+- `AGENTS.md` 与快判 README 同步稳定口径：建议答案五选一固定映射，解释性文字只放 `reasonSummary`。
+
 ## 2026-05-13（0.3.2：快判 AI 升级双模型听音+比较与上文开关）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本增强与质量修复。
