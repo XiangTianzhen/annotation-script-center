@@ -5,6 +5,18 @@ const path = require("path");
 
 const RULE_VERSION = "asr-transcription-ai-v1";
 const RULE_FILE_PATH = path.join(__dirname, "..", "ai-rules.md");
+const DEFAULT_LISTEN_TEMPLATE = [
+  "请分析当前题并给出推荐。",
+  "以音频事实优先，候选文本仅供参考。",
+  "输出要求：只输出 JSON 对象，不要输出多余解释。",
+  "reasonSummary 使用简短中文，不确定时在 riskFlags 提示人工复核。",
+].join("\n");
+const DEFAULT_COMPARE_TEMPLATE = [
+  "请分析当前题并给出推荐。",
+  "当前模式可能仅有文本候选，无有效音频时请做保守比较。",
+  "输出要求：只输出 JSON 对象，不要输出多余解释。",
+  "reasonSummary 使用简短中文，不确定时在 riskFlags 提示人工复核。",
+].join("\n");
 
 const RULE_FALLBACK = [
   "# 阿里 LabelX ASR 转写 AI 推荐规则",
@@ -34,6 +46,26 @@ function safeReadRules() {
   } catch (error) {
     return RULE_FALLBACK;
   }
+}
+
+function normalizePromptTemplate(value, fallback) {
+  const text = String(value || "").replace(/\r\n/g, "\n").trim();
+  if (!text) {
+    return String(fallback || "");
+  }
+  return text.slice(0, 8000);
+}
+
+function resolvePromptTemplate(request) {
+  const aiOptions = request?.aiOptions || {};
+  const hasAudio = Array.isArray(request?.audioCandidates) && request.audioCandidates.length > 0;
+  if (hasAudio) {
+    return normalizePromptTemplate(aiOptions.listenPrompt, DEFAULT_LISTEN_TEMPLATE);
+  }
+  return normalizePromptTemplate(
+    aiOptions.comparePrompt || aiOptions.listenPrompt,
+    DEFAULT_COMPARE_TEMPLATE
+  );
 }
 
 function buildAudioHintLines(audioCandidates) {
@@ -67,6 +99,7 @@ function buildTextCandidateLines(textCandidates) {
 
 function buildPrompt(request) {
   const rulesText = safeReadRules();
+  const promptTemplate = resolvePromptTemplate(request);
   const audioLines = buildAudioHintLines(request.audioCandidates);
   const textLines = buildTextCandidateLines(request.textCandidates);
 
@@ -80,7 +113,8 @@ function buildPrompt(request) {
   ].join("\n");
 
   const userPrompt = [
-    "请分析当前题并给出推荐。",
+    promptTemplate,
+    "",
     "任务信息：",
     "taskItemId=" + normalizeText(request.taskItemId || ""),
     "itemIndex=" + String(Number(request.itemIndex || 0)),
@@ -105,6 +139,7 @@ function buildPrompt(request) {
   return {
     ruleVersion: RULE_VERSION,
     rulesText,
+    promptTemplate,
     systemPrompt,
     userPrompt,
   };
@@ -113,5 +148,8 @@ function buildPrompt(request) {
 module.exports = {
   RULE_VERSION,
   RULE_FILE_PATH,
+  DEFAULT_LISTEN_TEMPLATE,
+  DEFAULT_COMPARE_TEMPLATE,
   buildPrompt,
+  safeReadRules,
 };

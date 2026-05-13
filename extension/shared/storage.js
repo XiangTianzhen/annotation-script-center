@@ -1015,6 +1015,59 @@
       result.aiRecommendRequestTimeoutMs,
       defaultConfig.aiRecommendRequestTimeoutMs || 120000
     );
+    result.aiRecommendListenModel = normalizeJudgementAiModelText(
+      result.aiRecommendListenModel,
+      defaultConfig.aiRecommendListenModel || "qwen3.5-omni-flash"
+    );
+    result.aiRecommendCompareModel = normalizeJudgementAiModelText(
+      result.aiRecommendCompareModel,
+      defaultConfig.aiRecommendCompareModel || "qwen3.5-plus"
+    );
+    result.aiRecommendEnableThinking = result.aiRecommendEnableThinking === true;
+    result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);
+    result.aiRecommendComparePrompt = normalizeJudgementAiPrompt(result.aiRecommendComparePrompt);
+    result.aiRecommendTemperature = normalizeJudgementAiOptionalNumberText(
+      result.aiRecommendTemperature,
+      0,
+      2,
+      3
+    );
+    result.aiRecommendTopP = normalizeJudgementAiOptionalNumberText(
+      result.aiRecommendTopP,
+      0,
+      1,
+      3
+    );
+    result.aiRecommendMaxTokens = normalizeJudgementAiOptionalIntegerText(
+      result.aiRecommendMaxTokens,
+      1,
+      8192
+    );
+    result.aiRecommendMaxCompletionTokens = normalizeJudgementAiOptionalIntegerText(
+      result.aiRecommendMaxCompletionTokens,
+      1,
+      8192
+    );
+    result.aiRecommendPresencePenalty = normalizeJudgementAiOptionalNumberText(
+      result.aiRecommendPresencePenalty,
+      -2,
+      2,
+      3
+    );
+    result.aiRecommendFrequencyPenalty = normalizeJudgementAiOptionalNumberText(
+      result.aiRecommendFrequencyPenalty,
+      -2,
+      2,
+      3
+    );
+    result.aiRecommendSeed = normalizeJudgementAiOptionalIntegerText(
+      result.aiRecommendSeed,
+      0,
+      2147483647
+    );
+    result.aiRecommendStopSequences = normalizeJudgementAiStopSequences(
+      result.aiRecommendStopSequences
+    );
     result.autoPageSizeEnabled = result.autoPageSizeEnabled !== false;
     result.defaultPageSize = normalizeDataBakerPageSize(
       result.defaultPageSize,

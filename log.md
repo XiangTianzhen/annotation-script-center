@@ -1,5 +1,21 @@
 # 标注脚本中心修改日志
 
+## 2026-05-13（0.3.2：完善 ASR 语音 AI 设置 defaults/override 口径）
+
+- 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本设置部件完善与后端 defaults 对齐。
+- 通用“ASR 语音 AI 设置”部件更新：
+  - 删除面板内“安全边界”展示区（仅移除 UI，安全规则仍保留在代码与文档）。
+  - 删除前端 `response_format` 配置入口；结构化输出由后端固定控制。
+  - 解锁后按脚本请求后端 `defaults` 接口，面板默认显示后端当前模型、Prompt 与生成参数。
+  - Prompt/参数改为 override 语义：与默认一致或清空时不保存 override，请求时由后端默认生效。
+- 后端新增/补齐 defaults 接口并返回 `defaults + supportedParams`：
+  - `/api/alibaba-labelx/asr-judgement/ai/defaults`
+  - `/api/alibaba-labelx/asr-transcription/ai/defaults`
+  - `/api/data-baker/round-one-quality/ai/recommend/defaults`
+  - `/api/magic-data/annotator/ai/defaults`
+- 四个 ASR 类脚本统一接入完整设置部件样式（快判、转写、标贝易采、Magic Data），保持脚本级配置互不串用。
+- Magic Data 快捷键设置继续常显，不受 AI 隐藏面板影响。
+
 ## 2026-05-13（0.3.2：重构通用 ASR 语音 AI 隐藏设置部件）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本 options 结构重构与文档同步。

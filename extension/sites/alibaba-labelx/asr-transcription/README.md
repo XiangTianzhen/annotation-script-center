@@ -41,6 +41,9 @@
   - 当前题行为 `defaultValid/fillOnValid/clearOnInvalid`
   - 当前保留功能快捷键（含“上传转写统计”“AI 推荐当前题”“填入 AI 推荐”）
 - 转写 AI 模型/Prompt/参数配置已接入通用隐藏部件“ASR 语音 AI 设置”：默认隐藏，在转写脚本详情页标题连续点击 10 次后显示，仅影响转写脚本。
+- 解锁后会请求 `GET /api/alibaba-labelx/asr-transcription/ai/defaults` 拉取后端默认模型、Prompt 与参数，并在面板显示有效配置。
+- Prompt/参数采用脚本级 override：输入为空或恢复默认即不保存 override，请求时由后端默认配置生效。
+- `response_format` 不对前端开放，转写结构化输出由后端固定控制。
 - 统计上传与定时上传不在 options 转写详情页配置；运行时始终启用。
 
 ## 注入与页面命中策略

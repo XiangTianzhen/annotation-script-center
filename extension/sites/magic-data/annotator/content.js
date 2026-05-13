@@ -11,6 +11,16 @@
     showHeardText: true,
     showEstimatedIncome: true,
     enableThinking: false,
+    aiReviewListenPrompt: "",
+    aiReviewComparePrompt: "",
+    aiReviewTemperature: "",
+    aiReviewTopP: "",
+    aiReviewMaxTokens: "",
+    aiReviewMaxCompletionTokens: "",
+    aiReviewPresencePenalty: "",
+    aiReviewFrequencyPenalty: "",
+    aiReviewSeed: "",
+    aiReviewStopSequences: "",
     shortcuts: {},
   };
 
@@ -81,6 +91,10 @@
     return "rule_first";
   }
 
+  function normalizePromptText(value) {
+    return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
+  }
+
   function normalizeSettings(value) {
     const source = value && typeof value === "object" ? value : {};
     const shortcuts = source.shortcuts && typeof source.shortcuts === "object" ? source.shortcuts : {};
@@ -93,6 +107,16 @@
       showHeardText: source.showHeardText !== false,
       showEstimatedIncome: source.showEstimatedIncome !== false,
       enableThinking: source.enableThinking === true,
+      aiReviewListenPrompt: normalizePromptText(source.aiReviewListenPrompt || ""),
+      aiReviewComparePrompt: normalizePromptText(source.aiReviewComparePrompt || ""),
+      aiReviewTemperature: String(source.aiReviewTemperature || "").trim(),
+      aiReviewTopP: String(source.aiReviewTopP || "").trim(),
+      aiReviewMaxTokens: String(source.aiReviewMaxTokens || "").trim(),
+      aiReviewMaxCompletionTokens: String(source.aiReviewMaxCompletionTokens || "").trim(),
+      aiReviewPresencePenalty: String(source.aiReviewPresencePenalty || "").trim(),
+      aiReviewFrequencyPenalty: String(source.aiReviewFrequencyPenalty || "").trim(),
+      aiReviewSeed: String(source.aiReviewSeed || "").trim(),
+      aiReviewStopSequences: String(source.aiReviewStopSequences || "").trim().slice(0, 960),
       shortcuts: shortcuts,
     };
   }

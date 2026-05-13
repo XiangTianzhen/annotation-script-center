@@ -200,5 +200,7 @@ module.exports = {
   RULE_VERSION,
   buildListenPrompt,
   buildComparePrompt,
+  loadListenTemplateText,
+  loadCompareTemplateText,
   loadRulesText,
 };

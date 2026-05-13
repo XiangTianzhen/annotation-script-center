@@ -201,6 +201,14 @@
   let judgementAiAdvancedUnlocked = false;
   let judgementAiAdvancedLastClickAt = 0;
   const asrVoiceAiRevealStates = {};
+  const asrVoiceAiDefaultsCache = {};
+  const asrVoiceAiDefaultsLoading = {};
+  const asrVoiceAiDefaultsPaths = {
+    judgement: "/api/alibaba-labelx/asr-judgement/ai/defaults",
+    transcription: "/api/alibaba-labelx/asr-transcription/ai/defaults",
+    dataBakerRoundOneQuality: "/api/data-baker/round-one-quality/ai/recommend/defaults",
+    magicDataAnnotatorAiReview: "/api/magic-data/annotator/ai/defaults",
+  };
   let projectDataDownloadDatasets = [];
 
   function getElement(id) {
@@ -582,10 +590,6 @@
       isJudgementAiParamSupported("seed")
     );
     toggleJudgementAiAdvancedFieldVisibility(
-      "judgement-ai-suggestion-response-format",
-      isJudgementAiParamSupported("response_format")
-    );
-    toggleJudgementAiAdvancedFieldVisibility(
       "judgement-ai-suggestion-stop-sequences",
       isJudgementAiParamSupported("stop")
     );
@@ -626,10 +630,6 @@
     toggleJudgementAiAdvancedFieldVisibility(
       "transcription-ai-suggestion-seed",
       isJudgementAiParamSupported("seed")
-    );
-    toggleJudgementAiAdvancedFieldVisibility(
-      "transcription-ai-suggestion-response-format",
-      isJudgementAiParamSupported("response_format")
     );
     toggleJudgementAiAdvancedFieldVisibility(
       "transcription-ai-suggestion-stop-sequences",
@@ -792,6 +792,151 @@
     return true;
   }
 
+  function getAsrVoiceAiDefaultsPath(scriptId) {
+    if (scriptId === judgementProjectId) {
+      return asrVoiceAiDefaultsPaths.judgement;
+    }
+    if (scriptId === transcriptionProjectId) {
+      return asrVoiceAiDefaultsPaths.transcription;
+    }
+    if (scriptId === dataBakerRoundOneQualityScriptId) {
+      return asrVoiceAiDefaultsPaths.dataBakerRoundOneQuality;
+    }
+    if (scriptId === magicDataAnnotatorScriptId) {
+      return asrVoiceAiDefaultsPaths.magicDataAnnotatorAiReview;
+    }
+    return "";
+  }
+
+  function buildFallbackAsrVoiceAiDefaults(scriptId) {
+    const baseDefaults = {
+      listenModel: "qwen3.5-omni-flash",
+      compareModel: "qwen3.5-plus",
+      reviewModel: "",
+      timeoutMs: 120000,
+      enableThinking: false,
+      temperature: 0.1,
+      top_p: 0.8,
+      max_tokens: 1200,
+      max_completion_tokens: "",
+      presence_penalty: 0,
+      frequency_penalty: 0,
+      seed: "",
+      stop: "",
+      listenPrompt: "",
+      comparePrompt: "",
+      reviewPrompt: "",
+    };
+    const supportedParams = {
+      temperature: true,
+      top_p: true,
+      max_tokens: true,
+      max_completion_tokens: true,
+      presence_penalty: true,
+      frequency_penalty: true,
+      seed: true,
+      stop: true,
+      enable_thinking: true,
+      reasoning_effort: false,
+      response_format: false,
+    };
+
+    if (scriptId === magicDataAnnotatorScriptId) {
+      baseDefaults.reviewModel = "qwen3.5-plus";
+      baseDefaults.compareModel = "";
+    }
+    return {
+      defaults: baseDefaults,
+      supportedParams: supportedParams,
+      loadedFromBackend: false,
+      error: "",
+    };
+  }
+
+  function normalizeAsrVoiceAiDefaultsPayload(payload, scriptId) {
+    const fallback = buildFallbackAsrVoiceAiDefaults(scriptId);
+    const source = payload && typeof payload === "object" ? payload : {};
+    const defaults = source.defaults && typeof source.defaults === "object" ? source.defaults : {};
+    const supportedParams =
+      source.supportedParams && typeof source.supportedParams === "object"
+        ? source.supportedParams
+        : {};
+    return {
+      defaults: Object.assign({}, fallback.defaults, defaults),
+      supportedParams: Object.assign({}, fallback.supportedParams, supportedParams),
+      loadedFromBackend: source.success === true,
+      error: "",
+    };
+  }
+
+  function getAsrVoiceAiDefaultsCached(scriptId) {
+    return asrVoiceAiDefaultsCache[String(scriptId || "")] || buildFallbackAsrVoiceAiDefaults(scriptId);
+  }
+
+  async function loadAsrVoiceAiDefaults(scriptId, settings) {
+    const key = String(scriptId || "");
+    if (asrVoiceAiDefaultsCache[key]) {
+      return asrVoiceAiDefaultsCache[key];
+    }
+    if (asrVoiceAiDefaultsLoading[key]) {
+      return asrVoiceAiDefaultsLoading[key];
+    }
+    const path = getAsrVoiceAiDefaultsPath(scriptId);
+    if (!path) {
+      const fallback = buildFallbackAsrVoiceAiDefaults(scriptId);
+      asrVoiceAiDefaultsCache[key] = fallback;
+      return fallback;
+    }
+    const request = (async function () {
+      try {
+        const endpoint = buildBackendUrl(path, settings || currentSettings || {});
+        const response = await fetch(endpoint, { method: "GET" });
+        const payload = await response.json().catch(function () {
+          return null;
+        });
+        if (!response.ok || !payload || payload.success !== true) {
+          throw new Error("defaults-fetch-failed");
+        }
+        const normalized = normalizeAsrVoiceAiDefaultsPayload(payload, scriptId);
+        asrVoiceAiDefaultsCache[key] = normalized;
+        return normalized;
+      } catch (error) {
+        const fallback = buildFallbackAsrVoiceAiDefaults(scriptId);
+        fallback.error = "后端默认配置读取失败，已使用本地默认值。";
+        asrVoiceAiDefaultsCache[key] = fallback;
+        return fallback;
+      } finally {
+        delete asrVoiceAiDefaultsLoading[key];
+      }
+    })();
+    asrVoiceAiDefaultsLoading[key] = request;
+    return request;
+  }
+
+  function getAsrVoiceAiEffectiveText(overrideValue, defaultValue) {
+    const overrideText = String(overrideValue || "").trim();
+    if (overrideText) {
+      return overrideText;
+    }
+    return String(defaultValue === undefined || defaultValue === null ? "" : defaultValue);
+  }
+
+  function updateAsrVoiceAiDefaultsTip(scriptId, defaultsPayload) {
+    if (!supportsAsrVoiceAiSettings(scriptId) || !isAsrVoiceAiUnlocked(scriptId)) {
+      return;
+    }
+    const node = getElement("asr-ai-defaults-tip");
+    if (!node) {
+      return;
+    }
+    const payload = defaultsPayload || getAsrVoiceAiDefaultsCached(scriptId);
+    if (payload.error) {
+      node.textContent = payload.error;
+      return;
+    }
+    node.textContent = "已读取后端默认配置；未单独覆盖的字段将沿用后端默认。";
+  }
+
   function normalizeDataBakerTimeoutMs(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
@@ -937,6 +1082,21 @@
       showHeardText: source.showHeardText !== false,
       showEstimatedIncome: source.showEstimatedIncome !== false,
       enableThinking: source.enableThinking === true,
+      aiReviewRequestTimeoutMs: clampNumber(source.aiReviewRequestTimeoutMs, 120000, 1000, 300000, 0),
+      aiReviewListenPrompt: normalizePromptText(source.aiReviewListenPrompt || ""),
+      aiReviewComparePrompt: normalizePromptText(source.aiReviewComparePrompt || ""),
+      aiReviewTemperature: normalizeOptionalNumberText(source.aiReviewTemperature, 0, 2, 3),
+      aiReviewTopP: normalizeOptionalNumberText(source.aiReviewTopP, 0, 1, 3),
+      aiReviewMaxTokens: normalizeOptionalIntegerText(source.aiReviewMaxTokens, 1, 8192),
+      aiReviewMaxCompletionTokens: normalizeOptionalIntegerText(
+        source.aiReviewMaxCompletionTokens,
+        1,
+        8192
+      ),
+      aiReviewPresencePenalty: normalizeOptionalNumberText(source.aiReviewPresencePenalty, -2, 2, 3),
+      aiReviewFrequencyPenalty: normalizeOptionalNumberText(source.aiReviewFrequencyPenalty, -2, 2, 3),
+      aiReviewSeed: normalizeOptionalIntegerText(source.aiReviewSeed, 0, 2147483647),
+      aiReviewStopSequences: normalizeStopSequencesText(source.aiReviewStopSequences || ""),
       shortcuts: normalizeMagicDataShortcuts(source.shortcuts),
     };
   }
@@ -957,6 +1117,19 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: 120000,
+        aiRecommendListenModel: "qwen3.5-omni-flash",
+        aiRecommendCompareModel: "qwen3.5-plus",
+        aiRecommendEnableThinking: false,
+        aiRecommendListenPrompt: "",
+        aiRecommendComparePrompt: "",
+        aiRecommendTemperature: "",
+        aiRecommendTopP: "",
+        aiRecommendMaxTokens: "",
+        aiRecommendMaxCompletionTokens: "",
+        aiRecommendPresencePenalty: "",
+        aiRecommendFrequencyPenalty: "",
+        aiRecommendSeed: "",
+        aiRecommendStopSequences: "",
         autoPageSizeEnabled: true,
         defaultPageSize: "50条/页",
         shortcuts: {},
@@ -968,6 +1141,39 @@
     config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
       config.aiRecommendRequestTimeoutMs
     );
+    config.aiRecommendListenModel = normalizeJudgementAiModelText(
+      config.aiRecommendListenModel,
+      "qwen3.5-omni-flash"
+    );
+    config.aiRecommendCompareModel = normalizeJudgementAiModelText(
+      config.aiRecommendCompareModel,
+      "qwen3.5-plus"
+    );
+    config.aiRecommendEnableThinking = config.aiRecommendEnableThinking === true;
+    config.aiRecommendListenPrompt = normalizePromptText(config.aiRecommendListenPrompt || "");
+    config.aiRecommendComparePrompt = normalizePromptText(config.aiRecommendComparePrompt || "");
+    config.aiRecommendTemperature = normalizeOptionalNumberText(config.aiRecommendTemperature, 0, 2, 3);
+    config.aiRecommendTopP = normalizeOptionalNumberText(config.aiRecommendTopP, 0, 1, 3);
+    config.aiRecommendMaxTokens = normalizeOptionalIntegerText(config.aiRecommendMaxTokens, 1, 8192);
+    config.aiRecommendMaxCompletionTokens = normalizeOptionalIntegerText(
+      config.aiRecommendMaxCompletionTokens,
+      1,
+      8192
+    );
+    config.aiRecommendPresencePenalty = normalizeOptionalNumberText(
+      config.aiRecommendPresencePenalty,
+      -2,
+      2,
+      3
+    );
+    config.aiRecommendFrequencyPenalty = normalizeOptionalNumberText(
+      config.aiRecommendFrequencyPenalty,
+      -2,
+      2,
+      3
+    );
+    config.aiRecommendSeed = normalizeOptionalIntegerText(config.aiRecommendSeed, 0, 2147483647);
+    config.aiRecommendStopSequences = normalizeStopSequencesText(config.aiRecommendStopSequences || "");
     config.autoPageSizeEnabled = config.autoPageSizeEnabled !== false;
     config.defaultPageSize = normalizeDataBakerPageSize(config.defaultPageSize, "50条/页");
     config.shortcuts = normalizeDataBakerShortcuts(config.shortcuts);
@@ -1052,118 +1258,88 @@
     }
 
     const headerHtml = buildAsrVoiceAiHeader(scriptId);
-    if (scriptId === judgementProjectId) {
+    const defaultsTipId = "asr-ai-defaults-tip";
+    if (scriptId === judgementProjectId || scriptId === transcriptionProjectId) {
+      const prefix = scriptId === judgementProjectId ? "judgement-ai-suggestion" : "transcription-ai-suggestion";
       panel.innerHTML = [
         '<div class="asr-ai-panel">',
         headerHtml,
-        '<div class="asr-ai-block">',
-        "<strong>基础模型</strong>",
-        '<div class="asr-ai-grid two">',
-        '<label class="asr-ai-field"><span>听音模型</span><select id="judgement-ai-suggestion-listen-model-select"></select><span class="asr-ai-help">用于第一阶段听音。</span></label>',
-        '<label class="asr-ai-field"><span>比较模型</span><select id="judgement-ai-suggestion-compare-model-select"></select><span class="asr-ai-help">用于第二阶段比较 asr_text1 / asr_text2。</span></label>',
-        '<label class="asr-ai-field"><span>听音模型自定义</span><input id="judgement-ai-suggestion-listen-model-custom" type="text" class="hidden" placeholder="自定义听音模型，例如 qwen3.5-omni-flash" autocomplete="off" /><span class="asr-ai-help">仅在选择“自定义”时生效。</span></label>',
-        '<label class="asr-ai-field"><span>比较模型自定义</span><input id="judgement-ai-suggestion-compare-model-custom" type="text" class="hidden" placeholder="自定义比较模型，例如 qwen3.5-plus" autocomplete="off" /><span class="asr-ai-help">仅在选择“自定义”时生效。</span></label>',
-        '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="judgement-ai-suggestion-timeout" type="number" min="1000" max="180000" step="1000" /><span class="asr-ai-help">默认 120000。</span></label>',
-        '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="judgement-ai-suggestion-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时后端自动降级）</span></label></label>',
-        "</div>",
-        "</div>",
-        '<div class="asr-ai-block">',
-        "<strong>Prompt</strong>",
-        '<div class="asr-ai-grid">',
-        '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="judgement-ai-suggestion-listen-prompt" maxlength="8000" placeholder="留空时使用后端内置听音规则模板"></textarea><span class="asr-ai-help">留空表示使用后端默认模板。</span></label>',
-        '<label class="asr-ai-field"><span>比较 Prompt（可选）</span><textarea id="judgement-ai-suggestion-compare-prompt" maxlength="8000" placeholder="留空时使用后端内置比较规则模板"></textarea><span class="asr-ai-help">留空表示使用后端默认模板。</span></label>',
-        "</div>",
-        "</div>",
-        '<div class="asr-ai-block">',
-        "<strong>生成参数</strong>",
-        '<div class="asr-ai-grid three">',
-        '<label class="asr-ai-field"><span>temperature</span><input id="judgement-ai-suggestion-temperature" type="number" min="0" max="2" step="0.1" placeholder="留空使用后端默认" /></label>',
-        '<label class="asr-ai-field"><span>top_p</span><input id="judgement-ai-suggestion-top-p" type="number" min="0" max="1" step="0.05" placeholder="留空使用后端默认" /></label>',
-        '<label class="asr-ai-field"><span>max_tokens</span><input id="judgement-ai-suggestion-max-tokens" type="number" min="1" max="8192" step="1" placeholder="留空使用后端默认" /></label>',
-        '<label class="asr-ai-field"><span>max_completion_tokens</span><input id="judgement-ai-suggestion-max-completion-tokens" type="number" min="1" max="8192" step="1" placeholder="留空使用后端默认" /></label>',
-        '<label class="asr-ai-field"><span>presence_penalty</span><input id="judgement-ai-suggestion-presence-penalty" type="number" min="-2" max="2" step="0.1" placeholder="留空使用后端默认" /></label>',
-        '<label class="asr-ai-field"><span>frequency_penalty</span><input id="judgement-ai-suggestion-frequency-penalty" type="number" min="-2" max="2" step="0.1" placeholder="留空使用后端默认" /></label>',
-        '<label class="asr-ai-field"><span>seed</span><input id="judgement-ai-suggestion-seed" type="number" min="0" max="2147483647" step="1" placeholder="留空不发送" /></label>',
-        '<label class="asr-ai-field"><span>response_format</span><select id="judgement-ai-suggestion-response-format"><option value="json_object">json_object（默认）</option><option value="text">text（调试）</option></select><span class="asr-ai-help">text 仅调试用途，可能导致结构化解析失败。</span></label>',
-        '<label class="asr-ai-field"><span>stop sequences（每行一个）</span><textarea id="judgement-ai-suggestion-stop-sequences" maxlength="960" placeholder="每行一个，最多 8 行，每行最多 80 字"></textarea></label>',
-        "</div>",
-        "</div>",
-        '<div class="asr-ai-block"><strong>安全边界</strong><div class="asr-ai-note">不在前端配置 API Key；不配置独立后端地址；AI 仅手动触发并人工采用，不自动保存、提交、领取或流转。</div></div>',
+        '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
+        '<div class="asr-ai-block"><strong>基础模型</strong><div class="asr-ai-grid two">',
+        '<label class="asr-ai-field"><span>听音模型</span><select id="' + prefix + '-listen-model-select"></select></label>',
+        '<label class="asr-ai-field"><span>比较模型</span><select id="' + prefix + '-compare-model-select"></select></label>',
+        '<label class="asr-ai-field"><span>听音模型自定义</span><input id="' + prefix + '-listen-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
+        '<label class="asr-ai-field"><span>比较模型自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
+        '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="180000" step="1000" /></label>',
+        '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时后端自动降级）</span></label></label>',
+        "</div></div>",
+        '<div class="asr-ai-block"><strong>Prompt</strong><div class="asr-ai-grid">',
+        '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="' + prefix + '-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+        '<label class="asr-ai-field"><span>比较 Prompt（可选）</span><textarea id="' + prefix + '-compare-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+        "</div></div>",
+        '<div class="asr-ai-block"><strong>生成参数</strong><div class="asr-ai-grid three">',
+        '<label class="asr-ai-field"><span>temperature</span><input id="' + prefix + '-temperature" type="number" min="0" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>top_p</span><input id="' + prefix + '-top-p" type="number" min="0" max="1" step="0.05" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>max_tokens</span><input id="' + prefix + '-max-tokens" type="number" min="1" max="8192" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>max_completion_tokens</span><input id="' + prefix + '-max-completion-tokens" type="number" min="1" max="8192" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>presence_penalty</span><input id="' + prefix + '-presence-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>frequency_penalty</span><input id="' + prefix + '-frequency-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>seed</span><input id="' + prefix + '-seed" type="number" min="0" max="2147483647" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>stop sequences（每行一个）</span><textarea id="' + prefix + '-stop-sequences" maxlength="960"></textarea><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        "</div></div>",
         "</div>",
       ].join("");
-      bindJudgementModelSelect(
-        "judgement-ai-suggestion-listen-model-select",
-        "judgement-ai-suggestion-listen-model-custom"
-      );
-      bindJudgementModelSelect(
-        "judgement-ai-suggestion-compare-model-select",
-        "judgement-ai-suggestion-compare-model-custom"
-      );
+      bindJudgementModelSelect(prefix + "-listen-model-select", prefix + "-listen-model-custom");
+      bindJudgementModelSelect(prefix + "-compare-model-select", prefix + "-compare-model-custom");
       panel.classList.remove("hidden");
       return;
     }
 
-    if (scriptId === transcriptionProjectId) {
+    if (scriptId === dataBakerRoundOneQualityScriptId || scriptId === magicDataAnnotatorScriptId) {
+      const prefix = scriptId === dataBakerRoundOneQualityScriptId ? "data-baker-ai" : "magic-data-ai";
+      const modelLabel = scriptId === dataBakerRoundOneQualityScriptId ? "比较模型" : "质检模型";
       panel.innerHTML = [
         '<div class="asr-ai-panel">',
         headerHtml,
-        '<div class="asr-ai-block">',
-        "<strong>基础模型</strong>",
-        '<div class="asr-ai-grid two">',
-        '<label class="asr-ai-field"><span>听音模型</span><select id="transcription-ai-suggestion-listen-model-select"></select></label>',
-        '<label class="asr-ai-field"><span>比较模型</span><select id="transcription-ai-suggestion-compare-model-select"></select></label>',
-        '<label class="asr-ai-field"><span>听音模型自定义</span><input id="transcription-ai-suggestion-listen-model-custom" type="text" class="hidden" placeholder="自定义听音模型" autocomplete="off" /></label>',
-        '<label class="asr-ai-field"><span>比较模型自定义</span><input id="transcription-ai-suggestion-compare-model-custom" type="text" class="hidden" placeholder="自定义比较模型" autocomplete="off" /></label>',
-        '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="transcription-ai-suggestion-timeout" type="number" min="1000" max="180000" step="1000" /></label>',
-        '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="transcription-ai-suggestion-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时后端自动降级）</span></label></label>',
-        "</div>",
-        "</div>",
-        '<div class="asr-ai-block">',
-        "<strong>Prompt</strong>",
-        '<div class="asr-ai-grid">',
-        '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="transcription-ai-suggestion-listen-prompt" maxlength="8000" placeholder="留空时使用后端内置听音规则模板"></textarea></label>',
-        '<label class="asr-ai-field"><span>比较 Prompt（可选）</span><textarea id="transcription-ai-suggestion-compare-prompt" maxlength="8000" placeholder="留空时使用后端内置比较规则模板"></textarea></label>',
-        "</div>",
-        "</div>",
-        '<div class="asr-ai-block"><strong>生成参数</strong><div class="asr-ai-grid three"><label class="asr-ai-field"><span>temperature</span><input id="transcription-ai-suggestion-temperature" type="number" min="0" max="2" step="0.1" placeholder="留空使用后端默认" /></label><label class="asr-ai-field"><span>top_p</span><input id="transcription-ai-suggestion-top-p" type="number" min="0" max="1" step="0.05" placeholder="留空使用后端默认" /></label><label class="asr-ai-field"><span>max_tokens</span><input id="transcription-ai-suggestion-max-tokens" type="number" min="1" max="8192" step="1" placeholder="留空使用后端默认" /></label><label class="asr-ai-field"><span>max_completion_tokens</span><input id="transcription-ai-suggestion-max-completion-tokens" type="number" min="1" max="8192" step="1" placeholder="留空使用后端默认" /></label><label class="asr-ai-field"><span>presence_penalty</span><input id="transcription-ai-suggestion-presence-penalty" type="number" min="-2" max="2" step="0.1" placeholder="留空使用后端默认" /></label><label class="asr-ai-field"><span>frequency_penalty</span><input id="transcription-ai-suggestion-frequency-penalty" type="number" min="-2" max="2" step="0.1" placeholder="留空使用后端默认" /></label><label class="asr-ai-field"><span>seed</span><input id="transcription-ai-suggestion-seed" type="number" min="0" max="2147483647" step="1" placeholder="留空不发送" /></label><label class="asr-ai-field"><span>response_format</span><select id="transcription-ai-suggestion-response-format"><option value="json_object">json_object（默认）</option><option value="text">text（调试）</option></select></label><label class="asr-ai-field"><span>stop sequences（每行一个）</span><textarea id="transcription-ai-suggestion-stop-sequences" maxlength="960" placeholder="每行一个，最多 8 行，每行最多 80 字"></textarea></label></div></div>',
-        '<div class="asr-ai-block"><strong>安全边界</strong><div class="asr-ai-note">转写 AI 推荐仅手动触发与人工填入，不自动保存、提交、领取或流转。</div></div>',
-        "</div>",
-      ].join("");
-      bindJudgementModelSelect(
-        "transcription-ai-suggestion-listen-model-select",
-        "transcription-ai-suggestion-listen-model-custom"
-      );
-      bindJudgementModelSelect(
-        "transcription-ai-suggestion-compare-model-select",
-        "transcription-ai-suggestion-compare-model-custom"
-      );
-      panel.classList.remove("hidden");
-      return;
-    }
-
-    if (scriptId === dataBakerRoundOneQualityScriptId) {
-      panel.innerHTML = [
-        '<div class="asr-ai-panel">',
-        headerHtml,
-        '<div class="asr-ai-block"><strong>基础模型</strong><div class="asr-ai-grid two"><label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="data-baker-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示 AI 推荐工具卡</span></label></label><label class="asr-ai-field"><span>请求超时时间（秒）</span><input id="data-baker-ai-recommend-timeout" type="number" min="1" max="300" step="1" /><span class="asr-ai-help">默认 120 秒，内部按毫秒保存。</span></label></div></div>',
-        '<div class="asr-ai-block"><strong>安全边界</strong><div class="asr-ai-note">标贝易采 AI 推荐只做辅助文本，不自动保存、提交、批量识别或流转。</div></div>',
+        '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
+        '<div class="asr-ai-block"><strong>基础模型</strong><div class="asr-ai-grid two">',
+        scriptId === dataBakerRoundOneQualityScriptId
+          ? '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="data-baker-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示 AI 推荐工具卡</span></label></label>'
+          : '<label class="asr-ai-field"><span>启用 AI 质检助手</span><label class="asr-ai-boolean"><input id="magic-data-enabled" type="checkbox" /><span>关闭后不显示 AI 质检建议</span></label></label>',
+        '<label class="asr-ai-field"><span>听音模型</span><select id="' + prefix + '-listen-model-select"></select></label>',
+        '<label class="asr-ai-field"><span>' + modelLabel + '</span><select id="' + prefix + '-compare-model-select"></select></label>',
+        '<label class="asr-ai-field"><span>听音模型自定义</span><input id="' + prefix + '-listen-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
+        '<label class="asr-ai-field"><span>' + modelLabel + '自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
+        '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
+        '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时后端自动降级）</span></label></label>',
+        scriptId === magicDataAnnotatorScriptId
+          ? '<label class="asr-ai-field"><span>AI 质检模式</span><select id="magic-data-review-mode"><option value="rule_first">规则优先</option><option value="listen_assisted">听音辅助</option><option value="strict_review">严格复核</option></select></label>'
+          : "",
+        scriptId === magicDataAnnotatorScriptId
+          ? '<label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-show-heard-text" type="checkbox" /><span>显示 AI 听音文本</span></label></label>'
+          : "",
+        scriptId === magicDataAnnotatorScriptId
+          ? '<label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-show-estimated-income" type="checkbox" /><span>显示预计金额</span></label></label>'
+          : "",
+        "</div></div>",
+        '<div class="asr-ai-block"><strong>Prompt</strong><div class="asr-ai-grid">',
+        '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="' + prefix + '-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+        '<label class="asr-ai-field"><span>' + modelLabel + ' Prompt（可选）</span><textarea id="' + prefix + '-compare-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+        "</div></div>",
+        '<div class="asr-ai-block"><strong>生成参数</strong><div class="asr-ai-grid three">',
+        '<label class="asr-ai-field"><span>temperature</span><input id="' + prefix + '-temperature" type="number" min="0" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>top_p</span><input id="' + prefix + '-top-p" type="number" min="0" max="1" step="0.05" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>max_tokens</span><input id="' + prefix + '-max-tokens" type="number" min="1" max="8192" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>max_completion_tokens</span><input id="' + prefix + '-max-completion-tokens" type="number" min="1" max="8192" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>presence_penalty</span><input id="' + prefix + '-presence-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>frequency_penalty</span><input id="' + prefix + '-frequency-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>seed</span><input id="' + prefix + '-seed" type="number" min="0" max="2147483647" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        '<label class="asr-ai-field"><span>stop sequences（每行一个）</span><textarea id="' + prefix + '-stop-sequences" maxlength="960"></textarea><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+        "</div></div>",
         "</div>",
       ].join("");
-      panel.classList.remove("hidden");
-      return;
-    }
-
-    if (scriptId === magicDataAnnotatorScriptId) {
-      panel.innerHTML = [
-        '<div class="asr-ai-panel">',
-        headerHtml,
-        '<div class="asr-ai-block"><strong>基础模型</strong><div class="asr-ai-grid two"><label class="asr-ai-field"><span>启用 AI 质检助手</span><label class="asr-ai-boolean"><input id="magic-data-enabled" type="checkbox" /><span>关闭后不显示 AI 质检建议</span></label></label><label class="asr-ai-field"><span>AI 质检模式</span><select id="magic-data-review-mode"><option value="rule_first">规则优先</option><option value="listen_assisted">听音辅助</option><option value="strict_review">严格复核</option></select></label><label class="asr-ai-field"><span>听音模型</span><select id="magic-data-listen-model-select"><option value="qwen3.5-omni-flash">qwen3.5-omni-flash</option><option value="qwen3.5-omni">qwen3.5-omni</option><option value="qwen-omni-turbo">qwen-omni-turbo</option><option value="qwen-audio-turbo">qwen-audio-turbo</option><option value="custom">自定义模型名</option></select><input id="magic-data-listen-model-custom" class="wide-field hidden" type="text" maxlength="80" placeholder="请输入自定义听音模型名" /></label><label class="asr-ai-field"><span>质检模型</span><select id="magic-data-review-model-select"><option value="qwen3.5-plus">qwen3.5-plus</option><option value="qwen-plus">qwen-plus</option><option value="qwen-max">qwen-max</option><option value="qwen-turbo">qwen-turbo</option><option value="qwen-long">qwen-long</option><option value="custom">自定义模型名</option></select><input id="magic-data-review-model-custom" class="wide-field hidden" type="text" maxlength="80" placeholder="请输入自定义质检模型名" /></label></div></div>',
-        '<div class="asr-ai-block"><strong>显示与推理控制</strong><div class="asr-ai-grid three"><label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-show-heard-text" type="checkbox" /><span>显示 AI 听音文本</span></label></label><label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-show-estimated-income" type="checkbox" /><span>显示预计金额</span></label></label><label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时自动降级）</span></label></label></div></div>',
-        '<div class="asr-ai-block"><strong>安全边界</strong><div class="asr-ai-note">Magic Data AI 质检结果仅供人工复核，不自动保存或提交。</div></div>',
-        "</div>",
-      ].join("");
-      bindMagicDataModelSelect("magic-data-listen-model-select", "magic-data-listen-model-custom");
-      bindMagicDataModelSelect("magic-data-review-model-select", "magic-data-review-model-custom");
+      bindJudgementModelSelect(prefix + "-listen-model-select", prefix + "-listen-model-custom");
+      bindJudgementModelSelect(prefix + "-compare-model-select", prefix + "-compare-model-custom");
       panel.classList.remove("hidden");
       return;
     }
@@ -2105,26 +2281,69 @@
 
   function applyMagicDataSettingsForm(settings) {
     const config = getMagicDataConfig(settings);
+    const defaultsPayload = getAsrVoiceAiDefaultsCached(magicDataAnnotatorScriptId);
+    const aiDefaults = defaultsPayload.defaults || {};
     magicDataShortcutsDraft = clone(config.shortcuts) || {};
     if (getElement("magic-data-enabled")) {
       getElement("magic-data-enabled").checked = config.enabled !== false;
-      applyMagicDataModelField(
-        "magic-data-listen-model-select",
-        "magic-data-listen-model-custom",
-        config.listenModel,
-        magicDataListenModelOptions
+      applyJudgementModelField(
+        "magic-data-ai-listen-model-select",
+        "magic-data-ai-listen-model-custom",
+        getAsrVoiceAiEffectiveText(config.listenModel, aiDefaults.listenModel),
+        judgementAiListenModels,
+        "listen"
       );
-      applyMagicDataModelField(
-        "magic-data-review-model-select",
-        "magic-data-review-model-custom",
-        config.reviewModel,
-        magicDataReviewModelOptions
+      applyJudgementModelField(
+        "magic-data-ai-compare-model-select",
+        "magic-data-ai-compare-model-custom",
+        getAsrVoiceAiEffectiveText(config.reviewModel, aiDefaults.reviewModel || aiDefaults.compareModel),
+        judgementAiCompareModels,
+        "compare"
       );
       getElement("magic-data-review-mode").value = config.reviewMode;
       getElement("magic-data-show-heard-text").checked = config.showHeardText !== false;
       getElement("magic-data-show-estimated-income").checked =
         config.showEstimatedIncome !== false;
-      getElement("magic-data-enable-thinking").checked = config.enableThinking === true;
+      getElement("magic-data-ai-timeout").value = String(
+        Number(config.aiReviewRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
+      );
+      getElement("magic-data-ai-enable-thinking").checked = Boolean(
+        config.enableThinking === true ||
+          (config.enableThinking !== true && aiDefaults.enableThinking === true)
+      );
+      getElement("magic-data-ai-listen-prompt").value = String(
+        getAsrVoiceAiEffectiveText(config.aiReviewListenPrompt, aiDefaults.listenPrompt)
+      );
+      getElement("magic-data-ai-compare-prompt").value = String(
+        getAsrVoiceAiEffectiveText(config.aiReviewComparePrompt, aiDefaults.reviewPrompt)
+      );
+      getElement("magic-data-ai-temperature").value = String(
+        getAsrVoiceAiEffectiveText(config.aiReviewTemperature, aiDefaults.temperature)
+      );
+      getElement("magic-data-ai-top-p").value = String(
+        getAsrVoiceAiEffectiveText(config.aiReviewTopP, aiDefaults.top_p)
+      );
+      getElement("magic-data-ai-max-tokens").value = String(
+        getAsrVoiceAiEffectiveText(config.aiReviewMaxTokens, aiDefaults.max_tokens)
+      );
+      getElement("magic-data-ai-max-completion-tokens").value = String(
+        getAsrVoiceAiEffectiveText(
+          config.aiReviewMaxCompletionTokens,
+          aiDefaults.max_completion_tokens
+        )
+      );
+      getElement("magic-data-ai-presence-penalty").value = String(
+        getAsrVoiceAiEffectiveText(config.aiReviewPresencePenalty, aiDefaults.presence_penalty)
+      );
+      getElement("magic-data-ai-frequency-penalty").value = String(
+        getAsrVoiceAiEffectiveText(config.aiReviewFrequencyPenalty, aiDefaults.frequency_penalty)
+      );
+      getElement("magic-data-ai-seed").value = String(
+        getAsrVoiceAiEffectiveText(config.aiReviewSeed, aiDefaults.seed)
+      );
+      getElement("magic-data-ai-stop-sequences").value = String(
+        getAsrVoiceAiEffectiveText(config.aiReviewStopSequences, aiDefaults.stop)
+      );
     }
     stopMagicDataShortcutRecording("");
     renderMagicDataShortcutGrid();
@@ -2147,24 +2366,25 @@
     });
 
     const currentConfig = getMagicDataConfig(currentSettings || {});
+    const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataAnnotatorScriptId).defaults || {};
     const hasAiSettingsPanel = Boolean(getElement("magic-data-enabled"));
     const enabled = hasAiSettingsPanel
       ? getElement("magic-data-enabled").checked
       : currentConfig.enabled !== false;
     const listenModel = hasAiSettingsPanel
-      ? readMagicDataModelField(
-          "magic-data-listen-model-select",
-          "magic-data-listen-model-custom",
+      ? readJudgementModelField(
+          "magic-data-ai-listen-model-select",
+          "magic-data-ai-listen-model-custom",
           magicDataDefaultSettings.listenModel,
-          magicDataListenModelOptions
+          judgementAiListenModels
         )
       : currentConfig.listenModel;
     const reviewModel = hasAiSettingsPanel
-      ? readMagicDataModelField(
-          "magic-data-review-model-select",
-          "magic-data-review-model-custom",
+      ? readJudgementModelField(
+          "magic-data-ai-compare-model-select",
+          "magic-data-ai-compare-model-custom",
           magicDataDefaultSettings.reviewModel,
-          magicDataReviewModelOptions
+          judgementAiCompareModels
         )
       : currentConfig.reviewModel;
     const reviewMode = hasAiSettingsPanel
@@ -2180,8 +2400,96 @@
       ? getElement("magic-data-show-estimated-income").checked
       : currentConfig.showEstimatedIncome !== false;
     const enableThinking = hasAiSettingsPanel
-      ? getElement("magic-data-enable-thinking").checked === true
+      ? getElement("magic-data-ai-enable-thinking").checked === true
       : currentConfig.enableThinking === true;
+    const normalizeOverridePrompt = function (value, defaultValue) {
+      const normalizedValue = normalizePromptText(value || "");
+      const normalizedDefault = normalizePromptText(defaultValue || "");
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const normalizeOverrideNumber = function (value, defaultValue, min, max, precision) {
+      const normalizedValue = normalizeOptionalNumberText(value, min, max, precision);
+      const normalizedDefault = normalizeOptionalNumberText(defaultValue, min, max, precision);
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const normalizeOverrideInteger = function (value, defaultValue, min, max) {
+      const normalizedValue = normalizeOptionalIntegerText(value, min, max);
+      const normalizedDefault = normalizeOptionalIntegerText(defaultValue, min, max);
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const aiReviewRequestTimeoutMs = hasAiSettingsPanel
+      ? clampNumber(getElement("magic-data-ai-timeout").value, 120000, 1000, 300000, 0)
+      : currentConfig.aiReviewRequestTimeoutMs;
+    const aiReviewListenPrompt = hasAiSettingsPanel
+      ? normalizeOverridePrompt(
+          getElement("magic-data-ai-listen-prompt").value,
+          aiDefaults.listenPrompt
+        )
+      : currentConfig.aiReviewListenPrompt;
+    const aiReviewComparePrompt = hasAiSettingsPanel
+      ? normalizeOverridePrompt(
+          getElement("magic-data-ai-compare-prompt").value,
+          aiDefaults.reviewPrompt
+        )
+      : currentConfig.aiReviewComparePrompt;
+    const aiReviewTemperature = hasAiSettingsPanel
+      ? normalizeOverrideNumber(
+          getElement("magic-data-ai-temperature").value,
+          aiDefaults.temperature,
+          0,
+          2,
+          3
+        )
+      : currentConfig.aiReviewTemperature;
+    const aiReviewTopP = hasAiSettingsPanel
+      ? normalizeOverrideNumber(getElement("magic-data-ai-top-p").value, aiDefaults.top_p, 0, 1, 3)
+      : currentConfig.aiReviewTopP;
+    const aiReviewMaxTokens = hasAiSettingsPanel
+      ? normalizeOverrideInteger(
+          getElement("magic-data-ai-max-tokens").value,
+          aiDefaults.max_tokens,
+          1,
+          8192
+        )
+      : currentConfig.aiReviewMaxTokens;
+    const aiReviewMaxCompletionTokens = hasAiSettingsPanel
+      ? normalizeOverrideInteger(
+          getElement("magic-data-ai-max-completion-tokens").value,
+          aiDefaults.max_completion_tokens,
+          1,
+          8192
+        )
+      : currentConfig.aiReviewMaxCompletionTokens;
+    const aiReviewPresencePenalty = hasAiSettingsPanel
+      ? normalizeOverrideNumber(
+          getElement("magic-data-ai-presence-penalty").value,
+          aiDefaults.presence_penalty,
+          -2,
+          2,
+          3
+        )
+      : currentConfig.aiReviewPresencePenalty;
+    const aiReviewFrequencyPenalty = hasAiSettingsPanel
+      ? normalizeOverrideNumber(
+          getElement("magic-data-ai-frequency-penalty").value,
+          aiDefaults.frequency_penalty,
+          -2,
+          2,
+          3
+        )
+      : currentConfig.aiReviewFrequencyPenalty;
+    const aiReviewSeed = hasAiSettingsPanel
+      ? normalizeOverrideInteger(getElement("magic-data-ai-seed").value, aiDefaults.seed, 0, 2147483647)
+      : currentConfig.aiReviewSeed;
+    const aiReviewStopSequences = hasAiSettingsPanel
+      ? (function () {
+          const normalizedValue = normalizeStopSequencesText(
+            getElement("magic-data-ai-stop-sequences").value
+          );
+          const normalizedDefault = normalizeStopSequencesText(aiDefaults.stop || "");
+          return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+        })()
+      : currentConfig.aiReviewStopSequences;
 
     setStatus("magic-data-status", "正在保存 Magic Data 设置...");
     try {
@@ -2191,12 +2499,28 @@
             magicDataAnnotator: {
               enabled: enabled,
               aiReviewEnabled: enabled,
-              listenModel: listenModel,
-              reviewModel: reviewModel,
+              listenModel:
+                listenModel === String(aiDefaults.listenModel || "").trim() ? "" : listenModel,
+              reviewModel:
+                reviewModel ===
+                String(aiDefaults.reviewModel || aiDefaults.compareModel || "").trim()
+                  ? ""
+                  : reviewModel,
               reviewMode: reviewMode,
               showHeardText: showHeardText,
               showEstimatedIncome: showEstimatedIncome,
               enableThinking: enableThinking,
+              aiReviewRequestTimeoutMs: aiReviewRequestTimeoutMs,
+              aiReviewListenPrompt: aiReviewListenPrompt,
+              aiReviewComparePrompt: aiReviewComparePrompt,
+              aiReviewTemperature: aiReviewTemperature,
+              aiReviewTopP: aiReviewTopP,
+              aiReviewMaxTokens: aiReviewMaxTokens,
+              aiReviewMaxCompletionTokens: aiReviewMaxCompletionTokens,
+              aiReviewPresencePenalty: aiReviewPresencePenalty,
+              aiReviewFrequencyPenalty: aiReviewFrequencyPenalty,
+              aiReviewSeed: aiReviewSeed,
+              aiReviewStopSequences: aiReviewStopSequences,
               shortcuts: shortcuts,
             },
           },
@@ -2216,6 +2540,8 @@
 
   function applyJudgementForm(settings) {
     const config = normalizeJudgementConfig(settings);
+    const defaultsPayload = getAsrVoiceAiDefaultsCached(judgementProjectId);
+    const aiDefaults = defaultsPayload.defaults || {};
     judgementShortcutsDraft = clone(config.shortcuts) || {};
     getElement("judgement-volume").value = String(config.volumeValue);
     getElement("judgement-rate-step").value = String(config.rateStepValue);
@@ -2233,51 +2559,61 @@
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     if (getElement("judgement-ai-suggestion-timeout")) {
       getElement("judgement-ai-suggestion-timeout").value = String(
-        config.aiSuggestionRequestTimeoutMs
+        Number(config.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
       );
-      getElement("judgement-ai-suggestion-enable-thinking").checked =
-        config.aiSuggestionEnableThinking === true;
+      getElement("judgement-ai-suggestion-enable-thinking").checked = Boolean(
+        config.aiSuggestionEnableThinking === true ||
+          (config.aiSuggestionEnableThinking !== true && aiDefaults.enableThinking === true)
+      );
       applyJudgementModelField(
         "judgement-ai-suggestion-listen-model-select",
         "judgement-ai-suggestion-listen-model-custom",
-        config.aiSuggestionListenModel,
+        getAsrVoiceAiEffectiveText(config.aiSuggestionListenModel, aiDefaults.listenModel),
         judgementAiListenModels,
         "listen"
       );
       applyJudgementModelField(
         "judgement-ai-suggestion-compare-model-select",
         "judgement-ai-suggestion-compare-model-custom",
-        config.aiSuggestionCompareModel,
+        getAsrVoiceAiEffectiveText(config.aiSuggestionCompareModel, aiDefaults.compareModel),
         judgementAiCompareModels,
         "compare"
       );
       getElement("judgement-ai-suggestion-listen-prompt").value = String(
-        config.aiSuggestionListenPrompt || ""
+        getAsrVoiceAiEffectiveText(config.aiSuggestionListenPrompt, aiDefaults.listenPrompt)
       );
       getElement("judgement-ai-suggestion-compare-prompt").value = String(
-        config.aiSuggestionComparePrompt || ""
+        getAsrVoiceAiEffectiveText(config.aiSuggestionComparePrompt, aiDefaults.comparePrompt)
       );
       getElement("judgement-ai-suggestion-temperature").value = String(
-        config.aiSuggestionTemperature || ""
+        getAsrVoiceAiEffectiveText(config.aiSuggestionTemperature, aiDefaults.temperature)
       );
-      getElement("judgement-ai-suggestion-top-p").value = String(config.aiSuggestionTopP || "");
+      getElement("judgement-ai-suggestion-top-p").value = String(
+        getAsrVoiceAiEffectiveText(config.aiSuggestionTopP, aiDefaults.top_p)
+      );
       getElement("judgement-ai-suggestion-max-tokens").value = String(
-        config.aiSuggestionMaxTokens || ""
+        getAsrVoiceAiEffectiveText(config.aiSuggestionMaxTokens, aiDefaults.max_tokens)
       );
       getElement("judgement-ai-suggestion-max-completion-tokens").value = String(
-        config.aiSuggestionMaxCompletionTokens || ""
+        getAsrVoiceAiEffectiveText(
+          config.aiSuggestionMaxCompletionTokens,
+          aiDefaults.max_completion_tokens
+        )
       );
       getElement("judgement-ai-suggestion-presence-penalty").value = String(
-        config.aiSuggestionPresencePenalty || ""
+        getAsrVoiceAiEffectiveText(config.aiSuggestionPresencePenalty, aiDefaults.presence_penalty)
       );
       getElement("judgement-ai-suggestion-frequency-penalty").value = String(
-        config.aiSuggestionFrequencyPenalty || ""
+        getAsrVoiceAiEffectiveText(
+          config.aiSuggestionFrequencyPenalty,
+          aiDefaults.frequency_penalty
+        )
       );
-      getElement("judgement-ai-suggestion-seed").value = String(config.aiSuggestionSeed || "");
-      getElement("judgement-ai-suggestion-response-format").value =
-        config.aiSuggestionResponseFormat === "text" ? "text" : "json_object";
+      getElement("judgement-ai-suggestion-seed").value = String(
+        getAsrVoiceAiEffectiveText(config.aiSuggestionSeed, aiDefaults.seed)
+      );
       getElement("judgement-ai-suggestion-stop-sequences").value = String(
-        config.aiSuggestionStopSequences || ""
+        getAsrVoiceAiEffectiveText(config.aiSuggestionStopSequences, aiDefaults.stop)
       );
       applyJudgementAiAdvancedFieldVisibility();
     }
@@ -2413,6 +2749,8 @@
   function applyTranscriptionForm(settings) {
     const config = normalizeTranscriptionConfig(settings);
     const aiConfig = getTranscriptionAiConfig(settings);
+    const defaultsPayload = getAsrVoiceAiDefaultsCached(transcriptionProjectId);
+    const aiDefaults = defaultsPayload.defaults || {};
     transcriptionShortcutsDraft = clone(config.shortcuts) || {};
 
     getElement("transcription-auto-play").checked = config.autoPlay === true;
@@ -2426,18 +2764,21 @@
     getElement("transcription-clear-on-invalid").checked = config.clearOnInvalid !== false;
     if (getElement("transcription-ai-suggestion-timeout")) {
       getElement("transcription-ai-suggestion-timeout").value = String(
-        aiConfig.aiSuggestionRequestTimeoutMs
+        Number(aiConfig.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
       );
     }
     if (getElement("transcription-ai-suggestion-enable-thinking")) {
       getElement("transcription-ai-suggestion-enable-thinking").checked =
-        aiConfig.aiSuggestionEnableThinking === true;
+        Boolean(
+          aiConfig.aiSuggestionEnableThinking === true ||
+            (aiConfig.aiSuggestionEnableThinking !== true && aiDefaults.enableThinking === true)
+        );
     }
     if (getElement("transcription-ai-suggestion-listen-model-select")) {
       applyJudgementModelField(
         "transcription-ai-suggestion-listen-model-select",
         "transcription-ai-suggestion-listen-model-custom",
-        aiConfig.aiSuggestionListenModel,
+        getAsrVoiceAiEffectiveText(aiConfig.aiSuggestionListenModel, aiDefaults.listenModel),
         judgementAiListenModels,
         "listen"
       );
@@ -2446,47 +2787,51 @@
       applyJudgementModelField(
         "transcription-ai-suggestion-compare-model-select",
         "transcription-ai-suggestion-compare-model-custom",
-        aiConfig.aiSuggestionCompareModel,
+        getAsrVoiceAiEffectiveText(aiConfig.aiSuggestionCompareModel, aiDefaults.compareModel),
         judgementAiCompareModels,
         "compare"
       );
     }
     if (getElement("transcription-ai-suggestion-listen-prompt")) {
       getElement("transcription-ai-suggestion-listen-prompt").value = String(
-        aiConfig.aiSuggestionListenPrompt || ""
+        getAsrVoiceAiEffectiveText(aiConfig.aiSuggestionListenPrompt, aiDefaults.listenPrompt)
       );
     }
     if (getElement("transcription-ai-suggestion-compare-prompt")) {
       getElement("transcription-ai-suggestion-compare-prompt").value = String(
-        aiConfig.aiSuggestionComparePrompt || ""
+        getAsrVoiceAiEffectiveText(aiConfig.aiSuggestionComparePrompt, aiDefaults.comparePrompt)
       );
     }
     if (getElement("transcription-ai-suggestion-temperature")) {
       getElement("transcription-ai-suggestion-temperature").value = String(
-        aiConfig.aiSuggestionTemperature || ""
+        getAsrVoiceAiEffectiveText(aiConfig.aiSuggestionTemperature, aiDefaults.temperature)
       );
       getElement("transcription-ai-suggestion-top-p").value = String(
-        aiConfig.aiSuggestionTopP || ""
+        getAsrVoiceAiEffectiveText(aiConfig.aiSuggestionTopP, aiDefaults.top_p)
       );
       getElement("transcription-ai-suggestion-max-tokens").value = String(
-        aiConfig.aiSuggestionMaxTokens || ""
+        getAsrVoiceAiEffectiveText(aiConfig.aiSuggestionMaxTokens, aiDefaults.max_tokens)
       );
       getElement("transcription-ai-suggestion-max-completion-tokens").value = String(
-        aiConfig.aiSuggestionMaxCompletionTokens || ""
+        getAsrVoiceAiEffectiveText(
+          aiConfig.aiSuggestionMaxCompletionTokens,
+          aiDefaults.max_completion_tokens
+        )
       );
       getElement("transcription-ai-suggestion-presence-penalty").value = String(
-        aiConfig.aiSuggestionPresencePenalty || ""
+        getAsrVoiceAiEffectiveText(aiConfig.aiSuggestionPresencePenalty, aiDefaults.presence_penalty)
       );
       getElement("transcription-ai-suggestion-frequency-penalty").value = String(
-        aiConfig.aiSuggestionFrequencyPenalty || ""
+        getAsrVoiceAiEffectiveText(
+          aiConfig.aiSuggestionFrequencyPenalty,
+          aiDefaults.frequency_penalty
+        )
       );
       getElement("transcription-ai-suggestion-seed").value = String(
-        aiConfig.aiSuggestionSeed || ""
+        getAsrVoiceAiEffectiveText(aiConfig.aiSuggestionSeed, aiDefaults.seed)
       );
-      getElement("transcription-ai-suggestion-response-format").value =
-        aiConfig.aiSuggestionResponseFormat === "text" ? "text" : "json_object";
       getElement("transcription-ai-suggestion-stop-sequences").value = String(
-        aiConfig.aiSuggestionStopSequences || ""
+        getAsrVoiceAiEffectiveText(aiConfig.aiSuggestionStopSequences, aiDefaults.stop)
       );
       applyTranscriptionAiAdvancedFieldVisibility();
     }
@@ -2510,6 +2855,7 @@
 
     const current = normalizeTranscriptionConfig(currentSettings || {});
     const currentAi = getTranscriptionAiConfig(currentSettings || {});
+    const aiDefaults = getAsrVoiceAiDefaultsCached(transcriptionProjectId).defaults || {};
     const shortcuts = {};
     transcriptionShortcutActions.forEach(function (action) {
       shortcuts[action.key] = normalizeShortcut(transcriptionShortcutsDraft[action.key]);
@@ -2585,59 +2931,122 @@
         "qwen3.5-plus",
         judgementAiCompareModels
       );
-      patch.aiSuggestionListenPrompt = normalizePromptText(
-        getElement("transcription-ai-suggestion-listen-prompt").value
-      );
-      patch.aiSuggestionComparePrompt = normalizePromptText(
-        getElement("transcription-ai-suggestion-compare-prompt").value
-      );
+      patch.aiSuggestionListenPrompt = (function () {
+        const value = normalizePromptText(getElement("transcription-ai-suggestion-listen-prompt").value);
+        const defaultValue = normalizePromptText(aiDefaults.listenPrompt || "");
+        return value && value !== defaultValue ? value : "";
+      })();
+      patch.aiSuggestionComparePrompt = (function () {
+        const value = normalizePromptText(getElement("transcription-ai-suggestion-compare-prompt").value);
+        const defaultValue = normalizePromptText(aiDefaults.comparePrompt || "");
+        return value && value !== defaultValue ? value : "";
+      })();
       patch.aiSuggestionTemperature = isJudgementAiParamSupported("temperature")
-        ? normalizeOptionalNumberText(getElement("transcription-ai-suggestion-temperature").value, 0, 2, 3)
+        ? (function () {
+            const value = normalizeOptionalNumberText(
+              getElement("transcription-ai-suggestion-temperature").value,
+              0,
+              2,
+              3
+            );
+            const defaultValue = normalizeOptionalNumberText(aiDefaults.temperature, 0, 2, 3);
+            return value && value !== defaultValue ? value : "";
+          })()
         : "";
       patch.aiSuggestionTopP = isJudgementAiParamSupported("top_p")
-        ? normalizeOptionalNumberText(getElement("transcription-ai-suggestion-top-p").value, 0, 1, 3)
+        ? (function () {
+            const value = normalizeOptionalNumberText(
+              getElement("transcription-ai-suggestion-top-p").value,
+              0,
+              1,
+              3
+            );
+            const defaultValue = normalizeOptionalNumberText(aiDefaults.top_p, 0, 1, 3);
+            return value && value !== defaultValue ? value : "";
+          })()
         : "";
       patch.aiSuggestionMaxTokens = isJudgementAiParamSupported("max_tokens")
-        ? normalizeOptionalIntegerText(getElement("transcription-ai-suggestion-max-tokens").value, 1, 8192)
+        ? (function () {
+            const value = normalizeOptionalIntegerText(
+              getElement("transcription-ai-suggestion-max-tokens").value,
+              1,
+              8192
+            );
+            const defaultValue = normalizeOptionalIntegerText(aiDefaults.max_tokens, 1, 8192);
+            return value && value !== defaultValue ? value : "";
+          })()
         : "";
       patch.aiSuggestionMaxCompletionTokens = isJudgementAiParamSupported("max_completion_tokens")
-        ? normalizeOptionalIntegerText(
-            getElement("transcription-ai-suggestion-max-completion-tokens").value,
-            1,
-            8192
-          )
+        ? (function () {
+            const value = normalizeOptionalIntegerText(
+              getElement("transcription-ai-suggestion-max-completion-tokens").value,
+              1,
+              8192
+            );
+            const defaultValue = normalizeOptionalIntegerText(
+              aiDefaults.max_completion_tokens,
+              1,
+              8192
+            );
+            return value && value !== defaultValue ? value : "";
+          })()
         : "";
       patch.aiSuggestionPresencePenalty = isJudgementAiParamSupported("presence_penalty")
-        ? normalizeOptionalNumberText(
-            getElement("transcription-ai-suggestion-presence-penalty").value,
-            -2,
-            2,
-            3
-          )
+        ? (function () {
+            const value = normalizeOptionalNumberText(
+              getElement("transcription-ai-suggestion-presence-penalty").value,
+              -2,
+              2,
+              3
+            );
+            const defaultValue = normalizeOptionalNumberText(aiDefaults.presence_penalty, -2, 2, 3);
+            return value && value !== defaultValue ? value : "";
+          })()
         : "";
       patch.aiSuggestionFrequencyPenalty = isJudgementAiParamSupported("frequency_penalty")
-        ? normalizeOptionalNumberText(
-            getElement("transcription-ai-suggestion-frequency-penalty").value,
-            -2,
-            2,
-            3
-          )
+        ? (function () {
+            const value = normalizeOptionalNumberText(
+              getElement("transcription-ai-suggestion-frequency-penalty").value,
+              -2,
+              2,
+              3
+            );
+            const defaultValue = normalizeOptionalNumberText(aiDefaults.frequency_penalty, -2, 2, 3);
+            return value && value !== defaultValue ? value : "";
+          })()
         : "";
       patch.aiSuggestionSeed = isJudgementAiParamSupported("seed")
-        ? normalizeOptionalIntegerText(getElement("transcription-ai-suggestion-seed").value, 0, 2147483647)
+        ? (function () {
+            const value = normalizeOptionalIntegerText(
+              getElement("transcription-ai-suggestion-seed").value,
+              0,
+              2147483647
+            );
+            const defaultValue = normalizeOptionalIntegerText(aiDefaults.seed, 0, 2147483647);
+            return value && value !== defaultValue ? value : "";
+          })()
         : "";
-      patch.aiSuggestionResponseFormat = isJudgementAiParamSupported("response_format")
-        ? normalizeResponseFormat(
-            getElement("transcription-ai-suggestion-response-format").value,
-            "json_object"
-          )
-        : "json_object";
+      patch.aiSuggestionResponseFormat = "json_object";
       patch.aiSuggestionStopSequences = isJudgementAiParamSupported("stop")
-        ? normalizeStopSequencesText(getElement("transcription-ai-suggestion-stop-sequences").value)
+        ? (function () {
+            const value = normalizeStopSequencesText(
+              getElement("transcription-ai-suggestion-stop-sequences").value
+            );
+            const defaultValue = normalizeStopSequencesText(aiDefaults.stop || "");
+            return value && value !== defaultValue ? value : "";
+          })()
         : "";
       patch.aiSuggestionEnableThinking =
         getElement("transcription-ai-suggestion-enable-thinking").checked === true;
       patch.aiSuggestionModel = patch.aiSuggestionCompareModel;
+      patch.aiSuggestionListenModel =
+        patch.aiSuggestionListenModel === String(aiDefaults.listenModel || "").trim()
+          ? ""
+          : patch.aiSuggestionListenModel;
+      patch.aiSuggestionCompareModel =
+        patch.aiSuggestionCompareModel === String(aiDefaults.compareModel || "").trim()
+          ? ""
+          : patch.aiSuggestionCompareModel;
     }
 
     setStatus("transcription-status", "正在保存转写设置...");
@@ -3149,6 +3558,24 @@
   function renderDetail(settings, scriptId) {
     renderDetailHeader(settings, scriptId);
     renderAsrVoiceAiSettingsSection(settings, scriptId);
+    updateAsrVoiceAiDefaultsTip(scriptId, getAsrVoiceAiDefaultsCached(scriptId));
+    if (supportsAsrVoiceAiSettings(scriptId) && isAsrVoiceAiUnlocked(scriptId)) {
+      void loadAsrVoiceAiDefaults(scriptId, settings).then(function (payload) {
+        if (getCurrentDetailScriptId() !== scriptId || !isAsrVoiceAiUnlocked(scriptId)) {
+          return;
+        }
+        updateAsrVoiceAiDefaultsTip(scriptId, payload);
+        if (scriptId === judgementProjectId) {
+          applyJudgementForm(currentSettings || settings || {});
+        } else if (scriptId === transcriptionProjectId) {
+          applyTranscriptionForm(currentSettings || settings || {});
+        } else if (scriptId === dataBakerRoundOneQualityScriptId) {
+          applyDataBakerForm(currentSettings || settings || {});
+        } else if (scriptId === magicDataAnnotatorScriptId) {
+          applyMagicDataSettingsForm(currentSettings || settings || {});
+        }
+      });
+    }
     showDetailPanel(scriptId);
     setStatus("detail-status", "");
 
@@ -3197,12 +3624,68 @@
 
   function applyDataBakerForm(settings) {
     const config = getDataBakerRoundOneConfig(settings);
+    const defaultsPayload = getAsrVoiceAiDefaultsCached(dataBakerRoundOneQualityScriptId);
+    const aiDefaults = defaultsPayload.defaults || {};
     dataBakerShortcutsDraft = clone(config.shortcuts) || {};
     if (getElement("data-baker-ai-recommend-enabled")) {
       getElement("data-baker-ai-recommend-enabled").checked =
         config.aiRecommendEnabled !== false;
-      getElement("data-baker-ai-recommend-timeout").value = String(
-        dataBakerTimeoutMsToSeconds(config.aiRecommendRequestTimeoutMs)
+      getElement("data-baker-ai-timeout").value = String(
+        Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
+      );
+      applyJudgementModelField(
+        "data-baker-ai-listen-model-select",
+        "data-baker-ai-listen-model-custom",
+        getAsrVoiceAiEffectiveText(config.aiRecommendListenModel, aiDefaults.listenModel),
+        judgementAiListenModels,
+        "listen"
+      );
+      applyJudgementModelField(
+        "data-baker-ai-compare-model-select",
+        "data-baker-ai-compare-model-custom",
+        getAsrVoiceAiEffectiveText(config.aiRecommendCompareModel, aiDefaults.compareModel),
+        judgementAiCompareModels,
+        "compare"
+      );
+      getElement("data-baker-ai-enable-thinking").checked = Boolean(
+        config.aiRecommendEnableThinking === true ||
+          (config.aiRecommendEnableThinking !== true && aiDefaults.enableThinking === true)
+      );
+      getElement("data-baker-ai-listen-prompt").value = String(
+        getAsrVoiceAiEffectiveText(config.aiRecommendListenPrompt, aiDefaults.listenPrompt)
+      );
+      getElement("data-baker-ai-compare-prompt").value = String(
+        getAsrVoiceAiEffectiveText(config.aiRecommendComparePrompt, aiDefaults.comparePrompt)
+      );
+      getElement("data-baker-ai-temperature").value = String(
+        getAsrVoiceAiEffectiveText(config.aiRecommendTemperature, aiDefaults.temperature)
+      );
+      getElement("data-baker-ai-top-p").value = String(
+        getAsrVoiceAiEffectiveText(config.aiRecommendTopP, aiDefaults.top_p)
+      );
+      getElement("data-baker-ai-max-tokens").value = String(
+        getAsrVoiceAiEffectiveText(config.aiRecommendMaxTokens, aiDefaults.max_tokens)
+      );
+      getElement("data-baker-ai-max-completion-tokens").value = String(
+        getAsrVoiceAiEffectiveText(
+          config.aiRecommendMaxCompletionTokens,
+          aiDefaults.max_completion_tokens
+        )
+      );
+      getElement("data-baker-ai-presence-penalty").value = String(
+        getAsrVoiceAiEffectiveText(config.aiRecommendPresencePenalty, aiDefaults.presence_penalty)
+      );
+      getElement("data-baker-ai-frequency-penalty").value = String(
+        getAsrVoiceAiEffectiveText(
+          config.aiRecommendFrequencyPenalty,
+          aiDefaults.frequency_penalty
+        )
+      );
+      getElement("data-baker-ai-seed").value = String(
+        getAsrVoiceAiEffectiveText(config.aiRecommendSeed, aiDefaults.seed)
+      );
+      getElement("data-baker-ai-stop-sequences").value = String(
+        getAsrVoiceAiEffectiveText(config.aiRecommendStopSequences, aiDefaults.stop)
       );
     }
     getElement("data-baker-auto-page-size-enabled").checked =
@@ -3222,10 +3705,11 @@
     }
 
     const currentConfig = getDataBakerRoundOneConfig(currentSettings || {});
-    const hasAiSettingsPanel = Boolean(getElement("data-baker-ai-recommend-timeout"));
+    const aiDefaults = getAsrVoiceAiDefaultsCached(dataBakerRoundOneQualityScriptId).defaults || {};
+    const hasAiSettingsPanel = Boolean(getElement("data-baker-ai-timeout"));
     const timeoutInput = hasAiSettingsPanel
-      ? getElement("data-baker-ai-recommend-timeout").value
-      : dataBakerTimeoutMsToSeconds(currentConfig.aiRecommendRequestTimeoutMs);
+      ? getElement("data-baker-ai-timeout").value
+      : String(currentConfig.aiRecommendRequestTimeoutMs);
     const aiRecommendEnabled = hasAiSettingsPanel
       ? getElement("data-baker-ai-recommend-enabled").checked
       : currentConfig.aiRecommendEnabled !== false;
@@ -3234,7 +3718,105 @@
       getElement("data-baker-default-page-size").value,
       "50条/页"
     );
-    const timeoutMs = dataBakerTimeoutSecondsToMs(timeoutInput);
+    const timeoutMs = normalizeDataBakerTimeoutMs(timeoutInput);
+    const listenModel = hasAiSettingsPanel
+      ? readJudgementModelField(
+          "data-baker-ai-listen-model-select",
+          "data-baker-ai-listen-model-custom",
+          currentConfig.aiRecommendListenModel,
+          judgementAiListenModels
+        )
+      : currentConfig.aiRecommendListenModel;
+    const compareModel = hasAiSettingsPanel
+      ? readJudgementModelField(
+          "data-baker-ai-compare-model-select",
+          "data-baker-ai-compare-model-custom",
+          currentConfig.aiRecommendCompareModel,
+          judgementAiCompareModels
+        )
+      : currentConfig.aiRecommendCompareModel;
+    const listenPrompt = hasAiSettingsPanel
+      ? normalizePromptText(getElement("data-baker-ai-listen-prompt").value)
+      : currentConfig.aiRecommendListenPrompt;
+    const comparePrompt = hasAiSettingsPanel
+      ? normalizePromptText(getElement("data-baker-ai-compare-prompt").value)
+      : currentConfig.aiRecommendComparePrompt;
+    const normalizeOverridePrompt = function (value, defaultValue) {
+      const normalizedValue = normalizePromptText(value || "");
+      const normalizedDefault = normalizePromptText(defaultValue || "");
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const normalizeOverrideNumber = function (value, defaultValue, min, max, precision) {
+      const normalizedValue = normalizeOptionalNumberText(value, min, max, precision);
+      const normalizedDefault = normalizeOptionalNumberText(defaultValue, min, max, precision);
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const normalizeOverrideInteger = function (value, defaultValue, min, max) {
+      const normalizedValue = normalizeOptionalIntegerText(value, min, max);
+      const normalizedDefault = normalizeOptionalIntegerText(defaultValue, min, max);
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const temperature = hasAiSettingsPanel
+      ? normalizeOverrideNumber(
+          getElement("data-baker-ai-temperature").value,
+          aiDefaults.temperature,
+          0,
+          2,
+          3
+        )
+      : currentConfig.aiRecommendTemperature;
+    const topP = hasAiSettingsPanel
+      ? normalizeOverrideNumber(getElement("data-baker-ai-top-p").value, aiDefaults.top_p, 0, 1, 3)
+      : currentConfig.aiRecommendTopP;
+    const maxTokens = hasAiSettingsPanel
+      ? normalizeOverrideInteger(
+          getElement("data-baker-ai-max-tokens").value,
+          aiDefaults.max_tokens,
+          1,
+          8192
+        )
+      : currentConfig.aiRecommendMaxTokens;
+    const maxCompletionTokens = hasAiSettingsPanel
+      ? normalizeOverrideInteger(
+          getElement("data-baker-ai-max-completion-tokens").value,
+          aiDefaults.max_completion_tokens,
+          1,
+          8192
+        )
+      : currentConfig.aiRecommendMaxCompletionTokens;
+    const presencePenalty = hasAiSettingsPanel
+      ? normalizeOverrideNumber(
+          getElement("data-baker-ai-presence-penalty").value,
+          aiDefaults.presence_penalty,
+          -2,
+          2,
+          3
+        )
+      : currentConfig.aiRecommendPresencePenalty;
+    const frequencyPenalty = hasAiSettingsPanel
+      ? normalizeOverrideNumber(
+          getElement("data-baker-ai-frequency-penalty").value,
+          aiDefaults.frequency_penalty,
+          -2,
+          2,
+          3
+        )
+      : currentConfig.aiRecommendFrequencyPenalty;
+    const seed = hasAiSettingsPanel
+      ? normalizeOverrideInteger(getElement("data-baker-ai-seed").value, aiDefaults.seed, 0, 2147483647)
+      : currentConfig.aiRecommendSeed;
+    const stopSequences = hasAiSettingsPanel
+      ? (function () {
+          const normalizedValue = normalizeStopSequencesText(
+            getElement("data-baker-ai-stop-sequences").value
+          );
+          const normalizedDefault = normalizeStopSequencesText(aiDefaults.stop || "");
+          return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+        })()
+      : currentConfig.aiRecommendStopSequences;
+    const enableThinking = hasAiSettingsPanel
+      ? getElement("data-baker-ai-enable-thinking").checked === true
+      : currentConfig.aiRecommendEnableThinking === true;
     const shortcuts = {};
 
     ensureDataBakerShortcutDraft();
@@ -3253,6 +3835,22 @@
                 id: dataBakerRoundOneQualityScriptId,
                 aiRecommendEnabled: aiRecommendEnabled,
                 aiRecommendRequestTimeoutMs: timeoutMs,
+                aiRecommendListenModel:
+                  listenModel === String(aiDefaults.listenModel || "").trim() ? "" : listenModel,
+                aiRecommendCompareModel:
+                  compareModel === String(aiDefaults.compareModel || "").trim() ? "" : compareModel,
+                aiRecommendEnableThinking:
+                  enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
+                aiRecommendListenPrompt: normalizeOverridePrompt(listenPrompt, aiDefaults.listenPrompt),
+                aiRecommendComparePrompt: normalizeOverridePrompt(comparePrompt, aiDefaults.comparePrompt),
+                aiRecommendTemperature: temperature,
+                aiRecommendTopP: topP,
+                aiRecommendMaxTokens: maxTokens,
+                aiRecommendMaxCompletionTokens: maxCompletionTokens,
+                aiRecommendPresencePenalty: presencePenalty,
+                aiRecommendFrequencyPenalty: frequencyPenalty,
+                aiRecommendSeed: seed,
+                aiRecommendStopSequences: stopSequences,
                 autoPageSizeEnabled: autoPageSizeEnabled,
                 defaultPageSize: defaultPageSize,
                 shortcuts: shortcuts,
@@ -3363,6 +3961,7 @@
     const thunderQuestionEnabled = Boolean(getElement("judgement-thunder-question").checked);
     const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
     const currentConfig = normalizeJudgementConfig(currentSettings || {});
+    const aiDefaults = getAsrVoiceAiDefaultsCached(judgementProjectId).defaults || {};
     const hasAiSettingsPanel = Boolean(getElement("judgement-ai-suggestion-timeout"));
     const aiSuggestionRequestTimeoutMs = hasAiSettingsPanel
       ? clampNumber(
@@ -3393,63 +3992,120 @@
       ? getElement("judgement-ai-suggestion-enable-thinking").checked === true
       : currentConfig.aiSuggestionEnableThinking === true;
     const aiSuggestionListenPrompt = hasAiSettingsPanel
-      ? normalizePromptText(getElement("judgement-ai-suggestion-listen-prompt").value)
+      ? (function () {
+          const value = normalizePromptText(getElement("judgement-ai-suggestion-listen-prompt").value);
+          const defaultValue = normalizePromptText(aiDefaults.listenPrompt || "");
+          return value && value !== defaultValue ? value : "";
+        })()
       : currentConfig.aiSuggestionListenPrompt;
     const aiSuggestionComparePrompt = hasAiSettingsPanel
-      ? normalizePromptText(getElement("judgement-ai-suggestion-compare-prompt").value)
+      ? (function () {
+          const value = normalizePromptText(getElement("judgement-ai-suggestion-compare-prompt").value);
+          const defaultValue = normalizePromptText(aiDefaults.comparePrompt || "");
+          return value && value !== defaultValue ? value : "";
+        })()
       : currentConfig.aiSuggestionComparePrompt;
     const aiSuggestionTemperature =
       hasAiSettingsPanel && isJudgementAiParamSupported("temperature")
-        ? normalizeOptionalNumberText(getElement("judgement-ai-suggestion-temperature").value, 0, 2, 3)
+        ? (function () {
+            const value = normalizeOptionalNumberText(
+              getElement("judgement-ai-suggestion-temperature").value,
+              0,
+              2,
+              3
+            );
+            const defaultValue = normalizeOptionalNumberText(aiDefaults.temperature, 0, 2, 3);
+            return value && value !== defaultValue ? value : "";
+          })()
         : currentConfig.aiSuggestionTemperature;
     const aiSuggestionTopP =
       hasAiSettingsPanel && isJudgementAiParamSupported("top_p")
-        ? normalizeOptionalNumberText(getElement("judgement-ai-suggestion-top-p").value, 0, 1, 3)
+        ? (function () {
+            const value = normalizeOptionalNumberText(
+              getElement("judgement-ai-suggestion-top-p").value,
+              0,
+              1,
+              3
+            );
+            const defaultValue = normalizeOptionalNumberText(aiDefaults.top_p, 0, 1, 3);
+            return value && value !== defaultValue ? value : "";
+          })()
         : currentConfig.aiSuggestionTopP;
     const aiSuggestionMaxTokens =
       hasAiSettingsPanel && isJudgementAiParamSupported("max_tokens")
-        ? normalizeOptionalIntegerText(getElement("judgement-ai-suggestion-max-tokens").value, 1, 8192)
+        ? (function () {
+            const value = normalizeOptionalIntegerText(
+              getElement("judgement-ai-suggestion-max-tokens").value,
+              1,
+              8192
+            );
+            const defaultValue = normalizeOptionalIntegerText(aiDefaults.max_tokens, 1, 8192);
+            return value && value !== defaultValue ? value : "";
+          })()
         : currentConfig.aiSuggestionMaxTokens;
     const aiSuggestionMaxCompletionTokens =
       hasAiSettingsPanel && isJudgementAiParamSupported("max_completion_tokens")
-        ? normalizeOptionalIntegerText(
-            getElement("judgement-ai-suggestion-max-completion-tokens").value,
-            1,
-            8192
-          )
+        ? (function () {
+            const value = normalizeOptionalIntegerText(
+              getElement("judgement-ai-suggestion-max-completion-tokens").value,
+              1,
+              8192
+            );
+            const defaultValue = normalizeOptionalIntegerText(
+              aiDefaults.max_completion_tokens,
+              1,
+              8192
+            );
+            return value && value !== defaultValue ? value : "";
+          })()
         : currentConfig.aiSuggestionMaxCompletionTokens;
     const aiSuggestionPresencePenalty =
       hasAiSettingsPanel && isJudgementAiParamSupported("presence_penalty")
-        ? normalizeOptionalNumberText(
-            getElement("judgement-ai-suggestion-presence-penalty").value,
-            -2,
-            2,
-            3
-          )
+        ? (function () {
+            const value = normalizeOptionalNumberText(
+              getElement("judgement-ai-suggestion-presence-penalty").value,
+              -2,
+              2,
+              3
+            );
+            const defaultValue = normalizeOptionalNumberText(aiDefaults.presence_penalty, -2, 2, 3);
+            return value && value !== defaultValue ? value : "";
+          })()
         : currentConfig.aiSuggestionPresencePenalty;
     const aiSuggestionFrequencyPenalty =
       hasAiSettingsPanel && isJudgementAiParamSupported("frequency_penalty")
-        ? normalizeOptionalNumberText(
-            getElement("judgement-ai-suggestion-frequency-penalty").value,
-            -2,
-            2,
-            3
-          )
+        ? (function () {
+            const value = normalizeOptionalNumberText(
+              getElement("judgement-ai-suggestion-frequency-penalty").value,
+              -2,
+              2,
+              3
+            );
+            const defaultValue = normalizeOptionalNumberText(aiDefaults.frequency_penalty, -2, 2, 3);
+            return value && value !== defaultValue ? value : "";
+          })()
         : currentConfig.aiSuggestionFrequencyPenalty;
     const aiSuggestionSeed =
       hasAiSettingsPanel && isJudgementAiParamSupported("seed")
-        ? normalizeOptionalIntegerText(getElement("judgement-ai-suggestion-seed").value, 0, 2147483647)
+        ? (function () {
+            const value = normalizeOptionalIntegerText(
+              getElement("judgement-ai-suggestion-seed").value,
+              0,
+              2147483647
+            );
+            const defaultValue = normalizeOptionalIntegerText(aiDefaults.seed, 0, 2147483647);
+            return value && value !== defaultValue ? value : "";
+          })()
         : currentConfig.aiSuggestionSeed;
-    const aiSuggestionResponseFormat =
-      hasAiSettingsPanel && isJudgementAiParamSupported("response_format")
-        ? normalizeResponseFormat(
-            getElement("judgement-ai-suggestion-response-format").value,
-            "json_object"
-          )
-        : currentConfig.aiSuggestionResponseFormat;
     const aiSuggestionStopSequences =
       hasAiSettingsPanel && isJudgementAiParamSupported("stop")
-        ? normalizeStopSequencesText(getElement("judgement-ai-suggestion-stop-sequences").value)
+        ? (function () {
+            const value = normalizeStopSequencesText(
+              getElement("judgement-ai-suggestion-stop-sequences").value
+            );
+            const defaultValue = normalizeStopSequencesText(aiDefaults.stop || "");
+            return value && value !== defaultValue ? value : "";
+          })()
         : currentConfig.aiSuggestionStopSequences;
     const aiSuggestionAvailableModels = normalizeJudgementAiAvailableModels(
       constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.aiSuggestionAvailableModels,
@@ -3490,8 +4146,14 @@
         statsUploadRequestTimeoutMs: 20000,
         aiSuggestionEnabled: true,
         aiSuggestionRequestTimeoutMs: aiSuggestionRequestTimeoutMs,
-        aiSuggestionListenModel: aiSuggestionListenModel,
-        aiSuggestionCompareModel: aiSuggestionCompareModel,
+        aiSuggestionListenModel:
+          aiSuggestionListenModel === String(aiDefaults.listenModel || "").trim()
+            ? ""
+            : aiSuggestionListenModel,
+        aiSuggestionCompareModel:
+          aiSuggestionCompareModel === String(aiDefaults.compareModel || "").trim()
+            ? ""
+            : aiSuggestionCompareModel,
         aiSuggestionListenPrompt: aiSuggestionListenPrompt,
         aiSuggestionComparePrompt: aiSuggestionComparePrompt,
         aiSuggestionTemperature: aiSuggestionTemperature,
@@ -3501,7 +4163,7 @@
         aiSuggestionPresencePenalty: aiSuggestionPresencePenalty,
         aiSuggestionFrequencyPenalty: aiSuggestionFrequencyPenalty,
         aiSuggestionSeed: aiSuggestionSeed,
-        aiSuggestionResponseFormat: aiSuggestionResponseFormat,
+        aiSuggestionResponseFormat: "json_object",
         aiSuggestionReasoningEffort: "",
         aiSuggestionStopSequences: aiSuggestionStopSequences,
         aiSuggestionEnableThinking: aiSuggestionEnableThinking,
@@ -3606,17 +4268,6 @@
     getElement("save-magic-data-settings").addEventListener("click", function () {
       void saveMagicDataSettings();
     });
-
-    bindMagicDataModelSelect("magic-data-listen-model-select", "magic-data-listen-model-custom");
-    bindMagicDataModelSelect("magic-data-review-model-select", "magic-data-review-model-custom");
-    bindJudgementModelSelect(
-      "judgement-ai-suggestion-listen-model-select",
-      "judgement-ai-suggestion-listen-model-custom"
-    );
-    bindJudgementModelSelect(
-      "judgement-ai-suggestion-compare-model-select",
-      "judgement-ai-suggestion-compare-model-custom"
-    );
 
     getElement("home-endpoint-server").addEventListener("click", function () {
       void setHomeBackendEndpoint("server");

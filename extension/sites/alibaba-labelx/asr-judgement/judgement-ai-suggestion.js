@@ -801,14 +801,6 @@
       return Math.floor(numericValue);
     }
 
-    function normalizeResponseFormat(value) {
-      const text = String(value || "").trim().toLowerCase();
-      if (text === "json_object" || text === "text") {
-        return text;
-      }
-      return "";
-    }
-
     function normalizeStopSequences(value) {
       const source = String(value || "");
       if (!source.trim()) {
@@ -882,10 +874,6 @@
       const seed = normalizeOptionalInteger(config.aiSuggestionSeed, 0, 2147483647);
       if (isAdvancedParamSupported("seed") && Number.isFinite(seed)) {
         options.seed = seed;
-      }
-      const responseFormat = normalizeResponseFormat(config.aiSuggestionResponseFormat);
-      if (isAdvancedParamSupported("response_format") && responseFormat) {
-        options.response_format = responseFormat;
       }
       const stop = normalizeStopSequences(config.aiSuggestionStopSequences);
       if (isAdvancedParamSupported("stop") && stop.length > 0) {

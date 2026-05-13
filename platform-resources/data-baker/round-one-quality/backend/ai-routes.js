@@ -1,12 +1,25 @@
 "use strict";
 
 const { sendJson } = require("../../../backend/response");
-const { DEFAULT_COMPARE_MODEL, DEFAULT_LISTEN_MODEL, getClientConfig, requestCompare, requestListen } =
-  require("./ai-client-qwen");
+const {
+  DEFAULT_COMPARE_MODEL,
+  DEFAULT_LISTEN_MODEL,
+  DEFAULT_REQUEST_PARAMS,
+  SUPPORTED_REQUEST_PARAMS,
+  getClientConfig,
+  requestCompare,
+  requestListen,
+} = require("./ai-client-qwen");
 const { estimateCost } = require("./ai-cost");
 const { appendAiCallLog, getLogDir } = require("./ai-call-log");
 const { applyLexiconRewrite, buildLexiconContext } = require("./ai-lexicon");
-const { buildComparePrompt, buildListenPrompt, RULE_VERSION } = require("./ai-prompts");
+const {
+  buildComparePrompt,
+  buildListenPrompt,
+  DEFAULT_COMPARE_TEMPLATE,
+  DEFAULT_LISTEN_TEMPLATE,
+  RULE_VERSION,
+} = require("./ai-prompts");
 const {
   buildRecommendResponse,
   ensureChineseSentencePunctuation,
@@ -19,6 +32,7 @@ const {
 
 const AI_BASE_PATH = "/api/data-baker/round-one-quality/ai/recommend";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
+const AI_DEFAULTS_PATH = AI_BASE_PATH + "/defaults";
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 
 function createRequestId() {
@@ -102,6 +116,7 @@ function getPipelineMode() {
 
 function normalizeRecommendRequest(body) {
   const source = body && typeof body === "object" ? body : {};
+  const aiOptions = normalizeAiOptions(source.aiOptions);
   const collectId = String(source.collectId || "").trim();
   const itemId = String(source.itemId || "").trim();
   const textId = String(source.textId || "").trim();
@@ -139,7 +154,125 @@ function normalizeRecommendRequest(body) {
     effectiveTime: normalizeNullableNumber(source.effectiveTime),
     audioDuration: normalizeNullableNumber(source.audioDuration),
     clientVersion,
+    aiOptions,
   };
+}
+
+function normalizePromptText(value) {
+  return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
+}
+
+function normalizeNumberInRange(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  if (number < min || number > max) {
+    return null;
+  }
+  return number;
+}
+
+function normalizeIntegerInRange(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  const integerValue = Math.floor(number);
+  if (integerValue < min || integerValue > max) {
+    return null;
+  }
+  return integerValue;
+}
+
+function normalizeStopSequences(value) {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/\r?\n/)
+    : [];
+  const result = [];
+  source.forEach(function (item) {
+    const text = String(item || "").trim().slice(0, 80);
+    if (!text || result.length >= 8 || result.indexOf(text) >= 0) {
+      return;
+    }
+    result.push(text);
+  });
+  return result;
+}
+
+function normalizeAiOptions(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const result = {};
+  const listenPrompt = normalizePromptText(source.listenPrompt);
+  const comparePrompt = normalizePromptText(source.comparePrompt);
+  const listenModel = String(source.listenModel || "").replace(/[\r\n]+/g, " ").trim().slice(0, 80);
+  const compareModel = String(source.compareModel || "").replace(/[\r\n]+/g, " ").trim().slice(0, 80);
+  if (listenPrompt) {
+    result.listenPrompt = listenPrompt;
+  }
+  if (comparePrompt) {
+    result.comparePrompt = comparePrompt;
+  }
+  if (listenModel) {
+    result.listenModel = listenModel;
+  }
+  if (compareModel) {
+    result.compareModel = compareModel;
+  }
+  if (SUPPORTED_REQUEST_PARAMS.temperature === true) {
+    const normalized = normalizeNumberInRange(source.temperature, 0, 2);
+    if (normalized !== null) {
+      result.temperature = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.top_p === true) {
+    const normalized = normalizeNumberInRange(source.top_p, 0, 1);
+    if (normalized !== null) {
+      result.top_p = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.max_tokens === true) {
+    const normalized = normalizeIntegerInRange(source.max_tokens, 1, 8192);
+    if (normalized !== null) {
+      result.max_tokens = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.max_completion_tokens === true) {
+    const normalized = normalizeIntegerInRange(source.max_completion_tokens, 1, 8192);
+    if (normalized !== null) {
+      result.max_completion_tokens = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.presence_penalty === true) {
+    const normalized = normalizeNumberInRange(source.presence_penalty, -2, 2);
+    if (normalized !== null) {
+      result.presence_penalty = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.frequency_penalty === true) {
+    const normalized = normalizeNumberInRange(source.frequency_penalty, -2, 2);
+    if (normalized !== null) {
+      result.frequency_penalty = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.seed === true) {
+    const normalized = normalizeIntegerInRange(source.seed, 0, 2147483647);
+    if (normalized !== null) {
+      result.seed = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.stop === true) {
+    const stop = normalizeStopSequences(source.stop);
+    if (stop.length > 0) {
+      result.stop = stop;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.enable_thinking === true && typeof source.enable_thinking === "boolean") {
+    result.enable_thinking = source.enable_thinking === true;
+  }
+  return result;
 }
 
 function appendCallLogSafe(record) {
@@ -198,12 +331,25 @@ async function handleRecommend(request, response) {
       throw createHttpError(503, "missing-api-key", "missing-api-key");
     }
 
+    const listenModel = String(
+      recommendRequest.aiOptions.listenModel || config.listenModel || DEFAULT_LISTEN_MODEL
+    )
+      .replace(/[\r\n]+/g, " ")
+      .trim()
+      .slice(0, 80);
+    const compareModel = String(
+      recommendRequest.aiOptions.compareModel || config.compareModel || DEFAULT_COMPARE_MODEL
+    )
+      .replace(/[\r\n]+/g, " ")
+      .trim()
+      .slice(0, 80);
+
     console.info("[DataBaker][round-one-quality][ai] recommend start", {
       requestId,
       hostname: parseAudioHostname(recommendRequest.audioUrl),
       sentenceNumber: recommendRequest.sentenceNumber,
-      listenModel: config.listenModel,
-      compareModel: config.compareModel,
+      listenModel,
+      compareModel,
       pipelineMode,
       mock: config.mockEnabled,
     });
@@ -218,8 +364,12 @@ async function handleRecommend(request, response) {
     let listenResult = null;
     try {
       listenResult = await requestListen(recommendRequest, listenPrompt, {
-        model: config.listenModel,
+        model: listenModel,
         timeoutMs: config.timeoutMs,
+        enableThinking:
+          typeof recommendRequest.aiOptions.enable_thinking === "boolean"
+            ? recommendRequest.aiOptions.enable_thinking
+            : undefined,
       });
     } finally {
       listenDurationMs = Date.now() - listenStartedAtMs;
@@ -261,8 +411,12 @@ async function handleRecommend(request, response) {
           comparePrompt,
           normalizedListen.heardText,
           {
-            model: config.compareModel,
+            model: compareModel,
             timeoutMs: config.timeoutMs,
+            enableThinking:
+              typeof recommendRequest.aiOptions.enable_thinking === "boolean"
+                ? recommendRequest.aiOptions.enable_thinking
+                : undefined,
           }
         );
       } finally {
@@ -391,6 +545,38 @@ function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendHealth(response);
   });
+  router.get(AI_DEFAULTS_PATH, function ({ response }) {
+    const config = getClientConfig();
+    sendJson(response, 200, {
+      success: true,
+      service: "data-baker-round-one-quality-ai-recommend",
+      scriptId: "dataBakerRoundOneQuality",
+      component: "asr-voice-ai",
+      defaults: {
+        listenModel: config.listenModel || DEFAULT_LISTEN_MODEL,
+        compareModel: config.compareModel || DEFAULT_COMPARE_MODEL,
+        reviewModel: "",
+        timeoutMs: config.timeoutMs,
+        enableThinking: false,
+        temperature: DEFAULT_REQUEST_PARAMS.temperature,
+        top_p: DEFAULT_REQUEST_PARAMS.top_p,
+        max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
+        max_completion_tokens: DEFAULT_REQUEST_PARAMS.max_completion_tokens,
+        presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
+        frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
+        seed: DEFAULT_REQUEST_PARAMS.seed,
+        stop: DEFAULT_REQUEST_PARAMS.stop,
+        listenPrompt: DEFAULT_LISTEN_TEMPLATE,
+        comparePrompt: DEFAULT_COMPARE_TEMPLATE,
+        reviewPrompt: "",
+      },
+      supportedParams: SUPPORTED_REQUEST_PARAMS,
+      notes: {
+        promptOverride: "Prompt 可在前端覆盖；空 override 使用后端默认。",
+        responseFormat: "结构化输出由后端固定控制，前端不配置。",
+      },
+    });
+  });
 
   router.post(AI_BASE_PATH, function ({ request, response }) {
     return handleRecommend(request, response);
@@ -399,6 +585,7 @@ function registerAiRoutes(router) {
 
 module.exports = {
   AI_BASE_PATH,
+  AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
   handleRecommend,
   normalizeAnnotatorName,

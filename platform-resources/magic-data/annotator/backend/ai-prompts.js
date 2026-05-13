@@ -1,12 +1,36 @@
 "use strict";
 
 const RULE_VERSION = "magic-data-annotator-ai-review-v2-rule-first";
+const DEFAULT_LISTEN_TEMPLATE = [
+  "你是客家话音频辅助检查助手。",
+  "听音结果只作为辅助证据，不作为平台文本自动替换依据。",
+  "请优先判断音频有效性与风险，并辅助判断说话人属性。",
+  "严格输出 JSON，不输出 Markdown 或额外解释。",
+].join("\n");
+const DEFAULT_COMPARE_TEMPLATE = [
+  "当前任务是质量检查，不是直接改写平台文本。",
+  "平台两行文本是基准答案，AI 只输出规则检查、风险提示和复核建议。",
+  "请输出 reviewConclusion、shouldReview、textRuleCheck、recommendations、confidence。",
+  "严格输出 JSON，不输出额外解释。",
+].join("\n");
 
 function getLexiconText(lexiconContext) {
   return String(lexiconContext?.text || "").trim();
 }
 
+function normalizePromptTemplate(value, fallback) {
+  const text = String(value || "").replace(/\r\n/g, "\n").trim();
+  if (!text) {
+    return String(fallback || "");
+  }
+  return text.slice(0, 8000);
+}
+
 function buildListenPrompt(request, lexiconContext) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.listenPrompt,
+    DEFAULT_LISTEN_TEMPLATE
+  );
   const lexiconText = getLexiconText(lexiconContext);
   const meta = {
     taskItemId: request.taskItemId,
@@ -22,8 +46,7 @@ function buildListenPrompt(request, lexiconContext) {
   };
 
   const promptLines = [
-    "你是客家话音频辅助检查助手。",
-    "听音结果只作为辅助证据，不作为平台文本自动替换依据。",
+    template,
     "请优先判断音频有效性与风险：无有效人声、噪音、方言区域错误、切音、多人重叠、听不清、非方言、敏感数据、机器合成音。",
     "请辅助判断说话人性别和年龄段，可输出 uncertain。",
     "输出严格 JSON 字段：heardDialectText, heardMandarinMeaning, isValidAudio, validityDecision, invalidReasons, riskFlags, genderGuess, ageRangeGuess, confidence。",
@@ -46,6 +69,10 @@ function buildListenPrompt(request, lexiconContext) {
 }
 
 function buildComparePrompt(request, listen, lexiconContext) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.comparePrompt,
+    DEFAULT_COMPARE_TEMPLATE
+  );
   const lexiconText = getLexiconText(lexiconContext);
   const input = {
     reviewMode: request.reviewMode || "rule_first",
@@ -69,8 +96,7 @@ function buildComparePrompt(request, listen, lexiconContext) {
   };
 
   const promptLines = [
-    "当前任务是质量检查，不是直接改写平台文本。",
-    "平台两行文本是基准答案，AI 只输出规则检查、风险提示和复核建议。",
+    template,
     "请检查：方言行规则、普通话翻译一致性、是否口语化、标点、正字表统一用字建议、说话人属性冲突。",
     "输出 JSON 字段：reviewConclusion, shouldReview, textRuleCheck, recommendations, confidence。",
     "reviewConclusion 只能是 pass|need_review|risky|uncertain。",
@@ -94,6 +120,8 @@ function buildComparePrompt(request, listen, lexiconContext) {
 
 module.exports = {
   RULE_VERSION,
+  DEFAULT_LISTEN_TEMPLATE,
+  DEFAULT_COMPARE_TEMPLATE,
   buildComparePrompt,
   buildListenPrompt,
 };

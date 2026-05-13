@@ -41,6 +41,9 @@
 
 - Magic Data 的 AI 质检设置（启用 AI、质检模式、听音/质检模型、显示听音文本、预计金额、thinking）统一迁移到通用隐藏部件“ASR 语音 AI 设置”。
 - 默认不显示 AI 质检高级设置；在 options 脚本详情页标题连续点击 10 次后显示，且只影响当前脚本。
+- 隐藏面板解锁后会请求 `GET /api/magic-data/annotator/ai/defaults`，自动展示后端默认模型、Prompt 与生成参数。
+- Prompt/参数只保存脚本级 override：清空即回退后端默认，不会把默认值固化到前端存储。
+- `response_format` 不对前端开放，由后端固定结构化输出策略。
 - Magic Data 快捷键设置属于非 AI 运行控制项，保持在普通设置区常显，不走隐藏机制。
 - 后端地址仍由 options 首页顶部“后端接口地址”统一控制，前端不配置 API Key。
 

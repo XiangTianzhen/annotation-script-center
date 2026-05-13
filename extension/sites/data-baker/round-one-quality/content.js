@@ -77,6 +77,26 @@
     };
   }
 
+  function normalizePromptText(value) {
+    return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
+  }
+
+  function normalizeOptionalNumber(value, min, max) {
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < min || number > max) {
+      return null;
+    }
+    return number;
+  }
+
+  function normalizeOptionalInteger(value, min, max) {
+    const number = Math.floor(Number(value));
+    if (!Number.isFinite(number) || number < min || number > max) {
+      return null;
+    }
+    return number;
+  }
+
   function normalizeShortcuts(shortcuts) {
     const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
     const result = {};
@@ -147,6 +167,61 @@
     const defaultPageSize = normalizePageSize(script.defaultPageSize);
     const shortcuts = normalizeShortcuts(script.shortcuts);
 
+    const aiOptions = {};
+    const listenPrompt = normalizePromptText(script.aiRecommendListenPrompt || "");
+    const comparePrompt = normalizePromptText(script.aiRecommendComparePrompt || "");
+    if (listenPrompt) {
+      aiOptions.listenPrompt = listenPrompt;
+    }
+    if (comparePrompt) {
+      aiOptions.comparePrompt = comparePrompt;
+    }
+    const temperature = normalizeOptionalNumber(script.aiRecommendTemperature, 0, 2);
+    if (Number.isFinite(temperature)) {
+      aiOptions.temperature = temperature;
+    }
+    const topP = normalizeOptionalNumber(script.aiRecommendTopP, 0, 1);
+    if (Number.isFinite(topP)) {
+      aiOptions.top_p = topP;
+    }
+    const maxTokens = normalizeOptionalInteger(script.aiRecommendMaxTokens, 1, 8192);
+    if (Number.isFinite(maxTokens)) {
+      aiOptions.max_tokens = maxTokens;
+    }
+    const maxCompletionTokens = normalizeOptionalInteger(
+      script.aiRecommendMaxCompletionTokens,
+      1,
+      8192
+    );
+    if (Number.isFinite(maxCompletionTokens)) {
+      aiOptions.max_completion_tokens = maxCompletionTokens;
+    }
+    const presencePenalty = normalizeOptionalNumber(script.aiRecommendPresencePenalty, -2, 2);
+    if (Number.isFinite(presencePenalty)) {
+      aiOptions.presence_penalty = presencePenalty;
+    }
+    const frequencyPenalty = normalizeOptionalNumber(script.aiRecommendFrequencyPenalty, -2, 2);
+    if (Number.isFinite(frequencyPenalty)) {
+      aiOptions.frequency_penalty = frequencyPenalty;
+    }
+    const seed = normalizeOptionalInteger(script.aiRecommendSeed, 0, 2147483647);
+    if (Number.isFinite(seed)) {
+      aiOptions.seed = seed;
+    }
+    const stop = String(script.aiRecommendStopSequences || "")
+      .split(/\r?\n/)
+      .map(function (item) {
+        return String(item || "").trim().slice(0, 80);
+      })
+      .filter(Boolean)
+      .slice(0, 8);
+    if (stop.length > 0) {
+      aiOptions.stop = stop;
+    }
+    aiOptions.listenModel = String(script.aiRecommendListenModel || "").trim();
+    aiOptions.compareModel = String(script.aiRecommendCompareModel || "").trim();
+    aiOptions.enable_thinking = script.aiRecommendEnableThinking === true;
+
     return {
       scriptEnabled: platform.enabled !== false && script.enabled !== false,
       aiRecommendEnabled: script.aiRecommendEnabled !== false,
@@ -155,6 +230,10 @@
       shortcuts,
       endpoint,
       timeoutMs,
+      listenModel: String(script.aiRecommendListenModel || "").trim(),
+      compareModel: String(script.aiRecommendCompareModel || "").trim(),
+      enableThinking: script.aiRecommendEnableThinking === true,
+      aiOptions,
       key: [
         platform.enabled !== false ? "1" : "0",
         script.enabled !== false ? "1" : "0",
@@ -163,6 +242,10 @@
         defaultPageSize,
         endpoint,
         String(timeoutMs),
+        String(script.aiRecommendListenModel || ""),
+        String(script.aiRecommendCompareModel || ""),
+        script.aiRecommendEnableThinking === true ? "1" : "0",
+        JSON.stringify(aiOptions),
         JSON.stringify(shortcuts),
       ].join("|"),
     };
@@ -183,6 +266,10 @@
     const ai = aiFactory.createRuntime({
       endpoint: config.endpoint,
       timeoutMs: config.timeoutMs,
+      listenModel: config.listenModel,
+      compareModel: config.compareModel,
+      enableThinking: config.enableThinking === true,
+      aiOptions: config.aiOptions || {},
     });
     const ui = uiFactory.createRuntime({
       canFillPageText: dataApi.canFillPageText,

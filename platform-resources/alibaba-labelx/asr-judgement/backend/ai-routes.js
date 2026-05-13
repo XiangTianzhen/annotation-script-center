@@ -2,14 +2,22 @@
 
 const { sendJson } = require("../../../backend/response");
 const {
+  DEFAULT_REQUEST_PARAMS,
   DEFAULT_COMPARE_MODEL,
   DEFAULT_LISTEN_MODEL,
+  SUPPORTED_REQUEST_PARAMS,
   getClientConfig,
   requestCompare,
   requestListen,
   sanitizeModelName,
 } = require("./ai-client-qwen");
-const { buildComparePrompt, buildListenPrompt, RULE_VERSION } = require("./ai-prompt");
+const {
+  buildComparePrompt,
+  buildListenPrompt,
+  loadCompareTemplateText,
+  loadListenTemplateText,
+  RULE_VERSION,
+} = require("./ai-prompt");
 const {
   buildSuggestResponse,
   normalizeCompareResponse,
@@ -19,22 +27,13 @@ const {
 
 const AI_BASE_PATH = "/api/alibaba-labelx/asr-judgement/ai";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
+const AI_DEFAULTS_PATH = AI_BASE_PATH + "/defaults";
 const AI_SUGGEST_PATH = AI_BASE_PATH + "/suggest";
 const DEFAULT_RULE_VERSION = RULE_VERSION;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
-const JUDGEMENT_AI_SUPPORTED_PARAMS = {
-  temperature: true,
-  top_p: true,
-  max_tokens: true,
-  max_completion_tokens: true,
-  presence_penalty: true,
-  frequency_penalty: true,
-  seed: true,
-  response_format: true,
-  stop: true,
-  enable_thinking: true,
-  reasoning_effort: false,
-};
+const JUDGEMENT_AI_SUPPORTED_PARAMS = Object.assign({}, SUPPORTED_REQUEST_PARAMS, {
+  response_format: false,
+});
 
 function createRequestId() {
   const now = new Date();
@@ -157,14 +156,6 @@ function normalizeStopSequences(value) {
   return [];
 }
 
-function normalizeResponseFormat(value) {
-  const text = String(value || "").trim().toLowerCase();
-  if (text === "json_object" || text === "text") {
-    return text;
-  }
-  return "";
-}
-
 function normalizeAiOptions(source, supportedParams) {
   const payload = source && typeof source === "object" ? source : {};
   const normalized = {};
@@ -225,12 +216,6 @@ function normalizeAiOptions(source, supportedParams) {
     const value = normalizeIntegerInRange(payload.seed, 0, 2147483647);
     if (value !== null) {
       normalized.seed = value;
-    }
-  }
-  if (supportedParams.response_format === true) {
-    const value = normalizeResponseFormat(payload.response_format);
-    if (value) {
-      normalized.response_format = value;
     }
   }
   if (supportedParams.stop === true) {
@@ -351,6 +336,39 @@ function sendHealth(response) {
       ruleVersion: DEFAULT_RULE_VERSION,
     status: config.hasApiKey || config.mockEnabled ? "ready" : "missing-api-key",
   });
+}
+
+function buildDefaultsResponse() {
+  const config = getClientConfig();
+  return {
+    success: true,
+    service: "asr-judgement-ai",
+    scriptId: "judgement",
+    component: "asr-voice-ai",
+    defaults: {
+      listenModel: config.listenModel || DEFAULT_LISTEN_MODEL,
+      compareModel: config.compareModel || DEFAULT_COMPARE_MODEL,
+      reviewModel: "",
+      timeoutMs: config.timeoutMs,
+      enableThinking: config.enableThinkingDefault === true,
+      temperature: DEFAULT_REQUEST_PARAMS.temperature,
+      top_p: DEFAULT_REQUEST_PARAMS.top_p,
+      max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
+      max_completion_tokens: DEFAULT_REQUEST_PARAMS.max_completion_tokens,
+      presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
+      frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
+      seed: DEFAULT_REQUEST_PARAMS.seed,
+      stop: DEFAULT_REQUEST_PARAMS.stop,
+      listenPrompt: loadListenTemplateText(),
+      comparePrompt: loadCompareTemplateText(),
+      reviewPrompt: "",
+    },
+    supportedParams: JUDGEMENT_AI_SUPPORTED_PARAMS,
+    notes: {
+      promptOverride: "Prompt 可在前端覆盖；空 override 使用后端默认。",
+      responseFormat: "结构化输出由后端固定控制，前端不配置。",
+    },
+  };
 }
 
 async function handleSuggest(request, response) {
@@ -554,6 +572,9 @@ function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendHealth(response);
   });
+  router.get(AI_DEFAULTS_PATH, function ({ response }) {
+    sendJson(response, 200, buildDefaultsResponse());
+  });
   router.post(AI_SUGGEST_PATH, function ({ request, response }) {
     return handleSuggest(request, response);
   });
@@ -561,6 +582,7 @@ function registerAiRoutes(router) {
 
 module.exports = {
   AI_BASE_PATH,
+  AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
   AI_SUGGEST_PATH,
   DEFAULT_RULE_VERSION,

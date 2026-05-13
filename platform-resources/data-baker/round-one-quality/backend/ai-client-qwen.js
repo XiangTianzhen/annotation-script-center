@@ -3,6 +3,29 @@
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
 const DEFAULT_COMPARE_MODEL = "qwen3.5-plus";
+const DEFAULT_REQUEST_PARAMS = {
+  temperature: 0.1,
+  top_p: 0.8,
+  max_tokens: 1200,
+  max_completion_tokens: "",
+  presence_penalty: 0,
+  frequency_penalty: 0,
+  seed: "",
+  stop: "",
+};
+const SUPPORTED_REQUEST_PARAMS = {
+  temperature: true,
+  top_p: true,
+  max_tokens: true,
+  max_completion_tokens: true,
+  presence_penalty: true,
+  frequency_penalty: true,
+  seed: true,
+  stop: true,
+  enable_thinking: true,
+  reasoning_effort: false,
+  response_format: false,
+};
 
 function trimSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -20,12 +43,15 @@ function parseTimeoutMs() {
   return Math.max(1000, Math.min(300000, value));
 }
 
-function shouldDisableThinking() {
+function shouldDisableThinking(options) {
+  if (options && typeof options.enableThinking === "boolean") {
+    return options.enableThinking !== true;
+  }
   return String(process.env.DATABAKER_AI_ENABLE_THINKING || "0").trim() !== "1";
 }
 
-function withThinkingDisabled(requestBody) {
-  if (!shouldDisableThinking()) {
+function withThinkingDisabled(requestBody, options) {
+  if (!shouldDisableThinking(options)) {
     return requestBody;
   }
 
@@ -75,6 +101,102 @@ function inferAudioFormat(audioUrl) {
   };
 
   return supportedFormats[ext] || "wav";
+}
+
+function normalizeNumberInRange(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  if (number < min || number > max) {
+    return null;
+  }
+  return number;
+}
+
+function normalizeIntegerInRange(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  const integerValue = Math.floor(number);
+  if (integerValue < min || integerValue > max) {
+    return null;
+  }
+  return integerValue;
+}
+
+function normalizeStopSequences(value) {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/\r?\n/)
+    : [];
+  const result = [];
+  source.forEach(function (item) {
+    const text = String(item || "").trim().slice(0, 80);
+    if (!text || result.indexOf(text) >= 0 || result.length >= 8) {
+      return;
+    }
+    result.push(text);
+  });
+  return result;
+}
+
+function applyAiOptionsToRequestBody(requestBody, aiOptions) {
+  const source = aiOptions && typeof aiOptions === "object" ? aiOptions : {};
+  if (SUPPORTED_REQUEST_PARAMS.temperature === true) {
+    const value = normalizeNumberInRange(source.temperature, 0, 2);
+    if (value !== null) {
+      requestBody.temperature = value;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.top_p === true) {
+    const value = normalizeNumberInRange(source.top_p, 0, 1);
+    if (value !== null) {
+      requestBody.top_p = value;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.max_completion_tokens === true) {
+    const value = normalizeIntegerInRange(source.max_completion_tokens, 1, 8192);
+    if (value !== null) {
+      requestBody.max_completion_tokens = value;
+      delete requestBody.max_tokens;
+    }
+  }
+  if (
+    SUPPORTED_REQUEST_PARAMS.max_tokens === true &&
+    !Number.isFinite(requestBody.max_completion_tokens)
+  ) {
+    const value = normalizeIntegerInRange(source.max_tokens, 1, 8192);
+    if (value !== null) {
+      requestBody.max_tokens = value;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.presence_penalty === true) {
+    const value = normalizeNumberInRange(source.presence_penalty, -2, 2);
+    if (value !== null) {
+      requestBody.presence_penalty = value;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.frequency_penalty === true) {
+    const value = normalizeNumberInRange(source.frequency_penalty, -2, 2);
+    if (value !== null) {
+      requestBody.frequency_penalty = value;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.seed === true) {
+    const value = normalizeIntegerInRange(source.seed, 0, 2147483647);
+    if (value !== null) {
+      requestBody.seed = value;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.stop === true) {
+    const stop = normalizeStopSequences(source.stop);
+    if (stop.length > 0) {
+      requestBody.stop = stop;
+    }
+  }
 }
 
 function getClientConfig() {
@@ -313,8 +435,10 @@ async function requestChatCompletion(requestBody, options) {
 }
 
 async function requestChatCompletionWithFallback(requestBody, options) {
-  const thinkingDisabledRequested = shouldDisableThinking();
-  const initialBody = thinkingDisabledRequested ? withThinkingDisabled(requestBody) : requestBody;
+  const thinkingDisabledRequested = shouldDisableThinking(options);
+  const initialBody = thinkingDisabledRequested
+    ? withThinkingDisabled(requestBody, options)
+    : requestBody;
 
   try {
     const result = await requestChatCompletion(initialBody, options);
@@ -348,7 +472,7 @@ async function requestListen(input, prompt, options) {
         total_tokens: 160,
       },
       mock: true,
-      thinkingDisabledRequested: shouldDisableThinking(),
+      thinkingDisabledRequested: shouldDisableThinking(options),
       thinkingDisableFallbackUsed: false,
     };
   }
@@ -382,8 +506,13 @@ async function requestListen(input, prompt, options) {
         ],
       },
     ],
-    temperature: 0.1,
+    temperature: DEFAULT_REQUEST_PARAMS.temperature,
+    top_p: DEFAULT_REQUEST_PARAMS.top_p,
+    max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
+    presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
+    frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
   };
+  applyAiOptionsToRequestBody(requestBody, input?.aiOptions);
   const result = await requestChatCompletionWithFallback(requestBody, options);
 
   return {
@@ -409,7 +538,7 @@ async function requestCompare(input, prompt, heardText, options) {
         total_tokens: 250,
       },
       mock: true,
-      thinkingDisabledRequested: shouldDisableThinking(),
+      thinkingDisabledRequested: shouldDisableThinking(options),
       thinkingDisableFallbackUsed: false,
     };
   }
@@ -433,8 +562,13 @@ async function requestCompare(input, prompt, heardText, options) {
     response_format: {
       type: "json_object",
     },
-    temperature: 0.1,
+    temperature: DEFAULT_REQUEST_PARAMS.temperature,
+    top_p: DEFAULT_REQUEST_PARAMS.top_p,
+    max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
+    presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
+    frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
   };
+  applyAiOptionsToRequestBody(requestBody, input?.aiOptions);
   const result = await requestChatCompletionWithFallback(requestBody, options);
 
   return {
@@ -451,6 +585,8 @@ module.exports = {
   DEFAULT_BASE_URL,
   DEFAULT_COMPARE_MODEL,
   DEFAULT_LISTEN_MODEL,
+  DEFAULT_REQUEST_PARAMS,
+  SUPPORTED_REQUEST_PARAMS,
   getClientConfig,
   inferAudioFormat,
   isEnableThinkingUnsupportedError,

@@ -55,6 +55,9 @@ round-one-quality/
 
 - AI 推荐相关设置已迁移到通用隐藏部件“ASR 语音 AI 设置”（标题连续点击 10 次显示），普通设置区不再直接展示 AI 开关/超时字段。
 - 在“ASR 语音 AI 设置”中可配置启用 / 关闭 AI 推荐文本；关闭后页面不显示 AI 推荐工具卡，也不会触发推荐请求。
+- “ASR 语音 AI 设置”解锁后会请求 `GET /api/data-baker/round-one-quality/ai/recommend/defaults`，默认展示后端当前模型、Prompt 与生成参数，而不是空白输入框。
+- Prompt 与参数按 override 保存：字段清空或恢复默认时不保存 override，请求时由后端默认值生效；只有与默认不同的值才随请求透传。
+- 不支持参数前端不显示，后端二次白名单过滤；`response_format` 不对前端开放。
 - 后端接口地址由 options 首页顶部“后端接口地址”统一控制：
   - `server`：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
   - `local`：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`

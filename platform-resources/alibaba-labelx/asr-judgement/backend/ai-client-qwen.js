@@ -3,6 +3,16 @@
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
 const DEFAULT_COMPARE_MODEL = "qwen3.5-plus";
+const DEFAULT_REQUEST_PARAMS = {
+  temperature: 0.1,
+  top_p: 0.8,
+  max_tokens: 1200,
+  max_completion_tokens: "",
+  presence_penalty: 0,
+  frequency_penalty: 0,
+  seed: "",
+  stop: "",
+};
 const SUPPORTED_REQUEST_PARAMS = {
   temperature: true,
   top_p: true,
@@ -11,7 +21,7 @@ const SUPPORTED_REQUEST_PARAMS = {
   presence_penalty: true,
   frequency_penalty: true,
   seed: true,
-  response_format: true,
+  response_format: false,
   stop: true,
   enable_thinking: true,
   reasoning_effort: false,
@@ -190,12 +200,6 @@ function sanitizeAiOptions(rawOptions) {
       sanitized.seed = value;
     }
   }
-  if (SUPPORTED_REQUEST_PARAMS.response_format === true) {
-    const responseFormat = String(source.response_format || "").trim().toLowerCase();
-    if (responseFormat === "json_object" || responseFormat === "text") {
-      sanitized.response_format = responseFormat;
-    }
-  }
   if (SUPPORTED_REQUEST_PARAMS.stop === true) {
     const stop = sanitizeStopSequences(source.stop);
     if (stop.length > 0) {
@@ -236,13 +240,6 @@ function applyAiOptionsToRequestBody(requestBody, aiOptions) {
   }
   if (Array.isArray(options.stop) && options.stop.length > 0) {
     requestBody.stop = options.stop;
-  }
-  if (options.response_format === "text") {
-    delete requestBody.response_format;
-  } else if (options.response_format === "json_object") {
-    requestBody.response_format = {
-      type: "json_object",
-    };
   }
   return options;
 }
@@ -644,7 +641,11 @@ async function requestListen(input, prompt, options) {
     response_format: {
       type: "json_object",
     },
-    temperature: 0.1,
+    temperature: DEFAULT_REQUEST_PARAMS.temperature,
+    top_p: DEFAULT_REQUEST_PARAMS.top_p,
+    max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
+    presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
+    frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
   };
   applyAiOptionsToRequestBody(requestBody, normalizedAiOptions);
 
@@ -731,7 +732,11 @@ async function requestCompare(input, prompt, options) {
     response_format: {
       type: "json_object",
     },
-    temperature: 0.1,
+    temperature: DEFAULT_REQUEST_PARAMS.temperature,
+    top_p: DEFAULT_REQUEST_PARAMS.top_p,
+    max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
+    presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
+    frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
   };
   applyAiOptionsToRequestBody(requestBody, normalizedAiOptions);
 
@@ -766,6 +771,8 @@ module.exports = {
   DEFAULT_BASE_URL,
   DEFAULT_LISTEN_MODEL,
   DEFAULT_COMPARE_MODEL,
+  DEFAULT_REQUEST_PARAMS,
+  SUPPORTED_REQUEST_PARAMS,
   getClientConfig,
   inferAudioFormat,
   isEnableThinkingUnsupportedError,

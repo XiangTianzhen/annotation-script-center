@@ -84,6 +84,18 @@
         audioDuration: source.audioDuration,
         clientVersion: getClientVersion(),
       };
+      if (config.listenModel) {
+        requestBody.listenModel = String(config.listenModel).trim();
+      }
+      if (config.compareModel) {
+        requestBody.compareModel = String(config.compareModel).trim();
+      }
+      if (typeof config.enableThinking === "boolean") {
+        requestBody.enableThinking = config.enableThinking === true;
+      }
+      if (config.aiOptions && typeof config.aiOptions === "object") {
+        requestBody.aiOptions = Object.assign({}, config.aiOptions);
+      }
 
       try {
         const response = await fetch(getEndpoint(), {

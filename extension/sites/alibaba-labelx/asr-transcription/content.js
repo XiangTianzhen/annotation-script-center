@@ -286,7 +286,76 @@
         return aiSuggestionCollectorApi.collectCurrentPayload();
       },
       requestCurrentSuggestion: function (payload) {
-        return aiSuggestionClientApi.suggestCurrent(payload, {
+        const config = runtime.config || {};
+        const aiOptions = {};
+        const listenPrompt = String(config.aiSuggestionListenPrompt || "").trim();
+        const comparePrompt = String(config.aiSuggestionComparePrompt || "").trim();
+        if (listenPrompt) {
+          aiOptions.listenPrompt = listenPrompt.slice(0, 8000);
+        }
+        if (comparePrompt) {
+          aiOptions.comparePrompt = comparePrompt.slice(0, 8000);
+        }
+        const temperature = Number(config.aiSuggestionTemperature);
+        if (Number.isFinite(temperature) && temperature >= 0 && temperature <= 2) {
+          aiOptions.temperature = temperature;
+        }
+        const topP = Number(config.aiSuggestionTopP);
+        if (Number.isFinite(topP) && topP >= 0 && topP <= 1) {
+          aiOptions.top_p = topP;
+        }
+        const maxTokens = Math.floor(Number(config.aiSuggestionMaxTokens));
+        if (Number.isFinite(maxTokens) && maxTokens >= 1 && maxTokens <= 8192) {
+          aiOptions.max_tokens = maxTokens;
+        }
+        const maxCompletionTokens = Math.floor(Number(config.aiSuggestionMaxCompletionTokens));
+        if (
+          Number.isFinite(maxCompletionTokens) &&
+          maxCompletionTokens >= 1 &&
+          maxCompletionTokens <= 8192
+        ) {
+          aiOptions.max_completion_tokens = maxCompletionTokens;
+        }
+        const presencePenalty = Number(config.aiSuggestionPresencePenalty);
+        if (
+          Number.isFinite(presencePenalty) &&
+          presencePenalty >= -2 &&
+          presencePenalty <= 2
+        ) {
+          aiOptions.presence_penalty = presencePenalty;
+        }
+        const frequencyPenalty = Number(config.aiSuggestionFrequencyPenalty);
+        if (
+          Number.isFinite(frequencyPenalty) &&
+          frequencyPenalty >= -2 &&
+          frequencyPenalty <= 2
+        ) {
+          aiOptions.frequency_penalty = frequencyPenalty;
+        }
+        const seed = Math.floor(Number(config.aiSuggestionSeed));
+        if (Number.isFinite(seed) && seed >= 0 && seed <= 2147483647) {
+          aiOptions.seed = seed;
+        }
+        const stop = String(config.aiSuggestionStopSequences || "")
+          .split(/\r?\n/)
+          .map(function (item) {
+            return String(item || "").trim().slice(0, 80);
+          })
+          .filter(Boolean)
+          .slice(0, 8);
+        if (stop.length > 0) {
+          aiOptions.stop = stop;
+        }
+        aiOptions.listenModel = String(config.aiSuggestionListenModel || "").trim();
+        aiOptions.compareModel = String(config.aiSuggestionCompareModel || "").trim();
+        aiOptions.enable_thinking = config.aiSuggestionEnableThinking === true;
+        const requestPayload = Object.assign({}, payload || {}, {
+          listenModel: String(config.aiSuggestionListenModel || "").trim(),
+          compareModel: String(config.aiSuggestionCompareModel || "").trim(),
+          enableThinking: config.aiSuggestionEnableThinking === true,
+          aiOptions: aiOptions,
+        });
+        return aiSuggestionClientApi.suggestCurrent(requestPayload, {
           timeoutMs: Number(runtime.config?.aiSuggestionRequestTimeoutMs || 120000) || 120000,
         });
       },

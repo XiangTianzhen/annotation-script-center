@@ -215,6 +215,16 @@
       showHeardText: true,
       showEstimatedIncome: true,
       enableThinking: false,
+      aiReviewListenPrompt: "",
+      aiReviewComparePrompt: "",
+      aiReviewTemperature: "",
+      aiReviewTopP: "",
+      aiReviewMaxTokens: "",
+      aiReviewMaxCompletionTokens: "",
+      aiReviewPresencePenalty: "",
+      aiReviewFrequencyPenalty: "",
+      aiReviewSeed: "",
+      aiReviewStopSequences: "",
     };
 
     let root = null;
@@ -599,6 +609,76 @@
           reviewMode: runtimeSettings.reviewMode,
           showHeardText: runtimeSettings.showHeardText !== false,
           enableThinking: runtimeSettings.enableThinking === true,
+          aiOptions: (function () {
+            const optionsPayload = {
+              listenModel: String(runtimeSettings.listenModel || "").trim(),
+              reviewModel: String(runtimeSettings.reviewModel || "").trim(),
+              enable_thinking: runtimeSettings.enableThinking === true,
+            };
+            const listenPrompt = String(runtimeSettings.aiReviewListenPrompt || "").trim();
+            const comparePrompt = String(runtimeSettings.aiReviewComparePrompt || "").trim();
+            if (listenPrompt) {
+              optionsPayload.listenPrompt = listenPrompt.slice(0, 8000);
+            }
+            if (comparePrompt) {
+              optionsPayload.comparePrompt = comparePrompt.slice(0, 8000);
+            }
+            const temperature = Number(runtimeSettings.aiReviewTemperature);
+            if (Number.isFinite(temperature) && temperature >= 0 && temperature <= 2) {
+              optionsPayload.temperature = temperature;
+            }
+            const topP = Number(runtimeSettings.aiReviewTopP);
+            if (Number.isFinite(topP) && topP >= 0 && topP <= 1) {
+              optionsPayload.top_p = topP;
+            }
+            const maxTokens = Math.floor(Number(runtimeSettings.aiReviewMaxTokens));
+            if (Number.isFinite(maxTokens) && maxTokens >= 1 && maxTokens <= 8192) {
+              optionsPayload.max_tokens = maxTokens;
+            }
+            const maxCompletionTokens = Math.floor(
+              Number(runtimeSettings.aiReviewMaxCompletionTokens)
+            );
+            if (
+              Number.isFinite(maxCompletionTokens) &&
+              maxCompletionTokens >= 1 &&
+              maxCompletionTokens <= 8192
+            ) {
+              optionsPayload.max_completion_tokens = maxCompletionTokens;
+            }
+            const presencePenalty = Number(runtimeSettings.aiReviewPresencePenalty);
+            if (
+              Number.isFinite(presencePenalty) &&
+              presencePenalty >= -2 &&
+              presencePenalty <= 2
+            ) {
+              optionsPayload.presence_penalty = presencePenalty;
+            }
+            const frequencyPenalty = Number(runtimeSettings.aiReviewFrequencyPenalty);
+            if (
+              Number.isFinite(frequencyPenalty) &&
+              frequencyPenalty >= -2 &&
+              frequencyPenalty <= 2
+            ) {
+              optionsPayload.frequency_penalty = frequencyPenalty;
+            }
+            const seed = Math.floor(Number(runtimeSettings.aiReviewSeed));
+            if (Number.isFinite(seed) && seed >= 0 && seed <= 2147483647) {
+              optionsPayload.seed = seed;
+            }
+            const stop = String(runtimeSettings.aiReviewStopSequences || "")
+              .split(/\r?\n/)
+              .map(function (item) {
+                return String(item || "").trim().slice(0, 80);
+              })
+              .filter(Boolean)
+              .slice(0, 8);
+            if (stop.length > 0) {
+              optionsPayload.stop = stop;
+            }
+            return optionsPayload;
+          })(),
+        }, {
+          timeoutMs: Number(runtimeSettings.aiReviewRequestTimeoutMs || 120000) || 120000,
         });
         renderResult(response.data);
         renderSummary(snapshot, response.backend);

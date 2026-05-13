@@ -40,7 +40,7 @@ http://127.0.0.1:3333
 - `ASR_JUDGEMENT_AI_ENABLE_THINKING`：默认 `0`，开启时尝试传 `enable_thinking=true`。
 - `ASR_JUDGEMENT_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASR_JUDGEMENT_AI_MODEL`：历史兼容 compare model fallback（建议迁移到 `ASR_JUDGEMENT_AI_COMPARE_MODEL`）。
-- 快判 AI 请求支持脚本级 `aiOptions`，但后端只按白名单接收：`temperature/top_p/max_tokens/max_completion_tokens/presence_penalty/frequency_penalty/seed/response_format/stop/enable_thinking`。
+- 快判 AI 请求支持脚本级 `aiOptions`，但后端只按白名单接收：`temperature/top_p/max_tokens/max_completion_tokens/presence_penalty/frequency_penalty/seed/stop/enable_thinking`。
 - 不支持参数（如当前 `reasoning_effort`）会被后端忽略，不会透传给模型接口。
 - `listenPrompt/comparePrompt` 可由前端覆盖，但后端始终追加安全边界（只输出 JSON、固定 answer 枚举、禁止敏感信息）。
 - `ASR_TRANSCRIPTION_STATS_DIR`：ASR 转写统计输出目录（默认 `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`）。
@@ -68,6 +68,17 @@ http://127.0.0.1:3333
 - `ASR_TRANSCRIPTION_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`：项目数据下载密码的 SHA256（兼容旧 `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`）。
 - `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`：项目数据下载 token 签名密钥（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）。
+
+## ASR AI Defaults 接口
+
+用于 options 的“ASR 语音 AI 设置”面板读取后端默认配置。接口只返回可公开配置，不返回 API Key、cookie、token、authorization、完整音频 URL。
+
+- `GET /api/alibaba-labelx/asr-judgement/ai/defaults`
+- `GET /api/alibaba-labelx/asr-transcription/ai/defaults`
+- `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
+- `GET /api/magic-data/annotator/ai/defaults`
+
+统一返回字段包含：`success`、`scriptId`、`defaults`、`supportedParams`、`notes`。其中 `response_format` 对前端固定为不开放（`supportedParams.response_format=false`），结构化输出由后端控制。
 
 ## 项目数据下载密码配置教程
 

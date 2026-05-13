@@ -1,12 +1,36 @@
 "use strict";
 
 const RULE_VERSION = "data-baker-round-one-quality-ai-v1";
+const DEFAULT_LISTEN_TEMPLATE = [
+  "请听音频并输出本句话实际发声文本。",
+  "页面候选文本只作为参考，实际发声优先。",
+  "不要自动改成普通话含义，不要因为词表存在就强行改写。",
+  "只输出 JSON，字段为 heardText、confidence、isValid、invalidReasons。",
+].join("\n");
+const DEFAULT_COMPARE_TEMPLATE = [
+  "请比较页面候选文本和 AI 听音文本，生成单条 AI 推荐文本。",
+  "以实际发声为主，不因词表存在就无依据改写。",
+  "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
+  "只输出 JSON，不输出额外解释。",
+].join("\n");
 
 function getLexiconText(lexiconContext) {
   return String(lexiconContext?.text || "").trim();
 }
 
+function normalizePromptTemplate(value, fallback) {
+  const text = String(value || "").replace(/\r\n/g, "\n").trim();
+  if (!text) {
+    return String(fallback || "");
+  }
+  return text.slice(0, 8000);
+}
+
 function buildListenPrompt(request, lexiconContext) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.listenPrompt,
+    DEFAULT_LISTEN_TEMPLATE
+  );
   const meta = {
     sentenceNumber: request.sentenceNumber,
     readRequire: request.readRequire,
@@ -19,9 +43,7 @@ function buildListenPrompt(request, lexiconContext) {
 
   const lexiconText = getLexiconText(lexiconContext);
   const promptLines = [
-    "请听音频并输出本句话实际发声文本。",
-    "页面候选文本只作为参考，实际发声优先。",
-    "不要自动改成普通话含义，不要因为词表存在就强行改写。",
+    template,
     "对“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“我/阮”“你/汝”“他/伊”等易混词必须按实际发声判断。",
   ];
 
@@ -52,6 +74,10 @@ function buildListenPrompt(request, lexiconContext) {
 }
 
 function buildComparePrompt(request, heardText, lexiconContext) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.comparePrompt,
+    DEFAULT_COMPARE_TEMPLATE
+  );
   const input = {
     pageText: request.pageText,
     heardText,
@@ -60,7 +86,7 @@ function buildComparePrompt(request, heardText, lexiconContext) {
   };
   const lexiconText = getLexiconText(lexiconContext);
   const promptLines = [
-    "请比较页面候选文本和 AI 听音文本，生成单条 AI 推荐文本。",
+    template,
     "规则：",
     "1. 以实际发声为主。",
     "2. 页面候选文本只是参考。",
@@ -101,6 +127,8 @@ function buildComparePrompt(request, heardText, lexiconContext) {
 
 module.exports = {
   RULE_VERSION,
+  DEFAULT_LISTEN_TEMPLATE,
+  DEFAULT_COMPARE_TEMPLATE,
   buildComparePrompt,
   buildListenPrompt,
 };

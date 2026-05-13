@@ -31,11 +31,14 @@
   - `aiSuggestionTemperature` / `aiSuggestionTopP`
   - `aiSuggestionMaxTokens` / `aiSuggestionMaxCompletionTokens`
   - `aiSuggestionPresencePenalty` / `aiSuggestionFrequencyPenalty`
-  - `aiSuggestionSeed` / `aiSuggestionResponseFormat` / `aiSuggestionStopSequences`
+  - `aiSuggestionSeed` / `aiSuggestionStopSequences`
   - `aiSuggestionEnableThinking`（默认 `false`）
 - 快判 AI 参数默认隐藏在通用部件“ASR 语音 AI 设置”中：在 options 快判详情页标题“阿里ASR语音判别”连续点击 10 次后显示，并插入在脚本标题下方。
 - 快判普通设置区不再直接展示模型、Prompt、temperature 等 AI 细项，只保留“默认能力、仅手动触发”的说明。
+- 隐藏面板解锁后会调用 `GET /api/alibaba-labelx/asr-judgement/ai/defaults` 读取后端默认模型、Prompt 和参数；失败时回退本地默认值并提示。
+- Prompt/参数采用“默认值 + override”模式：前端输入为空或与默认一致时，不保存 override，运行时由后端继续使用默认值。
 - 不支持的参数前端不显示；后端也会做白名单过滤，不透传未支持字段。
+- `response_format` 不对前端开放，后端固定结构化 JSON 输出。
 - 快捷键动作：`shortcuts.aiSuggestCurrentItem`（默认未绑定）。
 - 触发方式：只支持工具栏按钮或快捷键手动触发，且只分析“当前题卡”；不会自动分析全页或批量请求。
 - 扩展不直连 Qwen，API Key 只在后端环境变量 `DASHSCOPE_API_KEY` 中配置。

@@ -2,14 +2,21 @@
 
 const { sendJson } = require("../../../backend/response");
 const {
+  DEFAULT_REQUEST_PARAMS,
   DEFAULT_COMPARE_MODEL,
   DEFAULT_LISTEN_MODEL,
+  SUPPORTED_REQUEST_PARAMS,
   getClientConfig,
   requestCurrentSuggestion,
   sanitizeModelName,
 } = require("./ai-client-qwen");
 const { appendAiCallLog, getLogDir } = require("./ai-call-log");
-const { buildPrompt, RULE_VERSION } = require("./ai-prompts");
+const {
+  buildPrompt,
+  DEFAULT_COMPARE_TEMPLATE,
+  DEFAULT_LISTEN_TEMPLATE,
+  RULE_VERSION,
+} = require("./ai-prompts");
 const {
   DEFAULT_APPLY_ADVICE,
   normalizeSuggestionResponse,
@@ -17,8 +24,10 @@ const {
   parseModelJsonText,
 } = require("./ai-response-schema");
 
-const AI_BASE_PATH = "/api/alibaba-labelx/asr-transcription/ai/suggest-current";
+const AI_ROOT_PATH = "/api/alibaba-labelx/asr-transcription/ai";
+const AI_BASE_PATH = AI_ROOT_PATH + "/suggest-current";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
+const AI_DEFAULTS_PATH = AI_ROOT_PATH + "/defaults";
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 
 function createRequestId() {
@@ -131,6 +140,7 @@ function normalizeTextCandidates(value) {
 
 function normalizeSuggestRequest(body) {
   const source = body && typeof body === "object" ? body : {};
+  const aiOptions = normalizeAiOptions(source.aiOptions);
   const rawAudioCandidates = normalizeAudioCandidates(source.audioCandidates);
   const validAudioCandidates = rawAudioCandidates.filter(function (item) {
     return item.valid === true;
@@ -160,10 +170,131 @@ function normalizeSuggestRequest(body) {
     textCandidates,
     currentText,
     clientVersion: normalizeText(source.clientVersion),
-    listenModel: sanitizeModelName(source.listenModel, ""),
-    compareModel: sanitizeModelName(source.compareModel, ""),
-    enableThinking: source.enableThinking === true,
+    listenModel: sanitizeModelName(aiOptions.listenModel || source.listenModel, ""),
+    compareModel: sanitizeModelName(aiOptions.compareModel || source.compareModel, ""),
+    enableThinking:
+      typeof aiOptions.enable_thinking === "boolean"
+        ? aiOptions.enable_thinking === true
+        : source.enableThinking === true,
+    aiOptions,
   };
+}
+
+function normalizeNumberInRange(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  if (number < min || number > max) {
+    return null;
+  }
+  return number;
+}
+
+function normalizeIntegerInRange(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  const integerValue = Math.floor(number);
+  if (integerValue < min || integerValue > max) {
+    return null;
+  }
+  return integerValue;
+}
+
+function normalizePromptText(value) {
+  return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
+}
+
+function normalizeStopSequences(value) {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/\r?\n/)
+    : [];
+  const result = [];
+  source.forEach(function (item) {
+    const text = String(item || "").trim().slice(0, 80);
+    if (!text || result.length >= 8 || result.indexOf(text) >= 0) {
+      return;
+    }
+    result.push(text);
+  });
+  return result;
+}
+
+function normalizeAiOptions(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const result = {};
+  const listenPrompt = normalizePromptText(source.listenPrompt);
+  const comparePrompt = normalizePromptText(source.comparePrompt);
+  const listenModel = sanitizeModelName(source.listenModel, "");
+  const compareModel = sanitizeModelName(source.compareModel, "");
+  if (listenPrompt) {
+    result.listenPrompt = listenPrompt;
+  }
+  if (comparePrompt) {
+    result.comparePrompt = comparePrompt;
+  }
+  if (listenModel) {
+    result.listenModel = listenModel;
+  }
+  if (compareModel) {
+    result.compareModel = compareModel;
+  }
+  if (SUPPORTED_REQUEST_PARAMS.temperature === true) {
+    const normalized = normalizeNumberInRange(source.temperature, 0, 2);
+    if (normalized !== null) {
+      result.temperature = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.top_p === true) {
+    const normalized = normalizeNumberInRange(source.top_p, 0, 1);
+    if (normalized !== null) {
+      result.top_p = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.max_tokens === true) {
+    const normalized = normalizeIntegerInRange(source.max_tokens, 1, 8192);
+    if (normalized !== null) {
+      result.max_tokens = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.max_completion_tokens === true) {
+    const normalized = normalizeIntegerInRange(source.max_completion_tokens, 1, 8192);
+    if (normalized !== null) {
+      result.max_completion_tokens = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.presence_penalty === true) {
+    const normalized = normalizeNumberInRange(source.presence_penalty, -2, 2);
+    if (normalized !== null) {
+      result.presence_penalty = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.frequency_penalty === true) {
+    const normalized = normalizeNumberInRange(source.frequency_penalty, -2, 2);
+    if (normalized !== null) {
+      result.frequency_penalty = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.seed === true) {
+    const normalized = normalizeIntegerInRange(source.seed, 0, 2147483647);
+    if (normalized !== null) {
+      result.seed = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.stop === true) {
+    const stop = normalizeStopSequences(source.stop);
+    if (stop.length > 0) {
+      result.stop = stop;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.enable_thinking === true && typeof source.enable_thinking === "boolean") {
+    result.enable_thinking = source.enable_thinking === true;
+  }
+  return result;
 }
 
 function resolveModelOverride(requestModel, defaultModel, config) {
@@ -217,6 +348,7 @@ async function requestWithPossibleFallback(suggestRequest, prompt, models, confi
       includeAudio: false,
       timeoutMs: config.timeoutMs,
       enableThinking: suggestRequest.enableThinking,
+      aiOptions: suggestRequest.aiOptions,
     });
     return Object.assign({}, compareResult, {
       mode: "text-only",
@@ -230,6 +362,7 @@ async function requestWithPossibleFallback(suggestRequest, prompt, models, confi
       includeAudio: true,
       timeoutMs: config.timeoutMs,
       enableThinking: suggestRequest.enableThinking,
+      aiOptions: suggestRequest.aiOptions,
     });
     return Object.assign({}, listenResult, {
       mode: "audio+text",
@@ -245,6 +378,7 @@ async function requestWithPossibleFallback(suggestRequest, prompt, models, confi
       includeAudio: false,
       timeoutMs: config.timeoutMs,
       enableThinking: suggestRequest.enableThinking,
+      aiOptions: suggestRequest.aiOptions,
     });
 
     return Object.assign({}, fallbackResult, {
@@ -399,6 +533,38 @@ function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendJson(response, 200, buildHealthResponse());
   });
+  router.get(AI_DEFAULTS_PATH, function ({ response }) {
+    const config = getClientConfig();
+    sendJson(response, 200, {
+      success: true,
+      service: "asr-transcription-ai-suggest-current",
+      scriptId: "transcription",
+      component: "asr-voice-ai",
+      defaults: {
+        listenModel: config.listenModel || DEFAULT_LISTEN_MODEL,
+        compareModel: config.compareModel || DEFAULT_COMPARE_MODEL,
+        reviewModel: "",
+        timeoutMs: config.timeoutMs,
+        enableThinking: config.enableThinkingDefault === true,
+        temperature: DEFAULT_REQUEST_PARAMS.temperature,
+        top_p: DEFAULT_REQUEST_PARAMS.top_p,
+        max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
+        max_completion_tokens: DEFAULT_REQUEST_PARAMS.max_completion_tokens,
+        presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
+        frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
+        seed: DEFAULT_REQUEST_PARAMS.seed,
+        stop: DEFAULT_REQUEST_PARAMS.stop,
+        listenPrompt: DEFAULT_LISTEN_TEMPLATE,
+        comparePrompt: DEFAULT_COMPARE_TEMPLATE,
+        reviewPrompt: "",
+      },
+      supportedParams: SUPPORTED_REQUEST_PARAMS,
+      notes: {
+        promptOverride: "Prompt 可在前端覆盖；空 override 使用后端默认。",
+        responseFormat: "结构化输出由后端固定控制，前端不配置。",
+      },
+    });
+  });
 
   router.post(AI_BASE_PATH, function ({ request, response }) {
     return handleSuggestCurrent(request, response);
@@ -407,6 +573,7 @@ function registerAiRoutes(router) {
 
 module.exports = {
   AI_BASE_PATH,
+  AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
   handleSuggestCurrent,
   normalizeSuggestRequest,
