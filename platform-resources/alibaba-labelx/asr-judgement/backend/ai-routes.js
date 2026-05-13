@@ -22,6 +22,19 @@ const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_SUGGEST_PATH = AI_BASE_PATH + "/suggest";
 const DEFAULT_RULE_VERSION = RULE_VERSION;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const JUDGEMENT_AI_SUPPORTED_PARAMS = {
+  temperature: true,
+  top_p: true,
+  max_tokens: true,
+  max_completion_tokens: true,
+  presence_penalty: true,
+  frequency_penalty: true,
+  seed: true,
+  response_format: true,
+  stop: true,
+  enable_thinking: true,
+  reasoning_effort: false,
+};
 
 function createRequestId() {
   const now = new Date();
@@ -96,9 +109,146 @@ function normalizeContextText(value) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, 1200);
 }
 
+function normalizePromptText(value) {
+  return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
+}
+
+function normalizeNumberInRange(value, min, max) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return null;
+  }
+  if (numericValue < min || numericValue > max) {
+    return null;
+  }
+  return numericValue;
+}
+
+function normalizeIntegerInRange(value, min, max) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return null;
+  }
+  const normalizedValue = Math.floor(numericValue);
+  if (normalizedValue < min || normalizedValue > max) {
+    return null;
+  }
+  return normalizedValue;
+}
+
+function normalizeStopSequences(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map(function (item) {
+        return String(item || "").trim().slice(0, 80);
+      })
+      .filter(Boolean)
+      .slice(0, 8);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n/)
+      .map(function (item) {
+        return String(item || "").trim().slice(0, 80);
+      })
+      .filter(Boolean)
+      .slice(0, 8);
+  }
+  return [];
+}
+
+function normalizeResponseFormat(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "json_object" || text === "text") {
+    return text;
+  }
+  return "";
+}
+
+function normalizeAiOptions(source, supportedParams) {
+  const payload = source && typeof source === "object" ? source : {};
+  const normalized = {};
+  const listenPrompt = normalizePromptText(payload.listenPrompt);
+  const comparePrompt = normalizePromptText(payload.comparePrompt);
+  const listenModel = sanitizeModelName(payload.listenModel, "");
+  const compareModel = sanitizeModelName(payload.compareModel, "");
+  if (listenPrompt) {
+    normalized.listenPrompt = listenPrompt;
+  }
+  if (comparePrompt) {
+    normalized.comparePrompt = comparePrompt;
+  }
+  if (listenModel) {
+    normalized.listenModel = listenModel;
+  }
+  if (compareModel) {
+    normalized.compareModel = compareModel;
+  }
+
+  if (supportedParams.temperature === true) {
+    const value = normalizeNumberInRange(payload.temperature, 0, 2);
+    if (value !== null) {
+      normalized.temperature = value;
+    }
+  }
+  if (supportedParams.top_p === true) {
+    const value = normalizeNumberInRange(payload.top_p, 0, 1);
+    if (value !== null) {
+      normalized.top_p = value;
+    }
+  }
+  if (supportedParams.max_tokens === true) {
+    const value = normalizeIntegerInRange(payload.max_tokens, 1, 8192);
+    if (value !== null) {
+      normalized.max_tokens = value;
+    }
+  }
+  if (supportedParams.max_completion_tokens === true) {
+    const value = normalizeIntegerInRange(payload.max_completion_tokens, 1, 8192);
+    if (value !== null) {
+      normalized.max_completion_tokens = value;
+    }
+  }
+  if (supportedParams.presence_penalty === true) {
+    const value = normalizeNumberInRange(payload.presence_penalty, -2, 2);
+    if (value !== null) {
+      normalized.presence_penalty = value;
+    }
+  }
+  if (supportedParams.frequency_penalty === true) {
+    const value = normalizeNumberInRange(payload.frequency_penalty, -2, 2);
+    if (value !== null) {
+      normalized.frequency_penalty = value;
+    }
+  }
+  if (supportedParams.seed === true) {
+    const value = normalizeIntegerInRange(payload.seed, 0, 2147483647);
+    if (value !== null) {
+      normalized.seed = value;
+    }
+  }
+  if (supportedParams.response_format === true) {
+    const value = normalizeResponseFormat(payload.response_format);
+    if (value) {
+      normalized.response_format = value;
+    }
+  }
+  if (supportedParams.stop === true) {
+    const stop = normalizeStopSequences(payload.stop);
+    if (stop.length > 0) {
+      normalized.stop = stop;
+    }
+  }
+  if (supportedParams.enable_thinking === true && typeof payload.enable_thinking === "boolean") {
+    normalized.enable_thinking = payload.enable_thinking === true;
+  }
+  return normalized;
+}
+
 function normalizeSuggestRequest(body) {
   const source = body && typeof body === "object" ? body : {};
   const config = getClientConfig();
+  const aiOptions = normalizeAiOptions(source.aiOptions, JUDGEMENT_AI_SUPPORTED_PARAMS);
   const projectId = String(source.projectId || "").trim();
   const subTaskId = String(source.subTaskId || "").trim();
   const itemId = String(source.itemId || "").trim();
@@ -117,8 +267,11 @@ function normalizeSuggestRequest(body) {
     rawItemIndex === undefined || rawItemIndex === null || rawItemIndex === ""
       ? 0
       : Number(rawItemIndex);
-  const requestedListenModel = sanitizeModelName(source.listenModel, "");
-  const requestedCompareModel = sanitizeModelName(source.compareModel || source.model, "");
+  const requestedListenModel = sanitizeModelName(aiOptions.listenModel || source.listenModel, "");
+  const requestedCompareModel = sanitizeModelName(
+    aiOptions.compareModel || source.compareModel || source.model,
+    ""
+  );
   const listenModel = config.allowClientModelOverride
     ? sanitizeModelName(requestedListenModel, config.listenModel)
     : sanitizeModelName(config.listenModel, DEFAULT_LISTEN_MODEL);
@@ -132,8 +285,8 @@ function normalizeSuggestRequest(body) {
         DEFAULT_COMPARE_MODEL
       );
   const enableThinking = normalizeBoolean(
-    source.enableThinking,
-    config.enableThinkingDefault === true
+    aiOptions.enable_thinking,
+    normalizeBoolean(source.enableThinking, config.enableThinkingDefault === true)
   );
 
   if (!projectId) {
@@ -166,6 +319,7 @@ function normalizeSuggestRequest(body) {
     listenModel: listenModel || DEFAULT_LISTEN_MODEL,
     compareModel: compareModel || DEFAULT_COMPARE_MODEL,
     enableThinking,
+    aiOptions,
     ruleVersion,
     clientVersion,
   };
@@ -190,10 +344,11 @@ function sendHealth(response) {
     legacyModel: config.legacyModel || "",
     allowClientModelOverride: config.allowClientModelOverride === true,
     enableThinkingDefault: config.enableThinkingDefault === true,
-    timeoutMs: config.timeoutMs,
-    mockEnabled: config.mockEnabled,
-    hasApiKey: config.hasApiKey,
-    ruleVersion: DEFAULT_RULE_VERSION,
+      timeoutMs: config.timeoutMs,
+      supportedParams: JUDGEMENT_AI_SUPPORTED_PARAMS,
+      mockEnabled: config.mockEnabled,
+      hasApiKey: config.hasApiKey,
+      ruleVersion: DEFAULT_RULE_VERSION,
     status: config.hasApiKey || config.mockEnabled ? "ready" : "missing-api-key",
   });
 }
@@ -253,6 +408,7 @@ async function handleSuggest(request, response) {
       hostname,
       itemIndex: suggestRequest.itemIndex,
       enableThinking: suggestRequest.enableThinking,
+      aiOptions: suggestRequest.aiOptions,
     });
     listenDurationMs = Math.max(0, Date.now() - listenStartedAtMs);
     const listenJson = parseModelJsonText(listenResult.rawText, requestId);
@@ -291,6 +447,7 @@ async function handleSuggest(request, response) {
         hostname,
         itemIndex: suggestRequest.itemIndex,
         enableThinking: suggestRequest.enableThinking,
+        aiOptions: suggestRequest.aiOptions,
       }
     );
     compareDurationMs = Math.max(0, Date.now() - compareStartedAtMs);

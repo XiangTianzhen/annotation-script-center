@@ -40,6 +40,9 @@ http://127.0.0.1:3333
 - `ASR_JUDGEMENT_AI_ENABLE_THINKING`：默认 `0`，开启时尝试传 `enable_thinking=true`。
 - `ASR_JUDGEMENT_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASR_JUDGEMENT_AI_MODEL`：历史兼容 compare model fallback（建议迁移到 `ASR_JUDGEMENT_AI_COMPARE_MODEL`）。
+- 快判 AI 请求支持脚本级 `aiOptions`，但后端只按白名单接收：`temperature/top_p/max_tokens/max_completion_tokens/presence_penalty/frequency_penalty/seed/response_format/stop/enable_thinking`。
+- 不支持参数（如当前 `reasoning_effort`）会被后端忽略，不会透传给模型接口。
+- `listenPrompt/comparePrompt` 可由前端覆盖，但后端始终追加安全边界（只输出 JSON、固定 answer 枚举、禁止敏感信息）。
 - `ASR_TRANSCRIPTION_STATS_DIR`：ASR 转写统计输出目录（默认 `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`）。
 - `ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`：设为 `1` 时额外保存 `statistics-rows.json`。
 - `ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外保存 `statistics-upload-events.jsonl`。
@@ -177,6 +180,7 @@ ASR 转写职责边界：
 后端地址配置规则：
 - 扩展前端只有一个全局后端地址入口：options 首页顶部“后端接口地址”（`server` / `local`）。
 - 各脚本详情页不再提供独立后端地址、上传接口地址或 AI 接口地址配置。
+- 各脚本 AI 设置互相独立，不做全局 AI 参数复用；快判 AI 高级设置仅影响快判请求体。
 - 统计上传能力默认强制启用；若脚本实现了定时上传能力，定时上传也按脚本规则强制启用，不在脚本详情页提供关闭开关。
 - 运行时统一按“全局 baseUrl + 固定 API path”拼接：
   - ASR 转写统计：`/api/alibaba-labelx/asr-transcription/statistics/*`

@@ -1,5 +1,33 @@
 # 标注脚本中心修改日志
 
+## 2026-05-13（0.3.2：整理快判脚本级 AI 高级设置并强制启用半自动建议）
+
+- 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本配置收口增强。
+- 快判 AI 半自动建议改为默认强制能力：
+  - options 快判详情页移除“启用 AI 建议”开关，仅保留“手动触发、手动采用”的说明。
+  - `shared/storage.js` normalize 阶段强制 `aiSuggestionEnabled=true`（兼容旧存储的 `false` 值）。
+  - 快判运行时不再因为 `aiSuggestionEnabled=false` 拒绝请求。
+- 快判详情页新增隐藏入口：
+  - 在“阿里ASR语音判别”标题连续点击 10 次（3 秒窗口）后显示 `AI 高级设置（阿里ASR语音判别）`。
+  - 解锁状态只在当前 options 页面会话有效，刷新后恢复隐藏。
+- 新增快判脚本级 AI 高级字段（独立保存在快判 `asrConfig`）：
+  - `aiSuggestionListenPrompt` / `aiSuggestionComparePrompt`
+  - `aiSuggestionTemperature` / `aiSuggestionTopP`
+  - `aiSuggestionMaxTokens` / `aiSuggestionMaxCompletionTokens`
+  - `aiSuggestionPresencePenalty` / `aiSuggestionFrequencyPenalty`
+  - `aiSuggestionSeed` / `aiSuggestionResponseFormat` / `aiSuggestionStopSequences`
+  - `aiSuggestionEnableThinking`（保留）
+- 前后端参数白名单同步：
+  - 前端按 `JUDGEMENT_AI_ADVANCED_PARAM_DEFINITIONS` 决定显示与提交；不支持参数不显示。
+  - 后端 `ai-routes.js` + `ai-client-qwen.js` 双层过滤，仅允许白名单字段进入模型请求体；不支持字段忽略，不透传。
+  - `response_format=text` 时不发送 `json_object`；`stop` 最多 8 条、每条最多 80 字；数值参数按范围归一化。
+- 快判请求体新增脚本级 `aiOptions`，并继续保留 `listenModel/compareModel/includeContext` 等主字段，确保兼容当前链路。
+- `ai-prompt.js` 支持 `listenPrompt/comparePrompt` 覆盖，但后端会追加安全边界（只输出 JSON、固定 answer 枚举、禁止敏感信息）。
+- 文档同步：
+  - `extension/sites/alibaba-labelx/asr-judgement/README.md`
+  - `platform-resources/backend/README.md`
+  - `AGENTS.md`
+
 ## 2026-05-13（0.3.2 热修：收口快判 AI 答案枚举与格式差异判定）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本小修。

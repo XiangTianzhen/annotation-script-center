@@ -132,6 +132,18 @@
         "aiSuggestionRequestTimeoutMs",
         "aiSuggestionListenModel",
         "aiSuggestionCompareModel",
+        "aiSuggestionListenPrompt",
+        "aiSuggestionComparePrompt",
+        "aiSuggestionTemperature",
+        "aiSuggestionTopP",
+        "aiSuggestionMaxTokens",
+        "aiSuggestionMaxCompletionTokens",
+        "aiSuggestionPresencePenalty",
+        "aiSuggestionFrequencyPenalty",
+        "aiSuggestionSeed",
+        "aiSuggestionResponseFormat",
+        "aiSuggestionReasoningEffort",
+        "aiSuggestionStopSequences",
         "aiSuggestionEnableThinking",
         "aiSuggestionModel",
         "aiSuggestionAvailableModels",
@@ -548,6 +560,82 @@
     return text.slice(0, 80);
   }
 
+  function normalizeJudgementAiPrompt(value) {
+    return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
+  }
+
+  function normalizeJudgementAiOptionalNumberText(value, min, max, precision) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return "";
+    }
+    const numericValue = Number(text);
+    if (!Number.isFinite(numericValue)) {
+      return "";
+    }
+    const clamped = Math.max(min, Math.min(max, numericValue));
+    return String(
+      typeof precision === "number" ? Number(clamped.toFixed(precision)) : clamped
+    );
+  }
+
+  function normalizeJudgementAiOptionalIntegerText(value, min, max) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return "";
+    }
+    const numericValue = Number(text);
+    if (!Number.isFinite(numericValue)) {
+      return "";
+    }
+    const normalized = Math.floor(Math.max(min, Math.min(max, numericValue)));
+    return String(normalized);
+  }
+
+  function normalizeJudgementAiResponseFormat(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "json_object" || text === "text") {
+      return text;
+    }
+    const fallbackText = String(fallback || "").trim().toLowerCase();
+    if (fallbackText === "json_object" || fallbackText === "text") {
+      return fallbackText;
+    }
+    return "json_object";
+  }
+
+  function normalizeJudgementAiReasoningEffort(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "low" || text === "medium" || text === "high") {
+      return text;
+    }
+    return "";
+  }
+
+  function normalizeJudgementAiStopSequences(value) {
+    const source = String(value || "");
+    if (!source.trim()) {
+      return "";
+    }
+    const list = source
+      .split(/\r?\n/)
+      .map(function (item) {
+        return String(item || "").trim().slice(0, 80);
+      })
+      .filter(Boolean);
+    const result = [];
+    list.forEach(function (item) {
+      if (result.length >= 8) {
+        return;
+      }
+      if (result.indexOf(item) >= 0) {
+        return;
+      }
+      result.push(item);
+    });
+    return result.join("\n");
+  }
+
   function normalizeClampedNumber(value, fallback, min, max, precision) {
     const numericValue = Number(value);
     if (!Number.isFinite(numericValue)) {
@@ -631,7 +719,7 @@
     delete nextConfig.aiSuggestionShortcut;
 
     const normalizedStatsConfig = normalizeJudgementStatsConfig(nextConfig);
-    normalizedStatsConfig.aiSuggestionEnabled = normalizedStatsConfig.aiSuggestionEnabled === true;
+    normalizedStatsConfig.aiSuggestionEnabled = true;
     normalizedStatsConfig.aiSuggestionEndpoint = normalizeJudgementAiEndpoint(
       normalizedStatsConfig.aiSuggestionEndpoint,
       defaults.aiSuggestionEndpoint ||
@@ -662,6 +750,61 @@
     normalizedStatsConfig.aiSuggestionCompareModel = normalizeJudgementAiModelText(
       normalizedStatsConfig.aiSuggestionCompareModel || legacyCompareModel,
       defaults.aiSuggestionCompareModel || defaults.aiSuggestionModel || "qwen3.5-plus"
+    );
+    normalizedStatsConfig.aiSuggestionListenPrompt = normalizeJudgementAiPrompt(
+      normalizedStatsConfig.aiSuggestionListenPrompt
+    );
+    normalizedStatsConfig.aiSuggestionComparePrompt = normalizeJudgementAiPrompt(
+      normalizedStatsConfig.aiSuggestionComparePrompt
+    );
+    normalizedStatsConfig.aiSuggestionTemperature = normalizeJudgementAiOptionalNumberText(
+      normalizedStatsConfig.aiSuggestionTemperature,
+      0,
+      2,
+      3
+    );
+    normalizedStatsConfig.aiSuggestionTopP = normalizeJudgementAiOptionalNumberText(
+      normalizedStatsConfig.aiSuggestionTopP,
+      0,
+      1,
+      3
+    );
+    normalizedStatsConfig.aiSuggestionMaxTokens = normalizeJudgementAiOptionalIntegerText(
+      normalizedStatsConfig.aiSuggestionMaxTokens,
+      1,
+      8192
+    );
+    normalizedStatsConfig.aiSuggestionMaxCompletionTokens = normalizeJudgementAiOptionalIntegerText(
+      normalizedStatsConfig.aiSuggestionMaxCompletionTokens,
+      1,
+      8192
+    );
+    normalizedStatsConfig.aiSuggestionPresencePenalty = normalizeJudgementAiOptionalNumberText(
+      normalizedStatsConfig.aiSuggestionPresencePenalty,
+      -2,
+      2,
+      3
+    );
+    normalizedStatsConfig.aiSuggestionFrequencyPenalty = normalizeJudgementAiOptionalNumberText(
+      normalizedStatsConfig.aiSuggestionFrequencyPenalty,
+      -2,
+      2,
+      3
+    );
+    normalizedStatsConfig.aiSuggestionSeed = normalizeJudgementAiOptionalIntegerText(
+      normalizedStatsConfig.aiSuggestionSeed,
+      0,
+      2147483647
+    );
+    normalizedStatsConfig.aiSuggestionResponseFormat = normalizeJudgementAiResponseFormat(
+      normalizedStatsConfig.aiSuggestionResponseFormat,
+      defaults.aiSuggestionResponseFormat || "json_object"
+    );
+    normalizedStatsConfig.aiSuggestionReasoningEffort = normalizeJudgementAiReasoningEffort(
+      normalizedStatsConfig.aiSuggestionReasoningEffort
+    );
+    normalizedStatsConfig.aiSuggestionStopSequences = normalizeJudgementAiStopSequences(
+      normalizedStatsConfig.aiSuggestionStopSequences
     );
     normalizedStatsConfig.aiSuggestionEnableThinking =
       normalizedStatsConfig.aiSuggestionEnableThinking === true;

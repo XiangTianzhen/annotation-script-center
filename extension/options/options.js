@@ -70,6 +70,19 @@
   const judgementAiCompareModels = Array.isArray(constants.JUDGEMENT_AI_COMPARE_MODELS)
     ? constants.JUDGEMENT_AI_COMPARE_MODELS
     : ["qwen3.5-plus", "qwen-plus", "qwen-turbo"];
+  const judgementAiAdvancedDefinitions = Array.isArray(
+    constants.JUDGEMENT_AI_ADVANCED_PARAM_DEFINITIONS
+  )
+    ? constants.JUDGEMENT_AI_ADVANCED_PARAM_DEFINITIONS
+    : [];
+  const judgementAiSupportedParams = judgementAiAdvancedDefinitions.reduce(function (result, item) {
+    const apiKey = String(item?.apiKey || "").trim();
+    if (!apiKey) {
+      return result;
+    }
+    result[apiKey] = item?.supported !== false;
+    return result;
+  }, {});
   const judgementShortcutActions = constants.JUDGEMENT_SHORTCUT_ACTIONS || [
     { key: "choiceFirstBetter", label: "选择：第一个更好" },
     { key: "choiceSecondBetter", label: "选择：第二个更好" },
@@ -184,6 +197,9 @@
   let stopMagicDataRecordingListeners = null;
   let endpointAdvancedRevealCount = 0;
   let endpointAdvancedUnlocked = false;
+  let judgementAiAdvancedRevealCount = 0;
+  let judgementAiAdvancedUnlocked = false;
+  let judgementAiAdvancedLastClickAt = 0;
   let projectDataDownloadDatasets = [];
 
   function getElement(id) {
@@ -449,6 +465,158 @@
         customNode.focus();
       }
     });
+  }
+
+  function isJudgementAiParamSupported(apiKey) {
+    return judgementAiSupportedParams[String(apiKey || "")] === true;
+  }
+
+  function normalizeOptionalNumberText(value, min, max, precision) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return "";
+    }
+    const numericValue = Number(text);
+    if (!Number.isFinite(numericValue)) {
+      return "";
+    }
+    const clamped = Math.max(min, Math.min(max, numericValue));
+    return String(
+      typeof precision === "number" ? Number(clamped.toFixed(precision)) : clamped
+    );
+  }
+
+  function normalizeOptionalIntegerText(value, min, max) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return "";
+    }
+    const numericValue = Number(text);
+    if (!Number.isFinite(numericValue)) {
+      return "";
+    }
+    return String(Math.floor(Math.max(min, Math.min(max, numericValue))));
+  }
+
+  function normalizePromptText(value) {
+    return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
+  }
+
+  function normalizeResponseFormat(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "json_object" || text === "text") {
+      return text;
+    }
+    return String(fallback || "json_object").trim().toLowerCase() === "text"
+      ? "text"
+      : "json_object";
+  }
+
+  function normalizeStopSequencesText(value) {
+    const source = String(value || "");
+    if (!source.trim()) {
+      return "";
+    }
+    const result = [];
+    source
+      .split(/\r?\n/)
+      .map(function (item) {
+        return String(item || "").trim().slice(0, 80);
+      })
+      .filter(Boolean)
+      .forEach(function (item) {
+        if (result.length >= 8) {
+          return;
+        }
+        if (result.indexOf(item) >= 0) {
+          return;
+        }
+        result.push(item);
+      });
+    return result.join("\n");
+  }
+
+  function toggleJudgementAiAdvancedFieldVisibility(inputId, supported) {
+    const inputNode = getElement(inputId);
+    if (!inputNode || !inputNode.parentElement) {
+      return;
+    }
+    inputNode.parentElement.classList.toggle("hidden", supported !== true);
+  }
+
+  function applyJudgementAiAdvancedFieldVisibility() {
+    toggleJudgementAiAdvancedFieldVisibility(
+      "judgement-ai-suggestion-temperature",
+      isJudgementAiParamSupported("temperature")
+    );
+    toggleJudgementAiAdvancedFieldVisibility(
+      "judgement-ai-suggestion-top-p",
+      isJudgementAiParamSupported("top_p")
+    );
+    toggleJudgementAiAdvancedFieldVisibility(
+      "judgement-ai-suggestion-max-tokens",
+      isJudgementAiParamSupported("max_tokens")
+    );
+    toggleJudgementAiAdvancedFieldVisibility(
+      "judgement-ai-suggestion-max-completion-tokens",
+      isJudgementAiParamSupported("max_completion_tokens")
+    );
+    toggleJudgementAiAdvancedFieldVisibility(
+      "judgement-ai-suggestion-presence-penalty",
+      isJudgementAiParamSupported("presence_penalty")
+    );
+    toggleJudgementAiAdvancedFieldVisibility(
+      "judgement-ai-suggestion-frequency-penalty",
+      isJudgementAiParamSupported("frequency_penalty")
+    );
+    toggleJudgementAiAdvancedFieldVisibility(
+      "judgement-ai-suggestion-seed",
+      isJudgementAiParamSupported("seed")
+    );
+    toggleJudgementAiAdvancedFieldVisibility(
+      "judgement-ai-suggestion-response-format",
+      isJudgementAiParamSupported("response_format")
+    );
+    toggleJudgementAiAdvancedFieldVisibility(
+      "judgement-ai-suggestion-stop-sequences",
+      isJudgementAiParamSupported("stop")
+    );
+    const thinkingNode = getElement("judgement-ai-suggestion-enable-thinking");
+    if (thinkingNode && thinkingNode.parentElement) {
+      thinkingNode.parentElement.classList.toggle(
+        "hidden",
+        isJudgementAiParamSupported("enable_thinking") !== true
+      );
+    }
+  }
+
+  function renderJudgementAiAdvancedPanel() {
+    const panel = getElement("judgement-ai-advanced-panel");
+    if (panel) {
+      panel.classList.toggle("hidden", judgementAiAdvancedUnlocked !== true);
+    }
+    const statusNode = getElement("judgement-ai-advanced-unlock-status");
+    if (!statusNode) {
+      return;
+    }
+    statusNode.classList.toggle("hidden", judgementAiAdvancedUnlocked !== true);
+    if (judgementAiAdvancedUnlocked) {
+      statusNode.textContent = "AI 高级设置已显示；这些设置仅影响阿里ASR语音判别脚本。";
+    } else {
+      statusNode.textContent = "";
+    }
+  }
+
+  function unlockJudgementAiAdvancedPanel() {
+    if (judgementAiAdvancedUnlocked) {
+      return;
+    }
+    judgementAiAdvancedUnlocked = true;
+    renderJudgementAiAdvancedPanel();
+    setStatus(
+      "judgement-status",
+      "AI 高级设置已显示；这些设置仅影响阿里ASR语音判别脚本。"
+    );
   }
 
   function normalizeJudgementRateStep(value, fallback) {
@@ -928,10 +1096,22 @@
       statsAutoUploadOnSubtaskOpen: false,
       statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: 20000,
-      aiSuggestionEnabled: false,
+      aiSuggestionEnabled: true,
       aiSuggestionRequestTimeoutMs: 120000,
       aiSuggestionListenModel: "qwen3.5-omni-flash",
       aiSuggestionCompareModel: "qwen3.5-plus",
+      aiSuggestionListenPrompt: "",
+      aiSuggestionComparePrompt: "",
+      aiSuggestionTemperature: "",
+      aiSuggestionTopP: "",
+      aiSuggestionMaxTokens: "",
+      aiSuggestionMaxCompletionTokens: "",
+      aiSuggestionPresencePenalty: "",
+      aiSuggestionFrequencyPenalty: "",
+      aiSuggestionSeed: "",
+      aiSuggestionResponseFormat: "json_object",
+      aiSuggestionReasoningEffort: "",
+      aiSuggestionStopSequences: "",
       aiSuggestionEnableThinking: false,
       aiSuggestionModel: "qwen3.5-plus",
       aiSuggestionAvailableModels: judgementAiCompareModels.slice(),
@@ -1051,7 +1231,7 @@
         120000,
         0
       ),
-      aiSuggestionEnabled: asrConfig.aiSuggestionEnabled === true,
+      aiSuggestionEnabled: true,
       aiSuggestionRequestTimeoutMs: clampNumber(
         asrConfig.aiSuggestionRequestTimeoutMs,
         defaults.aiSuggestionRequestTimeoutMs || 120000,
@@ -1071,6 +1251,40 @@
         asrConfig.aiSuggestionCompareModel || asrConfig.aiSuggestionModel,
         defaults.aiSuggestionCompareModel || defaults.aiSuggestionModel || "qwen3.5-plus"
       ),
+      aiSuggestionListenPrompt: normalizePromptText(asrConfig.aiSuggestionListenPrompt || ""),
+      aiSuggestionComparePrompt: normalizePromptText(asrConfig.aiSuggestionComparePrompt || ""),
+      aiSuggestionTemperature: normalizeOptionalNumberText(
+        asrConfig.aiSuggestionTemperature,
+        0,
+        2,
+        3
+      ),
+      aiSuggestionTopP: normalizeOptionalNumberText(asrConfig.aiSuggestionTopP, 0, 1, 3),
+      aiSuggestionMaxTokens: normalizeOptionalIntegerText(asrConfig.aiSuggestionMaxTokens, 1, 8192),
+      aiSuggestionMaxCompletionTokens: normalizeOptionalIntegerText(
+        asrConfig.aiSuggestionMaxCompletionTokens,
+        1,
+        8192
+      ),
+      aiSuggestionPresencePenalty: normalizeOptionalNumberText(
+        asrConfig.aiSuggestionPresencePenalty,
+        -2,
+        2,
+        3
+      ),
+      aiSuggestionFrequencyPenalty: normalizeOptionalNumberText(
+        asrConfig.aiSuggestionFrequencyPenalty,
+        -2,
+        2,
+        3
+      ),
+      aiSuggestionSeed: normalizeOptionalIntegerText(asrConfig.aiSuggestionSeed, 0, 2147483647),
+      aiSuggestionResponseFormat: normalizeResponseFormat(
+        asrConfig.aiSuggestionResponseFormat,
+        defaults.aiSuggestionResponseFormat || "json_object"
+      ),
+      aiSuggestionReasoningEffort: "",
+      aiSuggestionStopSequences: normalizeStopSequencesText(asrConfig.aiSuggestionStopSequences),
       aiSuggestionEnableThinking: asrConfig.aiSuggestionEnableThinking === true,
       aiSuggestionModel: normalizeJudgementAiModelText(
         asrConfig.aiSuggestionCompareModel || asrConfig.aiSuggestionModel,
@@ -1688,7 +1902,6 @@
     getElement("judgement-compact-card").checked = config.compactCardEnabled !== false;
     getElement("judgement-thunder-question").checked = config.thunderQuestionEnabled !== false;
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
-    getElement("judgement-ai-suggestion-enabled").checked = config.aiSuggestionEnabled === true;
     getElement("judgement-ai-suggestion-timeout").value = String(config.aiSuggestionRequestTimeoutMs);
     getElement("judgement-ai-suggestion-enable-thinking").checked =
       config.aiSuggestionEnableThinking === true;
@@ -1706,6 +1919,34 @@
       judgementAiCompareModels,
       "compare"
     );
+    getElement("judgement-ai-suggestion-listen-prompt").value =
+      String(config.aiSuggestionListenPrompt || "");
+    getElement("judgement-ai-suggestion-compare-prompt").value =
+      String(config.aiSuggestionComparePrompt || "");
+    getElement("judgement-ai-suggestion-temperature").value = String(
+      config.aiSuggestionTemperature || ""
+    );
+    getElement("judgement-ai-suggestion-top-p").value = String(config.aiSuggestionTopP || "");
+    getElement("judgement-ai-suggestion-max-tokens").value = String(
+      config.aiSuggestionMaxTokens || ""
+    );
+    getElement("judgement-ai-suggestion-max-completion-tokens").value = String(
+      config.aiSuggestionMaxCompletionTokens || ""
+    );
+    getElement("judgement-ai-suggestion-presence-penalty").value = String(
+      config.aiSuggestionPresencePenalty || ""
+    );
+    getElement("judgement-ai-suggestion-frequency-penalty").value = String(
+      config.aiSuggestionFrequencyPenalty || ""
+    );
+    getElement("judgement-ai-suggestion-seed").value = String(config.aiSuggestionSeed || "");
+    getElement("judgement-ai-suggestion-response-format").value =
+      config.aiSuggestionResponseFormat === "text" ? "text" : "json_object";
+    getElement("judgement-ai-suggestion-stop-sequences").value = String(
+      config.aiSuggestionStopSequences || ""
+    );
+    applyJudgementAiAdvancedFieldVisibility();
+    renderJudgementAiAdvancedPanel();
     stopJudgementShortcutRecording("");
     renderJudgementShortcutGrid();
     setStatus(
@@ -2631,7 +2872,6 @@
     const compactCardEnabled = Boolean(getElement("judgement-compact-card").checked);
     const thunderQuestionEnabled = Boolean(getElement("judgement-thunder-question").checked);
     const autoAdvanceAfterChoice = Boolean(getElement("judgement-auto-advance").checked);
-    const aiSuggestionEnabled = Boolean(getElement("judgement-ai-suggestion-enabled").checked);
     const aiSuggestionRequestTimeoutMs = clampNumber(
       Number(getElement("judgement-ai-suggestion-timeout").value),
       120000,
@@ -2653,6 +2893,56 @@
     );
     const aiSuggestionEnableThinking =
       getElement("judgement-ai-suggestion-enable-thinking").checked === true;
+    const aiSuggestionListenPrompt = normalizePromptText(
+      getElement("judgement-ai-suggestion-listen-prompt").value
+    );
+    const aiSuggestionComparePrompt = normalizePromptText(
+      getElement("judgement-ai-suggestion-compare-prompt").value
+    );
+    const aiSuggestionTemperature = isJudgementAiParamSupported("temperature")
+      ? normalizeOptionalNumberText(getElement("judgement-ai-suggestion-temperature").value, 0, 2, 3)
+      : "";
+    const aiSuggestionTopP = isJudgementAiParamSupported("top_p")
+      ? normalizeOptionalNumberText(getElement("judgement-ai-suggestion-top-p").value, 0, 1, 3)
+      : "";
+    const aiSuggestionMaxTokens = isJudgementAiParamSupported("max_tokens")
+      ? normalizeOptionalIntegerText(getElement("judgement-ai-suggestion-max-tokens").value, 1, 8192)
+      : "";
+    const aiSuggestionMaxCompletionTokens = isJudgementAiParamSupported("max_completion_tokens")
+      ? normalizeOptionalIntegerText(
+          getElement("judgement-ai-suggestion-max-completion-tokens").value,
+          1,
+          8192
+        )
+      : "";
+    const aiSuggestionPresencePenalty = isJudgementAiParamSupported("presence_penalty")
+      ? normalizeOptionalNumberText(
+          getElement("judgement-ai-suggestion-presence-penalty").value,
+          -2,
+          2,
+          3
+        )
+      : "";
+    const aiSuggestionFrequencyPenalty = isJudgementAiParamSupported("frequency_penalty")
+      ? normalizeOptionalNumberText(
+          getElement("judgement-ai-suggestion-frequency-penalty").value,
+          -2,
+          2,
+          3
+        )
+      : "";
+    const aiSuggestionSeed = isJudgementAiParamSupported("seed")
+      ? normalizeOptionalIntegerText(getElement("judgement-ai-suggestion-seed").value, 0, 2147483647)
+      : "";
+    const aiSuggestionResponseFormat = isJudgementAiParamSupported("response_format")
+      ? normalizeResponseFormat(
+          getElement("judgement-ai-suggestion-response-format").value,
+          "json_object"
+        )
+      : "json_object";
+    const aiSuggestionStopSequences = isJudgementAiParamSupported("stop")
+      ? normalizeStopSequencesText(getElement("judgement-ai-suggestion-stop-sequences").value)
+      : "";
     const aiSuggestionAvailableModels = normalizeJudgementAiAvailableModels(
       constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.aiSuggestionAvailableModels,
       judgementAiCompareModels
@@ -2690,10 +2980,22 @@
         statsAutoUploadOnSubtaskOpen: false,
         statsAutoUploadOnSchedule: true,
         statsUploadRequestTimeoutMs: 20000,
-        aiSuggestionEnabled: aiSuggestionEnabled,
+        aiSuggestionEnabled: true,
         aiSuggestionRequestTimeoutMs: aiSuggestionRequestTimeoutMs,
         aiSuggestionListenModel: aiSuggestionListenModel,
         aiSuggestionCompareModel: aiSuggestionCompareModel,
+        aiSuggestionListenPrompt: aiSuggestionListenPrompt,
+        aiSuggestionComparePrompt: aiSuggestionComparePrompt,
+        aiSuggestionTemperature: aiSuggestionTemperature,
+        aiSuggestionTopP: aiSuggestionTopP,
+        aiSuggestionMaxTokens: aiSuggestionMaxTokens,
+        aiSuggestionMaxCompletionTokens: aiSuggestionMaxCompletionTokens,
+        aiSuggestionPresencePenalty: aiSuggestionPresencePenalty,
+        aiSuggestionFrequencyPenalty: aiSuggestionFrequencyPenalty,
+        aiSuggestionSeed: aiSuggestionSeed,
+        aiSuggestionResponseFormat: aiSuggestionResponseFormat,
+        aiSuggestionReasoningEffort: "",
+        aiSuggestionStopSequences: aiSuggestionStopSequences,
         aiSuggestionEnableThinking: aiSuggestionEnableThinking,
         aiSuggestionModel: aiSuggestionCompareModel,
         aiSuggestionAvailableModels: aiSuggestionAvailableModels,
@@ -2744,6 +3046,27 @@
         endpointAdvancedRevealCount += 1;
         if (endpointAdvancedRevealCount >= 10) {
           unlockEndpointAdvancedPanel();
+        }
+      });
+    }
+
+    const detailScriptName = getElement("detail-script-name");
+    if (detailScriptName) {
+      detailScriptName.addEventListener("click", function () {
+        if (getCurrentDetailScriptId() !== judgementProjectId) {
+          return;
+        }
+        if (judgementAiAdvancedUnlocked) {
+          return;
+        }
+        const now = Date.now();
+        if (now - judgementAiAdvancedLastClickAt > 3000) {
+          judgementAiAdvancedRevealCount = 0;
+        }
+        judgementAiAdvancedLastClickAt = now;
+        judgementAiAdvancedRevealCount += 1;
+        if (judgementAiAdvancedRevealCount >= 10) {
+          unlockJudgementAiAdvancedPanel();
         }
       });
     }

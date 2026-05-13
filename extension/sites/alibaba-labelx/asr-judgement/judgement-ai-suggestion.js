@@ -13,6 +13,19 @@
   const CONSTANTS = globalThis.ASREdgeConstants || {};
   const AI_SUGGEST_PATH =
     CONSTANTS.JUDGEMENT_AI_SUGGEST_PATH || "/api/alibaba-labelx/asr-judgement/ai/suggest";
+  const JUDGEMENT_AI_ADVANCED_DEFS = Array.isArray(
+    CONSTANTS.JUDGEMENT_AI_ADVANCED_PARAM_DEFINITIONS
+  )
+    ? CONSTANTS.JUDGEMENT_AI_ADVANCED_PARAM_DEFINITIONS
+    : [];
+  const JUDGEMENT_AI_SUPPORTED_PARAMS = JUDGEMENT_AI_ADVANCED_DEFS.reduce(function (result, item) {
+    const apiKey = String(item?.apiKey || "").trim();
+    if (!apiKey) {
+      return result;
+    }
+    result[apiKey] = item?.supported !== false;
+    return result;
+  }, {});
   const CHOICE_LABELS = {
     choiceFirstBetter: "第一个更好",
     choiceSecondBetter: "第二个更好",
@@ -246,6 +259,10 @@
 
   function hasItemContext(item) {
     return Boolean(resolveItemContextText(item));
+  }
+
+  function isAdvancedParamSupported(apiKey) {
+    return JUDGEMENT_AI_SUPPORTED_PARAMS[String(apiKey || "")] === true;
   }
 
   function parseAnswerNavIndex(text) {
@@ -760,6 +777,126 @@
       }
     }
 
+    function normalizePromptText(value) {
+      return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
+    }
+
+    function normalizeOptionalNumber(value, min, max) {
+      const text = String(value || "").trim();
+      if (!text) {
+        return null;
+      }
+      const numericValue = Number(text);
+      if (!Number.isFinite(numericValue)) {
+        return null;
+      }
+      return Math.max(min, Math.min(max, numericValue));
+    }
+
+    function normalizeOptionalInteger(value, min, max) {
+      const numericValue = normalizeOptionalNumber(value, min, max);
+      if (!Number.isFinite(numericValue)) {
+        return null;
+      }
+      return Math.floor(numericValue);
+    }
+
+    function normalizeResponseFormat(value) {
+      const text = String(value || "").trim().toLowerCase();
+      if (text === "json_object" || text === "text") {
+        return text;
+      }
+      return "";
+    }
+
+    function normalizeStopSequences(value) {
+      const source = String(value || "");
+      if (!source.trim()) {
+        return [];
+      }
+      const result = [];
+      source
+        .split(/\r?\n/)
+        .map(function (item) {
+          return String(item || "").trim().slice(0, 80);
+        })
+        .filter(Boolean)
+        .forEach(function (item) {
+          if (result.length >= 8) {
+            return;
+          }
+          if (result.indexOf(item) >= 0) {
+            return;
+          }
+          result.push(item);
+        });
+      return result;
+    }
+
+    function buildAiOptions(config) {
+      const options = {};
+      options.listenModel = String(config.aiSuggestionListenModel || "qwen3.5-omni-flash").trim();
+      options.compareModel = String(
+        config.aiSuggestionCompareModel || config.aiSuggestionModel || "qwen3.5-plus"
+      ).trim();
+      const listenPrompt = normalizePromptText(config.aiSuggestionListenPrompt);
+      const comparePrompt = normalizePromptText(config.aiSuggestionComparePrompt);
+      if (listenPrompt) {
+        options.listenPrompt = listenPrompt;
+      }
+      if (comparePrompt) {
+        options.comparePrompt = comparePrompt;
+      }
+
+      const temperature = normalizeOptionalNumber(config.aiSuggestionTemperature, 0, 2);
+      if (isAdvancedParamSupported("temperature") && Number.isFinite(temperature)) {
+        options.temperature = temperature;
+      }
+      const topP = normalizeOptionalNumber(config.aiSuggestionTopP, 0, 1);
+      if (isAdvancedParamSupported("top_p") && Number.isFinite(topP)) {
+        options.top_p = topP;
+      }
+      const maxTokens = normalizeOptionalInteger(config.aiSuggestionMaxTokens, 1, 8192);
+      if (isAdvancedParamSupported("max_tokens") && Number.isFinite(maxTokens)) {
+        options.max_tokens = maxTokens;
+      }
+      const maxCompletionTokens = normalizeOptionalInteger(
+        config.aiSuggestionMaxCompletionTokens,
+        1,
+        8192
+      );
+      if (
+        isAdvancedParamSupported("max_completion_tokens") &&
+        Number.isFinite(maxCompletionTokens)
+      ) {
+        options.max_completion_tokens = maxCompletionTokens;
+      }
+      const presencePenalty = normalizeOptionalNumber(config.aiSuggestionPresencePenalty, -2, 2);
+      if (isAdvancedParamSupported("presence_penalty") && Number.isFinite(presencePenalty)) {
+        options.presence_penalty = presencePenalty;
+      }
+      const frequencyPenalty = normalizeOptionalNumber(config.aiSuggestionFrequencyPenalty, -2, 2);
+      if (isAdvancedParamSupported("frequency_penalty") && Number.isFinite(frequencyPenalty)) {
+        options.frequency_penalty = frequencyPenalty;
+      }
+      const seed = normalizeOptionalInteger(config.aiSuggestionSeed, 0, 2147483647);
+      if (isAdvancedParamSupported("seed") && Number.isFinite(seed)) {
+        options.seed = seed;
+      }
+      const responseFormat = normalizeResponseFormat(config.aiSuggestionResponseFormat);
+      if (isAdvancedParamSupported("response_format") && responseFormat) {
+        options.response_format = responseFormat;
+      }
+      const stop = normalizeStopSequences(config.aiSuggestionStopSequences);
+      if (isAdvancedParamSupported("stop") && stop.length > 0) {
+        options.stop = stop;
+      }
+      if (isAdvancedParamSupported("enable_thinking")) {
+        options.enable_thinking = config.aiSuggestionEnableThinking === true;
+      }
+      return options;
+    }
+
     function buildFailedActionResult(message, source, extra) {
       return buildActionResult(false, "AI 分析失败：" + String(message || "未知错误"), {
         reason: "ai-request-failed",
@@ -804,12 +941,6 @@
       }
 
       const config = getConfig();
-      if (config.aiSuggestionEnabled !== true) {
-        return buildActionResult(false, "AI 建议未启用，请先在 options 开启。", {
-          reason: "ai-disabled",
-          source: source || "unknown",
-        });
-      }
 
       const item = resolveCurrentItem();
       if (!(item instanceof HTMLElement)) {
@@ -883,6 +1014,7 @@
           config.aiSuggestionCompareModel || config.aiSuggestionModel || "qwen3.5-plus"
         ),
         enableThinking: config.aiSuggestionEnableThinking === true,
+        aiOptions: buildAiOptions(config),
         ruleVersion: RULE_VERSION,
         clientVersion: getClientVersion(),
       };

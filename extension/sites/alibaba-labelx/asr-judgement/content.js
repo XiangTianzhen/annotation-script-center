@@ -145,11 +145,23 @@
       statsAutoUploadOnSubtaskOpen: false,
       statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: 20000,
-      aiSuggestionEnabled: false,
+      aiSuggestionEnabled: true,
       aiSuggestionEndpoint: "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest",
       aiSuggestionRequestTimeoutMs: 120000,
       aiSuggestionListenModel: "qwen3.5-omni-flash",
       aiSuggestionCompareModel: "qwen3.5-plus",
+      aiSuggestionListenPrompt: "",
+      aiSuggestionComparePrompt: "",
+      aiSuggestionTemperature: "",
+      aiSuggestionTopP: "",
+      aiSuggestionMaxTokens: "",
+      aiSuggestionMaxCompletionTokens: "",
+      aiSuggestionPresencePenalty: "",
+      aiSuggestionFrequencyPenalty: "",
+      aiSuggestionSeed: "",
+      aiSuggestionResponseFormat: "json_object",
+      aiSuggestionReasoningEffort: "",
+      aiSuggestionStopSequences: "",
       aiSuggestionEnableThinking: false,
       aiSuggestionModel: "qwen3.5-plus",
       aiSuggestionAvailableModels: ["qwen3.5-plus", "qwen-plus", "qwen-turbo"],
@@ -210,6 +222,7 @@
 
     return Object.assign(deepMerge(defaults, projectConfig), {
       virtualWindowEnabled: false,
+      aiSuggestionEnabled: true,
       backendEndpointMode: getGlobalBackendEndpointMode(nextSettings),
     });
   }

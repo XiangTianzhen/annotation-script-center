@@ -12,14 +12,14 @@
 ## 负责范围
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
-- options 快判详情页负责保存快判专属设置：默认音量、默认倍速、倍速步进、前进 / 后退步长、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、雷题判断、AI 半自动建议、选择后辅助流转、快捷键。
+- options 快判详情页负责保存快判专属设置：默认音量、默认倍速、倍速步进、前进 / 后退步长、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、雷题判断、AI 半自动建议（默认能力）和快捷键。
 - 快判详情页和任务列表页 DOM / 网络资料统一沉淀到根目录 `platform-resources/alibaba-labelx/asr-judgement/`，供 Chrome / Edge 共用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
 
 ## AI 半自动参考建议（v2：双模型）
 
-- 前端开关字段：`aiSuggestionEnabled`，默认关闭。
+- `aiSuggestionEnabled` 保留为历史兼容字段，但 normalize 与运行时都强制为 `true`，不再提供前端启用/关闭开关。
 - AI 建议地址不再由脚本详情页单独配置；统一使用 options 首页顶部“后端接口地址”拼接：
   - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/ai/suggest`
   - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`
@@ -27,7 +27,14 @@
 - 快判 options 新增 AI 字段：
   - `aiSuggestionListenModel`（默认 `qwen3.5-omni-flash`）
   - `aiSuggestionCompareModel`（默认 `qwen3.5-plus`）
+  - `aiSuggestionListenPrompt` / `aiSuggestionComparePrompt`（可选，留空使用后端内置模板）
+  - `aiSuggestionTemperature` / `aiSuggestionTopP`
+  - `aiSuggestionMaxTokens` / `aiSuggestionMaxCompletionTokens`
+  - `aiSuggestionPresencePenalty` / `aiSuggestionFrequencyPenalty`
+  - `aiSuggestionSeed` / `aiSuggestionResponseFormat` / `aiSuggestionStopSequences`
   - `aiSuggestionEnableThinking`（默认 `false`）
+- 快判 AI 高级设置默认隐藏：在 options 快判详情页标题“阿里ASR语音判别”连续点击 10 次后显示。
+- 不支持的参数前端不显示；后端也会做白名单过滤，不透传未支持字段。
 - 快捷键动作：`shortcuts.aiSuggestCurrentItem`（默认未绑定）。
 - 触发方式：只支持工具栏按钮或快捷键手动触发，且只分析“当前题卡”；不会自动分析全页或批量请求。
 - 扩展不直连 Qwen，API Key 只在后端环境变量 `DASHSCOPE_API_KEY` 中配置。
@@ -47,7 +54,7 @@
 - 只有点击“采用建议”才会调用 `selectJudgementChoice(choiceActionKey)` 写入单选；不采用可以忽略。
 - 雷题优先级高于 AI：命中雷题会提示“雷题优先”；若 AI 与雷题标准答案冲突，会禁用“采用建议”。
 - 不记录完整 `audioUrl` 到 `chrome.storage`、DOM 属性或日志。
-- AI 建议能力本身不自动保存、不自动提交、不自动领取、不自动流转。
+- AI 建议能力本身不自动保存、不自动提交、不自动领取、不自动流转；仍需用户手动点击“AI 分析当前题”与“采用建议”。
 - 后端日志阶段至少包括：`suggest start`、`listen start/success`、`compare start/success`、`suggest success/suggest failed`；日志只记录 `requestId/hostname/itemIndex/模型/耗时/状态` 等脱敏摘要。
 - 真实链路验收必须确认 `GET /api/alibaba-labelx/asr-judgement/ai/health` 返回 `mockEnabled=false`，不得以 mock 结果替代真实调用验证。
 
@@ -266,15 +273,18 @@
 
 AI 建议补充验证：
 
-33. 在 options 快判详情页开启“AI 半自动参考建议”，确认可设置听音模型、比较模型、启用思考和请求超时。
-34. 在 options 首页顶部将“后端接口地址”切到“本机”，确认 AI 请求地址随之为 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`。
-35. 启动后端后访问 `GET /api/alibaba-labelx/asr-judgement/ai/health`，确认返回 `listenModel/compareModel/mockEnabled/hasApiKey` 等字段。
-36. 若当前题存在“上文”块，首次分析前确认 AI 卡片默认显示“使用上文理解：开”；切换为“关”后需点击“重新分析”生效。
-37. 若未配置 `DASHSCOPE_API_KEY`，触发“AI 分析当前题”，确认返回 `missing-api-key` 类错误且页面不崩溃。
-38. 若已配置 `DASHSCOPE_API_KEY`，点击“AI 分析当前题”或快捷键，确认只分析当前题卡，不会自动分析其他题卡。
-39. 确认题卡旁出现 AI 建议卡，展示听音文本、建议答案、置信度、理由、风险等级、是否使用上文、双模型信息、耗时和 requestId。
-40. 点击“采用建议”，确认最终写入动作来自 `selectJudgementChoice(choiceActionKey)`，且不会触发自动保存、自动提交、自动领取或自动流转。
-41. 命中雷题时确认“雷题优先”提示存在；若 AI 与雷题标准答案冲突，“采用建议”按钮应禁用。
+33. 在 options 快判详情页确认不再出现“启用 AI 半自动参考建议”开关，且有“默认能力、仅手动触发”的说明。
+34. 连续点击“阿里ASR语音判别”标题 10 次，确认出现“AI 高级设置（阿里ASR语音判别）”。
+35. 在高级设置中修改听音模型、比较模型、Prompt、temperature/top_p 等支持字段并保存。
+36. 确认不支持参数不会显示；若手工构造请求发送不支持参数，后端会忽略，不会透传给模型。
+37. 在 options 首页顶部将“后端接口地址”切到“本机”，确认 AI 请求地址随之为 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`。
+38. 启动后端后访问 `GET /api/alibaba-labelx/asr-judgement/ai/health`，确认返回 `listenModel/compareModel/mockEnabled/hasApiKey/supportedParams` 等字段。
+39. 若当前题存在“上文”块，首次分析前确认 AI 卡片默认显示“使用上文理解：开”；切换为“关”后需点击“重新分析”生效。
+40. 若未配置 `DASHSCOPE_API_KEY`，触发“AI 分析当前题”，确认返回 `missing-api-key` 类错误且页面不崩溃。
+41. 若已配置 `DASHSCOPE_API_KEY`，点击“AI 分析当前题”或快捷键，确认只分析当前题卡，不会自动分析其他题卡。
+42. 确认题卡旁出现 AI 建议卡，展示听音文本、建议答案、置信度、理由、风险等级、是否使用上文、双模型信息、耗时和 requestId。
+43. 点击“采用建议”，确认最终写入动作来自 `selectJudgementChoice(choiceActionKey)`，且不会触发自动保存、自动提交、自动领取或自动流转。
+44. 命中雷题时确认“雷题优先”提示存在；若 AI 与雷题标准答案冲突，“采用建议”按钮应禁用。
 
 ## 已知限制
 

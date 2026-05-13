@@ -323,6 +323,18 @@
         font: inherit;
       }
 
+      .field-card textarea {
+        width: 100%;
+        max-width: 100%;
+        min-height: 90px;
+        padding: 9px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        font: inherit;
+        resize: vertical;
+        font-family: Consolas, "Microsoft YaHei", monospace;
+      }
+
       .field-card input.wide-field {
         max-width: 100%;
       }
@@ -780,11 +792,7 @@
 
           <div class="field-card">
             <strong>AI 半自动参考建议</strong>
-            <span>默认关闭。只在你手动点击“AI 分析当前题”按钮或快捷键后分析当前题，不会自动分析全页。</span>
-            <label class="field-toggle">
-              <input id="judgement-ai-suggestion-enabled" type="checkbox" />
-              <span>启用 AI 建议</span>
-            </label>
+            <span>AI 半自动参考建议为默认能力：只在你手动点击“AI 分析当前题”按钮或快捷键后触发，不会自动采用、保存、提交、领取或流转。</span>
             <span>AI 建议后端地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
             <label>
               <span>请求超时时间 (ms)</span>
@@ -816,6 +824,70 @@
               <input id="judgement-ai-suggestion-enable-thinking" type="checkbox" />
               <span>启用思考（不支持时后端自动降级重试）</span>
             </label>
+            <div id="judgement-ai-advanced-unlock-status" class="status-text hidden"></div>
+            <div id="judgement-ai-advanced-panel" class="hidden">
+              <strong>AI 高级设置（阿里ASR语音判别）</strong>
+              <span>这些设置仅影响阿里ASR语音判别脚本，不影响转写、标贝易采和 Magic Data。</span>
+              <label>
+                <span>听音 Prompt（可选）</span>
+                <textarea
+                  id="judgement-ai-suggestion-listen-prompt"
+                  maxlength="8000"
+                  placeholder="留空时使用后端内置听音规则模板"
+                ></textarea>
+              </label>
+              <label>
+                <span>比较 Prompt（可选）</span>
+                <textarea
+                  id="judgement-ai-suggestion-compare-prompt"
+                  maxlength="8000"
+                  placeholder="留空时使用后端内置比较规则模板"
+                ></textarea>
+              </label>
+              <label>
+                <span>temperature</span>
+                <input id="judgement-ai-suggestion-temperature" type="number" min="0" max="2" step="0.1" placeholder="留空使用后端默认" />
+              </label>
+              <label>
+                <span>top_p</span>
+                <input id="judgement-ai-suggestion-top-p" type="number" min="0" max="1" step="0.05" placeholder="留空使用后端默认" />
+              </label>
+              <label>
+                <span>max_tokens</span>
+                <input id="judgement-ai-suggestion-max-tokens" type="number" min="1" max="8192" step="1" placeholder="留空使用后端默认" />
+              </label>
+              <label>
+                <span>max_completion_tokens</span>
+                <input id="judgement-ai-suggestion-max-completion-tokens" type="number" min="1" max="8192" step="1" placeholder="留空使用后端默认" />
+              </label>
+              <label>
+                <span>presence_penalty</span>
+                <input id="judgement-ai-suggestion-presence-penalty" type="number" min="-2" max="2" step="0.1" placeholder="留空使用后端默认" />
+              </label>
+              <label>
+                <span>frequency_penalty</span>
+                <input id="judgement-ai-suggestion-frequency-penalty" type="number" min="-2" max="2" step="0.1" placeholder="留空使用后端默认" />
+              </label>
+              <label>
+                <span>seed</span>
+                <input id="judgement-ai-suggestion-seed" type="number" min="0" max="2147483647" step="1" placeholder="留空不发送" />
+              </label>
+              <label>
+                <span>response_format</span>
+                <select id="judgement-ai-suggestion-response-format">
+                  <option value="json_object">json_object（默认）</option>
+                  <option value="text">text</option>
+                </select>
+              </label>
+              <label>
+                <span>stop sequences（每行一个）</span>
+                <textarea
+                  id="judgement-ai-suggestion-stop-sequences"
+                  maxlength="960"
+                  placeholder="每行一个，最多 8 行，每行最多 80 字"
+                ></textarea>
+              </label>
+            </div>
           </div>
 
           <div class="field-card">

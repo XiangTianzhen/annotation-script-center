@@ -103,8 +103,26 @@ function loadCompareTemplateText() {
   return cache.compareTemplateText;
 }
 
+function resolveTemplateText(overrideText, fallbackText) {
+  const text = String(overrideText || "").trim();
+  return text ? text.slice(0, 8000) : fallbackText;
+}
+
+function buildSafetyAppendix() {
+  return [
+    "后端安全边界（不可忽略）：",
+    "1) 只输出 JSON，不输出 Markdown 或解释段落。",
+    "2) answer 仅允许：first_better|second_better|both_bad|uncertain_or_similar|other_dialect_or_language。",
+    "3) 这是人工参考建议，不允许暗示自动采用/保存/提交/领取/流转。",
+    "4) 不输出 API Key、token、cookie、authorization、完整 URL。",
+  ].join("\n");
+}
+
 function buildListenPrompt(request) {
-  const template = loadListenTemplateText();
+  const template = resolveTemplateText(
+    request?.aiOptions?.listenPrompt,
+    loadListenTemplateText()
+  );
   const inputJson = {
     projectId: String(request?.projectId || ""),
     subTaskId: String(request?.subTaskId || ""),
@@ -121,6 +139,8 @@ function buildListenPrompt(request) {
     "",
     template,
     "",
+    buildSafetyAppendix(),
+    "",
     "输入摘要：",
     JSON.stringify(inputJson, null, 2),
   ].join("\n");
@@ -134,7 +154,10 @@ function buildListenPrompt(request) {
 }
 
 function buildComparePrompt(request, listen) {
-  const template = loadCompareTemplateText();
+  const template = resolveTemplateText(
+    request?.aiOptions?.comparePrompt,
+    loadCompareTemplateText()
+  );
   const includeContext = request?.includeContext === true && request?.contextAvailable === true;
   const inputJson = {
     asrText1: String(request?.asrText1 || ""),
@@ -154,6 +177,8 @@ function buildComparePrompt(request, listen) {
     loadRulesText(),
     "",
     template,
+    "",
+    buildSafetyAppendix(),
     "",
     "输入：",
     JSON.stringify(inputJson, null, 2),
