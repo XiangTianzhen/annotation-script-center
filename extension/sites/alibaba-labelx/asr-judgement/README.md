@@ -17,30 +17,35 @@
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
 
-## AI 半自动参考建议（v1）
-
-- 当前扩展版本：`0.2.11`。
+## AI 半自动参考建议（v2：双模型）
 
 - 前端开关字段：`aiSuggestionEnabled`，默认关闭。
 - AI 建议地址不再由脚本详情页单独配置；统一使用 options 首页顶部“后端接口地址”拼接：
   - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/ai/suggest`
   - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`
 - 请求超时字段：`aiSuggestionRequestTimeoutMs`，默认 `120000`。
-- 模型字段：`aiSuggestionModel`，第一版默认 `qwen3-omni-flash`，预留 `qwen3.5-omni-plus`。
+- 快判 options 新增 AI 字段：
+  - `aiSuggestionListenModel`（默认 `qwen3.5-omni-flash`）
+  - `aiSuggestionCompareModel`（默认 `qwen3.5-plus`）
+  - `aiSuggestionEnableThinking`（默认 `false`）
 - 快捷键动作：`shortcuts.aiSuggestCurrentItem`（默认未绑定）。
 - 触发方式：只支持工具栏按钮或快捷键手动触发，且只分析“当前题卡”；不会自动分析全页或批量请求。
 - 扩展不直连 Qwen，API Key 只在后端环境变量 `DASHSCOPE_API_KEY` 中配置。
-- 后端发给模型的文本 prompt 只包含 `asrText1/asrText2`；不包含 `projectId/subTaskId/itemId/itemIndex/audioUrl`。
-- `audioUrl` 只作为模型音频输入字段，不进入文本 prompt。
-- AI 返回后仅展示参考答案、置信度、简短理由、风险等级、是否需要人工搜索、模型和 requestId。
+- 后端为双阶段 pipeline：
+  - 第一阶段：听音模型只输出 `heardText/isValidAudio/confidence` 等听音结果。
+  - 第二阶段：比较模型结合 `heardText + asrText1/asrText2 + 可选上文` 输出“哪个更优”建议。
+- 当前题“上文”块会被采集为 `contextText`；若存在上文，AI 卡片默认“使用上文理解：开”。
+- 上文开关只在当前题 AI 卡片运行态生效，不写入全局 settings；切换后需点击“重新分析”生效。
+- 上文仅用于语义消歧，不能覆盖听音事实。
+- Qwen 音频输入使用 `messages[].content[].type=input_audio`，字段为 `input_audio.data + input_audio.format`，`format` 会按 URL 后缀推断（wav/mp3/aac/m4a/amr/3gp/3gpp，默认 wav）。
+- `enable_thinking` 参数会先按配置发送；若上游返回“不支持/参数无效”，会自动禁用或移除该参数后重试一次，不做无限重试。
 - 点击“AI 分析当前题”后，当前题卡会立即显示“正在分析当前题...”状态卡；成功后替换为建议卡；失败或超时会替换为错误卡（含“重试/忽略”）。
+- 结果卡会显示听音文本、听音置信度、建议答案、置信度、风险等级、是否使用上文、双模型信息、阶段耗时和 requestId。
 - 只有点击“采用建议”才会调用 `selectJudgementChoice(choiceActionKey)` 写入单选；不采用可以忽略。
 - 雷题优先级高于 AI：命中雷题会提示“雷题优先”；若 AI 与雷题标准答案冲突，会禁用“采用建议”。
 - 不记录完整 `audioUrl` 到 `chrome.storage`、DOM 属性或日志。
 - AI 建议能力本身不自动保存、不自动提交、不自动领取、不自动流转。
-- Qwen 音频输入使用 `messages[].content[].type=input_audio`，字段为 `input_audio.data + input_audio.format`，`format` 会按 URL 后缀推断（wav/mp3/aac/m4a/amr/3gp/3gpp，默认 wav）。
-- 后端日志阶段至少包括：`suggest start`、`provider request start`、`provider response`、`provider stream complete`、`suggest success/suggest failed`；日志只记录 `requestId/hostname/itemIndex/model/耗时/状态` 等脱敏摘要。
-- `enable_thinking` 参数会先按当前配置发送；若上游返回“不支持/参数无效”，会自动移除该参数重试一次，不做无限重试。
+- 后端日志阶段至少包括：`suggest start`、`listen start/success`、`compare start/success`、`suggest success/suggest failed`；日志只记录 `requestId/hostname/itemIndex/模型/耗时/状态` 等脱敏摘要。
 - 真实链路验收必须确认 `GET /api/alibaba-labelx/asr-judgement/ai/health` 返回 `mockEnabled=false`，不得以 mock 结果替代真实调用验证。
 
 ## 能力路线
@@ -258,13 +263,13 @@
 
 AI 建议补充验证：
 
-33. 在 options 快判详情页开启“AI 半自动参考建议”，确认默认模型是 `qwen3-omni-flash`，`qwen3.5-omni-plus` 仅作为预留可选项。
+33. 在 options 快判详情页开启“AI 半自动参考建议”，确认可设置听音模型、比较模型、启用思考和请求超时。
 34. 在 options 首页顶部将“后端接口地址”切到“本机”，确认 AI 请求地址随之为 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`。
-35. 启动后端后访问 `GET /api/alibaba-labelx/asr-judgement/ai/health`，确认返回 `provider/defaultModel/availableModels` 等字段。
-36. 用非法模型调用 `POST /api/alibaba-labelx/asr-judgement/ai/suggest`，确认返回 `HTTP 400`、`success=false`、`code=invalid-model`。
+35. 启动后端后访问 `GET /api/alibaba-labelx/asr-judgement/ai/health`，确认返回 `listenModel/compareModel/mockEnabled/hasApiKey` 等字段。
+36. 若当前题存在“上文”块，首次分析前确认 AI 卡片默认显示“使用上文理解：开”；切换为“关”后需点击“重新分析”生效。
 37. 若未配置 `DASHSCOPE_API_KEY`，触发“AI 分析当前题”，确认返回 `missing-api-key` 类错误且页面不崩溃。
 38. 若已配置 `DASHSCOPE_API_KEY`，点击“AI 分析当前题”或快捷键，确认只分析当前题卡，不会自动分析其他题卡。
-39. 确认题卡旁出现 AI 建议卡，展示建议答案、置信度、理由、风险等级、是否需要人工搜索、模型和 requestId。
+39. 确认题卡旁出现 AI 建议卡，展示听音文本、建议答案、置信度、理由、风险等级、是否使用上文、双模型信息、耗时和 requestId。
 40. 点击“采用建议”，确认最终写入动作来自 `selectJudgementChoice(choiceActionKey)`，且不会触发自动保存、自动提交、自动领取或自动流转。
 41. 命中雷题时确认“雷题优先”提示存在；若 AI 与雷题标准答案冲突，“采用建议”按钮应禁用。
 

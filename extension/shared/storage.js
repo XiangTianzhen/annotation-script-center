@@ -130,6 +130,9 @@
         "aiSuggestionEnabled",
         "aiSuggestionEndpoint",
         "aiSuggestionRequestTimeoutMs",
+        "aiSuggestionListenModel",
+        "aiSuggestionCompareModel",
+        "aiSuggestionEnableThinking",
         "aiSuggestionModel",
         "aiSuggestionAvailableModels",
         "shortcuts",
@@ -507,7 +510,7 @@
     const constants = getConstants();
     const whitelist = Array.isArray(constants.JUDGEMENT_AI_AVAILABLE_MODELS)
       ? constants.JUDGEMENT_AI_AVAILABLE_MODELS
-      : ["qwen3-omni-flash", "qwen3.5-omni-plus"];
+      : ["qwen3.5-plus", "qwen-plus", "qwen-turbo"];
     const source = Array.isArray(value) ? value : Array.isArray(fallback) ? fallback : whitelist;
     const result = [];
 
@@ -534,7 +537,15 @@
       return fallbackModel;
     }
 
-    return models[0] || "qwen3-omni-flash";
+    return models[0] || "qwen3.5-plus";
+  }
+
+  function normalizeJudgementAiModelText(value, fallback) {
+    const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    if (!text) {
+      return String(fallback || "").trim();
+    }
+    return text.slice(0, 80);
   }
 
   function normalizeClampedNumber(value, fallback, min, max, precision) {
@@ -640,11 +651,22 @@
       normalizedStatsConfig.aiSuggestionAvailableModels,
       defaults.aiSuggestionAvailableModels
     );
-    normalizedStatsConfig.aiSuggestionModel = normalizeJudgementAiModel(
+    const legacyCompareModel = normalizeJudgementAiModelText(
       normalizedStatsConfig.aiSuggestionModel,
-      defaults.aiSuggestionModel || "qwen3-omni-flash",
-      normalizedStatsConfig.aiSuggestionAvailableModels
+      defaults.aiSuggestionModel || defaults.aiSuggestionCompareModel || "qwen3.5-plus"
     );
+    normalizedStatsConfig.aiSuggestionListenModel = normalizeJudgementAiModelText(
+      normalizedStatsConfig.aiSuggestionListenModel,
+      defaults.aiSuggestionListenModel || "qwen3.5-omni-flash"
+    );
+    normalizedStatsConfig.aiSuggestionCompareModel = normalizeJudgementAiModelText(
+      normalizedStatsConfig.aiSuggestionCompareModel || legacyCompareModel,
+      defaults.aiSuggestionCompareModel || defaults.aiSuggestionModel || "qwen3.5-plus"
+    );
+    normalizedStatsConfig.aiSuggestionEnableThinking =
+      normalizedStatsConfig.aiSuggestionEnableThinking === true;
+    // legacy compatibility: keep single model field aligned with compare model.
+    normalizedStatsConfig.aiSuggestionModel = normalizedStatsConfig.aiSuggestionCompareModel;
     return normalizedStatsConfig;
   }
 

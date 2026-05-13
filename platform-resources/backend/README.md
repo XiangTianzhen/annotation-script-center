@@ -34,6 +34,12 @@ http://127.0.0.1:3333
 - `PLATFORM_RESOURCES_SERVER_HOST`：统一后端监听地址，默认 `127.0.0.1`。
 - `PLATFORM_RESOURCES_SERVER_PORT`：统一后端监听端口，默认 `3333`。
 - `ASR_JUDGEMENT_SERVER_HOST` / `ASR_JUDGEMENT_SERVER_PORT`：兼容旧快判本地服务启动配置。
+- `ASR_JUDGEMENT_AI_LISTEN_MODEL`：快判 AI 听音模型，默认 `qwen3.5-omni-flash`。
+- `ASR_JUDGEMENT_AI_COMPARE_MODEL`：快判 AI 文本比较模型，默认 `qwen3.5-plus`。
+- `ASR_JUDGEMENT_AI_TIMEOUT_MS`：快判 AI 请求超时，默认 `120000`。
+- `ASR_JUDGEMENT_AI_ENABLE_THINKING`：默认 `0`，开启时尝试传 `enable_thinking=true`。
+- `ASR_JUDGEMENT_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
+- `ASR_JUDGEMENT_AI_MODEL`：历史兼容 compare model fallback（建议迁移到 `ASR_JUDGEMENT_AI_COMPARE_MODEL`）。
 - `ASR_TRANSCRIPTION_STATS_DIR`：ASR 转写统计输出目录（默认 `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`）。
 - `ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`：设为 `1` 时额外保存 `statistics-rows.json`。
 - `ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外保存 `statistics-upload-events.jsonl`。

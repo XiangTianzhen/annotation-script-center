@@ -216,7 +216,13 @@
     { value: "kimi/kimi-k2.5", label: "Kimi-K2.5" },
   ];
 
-  const JUDGEMENT_AI_AVAILABLE_MODELS = ["qwen3-omni-flash", "qwen3.5-omni-plus"];
+  const JUDGEMENT_AI_LISTEN_MODELS = [
+    "qwen3.5-omni-flash",
+    "qwen3-omni-flash",
+    "qwen3.5-omni-plus",
+  ];
+  const JUDGEMENT_AI_COMPARE_MODELS = ["qwen3.5-plus", "qwen-plus", "qwen-turbo"];
+  const JUDGEMENT_AI_AVAILABLE_MODELS = clone(JUDGEMENT_AI_COMPARE_MODELS);
 
   const DEFAULT_CUSTOM_REPLACEMENTS = [
     { from: "小二,小恶,小乐,小额", to: "小饿" },
@@ -342,7 +348,10 @@
     aiSuggestionEnabled: false,
     aiSuggestionEndpoint: JUDGEMENT_AI_SUGGEST_SERVER_ENDPOINT,
     aiSuggestionRequestTimeoutMs: 120000,
-    aiSuggestionModel: "qwen3-omni-flash",
+    aiSuggestionListenModel: "qwen3.5-omni-flash",
+    aiSuggestionCompareModel: "qwen3.5-plus",
+    aiSuggestionEnableThinking: false,
+    aiSuggestionModel: "qwen3.5-plus",
     aiSuggestionAvailableModels: clone(JUDGEMENT_AI_AVAILABLE_MODELS),
     shortcuts: {
       choiceFirstBetter: createShortcut("1"),
@@ -406,6 +415,9 @@
     "aiSuggestionEnabled",
     "aiSuggestionEndpoint",
     "aiSuggestionRequestTimeoutMs",
+    "aiSuggestionListenModel",
+    "aiSuggestionCompareModel",
+    "aiSuggestionEnableThinking",
     "aiSuggestionModel",
     "aiSuggestionAvailableModels",
     "shortcuts",
@@ -844,6 +856,8 @@
     MESSAGE_TYPES: MESSAGE_TYPES,
     PAGE_OPTIONS: PAGE_OPTIONS,
     AI_MODEL_OPTIONS: AI_MODEL_OPTIONS,
+    JUDGEMENT_AI_LISTEN_MODELS: clone(JUDGEMENT_AI_LISTEN_MODELS),
+    JUDGEMENT_AI_COMPARE_MODELS: clone(JUDGEMENT_AI_COMPARE_MODELS),
     JUDGEMENT_AI_AVAILABLE_MODELS: clone(JUDGEMENT_AI_AVAILABLE_MODELS),
     DEFAULT_CUSTOM_REPLACEMENTS: clone(DEFAULT_CUSTOM_REPLACEMENTS),
     DEFAULT_CUSTOM_RATES: clone(DEFAULT_CUSTOM_RATES),

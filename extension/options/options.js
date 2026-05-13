@@ -64,9 +64,12 @@
     { key: "taskPartialReject", label: "任务判定：部分驳回" },
     { key: "taskFullReject", label: "任务判定：全部驳回" },
   ];
-  const judgementAiSuggestionModels = Array.isArray(constants.JUDGEMENT_AI_AVAILABLE_MODELS)
-    ? constants.JUDGEMENT_AI_AVAILABLE_MODELS
-    : ["qwen3-omni-flash", "qwen3.5-omni-plus"];
+  const judgementAiListenModels = Array.isArray(constants.JUDGEMENT_AI_LISTEN_MODELS)
+    ? constants.JUDGEMENT_AI_LISTEN_MODELS
+    : ["qwen3.5-omni-flash", "qwen3-omni-flash", "qwen3.5-omni-plus"];
+  const judgementAiCompareModels = Array.isArray(constants.JUDGEMENT_AI_COMPARE_MODELS)
+    ? constants.JUDGEMENT_AI_COMPARE_MODELS
+    : ["qwen3.5-plus", "qwen-plus", "qwen-turbo"];
   const judgementShortcutActions = constants.JUDGEMENT_SHORTCUT_ACTIONS || [
     { key: "choiceFirstBetter", label: "选择：第一个更好" },
     { key: "choiceSecondBetter", label: "选择：第二个更好" },
@@ -345,64 +348,107 @@
     return fallbackMode === backendModeLocal ? backendModeLocal : backendModeServer;
   }
 
+  function normalizeJudgementAiModelText(value, fallback) {
+    const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    if (!text) {
+      return String(fallback || "").trim();
+    }
+    return text.slice(0, 80);
+  }
+
   function normalizeJudgementAiAvailableModels(value, fallback) {
-    const source = Array.isArray(value) ? value : Array.isArray(fallback) ? fallback : judgementAiSuggestionModels;
+    const source = Array.isArray(value) ? value : Array.isArray(fallback) ? fallback : [];
     const result = [];
     source.forEach(function (item) {
-      const model = String(item || "").trim();
-      if (
-        !model ||
-        judgementAiSuggestionModels.indexOf(model) < 0 ||
-        result.indexOf(model) >= 0
-      ) {
+      const model = normalizeJudgementAiModelText(item, "");
+      if (!model || result.indexOf(model) >= 0) {
         return;
       }
       result.push(model);
     });
-    return result.length > 0 ? result : judgementAiSuggestionModels.slice();
+    return result;
   }
 
-  function normalizeJudgementAiModel(value, availableModels, fallback) {
-    const model = String(value || "").trim();
-    if (model && availableModels.indexOf(model) >= 0) {
-      return model;
-    }
-
-    const fallbackModel = String(fallback || "").trim();
-    if (fallbackModel && availableModels.indexOf(fallbackModel) >= 0) {
-      return fallbackModel;
-    }
-    return availableModels[0] || "qwen3-omni-flash";
+  function isJudgementPresetModel(modelName, presetList) {
+    return Array.isArray(presetList) && presetList.indexOf(modelName) >= 0;
   }
 
-  function formatJudgementAiModelLabel(model) {
-    if (model === "qwen3-omni-flash") {
-      return "qwen3-omni-flash（默认）";
+  function formatJudgementAiModelLabel(model, role) {
+    if (role === "listen" && model === "qwen3.5-omni-flash") {
+      return "qwen3.5-omni-flash（默认）";
     }
-    if (model === "qwen3.5-omni-plus") {
-      return "qwen3.5-omni-plus（预留）";
+    if (role === "compare" && model === "qwen3.5-plus") {
+      return "qwen3.5-plus（默认）";
     }
     return model;
   }
 
-  function renderJudgementAiModelOptions(models, selectedModel) {
-    const select = getElement("judgement-ai-suggestion-model");
-    if (!(select instanceof HTMLSelectElement)) {
+  function renderJudgementAiModelOptions(selectId, models, selectedModel, role) {
+    const selectNode = getElement(selectId);
+    if (!(selectNode instanceof HTMLSelectElement)) {
       return;
     }
-
-    select.innerHTML = models
+    selectNode.innerHTML = (Array.isArray(models) ? models : [])
       .map(function (model) {
         return (
           '<option value="' +
           escapeHtml(model) +
           '">' +
-          escapeHtml(formatJudgementAiModelLabel(model)) +
+          escapeHtml(formatJudgementAiModelLabel(model, role)) +
           "</option>"
         );
       })
-      .join("");
-    select.value = normalizeJudgementAiModel(selectedModel, models, models[0]);
+      .join("") +
+      '<option value="custom">自定义</option>';
+
+    const normalizedModel = normalizeJudgementAiModelText(selectedModel, "");
+    selectNode.value = isJudgementPresetModel(normalizedModel, models)
+      ? normalizedModel
+      : "custom";
+  }
+
+  function applyJudgementModelField(selectId, customInputId, modelName, presetList, role) {
+    const selectNode = getElement(selectId);
+    const customNode = getElement(customInputId);
+    if (!(selectNode instanceof HTMLSelectElement) || !(customNode instanceof HTMLInputElement)) {
+      return;
+    }
+    const normalizedModel = normalizeJudgementAiModelText(modelName, "");
+    renderJudgementAiModelOptions(selectId, presetList, normalizedModel, role);
+    const useCustom = !normalizedModel || !isJudgementPresetModel(normalizedModel, presetList);
+    selectNode.value = useCustom ? "custom" : normalizedModel;
+    customNode.value = useCustom ? normalizedModel : "";
+    customNode.classList.toggle("hidden", !useCustom);
+  }
+
+  function readJudgementModelField(selectId, customInputId, fallback, presetList) {
+    const selectNode = getElement(selectId);
+    const customNode = getElement(customInputId);
+    if (!(selectNode instanceof HTMLSelectElement) || !(customNode instanceof HTMLInputElement)) {
+      return normalizeJudgementAiModelText(fallback, fallback);
+    }
+    if (selectNode.value === "custom") {
+      return normalizeJudgementAiModelText(customNode.value, fallback);
+    }
+    if (isJudgementPresetModel(selectNode.value, presetList)) {
+      return normalizeJudgementAiModelText(selectNode.value, fallback);
+    }
+    return normalizeJudgementAiModelText(fallback, fallback);
+  }
+
+  function bindJudgementModelSelect(selectId, customInputId) {
+    const selectNode = getElement(selectId);
+    const customNode = getElement(customInputId);
+    if (!(selectNode instanceof HTMLSelectElement) || !(customNode instanceof HTMLInputElement)) {
+      return;
+    }
+    selectNode.addEventListener("change", function () {
+      const useCustom = selectNode.value === "custom";
+      customNode.classList.toggle("hidden", !useCustom);
+      if (useCustom) {
+        customNode.focus();
+      }
+    });
   }
 
   function normalizeJudgementRateStep(value, fallback) {
@@ -884,8 +930,11 @@
       statsUploadRequestTimeoutMs: 20000,
       aiSuggestionEnabled: false,
       aiSuggestionRequestTimeoutMs: 120000,
-      aiSuggestionModel: "qwen3-omni-flash",
-      aiSuggestionAvailableModels: judgementAiSuggestionModels.slice(),
+      aiSuggestionListenModel: "qwen3.5-omni-flash",
+      aiSuggestionCompareModel: "qwen3.5-plus",
+      aiSuggestionEnableThinking: false,
+      aiSuggestionModel: "qwen3.5-plus",
+      aiSuggestionAvailableModels: judgementAiCompareModels.slice(),
       shortcuts: {
         volumeUp: {
           ctrl: false,
@@ -1014,13 +1063,18 @@
         asrConfig.aiSuggestionAvailableModels,
         defaults.aiSuggestionAvailableModels
       ),
-      aiSuggestionModel: normalizeJudgementAiModel(
-        asrConfig.aiSuggestionModel,
-        normalizeJudgementAiAvailableModels(
-          asrConfig.aiSuggestionAvailableModels,
-          defaults.aiSuggestionAvailableModels
-        ),
-        defaults.aiSuggestionModel || "qwen3-omni-flash"
+      aiSuggestionListenModel: normalizeJudgementAiModelText(
+        asrConfig.aiSuggestionListenModel,
+        defaults.aiSuggestionListenModel || "qwen3.5-omni-flash"
+      ),
+      aiSuggestionCompareModel: normalizeJudgementAiModelText(
+        asrConfig.aiSuggestionCompareModel || asrConfig.aiSuggestionModel,
+        defaults.aiSuggestionCompareModel || defaults.aiSuggestionModel || "qwen3.5-plus"
+      ),
+      aiSuggestionEnableThinking: asrConfig.aiSuggestionEnableThinking === true,
+      aiSuggestionModel: normalizeJudgementAiModelText(
+        asrConfig.aiSuggestionCompareModel || asrConfig.aiSuggestionModel,
+        defaults.aiSuggestionCompareModel || defaults.aiSuggestionModel || "qwen3.5-plus"
       ),
       shortcuts: shortcuts,
     };
@@ -1636,7 +1690,22 @@
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     getElement("judgement-ai-suggestion-enabled").checked = config.aiSuggestionEnabled === true;
     getElement("judgement-ai-suggestion-timeout").value = String(config.aiSuggestionRequestTimeoutMs);
-    renderJudgementAiModelOptions(config.aiSuggestionAvailableModels, config.aiSuggestionModel);
+    getElement("judgement-ai-suggestion-enable-thinking").checked =
+      config.aiSuggestionEnableThinking === true;
+    applyJudgementModelField(
+      "judgement-ai-suggestion-listen-model-select",
+      "judgement-ai-suggestion-listen-model-custom",
+      config.aiSuggestionListenModel,
+      judgementAiListenModels,
+      "listen"
+    );
+    applyJudgementModelField(
+      "judgement-ai-suggestion-compare-model-select",
+      "judgement-ai-suggestion-compare-model-custom",
+      config.aiSuggestionCompareModel,
+      judgementAiCompareModels,
+      "compare"
+    );
     stopJudgementShortcutRecording("");
     renderJudgementShortcutGrid();
     setStatus(
@@ -2570,14 +2639,23 @@
       180000,
       0
     );
+    const aiSuggestionListenModel = readJudgementModelField(
+      "judgement-ai-suggestion-listen-model-select",
+      "judgement-ai-suggestion-listen-model-custom",
+      "qwen3.5-omni-flash",
+      judgementAiListenModels
+    );
+    const aiSuggestionCompareModel = readJudgementModelField(
+      "judgement-ai-suggestion-compare-model-select",
+      "judgement-ai-suggestion-compare-model-custom",
+      "qwen3.5-plus",
+      judgementAiCompareModels
+    );
+    const aiSuggestionEnableThinking =
+      getElement("judgement-ai-suggestion-enable-thinking").checked === true;
     const aiSuggestionAvailableModels = normalizeJudgementAiAvailableModels(
       constants.DEFAULT_JUDGEMENT_ASR_CONFIG?.aiSuggestionAvailableModels,
-      judgementAiSuggestionModels
-    );
-    const aiSuggestionModel = normalizeJudgementAiModel(
-      getElement("judgement-ai-suggestion-model").value,
-      aiSuggestionAvailableModels,
-      "qwen3-omni-flash"
+      judgementAiCompareModels
     );
     const shortcuts = {};
 
@@ -2614,7 +2692,10 @@
         statsUploadRequestTimeoutMs: 20000,
         aiSuggestionEnabled: aiSuggestionEnabled,
         aiSuggestionRequestTimeoutMs: aiSuggestionRequestTimeoutMs,
-        aiSuggestionModel: aiSuggestionModel,
+        aiSuggestionListenModel: aiSuggestionListenModel,
+        aiSuggestionCompareModel: aiSuggestionCompareModel,
+        aiSuggestionEnableThinking: aiSuggestionEnableThinking,
+        aiSuggestionModel: aiSuggestionCompareModel,
         aiSuggestionAvailableModels: aiSuggestionAvailableModels,
         shortcuts: shortcuts,
       });
@@ -2703,6 +2784,14 @@
 
     bindMagicDataModelSelect("magic-data-listen-model-select", "magic-data-listen-model-custom");
     bindMagicDataModelSelect("magic-data-review-model-select", "magic-data-review-model-custom");
+    bindJudgementModelSelect(
+      "judgement-ai-suggestion-listen-model-select",
+      "judgement-ai-suggestion-listen-model-custom"
+    );
+    bindJudgementModelSelect(
+      "judgement-ai-suggestion-compare-model-select",
+      "judgement-ai-suggestion-compare-model-custom"
+    );
 
     getElement("home-endpoint-server").addEventListener("click", function () {
       void setHomeBackendEndpoint("server");

@@ -3,78 +3,173 @@
 const fs = require("fs");
 const path = require("path");
 
+const RULE_VERSION = "asr-judgement-ai-v2";
 const AI_RESOURCE_DIR = path.join(__dirname, "..", "ai");
-const RULES_PATH = path.join(AI_RESOURCE_DIR, "rules.ai.md");
-const TEMPLATE_PATH = path.join(AI_RESOURCE_DIR, "prompt-template.md");
-const FEWSHOT_PATH = path.join(AI_RESOURCE_DIR, "fewshot-examples.json");
+const RULES_PATH = path.join(AI_RESOURCE_DIR, "rules-v2.ai.md");
+const LISTEN_TEMPLATE_PATH = path.join(AI_RESOURCE_DIR, "listen-prompt-template.md");
+const COMPARE_TEMPLATE_PATH = path.join(AI_RESOURCE_DIR, "compare-prompt-template.md");
+
+const FALLBACK_RULES_TEXT = [
+  "# 阿里 LabelX ASR 快判 AI 规则（v2）",
+  "",
+  "1. 听音结果优先级最高。",
+  "2. asrText1/asrText2 仅为候选。",
+  "3. 上文只用于语义消歧，不能覆盖听音事实。",
+  "4. 不确定时降低置信度并提示人工复核。",
+  "5. 只输出 JSON，不输出 Markdown。",
+].join("\n");
+
+const FALLBACK_LISTEN_TEMPLATE = [
+  "你是 ASR 快判听音模型。",
+  "",
+  "请只根据音频输出 JSON，字段必须包含：",
+  "- heardText: string",
+  "- confidence: 0~1",
+  "- isValidAudio: boolean",
+  "- invalidReasons: string[]",
+  "- uncertainParts: string[]",
+  "- audioNotes: string（可选，20字以内）",
+  "",
+  "若音频无效、不可访问、无语音或严重噪音，请 isValidAudio=false，并给出 invalidReasons。",
+  "不要输出 JSON 之外内容。",
+].join("\n");
+
+const FALLBACK_COMPARE_TEMPLATE = [
+  "你是 ASR 快判比较模型。",
+  "",
+  "请结合听音结果和候选文本判断哪个更优。",
+  "输出 JSON 字段：",
+  "- answer: first_better|second_better|both_bad|uncertain_or_similar|other_dialect_or_language",
+  "- answerText: 中文短语",
+  "- confidence: 0~1",
+  "- reasonSummary: 30字以内",
+  "- riskLevel: low|medium|high",
+  "- needManualSearch: boolean",
+  "- shouldWarnBeforeApply: boolean",
+  "- contextUsed: boolean",
+  "- evidence: { heardText, asrText1Match, asrText2Match, contextHint }",
+  "",
+  "注意：上文只能用于消歧，不能覆盖音频听感。",
+  "不要输出 JSON 之外内容。",
+].join("\n");
 
 const cache = {
   rulesText: null,
-  templateText: null,
-  fewshotExamples: null,
+  listenTemplateText: null,
+  compareTemplateText: null,
 };
 
-function readUtf8File(filePath) {
-  return fs.readFileSync(filePath, "utf8");
+function readUtf8FileOrFallback(filePath, fallbackText) {
+  try {
+    const text = fs.readFileSync(filePath, "utf8");
+    const trimmed = String(text || "").trim();
+    return trimmed || fallbackText;
+  } catch (error) {
+    return fallbackText;
+  }
 }
 
 function loadRulesText() {
   if (typeof cache.rulesText === "string") {
     return cache.rulesText;
   }
-  cache.rulesText = readUtf8File(RULES_PATH).trim();
+  cache.rulesText = readUtf8FileOrFallback(RULES_PATH, FALLBACK_RULES_TEXT);
   return cache.rulesText;
 }
 
-function loadTemplateText() {
-  if (typeof cache.templateText === "string") {
-    return cache.templateText;
+function loadListenTemplateText() {
+  if (typeof cache.listenTemplateText === "string") {
+    return cache.listenTemplateText;
   }
-  cache.templateText = readUtf8File(TEMPLATE_PATH).trim();
-  return cache.templateText;
+  cache.listenTemplateText = readUtf8FileOrFallback(
+    LISTEN_TEMPLATE_PATH,
+    FALLBACK_LISTEN_TEMPLATE
+  );
+  return cache.listenTemplateText;
 }
 
-function loadFewshotExamples() {
-  if (Array.isArray(cache.fewshotExamples)) {
-    return cache.fewshotExamples;
+function loadCompareTemplateText() {
+  if (typeof cache.compareTemplateText === "string") {
+    return cache.compareTemplateText;
   }
-  const rawText = readUtf8File(FEWSHOT_PATH);
-  const parsed = JSON.parse(rawText);
-  cache.fewshotExamples = Array.isArray(parsed) ? parsed : [];
-  return cache.fewshotExamples;
+  cache.compareTemplateText = readUtf8FileOrFallback(
+    COMPARE_TEMPLATE_PATH,
+    FALLBACK_COMPARE_TEMPLATE
+  );
+  return cache.compareTemplateText;
 }
 
-function buildPrompt(request) {
-  const ruleVersion = String(request?.ruleVersion || "asr-judgement-ai-v1");
-  const rulesText = loadRulesText();
-  const templateText = loadTemplateText();
-  const fewshotExamples = loadFewshotExamples();
+function buildListenPrompt(request) {
+  const template = loadListenTemplateText();
   const inputJson = {
-    asrText1: String(request?.asrText1 || ""),
-    asrText2: String(request?.asrText2 || ""),
+    projectId: String(request?.projectId || ""),
+    subTaskId: String(request?.subTaskId || ""),
+    itemId: String(request?.itemId || ""),
+    itemIndex: Number(request?.itemIndex || 0),
+    audioUrlAvailable: Boolean(request?.audioUrl),
   };
 
-  const userPrompt = templateText
-    .replace(/\{\{ruleVersion\}\}/g, ruleVersion)
-    .replace(/\{\{rules\}\}/g, rulesText)
-    .replace(/\{\{fewshots\}\}/g, JSON.stringify(fewshotExamples, null, 2))
-    .replace(/\{\{inputJson\}\}/g, JSON.stringify(inputJson, null, 2));
+  const userPrompt = [
+    "ruleVersion: " + RULE_VERSION,
+    "",
+    "规则：",
+    loadRulesText(),
+    "",
+    template,
+    "",
+    "输入摘要：",
+    JSON.stringify(inputJson, null, 2),
+  ].join("\n");
 
   return {
     systemPrompt:
-      "你是 Alibaba LabelX ASR 快判辅助模型。只输出 JSON，不要输出 JSON 以外文本。",
+      "你是 Alibaba LabelX ASR 快判听音助手。只输出 JSON，不要输出 JSON 以外文本。",
     userPrompt,
-    ruleVersion,
+    ruleVersion: RULE_VERSION,
+  };
+}
+
+function buildComparePrompt(request, listen) {
+  const template = loadCompareTemplateText();
+  const includeContext = request?.includeContext === true && request?.contextAvailable === true;
+  const inputJson = {
+    asrText1: String(request?.asrText1 || ""),
+    asrText2: String(request?.asrText2 || ""),
+    heardText: String(listen?.heardText || ""),
+    listenConfidence: Number(listen?.confidence || 0),
+    isValidAudio: listen?.isValidAudio !== false,
+    invalidReasons: Array.isArray(listen?.invalidReasons) ? listen.invalidReasons : [],
+    includeContext: includeContext,
+    contextText: includeContext ? String(request?.contextText || "") : "",
+  };
+
+  const userPrompt = [
+    "ruleVersion: " + RULE_VERSION,
+    "",
+    "规则：",
+    loadRulesText(),
+    "",
+    template,
+    "",
+    "输入：",
+    JSON.stringify(inputJson, null, 2),
+  ].join("\n");
+
+  return {
+    systemPrompt:
+      "你是 Alibaba LabelX ASR 快判比较助手。只输出 JSON，不要输出 JSON 以外文本。",
+    userPrompt,
+    ruleVersion: RULE_VERSION,
   };
 }
 
 module.exports = {
   AI_RESOURCE_DIR,
   RULES_PATH,
-  TEMPLATE_PATH,
-  FEWSHOT_PATH,
-  buildPrompt,
-  loadFewshotExamples,
+  LISTEN_TEMPLATE_PATH,
+  COMPARE_TEMPLATE_PATH,
+  RULE_VERSION,
+  buildListenPrompt,
+  buildComparePrompt,
   loadRulesText,
-  loadTemplateText,
 };

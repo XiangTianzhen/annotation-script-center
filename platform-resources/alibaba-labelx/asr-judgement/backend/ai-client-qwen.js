@@ -1,60 +1,68 @@
 "use strict";
 
-const AVAILABLE_MODELS = ["qwen3-omni-flash", "qwen3.5-omni-plus"];
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const DEFAULT_MODEL = "qwen3-omni-flash";
+const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
+const DEFAULT_COMPARE_MODEL = "qwen3.5-plus";
 
 function trimSlash(value) {
   return String(value || "").replace(/\/+$/, "");
+}
+
+function parseBoolean(value, fallback) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) {
+    return fallback === true;
+  }
+  return text === "1" || text === "true" || text === "yes" || text === "on";
 }
 
 function isMockEnabled() {
   return String(process.env.ASR_JUDGEMENT_AI_MOCK || "").trim() === "1";
 }
 
-function isAllowedModel(model) {
-  const value = String(model || "").trim();
-  return AVAILABLE_MODELS.indexOf(value) >= 0;
-}
-
-function resolveDefaultModel(model) {
-  const value = String(model || "").trim();
-  if (isAllowedModel(value)) {
-    return value;
+function parseTimeoutMs() {
+  const value = Number(process.env.ASR_JUDGEMENT_AI_TIMEOUT_MS || 120000);
+  if (!Number.isFinite(value)) {
+    return 120000;
   }
-  return DEFAULT_MODEL;
+  return Math.max(1000, Math.min(300000, Math.floor(value)));
 }
 
-function resolveRequestModel(requestedModel, defaultModel) {
-  const text = String(requestedModel || "").trim();
+function sanitizeModelName(value, fallback) {
+  const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
   if (!text) {
-    return {
-      model: resolveDefaultModel(defaultModel),
-      source: "default",
-      valid: true,
-    };
+    return String(fallback || "").trim();
   }
-
-  if (!isAllowedModel(text)) {
-    return {
-      model: text,
-      source: "request",
-      valid: false,
-    };
-  }
-
-  return {
-    model: text,
-    source: "request",
-    valid: true,
-  };
+  return text.slice(0, 80);
 }
 
-function parseEnableThinking() {
-  const value = String(process.env.ASR_JUDGEMENT_AI_ENABLE_THINKING || "0")
-    .trim()
-    .toLowerCase();
-  return value === "1" || value === "true" || value === "yes" || value === "on";
+function getClientConfig() {
+  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
+  const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
+  const legacyModel = sanitizeModelName(process.env.ASR_JUDGEMENT_AI_MODEL, "");
+  const listenModel = sanitizeModelName(
+    process.env.ASR_JUDGEMENT_AI_LISTEN_MODEL,
+    DEFAULT_LISTEN_MODEL
+  );
+  const compareModel = sanitizeModelName(
+    process.env.ASR_JUDGEMENT_AI_COMPARE_MODEL,
+    legacyModel || DEFAULT_COMPARE_MODEL
+  );
+  return {
+    apiKey,
+    baseUrl,
+    hasApiKey: Boolean(apiKey),
+    mockEnabled: isMockEnabled(),
+    timeoutMs: parseTimeoutMs(),
+    listenModel: listenModel || DEFAULT_LISTEN_MODEL,
+    compareModel: compareModel || DEFAULT_COMPARE_MODEL,
+    legacyModel: legacyModel || "",
+    enableThinkingDefault: parseBoolean(process.env.ASR_JUDGEMENT_AI_ENABLE_THINKING, false),
+    allowClientModelOverride: parseBoolean(
+      process.env.ASR_JUDGEMENT_AI_ALLOW_CLIENT_MODEL_OVERRIDE,
+      true
+    ),
+  };
 }
 
 function inferAudioFormat(audioUrl) {
@@ -77,42 +85,7 @@ function inferAudioFormat(audioUrl) {
     "3gp": "3gp",
     "3gpp": "3gpp",
   };
-
   return supportedFormats[ext] || "wav";
-}
-
-function getClientConfig() {
-  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
-  const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
-  const configuredDefaultModel = String(process.env.ASR_JUDGEMENT_AI_MODEL || "").trim();
-  const effectiveDefaultModel = resolveDefaultModel(configuredDefaultModel || DEFAULT_MODEL);
-  return {
-    apiKey,
-    baseUrl,
-    configuredDefaultModel,
-    effectiveDefaultModel,
-    defaultModel: effectiveDefaultModel,
-    availableModels: AVAILABLE_MODELS.slice(),
-    mockEnabled: isMockEnabled(),
-    hasApiKey: Boolean(apiKey),
-    enableThinking: parseEnableThinking(),
-  };
-}
-
-function buildMockResponse(input, model) {
-  const firstLength = String(input?.asrText1 || "").length;
-  const secondLength = String(input?.asrText2 || "").length;
-  const answer = firstLength >= secondLength ? "first_better" : "second_better";
-  return JSON.stringify({
-    answer,
-    answerText: answer === "first_better" ? "第一个更好" : "第二个更好",
-    confidence: 0.72,
-    reasonSummary: "Mock 模式：按文本长度给出示例建议，仅用于调试。",
-    riskLevel: "medium",
-    needManualSearch: false,
-    shouldWarnBeforeApply: false,
-    model: model,
-  });
 }
 
 function sanitizeProviderErrorSummary(text) {
@@ -164,17 +137,14 @@ function extractCompletionText(payload) {
   if (!choice) {
     return "";
   }
-
   const deltaText = extractTextFromContent(choice?.delta?.content);
   if (deltaText) {
     return deltaText;
   }
-
   const messageText = extractTextFromContent(choice?.message?.content);
   if (messageText) {
     return messageText;
   }
-
   return "";
 }
 
@@ -213,7 +183,6 @@ async function readStreamCompletion(response, options) {
     } catch (error) {
       aggregatedText = rawText;
     }
-
     return {
       text: aggregatedText,
       usage,
@@ -231,17 +200,15 @@ async function readStreamCompletion(response, options) {
     if (!trimmed || !trimmed.startsWith("data:")) {
       return;
     }
-
     const payloadText = trimmed.slice(5).trim();
     if (!payloadText || payloadText === "[DONE]") {
       return;
     }
-
     try {
       const payload = JSON.parse(payloadText);
       applyPayload(payload);
     } catch (error) {
-      // ignore non-json data lines
+      // ignore malformed data lines
     }
   }
 
@@ -250,7 +217,6 @@ async function readStreamCompletion(response, options) {
     if (result.done) {
       break;
     }
-
     buffer += decoder.decode(result.value, { stream: true });
     const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() || "";
@@ -272,7 +238,6 @@ function isEnableThinkingUnsupportedError(error) {
   if (!error || error.code !== "provider-http-error") {
     return false;
   }
-
   const summary = String(error.summary || error.message || "").toLowerCase();
   return (
     summary.indexOf("enable_thinking") >= 0 ||
@@ -281,51 +246,13 @@ function isEnableThinkingUnsupportedError(error) {
   );
 }
 
-function createRequestBody(input, prompt, model, enableThinking) {
-  return {
-    model,
-    stream: true,
-    stream_options: {
-      include_usage: true,
-    },
-    modalities: ["text"],
-    messages: [
-      {
-        role: "system",
-        content: String(prompt?.systemPrompt || ""),
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_audio",
-            input_audio: {
-              data: String(input?.audioUrl || ""),
-              format: inferAudioFormat(input?.audioUrl || ""),
-            },
-          },
-          {
-            type: "text",
-            text: String(prompt?.userPrompt || ""),
-          },
-        ],
-      },
-    ],
-    response_format: {
-      type: "json_object",
-    },
-    temperature: 0.1,
-    enable_thinking: enableThinking === true,
-  };
-}
-
 async function requestChatCompletion(config, requestBody, options) {
   if (typeof fetch !== "function") {
     throw new Error("当前 Node 运行时不支持 fetch。");
   }
 
   const controller = typeof AbortController === "function" ? new AbortController() : null;
-  const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || 120000);
+  const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs || 120000);
   const timer = controller
     ? setTimeout(function () {
         controller.abort();
@@ -340,6 +267,7 @@ async function requestChatCompletion(config, requestBody, options) {
     hostname: String(options?.hostname || ""),
     itemIndex: Number(options?.itemIndex || 0),
     model: String(options?.model || ""),
+    stage: String(options?.stage || ""),
   });
 
   try {
@@ -359,6 +287,7 @@ async function requestChatCompletion(config, requestBody, options) {
       hostname: String(options?.hostname || ""),
       itemIndex: Number(options?.itemIndex || 0),
       model: String(options?.model || ""),
+      stage: String(options?.stage || ""),
       providerStatus,
       durationMs: Math.max(0, Date.now() - providerRequestStartedAt),
     });
@@ -391,6 +320,7 @@ async function requestChatCompletion(config, requestBody, options) {
       hostname: String(options?.hostname || ""),
       itemIndex: Number(options?.itemIndex || 0),
       model: String(options?.model || ""),
+      stage: String(options?.stage || ""),
       providerStatus,
       chunkCount: Number(completion.chunkCount || 0),
       rawTextLength: text.length,
@@ -408,8 +338,7 @@ async function requestChatCompletion(config, requestBody, options) {
     };
   } catch (error) {
     if (error?.name === "AbortError") {
-      const timeoutError = new Error("Qwen 请求超时。",
-      );
+      const timeoutError = new Error("Qwen 请求超时。");
       timeoutError.code = "timeout";
       timeoutError.statusCode = 504;
       timeoutError.summary = "provider request aborted by timeout";
@@ -423,30 +352,94 @@ async function requestChatCompletion(config, requestBody, options) {
   }
 }
 
-async function requestSuggestion(input, prompt, options) {
-  const config = getClientConfig();
-  const modelResult = resolveRequestModel(options?.model, config.defaultModel);
-  if (!modelResult.valid) {
-    const invalidModelError = new Error("invalid-model");
-    invalidModelError.code = "invalid-model";
-    invalidModelError.statusCode = 400;
-    throw invalidModelError;
+async function requestWithThinkingFallback(config, requestBody, options) {
+  const enableThinking = options?.enableThinking === true;
+  const initialBody = Object.assign({}, requestBody, {
+    enable_thinking: enableThinking,
+  });
+
+  try {
+    const completion = await requestChatCompletion(config, initialBody, options);
+    return Object.assign({}, completion, {
+      thinkingRequested: true,
+      enableThinking: enableThinking,
+      thinkingFallbackUsed: false,
+      thinkingFallbackMode: "",
+    });
+  } catch (error) {
+    if (!isEnableThinkingUnsupportedError(error)) {
+      throw error;
+    }
+
+    const fallbackBody = enableThinking
+      ? Object.assign({}, requestBody, { enable_thinking: false })
+      : Object.assign({}, requestBody);
+    const fallbackMode = enableThinking ? "disable" : "remove";
+    const completion = await requestChatCompletion(config, fallbackBody, options);
+    return Object.assign({}, completion, {
+      thinkingRequested: true,
+      enableThinking: enableThinking,
+      thinkingFallbackUsed: true,
+      thinkingFallbackMode: fallbackMode,
+    });
   }
-  const model = modelResult.model;
+}
+
+function buildMockListenResponse(input) {
+  return JSON.stringify({
+    heardText: String(input?.asrText1 || "").trim(),
+    confidence: 0.61,
+    isValidAudio: true,
+    invalidReasons: [],
+    uncertainParts: [],
+    audioNotes: "mock",
+  });
+}
+
+function buildMockCompareResponse(input) {
+  const answer =
+    String(input?.asrText1 || "").length >= String(input?.asrText2 || "").length
+      ? "first_better"
+      : "second_better";
+  return JSON.stringify({
+    answer,
+    answerText: answer === "first_better" ? "第一个更好" : "第二个更好",
+    confidence: 0.62,
+    reasonSummary: "Mock 模式输出，仅用于链路联调。",
+    riskLevel: "medium",
+    needManualSearch: false,
+    shouldWarnBeforeApply: true,
+    contextUsed: input?.includeContext === true,
+    evidence: {
+      heardText: String(input?.heardText || ""),
+      asrText1Match: "medium",
+      asrText2Match: "medium",
+      contextHint: "",
+    },
+  });
+}
+
+async function requestListen(input, prompt, options) {
+  const config = getClientConfig();
+  const model = sanitizeModelName(options?.model, config.listenModel || DEFAULT_LISTEN_MODEL);
+  const enableThinking =
+    typeof options?.enableThinking === "boolean"
+      ? options.enableThinking === true
+      : config.enableThinkingDefault === true;
 
   if (config.mockEnabled) {
     return {
       provider: "dashscope-qwen",
       model,
-      rawText: buildMockResponse(input, model),
-      mock: true,
+      rawText: buildMockListenResponse(input),
       usage: {},
       chunkCount: 0,
       firstChunkAtMs: 0,
       providerStatus: 200,
       durationMs: 0,
+      mock: true,
       thinkingRequested: true,
-      enableThinking: config.enableThinking,
+      enableThinking,
       thinkingFallbackUsed: false,
       thinkingFallbackMode: "",
     };
@@ -459,77 +452,161 @@ async function requestSuggestion(input, prompt, options) {
     throw error;
   }
 
-  const requestBody = createRequestBody(input, prompt, model, config.enableThinking);
+  const requestBody = {
+    model,
+    stream: true,
+    stream_options: {
+      include_usage: true,
+    },
+    modalities: ["text"],
+    messages: [
+      {
+        role: "system",
+        content: String(prompt?.systemPrompt || ""),
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_audio",
+            input_audio: {
+              data: String(input?.audioUrl || ""),
+              format: inferAudioFormat(input?.audioUrl || ""),
+            },
+          },
+          {
+            type: "text",
+            text: String(prompt?.userPrompt || ""),
+          },
+        ],
+      },
+    ],
+    response_format: {
+      type: "json_object",
+    },
+    temperature: 0.1,
+  };
 
-  try {
-    const completion = await requestChatCompletion(config, requestBody, {
-      requestId: options?.requestId,
-      hostname: options?.hostname,
-      itemIndex: options?.itemIndex,
-      model,
-      timeoutMs: options?.timeoutMs,
-    });
+  const completion = await requestWithThinkingFallback(config, requestBody, {
+    requestId: options?.requestId,
+    hostname: options?.hostname,
+    itemIndex: options?.itemIndex,
+    model,
+    timeoutMs: options?.timeoutMs,
+    stage: "listen",
+    enableThinking,
+  });
 
+  return {
+    provider: "dashscope-qwen",
+    model,
+    rawText: completion.text,
+    usage: completion.usage || {},
+    chunkCount: completion.chunkCount,
+    firstChunkAtMs: completion.firstChunkAtMs,
+    providerStatus: completion.providerStatus,
+    durationMs: completion.durationMs,
+    mock: false,
+    thinkingRequested: completion.thinkingRequested === true,
+    enableThinking: completion.enableThinking === true,
+    thinkingFallbackUsed: completion.thinkingFallbackUsed === true,
+    thinkingFallbackMode: String(completion.thinkingFallbackMode || ""),
+  };
+}
+
+async function requestCompare(input, prompt, options) {
+  const config = getClientConfig();
+  const model = sanitizeModelName(options?.model, config.compareModel || DEFAULT_COMPARE_MODEL);
+  const enableThinking =
+    typeof options?.enableThinking === "boolean"
+      ? options.enableThinking === true
+      : config.enableThinkingDefault === true;
+
+  if (config.mockEnabled) {
     return {
       provider: "dashscope-qwen",
       model,
-      rawText: completion.text,
-      usage: completion.usage,
-      chunkCount: completion.chunkCount,
-      firstChunkAtMs: completion.firstChunkAtMs,
-      providerStatus: completion.providerStatus,
-      durationMs: completion.durationMs,
-      mock: false,
+      rawText: buildMockCompareResponse(input),
+      usage: {},
+      chunkCount: 0,
+      firstChunkAtMs: 0,
+      providerStatus: 200,
+      durationMs: 0,
+      mock: true,
       thinkingRequested: true,
-      enableThinking: config.enableThinking,
+      enableThinking,
       thinkingFallbackUsed: false,
       thinkingFallbackMode: "",
     };
-  } catch (error) {
-    if (!isEnableThinkingUnsupportedError(error)) {
-      throw error;
-    }
-
-    const fallbackBody = Object.assign({}, requestBody);
-    delete fallbackBody.enable_thinking;
-
-    const completion = await requestChatCompletion(config, fallbackBody, {
-      requestId: options?.requestId,
-      hostname: options?.hostname,
-      itemIndex: options?.itemIndex,
-      model,
-      timeoutMs: options?.timeoutMs,
-    });
-
-    return {
-      provider: "dashscope-qwen",
-      model,
-      rawText: completion.text,
-      usage: completion.usage,
-      chunkCount: completion.chunkCount,
-      firstChunkAtMs: completion.firstChunkAtMs,
-      providerStatus: completion.providerStatus,
-      durationMs: completion.durationMs,
-      mock: false,
-      thinkingRequested: true,
-      enableThinking: config.enableThinking,
-      thinkingFallbackUsed: true,
-      thinkingFallbackMode: "remove",
-    };
   }
+
+  if (!config.apiKey) {
+    const error = new Error("missing-api-key");
+    error.code = "missing-api-key";
+    error.statusCode = 503;
+    throw error;
+  }
+
+  const requestBody = {
+    model,
+    stream: true,
+    stream_options: {
+      include_usage: true,
+    },
+    modalities: ["text"],
+    messages: [
+      {
+        role: "system",
+        content: String(prompt?.systemPrompt || ""),
+      },
+      {
+        role: "user",
+        content: String(prompt?.userPrompt || ""),
+      },
+    ],
+    response_format: {
+      type: "json_object",
+    },
+    temperature: 0.1,
+  };
+
+  const completion = await requestWithThinkingFallback(config, requestBody, {
+    requestId: options?.requestId,
+    hostname: options?.hostname,
+    itemIndex: options?.itemIndex,
+    model,
+    timeoutMs: options?.timeoutMs,
+    stage: "compare",
+    enableThinking,
+  });
+
+  return {
+    provider: "dashscope-qwen",
+    model,
+    rawText: completion.text,
+    usage: completion.usage || {},
+    chunkCount: completion.chunkCount,
+    firstChunkAtMs: completion.firstChunkAtMs,
+    providerStatus: completion.providerStatus,
+    durationMs: completion.durationMs,
+    mock: false,
+    thinkingRequested: completion.thinkingRequested === true,
+    enableThinking: completion.enableThinking === true,
+    thinkingFallbackUsed: completion.thinkingFallbackUsed === true,
+    thinkingFallbackMode: String(completion.thinkingFallbackMode || ""),
+  };
 }
 
 module.exports = {
-  AVAILABLE_MODELS,
-  DEFAULT_MODEL,
-  buildMockResponse,
+  DEFAULT_BASE_URL,
+  DEFAULT_LISTEN_MODEL,
+  DEFAULT_COMPARE_MODEL,
   getClientConfig,
   inferAudioFormat,
-  isAllowedModel,
   isEnableThinkingUnsupportedError,
   isMockEnabled,
   readStreamCompletion,
-  resolveDefaultModel,
-  resolveRequestModel,
-  requestSuggestion,
+  requestListen,
+  requestCompare,
+  sanitizeModelName,
 };

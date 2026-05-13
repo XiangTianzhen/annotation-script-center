@@ -2,7 +2,7 @@
   const ROOT_ATTR = "data-asr-edge-judgement-ai-suggestion";
   const STYLE_ID = "asr-edge-judgement-ai-suggestion-style";
   const AI_ACTION_KEY = "aiSuggestCurrentItem";
-  const RULE_VERSION = "asr-judgement-ai-v1";
+  const RULE_VERSION = "asr-judgement-ai-v2";
   const ANSWER_TO_CHOICE = {
     first_better: "choiceFirstBetter",
     second_better: "choiceSecondBetter",
@@ -28,7 +28,9 @@
     "asr_text",
   ];
   const ASR_TITLE_IGNORE_LIST = ["上文", "音频地址", "wav_id", "音频", "音频文件"];
+  const CONTEXT_TITLE = "上文";
   const pendingStateByItem = new WeakMap();
+  const contextIncludeOverrideByItem = new WeakMap();
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
@@ -101,6 +103,7 @@
       "}",
       "[" + ROOT_ATTR + "] .asr-edge-ai-actions {",
       "  display: flex;",
+      "  flex-wrap: wrap;",
       "  gap: 8px;",
       "  margin-top: 8px;",
       "}",
@@ -150,24 +153,12 @@
     return String(node?.textContent || "").replace(/\s+/g, " ").trim();
   }
 
-  function findWrapByTitle(item, wrapSelector, titleSelector, targetTitle) {
-    const wraps = Array.from(item.querySelectorAll(wrapSelector));
-    return (
-      wraps.find(function (wrap) {
-        const title = wrap.querySelector(titleSelector);
-        const text = getText(title);
-        return text === targetTitle || text.indexOf(targetTitle) >= 0;
-      }) || null
-    );
-  }
-
   function parseAsrText(rawText) {
     const text = String(rawText || "").replace(/\r\n/g, "\n");
     const match = text.match(/asr_text1\s*:\s*([\s\S]*?)\s*asr_text2\s*:\s*([\s\S]*)$/i);
     if (!match) {
       return null;
     }
-
     return {
       first: match[1].trim(),
       second: match[2].trim(),
@@ -186,53 +177,75 @@
     };
   }
 
-  function resolveItemAsrPair(item) {
-    function normalizeTitle(title) {
-      return String(title || "").replace(/\s+/g, "").trim().toLowerCase();
-    }
-    function isIgnoredContentTitle(title) {
-      const normalized = normalizeTitle(title);
-      return ASR_TITLE_IGNORE_LIST.some(function (itemTitle) {
-        return normalized === normalizeTitle(itemTitle);
-      });
-    }
-    function isAllowedAsrTitle(title) {
-      const normalized = normalizeTitle(title);
-      return ASR_TITLE_ALLOW_LIST.some(function (itemTitle) {
-        return normalized === normalizeTitle(itemTitle);
-      });
-    }
-    function findAsrContentWrap() {
-      const wraps = Array.from(item.querySelectorAll(".labelRender-item-content-wrap"));
-      let fallbackWrap = null;
-      for (const wrapItem of wraps) {
-        const title = getText(wrapItem.querySelector(".labelRender-item-content-title"));
-        if (isIgnoredContentTitle(title)) {
-          continue;
-        }
-        const container = wrapItem.querySelector(".dt-text-wrapper .dt-text-container");
-        const pair = parseAsrText(container?.textContent || "");
-        if (!pair) {
-          continue;
-        }
-        if (isAllowedAsrTitle(title)) {
-          return wrapItem;
-        }
-        if (!fallbackWrap) {
-          fallbackWrap = wrapItem;
-        }
-      }
-      return fallbackWrap;
-    }
+  function normalizeTitle(title) {
+    return String(title || "").replace(/\s+/g, "").trim().toLowerCase();
+  }
 
-    const wrap = findAsrContentWrap();
+  function isIgnoredContentTitle(title) {
+    const normalized = normalizeTitle(title);
+    return ASR_TITLE_IGNORE_LIST.some(function (itemTitle) {
+      return normalized === normalizeTitle(itemTitle);
+    });
+  }
+
+  function isAllowedAsrTitle(title) {
+    const normalized = normalizeTitle(title);
+    return ASR_TITLE_ALLOW_LIST.some(function (itemTitle) {
+      return normalized === normalizeTitle(itemTitle);
+    });
+  }
+
+  function findAsrContentWrap(item) {
+    const wraps = Array.from(item.querySelectorAll(".labelRender-item-content-wrap"));
+    let fallbackWrap = null;
+    for (const wrapItem of wraps) {
+      const title = getText(wrapItem.querySelector(".labelRender-item-content-title"));
+      if (isIgnoredContentTitle(title)) {
+        continue;
+      }
+      const container = wrapItem.querySelector(".dt-text-wrapper .dt-text-container");
+      const pair = parseAsrText(container?.textContent || "");
+      if (!pair) {
+        continue;
+      }
+      if (isAllowedAsrTitle(title)) {
+        return wrapItem;
+      }
+      if (!fallbackWrap) {
+        fallbackWrap = wrapItem;
+      }
+    }
+    return fallbackWrap;
+  }
+
+  function resolveItemAsrPair(item) {
+    const wrap = findAsrContentWrap(item);
     const rawPair = parseAsrText(wrap?.querySelector(".dt-text-container")?.textContent || "");
     if (rawPair) {
       return rawPair;
     }
-
     const diffView = wrap?.querySelector("[data-asr-edge-judgement-diff-view]");
     return parseDiffSignature(diffView?.getAttribute("data-asr-edge-signature") || "");
+  }
+
+  function resolveItemContextText(item) {
+    const wraps = Array.from(item.querySelectorAll(".labelRender-item-content-wrap"));
+    for (const wrap of wraps) {
+      const title = getText(wrap.querySelector(".labelRender-item-content-title"));
+      if (title !== CONTEXT_TITLE) {
+        continue;
+      }
+      const text = getText(wrap.querySelector(".dt-text-wrapper .dt-text-container"));
+      if (text) {
+        return text.slice(0, 1200);
+      }
+      break;
+    }
+    return "";
+  }
+
+  function hasItemContext(item) {
+    return Boolean(resolveItemContextText(item));
   }
 
   function parseAnswerNavIndex(text) {
@@ -240,7 +253,6 @@
     if (!match) {
       return null;
     }
-
     const index = Number(match[1]);
     return Number.isFinite(index) && index > 0 ? index - 1 : null;
   }
@@ -267,7 +279,6 @@
     if (index === null) {
       return null;
     }
-
     return document.querySelector('.labelRender-item[data-index="' + String(index) + '"]');
   }
 
@@ -351,14 +362,36 @@
     };
   }
 
-  function renderLoadingCard(item) {
-    removeCard(item);
-    ensureStyle();
+  function resolveContextState(item, contextText) {
+    const contextAvailable = String(contextText || "").trim().length > 0;
+    const override = contextIncludeOverrideByItem.get(item);
+    const includeContext =
+      contextAvailable && (typeof override === "boolean" ? override : true);
+    return {
+      contextAvailable,
+      includeContext,
+    };
+  }
 
-    const root = document.createElement("div");
-    root.setAttribute(ROOT_ATTR, "true");
-    root.setAttribute("data-tone", "info");
+  function setContextIncludeOverride(item, includeContext) {
+    if (!(item instanceof HTMLElement)) {
+      return;
+    }
+    if (typeof includeContext !== "boolean") {
+      contextIncludeOverrideByItem.delete(item);
+      return;
+    }
+    contextIncludeOverrideByItem.set(item, includeContext);
+  }
 
+  function getContextDisplayText(contextState) {
+    if (!contextState.contextAvailable) {
+      return "未检测到上文";
+    }
+    return contextState.includeContext ? "开" : "关";
+  }
+
+  function appendCommonHead(root, requestId) {
     const head = document.createElement("div");
     head.className = "asr-edge-ai-head";
     const title = document.createElement("span");
@@ -366,10 +399,28 @@
     title.textContent = "AI 参考建议";
     const request = document.createElement("span");
     request.className = "asr-edge-ai-request";
-    request.textContent = "requestId: -";
+    request.textContent = "requestId: " + String(requestId || "-");
     head.appendChild(title);
     head.appendChild(request);
     root.appendChild(head);
+  }
+
+  function appendFoot(root) {
+    const foot = document.createElement("div");
+    foot.className = "asr-edge-ai-foot";
+    foot.textContent =
+      "仅供参考：不会自动保存、不会自动提交、不会自动领取、不会自动流转。";
+    root.appendChild(foot);
+  }
+
+  function renderLoadingCard(item, contextState) {
+    removeCard(item);
+    ensureStyle();
+
+    const root = document.createElement("div");
+    root.setAttribute(ROOT_ATTR, "true");
+    root.setAttribute("data-tone", "info");
+    appendCommonHead(root, "-");
 
     const status = document.createElement("div");
     status.className = "asr-edge-ai-status";
@@ -380,6 +431,7 @@
     grid.className = "asr-edge-ai-grid";
     [
       createDetailRow("说明", "正在听音频并比较 asr_text1 / asr_text2，请稍候"),
+      createDetailRow("使用上文理解", getContextDisplayText(contextState)),
       createDetailRow("建议答案", "-"),
       createDetailRow("模型", "-"),
     ].forEach(function (nodes) {
@@ -395,6 +447,18 @@
     applyButton.setAttribute("data-action", "apply");
     applyButton.textContent = "采用建议";
     applyButton.disabled = true;
+    const retryButton = document.createElement("button");
+    retryButton.type = "button";
+    retryButton.textContent = "重新分析";
+    retryButton.disabled = true;
+    const toggleButton = document.createElement("button");
+    toggleButton.type = "button";
+    toggleButton.textContent = contextState.contextAvailable
+      ? contextState.includeContext
+        ? "关闭上文理解"
+        : "开启上文理解"
+      : "未检测到上文";
+    toggleButton.disabled = true;
     const ignoreButton = document.createElement("button");
     ignoreButton.type = "button";
     ignoreButton.setAttribute("data-action", "ignore");
@@ -403,19 +467,16 @@
       removeCard(item);
     });
     actionWrap.appendChild(applyButton);
+    actionWrap.appendChild(retryButton);
+    actionWrap.appendChild(toggleButton);
     actionWrap.appendChild(ignoreButton);
     root.appendChild(actionWrap);
 
-    const foot = document.createElement("div");
-    foot.className = "asr-edge-ai-foot";
-    foot.textContent =
-      "仅供参考：不会自动保存、不会自动提交、不会自动领取、不会自动流转。";
-    root.appendChild(foot);
-
+    appendFoot(root);
     item.insertBefore(root, item.firstElementChild || null);
   }
 
-  function renderErrorCard(item, errorInfo, options) {
+  function renderErrorCard(item, errorInfo, contextState, options) {
     removeCard(item);
     ensureStyle();
 
@@ -423,18 +484,7 @@
     const root = document.createElement("div");
     root.setAttribute(ROOT_ATTR, "true");
     root.setAttribute("data-tone", "danger");
-
-    const head = document.createElement("div");
-    head.className = "asr-edge-ai-head";
-    const title = document.createElement("span");
-    title.className = "asr-edge-ai-title";
-    title.textContent = "AI 参考建议";
-    const request = document.createElement("span");
-    request.className = "asr-edge-ai-request";
-    request.textContent = "requestId: " + String(detail.requestId || "-");
-    head.appendChild(title);
-    head.appendChild(request);
-    root.appendChild(head);
+    appendCommonHead(root, detail.requestId || "-");
 
     const status = document.createElement("div");
     status.className = "asr-edge-ai-status";
@@ -446,7 +496,7 @@
     [
       createDetailRow("错误原因", String(detail.message || "AI 分析失败。")),
       createDetailRow("错误码", String(detail.code || "-")),
-      createDetailRow("模型", String(detail.model || "-")),
+      createDetailRow("使用上文理解", getContextDisplayText(contextState)),
     ].forEach(function (nodes) {
       grid.appendChild(nodes[0]);
       grid.appendChild(nodes[1]);
@@ -459,11 +509,6 @@
     retryButton.type = "button";
     retryButton.setAttribute("data-action", "retry");
     retryButton.textContent = "重试";
-    const ignoreButton = document.createElement("button");
-    ignoreButton.type = "button";
-    ignoreButton.setAttribute("data-action", "ignore");
-    ignoreButton.textContent = "忽略";
-
     retryButton.addEventListener("click", function () {
       if (typeof options?.retrySuggestion !== "function") {
         return;
@@ -484,41 +529,59 @@
         });
     });
 
+    const toggleButton = document.createElement("button");
+    toggleButton.type = "button";
+    toggleButton.textContent = contextState.contextAvailable
+      ? contextState.includeContext
+        ? "关闭上文理解"
+        : "开启上文理解"
+      : "未检测到上文";
+    toggleButton.disabled = !contextState.contextAvailable;
+    toggleButton.addEventListener("click", function () {
+      if (!contextState.contextAvailable) {
+        return;
+      }
+      const nextInclude = contextState.includeContext !== true;
+      setContextIncludeOverride(item, nextInclude);
+      if (typeof options?.showToast === "function") {
+        options.showToast("已切换上文理解，点击重新分析生效。", "info");
+      }
+      renderErrorCard(
+        item,
+        detail,
+        {
+          contextAvailable: true,
+          includeContext: nextInclude,
+        },
+        options
+      );
+    });
+
+    const ignoreButton = document.createElement("button");
+    ignoreButton.type = "button";
+    ignoreButton.setAttribute("data-action", "ignore");
+    ignoreButton.textContent = "忽略";
     ignoreButton.addEventListener("click", function () {
       removeCard(item);
     });
+
     actionWrap.appendChild(retryButton);
+    actionWrap.appendChild(toggleButton);
     actionWrap.appendChild(ignoreButton);
     root.appendChild(actionWrap);
 
-    const foot = document.createElement("div");
-    foot.className = "asr-edge-ai-foot";
-    foot.textContent =
-      "仅供参考：不会自动保存、不会自动提交、不会自动领取、不会自动流转。";
-    root.appendChild(foot);
-
+    appendFoot(root);
     item.insertBefore(root, item.firstElementChild || null);
   }
 
-  function renderCard(item, result, options) {
+  function renderCard(item, result, contextState, options) {
     removeCard(item);
     ensureStyle();
 
     const root = document.createElement("div");
     root.setAttribute(ROOT_ATTR, "true");
     root.setAttribute("data-tone", getTone(result));
-
-    const head = document.createElement("div");
-    head.className = "asr-edge-ai-head";
-    const title = document.createElement("span");
-    title.className = "asr-edge-ai-title";
-    title.textContent = "AI 参考建议";
-    const request = document.createElement("span");
-    request.className = "asr-edge-ai-request";
-    request.textContent = "requestId: " + String(result.requestId || "-");
-    head.appendChild(title);
-    head.appendChild(request);
-    root.appendChild(head);
+    appendCommonHead(root, result.requestId || "-");
 
     if (result.thunderMatched) {
       const warning = document.createElement("div");
@@ -541,8 +604,21 @@
       createDetailRow("置信度", (result.confidence * 100).toFixed(1) + "%"),
       createDetailRow("风险等级", result.riskLevel || "unknown"),
       createDetailRow("需要人工搜索", result.needManualSearch ? "是" : "否"),
-      createDetailRow("模型", result.model || "-"),
       createDetailRow("简短理由", result.reasonSummary || "-"),
+      createDetailRow("听音文本", result.listenHeardText || "-"),
+      createDetailRow("听音置信度", (result.listenConfidence * 100).toFixed(1) + "%"),
+      createDetailRow("使用上文理解", result.contextIncluded ? "是" : "否"),
+      createDetailRow("模型", "听音 " + result.listenModel + " / 比较 " + result.compareModel),
+      createDetailRow(
+        "耗时",
+        "听音 " +
+          String(result.listenDurationMs) +
+          "ms / 比较 " +
+          String(result.compareDurationMs) +
+          "ms / 总计 " +
+          String(result.totalDurationMs) +
+          "ms"
+      ),
     ].forEach(function (nodes) {
       grid.appendChild(nodes[0]);
       grid.appendChild(nodes[1]);
@@ -555,18 +631,12 @@
     applyButton.type = "button";
     applyButton.setAttribute("data-action", "apply");
     applyButton.textContent = "采用建议";
-    const ignoreButton = document.createElement("button");
-    ignoreButton.type = "button";
-    ignoreButton.setAttribute("data-action", "ignore");
-    ignoreButton.textContent = "忽略";
-
     const canApply = Boolean(result.choiceActionKey) && !result.thunderConflict;
     applyButton.disabled = !canApply;
     applyButton.addEventListener("click", function () {
       if (!canApply) {
         return;
       }
-
       const needConfirm =
         result.shouldWarnBeforeApply || result.confidence < 0.65 || result.needManualSearch;
       if (
@@ -575,7 +645,6 @@
       ) {
         return;
       }
-
       Promise.resolve(options.applySuggestion(result.choiceActionKey))
         .then(function (applyResult) {
           if (applyResult?.ok === false) {
@@ -594,19 +663,62 @@
           }
         });
     });
+
+    const retryButton = document.createElement("button");
+    retryButton.type = "button";
+    retryButton.textContent = "重新分析";
+    retryButton.addEventListener("click", function () {
+      if (typeof options.retrySuggestion !== "function") {
+        return;
+      }
+      void options.retrySuggestion();
+    });
+
+    const toggleButton = document.createElement("button");
+    toggleButton.type = "button";
+    toggleButton.textContent = contextState.contextAvailable
+      ? contextState.includeContext
+        ? "关闭上文理解"
+        : "开启上文理解"
+      : "未检测到上文";
+    toggleButton.disabled = !contextState.contextAvailable;
+    toggleButton.addEventListener("click", function () {
+      if (!contextState.contextAvailable) {
+        return;
+      }
+      const nextInclude = contextState.includeContext !== true;
+      setContextIncludeOverride(item, nextInclude);
+      if (typeof options.showToast === "function") {
+        options.showToast("已切换上文理解，点击重新分析生效。", "info");
+      }
+      renderCard(
+        item,
+        Object.assign({}, result, {
+          contextIncluded: nextInclude,
+        }),
+        {
+          contextAvailable: true,
+          includeContext: nextInclude,
+        },
+        options
+      );
+    });
+
+    const ignoreButton = document.createElement("button");
+    ignoreButton.type = "button";
+    ignoreButton.setAttribute("data-action", "ignore");
+    ignoreButton.textContent = "忽略";
     ignoreButton.addEventListener("click", function () {
       removeCard(item);
     });
+
     actionWrap.appendChild(applyButton);
+    actionWrap.appendChild(retryButton);
+    actionWrap.appendChild(toggleButton);
     actionWrap.appendChild(ignoreButton);
     root.appendChild(actionWrap);
 
-    const foot = document.createElement("div");
-    foot.className = "asr-edge-ai-foot";
-    foot.textContent =
-      "仅供参考：不会自动保存、不会自动提交、不会自动领取、不会自动流转。";
-    root.appendChild(foot);
-
+    appendFoot(root);
     item.insertBefore(root, item.firstElementChild || null);
   }
 
@@ -753,6 +865,8 @@
         });
       }
 
+      const contextText = resolveItemContextText(item);
+      const contextState = resolveContextState(item, contextText);
       const params = readUrlParams();
       const requestBody = {
         projectId: params.projectId || "",
@@ -762,9 +876,15 @@
         audioUrl: audioUrl,
         asrText1: pair.first,
         asrText2: pair.second,
+        contextText: contextText,
+        includeContext: contextState.includeContext,
+        listenModel: String(config.aiSuggestionListenModel || "qwen3.5-omni-flash"),
+        compareModel: String(
+          config.aiSuggestionCompareModel || config.aiSuggestionModel || "qwen3.5-plus"
+        ),
+        enableThinking: config.aiSuggestionEnableThinking === true,
         ruleVersion: RULE_VERSION,
         clientVersion: getClientVersion(),
-        model: String(config.aiSuggestionModel || "qwen3-omni-flash"),
       };
 
       const controller = typeof AbortController === "function" ? new AbortController() : null;
@@ -776,7 +896,7 @@
 
       let responseBody = null;
       setItemPending(item, true, "");
-      renderLoadingCard(item);
+      renderLoadingCard(item, contextState);
       try {
         const response = await fetch(endpoint, {
           method: "POST",
@@ -807,8 +927,8 @@
             message,
             requestId,
             code: String(error?.code || ""),
-            model: String(requestBody.model || ""),
           },
+          contextState,
           {
             retrySuggestion: function () {
               return suggestCurrentItem("retry");
@@ -831,7 +951,8 @@
       }
 
       const suggestion = responseBody.data || {};
-      const choiceActionKey = parseChoiceActionKey(suggestion) || mapAnswerTextToChoice(suggestion.answerText);
+      const choiceActionKey =
+        parseChoiceActionKey(suggestion) || mapAnswerTextToChoice(suggestion.answerText);
       const confidence = normalizeConfidence(suggestion.confidence);
       const thunderInfo = await requestThunderInfo(item);
       const thunderStandardChoice = mapAnswerTextToChoice(thunderInfo?.standardAnswer || "");
@@ -842,6 +963,19 @@
           thunderStandardChoice !== choiceActionKey
       );
 
+      const resultContextAvailable =
+        suggestion.contextAvailable === true || contextState.contextAvailable;
+      const resultContextIncluded =
+        resultContextAvailable && suggestion.contextIncluded === true;
+      setContextIncludeOverride(item, resultContextIncluded);
+      const nextContextState = {
+        contextAvailable: resultContextAvailable,
+        includeContext: resultContextIncluded,
+      };
+
+      const models = suggestion.models && typeof suggestion.models === "object" ? suggestion.models : {};
+      const timing = suggestion.timing && typeof suggestion.timing === "object" ? suggestion.timing : {};
+      const listen = suggestion.listen && typeof suggestion.listen === "object" ? suggestion.listen : {};
       const cardData = {
         answerText: String(
           suggestion.answerText || CHOICE_LABELS[choiceActionKey] || suggestion.answer || "未知"
@@ -855,16 +989,26 @@
           suggestion.shouldWarnBeforeApply === true ||
           suggestion.needManualSearch === true ||
           confidence < 0.65,
-        model: String(suggestion.model || requestBody.model || ""),
         requestId: String(suggestion.requestId || ""),
         thunderMatched: Boolean(thunderInfo?.isThunder),
         thunderConflict: thunderConflict,
+        listenHeardText: String(listen.heardText || ""),
+        listenConfidence: normalizeConfidence(listen.confidence),
+        listenModel: String(models.listenModel || requestBody.listenModel || "-"),
+        compareModel: String(models.compareModel || requestBody.compareModel || "-"),
+        listenDurationMs: Number(timing.listenDurationMs || 0),
+        compareDurationMs: Number(timing.compareDurationMs || 0),
+        totalDurationMs: Number(timing.totalDurationMs || 0),
+        contextIncluded: resultContextIncluded,
       };
-      renderCard(item, cardData, {
+      renderCard(item, cardData, nextContextState, {
         applySuggestion: function (actionKey) {
           return typeof options.applySuggestion === "function"
             ? options.applySuggestion(actionKey)
             : buildActionResult(false, "判别动作不可用。", { reason: "apply-action-missing" });
+        },
+        retrySuggestion: function () {
+          return suggestCurrentItem("retry");
         },
         showToast: options.showToast,
       });
@@ -874,7 +1018,9 @@
           requestId: cardData.requestId,
           hostname: resolveHostname(audioUrl),
           itemIndex: Number(requestBody.itemIndex),
-          model: cardData.model,
+          listenModel: cardData.listenModel,
+          compareModel: cardData.compareModel,
+          includeContext: cardData.contextIncluded === true,
         });
       }
 
@@ -900,10 +1046,19 @@
       clearAllCards();
     }
 
+    function getState() {
+      return {
+        active: true,
+      };
+    }
+
     return {
       start: start,
       stop: stop,
+      getState: getState,
       suggestCurrentItem: suggestCurrentItem,
+      hasItemContext: hasItemContext,
+      resolveItemContextText: resolveItemContextText,
     };
   }
 

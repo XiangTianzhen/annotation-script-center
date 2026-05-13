@@ -1,5 +1,34 @@
 # 标注脚本中心修改日志
 
+## 2026-05-13（0.3.2：快判 AI 升级双模型听音+比较与上文开关）
+
+- 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本增强与质量修复。
+- 快判 AI 后端从单模型升级为双阶段 pipeline：
+  - 第一阶段 `listen`：听音模型（默认 `qwen3.5-omni-flash`）只输出听音结果与音频有效性。
+  - 第二阶段 `compare`：比较模型（默认 `qwen3.5-plus`）结合 `heardText + asrText1/asrText2 + 可选上文` 输出“哪个更优”建议。
+- 快判 Qwen 客户端新增双模型能力与配置：
+  - `ASR_JUDGEMENT_AI_LISTEN_MODEL`
+  - `ASR_JUDGEMENT_AI_COMPARE_MODEL`
+  - `ASR_JUDGEMENT_AI_TIMEOUT_MS`
+  - `ASR_JUDGEMENT_AI_ENABLE_THINKING`
+  - `ASR_JUDGEMENT_AI_ALLOW_CLIENT_MODEL_OVERRIDE`
+  - 保留 `ASR_JUDGEMENT_AI_MODEL` 作为 compare fallback 兼容字段。
+- 快判后端日志补齐为分阶段脱敏日志：`suggest start`、`listen start/success`、`compare start/success`、`suggest success/suggest failed`。
+- 快判前端 AI 卡片升级：
+  - 点击后立即显示“正在分析当前题...”。
+  - 成功显示听音文本、建议答案、置信度、风险等级、双模型、耗时、requestId。
+  - 失败显示错误卡和重试按钮，不再静默。
+  - 新增当前题“使用上文理解”开关（默认有上文时开启），开关仅运行态生效，切换后需“重新分析”生效。
+- options 快判设置新增 AI 字段：
+  - 听音模型（下拉 + 自定义）
+  - 比较模型（下拉 + 自定义）
+  - 启用思考开关
+  - 请求超时（保留）
+- 文档与规则同步：
+  - `extension/sites/alibaba-labelx/asr-judgement/README.md` 更新为双模型口径和上文开关说明。
+  - `platform-resources/backend/README.md`、`config/env/ai.env.example` 增补快判双模型环境变量。
+  - `AGENTS.md` 沉淀“快判 AI 双模型 + 上文仅消歧 + 当前题运行态开关”规则。
+
 ## 2026-05-12（0.3.2 热修：快判 AI 真实链路无返回提示）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮为当前测试版本 hotfix。

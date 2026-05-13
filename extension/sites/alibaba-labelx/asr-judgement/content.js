@@ -148,8 +148,11 @@
       aiSuggestionEnabled: false,
       aiSuggestionEndpoint: "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest",
       aiSuggestionRequestTimeoutMs: 120000,
-      aiSuggestionModel: "qwen3-omni-flash",
-      aiSuggestionAvailableModels: ["qwen3-omni-flash", "qwen3.5-omni-plus"],
+      aiSuggestionListenModel: "qwen3.5-omni-flash",
+      aiSuggestionCompareModel: "qwen3.5-plus",
+      aiSuggestionEnableThinking: false,
+      aiSuggestionModel: "qwen3.5-plus",
+      aiSuggestionAvailableModels: ["qwen3.5-plus", "qwen-plus", "qwen-turbo"],
       shortcuts: {
         volumeUp: {
           ctrl: false,
@@ -938,7 +941,9 @@
           requestId: info.requestId || "",
           hostname: info.hostname || "",
           itemIndex: Number(info.itemIndex),
-          model: info.model || "",
+          listenModel: info.listenModel || "",
+          compareModel: info.compareModel || "",
+          includeContext: info.includeContext === true,
         });
       },
     });
