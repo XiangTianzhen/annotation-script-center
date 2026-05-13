@@ -1,5 +1,24 @@
 # 标注脚本中心修改日志
 
+## 2026-05-13（0.3.2：统一 ASR AI thinking 显式传参语义）
+
+- 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于 AI 参数语义热修。
+- 统一四个 ASR AI 后端客户端的 thinking 行为：
+  - 关闭时显式传 `enable_thinking=false`。
+  - 开启时显式传 `enable_thinking=true`。
+  - 若上游返回参数不支持/参数无效，仅移除该参数重试一次（`thinkingFallbackMode=remove`），不做无限重试。
+- 修复快判链路：`asr-judgement` 关闭 thinking 时此前可能省略参数，现改为显式发送 `false`。
+- 修复标贝易采链路：开启 thinking 时此前可能省略参数，现改为显式发送 `true`；并统一返回 `enableThinking/thinkingFallbackUsed/thinkingFallbackMode`。
+- 补齐 defaults 口径：标贝易采 defaults 的 `enableThinking` 现在跟随后端环境默认值，不再固定 `false`。
+- 文档同步：
+  - `extension/README.md`
+  - `extension/sites/alibaba-labelx/asr-judgement/README.md`
+  - `extension/sites/alibaba-labelx/asr-transcription/README.md`
+  - `extension/sites/data-baker/round-one-quality/README.md`
+  - `extension/sites/magic-data/annotator/README.md`
+  - `platform-resources/backend/README.md`
+  - `AGENTS.md`
+
 ## 2026-05-13（0.3.2：完善 ASR 语音 AI 设置 defaults/override 口径）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本设置部件完善与后端 defaults 对齐。

@@ -44,6 +44,7 @@
 - 解锁后会请求 `GET /api/alibaba-labelx/asr-transcription/ai/defaults` 拉取后端默认模型、Prompt 与参数，并在面板显示有效配置。
 - Prompt/参数采用脚本级 override：输入为空或恢复默认即不保存 override，请求时由后端默认配置生效。
 - `response_format` 不对前端开放，转写结构化输出由后端固定控制。
+- thinking 开关采用显式传参：关闭传 `enable_thinking=false`，开启传 `enable_thinking=true`；若模型不支持仅移除参数重试一次。
 - 统计上传与定时上传不在 options 转写详情页配置；运行时始终启用。
 
 ## 注入与页面命中策略

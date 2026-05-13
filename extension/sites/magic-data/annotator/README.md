@@ -44,6 +44,7 @@
 - 隐藏面板解锁后会请求 `GET /api/magic-data/annotator/ai/defaults`，自动展示后端默认模型、Prompt 与生成参数。
 - Prompt/参数只保存脚本级 override：清空即回退后端默认，不会把默认值固化到前端存储。
 - `response_format` 不对前端开放，由后端固定结构化输出策略。
+- thinking 开关采用显式传参：关闭传 `enable_thinking=false`，开启传 `enable_thinking=true`；若模型不支持仅移除参数重试一次。
 - Magic Data 快捷键设置属于非 AI 运行控制项，保持在普通设置区常显，不走隐藏机制。
 - 后端地址仍由 options 首页顶部“后端接口地址”统一控制，前端不配置 API Key。
 

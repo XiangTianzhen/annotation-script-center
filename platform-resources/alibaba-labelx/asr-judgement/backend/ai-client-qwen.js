@@ -424,6 +424,11 @@ async function requestChatCompletion(config, requestBody, options) {
     itemIndex: Number(options?.itemIndex || 0),
     model: String(options?.model || ""),
     stage: String(options?.stage || ""),
+    enableThinking:
+      Object.prototype.hasOwnProperty.call(requestBody || {}, "enable_thinking") &&
+      typeof requestBody.enable_thinking === "boolean"
+        ? requestBody.enable_thinking === true
+        : null,
   });
 
   try {
@@ -510,9 +515,9 @@ async function requestChatCompletion(config, requestBody, options) {
 
 async function requestWithThinkingFallback(config, requestBody, options) {
   const enableThinking = options?.enableThinking === true;
-  const initialBody = enableThinking
-    ? Object.assign({}, requestBody, { enable_thinking: true })
-    : Object.assign({}, requestBody);
+  const initialBody = Object.assign({}, requestBody, {
+    enable_thinking: enableThinking === true,
+  });
 
   try {
     const completion = await requestChatCompletion(config, initialBody, options);

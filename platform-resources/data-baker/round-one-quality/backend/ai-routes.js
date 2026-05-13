@@ -343,6 +343,10 @@ async function handleRecommend(request, response) {
       .replace(/[\r\n]+/g, " ")
       .trim()
       .slice(0, 80);
+    const effectiveEnableThinking =
+      typeof recommendRequest.aiOptions.enable_thinking === "boolean"
+        ? recommendRequest.aiOptions.enable_thinking === true
+        : config.enableThinkingDefault === true;
 
     console.info("[DataBaker][round-one-quality][ai] recommend start", {
       requestId,
@@ -351,6 +355,7 @@ async function handleRecommend(request, response) {
       listenModel,
       compareModel,
       pipelineMode,
+      enableThinking: effectiveEnableThinking,
       mock: config.mockEnabled,
     });
 
@@ -366,10 +371,7 @@ async function handleRecommend(request, response) {
       listenResult = await requestListen(recommendRequest, listenPrompt, {
         model: listenModel,
         timeoutMs: config.timeoutMs,
-        enableThinking:
-          typeof recommendRequest.aiOptions.enable_thinking === "boolean"
-            ? recommendRequest.aiOptions.enable_thinking
-            : undefined,
+        enableThinking: effectiveEnableThinking,
       });
     } finally {
       listenDurationMs = Date.now() - listenStartedAtMs;
@@ -413,10 +415,7 @@ async function handleRecommend(request, response) {
           {
             model: compareModel,
             timeoutMs: config.timeoutMs,
-            enableThinking:
-              typeof recommendRequest.aiOptions.enable_thinking === "boolean"
-                ? recommendRequest.aiOptions.enable_thinking
-                : undefined,
+            enableThinking: effectiveEnableThinking,
           }
         );
       } finally {
@@ -476,6 +475,13 @@ async function handleRecommend(request, response) {
     };
     responseData.pipelineMode = pipelineMode;
     responseData.thinking = {
+      enableThinking: effectiveEnableThinking,
+      fallbackUsed: Boolean(
+        listenResult.thinkingFallbackUsed || compareResult.thinkingFallbackUsed
+      ),
+      fallbackMode:
+        String(listenResult.thinkingFallbackMode || "") ||
+        String(compareResult.thinkingFallbackMode || ""),
       disabledRequested: Boolean(
         listenResult.thinkingDisabledRequested || compareResult.thinkingDisabledRequested
       ),
@@ -557,7 +563,7 @@ function registerAiRoutes(router) {
         compareModel: config.compareModel || DEFAULT_COMPARE_MODEL,
         reviewModel: "",
         timeoutMs: config.timeoutMs,
-        enableThinking: false,
+        enableThinking: config.enableThinkingDefault === true,
         temperature: DEFAULT_REQUEST_PARAMS.temperature,
         top_p: DEFAULT_REQUEST_PARAMS.top_p,
         max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,

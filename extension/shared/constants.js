@@ -340,7 +340,8 @@
       apiKey: "enable_thinking",
       label: "enable thinking / reasoning",
       type: "boolean",
-      help: "模型不支持时后端自动降级重试。",
+      help:
+        "关闭会显式传 enable_thinking=false，开启会显式传 enable_thinking=true；模型不支持时后端仅移除该参数重试一次。",
       supported: true,
       target: "both",
     },

@@ -43,24 +43,30 @@ function parseTimeoutMs() {
   return Math.max(1000, Math.min(300000, value));
 }
 
-function shouldDisableThinking(options) {
-  if (options && typeof options.enableThinking === "boolean") {
-    return options.enableThinking !== true;
-  }
-  return String(process.env.DATABAKER_AI_ENABLE_THINKING || "0").trim() !== "1";
+function parseEnableThinkingDefault() {
+  return String(process.env.DATABAKER_AI_ENABLE_THINKING || "0").trim() === "1";
 }
 
-function withThinkingDisabled(requestBody, options) {
-  if (!shouldDisableThinking(options)) {
-    return requestBody;
+function resolveThinkingPreference(options, config) {
+  if (options && typeof options.enableThinking === "boolean") {
+    return {
+      source: "request",
+      enabled: options.enableThinking === true,
+    };
   }
+  return {
+    source: "env",
+    enabled: config.enableThinkingDefault === true,
+  };
+}
 
-  return Object.assign({}, requestBody, {
-    enable_thinking: false,
+function withThinkingPreference(requestBody, preference) {
+  return Object.assign({}, requestBody || {}, {
+    enable_thinking: preference?.enabled === true,
   });
 }
 
-function withoutThinkingDisabled(requestBody) {
+function withoutThinkingPreference(requestBody) {
   const nextBody = Object.assign({}, requestBody || {});
   delete nextBody.enable_thinking;
   return nextBody;
@@ -217,6 +223,7 @@ function getClientConfig() {
     hasApiKey: Boolean(apiKey),
     cropEffectiveAudio,
     cropPaddingSeconds: Number.isFinite(cropPaddingSeconds) ? cropPaddingSeconds : 0.12,
+    enableThinkingDefault: parseEnableThinkingDefault(),
   };
 }
 
@@ -435,25 +442,37 @@ async function requestChatCompletion(requestBody, options) {
 }
 
 async function requestChatCompletionWithFallback(requestBody, options) {
-  const thinkingDisabledRequested = shouldDisableThinking(options);
-  const initialBody = thinkingDisabledRequested
-    ? withThinkingDisabled(requestBody, options)
-    : requestBody;
+  const config = getClientConfig();
+  const thinkingPreference = resolveThinkingPreference(options, config);
+  const initialBody = withThinkingPreference(requestBody, thinkingPreference);
 
   try {
     const result = await requestChatCompletion(initialBody, options);
     return Object.assign({}, result, {
-      thinkingDisabledRequested,
+      enableThinkingRequested: true,
+      enableThinking: thinkingPreference.enabled === true,
+      thinkingPreferenceSource: thinkingPreference.source,
+      thinkingFallbackUsed: false,
+      thinkingFallbackMode: "",
+      thinkingDisabledRequested: thinkingPreference.enabled !== true,
       thinkingDisableFallbackUsed: false,
     });
   } catch (error) {
-    if (!thinkingDisabledRequested || !isEnableThinkingUnsupportedError(error)) {
+    if (!isEnableThinkingUnsupportedError(error)) {
       throw error;
     }
 
-    const fallbackResult = await requestChatCompletion(withoutThinkingDisabled(initialBody), options);
+    const fallbackResult = await requestChatCompletion(
+      withoutThinkingPreference(initialBody),
+      options
+    );
     return Object.assign({}, fallbackResult, {
-      thinkingDisabledRequested,
+      enableThinkingRequested: true,
+      enableThinking: thinkingPreference.enabled === true,
+      thinkingPreferenceSource: thinkingPreference.source,
+      thinkingFallbackUsed: true,
+      thinkingFallbackMode: "remove",
+      thinkingDisabledRequested: thinkingPreference.enabled !== true,
       thinkingDisableFallbackUsed: true,
     });
   }
@@ -472,7 +491,12 @@ async function requestListen(input, prompt, options) {
         total_tokens: 160,
       },
       mock: true,
-      thinkingDisabledRequested: shouldDisableThinking(options),
+      enableThinkingRequested: true,
+      enableThinking: resolveThinkingPreference(options, config).enabled === true,
+      thinkingPreferenceSource: resolveThinkingPreference(options, config).source,
+      thinkingFallbackUsed: false,
+      thinkingFallbackMode: "",
+      thinkingDisabledRequested: resolveThinkingPreference(options, config).enabled !== true,
       thinkingDisableFallbackUsed: false,
     };
   }
@@ -520,6 +544,11 @@ async function requestListen(input, prompt, options) {
     rawText: result.text,
     usage: result.usage,
     mock: false,
+    enableThinkingRequested: result.enableThinkingRequested === true,
+    enableThinking: result.enableThinking === true,
+    thinkingPreferenceSource: result.thinkingPreferenceSource || "",
+    thinkingFallbackUsed: result.thinkingFallbackUsed === true,
+    thinkingFallbackMode: result.thinkingFallbackMode || "",
     thinkingDisabledRequested: result.thinkingDisabledRequested,
     thinkingDisableFallbackUsed: result.thinkingDisableFallbackUsed,
   };
@@ -538,7 +567,12 @@ async function requestCompare(input, prompt, heardText, options) {
         total_tokens: 250,
       },
       mock: true,
-      thinkingDisabledRequested: shouldDisableThinking(options),
+      enableThinkingRequested: true,
+      enableThinking: resolveThinkingPreference(options, config).enabled === true,
+      thinkingPreferenceSource: resolveThinkingPreference(options, config).source,
+      thinkingFallbackUsed: false,
+      thinkingFallbackMode: "",
+      thinkingDisabledRequested: resolveThinkingPreference(options, config).enabled !== true,
       thinkingDisableFallbackUsed: false,
     };
   }
@@ -576,6 +610,11 @@ async function requestCompare(input, prompt, heardText, options) {
     rawText: result.text,
     usage: result.usage,
     mock: false,
+    enableThinkingRequested: result.enableThinkingRequested === true,
+    enableThinking: result.enableThinking === true,
+    thinkingPreferenceSource: result.thinkingPreferenceSource || "",
+    thinkingFallbackUsed: result.thinkingFallbackUsed === true,
+    thinkingFallbackMode: result.thinkingFallbackMode || "",
     thinkingDisabledRequested: result.thinkingDisabledRequested,
     thinkingDisableFallbackUsed: result.thinkingDisableFallbackUsed,
   };
@@ -594,6 +633,6 @@ module.exports = {
   requestCompare,
   requestChatCompletionWithFallback,
   requestListen,
-  shouldDisableThinking,
-  withThinkingDisabled,
+  resolveThinkingPreference,
+  withThinkingPreference,
 };

@@ -37,12 +37,13 @@ http://127.0.0.1:3333
 - `ASR_JUDGEMENT_AI_LISTEN_MODEL`：快判 AI 听音模型，默认 `qwen3.5-omni-flash`。
 - `ASR_JUDGEMENT_AI_COMPARE_MODEL`：快判 AI 文本比较模型，默认 `qwen3.5-plus`。
 - `ASR_JUDGEMENT_AI_TIMEOUT_MS`：快判 AI 请求超时，默认 `120000`。
-- `ASR_JUDGEMENT_AI_ENABLE_THINKING`：默认 `0`，开启时尝试传 `enable_thinking=true`。
+- `ASR_JUDGEMENT_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
 - `ASR_JUDGEMENT_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASR_JUDGEMENT_AI_MODEL`：历史兼容 compare model fallback（建议迁移到 `ASR_JUDGEMENT_AI_COMPARE_MODEL`）。
 - 快判 AI 请求支持脚本级 `aiOptions`，但后端只按白名单接收：`temperature/top_p/max_tokens/max_completion_tokens/presence_penalty/frequency_penalty/seed/stop/enable_thinking`。
 - 不支持参数（如当前 `reasoning_effort`）会被后端忽略，不会透传给模型接口。
 - `listenPrompt/comparePrompt` 可由前端覆盖，但后端始终追加安全边界（只输出 JSON、固定 answer 枚举、禁止敏感信息）。
+- 若上游返回 `enable_thinking` 不支持/参数无效，后端只会移除该参数重试一次，不会无限重试。
 - `ASR_TRANSCRIPTION_STATS_DIR`：ASR 转写统计输出目录（默认 `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`）。
 - `ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`：设为 `1` 时额外保存 `statistics-rows.json`。
 - `ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外保存 `statistics-upload-events.jsonl`。
@@ -58,13 +59,13 @@ http://127.0.0.1:3333
 - `MAGIC_DATA_AI_COMPARE_MODEL`：Magic Data 质检模型，默认 `qwen3.5-plus`。
 - `MAGIC_DATA_AI_TIMEOUT_MS`：Magic Data AI 请求超时，默认 `120000`。
 - `MAGIC_DATA_AI_MOCK`：设为 `1` 时启用 mock 调试模式。
-- `MAGIC_DATA_AI_ENABLE_THINKING`：默认 `0`，开启时尝试传 `enable_thinking=true`。
+- `MAGIC_DATA_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
 - `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASR_TRANSCRIPTION_AI_MOCK`：设为 `1` 时启用转写 AI mock 调试模式。
 - `ASR_TRANSCRIPTION_AI_LISTEN_MODEL`：转写 AI 听音模型，默认 `qwen3.5-omni-flash`。
 - `ASR_TRANSCRIPTION_AI_COMPARE_MODEL`：转写 AI 文本比较模型，默认 `qwen3.5-plus`。
 - `ASR_TRANSCRIPTION_AI_TIMEOUT_MS`：转写 AI 请求超时，默认 `120000`。
-- `ASR_TRANSCRIPTION_AI_ENABLE_THINKING`：默认 `0`，开启时尝试传 `enable_thinking=true`。
+- `ASR_TRANSCRIPTION_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
 - `ASR_TRANSCRIPTION_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`：项目数据下载密码的 SHA256（兼容旧 `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`）。
 - `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`：项目数据下载 token 签名密钥（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）。

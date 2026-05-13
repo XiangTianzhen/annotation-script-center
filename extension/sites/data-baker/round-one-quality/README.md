@@ -134,7 +134,7 @@ node platform-resources\backend\server.js
 - 听音：`qwen3.5-omni-flash`
 - 对比：`qwen3.5-plus`
 
-后端听音请求使用 Qwen-Omni `input_audio` 音频输入格式，`data` 保留完整音频 URL，`format` 从 URL pathname 后缀推断；听音请求不传 `response_format`。后端原生 `fetch` 默认在请求体顶层传 `enable_thinking=false` 尝试关闭 thinking，不使用 `extra_body`，如供应商不支持该字段会自动移除并重试一次。后端调用日志 JSONL 保留英文 key，CSV 新建时使用中文表头。
+后端听音请求使用 Qwen-Omni `input_audio` 音频输入格式，`data` 保留完整音频 URL，`format` 从 URL pathname 后缀推断；听音请求不传 `response_format`。thinking 开关采用显式传参：关闭传 `enable_thinking=false`，开启传 `enable_thinking=true`；如供应商不支持该字段会自动移除并重试一次（仅一次，不无限重试）。后端调用日志 JSONL 保留英文 key，CSV 新建时使用中文表头。
 
 后端已接入闽南方言字词表 CSV：
 

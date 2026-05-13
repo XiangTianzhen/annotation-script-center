@@ -60,6 +60,7 @@ sites/
 - “ASR 语音 AI 设置”在解锁后会按当前脚本调用后端 `defaults` 接口，展示默认模型、Prompt 与默认参数；如果读取失败则回退本地默认值。
 - 前端仅保存脚本级 override：字段清空或恢复为默认时不再固化默认值；运行时仅透传 override，后端负责“默认值 + 白名单参数”合并。
 - `response_format` 不对前端开放；结构化输出格式由后端固定控制。
+- thinking 开关语义统一：关闭会显式传 `enable_thinking=false`，开启会显式传 `enable_thinking=true`；仅当模型/接口不支持该参数时，后端移除参数重试一次（不做无限重试）。
 
 ## 页面采集工作流
 

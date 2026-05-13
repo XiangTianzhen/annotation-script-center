@@ -451,15 +451,8 @@ async function requestChatCompletionWithFallback(requestBody, options) {
       throw error;
     }
 
-    let fallbackBody = removeThinkingField(initialBody);
-    let fallbackMode = "remove";
-    if (thinkingPreference.enabled === true) {
-      fallbackBody = Object.assign({}, removeThinkingField(initialBody), {
-        enable_thinking: false,
-      });
-      fallbackMode = "disable";
-    }
-
+    const fallbackBody = removeThinkingField(initialBody);
+    const fallbackMode = "remove";
     const fallbackResult = await requestChatCompletion(fallbackBody, options || {});
     return Object.assign({}, fallbackResult, {
       enableThinkingRequested: true,
