@@ -12,7 +12,7 @@
 ## 负责范围
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
-- options 快判详情页负责保存快判专属设置：默认音量、默认倍速、倍速步进、前进 / 后退步长、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、雷题判断、AI 半自动建议（默认能力）和快捷键。
+- options 快判详情页负责保存快判专属设置：默认音量、默认倍速、倍速步进、前进 / 后退步长、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、雷题判断与快捷键；AI 参数迁移到通用隐藏部件“ASR 语音 AI 设置”。
 - 快判详情页和任务列表页 DOM / 网络资料统一沉淀到根目录 `platform-resources/alibaba-labelx/asr-judgement/`，供 Chrome / Edge 共用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。
@@ -33,7 +33,8 @@
   - `aiSuggestionPresencePenalty` / `aiSuggestionFrequencyPenalty`
   - `aiSuggestionSeed` / `aiSuggestionResponseFormat` / `aiSuggestionStopSequences`
   - `aiSuggestionEnableThinking`（默认 `false`）
-- 快判 AI 高级设置默认隐藏：在 options 快判详情页标题“阿里ASR语音判别”连续点击 10 次后显示。
+- 快判 AI 参数默认隐藏在通用部件“ASR 语音 AI 设置”中：在 options 快判详情页标题“阿里ASR语音判别”连续点击 10 次后显示，并插入在脚本标题下方。
+- 快判普通设置区不再直接展示模型、Prompt、temperature 等 AI 细项，只保留“默认能力、仅手动触发”的说明。
 - 不支持的参数前端不显示；后端也会做白名单过滤，不透传未支持字段。
 - 快捷键动作：`shortcuts.aiSuggestCurrentItem`（默认未绑定）。
 - 触发方式：只支持工具栏按钮或快捷键手动触发，且只分析“当前题卡”；不会自动分析全页或批量请求。
@@ -274,7 +275,7 @@
 AI 建议补充验证：
 
 33. 在 options 快判详情页确认不再出现“启用 AI 半自动参考建议”开关，且有“默认能力、仅手动触发”的说明。
-34. 连续点击“阿里ASR语音判别”标题 10 次，确认出现“AI 高级设置（阿里ASR语音判别）”。
+34. 连续点击“阿里ASR语音判别”标题 10 次，确认标题下方出现“ASR 语音 AI 设置”隐藏面板。
 35. 在高级设置中修改听音模型、比较模型、Prompt、temperature/top_p 等支持字段并保存。
 36. 确认不支持参数不会显示；若手工构造请求发送不支持参数，后端会忽略，不会透传给模型。
 37. 在 options 首页顶部将“后端接口地址”切到“本机”，确认 AI 请求地址随之为 `http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`。

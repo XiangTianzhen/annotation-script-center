@@ -1,5 +1,32 @@
 # 标注脚本中心修改日志
 
+## 2026-05-13（0.3.2：重构通用 ASR 语音 AI 隐藏设置部件）
+
+- 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本 options 结构重构与文档同步。
+- options 新增通用隐藏部件：`ASR 语音 AI 设置`。
+  - 统一挂载在脚本详情页标题区下方、普通设置区之前。
+  - 默认隐藏；在对应脚本详情页标题连续点击 10 次（3 秒窗口）后显示。
+  - 解锁状态仅当前 options 页面会话有效，刷新后恢复隐藏。
+- 已接入脚本：
+  - 阿里 ASR 语音判别（judgement）
+  - 阿里 ASR 语音转写（transcription）
+  - 标贝易采一检质检（dataBakerRoundOneQuality）
+  - Magic Data ANNOTATOR（magicDataAnnotatorAiReview）
+- 展示收口：
+  - 快判、标贝易采、Magic Data 的 AI 模型/开关/超时等不再散落在普通设置区，统一迁入隐藏 AI 设置部件。
+  - 快判普通区仅保留“AI 半自动参考建议为默认能力、仅手动触发”的说明。
+  - Magic Data 快捷键设置改为常显，不再默认折叠，也不受 AI 隐藏机制影响。
+- 配置隔离：
+  - 通用 UI 部件复用，但按脚本独立读取/保存原有存储路径，不做全局 AI 配置复用。
+  - 快判继续强制 `aiSuggestionEnabled=true`；标贝易采/Magic Data 仍可在隐藏 AI 设置中调整其 AI 开关。
+- 文档同步：
+  - `extension/README.md`
+  - `extension/sites/alibaba-labelx/asr-judgement/README.md`
+  - `extension/sites/alibaba-labelx/asr-transcription/README.md`
+  - `extension/sites/data-baker/round-one-quality/README.md`
+  - `extension/sites/magic-data/annotator/README.md`
+  - `AGENTS.md`
+
 ## 2026-05-13（0.3.2：整理快判脚本级 AI 高级设置并强制启用半自动建议）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本配置收口增强。

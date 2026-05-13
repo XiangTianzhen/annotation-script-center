@@ -37,6 +37,13 @@
 - 保存/提交与性别/年龄仅在用户主动快捷键触发时执行，不自动触发。
 - 页面内卡片支持手动拖拽高度（默认 420px，最小 260px，最大 `calc(100vh - 320px)`），并持久化到 `scriptCenter.magicDataAnnotator.panelHeight`。
 
+## Options 设置规则（2026-05 更新）
+
+- Magic Data 的 AI 质检设置（启用 AI、质检模式、听音/质检模型、显示听音文本、预计金额、thinking）统一迁移到通用隐藏部件“ASR 语音 AI 设置”。
+- 默认不显示 AI 质检高级设置；在 options 脚本详情页标题连续点击 10 次后显示，且只影响当前脚本。
+- Magic Data 快捷键设置属于非 AI 运行控制项，保持在普通设置区常显，不走隐藏机制。
+- 后端地址仍由 options 首页顶部“后端接口地址”统一控制，前端不配置 API Key。
+
 ## 本地联调
 
 1. 启动后端：`node platform-resources\backend\server.js`

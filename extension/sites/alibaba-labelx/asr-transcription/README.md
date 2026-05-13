@@ -40,6 +40,7 @@
   - 默认音量 `volumeValue`
   - 当前题行为 `defaultValid/fillOnValid/clearOnInvalid`
   - 当前保留功能快捷键（含“上传转写统计”“AI 推荐当前题”“填入 AI 推荐”）
+- 转写 AI 模型/Prompt/参数配置已接入通用隐藏部件“ASR 语音 AI 设置”：默认隐藏，在转写脚本详情页标题连续点击 10 次后显示，仅影响转写脚本。
 - 统计上传与定时上传不在 options 转写详情页配置；运行时始终启用。
 
 ## 注入与页面命中策略

@@ -335,6 +335,105 @@
         font-family: Consolas, "Microsoft YaHei", monospace;
       }
 
+      .asr-ai-panel {
+        display: grid;
+        gap: 14px;
+        padding: 18px 20px;
+        border-radius: 20px;
+        border: 1px solid #d8e4f5;
+        background: linear-gradient(180deg, #f5f9ff 0%, #f9fbff 100%);
+      }
+
+      .asr-ai-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .asr-ai-head strong {
+        font-size: 17px;
+      }
+
+      .asr-ai-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 0 12px;
+        min-height: 26px;
+        border-radius: 999px;
+        background: rgba(22, 119, 255, 0.1);
+        color: #0f5bd8;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .asr-ai-copy {
+        color: #475569;
+        line-height: 1.65;
+        margin: 0;
+      }
+
+      .asr-ai-block {
+        display: grid;
+        gap: 12px;
+        border: 1px solid #dde7f4;
+        border-radius: 16px;
+        padding: 14px;
+        background: #ffffff;
+      }
+
+      .asr-ai-block strong {
+        font-size: 14px;
+      }
+
+      .asr-ai-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .asr-ai-grid.two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .asr-ai-grid.three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .asr-ai-field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .asr-ai-field > span {
+        font-size: 12px;
+        font-weight: 700;
+        color: #1f2937;
+      }
+
+      .asr-ai-help {
+        font-size: 12px;
+        color: #64748b;
+        line-height: 1.45;
+      }
+
+      .asr-ai-note {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px dashed #cbd5e1;
+        background: #f8fafc;
+        color: #475569;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .asr-ai-boolean {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
       .field-card input.wide-field {
         max-width: 100%;
       }
@@ -372,6 +471,25 @@
         border-radius: 10px;
         font: inherit;
         background: #ffffff;
+      }
+
+      .asr-ai-field input[type="number"],
+      .asr-ai-field input[type="text"],
+      .asr-ai-field select,
+      .asr-ai-field textarea {
+        width: 100%;
+        max-width: 100%;
+        padding: 9px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        font: inherit;
+        background: #ffffff;
+      }
+
+      .asr-ai-field textarea {
+        min-height: 110px;
+        resize: vertical;
+        font-family: Consolas, "Microsoft YaHei", monospace;
       }
 
       .field-toggle {
@@ -479,6 +597,11 @@
           grid-template-columns: 1fr;
         }
 
+        .asr-ai-grid.two,
+        .asr-ai-grid.three {
+          grid-template-columns: 1fr;
+        }
+
         .color-grid {
           grid-template-columns: 1fr;
         }
@@ -566,6 +689,8 @@
             <span id="detail-platform-pill" class="pill info">平台</span>
           </div>
         </div>
+
+        <section id="detail-shared-asr-ai-panel" class="detail-panel hidden"></section>
 
         <section class="detail-panel">
           <div class="detail-actions">
@@ -794,100 +919,6 @@
             <strong>AI 半自动参考建议</strong>
             <span>AI 半自动参考建议为默认能力：只在你手动点击“AI 分析当前题”按钮或快捷键后触发，不会自动采用、保存、提交、领取或流转。</span>
             <span>AI 建议后端地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
-            <label>
-              <span>请求超时时间 (ms)</span>
-              <input id="judgement-ai-suggestion-timeout" type="number" min="1000" max="180000" step="1000" />
-            </label>
-            <label>
-              <span>听音模型</span>
-              <select id="judgement-ai-suggestion-listen-model-select"></select>
-            </label>
-            <input
-              id="judgement-ai-suggestion-listen-model-custom"
-              type="text"
-              class="hidden"
-              placeholder="自定义听音模型，例如 qwen3.5-omni-flash"
-              autocomplete="off"
-            />
-            <label>
-              <span>比较模型</span>
-              <select id="judgement-ai-suggestion-compare-model-select"></select>
-            </label>
-            <input
-              id="judgement-ai-suggestion-compare-model-custom"
-              type="text"
-              class="hidden"
-              placeholder="自定义比较模型，例如 qwen3.5-plus"
-              autocomplete="off"
-            />
-            <label class="field-toggle">
-              <input id="judgement-ai-suggestion-enable-thinking" type="checkbox" />
-              <span>启用思考（不支持时后端自动降级重试）</span>
-            </label>
-            <div id="judgement-ai-advanced-unlock-status" class="status-text hidden"></div>
-            <div id="judgement-ai-advanced-panel" class="hidden">
-              <strong>AI 高级设置（阿里ASR语音判别）</strong>
-              <span>这些设置仅影响阿里ASR语音判别脚本，不影响转写、标贝易采和 Magic Data。</span>
-              <label>
-                <span>听音 Prompt（可选）</span>
-                <textarea
-                  id="judgement-ai-suggestion-listen-prompt"
-                  maxlength="8000"
-                  placeholder="留空时使用后端内置听音规则模板"
-                ></textarea>
-              </label>
-              <label>
-                <span>比较 Prompt（可选）</span>
-                <textarea
-                  id="judgement-ai-suggestion-compare-prompt"
-                  maxlength="8000"
-                  placeholder="留空时使用后端内置比较规则模板"
-                ></textarea>
-              </label>
-              <label>
-                <span>temperature</span>
-                <input id="judgement-ai-suggestion-temperature" type="number" min="0" max="2" step="0.1" placeholder="留空使用后端默认" />
-              </label>
-              <label>
-                <span>top_p</span>
-                <input id="judgement-ai-suggestion-top-p" type="number" min="0" max="1" step="0.05" placeholder="留空使用后端默认" />
-              </label>
-              <label>
-                <span>max_tokens</span>
-                <input id="judgement-ai-suggestion-max-tokens" type="number" min="1" max="8192" step="1" placeholder="留空使用后端默认" />
-              </label>
-              <label>
-                <span>max_completion_tokens</span>
-                <input id="judgement-ai-suggestion-max-completion-tokens" type="number" min="1" max="8192" step="1" placeholder="留空使用后端默认" />
-              </label>
-              <label>
-                <span>presence_penalty</span>
-                <input id="judgement-ai-suggestion-presence-penalty" type="number" min="-2" max="2" step="0.1" placeholder="留空使用后端默认" />
-              </label>
-              <label>
-                <span>frequency_penalty</span>
-                <input id="judgement-ai-suggestion-frequency-penalty" type="number" min="-2" max="2" step="0.1" placeholder="留空使用后端默认" />
-              </label>
-              <label>
-                <span>seed</span>
-                <input id="judgement-ai-suggestion-seed" type="number" min="0" max="2147483647" step="1" placeholder="留空不发送" />
-              </label>
-              <label>
-                <span>response_format</span>
-                <select id="judgement-ai-suggestion-response-format">
-                  <option value="json_object">json_object（默认）</option>
-                  <option value="text">text</option>
-                </select>
-              </label>
-              <label>
-                <span>stop sequences（每行一个）</span>
-                <textarea
-                  id="judgement-ai-suggestion-stop-sequences"
-                  maxlength="960"
-                  placeholder="每行一个，最多 8 行，每行最多 80 字"
-                ></textarea>
-              </label>
-            </div>
           </div>
 
           <div class="field-card">
@@ -927,22 +958,10 @@
         </section>
 
         <section id="detail-data-baker-round-one-quality-panel" class="detail-panel hidden">
-          <div class="detail-grid two">
-            <label class="field-card">
-              <strong>启用 AI 推荐</strong>
-              <span>关闭后，标贝易采详情页不显示 AI 推荐工具卡，也不会触发推荐请求。</span>
-              <span>AI 推荐后端地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
-              <span class="field-toggle">
-                <input id="data-baker-ai-recommend-enabled" type="checkbox" />
-                启用 AI 推荐文本
-              </span>
-            </label>
-
-            <label class="field-card">
-              <strong>请求超时时间（秒）</strong>
-              <span>用于前端等待 AI 推荐接口返回，默认 120 秒；内部仍按毫秒保存和请求。</span>
-              <input id="data-baker-ai-recommend-timeout" type="number" min="1" max="300" step="1" />
-            </label>
+          <div class="field-card">
+            <strong>AI 推荐文本</strong>
+            <span>AI 推荐文本属于高级能力，默认隐藏在“ASR 语音 AI 设置”中。</span>
+            <span>如需修改模型、超时、Prompt 等参数，请在当前脚本标题连续点击 10 次后显示高级设置。</span>
           </div>
 
           <div class="detail-grid two" style="margin-top: 18px;">
@@ -992,98 +1011,18 @@
         </section>
 
         <section id="detail-magic-data-annotator-panel" class="detail-panel hidden">
-          <div class="detail-grid two">
-            <label class="field-card">
-              <strong>启用 AI 质检</strong>
-              <span>用于 Magic Data `#/asrmark` 当前条规则质检，不自动保存、不自动提交。</span>
-              <span class="field-toggle">
-                <input id="magic-data-enabled" type="checkbox" />
-                启用 Magic Data AI 质检助手
-              </span>
-            </label>
-
-            <label class="field-card">
-              <strong>AI 质检模式</strong>
-              <span>默认规则优先；第一版按该字段下发后端。</span>
-              <select id="magic-data-review-mode">
-                <option value="rule_first">规则优先</option>
-                <option value="listen_assisted">听音辅助</option>
-                <option value="strict_review">严格复核</option>
-              </select>
-            </label>
+          <div class="field-card">
+            <strong>AI 质检助手</strong>
+            <span>AI 质检高级参数默认隐藏在“ASR 语音 AI 设置”中，当前页只保留业务设置和快捷键设置。</span>
+            <span>点击当前脚本标题 10 次后可显示 AI 高级设置。</span>
           </div>
 
-          <div class="detail-grid two" style="margin-top: 18px;">
-            <label class="field-card">
-              <strong>听音模型</strong>
-              <span>用于音频有效性、性别年龄、粗略听音辅助。</span>
-              <select id="magic-data-listen-model-select">
-                <option value="qwen3.5-omni-flash">qwen3.5-omni-flash</option>
-                <option value="qwen3.5-omni">qwen3.5-omni</option>
-                <option value="qwen-omni-turbo">qwen-omni-turbo</option>
-                <option value="qwen-audio-turbo">qwen-audio-turbo</option>
-                <option value="custom">自定义模型名</option>
-              </select>
-              <input
-                id="magic-data-listen-model-custom"
-                class="wide-field hidden"
-                type="text"
-                maxlength="80"
-                placeholder="请输入自定义听音模型名"
-              />
-            </label>
-
-            <label class="field-card">
-              <strong>质检模型</strong>
-              <span>用于规则检查、正字表检查、翻译一致性检查。</span>
-              <select id="magic-data-review-model-select">
-                <option value="qwen3.5-plus">qwen3.5-plus</option>
-                <option value="qwen-plus">qwen-plus</option>
-                <option value="qwen-max">qwen-max</option>
-                <option value="qwen-turbo">qwen-turbo</option>
-                <option value="qwen-long">qwen-long</option>
-                <option value="custom">自定义模型名</option>
-              </select>
-              <input
-                id="magic-data-review-model-custom"
-                class="wide-field hidden"
-                type="text"
-                maxlength="80"
-                placeholder="请输入自定义质检模型名"
-              />
-            </label>
-          </div>
-
-          <div class="detail-grid two" style="margin-top: 18px;">
-            <div class="field-card">
-              <strong>显示与推理控制</strong>
-              <label class="field-toggle">
-                <input id="magic-data-show-heard-text" type="checkbox" />
-                <span>显示 AI 听音文本</span>
-              </label>
-              <label class="field-toggle">
-                <input id="magic-data-show-estimated-income" type="checkbox" />
-                <span>显示预计金额</span>
-              </label>
-              <label class="field-toggle">
-                <input id="magic-data-enable-thinking" type="checkbox" />
-                <span>启用思考（模型不支持时后端会自动降级）</span>
-              </label>
-            </div>
-
-            <div class="field-card">
-              <strong>后端地址说明</strong>
-              <span>不单独配置 Magic Data 后端地址，统一使用首页顶部“后端接口地址”。</span>
-              <span>页面内质检区会固定存在，点击“AI 质检当前条”后仅更新内容。</span>
-            </div>
-          </div>
-
-          <details class="field-card shortcut-panel" style="margin-top: 18px;">
-            <summary><strong>快捷键设置（默认折叠）</strong></summary>
+          <div class="field-card shortcut-panel" style="margin-top: 18px;">
+            <strong>快捷键设置（常显）</strong>
             <span>默认全部未设置。点击“录制”后输入组合键，Esc 取消录制。</span>
             <div id="magic-data-shortcut-grid" class="shortcut-grid"></div>
             <div id="magic-data-recording-status" class="shortcut-recording hidden"></div>
-          </details>
+          </div>
 
           <div class="field-actions">
             <button id="save-magic-data-settings" class="primary-button" type="button">保存 Magic Data 设置</button>
