@@ -33,6 +33,7 @@
   - `aiSuggestionPresencePenalty` / `aiSuggestionFrequencyPenalty`
   - `aiSuggestionSeed` / `aiSuggestionStopSequences`
   - `aiSuggestionEnableThinking`（默认 `false`）
+  - `aiSuggestionWebSearchEnabled`（默认 `true`，仅比较阶段生效）
 - 快判 AI 参数默认隐藏在通用部件“ASR 语音 AI 设置”中：在 options 快判详情页标题“阿里ASR语音判别”连续点击 10 次后显示，并插入在脚本标题下方。
 - 快判普通设置区不再直接展示模型、Prompt、temperature 等 AI 细项，只保留“默认能力、仅手动触发”的说明。
 - 隐藏面板解锁后会调用 `GET /api/alibaba-labelx/asr-judgement/ai/defaults` 读取后端默认模型、Prompt 和参数；失败时回退本地默认值并提示。
@@ -45,13 +46,19 @@
 - 后端为双阶段 pipeline：
   - 第一阶段：听音模型只输出 `heardText/isValidAudio/confidence` 等听音结果。
   - 第二阶段：比较模型结合 `heardText + asrText1/asrText2 + 可选上文` 输出“哪个更优”建议。
+- 权重规则：
+  - `asrText1/asrText2` 是主判断对象；
+  - `heardText` 只用于辅助比较两条候选谁更接近音频；
+  - `contextText`（上文）与 Web Search 只用于消歧，不能替代候选比较。
 - 当前题“上文”块会被采集为 `contextText`；若存在上文，AI 卡片默认“使用上文理解：开”。
 - 上文开关只在当前题 AI 卡片运行态生效，不写入全局 settings；切换后需点击“重新分析”生效。
 - 上文仅用于语义消歧，不能覆盖听音事实。
+- Web Search（联网搜索）默认开启，可在“ASR 语音 AI 设置”中关闭；仅在 compare 阶段启用，不在 listen 阶段启用。
+- Web Search 不支持时，后端会移除对应参数重试一次，并在结果卡展示“开（已回退）”。
 - Qwen 音频输入使用 `messages[].content[].type=input_audio`，字段为 `input_audio.data + input_audio.format`，`format` 会按 URL 后缀推断（wav/mp3/aac/m4a/amr/3gp/3gpp，默认 wav）。
 - `enable_thinking` 参数会按开关显式发送：关闭传 `false`、开启传 `true`；若上游返回“不支持/参数无效”，会移除该参数后仅重试一次，不做无限重试。
 - 点击“AI 分析当前题”后，当前题卡会立即显示“正在分析当前题...”状态卡；成功后替换为建议卡；失败或超时会替换为错误卡（含“重试/忽略”）。
-- 结果卡会显示听音文本、听音置信度、建议答案、置信度、风险等级、是否使用上文、双模型信息、阶段耗时和 requestId。
+- 结果卡会显示听音文本、听音置信度、建议答案、置信度、风险等级、是否使用上文、Web Search 状态、双模型信息、阶段耗时和 requestId。
 - 建议答案（`answerText`）只允许五个固定选项：`第一个更好`、`第二个更好`、`不确定或差不多`、`都不好`、`其他方言或语种`。
 - 解释性文案只能放在“简短理由”（`reasonSummary`），不能写入建议答案。
 - 当两条 ASR 主体一致但标点/空格/数字格式存在明显优劣时，应选择更规范的一条；不能把“仅标点不同”一律判成“不确定或差不多”。
@@ -194,6 +201,17 @@
 - 前进当前音频
 - 播放/暂停当前音频
 - AI 分析当前题
+- AI：采用建议
+- AI：重新分析
+- AI：忽略建议
+- 复制两条 ASR 文本
+
+复制两条 ASR 文本格式固定为：
+
+```text
+asr_text1:<第一条文本>;
+asr_text2:<第二条文本>
+```
 
 快捷键支持键盘组合和鼠标按键。运行时如果焦点在 `input`、`textarea`、`select` 或 `contenteditable` 内，不触发全局快捷键。
 运行时只响应浏览器真实用户事件；页面初始化、脚本派发的合成点击或合成按键不会触发判别动作。

@@ -38,12 +38,14 @@ http://127.0.0.1:3333
 - `ASR_JUDGEMENT_AI_COMPARE_MODEL`：快判 AI 文本比较模型，默认 `qwen3.5-plus`。
 - `ASR_JUDGEMENT_AI_TIMEOUT_MS`：快判 AI 请求超时，默认 `120000`。
 - `ASR_JUDGEMENT_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
+- `ASR_JUDGEMENT_AI_WEB_SEARCH_ENABLED`：默认 `1`；快判 compare 阶段默认显式启用 Web Search。
 - `ASR_JUDGEMENT_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASR_JUDGEMENT_AI_MODEL`：历史兼容 compare model fallback（建议迁移到 `ASR_JUDGEMENT_AI_COMPARE_MODEL`）。
-- 快判 AI 请求支持脚本级 `aiOptions`，但后端只按白名单接收：`temperature/top_p/max_tokens/max_completion_tokens/presence_penalty/frequency_penalty/seed/stop/enable_thinking`。
+- 快判 AI 请求支持脚本级 `aiOptions`，但后端只按白名单接收：`temperature/top_p/max_tokens/max_completion_tokens/presence_penalty/frequency_penalty/seed/stop/enable_thinking/webSearchEnabled`。
 - 不支持参数（如当前 `reasoning_effort`）会被后端忽略，不会透传给模型接口。
 - `listenPrompt/comparePrompt` 可由前端覆盖，但后端始终追加安全边界（只输出 JSON、固定 answer 枚举、禁止敏感信息）。
 - 若上游返回 `enable_thinking` 不支持/参数无效，后端只会移除该参数重试一次，不会无限重试。
+- 快判 Web Search 仅在 compare 阶段启用；若上游返回 `enable_search/search_options` 不支持，后端会移除搜索参数重试一次并记录 fallback。
 - `ASR_TRANSCRIPTION_STATS_DIR`：ASR 转写统计输出目录（默认 `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`）。
 - `ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`：设为 `1` 时额外保存 `statistics-rows.json`。
 - `ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外保存 `statistics-upload-events.jsonl`。

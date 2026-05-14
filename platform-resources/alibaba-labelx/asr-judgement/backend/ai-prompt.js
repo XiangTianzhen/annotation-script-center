@@ -12,11 +12,12 @@ const COMPARE_TEMPLATE_PATH = path.join(AI_RESOURCE_DIR, "compare-prompt-templat
 const FALLBACK_RULES_TEXT = [
   "# 阿里 LabelX ASR 快判 AI 规则（v2）",
   "",
-  "1. 听音结果优先级最高。",
-  "2. asrText1/asrText2 仅为候选。",
-  "3. 上文只用于语义消歧，不能覆盖听音事实。",
-  "4. 不确定时降低置信度并提示人工复核。",
-  "5. 只输出 JSON，不输出 Markdown。",
+  "1. 快判目标是在 asrText1/asrText2 中选择更优答案，不是生成听音稿。",
+  "2. asrText1/asrText2 是主判断对象，heardText 仅作辅助证据。",
+  "3. 上文和 Web Search 只用于消歧，不能覆盖候选文本和音频事实。",
+  "4. 专有名词/实体词存在明显常识差异时，优先选择真实常见词。",
+  "5. 不确定时降低置信度并提示人工复核。",
+  "6. 只输出 JSON，不输出 Markdown。",
 ].join("\n");
 
 const FALLBACK_LISTEN_TEMPLATE = [
@@ -37,7 +38,7 @@ const FALLBACK_LISTEN_TEMPLATE = [
 const FALLBACK_COMPARE_TEMPLATE = [
   "你是 ASR 快判比较模型。",
   "",
-  "请结合听音结果和候选文本判断哪个更优。",
+  "请以 asrText1/asrText2 为主判断对象，结合 heardText、上文和 Web Search 辅助判断哪个更优。",
   "输出 JSON 字段：",
   "- answer: first_better|second_better|both_bad|uncertain_or_similar|other_dialect_or_language",
   "- confidence: 0~1",
@@ -48,7 +49,10 @@ const FALLBACK_COMPARE_TEMPLATE = [
   "- contextUsed: boolean",
   "- evidence: { heardText, asrText1Match, asrText2Match, contextHint }",
   "",
-  "注意：上文只能用于消歧，不能覆盖音频听感。",
+  "注意：",
+  "1) 这是候选比较任务，不是听音转写任务。",
+  "2) heardText 仅辅助，不能直接替代候选答案。",
+  "3) 上文和 Web Search 仅用于消歧，不能覆盖音频与候选文本。",
   "当两条文本主体语义一致时，不要默认 uncertain_or_similar。",
   "若仅在标点、空格、数字/日期格式上有明显优劣，应选择更规范的一条：",
   "- asrText1 更规范 -> first_better",
@@ -168,6 +172,7 @@ function buildComparePrompt(request, listen) {
     invalidReasons: Array.isArray(listen?.invalidReasons) ? listen.invalidReasons : [],
     includeContext: includeContext,
     contextText: includeContext ? String(request?.contextText || "") : "",
+    webSearchEnabled: request?.webSearchEnabled === true,
   };
 
   const userPrompt = [

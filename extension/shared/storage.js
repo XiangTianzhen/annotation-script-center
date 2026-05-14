@@ -716,6 +716,30 @@
       null
     );
     nextConfig.shortcuts.aiSuggestCurrentItem = aiShortcut;
+    nextConfig.shortcuts.applyAiSuggestion = normalizeShortcut(
+      hasOwn(nextConfig.shortcuts, "applyAiSuggestion")
+        ? nextConfig.shortcuts.applyAiSuggestion
+        : null,
+      null
+    );
+    nextConfig.shortcuts.retryAiSuggestion = normalizeShortcut(
+      hasOwn(nextConfig.shortcuts, "retryAiSuggestion")
+        ? nextConfig.shortcuts.retryAiSuggestion
+        : null,
+      null
+    );
+    nextConfig.shortcuts.ignoreAiSuggestion = normalizeShortcut(
+      hasOwn(nextConfig.shortcuts, "ignoreAiSuggestion")
+        ? nextConfig.shortcuts.ignoreAiSuggestion
+        : null,
+      null
+    );
+    nextConfig.shortcuts.copyAsrTextPair = normalizeShortcut(
+      hasOwn(nextConfig.shortcuts, "copyAsrTextPair")
+        ? nextConfig.shortcuts.copyAsrTextPair
+        : null,
+      null
+    );
     delete nextConfig.aiSuggestionShortcut;
 
     const normalizedStatsConfig = normalizeJudgementStatsConfig(nextConfig);
@@ -808,6 +832,8 @@
     );
     normalizedStatsConfig.aiSuggestionEnableThinking =
       normalizedStatsConfig.aiSuggestionEnableThinking === true;
+    normalizedStatsConfig.aiSuggestionWebSearchEnabled =
+      normalizedStatsConfig.aiSuggestionWebSearchEnabled !== false;
     // legacy compatibility: keep single model field aligned with compare model.
     normalizedStatsConfig.aiSuggestionModel = normalizedStatsConfig.aiSuggestionCompareModel;
     return normalizedStatsConfig;

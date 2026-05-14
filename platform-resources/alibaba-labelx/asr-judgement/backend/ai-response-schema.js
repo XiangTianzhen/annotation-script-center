@@ -127,6 +127,7 @@ function normalizeEvidence(value, fallbackHeardText) {
     asrText1Match: normalizeMatch(source.asrText1Match),
     asrText2Match: normalizeMatch(source.asrText2Match),
     contextHint: normalizeShortText(source.contextHint, 120),
+    webSearchHint: normalizeShortText(source.webSearchHint, 120),
   };
 }
 
@@ -193,6 +194,7 @@ function buildSuggestResponse(parts) {
   const request = parts?.request || {};
   const listen = parts?.listen || {};
   const compare = parts?.compare || {};
+  const webSearch = parts?.webSearch || {};
   return {
     requestId: String(parts?.requestId || ""),
     answer: String(compare.answer || ""),
@@ -226,6 +228,12 @@ function buildSuggestResponse(parts) {
       listenDurationMs: Math.max(0, Number(parts?.listenDurationMs || 0)),
       compareDurationMs: Math.max(0, Number(parts?.compareDurationMs || 0)),
       totalDurationMs: Math.max(0, Number(parts?.totalDurationMs || 0)),
+    },
+    webSearch: {
+      enabled: webSearch.enabled === true,
+      used: webSearch.used === true,
+      fallbackUsed: webSearch.fallbackUsed === true,
+      fallbackReason: normalizeShortText(webSearch.fallbackReason, 120),
     },
     thinking: {
       requested: parts?.thinking?.requested === true,

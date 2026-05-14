@@ -496,6 +496,7 @@
     aiSuggestionReasoningEffort: "",
     aiSuggestionStopSequences: "",
     aiSuggestionEnableThinking: false,
+    aiSuggestionWebSearchEnabled: true,
     aiSuggestionModel: "qwen3.5-plus",
     aiSuggestionAvailableModels: clone(JUDGEMENT_AI_AVAILABLE_MODELS),
     shortcuts: {
@@ -514,6 +515,10 @@
       seekForward: createShortcut("ArrowRight"),
       playPause: createShortcut("Space"),
       aiSuggestCurrentItem: null,
+      applyAiSuggestion: null,
+      retryAiSuggestion: null,
+      ignoreAiSuggestion: null,
+      copyAsrTextPair: null,
     },
   };
 
@@ -533,6 +538,10 @@
     { key: "seekForward", label: "前进当前音频" },
     { key: "playPause", label: "播放/暂停当前音频" },
     { key: "aiSuggestCurrentItem", label: "AI 分析当前题" },
+    { key: "applyAiSuggestion", label: "AI：采用建议" },
+    { key: "retryAiSuggestion", label: "AI：重新分析" },
+    { key: "ignoreAiSuggestion", label: "AI：忽略建议" },
+    { key: "copyAsrTextPair", label: "复制两条 ASR 文本" },
   ];
 
   const JUDGEMENT_PROJECT_ASR_KEYS = [
@@ -575,6 +584,7 @@
     "aiSuggestionReasoningEffort",
     "aiSuggestionStopSequences",
     "aiSuggestionEnableThinking",
+    "aiSuggestionWebSearchEnabled",
     "aiSuggestionModel",
     "aiSuggestionAvailableModels",
     "shortcuts",

@@ -97,7 +97,12 @@
     { key: "rateReset", label: "重置倍速" },
     { key: "seekBackward", label: "后退当前音频" },
     { key: "seekForward", label: "前进当前音频" },
-      { key: "playPause", label: "播放/暂停当前音频" },
+    { key: "playPause", label: "播放/暂停当前音频" },
+    { key: "aiSuggestCurrentItem", label: "AI 分析当前题" },
+    { key: "applyAiSuggestion", label: "AI：采用建议" },
+    { key: "retryAiSuggestion", label: "AI：重新分析" },
+    { key: "ignoreAiSuggestion", label: "AI：忽略建议" },
+    { key: "copyAsrTextPair", label: "复制两条 ASR 文本" },
   ];
   const transcriptionShortcutActions = [
     { key: "shortcutPlayPause", label: "播放 / 暂停" },
@@ -480,6 +485,18 @@
     return judgementAiSupportedParams[String(apiKey || "")] === true;
   }
 
+  function isJudgementSupportedParamFromDefaults(apiKey) {
+    const payload = getAsrVoiceAiDefaultsCached(judgementProjectId);
+    const supportedParams =
+      payload && payload.supportedParams && typeof payload.supportedParams === "object"
+        ? payload.supportedParams
+        : {};
+    if (hasOwn(supportedParams, apiKey)) {
+      return supportedParams[apiKey] === true;
+    }
+    return isJudgementAiParamSupported(apiKey);
+  }
+
   function normalizeOptionalNumberText(value, min, max, precision) {
     const text = String(value || "").trim();
     if (!text) {
@@ -598,6 +615,13 @@
       thinkingNode.parentElement.classList.toggle(
         "hidden",
         isJudgementAiParamSupported("enable_thinking") !== true
+      );
+    }
+    const webSearchNode = getElement("judgement-ai-suggestion-web-search-enabled");
+    if (webSearchNode && webSearchNode.parentElement) {
+      webSearchNode.parentElement.classList.toggle(
+        "hidden",
+        isJudgementSupportedParamFromDefaults("web_search") !== true
       );
     }
   }
@@ -823,6 +847,7 @@
       frequency_penalty: 0,
       seed: "",
       stop: "",
+      webSearchEnabled: scriptId === judgementProjectId,
       listenPrompt: "",
       comparePrompt: "",
       reviewPrompt: "",
@@ -837,6 +862,7 @@
       seed: true,
       stop: true,
       enable_thinking: true,
+      web_search: scriptId === judgementProjectId,
       reasoning_effort: false,
       response_format: false,
     };
@@ -1272,6 +1298,9 @@
         '<label class="asr-ai-field"><span>比较模型自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="180000" step="1000" /></label>',
         '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时后端自动降级）</span></label></label>',
+        scriptId === judgementProjectId
+          ? '<label class="asr-ai-field"><span>联网搜索</span><label class="asr-ai-boolean"><input id="' + prefix + '-web-search-enabled" type="checkbox" /><span>启用 Web Search 联网搜索（专有名词/实体词消歧）</span></label></label>'
+          : "",
         "</div></div>",
         '<div class="asr-ai-block"><strong>Prompt</strong><div class="asr-ai-grid">',
         '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="' + prefix + '-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
@@ -1600,6 +1629,7 @@
       aiSuggestionReasoningEffort: "",
       aiSuggestionStopSequences: "",
       aiSuggestionEnableThinking: false,
+      aiSuggestionWebSearchEnabled: true,
       aiSuggestionModel: "qwen3.5-plus",
       aiSuggestionAvailableModels: judgementAiCompareModels.slice(),
       shortcuts: {
@@ -1773,6 +1803,7 @@
       aiSuggestionReasoningEffort: "",
       aiSuggestionStopSequences: normalizeStopSequencesText(asrConfig.aiSuggestionStopSequences),
       aiSuggestionEnableThinking: asrConfig.aiSuggestionEnableThinking === true,
+      aiSuggestionWebSearchEnabled: asrConfig.aiSuggestionWebSearchEnabled !== false,
       aiSuggestionModel: normalizeJudgementAiModelText(
         asrConfig.aiSuggestionCompareModel || asrConfig.aiSuggestionModel,
         defaults.aiSuggestionCompareModel || defaults.aiSuggestionModel || "qwen3.5-plus"
@@ -2565,6 +2596,14 @@
         config.aiSuggestionEnableThinking === true ||
           (config.aiSuggestionEnableThinking !== true && aiDefaults.enableThinking === true)
       );
+      const webSearchEnabledNode = getElement("judgement-ai-suggestion-web-search-enabled");
+      if (webSearchEnabledNode instanceof HTMLInputElement) {
+        webSearchEnabledNode.checked = Boolean(
+          config.aiSuggestionWebSearchEnabled === true ||
+            (config.aiSuggestionWebSearchEnabled !== false &&
+              aiDefaults.webSearchEnabled !== false)
+        );
+      }
       applyJudgementModelField(
         "judgement-ai-suggestion-listen-model-select",
         "judgement-ai-suggestion-listen-model-custom",
@@ -3991,6 +4030,13 @@
     const aiSuggestionEnableThinking = hasAiSettingsPanel
       ? getElement("judgement-ai-suggestion-enable-thinking").checked === true
       : currentConfig.aiSuggestionEnableThinking === true;
+    const webSearchEnabledNode = getElement("judgement-ai-suggestion-web-search-enabled");
+    const aiSuggestionWebSearchEnabled =
+      hasAiSettingsPanel &&
+      webSearchEnabledNode instanceof HTMLInputElement &&
+      isJudgementSupportedParamFromDefaults("web_search")
+        ? webSearchEnabledNode.checked === true
+        : currentConfig.aiSuggestionWebSearchEnabled !== false;
     const aiSuggestionListenPrompt = hasAiSettingsPanel
       ? (function () {
           const value = normalizePromptText(getElement("judgement-ai-suggestion-listen-prompt").value);
@@ -4167,6 +4213,7 @@
         aiSuggestionReasoningEffort: "",
         aiSuggestionStopSequences: aiSuggestionStopSequences,
         aiSuggestionEnableThinking: aiSuggestionEnableThinking,
+        aiSuggestionWebSearchEnabled: aiSuggestionWebSearchEnabled,
         aiSuggestionModel: aiSuggestionCompareModel,
         aiSuggestionAvailableModels: aiSuggestionAvailableModels,
         shortcuts: shortcuts,

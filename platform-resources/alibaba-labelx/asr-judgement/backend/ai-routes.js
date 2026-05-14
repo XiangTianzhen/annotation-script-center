@@ -227,6 +227,9 @@ function normalizeAiOptions(source, supportedParams) {
   if (supportedParams.enable_thinking === true && typeof payload.enable_thinking === "boolean") {
     normalized.enable_thinking = payload.enable_thinking === true;
   }
+  if (supportedParams.web_search === true && typeof payload.webSearchEnabled === "boolean") {
+    normalized.webSearchEnabled = payload.webSearchEnabled === true;
+  }
   return normalized;
 }
 
@@ -273,6 +276,13 @@ function normalizeSuggestRequest(body) {
     aiOptions.enable_thinking,
     normalizeBoolean(source.enableThinking, config.enableThinkingDefault === true)
   );
+  const webSearchEnabled = normalizeBoolean(
+    aiOptions.webSearchEnabled,
+    normalizeBoolean(
+      source.webSearchEnabled,
+      config.webSearchEnabledDefault !== false
+    )
+  );
 
   if (!projectId) {
     throw createHttpError(400, "projectId 不能为空。", "invalid-project-id");
@@ -304,6 +314,7 @@ function normalizeSuggestRequest(body) {
     listenModel: listenModel || DEFAULT_LISTEN_MODEL,
     compareModel: compareModel || DEFAULT_COMPARE_MODEL,
     enableThinking,
+    webSearchEnabled,
     aiOptions,
     ruleVersion,
     clientVersion,
@@ -329,11 +340,12 @@ function sendHealth(response) {
     legacyModel: config.legacyModel || "",
     allowClientModelOverride: config.allowClientModelOverride === true,
     enableThinkingDefault: config.enableThinkingDefault === true,
-      timeoutMs: config.timeoutMs,
-      supportedParams: JUDGEMENT_AI_SUPPORTED_PARAMS,
-      mockEnabled: config.mockEnabled,
-      hasApiKey: config.hasApiKey,
-      ruleVersion: DEFAULT_RULE_VERSION,
+    webSearchEnabledDefault: config.webSearchEnabledDefault !== false,
+    timeoutMs: config.timeoutMs,
+    supportedParams: JUDGEMENT_AI_SUPPORTED_PARAMS,
+    mockEnabled: config.mockEnabled,
+    hasApiKey: config.hasApiKey,
+    ruleVersion: DEFAULT_RULE_VERSION,
     status: config.hasApiKey || config.mockEnabled ? "ready" : "missing-api-key",
   });
 }
@@ -351,6 +363,7 @@ function buildDefaultsResponse() {
       reviewModel: "",
       timeoutMs: config.timeoutMs,
       enableThinking: config.enableThinkingDefault === true,
+      webSearchEnabled: config.webSearchEnabledDefault !== false,
       temperature: DEFAULT_REQUEST_PARAMS.temperature,
       top_p: DEFAULT_REQUEST_PARAMS.top_p,
       max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
@@ -409,6 +422,7 @@ async function handleSuggest(request, response) {
       compareModel: suggestRequest.compareModel,
       includeContext: suggestRequest.includeContext === true,
       contextLength: suggestRequest.contextText.length,
+      webSearchEnabled: suggestRequest.webSearchEnabled === true,
     });
 
     console.info("[ASR Judgement][ai] listen start", {
@@ -450,6 +464,7 @@ async function handleSuggest(request, response) {
       compareModel: suggestRequest.compareModel,
       includeContext: suggestRequest.includeContext === true,
       contextLength: suggestRequest.contextText.length,
+      webSearchEnabled: suggestRequest.webSearchEnabled === true,
     });
     const comparePrompt = buildComparePrompt(suggestRequest, normalizedListen);
     const compareStartedAtMs = Date.now();
@@ -465,6 +480,7 @@ async function handleSuggest(request, response) {
         hostname,
         itemIndex: suggestRequest.itemIndex,
         enableThinking: suggestRequest.enableThinking,
+        webSearchEnabled: suggestRequest.webSearchEnabled === true,
         aiOptions: suggestRequest.aiOptions,
       }
     );
@@ -484,6 +500,9 @@ async function handleSuggest(request, response) {
       providerStatus: Number(compareResult.providerStatus || 0),
       chunkCount: Number(compareResult.chunkCount || 0),
       usage: compareResult.usage || {},
+      webSearchEnabled: compareResult.webSearchEnabled === true,
+      webSearchUsed: compareResult.webSearchUsed === true,
+      webSearchFallbackUsed: compareResult.webSearchFallbackUsed === true,
       summary: "answer=" + String(normalizedCompare.answer || ""),
     });
 
@@ -508,6 +527,12 @@ async function handleSuggest(request, response) {
         listenFallbackUsed: listenResult.thinkingFallbackUsed === true,
         compareFallbackUsed: compareResult.thinkingFallbackUsed === true,
       },
+      webSearch: {
+        enabled: suggestRequest.webSearchEnabled === true,
+        used: compareResult.webSearchUsed === true,
+        fallbackUsed: compareResult.webSearchFallbackUsed === true,
+        fallbackReason: String(compareResult.webSearchFallbackReason || ""),
+      },
       ruleVersion: suggestRequest.ruleVersion || DEFAULT_RULE_VERSION,
       mock: Boolean(config.mockEnabled || listenResult.mock || compareResult.mock),
     });
@@ -520,6 +545,9 @@ async function handleSuggest(request, response) {
       compareModel: compareResult.model,
       includeContext: suggestRequest.includeContext === true,
       contextLength: suggestRequest.contextText.length,
+      webSearchEnabled: suggestRequest.webSearchEnabled === true,
+      webSearchUsed: compareResult.webSearchUsed === true,
+      webSearchFallbackUsed: compareResult.webSearchFallbackUsed === true,
       durationMs: totalDurationMs,
       providerStatus: Number(compareResult.providerStatus || listenResult.providerStatus || 0),
       chunkCount:
@@ -559,6 +587,7 @@ async function handleSuggest(request, response) {
       compareModel: String(suggestRequest?.compareModel || ""),
       includeContext: suggestRequest?.includeContext === true,
       contextLength: Number(suggestRequest?.contextText?.length || 0),
+      webSearchEnabled: suggestRequest?.webSearchEnabled === true,
       durationMs: Math.max(0, Date.now() - startedAtMs),
       providerStatus: Number(providerStatus || 0),
       errorCode: code,

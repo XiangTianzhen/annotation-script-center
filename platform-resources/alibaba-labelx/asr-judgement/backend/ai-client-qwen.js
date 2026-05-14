@@ -24,6 +24,7 @@ const SUPPORTED_REQUEST_PARAMS = {
   response_format: false,
   stop: true,
   enable_thinking: true,
+  web_search: true,
   reasoning_effort: false,
 };
 
@@ -81,6 +82,10 @@ function getClientConfig() {
     compareModel: compareModel || DEFAULT_COMPARE_MODEL,
     legacyModel: legacyModel || "",
     enableThinkingDefault: parseBoolean(process.env.ASR_JUDGEMENT_AI_ENABLE_THINKING, false),
+    webSearchEnabledDefault: parseBoolean(
+      process.env.ASR_JUDGEMENT_AI_WEB_SEARCH_ENABLED,
+      true
+    ),
     allowClientModelOverride: parseBoolean(
       process.env.ASR_JUDGEMENT_AI_ALLOW_CLIENT_MODEL_OVERRIDE,
       true
@@ -402,6 +407,33 @@ function isEnableThinkingUnsupportedError(error) {
   );
 }
 
+function isWebSearchUnsupportedError(error) {
+  if (!error || error.code !== "provider-http-error") {
+    return false;
+  }
+  const summary = String(error.summary || error.message || "").toLowerCase();
+  const hasWebSearchKey =
+    summary.indexOf("enable_search") >= 0 ||
+    summary.indexOf("search_options") >= 0 ||
+    summary.indexOf("forced_search") >= 0 ||
+    summary.indexOf("search_strategy") >= 0;
+  if (!hasWebSearchKey) {
+    return false;
+  }
+  return (
+    summary.indexOf("unsupported") >= 0 ||
+    summary.indexOf("invalid") >= 0 ||
+    summary.indexOf("unknown") >= 0
+  );
+}
+
+function removeWebSearchFields(requestBody) {
+  const nextBody = Object.assign({}, requestBody);
+  delete nextBody.enable_search;
+  delete nextBody.search_options;
+  return nextBody;
+}
+
 async function requestChatCompletion(config, requestBody, options) {
   if (typeof fetch !== "function") {
     throw new Error("当前 Node 运行时不支持 fetch。");
@@ -429,6 +461,9 @@ async function requestChatCompletion(config, requestBody, options) {
       typeof requestBody.enable_thinking === "boolean"
         ? requestBody.enable_thinking === true
         : null,
+    webSearchEnabled:
+      Object.prototype.hasOwnProperty.call(requestBody || {}, "enable_search") &&
+      requestBody.enable_search === true,
   });
 
   try {
@@ -515,32 +550,55 @@ async function requestChatCompletion(config, requestBody, options) {
 
 async function requestWithThinkingFallback(config, requestBody, options) {
   const enableThinking = options?.enableThinking === true;
-  const initialBody = Object.assign({}, requestBody, {
+  const webSearchEnabled = options?.webSearchEnabled === true;
+  let currentBody = Object.assign({}, requestBody, {
     enable_thinking: enableThinking === true,
   });
+  if (webSearchEnabled) {
+    currentBody.enable_search = true;
+  }
 
-  try {
-    const completion = await requestChatCompletion(config, initialBody, options);
-    return Object.assign({}, completion, {
-      thinkingRequested: true,
-      enableThinking: enableThinking,
-      thinkingFallbackUsed: false,
-      thinkingFallbackMode: "",
-    });
-  } catch (error) {
-    if (!isEnableThinkingUnsupportedError(error)) {
+  let thinkingFallbackUsed = false;
+  let thinkingFallbackMode = "";
+  let webSearchFallbackUsed = false;
+  let webSearchFallbackReason = "";
+  const fallbackState = {
+    thinking: false,
+    webSearch: false,
+  };
+
+  while (true) {
+    try {
+      const completion = await requestChatCompletion(config, currentBody, options);
+      const webSearchUsed = webSearchEnabled === true && currentBody.enable_search === true;
+      return Object.assign({}, completion, {
+        thinkingRequested: true,
+        enableThinking: enableThinking,
+        thinkingFallbackUsed: thinkingFallbackUsed,
+        thinkingFallbackMode: thinkingFallbackMode,
+        webSearchEnabled: webSearchEnabled,
+        webSearchUsed: webSearchUsed,
+        webSearchFallbackUsed: webSearchFallbackUsed,
+        webSearchFallbackReason: webSearchFallbackReason,
+      });
+    } catch (error) {
+      if (!fallbackState.thinking && isEnableThinkingUnsupportedError(error)) {
+        fallbackState.thinking = true;
+        thinkingFallbackUsed = true;
+        thinkingFallbackMode = "remove";
+        currentBody = Object.assign({}, currentBody);
+        delete currentBody.enable_thinking;
+        continue;
+      }
+      if (!fallbackState.webSearch && isWebSearchUnsupportedError(error)) {
+        fallbackState.webSearch = true;
+        webSearchFallbackUsed = true;
+        webSearchFallbackReason = "provider unsupported";
+        currentBody = removeWebSearchFields(currentBody);
+        continue;
+      }
       throw error;
     }
-
-    const fallbackBody = Object.assign({}, requestBody);
-    const fallbackMode = "remove";
-    const completion = await requestChatCompletion(config, fallbackBody, options);
-    return Object.assign({}, completion, {
-      thinkingRequested: true,
-      enableThinking: enableThinking,
-      thinkingFallbackUsed: true,
-      thinkingFallbackMode: fallbackMode,
-    });
   }
 }
 
@@ -588,6 +646,12 @@ async function requestListen(input, prompt, options) {
       : typeof options?.enableThinking === "boolean"
       ? options.enableThinking === true
       : config.enableThinkingDefault === true;
+  const webSearchEnabled =
+    typeof options?.webSearchEnabled === "boolean"
+      ? options.webSearchEnabled === true
+      : typeof options?.aiOptions?.webSearchEnabled === "boolean"
+      ? options.aiOptions.webSearchEnabled === true
+      : config.webSearchEnabledDefault === true;
 
   if (config.mockEnabled) {
     return {
@@ -604,6 +668,10 @@ async function requestListen(input, prompt, options) {
       enableThinking,
       thinkingFallbackUsed: false,
       thinkingFallbackMode: "",
+      webSearchEnabled: false,
+      webSearchUsed: false,
+      webSearchFallbackUsed: false,
+      webSearchFallbackReason: "",
     };
   }
 
@@ -662,6 +730,7 @@ async function requestListen(input, prompt, options) {
     timeoutMs: options?.timeoutMs,
     stage: "listen",
     enableThinking,
+    webSearchEnabled: false,
   });
 
   return {
@@ -678,6 +747,10 @@ async function requestListen(input, prompt, options) {
     enableThinking: completion.enableThinking === true,
     thinkingFallbackUsed: completion.thinkingFallbackUsed === true,
     thinkingFallbackMode: String(completion.thinkingFallbackMode || ""),
+    webSearchEnabled: false,
+    webSearchUsed: false,
+    webSearchFallbackUsed: false,
+    webSearchFallbackReason: "",
   };
 }
 
@@ -707,6 +780,10 @@ async function requestCompare(input, prompt, options) {
       enableThinking,
       thinkingFallbackUsed: false,
       thinkingFallbackMode: "",
+      webSearchEnabled: webSearchEnabled,
+      webSearchUsed: webSearchEnabled,
+      webSearchFallbackUsed: false,
+      webSearchFallbackReason: "",
     };
   }
 
@@ -753,6 +830,7 @@ async function requestCompare(input, prompt, options) {
     timeoutMs: options?.timeoutMs,
     stage: "compare",
     enableThinking,
+    webSearchEnabled,
   });
 
   return {
@@ -769,6 +847,10 @@ async function requestCompare(input, prompt, options) {
     enableThinking: completion.enableThinking === true,
     thinkingFallbackUsed: completion.thinkingFallbackUsed === true,
     thinkingFallbackMode: String(completion.thinkingFallbackMode || ""),
+    webSearchEnabled: completion.webSearchEnabled === true,
+    webSearchUsed: completion.webSearchUsed === true,
+    webSearchFallbackUsed: completion.webSearchFallbackUsed === true,
+    webSearchFallbackReason: String(completion.webSearchFallbackReason || ""),
   };
 }
 

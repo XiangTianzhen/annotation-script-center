@@ -2,6 +2,10 @@
   const ROOT_ATTR = "data-asr-edge-judgement-ai-suggestion";
   const STYLE_ID = "asr-edge-judgement-ai-suggestion-style";
   const AI_ACTION_KEY = "aiSuggestCurrentItem";
+  const APPLY_ACTION_KEY = "applyAiSuggestion";
+  const RETRY_ACTION_KEY = "retryAiSuggestion";
+  const IGNORE_ACTION_KEY = "ignoreAiSuggestion";
+  const COPY_ASR_ACTION_KEY = "copyAsrTextPair";
   const RULE_VERSION = "asr-judgement-ai-v2";
   const ANSWER_TO_CHOICE = {
     first_better: "choiceFirstBetter",
@@ -44,6 +48,7 @@
   const CONTEXT_TITLE = "上文";
   const pendingStateByItem = new WeakMap();
   const contextIncludeOverrideByItem = new WeakMap();
+  const latestSuggestionByItem = new WeakMap();
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
@@ -241,6 +246,42 @@
     return parseDiffSignature(diffView?.getAttribute("data-asr-edge-signature") || "");
   }
 
+  function normalizePairText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function formatAsrTextPair(pair) {
+    const first = normalizePairText(pair?.first || "");
+    const second = normalizePairText(pair?.second || "");
+    if (!first || !second) {
+      return "";
+    }
+    return "asr_text1:" + first + ";\nasr_text2:" + second;
+  }
+
+  async function writeClipboardText(text) {
+    const value = String(text || "");
+    if (!value) {
+      throw new Error("复制内容为空。");
+    }
+    if (navigator?.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(value);
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "readonly");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const success = document.execCommand("copy");
+    textarea.remove();
+    if (!success) {
+      throw new Error("浏览器不支持复制，请手动复制。");
+    }
+  }
+
   function resolveItemContextText(item) {
     const wraps = Array.from(item.querySelectorAll(".labelRender-item-content-wrap"));
     for (const wrap of wraps) {
@@ -331,6 +372,17 @@
     return "info";
   }
 
+  function getWebSearchStatusText(webSearch) {
+    const source = webSearch && typeof webSearch === "object" ? webSearch : {};
+    if (source.enabled !== true) {
+      return "关";
+    }
+    if (source.fallbackUsed === true) {
+      return "开（已回退）";
+    }
+    return source.used === true ? "开（已使用）" : "开";
+  }
+
   function createDetailRow(label, value) {
     const labelNode = document.createElement("span");
     labelNode.className = "asr-edge-ai-label";
@@ -347,6 +399,7 @@
     item.querySelectorAll("[" + ROOT_ATTR + "]").forEach(function (node) {
       node.remove();
     });
+    latestSuggestionByItem.delete(item);
   }
 
   function setItemPending(item, pending, requestId) {
@@ -430,7 +483,7 @@
     root.appendChild(foot);
   }
 
-  function renderLoadingCard(item, contextState) {
+  function renderLoadingCard(item, contextState, options) {
     removeCard(item);
     ensureStyle();
 
@@ -476,16 +529,30 @@
         : "开启上文理解"
       : "未检测到上文";
     toggleButton.disabled = true;
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.textContent = "复制两条 ASR";
+    copyButton.addEventListener("click", function () {
+      if (typeof options?.copyAsrTextPair !== "function") {
+        return;
+      }
+      void options.copyAsrTextPair();
+    });
     const ignoreButton = document.createElement("button");
     ignoreButton.type = "button";
     ignoreButton.setAttribute("data-action", "ignore");
     ignoreButton.textContent = "忽略";
     ignoreButton.addEventListener("click", function () {
+      if (typeof options?.ignoreSuggestion === "function") {
+        void options.ignoreSuggestion();
+        return;
+      }
       removeCard(item);
     });
     actionWrap.appendChild(applyButton);
     actionWrap.appendChild(retryButton);
     actionWrap.appendChild(toggleButton);
+    actionWrap.appendChild(copyButton);
     actionWrap.appendChild(ignoreButton);
     root.appendChild(actionWrap);
 
@@ -579,11 +646,26 @@
     ignoreButton.setAttribute("data-action", "ignore");
     ignoreButton.textContent = "忽略";
     ignoreButton.addEventListener("click", function () {
+      if (typeof options?.ignoreSuggestion === "function") {
+        void options.ignoreSuggestion();
+        return;
+      }
       removeCard(item);
+    });
+
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.textContent = "复制两条 ASR";
+    copyButton.addEventListener("click", function () {
+      if (typeof options?.copyAsrTextPair !== "function") {
+        return;
+      }
+      void options.copyAsrTextPair();
     });
 
     actionWrap.appendChild(retryButton);
     actionWrap.appendChild(toggleButton);
+    actionWrap.appendChild(copyButton);
     actionWrap.appendChild(ignoreButton);
     root.appendChild(actionWrap);
 
@@ -621,6 +703,8 @@
       createDetailRow("置信度", (result.confidence * 100).toFixed(1) + "%"),
       createDetailRow("风险等级", result.riskLevel || "unknown"),
       createDetailRow("需要人工搜索", result.needManualSearch ? "是" : "否"),
+      createDetailRow("Web Search", result.webSearchStatusText || "-"),
+      createDetailRow("搜索辅助", result.webSearchHint || "-"),
       createDetailRow("简短理由", result.reasonSummary || "-"),
       createDetailRow("听音文本", result.listenHeardText || "-"),
       createDetailRow("听音置信度", (result.listenConfidence * 100).toFixed(1) + "%"),
@@ -651,34 +735,10 @@
     const canApply = Boolean(result.choiceActionKey) && !result.thunderConflict;
     applyButton.disabled = !canApply;
     applyButton.addEventListener("click", function () {
-      if (!canApply) {
+      if (!canApply || typeof options.applyCurrentSuggestion !== "function") {
         return;
       }
-      const needConfirm =
-        result.shouldWarnBeforeApply || result.confidence < 0.65 || result.needManualSearch;
-      if (
-        needConfirm &&
-        window.confirm("当前建议存在风险，请人工复核后再采用。是否继续采用？") !== true
-      ) {
-        return;
-      }
-      Promise.resolve(options.applySuggestion(result.choiceActionKey))
-        .then(function (applyResult) {
-          if (applyResult?.ok === false) {
-            throw new Error(applyResult.message || "采用建议失败。");
-          }
-          if (typeof options.showToast === "function") {
-            options.showToast("AI 建议已采用。", "info");
-          }
-        })
-        .catch(function (error) {
-          if (typeof options.showToast === "function") {
-            options.showToast(
-              "采用建议失败：" + (error && error.message ? error.message : String(error)),
-              "error"
-            );
-          }
-        });
+      void options.applyCurrentSuggestion();
     });
 
     const retryButton = document.createElement("button");
@@ -726,12 +786,27 @@
     ignoreButton.setAttribute("data-action", "ignore");
     ignoreButton.textContent = "忽略";
     ignoreButton.addEventListener("click", function () {
+      if (typeof options?.ignoreSuggestion === "function") {
+        void options.ignoreSuggestion();
+        return;
+      }
       removeCard(item);
+    });
+
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.textContent = "复制两条 ASR";
+    copyButton.addEventListener("click", function () {
+      if (typeof options?.copyAsrTextPair !== "function") {
+        return;
+      }
+      void options.copyAsrTextPair();
     });
 
     actionWrap.appendChild(applyButton);
     actionWrap.appendChild(retryButton);
     actionWrap.appendChild(toggleButton);
+    actionWrap.appendChild(copyButton);
     actionWrap.appendChild(ignoreButton);
     root.appendChild(actionWrap);
 
@@ -751,9 +826,13 @@
     }
 
     function buildActionResult(ok, message, extra) {
+      return buildNamedActionResult(AI_ACTION_KEY, ok, message, extra);
+    }
+
+    function buildNamedActionResult(actionKey, ok, message, extra) {
       return Object.assign(
         {
-          action: AI_ACTION_KEY,
+          action: String(actionKey || AI_ACTION_KEY),
           ok: ok === true,
           message: String(message || ""),
           at: new Date().toISOString(),
@@ -882,6 +961,7 @@
       if (isAdvancedParamSupported("enable_thinking")) {
         options.enable_thinking = config.aiSuggestionEnableThinking === true;
       }
+      options.webSearchEnabled = config.aiSuggestionWebSearchEnabled !== false;
       return options;
     }
 
@@ -918,6 +998,161 @@
           return CHOICE_LABELS[choiceActionKey] === String(answerText || "").trim();
         }) || ""
       );
+    }
+
+    function getLatestSuggestion(item) {
+      const source = latestSuggestionByItem.get(item);
+      return source && typeof source === "object" ? source : null;
+    }
+
+    function rememberLatestSuggestion(item, payload) {
+      if (!(item instanceof HTMLElement)) {
+        return;
+      }
+      latestSuggestionByItem.set(item, payload);
+    }
+
+    function resolveCurrentItemForAction(actionKey, source) {
+      const item = resolveCurrentItem();
+      if (!(item instanceof HTMLElement)) {
+        return {
+          ok: false,
+          result: buildNamedActionResult(actionKey, false, "未找到当前题卡，请先点击要操作的题卡。", {
+            reason: "current-item-not-found",
+            source: source || "unknown",
+          }),
+        };
+      }
+      return {
+        ok: true,
+        item,
+      };
+    }
+
+    async function applyCurrentSuggestion(source) {
+      const resolved = resolveCurrentItemForAction(APPLY_ACTION_KEY, source);
+      if (!resolved.ok) {
+        return resolved.result;
+      }
+      const item = resolved.item;
+      const latestSuggestion = getLatestSuggestion(item);
+      if (!latestSuggestion || !latestSuggestion.result) {
+        return buildNamedActionResult(APPLY_ACTION_KEY, false, "当前题暂无可采用的 AI 建议。", {
+          reason: "ai-suggestion-missing",
+          source: source || "unknown",
+        });
+      }
+      const result = latestSuggestion.result;
+      if (!result.choiceActionKey || result.thunderConflict) {
+        return buildNamedActionResult(
+          APPLY_ACTION_KEY,
+          false,
+          "当前建议不可直接采用，请人工复核。",
+          {
+            reason: result.thunderConflict ? "thunder-conflict" : "choice-action-missing",
+            source: source || "unknown",
+            requestId: String(result.requestId || ""),
+          }
+        );
+      }
+      if (typeof options.applySuggestion !== "function") {
+        return buildNamedActionResult(APPLY_ACTION_KEY, false, "判别动作不可用。", {
+          reason: "apply-action-missing",
+          source: source || "unknown",
+        });
+      }
+
+      const needConfirm =
+        result.shouldWarnBeforeApply === true ||
+        result.needManualSearch === true ||
+        Number(result.confidence || 0) < 0.65;
+      if (
+        needConfirm &&
+        window.confirm("当前建议存在风险，请人工复核后再采用。是否继续采用？") !== true
+      ) {
+        return buildNamedActionResult(APPLY_ACTION_KEY, false, "已取消采用 AI 建议。", {
+          reason: "user-cancelled",
+          source: source || "unknown",
+          requestId: String(result.requestId || ""),
+        });
+      }
+
+      try {
+        const applyResult = await Promise.resolve(options.applySuggestion(result.choiceActionKey));
+        if (applyResult?.ok === false) {
+          throw new Error(applyResult.message || "采用建议失败。");
+        }
+        if (typeof options.showToast === "function") {
+          options.showToast("AI 建议已采用。", "info");
+        }
+        return buildNamedActionResult(APPLY_ACTION_KEY, true, "AI 建议已采用。", {
+          source: source || "unknown",
+          requestId: String(result.requestId || ""),
+          choiceActionKey: String(result.choiceActionKey || ""),
+        });
+      } catch (error) {
+        const message = "采用建议失败：" + String(error?.message || error || "未知错误");
+        if (typeof options.showToast === "function") {
+          options.showToast(message, "error");
+        }
+        return buildNamedActionResult(APPLY_ACTION_KEY, false, message, {
+          reason: "apply-failed",
+          source: source || "unknown",
+          requestId: String(result.requestId || ""),
+        });
+      }
+    }
+
+    function ignoreCurrentSuggestion(source) {
+      const resolved = resolveCurrentItemForAction(IGNORE_ACTION_KEY, source);
+      if (!resolved.ok) {
+        return resolved.result;
+      }
+      removeCard(resolved.item);
+      if (typeof options.showToast === "function") {
+        options.showToast("已忽略当前题 AI 建议。", "info");
+      }
+      return buildNamedActionResult(IGNORE_ACTION_KEY, true, "已忽略当前题 AI 建议。", {
+        source: source || "unknown",
+      });
+    }
+
+    async function copyCurrentAsrTextPair(source) {
+      const resolved = resolveCurrentItemForAction(COPY_ASR_ACTION_KEY, source);
+      if (!resolved.ok) {
+        return resolved.result;
+      }
+      const pair = resolveItemAsrPair(resolved.item);
+      const text = formatAsrTextPair(pair);
+      if (!text) {
+        return buildNamedActionResult(
+          COPY_ASR_ACTION_KEY,
+          false,
+          "未找到当前题两条 ASR 文本。",
+          {
+            reason: "asr-text-missing",
+            source: source || "unknown",
+          }
+        );
+      }
+      try {
+        await writeClipboardText(text);
+        if (typeof options.showToast === "function") {
+          options.showToast("已复制当前题两条 ASR 文本。", "info");
+        }
+        return buildNamedActionResult(COPY_ASR_ACTION_KEY, true, "已复制当前题两条 ASR 文本。", {
+          source: source || "unknown",
+        });
+      } catch (error) {
+        const message = "复制失败：" + String(error?.message || error || "未知错误");
+        if (typeof options.showToast === "function") {
+          options.showToast(message, "error");
+        }
+        return buildNamedActionResult(COPY_ASR_ACTION_KEY, false, message, {
+          reason: "clipboard-write-failed",
+          source: source || "unknown",
+        });
+      }
     }
 
     async function suggestCurrentItem(source) {
@@ -1002,6 +1237,7 @@
           config.aiSuggestionCompareModel || config.aiSuggestionModel || "qwen3.5-plus"
         ),
         enableThinking: config.aiSuggestionEnableThinking === true,
+        webSearchEnabled: config.aiSuggestionWebSearchEnabled !== false,
         aiOptions: buildAiOptions(config),
         ruleVersion: RULE_VERSION,
         clientVersion: getClientVersion(),
@@ -1016,7 +1252,14 @@
 
       let responseBody = null;
       setItemPending(item, true, "");
-      renderLoadingCard(item, contextState);
+      renderLoadingCard(item, contextState, {
+        ignoreSuggestion: function () {
+          return ignoreCurrentSuggestion("manual");
+        },
+        copyAsrTextPair: function () {
+          return copyCurrentAsrTextPair("manual");
+        },
+      });
       try {
         const response = await fetch(endpoint, {
           method: "POST",
@@ -1052,6 +1295,12 @@
           {
             retrySuggestion: function () {
               return suggestCurrentItem("retry");
+            },
+            ignoreSuggestion: function () {
+              return ignoreCurrentSuggestion("manual");
+            },
+            copyAsrTextPair: function () {
+              return copyCurrentAsrTextPair("manual");
             },
             showToast: options.showToast,
           }
@@ -1120,15 +1369,25 @@
         compareDurationMs: Number(timing.compareDurationMs || 0),
         totalDurationMs: Number(timing.totalDurationMs || 0),
         contextIncluded: resultContextIncluded,
+        webSearchStatusText: getWebSearchStatusText(suggestion.webSearch),
+        webSearchHint: String(suggestion?.evidence?.webSearchHint || "").trim(),
       };
+      rememberLatestSuggestion(item, {
+        result: cardData,
+        contextState: nextContextState,
+      });
       renderCard(item, cardData, nextContextState, {
-        applySuggestion: function (actionKey) {
-          return typeof options.applySuggestion === "function"
-            ? options.applySuggestion(actionKey)
-            : buildActionResult(false, "判别动作不可用。", { reason: "apply-action-missing" });
+        applyCurrentSuggestion: function () {
+          return applyCurrentSuggestion("manual");
         },
         retrySuggestion: function () {
           return suggestCurrentItem("retry");
+        },
+        ignoreSuggestion: function () {
+          return ignoreCurrentSuggestion("manual");
+        },
+        copyAsrTextPair: function () {
+          return copyCurrentAsrTextPair("manual");
         },
         showToast: options.showToast,
       });
@@ -1160,6 +1419,10 @@
       });
     }
 
+    function retryCurrentSuggestion(source) {
+      return suggestCurrentItem(source || "retry");
+    }
+
     function start() {}
 
     function stop() {
@@ -1177,6 +1440,10 @@
       stop: stop,
       getState: getState,
       suggestCurrentItem: suggestCurrentItem,
+      applyCurrentSuggestion: applyCurrentSuggestion,
+      retryCurrentSuggestion: retryCurrentSuggestion,
+      ignoreCurrentSuggestion: ignoreCurrentSuggestion,
+      copyCurrentAsrTextPair: copyCurrentAsrTextPair,
       hasItemContext: hasItemContext,
       resolveItemContextText: resolveItemContextText,
     };

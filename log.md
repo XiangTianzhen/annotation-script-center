@@ -1,5 +1,24 @@
 # 标注脚本中心修改日志
 
+## 2026-05-14（0.3.2：增强快判 AI 搜索辅助与快捷键）
+
+- 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本功能增强。
+- 快判 AI 建议新增 4 个动作并接入快捷键系统（按钮与快捷键复用同一动作逻辑）：
+  - `applyAiSuggestion`：AI 采用建议
+  - `retryAiSuggestion`：AI 重新分析
+  - `ignoreAiSuggestion`：AI 忽略建议
+  - `copyAsrTextPair`：复制两条 ASR 文本
+- 新增“复制两条 ASR 文本”统一格式：
+  - `asr_text1:<第一条文本>;`
+  - `asr_text2:<第二条文本>`
+- 快判 AI 权重规则调整为：`asrText1/asrText2` 为主判断对象，`heardText`、`contextText`、Web Search 仅作消歧辅助。
+- 快判 compare 阶段接入 Web Search 开关：
+  - 前端新增 `aiSuggestionWebSearchEnabled`（默认开启）。
+  - 后端仅在 compare 阶段启用 Web Search，不在 listen 阶段启用。
+  - 若上游返回搜索参数不支持，后端移除搜索参数重试一次并返回 fallback 状态。
+- 快判响应新增 `webSearch` 状态对象（`enabled/used/fallbackUsed/fallbackReason`），并支持 `evidence.webSearchHint`。
+- 文档同步：`AGENTS.md`、`extension/sites/alibaba-labelx/asr-judgement/README.md`、`platform-resources/backend/README.md`、`config/env/ai.env.example`。
+
 ## 2026-05-13（0.3.2：统一 ASR AI thinking 显式传参语义）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于 AI 参数语义热修。

@@ -28,6 +28,10 @@
   const networkSummaryMessageType = "ASR_EDGE_JUDGEMENT_SUBTASK_DATA_SUMMARY";
   const statsUploadActionKey = "statsUpload";
   const aiSuggestActionKey = "aiSuggestCurrentItem";
+  const aiApplyActionKey = "applyAiSuggestion";
+  const aiRetryActionKey = "retryAiSuggestion";
+  const aiIgnoreActionKey = "ignoreAiSuggestion";
+  const aiCopyAsrTextPairActionKey = "copyAsrTextPair";
   const maxCustomPageSizeValue = 400;
   let settings = null;
   let runtimeEnabled = false;
@@ -163,6 +167,7 @@
       aiSuggestionReasoningEffort: "",
       aiSuggestionStopSequences: "",
       aiSuggestionEnableThinking: false,
+      aiSuggestionWebSearchEnabled: true,
       aiSuggestionModel: "qwen3.5-plus",
       aiSuggestionAvailableModels: ["qwen3.5-plus", "qwen-plus", "qwen-turbo"],
       shortcuts: {
@@ -215,6 +220,10 @@
           button: null,
         },
         aiSuggestCurrentItem: null,
+        applyAiSuggestion: null,
+        retryAiSuggestion: null,
+        ignoreAiSuggestion: null,
+        copyAsrTextPair: null,
       },
     };
     const projectConfig =
@@ -388,6 +397,18 @@
     if (actionKey === aiSuggestActionKey) {
       return suggestCurrentItemWithAi(source);
     }
+    if (actionKey === aiApplyActionKey) {
+      return applyCurrentAiSuggestion(source);
+    }
+    if (actionKey === aiRetryActionKey) {
+      return retryCurrentAiSuggestion(source);
+    }
+    if (actionKey === aiIgnoreActionKey) {
+      return ignoreCurrentAiSuggestion(source);
+    }
+    if (actionKey === aiCopyAsrTextPairActionKey) {
+      return copyCurrentAsrTextPair(source);
+    }
 
     if (getChoiceAction(actionKey) && actionModule && typeof actionModule.selectJudgementChoice === "function") {
       return Promise.resolve(actionModule.selectJudgementChoice(actionKey));
@@ -467,6 +488,8 @@
   function runActionWithFeedback(actionKey, source, statusReason, statusKey) {
     if (actionKey === aiSuggestActionKey) {
       showRuntimeToast("AI 分析已开始，请等待结果。", "info");
+    } else if (actionKey === aiRetryActionKey) {
+      showRuntimeToast("AI 重新分析已开始，请等待结果。", "info");
     }
 
     void runRuntimeAction(actionKey, source)
@@ -506,7 +529,21 @@
         return getJudgementConfig(settings).shortcuts || {};
       },
       getShortcutActionOrder: function () {
-        return (actionModule && actionModule.shortcutActionOrder) || [];
+        const baseOrder = (actionModule && actionModule.shortcutActionOrder) || [];
+        const aiOrder = [
+          aiSuggestActionKey,
+          aiApplyActionKey,
+          aiRetryActionKey,
+          aiIgnoreActionKey,
+          aiCopyAsrTextPairActionKey,
+        ];
+        const merged = baseOrder.slice();
+        aiOrder.forEach(function (actionKey) {
+          if (merged.indexOf(actionKey) < 0) {
+            merged.push(actionKey);
+          }
+        });
+        return merged;
       },
       isEnabled: function () {
         return Boolean(runtimeEnabled && settings);
@@ -655,6 +692,26 @@
                 key: aiSuggestActionKey,
                 label: "AI 分析当前题",
                 shortLabel: "AI 分析",
+              },
+              {
+                key: aiApplyActionKey,
+                label: "AI 采用建议",
+                shortLabel: "AI 采用",
+              },
+              {
+                key: aiRetryActionKey,
+                label: "AI 重新分析",
+                shortLabel: "AI 重试",
+              },
+              {
+                key: aiIgnoreActionKey,
+                label: "AI 忽略建议",
+                shortLabel: "AI 忽略",
+              },
+              {
+                key: aiCopyAsrTextPairActionKey,
+                label: "复制两条 ASR 文本",
+                shortLabel: "复制ASR",
               },
             ],
           },
@@ -989,6 +1046,62 @@
     }
 
     return Promise.resolve(runtime.suggestCurrentItem(source || "manual"));
+  }
+
+  function applyCurrentAiSuggestion(source) {
+    const runtime = ensureAiSuggestionRuntime();
+    if (!runtime || typeof runtime.applyCurrentSuggestion !== "function") {
+      return Promise.resolve(
+        buildActionResult(aiApplyActionKey, false, {
+          reason: "ai-suggestion-module-missing",
+          source: source || "unknown",
+          message: "AI 建议模块不可用。",
+        })
+      );
+    }
+    return Promise.resolve(runtime.applyCurrentSuggestion(source || "manual"));
+  }
+
+  function retryCurrentAiSuggestion(source) {
+    const runtime = ensureAiSuggestionRuntime();
+    if (!runtime || typeof runtime.retryCurrentSuggestion !== "function") {
+      return Promise.resolve(
+        buildActionResult(aiRetryActionKey, false, {
+          reason: "ai-suggestion-module-missing",
+          source: source || "unknown",
+          message: "AI 建议模块不可用。",
+        })
+      );
+    }
+    return Promise.resolve(runtime.retryCurrentSuggestion(source || "manual"));
+  }
+
+  function ignoreCurrentAiSuggestion(source) {
+    const runtime = ensureAiSuggestionRuntime();
+    if (!runtime || typeof runtime.ignoreCurrentSuggestion !== "function") {
+      return Promise.resolve(
+        buildActionResult(aiIgnoreActionKey, false, {
+          reason: "ai-suggestion-module-missing",
+          source: source || "unknown",
+          message: "AI 建议模块不可用。",
+        })
+      );
+    }
+    return Promise.resolve(runtime.ignoreCurrentSuggestion(source || "manual"));
+  }
+
+  function copyCurrentAsrTextPair(source) {
+    const runtime = ensureAiSuggestionRuntime();
+    if (!runtime || typeof runtime.copyCurrentAsrTextPair !== "function") {
+      return Promise.resolve(
+        buildActionResult(aiCopyAsrTextPairActionKey, false, {
+          reason: "ai-suggestion-module-missing",
+          source: source || "unknown",
+          message: "AI 建议模块不可用。",
+        })
+      );
+    }
+    return Promise.resolve(runtime.copyCurrentAsrTextPair(source || "manual"));
   }
 
   function getMissingRequiredModules() {
