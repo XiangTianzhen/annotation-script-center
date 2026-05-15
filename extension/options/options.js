@@ -1476,14 +1476,14 @@
       settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[transcriptionProjectId] || {};
     const asrConfig = projectState.asrConfig || {};
     const defaults = constants.DEFAULT_ASR_CONFIG || {
-      autoPlay: false,
+      autoPlay: true,
       defaultValid: false,
       fillOnValid: true,
       clearOnInvalid: true,
-      playbackRateValue: 1,
-      resetRateValue: 1,
-      rateStepValue: 0.1,
-      seekStepSeconds: 1,
+      playbackRateValue: 1.5,
+      resetRateValue: 1.5,
+      rateStepValue: 0.25,
+      seekStepSeconds: 0.5,
       volumeValue: 100,
       shortcutPlayPause: null,
       shortcutValid: null,
@@ -1548,11 +1548,11 @@
       resetRateValue: resetRateValue,
       rateStepValue: normalizeTranscriptionRateStep(
         asrConfig.rateStepValue,
-        defaults.rateStepValue || 0.1
+        defaults.rateStepValue || 0.25
       ),
       seekStepSeconds: normalizeTranscriptionSeekStep(
         asrConfig.seekStepSeconds,
-        defaults.seekStepSeconds || 1
+        defaults.seekStepSeconds || 0.5
       ),
       volumeValue: clampNumber(
         asrConfig.volumeValue,
@@ -1589,8 +1589,8 @@
     const defaults = constants.DEFAULT_JUDGEMENT_ASR_CONFIG || {
       autoPlay: true,
       autoResetRate: true,
-      resetRateValue: 1.0,
-      playbackRateValue: 1.0,
+      resetRateValue: 2.0,
+      playbackRateValue: 2.0,
       rateStepValue: 0.25,
       seekStepSeconds: 0.5,
       volumeValue: 100,

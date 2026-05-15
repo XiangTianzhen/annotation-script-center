@@ -77,7 +77,6 @@
     reason: "waiting-for-transcription-detail",
     config: null,
     toolbarRuntime: null,
-    autoPlayObserver: null,
     refreshTimer: null,
     refreshInFlight: false,
     refreshQueued: false,
@@ -578,36 +577,14 @@
     }
   }
 
-  function bindAutoPlay() {
-    if (runtime.autoPlayObserver) {
-      runtime.autoPlayObserver.disconnect();
-      runtime.autoPlayObserver = null;
-    }
-
-    const observer = new MutationObserver(function () {
-      if (!runtime.enabled || !runtime.config?.autoPlay) {
-        return;
-      }
-      void audioApi.autoPlayCurrentAudioIfNeeded(true);
-    });
-
-    observer.observe(document.body || document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
-    runtime.autoPlayObserver = observer;
-  }
-
   function disableRuntime(reason) {
     runtime.enabled = false;
     if (runtime.shortcutRuntime && typeof runtime.shortcutRuntime.unbind === "function") {
       runtime.shortcutRuntime.unbind();
     }
-    runtime.autoPlayObserver?.disconnect();
-    runtime.autoPlayObserver = null;
+    if (audioApi && typeof audioApi.stop === "function") {
+      audioApi.stop();
+    }
     if (runtime.toolbarRuntime && typeof runtime.toolbarRuntime.stop === "function") {
       runtime.toolbarRuntime.stop();
     }
@@ -644,13 +621,19 @@
       toolbarRuntime.start();
     }
     updateToolbarStatus();
-    bindAutoPlay();
+    if (audioApi && typeof audioApi.start === "function") {
+      audioApi.start(runtime.config || {});
+    }
     const shortcutRuntime = ensureShortcutRuntime();
     if (shortcutRuntime && typeof shortcutRuntime.bind === "function") {
       shortcutRuntime.bind();
     }
     syncAiSuggestionRuntime();
-    void audioApi.autoPlayCurrentAudioIfNeeded(runtime.config?.autoPlay === true);
+    if (audioApi && typeof audioApi.scan === "function") {
+      audioApi.scan("transcription-enable-runtime");
+    } else {
+      void audioApi.autoPlayCurrentAudioIfNeeded(runtime.config?.autoPlay === true);
+    }
   }
 
   function scheduleRefresh(trigger, delay) {

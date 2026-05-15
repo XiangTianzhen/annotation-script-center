@@ -1217,7 +1217,7 @@
     next.shortcutValidateItems = null;
     next.shortcutRemoveAllSpaces = null;
 
-    next.resetRateValue = normalizeClampedNumber(next.resetRateValue, 1.0, 0.25, 8, 2);
+    next.resetRateValue = normalizeClampedNumber(next.resetRateValue, 1.5, 0.25, 8, 2);
     next.playbackRateValue = normalizeClampedNumber(
       hasOwn(next, "playbackRateValue") ? next.playbackRateValue : next.resetRateValue,
       next.resetRateValue,
@@ -1225,8 +1225,8 @@
       8,
       2
     );
-    next.rateStepValue = normalizeClampedNumber(next.rateStepValue, 0.1, 0.05, 2, 2);
-    next.seekStepSeconds = normalizeClampedNumber(next.seekStepSeconds, 1, 0.1, 10, 2);
+    next.rateStepValue = normalizeClampedNumber(next.rateStepValue, 0.25, 0.05, 2, 2);
+    next.seekStepSeconds = normalizeClampedNumber(next.seekStepSeconds, 0.5, 0.1, 10, 2);
     next.volumeValue = normalizeClampedNumber(next.volumeValue, 100, 0, 1000, 0);
     next.statsUploadEnabled = true;
     next.statsUploadTimes = normalizeTimeList(next.statsUploadTimes, ["10:00", "16:00"]);
@@ -1400,13 +1400,13 @@
     platform.annotation.clearOnInvalid = asr.clearOnInvalid !== false;
     platform.annotation.autoNext = asr.autoNext === true;
     platform.annotation.autoResetRate = asr.autoResetRate === true;
-    platform.annotation.resetRateValue = normalizeNumber(asr.resetRateValue, 1.0);
+    platform.annotation.resetRateValue = normalizeNumber(asr.resetRateValue, 1.5);
     platform.annotation.playbackRateValue = normalizeNumber(
       hasOwn(asr, "playbackRateValue") ? asr.playbackRateValue : asr.resetRateValue,
-      platform.annotation.resetRateValue || 1.0
+      platform.annotation.resetRateValue || 1.5
     );
-    platform.annotation.rateStepValue = normalizeNumber(asr.rateStepValue, 0.1);
-    platform.annotation.seekStepSeconds = normalizeNumber(asr.seekStepSeconds, 1.0);
+    platform.annotation.rateStepValue = normalizeNumber(asr.rateStepValue, 0.25);
+    platform.annotation.seekStepSeconds = normalizeNumber(asr.seekStepSeconds, 0.5);
     platform.annotation.volumeValue = normalizeNumber(asr.volumeValue, 100);
     platform.annotation.autoClearInvalidValidation = asr.autoClearInvalidValidation === true;
     platform.annotation.autoFillOnValidValidation = asr.autoFillOnValidValidation === true;
@@ -1501,13 +1501,13 @@
     nextAsr.autoAssignPollIntervalMs = 60000;
     nextAsr.autoBatchSubmit = false;
     nextAsr.autoResetRate = annotation.autoResetRate === true;
-    nextAsr.resetRateValue = normalizeNumber(annotation.resetRateValue, 1.0);
+    nextAsr.resetRateValue = normalizeNumber(annotation.resetRateValue, 1.5);
     nextAsr.playbackRateValue = normalizeNumber(
       annotation.playbackRateValue,
       nextAsr.resetRateValue
     );
-    nextAsr.rateStepValue = normalizeNumber(annotation.rateStepValue, 0.1);
-    nextAsr.seekStepSeconds = normalizeNumber(annotation.seekStepSeconds, 1.0);
+    nextAsr.rateStepValue = normalizeNumber(annotation.rateStepValue, 0.25);
+    nextAsr.seekStepSeconds = normalizeNumber(annotation.seekStepSeconds, 0.5);
     nextAsr.volumeValue = normalizeNumber(annotation.volumeValue, 100);
     nextAsr.autoReceiveOnSubmit = false;
     nextAsr.validateBeforeSubmit = false;

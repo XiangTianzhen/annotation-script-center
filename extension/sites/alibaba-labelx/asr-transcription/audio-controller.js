@@ -1,25 +1,90 @@
 (function () {
+  const sharedCore = globalThis.__ASREdgeAlibabaLabelxSharedAudioControllerCore || null;
   const activeItemApi = globalThis.__ASREdgeAlibabaLabelxTranscriptionActiveItem || null;
 
-  function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
+  if (!sharedCore || typeof sharedCore.createAudioRuntime !== "function") {
+    globalThis.__ASREdgeAlibabaLabelxTranscriptionAudioController = {
+      start: function () {},
+      stop: function () {},
+      updateConfig: function () {},
+      scan: function () {},
+      resolveCurrentAudio: function () {
+        return null;
+      },
+      playPauseCurrentAudio: function () {
+        return Promise.resolve({ ok: false, message: "通用音频核心模块未加载。" });
+      },
+      seekCurrentAudio: function () {
+        return Promise.resolve({ ok: false, message: "通用音频核心模块未加载。" });
+      },
+      adjustPlaybackRate: function () {
+        return { ok: false, message: "通用音频核心模块未加载。" };
+      },
+      setPlaybackRate: function () {
+        return { ok: false, message: "通用音频核心模块未加载。" };
+      },
+      adjustVolumePercent: function () {
+        return { ok: false, message: "通用音频核心模块未加载。" };
+      },
+      setVolumePercent: function () {
+        return { ok: false, message: "通用音频核心模块未加载。" };
+      },
+      copyCurrentAudioDuration: function () {
+        return Promise.resolve({ ok: false, message: "通用音频核心模块未加载。" });
+      },
+      autoPlayCurrentAudioIfNeeded: function () {
+        return Promise.resolve({ ok: false, skipped: true });
+      },
+      getCurrentAudioSnapshot: function () {
+        return { found: false };
+      },
+      getState: function () {
+        return {
+          started: false,
+          reason: "shared-audio-core-missing",
+        };
+      },
+    };
+    return;
   }
 
-  function toNumber(value, fallback) {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric : fallback;
+  function getTaskItems() {
+    if (activeItemApi && typeof activeItemApi.getVisibleItems === "function") {
+      return activeItemApi.getVisibleItems();
+    }
+    return Array.from(document.querySelectorAll(".labelRender-item"));
   }
 
-  function resolveCurrentAudio() {
-    if (!activeItemApi) {
+  function getItemAudio(item) {
+    if (!item) {
       return null;
     }
-    const context = activeItemApi.getCurrentContext();
-    if (context && context.audio) {
-      return context.audio;
+    const audio =
+      activeItemApi && typeof activeItemApi.getItemAudio === "function"
+        ? activeItemApi.getItemAudio(item)
+        : item.querySelector("audio");
+    return audio instanceof HTMLAudioElement ? audio : null;
+  }
+
+  function resolveSelectedItem() {
+    if (activeItemApi && typeof activeItemApi.resolveCurrentItem === "function") {
+      const resolved = activeItemApi.resolveCurrentItem();
+      if (resolved && resolved.item instanceof Element) {
+        return resolved.item;
+      }
+    }
+    return document.querySelector(".labelRender-item-selected, .labelRender-item.active");
+  }
+
+  function resolveCurrentAudioFromContext() {
+    if (activeItemApi && typeof activeItemApi.getCurrentContext === "function") {
+      const context = activeItemApi.getCurrentContext();
+      if (context && context.audio instanceof HTMLAudioElement) {
+        return context.audio;
+      }
     }
     const playingAudio = Array.from(document.querySelectorAll("audio")).find(function (audio) {
-      return !audio.paused;
+      return audio instanceof HTMLAudioElement && !audio.paused && !audio.ended;
     });
     if (playingAudio) {
       return playingAudio;
@@ -30,147 +95,55 @@
     return fallback || null;
   }
 
-  async function safePlay(audio) {
-    try {
-      await audio.play();
-      return { ok: true, message: "音频开始播放。" };
-    } catch (error) {
-      return {
-        ok: false,
-        message: "播放失败，可能被浏览器自动播放策略拦截。",
-        reason: error && error.message ? error.message : String(error),
-      };
+  function resolveSelectedAudio(audios) {
+    const selectedItem = resolveSelectedItem();
+    const selectedAudio = getItemAudio(selectedItem);
+    if (selectedAudio instanceof HTMLAudioElement) {
+      return selectedAudio;
     }
+    const list = Array.isArray(audios) ? audios : [];
+    const playingAudio = list.find(function (audio) {
+      return !audio.paused && !audio.ended;
+    });
+    if (playingAudio) {
+      return playingAudio;
+    }
+    return list[0] || null;
   }
 
-  async function playPauseCurrentAudio() {
-    const audio = resolveCurrentAudio();
-    if (!audio) {
-      return { ok: false, message: "未定位到当前音频。" };
-    }
-    if (audio.paused) {
-      return safePlay(audio);
-    }
-    audio.pause();
-    return { ok: true, message: "音频已暂停。" };
-  }
-
-  function seekCurrentAudio(seconds) {
-    const audio = resolveCurrentAudio();
-    if (!audio) {
-      return { ok: false, message: "未定位到当前音频。" };
-    }
-    const step = toNumber(seconds, 1);
-    const duration = Number.isFinite(audio.duration) ? audio.duration : Number.MAX_SAFE_INTEGER;
-    audio.currentTime = clamp(audio.currentTime + step, 0, duration);
-    return { ok: true, message: step >= 0 ? "当前音频已前进。" : "当前音频已后退。" };
-  }
-
-  function setPlaybackRate(rate) {
-    const audio = resolveCurrentAudio();
-    if (!audio) {
-      return { ok: false, message: "未定位到当前音频。" };
-    }
-    const nextRate = clamp(toNumber(rate, 1), 0.25, 5);
-    audio.playbackRate = nextRate;
-    return { ok: true, message: "当前音频倍速已更新。", value: nextRate };
-  }
-
-  function adjustPlaybackRate(step) {
-    const audio = resolveCurrentAudio();
-    if (!audio) {
-      return { ok: false, message: "未定位到当前音频。" };
-    }
-    const delta = toNumber(step, 0.1);
-    const nextRate = clamp(audio.playbackRate + delta, 0.25, 5);
-    audio.playbackRate = nextRate;
-    return { ok: true, message: "当前音频倍速已更新。", value: nextRate };
-  }
-
-  function setVolumePercent(volumePercent) {
-    const audio = resolveCurrentAudio();
-    if (!audio) {
-      return { ok: false, message: "未定位到当前音频。" };
-    }
-    const next = clamp(toNumber(volumePercent, 100), 0, 1000);
-    audio.volume = clamp(next / 100, 0, 1);
-    return { ok: true, message: "当前音频音量已更新。", value: next };
-  }
-
-  function adjustVolumePercent(stepPercent) {
-    const audio = resolveCurrentAudio();
-    if (!audio) {
-      return { ok: false, message: "未定位到当前音频。" };
-    }
-    const current = Math.round(audio.volume * 100);
-    const next = clamp(current + toNumber(stepPercent, 10), 0, 1000);
-    audio.volume = clamp(next / 100, 0, 1);
-    return { ok: true, message: "当前音频音量已更新。", value: next };
-  }
-
-  async function copyCurrentAudioDuration() {
-    const audio = resolveCurrentAudio();
-    if (!audio || !Number.isFinite(audio.duration)) {
-      return { ok: false, message: "当前音频时长不可用。" };
-    }
-    const value = String(Number(audio.duration.toFixed(3)));
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-      await navigator.clipboard.writeText(value);
-      return { ok: true, message: "当前音频时长已复制。", value: value };
-    }
-
-    const textarea = document.createElement("textarea");
-    textarea.value = value;
-    textarea.style.position = "fixed";
-    textarea.style.top = "-9999px";
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand("copy");
-    textarea.remove();
-    return { ok: true, message: "当前音频时长已复制。", value: value };
-  }
-
-  async function autoPlayCurrentAudioIfNeeded(enabled) {
-    if (enabled !== true) {
-      return { ok: false, skipped: true };
-    }
-    const audio = resolveCurrentAudio();
-    if (!audio) {
-      return { ok: false, skipped: true };
-    }
-    if (!audio.paused) {
-      return { ok: true, skipped: true };
-    }
-    return safePlay(audio);
-  }
-
-  function getCurrentAudioSnapshot() {
-    const audio = resolveCurrentAudio();
-    if (!audio) {
-      return { found: false };
-    }
-    const duration = Number.isFinite(audio.duration) ? Number(audio.duration.toFixed(3)) : null;
-    const currentTime = Number.isFinite(audio.currentTime) ? Number(audio.currentTime.toFixed(3)) : null;
-    return {
-      found: true,
-      paused: audio.paused === true,
-      playbackRate: Number(audio.playbackRate || 1),
-      volumePercent: Math.round(Number(audio.volume || 0) * 100),
-      duration: duration,
-      currentTime: currentTime,
-    };
-  }
+  const runtime = sharedCore.createAudioRuntime({
+    defaultConfig: {
+      autoPlay: true,
+      resetRateValue: 1.5,
+      playbackRateValue: 1.5,
+      rateStepValue: 0.25,
+      seekStepSeconds: 0.5,
+      volumeValue: 100,
+    },
+    getTaskItems: getTaskItems,
+    getItemAudio: getItemAudio,
+    resolveSelectedItem: resolveSelectedItem,
+    resolveSelectedAudio: resolveSelectedAudio,
+    resolveCurrentAudio: function () {
+      return resolveCurrentAudioFromContext();
+    },
+  });
 
   globalThis.__ASREdgeAlibabaLabelxTranscriptionAudioController = {
-    resolveCurrentAudio: resolveCurrentAudio,
-    playPauseCurrentAudio: playPauseCurrentAudio,
-    seekCurrentAudio: seekCurrentAudio,
-    adjustPlaybackRate: adjustPlaybackRate,
-    setPlaybackRate: setPlaybackRate,
-    adjustVolumePercent: adjustVolumePercent,
-    setVolumePercent: setVolumePercent,
-    copyCurrentAudioDuration: copyCurrentAudioDuration,
-    autoPlayCurrentAudioIfNeeded: autoPlayCurrentAudioIfNeeded,
-    getCurrentAudioSnapshot: getCurrentAudioSnapshot,
+    start: runtime.start,
+    stop: runtime.stop,
+    updateConfig: runtime.updateConfig,
+    scan: runtime.scan,
+    resolveCurrentAudio: runtime.resolveCurrentAudio,
+    playPauseCurrentAudio: runtime.playPauseCurrentAudio,
+    seekCurrentAudio: runtime.seekCurrentAudio,
+    adjustPlaybackRate: runtime.adjustPlaybackRate,
+    setPlaybackRate: runtime.setPlaybackRate,
+    adjustVolumePercent: runtime.adjustVolumePercent,
+    setVolumePercent: runtime.setVolumePercent,
+    copyCurrentAudioDuration: runtime.copyCurrentAudioDuration,
+    autoPlayCurrentAudioIfNeeded: runtime.autoPlayCurrentAudioIfNeeded,
+    getCurrentAudioSnapshot: runtime.getCurrentAudioSnapshot,
+    getState: runtime.getState,
   };
 })();

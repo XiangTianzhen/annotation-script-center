@@ -195,7 +195,8 @@
 - `platform-resources/backend/`：统一 Node 后端启动入口和基础路由工具，`server.js` 是推荐启动入口。
 - `platform-resources/alibaba-labelx/asr-judgement/backend/`：快判统计本地 Node 调试服务目录，`index.js` 注册项目 API，`server.js` 保留为兼容启动入口。
 - `judgement-auto-advance.js`：选择判别结果后的当前页自动下一题。
-- `audio-controller.js`：音频扫描、默认配置、单音频临时状态和动作路由。
+- `extension/sites/alibaba-labelx/shared/audio-controller-core.js`：LabelX 快判/转写共用音频核心（默认倍速、默认音量、步进、切题停旧播新、自动播放）。
+- `audio-controller.js`：脚本侧薄封装，负责传入页面 profile 与配置并保持原有 `globalThis` API。
 - `audio-volume-controller.js`：当前音频音量和 Web Audio gain；重置回 options 默认音量。
 - `audio-rate-controller.js`：当前音频倍速、倍速显示和重置；重置回 options 默认倍速。
 - `audio-playback-controller.js`：播放、暂停、自动播放、相邻音频播放和当前音频前进 / 后退。
@@ -372,6 +373,8 @@
 - 快判“上文理解”开关仅在当前题 AI 卡片运行态生效，不进入全局 options 默认值。
 - 快判 AI 卡片动作必须支持快捷键：分析、采用、重试、忽略、复制两条 ASR 文本。
 - 复制两条 ASR 文本格式固定为两行：`asr_text1:<文本>;` 与 `asr_text2:<文本>`。
+- 快判与转写必须复用 LabelX shared audio core；快判默认倍速 `2x`，转写默认倍速 `1.5x`，配置独立保存。
+- 快判 `400` 条 pageSize 重写属于快判专属能力，不得抽入 shared audio core。
 - 扩展重新加载后旧页面可能出现 `Extension context invalidated`；应识别并停止旧实例或提示刷新，不得持续刷屏。
 
 ### 4) 版本与打包规则

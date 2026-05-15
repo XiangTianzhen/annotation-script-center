@@ -7,12 +7,16 @@
 - 已归档真实页面结构和网络资料：`platform-resources/alibaba-labelx/asr-judgement/`
 - 快判在 options 中拥有独立脚本详情页和简化设置表单。
 - 快判已接入独立运行时，入口文件为 `content.js`、`audio-controller.js`、`page-world/network-observer.js`；音量、倍速、播放、分页、总时长、判别动作、快捷键、toast、工具栏、网络协议、ASR 差异视图、轻量题卡摘要、雷题判断、AI 半自动建议和统计上传等能力已拆成小文件。
+- 快判音频基础能力已切换到 `extension/sites/alibaba-labelx/shared/audio-controller-core.js` 复用实现；快判 `audio-controller.js` 仅保留薄封装。
 - `content.js` 当前只作为入口编排层，不再承载具体功能实现。
 
 ## 负责范围
 
 - 当前页面命中后，脚本中心以 `judgement` 作为快判脚本 ID 管理启停状态。
 - options 快判详情页负责保存快判专属设置：默认音量、默认倍速、倍速步进、前进 / 后退步长、默认每页条数、自动播放音频、ASR 对齐差异视图、差异高亮颜色、轻量题卡摘要、雷题判断与快捷键；AI 参数迁移到通用隐藏部件“ASR 语音 AI 设置”。
+- 快判默认倍速为 `2x`；新音频加载、切题、自动播放和重置倍速都会回到当前配置默认值。
+- 切换到下一题时会立即暂停旧音频，并按默认倍速 / 音量自动播放新题音频（开启自动播放时）。
+- 快判 `400` 条自定义 pageSize 仍属于快判专属能力，不在 shared audio core 中实现。
 - 快判详情页和任务列表页 DOM / 网络资料统一沉淀到根目录 `platform-resources/alibaba-labelx/asr-judgement/`，供 Chrome / Edge 共用。
 - 运行时只读取 `shared/constants.js` 和 `shared/storage.js`，不复用转写业务模块。
 - 当前运行时不实现保存、提交、自动流转，也不点击会产生业务动作的按钮。

@@ -61,6 +61,8 @@ sites/
 - 前端仅保存脚本级 override：字段清空或恢复为默认时不再固化默认值；运行时仅透传 override，后端负责“默认值 + 白名单参数”合并。
 - `response_format` 不对前端开放；结构化输出格式由后端固定控制。
 - thinking 开关语义统一：关闭会显式传 `enable_thinking=false`，开启会显式传 `enable_thinking=true`；仅当模型/接口不支持该参数时，后端移除参数重试一次（不做无限重试）。
+- 阿里 LabelX 快判与转写的音频基础能力统一复用 `extension/sites/alibaba-labelx/shared/audio-controller-core.js`：默认倍速、默认音量、倍速步进、前进/后退步长、切题停旧播新与自动播放逻辑共用；脚本配置独立保存（快判默认 `2x`，转写默认 `1.5x`）。
+- 快判 `400` 条 pageSize 请求重写仍是快判专属能力，不属于 shared audio core。
 
 ## 页面采集工作流
 

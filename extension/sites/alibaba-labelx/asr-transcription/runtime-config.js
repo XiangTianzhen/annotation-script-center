@@ -44,11 +44,11 @@
   ];
 
   const FIXED_DEFAULTS = {
-    autoPlay: false,
-    playbackRateValue: 1,
-    resetRateValue: 1,
-    rateStepValue: 0.1,
-    seekStepSeconds: 1,
+    autoPlay: true,
+    playbackRateValue: 1.5,
+    resetRateValue: 1.5,
+    rateStepValue: 0.25,
+    seekStepSeconds: 0.5,
     volumeValue: 100,
     fillOnValid: true,
     clearOnInvalid: true,
@@ -256,8 +256,8 @@
         2
       ),
       resetRateValue: resetRateValue,
-      rateStepValue: toNumber(source.rateStepValue, 0.1, 0.05, 2, 2),
-      seekStepSeconds: toNumber(source.seekStepSeconds, 1, 0.1, 10, 2),
+      rateStepValue: toNumber(source.rateStepValue, 0.25, 0.05, 2, 2),
+      seekStepSeconds: toNumber(source.seekStepSeconds, 0.5, 0.1, 10, 2),
       volumeValue: toNumber(source.volumeValue, 100, 0, 1000, 0),
       fillOnValid: source.fillOnValid !== false,
       clearOnInvalid: source.clearOnInvalid !== false,
