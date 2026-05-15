@@ -8,6 +8,10 @@
 - `annotation-script-center-update.xml`
 - `annotation-script-center-crx-latest.json`
 
+当前脚本已同步生成每版本 ZIP：
+
+- `annotation-script-center-v<version>.zip`
+
 `ops_monitor` 侧已具备写入 Chrome / Edge `ExtensionSettings` 策略的能力。
 
 当前阻塞点不是策略写入代码失败，而是测试环境中的普通 Windows 电脑不属于企业托管设备，浏览器会拦截自托管 CRX 的 `force_installed` 自动安装。
@@ -22,6 +26,14 @@
 
 该问题属于网络与终端企业管理工程，不是单纯脚本代码任务。  
 本模块暂时挂起，不阻塞 `0.3.0` 发布。
+
+企业部署完成前，临时采用手工双文件分发：
+
+1. `annotation-script-center-v<version>.crx`
+2. `annotation-script-center-v<version>.zip`
+
+`update.xml` 与 `crx-latest.json` 继续保留为企业自动更新预留。  
+后续企业托管路径打通后，仍以 CRX 三件套作为正式自动更新基础，ZIP 仅为过渡分发产物。
 
 ## 后续路线 A（企业托管路径）
 

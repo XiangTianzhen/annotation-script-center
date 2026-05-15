@@ -89,6 +89,12 @@ sites/
 node scripts/package-crx-release.js --notes "CRX enterprise release"
 ```
 
+- 每个版本会同时生成：
+  - `dist/annotation-script-center-v<manifest.version>.crx`
+  - `dist/annotation-script-center-v<manifest.version>.zip`
+- ZIP 内容来自 `extension/` 目录，用于手工分发和开发者模式加载。
+- ZIP 不包含仓库级目录与敏感内容（如 `config/secrets`、`platform-resources`、`docs`、`dist`、`.env*`、运行数据目录等）。
+
 - 正式发布路径只保留 CRX 三件套：
   - `dist/annotation-script-center-v<manifest.version>.crx`
   - `dist/annotation-script-center-update.xml`

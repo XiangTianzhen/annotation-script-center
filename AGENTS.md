@@ -86,6 +86,9 @@
 
 - 修改 JS 后运行 `node --check <file>`。
 - 修改 `manifest.json` 后检查 JSON 可解析且脚本路径存在。
+- 每个版本发布产物必须包含 ZIP：`annotation-script-center-v<version>.zip`。
+- 企业部署未完成前，手工分发文件为 `CRX + ZIP`。
+- CRX 三件套继续生成，作为企业自动更新预留；ZIP 不替代未来企业自动更新。
 - 发布阶段使用 CRX 三件套（3.0 起）：
   - `annotation-script-center-v<version>.crx`
   - `annotation-script-center-update.xml`

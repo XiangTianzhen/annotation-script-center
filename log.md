@@ -18,6 +18,26 @@
   5) 领域词误切语气词 -> 选真实领域词
   6) 核心语义相反 -> 选语义正确者
 
+## 2026-05-15（发布脚本增强：新增每版本 ZIP 产物）
+
+- `scripts/package-crx-release.js` 新增每版本 ZIP 生成：`dist/annotation-script-center-v<version>.zip`。
+- ZIP 默认打包 `extension/` 目录内容，并增加校验：文件存在、非空、包含 `manifest.json`。
+- ZIP 内容保护校验：禁止命中 `config/`、`platform-resources/`、`docs/`、`dist/`、`.git/`、`node_modules/`、`config/secrets/`、`.env*`、运行数据目录等路径。
+- 发布脚本输出日志调整为两组：
+  - 当前手工分发文件：`CRX + ZIP`
+  - 企业自动更新预留文件：`update.xml + crx-latest.json`
+- `crx-latest.json` 增加 ZIP 元数据字段：
+  - `zip_filename`
+  - `zip_download_url`
+  - `zip_sha256`
+  - `zip_size_bytes`
+- 文档同步：
+  - `README.md`
+  - `extension/README.md`
+  - `docs/unfinished/crx-enterprise-managed-install.md`
+  - `AGENTS.md`
+- 本轮不修改运行时代码，不提升 `manifest.version`。
+
 ## 2026-05-15（0.3.2 文档整理：AGENTS 瘦身与平台索引）
 
 - 新增 `docs/platforms/index.md`，集中维护平台与脚本文档入口，不在 AGENTS 堆平台细节。

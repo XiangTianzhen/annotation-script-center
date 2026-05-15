@@ -16,6 +16,21 @@ const UPDATE_XML_FILENAME = `${APP_NAME}-update.xml`;
 const DEFAULT_UPDATE_XML_URL = `${DEFAULT_DOWNLOAD_BASE_URL}${UPDATE_XML_FILENAME}`;
 const CRX_LATEST_FILENAME = `${APP_NAME}-crx-latest.json`;
 const DEFAULT_MIN_AGENT_VERSION = "0.1.0";
+const ZIP_PROTECTED_NAME_PATTERNS = [
+  /^config\//i,
+  /^platform-resources\//i,
+  /^scripts\//i,
+  /^docs\//i,
+  /^dist\//i,
+  /^\.git\//i,
+  /^node_modules\//i,
+  /statistics-data\//i,
+  /export-data\//i,
+  /audit-data\//i,
+  /config\/secrets\//i,
+  /^\.env$/i,
+  /^\.env\./i
+];
 
 const BROWSER_CANDIDATES = [
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
@@ -71,6 +86,10 @@ function safeUnlink(filePath) {
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
   }
+}
+
+function escapeSingleQuotes(value) {
+  return String(value || "").replace(/'/g, "''");
 }
 
 function readManifestMeta() {
@@ -183,6 +202,107 @@ function sha256File(filePath) {
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
+function runCommand(command, args, options) {
+  const result = childProcess.spawnSync(command, args, Object.assign(
+    {
+      cwd: REPO_ROOT,
+      encoding: "utf8"
+    },
+    options || {}
+  ));
+  if (result.error) {
+    throw new Error(`执行命令失败：${command} ${args.join(" ")} | ${result.error.message}`);
+  }
+  return result;
+}
+
+function createZipArchive(zipOutputPath) {
+  safeUnlink(zipOutputPath);
+  if (process.platform === "win32") {
+    const commandText = [
+      `Set-Location -LiteralPath '${escapeSingleQuotes(EXTENSION_DIR)}'`,
+      `Compress-Archive -Path * -DestinationPath '${escapeSingleQuotes(zipOutputPath)}' -Force`
+    ].join("; ");
+    const result = runCommand("powershell.exe", ["-NoProfile", "-Command", commandText], {
+      cwd: REPO_ROOT
+    });
+    if (result.status !== 0) {
+      throw new Error(`ZIP 打包失败（PowerShell）：${(result.stderr || result.stdout || "").trim() || "无额外输出"}`);
+    }
+    return "powershell";
+  }
+
+  const probe = runCommand("zip", ["-v"], { cwd: EXTENSION_DIR });
+  if (probe.status !== 0) {
+    throw new Error("未找到可用 ZIP 工具。Windows 请使用 PowerShell Compress-Archive；Linux/macOS 请安装 zip。");
+  }
+  const result = runCommand("zip", ["-r", zipOutputPath, "."], { cwd: EXTENSION_DIR });
+  if (result.status !== 0) {
+    throw new Error(`ZIP 打包失败（zip）：${(result.stderr || result.stdout || "").trim() || "无额外输出"}`);
+  }
+  return "zip";
+}
+
+function listZipEntries(zipOutputPath) {
+  if (process.platform === "win32") {
+    const commandText = [
+      "Add-Type -AssemblyName System.IO.Compression.FileSystem;",
+      `$z=[System.IO.Compression.ZipFile]::OpenRead('${escapeSingleQuotes(zipOutputPath)}');`,
+      "$z.Entries | ForEach-Object { $_.FullName };",
+      "$z.Dispose();"
+    ].join(" ");
+    const result = runCommand("powershell.exe", ["-NoProfile", "-Command", commandText], {
+      cwd: REPO_ROOT
+    });
+    if (result.status !== 0) {
+      throw new Error(`读取 ZIP 内容失败（PowerShell）：${(result.stderr || result.stdout || "").trim() || "无额外输出"}`);
+    }
+    return String(result.stdout || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+
+  const result = runCommand("unzip", ["-Z", "-1", zipOutputPath], { cwd: REPO_ROOT });
+  if (result.status !== 0) {
+    throw new Error(`读取 ZIP 内容失败（unzip）：${(result.stderr || result.stdout || "").trim() || "无额外输出"}`);
+  }
+  return String(result.stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function validateZipArchive(zipOutputPath) {
+  ensureFileExists(zipOutputPath, "ZIP 产物");
+  const stat = fs.statSync(zipOutputPath);
+  if (!Number.isFinite(stat.size) || stat.size <= 0) {
+    throw new Error(`ZIP 文件为空：${zipOutputPath}`);
+  }
+  const entries = listZipEntries(zipOutputPath);
+  const hasManifest = entries.some((entry) => /(^|[\\/])manifest\.json$/i.test(String(entry || "")));
+  if (!hasManifest) {
+    throw new Error("ZIP 校验失败：未找到 manifest.json");
+  }
+  const hasRootManifest = entries.includes("manifest.json");
+  if (!hasRootManifest) {
+    console.warn("[crx-release] 警告：ZIP 内未检测到根层 manifest.json，已按包含 manifest.json 放行。");
+  }
+
+  const violated = entries.find((entry) =>
+    ZIP_PROTECTED_NAME_PATTERNS.some((pattern) => pattern.test(String(entry || "")))
+  );
+  if (violated) {
+    throw new Error(`ZIP 校验失败：检测到不应包含的路径 ${violated}`);
+  }
+
+  return {
+    sizeBytes: stat.size,
+    sha256: sha256File(zipOutputPath),
+    entriesCount: entries.length
+  };
+}
+
 function buildUpdateXml(extensionId, codebaseUrl, version) {
   return [
     "<?xml version='1.0' encoding='UTF-8'?>",
@@ -247,7 +367,9 @@ function main() {
 
   fs.mkdirSync(DIST_DIR, { recursive: true });
   const crxFilename = `${APP_NAME}-v${version}.crx`;
+  const zipFilename = `${APP_NAME}-v${version}.zip`;
   const crxOutputPath = path.join(DIST_DIR, crxFilename);
+  const zipOutputPath = path.join(DIST_DIR, zipFilename);
   const updateXmlPath = path.join(DIST_DIR, UPDATE_XML_FILENAME);
   const crxLatestPath = path.join(DIST_DIR, CRX_LATEST_FILENAME);
 
@@ -257,7 +379,10 @@ function main() {
   ensureFileExists(KEY_PATH, "CRX 私钥文件");
 
   const extensionId = computeExtensionIdFromPrivateKeyPem(KEY_PATH);
+  const zipPackTool = createZipArchive(zipOutputPath);
+  const zipMeta = validateZipArchive(zipOutputPath);
   const downloadUrl = `${downloadBaseUrl}${crxFilename}`;
+  const zipDownloadUrl = `${downloadBaseUrl}${zipFilename}`;
   const updateXmlUrl = `${downloadBaseUrl}${UPDATE_XML_FILENAME}`;
   const updateXml = buildUpdateXml(extensionId, downloadUrl, version);
   validateUpdateXml(updateXml, extensionId, downloadUrl, version);
@@ -274,6 +399,10 @@ function main() {
     update_xml_url: updateXmlUrl,
     sha256: sha256File(crxOutputPath),
     size_bytes: stat.size,
+    zip_filename: zipFilename,
+    zip_download_url: zipDownloadUrl,
+    zip_sha256: zipMeta.sha256,
+    zip_size_bytes: zipMeta.sizeBytes,
     created_at: new Date().toISOString(),
     min_agent_version: DEFAULT_MIN_AGENT_VERSION,
     release_notes: releaseNotes
@@ -281,14 +410,21 @@ function main() {
   validateCrxLatestPayload(crxLatestPayload);
   fs.writeFileSync(crxLatestPath, `${JSON.stringify(crxLatestPayload, null, 2)}\n`, "utf8");
 
-  console.log(`crx release generated: ${crxOutputPath}`);
-  console.log(`update xml generated: ${updateXmlPath}`);
-  console.log(`crx latest json generated: ${crxLatestPath}`);
+  console.log("release generated:");
+  console.log(`- CRX: ${crxOutputPath}`);
+  console.log(`- ZIP: ${zipOutputPath}`);
+  console.log(`- update.xml: ${updateXmlPath}`);
+  console.log(`- latest json: ${crxLatestPath}`);
   console.log(`extension id: ${extensionId}`);
-  console.log("请上传到 downloads 目录的文件：");
+  console.log(`zip pack tool: ${zipPackTool}, entries: ${zipMeta.entriesCount}`);
+  console.log("");
+  console.log("当前手工分发文件：");
   console.log(`1. ${crxOutputPath}`);
-  console.log(`2. ${updateXmlPath}`);
-  console.log(`3. ${crxLatestPath}`);
+  console.log(`2. ${zipOutputPath}`);
+  console.log("");
+  console.log("企业自动更新预留文件：");
+  console.log(`1. ${updateXmlPath}`);
+  console.log(`2. ${crxLatestPath}`);
   if (generatedNewKey) {
     console.log(
       `首次生成私钥：${KEY_PATH}。请离线备份该 pem；丢失会导致 extension ID 变化并需要重配企业策略。`

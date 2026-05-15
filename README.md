@@ -34,11 +34,16 @@ Chrome：`chrome://extensions/` -> 开启开发者模式 -> 加载 `C:\Projects\
 
     http://127.0.0.1:3333
 
-## CRX 发布说明（保留）
+## 发布产物说明
 
-3.0 起正式发布使用 CRX 三件套：
+企业部署未完成前，每个版本默认同时生成：
 
 - `dist/annotation-script-center-v<manifest.version>.crx`
+- `dist/annotation-script-center-v<manifest.version>.zip`
+
+其中 `CRX + ZIP` 作为当前手工分发文件。  
+企业自动更新预留文件继续生成：
+
 - `dist/annotation-script-center-update.xml`
 - `dist/annotation-script-center-crx-latest.json`
 
@@ -46,7 +51,7 @@ Chrome：`chrome://extensions/` -> 开启开发者模式 -> 加载 `C:\Projects\
 
     node scripts/package-crx-release.js --notes "CRX enterprise release"
 
-说明：企业托管自动安装仍属于未完成模块，详见 `docs/unfinished/crx-enterprise-managed-install.md`。
+说明：ZIP 是当前过渡分发产物，不替代未来企业自动更新；企业托管自动安装仍属于未完成模块，详见 `docs/unfinished/crx-enterprise-managed-install.md`。
 
 ## 文档入口
 
