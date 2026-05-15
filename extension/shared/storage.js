@@ -740,6 +740,18 @@
         : null,
       null
     );
+    nextConfig.shortcuts.submitTask = normalizeShortcut(
+      hasOwn(nextConfig.shortcuts, "submitTask")
+        ? nextConfig.shortcuts.submitTask
+        : null,
+      null
+    );
+    nextConfig.shortcuts.submitTaskAndFinish = normalizeShortcut(
+      hasOwn(nextConfig.shortcuts, "submitTaskAndFinish")
+        ? nextConfig.shortcuts.submitTaskAndFinish
+        : null,
+      null
+    );
     delete nextConfig.aiSuggestionShortcut;
 
     const normalizedStatsConfig = normalizeJudgementStatsConfig(nextConfig);

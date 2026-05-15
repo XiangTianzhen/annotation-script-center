@@ -103,6 +103,8 @@
     { key: "retryAiSuggestion", label: "AI：重新分析" },
     { key: "ignoreAiSuggestion", label: "AI：忽略建议" },
     { key: "copyAsrTextPair", label: "复制两条 ASR 文本" },
+    { key: "submitTask", label: "提交任务" },
+    { key: "submitTaskAndFinish", label: "提交任务并结束" },
   ];
   const transcriptionShortcutActions = [
     { key: "shortcutPlayPause", label: "播放 / 暂停" },

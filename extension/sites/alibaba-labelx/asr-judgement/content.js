@@ -32,6 +32,8 @@
   const aiRetryActionKey = "retryAiSuggestion";
   const aiIgnoreActionKey = "ignoreAiSuggestion";
   const aiCopyAsrTextPairActionKey = "copyAsrTextPair";
+  const submitTaskActionKey = "submitTask";
+  const submitTaskAndFinishActionKey = "submitTaskAndFinish";
   const maxCustomPageSizeValue = 400;
   let settings = null;
   let runtimeEnabled = false;
@@ -224,6 +226,8 @@
         retryAiSuggestion: null,
         ignoreAiSuggestion: null,
         copyAsrTextPair: null,
+        submitTask: null,
+        submitTaskAndFinish: null,
       },
     };
     const projectConfig =
@@ -408,6 +412,16 @@
     }
     if (actionKey === aiCopyAsrTextPairActionKey) {
       return copyCurrentAsrTextPair(source);
+    }
+    if (actionKey === submitTaskActionKey && actionModule && typeof actionModule.submitTask === "function") {
+      return Promise.resolve(actionModule.submitTask());
+    }
+    if (
+      actionKey === submitTaskAndFinishActionKey &&
+      actionModule &&
+      typeof actionModule.submitTaskAndFinish === "function"
+    ) {
+      return Promise.resolve(actionModule.submitTaskAndFinish());
     }
 
     if (getChoiceAction(actionKey) && actionModule && typeof actionModule.selectJudgementChoice === "function") {
@@ -692,21 +706,6 @@
                 key: aiSuggestActionKey,
                 label: "AI 分析当前题",
                 shortLabel: "AI 分析",
-              },
-              {
-                key: aiApplyActionKey,
-                label: "AI 采用建议",
-                shortLabel: "AI 采用",
-              },
-              {
-                key: aiRetryActionKey,
-                label: "AI 重新分析",
-                shortLabel: "AI 重试",
-              },
-              {
-                key: aiIgnoreActionKey,
-                label: "AI 忽略建议",
-                shortLabel: "AI 忽略",
               },
               {
                 key: aiCopyAsrTextPairActionKey,
