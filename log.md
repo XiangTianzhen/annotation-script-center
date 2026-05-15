@@ -18,6 +18,17 @@
   5) 领域词误切语气词 -> 选真实领域词
   6) 核心语义相反 -> 选语义正确者
 
+## 2026-05-15（0.3.2 文档整理：指令与 docs 分层归档）
+
+- docs 目录完成分层重构：`architecture/`、`workflow/`、`external-docs/`、`rules/`、`archive/`、`unfinished/`，docs 根层仅保留导航 `docs/README.md`。
+- 新增 `docs/workflow/codex-prompt-style.md`，固定 Codex Prompt 输出格式（外层单一 text 代码块、禁止内部嵌套三反引号）。
+- 新增 `docs/external-docs/aliyun-bailian.md`，集中沉淀阿里云百炼官方文档入口与查阅规则。
+- 根 `README.md` 瘦身为项目概览 + 运行入口 + 文档导航，历史细节统一收口到 `log.md` 与 `docs/archive/`。
+- 更新 `AGENTS.md`：补充 Prompt 输出摘要、百炼文档查阅规则、docs 分类规则与 shared 通用模块定位。
+- 更新 `extension/README.md`、`platform-resources/backend/README.md` 的文档入口与百炼核对口径。
+- 新增快判人工规范整理版：`platform-resources/alibaba-labelx/asr-judgement/ai/asr-judgement-official-rules.md`（P0/P1/P2、优先级、both_bad/uncertain 限制、错例摘要）。
+- 本轮仅文档整理，不修改运行时代码，`manifest.version` 保持不变。
+
 ## 2026-05-15（0.3.2 热修：补齐转写提交快捷键设置项）
 
 - 修复转写 options 快捷键列表缺项：补齐 `shortcutSubmitTask`（提交任务）与 `shortcutSubmitTaskAndFinish`（提交任务并结束）显示与保存。

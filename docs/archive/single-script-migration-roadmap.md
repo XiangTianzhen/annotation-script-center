@@ -54,7 +54,7 @@
 主要涉及：
 - `extension/sites/alibaba-labelx/`
 - `docs/dom-adapter-plan.md`
-- `docs/site-state-contract.md`
+- `docs/architecture/site-state-contract.md`
 
 明确不做：
 - fetch 拦截
@@ -80,7 +80,7 @@
 主要涉及：
 - `extension/sites/alibaba-labelx/page-state-collector.js`
 - DOM 适配相关文件
-- `docs/site-state-contract.md`
+- `docs/architecture/site-state-contract.md`
 - `docs/context-fields-contract.md`
 
 明确不做：
@@ -218,4 +218,5 @@
 - 不新增 writer / runner / policy
 - 不增强保存链或提交链
 - 不做 fetch 拦截、自动重试、自动化动作、批处理或复杂 UI 重构
+
 

@@ -168,5 +168,6 @@
 - 中风险业务能力迁移
 - 高风险链路最后单独迁移
 
-详细主线见 `docs/single-script-migration-roadmap.md`、`docs/content-assembly-plan.md`、`docs/read-only-feedback-plan.md`、`docs/minimal-writeback-plan.md`、`docs/minimal-validity-toggle-plan.md`。
+详细主线见 `docs/archive/single-script-migration-roadmap.md`、`docs/archive/content-assembly-plan.md`、`docs/archive/read-only-feedback-plan.md`、`docs/archive/minimal-writeback-plan.md`、`docs/archive/minimal-validity-toggle-plan.md`。
+
 

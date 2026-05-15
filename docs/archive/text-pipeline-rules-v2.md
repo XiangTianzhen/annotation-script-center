@@ -1,7 +1,7 @@
 # annotation-text-pipeline 第二批低风险规则
 
 第三批规则已单独整理到：
-- `docs/text-pipeline-rules-v3.md`
+- `docs/rules/text-pipeline-rules-v3.md`
 
 ## 目的
 
@@ -79,4 +79,5 @@
 - 新增规则未命中时，不能伪造规则命中
 - 多条规则连续命中时，`appliedRules` 应按实际执行顺序反映
 - 输入为空或仅空白 / 零宽噪声时，返回结构仍保持稳定，不抛异常
+
 

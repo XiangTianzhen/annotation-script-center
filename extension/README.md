@@ -2,6 +2,13 @@
 
 本目录是 Chrome / Chromium MV3 扩展源码根目录，`manifest.json` 位于本目录下。Chrome 和 Edge 本地加载、调试和打包都使用这个目录。
 
+## 文档入口
+
+- 协作与执行规则：`AGENTS.md`
+- Codex Prompt 输出规范：`docs/workflow/codex-prompt-style.md`
+- 阿里云百炼官方文档索引：`docs/external-docs/aliyun-bailian.md`
+- docs 导航：`docs/README.md`
+
 ## 本地加载路径
 
 - Edge：打开 `edge://extensions/`，开启“开发人员模式”，选择 `C:\Projects\annotation-script-center\extension`。
@@ -62,6 +69,9 @@ sites/
 - `response_format` 不对前端开放；结构化输出格式由后端固定控制。
 - thinking 开关语义统一：关闭会显式传 `enable_thinking=false`，开启会显式传 `enable_thinking=true`；仅当模型/接口不支持该参数时，后端移除参数重试一次（不做无限重试）。
 - 阿里 LabelX 快判与转写的音频基础能力统一复用 `extension/sites/alibaba-labelx/shared/audio-controller-core.js`：默认倍速、默认音量、倍速步进、前进/后退步长、切题停旧播新与自动播放逻辑共用；脚本配置独立保存（快判默认 `2x`，转写默认 `1.5x`）。
+- 阿里 LabelX 快判与转写的提交类快捷键动作统一复用 `extension/sites/alibaba-labelx/shared/submit-actions.js`。
+- 快判与转写都支持“提交任务 / 提交任务并结束”快捷键；顶部工具栏不显示提交按钮。
+- 提交快捷键只点击页面真实系统按钮，不直接请求 API，不自动确认二次弹窗。
 - 快判 `400` 条 pageSize 请求重写仍是快判专属能力，不属于 shared audio core。
 
 ## 页面采集工作流

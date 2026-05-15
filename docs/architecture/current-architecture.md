@@ -512,6 +512,7 @@ legacy-reference/
 - 当前阶段已经完成多个单条能力验证与单条受控编排。
 - 接下来更合理的是在不碰保存链的前提下，继续评估更接近完整快速填入的中风险边界。
 
-单脚本迁移主线阶段图见 `docs/single-script-migration-roadmap.md`。
-详细边界见 `docs/content-assembly-plan.md`、`docs/low-risk-migration-plan.md`、`docs/read-only-validation-plan.md`、`docs/read-only-feedback-plan.md`、`docs/minimal-writeback-plan.md`、`docs/minimal-validity-toggle-plan.md`。
+单脚本迁移主线阶段图见 `docs/archive/single-script-migration-roadmap.md`。
+详细边界见 `docs/archive/content-assembly-plan.md`、`docs/archive/low-risk-migration-plan.md`、`docs/archive/read-only-validation-plan.md`、`docs/archive/read-only-feedback-plan.md`、`docs/archive/minimal-writeback-plan.md`、`docs/archive/minimal-validity-toggle-plan.md`。
+
 

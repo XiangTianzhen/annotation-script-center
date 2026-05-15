@@ -243,13 +243,13 @@
 
 允许修改：
 - `README.md`
-- `docs/current-architecture.md`
-- `docs/edge-migration-plan.md`
+- `docs/architecture/current-architecture.md`
+- `docs/archive/edge-migration-plan.md`
 - `docs/` 下的 `extension-skeleton.md`
-- `docs/module-boundaries.md`
-- `docs/site-state-contract.md`
+- `docs/architecture/module-boundaries.md`
+- `docs/architecture/site-state-contract.md`
 - `docs/dom-adapter-plan.md`
-- `docs/content-assembly-plan.md`
+- `docs/archive/content-assembly-plan.md`
 - `extension/sites/alibaba-labelx/**`
 - 如确有必要，可最小修改 `extension/manifest.json`
 
@@ -279,4 +279,5 @@
 - 是否进入更接近完整快速填入的中风险业务迁移
 
 高风险链路仍应最后迁移。
+
 

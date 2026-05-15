@@ -216,7 +216,8 @@
 - 应把 `content.js` 视为稳定的站点运行时入口
 - 新能力继续优先落在独立站点模块中，再由 `content.js` 做最小接线
 
-单脚本迁移主线见 `docs/single-script-migration-roadmap.md`。
+单脚本迁移主线见 `docs/archive/single-script-migration-roadmap.md`。
 字段来源边界见 `docs/context-fields-contract.md`。
-装配边界见 `docs/content-assembly-plan.md`。
+装配边界见 `docs/archive/content-assembly-plan.md`。
+
 

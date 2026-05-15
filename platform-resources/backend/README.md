@@ -29,6 +29,12 @@ http://127.0.0.1:3333
 
 系统环境变量优先级最高，不会被配置文件覆盖。文件不存在时跳过；读取失败时只输出脱敏 `warn`，不输出文件内容。
 
+## 官方文档核对入口
+
+- 阿里云百炼官方文档索引：`docs/external-docs/aliyun-bailian.md`
+- 涉及模型名、`enable_thinking`、结构化输出、Qwen-Omni、Web Search、限流、调用地区时，必须先核对该索引中的官方文档。
+- 如果官方文档在本地无法访问，必须在输出中明确说明“未能联网核对官方文档”，不得伪造结论。
+
 可用环境变量：
 
 - `PLATFORM_RESOURCES_SERVER_HOST`：统一后端监听地址，默认 `127.0.0.1`。
@@ -234,6 +240,15 @@ ASR 转写职责边界：
 2. 业务逻辑继续放项目自己的 `backend/` 下，不写进统一入口。
 3. 在 `registry.js` 中显式注册该项目。
 4. 更新对应项目 README、`platform-resources/README.md` 和根目录 `log.md`。
+
+## 后端参数变更流程
+
+1. 先核对 `docs/external-docs/aliyun-bailian.md` 对应官方文档。
+2. 更新后端参数白名单与归一化逻辑。
+3. 更新对应 `defaults` 接口返回字段。
+4. 同步更新 options 的 `supportedParams` 展示逻辑。
+5. 运行 `node --check` 与必要的 manifest/路径校验。
+6. 在真实调用场景验证成功/失败回退与脱敏日志。
 
 
 

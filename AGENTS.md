@@ -223,6 +223,30 @@
 - 每次有有意义的代码或行为变更，都要更新根目录 `log.md`。
 - 如果新增或确认 LabelX DOM 结构、网络请求或统计契约，优先整理到 `platform-resources/` 对应平台和脚本项目目录。
 - 网页端确认的业务信息不得只写在最终回复里，必须同步沉淀到 README/docs；如影响行为或协作口径，必须同步更新 `log.md`。
+
+### Prompt 输出格式（摘要）
+
+- 网页端输出 Codex Prompt 时，外层只使用一个 `text` 代码块。
+- Prompt 内禁止嵌套 Markdown 三反引号代码块。
+- 命令、JSON、env 示例统一使用普通缩进文本。
+- 完整规范见 `docs/workflow/codex-prompt-style.md`。
+
+### 外部文档查阅规则（百炼）
+
+- 涉及阿里云百炼、DashScope、Qwen 模型、thinking、结构化输出、Qwen-Omni、Web Search、模型名、调用地区、限流时，先读 `docs/external-docs/aliyun-bailian.md` 并按其中官方链接核对。
+- 官方文档不可访问时，必须明确说明，不能伪造。
+- 模型名必须来自官方模型列表。
+
+### docs 结构规则
+
+- `docs/README.md` 是文档导航入口。
+- `docs/architecture/`：架构和模块边界。
+- `docs/workflow/`：协作流程、Prompt 格式、验收清单。
+- `docs/external-docs/`：外部官方文档索引。
+- `docs/rules/`：当前有效规则。
+- `docs/archive/`：历史方案归档。
+- `docs/unfinished/`：未完成模块。
+- 新文档按类别放入子目录，不再散放到 `docs` 根层。
 ## 安全规则
 
 - 扩展前端不保存 API Key、cookie、access token、完整签名音频 URL 或完整音频 URL。

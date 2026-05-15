@@ -195,10 +195,10 @@ item 快照之后已经完成的几步是：
 - 两者分开后，策略和执行都仍停留在单条、非保存、非自动化边界内
 
 这一阶段的详细边界见：
-- `docs/read-only-validation-plan.md`
-- `docs/read-only-feedback-plan.md`
-- `docs/minimal-writeback-plan.md`
-- `docs/minimal-validity-toggle-plan.md`
+- `docs/archive/read-only-validation-plan.md`
+- `docs/archive/read-only-feedback-plan.md`
+- `docs/archive/minimal-writeback-plan.md`
+- `docs/archive/minimal-validity-toggle-plan.md`
 
 ## 第二批低风险文本规则扩充
 
@@ -220,7 +220,7 @@ item 快照之后已经完成的几步是：
 - 不修改 `content.js`、`runtime-debug.js`、`manifest.json`
 
 本轮规则细节见：
-- `docs/text-pipeline-rules-v2.md`
+- `docs/archive/text-pipeline-rules-v2.md`
 
 ## 第三批低风险文本规则扩充
 
@@ -242,7 +242,7 @@ item 快照之后已经完成的几步是：
 - 不修改 `content.js`、`runtime-debug.js`、`manifest.json`
 
 本轮规则细节见：
-- `docs/text-pipeline-rules-v3.md`
+- `docs/rules/text-pipeline-rules-v3.md`
 
 ## 第四批低风险文本规则扩充
 
@@ -265,4 +265,5 @@ item 快照之后已经完成的几步是：
 
 本轮规则细节见：
 - `docs/text-pipeline-rules-v4.md`
+
 
