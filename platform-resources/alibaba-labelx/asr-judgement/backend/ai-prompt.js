@@ -3,21 +3,24 @@
 const fs = require("fs");
 const path = require("path");
 
-const RULE_VERSION = "asr-judgement-ai-v2";
+const RULE_VERSION = "asr-judgement-rules-20260422";
 const AI_RESOURCE_DIR = path.join(__dirname, "..", "ai");
 const RULES_PATH = path.join(AI_RESOURCE_DIR, "rules-v2.ai.md");
 const LISTEN_TEMPLATE_PATH = path.join(AI_RESOURCE_DIR, "listen-prompt-template.md");
 const COMPARE_TEMPLATE_PATH = path.join(AI_RESOURCE_DIR, "compare-prompt-template.md");
 
 const FALLBACK_RULES_TEXT = [
-  "# 阿里 LabelX ASR 快判 AI 规则（v2）",
+  "# 阿里 LabelX ASR 快判 AI 规则（asr-judgement-rules-20260422）",
   "",
-  "1. 快判目标是在 asrText1/asrText2 中选择更优答案，不是生成听音稿。",
-  "2. asrText1/asrText2 是主判断对象，heardText 仅作辅助证据。",
-  "3. 上文和 Web Search 只用于消歧，不能覆盖候选文本和音频事实。",
-  "4. 专有名词/实体词存在明显常识差异时，优先选择真实常见词。",
-  "5. 不确定时降低置信度并提示人工复核。",
-  "6. 只输出 JSON，不输出 Markdown。",
+  "1. 快判任务是比较 asrText1/asrText2 哪个更优，不是生成转写稿。",
+  "2. 必须先按 P0/P1/P2 分层判断两条候选。",
+  "3. 一条有 P0/P1、另一条仅 P2 或无错时，必须选另一条。",
+  "4. 两条都有 P0/P1 且影响理解时，才允许 both_bad。",
+  "5. uncertain_or_similar 只能用于两条都合格且无明显优劣。",
+  "6. 实意词/专有名词/动作词优先级高于标点与格式。",
+  "7. heardText 仅辅助，不可直接替代候选答案。",
+  "8. 专有名词与行业词需结合 Web Search 消歧。",
+  "9. 只输出 JSON，不输出 Markdown。",
 ].join("\n");
 
 const FALLBACK_LISTEN_TEMPLATE = [
@@ -53,11 +56,12 @@ const FALLBACK_COMPARE_TEMPLATE = [
   "1) 这是候选比较任务，不是听音转写任务。",
   "2) heardText 仅辅助，不能直接替代候选答案。",
   "3) 上文和 Web Search 仅用于消歧，不能覆盖音频与候选文本。",
-  "当两条文本主体语义一致时，不要默认 uncertain_or_similar。",
-  "若仅在标点、空格、数字/日期格式上有明显优劣，应选择更规范的一条：",
-  "- asrText1 更规范 -> first_better",
-  "- asrText2 更规范 -> second_better",
-  "只有格式差异轻微且无明显优劣时，才允许 uncertain_or_similar。",
+  "4) 必须先做 P0/P1/P2 分层，不允许跳过。",
+  "5) both_bad 只能在两条都明显不合格时使用。",
+  "6) uncertain_or_similar 应少用，仅用于两条都合格且无明显优劣。",
+  "7) 实意词/专有名词/动作词优先级高于标点格式。",
+  "8) 共同核心词漏字或错字且影响语义时，必须 both_bad。",
+  "9) 重复词要比较重复次数接近度，明显多转/漏转时选更接近者。",
   "不要输出 JSON 之外内容。",
 ].join("\n");
 
