@@ -18,6 +18,14 @@
   5) 领域词误切语气词 -> 选真实领域词
   6) 核心语义相反 -> 选语义正确者
 
+## 2026-05-15（0.3.2 热修：提交快捷键抽为 LabelX 快判/转写通用能力）
+
+- 新增通用模块 `extension/sites/alibaba-labelx/shared/submit-actions.js`，统一封装“提交任务 / 提交任务并结束”DOM 查找与点击逻辑（仅点击页面系统按钮，不直接请求平台 API，不自动确认二次弹窗）。
+- 快判 `judgement-actions.js` 删除本地重复提交按钮查找代码，改为薄封装调用 shared submit-actions。
+- 转写接入提交快捷键动作：`shortcutSubmitTask`、`shortcutSubmitTaskAndFinish`，并在 `shortcut-bus.js` / `content.js` 支持触发 shared submit-actions。
+- 快判与转写提交类快捷键配置独立保存，默认均未绑定；顶部工具栏两边均未新增提交按钮。
+- `manifest.version` 保持 `0.3.2`。
+
 ## 2026-05-15（0.3.2 热修：清理快判 AI 顶部按钮并新增提交快捷键）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本小修。

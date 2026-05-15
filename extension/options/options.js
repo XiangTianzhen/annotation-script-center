@@ -2663,7 +2663,9 @@
     renderJudgementShortcutGrid();
     setStatus(
       "judgement-status",
-      "当前后端地址由首页统一控制：" + formatBackendModeLabel(settings)
+      "当前后端地址由首页统一控制：" +
+        formatBackendModeLabel(settings) +
+        "；提交类快捷键只触发页面系统按钮，若出现二次确认需手动确认。"
     );
   }
 
@@ -2884,7 +2886,7 @@
       "transcription-status",
       "数据统计上传为脚本默认能力，已强制启用；定时上传按脚本能力强制启用。后端地址：全局 " +
         backendLabel +
-        "；当前题 AI 推荐仅供参考，需手动点击“填入 AI 推荐”生效。"
+        "；当前题 AI 推荐仅供参考，需手动点击“填入 AI 推荐”生效；提交类快捷键只触发页面系统按钮，若出现二次确认需手动确认。"
     );
   }
 
@@ -2949,6 +2951,8 @@
       shortcutUploadStats: shortcuts.shortcutUploadStats,
       shortcutAiSuggest: shortcuts.shortcutAiSuggest,
       shortcutApplyAiSuggestion: shortcuts.shortcutApplyAiSuggestion,
+      shortcutSubmitTask: shortcuts.shortcutSubmitTask,
+      shortcutSubmitTaskAndFinish: shortcuts.shortcutSubmitTaskAndFinish,
     };
 
     if (getElement("transcription-ai-suggestion-timeout")) {

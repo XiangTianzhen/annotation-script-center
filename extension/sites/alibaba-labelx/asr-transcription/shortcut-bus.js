@@ -142,6 +142,8 @@
       shortcutUploadStats: "uploadStats",
       shortcutAiSuggest: "aiSuggestCurrent",
       shortcutApplyAiSuggestion: "applyAiSuggestion",
+      shortcutSubmitTask: "submitTask",
+      shortcutSubmitTaskAndFinish: "submitTaskAndFinish",
     };
 
     function isEnabled() {

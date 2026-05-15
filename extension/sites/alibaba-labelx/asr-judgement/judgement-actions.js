@@ -65,26 +65,8 @@
     "playPause",
     "aiSuggestCurrentItem",
   ];
+  const sharedSubmitActions = globalThis.__ASREdgeAlibabaLabelxSubmitActions || null;
 
-  const submitTaskAction = {
-    key: "submitTask",
-    preferredTexts: ["提交任务", "提交当前任务"],
-    fallbackTexts: ["提交"],
-    excludeTexts: ["提交任务并结束", "提交并结束", "提交后结束", "结束任务"],
-    notFoundReason: "submit-button-not-found",
-    notFoundMessage: "未找到“提交任务”按钮。",
-    successMessage: "已触发提交任务，请按页面提示确认。",
-  };
-
-  const submitTaskAndFinishAction = {
-    key: "submitTaskAndFinish",
-    preferredTexts: ["提交任务并结束", "提交并结束", "提交后结束"],
-    fallbackTexts: ["结束任务"],
-    excludeTexts: [],
-    notFoundReason: "submit-finish-button-not-found",
-    notFoundMessage: "未找到“提交任务并结束”按钮。",
-    successMessage: "已触发提交任务并结束，请按页面提示确认。",
-  };
 
   function buildActionResult(action, ok, extra) {
     return Object.assign(
@@ -266,104 +248,24 @@
     });
   }
 
-  function normalizeButtonText(text) {
-    return String(text || "").replace(/\s+/g, "");
-  }
-
-  function getButtonText(element) {
-    if (!element) {
-      return "";
-    }
-    return normalizeButtonText(element.innerText || element.textContent || "");
-  }
-
-  function isVisibleElement(element) {
-    if (!(element instanceof Element)) {
-      return false;
-    }
-    if (element.getClientRects().length === 0) {
-      return false;
-    }
-    const style = window.getComputedStyle(element);
-    return style.display !== "none" && style.visibility !== "hidden";
-  }
-
-  function isDisabledButton(element) {
-    if (!(element instanceof Element)) {
-      return true;
-    }
-    if (element.hasAttribute("disabled")) {
-      return true;
-    }
-    if (String(element.getAttribute("aria-disabled") || "").toLowerCase() === "true") {
-      return true;
-    }
-    const className = String(element.className || "").toLowerCase();
-    if (className.indexOf("disabled") >= 0 || className.indexOf("ant-btn-disabled") >= 0) {
-      return true;
-    }
-    return false;
-  }
-
-  function findButtonByTexts(preferredTexts, fallbackTexts, excludeTexts) {
-    const preferred = Array.isArray(preferredTexts) ? preferredTexts.map(normalizeButtonText).filter(Boolean) : [];
-    const fallback = Array.isArray(fallbackTexts) ? fallbackTexts.map(normalizeButtonText).filter(Boolean) : [];
-    const excludes = Array.isArray(excludeTexts) ? excludeTexts.map(normalizeButtonText).filter(Boolean) : [];
-    const elements = Array.from(document.querySelectorAll("button, .ant-btn, [role='button']"));
-    const candidates = elements.filter(function (element) {
-      if (!isVisibleElement(element) || isDisabledButton(element)) {
-        return false;
-      }
-      const text = getButtonText(element);
-      if (!text) {
-        return false;
-      }
-      return excludes.every(function (excludeText) {
-        return text.indexOf(excludeText) < 0;
-      });
-    });
-
-    function pick(targets) {
-      for (let i = 0; i < targets.length; i += 1) {
-        const target = targets[i];
-        const matched = candidates.find(function (element) {
-          return getButtonText(element).indexOf(target) >= 0;
-        });
-        if (matched) {
-          return matched;
-        }
-      }
-      return null;
-    }
-
-    return pick(preferred) || pick(fallback) || null;
-  }
-
-  function clickSystemButton(action) {
-    const button = findButtonByTexts(
-      action.preferredTexts,
-      action.fallbackTexts,
-      action.excludeTexts
-    );
-    if (!button) {
-      return buildActionResult(action.key, false, {
-        reason: action.notFoundReason,
-        message: action.notFoundMessage,
-      });
-    }
-
-    button.click();
-    return buildActionResult(action.key, true, {
-      message: action.successMessage,
-    });
-  }
-
   function submitTask() {
-    return clickSystemButton(submitTaskAction);
+    if (sharedSubmitActions && typeof sharedSubmitActions.runAction === "function") {
+      return sharedSubmitActions.runAction("submitTask");
+    }
+    return buildActionResult("submitTask", false, {
+      reason: "submit-module-missing",
+      message: "提交模块未加载。",
+    });
   }
 
   function submitTaskAndFinish() {
-    return clickSystemButton(submitTaskAndFinishAction);
+    if (sharedSubmitActions && typeof sharedSubmitActions.runAction === "function") {
+      return sharedSubmitActions.runAction("submitTaskAndFinish");
+    }
+    return buildActionResult("submitTaskAndFinish", false, {
+      reason: "submit-module-missing",
+      message: "提交模块未加载。",
+    });
   }
 
   globalThis.__ASREdgeAlibabaLabelxJudgementActions = {

@@ -40,7 +40,7 @@
   - 前进/后退步长 `seekStepSeconds`
   - 默认音量 `volumeValue`
   - 当前题行为 `defaultValid/fillOnValid/clearOnInvalid`
-  - 当前保留功能快捷键（含“上传转写统计”“AI 推荐当前题”“填入 AI 推荐”）
+  - 当前保留功能快捷键（含“上传转写统计”“AI 推荐当前题”“填入 AI 推荐”“提交任务”“提交任务并结束”）
 - 转写 AI 模型/Prompt/参数配置已接入通用隐藏部件“ASR 语音 AI 设置”：默认隐藏，在转写脚本详情页标题连续点击 10 次后显示，仅影响转写脚本。
 - 解锁后会请求 `GET /api/alibaba-labelx/asr-transcription/ai/defaults` 拉取后端默认模型、Prompt 与参数，并在面板显示有效配置。
 - Prompt/参数采用脚本级 override：输入为空或恢复默认即不保存 override，请求时由后端默认配置生效。
@@ -75,13 +75,14 @@
   - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health`
 - 触发方式：
   - 工具栏按钮：`AI推荐`、`填入AI`
-  - 快捷键：`shortcutAiSuggest`、`shortcutApplyAiSuggestion`
+  - 快捷键：`shortcutAiSuggest`、`shortcutApplyAiSuggestion`、`shortcutSubmitTask`、`shortcutSubmitTaskAndFinish`
 - 输入范围：
   - 仅当前题，采集当前题可见候选文本、当前 textarea 文本、当前题音频 URL（最多两条）。
 - 输出展示：
   - 当前题卡片展示状态、推荐文本、判断、置信度、简短原因、风险提示。
 - 行为边界：
   - 不自动填入、不自动保存、不自动提交、不自动领取、不自动流转、不自动跳下一题。
+  - 提交类快捷键仅调用 `extension/sites/alibaba-labelx/shared/submit-actions.js` 点击页面系统按钮，不直接调平台 API，不自动确认二次弹窗。
   - “填入推荐文本”只写当前题 textarea，并触发 `input/change` 事件。
   - API Key 只在后端读取，前端不保存。
   - 日志不输出完整音频 URL，只记录摘要信息。

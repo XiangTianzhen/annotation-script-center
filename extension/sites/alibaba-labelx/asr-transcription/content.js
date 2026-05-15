@@ -14,6 +14,7 @@
     globalThis.__ASREdgeAlibabaLabelxTranscriptionAiSuggestionCollector || null;
   const aiSuggestionPanelApi =
     globalThis.__ASREdgeAlibabaLabelxTranscriptionAiSuggestionPanel || null;
+  const submitActionsApi = globalThis.__ASREdgeAlibabaLabelxSubmitActions || null;
   const messageTypes = constants.MESSAGE_TYPES || {};
   const PANEL_PING = messageTypes.PANEL_PING || "ASR_EDGE_SETTINGS_PANEL_PING";
   const PROJECT_ID = configApi?.PROJECT_ID || "transcription";
@@ -562,6 +563,20 @@
           result = await runtime.aiSuggestionRuntime.applyCurrentSuggestion();
         } else {
           result = { ok: false, message: "AI 推荐模块未加载。" };
+        }
+        break;
+      case "submitTask":
+        if (submitActionsApi && typeof submitActionsApi.runAction === "function") {
+          result = submitActionsApi.runAction("submitTask");
+        } else {
+          result = { ok: false, message: "提交模块未加载。" };
+        }
+        break;
+      case "submitTaskAndFinish":
+        if (submitActionsApi && typeof submitActionsApi.runAction === "function") {
+          result = submitActionsApi.runAction("submitTaskAndFinish");
+        } else {
+          result = { ok: false, message: "提交模块未加载。" };
         }
         break;
       default:

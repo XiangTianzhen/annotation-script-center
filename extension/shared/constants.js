@@ -439,6 +439,8 @@
     shortcutUploadStats: null,
     shortcutAiSuggest: null,
     shortcutApplyAiSuggestion: null,
+    shortcutSubmitTask: null,
+    shortcutSubmitTaskAndFinish: null,
     aiSuggestionRequestTimeoutMs: 120000,
     statsUploadEnabled: true,
     statsUploadEndpoint: TRANSCRIPTION_STATS_SERVER_ENDPOINT,
@@ -739,6 +741,8 @@
     { key: "shortcutUploadStats", label: "上传转写统计" },
     { key: "shortcutAiSuggest", label: "AI 推荐当前题" },
     { key: "shortcutApplyAiSuggestion", label: "填入 AI 推荐" },
+    { key: "shortcutSubmitTask", label: "提交任务" },
+    { key: "shortcutSubmitTaskAndFinish", label: "提交任务并结束" },
   ];
 
   const SHORTCUT_KEYS = SHORTCUT_DEFINITIONS.map(function (item) {
@@ -766,6 +770,8 @@
     uploadStats: "shortcutUploadStats",
     aiSuggest: "shortcutAiSuggest",
     applyAiSuggestion: "shortcutApplyAiSuggestion",
+    submitTask: "shortcutSubmitTask",
+    submitTaskAndFinish: "shortcutSubmitTaskAndFinish",
   };
 
   const BOOLEAN_CONFIG_KEYS = [
