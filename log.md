@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-15（0.3.2 热修：修复快判 AI Web Search 变量未定义）
+
+- 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本 hotfix。
+- 修复 `platform-resources/alibaba-labelx/asr-judgement/backend/ai-client-qwen.js` 中 `requestCompare` 的 `webSearchEnabled` 变量未定义问题，避免 compare 阶段抛出 `webSearchEnabled is not defined`。
+- `requestCompare` 增加 Web Search 开关解析兜底链路：`options.webSearchEnabled -> options.aiOptions.webSearchEnabled -> input.aiOptions.webSearchEnabled -> 后端默认配置`。
+- `sanitizeAiOptions` 补充 `webSearchEnabled` 兼容读取（仅用于是否启用联网搜索控制，不直接透传为模型参数字段）。
+- 维持原有边界：listen 阶段仍不启用 Web Search；compare 阶段按配置启用，不支持时仅移除联网参数重试一次。
+
 ## 2026-05-14（0.3.2：增强快判 AI 搜索辅助与快捷键）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本功能增强。

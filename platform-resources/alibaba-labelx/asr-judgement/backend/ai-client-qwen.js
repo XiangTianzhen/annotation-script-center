@@ -217,6 +217,12 @@ function sanitizeAiOptions(rawOptions) {
   ) {
     sanitized.enable_thinking = source.enable_thinking === true;
   }
+  if (
+    SUPPORTED_REQUEST_PARAMS.web_search === true &&
+    typeof source.webSearchEnabled === "boolean"
+  ) {
+    sanitized.webSearchEnabled = source.webSearchEnabled === true;
+  }
   return sanitized;
 }
 
@@ -431,6 +437,8 @@ function removeWebSearchFields(requestBody) {
   const nextBody = Object.assign({}, requestBody);
   delete nextBody.enable_search;
   delete nextBody.search_options;
+  delete nextBody.forced_search;
+  delete nextBody.search_strategy;
   return nextBody;
 }
 
@@ -764,6 +772,16 @@ async function requestCompare(input, prompt, options) {
       : typeof options?.enableThinking === "boolean"
       ? options.enableThinking === true
       : config.enableThinkingDefault === true;
+  const webSearchEnabled =
+    typeof options?.webSearchEnabled === "boolean"
+      ? options.webSearchEnabled === true
+      : typeof normalizedAiOptions.webSearchEnabled === "boolean"
+      ? normalizedAiOptions.webSearchEnabled === true
+      : typeof options?.aiOptions?.webSearchEnabled === "boolean"
+      ? options.aiOptions.webSearchEnabled === true
+      : typeof input?.aiOptions?.webSearchEnabled === "boolean"
+      ? input.aiOptions.webSearchEnabled === true
+      : config.webSearchEnabledDefault === true;
 
   if (config.mockEnabled) {
     return {
