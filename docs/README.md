@@ -5,6 +5,7 @@
 ## 目录说明
 
 - `docs/architecture/`：当前架构、模块边界、状态契约、资产清单。
+- `docs/platforms/`：平台和脚本文档索引。
 - `docs/workflow/`：协作流程、验收清单、Prompt 输出规范。
 - `docs/external-docs/`：外部官方文档索引（集中入口）。
 - `docs/rules/`：当前有效规则文档。
@@ -15,6 +16,7 @@
 
 - `docs/architecture/current-architecture.md`：当前架构
 - `docs/architecture/module-boundaries.md`：模块边界
+- `docs/platforms/index.md`：平台与脚本文档索引
 - `docs/workflow/codex-prompt-style.md`：Codex Prompt 输出格式规范
 - `docs/workflow/manual-flow-acceptance-checklist.md`：人工验收清单
 - `docs/external-docs/aliyun-bailian.md`：阿里云百炼官方文档索引

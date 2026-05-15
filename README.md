@@ -54,6 +54,7 @@ Chrome：`chrome://extensions/` -> 开启开发者模式 -> 加载 `C:\Projects\
 - `extension/README.md`：扩展源码说明
 - `platform-resources/backend/README.md`：统一后端说明
 - `docs/README.md`：docs 文档导航
+- `docs/platforms/index.md`：平台与脚本文档索引
 - `docs/workflow/codex-prompt-style.md`：Codex Prompt 格式规范
 - `docs/external-docs/aliyun-bailian.md`：阿里云百炼官方文档索引
 - `log.md`：长期修改日志与历史细节

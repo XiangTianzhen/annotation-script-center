@@ -18,6 +18,14 @@
   5) 领域词误切语气词 -> 选真实领域词
   6) 核心语义相反 -> 选语义正确者
 
+## 2026-05-15（0.3.2 文档整理：AGENTS 瘦身与平台索引）
+
+- 新增 `docs/platforms/index.md`，集中维护平台与脚本文档入口，不在 AGENTS 堆平台细节。
+- 更新 `docs/README.md`：新增 `docs/platforms/` 分类与关键入口。
+- `AGENTS.md` 精简为项目级规则（工作流、暗号、目录边界、安全、验证、发布、文档规则），删除具体平台长口径，改为“先看平台索引再看对应 README/资料”。
+- 更新 `README.md` 与 `extension/README.md` 文档入口，加入 `docs/platforms/index.md`。
+- 本轮仅文档整理，不修改运行时代码，不变更 `manifest.version`。
+
 ## 2026-05-15（0.3.2 文档整理：指令与 docs 分层归档）
 
 - docs 目录完成分层重构：`architecture/`、`workflow/`、`external-docs/`、`rules/`、`archive/`、`unfinished/`，docs 根层仅保留导航 `docs/README.md`。

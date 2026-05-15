@@ -5,6 +5,7 @@
 ## 文档入口
 
 - 协作与执行规则：`AGENTS.md`
+- 平台与脚本文档索引：`docs/platforms/index.md`
 - Codex Prompt 输出规范：`docs/workflow/codex-prompt-style.md`
 - 阿里云百炼官方文档索引：`docs/external-docs/aliyun-bailian.md`
 - docs 导航：`docs/README.md`
