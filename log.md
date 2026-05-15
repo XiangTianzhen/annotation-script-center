@@ -18,6 +18,13 @@
   5) 领域词误切语气词 -> 选真实领域词
   6) 核心语义相反 -> 选语义正确者
 
+## 2026-05-15（0.3.2 热修：补齐转写提交快捷键设置项）
+
+- 修复转写 options 快捷键列表缺项：补齐 `shortcutSubmitTask`（提交任务）与 `shortcutSubmitTaskAndFinish`（提交任务并结束）显示与保存。
+- 补齐转写本地归一化默认字段：`shortcutSubmitTask: null`、`shortcutSubmitTaskAndFinish: null`，默认不占用键位。
+- 转写运行时仍复用 `extension/sites/alibaba-labelx/shared/submit-actions.js` 执行提交动作；不新增工具栏按钮，不自动确认二次弹窗。
+- `manifest.version` 保持 `0.3.2`。
+
 ## 2026-05-15（0.3.2 热修：提交快捷键抽为 LabelX 快判/转写通用能力）
 
 - 新增通用模块 `extension/sites/alibaba-labelx/shared/submit-actions.js`，统一封装“提交任务 / 提交任务并结束”DOM 查找与点击逻辑（仅点击页面系统按钮，不直接请求平台 API，不自动确认二次弹窗）。

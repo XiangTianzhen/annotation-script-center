@@ -378,6 +378,7 @@
 - 快判顶部工具栏的 AI 分组不展示“采用 / 重试 / 忽略”按钮，避免与 AI 卡片按钮重复；顶部仅保留“AI 分析当前题”和“复制两条 ASR 文本”。
 - “提交任务 / 提交任务并结束”属于阿里 LabelX 快判/转写通用能力，仅允许作为快捷键动作，不加入顶部工具栏按钮。
 - 通用实现固定为 `extension/sites/alibaba-labelx/shared/submit-actions.js`；提交类快捷键只能点击页面真实系统按钮，不直接请求平台 API，也不自动确认二次弹窗。
+- 快判与转写提交快捷键字段独立保存：快判使用 `submitTask/submitTaskAndFinish`，转写使用 `shortcutSubmitTask/shortcutSubmitTaskAndFinish`。
 - 复制两条 ASR 文本格式固定为两行：`asr_text1:<文本>;` 与 `asr_text2:<文本>`。
 - 快判与转写必须复用 LabelX shared audio core；快判默认倍速 `2x`，转写默认倍速 `1.5x`，配置独立保存。
 - 快判 `400` 条 pageSize 重写属于快判专属能力，不得抽入 shared audio core。

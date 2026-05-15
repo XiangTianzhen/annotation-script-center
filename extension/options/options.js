@@ -124,6 +124,8 @@
     { key: "shortcutResetVol", label: "重置音量" },
     { key: "shortcutCopyDuration", label: "复制当前音频时长" },
     { key: "shortcutUploadStats", label: "上传转写统计" },
+    { key: "shortcutSubmitTask", label: "提交任务" },
+    { key: "shortcutSubmitTaskAndFinish", label: "提交任务并结束" },
     { key: "shortcutAiSuggest", label: "AI 推荐当前题" },
     { key: "shortcutApplyAiSuggestion", label: "填入 AI 推荐" },
   ];
@@ -1504,6 +1506,8 @@
       shortcutResetVol: null,
       shortcutCopyDuration: null,
       shortcutUploadStats: null,
+      shortcutSubmitTask: null,
+      shortcutSubmitTaskAndFinish: null,
       shortcutAiSuggest: null,
       shortcutApplyAiSuggestion: null,
       statsUploadEnabled: true,
