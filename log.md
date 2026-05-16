@@ -1,5 +1,14 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：补充 Task21 页面与 Network 结构文档）
+
+- 使用 Google Chrome DevTools MCP 采集并整理 Abaka AI Task21 页面结构。
+- 补充任务列表页 `/data-task/v2`、Task21 详情页 `/task-v2/data-item?taskId={taskId}`、批次视图 `/task-v2/data-item?taskId={taskId}&vm=batch&batchId={batchId}` 的 DOM 区域、表格字段、筛选控件和选择器候选。
+- 补充登录后用户/权限、任务列表、Task21 详情、Workflow、批次列表、筛选列表、Todo 条目列表等 Network 结构摘要。
+- 明确 `Claim Label`、保存、提交、领取、流转、跳过、跨页选择等危险操作边界；本轮未主动触发。
+- 未提交真实采集 JSON/HAR/截图/CSV/原始接口响应，未记录 cookie、token、authorization、密码或完整资源 URL。
+- 本轮仅更新 Abaka AI 文档和平台索引，不实现自动化功能，不修改运行时代码，不提升 `extension/manifest.json` 版本，不生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：新增 Task 页面结构只读采集壳）
 
 - 新增 Abaka AI 平台与脚本登记：

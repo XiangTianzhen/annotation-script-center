@@ -29,7 +29,7 @@
 - 运行时代码：`extension/sites/abaka-ai/task-page/`
 - README：`extension/sites/abaka-ai/task-page/README.md`
 - 平台资料：`platform-resources/abaka-ai/task-page/README.md`
-- 当前阶段：只读页面结构与 Network 结构采集，不做自动化提交/保存/领取/流转。
+- 当前阶段：Task21 页面结构与 Network 结构只读采集，不做自动化提交/保存/领取/流转。
 
 ## 新增平台要求
 
