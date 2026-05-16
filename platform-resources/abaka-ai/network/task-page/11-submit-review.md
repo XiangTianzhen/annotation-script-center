@@ -2,7 +2,7 @@
 
 ## 请求目的
 
-记录 Abaka AI Task 标注页点击 `Submit / 送审` 时的行为。Task21 same_font 为空时前端校验阻断；填写最小有效值后，成功送审链路已拆到公共 Task 页面文档 `../common/06-label-submit-success.md`。
+记录 Abaka AI Task 标注页点击 `Submit / 送审` 时的行为。Task21 same_font 为空时前端校验阻断；填写最小有效值后，成功送审链路见 `23-label-submit-success.md`。
 
 ## 触发操作
 
@@ -24,7 +24,7 @@
 - URL：`/api/v2/item/submit-item`
 - Content-Type：`application/json`
 - Status：`200`
-- 详细结构：见 `../common/06-label-submit-success.md`。
+- 详细结构：见 `23-label-submit-success.md`。
 
 ## 脱敏请求体摘要
 

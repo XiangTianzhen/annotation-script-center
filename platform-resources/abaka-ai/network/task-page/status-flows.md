@@ -10,13 +10,13 @@ Task21 `same_font` 保存、派生字段和暂存维护在 `../../task21/network
 
 | 文件 | 能力 | 当前状态 |
 | --- | --- | --- |
-| `01-status-tabs.md` | Overview / Todo / Skipped / Dropped / Label 状态 Tab | 已采集 English 环境主要 Tab |
-| `02-skipped-list.md` | Skipped 列表加载 | 已采集 |
-| `03-dropped-list.md` | Dropped 列表加载 | 已采集 |
-| `04-restore-skipped-item.md` | Skipped 条目恢复 / 重新进入标注 | 已采集，未发现独立 `recover-item` |
-| `05-restore-dropped-item.md` | Dropped 条目恢复 | 已采集，确认 `recover-item` |
-| `06-label-submit-success.md` | 标注权限送审成功 | 已采集 |
-| `07-review-role-no-submit.md` | 标注内审角色只读观察 | 已采集，未提交 |
+| `18-status-tabs.md` | Overview / Todo / Skipped / Dropped / Label 状态 Tab | 已采集 English 环境主要 Tab |
+| `19-skipped-list.md` | Skipped 列表加载 | 已采集 |
+| `20-dropped-list.md` | Dropped 列表加载 | 已采集 |
+| `21-restore-skipped-item.md` | Skipped 条目恢复 / 重新进入标注 | 已采集，未发现独立 `recover-item` |
+| `22-restore-dropped-item.md` | Dropped 条目恢复 | 已采集，确认 `recover-item` |
+| `23-label-submit-success.md` | 标注权限送审成功 | 已采集 |
+| `24-review-role-no-submit.md` | 标注内审角色只读观察 | 已采集，未提交 |
 
 ## 脱敏规则
 

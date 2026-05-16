@@ -8,8 +8,7 @@
 
 | 目录 | 内容 |
 | --- | --- |
-| `task-page/` | Data 页、`/items` 初始化、领取、放弃、跳过、送审、语言、资源等公共请求。 |
-| `common/` | 状态 Tab、Skipped / Dropped、Recovery、标注送审后状态、内审只读边界。 |
+| `task-page/` | Data 页、`/items` 初始化、领取、放弃、跳过、送审、语言、资源、状态 Tab、Skipped / Dropped、Recovery、内审只读边界等公共请求。 |
 
 ## 任务项目入口
 

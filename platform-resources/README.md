@@ -51,7 +51,6 @@ platform-resources/
     network/
       README.md
       task-page/
-      common/
     task21/
       README.md
       network.md

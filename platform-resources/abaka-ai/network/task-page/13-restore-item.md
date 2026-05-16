@@ -2,14 +2,14 @@
 
 ## 请求目的
 
-记录恢复已放弃或已跳过条目的入口。恢复属于 Abaka AI Task 页面公共状态流转能力，详细文档维护在 `../common/` 目录。
+记录恢复已放弃或已跳过条目的入口。恢复属于 Abaka AI Task 页面公共状态流转能力，详细文档维护在本目录编号文档中。
 
 ## 触发操作
 
 已确认入口：
 
-- Dropped：Data 页 `Dropped` Tab 选中单条，点击 `Recovery`，确认弹窗后调用 `recover-item`。见 `../common/05-restore-dropped-item.md`。
-- Skipped：Data 页 `Skipped` Tab 选中单条，点击 `Label: 1`，调用 `receive-item` 重新进入标注。见 `../common/04-restore-skipped-item.md`。
+- Dropped：Data 页 `Dropped` Tab 选中单条，点击 `Recovery`，确认弹窗后调用 `recover-item`。见 `22-restore-dropped-item.md`。
+- Skipped：Data 页 `Skipped` Tab 选中单条，点击 `Label: 1`，调用 `receive-item` 重新进入标注。见 `21-restore-skipped-item.md`。
 
 ## 操作前页面状态
 

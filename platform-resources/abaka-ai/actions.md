@@ -25,9 +25,9 @@
 | 放弃条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/09-abandon-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/abandon-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量放弃 |
 | 跳过条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/10-skip-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/skip-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量跳过 |
 | 送审 / 提交 | `/items` 标注页 | `danger-confirm` | `network/task-page/11-submit-review.md` | same_font 为空时前端校验阻断；填写后可触发成功提交 | 视场景而定 | 必须人工确认 |
-| 送审成功 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/common/06-label-submit-success.md` | `save-labels -> submit-item`，成功后 Data 页显示 `Labeled / Pending Review` | 送审后进入审核流，不按恢复处理 | 必须人工确认，不自动送审 |
-| Skipped 列表 | `/task-v2/data-item?dm=skipped` | `safe-read` | `network/common/02-skipped-list.md` | `/api/v2/item/get-task-item-skip-list` | 不涉及 | 可只读识别 |
-| Dropped 列表 | `/task-v2/data-item?dm=abandoned` | `safe-read` | `network/common/03-dropped-list.md` | `/api/v2/item/get-task-item-abandon-list` | 不涉及 | 可只读识别 |
+| 送审成功 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/23-label-submit-success.md` | `save-labels -> submit-item`，成功后 Data 页显示 `Labeled / Pending Review` | 送审后进入审核流，不按恢复处理 | 必须人工确认，不自动送审 |
+| Skipped 列表 | `/task-v2/data-item?dm=skipped` | `safe-read` | `network/task-page/19-skipped-list.md` | `/api/v2/item/get-task-item-skip-list` | 不涉及 | 可只读识别 |
+| Dropped 列表 | `/task-v2/data-item?dm=abandoned` | `safe-read` | `network/task-page/20-dropped-list.md` | `/api/v2/item/get-task-item-abandon-list` | 不涉及 | 可只读识别 |
 | 资源加载 | `/items` | `safe-read` | `network/task-page/17-resource-files.md` | 加载 assets、captcha、`.webp` 对象存储图片 | 不涉及 | 不记录完整 URL |
 
 ## 未完整测试动作
@@ -48,10 +48,10 @@
 | 标注 | 标注 | Label: N | 数据条目页 | 是 | 是 | 进入工作页、可能锁定 | 进入前提示当前任务与条目 |
 | 放弃 | 放弃 | Drop | 标注页 | 是 | 是 | `network/task-page/09-abandon-item.md` | 二次确认，禁止批量 |
 | 跳过 | 跳过 | Skip | 标注页 | 是 | 是 | `network/task-page/10-skip-item.md` | 二次确认，禁止批量 |
-| 送审 | 送审 | Submit | 标注页 | 是 | 是 | `network/task-page/11-submit-review.md`、`network/common/06-label-submit-success.md` | 二次确认，禁止自动送审 |
-| 恢复已放弃 | 恢复 | Recovery | Dropped Tab | 是 | 是 | `network/common/05-restore-dropped-item.md` | 二次确认，禁止批量恢复 |
-| 恢复已跳过 | 待补 | Label: N | Skipped Tab | 是 | 是 | `network/common/04-restore-skipped-item.md` | 二次确认，提示会重新进入工作态 |
-| 内审查看 | 查看 | View | 标注内审 Data 页 | 否 | 是 | `network/common/07-review-role-no-submit.md` | 只读入口 |
+| 送审 | 送审 | Submit | 标注页 | 是 | 是 | `network/task-page/11-submit-review.md`、`network/task-page/23-label-submit-success.md` | 二次确认，禁止自动送审 |
+| 恢复已放弃 | 恢复 | Recovery | Dropped Tab | 是 | 是 | `network/task-page/22-restore-dropped-item.md` | 二次确认，禁止批量恢复 |
+| 恢复已跳过 | 待补 | Label: N | Skipped Tab | 是 | 是 | `network/task-page/21-restore-skipped-item.md` | 二次确认，提示会重新进入工作态 |
+| 内审查看 | 查看 | View | 标注内审 Data 页 | 否 | 是 | `network/task-page/24-review-role-no-submit.md` | 只读入口 |
 | 内审提交 / 通过 / 驳回 | 提交 / 通过 / 驳回 待补 | Pass / Reject / Label | 标注内审工作页 | 是 | 禁止 | 待补 | 当前边界下不实现、不采集 |
 | 筛选 | 筛选 | 待补 | 数据条目页 | 否 | 是 | 条目列表查询 | 只读采集筛选字段 |
 | 搜索 | 搜索 | Search | 数据条目页 | 否 | 是 | 条目列表查询 | 可辅助定位 Task21 |

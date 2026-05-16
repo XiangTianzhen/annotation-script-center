@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：按 LabelX 快判风格收口 Task 页面网络目录）
+
+- 将 `platform-resources/abaka-ai/network/common/` 中的状态 Tab、Skipped / Dropped、恢复、送审成功和内审只读文档合并进 `platform-resources/abaka-ai/network/task-page/`。
+- `network/task-page/` 调整为类似 LabelX 快判 `network/` 的单层编号文档目录，新增完整索引、来源页面、操作步骤、初始化序列、状态变更链路和脱敏规则。
+- 更新 Abaka AI 根目录、动作边界和平台资源索引中的旧 `common/` 路径。
+- 未重新采集，未提交原始 HAR/JSON/截图/CSV/完整响应或敏感数据。
+- 未修改运行时代码，未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：重排公共资料与任务项目目录）
 
 - 按 LabelX 资料组织方式重排 Abaka AI 平台文档：根目录维护公共 Task 页面结构、动作边界、多语言和公共 Network。
