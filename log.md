@@ -1,5 +1,14 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：补采 Skipped / Dropped 恢复与标注送审链路）
+
+- 使用 DevTools MCP 补采 Task 页面公共状态 Tab、Skipped / Dropped 列表和恢复链路。
+- 标注权限下单条测试送审成功链路，确认 `save-labels -> submit-item` 和 Data 页 `Labeled / Pending Review` 状态变化。
+- 标注内审权限下只观察列表、状态 Tab 和 `View` 查看页初始化，未提交、未通过、未驳回、未触发审核完成类动作。
+- 新增 `platform-resources/abaka-ai/task-page/network/common/` 网络文档目录，区分公共 Task 页面能力与 Task21 `same_font` 专属能力。
+- 未提交原始 HAR/JSON/截图/CSV/完整响应或敏感数据。
+- 未修改运行时代码，未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：补齐 Task21 动作网络请求）
 
 - 按 LabelX 快判 `network/` 目录风格拆分 Abaka AI Task21 网络请求，新增编号文档和待补/接续说明。

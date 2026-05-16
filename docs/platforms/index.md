@@ -34,10 +34,11 @@
 - Task 页面资料：`platform-resources/abaka-ai/task-page/README.md`
 - Task21 Network：`platform-resources/abaka-ai/task-page/network.md`
 - Task21 编号 Network 目录：`platform-resources/abaka-ai/task-page/network/README.md`
+- Task 页面公共 Network 目录：`platform-resources/abaka-ai/task-page/network/common/README.md`
 - Task21 页面结构：`platform-resources/abaka-ai/task-page/page-structure.md`
 - Task21 动作边界：`platform-resources/abaka-ai/task-page/actions.md`
 - Task 页面多语言：`platform-resources/abaka-ai/task-page/i18n.md`
-- 当前阶段：Task21 页面结构与 Network 结构已采集并拆分整理；后续功能仍需单独设计，不默认自动提交/保存/领取/流转。
+- 当前阶段：Task21 页面结构与 Network 结构已采集并拆分整理；Skipped / Dropped / Recovery / Submit 等公共状态流转已单独沉淀到 `network/common/`；后续功能仍需单独设计，不默认自动提交/保存/领取/流转。
 
 ## 新增平台要求
 

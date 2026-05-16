@@ -19,18 +19,20 @@
 - 放弃。
 - 跳过。
 - 送审前端校验阻断。
+- 送审成功链路。
 - 领取标注。
 - 领取审核。
 - 资源文件加载。
+- Task 页面公共状态 Tab、Skipped / Dropped 列表、Dropped Recovery、Skipped 重新进入标注。
+- 标注内审角色只读观察。
 - Task17 只读对比。
 
 本轮未完整覆盖：
 
-- 送审成功请求。
-- 恢复已放弃 / 已跳过条目。
 - 中文环境下重新测试所有按钮。
 - 语言切换是否有独立接口。
 - 统计分析、工作流、成员配置页专项接口。
+- 内审提交 / 通过 / 驳回类动作，按当前边界禁止采集。
 
 ## 来源页面
 
@@ -48,7 +50,7 @@
 3. 在 Data 页点击 `Claim Label`，采集领取标注和进入 `/items` 标注页链路。
 4. 在标注页依次测试 same_font、派生字段、`Save`、`Drop`、`Skip`、`Submit`。
 5. 回到 Data 页测试单选和多选 checkbox。
-6. 打开内审角色页，点击 `Claim Review`，采集领取审核和进入内审 `/items` 链路。
+6. 打开内审角色页；上一轮已采集领取审核，本轮仅观察列表、状态 Tab 和 `View` 查看页，不点击内审提交类按钮。
 7. 仅记录脱敏结构，不保存原始 HAR、JSON、截图、CSV、完整响应或完整资源 URL。
 
 ## 文件列表
@@ -65,13 +67,21 @@
 | `08-label-save-labels.md` | `/api/v2/label/save-labels` | same_font 和派生字段保存 |
 | `09-abandon-item.md` | `/api/v2/item/abandon-item` | Drop / 放弃 |
 | `10-skip-item.md` | `/api/v2/item/skip-item` | Skip / 跳过 |
-| `11-submit-review.md` | 无新增请求 / 待补提交接口 | Submit / 送审 |
+| `11-submit-review.md` | `/api/v2/item/submit-item` / 前端校验阻断 | Submit / 送审 |
 | `12-stash-save.md` | `/api/v2/label/save-labels` | Save / 暂存 |
-| `13-restore-item.md` | 待补 | 恢复 |
+| `13-restore-item.md` | `recover-item` / `receive-item` | 恢复概览 |
 | `14-claim-label.md` | `/api/v2/item/receive-item` | 领取标注 |
 | `15-claim-review.md` | `/api/v2/item/receive-item` | 领取审核 |
 | `16-language-switch.md` | 待补 | 语言切换 |
 | `17-resource-files.md` | assets / object storage / captcha | 资源文件 |
+| `common/README.md` | Task 页面公共状态能力 | Skipped / Dropped / Recovery / 状态 Tab |
+| `common/01-status-tabs.md` | 状态 Tab | Overview / Todo / Skipped / Dropped |
+| `common/02-skipped-list.md` | Skipped 列表 | 已跳过条目列表 |
+| `common/03-dropped-list.md` | Dropped 列表 | 已放弃条目列表 |
+| `common/04-restore-skipped-item.md` | Skipped 重新进入标注 | `receive-item` 重新领取 |
+| `common/05-restore-dropped-item.md` | Dropped 恢复 | `recover-item` |
+| `common/06-label-submit-success.md` | 标注送审成功 | `save-labels -> submit-item` |
+| `common/07-review-role-no-submit.md` | 内审只读观察 | 禁止提交 / 通过 / 驳回 |
 | `pending-capture.md` | 待补 | 缺口清单 |
 | `next-session-handoff.md` | 接续说明 | 下次采集上下文 |
 
@@ -111,7 +121,10 @@ Data 页常见加载顺序：
 - `Save`：`save-labels`，本轮未观察到页面跳转。
 - `Drop`：空变更 `save-labels` -> `abandon-item` -> `receive-item` -> 下一条 `/items` 初始化。
 - `Skip`：空变更 `save-labels` -> `skip-item` -> `receive-item` -> 下一条 `/items` 初始化。
-- `Submit`：当前未填 same_font 时前端校验阻断，无新增业务请求。
+- `Submit`：same_font 为空时前端校验阻断；same_font 最小有效值填写后触发 `save-labels -> submit-item`，成功后当前条变为只读 / 可 Claim，Data 页显示 `Labeled / Pending Review`。
+- `Dropped Recovery`：`Dropped` Tab 选中单条 -> `Recovery` -> 确认弹窗 -> `recover-item` -> 刷新 Dropped 列表。
+- `Skipped` 重新进入标注：`Skipped` Tab 选中单条 -> `Label: 1` -> `receive-item` -> `/items` 标注页 -> `work`，未观察到独立 `recover-item`。
+- `Review role`：仅观察列表、Tab 和 `View` 查看页初始化；未点击 `Review: 1`、`Pass`、`Reject`、`Label` 或提交类动作。
 
 ## 脱敏规则
 
