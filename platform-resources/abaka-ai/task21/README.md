@@ -83,8 +83,10 @@
 
 联动逻辑：
 
-- `same_font=true` 快捷键触发后，默认自动点击 `image_b_texts_removed=specify` 和 `other_changes=specify`。
+- `same_font=true` 与 `same_font=same underlying font+artistic effect` 快捷键触发后，默认都会确保 `image_b_texts_removed=specify` 和 `other_changes=specify`。
 - 该联动由配置项 `autoSelectSpecifyOnSameFontTrue` 控制，默认开启。
+- 联动是幂等行为：如果 `specify` 已经选中，则保持不变，不重复点击以避免取消。
+- 单独按 `4/5` 也按幂等策略执行：已选中时不会取消。
 - 行为属于运行时 DOM 点击，不直接调用平台 API；若页面产生自动保存，由平台自身行为触发。
 
 ## 待补清单

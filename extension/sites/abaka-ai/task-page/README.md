@@ -21,13 +21,22 @@
 - `4`：`image_b_texts_removed=specify`
 - `5`：`other_changes=specify`
 
-联动开关：`same_font=true` 后自动选择两个 `specify`，默认开启（`autoSelectSpecifyOnSameFontTrue=true`）。
+联动开关：`autoSelectSpecifyOnSameFontTrue=true`（默认开启）同时适用于：
+
+- `same_font=true`
+- `same_font=same underlying font+artistic effect`
+
+联动为幂等“确保选中”：
+
+- `specify` 未选中时才点击；
+- `specify` 已选中时保持不变，不重复点击，避免取消。
 
 ## 运行时边界
 
 - 快捷键仅在 `/items` 页面生效。
 - 必须检测到 `same_font` 字段后才执行动作，避免 Task17 等页面误触发。
 - 焦点在 `input`、`textarea`、`select`、`contenteditable`、编辑器节点时忽略快捷键。
+- `4/5` 对应 `specify` 也为幂等选择：已选中时不会取消。
 - 不自动提交、不自动保存、不自动领取、不自动放弃、不自动跳过、不自动送审。
 
 ## Console 导出（只读采集）

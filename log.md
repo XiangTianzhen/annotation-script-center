@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-17（Abaka AI：修复 Task21 specify 联动重复点击取消）
+
+- 修复 Abaka AI Task21 快捷键联动重复点击导致 `specify` 被取消的问题。
+- `same_font=true` 与 `same_font=same underlying font+artistic effect` 都会确保两个派生字段为 `specify`。
+- `image_b_texts_removed=specify` 与 `other_changes=specify` 改为幂等选择：已选中时不重复点击，不会被取消。
+- `4/5` 快捷键同样改为幂等 ensure 行为，重复触发不会取消已选中状态。
+- 未修改提交/领取/放弃/跳过/送审逻辑，未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：Task21 same_font 快捷键辅助第一版）
 
 - 新增 Abaka AI Task21 ISOLATED content runtime：`content.js`、`shortcuts.js`、`dom-actions.js`、`toast.js`，并保留 MAIN world `network-structure-observer.js`。

@@ -27,9 +27,10 @@
 
 Task21 快捷键联动（运行时）：
 
-- `same_font=true` 快捷键命中后，默认会继续点击：
+- `same_font=true` 或 `same_font=same underlying font+artistic effect` 快捷键命中后，默认会确保：
   - `image_b_texts_removed=specify`
   - `other_changes=specify`
+- ensure 行为为幂等：`specify` 已选中时不会重复点击，不会被取消。
 - 该联动仅通过页面 DOM 点击触发，不直接调用保存接口。
 - 若页面后续触发 `save-labels`，属于平台自身监听点击后的行为。
 

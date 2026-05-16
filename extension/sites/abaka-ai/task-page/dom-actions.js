@@ -144,7 +144,95 @@
     target.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  function selectFieldOption(fieldName, optionText) {
+  function hasSelectedLikeClass(node) {
+    if (!(node instanceof Element)) {
+      return false;
+    }
+    const classText = String(node.className || "").toLowerCase();
+    if (!classText) {
+      return false;
+    }
+    return (
+      classText.indexOf("selected") >= 0 ||
+      classText.indexOf("checked") >= 0 ||
+      classText.indexOf("active") >= 0 ||
+      classText.indexOf("is-checked") >= 0 ||
+      classText.indexOf("ant-radio-wrapper-checked") >= 0 ||
+      classText.indexOf("el-radio is-checked") >= 0
+    );
+  }
+
+  function isNodeMarkedSelected(node) {
+    if (!(node instanceof Element)) {
+      return false;
+    }
+    if (node instanceof HTMLInputElement) {
+      const inputType = String(node.type || "").toLowerCase();
+      if (inputType === "radio" || inputType === "checkbox") {
+        return node.checked === true;
+      }
+    }
+
+    const role = String(node.getAttribute("role") || "").toLowerCase();
+    if ((role === "radio" || role === "checkbox") && node.getAttribute("aria-checked") === "true") {
+      return true;
+    }
+    if (node.getAttribute("aria-checked") === "true") {
+      return true;
+    }
+    if (node.getAttribute("data-checked") === "true") {
+      return true;
+    }
+    if (node.getAttribute("data-selected") === "true") {
+      return true;
+    }
+    if (hasSelectedLikeClass(node)) {
+      return true;
+    }
+    return false;
+  }
+
+  function isOptionSelected(optionNode, clickable) {
+    const candidateRoots = [clickable, optionNode].filter(function (node) {
+      return node instanceof Element;
+    });
+
+    for (let i = 0; i < candidateRoots.length; i += 1) {
+      const root = candidateRoots[i];
+      if (isNodeMarkedSelected(root)) {
+        return true;
+      }
+      const roleNode = root.closest("[role='radio'],[role='checkbox']");
+      if (isNodeMarkedSelected(roleNode)) {
+        return true;
+      }
+      const selectedAncestor = root.closest(
+        ".is-checked,.checked,.selected,.active,.ant-radio-wrapper-checked,.el-radio.is-checked"
+      );
+      if (selectedAncestor) {
+        return true;
+      }
+      const checkedInput = root.querySelector("input[type='radio']:checked,input[type='checkbox']:checked");
+      if (checkedInput) {
+        return true;
+      }
+      const checkedRole = root.querySelector(
+        "[role='radio'][aria-checked='true'],[role='checkbox'][aria-checked='true']"
+      );
+      if (checkedRole) {
+        return true;
+      }
+      const selectedDataNode = root.querySelector("[data-checked='true'],[data-selected='true']");
+      if (selectedDataNode) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function selectFieldOption(fieldName, optionText, options) {
+    const runtimeOptions = options && typeof options === "object" ? options : {};
+    const ensureSelected = runtimeOptions.ensureSelected === true;
     const container = findFieldContainer(fieldName, optionText);
     if (!container) {
       return {
@@ -168,9 +256,19 @@
         message: "选项不可点击：" + fieldName + " -> " + optionText,
       };
     }
+
+    if (ensureSelected && isOptionSelected(optionNode, clickable)) {
+      return {
+        ok: true,
+        skipped: true,
+        message: "已保持 " + fieldName + "=" + optionText,
+      };
+    }
+
     dispatchClickSequence(clickable);
     return {
       ok: true,
+      skipped: false,
       message: "已选择 " + fieldName + "=" + optionText,
     };
   }
@@ -215,8 +313,47 @@
       return config.autoSelectSpecifyOnSameFontTrue !== false;
     }
 
+    async function ensureDerivedSpecifyFields(reason) {
+      const waitImage = await waitForField(FIELD_IMAGE_B_TEXTS_REMOVED, 1500);
+      const waitOther = await waitForField(FIELD_OTHER_CHANGES, 1500);
+      if (!waitImage.ok || !waitOther.ok) {
+        return {
+          ok: false,
+          message:
+            String(reason || "same_font 联动") + "失败：派生字段未在 1500ms 内渲染",
+        };
+      }
+
+      const imageRes = selectFieldOption(FIELD_IMAGE_B_TEXTS_REMOVED, OPTION_SPECIFY, {
+        ensureSelected: true,
+      });
+      const otherRes = selectFieldOption(FIELD_OTHER_CHANGES, OPTION_SPECIFY, {
+        ensureSelected: true,
+      });
+
+      if (!imageRes.ok || !otherRes.ok) {
+        return {
+          ok: false,
+          message:
+            String(reason || "same_font 联动") +
+            "失败：" +
+            [imageRes.message, otherRes.message].filter(Boolean).join("；"),
+        };
+      }
+
+      const allSkipped = imageRes.skipped === true && otherRes.skipped === true;
+      return {
+        ok: true,
+        message: allSkipped
+          ? "已保持 image_b_texts_removed=specify、other_changes=specify"
+          : "已确保 image_b_texts_removed=specify、other_changes=specify",
+      };
+    }
+
     async function selectSameFontTrue() {
-      const primary = selectFieldOption(FIELD_SAME_FONT, OPTION_TRUE);
+      const primary = selectFieldOption(FIELD_SAME_FONT, OPTION_TRUE, {
+        ensureSelected: true,
+      });
       if (!primary.ok) {
         return primary;
       }
@@ -225,46 +362,55 @@
         return primary;
       }
 
-      const waitImage = await waitForField(FIELD_IMAGE_B_TEXTS_REMOVED, 1500);
-      const waitOther = await waitForField(FIELD_OTHER_CHANGES, 1500);
-      if (!waitImage.ok || !waitOther.ok) {
-        return {
-          ok: false,
-          message: "same_font=true 已选择，但派生字段未在 1500ms 内渲染",
-        };
-      }
-
-      const imageRes = selectFieldOption(FIELD_IMAGE_B_TEXTS_REMOVED, OPTION_SPECIFY);
-      const otherRes = selectFieldOption(FIELD_OTHER_CHANGES, OPTION_SPECIFY);
-      if (!imageRes.ok || !otherRes.ok) {
-        return {
-          ok: false,
-          message:
-            "same_font=true 已选择，但自动联动失败：" +
-            [imageRes.message, otherRes.message].filter(Boolean).join("；"),
-        };
+      const derived = await ensureDerivedSpecifyFields("same_font=true 联动");
+      if (!derived.ok) {
+        return derived;
       }
       return {
         ok: true,
-        message:
-          "已选择 same_font=true；已自动选择 image_b_texts_removed=specify、other_changes=specify",
+        message: "已选择 same_font=true；" + derived.message,
       };
     }
 
     async function selectSameFontFalse() {
-      return selectFieldOption(FIELD_SAME_FONT, OPTION_FALSE);
+      return selectFieldOption(FIELD_SAME_FONT, OPTION_FALSE, {
+        ensureSelected: true,
+      });
     }
 
     async function selectSameFontArtisticEffect() {
-      return selectFieldOption(FIELD_SAME_FONT, OPTION_ARTISTIC);
+      const primary = selectFieldOption(FIELD_SAME_FONT, OPTION_ARTISTIC, {
+        ensureSelected: true,
+      });
+      if (!primary.ok) {
+        return primary;
+      }
+      if (!shouldAutoSelectSpecify()) {
+        return primary;
+      }
+      const derived = await ensureDerivedSpecifyFields(
+        "same_font=same underlying font+artistic effect 联动"
+      );
+      if (!derived.ok) {
+        return derived;
+      }
+      return {
+        ok: true,
+        message:
+          "已选择 same_font=same underlying font+artistic effect；" + derived.message,
+      };
     }
 
     async function selectImageBTextsRemovedSpecify() {
-      return selectFieldOption(FIELD_IMAGE_B_TEXTS_REMOVED, OPTION_SPECIFY);
+      return selectFieldOption(FIELD_IMAGE_B_TEXTS_REMOVED, OPTION_SPECIFY, {
+        ensureSelected: true,
+      });
     }
 
     async function selectOtherChangesSpecify() {
-      return selectFieldOption(FIELD_OTHER_CHANGES, OPTION_SPECIFY);
+      return selectFieldOption(FIELD_OTHER_CHANGES, OPTION_SPECIFY, {
+        ensureSelected: true,
+      });
     }
 
     return {
