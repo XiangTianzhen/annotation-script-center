@@ -111,6 +111,22 @@
                     key: "5",
                     button: null,
                   },
+                  stashSave: {
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                    meta: false,
+                    key: "6",
+                    button: null,
+                  },
+                  submitReview: {
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                    meta: false,
+                    key: "7",
+                    button: null,
+                  },
                 },
               },
             },
@@ -170,6 +186,8 @@
         },
         { key: "imageBTextsRemovedSpecify", label: "image_b_texts_removed：specify" },
         { key: "otherChangesSpecify", label: "other_changes：specify" },
+        { key: "stashSave", label: "暂存" },
+        { key: "submitReview", label: "送审" },
       ],
       JUDGEMENT_PROJECT_ASR_KEYS: [
         "itemsPerPage",
@@ -1108,6 +1126,8 @@
           { key: "sameFontArtisticEffect" },
           { key: "imageBTextsRemovedSpecify" },
           { key: "otherChangesSpecify" },
+          { key: "stashSave" },
+          { key: "submitReview" },
         ];
     const source = isPlainObject(value) ? value : {};
     const fallbackSource = isPlainObject(fallback) ? fallback : {};
@@ -1284,6 +1304,8 @@
               sameFontArtisticEffect: { key: "3" },
               imageBTextsRemovedSpecify: { key: "4" },
               otherChangesSpecify: { key: "5" },
+              stashSave: { key: "6" },
+              submitReview: { key: "7" },
             },
           },
         },

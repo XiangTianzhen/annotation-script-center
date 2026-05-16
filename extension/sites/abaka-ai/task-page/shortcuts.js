@@ -6,6 +6,8 @@
     "sameFontArtisticEffect",
     "imageBTextsRemovedSpecify",
     "otherChangesSpecify",
+    "stashSave",
+    "submitReview",
   ];
 
   function clone(value) {

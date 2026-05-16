@@ -80,6 +80,8 @@
 - `3`：`same_font=same underlying font+artistic effect`
 - `4`：`image_b_texts_removed=specify`
 - `5`：`other_changes=specify`
+- `6`：点击页面真实“暂存 / Save / Stash”按钮
+- `7`：点击页面真实“送审 / Submit / Submit Review”按钮
 
 联动逻辑：
 
@@ -88,6 +90,9 @@
 - 联动是幂等行为：如果 `specify` 已经选中，则保持不变，不重复点击以避免取消。
 - 单独按 `4/5` 也按幂等策略执行：已选中时不会取消。
 - 行为属于运行时 DOM 点击，不直接调用平台 API；若页面产生自动保存，由平台自身行为触发。
+- `7` 属于高风险动作，仍是用户按键触发；扩展只点击页面真实按钮，不自动确认二次弹窗。
+- 疑似标注内审环境下会阻止 `7`，避免误触发送审。
+- `6/7` 在 `viewMode=true` 查看页不执行。
 
 ## 待补清单
 

@@ -987,3 +987,12 @@
 - 清理 `AGENTS.md` 在“2026-05 稳定协作规则补充”中的旧口径：不再写“执行类任务默认验证通过后直接 push 到 main”“默认不创建分支，不创建 PR”。
 - 统一改为按任务暗号与目标分支执行 commit/push：新功能/新需求/并行/跨模块默认独立分支，小修与文档收尾可按 `ASC_MAIN_HOTFIX` 直改 `main`。
 - 保留并强调只读审计不得改动和提交、验证失败不得 commit/push、PR 仅在用户明确要求时创建。
+
+## 2026-05-17（Abaka AI Task21 快捷键增强：暂存与送审）
+
+- Abaka AI Task21 新增快捷键：`6` 暂存、`7` 送审；并同步到默认设置、storage 归一化与 options 配置页。
+- 两个动作都只点击页面真实按钮（`暂存/Save/Stash`、`送审/Submit/Submit Review`），不直接调用平台 API。
+- `7` 送审快捷键新增安全限制：疑似标注内审环境下阻止执行；`viewMode=true` 查看页不执行。
+- `7` 不自动确认二次弹窗；若出现确认弹窗必须用户手动确认。
+- 保持原有 Task21 same_font 与派生字段快捷键（1~5）逻辑不变。
+- 未修改后端、未提升 `manifest` 版本、未生成 CRX/ZIP/update.xml/crx-latest.json 等发布产物。

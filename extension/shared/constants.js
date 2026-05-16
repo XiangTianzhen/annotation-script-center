@@ -106,6 +106,8 @@
     },
     { key: "imageBTextsRemovedSpecify", label: "image_b_texts_removed：specify" },
     { key: "otherChangesSpecify", label: "other_changes：specify" },
+    { key: "stashSave", label: "暂存" },
+    { key: "submitReview", label: "送审" },
   ];
 
   const MESSAGE_TYPES = {
@@ -1042,6 +1044,8 @@
     shortcuts.sameFontArtisticEffect = createShortcut("3");
     shortcuts.imageBTextsRemovedSpecify = createShortcut("4");
     shortcuts.otherChangesSpecify = createShortcut("5");
+    shortcuts.stashSave = createShortcut("6");
+    shortcuts.submitReview = createShortcut("7");
 
     return {
       enabled: true,

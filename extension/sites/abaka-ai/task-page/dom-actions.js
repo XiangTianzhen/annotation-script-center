@@ -6,6 +6,9 @@
   const OPTION_FALSE = "false";
   const OPTION_ARTISTIC = "same underlying font+artistic effect";
   const OPTION_SPECIFY = "specify";
+  const STASH_BUTTON_TEXTS = ["暂存", "save", "stash"];
+  const SUBMIT_REVIEW_BUTTON_TEXTS = ["送审", "submit review", "submit"];
+  const REVIEW_ROLE_SIGNAL_TEXTS = ["标注内审", "领取审核", "claim review", "reviewer", "review team"];
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -13,6 +16,10 @@
 
   function normalizeExact(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeCompactText(value) {
+    return String(value || "").replace(/\s+/g, "").trim().toLowerCase();
   }
 
   function isVisible(node) {
@@ -142,6 +149,203 @@
     target.click();
     target.dispatchEvent(new Event("input", { bubbles: true }));
     target.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function isElementDisabled(node) {
+    if (!(node instanceof Element)) {
+      return true;
+    }
+    if (node.hasAttribute("disabled")) {
+      return true;
+    }
+    if (node.getAttribute("aria-disabled") === "true") {
+      return true;
+    }
+    const classText = String(node.className || "").toLowerCase();
+    if (
+      classText.indexOf("disabled") >= 0 ||
+      classText.indexOf("is-disabled") >= 0 ||
+      classText.indexOf("ant-btn-disabled") >= 0
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  function getActionButtonText(node) {
+    if (!(node instanceof Element)) {
+      return "";
+    }
+    if (node instanceof HTMLInputElement) {
+      return normalizeExact(node.value || node.getAttribute("aria-label") || "");
+    }
+    return normalizeExact(
+      node.textContent || node.getAttribute("aria-label") || node.getAttribute("title") || ""
+    );
+  }
+
+  function getVisibleActionButtons() {
+    const selectors = [
+      "button",
+      "[role='button']",
+      ".ant-btn",
+      ".el-button",
+      "input[type='button']",
+      "input[type='submit']",
+    ];
+    const nodes = document.querySelectorAll(selectors.join(","));
+    const result = [];
+    const seen = new Set();
+    for (let i = 0; i < nodes.length; i += 1) {
+      const node = nodes[i];
+      if (!(node instanceof Element) || !isVisible(node)) {
+        continue;
+      }
+      const clickable = findClickableElement(node) || node;
+      if (!(clickable instanceof Element) || !isVisible(clickable)) {
+        continue;
+      }
+      if (seen.has(clickable)) {
+        continue;
+      }
+      seen.add(clickable);
+      result.push(clickable);
+    }
+    return result;
+  }
+
+  function isItemsPage() {
+    const pathname = String(location.pathname || "");
+    if (pathname === "/items") {
+      return true;
+    }
+    if (pathname.indexOf("/data-task/v2") === 0 || pathname.indexOf("/task-v2/data-item") === 0) {
+      return false;
+    }
+    return pathname.indexOf("/items") >= 0;
+  }
+
+  function isViewMode() {
+    const params = new URLSearchParams(location.search || "");
+    return params.get("viewMode") === "true";
+  }
+
+  function containsRoleSignal(text) {
+    const normalized = normalizeText(text);
+    if (!normalized) {
+      return false;
+    }
+    return REVIEW_ROLE_SIGNAL_TEXTS.some(function (signal) {
+      return normalized.indexOf(normalizeText(signal)) >= 0;
+    });
+  }
+
+  function isLikelyReviewRole() {
+    const params = new URLSearchParams(location.search || "");
+    const roleText = normalizeText(params.get("role") || "");
+    const nodeText = normalizeText(params.get("nodeId") || "");
+    if (roleText.indexOf("review") >= 0 || nodeText.indexOf("review") >= 0) {
+      return true;
+    }
+
+    const signalSelectors = [
+      "header",
+      "nav",
+      "aside",
+      ".ant-breadcrumb",
+      ".breadcrumb",
+      ".ant-menu",
+      ".ant-layout-sider",
+      ".ant-tabs-nav",
+      "[class*='breadcrumb']",
+      "[class*='menu']",
+      "[class*='sider']",
+      "[class*='header']",
+      "[class*='role']",
+      "[class*='tab']",
+      "h1",
+      "h2",
+      "h3",
+    ];
+    const signalNodes = document.querySelectorAll(signalSelectors.join(","));
+    for (let i = 0; i < signalNodes.length; i += 1) {
+      const node = signalNodes[i];
+      if (!(node instanceof Element) || !isVisible(node)) {
+        continue;
+      }
+      if (containsRoleSignal(node.textContent || "")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function clickActionButtonByTexts(texts, options) {
+    const runtimeOptions = options && typeof options === "object" ? options : {};
+    const targets = Array.isArray(texts)
+      ? texts
+          .map(function (item) {
+            return normalizeText(item);
+          })
+          .filter(Boolean)
+      : [];
+    if (targets.length === 0) {
+      return {
+        ok: false,
+        message: "未提供按钮文案匹配规则。",
+      };
+    }
+
+    const buttons = getVisibleActionButtons();
+    const exactMatches = [];
+    const fuzzyMatches = [];
+    for (let i = 0; i < buttons.length; i += 1) {
+      const button = buttons[i];
+      const normalizedText = normalizeText(getActionButtonText(button));
+      const compactText = normalizeCompactText(getActionButtonText(button));
+      if (!normalizedText && !compactText) {
+        continue;
+      }
+      for (let j = 0; j < targets.length; j += 1) {
+        const target = targets[j];
+        const compactTarget = normalizeCompactText(target);
+        if (normalizedText === target || compactText === compactTarget) {
+          exactMatches.push(button);
+          break;
+        }
+        if (
+          (normalizedText.indexOf(target) >= 0 && target.length >= 2) ||
+          (compactText.indexOf(compactTarget) >= 0 && compactTarget.length >= 2)
+        ) {
+          fuzzyMatches.push(button);
+          break;
+        }
+      }
+    }
+
+    const matches = exactMatches.length > 0 ? exactMatches : fuzzyMatches;
+    if (matches.length === 0) {
+      return {
+        ok: false,
+        message: runtimeOptions.notFoundMessage || "未找到目标按钮。",
+      };
+    }
+
+    const firstEnabled = matches.find(function (item) {
+      return !isElementDisabled(item);
+    });
+    if (!firstEnabled) {
+      return {
+        ok: false,
+        message: runtimeOptions.disabledMessage || "目标按钮不可用（disabled）。",
+      };
+    }
+
+    dispatchClickSequence(firstEnabled);
+    return {
+      ok: true,
+      message: runtimeOptions.successMessage || "已点击目标按钮。",
+    };
   }
 
   function hasSelectedLikeClass(node) {
@@ -413,6 +617,67 @@
       });
     }
 
+    async function clickStashSave() {
+      if (!isItemsPage()) {
+        return {
+          ok: false,
+          message: "当前页面不是 /items，未执行“暂存”。",
+        };
+      }
+      if (isViewMode()) {
+        return {
+          ok: false,
+          message: "当前为 viewMode=true 查看页，未执行“暂存”。",
+        };
+      }
+      if (!hasSameFontField()) {
+        return {
+          ok: false,
+          message: "当前页面未检测到 same_font 字段，未执行“暂存”。",
+        };
+      }
+
+      return clickActionButtonByTexts(STASH_BUTTON_TEXTS, {
+        notFoundMessage: "未找到“暂存”按钮。",
+        disabledMessage: "“暂存”按钮当前不可用。",
+        successMessage: "已点击“暂存”按钮。",
+      });
+    }
+
+    async function clickSubmitReview() {
+      if (!isItemsPage()) {
+        return {
+          ok: false,
+          message: "当前页面不是 /items，未执行“送审”。",
+        };
+      }
+      if (isViewMode()) {
+        return {
+          ok: false,
+          message: "当前为 viewMode=true 查看页，未执行“送审”。",
+        };
+      }
+      if (!hasSameFontField()) {
+        return {
+          ok: false,
+          message: "当前页面未检测到 same_font 字段，未执行“送审”。",
+        };
+      }
+      if (isLikelyReviewRole()) {
+        return {
+          ok: false,
+          message: "当前疑似标注内审环境，已阻止送审快捷键。",
+        };
+      }
+
+      const result = clickActionButtonByTexts(SUBMIT_REVIEW_BUTTON_TEXTS, {
+        notFoundMessage: "未找到“送审”按钮。",
+        disabledMessage: "“送审”按钮当前不可用。",
+        successMessage: "已点击“送审”按钮；若出现二次确认弹窗，请手动确认。",
+      });
+      return result;
+    }
+
     return {
       hasSameFontField: hasSameFontField,
       selectSameFontTrue: selectSameFontTrue,
@@ -420,8 +685,13 @@
       selectSameFontArtisticEffect: selectSameFontArtisticEffect,
       selectImageBTextsRemovedSpecify: selectImageBTextsRemovedSpecify,
       selectOtherChangesSpecify: selectOtherChangesSpecify,
+      clickStashSave: clickStashSave,
+      clickSubmitReview: clickSubmitReview,
       selectFieldOption: selectFieldOption,
       waitForField: waitForField,
+      isViewMode: isViewMode,
+      isLikelyReviewRole: isLikelyReviewRole,
+      clickActionButtonByTexts: clickActionButtonByTexts,
     };
   }
 

@@ -73,6 +73,12 @@
         otherChangesSpecify: function () {
           return domActionsRuntime.selectOtherChangesSpecify();
         },
+        stashSave: function () {
+          return domActionsRuntime.clickStashSave();
+        },
+        submitReview: function () {
+          return domActionsRuntime.clickSubmitReview();
+        },
       },
     });
 

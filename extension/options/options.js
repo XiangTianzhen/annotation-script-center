@@ -184,6 +184,8 @@
         },
         { key: "imageBTextsRemovedSpecify", label: "image_b_texts_removed：specify" },
         { key: "otherChangesSpecify", label: "other_changes：specify" },
+        { key: "stashSave", label: "暂存" },
+        { key: "submitReview", label: "送审" },
       ];
   const judgementItemsPerPageOptions = [
     { value: "1 条/页", label: "1 条/页" },
@@ -1076,6 +1078,8 @@
     defaults.sameFontArtisticEffect = normalizeShortcut({ key: "3" });
     defaults.imageBTextsRemovedSpecify = normalizeShortcut({ key: "4" });
     defaults.otherChangesSpecify = normalizeShortcut({ key: "5" });
+    defaults.stashSave = normalizeShortcut({ key: "6" });
+    defaults.submitReview = normalizeShortcut({ key: "7" });
     return defaults;
   }
 

@@ -20,6 +20,8 @@
 - `3`：`same_font=same underlying font+artistic effect`
 - `4`：`image_b_texts_removed=specify`
 - `5`：`other_changes=specify`
+- `6`：点击页面真实“暂存 / Save / Stash”按钮
+- `7`：点击页面真实“送审 / Submit / Submit Review”按钮
 
 联动开关：`autoSelectSpecifyOnSameFontTrue=true`（默认开启）同时适用于：
 
@@ -37,6 +39,10 @@
 - 必须检测到 `same_font` 字段后才执行动作，避免 Task17 等页面误触发。
 - 焦点在 `input`、`textarea`、`select`、`contenteditable`、编辑器节点时忽略快捷键。
 - `4/5` 对应 `specify` 也为幂等选择：已选中时不会取消。
+- `6/7` 仅点击页面真实按钮，不直接调用平台保存/送审接口。
+- `7` 不自动确认二次弹窗，若出现确认弹窗需用户手动确认。
+- `7` 在疑似标注内审环境会被阻止，避免误触发送审。
+- `6/7` 在 `viewMode=true` 查看页不执行。
 - 不自动提交、不自动保存、不自动领取、不自动放弃、不自动跳过、不自动送审。
 
 ## Console 导出（只读采集）
