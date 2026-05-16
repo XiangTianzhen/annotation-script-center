@@ -6,12 +6,12 @@
 
 ## 触发操作
 
-在 Task21 Data 页点击 `Claim Label`。
+在 Task21 Data 页点击 `Claim Label`。2026-05-16 二次测试再次点击 `Claim Label`，仍成功领取 1 条测试数据，未触发空池响应。
 
 ## 操作前页面状态
 
 - 页面：`/task-v2/data-item?taskId={taskId}&vm=all&dm=all`。
-- 语言：English。
+- 语言：English；二次观察补齐简体中文按钮为 `领取标注`。
 - 列表可为空；按钮仍可点击。
 
 ## 请求记录
@@ -61,6 +61,8 @@
 
 URL 从 Data 页切换到 `/items?...itemId={itemId}&nodeId={labelNodeId}`，页面显示 `Successfully Claimed` 或进入加载态后显示标注页。
 
+二次测试中仍进入 `/items` 标注页，随后 `get-item-info` 显示当前条进入 `LABELING / WORKING` 状态。
+
 ## 字段推断
 
 - `nodeId` 为标注节点。
@@ -73,5 +75,5 @@ URL 从 Data 页切换到 `/items?...itemId={itemId}&nodeId={labelNodeId}`，页
 
 ## 未确认项
 
-- 无可领取数据时的失败响应待补。
-- 中文环境领取提示待补。
+- 无可领取数据时的失败响应仍待补；本轮再次测试仍成功领取，未触发空池。
+- 中文环境领取成功 Toast 待补。

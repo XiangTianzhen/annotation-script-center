@@ -1,5 +1,14 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：补充领取与中文动作文案）
+
+- 使用 DevTools MCP 二次测试 Task21 `Claim Label` / `Claim Review`，均仍成功领取 1 条测试数据，未触发空池响应。
+- 切换到简体中文环境，补齐 Data 页 `查看`、`领取标注`、`领取审核`、状态 Tab 和标注页 `暂存`、`放弃`、`跳过`、`送审` 等动作文案。
+- 补充 Dropped 恢复后的目标状态：恢复后进入 Todo / 待办项。
+- 按用户要求不记录统计分析、工作流、成员配置三页。
+- 未提交原始 HAR/JSON/截图/CSV/完整响应或敏感数据。
+- 未修改运行时代码，未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：补采 Skipped / Dropped 恢复与标注送审链路）
 
 - 使用 DevTools MCP 补采 Task 页面公共状态 Tab、Skipped / Dropped 列表和恢复链路。

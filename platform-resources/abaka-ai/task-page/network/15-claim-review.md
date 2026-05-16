@@ -6,11 +6,12 @@
 
 ## 触发操作
 
-打开 `role={reviewRoleId}` 的 Task21 Data 页，点击 `Claim Review`。
+打开 `role={reviewRoleId}` 的 Task21 Data 页，点击 `Claim Review`。2026-05-16 二次测试再次点击领取审核，仍成功领取 1 条测试数据，未触发空池响应。
 
 ## 操作前页面状态
 
 - 页面：`/task-v2/data-item?taskId={taskId}&vm=all&dm=all&role={reviewRoleId}`。
+- 简体中文按钮文案为 `领取审核`。
 - 列表显示 `No Data` 时，仍可点击 `Claim Review`。
 - 表格包含 `Reviewer`、`Review Team` 列。
 
@@ -59,6 +60,8 @@
 
 页面显示 `Successfully Claimed`，按钮区变为 `Save / Skip / Reject / Label / Pass`。
 
+二次测试中仍进入内审 `/items` 页面，后续只观察，不点击 `Reject / Label / Pass` 或任何审核完成类动作。
+
 ## 字段推断
 
 - 同一个 `receive-item` 接口通过 `nodeId` 区分领取标注和领取审核。
@@ -70,5 +73,5 @@
 
 ## 未确认项
 
-- 审核无可领取数据失败响应待补。
+- 审核无可领取数据失败响应仍待补；本轮再次测试仍成功领取，未触发空池。
 - `Reject / Label / Pass` 流转接口未在本轮测试。

@@ -19,25 +19,25 @@
 - Dropped 恢复：`Recovery` 确认弹窗后调用 `POST /api/v2/item/recover-item`，再刷新 Dropped 列表。
 - Skipped 重新进入标注：选中后点击 `Label: 1`，调用 `POST /api/v2/item/receive-item` 并进入 `/items`，未观察到独立 `recover-item`。
 - 标注内审角色已只读观察列表、Skipped / Dropped 空列表和 `View` 查看页初始化；未点击提交、通过、驳回或审核完成类动作。
+- 领取标注 / 领取审核二次测试仍成功领取，未触发空池。
+- 简体中文环境已补齐 Data 页和标注页主要动作文案。
+- Dropped 恢复后目标状态确认进入 Todo / 待办项。
 - 资源文件加载类型。
 
 ## 下次优先采集
 
 1. 领取空池失败
    - 目标：确认 `receive-item` 空池响应。
-2. 中文语言环境动作按钮
-   - 目标：确认 Save / Drop / Skip / Submit / Claim Label / Claim Review 中文文案。
-3. Dropped 恢复后的目标列表
-   - 目标：确认恢复后准确进入 Todo、Overview 还是其他状态。
-4. Label Tab 专属请求
+2. Label Tab 专属请求
    - 目标：确认 `Label` Tab 是否有独立 endpoint。
-5. 内审流转按钮
+3. 内审流转按钮
    - 目标：Reject / Label / Pass 的接口和风险；当前边界禁止采集，除非用户未来另行授权。
 
 ## 可跳过项
 
 - Task17 状态变更。
 - 跨页全选和批量操作。
+- 统计分析、工作流、成员配置页。
 - 网络断开、越权、删除等异常构造。
 
 ## 脱敏提醒

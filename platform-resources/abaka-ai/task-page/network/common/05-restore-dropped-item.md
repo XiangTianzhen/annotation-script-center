@@ -71,7 +71,7 @@
 
 - `recover-item` 至少支持 Dropped 恢复。
 - 请求体只需要 `taskId` 和 `itemIds`，未观察到 `nodeId`。
-- 恢复后条目从 Dropped 列表移出，后续会回到可处理列表或工作状态，具体目标状态待进一步按 Data 页筛选确认。
+- 恢复后条目从 Dropped 列表移出。结合后续确认，Dropped 恢复后的目标状态进入 Todo / 待办项。
 
 ## Content Script 建议
 
@@ -81,6 +81,6 @@
 
 ## 未确认项
 
-- 恢复后条目准确进入 Todo、Overview 还是其他状态待补。
+- Dropped 恢复后已确认进入 Todo / 待办项。
 - 批量选择多个 Dropped 条目时的 request shape 待补，不建议主动采集。
 - Skipped 是否支持同一个 `recover-item` endpoint 未观察到。
