@@ -1,5 +1,16 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：深化 Task21 页面与 Network 结构采集）
+
+- 使用 Google Chrome DevTools MCP 深度采集 Abaka AI Task21 页面结构和 Network 结构。
+- 覆盖 Task21 全部数据页、批次页、标注/内审角色切换、单条选择、查看页、标注页、same_font 主标注区、右侧条目列表、语言切换与 Task17 对比页。
+- 记录 same_font 单选、派生字段、资源区、图片查看器、锁定/暂停状态、暂存/放弃/跳过/送审等按钮结构；在测试账号单条范围内触发 same_font 选择、自动保存和放弃接口。
+- 补充 `/items` 工作页接口族：条目历史、查看权限、操作权限、工作状态、标注数据、问题数据、标注记录、AI 检查、无效帧、抽帧数据、右侧条目列表、自动保存和放弃接口。
+- 补充中文与 English 文案映射，明确后续定位应优先使用 route/query keys、表头结构、role/aria/data-col-key 和双语文案兜底，不能只依赖中文文本。
+- Task17 仅作为公共结构对比，记录列表、`/items` 查看页、公共接口模式与 Task21 差异；未对 Task17 做领取、送审、放弃、跳过等状态变更。
+- 文档仅记录脱敏结构；未提交真实 JSON/HAR/截图/CSV/原始接口响应，未记录 cookie、token、authorization、密码、签名或完整资源 URL。
+- 本轮未实现自动化功能，未修改运行时代码，未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：补充 Task21 页面与 Network 结构文档）
 
 - 使用 Google Chrome DevTools MCP 采集并整理 Abaka AI Task21 页面结构。
