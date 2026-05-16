@@ -6,7 +6,7 @@
 
 ## 触发操作
 
-在 Task21 Data 页点击 `Overview`、`Todo`、`Skipped`、`Dropped`。本轮 English 环境实测；`Label` Tab 文案存在，但未单独确认其点击后的专属请求。
+在 Task21 Data 页点击 `Overview`、`Todo`、`Skipped`、`Dropped`。本轮补测确认：`Label / 标注` 文案位于 `node-switcher` 角色区域，不属于状态 Tab；点击该区域未观察到独立业务请求。
 
 ## 操作前页面状态
 
@@ -26,6 +26,13 @@
 - Status：`200`
 - Query keys：无
 - Request Header 摘要：敏感字段已脱敏。
+
+`Label / 标注`：
+
+- 页面区域：`node-switcher` / 角色切换。
+- Method：未观察到业务请求。
+- URL / Path：未观察到业务请求。
+- Status：不适用。
 
 ## 脱敏请求体摘要
 
@@ -91,6 +98,7 @@
 - `processStatus.label` 是标注状态主字段。
 - `processStatus.check` 和 `nodesCheckStatus` 表示审核状态。
 - 不同 Tab 主要通过 endpoint 区分，不是在同一个 endpoint 中传 status 字段。
+- `Label / 标注` 在 Task21 标注权限 Data 页是角色 / 节点显示，不是状态 Tab endpoint。
 
 ## Content Script 建议
 
@@ -100,6 +108,4 @@
 
 ## 未确认项
 
-- `Label` Tab 单独点击后的 endpoint 待补。
-- 简体中文环境下各 Tab 精确文案待补。
 - 分页、筛选条件叠加状态 Tab 时的请求结构待补。

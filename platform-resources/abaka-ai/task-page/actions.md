@@ -17,9 +17,11 @@
 | 查看页打开 | `/items?viewMode=true` | `safe-read` | `network/05-items-view-init.md` | 查看权限、条目信息、标注数据、右侧条目列表等只读请求 | 不涉及 | 可作为结构读取入口 |
 | 单选条目 | `/task-v2/data-item` | `ui-local` | `network/04-data-page-selection-frame-count.md` | 触发 `/api/v2/item/get-frame-count`，按钮变为 `Label: 1` | 不涉及 | 不自动跨页全选 |
 | 多选条目 | `/task-v2/data-item` | `ui-local` | `network/04-data-page-selection-frame-count.md` | `itemIds` 数组长度随选择数量变化，按钮变为 `Label: 2` | 不涉及 | 不自动跨页全选 |
+| 跨页全选 | `/task-v2/data-item` | `ui-local` / `forbidden-auto` | `network/04-data-page-selection-frame-count.md` | 触发列表刷新和 `/api/v2/item/get-frame-count`，按钮变为 `标注：4条` | 不涉及 | 禁止自动触发跨页和批量状态变更 |
 | 领取标注 | `/task-v2/data-item` | `state-change-test` / `danger-confirm` | `network/14-claim-label.md` | `/api/v2/item/receive-item` 成功后进入标注 `/items` | 未测试释放 | 不自动领取 |
 | 领取审核 | `/task-v2/data-item?role={reviewRoleId}` | `state-change-test` / `danger-confirm` | `network/15-claim-review.md` | `/api/v2/item/receive-item` 成功后进入内审 `/items` | 未测试释放 | 不自动领取 |
 | same_font + 派生字段暂存 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/08-label-save-labels.md`、`network/12-stash-save.md` | 点击 `Save` 触发 `/api/v2/label/save-labels`，页面提示 `Staging` | 标签可继续编辑 | 正式脚本不得自动写入标签 |
+| other_changes 文本暂存 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/08-label-save-labels.md` | textarea 文本进入 `save-labels.data.create[].value`，页面提示 `暂存成功` | 标签可继续编辑 | 不记录真实文本，不自动保存 |
 | 放弃条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/09-abandon-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/abandon-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量放弃 |
 | 跳过条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/10-skip-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/skip-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量跳过 |
 | 送审 / 提交 | `/items` 标注页 | `danger-confirm` | `network/11-submit-review.md` | same_font 为空时前端校验阻断；填写后可触发成功提交 | 视场景而定 | 必须人工确认 |
@@ -60,6 +62,7 @@
 | 切换语言 | 切换语言 | Language | 用户菜单 | 否 | 部分 | `network/16-language-switch.md` | 只记录文案，不依赖单一语言 |
 | 分页 | 上一页 / 下一页 / 10/页 | Previous / Next / 10/page 待补 | 数据条目页 | 否 | 是 | 条目列表查询 | 只做当前页读取 |
 | 全选 / 多选 | 选择框 | checkbox | 数据条目页 | 可能 | 部分 | 帧数统计或列表状态 | 禁止跨页批量自动操作 |
+| 领取审核空池 | 领取审核 | Claim Review | Task17 内审 Data 页 | 可能 | 是 | `network/15-claim-review.md` | 只记录失败结构，不继续操作验证组件 |
 
 ## 后续脚本规则
 
@@ -70,3 +73,4 @@
 - 跨页全选、批量放弃、批量送审、批量领取默认禁止自动触发。
 - 同一动作在简体中文和 English 下都要有定位兜底，不得只依赖中文文案。
 - 未采集到接口的动作必须保持“待补”，不得按按钮文案推断接口路径。
+- `Label / 标注` 在 Task21 Data 页是角色区域，不作为状态 Tab 专属 endpoint 处理。

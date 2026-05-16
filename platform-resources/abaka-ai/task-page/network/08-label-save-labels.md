@@ -10,6 +10,7 @@
 - 点击派生字段 `image_b_texts_removed = true`。
 - 点击派生字段 `other_changes = unsure`。
 - 点击页面底部 `Save`。
+- 2026-05-16 补测：点击 `other_changes = specify`，输入自由文本后点击 `暂存`。
 
 ## 操作前页面状态
 
@@ -73,6 +74,30 @@
       }
     }
 
+`other_changes` 自由文本保存：
+
+    {
+      "nodeId": "{nodeId}",
+      "itemId": "{itemId}",
+      "taskId": "{taskId}",
+      "workTime": "number",
+      "data": {
+        "create": [
+          {
+            "id": "number",
+            "hash": "<REDACTED_HASH>",
+            "label": "Annotation Area_same_font_true_other_changes_specify_other_changes",
+            "value": "<TEXT_VALUE>",
+            "drawType": "QUESTION",
+            "count": "number",
+            "frameIndex": "number"
+          }
+        ],
+        "update": [],
+        "delete": ["{labelId}"]
+      }
+    }
+
 ## 脱敏响应示例
 
     {
@@ -96,9 +121,11 @@
 
 本轮点击 `Save` 后未观察到 `find-labels` 刷新；`Drop` 和 `Skip` 前会自动补发一次空变更 `save-labels`。
 
+2026-05-16 补测 `other_changes` 自由文本暂存时，未观察到后续 `find-labels` 或 history 刷新；只捕获到一次 `save-labels`。
+
 ## 页面反馈
 
-点击 `Save` 后页面出现 `Staging` 提示。点击字段本身未观察到自动保存请求。
+点击 `Save` 后页面出现 `Staging` 提示。简体中文环境点击 `暂存` 后页面出现 `暂存成功`。点击字段本身未观察到自动保存请求。
 
 ## 字段推断
 
@@ -107,6 +134,7 @@
 - `data.delete[]` 放删除标签。
 - `label` 使用 `Annotation Area_...` 层级表达 same_font 与派生字段。
 - `value` 保存公开枚举值，例如 `true`、`unsure`。
+- `other_changes = specify` 下的 textarea 文本同样进入 `value` 字段；文档只记录 `<TEXT_VALUE>` 占位，不记录实际文本。
 
 ## Content Script 建议
 
@@ -114,5 +142,4 @@
 
 ## 未确认项
 
-- `textarea` 自由文本保存结构未在本轮写入测试文本，避免记录客户原始内容；字段结构待补。
 - 保存失败响应待补。

@@ -8,6 +8,8 @@
 
 打开 `role={reviewRoleId}` 的 Task21 Data 页，点击 `Claim Review`。2026-05-16 二次测试再次点击领取审核，仍成功领取 1 条测试数据，未触发空池响应。
 
+2026-05-16 补测 Task17 内审 Data 页点击 `领取审核`，用于捕获无可领取数据的失败响应。
+
 ## 操作前页面状态
 
 - 页面：`/task-v2/data-item?taskId={taskId}&vm=all&dm=all&role={reviewRoleId}`。
@@ -42,6 +44,13 @@
       "data": ["{itemId}"]
     }
 
+空池失败响应：
+
+    {
+      "code": 1000000,
+      "message": "领取条目失败，无条目可领"
+    }
+
 ## 后续请求链路
 
 领取审核成功后进入 `/items?...role={reviewRoleId}&nodeId={reviewNodeId}`，随后触发：
@@ -62,6 +71,8 @@
 
 二次测试中仍进入内审 `/items` 页面，后续只观察，不点击 `Reject / Label / Pass` 或任何审核完成类动作。
 
+Task17 空池补测中，请求未跳转 `/items`，返回失败业务码；页面随后出现验证组件，本轮未继续操作验证组件。
+
 ## 字段推断
 
 - 同一个 `receive-item` 接口通过 `nodeId` 区分领取标注和领取审核。
@@ -73,5 +84,4 @@
 
 ## 未确认项
 
-- 审核无可领取数据失败响应仍待补；本轮再次测试仍成功领取，未触发空池。
 - `Reject / Label / Pass` 流转接口未在本轮测试。

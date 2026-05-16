@@ -1,5 +1,15 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：补采剩余动作网络缺口）
+
+- 使用 DevTools MCP 在标注权限下补采 `Label / 标注` 区域、`other_changes` textarea 暂存、语言切换和跨页选择请求结构。
+- 确认 `Label / 标注` 是角色区域而非状态 Tab 专属 endpoint；`other_changes` 自由文本暂存复用 `/api/v2/label/save-labels`。
+- 确认语言切换未观察到独立偏好保存接口；切回中文时仅捕获常规 `/api/message/list`。
+- 仅观察跨页全选的选择态、列表刷新和帧数统计请求，未执行批量送审、批量恢复、批量领取等危险动作。
+- 在 Task17 内审页补测 `领取审核` 空池失败响应，返回“无条目可领”；出现验证组件后未继续操作。
+- 未提交原始 HAR/JSON/截图/CSV/完整响应或敏感数据。
+- 未修改运行时代码，未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：补充领取与中文动作文案）
 
 - 使用 DevTools MCP 二次测试 Task21 `Claim Label` / `Claim Review`，均仍成功领取 1 条测试数据，未触发空池响应。
