@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：补齐 Task21 动作网络请求）
+
+- 按 LabelX 快判 `network/` 目录风格拆分 Abaka AI Task21 网络请求，新增编号文档和待补/接续说明。
+- 使用 DevTools MCP 测试并补采领取标注、领取审核、单选/多选条目、same_font 暂存保存、放弃、跳过、送审前端校验和资源加载链路。
+- 每个动作独立文档记录 request/response 结构摘要、后续链路、页面反馈和风险边界。
+- 未提交原始 HAR/JSON/截图/CSV/完整响应或敏感数据。
+- 未修改运行时代码，未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：按 LabelX 风格重构平台资料）
 
 - 拆分 Abaka AI README 中的页面结构、Network、动作风险、多语言内容，README 收口为资料入口和当前状态。

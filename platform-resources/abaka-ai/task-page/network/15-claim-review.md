@@ -1,0 +1,74 @@
+# POST /api/v2/item/receive-item 领取审核
+
+## 请求目的
+
+由内审角色页 `Claim Review` 按钮触发，用于领取 Task21 审核条目并进入内审 `/items` 页面。
+
+## 触发操作
+
+打开 `role={reviewRoleId}` 的 Task21 Data 页，点击 `Claim Review`。
+
+## 操作前页面状态
+
+- 页面：`/task-v2/data-item?taskId={taskId}&vm=all&dm=all&role={reviewRoleId}`。
+- 列表显示 `No Data` 时，仍可点击 `Claim Review`。
+- 表格包含 `Reviewer`、`Review Team` 列。
+
+## 请求记录
+
+- Method：`POST`
+- URL：`/api/v2/item/receive-item`
+- Content-Type：`application/json`
+- Status：`200`
+- Request Header 摘要：敏感字段已脱敏。
+- Query keys：无。
+
+## 脱敏请求体摘要
+
+    {
+      "taskId": "{taskId}",
+      "nodeId": "{reviewNodeId}",
+      "search": {
+        "type": "AND",
+        "units": []
+      }
+    }
+
+## 脱敏响应示例
+
+    {
+      "code": 0,
+      "data": ["{itemId}"]
+    }
+
+## 后续请求链路
+
+领取审核成功后进入 `/items?...role={reviewRoleId}&nodeId={reviewNodeId}`，随后触发：
+
+1. `POST /api/v2//item/check-operate-item-permission`
+2. `POST /api/v2/item/get-item-history`
+3. `POST /api/v2/item/get-item-info`
+4. `POST /api/v2/item/work`
+5. `POST /api/v2/label/find-labels`
+6. `POST /api/v2/label/find-issues`
+7. `POST /api/v2/label/find-label-records`
+8. `POST /api/v2/label/get-ai-check-result`
+9. 资源与右侧列表请求。
+
+## 页面反馈
+
+页面显示 `Successfully Claimed`，按钮区变为 `Save / Skip / Reject / Label / Pass`。
+
+## 字段推断
+
+- 同一个 `receive-item` 接口通过 `nodeId` 区分领取标注和领取审核。
+- 内审页面的 `processStatus.check` 进入 `CHECKING` 类状态。
+
+## Content Script 建议
+
+领取审核属于状态变更。扩展不得自动调用；只可记录用户手动领取后的脱敏结构。
+
+## 未确认项
+
+- 审核无可领取数据失败响应待补。
+- `Reject / Label / Pass` 流转接口未在本轮测试。

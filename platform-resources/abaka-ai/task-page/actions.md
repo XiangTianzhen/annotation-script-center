@@ -12,38 +12,43 @@
 
 ## 已测试动作
 
-| 动作 | 页面 | 等级 | 观测接口 / 结果 | 后续限制 |
-| --- | --- | --- | --- | --- |
-| 查看页打开 | `/items?viewMode=true` | `safe-read` | 查看权限、条目信息、标注数据、右侧条目列表等只读请求 | 可作为结构读取入口 |
-| 单选条目 | `/task-v2/data-item` | `ui-local` | 选择后按钮显示选中数量，并可能触发帧数统计 | 不自动跨页全选 |
-| same_font 选项变化 | `/items` 标注页 | `state-change-test` | 可能触发 `/api/v2/label/save-labels` 自动保存 | 正式脚本不得自动写入标签 |
-| 放弃条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | 观测到 `/api/v2/item/abandon-item` 类状态变更请求 | 必须人工确认，不做批量放弃 |
+| 动作 | 页面 | 等级 | 请求文档 | 观测接口 / 结果 | 是否可恢复 | 后续限制 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 查看页打开 | `/items?viewMode=true` | `safe-read` | `network/05-items-view-init.md` | 查看权限、条目信息、标注数据、右侧条目列表等只读请求 | 不涉及 | 可作为结构读取入口 |
+| 单选条目 | `/task-v2/data-item` | `ui-local` | `network/04-data-page-selection-frame-count.md` | 触发 `/api/v2/item/get-frame-count`，按钮变为 `Label: 1` | 不涉及 | 不自动跨页全选 |
+| 多选条目 | `/task-v2/data-item` | `ui-local` | `network/04-data-page-selection-frame-count.md` | `itemIds` 数组长度随选择数量变化，按钮变为 `Label: 2` | 不涉及 | 不自动跨页全选 |
+| 领取标注 | `/task-v2/data-item` | `state-change-test` / `danger-confirm` | `network/14-claim-label.md` | `/api/v2/item/receive-item` 成功后进入标注 `/items` | 未测试释放 | 不自动领取 |
+| 领取审核 | `/task-v2/data-item?role={reviewRoleId}` | `state-change-test` / `danger-confirm` | `network/15-claim-review.md` | `/api/v2/item/receive-item` 成功后进入内审 `/items` | 未测试释放 | 不自动领取 |
+| same_font + 派生字段暂存 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/08-label-save-labels.md`、`network/12-stash-save.md` | 点击 `Save` 触发 `/api/v2/label/save-labels`，页面提示 `Staging` | 标签可继续编辑 | 正式脚本不得自动写入标签 |
+| 放弃条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/09-abandon-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/abandon-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量放弃 |
+| 跳过条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/10-skip-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/skip-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量跳过 |
+| 送审 / 提交 | `/items` 标注页 | `danger-confirm` | `network/11-submit-review.md` | same_font 为空时前端校验阻断，无新增请求 | 未改变状态 | 成功提交接口待补前不实现 |
+| 资源加载 | `/items` | `safe-read` | `network/17-resource-files.md` | 加载 assets、captcha、`.webp` 对象存储图片 | 不涉及 | 不记录完整 URL |
 
 ## 未完整测试动作
 
 | 动作 | 当前状态 | 风险 | 待补内容 |
 | --- | --- | --- | --- |
-| 领取标注 | 待补 | 可能改变任务占用或分配状态 | 按钮弹窗、接口路径、请求结构、失败提示 |
-| 领取审核 | 待补 | 可能改变审核分配状态 | 角色切换后的按钮与接口 |
-| 暂存 | 待补 | 可能写入标签草稿 | 与自动保存接口的区别 |
-| 跳过 | 待补 | 改变条目状态或流转节点 | 确认弹窗、接口和是否可恢复 |
-| 送审 / 提交 | 待补 | 改变工作流状态 | 校验失败结构、提交成功后的跳转 |
+| 领取标注空池 | 待补 | 可能改变任务占用或分配状态 | 无可领取数据时的 response shape |
+| 领取审核空池 | 待补 | 可能改变审核分配状态 | 无可领取数据时的 response shape |
+| 送审成功 | 待补 | 改变工作流状态 | same_font 完整填写后提交接口、后续链路 |
 | 恢复 | 待补 | 改变已跳过或已放弃条目状态 | 恢复入口、权限、接口结构 |
+| 内审 Reject / Label / Pass | 待补 | 改变审核流转状态 | 内审流转接口、确认弹窗、状态变化 |
 
 ## 操作按钮边界
 
 | 按钮 | 中文文案 | English 文案 | 页面 | 是否危险 | 是否已测试 | Network 用途 | 后续脚本建议 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 领取标注 | 领取标注 | 待补 | 数据条目页 | 是 | 否 | 待补 | 只做入口提示，必须人工确认 |
+| 领取标注 | 领取标注 | Claim Label | 数据条目页 | 是 | 是 | `network/14-claim-label.md` | 只做入口提示，必须人工确认 |
 | 查看 | 查看 | View | 数据条目页 | 否 | 是 | 查看页只读加载 | 可作为只读入口 |
-| 标注 | 标注 | 待补 | 数据条目页 | 是 | 部分 | 进入工作页、可能锁定 | 进入前提示当前任务与条目 |
-| 放弃 | 放弃 | 待补 | 标注页 | 是 | 是 | `/api/v2/item/abandon-item` | 二次确认，禁止批量 |
-| 跳过 | 跳过 | 待补 | 标注页 | 是 | 否 | 待补 | 二次确认，接口待补前不实现 |
-| 送审 | 送审 | 待补 | 标注页 | 是 | 否 | 待补 | 二次确认，接口待补前不实现 |
+| 标注 | 标注 | Label: N | 数据条目页 | 是 | 是 | 进入工作页、可能锁定 | 进入前提示当前任务与条目 |
+| 放弃 | 放弃 | Drop | 标注页 | 是 | 是 | `network/09-abandon-item.md` | 二次确认，禁止批量 |
+| 跳过 | 跳过 | Skip | 标注页 | 是 | 是 | `network/10-skip-item.md` | 二次确认，禁止批量 |
+| 送审 | 送审 | Submit | 标注页 | 是 | 部分 | `network/11-submit-review.md` | 成功接口待补前不实现 |
 | 筛选 | 筛选 | 待补 | 数据条目页 | 否 | 是 | 条目列表查询 | 只读采集筛选字段 |
 | 搜索 | 搜索 | Search | 数据条目页 | 否 | 是 | 条目列表查询 | 可辅助定位 Task21 |
 | 切换角色 | 标注 / 标注内审 | Label / Claim Review | 数据条目页 | 可能 | 是 | 角色相关查询 | 只读切换需明确角色 |
-| 切换语言 | 切换语言 | Language | 用户菜单 | 否 | 是 | 待补 | 只记录文案，不依赖单一语言 |
+| 切换语言 | 切换语言 | Language | 用户菜单 | 否 | 部分 | `network/16-language-switch.md` | 只记录文案，不依赖单一语言 |
 | 分页 | 上一页 / 下一页 / 10/页 | Previous / Next / 10/page 待补 | 数据条目页 | 否 | 是 | 条目列表查询 | 只做当前页读取 |
 | 全选 / 多选 | 选择框 | checkbox | 数据条目页 | 可能 | 部分 | 帧数统计或列表状态 | 禁止跨页批量自动操作 |
 
