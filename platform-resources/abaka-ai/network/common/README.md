@@ -4,7 +4,7 @@
 
 本目录维护 Abaka AI Task 页面公共状态能力，不限定于 Task21 的 `same_font` 标注字段。Skipped / Dropped / Recovery / 状态 Tab / 标注送审后的 Data 页状态变化都放在这里。
 
-Task21 `same_font` 保存、派生字段和暂存仍维护在上级编号文档，例如 `../08-label-save-labels.md`。
+Task21 `same_font` 保存、派生字段和暂存维护在 `../../task21/network/08-label-save-labels.md`。公共暂存按钮链路维护在 `../task-page/12-stash-save.md`。
 
 ## 当前覆盖
 

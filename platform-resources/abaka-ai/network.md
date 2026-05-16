@@ -2,9 +2,13 @@
 
 ## 目录定位
 
-本文件记录 Abaka AI 多页面共用的初始化、权限、任务和资源类接口。Task21 数据条目页、same_font 标注区和 `/items` 工作页专属接口维护在：
+本文件记录 Abaka AI 多页面共用的初始化、权限、任务和资源类接口。Task 页面公共请求已经上移到根级 `network/` 目录，任务差异分别维护在 `task21/` 和 `task17/`：
 
-- `platform-resources/abaka-ai/task-page/network.md`
+- Task 页面公共网络索引：`network/README.md`
+- Task 页面公共 Data / `/items` 请求：`network/task-page/`
+- Task 页面公共状态流转：`network/common/`
+- Task21 same_font 专项：`task21/network/README.md`
+- Task17 对比资料：`task17/network.md`
 
 ## 采集范围
 

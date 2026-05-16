@@ -31,14 +31,15 @@
 - 平台资料目录：`platform-resources/abaka-ai/`
 - 平台总览：`platform-resources/abaka-ai/README.md`
 - 平台通用 Network：`platform-resources/abaka-ai/network.md`
-- Task 页面资料：`platform-resources/abaka-ai/task-page/README.md`
-- Task21 Network：`platform-resources/abaka-ai/task-page/network.md`
-- Task21 编号 Network 目录：`platform-resources/abaka-ai/task-page/network/README.md`
-- Task 页面公共 Network 目录：`platform-resources/abaka-ai/task-page/network/common/README.md`
-- Task21 页面结构：`platform-resources/abaka-ai/task-page/page-structure.md`
-- Task21 动作边界：`platform-resources/abaka-ai/task-page/actions.md`
-- Task 页面多语言：`platform-resources/abaka-ai/task-page/i18n.md`
-- 当前阶段：Task21 页面结构与 Network 结构已采集并拆分整理；Skipped / Dropped / Recovery / Submit 等公共状态流转已单独沉淀到 `network/common/`；后续功能仍需单独设计，不默认自动提交/保存/领取/流转。
+- Task 页面公共 Network：`platform-resources/abaka-ai/network/README.md`
+- Task 页面公共结构：`platform-resources/abaka-ai/page-structure.md`
+- Task 页面公共动作边界：`platform-resources/abaka-ai/actions.md`
+- Task 页面公共多语言：`platform-resources/abaka-ai/i18n.md`
+- Task21 项目资料：`platform-resources/abaka-ai/task21/README.md`
+- Task21 专项 Network：`platform-resources/abaka-ai/task21/network/README.md`
+- Task17 项目资料：`platform-resources/abaka-ai/task17/README.md`
+- Task17 网络差异：`platform-resources/abaka-ai/task17/network.md`
+- 当前阶段：公共 Task 页面资料已上移到 Abaka AI 根目录；Task21 保留 same_font 专项，Task17 保留对比和领取审核空池差异。后续功能仍需单独设计，不默认自动提交/保存/领取/流转。
 
 ## 新增平台要求
 

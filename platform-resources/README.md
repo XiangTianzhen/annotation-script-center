@@ -45,21 +45,30 @@ platform-resources/
   abaka-ai/
     README.md
     network.md
-    task-page/
+    page-structure.md
+    actions.md
+    i18n.md
+    network/
+      README.md
+      task-page/
+      common/
+    task21/
       README.md
       network.md
       network/
         README.md
       page-structure.md
-      actions.md
-      i18n.md
+    task17/
+      README.md
+      network.md
+      page-structure.md
 ```
 
 ## 使用规则
 
 - 涉及 LabelX 页面 DOM 或网络接口时，优先读本目录，再修改扩展运行时代码。
 - 涉及 DataBaker 页面 DOM 或网络接口时，优先读 `data-baker/round-one-quality/`，不要把 DataBaker 逻辑写入 Alibaba LabelX 目录。
-- 涉及 Abaka AI Task 页面结构采集时，先读 `abaka-ai/README.md` 与 `abaka-ai/task-page/README.md`；平台通用请求在 `abaka-ai/network.md`，Task21 专项请求入口在 `abaka-ai/task-page/network.md`，详细动作请求在 `abaka-ai/task-page/network/` 编号文档，页面结构、动作风险和多语言分别进入专项文档。
+- 涉及 Abaka AI Task 页面结构采集时，先读 `abaka-ai/README.md`；公共页面结构、动作风险、多语言和 Network 维护在 `abaka-ai/` 根目录，Task21 same_font 专项读 `abaka-ai/task21/README.md`，Task17 对比与空池差异读 `abaka-ai/task17/README.md`。
 - `page-structure/` 放页面结构、稳定选择器和代表性 HTML 片段。
 - `network/` 放请求 URL、请求 / 响应结构、采集结论和待采集项。
 - `ai/` 放快判 AI 规则、提示词模板和少量 few-shot 示例，不放完整雷题库。

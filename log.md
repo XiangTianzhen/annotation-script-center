@@ -1,5 +1,15 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：重排公共资料与任务项目目录）
+
+- 按 LabelX 资料组织方式重排 Abaka AI 平台文档：根目录维护公共 Task 页面结构、动作边界、多语言和公共 Network。
+- 将 Task 页面公共请求上移到 `platform-resources/abaka-ai/network/`，区分 `task-page/` 公共请求与 `common/` 公共状态流转。
+- 新增 `platform-resources/abaka-ai/task21/`，仅保留 Task21 same_font、派生字段和专项保存结构。
+- 新增 `platform-resources/abaka-ai/task17/`，记录 Task17 公共结构对比和领取审核空池失败响应。
+- 更新平台索引、扩展 README 和平台资源总览中的 Abaka AI 路径。
+- 未重新采集，未提交原始 HAR/JSON/截图/CSV/完整响应或敏感数据。
+- 未修改运行时代码，未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：补采剩余动作网络缺口）
 
 - 使用 DevTools MCP 在标注权限下补采 `Label / 标注` 区域、`other_changes` textarea 暂存、语言切换和跨页选择请求结构。

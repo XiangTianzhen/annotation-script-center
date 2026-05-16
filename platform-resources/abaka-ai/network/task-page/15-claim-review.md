@@ -2,11 +2,11 @@
 
 ## 请求目的
 
-由内审角色页 `Claim Review` 按钮触发，用于领取 Task21 审核条目并进入内审 `/items` 页面。
+由内审角色页 `Claim Review / 领取审核` 按钮触发，用于领取审核条目并进入内审 `/items` 页面。该接口由 Task21、Task17 复用，通过 `taskId` 与 `nodeId` 区分任务和节点。
 
 ## 触发操作
 
-打开 `role={reviewRoleId}` 的 Task21 Data 页，点击 `Claim Review`。2026-05-16 二次测试再次点击领取审核，仍成功领取 1 条测试数据，未触发空池响应。
+打开 `role={reviewRoleId}` 的 Task21 Data 页，点击 `Claim Review`。2026-05-16 二次测试再次点击领取审核，Task21 仍成功领取 1 条测试数据，未触发空池响应。
 
 2026-05-16 补测 Task17 内审 Data 页点击 `领取审核`，用于捕获无可领取数据的失败响应。
 

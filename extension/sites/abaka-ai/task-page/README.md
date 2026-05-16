@@ -49,11 +49,13 @@ window.__ASCAbakaAiCapture && window.__ASCAbakaAiCapture.download()
 
 - 平台入口：`platform-resources/abaka-ai/README.md`
 - 平台通用网络：`platform-resources/abaka-ai/network.md`
-- Task 页面入口：`platform-resources/abaka-ai/task-page/README.md`
-- Task21 网络请求：`platform-resources/abaka-ai/task-page/network.md`
-- Task 页面结构：`platform-resources/abaka-ai/task-page/page-structure.md`
-- 动作与状态边界：`platform-resources/abaka-ai/task-page/actions.md`
-- 多语言文案：`platform-resources/abaka-ai/task-page/i18n.md`
+- Abaka AI 平台入口：`platform-resources/abaka-ai/README.md`
+- Task 页面公共网络：`platform-resources/abaka-ai/network/README.md`
+- Task 页面公共结构：`platform-resources/abaka-ai/page-structure.md`
+- 动作与状态边界：`platform-resources/abaka-ai/actions.md`
+- 多语言文案：`platform-resources/abaka-ai/i18n.md`
+- Task21 专项资料：`platform-resources/abaka-ai/task21/README.md`
+- Task17 对比资料：`platform-resources/abaka-ai/task17/README.md`
 
 ## 安全边界
 

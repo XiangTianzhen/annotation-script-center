@@ -1,14 +1,14 @@
-# Abaka AI Task 页面结构（脱敏）
+# Abaka AI Task 页面公共结构（脱敏）
 
 ## 采集范围
 
 - 采集日期：2026-05-16。
 - 采集方式：Google Chrome DevTools MCP、DevTools DOM snapshot、只读 Console 结构脚本。
-- 主目标：Task21。
-- 对比目标：Task17-9 / Task17-8，仅只读对比。
+- 覆盖目标：Task21、Task17。
+- 说明：本文维护 Task17 / Task21 可复用的公共页面结构；Task21 same_font 专项结构见 `task21/page-structure.md`，Task17 差异见 `task17/page-structure.md`。
 - 说明：本文只记录页面结构、DOM、选择器候选和可见文案，不记录完整资源 URL 或原始业务响应。
 
-## Task21 任务列表页
+## 动态任务列表页
 
 URL 模式：
 
@@ -35,24 +35,14 @@ URL 模式：
 - 创建者 / Owner
 - 创建时间 / Created Time
 
-Task21 行样例：
-
-- `#HM_395_v2`
-- `进行中 / In Progress`
-- `Task21`
-- `MMAT`
-- `abaka.ai`
-- `Anniejln`
-- `04-30-2026 22:01:33`
-
-识别策略：
+Task21 行样例见 `task21/page-structure.md`。公共识别策略：
 
 - 优先使用 `/data-task/v2` route。
 - 使用表头文本确认表格。
-- 使用 `#HM_395_v2` + `Task21` 双条件定位目标行。
+- 使用项目号 + 任务名双条件定位目标行。
 - 不把行号、hash class、`data-v-*` 作为唯一依据。
 
-## Task21 数据条目页
+## 数据条目页
 
 URL 模式：
 
@@ -68,9 +58,9 @@ URL 模式：
 
 ### 面包屑
 
-- 中文：数据任务 > 动态任务 > Task21 > 数据条目。
-- English：Annotation > Dynamic Projects > Task21 > Data。
-- `Task21` 是核心定位点。
+- 中文：数据任务 > 动态任务 > `{taskName}` > 数据条目。
+- English：Annotation > Dynamic Projects > `{taskName}` > Data。
+- `{taskName}` 是任务级定位点，例如 Task21 或 TASK17-9。
 
 ### 筛选区
 
@@ -173,7 +163,7 @@ English 表头：
 - 底部状态从 `已选择0条目，0帧` 变成 `已选择1条目，0帧`。
 - 该操作触发 `get-frame-count`。
 
-## Task21 查看页
+## 查看页
 
 URL 模式：
 
@@ -226,7 +216,7 @@ URL 模式：
 - English：UnLock、Modification is not allowed。
 - 长时间未工作时会出现暂停提示。
 
-## Task21 标注页
+## 标注页
 
 URL 模式：
 
@@ -276,7 +266,11 @@ URL 模式：
 - 放弃后出现：`提示`、`没有更多数据，是否退出?`、`确认`。
 - 离开未保存页面时可能出现浏览器确认：`你有未保存的更改，确定要离开吗?`。
 
-## same_font 主标注结构
+## 任务专项标注结构
+
+Task21 `same_font` 主标注结构已移至 `task21/page-structure.md`。Task17 标注结构差异见 `task17/page-structure.md`。根目录只维护公共容器、资源区、右侧条目列表、锁定状态、操作区和选择器策略。
+
+历史采集到的 Task21 same_font 字段摘要如下，后续以 `task21/page-structure.md` 为准：
 
 | 字段 | 控件类型 | 中文文案 | English 文案 | DOM 定位策略 | 是否触发 Network | 对应接口 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -318,4 +312,4 @@ URL 模式：
 - Task17 `/items` 示例携带多个 `selectIds`，右侧条目列表显示 10 条。
 - Task17 主标注是图片二选一、skip、原因多选和其他原因 textarea，不是 Task21 的 same_font。
 
-Task17 不是当前主目标，不做领取、送审、放弃、跳过等状态变更。
+Task17 不是当前主目标；除已按用户授权补测的内审领取空池失败响应外，不做送审、放弃、跳过、通过、驳回等状态变更。
