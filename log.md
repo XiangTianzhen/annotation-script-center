@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：按 LabelX 风格重构平台资料）
+
+- 拆分 Abaka AI README 中的页面结构、Network、动作风险、多语言内容，README 收口为资料入口和当前状态。
+- 新增/更新 `platform-resources/abaka-ai/README.md`、`platform-resources/abaka-ai/network.md`、`platform-resources/abaka-ai/task-page/network.md`、`platform-resources/abaka-ai/task-page/page-structure.md`、`platform-resources/abaka-ai/task-page/actions.md`、`platform-resources/abaka-ai/task-page/i18n.md`。
+- `extension/sites/abaka-ai/task-page/README.md` 收口为运行时入口、注入范围和 Console 采集方法。
+- 未重新采集，未提交原始 HAR/JSON/截图/CSV/完整响应或敏感数据。
+- 未修改运行时代码，未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：深化 Task21 页面与 Network 结构采集）
 
 - 使用 Google Chrome DevTools MCP 深度采集 Abaka AI Task21 页面结构和 Network 结构。

@@ -27,9 +27,16 @@
 ## Abaka AI
 
 - 运行时代码：`extension/sites/abaka-ai/task-page/`
-- README：`extension/sites/abaka-ai/task-page/README.md`
-- 平台资料：`platform-resources/abaka-ai/task-page/README.md`
-- 当前阶段：Task21 页面结构与 Network 结构只读采集，不做自动化提交/保存/领取/流转。
+- 运行时 README：`extension/sites/abaka-ai/task-page/README.md`
+- 平台资料目录：`platform-resources/abaka-ai/`
+- 平台总览：`platform-resources/abaka-ai/README.md`
+- 平台通用 Network：`platform-resources/abaka-ai/network.md`
+- Task 页面资料：`platform-resources/abaka-ai/task-page/README.md`
+- Task21 Network：`platform-resources/abaka-ai/task-page/network.md`
+- Task21 页面结构：`platform-resources/abaka-ai/task-page/page-structure.md`
+- Task21 动作边界：`platform-resources/abaka-ai/task-page/actions.md`
+- Task 页面多语言：`platform-resources/abaka-ai/task-page/i18n.md`
+- 当前阶段：Task21 页面结构与 Network 结构已采集并拆分整理；后续功能仍需单独设计，不默认自动提交/保存/领取/流转。
 
 ## 新增平台要求
 

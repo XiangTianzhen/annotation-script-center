@@ -59,6 +59,7 @@ Chrome：`chrome://extensions/` -> 开启开发者模式 -> 加载 `C:\Projects\
 - `AGENTS.md`：长期协作规则
 - `extension/README.md`：扩展源码说明
 - `platform-resources/backend/README.md`：统一后端说明
+- `platform-resources/abaka-ai/README.md`：Abaka AI 平台资料入口
 - `docs/README.md`：docs 文档导航
 - `docs/platforms/index.md`：平台与脚本文档索引
 - `docs/workflow/codex-prompt-style.md`：Codex Prompt 格式规范
