@@ -97,6 +97,16 @@
     { key: "taskPartialReject", label: "任务判定：部分驳回" },
     { key: "taskFullReject", label: "任务判定：全部驳回" },
   ];
+  const ABAKA_AI_TASK21_SHORTCUT_ACTIONS = [
+    { key: "sameFontTrue", label: "same_font：true" },
+    { key: "sameFontFalse", label: "same_font：false" },
+    {
+      key: "sameFontArtisticEffect",
+      label: "same_font：same underlying font+artistic effect",
+    },
+    { key: "imageBTextsRemovedSpecify", label: "image_b_texts_removed：specify" },
+    { key: "otherChangesSpecify", label: "other_changes：specify" },
+  ];
 
   const MESSAGE_TYPES = {
     PANEL_PING: "ASR_EDGE_SETTINGS_PANEL_PING",
@@ -738,13 +748,13 @@
     abakaAiTaskPageCapture: {
       id: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
       platformId: ABAKA_AI_PLATFORM_ID,
-      label: "Abaka AI Task 页面结构采集",
-      shortLabel: "Task 页面采集",
-      description: "用于 Abaka AI Task 页面 DOM/Network 结构只读采集与脱敏导出。",
+      label: "Abaka AI Task21 快捷键辅助",
+      shortLabel: "Task21 快捷键",
+      description: "用于 Task21 same_font 与派生字段选项快捷键辅助（仅 DOM 点击）。",
       note:
-        "当前只采集 DOM / Network 结构，不自动领取、不自动保存、不自动提交、不自动流转。",
-      capabilityScope: "readonly-page-network-capture",
-      statusLabel: "只读采集阶段",
+        "只点击页面真实选项，不直接调用保存/提交/领取/流转接口；默认支持 same_font=true 联动两个 specify。",
+      capabilityScope: "task21-shortcuts-dom-click-only",
+      statusLabel: "Task21 快捷键辅助第一版",
       detailView: "abaka-ai-task-page-capture",
       host: ABAKA_AI_PLATFORM.host,
       matchUrl: "http://abao.fortidyndns.com:30473/login",
@@ -1023,13 +1033,25 @@
   }
 
   function createDefaultAbakaAiPlatformSettings() {
+    const shortcuts = {};
+    ABAKA_AI_TASK21_SHORTCUT_ACTIONS.forEach(function (action) {
+      shortcuts[action.key] = null;
+    });
+    shortcuts.sameFontTrue = createShortcut("1");
+    shortcuts.sameFontFalse = createShortcut("2");
+    shortcuts.sameFontArtisticEffect = createShortcut("3");
+    shortcuts.imageBTextsRemovedSpecify = createShortcut("4");
+    shortcuts.otherChangesSpecify = createShortcut("5");
+
     return {
       enabled: true,
       scripts: {
         taskPageCapture: {
           id: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
           enabled: true,
-          stage: "readonly-network-capture",
+          stage: "task21-shortcuts",
+          autoSelectSpecifyOnSameFontTrue: true,
+          shortcuts: shortcuts,
         },
       },
     };
@@ -1160,6 +1182,7 @@
     TRANSCRIPTION_STATS_LOCAL_ENDPOINT: TRANSCRIPTION_STATS_LOCAL_ENDPOINT,
     DATABAKER_PAGE_SIZE_OPTIONS: clone(DATABAKER_PAGE_SIZE_OPTIONS),
     DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
+    ABAKA_AI_TASK21_SHORTCUT_ACTIONS: clone(ABAKA_AI_TASK21_SHORTCUT_ACTIONS),
     SCRIPT_PROJECTS: clone(SCRIPT_PROJECTS),
     SCRIPT_LIBRARY: clone(SCRIPT_LIBRARY),
     JUDGEMENT_SHORTCUT_ACTIONS: clone(JUDGEMENT_SHORTCUT_ACTIONS),

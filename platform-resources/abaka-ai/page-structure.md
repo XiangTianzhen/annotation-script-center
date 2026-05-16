@@ -239,6 +239,8 @@ URL 模式：
 - 主结构：`same_font`。
 - 控件：custom radio + 派生字段 + textarea / rich text editor。
 - 点击 `true` 后展开 `image_b_texts_removed`、`other_changes` 等派生字段。
+- Task21 快捷键第一版支持 `1~5` 触发 DOM 点击；`1` 默认会联动两个 `specify`。
+- 快捷键实现只做页面真实点击，不直接调用保存接口。
 
 ### 右侧条目列表
 

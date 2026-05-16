@@ -173,6 +173,18 @@
     { key: "age51To65", label: "年龄51-65" },
     { key: "age65Plus", label: "年龄65以上" },
   ];
+  const abakaAiTask21ShortcutActions = Array.isArray(constants.ABAKA_AI_TASK21_SHORTCUT_ACTIONS)
+    ? constants.ABAKA_AI_TASK21_SHORTCUT_ACTIONS
+    : [
+        { key: "sameFontTrue", label: "same_font：true" },
+        { key: "sameFontFalse", label: "same_font：false" },
+        {
+          key: "sameFontArtisticEffect",
+          label: "same_font：same underlying font+artistic effect",
+        },
+        { key: "imageBTextsRemovedSpecify", label: "image_b_texts_removed：specify" },
+        { key: "otherChangesSpecify", label: "other_changes：specify" },
+      ];
   const judgementItemsPerPageOptions = [
     { value: "1 条/页", label: "1 条/页" },
     { value: "2 条/页", label: "2 条/页" },
@@ -206,6 +218,9 @@
   let magicDataShortcutsDraft = {};
   let magicDataRecordingKey = null;
   let stopMagicDataRecordingListeners = null;
+  let abakaAiShortcutsDraft = {};
+  let abakaAiRecordingKey = null;
+  let stopAbakaAiRecordingListeners = null;
   let endpointAdvancedRevealCount = 0;
   let endpointAdvancedUnlocked = false;
   let judgementAiAdvancedRevealCount = 0;
@@ -1051,6 +1066,33 @@
     return result;
   }
 
+  function createAbakaAiDefaultShortcutMap() {
+    const defaults = {};
+    abakaAiTask21ShortcutActions.forEach(function (action) {
+      defaults[action.key] = null;
+    });
+    defaults.sameFontTrue = normalizeShortcut({ key: "1" });
+    defaults.sameFontFalse = normalizeShortcut({ key: "2" });
+    defaults.sameFontArtisticEffect = normalizeShortcut({ key: "3" });
+    defaults.imageBTextsRemovedSpecify = normalizeShortcut({ key: "4" });
+    defaults.otherChangesSpecify = normalizeShortcut({ key: "5" });
+    return defaults;
+  }
+
+  function normalizeAbakaAiShortcuts(shortcuts, fallback) {
+    const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
+    const base = fallback && typeof fallback === "object" ? fallback : createAbakaAiDefaultShortcutMap();
+    const result = {};
+    abakaAiTask21ShortcutActions.forEach(function (action) {
+      if (hasOwn(source, action.key)) {
+        result[action.key] = normalizeNullableShortcut(source[action.key]);
+        return;
+      }
+      result[action.key] = normalizeNullableShortcut(base[action.key]);
+    });
+    return result;
+  }
+
   function isMagicDataPresetModel(modelName, presetList) {
     return Array.isArray(presetList) && presetList.indexOf(modelName) >= 0;
   }
@@ -1214,6 +1256,33 @@
     config.defaultPageSize = normalizeDataBakerPageSize(config.defaultPageSize, "50条/页");
     config.shortcuts = normalizeDataBakerShortcuts(config.shortcuts);
     return config;
+  }
+
+  function getAbakaAiTaskPageConfig(settings) {
+    const defaults =
+      constants.DEFAULT_SETTINGS?.platforms?.abakaAi?.scripts?.taskPageCapture || {};
+    const current = settings?.platforms?.abakaAi?.scripts?.taskPageCapture || {};
+    const merged = Object.assign(
+      {
+        id: abakaAiTaskPageCaptureScriptId,
+        enabled: true,
+        stage: "task21-shortcuts",
+        autoSelectSpecifyOnSameFontTrue: true,
+        shortcuts: createAbakaAiDefaultShortcutMap(),
+      },
+      defaults,
+      current
+    );
+
+    merged.id = abakaAiTaskPageCaptureScriptId;
+    merged.enabled = merged.enabled !== false;
+    merged.stage = String(merged.stage || "task21-shortcuts");
+    merged.autoSelectSpecifyOnSameFontTrue = merged.autoSelectSpecifyOnSameFontTrue !== false;
+    merged.shortcuts = normalizeAbakaAiShortcuts(
+      merged.shortcuts,
+      createAbakaAiDefaultShortcutMap()
+    );
+    return merged;
   }
 
   function getTranscriptionAiConfig(settings) {
@@ -1406,9 +1475,10 @@
     }
 
     if (isAbakaAiScript(scriptId)) {
+      const config = getAbakaAiTaskPageConfig(settings);
       return Boolean(
         settings?.platforms?.abakaAi?.enabled !== false &&
-          settings?.platforms?.abakaAi?.scripts?.taskPageCapture?.enabled !== false
+          config.enabled !== false
       );
     }
 
@@ -1451,7 +1521,7 @@
 
     if (isAbakaAiScript(scriptId)) {
       return isScriptEnabled(settings, scriptId)
-        ? { text: "已启用（只读采集）", tone: "enabled" }
+        ? { text: "已启用（Task21 快捷键）", tone: "enabled" }
         : { text: "未启用", tone: "disabled" };
     }
 
@@ -1487,7 +1557,7 @@
     }
 
     if (isAbakaAiScript(scriptId)) {
-      return "http://abao.fortidyndns.com:30473/login";
+      return "http://abao.fortidyndns.com:30473/items?taskId=...";
     }
 
     return "https://labelx.alibaba-inc.com/corpora/labeling/*";
@@ -2598,6 +2668,226 @@
     }
   }
 
+  function ensureAbakaAiShortcutDraft() {
+    const defaults = createAbakaAiDefaultShortcutMap();
+    abakaAiTask21ShortcutActions.forEach(function (action) {
+      if (!hasOwn(abakaAiShortcutsDraft, action.key)) {
+        abakaAiShortcutsDraft[action.key] = normalizeNullableShortcut(defaults[action.key]);
+      }
+    });
+  }
+
+  function setAbakaAiRecordingStatus(text) {
+    const node = getElement("abaka-ai-recording-status");
+    if (!node) {
+      return;
+    }
+    node.textContent = text || "";
+    node.classList.toggle("hidden", !text);
+  }
+
+  function renderAbakaAiShortcutGrid() {
+    const grid = getElement("abaka-ai-shortcut-grid");
+    if (!grid) {
+      return;
+    }
+    ensureAbakaAiShortcutDraft();
+
+    grid.innerHTML = abakaAiTask21ShortcutActions
+      .map(function (action) {
+        const recording = abakaAiRecordingKey === action.key;
+        return [
+          '<div class="shortcut-row">',
+          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
+          '<span class="shortcut-value">' +
+            escapeHtml(recording ? "录制中..." : formatShortcut(abakaAiShortcutsDraft[action.key])) +
+            "</span>",
+          '<button type="button" class="secondary-button" data-record-abaka-shortcut="' +
+            escapeHtml(action.key) +
+            '">' +
+            (recording ? "录制中" : "录制") +
+            "</button>",
+          '<button type="button" class="ghost-button" data-clear-abaka-shortcut="' +
+            escapeHtml(action.key) +
+            '">删除</button>',
+          "</div>",
+        ].join("");
+      })
+      .join("");
+
+    Array.from(grid.querySelectorAll("[data-record-abaka-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        startAbakaAiShortcutRecording(button.getAttribute("data-record-abaka-shortcut"));
+      });
+    });
+
+    Array.from(grid.querySelectorAll("[data-clear-abaka-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        const key = button.getAttribute("data-clear-abaka-shortcut");
+        abakaAiShortcutsDraft[key] = null;
+        if (abakaAiRecordingKey === key) {
+          stopAbakaAiShortcutRecording("快捷键录制已取消。");
+          return;
+        }
+        setAbakaAiRecordingStatus("快捷键已删除，保存后生效。");
+        renderAbakaAiShortcutGrid();
+      });
+    });
+  }
+
+  function stopAbakaAiShortcutRecording(statusText) {
+    if (typeof stopAbakaAiRecordingListeners === "function") {
+      stopAbakaAiRecordingListeners();
+      stopAbakaAiRecordingListeners = null;
+    }
+    abakaAiRecordingKey = null;
+    setAbakaAiRecordingStatus(statusText || "");
+    renderAbakaAiShortcutGrid();
+  }
+
+  function applyRecordedAbakaAiShortcut(shortcut) {
+    if (!abakaAiRecordingKey || shortcut === false) {
+      return;
+    }
+    if (!shortcut) {
+      stopAbakaAiShortcutRecording("已取消快捷键录制。");
+      return;
+    }
+    abakaAiShortcutsDraft[abakaAiRecordingKey] = normalizeNullableShortcut(shortcut);
+    stopAbakaAiShortcutRecording("快捷键已录制，保存后生效。");
+  }
+
+  function startAbakaAiShortcutRecording(actionKey) {
+    if (!actionKey) {
+      return;
+    }
+    if (typeof stopAbakaAiRecordingListeners === "function") {
+      stopAbakaAiRecordingListeners();
+    }
+    abakaAiRecordingKey = actionKey;
+    const action = abakaAiTask21ShortcutActions.find(function (item) {
+      return item.key === actionKey;
+    });
+
+    setAbakaAiRecordingStatus(
+      "正在录制「" + String(action?.label || actionKey) + "」：按键盘组合或鼠标按键，Esc 取消。"
+    );
+
+    function preventMouseDefaultOnce(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+    }
+
+    function suppressMouseFollowup() {
+      ["mouseup", "auxclick", "contextmenu"].forEach(function (eventName) {
+        window.addEventListener(eventName, preventMouseDefaultOnce, {
+          capture: true,
+          once: true,
+        });
+      });
+      window.setTimeout(function () {
+        ["mouseup", "auxclick", "contextmenu"].forEach(function (eventName) {
+          window.removeEventListener(eventName, preventMouseDefaultOnce, true);
+        });
+      }, 800);
+    }
+
+    const keydownListener = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+      applyRecordedAbakaAiShortcut(shortcutFromKeyboardEvent(event));
+    };
+    const mousedownListener = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+      suppressMouseFollowup();
+      applyRecordedAbakaAiShortcut(shortcutFromMouseEvent(event));
+    };
+
+    window.addEventListener("keydown", keydownListener, true);
+    window.addEventListener("mousedown", mousedownListener, true);
+    stopAbakaAiRecordingListeners = function () {
+      window.removeEventListener("keydown", keydownListener, true);
+      window.removeEventListener("mousedown", mousedownListener, true);
+    };
+
+    renderAbakaAiShortcutGrid();
+  }
+
+  function applyAbakaAiTaskPageForm(settings) {
+    const config = getAbakaAiTaskPageConfig(settings);
+    abakaAiShortcutsDraft = clone(config.shortcuts) || {};
+    const autoSelectNode = getElement("abaka-auto-select-specify-on-same-font-true");
+    if (autoSelectNode instanceof HTMLInputElement) {
+      autoSelectNode.checked = config.autoSelectSpecifyOnSameFontTrue !== false;
+    }
+    stopAbakaAiShortcutRecording("");
+    renderAbakaAiShortcutGrid();
+  }
+
+  async function saveAbakaAiTaskPageSettings() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      setStatus("abaka-status", "当前扩展版本不支持保存 Abaka AI 设置。");
+      return false;
+    }
+
+    const currentConfig = getAbakaAiTaskPageConfig(currentSettings || {});
+    ensureAbakaAiShortcutDraft();
+    const shortcuts = {};
+    abakaAiTask21ShortcutActions.forEach(function (action) {
+      shortcuts[action.key] = normalizeNullableShortcut(abakaAiShortcutsDraft[action.key]);
+    });
+    const autoSelectNode = getElement("abaka-auto-select-specify-on-same-font-true");
+    const autoSelectSpecifyOnSameFontTrue =
+      autoSelectNode instanceof HTMLInputElement
+        ? autoSelectNode.checked === true
+        : currentConfig.autoSelectSpecifyOnSameFontTrue !== false;
+
+    setStatus("abaka-status", "正在保存 Abaka AI 设置...");
+    try {
+      currentSettings = await storage.patchSettings({
+        platforms: {
+          abakaAi: {
+            scripts: {
+              taskPageCapture: {
+                id: abakaAiTaskPageCaptureScriptId,
+                enabled: currentConfig.enabled !== false,
+                stage: "task21-shortcuts",
+                autoSelectSpecifyOnSameFontTrue: autoSelectSpecifyOnSameFontTrue,
+                shortcuts: shortcuts,
+              },
+            },
+          },
+        },
+      });
+      applyAbakaAiTaskPageForm(currentSettings);
+      setStatus("abaka-status", "Abaka AI Task21 快捷键设置已保存。");
+      return true;
+    } catch (error) {
+      setStatus(
+        "abaka-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+      return false;
+    }
+  }
+
+  function resetAbakaAiTask21ShortcutsToDefault() {
+    abakaAiShortcutsDraft = createAbakaAiDefaultShortcutMap();
+    stopAbakaAiShortcutRecording("");
+    setAbakaAiRecordingStatus("已恢复默认快捷键，保存后生效。");
+    renderAbakaAiShortcutGrid();
+  }
+
   function applyJudgementForm(settings) {
     const config = normalizeJudgementConfig(settings);
     const defaultsPayload = getAsrVoiceAiDefaultsCached(judgementProjectId);
@@ -3625,6 +3915,10 @@
       "hidden",
       scriptId !== magicDataAnnotatorScriptId
     );
+    getElement("detail-abaka-ai-task-page-panel").classList.toggle(
+      "hidden",
+      scriptId !== abakaAiTaskPageCaptureScriptId
+    );
   }
 
   function renderDetail(settings, scriptId) {
@@ -3695,10 +3989,13 @@
     }
 
     if (isAbakaAiScript(scriptId)) {
+      applyAbakaAiTaskPageForm(settings);
       setStatus(
         "detail-status",
-        "当前脚本仅提供页面结构与 Network 脱敏采集，不执行自动领取、自动保存、自动提交或自动流转。"
+        "Abaka AI Task21 快捷键仅用于点击页面真实选项；不直接调用保存/提交/领取/流转接口。"
       );
+      setStatus("abaka-status", "");
+      return;
     }
   }
 
@@ -4356,6 +4653,20 @@
     getElement("save-magic-data-settings").addEventListener("click", function () {
       void saveMagicDataSettings();
     });
+
+    const saveAbakaSettingsButton = getElement("save-abaka-settings");
+    if (saveAbakaSettingsButton) {
+      saveAbakaSettingsButton.addEventListener("click", function () {
+        void saveAbakaAiTaskPageSettings();
+      });
+    }
+
+    const resetAbakaShortcutsButton = getElement("abaka-reset-shortcuts");
+    if (resetAbakaShortcutsButton) {
+      resetAbakaShortcutsButton.addEventListener("click", function () {
+        resetAbakaAiTask21ShortcutsToDefault();
+      });
+    }
 
     getElement("home-endpoint-server").addEventListener("click", function () {
       void setHomeBackendEndpoint("server");

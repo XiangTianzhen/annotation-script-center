@@ -11,6 +11,7 @@
 - 点击派生字段 `other_changes = unsure`。
 - 点击页面底部 `Save`。
 - 2026-05-16 补测：点击 `other_changes = specify`，输入自由文本后点击 `暂存`。
+- 2026-05-16 Task21 快捷键第一版：按键触发 same_font/派生字段选项点击时，本质仍是页面 DOM 交互；扩展不直接发起保存请求。
 
 ## 操作前页面状态
 
@@ -138,7 +139,7 @@
 
 ## Content Script 建议
 
-扩展只被动监听该接口。AI 建议不得自动写入 `data.create/update/delete`，必须由用户人工确认。
+扩展只被动监听该接口。AI 建议不得自动写入 `data.create/update/delete`，必须由用户人工确认。快捷键能力仅允许触发页面真实点击，不允许直接调用该接口。
 
 ## 未确认项
 

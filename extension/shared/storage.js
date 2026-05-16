@@ -68,7 +68,50 @@
               taskPageCapture: {
                 id: "abakaAiTaskPageCapture",
                 enabled: true,
-                stage: "readonly-network-capture",
+                stage: "task21-shortcuts",
+                autoSelectSpecifyOnSameFontTrue: true,
+                shortcuts: {
+                  sameFontTrue: {
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                    meta: false,
+                    key: "1",
+                    button: null,
+                  },
+                  sameFontFalse: {
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                    meta: false,
+                    key: "2",
+                    button: null,
+                  },
+                  sameFontArtisticEffect: {
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                    meta: false,
+                    key: "3",
+                    button: null,
+                  },
+                  imageBTextsRemovedSpecify: {
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                    meta: false,
+                    key: "4",
+                    button: null,
+                  },
+                  otherChangesSpecify: {
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                    meta: false,
+                    key: "5",
+                    button: null,
+                  },
+                },
               },
             },
           },
@@ -117,6 +160,16 @@
         { key: "taskPass", label: "任务判定：通过" },
         { key: "taskPartialReject", label: "任务判定：部分驳回" },
         { key: "taskFullReject", label: "任务判定：全部驳回" },
+      ],
+      ABAKA_AI_TASK21_SHORTCUT_ACTIONS: [
+        { key: "sameFontTrue", label: "same_font：true" },
+        { key: "sameFontFalse", label: "same_font：false" },
+        {
+          key: "sameFontArtisticEffect",
+          label: "same_font：same underlying font+artistic effect",
+        },
+        { key: "imageBTextsRemovedSpecify", label: "image_b_texts_removed：specify" },
+        { key: "otherChangesSpecify", label: "other_changes：specify" },
       ],
       JUDGEMENT_PROJECT_ASR_KEYS: [
         "itemsPerPage",
@@ -1045,6 +1098,31 @@
     return result;
   }
 
+  function normalizeAbakaAiTask21Shortcuts(value, fallback) {
+    const constants = getConstants();
+    const actions = Array.isArray(constants.ABAKA_AI_TASK21_SHORTCUT_ACTIONS)
+      ? constants.ABAKA_AI_TASK21_SHORTCUT_ACTIONS
+      : [
+          { key: "sameFontTrue" },
+          { key: "sameFontFalse" },
+          { key: "sameFontArtisticEffect" },
+          { key: "imageBTextsRemovedSpecify" },
+          { key: "otherChangesSpecify" },
+        ];
+    const source = isPlainObject(value) ? value : {};
+    const fallbackSource = isPlainObject(fallback) ? fallback : {};
+    const result = {};
+
+    actions.forEach(function (action) {
+      const key = action.key;
+      result[key] = hasOwn(source, key)
+        ? normalizeNullableShortcut(source[key], fallbackSource[key] || null)
+        : normalizeNullableShortcut(fallbackSource[key] || null, null);
+    });
+
+    return result;
+  }
+
   function normalizeDataBakerRoundOneQualityConfig(config, defaults) {
     const source = isPlainObject(config) ? config : {};
     const defaultConfig = isPlainObject(defaults) ? defaults : {};
@@ -1198,7 +1276,15 @@
           taskPageCapture: {
             id: constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture",
             enabled: true,
-            stage: "readonly-network-capture",
+            stage: "task21-shortcuts",
+            autoSelectSpecifyOnSameFontTrue: true,
+            shortcuts: {
+              sameFontTrue: { key: "1" },
+              sameFontFalse: { key: "2" },
+              sameFontArtisticEffect: { key: "3" },
+              imageBTextsRemovedSpecify: { key: "4" },
+              otherChangesSpecify: { key: "5" },
+            },
           },
         },
       };
@@ -1212,13 +1298,24 @@
       settings.platforms.abakaAi.scripts = {};
     }
 
-    const currentScript = settings.platforms.abakaAi.scripts.taskPageCapture || {};
+    const defaultScript = isPlainObject(defaultPlatform.scripts?.taskPageCapture)
+      ? defaultPlatform.scripts.taskPageCapture
+      : {};
+    const currentScript = isPlainObject(settings.platforms.abakaAi.scripts.taskPageCapture)
+      ? settings.platforms.abakaAi.scripts.taskPageCapture
+      : {};
     settings.platforms.abakaAi.enabled = settings.platforms.abakaAi.enabled !== false;
-    settings.platforms.abakaAi.scripts.taskPageCapture = {
+    settings.platforms.abakaAi.scripts.taskPageCapture = Object.assign({}, defaultScript, currentScript, {
       id: constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture",
       enabled: currentScript.enabled !== false,
-      stage: String(currentScript.stage || "readonly-network-capture"),
-    };
+      stage: String(currentScript.stage || defaultScript.stage || "task21-shortcuts"),
+      autoSelectSpecifyOnSameFontTrue:
+        currentScript.autoSelectSpecifyOnSameFontTrue !== false,
+      shortcuts: normalizeAbakaAiTask21Shortcuts(
+        currentScript.shortcuts,
+        defaultScript.shortcuts || {}
+      ),
+    });
 
     return settings.platforms.abakaAi;
   }
@@ -1927,7 +2024,7 @@
                   constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID ||
                   "abakaAiTaskPageCapture",
                 enabled: nextEnabled,
-                stage: "readonly-network-capture",
+                stage: "task21-shortcuts",
               },
             },
           },

@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | `safe-read` | 页面加载、查询、查看、只读结构采集 | 可以自动读取脱敏结构 |
 | `ui-local` | 只改变当前前端选中态或展开态 | 可以辅助，但需避免误触发批量选择 |
+| `state-change-user-triggered` | 用户显式按键触发的页面选项点击，可能由平台自身触发保存 | 可实现快捷键辅助，但不得直接调用平台保存/提交/领取接口 |
 | `state-change-test` | 采集阶段已在测试账号内最小范围测试的状态变更 | 文档可记录结构，正式脚本必须人工确认 |
 | `danger-confirm` | 保存、提交、领取、流转、放弃、跳过、恢复等高风险动作 | 必须二次确认，不得静默执行 |
 | `forbidden-auto` | 跨页全选、批量流转、删除、越权或跨项目动作 | 禁止自动执行 |
@@ -26,6 +27,7 @@
 | 跳过条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/10-skip-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/skip-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量跳过 |
 | 送审 / 提交 | `/items` 标注页 | `danger-confirm` | `network/task-page/11-submit-review.md` | same_font 为空时前端校验阻断；填写后可触发成功提交 | 视场景而定 | 必须人工确认 |
 | 送审成功 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/23-label-submit-success.md` | `save-labels -> submit-item`，成功后 Data 页显示 `Labeled / Pending Review` | 送审后进入审核流，不按恢复处理 | 必须人工确认，不自动送审 |
+| Task21 快捷键选项选择 | `/items` 标注页 | `state-change-user-triggered` | `task21/page-structure.md`、`task21/network/08-label-save-labels.md` | 用户按 `1~5` 触发 `same_font` 与派生字段 DOM 点击；页面可能自行触发保存 | 取决于页面行为 | 扩展不直接调用保存/提交接口 |
 | Skipped 列表 | `/task-v2/data-item?dm=skipped` | `safe-read` | `network/task-page/19-skipped-list.md` | `/api/v2/item/get-task-item-skip-list` | 不涉及 | 可只读识别 |
 | Dropped 列表 | `/task-v2/data-item?dm=abandoned` | `safe-read` | `network/task-page/20-dropped-list.md` | `/api/v2/item/get-task-item-abandon-list` | 不涉及 | 可只读识别 |
 | 资源加载 | `/items` | `safe-read` | `network/task-page/17-resource-files.md` | 加载 assets、captcha、`.webp` 对象存储图片 | 不涉及 | 不记录完整 URL |

@@ -41,6 +41,22 @@
     },
     {
       "matches": [
+        "http://abao.fortidyndns.com:30473/*"
+      ],
+      "js": [
+        "shared/constants.js",
+        "shared/storage.js",
+        "sites/abaka-ai/task-page/toast.js",
+        "sites/abaka-ai/task-page/dom-actions.js",
+        "sites/abaka-ai/task-page/shortcuts.js",
+        "sites/abaka-ai/task-page/content.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
         "https://datafactory.data-baker.com/*"
       ],
       "js": [

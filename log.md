@@ -1,5 +1,22 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：Task21 same_font 快捷键辅助第一版）
+
+- 新增 Abaka AI Task21 ISOLATED content runtime：`content.js`、`shortcuts.js`、`dom-actions.js`、`toast.js`，并保留 MAIN world `network-structure-observer.js`。
+- `extension/manifest.json` 新增 Abaka AI ISOLATED content script 注入（`shared/constants.js`、`shared/storage.js` + Task21 runtime 脚本）。
+- 新增 Task21 快捷键动作与默认键位：
+  - `1`：`same_font=true`
+  - `2`：`same_font=false`
+  - `3`：`same_font=same underlying font+artistic effect`
+  - `4`：`image_b_texts_removed=specify`
+  - `5`：`other_changes=specify`
+- `same_font=true` 联动默认开启：自动选择 `image_b_texts_removed=specify` 与 `other_changes=specify`（可在 options 关闭）。
+- options 新增 Abaka AI Task21 快捷键配置区：联动开关、快捷键录制/清除、恢复默认、保存。
+- 快捷键只在 `/items` 且存在 `same_font` 字段时生效；焦点在输入框/textarea/editor 时忽略。
+- 所有动作仅触发页面真实 DOM 点击，不直接调用保存、提交、领取、放弃、跳过、送审接口；平台是否自动保存由页面自身机制决定。
+- 同步更新 Abaka AI 相关 README、平台索引和动作边界文档。
+- 未提升 `extension/manifest.json` 版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-16（Abaka AI：按 LabelX 快判风格收口 Task 页面网络目录）
 
 - 将 `platform-resources/abaka-ai/network/common/` 中的状态 Tab、Skipped / Dropped、恢复、送审成功和内审只读文档合并进 `platform-resources/abaka-ai/network/task-page/`。

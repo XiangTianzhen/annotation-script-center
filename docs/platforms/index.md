@@ -39,7 +39,7 @@
 - Task21 专项 Network：`platform-resources/abaka-ai/task21/network/README.md`
 - Task17 项目资料：`platform-resources/abaka-ai/task17/README.md`
 - Task17 网络差异：`platform-resources/abaka-ai/task17/network.md`
-- 当前阶段：公共 Task 页面资料已上移到 Abaka AI 根目录；Task21 保留 same_font 专项，Task17 保留对比和领取审核空池差异。后续功能仍需单独设计，不默认自动提交/保存/领取/流转。
+- 当前阶段：公共 Task 页面资料已上移到 Abaka AI 根目录；Task21 已上线快捷键辅助第一版（仅 DOM 点击），Task17 保留对比和领取审核空池差异；不默认自动提交/保存/领取/流转。
 
 ## 新增平台要求
 

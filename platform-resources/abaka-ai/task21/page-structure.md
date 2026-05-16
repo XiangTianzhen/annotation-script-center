@@ -25,6 +25,14 @@
 | `image_b_texts_removed` | radio + rich text editor | `specify`、`true`、`null` | `same_font=true` 后出现的派生字段块 | `network/08-label-save-labels.md` |
 | `other_changes` | radio + textarea | `specify`、`unsure`、`null` | 后继字段块 + textarea | `network/08-label-save-labels.md` |
 
+Task21 快捷键联动（运行时）：
+
+- `same_font=true` 快捷键命中后，默认会继续点击：
+  - `image_b_texts_removed=specify`
+  - `other_changes=specify`
+- 该联动仅通过页面 DOM 点击触发，不直接调用保存接口。
+- 若页面后续触发 `save-labels`，属于平台自身监听点击后的行为。
+
 ## 资源字段
 
 - `image_a`

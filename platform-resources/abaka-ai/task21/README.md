@@ -4,9 +4,9 @@
 
 - 主目标：Task21。
 - 专项结构：`same_font`、`image_b_texts_removed`、`other_changes`。
-- 当前阶段：Task21 专项页面和接口结构已采集，待进入功能设计。
+- 当前阶段：Task21 快捷键辅助第一版（DOM 点击）。
 - 采集方式：Google Chrome DevTools MCP、DevTools DOM snapshot、只读 Console 结构脚本、Network 面板结构观察。
-- 当前不做自动化功能，不实现自动领取、自动保存、自动提交、自动流转。
+- 当前不做自动化流转，不实现自动领取、自动提交、自动放弃、自动跳过、自动送审。
 
 公共 Task 页面能力已经上移到 `../` 根目录，包括 Data 页、状态 Tab、Skipped / Dropped / Recovery、领取、查看、语言切换、资源加载和动作边界。
 
@@ -69,9 +69,23 @@
 - 双语按钮定位。
 - 查看 / 标注入口辅助。
 - AI 辅助建议。
-- 快捷键辅助。
+- 快捷键辅助（第一版已上线，后续按页面变化迭代）。
 - 统计导出。
 - 操作前确认层。
+
+## 快捷键辅助第一版
+
+- `1`：`same_font=true`
+- `2`：`same_font=false`
+- `3`：`same_font=same underlying font+artistic effect`
+- `4`：`image_b_texts_removed=specify`
+- `5`：`other_changes=specify`
+
+联动逻辑：
+
+- `same_font=true` 快捷键触发后，默认自动点击 `image_b_texts_removed=specify` 和 `other_changes=specify`。
+- 该联动由配置项 `autoSelectSpecifyOnSameFontTrue` 控制，默认开启。
+- 行为属于运行时 DOM 点击，不直接调用平台 API；若页面产生自动保存，由平台自身行为触发。
 
 ## 待补清单
 
