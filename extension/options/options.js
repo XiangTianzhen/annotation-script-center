@@ -10,6 +10,8 @@
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
   const magicDataAnnotatorScriptId =
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
+  const abakaAiTaskPageCaptureScriptId =
+    constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
   const backendModeServer = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const backendModeLocal = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const getBackendModeFromSettings =
@@ -761,6 +763,10 @@
     return scriptId === magicDataAnnotatorScriptId;
   }
 
+  function isAbakaAiScript(scriptId) {
+    return scriptId === abakaAiTaskPageCaptureScriptId;
+  }
+
   function supportsAsrVoiceAiSettings(scriptId) {
     return (
       scriptId === judgementProjectId ||
@@ -1399,6 +1405,13 @@
       return config.enabled !== false && config.aiReviewEnabled !== false;
     }
 
+    if (isAbakaAiScript(scriptId)) {
+      return Boolean(
+        settings?.platforms?.abakaAi?.enabled !== false &&
+          settings?.platforms?.abakaAi?.scripts?.taskPageCapture?.enabled !== false
+      );
+    }
+
     if (isLabelxScript(scriptId)) {
       return Boolean(
         settings?.platforms?.alibabaLabelx?.enabled &&
@@ -1436,6 +1449,12 @@
         : { text: "已启用", tone: "enabled" };
     }
 
+    if (isAbakaAiScript(scriptId)) {
+      return isScriptEnabled(settings, scriptId)
+        ? { text: "已启用（只读采集）", tone: "enabled" }
+        : { text: "未启用", tone: "disabled" };
+    }
+
     const labelxEnabled = Boolean(settings?.platforms?.alibabaLabelx?.enabled);
     const activeScriptId = getLabelxActiveScriptId(settings);
 
@@ -1465,6 +1484,10 @@
 
     if (isMagicDataScript(scriptId)) {
       return "https://work.magicdatatech.com/#/asrmark?taskItemId=...";
+    }
+
+    if (isAbakaAiScript(scriptId)) {
+      return "http://abao.fortidyndns.com:30473/login";
     }
 
     return "https://labelx.alibaba-inc.com/corpora/labeling/*";
@@ -3667,6 +3690,14 @@
       setStatus(
         "magic-data-status",
         "Magic Data 页面内结果区固定展示空状态，点击 AI 质检后仅更新内容，不会自动保存或提交。"
+      );
+      return;
+    }
+
+    if (isAbakaAiScript(scriptId)) {
+      setStatus(
+        "detail-status",
+        "当前脚本仅提供页面结构与 Network 脱敏采集，不执行自动领取、自动保存、自动提交或自动流转。"
       );
     }
   }

@@ -11,6 +11,9 @@
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
   const magicDataHost = "work.magicdatatech.com";
   const magicDataScriptId = "magicDataAnnotatorAiReview";
+  const abakaAiHost = (constants.ABAKA_AI_PLATFORM || {}).host || "abao.fortidyndns.com";
+  const abakaAiScriptId =
+    constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
   let currentDetectedScriptId = null;
 
   function queryTabs(queryInfo) {
@@ -259,6 +262,27 @@
         title: "当前页面属于 Magic Data",
         description: "进入 #/asrmark 后可使用 AI 复核助手。",
         openScriptSettings: false,
+      };
+    }
+
+    if (url.hostname === abakaAiHost) {
+      const platformEnabled = settings?.platforms?.abakaAi?.enabled !== false;
+      const scriptEnabled = settings?.platforms?.abakaAi?.scripts?.taskPageCapture?.enabled !== false;
+      const enabled = platformEnabled && scriptEnabled;
+      const pathname = String(url.pathname || "");
+      return {
+        scriptId: abakaAiScriptId,
+        platformId: "abakaAi",
+        platformLabel: "Abaka AI",
+        url: url,
+        platformEnabled: platformEnabled,
+        scriptEnabled: scriptEnabled,
+        statusText: enabled ? "已支持只读采集" : "未启用",
+        statusTone: enabled ? "success" : "disabled",
+        title: "当前页面属于 Abaka AI",
+        description:
+          "当前脚本仅做页面结构与 Network 脱敏采集（Console 导出），不自动领取、不自动保存、不自动提交、不自动流转。当前路径：" +
+          pathname,
       };
     }
 

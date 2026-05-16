@@ -42,12 +42,16 @@ platform-resources/
       page-structure.md
       network.md
       backend/
+  abaka-ai/
+    task-page/
+      README.md
 ```
 
 ## 使用规则
 
 - 涉及 LabelX 页面 DOM 或网络接口时，优先读本目录，再修改扩展运行时代码。
 - 涉及 DataBaker 页面 DOM 或网络接口时，优先读 `data-baker/round-one-quality/`，不要把 DataBaker 逻辑写入 Alibaba LabelX 目录。
+- 涉及 Abaka AI Task 页面结构采集时，优先读 `abaka-ai/task-page/README.md`，仅沉淀脱敏结构与接口清单，不提交真实运行数据。
 - `page-structure/` 放页面结构、稳定选择器和代表性 HTML 片段。
 - `network/` 放请求 URL、请求 / 响应结构、采集结论和待采集项。
 - `ai/` 放快判 AI 规则、提示词模板和少量 few-shot 示例，不放完整雷题库。

@@ -24,6 +24,13 @@
 - README：`extension/sites/magic-data/annotator/README.md`
 - 后端与平台资料：`platform-resources/magic-data/annotator/`
 
+## Abaka AI
+
+- 运行时代码：`extension/sites/abaka-ai/task-page/`
+- README：`extension/sites/abaka-ai/task-page/README.md`
+- 平台资料：`platform-resources/abaka-ai/task-page/README.md`
+- 当前阶段：只读页面结构与 Network 结构采集，不做自动化提交/保存/领取/流转。
+
 ## 新增平台要求
 
 新增平台或脚本时，必须同步：

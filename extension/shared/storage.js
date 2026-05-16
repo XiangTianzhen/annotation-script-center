@@ -62,6 +62,16 @@
               },
             },
           },
+          abakaAi: {
+            enabled: true,
+            scripts: {
+              taskPageCapture: {
+                id: "abakaAiTaskPageCapture",
+                enabled: true,
+                stage: "readonly-network-capture",
+              },
+            },
+          },
         },
         asr: {},
         debug: {
@@ -76,12 +86,15 @@
       DEFAULT_ASR_CONFIG: {},
       DEFAULT_JUDGEMENT_ASR_CONFIG: {},
       DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: {},
+      DEFAULT_ABAKA_AI_PLATFORM_SETTINGS: {},
       SCRIPT_PROJECTS: {},
       SCRIPT_LIBRARY: {},
       TRANSCRIPTION_PROJECT_ID: "transcription",
       JUDGEMENT_PROJECT_ID: "judgement",
       LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: "lightwheelViewPanel",
       DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: "dataBakerRoundOneQuality",
+      ABAKA_AI_PLATFORM_ID: "abakaAi",
+      ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: "abakaAiTaskPageCapture",
       DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT:
         "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
       DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT:
@@ -1175,6 +1188,41 @@
     return settings.platforms.dataBaker;
   }
 
+  function ensureAbakaAiRoot(settings) {
+    const constants = getConstants();
+    const defaults = clone(constants.DEFAULT_SETTINGS || {});
+    const defaultPlatform =
+      defaults?.platforms?.abakaAi || constants.DEFAULT_ABAKA_AI_PLATFORM_SETTINGS || {
+        enabled: true,
+        scripts: {
+          taskPageCapture: {
+            id: constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture",
+            enabled: true,
+            stage: "readonly-network-capture",
+          },
+        },
+      };
+
+    if (!isPlainObject(settings.platforms)) {
+      settings.platforms = {};
+    }
+
+    settings.platforms.abakaAi = deepMerge(defaultPlatform, settings.platforms.abakaAi || {});
+    if (!isPlainObject(settings.platforms.abakaAi.scripts)) {
+      settings.platforms.abakaAi.scripts = {};
+    }
+
+    const currentScript = settings.platforms.abakaAi.scripts.taskPageCapture || {};
+    settings.platforms.abakaAi.enabled = settings.platforms.abakaAi.enabled !== false;
+    settings.platforms.abakaAi.scripts.taskPageCapture = {
+      id: constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture",
+      enabled: currentScript.enabled !== false,
+      stage: String(currentScript.stage || "readonly-network-capture"),
+    };
+
+    return settings.platforms.abakaAi;
+  }
+
   function getProjectDefinitions(constants) {
     return isPlainObject(constants?.SCRIPT_PROJECTS) ? constants.SCRIPT_PROJECTS : {};
   }
@@ -1570,6 +1618,7 @@
     ensureScriptCenter(settings);
     ensureLightwheelRoot(settings);
     ensureDataBakerRoot(settings);
+    ensureAbakaAiRoot(settings);
     ensureGlobalBackendEndpointMode(settings, input || {}, defaults);
 
     const activeProjectId =
@@ -1757,6 +1806,11 @@
       nextSettings.platforms.dataBaker.scripts = clone(current.platforms.dataBaker.scripts || {});
     }
 
+    if (preservePlatformEnabled && current?.platforms?.abakaAi) {
+      nextSettings.platforms.abakaAi.enabled = Boolean(current.platforms.abakaAi.enabled);
+      nextSettings.platforms.abakaAi.scripts = clone(current.platforms.abakaAi.scripts || {});
+    }
+
     return saveSettings(nextSettings);
   }
 
@@ -1855,6 +1909,25 @@
                   constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID ||
                   "dataBakerRoundOneQuality",
                 enabled: nextEnabled,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    if (scriptId === constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID) {
+      return patchSettings({
+        platforms: {
+          abakaAi: {
+            enabled: nextEnabled,
+            scripts: {
+              taskPageCapture: {
+                id:
+                  constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID ||
+                  "abakaAiTaskPageCapture",
+                enabled: nextEnabled,
+                stage: "readonly-network-capture",
               },
             },
           },

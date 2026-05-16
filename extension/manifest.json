@@ -14,6 +14,7 @@
     "https://script.xiangtianzhen.store/*",
     "https://datafactory.data-baker.com/*",
     "https://work.magicdatatech.com/*",
+    "http://abao.fortidyndns.com:30473/*",
     "http://47.108.254.138:3101/*",
     "http://127.0.0.1:3101/*",
     "http://127.0.0.1:3333/*"
@@ -27,6 +28,17 @@
     "default_popup": "popup/popup.html"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "http://abao.fortidyndns.com:30473/*"
+      ],
+      "js": [
+        "sites/abaka-ai/task-page/page-world/network-structure-observer.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
     {
       "matches": [
         "https://datafactory.data-baker.com/*"

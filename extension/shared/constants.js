@@ -29,11 +29,13 @@
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const DATA_BAKER_PLATFORM_ID = "dataBaker";
   const MAGIC_DATA_PLATFORM_ID = "magicData";
+  const ABAKA_AI_PLATFORM_ID = "abakaAi";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
   const JUDGEMENT_PROJECT_ID = "judgement";
   const LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID = "lightwheelViewPanel";
   const DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID = "dataBakerRoundOneQuality";
   const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
+  const ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID = "abakaAiTaskPageCapture";
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
   const BACKEND_ENDPOINTS = {
@@ -193,6 +195,13 @@
     label: "Magic Data ANNOTATOR",
     host: "work.magicdatatech.com",
     matches: ["https://work.magicdatatech.com/*"],
+  };
+
+  const ABAKA_AI_PLATFORM = {
+    id: "abaka-ai",
+    label: "Abaka AI",
+    host: "abao.fortidyndns.com",
+    matches: ["http://abao.fortidyndns.com:30473/*"],
   };
 
   const PAGE_OPTIONS = [
@@ -648,6 +657,14 @@
       runtimeBridge: "magic-data-annotator-ai-review",
       description: "Magic Data 当前条 AI 质检、快捷键与模型配置。",
     },
+    abakaAi: {
+      id: ABAKA_AI_PLATFORM_ID,
+      label: "Abaka AI",
+      host: ABAKA_AI_PLATFORM.host,
+      matches: clone(ABAKA_AI_PLATFORM.matches),
+      runtimeBridge: "abaka-ai-task-page-capture",
+      description: "Abaka AI 任务页结构与 Network 只读采集平台。",
+    },
   };
 
   const SCRIPT_LIBRARY = {
@@ -717,6 +734,20 @@
       detailView: "magic-data-annotator-ai-review",
       host: MAGIC_DATA_PLATFORM.host,
       matchUrl: "https://work.magicdatatech.com/#/asrmark?taskItemId=...",
+    },
+    abakaAiTaskPageCapture: {
+      id: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
+      platformId: ABAKA_AI_PLATFORM_ID,
+      label: "Abaka AI Task 页面结构采集",
+      shortLabel: "Task 页面采集",
+      description: "用于 Abaka AI Task 页面 DOM/Network 结构只读采集与脱敏导出。",
+      note:
+        "当前只采集 DOM / Network 结构，不自动领取、不自动保存、不自动提交、不自动流转。",
+      capabilityScope: "readonly-page-network-capture",
+      statusLabel: "只读采集阶段",
+      detailView: "abaka-ai-task-page-capture",
+      host: ABAKA_AI_PLATFORM.host,
+      matchUrl: "http://abao.fortidyndns.com:30473/login",
     },
   };
 
@@ -991,6 +1022,19 @@
     };
   }
 
+  function createDefaultAbakaAiPlatformSettings() {
+    return {
+      enabled: true,
+      scripts: {
+        taskPageCapture: {
+          id: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
+          enabled: true,
+          stage: "readonly-network-capture",
+        },
+      },
+    };
+  }
+
   const DEFAULT_SETTINGS = {
     stage: STAGE_ID,
     scriptCenter: {
@@ -1023,6 +1067,7 @@
       alibabaLabelx: createDefaultPlatformSettings(),
       lightwheel: createDefaultLightwheelPlatformSettings(),
       dataBaker: createDefaultDataBakerPlatformSettings(),
+      abakaAi: createDefaultAbakaAiPlatformSettings(),
     },
     asr: clone(DEFAULT_ASR_CONFIG),
     debug: {
@@ -1053,6 +1098,7 @@
     LIGHTWHEEL_PLATFORM: LIGHTWHEEL_PLATFORM,
     DATA_BAKER_PLATFORM: DATA_BAKER_PLATFORM,
     MAGIC_DATA_PLATFORM: MAGIC_DATA_PLATFORM,
+    ABAKA_AI_PLATFORM: ABAKA_AI_PLATFORM,
     PLATFORM_LIBRARY: clone(PLATFORM_LIBRARY),
     MESSAGE_TYPES: MESSAGE_TYPES,
     PAGE_OPTIONS: PAGE_OPTIONS,
@@ -1071,8 +1117,10 @@
     LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID,
     DATA_BAKER_PLATFORM_ID: DATA_BAKER_PLATFORM_ID,
     MAGIC_DATA_PLATFORM_ID: MAGIC_DATA_PLATFORM_ID,
+    ABAKA_AI_PLATFORM_ID: ABAKA_AI_PLATFORM_ID,
     DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
     MAGIC_DATA_ANNOTATOR_SCRIPT_ID: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
+    ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
     DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
     DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,
     DATABAKER_AI_RECOMMEND_PATH: DATABAKER_AI_RECOMMEND_PATH,
@@ -1127,6 +1175,7 @@
     DEFAULT_PLATFORM_SETTINGS: createDefaultPlatformSettings(),
     DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: createDefaultLightwheelPlatformSettings(),
     DEFAULT_DATA_BAKER_PLATFORM_SETTINGS: createDefaultDataBakerPlatformSettings(),
+    DEFAULT_ABAKA_AI_PLATFORM_SETTINGS: createDefaultAbakaAiPlatformSettings(),
     DEFAULT_SETTINGS: clone(DEFAULT_SETTINGS),
     LEGACY_ROOT_DEBUG_KEY: LEGACY_ROOT_DEBUG_KEY,
     LEGACY_ROOT_CACHE_KEYS: Object.assign({}, LEGACY_ROOT_CACHE_KEYS),

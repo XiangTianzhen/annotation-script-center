@@ -1,5 +1,24 @@
 # 标注脚本中心修改日志
 
+## 2026-05-16（Abaka AI：新增 Task 页面结构只读采集壳）
+
+- 新增 Abaka AI 平台与脚本登记：
+  - 平台：`abakaAi`（host: `abao.fortidyndns.com`）
+  - 脚本：`abakaAiTaskPageCapture`
+  - 状态：只读采集阶段（仅 DOM/Network 结构采集，不做自动领取/保存/提交/流转）。
+- `extension/manifest.json` 新增：
+  - `host_permissions`: `http://abao.fortidyndns.com:30473/*`
+  - MAIN world content script：`sites/abaka-ai/task-page/page-world/network-structure-observer.js`
+- 新增 MAIN world 观察器：
+  - 同时被动 hook `fetch` 与 `XMLHttpRequest`
+  - 仅记录脱敏结构，不记录敏感原始值
+  - Console 导出入口：`window.__ASCAbakaAiCapture.snapshot()` / `download()`。
+- 文档同步：
+  - 新增 `extension/sites/abaka-ai/task-page/README.md`
+  - 新增 `platform-resources/abaka-ai/task-page/README.md`
+  - 更新 `docs/platforms/index.md`、`README.md`、`extension/README.md`、`platform-resources/README.md`。
+- 本轮不提升 `extension/manifest.json` 版本号，不发布，不生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-15（0.3.2 热修：快判 AI 规则按 0422 规范重写并补充错例 few-shot）
 
 - 保持 `extension/manifest.json` 版本 `0.3.2` 不变，本轮属于当前测试版本 AI 规则修复。

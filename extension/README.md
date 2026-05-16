@@ -44,6 +44,8 @@ sites/
     round-one-quality/
   magic-data/
     annotator/
+  abaka-ai/
+    task-page/
 ```
 
 - `alibaba-labelx/asr-judgement/`：Alibaba LabelX ASR 快判。
@@ -62,6 +64,7 @@ sites/
 - 统计上传能力默认强制启用；若脚本实现了定时上传能力，则定时上传也按脚本规则强制启用，不在脚本详情页提供关闭开关。
 - `data-baker/round-one-quality/`：标贝易采一检质检 AI 推荐文本（`roundOneCollect`）+ 任务组总表导出（`group/detail`）；导出会本地下载并自动上传到统一后端，后端可下载最新 CSV。
 - `magic-data/annotator/`：Magic Data `#/asrmark` 当前条 AI 质检助手；结果区固定挂载在“句子列表”下方，支持模型/思考开关/快捷键配置，保持人工确认与手动保存提交。
+- `abaka-ai/task-page/`：Abaka AI Task 页面结构采集（只读）；用于 Console 导出 DOM/Network 脱敏结构，不做自动领取、自动保存、自动提交、自动流转。
 - 后端地址配置统一入口：options 首页顶部“后端接口地址”（`server` / `local`）。各脚本详情页不再提供独立后端地址、上传地址或 AI 接口地址配置。
 - ASR 类脚本（快判、转写、标贝易采、Magic Data）统一复用隐藏的“ASR 语音 AI 设置”部件：默认隐藏，需在对应脚本详情页标题连续点击 10 次显示。
 - “ASR 语音 AI 设置”仅影响当前脚本，配置独立保存；不支持参数前端不显示、后端不发送。
