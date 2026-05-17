@@ -196,15 +196,21 @@
 
     function buildMetaText(display) {
       const usage = display.usage || {};
+      const stages = display.stages || {};
       const imageStats = Array.isArray(display.imageStats) ? display.imageStats : [];
       const lines = [];
       lines.push("目标: " + String(display.target || "-"));
       lines.push("requestId: " + String(display.requestId || "-"));
+      lines.push("analysisMode: " + String(display.analysisMode || "-"));
       lines.push("model: " + String(display.model || "-"));
-      lines.push("selectedModel: " + String(display.selectedModel || "-"));
+      lines.push("visionModel: " + String(display.visionModel || "-"));
+      lines.push("reasoningModel: " + String(display.reasoningModel || "-"));
+      lines.push("singleModel: " + String(display.singleModel || "-"));
       lines.push("enableThinking: " + String(display.enableThinking === true));
       lines.push("thinkingParamName: " + String(display.thinkingParamName || "enable_thinking"));
       lines.push("thinkingParamLocation: " + String(display.thinkingParamLocation || "root"));
+      lines.push("explicitDisableSent: " + String(display.explicitDisableSent !== false));
+      lines.push("thinkingFallbackUsed: " + String(display.thinkingFallbackUsed === true));
       lines.push("timeoutMs: " + String(display.timeoutMs || 0));
       lines.push("elapsedMs: " + String(display.elapsedMs || 0));
       lines.push(
@@ -217,6 +223,28 @@
       );
       lines.push("usageSource: " + String(usage.source || "unavailable"));
       lines.push("hasUsage: " + String(usage.hasUsage === true));
+      ["vision", "reasoning", "single"].forEach(function (stageKey) {
+        const stage = stages[stageKey];
+        if (!stage || typeof stage !== "object") {
+          return;
+        }
+        const stageUsage = stage.usage || {};
+        lines.push(
+          "stage." +
+            stageKey +
+            ": model=" +
+            String(stage.model || "-") +
+            ", elapsedMs=" +
+            String(stage.elapsedMs || 0) +
+            ", tokens=" +
+            String(stageUsage.totalTokens || 0) +
+            " (input=" +
+            String(stageUsage.inputTokens || 0) +
+            ", output=" +
+            String(stageUsage.outputTokens || 0) +
+            ")"
+        );
+      });
       lines.push("imageCount: " + String(imageStats.length));
       lines.push(
         "imageFields: " +
@@ -621,6 +649,7 @@
         const result = body.result || {};
         const thinkingDebug = body.thinking || {};
         const requestDebug = response.requestDebug || {};
+        const stagePayload = body.stages && typeof body.stages === "object" ? body.stages : {};
 
         const price =
           typeof pricing.estimateTask21Price === "function"
@@ -631,15 +660,30 @@
           target: target,
           requestId: body.requestId || "",
           model: body.model || "",
-          selectedModel:
-            String(body.selectedModel || "") ||
-            String(requestDebug.selectedModel || "") ||
-            String(body.model || ""),
+          analysisMode:
+            String(body.analysisMode || "") ||
+            String(requestDebug.analysisMode || "") ||
+            "two_stage",
+          visionModel:
+            String(body.visionModel || "") ||
+            String(requestDebug.visionModel || "") ||
+            String(stagePayload?.vision?.model || ""),
+          reasoningModel:
+            String(body.reasoningModel || "") ||
+            String(requestDebug.reasoningModel || "") ||
+            String(stagePayload?.reasoning?.model || ""),
+          singleModel:
+            String(body.singleModel || "") ||
+            String(requestDebug.singleModel || "") ||
+            String(stagePayload?.single?.model || ""),
           enableThinking:
             thinkingDebug.requested === true ||
             (thinkingDebug.requested !== false && requestDebug.enableThinking === true),
           thinkingParamName: String(thinkingDebug.paramName || "enable_thinking"),
           thinkingParamLocation: String(thinkingDebug.paramLocation || "root"),
+          explicitDisableSent:
+            thinkingDebug.explicitDisableSent === true || thinkingDebug.requested === false,
+          thinkingFallbackUsed: thinkingDebug.fallbackUsed === true,
           timeoutMs: Number(thinkingDebug.timeoutMs || requestDebug.timeoutMs || 0),
           elapsedMs: Number(body.elapsedMs || nowMs() - startedAt),
           usage: Object.assign(
@@ -655,6 +699,7 @@
               hasUsage: Boolean(body.usage && String(body.usage.source || "") === "provider"),
             }
           ),
+          stages: stagePayload,
           imageStats:
             Array.isArray(body.imageStats) && body.imageStats.length > 0
               ? body.imageStats

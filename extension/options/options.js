@@ -192,8 +192,26 @@
         { key: "aiAnalyzeOtherChanges", label: "AI 分析 other_changes" },
         { key: "aiAnalyzeOverall", label: "AI 整体分析" },
       ];
-  const abakaAiTask21ModelOptions = Array.isArray(constants.ABAKA_AI_TASK21_AI_MODEL_OPTIONS)
-    ? constants.ABAKA_AI_TASK21_AI_MODEL_OPTIONS
+  const abakaAiTask21AnalysisModes = Array.isArray(constants.ABAKA_AI_TASK21_AI_ANALYSIS_MODES)
+    ? constants.ABAKA_AI_TASK21_AI_ANALYSIS_MODES
+    : [
+        { value: "two_stage", label: "双模型方案（默认）" },
+        { value: "single_model", label: "单模型方案" },
+      ];
+  const abakaAiTask21VisionModelOptions = Array.isArray(
+    constants.ABAKA_AI_TASK21_VISION_MODEL_OPTIONS
+  )
+    ? constants.ABAKA_AI_TASK21_VISION_MODEL_OPTIONS
+    : [{ value: "qwen-vl-max-latest", label: "qwen-vl-max-latest", supportsVision: true, supportsThinking: "unknown" }];
+  const abakaAiTask21ReasoningModelOptions = Array.isArray(
+    constants.ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS
+  )
+    ? constants.ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS
+    : [{ value: "qwen3.5-plus", label: "qwen3.5-plus", supportsVision: true, supportsThinking: "unknown" }];
+  const abakaAiTask21SingleModelOptions = Array.isArray(
+    constants.ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS
+  )
+    ? constants.ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS
     : [{ value: "qwen-vl-max-latest", label: "qwen-vl-max-latest", supportsVision: true, supportsThinking: "unknown" }];
   const judgementItemsPerPageOptions = [
     { value: "1 条/页", label: "1 条/页" },
@@ -1118,8 +1136,9 @@
     return result;
   }
 
-  function normalizeAbakaAiDebugModel(value, fallback) {
-    const allowed = abakaAiTask21ModelOptions
+  function normalizeAbakaAiModelByOptions(value, fallback, options) {
+    const sourceOptions = Array.isArray(options) ? options : [];
+    const allowed = sourceOptions
       .map(function (item) {
         return String(item?.value || "").trim();
       })
@@ -1132,36 +1151,57 @@
     return model;
   }
 
+  function normalizeAbakaAiAnalysisMode(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "single_model") {
+      return "single_model";
+    }
+    if (text === "two_stage") {
+      return "two_stage";
+    }
+    return String(fallback || "two_stage").trim().toLowerCase() === "single_model"
+      ? "single_model"
+      : "two_stage";
+  }
+
+  function normalizeAbakaAiModel(value, fallback, options) {
+    return normalizeAbakaAiModelByOptions(value, fallback, options);
+  }
+
   function normalizeAbakaAiTimeout(value, fallback) {
     return clampNumber(value, fallback || 120000, 1000, 300000, 0);
   }
 
-  function renderAbakaAiModelOptions(selectedModel) {
-    const selectNode = getElement("abaka-ai-debug-model");
+  function renderAbakaAiSelectOptions(selectId, selectedValue, options, fallbackValue) {
+    const selectNode = getElement(selectId);
     if (!(selectNode instanceof HTMLSelectElement)) {
       return;
     }
-    const options = abakaAiTask21ModelOptions.slice();
-    if (options.length <= 0) {
-      options.push({ value: "qwen-vl-max-latest", label: "qwen-vl-max-latest" });
+    const renderedOptions = Array.isArray(options) ? options.slice() : [];
+    if (renderedOptions.length <= 0) {
+      renderedOptions.push({
+        value: String(fallbackValue || "qwen-vl-max-latest"),
+        label: String(fallbackValue || "qwen-vl-max-latest"),
+      });
     }
-    const normalizedSelected = normalizeAbakaAiDebugModel(
-      selectedModel,
-      options[0]?.value || "qwen-vl-max-latest"
+    const normalizedSelected = normalizeAbakaAiModelByOptions(
+      selectedValue,
+      fallbackValue || renderedOptions[0]?.value || "qwen-vl-max-latest",
+      renderedOptions
     );
     if (
       normalizedSelected &&
-      !options.find(function (item) {
+      !renderedOptions.find(function (item) {
         return String(item?.value || "").trim() === normalizedSelected;
       })
     ) {
-      options.push({
+      renderedOptions.push({
         value: normalizedSelected,
         label: normalizedSelected + "（已保存，待官方核对）",
       });
     }
 
-    selectNode.innerHTML = options
+    selectNode.innerHTML = renderedOptions
       .map(function (item) {
         const value = String(item?.value || "").trim();
         const label = String(item?.label || value || "").trim();
@@ -1346,7 +1386,10 @@
         enabled: true,
         stage: "task21-inline-ai-analysis-debug",
         autoSelectSpecifyOnSameFontTrue: true,
-        aiDebugModel: "qwen-vl-max-latest",
+        aiAnalysisMode: "two_stage",
+        aiVisionModel: "qwen-vl-max-latest",
+        aiReasoningModel: "qwen3.5-plus",
+        aiSingleModel: "qwen-vl-max-latest",
         aiEnableThinking: false,
         aiRequestTimeoutMs: 120000,
         shortcuts: createAbakaAiDefaultShortcutMap(),
@@ -1359,7 +1402,27 @@
     merged.enabled = merged.enabled !== false;
     merged.stage = String(merged.stage || "task21-inline-ai-analysis-debug");
     merged.autoSelectSpecifyOnSameFontTrue = merged.autoSelectSpecifyOnSameFontTrue !== false;
-    merged.aiDebugModel = normalizeAbakaAiDebugModel(merged.aiDebugModel, "qwen-vl-max-latest");
+    const legacyDebugModel = normalizeAbakaAiModel(
+      merged.aiDebugModel,
+      "qwen-vl-max-latest",
+      abakaAiTask21SingleModelOptions
+    );
+    merged.aiAnalysisMode = normalizeAbakaAiAnalysisMode(merged.aiAnalysisMode, "two_stage");
+    merged.aiVisionModel = normalizeAbakaAiModel(
+      merged.aiVisionModel,
+      "qwen-vl-max-latest",
+      abakaAiTask21VisionModelOptions
+    );
+    merged.aiReasoningModel = normalizeAbakaAiModel(
+      merged.aiReasoningModel,
+      "qwen3.5-plus",
+      abakaAiTask21ReasoningModelOptions
+    );
+    merged.aiSingleModel = normalizeAbakaAiModel(
+      merged.aiSingleModel || legacyDebugModel,
+      "qwen-vl-max-latest",
+      abakaAiTask21SingleModelOptions
+    );
     merged.aiEnableThinking = merged.aiEnableThinking === true;
     merged.aiRequestTimeoutMs = normalizeAbakaAiTimeout(merged.aiRequestTimeoutMs, 120000);
     merged.shortcuts = normalizeAbakaAiShortcuts(
@@ -2914,7 +2977,30 @@
     if (autoSelectNode instanceof HTMLInputElement) {
       autoSelectNode.checked = config.autoSelectSpecifyOnSameFontTrue !== false;
     }
-    renderAbakaAiModelOptions(config.aiDebugModel);
+    renderAbakaAiSelectOptions(
+      "abaka-ai-analysis-mode",
+      config.aiAnalysisMode,
+      abakaAiTask21AnalysisModes,
+      "two_stage"
+    );
+    renderAbakaAiSelectOptions(
+      "abaka-ai-vision-model",
+      config.aiVisionModel,
+      abakaAiTask21VisionModelOptions,
+      "qwen-vl-max-latest"
+    );
+    renderAbakaAiSelectOptions(
+      "abaka-ai-reasoning-model",
+      config.aiReasoningModel,
+      abakaAiTask21ReasoningModelOptions,
+      "qwen3.5-plus"
+    );
+    renderAbakaAiSelectOptions(
+      "abaka-ai-single-model",
+      config.aiSingleModel,
+      abakaAiTask21SingleModelOptions,
+      "qwen-vl-max-latest"
+    );
     const enableThinkingNode = getElement("abaka-ai-enable-thinking");
     if (enableThinkingNode instanceof HTMLInputElement) {
       enableThinkingNode.checked = config.aiEnableThinking === true;
@@ -2949,11 +3035,50 @@
       autoSelectNode instanceof HTMLInputElement
         ? autoSelectNode.checked === true
         : currentConfig.autoSelectSpecifyOnSameFontTrue !== false;
-    const aiDebugModelNode = getElement("abaka-ai-debug-model");
-    const aiDebugModel =
-      aiDebugModelNode instanceof HTMLSelectElement
-        ? normalizeAbakaAiDebugModel(aiDebugModelNode.value, currentConfig.aiDebugModel || "qwen-vl-max-latest")
-        : normalizeAbakaAiDebugModel(currentConfig.aiDebugModel, "qwen-vl-max-latest");
+    const aiAnalysisModeNode = getElement("abaka-ai-analysis-mode");
+    const aiAnalysisMode =
+      aiAnalysisModeNode instanceof HTMLSelectElement
+        ? normalizeAbakaAiAnalysisMode(aiAnalysisModeNode.value, currentConfig.aiAnalysisMode || "two_stage")
+        : normalizeAbakaAiAnalysisMode(currentConfig.aiAnalysisMode, "two_stage");
+    const aiVisionModelNode = getElement("abaka-ai-vision-model");
+    const aiVisionModel =
+      aiVisionModelNode instanceof HTMLSelectElement
+        ? normalizeAbakaAiModel(
+            aiVisionModelNode.value,
+            currentConfig.aiVisionModel || "qwen-vl-max-latest",
+            abakaAiTask21VisionModelOptions
+          )
+        : normalizeAbakaAiModel(
+            currentConfig.aiVisionModel,
+            "qwen-vl-max-latest",
+            abakaAiTask21VisionModelOptions
+          );
+    const aiReasoningModelNode = getElement("abaka-ai-reasoning-model");
+    const aiReasoningModel =
+      aiReasoningModelNode instanceof HTMLSelectElement
+        ? normalizeAbakaAiModel(
+            aiReasoningModelNode.value,
+            currentConfig.aiReasoningModel || "qwen3.5-plus",
+            abakaAiTask21ReasoningModelOptions
+          )
+        : normalizeAbakaAiModel(
+            currentConfig.aiReasoningModel,
+            "qwen3.5-plus",
+            abakaAiTask21ReasoningModelOptions
+          );
+    const aiSingleModelNode = getElement("abaka-ai-single-model");
+    const aiSingleModel =
+      aiSingleModelNode instanceof HTMLSelectElement
+        ? normalizeAbakaAiModel(
+            aiSingleModelNode.value,
+            currentConfig.aiSingleModel || "qwen-vl-max-latest",
+            abakaAiTask21SingleModelOptions
+          )
+        : normalizeAbakaAiModel(
+            currentConfig.aiSingleModel,
+            "qwen-vl-max-latest",
+            abakaAiTask21SingleModelOptions
+          );
     const aiEnableThinkingNode = getElement("abaka-ai-enable-thinking");
     const aiEnableThinking =
       aiEnableThinkingNode instanceof HTMLInputElement
@@ -2976,7 +3101,10 @@
                 enabled: currentConfig.enabled !== false,
                 stage: "task21-inline-ai-analysis-debug",
                 autoSelectSpecifyOnSameFontTrue: autoSelectSpecifyOnSameFontTrue,
-                aiDebugModel: aiDebugModel,
+                aiAnalysisMode: aiAnalysisMode,
+                aiVisionModel: aiVisionModel,
+                aiReasoningModel: aiReasoningModel,
+                aiSingleModel: aiSingleModel,
                 aiEnableThinking: aiEnableThinking,
                 aiRequestTimeoutMs: aiRequestTimeoutMs,
                 shortcuts: shortcuts,

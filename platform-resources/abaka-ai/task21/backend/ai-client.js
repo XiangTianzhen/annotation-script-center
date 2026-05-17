@@ -1,10 +1,12 @@
 "use strict";
 
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const DEFAULT_MODEL = "qwen-vl-max-latest";
+const DEFAULT_ANALYSIS_MODE = "two_stage";
+const DEFAULT_VISION_MODEL = "qwen-vl-max-latest";
+const DEFAULT_REASONING_MODEL = "qwen3.5-plus";
+const DEFAULT_SINGLE_MODEL = "qwen-vl-max-latest";
 const THINKING_PARAM_NAME = "enable_thinking";
 const THINKING_PARAM_LOCATION = "root";
-const DEFAULT_ALLOWED_MODELS = ["qwen-vl-max-latest"];
 
 function trimSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -18,14 +20,6 @@ function parseBooleanEnv(name, fallback) {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
-function parseTimeoutMs() {
-  const value = Number(process.env.ABAKA_TASK21_AI_TIMEOUT_MS || 120000);
-  if (!Number.isFinite(value)) {
-    return 120000;
-  }
-  return Math.max(1000, Math.min(300000, value));
-}
-
 function sanitizeModelName(value, fallback) {
   const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
   if (!text) {
@@ -34,33 +28,91 @@ function sanitizeModelName(value, fallback) {
   return text.slice(0, 80);
 }
 
-function parseAllowedModels(value) {
+function parseTimeoutMs(value, fallback) {
+  const number = Number(value);
+  const base = Number.isFinite(number) ? number : Number(fallback);
+  const safe = Number.isFinite(base) ? base : 120000;
+  return Math.max(1000, Math.min(300000, Math.floor(safe)));
+}
+
+function parseAllowedModels(value, fallbackList) {
   const source = String(value || "").trim();
+  const fallback = Array.isArray(fallbackList) ? fallbackList : [];
   if (!source) {
-    return DEFAULT_ALLOWED_MODELS.slice();
+    return fallback.slice();
   }
-  const result = source
+  const parsed = source
     .split(/[,\n]/)
     .map(function (item) {
       return sanitizeModelName(item, "");
     })
     .filter(Boolean);
-  return result.length > 0 ? result : DEFAULT_ALLOWED_MODELS.slice();
+  return parsed.length > 0 ? parsed : fallback.slice();
+}
+
+function normalizeAnalysisMode(value, fallback) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "single_model") {
+    return "single_model";
+  }
+  if (text === "two_stage") {
+    return "two_stage";
+  }
+  return String(fallback || DEFAULT_ANALYSIS_MODE).trim().toLowerCase() === "single_model"
+    ? "single_model"
+    : "two_stage";
 }
 
 function getClientConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
-  const model = sanitizeModelName(process.env.ABAKA_TASK21_AI_MODEL, DEFAULT_MODEL) || DEFAULT_MODEL;
+  const legacyModel = sanitizeModelName(process.env.ABAKA_TASK21_AI_MODEL, DEFAULT_SINGLE_MODEL);
+  const singleModel = sanitizeModelName(
+    process.env.ABAKA_TASK21_AI_SINGLE_MODEL,
+    legacyModel || DEFAULT_SINGLE_MODEL
+  );
+  const visionModel = sanitizeModelName(
+    process.env.ABAKA_TASK21_AI_VISION_MODEL,
+    DEFAULT_VISION_MODEL
+  );
+  const reasoningModel = sanitizeModelName(
+    process.env.ABAKA_TASK21_AI_REASONING_MODEL,
+    DEFAULT_REASONING_MODEL
+  );
+  const allowedVisionModels = parseAllowedModels(
+    process.env.ABAKA_TASK21_AI_ALLOWED_VISION_MODELS,
+    [visionModel || DEFAULT_VISION_MODEL]
+  );
+  const allowedReasoningModels = parseAllowedModels(
+    process.env.ABAKA_TASK21_AI_ALLOWED_REASONING_MODELS,
+    [reasoningModel || DEFAULT_REASONING_MODEL]
+  );
+  const allowedSingleModels = parseAllowedModels(
+    process.env.ABAKA_TASK21_AI_ALLOWED_SINGLE_MODELS || process.env.ABAKA_TASK21_AI_ALLOWED_MODELS,
+    [singleModel || DEFAULT_SINGLE_MODEL]
+  );
+
   return {
     apiKey,
-    baseUrl: trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL),
-    model,
-    timeoutMs: parseTimeoutMs(),
-    mockEnabled: parseBooleanEnv("ABAKA_TASK21_AI_MOCK", false),
-    defaultEnableThinking: parseBooleanEnv("ABAKA_TASK21_AI_ENABLE_THINKING", false),
-    allowClientModelOverride: parseBooleanEnv("ABAKA_TASK21_AI_ALLOW_CLIENT_MODEL_OVERRIDE", false),
-    allowedModels: parseAllowedModels(process.env.ABAKA_TASK21_AI_ALLOWED_MODELS || ""),
     hasApiKey: Boolean(apiKey),
+    baseUrl: trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL),
+    mockEnabled: parseBooleanEnv("ABAKA_TASK21_AI_MOCK", false),
+    analysisMode: normalizeAnalysisMode(
+      process.env.ABAKA_TASK21_AI_ANALYSIS_MODE,
+      DEFAULT_ANALYSIS_MODE
+    ),
+    visionModel: visionModel || DEFAULT_VISION_MODEL,
+    reasoningModel: reasoningModel || DEFAULT_REASONING_MODEL,
+    singleModel: singleModel || DEFAULT_SINGLE_MODEL,
+    timeoutMs: parseTimeoutMs(process.env.ABAKA_TASK21_AI_TIMEOUT_MS, 120000),
+    allowClientModelOverride: parseBooleanEnv("ABAKA_TASK21_AI_ALLOW_CLIENT_MODEL_OVERRIDE", false),
+    allowThinkingParamFallback: parseBooleanEnv(
+      "ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK",
+      false
+    ),
+    defaultEnableThinking: parseBooleanEnv("ABAKA_TASK21_AI_ENABLE_THINKING", false),
+    allowedVisionModels,
+    allowedReasoningModels,
+    allowedSingleModels,
   };
 }
 
@@ -80,7 +132,7 @@ function sanitizeProviderErrorSummary(text) {
     )
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 220);
+    .slice(0, 260);
 }
 
 function extractChoiceText(payload) {
@@ -127,13 +179,178 @@ function buildImageContent(images) {
   return result;
 }
 
-function buildMockResult(target) {
+function isEnableThinkingUnsupportedError(error) {
+  if (!error || error.code !== "provider-http-error") {
+    return false;
+  }
+  const summary = String(error.summary || error.message || "").toLowerCase();
+  return (
+    summary.indexOf("enable_thinking") >= 0 ||
+    (summary.indexOf("unsupported") >= 0 && summary.indexOf("parameter") >= 0) ||
+    (summary.indexOf("invalid") >= 0 && summary.indexOf("parameter") >= 0)
+  );
+}
+
+function safeParseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    return null;
+  }
+}
+
+async function requestChatCompletion(requestBody, options) {
+  const config = getClientConfig();
+  if (!config.hasApiKey) {
+    const missingApiKeyError = new Error("missing-api-key");
+    missingApiKeyError.code = "missing-api-key";
+    missingApiKeyError.statusCode = 503;
+    throw missingApiKeyError;
+  }
+  if (typeof fetch !== "function") {
+    throw new Error("当前 Node 运行时不支持 fetch。");
+  }
+
+  const timeoutMs = parseTimeoutMs(options?.timeoutMs, config.timeoutMs);
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = controller
+    ? setTimeout(function () {
+        controller.abort();
+      }, timeoutMs)
+    : null;
+
+  try {
+    const response = await fetch(config.baseUrl + "/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + config.apiKey,
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller ? controller.signal : undefined,
+    });
+    const rawText = await response.text();
+
+    if (!response.ok) {
+      const providerError = new Error("DashScope 请求失败（HTTP " + String(response.status) + "）。");
+      providerError.code = "provider-http-error";
+      providerError.statusCode = response.status;
+      providerError.summary = sanitizeProviderErrorSummary(rawText);
+      throw providerError;
+    }
+
+    const parsed = safeParseJson(rawText || "{}");
+    if (!parsed) {
+      const invalidJsonError = new Error("provider-invalid-json");
+      invalidJsonError.code = "provider-invalid-json";
+      throw invalidJsonError;
+    }
+
+    return {
+      model: String(parsed.model || requestBody.model || ""),
+      rawText: extractChoiceText(parsed),
+      usage: parsed.usage || {},
+      rawResponse: parsed,
+    };
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      const timeoutError = new Error("DashScope 请求超时。", { cause: error });
+      timeoutError.code = "timeout";
+      timeoutError.statusCode = 504;
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+async function requestChatCompletionWithThinking(requestBody, options) {
+  const config = getClientConfig();
+  const enableThinking = options?.enableThinking === true;
+  const timeoutMs = parseTimeoutMs(options?.timeoutMs, config.timeoutMs);
+  const requestWithThinking = Object.assign({}, requestBody);
+  requestWithThinking[THINKING_PARAM_NAME] = enableThinking;
+
+  try {
+    const response = await requestChatCompletion(requestWithThinking, {
+      timeoutMs,
+    });
+    return Object.assign({}, response, {
+      thinking: {
+        enableThinking,
+        explicitDisableSent: enableThinking !== true,
+        paramName: THINKING_PARAM_NAME,
+        paramLocation: THINKING_PARAM_LOCATION,
+        fallbackUsed: false,
+      },
+    });
+  } catch (error) {
+    if (!isEnableThinkingUnsupportedError(error)) {
+      throw error;
+    }
+    if (config.allowThinkingParamFallback !== true) {
+      const unsupportedError = new Error(
+        "模型或接口不支持 enable_thinking 参数；默认不会自动移除。可设置 ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK=true 允许回退。"
+      );
+      unsupportedError.code = "thinking-param-unsupported";
+      unsupportedError.statusCode = error.statusCode || 400;
+      unsupportedError.summary = sanitizeProviderErrorSummary(error.summary || error.message);
+      throw unsupportedError;
+    }
+    const requestWithoutThinking = Object.assign({}, requestBody);
+    delete requestWithoutThinking[THINKING_PARAM_NAME];
+    const fallbackResponse = await requestChatCompletion(requestWithoutThinking, {
+      timeoutMs,
+    });
+    return Object.assign({}, fallbackResponse, {
+      thinking: {
+        enableThinking,
+        explicitDisableSent: enableThinking !== true,
+        paramName: THINKING_PARAM_NAME,
+        paramLocation: THINKING_PARAM_LOCATION,
+        fallbackUsed: true,
+      },
+    });
+  }
+}
+
+function createProviderUsage(usage) {
+  const source = usage && typeof usage === "object" ? usage : {};
+  const inputTokens = Number(source.prompt_tokens ?? source.inputTokens ?? 0);
+  const outputTokens = Number(source.completion_tokens ?? source.outputTokens ?? 0);
+  const totalTokens = Number(source.total_tokens ?? source.totalTokens ?? inputTokens + outputTokens);
+  return {
+    inputTokens: Number.isFinite(inputTokens) ? Math.max(0, Math.floor(inputTokens)) : 0,
+    outputTokens: Number.isFinite(outputTokens) ? Math.max(0, Math.floor(outputTokens)) : 0,
+    totalTokens: Number.isFinite(totalTokens) ? Math.max(0, Math.floor(totalTokens)) : 0,
+    source: "provider",
+  };
+}
+
+function sumUsageBlocks(left, right) {
+  const a = createProviderUsage(left);
+  const b = createProviderUsage(right);
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    totalTokens: a.totalTokens + b.totalTokens,
+    source: "provider",
+  };
+}
+
+function buildMockFinalResult(target) {
   const normalizedTarget = String(target || "overall");
   return {
     target: normalizedTarget,
     same_font: {
       applicable: true,
-      value: normalizedTarget === "image_b_texts_removed" || normalizedTarget === "other_changes" ? "not_applicable" : "true",
+      value:
+        normalizedTarget === "image_b_texts_removed" || normalizedTarget === "other_changes"
+          ? "not_applicable"
+          : "true",
       confidence: 0.62,
       reason_cn: "mock 模式返回：用于调试面板渲染。",
       evidence: ["mock evidence"],
@@ -165,127 +382,23 @@ function buildMockResult(target) {
   };
 }
 
-async function requestChatCompletion(requestBody, options) {
-  const config = getClientConfig();
-  if (!config.hasApiKey) {
-    const missingApiKeyError = new Error("missing-api-key");
-    missingApiKeyError.code = "missing-api-key";
-    missingApiKeyError.statusCode = 503;
-    throw missingApiKeyError;
-  }
-  if (typeof fetch !== "function") {
-    throw new Error("当前 Node 运行时不支持 fetch。");
-  }
-
-  const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs);
-  const controller = typeof AbortController === "function" ? new AbortController() : null;
-  const timer = controller
-    ? setTimeout(function () {
-        controller.abort();
-      }, timeoutMs)
-    : null;
-
-  try {
-    const response = await fetch(config.baseUrl + "/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + config.apiKey,
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller ? controller.signal : undefined,
-    });
-    const rawText = await response.text();
-
-    if (!response.ok) {
-      const providerError = new Error("DashScope 视觉分析请求失败（HTTP " + String(response.status) + "）。");
-      providerError.code = "provider-http-error";
-      providerError.statusCode = response.status;
-      providerError.summary = sanitizeProviderErrorSummary(rawText);
-      throw providerError;
-    }
-
-    let parsed = null;
-    try {
-      parsed = JSON.parse(rawText || "{}");
-    } catch (error) {
-      parsed = null;
-    }
-    if (!parsed) {
-      const invalidJsonError = new Error("provider-invalid-json");
-      invalidJsonError.code = "provider-invalid-json";
-      throw invalidJsonError;
-    }
-
-    return {
-      model: String(parsed.model || requestBody.model || ""),
-      rawText: extractChoiceText(parsed),
-      usage: parsed.usage || {},
-      rawResponse: parsed,
-    };
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      const timeoutError = new Error("DashScope 请求超时。", { cause: error });
-      timeoutError.code = "timeout";
-      timeoutError.statusCode = 504;
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    if (timer) {
-      clearTimeout(timer);
-    }
-  }
+function buildMockVisualObservations(target) {
+  return {
+    target: String(target || "overall"),
+    visual_observations: {
+      image_a_text_regions: ["mock:image_a_region_1"],
+      image_b_text_regions: ["mock:image_b_region_1"],
+      font_evidence: ["mock:font-stroke"],
+      font_similarity_observations: ["mock:font-style-similar"],
+      deleted_text_candidates: [],
+      other_visual_change_candidates: [],
+      uncertainties: [],
+    },
+  };
 }
 
-async function analyzeTask21(input, prompts, options) {
-  const payload = input && typeof input === "object" ? input : {};
-  const promptConfig = prompts && typeof prompts === "object" ? prompts : {};
-  const runtimeOptions = options && typeof options === "object" ? options : {};
-  const config = getClientConfig();
-  const requestModel = sanitizeModelName(runtimeOptions.modelOverride, "");
-  const allowClientModelOverride =
-    runtimeOptions.allowClientModelOverride === true ||
-    (runtimeOptions.allowClientModelOverride !== false && config.allowClientModelOverride === true);
-  const allowedModels = Array.isArray(runtimeOptions.allowedModels)
-    ? runtimeOptions.allowedModels
-        .map(function (item) {
-          return sanitizeModelName(item, "");
-        })
-        .filter(Boolean)
-    : config.allowedModels;
-  const canUseRequestModel =
-    allowClientModelOverride &&
-    requestModel &&
-    Array.isArray(allowedModels) &&
-    allowedModels.indexOf(requestModel) >= 0;
-  const model = canUseRequestModel ? requestModel : config.model;
-  const enableThinking = runtimeOptions.enableThinking === true;
-
-  if (config.mockEnabled) {
-    return {
-      mock: true,
-      model,
-      rawText: JSON.stringify(buildMockResult(payload.target), null, 2),
-      usage: {
-        inputTokens: 420,
-        outputTokens: 180,
-        totalTokens: 600,
-        source: "provider",
-      },
-      rawResponse: {
-        mock: true,
-      },
-      thinking: {
-        requested: enableThinking,
-        paramName: THINKING_PARAM_NAME,
-        paramLocation: THINKING_PARAM_LOCATION,
-      },
-    };
-  }
-
-  const imageContent = buildImageContent(payload.images);
-  const requestBody = {
+function createVisionRequestBody(model, systemPrompt, userPrompt, images) {
+  return {
     model,
     response_format: {
       type: "json_object",
@@ -293,14 +406,14 @@ async function analyzeTask21(input, prompts, options) {
     messages: [
       {
         role: "system",
-        content: String(promptConfig.systemPrompt || ""),
+        content: String(systemPrompt || ""),
       },
       {
         role: "user",
-        content: imageContent.concat([
+        content: buildImageContent(images).concat([
           {
             type: "text",
-            text: String(promptConfig.userPrompt || ""),
+            text: String(userPrompt || ""),
           },
         ]),
       },
@@ -309,25 +422,316 @@ async function analyzeTask21(input, prompts, options) {
     top_p: 0.1,
     max_tokens: 1800,
   };
-  requestBody[THINKING_PARAM_NAME] = enableThinking;
+}
 
-  const completion = await requestChatCompletion(requestBody, {
-    timeoutMs: runtimeOptions.timeoutMs,
-  });
-  completion.thinking = {
-    requested: enableThinking,
-    paramName: THINKING_PARAM_NAME,
-    paramLocation: THINKING_PARAM_LOCATION,
+function createTextRequestBody(model, systemPrompt, userPrompt) {
+  return {
+    model,
+    response_format: {
+      type: "json_object",
+    },
+    messages: [
+      {
+        role: "system",
+        content: String(systemPrompt || ""),
+      },
+      {
+        role: "user",
+        content: String(userPrompt || ""),
+      },
+    ],
+    temperature: 0,
+    top_p: 0.1,
+    max_tokens: 1800,
   };
-  return completion;
+}
+
+function resolveModelOverride(requestedModel, allowClientOverride, allowedModels, defaultModel) {
+  const model = sanitizeModelName(requestedModel, "");
+  if (!allowClientOverride || !model) {
+    return {
+      selected: defaultModel,
+      override: "",
+    };
+  }
+  const allowed = Array.isArray(allowedModels) ? allowedModels : [];
+  if (allowed.indexOf(model) >= 0) {
+    return {
+      selected: model,
+      override: model,
+    };
+  }
+  return {
+    selected: defaultModel,
+    override: "",
+  };
+}
+
+async function analyzeTask21SingleModel(input, prompts, options, config) {
+  const payload = input && typeof input === "object" ? input : {};
+  const promptConfig = prompts && typeof prompts === "object" ? prompts : {};
+  const runtimeOptions = options && typeof options === "object" ? options : {};
+  const singleModelResolved = resolveModelOverride(
+    runtimeOptions.singleModel,
+    runtimeOptions.allowClientModelOverride === true,
+    runtimeOptions.allowedSingleModels,
+    runtimeOptions.defaultSingleModel || config.singleModel
+  );
+  const model = singleModelResolved.selected || config.singleModel || DEFAULT_SINGLE_MODEL;
+  const enableThinking = runtimeOptions.enableThinking === true;
+  const timeoutMs = parseTimeoutMs(runtimeOptions.timeoutMs, config.timeoutMs);
+
+  if (config.mockEnabled) {
+    const mockUsage = {
+      inputTokens: 420,
+      outputTokens: 180,
+      totalTokens: 600,
+      source: "provider",
+    };
+    return {
+      analysisMode: "single_model",
+      model,
+      rawText: JSON.stringify(buildMockFinalResult(payload.target), null, 2),
+      usage: mockUsage,
+      stages: {
+        single: {
+          model,
+          elapsedMs: 120,
+          usage: mockUsage,
+        },
+      },
+      thinking: {
+        enableThinking,
+        explicitDisableSent: enableThinking !== true,
+        paramName: THINKING_PARAM_NAME,
+        paramLocation: THINKING_PARAM_LOCATION,
+        fallbackUsed: false,
+      },
+      mock: true,
+      selectedModels: {
+        singleModel: model,
+      },
+    };
+  }
+
+  const requestBody = createVisionRequestBody(
+    model,
+    promptConfig.singleSystemPrompt,
+    promptConfig.singleUserPrompt,
+    payload.images
+  );
+  const startedAt = Date.now();
+  const completion = await requestChatCompletionWithThinking(requestBody, {
+    enableThinking,
+    timeoutMs,
+  });
+  const usage = createProviderUsage(completion.usage);
+  return {
+    analysisMode: "single_model",
+    model: completion.model || model,
+    rawText: completion.rawText || "",
+    usage,
+    stages: {
+      single: {
+        model: completion.model || model,
+        elapsedMs: Date.now() - startedAt,
+        usage,
+      },
+    },
+    thinking: completion.thinking,
+    mock: false,
+    selectedModels: {
+      singleModel: model,
+    },
+  };
+}
+
+async function analyzeTask21TwoStage(input, prompts, options, config) {
+  const payload = input && typeof input === "object" ? input : {};
+  const promptConfig = prompts && typeof prompts === "object" ? prompts : {};
+  const runtimeOptions = options && typeof options === "object" ? options : {};
+  const visionModelResolved = resolveModelOverride(
+    runtimeOptions.visionModel,
+    runtimeOptions.allowClientModelOverride === true,
+    runtimeOptions.allowedVisionModels,
+    runtimeOptions.defaultVisionModel || config.visionModel
+  );
+  const reasoningModelResolved = resolveModelOverride(
+    runtimeOptions.reasoningModel,
+    runtimeOptions.allowClientModelOverride === true,
+    runtimeOptions.allowedReasoningModels,
+    runtimeOptions.defaultReasoningModel || config.reasoningModel
+  );
+  const visionModel = visionModelResolved.selected || config.visionModel || DEFAULT_VISION_MODEL;
+  const reasoningModel =
+    reasoningModelResolved.selected || config.reasoningModel || DEFAULT_REASONING_MODEL;
+  const enableThinking = runtimeOptions.enableThinking === true;
+  const timeoutMs = parseTimeoutMs(runtimeOptions.timeoutMs, config.timeoutMs);
+
+  if (config.mockEnabled) {
+    const visual = buildMockVisualObservations(payload.target);
+    const finalResult = buildMockFinalResult(payload.target);
+    const visionUsage = {
+      inputTokens: 300,
+      outputTokens: 110,
+      totalTokens: 410,
+      source: "provider",
+    };
+    const reasoningUsage = {
+      inputTokens: 220,
+      outputTokens: 170,
+      totalTokens: 390,
+      source: "provider",
+    };
+    return {
+      analysisMode: "two_stage",
+      model: reasoningModel,
+      rawText: JSON.stringify(finalResult, null, 2),
+      usage: sumUsageBlocks(visionUsage, reasoningUsage),
+      stages: {
+        vision: {
+          model: visionModel,
+          elapsedMs: 110,
+          usage: visionUsage,
+        },
+        reasoning: {
+          model: reasoningModel,
+          elapsedMs: 130,
+          usage: reasoningUsage,
+        },
+      },
+      thinking: {
+        enableThinking,
+        explicitDisableSent: enableThinking !== true,
+        paramName: THINKING_PARAM_NAME,
+        paramLocation: THINKING_PARAM_LOCATION,
+        fallbackUsed: false,
+      },
+      visualObservations: visual.visual_observations,
+      mock: true,
+      selectedModels: {
+        visionModel,
+        reasoningModel,
+      },
+    };
+  }
+
+  const visionRequestBody = createVisionRequestBody(
+    visionModel,
+    promptConfig.visionSystemPrompt,
+    promptConfig.visionUserPrompt,
+    payload.images
+  );
+  const visionStartedAt = Date.now();
+  const visionCompletion = await requestChatCompletionWithThinking(visionRequestBody, {
+    enableThinking,
+    timeoutMs,
+  });
+  const visionElapsedMs = Date.now() - visionStartedAt;
+  const visionUsage = createProviderUsage(visionCompletion.usage);
+  const visionParsed = safeParseJson(String(visionCompletion.rawText || "").trim());
+  if (!visionParsed || typeof visionParsed !== "object") {
+    const parseError = new Error("视觉阶段返回非 JSON，无法解析 visual_observations。");
+    parseError.code = "vision-invalid-json";
+    parseError.statusCode = 502;
+    throw parseError;
+  }
+  const visualObservations = visionParsed.visual_observations || visionParsed;
+
+  const reasoningRequestBody = createTextRequestBody(
+    reasoningModel,
+    promptConfig.reasoningSystemPrompt,
+    promptConfig.buildReasoningUserPrompt(visualObservations)
+  );
+  const reasoningStartedAt = Date.now();
+  const reasoningCompletion = await requestChatCompletionWithThinking(reasoningRequestBody, {
+    enableThinking,
+    timeoutMs,
+  });
+  const reasoningElapsedMs = Date.now() - reasoningStartedAt;
+  const reasoningUsage = createProviderUsage(reasoningCompletion.usage);
+
+  return {
+    analysisMode: "two_stage",
+    model: reasoningCompletion.model || reasoningModel,
+    rawText: reasoningCompletion.rawText || "",
+    usage: sumUsageBlocks(visionUsage, reasoningUsage),
+    stages: {
+      vision: {
+        model: visionCompletion.model || visionModel,
+        elapsedMs: visionElapsedMs,
+        usage: visionUsage,
+      },
+      reasoning: {
+        model: reasoningCompletion.model || reasoningModel,
+        elapsedMs: reasoningElapsedMs,
+        usage: reasoningUsage,
+      },
+    },
+    thinking: {
+      enableThinking,
+      explicitDisableSent: enableThinking !== true,
+      paramName: THINKING_PARAM_NAME,
+      paramLocation: THINKING_PARAM_LOCATION,
+      fallbackUsed:
+        visionCompletion?.thinking?.fallbackUsed === true ||
+        reasoningCompletion?.thinking?.fallbackUsed === true,
+    },
+    visualObservations,
+    mock: false,
+    selectedModels: {
+      visionModel,
+      reasoningModel,
+    },
+  };
+}
+
+async function analyzeTask21(input, prompts, options) {
+  const runtimeOptions = options && typeof options === "object" ? options : {};
+  const config = getClientConfig();
+  const analysisMode = normalizeAnalysisMode(runtimeOptions.analysisMode, config.analysisMode);
+  const requestOptions = {
+    analysisMode,
+    allowClientModelOverride: runtimeOptions.allowClientModelOverride === true,
+    allowedVisionModels: Array.isArray(runtimeOptions.allowedVisionModels)
+      ? runtimeOptions.allowedVisionModels
+      : config.allowedVisionModels,
+    allowedReasoningModels: Array.isArray(runtimeOptions.allowedReasoningModels)
+      ? runtimeOptions.allowedReasoningModels
+      : config.allowedReasoningModels,
+    allowedSingleModels: Array.isArray(runtimeOptions.allowedSingleModels)
+      ? runtimeOptions.allowedSingleModels
+      : config.allowedSingleModels,
+    visionModel: sanitizeModelName(runtimeOptions.visionModel, ""),
+    reasoningModel: sanitizeModelName(runtimeOptions.reasoningModel, ""),
+    singleModel: sanitizeModelName(runtimeOptions.singleModel, ""),
+    defaultVisionModel: config.visionModel,
+    defaultReasoningModel: config.reasoningModel,
+    defaultSingleModel: config.singleModel,
+    enableThinking:
+      typeof runtimeOptions.enableThinking === "boolean"
+        ? runtimeOptions.enableThinking === true
+        : config.defaultEnableThinking === true,
+    timeoutMs: parseTimeoutMs(runtimeOptions.timeoutMs, config.timeoutMs),
+  };
+
+  if (analysisMode === "single_model") {
+    return analyzeTask21SingleModel(input, prompts, requestOptions, config);
+  }
+  return analyzeTask21TwoStage(input, prompts, requestOptions, config);
 }
 
 module.exports = {
-  DEFAULT_MODEL,
+  DEFAULT_ANALYSIS_MODE,
+  DEFAULT_REASONING_MODEL,
+  DEFAULT_SINGLE_MODEL,
+  DEFAULT_VISION_MODEL,
   THINKING_PARAM_NAME,
   THINKING_PARAM_LOCATION,
-  getClientConfig,
   analyzeTask21,
+  getClientConfig,
+  isEnableThinkingUnsupportedError,
+  normalizeAnalysisMode,
   parseAllowedModels,
   sanitizeModelName,
 };

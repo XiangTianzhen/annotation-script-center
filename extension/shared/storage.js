@@ -70,7 +70,10 @@
                 enabled: true,
                 stage: "task21-inline-ai-analysis-debug",
                 autoSelectSpecifyOnSameFontTrue: true,
-                aiDebugModel: "qwen-vl-max-latest",
+                aiAnalysisMode: "two_stage",
+                aiVisionModel: "qwen-vl-max-latest",
+                aiReasoningModel: "qwen3.5-plus",
+                aiSingleModel: "qwen-vl-max-latest",
                 aiEnableThinking: false,
                 aiRequestTimeoutMs: 120000,
                 shortcuts: {
@@ -229,6 +232,19 @@
         { key: "aiAnalyzeOverall", label: "AI 整体分析" },
       ],
       ABAKA_AI_TASK21_AI_MODEL_OPTIONS: [
+        { value: "qwen-vl-max-latest", supportsVision: true, supportsThinking: "unknown" },
+      ],
+      ABAKA_AI_TASK21_AI_ANALYSIS_MODES: [
+        { value: "two_stage", label: "双模型方案（默认）" },
+        { value: "single_model", label: "单模型方案" },
+      ],
+      ABAKA_AI_TASK21_VISION_MODEL_OPTIONS: [
+        { value: "qwen-vl-max-latest", supportsVision: true, supportsThinking: "unknown" },
+      ],
+      ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS: [
+        { value: "qwen3.5-plus", supportsVision: true, supportsThinking: "unknown" },
+      ],
+      ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS: [
         { value: "qwen-vl-max-latest", supportsVision: true, supportsThinking: "unknown" },
       ],
       JUDGEMENT_PROJECT_ASR_KEYS: [
@@ -1198,6 +1214,19 @@
     return text.slice(0, 80);
   }
 
+  function normalizeAbakaAiAnalysisMode(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "single_model") {
+      return "single_model";
+    }
+    if (text === "two_stage") {
+      return "two_stage";
+    }
+    return String(fallback || "two_stage").trim().toLowerCase() === "single_model"
+      ? "single_model"
+      : "two_stage";
+  }
+
   function normalizeAbakaAiRequestTimeout(value, fallback) {
     const numeric = Number(value);
     const base = Number.isFinite(numeric) ? numeric : Number(fallback);
@@ -1360,7 +1389,10 @@
             enabled: true,
             stage: "task21-inline-ai-analysis-debug",
             autoSelectSpecifyOnSameFontTrue: true,
-            aiDebugModel: "qwen-vl-max-latest",
+            aiAnalysisMode: "two_stage",
+            aiVisionModel: "qwen-vl-max-latest",
+            aiReasoningModel: "qwen3.5-plus",
+            aiSingleModel: "qwen-vl-max-latest",
             aiEnableThinking: false,
             aiRequestTimeoutMs: 120000,
             shortcuts: {
@@ -1395,6 +1427,10 @@
     const currentScript = isPlainObject(settings.platforms.abakaAi.scripts.taskPageCapture)
       ? settings.platforms.abakaAi.scripts.taskPageCapture
       : {};
+    const legacyAiDebugModel = normalizeAbakaAiModel(
+      currentScript.aiDebugModel,
+      defaultScript.aiSingleModel || "qwen-vl-max-latest"
+    );
     settings.platforms.abakaAi.enabled = settings.platforms.abakaAi.enabled !== false;
     settings.platforms.abakaAi.scripts.taskPageCapture = Object.assign({}, defaultScript, currentScript, {
       id: constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture",
@@ -1404,9 +1440,21 @@
       ),
       autoSelectSpecifyOnSameFontTrue:
         currentScript.autoSelectSpecifyOnSameFontTrue !== false,
-      aiDebugModel: normalizeAbakaAiModel(
-        currentScript.aiDebugModel,
-        defaultScript.aiDebugModel || "qwen-vl-max-latest"
+      aiAnalysisMode: normalizeAbakaAiAnalysisMode(
+        currentScript.aiAnalysisMode,
+        defaultScript.aiAnalysisMode || "two_stage"
+      ),
+      aiVisionModel: normalizeAbakaAiModel(
+        currentScript.aiVisionModel,
+        defaultScript.aiVisionModel || "qwen-vl-max-latest"
+      ),
+      aiReasoningModel: normalizeAbakaAiModel(
+        currentScript.aiReasoningModel,
+        defaultScript.aiReasoningModel || "qwen3.5-plus"
+      ),
+      aiSingleModel: normalizeAbakaAiModel(
+        currentScript.aiSingleModel || legacyAiDebugModel,
+        defaultScript.aiSingleModel || "qwen-vl-max-latest"
       ),
       aiEnableThinking: currentScript.aiEnableThinking === true,
       aiRequestTimeoutMs: normalizeAbakaAiRequestTimeout(

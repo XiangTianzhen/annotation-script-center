@@ -1,7 +1,10 @@
 (function () {
   const ANALYZE_PATH = "/api/abaka-ai/task21/ai/analyze";
   const DEFAULT_TIMEOUT_MS = 120000;
-  const DEFAULT_MODEL = "qwen-vl-max-latest";
+  const DEFAULT_ANALYSIS_MODE = "two_stage";
+  const DEFAULT_VISION_MODEL = "qwen-vl-max-latest";
+  const DEFAULT_REASONING_MODEL = "qwen3.5-plus";
+  const DEFAULT_SINGLE_MODEL = "qwen-vl-max-latest";
 
   function sanitizeText(value, maxLength) {
     return String(value || "")
@@ -20,16 +23,28 @@
     if (typeof constants.buildBackendUrl === "function") {
       return constants.buildBackendUrl(ANALYZE_PATH, settingsOrMode || {});
     }
-    const base = "http://127.0.0.1:3333";
-    return base + ANALYZE_PATH;
+    return "http://127.0.0.1:3333" + ANALYZE_PATH;
   }
 
   function normalizeModelName(value, fallback) {
     const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
     if (!text) {
-      return String(fallback || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+      return String(fallback || DEFAULT_SINGLE_MODEL).trim() || DEFAULT_SINGLE_MODEL;
     }
     return text.slice(0, 80);
+  }
+
+  function normalizeAnalysisMode(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "single_model") {
+      return "single_model";
+    }
+    if (text === "two_stage") {
+      return "two_stage";
+    }
+    return String(fallback || DEFAULT_ANALYSIS_MODE).trim().toLowerCase() === "single_model"
+      ? "single_model"
+      : "two_stage";
   }
 
   function normalizeTimeoutMs(value, fallback) {
@@ -39,29 +54,73 @@
     return Math.max(1000, Math.min(300000, Math.floor(safe)));
   }
 
+  function normalizeModelFromOptions(value, fallback, options) {
+    const source = Array.isArray(options) ? options : [];
+    const allowed = source
+      .map(function (item) {
+        return String(item?.value || "").trim();
+      })
+      .filter(Boolean);
+    const model = normalizeModelName(value, fallback);
+    if (allowed.length <= 0 || allowed.indexOf(model) >= 0) {
+      return model;
+    }
+    return normalizeModelName(fallback, model);
+  }
+
   function getAbakaAiTaskConfig(settings) {
     const constants = globalThis.ASREdgeConstants || {};
     const defaultConfig =
       constants.DEFAULT_SETTINGS?.platforms?.abakaAi?.scripts?.taskPageCapture || {};
     const currentConfig = settings?.platforms?.abakaAi?.scripts?.taskPageCapture || {};
-    const modelOptions = Array.isArray(constants.ABAKA_AI_TASK21_AI_MODEL_OPTIONS)
-      ? constants.ABAKA_AI_TASK21_AI_MODEL_OPTIONS
-      : [{ value: DEFAULT_MODEL }];
-    const allowedModels = modelOptions
-      .map(function (item) {
-        return String(item?.value || "").trim();
-      })
-      .filter(Boolean);
-    const fallbackModel = normalizeModelName(defaultConfig.aiDebugModel, DEFAULT_MODEL);
-    const mergedModel = normalizeModelName(currentConfig.aiDebugModel, fallbackModel);
-    const model = allowedModels.indexOf(mergedModel) >= 0 ? mergedModel : fallbackModel;
+    const legacyModel = normalizeModelName(currentConfig.aiDebugModel, DEFAULT_SINGLE_MODEL);
+    const visionOptions = Array.isArray(constants.ABAKA_AI_TASK21_VISION_MODEL_OPTIONS)
+      ? constants.ABAKA_AI_TASK21_VISION_MODEL_OPTIONS
+      : [{ value: DEFAULT_VISION_MODEL }];
+    const reasoningOptions = Array.isArray(constants.ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS)
+      ? constants.ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS
+      : [{ value: DEFAULT_REASONING_MODEL }];
+    const singleOptions = Array.isArray(constants.ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS)
+      ? constants.ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS
+      : [{ value: DEFAULT_SINGLE_MODEL }];
+
     return {
-      model: model,
+      analysisMode: normalizeAnalysisMode(
+        currentConfig.aiAnalysisMode,
+        defaultConfig.aiAnalysisMode || DEFAULT_ANALYSIS_MODE
+      ),
+      visionModel: normalizeModelFromOptions(
+        currentConfig.aiVisionModel,
+        defaultConfig.aiVisionModel || DEFAULT_VISION_MODEL,
+        visionOptions
+      ),
+      reasoningModel: normalizeModelFromOptions(
+        currentConfig.aiReasoningModel,
+        defaultConfig.aiReasoningModel || DEFAULT_REASONING_MODEL,
+        reasoningOptions
+      ),
+      singleModel: normalizeModelFromOptions(
+        currentConfig.aiSingleModel || legacyModel,
+        defaultConfig.aiSingleModel || DEFAULT_SINGLE_MODEL,
+        singleOptions
+      ),
       enableThinking: currentConfig.aiEnableThinking === true,
       timeoutMs: normalizeTimeoutMs(
         currentConfig.aiRequestTimeoutMs,
         normalizeTimeoutMs(defaultConfig.aiRequestTimeoutMs, DEFAULT_TIMEOUT_MS)
       ),
+    };
+  }
+
+  function buildAnalyzeOptionsPayload(taskConfig, timeoutMs) {
+    const config = taskConfig || {};
+    return {
+      analysisMode: normalizeAnalysisMode(config.analysisMode, DEFAULT_ANALYSIS_MODE),
+      visionModel: normalizeModelName(config.visionModel, DEFAULT_VISION_MODEL),
+      reasoningModel: normalizeModelName(config.reasoningModel, DEFAULT_REASONING_MODEL),
+      singleModel: normalizeModelName(config.singleModel, DEFAULT_SINGLE_MODEL),
+      enableThinking: config.enableThinking === true,
+      timeoutMs: normalizeTimeoutMs(timeoutMs, config.timeoutMs || DEFAULT_TIMEOUT_MS),
     };
   }
 
@@ -109,19 +168,12 @@
     const config = options && typeof options === "object" ? options : {};
     const taskConfig = getAbakaAiTaskConfig(config.settings || {});
     const timeoutMs = normalizeTimeoutMs(config.timeoutMs, taskConfig.timeoutMs);
+    const analyzeOptions = buildAnalyzeOptionsPayload(taskConfig, timeoutMs);
     const endpoint = buildEndpoint(config.settings || null);
     const controller = createTimeoutController(timeoutMs);
     const requestPayload = Object.assign({}, payload || {}, {
-      options: {
-        model: taskConfig.model,
-        enableThinking: taskConfig.enableThinking === true,
-        timeoutMs: timeoutMs,
-      },
-      debugConfig: {
-        model: taskConfig.model,
-        enableThinking: taskConfig.enableThinking === true,
-        timeoutMs: timeoutMs,
-      },
+      options: Object.assign({}, analyzeOptions),
+      debugConfig: Object.assign({}, analyzeOptions),
     });
 
     try {
@@ -144,19 +196,22 @@
 
       if (!response.ok || !body || body.success !== true) {
         const code = body && body.code ? body.code : "request-error";
-        const error = new Error(mapErrorMessage(response.status, code, body && body.message));
-        error.code = code;
-        error.statusCode = response.status;
-        error.requestId = body && body.requestId ? body.requestId : "";
-        throw error;
+        const requestError = new Error(mapErrorMessage(response.status, code, body && body.message));
+        requestError.code = code;
+        requestError.statusCode = response.status;
+        requestError.requestId = body && body.requestId ? body.requestId : "";
+        throw requestError;
       }
 
       return {
         endpoint: endpoint,
         data: body,
         requestDebug: {
-          selectedModel: taskConfig.model,
-          enableThinking: taskConfig.enableThinking === true,
+          analysisMode: analyzeOptions.analysisMode,
+          visionModel: analyzeOptions.visionModel,
+          reasoningModel: analyzeOptions.reasoningModel,
+          singleModel: analyzeOptions.singleModel,
+          enableThinking: analyzeOptions.enableThinking === true,
           timeoutMs: timeoutMs,
         },
       };

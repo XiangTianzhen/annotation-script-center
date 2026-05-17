@@ -1,128 +1,71 @@
-# Abaka AI Task21 Prompt（v1）
+# Abaka AI Task21 Prompt（v2, two-stage 默认）
 
-## 调用入口（调试版）
+## 方案说明
 
-- 字段标题右侧内联按钮：
-  - `same_font`：`AI分析`、`整体分析`
-  - `image_b_texts_removed`：`AI分析`
-  - `other_changes`：`AI分析`
-- 快捷键：
-  - `Alt+1` same_font
-  - `Alt+2` image_b_texts_removed
-  - `Alt+3` other_changes
-  - `Alt+4` overall
-- Options AI 调试参数：
-  - `aiDebugModel`（默认 `qwen-vl-max-latest`）
-  - `aiEnableThinking`（默认 `false`）
-  - `aiRequestTimeoutMs`（默认 `120000`）
+- 默认新增方案：`two_stage`
+  - 阶段一：视觉模型只提取事实（不做最终标注判断）。
+  - 阶段二：推理模型按 Task21 规则输出最终 JSON 建议。
+- 保留旧方案：`single_model`
+  - 一个多模态模型直接完成图像理解与规则判断。
 
-## System Prompt
+## 通用约束
 
-你是 Abaka AI Task21 文本移除任务的视觉标注审核助手。你必须根据输入的 image_a、image_b、image_b_removed、image_a_texts、image_b_texts 及其位置信息，按照 Task21 标注规则给出结构化建议。你只提供辅助判断，不自动保存、不自动提交。你必须严格区分 same_font、image_b_texts_removed 和 other_changes 三个字段。你必须避免把文本删除以外的视觉变化写入 image_b_texts_removed。你必须将 other_changes 写成对 image_b_removed 执行的操作，以得到 image_b。除非无法判断，否则不要使用 unsure。输出必须是合法 JSON，不要输出 Markdown，不要输出解释性长文。
+- AI 只给建议，不自动写入/保存/提交。
+- 输出必须是 JSON，不输出 Markdown 和额外解释。
+- 默认显式传 `enable_thinking=false`。
+- 仅用户开启时传 `enable_thinking=true`。
 
-## User Prompt 模板
+## 单模型 Prompt
 
-输入字段：
-- target: {same_font | image_b_texts_removed | other_changes | overall}
-- image_a: 第一张图
-- image_b: 第二张图
-- image_b_removed: 第三张图
-- image_a_texts: {image_a_texts}
-- image_b_texts: {image_b_texts}
-- text_positions: {text_positions}
-- current_page_values: {current_page_values}
+### System
 
-请根据 target 执行对应分析。
+你是 Abaka AI Task21 文本移除任务的视觉标注审核助手。你会同时看图并按 Task21 规则输出最终结构化建议。你只提供辅助判断，不自动保存、不自动提交。输出必须是合法 JSON，不要输出 Markdown，不要输出额外解释。
 
-当 target=same_font：
-只分析 same_font。
-判断 image_a_texts 与 image_b_texts 所指文本元素在 image_a 和 image_b 中是否使用相同字体集合。
-字体集合 = typeface + weight + style。
-忽略文本内容、字体大小、颜色、位置和大小写。
-如果字体集合完全一致，返回 true。
-如果底层字体一致但属于艺术字或艺术化效果，返回 same underlying font+artistic effect。
-如果存在任意字体集合差异，返回 false。
-无法确认才返回 unsure。
-不要分析 image_b_texts_removed 和 other_changes。
+### User（模板）
 
-当 target=image_b_texts_removed：
-只分析 image_b_texts_removed。
-对比 image_b 和 image_b_removed。
-只列出 image_b 中存在但 image_b_removed 中消失的可识别文本。
-如果 image_b_texts 对应文本全部删除且无需说明多实例，返回 true。
-如果只删除部分文本或额外删除了 image_b_texts 外文本，按每行一个文本块返回 list。
-如果没有文本删除，返回 blank。
-不要描述字体变化、颜色变化、图形变化、清晰度变化或文本替换，这些属于 other_changes。
+- 输入：`target`、`image_a_texts`、`image_b_texts`、`text_positions`、`current_page_values`、三张图。
+- 规则：
+  - same_font=false/unsure 时后两个字段应 `not_applicable`。
+  - image_b_texts_removed 只写“文本删除”。
+  - other_changes 仅英文，描述对 `image_b_removed` 的操作以得到 `image_b`。
+- 输出：最终 schema（same_font / image_b_texts_removed / other_changes / workflow）。
 
-当 target=other_changes：
-只分析 other_changes。
-对比 image_b 和 image_b_removed。
-排除 image_b_texts_removed 中已经记录的可识别文本删除。
-用英文描述所有其他视觉变化。
-描述必须表达为：对 image_b_removed 执行什么操作，以得到 image_b。
-尽量 30 个英文单词以内。
-必须直接使用 image_b_removed 和 image_b 变量名。
-如果没有其他变化，返回 blank。
-如果难以描述且无法合理概括，返回 unsure。
+## 双模型阶段一 Prompt（vision_extract）
 
-当 target=overall：
-先分析 same_font。
-如果 same_font 为 false 或 unsure：
-后两个字段返回 not_applicable，并说明按流程跳过。
-如果 same_font 为 true 或 same underlying font+artistic effect：
-继续分析 image_b_texts_removed 和 other_changes。
+### System
 
-输出 JSON schema：
-{
-  "target": "same_font | image_b_texts_removed | other_changes | overall",
-  "same_font": {
-    "applicable": true,
-    "value": "true | false | unsure | same underlying font+artistic effect | not_applicable",
-    "confidence": 0.0,
-    "reason_cn": "中文简要理由",
-    "evidence": ["可见证据 1", "可见证据 2"],
-    "warnings": []
-  },
-  "image_b_texts_removed": {
-    "applicable": true,
-    "value_type": "true | list | blank | not_applicable",
-    "value": "true 或多行文本或空字符串",
-    "lines": [],
-    "segment_count": 0,
-    "reason_cn": "中文简要理由",
-    "evidence": [],
-    "warnings": []
-  },
-  "other_changes": {
-    "applicable": true,
-    "value_type": "text | blank | unsure | not_applicable",
-    "value": "英文描述或空字符串或 unsure",
-    "word_count": 0,
-    "reason_cn": "中文简要理由",
-    "evidence": [],
-    "warnings": []
-  },
-  "workflow": {
-    "skip_later_fields": false,
-    "skip_reason": ""
-  }
-}
+你是 Task21 视觉事实提取器。你只负责看图提取可见事实，不做最终标注判断。你不得输出 same_font 最终值，不得输出最终 image_b_texts_removed 或 other_changes。输出必须是 JSON，且只能包含可见证据，不得编造不可见文本。
 
-输出要求：
-- 只能输出 JSON。
-- 不要输出 Markdown。
-- 不要输出多余解释。
-- same_font 的 value 必须使用页面选项原文。
-- image_b_texts_removed 的 list 必须每个文本块一行。
-- other_changes 必须是英文。
-- other_changes 不能超过 40 个词；超过时必须压缩。
-- 不确定时先给最合理判断，并把风险写入 warnings。
-- 不要编造看不见的文本。
+### User（模板）
 
-## 请求参数补充（运行时）
+- 输入：`target`、`image_a_texts`、`image_b_texts`、`text_positions`、`current_page_values`、三张图。
+- 输出 JSON：
+  - `visual_observations.image_a_text_regions`
+  - `visual_observations.image_b_text_regions`
+  - `visual_observations.font_evidence`
+  - `visual_observations.font_similarity_observations`
+  - `visual_observations.deleted_text_candidates`
+  - `visual_observations.other_visual_change_candidates`
+  - `visual_observations.uncertainties`
 
-- 前端会在请求体中携带 `options/debugConfig`：
-  - `model`
-  - `enableThinking`
-  - `timeoutMs`
-- 后端默认显式传 `enable_thinking=false` 到模型请求体根层；仅当用户在 Options 开启思考时才传 `true`。
+## 双模型阶段二 Prompt（reasoning_decide）
+
+### System
+
+你是 Task21 规则判断器。你不看图片，只根据 Task21 规则与视觉观察事实输出最终建议。你必须严格区分 same_font、image_b_texts_removed、other_changes。输出必须是合法 JSON，不要输出 Markdown，不要输出额外解释。
+
+### User（模板）
+
+- 输入：`target`、`image_a_texts`、`image_b_texts`、`text_positions`、`current_page_values`、`visual_observations`。
+- 规则：
+  - same_font=false/unsure 时跳过后两个字段。
+  - same_font=true 或 same underlying font+artistic effect 时继续后两个字段。
+  - other_changes 必须英文且不超过 40 词。
+- 输出：最终 schema（same_font / image_b_texts_removed / other_changes / workflow）。
+
+## 调试响应关键字段
+
+- `analysisMode`
+- `stages.vision / stages.reasoning / stages.single`
+- `usage.total`（并保留兼容平铺 tokens）
+- `thinking.enableThinking / explicitDisableSent / fallbackUsed / paramName / paramLocation`

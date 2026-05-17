@@ -1,70 +1,39 @@
 "use strict";
 
-const TASK21_AI_RULE_VERSION = "abaka-task21-ai-v1";
+const TASK21_AI_RULE_VERSION = "abaka-task21-ai-v2-two-stage";
 
-const SYSTEM_PROMPT = [
-  "你是 Abaka AI Task21 文本移除任务的视觉标注审核助手。",
-  "你必须根据输入的 image_a、image_b、image_b_removed、image_a_texts、image_b_texts 及其位置信息，按照 Task21 标注规则给出结构化建议。",
-  "你只提供辅助判断，不自动保存、不自动提交。",
-  "你必须严格区分 same_font、image_b_texts_removed 和 other_changes 三个字段。",
-  "你必须避免把文本删除以外的视觉变化写入 image_b_texts_removed。",
-  "你必须将 other_changes 写成对 image_b_removed 执行的操作，以得到 image_b。",
-  "除非无法判断，否则不要使用 unsure。",
-  "输出必须是合法 JSON，不要输出 Markdown，不要输出解释性长文。",
+const TASK21_RULES = [
+  "Task21 流程：先判 same_font，再决定是否继续后两个字段。",
+  "same_font=false 或 unsure 时，image_b_texts_removed 与 other_changes 返回 not_applicable。",
+  "same_font=true 或 same underlying font+artistic effect 时，继续分析后两个字段。",
+  "same_font 判断字体集合是否一致：typeface + weight + style，忽略文本内容/颜色/字号/位置/大小写。",
+  "image_b_texts_removed 只记录 image_b 中存在、image_b_removed 中消失的可识别文本，禁止写入其他视觉变化。",
+  "other_changes 仅描述除文本删除外的变化，并且必须用英文，表达为对 image_b_removed 的操作以得到 image_b。",
+  "other_changes 最多 40 词，建议 30 词以内，必要时可用 unsure。",
 ].join("\n");
 
-const USER_PROMPT_TEMPLATE = [
-  "输入字段：",
-  "- target: {same_font | image_b_texts_removed | other_changes | overall}",
-  "- image_a: 第一张图",
-  "- image_b: 第二张图",
-  "- image_b_removed: 第三张图",
-  "- image_a_texts: {image_a_texts}",
-  "- image_b_texts: {image_b_texts}",
-  "- text_positions: {text_positions}",
-  "- current_page_values: {current_page_values}",
-  "",
-  "请根据 target 执行对应分析。",
-  "",
-  "当 target=same_font：",
-  "只分析 same_font。",
-  "判断 image_a_texts 与 image_b_texts 所指文本元素在 image_a 和 image_b 中是否使用相同字体集合。",
-  "字体集合 = typeface + weight + style。",
-  "忽略文本内容、字体大小、颜色、位置和大小写。",
-  "如果字体集合完全一致，返回 true。",
-  "如果底层字体一致但属于艺术字或艺术化效果，返回 same underlying font+artistic effect。",
-  "如果存在任意字体集合差异，返回 false。",
-  "无法确认才返回 unsure。",
-  "不要分析 image_b_texts_removed 和 other_changes。",
-  "",
-  "当 target=image_b_texts_removed：",
-  "只分析 image_b_texts_removed。",
-  "对比 image_b 和 image_b_removed。",
-  "只列出 image_b 中存在但 image_b_removed 中消失的可识别文本。",
-  "如果 image_b_texts 对应文本全部删除且无需说明多实例，返回 true。",
-  "如果只删除部分文本或额外删除了 image_b_texts 外文本，按每行一个文本块返回 list。",
-  "如果没有文本删除，返回 blank。",
-  "不要描述字体变化、颜色变化、图形变化、清晰度变化或文本替换，这些属于 other_changes。",
-  "",
-  "当 target=other_changes：",
-  "只分析 other_changes。",
-  "对比 image_b 和 image_b_removed。",
-  "排除 image_b_texts_removed 中已经记录的可识别文本删除。",
-  "用英文描述所有其他视觉变化。",
-  "描述必须表达为：对 image_b_removed 执行什么操作，以得到 image_b。",
-  "尽量 30 个英文单词以内。",
-  "必须直接使用 image_b_removed 和 image_b 变量名。",
-  "如果没有其他变化，返回 blank。",
-  "如果难以描述且无法合理概括，返回 unsure。",
-  "",
-  "当 target=overall：",
-  "先分析 same_font。",
-  "如果 same_font 为 false 或 unsure：",
-  "后两个字段返回 not_applicable，并说明按流程跳过。",
-  "如果 same_font 为 true 或 same underlying font+artistic effect：",
-  "继续分析 image_b_texts_removed 和 other_changes。",
-  "",
-  "输出 JSON schema：",
+const SINGLE_MODEL_SYSTEM_PROMPT = [
+  "你是 Abaka AI Task21 文本移除任务的视觉标注审核助手。",
+  "你会同时看图并按 Task21 规则输出最终结构化建议。",
+  "你只提供辅助判断，不自动保存、不自动提交。",
+  "输出必须是合法 JSON，不要输出 Markdown，不要输出额外解释。",
+].join("\n");
+
+const VISION_EXTRACT_SYSTEM_PROMPT = [
+  "你是 Task21 视觉事实提取器。",
+  "你只负责看图提取可见事实，不做最终标注判断。",
+  "你不得输出 same_font 最终值，不得输出最终 image_b_texts_removed 或 other_changes。",
+  "输出必须是 JSON，且只能包含可见证据，不得编造不可见文本。",
+].join("\n");
+
+const REASONING_DECIDE_SYSTEM_PROMPT = [
+  "你是 Task21 规则判断器。",
+  "你不看图片，只根据 Task21 规则与视觉观察事实输出最终建议。",
+  "你必须严格区分 same_font、image_b_texts_removed、other_changes。",
+  "输出必须是合法 JSON，不要输出 Markdown，不要输出额外解释。",
+].join("\n");
+
+const FINAL_OUTPUT_SCHEMA_TEXT = [
   "{",
   '  "target": "same_font | image_b_texts_removed | other_changes | overall",',
   '  "same_font": {',
@@ -72,7 +41,7 @@ const USER_PROMPT_TEMPLATE = [
   '    "value": "true | false | unsure | same underlying font+artistic effect | not_applicable",',
   '    "confidence": 0.0,',
   '    "reason_cn": "中文简要理由",',
-  '    "evidence": ["可见证据 1", "可见证据 2"],',
+  '    "evidence": [],',
   '    "warnings": []',
   "  },",
   '  "image_b_texts_removed": {',
@@ -99,44 +68,98 @@ const USER_PROMPT_TEMPLATE = [
   '    "skip_reason": ""',
   "  }",
   "}",
-  "",
-  "输出要求：",
-  "- 只能输出 JSON。",
-  "- 不要输出 Markdown。",
-  "- 不要输出多余解释。",
-  "- same_font 的 value 必须使用页面选项原文。",
-  "- image_b_texts_removed 的 list 必须每个文本块一行。",
-  "- other_changes 必须是英文。",
-  "- other_changes 不能超过 40 个词；超过时必须压缩。",
-  "- 不确定时先给最合理判断，并把风险写入 warnings。",
-  "- 不要编造看不见的文本。",
+].join("\n");
+
+const VISUAL_OBSERVATION_SCHEMA_TEXT = [
+  "{",
+  '  "target": "same_font | image_b_texts_removed | other_changes | overall",',
+  '  "visual_observations": {',
+  '    "image_a_text_regions": [],',
+  '    "image_b_text_regions": [],',
+  '    "font_evidence": [],',
+  '    "font_similarity_observations": [],',
+  '    "deleted_text_candidates": [],',
+  '    "other_visual_change_candidates": [],',
+  '    "uncertainties": []',
+  "  }",
+  "}",
 ].join("\n");
 
 function safeJsonText(value) {
   return JSON.stringify(value === undefined ? null : value, null, 2);
 }
 
-function buildUserPrompt(input) {
+function buildCommonInputBlock(input) {
   const payload = input && typeof input === "object" ? input : {};
-  const section = {
+  return {
     target: payload.target || "overall",
     image_a_texts: payload.context?.imageATexts || "",
     image_b_texts: payload.context?.imageBTexts || "",
     text_positions: payload.context?.textPositions || {},
     current_page_values: payload.context?.currentValues || {},
   };
+}
 
+function buildSingleModelUserPrompt(input) {
+  const source = buildCommonInputBlock(input);
   return [
-    USER_PROMPT_TEMPLATE,
+    "请按 Task21 规则输出最终标注建议。",
+    TASK21_RULES,
+    "补充约束：",
+    "- same_font 的 value 必须使用页面选项原文。",
+    "- image_b_texts_removed 的 list 必须每行一个文本块。",
+    "- other_changes 必须是英文，不超过 40 词。",
+    "- 不能编造不可见文本。",
+    "- 仅输出 JSON。",
+    "输出 schema：",
+    FINAL_OUTPUT_SCHEMA_TEXT,
     "",
     "--- 输入数据（JSON）---",
-    safeJsonText(section),
+    safeJsonText(source),
+  ].join("\n");
+}
+
+function buildVisionExtractUserPrompt(input) {
+  const source = buildCommonInputBlock(input);
+  return [
+    "请只提取视觉事实，不做最终规则判断。",
+    "禁止输出 same_font 最终值，禁止输出最终 image_b_texts_removed/other_changes。",
+    "你可以输出与字体、文本消失候选、其他视觉变化候选相关的可见证据。",
+    "不要编造看不见的文本。",
+    "仅输出 JSON，schema：",
+    VISUAL_OBSERVATION_SCHEMA_TEXT,
+    "",
+    "--- 输入数据（JSON）---",
+    safeJsonText(source),
+  ].join("\n");
+}
+
+function buildReasoningDecideUserPrompt(input, visualObservations) {
+  const source = buildCommonInputBlock(input);
+  return [
+    "请基于 Task21 规则与 visual_observations 输出最终标注建议。",
+    "你不看图片，只根据输入文本与 visual_observations 判断。",
+    TASK21_RULES,
+    "输出必须是 JSON，schema：",
+    FINAL_OUTPUT_SCHEMA_TEXT,
+    "",
+    "--- 输入数据（JSON）---",
+    safeJsonText(source),
+    "",
+    "--- visual_observations（JSON）---",
+    safeJsonText(visualObservations || {}),
   ].join("\n");
 }
 
 module.exports = {
   TASK21_AI_RULE_VERSION,
-  SYSTEM_PROMPT,
-  USER_PROMPT_TEMPLATE,
-  buildUserPrompt,
+  TASK21_RULES,
+  SINGLE_MODEL_SYSTEM_PROMPT,
+  VISION_EXTRACT_SYSTEM_PROMPT,
+  REASONING_DECIDE_SYSTEM_PROMPT,
+  FINAL_OUTPUT_SCHEMA_TEXT,
+  VISUAL_OBSERVATION_SCHEMA_TEXT,
+  buildSingleModelUserPrompt,
+  buildVisionExtractUserPrompt,
+  buildReasoningDecideUserPrompt,
 };

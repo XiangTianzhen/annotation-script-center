@@ -1,5 +1,29 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（Abaka AI：Task21 双模型 AI Pipeline 增强）
+
+- Abaka AI Task21 AI 分析新增双方案：
+  - `two_stage`（默认）：视觉模型提取事实 + 推理模型规则判断。
+  - `single_model`（保留）：单模型直接输出最终建议。
+- Options「Abaka AI Task21 快捷键与 AI 分析」的 AI 调试板块新增：
+  - 分析方案选择（`two_stage/single_model`）
+  - 视觉模型、推理模型、单模型选择
+  - 思考开关（默认关闭）与请求超时（默认 120000ms）
+- 配置迁移与兼容：
+  - 新增 `aiAnalysisMode/aiVisionModel/aiReasoningModel/aiSingleModel`
+  - 旧 `aiDebugModel` 自动迁移为 `aiSingleModel` fallback，不覆盖用户已有新字段。
+- 前端 `ai-client` 请求显式携带：
+  - `analysisMode/visionModel/reasoningModel/singleModel/enableThinking/timeoutMs`
+- 后端 Task21 AI 路由与客户端改为支持双阶段执行，并返回分阶段调试信息：
+  - `stages.vision/reasoning/single` 的模型、耗时、usage
+  - `analysisMode`、`thinking`、`usage.total`
+- thinking 安全策略：
+  - 默认显式发送 `enable_thinking=false`
+  - 用户开启才传 `true`
+  - 默认不静默移除参数；仅当 `ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK=true` 时才允许 fallback。
+- 同步更新 Abaka Task21 AI Prompt/README、后端 README、统一后端 README 与 `config/env/ai.env.example`。
+- 本轮未保存 API Key、未自动写入/保存/提交、未提升版本、未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-18（Abaka AI：Task21 AI 调试配置增强）
 
 - Abaka AI Task21 Options 详情页新增“AI 调试”子板块：模型选择、思考开关、请求超时与 mock 提示。

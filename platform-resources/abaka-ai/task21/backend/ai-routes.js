@@ -2,14 +2,26 @@
 
 const { sendJson } = require("../../../backend/response");
 const {
-  analyzeTask21,
-  DEFAULT_MODEL,
+  DEFAULT_ANALYSIS_MODE,
+  DEFAULT_REASONING_MODEL,
+  DEFAULT_SINGLE_MODEL,
+  DEFAULT_VISION_MODEL,
   THINKING_PARAM_NAME,
   THINKING_PARAM_LOCATION,
+  analyzeTask21,
   getClientConfig,
+  normalizeAnalysisMode,
   sanitizeModelName,
 } = require("./ai-client");
-const { buildUserPrompt, SYSTEM_PROMPT, TASK21_AI_RULE_VERSION, USER_PROMPT_TEMPLATE } = require("./prompt");
+const {
+  REASONING_DECIDE_SYSTEM_PROMPT,
+  SINGLE_MODEL_SYSTEM_PROMPT,
+  TASK21_AI_RULE_VERSION,
+  VISION_EXTRACT_SYSTEM_PROMPT,
+  buildReasoningDecideUserPrompt,
+  buildSingleModelUserPrompt,
+  buildVisionExtractUserPrompt,
+} = require("./prompt");
 const { estimateUsageFromTexts, normalizeUsage } = require("./usage");
 
 const AI_BASE_PATH = "/api/abaka-ai/task21/ai/analyze";
@@ -70,6 +82,14 @@ function readRequestBody(request) {
   });
 }
 
+function safeParseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    return null;
+  }
+}
+
 function extractJsonObjectText(text) {
   const raw = String(text || "").trim();
   if (!raw) {
@@ -82,24 +102,23 @@ function extractJsonObjectText(text) {
   return raw;
 }
 
-function safeParseJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    return null;
-  }
-}
-
-function normalizeTarget(value) {
-  const text = String(value || "").trim();
-  if (ALLOWED_TARGETS.indexOf(text) >= 0) {
-    return text;
-  }
-  return "";
-}
-
 function normalizeObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function normalizeString(value, maxLength) {
+  return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, maxLength || 6000);
+}
+
+function normalizeArray(value) {
+  return Array.isArray(value)
+    ? value
+        .map(function (item) {
+          return sanitizeText(item, 180);
+        })
+        .filter(Boolean)
+        .slice(0, 12)
+    : [];
 }
 
 function normalizeTimeoutMs(value, fallback) {
@@ -109,60 +128,12 @@ function normalizeTimeoutMs(value, fallback) {
   return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, Math.floor(safe)));
 }
 
-function resolveRuntimeOptions(requestBody, config) {
-  const source = normalizeObject(requestBody);
-  const options = normalizeObject(source.options);
-  const debugConfig = normalizeObject(source.debugConfig);
-  const allowedModels = Array.isArray(config.allowedModels)
-    ? config.allowedModels
-        .map(function (item) {
-          return sanitizeModelName(item, "");
-        })
-        .filter(Boolean)
-    : [DEFAULT_MODEL];
-
-  const requestedModelRaw = source.model || options.model || debugConfig.model || "";
-  const requestedModel = sanitizeModelName(requestedModelRaw, "");
-  const allowClientModelOverride = config.allowClientModelOverride === true;
-  const selectedModel =
-    allowClientModelOverride && requestedModel && allowedModels.indexOf(requestedModel) >= 0
-      ? requestedModel
-      : config.model || DEFAULT_MODEL;
-
-  const hasEnableThinkingValue =
-    typeof source.enableThinking === "boolean" ||
-    typeof options.enableThinking === "boolean" ||
-    typeof debugConfig.enableThinking === "boolean";
-  const enableThinking = hasEnableThinkingValue
-    ? source.enableThinking === true ||
-      options.enableThinking === true ||
-      debugConfig.enableThinking === true
-    : false;
-
-  const timeoutMs = normalizeTimeoutMs(
-    source.timeoutMs || options.timeoutMs || debugConfig.timeoutMs,
-    config.timeoutMs || 120000
-  );
-
-  let thinkingSource = "server-default";
-  if (hasEnableThinkingValue) {
-    thinkingSource = enableThinking ? "options-enabled" : "options-default";
+function normalizeTarget(value) {
+  const text = String(value || "").trim();
+  if (ALLOWED_TARGETS.indexOf(text) >= 0) {
+    return text;
   }
-
-  return {
-    selectedModel,
-    modelOverride:
-      allowClientModelOverride && selectedModel !== (config.model || DEFAULT_MODEL) ? selectedModel : "",
-    allowClientModelOverride,
-    allowedModels,
-    enableThinking,
-    thinkingSource,
-    timeoutMs,
-  };
-}
-
-function normalizeString(value, maxLength) {
-  return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, maxLength || 6000);
+  return "";
 }
 
 function normalizeImageRecord(record) {
@@ -178,9 +149,9 @@ function normalizeImageRecord(record) {
 
   return {
     fieldName: safeFieldName,
-    dataUrl: dataUrl,
-    imageUrl: imageUrl,
-    mime: mime,
+    dataUrl,
+    imageUrl,
+    mime,
     width: Number.isFinite(width) && width > 0 ? Math.floor(width) : "unknown",
     height: Number.isFinite(height) && height > 0 ? Math.floor(height) : "unknown",
     bytes: Number.isFinite(bytes) && bytes >= 0 ? Math.floor(bytes) : "unknown",
@@ -196,31 +167,31 @@ function normalizeImages(images) {
     if (!row.fieldName) {
       return;
     }
-    const duplicate = normalized.find(function (existing) {
-      return existing.fieldName === row.fieldName;
+    const exists = normalized.some(function (entry) {
+      return entry.fieldName === row.fieldName;
     });
-    if (!duplicate) {
+    if (!exists) {
       normalized.push(row);
     }
   });
-
   ALLOWED_IMAGE_FIELDS.forEach(function (fieldName) {
-    if (!normalized.find(function (item) {
-      return item.fieldName === fieldName;
-    })) {
-      normalized.push({
-        fieldName,
-        dataUrl: "",
-        imageUrl: "",
-        mime: "unknown",
-        width: "unknown",
-        height: "unknown",
-        bytes: "unknown",
-        sourceKind: "unknown",
-      });
+    const exists = normalized.some(function (entry) {
+      return entry.fieldName === fieldName;
+    });
+    if (exists) {
+      return;
     }
+    normalized.push({
+      fieldName,
+      dataUrl: "",
+      imageUrl: "",
+      mime: "unknown",
+      width: "unknown",
+      height: "unknown",
+      bytes: "unknown",
+      sourceKind: "unknown",
+    });
   });
-
   return normalized;
 }
 
@@ -233,7 +204,6 @@ function normalizeAnalyzeRequest(body) {
 
   const context = normalizeObject(source.context);
   const currentValues = normalizeObject(context.currentValues);
-
   return {
     target,
     debug: source.debug === true,
@@ -252,6 +222,80 @@ function normalizeAnalyzeRequest(body) {
   };
 }
 
+function resolveRuntimeOptions(requestBody, config) {
+  const source = normalizeObject(requestBody);
+  const options = normalizeObject(source.options);
+  const debugConfig = normalizeObject(source.debugConfig);
+
+  const analysisMode = normalizeAnalysisMode(
+    source.analysisMode || options.analysisMode || debugConfig.analysisMode,
+    DEFAULT_ANALYSIS_MODE
+  );
+  const enableThinkingValue =
+    typeof source.enableThinking === "boolean"
+      ? source.enableThinking
+      : typeof options.enableThinking === "boolean"
+        ? options.enableThinking
+        : typeof debugConfig.enableThinking === "boolean"
+          ? debugConfig.enableThinking
+          : false;
+  const timeoutMs = normalizeTimeoutMs(
+    source.timeoutMs || options.timeoutMs || debugConfig.timeoutMs,
+    config.timeoutMs || 120000
+  );
+  const allowClientModelOverride = config.allowClientModelOverride === true;
+
+  function resolveModel(fieldName, defaultModel, allowedModels) {
+    const requested = sanitizeModelName(
+      source[fieldName] || options[fieldName] || debugConfig[fieldName] || "",
+      ""
+    );
+    if (!allowClientModelOverride) {
+      return defaultModel;
+    }
+    const allowed = Array.isArray(allowedModels) ? allowedModels : [];
+    if (requested && allowed.indexOf(requested) >= 0) {
+      return requested;
+    }
+    return defaultModel;
+  }
+
+  const visionModel = resolveModel("visionModel", config.visionModel || DEFAULT_VISION_MODEL, config.allowedVisionModels);
+  const reasoningModel = resolveModel(
+    "reasoningModel",
+    config.reasoningModel || DEFAULT_REASONING_MODEL,
+    config.allowedReasoningModels
+  );
+  const singleModel = resolveModel(
+    "singleModel",
+    config.singleModel || DEFAULT_SINGLE_MODEL,
+    config.allowedSingleModels
+  );
+
+  let thinkingSource = "server-default";
+  if (
+    typeof source.enableThinking === "boolean" ||
+    typeof options.enableThinking === "boolean" ||
+    typeof debugConfig.enableThinking === "boolean"
+  ) {
+    thinkingSource = enableThinkingValue === true ? "options-enabled" : "options-default";
+  }
+
+  return {
+    analysisMode,
+    visionModel,
+    reasoningModel,
+    singleModel,
+    enableThinking: enableThinkingValue === true,
+    timeoutMs,
+    thinkingSource,
+    allowClientModelOverride,
+    allowedVisionModels: config.allowedVisionModels,
+    allowedReasoningModels: config.allowedReasoningModels,
+    allowedSingleModels: config.allowedSingleModels,
+  };
+}
+
 function sanitizeImageStats(images) {
   return images.map(function (item) {
     return {
@@ -263,17 +307,6 @@ function sanitizeImageStats(images) {
       sourceKind: item.sourceKind || "unknown",
     };
   });
-}
-
-function normalizeArray(value) {
-  return Array.isArray(value)
-    ? value
-        .map(function (item) {
-          return sanitizeText(item, 180);
-        })
-        .filter(Boolean)
-        .slice(0, 12)
-    : [];
 }
 
 function normalizeSameFontSection(section, target) {
@@ -360,6 +393,43 @@ function normalizeResultSchema(target, parsed) {
   };
 }
 
+function normalizeStagePayload(stages) {
+  const source = normalizeObject(stages);
+  const result = {};
+  ["vision", "reasoning", "single"].forEach(function (stageKey) {
+    const stage = normalizeObject(source[stageKey]);
+    if (!stage.model && !stage.usage && !stage.elapsedMs) {
+      return;
+    }
+    result[stageKey] = {
+      model: String(stage.model || "").trim(),
+      elapsedMs: Number.isFinite(Number(stage.elapsedMs)) ? Math.max(0, Math.floor(Number(stage.elapsedMs))) : 0,
+      usage: normalizeUsage(stage.usage || {}, { source: "unavailable" }),
+    };
+  });
+  return result;
+}
+
+function buildUsagePayload(totalUsage, stages) {
+  const total = normalizeUsage(totalUsage || {}, { source: "unavailable" });
+  const usagePayload = Object.assign({}, total, {
+    total: Object.assign({}, total),
+  });
+  if (stages.single) {
+    usagePayload.single = Object.assign({}, stages.single.usage || normalizeUsage({}, { source: "unavailable" }));
+  }
+  if (stages.vision) {
+    usagePayload.vision = Object.assign({}, stages.vision.usage || normalizeUsage({}, { source: "unavailable" }));
+  }
+  if (stages.reasoning) {
+    usagePayload.reasoning = Object.assign(
+      {},
+      stages.reasoning.usage || normalizeUsage({}, { source: "unavailable" })
+    );
+  }
+  return usagePayload;
+}
+
 function buildHealthResponse() {
   const config = getClientConfig();
   return {
@@ -369,13 +439,22 @@ function buildHealthResponse() {
     status: config.mockEnabled || config.hasApiKey ? "ready" : "missing-api-key",
     mockEnabled: config.mockEnabled,
     hasApiKey: config.hasApiKey,
-    model: config.model || DEFAULT_MODEL,
-    modelOptions: Array.isArray(config.allowedModels) ? config.allowedModels : [DEFAULT_MODEL],
+    analysisMode: config.analysisMode || DEFAULT_ANALYSIS_MODE,
+    visionModel: config.visionModel || DEFAULT_VISION_MODEL,
+    reasoningModel: config.reasoningModel || DEFAULT_REASONING_MODEL,
+    singleModel: config.singleModel || DEFAULT_SINGLE_MODEL,
+    modelOptions: {
+      vision: config.allowedVisionModels,
+      reasoning: config.allowedReasoningModels,
+      single: config.allowedSingleModels,
+    },
     enableThinkingDefault: false,
     timeoutMs: config.timeoutMs,
     allowClientModelOverride: config.allowClientModelOverride === true,
+    allowThinkingParamFallback: config.allowThinkingParamFallback === true,
     thinkingParam: {
       paramName: THINKING_PARAM_NAME,
+      paramLocation: THINKING_PARAM_LOCATION,
       defaultEnabled: false,
       explicitDisableRequired: true,
     },
@@ -388,33 +467,48 @@ function buildDefaultsResponse() {
     success: true,
     service: "abaka-ai-task21-ai-analysis",
     scriptId: "abakaAiTaskPageCapture",
-    model: config.model || DEFAULT_MODEL,
-    modelOptions: Array.isArray(config.allowedModels) ? config.allowedModels : [DEFAULT_MODEL],
+    analysisMode: config.analysisMode || DEFAULT_ANALYSIS_MODE,
+    visionModel: config.visionModel || DEFAULT_VISION_MODEL,
+    reasoningModel: config.reasoningModel || DEFAULT_REASONING_MODEL,
+    singleModel: config.singleModel || DEFAULT_SINGLE_MODEL,
+    modelOptions: {
+      vision: config.allowedVisionModels,
+      reasoning: config.allowedReasoningModels,
+      single: config.allowedSingleModels,
+    },
     enableThinkingDefault: false,
     requestTimeoutMs: config.timeoutMs,
     allowClientModelOverride: config.allowClientModelOverride === true,
+    allowThinkingParamFallback: config.allowThinkingParamFallback === true,
     thinkingParam: {
       paramName: THINKING_PARAM_NAME,
+      paramLocation: THINKING_PARAM_LOCATION,
       defaultEnabled: false,
       explicitDisableRequired: true,
     },
     defaults: {
-      model: config.model || DEFAULT_MODEL,
-      modelOptions: Array.isArray(config.allowedModels) ? config.allowedModels : [DEFAULT_MODEL],
+      analysisMode: config.analysisMode || DEFAULT_ANALYSIS_MODE,
+      visionModel: config.visionModel || DEFAULT_VISION_MODEL,
+      reasoningModel: config.reasoningModel || DEFAULT_REASONING_MODEL,
+      singleModel: config.singleModel || DEFAULT_SINGLE_MODEL,
       enableThinkingDefault: false,
       timeoutMs: config.timeoutMs,
-      debug: true,
-      systemPrompt: SYSTEM_PROMPT,
-      userPromptTemplate: USER_PROMPT_TEMPLATE,
       allowClientModelOverride: config.allowClientModelOverride === true,
-      thinkingParam: {
-        paramName: THINKING_PARAM_NAME,
-        defaultEnabled: false,
-        explicitDisableRequired: true,
+      allowThinkingParamFallback: config.allowThinkingParamFallback === true,
+      prompts: {
+        single: {
+          system: SINGLE_MODEL_SYSTEM_PROMPT,
+        },
+        twoStageVision: {
+          system: VISION_EXTRACT_SYSTEM_PROMPT,
+        },
+        twoStageReasoning: {
+          system: REASONING_DECIDE_SYSTEM_PROMPT,
+        },
       },
     },
     notes: {
-      promptOverride: "本接口仅返回后端默认 Prompt 模板，前端不保存 API Key。",
+      promptOverride: "Prompt 模板由后端维护；前端不保存 API Key。",
       safety: "AI 仅返回建议，不自动写入/保存/提交。",
     },
   };
@@ -427,22 +521,30 @@ async function handleAnalyze(request, response) {
     const rawBody = await readRequestBody(request);
     const jsonBody = safeParseJson(rawBody || "{}");
     if (!jsonBody) {
-      throw createHttpError(400, "invalid-json", "请求体 JSON 解析失败。 ");
+      throw createHttpError(400, "invalid-json", "请求体 JSON 解析失败。");
     }
 
     const normalizedRequest = normalizeAnalyzeRequest(jsonBody);
     const config = getClientConfig();
     const runtimeOptions = resolveRuntimeOptions(jsonBody, config);
+
     if (!config.mockEnabled && !config.hasApiKey) {
-      throw createHttpError(503, "missing-api-key", "后端缺少 DASHSCOPE_API_KEY。可先开启 ABAKA_TASK21_AI_MOCK=1 调试。");
+      throw createHttpError(
+        503,
+        "missing-api-key",
+        "后端缺少 DASHSCOPE_API_KEY。可先开启 ABAKA_TASK21_AI_MOCK=1 调试。"
+      );
     }
 
-    const promptInput = {
+    const singleUserPrompt = buildSingleModelUserPrompt({
       target: normalizedRequest.target,
       context: normalizedRequest.context,
-    };
+    });
+    const visionUserPrompt = buildVisionExtractUserPrompt({
+      target: normalizedRequest.target,
+      context: normalizedRequest.context,
+    });
 
-    const userPrompt = buildUserPrompt(promptInput);
     const aiResponse = await analyzeTask21(
       {
         target: normalizedRequest.target,
@@ -450,13 +552,30 @@ async function handleAnalyze(request, response) {
         images: normalizedRequest.images,
       },
       {
-        systemPrompt: SYSTEM_PROMPT,
-        userPrompt,
+        singleSystemPrompt: SINGLE_MODEL_SYSTEM_PROMPT,
+        singleUserPrompt: singleUserPrompt,
+        visionSystemPrompt: VISION_EXTRACT_SYSTEM_PROMPT,
+        visionUserPrompt: visionUserPrompt,
+        reasoningSystemPrompt: REASONING_DECIDE_SYSTEM_PROMPT,
+        buildReasoningUserPrompt: function (visualObservations) {
+          return buildReasoningDecideUserPrompt(
+            {
+              target: normalizedRequest.target,
+              context: normalizedRequest.context,
+            },
+            visualObservations
+          );
+        },
       },
       {
-        modelOverride: runtimeOptions.modelOverride,
+        analysisMode: runtimeOptions.analysisMode,
+        visionModel: runtimeOptions.visionModel,
+        reasoningModel: runtimeOptions.reasoningModel,
+        singleModel: runtimeOptions.singleModel,
         allowClientModelOverride: runtimeOptions.allowClientModelOverride,
-        allowedModels: runtimeOptions.allowedModels,
+        allowedVisionModels: runtimeOptions.allowedVisionModels,
+        allowedReasoningModels: runtimeOptions.allowedReasoningModels,
+        allowedSingleModels: runtimeOptions.allowedSingleModels,
         enableThinking: runtimeOptions.enableThinking,
         timeoutMs: runtimeOptions.timeoutMs,
       }
@@ -469,24 +588,44 @@ async function handleAnalyze(request, response) {
     }
 
     const normalizedResult = normalizeResultSchema(normalizedRequest.target, parsedResult);
-    const usage = aiResponse.usage
+    const totalUsage = aiResponse.usage
       ? normalizeUsage(aiResponse.usage, { source: "provider" })
-      : normalizeUsage(estimateUsageFromTexts(userPrompt, rawText), { source: "estimated" });
+      : normalizeUsage(estimateUsageFromTexts(singleUserPrompt + "\n" + visionUserPrompt, rawText), {
+          source: "estimated",
+        });
+    const stages = normalizeStagePayload(aiResponse.stages || {});
+    const usage = buildUsagePayload(totalUsage, stages);
+    const thinkingPayload = normalizeObject(aiResponse.thinking);
 
     sendJson(response, 200, {
       success: true,
       requestId,
       target: normalizedRequest.target,
-      model: aiResponse.model || config.model || DEFAULT_MODEL,
-      selectedModel: runtimeOptions.selectedModel,
+      analysisMode: aiResponse.analysisMode || runtimeOptions.analysisMode,
+      model: aiResponse.model || "",
+      visionModel:
+        String(aiResponse.selectedModels?.visionModel || runtimeOptions.visionModel || ""),
+      reasoningModel:
+        String(aiResponse.selectedModels?.reasoningModel || runtimeOptions.reasoningModel || ""),
+      singleModel: String(aiResponse.selectedModels?.singleModel || runtimeOptions.singleModel || ""),
+      selectedModel:
+        aiResponse.analysisMode === "single_model"
+          ? String(aiResponse.selectedModels?.singleModel || runtimeOptions.singleModel || "")
+          : String(aiResponse.selectedModels?.reasoningModel || runtimeOptions.reasoningModel || ""),
       elapsedMs: Date.now() - startedAt,
       result: normalizedResult,
       usage,
+      stages,
       imageStats: sanitizeImageStats(normalizedRequest.images),
+      visualObservations:
+        aiResponse.analysisMode === "two_stage" ? aiResponse.visualObservations || {} : undefined,
       thinking: {
+        enableThinking: runtimeOptions.enableThinking === true,
         requested: runtimeOptions.enableThinking === true,
+        explicitDisableSent: runtimeOptions.enableThinking !== true,
         paramName: THINKING_PARAM_NAME,
         paramLocation: THINKING_PARAM_LOCATION,
+        fallbackUsed: thinkingPayload.fallbackUsed === true,
         source: runtimeOptions.thinkingSource,
         timeoutMs: runtimeOptions.timeoutMs,
       },
@@ -497,13 +636,17 @@ async function handleAnalyze(request, response) {
     });
   } catch (error) {
     const statusCode = Number(error?.statusCode) || (error?.code === "timeout" ? 504 : 500);
-    sendJson(response, statusCode, {
+    const errorBody = {
       success: false,
       requestId,
       code: String(error?.code || "internal-error"),
-      message: sanitizeText(error?.message || "Task21 AI analyze 请求失败。", 260),
+      message: sanitizeText(error?.message || "Task21 AI analyze 请求失败。", 300),
       elapsedMs: Date.now() - startedAt,
-    });
+    };
+    if (error?.summary) {
+      errorBody.summary = sanitizeText(error.summary, 300);
+    }
+    sendJson(response, statusCode, errorBody);
   }
 }
 
