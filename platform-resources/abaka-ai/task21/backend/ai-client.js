@@ -2,6 +2,9 @@
 
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_MODEL = "qwen-vl-max-latest";
+const THINKING_PARAM_NAME = "enable_thinking";
+const THINKING_PARAM_LOCATION = "root";
+const DEFAULT_ALLOWED_MODELS = ["qwen-vl-max-latest"];
 
 function trimSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -31,6 +34,20 @@ function sanitizeModelName(value, fallback) {
   return text.slice(0, 80);
 }
 
+function parseAllowedModels(value) {
+  const source = String(value || "").trim();
+  if (!source) {
+    return DEFAULT_ALLOWED_MODELS.slice();
+  }
+  const result = source
+    .split(/[,\n]/)
+    .map(function (item) {
+      return sanitizeModelName(item, "");
+    })
+    .filter(Boolean);
+  return result.length > 0 ? result : DEFAULT_ALLOWED_MODELS.slice();
+}
+
 function getClientConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
   const model = sanitizeModelName(process.env.ABAKA_TASK21_AI_MODEL, DEFAULT_MODEL) || DEFAULT_MODEL;
@@ -40,7 +57,9 @@ function getClientConfig() {
     model,
     timeoutMs: parseTimeoutMs(),
     mockEnabled: parseBooleanEnv("ABAKA_TASK21_AI_MOCK", false),
+    defaultEnableThinking: parseBooleanEnv("ABAKA_TASK21_AI_ENABLE_THINKING", false),
     allowClientModelOverride: parseBooleanEnv("ABAKA_TASK21_AI_ALLOW_CLIENT_MODEL_OVERRIDE", false),
+    allowedModels: parseAllowedModels(process.env.ABAKA_TASK21_AI_ALLOWED_MODELS || ""),
     hasApiKey: Boolean(apiKey),
   };
 }
@@ -225,7 +244,23 @@ async function analyzeTask21(input, prompts, options) {
   const runtimeOptions = options && typeof options === "object" ? options : {};
   const config = getClientConfig();
   const requestModel = sanitizeModelName(runtimeOptions.modelOverride, "");
-  const model = config.allowClientModelOverride && requestModel ? requestModel : config.model;
+  const allowClientModelOverride =
+    runtimeOptions.allowClientModelOverride === true ||
+    (runtimeOptions.allowClientModelOverride !== false && config.allowClientModelOverride === true);
+  const allowedModels = Array.isArray(runtimeOptions.allowedModels)
+    ? runtimeOptions.allowedModels
+        .map(function (item) {
+          return sanitizeModelName(item, "");
+        })
+        .filter(Boolean)
+    : config.allowedModels;
+  const canUseRequestModel =
+    allowClientModelOverride &&
+    requestModel &&
+    Array.isArray(allowedModels) &&
+    allowedModels.indexOf(requestModel) >= 0;
+  const model = canUseRequestModel ? requestModel : config.model;
+  const enableThinking = runtimeOptions.enableThinking === true;
 
   if (config.mockEnabled) {
     return {
@@ -240,6 +275,11 @@ async function analyzeTask21(input, prompts, options) {
       },
       rawResponse: {
         mock: true,
+      },
+      thinking: {
+        requested: enableThinking,
+        paramName: THINKING_PARAM_NAME,
+        paramLocation: THINKING_PARAM_LOCATION,
       },
     };
   }
@@ -269,15 +309,25 @@ async function analyzeTask21(input, prompts, options) {
     top_p: 0.1,
     max_tokens: 1800,
   };
+  requestBody[THINKING_PARAM_NAME] = enableThinking;
 
-  return requestChatCompletion(requestBody, {
+  const completion = await requestChatCompletion(requestBody, {
     timeoutMs: runtimeOptions.timeoutMs,
   });
+  completion.thinking = {
+    requested: enableThinking,
+    paramName: THINKING_PARAM_NAME,
+    paramLocation: THINKING_PARAM_LOCATION,
+  };
+  return completion;
 }
 
 module.exports = {
   DEFAULT_MODEL,
+  THINKING_PARAM_NAME,
+  THINKING_PARAM_LOCATION,
   getClientConfig,
   analyzeTask21,
+  parseAllowedModels,
   sanitizeModelName,
 };

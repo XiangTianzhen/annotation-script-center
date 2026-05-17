@@ -37,12 +37,23 @@ AI 快捷键（默认）：
 - `GET /api/abaka-ai/task21/ai/defaults`
 - `POST /api/abaka-ai/task21/ai/analyze`
 
+Options（Abaka AI Task21 详情）新增 AI 调试：
+
+- `aiDebugModel`（默认 `qwen-vl-max-latest`）
+- `aiEnableThinking`（默认 `false`）
+- `aiRequestTimeoutMs`（默认 `120000`）
+- API Key 仅后端环境变量读取，前端不保存
+
 ## 调试输出
 
 每次分析返回并展示：
 
 - `requestId`
 - 模型名
+- selectedModel
+- enableThinking
+- thinkingParamName / thinkingParamLocation
+- timeoutMs
 - 耗时（ms）
 - `inputTokens/outputTokens/totalTokens`
 - `usage.source`（`provider | estimated | unavailable`）
@@ -67,6 +78,17 @@ AI 快捷键（默认）：
 - 不记录完整 `imageUrl`、对象存储 URL、完整 `dataUrl`。
 - 不记录 cookie/token/authorization/password/secret/signature。
 - 文档和日志仅保留结构化摘要，不落原始图片数据。
+- 默认显式传 `enable_thinking=false`（root 参数），避免模型在未传参时开启思考。
+
+## 模型与 thinking 核对
+
+- 已按 `docs/external-docs/aliyun-bailian.md` 索引核对阿里云官方文档入口。
+- 当前默认与可选模型仅使用已核对/已在项目中存在的模型名：
+  - `qwen-vl-max-latest`（默认）
+  - `qwen-vl-plus-latest`
+  - `qwen3-vl-plus`
+  - `qwen3-vl-flash`
+- 若后续模型列表变更，以阿里云官方模型市场为准并同步白名单。
 
 ## Prompt 文档
 

@@ -192,6 +192,9 @@
         { key: "aiAnalyzeOtherChanges", label: "AI 分析 other_changes" },
         { key: "aiAnalyzeOverall", label: "AI 整体分析" },
       ];
+  const abakaAiTask21ModelOptions = Array.isArray(constants.ABAKA_AI_TASK21_AI_MODEL_OPTIONS)
+    ? constants.ABAKA_AI_TASK21_AI_MODEL_OPTIONS
+    : [{ value: "qwen-vl-max-latest", label: "qwen-vl-max-latest", supportsVision: true, supportsThinking: "unknown" }];
   const judgementItemsPerPageOptions = [
     { value: "1 条/页", label: "1 条/页" },
     { value: "2 条/页", label: "2 条/页" },
@@ -1115,6 +1118,59 @@
     return result;
   }
 
+  function normalizeAbakaAiDebugModel(value, fallback) {
+    const allowed = abakaAiTask21ModelOptions
+      .map(function (item) {
+        return String(item?.value || "").trim();
+      })
+      .filter(Boolean);
+    const fallbackModel = String(fallback || "qwen-vl-max-latest").trim() || "qwen-vl-max-latest";
+    const model = normalizeMagicDataModel(value, fallbackModel);
+    if (allowed.length <= 0 || allowed.indexOf(model) >= 0) {
+      return model;
+    }
+    return model;
+  }
+
+  function normalizeAbakaAiTimeout(value, fallback) {
+    return clampNumber(value, fallback || 120000, 1000, 300000, 0);
+  }
+
+  function renderAbakaAiModelOptions(selectedModel) {
+    const selectNode = getElement("abaka-ai-debug-model");
+    if (!(selectNode instanceof HTMLSelectElement)) {
+      return;
+    }
+    const options = abakaAiTask21ModelOptions.slice();
+    if (options.length <= 0) {
+      options.push({ value: "qwen-vl-max-latest", label: "qwen-vl-max-latest" });
+    }
+    const normalizedSelected = normalizeAbakaAiDebugModel(
+      selectedModel,
+      options[0]?.value || "qwen-vl-max-latest"
+    );
+    if (
+      normalizedSelected &&
+      !options.find(function (item) {
+        return String(item?.value || "").trim() === normalizedSelected;
+      })
+    ) {
+      options.push({
+        value: normalizedSelected,
+        label: normalizedSelected + "（已保存，待官方核对）",
+      });
+    }
+
+    selectNode.innerHTML = options
+      .map(function (item) {
+        const value = String(item?.value || "").trim();
+        const label = String(item?.label || value || "").trim();
+        return '<option value="' + escapeHtml(value) + '">' + escapeHtml(label || value) + "</option>";
+      })
+      .join("");
+    selectNode.value = normalizedSelected;
+  }
+
   function isMagicDataPresetModel(modelName, presetList) {
     return Array.isArray(presetList) && presetList.indexOf(modelName) >= 0;
   }
@@ -1290,6 +1346,9 @@
         enabled: true,
         stage: "task21-inline-ai-analysis-debug",
         autoSelectSpecifyOnSameFontTrue: true,
+        aiDebugModel: "qwen-vl-max-latest",
+        aiEnableThinking: false,
+        aiRequestTimeoutMs: 120000,
         shortcuts: createAbakaAiDefaultShortcutMap(),
       },
       defaults,
@@ -1300,6 +1359,9 @@
     merged.enabled = merged.enabled !== false;
     merged.stage = String(merged.stage || "task21-inline-ai-analysis-debug");
     merged.autoSelectSpecifyOnSameFontTrue = merged.autoSelectSpecifyOnSameFontTrue !== false;
+    merged.aiDebugModel = normalizeAbakaAiDebugModel(merged.aiDebugModel, "qwen-vl-max-latest");
+    merged.aiEnableThinking = merged.aiEnableThinking === true;
+    merged.aiRequestTimeoutMs = normalizeAbakaAiTimeout(merged.aiRequestTimeoutMs, 120000);
     merged.shortcuts = normalizeAbakaAiShortcuts(
       merged.shortcuts,
       createAbakaAiDefaultShortcutMap()
@@ -2852,6 +2914,20 @@
     if (autoSelectNode instanceof HTMLInputElement) {
       autoSelectNode.checked = config.autoSelectSpecifyOnSameFontTrue !== false;
     }
+    renderAbakaAiModelOptions(config.aiDebugModel);
+    const enableThinkingNode = getElement("abaka-ai-enable-thinking");
+    if (enableThinkingNode instanceof HTMLInputElement) {
+      enableThinkingNode.checked = config.aiEnableThinking === true;
+    }
+    const timeoutNode = getElement("abaka-ai-timeout");
+    if (timeoutNode instanceof HTMLInputElement) {
+      timeoutNode.value = String(config.aiRequestTimeoutMs || 120000);
+    }
+    const mockTipNode = getElement("abaka-ai-mock-tip");
+    if (mockTipNode) {
+      mockTipNode.textContent =
+        "Mock 模式由后端环境变量 ABAKA_TASK21_AI_MOCK 控制；前端只展示配置，不直接修改环境变量。";
+    }
     stopAbakaAiShortcutRecording("");
     renderAbakaAiShortcutGrid();
   }
@@ -2873,6 +2949,21 @@
       autoSelectNode instanceof HTMLInputElement
         ? autoSelectNode.checked === true
         : currentConfig.autoSelectSpecifyOnSameFontTrue !== false;
+    const aiDebugModelNode = getElement("abaka-ai-debug-model");
+    const aiDebugModel =
+      aiDebugModelNode instanceof HTMLSelectElement
+        ? normalizeAbakaAiDebugModel(aiDebugModelNode.value, currentConfig.aiDebugModel || "qwen-vl-max-latest")
+        : normalizeAbakaAiDebugModel(currentConfig.aiDebugModel, "qwen-vl-max-latest");
+    const aiEnableThinkingNode = getElement("abaka-ai-enable-thinking");
+    const aiEnableThinking =
+      aiEnableThinkingNode instanceof HTMLInputElement
+        ? aiEnableThinkingNode.checked === true
+        : currentConfig.aiEnableThinking === true;
+    const aiTimeoutNode = getElement("abaka-ai-timeout");
+    const aiRequestTimeoutMs =
+      aiTimeoutNode instanceof HTMLInputElement
+        ? normalizeAbakaAiTimeout(aiTimeoutNode.value, currentConfig.aiRequestTimeoutMs || 120000)
+        : normalizeAbakaAiTimeout(currentConfig.aiRequestTimeoutMs, 120000);
 
     setStatus("abaka-status", "正在保存 Abaka AI 设置...");
     try {
@@ -2885,6 +2976,9 @@
                 enabled: currentConfig.enabled !== false,
                 stage: "task21-inline-ai-analysis-debug",
                 autoSelectSpecifyOnSameFontTrue: autoSelectSpecifyOnSameFontTrue,
+                aiDebugModel: aiDebugModel,
+                aiEnableThinking: aiEnableThinking,
+                aiRequestTimeoutMs: aiRequestTimeoutMs,
                 shortcuts: shortcuts,
               },
             },
@@ -2892,7 +2986,7 @@
         },
       });
       applyAbakaAiTaskPageForm(currentSettings);
-      setStatus("abaka-status", "Abaka AI Task21 快捷键设置已保存。");
+      setStatus("abaka-status", "Abaka AI Task21 快捷键与 AI 调试设置已保存。");
       return true;
     } catch (error) {
       setStatus(
@@ -4014,7 +4108,7 @@
       applyAbakaAiTaskPageForm(settings);
       setStatus(
         "detail-status",
-        "Abaka AI Task21 快捷键仅用于点击页面真实选项；不直接调用保存/提交/领取/流转接口。"
+        "Abaka AI Task21 快捷键仅用于点击页面真实选项；AI 调试仅输出建议；不直接调用保存/提交/领取/流转接口。"
       );
       setStatus("abaka-status", "");
       return;

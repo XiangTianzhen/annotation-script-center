@@ -11,6 +11,10 @@
   - `Alt+2` image_b_texts_removed
   - `Alt+3` other_changes
   - `Alt+4` overall
+- Options AI 调试参数：
+  - `aiDebugModel`（默认 `qwen-vl-max-latest`）
+  - `aiEnableThinking`（默认 `false`）
+  - `aiRequestTimeoutMs`（默认 `120000`）
 
 ## System Prompt
 
@@ -114,3 +118,11 @@
 - other_changes 不能超过 40 个词；超过时必须压缩。
 - 不确定时先给最合理判断，并把风险写入 warnings。
 - 不要编造看不见的文本。
+
+## 请求参数补充（运行时）
+
+- 前端会在请求体中携带 `options/debugConfig`：
+  - `model`
+  - `enableThinking`
+  - `timeoutMs`
+- 后端默认显式传 `enable_thinking=false` 到模型请求体根层；仅当用户在 Options 开启思考时才传 `true`。

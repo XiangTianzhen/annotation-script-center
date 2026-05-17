@@ -70,8 +70,14 @@
   - `Alt+2`：AI 分析 `image_b_texts_removed`
   - `Alt+3`：AI 分析 `other_changes`
   - `Alt+4`：AI 整体分析
+- Options 新增“AI 调试”子板块：
+  - 模型选择（仅影响 Task21 AI 分析）
+  - 启用思考（默认关闭）
+  - 请求超时（默认 `120000ms`）
+  - 前端不保存 API Key
 - 调试输出：
   - `requestId`、模型名、耗时
+  - `selectedModel`、`enableThinking`、`thinkingParamName`、`thinkingParamLocation`、`timeoutMs`
   - `input/output/total tokens` 与 usage 来源
   - 图片数量、字段列表、`mime/width/height/bytes`
   - 价格估算（same_font、image_b_texts_removed、other_changes、total）
@@ -101,3 +107,4 @@ window.__ASCAbakaAiCapture && window.__ASCAbakaAiCapture.download()
 - 不记录账号密码、cookie、token、authorization、password、secret、signature。
 - 不记录完整图片、音频、文件、对象存储 URL。
 - 不提交原始 HAR、JSON、截图、CSV 或完整响应。
+- 默认显式传 `enable_thinking=false`；仅在 Options 手动开启时传 `enable_thinking=true`。

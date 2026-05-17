@@ -70,6 +70,9 @@
                 enabled: true,
                 stage: "task21-inline-ai-analysis-debug",
                 autoSelectSpecifyOnSameFontTrue: true,
+                aiDebugModel: "qwen-vl-max-latest",
+                aiEnableThinking: false,
+                aiRequestTimeoutMs: 120000,
                 shortcuts: {
                   sameFontTrue: {
                     ctrl: false,
@@ -224,6 +227,9 @@
         { key: "aiAnalyzeImageBTextsRemoved", label: "AI 分析 image_b_texts_removed" },
         { key: "aiAnalyzeOtherChanges", label: "AI 分析 other_changes" },
         { key: "aiAnalyzeOverall", label: "AI 整体分析" },
+      ],
+      ABAKA_AI_TASK21_AI_MODEL_OPTIONS: [
+        { value: "qwen-vl-max-latest", supportsVision: true, supportsThinking: "unknown" },
       ],
       JUDGEMENT_PROJECT_ASR_KEYS: [
         "itemsPerPage",
@@ -1183,6 +1189,22 @@
     return result;
   }
 
+  function normalizeAbakaAiModel(value, fallback) {
+    const fallbackModel = String(fallback || "qwen-vl-max-latest").trim() || "qwen-vl-max-latest";
+    const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    if (!text) {
+      return fallbackModel;
+    }
+    return text.slice(0, 80);
+  }
+
+  function normalizeAbakaAiRequestTimeout(value, fallback) {
+    const numeric = Number(value);
+    const base = Number.isFinite(numeric) ? numeric : Number(fallback);
+    const resolved = Number.isFinite(base) ? base : 120000;
+    return Math.max(1000, Math.min(300000, Math.floor(resolved)));
+  }
+
   function normalizeDataBakerRoundOneQualityConfig(config, defaults) {
     const source = isPlainObject(config) ? config : {};
     const defaultConfig = isPlainObject(defaults) ? defaults : {};
@@ -1338,6 +1360,9 @@
             enabled: true,
             stage: "task21-inline-ai-analysis-debug",
             autoSelectSpecifyOnSameFontTrue: true,
+            aiDebugModel: "qwen-vl-max-latest",
+            aiEnableThinking: false,
+            aiRequestTimeoutMs: 120000,
             shortcuts: {
               sameFontTrue: { key: "1" },
               sameFontFalse: { key: "2" },
@@ -1379,6 +1404,15 @@
       ),
       autoSelectSpecifyOnSameFontTrue:
         currentScript.autoSelectSpecifyOnSameFontTrue !== false,
+      aiDebugModel: normalizeAbakaAiModel(
+        currentScript.aiDebugModel,
+        defaultScript.aiDebugModel || "qwen-vl-max-latest"
+      ),
+      aiEnableThinking: currentScript.aiEnableThinking === true,
+      aiRequestTimeoutMs: normalizeAbakaAiRequestTimeout(
+        currentScript.aiRequestTimeoutMs,
+        defaultScript.aiRequestTimeoutMs || 120000
+      ),
       shortcuts: normalizeAbakaAiTask21Shortcuts(
         currentScript.shortcuts,
         defaultScript.shortcuts || {}
@@ -2092,7 +2126,7 @@
                   constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID ||
                   "abakaAiTaskPageCapture",
                 enabled: nextEnabled,
-                stage: "task21-ai-analysis-debug",
+                stage: "task21-inline-ai-analysis-debug",
               },
             },
           },

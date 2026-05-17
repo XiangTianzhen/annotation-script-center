@@ -113,6 +113,32 @@
     { key: "aiAnalyzeOtherChanges", label: "AI 分析 other_changes" },
     { key: "aiAnalyzeOverall", label: "AI 整体分析" },
   ];
+  const ABAKA_AI_TASK21_AI_MODEL_OPTIONS = [
+    {
+      value: "qwen-vl-max-latest",
+      label: "qwen-vl-max-latest",
+      supportsVision: true,
+      supportsThinking: "unknown",
+    },
+    {
+      value: "qwen-vl-plus-latest",
+      label: "qwen-vl-plus-latest",
+      supportsVision: true,
+      supportsThinking: "unknown",
+    },
+    {
+      value: "qwen3-vl-plus",
+      label: "qwen3-vl-plus",
+      supportsVision: true,
+      supportsThinking: true,
+    },
+    {
+      value: "qwen3-vl-flash",
+      label: "qwen3-vl-flash",
+      supportsVision: true,
+      supportsThinking: true,
+    },
+  ];
 
   const MESSAGE_TYPES = {
     PANEL_PING: "ASR_EDGE_SETTINGS_PANEL_PING",
@@ -1064,6 +1090,9 @@
           enabled: true,
           stage: "task21-inline-ai-analysis-debug",
           autoSelectSpecifyOnSameFontTrue: true,
+          aiDebugModel: "qwen-vl-max-latest",
+          aiEnableThinking: false,
+          aiRequestTimeoutMs: 120000,
           shortcuts: shortcuts,
         },
       },
@@ -1196,6 +1225,7 @@
     DATABAKER_PAGE_SIZE_OPTIONS: clone(DATABAKER_PAGE_SIZE_OPTIONS),
     DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_SHORTCUT_ACTIONS: clone(ABAKA_AI_TASK21_SHORTCUT_ACTIONS),
+    ABAKA_AI_TASK21_AI_MODEL_OPTIONS: clone(ABAKA_AI_TASK21_AI_MODEL_OPTIONS),
     SCRIPT_PROJECTS: clone(SCRIPT_PROJECTS),
     SCRIPT_LIBRARY: clone(SCRIPT_LIBRARY),
     JUDGEMENT_SHORTCUT_ACTIONS: clone(JUDGEMENT_SHORTCUT_ACTIONS),

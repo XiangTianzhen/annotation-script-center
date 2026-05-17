@@ -1,5 +1,21 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（Abaka AI：Task21 AI 调试配置增强）
+
+- Abaka AI Task21 Options 详情页新增“AI 调试”子板块：模型选择、思考开关、请求超时与 mock 提示。
+- 新增默认配置并兼容旧配置补齐：
+  - `aiDebugModel=qwen-vl-max-latest`
+  - `aiEnableThinking=false`
+  - `aiRequestTimeoutMs=120000`
+- 前端 `ai-client` 请求 `/api/abaka-ai/task21/ai/analyze` 时，显式携带 `model`、`enableThinking`、`timeoutMs`（包含 `enableThinking=false`）。
+- 后端新增运行时参数解析与白名单控制：
+  - `model` 仅在允许覆盖且命中白名单时生效；
+  - `timeoutMs` 限制 `1000~300000`；
+  - 默认显式传 `enable_thinking=false`，仅在用户启用时传 `true`。
+- `defaults/health/analyze` 返回补充 thinking 调试信息（参数名、参数位置、请求来源）。
+- 同步更新 Abaka Task21 AI 文档、后端说明和 `ai.env.example`。
+- 本轮未保存 API Key，未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-17（Options：首页脚本下载中心入口）
 
 - 将 Options 首页右上角“脚本中心”入口改为“脚本下载中心”。

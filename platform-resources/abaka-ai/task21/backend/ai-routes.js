@@ -1,7 +1,14 @@
 "use strict";
 
 const { sendJson } = require("../../../backend/response");
-const { analyzeTask21, DEFAULT_MODEL, getClientConfig } = require("./ai-client");
+const {
+  analyzeTask21,
+  DEFAULT_MODEL,
+  THINKING_PARAM_NAME,
+  THINKING_PARAM_LOCATION,
+  getClientConfig,
+  sanitizeModelName,
+} = require("./ai-client");
 const { buildUserPrompt, SYSTEM_PROMPT, TASK21_AI_RULE_VERSION, USER_PROMPT_TEMPLATE } = require("./prompt");
 const { estimateUsageFromTexts, normalizeUsage } = require("./usage");
 
@@ -11,6 +18,8 @@ const AI_DEFAULTS_PATH = "/api/abaka-ai/task21/ai/defaults";
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const ALLOWED_TARGETS = ["same_font", "image_b_texts_removed", "other_changes", "overall"];
 const ALLOWED_IMAGE_FIELDS = ["image_a", "image_b", "image_b_removed"];
+const MIN_TIMEOUT_MS = 1000;
+const MAX_TIMEOUT_MS = 300000;
 
 function createRequestId() {
   const now = new Date();
@@ -91,6 +100,65 @@ function normalizeTarget(value) {
 
 function normalizeObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function normalizeTimeoutMs(value, fallback) {
+  const number = Number(value);
+  const base = Number.isFinite(number) ? number : Number(fallback);
+  const safe = Number.isFinite(base) ? base : 120000;
+  return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, Math.floor(safe)));
+}
+
+function resolveRuntimeOptions(requestBody, config) {
+  const source = normalizeObject(requestBody);
+  const options = normalizeObject(source.options);
+  const debugConfig = normalizeObject(source.debugConfig);
+  const allowedModels = Array.isArray(config.allowedModels)
+    ? config.allowedModels
+        .map(function (item) {
+          return sanitizeModelName(item, "");
+        })
+        .filter(Boolean)
+    : [DEFAULT_MODEL];
+
+  const requestedModelRaw = source.model || options.model || debugConfig.model || "";
+  const requestedModel = sanitizeModelName(requestedModelRaw, "");
+  const allowClientModelOverride = config.allowClientModelOverride === true;
+  const selectedModel =
+    allowClientModelOverride && requestedModel && allowedModels.indexOf(requestedModel) >= 0
+      ? requestedModel
+      : config.model || DEFAULT_MODEL;
+
+  const hasEnableThinkingValue =
+    typeof source.enableThinking === "boolean" ||
+    typeof options.enableThinking === "boolean" ||
+    typeof debugConfig.enableThinking === "boolean";
+  const enableThinking = hasEnableThinkingValue
+    ? source.enableThinking === true ||
+      options.enableThinking === true ||
+      debugConfig.enableThinking === true
+    : false;
+
+  const timeoutMs = normalizeTimeoutMs(
+    source.timeoutMs || options.timeoutMs || debugConfig.timeoutMs,
+    config.timeoutMs || 120000
+  );
+
+  let thinkingSource = "server-default";
+  if (hasEnableThinkingValue) {
+    thinkingSource = enableThinking ? "options-enabled" : "options-default";
+  }
+
+  return {
+    selectedModel,
+    modelOverride:
+      allowClientModelOverride && selectedModel !== (config.model || DEFAULT_MODEL) ? selectedModel : "",
+    allowClientModelOverride,
+    allowedModels,
+    enableThinking,
+    thinkingSource,
+    timeoutMs,
+  };
 }
 
 function normalizeString(value, maxLength) {
@@ -302,8 +370,15 @@ function buildHealthResponse() {
     mockEnabled: config.mockEnabled,
     hasApiKey: config.hasApiKey,
     model: config.model || DEFAULT_MODEL,
+    modelOptions: Array.isArray(config.allowedModels) ? config.allowedModels : [DEFAULT_MODEL],
+    enableThinkingDefault: false,
     timeoutMs: config.timeoutMs,
     allowClientModelOverride: config.allowClientModelOverride === true,
+    thinkingParam: {
+      paramName: THINKING_PARAM_NAME,
+      defaultEnabled: false,
+      explicitDisableRequired: true,
+    },
   };
 }
 
@@ -313,12 +388,30 @@ function buildDefaultsResponse() {
     success: true,
     service: "abaka-ai-task21-ai-analysis",
     scriptId: "abakaAiTaskPageCapture",
+    model: config.model || DEFAULT_MODEL,
+    modelOptions: Array.isArray(config.allowedModels) ? config.allowedModels : [DEFAULT_MODEL],
+    enableThinkingDefault: false,
+    requestTimeoutMs: config.timeoutMs,
+    allowClientModelOverride: config.allowClientModelOverride === true,
+    thinkingParam: {
+      paramName: THINKING_PARAM_NAME,
+      defaultEnabled: false,
+      explicitDisableRequired: true,
+    },
     defaults: {
       model: config.model || DEFAULT_MODEL,
+      modelOptions: Array.isArray(config.allowedModels) ? config.allowedModels : [DEFAULT_MODEL],
+      enableThinkingDefault: false,
       timeoutMs: config.timeoutMs,
       debug: true,
       systemPrompt: SYSTEM_PROMPT,
       userPromptTemplate: USER_PROMPT_TEMPLATE,
+      allowClientModelOverride: config.allowClientModelOverride === true,
+      thinkingParam: {
+        paramName: THINKING_PARAM_NAME,
+        defaultEnabled: false,
+        explicitDisableRequired: true,
+      },
     },
     notes: {
       promptOverride: "本接口仅返回后端默认 Prompt 模板，前端不保存 API Key。",
@@ -339,6 +432,7 @@ async function handleAnalyze(request, response) {
 
     const normalizedRequest = normalizeAnalyzeRequest(jsonBody);
     const config = getClientConfig();
+    const runtimeOptions = resolveRuntimeOptions(jsonBody, config);
     if (!config.mockEnabled && !config.hasApiKey) {
       throw createHttpError(503, "missing-api-key", "后端缺少 DASHSCOPE_API_KEY。可先开启 ABAKA_TASK21_AI_MOCK=1 调试。");
     }
@@ -360,7 +454,11 @@ async function handleAnalyze(request, response) {
         userPrompt,
       },
       {
-        timeoutMs: config.timeoutMs,
+        modelOverride: runtimeOptions.modelOverride,
+        allowClientModelOverride: runtimeOptions.allowClientModelOverride,
+        allowedModels: runtimeOptions.allowedModels,
+        enableThinking: runtimeOptions.enableThinking,
+        timeoutMs: runtimeOptions.timeoutMs,
       }
     );
 
@@ -380,10 +478,18 @@ async function handleAnalyze(request, response) {
       requestId,
       target: normalizedRequest.target,
       model: aiResponse.model || config.model || DEFAULT_MODEL,
+      selectedModel: runtimeOptions.selectedModel,
       elapsedMs: Date.now() - startedAt,
       result: normalizedResult,
       usage,
       imageStats: sanitizeImageStats(normalizedRequest.images),
+      thinking: {
+        requested: runtimeOptions.enableThinking === true,
+        paramName: THINKING_PARAM_NAME,
+        paramLocation: THINKING_PARAM_LOCATION,
+        source: runtimeOptions.thinkingSource,
+        timeoutMs: runtimeOptions.timeoutMs,
+      },
       warnings: normalizeArray(normalizedResult.same_font.warnings)
         .concat(normalizeArray(normalizedResult.image_b_texts_removed.warnings))
         .concat(normalizeArray(normalizedResult.other_changes.warnings)),

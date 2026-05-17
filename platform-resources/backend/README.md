@@ -71,8 +71,10 @@ http://127.0.0.1:3333
 - `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ABAKA_TASK21_AI_MOCK`：设为 `1` 时启用 Abaka Task21 AI mock 调试模式。
 - `ABAKA_TASK21_AI_MODEL`：Abaka Task21 图像分析模型名（需使用官方支持视觉输入的模型）。
+- `ABAKA_TASK21_AI_ALLOWED_MODELS`：允许前端覆盖的模型白名单（逗号分隔）。
 - `ABAKA_TASK21_AI_TIMEOUT_MS`：Abaka Task21 AI 请求超时，默认 `120000`。
 - `ABAKA_TASK21_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `0`，是否允许请求覆盖模型名。
+- `ABAKA_TASK21_AI_ENABLE_THINKING`：默认 `0`；请求默认显式传 `enable_thinking=false`，开启后才传 `true`。
 - `ASR_TRANSCRIPTION_AI_MOCK`：设为 `1` 时启用转写 AI mock 调试模式。
 - `ASR_TRANSCRIPTION_AI_LISTEN_MODEL`：转写 AI 听音模型，默认 `qwen3.5-omni-flash`。
 - `ASR_TRANSCRIPTION_AI_COMPARE_MODEL`：转写 AI 文本比较模型，默认 `qwen3.5-plus`。

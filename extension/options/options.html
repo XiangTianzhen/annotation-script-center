@@ -1053,6 +1053,31 @@
             </label>
           </div>
 
+          <div class="field-card" style="margin-top: 18px;">
+            <strong>AI 调试</strong>
+            <span>模型选择只影响 Abaka AI Task21 AI 分析。</span>
+            <span>默认关闭思考。由于部分模型未传参数时可能默认启用思考，后端会显式传 enable_thinking=false。</span>
+            <span>API Key 只从后端环境变量读取，前端不保存。</span>
+            <span>AI 只提供建议，不自动写入、不保存、不提交。</span>
+
+            <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
+              <strong>模型选择</strong>
+              <select id="abaka-ai-debug-model"></select>
+            </label>
+
+            <label class="field-toggle" style="margin-top: 6px;">
+              <input id="abaka-ai-enable-thinking" type="checkbox" />
+              <span>启用思考</span>
+            </label>
+
+            <label class="field-card" style="margin: 6px 0 0; padding: 12px 14px;">
+              <strong>请求超时（毫秒）</strong>
+              <input id="abaka-ai-timeout" type="number" min="1000" max="300000" step="1000" />
+            </label>
+
+            <span id="abaka-ai-mock-tip" class="status-text"></span>
+          </div>
+
           <div class="field-card shortcut-panel" style="margin-top: 18px;">
             <strong>快捷键配置</strong>
             <span>默认键位：1/2/3/4/5/6/7 + Alt+1/2/3/4。点击“录制”后按键盘组合或鼠标按键，Esc 取消录制。</span>

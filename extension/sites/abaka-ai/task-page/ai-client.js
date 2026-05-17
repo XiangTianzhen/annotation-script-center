@@ -1,6 +1,7 @@
 (function () {
   const ANALYZE_PATH = "/api/abaka-ai/task21/ai/analyze";
   const DEFAULT_TIMEOUT_MS = 120000;
+  const DEFAULT_MODEL = "qwen-vl-max-latest";
 
   function sanitizeText(value, maxLength) {
     return String(value || "")
@@ -21,6 +22,47 @@
     }
     const base = "http://127.0.0.1:3333";
     return base + ANALYZE_PATH;
+  }
+
+  function normalizeModelName(value, fallback) {
+    const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    if (!text) {
+      return String(fallback || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+    }
+    return text.slice(0, 80);
+  }
+
+  function normalizeTimeoutMs(value, fallback) {
+    const number = Number(value);
+    const base = Number.isFinite(number) ? number : Number(fallback);
+    const safe = Number.isFinite(base) ? base : DEFAULT_TIMEOUT_MS;
+    return Math.max(1000, Math.min(300000, Math.floor(safe)));
+  }
+
+  function getAbakaAiTaskConfig(settings) {
+    const constants = globalThis.ASREdgeConstants || {};
+    const defaultConfig =
+      constants.DEFAULT_SETTINGS?.platforms?.abakaAi?.scripts?.taskPageCapture || {};
+    const currentConfig = settings?.platforms?.abakaAi?.scripts?.taskPageCapture || {};
+    const modelOptions = Array.isArray(constants.ABAKA_AI_TASK21_AI_MODEL_OPTIONS)
+      ? constants.ABAKA_AI_TASK21_AI_MODEL_OPTIONS
+      : [{ value: DEFAULT_MODEL }];
+    const allowedModels = modelOptions
+      .map(function (item) {
+        return String(item?.value || "").trim();
+      })
+      .filter(Boolean);
+    const fallbackModel = normalizeModelName(defaultConfig.aiDebugModel, DEFAULT_MODEL);
+    const mergedModel = normalizeModelName(currentConfig.aiDebugModel, fallbackModel);
+    const model = allowedModels.indexOf(mergedModel) >= 0 ? mergedModel : fallbackModel;
+    return {
+      model: model,
+      enableThinking: currentConfig.aiEnableThinking === true,
+      timeoutMs: normalizeTimeoutMs(
+        currentConfig.aiRequestTimeoutMs,
+        normalizeTimeoutMs(defaultConfig.aiRequestTimeoutMs, DEFAULT_TIMEOUT_MS)
+      ),
+    };
   }
 
   function createTimeoutController(timeoutMs) {
@@ -65,9 +107,22 @@
 
   async function analyze(payload, options) {
     const config = options && typeof options === "object" ? options : {};
-    const timeoutMs = Number(config.timeoutMs) || DEFAULT_TIMEOUT_MS;
+    const taskConfig = getAbakaAiTaskConfig(config.settings || {});
+    const timeoutMs = normalizeTimeoutMs(config.timeoutMs, taskConfig.timeoutMs);
     const endpoint = buildEndpoint(config.settings || null);
     const controller = createTimeoutController(timeoutMs);
+    const requestPayload = Object.assign({}, payload || {}, {
+      options: {
+        model: taskConfig.model,
+        enableThinking: taskConfig.enableThinking === true,
+        timeoutMs: timeoutMs,
+      },
+      debugConfig: {
+        model: taskConfig.model,
+        enableThinking: taskConfig.enableThinking === true,
+        timeoutMs: timeoutMs,
+      },
+    });
 
     try {
       const response = await fetch(endpoint, {
@@ -75,7 +130,7 @@
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload || {}),
+        body: JSON.stringify(requestPayload),
         signal: controller.signal,
       });
 
@@ -99,6 +154,11 @@
       return {
         endpoint: endpoint,
         data: body,
+        requestDebug: {
+          selectedModel: taskConfig.model,
+          enableThinking: taskConfig.enableThinking === true,
+          timeoutMs: timeoutMs,
+        },
       };
     } catch (error) {
       if (error && error.name === "AbortError") {

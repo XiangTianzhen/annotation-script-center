@@ -201,6 +201,11 @@
       lines.push("目标: " + String(display.target || "-"));
       lines.push("requestId: " + String(display.requestId || "-"));
       lines.push("model: " + String(display.model || "-"));
+      lines.push("selectedModel: " + String(display.selectedModel || "-"));
+      lines.push("enableThinking: " + String(display.enableThinking === true));
+      lines.push("thinkingParamName: " + String(display.thinkingParamName || "enable_thinking"));
+      lines.push("thinkingParamLocation: " + String(display.thinkingParamLocation || "root"));
+      lines.push("timeoutMs: " + String(display.timeoutMs || 0));
       lines.push("elapsedMs: " + String(display.elapsedMs || 0));
       lines.push(
         "tokens: input=" +
@@ -610,11 +615,12 @@
         const startedAt = nowMs();
         const requestPayload = buildRequestPayload(snapshot, target);
         const response = await client.analyze(requestPayload, {
-          timeoutMs: 120000,
           settings: config.settings || null,
         });
         const body = response.data || {};
         const result = body.result || {};
+        const thinkingDebug = body.thinking || {};
+        const requestDebug = response.requestDebug || {};
 
         const price =
           typeof pricing.estimateTask21Price === "function"
@@ -625,6 +631,16 @@
           target: target,
           requestId: body.requestId || "",
           model: body.model || "",
+          selectedModel:
+            String(body.selectedModel || "") ||
+            String(requestDebug.selectedModel || "") ||
+            String(body.model || ""),
+          enableThinking:
+            thinkingDebug.requested === true ||
+            (thinkingDebug.requested !== false && requestDebug.enableThinking === true),
+          thinkingParamName: String(thinkingDebug.paramName || "enable_thinking"),
+          thinkingParamLocation: String(thinkingDebug.paramLocation || "root"),
+          timeoutMs: Number(thinkingDebug.timeoutMs || requestDebug.timeoutMs || 0),
           elapsedMs: Number(body.elapsedMs || nowMs() - startedAt),
           usage: Object.assign(
             {
