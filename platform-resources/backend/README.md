@@ -69,6 +69,10 @@ http://127.0.0.1:3333
 - `MAGIC_DATA_AI_MOCK`：设为 `1` 时启用 mock 调试模式。
 - `MAGIC_DATA_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
 - `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
+- `ABAKA_TASK21_AI_MOCK`：设为 `1` 时启用 Abaka Task21 AI mock 调试模式。
+- `ABAKA_TASK21_AI_MODEL`：Abaka Task21 图像分析模型名（需使用官方支持视觉输入的模型）。
+- `ABAKA_TASK21_AI_TIMEOUT_MS`：Abaka Task21 AI 请求超时，默认 `120000`。
+- `ABAKA_TASK21_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `0`，是否允许请求覆盖模型名。
 - `ASR_TRANSCRIPTION_AI_MOCK`：设为 `1` 时启用转写 AI mock 调试模式。
 - `ASR_TRANSCRIPTION_AI_LISTEN_MODEL`：转写 AI 听音模型，默认 `qwen3.5-omni-flash`。
 - `ASR_TRANSCRIPTION_AI_COMPARE_MODEL`：转写 AI 文本比较模型，默认 `qwen3.5-plus`。
@@ -176,11 +180,17 @@ pm2 restart annotation-script-center --update-env
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口；导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
 - `magic-data/annotator`：Magic Data AI 质检调试接口，包含 `review-current` 与 `health`。
+- `abaka-ai/task21`：Abaka Task21 AI 分析调试接口，包含 `health/defaults/analyze`。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
 
 Magic Data 接口：
 - `GET /api/magic-data/annotator/ai/review-current/health`
 - `POST /api/magic-data/annotator/ai/review-current`
+
+Abaka Task21 AI 接口：
+- `GET /api/abaka-ai/task21/ai/health`
+- `GET /api/abaka-ai/task21/ai/defaults`
+- `POST /api/abaka-ai/task21/ai/analyze`
 
 项目数据下载接口：
 - `GET /api/admin/project-data-download/options`

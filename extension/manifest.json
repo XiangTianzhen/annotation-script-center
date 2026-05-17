@@ -47,6 +47,10 @@
         "shared/constants.js",
         "shared/storage.js",
         "sites/abaka-ai/task-page/toast.js",
+        "sites/abaka-ai/task-page/pricing.js",
+        "sites/abaka-ai/task-page/data-collector.js",
+        "sites/abaka-ai/task-page/ai-client.js",
+        "sites/abaka-ai/task-page/ai-panel.js",
         "sites/abaka-ai/task-page/dom-actions.js",
         "sites/abaka-ai/task-page/shortcuts.js",
         "sites/abaka-ai/task-page/content.js"

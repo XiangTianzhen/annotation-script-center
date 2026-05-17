@@ -12,6 +12,7 @@
 - `image_b_texts_removed` 派生字段保存。
 - `other_changes` 枚举保存。
 - `other_changes` textarea 自由文本暂存保存。
+- AI 调试分析后端调用（统一后端路由）。
 
 ## 来源页面
 
@@ -22,6 +23,7 @@
 | 文件 | 请求 / 行为 | 说明 |
 | --- | --- | --- |
 | `08-label-save-labels.md` | `/api/v2/label/save-labels` | same_font 和派生字段保存 |
+| `../ai/README.md` | `/api/abaka-ai/task21/ai/*` | Task21 AI 分析调试接口 |
 | `../../network/README.md` | 公共网络入口 | Data 页、领取、查看、状态流转、语言、资源 |
 
 ## 脱敏规则
@@ -39,3 +41,4 @@
 - 状态变更必须人工确认。
 - AI 建议只辅助展示，不自动保存或提交。
 - 对 `save-labels` 只记录脱敏结构和结果，不记录完整 payload。
+- AI 面板前端只请求统一后端 `/api/abaka-ai/task21/ai/analyze`，不直接请求 Abaka 平台保存/提交接口。

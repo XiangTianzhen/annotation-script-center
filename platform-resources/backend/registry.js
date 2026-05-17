@@ -7,6 +7,7 @@ const {
 } = require("../alibaba-labelx/asr-transcription/backend");
 const { registerRoutes: registerDataBakerRoundOneRoutes } = require("../data-baker/round-one-quality/backend");
 const { registerRoutes: registerMagicDataAnnotatorRoutes } = require("../magic-data/annotator/backend");
+const { registerRoutes: registerAbakaTask21AiRoutes } = require("../abaka-ai/task21/backend");
 const { registerRoutes: registerProjectDataDownloadRoutes } = require("./project-data-download");
 
 function registerProjectRoutes(router, options) {
@@ -44,6 +45,7 @@ function registerProjectRoutes(router, options) {
   });
   registerDataBakerRoundOneRoutes(router, config.dataBakerRoundOneQuality || {});
   registerMagicDataAnnotatorRoutes(router, config.magicDataAnnotator || {});
+  registerAbakaTask21AiRoutes(router, config.abakaTask21Ai || {});
   registerProjectDataDownloadRoutes(router, config.projectDataDownload || {});
 }
 

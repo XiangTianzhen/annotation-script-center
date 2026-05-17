@@ -4,7 +4,7 @@
 
 - 主目标：Task21。
 - 专项结构：`same_font`、`image_b_texts_removed`、`other_changes`。
-- 当前阶段：Task21 快捷键辅助第一版（DOM 点击）。
+- 当前阶段：Task21 快捷键 + AI 分析调试版。
 - 采集方式：Google Chrome DevTools MCP、DevTools DOM snapshot、只读 Console 结构脚本、Network 面板结构观察。
 - 当前不做自动化流转，不实现自动领取、自动提交、自动放弃、自动跳过、自动送审。
 
@@ -70,6 +70,7 @@
 - 查看 / 标注入口辅助。
 - AI 辅助建议。
 - 快捷键辅助（第一版已上线，后续按页面变化迭代）。
+- AI 辅助建议（调试版已接入，后续按标注反馈迭代）。
 - 统计导出。
 - 操作前确认层。
 
@@ -93,6 +94,20 @@
 - `7` 属于高风险动作，仍是用户按键触发；扩展只点击页面真实按钮，不自动确认二次弹窗。
 - 疑似标注内审环境下会阻止 `7`，避免误触发送审。
 - `6/7` 在 `viewMode=true` 查看页不执行。
+
+## AI 辅助分析调试版
+
+- 单板块分析：
+  - same_font
+  - image_b_texts_removed
+  - other_changes
+- 整体分析：
+  - 先判 same_font
+  - same_font=false/unsure 时按流程将后两项标记为 not_applicable
+  - same_font=true 或 same underlying font+artistic effect 时继续分析后两项
+- AI 结果仅用于辅助判断，不自动写入页面，不自动保存/提交/送审。
+- 调试输出包含 token、图片统计、requestId、耗时和价格估算。
+- Prompt 与规则沉淀路径：`ai/README.md`、`ai/prompt.md`。
 
 ## 待补清单
 

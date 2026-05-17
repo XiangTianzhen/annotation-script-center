@@ -1,5 +1,29 @@
 # 标注脚本中心修改日志
 
+## 2026-05-17（Abaka AI：Task21 AI 辅助分析调试版）
+
+- 新增 Abaka AI Task21 AI 面板（调试版），前端新增：
+  - `pricing.js`（单条价格估算）
+  - `data-collector.js`（页面图片/文本/当前字段值采集）
+  - `ai-client.js`（统一后端请求）
+  - `ai-panel.js`（四按钮分析面板与调试输出）
+- AI 面板按钮：
+  - 分析 `same_font`
+  - 分析 `image_b_texts_removed`
+  - 分析 `other_changes`
+  - 整体分析（按 Task21 流程）
+- 调试输出补充：`requestId`、模型名、耗时、token usage、图片数量与字段、图片统计、价格估算、脱敏原始 JSON。
+- 新增后端模块：`platform-resources/abaka-ai/task21/backend/`，注册接口：
+  - `GET /api/abaka-ai/task21/ai/health`
+  - `GET /api/abaka-ai/task21/ai/defaults`
+  - `POST /api/abaka-ai/task21/ai/analyze`
+- 新增 Prompt 与规则沉淀：`platform-resources/abaka-ai/task21/ai/README.md`、`platform-resources/abaka-ai/task21/ai/prompt.md`。
+- 价格规则已按“雨滴Task21单价.xlsx”固化到代码与文档，不依赖运行时上传文件。
+- 安全边界保持：
+  - AI 仅建议，不自动写入、不自动保存、不自动提交、不自动送审。
+  - 不记录完整图片 URL / dataUrl / token / cookie / authorization 等敏感信息。
+- 未修改后端以外业务平台逻辑，未提升 `manifest.version`，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-17（Abaka AI：修复 Task21 specify 联动重复点击取消）
 
 - 修复 Abaka AI Task21 快捷键联动重复点击导致 `specify` 被取消的问题。

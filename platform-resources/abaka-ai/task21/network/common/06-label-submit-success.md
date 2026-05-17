@@ -14,3 +14,4 @@
 
 - 送审后是否触发 `save-labels`、`submit-item` 等请求，完全由平台页面自身决定。
 - 扩展只做用户触发下的 DOM 点击，不改变平台原始提交链路。
+- Task21 AI 面板调用统一后端 `/api/abaka-ai/task21/ai/analyze` 时不会触发送审，不会自动确认弹窗。

@@ -68,7 +68,7 @@
               taskPageCapture: {
                 id: "abakaAiTaskPageCapture",
                 enabled: true,
-                stage: "task21-shortcuts",
+                stage: "task21-ai-analysis-debug",
                 autoSelectSpecifyOnSameFontTrue: true,
                 shortcuts: {
                   sameFontTrue: {
@@ -1296,7 +1296,7 @@
           taskPageCapture: {
             id: constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture",
             enabled: true,
-            stage: "task21-shortcuts",
+            stage: "task21-ai-analysis-debug",
             autoSelectSpecifyOnSameFontTrue: true,
             shortcuts: {
               sameFontTrue: { key: "1" },
@@ -1330,7 +1330,7 @@
     settings.platforms.abakaAi.scripts.taskPageCapture = Object.assign({}, defaultScript, currentScript, {
       id: constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture",
       enabled: currentScript.enabled !== false,
-      stage: String(currentScript.stage || defaultScript.stage || "task21-shortcuts"),
+      stage: String(currentScript.stage || defaultScript.stage || "task21-ai-analysis-debug"),
       autoSelectSpecifyOnSameFontTrue:
         currentScript.autoSelectSpecifyOnSameFontTrue !== false,
       shortcuts: normalizeAbakaAiTask21Shortcuts(
@@ -2046,7 +2046,7 @@
                   constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID ||
                   "abakaAiTaskPageCapture",
                 enabled: nextEnabled,
-                stage: "task21-shortcuts",
+                stage: "task21-ai-analysis-debug",
               },
             },
           },

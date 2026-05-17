@@ -40,6 +40,25 @@ Task21 按钮快捷键（运行时）：
 - `7`：仅点击页面真实“送审 / Submit / Submit Review”按钮，不直接调用提交接口，也不自动确认二次弹窗。
 - `7` 会在疑似标注内审环境下被阻止；`6/7` 在 `viewMode=true` 查看页不执行。
 
+## AI 面板结构（调试版）
+
+- 面板注入位置：`/items` 页面右下角可折叠浮窗。
+- 面板按钮：
+  - `AI 分析 same_font`
+  - `AI 分析 image_b_texts_removed`
+  - `AI 分析 other_changes`
+  - `AI 整体分析`
+- 可用状态：
+  - `same_font` 板块不存在时：same_font/overall 按钮禁用。
+  - `image_b_texts_removed` 或 `other_changes` 板块不存在时：对应按钮禁用。
+- 数据采集：
+  - 图片字段：`image_a`、`image_b`、`image_b_removed`
+  - 文本字段：`image_a_texts`、`image_b_texts`、`text_positions`（能读则读）
+  - 页面当前值：`same_font`、`image_b_texts_removed`、`other_changes`
+- 安全边界：
+  - 面板不自动写入字段，不自动保存/提交/送审。
+  - 调试原始 JSON 脱敏显示，不展示完整图片 URL / dataUrl / token。
+
 ## 资源字段
 
 - `image_a`

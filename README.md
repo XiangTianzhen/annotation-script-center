@@ -11,13 +11,13 @@
 
 ## 当前重点平台与脚本
 
-- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21 快捷键辅助阶段）
+- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21 快捷键 + AI 分析调试阶段）
 - 脚本：
   - `extension/sites/alibaba-labelx/asr-judgement/`
   - `extension/sites/alibaba-labelx/asr-transcription/`
   - `extension/sites/data-baker/round-one-quality/`
   - `extension/sites/magic-data/annotator/`
-  - `extension/sites/abaka-ai/task-page/`（Task21 快捷键辅助 + 页面结构/Network 脱敏采集）
+  - `extension/sites/abaka-ai/task-page/`（Task21 快捷键 + AI 分析调试 + 页面结构/Network 脱敏采集）
 
 ## 本地加载扩展
 

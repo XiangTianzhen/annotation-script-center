@@ -5,13 +5,19 @@
 本目录是 Abaka AI Task 页面运行时代码，当前包含两类能力：
 
 - MAIN world：`page-world/network-structure-observer.js`（只读脱敏结构采集）
-- ISOLATED world：`content.js`、`shortcuts.js`、`dom-actions.js`、`toast.js`（Task21 快捷键辅助）
+- ISOLATED world：
+  - 快捷键：`content.js`、`shortcuts.js`、`dom-actions.js`、`toast.js`
+  - AI 分析：`pricing.js`、`data-collector.js`、`ai-client.js`、`ai-panel.js`
 
 ## 当前阶段
 
-- 阶段：Task21 快捷键辅助第一版。
-- 目标：`same_font` 与派生字段快捷选择。
-- 范围：仅 DOM 点击，不直接调用平台保存/提交/领取/流转接口。
+- 阶段：Task21 快捷键 + AI 分析调试版。
+- 目标：
+  - 快捷键辅助 `same_font` 与派生字段选择、暂存、送审按钮点击
+  - AI 面板提供 same_font / image_b_texts_removed / other_changes / overall 四种分析
+- 范围：
+  - 快捷键仅 DOM 点击，不直接调用平台保存/提交/领取/流转接口
+  - AI 只输出建议，不自动写入、不自动保存、不自动提交、不自动送审
 
 ## 快捷键动作（默认）
 
@@ -44,6 +50,26 @@
 - `7` 在疑似标注内审环境会被阻止，避免误触发送审。
 - `6/7` 在 `viewMode=true` 查看页不执行。
 - 不自动提交、不自动保存、不自动领取、不自动放弃、不自动跳过、不自动送审。
+
+## AI 面板（调试版）
+
+- 面板入口：`/items` 页面注入右下角浮窗。
+- 按钮：
+  - `AI 分析 same_font`
+  - `AI 分析 image_b_texts_removed`
+  - `AI 分析 other_changes`
+  - `AI 整体分析（Task21 流程）`
+- 按钮可用性：
+  - 检测不到对应板块则置灰，提示“未检测到该板块”。
+  - `same_font=false/unsure` 时后两个按钮仍可用于调试分析，但会提示正式流程可跳过。
+- 调试输出：
+  - `requestId`、模型名、耗时
+  - `input/output/total tokens` 与 usage 来源
+  - 图片数量、字段列表、`mime/width/height/bytes`
+  - 价格估算（same_font、image_b_texts_removed、other_changes、total）
+  - 脱敏后的原始 JSON（折叠查看）
+- 安全：
+  - 不展示完整图片 URL、完整 dataUrl、token/cookie/authorization 等敏感字段。
 
 ## Console 导出（只读采集）
 

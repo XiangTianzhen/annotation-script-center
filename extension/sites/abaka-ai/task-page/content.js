@@ -9,6 +9,10 @@
   const toast = globalThis.__ASCEdgeAbakaAiToast || {};
   const domActionsFactory = globalThis.__ASCEdgeAbakaAiDomActions || {};
   const shortcutFactory = globalThis.__ASCEdgeAbakaAiTask21Shortcuts || {};
+  const dataCollector = globalThis.__ASCEdgeAbakaAiTask21DataCollector || {};
+  const aiClient = globalThis.__ASCEdgeAbakaAiTask21AiClient || {};
+  const aiPanelFactory = globalThis.__ASCEdgeAbakaAiTask21AiPanel || {};
+  const pricing = globalThis.__ASCEdgeAbakaAiTask21Pricing || {};
 
   if (
     typeof storage.getSettings !== "function" ||
@@ -22,6 +26,7 @@
   let settingsCache = null;
   let shortcutRuntime = null;
   let domActionsRuntime = null;
+  let aiPanelRuntime = null;
 
   function showToast(message, tone) {
     if (typeof toast.show === "function") {
@@ -84,6 +89,34 @@
 
     shortcutRuntime.start();
     console.info("[ASC][Abaka AI] Task21 shortcuts ready");
+
+    try {
+      if (
+        typeof dataCollector.collectTask21Payload !== "function" ||
+        typeof aiClient.analyze !== "function" ||
+        typeof aiPanelFactory.createRuntime !== "function"
+      ) {
+        console.warn("[ASC][Abaka AI] Task21 AI panel skipped: runtime dependencies missing.");
+        return;
+      }
+
+      aiPanelRuntime = aiPanelFactory.createRuntime({
+        collector: dataCollector,
+        client: aiClient,
+        pricing: pricing,
+        settings: settingsCache,
+        showToast: showToast,
+      });
+      const aiStarted = aiPanelRuntime.start();
+      if (aiStarted && aiStarted.ok === true) {
+        console.info("[ASC][Abaka AI] Task21 AI panel ready");
+      }
+    } catch (error) {
+      console.warn(
+        "[ASC][Abaka AI] Task21 AI panel init failed:",
+        error && error.message ? error.message : error
+      );
+    }
   }
 
   bootstrap().catch(function (error) {

@@ -750,13 +750,14 @@
     abakaAiTaskPageCapture: {
       id: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
       platformId: ABAKA_AI_PLATFORM_ID,
-      label: "Abaka AI Task21 快捷键辅助",
-      shortLabel: "Task21 快捷键",
-      description: "用于 Task21 same_font 与派生字段选项快捷键辅助（仅 DOM 点击）。",
+      label: "Abaka AI Task21 快捷键与 AI 分析",
+      shortLabel: "Task21 快捷键+AI",
+      description:
+        "用于 Task21 same_font/按钮快捷键与 AI 调试分析（AI 仅建议，不自动写入）。",
       note:
-        "只点击页面真实选项，不直接调用保存/提交/领取/流转接口；默认支持 same_font=true 联动两个 specify。",
-      capabilityScope: "task21-shortcuts-dom-click-only",
-      statusLabel: "Task21 快捷键辅助第一版",
+        "快捷键与按钮动作仅 DOM 点击；AI 面板仅调用统一后端分析，不自动保存/提交/送审。",
+      capabilityScope: "task21-shortcuts-and-ai-analysis-debug",
+      statusLabel: "Task21 快捷键 + AI 分析调试版",
       detailView: "abaka-ai-task-page-capture",
       host: ABAKA_AI_PLATFORM.host,
       matchUrl: "http://abao.fortidyndns.com:30473/login",
@@ -1053,7 +1054,7 @@
         taskPageCapture: {
           id: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
           enabled: true,
-          stage: "task21-shortcuts",
+          stage: "task21-ai-analysis-debug",
           autoSelectSpecifyOnSameFontTrue: true,
           shortcuts: shortcuts,
         },
