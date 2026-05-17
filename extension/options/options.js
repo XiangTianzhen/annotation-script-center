@@ -47,6 +47,7 @@
     constants.PROJECT_DATA_DOWNLOAD_OPTIONS_PATH || "/api/admin/project-data-download/options";
   const projectDataDownloadRequestPath =
     constants.PROJECT_DATA_DOWNLOAD_REQUEST_PATH || "/api/admin/project-data-download/request";
+  const scriptDownloadCenterUrl = "https://script.xiangtianzhen.store/downloads/";
   const dataBakerPageSizeOptions = (
     Array.isArray(constants.DATABAKER_PAGE_SIZE_OPTIONS)
       ? constants.DATABAKER_PAGE_SIZE_OPTIONS
@@ -245,6 +246,15 @@
 
   function getElement(id) {
     return document.getElementById(id);
+  }
+
+  function openScriptDownloadCenter() {
+    if (globalThis.chrome?.tabs && typeof globalThis.chrome.tabs.create === "function") {
+      globalThis.chrome.tabs.create({ url: scriptDownloadCenterUrl });
+      return;
+    }
+
+    globalThis.open(scriptDownloadCenterUrl, "_blank", "noopener");
   }
 
   function getSearchParams() {
@@ -4587,7 +4597,12 @@
 
     document.title = (constants.EXTENSION_NAME || "标注脚本中心") + " - 设置";
     getElement("extension-name").textContent = constants.EXTENSION_NAME || "标注脚本中心";
-    getElement("stage-label").textContent = constants.STAGE_LABEL || "脚本中心";
+    const stageLabel = getElement("stage-label");
+    if (stageLabel) {
+      stageLabel.textContent = "脚本下载中心";
+      stageLabel.setAttribute("title", "打开脚本下载中心");
+      stageLabel.setAttribute("aria-label", "打开脚本下载中心");
+    }
 
     if (!scriptId) {
       getElement("script-center-view").classList.remove("hidden");
@@ -4606,6 +4621,13 @@
   }
 
   document.addEventListener("DOMContentLoaded", async function () {
+    const stageLabel = getElement("stage-label");
+    if (stageLabel) {
+      stageLabel.addEventListener("click", function () {
+        openScriptDownloadCenter();
+      });
+    }
+
     const homeEndpointTitle = getElement("home-endpoint-title");
     if (homeEndpointTitle) {
       homeEndpointTitle.addEventListener("click", function () {

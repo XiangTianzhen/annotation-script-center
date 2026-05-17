@@ -1,5 +1,11 @@
 # 标注脚本中心修改日志
 
+## 2026-05-17（Options：首页脚本下载中心入口）
+
+- 将 Options 首页右上角“脚本中心”入口改为“脚本下载中心”。
+- 点击后打开 `https://script.xiangtianzhen.store/downloads/`。
+- 本轮未修改运行时代码、未提升版本、未生成发布产物。
+
 ## 2026-05-18（Abaka AI：Task21 内联 AI 分析 UI 重构）
 
 - Abaka AI Task21 AI UI 从右下角全局固定面板改为字段内联形态：
