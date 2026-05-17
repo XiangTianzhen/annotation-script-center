@@ -108,6 +108,10 @@
     { key: "otherChangesSpecify", label: "other_changes：specify" },
     { key: "stashSave", label: "暂存" },
     { key: "submitReview", label: "送审" },
+    { key: "aiAnalyzeSameFont", label: "AI 分析 same_font" },
+    { key: "aiAnalyzeImageBTextsRemoved", label: "AI 分析 image_b_texts_removed" },
+    { key: "aiAnalyzeOtherChanges", label: "AI 分析 other_changes" },
+    { key: "aiAnalyzeOverall", label: "AI 整体分析" },
   ];
 
   const MESSAGE_TYPES = {
@@ -1047,6 +1051,10 @@
     shortcuts.otherChangesSpecify = createShortcut("5");
     shortcuts.stashSave = createShortcut("6");
     shortcuts.submitReview = createShortcut("7");
+    shortcuts.aiAnalyzeSameFont = createShortcut("1", { alt: true });
+    shortcuts.aiAnalyzeImageBTextsRemoved = createShortcut("2", { alt: true });
+    shortcuts.aiAnalyzeOtherChanges = createShortcut("3", { alt: true });
+    shortcuts.aiAnalyzeOverall = createShortcut("4", { alt: true });
 
     return {
       enabled: true,
@@ -1054,7 +1062,7 @@
         taskPageCapture: {
           id: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
           enabled: true,
-          stage: "task21-ai-analysis-debug",
+          stage: "task21-inline-ai-analysis-debug",
           autoSelectSpecifyOnSameFontTrue: true,
           shortcuts: shortcuts,
         },

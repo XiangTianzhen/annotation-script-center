@@ -108,6 +108,17 @@
 - AI 结果仅用于辅助判断，不自动写入页面，不自动保存/提交/送审。
 - 调试输出包含 token、图片统计、requestId、耗时和价格估算。
 - Prompt 与规则沉淀路径：`ai/README.md`、`ai/prompt.md`。
+- UI 形态：字段标题右侧内联按钮 + 字段锚点悬浮窗（不再使用右下角全局面板）。
+- 字段按钮：
+  - same_font：`AI分析`、`整体分析`
+  - image_b_texts_removed：`AI分析`
+  - other_changes：`AI分析`
+- 快捷键（默认）：
+  - `Alt+1`：AI 分析 same_font
+  - `Alt+2`：AI 分析 image_b_texts_removed
+  - `Alt+3`：AI 分析 other_changes
+  - `Alt+4`：AI 整体分析
+- 数据采集优先 `get-item-info`，DOM 只作为回退。
 
 ## 待补清单
 

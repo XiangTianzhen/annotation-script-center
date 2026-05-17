@@ -84,6 +84,30 @@
         submitReview: function () {
           return domActionsRuntime.clickSubmitReview();
         },
+        aiAnalyzeSameFont: function () {
+          if (!aiPanelRuntime || typeof aiPanelRuntime.runAnalysis !== "function") {
+            return { ok: false, message: "AI 分析功能未就绪。" };
+          }
+          return aiPanelRuntime.runAnalysis("same_font", { source: "shortcut" });
+        },
+        aiAnalyzeImageBTextsRemoved: function () {
+          if (!aiPanelRuntime || typeof aiPanelRuntime.runAnalysis !== "function") {
+            return { ok: false, message: "AI 分析功能未就绪。" };
+          }
+          return aiPanelRuntime.runAnalysis("image_b_texts_removed", { source: "shortcut" });
+        },
+        aiAnalyzeOtherChanges: function () {
+          if (!aiPanelRuntime || typeof aiPanelRuntime.runAnalysis !== "function") {
+            return { ok: false, message: "AI 分析功能未就绪。" };
+          }
+          return aiPanelRuntime.runAnalysis("other_changes", { source: "shortcut" });
+        },
+        aiAnalyzeOverall: function () {
+          if (!aiPanelRuntime || typeof aiPanelRuntime.runAnalysis !== "function") {
+            return { ok: false, message: "AI 分析功能未就绪。" };
+          }
+          return aiPanelRuntime.runAnalysis("overall", { source: "shortcut" });
+        },
       },
     });
 

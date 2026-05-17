@@ -68,7 +68,7 @@
               taskPageCapture: {
                 id: "abakaAiTaskPageCapture",
                 enabled: true,
-                stage: "task21-ai-analysis-debug",
+                stage: "task21-inline-ai-analysis-debug",
                 autoSelectSpecifyOnSameFontTrue: true,
                 shortcuts: {
                   sameFontTrue: {
@@ -125,6 +125,38 @@
                     shift: false,
                     meta: false,
                     key: "7",
+                    button: null,
+                  },
+                  aiAnalyzeSameFont: {
+                    ctrl: false,
+                    alt: true,
+                    shift: false,
+                    meta: false,
+                    key: "1",
+                    button: null,
+                  },
+                  aiAnalyzeImageBTextsRemoved: {
+                    ctrl: false,
+                    alt: true,
+                    shift: false,
+                    meta: false,
+                    key: "2",
+                    button: null,
+                  },
+                  aiAnalyzeOtherChanges: {
+                    ctrl: false,
+                    alt: true,
+                    shift: false,
+                    meta: false,
+                    key: "3",
+                    button: null,
+                  },
+                  aiAnalyzeOverall: {
+                    ctrl: false,
+                    alt: true,
+                    shift: false,
+                    meta: false,
+                    key: "4",
                     button: null,
                   },
                 },
@@ -188,6 +220,10 @@
         { key: "otherChangesSpecify", label: "other_changes：specify" },
         { key: "stashSave", label: "暂存" },
         { key: "submitReview", label: "送审" },
+        { key: "aiAnalyzeSameFont", label: "AI 分析 same_font" },
+        { key: "aiAnalyzeImageBTextsRemoved", label: "AI 分析 image_b_texts_removed" },
+        { key: "aiAnalyzeOtherChanges", label: "AI 分析 other_changes" },
+        { key: "aiAnalyzeOverall", label: "AI 整体分析" },
       ],
       JUDGEMENT_PROJECT_ASR_KEYS: [
         "itemsPerPage",
@@ -1128,6 +1164,10 @@
           { key: "otherChangesSpecify" },
           { key: "stashSave" },
           { key: "submitReview" },
+          { key: "aiAnalyzeSameFont" },
+          { key: "aiAnalyzeImageBTextsRemoved" },
+          { key: "aiAnalyzeOtherChanges" },
+          { key: "aiAnalyzeOverall" },
         ];
     const source = isPlainObject(value) ? value : {};
     const fallbackSource = isPlainObject(fallback) ? fallback : {};
@@ -1296,7 +1336,7 @@
           taskPageCapture: {
             id: constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture",
             enabled: true,
-            stage: "task21-ai-analysis-debug",
+            stage: "task21-inline-ai-analysis-debug",
             autoSelectSpecifyOnSameFontTrue: true,
             shortcuts: {
               sameFontTrue: { key: "1" },
@@ -1306,6 +1346,10 @@
               otherChangesSpecify: { key: "5" },
               stashSave: { key: "6" },
               submitReview: { key: "7" },
+              aiAnalyzeSameFont: { alt: true, key: "1" },
+              aiAnalyzeImageBTextsRemoved: { alt: true, key: "2" },
+              aiAnalyzeOtherChanges: { alt: true, key: "3" },
+              aiAnalyzeOverall: { alt: true, key: "4" },
             },
           },
         },
@@ -1330,7 +1374,9 @@
     settings.platforms.abakaAi.scripts.taskPageCapture = Object.assign({}, defaultScript, currentScript, {
       id: constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture",
       enabled: currentScript.enabled !== false,
-      stage: String(currentScript.stage || defaultScript.stage || "task21-ai-analysis-debug"),
+      stage: String(
+        currentScript.stage || defaultScript.stage || "task21-inline-ai-analysis-debug"
+      ),
       autoSelectSpecifyOnSameFontTrue:
         currentScript.autoSelectSpecifyOnSameFontTrue !== false,
       shortcuts: normalizeAbakaAiTask21Shortcuts(

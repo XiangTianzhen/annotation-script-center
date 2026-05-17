@@ -10,12 +10,26 @@
 
 ## 功能边界
 
-前端按钮：
+前端按钮（内联）：
 
 - AI 分析 same_font
 - AI 分析 image_b_texts_removed
 - AI 分析 other_changes
 - AI 整体分析
+
+挂载位置：
+
+- `same_font` 标题右侧：`AI分析`、`整体分析`
+- `image_b_texts_removed` 标题右侧：`AI分析`
+- `other_changes` 标题右侧：`AI分析`
+- 结果显示在对应字段锚点悬浮窗，可关闭，可展开“原始 JSON（脱敏）”。
+
+AI 快捷键（默认）：
+
+- `Alt+1`：same_font
+- `Alt+2`：image_b_texts_removed
+- `Alt+3`：other_changes
+- `Alt+4`：overall
 
 后端接口：
 

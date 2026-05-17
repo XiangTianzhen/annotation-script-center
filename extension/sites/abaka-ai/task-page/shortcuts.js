@@ -8,6 +8,10 @@
     "otherChangesSpecify",
     "stashSave",
     "submitReview",
+    "aiAnalyzeSameFont",
+    "aiAnalyzeImageBTextsRemoved",
+    "aiAnalyzeOtherChanges",
+    "aiAnalyzeOverall",
   ];
 
   function clone(value) {

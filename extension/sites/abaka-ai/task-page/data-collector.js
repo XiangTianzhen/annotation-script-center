@@ -1,6 +1,25 @@
 (function () {
   const TARGET_FIELDS = ["same_font", "image_b_texts_removed", "other_changes"];
   const IMAGE_FIELDS = ["image_a", "image_b", "image_b_removed"];
+  const ITEM_INFO_PATH = "/api/v2/item/get-item-info";
+
+  const IMAGE_KEY_CANDIDATES = {
+    image_a: ["image_a", "imagea", "image_a_url", "imageaurl"],
+    image_b: ["image_b", "imageb", "image_b_url", "imageburl"],
+    image_b_removed: [
+      "image_b_removed",
+      "imagebremoved",
+      "image_b_removed_url",
+      "imagebremovedurl",
+      "image_b_remove",
+    ],
+  };
+
+  const TEXT_KEY_CANDIDATES = {
+    imageATexts: ["image_a_texts", "imageatexts", "image_a_text", "imageatext"],
+    imageBTexts: ["image_b_texts", "imagebtexts", "image_b_text", "imagebtext"],
+    textPositions: ["text_positions", "textpositions", "positions", "bbox", "boxes"],
+  };
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -32,12 +51,12 @@
     return params.get("viewMode") === "true";
   }
 
-  function findVisibleTextNodeExact(text) {
+  function findTitleNodeExact(text) {
     const target = normalizeLower(text);
     if (!target) {
       return null;
     }
-    const nodes = document.querySelectorAll("div,span,label,strong,b,p,h1,h2,h3,h4,h5,h6,td,th");
+    const nodes = document.querySelectorAll(".l-title-text,div,span,label,strong,p");
     for (let index = 0; index < nodes.length; index += 1) {
       const node = nodes[index];
       if (!isVisible(node)) {
@@ -51,74 +70,53 @@
   }
 
   function findFieldContainer(fieldName) {
-    const titleNode = findVisibleTextNodeExact(fieldName);
+    const titleNode = findTitleNodeExact(fieldName);
     if (!titleNode) {
       return null;
     }
-    let current = titleNode;
-    for (let depth = 0; depth < 8 && current && current !== document.body; depth += 1) {
-      const hasInput = current.querySelector(
-        "input[type='radio'],input[type='checkbox'],textarea,[role='radio'],[role='checkbox'],[contenteditable='true'],[contenteditable=''],input[type='text']"
-      );
-      if (hasInput) {
-        return current;
-      }
-      current = current.parentElement;
-    }
-    return titleNode.parentElement || null;
+    return titleNode.closest(".l-item") || titleNode.parentElement || null;
   }
 
-  function extractOptionTextFromNode(node) {
+  function extractOptionText(node) {
     if (!(node instanceof Element)) {
       return "";
     }
     if (node instanceof HTMLInputElement) {
-      const label = node.closest("label");
-      return normalizeText(label ? label.textContent : node.value || "");
+      const labelNode = node.closest("label");
+      return normalizeText(labelNode ? labelNode.textContent : node.value || "");
     }
-    const text = normalizeText(node.textContent || node.getAttribute("aria-label") || "");
-    if (text) {
-      return text;
-    }
-    const labelledBy = node.getAttribute("aria-labelledby");
-    if (labelledBy) {
-      const linked = document.getElementById(labelledBy);
-      return normalizeText(linked ? linked.textContent : "");
-    }
-    return "";
+    return normalizeText(node.textContent || node.getAttribute("aria-label") || "");
   }
 
   function findSelectedOptionText(container) {
     if (!(container instanceof Element)) {
       return "";
     }
-
     const checkedInput = container.querySelector("input[type='radio']:checked,input[type='checkbox']:checked");
     if (checkedInput) {
-      const text = extractOptionTextFromNode(checkedInput);
+      const text = extractOptionText(checkedInput);
       if (text) {
         return text;
       }
     }
 
-    const ariaChecked = container.querySelector("[role='radio'][aria-checked='true'],[role='checkbox'][aria-checked='true']");
-    if (ariaChecked) {
-      const text = extractOptionTextFromNode(ariaChecked);
+    const checkedRole = container.querySelector("[role='radio'][aria-checked='true'],[role='checkbox'][aria-checked='true']");
+    if (checkedRole) {
+      const text = extractOptionText(checkedRole);
       if (text) {
         return text;
       }
     }
 
-    const classMarked = container.querySelector(
-      ".is-checked,.checked,.selected,.active,.ant-radio-wrapper-checked,.el-radio.is-checked,[data-checked='true'],[data-selected='true']"
+    const marked = container.querySelector(
+      ".checked,.selected,.is-checked,.active,.ant-radio-wrapper-checked,.el-radio.is-checked,[data-selected='true'],[data-checked='true']"
     );
-    if (classMarked) {
-      const text = extractOptionTextFromNode(classMarked);
+    if (marked) {
+      const text = extractOptionText(marked);
       if (text) {
         return text;
       }
     }
-
     return "";
   }
 
@@ -126,9 +124,11 @@
     if (!(container instanceof Element)) {
       return "";
     }
-    const textareas = container.querySelectorAll("textarea,input[type='text'],[contenteditable='true'],[contenteditable='']");
-    for (let index = 0; index < textareas.length; index += 1) {
-      const node = textareas[index];
+    const inputs = container.querySelectorAll(
+      "textarea,input[type='text'],[contenteditable='true'],[contenteditable=''],[role='textbox']"
+    );
+    for (let index = 0; index < inputs.length; index += 1) {
+      const node = inputs[index];
       if (!isVisible(node)) {
         continue;
       }
@@ -139,9 +139,9 @@
         }
         continue;
       }
-      const value = normalizeText(node.textContent || "");
-      if (value) {
-        return value.slice(0, 2000);
+      const text = normalizeText(node.textContent || "");
+      if (text) {
+        return text.slice(0, 2000);
       }
     }
     return "";
@@ -177,33 +177,135 @@
     };
   }
 
-  function findImageByLabel(labelText) {
-    const labelNode = findVisibleTextNodeExact(labelText);
-    if (!labelNode) {
+  function sanitizeQueryValue(value) {
+    const text = normalizeText(value);
+    if (!text) {
+      return "";
+    }
+    return text.slice(0, 120);
+  }
+
+  function collectRouteContext() {
+    const params = new URLSearchParams(location.search || "");
+    return {
+      taskId: sanitizeQueryValue(params.get("taskId")),
+      itemId: sanitizeQueryValue(params.get("itemId")),
+      nodeId: sanitizeQueryValue(params.get("nodeId")),
+      viewMode: sanitizeQueryValue(params.get("viewMode")),
+      path: String(location.pathname || ""),
+    };
+  }
+
+  function hasSameFontField() {
+    return Boolean(findFieldContainer("same_font"));
+  }
+
+  function safeJsonParse(text) {
+    try {
+      return JSON.parse(text);
+    } catch (error) {
       return null;
     }
+  }
 
-    let current = labelNode;
-    for (let depth = 0; depth < 6 && current && current !== document.body; depth += 1) {
-      const image = Array.from(current.querySelectorAll("img")).find(function (item) {
-        return isVisible(item);
+  function collectObjectPaths(target, basePath, result, depth) {
+    if (depth > 8 || target === null || target === undefined) {
+      return;
+    }
+    if (Array.isArray(target)) {
+      target.forEach(function (item, index) {
+        collectObjectPaths(item, basePath.concat(String(index)), result, depth + 1);
       });
-      if (image) {
-        return image;
+      return;
+    }
+    if (typeof target !== "object") {
+      return;
+    }
+
+    Object.keys(target).forEach(function (key) {
+      const value = target[key];
+      const path = basePath.concat(key);
+      const normalizedKey = String(key || "").toLowerCase();
+      result.push({
+        key: normalizedKey,
+        path: path,
+        value: value,
+      });
+      collectObjectPaths(value, path, result, depth + 1);
+    });
+  }
+
+  function findCandidatesByKeys(root, candidates) {
+    const list = [];
+    collectObjectPaths(root, [], list, 0);
+    const lowerCandidates = Array.isArray(candidates)
+      ? candidates.map(function (item) {
+          return String(item || "").toLowerCase();
+        })
+      : [];
+
+    return list
+      .filter(function (entry) {
+        return lowerCandidates.indexOf(entry.key) >= 0;
+      })
+      .map(function (entry) {
+        return {
+          path: entry.path.join("."),
+          value: entry.value,
+        };
+      });
+  }
+
+  function pickFirstNonEmptyString(candidates) {
+    for (let index = 0; index < candidates.length; index += 1) {
+      const value = candidates[index] && candidates[index].value;
+      if (typeof value === "string" && normalizeText(value)) {
+        return {
+          path: candidates[index].path,
+          value: value,
+        };
       }
-      current = current.parentElement;
+      if (value && typeof value === "object") {
+        const nested = [value.url, value.src, value.path, value.link, value.value]
+          .filter(function (item) {
+            return typeof item === "string" && normalizeText(item);
+          })
+          .map(function (item) {
+            return normalizeText(item);
+          });
+        if (nested.length > 0) {
+          return {
+            path: candidates[index].path,
+            value: nested[0],
+          };
+        }
+      }
     }
     return null;
   }
 
-  function collectVisibleImages() {
-    return Array.from(document.querySelectorAll("img")).filter(function (img) {
-      return isVisible(img);
-    });
+  function pickFirstUsefulValue(candidates) {
+    for (let index = 0; index < candidates.length; index += 1) {
+      const value = candidates[index] && candidates[index].value;
+      if (value === null || value === undefined) {
+        continue;
+      }
+      if (typeof value === "string" && normalizeText(value).length === 0) {
+        continue;
+      }
+      return {
+        path: candidates[index].path,
+        value: value,
+      };
+    }
+    return null;
   }
 
-  function guessMimeFromImageSource(source) {
+  function guessMimeFromSource(source) {
     const text = String(source || "").trim();
+    if (!text) {
+      return "image/unknown";
+    }
     if (text.indexOf("data:image/") === 0) {
       const matched = text.match(/^data:(image\/[^;]+);/i);
       return matched ? matched[1].toLowerCase() : "image/unknown";
@@ -235,8 +337,8 @@
       return 0;
     }
     const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
-    const size = Math.floor((base64.length * 3) / 4) - padding;
-    return size > 0 ? size : 0;
+    const bytes = Math.floor((base64.length * 3) / 4) - padding;
+    return bytes > 0 ? bytes : 0;
   }
 
   function blobToDataUrl(blob) {
@@ -246,14 +348,14 @@
         resolve(String(reader.result || ""));
       };
       reader.onerror = function () {
-        reject(reader.error || new Error("read-blob-failed"));
+        reject(reader.error || new Error("blob-read-failed"));
       };
       reader.readAsDataURL(blob);
     });
   }
 
-  async function tryBuildDataUrl(imageNode, sourceUrl) {
-    const source = String(sourceUrl || "").trim();
+  async function tryConvertUrlToDataUrl(url) {
+    const source = String(url || "").trim();
     if (!source) {
       return {
         dataUrl: "",
@@ -268,7 +370,6 @@
         bytes: estimateDataUrlBytes(source),
       };
     }
-
     try {
       const response = await fetch(source, {
         method: "GET",
@@ -293,116 +394,177 @@
     }
   }
 
-  async function serializeImageField(fieldName, imageNode) {
-    if (!(imageNode instanceof HTMLImageElement)) {
-      return {
-        fieldName: fieldName,
-        dataUrl: "",
-        imageUrl: "",
-        mime: "unknown",
-        width: "unknown",
-        height: "unknown",
-        bytes: "unknown",
-        sourceKind: "unknown",
-      };
+  function findImageByContentTitle(fieldName) {
+    const target = normalizeLower(fieldName);
+    const titleNodes = document.querySelectorAll(".content-title span,.content-title,.content-wrap .content-title");
+    for (let index = 0; index < titleNodes.length; index += 1) {
+      const node = titleNodes[index];
+      if (!isVisible(node)) {
+        continue;
+      }
+      if (normalizeLower(node.textContent || "") !== target) {
+        continue;
+      }
+      const wrap = node.closest(".content-wrap.grid-item,.content-wrap,.grid-item") || node.parentElement;
+      if (!(wrap instanceof Element)) {
+        continue;
+      }
+      const imageInViewer = Array.from(wrap.querySelectorAll(".content-image-view img,img"))
+        .filter(function (img) {
+          return img instanceof HTMLImageElement;
+        })
+        .sort(function (a, b) {
+          const aVisible = isVisible(a) ? 1 : 0;
+          const bVisible = isVisible(b) ? 1 : 0;
+          return bVisible - aVisible;
+        });
+      if (imageInViewer.length > 0) {
+        return imageInViewer[0];
+      }
     }
-    const src = String(imageNode.currentSrc || imageNode.src || "").trim();
-    const dataUrlResult = await tryBuildDataUrl(imageNode, src);
-    const width = Number(imageNode.naturalWidth || imageNode.width || 0) || "unknown";
-    const height = Number(imageNode.naturalHeight || imageNode.height || 0) || "unknown";
-    const mime = dataUrlResult.dataUrl
-      ? guessMimeFromImageSource(dataUrlResult.dataUrl)
-      : guessMimeFromImageSource(src);
+    return null;
+  }
 
+  function collectVisibleImages() {
+    return Array.from(document.querySelectorAll("img")).filter(function (img) {
+      return img instanceof HTMLImageElement && isVisible(img);
+    });
+  }
+
+  async function buildImageRecord(fieldName, imageUrl, imageNode) {
+    const sourceUrl = String(imageUrl || "").trim();
+    const converted = await tryConvertUrlToDataUrl(sourceUrl);
+    const widthFromNode = imageNode instanceof HTMLImageElement ? Number(imageNode.naturalWidth || imageNode.width || 0) : 0;
+    const heightFromNode = imageNode instanceof HTMLImageElement ? Number(imageNode.naturalHeight || imageNode.height || 0) : 0;
     return {
       fieldName: fieldName,
-      dataUrl: dataUrlResult.dataUrl,
-      imageUrl: dataUrlResult.dataUrl ? "" : src,
-      mime: mime || "unknown",
-      width: width,
-      height: height,
-      bytes:
-        dataUrlResult.bytes !== null && dataUrlResult.bytes !== undefined
-          ? dataUrlResult.bytes
-          : "unknown",
-      sourceKind: dataUrlResult.sourceKind,
+      dataUrl: converted.dataUrl,
+      imageUrl: converted.dataUrl ? "" : sourceUrl,
+      mime: guessMimeFromSource(converted.dataUrl || sourceUrl),
+      width: widthFromNode > 0 ? widthFromNode : "unknown",
+      height: heightFromNode > 0 ? heightFromNode : "unknown",
+      bytes: converted.bytes !== null && converted.bytes !== undefined ? converted.bytes : "unknown",
+      sourceKind: converted.sourceKind,
     };
   }
 
-  async function collectImages() {
-    const mapping = {};
+  async function collectItemInfoPayload(routeContext) {
+    const taskId = routeContext.taskId;
+    const itemId = routeContext.itemId;
+    const nodeId = routeContext.nodeId;
+    if (!itemId || !nodeId) {
+      return {
+        ok: false,
+        reason: "missing-itemid-nodeid",
+        warnings: ["URL 缺少 itemId 或 nodeId，跳过 get-item-info 请求。"],
+      };
+    }
 
-    IMAGE_FIELDS.forEach(function (fieldName) {
-      const image = findImageByLabel(fieldName);
-      if (image) {
-        mapping[fieldName] = image;
+    const requestBody = {
+      nodeId: nodeId,
+      itemId: itemId,
+    };
+    if (taskId) {
+      requestBody.taskId = taskId;
+    }
+
+    try {
+      const response = await fetch(ITEM_INFO_PATH, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json, text/plain, */*",
+        },
+        body: JSON.stringify(requestBody),
+      });
+      const text = await response.text();
+      const json = safeJsonParse(text);
+      if (!response.ok || !json || typeof json !== "object") {
+        return {
+          ok: false,
+          reason: "request-failed",
+          warnings: ["get-item-info 请求失败，已回退 DOM 采集。"],
+        };
       }
+      return {
+        ok: true,
+        status: response.status,
+        body: json,
+        warnings: [],
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: "network-error",
+        warnings: ["get-item-info 网络异常，已回退 DOM 采集。"],
+      };
+    }
+  }
+
+  function extractTask21ContextFromItemInfo(payload) {
+    const root = payload && typeof payload === "object" ? payload : {};
+    const imageMatches = {};
+    IMAGE_FIELDS.forEach(function (fieldName) {
+      const candidates = findCandidatesByKeys(root, IMAGE_KEY_CANDIDATES[fieldName]);
+      imageMatches[fieldName] = pickFirstNonEmptyString(candidates);
     });
 
-    const fallbackImages = collectVisibleImages();
-    let fallbackCursor = 0;
-    IMAGE_FIELDS.forEach(function (fieldName) {
-      if (mapping[fieldName]) {
-        return;
-      }
-      while (fallbackCursor < fallbackImages.length) {
-        const candidate = fallbackImages[fallbackCursor];
-        fallbackCursor += 1;
-        const alreadyUsed = IMAGE_FIELDS.some(function (key) {
-          return mapping[key] === candidate;
-        });
-        if (!alreadyUsed) {
-          mapping[fieldName] = candidate;
-          break;
-        }
-      }
-    });
+    const imageATexts = pickFirstUsefulValue(
+      findCandidatesByKeys(root, TEXT_KEY_CANDIDATES.imageATexts)
+    );
+    const imageBTexts = pickFirstUsefulValue(
+      findCandidatesByKeys(root, TEXT_KEY_CANDIDATES.imageBTexts)
+    );
+    const textPositions = pickFirstUsefulValue(
+      findCandidatesByKeys(root, TEXT_KEY_CANDIDATES.textPositions)
+    );
 
+    return {
+      imageMatches: imageMatches,
+      imageATexts: imageATexts,
+      imageBTexts: imageBTexts,
+      textPositions: textPositions,
+    };
+  }
+
+  async function collectImages(routeContext, itemInfoExtract, warnings) {
     const results = [];
+
     for (let index = 0; index < IMAGE_FIELDS.length; index += 1) {
       const fieldName = IMAGE_FIELDS[index];
-      const record = await serializeImageField(fieldName, mapping[fieldName] || null);
+      let imageNode = findImageByContentTitle(fieldName);
+      let imageUrl = "";
+
+      const matched = itemInfoExtract && itemInfoExtract.imageMatches ? itemInfoExtract.imageMatches[fieldName] : null;
+      if (matched && typeof matched.value === "string") {
+        imageUrl = matched.value;
+      }
+
+      if (!imageUrl && imageNode instanceof HTMLImageElement) {
+        imageUrl = String(imageNode.currentSrc || imageNode.src || "").trim();
+      }
+
+      if (!imageNode) {
+        const visibleImages = collectVisibleImages();
+        imageNode = visibleImages[index] || null;
+        if (!imageUrl && imageNode instanceof HTMLImageElement) {
+          imageUrl = String(imageNode.currentSrc || imageNode.src || "").trim();
+        }
+      }
+
+      if (!imageUrl) {
+        warnings.push("未稳定获取 " + fieldName + " 图片地址。");
+      }
+
+      const record = await buildImageRecord(fieldName, imageUrl, imageNode);
       results.push(record);
     }
+
     return results;
   }
 
-  function collectTextByFieldName(fieldName) {
-    const container = findFieldContainer(fieldName);
-    if (!container) {
-      return "";
-    }
-    return collectTextInputValue(container);
-  }
-
-  function collectTextPositions() {
-    return {};
-  }
-
-  function sanitizeQueryValue(value) {
-    const text = normalizeText(value);
-    if (!text) {
-      return "";
-    }
-    return text.slice(0, 120);
-  }
-
-  function collectRouteContext() {
-    const params = new URLSearchParams(location.search || "");
-    return {
-      taskId: sanitizeQueryValue(params.get("taskId")),
-      itemId: sanitizeQueryValue(params.get("itemId")),
-      nodeId: sanitizeQueryValue(params.get("nodeId")),
-      viewMode: sanitizeQueryValue(params.get("viewMode")),
-      path: String(location.pathname || ""),
-    };
-  }
-
-  function hasSameFontField() {
-    return Boolean(findFieldContainer("same_font"));
-  }
-
-  function collectWarnings(context) {
+  function collectWarnings(context, routeContext) {
     const warnings = [];
     if (!context.imageATexts) {
       warnings.push("未读取到 image_a_texts，已按空文本发送。");
@@ -410,23 +572,47 @@
     if (!context.imageBTexts) {
       warnings.push("未读取到 image_b_texts，已按空文本发送。");
     }
+    if (!routeContext.itemId || !routeContext.nodeId) {
+      warnings.push("URL 缺少 itemId/nodeId，get-item-info 可能不可用。");
+    }
     return warnings;
   }
 
   async function collectTask21Payload() {
+    const route = collectRouteContext();
     const currentPageValues = collectCurrentPageValues();
-    const images = await collectImages();
+
+    const itemInfoResponse = await collectItemInfoPayload(route);
+    const itemInfoExtract = itemInfoResponse.ok
+      ? extractTask21ContextFromItemInfo(itemInfoResponse.body)
+      : null;
+
+    const warnings = collectWarnings(
+      {
+        imageATexts: itemInfoExtract?.imageATexts?.value || "",
+        imageBTexts: itemInfoExtract?.imageBTexts?.value || "",
+      },
+      route
+    );
+    (itemInfoResponse.warnings || []).forEach(function (message) {
+      warnings.push(message);
+    });
+
+    const images = await collectImages(route, itemInfoExtract, warnings);
 
     const context = {
-      imageATexts: collectTextByFieldName("image_a_texts"),
-      imageBTexts: collectTextByFieldName("image_b_texts"),
-      textPositions: collectTextPositions(),
+      imageATexts: normalizeText(itemInfoExtract?.imageATexts?.value || ""),
+      imageBTexts: normalizeText(itemInfoExtract?.imageBTexts?.value || ""),
+      textPositions: itemInfoExtract?.textPositions?.value || {},
       currentValues: {
         same_font: currentPageValues.same_font || "",
         image_b_texts_removed: currentPageValues.image_b_texts_removed || "",
         other_changes: currentPageValues.other_changes || "",
+        same_font_exists: currentPageValues.same_font_exists === true,
+        image_b_texts_removed_exists: currentPageValues.image_b_texts_removed_exists === true,
+        other_changes_exists: currentPageValues.other_changes_exists === true,
       },
-      route: collectRouteContext(),
+      route: route,
     };
 
     const imageStats = images.map(function (item) {
@@ -440,6 +626,30 @@
       };
     });
 
+    const itemInfoShape = itemInfoResponse.ok
+      ? {
+          status: Number(itemInfoResponse.status || 0),
+          code: Number(itemInfoResponse.body?.code || 0),
+          hasData: !!itemInfoResponse.body?.data,
+          dataKeys: itemInfoResponse.body?.data && typeof itemInfoResponse.body.data === "object"
+            ? Object.keys(itemInfoResponse.body.data).slice(0, 40)
+            : [],
+          imagePaths: IMAGE_FIELDS.reduce(function (acc, fieldName) {
+            const match = itemInfoExtract?.imageMatches?.[fieldName];
+            acc[fieldName] = match ? match.path : "";
+            return acc;
+          }, {}),
+          textPaths: {
+            imageATexts: itemInfoExtract?.imageATexts?.path || "",
+            imageBTexts: itemInfoExtract?.imageBTexts?.path || "",
+            textPositions: itemInfoExtract?.textPositions?.path || "",
+          },
+        }
+      : {
+          ok: false,
+          reason: itemInfoResponse.reason || "unknown",
+        };
+
     return {
       ok: true,
       page: {
@@ -450,7 +660,8 @@
       context: context,
       images: images,
       imageStats: imageStats,
-      warnings: collectWarnings(context),
+      itemInfoShape: itemInfoShape,
+      warnings: warnings,
     };
   }
 
@@ -462,5 +673,6 @@
     isViewMode: isViewMode,
     TARGET_FIELDS: TARGET_FIELDS.slice(),
     IMAGE_FIELDS: IMAGE_FIELDS.slice(),
+    ITEM_INFO_PATH: ITEM_INFO_PATH,
   };
 })();

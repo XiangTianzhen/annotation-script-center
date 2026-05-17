@@ -32,6 +32,7 @@
 | Task21 快捷键送审 | `/items` 标注页 | `danger-confirm` / `state-change-user-triggered` | `task21/network/11-submit-review.md`、`task21/network/common/06-label-submit-success.md` | 用户按 `7` 仅点击页面真实“送审 / Submit / Submit Review”按钮 | 取决于平台流转 | 不自动确认弹窗；疑似标注内审环境阻止执行；扩展不直接调用提交接口 |
 | Task21 AI 单板块分析 | `/items` 标注页 | `safe-read` | `task21/ai/README.md` | 调用统一后端 `/api/abaka-ai/task21/ai/analyze` 获取建议 | 不涉及 | 只返回建议，不自动写入/保存/提交 |
 | Task21 AI 整体分析 | `/items` 标注页 | `safe-read` | `task21/ai/README.md` | 按 same_font -> 派生字段流程输出结构化建议 | 不涉及 | false/unsure 时后两项按流程 not_applicable |
+| Task21 AI 快捷键触发分析 | `/items` 标注页 | `safe-read` | `task21/ai/README.md` | `Alt+1/2/3/4` 等价于点击字段标题右侧 AI 按钮 | 不涉及 | 仅触发分析请求，不自动写入、不自动保存 |
 | Skipped 列表 | `/task-v2/data-item?dm=skipped` | `safe-read` | `network/task-page/19-skipped-list.md` | `/api/v2/item/get-task-item-skip-list` | 不涉及 | 可只读识别 |
 | Dropped 列表 | `/task-v2/data-item?dm=abandoned` | `safe-read` | `network/task-page/20-dropped-list.md` | `/api/v2/item/get-task-item-abandon-list` | 不涉及 | 可只读识别 |
 | 资源加载 | `/items` | `safe-read` | `network/task-page/17-resource-files.md` | 加载 assets、captcha、`.webp` 对象存储图片 | 不涉及 | 不记录完整 URL |
@@ -75,6 +76,7 @@
 - Task21 `6/7` 快捷键只允许点击页面真实按钮，不得直接调用平台保存/送审接口。
 - Task21 `7` 快捷键在疑似标注内审环境必须阻止；即使在标注环境也不得自动确认二次弹窗。
 - Task21 AI 分析只允许访问统一后端 AI 路由，不得直接调用 Abaka 平台保存/提交/领取/流转接口。
+- Task21 AI 分析快捷键（`Alt+1/2/3/4`）必须等价于页面内联按钮行为，不得绕过同一安全检查。
 - AI 建议只能辅助展示，不自动保存、提交、领取、流转、放弃、跳过或恢复。
 - 标注内审权限下不得自动提交、通过、驳回或完成审核。
 - 跨页全选、批量放弃、批量送审、批量领取默认禁止自动触发。

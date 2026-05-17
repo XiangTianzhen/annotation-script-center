@@ -1,9 +1,85 @@
 (function () {
-  const ROOT_ID = "asc-abaka-ai-task21-ai-panel";
-  const STYLE_ID = "asc-abaka-ai-task21-ai-panel-style";
+  const STYLE_ID = "asc-abaka-ai-inline-style";
+  const ACTIONS_WRAP_CLASS = "asc-abaka-ai-inline-actions";
+  const PANEL_CLASS = "asc-abaka-ai-result-panel";
+  const BUTTON_CLASS = "asc-abaka-ai-btn";
+  const BUTTON_OVERALL_CLASS = "asc-abaka-ai-btn-overall";
+
+  const FIELD_CONFIGS = {
+    same_font: {
+      key: "same_font",
+      title: "same_font",
+      actionButtons: [
+        {
+          key: "aiAnalyzeSameFont",
+          label: "AI分析",
+          target: "same_font",
+          panelField: "same_font",
+        },
+        {
+          key: "aiAnalyzeOverall",
+          label: "整体分析",
+          target: "overall",
+          panelField: "same_font",
+          overall: true,
+        },
+      ],
+    },
+    image_b_texts_removed: {
+      key: "image_b_texts_removed",
+      title: "image_b_texts_removed",
+      actionButtons: [
+        {
+          key: "aiAnalyzeImageBTextsRemoved",
+          label: "AI分析",
+          target: "image_b_texts_removed",
+          panelField: "image_b_texts_removed",
+        },
+      ],
+    },
+    other_changes: {
+      key: "other_changes",
+      title: "other_changes",
+      actionButtons: [
+        {
+          key: "aiAnalyzeOtherChanges",
+          label: "AI分析",
+          target: "other_changes",
+          panelField: "other_changes",
+        },
+      ],
+    },
+  };
+
+  const TARGET_TO_PANEL_FIELD = {
+    same_font: "same_font",
+    overall: "same_font",
+    image_b_texts_removed: "image_b_texts_removed",
+    other_changes: "other_changes",
+  };
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeLower(value) {
+    return normalizeText(value).toLowerCase();
+  }
+
+  function nowMs() {
+    return Date.now();
+  }
+
+  function isVisible(node) {
+    if (!(node instanceof Element)) {
+      return false;
+    }
+    const style = window.getComputedStyle(node);
+    if (!style || style.display === "none" || style.visibility === "hidden") {
+      return false;
+    }
+    const rect = node.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
   }
 
   function safeJsonParse(text) {
@@ -14,8 +90,62 @@
     }
   }
 
-  function nowMs() {
-    return Date.now();
+  function sanitizeRawForDisplay(payload) {
+    function sanitizeValue(key, value) {
+      const keyText = String(key || "").toLowerCase();
+      if (
+        keyText === "dataurl" ||
+        keyText === "imageurl" ||
+        keyText.indexOf("authorization") >= 0 ||
+        keyText.indexOf("token") >= 0 ||
+        keyText.indexOf("cookie") >= 0 ||
+        keyText.indexOf("password") >= 0 ||
+        keyText.indexOf("secret") >= 0 ||
+        keyText.indexOf("signature") >= 0
+      ) {
+        return "[redacted]";
+      }
+      if (typeof value === "string") {
+        if (/^data:image\//i.test(value)) {
+          return "[data-url-redacted]";
+        }
+        if (/^https?:\/\//i.test(value)) {
+          return "[url-redacted]";
+        }
+      }
+      return value;
+    }
+
+    return safeJsonParse(
+      JSON.stringify(payload || {}, function (key, value) {
+        return sanitizeValue(key, value);
+      })
+    );
+  }
+
+  function findFieldItemByTitle(fieldTitle) {
+    const target = normalizeLower(fieldTitle);
+    if (!target) {
+      return null;
+    }
+    const titleNodes = document.querySelectorAll(".l-title-text");
+    for (let index = 0; index < titleNodes.length; index += 1) {
+      const node = titleNodes[index];
+      if (!isVisible(node)) {
+        continue;
+      }
+      if (normalizeLower(node.textContent || "") !== target) {
+        continue;
+      }
+      const item = node.closest(".l-item");
+      if (item) {
+        return {
+          item: item,
+          titleNode: node,
+        };
+      }
+    }
+    return null;
   }
 
   function ensureStyle() {
@@ -25,86 +155,26 @@
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = [
-      "#" + ROOT_ID + "{position:fixed;right:16px;bottom:16px;z-index:2147483640;width:420px;max-height:72vh;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:10px;font:12px/1.5 'Microsoft YaHei',sans-serif;box-shadow:0 12px 28px rgba(2,6,23,.35);overflow:hidden;}",
-      "#" + ROOT_ID + " *{box-sizing:border-box;}",
-      "#" + ROOT_ID + " .asc-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #334155;background:#111827;}",
-      "#" + ROOT_ID + " .asc-title{font-size:13px;font-weight:700;}",
-      "#" + ROOT_ID + " .asc-sub{font-size:11px;color:#94a3b8;margin-top:2px;}",
-      "#" + ROOT_ID + " .asc-toggle{border:1px solid #475569;background:#1f2937;color:#e2e8f0;border-radius:6px;padding:2px 8px;cursor:pointer;}",
-      "#" + ROOT_ID + " .asc-body{padding:10px 12px;max-height:calc(72vh - 52px);overflow:auto;}",
-      "#" + ROOT_ID + " .asc-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}",
-      "#" + ROOT_ID + " .asc-btn{border:1px solid #475569;background:#1e293b;color:#f1f5f9;border-radius:7px;padding:7px 8px;cursor:pointer;text-align:left;}",
-      "#" + ROOT_ID + " .asc-btn:hover{background:#334155;}",
-      "#" + ROOT_ID + " .asc-btn[disabled]{cursor:not-allowed;opacity:.45;}",
-      "#" + ROOT_ID + " .asc-btn-wide{grid-column:1 / -1;background:#0b4a6f;border-color:#0b4a6f;}",
-      "#" + ROOT_ID + " .asc-meta{border:1px solid #334155;background:#111827;border-radius:8px;padding:8px;margin-bottom:8px;white-space:pre-wrap;word-break:break-word;}",
-      "#" + ROOT_ID + " .asc-note{color:#fbbf24;font-size:11px;margin-bottom:8px;}",
-      "#" + ROOT_ID + " .asc-result{border:1px solid #334155;background:#0b1220;border-radius:8px;padding:8px;margin-bottom:8px;}",
-      "#" + ROOT_ID + " .asc-row{margin-bottom:4px;}",
-      "#" + ROOT_ID + " .asc-k{color:#93c5fd;font-weight:700;margin-right:6px;}",
-      "#" + ROOT_ID + " .asc-value{white-space:pre-wrap;word-break:break-word;}",
-      "#" + ROOT_ID + " .asc-actions{display:flex;gap:6px;margin-bottom:8px;}",
-      "#" + ROOT_ID + " .asc-collapse{border:1px solid #334155;border-radius:8px;background:#0f172a;}",
-      "#" + ROOT_ID + " .asc-collapse summary{cursor:pointer;padding:8px 10px;color:#cbd5e1;}",
-      "#" + ROOT_ID + " .asc-collapse pre{margin:0;padding:8px 10px;border-top:1px solid #334155;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;}",
-      "@media (max-width: 640px){#" + ROOT_ID + "{left:8px;right:8px;width:auto;bottom:8px;max-height:75vh;}}",
+      "." + ACTIONS_WRAP_CLASS + "{display:inline-flex;align-items:center;gap:6px;margin-left:10px;flex-wrap:wrap;}",
+      "." + BUTTON_CLASS + "{height:24px;line-height:22px;padding:0 9px;border:1px solid #7ba7ff;border-radius:12px;background:#eef4ff;color:#1d4ed8;font-size:12px;font-weight:600;cursor:pointer;}",
+      "." + BUTTON_CLASS + ":hover{background:#dbeafe;}",
+      "." + BUTTON_CLASS + ":disabled{opacity:.45;cursor:not-allowed;}",
+      "." + BUTTON_OVERALL_CLASS + "{border-color:#93c5fd;background:#f0f9ff;color:#1d4ed8;}",
+      "." + PANEL_CLASS + "{position:fixed;z-index:2147483640;width:min(520px,calc(100vw - 24px));max-height:70vh;overflow:hidden;border:1px solid #cbd5e1;border-radius:12px;background:#ffffff;color:#0f172a;box-shadow:0 18px 42px rgba(15,23,42,.22);}",
+      "." + PANEL_CLASS + " *{box-sizing:border-box;}",
+      "." + PANEL_CLASS + " .asc-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid #e2e8f0;background:#f8fafc;}",
+      "." + PANEL_CLASS + " .asc-panel-title{font-weight:700;font-size:13px;color:#1e293b;}",
+      "." + PANEL_CLASS + " .asc-panel-sub{font-size:11px;color:#64748b;margin-top:2px;}",
+      "." + PANEL_CLASS + " .asc-panel-close{border:1px solid #cbd5e1;border-radius:6px;background:#fff;padding:2px 8px;font-size:12px;cursor:pointer;}",
+      "." + PANEL_CLASS + " .asc-panel-body{padding:10px 12px;overflow:auto;max-height:calc(70vh - 52px);display:grid;gap:8px;}",
+      "." + PANEL_CLASS + " .asc-block{border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;padding:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.5;}",
+      "." + PANEL_CLASS + " .asc-block-title{font-weight:700;color:#334155;margin-bottom:6px;}",
+      "." + PANEL_CLASS + " .asc-note{font-size:12px;color:#334155;}",
+      "." + PANEL_CLASS + " details{border:1px solid #e2e8f0;border-radius:8px;background:#fff;}",
+      "." + PANEL_CLASS + " details summary{cursor:pointer;padding:8px 10px;font-size:12px;color:#334155;}",
+      "." + PANEL_CLASS + " details pre{margin:0;border-top:1px solid #e2e8f0;padding:8px 10px;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:12px;}",
     ].join("");
     (document.head || document.documentElement).appendChild(style);
-  }
-
-  function copyText(text) {
-    const value = String(text || "").trim();
-    if (!value) {
-      return Promise.reject(new Error("无可复制内容。"));
-    }
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-      return navigator.clipboard.writeText(value);
-    }
-    return Promise.reject(new Error("当前页面不支持剪贴板 API。"));
-  }
-
-  function pick(obj, keyPath, fallback) {
-    const keys = String(keyPath || "").split(".").filter(Boolean);
-    let current = obj;
-    for (let index = 0; index < keys.length; index += 1) {
-      if (!current || typeof current !== "object") {
-        return fallback;
-      }
-      current = current[keys[index]];
-    }
-    return current === undefined ? fallback : current;
-  }
-
-  function sanitizeRawForDisplay(payload) {
-    function replacer(key, value) {
-      if (key === "dataUrl" || key === "imageUrl") {
-        return value ? "[redacted]" : "";
-      }
-      if (typeof key === "string") {
-        const lowered = key.toLowerCase();
-        if (
-          lowered.indexOf("token") >= 0 ||
-          lowered.indexOf("authorization") >= 0 ||
-          lowered.indexOf("cookie") >= 0 ||
-          lowered.indexOf("secret") >= 0 ||
-          lowered.indexOf("password") >= 0 ||
-          lowered.indexOf("signature") >= 0
-        ) {
-          return "[redacted]";
-        }
-      }
-      return value;
-    }
-    return safeJsonParse(JSON.stringify(payload || {}, replacer));
-  }
-
-  function resultToSuggestionJson(result) {
-    return {
-      same_font: pick(result, "same_font.value", ""),
-      image_b_texts_removed: pick(result, "image_b_texts_removed.value", ""),
-      other_changes: pick(result, "other_changes.value", ""),
-      workflow: pick(result, "workflow", {}),
-    };
   }
 
   function createRuntime(options) {
@@ -114,69 +184,23 @@
     const pricing = config.pricing || {};
     const showToast = typeof config.showToast === "function" ? config.showToast : function () {};
 
-    let root = null;
-    let body = null;
-    let messageNode = null;
-    let metaNode = null;
-    let resultNode = null;
-    let rawNode = null;
-    let collapsed = false;
-    let running = false;
-    let latestDisplay = null;
-    const buttons = {};
+    const actionButtonByKey = {};
+    const panelByField = {};
+    const latestByField = {};
+    const runningByField = {};
+    const missingFieldLogged = {};
 
-    function setMessage(text, tone) {
-      if (!messageNode) {
-        return;
-      }
-      messageNode.textContent = normalizeText(text || "就绪。") || "就绪。";
-      messageNode.style.color = tone === "warn" ? "#fbbf24" : tone === "error" ? "#fca5a5" : "#cbd5e1";
-    }
+    let started = false;
+    let mutationObserver = null;
+    let refreshTimer = null;
 
-    function currentSameFontValue(pageValues) {
-      return String(pageValues && pageValues.same_font ? pageValues.same_font : "").toLowerCase();
-    }
-
-    function updateButtonStates(snapshot) {
-      const page = snapshot && snapshot.page ? snapshot.page : {};
-      const currentValues = pick(snapshot, "context.currentValues", {});
-      const hasSameFont = page.hasSameFontField === true;
-      const hasRemoved = Boolean(currentValues.image_b_texts_removed_exists);
-      const hasOther = Boolean(currentValues.other_changes_exists);
-
-      buttons.sameFont.disabled = !hasSameFont || running;
-      buttons.removed.disabled = !hasRemoved || running;
-      buttons.other.disabled = !hasOther || running;
-      buttons.overall.disabled = !hasSameFont || running;
-      buttons.copy.disabled = running || !latestDisplay;
-
-      buttons.sameFont.title = hasSameFont ? "" : "未检测到该板块";
-      buttons.removed.title = hasRemoved ? "" : "未检测到该板块";
-      buttons.other.title = hasOther ? "" : "未检测到该板块";
-      buttons.overall.title = hasSameFont ? "" : "未检测到 same_font 板块";
-
-      if (hasSameFont) {
-        const same = currentSameFontValue(currentValues);
-        if (same === "false" || same === "unsure") {
-          setMessage("提示：same_font 当前为 false/unsure，按正式流程后两个字段可跳过；当前按钮仍可用于调试分析。", "warn");
-        }
-      }
-    }
-
-    function renderMeta(display) {
-      if (!metaNode) {
-        return;
-      }
-      if (!display) {
-        metaNode.textContent = "等待分析...";
-        return;
-      }
+    function buildMetaText(display) {
       const usage = display.usage || {};
       const imageStats = Array.isArray(display.imageStats) ? display.imageStats : [];
       const lines = [];
-      lines.push("target: " + (display.target || "-"));
-      lines.push("requestId: " + (display.requestId || "-"));
-      lines.push("model: " + (display.model || "-"));
+      lines.push("目标: " + String(display.target || "-"));
+      lines.push("requestId: " + String(display.requestId || "-"));
+      lines.push("model: " + String(display.model || "-"));
       lines.push("elapsedMs: " + String(display.elapsedMs || 0));
       lines.push(
         "tokens: input=" +
@@ -193,7 +217,7 @@
         "imageFields: " +
           imageStats
             .map(function (item) {
-              return item.fieldName;
+              return String(item.fieldName || "unknown");
             })
             .join(", ")
       );
@@ -244,141 +268,347 @@
         );
       }
       lines.push("price.total: " + String(price.totalPrice || 0));
-
-      metaNode.textContent = lines.join("\n");
+      return lines.join("\n");
     }
 
-    function renderResult(display) {
-      if (!resultNode) {
-        return;
-      }
-      if (!display || !display.result) {
-        resultNode.innerHTML = "<div class='asc-row'>暂无分析结果。</div>";
-        return;
-      }
-      const result = display.result;
+    function buildResultText(display) {
+      const result = display.result || {};
+      const values = [
+        "same_font=" + String(result?.same_font?.value || ""),
+        "image_b_texts_removed=" + String(result?.image_b_texts_removed?.value || ""),
+        "other_changes=" + String(result?.other_changes?.value || ""),
+      ];
+      const reasons = [
+        String(result?.same_font?.reason_cn || ""),
+        String(result?.image_b_texts_removed?.reason_cn || ""),
+        String(result?.other_changes?.reason_cn || ""),
+      ].filter(Boolean);
+
       const evidence = [];
       const warnings = [];
       ["same_font", "image_b_texts_removed", "other_changes"].forEach(function (key) {
         const field = result[key] || {};
-        const fieldEvidence = Array.isArray(field.evidence) ? field.evidence : [];
-        const fieldWarnings = Array.isArray(field.warnings) ? field.warnings : [];
-        fieldEvidence.forEach(function (item) {
+        (Array.isArray(field.evidence) ? field.evidence : []).forEach(function (item) {
           evidence.push(key + ": " + String(item || ""));
         });
-        fieldWarnings.forEach(function (item) {
+        (Array.isArray(field.warnings) ? field.warnings : []).forEach(function (item) {
           warnings.push(key + ": " + String(item || ""));
         });
       });
 
-      const blocks = [];
-      blocks.push("<div class='asc-row'><span class='asc-k'>建议结果</span><span class='asc-value'>" +
-        [
-          "same_font=" + String(pick(result, "same_font.value", "")),
-          "image_b_texts_removed=" + String(pick(result, "image_b_texts_removed.value", "")),
-          "other_changes=" + String(pick(result, "other_changes.value", "")),
-        ].join(" | ") +
-        "</span></div>");
-      blocks.push("<div class='asc-row'><span class='asc-k'>置信度</span><span class='asc-value'>" + String(pick(result, "same_font.confidence", "-")) + "</span></div>");
-      blocks.push("<div class='asc-row'><span class='asc-k'>中文理由</span><span class='asc-value'>" +
-        [
-          String(pick(result, "same_font.reason_cn", "")),
-          String(pick(result, "image_b_texts_removed.reason_cn", "")),
-          String(pick(result, "other_changes.reason_cn", "")),
-        ].filter(Boolean).join(" / ") +
-        "</span></div>");
-      blocks.push("<div class='asc-row'><span class='asc-k'>workflow</span><span class='asc-value'>skip_later_fields=" + String(pick(result, "workflow.skip_later_fields", false)) + "</span></div>");
-      blocks.push("<div class='asc-row'><span class='asc-k'>evidence</span><span class='asc-value'>" + (evidence.length > 0 ? evidence.join("\n") : "-") + "</span></div>");
-      blocks.push("<div class='asc-row'><span class='asc-k'>warnings</span><span class='asc-value'>" + (warnings.length > 0 ? warnings.join("\n") : "-") + "</span></div>");
-      resultNode.innerHTML = blocks.join("");
+      return [
+        "建议结果: " + values.join(" | "),
+        "置信度: " + String(result?.same_font?.confidence ?? "-"),
+        "中文理由: " + (reasons.length > 0 ? reasons.join(" / ") : "-"),
+        "workflow.skip_later_fields: " + String(result?.workflow?.skip_later_fields === true),
+        "workflow.skip_reason: " + String(result?.workflow?.skip_reason || ""),
+        "evidence:\n" + (evidence.length > 0 ? evidence.join("\n") : "-"),
+        "warnings:\n" + (warnings.length > 0 ? warnings.join("\n") : "-"),
+      ].join("\n");
     }
 
-    function renderRaw(display) {
-      if (!rawNode) {
-        return;
+    function getFieldAnchor(fieldKey) {
+      const fieldConfig = FIELD_CONFIGS[fieldKey];
+      if (!fieldConfig) {
+        return null;
       }
-      if (!display) {
-        rawNode.textContent = "{}";
-        return;
-      }
-      rawNode.textContent = JSON.stringify(sanitizeRawForDisplay(display.raw), null, 2);
+      return findFieldItemByTitle(fieldConfig.title);
     }
 
-    function extractPriceInput(snapshot, result) {
-      const currentValues = pick(snapshot, "context.currentValues", {});
+    function ensurePanel(fieldKey) {
+      let panel = panelByField[fieldKey] || null;
+      if (panel && document.documentElement.contains(panel.root)) {
+        return panel;
+      }
+
+      const root = document.createElement("section");
+      root.className = PANEL_CLASS;
+      root.style.display = "none";
+
+      const head = document.createElement("div");
+      head.className = "asc-panel-head";
+
+      const headText = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "asc-panel-title";
+      title.textContent = "Task21 AI 分析（" + fieldKey + "）";
+      const sub = document.createElement("div");
+      sub.className = "asc-panel-sub";
+      sub.textContent = "仅辅助建议，不自动写入/保存/提交";
+      headText.appendChild(title);
+      headText.appendChild(sub);
+
+      const closeButton = document.createElement("button");
+      closeButton.type = "button";
+      closeButton.className = "asc-panel-close";
+      closeButton.textContent = "关闭";
+      closeButton.addEventListener("click", function () {
+        root.style.display = "none";
+      });
+
+      head.appendChild(headText);
+      head.appendChild(closeButton);
+
+      const body = document.createElement("div");
+      body.className = "asc-panel-body";
+
+      const status = document.createElement("div");
+      status.className = "asc-note";
+      status.textContent = "就绪。";
+
+      const metaBlock = document.createElement("div");
+      metaBlock.className = "asc-block";
+      const metaTitle = document.createElement("div");
+      metaTitle.className = "asc-block-title";
+      metaTitle.textContent = "调试信息";
+      const metaText = document.createElement("div");
+      metaText.textContent = "等待分析...";
+      metaBlock.appendChild(metaTitle);
+      metaBlock.appendChild(metaText);
+
+      const resultBlock = document.createElement("div");
+      resultBlock.className = "asc-block";
+      const resultTitle = document.createElement("div");
+      resultTitle.className = "asc-block-title";
+      resultTitle.textContent = "建议结果";
+      const resultText = document.createElement("div");
+      resultText.textContent = "暂无分析结果。";
+      resultBlock.appendChild(resultTitle);
+      resultBlock.appendChild(resultText);
+
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.gap = "8px";
+      actions.style.flexWrap = "wrap";
+
+      const copyButton = document.createElement("button");
+      copyButton.type = "button";
+      copyButton.className = BUTTON_CLASS;
+      copyButton.textContent = "复制建议";
+      copyButton.disabled = true;
+      copyButton.addEventListener("click", function () {
+        const latest = latestByField[fieldKey];
+        if (!latest) {
+          return;
+        }
+        const suggestion = {
+          same_font: latest?.result?.same_font?.value || "",
+          image_b_texts_removed: latest?.result?.image_b_texts_removed?.value || "",
+          other_changes: latest?.result?.other_changes?.value || "",
+          workflow: latest?.result?.workflow || {},
+        };
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          navigator.clipboard
+            .writeText(JSON.stringify(suggestion, null, 2))
+            .then(function () {
+              showToast("建议已复制", "success");
+            })
+            .catch(function () {
+              showToast("复制失败", "warn");
+            });
+        } else {
+          showToast("当前页面不支持剪贴板 API", "warn");
+        }
+      });
+      actions.appendChild(copyButton);
+
+      const rawPanel = document.createElement("details");
+      const rawSummary = document.createElement("summary");
+      rawSummary.textContent = "查看原始 JSON（脱敏）";
+      const rawText = document.createElement("pre");
+      rawText.textContent = "{}";
+      rawPanel.appendChild(rawSummary);
+      rawPanel.appendChild(rawText);
+
+      body.appendChild(status);
+      body.appendChild(metaBlock);
+      body.appendChild(resultBlock);
+      body.appendChild(actions);
+      body.appendChild(rawPanel);
+
+      root.appendChild(head);
+      root.appendChild(body);
+      (document.body || document.documentElement).appendChild(root);
+
+      panel = {
+        fieldKey: fieldKey,
+        root: root,
+        status: status,
+        metaText: metaText,
+        resultText: resultText,
+        rawText: rawText,
+        copyButton: copyButton,
+      };
+      panelByField[fieldKey] = panel;
+      return panel;
+    }
+
+    function updatePanelPosition(fieldKey) {
+      const panel = panelByField[fieldKey];
+      if (!panel || panel.root.style.display === "none") {
+        return;
+      }
+      const anchor = getFieldAnchor(fieldKey);
+      if (!anchor || !(anchor.item instanceof Element)) {
+        return;
+      }
+      const rect = anchor.item.getBoundingClientRect();
+      const panelWidth = panel.root.offsetWidth || Math.min(520, window.innerWidth - 24);
+      const leftCandidate = rect.right + 8;
+      let left = leftCandidate;
+      if (left + panelWidth > window.innerWidth - 8) {
+        left = Math.max(8, window.innerWidth - panelWidth - 8);
+      }
+      const top = Math.max(8, Math.min(rect.top + 8, window.innerHeight - 120));
+      panel.root.style.left = String(Math.round(left)) + "px";
+      panel.root.style.top = String(Math.round(top)) + "px";
+    }
+
+    function updateAllPanelPositions() {
+      Object.keys(panelByField).forEach(function (fieldKey) {
+        updatePanelPosition(fieldKey);
+      });
+    }
+
+    function setPanelLoading(panel, label) {
+      panel.status.textContent = "正在分析 " + label + " ...";
+      panel.metaText.textContent = "等待分析结果...";
+      panel.resultText.textContent = "分析中...";
+      panel.rawText.textContent = "{}";
+      panel.copyButton.disabled = true;
+    }
+
+    function setPanelError(panel, message) {
+      panel.status.textContent = normalizeText(message || "分析失败。") || "分析失败。";
+      panel.resultText.textContent = "暂无分析结果。";
+      panel.copyButton.disabled = true;
+    }
+
+    function setPanelResult(panel, display) {
+      panel.status.textContent = "分析完成：" + String(display.target || "-");
+      panel.metaText.textContent = buildMetaText(display);
+      panel.resultText.textContent = buildResultText(display);
+      panel.rawText.textContent = JSON.stringify(sanitizeRawForDisplay(display.raw), null, 2);
+      panel.copyButton.disabled = false;
+    }
+
+    function getFieldStates(snapshot) {
+      const page = snapshot?.page || {};
+      const values = snapshot?.context?.currentValues || {};
       return {
-        imageATexts: pick(snapshot, "context.imageATexts", ""),
-        imageBTexts: pick(snapshot, "context.imageBTexts", ""),
-        sameFontValue: pick(result, "same_font.value", currentValues.same_font || ""),
-        imageBTextsRemovedValue: pick(
-          result,
-          "image_b_texts_removed.value",
-          currentValues.image_b_texts_removed || ""
-        ),
-        otherChangesValue: pick(result, "other_changes.value", currentValues.other_changes || ""),
+        same_font: page.hasSameFontField === true,
+        image_b_texts_removed: values.image_b_texts_removed_exists === true,
+        other_changes: values.other_changes_exists === true,
       };
     }
 
-    async function runAnalysis(target) {
-      if (running) {
-        return;
+    function updateInlineButtonState(snapshot) {
+      const states = getFieldStates(snapshot || {});
+      Object.keys(actionButtonByKey).forEach(function (actionKey) {
+        const entry = actionButtonByKey[actionKey];
+        const button = entry && entry.button;
+        if (!(button instanceof HTMLButtonElement)) {
+          return;
+        }
+        const panelField = entry.panelField;
+        const enabled = states[panelField] === true;
+        button.disabled = !enabled || runningByField[panelField] === true;
+        button.title = enabled ? "" : "未检测到该板块";
+      });
+    }
+
+    function buildRequestPayload(snapshot, target) {
+      const currentValues = snapshot?.context?.currentValues || {};
+      return {
+        target: target,
+        context: {
+          imageATexts: snapshot?.context?.imageATexts || "",
+          imageBTexts: snapshot?.context?.imageBTexts || "",
+          textPositions: snapshot?.context?.textPositions || {},
+          currentValues: {
+            same_font: currentValues.same_font || "",
+            image_b_texts_removed: currentValues.image_b_texts_removed || "",
+            other_changes: currentValues.other_changes || "",
+          },
+          route: snapshot?.context?.route || {},
+        },
+        images: Array.isArray(snapshot?.images)
+          ? snapshot.images.map(function (item) {
+              return {
+                fieldName: item.fieldName,
+                dataUrl: item.dataUrl || "",
+                imageUrl: item.dataUrl ? "" : item.imageUrl || "",
+                mime: item.mime || "unknown",
+                width: item.width || 0,
+                height: item.height || 0,
+                bytes: item.bytes || 0,
+              };
+            })
+          : [],
+        debug: true,
+      };
+    }
+
+    function extractPriceInput(snapshot, result) {
+      const currentValues = snapshot?.context?.currentValues || {};
+      return {
+        imageATexts: snapshot?.context?.imageATexts || "",
+        imageBTexts: snapshot?.context?.imageBTexts || "",
+        sameFontValue: result?.same_font?.value || currentValues.same_font || "",
+        imageBTextsRemovedValue:
+          result?.image_b_texts_removed?.value || currentValues.image_b_texts_removed || "",
+        otherChangesValue: result?.other_changes?.value || currentValues.other_changes || "",
+      };
+    }
+
+    async function runAnalysis(target, options) {
+      const runtimeOptions = options && typeof options === "object" ? options : {};
+      const panelField = runtimeOptions.panelField || TARGET_TO_PANEL_FIELD[target] || "same_font";
+      const fieldConfig = FIELD_CONFIGS[panelField];
+      if (!fieldConfig) {
+        return { ok: false, message: "未知分析目标。" };
+      }
+      if (runningByField[panelField] === true) {
+        return { ok: false, message: "该板块正在分析中，请稍候。" };
       }
       if (typeof collector.collectTask21Payload !== "function") {
-        setMessage("data-collector 未就绪。", "error");
-        return;
+        return { ok: false, message: "data-collector 未就绪。" };
       }
       if (typeof client.analyze !== "function") {
-        setMessage("ai-client 未就绪。", "error");
-        return;
+        return { ok: false, message: "ai-client 未就绪。" };
       }
 
-      running = true;
-      updateButtonStates(null);
-      setMessage("正在分析 " + target + " ...");
+      const panel = ensurePanel(panelField);
+      panel.root.style.display = "block";
+      updatePanelPosition(panelField);
+      setPanelLoading(panel, target);
+      runningByField[panelField] = true;
 
-      const startedAt = nowMs();
       try {
         const snapshot = await collector.collectTask21Payload();
-        const currentValues = pick(snapshot, "context.currentValues", {});
+        updateInlineButtonState(snapshot);
 
-        if (target === "same_font" && snapshot.page.hasSameFontField !== true) {
-          setMessage("未检测到该板块：same_font", "warn");
-          return;
+        const states = getFieldStates(snapshot);
+        if (target === "same_font" || target === "overall") {
+          if (!states.same_font) {
+            const message = "未检测到 same_font 板块。";
+            setPanelError(panel, message);
+            return { ok: false, message: message };
+          }
         }
-        if (target === "image_b_texts_removed" && !currentValues.image_b_texts_removed_exists) {
-          setMessage("未检测到该板块：image_b_texts_removed", "warn");
-          return;
+        if (target === "image_b_texts_removed" && !states.image_b_texts_removed) {
+          const message = "未检测到 image_b_texts_removed 板块。";
+          setPanelError(panel, message);
+          return { ok: false, message: message };
         }
-        if (target === "other_changes" && !currentValues.other_changes_exists) {
-          setMessage("未检测到该板块：other_changes", "warn");
-          return;
+        if (target === "other_changes" && !states.other_changes) {
+          const message = "未检测到 other_changes 板块。";
+          setPanelError(panel, message);
+          return { ok: false, message: message };
         }
 
-        const requestPayload = {
-          target: target,
-          context: {
-            imageATexts: pick(snapshot, "context.imageATexts", ""),
-            imageBTexts: pick(snapshot, "context.imageBTexts", ""),
-            textPositions: pick(snapshot, "context.textPositions", {}),
-            currentValues: currentValues,
-            route: pick(snapshot, "context.route", {}),
-          },
-          images: Array.isArray(snapshot.images)
-            ? snapshot.images.map(function (item) {
-                return {
-                  fieldName: item.fieldName,
-                  dataUrl: item.dataUrl || "",
-                  imageUrl: item.dataUrl ? "" : item.imageUrl || "",
-                  mime: item.mime || "unknown",
-                  width: item.width || 0,
-                  height: item.height || 0,
-                  bytes: item.bytes || 0,
-                };
-              })
-            : [],
-          debug: true,
-        };
-
+        const startedAt = nowMs();
+        const requestPayload = buildRequestPayload(snapshot, target);
         const response = await client.analyze(requestPayload, {
           timeoutMs: 120000,
           settings: config.settings || null,
@@ -391,7 +621,7 @@
             ? pricing.estimateTask21Price(extractPriceInput(snapshot, result))
             : null;
 
-        latestDisplay = {
+        const display = {
           target: target,
           requestId: body.requestId || "",
           model: body.model || "",
@@ -409,7 +639,10 @@
               hasUsage: Boolean(body.usage && String(body.usage.source || "") === "provider"),
             }
           ),
-          imageStats: Array.isArray(body.imageStats) && body.imageStats.length > 0 ? body.imageStats : snapshot.imageStats,
+          imageStats:
+            Array.isArray(body.imageStats) && body.imageStats.length > 0
+              ? body.imageStats
+              : snapshot.imageStats,
           price: price,
           result: result,
           raw: {
@@ -418,227 +651,194 @@
           },
         };
 
-        renderMeta(latestDisplay);
-        renderResult(latestDisplay);
-        renderRaw(latestDisplay);
-        setMessage("分析完成：" + target, "info");
+        latestByField[panelField] = display;
+        setPanelResult(panel, display);
+        if (runtimeOptions.source !== "shortcut") {
+          showToast("AI 分析完成：" + target, "success");
+        }
+        return { ok: true, message: "AI 分析完成：" + target };
       } catch (error) {
         const message = normalizeText(error && error.message ? error.message : "AI 分析失败。");
-        setMessage(message, "error");
+        setPanelError(panel, message);
+        return { ok: false, message: message || "AI 分析失败。" };
       } finally {
-        running = false;
-        if (typeof collector.collectTask21Payload === "function") {
-          collector
-            .collectTask21Payload()
-            .then(function (snapshot) {
-              updateButtonStates(snapshot);
-            })
-            .catch(function () {
-              updateButtonStates(null);
-            });
-        } else {
-          updateButtonStates(null);
+        runningByField[panelField] = false;
+        try {
+          const snapshot = await collector.collectTask21Payload();
+          updateInlineButtonState(snapshot);
+        } catch (error) {
+          updateInlineButtonState(null);
         }
       }
     }
 
-    function toggleCollapse() {
-      collapsed = !collapsed;
-      if (!body) {
-        return;
-      }
-      body.style.display = collapsed ? "none" : "block";
-      if (buttons.toggle) {
-        buttons.toggle.textContent = collapsed ? "展开" : "收起";
-      }
+    function ensureInlineButtons() {
+      Object.keys(FIELD_CONFIGS).forEach(function (fieldKey) {
+        const fieldConfig = FIELD_CONFIGS[fieldKey];
+        const anchor = findFieldItemByTitle(fieldConfig.title);
+        if (!anchor || !(anchor.item instanceof Element)) {
+          if (!missingFieldLogged[fieldKey]) {
+            console.info("[ASC][Abaka AI] 未检测到 " + fieldConfig.title + " 板块，跳过挂载。");
+            missingFieldLogged[fieldKey] = true;
+          }
+          return;
+        }
+
+        const headerActions =
+          anchor.item.querySelector(".l-header-actions") ||
+          anchor.item.querySelector(".l-header") ||
+          anchor.titleNode.parentElement;
+        if (!(headerActions instanceof Element)) {
+          return;
+        }
+
+        let wrap = headerActions.querySelector(
+          "." + ACTIONS_WRAP_CLASS + "[data-asc-field='" + fieldKey + "']"
+        );
+        if (!wrap) {
+          wrap = document.createElement("span");
+          wrap.className = ACTIONS_WRAP_CLASS;
+          wrap.setAttribute("data-asc-field", fieldKey);
+          headerActions.appendChild(wrap);
+        }
+
+        fieldConfig.actionButtons.forEach(function (buttonConfig) {
+          let button = wrap.querySelector("button[data-asc-action='" + buttonConfig.key + "']");
+          if (!(button instanceof HTMLButtonElement)) {
+            button = document.createElement("button");
+            button.type = "button";
+            button.className =
+              BUTTON_CLASS + (buttonConfig.overall ? " " + BUTTON_OVERALL_CLASS : "");
+            button.textContent = buttonConfig.label;
+            button.setAttribute("data-asc-action", buttonConfig.key);
+            button.addEventListener("click", function () {
+              void runAnalysis(buttonConfig.target, {
+                panelField: buttonConfig.panelField,
+                source: "button",
+              });
+            });
+            wrap.appendChild(button);
+          }
+          actionButtonByKey[buttonConfig.key] = {
+            button: button,
+            panelField: buttonConfig.panelField,
+          };
+        });
+      });
     }
 
-    async function refreshState() {
-      if (typeof collector.collectTask21Payload !== "function") {
-        updateButtonStates(null);
+    function scheduleRefreshMount() {
+      if (refreshTimer) {
         return;
       }
-      try {
-        const snapshot = await collector.collectTask21Payload();
-        updateButtonStates(snapshot);
-      } catch (error) {
-        updateButtonStates(null);
-      }
+      refreshTimer = window.setTimeout(function () {
+        refreshTimer = null;
+        ensureInlineButtons();
+        updateAllPanelPositions();
+        if (typeof collector.collectTask21Payload === "function") {
+          collector
+            .collectTask21Payload()
+            .then(function (snapshot) {
+              updateInlineButtonState(snapshot);
+            })
+            .catch(function () {
+              updateInlineButtonState(null);
+            });
+        }
+      }, 160);
     }
 
-    function ensureMounted() {
-      if (root && document.documentElement.contains(root)) {
-        return root;
+    function startObservers() {
+      if (mutationObserver) {
+        return;
       }
-      ensureStyle();
-
-      root = document.createElement("section");
-      root.id = ROOT_ID;
-
-      const head = document.createElement("div");
-      head.className = "asc-head";
-
-      const headLeft = document.createElement("div");
-      const title = document.createElement("div");
-      title.className = "asc-title";
-      title.textContent = "Abaka AI Task21 AI 分析面板（调试）";
-      const sub = document.createElement("div");
-      sub.className = "asc-sub";
-      sub.textContent = "AI 仅输出建议，不自动写入/保存/提交/送审";
-      headLeft.appendChild(title);
-      headLeft.appendChild(sub);
-
-      buttons.toggle = document.createElement("button");
-      buttons.toggle.type = "button";
-      buttons.toggle.className = "asc-toggle";
-      buttons.toggle.textContent = "收起";
-      buttons.toggle.addEventListener("click", toggleCollapse);
-
-      head.appendChild(headLeft);
-      head.appendChild(buttons.toggle);
-
-      body = document.createElement("div");
-      body.className = "asc-body";
-
-      const buttonsWrap = document.createElement("div");
-      buttonsWrap.className = "asc-buttons";
-
-      buttons.sameFont = document.createElement("button");
-      buttons.sameFont.type = "button";
-      buttons.sameFont.className = "asc-btn";
-      buttons.sameFont.textContent = "AI 分析 same_font";
-      buttons.sameFont.addEventListener("click", function () {
-        void runAnalysis("same_font");
+      mutationObserver = new MutationObserver(function () {
+        scheduleRefreshMount();
+      });
+      mutationObserver.observe(document.documentElement || document.body, {
+        childList: true,
+        subtree: true,
       });
 
-      buttons.removed = document.createElement("button");
-      buttons.removed.type = "button";
-      buttons.removed.className = "asc-btn";
-      buttons.removed.textContent = "AI 分析 image_b_texts_removed";
-      buttons.removed.addEventListener("click", function () {
-        void runAnalysis("image_b_texts_removed");
-      });
+      window.addEventListener("resize", updateAllPanelPositions, true);
+      window.addEventListener("scroll", updateAllPanelPositions, true);
+    }
 
-      buttons.other = document.createElement("button");
-      buttons.other.type = "button";
-      buttons.other.className = "asc-btn";
-      buttons.other.textContent = "AI 分析 other_changes";
-      buttons.other.addEventListener("click", function () {
-        void runAnalysis("other_changes");
-      });
-
-      buttons.overall = document.createElement("button");
-      buttons.overall.type = "button";
-      buttons.overall.className = "asc-btn asc-btn-wide";
-      buttons.overall.textContent = "AI 整体分析（Task21 流程）";
-      buttons.overall.addEventListener("click", function () {
-        void runAnalysis("overall");
-      });
-
-      buttonsWrap.appendChild(buttons.sameFont);
-      buttonsWrap.appendChild(buttons.removed);
-      buttonsWrap.appendChild(buttons.other);
-      buttonsWrap.appendChild(buttons.overall);
-
-      const note = document.createElement("div");
-      note.className = "asc-note";
-      note.textContent = "调试输出包含 token、图片统计、耗时、requestId、价格估算。";
-
-      metaNode = document.createElement("pre");
-      metaNode.className = "asc-meta";
-      metaNode.textContent = "等待分析...";
-
-      resultNode = document.createElement("div");
-      resultNode.className = "asc-result";
-      resultNode.innerHTML = "<div class='asc-row'>暂无分析结果。</div>";
-
-      const actionRow = document.createElement("div");
-      actionRow.className = "asc-actions";
-      buttons.copy = document.createElement("button");
-      buttons.copy.type = "button";
-      buttons.copy.className = "asc-btn";
-      buttons.copy.textContent = "复制建议";
-      buttons.copy.disabled = true;
-      buttons.copy.addEventListener("click", function () {
-        const suggestion = latestDisplay ? resultToSuggestionJson(latestDisplay.result) : null;
-        copyText(JSON.stringify(suggestion || {}, null, 2))
-          .then(function () {
-            showToast("建议已复制", "success");
-          })
-          .catch(function (error) {
-            setMessage(error && error.message ? error.message : "复制失败", "warn");
-          });
-      });
-      actionRow.appendChild(buttons.copy);
-
-      const rawPanel = document.createElement("details");
-      rawPanel.className = "asc-collapse";
-      const rawSummary = document.createElement("summary");
-      rawSummary.textContent = "原始 JSON（脱敏）";
-      rawNode = document.createElement("pre");
-      rawNode.textContent = "{}";
-      rawPanel.appendChild(rawSummary);
-      rawPanel.appendChild(rawNode);
-
-      messageNode = document.createElement("div");
-      messageNode.className = "asc-meta";
-      messageNode.textContent = "就绪。";
-
-      body.appendChild(buttonsWrap);
-      body.appendChild(note);
-      body.appendChild(metaNode);
-      body.appendChild(resultNode);
-      body.appendChild(actionRow);
-      body.appendChild(rawPanel);
-      body.appendChild(messageNode);
-
-      root.appendChild(head);
-      root.appendChild(body);
-      (document.body || document.documentElement).appendChild(root);
-      return root;
+    function stopObservers() {
+      if (mutationObserver) {
+        mutationObserver.disconnect();
+        mutationObserver = null;
+      }
+      window.removeEventListener("resize", updateAllPanelPositions, true);
+      window.removeEventListener("scroll", updateAllPanelPositions, true);
+      if (refreshTimer) {
+        window.clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
     }
 
     function isEligiblePage() {
-      if (typeof collector.isItemsPage === "function" && collector.isItemsPage() !== true) {
-        return false;
+      if (typeof collector.isItemsPage === "function") {
+        return collector.isItemsPage() === true;
       }
-      return true;
+      return String(location.pathname || "").indexOf("/items") >= 0;
     }
 
     function start() {
-      if (!isEligiblePage()) {
-        return {
-          ok: false,
-          message: "当前不是 /items 页面，AI 面板未注入。",
-        };
+      if (started) {
+        return { ok: true, message: "AI inline runtime already started." };
       }
-      ensureMounted();
-      void refreshState();
-      return {
-        ok: true,
-        message: "AI 面板已初始化。",
-      };
+      if (!isEligiblePage()) {
+        return { ok: false, message: "当前不是 /items 页面，跳过 AI 内联按钮挂载。" };
+      }
+      ensureStyle();
+      ensureInlineButtons();
+      startObservers();
+      started = true;
+      if (typeof collector.collectTask21Payload === "function") {
+        collector
+          .collectTask21Payload()
+          .then(function (snapshot) {
+            updateInlineButtonState(snapshot);
+          })
+          .catch(function () {
+            updateInlineButtonState(null);
+          });
+      }
+      return { ok: true, message: "AI inline runtime started." };
     }
 
     function remove() {
-      if (root && root.parentElement) {
-        root.parentElement.removeChild(root);
-      }
-      root = null;
-      body = null;
-      messageNode = null;
-      metaNode = null;
-      resultNode = null;
-      rawNode = null;
+      stopObservers();
+      Object.keys(panelByField).forEach(function (fieldKey) {
+        const panel = panelByField[fieldKey];
+        if (panel && panel.root && panel.root.parentElement) {
+          panel.root.parentElement.removeChild(panel.root);
+        }
+        delete panelByField[fieldKey];
+      });
+      const wraps = document.querySelectorAll("." + ACTIONS_WRAP_CLASS);
+      wraps.forEach(function (node) {
+        if (node && node.parentElement) {
+          node.parentElement.removeChild(node);
+        }
+      });
+      Object.keys(actionButtonByKey).forEach(function (key) {
+        delete actionButtonByKey[key];
+      });
+      started = false;
     }
 
     return {
       start: start,
       remove: remove,
-      refreshState: refreshState,
       runAnalysis: runAnalysis,
-      getLatest: function () {
-        return latestDisplay;
+      refreshState: function () {
+        ensureInlineButtons();
+        updateAllPanelPositions();
+      },
+      getLatest: function (fieldKey) {
+        return latestByField[fieldKey || "same_font"] || null;
       },
     };
   }

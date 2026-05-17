@@ -22,6 +22,8 @@
 
 | 文件 | 请求 / 行为 | 说明 |
 | --- | --- | --- |
+| `05-items-view-init.md` | `/api/v2/item/get-item-info`（viewMode） | Task21 查看页图片/文本/位置脱敏结构 |
+| `06-items-label-init.md` | `/api/v2/item/get-item-info`（label） | Task21 标注页图片/文本/位置脱敏结构与采集策略 |
 | `08-label-save-labels.md` | `/api/v2/label/save-labels` | same_font 和派生字段保存 |
 | `../ai/README.md` | `/api/abaka-ai/task21/ai/*` | Task21 AI 分析调试接口 |
 | `../../network/README.md` | 公共网络入口 | Data 页、领取、查看、状态流转、语言、资源 |

@@ -186,6 +186,10 @@
         { key: "otherChangesSpecify", label: "other_changes：specify" },
         { key: "stashSave", label: "暂存" },
         { key: "submitReview", label: "送审" },
+        { key: "aiAnalyzeSameFont", label: "AI 分析 same_font" },
+        { key: "aiAnalyzeImageBTextsRemoved", label: "AI 分析 image_b_texts_removed" },
+        { key: "aiAnalyzeOtherChanges", label: "AI 分析 other_changes" },
+        { key: "aiAnalyzeOverall", label: "AI 整体分析" },
       ];
   const judgementItemsPerPageOptions = [
     { value: "1 条/页", label: "1 条/页" },
@@ -1080,6 +1084,10 @@
     defaults.otherChangesSpecify = normalizeShortcut({ key: "5" });
     defaults.stashSave = normalizeShortcut({ key: "6" });
     defaults.submitReview = normalizeShortcut({ key: "7" });
+    defaults.aiAnalyzeSameFont = normalizeShortcut({ alt: true, key: "1" });
+    defaults.aiAnalyzeImageBTextsRemoved = normalizeShortcut({ alt: true, key: "2" });
+    defaults.aiAnalyzeOtherChanges = normalizeShortcut({ alt: true, key: "3" });
+    defaults.aiAnalyzeOverall = normalizeShortcut({ alt: true, key: "4" });
     return defaults;
   }
 
@@ -1270,7 +1278,7 @@
       {
         id: abakaAiTaskPageCaptureScriptId,
         enabled: true,
-        stage: "task21-shortcuts",
+        stage: "task21-inline-ai-analysis-debug",
         autoSelectSpecifyOnSameFontTrue: true,
         shortcuts: createAbakaAiDefaultShortcutMap(),
       },
@@ -1280,7 +1288,7 @@
 
     merged.id = abakaAiTaskPageCaptureScriptId;
     merged.enabled = merged.enabled !== false;
-    merged.stage = String(merged.stage || "task21-shortcuts");
+    merged.stage = String(merged.stage || "task21-inline-ai-analysis-debug");
     merged.autoSelectSpecifyOnSameFontTrue = merged.autoSelectSpecifyOnSameFontTrue !== false;
     merged.shortcuts = normalizeAbakaAiShortcuts(
       merged.shortcuts,
@@ -2865,7 +2873,7 @@
               taskPageCapture: {
                 id: abakaAiTaskPageCaptureScriptId,
                 enabled: currentConfig.enabled !== false,
-                stage: "task21-shortcuts",
+                stage: "task21-inline-ai-analysis-debug",
                 autoSelectSpecifyOnSameFontTrue: autoSelectSpecifyOnSameFontTrue,
                 shortcuts: shortcuts,
               },

@@ -241,6 +241,7 @@ URL 模式：
 - 点击 `true` 后展开 `image_b_texts_removed`、`other_changes` 等派生字段。
 - Task21 快捷键第一版支持 `1~5` 触发 DOM 点击；`1` 默认会联动两个 `specify`。
 - 快捷键实现只做页面真实点击，不直接调用保存接口。
+- Task21 AI 调试版在字段标题右侧内联挂载按钮，优先使用 `.l-title-text`、`.l-item`、`.l-header-actions` 定位；结果弹窗锚定字段容器显示。
 
 ### 右侧条目列表
 

@@ -53,15 +53,23 @@
 
 ## AI 面板（调试版）
 
-- 面板入口：`/items` 页面注入右下角浮窗。
-- 按钮：
-  - `AI 分析 same_font`
-  - `AI 分析 image_b_texts_removed`
-  - `AI 分析 other_changes`
-  - `AI 整体分析（Task21 流程）`
+- 面板入口：`/items` 页面字段标题右侧内联按钮。
+- 按钮挂载：
+  - `same_font` 标题右侧：`AI分析`、`整体分析`
+  - `image_b_texts_removed` 标题右侧：`AI分析`
+  - `other_changes` 标题右侧：`AI分析`
+- 结果展示：
+  - 每个字段使用自己的悬浮窗，锚定在对应 `.l-item` 附近
+  - 支持关闭
+  - 支持“查看原始 JSON（脱敏）”折叠展开
 - 按钮可用性：
   - 检测不到对应板块则置灰，提示“未检测到该板块”。
   - `same_font=false/unsure` 时后两个按钮仍可用于调试分析，但会提示正式流程可跳过。
+- AI 分析快捷键（默认）：
+  - `Alt+1`：AI 分析 `same_font`
+  - `Alt+2`：AI 分析 `image_b_texts_removed`
+  - `Alt+3`：AI 分析 `other_changes`
+  - `Alt+4`：AI 整体分析
 - 调试输出：
   - `requestId`、模型名、耗时
   - `input/output/total tokens` 与 usage 来源
@@ -70,6 +78,16 @@
   - 脱敏后的原始 JSON（折叠查看）
 - 安全：
   - 不展示完整图片 URL、完整 dataUrl、token/cookie/authorization 等敏感字段。
+
+## 数据采集策略（AI 调试）
+
+- 优先：`POST /api/v2/item/get-item-info`（同源、`credentials: include`，不手动设置 token/cookie）。
+- 回退：DOM 采集（`.content-title` + `.content-image-view img`）。
+- 图片字段固定映射：
+  - `image_a`
+  - `image_b`
+  - `image_b_removed`
+- 日志/UI 只展示脱敏统计，不展示完整 URL 或完整 dataUrl/base64。
 
 ## Console 导出（只读采集）
 

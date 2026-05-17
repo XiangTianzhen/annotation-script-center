@@ -1,5 +1,30 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（Abaka AI：Task21 内联 AI 分析 UI 重构）
+
+- Abaka AI Task21 AI UI 从右下角全局固定面板改为字段内联形态：
+  - `same_font` 标题右侧挂载 `AI分析`、`整体分析`
+  - `image_b_texts_removed` 标题右侧挂载 `AI分析`
+  - `other_changes` 标题右侧挂载 `AI分析`
+- 结果展示改为字段锚点悬浮窗（可关闭、可展开“原始 JSON（脱敏）”），不再使用全局右下角按钮网格。
+- 新增 AI 分析快捷键（默认）：
+  - `Alt+1` same_font
+  - `Alt+2` image_b_texts_removed
+  - `Alt+3` other_changes
+  - `Alt+4` overall
+- 数据采集策略调整为：
+  - 优先 `POST /api/v2/item/get-item-info`（同源会话、`credentials: include`）
+  - 回退 `.content-title span` + `.content-image-view img` DOM 采集
+  - 图片字段固定 `image_a/image_b/image_b_removed`，调试输出仅保留 `mime/width/height/bytes/sourceKind`。
+- 补充 Task21 专项网络文档：
+  - `platform-resources/abaka-ai/task21/network/05-items-view-init.md`
+  - `platform-resources/abaka-ai/task21/network/06-items-label-init.md`
+- 本轮继续保持安全边界：
+  - 不硬编码或持久化 token/cookie/authorization/access-token/trace-id
+  - 不展示完整图片 URL、完整 dataUrl/base64
+  - 不自动写入、不自动保存、不自动提交、不自动送审。
+- 未提升 `extension/manifest.json` 版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-17（Abaka AI：Task21 AI 辅助分析调试版）
 
 - 新增 Abaka AI Task21 AI 面板（调试版），前端新增：

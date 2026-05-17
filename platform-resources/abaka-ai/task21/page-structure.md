@@ -34,6 +34,14 @@ Task21 快捷键联动（运行时）：
 - 该联动仅通过页面 DOM 点击触发，不直接调用保存接口。
 - 若页面后续触发 `save-labels`，属于平台自身监听点击后的行为。
 
+本轮 DevTools MCP 快照补充（2026-05-18）：
+
+- 标注区外层：`.grid-board`
+- 字段容器：`.l-item`
+- 字段标题：`.l-title-text`
+- 标题动作区：`.l-header-actions`
+- 单选项：`.radio-container .radio-item.custom-radio`（选中态可能含 `.checked`）
+
 Task21 按钮快捷键（运行时）：
 
 - `6`：仅点击页面真实“暂存 / Save / Stash”按钮，不直接调用 `save-labels`。
@@ -42,17 +50,24 @@ Task21 按钮快捷键（运行时）：
 
 ## AI 面板结构（调试版）
 
-- 面板注入位置：`/items` 页面右下角可折叠浮窗。
-- 面板按钮：
-  - `AI 分析 same_font`
-  - `AI 分析 image_b_texts_removed`
-  - `AI 分析 other_changes`
-  - `AI 整体分析`
+- 面板注入位置：字段标题右侧（内联按钮）。
+- 按钮挂载：
+  - `same_font`：`AI分析`、`整体分析`
+  - `image_b_texts_removed`：`AI分析`
+  - `other_changes`：`AI分析`
+- 结果展示：字段锚点悬浮窗，可关闭，可展开“原始 JSON（脱敏）”。
 - 可用状态：
   - `same_font` 板块不存在时：same_font/overall 按钮禁用。
   - `image_b_texts_removed` 或 `other_changes` 板块不存在时：对应按钮禁用。
+- 快捷键（默认）：
+  - `Alt+1`：same_font
+  - `Alt+2`：image_b_texts_removed
+  - `Alt+3`：other_changes
+  - `Alt+4`：overall
 - 数据采集：
-  - 图片字段：`image_a`、`image_b`、`image_b_removed`
+  - 优先读取 `POST /api/v2/item/get-item-info`
+  - 回退 DOM：`.content-title span` + `.content-image-view img`
+  - 图片字段固定为：`image_a`、`image_b`、`image_b_removed`
   - 文本字段：`image_a_texts`、`image_b_texts`、`text_positions`（能读则读）
   - 页面当前值：`same_font`、`image_b_texts_removed`、`other_changes`
 - 安全边界：
