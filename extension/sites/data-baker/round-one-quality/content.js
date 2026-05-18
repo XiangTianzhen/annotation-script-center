@@ -300,6 +300,9 @@
     let batchQualifiedAutofillRunning = false;
     let batchQualifiedAutofillCancelRequested = false;
     let batchAutofillPhase = "idle";
+    let currentBatchFailures = [];
+    let currentRetryableFillFailures = [];
+    let lastBatchSummary = null;
 
     function getRecordProcessKey(record) {
       const id = String(record?.id || "").trim();
@@ -336,6 +339,67 @@
       }
     }
 
+    function buildFloatingSnapshot(extra) {
+      const summary = Object.assign(
+        {
+          phase: batchAutofillPhase || "idle",
+          running: batchQualifiedAutofillRunning,
+          stopping: batchQualifiedAutofillCancelRequested,
+          totalCount: 0,
+          launchedCount: 0,
+          completedAiCount: 0,
+          analysisSuccessCount: 0,
+          analysisFailCount: 0,
+          queueCount: 0,
+          fillStartedCount: 0,
+          fillSuccessCount: 0,
+          fillFailCount: 0,
+          fillSkipCount: 0,
+          currentDisplayName: "",
+          failures: currentBatchFailures.slice(),
+          retryableFailuresCount: currentRetryableFillFailures.length,
+        },
+        lastBatchSummary || {},
+        extra || {}
+      );
+      lastBatchSummary = summary;
+      return summary;
+    }
+
+    function updateFloatingProgress(extra) {
+      if (typeof ui.updateBatchFloatingProgress !== "function") {
+        return;
+      }
+      ui.updateBatchFloatingProgress(buildFloatingSnapshot(extra));
+    }
+
+    function finishFloatingProgress(extra) {
+      if (typeof ui.finishBatchFloatingProgress !== "function") {
+        return;
+      }
+      const finalSummary = buildFloatingSnapshot(
+        Object.assign({ running: false, autoHideMs: 30000 }, extra || {})
+      );
+      ui.finishBatchFloatingProgress(finalSummary);
+    }
+
+    function pushBatchFailure(entry) {
+      const failure = Object.assign(
+        {
+          type: "unknown",
+          retryable: false,
+          displayName: "未命名条目",
+          errorMessage: "",
+          result: null,
+        },
+        entry || {}
+      );
+      currentBatchFailures.push(failure);
+      if (failure.retryable && failure.type === "fill_failed" && failure.result?.recommendation) {
+        currentRetryableFillFailures.push(failure);
+      }
+    }
+
     async function stopBatchQualifiedAutofill() {
       if (!batchQualifiedAutofillRunning) {
         ui.setStatus("当前没有正在运行的连续填入任务。", "info");
@@ -343,11 +407,11 @@
       }
       batchQualifiedAutofillCancelRequested = true;
       setBatchButtonState(true, true);
-      if (batchAutofillPhase === "analysis") {
-        ui.setStatus("已请求停止，正在等待当前并发请求完成...", "info");
-      } else {
-        ui.setStatus("已请求停止，当前条完成后不再继续。", "info");
-      }
+      ui.setStatus("连续填入停止中，详情见顶部统计悬浮窗。", "info");
+      updateFloatingProgress({
+        stopping: true,
+        running: true,
+      });
       return { ok: true, message: "stop-requested" };
     }
 
@@ -356,30 +420,38 @@
       const displayName = String(result?.displayName || "未命名条目");
 
       if (typeof dataApi.isRecordQualified === "function" && !dataApi.isRecordQualified(record)) {
-        ui.setStatus(displayName + " 当前不是质检合格，已跳过。", "info");
-        return { outcome: "skip" };
-      }
-
-      ui.setStatus(
-        "正在填入 " +
-          String(fillIndex + 1) +
-          "/" +
-          String(totalCount) +
-          "：" +
+        return {
+          outcome: "skip",
+          failureType: "skipped",
+          errorMessage: "当前状态不是质检合格。",
+          retryable: false,
+          result: result,
           displayName,
-        "info"
-      );
+        };
+      }
 
       const selected = await dataApi.selectRecord(record);
       if (!selected?.ok) {
-        ui.setStatus(displayName + " 选中失败：" + (selected?.message || "未知错误"), "error");
-        return { outcome: "fail" };
+        return {
+          outcome: "fail",
+          failureType: "fill_failed",
+          errorMessage: "选中失败：" + (selected?.message || "未知错误"),
+          retryable: true,
+          result: result,
+          displayName,
+        };
       }
 
       const ready = await dataApi.waitForPageTextReady(record, 3000);
       if (!ready?.ok) {
-        ui.setStatus(displayName + " 页面文本同步失败：" + (ready?.message || "超时"), "error");
-        return { outcome: "fail" };
+        return {
+          outcome: "fail",
+          failureType: "fill_failed",
+          errorMessage: "页面文本同步失败：" + (ready?.message || "超时"),
+          retryable: true,
+          result: result,
+          displayName,
+        };
       }
 
       const recommendation =
@@ -388,44 +460,56 @@
           : null;
       const recommendedText = String(recommendation?.recommendedText || "").trim();
       if (!recommendedText) {
-        ui.setStatus(displayName + " 推荐文本为空，已跳过。", "error");
-        return { outcome: "fail" };
+        return {
+          outcome: "fail",
+          failureType: "fill_failed",
+          errorMessage: "推荐文本为空。",
+          retryable: true,
+          result: result,
+          displayName,
+        };
       }
 
       ui.renderResult(recommendation);
       const fillResult = dataApi.fillPageText(recommendedText);
       if (fillResult?.ok === false) {
-        ui.setStatus(displayName + " 填入失败：" + (fillResult?.message || "未知错误"), "error");
-        return { outcome: "fail" };
+        return {
+          outcome: "fail",
+          failureType: "fill_failed",
+          errorMessage: "填入失败：" + (fillResult?.message || "未知错误"),
+          retryable: true,
+          result: result,
+          displayName,
+        };
       }
 
       const processKey = String(result?.processKey || "");
       if (processKey) {
         processedQualifiedItemIds.add(processKey);
       }
-      ui.setStatus(
-        "已填入 " +
-          String(fillIndex + 1) +
-          "/" +
-          String(totalCount) +
-          "：" +
-          displayName,
-        "success"
-      );
-      return { outcome: "success" };
+      return {
+        outcome: "success",
+        failureType: "",
+        errorMessage: "",
+        retryable: false,
+        result: result,
+        displayName,
+      };
     }
 
     async function runConcurrentAiAndSequentialFill(tasks, concurrency) {
       const sourceTasks = Array.isArray(tasks) ? tasks : [];
       const totalCount = sourceTasks.length;
       const maxConcurrency = Math.max(1, Math.min(50, Number(concurrency) || 1));
-      const resultBuffer = new Map();
+      const completedQueue = [];
+      const queuedResultIds = new Set();
       let nextLaunchIndex = 0;
+      let launchedCount = 0;
       let activeAiCount = 0;
       let completedAiCount = 0;
-      let nextFillIndex = 0;
       let analysisSuccessCount = 0;
       let analysisFailCount = 0;
+      let fillStartedCount = 0;
       let fillSuccessCount = 0;
       let fillFailCount = 0;
       let fillSkipCount = 0;
@@ -461,20 +545,25 @@
         setProducersDone();
       }
 
-      function updateProgressStatus(prefix) {
-        ui.setStatus(
-          String(prefix || "处理中") +
-            "：AI 返回 " +
-            String(completedAiCount) +
-            "/" +
-            String(totalCount) +
-            "，缓冲 " +
-            String(resultBuffer.size) +
-            " 条，已填入 " +
-            String(fillSuccessCount) +
-            " 条。",
-          "info"
-        );
+      function updateProgressStatus(currentDisplayName) {
+        updateFloatingProgress({
+          phase: batchAutofillPhase,
+          running: true,
+          stopping: batchQualifiedAutofillCancelRequested === true,
+          totalCount,
+          launchedCount,
+          completedAiCount,
+          analysisSuccessCount,
+          analysisFailCount,
+          queueCount: completedQueue.length,
+          fillStartedCount,
+          fillSuccessCount,
+          fillFailCount,
+          fillSkipCount,
+          currentDisplayName: String(currentDisplayName || ""),
+          failures: currentBatchFailures.slice(),
+          retryableFailuresCount: currentRetryableFillFailures.length,
+        });
       }
 
       function launchNextAiRequests() {
@@ -486,7 +575,9 @@
           const index = nextLaunchIndex;
           const task = sourceTasks[index];
           nextLaunchIndex += 1;
+          launchedCount += 1;
           activeAiCount += 1;
+          updateProgressStatus("");
 
           Promise.resolve()
             .then(function () {
@@ -494,30 +585,36 @@
             })
             .then(function (recommendation) {
               analysisSuccessCount += 1;
-              resultBuffer.set(index, {
+              completedQueue.push({
                 ok: true,
+                index,
                 record: task.record,
                 item: task.item,
                 recommendation: recommendation,
                 processKey: task.processKey,
                 displayName: task.displayName,
+                completedAt: Date.now(),
               });
+              queuedResultIds.add(String(task.processKey || "index:" + String(index)));
             })
             .catch(function (error) {
               analysisFailCount += 1;
-              resultBuffer.set(index, {
+              completedQueue.push({
                 ok: false,
+                index,
                 record: task.record,
                 item: task.item,
                 processKey: task.processKey,
                 displayName: task.displayName,
                 errorMessage: error?.message || String(error),
+                completedAt: Date.now(),
               });
+              queuedResultIds.add(String(task.processKey || "index:" + String(index)));
             })
             .finally(function () {
               activeAiCount -= 1;
               completedAiCount += 1;
-              updateProgressStatus("AI 分析中");
+              updateProgressStatus("");
               notifySignal();
 
               if (batchQualifiedAutofillCancelRequested !== true) {
@@ -543,12 +640,12 @@
       }
 
       async function fillLoop() {
-        while (nextFillIndex < totalCount) {
+        while (true) {
           if (batchQualifiedAutofillCancelRequested === true) {
             break;
           }
 
-          if (!resultBuffer.has(nextFillIndex)) {
+          if (completedQueue.length <= 0) {
             if (producersDone) {
               if (activeAiCount <= 0) {
                 break;
@@ -561,38 +658,58 @@
             continue;
           }
 
-          const result = resultBuffer.get(nextFillIndex);
-          resultBuffer.delete(nextFillIndex);
+          const result = completedQueue.shift();
+          if (result) {
+            queuedResultIds.delete(String(result.processKey || "index:" + String(result.index || 0)));
+          }
 
           if (batchQualifiedAutofillCancelRequested === true) {
-            resultBuffer.set(nextFillIndex, result);
             break;
           }
 
           batchAutofillPhase = "fill";
           setBatchButtonState(true, batchQualifiedAutofillCancelRequested === true);
           if (!result?.ok) {
-            fillFailCount += 1;
-            ui.setStatus(
-              String(result?.displayName || "未命名条目") +
-                " AI 推荐失败：" +
-                String(result?.errorMessage || "未知错误"),
-              "error"
-            );
+            pushBatchFailure({
+              type: "ai_failed",
+              retryable: false,
+              displayName: String(result?.displayName || "未命名条目"),
+              errorMessage: String(result?.errorMessage || "AI 推荐失败"),
+              result: null,
+            });
           } else {
-            const fillOutcome = await fillOneAnalyzedResult(result, nextFillIndex, totalCount);
+            fillStartedCount += 1;
+            updateProgressStatus(String(result?.displayName || ""));
+            const fillOutcome = await fillOneAnalyzedResult(
+              result,
+              fillStartedCount - 1,
+              totalCount
+            );
             if (fillOutcome.outcome === "success") {
               fillSuccessCount += 1;
             } else if (fillOutcome.outcome === "skip") {
               fillSkipCount += 1;
+              pushBatchFailure({
+                type: "skipped",
+                retryable: false,
+                displayName: fillOutcome.displayName,
+                errorMessage: fillOutcome.errorMessage,
+                result: null,
+              });
             } else {
               fillFailCount += 1;
+              pushBatchFailure({
+                type: fillOutcome.failureType || "fill_failed",
+                retryable: fillOutcome.retryable === true,
+                displayName: fillOutcome.displayName,
+                errorMessage: fillOutcome.errorMessage,
+                result: fillOutcome.result || null,
+              });
             }
           }
 
-          nextFillIndex += 1;
-          updateProgressStatus("填入进行中");
-          if (nextFillIndex < totalCount) {
+          updateProgressStatus(String(result?.displayName || ""));
+          if (!producersDone || completedQueue.length > 0) {
             await waitBetweenBatchItems();
           }
         }
@@ -604,16 +721,108 @@
 
       return {
         totalCount,
+        launchedCount,
         completedAiCount,
         analysisSuccessCount,
         analysisFailCount,
+        fillStartedCount,
         fillSuccessCount,
         fillFailCount,
         fillSkipCount,
-        nextFillIndex,
-        bufferedCount: resultBuffer.size,
+        bufferedCount: completedQueue.length,
+        queuedResultCount: queuedResultIds.size,
+        failures: currentBatchFailures.slice(),
+        retryableFailuresCount: currentRetryableFillFailures.length,
         stopped: batchQualifiedAutofillCancelRequested === true,
       };
+    }
+
+    async function retryFailedFillResults() {
+      if (batchQualifiedAutofillRunning) {
+        ui.setStatus("连续填入运行中，请先停止或等待完成后再重试失败项。", "info");
+        return { ok: false, message: "batch-running" };
+      }
+      const retryTargets = currentRetryableFillFailures.slice();
+      if (retryTargets.length <= 0) {
+        ui.setStatus("当前没有可重试的填入失败项。", "info");
+        return { ok: false, message: "no-retry-target" };
+      }
+
+      batchAutofillPhase = "retry";
+      batchQualifiedAutofillRunning = true;
+      batchQualifiedAutofillCancelRequested = false;
+      setBatchButtonState(true, false);
+      ui.setStatus("正在重试填写失败内容，详情见顶部统计悬浮窗。", "info");
+      updateFloatingProgress({
+        phase: "retry",
+        running: true,
+        stopping: false,
+      });
+
+      let retrySuccessCount = 0;
+      let retryFailCount = 0;
+      const nextRetryableFailures = [];
+      try {
+        for (let index = 0; index < retryTargets.length; index += 1) {
+          if (batchQualifiedAutofillCancelRequested === true) {
+            nextRetryableFailures.push.apply(nextRetryableFailures, retryTargets.slice(index));
+            break;
+          }
+          const failure = retryTargets[index];
+          const result = failure?.result || null;
+          if (!result?.recommendation) {
+            retryFailCount += 1;
+            nextRetryableFailures.push(failure);
+            continue;
+          }
+          updateFloatingProgress({
+            phase: "retry",
+            currentDisplayName: String(failure.displayName || ""),
+            queueCount: 0,
+          });
+          const retryOutcome = await fillOneAnalyzedResult(result, index, retryTargets.length);
+          if (retryOutcome.outcome === "success") {
+            retrySuccessCount += 1;
+          } else {
+            retryFailCount += 1;
+            nextRetryableFailures.push({
+              type: "fill_failed",
+              retryable: true,
+              displayName: retryOutcome.displayName || failure.displayName,
+              errorMessage: retryOutcome.errorMessage || "重试填入失败",
+              result: result,
+            });
+          }
+          if (index < retryTargets.length - 1) {
+            await waitBetweenBatchItems();
+          }
+        }
+
+        currentRetryableFillFailures = nextRetryableFailures;
+        currentBatchFailures = currentBatchFailures.filter(function (failure) {
+          return !(failure.type === "fill_failed" && failure.retryable === true);
+        });
+        currentBatchFailures.push.apply(currentBatchFailures, nextRetryableFailures);
+        ui.setStatus(
+          "失败项重试完成：成功 " +
+            String(retrySuccessCount) +
+            " 条，失败 " +
+            String(retryFailCount) +
+            " 条。",
+          retryFailCount > 0 ? "info" : "success"
+        );
+        finishFloatingProgress({
+          phase: batchQualifiedAutofillCancelRequested ? "stopped" : "completed",
+          failures: currentBatchFailures.slice(),
+          retryableFailuresCount: currentRetryableFillFailures.length,
+        });
+        return { ok: true };
+      } finally {
+        batchQualifiedAutofillRunning = false;
+        batchQualifiedAutofillCancelRequested = false;
+        batchAutofillPhase = "idle";
+        setBatchButtonState(false, false);
+      }
     }
 
     async function autoFillQualifiedItemsBatch() {
@@ -628,17 +837,40 @@
       batchAutofillPhase = "analysis";
       batchQualifiedAutofillRunning = true;
       batchQualifiedAutofillCancelRequested = false;
+      currentBatchFailures = [];
+      currentRetryableFillFailures = [];
+      lastBatchSummary = null;
       setBatchButtonState(true, false);
 
       try {
         ui.ensureMounted();
-        ui.setStatus("正在刷新当前页列表...", "info");
+        ui.showBatchFloatingPanel?.();
+        ui.setStatus("连续填入运行中，详情见顶部统计悬浮窗。", "info");
+        updateFloatingProgress({
+          phase: "fetching",
+          running: true,
+          stopping: false,
+        });
         const refreshed = await dataApi.refreshCurrentPageData({
           pageSize: 50,
           forcePageSize: true,
         });
         if (!refreshed?.ok) {
-          ui.setStatus(refreshed?.message || "刷新当前页列表失败。", "error");
+          const message = refreshed?.message || "刷新当前页列表失败。";
+          ui.setStatus(message, "error");
+          currentBatchFailures.push({
+            type: "refresh_failed",
+            retryable: false,
+            displayName: "列表刷新",
+            errorMessage: message,
+            result: null,
+          });
+          finishFloatingProgress({
+            phase: "stopped",
+            running: false,
+            failures: currentBatchFailures.slice(),
+            retryableFailuresCount: 0,
+          });
           return { ok: false, message: "refresh-failed" };
         }
 
@@ -651,19 +883,24 @@
         });
         if (qualifiedRecords.length <= 0) {
           ui.setStatus("当前页没有可处理的质检合格数据。", "info");
+          finishFloatingProgress({
+            phase: "completed",
+            running: false,
+            totalCount: 0,
+            failures: [],
+            retryableFailuresCount: 0,
+          });
           return { ok: true, message: "no-qualified" };
         }
 
         const tasks = dataApi.createItemsFromQualifiedRecords(qualifiedRecords, refreshed.entry);
         const concurrency = normalizeAutofillConcurrency(config.aiQualifiedAutofillConcurrency);
-        ui.setStatus(
-          "检测到 " +
-            String(tasks.length) +
-            " 条质检合格数据，已并发发起 AI 请求，并发数 " +
-            String(concurrency) +
-            "。",
-          "info"
-        );
+        updateFloatingProgress({
+          phase: "analysis",
+          totalCount: tasks.length,
+          running: true,
+          stopping: false,
+        });
         const streamSummary = await runConcurrentAiAndSequentialFill(tasks, concurrency);
         if (streamSummary.stopped) {
           ui.setStatus(
@@ -682,6 +919,22 @@
               " 条未填。",
             "info"
           );
+          finishFloatingProgress({
+            phase: "stopped",
+            running: false,
+            totalCount: streamSummary.totalCount,
+            launchedCount: streamSummary.launchedCount,
+            completedAiCount: streamSummary.completedAiCount,
+            analysisSuccessCount: streamSummary.analysisSuccessCount,
+            analysisFailCount: streamSummary.analysisFailCount,
+            queueCount: streamSummary.bufferedCount,
+            fillStartedCount: streamSummary.fillStartedCount,
+            fillSuccessCount: streamSummary.fillSuccessCount,
+            fillFailCount: streamSummary.fillFailCount,
+            fillSkipCount: streamSummary.fillSkipCount,
+            failures: currentBatchFailures.slice(),
+            retryableFailuresCount: currentRetryableFillFailures.length,
+          });
           return { ok: true, message: "stopped" };
         }
 
@@ -699,9 +952,39 @@
             " 条。请人工复核后保存。",
           "success"
         );
+        finishFloatingProgress({
+          phase: "completed",
+          running: false,
+          totalCount: streamSummary.totalCount,
+          launchedCount: streamSummary.launchedCount,
+          completedAiCount: streamSummary.completedAiCount,
+          analysisSuccessCount: streamSummary.analysisSuccessCount,
+          analysisFailCount: streamSummary.analysisFailCount,
+          queueCount: streamSummary.bufferedCount,
+          fillStartedCount: streamSummary.fillStartedCount,
+          fillSuccessCount: streamSummary.fillSuccessCount,
+          fillFailCount: streamSummary.fillFailCount,
+          fillSkipCount: streamSummary.fillSkipCount,
+          failures: currentBatchFailures.slice(),
+          retryableFailuresCount: currentRetryableFillFailures.length,
+        });
         return { ok: true, message: "completed" };
       } catch (error) {
-        ui.setStatus("连续处理失败：" + (error?.message || String(error)), "error");
+        const message = "连续处理失败：" + (error?.message || String(error));
+        ui.setStatus(message, "error");
+        currentBatchFailures.push({
+          type: "runtime_failed",
+          retryable: false,
+          displayName: "连续处理",
+          errorMessage: message,
+          result: null,
+        });
+        finishFloatingProgress({
+          phase: "stopped",
+          running: false,
+          failures: currentBatchFailures.slice(),
+          retryableFailuresCount: currentRetryableFillFailures.length,
+        });
         return { ok: false, message: "batch-failed" };
       } finally {
         batchQualifiedAutofillRunning = false;
@@ -717,12 +1000,16 @@
       onAutoFillQualifiedItemsBatch: autoFillQualifiedItemsBatch,
       onStopAutoFillQualifiedItemsBatch: stopBatchQualifiedAutofill,
       onAutoFillQualifiedItem: autoFillQualifiedItemsBatch,
+      onRetryFailedQualifiedFillItems: retryFailedFillResults,
       onRecommend: async function () {
         const item = await dataApi.getCurrentItem();
         ui.updateCurrentItemKey(item.key);
         return ai.recommend(item);
       },
     });
+    if (typeof ui.setBatchFailureRetryHandler === "function") {
+      ui.setBatchFailureRetryHandler(retryFailedFillResults);
+    }
     const pageSize = pageSizeFactory?.createRuntime?.({
       defaultPageSize: config.defaultPageSize,
     });

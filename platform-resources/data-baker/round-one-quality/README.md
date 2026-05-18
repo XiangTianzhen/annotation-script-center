@@ -28,7 +28,8 @@ extension/sites/data-baker/round-one-quality/
 - 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
 - 左侧句子列表上方 `filter-screen`（“全选/批量判定”同一行）新增“AI连续填入合格项”：按钮挂载在“批量判定”右侧。
 - 点击后先刷新当前页 `queryCollectStatementByCondtion`，筛选当前页 `statusName=质检合格` 条目。
-- 先按配置并发数并发发起所有 AI 推荐（默认并发 `50`，可设 `1-50`），结果返回后进入缓冲区；填入流程不等待全部返回，按列表顺序拿到可用结果后立即逐条选中并填入；运行中可再次点击或按 `Alt+Q` 停止。
+- 先按配置并发数并发发起所有 AI 推荐（默认并发 `50`，可设 `1-50`），结果返回后进入缓冲区；填入流程不等待全部返回，按 AI 返回顺序从队列取结果后逐条选中并填入；运行中可再次点击或按 `Alt+Q` 停止。
+- 运行中会显示顶部统计悬浮窗；完成或停止后保留约 30 秒，并展示失败条目与“重新填写失败内容”入口。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
 - 导出 CSV 不再包含“原始JSON”列；原始记录会脱敏后单独上传并由后端保存为 `latest-raw.json`（历史模式下为 `*.raw.json`）。
 - 默认推荐接口走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。

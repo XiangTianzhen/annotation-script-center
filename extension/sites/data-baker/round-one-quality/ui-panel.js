@@ -133,6 +133,86 @@
       "  margin-top: 8px;",
       "  color: #64748b;",
       "}",
+      ".asr-edge-db-batch-floating {",
+      "  position: fixed;",
+      "  top: 14px;",
+      "  right: 14px;",
+      "  width: 380px;",
+      "  max-width: calc(100vw - 28px);",
+      "  max-height: calc(100vh - 28px);",
+      "  overflow: auto;",
+      "  padding: 10px 12px;",
+      "  border: 1px solid #a7f3d0;",
+      "  border-radius: 8px;",
+      "  background: #f0fdf4;",
+      "  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);",
+      "  z-index: 2147483000;",
+      "  font-size: 12px;",
+      "  line-height: 1.5;",
+      "  color: #064e3b;",
+      "}",
+      ".asr-edge-db-batch-floating[data-phase='stopped'],",
+      ".asr-edge-db-batch-floating[data-phase='error'] {",
+      "  border-color: #fecaca;",
+      "  background: #fef2f2;",
+      "  color: #7f1d1d;",
+      "}",
+      ".asr-edge-db-batch-floating-head {",
+      "  display: flex;",
+      "  justify-content: space-between;",
+      "  align-items: center;",
+      "  gap: 8px;",
+      "  margin-bottom: 8px;",
+      "}",
+      ".asr-edge-db-batch-floating-title {",
+      "  font-weight: 700;",
+      "  font-size: 13px;",
+      "}",
+      ".asr-edge-db-batch-floating-head-actions {",
+      "  display: flex;",
+      "  gap: 6px;",
+      "}",
+      ".asr-edge-db-batch-floating-head-actions button {",
+      "  min-height: 24px;",
+      "  padding: 0 8px;",
+      "  border-radius: 4px;",
+      "  font-size: 12px;",
+      "}",
+      ".asr-edge-db-batch-floating-grid {",
+      "  display: grid;",
+      "  grid-template-columns: 132px minmax(0, 1fr);",
+      "  gap: 4px 6px;",
+      "}",
+      ".asr-edge-db-batch-floating-label {",
+      "  color: #065f46;",
+      "  font-weight: 700;",
+      "}",
+      ".asr-edge-db-batch-floating[data-phase='stopped'] .asr-edge-db-batch-floating-label,",
+      ".asr-edge-db-batch-floating[data-phase='error'] .asr-edge-db-batch-floating-label {",
+      "  color: #991b1b;",
+      "}",
+      ".asr-edge-db-batch-floating-current {",
+      "  margin-top: 8px;",
+      "  font-weight: 700;",
+      "}",
+      ".asr-edge-db-batch-floating-failures {",
+      "  margin-top: 8px;",
+      "  border-top: 1px dashed rgba(15, 23, 42, 0.2);",
+      "  padding-top: 8px;",
+      "}",
+      ".asr-edge-db-batch-floating-failures ul {",
+      "  margin: 4px 0 0 16px;",
+      "  padding: 0;",
+      "}",
+      ".asr-edge-db-batch-floating-failures li {",
+      "  margin: 0 0 4px;",
+      "}",
+      ".asr-edge-db-batch-floating-foot-actions {",
+      "  margin-top: 8px;",
+      "  display: flex;",
+      "  gap: 8px;",
+      "  flex-wrap: wrap;",
+      "}",
       "." + "asr-edge-db-qualified-autofill-filter {",
       "  min-height: 26px;",
       "  padding: 0 10px;",
@@ -174,6 +254,17 @@
     let batchAutofillRunning = false;
     let batchAutofillStopping = false;
     let batchAutofillPhase = "idle";
+    let batchFloatingRoot = null;
+    let batchFloatingGrid = null;
+    let batchFloatingCurrentNode = null;
+    let batchFloatingFailuresNode = null;
+    let batchFloatingRetryButton = null;
+    let batchFloatingCloseTimer = null;
+    let batchFloatingSuppressUntil = 0;
+    let batchFailureRetryHandler =
+      typeof deps.onRetryFailedQualifiedFillItems === "function"
+        ? deps.onRetryFailedQualifiedFillItems
+        : null;
 
     function findMountTarget() {
       return (
@@ -211,6 +302,231 @@
       }
       statusNode.textContent = String(message || "");
       statusNode.setAttribute("data-tone", String(tone || "info"));
+    }
+
+    function clearBatchFloatingCloseTimer() {
+      if (batchFloatingCloseTimer) {
+        window.clearTimeout(batchFloatingCloseTimer);
+        batchFloatingCloseTimer = null;
+      }
+    }
+
+    function hideBatchFloatingPanel(options) {
+      const runtimeOptions = options && typeof options === "object" ? options : {};
+      clearBatchFloatingCloseTimer();
+      if (runtimeOptions.suppressMs) {
+        batchFloatingSuppressUntil = Date.now() + Math.max(0, Number(runtimeOptions.suppressMs) || 0);
+      } else if (runtimeOptions.clearSuppress === true) {
+        batchFloatingSuppressUntil = 0;
+      }
+      if (batchFloatingRoot) {
+        batchFloatingRoot.remove();
+      }
+      batchFloatingRoot = null;
+      batchFloatingGrid = null;
+      batchFloatingCurrentNode = null;
+      batchFloatingFailuresNode = null;
+      batchFloatingRetryButton = null;
+    }
+
+    function phaseToText(phase) {
+      const text = String(phase || "").toLowerCase();
+      if (text === "fetching") {
+        return "获取列表";
+      }
+      if (text === "analysis") {
+        return "AI并发分析";
+      }
+      if (text === "fill") {
+        return "填入中";
+      }
+      if (text === "retry") {
+        return "重试填入";
+      }
+      if (text === "stopped") {
+        return "已停止";
+      }
+      if (text === "completed") {
+        return "已完成";
+      }
+      return "空闲";
+    }
+
+    function createFloatingRow(label, value) {
+      const labelNode = document.createElement("div");
+      labelNode.className = "asr-edge-db-batch-floating-label";
+      labelNode.textContent = label;
+      const valueNode = document.createElement("div");
+      valueNode.textContent = String(value ?? "-");
+      return { labelNode, valueNode };
+    }
+
+    function ensureBatchFloatingPanel() {
+      if (Date.now() < batchFloatingSuppressUntil) {
+        return null;
+      }
+      if (batchFloatingRoot && document.documentElement.contains(batchFloatingRoot)) {
+        return batchFloatingRoot;
+      }
+      clearBatchFloatingCloseTimer();
+      batchFloatingRoot = document.createElement("div");
+      batchFloatingRoot.className = "asr-edge-db-batch-floating";
+
+      const head = document.createElement("div");
+      head.className = "asr-edge-db-batch-floating-head";
+      const title = document.createElement("div");
+      title.className = "asr-edge-db-batch-floating-title";
+      title.textContent = "AI连续填入合格项";
+      const headActions = document.createElement("div");
+      headActions.className = "asr-edge-db-batch-floating-head-actions";
+
+      const stopButton = createButton("停止", {});
+      stopButton.addEventListener("click", function () {
+        if (typeof deps.onStopAutoFillQualifiedItemsBatch === "function") {
+          Promise.resolve(deps.onStopAutoFillQualifiedItemsBatch()).catch(function () {
+            // Ignore; error already handled by runtime status.
+          });
+        }
+      });
+      const closeButton = createButton("关闭", {});
+      closeButton.addEventListener("click", function () {
+        hideBatchFloatingPanel({ suppressMs: 5000 });
+      });
+      headActions.appendChild(stopButton);
+      headActions.appendChild(closeButton);
+      head.appendChild(title);
+      head.appendChild(headActions);
+
+      batchFloatingGrid = document.createElement("div");
+      batchFloatingGrid.className = "asr-edge-db-batch-floating-grid";
+
+      batchFloatingCurrentNode = document.createElement("div");
+      batchFloatingCurrentNode.className = "asr-edge-db-batch-floating-current";
+
+      batchFloatingFailuresNode = document.createElement("div");
+      batchFloatingFailuresNode.className = "asr-edge-db-batch-floating-failures";
+
+      const footActions = document.createElement("div");
+      footActions.className = "asr-edge-db-batch-floating-foot-actions";
+      batchFloatingRetryButton = createButton("重新填写失败内容", {});
+      batchFloatingRetryButton.style.display = "none";
+      batchFloatingRetryButton.addEventListener("click", function () {
+        if (typeof batchFailureRetryHandler !== "function") {
+          setStatus("重试处理器未就绪。", "error");
+          return;
+        }
+        Promise.resolve(batchFailureRetryHandler()).catch(function (error) {
+          setStatus(error?.message || String(error), "error");
+        });
+      });
+      footActions.appendChild(batchFloatingRetryButton);
+
+      batchFloatingRoot.appendChild(head);
+      batchFloatingRoot.appendChild(batchFloatingGrid);
+      batchFloatingRoot.appendChild(batchFloatingCurrentNode);
+      batchFloatingRoot.appendChild(batchFloatingFailuresNode);
+      batchFloatingRoot.appendChild(footActions);
+
+      (document.body || document.documentElement).appendChild(batchFloatingRoot);
+      return batchFloatingRoot;
+    }
+
+    function showBatchFloatingPanel() {
+      ensureBatchFloatingPanel();
+    }
+
+    function renderBatchFailures(failures) {
+      if (!batchFloatingFailuresNode) {
+        return;
+      }
+      const list = Array.isArray(failures) ? failures : [];
+      if (list.length <= 0) {
+        batchFloatingFailuresNode.textContent = "失败列表：无";
+        if (batchFloatingRetryButton) {
+          batchFloatingRetryButton.style.display = "none";
+          batchFloatingRetryButton.disabled = true;
+        }
+        return;
+      }
+      batchFloatingFailuresNode.textContent = "";
+      const title = document.createElement("div");
+      title.textContent = "失败列表（最多显示 10 条）：";
+      batchFloatingFailuresNode.appendChild(title);
+      const ul = document.createElement("ul");
+      list.slice(0, 10).forEach(function (failure) {
+        const li = document.createElement("li");
+        const displayName = String(failure?.displayName || "未命名条目");
+        const type = String(failure?.type || "unknown");
+        const message = String(failure?.errorMessage || "");
+        li.textContent = displayName + " | " + type + (message ? " | " + message : "");
+        ul.appendChild(li);
+      });
+      batchFloatingFailuresNode.appendChild(ul);
+      if (list.length > 10) {
+        const more = document.createElement("div");
+        more.textContent = "还有 " + String(list.length - 10) + " 条失败未展示。";
+        batchFloatingFailuresNode.appendChild(more);
+      }
+      const retryableCount = list.filter(function (item) {
+        return item?.type === "fill_failed" && item?.retryable === true && item?.result?.recommendation;
+      }).length;
+      if (batchFloatingRetryButton) {
+        batchFloatingRetryButton.style.display = retryableCount > 0 ? "" : "none";
+        batchFloatingRetryButton.disabled = retryableCount <= 0 || batchAutofillRunning;
+      }
+    }
+
+    function updateBatchFloatingProgress(progress) {
+      const panel = ensureBatchFloatingPanel();
+      if (!panel || !batchFloatingGrid || !batchFloatingCurrentNode) {
+        return;
+      }
+      clearBatchFloatingCloseTimer();
+      const state = progress && typeof progress === "object" ? progress : {};
+      const phase = String(state.phase || "idle");
+      panel.setAttribute("data-phase", phase);
+
+      const rows = [
+        createFloatingRow("阶段", phaseToText(phase)),
+        createFloatingRow("总合格数", Number(state.totalCount) || 0),
+        createFloatingRow("已发起AI请求", Number(state.launchedCount) || 0),
+        createFloatingRow("AI已返回", Number(state.completedAiCount) || 0),
+        createFloatingRow("AI成功", Number(state.analysisSuccessCount) || 0),
+        createFloatingRow("AI失败", Number(state.analysisFailCount) || 0),
+        createFloatingRow("待填队列", Number(state.queueCount) || 0),
+        createFloatingRow("正在填入序号", Number(state.fillStartedCount) || 0),
+        createFloatingRow("填入成功", Number(state.fillSuccessCount) || 0),
+        createFloatingRow("填入失败", Number(state.fillFailCount) || 0),
+        createFloatingRow("跳过", Number(state.fillSkipCount) || 0),
+      ];
+      batchFloatingGrid.textContent = "";
+      rows.forEach(function (row) {
+        batchFloatingGrid.appendChild(row.labelNode);
+        batchFloatingGrid.appendChild(row.valueNode);
+      });
+      batchFloatingCurrentNode.textContent =
+        "当前处理：" + String(state.currentDisplayName || "-");
+
+      renderBatchFailures(state.failures);
+      if (batchFloatingRetryButton && batchAutofillRunning) {
+        batchFloatingRetryButton.disabled = true;
+      }
+    }
+
+    function finishBatchFloatingProgress(summary) {
+      updateBatchFloatingProgress(summary);
+      const state = summary && typeof summary === "object" ? summary : {};
+      const phase = String(state.phase || "completed");
+      if (batchFloatingRoot) {
+        batchFloatingRoot.setAttribute("data-phase", phase);
+      }
+      const autoHideMs = Math.max(0, Number(state.autoHideMs) || 0);
+      if (autoHideMs > 0) {
+        clearBatchFloatingCloseTimer();
+        batchFloatingCloseTimer = window.setTimeout(function () {
+          hideBatchFloatingPanel({ clearSuppress: true });
+        }, autoHideMs);
+      }
     }
 
     function clearResult() {
@@ -655,6 +971,7 @@
       if (topButton && topButton instanceof HTMLElement) {
         topButton.remove();
       }
+      hideBatchFloatingPanel({ clearSuppress: true });
       if (root) {
         root.remove();
       }
@@ -667,6 +984,11 @@
       currentItemKey = "";
       batchAutofillRunning = false;
       batchAutofillStopping = false;
+      batchAutofillPhase = "idle";
+      batchFailureRetryHandler =
+        typeof deps.onRetryFailedQualifiedFillItems === "function"
+          ? deps.onRetryFailedQualifiedFillItems
+          : null;
     }
 
     function setBatchAutofillRunning(isRunning) {
@@ -676,6 +998,9 @@
         batchAutofillPhase = "idle";
       }
       updateQualifiedAutofillButtonState();
+      if (batchFloatingRetryButton) {
+        batchFloatingRetryButton.disabled = batchAutofillRunning;
+      }
     }
 
     function setBatchAutofillStopping(isStopping) {
@@ -685,7 +1010,7 @@
 
     function setBatchAutofillPhase(phase) {
       const next = String(phase || "").trim().toLowerCase();
-      if (next === "analysis" || next === "fill") {
+      if (next === "analysis" || next === "fill" || next === "fetching" || next === "retry") {
         batchAutofillPhase = next;
       } else {
         batchAutofillPhase = "idle";
@@ -693,21 +1018,33 @@
       updateQualifiedAutofillButtonState();
     }
 
+    function setBatchFailureRetryHandler(handler) {
+      batchFailureRetryHandler = typeof handler === "function" ? handler : null;
+      if (batchFloatingRetryButton && !batchFailureRetryHandler) {
+        batchFloatingRetryButton.style.display = "none";
+      }
+    }
+
     return {
       clearResult,
       copyHeardText,
       copyRecommendedText,
       ensureMounted,
+      finishBatchFloatingProgress,
       fillRecommendedText,
       getCurrentResult,
+      hideBatchFloatingPanel,
       ignoreAiResult,
       remove,
       renderResult,
       requestAiRecommend,
+      setBatchFailureRetryHandler,
       setBatchAutofillPhase,
       setBatchAutofillRunning,
       setBatchAutofillStopping,
       setStatus,
+      showBatchFloatingPanel,
+      updateBatchFloatingProgress,
       updateCurrentItemKey,
     };
   }
