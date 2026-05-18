@@ -1055,26 +1055,37 @@
 
           <div class="field-card" style="margin-top: 18px;">
             <strong>AI 调试</strong>
-            <span>默认使用双模型方案：视觉模型提取事实，推理模型输出最终标注建议。</span>
-            <span>单模型方案保留，可用于快速对比。</span>
-            <span>默认关闭思考。由于部分模型未传参数时可能默认启用思考，后端会显式传 enable_thinking=false。</span>
-            <span>API Key 只从后端环境变量读取，前端不保存。</span>
-            <span>AI 只提供建议，不自动写入、不保存、不提交。</span>
+              <span>默认使用双模型方案：视觉模型提取事实，推理模型输出最终标注建议。</span>
+              <span>可选 OCR 阶段用于辅助文字提取校验，默认关闭。</span>
+              <span>单模型方案保留，可用于快速对比。</span>
+              <span>默认关闭思考。由于部分模型未传参数时可能默认启用思考，后端会显式传 enable_thinking=false。</span>
+              <span>API Key 只从后端环境变量读取，前端不保存。</span>
+              <span>AI 只提供建议，不自动写入、不保存、不提交。</span>
 
             <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
               <strong>分析方案</strong>
               <select id="abaka-ai-analysis-mode"></select>
             </label>
 
-            <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
-              <strong>视觉模型（阶段一）</strong>
-              <select id="abaka-ai-vision-model"></select>
-            </label>
+              <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
+                <strong>视觉模型（阶段一）</strong>
+                <select id="abaka-ai-vision-model"></select>
+              </label>
 
-            <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
-              <strong>推理模型（阶段二）</strong>
-              <select id="abaka-ai-reasoning-model"></select>
-            </label>
+              <label class="field-toggle" style="margin-top: 6px;">
+                <input id="abaka-ai-ocr-enabled" type="checkbox" />
+                <span>启用 OCR 辅助阶段（默认关闭）</span>
+              </label>
+
+              <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
+                <strong>OCR 模型（可选）</strong>
+                <select id="abaka-ai-ocr-model"></select>
+              </label>
+
+              <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
+                <strong>推理模型（阶段二）</strong>
+                <select id="abaka-ai-reasoning-model"></select>
+              </label>
 
             <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
               <strong>单模型（single_model）</strong>

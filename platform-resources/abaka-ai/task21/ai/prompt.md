@@ -4,6 +4,7 @@
 
 - 默认新增方案：`two_stage`
   - 阶段一：视觉模型只提取事实（不做最终标注判断）。
+  - 可选 OCR 阶段：仅提取图中文字线索（不做规则判断）。
   - 阶段二：推理模型按 Task21 规则输出最终 JSON 建议。
 - 保留旧方案：`single_model`
   - 一个多模态模型直接完成图像理解与规则判断。
@@ -57,6 +58,7 @@
 ### User（模板）
 
 - 输入：`target`、`image_a_texts`、`image_b_texts`、`text_positions`、`current_page_values`、`visual_observations`。
+- 若启用 OCR：额外输入 `ocr_observations`。
 - 规则：
   - same_font=false/unsure 时跳过后两个字段。
   - same_font=true 或 same underlying font+artistic effect 时继续后两个字段。
@@ -66,6 +68,6 @@
 ## 调试响应关键字段
 
 - `analysisMode`
-- `stages.vision / stages.reasoning / stages.single`
+- `stages.vision / stages.ocr / stages.reasoning / stages.single`
 - `usage.total`（并保留兼容平铺 tokens）
 - `thinking.enableThinking / explicitDisableSent / fallbackUsed / paramName / paramLocation`

@@ -2,9 +2,10 @@
   const ANALYZE_PATH = "/api/abaka-ai/task21/ai/analyze";
   const DEFAULT_TIMEOUT_MS = 120000;
   const DEFAULT_ANALYSIS_MODE = "two_stage";
-  const DEFAULT_VISION_MODEL = "qwen-vl-max-latest";
-  const DEFAULT_REASONING_MODEL = "qwen3.5-plus";
-  const DEFAULT_SINGLE_MODEL = "qwen-vl-max-latest";
+  const DEFAULT_VISION_MODEL = "qwen3-vl-plus";
+  const DEFAULT_OCR_MODEL = "qwen-vl-ocr-latest";
+  const DEFAULT_REASONING_MODEL = "qvq-plus-latest";
+  const DEFAULT_SINGLE_MODEL = "qwen3-vl-plus";
 
   function sanitizeText(value, maxLength) {
     return String(value || "")
@@ -80,6 +81,9 @@
     const reasoningOptions = Array.isArray(constants.ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS)
       ? constants.ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS
       : [{ value: DEFAULT_REASONING_MODEL }];
+    const ocrOptions = Array.isArray(constants.ABAKA_AI_TASK21_OCR_MODEL_OPTIONS)
+      ? constants.ABAKA_AI_TASK21_OCR_MODEL_OPTIONS
+      : [{ value: DEFAULT_OCR_MODEL }];
     const singleOptions = Array.isArray(constants.ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS)
       ? constants.ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS
       : [{ value: DEFAULT_SINGLE_MODEL }];
@@ -93,6 +97,12 @@
         currentConfig.aiVisionModel,
         defaultConfig.aiVisionModel || DEFAULT_VISION_MODEL,
         visionOptions
+      ),
+      ocrEnabled: currentConfig.aiOcrEnabled === true,
+      ocrModel: normalizeModelFromOptions(
+        currentConfig.aiOcrModel,
+        defaultConfig.aiOcrModel || DEFAULT_OCR_MODEL,
+        ocrOptions
       ),
       reasoningModel: normalizeModelFromOptions(
         currentConfig.aiReasoningModel,
@@ -117,6 +127,8 @@
     return {
       analysisMode: normalizeAnalysisMode(config.analysisMode, DEFAULT_ANALYSIS_MODE),
       visionModel: normalizeModelName(config.visionModel, DEFAULT_VISION_MODEL),
+      ocrEnabled: config.ocrEnabled === true,
+      ocrModel: normalizeModelName(config.ocrModel, DEFAULT_OCR_MODEL),
       reasoningModel: normalizeModelName(config.reasoningModel, DEFAULT_REASONING_MODEL),
       singleModel: normalizeModelName(config.singleModel, DEFAULT_SINGLE_MODEL),
       enableThinking: config.enableThinking === true,
@@ -209,6 +221,8 @@
         requestDebug: {
           analysisMode: analyzeOptions.analysisMode,
           visionModel: analyzeOptions.visionModel,
+          ocrEnabled: analyzeOptions.ocrEnabled === true,
+          ocrModel: analyzeOptions.ocrModel,
           reasoningModel: analyzeOptions.reasoningModel,
           singleModel: analyzeOptions.singleModel,
           enableThinking: analyzeOptions.enableThinking === true,

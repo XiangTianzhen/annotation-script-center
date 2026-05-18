@@ -71,11 +71,14 @@ http://127.0.0.1:3333
 - `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ABAKA_TASK21_AI_MOCK`：设为 `1` 时启用 Abaka Task21 AI mock 调试模式。
 - `ABAKA_TASK21_AI_ANALYSIS_MODE`：默认分析方案，`two_stage | single_model`，默认 `two_stage`。
-- `ABAKA_TASK21_AI_VISION_MODEL`：双模型阶段一视觉模型，默认 `qwen-vl-max-latest`。
-- `ABAKA_TASK21_AI_REASONING_MODEL`：双模型阶段二推理模型，默认 `qwen3.5-plus`。
-- `ABAKA_TASK21_AI_SINGLE_MODEL`：单模型方案模型，默认 `qwen-vl-max-latest`。
+- `ABAKA_TASK21_AI_VISION_MODEL`：双模型阶段一视觉模型，默认 `qwen3-vl-plus`。
+- `ABAKA_TASK21_AI_OCR_ENABLED`：是否启用 OCR 辅助阶段，默认 `0`。
+- `ABAKA_TASK21_AI_OCR_MODEL`：OCR 阶段模型，默认 `qwen-vl-ocr-latest`。
+- `ABAKA_TASK21_AI_REASONING_MODEL`：双模型阶段二推理模型，默认 `qvq-plus-latest`。
+- `ABAKA_TASK21_AI_SINGLE_MODEL`：单模型方案模型，默认 `qwen3-vl-plus`。
 - `ABAKA_TASK21_AI_MODEL`：旧变量，作为 `ABAKA_TASK21_AI_SINGLE_MODEL` 的兼容回退。
 - `ABAKA_TASK21_AI_ALLOWED_VISION_MODELS`：允许前端覆盖的视觉模型白名单（逗号分隔）。
+- `ABAKA_TASK21_AI_ALLOWED_OCR_MODELS`：允许前端覆盖的 OCR 模型白名单（逗号分隔）。
 - `ABAKA_TASK21_AI_ALLOWED_REASONING_MODELS`：允许前端覆盖的推理模型白名单（逗号分隔）。
 - `ABAKA_TASK21_AI_ALLOWED_SINGLE_MODELS`：允许前端覆盖的单模型白名单（逗号分隔）。
 - `ABAKA_TASK21_AI_TIMEOUT_MS`：Abaka Task21 AI 请求超时，默认 `120000`。

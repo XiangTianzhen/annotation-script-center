@@ -1,5 +1,27 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（Abaka AI：模型名与百炼文档对齐修正）
+
+- `docs/external-docs/aliyun-bailian.md` 新增并固定 4 个视觉/OCR官方入口：
+  - 视觉理解 `url=3026912`
+  - 图像与视频理解 `url=2845871`
+  - 文字提取 `url=2860683`
+  - 视觉推理 `url=2877996`
+- Abaka Task21 AI 调试配置对齐官方模型口径并补 OCR 可选阶段：
+  - 默认 `two_stage`
+  - 默认视觉模型：`qwen3-vl-plus`
+  - 默认 OCR：`aiOcrEnabled=false`，`aiOcrModel=qwen-vl-ocr-latest`
+  - 默认推理模型：`qvq-plus-latest`
+  - 默认单模型：`qwen3-vl-plus`
+- Options「Abaka AI Task21 快捷键与 AI 分析」新增 OCR 开关与 OCR 模型选择，并保持 thinking 默认关闭。
+- 前后端 analyze 请求新增 `ocrEnabled/ocrModel`，并返回阶段化调试信息（`stages.vision/ocr/reasoning/single`）。
+- 后端调用策略修正：
+  - 按模型能力区分 thinking 参数是否适用；
+  - thinking 支持模型显式传 `enable_thinking=true/false`；
+  - OCR 模型按能力不传 thinking，调试信息标记 `notApplicable`；
+  - 响应包含 `callMode`、阶段 thinking 状态与 usage。
+- AI 仍仅输出建议，不自动写入/保存/提交；本轮未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-18（Abaka AI：Task21 双模型 AI Pipeline 增强）
 
 - Abaka AI Task21 AI 分析新增双方案：

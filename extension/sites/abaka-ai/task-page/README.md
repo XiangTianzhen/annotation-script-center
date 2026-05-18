@@ -73,6 +73,7 @@
 - Options 新增“AI 调试”子板块：
   - 分析方案：`two_stage`（默认）/ `single_model`
   - 视觉模型（双模型阶段一）
+  - OCR 模型与 OCR 开关（默认关闭）
   - 推理模型（双模型阶段二）
   - 单模型（single_model）
   - 启用思考（默认关闭）
@@ -81,8 +82,9 @@
 - 调试输出：
   - `requestId`、模型名、耗时
   - `analysisMode`、`visionModel`、`reasoningModel`、`singleModel`
+  - `ocrEnabled`、`ocrModel`
   - `enableThinking`、`thinkingParamName`、`thinkingParamLocation`、`explicitDisableSent`、`timeoutMs`
-  - `stages.vision/reasoning/single` 耗时与 token
+  - `stages.vision/ocr/reasoning/single` 模型、callMode、thinking 状态、耗时与 token
   - `input/output/total tokens` 与 usage 来源
   - 图片数量、字段列表、`mime/width/height/bytes`
   - 价格估算（same_font、image_b_texts_removed、other_changes、total）
@@ -113,4 +115,5 @@ window.__ASCAbakaAiCapture && window.__ASCAbakaAiCapture.download()
 - 不记录完整图片、音频、文件、对象存储 URL。
 - 不提交原始 HAR、JSON、截图、CSV 或完整响应。
 - 默认显式传 `enable_thinking=false`；仅在 Options 手动开启时传 `enable_thinking=true`。
-- 若模型不支持 `enable_thinking`，默认直接返回错误；仅当后端设置 `ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK=true` 才允许移除参数回退。
+- 若模型不支持或能力未知，不会盲传 `enable_thinking`；调试信息会标记 `notApplicable`。
+- 已确认支持 thinking 的模型会显式传 `enable_thinking`（默认 `false`）；仅当后端设置 `ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK=true` 才允许失败后回退移除。

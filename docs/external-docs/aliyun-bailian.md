@@ -58,6 +58,17 @@ DashScope：
 - 非实时 Qwen-Omni：  
   [https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2867839](https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2867839)
 
+## 视觉与 OCR
+
+- 视觉理解：  
+  [https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=3026912](https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=3026912)
+- 图像与视频理解：  
+  [https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2845871](https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2845871)
+- 文字提取：  
+  [https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2860683](https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2860683)
+- 视觉推理：  
+  [https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2877996](https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2877996)
+
 ## 通用能力
 
 - 联网搜索：  
@@ -75,3 +86,5 @@ DashScope：
 8. 涉及 Web Search、`enable_search`、`search_options`、联网搜索结果时，先查“联网搜索”。
 9. 若本地无法访问官方文档，最终输出必须明确“未能联网核对官方文档”，不得伪造结论。
 10. 前端不得保存 API Key；后端参数必须白名单过滤；不支持参数前端不显示、后端不发送。
+11. 涉及图片理解、OCR、视觉推理、图像/视频输入模型时，必须优先核对“视觉与 OCR”中的四个官方文档。
+12. Abaka AI Task21 的视觉模型、OCR/文字提取模型、视觉推理模型必须来自上述官方文档或模型列表。

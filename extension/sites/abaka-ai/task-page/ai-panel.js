@@ -204,6 +204,8 @@
       lines.push("analysisMode: " + String(display.analysisMode || "-"));
       lines.push("model: " + String(display.model || "-"));
       lines.push("visionModel: " + String(display.visionModel || "-"));
+      lines.push("ocrEnabled: " + String(display.ocrEnabled === true));
+      lines.push("ocrModel: " + String(display.ocrModel || "-"));
       lines.push("reasoningModel: " + String(display.reasoningModel || "-"));
       lines.push("singleModel: " + String(display.singleModel || "-"));
       lines.push("enableThinking: " + String(display.enableThinking === true));
@@ -223,19 +225,28 @@
       );
       lines.push("usageSource: " + String(usage.source || "unavailable"));
       lines.push("hasUsage: " + String(usage.hasUsage === true));
-      ["vision", "reasoning", "single"].forEach(function (stageKey) {
+      ["vision", "ocr", "reasoning", "single"].forEach(function (stageKey) {
         const stage = stages[stageKey];
         if (!stage || typeof stage !== "object") {
           return;
         }
         const stageUsage = stage.usage || {};
+        const stageThinking = stage.thinking || {};
         lines.push(
           "stage." +
             stageKey +
             ": model=" +
             String(stage.model || "-") +
+            ", callMode=" +
+            String(stage.callMode || "-") +
             ", elapsedMs=" +
             String(stage.elapsedMs || 0) +
+            ", thinking=" +
+            (stageThinking.notApplicable === true
+              ? "not_applicable"
+              : String(stageThinking.enableThinking === true)) +
+            ", explicitDisableSent=" +
+            String(stageThinking.explicitDisableSent === true) +
             ", tokens=" +
             String(stageUsage.totalTokens || 0) +
             " (input=" +
@@ -668,6 +679,13 @@
             String(body.visionModel || "") ||
             String(requestDebug.visionModel || "") ||
             String(stagePayload?.vision?.model || ""),
+          ocrEnabled:
+            body.ocrEnabled === true ||
+            (body.ocrEnabled !== false && requestDebug.ocrEnabled === true),
+          ocrModel:
+            String(body.ocrModel || "") ||
+            String(requestDebug.ocrModel || "") ||
+            String(stagePayload?.ocr?.model || ""),
           reasoningModel:
             String(body.reasoningModel || "") ||
             String(requestDebug.reasoningModel || "") ||

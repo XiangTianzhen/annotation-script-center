@@ -2,11 +2,70 @@
 
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_ANALYSIS_MODE = "two_stage";
-const DEFAULT_VISION_MODEL = "qwen-vl-max-latest";
-const DEFAULT_REASONING_MODEL = "qwen3.5-plus";
-const DEFAULT_SINGLE_MODEL = "qwen-vl-max-latest";
+const DEFAULT_VISION_MODEL = "qwen3-vl-plus";
+const DEFAULT_OCR_MODEL = "qwen-vl-ocr-latest";
+const DEFAULT_REASONING_MODEL = "qvq-plus-latest";
+const DEFAULT_SINGLE_MODEL = "qwen3-vl-plus";
 const THINKING_PARAM_NAME = "enable_thinking";
 const THINKING_PARAM_LOCATION = "root";
+const DEFAULT_CALL_MODE = "openai-compatible-chat";
+
+const MODEL_PROFILE_TABLE = {
+  "qwen3-vl-plus": {
+    role: "vision",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qwen-vl-plus-latest": {
+    role: "vision",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: "unknown",
+    supportsJsonObject: true,
+  },
+  "qwen-vl-max-latest": {
+    role: "vision",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: "unknown",
+    supportsJsonObject: true,
+  },
+  "qwen-vl-ocr-latest": {
+    role: "ocr",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: false,
+    supportsJsonObject: true,
+  },
+  "qwen-vl-ocr": {
+    role: "ocr",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: false,
+    supportsJsonObject: true,
+  },
+  "qvq-plus-latest": {
+    role: "reasoning",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qvq-plus": {
+    role: "reasoning",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qvq-max": {
+    role: "reasoning",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qwen3.5-plus": {
+    role: "reasoning",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+};
 
 function trimSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -63,6 +122,24 @@ function normalizeAnalysisMode(value, fallback) {
     : "two_stage";
 }
 
+function getModelProfile(modelName) {
+  const key = sanitizeModelName(modelName, "");
+  if (!key) {
+    return {
+      callMode: DEFAULT_CALL_MODE,
+      supportsThinking: "unknown",
+      supportsJsonObject: true,
+    };
+  }
+  return (
+    MODEL_PROFILE_TABLE[key] || {
+      callMode: DEFAULT_CALL_MODE,
+      supportsThinking: "unknown",
+      supportsJsonObject: true,
+    }
+  );
+}
+
 function getClientConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
   const legacyModel = sanitizeModelName(process.env.ABAKA_TASK21_AI_MODEL, DEFAULT_SINGLE_MODEL);
@@ -70,6 +147,7 @@ function getClientConfig() {
     process.env.ABAKA_TASK21_AI_SINGLE_MODEL,
     legacyModel || DEFAULT_SINGLE_MODEL
   );
+  const ocrModel = sanitizeModelName(process.env.ABAKA_TASK21_AI_OCR_MODEL, DEFAULT_OCR_MODEL);
   const visionModel = sanitizeModelName(
     process.env.ABAKA_TASK21_AI_VISION_MODEL,
     DEFAULT_VISION_MODEL
@@ -86,6 +164,9 @@ function getClientConfig() {
     process.env.ABAKA_TASK21_AI_ALLOWED_REASONING_MODELS,
     [reasoningModel || DEFAULT_REASONING_MODEL]
   );
+  const allowedOcrModels = parseAllowedModels(process.env.ABAKA_TASK21_AI_ALLOWED_OCR_MODELS, [
+    ocrModel || DEFAULT_OCR_MODEL,
+  ]);
   const allowedSingleModels = parseAllowedModels(
     process.env.ABAKA_TASK21_AI_ALLOWED_SINGLE_MODELS || process.env.ABAKA_TASK21_AI_ALLOWED_MODELS,
     [singleModel || DEFAULT_SINGLE_MODEL]
@@ -101,6 +182,8 @@ function getClientConfig() {
       DEFAULT_ANALYSIS_MODE
     ),
     visionModel: visionModel || DEFAULT_VISION_MODEL,
+    ocrEnabled: parseBooleanEnv("ABAKA_TASK21_AI_OCR_ENABLED", false),
+    ocrModel: ocrModel || DEFAULT_OCR_MODEL,
     reasoningModel: reasoningModel || DEFAULT_REASONING_MODEL,
     singleModel: singleModel || DEFAULT_SINGLE_MODEL,
     timeoutMs: parseTimeoutMs(process.env.ABAKA_TASK21_AI_TIMEOUT_MS, 120000),
@@ -111,6 +194,7 @@ function getClientConfig() {
     ),
     defaultEnableThinking: parseBooleanEnv("ABAKA_TASK21_AI_ENABLE_THINKING", false),
     allowedVisionModels,
+    allowedOcrModels,
     allowedReasoningModels,
     allowedSingleModels,
   };
@@ -271,6 +355,30 @@ async function requestChatCompletionWithThinking(requestBody, options) {
   const config = getClientConfig();
   const enableThinking = options?.enableThinking === true;
   const timeoutMs = parseTimeoutMs(options?.timeoutMs, config.timeoutMs);
+  const modelName = sanitizeModelName(options?.model || requestBody?.model, "");
+  const profile = getModelProfile(modelName);
+  const supportsThinking = profile.supportsThinking;
+  if (supportsThinking !== true) {
+    const passthroughResponse = await requestChatCompletion(Object.assign({}, requestBody), {
+      timeoutMs,
+    });
+    return Object.assign({}, passthroughResponse, {
+      callMode: profile.callMode || DEFAULT_CALL_MODE,
+      thinking: {
+        enableThinking: false,
+        explicitDisableSent: false,
+        paramName: THINKING_PARAM_NAME,
+        paramLocation: THINKING_PARAM_LOCATION,
+        fallbackUsed: false,
+        notApplicable: true,
+        reason:
+          supportsThinking === false
+            ? "model-does-not-support-thinking-param"
+            : "model-thinking-support-unknown",
+      },
+    });
+  }
+
   const requestWithThinking = Object.assign({}, requestBody);
   requestWithThinking[THINKING_PARAM_NAME] = enableThinking;
 
@@ -279,6 +387,7 @@ async function requestChatCompletionWithThinking(requestBody, options) {
       timeoutMs,
     });
     return Object.assign({}, response, {
+      callMode: profile.callMode || DEFAULT_CALL_MODE,
       thinking: {
         enableThinking,
         explicitDisableSent: enableThinking !== true,
@@ -306,6 +415,7 @@ async function requestChatCompletionWithThinking(requestBody, options) {
       timeoutMs,
     });
     return Object.assign({}, fallbackResponse, {
+      callMode: profile.callMode || DEFAULT_CALL_MODE,
       thinking: {
         enableThinking,
         explicitDisableSent: enableThinking !== true,
@@ -398,11 +508,9 @@ function buildMockVisualObservations(target) {
 }
 
 function createVisionRequestBody(model, systemPrompt, userPrompt, images) {
-  return {
+  const profile = getModelProfile(model);
+  const requestBody = {
     model,
-    response_format: {
-      type: "json_object",
-    },
     messages: [
       {
         role: "system",
@@ -422,14 +530,18 @@ function createVisionRequestBody(model, systemPrompt, userPrompt, images) {
     top_p: 0.1,
     max_tokens: 1800,
   };
+  if (profile.supportsJsonObject !== false) {
+    requestBody.response_format = {
+      type: "json_object",
+    };
+  }
+  return requestBody;
 }
 
 function createTextRequestBody(model, systemPrompt, userPrompt) {
-  return {
+  const profile = getModelProfile(model);
+  const requestBody = {
     model,
-    response_format: {
-      type: "json_object",
-    },
     messages: [
       {
         role: "system",
@@ -444,6 +556,12 @@ function createTextRequestBody(model, systemPrompt, userPrompt) {
     top_p: 0.1,
     max_tokens: 1800,
   };
+  if (profile.supportsJsonObject !== false) {
+    requestBody.response_format = {
+      type: "json_object",
+    };
+  }
+  return requestBody;
 }
 
 function resolveModelOverride(requestedModel, allowClientOverride, allowedModels, defaultModel) {
@@ -481,6 +599,7 @@ async function analyzeTask21SingleModel(input, prompts, options, config) {
   const enableThinking = runtimeOptions.enableThinking === true;
   const timeoutMs = parseTimeoutMs(runtimeOptions.timeoutMs, config.timeoutMs);
 
+  const modelProfile = getModelProfile(model);
   if (config.mockEnabled) {
     const mockUsage = {
       inputTokens: 420,
@@ -496,8 +615,17 @@ async function analyzeTask21SingleModel(input, prompts, options, config) {
       stages: {
         single: {
           model,
+          callMode: modelProfile.callMode || DEFAULT_CALL_MODE,
           elapsedMs: 120,
           usage: mockUsage,
+          thinking: {
+            enableThinking,
+            explicitDisableSent: enableThinking !== true,
+            paramName: THINKING_PARAM_NAME,
+            paramLocation: THINKING_PARAM_LOCATION,
+            fallbackUsed: false,
+            notApplicable: modelProfile.supportsThinking !== true,
+          },
         },
       },
       thinking: {
@@ -515,15 +643,16 @@ async function analyzeTask21SingleModel(input, prompts, options, config) {
   }
 
   const requestBody = createVisionRequestBody(
-    model,
-    promptConfig.singleSystemPrompt,
-    promptConfig.singleUserPrompt,
-    payload.images
-  );
+      model,
+      promptConfig.singleSystemPrompt,
+      promptConfig.singleUserPrompt,
+      payload.images
+    );
   const startedAt = Date.now();
   const completion = await requestChatCompletionWithThinking(requestBody, {
     enableThinking,
     timeoutMs,
+    model,
   });
   const usage = createProviderUsage(completion.usage);
   return {
@@ -534,8 +663,10 @@ async function analyzeTask21SingleModel(input, prompts, options, config) {
     stages: {
       single: {
         model: completion.model || model,
+        callMode: completion.callMode || modelProfile.callMode || DEFAULT_CALL_MODE,
         elapsedMs: Date.now() - startedAt,
         usage,
+        thinking: completion.thinking || {},
       },
     },
     thinking: completion.thinking,
@@ -562,14 +693,32 @@ async function analyzeTask21TwoStage(input, prompts, options, config) {
     runtimeOptions.allowedReasoningModels,
     runtimeOptions.defaultReasoningModel || config.reasoningModel
   );
+  const ocrModelResolved = resolveModelOverride(
+    runtimeOptions.ocrModel,
+    runtimeOptions.allowClientModelOverride === true,
+    runtimeOptions.allowedOcrModels,
+    runtimeOptions.defaultOcrModel || config.ocrModel
+  );
   const visionModel = visionModelResolved.selected || config.visionModel || DEFAULT_VISION_MODEL;
+  const ocrModel = ocrModelResolved.selected || config.ocrModel || DEFAULT_OCR_MODEL;
   const reasoningModel =
     reasoningModelResolved.selected || config.reasoningModel || DEFAULT_REASONING_MODEL;
+  const ocrEnabled = runtimeOptions.ocrEnabled === true;
   const enableThinking = runtimeOptions.enableThinking === true;
   const timeoutMs = parseTimeoutMs(runtimeOptions.timeoutMs, config.timeoutMs);
+  const visionProfile = getModelProfile(visionModel);
+  const ocrProfile = getModelProfile(ocrModel);
+  const reasoningProfile = getModelProfile(reasoningModel);
 
   if (config.mockEnabled) {
     const visual = buildMockVisualObservations(payload.target);
+    const ocrObservations = {
+      image_a_texts: [],
+      image_b_texts: [],
+      image_b_removed_texts: [],
+      matched_pairs: [],
+      uncertainties: [],
+    };
     const finalResult = buildMockFinalResult(payload.target);
     const visionUsage = {
       inputTokens: 300,
@@ -583,21 +732,62 @@ async function analyzeTask21TwoStage(input, prompts, options, config) {
       totalTokens: 390,
       source: "provider",
     };
+    const ocrUsage = {
+      inputTokens: 120,
+      outputTokens: 70,
+      totalTokens: 190,
+      source: "provider",
+    };
     return {
       analysisMode: "two_stage",
       model: reasoningModel,
       rawText: JSON.stringify(finalResult, null, 2),
-      usage: sumUsageBlocks(visionUsage, reasoningUsage),
+      usage: ocrEnabled ? sumUsageBlocks(sumUsageBlocks(visionUsage, ocrUsage), reasoningUsage) : sumUsageBlocks(visionUsage, reasoningUsage),
       stages: {
         vision: {
           model: visionModel,
+          callMode: visionProfile.callMode || DEFAULT_CALL_MODE,
           elapsedMs: 110,
           usage: visionUsage,
+          thinking: {
+            enableThinking,
+            explicitDisableSent: enableThinking !== true,
+            paramName: THINKING_PARAM_NAME,
+            paramLocation: THINKING_PARAM_LOCATION,
+            fallbackUsed: false,
+            notApplicable: visionProfile.supportsThinking !== true,
+          },
         },
+        ocr: ocrEnabled
+          ? {
+              model: ocrModel,
+              callMode: ocrProfile.callMode || DEFAULT_CALL_MODE,
+              elapsedMs: 95,
+              usage: ocrUsage,
+              thinking: {
+                enableThinking: false,
+                explicitDisableSent: false,
+                paramName: THINKING_PARAM_NAME,
+                paramLocation: THINKING_PARAM_LOCATION,
+                fallbackUsed: false,
+                notApplicable: true,
+                reason: "model-does-not-support-thinking-param",
+              },
+            }
+          : undefined,
         reasoning: {
           model: reasoningModel,
+          callMode: reasoningProfile.callMode || DEFAULT_CALL_MODE,
           elapsedMs: 130,
           usage: reasoningUsage,
+          thinking: {
+            enableThinking,
+            explicitDisableSent: enableThinking !== true,
+            paramName: THINKING_PARAM_NAME,
+            paramLocation: THINKING_PARAM_LOCATION,
+            fallbackUsed: false,
+            notApplicable: reasoningProfile.supportsThinking !== true,
+          },
         },
       },
       thinking: {
@@ -608,9 +798,11 @@ async function analyzeTask21TwoStage(input, prompts, options, config) {
         fallbackUsed: false,
       },
       visualObservations: visual.visual_observations,
+      ocrObservations: ocrEnabled ? ocrObservations : {},
       mock: true,
       selectedModels: {
         visionModel,
+        ocrModel,
         reasoningModel,
       },
     };
@@ -626,6 +818,7 @@ async function analyzeTask21TwoStage(input, prompts, options, config) {
   const visionCompletion = await requestChatCompletionWithThinking(visionRequestBody, {
     enableThinking,
     timeoutMs,
+    model: visionModel,
   });
   const visionElapsedMs = Date.now() - visionStartedAt;
   const visionUsage = createProviderUsage(visionCompletion.usage);
@@ -638,34 +831,78 @@ async function analyzeTask21TwoStage(input, prompts, options, config) {
   }
   const visualObservations = visionParsed.visual_observations || visionParsed;
 
+  let ocrObservations = {};
+  let ocrStage = null;
+  if (ocrEnabled) {
+    const ocrRequestBody = createVisionRequestBody(
+      ocrModel,
+      promptConfig.ocrSystemPrompt,
+      promptConfig.ocrUserPrompt,
+      payload.images
+    );
+    const ocrStartedAt = Date.now();
+    const ocrCompletion = await requestChatCompletionWithThinking(ocrRequestBody, {
+      enableThinking,
+      timeoutMs,
+      model: ocrModel,
+    });
+    const ocrElapsedMs = Date.now() - ocrStartedAt;
+    const ocrUsage = createProviderUsage(ocrCompletion.usage);
+    const ocrParsed = safeParseJson(String(ocrCompletion.rawText || "").trim());
+    if (!ocrParsed || typeof ocrParsed !== "object") {
+      const ocrParseError = new Error("OCR 阶段返回非 JSON，无法解析 ocr_observations。");
+      ocrParseError.code = "ocr-invalid-json";
+      ocrParseError.statusCode = 502;
+      throw ocrParseError;
+    }
+    ocrObservations = ocrParsed.ocr_observations || ocrParsed;
+    ocrStage = {
+      model: ocrCompletion.model || ocrModel,
+      callMode: ocrCompletion.callMode || ocrProfile.callMode || DEFAULT_CALL_MODE,
+      elapsedMs: ocrElapsedMs,
+      usage: ocrUsage,
+      thinking: ocrCompletion.thinking || {},
+    };
+  }
+
   const reasoningRequestBody = createTextRequestBody(
     reasoningModel,
     promptConfig.reasoningSystemPrompt,
-    promptConfig.buildReasoningUserPrompt(visualObservations)
+    promptConfig.buildReasoningUserPrompt(visualObservations, ocrObservations)
   );
   const reasoningStartedAt = Date.now();
   const reasoningCompletion = await requestChatCompletionWithThinking(reasoningRequestBody, {
     enableThinking,
     timeoutMs,
+    model: reasoningModel,
   });
   const reasoningElapsedMs = Date.now() - reasoningStartedAt;
   const reasoningUsage = createProviderUsage(reasoningCompletion.usage);
+
+  const totalUsage = ocrStage
+    ? sumUsageBlocks(sumUsageBlocks(visionUsage, ocrStage.usage), reasoningUsage)
+    : sumUsageBlocks(visionUsage, reasoningUsage);
 
   return {
     analysisMode: "two_stage",
     model: reasoningCompletion.model || reasoningModel,
     rawText: reasoningCompletion.rawText || "",
-    usage: sumUsageBlocks(visionUsage, reasoningUsage),
+    usage: totalUsage,
     stages: {
       vision: {
         model: visionCompletion.model || visionModel,
+        callMode: visionCompletion.callMode || visionProfile.callMode || DEFAULT_CALL_MODE,
         elapsedMs: visionElapsedMs,
         usage: visionUsage,
+        thinking: visionCompletion.thinking || {},
       },
+      ocr: ocrStage || undefined,
       reasoning: {
         model: reasoningCompletion.model || reasoningModel,
+        callMode: reasoningCompletion.callMode || reasoningProfile.callMode || DEFAULT_CALL_MODE,
         elapsedMs: reasoningElapsedMs,
         usage: reasoningUsage,
+        thinking: reasoningCompletion.thinking || {},
       },
     },
     thinking: {
@@ -675,12 +912,15 @@ async function analyzeTask21TwoStage(input, prompts, options, config) {
       paramLocation: THINKING_PARAM_LOCATION,
       fallbackUsed:
         visionCompletion?.thinking?.fallbackUsed === true ||
+        ocrStage?.thinking?.fallbackUsed === true ||
         reasoningCompletion?.thinking?.fallbackUsed === true,
     },
     visualObservations,
+    ocrObservations,
     mock: false,
     selectedModels: {
       visionModel,
+      ocrModel,
       reasoningModel,
     },
   };
@@ -690,24 +930,33 @@ async function analyzeTask21(input, prompts, options) {
   const runtimeOptions = options && typeof options === "object" ? options : {};
   const config = getClientConfig();
   const analysisMode = normalizeAnalysisMode(runtimeOptions.analysisMode, config.analysisMode);
-  const requestOptions = {
-    analysisMode,
-    allowClientModelOverride: runtimeOptions.allowClientModelOverride === true,
-    allowedVisionModels: Array.isArray(runtimeOptions.allowedVisionModels)
-      ? runtimeOptions.allowedVisionModels
-      : config.allowedVisionModels,
-    allowedReasoningModels: Array.isArray(runtimeOptions.allowedReasoningModels)
-      ? runtimeOptions.allowedReasoningModels
-      : config.allowedReasoningModels,
+    const requestOptions = {
+      analysisMode,
+      allowClientModelOverride: runtimeOptions.allowClientModelOverride === true,
+      allowedVisionModels: Array.isArray(runtimeOptions.allowedVisionModels)
+        ? runtimeOptions.allowedVisionModels
+        : config.allowedVisionModels,
+      allowedOcrModels: Array.isArray(runtimeOptions.allowedOcrModels)
+        ? runtimeOptions.allowedOcrModels
+        : config.allowedOcrModels,
+      allowedReasoningModels: Array.isArray(runtimeOptions.allowedReasoningModels)
+        ? runtimeOptions.allowedReasoningModels
+        : config.allowedReasoningModels,
     allowedSingleModels: Array.isArray(runtimeOptions.allowedSingleModels)
       ? runtimeOptions.allowedSingleModels
       : config.allowedSingleModels,
-    visionModel: sanitizeModelName(runtimeOptions.visionModel, ""),
-    reasoningModel: sanitizeModelName(runtimeOptions.reasoningModel, ""),
-    singleModel: sanitizeModelName(runtimeOptions.singleModel, ""),
-    defaultVisionModel: config.visionModel,
-    defaultReasoningModel: config.reasoningModel,
-    defaultSingleModel: config.singleModel,
+      visionModel: sanitizeModelName(runtimeOptions.visionModel, ""),
+      ocrEnabled:
+        typeof runtimeOptions.ocrEnabled === "boolean"
+          ? runtimeOptions.ocrEnabled === true
+          : config.ocrEnabled === true,
+      ocrModel: sanitizeModelName(runtimeOptions.ocrModel, ""),
+      reasoningModel: sanitizeModelName(runtimeOptions.reasoningModel, ""),
+      singleModel: sanitizeModelName(runtimeOptions.singleModel, ""),
+      defaultVisionModel: config.visionModel,
+      defaultOcrModel: config.ocrModel,
+      defaultReasoningModel: config.reasoningModel,
+      defaultSingleModel: config.singleModel,
     enableThinking:
       typeof runtimeOptions.enableThinking === "boolean"
         ? runtimeOptions.enableThinking === true
@@ -723,6 +972,7 @@ async function analyzeTask21(input, prompts, options) {
 
 module.exports = {
   DEFAULT_ANALYSIS_MODE,
+  DEFAULT_OCR_MODEL,
   DEFAULT_REASONING_MODEL,
   DEFAULT_SINGLE_MODEL,
   DEFAULT_VISION_MODEL,

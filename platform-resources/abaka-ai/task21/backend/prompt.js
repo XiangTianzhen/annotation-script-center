@@ -33,6 +33,13 @@ const REASONING_DECIDE_SYSTEM_PROMPT = [
   "输出必须是合法 JSON，不要输出 Markdown，不要输出额外解释。",
 ].join("\n");
 
+const OCR_EXTRACT_SYSTEM_PROMPT = [
+  "你是 Task21 OCR 辅助提取器。",
+  "你只负责从图片中提取可见文本与位置线索，不做规则判断。",
+  "你不得输出 same_font 最终值，不得输出最终 image_b_texts_removed 或 other_changes。",
+  "输出必须是 JSON，不得编造看不见的文本。",
+].join("\n");
+
 const FINAL_OUTPUT_SCHEMA_TEXT = [
   "{",
   '  "target": "same_font | image_b_texts_removed | other_changes | overall",',
@@ -80,6 +87,19 @@ const VISUAL_OBSERVATION_SCHEMA_TEXT = [
   '    "font_similarity_observations": [],',
   '    "deleted_text_candidates": [],',
   '    "other_visual_change_candidates": [],',
+  '    "uncertainties": []',
+  "  }",
+  "}",
+].join("\n");
+
+const OCR_OBSERVATION_SCHEMA_TEXT = [
+  "{",
+  '  "target": "same_font | image_b_texts_removed | other_changes | overall",',
+  '  "ocr_observations": {',
+  '    "image_a_texts": [],',
+  '    "image_b_texts": [],',
+  '    "image_b_removed_texts": [],',
+  '    "matched_pairs": [],',
   '    "uncertainties": []',
   "  }",
   "}",
@@ -151,15 +171,51 @@ function buildReasoningDecideUserPrompt(input, visualObservations) {
   ].join("\n");
 }
 
+function buildOcrExtractUserPrompt(input) {
+  const source = buildCommonInputBlock(input);
+  return [
+    "请执行 OCR 辅助提取，仅输出可见文本和线索，不做最终规则判断。",
+    "输出 JSON schema：",
+    OCR_OBSERVATION_SCHEMA_TEXT,
+    "",
+    "--- 输入数据（JSON）---",
+    safeJsonText(source),
+  ].join("\n");
+}
+
+function buildReasoningDecideUserPromptWithOcr(input, visualObservations, ocrObservations) {
+  const source = buildCommonInputBlock(input);
+  return [
+    "请基于 Task21 规则、visual_observations 与 ocr_observations 输出最终标注建议。",
+    "你不看图片，只根据输入文本与观察事实判断。",
+    TASK21_RULES,
+    "输出必须是 JSON，schema：",
+    FINAL_OUTPUT_SCHEMA_TEXT,
+    "",
+    "--- 输入数据（JSON）---",
+    safeJsonText(source),
+    "",
+    "--- visual_observations（JSON）---",
+    safeJsonText(visualObservations || {}),
+    "",
+    "--- ocr_observations（JSON）---",
+    safeJsonText(ocrObservations || {}),
+  ].join("\n");
+}
+
 module.exports = {
   TASK21_AI_RULE_VERSION,
   TASK21_RULES,
   SINGLE_MODEL_SYSTEM_PROMPT,
   VISION_EXTRACT_SYSTEM_PROMPT,
   REASONING_DECIDE_SYSTEM_PROMPT,
+  OCR_EXTRACT_SYSTEM_PROMPT,
   FINAL_OUTPUT_SCHEMA_TEXT,
   VISUAL_OBSERVATION_SCHEMA_TEXT,
+  OCR_OBSERVATION_SCHEMA_TEXT,
   buildSingleModelUserPrompt,
   buildVisionExtractUserPrompt,
   buildReasoningDecideUserPrompt,
+  buildOcrExtractUserPrompt,
+  buildReasoningDecideUserPromptWithOcr,
 };

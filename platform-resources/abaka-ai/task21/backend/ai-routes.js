@@ -3,6 +3,7 @@
 const { sendJson } = require("../../../backend/response");
 const {
   DEFAULT_ANALYSIS_MODE,
+  DEFAULT_OCR_MODEL,
   DEFAULT_REASONING_MODEL,
   DEFAULT_SINGLE_MODEL,
   DEFAULT_VISION_MODEL,
@@ -14,11 +15,14 @@ const {
   sanitizeModelName,
 } = require("./ai-client");
 const {
+  OCR_EXTRACT_SYSTEM_PROMPT,
   REASONING_DECIDE_SYSTEM_PROMPT,
   SINGLE_MODEL_SYSTEM_PROMPT,
   TASK21_AI_RULE_VERSION,
   VISION_EXTRACT_SYSTEM_PROMPT,
+  buildOcrExtractUserPrompt,
   buildReasoningDecideUserPrompt,
+  buildReasoningDecideUserPromptWithOcr,
   buildSingleModelUserPrompt,
   buildVisionExtractUserPrompt,
 } = require("./prompt");
@@ -231,6 +235,14 @@ function resolveRuntimeOptions(requestBody, config) {
     source.analysisMode || options.analysisMode || debugConfig.analysisMode,
     DEFAULT_ANALYSIS_MODE
   );
+  const ocrEnabledValue =
+    typeof source.ocrEnabled === "boolean"
+      ? source.ocrEnabled
+      : typeof options.ocrEnabled === "boolean"
+        ? options.ocrEnabled
+        : typeof debugConfig.ocrEnabled === "boolean"
+          ? debugConfig.ocrEnabled
+          : config.ocrEnabled === true;
   const enableThinkingValue =
     typeof source.enableThinking === "boolean"
       ? source.enableThinking
@@ -261,6 +273,7 @@ function resolveRuntimeOptions(requestBody, config) {
   }
 
   const visionModel = resolveModel("visionModel", config.visionModel || DEFAULT_VISION_MODEL, config.allowedVisionModels);
+  const ocrModel = resolveModel("ocrModel", config.ocrModel || DEFAULT_OCR_MODEL, config.allowedOcrModels);
   const reasoningModel = resolveModel(
     "reasoningModel",
     config.reasoningModel || DEFAULT_REASONING_MODEL,
@@ -284,6 +297,8 @@ function resolveRuntimeOptions(requestBody, config) {
   return {
     analysisMode,
     visionModel,
+    ocrEnabled: ocrEnabledValue === true,
+    ocrModel,
     reasoningModel,
     singleModel,
     enableThinking: enableThinkingValue === true,
@@ -291,6 +306,7 @@ function resolveRuntimeOptions(requestBody, config) {
     thinkingSource,
     allowClientModelOverride,
     allowedVisionModels: config.allowedVisionModels,
+    allowedOcrModels: config.allowedOcrModels,
     allowedReasoningModels: config.allowedReasoningModels,
     allowedSingleModels: config.allowedSingleModels,
   };
@@ -403,8 +419,10 @@ function normalizeStagePayload(stages) {
     }
     result[stageKey] = {
       model: String(stage.model || "").trim(),
+      callMode: String(stage.callMode || "").trim() || "openai-compatible-chat",
       elapsedMs: Number.isFinite(Number(stage.elapsedMs)) ? Math.max(0, Math.floor(Number(stage.elapsedMs))) : 0,
       usage: normalizeUsage(stage.usage || {}, { source: "unavailable" }),
+      thinking: normalizeObject(stage.thinking),
     };
   });
   return result;
@@ -441,10 +459,13 @@ function buildHealthResponse() {
     hasApiKey: config.hasApiKey,
     analysisMode: config.analysisMode || DEFAULT_ANALYSIS_MODE,
     visionModel: config.visionModel || DEFAULT_VISION_MODEL,
+    ocrEnabled: config.ocrEnabled === true,
+    ocrModel: config.ocrModel || DEFAULT_OCR_MODEL,
     reasoningModel: config.reasoningModel || DEFAULT_REASONING_MODEL,
     singleModel: config.singleModel || DEFAULT_SINGLE_MODEL,
     modelOptions: {
       vision: config.allowedVisionModels,
+      ocr: config.allowedOcrModels,
       reasoning: config.allowedReasoningModels,
       single: config.allowedSingleModels,
     },
@@ -469,10 +490,13 @@ function buildDefaultsResponse() {
     scriptId: "abakaAiTaskPageCapture",
     analysisMode: config.analysisMode || DEFAULT_ANALYSIS_MODE,
     visionModel: config.visionModel || DEFAULT_VISION_MODEL,
+    ocrEnabled: config.ocrEnabled === true,
+    ocrModel: config.ocrModel || DEFAULT_OCR_MODEL,
     reasoningModel: config.reasoningModel || DEFAULT_REASONING_MODEL,
     singleModel: config.singleModel || DEFAULT_SINGLE_MODEL,
     modelOptions: {
       vision: config.allowedVisionModels,
+      ocr: config.allowedOcrModels,
       reasoning: config.allowedReasoningModels,
       single: config.allowedSingleModels,
     },
@@ -489,6 +513,8 @@ function buildDefaultsResponse() {
     defaults: {
       analysisMode: config.analysisMode || DEFAULT_ANALYSIS_MODE,
       visionModel: config.visionModel || DEFAULT_VISION_MODEL,
+      ocrEnabled: config.ocrEnabled === true,
+      ocrModel: config.ocrModel || DEFAULT_OCR_MODEL,
       reasoningModel: config.reasoningModel || DEFAULT_REASONING_MODEL,
       singleModel: config.singleModel || DEFAULT_SINGLE_MODEL,
       enableThinkingDefault: false,
@@ -499,12 +525,15 @@ function buildDefaultsResponse() {
         single: {
           system: SINGLE_MODEL_SYSTEM_PROMPT,
         },
-        twoStageVision: {
-          system: VISION_EXTRACT_SYSTEM_PROMPT,
-        },
-        twoStageReasoning: {
-          system: REASONING_DECIDE_SYSTEM_PROMPT,
-        },
+          twoStageVision: {
+            system: VISION_EXTRACT_SYSTEM_PROMPT,
+          },
+          twoStageOcr: {
+            system: OCR_EXTRACT_SYSTEM_PROMPT,
+          },
+          twoStageReasoning: {
+            system: REASONING_DECIDE_SYSTEM_PROMPT,
+          },
       },
     },
     notes: {
@@ -544,6 +573,10 @@ async function handleAnalyze(request, response) {
       target: normalizedRequest.target,
       context: normalizedRequest.context,
     });
+    const ocrUserPrompt = buildOcrExtractUserPrompt({
+      target: normalizedRequest.target,
+      context: normalizedRequest.context,
+    });
 
     const aiResponse = await analyzeTask21(
       {
@@ -556,8 +589,20 @@ async function handleAnalyze(request, response) {
         singleUserPrompt: singleUserPrompt,
         visionSystemPrompt: VISION_EXTRACT_SYSTEM_PROMPT,
         visionUserPrompt: visionUserPrompt,
+        ocrSystemPrompt: OCR_EXTRACT_SYSTEM_PROMPT,
+        ocrUserPrompt: ocrUserPrompt,
         reasoningSystemPrompt: REASONING_DECIDE_SYSTEM_PROMPT,
-        buildReasoningUserPrompt: function (visualObservations) {
+        buildReasoningUserPrompt: function (visualObservations, ocrObservations) {
+          if (ocrObservations && Object.keys(ocrObservations).length > 0) {
+            return buildReasoningDecideUserPromptWithOcr(
+              {
+                target: normalizedRequest.target,
+                context: normalizedRequest.context,
+              },
+              visualObservations,
+              ocrObservations
+            );
+          }
           return buildReasoningDecideUserPrompt(
             {
               target: normalizedRequest.target,
@@ -567,14 +612,17 @@ async function handleAnalyze(request, response) {
           );
         },
       },
-      {
-        analysisMode: runtimeOptions.analysisMode,
-        visionModel: runtimeOptions.visionModel,
-        reasoningModel: runtimeOptions.reasoningModel,
-        singleModel: runtimeOptions.singleModel,
-        allowClientModelOverride: runtimeOptions.allowClientModelOverride,
-        allowedVisionModels: runtimeOptions.allowedVisionModels,
-        allowedReasoningModels: runtimeOptions.allowedReasoningModels,
+        {
+          analysisMode: runtimeOptions.analysisMode,
+          visionModel: runtimeOptions.visionModel,
+          ocrEnabled: runtimeOptions.ocrEnabled,
+          ocrModel: runtimeOptions.ocrModel,
+          reasoningModel: runtimeOptions.reasoningModel,
+          singleModel: runtimeOptions.singleModel,
+          allowClientModelOverride: runtimeOptions.allowClientModelOverride,
+          allowedVisionModels: runtimeOptions.allowedVisionModels,
+          allowedOcrModels: runtimeOptions.allowedOcrModels,
+          allowedReasoningModels: runtimeOptions.allowedReasoningModels,
         allowedSingleModels: runtimeOptions.allowedSingleModels,
         enableThinking: runtimeOptions.enableThinking,
         timeoutMs: runtimeOptions.timeoutMs,
@@ -588,11 +636,17 @@ async function handleAnalyze(request, response) {
     }
 
     const normalizedResult = normalizeResultSchema(normalizedRequest.target, parsedResult);
-    const totalUsage = aiResponse.usage
-      ? normalizeUsage(aiResponse.usage, { source: "provider" })
-      : normalizeUsage(estimateUsageFromTexts(singleUserPrompt + "\n" + visionUserPrompt, rawText), {
-          source: "estimated",
-        });
+      const totalUsage = aiResponse.usage
+        ? normalizeUsage(aiResponse.usage, { source: "provider" })
+        : normalizeUsage(
+            estimateUsageFromTexts(
+              singleUserPrompt + "\n" + visionUserPrompt + "\n" + ocrUserPrompt,
+              rawText
+            ),
+            {
+            source: "estimated",
+            }
+          );
     const stages = normalizeStagePayload(aiResponse.stages || {});
     const usage = buildUsagePayload(totalUsage, stages);
     const thinkingPayload = normalizeObject(aiResponse.thinking);
@@ -605,6 +659,8 @@ async function handleAnalyze(request, response) {
       model: aiResponse.model || "",
       visionModel:
         String(aiResponse.selectedModels?.visionModel || runtimeOptions.visionModel || ""),
+      ocrEnabled: runtimeOptions.ocrEnabled === true,
+      ocrModel: String(aiResponse.selectedModels?.ocrModel || runtimeOptions.ocrModel || ""),
       reasoningModel:
         String(aiResponse.selectedModels?.reasoningModel || runtimeOptions.reasoningModel || ""),
       singleModel: String(aiResponse.selectedModels?.singleModel || runtimeOptions.singleModel || ""),
@@ -619,13 +675,18 @@ async function handleAnalyze(request, response) {
       imageStats: sanitizeImageStats(normalizedRequest.images),
       visualObservations:
         aiResponse.analysisMode === "two_stage" ? aiResponse.visualObservations || {} : undefined,
+      ocrObservations:
+        aiResponse.analysisMode === "two_stage" ? aiResponse.ocrObservations || {} : undefined,
       thinking: {
         enableThinking: runtimeOptions.enableThinking === true,
         requested: runtimeOptions.enableThinking === true,
-        explicitDisableSent: runtimeOptions.enableThinking !== true,
+        explicitDisableSent:
+          thinkingPayload.explicitDisableSent === true || runtimeOptions.enableThinking !== true,
         paramName: THINKING_PARAM_NAME,
         paramLocation: THINKING_PARAM_LOCATION,
         fallbackUsed: thinkingPayload.fallbackUsed === true,
+        notApplicable: thinkingPayload.notApplicable === true,
+        reason: thinkingPayload.reason || "",
         source: runtimeOptions.thinkingSource,
         timeoutMs: runtimeOptions.timeoutMs,
       },

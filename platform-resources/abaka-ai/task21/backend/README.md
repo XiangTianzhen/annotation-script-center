@@ -10,6 +10,7 @@
 
 - `two_stage`（默认）：
   - 阶段一 `vision_extract`：视觉模型只提取事实（visual observations）。
+  - 可选阶段 `ocr_extract`：OCR 模型提取图片文字线索（默认关闭）。
   - 阶段二 `reasoning_decide`：推理模型按 Task21 规则输出最终建议。
 - `single_model`（保留）：
   - 单模型一次完成图像理解与规则判断。
@@ -20,6 +21,8 @@
 
 - `analysisMode`
 - `visionModel`
+- `ocrEnabled`
+- `ocrModel`
 - `reasoningModel`
 - `singleModel`
 - `enableThinking`
@@ -31,6 +34,7 @@
 - `timeoutMs` 强制限制到 `1000~300000`。
 - 模型 override 仅在 `ABAKA_TASK21_AI_ALLOW_CLIENT_MODEL_OVERRIDE=true` 时生效，且必须命中对应白名单。
 - `enableThinking` 默认 `false`，并显式发送 `enable_thinking=false`。
+- OCR 模型（`qwen-vl-ocr*`）按能力不发送 thinking 参数，调试信息标记 `notApplicable`。
 
 ## thinking 参数策略
 
@@ -45,10 +49,13 @@
 - `ABAKA_TASK21_AI_MOCK`
 - `ABAKA_TASK21_AI_ANALYSIS_MODE`
 - `ABAKA_TASK21_AI_VISION_MODEL`
+- `ABAKA_TASK21_AI_OCR_ENABLED`
+- `ABAKA_TASK21_AI_OCR_MODEL`
 - `ABAKA_TASK21_AI_REASONING_MODEL`
 - `ABAKA_TASK21_AI_SINGLE_MODEL`
 - `ABAKA_TASK21_AI_MODEL`（旧变量，singleModel 兼容回退）
 - `ABAKA_TASK21_AI_ALLOWED_VISION_MODELS`
+- `ABAKA_TASK21_AI_ALLOWED_OCR_MODELS`
 - `ABAKA_TASK21_AI_ALLOWED_REASONING_MODELS`
 - `ABAKA_TASK21_AI_ALLOWED_SINGLE_MODELS`
 - `ABAKA_TASK21_AI_TIMEOUT_MS`

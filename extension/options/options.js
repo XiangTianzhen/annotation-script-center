@@ -202,17 +202,27 @@
     constants.ABAKA_AI_TASK21_VISION_MODEL_OPTIONS
   )
     ? constants.ABAKA_AI_TASK21_VISION_MODEL_OPTIONS
-    : [{ value: "qwen-vl-max-latest", label: "qwen-vl-max-latest", supportsVision: true, supportsThinking: "unknown" }];
+    : [{ value: "qwen3-vl-plus", label: "qwen3-vl-plus", supportsVision: true, supportsThinking: true }];
+  const abakaAiTask21OcrModelOptions = Array.isArray(constants.ABAKA_AI_TASK21_OCR_MODEL_OPTIONS)
+    ? constants.ABAKA_AI_TASK21_OCR_MODEL_OPTIONS
+    : [
+        {
+          value: "qwen-vl-ocr-latest",
+          label: "qwen-vl-ocr-latest",
+          supportsVision: true,
+          supportsThinking: false,
+        },
+      ];
   const abakaAiTask21ReasoningModelOptions = Array.isArray(
     constants.ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS
   )
     ? constants.ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS
-    : [{ value: "qwen3.5-plus", label: "qwen3.5-plus", supportsVision: true, supportsThinking: "unknown" }];
+    : [{ value: "qvq-plus-latest", label: "qvq-plus-latest", supportsVision: true, supportsThinking: true }];
   const abakaAiTask21SingleModelOptions = Array.isArray(
     constants.ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS
   )
     ? constants.ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS
-    : [{ value: "qwen-vl-max-latest", label: "qwen-vl-max-latest", supportsVision: true, supportsThinking: "unknown" }];
+    : [{ value: "qwen3-vl-plus", label: "qwen3-vl-plus", supportsVision: true, supportsThinking: true }];
   const judgementItemsPerPageOptions = [
     { value: "1 条/页", label: "1 条/页" },
     { value: "2 条/页", label: "2 条/页" },
@@ -1143,7 +1153,7 @@
         return String(item?.value || "").trim();
       })
       .filter(Boolean);
-    const fallbackModel = String(fallback || "qwen-vl-max-latest").trim() || "qwen-vl-max-latest";
+    const fallbackModel = String(fallback || "qwen3-vl-plus").trim() || "qwen3-vl-plus";
     const model = normalizeMagicDataModel(value, fallbackModel);
     if (allowed.length <= 0 || allowed.indexOf(model) >= 0) {
       return model;
@@ -1180,15 +1190,15 @@
     const renderedOptions = Array.isArray(options) ? options.slice() : [];
     if (renderedOptions.length <= 0) {
       renderedOptions.push({
-        value: String(fallbackValue || "qwen-vl-max-latest"),
-        label: String(fallbackValue || "qwen-vl-max-latest"),
-      });
-    }
-    const normalizedSelected = normalizeAbakaAiModelByOptions(
-      selectedValue,
-      fallbackValue || renderedOptions[0]?.value || "qwen-vl-max-latest",
-      renderedOptions
-    );
+          value: String(fallbackValue || "qwen-vl-max-latest"),
+          label: String(fallbackValue || "qwen3-vl-plus"),
+        });
+      }
+      const normalizedSelected = normalizeAbakaAiModelByOptions(
+        selectedValue,
+        fallbackValue || renderedOptions[0]?.value || "qwen3-vl-plus",
+        renderedOptions
+      );
     if (
       normalizedSelected &&
       !renderedOptions.find(function (item) {
@@ -1384,15 +1394,17 @@
       {
         id: abakaAiTaskPageCaptureScriptId,
         enabled: true,
-        stage: "task21-inline-ai-analysis-debug",
-        autoSelectSpecifyOnSameFontTrue: true,
-        aiAnalysisMode: "two_stage",
-        aiVisionModel: "qwen-vl-max-latest",
-        aiReasoningModel: "qwen3.5-plus",
-        aiSingleModel: "qwen-vl-max-latest",
-        aiEnableThinking: false,
-        aiRequestTimeoutMs: 120000,
-        shortcuts: createAbakaAiDefaultShortcutMap(),
+          stage: "task21-inline-ai-analysis-debug",
+          autoSelectSpecifyOnSameFontTrue: true,
+          aiAnalysisMode: "two_stage",
+          aiVisionModel: "qwen3-vl-plus",
+          aiOcrEnabled: false,
+          aiOcrModel: "qwen-vl-ocr-latest",
+          aiReasoningModel: "qvq-plus-latest",
+          aiSingleModel: "qwen3-vl-plus",
+          aiEnableThinking: false,
+          aiRequestTimeoutMs: 120000,
+          shortcuts: createAbakaAiDefaultShortcutMap(),
       },
       defaults,
       current
@@ -1402,27 +1414,33 @@
     merged.enabled = merged.enabled !== false;
     merged.stage = String(merged.stage || "task21-inline-ai-analysis-debug");
     merged.autoSelectSpecifyOnSameFontTrue = merged.autoSelectSpecifyOnSameFontTrue !== false;
-    const legacyDebugModel = normalizeAbakaAiModel(
-      merged.aiDebugModel,
-      "qwen-vl-max-latest",
-      abakaAiTask21SingleModelOptions
-    );
-    merged.aiAnalysisMode = normalizeAbakaAiAnalysisMode(merged.aiAnalysisMode, "two_stage");
-    merged.aiVisionModel = normalizeAbakaAiModel(
-      merged.aiVisionModel,
-      "qwen-vl-max-latest",
-      abakaAiTask21VisionModelOptions
-    );
-    merged.aiReasoningModel = normalizeAbakaAiModel(
-      merged.aiReasoningModel,
-      "qwen3.5-plus",
-      abakaAiTask21ReasoningModelOptions
-    );
-    merged.aiSingleModel = normalizeAbakaAiModel(
-      merged.aiSingleModel || legacyDebugModel,
-      "qwen-vl-max-latest",
-      abakaAiTask21SingleModelOptions
-    );
+      const legacyDebugModel = normalizeAbakaAiModel(
+        merged.aiDebugModel,
+        "qwen3-vl-plus",
+        abakaAiTask21SingleModelOptions
+      );
+      merged.aiAnalysisMode = normalizeAbakaAiAnalysisMode(merged.aiAnalysisMode, "two_stage");
+      merged.aiVisionModel = normalizeAbakaAiModel(
+        merged.aiVisionModel,
+        "qwen3-vl-plus",
+        abakaAiTask21VisionModelOptions
+      );
+      merged.aiOcrEnabled = merged.aiOcrEnabled === true;
+      merged.aiOcrModel = normalizeAbakaAiModel(
+        merged.aiOcrModel,
+        "qwen-vl-ocr-latest",
+        abakaAiTask21OcrModelOptions
+      );
+      merged.aiReasoningModel = normalizeAbakaAiModel(
+        merged.aiReasoningModel,
+        "qvq-plus-latest",
+        abakaAiTask21ReasoningModelOptions
+      );
+      merged.aiSingleModel = normalizeAbakaAiModel(
+        merged.aiSingleModel || legacyDebugModel,
+        "qwen3-vl-plus",
+        abakaAiTask21SingleModelOptions
+      );
     merged.aiEnableThinking = merged.aiEnableThinking === true;
     merged.aiRequestTimeoutMs = normalizeAbakaAiTimeout(merged.aiRequestTimeoutMs, 120000);
     merged.shortcuts = normalizeAbakaAiShortcuts(
@@ -2987,20 +3005,30 @@
       "abaka-ai-vision-model",
       config.aiVisionModel,
       abakaAiTask21VisionModelOptions,
-      "qwen-vl-max-latest"
+      "qwen3-vl-plus"
+    );
+    renderAbakaAiSelectOptions(
+      "abaka-ai-ocr-model",
+      config.aiOcrModel,
+      abakaAiTask21OcrModelOptions,
+      "qwen-vl-ocr-latest"
     );
     renderAbakaAiSelectOptions(
       "abaka-ai-reasoning-model",
       config.aiReasoningModel,
       abakaAiTask21ReasoningModelOptions,
-      "qwen3.5-plus"
+      "qvq-plus-latest"
     );
     renderAbakaAiSelectOptions(
       "abaka-ai-single-model",
       config.aiSingleModel,
       abakaAiTask21SingleModelOptions,
-      "qwen-vl-max-latest"
+      "qwen3-vl-plus"
     );
+    const ocrEnabledNode = getElement("abaka-ai-ocr-enabled");
+    if (ocrEnabledNode instanceof HTMLInputElement) {
+      ocrEnabledNode.checked = config.aiOcrEnabled === true;
+    }
     const enableThinkingNode = getElement("abaka-ai-enable-thinking");
     if (enableThinkingNode instanceof HTMLInputElement) {
       enableThinkingNode.checked = config.aiEnableThinking === true;
@@ -3030,6 +3058,7 @@
     abakaAiTask21ShortcutActions.forEach(function (action) {
       shortcuts[action.key] = normalizeNullableShortcut(abakaAiShortcutsDraft[action.key]);
     });
+
     const autoSelectNode = getElement("abaka-auto-select-specify-on-same-font-true");
     const autoSelectSpecifyOnSameFontTrue =
       autoSelectNode instanceof HTMLInputElement
@@ -3038,32 +3067,53 @@
     const aiAnalysisModeNode = getElement("abaka-ai-analysis-mode");
     const aiAnalysisMode =
       aiAnalysisModeNode instanceof HTMLSelectElement
-        ? normalizeAbakaAiAnalysisMode(aiAnalysisModeNode.value, currentConfig.aiAnalysisMode || "two_stage")
+        ? normalizeAbakaAiAnalysisMode(
+            aiAnalysisModeNode.value,
+            currentConfig.aiAnalysisMode || "two_stage"
+          )
         : normalizeAbakaAiAnalysisMode(currentConfig.aiAnalysisMode, "two_stage");
     const aiVisionModelNode = getElement("abaka-ai-vision-model");
     const aiVisionModel =
       aiVisionModelNode instanceof HTMLSelectElement
         ? normalizeAbakaAiModel(
             aiVisionModelNode.value,
-            currentConfig.aiVisionModel || "qwen-vl-max-latest",
+            currentConfig.aiVisionModel || "qwen3-vl-plus",
             abakaAiTask21VisionModelOptions
           )
         : normalizeAbakaAiModel(
             currentConfig.aiVisionModel,
-            "qwen-vl-max-latest",
+            "qwen3-vl-plus",
             abakaAiTask21VisionModelOptions
+          );
+    const aiOcrEnabledNode = getElement("abaka-ai-ocr-enabled");
+    const aiOcrEnabled =
+      aiOcrEnabledNode instanceof HTMLInputElement
+        ? aiOcrEnabledNode.checked === true
+        : currentConfig.aiOcrEnabled === true;
+    const aiOcrModelNode = getElement("abaka-ai-ocr-model");
+    const aiOcrModel =
+      aiOcrModelNode instanceof HTMLSelectElement
+        ? normalizeAbakaAiModel(
+            aiOcrModelNode.value,
+            currentConfig.aiOcrModel || "qwen-vl-ocr-latest",
+            abakaAiTask21OcrModelOptions
+          )
+        : normalizeAbakaAiModel(
+            currentConfig.aiOcrModel,
+            "qwen-vl-ocr-latest",
+            abakaAiTask21OcrModelOptions
           );
     const aiReasoningModelNode = getElement("abaka-ai-reasoning-model");
     const aiReasoningModel =
       aiReasoningModelNode instanceof HTMLSelectElement
         ? normalizeAbakaAiModel(
             aiReasoningModelNode.value,
-            currentConfig.aiReasoningModel || "qwen3.5-plus",
+            currentConfig.aiReasoningModel || "qvq-plus-latest",
             abakaAiTask21ReasoningModelOptions
           )
         : normalizeAbakaAiModel(
             currentConfig.aiReasoningModel,
-            "qwen3.5-plus",
+            "qvq-plus-latest",
             abakaAiTask21ReasoningModelOptions
           );
     const aiSingleModelNode = getElement("abaka-ai-single-model");
@@ -3071,12 +3121,12 @@
       aiSingleModelNode instanceof HTMLSelectElement
         ? normalizeAbakaAiModel(
             aiSingleModelNode.value,
-            currentConfig.aiSingleModel || "qwen-vl-max-latest",
+            currentConfig.aiSingleModel || "qwen3-vl-plus",
             abakaAiTask21SingleModelOptions
           )
         : normalizeAbakaAiModel(
             currentConfig.aiSingleModel,
-            "qwen-vl-max-latest",
+            "qwen3-vl-plus",
             abakaAiTask21SingleModelOptions
           );
     const aiEnableThinkingNode = getElement("abaka-ai-enable-thinking");
@@ -3103,6 +3153,8 @@
                 autoSelectSpecifyOnSameFontTrue: autoSelectSpecifyOnSameFontTrue,
                 aiAnalysisMode: aiAnalysisMode,
                 aiVisionModel: aiVisionModel,
+                aiOcrEnabled: aiOcrEnabled,
+                aiOcrModel: aiOcrModel,
                 aiReasoningModel: aiReasoningModel,
                 aiSingleModel: aiSingleModel,
                 aiEnableThinking: aiEnableThinking,
