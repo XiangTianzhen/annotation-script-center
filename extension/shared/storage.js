@@ -45,8 +45,8 @@
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
                 aiRecommendRequestTimeoutMs: 120000,
-                aiQualifiedAutofillConcurrency: 5,
-                aiQualifiedAutofillWaitAllBeforeFill: true,
+                aiQualifiedAutofillConcurrency: 50,
+                aiQualifiedAutofillWaitAllBeforeFill: false,
                 autoPageSizeEnabled: true,
                 defaultPageSize: "50条/页",
                 shortcuts: {
@@ -1150,7 +1150,7 @@
       ? numeric
       : Number.isFinite(fallbackNumeric)
         ? fallbackNumeric
-        : 5;
+        : 50;
     return Math.max(1, Math.min(50, Math.round(base)));
   }
 
@@ -1308,11 +1308,11 @@
     );
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
-      defaultConfig.aiQualifiedAutofillConcurrency || 5
+      defaultConfig.aiQualifiedAutofillConcurrency || 50
     );
     result.aiQualifiedAutofillWaitAllBeforeFill = normalizeDataBakerWaitAllBeforeFill(
       result.aiQualifiedAutofillWaitAllBeforeFill,
-      defaultConfig.aiQualifiedAutofillWaitAllBeforeFill !== false
+      defaultConfig.aiQualifiedAutofillWaitAllBeforeFill === true
     );
     result.aiRecommendListenModel = normalizeJudgementAiModelText(
       result.aiRecommendListenModel,
@@ -1395,8 +1395,8 @@
               constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
             aiRecommendRequestTimeoutMs: 120000,
-            aiQualifiedAutofillConcurrency: 5,
-            aiQualifiedAutofillWaitAllBeforeFill: true,
+            aiQualifiedAutofillConcurrency: 50,
+            aiQualifiedAutofillWaitAllBeforeFill: false,
             autoPageSizeEnabled: true,
             defaultPageSize: "50条/页",
             shortcuts: {

@@ -1039,7 +1039,7 @@
   function normalizeDataBakerAutofillConcurrency(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
-      return 5;
+      return 50;
     }
     return Math.min(50, Math.max(1, Math.round(number)));
   }
@@ -1348,8 +1348,8 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: 120000,
-        aiQualifiedAutofillConcurrency: 5,
-        aiQualifiedAutofillWaitAllBeforeFill: true,
+        aiQualifiedAutofillConcurrency: 50,
+        aiQualifiedAutofillWaitAllBeforeFill: false,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",
         aiRecommendEnableThinking: false,
@@ -1378,7 +1378,7 @@
       config.aiQualifiedAutofillConcurrency
     );
     config.aiQualifiedAutofillWaitAllBeforeFill =
-      config.aiQualifiedAutofillWaitAllBeforeFill !== false;
+      config.aiQualifiedAutofillWaitAllBeforeFill === true;
     config.aiRecommendListenModel = normalizeJudgementAiModelText(
       config.aiRecommendListenModel,
       "qwen3.5-omni-flash"
@@ -4401,11 +4401,7 @@
     );
     const concurrencyInput = getElement("data-baker-qualified-autofill-concurrency");
     if (concurrencyInput) {
-      concurrencyInput.value = String(config.aiQualifiedAutofillConcurrency || 5);
-    }
-    const waitAllInput = getElement("data-baker-qualified-autofill-wait-all");
-    if (waitAllInput) {
-      waitAllInput.checked = config.aiQualifiedAutofillWaitAllBeforeFill !== false;
+      concurrencyInput.value = String(config.aiQualifiedAutofillConcurrency || 50);
     }
     stopDataBakerShortcutRecording("");
     renderDataBakerShortcutGrid();
@@ -4435,8 +4431,7 @@
     const autofillConcurrency = normalizeDataBakerAutofillConcurrency(
       getElement("data-baker-qualified-autofill-concurrency")?.value
     );
-    const autofillWaitAllBeforeFill =
-      getElement("data-baker-qualified-autofill-wait-all")?.checked !== false;
+    const autofillWaitAllBeforeFill = false;
     const listenModel = hasAiSettingsPanel
       ? readJudgementModelField(
           "data-baker-ai-listen-model-select",
