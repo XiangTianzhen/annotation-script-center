@@ -49,6 +49,7 @@
                 defaultPageSize: "50条/页",
                 shortcuts: {
                   aiRecommendCurrentItem: null,
+                  autoFillQualifiedItem: null,
                   copyAiHeardText: null,
                   copyRecommendedText: null,
                   fillRecommendedText: null,
@@ -207,6 +208,7 @@
       DATABAKER_PAGE_SIZE_OPTIONS: ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"],
       DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: [
         { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
+        { key: "autoFillQualifiedItem", label: "AI填入合格项" },
         { key: "copyAiHeardText", label: "复制 AI 听音文本" },
         { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
         { key: "fillRecommendedText", label: "填入推荐文本" },
@@ -1150,9 +1152,10 @@
   function normalizeDataBakerShortcuts(value, fallback) {
     const constants = getConstants();
     const actions = Array.isArray(constants.DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS)
-      ? constants.DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS
-      : [
+        ? constants.DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS
+        : [
           { key: "aiRecommendCurrentItem" },
+          { key: "autoFillQualifiedItem" },
           { key: "copyAiHeardText" },
           { key: "copyRecommendedText" },
           { key: "fillRecommendedText" },
@@ -1368,6 +1371,7 @@
             defaultPageSize: "50条/页",
             shortcuts: {
               aiRecommendCurrentItem: null,
+              autoFillQualifiedItem: null,
               copyAiHeardText: null,
               copyRecommendedText: null,
               fillRecommendedText: null,

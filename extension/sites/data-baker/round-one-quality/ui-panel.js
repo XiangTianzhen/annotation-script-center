@@ -2,6 +2,8 @@
   const ROOT_ATTR = "data-asr-edge-databaker-ai-panel";
   const STYLE_ID = "asr-edge-databaker-ai-panel-style";
   const TOP_BUTTON_ATTR = "data-asr-edge-databaker-qualified-autofill-button";
+  let mountedLogPrinted = false;
+  let fallbackLogPrinted = false;
 
   function normalizeText(text) {
     return String(text || "").replace(/\s+/g, " ").trim();
@@ -131,20 +133,18 @@
       "  margin-top: 8px;",
       "  color: #64748b;",
       "}",
-      "." + "asr-edge-db-qualified-autofill-top {",
+      "." + "asr-edge-db-qualified-autofill-filter {",
       "  min-height: 26px;",
       "  padding: 0 10px;",
-      "  border: 1px solid #1d4ed8;",
-      "  border-radius: 6px;",
-      "  background: #1d4ed8;",
-      "  color: #ffffff;",
+      "  margin-left: 10px;",
+      "  height: 28px;",
+      "  border-radius: 4px;",
       "  font-size: 12px;",
       "  font-weight: 600;",
-      "  line-height: 24px;",
       "  cursor: pointer;",
       "  white-space: nowrap;",
       "}",
-      "." + "asr-edge-db-qualified-autofill-top:disabled {",
+      "." + "asr-edge-db-qualified-autofill-filter:disabled {",
       "  opacity: 0.6;",
       "  cursor: not-allowed;",
       "}",
@@ -180,31 +180,26 @@
       );
     }
 
-    function findTopInfoMountTarget() {
-      const allNodes = Array.from(document.querySelectorAll("*"));
-      const keywordNode = allNodes.find(function (node) {
-        if (!(node instanceof HTMLElement)) {
+    function isVisibleNode(node) {
+      if (!(node instanceof HTMLElement)) {
+        return false;
+      }
+      const style = window.getComputedStyle(node);
+      return style.display !== "none" && style.visibility !== "hidden";
+    }
+
+    function findFilterScreenMountTarget() {
+      const filterNodes = Array.from(document.querySelectorAll(".filter-screen")).filter(isVisibleNode);
+      return filterNodes.find(function (node) {
+        const text = normalizeText(node.textContent || "");
+        if (text.indexOf("全选") < 0) {
           return false;
         }
-        const text = normalizeText(node.textContent || "");
-        return text.indexOf("抽检允许错误数量") >= 0;
-      });
-      if (keywordNode) {
-        return (
-          keywordNode.closest(".el-row, .flex, .header, .top, .right, .left, div") || keywordNode
-        );
-      }
-      const fallbackNode = allNodes.find(function (node) {
-        if (!(node instanceof HTMLElement)) {
-          return false;
-        }
-        const text = normalizeText(node.textContent || "");
-        return text.indexOf("合格率") >= 0 || text.indexOf("查看更多") >= 0;
-      });
-      if (fallbackNode) {
-        return fallbackNode.closest(".el-row, .flex, .header, .top, .right, .left, div") || fallbackNode;
-      }
-      return null;
+        const buttons = Array.from(node.querySelectorAll("button"));
+        return buttons.some(function (button) {
+          return normalizeText(button.textContent || "").indexOf("批量判定") >= 0;
+        });
+      }) || null;
     }
 
     function setStatus(message, tone) {
@@ -430,31 +425,49 @@
     }
 
     function ensureTopQualifiedButton() {
-      const existing = document.querySelector("[" + TOP_BUTTON_ATTR + "='true']");
-      if (existing && existing instanceof HTMLElement) {
+      const existingButtons = Array.from(
+        document.querySelectorAll("[" + TOP_BUTTON_ATTR + "='true']")
+      );
+      if (existingButtons.length > 1) {
+        existingButtons.slice(1).forEach(function (button) {
+          button.remove();
+        });
+      }
+      const mountTarget = findFilterScreenMountTarget();
+      const existing = existingButtons[0];
+      if (existing && mountTarget && !mountTarget.contains(existing)) {
+        existing.remove();
+      }
+      if (existing && mountTarget && mountTarget.contains(existing)) {
         autoFillQualifiedButtonNode = existing;
         return existing;
       }
-      const mountTarget = findTopInfoMountTarget();
       if (!mountTarget || !(mountTarget instanceof HTMLElement)) {
         return null;
       }
       const topButton = document.createElement("button");
       topButton.type = "button";
-      topButton.className = "asr-edge-db-qualified-autofill-top";
+      topButton.className =
+        "el-button el-button--success el-button--mini asr-edge-db-qualified-autofill-filter";
       topButton.setAttribute(TOP_BUTTON_ATTR, "true");
       topButton.textContent = "AI填入合格项";
       topButton.title = "刷新当前页列表，只处理质检合格数据，AI 推荐并填入，不自动保存提交。";
       topButton.addEventListener("click", function () {
         handleAutoFillQualifiedClick(topButton);
       });
-      const viewMoreNode = Array.from(mountTarget.querySelectorAll("*")).find(function (node) {
-        return normalizeText(node.textContent || "").indexOf("查看更多") >= 0;
+      const batchButton = Array.from(mountTarget.querySelectorAll("button")).find(function (button) {
+        return normalizeText(button.textContent || "").indexOf("批量判定") >= 0;
       });
-      if (viewMoreNode && viewMoreNode.parentNode) {
-        viewMoreNode.parentNode.insertBefore(topButton, viewMoreNode);
+      if (batchButton && batchButton.parentNode) {
+        batchButton.insertAdjacentElement("afterend", topButton);
       } else {
         mountTarget.appendChild(topButton);
+      }
+      if (!mountedLogPrinted && typeof console !== "undefined" && typeof console.info === "function") {
+        console.info(
+          "[DataBaker][round-one-quality] qualified autofill button mounted in filter-screen."
+        );
+        mountedLogPrinted = true;
       }
       autoFillQualifiedButtonNode = topButton;
       return topButton;
@@ -563,8 +576,11 @@
         mountTarget.insertBefore(root, mountTarget.firstElementChild || null);
       }
       if (!ensureTopQualifiedButton()) {
-        if (typeof console !== "undefined" && typeof console.warn === "function") {
-          console.warn("[DataBaker][round-one-quality] top info bar mount failed, fallback to panel.");
+        if (!fallbackLogPrinted && typeof console !== "undefined" && typeof console.warn === "function") {
+          console.warn(
+            "[DataBaker][round-one-quality] filter-screen mount not found, fallback to AI panel."
+          );
+          fallbackLogPrinted = true;
         }
         const fallbackButton = createButton("AI填入合格项");
         fallbackButton.title =

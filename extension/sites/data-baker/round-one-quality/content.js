@@ -3,6 +3,7 @@
   const PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const SHORTCUT_KEYS = [
     "aiRecommendCurrentItem",
+    "autoFillQualifiedItem",
     "copyAiHeardText",
     "copyRecommendedText",
     "fillRecommendedText",
@@ -408,6 +409,9 @@
       },
       ignoreAiResult: function () {
         return ui.ignoreAiResult();
+      },
+      autoFillQualifiedItem: function () {
+        return autoFillNextQualifiedItem();
       },
       showStatus: showShortcutStatus,
     };

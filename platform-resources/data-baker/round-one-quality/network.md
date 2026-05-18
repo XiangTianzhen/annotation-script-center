@@ -44,6 +44,7 @@ vadStatus=
 说明：
 
 - 请求由前端点击“AI填入合格项”触发，先刷新当前页列表再筛选可处理项。
+- 触发入口包括：`filter-screen` 区域按钮“AI填入合格项”和快捷键 `Alt+Q`。
 - 请求继续使用浏览器会话 `credentials: include`，不手动拼接 token/cookie。
 
 状态筛选规则（仅用于前端辅助，不改变平台状态）：

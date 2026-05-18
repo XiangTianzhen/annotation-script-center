@@ -1,5 +1,12 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（DataBaker：AI填入合格项挂载到筛选栏并加快捷键）
+
+- 将“AI填入合格项”按钮挂载到左侧列表上方 `filter-screen` 区域、“批量判定”右侧。
+- 新增 `Alt+Q` 快捷键触发 AI填入合格项。
+- 保持只处理 `statusName=质检合格`，不自动保存、不自动提交、不点击 checkbox。
+- 未新增后端接口，未提升版本，未生成发布产物。
+
 ## 2026-05-18（Abaka AI：补齐 Task 页面只读采集壳资料目录）
 
 - 新增 `platform-resources/abaka-ai/task-page/README.md`，补齐只读采集壳资料目录（采集目标、Console 导出方法、脱敏边界、后续接口模板）。
