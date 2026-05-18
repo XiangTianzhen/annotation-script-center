@@ -75,3 +75,136 @@ platform-resources/
 - 项目级 `backend/` 放浏览器无关的本地调试服务，并维护统计 CSV、上传 payload、服务端合并契约等资料；不被扩展 manifest 加载。
 - `unfinished.md` 放未完成方案、风险和后续验证条件。
 
+## 统一后端 API 清单
+
+### Base URL
+
+- 本地：`http://127.0.0.1:3333`
+- 服务器：`https://script.xiangtianzhen.store`
+
+说明：Options 首页顶部“后端接口地址”切换 `server/local` 后，扩展统一按 `baseUrl + API path` 拼接请求。
+
+### 当前注册模块
+
+- Alibaba LabelX ASR 快判
+- Alibaba LabelX ASR 转写
+- DataBaker 一检质检
+- Magic Data Annotator
+- Abaka AI Task21
+- Admin 项目数据下载
+
+以上模块注册来源：`platform-resources/backend/registry.js`。
+
+### Alibaba LabelX ASR 快判 API
+
+- 统计上传与查询：
+  - `GET /api/alibaba-labelx/asr-judgement/statistics/health`
+  - `GET /api/alibaba-labelx/asr-judgement/statistics/config`
+  - `POST /api/alibaba-labelx/asr-judgement/statistics/upload`
+  - `POST /api/alibaba-labelx/asr-judgement/statistics/existing`
+  - `GET /api/alibaba-labelx/asr-judgement/statistics/suppliers`
+  - `GET /api/alibaba-labelx/asr-judgement/statistics/download`
+  - `HEAD /api/alibaba-labelx/asr-judgement/statistics/download`
+- AI：
+  - `GET /api/alibaba-labelx/asr-judgement/ai/health`
+  - `GET /api/alibaba-labelx/asr-judgement/ai/defaults`
+  - `POST /api/alibaba-labelx/asr-judgement/ai/suggest`
+- 下载 URL：
+  - 本地：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download`
+  - 服务器：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/download`
+  - 本地（supplier）：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download?supplier=<供应商>`
+  - 服务器（supplier）：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/download?supplier=<供应商>`
+- 是否下载接口：是（CSV）
+- 下载文件说明：默认 `statistics-merged.csv`
+- token/password：不需要
+- 运行数据目录：`platform-resources/alibaba-labelx/asr-judgement/backend/statistics-data/`
+- 安全说明：CSV 字段统一使用 `有效时长`；目录为运行数据，不提交 Git。
+
+### Alibaba LabelX ASR 转写 API
+
+- 统计上传与查询：
+  - `GET /api/alibaba-labelx/asr-transcription/statistics/health`
+  - `GET /api/alibaba-labelx/asr-transcription/statistics/config`
+  - `POST /api/alibaba-labelx/asr-transcription/statistics/upload`
+  - `POST /api/alibaba-labelx/asr-transcription/statistics/existing`
+  - `GET /api/alibaba-labelx/asr-transcription/statistics/suppliers`
+  - `GET /api/alibaba-labelx/asr-transcription/statistics/download`
+  - `HEAD /api/alibaba-labelx/asr-transcription/statistics/download`
+- AI：
+  - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health`
+  - `GET /api/alibaba-labelx/asr-transcription/ai/defaults`
+  - `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current`
+- 下载 URL：
+  - 本地：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download`
+  - 服务器：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download`
+  - 本地（supplier）：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download?supplier=<供应商>`
+  - 服务器（supplier）：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download?supplier=<供应商>`
+- 是否下载接口：是（CSV）
+- 下载文件说明：默认 `statistics-merged.csv`
+- token/password：不需要
+- 运行数据目录：`platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`
+- 安全说明：CSV 字段统一使用 `有效时长`；目录为运行数据，不提交 Git。
+
+### DataBaker 一检质检 API
+
+- AI：
+  - `GET /api/data-baker/round-one-quality/ai/recommend/health`
+  - `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
+  - `POST /api/data-baker/round-one-quality/ai/recommend`
+- 导出：
+  - `GET /api/data-baker/round-one-quality/export/health`
+  - `GET /api/data-baker/round-one-quality/export/config`
+  - `POST /api/data-baker/round-one-quality/export/upload`
+  - `GET /api/data-baker/round-one-quality/export/download`
+  - `HEAD /api/data-baker/round-one-quality/export/download`
+  - `GET /api/data-baker/round-one-quality/export/list`
+- 下载 URL：
+  - 本地：`http://127.0.0.1:3333/api/data-baker/round-one-quality/export/download`
+  - 服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/export/download`
+- 是否下载接口：是（CSV）
+- 下载文件说明：默认 `latest.csv`
+- token/password：不需要
+- 运行数据目录：`platform-resources/data-baker/round-one-quality/backend/export-data/`
+- 安全说明：新导出 CSV 统一字段 `有效时长`（来源仍为 `effectivePassTotalTime`）；目录为运行数据，不提交 Git。
+
+### Magic Data Annotator API
+
+- `GET /api/magic-data/annotator/ai/review-current/health`
+- `GET /api/magic-data/annotator/ai/defaults`
+- `POST /api/magic-data/annotator/ai/review-current`
+- 是否下载接口：暂无下载接口
+- token/password：不需要
+- 数据目录：按模块日志目录为主，无统一 CSV 下载目录
+- 安全说明：仅 AI 质检调试接口，不自动提交业务动作。
+
+### Abaka AI Task21 API
+
+- `GET /api/abaka-ai/task21/ai/health`
+- `GET /api/abaka-ai/task21/ai/defaults`
+- `POST /api/abaka-ai/task21/ai/analyze`
+- 是否下载接口：暂无下载接口
+- token/password：不需要
+- 数据目录：当前为 AI 调试接口，无统一 CSV 下载目录
+- 安全说明：AI 仅返回建议，不自动写入、不保存、不提交。
+
+### Admin 项目数据下载 API
+
+- `GET /api/admin/project-data-download/options`
+- `POST /api/admin/project-data-download/request`
+- `GET /api/admin/project-data-download/file?token=<downloadToken>`
+- `HEAD /api/admin/project-data-download/file?token=<downloadToken>`
+- 下载 URL：
+  - 本地模板：`http://127.0.0.1:3333/api/admin/project-data-download/file?token=<downloadToken>`
+  - 服务器模板：`https://script.xiangtianzhen.store/api/admin/project-data-download/file?token=<downloadToken>`
+- 是否下载接口：是（CSV 聚合下载）
+- 下载文件说明：按 `dataset + supplier` 输出过滤后的 CSV 文件名
+- token/password：需要（先 `request` 传密码换短期 token）
+- 审计目录：`platform-resources/backend/project-data-download/audit-data/`
+- 安全说明：token 仅短期有效；文档和日志中只允许占位符，不写真实 token/password。
+
+### 运行数据与安全边界
+
+- `statistics-data/`、`export-data/`、`audit-data/` 都属于运行数据目录，不提交 Git。
+- 不提交 cookie/token/authorization/API Key/JWT secret/CRX 私钥。
+- 下载 URL 示例中的 token 必须使用占位符（如 `<downloadToken>`），不要写真实值。
+

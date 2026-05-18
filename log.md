@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（平台 API 清单与有效时长字段统一）
+
+- `platform-resources/README.md` 新增“统一后端 API 清单”，按模块列出 method、path、本地/服务器 URL、下载 URL 和运行数据目录。
+- LabelX 快判、LabelX 转写 CSV 表头从 `有效时长(秒)` 统一为 `有效时长`，并兼容旧表头读取。
+- DataBaker 导出表头从 `有效合格时长` 统一为 `有效时长`，数据来源仍为 `effectivePassTotalTime`。
+- 本地运行 CSV 可做一次性表头迁移，但 `statistics-data/`、`export-data/`、`audit-data/` 不提交 Git。
+- 本轮未改业务计算逻辑、未提升版本、未生成发布产物。
+
 ## 2026-05-18（CSV：统一有效时长字段）
 
 - LabelX 快判与转写 CSV 表头从 `有效时长(秒)` 统一为 `有效时长`。

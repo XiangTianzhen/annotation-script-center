@@ -81,6 +81,7 @@ PM2 进程名示例：`annotation-script-center`。
 - 修改环境变量后必须执行 `pm2 restart annotation-script-center --update-env`，否则新变量可能不生效。
 
 详细后端配置见 `platform-resources/backend/README.md`。
+详细 API 清单见 `platform-resources/README.md` 的“统一后端 API 清单”。
 
 ## 发布产物说明
 
