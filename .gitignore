@@ -1,6 +1,6 @@
 # 构建和发布产物
 /dist/*
-!dist/annotation-script-center-v0.3.2.zip
+!dist/annotation-script-center-v*.zip
 !/dist/annotation-script-center-v*.crx
 !/dist/annotation-script-center-update.xml
 !/dist/annotation-script-center-crx-latest.json
