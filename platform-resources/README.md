@@ -167,9 +167,11 @@ platform-resources/
   - 服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/export/download`
 - 是否下载接口：是（CSV）
 - 下载文件说明：默认 `latest.csv`
+- 下载文件说明：返回累计合并总表 `latest.csv`（按“文本编号”唯一合并；相同文本编号再次上传更新旧行；任务ID仅作元信息不参与唯一键）。
 - token/password：不需要
 - 运行数据目录：`platform-resources/data-baker/round-one-quality/backend/export-data/`
 - 安全说明：新导出 CSV 统一字段 `有效时长`（来源仍为 `effectivePassTotalTime`）；目录为运行数据，不提交 Git。
+- 上传返回统计字段：`incomingRowCount`、`existingRowCount`、`addedRowCount`、`updatedRowCount`、`unchangedRowCount`、`rowCount`、`taskIds`。
 
 ### Magic Data Annotator API
 

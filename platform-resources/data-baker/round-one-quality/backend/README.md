@@ -79,14 +79,23 @@
   - `platform-resources/data-baker/round-one-quality/backend/export-data/latest.csv`
   - `platform-resources/data-baker/round-one-quality/backend/export-data/latest-raw.json`
   - `platform-resources/data-baker/round-one-quality/backend/export-data/latest.json`
-- 说明：`latest.csv` 不包含“原始JSON”列；`latest-raw.json` 保存脱敏后的原始记录数组；`latest.json` 继续只保存元信息。
+- 说明：`latest.csv` 不包含“原始JSON”列；`latest-raw.json` 保存脱敏后的原始记录数组；`latest.json` 保存累计元信息。
+- 上传不再覆盖 `latest.csv`，而是按“文本编号”累计合并：
+  - 唯一键默认且优先使用 `文本编号`（全局唯一）。
+  - 仅当 `文本编号` 为空时才按兜底键（`文件名+段编号`、`文件名`、`采集人+手机号+段编号`、稳定 JSON）合并。
+  - 相同文本编号再次上传会更新旧行，不会因任务ID不同而重复新增。
+  - 不同任务数据可共存，前提是文本编号不同。
+- `taskId/taskIds` 只用于元信息、日志和排查，不参与唯一键判断。
+- CSV 表头会归一化 `有效时长(秒)` / `有效合格时长` 到 `有效时长`，避免重复列。
+- 下载接口 `GET/HEAD /api/data-baker/round-one-quality/export/download` 仍返回 `latest.csv`，现在返回的是累计合并总表。
 - 下载最新 CSV：
   - `GET /api/data-baker/round-one-quality/export/download`
   - `HEAD /api/data-baker/round-one-quality/export/download`
-- 仅当开启 `DATABAKER_ROUND_ONE_EXPORT_HISTORY=1` 时才写入 `history/*.csv` 和对应 `history/*.raw.json`。
+- 仅当开启 `DATABAKER_ROUND_ONE_EXPORT_HISTORY=1` 时才写入 `history/*.csv` 和对应 `history/*.raw.json`；history 保存的是“本次原始上传文件”，不是累计快照。
 - 仅当开启 `DATABAKER_ROUND_ONE_EXPORT_EVENTS=1` 时才写入 `upload-events.jsonl`。
 - 上传接口只接受 JSON 且 `csvText` 非空，CSV 超过 `20MB` 会拒绝。
-- 后端日志只输出 `requestId`、`rowCount`、`fileName`、`csvPath`、`uploadedAt`，不打印完整 CSV 内容。
+- 上传接口返回合并统计：`incomingRowCount/existingRowCount/addedRowCount/updatedRowCount/unchangedRowCount/rowCount/taskIds`。
+- 后端日志只输出 `requestId`、`incomingRowCount`、`existingRowCount`、`addedRowCount`、`updatedRowCount`、`rowCount`、`fileName`、`csvPath`、`uploadedAt`、`taskIds`，不打印完整 CSV 内容。
 
 CSV 字段统一口径：
 

@@ -32,6 +32,10 @@ extension/sites/data-baker/round-one-quality/
 - 运行中会显示顶部统计悬浮窗；完成或停止后保留约 30 秒，并展示失败条目与“重新填写失败内容”入口。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
 - 导出 CSV 不再包含“原始JSON”列；原始记录会脱敏后单独上传并由后端保存为 `latest-raw.json`（历史模式下为 `*.raw.json`）。
+- 后端 `latest.csv` 改为累计合并总表，不再每次上传覆盖：
+  - 唯一键仅以“文本编号”为主（任务ID不参与唯一键）。
+  - 相同文本编号再次上传会更新旧行。
+  - 不同任务可共存，前提是文本编号不同。
 - 默认推荐接口走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
 - 本机接口 `http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend` 仅用于开发调试。
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。

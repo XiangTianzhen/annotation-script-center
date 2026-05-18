@@ -202,10 +202,15 @@ async function handleUpload(request, response, store) {
       JSON.stringify(
         {
           requestId: requestId,
+          incomingRowCount: saved.incomingRowCount,
+          existingRowCount: saved.existingRowCount,
+          addedRowCount: saved.addedRowCount,
+          updatedRowCount: saved.updatedRowCount,
           rowCount: saved.rowCount,
           fileName: saved.fileName,
           csvPath: saved.csvPath,
           uploadedAt: saved.uploadedAt,
+          taskIds: saved.taskIds,
         },
         null,
         0
@@ -218,10 +223,18 @@ async function handleUpload(request, response, store) {
         requestId: requestId,
         fileName: saved.fileName,
         rowCount: saved.rowCount,
+        incomingRowCount: saved.incomingRowCount,
+        existingRowCount: saved.existingRowCount,
+        addedRowCount: saved.addedRowCount,
+        updatedRowCount: saved.updatedRowCount,
+        unchangedRowCount: saved.unchangedRowCount,
+        taskIds: saved.taskIds,
         csvPath: saved.csvPath,
         rawJsonPath: saved.rawJsonPath,
+        latestMetaPath: saved.latestMetaPath,
         downloadUrl: downloadUrl,
         uploadedAt: saved.uploadedAt,
+        warnings: Array.isArray(saved.warnings) ? saved.warnings : [],
       },
     });
   } catch (error) {

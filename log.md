@@ -1,5 +1,16 @@
 # 标注脚本中心修改日志
 
+## 2026-05-19（DataBaker 一检导出上传改为累计合并）
+
+- 修复标贝易采一检导出上传覆盖 `latest.csv` 的问题：后端改为“读取已有 latest.csv + 本次 CSV 按唯一键合并后回写”。
+- 唯一键口径固定为“文本编号”优先且默认；仅当文本编号为空时才使用兜底键（`文件名+段编号`、`文件名`、`采集人+手机号+段编号`、稳定 JSON）。
+- 明确 `taskId/taskIds` 仅用于元信息、日志和排查，不参与唯一键判断；不会因为任务ID不同而保留相同文本编号的重复行。
+- 新增标准 CSV 解析与写出（支持 UTF-8 BOM、逗号、双引号、换行转义），并在写出时归一化旧列名 `有效时长(秒)` / `有效合格时长` 为 `有效时长`。
+- `latest-raw.json` 改为按文本编号等价字段优先合并；rawRecords 合并失败不会阻断 CSV 合并，会进入 warnings。
+- 上传响应新增合并统计：`incomingRowCount/existingRowCount/addedRowCount/updatedRowCount/unchangedRowCount/rowCount/taskIds`，并保留下载接口不变：
+  - `GET/HEAD /api/data-baker/round-one-quality/export/download`
+- `DATABAKER_ROUND_ONE_EXPORT_HISTORY=1` 时继续保存每次“原始上传 CSV + 原始 rawRecords 历史文件”，不保存累计快照。
+
 ## 2026-05-18（Task21助手：UI 收敛、手动填写与规则口径修复）
 
 - 将 Abaka Task21 脚本用户可见名称统一为 `Task21助手`（脚本库标签、短标签、状态标签与说明文案同步）。
