@@ -512,10 +512,6 @@
       if (!record || typeof record !== "object") {
         return null;
       }
-      const byIndex = Number.isFinite(record.__index) ? list[record.__index] : null;
-      if (byIndex) {
-        return byIndex;
-      }
       const sentenceNumber = toNumberOrNull(record.sentenceNumber);
       if (Number.isFinite(sentenceNumber)) {
         const bySentence = list.find(function (item) {
@@ -527,36 +523,63 @@
       }
       const normalizedAudioText = normalizeSentenceText(record.audioText || "");
       if (normalizedAudioText) {
-        return (
+        const byAudioText =
           list.find(function (item) {
             return item.normalizedTitleText === normalizedAudioText;
-          }) || null
-        );
+          }) || null;
+        if (byAudioText) {
+          return byAudioText;
+        }
+      }
+      const byIndex = Number.isFinite(record.__index) ? list[record.__index] : null;
+      if (byIndex) {
+        return byIndex;
       }
       return null;
     }
 
+    function getDomStatusForRecord(record) {
+      const domItem = findDomItemForRecord(record);
+      return normalizeStatusName(domItem?.statusName || "");
+    }
+
+    function isRecordQualified(record) {
+      const statusFromRecord = normalizeStatusName(record?.statusName || "");
+      const statusFromDom = getDomStatusForRecord(record);
+
+      if (
+        isUnqualifiedStatus(statusFromRecord) ||
+        isUncheckedStatus(statusFromRecord) ||
+        isUnqualifiedStatus(statusFromDom) ||
+        isUncheckedStatus(statusFromDom)
+      ) {
+        return false;
+      }
+      if (isQualifiedStatus(statusFromRecord) || isQualifiedStatus(statusFromDom)) {
+        return true;
+      }
+      return false;
+    }
+
+    function getRecordDisplayName(record) {
+      const sentenceNumber = toNumberOrNull(record?.sentenceNumber);
+      if (Number.isFinite(sentenceNumber)) {
+        return "第 " + String(sentenceNumber) + " 条";
+      }
+      const audioText = normalizeSentenceText(record?.audioText || "");
+      if (audioText) {
+        return audioText.slice(0, 20);
+      }
+      const index = toNumberOrNull(record?.__index);
+      if (Number.isFinite(index)) {
+        return "索引 " + String(index + 1);
+      }
+      return "未命名条目";
+    }
+
     function getQualifiedRecords(entry) {
       const records = Array.isArray(entry?.records) ? entry.records : [];
-      const domItems = getSentenceItems();
-      return records.filter(function (record) {
-        const statusFromRecord = normalizeStatusName(record?.statusName || "");
-        const domItem = findDomItemForRecord(record, domItems);
-        const statusFromDom = normalizeStatusName(domItem?.statusName || "");
-
-        if (
-          isUnqualifiedStatus(statusFromRecord) ||
-          isUncheckedStatus(statusFromRecord) ||
-          isUnqualifiedStatus(statusFromDom) ||
-          isUncheckedStatus(statusFromDom)
-        ) {
-          return false;
-        }
-        if (isQualifiedStatus(statusFromRecord) || isQualifiedStatus(statusFromDom)) {
-          return true;
-        }
-        return false;
-      });
+      return records.filter(isRecordQualified);
     }
 
     async function waitForRecordActivated(domItem, record, timeoutMs) {
@@ -598,6 +621,36 @@
         message: "已选中目标条目。",
         record: record,
       };
+    }
+
+    async function waitForPageTextReady(record, timeoutMs) {
+      const timeout = Math.max(500, Number(timeoutMs) || 3000);
+      const deadline = Date.now() + timeout;
+      const expectedText = normalizeSentenceText(record?.audioText || "");
+      const expectedSentenceNumber = toNumberOrNull(record?.sentenceNumber);
+      while (Date.now() < deadline) {
+        const currentText = normalizeSentenceText(getPageText());
+        if (expectedText && currentText && currentText === expectedText) {
+          return { ok: true };
+        }
+        const activeItem = getActiveSentenceItem();
+        const activeTitle = normalizeSentenceText(activeItem?.querySelector(".title")?.textContent || "");
+        if (expectedText && activeTitle && activeTitle === expectedText) {
+          return { ok: true };
+        }
+        const activeSentenceNumber = parseSentenceNumberFromTitle(
+          activeItem?.querySelector(".title")?.textContent || ""
+        );
+        if (
+          Number.isFinite(expectedSentenceNumber) &&
+          Number.isFinite(activeSentenceNumber) &&
+          expectedSentenceNumber === activeSentenceNumber
+        ) {
+          return { ok: true };
+        }
+        await delay(100);
+      }
+      return { ok: false, message: "页面文本同步超时。" };
     }
 
     function getAudioUrlFromDom() {
@@ -702,9 +755,12 @@
       canFillPageText,
       fillPageText,
       getQualifiedRecords,
+      getRecordDisplayName,
+      isRecordQualified,
       getCurrentItem,
       refreshCurrentPageData,
       selectRecord,
+      waitForPageTextReady,
       isRoundOneCollectPage,
       parseHashParams,
       start,

@@ -273,7 +273,8 @@
       aiOptions: config.aiOptions || {},
     });
     const processedQualifiedItemIds = new Set();
-    let autoFillRunning = false;
+    let batchQualifiedAutofillRunning = false;
+    let batchQualifiedAutofillCancelRequested = false;
 
     function getRecordProcessKey(record) {
       const id = String(record?.id || "").trim();
@@ -291,84 +292,206 @@
       return "";
     }
 
-    async function autoFillNextQualifiedItem() {
+    function waitBetweenBatchItems() {
+      const delayMs = 300 + Math.floor(Math.random() * 500);
+      return new Promise(function (resolve) {
+        window.setTimeout(resolve, delayMs);
+      });
+    }
+
+    function setBatchButtonState(isRunning, isStopping) {
+      if (typeof ui.setBatchAutofillRunning === "function") {
+        ui.setBatchAutofillRunning(isRunning === true);
+      }
+      if (typeof ui.setBatchAutofillStopping === "function") {
+        ui.setBatchAutofillStopping(isStopping === true);
+      }
+    }
+
+    async function stopBatchQualifiedAutofill() {
+      if (!batchQualifiedAutofillRunning) {
+        ui.setStatus("当前没有正在运行的连续填入任务。", "info");
+        return { ok: false, message: "not-running" };
+      }
+      batchQualifiedAutofillCancelRequested = true;
+      setBatchButtonState(true, true);
+      ui.setStatus("已请求停止，当前条完成后不再继续。", "info");
+      return { ok: true, message: "stop-requested" };
+    }
+
+    async function autoFillQualifiedItemsBatch() {
       if (config.aiRecommendEnabled === false) {
         ui.setStatus("AI 推荐已在 DataBaker 设置中关闭。", "error");
         return { ok: false, message: "ai-disabled" };
       }
-      if (autoFillRunning) {
-        ui.setStatus("正在处理上一条质检合格数据，请稍候。", "info");
-        return { ok: false, message: "busy" };
+      if (batchQualifiedAutofillRunning) {
+        return stopBatchQualifiedAutofill();
       }
 
-      autoFillRunning = true;
+      batchQualifiedAutofillRunning = true;
+      batchQualifiedAutofillCancelRequested = false;
+      setBatchButtonState(true, false);
+
+      let successCount = 0;
+      let failCount = 0;
+      let skipCount = 0;
+      let remainingCount = 0;
+
       try {
         ui.ensureMounted();
-        ui.setStatus("正在刷新当前列表...", "info");
+        ui.setStatus("正在刷新当前页列表...", "info");
         const refreshed = await dataApi.refreshCurrentPageData({
           pageSize: 50,
           forcePageSize: true,
         });
         if (!refreshed?.ok) {
-          ui.setStatus(refreshed?.message || "刷新当前列表失败。", "error");
+          ui.setStatus(refreshed?.message || "刷新当前页列表失败。", "error");
           return { ok: false, message: "refresh-failed" };
         }
 
-        const qualifiedRecords = dataApi.getQualifiedRecords(refreshed.entry);
-        const targetRecord = qualifiedRecords.find(function (record) {
+        const qualifiedRecords = dataApi.getQualifiedRecords(refreshed.entry).filter(function (record) {
           const key = getRecordProcessKey(record);
           if (!key) {
             return true;
           }
           return !processedQualifiedItemIds.has(key);
         });
+        const totalCount = qualifiedRecords.length;
 
-        if (!targetRecord) {
+        if (totalCount <= 0) {
           ui.setStatus("当前页没有可处理的质检合格数据。", "info");
           return { ok: true, message: "no-qualified" };
         }
 
-        const selected = await dataApi.selectRecord(targetRecord);
-        if (!selected?.ok) {
-          ui.setStatus(selected?.message || "找不到对应 DOM 条目。", "error");
-          return { ok: false, message: "select-failed" };
+        ui.setStatus("检测到 " + String(totalCount) + " 条质检合格数据，开始连续处理。", "info");
+
+        for (let index = 0; index < qualifiedRecords.length; index += 1) {
+          const record = qualifiedRecords[index];
+          const displayName =
+            typeof dataApi.getRecordDisplayName === "function"
+              ? dataApi.getRecordDisplayName(record)
+              : "第 " + String(index + 1) + " 条";
+
+          if (batchQualifiedAutofillCancelRequested) {
+            remainingCount = qualifiedRecords.length - index;
+            break;
+          }
+
+          if (typeof dataApi.isRecordQualified === "function" && !dataApi.isRecordQualified(record)) {
+            skipCount += 1;
+            ui.setStatus(displayName + " 不是质检合格，已跳过。", "info");
+            continue;
+          }
+
+          ui.setStatus(
+            "正在处理第 " +
+              String(index + 1) +
+              "/" +
+              String(totalCount) +
+              " 条合格项：" +
+              displayName +
+              "。",
+            "info"
+          );
+
+          let selected = null;
+          try {
+            selected = await dataApi.selectRecord(record);
+          } catch (error) {
+            selected = { ok: false, message: error?.message || String(error) };
+          }
+          if (!selected?.ok) {
+            failCount += 1;
+            ui.setStatus(displayName + " 选中失败：" + (selected?.message || "未知错误"), "error");
+            await waitBetweenBatchItems();
+            continue;
+          }
+
+          const ready = await dataApi.waitForPageTextReady(record, 3000);
+          if (!ready?.ok) {
+            failCount += 1;
+            ui.setStatus(displayName + " 页面文本同步失败：" + (ready?.message || "超时"), "error");
+            await waitBetweenBatchItems();
+            continue;
+          }
+
+          try {
+            const item = await dataApi.getCurrentItem({ allowFetch: false });
+            ui.updateCurrentItemKey(item.key);
+            const recommendation = await ai.recommend(item);
+            ui.renderResult(recommendation);
+            const fillResult = ui.fillRecommendedText();
+            if (fillResult?.ok === false) {
+              failCount += 1;
+              ui.setStatus(displayName + " 填入失败：" + (fillResult?.message || "未知错误"), "error");
+            } else {
+              const processedKey = getRecordProcessKey(record);
+              if (processedKey) {
+                processedQualifiedItemIds.add(processedKey);
+              }
+              successCount += 1;
+              ui.setStatus(
+                "已填入第 " +
+                  String(index + 1) +
+                  "/" +
+                  String(totalCount) +
+                  " 条，继续下一条...",
+                "success"
+              );
+            }
+          } catch (error) {
+            failCount += 1;
+            ui.setStatus(displayName + " AI 推荐失败：" + (error?.message || String(error)), "error");
+          }
+
+          if (index < qualifiedRecords.length - 1) {
+            await waitBetweenBatchItems();
+          }
         }
 
-        const sentenceNumber = Number(targetRecord?.sentenceNumber);
-        const sentenceText = Number.isFinite(sentenceNumber)
-          ? "第 " + String(sentenceNumber) + " 条"
-          : "目标条目";
-        ui.setStatus(sentenceText + "质检合格数据已选中，正在生成 AI 推荐...", "info");
-
-        const item = await dataApi.getCurrentItem({ allowFetch: false });
-        ui.updateCurrentItemKey(item.key);
-        const recommendation = await ai.recommend(item);
-        ui.renderResult(recommendation);
-
-        const fillResult = ui.fillRecommendedText();
-        if (fillResult?.ok === false) {
-          ui.setStatus(fillResult.message || "推荐文本填入失败。", "error");
-          return { ok: false, message: "fill-failed" };
+        if (batchQualifiedAutofillCancelRequested) {
+          ui.setStatus(
+            "已停止：成功 " +
+              String(successCount) +
+              " 条，失败 " +
+              String(failCount) +
+              " 条，跳过 " +
+              String(skipCount) +
+              " 条，剩余 " +
+              String(remainingCount) +
+              " 条未处理。",
+            "info"
+          );
+          return { ok: true, message: "stopped" };
         }
 
-        const processedKey = getRecordProcessKey(targetRecord);
-        if (processedKey) {
-          processedQualifiedItemIds.add(processedKey);
-        }
-        ui.setStatus("AI 推荐已填入，请人工复核后保存。", "success");
-        return { ok: true, message: "filled" };
+        ui.setStatus(
+          "当前页合格项处理完成：成功 " +
+            String(successCount) +
+            " 条，失败 " +
+            String(failCount) +
+            " 条，跳过 " +
+            String(skipCount) +
+            " 条。请人工复核后保存。",
+          "success"
+        );
+        return { ok: true, message: "completed" };
       } catch (error) {
-        ui.setStatus("AI 推荐失败：" + (error?.message || String(error)), "error");
-        return { ok: false, message: "recommend-failed" };
+        ui.setStatus("连续处理失败：" + (error?.message || String(error)), "error");
+        return { ok: false, message: "batch-failed" };
       } finally {
-        autoFillRunning = false;
+        batchQualifiedAutofillRunning = false;
+        batchQualifiedAutofillCancelRequested = false;
+        setBatchButtonState(false, false);
       }
     }
 
     const ui = uiFactory.createRuntime({
       canFillPageText: dataApi.canFillPageText,
       fillPageText: dataApi.fillPageText,
-      onAutoFillQualifiedItem: autoFillNextQualifiedItem,
+      onAutoFillQualifiedItemsBatch: autoFillQualifiedItemsBatch,
+      onStopAutoFillQualifiedItemsBatch: stopBatchQualifiedAutofill,
+      onAutoFillQualifiedItem: autoFillQualifiedItemsBatch,
       onRecommend: async function () {
         const item = await dataApi.getCurrentItem();
         ui.updateCurrentItemKey(item.key);
@@ -411,7 +534,7 @@
         return ui.ignoreAiResult();
       },
       autoFillQualifiedItem: function () {
-        return autoFillNextQualifiedItem();
+        return autoFillQualifiedItemsBatch();
       },
       showStatus: showShortcutStatus,
     };

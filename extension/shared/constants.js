@@ -87,7 +87,7 @@
   const DATABAKER_PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS = [
     { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
-    { key: "autoFillQualifiedItem", label: "AI填入合格项" },
+    { key: "autoFillQualifiedItem", label: "AI连续填入合格项" },
     { key: "copyAiHeardText", label: "复制 AI 听音文本" },
     { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
     { key: "fillRecommendedText", label: "填入推荐文本" },

@@ -171,6 +171,8 @@
     let autoFillQualifiedButtonNode = null;
     let currentResult = null;
     let currentItemKey = "";
+    let batchAutofillRunning = false;
+    let batchAutofillStopping = false;
 
     function findMountTarget() {
       return (
@@ -372,7 +374,7 @@
       const foot = document.createElement("div");
       foot.className = "asr-edge-db-foot";
       foot.textContent =
-        "当前仅自动处理当前页质检合格单条；不会自动保存、提交、批量识别或流转。";
+        "当前仅处理当前页质检合格数据；可连续处理与手动停止，不会自动保存、提交或流转。";
       resultWrap.appendChild(foot);
 
       root.appendChild(resultWrap);
@@ -404,23 +406,55 @@
       }
     }
 
-    async function handleAutoFillQualifiedClick(button) {
-      if (typeof deps.onAutoFillQualifiedItem !== "function") {
-        setStatus("AI填入合格项运行时未就绪。", "error");
+    function updateQualifiedAutofillButtonState() {
+      const button = autoFillQualifiedButtonNode;
+      if (!button) {
         return;
       }
-      const triggerButton = button || autoFillQualifiedButtonNode;
-      if (triggerButton) {
-        triggerButton.disabled = true;
+      if (batchAutofillRunning) {
+        button.textContent = "停止AI填入";
+        button.disabled = batchAutofillStopping === true;
+      } else {
+        button.textContent = "AI连续填入合格项";
+        button.disabled = false;
       }
+    }
+
+    async function handleAutoFillQualifiedClick() {
+      const startFn =
+        typeof deps.onAutoFillQualifiedItemsBatch === "function"
+          ? deps.onAutoFillQualifiedItemsBatch
+          : typeof deps.onAutoFillQualifiedItem === "function"
+            ? deps.onAutoFillQualifiedItem
+            : null;
+      const stopFn =
+        typeof deps.onStopAutoFillQualifiedItemsBatch === "function"
+          ? deps.onStopAutoFillQualifiedItemsBatch
+          : null;
+      if (!startFn) {
+        setStatus("AI连续填入合格项运行时未就绪。", "error");
+        return;
+      }
+
+      if (batchAutofillRunning) {
+        if (!stopFn) {
+          setStatus("停止功能未就绪。", "error");
+          return;
+        }
+        batchAutofillStopping = true;
+        updateQualifiedAutofillButtonState();
+        try {
+          await stopFn();
+        } catch (error) {
+          setStatus(error?.message || String(error), "error");
+        }
+        return;
+      }
+
       try {
-        await deps.onAutoFillQualifiedItem();
+        await startFn();
       } catch (error) {
         setStatus(error?.message || String(error), "error");
-      } finally {
-        if (triggerButton) {
-          triggerButton.disabled = false;
-        }
       }
     }
 
@@ -450,10 +484,10 @@
       topButton.className =
         "el-button el-button--success el-button--mini asr-edge-db-qualified-autofill-filter";
       topButton.setAttribute(TOP_BUTTON_ATTR, "true");
-      topButton.textContent = "AI填入合格项";
-      topButton.title = "刷新当前页列表，只处理质检合格数据，AI 推荐并填入，不自动保存提交。";
+      topButton.textContent = "AI连续填入合格项";
+      topButton.title = "刷新当前页列表，只连续处理质检合格数据，AI 推荐并填入，不自动保存提交。";
       topButton.addEventListener("click", function () {
-        handleAutoFillQualifiedClick(topButton);
+        handleAutoFillQualifiedClick();
       });
       const batchButton = Array.from(mountTarget.querySelectorAll("button")).find(function (button) {
         return normalizeText(button.textContent || "").indexOf("批量判定") >= 0;
@@ -470,6 +504,7 @@
         mountedLogPrinted = true;
       }
       autoFillQualifiedButtonNode = topButton;
+      updateQualifiedAutofillButtonState();
       return topButton;
     }
 
@@ -582,14 +617,15 @@
           );
           fallbackLogPrinted = true;
         }
-        const fallbackButton = createButton("AI填入合格项");
+        const fallbackButton = createButton("AI连续填入合格项");
         fallbackButton.title =
-          "刷新当前页列表，只处理质检合格数据，AI 推荐并填入，不自动保存提交。";
+          "刷新当前页列表，只连续处理质检合格数据，AI 推荐并填入，不自动保存提交。";
         fallbackButton.addEventListener("click", function () {
-          handleAutoFillQualifiedClick(fallbackButton);
+          handleAutoFillQualifiedClick();
         });
         head.querySelector(".asr-edge-db-actions")?.appendChild(fallbackButton);
         autoFillQualifiedButtonNode = fallbackButton;
+        updateQualifiedAutofillButtonState();
       }
       return root;
     }
@@ -622,6 +658,21 @@
       autoFillQualifiedButtonNode = null;
       currentResult = null;
       currentItemKey = "";
+      batchAutofillRunning = false;
+      batchAutofillStopping = false;
+    }
+
+    function setBatchAutofillRunning(isRunning) {
+      batchAutofillRunning = isRunning === true;
+      if (!batchAutofillRunning) {
+        batchAutofillStopping = false;
+      }
+      updateQualifiedAutofillButtonState();
+    }
+
+    function setBatchAutofillStopping(isStopping) {
+      batchAutofillStopping = isStopping === true;
+      updateQualifiedAutofillButtonState();
     }
 
     return {
@@ -635,6 +686,8 @@
       remove,
       renderResult,
       requestAiRecommend,
+      setBatchAutofillRunning,
+      setBatchAutofillStopping,
       setStatus,
       updateCurrentItemKey,
     };
