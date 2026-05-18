@@ -4,7 +4,7 @@
 
 - 主目标：Task21。
 - 专项结构：`same_font`、`image_b_texts_removed`、`other_changes`。
-- 当前阶段：Task21 快捷键 + AI 分析调试版。
+- 当前阶段：Task21助手（快捷键 + AI 辅助填写）。
 - 采集方式：Google Chrome DevTools MCP、DevTools DOM snapshot、只读 Console 结构脚本、Network 面板结构观察。
 - 当前不做自动化流转，不实现自动领取、自动提交、自动放弃、自动跳过、自动送审。
 
@@ -95,7 +95,7 @@
 - 疑似标注内审环境下会阻止 `7`，避免误触发送审。
 - `6/7` 在 `viewMode=true` 查看页不执行。
 
-## AI 辅助分析调试版
+## AI 辅助分析（Task21助手）
 
 - 单板块分析：
   - same_font
@@ -105,9 +105,10 @@
   - 先判 same_font
   - same_font=false/unsure 时按流程将后两项标记为 not_applicable
   - same_font=true 或 same underlying font+artistic effect 时继续分析后两项
-- AI 结果仅用于辅助判断，不自动写入页面，不自动保存/提交/送审。
-- 调试输出包含 token、图片统计、requestId、耗时和价格估算。
-- Prompt 与规则沉淀路径：`ai/README.md`、`ai/prompt.md`。
+- AI 结果仅用于辅助判断；用户点击“填写 AI 答案”后才会写入页面，不自动保存/提交/送审。
+- 悬浮窗主视图仅展示推荐选择、标准答案、理由和填写按钮；调试信息默认折叠。
+- 悬浮窗支持拖动、调整宽高和重置位置。
+- Prompt 与规则沉淀路径：`ai/README.md`、`ai/prompt.md`、`backend/prompt.js`。
 - UI 形态：字段标题右侧内联按钮 + 字段锚点悬浮窗（不再使用右下角全局面板）。
 - 字段按钮：
   - same_font：`AI分析`、`整体分析`
@@ -119,6 +120,16 @@
   - `Alt+3`：AI 分析 other_changes
   - `Alt+4`：AI 整体分析
 - 数据采集优先 `get-item-info`，DOM 只作为回退。
+- `image_b_texts_removed` 的 `specify` 标准答案必须使用：
+  - `N instance of xxx`
+  - `N instances of xxx`
+- `other_changes` 只比较 `image_b_removed` 与 `image_b`，`specify` 输出英文短句。
+
+模型口径说明：
+
+- 默认模型保持 `qwen3.6-plus`（视觉/推理/单模型）。
+- 兼容历史误填 `qwen3.6plus`，会归一为 `qwen3.6-plus`。
+- 本次未能联网核对官方文档，保留项目当前 `qwen3.6-plus` 口径。
 
 ## 待补清单
 

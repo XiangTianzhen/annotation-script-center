@@ -1001,14 +1001,14 @@
     abakaAiTaskPageCapture: {
       id: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
       platformId: ABAKA_AI_PLATFORM_ID,
-      label: "Abaka AI Task21 快捷键与 AI 分析",
-      shortLabel: "Task21 快捷键+AI",
+      label: "Task21助手",
+      shortLabel: "Task21助手",
       description:
-        "用于 Task21 same_font/按钮快捷键与 AI 调试分析（AI 仅建议，不自动写入）。",
+        "Task21 same_font、文本移除和 other_changes 的快捷键与 AI 辅助填写。",
       note:
         "快捷键与按钮动作仅 DOM 点击；AI 面板仅调用统一后端分析，不自动保存/提交/送审。",
       capabilityScope: "task21-shortcuts-and-ai-analysis-debug",
-      statusLabel: "Task21 快捷键 + AI 分析调试版",
+      statusLabel: "Task21 助手",
       detailView: "abaka-ai-task-page-capture",
       host: ABAKA_AI_PLATFORM.host,
       matchUrl: "http://abao.fortidyndns.com:30473/login",

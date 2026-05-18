@@ -1236,6 +1236,9 @@
     if (!text) {
       return "";
     }
+    if (text === "qwen3.6plus") {
+      return "qwen3.6-plus";
+    }
     if (text === "qwen-vl-max-latest") {
       return "qwen-vl-max";
     }

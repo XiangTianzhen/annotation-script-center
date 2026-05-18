@@ -6,6 +6,8 @@
   const OPTION_FALSE = "false";
   const OPTION_ARTISTIC = "same underlying font+artistic effect";
   const OPTION_SPECIFY = "specify";
+  const OPTION_UNSURE = "unsure";
+  const OPTION_NULL = "null";
   const STASH_BUTTON_TEXTS = ["暂存", "save", "stash"];
   const SUBMIT_REVIEW_BUTTON_TEXTS = ["送审", "submit review", "submit"];
   const REVIEW_ROLE_SIGNAL_TEXTS = ["标注内审", "领取审核", "claim review", "reviewer", "review team"];
@@ -170,6 +172,95 @@
       return true;
     }
     return false;
+  }
+
+  function isTextInputWritable(node) {
+    if (!(node instanceof Element) || !isVisible(node) || isElementDisabled(node)) {
+      return false;
+    }
+    if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) {
+      if (node.readOnly) {
+        return false;
+      }
+      return true;
+    }
+    if (node.getAttribute("contenteditable") === "true" || node.getAttribute("role") === "textbox") {
+      return node.getAttribute("aria-readonly") !== "true";
+    }
+    return false;
+  }
+
+  function findFieldTextInput(fieldName) {
+    const container = findFieldContainer(fieldName, OPTION_SPECIFY) || findFieldContainer(fieldName, OPTION_TRUE) || findFieldTitleNode(fieldName)?.closest(".l-item,section,article,form,[role='group'],[class*='item'],[class*='field'],[class*='question']");
+    if (!(container instanceof Element)) {
+      return null;
+    }
+    const candidates = container.querySelectorAll(
+      "textarea,input[type='text'],input:not([type]),[contenteditable='true'],[role='textbox']"
+    );
+    for (let i = 0; i < candidates.length; i += 1) {
+      const node = candidates[i];
+      if (isTextInputWritable(node)) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+  function setTextValue(node, value) {
+    if (!isTextInputWritable(node)) {
+      return {
+        ok: false,
+        message: "输入控件不可写或不可见。",
+      };
+    }
+    const text = String(value || "");
+    if (node instanceof HTMLTextAreaElement) {
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+      if (descriptor && typeof descriptor.set === "function") {
+        descriptor.set.call(node, text);
+      } else {
+        node.value = text;
+      }
+      node.dispatchEvent(new Event("input", { bubbles: true }));
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+      return { ok: true, message: "已写入文本。", node: node };
+    }
+    if (node instanceof HTMLInputElement) {
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      if (descriptor && typeof descriptor.set === "function") {
+        descriptor.set.call(node, text);
+      } else {
+        node.value = text;
+      }
+      node.dispatchEvent(new Event("input", { bubbles: true }));
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+      return { ok: true, message: "已写入文本。", node: node };
+    }
+    node.textContent = text;
+    node.dispatchEvent(new Event("input", { bubbles: true }));
+    node.dispatchEvent(new Event("compositionend", { bubbles: true }));
+    node.dispatchEvent(new Event("change", { bubbles: true }));
+    return { ok: true, message: "已写入文本。", node: node };
+  }
+
+  function fillFieldText(fieldName, value) {
+    const input = findFieldTextInput(fieldName);
+    if (!input) {
+      return {
+        ok: false,
+        message: "未找到可填写输入框：" + fieldName,
+      };
+    }
+    const result = setTextValue(input, value);
+    if (!result.ok) {
+      return result;
+    }
+    return {
+      ok: true,
+      message: "已填写 " + fieldName,
+      node: result.node,
+    };
   }
 
   function getActionButtonText(node) {
@@ -688,6 +779,7 @@
       clickStashSave: clickStashSave,
       clickSubmitReview: clickSubmitReview,
       selectFieldOption: selectFieldOption,
+      fillFieldText: fillFieldText,
       waitForField: waitForField,
       isViewMode: isViewMode,
       isLikelyReviewRole: isLikelyReviewRole,
@@ -698,6 +790,8 @@
   globalThis.__ASCEdgeAbakaAiDomActions = {
     createRuntime: createRuntime,
     selectFieldOption: selectFieldOption,
+    fillFieldText: fillFieldText,
+    setTextValue: setTextValue,
     waitForField: waitForField,
   };
 })();

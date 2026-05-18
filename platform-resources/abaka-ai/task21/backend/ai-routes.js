@@ -325,13 +325,80 @@ function sanitizeImageStats(images) {
   });
 }
 
+function normalizeChoiceText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function countEnglishWords(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return 0;
+  }
+  const tokens = text.match(/[A-Za-z0-9]+(?:[_-][A-Za-z0-9]+)*/g);
+  return tokens ? tokens.length : 0;
+}
+
+function normalizeRemovedLines(sourceLines, warnings) {
+  const safeWarnings = Array.isArray(warnings) ? warnings : [];
+  const result = [];
+  const inputLines = Array.isArray(sourceLines)
+    ? sourceLines
+    : String(sourceLines || "")
+        .split(/\r?\n/)
+        .map(function (line) {
+          return String(line || "").trim();
+        })
+        .filter(Boolean);
+  inputLines.forEach(function (line) {
+    const original = String(line || "").trim();
+    if (!original) {
+      return;
+    }
+    if (/^all\s+instances?\s+of\s+/i.test(original)) {
+      safeWarnings.push("image_b_texts_removed: 禁止使用 all instances of 格式，已忽略。");
+      return;
+    }
+    if (/^(\d+[\).]|[-*•·●])\s+/i.test(original)) {
+      safeWarnings.push("image_b_texts_removed: 禁止 bullet/编号格式，已忽略非法行。");
+      return;
+    }
+    const cleanTail = original.replace(/[.,;:!?。；：！？]+$/g, "").trim();
+    const match = cleanTail.match(/^([1-9]\d*)\s+(instance|instances)\s+of\s+(.+)$/i);
+    if (!match) {
+      safeWarnings.push("image_b_texts_removed: 非法标准答案格式，已忽略：" + sanitizeText(original, 120));
+      return;
+    }
+    const count = Number(match[1]);
+    const noun = String(match[2] || "").toLowerCase();
+    const text = String(match[3] || "").replace(/\s+/g, " ").trim();
+    if (!text) {
+      safeWarnings.push("image_b_texts_removed: 文本内容为空，已忽略。");
+      return;
+    }
+    const expectedNoun = count === 1 ? "instance" : "instances";
+    if (noun !== expectedNoun) {
+      safeWarnings.push(
+        "image_b_texts_removed: instance 单复数已自动修正（" + String(count) + " -> " + expectedNoun + "）。"
+      );
+    }
+    result.push(String(count) + " " + expectedNoun + " of " + text);
+  });
+  return result.slice(0, 200);
+}
+
 function normalizeSameFontSection(section, target) {
   const source = normalizeObject(section);
   const defaultApplicable = target === "same_font" || target === "overall";
-  const value = sanitizeText(source.value || (defaultApplicable ? "unsure" : "not_applicable"), 120);
+  const allowed = ["true", "false", "unsure", "same underlying font+artistic effect", "not_applicable"];
+  const rawChoice = normalizeChoiceText(source.choice || source.value);
+  let choice = allowed.indexOf(rawChoice) >= 0 ? rawChoice : defaultApplicable ? "unsure" : "not_applicable";
+  if (!defaultApplicable) {
+    choice = "not_applicable";
+  }
   return {
     applicable: source.applicable !== false && defaultApplicable,
-    value: value || (defaultApplicable ? "unsure" : "not_applicable"),
+    choice: choice,
+    value: choice,
     confidence: Number.isFinite(Number(source.confidence)) ? Number(source.confidence) : 0,
     reason_cn: sanitizeText(source.reason_cn || "", 500),
     evidence: normalizeArray(source.evidence),
@@ -342,26 +409,57 @@ function normalizeSameFontSection(section, target) {
 function normalizeRemovedSection(section, target) {
   const source = normalizeObject(section);
   const applicable = target !== "same_font";
-  const valueType = sanitizeText(source.value_type || (applicable ? "blank" : "not_applicable"), 80);
-  const value = String(source.value || "").slice(0, 6000);
-  const lines = Array.isArray(source.lines)
-    ? source.lines
-        .map(function (line) {
-          return String(line || "").trim();
-        })
-        .filter(Boolean)
-        .slice(0, 200)
-    : value
-        .split(/\r?\n/)
-        .map(function (line) {
-          return String(line || "").trim();
-        })
-        .filter(Boolean)
-        .slice(0, 200);
+  const warnings = normalizeArray(source.warnings);
+  const rawValue = String(source.value || "").trim();
+  const inferredLines = Array.isArray(source.lines) ? source.lines : rawValue.split(/\r?\n/);
+  const normalizedLines = normalizeRemovedLines(inferredLines, warnings);
+  const rawChoice = normalizeChoiceText(source.choice);
+  let choice = "";
+  if (rawChoice === "specify" || rawChoice === "true" || rawChoice === "null" || rawChoice === "not_applicable") {
+    choice = rawChoice;
+  } else if (normalizeChoiceText(rawValue) === "true") {
+    choice = "true";
+  } else if (normalizedLines.length > 0) {
+    choice = "specify";
+  } else {
+    choice = applicable ? "null" : "not_applicable";
+  }
+  if (!applicable) {
+    choice = "not_applicable";
+  }
+  let valueType = "blank";
+  let value = "";
+  let lines = [];
+  if (choice === "specify") {
+    if (normalizedLines.length <= 0) {
+      warnings.push("image_b_texts_removed: choice=specify 但无合法标准答案，已降级为 null。");
+      choice = "null";
+    } else {
+      lines = normalizedLines;
+      value = lines.join("\n").slice(0, 6000);
+      valueType = "list";
+    }
+  }
+  if (choice === "true") {
+    value = "true";
+    lines = [];
+    valueType = "true";
+  }
+  if (choice === "null") {
+    value = "";
+    lines = [];
+    valueType = "blank";
+  }
+  if (choice === "not_applicable") {
+    value = "";
+    lines = [];
+    valueType = "not_applicable";
+  }
 
   return {
     applicable,
-    value_type: valueType || (applicable ? "blank" : "not_applicable"),
+    choice: choice,
+    value_type: valueType,
     value,
     lines,
     segment_count: Number.isFinite(Number(source.segment_count))
@@ -369,24 +467,55 @@ function normalizeRemovedSection(section, target) {
       : lines.length,
     reason_cn: sanitizeText(source.reason_cn || "", 500),
     evidence: normalizeArray(source.evidence),
-    warnings: normalizeArray(source.warnings),
+    warnings: warnings,
   };
 }
 
 function normalizeOtherSection(section, target) {
   const source = normalizeObject(section);
   const applicable = target !== "same_font";
-  const value = String(source.value || "").slice(0, 4000);
+  const warnings = normalizeArray(source.warnings);
+  const rawValue = String(source.value || "").trim();
+  const rawChoice = normalizeChoiceText(source.choice);
+  let choice = "";
+  if (rawChoice === "specify" || rawChoice === "unsure" || rawChoice === "null" || rawChoice === "not_applicable") {
+    choice = rawChoice;
+  } else if (normalizeChoiceText(rawValue) === "unsure") {
+    choice = "unsure";
+  } else if (rawValue) {
+    choice = "specify";
+  } else {
+    choice = applicable ? "null" : "not_applicable";
+  }
+  if (!applicable) {
+    choice = "not_applicable";
+  }
+  let value = "";
+  let valueType = "blank";
+  if (choice === "specify") {
+    value = rawValue.slice(0, 4000);
+    valueType = "text";
+  } else if (choice === "unsure") {
+    value = "unsure";
+    valueType = "unsure";
+  } else if (choice === "not_applicable") {
+    value = "";
+    valueType = "not_applicable";
+  }
+  if (choice === "specify" && /[\u4e00-\u9fa5]/.test(value)) {
+    warnings.push("other_changes: 检测到中文内容，建议使用英文短句。");
+  }
   return {
     applicable,
-    value_type: sanitizeText(source.value_type || (applicable ? "blank" : "not_applicable"), 80),
+    choice: choice,
+    value_type: valueType,
     value,
     word_count: Number.isFinite(Number(source.word_count))
       ? Math.max(0, Math.floor(Number(source.word_count)))
-      : 0,
+      : countEnglishWords(value),
     reason_cn: sanitizeText(source.reason_cn || "", 500),
     evidence: normalizeArray(source.evidence),
-    warnings: normalizeArray(source.warnings),
+    warnings: warnings,
   };
 }
 
@@ -400,13 +529,30 @@ function normalizeWorkflowSection(section) {
 
 function normalizeResultSchema(target, parsed) {
   const source = normalizeObject(parsed);
-  return {
+  const normalized = {
     target,
     same_font: normalizeSameFontSection(source.same_font, target),
     image_b_texts_removed: normalizeRemovedSection(source.image_b_texts_removed, target),
     other_changes: normalizeOtherSection(source.other_changes, target),
     workflow: normalizeWorkflowSection(source.workflow),
   };
+  const sameFontChoice = normalizeChoiceText(normalized.same_font.choice || normalized.same_font.value);
+  if (target === "overall" && (sameFontChoice === "false" || sameFontChoice === "unsure")) {
+    normalized.image_b_texts_removed.choice = "not_applicable";
+    normalized.image_b_texts_removed.value_type = "not_applicable";
+    normalized.image_b_texts_removed.value = "";
+    normalized.image_b_texts_removed.lines = [];
+    normalized.image_b_texts_removed.segment_count = 0;
+    normalized.other_changes.choice = "not_applicable";
+    normalized.other_changes.value_type = "not_applicable";
+    normalized.other_changes.value = "";
+    normalized.other_changes.word_count = 0;
+    normalized.workflow.skip_later_fields = true;
+    if (!normalized.workflow.skip_reason) {
+      normalized.workflow.skip_reason = "same_font=false_or_unsure";
+    }
+  }
+  return normalized;
 }
 
 function normalizeStagePayload(stages) {
@@ -729,5 +875,6 @@ module.exports = {
   AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  normalizeResultSchema,
   registerAiRoutes,
 };

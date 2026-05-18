@@ -1090,7 +1090,7 @@
 
         <section id="detail-abaka-ai-task-page-panel" class="detail-panel hidden">
           <div class="field-card">
-            <strong>Abaka AI Task21 快捷键与 AI 分析辅助</strong>
+            <strong>Task21助手</strong>
             <span>快捷键仅用于点击页面真实选项/按钮，不直接调用平台接口。</span>
             <span>仅在 Task21 `/items` 且检测到 `same_font` 字段时触发。</span>
           </div>
@@ -1103,6 +1103,12 @@
           </div>
 
           <div class="field-card" style="margin-top: 18px;">
+            <strong>AI 设置</strong>
+            <span>默认隐藏。连续点击当前页标题 10 次后显示，仅调试时修改。</span>
+            <span id="abaka-ai-advanced-tip" class="status-text"></span>
+          </div>
+
+          <div id="abaka-ai-settings-advanced" class="field-card hidden" style="margin-top: 18px;">
               <strong>AI 调试</strong>
                 <span>默认使用双模型方案：qwen3.6-plus（视觉） + qwen3.6-plus（推理）。</span>
                 <span>单模型方案默认：qwen3.6-plus；可用于快速对比。</span>
@@ -1167,7 +1173,7 @@
           </div>
 
           <div class="field-actions">
-            <button id="save-abaka-settings" class="primary-button" type="button">保存 Abaka AI 设置</button>
+            <button id="save-abaka-settings" class="primary-button" type="button">保存 Task21助手设置</button>
           </div>
           <div id="abaka-status" class="status-text"></div>
         </section>

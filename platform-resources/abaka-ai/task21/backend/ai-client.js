@@ -108,6 +108,9 @@ function mapLegacyAbakaAiModelName(value) {
   if (!text) {
     return "";
   }
+  if (text === "qwen3.6plus") {
+    return "qwen3.6-plus";
+  }
   if (text === "qwen-vl-max-latest") {
     return "qwen-vl-max";
   }
@@ -502,6 +505,10 @@ function buildMockFinalResult(target) {
     target: normalizedTarget,
     same_font: {
       applicable: true,
+      choice:
+        normalizedTarget === "image_b_texts_removed" || normalizedTarget === "other_changes"
+          ? "not_applicable"
+          : "true",
       value:
         normalizedTarget === "image_b_texts_removed" || normalizedTarget === "other_changes"
           ? "not_applicable"
@@ -513,6 +520,7 @@ function buildMockFinalResult(target) {
     },
     image_b_texts_removed: {
       applicable: normalizedTarget !== "same_font",
+      choice: normalizedTarget === "same_font" ? "not_applicable" : "null",
       value_type: normalizedTarget === "same_font" ? "not_applicable" : "blank",
       value: "",
       lines: [],
@@ -523,6 +531,7 @@ function buildMockFinalResult(target) {
     },
     other_changes: {
       applicable: normalizedTarget !== "same_font",
+      choice: normalizedTarget === "same_font" ? "not_applicable" : "null",
       value_type: normalizedTarget === "same_font" ? "not_applicable" : "blank",
       value: "",
       word_count: 0,

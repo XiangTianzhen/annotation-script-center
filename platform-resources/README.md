@@ -189,7 +189,8 @@ platform-resources/
 - 是否下载接口：暂无下载接口
 - token/password：不需要
 - 数据目录：当前为 AI 调试接口，无统一 CSV 下载目录
-- 安全说明：AI 仅返回建议，不自动写入、不保存、不提交。
+- 安全说明：AI 仅返回建议，不自动写入、不保存、不提交；前端 Task21助手仅在用户点击“填写 AI 答案”时才执行字段写入。
+- 输出规则摘要：`image_b_texts_removed` 的 `specify` 仅允许 `N instance(s) of xxx`；`other_changes` 仅比较 `image_b_removed` 与 `image_b`。
 
 ### Admin 项目数据下载 API
 

@@ -4,18 +4,14 @@
   const PANEL_CLASS = "asc-abaka-ai-result-panel";
   const BUTTON_CLASS = "asc-abaka-ai-btn";
   const BUTTON_OVERALL_CLASS = "asc-abaka-ai-btn-overall";
+  const LAYOUT_STORAGE_KEY = "asc-abaka-task21-ai-panel-layout-v1";
 
   const FIELD_CONFIGS = {
     same_font: {
       key: "same_font",
       title: "same_font",
       actionButtons: [
-        {
-          key: "aiAnalyzeSameFont",
-          label: "AI分析",
-          target: "same_font",
-          panelField: "same_font",
-        },
+        { key: "aiAnalyzeSameFont", label: "AI分析", target: "same_font", panelField: "same_font" },
         {
           key: "aiAnalyzeOverall",
           label: "整体分析",
@@ -115,12 +111,19 @@
       }
       return value;
     }
-
     return safeJsonParse(
       JSON.stringify(payload || {}, function (key, value) {
         return sanitizeValue(key, value);
       })
     );
+  }
+
+  function formatElapsedMs(ms) {
+    const value = Number(ms);
+    if (!Number.isFinite(value) || value <= 0) {
+      return "0.0s";
+    }
+    return (value / 1000).toFixed(1) + "s";
   }
 
   function findFieldItemByTitle(fieldTitle) {
@@ -139,13 +142,147 @@
       }
       const item = node.closest(".l-item");
       if (item) {
-        return {
-          item: item,
-          titleNode: node,
-        };
+        return { item: item, titleNode: node };
       }
     }
     return null;
+  }
+
+  function createBadgeClass(choice) {
+    const text = normalizeLower(choice);
+    if (text === "true") {
+      return "good";
+    }
+    if (text === "false") {
+      return "bad";
+    }
+    if (text === "specify" || text === "same underlying font+artistic effect") {
+      return "info";
+    }
+    return "muted";
+  }
+
+  function normalizeSameFontChoice(value) {
+    const text = normalizeLower(value);
+    if (
+      text === "true" ||
+      text === "false" ||
+      text === "unsure" ||
+      text === "same underlying font+artistic effect"
+    ) {
+      return text;
+    }
+    return "unsure";
+  }
+
+  function normalizeRemovedChoice(section) {
+    const source = section && typeof section === "object" ? section : {};
+    const choice = normalizeLower(source.choice);
+    if (choice === "specify" || choice === "true" || choice === "null") {
+      return choice;
+    }
+    const valueText = normalizeText(source.value || "");
+    if (normalizeLower(valueText) === "true") {
+      return "true";
+    }
+    const lines = Array.isArray(source.lines)
+      ? source.lines
+      : valueText
+          .split(/\r?\n/)
+          .map(function (line) {
+            return normalizeText(line);
+          })
+          .filter(Boolean);
+    return lines.length > 0 ? "specify" : "null";
+  }
+
+  function normalizeOtherChoice(section) {
+    const source = section && typeof section === "object" ? section : {};
+    const choice = normalizeLower(source.choice);
+    if (choice === "specify" || choice === "unsure" || choice === "null") {
+      return choice;
+    }
+    const valueText = normalizeText(source.value || "");
+    if (normalizeLower(valueText) === "unsure") {
+      return "unsure";
+    }
+    return valueText ? "specify" : "null";
+  }
+
+  function buildDisplaySuggestion(fieldKey, result) {
+    const source = result && typeof result === "object" ? result : {};
+    if (fieldKey === "same_font") {
+      const section = source.same_font || {};
+      const choice = normalizeSameFontChoice(section.choice || section.value);
+      return {
+        target: "same_font",
+        primaryChoice: choice,
+        answerText: "",
+        reasonText: normalizeText(section.reason_cn || ""),
+        evidence: Array.isArray(section.evidence) ? section.evidence : [],
+        warnings: Array.isArray(section.warnings) ? section.warnings : [],
+        canFill:
+          choice === "true" ||
+          choice === "false" ||
+          choice === "unsure" ||
+          choice === "same underlying font+artistic effect",
+      };
+    }
+
+    if (fieldKey === "image_b_texts_removed") {
+      const section = source.image_b_texts_removed || {};
+      const choice = normalizeRemovedChoice(section);
+      const lines = Array.isArray(section.lines)
+        ? section.lines
+            .map(function (line) {
+              return normalizeText(line);
+            })
+            .filter(Boolean)
+        : [];
+      return {
+        target: "image_b_texts_removed",
+        primaryChoice: choice,
+        answerText:
+          choice === "specify"
+            ? lines.length > 0
+              ? lines.join("\n")
+              : normalizeText(section.value || "")
+            : "",
+        reasonText: normalizeText(section.reason_cn || ""),
+        evidence: Array.isArray(section.evidence) ? section.evidence : [],
+        warnings: Array.isArray(section.warnings) ? section.warnings : [],
+        canFill: choice === "specify" || choice === "true" || choice === "null",
+      };
+    }
+
+    const section = source.other_changes || {};
+    const choice = normalizeOtherChoice(section);
+    return {
+      target: "other_changes",
+      primaryChoice: choice,
+      answerText: choice === "specify" ? normalizeText(section.value || "") : "",
+      reasonText: normalizeText(section.reason_cn || ""),
+      evidence: Array.isArray(section.evidence) ? section.evidence : [],
+      warnings: Array.isArray(section.warnings) ? section.warnings : [],
+      canFill: choice === "specify" || choice === "unsure" || choice === "null",
+    };
+  }
+
+  function buildDisplaySuggestions(target, result) {
+    if (target === "same_font") {
+      return [buildDisplaySuggestion("same_font", result)];
+    }
+    if (target === "image_b_texts_removed") {
+      return [buildDisplaySuggestion("image_b_texts_removed", result)];
+    }
+    if (target === "other_changes") {
+      return [buildDisplaySuggestion("other_changes", result)];
+    }
+    return [
+      buildDisplaySuggestion("same_font", result),
+      buildDisplaySuggestion("image_b_texts_removed", result),
+      buildDisplaySuggestion("other_changes", result),
+    ];
   }
 
   function ensureStyle() {
@@ -160,21 +297,104 @@
       "." + BUTTON_CLASS + ":hover{background:#dbeafe;}",
       "." + BUTTON_CLASS + ":disabled{opacity:.45;cursor:not-allowed;}",
       "." + BUTTON_OVERALL_CLASS + "{border-color:#93c5fd;background:#f0f9ff;color:#1d4ed8;}",
-      "." + PANEL_CLASS + "{position:fixed;z-index:2147483640;width:min(520px,calc(100vw - 24px));max-height:70vh;overflow:hidden;border:1px solid #cbd5e1;border-radius:12px;background:#ffffff;color:#0f172a;box-shadow:0 18px 42px rgba(15,23,42,.22);}",
+      "." + PANEL_CLASS + "{position:fixed;z-index:2147483640;width:520px;height:360px;min-width:360px;min-height:220px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);resize:both;overflow:auto;border:1px solid #cbd5e1;border-radius:12px;background:#ffffff;color:#0f172a;box-shadow:0 18px 42px rgba(15,23,42,.22);}",
       "." + PANEL_CLASS + " *{box-sizing:border-box;}",
-      "." + PANEL_CLASS + " .asc-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid #e2e8f0;background:#f8fafc;}",
-      "." + PANEL_CLASS + " .asc-panel-title{font-weight:700;font-size:13px;color:#1e293b;}",
-      "." + PANEL_CLASS + " .asc-panel-sub{font-size:11px;color:#64748b;margin-top:2px;}",
-      "." + PANEL_CLASS + " .asc-panel-close{border:1px solid #cbd5e1;border-radius:6px;background:#fff;padding:2px 8px;font-size:12px;cursor:pointer;}",
-      "." + PANEL_CLASS + " .asc-panel-body{padding:10px 12px;overflow:auto;max-height:calc(70vh - 52px);display:grid;gap:8px;}",
-      "." + PANEL_CLASS + " .asc-block{border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;padding:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.5;}",
-      "." + PANEL_CLASS + " .asc-block-title{font-weight:700;color:#334155;margin-bottom:6px;}",
-      "." + PANEL_CLASS + " .asc-note{font-size:12px;color:#334155;}",
+      "." + PANEL_CLASS + " .asc-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid #e2e8f0;background:#f8fafc;cursor:move;user-select:none;}",
+      "." + PANEL_CLASS + " .asc-head-main{display:grid;gap:2px;}",
+      "." + PANEL_CLASS + " .asc-panel-title{font-weight:700;font-size:14px;color:#0f172a;}",
+      "." + PANEL_CLASS + " .asc-panel-sub{font-size:11px;color:#64748b;}",
+      "." + PANEL_CLASS + " .asc-head-actions{display:flex;gap:6px;flex-wrap:wrap;}",
+      "." + PANEL_CLASS + " .asc-panel-close,." + PANEL_CLASS + " .asc-panel-reset{border:1px solid #cbd5e1;border-radius:8px;background:#fff;padding:2px 8px;font-size:12px;cursor:pointer;}",
+      "." + PANEL_CLASS + " .asc-panel-body{padding:10px 12px;display:grid;gap:8px;}",
+      "." + PANEL_CLASS + " .asc-status{font-size:12px;font-weight:700;color:#1e293b;}",
+      "." + PANEL_CLASS + " .asc-meta{font-size:12px;color:#475569;}",
+      "." + PANEL_CLASS + " .asc-fill-status{font-size:12px;color:#334155;}",
+      "." + PANEL_CLASS + " .asc-result-list{display:grid;gap:8px;}",
+      "." + PANEL_CLASS + " .asc-card{border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;padding:8px;display:grid;gap:6px;}",
+      "." + PANEL_CLASS + " .asc-card-title{font-size:12px;font-weight:700;color:#334155;}",
+      "." + PANEL_CLASS + " .asc-choice-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+      "." + PANEL_CLASS + " .asc-pill{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:700;}",
+      "." + PANEL_CLASS + " .asc-pill.good{background:rgba(16,185,129,.15);color:#047857;}",
+      "." + PANEL_CLASS + " .asc-pill.bad{background:rgba(239,68,68,.15);color:#b91c1c;}",
+      "." + PANEL_CLASS + " .asc-pill.info{background:rgba(37,99,235,.15);color:#1d4ed8;}",
+      "." + PANEL_CLASS + " .asc-pill.muted{background:rgba(148,163,184,.2);color:#475569;}",
+      "." + PANEL_CLASS + " .asc-answer{border:1px solid #dbe4ef;background:#fff;border-radius:6px;padding:6px;white-space:pre-wrap;word-break:break-word;font-size:12px;}",
+      "." + PANEL_CLASS + " .asc-reason{font-size:12px;color:#334155;line-height:1.5;}",
+      "." + PANEL_CLASS + " .asc-main-actions{display:flex;gap:8px;flex-wrap:wrap;}",
       "." + PANEL_CLASS + " details{border:1px solid #e2e8f0;border-radius:8px;background:#fff;}",
       "." + PANEL_CLASS + " details summary{cursor:pointer;padding:8px 10px;font-size:12px;color:#334155;}",
-      "." + PANEL_CLASS + " details pre{margin:0;border-top:1px solid #e2e8f0;padding:8px 10px;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:12px;}",
+      "." + PANEL_CLASS + " details pre,." + PANEL_CLASS + " details .asc-debug-text{margin:0;border-top:1px solid #e2e8f0;padding:8px 10px;white-space:pre-wrap;word-break:break-word;font-size:12px;max-height:220px;overflow:auto;}",
     ].join("");
     (document.head || document.documentElement).appendChild(style);
+  }
+
+  function loadLayout() {
+    try {
+      const raw = String(window.localStorage.getItem(LAYOUT_STORAGE_KEY) || "");
+      if (!raw) {
+        return null;
+      }
+      const parsed = safeJsonParse(raw);
+      if (!parsed || typeof parsed !== "object") {
+        return null;
+      }
+      const left = Number(parsed.left);
+      const top = Number(parsed.top);
+      const width = Number(parsed.width);
+      const height = Number(parsed.height);
+      if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(width) || !Number.isFinite(height)) {
+        return null;
+      }
+      return { left: left, top: top, width: width, height: height };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function saveLayout(panel) {
+    if (!panel || !(panel.root instanceof HTMLElement)) {
+      return;
+    }
+    try {
+      const rect = panel.root.getBoundingClientRect();
+      window.localStorage.setItem(
+        LAYOUT_STORAGE_KEY,
+        JSON.stringify({
+          left: Math.round(rect.left),
+          top: Math.round(rect.top),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        })
+      );
+    } catch (error) {
+      // ignore
+    }
+  }
+
+  function clearLayout() {
+    try {
+      window.localStorage.removeItem(LAYOUT_STORAGE_KEY);
+    } catch (error) {
+      // ignore
+    }
+  }
+
+  function clampPanelRect(left, top, width, height) {
+    const safeWidth = Math.max(360, Math.min(width, window.innerWidth - 8));
+    const safeHeight = Math.max(220, Math.min(height, window.innerHeight - 8));
+    const safeLeft = Math.max(8, Math.min(left, window.innerWidth - safeWidth - 8));
+    const safeTop = Math.max(8, Math.min(top, window.innerHeight - safeHeight - 8));
+    return { left: safeLeft, top: safeTop, width: safeWidth, height: safeHeight };
+  }
+
+  function applyPanelRect(panel, rect) {
+    if (!panel || !rect) {
+      return;
+    }
+    panel.root.style.left = String(Math.round(rect.left)) + "px";
+    panel.root.style.top = String(Math.round(rect.top)) + "px";
+    panel.root.style.width = String(Math.round(rect.width)) + "px";
+    panel.root.style.height = String(Math.round(rect.height)) + "px";
   }
 
   function createRuntime(options) {
@@ -182,6 +402,7 @@
     const collector = config.collector || {};
     const client = config.client || {};
     const pricing = config.pricing || {};
+    const actions = config.actions || {};
     const showToast = typeof config.showToast === "function" ? config.showToast : function () {};
 
     const actionButtonByKey = {};
@@ -196,10 +417,7 @@
 
     function buildMetaText(display) {
       const usage = display.usage || {};
-      const stages = display.stages || {};
-      const imageStats = Array.isArray(display.imageStats) ? display.imageStats : [];
       const lines = [];
-      lines.push("目标: " + String(display.target || "-"));
       lines.push("requestId: " + String(display.requestId || "-"));
       lines.push("analysisMode: " + String(display.analysisMode || "-"));
       lines.push("model: " + String(display.model || "-"));
@@ -208,12 +426,6 @@
       lines.push("ocrModel: " + String(display.ocrModel || "-"));
       lines.push("reasoningModel: " + String(display.reasoningModel || "-"));
       lines.push("singleModel: " + String(display.singleModel || "-"));
-      lines.push("enableThinking: " + String(display.enableThinking === true));
-      lines.push("thinkingParamName: " + String(display.thinkingParamName || "enable_thinking"));
-      lines.push("thinkingParamLocation: " + String(display.thinkingParamLocation || "root"));
-      lines.push("explicitDisableSent: " + String(display.explicitDisableSent !== false));
-      lines.push("thinkingFallbackUsed: " + String(display.thinkingFallbackUsed === true));
-      lines.push("timeoutMs: " + String(display.timeoutMs || 0));
       lines.push("elapsedMs: " + String(display.elapsedMs || 0));
       lines.push(
         "tokens: input=" +
@@ -223,132 +435,22 @@
           ", total=" +
           String(usage.totalTokens || 0)
       );
-      lines.push("usageSource: " + String(usage.source || "unavailable"));
-      lines.push("hasUsage: " + String(usage.hasUsage === true));
-      ["vision", "ocr", "reasoning", "single"].forEach(function (stageKey) {
-        const stage = stages[stageKey];
-        if (!stage || typeof stage !== "object") {
-          return;
-        }
-        const stageUsage = stage.usage || {};
-        const stageThinking = stage.thinking || {};
-        lines.push(
-          "stage." +
-            stageKey +
-            ": model=" +
-            String(stage.model || "-") +
-            ", callMode=" +
-            String(stage.callMode || "-") +
-            ", elapsedMs=" +
-            String(stage.elapsedMs || 0) +
-            ", thinking=" +
-            (stageThinking.notApplicable === true
-              ? "not_applicable"
-              : String(stageThinking.enableThinking === true)) +
-            ", explicitDisableSent=" +
-            String(stageThinking.explicitDisableSent === true) +
-            ", tokens=" +
-            String(stageUsage.totalTokens || 0) +
-            " (input=" +
-            String(stageUsage.inputTokens || 0) +
-            ", output=" +
-            String(stageUsage.outputTokens || 0) +
-            ")"
-        );
-      });
-      lines.push("imageCount: " + String(imageStats.length));
-      lines.push(
-        "imageFields: " +
-          imageStats
-            .map(function (item) {
-              return String(item.fieldName || "unknown");
-            })
-            .join(", ")
-      );
-      imageStats.forEach(function (item) {
-        lines.push(
-          "- " +
-            String(item.fieldName || "unknown") +
-            ": mime=" +
-            String(item.mime || "unknown") +
-            ", size=" +
-            String(item.width || "unknown") +
-            "x" +
-            String(item.height || "unknown") +
-            ", bytes=" +
-            String(item.bytes || "unknown")
-        );
-      });
-
-      const price = display.price || {};
-      if (price.sameFont) {
-        lines.push(
-          "price.same_font: segments=" +
-            String(price.sameFont.segmentCount || 0) +
-            ", tier=" +
-            String(price.sameFont.tier || "-") +
-            ", price=" +
-            String(price.sameFont.price || 0)
-        );
+      if (display.price && display.price.totalPrice !== undefined) {
+        lines.push("price.total: " + String(display.price.totalPrice));
       }
-      if (price.imageBTextsRemoved) {
-        lines.push(
-          "price.image_b_texts_removed: segments=" +
-            String(price.imageBTextsRemoved.segmentCount || 0) +
-            ", tier=" +
-            String(price.imageBTextsRemoved.tier || "-") +
-            ", price=" +
-            String(price.imageBTextsRemoved.price || 0)
-        );
-      }
-      if (price.otherChanges) {
-        lines.push(
-          "price.other_changes: words=" +
-            String(price.otherChanges.wordCount || 0) +
-            ", tier=" +
-            String(price.otherChanges.tier || "-") +
-            ", price=" +
-            String(price.otherChanges.price || 0)
-        );
-      }
-      lines.push("price.total: " + String(price.totalPrice || 0));
       return lines.join("\n");
     }
 
-    function buildResultText(display) {
-      const result = display.result || {};
-      const values = [
-        "same_font=" + String(result?.same_font?.value || ""),
-        "image_b_texts_removed=" + String(result?.image_b_texts_removed?.value || ""),
-        "other_changes=" + String(result?.other_changes?.value || ""),
-      ];
-      const reasons = [
-        String(result?.same_font?.reason_cn || ""),
-        String(result?.image_b_texts_removed?.reason_cn || ""),
-        String(result?.other_changes?.reason_cn || ""),
-      ].filter(Boolean);
-
-      const evidence = [];
-      const warnings = [];
-      ["same_font", "image_b_texts_removed", "other_changes"].forEach(function (key) {
-        const field = result[key] || {};
-        (Array.isArray(field.evidence) ? field.evidence : []).forEach(function (item) {
-          evidence.push(key + ": " + String(item || ""));
-        });
-        (Array.isArray(field.warnings) ? field.warnings : []).forEach(function (item) {
-          warnings.push(key + ": " + String(item || ""));
-        });
-      });
-
-      return [
-        "建议结果: " + values.join(" | "),
-        "置信度: " + String(result?.same_font?.confidence ?? "-"),
-        "中文理由: " + (reasons.length > 0 ? reasons.join(" / ") : "-"),
-        "workflow.skip_later_fields: " + String(result?.workflow?.skip_later_fields === true),
-        "workflow.skip_reason: " + String(result?.workflow?.skip_reason || ""),
-        "evidence:\n" + (evidence.length > 0 ? evidence.join("\n") : "-"),
-        "warnings:\n" + (warnings.length > 0 ? warnings.join("\n") : "-"),
-      ].join("\n");
+    function buildShortCopyText(display) {
+      const suggestions = Array.isArray(display.suggestions) ? display.suggestions : [];
+      return suggestions
+        .map(function (item) {
+          const key = item.target;
+          const choice = item.primaryChoice || "";
+          const answer = normalizeText(item.answerText || "");
+          return answer ? key + "=" + choice + "\n" + answer : key + "=" + choice;
+        })
+        .join("\n\n");
     }
 
     function getFieldAnchor(fieldKey) {
@@ -359,137 +461,9 @@
       return findFieldItemByTitle(fieldConfig.title);
     }
 
-    function ensurePanel(fieldKey) {
-      let panel = panelByField[fieldKey] || null;
-      if (panel && document.documentElement.contains(panel.root)) {
-        return panel;
-      }
-
-      const root = document.createElement("section");
-      root.className = PANEL_CLASS;
-      root.style.display = "none";
-
-      const head = document.createElement("div");
-      head.className = "asc-panel-head";
-
-      const headText = document.createElement("div");
-      const title = document.createElement("div");
-      title.className = "asc-panel-title";
-      title.textContent = "Task21 AI 分析（" + fieldKey + "）";
-      const sub = document.createElement("div");
-      sub.className = "asc-panel-sub";
-      sub.textContent = "仅辅助建议，不自动写入/保存/提交";
-      headText.appendChild(title);
-      headText.appendChild(sub);
-
-      const closeButton = document.createElement("button");
-      closeButton.type = "button";
-      closeButton.className = "asc-panel-close";
-      closeButton.textContent = "关闭";
-      closeButton.addEventListener("click", function () {
-        root.style.display = "none";
-      });
-
-      head.appendChild(headText);
-      head.appendChild(closeButton);
-
-      const body = document.createElement("div");
-      body.className = "asc-panel-body";
-
-      const status = document.createElement("div");
-      status.className = "asc-note";
-      status.textContent = "就绪。";
-
-      const metaBlock = document.createElement("div");
-      metaBlock.className = "asc-block";
-      const metaTitle = document.createElement("div");
-      metaTitle.className = "asc-block-title";
-      metaTitle.textContent = "调试信息";
-      const metaText = document.createElement("div");
-      metaText.textContent = "等待分析...";
-      metaBlock.appendChild(metaTitle);
-      metaBlock.appendChild(metaText);
-
-      const resultBlock = document.createElement("div");
-      resultBlock.className = "asc-block";
-      const resultTitle = document.createElement("div");
-      resultTitle.className = "asc-block-title";
-      resultTitle.textContent = "建议结果";
-      const resultText = document.createElement("div");
-      resultText.textContent = "暂无分析结果。";
-      resultBlock.appendChild(resultTitle);
-      resultBlock.appendChild(resultText);
-
-      const actions = document.createElement("div");
-      actions.style.display = "flex";
-      actions.style.gap = "8px";
-      actions.style.flexWrap = "wrap";
-
-      const copyButton = document.createElement("button");
-      copyButton.type = "button";
-      copyButton.className = BUTTON_CLASS;
-      copyButton.textContent = "复制建议";
-      copyButton.disabled = true;
-      copyButton.addEventListener("click", function () {
-        const latest = latestByField[fieldKey];
-        if (!latest) {
-          return;
-        }
-        const suggestion = {
-          same_font: latest?.result?.same_font?.value || "",
-          image_b_texts_removed: latest?.result?.image_b_texts_removed?.value || "",
-          other_changes: latest?.result?.other_changes?.value || "",
-          workflow: latest?.result?.workflow || {},
-        };
-        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-          navigator.clipboard
-            .writeText(JSON.stringify(suggestion, null, 2))
-            .then(function () {
-              showToast("建议已复制", "success");
-            })
-            .catch(function () {
-              showToast("复制失败", "warn");
-            });
-        } else {
-          showToast("当前页面不支持剪贴板 API", "warn");
-        }
-      });
-      actions.appendChild(copyButton);
-
-      const rawPanel = document.createElement("details");
-      const rawSummary = document.createElement("summary");
-      rawSummary.textContent = "查看原始 JSON（脱敏）";
-      const rawText = document.createElement("pre");
-      rawText.textContent = "{}";
-      rawPanel.appendChild(rawSummary);
-      rawPanel.appendChild(rawText);
-
-      body.appendChild(status);
-      body.appendChild(metaBlock);
-      body.appendChild(resultBlock);
-      body.appendChild(actions);
-      body.appendChild(rawPanel);
-
-      root.appendChild(head);
-      root.appendChild(body);
-      (document.body || document.documentElement).appendChild(root);
-
-      panel = {
-        fieldKey: fieldKey,
-        root: root,
-        status: status,
-        metaText: metaText,
-        resultText: resultText,
-        rawText: rawText,
-        copyButton: copyButton,
-      };
-      panelByField[fieldKey] = panel;
-      return panel;
-    }
-
     function updatePanelPosition(fieldKey) {
       const panel = panelByField[fieldKey];
-      if (!panel || panel.root.style.display === "none") {
+      if (!panel || panel.root.style.display === "none" || panel.manualLayout) {
         return;
       }
       const anchor = getFieldAnchor(fieldKey);
@@ -497,15 +471,14 @@
         return;
       }
       const rect = anchor.item.getBoundingClientRect();
-      const panelWidth = panel.root.offsetWidth || Math.min(520, window.innerWidth - 24);
-      const leftCandidate = rect.right + 8;
-      let left = leftCandidate;
-      if (left + panelWidth > window.innerWidth - 8) {
-        left = Math.max(8, window.innerWidth - panelWidth - 8);
+      const currentWidth = panel.root.offsetWidth || 520;
+      const currentHeight = panel.root.offsetHeight || 360;
+      let left = rect.right + 8;
+      if (left + currentWidth > window.innerWidth - 8) {
+        left = Math.max(8, window.innerWidth - currentWidth - 8);
       }
-      const top = Math.max(8, Math.min(rect.top + 8, window.innerHeight - 120));
-      panel.root.style.left = String(Math.round(left)) + "px";
-      panel.root.style.top = String(Math.round(top)) + "px";
+      const top = Math.max(8, Math.min(rect.top + 8, window.innerHeight - currentHeight - 8));
+      applyPanelRect(panel, clampPanelRect(left, top, currentWidth, currentHeight));
     }
 
     function updateAllPanelPositions() {
@@ -515,25 +488,88 @@
     }
 
     function setPanelLoading(panel, label) {
-      panel.status.textContent = "正在分析 " + label + " ...";
-      panel.metaText.textContent = "等待分析结果...";
-      panel.resultText.textContent = "分析中...";
+      panel.status.textContent = "分析中";
+      panel.meta.textContent = String(label || "") + " · waiting...";
+      panel.fillStatus.textContent = "";
+      panel.results.innerHTML = "";
+      panel.debugText.textContent = "等待分析结果...";
       panel.rawText.textContent = "{}";
       panel.copyButton.disabled = true;
+      panel.fillButton.disabled = true;
     }
 
     function setPanelError(panel, message) {
-      panel.status.textContent = normalizeText(message || "分析失败。") || "分析失败。";
-      panel.resultText.textContent = "暂无分析结果。";
+      panel.status.textContent = "失败";
+      panel.meta.textContent = normalizeText(message || "分析失败。") || "分析失败。";
+      panel.fillStatus.textContent = "";
+      panel.results.innerHTML = "";
       panel.copyButton.disabled = true;
+      panel.fillButton.disabled = true;
+    }
+
+    function renderSuggestionCard(suggestion) {
+      const card = document.createElement("div");
+      card.className = "asc-card";
+
+      const title = document.createElement("div");
+      title.className = "asc-card-title";
+      title.textContent = suggestion.target;
+      card.appendChild(title);
+
+      const choiceRow = document.createElement("div");
+      choiceRow.className = "asc-choice-row";
+      const label = document.createElement("span");
+      label.textContent = "推荐选择";
+      const pill = document.createElement("span");
+      pill.className = "asc-pill " + createBadgeClass(suggestion.primaryChoice);
+      pill.textContent = suggestion.primaryChoice || "-";
+      choiceRow.appendChild(label);
+      choiceRow.appendChild(pill);
+      card.appendChild(choiceRow);
+
+      if (normalizeText(suggestion.answerText || "")) {
+        const answerTitle = document.createElement("div");
+        answerTitle.className = "asc-card-title";
+        answerTitle.textContent = "标准答案";
+        const answer = document.createElement("pre");
+        answer.className = "asc-answer";
+        answer.textContent = String(suggestion.answerText || "");
+        card.appendChild(answerTitle);
+        card.appendChild(answer);
+      }
+
+      const reasonTitle = document.createElement("div");
+      reasonTitle.className = "asc-card-title";
+      reasonTitle.textContent = "理由";
+      const reason = document.createElement("div");
+      reason.className = "asc-reason";
+      reason.textContent = normalizeText(suggestion.reasonText || "") || "-";
+      card.appendChild(reasonTitle);
+      card.appendChild(reason);
+
+      return card;
     }
 
     function setPanelResult(panel, display) {
-      panel.status.textContent = "分析完成：" + String(display.target || "-");
-      panel.metaText.textContent = buildMetaText(display);
-      panel.resultText.textContent = buildResultText(display);
+      panel.status.textContent = "分析完成";
+      panel.meta.textContent =
+        String(display.model || "-") +
+        " · " +
+        formatElapsedMs(display.elapsedMs) +
+        " · " +
+        String(display.analysisMode || "-");
+      panel.fillStatus.textContent = "";
+      panel.results.innerHTML = "";
+      const suggestions = Array.isArray(display.suggestions) ? display.suggestions : [];
+      suggestions.forEach(function (suggestion) {
+        panel.results.appendChild(renderSuggestionCard(suggestion));
+      });
+      panel.debugText.textContent = buildMetaText(display);
       panel.rawText.textContent = JSON.stringify(sanitizeRawForDisplay(display.raw), null, 2);
-      panel.copyButton.disabled = false;
+      panel.copyButton.disabled = suggestions.length <= 0;
+      panel.fillButton.disabled = !suggestions.some(function (item) {
+        return item.canFill === true;
+      });
     }
 
     function getFieldStates(snapshot) {
@@ -605,6 +641,361 @@
       };
     }
 
+    async function chooseSameFont(choice) {
+      const normalized = normalizeLower(choice);
+      if (normalized === "true" && typeof actions.selectSameFontTrue === "function") {
+        return actions.selectSameFontTrue();
+      }
+      if (normalized === "false" && typeof actions.selectSameFontFalse === "function") {
+        return actions.selectSameFontFalse();
+      }
+      if (
+        normalized === "same underlying font+artistic effect" &&
+        typeof actions.selectSameFontArtisticEffect === "function"
+      ) {
+        return actions.selectSameFontArtisticEffect();
+      }
+      if (typeof actions.selectFieldOption === "function") {
+        return actions.selectFieldOption("same_font", normalized, { ensureSelected: true });
+      }
+      return { ok: false, message: "same_font 动作未就绪。" };
+    }
+
+    function chooseFieldOption(fieldName, option) {
+      if (typeof actions.selectFieldOption !== "function") {
+        return { ok: false, message: "字段选择动作未就绪。" };
+      }
+      return actions.selectFieldOption(fieldName, option, { ensureSelected: true });
+    }
+
+    function fillFieldText(fieldName, value) {
+      if (typeof actions.fillFieldText !== "function") {
+        return { ok: false, message: "文本填写动作未就绪。" };
+      }
+      return actions.fillFieldText(fieldName, value);
+    }
+
+    async function applySingleSuggestion(suggestion) {
+      if (!suggestion || suggestion.canFill !== true) {
+        return { ok: false, message: "当前建议不支持填写。" };
+      }
+      if (suggestion.target === "same_font") {
+        return chooseSameFont(suggestion.primaryChoice);
+      }
+      if (suggestion.target === "image_b_texts_removed") {
+        const choice = normalizeLower(suggestion.primaryChoice);
+        const selected = await chooseFieldOption("image_b_texts_removed", choice);
+        if (!selected.ok) {
+          return selected;
+        }
+        if (choice === "specify") {
+          return fillFieldText("image_b_texts_removed", suggestion.answerText || "");
+        }
+        return selected;
+      }
+      if (suggestion.target === "other_changes") {
+        const choice = normalizeLower(suggestion.primaryChoice);
+        const selected = await chooseFieldOption("other_changes", choice);
+        if (!selected.ok) {
+          return selected;
+        }
+        if (choice === "specify") {
+          return fillFieldText("other_changes", suggestion.answerText || "");
+        }
+        return selected;
+      }
+      return { ok: false, message: "未知字段，无法填写。" };
+    }
+
+    async function applySuggestions(display) {
+      const suggestions = Array.isArray(display?.suggestions) ? display.suggestions : [];
+      if (suggestions.length <= 0) {
+        return { ok: false, message: "暂无可填写建议。" };
+      }
+      if (display.target !== "overall") {
+        return applySingleSuggestion(suggestions[0]);
+      }
+
+      const messages = [];
+      const sameFontSuggestion = suggestions.find(function (item) {
+        return item.target === "same_font";
+      });
+      if (sameFontSuggestion) {
+        const sameFontResult = await applySingleSuggestion(sameFontSuggestion);
+        if (!sameFontResult.ok) {
+          return sameFontResult;
+        }
+        messages.push("已填写：same_font=" + String(sameFontSuggestion.primaryChoice || ""));
+        const sameFontChoice = normalizeLower(sameFontSuggestion.primaryChoice || "");
+        if (sameFontChoice === "false" || sameFontChoice === "unsure") {
+          return { ok: true, message: messages.join("；") };
+        }
+      }
+
+      const removedSuggestion = suggestions.find(function (item) {
+        return item.target === "image_b_texts_removed";
+      });
+      if (removedSuggestion && removedSuggestion.canFill) {
+        const removedResult = await applySingleSuggestion(removedSuggestion);
+        if (!removedResult.ok) {
+          return removedResult;
+        }
+        messages.push(
+          "已填写：image_b_texts_removed=" + String(removedSuggestion.primaryChoice || "")
+        );
+      }
+
+      const otherSuggestion = suggestions.find(function (item) {
+        return item.target === "other_changes";
+      });
+      if (otherSuggestion && otherSuggestion.canFill) {
+        const otherResult = await applySingleSuggestion(otherSuggestion);
+        if (!otherResult.ok) {
+          return otherResult;
+        }
+        messages.push("已填写：other_changes=" + String(otherSuggestion.primaryChoice || ""));
+      }
+
+      return { ok: true, message: messages.length > 0 ? messages.join("；") : "已填写 AI 建议。" };
+    }
+
+    function attachDragHandlers(panel) {
+      let dragging = false;
+      let startMouseX = 0;
+      let startMouseY = 0;
+      let startLeft = 0;
+      let startTop = 0;
+
+      function onMouseMove(event) {
+        if (!dragging) {
+          return;
+        }
+        event.preventDefault();
+        const deltaX = event.clientX - startMouseX;
+        const deltaY = event.clientY - startMouseY;
+        const rect = panel.root.getBoundingClientRect();
+        applyPanelRect(
+          panel,
+          clampPanelRect(startLeft + deltaX, startTop + deltaY, rect.width, rect.height)
+        );
+      }
+
+      function onMouseUp() {
+        if (!dragging) {
+          return;
+        }
+        dragging = false;
+        panel.manualLayout = true;
+        saveLayout(panel);
+        document.removeEventListener("mousemove", onMouseMove, true);
+        document.removeEventListener("mouseup", onMouseUp, true);
+      }
+
+      panel.head.addEventListener("mousedown", function (event) {
+        const target = event.target;
+        if (
+          target instanceof Element &&
+          target.closest("button,input,textarea,select,summary,details,a")
+        ) {
+          return;
+        }
+        event.preventDefault();
+        const rect = panel.root.getBoundingClientRect();
+        dragging = true;
+        startMouseX = event.clientX;
+        startMouseY = event.clientY;
+        startLeft = rect.left;
+        startTop = rect.top;
+        document.addEventListener("mousemove", onMouseMove, true);
+        document.addEventListener("mouseup", onMouseUp, true);
+      });
+
+      const resizeObserver = new ResizeObserver(function () {
+        if (panel.root.style.display === "none") {
+          return;
+        }
+        panel.manualLayout = true;
+        saveLayout(panel);
+      });
+      resizeObserver.observe(panel.root);
+      panel.resizeObserver = resizeObserver;
+    }
+
+    function ensurePanel(fieldKey) {
+      let panel = panelByField[fieldKey] || null;
+      if (panel && document.documentElement.contains(panel.root)) {
+        return panel;
+      }
+
+      const root = document.createElement("section");
+      root.className = PANEL_CLASS;
+      root.style.display = "none";
+
+      const head = document.createElement("div");
+      head.className = "asc-panel-head";
+      const headMain = document.createElement("div");
+      headMain.className = "asc-head-main";
+      const title = document.createElement("div");
+      title.className = "asc-panel-title";
+      title.textContent = "Task21助手";
+      const sub = document.createElement("div");
+      sub.className = "asc-panel-sub";
+      sub.textContent = "AI 仅辅助建议；点击按钮才写入，不自动保存/提交。";
+      headMain.appendChild(title);
+      headMain.appendChild(sub);
+
+      const headActions = document.createElement("div");
+      headActions.className = "asc-head-actions";
+      const resetButton = document.createElement("button");
+      resetButton.type = "button";
+      resetButton.className = "asc-panel-reset";
+      resetButton.textContent = "重置位置";
+      const closeButton = document.createElement("button");
+      closeButton.type = "button";
+      closeButton.className = "asc-panel-close";
+      closeButton.textContent = "关闭";
+      closeButton.addEventListener("click", function () {
+        root.style.display = "none";
+      });
+      headActions.appendChild(resetButton);
+      headActions.appendChild(closeButton);
+
+      head.appendChild(headMain);
+      head.appendChild(headActions);
+
+      const body = document.createElement("div");
+      body.className = "asc-panel-body";
+
+      const status = document.createElement("div");
+      status.className = "asc-status";
+      status.textContent = "就绪";
+      const meta = document.createElement("div");
+      meta.className = "asc-meta";
+      meta.textContent = "-";
+      const fillStatus = document.createElement("div");
+      fillStatus.className = "asc-fill-status";
+      const results = document.createElement("div");
+      results.className = "asc-result-list";
+
+      const mainActions = document.createElement("div");
+      mainActions.className = "asc-main-actions";
+      const fillButton = document.createElement("button");
+      fillButton.type = "button";
+      fillButton.className = BUTTON_CLASS;
+      fillButton.textContent = "填写 AI 答案";
+      fillButton.disabled = true;
+      const copyButton = document.createElement("button");
+      copyButton.type = "button";
+      copyButton.className = BUTTON_CLASS;
+      copyButton.textContent = "复制建议";
+      copyButton.disabled = true;
+      mainActions.appendChild(fillButton);
+      mainActions.appendChild(copyButton);
+
+      const debugDetails = document.createElement("details");
+      const debugSummary = document.createElement("summary");
+      debugSummary.textContent = "调试信息";
+      const debugText = document.createElement("pre");
+      debugText.className = "asc-debug-text";
+      debugText.textContent = "{}";
+      debugDetails.appendChild(debugSummary);
+      debugDetails.appendChild(debugText);
+
+      const rawDetails = document.createElement("details");
+      const rawSummary = document.createElement("summary");
+      rawSummary.textContent = "原始 JSON（脱敏）";
+      const rawText = document.createElement("pre");
+      rawText.textContent = "{}";
+      rawDetails.appendChild(rawSummary);
+      rawDetails.appendChild(rawText);
+
+      body.appendChild(status);
+      body.appendChild(meta);
+      body.appendChild(fillStatus);
+      body.appendChild(results);
+      body.appendChild(mainActions);
+      body.appendChild(debugDetails);
+      body.appendChild(rawDetails);
+      root.appendChild(head);
+      root.appendChild(body);
+      (document.body || document.documentElement).appendChild(root);
+
+      panel = {
+        fieldKey: fieldKey,
+        root: root,
+        head: head,
+        status: status,
+        meta: meta,
+        fillStatus: fillStatus,
+        results: results,
+        debugText: debugText,
+        rawText: rawText,
+        copyButton: copyButton,
+        fillButton: fillButton,
+        manualLayout: false,
+        resizeObserver: null,
+      };
+
+      resetButton.addEventListener("click", function () {
+        panel.manualLayout = false;
+        clearLayout();
+        updatePanelPosition(fieldKey);
+      });
+
+      copyButton.addEventListener("click", function () {
+        const latest = latestByField[fieldKey];
+        if (!latest) {
+          return;
+        }
+        const copyText = buildShortCopyText(latest);
+        if (!copyText) {
+          showToast("暂无可复制建议", "warn");
+          return;
+        }
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          navigator.clipboard
+            .writeText(copyText)
+            .then(function () {
+              showToast("建议已复制", "success");
+            })
+            .catch(function () {
+              showToast("复制失败", "warn");
+            });
+          return;
+        }
+        showToast("当前页面不支持剪贴板 API", "warn");
+      });
+
+      fillButton.addEventListener("click", async function () {
+        const latest = latestByField[fieldKey];
+        if (!latest) {
+          return;
+        }
+        panel.fillStatus.textContent = "正在填写 AI 答案...";
+        const result = await applySuggestions(latest);
+        panel.fillStatus.textContent = normalizeText(result.message || "") || "填写完成。";
+        showToast(panel.fillStatus.textContent, result.ok ? "success" : "warn");
+      });
+
+      attachDragHandlers(panel);
+      panelByField[fieldKey] = panel;
+      return panel;
+    }
+
+    function applyInitialPanelLayout(panel, fieldKey) {
+      const saved = loadLayout();
+      if (saved) {
+        panel.manualLayout = true;
+        applyPanelRect(panel, clampPanelRect(saved.left, saved.top, saved.width, saved.height));
+        return;
+      }
+      panel.manualLayout = false;
+      updatePanelPosition(fieldKey);
+      if (!panel.root.style.left || !panel.root.style.top) {
+        applyPanelRect(panel, clampPanelRect(20, 20, 520, 360));
+      }
+    }
+
     async function runAnalysis(target, options) {
       const runtimeOptions = options && typeof options === "object" ? options : {};
       const panelField = runtimeOptions.panelField || TARGET_TO_PANEL_FIELD[target] || "same_font";
@@ -624,7 +1015,7 @@
 
       const panel = ensurePanel(panelField);
       panel.root.style.display = "block";
-      updatePanelPosition(panelField);
+      applyInitialPanelLayout(panel, panelField);
       setPanelLoading(panel, target);
       runningByField[panelField] = true;
 
@@ -633,12 +1024,10 @@
         updateInlineButtonState(snapshot);
 
         const states = getFieldStates(snapshot);
-        if (target === "same_font" || target === "overall") {
-          if (!states.same_font) {
-            const message = "未检测到 same_font 板块。";
-            setPanelError(panel, message);
-            return { ok: false, message: message };
-          }
+        if ((target === "same_font" || target === "overall") && !states.same_font) {
+          const message = "未检测到 same_font 板块。";
+          setPanelError(panel, message);
+          return { ok: false, message: message };
         }
         if (target === "image_b_texts_removed" && !states.image_b_texts_removed) {
           const message = "未检测到 image_b_texts_removed 板块。";
@@ -658,10 +1047,7 @@
         });
         const body = response.data || {};
         const result = body.result || {};
-        const thinkingDebug = body.thinking || {};
         const requestDebug = response.requestDebug || {};
-        const stagePayload = body.stages && typeof body.stages === "object" ? body.stages : {};
-
         const price =
           typeof pricing.estimateTask21Price === "function"
             ? pricing.estimateTask21Price(extractPriceInput(snapshot, result))
@@ -672,37 +1058,15 @@
           requestId: body.requestId || "",
           model: body.model || "",
           analysisMode:
-            String(body.analysisMode || "") ||
-            String(requestDebug.analysisMode || "") ||
-            "two_stage",
-          visionModel:
-            String(body.visionModel || "") ||
-            String(requestDebug.visionModel || "") ||
-            String(stagePayload?.vision?.model || ""),
+            String(body.analysisMode || "") || String(requestDebug.analysisMode || "") || "two_stage",
+          visionModel: String(body.visionModel || "") || String(requestDebug.visionModel || ""),
           ocrEnabled:
             body.ocrEnabled === true ||
             (body.ocrEnabled !== false && requestDebug.ocrEnabled === true),
-          ocrModel:
-            String(body.ocrModel || "") ||
-            String(requestDebug.ocrModel || "") ||
-            String(stagePayload?.ocr?.model || ""),
+          ocrModel: String(body.ocrModel || "") || String(requestDebug.ocrModel || ""),
           reasoningModel:
-            String(body.reasoningModel || "") ||
-            String(requestDebug.reasoningModel || "") ||
-            String(stagePayload?.reasoning?.model || ""),
-          singleModel:
-            String(body.singleModel || "") ||
-            String(requestDebug.singleModel || "") ||
-            String(stagePayload?.single?.model || ""),
-          enableThinking:
-            thinkingDebug.requested === true ||
-            (thinkingDebug.requested !== false && requestDebug.enableThinking === true),
-          thinkingParamName: String(thinkingDebug.paramName || "enable_thinking"),
-          thinkingParamLocation: String(thinkingDebug.paramLocation || "root"),
-          explicitDisableSent:
-            thinkingDebug.explicitDisableSent === true || thinkingDebug.requested === false,
-          thinkingFallbackUsed: thinkingDebug.fallbackUsed === true,
-          timeoutMs: Number(thinkingDebug.timeoutMs || requestDebug.timeoutMs || 0),
+            String(body.reasoningModel || "") || String(requestDebug.reasoningModel || ""),
+          singleModel: String(body.singleModel || "") || String(requestDebug.singleModel || ""),
           elapsedMs: Number(body.elapsedMs || nowMs() - startedAt),
           usage: Object.assign(
             {
@@ -710,20 +1074,12 @@
               outputTokens: 0,
               totalTokens: 0,
               source: "unavailable",
-              hasUsage: false,
             },
-            body.usage || {},
-            {
-              hasUsage: Boolean(body.usage && String(body.usage.source || "") === "provider"),
-            }
+            body.usage || {}
           ),
-          stages: stagePayload,
-          imageStats:
-            Array.isArray(body.imageStats) && body.imageStats.length > 0
-              ? body.imageStats
-              : snapshot.imageStats,
           price: price,
           result: result,
+          suggestions: buildDisplaySuggestions(target, result),
           raw: {
             request: requestPayload,
             response: body,
@@ -838,7 +1194,6 @@
         childList: true,
         subtree: true,
       });
-
       window.addEventListener("resize", updateAllPanelPositions, true);
       window.addEventListener("scroll", updateAllPanelPositions, true);
     }
@@ -891,6 +1246,9 @@
       stopObservers();
       Object.keys(panelByField).forEach(function (fieldKey) {
         const panel = panelByField[fieldKey];
+        if (panel && panel.resizeObserver && typeof panel.resizeObserver.disconnect === "function") {
+          panel.resizeObserver.disconnect();
+        }
         if (panel && panel.root && panel.root.parentElement) {
           panel.root.parentElement.removeChild(panel.root);
         }

@@ -11,7 +11,7 @@
 
 ## 当前阶段
 
-- 阶段：Task21 快捷键 + AI 分析调试版。
+- 阶段：Task21助手（快捷键 + AI 辅助填写）。
 - 目标：
   - 快捷键辅助 `same_font` 与派生字段选择、暂存、送审按钮点击
   - AI 面板提供 same_font / image_b_texts_removed / other_changes / overall 四种分析
@@ -51,7 +51,7 @@
 - `6/7` 在 `viewMode=true` 查看页不执行。
 - 不自动提交、不自动保存、不自动领取、不自动放弃、不自动跳过、不自动送审。
 
-## AI 面板（调试版）
+## AI 面板（Task21助手）
 
 - 面板入口：`/items` 页面字段标题右侧内联按钮。
 - 按钮挂载：
@@ -59,9 +59,10 @@
   - `image_b_texts_removed` 标题右侧：`AI分析`
   - `other_changes` 标题右侧：`AI分析`
 - 结果展示：
-  - 每个字段使用自己的悬浮窗，锚定在对应 `.l-item` 附近
-  - 支持关闭
-  - 支持“查看原始 JSON（脱敏）”折叠展开
+  - 主视图只展示：推荐选择、标准答案、理由、`填写 AI 答案` 按钮
+  - 调试信息与原始 JSON（脱敏）默认折叠隐藏
+  - 支持关闭、拖动、调整宽高、重置位置
+  - 拖动/缩放布局会写入 `localStorage`：`asc-abaka-task21-ai-panel-layout-v1`
 - 按钮可用性：
   - 检测不到对应板块则置灰，提示“未检测到该板块”。
   - `same_font=false/unsure` 时后两个按钮仍可用于调试分析，但会提示正式流程可跳过。
@@ -70,7 +71,11 @@
   - `Alt+2`：AI 分析 `image_b_texts_removed`
   - `Alt+3`：AI 分析 `other_changes`
   - `Alt+4`：AI 整体分析
-- Options 新增“AI 调试”子板块：
+- Options 的 Task21助手详情页：
+  - AI 相关设置默认隐藏
+  - 连续点击标题 10 次后显示（仅当前页面会话）
+  - 未解锁直接保存时，不会重置隐藏 AI 配置
+- AI 调试子板块（解锁后可见）：
   - 分析方案：`two_stage`（默认）/ `single_model`
   - 默认推荐：双模型 `qwen3.6-plus + qwen3.6-plus`
   - 单模型默认：`qwen3.6-plus`
@@ -84,16 +89,20 @@
   - 启用思考（默认关闭）
   - 请求超时（默认 `120000ms`）
   - 前端不保存 API Key
-- 调试输出：
-  - `requestId`、模型名、耗时
-  - `analysisMode`、`visionModel`、`reasoningModel`、`singleModel`
-  - `ocrEnabled`、`ocrModel`
-  - `enableThinking`、`thinkingParamName`、`thinkingParamLocation`、`explicitDisableSent`、`timeoutMs`
-  - `stages.vision/ocr/reasoning/single` 模型、callMode、thinking 状态、耗时与 token
-  - `input/output/total tokens` 与 usage 来源
-  - 图片数量、字段列表、`mime/width/height/bytes`
-  - 价格估算（same_font、image_b_texts_removed、other_changes、total）
-  - 脱敏后的原始 JSON（折叠查看）
+- 填写行为边界：
+  - AI 仍然只作辅助，不自动保存、不自动提交、不自动送审
+  - 仅在用户点击 `填写 AI 答案` 时，才会写入 radio / 输入框
+  - 不点击 checkbox，不绕过 disabled/readOnly 控件
+
+- image_b_texts_removed 标准答案格式：
+  - 仅接受 `N instance of xxx` / `N instances of xxx`
+  - `N=1` 用 `instance`，`N>1` 用 `instances`
+  - 不接受 `all instances of xxx`、bullet、编号、解释
+
+- other_changes 比较口径：
+  - 只比较 `image_b_removed` 与 `image_b`
+  - 不再比较 `image_a` 与 `image_b`
+  - `specify` 时输出英文短句（建议 30 词以内）
 - 安全：
   - 不展示完整图片 URL、完整 dataUrl、token/cookie/authorization 等敏感字段。
 

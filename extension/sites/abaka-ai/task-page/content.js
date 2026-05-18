@@ -130,6 +130,7 @@
         pricing: pricing,
         settings: settingsCache,
         showToast: showToast,
+        actions: domActionsRuntime,
       });
       const aiStarted = aiPanelRuntime.start();
       if (aiStarted && aiStarted.ok === true) {

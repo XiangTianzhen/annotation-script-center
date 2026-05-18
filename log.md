@@ -1,5 +1,28 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（Task21助手：UI 收敛、手动填写与规则口径修复）
+
+- 将 Abaka Task21 脚本用户可见名称统一为 `Task21助手`（脚本库标签、短标签、状态标签与说明文案同步）。
+- Options 的 Task21助手详情页新增 AI 设置隐藏机制：
+  - 默认隐藏 `analysisMode/visionModel/ocr/reasoning/single/thinking/timeout` 等 AI 调试字段。
+  - 在详情页标题连续点击 10 次后显示（仅当前页面会话生效）。
+  - 未解锁时保存不会重置隐藏 AI 配置，已解锁时才读取并保存 AI 字段值。
+- Task21 AI 悬浮窗重构为“结果优先”主视图：
+  - 主视图仅展示推荐选择、标准答案、理由、`填写 AI 答案` 按钮。
+  - 调试信息与原始 JSON 改为折叠隐藏。
+  - 新增拖动、宽高调整、重置位置；布局保存在 `asc-abaka-task21-ai-panel-layout-v1`。
+- 新增“填写 AI 答案”执行链路（仍保持手动触发）：
+  - 仅在用户点击按钮时写入页面字段。
+  - 通过 `dom-actions` 新增 `fillFieldText/setTextValue` 支持 textarea、text input、contenteditable。
+  - 写入时检查 disabled/readOnly/aria-disabled，使用原生 setter + `input/change` 事件。
+  - 不自动保存、不自动提交、不自动送审、不点击 checkbox。
+- 后端 Task21 规则与归一化加强：
+  - `image_b_texts_removed` 强制按 `image_b` vs `image_b_removed` 口径，`specify` 标准答案仅允许 `N instance(s) of xxx`；非法行进入 warnings 并过滤。
+  - `other_changes` 强制按 `image_b_removed` vs `image_b` 口径，`specify` 输出英文短句。
+  - 输出新增 `choice` 字段并保持旧 `value/value_type` 兼容。
+- 模型默认值保持 `qwen3.6-plus`，并兼容误填 `qwen3.6plus -> qwen3.6-plus`（前端/后端/存储归一）。
+- 本次未能联网核对官方文档，保留项目当前 `qwen3.6-plus` 口径。
+
 ## 2026-05-18（LabelX ASR 下载中文文件名响应头异常修复）
 
 - 修复 LabelX 快判与转写 `statistics/download?supplier=<供应商>` 在中文供应商文件名场景下触发 `Invalid character in header content ["Content-Disposition"]` 的问题。

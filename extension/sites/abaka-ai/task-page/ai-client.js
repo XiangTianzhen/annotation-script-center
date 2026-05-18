@@ -29,8 +29,12 @@
 
   function normalizeModelName(value, fallback) {
     const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    if (text === "qwen3.6plus") {
+      return "qwen3.6-plus";
+    }
     if (!text) {
-      return String(fallback || DEFAULT_SINGLE_MODEL).trim() || DEFAULT_SINGLE_MODEL;
+      const fallbackText = String(fallback || DEFAULT_SINGLE_MODEL).trim();
+      return fallbackText === "qwen3.6plus" ? "qwen3.6-plus" : fallbackText || DEFAULT_SINGLE_MODEL;
     }
     return text.slice(0, 80);
   }

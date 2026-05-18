@@ -252,6 +252,9 @@
   let abakaAiShortcutsDraft = {};
   let abakaAiRecordingKey = null;
   let stopAbakaAiRecordingListeners = null;
+  let abakaAiAdvancedRevealCount = 0;
+  let abakaAiAdvancedUnlocked = false;
+  let abakaAiAdvancedLastClickAt = 0;
   let endpointAdvancedRevealCount = 0;
   let endpointAdvancedUnlocked = false;
   let judgementAiAdvancedRevealCount = 0;
@@ -881,6 +884,37 @@
     return true;
   }
 
+  function isAbakaAiAdvancedUnlocked() {
+    return abakaAiAdvancedUnlocked === true;
+  }
+
+  function registerAbakaAiAdvancedRevealClick() {
+    if (abakaAiAdvancedUnlocked) {
+      return false;
+    }
+    const now = Date.now();
+    if (now - abakaAiAdvancedLastClickAt > 3000) {
+      abakaAiAdvancedRevealCount = 0;
+    }
+    abakaAiAdvancedLastClickAt = now;
+    abakaAiAdvancedRevealCount += 1;
+    if (abakaAiAdvancedRevealCount < 10) {
+      return false;
+    }
+    abakaAiAdvancedUnlocked = true;
+    return true;
+  }
+
+  function updateAbakaAiAdvancedTip() {
+    const node = getElement("abaka-ai-advanced-tip");
+    if (!node) {
+      return;
+    }
+    node.textContent = isAbakaAiAdvancedUnlocked()
+      ? "AI 设置已显示，仅调试时修改。"
+      : "AI 设置已隐藏。";
+  }
+
   function getAsrVoiceAiDefaultsPath(scriptId) {
     if (scriptId === judgementProjectId) {
       return asrVoiceAiDefaultsPaths.judgement;
@@ -1151,6 +1185,9 @@
     const text = String(value || "").trim();
     if (!text) {
       return "";
+    }
+    if (text === "qwen3.6plus") {
+      return "qwen3.6-plus";
     }
     if (text === "qwen-vl-max-latest") {
       return "qwen-vl-max";
@@ -3023,6 +3060,11 @@
   function applyAbakaAiTaskPageForm(settings) {
     const config = getAbakaAiTaskPageConfig(settings);
     abakaAiShortcutsDraft = clone(config.shortcuts) || {};
+    const advancedPanel = getElement("abaka-ai-settings-advanced");
+    if (advancedPanel) {
+      advancedPanel.classList.toggle("hidden", !isAbakaAiAdvancedUnlocked());
+    }
+    updateAbakaAiAdvancedTip();
     const autoSelectNode = getElement("abaka-auto-select-specify-on-same-font-true");
     if (autoSelectNode instanceof HTMLInputElement) {
       autoSelectNode.checked = config.autoSelectSpecifyOnSameFontTrue !== false;
@@ -3080,7 +3122,7 @@
 
   async function saveAbakaAiTaskPageSettings() {
     if (!storage || typeof storage.patchSettings !== "function") {
-      setStatus("abaka-status", "当前扩展版本不支持保存 Abaka AI 设置。");
+      setStatus("abaka-status", "当前扩展版本不支持保存 Task21助手设置。");
       return false;
     }
 
@@ -3096,83 +3138,65 @@
       autoSelectNode instanceof HTMLInputElement
         ? autoSelectNode.checked === true
         : currentConfig.autoSelectSpecifyOnSameFontTrue !== false;
+    const advancedUnlocked = isAbakaAiAdvancedUnlocked();
     const aiAnalysisModeNode = getElement("abaka-ai-analysis-mode");
-    const aiAnalysisMode =
-      aiAnalysisModeNode instanceof HTMLSelectElement
-        ? normalizeAbakaAiAnalysisMode(
-            aiAnalysisModeNode.value,
-            currentConfig.aiAnalysisMode || "two_stage"
-          )
-        : normalizeAbakaAiAnalysisMode(currentConfig.aiAnalysisMode, "two_stage");
+    const aiAnalysisMode = advancedUnlocked && aiAnalysisModeNode instanceof HTMLSelectElement
+      ? normalizeAbakaAiAnalysisMode(aiAnalysisModeNode.value, currentConfig.aiAnalysisMode || "two_stage")
+      : normalizeAbakaAiAnalysisMode(currentConfig.aiAnalysisMode, "two_stage");
     const aiVisionModelNode = getElement("abaka-ai-vision-model");
-    const aiVisionModel =
-      aiVisionModelNode instanceof HTMLSelectElement
-        ? normalizeAbakaAiModel(
-            aiVisionModelNode.value,
-            currentConfig.aiVisionModel || "qwen3.6-plus",
-            abakaAiTask21VisionModelOptions
-          )
-        : normalizeAbakaAiModel(
-            currentConfig.aiVisionModel,
-            "qwen3.6-plus",
-            abakaAiTask21VisionModelOptions
-          );
+    const aiVisionModel = advancedUnlocked && aiVisionModelNode instanceof HTMLSelectElement
+      ? normalizeAbakaAiModel(
+          aiVisionModelNode.value,
+          currentConfig.aiVisionModel || "qwen3.6-plus",
+          abakaAiTask21VisionModelOptions
+        )
+      : normalizeAbakaAiModel(
+          currentConfig.aiVisionModel,
+          "qwen3.6-plus",
+          abakaAiTask21VisionModelOptions
+        );
     const aiOcrEnabledNode = getElement("abaka-ai-ocr-enabled");
-    const aiOcrEnabled =
-      aiOcrEnabledNode instanceof HTMLInputElement
-        ? aiOcrEnabledNode.checked === true
-        : currentConfig.aiOcrEnabled === true;
+    const aiOcrEnabled = advancedUnlocked && aiOcrEnabledNode instanceof HTMLInputElement
+      ? aiOcrEnabledNode.checked === true
+      : currentConfig.aiOcrEnabled === true;
     const aiOcrModelNode = getElement("abaka-ai-ocr-model");
-    const aiOcrModel =
-      aiOcrModelNode instanceof HTMLSelectElement
-        ? normalizeAbakaAiModel(
-            aiOcrModelNode.value,
-            currentConfig.aiOcrModel || "",
-            abakaAiTask21OcrModelOptions
-          )
-        : normalizeAbakaAiModel(
-            currentConfig.aiOcrModel,
-            "",
-            abakaAiTask21OcrModelOptions
-          );
+    const aiOcrModel = advancedUnlocked && aiOcrModelNode instanceof HTMLSelectElement
+      ? normalizeAbakaAiModel(aiOcrModelNode.value, currentConfig.aiOcrModel || "", abakaAiTask21OcrModelOptions)
+      : normalizeAbakaAiModel(currentConfig.aiOcrModel, "", abakaAiTask21OcrModelOptions);
     const aiReasoningModelNode = getElement("abaka-ai-reasoning-model");
-    const aiReasoningModel =
-      aiReasoningModelNode instanceof HTMLSelectElement
-        ? normalizeAbakaAiModel(
-            aiReasoningModelNode.value,
-            currentConfig.aiReasoningModel || "qwen3.6-plus",
-            abakaAiTask21ReasoningModelOptions
-          )
-        : normalizeAbakaAiModel(
-            currentConfig.aiReasoningModel,
-            "qwen3.6-plus",
-            abakaAiTask21ReasoningModelOptions
-          );
+    const aiReasoningModel = advancedUnlocked && aiReasoningModelNode instanceof HTMLSelectElement
+      ? normalizeAbakaAiModel(
+          aiReasoningModelNode.value,
+          currentConfig.aiReasoningModel || "qwen3.6-plus",
+          abakaAiTask21ReasoningModelOptions
+        )
+      : normalizeAbakaAiModel(
+          currentConfig.aiReasoningModel,
+          "qwen3.6-plus",
+          abakaAiTask21ReasoningModelOptions
+        );
     const aiSingleModelNode = getElement("abaka-ai-single-model");
-    const aiSingleModel =
-      aiSingleModelNode instanceof HTMLSelectElement
-        ? normalizeAbakaAiModel(
-            aiSingleModelNode.value,
-            currentConfig.aiSingleModel || "qwen3.6-plus",
-            abakaAiTask21SingleModelOptions
-          )
-        : normalizeAbakaAiModel(
-            currentConfig.aiSingleModel,
-            "qwen3.6-plus",
-            abakaAiTask21SingleModelOptions
-          );
+    const aiSingleModel = advancedUnlocked && aiSingleModelNode instanceof HTMLSelectElement
+      ? normalizeAbakaAiModel(
+          aiSingleModelNode.value,
+          currentConfig.aiSingleModel || "qwen3.6-plus",
+          abakaAiTask21SingleModelOptions
+        )
+      : normalizeAbakaAiModel(
+          currentConfig.aiSingleModel,
+          "qwen3.6-plus",
+          abakaAiTask21SingleModelOptions
+        );
     const aiEnableThinkingNode = getElement("abaka-ai-enable-thinking");
-    const aiEnableThinking =
-      aiEnableThinkingNode instanceof HTMLInputElement
-        ? aiEnableThinkingNode.checked === true
-        : currentConfig.aiEnableThinking === true;
+    const aiEnableThinking = advancedUnlocked && aiEnableThinkingNode instanceof HTMLInputElement
+      ? aiEnableThinkingNode.checked === true
+      : currentConfig.aiEnableThinking === true;
     const aiTimeoutNode = getElement("abaka-ai-timeout");
-    const aiRequestTimeoutMs =
-      aiTimeoutNode instanceof HTMLInputElement
-        ? normalizeAbakaAiTimeout(aiTimeoutNode.value, currentConfig.aiRequestTimeoutMs || 120000)
-        : normalizeAbakaAiTimeout(currentConfig.aiRequestTimeoutMs, 120000);
+    const aiRequestTimeoutMs = advancedUnlocked && aiTimeoutNode instanceof HTMLInputElement
+      ? normalizeAbakaAiTimeout(aiTimeoutNode.value, currentConfig.aiRequestTimeoutMs || 120000)
+      : normalizeAbakaAiTimeout(currentConfig.aiRequestTimeoutMs, 120000);
 
-    setStatus("abaka-status", "正在保存 Abaka AI 设置...");
+    setStatus("abaka-status", "正在保存 Task21助手设置...");
     try {
       currentSettings = await storage.patchSettings({
         platforms: {
@@ -3198,7 +3222,7 @@
         },
       });
       applyAbakaAiTaskPageForm(currentSettings);
-      setStatus("abaka-status", "Abaka AI Task21 快捷键与 AI 调试设置已保存。");
+      setStatus("abaka-status", "Task21助手设置已保存。");
       return true;
     } catch (error) {
       setStatus(
@@ -4320,7 +4344,7 @@
       applyAbakaAiTaskPageForm(settings);
       setStatus(
         "detail-status",
-        "Abaka AI Task21 快捷键仅用于点击页面真实选项；AI 调试仅输出建议；不直接调用保存/提交/领取/流转接口。"
+        "Task21助手仅用于快捷键与 AI 辅助建议；不会自动保存、提交、领取或流转。"
       );
       setStatus("abaka-status", "");
       return;
@@ -4958,11 +4982,22 @@
     if (detailScriptName) {
       detailScriptName.addEventListener("click", function () {
         const scriptId = getCurrentDetailScriptId();
-        if (!scriptId || !supportsAsrVoiceAiSettings(scriptId)) {
+        if (!scriptId) {
           return;
         }
-        const justUnlocked = registerAsrVoiceAiRevealClick(scriptId);
-        if (justUnlocked) {
+        if (isAbakaAiScript(scriptId)) {
+          const justUnlockedAbaka = registerAbakaAiAdvancedRevealClick();
+          if (justUnlockedAbaka) {
+            renderDetail(currentSettings || {}, scriptId);
+            setStatus("abaka-status", "AI 设置已显示，仅调试时修改。");
+          }
+          return;
+        }
+        if (!supportsAsrVoiceAiSettings(scriptId)) {
+          return;
+        }
+        const justUnlockedAsr = registerAsrVoiceAiRevealClick(scriptId);
+        if (justUnlockedAsr) {
           renderDetail(currentSettings || {}, scriptId);
           const statusTarget = getAsrVoiceAiStatusTargetId(scriptId);
           setStatus(statusTarget, "ASR 语音 AI 设置已显示，仅影响当前脚本。");
