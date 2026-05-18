@@ -1,5 +1,12 @@
 # 标注脚本中心修改日志
 
+## 2026-05-17（DataBaker：AI 推荐文本简体化规则）
+
+- 标贝易采一检质检 AI 听音与比较 prompt 新增“普通中文繁体转简体”规则（`heardText`、`recommendedText`）。
+- 闽南方言词表 `platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv` 的建议用字明确排除在普通简繁转换之外，命中词表时保持建议用字。
+- 词表建议用字优先级高于普通简繁转换，避免把方言建议字形改回普通话同义词。
+- 本轮仅调整 prompt 与文档，不修改模型配置、不新增后端接口、不生成发布产物。
+
 ## 2026-05-18（Abaka AI：模型名与百炼文档对齐修正）
 
 - `docs/external-docs/aliyun-bailian.md` 新增并固定 4 个视觉/OCR官方入口：
