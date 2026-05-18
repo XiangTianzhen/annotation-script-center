@@ -8,6 +8,11 @@ const {
   preferHealthyText,
   resolveSupplierInfo,
 } = require("../../supplier-utils");
+const {
+  JUDGEMENT_KIND,
+  TRANSCRIPTION_KIND,
+  resolveAsrProjectKind,
+} = require("../../asr-project-kind");
 
 const BASE_PATCH_COLUMNS = new Set([
   "任务名称",
@@ -15,6 +20,7 @@ const BASE_PATCH_COLUMNS = new Set([
   "任务ID",
   "分包ID",
   "题数",
+  "有效时长",
   "有效时长(秒)",
 ]);
 const ROLE_SPECIFIC_COLUMNS = new Set([
@@ -214,17 +220,18 @@ function findExistingMergeRowId(rowsByMergeRowId, batchId, roleRecord) {
 
 function applyBasePatch(row, patch, csvColumns) {
   Object.keys(patch).forEach(function (key) {
-    if (csvColumns.indexOf(key) < 0) {
+    const normalizedKey = key === "有效时长(秒)" ? "有效时长" : key;
+    if (csvColumns.indexOf(normalizedKey) < 0) {
       return;
     }
-    if (ROLE_SPECIFIC_COLUMNS.has(key) || !BASE_PATCH_COLUMNS.has(key)) {
+    if (ROLE_SPECIFIC_COLUMNS.has(normalizedKey) || !BASE_PATCH_COLUMNS.has(key)) {
       return;
     }
 
-    if (key === "有效时长(秒)") {
+    if (normalizedKey === "有效时长") {
       const normalizedDuration = formatDuration(patch[key]);
       if (normalizedDuration !== "") {
-        row[key] = normalizedDuration;
+        row["有效时长"] = normalizedDuration;
       }
       return;
     }
@@ -232,13 +239,25 @@ function applyBasePatch(row, patch, csvColumns) {
     const value = patch[key];
     const normalizedValue = cleanCsvValue(value);
     if (normalizedValue !== "") {
-      if (QUALITY_CRITICAL_COLUMNS.has(key)) {
-        row[key] = preferHealthyText(normalizedValue, row[key] || "");
+      if (QUALITY_CRITICAL_COLUMNS.has(normalizedKey)) {
+        row[normalizedKey] = preferHealthyText(normalizedValue, row[normalizedKey] || "");
         return;
       }
-      row[key] = normalizedValue;
+      row[normalizedKey] = normalizedValue;
     }
   });
+}
+
+function rejectIfCrossProjectPayload(payload) {
+  const detected = resolveAsrProjectKind({
+    payload: payload,
+    row: payload?.csvPatch,
+    csvColumns: CSV_COLUMNS,
+  });
+  if (detected.kind === JUDGEMENT_KIND && detected.confidence === "high") {
+    const reason = detected.reason ? "（" + detected.reason + "）" : "";
+    throw new Error("检测到判断项目数据，已拒绝写入转写统计表。" + reason);
+  }
 }
 
 function applyPayloadToRows(payload, rowsByMergeRowId, csvColumns) {
@@ -318,6 +337,7 @@ function mergeUploadPayloads(payload, store) {
   const failures = [];
   payloads.forEach(function (item) {
     try {
+      rejectIfCrossProjectPayload(item);
       const result = applyPayloadToRows(item, rowsByMergeRowId, csvColumns);
       store.appendUploadEvent(item);
       results.push(result);

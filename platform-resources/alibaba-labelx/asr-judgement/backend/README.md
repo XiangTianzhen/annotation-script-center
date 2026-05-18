@@ -157,6 +157,9 @@ AI 日志与数据边界：
 - 服务端按 `mergeKey.supplierKey + "::" + mergeKey.batchId`（等价于“供应商 + 分包ID”）做幂等合并。
 - 多个标注员和审核员的记录会合并成同一行 CSV 宽表。
 - 供应商识别优先级：`payload.supplier.name`、`payload.vendor.name`、`payload.supplier`、`payload.vendor`、`csvPatch["供应商"]`、`taskName/name` 规则推断、`未识别供应商`。
+- 供应商规则补充：任务名命中 `海天` 识别为 `海天`；命中 `贝壳` / `希尔贝壳` 统一为 `希尔贝壳`；命中 `棋燊` 识别为 `棋燊`；`supplier=H` 且任务名含海天语义时归一为 `海天`。
+- 项目类型识别优先级：`payload.project` 与 `payload.rawKeys.labelModel`（高优先）；其次 `taskName` 关键词；再次 CSV schema；最后 `题数`（`400` 仅历史兜底）。
+- 防串表：检测到高置信转写数据（如 `project=...asr-transcription` 或 `labelModel=single`）会拒绝写入快判统计表，并通过 `rejectedItems` 返回原因。
 - CSV 写出时动态处理“供应商”列：单供应商数据集不输出；多供应商数据集在最后一列追加。
 
 ## CSV 宽表字段
@@ -182,3 +185,4 @@ AI 日志与数据边界：
 
 - 旧 CSV 表头 `有效时长(秒)` 在读取时会自动归一为 `有效时长`。
 - 统计运行数据目录（`statistics-data/`）属于本地产物，不提交 Git。
+- 历史修复工具：`node platform-resources/alibaba-labelx/backend/legacy-csv-repair.js --dry-run`（预览）和 `--write --backup`（写入并备份）；运行 CSV 修复仅本地执行，不提交 Git。

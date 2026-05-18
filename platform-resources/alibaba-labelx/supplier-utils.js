@@ -1,7 +1,7 @@
 "use strict";
 
 const UNKNOWN_SUPPLIER_NAME = "未识别供应商";
-const KNOWN_SUPPLIERS = ["希尔贝壳", "棋燊"];
+const KNOWN_SUPPLIERS = ["海天", "希尔贝壳", "棋燊"];
 const REPLACEMENT_CHAR = "\uFFFD";
 const SENSITIVE_SUPPLIER_PATTERN =
   /(https?:\/\/|cookie|authorization|access[_-]?token|bearer|signature=|ossaccesskeyid=)/i;
@@ -86,6 +86,58 @@ function normalizeSupplierName(value) {
   return text || UNKNOWN_SUPPLIER_NAME;
 }
 
+function inferKnownSupplierAlias(value) {
+  const text = normalizeTaskNameForSupplier(value);
+  if (!text) {
+    return "";
+  }
+  const compact = compactTaskNameForSupplier(text).toLowerCase();
+  if (
+    text.indexOf("海天") >= 0 ||
+    compact.indexOf("supplier=h") >= 0 ||
+    compact.indexOf("asr结果判断海天") >= 0 ||
+    compact.indexOf("asr更优结果判断dialogue_海天") >= 0
+  ) {
+    return "海天";
+  }
+  if (text.indexOf("希尔贝壳") >= 0 || text.indexOf("贝壳") >= 0) {
+    return "希尔贝壳";
+  }
+  if (text.indexOf("棋燊") >= 0) {
+    return "棋燊";
+  }
+  return "";
+}
+
+function isUnsafeSupplierCandidate(value) {
+  const text = cleanCsvValue(value);
+  if (!text) {
+    return true;
+  }
+  if (SENSITIVE_SUPPLIER_PATTERN.test(text)) {
+    return true;
+  }
+  if (/[\/\\]/.test(text) || text.indexOf("supplier=") >= 0 || text.indexOf("part=") >= 0) {
+    return true;
+  }
+  return false;
+}
+
+function normalizeSupplierCandidate(value) {
+  const alias = inferKnownSupplierAlias(value);
+  if (alias) {
+    return alias;
+  }
+  const normalized = normalizeSupplierName(value);
+  if (isUnknownSupplierName(normalized)) {
+    return "";
+  }
+  if (isUnsafeSupplierCandidate(normalized)) {
+    return "";
+  }
+  return normalized;
+}
+
 function isUnknownSupplierName(value) {
   const normalized = normalizeSupplierName(value);
   if (!normalized) {
@@ -131,6 +183,10 @@ function inferSupplierFromTaskName(taskName) {
   if (!text) {
     return { name: UNKNOWN_SUPPLIER_NAME, source: "fallback" };
   }
+  const knownAlias = inferKnownSupplierAlias(text);
+  if (knownAlias) {
+    return { name: knownAlias, source: "task-name-rule" };
+  }
   const compactText = compactTaskNameForSupplier(text);
 
   for (let index = 0; index < KNOWN_SUPPLIERS.length; index += 1) {
@@ -147,7 +203,7 @@ function inferSupplierFromTaskName(taskName) {
   const separatorMatch = text.match(/^(.+?)[\-－—]/);
   if (separatorMatch && separatorMatch[1] && separatorMatch[1].trim()) {
     const prefix = cleanHealthyCsvValue(separatorMatch[1]);
-    if (prefix) {
+    if (prefix && !isUnsafeSupplierCandidate(prefix)) {
       return { name: prefix, source: "task-name-prefix" };
     }
   }
@@ -155,7 +211,7 @@ function inferSupplierFromTaskName(taskName) {
   const plainAsrIndex = text.indexOf("中文普通话");
   if (plainAsrIndex > 0) {
     const prefix = cleanHealthyCsvValue(text.slice(0, plainAsrIndex));
-    if (prefix) {
+    if (prefix && !isUnsafeSupplierCandidate(prefix)) {
       return { name: prefix, source: "task-name-prefix" };
     }
   }
@@ -189,7 +245,7 @@ function resolveSupplierInfo(input) {
     if (isCorruptedText(candidate)) {
       continue;
     }
-    const name = normalizeSupplierName(candidate);
+    const name = normalizeSupplierCandidate(candidate);
     if (isUnknownSupplierName(name)) {
       continue;
     }
@@ -206,17 +262,17 @@ function resolveSupplierInfo(input) {
   const csvSupplier = cleanCsvValue(csvPatch["供应商"] || "");
   if (csvSupplier) {
     if (!isCorruptedText(csvSupplier)) {
-    const name = normalizeSupplierName(csvSupplier);
-    if (!isUnknownSupplierName(name)) {
-      const safeName = sanitizeSupplierPathSegment(name);
-      const finalName = safeName === UNKNOWN_SUPPLIER_NAME ? UNKNOWN_SUPPLIER_NAME : name;
-      return {
-        key: getSupplierKey(finalName),
-        name: finalName,
-        safeName: safeName,
-        source: "csv-patch",
-      };
-    }
+      const name = normalizeSupplierCandidate(csvSupplier);
+      if (!isUnknownSupplierName(name)) {
+        const safeName = sanitizeSupplierPathSegment(name);
+        const finalName = safeName === UNKNOWN_SUPPLIER_NAME ? UNKNOWN_SUPPLIER_NAME : name;
+        return {
+          key: getSupplierKey(finalName),
+          name: finalName,
+          safeName: safeName,
+          source: "csv-patch",
+        };
+      }
     }
   }
 
@@ -246,8 +302,10 @@ module.exports = {
   inferSupplierFromTaskName,
   compactTaskNameForSupplier,
   isUnknownSupplierName,
+  inferKnownSupplierAlias,
   normalizeTaskNameForSupplier,
   normalizeSupplierName,
+  normalizeSupplierCandidate,
   resolveSupplierInfo,
   sanitizeSupplierPathSegment,
 };

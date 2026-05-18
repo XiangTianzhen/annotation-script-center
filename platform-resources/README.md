@@ -119,6 +119,7 @@ platform-resources/
 - token/password：不需要
 - 运行数据目录：`platform-resources/alibaba-labelx/asr-judgement/backend/statistics-data/`
 - 安全说明：CSV 字段统一使用 `有效时长`；目录为运行数据，不提交 Git。
+- 分类防串表：后端会优先按 `payload.project` / `payload.rawKeys.labelModel` 判定项目类型，高置信判断数据不会写入转写表，高置信转写数据不会写入快判表。
 
 ### Alibaba LabelX ASR 转写 API
 
@@ -144,6 +145,7 @@ platform-resources/
 - token/password：不需要
 - 运行数据目录：`platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`
 - 安全说明：CSV 字段统一使用 `有效时长`；目录为运行数据，不提交 Git。
+- 历史迁移：可执行 `node platform-resources/alibaba-labelx/backend/legacy-csv-repair.js --dry-run` 预览修复；需要落盘时使用 `--write --backup`。
 
 ### DataBaker 一检质检 API
 

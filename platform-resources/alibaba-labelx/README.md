@@ -45,7 +45,7 @@
   3. `csvPatch["供应商"]`
   4. `taskName/name` 推断（当前已知：`棋燊`、`希尔贝壳`）
   5. `未识别供应商`
-- 任务名会先做规范化（`decodeURIComponent` 容错 + 去除 `BOM` + 清理前后空白/全角空格 + 连续空白规整，并生成去空白匹配串），再优先按包含关系识别 `希尔贝壳` / `棋燊`。
+- 任务名会先做规范化（`decodeURIComponent` 容错 + 去除 `BOM` + 清理前后空白/全角空格 + 连续空白规整，并生成去空白匹配串），再优先按包含关系识别 `海天` / `希尔贝壳` / `棋燊`；命中 `贝壳` 归一为 `希尔贝壳`，命中 `supplier=H` 且任务名含海天语义时归一为 `海天`。
 - 若已有供应商字段是 `未识别供应商` / `unknown-supplier` / 空值，必须回退到任务名重新识别，不得固化错误供应商。
 - 详情阶段并发按 `Math.floor(total/5)` 动态计算（最小 `1`，最大 `999`），并在进度条中显示真实执行并发（如 `1854 -> 370`、`8000 -> 999`）。
 - 页数上限与并发上限分开管理：页数上限用于防无限分页，并发上限固定 `500`。
@@ -117,3 +117,11 @@
 - `existing` 判断中 `exists=true` 不等于 `complete=true`，仍需按 `missingFields` 判断是否回流补齐。
 - 任务名称为空的数据可保存但不算 complete；下次导出必须继续补齐。
 - 转写任务名称补齐优先从 `detail/summary/taskMap` 汇总健康值，不允许 `detail` 空值覆盖健康值。
+
+## 2026-05-18（LabelX：判断/转写防串表与历史 CSV 修复）
+
+- 新增 `platform-resources/alibaba-labelx/asr-project-kind.js` 统一项目类型识别：`payload.project` / `payload.rawKeys.labelModel`（高优先） > `taskName` > CSV schema > 题数兜底（`400` 仅历史兜底）。
+- 快判与转写后端都接入高置信防串表校验：判断数据不写入转写表，转写数据不写入判断表；拒绝原因通过 `rejectedItems` 返回。
+- 新增历史修复工具：`node platform-resources/alibaba-labelx/backend/legacy-csv-repair.js --dry-run`、`--write --backup`。
+- 历史修复会把误入转写 CSV 的判断数据迁移到快判 CSV，并修复供应商归一（海天 / 希尔贝壳 / 棋燊）。
+- `statistics-data/` 为运行数据目录，修复仅本地或服务器执行，不提交 Git。

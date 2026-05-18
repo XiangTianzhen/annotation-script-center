@@ -13,6 +13,7 @@
 
 - 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21 快捷键 + AI 分析调试阶段）
 - 统一 CSV 对接字段：有效时长（用于平台系统自动计算）。
+- LabelX 历史 CSV 修复脚本：`node platform-resources/alibaba-labelx/backend/legacy-csv-repair.js --dry-run`（运行数据目录修复，不提交 Git）。
 - 脚本：
   - `extension/sites/alibaba-labelx/asr-judgement/`
   - `extension/sites/alibaba-labelx/asr-transcription/`

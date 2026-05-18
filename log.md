@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（LabelX：海天供应商与判断/转写历史 CSV 分类修复）
+
+- 新增海天供应商识别，贝壳任务名统一归一到希尔贝壳；`supplier=H` 且任务名含海天语义时归一为海天。
+- 新增 `platform-resources/alibaba-labelx/asr-project-kind.js`，项目类型识别优先级为：`payload.project` / `payload.rawKeys.labelModel` > `taskName` > CSV schema > 题数兜底（`400` 仅历史兜底）。
+- 转写与快判后端都增加高置信防串表校验：判断数据拒绝写入转写表，转写数据拒绝写入判断表，并通过 `rejectedItems` 返回原因。
+- 新增 `platform-resources/alibaba-labelx/backend/legacy-csv-repair.js`，可将误入转写表的判断数据迁移到判断表并修复供应商，支持 `--dry-run`、`--write`、`--backup`。
+- 运行 CSV 修复仅本地/服务器执行，不提交 `statistics-data/`；本轮未提升版本，未生成发布产物。
+
 ## 2026-05-18（平台 API 清单与有效时长字段统一）
 
 - `platform-resources/README.md` 新增“统一后端 API 清单”，按模块列出 method、path、本地/服务器 URL、下载 URL 和运行数据目录。
