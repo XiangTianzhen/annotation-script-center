@@ -1,10 +1,10 @@
 "use strict";
 
 const fs = require("fs");
-const path = require("path");
 const { createCorsHeaders, sendJson } = require("../../../backend/response");
 const { createStatisticsStore } = require("./file-store");
 const { mergeUploadPayloads } = require("./payload-merge");
+const { createMergedCsvContent } = require("./csv-writer");
 const { resolveSupplierInfo, sanitizeSupplierPathSegment } = require("../../supplier-utils");
 
 const API_BASE_PATH = "/api/alibaba-labelx/asr-transcription/statistics";
@@ -292,8 +292,41 @@ function sendHealth(response, store) {
   });
 }
 
-function createCsvDownloadHeaders(csvPath, fileSize) {
-  const filename = path.basename(csvPath) || "statistics-merged.csv";
+function formatDownloadTimestamp(date) {
+  const formatter = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const map = {};
+  parts.forEach(function (part) {
+    map[part.type] = part.value;
+  });
+  return (
+    String(map.year || "") +
+    String(map.month || "") +
+    String(map.day || "") +
+    "-" +
+    String(map.hour || "") +
+    String(map.minute || "")
+  );
+}
+
+function createDownloadFilename(supplierName) {
+  const stamp = formatDownloadTimestamp(new Date());
+  if (!supplierName) {
+    return "asr-transcription-statistics-merged-" + stamp + ".csv";
+  }
+  const safeName = sanitizeSupplierPathSegment(supplierName);
+  return "asr-transcription-" + safeName + "-statistics-" + stamp + ".csv";
+}
+
+function createCsvDownloadHeaders(filename, fileSize) {
   return createCorsHeaders({
     "Cache-Control": "no-store",
     "Content-Type": "text/csv; charset=utf-8",
@@ -306,30 +339,39 @@ function createCsvDownloadHeaders(csvPath, fileSize) {
   });
 }
 
-function findSupplierEntry(store, supplierQuery) {
+function matchesSupplier(row, requestedInfo, requestedSafe) {
+  const rowInfo = resolveSupplierInfo({
+    csvPatch: row || {},
+    taskName: row?.["任务名称"] || "",
+  });
+  return (
+    String(rowInfo.key || "") === String(requestedInfo.key || "") ||
+    String(rowInfo.safeName || "") === requestedSafe ||
+    String(rowInfo.name || "") === String(requestedInfo.name || "")
+  );
+}
+
+function buildSupplierRows(store, supplierQuery) {
   const requested = String(supplierQuery || "").trim();
-  if (!requested) {
-    return null;
-  }
   const requestedSafe = sanitizeSupplierPathSegment(requested);
   const requestedInfo = resolveSupplierInfo({
     supplier: requested,
     taskName: requested,
     csvPatch: { 供应商: requested },
   });
-  const requestedKey = String(requestedInfo.key || "");
-  return store.listSuppliers().find(function (item) {
-    const entryInfo = resolveSupplierInfo({
-      supplier: item.supplier,
-      csvPatch: { 供应商: item.supplier },
-    });
-    return (
-      item.supplier === requested ||
-      item.safeSupplier === requested ||
-      item.safeSupplier === requestedSafe ||
-      String(entryInfo.key || "") === requestedKey
-    );
+
+  const rows = store.loadRows() || {};
+  const filteredRows = {};
+  Object.keys(rows).forEach(function (mergeRowId) {
+    const row = rows[mergeRowId] || {};
+    if (matchesSupplier(row, requestedInfo, requestedSafe)) {
+      filteredRows[mergeRowId] = row;
+    }
   });
+  return {
+    filteredRows: filteredRows,
+    requestedInfo: requestedInfo,
+  };
 }
 
 function handleSuppliers(response, store) {
@@ -350,53 +392,55 @@ function handleSuppliers(response, store) {
 }
 
 function handleDownloadCsv(request, response, query, store) {
-  const defaultCsvPath = String(store.getPaths().csvPath || "");
   const supplierQuery = String(query?.supplier || "").trim();
-  let targetCsvPath = defaultCsvPath;
-  if (supplierQuery) {
-    const supplierEntry = findSupplierEntry(store, supplierQuery);
-    if (supplierEntry?.csvPath) {
-      targetCsvPath = supplierEntry.csvPath;
+  if (!supplierQuery) {
+    const targetCsvPath = String(store.getPaths().csvPath || "");
+    if (!targetCsvPath || !fs.existsSync(targetCsvPath)) {
+      sendJson(response, 404, {
+        success: false,
+        message: "统计 CSV 文件不存在，请先上传或生成统计数据。",
+        csvPath: targetCsvPath,
+      });
+      return;
     }
-  }
-
-  if (!targetCsvPath || !fs.existsSync(targetCsvPath)) {
-    sendJson(response, 404, {
-      success: false,
-      message: "统计 CSV 文件不存在，请先上传或生成统计数据。",
-      csvPath: targetCsvPath || defaultCsvPath,
-    });
+    const stat = fs.statSync(targetCsvPath);
+    if (!stat.isFile()) {
+      sendJson(response, 404, {
+        success: false,
+        message: "统计 CSV 路径不是文件。",
+        csvPath: targetCsvPath,
+      });
+      return;
+    }
+    const filename = createDownloadFilename("");
+    response.writeHead(200, createCsvDownloadHeaders(filename, stat.size));
+    if (request.method === "HEAD") {
+      response.end();
+      return;
+    }
+    fs.createReadStream(targetCsvPath).pipe(response);
     return;
   }
 
-  const stat = fs.statSync(targetCsvPath);
-  if (!stat.isFile()) {
+  const supplierRowsResult = buildSupplierRows(store, supplierQuery);
+  const supplierRows = supplierRowsResult.filteredRows || {};
+  if (Object.keys(supplierRows).length === 0) {
     sendJson(response, 404, {
       success: false,
-      message: "统计 CSV 路径不是文件。",
-      csvPath: targetCsvPath,
+      message: "未找到该供应商数据。",
+      supplier: supplierQuery,
     });
     return;
   }
-
-  response.writeHead(200, createCsvDownloadHeaders(targetCsvPath, stat.size));
+  const csvContent = createMergedCsvContent(supplierRows, store.csvColumns);
+  const bodyBuffer = Buffer.from(csvContent, "utf8");
+  const supplierFilename = createDownloadFilename(supplierRowsResult.requestedInfo?.safeName || supplierQuery);
+  response.writeHead(200, createCsvDownloadHeaders(supplierFilename, bodyBuffer.length));
   if (request.method === "HEAD") {
     response.end();
     return;
   }
-
-  const stream = fs.createReadStream(targetCsvPath);
-  stream.on("error", function (error) {
-    if (!response.headersSent) {
-      sendJson(response, 500, {
-        success: false,
-        message: error && error.message ? error.message : String(error),
-      });
-      return;
-    }
-    response.destroy(error);
-  });
-  stream.pipe(response);
+  response.end(bodyBuffer);
 }
 
 function addAliases(router, method, paths, handler) {

@@ -94,7 +94,7 @@ function getOutputCsvColumns(baseColumns, rows) {
   return columnsWithoutSupplier;
 }
 
-function writeMergedCsv(filePath, rowsByBatchId, csvColumns) {
+function createMergedCsvContent(rowsByBatchId, csvColumns) {
   const rows = enrichRowsWithSuppliers(
     Object.keys(rowsByBatchId)
     .sort()
@@ -113,13 +113,19 @@ function writeMergedCsv(filePath, rowsByBatchId, csvColumns) {
     })
   );
 
-  fs.writeFileSync(filePath, "\uFEFF" + lines.join("\n"), "utf8");
+  return "\uFEFF" + lines.join("\n");
+}
+
+function writeMergedCsv(filePath, rowsByBatchId, csvColumns) {
+  const csvContent = createMergedCsvContent(rowsByBatchId, csvColumns);
+  fs.writeFileSync(filePath, csvContent, "utf8");
 }
 
 module.exports = {
   cleanCsvRow,
   enrichRowsWithSuppliers,
   collectDistinctSuppliers,
+  createMergedCsvContent,
   escapeCsvCell,
   getOutputCsvColumns,
   writeMergedCsv,

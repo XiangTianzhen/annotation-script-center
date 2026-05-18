@@ -1,5 +1,16 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（LabelX ASR 下载 supplier 过滤与时间文件名修复）
+
+- 修复 `alibaba-labelx/asr-judgement` 与 `alibaba-labelx/asr-transcription` 的 `statistics/download?supplier=<供应商>` 失效问题：不再复用根级总表文件路径回传，而是从 `store.loadRows()` 内存数据按供应商归一规则过滤后动态生成 CSV 响应。
+- 过滤规则对齐 `platform-resources/alibaba-labelx/supplier-utils.js`：支持中文供应商名（如海天、希尔贝壳、棋燊）、safeSupplier 以及可归一名称匹配。
+- 当 `supplier` 非空但无匹配数据时，下载接口改为返回 `404` JSON（不回退下载总表）。
+- 为快判与转写下载接口新增时间文件名（Asia/Shanghai，`YYYYMMDD-HHmm`），并同时输出 `filename` 与 `filename*=UTF-8''`：
+  - 总表：`asr-judgement-statistics-merged-YYYYMMDD-HHmm.csv`、`asr-transcription-statistics-merged-YYYYMMDD-HHmm.csv`
+  - 供应商：`asr-judgement-<safeSupplier>-statistics-YYYYMMDD-HHmm.csv`、`asr-transcription-<safeSupplier>-statistics-YYYYMMDD-HHmm.csv`
+- `HEAD /download` 供应商模式与总表模式都保持无 body，且 `Content-Length` 与对应 `GET` 一致。
+- 本轮未恢复 `statistics-data/suppliers/<供应商>/statistics-merged.csv` 写盘，不新增依赖，不改前端扩展逻辑。
+
 ## 2026-05-18（发布 v0.3.3）
 
 - 提升 `extension/manifest.json` 版本到 `0.3.3`。

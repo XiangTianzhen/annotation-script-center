@@ -38,7 +38,10 @@
 - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health`
 - `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current`
 
-下载接口默认返回根级总表，不要求 `supplier` 参数；`suppliers` 接口仅作为辅助信息接口。
+下载接口默认返回根级总表，不要求 `supplier` 参数；`suppliers` 接口仅作为辅助信息接口。下载文件名统一带 `YYYYMMDD-HHmm`（Asia/Shanghai）。
+- 总表：`asr-transcription-statistics-merged-YYYYMMDD-HHmm.csv`
+- 供应商：`asr-transcription-<供应商safeName>-statistics-YYYYMMDD-HHmm.csv`
+- `supplier` 有值但无匹配时返回 `404`，不回退总表。
 
 兼容短路径：
 

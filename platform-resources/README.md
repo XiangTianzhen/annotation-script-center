@@ -117,7 +117,7 @@ platform-resources/
   - 本地（supplier）：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/statistics/download?supplier=<供应商>`
   - 服务器（supplier）：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/download?supplier=<供应商>`
 - 是否下载接口：是（CSV）
-- 下载文件说明：默认 `statistics-merged.csv`
+- 下载文件说明：默认下载总表，文件名 `asr-judgement-statistics-merged-YYYYMMDD-HHmm.csv`（Asia/Shanghai）；带 `supplier` 时按供应商过滤并下载 `asr-judgement-<供应商safeName>-statistics-YYYYMMDD-HHmm.csv`；`supplier` 无匹配返回 `404`，不回退总表。
 - token/password：不需要
 - 运行数据目录：`platform-resources/alibaba-labelx/asr-judgement/backend/statistics-data/`
 - 安全说明：CSV 字段统一使用 `有效时长`；目录为运行数据，不提交 Git。
@@ -143,7 +143,7 @@ platform-resources/
   - 本地（supplier）：`http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/download?supplier=<供应商>`
   - 服务器（supplier）：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/download?supplier=<供应商>`
 - 是否下载接口：是（CSV）
-- 下载文件说明：默认 `statistics-merged.csv`
+- 下载文件说明：默认下载总表，文件名 `asr-transcription-statistics-merged-YYYYMMDD-HHmm.csv`（Asia/Shanghai）；带 `supplier` 时按供应商过滤并下载 `asr-transcription-<供应商safeName>-statistics-YYYYMMDD-HHmm.csv`；`supplier` 无匹配返回 `404`，不回退总表。
 - token/password：不需要
 - 运行数据目录：`platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`
 - 安全说明：CSV 字段统一使用 `有效时长`；目录为运行数据，不提交 Git。
