@@ -26,6 +26,7 @@ extension/sites/data-baker/round-one-quality/
 - 专属设置页可配置请求超时时间和 AI 推荐开关。
 - 专属设置页新增自动每页条数，默认启用并设置为 `50条/页`，只点击页面原生分页控件。
 - 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
+- 详情页 AI 面板新增“AI填入合格项”：点击后刷新当前页 `queryCollectStatementByCondtion`，仅处理 `statusName=质检合格` 的下一条，自动选中并填入 AI 推荐文本；每次只处理单条。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
 - 导出 CSV 不再包含“原始JSON”列；原始记录会脱敏后单独上传并由后端保存为 `latest-raw.json`（历史模式下为 `*.raw.json`）。
 - 默认推荐接口走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
@@ -68,6 +69,7 @@ round-one-quality/
 - 快捷键不会在 `input`、`textarea`、`select` 或 `contenteditable` 聚焦时触发。
 - 句子判定只点击 `.submit-btn` 中的“合格 / 不合格”；任务判定只点击 `.operate-btn` 中包含“任务判定”的“通过 / 部分驳回 / 全部驳回”按钮。
 - 任务判定按钮 disabled 时不会绕过平台限制；该能力不自动保存、不自动提交、不自动流转。
+- “AI填入合格项”不会自动保存、自动提交、自动批量流转，也不会点击左侧 checkbox；`质检不合格` 与 `未质检` 会直接跳过。
 
 ## 安全记录规则
 

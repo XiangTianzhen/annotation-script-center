@@ -271,9 +271,103 @@
       enableThinking: config.enableThinking === true,
       aiOptions: config.aiOptions || {},
     });
+    const processedQualifiedItemIds = new Set();
+    let autoFillRunning = false;
+
+    function getRecordProcessKey(record) {
+      const id = String(record?.id || "").trim();
+      if (id) {
+        return "id:" + id;
+      }
+      const sentenceNumber = Number(record?.sentenceNumber);
+      if (Number.isFinite(sentenceNumber)) {
+        return "sentence:" + String(sentenceNumber);
+      }
+      const index = Number(record?.__index);
+      if (Number.isFinite(index)) {
+        return "index:" + String(index);
+      }
+      return "";
+    }
+
+    async function autoFillNextQualifiedItem() {
+      if (config.aiRecommendEnabled === false) {
+        ui.setStatus("AI 推荐已在 DataBaker 设置中关闭。", "error");
+        return { ok: false, message: "ai-disabled" };
+      }
+      if (autoFillRunning) {
+        ui.setStatus("正在处理上一条质检合格数据，请稍候。", "info");
+        return { ok: false, message: "busy" };
+      }
+
+      autoFillRunning = true;
+      try {
+        ui.ensureMounted();
+        ui.setStatus("正在刷新当前列表...", "info");
+        const refreshed = await dataApi.refreshCurrentPageData({
+          pageSize: 50,
+          forcePageSize: true,
+        });
+        if (!refreshed?.ok) {
+          ui.setStatus(refreshed?.message || "刷新当前列表失败。", "error");
+          return { ok: false, message: "refresh-failed" };
+        }
+
+        const qualifiedRecords = dataApi.getQualifiedRecords(refreshed.entry);
+        const targetRecord = qualifiedRecords.find(function (record) {
+          const key = getRecordProcessKey(record);
+          if (!key) {
+            return true;
+          }
+          return !processedQualifiedItemIds.has(key);
+        });
+
+        if (!targetRecord) {
+          ui.setStatus("当前页没有可处理的质检合格数据。", "info");
+          return { ok: true, message: "no-qualified" };
+        }
+
+        const selected = await dataApi.selectRecord(targetRecord);
+        if (!selected?.ok) {
+          ui.setStatus(selected?.message || "找不到对应 DOM 条目。", "error");
+          return { ok: false, message: "select-failed" };
+        }
+
+        const sentenceNumber = Number(targetRecord?.sentenceNumber);
+        const sentenceText = Number.isFinite(sentenceNumber)
+          ? "第 " + String(sentenceNumber) + " 条"
+          : "目标条目";
+        ui.setStatus(sentenceText + "质检合格数据已选中，正在生成 AI 推荐...", "info");
+
+        const item = await dataApi.getCurrentItem({ allowFetch: false });
+        ui.updateCurrentItemKey(item.key);
+        const recommendation = await ai.recommend(item);
+        ui.renderResult(recommendation);
+
+        const fillResult = ui.fillRecommendedText();
+        if (fillResult?.ok === false) {
+          ui.setStatus(fillResult.message || "推荐文本填入失败。", "error");
+          return { ok: false, message: "fill-failed" };
+        }
+
+        const processedKey = getRecordProcessKey(targetRecord);
+        if (processedKey) {
+          processedQualifiedItemIds.add(processedKey);
+        }
+        ui.setStatus("AI 推荐已填入，请人工复核后保存。", "success");
+        return { ok: true, message: "filled" };
+      } catch (error) {
+        ui.setStatus("AI 推荐失败：" + (error?.message || String(error)), "error");
+        return { ok: false, message: "recommend-failed" };
+      } finally {
+        autoFillRunning = false;
+      }
+    }
+
     const ui = uiFactory.createRuntime({
       canFillPageText: dataApi.canFillPageText,
       fillPageText: dataApi.fillPageText,
+      onAutoFillQualifiedItem: autoFillNextQualifiedItem,
       onRecommend: async function () {
         const item = await dataApi.getCurrentItem();
         ui.updateCurrentItemKey(item.key);

@@ -30,6 +30,23 @@ vadStatus=
 - `sentenceNumber`：句子编号筛选。
 - `vadStatus`：句子状态 / 时间戳相关筛选。
 
+推荐的“当前页刷新”查询参数（AI 填入合格项）：
+
+```text
+pageSize=50
+pageNum=<当前页>
+collectId=<当前页面 collectId>
+audioText=
+sentenceNumber=
+vadStatus=
+```
+
+状态筛选规则（仅用于前端辅助，不改变平台状态）：
+
+- `statusName=质检合格`：允许进入 AI 推荐与填入流程。
+- `statusName=质检不合格`：跳过，不分析不填入。
+- `statusName=未质检`：跳过，不分析不填入。
+
 ## 触发时机
 
 该接口通常在以下场景触发：
@@ -62,6 +79,14 @@ snr
 volume
 noise
 ```
+
+重点字段说明：
+
+- `list[].statusName`：判定是否允许处理（只处理“质检合格”）。
+- `list[].audioText`：当前句候选文本。
+- `list[].audioUrl`：音频地址（仅内存使用，日志与文档不记录完整 URL）。
+- `list[].effectiveTime`：有效时长（秒）。
+- `list[].sentenceNumber`：句子编号（用于左侧条目匹配）。
 
 当前扩展只把这些字段用于当前选中单条的 AI 推荐请求，不做批量处理。
 

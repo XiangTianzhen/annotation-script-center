@@ -150,6 +150,7 @@
     let resultNode = null;
     let statusNode = null;
     let recommendButtonNode = null;
+    let autoFillQualifiedButtonNode = null;
     let currentResult = null;
     let currentItemKey = "";
 
@@ -330,7 +331,8 @@
 
       const foot = document.createElement("div");
       foot.className = "asr-edge-db-foot";
-      foot.textContent = "当前只处理当前选中单条；不会自动保存、提交、批量识别或流转。";
+      foot.textContent =
+        "当前仅自动处理当前页质检合格单条；不会自动保存、提交、批量识别或流转。";
       resultWrap.appendChild(foot);
 
       root.appendChild(resultWrap);
@@ -353,6 +355,26 @@
         const payload = await deps.onRecommend();
         renderResult(payload);
         setStatus("AI 推荐文本已生成，请人工复核。", "success");
+      } catch (error) {
+        setStatus(error?.message || String(error), "error");
+      } finally {
+        if (triggerButton) {
+          triggerButton.disabled = false;
+        }
+      }
+    }
+
+    async function handleAutoFillQualifiedClick(button) {
+      if (typeof deps.onAutoFillQualifiedItem !== "function") {
+        setStatus("AI填入合格项运行时未就绪。", "error");
+        return;
+      }
+      const triggerButton = button || autoFillQualifiedButtonNode;
+      if (triggerButton) {
+        triggerButton.disabled = true;
+      }
+      try {
+        await deps.onAutoFillQualifiedItem();
       } catch (error) {
         setStatus(error?.message || String(error), "error");
       } finally {
@@ -439,11 +461,19 @@
       const actions = document.createElement("div");
       actions.className = "asr-edge-db-actions";
       const recommendButton = createButton("AI 推荐文本", { "data-primary": "true" });
+      const autoFillQualifiedButton = createButton("AI填入合格项");
+      autoFillQualifiedButton.title =
+        "刷新当前页列表，只处理质检合格数据，AI 推荐并填入，不自动保存提交。";
       recommendButtonNode = recommendButton;
+      autoFillQualifiedButtonNode = autoFillQualifiedButton;
       recommendButton.addEventListener("click", function () {
         handleRecommendClick(recommendButton);
       });
+      autoFillQualifiedButton.addEventListener("click", function () {
+        handleAutoFillQualifiedClick(autoFillQualifiedButton);
+      });
       actions.appendChild(recommendButton);
+      actions.appendChild(autoFillQualifiedButton);
       head.appendChild(title);
       head.appendChild(actions);
       root.appendChild(head);
@@ -482,6 +512,7 @@
       resultNode = null;
       statusNode = null;
       recommendButtonNode = null;
+      autoFillQualifiedButtonNode = null;
       currentResult = null;
       currentItemKey = "";
     }
@@ -495,6 +526,7 @@
       getCurrentResult,
       ignoreAiResult,
       remove,
+      renderResult,
       requestAiRecommend,
       setStatus,
       updateCurrentItemKey,

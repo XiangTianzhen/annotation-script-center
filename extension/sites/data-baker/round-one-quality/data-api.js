@@ -29,6 +29,24 @@
     return normalizeText(text).replace(/^\d+\s*/, "").trim();
   }
 
+  function normalizeStatusName(value) {
+    return String(value || "").replace(/\s+/g, "").trim();
+  }
+
+  function isQualifiedStatus(value) {
+    const normalized = normalizeStatusName(value);
+    return normalized === "质检合格" || normalized === "一检合格";
+  }
+
+  function isUnqualifiedStatus(value) {
+    const normalized = normalizeStatusName(value);
+    return normalized === "质检不合格" || normalized === "一检不合格";
+  }
+
+  function isUncheckedStatus(value) {
+    return normalizeStatusName(value) === "未质检";
+  }
+
   function ensureChineseSentencePunctuation(text) {
     const value = String(text || "").trim();
     if (!value) {
@@ -155,6 +173,12 @@
     return toNumberOrNull(match[1]);
   }
 
+  function delay(ms) {
+    return new Promise(function (resolve) {
+      window.setTimeout(resolve, ms);
+    });
+  }
+
   function extractRecords(payload) {
     const candidates = [
       payload?.data?.list,
@@ -255,6 +279,51 @@
         document.querySelector(".sentence-list .sentence-item.active") ||
         document.querySelector(".sentence-list .sentence-item")
       );
+    }
+
+    function parseDomStatusName(item) {
+      if (!(item instanceof Element)) {
+        return "";
+      }
+      if (item.querySelector(".labelStatus3")) {
+        return "质检合格";
+      }
+      if (item.querySelector(".labelStatus4")) {
+        return "质检不合格";
+      }
+      if (item.querySelector(".labelStatus1")) {
+        return "未质检";
+      }
+      const text = normalizeText(item.textContent || "");
+      if (text.indexOf("一检合格") >= 0 || text.indexOf("质检合格") >= 0) {
+        return "质检合格";
+      }
+      if (text.indexOf("一检不合格") >= 0 || text.indexOf("质检不合格") >= 0) {
+        return "质检不合格";
+      }
+      if (text.indexOf("未质检") >= 0) {
+        return "未质检";
+      }
+      return "";
+    }
+
+    function getSentenceItems() {
+      return Array.from(document.querySelectorAll(".sentence-list .sentence-item")).map(function (
+        item,
+        index
+      ) {
+        const titleNode = item.querySelector(".title");
+        const titleText = normalizeText(titleNode?.textContent || "");
+        return {
+          itemNode: item,
+          titleNode: titleNode || null,
+          index: index,
+          titleText: titleText,
+          normalizedTitleText: normalizeSentenceText(titleText),
+          sentenceNumber: parseSentenceNumberFromTitle(titleText),
+          statusName: parseDomStatusName(item),
+        };
+      });
     }
 
     function getActiveListIndex() {
@@ -389,6 +458,136 @@
       return entry;
     }
 
+    async function refreshCurrentPageData(options) {
+      const runtimeOptions = options && typeof options === "object" ? options : {};
+      const routeParams = parseHashParams();
+      if (!routeParams.collectId) {
+        return {
+          ok: false,
+          message: "当前页面缺少 collectId，无法刷新列表数据。",
+        };
+      }
+      const domPageInfo = getPageInfoFromDom();
+      const pageNum = toPositiveNumber(runtimeOptions.pageNum, domPageInfo.pageNum || 1) || 1;
+      const requestedPageSize = runtimeOptions.forcePageSize === true
+        ? toPositiveNumber(runtimeOptions.pageSize, 50) || 50
+        : toPositiveNumber(runtimeOptions.pageSize, domPageInfo.pageSize || 10) ||
+          domPageInfo.pageSize ||
+          10;
+      try {
+        const entry = await fetchCurrentPageData(routeParams, {
+          pageNum: pageNum,
+          pageSize: requestedPageSize,
+        });
+        return {
+          ok: true,
+          entry: {
+            total: entry.total,
+            records: Array.isArray(entry.records) ? entry.records : [],
+            params: Object.assign({}, entry.params || {}),
+          },
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          message: error?.message || "刷新当前页列表失败。",
+        };
+      }
+    }
+
+    function findDomItemForRecord(record, domItems) {
+      const list = Array.isArray(domItems) ? domItems : getSentenceItems();
+      if (!record || typeof record !== "object") {
+        return null;
+      }
+      const byIndex = Number.isFinite(record.__index) ? list[record.__index] : null;
+      if (byIndex) {
+        return byIndex;
+      }
+      const sentenceNumber = toNumberOrNull(record.sentenceNumber);
+      if (Number.isFinite(sentenceNumber)) {
+        const bySentence = list.find(function (item) {
+          return toNumberOrNull(item.sentenceNumber) === sentenceNumber;
+        });
+        if (bySentence) {
+          return bySentence;
+        }
+      }
+      const normalizedAudioText = normalizeSentenceText(record.audioText || "");
+      if (normalizedAudioText) {
+        return (
+          list.find(function (item) {
+            return item.normalizedTitleText === normalizedAudioText;
+          }) || null
+        );
+      }
+      return null;
+    }
+
+    function getQualifiedRecords(entry) {
+      const records = Array.isArray(entry?.records) ? entry.records : [];
+      const domItems = getSentenceItems();
+      return records.filter(function (record) {
+        const statusFromRecord = normalizeStatusName(record?.statusName || "");
+        const domItem = findDomItemForRecord(record, domItems);
+        const statusFromDom = normalizeStatusName(domItem?.statusName || "");
+
+        if (
+          isUnqualifiedStatus(statusFromRecord) ||
+          isUncheckedStatus(statusFromRecord) ||
+          isUnqualifiedStatus(statusFromDom) ||
+          isUncheckedStatus(statusFromDom)
+        ) {
+          return false;
+        }
+        if (isQualifiedStatus(statusFromRecord) || isQualifiedStatus(statusFromDom)) {
+          return true;
+        }
+        return false;
+      });
+    }
+
+    async function waitForRecordActivated(domItem, record, timeoutMs) {
+      const timeout = Math.max(500, Number(timeoutMs) || 3000);
+      const deadline = Date.now() + timeout;
+      const expectedText = normalizeSentenceText(record?.audioText || "");
+      while (Date.now() < deadline) {
+        if (domItem?.itemNode?.classList?.contains("active")) {
+          return true;
+        }
+        if (expectedText) {
+          const currentText = normalizeSentenceText(getPageText());
+          if (currentText && currentText === expectedText) {
+            return true;
+          }
+        }
+        await delay(100);
+      }
+      return false;
+    }
+
+    async function selectRecord(record) {
+      if (!record || typeof record !== "object") {
+        return { ok: false, message: "无可选记录。" };
+      }
+      const domItems = getSentenceItems();
+      const target = findDomItemForRecord(record, domItems);
+      if (!target || !(target.itemNode instanceof HTMLElement)) {
+        return { ok: false, message: "找不到对应 DOM 条目。" };
+      }
+      const clickable = target.titleNode instanceof HTMLElement ? target.titleNode : target.itemNode;
+      clickable.click();
+      const activated = await waitForRecordActivated(target, record, 3000);
+      if (!activated) {
+        return { ok: false, message: "已点击条目，但未能确认选中状态。" };
+      }
+      return {
+        ok: true,
+        message: "已选中目标条目。",
+        record: record,
+      };
+    }
+
     function getAudioUrlFromDom() {
       const audio = document.querySelector("audio");
       if (audio?.currentSrc || audio?.src) {
@@ -490,7 +689,10 @@
     return {
       canFillPageText,
       fillPageText,
+      getQualifiedRecords,
       getCurrentItem,
+      refreshCurrentPageData,
+      selectRecord,
       isRoundOneCollectPage,
       parseHashParams,
       start,
