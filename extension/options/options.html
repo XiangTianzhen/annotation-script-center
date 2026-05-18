@@ -43,25 +43,28 @@
       }
 
       .hero {
+        position: relative;
+        overflow: hidden;
         display: grid;
         gap: 18px;
         margin-bottom: 18px;
         padding: 24px 26px;
       }
 
-      .hero-visual {
-        overflow: hidden;
-        border-radius: 22px;
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        background: #f8fbff;
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(90deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.84) 42%, rgba(255, 255, 255, 0.36) 100%),
+          url("../assets/brand/options-hero.svg") right center / min(72%, 760px) auto no-repeat;
+        opacity: 0.92;
+        pointer-events: none;
       }
 
-      .hero-visual img {
-        display: block;
-        width: 100%;
-        height: auto;
-        max-height: 220px;
-        object-fit: cover;
+      .hero > * {
+        position: relative;
+        z-index: 1;
       }
 
       .home-endpoint-card {
@@ -111,6 +114,10 @@
         align-items: flex-start;
         justify-content: space-between;
         gap: 16px;
+      }
+
+      .hero-top > div:first-child {
+        max-width: 620px;
       }
 
       h1,
@@ -623,6 +630,13 @@
       }
 
       @media (max-width: 640px) {
+        .hero::before {
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.9)),
+            url("../assets/brand/options-hero.svg") center bottom / 110% auto no-repeat;
+          opacity: 0.45;
+        }
+
         .page {
           padding: 14px 12px 28px;
         }
@@ -663,9 +677,6 @@
               脚本下载中心
             </button>
           </div>
-        </div>
-        <div class="hero-visual" aria-hidden="true">
-          <img src="../assets/brand/options-hero.svg" alt="" />
         </div>
         <div class="home-endpoint-card" id="home-endpoint-card">
           <strong id="home-endpoint-title">后端接口地址</strong>

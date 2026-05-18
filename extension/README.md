@@ -19,6 +19,7 @@
 
 - 扩展图标资源目录：`extension/assets/icons/`（`icon-16.png`、`icon-32.png`、`icon-48.png`、`icon-128.png`）。
 - popup/options 视觉资源目录：`extension/assets/brand/`（如 `asc-logo.svg`、`options-hero.svg`）。
+- 临时导入目录 `_incoming_visual_assets/` 仅用于本地复制资源，复制完成后应删除，不作为仓库正式资源。
 - 修改 `manifest.json` 中图标字段后，必须校验 JSON 可解析且引用路径存在。
 - 当前品牌视觉增强任务仅更新资源和 UI，不提升版本、不生成发布产物。
 

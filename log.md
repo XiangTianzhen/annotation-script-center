@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（Options 首页品牌图改为背景）
+
+- 将 Options 首页 `options-hero.svg` 从独立横幅调整为 hero 板块背景视觉。
+- 保留扩展图标、popup logo、options 品牌资源路径。
+- 删除本地临时资源目录 `_incoming_visual_assets`，不作为正式资源提交。
+- 未修改平台 content script、后端接口、业务逻辑。
+- 未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-18（扩展品牌图标与首页横幅）
 
 - 新增扩展图标资源，并在 `extension/manifest.json` 的 `icons` 与 `action.default_icon` 中启用。
