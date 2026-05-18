@@ -157,6 +157,18 @@
     return Number.isFinite(numericValue) ? numericValue : null;
   }
 
+  function toPositiveNumber(value, fallbackValue) {
+    const numericValue = Number(value);
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return numericValue;
+    }
+    const fallbackNumber = Number(fallbackValue);
+    if (Number.isFinite(fallbackNumber) && fallbackNumber > 0) {
+      return fallbackNumber;
+    }
+    return null;
+  }
+
   function parseFirstNumber(text) {
     const match = String(text || "").match(/(-?\d+(?:\.\d+)?)/);
     if (!match) {

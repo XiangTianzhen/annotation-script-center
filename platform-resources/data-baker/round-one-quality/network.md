@@ -41,6 +41,11 @@ sentenceNumber=
 vadStatus=
 ```
 
+说明：
+
+- 请求由前端点击“AI填入合格项”触发，先刷新当前页列表再筛选可处理项。
+- 请求继续使用浏览器会话 `credentials: include`，不手动拼接 token/cookie。
+
 状态筛选规则（仅用于前端辅助，不改变平台状态）：
 
 - `statusName=质检合格`：允许进入 AI 推荐与填入流程。

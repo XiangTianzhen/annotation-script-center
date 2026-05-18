@@ -1,6 +1,7 @@
 (function () {
   const ROOT_ATTR = "data-asr-edge-databaker-ai-panel";
   const STYLE_ID = "asr-edge-databaker-ai-panel-style";
+  const TOP_BUTTON_ATTR = "data-asr-edge-databaker-qualified-autofill-button";
 
   function normalizeText(text) {
     return String(text || "").replace(/\s+/g, " ").trim();
@@ -130,6 +131,23 @@
       "  margin-top: 8px;",
       "  color: #64748b;",
       "}",
+      "." + "asr-edge-db-qualified-autofill-top {",
+      "  min-height: 26px;",
+      "  padding: 0 10px;",
+      "  border: 1px solid #1d4ed8;",
+      "  border-radius: 6px;",
+      "  background: #1d4ed8;",
+      "  color: #ffffff;",
+      "  font-size: 12px;",
+      "  font-weight: 600;",
+      "  line-height: 24px;",
+      "  cursor: pointer;",
+      "  white-space: nowrap;",
+      "}",
+      "." + "asr-edge-db-qualified-autofill-top:disabled {",
+      "  opacity: 0.6;",
+      "  cursor: not-allowed;",
+      "}",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -160,6 +178,33 @@
         document.querySelector(".waver-page") ||
         document.querySelector(".right")
       );
+    }
+
+    function findTopInfoMountTarget() {
+      const allNodes = Array.from(document.querySelectorAll("*"));
+      const keywordNode = allNodes.find(function (node) {
+        if (!(node instanceof HTMLElement)) {
+          return false;
+        }
+        const text = normalizeText(node.textContent || "");
+        return text.indexOf("抽检允许错误数量") >= 0;
+      });
+      if (keywordNode) {
+        return (
+          keywordNode.closest(".el-row, .flex, .header, .top, .right, .left, div") || keywordNode
+        );
+      }
+      const fallbackNode = allNodes.find(function (node) {
+        if (!(node instanceof HTMLElement)) {
+          return false;
+        }
+        const text = normalizeText(node.textContent || "");
+        return text.indexOf("合格率") >= 0 || text.indexOf("查看更多") >= 0;
+      });
+      if (fallbackNode) {
+        return fallbackNode.closest(".el-row, .flex, .header, .top, .right, .left, div") || fallbackNode;
+      }
+      return null;
     }
 
     function setStatus(message, tone) {
@@ -384,6 +429,37 @@
       }
     }
 
+    function ensureTopQualifiedButton() {
+      const existing = document.querySelector("[" + TOP_BUTTON_ATTR + "='true']");
+      if (existing && existing instanceof HTMLElement) {
+        autoFillQualifiedButtonNode = existing;
+        return existing;
+      }
+      const mountTarget = findTopInfoMountTarget();
+      if (!mountTarget || !(mountTarget instanceof HTMLElement)) {
+        return null;
+      }
+      const topButton = document.createElement("button");
+      topButton.type = "button";
+      topButton.className = "asr-edge-db-qualified-autofill-top";
+      topButton.setAttribute(TOP_BUTTON_ATTR, "true");
+      topButton.textContent = "AI填入合格项";
+      topButton.title = "刷新当前页列表，只处理质检合格数据，AI 推荐并填入，不自动保存提交。";
+      topButton.addEventListener("click", function () {
+        handleAutoFillQualifiedClick(topButton);
+      });
+      const viewMoreNode = Array.from(mountTarget.querySelectorAll("*")).find(function (node) {
+        return normalizeText(node.textContent || "").indexOf("查看更多") >= 0;
+      });
+      if (viewMoreNode && viewMoreNode.parentNode) {
+        viewMoreNode.parentNode.insertBefore(topButton, viewMoreNode);
+      } else {
+        mountTarget.appendChild(topButton);
+      }
+      autoFillQualifiedButtonNode = topButton;
+      return topButton;
+    }
+
     async function requestAiRecommend() {
       if (!ensureMounted()) {
         return { ok: false, message: "AI 推荐工具卡未就绪。" };
@@ -441,6 +517,12 @@
 
     function ensureMounted() {
       if (root && document.documentElement.contains(root)) {
+        if (
+          !autoFillQualifiedButtonNode ||
+          !document.documentElement.contains(autoFillQualifiedButtonNode)
+        ) {
+          ensureTopQualifiedButton();
+        }
         return root;
       }
 
@@ -461,19 +543,11 @@
       const actions = document.createElement("div");
       actions.className = "asr-edge-db-actions";
       const recommendButton = createButton("AI 推荐文本", { "data-primary": "true" });
-      const autoFillQualifiedButton = createButton("AI填入合格项");
-      autoFillQualifiedButton.title =
-        "刷新当前页列表，只处理质检合格数据，AI 推荐并填入，不自动保存提交。";
       recommendButtonNode = recommendButton;
-      autoFillQualifiedButtonNode = autoFillQualifiedButton;
       recommendButton.addEventListener("click", function () {
         handleRecommendClick(recommendButton);
       });
-      autoFillQualifiedButton.addEventListener("click", function () {
-        handleAutoFillQualifiedClick(autoFillQualifiedButton);
-      });
       actions.appendChild(recommendButton);
-      actions.appendChild(autoFillQualifiedButton);
       head.appendChild(title);
       head.appendChild(actions);
       root.appendChild(head);
@@ -487,6 +561,19 @@
         mountTarget.insertAdjacentElement("afterend", root);
       } else {
         mountTarget.insertBefore(root, mountTarget.firstElementChild || null);
+      }
+      if (!ensureTopQualifiedButton()) {
+        if (typeof console !== "undefined" && typeof console.warn === "function") {
+          console.warn("[DataBaker][round-one-quality] top info bar mount failed, fallback to panel.");
+        }
+        const fallbackButton = createButton("AI填入合格项");
+        fallbackButton.title =
+          "刷新当前页列表，只处理质检合格数据，AI 推荐并填入，不自动保存提交。";
+        fallbackButton.addEventListener("click", function () {
+          handleAutoFillQualifiedClick(fallbackButton);
+        });
+        head.querySelector(".asr-edge-db-actions")?.appendChild(fallbackButton);
+        autoFillQualifiedButtonNode = fallbackButton;
       }
       return root;
     }
@@ -505,6 +592,10 @@
     }
 
     function remove() {
+      const topButton = document.querySelector("[" + TOP_BUTTON_ATTR + "='true']");
+      if (topButton && topButton instanceof HTMLElement) {
+        topButton.remove();
+      }
       if (root) {
         root.remove();
       }
