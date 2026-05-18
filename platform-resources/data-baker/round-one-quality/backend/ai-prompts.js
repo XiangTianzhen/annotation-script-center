@@ -8,6 +8,7 @@ const DEFAULT_LISTEN_TEMPLATE = [
   "heardText 的普通中文字符统一使用简体中文；若听到的是繁体对应的普通中文，也输出简体。",
   "但命中闽南方言词表（minnan-lexicon.csv）的建议用字属于保留项，不参与普通简繁转换。",
   "词表建议用字优先级高于普通简繁转换，不要因为简繁转换改变实际发声含义。",
+  "后端还会对普通中文执行简体归一化，词表建议用字除外。",
   "只输出 JSON，字段为 heardText、confidence、isValid、invalidReasons。",
 ].join("\n");
 const DEFAULT_COMPARE_TEMPLATE = [
@@ -16,6 +17,7 @@ const DEFAULT_COMPARE_TEMPLATE = [
   "recommendedText 的普通中文字符统一使用简体中文；pageText/heardText 中的普通繁体字应转换为简体。",
   "但命中 minnan-lexicon.csv 的建议用字必须保持不变，不参与普通简繁转换。",
   "词表建议用字优先于普通简繁转换，不要把方言建议用字改回普通话同义词。",
+  "后端还会对普通中文执行简体归一化，词表建议用字除外。",
   "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");

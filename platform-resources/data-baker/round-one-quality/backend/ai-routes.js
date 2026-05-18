@@ -13,6 +13,7 @@ const {
 const { estimateCost } = require("./ai-cost");
 const { appendAiCallLog, getLogDir } = require("./ai-call-log");
 const { applyLexiconRewrite, buildLexiconContext } = require("./ai-lexicon");
+const { normalizeToSimplifiedChinesePreservingLexicon } = require("./ai-text-normalizer");
 const {
   buildComparePrompt,
   buildListenPrompt,
@@ -379,6 +380,9 @@ async function handleRecommend(request, response) {
     const listenJson = parseModelJsonText(listenResult.rawText, requestId);
     const normalizedListen = normalizeListenResponse(listenJson);
     normalizedListen.heardText = removeTextSpaces(normalizedListen.heardText);
+    normalizedListen.heardText = normalizeToSimplifiedChinesePreservingLexicon(
+      normalizedListen.heardText
+    );
 
     const compareLexiconContext = buildLexiconContext({
       pageText: recommendRequest.pageText,
@@ -427,6 +431,18 @@ async function handleRecommend(request, response) {
         heardText: normalizedListen.heardText,
       });
       normalizedCompare.recommendedText = removeTextSpaces(normalizedCompare.recommendedText);
+      normalizedCompare.recommendedText = normalizeToSimplifiedChinesePreservingLexicon(
+        normalizedCompare.recommendedText
+      );
+      normalizedCompare.changePoints = Array.isArray(normalizedCompare.changePoints)
+        ? normalizedCompare.changePoints.map(function (point) {
+            const source = point && typeof point === "object" ? point : {};
+            const summary = normalizeToSimplifiedChinesePreservingLexicon(source.summary || "");
+            return Object.assign({}, source, {
+              summary: summary,
+            });
+          })
+        : [];
     }
     const rewriteMode = getLexiconRewriteMode();
     const rewriteResult = applyLexiconRewrite(normalizedCompare.recommendedText, {
@@ -438,6 +454,9 @@ async function handleRecommend(request, response) {
       normalizedCompare.recommendedText = rewriteResult.text;
       normalizedCompare.needHumanReview = true;
     }
+    normalizedCompare.recommendedText = normalizeToSimplifiedChinesePreservingLexicon(
+      normalizedCompare.recommendedText
+    );
     normalizedCompare.recommendedText = removeTextSpaces(normalizedCompare.recommendedText);
     normalizedCompare.recommendedText = ensureChineseSentencePunctuation(
       normalizedCompare.recommendedText
@@ -488,6 +507,10 @@ async function handleRecommend(request, response) {
       disableFallbackUsed: Boolean(
         listenResult.thinkingDisableFallbackUsed || compareResult.thinkingDisableFallbackUsed
       ),
+    };
+    responseData.normalization = {
+      simplifiedChineseApplied: true,
+      lexiconTermsPreserved: true,
     };
 
     appendCallLogSafe({
