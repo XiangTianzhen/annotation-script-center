@@ -21,4 +21,6 @@
 - `docs/workflow/manual-flow-acceptance-checklist.md`：人工验收清单
 - `docs/external-docs/aliyun-bailian.md`：阿里云百炼官方文档索引
 - `docs/rules/text-pipeline-rules-v3.md`：当前有效文本规则
+- `docs/rules/automation-safety.md`：自动化安全边界与批量能力约束
+- `docs/rules/release.md`：`ASC_RELEASE` 正式发布规则
 - `docs/unfinished/crx-enterprise-managed-install.md`：CRX 企业托管自动安装未完成事项

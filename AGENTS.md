@@ -58,6 +58,15 @@
 - 前端不得保存 API Key、cookie、token、完整签名 URL、完整音频 URL。
 - 日志必须脱敏，不输出敏感字段全文。
 
+## 自动化与发布安全（项目级）
+
+- 用户触发规则：AI 建议默认只作辅助；仅在用户明确点击按钮或触发快捷键后，才允许执行“填入页面输入框”类辅助动作。
+- 默认禁止自动状态流转：不得自动保存、自动提交、自动领取、自动送审、自动审核、自动判定流转；若确需自动提交类动作，必须在当前 Prompt 明确授权。
+- 批量/连续能力约束：必须明确作用范围，默认只处理当前页、不跨页；必须提供停止机制与失败统计/失败提示；不得点击 checkbox（除非当前 Prompt 明确授权）。
+- 平台安全约束：不得绕过平台原生 disabled/只读限制；不得硬编码 token/cookie/access_token/authorization。
+- 发布前验收：执行 `ASC_RELEASE` 前必须确认已完成真实浏览器验收；发布失败不得 commit/tag/push。
+- 发布要求：`ASC_RELEASE` 必须提升 patch 版本，生成 CRX 三件套并完成 main 与 tag 推送。
+
 ## Prompt 输出格式（摘要）
 
 - 输出 Codex Prompt 时，外层只用一个 `text` 代码块。
@@ -86,9 +95,8 @@
 
 - 修改 JS 后运行 `node --check <file>`。
 - 修改 `manifest.json` 后检查 JSON 可解析且脚本路径存在。
-- 每个版本发布产物必须包含 ZIP：`annotation-script-center-v<version>.zip`。
-- 企业部署未完成前，手工分发文件为 `CRX + ZIP`。
-- CRX 三件套继续生成，作为企业自动更新预留；ZIP 不替代未来企业自动更新。
+- 正式发布产物以 CRX 三件套为准：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
+- ZIP 仅作为历史过渡分发兼容项，不作为正式发布验收必选项。
 - 发布阶段使用 CRX 三件套（3.0 起）：
   - `annotation-script-center-v<version>.crx`
   - `annotation-script-center-update.xml`

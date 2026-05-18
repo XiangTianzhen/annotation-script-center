@@ -1,5 +1,22 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（发布 v0.3.3）
+
+- 提升 `extension/manifest.json` 版本到 `0.3.3`。
+- 发布 CRX 三件套：
+  - `dist/annotation-script-center-v0.3.3.crx`
+  - `dist/annotation-script-center-update.xml`
+  - `dist/annotation-script-center-crx-latest.json`
+- DataBaker 一检质检新增/完善 AI 连续填入合格项：
+  - 默认 `50` 并发请求 AI 推荐。
+  - AI 结果按返回顺序进入队列并串行填入。
+  - 顶部统计悬浮窗显示进度、失败记录和重试填入入口。
+  - 不自动保存、不自动提交、不点击 checkbox。
+- Abaka AI Task21 增强快捷键与 AI 分析调试能力。
+- LabelX / DataBaker CSV 统一“有效时长”字段。
+- 补充项目级自动化安全规则。
+- 本轮未提交运行数据、密钥、token、cookie、CRX 私钥。
+
 ## 2026-05-18（Options 首页品牌图改为背景）
 
 - 将 Options 首页 `options-hero.svg` 从独立横幅调整为 hero 板块背景视觉。

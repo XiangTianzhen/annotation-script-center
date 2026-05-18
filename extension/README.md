@@ -29,9 +29,16 @@
 - 浏览器差异优先放到 manifest、浏览器 API 兼容层、打包配置或发布说明里处理。
 - 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
 - 修复当前待验证版本 BUG 时，可保持 `manifest.version` 不变，不因同一版本的连续修复重复升 patch。
-- 当前版本为 `0.3.2`，持续在 `0.3.0` 基础上迭代多脚本 AI 辅助能力与 options 收口。
+- 当前版本为 `0.3.3`，持续在 `0.3.0` 基础上迭代多脚本 AI 辅助能力与 options 收口。
 - 3.0 起正式发布产物为 CRX 三件套：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
+
+## 0.3.3 版本摘要
+
+- DataBaker 一检质检：AI 连续填入合格项（默认并发 50、按 AI 返回顺序填入、顶部统计悬浮窗、失败项重试填入）。
+- Abaka AI Task21：快捷键与 AI 分析调试能力增强（含内联 AI 分析入口与调试信息）。
+- LabelX / DataBaker：CSV 统一字段口径为“有效时长”。
+- 详细变更见 `log.md` 及对应平台 README。
 
 ## Options 首页下载入口规则
 
