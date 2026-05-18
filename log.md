@@ -1,5 +1,14 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（LabelX ASR 下载中文文件名响应头异常修复）
+
+- 修复 LabelX 快判与转写 `statistics/download?supplier=<供应商>` 在中文供应商文件名场景下触发 `Invalid character in header content ["Content-Disposition"]` 的问题。
+- 原因是 `Content-Disposition` 的 `filename` 参数直接使用了中文文件名，Node HTTP Header 校验会拒绝非 ASCII 字符。
+- 修复后下载响应头改为：
+  - `filename` 使用 ASCII fallback 文件名（去除 CR/LF、双引号、路径非法字符与非 ASCII）。
+  - `filename*` 使用 RFC 5987 形式 `UTF-8'' + encodeURIComponent(中文文件名)`，保留中文供应商展示名。
+- 保持既有逻辑不变：supplier 过滤规则、404 不回退总表、`HEAD` 无 body、`Content-Length` 与实际内容一致。
+
 ## 2026-05-18（LabelX ASR 下载 supplier 过滤与时间文件名修复）
 
 - 修复 `alibaba-labelx/asr-judgement` 与 `alibaba-labelx/asr-transcription` 的 `statistics/download?supplier=<供应商>` 失效问题：不再复用根级总表文件路径回传，而是从 `store.loadRows()` 内存数据按供应商归一规则过滤后动态生成 CSV 响应。

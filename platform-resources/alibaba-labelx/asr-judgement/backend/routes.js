@@ -314,16 +314,45 @@ function createDownloadFilename(supplierName) {
 }
 
 function createCsvDownloadHeaders(filename, fileSize) {
+  const contentDisposition = createContentDisposition(filename);
   return createCorsHeaders({
     "Cache-Control": "no-store",
     "Content-Type": "text/csv; charset=utf-8",
     "Content-Length": String(fileSize),
-    "Content-Disposition":
-      'attachment; filename="' +
-      filename.replace(/"/g, "") +
-      '"; filename*=UTF-8\'\'' +
-      encodeURIComponent(filename),
+    "Content-Disposition": contentDisposition,
   });
+}
+
+function sanitizeHeaderFilename(value) {
+  const text = String(value || "download.csv")
+    .replace(/[\r\n]/g, "")
+    .replace(/"/g, "")
+    .trim();
+  return text || "download.csv";
+}
+
+function createAsciiFallbackFilename(filename) {
+  const cleaned = sanitizeHeaderFilename(filename);
+  const hasCsvExt = /\.csv$/i.test(cleaned);
+  const base = hasCsvExt ? cleaned.replace(/\.csv$/i, "") : cleaned;
+  const asciiBase = base
+    .replace(/[^\x20-\x7E]/g, "_")
+    .replace(/[\\/:*?<>|]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .trim();
+  return (asciiBase || "download") + ".csv";
+}
+
+function createContentDisposition(filename) {
+  const utf8Filename = sanitizeHeaderFilename(filename);
+  const asciiFilename = createAsciiFallbackFilename(utf8Filename);
+  return (
+    'attachment; filename="' +
+    asciiFilename +
+    '"; filename*=UTF-8\'\'' +
+    encodeURIComponent(utf8Filename)
+  );
 }
 
 function matchesSupplier(row, requestedInfo, requestedSafe) {
