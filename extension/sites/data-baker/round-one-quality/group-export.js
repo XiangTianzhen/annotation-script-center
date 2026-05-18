@@ -33,7 +33,7 @@
     { title: "提交时间", keys: ["submitTime"] },
     { title: "更新时间", keys: ["updateTime"] },
     { title: "有效总时长", keys: ["effectiveTotalTime"] },
-    { title: "有效合格时长", keys: ["effectivePassTotalTime"] },
+    { title: "有效时长", keys: ["effectivePassTotalTime"] },
     { title: "有效不合格时长", keys: ["effectiveNoPassTotalTime"] },
     { title: "文件名", keys: ["fileName"] },
     { title: "段编号", keys: ["segmentNumber"] },

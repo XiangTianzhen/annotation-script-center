@@ -85,6 +85,12 @@
 - 上传接口只接受 JSON 且 `csvText` 非空，CSV 超过 `20MB` 会拒绝。
 - 后端日志只输出 `requestId`、`rowCount`、`fileName`、`csvPath`、`uploadedAt`，不打印完整 CSV 内容。
 
+CSV 字段统一口径：
+
+- 新导出的 `latest.csv` 统一使用字段名 `有效时长`（数据来源仍是 `effectivePassTotalTime`）。
+- 历史导出中 `有效合格时长` 属于旧字段名，供兼容识别；新导出不再使用该字段名。
+- `export-data/` 属于运行数据目录，不提交 Git。
+
 ## 推荐流程
 
 1. 校验请求体中的 `collectId`、`itemId`、`audioUrl`、`pageText`。

@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（CSV：统一有效时长字段）
+
+- LabelX 快判与转写 CSV 表头从 `有效时长(秒)` 统一为 `有效时长`。
+- LabelX 后端读取历史 CSV 时兼容旧表头：`有效时长(秒)` 会归一为 `有效时长`。
+- DataBaker 一检导出表头从 `有效合格时长` 统一为 `有效时长`，数据来源仍为 `effectivePassTotalTime`。
+- 本地运行 CSV 可做一次首行表头迁移；`statistics-data/` 与 `export-data/` 属于运行数据目录，不提交 Git。
+- 本轮未修改业务计算逻辑、未提升版本、未生成发布产物。
+
 ## 2026-05-18（DataBaker：AI 输出简体化后处理）
 
 - 在 prompt 规则之外新增后端结果归一化：`heardText` 与 `recommendedText` 的普通繁体字会转为简体。

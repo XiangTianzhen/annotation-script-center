@@ -129,6 +129,8 @@ node platform-resources\backend\server.js
 
 任务总表导出不再由 content script 直接 `fetch /cms/tbAudioUserTask/queryByCondition`。原因是平台可能对扩展直接请求返回 `code=51000`。当前方案改为触发页面原生分页查询并拦截响应：先展开 Element UI 分页大小下拉并选择 `100条/页`，再逐页触发并合并导出；导出后会自动上传到统一后端保存。CSV 已移除“采集ID”列，保留 UTF-8 BOM 与“原始JSON”脱敏列。
 
+CSV 字段统一口径：导出中的计费时长字段标题统一为 `有效时长`，值仍取 `effectivePassTotalTime`；历史标题 `有效合格时长` 不再用于新导出。
+
 第一版固定模型：
 
 - 听音：`qwen3.5-omni-flash`

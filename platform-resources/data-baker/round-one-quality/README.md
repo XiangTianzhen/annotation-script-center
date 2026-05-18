@@ -32,6 +32,7 @@ extension/sites/data-baker/round-one-quality/
 - 本机接口 `http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend` 仅用于开发调试。
 - 扩展前端不保存 API Key，`DASHSCOPE_API_KEY` 仍由后端通过 `config/env/ai.env` 或系统环境变量读取。
 - 该平台导出的 `latest.csv` 已纳入统一“项目数据下载”聚合接口数据集，可按供应商规则筛选下载（若 CSV 存在多供应商）。
+- 导出 CSV 的计费时长字段新口径统一为 `有效时长`（来源字段保持 `effectivePassTotalTime`）；历史字段名 `有效合格时长` 仅作兼容识别。
 
 ## 当前资料
 

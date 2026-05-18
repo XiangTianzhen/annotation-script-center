@@ -72,6 +72,14 @@ function parseCsvLine(line) {
   return cells;
 }
 
+function normalizeCsvHeaderName(header) {
+  const cleaned = cleanCsvValue(header);
+  if (cleaned === "有效时长(秒)") {
+    return "有效时长";
+  }
+  return cleaned;
+}
+
 function readCsvRowList(filePath) {
   if (!fs.existsSync(filePath)) {
     return [];
@@ -88,7 +96,7 @@ function readCsvRowList(filePath) {
   }
 
   const headers = parseCsvLine(lines[0]).map(function (header) {
-    return cleanCsvValue(header);
+    return normalizeCsvHeaderName(header);
   });
   const batchIdIndex = headers.indexOf("分包ID");
   if (batchIdIndex < 0) {
@@ -106,6 +114,9 @@ function readCsvRowList(filePath) {
     const row = {};
     headers.forEach(function (header, index) {
       const cleanedCell = cleanCsvValue(cells[index] || "");
+      if (header === "有效时长" && row[header] && !cleanedCell) {
+        return;
+      }
       if (QUALITY_CRITICAL_FIELDS.has(header) && hasReplacementChar(cleanedCell)) {
         row[header] = cleanHealthyCsvValue(cleanedCell);
         return;
