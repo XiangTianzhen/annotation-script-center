@@ -71,11 +71,11 @@
                 stage: "task21-inline-ai-analysis-debug",
                 autoSelectSpecifyOnSameFontTrue: true,
                 aiAnalysisMode: "two_stage",
-                aiVisionModel: "qwen3-vl-plus",
+                aiVisionModel: "qwen3.6-plus",
                 aiOcrEnabled: false,
-                aiOcrModel: "qwen-vl-ocr-latest",
-                aiReasoningModel: "qvq-plus-latest",
-                aiSingleModel: "qwen3-vl-plus",
+                aiOcrModel: "",
+                aiReasoningModel: "qwen3.6-plus",
+                aiSingleModel: "qwen3.6-plus",
                 aiEnableThinking: false,
                 aiRequestTimeoutMs: 120000,
                 shortcuts: {
@@ -234,23 +234,21 @@
         { key: "aiAnalyzeOverall", label: "AI 整体分析" },
       ],
       ABAKA_AI_TASK21_AI_MODEL_OPTIONS: [
-        { value: "qwen-vl-max-latest", supportsVision: true, supportsThinking: "unknown" },
+        { value: "qwen3.6-plus", supportsVision: true, supportsThinking: true },
       ],
       ABAKA_AI_TASK21_AI_ANALYSIS_MODES: [
         { value: "two_stage", label: "双模型方案（默认）" },
         { value: "single_model", label: "单模型方案" },
       ],
       ABAKA_AI_TASK21_VISION_MODEL_OPTIONS: [
-        { value: "qwen3-vl-plus", supportsVision: true, supportsThinking: true },
+        { value: "qwen3.6-plus", supportsVision: true, supportsThinking: true },
       ],
-      ABAKA_AI_TASK21_OCR_MODEL_OPTIONS: [
-        { value: "qwen-vl-ocr-latest", supportsVision: true, supportsThinking: false },
-      ],
+      ABAKA_AI_TASK21_OCR_MODEL_OPTIONS: [],
       ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS: [
-        { value: "qvq-plus-latest", supportsVision: true, supportsThinking: true },
+        { value: "qwen3.6-plus", supportsVision: true, supportsThinking: true },
       ],
       ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS: [
-        { value: "qwen3-vl-plus", supportsVision: true, supportsThinking: true },
+        { value: "qwen3.6-plus", supportsVision: true, supportsThinking: true },
       ],
       JUDGEMENT_PROJECT_ASR_KEYS: [
         "itemsPerPage",
@@ -1210,9 +1208,34 @@
     return result;
   }
 
+  function mapLegacyAbakaAiModelName(modelName) {
+    const text = String(modelName || "").trim();
+    if (!text) {
+      return "";
+    }
+    if (text === "qwen-vl-max-latest") {
+      return "qwen-vl-max";
+    }
+    if (text === "qwen-vl-plus-latest") {
+      return "qwen-vl-plus";
+    }
+    if (text === "qwen-vl-ocr-latest") {
+      return "";
+    }
+    if (text === "qvq-plus-latest") {
+      return "qwen3.6-plus";
+    }
+    return text;
+  }
+
   function normalizeAbakaAiModel(value, fallback) {
-    const fallbackModel = String(fallback || "qwen3-vl-plus").trim() || "qwen3-vl-plus";
-    const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    const rawFallback = fallback === undefined ? "qwen3.6-plus" : String(fallback || "");
+    const fallbackModel = mapLegacyAbakaAiModelName(rawFallback).trim();
+    const text = mapLegacyAbakaAiModelName(
+      String(value || "")
+        .replace(/[\r\n]+/g, " ")
+        .trim()
+    );
     if (!text) {
       return fallbackModel;
     }
@@ -1395,11 +1418,11 @@
               stage: "task21-inline-ai-analysis-debug",
               autoSelectSpecifyOnSameFontTrue: true,
               aiAnalysisMode: "two_stage",
-              aiVisionModel: "qwen3-vl-plus",
+              aiVisionModel: "qwen3.6-plus",
               aiOcrEnabled: false,
-              aiOcrModel: "qwen-vl-ocr-latest",
-              aiReasoningModel: "qvq-plus-latest",
-              aiSingleModel: "qwen3-vl-plus",
+              aiOcrModel: "",
+              aiReasoningModel: "qwen3.6-plus",
+              aiSingleModel: "qwen3.6-plus",
               aiEnableThinking: false,
               aiRequestTimeoutMs: 120000,
             shortcuts: {
@@ -1436,7 +1459,7 @@
       : {};
       const legacyAiDebugModel = normalizeAbakaAiModel(
         currentScript.aiDebugModel,
-        defaultScript.aiSingleModel || "qwen3-vl-plus"
+        defaultScript.aiSingleModel || "qwen3.6-plus"
       );
     settings.platforms.abakaAi.enabled = settings.platforms.abakaAi.enabled !== false;
     settings.platforms.abakaAi.scripts.taskPageCapture = Object.assign({}, defaultScript, currentScript, {
@@ -1453,7 +1476,7 @@
       ),
         aiVisionModel: normalizeAbakaAiModel(
           currentScript.aiVisionModel,
-          defaultScript.aiVisionModel || "qwen3-vl-plus",
+          defaultScript.aiVisionModel || "qwen3.6-plus",
           constants.ABAKA_AI_TASK21_VISION_MODEL_OPTIONS || []
         ),
         aiOcrEnabled:
@@ -1462,17 +1485,17 @@
             : defaultScript.aiOcrEnabled === true,
         aiOcrModel: normalizeAbakaAiModel(
           currentScript.aiOcrModel,
-          defaultScript.aiOcrModel || "qwen-vl-ocr-latest",
+          defaultScript.aiOcrModel || "",
           constants.ABAKA_AI_TASK21_OCR_MODEL_OPTIONS || []
         ),
         aiReasoningModel: normalizeAbakaAiModel(
           currentScript.aiReasoningModel,
-          defaultScript.aiReasoningModel || "qvq-plus-latest",
+          defaultScript.aiReasoningModel || "qwen3.6-plus",
           constants.ABAKA_AI_TASK21_REASONING_MODEL_OPTIONS || []
         ),
         aiSingleModel: normalizeAbakaAiModel(
           currentScript.aiSingleModel || legacyAiDebugModel,
-          defaultScript.aiSingleModel || "qwen3-vl-plus",
+          defaultScript.aiSingleModel || "qwen3.6-plus",
           constants.ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS || []
         ),
       aiEnableThinking: currentScript.aiEnableThinking === true,

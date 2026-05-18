@@ -60,6 +60,8 @@ DashScope：
 
 ## 视觉与 OCR
 
+- 视觉理解（help.aliyun）：
+  [https://help.aliyun.com/zh/model-studio/vision?spm=a2c4g.11186623.help-menu-2400256.d_0_3_1_0.34b2141cE5YHDK](https://help.aliyun.com/zh/model-studio/vision?spm=a2c4g.11186623.help-menu-2400256.d_0_3_1_0.34b2141cE5YHDK)
 - 视觉理解：  
   [https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=3026912](https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=3026912)
 - 图像与视频理解：  
@@ -88,3 +90,4 @@ DashScope：
 10. 前端不得保存 API Key；后端参数必须白名单过滤；不支持参数前端不显示、后端不发送。
 11. 涉及图片理解、OCR、视觉推理、图像/视频输入模型时，必须优先核对“视觉与 OCR”中的四个官方文档。
 12. Abaka AI Task21 的视觉模型、OCR/文字提取模型、视觉推理模型必须来自上述官方文档或模型列表。
+13. 涉及 Abaka AI Task21 视觉理解模型时，优先核对 `help.aliyun.com/zh/model-studio/vision` 与百炼控制台视觉文档，模型名必须使用官方精确小写名称。

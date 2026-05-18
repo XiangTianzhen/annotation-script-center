@@ -31,6 +31,19 @@
 - `pageText` 页面原始候选文本保持不变，仅作为比较来源，不参与后处理改写。
 - 本轮未改模型配置、未新增接口、未提升版本、未生成发布产物。
 
+## 2026-05-18（Abaka AI：修正百炼视觉模型名称）
+
+- 根据阿里云视觉理解文档（`help.aliyun.com/zh/model-studio/vision`）与用户截图修正 Task21 AI 模型配置。
+- 默认模型统一改为 `qwen3.6-plus`：
+  - 视觉阶段：`qwen3.6-plus`
+  - 推理阶段：`qwen3.6-plus`
+  - 单模型：`qwen3.6-plus`
+- 保留候选：`qwen3.6-flash`、`qwen3-vl-plus`、`qwen3-vl-flash`、`qwen3.5-plus`、`qwen3.5-flash`、`qwen-vl-max`、`qwen-vl-plus`。
+- 移除旧名默认使用：`qwen-vl-max-latest`、`qwen-vl-ocr-latest`、`qvq-plus-latest`。
+- OCR 专用模型默认关闭（`aiOcrEnabled=false`，`aiOcrModel` 为空），待文字提取文档进一步确认后再启用。
+- 保留 `two_stage` 默认方案与 `single_model` 可选方案；AI 仍仅输出建议，不自动写入/保存/提交。
+- 本轮未保存 API Key、未提升版本、未生成发布产物。
+
 ## 2026-05-17（README：补充服务器重启配置）
 
 - 根目录 `README.md` 补充“服务器部署与重启”章节（部署目录、PM2 进程名、代码更新重启、环境变量重启、状态/日志查看）。

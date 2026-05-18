@@ -72,9 +72,14 @@
   - `Alt+4`：AI 整体分析
 - Options 新增“AI 调试”子板块：
   - 分析方案：`two_stage`（默认）/ `single_model`
+  - 默认推荐：双模型 `qwen3.6-plus + qwen3.6-plus`
+  - 单模型默认：`qwen3.6-plus`
   - 视觉模型（双模型阶段一）
+    - 候选：`qwen3.6-plus`、`qwen3.6-flash`、`qwen3-vl-plus`、`qwen3-vl-flash`、`qwen3.5-plus`、`qwen3.5-flash`、`qwen-vl-max`、`qwen-vl-plus`
   - OCR 模型与 OCR 开关（默认关闭）
+    - OCR 专用模型待文字提取官方文档进一步核对，默认不预置模型
   - 推理模型（双模型阶段二）
+    - 候选：`qwen3.6-plus`、`qwen3.6-flash`、`qwen3.5-plus`、`qwen3.5-flash`
   - 单模型（single_model）
   - 启用思考（默认关闭）
   - 请求超时（默认 `120000ms`）

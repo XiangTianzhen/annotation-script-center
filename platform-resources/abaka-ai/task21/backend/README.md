@@ -15,6 +15,17 @@
 - `single_model`（保留）：
   - 单模型一次完成图像理解与规则判断。
 
+默认模型：
+- 视觉阶段：`qwen3.6-plus`
+- 推理阶段：`qwen3.6-plus`
+- 单模型：`qwen3.6-plus`
+- OCR：默认关闭，`ABAKA_TASK21_AI_OCR_MODEL` 默认为空
+
+候选模型：
+- 视觉/单模型：`qwen3.6-plus`、`qwen3.6-flash`、`qwen3-vl-plus`、`qwen3-vl-flash`、`qwen3.5-plus`、`qwen3.5-flash`、`qwen-vl-max`、`qwen-vl-plus`
+- 推理：`qwen3.6-plus`、`qwen3.6-flash`、`qwen3.5-plus`、`qwen3.5-flash`
+- 旧名 `qwen-vl-max-latest`、`qwen-vl-ocr-latest`、`qvq-plus-latest` 不再作为默认或候选
+
 ## 前端可传调试参数
 
 请求体可通过 `options` 或 `debugConfig` 传入：
@@ -34,7 +45,7 @@
 - `timeoutMs` 强制限制到 `1000~300000`。
 - 模型 override 仅在 `ABAKA_TASK21_AI_ALLOW_CLIENT_MODEL_OVERRIDE=true` 时生效，且必须命中对应白名单。
 - `enableThinking` 默认 `false`，并显式发送 `enable_thinking=false`。
-- OCR 模型（`qwen-vl-ocr*`）按能力不发送 thinking 参数，调试信息标记 `notApplicable`。
+- 对支持 thinking 的模型显式发送 `enable_thinking=true/false`；不支持或未知时不强传，并在调试信息标记 `notApplicable` 或 `model-thinking-support-unknown`。
 
 ## thinking 参数策略
 

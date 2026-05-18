@@ -2,64 +2,88 @@
 
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_ANALYSIS_MODE = "two_stage";
-const DEFAULT_VISION_MODEL = "qwen3-vl-plus";
-const DEFAULT_OCR_MODEL = "qwen-vl-ocr-latest";
-const DEFAULT_REASONING_MODEL = "qvq-plus-latest";
-const DEFAULT_SINGLE_MODEL = "qwen3-vl-plus";
+const DEFAULT_VISION_MODEL = "qwen3.6-plus";
+const DEFAULT_OCR_MODEL = "";
+const DEFAULT_REASONING_MODEL = "qwen3.6-plus";
+const DEFAULT_SINGLE_MODEL = "qwen3.6-plus";
 const THINKING_PARAM_NAME = "enable_thinking";
 const THINKING_PARAM_LOCATION = "root";
 const DEFAULT_CALL_MODE = "openai-compatible-chat";
 
 const MODEL_PROFILE_TABLE = {
+  "qwen3.6-plus": {
+    role: "vision",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qwen3.6-flash": {
+    role: "vision",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
   "qwen3-vl-plus": {
     role: "vision",
     callMode: DEFAULT_CALL_MODE,
-    supportsThinking: true,
-    supportsJsonObject: true,
-  },
-  "qwen-vl-plus-latest": {
-    role: "vision",
-    callMode: DEFAULT_CALL_MODE,
     supportsThinking: "unknown",
     supportsJsonObject: true,
   },
-  "qwen-vl-max-latest": {
+  "qwen3-vl-flash": {
     role: "vision",
     callMode: DEFAULT_CALL_MODE,
     supportsThinking: "unknown",
-    supportsJsonObject: true,
-  },
-  "qwen-vl-ocr-latest": {
-    role: "ocr",
-    callMode: DEFAULT_CALL_MODE,
-    supportsThinking: false,
-    supportsJsonObject: true,
-  },
-  "qwen-vl-ocr": {
-    role: "ocr",
-    callMode: DEFAULT_CALL_MODE,
-    supportsThinking: false,
-    supportsJsonObject: true,
-  },
-  "qvq-plus-latest": {
-    role: "reasoning",
-    callMode: DEFAULT_CALL_MODE,
-    supportsThinking: true,
-    supportsJsonObject: true,
-  },
-  "qvq-plus": {
-    role: "reasoning",
-    callMode: DEFAULT_CALL_MODE,
-    supportsThinking: true,
-    supportsJsonObject: true,
-  },
-  "qvq-max": {
-    role: "reasoning",
-    callMode: DEFAULT_CALL_MODE,
-    supportsThinking: true,
     supportsJsonObject: true,
   },
   "qwen3.5-plus": {
+    role: "reasoning",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qwen3.5-flash": {
+    role: "reasoning",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qwen-vl-max": {
+    role: "vision",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: "unknown",
+    supportsJsonObject: true,
+  },
+  "qwen-vl-plus": {
+    role: "vision",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: "unknown",
+    supportsJsonObject: true,
+  },
+  "qwen3.6-35b-a3b": {
+    role: "reasoning",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qwen3.5-397b-a17b": {
+    role: "reasoning",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qwen3.5-122b-a10b": {
+    role: "reasoning",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qwen3.5-27b": {
+    role: "reasoning",
+    callMode: DEFAULT_CALL_MODE,
+    supportsThinking: true,
+    supportsJsonObject: true,
+  },
+  "qwen3.5-35b-a3b": {
     role: "reasoning",
     callMode: DEFAULT_CALL_MODE,
     supportsThinking: true,
@@ -79,10 +103,30 @@ function parseBooleanEnv(name, fallback) {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
-function sanitizeModelName(value, fallback) {
-  const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+function mapLegacyAbakaAiModelName(value) {
+  const text = String(value || "").trim();
   if (!text) {
-    return String(fallback || "").trim();
+    return "";
+  }
+  if (text === "qwen-vl-max-latest") {
+    return "qwen-vl-max";
+  }
+  if (text === "qwen-vl-plus-latest") {
+    return "qwen-vl-plus";
+  }
+  if (text === "qwen-vl-ocr-latest") {
+    return "";
+  }
+  if (text === "qvq-plus-latest") {
+    return "qwen3.6-plus";
+  }
+  return text;
+}
+
+function sanitizeModelName(value, fallback) {
+  const text = mapLegacyAbakaAiModelName(String(value || "").replace(/[\r\n]+/g, " ").trim());
+  if (!text) {
+    return mapLegacyAbakaAiModelName(String(fallback || "").trim());
   }
   return text.slice(0, 80);
 }
@@ -164,9 +208,10 @@ function getClientConfig() {
     process.env.ABAKA_TASK21_AI_ALLOWED_REASONING_MODELS,
     [reasoningModel || DEFAULT_REASONING_MODEL]
   );
-  const allowedOcrModels = parseAllowedModels(process.env.ABAKA_TASK21_AI_ALLOWED_OCR_MODELS, [
-    ocrModel || DEFAULT_OCR_MODEL,
-  ]);
+  const allowedOcrModels = parseAllowedModels(
+    process.env.ABAKA_TASK21_AI_ALLOWED_OCR_MODELS,
+    [ocrModel || DEFAULT_OCR_MODEL].filter(Boolean)
+  );
   const allowedSingleModels = parseAllowedModels(
     process.env.ABAKA_TASK21_AI_ALLOWED_SINGLE_MODELS || process.env.ABAKA_TASK21_AI_ALLOWED_MODELS,
     [singleModel || DEFAULT_SINGLE_MODEL]

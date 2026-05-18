@@ -2,10 +2,10 @@
   const ANALYZE_PATH = "/api/abaka-ai/task21/ai/analyze";
   const DEFAULT_TIMEOUT_MS = 120000;
   const DEFAULT_ANALYSIS_MODE = "two_stage";
-  const DEFAULT_VISION_MODEL = "qwen3-vl-plus";
-  const DEFAULT_OCR_MODEL = "qwen-vl-ocr-latest";
-  const DEFAULT_REASONING_MODEL = "qvq-plus-latest";
-  const DEFAULT_SINGLE_MODEL = "qwen3-vl-plus";
+  const DEFAULT_VISION_MODEL = "qwen3.6-plus";
+  const DEFAULT_OCR_MODEL = "";
+  const DEFAULT_REASONING_MODEL = "qwen3.6-plus";
+  const DEFAULT_SINGLE_MODEL = "qwen3.6-plus";
 
   function sanitizeText(value, maxLength) {
     return String(value || "")

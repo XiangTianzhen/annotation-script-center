@@ -9,6 +9,16 @@
 - 保留旧方案：`single_model`
   - 一个多模态模型直接完成图像理解与规则判断。
 
+默认模型配置（2026-05-18）：
+- `aiVisionModel=qwen3.6-plus`
+- `aiReasoningModel=qwen3.6-plus`
+- `aiSingleModel=qwen3.6-plus`
+- `aiOcrEnabled=false`，`aiOcrModel=""`
+
+官方核对口径：
+- 视觉理解优先核对 [https://help.aliyun.com/zh/model-studio/vision](https://help.aliyun.com/zh/model-studio/vision)
+- 旧名 `qwen-vl-max-latest`、`qwen-vl-ocr-latest`、`qvq-plus-latest` 不再作为默认/候选配置
+
 ## 通用约束
 
 - AI 只给建议，不自动写入/保存/提交。
