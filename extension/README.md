@@ -15,6 +15,13 @@
 - Edge：打开 `edge://extensions/`，开启“开发人员模式”，选择 `C:\Projects\annotation-script-center\extension`。
 - Chrome：打开 `chrome://extensions/`，开启“开发者模式”，选择 `C:\Projects\annotation-script-center\extension`。
 
+## 品牌资源
+
+- 扩展图标资源目录：`extension/assets/icons/`（`icon-16.png`、`icon-32.png`、`icon-48.png`、`icon-128.png`）。
+- popup/options 视觉资源目录：`extension/assets/brand/`（如 `asc-logo.svg`、`options-hero.svg`）。
+- 修改 `manifest.json` 中图标字段后，必须校验 JSON 可解析且引用路径存在。
+- 当前品牌视觉增强任务仅更新资源和 UI，不提升版本、不生成发布产物。
+
 ## 维护约束
 
 - 不要为 Chrome 和 Edge 复制两套 `sites/` 业务运行时代码。

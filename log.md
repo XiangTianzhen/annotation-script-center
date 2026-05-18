@@ -1,5 +1,13 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（扩展品牌图标与首页横幅）
+
+- 新增扩展图标资源，并在 `extension/manifest.json` 的 `icons` 与 `action.default_icon` 中启用。
+- popup 标题区加入品牌 logo（`asc-logo.svg`）。
+- options 首页 hero 区加入品牌横幅（`options-hero.svg`）。
+- 未修改平台 content script、后端接口、业务逻辑。
+- 未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-18（DataBaker：AI 返回顺序填入与顶部统计悬浮窗）
 
 - AI连续填入合格项改为按 AI 返回顺序消费结果队列并串行填入，不再按左侧列表顺序阻塞等待。

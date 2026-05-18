@@ -49,6 +49,21 @@
         padding: 24px 26px;
       }
 
+      .hero-visual {
+        overflow: hidden;
+        border-radius: 22px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: #f8fbff;
+      }
+
+      .hero-visual img {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: 220px;
+        object-fit: cover;
+      }
+
       .home-endpoint-card {
         display: grid;
         gap: 10px;
@@ -648,6 +663,9 @@
               脚本下载中心
             </button>
           </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <img src="../assets/brand/options-hero.svg" alt="" />
         </div>
         <div class="home-endpoint-card" id="home-endpoint-card">
           <strong id="home-endpoint-title">后端接口地址</strong>
