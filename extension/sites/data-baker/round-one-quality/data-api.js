@@ -582,6 +582,62 @@
       return records.filter(isRecordQualified);
     }
 
+    function createItemFromRecord(record, entry) {
+      const routeParams = parseHashParams();
+      const params = entry?.params && typeof entry.params === "object" ? entry.params : {};
+      const sourceRecord = record && typeof record === "object" ? record : {};
+      const collectId = String(
+        sourceRecord.collectId ||
+          params.collectId ||
+          routeParams.collectId ||
+          ""
+      ).trim();
+      const item = {
+        collectId: collectId,
+        checkType: String(routeParams.checkType || "").trim(),
+        pageNum: toNumberOrNull(params.pageNum),
+        pageSize: toNumberOrNull(params.pageSize),
+        itemId: String(sourceRecord.id || "").trim(),
+        textId: String(sourceRecord.textId || "").trim(),
+        sentenceNumber: toNumberOrNull(sourceRecord.sentenceNumber),
+        pageText: String(sourceRecord.audioText || "").trim(),
+        readRequire: String(sourceRecord.readRequire || "").trim(),
+        audioUrl: String(sourceRecord.audioUrl || "").trim(),
+        effectiveStartTime: toNumberOrNull(sourceRecord.effectiveStartTime),
+        effectiveEndTime: toNumberOrNull(sourceRecord.effectiveEndTime),
+        effectiveTime: toNumberOrNull(sourceRecord.effectiveTime),
+        audioDuration: toNumberOrNull(sourceRecord.audioDuration),
+        record: sourceRecord,
+      };
+
+      item.key = [
+        item.collectId,
+        item.itemId,
+        item.textId,
+        item.sentenceNumber,
+        normalizeText(item.pageText),
+      ].join("|");
+      return item;
+    }
+
+    function createItemsFromQualifiedRecords(records, entry) {
+      const source = Array.isArray(records) ? records : [];
+      return source.map(function (record, index) {
+        const item = createItemFromRecord(record, entry);
+        const processKey = String(item.itemId || "").trim()
+          ? "id:" + String(item.itemId || "").trim()
+          : Number.isFinite(item.sentenceNumber)
+            ? "sentence:" + String(item.sentenceNumber)
+            : "index:" + String(Number.isFinite(record?.__index) ? record.__index : index);
+        return {
+          record,
+          item,
+          processKey,
+          displayName: getRecordDisplayName(record),
+        };
+      });
+    }
+
     async function waitForRecordActivated(domItem, record, timeoutMs) {
       const timeout = Math.max(500, Number(timeoutMs) || 3000);
       const deadline = Date.now() + timeout;
@@ -753,6 +809,8 @@
 
     return {
       canFillPageText,
+      createItemFromRecord,
+      createItemsFromQualifiedRecords,
       fillPageText,
       getQualifiedRecords,
       getRecordDisplayName,

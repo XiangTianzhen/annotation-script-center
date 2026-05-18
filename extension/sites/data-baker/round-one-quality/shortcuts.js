@@ -1,7 +1,7 @@
 (function () {
   const ACTION_LABELS = {
     aiRecommendCurrentItem: "AI 推荐文本",
-    autoFillQualifiedItem: "AI连续填入合格项",
+    autoFillQualifiedItem: "AI并发分析并连续填入合格项",
     copyAiHeardText: "复制 AI 听音文本",
     copyRecommendedText: "复制 AI 推荐文本",
     fillRecommendedText: "填入推荐文本",
@@ -252,7 +252,7 @@
     }
     if (actionKey === "autoFillQualifiedItem") {
       if (typeof safeActions.autoFillQualifiedItem !== "function") {
-        showStatus("AI连续填入合格项未就绪。", "error", safeActions);
+        showStatus("AI并发分析并连续填入合格项未就绪。", "error", safeActions);
         return;
       }
       runPromiseAction(safeActions.autoFillQualifiedItem(), safeActions);

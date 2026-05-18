@@ -26,7 +26,9 @@ extension/sites/data-baker/round-one-quality/
 - 专属设置页可配置请求超时时间和 AI 推荐开关。
 - 专属设置页新增自动每页条数，默认启用并设置为 `50条/页`，只点击页面原生分页控件。
 - 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
-- 左侧句子列表上方 `filter-screen`（“全选/批量判定”同一行）新增“AI连续填入合格项”：按钮挂载在“批量判定”右侧。点击后先刷新当前页 `queryCollectStatementByCondtion`，连续处理当前页 `statusName=质检合格` 条目，逐条自动选中并填入 AI 推荐文本；运行中可再次点击或按 `Alt+Q` 停止。
+- 左侧句子列表上方 `filter-screen`（“全选/批量判定”同一行）新增“AI连续填入合格项”：按钮挂载在“批量判定”右侧。
+- 点击后先刷新当前页 `queryCollectStatementByCondtion`，筛选当前页 `statusName=质检合格` 条目。
+- 先按配置并发数并发生成所有 AI 推荐（默认并发 `5`，可设 `1-50`），全部返回后再按顺序逐条选中并填入；运行中可再次点击或按 `Alt+Q` 停止。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
 - 导出 CSV 不再包含“原始JSON”列；原始记录会脱敏后单独上传并由后端保存为 `latest-raw.json`（历史模式下为 `*.raw.json`）。
 - 默认推荐接口走服务器：`https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`。
@@ -66,7 +68,7 @@ round-one-quality/
 - 自动分页目标 DOM 为 `.roundOneCollect-el-pagination span.el-pagination__sizes .el-select`，会读取当前分页 input 值，若不是目标值则打开下拉并点击可见的 `5条/页`、`10条/页`、`20条/页`、`50条/页` 或 `100条/页`。
 - 自动分页有限重试，默认最多 5 次，失败只输出简短 `console.debug`，不影响 AI 推荐主流程。
 - 快捷键默认全部未设置，用户需在 options 标贝易采 专属设置页手动录制。
-- 默认新增 `Alt+Q`：触发“AI连续填入合格项”（运行中再次触发为停止）。
+- 默认新增 `Alt+Q`：触发“AI并发分析并连续填入合格项”（运行中再次触发为停止）。
 - 快捷键不会在 `input`、`textarea`、`select` 或 `contenteditable` 聚焦时触发。
 - 句子判定只点击 `.submit-btn` 中的“合格 / 不合格”；任务判定只点击 `.operate-btn` 中包含“任务判定”的“通过 / 部分驳回 / 全部驳回”按钮。
 - 任务判定按钮 disabled 时不会绕过平台限制；该能力不自动保存、不自动提交、不自动流转。
@@ -142,7 +144,7 @@ AI prompt 输出字形规则：
 
 ## 当前边界
 
-- 当前 AI 推荐仍是“单条请求单条填入”，批处理仅在当前页顺序循环触发，不跨页。
+- 当前“AI连续填入合格项”采用“并发分析 + 顺序填入”策略，仅在当前页执行，不跨页。
 - 不做自动保存、不做自动提交、不做批量识别、不做自动流转。
 - 结果写入页面输入框必须由用户点击“填入推荐文本”触发。
 - 如果页面结构变化导致无法安全定位输入框，扩展只保留复制能力。

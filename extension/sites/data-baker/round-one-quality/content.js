@@ -54,6 +54,18 @@
     return Math.min(300000, Math.max(1000, Math.round(number)));
   }
 
+  function normalizeAutofillConcurrency(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return 5;
+    }
+    return Math.max(1, Math.min(50, Math.round(number)));
+  }
+
+  function normalizeAutofillWaitAll(value) {
+    return value !== false;
+  }
+
   function normalizePageSize(value) {
     const text = String(value || "").replace(/\s+/g, "");
     return PAGE_SIZE_OPTIONS.indexOf(text) >= 0 ? text : "50条/页";
@@ -114,6 +126,8 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: 120000,
+        aiQualifiedAutofillConcurrency: 5,
+        aiQualifiedAutofillWaitAllBeforeFill: true,
         autoPageSizeEnabled: true,
         defaultPageSize: "50条/页",
         shortcuts: {},
@@ -165,6 +179,12 @@
       "https://script.xiangtianzhen.store" + DATABAKER_AI_RECOMMEND_PATH
     );
     const timeoutMs = normalizeTimeout(script.aiRecommendRequestTimeoutMs);
+    const aiQualifiedAutofillConcurrency = normalizeAutofillConcurrency(
+      script.aiQualifiedAutofillConcurrency
+    );
+    const aiQualifiedAutofillWaitAllBeforeFill = normalizeAutofillWaitAll(
+      script.aiQualifiedAutofillWaitAllBeforeFill
+    );
     const defaultPageSize = normalizePageSize(script.defaultPageSize);
     const shortcuts = normalizeShortcuts(script.shortcuts);
 
@@ -231,6 +251,8 @@
       shortcuts,
       endpoint,
       timeoutMs,
+      aiQualifiedAutofillConcurrency,
+      aiQualifiedAutofillWaitAllBeforeFill,
       listenModel: String(script.aiRecommendListenModel || "").trim(),
       compareModel: String(script.aiRecommendCompareModel || "").trim(),
       enableThinking: script.aiRecommendEnableThinking === true,
@@ -243,6 +265,8 @@
         defaultPageSize,
         endpoint,
         String(timeoutMs),
+        String(aiQualifiedAutofillConcurrency),
+        aiQualifiedAutofillWaitAllBeforeFill ? "1" : "0",
         String(script.aiRecommendListenModel || ""),
         String(script.aiRecommendCompareModel || ""),
         script.aiRecommendEnableThinking === true ? "1" : "0",
@@ -275,6 +299,7 @@
     const processedQualifiedItemIds = new Set();
     let batchQualifiedAutofillRunning = false;
     let batchQualifiedAutofillCancelRequested = false;
+    let batchAutofillPhase = "idle";
 
     function getRecordProcessKey(record) {
       const id = String(record?.id || "").trim();
@@ -300,6 +325,9 @@
     }
 
     function setBatchButtonState(isRunning, isStopping) {
+      if (typeof ui.setBatchAutofillPhase === "function") {
+        ui.setBatchAutofillPhase(batchAutofillPhase);
+      }
       if (typeof ui.setBatchAutofillRunning === "function") {
         ui.setBatchAutofillRunning(isRunning === true);
       }
@@ -315,8 +343,232 @@
       }
       batchQualifiedAutofillCancelRequested = true;
       setBatchButtonState(true, true);
-      ui.setStatus("已请求停止，当前条完成后不再继续。", "info");
+      if (batchAutofillPhase === "analysis") {
+        ui.setStatus("已请求停止，正在等待当前并发请求完成...", "info");
+      } else {
+        ui.setStatus("已请求停止，当前条完成后不再继续。", "info");
+      }
       return { ok: true, message: "stop-requested" };
+    }
+
+    async function runWithConcurrency(items, limit, worker) {
+      const sourceItems = Array.isArray(items) ? items : [];
+      const results = new Array(sourceItems.length);
+      const maxConcurrency = Math.max(1, Math.min(50, Number(limit) || 1));
+      let nextIndex = 0;
+      let active = 0;
+      let resolved = 0;
+
+      return new Promise(function (resolve) {
+        function launchNext() {
+          while (
+            active < maxConcurrency &&
+            nextIndex < sourceItems.length &&
+            batchQualifiedAutofillCancelRequested !== true
+          ) {
+            const currentIndex = nextIndex;
+            nextIndex += 1;
+            active += 1;
+            Promise.resolve()
+              .then(function () {
+                return worker(sourceItems[currentIndex], currentIndex);
+              })
+              .then(function (result) {
+                results[currentIndex] = result;
+              })
+              .catch(function (error) {
+                const context = sourceItems[currentIndex] || {};
+                results[currentIndex] = {
+                  ok: false,
+                  record: context.record || null,
+                  item: context.item || null,
+                  processKey: context.processKey || "",
+                  displayName: context.displayName || "未命名条目",
+                  errorMessage: error?.message || String(error),
+                };
+              })
+              .finally(function () {
+                active -= 1;
+                resolved += 1;
+                if (resolved >= sourceItems.length || (batchQualifiedAutofillCancelRequested && active <= 0)) {
+                  resolve(results);
+                  return;
+                }
+                launchNext();
+              });
+          }
+
+          if (sourceItems.length <= 0 || (batchQualifiedAutofillCancelRequested && active <= 0)) {
+            resolve(results);
+          }
+        }
+
+        launchNext();
+      });
+    }
+
+    async function preanalyzeQualifiedRecordsConcurrently(items, concurrency) {
+      const sourceItems = Array.isArray(items) ? items : [];
+      let finishedCount = 0;
+      let successCount = 0;
+      let failCount = 0;
+      const totalCount = sourceItems.length;
+
+      const results = await runWithConcurrency(
+        sourceItems,
+        concurrency,
+        async function (task) {
+          if (batchQualifiedAutofillCancelRequested) {
+            return {
+              ok: false,
+              record: task.record,
+              item: task.item,
+              processKey: task.processKey,
+              displayName: task.displayName,
+              errorMessage: "已请求停止。",
+            };
+          }
+          try {
+            const recommendation = await ai.recommend(task.item);
+            successCount += 1;
+            return {
+              ok: true,
+              record: task.record,
+              item: task.item,
+              recommendation: recommendation,
+              processKey: task.processKey,
+              displayName: task.displayName,
+            };
+          } catch (error) {
+            failCount += 1;
+            return {
+              ok: false,
+              record: task.record,
+              item: task.item,
+              processKey: task.processKey,
+              displayName: task.displayName,
+              errorMessage: error?.message || String(error),
+            };
+          } finally {
+            finishedCount += 1;
+            ui.setStatus(
+              "AI 分析中：已完成 " +
+                String(finishedCount) +
+                "/" +
+                String(totalCount) +
+                "，成功 " +
+                String(successCount) +
+                "，失败 " +
+                String(failCount) +
+                "。",
+              "info"
+            );
+          }
+        }
+      );
+
+      return results.filter(function (item) {
+        return item && typeof item === "object";
+      });
+    }
+
+    async function fillAnalyzedQualifiedRecordsSequentially(results) {
+      const source = Array.isArray(results) ? results : [];
+      const successful = source.filter(function (item) {
+        return item && item.ok === true;
+      });
+      let fillSuccessCount = 0;
+      let fillFailCount = 0;
+      let fillSkipCount = 0;
+
+      for (let index = 0; index < successful.length; index += 1) {
+        const result = successful[index];
+        if (batchQualifiedAutofillCancelRequested) {
+          const remaining = successful.length - index;
+          return {
+            stopped: true,
+            fillSuccessCount,
+            fillFailCount,
+            fillSkipCount,
+            remaining,
+          };
+        }
+
+        const record = result.record;
+        const displayName = String(result.displayName || "未命名条目");
+        if (typeof dataApi.isRecordQualified === "function" && !dataApi.isRecordQualified(record)) {
+          fillSkipCount += 1;
+          ui.setStatus(displayName + " 不是质检合格，已跳过。", "info");
+          continue;
+        }
+
+        ui.setStatus(
+          "正在填入 " +
+            String(index + 1) +
+            "/" +
+            String(successful.length) +
+            "：" +
+            displayName,
+          "info"
+        );
+
+        const selected = await dataApi.selectRecord(record);
+        if (!selected?.ok) {
+          fillFailCount += 1;
+          ui.setStatus(displayName + " 选中失败：" + (selected?.message || "未知错误"), "error");
+          await waitBetweenBatchItems();
+          continue;
+        }
+        const ready = await dataApi.waitForPageTextReady(record, 3000);
+        if (!ready?.ok) {
+          fillFailCount += 1;
+          ui.setStatus(displayName + " 页面文本同步失败：" + (ready?.message || "超时"), "error");
+          await waitBetweenBatchItems();
+          continue;
+        }
+        const recommendation = result.recommendation && typeof result.recommendation === "object"
+          ? result.recommendation
+          : null;
+        const recommendedText = String(recommendation?.recommendedText || "").trim();
+        if (!recommendedText) {
+          fillFailCount += 1;
+          ui.setStatus(displayName + " 推荐文本为空，已跳过。", "error");
+          await waitBetweenBatchItems();
+          continue;
+        }
+        ui.renderResult(recommendation);
+        const fillResult = dataApi.fillPageText(recommendedText);
+        if (fillResult?.ok === false) {
+          fillFailCount += 1;
+          ui.setStatus(displayName + " 填入失败：" + (fillResult?.message || "未知错误"), "error");
+        } else {
+          const processKey = String(result.processKey || "");
+          if (processKey) {
+            processedQualifiedItemIds.add(processKey);
+          }
+          fillSuccessCount += 1;
+          ui.setStatus(
+            "已填入 " +
+              String(index + 1) +
+              "/" +
+              String(successful.length) +
+              "：" +
+              displayName,
+            "success"
+          );
+        }
+        if (index < successful.length - 1) {
+          await waitBetweenBatchItems();
+        }
+      }
+
+      return {
+        stopped: false,
+        fillSuccessCount,
+        fillFailCount,
+        fillSkipCount,
+        remaining: 0,
+      };
     }
 
     async function autoFillQualifiedItemsBatch() {
@@ -328,14 +580,10 @@
         return stopBatchQualifiedAutofill();
       }
 
+      batchAutofillPhase = "analysis";
       batchQualifiedAutofillRunning = true;
       batchQualifiedAutofillCancelRequested = false;
       setBatchButtonState(true, false);
-
-      let successCount = 0;
-      let failCount = 0;
-      let skipCount = 0;
-      let remainingCount = 0;
 
       try {
         ui.ensureMounted();
@@ -356,122 +604,85 @@
           }
           return !processedQualifiedItemIds.has(key);
         });
-        const totalCount = qualifiedRecords.length;
-
-        if (totalCount <= 0) {
+        if (qualifiedRecords.length <= 0) {
           ui.setStatus("当前页没有可处理的质检合格数据。", "info");
           return { ok: true, message: "no-qualified" };
         }
 
-        ui.setStatus("检测到 " + String(totalCount) + " 条质检合格数据，开始连续处理。", "info");
+        const tasks = dataApi.createItemsFromQualifiedRecords(qualifiedRecords, refreshed.entry);
+        const concurrency = normalizeAutofillConcurrency(config.aiQualifiedAutofillConcurrency);
+        ui.setStatus(
+          "检测到 " +
+            String(tasks.length) +
+            " 条质检合格数据，开始并发 AI 分析，并发数 " +
+            String(concurrency) +
+            "。",
+          "info"
+        );
 
-        for (let index = 0; index < qualifiedRecords.length; index += 1) {
-          const record = qualifiedRecords[index];
-          const displayName =
-            typeof dataApi.getRecordDisplayName === "function"
-              ? dataApi.getRecordDisplayName(record)
-              : "第 " + String(index + 1) + " 条";
-
-          if (batchQualifiedAutofillCancelRequested) {
-            remainingCount = qualifiedRecords.length - index;
-            break;
-          }
-
-          if (typeof dataApi.isRecordQualified === "function" && !dataApi.isRecordQualified(record)) {
-            skipCount += 1;
-            ui.setStatus(displayName + " 不是质检合格，已跳过。", "info");
-            continue;
-          }
-
-          ui.setStatus(
-            "正在处理第 " +
-              String(index + 1) +
-              "/" +
-              String(totalCount) +
-              " 条合格项：" +
-              displayName +
-              "。",
-            "info"
-          );
-
-          let selected = null;
-          try {
-            selected = await dataApi.selectRecord(record);
-          } catch (error) {
-            selected = { ok: false, message: error?.message || String(error) };
-          }
-          if (!selected?.ok) {
-            failCount += 1;
-            ui.setStatus(displayName + " 选中失败：" + (selected?.message || "未知错误"), "error");
-            await waitBetweenBatchItems();
-            continue;
-          }
-
-          const ready = await dataApi.waitForPageTextReady(record, 3000);
-          if (!ready?.ok) {
-            failCount += 1;
-            ui.setStatus(displayName + " 页面文本同步失败：" + (ready?.message || "超时"), "error");
-            await waitBetweenBatchItems();
-            continue;
-          }
-
-          try {
-            const item = await dataApi.getCurrentItem({ allowFetch: false });
-            ui.updateCurrentItemKey(item.key);
-            const recommendation = await ai.recommend(item);
-            ui.renderResult(recommendation);
-            const fillResult = ui.fillRecommendedText();
-            if (fillResult?.ok === false) {
-              failCount += 1;
-              ui.setStatus(displayName + " 填入失败：" + (fillResult?.message || "未知错误"), "error");
-            } else {
-              const processedKey = getRecordProcessKey(record);
-              if (processedKey) {
-                processedQualifiedItemIds.add(processedKey);
-              }
-              successCount += 1;
-              ui.setStatus(
-                "已填入第 " +
-                  String(index + 1) +
-                  "/" +
-                  String(totalCount) +
-                  " 条，继续下一条...",
-                "success"
-              );
-            }
-          } catch (error) {
-            failCount += 1;
-            ui.setStatus(displayName + " AI 推荐失败：" + (error?.message || String(error)), "error");
-          }
-
-          if (index < qualifiedRecords.length - 1) {
-            await waitBetweenBatchItems();
-          }
-        }
+        const analyzedResults = await preanalyzeQualifiedRecordsConcurrently(tasks, concurrency);
+        const analysisSuccessCount = analyzedResults.filter(function (item) {
+          return item.ok === true;
+        }).length;
+        const analysisFailCount = analyzedResults.length - analysisSuccessCount;
 
         if (batchQualifiedAutofillCancelRequested) {
           ui.setStatus(
-            "已停止：成功 " +
-              String(successCount) +
+            "已停止：AI 成功 " +
+              String(analysisSuccessCount) +
               " 条，失败 " +
-              String(failCount) +
-              " 条，跳过 " +
-              String(skipCount) +
-              " 条，剩余 " +
-              String(remainingCount) +
-              " 条未处理。",
+              String(analysisFailCount) +
+              " 条，未填入 " +
+              String(analysisSuccessCount) +
+              " 条。",
             "info"
           );
-          return { ok: true, message: "stopped" };
+          return { ok: true, message: "stopped-during-analysis" };
+        }
+
+        if (config.aiQualifiedAutofillWaitAllBeforeFill !== true) {
+          ui.setStatus("当前配置未启用“先全部分析再填入”，已按默认策略继续。", "info");
         }
 
         ui.setStatus(
-          "当前页合格项处理完成：成功 " +
-            String(successCount) +
+          "AI 分析完成，成功 " +
+            String(analysisSuccessCount) +
             " 条，失败 " +
-            String(failCount) +
+            String(analysisFailCount) +
+            " 条，开始按顺序填入。",
+          "info"
+        );
+
+        batchAutofillPhase = "fill";
+        setBatchButtonState(true, false);
+        const fillSummary = await fillAnalyzedQualifiedRecordsSequentially(analyzedResults);
+        if (fillSummary.stopped) {
+          ui.setStatus(
+            "已停止：已填入 " +
+              String(fillSummary.fillSuccessCount) +
+              " 条，失败 " +
+              String(fillSummary.fillFailCount) +
+              " 条，跳过 " +
+              String(fillSummary.fillSkipCount) +
+              " 条，剩余 " +
+              String(fillSummary.remaining) +
+              " 条未填入。",
+            "info"
+          );
+          return { ok: true, message: "stopped-during-fill" };
+        }
+
+        ui.setStatus(
+          "当前页合格项处理完成：AI 成功 " +
+            String(analysisSuccessCount) +
+            " 条，AI 失败 " +
+            String(analysisFailCount) +
+            " 条；填入成功 " +
+            String(fillSummary.fillSuccessCount) +
+            " 条，填入失败 " +
+            String(fillSummary.fillFailCount) +
             " 条，跳过 " +
-            String(skipCount) +
+            String(fillSummary.fillSkipCount) +
             " 条。请人工复核后保存。",
           "success"
         );
@@ -482,6 +693,7 @@
       } finally {
         batchQualifiedAutofillRunning = false;
         batchQualifiedAutofillCancelRequested = false;
+        batchAutofillPhase = "idle";
         setBatchButtonState(false, false);
       }
     }

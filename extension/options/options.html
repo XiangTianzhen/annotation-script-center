@@ -996,6 +996,29 @@
             </label>
           </div>
 
+          <div class="detail-grid two" style="margin-top: 18px;">
+            <label class="field-card">
+              <strong>AI连续填入合格项并发数量</strong>
+              <span>范围 1-50，默认 5。并发越高越可能触发后端或模型限流。</span>
+              <input
+                id="data-baker-qualified-autofill-concurrency"
+                type="number"
+                min="1"
+                max="50"
+                step="1"
+              />
+            </label>
+
+            <label class="field-card">
+              <strong>填入策略</strong>
+              <span>先并发生成当前页全部合格项 AI 推荐，全部返回后再按顺序填入。</span>
+              <span class="field-toggle">
+                <input id="data-baker-qualified-autofill-wait-all" type="checkbox" />
+                先全部分析完成，再开始顺序填入
+              </span>
+            </label>
+          </div>
+
           <div class="field-card" style="margin-top: 18px;">
             <strong>导出数据上传（默认能力）</strong>
             <span>

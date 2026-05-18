@@ -1036,6 +1036,14 @@
     return Math.min(300000, Math.max(1000, Math.round(number)));
   }
 
+  function normalizeDataBakerAutofillConcurrency(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return 5;
+    }
+    return Math.min(50, Math.max(1, Math.round(number)));
+  }
+
   function dataBakerTimeoutMsToSeconds(value) {
     return Math.round(normalizeDataBakerTimeoutMs(value) / 1000);
   }
@@ -1340,6 +1348,8 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: 120000,
+        aiQualifiedAutofillConcurrency: 5,
+        aiQualifiedAutofillWaitAllBeforeFill: true,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",
         aiRecommendEnableThinking: false,
@@ -1364,6 +1374,11 @@
     config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
       config.aiRecommendRequestTimeoutMs
     );
+    config.aiQualifiedAutofillConcurrency = normalizeDataBakerAutofillConcurrency(
+      config.aiQualifiedAutofillConcurrency
+    );
+    config.aiQualifiedAutofillWaitAllBeforeFill =
+      config.aiQualifiedAutofillWaitAllBeforeFill !== false;
     config.aiRecommendListenModel = normalizeJudgementAiModelText(
       config.aiRecommendListenModel,
       "qwen3.5-omni-flash"
@@ -4384,6 +4399,14 @@
       config.defaultPageSize,
       "50条/页"
     );
+    const concurrencyInput = getElement("data-baker-qualified-autofill-concurrency");
+    if (concurrencyInput) {
+      concurrencyInput.value = String(config.aiQualifiedAutofillConcurrency || 5);
+    }
+    const waitAllInput = getElement("data-baker-qualified-autofill-wait-all");
+    if (waitAllInput) {
+      waitAllInput.checked = config.aiQualifiedAutofillWaitAllBeforeFill !== false;
+    }
     stopDataBakerShortcutRecording("");
     renderDataBakerShortcutGrid();
   }
@@ -4409,6 +4432,11 @@
       "50条/页"
     );
     const timeoutMs = normalizeDataBakerTimeoutMs(timeoutInput);
+    const autofillConcurrency = normalizeDataBakerAutofillConcurrency(
+      getElement("data-baker-qualified-autofill-concurrency")?.value
+    );
+    const autofillWaitAllBeforeFill =
+      getElement("data-baker-qualified-autofill-wait-all")?.checked !== false;
     const listenModel = hasAiSettingsPanel
       ? readJudgementModelField(
           "data-baker-ai-listen-model-select",
@@ -4541,6 +4569,8 @@
                 aiRecommendFrequencyPenalty: frequencyPenalty,
                 aiRecommendSeed: seed,
                 aiRecommendStopSequences: stopSequences,
+                aiQualifiedAutofillConcurrency: autofillConcurrency,
+                aiQualifiedAutofillWaitAllBeforeFill: autofillWaitAllBeforeFill,
                 autoPageSizeEnabled: autoPageSizeEnabled,
                 defaultPageSize: defaultPageSize,
                 shortcuts: shortcuts,

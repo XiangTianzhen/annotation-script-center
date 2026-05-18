@@ -45,6 +45,8 @@
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
                 aiRecommendRequestTimeoutMs: 120000,
+                aiQualifiedAutofillConcurrency: 5,
+                aiQualifiedAutofillWaitAllBeforeFill: true,
                 autoPageSizeEnabled: true,
                 defaultPageSize: "50条/页",
                 shortcuts: {
@@ -208,7 +210,7 @@
       DATABAKER_PAGE_SIZE_OPTIONS: ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"],
       DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: [
         { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
-        { key: "autoFillQualifiedItem", label: "AI连续填入合格项" },
+        { key: "autoFillQualifiedItem", label: "AI并发分析并连续填入合格项" },
         { key: "copyAiHeardText", label: "复制 AI 听音文本" },
         { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
         { key: "fillRecommendedText", label: "填入推荐文本" },
@@ -1141,6 +1143,24 @@
     return "50条/页";
   }
 
+  function normalizeDataBakerConcurrency(value, fallback) {
+    const numeric = Number(value);
+    const fallbackNumeric = Number(fallback);
+    const base = Number.isFinite(numeric)
+      ? numeric
+      : Number.isFinite(fallbackNumeric)
+        ? fallbackNumeric
+        : 5;
+    return Math.max(1, Math.min(50, Math.round(base)));
+  }
+
+  function normalizeDataBakerWaitAllBeforeFill(value, fallback) {
+    if (value === true || value === false) {
+      return value;
+    }
+    return fallback === false ? false : true;
+  }
+
   function normalizeNullableShortcut(shortcut, fallback) {
     if (shortcut === null) {
       return null;
@@ -1286,6 +1306,14 @@
       result.aiRecommendRequestTimeoutMs,
       defaultConfig.aiRecommendRequestTimeoutMs || 120000
     );
+    result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
+      result.aiQualifiedAutofillConcurrency,
+      defaultConfig.aiQualifiedAutofillConcurrency || 5
+    );
+    result.aiQualifiedAutofillWaitAllBeforeFill = normalizeDataBakerWaitAllBeforeFill(
+      result.aiQualifiedAutofillWaitAllBeforeFill,
+      defaultConfig.aiQualifiedAutofillWaitAllBeforeFill !== false
+    );
     result.aiRecommendListenModel = normalizeJudgementAiModelText(
       result.aiRecommendListenModel,
       defaultConfig.aiRecommendListenModel || "qwen3.5-omni-flash"
@@ -1367,6 +1395,8 @@
               constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
             aiRecommendRequestTimeoutMs: 120000,
+            aiQualifiedAutofillConcurrency: 5,
+            aiQualifiedAutofillWaitAllBeforeFill: true,
             autoPageSizeEnabled: true,
             defaultPageSize: "50条/页",
             shortcuts: {

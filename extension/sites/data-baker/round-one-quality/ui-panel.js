@@ -173,6 +173,7 @@
     let currentItemKey = "";
     let batchAutofillRunning = false;
     let batchAutofillStopping = false;
+    let batchAutofillPhase = "idle";
 
     function findMountTarget() {
       return (
@@ -412,8 +413,14 @@
         return;
       }
       if (batchAutofillRunning) {
-        button.textContent = "停止AI填入";
-        button.disabled = batchAutofillStopping === true;
+        if (batchAutofillStopping === true) {
+          button.textContent = "停止中...";
+          button.disabled = true;
+          return;
+        }
+        button.textContent =
+          batchAutofillPhase === "analysis" ? "停止AI分析" : "停止AI填入";
+        button.disabled = false;
       } else {
         button.textContent = "AI连续填入合格项";
         button.disabled = false;
@@ -666,12 +673,23 @@
       batchAutofillRunning = isRunning === true;
       if (!batchAutofillRunning) {
         batchAutofillStopping = false;
+        batchAutofillPhase = "idle";
       }
       updateQualifiedAutofillButtonState();
     }
 
     function setBatchAutofillStopping(isStopping) {
       batchAutofillStopping = isStopping === true;
+      updateQualifiedAutofillButtonState();
+    }
+
+    function setBatchAutofillPhase(phase) {
+      const next = String(phase || "").trim().toLowerCase();
+      if (next === "analysis" || next === "fill") {
+        batchAutofillPhase = next;
+      } else {
+        batchAutofillPhase = "idle";
+      }
       updateQualifiedAutofillButtonState();
     }
 
@@ -686,6 +704,7 @@
       remove,
       renderResult,
       requestAiRecommend,
+      setBatchAutofillPhase,
       setBatchAutofillRunning,
       setBatchAutofillStopping,
       setStatus,
