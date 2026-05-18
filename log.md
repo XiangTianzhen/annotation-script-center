@@ -1,5 +1,11 @@
 # 标注脚本中心修改日志
 
+## 2026-05-18（Abaka AI：补齐 Task 页面只读采集壳资料目录）
+
+- 新增 `platform-resources/abaka-ai/task-page/README.md`，补齐只读采集壳资料目录（采集目标、Console 导出方法、脱敏边界、后续接口模板）。
+- 同步更新 `docs/platforms/index.md` 与 `platform-resources/README.md` 索引，确保 Abaka AI Task 页面只读采集资料可被直接导航。
+- 本轮仅文档补齐，不新增业务自动化能力；未提升版本，未生成 CRX/ZIP/update.xml/crx-latest.json。
+
 ## 2026-05-18（DataBaker：AI填入合格项位置与刷新修复）
 
 - 修复 `toPositiveNumber` 未定义导致 AI填入合格项失败的问题。

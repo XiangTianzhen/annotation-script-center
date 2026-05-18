@@ -30,6 +30,7 @@
 - 运行时 README：`extension/sites/abaka-ai/task-page/README.md`
 - 平台资料目录：`platform-resources/abaka-ai/`
 - 平台总览：`platform-resources/abaka-ai/README.md`
+- Task 页面只读采集壳资料：`platform-resources/abaka-ai/task-page/README.md`
 - 平台通用 Network：`platform-resources/abaka-ai/network.md`
 - Task 页面公共 Network：`platform-resources/abaka-ai/network/README.md`
 - Task 页面公共结构：`platform-resources/abaka-ai/page-structure.md`

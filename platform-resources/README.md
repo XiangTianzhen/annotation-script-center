@@ -44,6 +44,8 @@ platform-resources/
       backend/
   abaka-ai/
     README.md
+    task-page/
+      README.md
     network.md
     page-structure.md
     actions.md
