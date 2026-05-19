@@ -1,5 +1,48 @@
 # 标注脚本中心修改日志
 
+## 2026-05-19（Task21助手：image_b_texts_removed 改为 T/B/R/D 差异判断）
+
+- Task21 后端 Prompt 版本升级为 `abaka-task21-ai-v4-image-b-removed-diff`。
+- `image_b_texts_removed` 规则从“简单找消失文本”升级为四集合判断：
+  - `T` = target removal texts，目标删除文本范围，只作辅助
+  - `B` = image_b 中可读文本实例
+  - `R` = image_b_removed 中仍可读文本实例
+  - `D = B - R`
+- 新规则明确：
+  - 删除只看 `image_b` 与 `image_b_removed`
+  - `image_a` 不参与 `image_b_texts_removed` 删除判断，只用于 `same_font`
+  - `true` 只在“只有目标文本完整删除且无额外多删”时成立
+  - `specify` 用于目标文本部分删除、额外多删除或需要列出具体删除项
+  - `null` 用于 `D` 为空
+- Prompt 强化了多实例与比较口径：
+  - case-insensitive
+  - 普通空格/普通字距差异可忽略
+  - line breaks / `<br>` 有意义，不能与无换行文本合并
+  - `all instances of xxx / 1 instance of xxx / N instances of xxx` 为唯一合法标准答案格式
+- 视觉阶段 Prompt 强化：
+  - 必须观察 `target_removal_text_candidates`
+  - `image_b_visible_text_instances`
+  - `image_b_removed_visible_text_instances`
+  - `deleted_text_candidates`
+  - `extra_deleted_text_candidates`
+  - 并在提示中要求尽量体现 `text/normalized_text/location/count/deleted_count/is_target_text/confidence`
+- `ai-routes` 归一化增强：
+  - `normalizeRemovedLines` 保留 `all instances of xxx`
+  - 自动修正 `intance/intances`
+  - 自动修正 `1 instances -> 1 instance`
+  - 自动修正 `2 instance -> 2 instances`
+  - `choice=specify` 但无合法 lines 时自动降级 `null`
+- 前端 Task21 面板保持标准答案原样展示与复制，不改写 `all instances of xxx`。
+- 调试信息新增 warnings 摘要，后端拼写修正会出现在折叠调试信息中，不会塞进主答案。
+- `data-collector` 新增 `targetRemovalTextHints`，当前仅安全提取页面已有 `image_b_texts_removed` 文本作为辅助，不采集敏感 URL。
+- 文档同步更新：
+  - `extension/sites/abaka-ai/task-page/README.md`
+  - `platform-resources/abaka-ai/task21/README.md`
+  - `platform-resources/abaka-ai/task21/page-structure.md`
+  - `platform-resources/abaka-ai/README.md`
+  - `platform-resources/README.md`
+- 本轮不修改 `manifest.json`，不生成 CRX，不新增依赖，不自动保存/提交/送审。
+
 ## 2026-05-19（Task21助手热修：Monaco data-uri 写入与运行时版本标识）
 
 - 修复 Task21助手在 `image_b_texts_removed=specify` 场景下仍提示“已选择 specify，但未找到输入框”的问题。

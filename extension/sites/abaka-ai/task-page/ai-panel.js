@@ -444,6 +444,7 @@
 
     function buildMetaText(display) {
       const usage = display.usage || {};
+      const warnings = Array.isArray(display.warnings) ? display.warnings : [];
       const lines = [];
       lines.push("runtimeVersion: " + String(display.runtimeVersion || TASK21_ASSISTANT_RUNTIME_VERSION));
       lines.push("domActionsVersion: " + String(display.domActionsVersion || getDomActionsVersion()));
@@ -466,6 +467,12 @@
       );
       if (display.price && display.price.totalPrice !== undefined) {
         lines.push("price.total: " + String(display.price.totalPrice));
+      }
+      if (warnings.length > 0) {
+        lines.push("warnings:");
+        warnings.slice(0, 10).forEach(function (item) {
+          lines.push("- " + String(item || ""));
+        });
       }
       return lines.join("\n");
     }
@@ -1243,6 +1250,7 @@
           price: price,
           result: result,
           suggestions: buildDisplaySuggestions(target, result),
+          warnings: Array.isArray(body.warnings) ? body.warnings : [],
           raw: {
             request: requestPayload,
             response: body,

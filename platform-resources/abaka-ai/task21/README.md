@@ -111,6 +111,21 @@
 - `specify` 写入前会等待输入框渲染（默认 `5000ms`），降低切换 radio 后找不到输入框的问题。
 - Monaco 写入主路径：读取 `.monaco-editor[data-uri]`，再用 `window.monaco.editor.getModels()` 匹配 `model.uri.toString()`，命中后执行 `model.setValue(text)`。
 - Monaco fallback 顺序：editor instance -> `execCommand("insertText")` / input 事件链 -> textarea fallback；textarea fallback 只能返回“需人工确认”，不能把视觉层文本当作成功。
+- `image_b_texts_removed` 新判断流程：
+  - `T` = target removal texts，目标删除文本范围，只作辅助，不覆盖图片事实。
+  - `B` = image_b 中可读文本实例。
+  - `R` = image_b_removed 中仍可读文本实例。
+  - `D = B - R`，即 image_b 有、image_b_removed 没有的实际删除文本。
+- `image_b_texts_removed` 只看 `image_b` 与 `image_b_removed`，不允许用 `image_a` 判断删除。
+- `true` 条件：只有目标文本完整删除，且没有额外多删。
+- `specify` 条件：目标文本部分删除，或额外非目标文本也被删除，或删除项需要逐条说明。
+- `null` 条件：`image_b` 没有任何可读文本在 `image_b_removed` 中消失。
+- 多实例比较大小写不敏感；普通空格/普通字距差异可忽略。
+- 换行和 `<br>` 有意义，不能把带换行文本和无换行文本合并。
+- `specify` 标准答案支持：
+  - `all instances of xxx`
+  - `1 instance of xxx`
+  - `N instances of xxx`
 - Task21助手新增运行时版本标识：
   - `runtimeVersion: task21-assistant-fill-v2-20260519`
   - `domActionsVersion: task21-dom-actions-fill-v2-20260519`
@@ -132,9 +147,10 @@
 - `same_font` 允许值补充：`true | false | unsure | error | same underlying font+artistic effect`。
 - `image_b_texts_removed` 的 `specify` 标准答案支持：
   - `all instances of xxx`
-  - `N instance of xxx`
+  - `1 instance of xxx`
   - `N instances of xxx`
 - 同内容多处删除优先 `all instances of xxx`。
+- `image_b` 中有、`image_b_removed` 中没有，才算删除；目标文本 `T` 只作辅助范围。
 - 纯文字替换：删掉旧字进 `image_b_texts_removed`，新字替换行为进 `other_changes`。
 - 文字改图案：删字进 `image_b_texts_removed`，图案改动进 `other_changes`。
 - 模糊不可识别文字不进入删除列表，统一在 `other_changes` 描述文字块/文字元素变动。

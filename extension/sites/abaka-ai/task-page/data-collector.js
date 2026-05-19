@@ -177,6 +177,28 @@
     };
   }
 
+  function collectTargetRemovalTextHints(currentPageValues) {
+    const hints = [];
+    const rawValue = normalizeText(currentPageValues?.image_b_texts_removed || "");
+    const lowered = normalizeLower(rawValue);
+    if (
+      rawValue &&
+      lowered !== "true" &&
+      lowered !== "null" &&
+      lowered !== "specify" &&
+      lowered !== "not_applicable"
+    ) {
+      rawValue.split(/\r?\n/).forEach(function (line) {
+        const text = normalizeText(line);
+        if (!text || hints.indexOf(text) >= 0) {
+          return;
+        }
+        hints.push(text.slice(0, 240));
+      });
+    }
+    return hints.slice(0, 12);
+  }
+
   function sanitizeQueryValue(value) {
     const text = normalizeText(value);
     if (!text) {
@@ -604,6 +626,7 @@
       imageATexts: normalizeText(itemInfoExtract?.imageATexts?.value || ""),
       imageBTexts: normalizeText(itemInfoExtract?.imageBTexts?.value || ""),
       textPositions: itemInfoExtract?.textPositions?.value || {},
+      targetRemovalTextHints: collectTargetRemovalTextHints(currentPageValues),
       currentValues: {
         same_font: currentPageValues.same_font || "",
         image_b_texts_removed: currentPageValues.image_b_texts_removed || "",

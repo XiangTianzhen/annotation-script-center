@@ -103,9 +103,17 @@
   - 若页面仍出现旧的 `2500ms` 提示，优先重新加载扩展并刷新当前 Abaka Task21 页面
 
 - image_b_texts_removed 标准答案格式：
-  - 支持 `all instances of xxx` / `N instance of xxx` / `N instances of xxx`
-  - 同内容多处删除优先 `all instances of xxx`
-  - `N=1` 自动规范为 `instance`，`N>1` 自动规范为 `instances`
+  - 只比较 `image_b` 与 `image_b_removed`
+  - `image_a` 不参与删除判断，只用于 `same_font`
+  - 目标删除文本 `T` 只是目标范围辅助，最终仍以 `image_b` / `image_b_removed` 实际图片内容为准
+  - 新判断流程：`T` 目标删除文本、`B` image_b 可读文本、`R` image_b_removed 仍可读文本、`D = B - R`
+  - `true` 只在“只有目标文本完整删除，且没有额外多删”时成立
+  - `specify` 适用于“目标文本部分删除”或“出现额外多删除”或“需要具体列出删除项”
+  - `null` 适用于 `image_b` 没有任何可读文本在 `image_b_removed` 中消失
+  - 支持 `all instances of xxx` / `1 instance of xxx` / `N instances of xxx`
+  - 同一文本所有实例都被删时优先 `all instances of xxx`
+  - 大小写不敏感；普通空格、普通字距差异可忽略
+  - 换行和 `<br>` 有意义，带换行与无换行文本不能合并
   - 仍不接受 bullet、编号、解释
 
 - other_changes 比较口径：

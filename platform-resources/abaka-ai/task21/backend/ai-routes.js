@@ -125,6 +125,21 @@ function normalizeArray(value) {
     : [];
 }
 
+function normalizeStringArray(value, maxItems, maxLengthPerItem) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const result = [];
+  value.forEach(function (item) {
+    const text = normalizeString(item, maxLengthPerItem || 300);
+    if (!text || result.indexOf(text) >= 0) {
+      return;
+    }
+    result.push(text);
+  });
+  return result.slice(0, maxItems || 12);
+}
+
 function normalizeTimeoutMs(value, fallback) {
   const number = Number(value);
   const base = Number.isFinite(number) ? number : Number(fallback);
@@ -215,6 +230,7 @@ function normalizeAnalyzeRequest(body) {
       imageATexts: normalizeString(context.imageATexts, 12000),
       imageBTexts: normalizeString(context.imageBTexts, 12000),
       textPositions: normalizeObject(context.textPositions),
+      targetRemovalTextHints: normalizeStringArray(context.targetRemovalTextHints, 12, 240),
       currentValues: {
         same_font: normalizeString(currentValues.same_font, 300),
         image_b_texts_removed: normalizeString(currentValues.image_b_texts_removed, 3000),
@@ -359,26 +375,39 @@ function normalizeRemovedLines(sourceLines, warnings) {
       return;
     }
     const cleanTail = original.replace(/[.,;:!?。；：！？]+$/g, "").trim();
-    const allMatch = cleanTail.match(/^all\s+instances\s+of\s+(.+)$/i);
-    if (allMatch) {
-      const allText = String(allMatch[1] || "").replace(/\s+/g, " ").trim();
+    const normalizedLine = cleanTail.replace(/\s+/g, " ").trim();
+    const allLooseMatch = normalizedLine.match(/^all\s+([A-Za-z]+)\s+of\s+(.+)$/i);
+    if (allLooseMatch) {
+      const nounToken = String(allLooseMatch[1] || "").toLowerCase();
+      const allText = String(allLooseMatch[2] || "").replace(/\s+/g, " ").trim();
       if (!allText) {
         safeWarnings.push("image_b_texts_removed: all instances 文本内容为空，已忽略。");
         return;
       }
+      if (nounToken !== "instance" && nounToken !== "instances" && nounToken !== "intance" && nounToken !== "intances") {
+        safeWarnings.push("image_b_texts_removed: 非法标准答案格式，已忽略：" + sanitizeText(original, 120));
+        return;
+      }
+      if (nounToken !== "instances") {
+        safeWarnings.push("image_b_texts_removed: all instance(s) 前缀已自动修正为 all instances of。");
+      }
       result.push("all instances of " + allText);
       return;
     }
-    const match = cleanTail.match(/^([1-9]\d*)\s+(instance|instances)\s+of\s+(.+)$/i);
-    if (!match) {
+    const looseMatch = normalizedLine.match(/^([1-9]\d*)\s+([A-Za-z]+)\s+of\s+(.+)$/i);
+    if (!looseMatch) {
       safeWarnings.push("image_b_texts_removed: 非法标准答案格式，已忽略：" + sanitizeText(original, 120));
       return;
     }
-    const count = Number(match[1]);
-    const noun = String(match[2] || "").toLowerCase();
-    const text = String(match[3] || "").replace(/\s+/g, " ").trim();
+    const count = Number(looseMatch[1]);
+    const noun = String(looseMatch[2] || "").toLowerCase();
+    const text = String(looseMatch[3] || "").replace(/\s+/g, " ").trim();
     if (!text) {
       safeWarnings.push("image_b_texts_removed: 文本内容为空，已忽略。");
+      return;
+    }
+    if (noun !== "instance" && noun !== "instances" && noun !== "intance" && noun !== "intances") {
+      safeWarnings.push("image_b_texts_removed: 非法标准答案格式，已忽略：" + sanitizeText(original, 120));
       return;
     }
     const expectedNoun = count === 1 ? "instance" : "instances";

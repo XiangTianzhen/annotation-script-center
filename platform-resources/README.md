@@ -70,6 +70,7 @@ platform-resources/
 - 涉及 LabelX 页面 DOM 或网络接口时，优先读本目录，再修改扩展运行时代码。
 - 涉及 DataBaker 页面 DOM 或网络接口时，优先读 `data-baker/round-one-quality/`，不要把 DataBaker 逻辑写入 Alibaba LabelX 目录。
 - 涉及 Abaka AI Task 页面结构采集时，先读 `abaka-ai/README.md`；公共页面结构、动作风险、多语言和 Network 维护在 `abaka-ai/` 根目录，Task21 same_font 专项读 `abaka-ai/task21/README.md`，Task17 对比与空池差异读 `abaka-ai/task17/README.md`。
+- Abaka AI Task21 当前 `image_b_texts_removed` 规则以 `image_b` 与 `image_b_removed` 的实际差异为准：目标删除文本 `T` 只作辅助范围，实际删除集合按 `D = B - R` 判断。
 - `page-structure/` 放页面结构、稳定选择器和代表性 HTML 片段。
 - `network/` 放请求 URL、请求 / 响应结构、采集结论和待采集项。
 - `ai/` 放快判 AI 规则、提示词模板和少量 few-shot 示例，不放完整雷题库。
@@ -192,7 +193,7 @@ platform-resources/
 - token/password：不需要
 - 数据目录：当前为 AI 调试接口，无统一 CSV 下载目录
 - 安全说明：AI 仅返回建议，不自动写入、不保存、不提交；前端 Task21助手仅在用户点击“填写 AI 答案”时才执行字段写入。
-- 输出规则摘要：`same_font` 支持 `error`；`image_b_texts_removed` 的 `specify` 支持 `all instances of xxx / N instance of xxx / N instances of xxx`（同内容多处删除优先 all instances）；`other_changes` 仅比较 `image_b_removed` 与 `image_b`。
+- 输出规则摘要：`same_font` 支持 `error`；`image_b_texts_removed` 只比较 `image_b` 与 `image_b_removed`，按 `T/B/R/D` 判断 `true/specify/null`，`specify` 支持 `all instances of xxx / 1 instance of xxx / N instances of xxx`；`other_changes` 仅比较 `image_b_removed` 与 `image_b`。
 
 ### Admin 项目数据下载 API
 
