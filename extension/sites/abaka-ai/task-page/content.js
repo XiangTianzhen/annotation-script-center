@@ -13,6 +13,9 @@
   const aiClient = globalThis.__ASCEdgeAbakaAiTask21AiClient || {};
   const aiPanelFactory = globalThis.__ASCEdgeAbakaAiTask21AiPanel || {};
   const pricing = globalThis.__ASCEdgeAbakaAiTask21Pricing || {};
+  const TASK21_ASSISTANT_RUNTIME_VERSION = String(
+    aiPanelFactory.runtimeVersion || domActionsFactory.runtimeVersion || "task21-assistant-runtime-unknown"
+  );
 
   if (
     typeof storage.getSettings !== "function" ||
@@ -112,6 +115,9 @@
     });
 
     shortcutRuntime.start();
+    console.info(
+      "[ASC][Abaka AI] Task21 assistant runtime version: " + TASK21_ASSISTANT_RUNTIME_VERSION
+    );
     console.info("[ASC][Abaka AI] Task21 shortcuts ready");
 
     try {

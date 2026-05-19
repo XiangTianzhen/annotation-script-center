@@ -106,10 +106,15 @@
   - same_font=false/unsure/error 时按流程将后两项标记为 not_applicable
   - same_font=true 或 same underlying font+artistic effect 时继续分析后两项
 - AI 结果仅用于辅助判断；用户点击“填写 AI 答案”后才会写入页面，不自动保存/提交/送审。
-- `image_b_texts_removed` 的填写兼容 `custom-md-editor / Monaco` 输入区。
-- `other_changes` 的填写兼容 Naive UI textarea（`n-input__textarea-el`）。
-- `specify` 写入前会等待输入框渲染（默认 4000ms），降低切换 radio 后找不到输入框的问题。
-- Monaco 写入采用多策略：Monaco API -> `execCommand` 输入 -> `textarea` fallback（fallback 会提示人工确认）。
+- `image_b_texts_removed` 的实际输入区是 `custom-md-editor / Monaco`；定位必须先锁定当前 `.l-item` 和 `.l-title-text=image_b_texts_removed`，再在字段内查 `.custom-md-editor`、`.monaco-container`、`.monaco-editor[data-uri]`、`textarea.inputarea`、`.view-lines`。
+- `other_changes` 继续使用 Naive UI textarea（`textarea.n-input__textarea-el`），定位限制在当前 `.l-item` 内。
+- `specify` 写入前会等待输入框渲染（默认 `5000ms`），降低切换 radio 后找不到输入框的问题。
+- Monaco 写入主路径：读取 `.monaco-editor[data-uri]`，再用 `window.monaco.editor.getModels()` 匹配 `model.uri.toString()`，命中后执行 `model.setValue(text)`。
+- Monaco fallback 顺序：editor instance -> `execCommand("insertText")` / input 事件链 -> textarea fallback；textarea fallback 只能返回“需人工确认”，不能把视觉层文本当作成功。
+- Task21助手新增运行时版本标识：
+  - `runtimeVersion: task21-assistant-fill-v2-20260519`
+  - `domActionsVersion: task21-dom-actions-fill-v2-20260519`
+- 若用户页面仍显示旧的 `2500ms` 提示，优先判断为扩展未重载或旧页面未刷新，而不是直接判定仓库代码未更新。
 - 悬浮窗主视图仅展示推荐选择、标准答案、理由和填写按钮；调试信息默认折叠。
 - 悬浮窗支持拖动、调整宽高和重置位置。
 - Prompt 与规则沉淀路径：`ai/README.md`、`ai/prompt.md`、`backend/prompt.js`。
@@ -134,6 +139,13 @@
 - 文字改图案：删字进 `image_b_texts_removed`，图案改动进 `other_changes`。
 - 模糊不可识别文字不进入删除列表，统一在 `other_changes` 描述文字块/文字元素变动。
 - `other_changes` 只比较 `image_b_removed` 与 `image_b`，`specify` 输出英文短句。
+
+Console 调试入口：
+
+- `window.__ASCEdgeAbakaAiDomActions.debugFindFieldTextInput("image_b_texts_removed")`
+- `window.__ASCEdgeAbakaAiDomActions.debugFillFieldText("image_b_texts_removed", "all instances of MULTILINGUAL")`
+- 页面刷新后可先看 Console：
+  - `[ASC][Abaka AI] Task21 assistant runtime version: task21-assistant-fill-v2-20260519`
 
 模型口径说明：
 

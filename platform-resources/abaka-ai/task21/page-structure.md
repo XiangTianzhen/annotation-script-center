@@ -28,18 +28,41 @@
 Task21 输入区结构补充（2026-05-19）：
 
 - `image_b_texts_removed` 常见输入区：
-  - `.l-label .custom-md-editor`
-  - `.l-label .monaco-editor`
-  - `.monaco-editor textarea.inputarea.monaco-mouse-cursor-text`
+  - `div.l-item`
+  - `span.l-title-text = image_b_texts_removed`
+  - `div.l-label .custom-md-editor`
+  - `div.l-label .monaco-container[data-mode-id="markdown"]`
+  - `.monaco-editor[data-uri="inmemory://model/..."]`
+  - `textarea.inputarea.monaco-mouse-cursor-text`
+  - `.view-lines`
 - `other_changes` 常见输入区：
   - `.l-label .n-input.n-input--textarea...`
   - `textarea.n-input__textarea-el`
 - 字段定位建议优先级：
-  - `.l-title-text` 精确字段名
-  - 向上定位 `.l-item`
-  - 在 `.l-item` 和其 `.l-label` 内查找输入控件，避免串填到其他字段
-- `specify` 填写时建议先等待输入区渲染（当前实现默认 4000ms），再执行写入。
-- Monaco/custom-md-editor 建议写入顺序：Monaco API -> `execCommand` 输入 -> `textarea` fallback（fallback 需人工确认）。
+  - `Array.from(document.querySelectorAll(".l-item"))`
+  - 在每个 `.l-item` 内查 `.l-title-text`，文本严格等于字段名
+  - 命中后只在当前 `.l-item` / `.l-label` 内查输入控件，避免串填到其他字段
+- `specify` 填写时建议先等待输入区渲染（当前实现默认 `5000ms`，轮询间隔 `80ms`），再执行写入。
+- Monaco/custom-md-editor 建议写入顺序：
+  - 先读 `.monaco-editor[data-uri]`
+  - 用 `window.monaco.editor.getModels()` 匹配 `model.uri.toString()`
+  - 命中后 `model.setValue(text)`
+  - 再 fallback 到 editor instance / `execCommand` / textarea fallback
+- 超时诊断应至少包含：
+  - `fieldItemFound`
+  - `titleFound`
+  - `customMdEditorFound`
+  - `monacoContainerFound`
+  - `monacoEditorFound`
+  - `monacoDataUri`
+  - `monacoTextareaFound`
+  - `viewLinesFound`
+  - `viewLinesPreview`
+  - `candidateCount`
+- Task21助手运行时版本排查：
+  - 面板调试信息显示 `runtimeVersion` / `domActionsVersion`
+  - Console 启动日志显示 `[ASC][Abaka AI] Task21 assistant runtime version: ...`
+  - 若页面仍出现旧 `2500ms` 提示，优先判断扩展未重载或旧页面未刷新
 
 Task21 快捷键联动（运行时）：
 

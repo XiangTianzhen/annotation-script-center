@@ -1,4 +1,6 @@
 (function () {
+  const TASK21_ASSISTANT_RUNTIME_VERSION = "task21-assistant-fill-v2-20260519";
+  const FIELD_INPUT_WAIT_MS = 5000;
   const STYLE_ID = "asc-abaka-ai-inline-style";
   const ACTIONS_WRAP_CLASS = "asc-abaka-ai-inline-actions";
   const PANEL_CLASS = "asc-abaka-ai-result-panel";
@@ -421,9 +423,30 @@
     let mutationObserver = null;
     let refreshTimer = null;
 
+    function getDomActionsVersion() {
+      return String(actions.version || config.domActionsVersion || "-");
+    }
+
+    function buildRuntimeDebugText(extraLines) {
+      const lines = [
+        "runtimeVersion: " + TASK21_ASSISTANT_RUNTIME_VERSION,
+        "domActionsVersion: " + getDomActionsVersion(),
+      ];
+      if (Array.isArray(extraLines)) {
+        extraLines.forEach(function (line) {
+          if (line) {
+            lines.push(String(line));
+          }
+        });
+      }
+      return lines.join("\n");
+    }
+
     function buildMetaText(display) {
       const usage = display.usage || {};
       const lines = [];
+      lines.push("runtimeVersion: " + String(display.runtimeVersion || TASK21_ASSISTANT_RUNTIME_VERSION));
+      lines.push("domActionsVersion: " + String(display.domActionsVersion || getDomActionsVersion()));
       lines.push("requestId: " + String(display.requestId || "-"));
       lines.push("analysisMode: " + String(display.analysisMode || "-"));
       lines.push("model: " + String(display.model || "-"));
@@ -495,10 +518,11 @@
 
     function setPanelLoading(panel, label) {
       panel.status.textContent = "分析中";
-      panel.meta.textContent = String(label || "") + " · waiting...";
+      panel.meta.textContent =
+        String(label || "") + " · waiting... · " + TASK21_ASSISTANT_RUNTIME_VERSION;
       panel.fillStatus.textContent = "";
       panel.results.innerHTML = "";
-      panel.debugText.textContent = "等待分析结果...";
+      panel.debugText.textContent = buildRuntimeDebugText(["status: waiting..."]);
       panel.rawText.textContent = "{}";
       panel.copyButton.disabled = true;
       panel.fillButton.disabled = true;
@@ -506,9 +530,16 @@
 
     function setPanelError(panel, message) {
       panel.status.textContent = "失败";
-      panel.meta.textContent = normalizeText(message || "分析失败。") || "分析失败。";
+      panel.meta.textContent =
+        (normalizeText(message || "分析失败。") || "分析失败。") +
+        " · " +
+        TASK21_ASSISTANT_RUNTIME_VERSION;
       panel.fillStatus.textContent = "";
       panel.results.innerHTML = "";
+      panel.debugText.textContent = buildRuntimeDebugText([
+        "status: error",
+        "message: " + String(message || "分析失败。"),
+      ]);
       panel.copyButton.disabled = true;
       panel.fillButton.disabled = true;
     }
@@ -563,7 +594,9 @@
         " · " +
         formatElapsedMs(display.elapsedMs) +
         " · " +
-        String(display.analysisMode || "-");
+        String(display.analysisMode || "-") +
+        " · " +
+        String(display.runtimeVersion || TASK21_ASSISTANT_RUNTIME_VERSION);
       panel.fillStatus.textContent = "";
       panel.results.innerHTML = "";
       const suggestions = Array.isArray(display.suggestions) ? display.suggestions : [];
@@ -699,18 +732,30 @@
         return "";
       }
       return (
-        "找到标题=" +
+        "runtimeVersion=" +
+        TASK21_ASSISTANT_RUNTIME_VERSION +
+        "，domActionsVersion=" +
+        getDomActionsVersion() +
+        "，找到标题=" +
         String(Boolean(diagnostic.titleFound)) +
         "，找到字段容器=" +
         String(Boolean(diagnostic.fieldItemFound)) +
         "，custom-md-editor=" +
         String(Boolean(diagnostic.customMdEditorFound)) +
+        "，monaco-container=" +
+        String(Boolean(diagnostic.monacoContainerFound)) +
         "，monaco-editor=" +
         String(Boolean(diagnostic.monacoEditorFound)) +
+        "，monacoDataUri=" +
+        String(diagnostic.monacoDataUri || "-") +
         "，textarea.inputarea=" +
         String(Boolean(diagnostic.monacoTextareaFound)) +
         "，naive textarea=" +
         String(Boolean(diagnostic.naiveTextareaFound)) +
+        "，view-lines=" +
+        String(Boolean(diagnostic.viewLinesFound)) +
+        "，viewLinesPreview=" +
+        String(diagnostic.viewLinesPreview || "-") +
         "，候选数=" +
         String(Number(diagnostic.candidateCount || 0))
       );
@@ -730,23 +775,36 @@
           return selected;
         }
         if (choice === "specify") {
-          const waitResult = await waitForFieldTextInput("image_b_texts_removed", 4000);
+          const waitResult = await waitForFieldTextInput(
+            "image_b_texts_removed",
+            FIELD_INPUT_WAIT_MS
+          );
           if (!waitResult.ok) {
             const diagnosticText = formatInputDiagnostic(waitResult.diagnostic);
             return {
               ok: false,
               message:
-                "已选择 image_b_texts_removed=specify，但未找到输入框。" +
+                "已选择 image_b_texts_removed=specify，但未找到/未写入输入框：" +
                 (diagnosticText ? "（" + diagnosticText + "）" : ""),
             };
           }
           const filled = fillFieldText("image_b_texts_removed", suggestion.answerText || "");
           if (!filled.ok) {
+            const filledDiagnosticText = formatInputDiagnostic(filled.diagnostic);
+            const monacoMatched =
+              filled &&
+              filled.diagnostic &&
+              (filled.diagnostic.customMdEditorFound ||
+                filled.diagnostic.monacoContainerFound ||
+                filled.diagnostic.monacoEditorFound);
             return {
               ok: false,
               message:
-                "已选择 image_b_texts_removed=specify，但文本写入失败：" +
-                String(filled.message || "未知错误"),
+                (monacoMatched
+                  ? "已找到 Monaco 编辑器，但写入模型失败："
+                  : "已选择 image_b_texts_removed=specify，但未找到/未写入输入框：") +
+                String(filled.message || "未知错误") +
+                (filledDiagnosticText ? "（" + filledDiagnosticText + "）" : ""),
             };
           }
           if (filled.warning) {
@@ -771,13 +829,13 @@
           return selected;
         }
         if (choice === "specify") {
-          const waitResult = await waitForFieldTextInput("other_changes", 4000);
+          const waitResult = await waitForFieldTextInput("other_changes", FIELD_INPUT_WAIT_MS);
           if (!waitResult.ok) {
             const diagnosticText = formatInputDiagnostic(waitResult.diagnostic);
             return {
               ok: false,
               message:
-                "已选择 other_changes=specify，但未找到输入框。" +
+                "已选择 other_changes=specify，但未找到/未写入输入框：" +
                 (diagnosticText ? "（" + diagnosticText + "）" : ""),
             };
           }
@@ -941,7 +999,9 @@
       title.textContent = "Task21助手";
       const sub = document.createElement("div");
       sub.className = "asc-panel-sub";
-      sub.textContent = "AI 仅辅助建议；点击按钮才写入，不自动保存/提交。";
+      sub.textContent =
+        "AI 仅辅助建议；点击按钮才写入，不自动保存/提交。runtime=" +
+        TASK21_ASSISTANT_RUNTIME_VERSION;
       headMain.appendChild(title);
       headMain.appendChild(sub);
 
@@ -1156,6 +1216,8 @@
 
         const display = {
           target: target,
+          runtimeVersion: TASK21_ASSISTANT_RUNTIME_VERSION,
+          domActionsVersion: getDomActionsVersion(),
           requestId: body.requestId || "",
           model: body.model || "",
           analysisMode:
@@ -1368,6 +1430,7 @@
     }
 
     return {
+      version: TASK21_ASSISTANT_RUNTIME_VERSION,
       start: start,
       remove: remove,
       runAnalysis: runAnalysis,
@@ -1382,6 +1445,7 @@
   }
 
   globalThis.__ASCEdgeAbakaAiTask21AiPanel = {
+    runtimeVersion: TASK21_ASSISTANT_RUNTIME_VERSION,
     createRuntime: createRuntime,
   };
 })();

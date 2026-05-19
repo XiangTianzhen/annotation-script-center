@@ -1,4 +1,5 @@
 (function () {
+  const TASK21_DOM_ACTIONS_VERSION = "task21-dom-actions-fill-v2-20260519";
   const FIELD_SAME_FONT = "same_font";
   const FIELD_IMAGE_B_TEXTS_REMOVED = "image_b_texts_removed";
   const FIELD_OTHER_CHANGES = "other_changes";
@@ -97,6 +98,10 @@
   }
 
   function findFieldTitleNode(fieldName) {
+    const exactTask21Item = findTask21FieldItemByTitle(fieldName);
+    if (exactTask21Item && exactTask21Item.titleNode) {
+      return exactTask21Item.titleNode;
+    }
     const target = normalizeText(fieldName);
     const candidates = getAllVisibleTextElements().filter(function (node) {
       return normalizeText(node.textContent || "") === target;
@@ -129,6 +134,29 @@
     return candidates[0] || null;
   }
 
+  function findTask21FieldItemByTitle(fieldName) {
+    const exactTarget = normalizeExact(fieldName);
+    if (!exactTarget) {
+      return null;
+    }
+    const items = document.querySelectorAll(".l-item");
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (!(item instanceof Element) || isAiPanelDescendant(item)) {
+        continue;
+      }
+      const titleNode = item.querySelector(".l-title-text");
+      if (!(titleNode instanceof Element) || isAiPanelDescendant(titleNode) || !isVisible(titleNode)) {
+        continue;
+      }
+      if (normalizeExact(titleNode.textContent || "") !== exactTarget) {
+        continue;
+      }
+      return { item: item, titleNode: titleNode };
+    }
+    return null;
+  }
+
   function hasFieldInputSignal(root) {
     if (!(root instanceof Element)) {
       return false;
@@ -141,6 +169,10 @@
   }
 
   function findFieldItem(fieldName) {
+    const exactTask21Item = findTask21FieldItemByTitle(fieldName);
+    if (exactTask21Item && exactTask21Item.item) {
+      return exactTask21Item.item;
+    }
     const titleNode = findFieldTitleNode(fieldName);
     if (!titleNode) {
       return null;
@@ -280,25 +312,10 @@
   }
 
   function findMonacoEditorForField(fieldName) {
-    const search = findFieldSearchRoots(fieldName);
-    for (let i = 0; i < search.roots.length; i += 1) {
-      const root = search.roots[i];
-      if (!(root instanceof Element)) {
-        continue;
-      }
-      const custom = root.querySelector(".custom-md-editor");
-      if (custom) {
-        return custom;
-      }
-      const monaco = root.querySelector(".monaco-editor");
-      if (monaco) {
-        return monaco;
-      }
-    }
-    return null;
+    return getFieldEditorContext(fieldName).monacoEditor || null;
   }
 
-  function isMonacoTextareaCandidate(node) {
+  function isMonacoTextareaCandidate(node, fieldItem) {
     if (!(node instanceof HTMLTextAreaElement)) {
       return false;
     }
@@ -306,41 +323,74 @@
       return false;
     }
     const monacoRoot = node.closest(".monaco-editor,.custom-md-editor");
-    return monacoRoot ? isVisible(monacoRoot) : false;
+    const scopeItem =
+      fieldItem instanceof Element
+        ? fieldItem
+        : (node.getAttribute("data-asc-field-name") && findFieldItem(node.getAttribute("data-asc-field-name"))) ||
+          node.closest(".l-item");
+    return Boolean(scopeItem instanceof Element && monacoRoot instanceof Element && scopeItem.contains(monacoRoot));
+  }
+
+  function getFieldEditorContext(fieldName) {
+    const exactTask21Item = findTask21FieldItemByTitle(fieldName);
+    const fieldItem = (exactTask21Item && exactTask21Item.item) || findFieldItem(fieldName);
+    const titleNode = (exactTask21Item && exactTask21Item.titleNode) || findFieldTitleNode(fieldName);
+    const customMdEditor =
+      fieldItem instanceof Element ? fieldItem.querySelector(".l-label .custom-md-editor,.custom-md-editor") : null;
+    const monacoContainer =
+      fieldItem instanceof Element ? fieldItem.querySelector(".l-label .monaco-container,.monaco-container") : null;
+    const monacoEditor =
+      fieldItem instanceof Element
+        ? fieldItem.querySelector(
+            ".custom-md-editor .monaco-editor,.monaco-container .monaco-editor,.monaco-editor"
+          )
+        : null;
+    const monacoTextarea =
+      fieldItem instanceof Element
+        ? fieldItem.querySelector(
+            ".monaco-editor textarea.inputarea,textarea.inputarea.monaco-mouse-cursor-text,textarea.monaco-mouse-cursor-text"
+          )
+        : null;
+    const viewLines =
+      fieldItem instanceof Element ? fieldItem.querySelector(".monaco-editor .view-lines,.view-lines") : null;
+    const naiveTextarea =
+      fieldItem instanceof Element
+        ? fieldItem.querySelector("textarea.n-input__textarea-el,.n-input--textarea textarea")
+        : null;
+    return {
+      fieldName: fieldName,
+      titleNode: titleNode,
+      fieldItem: fieldItem,
+      customMdEditor: customMdEditor instanceof Element ? customMdEditor : null,
+      monacoContainer: monacoContainer instanceof Element ? monacoContainer : null,
+      monacoEditor: monacoEditor instanceof Element ? monacoEditor : null,
+      monacoTextarea: monacoTextarea instanceof HTMLTextAreaElement ? monacoTextarea : null,
+      naiveTextarea: naiveTextarea instanceof HTMLTextAreaElement ? naiveTextarea : null,
+      viewLines: viewLines instanceof Element ? viewLines : null,
+      monacoDataUri:
+        monacoEditor instanceof Element ? normalizeExact(monacoEditor.getAttribute("data-uri") || "") : "",
+    };
+  }
+
+  function getTextPreview(value, maxLength) {
+    return normalizeExact(String(value || "").replace(/\s+/g, " ")).slice(0, Math.max(1, maxLength || 120));
   }
 
   function buildFieldTextInputDiagnostic(fieldName, searchRoots, candidates) {
     const search = searchRoots || findFieldSearchRoots(fieldName);
-    const titleNode = search.titleNode || null;
-    const fieldItem = search.fieldItem || null;
-    const roots = Array.isArray(search.roots) ? search.roots : [];
-    const monacoRoot = findMonacoEditorForField(fieldName);
-    const monacoTextarea = roots
-      .map(function (root) {
-        if (!(root instanceof Element)) {
-          return null;
-        }
-        return root.querySelector("textarea.inputarea,textarea.monaco-mouse-cursor-text");
-      })
-      .find(Boolean);
-    const naiveTextarea = roots
-      .map(function (root) {
-        if (!(root instanceof Element)) {
-          return null;
-        }
-        return root.querySelector("textarea.n-input__textarea-el");
-      })
-      .find(Boolean);
+    const context = getFieldEditorContext(fieldName);
     return {
       fieldName: fieldName,
-      titleFound: Boolean(titleNode),
-      fieldItemFound: Boolean(fieldItem),
-      customMdEditorFound: Boolean(
-        monacoRoot && (monacoRoot.classList.contains("custom-md-editor") || monacoRoot.querySelector(".custom-md-editor"))
-      ),
-      monacoEditorFound: Boolean(monacoRoot && (monacoRoot.matches(".monaco-editor") || monacoRoot.querySelector(".monaco-editor"))),
-      monacoTextareaFound: Boolean(monacoTextarea),
-      naiveTextareaFound: Boolean(naiveTextarea),
+      titleFound: Boolean(context.titleNode || search.titleNode),
+      fieldItemFound: Boolean(context.fieldItem || search.fieldItem),
+      customMdEditorFound: Boolean(context.customMdEditor),
+      monacoContainerFound: Boolean(context.monacoContainer),
+      monacoEditorFound: Boolean(context.monacoEditor),
+      monacoDataUri: context.monacoDataUri || "",
+      monacoTextareaFound: Boolean(context.monacoTextarea),
+      naiveTextareaFound: Boolean(context.naiveTextarea),
+      viewLinesFound: Boolean(context.viewLines),
+      viewLinesPreview: getTextPreview(context.viewLines ? context.viewLines.textContent || "" : "", 160),
       candidateCount: Array.isArray(candidates) ? candidates.length : 0,
     };
   }
@@ -356,12 +406,20 @@
       String(diagnostic.fieldItemFound) +
       "，custom-md-editor=" +
       String(diagnostic.customMdEditorFound) +
+      "，monaco-container=" +
+      String(diagnostic.monacoContainerFound) +
       "，monaco-editor=" +
       String(diagnostic.monacoEditorFound) +
+      "，monaco-data-uri=" +
+      String(diagnostic.monacoDataUri || "-") +
       "，textarea.inputarea=" +
       String(diagnostic.monacoTextareaFound) +
       "，naive textarea=" +
       String(diagnostic.naiveTextareaFound) +
+      "，view-lines=" +
+      String(diagnostic.viewLinesFound) +
+      "，viewLinesPreview=" +
+      String(diagnostic.viewLinesPreview || "-") +
       "，候选数=" +
       String(diagnostic.candidateCount)
     );
@@ -556,6 +614,60 @@
   }
 
   function findFieldTextInput(fieldName) {
+    const normalizedFieldName = normalizeText(fieldName);
+    const scopedContext = getFieldEditorContext(fieldName);
+    if (normalizedFieldName === FIELD_IMAGE_B_TEXTS_REMOVED) {
+      const monacoCandidates = [];
+      [
+        scopedContext.customMdEditor,
+        scopedContext.monacoContainer,
+        scopedContext.monacoEditor,
+        scopedContext.monacoTextarea,
+        scopedContext.viewLines,
+      ].forEach(function (node) {
+        if (node instanceof Element && monacoCandidates.indexOf(node) < 0) {
+          monacoCandidates.push(node);
+        }
+      });
+      const diagnostic = buildFieldTextInputDiagnostic(fieldName, null, monacoCandidates);
+      const targetNode =
+        scopedContext.monacoEditor ||
+        scopedContext.monacoTextarea ||
+        scopedContext.customMdEditor ||
+        scopedContext.viewLines;
+      if (targetNode instanceof Element) {
+        return {
+          ok: true,
+          node: targetNode,
+          message: "已找到当前字段内的 Monaco 编辑器。",
+          diagnostic: diagnostic,
+        };
+      }
+      return {
+        ok: false,
+        node: null,
+        message: "当前字段内未找到 Monaco 编辑器输入区：" + fieldName,
+        diagnostic: diagnostic,
+      };
+    }
+    if (normalizedFieldName === FIELD_OTHER_CHANGES) {
+      const diagnostic = buildFieldTextInputDiagnostic(fieldName, null, scopedContext.naiveTextarea ? [scopedContext.naiveTextarea] : []);
+      if (scopedContext.naiveTextarea instanceof HTMLTextAreaElement && isTextInputWritable(scopedContext.naiveTextarea)) {
+        return {
+          ok: true,
+          node: scopedContext.naiveTextarea,
+          message: "已找到当前字段内的 Naive UI textarea。",
+          diagnostic: diagnostic,
+        };
+      }
+      return {
+        ok: false,
+        node: null,
+        message: "当前字段内未找到 Naive UI textarea：" + fieldName,
+        diagnostic: diagnostic,
+      };
+    }
+
     const search = findFieldSearchRoots(fieldName);
     if (!search.roots || search.roots.length <= 0) {
       const diagnostic = buildFieldTextInputDiagnostic(fieldName, search, []);
@@ -594,7 +706,7 @@
 
     for (let i = 0; i < candidates.length; i += 1) {
       const node = candidates[i];
-      const writable = isTextInputWritable(node) || isMonacoTextareaCandidate(node);
+      const writable = isTextInputWritable(node) || isMonacoTextareaCandidate(node, search.fieldItem);
       if (!writable) {
         continue;
       }
@@ -615,55 +727,175 @@
     };
   }
 
-  function findMonacoEditorInstanceForNode(node, fieldName) {
-    const monacoRoot =
-      (node instanceof Element && node.closest(".monaco-editor")) || findFieldItem(fieldName)?.querySelector(".monaco-editor");
-    if (!monacoRoot || !window.monaco || !window.monaco.editor) {
+  function getMonacoModelByUri(dataUri) {
+    const editorApi = window.monaco && window.monaco.editor;
+    if (!editorApi || typeof editorApi.getModels !== "function" || !dataUri) {
       return null;
     }
-    const editorApi = window.monaco.editor;
-    if (typeof editorApi.getEditors === "function") {
-      try {
-        const editors = editorApi.getEditors();
-        for (let i = 0; i < editors.length; i += 1) {
-          const editor = editors[i];
-          if (!editor || typeof editor.getDomNode !== "function") {
-            continue;
-          }
-          const dom = editor.getDomNode();
-          if (dom === monacoRoot || (dom instanceof Element && monacoRoot.contains(dom))) {
-            return editor;
-          }
+    try {
+      const models = editorApi.getModels();
+      for (let i = 0; i < models.length; i += 1) {
+        const model = models[i];
+        const uriText =
+          model && model.uri && typeof model.uri.toString === "function" ? model.uri.toString() : "";
+        if (uriText === dataUri) {
+          return model;
         }
-      } catch (error) {
-        return null;
       }
+    } catch (error) {
+      return null;
     }
     return null;
   }
 
-  function tryWriteMonacoByExecCommand(node, text) {
-    const monacoRoot = node.closest(".monaco-editor,.custom-md-editor");
+  function buildMonacoContext(node, fieldName) {
+    const fieldScoped = getFieldEditorContext(fieldName);
+    const monacoEditor =
+      fieldScoped.monacoEditor ||
+      (node instanceof Element ? node.closest(".monaco-editor") : null) ||
+      null;
+    const customMdEditor =
+      fieldScoped.customMdEditor ||
+      (node instanceof Element ? node.closest(".custom-md-editor") : null) ||
+      null;
+    const monacoContainer =
+      fieldScoped.monacoContainer ||
+      (node instanceof Element ? node.closest(".monaco-container") : null) ||
+      null;
+    const textarea =
+      fieldScoped.monacoTextarea ||
+      (node instanceof HTMLTextAreaElement && isMonacoTextarea(node) ? node : null) ||
+      (monacoEditor instanceof Element
+        ? monacoEditor.querySelector("textarea.inputarea,textarea.monaco-mouse-cursor-text")
+        : null);
+    const viewLines =
+      fieldScoped.viewLines ||
+      (monacoEditor instanceof Element ? monacoEditor.querySelector(".view-lines") : null) ||
+      null;
+    return {
+      fieldName: fieldName,
+      fieldItem: fieldScoped.fieldItem || (node instanceof Element ? node.closest(".l-item") : null),
+      customMdEditor: customMdEditor instanceof Element ? customMdEditor : null,
+      monacoContainer: monacoContainer instanceof Element ? monacoContainer : null,
+      monacoEditor: monacoEditor instanceof Element ? monacoEditor : null,
+      textarea: textarea instanceof HTMLTextAreaElement ? textarea : null,
+      viewLines: viewLines instanceof Element ? viewLines : null,
+      monacoDataUri:
+        monacoEditor instanceof Element ? normalizeExact(monacoEditor.getAttribute("data-uri") || "") : "",
+      diagnostic: buildFieldTextInputDiagnostic(fieldName, null, []),
+    };
+  }
+
+  function getMonacoConfirmationSnippet(text) {
+    const normalized = String(text || "").replace(/\r\n/g, "\n");
+    const lines = normalized
+      .split("\n")
+      .map(function (line) {
+        return normalizeExact(line);
+      })
+      .filter(Boolean);
+    const source = lines[0] || normalizeExact(normalized);
+    return source.slice(0, 80);
+  }
+
+  function isMonacoWriteConfirmed(context, text) {
+    const snippet = getMonacoConfirmationSnippet(text);
+    if (!snippet) {
+      return true;
+    }
+    const model = getMonacoModelByUri(context.monacoDataUri);
+    if (model && typeof model.getValue === "function" && normalizeExact(model.getValue()) === normalizeExact(text)) {
+      return true;
+    }
+    const preview = getTextPreview(context.viewLines ? context.viewLines.textContent || "" : "", 200);
+    return Boolean(preview && preview.indexOf(snippet) >= 0);
+  }
+
+  function tryWriteMonacoByModel(context, text) {
+    const model = getMonacoModelByUri(context.monacoDataUri);
+    if (!model || typeof model.setValue !== "function") {
+      return { ok: false, message: "未通过 data-uri 找到 Monaco model。" };
+    }
+    try {
+      model.setValue(text);
+      if (isMonacoWriteConfirmed(context, text)) {
+        return { ok: true, message: "Monaco model.setValue 写入成功。" };
+      }
+      return { ok: false, message: "Monaco model.setValue 已执行，但未确认界面同步。" };
+    } catch (error) {
+      return { ok: false, message: "Monaco model.setValue 失败：" + String(error && error.message ? error.message : error) };
+    }
+  }
+
+  function tryWriteMonacoByEditorInstance(context, text) {
+    const editorApi = window.monaco && window.monaco.editor;
+    if (!editorApi || typeof editorApi.getEditors !== "function") {
+      return { ok: false, message: "Monaco getEditors 不可用。" };
+    }
+    try {
+      const editors = editorApi.getEditors();
+      for (let i = 0; i < editors.length; i += 1) {
+        const editor = editors[i];
+        if (!editor) {
+          continue;
+        }
+        const model = typeof editor.getModel === "function" ? editor.getModel() : null;
+        const modelUri =
+          model && model.uri && typeof model.uri.toString === "function" ? model.uri.toString() : "";
+        const domNode = typeof editor.getDomNode === "function" ? editor.getDomNode() : null;
+        const matchesUri = context.monacoDataUri && modelUri === context.monacoDataUri;
+        const matchesDom =
+          domNode instanceof Element &&
+          context.monacoEditor instanceof Element &&
+          (domNode === context.monacoEditor || context.monacoEditor.contains(domNode) || domNode.contains(context.monacoEditor));
+        if (!matchesUri && !matchesDom) {
+          continue;
+        }
+        if (typeof editor.setValue === "function") {
+          editor.setValue(text);
+        } else if (model && typeof model.setValue === "function") {
+          model.setValue(text);
+        } else {
+          continue;
+        }
+        if (isMonacoWriteConfirmed(context, text)) {
+          return { ok: true, message: "Monaco editor instance 写入成功。" };
+        }
+        return { ok: false, message: "Monaco editor instance 已执行，但未确认界面同步。" };
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        message: "Monaco editor instance 写入失败：" + String(error && error.message ? error.message : error),
+      };
+    }
+    return { ok: false, message: "未通过 editor instance 匹配到当前 Monaco。" };
+  }
+
+  function tryWriteMonacoByExecCommand(context, text) {
+    const monacoRoot = context.monacoEditor || context.customMdEditor || context.monacoContainer;
     if (!(monacoRoot instanceof Element)) {
       return { ok: false, message: "未找到 Monaco 编辑器容器。" };
     }
-    const focusTarget = monacoRoot.querySelector(".view-lines,.monaco-scrollable-element") || monacoRoot;
+    const focusTarget = context.viewLines || monacoRoot.querySelector(".monaco-scrollable-element") || monacoRoot;
     if (focusTarget && typeof focusTarget.click === "function") {
       focusTarget.click();
     }
-    if (typeof node.focus === "function") {
-      node.focus();
+    if (context.textarea && typeof context.textarea.focus === "function") {
+      context.textarea.focus();
     }
     try {
       document.execCommand("selectAll");
       const inserted = document.execCommand("insertText", false, text);
-      node.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, data: text, inputType: "insertText" }));
-      node.dispatchEvent(new Event("input", { bubbles: true }));
-      node.dispatchEvent(new Event("change", { bubbles: true }));
-      node.dispatchEvent(new Event("compositionend", { bubbles: true }));
-      const preview = normalizeExact((monacoRoot.querySelector(".view-lines")?.textContent || "").slice(0, 120));
-      const targetPreview = normalizeExact(String(text || "").slice(0, 40));
-      if (inserted || (targetPreview && preview.indexOf(targetPreview) >= 0)) {
+      if (context.textarea) {
+        context.textarea.dispatchEvent(
+          new InputEvent("beforeinput", { bubbles: true, data: text, inputType: "insertText" })
+        );
+        context.textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        context.textarea.dispatchEvent(new Event("change", { bubbles: true }));
+        context.textarea.dispatchEvent(new Event("compositionend", { bubbles: true }));
+      }
+      if (inserted || isMonacoWriteConfirmed(context, text)) {
         return { ok: true, message: "Monaco execCommand 写入成功。" };
       }
     } catch (error) {
@@ -672,56 +904,85 @@
     return { ok: false, message: "Monaco execCommand 写入失败。" };
   }
 
+  function tryWriteMonacoByTextareaFallback(context, text) {
+    if (!(context.textarea instanceof HTMLTextAreaElement)) {
+      return { ok: false, message: "Monaco textarea fallback 不可用。" };
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+    if (descriptor && typeof descriptor.set === "function") {
+      descriptor.set.call(context.textarea, text);
+    } else {
+      context.textarea.value = text;
+    }
+    context.textarea.dispatchEvent(
+      new InputEvent("beforeinput", { bubbles: true, data: text, inputType: "insertText" })
+    );
+    context.textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    context.textarea.dispatchEvent(new Event("change", { bubbles: true }));
+    context.textarea.dispatchEvent(new Event("compositionend", { bubbles: true }));
+    if (isMonacoWriteConfirmed(context, text)) {
+      return {
+        ok: true,
+        message: "Monaco textarea fallback 已写入并确认同步。",
+      };
+    }
+    if (normalizeExact(context.textarea.value || "") === normalizeExact(text)) {
+      return {
+        ok: true,
+        message: "Monaco textarea fallback 已写入。",
+        warning: "已写入 Monaco textarea fallback，需人工确认编辑器模型已同步。",
+      };
+    }
+    return { ok: false, message: "Monaco textarea fallback 未写入目标文本。" };
+  }
+
   function setTextValue(node, value) {
+    const text = String(value || "");
+    const fieldName =
+      node instanceof Element ? normalizeExact(node.getAttribute("data-asc-field-name") || "") : "";
+    const monacoContext = buildMonacoContext(node, fieldName);
+    if (
+      monacoContext.monacoEditor ||
+      monacoContext.monacoTextarea ||
+      monacoContext.customMdEditor ||
+      (node instanceof HTMLTextAreaElement && isMonacoTextarea(node))
+    ) {
+      const modelRes = tryWriteMonacoByModel(monacoContext, text);
+      if (modelRes.ok) {
+        return { ok: true, message: modelRes.message, node: monacoContext.textarea || node, diagnostic: monacoContext.diagnostic };
+      }
+      const editorRes = tryWriteMonacoByEditorInstance(monacoContext, text);
+      if (editorRes.ok) {
+        return { ok: true, message: editorRes.message, node: monacoContext.textarea || node, diagnostic: monacoContext.diagnostic };
+      }
+      const execRes = tryWriteMonacoByExecCommand(monacoContext, text);
+      if (execRes.ok) {
+        return { ok: true, message: execRes.message, node: monacoContext.textarea || node, diagnostic: monacoContext.diagnostic };
+      }
+      const fallbackRes = tryWriteMonacoByTextareaFallback(monacoContext, text);
+      if (fallbackRes.ok) {
+        return {
+          ok: true,
+          message: fallbackRes.message,
+          warning: fallbackRes.warning || "",
+          node: monacoContext.textarea || node,
+          diagnostic: monacoContext.diagnostic,
+        };
+      }
+      return {
+        ok: false,
+        message:
+          "Monaco 写入失败：" +
+          [modelRes.message, editorRes.message, execRes.message, fallbackRes.message].filter(Boolean).join(" | "),
+        node: monacoContext.textarea || node,
+        diagnostic: monacoContext.diagnostic,
+      };
+    }
     if (!isTextInputWritable(node)) {
       return {
         ok: false,
         message: "输入控件不可写或不可见。",
       };
-    }
-    const text = String(value || "");
-    if (isMonacoTextarea(node)) {
-      const fieldName = node.getAttribute("data-asc-field-name") || "";
-      const editor = findMonacoEditorInstanceForNode(node, fieldName);
-      if (editor) {
-        try {
-          if (typeof editor.setValue === "function") {
-            editor.setValue(text);
-          } else if (editor.getModel && editor.getModel() && typeof editor.getModel().setValue === "function") {
-            editor.getModel().setValue(text);
-          } else {
-            return { ok: false, message: "Monaco editor instance 不支持 setValue。" };
-          }
-          return { ok: true, message: "Monaco API 写入成功。", node: node };
-        } catch (error) {
-          // fallback next
-        }
-      }
-      const execRes = tryWriteMonacoByExecCommand(node, text);
-      if (execRes.ok) {
-        return { ok: true, message: execRes.message, node: node };
-      }
-      const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
-      if (descriptor && typeof descriptor.set === "function") {
-        descriptor.set.call(node, text);
-      } else {
-        node.value = text;
-      }
-      node.dispatchEvent(
-        new InputEvent("beforeinput", { bubbles: true, data: text, inputType: "insertText" })
-      );
-      node.dispatchEvent(new Event("input", { bubbles: true }));
-      node.dispatchEvent(new Event("change", { bubbles: true }));
-      node.dispatchEvent(new Event("compositionend", { bubbles: true }));
-      if (normalizeExact(node.value || "") === normalizeExact(text)) {
-        return {
-          ok: true,
-          message: "Monaco textarea fallback 已写入。",
-          warning: "已写入 textarea fallback，建议人工确认编辑器已同步。",
-          node: node,
-        };
-      }
-      return { ok: false, message: "Monaco 写入失败：fallback 未确认模型已更新。", node: node };
     }
     if (node instanceof HTMLTextAreaElement) {
       const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
@@ -786,19 +1047,26 @@
     found.node.setAttribute("data-asc-field-name", fieldName);
     const result = setTextValue(found.node, value);
     if (!result.ok) {
-      return { ok: false, message: result.message || "输入框不可写。", node: result.node || found.node };
+      return {
+        ok: false,
+        message: result.message || "输入框不可写。",
+        node: result.node || found.node,
+        diagnostic: result.diagnostic || found.diagnostic || null,
+      };
     }
     return {
       ok: true,
       message: "已填写 " + fieldName,
       node: result.node,
       warning: result.warning || "",
+      diagnostic: result.diagnostic || found.diagnostic || null,
     };
   }
 
   function waitForFieldTextInput(fieldName, timeoutMs) {
-    const timeout = Number(timeoutMs) > 0 ? Number(timeoutMs) : 3000;
-    const intervalMs = 90;
+    const normalizedFieldName = normalizeText(fieldName);
+    const timeout = Number(timeoutMs) > 0 ? Number(timeoutMs) : 5000;
+    const intervalMs = normalizedFieldName === FIELD_IMAGE_B_TEXTS_REMOVED ? 80 : 90;
     const startedAt = Date.now();
     return new Promise(function (resolve) {
       let lastFound = null;
@@ -1348,6 +1616,7 @@
     }
 
     return {
+      version: TASK21_DOM_ACTIONS_VERSION,
       hasSameFontField: hasSameFontField,
       selectSameFontTrue: selectSameFontTrue,
       selectSameFontFalse: selectSameFontFalse,
@@ -1363,15 +1632,40 @@
       isViewMode: isViewMode,
       isLikelyReviewRole: isLikelyReviewRole,
       clickActionButtonByTexts: clickActionButtonByTexts,
+      debugFindFieldTextInput: function (fieldName) {
+        const found = findFieldTextInput(fieldName);
+        return {
+          ok: Boolean(found && found.ok),
+          message: found && found.message ? found.message : "",
+          nodeName: found && found.node ? found.node.nodeName : "",
+          diagnostic: found && found.diagnostic ? found.diagnostic : buildFieldTextInputDiagnostic(fieldName),
+        };
+      },
+      debugFillFieldText: function (fieldName, text) {
+        return fillFieldText(fieldName, text);
+      },
     };
   }
 
   globalThis.__ASCEdgeAbakaAiDomActions = {
+    runtimeVersion: TASK21_DOM_ACTIONS_VERSION,
     createRuntime: createRuntime,
     selectFieldOption: selectFieldOption,
     fillFieldText: fillFieldText,
     waitForFieldTextInput: waitForFieldTextInput,
     setTextValue: setTextValue,
     waitForField: waitForField,
+    debugFindFieldTextInput: function (fieldName) {
+      const found = findFieldTextInput(fieldName);
+      return {
+        ok: Boolean(found && found.ok),
+        message: found && found.message ? found.message : "",
+        nodeName: found && found.node ? found.node.nodeName : "",
+        diagnostic: found && found.diagnostic ? found.diagnostic : buildFieldTextInputDiagnostic(fieldName),
+      };
+    },
+    debugFillFieldText: function (fieldName, text) {
+      return fillFieldText(fieldName, text);
+    },
   };
 })();

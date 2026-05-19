@@ -1,5 +1,39 @@
 # 标注脚本中心修改日志
 
+## 2026-05-19（Task21助手热修：Monaco data-uri 写入与运行时版本标识）
+
+- 修复 Task21助手在 `image_b_texts_removed=specify` 场景下仍提示“已选择 specify，但未找到输入框”的问题。
+- 根因拆分为两层：
+  - 旧定位策略仍偏向“搜索根 + 全局候选”，没有先在当前 `.l-item` 内精确锁定 `image_b_texts_removed` 的 `custom-md-editor / Monaco`。
+  - 用户页面仍出现 `2500ms` 提示，说明浏览器可能仍在运行旧版 content script，缺少可观测的运行时版本标识。
+- `dom-actions` 热修：
+  - 新增 `findTask21FieldItemByTitle(fieldName)`：优先遍历 `.l-item`，在每个块内精确匹配 `.l-title-text`。
+  - `image_b_texts_removed` 的查找范围改为“当前 `.l-item` 内的 `.custom-md-editor/.monaco-container/.monaco-editor/textarea.inputarea/.view-lines`”，不再跨字段找全局 Monaco。
+  - `other_changes` 继续使用 Naive UI textarea（`textarea.n-input__textarea-el`），也收紧到当前 `.l-item` 内。
+  - `isMonacoTextareaCandidate` 不再因为 Monaco textarea 高度小、视觉隐藏等结构特征误判。
+  - `waitForFieldTextInput` 对 `image_b_texts_removed` 改为 `5000ms`、`80ms` 轮询，并返回 `fieldItemFound/titleFound/customMdEditorFound/monacoContainerFound/monacoEditorFound/monacoDataUri/monacoTextareaFound/viewLinesFound/viewLinesPreview/candidateCount` 诊断。
+  - Monaco 写入顺序改为：
+    - 优先 `.monaco-editor[data-uri]` -> `window.monaco.editor.getModels()` -> `model.setValue(text)`
+    - 再尝试 editor instance 匹配写入
+    - 再尝试 `execCommand("insertText")` + input 事件链
+    - 最后才走 textarea fallback；fallback 只返回“需人工确认”，不伪造模型已同步
+  - 新增 Console 调试入口：
+    - `window.__ASCEdgeAbakaAiDomActions.debugFindFieldTextInput(fieldName)`
+    - `window.__ASCEdgeAbakaAiDomActions.debugFillFieldText(fieldName, text)`
+- `ai-panel` 热修：
+  - 新增 `TASK21_ASSISTANT_RUNTIME_VERSION = task21-assistant-fill-v2-20260519`
+  - `image_b_texts_removed/other_changes` 的 `specify` 等待统一改为常量 `FIELD_INPUT_WAIT_MS=5000`
+  - 调试信息追加 `runtimeVersion` / `domActionsVersion`
+  - 面板副标题和结果 meta 显示运行时版本，便于判断当前页面是否已加载新脚本
+  - `image_b_texts_removed` 若已找到 Monaco 容器但模型写入失败，提示改为“已找到 Monaco 编辑器，但写入模型失败：...”
+- `content.js` 启动时输出：
+  - `[ASC][Abaka AI] Task21 assistant runtime version: task21-assistant-fill-v2-20260519`
+- 文档同步更新：
+  - `extension/sites/abaka-ai/task-page/README.md`
+  - `platform-resources/abaka-ai/task21/README.md`
+  - `platform-resources/abaka-ai/task21/page-structure.md`
+- 本轮不修改 `manifest.json`，不生成 CRX，不新增依赖，不自动保存/提交/送审。
+
 ## 2026-05-19（Task21助手：Prompt 规则升级与结果归一化增强）
 
 - Task21 后端 Prompt 版本升级为 `abaka-task21-ai-v3-annotation-rules`，按用户 Word 规则重写流程、same_font、image_b_texts_removed、other_changes、特殊场景与输出格式约束。

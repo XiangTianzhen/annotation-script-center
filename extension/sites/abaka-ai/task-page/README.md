@@ -94,10 +94,13 @@
   - AI 仍然只作辅助，不自动保存、不自动提交、不自动送审
   - 仅在用户点击 `填写 AI 答案` 时，才会写入 radio / 输入框
   - 不点击 checkbox，不绕过 disabled/readOnly 控件
-  - `image_b_texts_removed` 支持写入 `custom-md-editor / Monaco` 输入区（`.custom-md-editor .monaco-editor textarea.inputarea`）
-  - `other_changes` 支持写入 Naive UI textarea（`textarea.n-input__textarea-el`）
-  - 选择 `specify` 后会先等待输入区渲染（默认 4000ms）再写入，避免 radio 切换后立即写入失败
-  - Monaco 写入采用多策略：Monaco API -> `execCommand` 输入 -> `textarea` fallback（fallback 会提示人工确认）
+  - `image_b_texts_removed` 是 `custom-md-editor / Monaco` 输入区，定位优先级为：`.l-item` + `.l-title-text=image_b_texts_removed` -> 当前字段内 `.custom-md-editor/.monaco-container/.monaco-editor`
+  - `other_changes` 继续使用 Naive UI textarea（`textarea.n-input__textarea-el`），定位限制在当前 `.l-item` 内，避免串填其他字段
+  - 选择 `specify` 后会先等待输入区渲染（默认 `5000ms`）再写入，避免 radio 切换后立即写入失败
+  - Monaco 写入主路径改为：读取 `.monaco-editor[data-uri]` -> `window.monaco.editor.getModels()` -> 匹配 `model.uri.toString()` -> `model.setValue(text)`
+  - Monaco fallback 顺序：editor instance -> `execCommand("insertText")` / input 事件链 -> textarea fallback；fallback 只会提示“需人工确认”，不会伪造成功
+  - 调试信息与面板标题区会显示 `runtimeVersion` / `domActionsVersion`，用于判断页面是否仍在运行旧 content script
+  - 若页面仍出现旧的 `2500ms` 提示，优先重新加载扩展并刷新当前 Abaka Task21 页面
 
 - image_b_texts_removed 标准答案格式：
   - 支持 `all instances of xxx` / `N instance of xxx` / `N instances of xxx`
@@ -114,6 +117,15 @@
   - `same_font=false/unsure/error` 时后续字段应按 `not_applicable` 处理
 - 安全：
   - 不展示完整图片 URL、完整 dataUrl、token/cookie/authorization 等敏感字段。
+
+## Console 调试入口
+
+- 页面 Console 可手动调用：
+  - `window.__ASCEdgeAbakaAiDomActions.debugFindFieldTextInput("image_b_texts_removed")`
+  - `window.__ASCEdgeAbakaAiDomActions.debugFillFieldText("image_b_texts_removed", "all instances of MULTILINGUAL")`
+- `debugFindFieldTextInput` 只返回诊断信息，不写入内容。
+- `debugFillFieldText` 复用正式填写链路，但只在用户手动执行时运行，不会被脚本自动调用。
+- 诊断信息仅包含字段定位、Monaco `data-uri`、`viewLinesPreview` 等必要摘要，不输出 token/cookie/完整图片 URL。
 
 ## 数据采集策略（AI 调试）
 
