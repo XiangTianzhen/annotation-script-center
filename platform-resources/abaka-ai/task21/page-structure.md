@@ -38,6 +38,8 @@ Task21 输入区结构补充（2026-05-19）：
   - `.l-title-text` 精确字段名
   - 向上定位 `.l-item`
   - 在 `.l-item` 和其 `.l-label` 内查找输入控件，避免串填到其他字段
+- `specify` 填写时建议先等待输入区渲染（当前实现默认 4000ms），再执行写入。
+- Monaco/custom-md-editor 建议写入顺序：Monaco API -> `execCommand` 输入 -> `textarea` fallback（fallback 需人工确认）。
 
 Task21 快捷键联动（运行时）：
 

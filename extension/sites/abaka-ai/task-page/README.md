@@ -79,6 +79,7 @@
   - 分析方案：`two_stage`（默认）/ `single_model`
   - 默认推荐：双模型 `qwen3.6-plus + qwen3.6-plus`
   - 单模型默认：`qwen3.6-plus`
+  - 兼容历史误填：`qwen3.6plus` 会归一为 `qwen3.6-plus`
   - 视觉模型（双模型阶段一）
     - 候选：`qwen3.6-plus`、`qwen3.6-flash`、`qwen3-vl-plus`、`qwen3-vl-flash`、`qwen3.5-plus`、`qwen3.5-flash`、`qwen-vl-max`、`qwen-vl-plus`
   - OCR 模型与 OCR 开关（默认关闭）
@@ -95,7 +96,8 @@
   - 不点击 checkbox，不绕过 disabled/readOnly 控件
   - `image_b_texts_removed` 支持写入 `custom-md-editor / Monaco` 输入区（`.custom-md-editor .monaco-editor textarea.inputarea`）
   - `other_changes` 支持写入 Naive UI textarea（`textarea.n-input__textarea-el`）
-  - 选择 `specify` 后会先等待输入区渲染（默认 2500ms）再写入，避免 radio 切换后立即写入失败
+  - 选择 `specify` 后会先等待输入区渲染（默认 4000ms）再写入，避免 radio 切换后立即写入失败
+  - Monaco 写入采用多策略：Monaco API -> `execCommand` 输入 -> `textarea` fallback（fallback 会提示人工确认）
 
 - image_b_texts_removed 标准答案格式：
   - 仅接受 `N instance of xxx` / `N instances of xxx`

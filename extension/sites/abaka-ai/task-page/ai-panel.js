@@ -685,6 +685,28 @@
       return { ok: true, message: "已等待输入框渲染（fallback）。" };
     }
 
+    function formatInputDiagnostic(diagnostic) {
+      if (!diagnostic || typeof diagnostic !== "object") {
+        return "";
+      }
+      return (
+        "找到标题=" +
+        String(Boolean(diagnostic.titleFound)) +
+        "，找到字段容器=" +
+        String(Boolean(diagnostic.fieldItemFound)) +
+        "，custom-md-editor=" +
+        String(Boolean(diagnostic.customMdEditorFound)) +
+        "，monaco-editor=" +
+        String(Boolean(diagnostic.monacoEditorFound)) +
+        "，textarea.inputarea=" +
+        String(Boolean(diagnostic.monacoTextareaFound)) +
+        "，naive textarea=" +
+        String(Boolean(diagnostic.naiveTextareaFound)) +
+        "，候选数=" +
+        String(Number(diagnostic.candidateCount || 0))
+      );
+    }
+
     async function applySingleSuggestion(suggestion) {
       if (!suggestion || suggestion.canFill !== true) {
         return { ok: false, message: "当前建议不支持填写。" };
@@ -699,12 +721,14 @@
           return selected;
         }
         if (choice === "specify") {
-          const waitResult = await waitForFieldTextInput("image_b_texts_removed", 2500);
+          const waitResult = await waitForFieldTextInput("image_b_texts_removed", 4000);
           if (!waitResult.ok) {
+            const diagnosticText = formatInputDiagnostic(waitResult.diagnostic);
             return {
               ok: false,
               message:
-                "已选择 image_b_texts_removed=specify，但 2500ms 内未找到输入框。"
+                "已选择 image_b_texts_removed=specify，但未找到输入框。" +
+                (diagnosticText ? "（" + diagnosticText + "）" : ""),
             };
           }
           const filled = fillFieldText("image_b_texts_removed", suggestion.answerText || "");
@@ -714,6 +738,14 @@
               message:
                 "已选择 image_b_texts_removed=specify，但文本写入失败：" +
                 String(filled.message || "未知错误"),
+            };
+          }
+          if (filled.warning) {
+            return {
+              ok: true,
+              message:
+                "已尝试填写 image_b_texts_removed=specify，但需要人工确认：" +
+                String(filled.warning),
             };
           }
           return {
@@ -730,11 +762,14 @@
           return selected;
         }
         if (choice === "specify") {
-          const waitResult = await waitForFieldTextInput("other_changes", 2500);
+          const waitResult = await waitForFieldTextInput("other_changes", 4000);
           if (!waitResult.ok) {
+            const diagnosticText = formatInputDiagnostic(waitResult.diagnostic);
             return {
               ok: false,
-              message: "已选择 other_changes=specify，但 2500ms 内未找到输入框。",
+              message:
+                "已选择 other_changes=specify，但未找到输入框。" +
+                (diagnosticText ? "（" + diagnosticText + "）" : ""),
             };
           }
           const filled = fillFieldText("other_changes", suggestion.answerText || "");
@@ -744,6 +779,14 @@
               message:
                 "已选择 other_changes=specify，但文本写入失败：" +
                 String(filled.message || "未知错误"),
+            };
+          }
+          if (filled.warning) {
+            return {
+              ok: true,
+              message:
+                "已尝试填写 other_changes=specify，但需要人工确认：" +
+                String(filled.warning),
             };
           }
           return {

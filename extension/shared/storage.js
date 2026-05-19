@@ -1233,28 +1233,36 @@
 
   function mapLegacyAbakaAiModelName(modelName) {
     const text = String(modelName || "").trim();
+    const lower = text.toLowerCase();
     if (!text) {
       return "";
     }
-    if (text === "qwen3.6plus") {
+    if (lower === "qwen3.6plus") {
       return "qwen3.6-plus";
     }
-    if (text === "qwen-vl-max-latest") {
+    if (lower === "qwen-vl-max-latest") {
       return "qwen-vl-max";
     }
-    if (text === "qwen-vl-plus-latest") {
+    if (lower === "qwen-vl-plus-latest") {
       return "qwen-vl-plus";
     }
-    if (text === "qwen-vl-ocr-latest") {
+    if (lower === "qwen-vl-ocr-latest") {
       return "";
     }
-    if (text === "qvq-plus-latest") {
+    if (lower === "qvq-plus-latest") {
       return "qwen3.6-plus";
     }
     return text;
   }
 
-  function normalizeAbakaAiModel(value, fallback) {
+  function normalizeAbakaAiModel(value, fallback, options) {
+    const allowed = Array.isArray(options)
+      ? options
+          .map(function (item) {
+            return mapLegacyAbakaAiModelName(String(item?.value || "").trim());
+          })
+          .filter(Boolean)
+      : [];
     const rawFallback = fallback === undefined ? "qwen3.6-plus" : String(fallback || "");
     const fallbackModel = mapLegacyAbakaAiModelName(rawFallback).trim();
     const text = mapLegacyAbakaAiModelName(
@@ -1263,9 +1271,22 @@
         .trim()
     );
     if (!text) {
+      if (allowed.length > 0) {
+        if (fallbackModel && allowed.indexOf(fallbackModel) >= 0) {
+          return fallbackModel;
+        }
+        return allowed[0];
+      }
       return fallbackModel;
     }
-    return text.slice(0, 80);
+    const normalized = text.slice(0, 80);
+    if (allowed.length <= 0 || allowed.indexOf(normalized) >= 0) {
+      return normalized;
+    }
+    if (fallbackModel && allowed.indexOf(fallbackModel) >= 0) {
+      return fallbackModel;
+    }
+    return allowed[0];
   }
 
   function normalizeAbakaAiAnalysisMode(value, fallback) {

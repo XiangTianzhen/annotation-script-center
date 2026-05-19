@@ -1,5 +1,25 @@
 # 标注脚本中心修改日志
 
+## 2026-05-19（Task21助手热修：Monaco/Naive 输入区定位与视觉模型默认口径）
+
+- 修复 Task21助手“填写 AI 答案”在 `image_b_texts_removed=specify` 与 `other_changes=specify` 下仍提示找不到输入框的问题。
+- 根因是输入区定位仍偏向 radio 容器，未稳定覆盖字段完整容器与分离渲染的输入区（`custom-md-editor/monaco-editor` 与 `n-input__textarea-el`）。
+- `dom-actions` 热修：
+  - 强化字段标题定位：优先 `.l-title-text`，并过滤 AI 面板节点，降低同名文本误命中。
+  - 新增字段搜索根与范围控制：优先完整字段块并在标题后有限区域查找，避免串填相邻字段。
+  - `findFieldTextInput` 补齐优先级：Naive UI textarea -> Monaco inputarea -> 通用 textarea/input/contenteditable。
+  - `waitForFieldTextInput` 默认等待提升到 `4000ms`，超时返回结构化诊断（标题/容器/custom-md/monaco/inputarea/naive/candidateCount）。
+  - Monaco 写入改为多策略：Monaco API -> `execCommand` 输入 -> `textarea` fallback（fallback 给出人工确认提示）。
+- `ai-panel` 热修：
+  - `specify` 流程改为先等待输入框（`4000ms`）再写入。
+  - 失败提示携带诊断细节，不再只显示笼统“未找到输入框”。
+  - 对 fallback 警告在面板状态中显示“需要人工确认”。
+- 视觉模型默认口径补强：
+  - 前后端与存储侧继续使用 `qwen3.6-plus` 作为默认视觉模型。
+  - `qwen3.6plus`、`qwen-vl-*-latest` 等历史写法统一做归一（含大小写兼容）后再落配置。
+  - storage 侧模型归一新增候选校验，非法值回退到允许列表默认值（视觉默认 `qwen3.6-plus`）。
+- 安全边界保持不变：仅用户点击“填写 AI 答案”才写入；不自动保存、不自动提交、不自动送审、不点 checkbox。
+
 ## 2026-05-19（Task21助手：specify 输入区写入兼容修复）
 
 - 修复 Task21助手“填写 AI 答案”在 `image_b_texts_removed` / `other_changes` 场景下无法写入的问题。

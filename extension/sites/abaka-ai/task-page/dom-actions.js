@@ -8,6 +8,21 @@
   const OPTION_SPECIFY = "specify";
   const OPTION_UNSURE = "unsure";
   const OPTION_NULL = "null";
+  const KNOWN_FIELD_NAMES = [FIELD_SAME_FONT, FIELD_IMAGE_B_TEXTS_REMOVED, FIELD_OTHER_CHANGES];
+  const FORM_LIKE_SELECTOR =
+    ".l-item,.l-label,[class*='form'],[class*='field'],[class*='item'],[class*='question']";
+  const INPUT_SELECTOR_PRIORITY = [
+    "textarea.n-input__textarea-el",
+    ".custom-md-editor textarea.inputarea",
+    ".monaco-editor textarea.inputarea",
+    "textarea.monaco-mouse-cursor-text",
+    ".n-input--textarea textarea",
+    "textarea",
+    "input[type='text']",
+    "input:not([type])",
+    "[contenteditable='true']",
+    "[role='textbox']",
+  ];
   const STASH_BUTTON_TEXTS = ["暂存", "save", "stash"];
   const SUBMIT_REVIEW_BUTTON_TEXTS = ["送审", "submit review", "submit"];
   const REVIEW_ROLE_SIGNAL_TEXTS = ["标注内审", "领取审核", "claim review", "reviewer", "review team"];
@@ -22,6 +37,15 @@
 
   function normalizeCompactText(value) {
     return String(value || "").replace(/\s+/g, "").trim().toLowerCase();
+  }
+
+  function isKnownFieldName(value) {
+    const text = normalizeText(value);
+    return KNOWN_FIELD_NAMES.indexOf(text) >= 0;
+  }
+
+  function isAiPanelDescendant(node) {
+    return node instanceof Element && Boolean(node.closest(".asc-abaka-ai-result-panel"));
   }
 
   function isVisible(node) {
@@ -60,8 +84,14 @@
   }
 
   function getAllVisibleTextElements() {
-    const nodes = document.querySelectorAll("div,span,label,strong,b,p,h1,h2,h3,h4,h5,h6");
+    const nodes = document.querySelectorAll(".l-title-text,div,span,label,strong,b,p,h1,h2,h3,h4,h5,h6");
     return Array.from(nodes).filter(function (node) {
+      if (!(node instanceof Element)) {
+        return false;
+      }
+      if (isAiPanelDescendant(node)) {
+        return false;
+      }
       return isVisible(node) && normalizeExact(node.textContent || "").length > 0;
     });
   }
@@ -71,7 +101,43 @@
     const candidates = getAllVisibleTextElements().filter(function (node) {
       return normalizeText(node.textContent || "") === target;
     });
+    if (candidates.length <= 0) {
+      return null;
+    }
+    candidates.sort(function (a, b) {
+      function score(node) {
+        let value = 0;
+        if (!(node instanceof Element)) {
+          return value;
+        }
+        if (node.matches(".l-title-text")) {
+          value += 100;
+        }
+        if (node.closest(".l-item")) {
+          value += 20;
+        }
+        if (node.closest(".l-label")) {
+          value += 10;
+        }
+        if (node.closest(FORM_LIKE_SELECTOR)) {
+          value += 5;
+        }
+        return value;
+      }
+      return score(b) - score(a);
+    });
     return candidates[0] || null;
+  }
+
+  function hasFieldInputSignal(root) {
+    if (!(root instanceof Element)) {
+      return false;
+    }
+    return Boolean(
+      root.querySelector(
+        ".custom-md-editor,.monaco-editor,textarea.n-input__textarea-el,.n-input--textarea,textarea"
+      )
+    );
   }
 
   function findFieldItem(fieldName) {
@@ -79,12 +145,225 @@
     if (!titleNode) {
       return null;
     }
-    const item = titleNode.closest(".l-item");
-    if (item) {
-      return item;
+    const chain = [];
+    let current = titleNode;
+    let depth = 0;
+    while (current && current !== document.body && depth < 10) {
+      if (current instanceof Element) {
+        chain.push(current);
+      }
+      current = current.parentElement;
+      depth += 1;
     }
-    return titleNode.closest(
-      "section,article,form,[role='group'],[class*='item'],[class*='field'],[class*='question']"
+    const preferred = chain.find(function (node) {
+      return node.matches(".l-item");
+    });
+    if (preferred && hasFieldInputSignal(preferred)) {
+      return preferred;
+    }
+    for (let i = 0; i < chain.length; i += 1) {
+      const node = chain[i];
+      if (
+        node.matches &&
+        node.matches("section,article,form,[role='group'],[class*='item'],[class*='field'],[class*='question']") &&
+        hasFieldInputSignal(node)
+      ) {
+        return node;
+      }
+    }
+    return preferred || titleNode.parentElement || null;
+  }
+
+  function collectKnownFieldTitleNodesInRoot(root) {
+    if (!(root instanceof Element)) {
+      return [];
+    }
+    const titleNodes = root.querySelectorAll(".l-title-text,div,span,label,strong,b,p,h1,h2,h3,h4,h5,h6");
+    const result = [];
+    for (let i = 0; i < titleNodes.length; i += 1) {
+      const node = titleNodes[i];
+      const text = normalizeText(node.textContent || "");
+      if (!isKnownFieldName(text)) {
+        continue;
+      }
+      if (!isVisible(node) || isAiPanelDescendant(node)) {
+        continue;
+      }
+      result.push(node);
+    }
+    return result;
+  }
+
+  function isNodeInFieldRange(node, fieldName, titleNode, rangeRoot) {
+    if (!(node instanceof Element) || !(titleNode instanceof Element) || !(rangeRoot instanceof Element)) {
+      return false;
+    }
+    if (!rangeRoot.contains(node)) {
+      return false;
+    }
+    const relation = titleNode.compareDocumentPosition(node);
+    if (!(relation & Node.DOCUMENT_POSITION_FOLLOWING) && node !== titleNode) {
+      return false;
+    }
+    const titles = collectKnownFieldTitleNodesInRoot(rangeRoot);
+    let nextTitle = null;
+    for (let i = 0; i < titles.length; i += 1) {
+      const current = titles[i];
+      if (current === titleNode) {
+        continue;
+      }
+      const currentName = normalizeText(current.textContent || "");
+      if (!isKnownFieldName(currentName) || currentName === normalizeText(fieldName)) {
+        continue;
+      }
+      const currentRelation = titleNode.compareDocumentPosition(current);
+      if (currentRelation & Node.DOCUMENT_POSITION_FOLLOWING) {
+        if (!nextTitle) {
+          nextTitle = current;
+        } else {
+          const nextRelation = current.compareDocumentPosition(nextTitle);
+          if (nextRelation & Node.DOCUMENT_POSITION_PRECEDING) {
+            nextTitle = current;
+          }
+        }
+      }
+    }
+    if (!nextTitle) {
+      return true;
+    }
+    const againstNext = node.compareDocumentPosition(nextTitle);
+    return Boolean(againstNext & Node.DOCUMENT_POSITION_PRECEDING);
+  }
+
+  function findFieldSearchRoots(fieldName) {
+    const roots = [];
+    const seen = new Set();
+    const titleNode = findFieldTitleNode(fieldName);
+    const fieldItem = findFieldItem(fieldName);
+
+    function push(node) {
+      if (!(node instanceof Element) || seen.has(node)) {
+        return;
+      }
+      seen.add(node);
+      roots.push(node);
+    }
+
+    push(fieldItem);
+    if (titleNode) {
+      push(titleNode.closest(".l-item"));
+      push(titleNode.parentElement);
+      const header = titleNode.closest(".l-header");
+      if (header && header.parentElement) {
+        push(header.parentElement);
+      }
+      let sibling =
+        (header && header.nextElementSibling) || (titleNode.parentElement && titleNode.parentElement.nextElementSibling);
+      let steps = 0;
+      while (sibling && steps < 5) {
+        push(sibling);
+        sibling = sibling.nextElementSibling;
+        steps += 1;
+      }
+    }
+
+    const labels = findFieldLabelContainers(fieldName);
+    for (let i = 0; i < labels.length; i += 1) {
+      push(labels[i]);
+    }
+
+    return {
+      titleNode: titleNode,
+      fieldItem: fieldItem,
+      roots: roots,
+    };
+  }
+
+  function findMonacoEditorForField(fieldName) {
+    const search = findFieldSearchRoots(fieldName);
+    for (let i = 0; i < search.roots.length; i += 1) {
+      const root = search.roots[i];
+      if (!(root instanceof Element)) {
+        continue;
+      }
+      const custom = root.querySelector(".custom-md-editor");
+      if (custom) {
+        return custom;
+      }
+      const monaco = root.querySelector(".monaco-editor");
+      if (monaco) {
+        return monaco;
+      }
+    }
+    return null;
+  }
+
+  function isMonacoTextareaCandidate(node) {
+    if (!(node instanceof HTMLTextAreaElement)) {
+      return false;
+    }
+    if (!isMonacoTextarea(node)) {
+      return false;
+    }
+    const monacoRoot = node.closest(".monaco-editor,.custom-md-editor");
+    return monacoRoot ? isVisible(monacoRoot) : false;
+  }
+
+  function buildFieldTextInputDiagnostic(fieldName, searchRoots, candidates) {
+    const search = searchRoots || findFieldSearchRoots(fieldName);
+    const titleNode = search.titleNode || null;
+    const fieldItem = search.fieldItem || null;
+    const roots = Array.isArray(search.roots) ? search.roots : [];
+    const monacoRoot = findMonacoEditorForField(fieldName);
+    const monacoTextarea = roots
+      .map(function (root) {
+        if (!(root instanceof Element)) {
+          return null;
+        }
+        return root.querySelector("textarea.inputarea,textarea.monaco-mouse-cursor-text");
+      })
+      .find(Boolean);
+    const naiveTextarea = roots
+      .map(function (root) {
+        if (!(root instanceof Element)) {
+          return null;
+        }
+        return root.querySelector("textarea.n-input__textarea-el");
+      })
+      .find(Boolean);
+    return {
+      fieldName: fieldName,
+      titleFound: Boolean(titleNode),
+      fieldItemFound: Boolean(fieldItem),
+      customMdEditorFound: Boolean(
+        monacoRoot && (monacoRoot.classList.contains("custom-md-editor") || monacoRoot.querySelector(".custom-md-editor"))
+      ),
+      monacoEditorFound: Boolean(monacoRoot && (monacoRoot.matches(".monaco-editor") || monacoRoot.querySelector(".monaco-editor"))),
+      monacoTextareaFound: Boolean(monacoTextarea),
+      naiveTextareaFound: Boolean(naiveTextarea),
+      candidateCount: Array.isArray(candidates) ? candidates.length : 0,
+    };
+  }
+
+  function diagnosticText(diagnostic) {
+    if (!diagnostic || typeof diagnostic !== "object") {
+      return "";
+    }
+    return (
+      "找到标题=" +
+      String(diagnostic.titleFound) +
+      "，找到字段容器=" +
+      String(diagnostic.fieldItemFound) +
+      "，custom-md-editor=" +
+      String(diagnostic.customMdEditorFound) +
+      "，monaco-editor=" +
+      String(diagnostic.monacoEditorFound) +
+      "，textarea.inputarea=" +
+      String(diagnostic.monacoTextareaFound) +
+      "，naive textarea=" +
+      String(diagnostic.naiveTextareaFound) +
+      "，候选数=" +
+      String(diagnostic.candidateCount)
     );
   }
 
@@ -277,68 +556,62 @@
   }
 
   function findFieldTextInput(fieldName) {
-    const fieldItem = findFieldItem(fieldName);
-    const titleNode = findFieldTitleNode(fieldName);
-    const searchRoots = [];
-    const seen = new Set();
-    function addRoot(node) {
-      if (!(node instanceof Element) || seen.has(node)) {
-        return;
-      }
-      seen.add(node);
-      searchRoots.push(node);
-    }
-    if (fieldItem) {
-      addRoot(fieldItem);
-    }
-    const labels = findFieldLabelContainers(fieldName);
-    for (let i = 0; i < labels.length; i += 1) {
-      addRoot(labels[i]);
-    }
-    if (titleNode) {
-      addRoot(titleNode.parentElement);
-    }
-    if (searchRoots.length === 0) {
+    const search = findFieldSearchRoots(fieldName);
+    if (!search.roots || search.roots.length <= 0) {
+      const diagnostic = buildFieldTextInputDiagnostic(fieldName, search, []);
       return {
         ok: false,
         message: "未找到完整字段容器：" + fieldName,
         node: null,
+        diagnostic: diagnostic,
       };
     }
 
-    const selectors = [
-      "textarea.n-input__textarea-el",
-      ".custom-md-editor textarea.inputarea",
-      ".monaco-editor textarea.inputarea",
-      ".n-input--textarea textarea",
-      "textarea",
-      "input[type='text']",
-      "input:not([type])",
-      "[contenteditable='true']",
-      "[role='textbox']",
-    ];
-
-    for (let s = 0; s < selectors.length; s += 1) {
-      const selector = selectors[s];
-      for (let r = 0; r < searchRoots.length; r += 1) {
-        const root = searchRoots[r];
+    const candidates = [];
+    const seenCandidates = new Set();
+    const titleNode = search.titleNode;
+    for (let s = 0; s < INPUT_SELECTOR_PRIORITY.length; s += 1) {
+      const selector = INPUT_SELECTOR_PRIORITY[s];
+      for (let r = 0; r < search.roots.length; r += 1) {
+        const root = search.roots[r];
+        if (!(root instanceof Element)) {
+          continue;
+        }
         const nodes = root.querySelectorAll(selector);
         for (let i = 0; i < nodes.length; i += 1) {
           const node = nodes[i];
-          if (isTextInputWritable(node)) {
-            return {
-              ok: true,
-              node: node,
-              message: "已找到输入控件",
-            };
+          if (!(node instanceof Element) || seenCandidates.has(node)) {
+            continue;
           }
+          if (!isNodeInFieldRange(node, fieldName, titleNode, root)) {
+            continue;
+          }
+          seenCandidates.add(node);
+          candidates.push(node);
         }
       }
     }
+
+    for (let i = 0; i < candidates.length; i += 1) {
+      const node = candidates[i];
+      const writable = isTextInputWritable(node) || isMonacoTextareaCandidate(node);
+      if (!writable) {
+        continue;
+      }
+      return {
+        ok: true,
+        node: node,
+        message: "已找到输入控件",
+        diagnostic: buildFieldTextInputDiagnostic(fieldName, search, candidates),
+      };
+    }
+
+    const diagnostic = buildFieldTextInputDiagnostic(fieldName, search, candidates);
     return {
       ok: false,
       message: "找到字段容器但未找到 Naive UI textarea / Monaco editor 输入区：" + fieldName,
       node: null,
+      diagnostic: diagnostic,
     };
   }
 
@@ -388,7 +661,9 @@
       node.dispatchEvent(new Event("input", { bubbles: true }));
       node.dispatchEvent(new Event("change", { bubbles: true }));
       node.dispatchEvent(new Event("compositionend", { bubbles: true }));
-      if (inserted) {
+      const preview = normalizeExact((monacoRoot.querySelector(".view-lines")?.textContent || "").slice(0, 120));
+      const targetPreview = normalizeExact(String(text || "").slice(0, 40));
+      if (inserted || (targetPreview && preview.indexOf(targetPreview) >= 0)) {
         return { ok: true, message: "Monaco execCommand 写入成功。" };
       }
     } catch (error) {
@@ -438,33 +713,50 @@
       node.dispatchEvent(new Event("input", { bubbles: true }));
       node.dispatchEvent(new Event("change", { bubbles: true }));
       node.dispatchEvent(new Event("compositionend", { bubbles: true }));
+      if (normalizeExact(node.value || "") === normalizeExact(text)) {
+        return {
+          ok: true,
+          message: "Monaco textarea fallback 已写入。",
+          warning: "已写入 textarea fallback，建议人工确认编辑器已同步。",
+          node: node,
+        };
+      }
       return { ok: false, message: "Monaco 写入失败：fallback 未确认模型已更新。", node: node };
     }
     if (node instanceof HTMLTextAreaElement) {
       const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+      if (typeof node.focus === "function") {
+        node.focus();
+      }
       if (descriptor && typeof descriptor.set === "function") {
         descriptor.set.call(node, text);
       } else {
         node.value = text;
       }
-      if (typeof node.focus === "function") {
-        node.focus();
-      }
+      node.dispatchEvent(
+        new InputEvent("beforeinput", { bubbles: true, data: text, inputType: "insertText" })
+      );
       node.dispatchEvent(new Event("input", { bubbles: true }));
       node.dispatchEvent(new Event("change", { bubbles: true }));
       node.dispatchEvent(new Event("compositionend", { bubbles: true }));
+      if (typeof node.blur === "function") {
+        node.blur();
+      }
       return { ok: true, message: "已写入文本。", node: node };
     }
     if (node instanceof HTMLInputElement) {
       const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      if (typeof node.focus === "function") {
+        node.focus();
+      }
       if (descriptor && typeof descriptor.set === "function") {
         descriptor.set.call(node, text);
       } else {
         node.value = text;
       }
-      if (typeof node.focus === "function") {
-        node.focus();
-      }
+      node.dispatchEvent(
+        new InputEvent("beforeinput", { bubbles: true, data: text, inputType: "insertText" })
+      );
       node.dispatchEvent(new Event("input", { bubbles: true }));
       node.dispatchEvent(new Event("change", { bubbles: true }));
       node.dispatchEvent(new Event("compositionend", { bubbles: true }));
@@ -480,9 +772,15 @@
   function fillFieldText(fieldName, value) {
     const found = findFieldTextInput(fieldName);
     if (!found || !found.node) {
+      if (found && found.diagnostic) {
+        console.warn("[ASC][Abaka AI] 填写失败诊断:", found.diagnostic);
+      }
       return {
         ok: false,
-        message: found && found.message ? found.message : "未找到可填写输入框：" + fieldName,
+        message:
+          (found && found.message ? found.message : "未找到可填写输入框：" + fieldName) +
+          (found && found.diagnostic ? "（" + diagnosticText(found.diagnostic) + "）" : ""),
+        diagnostic: found && found.diagnostic ? found.diagnostic : null,
       };
     }
     found.node.setAttribute("data-asc-field-name", fieldName);
@@ -494,22 +792,37 @@
       ok: true,
       message: "已填写 " + fieldName,
       node: result.node,
+      warning: result.warning || "",
     };
   }
 
   function waitForFieldTextInput(fieldName, timeoutMs) {
-    const timeout = Number(timeoutMs) > 0 ? Number(timeoutMs) : 2000;
+    const timeout = Number(timeoutMs) > 0 ? Number(timeoutMs) : 3000;
     const intervalMs = 90;
     const startedAt = Date.now();
     return new Promise(function (resolve) {
+      let lastFound = null;
       function check() {
         const found = findFieldTextInput(fieldName);
+        lastFound = found;
         if (found && found.ok && found.node) {
           found.node.setAttribute("data-asc-field-name", fieldName);
-          resolve({ ok: true, node: found.node, message: "已找到输入框。" });
+          resolve({
+            ok: true,
+            node: found.node,
+            message: "已找到输入框。",
+            diagnostic: found.diagnostic || null,
+          });
           return;
         }
         if (Date.now() - startedAt >= timeout) {
+          const diagnostic =
+            (found && found.diagnostic) ||
+            (lastFound && lastFound.diagnostic) ||
+            buildFieldTextInputDiagnostic(fieldName);
+          if (diagnostic) {
+            console.warn("[ASC][Abaka AI] 等待输入框超时诊断:", diagnostic);
+          }
           resolve({
             ok: false,
             node: null,
@@ -518,6 +831,7 @@
               "（" +
               String(timeout) +
               "ms）",
+            diagnostic: diagnostic,
           });
           return;
         }

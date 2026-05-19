@@ -1183,22 +1183,23 @@
 
   function mapLegacyAbakaAiModelName(value) {
     const text = String(value || "").trim();
+    const lower = text.toLowerCase();
     if (!text) {
       return "";
     }
-    if (text === "qwen3.6plus") {
+    if (lower === "qwen3.6plus") {
       return "qwen3.6-plus";
     }
-    if (text === "qwen-vl-max-latest") {
+    if (lower === "qwen-vl-max-latest") {
       return "qwen-vl-max";
     }
-    if (text === "qwen-vl-plus-latest") {
+    if (lower === "qwen-vl-plus-latest") {
       return "qwen-vl-plus";
     }
-    if (text === "qwen-vl-ocr-latest") {
+    if (lower === "qwen-vl-ocr-latest") {
       return "";
     }
-    if (text === "qvq-plus-latest") {
+    if (lower === "qvq-plus-latest") {
       return "qwen3.6-plus";
     }
     return text;
