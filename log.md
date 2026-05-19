@@ -1,5 +1,19 @@
 # 标注脚本中心修改日志
 
+## 2026-05-19（Task21助手：specify 输入区写入兼容修复）
+
+- 修复 Task21助手“填写 AI 答案”在 `image_b_texts_removed` / `other_changes` 场景下无法写入的问题。
+- 根因是旧逻辑只在 radio 容器内找输入框，未覆盖字段完整 `.l-item`、`.l-label`、Monaco/custom-md-editor 与 Naive UI textarea 的真实结构。
+- `dom-actions` 增强：
+  - 新增完整字段容器定位与标签容器收集（`l-title-text -> l-item -> l-label`）。
+  - `findFieldTextInput` 新增多选择器优先级：`n-input__textarea-el`、Monaco `textarea.inputarea`、普通 textarea/input/contenteditable。
+  - 支持 `waitForFieldTextInput(fieldName, timeoutMs)`，用于 radio 切换后等待输入区渲染。
+  - `setTextValue` 增强 Naive UI textarea 事件链（`input/change/compositionend`）与 Monaco 多策略写入（Monaco API / execCommand / fallback）。
+- `ai-panel` 增强：
+  - `specify` 选择后先等待输入框（默认 2500ms）再填值。
+  - 失败提示细化为“已选择 specify，但 2500ms 内未找到输入框”或“文本写入失败：xxx”。
+- 安全边界不变：AI 仅辅助，只有用户点击“填写 AI 答案”才写入；不自动保存、不自动提交、不自动送审、不点 checkbox。
+
 ## 2026-05-19（DataBaker 一检导出上传改为累计合并）
 
 - 修复标贝易采一检导出上传覆盖 `latest.csv` 的问题：后端改为“读取已有 latest.csv + 本次 CSV 按唯一键合并后回写”。

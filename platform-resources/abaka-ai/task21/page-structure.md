@@ -25,6 +25,20 @@
 | `image_b_texts_removed` | radio + rich text editor | `specify`、`true`、`null` | `same_font=true` 后出现的派生字段块 | `network/08-label-save-labels.md` |
 | `other_changes` | radio + textarea | `specify`、`unsure`、`null` | 后继字段块 + textarea | `network/08-label-save-labels.md` |
 
+Task21 输入区结构补充（2026-05-19）：
+
+- `image_b_texts_removed` 常见输入区：
+  - `.l-label .custom-md-editor`
+  - `.l-label .monaco-editor`
+  - `.monaco-editor textarea.inputarea.monaco-mouse-cursor-text`
+- `other_changes` 常见输入区：
+  - `.l-label .n-input.n-input--textarea...`
+  - `textarea.n-input__textarea-el`
+- 字段定位建议优先级：
+  - `.l-title-text` 精确字段名
+  - 向上定位 `.l-item`
+  - 在 `.l-item` 和其 `.l-label` 内查找输入控件，避免串填到其他字段
+
 Task21 快捷键联动（运行时）：
 
 - `same_font=true` 或 `same_font=same underlying font+artistic effect` 快捷键命中后，默认会确保：

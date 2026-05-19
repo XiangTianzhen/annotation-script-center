@@ -106,6 +106,9 @@
   - same_font=false/unsure 时按流程将后两项标记为 not_applicable
   - same_font=true 或 same underlying font+artistic effect 时继续分析后两项
 - AI 结果仅用于辅助判断；用户点击“填写 AI 答案”后才会写入页面，不自动保存/提交/送审。
+- `image_b_texts_removed` 的填写兼容 `custom-md-editor / Monaco` 输入区。
+- `other_changes` 的填写兼容 Naive UI textarea（`n-input__textarea-el`）。
+- `specify` 写入前会等待输入框渲染（默认 2500ms），降低切换 radio 后找不到输入框的问题。
 - 悬浮窗主视图仅展示推荐选择、标准答案、理由和填写按钮；调试信息默认折叠。
 - 悬浮窗支持拖动、调整宽高和重置位置。
 - Prompt 与规则沉淀路径：`ai/README.md`、`ai/prompt.md`、`backend/prompt.js`。

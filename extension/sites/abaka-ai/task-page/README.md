@@ -93,6 +93,9 @@
   - AI 仍然只作辅助，不自动保存、不自动提交、不自动送审
   - 仅在用户点击 `填写 AI 答案` 时，才会写入 radio / 输入框
   - 不点击 checkbox，不绕过 disabled/readOnly 控件
+  - `image_b_texts_removed` 支持写入 `custom-md-editor / Monaco` 输入区（`.custom-md-editor .monaco-editor textarea.inputarea`）
+  - `other_changes` 支持写入 Naive UI textarea（`textarea.n-input__textarea-el`）
+  - 选择 `specify` 后会先等待输入区渲染（默认 2500ms）再写入，避免 radio 切换后立即写入失败
 
 - image_b_texts_removed 标准答案格式：
   - 仅接受 `N instance of xxx` / `N instances of xxx`

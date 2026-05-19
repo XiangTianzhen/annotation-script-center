@@ -675,6 +675,16 @@
       return actions.fillFieldText(fieldName, value);
     }
 
+    async function waitForFieldTextInput(fieldName, timeoutMs) {
+      if (typeof actions.waitForFieldTextInput === "function") {
+        return actions.waitForFieldTextInput(fieldName, timeoutMs);
+      }
+      await new Promise(function (resolve) {
+        window.setTimeout(resolve, Math.max(100, Math.min(Number(timeoutMs) || 250, 300)));
+      });
+      return { ok: true, message: "已等待输入框渲染（fallback）。" };
+    }
+
     async function applySingleSuggestion(suggestion) {
       if (!suggestion || suggestion.canFill !== true) {
         return { ok: false, message: "当前建议不支持填写。" };
@@ -689,7 +699,27 @@
           return selected;
         }
         if (choice === "specify") {
-          return fillFieldText("image_b_texts_removed", suggestion.answerText || "");
+          const waitResult = await waitForFieldTextInput("image_b_texts_removed", 2500);
+          if (!waitResult.ok) {
+            return {
+              ok: false,
+              message:
+                "已选择 image_b_texts_removed=specify，但 2500ms 内未找到输入框。"
+            };
+          }
+          const filled = fillFieldText("image_b_texts_removed", suggestion.answerText || "");
+          if (!filled.ok) {
+            return {
+              ok: false,
+              message:
+                "已选择 image_b_texts_removed=specify，但文本写入失败：" +
+                String(filled.message || "未知错误"),
+            };
+          }
+          return {
+            ok: true,
+            message: "已填写：image_b_texts_removed=specify",
+          };
         }
         return selected;
       }
@@ -700,7 +730,26 @@
           return selected;
         }
         if (choice === "specify") {
-          return fillFieldText("other_changes", suggestion.answerText || "");
+          const waitResult = await waitForFieldTextInput("other_changes", 2500);
+          if (!waitResult.ok) {
+            return {
+              ok: false,
+              message: "已选择 other_changes=specify，但 2500ms 内未找到输入框。",
+            };
+          }
+          const filled = fillFieldText("other_changes", suggestion.answerText || "");
+          if (!filled.ok) {
+            return {
+              ok: false,
+              message:
+                "已选择 other_changes=specify，但文本写入失败：" +
+                String(filled.message || "未知错误"),
+            };
+          }
+          return {
+            ok: true,
+            message: "已填写：other_changes=specify",
+          };
         }
         return selected;
       }
