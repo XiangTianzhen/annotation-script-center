@@ -1,5 +1,21 @@
 # 标注脚本中心修改日志
 
+## 2026-05-19（Task21助手：Prompt 规则升级与结果归一化增强）
+
+- Task21 后端 Prompt 版本升级为 `abaka-task21-ai-v3-annotation-rules`，按用户 Word 规则重写流程、same_font、image_b_texts_removed、other_changes、特殊场景与输出格式约束。
+- same_font 新增 `error` 选项，并约束 `same_font=false/unsure/error` 时后续字段统一 `not_applicable`，`workflow.skip_later_fields=true`。
+- 移除旧规则中“禁止 all instances of xxx”的限制；`image_b_texts_removed` 归一化现支持：
+  - `all instances of xxx`
+  - `N instance of xxx`
+  - `N instances of xxx`
+- `normalizeRemovedLines` 继续拒绝 bullet/编号/解释行，保留句尾清理与单复数自动修正（如 `1 instances` -> `1 instance`）。
+- 强化 `other_changes` 口径：只比较 `image_b_removed` 与 `image_b`，用于承载替换行为、图文错位、图案/布局/画质等非纯删字变化。
+- 前端 Task21 面板兼容更新：
+  - same_font 结果与填写支持 `error`。
+  - image_b_texts_removed 的 `all instances of xxx` 展示与复制保持原样。
+  - overall 填写在 same_font=error 时与 false/unsure 一样停止后续字段填写。
+- 本次不新增模型名，保持 `qwen3.6-plus` 口径；未能联网核对官方文档。
+
 ## 2026-05-19（Task21助手热修：Monaco/Naive 输入区定位与视觉模型默认口径）
 
 - 修复 Task21助手“填写 AI 答案”在 `image_b_texts_removed=specify` 与 `other_changes=specify` 下仍提示找不到输入框的问题。

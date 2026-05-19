@@ -89,6 +89,9 @@ Task21 按钮快捷键（运行时）：
 - 安全边界：
   - 面板不自动写入字段，不自动保存/提交/送审。
   - 调试原始 JSON 脱敏显示，不展示完整图片 URL / dataUrl / token。
+  - `same_font` 支持 `error`（用于仅单侧存在文本等异常数据）。
+  - `image_b_texts_removed=specify` 支持 `all instances of xxx / N instance of xxx / N instances of xxx`。
+  - `other_changes` 只比较 `image_b_removed` 与 `image_b`，不比较 `image_a`。
 
 ## 资源字段
 

@@ -58,6 +58,10 @@
     return String(value || "").replace(/\s+/g, " ").trim();
   }
 
+  function normalizeDisplayText(value) {
+    return String(value || "").replace(/\r\n/g, "\n").trim();
+  }
+
   function normalizeLower(value) {
     return normalizeText(value).toLowerCase();
   }
@@ -153,7 +157,7 @@
     if (text === "true") {
       return "good";
     }
-    if (text === "false") {
+    if (text === "false" || text === "error") {
       return "bad";
     }
     if (text === "specify" || text === "same underlying font+artistic effect") {
@@ -168,6 +172,7 @@
       text === "true" ||
       text === "false" ||
       text === "unsure" ||
+      text === "error" ||
       text === "same underlying font+artistic effect"
     ) {
       return text;
@@ -225,6 +230,7 @@
           choice === "true" ||
           choice === "false" ||
           choice === "unsure" ||
+          choice === "error" ||
           choice === "same underlying font+artistic effect",
       };
     }
@@ -235,7 +241,7 @@
       const lines = Array.isArray(section.lines)
         ? section.lines
             .map(function (line) {
-              return normalizeText(line);
+              return normalizeDisplayText(line);
             })
             .filter(Boolean)
         : [];
@@ -246,7 +252,7 @@
           choice === "specify"
             ? lines.length > 0
               ? lines.join("\n")
-              : normalizeText(section.value || "")
+              : normalizeDisplayText(section.value || "")
             : "",
         reasonText: normalizeText(section.reason_cn || ""),
         evidence: Array.isArray(section.evidence) ? section.evidence : [],
@@ -447,7 +453,7 @@
         .map(function (item) {
           const key = item.target;
           const choice = item.primaryChoice || "";
-          const answer = normalizeText(item.answerText || "");
+          const answer = normalizeDisplayText(item.answerText || "");
           return answer ? key + "=" + choice + "\n" + answer : key + "=" + choice;
         })
         .join("\n\n");
@@ -643,6 +649,9 @@
 
     async function chooseSameFont(choice) {
       const normalized = normalizeLower(choice);
+      if (normalized === "error" && typeof actions.selectFieldOption === "function") {
+        return actions.selectFieldOption("same_font", "error", { ensureSelected: true });
+      }
       if (normalized === "true" && typeof actions.selectSameFontTrue === "function") {
         return actions.selectSameFontTrue();
       }
@@ -819,7 +828,7 @@
         }
         messages.push("已填写：same_font=" + String(sameFontSuggestion.primaryChoice || ""));
         const sameFontChoice = normalizeLower(sameFontSuggestion.primaryChoice || "");
-        if (sameFontChoice === "false" || sameFontChoice === "unsure") {
+        if (sameFontChoice === "false" || sameFontChoice === "unsure" || sameFontChoice === "error") {
           return { ok: true, message: messages.join("；") };
         }
       }

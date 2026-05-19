@@ -354,15 +354,21 @@ function normalizeRemovedLines(sourceLines, warnings) {
     if (!original) {
       return;
     }
-    if (/^all\s+instances?\s+of\s+/i.test(original)) {
-      safeWarnings.push("image_b_texts_removed: 禁止使用 all instances of 格式，已忽略。");
-      return;
-    }
     if (/^(\d+[\).]|[-*•·●])\s+/i.test(original)) {
       safeWarnings.push("image_b_texts_removed: 禁止 bullet/编号格式，已忽略非法行。");
       return;
     }
     const cleanTail = original.replace(/[.,;:!?。；：！？]+$/g, "").trim();
+    const allMatch = cleanTail.match(/^all\s+instances\s+of\s+(.+)$/i);
+    if (allMatch) {
+      const allText = String(allMatch[1] || "").replace(/\s+/g, " ").trim();
+      if (!allText) {
+        safeWarnings.push("image_b_texts_removed: all instances 文本内容为空，已忽略。");
+        return;
+      }
+      result.push("all instances of " + allText);
+      return;
+    }
     const match = cleanTail.match(/^([1-9]\d*)\s+(instance|instances)\s+of\s+(.+)$/i);
     if (!match) {
       safeWarnings.push("image_b_texts_removed: 非法标准答案格式，已忽略：" + sanitizeText(original, 120));
@@ -389,7 +395,7 @@ function normalizeRemovedLines(sourceLines, warnings) {
 function normalizeSameFontSection(section, target) {
   const source = normalizeObject(section);
   const defaultApplicable = target === "same_font" || target === "overall";
-  const allowed = ["true", "false", "unsure", "same underlying font+artistic effect", "not_applicable"];
+  const allowed = ["true", "false", "unsure", "error", "same underlying font+artistic effect", "not_applicable"];
   const rawChoice = normalizeChoiceText(source.choice || source.value);
   let choice = allowed.indexOf(rawChoice) >= 0 ? rawChoice : defaultApplicable ? "unsure" : "not_applicable";
   if (!defaultApplicable) {
@@ -537,7 +543,7 @@ function normalizeResultSchema(target, parsed) {
     workflow: normalizeWorkflowSection(source.workflow),
   };
   const sameFontChoice = normalizeChoiceText(normalized.same_font.choice || normalized.same_font.value);
-  if (target === "overall" && (sameFontChoice === "false" || sameFontChoice === "unsure")) {
+  if (target === "overall" && (sameFontChoice === "false" || sameFontChoice === "unsure" || sameFontChoice === "error")) {
     normalized.image_b_texts_removed.choice = "not_applicable";
     normalized.image_b_texts_removed.value_type = "not_applicable";
     normalized.image_b_texts_removed.value = "";
@@ -549,7 +555,7 @@ function normalizeResultSchema(target, parsed) {
     normalized.other_changes.word_count = 0;
     normalized.workflow.skip_later_fields = true;
     if (!normalized.workflow.skip_reason) {
-      normalized.workflow.skip_reason = "same_font=false_or_unsure";
+      normalized.workflow.skip_reason = "same_font_false_unsure_or_error";
     }
   }
   return normalized;

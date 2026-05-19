@@ -103,7 +103,7 @@
   - other_changes
 - 整体分析：
   - 先判 same_font
-  - same_font=false/unsure 时按流程将后两项标记为 not_applicable
+  - same_font=false/unsure/error 时按流程将后两项标记为 not_applicable
   - same_font=true 或 same underlying font+artistic effect 时继续分析后两项
 - AI 结果仅用于辅助判断；用户点击“填写 AI 答案”后才会写入页面，不自动保存/提交/送审。
 - `image_b_texts_removed` 的填写兼容 `custom-md-editor / Monaco` 输入区。
@@ -124,9 +124,15 @@
   - `Alt+3`：AI 分析 other_changes
   - `Alt+4`：AI 整体分析
 - 数据采集优先 `get-item-info`，DOM 只作为回退。
-- `image_b_texts_removed` 的 `specify` 标准答案必须使用：
+- `same_font` 允许值补充：`true | false | unsure | error | same underlying font+artistic effect`。
+- `image_b_texts_removed` 的 `specify` 标准答案支持：
+  - `all instances of xxx`
   - `N instance of xxx`
   - `N instances of xxx`
+- 同内容多处删除优先 `all instances of xxx`。
+- 纯文字替换：删掉旧字进 `image_b_texts_removed`，新字替换行为进 `other_changes`。
+- 文字改图案：删字进 `image_b_texts_removed`，图案改动进 `other_changes`。
+- 模糊不可识别文字不进入删除列表，统一在 `other_changes` 描述文字块/文字元素变动。
 - `other_changes` 只比较 `image_b_removed` 与 `image_b`，`specify` 输出英文短句。
 
 模型口径说明：

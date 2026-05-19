@@ -100,14 +100,18 @@
   - Monaco 写入采用多策略：Monaco API -> `execCommand` 输入 -> `textarea` fallback（fallback 会提示人工确认）
 
 - image_b_texts_removed 标准答案格式：
-  - 仅接受 `N instance of xxx` / `N instances of xxx`
-  - `N=1` 用 `instance`，`N>1` 用 `instances`
-  - 不接受 `all instances of xxx`、bullet、编号、解释
+  - 支持 `all instances of xxx` / `N instance of xxx` / `N instances of xxx`
+  - 同内容多处删除优先 `all instances of xxx`
+  - `N=1` 自动规范为 `instance`，`N>1` 自动规范为 `instances`
+  - 仍不接受 bullet、编号、解释
 
 - other_changes 比较口径：
   - 只比较 `image_b_removed` 与 `image_b`
   - 不再比较 `image_a` 与 `image_b`
   - `specify` 时输出英文短句（建议 30 词以内）
+- same_font 口径补充：
+  - 支持 `error`（例如仅单侧存在文本的异常样本）
+  - `same_font=false/unsure/error` 时后续字段应按 `not_applicable` 处理
 - 安全：
   - 不展示完整图片 URL、完整 dataUrl、token/cookie/authorization 等敏感字段。
 
