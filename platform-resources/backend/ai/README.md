@@ -44,3 +44,4 @@
 - Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `5`；如 `2 核 2G` 服务器压力高可调低到 `3`。
 - `provider-queue.js` 现在会返回并记录 `pendingCount / activeCount / maxConcurrent / queueWaitMs / durationMs`，用于判断瓶颈是在前端发起、Fun-ASR 队列还是 compare 阶段。
 - `providers/funasr-python.js` 会记录 `[FunASR] spawn start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
+- DataBaker 前端“AI连续填入合格项并发数量”只是浏览器同时发往统一后端的请求数，当前范围 `1~50`、默认 `20`；真正的上游模型并发仍由这里的 provider queue 和 RPM 限流控制。

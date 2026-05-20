@@ -46,7 +46,7 @@
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
                 aiRecommendRequestTimeoutMs: 120000,
                 aiRecommendPipelineMode: "two_stage",
-                aiQualifiedAutofillConcurrency: 5,
+                aiQualifiedAutofillConcurrency: 20,
                 aiQualifiedAutofillWaitAllBeforeFill: false,
                 aiRecommendListenModel: "qwen3.5-omni-flash",
                 aiRecommendCompareModel: "qwen3.5-plus",
@@ -1178,8 +1178,8 @@
       ? numeric
       : Number.isFinite(fallbackNumeric)
         ? fallbackNumeric
-        : 5;
-    return Math.max(1, Math.min(10, Math.round(base)));
+        : 20;
+    return Math.max(1, Math.min(50, Math.round(base)));
   }
 
   function normalizeDataBakerPipelineMode(value, fallback) {
@@ -1560,7 +1560,7 @@
     result.aiRecommendPipelineMode = normalizedPipelineMode;
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
-      defaultConfig.aiQualifiedAutofillConcurrency || 5
+      defaultConfig.aiQualifiedAutofillConcurrency || 20
     );
     result.aiQualifiedAutofillWaitAllBeforeFill = normalizeDataBakerWaitAllBeforeFill(
       result.aiQualifiedAutofillWaitAllBeforeFill,
@@ -1645,7 +1645,7 @@
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
             aiRecommendRequestTimeoutMs: 120000,
             aiRecommendPipelineMode: "two_stage",
-            aiQualifiedAutofillConcurrency: 5,
+                aiQualifiedAutofillConcurrency: 20,
             aiQualifiedAutofillWaitAllBeforeFill: false,
             aiRecommendListenModel: "qwen3.5-omni-flash",
             aiRecommendCompareModel: "qwen3.5-plus",

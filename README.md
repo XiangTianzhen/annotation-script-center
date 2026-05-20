@@ -188,7 +188,7 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 批量并发诊断要点：
 
 - 前端“AI连续填入合格项”是“并发发起 AI 请求 + 顺序填入页面”的两段流程。
-- 前端并发由 `aiQualifiedAutofillConcurrency` 控制，默认建议 `5`。
+- 前端并发由 `aiQualifiedAutofillConcurrency` 控制，范围 `1~50`，默认建议 `20`。
 - 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `5`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
 - Compare 阶段若启用 thinking 可能明显变慢；未勾选时后端会显式关闭 compare thinking。

@@ -1837,3 +1837,9 @@
     - `heardText` 在 Python 返回前先繁转简，Node 侧在 compare 前和最终响应组装时再做一次词表保护兜底。
     - `recommendedText` 与 `omni_single` 输出都统一做简体收口。
     - `RULE_VERSION` 升级为 `data-baker-round-one-quality-ai-v7-simplified-funasr`，部署后需要重启统一 Node 后端，避免旧内存缓存继续命中繁体结果。
+  - DataBaker “AI连续填入合格项并发数量”热修：
+    - 前端默认值改为 `20`。
+    - 前端设置范围改为 `1~50`。
+    - 非法值或空值回落 `20`，小于 `1` 归一到 `1`，大于 `50` 归一到 `50`。
+    - 运行时 `maxConcurrency` 上限同步放宽到 `50`，但填入阶段仍保持顺序消费。
+    - 后端 provider queue 与 RPM 限流保持不变，前端并发提高只会让更多请求进入统一后端排队。

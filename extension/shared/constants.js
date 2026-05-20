@@ -1293,7 +1293,7 @@
           aiRecommendEndpoint: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
           aiRecommendRequestTimeoutMs: 120000,
           aiRecommendPipelineMode: "two_stage",
-          aiQualifiedAutofillConcurrency: 5,
+          aiQualifiedAutofillConcurrency: 20,
           aiQualifiedAutofillWaitAllBeforeFill: false,
           aiRecommendListenModel: "qwen3.5-omni-flash",
           aiRecommendCompareModel: "qwen3.5-plus",

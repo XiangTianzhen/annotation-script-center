@@ -1362,9 +1362,9 @@
   function normalizeDataBakerAutofillConcurrency(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
-      return 5;
+      return 20;
     }
-    return Math.min(10, Math.max(1, Math.round(number)));
+    return Math.min(50, Math.max(1, Math.round(number)));
   }
 
   function normalizeDataBakerPipelineMode(value, fallback) {
@@ -1746,7 +1746,7 @@
           aiRecommendEnabled: true,
           aiRecommendRequestTimeoutMs: 120000,
           aiRecommendPipelineMode: "two_stage",
-          aiQualifiedAutofillConcurrency: 5,
+          aiQualifiedAutofillConcurrency: 20,
           aiQualifiedAutofillWaitAllBeforeFill: false,
           aiRecommendListenModel: "qwen3.5-omni-flash",
           aiRecommendCompareModel: "qwen3.5-plus",
@@ -4856,13 +4856,13 @@
     );
     const concurrencyInput = getElement("data-baker-qualified-autofill-concurrency");
     if (concurrencyInput) {
-      concurrencyInput.value = String(config.aiQualifiedAutofillConcurrency || 5);
+      concurrencyInput.value = String(config.aiQualifiedAutofillConcurrency || 20);
       concurrencyInput.min = "1";
-      concurrencyInput.max = "10";
+      concurrencyInput.max = "50";
       const parentLabel = concurrencyInput.closest(".field-card");
       const hintNode = parentLabel ? parentLabel.querySelector("span") : null;
       if (hintNode) {
-        hintNode.textContent = "范围 1-10，默认 5。更高并发只会更快堆积到后端队列，不会绕过上游模型限流。";
+        hintNode.textContent = "范围 1~50，默认 20。前端并发越高，后端排队越多；上游调用仍由后端 provider queue 控制限流和最大并发。2 核 2G 服务器压力高时可适当调低。";
       }
     }
     stopDataBakerShortcutRecording("");

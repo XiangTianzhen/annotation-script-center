@@ -78,9 +78,9 @@
   function normalizeAutofillConcurrency(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
-      return 5;
+      return 20;
     }
-    return Math.max(1, Math.min(10, Math.round(number)));
+    return Math.max(1, Math.min(50, Math.round(number)));
   }
 
   function normalizePipelineMode(value) {
@@ -215,7 +215,7 @@
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: 120000,
         aiRecommendPipelineMode: "two_stage",
-        aiQualifiedAutofillConcurrency: 5,
+        aiQualifiedAutofillConcurrency: 20,
         aiQualifiedAutofillWaitAllBeforeFill: false,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",
@@ -626,7 +626,7 @@
     async function runConcurrentAiAndSequentialFill(tasks, concurrency) {
       const sourceTasks = Array.isArray(tasks) ? tasks : [];
       const totalCount = sourceTasks.length;
-      const maxConcurrency = Math.max(1, Math.min(10, Number(concurrency) || 1));
+      const maxConcurrency = Math.max(1, Math.min(50, Number(concurrency) || 20));
       const completedQueue = [];
       const queuedResultIds = new Set();
       let nextLaunchIndex = 0;

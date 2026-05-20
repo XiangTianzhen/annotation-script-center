@@ -252,7 +252,7 @@ ASR 转写职责边界：
 
 DataBaker AI 架构补充：
 - 当前默认链路是 Qwen Omni 听音 + compare；选择 `fun-asr` 时则通过 Python SDK 调用 Fun-ASR，再走 compare 文本模型。
-- 前端默认并发已降到 `5`，建议最大值 `10`；多人并发时只允许在后端排队，不允许浏览器直连 DashScope。
+- 前端“AI连续填入合格项并发数量”范围 `1~50`，默认 `20`；前端值更大只会更快把请求送进统一后端队列，不会放大后端 provider 并发上限。
 - 前端并发和后端并发是两层配置：前端 `aiQualifiedAutofillConcurrency` 负责一次发起多少浏览器请求；后端 `DATABAKER_AI_FUN_ASR_CONCURRENCY / DATABAKER_AI_TEXT_CONCURRENCY` 负责上游 provider 实际同时 in-flight 数量。
 - 如果“AI连续填入合格项”看起来像串行，先看 `health.queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`；若长期为 `1`，优先检查 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 和 `DATABAKER_AI_FUN_ASR_RPM_LIMIT`。
 - `429` 的根因是上游模型或账号维度限流，不是统一后端机器规格问题；同一阿里云主账号下的多个 RAM 用户/API Key 可能共享限流额度。
