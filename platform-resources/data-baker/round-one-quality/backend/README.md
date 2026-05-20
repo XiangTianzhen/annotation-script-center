@@ -77,7 +77,7 @@
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：Fun-ASR 批量连续填入是否启用后端异步 job，默认 `1`。
-- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job TTL，默认 `120000`（2 分钟）。
+- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job TTL，默认 `60000`（1 分钟）。
 - `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 最大保留数量，默认 `1000`。
 - `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端轮询 job 状态建议间隔，默认 `1000` ms。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。

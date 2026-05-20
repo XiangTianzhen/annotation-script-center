@@ -2,7 +2,7 @@
 
 const crypto = require("crypto");
 
-const DEFAULT_JOB_TTL_MS = 120000;
+const DEFAULT_JOB_TTL_MS = 60000;
 const DEFAULT_JOB_MAX_SIZE = 1000;
 const DEFAULT_JOB_POLL_INTERVAL_MS = 1000;
 

@@ -230,7 +230,7 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `2`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
 - Fun-ASR 批量连续填入默认启用后端异步 job：
   - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED=1`
-  - `DATABAKER_AI_JOB_TTL_MS=120000`
+  - `DATABAKER_AI_JOB_TTL_MS=60000`
   - `DATABAKER_AI_JOB_MAX_SIZE=1000`
   - `DATABAKER_AI_JOB_POLL_INTERVAL_MS=1000`
 - DataBaker 平台当前实际的自动清除时间字段位于前端顶部统计悬浮窗 `autoHideMs`，默认已统一为 `60000ms`。

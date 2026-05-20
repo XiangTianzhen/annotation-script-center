@@ -66,7 +66,7 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_FUN_ASR_REST_BASE_URL`：可选，覆盖 Fun-ASR REST API base；留空时按 `DASHSCOPE_BASE_URL` 推导到 `/api/v1`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：Fun-ASR 批量连续填入是否启用后端异步 job，默认 `1`。
-- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job TTL，默认 `120000`（2 分钟）。
+- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job TTL，默认 `60000`（1 分钟）。
 - `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 内存上限，默认 `1000`。
 - `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端建议轮询间隔提示，默认 `1000` ms。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv/`。

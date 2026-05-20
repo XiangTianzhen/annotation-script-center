@@ -211,7 +211,7 @@ platform-resources/backend/ai/python/requirements.txt
   - 当前只做单条 REST 调用，不启用 `file_urls` batch
 - 默认链路不启动 Python 子进程，可降低本机 CPU 压力
 - `two_stage + fun-asr` 的批量连续填入默认会走异步 job：单条“AI 推荐文本”按钮仍保留同步 `POST /ai/recommend`，批量则走 `POST /ai/recommend/jobs` + `GET /ai/recommend/jobs/:jobId`
-- job 默认 TTL 为 `120000`（2 分钟）；超时过期或后端重启后，前端需重新提交
+- job 默认 TTL 为 `60000`（1 分钟）；超时过期或后端重启后，前端需重新提交
 - Python fallback 编码补充：
   - 仅显式切到 `provider=python` 时，Node 后端才会向 Python 子进程显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`
   - `platform-resources/backend/ai/python/funasr_client.py` 会按 UTF-8 输出 stdout JSON

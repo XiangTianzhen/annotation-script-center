@@ -1,5 +1,12 @@
 # 标注脚本中心修改日志
 
+## 2026-05-21（标贝易采一检质检热修：异步 job TTL 改为 1 分钟）
+
+- DataBaker `two_stage + fun-asr` 批量连续填入使用的后端异步 job 默认 TTL 从 `120000`（2 分钟）调整为 `60000`（1 分钟）。
+- 代码默认值 `platform-resources/data-baker/round-one-quality/backend/ai-job-store.js` 同步改为 `60000`。
+- `config/env/ai.env.example`、根 `README.md`、统一后端 README、DataBaker 平台 README、DataBaker 后端 README 已同步改成 `60000`（1 分钟）。
+- 本轮不改 job 最大数量、不改轮询间隔、不改 Fun-ASR REST / compare 链路。
+
 ## 2026-05-21（统一默认时间规则：TTS 自动清除 60000ms，AI 默认超时 60000ms）
 
 - 根规则更新：
