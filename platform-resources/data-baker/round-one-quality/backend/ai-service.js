@@ -43,7 +43,7 @@ const {
   setCachedRecommendResult,
 } = require("../../../backend/ai/result-cache");
 
-const RULE_VERSION = "data-baker-round-one-quality-ai-v6-single-and-two-stage-ui";
+const RULE_VERSION = "data-baker-round-one-quality-ai-v7-simplified-funasr";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "你要一次完成：听音、对比页面候选文本、输出最终推荐文本。",
   "页面候选文本只作为参考，实际发声优先。",
@@ -110,6 +110,30 @@ const BASE_ENTRIES = [
   { mandarin: "门儿清", suggested: "门理清" },
   { mandarin: "那些事儿", suggested: "迄代志" },
 ];
+const TRADITIONAL_TO_SIMPLIFIED_PHRASES = [
+  ["這個", "这个"],
+  ["音樂", "音乐"],
+  ["放鬆", "放松"],
+  ["聽聽", "听听"],
+  ["聽音", "听音"],
+  ["問題", "问题"],
+  ["時間", "时间"],
+  ["標註", "标注"],
+  ["檢質", "检质"],
+  ["錄音", "录音"],
+  ["頁面", "页面"],
+  ["裡面", "里面"],
+  ["後面", "后面"],
+  ["發聲", "发声"],
+  ["輸入", "输入"],
+  ["輸出", "输出"],
+  ["開關", "开关"],
+  ["車門", "车门"],
+  ["麵體", "面体"],
+  ["聽起來", "听起来"],
+  ["說話", "说话"],
+  ["語音", "语音"],
+];
 const TRADITIONAL_TO_SIMPLIFIED_MAP = {
   "這": "这",
   "個": "个",
@@ -166,6 +190,12 @@ const TRADITIONAL_TO_SIMPLIFIED_MAP = {
   "關": "关",
   "頁": "页",
   "錄": "录",
+  "樂": "乐",
+  "鬆": "松",
+  "氣": "气",
+  "車": "车",
+  "邊": "边",
+  "麵": "面",
   "滿": "满",
   "裝": "装",
   "臺": "台",
@@ -184,6 +214,29 @@ const TRADITIONAL_TO_SIMPLIFIED_MAP = {
   "員": "员",
   "線": "线",
   "響": "响",
+  "讀": "读",
+  "歡": "欢",
+  "講": "讲",
+  "來": "来",
+  "頭": "头",
+  "見": "见",
+  "愛": "爱",
+  "燈": "灯",
+  "觀": "观",
+  "點": "点",
+  "場": "场",
+  "風": "风",
+  "國": "国",
+  "機": "机",
+  "將": "将",
+  "變": "变",
+  "萬": "万",
+  "產": "产",
+  "業": "业",
+  "內": "内",
+  "廣": "广",
+  "復": "复",
+  "雜": "杂",
 };
 const CSV_COLUMNS = [
   { key: "createdAt", header: "创建时间" },
@@ -644,12 +697,14 @@ function normalizeChangePoints(value) {
 function normalizeCompareResponse(modelJson, context) {
   const source = modelJson && typeof modelJson === "object" ? modelJson : {};
   const pageText = String(context?.pageText || "");
-  const heardText = removeTextSpaces(context?.heardText || "");
-  const recommendedText = removeTextSpaces(
+  const heardText = normalizeToSimplifiedChinesePreservingLexicon(
+    removeTextSpaces(context?.heardText || "")
+  );
+  const recommendedText = normalizeToSimplifiedChinesePreservingLexicon(removeTextSpaces(
     source.recommendedText === undefined || source.recommendedText === null
       ? heardText || pageText
       : source.recommendedText
-  );
+  ));
   const decision = String(source.decision || "").trim() || "need_human_review";
   const confidence = normalizeConfidence(source.confidence);
   const needHumanReview = source.needHumanReview === true || confidence < 0.75 || !recommendedText;
@@ -665,12 +720,14 @@ function normalizeCompareResponse(modelJson, context) {
 function normalizeOmniSingleResponse(modelJson, context) {
   const source = modelJson && typeof modelJson === "object" ? modelJson : {};
   const pageText = String(context?.pageText || "");
-  const heardText = removeTextSpaces(source.heardText || source.text || "");
-  const recommendedText = removeTextSpaces(
+  const heardText = normalizeToSimplifiedChinesePreservingLexicon(
+    removeTextSpaces(source.heardText || source.text || "")
+  );
+  const recommendedText = normalizeToSimplifiedChinesePreservingLexicon(removeTextSpaces(
     source.recommendedText === undefined || source.recommendedText === null
       ? heardText || pageText
       : source.recommendedText
-  );
+  ));
   const confidence = normalizeConfidence(source.confidence);
   return {
     heardText,
@@ -724,9 +781,14 @@ function buildRecommendResponse(parts) {
   const listen = parts?.listen || {};
   const compare = parts?.compare || {};
   const request = parts?.request || {};
+  const requestId = String(parts?.requestId || "");
   const pageText = String(request.pageText || "");
   const recommendedText = ensureChineseSentencePunctuation(
-    removeTextSpaces(compare.recommendedText || listen.heardText || pageText)
+    normalizeFieldToSimplified(
+      requestId,
+      "recommendedText",
+      removeTextSpaces(compare.recommendedText || listen.heardText || pageText)
+    )
   );
   const listenUsage = normalizeUsage(parts?.listenUsage);
   const compareUsage = normalizeUsage(parts?.compareUsage);
@@ -734,7 +796,11 @@ function buildRecommendResponse(parts) {
   const compareConfidence = parts?.compareConfidence;
   return {
     recommendedText,
-    heardText: removeTextSpaces(listen.heardText || ""),
+    heardText: normalizeFieldToSimplified(
+      requestId,
+      "heardText",
+      removeTextSpaces(listen.heardText || "")
+    ),
     pageText,
     isChanged: recommendedText.trim() !== pageText.trim(),
     needHumanReview: compare.needHumanReview !== false || listen.isValid === false,
@@ -1346,13 +1412,41 @@ function protectLexiconTerms(text, protectedTerms) {
 }
 
 function convertTraditionalToSimplified(text) {
-  let output = "";
-  const source = String(text || "");
+  let output = String(text || "");
+  TRADITIONAL_TO_SIMPLIFIED_PHRASES.forEach(function (entry) {
+    const traditional = entry && entry[0];
+    const simplified = entry && entry[1];
+    if (!traditional || !simplified || output.indexOf(traditional) < 0) {
+      return;
+    }
+    output = output.split(traditional).join(simplified);
+  });
+  const source = output;
+  output = "";
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
     output += TRADITIONAL_TO_SIMPLIFIED_MAP[char] || char;
   }
   return output;
+}
+
+function containsTraditionalChinese(text) {
+  const source = String(text || "");
+  if (!source) {
+    return false;
+  }
+  for (let index = 0; index < TRADITIONAL_TO_SIMPLIFIED_PHRASES.length; index += 1) {
+    const traditional = TRADITIONAL_TO_SIMPLIFIED_PHRASES[index][0];
+    if (traditional && source.indexOf(traditional) >= 0) {
+      return true;
+    }
+  }
+  for (let index = 0; index < source.length; index += 1) {
+    if (TRADITIONAL_TO_SIMPLIFIED_MAP[source[index]]) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function restoreLexiconTerms(text, replacements) {
@@ -1375,6 +1469,28 @@ function normalizeToSimplifiedChinesePreservingLexicon(text) {
   const protectedResult = protectLexiconTerms(source, protectedTerms);
   const simplified = convertTraditionalToSimplified(protectedResult.text);
   return restoreLexiconTerms(simplified, protectedResult.replacements);
+}
+
+function summarizeNormalizedText(text) {
+  return String(text || "").replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
+function normalizeFieldToSimplified(requestId, fieldName, text) {
+  const source = String(text || "");
+  if (!source) {
+    return "";
+  }
+  const normalized = normalizeToSimplifiedChinesePreservingLexicon(source);
+  if (normalized !== source && containsTraditionalChinese(source)) {
+    console.info("[DataBaker][round-one-quality][ai] simplified chinese normalized", {
+      requestId: String(requestId || ""),
+      field: String(fieldName || ""),
+      changed: true,
+      beforePreview: summarizeNormalizedText(source),
+      afterPreview: summarizeNormalizedText(normalized),
+    });
+  }
+  return normalized;
 }
 
 function getLexiconText(lexiconContext) {
@@ -2051,9 +2167,17 @@ async function recommend(body, requestIdHint) {
         listenDurationMs = Date.now() - listenStartedAtMs;
       }
 
-      const heardText = normalizeToSimplifiedChinesePreservingLexicon(
-        removeTextSpaces(funAsrResult.heardText || "")
-      );
+      const rawFunAsrHeardText = removeTextSpaces(funAsrResult.heardText || "");
+      const heardText = normalizeFieldToSimplified(requestId, "heardText", rawFunAsrHeardText);
+      if (funAsrResult.simplifiedChineseNormalized === true && heardText) {
+        console.info("[DataBaker][round-one-quality][ai] simplified chinese normalized", {
+          requestId,
+          field: "heardText",
+          changed: true,
+          source: String(funAsrResult.simplifiedChineseSource || "python"),
+          afterPreview: summarizeNormalizedText(heardText),
+        });
+      }
       const listenData = {
         heardText,
         confidence: Number(funAsrResult.confidence || 0),

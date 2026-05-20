@@ -268,12 +268,14 @@ DataBaker AI 架构补充：
 - Fun-ASR Python 文件与依赖文件已移动到：
   - `platform-resources/backend/ai/python/funasr_client.py`
   - `platform-resources/backend/ai/python/requirements.txt`
+- `platform-resources/backend/ai/python/requirements.txt` 现包含 `opencc-python-reimplemented`，用于 Fun-ASR 源头繁转简。
 - DataBaker 业务目录当前只保留 `ai-routes.js + ai-service.js` 作为业务层；闽南词表参考资料位于 `platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv`。
 - `DATABAKER_FUNASR_PYTHON_BIN` 留空时，统一后端默认优先查找 `platform-resources/backend/.venv` 下的 Python。
 - 不需要单独启动 Python；Python 只作为 Node 统一后端内部辅助进程运行。
 - 标准启动入口始终是 `node platform-resources/backend/server.js`。
 - 项目级服务器部署、Windows/Linux 创建命令、重启与 `health/defaults` 验证流程统一见根目录 `README.md`。
 - 这里不重复完整部署命令，避免误解为需要单独部署 Python 服务。
+- Fun-ASR 若返回繁体或繁简混合字形，后端会在 Python 输出阶段和 DataBaker 业务组装阶段各做一次繁转简；命中闽南词表建议用字时继续保留原建议字形。
 
 ## 0.2.11 统计总表修正规则
 

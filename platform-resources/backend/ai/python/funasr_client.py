@@ -6,6 +6,97 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+try:
+    from opencc import OpenCC
+except Exception:
+    OpenCC = None
+
+
+TRADITIONAL_TO_SIMPLIFIED_PHRASES = (
+    ("音樂", "音乐"),
+    ("放鬆", "放松"),
+    ("聽聽", "听听"),
+    ("聽音", "听音"),
+    ("頁面", "页面"),
+    ("標註", "标注"),
+    ("檢質", "检质"),
+)
+
+TRADITIONAL_TO_SIMPLIFIED_CHARS = {
+    "這": "这",
+    "個": "个",
+    "聽": "听",
+    "說": "说",
+    "語": "语",
+    "時": "时",
+    "間": "间",
+    "問": "问",
+    "題": "题",
+    "開": "开",
+    "關": "关",
+    "還": "还",
+    "會": "会",
+    "為": "为",
+    "與": "与",
+    "對": "对",
+    "裡": "里",
+    "後": "后",
+    "發": "发",
+    "聲": "声",
+    "輸": "输",
+    "寫": "写",
+    "讀": "读",
+    "頁": "页",
+    "標": "标",
+    "註": "注",
+    "檢": "检",
+    "質": "质",
+    "錄": "录",
+    "麼": "么",
+    "嗎": "吗",
+    "氣": "气",
+    "車": "车",
+    "門": "门",
+    "過": "过",
+    "邊": "边",
+    "線": "线",
+    "麵": "面",
+    "體": "体",
+    "樂": "乐",
+    "鬆": "松",
+    "臺": "台",
+    "灣": "湾",
+    "龍": "龙",
+    "應": "应",
+    "網": "网",
+    "電": "电",
+    "腦": "脑",
+    "歡": "欢",
+    "講": "讲",
+    "種": "种",
+    "樣": "样",
+    "從": "从",
+    "點": "点",
+    "罰": "罚",
+    "碼": "码",
+    "轉": "转",
+    "換": "换",
+    "畫": "画",
+    "冊": "册",
+    "佈": "布",
+    "證": "证",
+    "號": "号",
+    "覺": "觉",
+    "來": "来",
+    "愛": "爱",
+    "頭": "头",
+    "見": "见",
+    "場": "场",
+    "風": "风",
+}
+
+OPENCC_CONVERTER = OpenCC("t2s") if OpenCC is not None else None
+
 
 def count_replacement_chars(text):
     return str(text or "").count("\ufffd")
@@ -47,6 +138,44 @@ def sanitize_text(text):
             value = replacement
             break
     return " ".join(value.split())[:240]
+
+
+def fallback_traditional_to_simplified(text):
+    value = str(text or "")
+    if not value:
+        return value
+    for traditional, simplified in TRADITIONAL_TO_SIMPLIFIED_PHRASES:
+        value = value.replace(traditional, simplified)
+    output = []
+    for char in value:
+        output.append(TRADITIONAL_TO_SIMPLIFIED_CHARS.get(char, char))
+    return "".join(output)
+
+
+def normalize_to_simplified_chinese(text):
+    value = str(text or "")
+    if not value:
+        return {
+            "text": value,
+            "changed": False,
+            "source": "",
+        }
+    if OPENCC_CONVERTER is not None:
+        try:
+            normalized = str(OPENCC_CONVERTER.convert(value) or "")
+            return {
+                "text": normalized,
+                "changed": normalized != value,
+                "source": "opencc",
+            }
+        except Exception:
+            pass
+    normalized = fallback_traditional_to_simplified(value)
+    return {
+        "text": normalized,
+        "changed": normalized != value,
+        "source": "fallback",
+    }
 
 
 def emit(payload, exit_code=0):
@@ -333,6 +462,8 @@ def main():
         heard_text = extract_heard_text(extract_output(fetch_response))
     if not heard_text:
         fail("fun-asr-empty-text", "Fun-ASR 未返回可用转写文本。", raw_status=final_status)
+    normalize_result = normalize_to_simplified_chinese(heard_text)
+    heard_text = normalize_result["text"]
     if is_text_likely_mojibake(heard_text):
         fail(
             "fun-asr-mojibake-text",
@@ -345,6 +476,8 @@ def main():
             "success": True,
             "model": model,
             "heardText": heard_text,
+            "simplifiedChineseNormalized": normalize_result["changed"] is True,
+            "simplifiedChineseSource": normalize_result["source"],
             "taskId": task_id,
             "rawStatus": final_status,
         }

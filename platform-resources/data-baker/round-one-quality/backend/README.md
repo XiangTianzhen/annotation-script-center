@@ -220,6 +220,9 @@ Prompt 简繁规则（2026-05-17 热修）：
 - 除了 prompt 约束，后端会在模型返回后对 `heardText` 和 `recommendedText` 再做一次普通繁体转简体归一化。
 - 归一化前会先保护词表建议用字（来自 `BASE_ENTRIES + minnan-lexicon.csv`），归一化后再恢复，避免方言建议用字被覆盖。
 - `pageText` 保持页面原始文本，不做改写，仅作为比较输入来源。
+- `platform-resources/backend/ai/python/funasr_client.py` 还会在 Python 阶段先用 `opencc-python-reimplemented`（OpenCC `t2s`）做一轮繁转简；如果 OpenCC 不可用，再退回内置映射。
+- 因此 `two_stage + fun-asr` 的 `heardText` 实际会经历“Python 源头繁转简 + DataBaker 结果组装兜底繁转简”两层处理。
+- `阮 / 汝 / 伊 / 诶` 等命中词表建议用字的字符会继续保留，不改回普通话同义词。
 
 强替换只修改返回给前端展示的 `recommendedText`，不会修改原始 `pageText`，也不会触发自动保存、自动提交、批量识别或流转。后端会对 `heardText` 和最终 `recommendedText` 删除空格、Tab、换行和全角空格，日志记录的也是清理后的文本，不额外保存清理前文本。可通过 `DATABAKER_AI_LEXICON_REWRITE_MODE=off` 关闭强替换，只保留 prompt 上下文。词表缺失时后端仍可运行，但会跳过 CSV 上下文，推荐效果可能下降。后续更新词表时只需要替换 CSV 文件，不要把词表内容硬编码进 JS。
 

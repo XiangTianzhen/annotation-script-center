@@ -14,7 +14,7 @@
 - `providers/qwen-openai-compatible.js`：DashScope OpenAI-compatible `/chat/completions` 调用封装，支持文本比较和 Omni `input_audio`。
 - `providers/funasr-python.js`：Node 通过 `child_process` 调用 Python Fun-ASR SDK 的统一 wrapper，并显式设置 `PYTHONIOENCODING=utf-8` / `PYTHONUTF8=1`。
 - `python/funasr_client.py`：Fun-ASR Python SDK 辅助脚本。
-- `python/requirements.txt`：Fun-ASR Python 依赖。
+- `python/requirements.txt`：Fun-ASR Python 依赖，当前包含 `dashscope` 与 `opencc-python-reimplemented`。
 
 边界规则：
 
@@ -38,6 +38,8 @@
 - 仍然只启动 Node 后端：`node platform-resources/backend/server.js`
 - Python 不作为独立服务启动，只作为统一 Node 后端内部调用的辅助进程。
 - `funasr_client.py` 的 stdout JSON 必须稳定按 UTF-8 输出；`funasr-python.js` 必须按 UTF-8 解码 stdout/stderr，避免 Windows 下出现 `�` / 黑菱形乱码。
+- `funasr_client.py` 会先用 OpenCC `t2s`（不可用时退回内置映射）把 Fun-ASR `heardText` 统一转为简体；DataBaker 业务层还会再按词表保护规则做一次兜底转换。
+- `阮 / 汝 / 伊 / 诶` 等闽南词表建议用字不属于统一 AI 基座内置词表，但 DataBaker 业务层会在二次兜底时保护这些建议字形。
 - Fun-ASR 没有 thinking 参数；thinking 只影响 Qwen Omni / compare 阶段。
 - Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `5`；如 `2 核 2G` 服务器压力高可调低到 `3`。
 - `provider-queue.js` 现在会返回并记录 `pendingCount / activeCount / maxConcurrent / queueWaitMs / durationMs`，用于判断瓶颈是在前端发起、Fun-ASR 队列还是 compare 阶段。

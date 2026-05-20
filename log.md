@@ -1830,3 +1830,10 @@
   - DataBaker 目录中的 `ai-client-qwen.js`、`ai-client-funasr.js`、`ai-provider-queue.js`、`ai-result-cache.js` 改为 deprecated 薄封装，只 re-export 统一基座模块。
   - 统一后端启动入口保持不变：`node platform-resources/backend/server.js`。
   - Python 仍不作为独立服务启动，只作为统一 Node 后端内部辅助进程调用。
+  - DataBaker `fun-asr` 繁体字热修：
+    - `platform-resources/backend/ai/python/funasr_client.py` 新增 OpenCC `t2s` 繁转简；OpenCC 不可用时退回内置映射。
+    - `platform-resources/backend/ai/python/requirements.txt` 新增 `opencc-python-reimplemented`。
+    - DataBaker `ai-service.js` 强化普通繁体到简体的短语级和字符级兜底映射，并继续保护 `阮 / 汝 / 伊 / 诶` 等闽南词表建议用字。
+    - `heardText` 在 Python 返回前先繁转简，Node 侧在 compare 前和最终响应组装时再做一次词表保护兜底。
+    - `recommendedText` 与 `omni_single` 输出都统一做简体收口。
+    - `RULE_VERSION` 升级为 `data-baker-round-one-quality-ai-v7-simplified-funasr`，部署后需要重启统一 Node 后端，避免旧内存缓存继续命中繁体结果。

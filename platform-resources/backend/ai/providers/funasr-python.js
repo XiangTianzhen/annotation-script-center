@@ -314,6 +314,8 @@ async function requestFunAsrRecognition(input, options) {
     confidence: Number(payload.confidence || 0),
     usage: {},
     mock: false,
+    simplifiedChineseNormalized: payload.simplifiedChineseNormalized === true,
+    simplifiedChineseSource: String(payload.simplifiedChineseSource || "").trim(),
     taskId: String(payload.taskId || "").trim(),
     rawStatus: String(payload.rawStatus || "").trim(),
   };
