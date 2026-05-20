@@ -323,6 +323,73 @@ function extractFailedPayloadInfo(payload, error) {
   };
 }
 
+function isForceReplaceByBatchId(payload) {
+  return payload?.forceReplaceByBatchId === true || payload?.replaceMode === "batch";
+}
+
+function normalizeReplaceBatchIds(payload) {
+  const values = [];
+  if (Array.isArray(payload?.replaceBatchIds)) {
+    values.push.apply(values, payload.replaceBatchIds);
+  }
+  normalizePayloads(payload).forEach(function (item) {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const patch = item && typeof item.csvPatch === "object" ? item.csvPatch : {};
+    const roleRecord = item && typeof item.roleRecord === "object" ? item.roleRecord : {};
+    const batchId = getBatchId(item, patch, roleRecord);
+    if (batchId) {
+      values.push(batchId);
+    }
+  });
+  return Array.from(
+    new Set(
+      values
+        .map(function (item) {
+          return cleanCsvValue(item || "");
+        })
+        .filter(Boolean)
+    )
+  );
+}
+
+function removeRowsByBatchIds(rowsByMergeRowId, batchIds) {
+  const rows = rowsByMergeRowId && typeof rowsByMergeRowId === "object" ? rowsByMergeRowId : {};
+  const normalizedBatchIds = Array.from(
+    new Set(
+      (Array.isArray(batchIds) ? batchIds : [])
+        .map(function (item) {
+          return cleanCsvValue(item || "");
+        })
+        .filter(Boolean)
+    )
+  );
+  if (normalizedBatchIds.length === 0) {
+    return {
+      deletedRowCount: 0,
+      deletedBatchIds: [],
+    };
+  }
+
+  const batchIdSet = new Set(normalizedBatchIds);
+  let deletedRowCount = 0;
+  Object.keys(rows).forEach(function (mergeRowId) {
+    const row = rows[mergeRowId] || {};
+    const rowBatchId = cleanCsvValue(row["分包ID"] || "");
+    if (!rowBatchId || !batchIdSet.has(rowBatchId)) {
+      return;
+    }
+    delete rows[mergeRowId];
+    deletedRowCount += 1;
+  });
+
+  return {
+    deletedRowCount: deletedRowCount,
+    deletedBatchIds: normalizedBatchIds,
+  };
+}
+
 function mergeUploadPayloads(payload, store) {
   const payloads = normalizePayloads(payload).filter(function (item) {
     return item && typeof item === "object";
@@ -333,6 +400,14 @@ function mergeUploadPayloads(payload, store) {
 
   const csvColumns = store.csvColumns || CSV_COLUMNS;
   const rowsByMergeRowId = store.loadRows();
+  const forceReplaceByBatchId = isForceReplaceByBatchId(payload);
+  const replaceBatchIds = forceReplaceByBatchId ? normalizeReplaceBatchIds(payload) : [];
+  if (forceReplaceByBatchId && replaceBatchIds.length === 0) {
+    throw new Error("force replace 缺少 replaceBatchIds / 分包ID，无法按分包ID替换旧数据。");
+  }
+  const deleteResult = forceReplaceByBatchId
+    ? removeRowsByBatchIds(rowsByMergeRowId, replaceBatchIds)
+    : { deletedRowCount: 0, deletedBatchIds: [] };
   const results = [];
   const failures = [];
   payloads.forEach(function (item) {
@@ -358,6 +433,11 @@ function mergeUploadPayloads(payload, store) {
     batchCount: results.length,
     failedCount: failures.length,
     failures: failures,
+    forceReplaceByBatchId: forceReplaceByBatchId,
+    replaceMode: forceReplaceByBatchId ? "batch" : "",
+    replaceBatchIds: forceReplaceByBatchId ? replaceBatchIds : [],
+    replacedBatchCount: forceReplaceByBatchId ? replaceBatchIds.length : 0,
+    deletedRowCount: deleteResult.deletedRowCount,
     results: results.map(function (item) {
       return {
         supplier: item.supplierName,
@@ -380,8 +460,11 @@ module.exports = {
   createMergeRowId,
   formatDuration,
   inferCompleted,
+  isForceReplaceByBatchId,
   mergeUploadPayloads,
   normalizeCompletedValue,
   normalizePayloads,
+  normalizeReplaceBatchIds,
+  removeRowsByBatchIds,
   resolveRowSupplier,
 };

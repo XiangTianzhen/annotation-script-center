@@ -1953,3 +1953,12 @@
     - 非法值或空值回落 `20`，小于 `1` 归一到 `1`，大于 `50` 归一到 `50`。
     - 运行时 `maxConcurrency` 上限同步放宽到 `50`，但填入阶段仍保持顺序消费。
     - 后端 provider queue 与 RPM 限流保持不变，前端并发提高只会让更多请求进入统一后端排队。
+## 2026-05-21 LabelX 统计上传 force replace
+
+- 覆盖范围：Alibaba LabelX ASR 快判统计上传、Alibaba LabelX ASR 转写统计上传。
+- 保留原有逻辑：手动上传默认先查 existing，`complete=true` 的完整分包默认跳过。
+- 新增首页手动补充模式：若本轮 `skippedCompleteCount > 0`，前端显示“取消跳过上传数据”按钮，60 秒内可点击。
+- 按钮触发后使用 `home-manual-force-replace`，重新拉取本轮范围内全部详情，不再跳过完整数据。
+- 后端按 `replaceBatchIds` 删除旧 CSV 行，再写入本次 payloads；普通上传与定时上传不受影响。
+- 详情页第一版不默认支持 force replace，避免只拿到单角色时误删整行另一角色字段。
+- 运行数据目录 `statistics-data/`、`export-data/`、`audit-data/` 仍不提交 Git。

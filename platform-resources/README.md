@@ -230,4 +230,10 @@ platform-resources/
 - `statistics-data/`、`export-data/`、`audit-data/` 都属于运行数据目录，不提交 Git。
 - 不提交 cookie/token/authorization/API Key/JWT secret/CRX 私钥。
 - 下载 URL 示例中的 token 必须使用占位符（如 `<downloadToken>`），不要写真实值。
+## 2026-05-21 LabelX 统计上传补充
 
+- Alibaba LabelX ASR 快判和 ASR 转写的手动统计上传，默认仍会跳过后端已完整的数据。
+- 仅首页 / 列表页的手动上传在本轮存在“跳过完整数据”时，才展示“取消跳过上传数据”按钮。
+- 点击后会重新拉取本轮范围内数据，并由后端按 `分包ID` 删除旧行后重写本次结果。
+- 定时上传不显示该按钮，也不会进入 force replace 模式。
+- 详情页第一版不默认支持 force replace，避免只上传单角色导致宽表另一角色列被清空。

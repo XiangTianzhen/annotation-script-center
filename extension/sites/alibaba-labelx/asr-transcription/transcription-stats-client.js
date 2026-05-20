@@ -234,9 +234,19 @@
     return step * SCHEDULE_UPLOAD_DELAY_STEP_MS;
   }
 
+  function isForceReplaceReason(reason) {
+    const text = String(reason || "").toLowerCase();
+    return text === "home-manual-force-replace" || text === "manual-force-replace";
+  }
+
   function isManualReason(reason) {
     const text = String(reason || "").toLowerCase();
-    return text === "manual" || text === "home-manual" || text === "detail-manual";
+    return (
+      text === "manual" ||
+      text === "home-manual" ||
+      text === "detail-manual" ||
+      isForceReplaceReason(text)
+    );
   }
 
   function getDurationValueForCheck(payload) {
@@ -1419,6 +1429,12 @@
     let uploadButtonRoot = null;
     let progressIndicator = null;
     let progressIndicatorTimer = null;
+    let forceReplaceAction = {
+      visible: false,
+      busy: false,
+      summary: null,
+      timerId: null,
+    };
 
     function getConfig() {
       return typeof options.getConfig === "function" ? options.getConfig() || {} : {};
@@ -1440,6 +1456,52 @@
       state.lastMessage = message || "";
       state.lastUploadAt = new Date().toISOString();
       notify();
+    }
+
+    function clearForceReplaceTimer() {
+      if (forceReplaceAction.timerId) {
+        window.clearTimeout(forceReplaceAction.timerId);
+        forceReplaceAction.timerId = null;
+      }
+    }
+
+    function getForceReplaceAction() {
+      if (!forceReplaceAction.visible || !isHomePage()) {
+        return null;
+      }
+      return forceReplaceAction;
+    }
+
+    function hideForceReplaceButton() {
+      clearForceReplaceTimer();
+      forceReplaceAction.visible = false;
+      forceReplaceAction.busy = false;
+      forceReplaceAction.summary = null;
+      ensureUploadButton();
+    }
+
+    function showForceReplaceButton(summary) {
+      clearForceReplaceTimer();
+      forceReplaceAction.visible = true;
+      forceReplaceAction.busy = false;
+      forceReplaceAction.summary = summary && typeof summary === "object" ? clone(summary) : null;
+      forceReplaceAction.timerId = window.setTimeout(function () {
+        forceReplaceAction.visible = false;
+        forceReplaceAction.busy = false;
+        forceReplaceAction.summary = null;
+        forceReplaceAction.timerId = null;
+        ensureUploadButton();
+      }, 60000);
+      ensureUploadButton();
+    }
+
+    function setForceReplaceButtonBusy(busy) {
+      if (!forceReplaceAction.visible && !busy) {
+        return;
+      }
+      forceReplaceAction.visible = true;
+      forceReplaceAction.busy = busy === true;
+      ensureUploadButton();
     }
 
     function showToast(message, tone) {
@@ -1485,7 +1547,9 @@
     }
 
     function setUploadButtonStatus(message, tone) {
-      const button = uploadButtonRoot?.querySelector("button");
+      const button =
+        uploadButtonRoot?.querySelector('button[data-role="upload-primary"]') ||
+        uploadButtonRoot?.querySelector("button");
       if (!button) {
         return;
       }
@@ -1568,10 +1632,16 @@
         return;
       }
 
+      const forceAction = getForceReplaceAction();
+      const forceVisibleFlag = forceAction ? "1" : "0";
+      const forceBusyFlag = forceAction && forceAction.busy ? "1" : "0";
       if (
         uploadButtonRoot &&
         uploadButtonRoot.isConnected &&
-        uploadButtonRoot.parentNode === mountPoint.host
+        uploadButtonRoot.parentNode === mountPoint.host &&
+        uploadButtonRoot.dataset.forceVisible === forceVisibleFlag &&
+        uploadButtonRoot.dataset.forceBusy === forceBusyFlag &&
+        uploadButtonRoot.dataset.uploading === String(state.uploading ? 1 : 0)
       ) {
         return;
       }
@@ -1579,9 +1649,13 @@
       removeUploadButton();
       uploadButtonRoot = document.createElement("span");
       uploadButtonRoot.id = "asr-edge-transcription-stats-upload-entry";
+      uploadButtonRoot.dataset.forceVisible = forceVisibleFlag;
+      uploadButtonRoot.dataset.forceBusy = forceBusyFlag;
+      uploadButtonRoot.dataset.uploading = String(state.uploading ? 1 : 0);
       Object.assign(uploadButtonRoot.style, {
         display: "flex",
         alignItems: "center",
+        gap: "8px",
         flex: "0 0 auto",
         marginLeft: "8px",
         marginRight: "8px",
@@ -1589,7 +1663,9 @@
 
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = "上传转写统计";
+      button.dataset.role = "upload-primary";
+      button.textContent = state.uploading ? "上传中" : "上传转写统计";
+      button.disabled = state.uploading;
       Object.assign(button.style, {
         border: "1px solid rgba(22, 119, 255, 0.42)",
         borderRadius: "6px",
@@ -1600,13 +1676,14 @@
         fontSize: "12px",
         fontWeight: "700",
         lineHeight: "26px",
-        cursor: "pointer",
+        cursor: state.uploading ? "not-allowed" : "pointer",
         whiteSpace: "nowrap",
+        opacity: state.uploading ? "0.72" : "1",
       });
       button.addEventListener("click", function () {
-        button.disabled = true;
-        button.style.opacity = "0.72";
-        button.textContent = "上传中";
+        if (state.uploading) {
+          return;
+        }
         setUploadButtonStatus("正在上传转写统计数据...", "info");
         void uploadNow(isHomePage() ? "home-manual" : "detail-manual")
           .then(function (result) {
@@ -1625,15 +1702,44 @@
           })
           .catch(function (error) {
             setUploadButtonStatus(error && error.message ? error.message : String(error), "error");
-          })
-          .finally(function () {
-            button.disabled = false;
-            button.style.opacity = "1";
-            button.textContent = "上传转写统计";
           });
       });
-
       uploadButtonRoot.appendChild(button);
+
+      if (forceAction) {
+        const forceButton = document.createElement("button");
+        forceButton.type = "button";
+        forceButton.dataset.role = "upload-force-replace";
+        forceButton.textContent = forceAction.busy ? "重新上传中" : "取消跳过上传数据";
+        forceButton.title = "重新拉取本轮跳过的完整数据，并按分包ID替换后端旧内容。定时上传不会触发。";
+        forceButton.disabled = state.uploading || forceAction.busy;
+        Object.assign(forceButton.style, {
+          border: "1px solid rgba(217, 119, 6, 0.42)",
+          borderRadius: "6px",
+          minHeight: "28px",
+          padding: "0 12px",
+          background: "#fff7ed",
+          color: "#b45309",
+          fontSize: "12px",
+          fontWeight: "700",
+          lineHeight: "26px",
+          cursor: state.uploading || forceAction.busy ? "not-allowed" : "pointer",
+          whiteSpace: "nowrap",
+          opacity: state.uploading || forceAction.busy ? "0.72" : "1",
+        });
+        forceButton.addEventListener("click", function () {
+          if (state.uploading || forceAction.busy) {
+            return;
+          }
+          setForceReplaceButtonBusy(true);
+          setUploadButtonStatus("正在取消跳过并重新上传...", "info");
+          void uploadNow("home-manual-force-replace").catch(function (error) {
+            setUploadButtonStatus(error && error.message ? error.message : String(error), "error");
+          });
+        });
+        uploadButtonRoot.appendChild(forceButton);
+      }
+
       if (mountPoint.before && mountPoint.before.parentNode === mountPoint.host) {
         mountPoint.host.insertBefore(uploadButtonRoot, mountPoint.before);
       } else {
@@ -1932,6 +2038,7 @@
       }
 
       const config = getConfig();
+      const forceReplaceByBatchId = isForceReplaceReason(reason);
       const existingItems = subtasks.map(function (entry) {
         return {
           batchId: entry.batchId,
@@ -1969,6 +2076,9 @@
         const statusKey = [entry.batchId, String(entry.pageGroup?.kind?.role || "label"), entry.subTaskId].join("|");
         const status = existingStatusByKey[statusKey];
         if (status && status.complete === true) {
+          if (forceReplaceByBatchId) {
+            return true;
+          }
           skippedCompleteCount += 1;
           return false;
         }
@@ -2110,6 +2220,17 @@
       }
 
       const failedCount = detailProgress.failed;
+      const replaceBatchIds = forceReplaceByBatchId
+        ? Array.from(
+            new Set(
+              payloads
+                .map(function (item) {
+                  return sanitizeBatchId(item?.mergeKey?.batchId || item?.csvPatch?.["分包ID"] || "");
+                })
+                .filter(Boolean)
+            )
+          )
+        : [];
 
       return {
         schemaVersion: 1,
@@ -2121,6 +2242,9 @@
         mergeKey: {
           projectId: projectId,
         },
+        forceReplaceByBatchId: forceReplaceByBatchId,
+        replaceMode: forceReplaceByBatchId ? "batch" : "",
+        replaceBatchIds: replaceBatchIds,
         payloads: payloads,
         summary: {
           projectId: projectId,
@@ -2133,7 +2257,9 @@
           payloadCount: payloads.length,
           skippedSubTaskCount: skippedSubTaskCount,
           skippedDuplicateSubTaskCount: skippedDuplicateSubTaskCount,
-          skippedCompleteCount: skippedCompleteCount,
+          skippedCompleteCount: forceReplaceByBatchId ? 0 : skippedCompleteCount,
+          forceReplaceByBatchId: forceReplaceByBatchId,
+          forceReplaceBatchCount: replaceBatchIds.length,
           incompleteFoundCount: incompleteFoundCount,
           discardedNoBatchCount: discardedNoBatchCount,
           skippedDetailCount: skippedDetailCount,
@@ -2370,12 +2496,21 @@
 
     async function uploadNow(reason) {
       const uploadReason = reason || "manual";
+      const isForceReplaceUpload = isForceReplaceReason(uploadReason);
       const config = getConfig();
       if (!shouldApply()) {
         return {
           ok: false,
           reason: "runtime-disabled",
           message: "当前不是转写统计运行态，未上传统计。",
+        };
+      }
+      if (isForceReplaceUpload && !isHomePage()) {
+        return {
+          success: false,
+          ok: false,
+          reason: uploadReason,
+          message: "详情页不支持取消跳过上传数据，请回到首页后重新上传。",
         };
       }
       if (state.uploading) {
@@ -2386,6 +2521,12 @@
           reason: "upload-in-progress",
           message: "转写统计上传中，请勿重复点击。",
         };
+      }
+
+      if (isForceReplaceUpload) {
+        setForceReplaceButtonBusy(true);
+      } else {
+        hideForceReplaceButton();
       }
 
       state.uploading = true;
@@ -2407,7 +2548,7 @@
         let postResult = null;
         if (uploadPayloadList.length > 0) {
           updateUploadProgress({
-            phase: "上传后端",
+            phase: isForceReplaceUpload ? "按分包ID替换上传" : "上传后端",
             total: 1,
             completed: 0,
             concurrency: 1,
@@ -2418,7 +2559,7 @@
             update: updateUploadProgress,
           });
           updateUploadProgress({
-            phase: "上传后端",
+            phase: isForceReplaceUpload ? "按分包ID替换上传" : "上传后端",
             total: 1,
             completed: 1,
             concurrency: 1,
@@ -2439,37 +2580,69 @@
         const concurrencyCount = Number(
           summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1)
         );
-        const summaryMessage =
-          "上传完成：扫描 " +
-          String(scannedCount) +
-          "，补齐 " +
-          String(detailCount) +
-          "，上传 " +
-          String(uploadCount) +
-          "，跳过完整 " +
-          String(skippedCompleteCount) +
-          "，字段待补 " +
-          String(incompleteFoundCount) +
-          "，废弃(无分包ID) " +
-          String(discardedNoBatchCount) +
-          "，失败 " +
-          String(failedCount) +
-          "，并发 " +
-          String(concurrencyCount) +
-          (summary.listPageOverflowCount || summary.detailPageOverflowCount
-            ? "（分页超上限，已截断）"
-            : "") +
-          (uploadPayloadList.length === 0
-            ? "。已全部完整，无需上传"
-            : "") +
-          (failedCount > 0
-            ? "。有数据导出失败，请再次点击导出"
-            : warningCount > 0
-              ? "。上传完成，部分字段待后续角色补齐"
-              : "");
+        let summaryMessage = "";
+        if (isForceReplaceUpload) {
+          summaryMessage =
+            "取消跳过上传完成：重新拉取 " +
+            String(detailCount || summary.subTaskCount || 0) +
+            "，上传 " +
+            String(uploadCount) +
+            "，按分包ID替换 " +
+            String(postResult?.data?.replacedBatchCount || summary.forceReplaceBatchCount || 0) +
+            " 个分包，删除旧行 " +
+            String(postResult?.data?.deletedRowCount || 0) +
+            " 行，失败 " +
+            String(failedCount) +
+            "。";
+        } else {
+          summaryMessage =
+            "上传完成：扫描 " +
+            String(scannedCount) +
+            "，补齐 " +
+            String(detailCount) +
+            "，上传 " +
+            String(uploadCount) +
+            "，跳过完整 " +
+            String(skippedCompleteCount) +
+            "，字段待补 " +
+            String(incompleteFoundCount) +
+            "，废弃(无分包ID) " +
+            String(discardedNoBatchCount) +
+            "，失败 " +
+            String(failedCount) +
+            "，并发 " +
+            String(concurrencyCount) +
+            (summary.listPageOverflowCount || summary.detailPageOverflowCount
+              ? "（分页超上限，已截断）"
+              : "") +
+            (uploadPayloadList.length === 0 ? "。已全部完整，无需上传" : "") +
+            (failedCount > 0
+              ? "。有数据导出失败，请再次点击导出"
+              : warningCount > 0
+                ? "。上传完成，部分字段待后续角色补齐"
+                : "");
+          if (
+            skippedCompleteCount > 0 &&
+            isHomePage() &&
+            isManualReason(uploadReason) &&
+            !isForceReplaceUpload
+          ) {
+            summaryMessage += "。可点击“取消跳过上传数据”重新拉取并替换这些分包。";
+          }
+        }
         completeUploadProgress(summaryMessage);
         setMessage(failedCount === 0, uploadReason, summaryMessage);
         showToast(summaryMessage, failedCount > 0 ? "error" : "info");
+        if (
+          skippedCompleteCount > 0 &&
+          isHomePage() &&
+          isManualReason(uploadReason) &&
+          !isForceReplaceUpload
+        ) {
+          showForceReplaceButton(summary);
+        } else {
+          hideForceReplaceButton();
+        }
         const uploadPayload = Array.isArray(payload.payloads) ? payload.payloads : [payload];
         return {
           success: true,
@@ -2487,6 +2660,9 @@
         };
       } catch (error) {
         const message = error && error.message ? error.message : String(error);
+        if (isForceReplaceUpload) {
+          setForceReplaceButtonBusy(false);
+        }
         failUploadProgress(message);
         setMessage(false, uploadReason, message);
         showToast("转写统计上传失败：" + message, "error");
@@ -2499,6 +2675,7 @@
       } finally {
         state.uploading = false;
         notify();
+        ensureUploadButton();
       }
     }
 

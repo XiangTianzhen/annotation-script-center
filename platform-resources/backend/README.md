@@ -408,3 +408,9 @@ DataBaker AI 架构补充：
 - 转写后端合并优先复用同 `分包ID + role + subTaskId` 的已有行，避免“旧空任务名称行”和“新补齐行”并存。
 - 无待上传 payload 时前端不调用 upload，仅提示“已全部完整，无需上传”。
 - 共享进度组件改为水平居中，完成态与进行中保持同一紧凑卡片布局。
+## 2026-05-21 LabelX force replace 上传说明
+
+- 统一后端继续复用原有 LabelX 统计上传地址，不新增独立 force replace 路由。
+- 当前仅 Alibaba LabelX ASR 快判与 ASR 转写支持手动 `forceReplaceByBatchId` 上传语义。
+- force replace 请求体会带 `replaceMode="batch"` 和 `replaceBatchIds`；后端在 `payload-merge.js` 先删旧行，再写入本次 payloads。
+- 定时上传 `reason=schedule` 不应传 `forceReplaceByBatchId`，统一保持默认 existing 跳过逻辑。

@@ -188,3 +188,13 @@ AI 日志与数据边界：
 - 旧 CSV 表头 `有效时长(秒)` 在读取时会自动归一为 `有效时长`。
 - 统计运行数据目录（`statistics-data/`）属于本地产物，不提交 Git。
 - 历史修复工具：`node platform-resources/alibaba-labelx/backend/legacy-csv-repair.js --dry-run`（预览）和 `--write --backup`（写入并备份）；运行 CSV 修复仅本地执行，不提交 Git。
+## 2026-05-21 手动取消跳过上传（快判）
+
+- 首页 / 列表页手动点击“上传统计”时，仍会先调用 existing 检查；`complete=true` 的分包默认跳过，不重复拉详情。
+- 只有手动首页上传结束后，且本轮 `skippedCompleteCount > 0` 时，顶部按钮旁才会出现“取消跳过上传数据”。
+- 点击后前端会改用 `reason=home-manual-force-replace`，重新拉取本轮范围内的全部快判详情，不再按 `complete=true` 跳过。
+- 强制上传 payload 会带上 `forceReplaceByBatchId=true`、`replaceMode="batch"` 和 `replaceBatchIds`。
+- 后端收到 force replace 后，会先按 `replaceBatchIds` 删除旧 CSV 行，再用本次 payloads 重建对应分包；不是在旧行上做补丁合并。
+- 定时上传 `reason=schedule` 仍保留默认跳过逻辑，不显示“取消跳过上传数据”，也不会触发按分包替换。
+- 详情页第一版不显示 force replace 按钮，避免只上传单角色后把另一角色字段清空。
+- CSV 字段口径不变，`statistics-data/` 仍属于运行产物，不提交 Git。

@@ -547,3 +547,10 @@ platform-resources/alibaba-labelx/asr-judgement/
 - 进行中/完成/失败统一为同一紧凑卡片布局，完成态不再出现横向绿色长条。
 - 快判上传按钮不再写入长 `title` 文案，悬停不再出现黑色长 tooltip。
 - 与转写保持同一 `shared/progress-indicator.js` 共享样式实现。
+## 2026-05-21 快判统计取消跳过上传
+
+- 手动点击首页“上传统计”时，仍先走 existing 检查，`complete=true` 的分包默认跳过。
+- 如果本轮存在 `skippedCompleteCount > 0`，上传完成后会在首页顶部按钮旁显示“取消跳过上传数据”。
+- 点击按钮后会使用 `reason=home-manual-force-replace` 重新拉取本轮全部快判详情，并携带 `forceReplaceByBatchId=true`、`replaceMode="batch"`、`replaceBatchIds` 上传。
+- 定时上传不会显示该按钮，也不会自动触发强制替换。
+- 详情页第一版不默认显示 force replace 按钮，避免单角色上传导致另一角色列丢失。
