@@ -20,6 +20,7 @@
 - `POST /api/data-baker/round-one-quality/ai/recommend`
 - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
 - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
+  - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId/debug`（仅 JSON 解析失败时返回脱敏 debugRawJson）
 - `GET /api/data-baker/round-one-quality/export/health`
 - `GET /api/data-baker/round-one-quality/export/config`
 - `POST /api/data-baker/round-one-quality/export/upload`
@@ -31,7 +32,7 @@
 - `index.js`：项目路由注册入口。
 - `ai-routes.js`：只负责 HTTP health / defaults / recommend / jobs 路由注册、请求体读取和响应返回。
 - `ai-service.js`：DataBaker AI 业务层，集中管理请求归一化、链路推导、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
-- `ai-job-store.js`：DataBaker AI 异步 job 的内存状态管理、TTL 清理和统计快照。
+- `ai-job-store.js`：DataBaker AI 异步 job 的内存状态管理、超时取消、TTL 清理、debug 原始 JSON 暂存和统计快照。
 - `export-routes.js`：导出 health / config / upload / download 路由。
 - `export-store.js`：导出文件落盘、latest/history/events 存储能力。
 - `platform-resources/backend/ai/providers/funasr-rest.js`：按阿里云官方 RESTful API 提交 Fun-ASR 异步任务、轮询任务并拉取转写结果。
@@ -77,8 +78,9 @@
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：Fun-ASR 批量连续填入是否启用后端异步 job，默认 `1`。
-- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job TTL，默认 `60000`（1 分钟）。
-- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 最大保留数量，默认 `1000`。
+- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `60000`；超时后会把 job 标记为 failed，并提示“当前任务超过60s，请重新请求。”。
+- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
+- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 最大保留数量，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
 - `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端轮询 job 状态建议间隔，默认 `1000` ms。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
@@ -87,7 +89,7 @@
 - `DATABAKER_AI_FUN_ASR_CONCURRENCY`：Fun-ASR 并发上限，默认 `2`；如 `2 核 2G` 服务器压力高，可继续调低，若资源充足也可手动调高。
 - `DATABAKER_AI_TEXT_CONCURRENCY`：Compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
-- `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `200`。
+- `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
 - `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
@@ -175,6 +177,9 @@ CSV 字段统一口径：
 11. 成功结果写入 TTL 缓存，并组装统一响应，返回模式、模型、队列、缓存、阶段耗时、`requestId` 和调试摘要。
 
 同步 recommend 与异步 jobs 的定位差异：
+
+- 异步 job 超时后会立刻 fail 并 abort；如果底层请求已经返回迟到结果，也只会记录 `ignoredLateResult=true`，不会覆盖 job 状态。
+- 只有 JSON 解析失败才会提供“复制原始JSON”调试入口；普通失败仍保持简短错误。
 
 - 单条“AI 推荐文本”按钮和非 Fun-ASR 批量路径仍可继续使用同步 `POST /ai/recommend`。
 - `two_stage + fun-asr` 的批量连续填入优先使用异步 job，避免一个请求同时等待：后端队列 -> Fun-ASR submit -> Fun-ASR poll -> compare -> 返回。

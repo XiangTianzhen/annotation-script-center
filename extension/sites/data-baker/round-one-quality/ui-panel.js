@@ -205,7 +205,50 @@
       "  padding: 0;",
       "}",
       ".asr-edge-db-batch-floating-failures li {",
-      "  margin: 0 0 4px;",
+      "  margin: 0 0 6px;",
+      "}",
+      ".asr-edge-db-batch-failure-item {",
+      "  display: flex;",
+      "  flex-wrap: wrap;",
+      "  gap: 6px;",
+      "  align-items: center;",
+      "}",
+      ".asr-edge-db-batch-failure-text {",
+      "  min-width: 0;",
+      "  flex: 1 1 220px;",
+      "  overflow-wrap: anywhere;",
+      "}",
+      ".asr-edge-db-batch-failure-debug {",
+      "  color: #b91c1c;",
+      "  border-color: #ef4444;",
+      "}",
+      ".asr-edge-db-debug-modal {",
+      "  position: fixed;",
+      "  inset: 0;",
+      "  z-index: 2147483600;",
+      "  background: rgba(15, 23, 42, 0.45);",
+      "  display: flex;",
+      "  align-items: center;",
+      "  justify-content: center;",
+      "  padding: 16px;",
+      "}",
+      ".asr-edge-db-debug-modal-card {",
+      "  width: min(820px, 100%);",
+      "  max-height: min(80vh, 900px);",
+      "  display: flex;",
+      "  flex-direction: column;",
+      "  gap: 10px;",
+      "  background: #fff;",
+      "  border-radius: 8px;",
+      "  padding: 12px;",
+      "  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.24);",
+      "}",
+      ".asr-edge-db-debug-modal textarea {",
+      "  width: 100%;",
+      "  min-height: 280px;",
+      "  resize: vertical;",
+      "  font-family: Consolas, 'Courier New', monospace;",
+      "  font-size: 12px;",
       "}",
       ".asr-edge-db-batch-floating-foot-actions {",
       "  margin-top: 8px;",
@@ -265,6 +308,9 @@
       typeof deps.onRetryFailedQualifiedFillItems === "function"
         ? deps.onRetryFailedQualifiedFillItems
         : null;
+    let loadFailureDebugJsonHandler =
+      typeof deps.onLoadFailureDebugJson === "function" ? deps.onLoadFailureDebugJson : null;
+    let debugModalNode = null;
 
     function findMountTarget() {
       return (
@@ -455,10 +501,27 @@
       const ul = document.createElement("ul");
       list.slice(0, 10).forEach(function (failure) {
         const li = document.createElement("li");
+        const wrap = document.createElement("div");
+        wrap.className = "asr-edge-db-batch-failure-item";
+        const text = document.createElement("div");
+        text.className = "asr-edge-db-batch-failure-text";
         const displayName = String(failure?.displayName || "未命名条目");
         const type = String(failure?.type || "unknown");
         const message = String(failure?.errorMessage || "");
-        li.textContent = displayName + " | " + type + (message ? " | " + message : "");
+        text.textContent = displayName + " | " + type + (message ? " | " + message : "");
+        wrap.appendChild(text);
+        if (failure?.hasDebugRawJson === true && typeof loadFailureDebugJsonHandler === "function") {
+          const debugButton = createButton("复制原始JSON", {});
+          debugButton.className = "asr-edge-db-batch-failure-debug";
+          debugButton.disabled = batchAutofillRunning;
+          debugButton.addEventListener("click", function () {
+            copyFailureDebugJson(failure).catch(function (error) {
+              setStatus(error?.message || String(error), "error");
+            });
+          });
+          wrap.appendChild(debugButton);
+        }
+        li.appendChild(wrap);
         ul.appendChild(li);
       });
       batchFloatingFailuresNode.appendChild(ul);
@@ -566,7 +629,7 @@
       const value = String(text || "");
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(value);
-        return;
+        return true;
       }
 
       const textarea = document.createElement("textarea");
@@ -575,8 +638,65 @@
       textarea.style.left = "-9999px";
       document.body.appendChild(textarea);
       textarea.select();
-      document.execCommand("copy");
+      const copied = document.execCommand("copy");
       textarea.remove();
+      if (!copied) {
+        throw new Error("clipboard-unavailable");
+      }
+      return true;
+    }
+
+    function hideDebugModal() {
+      if (debugModalNode) {
+        debugModalNode.remove();
+        debugModalNode = null;
+      }
+    }
+
+    function showDebugModal(text) {
+      hideDebugModal();
+      const modal = document.createElement("div");
+      modal.className = "asr-edge-db-debug-modal";
+      const card = document.createElement("div");
+      card.className = "asr-edge-db-debug-modal-card";
+      const title = document.createElement("div");
+      title.textContent = "原始 JSON 无法直接写入剪贴板，请手动复制：";
+      const textarea = document.createElement("textarea");
+      textarea.value = String(text || "");
+      const actions = document.createElement("div");
+      actions.className = "asr-edge-db-result-actions";
+      const closeButton = createButton("关闭", {});
+      closeButton.addEventListener("click", hideDebugModal);
+      actions.appendChild(closeButton);
+      card.appendChild(title);
+      card.appendChild(textarea);
+      card.appendChild(actions);
+      modal.appendChild(card);
+      modal.addEventListener("click", function (event) {
+        if (event.target === modal) {
+          hideDebugModal();
+        }
+      });
+      (document.body || document.documentElement).appendChild(modal);
+      debugModalNode = modal;
+      textarea.focus();
+      textarea.select();
+    }
+
+    async function copyFailureDebugJson(failure) {
+      if (typeof loadFailureDebugJsonHandler !== "function") {
+        throw new Error("当前失败项没有可复制的原始 JSON。");
+      }
+      const debugPayload = await loadFailureDebugJsonHandler(failure);
+      const debugText = JSON.stringify(debugPayload || {}, null, 2);
+      try {
+        await copyText(debugText);
+        hideDebugModal();
+        setStatus("原始JSON已复制。", "success");
+      } catch (error) {
+        showDebugModal(debugText);
+        setStatus("剪贴板不可用，请在弹窗中手动复制原始JSON。", "info");
+      }
     }
 
     function renderResult(result) {
@@ -1012,6 +1132,8 @@
         typeof deps.onRetryFailedQualifiedFillItems === "function"
           ? deps.onRetryFailedQualifiedFillItems
           : null;
+      loadFailureDebugJsonHandler =
+        typeof deps.onLoadFailureDebugJson === "function" ? deps.onLoadFailureDebugJson : null;
     }
 
     function setBatchAutofillRunning(isRunning) {
@@ -1048,6 +1170,10 @@
       }
     }
 
+    function setLoadFailureDebugJsonHandler(handler) {
+      loadFailureDebugJsonHandler = typeof handler === "function" ? handler : null;
+    }
+
     return {
       clearResult,
       copyHeardText,
@@ -1062,6 +1188,7 @@
       renderResult,
       requestAiRecommend,
       setBatchFailureRetryHandler,
+      setLoadFailureDebugJsonHandler,
       setBatchAutofillPhase,
       setBatchAutofillRunning,
       setBatchAutofillStopping,

@@ -8,6 +8,8 @@ const DEFAULT_COMPARE_MODEL = "qwen3.5-plus";
 const DEFAULT_FUN_ASR_MODEL = "fun-asr";
 const DEFAULT_FUN_ASR_PROVIDER = "rest";
 const DEFAULT_FUN_ASR_REST_POLL_INTERVAL_MS = 1000;
+const DEFAULT_JOB_TIMEOUT_MS = 60000;
+const DEFAULT_JOB_TTL_MS = 1800000;
 const DATABAKER_LISTEN_MODEL_OPTIONS = [
   "fun-asr",
   "qwen3.5-omni-plus",
@@ -60,6 +62,22 @@ function parseTimeoutMs() {
     return DEFAULT_TIMEOUT_MS;
   }
   return Math.max(1000, Math.min(300000, Math.floor(value)));
+}
+
+function parseDataBakerJobTimeoutMs() {
+  const value = Number(process.env.DATABAKER_AI_JOB_TIMEOUT_MS || DEFAULT_JOB_TIMEOUT_MS);
+  if (!Number.isFinite(value)) {
+    return DEFAULT_JOB_TIMEOUT_MS;
+  }
+  return Math.max(1000, Math.min(300000, Math.floor(value)));
+}
+
+function parseDataBakerJobTtlMs() {
+  const value = Number(process.env.DATABAKER_AI_JOB_TTL_MS || DEFAULT_JOB_TTL_MS);
+  if (!Number.isFinite(value)) {
+    return DEFAULT_JOB_TTL_MS;
+  }
+  return Math.max(10000, Math.min(24 * 60 * 60 * 1000, Math.floor(value)));
 }
 
 function isMockEnabled() {
@@ -286,6 +304,8 @@ module.exports = {
   DEFAULT_FUN_ASR_MODEL,
   DEFAULT_FUN_ASR_PROVIDER,
   DEFAULT_FUN_ASR_REST_POLL_INTERVAL_MS,
+  DEFAULT_JOB_TIMEOUT_MS,
+  DEFAULT_JOB_TTL_MS,
   DEFAULT_OMNI_MODEL,
   DATABAKER_SINGLE_MODEL_OPTIONS,
   DATABAKER_COMPARE_MODEL_OPTIONS,
@@ -312,9 +332,12 @@ module.exports = {
   resolveDataBakerDefaultListenModel,
   resolveDataBakerDefaultSingleModel,
   isMockEnabled,
+  parseDataBakerJobTimeoutMs,
+  parseDataBakerJobTtlMs,
   parseEnableThinkingDefault,
   parseFunAsrPollIntervalMs,
   parseLanguageHints,
   parseTimeoutMs,
   trimSlash,
 };
+

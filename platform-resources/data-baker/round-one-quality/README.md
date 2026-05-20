@@ -145,7 +145,10 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_FUN_ASR_CONCURRENCY`：Fun-ASR 并发上限，默认 `5`；`2 核 2G` 服务器压力高时建议调低到 `3`。
 - `DATABAKER_AI_TEXT_CONCURRENCY`：Compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
-- `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `200`。
+- `DATABAKER_AI_JOB_TIMEOUT_MS`：单个异步 job 超时，默认 `60000`；超时后前端固定提示“当前任务超过60s，请重新请求。”。
+- `DATABAKER_AI_JOB_TTL_MS`：异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
+- `DATABAKER_AI_JOB_MAX_SIZE`：异步 job 最大保留数量，默认 `600`。
+- `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `600`。
 - `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
@@ -211,6 +214,8 @@ platform-resources/backend/ai/python/requirements.txt
   - 当前只做单条 REST 调用，不启用 `file_urls` batch
 - 默认链路不启动 Python 子进程，可降低本机 CPU 压力
 - `two_stage + fun-asr` 的批量连续填入默认会走异步 job：单条“AI 推荐文本”按钮仍保留同步 `POST /ai/recommend`，批量则走 `POST /ai/recommend/jobs` + `GET /ai/recommend/jobs/:jobId`
+- 如果单个 job 超过 `60000ms`，后端会强制失败并取消或逻辑丢弃迟到结果，前端固定显示“当前任务超过60s，请重新请求。”。
+- 如果模型输出 JSON 解析失败，失败列表会显示“复制原始JSON”按钮；点击后会从 `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId/debug` 获取脱敏 debug JSON。
 - job 默认 TTL 为 `60000`（1 分钟）；超时过期或后端重启后，前端需重新提交
 - Python fallback 编码补充：
   - 仅显式切到 `provider=python` 时，Node 后端才会向 Python 子进程显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`

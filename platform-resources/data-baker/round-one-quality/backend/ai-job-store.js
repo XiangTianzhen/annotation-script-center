@@ -2,8 +2,15 @@
 
 const crypto = require("crypto");
 
-const DEFAULT_JOB_TTL_MS = 60000;
-const DEFAULT_JOB_MAX_SIZE = 1000;
+const {
+  DEFAULT_JOB_TIMEOUT_MS,
+  DEFAULT_JOB_TTL_MS,
+  parseDataBakerJobTimeoutMs,
+  parseDataBakerJobTtlMs,
+} = require("../../../backend/ai/config");
+const { createJobTimeoutError } = require("../../../backend/ai/errors");
+
+const DEFAULT_JOB_MAX_SIZE = 600;
 const DEFAULT_JOB_POLL_INTERVAL_MS = 1000;
 
 function parseIntegerInRange(value, fallback, min, max) {
@@ -21,12 +28,8 @@ function isAiJobsEnabled() {
 function getAiJobStoreConfig() {
   return {
     enabled: isAiJobsEnabled(),
-    ttlMs: parseIntegerInRange(
-      process.env.DATABAKER_AI_JOB_TTL_MS,
-      DEFAULT_JOB_TTL_MS,
-      10000,
-      24 * 60 * 60 * 1000
-    ),
+    ttlMs: parseDataBakerJobTtlMs(),
+    timeoutMs: parseDataBakerJobTimeoutMs(),
     maxSize: parseIntegerInRange(
       process.env.DATABAKER_AI_JOB_MAX_SIZE,
       DEFAULT_JOB_MAX_SIZE,
@@ -43,7 +46,7 @@ function getAiJobStoreConfig() {
 }
 
 function createStoreFullError() {
-  const error = new Error("后端异步任务池已满，请稍后重试。");
+  const error = new Error("后端 AI 任务队列已满，请稍后重试。");
   error.code = "ai-job-store-full";
   error.statusCode = 503;
   return error;
@@ -52,6 +55,13 @@ function createStoreFullError() {
 function createJobNotFoundError() {
   const error = new Error("后端任务不存在或已过期，请重试。");
   error.code = "ai-job-not-found";
+  error.statusCode = 404;
+  return error;
+}
+
+function createJobDebugNotFoundError() {
+  const error = new Error("当前任务没有可复制的原始 JSON 调试信息。", "ai-job-debug-not-found", 404);
+  error.code = "ai-job-debug-not-found";
   error.statusCode = 404;
   return error;
 }
@@ -67,13 +77,30 @@ function cloneJob(job) {
   return JSON.parse(JSON.stringify(job || null));
 }
 
+function isTerminalStatus(status) {
+  return status === "succeeded" || status === "failed";
+}
+
 class DataBakerAiJobStore {
   constructor() {
     this.jobs = new Map();
+    this.controls = new Map();
+    this.debugByJobId = new Map();
   }
 
   getConfig() {
     return getAiJobStoreConfig();
+  }
+
+  clearControl(jobId) {
+    const control = this.controls.get(jobId);
+    if (!control) {
+      return;
+    }
+    if (control.timeoutTimer) {
+      clearTimeout(control.timeoutTimer);
+    }
+    control.timeoutTimer = null;
   }
 
   cleanupExpired(now) {
@@ -91,6 +118,9 @@ class DataBakerAiJobStore {
     });
     expiredJobIds.forEach(
       function (jobId) {
+        this.clearControl(jobId);
+        this.controls.delete(jobId);
+        this.debugByJobId.delete(jobId);
         this.jobs.delete(jobId);
       }.bind(this)
     );
@@ -110,11 +140,46 @@ class DataBakerAiJobStore {
       if (!oldest?.jobId) {
         continue;
       }
+      this.clearControl(oldest.jobId);
+      this.controls.delete(oldest.jobId);
+      this.debugByJobId.delete(oldest.jobId);
       this.jobs.delete(oldest.jobId);
     }
     if (this.jobs.size >= config.maxSize) {
       throw createStoreFullError();
     }
+  }
+
+  handleTimeout(jobId) {
+    const control = this.controls.get(jobId);
+    const job = this.jobs.get(jobId);
+    if (!control || !job || isTerminalStatus(job.status)) {
+      return;
+    }
+    control.timedOut = true;
+    control.timeoutTimer = null;
+    if (control.controller && typeof control.controller.abort === "function") {
+      try {
+        control.controller.abort(createJobTimeoutError());
+      } catch (error) {
+        control.controller.abort();
+      }
+    }
+    this.updateJob(jobId, function (mutableJob) {
+      if (isTerminalStatus(mutableJob.status)) {
+        return { ignored: true };
+      }
+      mutableJob.status = "failed";
+      mutableJob.finishedAt = Date.now();
+      mutableJob.result = null;
+      mutableJob.runtime = Object.assign({}, mutableJob.runtime || {}, {
+        timedOut: true,
+      });
+      mutableJob.providerStatus = 504;
+      mutableJob.errorCode = "ai-job-timeout";
+      mutableJob.errorMessage = "当前任务超过60s，请重新请求。";
+      return { ignored: false };
+    });
   }
 
   createJob(meta) {
@@ -145,8 +210,20 @@ class DataBakerAiJobStore {
       errorMessage: "",
       providerStatus: 0,
       runtime: null,
+      hasDebugRawJson: false,
     };
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const control = {
+      controller,
+      timeoutTimer: null,
+      timedOut: false,
+    };
+    control.timeoutTimer = setTimeout(
+      this.handleTimeout.bind(this, jobId),
+      Math.max(1000, Number(config.timeoutMs) || DEFAULT_JOB_TIMEOUT_MS)
+    );
     this.jobs.set(jobId, job);
+    this.controls.set(jobId, control);
     return cloneJob(job);
   }
 
@@ -160,30 +237,78 @@ class DataBakerAiJobStore {
     return cloneJob(job);
   }
 
+  getJobSignal(jobId) {
+    const normalizedJobId = String(jobId || "").trim();
+    const job = this.jobs.get(normalizedJobId);
+    if (!job) {
+      throw createJobNotFoundError();
+    }
+    const control = this.controls.get(normalizedJobId);
+    return control?.controller?.signal || null;
+  }
+
+  getJobDebug(jobId) {
+    this.cleanupExpired(Date.now());
+    const normalizedJobId = String(jobId || "").trim();
+    const job = this.jobs.get(normalizedJobId);
+    if (!job) {
+      throw createJobNotFoundError();
+    }
+    const debug = this.debugByJobId.get(normalizedJobId);
+    if (!debug) {
+      throw createJobDebugNotFoundError();
+    }
+    return JSON.parse(JSON.stringify(debug));
+  }
+
   updateJob(jobId, updater) {
     const normalizedJobId = String(jobId || "").trim();
     const job = this.jobs.get(normalizedJobId);
     if (!job) {
       throw createJobNotFoundError();
     }
-    updater(job);
+    const outcome = updater(job) || {};
     job.updatedAt = Date.now();
     this.jobs.set(normalizedJobId, job);
-    return cloneJob(job);
+    return {
+      job: cloneJob(job),
+      ignored: outcome.ignored === true,
+    };
+  }
+
+  saveDebug(jobId, debugRawJson) {
+    const normalizedJobId = String(jobId || "").trim();
+    if (!debugRawJson || typeof debugRawJson !== "object") {
+      return;
+    }
+    this.debugByJobId.set(normalizedJobId, JSON.parse(JSON.stringify(debugRawJson)));
+    const job = this.jobs.get(normalizedJobId);
+    if (job) {
+      job.hasDebugRawJson = true;
+      job.updatedAt = Date.now();
+      this.jobs.set(normalizedJobId, job);
+    }
   }
 
   markRunning(jobId) {
     return this.updateJob(jobId, function (job) {
+      if (isTerminalStatus(job.status)) {
+        return { ignored: true };
+      }
       if (!job.startedAt) {
         job.startedAt = Date.now();
       }
       job.status = "running";
+      return { ignored: false };
     });
   }
 
   markSucceeded(jobId, data) {
     const source = data && typeof data === "object" ? data : {};
-    return this.updateJob(jobId, function (job) {
+    const outcome = this.updateJob(jobId, function (job) {
+      if (isTerminalStatus(job.status)) {
+        return { ignored: true };
+      }
       job.status = "succeeded";
       job.finishedAt = Date.now();
       job.result = source.result || null;
@@ -191,12 +316,23 @@ class DataBakerAiJobStore {
       job.providerStatus = Number(source.providerStatus) || 0;
       job.errorCode = "";
       job.errorMessage = "";
+      return { ignored: false };
     });
+    if (!outcome.ignored) {
+      this.clearControl(jobId);
+    }
+    return outcome;
   }
 
   markFailed(jobId, errorLike) {
     const source = errorLike && typeof errorLike === "object" ? errorLike : {};
-    return this.updateJob(jobId, function (job) {
+    if (source.debugRawJson) {
+      this.saveDebug(jobId, source.debugRawJson);
+    }
+    const outcome = this.updateJob(jobId, function (job) {
+      if (isTerminalStatus(job.status)) {
+        return { ignored: true };
+      }
       job.status = "failed";
       job.finishedAt = Date.now();
       job.result = null;
@@ -204,7 +340,12 @@ class DataBakerAiJobStore {
       job.providerStatus = Number(source.providerStatus) || 0;
       job.errorCode = String(source.code || "").trim();
       job.errorMessage = String(source.message || "DataBaker AI recommend 失败。").trim().slice(0, 240);
+      return { ignored: false };
     });
+    if (!outcome.ignored) {
+      this.clearControl(jobId);
+    }
+    return outcome;
   }
 
   getSnapshot() {
@@ -232,6 +373,7 @@ class DataBakerAiJobStore {
     return {
       enabled: config.enabled,
       ttlMs: config.ttlMs,
+      timeoutMs: config.timeoutMs,
       maxSize: config.maxSize,
       pollIntervalMs: config.pollIntervalMs,
       activeCount,
@@ -248,7 +390,9 @@ const jobStore = new DataBakerAiJobStore();
 module.exports = {
   DEFAULT_JOB_MAX_SIZE,
   DEFAULT_JOB_POLL_INTERVAL_MS,
+  DEFAULT_JOB_TIMEOUT_MS,
   DEFAULT_JOB_TTL_MS,
+  createJobDebugNotFoundError,
   createJobNotFoundError,
   createJobsDisabledError,
   createStoreFullError,
@@ -256,7 +400,10 @@ module.exports = {
   getAiJobStoreConfig,
   getAiJobStoreSnapshot: jobStore.getSnapshot.bind(jobStore),
   getAiRecommendJob: jobStore.getJob.bind(jobStore),
+  getAiRecommendJobDebug: jobStore.getJobDebug.bind(jobStore),
+  getAiRecommendJobSignal: jobStore.getJobSignal.bind(jobStore),
   markAiRecommendJobFailed: jobStore.markFailed.bind(jobStore),
   markAiRecommendJobRunning: jobStore.markRunning.bind(jobStore),
   markAiRecommendJobSucceeded: jobStore.markSucceeded.bind(jobStore),
 };
+

@@ -1,8 +1,12 @@
 "use strict";
 
-const { createRateLimitError, isProviderRateLimitedError } = require("./errors");
+const {
+  createRateLimitError,
+  isProviderRateLimitedError,
+  normalizeAbortError,
+} = require("./errors");
 
-const DEFAULT_QUEUE_MAX_SIZE = 200;
+const DEFAULT_QUEUE_MAX_SIZE = 600;
 const DEFAULT_RETRY_MAX = 3;
 const DEFAULT_RETRY_BASE_DELAY_MS = 1200;
 const DEFAULT_RETRY_MAX_DELAY_MS = 12000;
@@ -28,9 +32,36 @@ const DEFAULT_GROUP_SETTINGS = {
 };
 const queueRegistry = new Map();
 
-function delay(ms) {
-  return new Promise(function (resolve) {
-    setTimeout(resolve, Math.max(0, Number(ms) || 0));
+function isAbortSignalAborted(signal) {
+  return Boolean(signal && signal.aborted === true);
+}
+
+function createQueueAbortError(signal) {
+  return normalizeAbortError(signal?.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
+}
+
+function delay(ms, signal) {
+  return new Promise(function (resolve, reject) {
+    if (isAbortSignalAborted(signal)) {
+      reject(createQueueAbortError(signal));
+      return;
+    }
+    const timer = setTimeout(function () {
+      if (signal && typeof signal.removeEventListener === "function" && onAbort) {
+        signal.removeEventListener("abort", onAbort);
+      }
+      resolve();
+    }, Math.max(0, Number(ms) || 0));
+    const onAbort = function () {
+      clearTimeout(timer);
+      if (signal && typeof signal.removeEventListener === "function") {
+        signal.removeEventListener("abort", onAbort);
+      }
+      reject(createQueueAbortError(signal));
+    };
+    if (signal && typeof signal.addEventListener === "function") {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
   });
 }
 
@@ -90,7 +121,7 @@ function getGroupSettings(groupName) {
 }
 
 function createQueueOverflowError(groupName, settings) {
-  const error = new Error("后端 AI 排队已满，请稍后重试。");
+  const error = new Error("后端 AI 任务队列已满，请稍后重试。");
   error.code = "provider-queue-full";
   error.statusCode = 503;
   error.groupName = groupName;
@@ -123,6 +154,7 @@ class ProviderQueue {
       failedCount: 0,
       retriedCount: 0,
       overflowCount: 0,
+      abortedCount: 0,
       lastStartedAt: 0,
       lastFinishedAt: 0,
     };
@@ -149,20 +181,42 @@ class ProviderQueue {
     };
   }
 
-  enqueue(task) {
+  enqueue(task, options) {
     const settings = this.getSettings();
+    const signal = options?.signal;
+    if (isAbortSignalAborted(signal)) {
+      return Promise.reject(createQueueAbortError(signal));
+    }
     if (this.items.length >= settings.maxSize) {
       this.stats.overflowCount += 1;
       return Promise.reject(createQueueOverflowError(this.groupName, settings));
     }
     const queue = this;
     return new Promise(function (resolve, reject) {
-      queue.items.push({
+      const item = {
         task,
         resolve,
         reject,
         enqueuedAt: Date.now(),
-      });
+        signal,
+        started: false,
+        abortHandler: null,
+      };
+      if (signal && typeof signal.addEventListener === "function") {
+        item.abortHandler = function () {
+          if (item.started) {
+            return;
+          }
+          const index = queue.items.indexOf(item);
+          if (index >= 0) {
+            queue.items.splice(index, 1);
+          }
+          queue.stats.abortedCount += 1;
+          reject(createQueueAbortError(signal));
+        };
+        signal.addEventListener("abort", item.abortHandler, { once: true });
+      }
+      queue.items.push(item);
       queue.stats.enqueuedCount += 1;
       queue.schedule();
     });
@@ -193,6 +247,15 @@ class ProviderQueue {
       if (!item) {
         return;
       }
+      if (item.abortHandler && item.signal && typeof item.signal.removeEventListener === "function") {
+        item.signal.removeEventListener("abort", item.abortHandler);
+      }
+      if (isAbortSignalAborted(item.signal)) {
+        this.stats.abortedCount += 1;
+        item.reject(createQueueAbortError(item.signal));
+        continue;
+      }
+      item.started = true;
       this.startItem(item, settings);
     }
   }
@@ -223,7 +286,7 @@ class ProviderQueue {
     const queue = this;
     (async function () {
       try {
-        const value = await queue.executeWithRetry(item.task, settings, queueMeta);
+        const value = await queue.executeWithRetry(item.task, settings, queueMeta, item.signal);
         queueMeta.finishedAt = Date.now();
         queueMeta.durationMs = Math.max(0, queueMeta.finishedAt - queueStartedAt);
         queue.stats.completedCount += 1;
@@ -231,7 +294,11 @@ class ProviderQueue {
       } catch (error) {
         queueMeta.finishedAt = Date.now();
         queueMeta.durationMs = Math.max(0, queueMeta.finishedAt - queueStartedAt);
-        queue.stats.failedCount += 1;
+        if (error?.code === "ai-job-timeout" || error?.code === "aborted") {
+          queue.stats.abortedCount += 1;
+        } else {
+          queue.stats.failedCount += 1;
+        }
         error.queueMeta = Object.assign({}, queueMeta);
         item.reject(error);
       } finally {
@@ -250,12 +317,18 @@ class ProviderQueue {
     this.schedule();
   }
 
-  async executeWithRetry(task, settings, queueMeta) {
+  async executeWithRetry(task, settings, queueMeta, signal) {
     let lastError = null;
     for (let attempt = 0; attempt <= settings.retryMax; attempt += 1) {
+      if (isAbortSignalAborted(signal)) {
+        throw createQueueAbortError(signal);
+      }
       try {
         return await task();
       } catch (error) {
+        if (error?.code === "ai-job-timeout" || error?.code === "aborted") {
+          throw error;
+        }
         lastError = error;
         if (!isProviderRateLimitedError(error) || attempt >= settings.retryMax) {
           break;
@@ -264,7 +337,7 @@ class ProviderQueue {
         queueMeta.retryCount += 1;
         queueMeta.retryDelaysMs.push(retryDelayMs);
         this.stats.retriedCount += 1;
-        await delay(retryDelayMs);
+        await delay(retryDelayMs, signal);
       }
     }
     if (isProviderRateLimitedError(lastError)) {
@@ -282,8 +355,8 @@ function getOrCreateQueue(groupName) {
   return queueRegistry.get(key);
 }
 
-async function enqueueProviderTask(groupName, task) {
-  return getOrCreateQueue(groupName).enqueue(task);
+async function enqueueProviderTask(groupName, task, options) {
+  return getOrCreateQueue(groupName).enqueue(task, options || {});
 }
 
 function getQueueSnapshots() {

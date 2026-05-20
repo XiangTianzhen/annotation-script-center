@@ -5,6 +5,12 @@
   const DEFAULT_JOB_POLL_INTERVAL_MS = 1000;
   const DEFAULT_JOB_MAX_WAIT_MS = 300000;
 
+  function createClientError(message, details) {
+    const error = new Error(String(message || "请求失败。"));
+    Object.assign(error, details || {});
+    return error;
+  }
+
   function buildFriendlyErrorMessage(responseBody, status) {
     const code = String(responseBody?.code || "");
     if (code === "fun-asr-python-not-configured") {
@@ -13,8 +19,8 @@
     if (code === "invalid-fun-asr-model") {
       return "Fun-ASR 模型名应为 fun-asr。";
     }
-    if (code === "provider-queue-full") {
-      return "后端 AI 排队已满，请稍后重试。";
+    if (code === "provider-queue-full" || code === "ai-job-store-full") {
+      return "后端 AI 任务队列已满，请稍后重试。";
     }
     if (code === "provider-rate-limited" || Number(responseBody?.providerStatus) === 429) {
       return "上游模型限流，后端已重试仍失败，请稍后重试。";
@@ -25,11 +31,11 @@
     if (code === "fun-asr-audio-url-unreachable") {
       return "Fun-ASR 调用被拒绝。当前更像是平台音频 URL 对模型服务不可访问。可先切换到 qwen3.5-omni-plus 或 qwen3.5-omni-flash 恢复使用。";
     }
+    if (code === "ai-job-timeout") {
+      return "当前任务超过60s，请重新请求。";
+    }
     if (code === "timeout") {
       return "AI 分析超时，请稍后重试。";
-    }
-    if (code === "ai-job-store-full") {
-      return "后端异步任务池已满，请稍后重试。";
     }
     if (code === "ai-job-not-found") {
       return "后端任务不存在或已过期，请重试。";
@@ -37,11 +43,29 @@
     if (code === "ai-jobs-disabled") {
       return "当前后端未启用 Fun-ASR 异步任务接口。";
     }
+    if (code === "model-json-parse-failed") {
+      return "模型输出 JSON 解析失败，可复制原始JSON后反馈修复。";
+    }
     return String(responseBody?.message || "AI 推荐接口请求失败（HTTP " + String(status) + "）。");
   }
 
   function buildFriendlyAsyncJobFetchErrorMessage() {
-    return "后端连接中断或代理超时；Fun-ASR 批量已改为异步任务，请刷新后重试，或检查后端日志。";
+    return "后端连接中断，请稍后重试。";
+  }
+
+  function buildApiError(responseBody, status, fallbackMessage) {
+    const normalizedBody = responseBody && typeof responseBody === "object" ? responseBody : {};
+    return createClientError(buildFriendlyErrorMessage(normalizedBody, status), {
+      code: String(normalizedBody.code || ""),
+      status: Number(status) || 0,
+      providerStatus: Number(normalizedBody.providerStatus) || 0,
+      requestId: String(normalizedBody.requestId || normalizedBody.data?.requestId || ""),
+      jobId: String(normalizedBody.jobId || ""),
+      hasDebugRawJson: normalizedBody.hasDebugRawJson === true,
+      debugRawJson: normalizedBody.debugRawJson || null,
+      responseBody: normalizedBody,
+      fallbackMessage: String(fallbackMessage || ""),
+    });
   }
 
   function getClientVersion() {
@@ -97,6 +121,10 @@
       } catch (error) {
         return DEFAULT_ENDPOINT.replace(/\/+$/, "") + "/jobs";
       }
+    }
+
+    function getJobDebugEndpoint(jobId) {
+      return getJobsEndpoint().replace(/\/+$/, "") + "/" + encodeURIComponent(String(jobId || "").trim()) + "/debug";
     }
 
     function createRequestBody(source) {
@@ -167,10 +195,14 @@
         };
       } catch (error) {
         if (error?.name === "AbortError") {
-          throw new Error(onAbortMessage || "AI 推荐接口请求超时。");
+          throw createClientError(onAbortMessage || "AI 推荐接口请求超时。", {
+            code: "timeout",
+          });
         }
         if (error instanceof TypeError) {
-          throw new Error(onNetworkErrorMessage || "后端连接失败，请检查统一后端是否可访问。");
+          throw createClientError(onNetworkErrorMessage || "后端连接中断，请稍后重试。", {
+            code: "network-disconnected",
+          });
         }
         throw error;
       } finally {
@@ -209,12 +241,12 @@
         },
         timeoutMs,
         "AI 推荐接口请求超时。",
-        "后端连接失败，请检查统一后端是否可访问。"
+        "后端连接中断，请稍后重试。"
       );
       const response = result.response;
       const responseBody = result.responseBody;
       if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
-        throw new Error(buildFriendlyErrorMessage(responseBody, response.status));
+        throw buildApiError(responseBody, response.status, "AI 推荐接口请求失败。", true);
       }
       return responseBody.data;
     }
@@ -238,7 +270,7 @@
       const response = result.response;
       const responseBody = result.responseBody;
       if (!response.ok || responseBody?.success !== true || !responseBody?.jobId) {
-        throw new Error(buildFriendlyErrorMessage(responseBody, response.status));
+        throw buildApiError(responseBody, response.status, "创建后端异步任务失败。", true);
       }
       return {
         jobId: String(responseBody.jobId || ""),
@@ -276,10 +308,13 @@
         const response = result.response;
         const responseBody = result.responseBody;
         if (response.status === 404 || responseBody?.code === "ai-job-not-found") {
-          throw new Error("后端任务不存在或已过期，请重试。");
+          throw createClientError("后端任务不存在或已过期，请重试。", {
+            code: "ai-job-not-found",
+            jobId: String(jobId || ""),
+          });
         }
         if (!response.ok) {
-          throw new Error(buildFriendlyErrorMessage(responseBody, response.status));
+          throw buildApiError(responseBody, response.status, "查询后端异步任务失败。", true);
         }
         const status = String(responseBody?.status || "").trim().toLowerCase();
         if (onJobUpdate) {
@@ -293,11 +328,41 @@
           return responseBody.data;
         }
         if (status === "failed") {
-          throw new Error(buildFriendlyErrorMessage(responseBody, response.status));
+          throw buildApiError(Object.assign({}, responseBody, { jobId: String(jobId || "") }), response.status, "后端异步任务失败。", true);
         }
         await delay(pollIntervalMs);
       }
-      throw new Error("后端异步任务等待超时，请稍后重试。");
+      throw createClientError("后端异步任务等待超时，请稍后重试。", {
+        code: "timeout",
+        jobId: String(jobId || ""),
+      });
+    }
+
+    async function getRecommendJobDebug(jobId) {
+      const normalizedJobId = String(jobId || "").trim();
+      if (!normalizedJobId) {
+        throw createClientError("缺少 jobId，无法获取原始 JSON。", {
+          code: "ai-job-debug-not-found",
+        });
+      }
+      const result = await fetchJsonWithTimeout(
+        getJobDebugEndpoint(normalizedJobId),
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        },
+        15000,
+        "读取原始 JSON 超时。",
+        buildFriendlyAsyncJobFetchErrorMessage()
+      );
+      const response = result.response;
+      const responseBody = result.responseBody;
+      if (!response.ok || responseBody?.success !== true || !responseBody?.debug) {
+        throw buildApiError(responseBody, response.status, "读取原始 JSON 失败。", true);
+      }
+      return responseBody.debug;
     }
 
     async function recommendAsync(item, options) {
@@ -323,6 +388,7 @@
       recommend,
       recommendAsync,
       createRecommendJob,
+      getRecommendJobDebug,
       pollRecommendJob,
     };
   }

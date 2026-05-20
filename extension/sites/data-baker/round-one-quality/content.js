@@ -520,6 +520,10 @@
           retryable: false,
           displayName: "未命名条目",
           errorMessage: "",
+          errorCode: "",
+          jobId: "",
+          hasDebugRawJson: false,
+          debugRawJson: null,
           result: null,
         },
         entry || {}
@@ -834,6 +838,10 @@
                 processKey: task.processKey,
                 displayName: task.displayName,
                 errorMessage: error?.message || String(error),
+                errorCode: String(error?.code || ""),
+                jobId: String(error?.jobId || ""),
+                hasDebugRawJson: error?.hasDebugRawJson === true,
+                debugRawJson: error?.debugRawJson || null,
                 completedAt: Date.now(),
               });
               queuedResultIds.add(String(task.processKey || "index:" + String(index)));
@@ -902,6 +910,10 @@
               retryable: false,
               displayName: String(result?.displayName || "未命名条目"),
               errorMessage: String(result?.errorMessage || "AI 推荐失败"),
+              errorCode: String(result?.errorCode || ""),
+              jobId: String(result?.jobId || ""),
+              hasDebugRawJson: result?.hasDebugRawJson === true,
+              debugRawJson: result?.debugRawJson || null,
               result: null,
             });
           } else {
@@ -965,6 +977,16 @@
       };
     }
 
+    async function loadFailureDebugJson(failure) {
+      const source = failure && typeof failure === "object" ? failure : {};
+      if (source.debugRawJson && typeof source.debugRawJson === "object") {
+        return source.debugRawJson;
+      }
+      if (!source.hasDebugRawJson || !source.jobId || typeof ai.getRecommendJobDebug !== "function") {
+        throw new Error("当前失败项没有可复制的原始 JSON。")
+      }
+      return ai.getRecommendJobDebug(source.jobId);
+    }
     async function retryFailedFillResults() {
       if (batchQualifiedAutofillRunning) {
         ui.setStatus("连续填入运行中，请先停止或等待完成后再重试失败项。", "info");
@@ -1255,6 +1277,7 @@
       onStopAutoFillQualifiedItemsBatch: stopBatchQualifiedAutofill,
       onAutoFillQualifiedItem: autoFillQualifiedItemsBatch,
       onRetryFailedQualifiedFillItems: retryFailedFillResults,
+      onLoadFailureDebugJson: loadFailureDebugJson,
       onRecommend: async function () {
         const item = await dataApi.getCurrentItem();
         ui.updateCurrentItemKey(item.key);
@@ -1453,3 +1476,4 @@
   }
   installRouteWatch();
 })();
+

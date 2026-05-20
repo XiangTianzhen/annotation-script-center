@@ -230,9 +230,13 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `2`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
 - Fun-ASR 批量连续填入默认启用后端异步 job：
   - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED=1`
-  - `DATABAKER_AI_JOB_TTL_MS=60000`
-  - `DATABAKER_AI_JOB_MAX_SIZE=1000`
+  - `DATABAKER_AI_JOB_TIMEOUT_MS=60000`
+  - `DATABAKER_AI_JOB_TTL_MS=1800000`
+  - `DATABAKER_AI_JOB_MAX_SIZE=600`
   - `DATABAKER_AI_JOB_POLL_INTERVAL_MS=1000`
+  - `DATABAKER_AI_QUEUE_MAX_SIZE=600`
+- 单个异步 job 超过 60 秒后会强制失败，前端统一提示“当前任务超过60s，请重新请求。”；超时任务会被取消或逻辑丢弃，迟到结果不再填入页面。
+- 如果模型输出 JSON 解析失败，前端失败列表会显示“复制原始JSON”按钮，可复制脱敏后的原始模型输出用于后续修复 Prompt / schema。
 - DataBaker 平台当前实际的自动清除时间字段位于前端顶部统计悬浮窗 `autoHideMs`，默认已统一为 `60000ms`。
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
 - Compare 阶段若启用 thinking 可能明显变慢；未勾选时后端会显式关闭 compare thinking。

@@ -1,5 +1,17 @@
 # 标注脚本中心修改日志
 
+## 2026-05-21（标贝易采一检质检热修：异步 job 上限 600、60s 强制取消、JSON debug 复制）
+
+- DataBaker `two_stage + fun-asr` 的异步 job store 默认上限改为 `600`，统一 provider queue 默认上限也同步改为 `600`。
+- 当 job store 或 provider queue 达到上限时，后端统一返回“后端 AI 任务队列已满，请稍后重试。”，继续保留原有并发与 RPM 保护。
+- 新增 `DATABAKER_AI_JOB_TIMEOUT_MS=60000`：单个异步 job 超过 60 秒会被强制标记为 failed，并固定提示“当前任务超过60s，请重新请求。”。
+- 超时 job 会触发 `AbortController` 取消或逻辑丢弃迟到结果；迟到结果不会覆盖 failed 状态，不会进入 completedQueue，也不会继续填入页面。
+- provider queue、Fun-ASR REST 和 Qwen OpenAI-compatible 链路补充 `signal` 透传与 pending/running abort 支持。
+- DataBaker 模型 JSON 解析失败时，错误对象会保存脱敏后的 `debugRawJson`，并新增调试接口：
+  - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId/debug`
+- 前端失败列表新增“复制原始JSON”按钮：仅在 JSON 解析失败时出现，点击后优先复制脱敏 debug JSON，剪贴板不可用时降级为 textarea 手动复制。
+- 脱敏要求：debug JSON 不包含完整 audioUrl、签名 URL、cookie、token、API Key。
+
 ## 2026-05-21（标贝易采一检质检热修：异步 job TTL 改为 1 分钟）
 
 - DataBaker `two_stage + fun-asr` 批量连续填入使用的后端异步 job 默认 TTL 从 `120000`（2 分钟）调整为 `60000`（1 分钟）。

@@ -8,7 +8,7 @@ const {
   SUPPORTED_REQUEST_PARAMS,
   getQwenProviderConfig,
 } = require("../config");
-const { createProviderHttpError, createTimeoutError } = require("../errors");
+const { createProviderHttpError, createTimeoutError, normalizeAbortError } = require("../errors");
 const { sanitizeProviderErrorSummary } = require("../sanitizer");
 
 function resolveThinkingPreference(options, config) {
@@ -293,7 +293,12 @@ async function requestChatCompletion(requestBody, options) {
   if (typeof fetch !== "function") {
     throw new Error("当前 Node 运行时不支持 fetch。");
   }
+  const signal = options?.signal;
+  if (isAbortSignalAborted(signal)) {
+    throw normalizeAbortError(signal.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
+  }
   const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const unbindAbort = bindAbortSignal(controller, signal);
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs);
   const timer = controller
     ? setTimeout(function () {
@@ -325,6 +330,9 @@ async function requestChatCompletion(requestBody, options) {
     return result;
   } catch (error) {
     if (error?.name === "AbortError") {
+      if (isAbortSignalAborted(signal)) {
+        throw normalizeAbortError(signal.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
+      }
       throw createTimeoutError("Qwen 请求超时。");
     }
     throw error;
@@ -332,6 +340,7 @@ async function requestChatCompletion(requestBody, options) {
     if (timer) {
       clearTimeout(timer);
     }
+    unbindAbort();
   }
 }
 
@@ -380,6 +389,35 @@ function normalizeModelResult(model, result) {
     thinkingFallbackMode: result.thinkingFallbackMode || "",
     thinkingDisabledRequested: result.thinkingDisabledRequested,
     thinkingDisableFallbackUsed: result.thinkingDisableFallbackUsed,
+  };
+}
+
+function isAbortSignalAborted(signal) {
+  return Boolean(signal && signal.aborted === true);
+}
+
+function bindAbortSignal(controller, signal) {
+  if (!controller || !signal || typeof signal.addEventListener !== "function") {
+    return function () {};
+  }
+  if (signal.aborted) {
+    try {
+      controller.abort(signal.reason);
+    } catch (error) {
+      controller.abort();
+    }
+    return function () {};
+  }
+  const onAbort = function () {
+    try {
+      controller.abort(signal.reason);
+    } catch (error) {
+      controller.abort();
+    }
+  };
+  signal.addEventListener("abort", onAbort, { once: true });
+  return function () {
+    signal.removeEventListener("abort", onAbort);
   };
 }
 
@@ -522,3 +560,4 @@ module.exports = {
   sanitizeProviderErrorSummary,
   withThinkingPreference,
 };
+

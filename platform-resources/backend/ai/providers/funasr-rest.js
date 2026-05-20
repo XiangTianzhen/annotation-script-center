@@ -11,6 +11,7 @@ const {
   createProviderHttpError,
   createTimeoutError,
   isAudioUrlLikelyUnavailable,
+  normalizeAbortError,
 } = require("../errors");
 const { sanitizeProviderErrorSummary } = require("../sanitizer");
 
@@ -28,6 +29,64 @@ function createError(message, code, statusCode, summary) {
     error.summary = sanitizeProviderErrorSummary(summary);
   }
   return error;
+}
+
+function createAbortError(signal, fallbackMessage) {
+  return normalizeAbortError(signal?.reason, fallbackMessage || "当前任务超过60s，请重新请求。", "aborted", 504);
+}
+
+function isAbortSignalAborted(signal) {
+  return Boolean(signal && signal.aborted === true);
+}
+
+function bindAbortSignal(controller, signal) {
+  if (!controller || !signal || typeof signal.addEventListener !== "function") {
+    return function () {};
+  }
+  if (signal.aborted) {
+    try {
+      controller.abort(signal.reason);
+    } catch (error) {
+      controller.abort();
+    }
+    return function () {};
+  }
+  const onAbort = function () {
+    try {
+      controller.abort(signal.reason);
+    } catch (error) {
+      controller.abort();
+    }
+  };
+  signal.addEventListener("abort", onAbort, { once: true });
+  return function () {
+    signal.removeEventListener("abort", onAbort);
+  };
+}
+
+function waitWithSignal(ms, signal) {
+  return new Promise(function (resolve, reject) {
+    if (isAbortSignalAborted(signal)) {
+      reject(createAbortError(signal));
+      return;
+    }
+    const timer = setTimeout(function () {
+      if (signal && typeof signal.removeEventListener === "function") {
+        signal.removeEventListener("abort", onAbort);
+      }
+      resolve();
+    }, Math.max(0, Number(ms) || 0));
+    const onAbort = function () {
+      clearTimeout(timer);
+      if (signal && typeof signal.removeEventListener === "function") {
+        signal.removeEventListener("abort", onAbort);
+      }
+      reject(createAbortError(signal));
+    };
+    if (signal && typeof signal.addEventListener === "function") {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+  });
 }
 
 function decodeUtf8Buffer(buffer) {
@@ -159,7 +218,12 @@ async function fetchWithTimeout(url, options, timeoutMs, timeoutMessage) {
   if (typeof fetch !== "function") {
     throw new Error("当前 Node 运行时不支持 fetch。");
   }
+  const signal = options?.signal;
+  if (isAbortSignalAborted(signal)) {
+    throw createAbortError(signal);
+  }
   const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const unbindAbort = bindAbortSignal(controller, signal);
   const timer = controller
     ? setTimeout(function () {
         controller.abort();
@@ -171,6 +235,9 @@ async function fetchWithTimeout(url, options, timeoutMs, timeoutMessage) {
     }));
   } catch (error) {
     if (error?.name === "AbortError") {
+      if (isAbortSignalAborted(signal)) {
+        throw createAbortError(signal);
+      }
       throw createTimeoutError(timeoutMessage);
     }
     throw error;
@@ -178,6 +245,7 @@ async function fetchWithTimeout(url, options, timeoutMs, timeoutMessage) {
     if (timer) {
       clearTimeout(timer);
     }
+    unbindAbort();
   }
 }
 
@@ -229,6 +297,7 @@ async function submitTask(audioUrl, model, config, options) {
         "Content-Type": "application/json",
         "X-DashScope-Async": "enable",
       },
+      signal: options?.signal,
       body: JSON.stringify({
         model,
         input: {
@@ -287,6 +356,7 @@ async function pollTask(taskId, config, options) {
         headers: {
           Authorization: "Bearer " + config.apiKey,
         },
+        signal: options?.signal,
       },
       remainingMs,
       "Fun-ASR 查询任务超时。"
@@ -331,9 +401,7 @@ async function pollTask(taskId, config, options) {
       });
       classifyRestFailure(502, body.payload, body.text, rawStatus);
     }
-    await new Promise(function (resolve) {
-      setTimeout(resolve, config.pollIntervalMs);
-    });
+    await waitWithSignal(config.pollIntervalMs, options?.signal);
   }
   console.info("[FunASR][REST] poll finish", {
     requestId,
@@ -444,10 +512,10 @@ function parseTranscriptionPayload(buffer) {
   throw createError("Fun-ASR 结果文件 JSON 解析失败。", "fun-asr-transcription-json-invalid", 502);
 }
 
-async function downloadTranscriptionPayload(transcriptionUrl, timeoutMs) {
+async function downloadTranscriptionPayload(transcriptionUrl, timeoutMs, options) {
   const response = await fetchWithTimeout(
     transcriptionUrl,
-    { method: "GET" },
+    { method: "GET", signal: options?.signal },
     timeoutMs,
     "Fun-ASR 下载转写结果超时。"
   );
@@ -463,6 +531,9 @@ async function requestFunAsrRecognitionRest(input, options) {
   const config = getFunAsrRestConfig();
   const model = String(options?.model || config.model || DEFAULT_FUN_ASR_MODEL).trim() || DEFAULT_FUN_ASR_MODEL;
   const requestId = String(options?.requestId || options?.traceId || "").trim();
+  if (isAbortSignalAborted(options?.signal)) {
+    throw createAbortError(options?.signal);
+  }
   if (config.mockEnabled) {
     return {
       model,
@@ -495,7 +566,7 @@ async function requestFunAsrRecognitionRest(input, options) {
   const transcriptionUrl = extractTranscriptionUrl(pollResult.payload, audioUrl);
   let heardText = "";
   if (transcriptionUrl) {
-    const transcriptPayload = await downloadTranscriptionPayload(transcriptionUrl, timeoutMs);
+    const transcriptPayload = await downloadTranscriptionPayload(transcriptionUrl, timeoutMs, options);
     heardText = extractHeardText(transcriptPayload);
   }
   if (!heardText) {
@@ -531,3 +602,9 @@ module.exports = {
   requestFunAsrRecognition,
   requestFunAsrRecognitionRest,
 };
+
+
+
+
+
+

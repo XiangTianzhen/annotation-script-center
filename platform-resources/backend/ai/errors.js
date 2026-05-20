@@ -30,6 +30,46 @@ function createTimeoutError(message) {
   return createError(message || "上游模型请求超时。", "timeout", 504);
 }
 
+function createAbortedError(message, code, statusCode) {
+  return createError(message || "请求已取消。", code || "aborted", statusCode || 504);
+}
+
+function normalizeAbortError(reason, fallbackMessage, fallbackCode, fallbackStatusCode) {
+  if (reason instanceof Error) {
+    const error = createError(
+      reason.message || fallbackMessage || "请求已取消。",
+      reason.code || fallbackCode || "aborted",
+      reason.statusCode || fallbackStatusCode || 504
+    );
+    if (reason.summary) {
+      error.summary = sanitizeProviderErrorSummary(reason.summary);
+    }
+    if (reason.providerStatus) {
+      error.providerStatus = Number(reason.providerStatus) || 0;
+    }
+    return error;
+  }
+  if (reason && typeof reason === "object") {
+    const error = createError(
+      String(reason.message || fallbackMessage || "请求已取消。"),
+      String(reason.code || fallbackCode || "aborted"),
+      Number(reason.statusCode || fallbackStatusCode) || 504
+    );
+    if (reason.summary) {
+      error.summary = sanitizeProviderErrorSummary(reason.summary);
+    }
+    if (reason.providerStatus) {
+      error.providerStatus = Number(reason.providerStatus) || 0;
+    }
+    return error;
+  }
+  return createAbortedError(fallbackMessage, fallbackCode, fallbackStatusCode);
+}
+
+function createJobTimeoutError() {
+  return createAbortedError("当前任务超过60s，请重新请求。", "ai-job-timeout", 504);
+}
+
 function createPythonRuntimeError(message, code, statusCode, summary) {
   const error = createError(message, code || "python-runtime-error", statusCode || 502);
   if (summary) {
@@ -72,11 +112,15 @@ function isAudioUrlLikelyUnavailable(text) {
 }
 
 module.exports = {
+  createAbortedError,
   createAudioUrlUnavailableError,
+  createJobTimeoutError,
   createProviderHttpError,
   createPythonRuntimeError,
   createRateLimitError,
   createTimeoutError,
   isAudioUrlLikelyUnavailable,
   isProviderRateLimitedError,
+  normalizeAbortError,
 };
+

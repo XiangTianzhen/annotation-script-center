@@ -42,12 +42,14 @@ const {
   getCachedRecommendResult,
   setCachedRecommendResult,
 } = require("../../../backend/ai/result-cache");
+const { createJobTimeoutError, normalizeAbortError } = require("../../../backend/ai/errors");
+const { sanitizeProviderText } = require("../../../backend/ai/sanitizer");
 const {
   getAiJobStoreConfig,
   getAiJobStoreSnapshot,
 } = require("./ai-job-store");
 
-const RULE_VERSION = "data-baker-round-one-quality-ai-v8-rest-funasr-provider";
+const RULE_VERSION = "data-baker-round-one-quality-ai-v9-job-timeout-debug-raw";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "你要一次完成：听音、对比页面候选文本、输出最终推荐文本。",
   "页面候选文本只作为参考，实际发声优先。",
@@ -640,10 +642,59 @@ function removeTextSpaces(text) {
   return String(text || "").replace(/[\s\u3000]+/g, "");
 }
 
-function parseModelJsonText(rawText, requestId) {
+function normalizeParseDebugContext(requestIdOrContext) {
+  if (requestIdOrContext && typeof requestIdOrContext === "object") {
+    return {
+      requestId: String(requestIdOrContext.requestId || "").trim(),
+      jobId: String(requestIdOrContext.jobId || "").trim(),
+      itemId: String(requestIdOrContext.itemId || "").trim(),
+      sentenceNumber: Number(requestIdOrContext.sentenceNumber) || 0,
+      stage: String(requestIdOrContext.stage || "").trim(),
+      model: String(requestIdOrContext.model || "").trim(),
+      createdAt: String(requestIdOrContext.createdAt || new Date().toISOString()).trim(),
+    };
+  }
+  return {
+    requestId: String(requestIdOrContext || "").trim(),
+    jobId: "",
+    itemId: "",
+    sentenceNumber: 0,
+    stage: "",
+    model: "",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function createModelJsonParseError(rawText, requestIdOrContext) {
+  const context = normalizeParseDebugContext(requestIdOrContext);
+  const error = createHttpError(
+    502,
+    "模型输出 JSON 解析失败，可复制原始JSON后反馈修复。",
+    "model-json-parse-failed"
+  );
+  error.requestId = context.requestId;
+  error.stage = context.stage;
+  error.model = context.model;
+  error.debugRawJson = {
+    requestId: context.requestId,
+    jobId: context.jobId,
+    itemId: context.itemId,
+    sentenceNumber: context.sentenceNumber,
+    stage: context.stage,
+    model: context.model,
+    errorCode: "model-json-parse-failed",
+    errorMessage: "模型输出 JSON 解析失败，可复制原始JSON后反馈修复。",
+    rawModelText: sanitizeProviderText(String(rawText || ""), 4000),
+    createdAt: context.createdAt,
+  };
+  error.hasDebugRawJson = true;
+  return error;
+}
+
+function parseModelJsonText(rawText, requestIdOrContext) {
   const source = String(rawText || "").trim();
   if (!source) {
-    throw new Error("模型未返回文本结果。");
+    throw createModelJsonParseError(rawText, requestIdOrContext);
   }
   const withoutCodeFence = source.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   const attempts = [withoutCodeFence];
@@ -659,7 +710,7 @@ function parseModelJsonText(rawText, requestId) {
       // continue
     }
   }
-  throw new Error("模型输出 JSON 解析失败（requestId: " + String(requestId || "") + "）。");
+  throw createModelJsonParseError(rawText, requestIdOrContext);
 }
 
 function normalizeStringArray(value) {
@@ -1905,8 +1956,16 @@ function buildCacheKeyInput(
   };
 }
 
-async function runQueuedProviderCall(groupName, task) {
-  return enqueueProviderTask(groupName, task);
+function throwIfSignalAborted(signal) {
+  if (signal && signal.aborted === true) {
+    throw normalizeAbortError(signal.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
+  }
+}
+
+async function runQueuedProviderCall(groupName, task, options) {
+  return enqueueProviderTask(groupName, task, {
+    signal: options?.signal,
+  });
 }
 
 function getLexiconRewriteMode() {
@@ -1954,7 +2013,7 @@ function createRuntimeMeta(options) {
   };
 }
 
-async function recommend(body, requestIdHint) {
+async function recommend(body, requestIdHint, runtimeOptions) {
   const startedAtMs = Date.now();
   let requestId = String(requestIdHint || createRequestId());
   let recommendRequest = null;
@@ -1971,7 +2030,12 @@ async function recommend(body, requestIdHint) {
   let activeSingleModel = "";
   let activeFunAsrProvider = "rest";
   let cacheKey = "";
+  const runtimeConfig = runtimeOptions && typeof runtimeOptions === "object" ? runtimeOptions : {};
+  const runtimeSignal = runtimeConfig.signal || null;
+  const runtimeJobId = String(runtimeConfig.jobId || "").trim();
+  const runtimeCreatedAt = String(runtimeConfig.createdAt || new Date().toISOString()).trim();
   try {
+    throwIfSignalAborted(runtimeSignal);
     recommendRequest = normalizeRecommendRequest(body || {});
     requestId = String(body?.requestId || requestId);
 
@@ -2115,7 +2179,10 @@ async function recommend(body, requestIdHint) {
             model: activeSingleModel,
             timeoutMs: qwenConfig.timeoutMs,
             enableThinking: effectiveEnableThinking,
+            signal: runtimeSignal,
           });
+        }, {
+          signal: runtimeSignal,
         });
         omniSingleResult = queued.value;
         queueMetas.push(queued.queueMeta);
@@ -2123,7 +2190,15 @@ async function recommend(body, requestIdHint) {
         listenDurationMs = Date.now() - listenStartedAtMs;
       }
 
-      const omniSingleJson = parseModelJsonText(omniSingleResult.rawText, requestId);
+      const omniSingleJson = parseModelJsonText(omniSingleResult.rawText, {
+        requestId,
+        jobId: runtimeJobId,
+        itemId: recommendRequest.itemId,
+        sentenceNumber: recommendRequest.sentenceNumber,
+        stage: "omni_single",
+        model: omniSingleResult.model,
+        createdAt: runtimeCreatedAt,
+      });
       const normalizedSingle = normalizeOmniSingleResponse(omniSingleJson, {
         pageText: recommendRequest.pageText,
       });
@@ -2189,7 +2264,10 @@ async function recommend(body, requestIdHint) {
             model: activeListenModel,
             timeoutMs: qwenConfig.timeoutMs,
             requestId,
+            signal: runtimeSignal,
           });
+        }, {
+          signal: runtimeSignal,
         });
         funAsrResult = queued.value;
         activeFunAsrProvider = String(funAsrResult?.providerMode || activeFunAsrProvider || "rest").trim() || "rest";
@@ -2251,7 +2329,10 @@ async function recommend(body, requestIdHint) {
             model: activeCompareModel,
             timeoutMs: qwenConfig.timeoutMs,
             enableThinking: effectiveEnableThinking,
+            signal: runtimeSignal,
           });
+        }, {
+          signal: runtimeSignal,
         });
         compareResult = queued.value;
         queueMetas.push(queued.queueMeta);
@@ -2273,7 +2354,15 @@ async function recommend(body, requestIdHint) {
       } finally {
         compareDurationMs = Date.now() - compareStartedAtMs;
       }
-      const compareJson = parseModelJsonText(compareResult.rawText, requestId);
+      const compareJson = parseModelJsonText(compareResult.rawText, {
+        requestId,
+        jobId: runtimeJobId,
+        itemId: recommendRequest.itemId,
+        sentenceNumber: recommendRequest.sentenceNumber,
+        stage: "compare",
+        model: compareResult.model,
+        createdAt: runtimeCreatedAt,
+      });
       const normalizedCompare = normalizeCompareResponse(compareJson, {
         pageText: recommendRequest.pageText,
         heardText,
@@ -2327,7 +2416,10 @@ async function recommend(body, requestIdHint) {
             model: activeListenModel,
             timeoutMs: qwenConfig.timeoutMs,
             enableThinking: effectiveEnableThinking,
+            signal: runtimeSignal,
           });
+        }, {
+          signal: runtimeSignal,
         });
         omniListenResult = queued.value;
         queueMetas.push(queued.queueMeta);
@@ -2335,7 +2427,15 @@ async function recommend(body, requestIdHint) {
         listenDurationMs = Date.now() - listenStartedAtMs;
       }
 
-      const listenJson = parseModelJsonText(omniListenResult.rawText, requestId);
+      const listenJson = parseModelJsonText(omniListenResult.rawText, {
+        requestId,
+        jobId: runtimeJobId,
+        itemId: recommendRequest.itemId,
+        sentenceNumber: recommendRequest.sentenceNumber,
+        stage: "listen",
+        model: omniListenResult.model,
+        createdAt: runtimeCreatedAt,
+      });
       const normalizedListen = normalizeOmniListenStageResult(listenJson);
       const compareLexiconContext = buildLexiconContext({
         pageText: recommendRequest.pageText,
@@ -2355,7 +2455,10 @@ async function recommend(body, requestIdHint) {
             model: activeCompareModel,
             timeoutMs: qwenConfig.timeoutMs,
             enableThinking: effectiveEnableThinking,
+            signal: runtimeSignal,
           });
+        }, {
+          signal: runtimeSignal,
         });
         compareResult = queued.value;
         queueMetas.push(queued.queueMeta);
@@ -2363,7 +2466,15 @@ async function recommend(body, requestIdHint) {
         compareDurationMs = Date.now() - compareStartedAtMs;
       }
 
-      const compareJson = parseModelJsonText(compareResult.rawText, requestId);
+      const compareJson = parseModelJsonText(compareResult.rawText, {
+        requestId,
+        jobId: runtimeJobId,
+        itemId: recommendRequest.itemId,
+        sentenceNumber: recommendRequest.sentenceNumber,
+        stage: "compare",
+        model: compareResult.model,
+        createdAt: runtimeCreatedAt,
+      });
       const normalizedCompare = normalizeCompareResponse(compareJson, {
         pageText: recommendRequest.pageText,
         heardText: normalizedListen.heardText,
@@ -2525,3 +2636,7 @@ module.exports = {
   recommend,
   removeTextSpaces,
 };
+
+
+
+

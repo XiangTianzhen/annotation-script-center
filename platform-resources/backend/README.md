@@ -66,8 +66,9 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_FUN_ASR_REST_BASE_URL`：可选，覆盖 Fun-ASR REST API base；留空时按 `DASHSCOPE_BASE_URL` 推导到 `/api/v1`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：Fun-ASR 批量连续填入是否启用后端异步 job，默认 `1`。
-- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job TTL，默认 `60000`（1 分钟）。
-- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 内存上限，默认 `1000`。
+- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `60000`。超时后会强制失败并提示“当前任务超过60s，请重新请求。”。
+- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
+- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 内存上限，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
 - `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端建议轮询间隔提示，默认 `1000` ms。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv/`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：标贝易采 Qwen Omni 队列限流，默认 `45` RPM。
@@ -77,7 +78,7 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_FUN_ASR_CONCURRENCY`：标贝易采 Fun-ASR 并发上限，默认 `2`；如 `2 核 2G` 服务器压力高，可继续调低，若资源充足也可手动调高。
 - `DATABAKER_AI_TEXT_CONCURRENCY`：标贝易采 compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：标贝易采上游 `429` 最大重试次数，默认 `3`。
-- `DATABAKER_AI_QUEUE_MAX_SIZE`：标贝易采统一 provider 队列最大长度，默认 `200`。
+- `DATABAKER_AI_QUEUE_MAX_SIZE`：标贝易采统一 provider 队列最大长度，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”，不会取消并发和 RPM 保护。
 - `DATABAKER_AI_CACHE_TTL_MS`：标贝易采推荐结果内存缓存 TTL，默认 `43200000`。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留 标贝易采 有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留 标贝易采 裁剪前后补齐秒数，默认 `0.12`。
@@ -272,6 +273,9 @@ DataBaker AI 架构补充：
   - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
   - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/{jobId}`
   单条“AI 推荐文本”按钮仍保留同步 `POST /api/data-baker/round-one-quality/ai/recommend`。
+- job health 会返回 `jobs.maxSize / jobs.timeoutMs / jobs.activeCount / jobs.pendingCount / jobs.runningCount / jobs.succeededCount / jobs.failedCount` 以及 `queue.maxSize / queue.groups.*.pendingCount / activeCount / maxConcurrent`。
+- 如果异步 job 超时或被逻辑取消，迟到结果会被丢弃，不会再进入 completedQueue，也不会继续填入页面。
+- 如果模型输出 JSON 解析失败，可通过 `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId/debug` 复制脱敏后的原始模型输出排查 Prompt / schema。
 - 如果“AI连续填入合格项”看起来像串行，先看 `health.queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`；若长期为 `1`，优先检查 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 和 `DATABAKER_AI_FUN_ASR_RPM_LIMIT`。
 - 如果 Fun-ASR 批量时前端出现 `Failed to fetch`，更常见的根因不是识别失败，而是同步 recommend 长连接等待过久，被浏览器、Nginx 或网关中断。当前主方案是“短请求创建 job + 轮询 job 状态”，避免单个 HTTP 连接长期挂起。
 - `429` 的根因是上游模型或账号维度限流，不是统一后端机器规格问题；同一阿里云主账号下的多个 RAM 用户/API Key 可能共享限流额度。

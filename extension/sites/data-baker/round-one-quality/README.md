@@ -19,6 +19,9 @@
 - 处理策略为“并发生产 + 顺序消费”：先按配置并发数发起全部合格项 AI 请求，结果返回后进入缓冲区；填入流程不等待全部请求结束，按 AI 返回顺序从队列取结果并逐条切换填入，支持运行中手动停止。
 - AI连续填入合格项并发数量默认 `20`，可在 Options 配置 `1~50`；前端并发越高，后端排队越多，但不会绕过上游模型限流。
 - 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认改走后端异步 job：先创建 job，再轮询 job 状态，避免 50 个同步长连接等待完整 Fun-ASR + compare 结果时被浏览器 / 代理中断成 `Failed to fetch`。
+- 异步 job 默认最大保留数量 `600`，provider queue 默认最大排队数 `600`。
+- 单个 job 超过 `60000ms` 后会直接失败，失败列表固定提示“当前任务超过60s，请重新请求。”，且迟到结果不会再填入页面。
+- 如果模型输出 JSON 解析失败，失败列表会出现“复制原始JSON”按钮；按钮只复制脱敏后的 debug JSON，不直接在页面正文展开长文本。
 - 新增顶部统计悬浮窗，运行中展示 AI 返回、待填队列、填入成功/失败/跳过和失败条目。
 - 顶部悬浮窗还会显示 `后端任务已提交 / 运行中 / 成功 / 失败`，方便区分是前端没发起并发，还是后端 Fun-ASR / compare 仍在排队。
 - 悬浮窗在任务完成或停止后保留约 60 秒，可手动关闭。
@@ -54,7 +57,7 @@ round-one-quality/
 
 - `content.js`：入口编排，判断当前页面是否 `roundOneCollect`，初始化数据 API、AI 推荐和 UI 面板。
 - `data-api.js`：解析 `collectId/checkType`，监听 MAIN world 缓存的列表接口响应，定位当前选中题并生成后端请求数据。
-- `ai-recommendation.js`：负责同步 `POST /api/data-baker/round-one-quality/ai/recommend` 和 Fun-ASR 批量异步 job（`POST /jobs` + `GET /jobs/:jobId`）调用，请求体只传必要字段。
+- `ai-recommendation.js`：负责同步 `POST /api/data-baker/round-one-quality/ai/recommend` 和 Fun-ASR 批量异步 job（`POST /jobs` + `GET /jobs/:jobId` + `GET /jobs/:jobId/debug`）调用，请求体只传必要字段。
 - `ui-panel.js`：注入按钮和推荐结果卡，支持复制和用户点击后填入推荐文本。
 - `page-size-controller.js`：在详情页有限重试点击分页大小选择器，按设置切换到目标每页条数。
 - `shortcuts.js`：监听 标贝易采 专属快捷键；先匹配已配置快捷键再处理输入焦点，普通输入不拦截。旧的被动焦点恢复已移除；脚本通过检测“本句话文本”变化，在平台自动切题后短暂 focus/blur 文本框恢复快捷键焦点。
