@@ -11,7 +11,7 @@
 - `result-cache.js`：统一 TTL 内存缓存与缓存 key 生成。
 - `usage.js`：通用 usage 归一化。
 - `providers/qwen-openai-compatible.js`：DashScope OpenAI-compatible `/chat/completions` 调用封装，支持文本比较和 Omni `input_audio`。
-- `providers/funasr-python.js`：Node 通过 `child_process` 调用 Python Fun-ASR SDK 的统一 wrapper。
+- `providers/funasr-python.js`：Node 通过 `child_process` 调用 Python Fun-ASR SDK 的统一 wrapper，并显式设置 `PYTHONIOENCODING=utf-8` / `PYTHONUTF8=1`。
 - `python/funasr_client.py`：Fun-ASR Python SDK 辅助脚本。
 - `python/requirements.txt`：Fun-ASR Python 依赖。
 
@@ -30,3 +30,4 @@
 
 - 仍然只启动 Node 后端：`node platform-resources/backend/server.js`
 - Python 不作为独立服务启动，只作为统一 Node 后端内部调用的辅助进程。
+- `funasr_client.py` 的 stdout JSON 必须稳定按 UTF-8 输出；`funasr-python.js` 必须按 UTF-8 解码 stdout/stderr，避免 Windows 下出现 `�` / 黑菱形乱码。

@@ -94,6 +94,8 @@ PM2 进程名示例：`annotation-script-center`。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
 - Fun-ASR Python 依赖固定放在 `platform-resources/backend/ai/python/requirements.txt`。
+- Node 后端调用 Fun-ASR Python 子进程时会显式设置 `PYTHONIOENCODING=utf-8` 和 `PYTHONUTF8=1`。
+- `platform-resources/backend/ai/python/funasr_client.py` 会按 UTF-8 输出 stdout JSON，避免 Windows 默认控制台编码导致“AI 听音文本”出现 `�` / 黑菱形乱码。
 - 不再使用 `platform-resources/backend/.venv-funasr`。
 - 不再使用 `platform-resources/data-baker/round-one-quality/backend/.venv-funasr`。
 - `platform-resources/backend` 是统一后端聚合目录，所以 Python 辅助环境也放这里统一管理。
@@ -170,6 +172,8 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - 音频 URL 已过期或签名权限不足。
 
 临时恢复生产使用时，优先切换到 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash`。
+
+如果 `fun-asr` 曾出现听音文本乱码，修复部署后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存。`qwen3.5-omni-plus` / `qwen3.5-omni-flash` 不经过 Python 子进程，因此不受该编码问题影响。
 
 详细后端配置见 `platform-resources/backend/README.md`。
 详细 API 清单见 `platform-resources/README.md` 的“统一后端 API 清单”。

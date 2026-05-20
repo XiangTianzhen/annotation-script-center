@@ -7,6 +7,22 @@ import urllib.parse
 import urllib.request
 
 
+def count_replacement_chars(text):
+    return str(text or "").count("\ufffd")
+
+
+def is_text_likely_mojibake(text):
+    value = str(text or "").strip()
+    if not value:
+        return False
+    replacement_count = count_replacement_chars(value)
+    if replacement_count >= 3:
+        return True
+    if replacement_count >= 1 and len(value) <= 32:
+        return True
+    return replacement_count > 0 and (replacement_count / max(len(value), 1)) >= 0.08
+
+
 def sanitize_text(text):
     value = str(text or "")
     for prefix in ("http://", "https://"):
@@ -34,8 +50,9 @@ def sanitize_text(text):
 
 
 def emit(payload, exit_code=0):
-    sys.stdout.write(json.dumps(payload, ensure_ascii=False))
-    sys.stdout.flush()
+    text = json.dumps(payload, ensure_ascii=False)
+    sys.stdout.buffer.write(text.encode("utf-8"))
+    sys.stdout.buffer.flush()
     raise SystemExit(exit_code)
 
 
@@ -193,15 +210,33 @@ def classify_provider_failure(status_code, message, raw_status=""):
 def fetch_json_from_url(url):
     try:
         with urllib.request.urlopen(url, timeout=60) as response:
-            charset = response.headers.get_content_charset() or "utf-8"
-            text = response.read().decode(charset, errors="replace")
+            raw_bytes = response.read()
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", errors="replace")
         classify_provider_failure(error.code, body)
     except Exception as error:
         fail("fun-asr-transcription-download-failed", "Fun-ASR 结果读取失败：" + sanitize_text(error))
+    should_try_gb18030 = False
+    for encoding in ("utf-8-sig", "utf-8"):
+        try:
+            text = raw_bytes.decode(encoding)
+            return json.loads(text or "{}")
+        except UnicodeDecodeError:
+            continue
+        except json.JSONDecodeError:
+            should_try_gb18030 = True
+            continue
     try:
-        return json.loads(text or "{}")
+        fallback_text = raw_bytes.decode("utf-8", errors="replace")
+    except Exception:
+        fallback_text = ""
+    if should_try_gb18030 or is_text_likely_mojibake(fallback_text):
+        try:
+            return json.loads(raw_bytes.decode("gb18030") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            pass
+    try:
+        return json.loads(fallback_text or "{}")
     except json.JSONDecodeError:
         fail("fun-asr-transcription-json-invalid", "Fun-ASR 结果文件 JSON 解析失败。")
 
@@ -298,6 +333,12 @@ def main():
         heard_text = extract_heard_text(extract_output(fetch_response))
     if not heard_text:
         fail("fun-asr-empty-text", "Fun-ASR 未返回可用转写文本。", raw_status=final_status)
+    if is_text_likely_mojibake(heard_text):
+        fail(
+            "fun-asr-mojibake-text",
+            "Fun-ASR 返回文本疑似编码异常，请检查 Python stdout UTF-8 配置或结果文件编码。",
+            raw_status=final_status,
+        )
 
     emit(
         {
@@ -316,5 +357,6 @@ if __name__ == "__main__":
     except SystemExit:
         raise
     except Exception as error:
-        sys.stderr.write("[FunASR Python] " + sanitize_text(error) + "\n")
+        sys.stderr.buffer.write(("[FunASR Python] " + sanitize_text(error) + "\n").encode("utf-8"))
+        sys.stderr.buffer.flush()
         fail("fun-asr-python-unhandled", "Fun-ASR Python 执行失败：" + sanitize_text(error))

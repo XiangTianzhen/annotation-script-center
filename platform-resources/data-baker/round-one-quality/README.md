@@ -194,6 +194,12 @@ platform-resources/backend/ai/python/requirements.txt
 
 - 默认虚拟环境路径已统一为 `platform-resources/backend/.venv`。
 - Fun-ASR Python 运行环境统一位于 `platform-resources/backend`，完整部署流程统一见根目录 `README.md`；本平台资料不重复服务器部署命令。后续其他 Python 辅助脚本也优先复用同一个 `.venv` 与 `backend/ai/python/` 目录结构。
+- Fun-ASR 编码补充：
+  - Node 后端会向 Python 子进程显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`
+  - `platform-resources/backend/ai/python/funasr_client.py` 会按 UTF-8 输出 stdout JSON
+  - `platform-resources/backend/ai/providers/funasr-python.js` 会按 UTF-8 解码 stdout/stderr
+  - 若曾出现 `�` / 黑菱形乱码，修复部署后需要重启统一后端，避免旧内存缓存继续命中乱码结果
+  - `qwen3.5-omni-plus` / `qwen3.5-omni-flash` 不经过 Python 子进程，因此不受该编码问题影响
 
 ## 真实浏览器验收建议
 

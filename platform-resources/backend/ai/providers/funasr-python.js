@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
+const { TextDecoder } = require("util");
 
 const {
   DEFAULT_FUN_ASR_MODEL,
@@ -12,6 +13,31 @@ const {
   createPythonRuntimeError,
 } = require("../errors");
 const { sanitizeProviderErrorSummary } = require("../sanitizer");
+
+const UTF8_DECODER = new TextDecoder("utf-8", { fatal: false });
+
+function decodeUtf8Chunks(chunks) {
+  const buffers = Array.isArray(chunks) ? chunks.filter(Buffer.isBuffer) : [];
+  if (buffers.length <= 0) {
+    return "";
+  }
+  return UTF8_DECODER.decode(Buffer.concat(buffers));
+}
+
+function isHeardTextLikelyMojibake(text) {
+  const value = String(text || "").trim();
+  if (!value) {
+    return false;
+  }
+  const replacementCount = (value.match(/\uFFFD/g) || []).length;
+  if (replacementCount >= 3) {
+    return true;
+  }
+  if (replacementCount >= 1 && value.length <= 32) {
+    return true;
+  }
+  return replacementCount > 0 && replacementCount / Math.max(value.length, 1) >= 0.08;
+}
 
 function resolvePythonBin() {
   const config = getFunAsrPythonConfig();
@@ -75,10 +101,13 @@ function normalizeFailureMessage(code, providerStatus, message) {
     return "Fun-ASR 模型名应为 fun-asr。";
   }
   if (code === "fun-asr-audio-url-unreachable") {
-    return "Fun-ASR 调用被拒绝。当前更像是平台音频 URL 对模型服务不可访问，可先切回 Omni 单模型恢复使用。";
+    return "Fun-ASR 调用被拒绝。当前更像是平台音频 URL 对模型服务不可访问，可先切换到 qwen3.5-omni-flash 或 qwen3.5-omni-plus 恢复使用。";
+  }
+  if (code === "fun-asr-mojibake-text") {
+    return "Fun-ASR 返回文本疑似编码异常，请检查 Python stdout UTF-8 配置或结果文件编码。";
   }
   if (providerStatus === 403 || code === "fun-asr-forbidden") {
-    return "Fun-ASR 调用被拒绝。可能是 DashScope 权限/地域未开通、API Key 无权限，或平台音频 URL 无法被 Fun-ASR 服务访问。可先切换到 Omni 单模型恢复使用。";
+    return "Fun-ASR 调用被拒绝。可能是 DashScope 权限/地域未开通、API Key 无权限，或平台音频 URL 无法被 Fun-ASR 服务访问。可先切换到 qwen3.5-omni-flash 或 qwen3.5-omni-plus 恢复使用。";
   }
   return String(message || "Fun-ASR 调用失败。").slice(0, 240);
 }
@@ -102,10 +131,13 @@ function runPythonClient(payload, timeoutMs) {
       cwd: path.dirname(config.pythonScriptPath),
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
-      env: process.env,
+      env: Object.assign({}, process.env, {
+        PYTHONIOENCODING: "utf-8",
+        PYTHONUTF8: "1",
+      }),
     });
-    let stdoutText = "";
-    let stderrText = "";
+    const stdoutChunks = [];
+    const stderrChunks = [];
     let settled = false;
     const timer = setTimeout(function () {
       if (settled) {
@@ -113,16 +145,17 @@ function runPythonClient(payload, timeoutMs) {
       }
       settled = true;
       child.kill("SIGTERM");
+      const stderrText = sanitizeProviderErrorSummary(decodeUtf8Chunks(stderrChunks));
       reject(
         createPythonRuntimeError("Fun-ASR Python 调用超时。", "timeout", 504, stderrText)
       );
     }, Math.max(1000, Number(timeoutMs) || config.timeoutMs));
 
     child.stdout.on("data", function (chunk) {
-      stdoutText += String(chunk || "");
+      stdoutChunks.push(Buffer.from(chunk || ""));
     });
     child.stderr.on("data", function (chunk) {
-      stderrText += String(chunk || "");
+      stderrChunks.push(Buffer.from(chunk || ""));
     });
     child.on("error", function (error) {
       if (settled) {
@@ -130,6 +163,7 @@ function runPythonClient(payload, timeoutMs) {
       }
       settled = true;
       clearTimeout(timer);
+      const stderrText = sanitizeProviderErrorSummary(decodeUtf8Chunks(stderrChunks));
       if (error?.code === "ENOENT") {
         reject(createPythonEnvironmentMissingError());
         return;
@@ -149,9 +183,11 @@ function runPythonClient(payload, timeoutMs) {
       }
       settled = true;
       clearTimeout(timer);
+      const stdoutText = decodeUtf8Chunks(stdoutChunks).trim();
+      const stderrText = sanitizeProviderErrorSummary(decodeUtf8Chunks(stderrChunks));
       let parsed = null;
       try {
-        parsed = JSON.parse(String(stdoutText || "").trim() || "{}");
+        parsed = JSON.parse(stdoutText || "{}");
       } catch (error) {
         reject(createJsonParseError(stdoutText, stderrText));
         return;
@@ -169,7 +205,7 @@ function runPythonClient(payload, timeoutMs) {
       }
       resolve({
         payload: parsed,
-        stderrText: sanitizeProviderErrorSummary(stderrText),
+        stderrText,
       });
     });
 
@@ -226,6 +262,14 @@ async function requestFunAsrRecognition(input, options) {
     throw createPythonRuntimeError(
       "Fun-ASR 未返回可用转写文本。",
       "fun-asr-empty-text",
+      502,
+      result.stderrText
+    );
+  }
+  if (isHeardTextLikelyMojibake(heardText)) {
+    throw createPythonRuntimeError(
+      "Fun-ASR 返回文本疑似编码异常，请检查 Python stdout UTF-8 配置或结果文件编码。",
+      "fun-asr-mojibake-text",
       502,
       result.stderrText
     );

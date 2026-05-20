@@ -203,6 +203,8 @@ pm2 restart annotation-script-center --update-env
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`，以及导出 CSV `health/config/upload/download` 接口；当前前端只配置“听音模型 + 比较模型”，后端再推导 Fun-ASR 或 Qwen Omni 听音链路，导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
 - `data-baker/round-one-quality` 的 `supportedPipelineModes` 仅保留给后端兼容与排查使用，不再作为前端主配置来源；前端主配置为 `listenModelOptions` 与 `compareModelOptions`。
+- DataBaker `fun-asr` 链路通过 Node `child_process` 调用 `platform-resources/backend/ai/python/funasr_client.py`，并显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`，避免 Windows 默认编码导致 Fun-ASR 听音文本乱码。
+- 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；Qwen Omni 听音链路不经过 Python 子进程，不受该问题影响。
 - `magic-data/annotator`：Magic Data AI 质检调试接口，包含 `review-current` 与 `health`。
 - `abaka-ai/task21`：Abaka Task21 AI 分析调试接口，包含 `health/defaults/analyze`。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。

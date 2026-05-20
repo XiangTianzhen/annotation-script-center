@@ -1,5 +1,25 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（标贝易采一检质检热修：Fun-ASR Python stdout 强制 UTF-8）
+
+- 修复 DataBaker 在选择 `fun-asr` 作为听音模型时，“AI 听音文本”出现 `�` / 黑菱形乱码的问题。
+- 根因确认：
+  - Python 端 `funasr_client.py` 原先通过 `json.dumps(..., ensure_ascii=False) + sys.stdout.write(...)` 输出 JSON，Windows 下 stdout 可能走 GBK/CP936。
+  - Node 端 `funasr-python.js` 原先直接 `String(chunk || "")` 拼接 stdout/stderr，按 UTF-8 解码 Buffer 时会把非 UTF-8 字节替换成 `�`。
+- 本轮修复：
+  - `funasr_client.py` 改为通过 `sys.stdout.buffer.write(text.encode("utf-8"))` 输出 UTF-8 JSON。
+  - Node 子进程环境显式追加：
+    - `PYTHONIOENCODING=utf-8`
+    - `PYTHONUTF8=1`
+  - Node 端改为先收集 `Buffer`，在 `close` 时统一 UTF-8 解码 stdout/stderr。
+  - Python 端拉取 `transcription_url` 结果文件时改为先读 raw bytes，再优先尝试 `utf-8-sig / utf-8`，必要时用 `gb18030` 兜底解析 JSON。
+  - 新增乱码保护：如果 `heardText` 中出现明显大量 `�`，直接返回 `fun-asr-mojibake-text`，不再把乱码继续传给 compare 模型或缓存。
+- `RULE_VERSION` 升级为 `data-baker-round-one-quality-ai-v4-utf8-funasr-fix`，用于让旧乱码结果失效。
+- 文档同步说明：
+  - Fun-ASR 通过 Python 子进程调用，Windows 下必须稳定使用 UTF-8。
+  - 修复部署后需要重启 `node platform-resources/backend/server.js`，避免旧内存缓存继续显示乱码。
+  - `qwen3.5-omni-plus` / `qwen3.5-omni-flash` 不经过 Python 子进程，因此不受该编码问题影响。
+
 ## 2026-05-20（标贝易采一检质检：前端改为听音模型 + 比较模型，后端按听音模型自动选链路）
 
 - DataBaker ASR 语音 AI 设置页取消用户可见“AI 模式”，只保留两个核心配置：
