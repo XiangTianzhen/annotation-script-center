@@ -1,5 +1,31 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（标贝易采一检质检热修：识别模式恢复为单双模型联动）
+
+- DataBaker ASR 语音 AI 设置页恢复显示“识别模式”：
+  - `two_stage`：显示“听音模型 + 比较模型”
+  - `omni_single`：只显示“AI 模型”
+- 单模型 `AI 模型` 只允许 `qwen3.5-omni-plus`、`qwen3.5-omni-flash`，默认 `qwen3.5-omni-flash`；不会调用 compare，也不会使用 `fun-asr`。
+- 双模型继续显示：
+  - 听音模型：`fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
+  - 比较模型：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`
+- 前端切换识别模式时会立即刷新字段显隐，不需要先保存；从 `fun-asr` 双模型切到单模型时，会把单模型默认显示为 `qwen3.5-omni-flash`。
+- 前端新增并持久化 `aiRecommendSingleModel`，并兼容旧配置迁移：
+  - `fun_asr_compare` => `two_stage + fun-asr`
+  - `qwen_omni_compare` => `two_stage + qwen3.5-omni-flash`
+  - `listen_only` => `omni_single + qwen3.5-omni-flash`
+- 后端不再信任请求体里的旧 `pipelineMode` 直接决定链路，而是按 `recognitionMode + listenModel/singleModel` 重新推导：
+  - `two_stage + fun-asr` => `fun_asr_compare`
+  - `two_stage + qwen omni` => `qwen_omni_compare`
+  - `omni_single + qwen omni` => `omni_single`
+- DataBaker 单模型链路已恢复：使用 `buildOmniSinglePrompt` 单次 Qwen Omni 请求完成听音 + 推荐文本，不调用 compare。
+- `health/defaults` 现在返回：
+  - `recognitionModeOptions / pipelineModeOptions`
+  - `singleModelOptions`
+  - `listenModelOptions`
+  - `compareModelOptions`
+  - `derivedPipelineMode`
+
 ## 2026-05-20（标贝易采一检质检：收敛 ai-service、reference 目录改名、Fun-ASR 队列并发）
 
 - DataBaker 后端 AI 业务层从多文件散落改为集中收敛：

@@ -109,6 +109,7 @@
         effectiveTime: source.effectiveTime,
         audioDuration: source.audioDuration,
         clientVersion: getClientVersion(),
+        recognitionMode: String(config.recognitionMode || "").trim(),
         pipelineMode: String(config.pipelineMode || "").trim(),
       };
       if (config.listenModel) {
@@ -116,6 +117,9 @@
       }
       if (config.compareModel) {
         requestBody.compareModel = String(config.compareModel).trim();
+      }
+      if (config.singleModel) {
+        requestBody.singleModel = String(config.singleModel).trim();
       }
       if (typeof config.enableThinking === "boolean") {
         requestBody.enableThinking = config.enableThinking === true;

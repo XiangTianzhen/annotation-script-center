@@ -66,10 +66,13 @@ round-one-quality/
 - AI 推荐相关设置已迁移到通用隐藏部件“ASR 语音 AI 设置”（标题连续点击 10 次显示），普通设置区不再直接展示 AI 开关/超时字段。
 - 在“ASR 语音 AI 设置”中可配置启用 / 关闭 AI 推荐文本；关闭后页面不显示 AI 推荐工具卡，也不会触发推荐请求。
 - “ASR 语音 AI 设置”解锁后会请求 `GET /api/data-baker/round-one-quality/ai/recommend/defaults`，默认展示后端当前模型、Prompt 与生成参数，而不是空白输入框。
-- 标贝易采前端不再展示“AI 模式”字段，用户只配置“听音模型”和“比较模型”。
-- 听音模型只允许：`fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`。
-- 选择 `fun-asr` 时，设置页会显示 Python SDK / `.venv` 提示；选择 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 时隐藏该提示。
-- 比较模型只允许以下 4 个选项：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`，默认 `qwen3.5-plus`；旧配置若不在这 4 个中，会迁移为 `qwen3.5-plus`。
+- 标贝易采前端会显示“识别模式”字段：
+  - `two_stage`：显示“听音模型 + 比较模型”
+  - `omni_single`：只显示“AI 模型”
+- 双模型听音模型只允许：`fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`。
+- 单模型 AI 模型只允许：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`，默认 `qwen3.5-omni-flash`。
+- 双模型比较模型只允许以下 4 个选项：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`，默认 `qwen3.5-plus`；旧配置若不在这 4 个中，会迁移为 `qwen3.5-plus`。
+- 选择 `fun-asr` 时，设置页会显示 Python SDK / `.venv` 提示；选择 Qwen Omni 模型时隐藏该提示。
 - Prompt 与参数按 override 保存：字段清空或恢复默认时不保存 override，请求时由后端默认值生效；只有与默认不同的值才随请求透传。
 - 不支持参数前端不显示，后端二次白名单过滤；`response_format` 不对前端开放。
 - 后端接口地址由 options 首页顶部“后端接口地址”统一控制：
@@ -147,18 +150,17 @@ node platform-resources\backend\server.js
 
 CSV 字段统一口径：导出中的计费时长字段标题统一为 `有效时长`，值仍取 `effectivePassTotalTime`；历史标题 `有效合格时长` 不再用于新导出。
 
-当前前端只保留两个用户可见模型配置：
+当前前端保留“识别模式”+模型选择：
 
-- 听音模型：`fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
-- Compare 文本模型：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`（默认 `qwen3.5-plus`）
+- `two_stage`：显示听音模型 `fun-asr / qwen3.5-omni-plus / qwen3.5-omni-flash`，再显示 compare 文本模型 `qwen3.6-plus / qwen3.5-plus / qwen3.6-flash / qwen3.5-flash`
+- `omni_single`：只显示 AI 模型 `qwen3.5-omni-plus / qwen3.5-omni-flash`
 
-后端会根据听音模型自动推导内部链路：
+后端会按识别模式 + 模型自动推导内部链路：
 
-- `fun-asr`：先由 Python Fun-ASR 客户端得到 `heardText`，再调用 compare 模型生成 `recommendedText`
-- `qwen3.5-omni-plus` / `qwen3.5-omni-flash`：先通过 Qwen Omni `input_audio` 得到 `heardText`，再调用 compare 模型生成 `recommendedText`
-- Fun-ASR 没有 thinking 概念；thinking 只影响 Qwen Omni 听音阶段和 compare 阶段。
-
-历史 `omni_single / qwen_omni_two_stage / two_stage / listen_only` 只作为兼容迁移入口存在，不再是前端用户可见选项。
+- `two_stage + fun-asr`：先由 Python Fun-ASR 客户端得到 `heardText`，再调用 compare 模型生成 `recommendedText`
+- `two_stage + qwen3.5-omni-plus / qwen3.5-omni-flash`：先通过 Qwen Omni `input_audio` 得到 `heardText`，再调用 compare 模型生成 `recommendedText`
+- `omni_single + qwen3.5-omni-plus / qwen3.5-omni-flash`：单次 Qwen Omni 请求直接产出 `heardText + recommendedText`
+- Fun-ASR 没有 thinking 概念；thinking 只影响 Qwen Omni 阶段和 compare 阶段。
 
 Fun-ASR 不再由 Node 手写 REST 直接调用，而是由后端 wrapper 调起：
 
@@ -221,19 +223,22 @@ platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
 22. 打开非 `roundOneCollect` 页面，确认不注入该工具卡。
 23. 打开 `group/detail?taskId=...` 页面，确认出现“导出数据总表”按钮；点击后状态应展示“准备导出，正在切换到 100条/页”“正在导出：第 x / y 页”，最终提示“已下载 CSV”，并显示后端上传成功或失败（失败不影响本地下载）。
 24. 导出后访问 `http://127.0.0.1:3333/api/data-baker/round-one-quality/export/download`，确认可下载后端保存的最新 CSV。
-25. 打开 options 中“ASR 语音 AI 设置”，确认不再显示“AI 模式”。
-26. 确认显示“听音模型”和“比较模型”，且“听音模型”下拉不再出现 `[object Object]`。
+25. 打开 options 中“ASR 语音 AI 设置”，确认显示“识别模式”下拉。
+26. 选择 `two_stage`，确认显示“听音模型”和“比较模型”，且“听音模型”下拉不再出现 `[object Object]`。
 27. 确认听音模型下拉包含 `fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`。
 28. 确认比较模型下拉包含 `qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`。
-29. 选择 `fun-asr` 后，确认界面显示 Python 虚拟环境提示。
-30. 切换到 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 后，确认 Python 提示立即隐藏，不需要先保存。
-31. 选择 `fun-asr` 后点击单条“AI 推荐文本”，确认浏览器仍只请求统一后端接口，后端链路为 Fun-ASR 听音 + compare。
-32. 选择 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认后端链路为 Qwen Omni 听音 + compare。
-33. 点击“AI并发分析并连续填入合格项”，确认默认并发不再是 `50`，而是 `5`，且最大值不再超过 `10`。
-34. 如果后端触发排队、429 重试或队列满，确认顶部悬浮窗/结果提示会显示“AI 排队 / 限流重试 / AI 分析失败”等友好状态，而不是误导为页面卡死。
-35. 未配置 Python 虚拟环境时，只有 `fun-asr` 会报清晰环境缺失错误，不应直接展示 provider 原始 JSON；Omni 听音模型仍可用。
-36. 若 Fun-ASR 返回 `403`，页面提示应说明可能是 DashScope 权限/地域、API Key 权限或平台音频 URL 对服务端不可访问，并建议先切换到 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus`。
-37. 确认页面填入后仍不自动保存、不自动提交、不自动判定、不自动流转。
+29. 切换到 `omni_single`，确认只显示“AI 模型”，不显示“听音模型”和“比较模型”。
+30. 确认 `AI 模型` 下拉只包含 `qwen3.5-omni-plus`、`qwen3.5-omni-flash`，且不出现 `fun-asr`。
+31. 切回 `two_stage` 后选择 `fun-asr`，确认界面显示 Python 虚拟环境提示。
+32. 切换到 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 后，确认 Python 提示立即隐藏，不需要先保存。
+33. 选择 `two_stage + fun-asr` 后点击单条“AI 推荐文本”，确认浏览器仍只请求统一后端接口，后端链路为 Fun-ASR 听音 + compare。
+34. 选择 `two_stage + qwen3.5-omni-flash` 或 `two_stage + qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认后端链路为 Qwen Omni 听音 + compare。
+35. 选择 `omni_single + qwen3.5-omni-flash` 或 `omni_single + qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认后端链路为单次 Omni，不调用 compare。
+36. 点击“AI并发分析并连续填入合格项”，确认默认并发不再是 `50`，而是 `5`，且最大值不再超过 `10`。
+37. 如果后端触发排队、429 重试或队列满，确认顶部悬浮窗/结果提示会显示“AI 排队 / 限流重试 / AI 分析失败”等友好状态，而不是误导为页面卡死。
+38. 未配置 Python 虚拟环境时，只有 `two_stage + fun-asr` 会报清晰环境缺失错误，不应直接展示 provider 原始 JSON；Omni 模型链路仍可用。
+39. 若 Fun-ASR 返回 `403`，页面提示应说明可能是 DashScope 权限/地域、API Key 权限或平台音频 URL 对服务端不可访问，并建议先切换到 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus`。
+40. 确认页面填入后仍不自动保存、不自动提交、不自动判定、不自动流转。
 
 ## 已知限制
 

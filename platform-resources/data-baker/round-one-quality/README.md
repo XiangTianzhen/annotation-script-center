@@ -128,11 +128,11 @@ AI prompt 输出字形规则：
 
 - `DASHSCOPE_API_KEY`：DashScope API Key，只由后端读取。
 - `DATABAKER_AI_FUN_ASR_MODEL`：Fun-ASR 录音文件识别模型，默认 `fun-asr`。
-- `DATABAKER_AI_OMNI_MODEL`：Qwen Omni 听音模型默认值，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_AI_OMNI_MODEL`：Qwen Omni 模型默认值；双模型下用于 Omni 听音，单模型下用于 Omni 单模型推荐，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
-- `DATABAKER_AI_PIPELINE_MODE`：仅作为历史兼容环境变量保留；未显式指定听音模型时，旧值 `omni_single / two_stage / qwen_omni_two_stage / listen_only` 会迁移到 Qwen Omni 听音 + compare，`fun_asr_compare` 会迁移到 `fun-asr` 听音 + compare。
+- `DATABAKER_AI_PIPELINE_MODE`：识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。旧值 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
@@ -150,23 +150,33 @@ AI prompt 输出字形规则：
 
 ## 听音模型与限流
 
-当前前端只配置两个模型字段：
+当前前端先选择“识别模式”：
+
+- `two_stage`：显示“听音模型 + 比较模型”
+- `omni_single`：只显示“AI 模型”
+
+双模型配置：
 
 - 听音模型：`fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
 - 比较模型：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`
 
-运行时链路由听音模型自动决定：
+单模型配置：
 
-- 选择 `fun-asr`：先调用 Fun-ASR 录音文件识别，再调用文本 compare 模型。
-- 选择 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash`：先通过 Qwen Omni `input_audio` 产出 `heardText`，再调用文本 compare 模型。
+- AI 模型：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
+
+运行时链路：
+
+- `two_stage + fun-asr`：先调用 Fun-ASR 录音文件识别，再调用文本 compare 模型。
+- `two_stage + qwen3.5-omni-plus / qwen3.5-omni-flash`：先通过 Qwen Omni `input_audio` 产出 `heardText`，再调用文本 compare 模型。
+- `omni_single + qwen3.5-omni-plus / qwen3.5-omni-flash`：单次 Qwen Omni 请求完成听音 + 推荐文本，不调用 compare。
 
 设置页口径：
 
-- 不再显示“AI 模式”字段。
-- 不再显示听音模型自定义输入框。
-- 不再显示比较模型自定义输入框。
+- 显示“识别模式”字段。
+- `two_stage` 下显示“听音模型”和“比较模型”，不显示“AI 模型”。
+- `omni_single` 下只显示“AI 模型”，不显示“听音模型”和“比较模型”。
 - 选择 `fun-asr` 时显示 Python SDK / `.venv` 提示。
-- 选择 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 时隐藏 Python 提示。
+- 选择 Qwen Omni 模型时隐藏 Python 提示。
 - 比较模型默认 `qwen3.5-plus`；旧配置若为其他值，会迁移为 `qwen3.5-plus`。
 
 统一约束：
@@ -201,15 +211,16 @@ platform-resources/backend/ai/python/requirements.txt
 ## 真实浏览器验收建议
 
 1. 重新加载扩展。
-2. 打开 options，确认不再显示“AI 模式”，只显示“听音模型”和“比较模型”。
-3. 确认“听音模型”下拉不再出现 `[object Object]`，并包含 `fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`。
-4. 进入 `roundOneCollect` 页面，选择 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope，且后端链路为 Omni 听音 + compare。
-5. 切换听音模型为 `fun-asr`，确认界面显示 Python 提示，后端链路为 Fun-ASR + compare。
-6. 点击“AI并发分析并连续填入合格项”，确认默认并发已降为 `5`，最大值不再超过 `10`。
-7. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。
-8. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
-9. 未配置 Python 虚拟环境时，只有选择 `fun-asr` 才应返回清晰错误，而不是一串 provider 原始 JSON。
-10. 配置 Python 虚拟环境后，`fun-asr` 需要用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
+2. 打开 options，确认显示“识别模式”下拉。
+3. 选择 `two_stage`，确认显示“听音模型”和“比较模型”，且“听音模型”下拉不再出现 `[object Object]`。
+4. 切换到 `omni_single`，确认只显示“AI 模型”，且模型选项只包含 `qwen3.5-omni-plus`、`qwen3.5-omni-flash`。
+5. 进入 `roundOneCollect` 页面，在 `omni_single` 下选择 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope，且后端链路为单次 Omni。
+6. 切回 `two_stage` 并选择听音模型为 `fun-asr`，确认界面显示 Python 提示，后端链路为 Fun-ASR + compare。
+7. 点击“AI并发分析并连续填入合格项”，确认默认并发已降为 `5`，最大值不再超过 `10`。
+8. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。
+9. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
+10. 未配置 Python 虚拟环境时，只有 `two_stage + fun-asr` 才应返回清晰错误，而不是一串 provider 原始 JSON。
+11. 配置 Python 虚拟环境后，`fun-asr` 需要用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
 11. 若 Fun-ASR 返回 `403`，确认页面提示会说明可能是权限/地域、API Key 或平台 `audioUrl` 可访问性问题，并建议切换到 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus`。
 12. 选择 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 时，需要验证后端能先返回 `heardText`，再调用 compare 模型生成 `recommendedText`。
 13. 页面填入后仍不自动保存、不自动提交、不自动判定、不自动流转。

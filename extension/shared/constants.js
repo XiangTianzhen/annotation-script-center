@@ -86,11 +86,15 @@
     BACKEND_ENDPOINTS.local + TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH;
   const DATABAKER_PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const DATABAKER_AI_PIPELINE_MODE_OPTIONS = [
-    { value: "qwen_omni_compare", label: "Qwen Omni 听音 + 比较模型" },
-    { value: "fun_asr_compare", label: "Fun-ASR + 比较模型" },
+    { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
+    { value: "omni_single", label: "单模型：Omni 单模型" },
   ];
   const DATABAKER_AI_LISTEN_MODEL_OPTIONS = [
     { value: "fun-asr", label: "fun-asr" },
+    { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
+    { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+  ];
+  const DATABAKER_AI_SINGLE_MODEL_OPTIONS = [
     { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
     { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
   ];
@@ -1288,11 +1292,12 @@
           aiRecommendEnabled: true,
           aiRecommendEndpoint: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
           aiRecommendRequestTimeoutMs: 120000,
-          aiRecommendPipelineMode: "qwen_omni_compare",
+          aiRecommendPipelineMode: "two_stage",
           aiQualifiedAutofillConcurrency: 5,
           aiQualifiedAutofillWaitAllBeforeFill: false,
           aiRecommendListenModel: "qwen3.5-omni-flash",
           aiRecommendCompareModel: "qwen3.5-plus",
+          aiRecommendSingleModel: "qwen3.5-omni-flash",
           aiRecommendEnableThinking: false,
           aiRecommendListenPrompt: "",
           aiRecommendComparePrompt: "",
@@ -1477,6 +1482,7 @@
     DATABAKER_PAGE_SIZE_OPTIONS: clone(DATABAKER_PAGE_SIZE_OPTIONS),
     DATABAKER_AI_PIPELINE_MODE_OPTIONS: clone(DATABAKER_AI_PIPELINE_MODE_OPTIONS),
     DATABAKER_AI_LISTEN_MODEL_OPTIONS: clone(DATABAKER_AI_LISTEN_MODEL_OPTIONS),
+    DATABAKER_AI_SINGLE_MODEL_OPTIONS: clone(DATABAKER_AI_SINGLE_MODEL_OPTIONS),
     DATABAKER_AI_OMNI_MODEL_OPTIONS: clone(DATABAKER_AI_OMNI_MODEL_OPTIONS),
     DATABAKER_AI_FUN_ASR_MODEL_OPTIONS: clone(DATABAKER_AI_FUN_ASR_MODEL_OPTIONS),
     DATABAKER_AI_COMPARE_MODEL_OPTIONS: clone(DATABAKER_AI_COMPARE_MODEL_OPTIONS),

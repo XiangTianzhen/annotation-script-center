@@ -4,7 +4,7 @@
 
 当前目录结构：
 
-- `config.js`：统一读取 DashScope、Fun-ASR、限流、Python 运行环境，以及 DataBaker 听音模型 / 比较模型白名单配置。
+- `config.js`：统一读取 DashScope、Fun-ASR、限流、Python 运行环境，以及 DataBaker 识别模式、听音模型、单模型、比较模型白名单配置。
 - `sanitizer.js`：统一脱敏工具，避免日志输出完整音频 URL、签名 URL、token、cookie。
 - `errors.js`：统一 provider / Python 运行时错误包装。
 - `provider-queue.js`：统一 provider 限流队列，当前支持 `qwen_omni`、`fun_asr`、`text_compare`，同时支持每个 group 独立 `maxConcurrent`。

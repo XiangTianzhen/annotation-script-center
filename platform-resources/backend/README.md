@@ -55,9 +55,9 @@ http://127.0.0.1:3333
 - `ASR_TRANSCRIPTION_STATS_DIR`：ASR 转写统计输出目录（默认 `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`）。
 - `ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`：设为 `1` 时额外保存 `statistics-rows.json`。
 - `ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外保存 `statistics-upload-events.jsonl`。
-- `DATABAKER_AI_PIPELINE_MODE`：标贝易采旧流水线兼容字段；历史 `omni_single / two_stage / qwen_omni_two_stage / listen_only` 会迁移到 Qwen Omni 听音 + compare，`fun_asr_compare` 会迁移到 Fun-ASR 听音 + compare。
+- `DATABAKER_AI_PIPELINE_MODE`：标贝易采识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。历史 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
 - `DATABAKER_AI_FUN_ASR_MODEL`：标贝易采 Fun-ASR 录音文件识别模型，默认 `fun-asr`。
-- `DATABAKER_AI_OMNI_MODEL`：标贝易采 Qwen Omni 听音模型默认值，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_AI_OMNI_MODEL`：标贝易采 Qwen Omni 模型默认值；`two_stage` 下用于 Omni 听音，`omni_single` 下用于单模型 AI，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：标贝易采 AI 对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：标贝易采 AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：标贝易采 Fun-ASR 语言提示，默认 `zh`。
@@ -204,7 +204,7 @@ pm2 restart annotation-script-center --update-env
 
 - `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载，以及 AI 建议 `health/suggest` 接口。
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。
-- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`，以及导出 CSV `health/config/upload/download` 接口；当前前端只配置“听音模型 + 比较模型”，后端再推导 Fun-ASR 或 Qwen Omni 听音链路，导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
+- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`，以及导出 CSV `health/config/upload/download` 接口；当前前端先选“识别模式”，`two_stage` 显示“听音模型 + 比较模型”，`omni_single` 只显示“AI 模型”。后端再推导 Fun-ASR、Qwen Omni 听音 + compare、或 Omni 单模型链路，导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
 - `data-baker/round-one-quality` 的 `supportedPipelineModes` 仅保留给后端兼容与排查使用，不再作为前端主配置来源；前端主配置为 `listenModelOptions` 与 `compareModelOptions`。
 - DataBaker `fun-asr` 链路通过 Node `child_process` 调用 `platform-resources/backend/ai/python/funasr_client.py`，并显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`，避免 Windows 默认编码导致 Fun-ASR 听音文本乱码。
 - 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；Qwen Omni 听音链路不经过 Python 子进程，不受该问题影响。

@@ -6,6 +6,7 @@ const path = require("path");
 const {
   DATABAKER_COMPARE_MODEL_OPTIONS,
   DATABAKER_LISTEN_MODEL_OPTIONS,
+  DATABAKER_SINGLE_MODEL_OPTIONS,
   DEFAULT_COMPARE_MODEL,
   DEFAULT_FUN_ASR_MODEL,
   DEFAULT_OMNI_MODEL,
@@ -14,7 +15,10 @@ const {
   deriveDataBakerPipelineMode,
   normalizeDataBakerCompareModel,
   normalizeDataBakerListenModel,
+  normalizeDataBakerRecognitionMode,
+  normalizeDataBakerSingleModel,
   resolveDataBakerDefaultListenModel,
+  resolveDataBakerDefaultSingleModel,
 } = require("../../../backend/ai/config");
 const {
   getClientConfig,
@@ -38,7 +42,7 @@ const {
   setCachedRecommendResult,
 } = require("../../../backend/ai/result-cache");
 
-const RULE_VERSION = "data-baker-round-one-quality-ai-v5-service-consolidation";
+const RULE_VERSION = "data-baker-round-one-quality-ai-v6-single-and-two-stage-ui";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "你要一次完成：听音、对比页面候选文本、输出最终推荐文本。",
   "页面候选文本只作为参考，实际发声优先。",
@@ -75,15 +79,20 @@ const JSONL_FILE_NAME = "recommend-calls.jsonl";
 const CSV_FILE_NAME = "recommend-calls.csv";
 const MINNAN_LEXICON_PATH = path.join(__dirname, "..", "reference", "minnan-lexicon.csv");
 const DEFAULT_CONTEXT_LIMIT = 40;
+const RECOGNITION_MODE_OPTIONS = [
+  { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
+  { value: "omni_single", label: "单模型：Omni 单模型" },
+];
 const SUPPORTED_PIPELINE_MODES = [
+  { value: "fun_asr_compare", label: "Fun-ASR 听音 + 比较模型" },
   { value: "qwen_omni_compare", label: "Qwen Omni 听音 + 比较模型" },
-  { value: "fun_asr_compare", label: "Fun-ASR + 比较模型" },
+  { value: "omni_single", label: "Qwen Omni 单模型" },
 ];
 const LEGACY_PIPELINE_MODE_MAP = {
-  omni_single: "qwen_omni_compare",
-  two_stage: "qwen_omni_compare",
-  qwen_omni_two_stage: "qwen_omni_compare",
-  listen_only: "qwen_omni_compare",
+  qwen_omni_two_stage: "two_stage",
+  listen_only: "omni_single",
+  fun_asr_compare: "two_stage",
+  qwen_omni_compare: "two_stage",
 };
 const deprecatedModeLogKeys = new Set();
 const BASE_ENTRIES = [
@@ -281,7 +290,10 @@ function normalizeAnnotatorName(value) {
 function resolvePipelineMode(value, fallbackMode, sourceLabel) {
   const fallbackText = String(fallbackMode || "qwen_omni_compare").trim().toLowerCase();
   const normalizedFallback =
-    fallbackText === "fun_asr_compare" ? "fun_asr_compare" : "qwen_omni_compare";
+    fallbackText === "fun_asr_compare" ||
+    fallbackText === "omni_single"
+      ? fallbackText
+      : "qwen_omni_compare";
   const rawText = String(value || "").trim().toLowerCase();
   if (!rawText) {
     return {
@@ -291,7 +303,7 @@ function resolvePipelineMode(value, fallbackMode, sourceLabel) {
       warning: "",
     };
   }
-  if (rawText === "fun_asr_compare" || rawText === "qwen_omni_compare") {
+  if (rawText === "fun_asr_compare" || rawText === "qwen_omni_compare" || rawText === "omni_single") {
     return {
       mode: rawText,
       deprecatedFrom: "",
@@ -300,12 +312,16 @@ function resolvePipelineMode(value, fallbackMode, sourceLabel) {
     };
   }
   if (LEGACY_PIPELINE_MODE_MAP[rawText]) {
+    const normalizedRecognitionMode = normalizeDataBakerRecognitionMode(LEGACY_PIPELINE_MODE_MAP[rawText], "two_stage");
+    const targetMode =
+      normalizedRecognitionMode === "omni_single"
+        ? "omni_single"
+        : normalizedFallback;
     return {
-      mode: LEGACY_PIPELINE_MODE_MAP[rawText],
+      mode: targetMode,
       deprecatedFrom: rawText,
       source: sourceLabel || "env",
-      warning:
-        "deprecated pipeline mode " + rawText + " 已迁移为 " + LEGACY_PIPELINE_MODE_MAP[rawText],
+      warning: "deprecated pipeline mode " + rawText + " 已迁移为 " + targetMode,
     };
   }
   return {
@@ -322,6 +338,10 @@ function getEnvPipelineResolution() {
     "qwen_omni_compare",
     "env"
   );
+}
+
+function getEnvRecognitionMode() {
+  return normalizeDataBakerRecognitionMode(process.env.DATABAKER_AI_PIPELINE_MODE || "two_stage", "two_stage");
 }
 
 function logDeprecatedPipelineOnce(resolution) {
@@ -492,9 +512,11 @@ function normalizeRecommendRequest(body) {
     effectiveTime: normalizeNullableNumber(source.effectiveTime),
     audioDuration: normalizeNullableNumber(source.audioDuration),
     clientVersion,
+    recognitionMode: normalizeModelText(source.recognitionMode),
     pipelineMode: normalizeModelText(source.pipelineMode),
     listenModel: normalizeModelText(source.listenModel),
     compareModel: normalizeModelText(source.compareModel),
+    singleModel: normalizeModelText(source.singleModel),
     aiOptions,
   };
 }
@@ -513,6 +535,15 @@ function resolveRequestedCompareModel(recommendRequest, defaultCompareModel) {
   const explicitCompareModel =
     recommendRequest.aiOptions.compareModel || recommendRequest.compareModel || "";
   return normalizeDataBakerCompareModel(explicitCompareModel, defaultCompareModel);
+}
+
+function resolveRequestedSingleModel(recommendRequest, defaultSingleModel) {
+  const explicitSingleModel =
+    recommendRequest.aiOptions.singleModel ||
+    recommendRequest.aiOptions.omniModel ||
+    recommendRequest.singleModel ||
+    "";
+  return normalizeDataBakerSingleModel(explicitSingleModel, defaultSingleModel);
 }
 
 function normalizeConfidence(value) {
@@ -1520,19 +1551,31 @@ function createHealthPayload() {
   const qwenConfig = getClientConfig();
   const funAsrConfig = getFunAsrClientConfig();
   const envPipeline = getEnvPipelineResolution();
+  const recognitionMode = getEnvRecognitionMode();
   const defaultListenModel = resolveDataBakerDefaultListenModel();
+  const defaultSingleModel = resolveDataBakerDefaultSingleModel();
+  const derivedPipelineMode = deriveDataBakerPipelineMode(
+    recognitionMode,
+    recognitionMode === "omni_single" ? defaultSingleModel : defaultListenModel
+  );
   logDeprecatedPipelineOnce(envPipeline);
   return {
     success: true,
     service: "data-baker-round-one-quality-ai-recommend",
     provider: "dashscope-fun-asr-and-qwen",
     ruleVersion: RULE_VERSION,
-    pipelineMode: deriveDataBakerPipelineMode(defaultListenModel),
+    recognitionMode,
+    pipelineMode: recognitionMode,
+    derivedPipelineMode,
     deprecatedPipelineMode: envPipeline.deprecatedFrom || "",
+    recognitionModeOptions: RECOGNITION_MODE_OPTIONS.slice(),
+    pipelineModeOptions: RECOGNITION_MODE_OPTIONS.slice(),
     supportedPipelineModes: SUPPORTED_PIPELINE_MODES,
     listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+    singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
     compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
     listenModel: defaultListenModel,
+    singleModel: defaultSingleModel,
     funAsrModel: funAsrConfig.model || DEFAULT_FUN_ASR_MODEL,
     funAsrPythonConfigured: funAsrConfig.pythonExists === true,
     omniModel: qwenConfig.omniModel || DEFAULT_OMNI_MODEL,
@@ -1554,7 +1597,13 @@ function createDefaultsPayload() {
   const qwenConfig = getClientConfig();
   const funAsrConfig = getFunAsrClientConfig();
   const envPipeline = getEnvPipelineResolution();
+  const recognitionMode = getEnvRecognitionMode();
   const defaultListenModel = resolveDataBakerDefaultListenModel();
+  const defaultSingleModel = resolveDataBakerDefaultSingleModel();
+  const derivedPipelineMode = deriveDataBakerPipelineMode(
+    recognitionMode,
+    recognitionMode === "omni_single" ? defaultSingleModel : defaultListenModel
+  );
   logDeprecatedPipelineOnce(envPipeline);
   return {
     success: true,
@@ -1562,10 +1611,16 @@ function createDefaultsPayload() {
     scriptId: "dataBakerRoundOneQuality",
     component: "asr-voice-ai",
     defaults: {
-      pipelineMode: deriveDataBakerPipelineMode(defaultListenModel),
+      recognitionMode,
+      pipelineMode: recognitionMode,
+      derivedPipelineMode,
+      recognitionModeOptions: RECOGNITION_MODE_OPTIONS.slice(),
+      pipelineModeOptions: RECOGNITION_MODE_OPTIONS.slice(),
       supportedPipelineModes: SUPPORTED_PIPELINE_MODES,
       listenModel: defaultListenModel,
       listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+      singleModel: defaultSingleModel,
+      singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
       compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
       compareModel: qwenConfig.compareModel || DEFAULT_COMPARE_MODEL,
       funAsrModel: funAsrConfig.model || DEFAULT_FUN_ASR_MODEL,
@@ -1597,7 +1652,7 @@ function createDefaultsPayload() {
       ? [
           {
             from: envPipeline.deprecatedFrom,
-            to: deriveDataBakerPipelineMode(defaultListenModel),
+            to: derivedPipelineMode,
           },
         ]
       : [],
@@ -1608,20 +1663,22 @@ function createDefaultsPayload() {
       funAsr:
         "Fun-ASR 为录音文件识别接口，不走 OpenAI-compatible chat model，由后端 Python SDK 调用；Fun-ASR 没有 thinking 参数。",
       qwenOmni:
-        "qwen3.5-omni-plus / qwen3.5-omni-flash 会先通过 input_audio 产出 heardText，再调用比较模型。",
+        "qwen3.5-omni-plus / qwen3.5-omni-flash 在双模型下会先通过 input_audio 产出 heardText 再调用比较模型；在单模型下会一次完成听音和推荐文本。",
       queue: "所有 Fun-ASR / Omni / compare 调用都会先进入后端统一限流队列；Fun-ASR 并发由 DATABAKER_AI_FUN_ASR_CONCURRENCY 控制。",
     },
   };
 }
 
-function buildCacheKeyInput(recommendRequest, pipelineMode, listenModel, compareModel) {
+function buildCacheKeyInput(recommendRequest, recognitionMode, pipelineMode, listenModel, compareModel, singleModel) {
   return {
     audioUrl: recommendRequest.audioUrl,
     effectiveStartTime: recommendRequest.effectiveStartTime,
     effectiveEndTime: recommendRequest.effectiveEndTime,
+    recognitionMode,
     pipelineMode,
     listenModel,
     compareModel,
+    singleModel,
     ruleVersion: RULE_VERSION,
     listenPrompt: recommendRequest.aiOptions.listenPrompt || "",
     comparePrompt: recommendRequest.aiOptions.comparePrompt || "",
@@ -1682,12 +1739,14 @@ async function recommend(body, requestIdHint) {
   let recommendRequest = null;
   let qwenConfig = null;
   let funAsrConfig = null;
+  let recognitionMode = "two_stage";
   let pipelineMode = "qwen_omni_compare";
   let deprecatedMode = "";
   let listenDurationMs = 0;
   let compareDurationMs = 0;
   let activeListenModel = "";
   let activeCompareModel = "";
+  let activeSingleModel = "";
   let cacheKey = "";
   try {
     recommendRequest = normalizeRecommendRequest(body || {});
@@ -1696,20 +1755,36 @@ async function recommend(body, requestIdHint) {
     qwenConfig = getClientConfig();
     funAsrConfig = getFunAsrClientConfig();
     const envPipeline = getEnvPipelineResolution();
+    const defaultRecognitionMode = getEnvRecognitionMode();
     const defaultListenModel = resolveDataBakerDefaultListenModel();
+    const defaultSingleModel = resolveDataBakerDefaultSingleModel();
+    recognitionMode = normalizeDataBakerRecognitionMode(
+      recommendRequest.recognitionMode || recommendRequest.pipelineMode,
+      defaultRecognitionMode
+    );
     const requestedListenModel = resolveRequestedListenModel(recommendRequest, defaultListenModel);
     const requestedCompareModel = resolveRequestedCompareModel(
       recommendRequest,
       qwenConfig.compareModel || DEFAULT_COMPARE_MODEL
     );
+    const requestedSingleModel = resolveRequestedSingleModel(
+      recommendRequest,
+      defaultSingleModel
+    );
     const requestPipeline = resolvePipelineMode(
       recommendRequest.pipelineMode,
-      deriveDataBakerPipelineMode(requestedListenModel),
+      deriveDataBakerPipelineMode(
+        recognitionMode,
+        recognitionMode === "omni_single" ? requestedSingleModel : requestedListenModel
+      ),
       "request"
     );
     logDeprecatedPipelineOnce(envPipeline);
     logDeprecatedPipelineOnce(requestPipeline);
-    pipelineMode = requestPipeline.mode || deriveDataBakerPipelineMode(requestedListenModel);
+    pipelineMode = deriveDataBakerPipelineMode(
+      recognitionMode,
+      recognitionMode === "omni_single" ? requestedSingleModel : requestedListenModel
+    );
     deprecatedMode = requestPipeline.deprecatedFrom || envPipeline.deprecatedFrom || "";
 
     if (!qwenConfig.hasApiKey && !qwenConfig.mockEnabled) {
@@ -1721,20 +1796,36 @@ async function recommend(body, requestIdHint) {
         ? recommendRequest.aiOptions.enable_thinking === true
         : qwenConfig.enableThinkingDefault === true;
 
-    activeListenModel =
-      pipelineMode === "fun_asr_compare"
-        ? DEFAULT_FUN_ASR_MODEL
-        : normalizeDataBakerListenModel(
-            requestedListenModel,
-            qwenConfig.omniModel || DEFAULT_OMNI_MODEL
-          );
-    activeCompareModel = normalizeDataBakerCompareModel(
-      requestedCompareModel,
-      qwenConfig.compareModel || DEFAULT_COMPARE_MODEL
-    );
+    if (pipelineMode === "omni_single") {
+      activeSingleModel = normalizeDataBakerSingleModel(
+        requestedSingleModel,
+        qwenConfig.omniModel || DEFAULT_OMNI_MODEL
+      );
+      activeListenModel = activeSingleModel;
+      activeCompareModel = "";
+    } else {
+      activeListenModel =
+        pipelineMode === "fun_asr_compare"
+          ? DEFAULT_FUN_ASR_MODEL
+          : normalizeDataBakerListenModel(
+              requestedListenModel,
+              qwenConfig.omniModel || DEFAULT_OMNI_MODEL
+            );
+      activeCompareModel = normalizeDataBakerCompareModel(
+        requestedCompareModel,
+        qwenConfig.compareModel || DEFAULT_COMPARE_MODEL
+      );
+    }
 
     cacheKey = buildRecommendCacheKey(
-      buildCacheKeyInput(recommendRequest, pipelineMode, activeListenModel, activeCompareModel)
+      buildCacheKeyInput(
+        recommendRequest,
+        recognitionMode,
+        pipelineMode,
+        activeListenModel,
+        activeCompareModel,
+        activeSingleModel
+      )
     );
     const cached = getCachedRecommendResult(cacheKey);
     if (cached) {
@@ -1771,9 +1862,11 @@ async function recommend(body, requestIdHint) {
       requestId,
       hostname: parseAudioHostname(recommendRequest.audioUrl),
       sentenceNumber: recommendRequest.sentenceNumber,
+      recognitionMode,
       pipelineMode,
       listenModel: activeListenModel,
       compareModel: activeCompareModel,
+      singleModel: activeSingleModel,
       enableThinking: effectiveEnableThinking,
       mock: qwenConfig.mockEnabled,
     });
@@ -1781,7 +1874,80 @@ async function recommend(body, requestIdHint) {
     const queueMetas = [];
     let responseData = null;
 
-    if (pipelineMode === "fun_asr_compare") {
+    if (pipelineMode === "omni_single") {
+      const lexiconContext = buildLexiconContext({
+        pageText: recommendRequest.pageText,
+        heardText: "",
+        limit: 60,
+      });
+      const singlePrompt = buildOmniSinglePrompt(recommendRequest, lexiconContext);
+      const listenStartedAtMs = Date.now();
+      let omniSingleResult = null;
+      try {
+        const queued = await runQueuedProviderCall("qwen_omni", function () {
+          return requestOmniInputAudio(recommendRequest, singlePrompt, {
+            model: activeSingleModel,
+            timeoutMs: qwenConfig.timeoutMs,
+            enableThinking: effectiveEnableThinking,
+          });
+        });
+        omniSingleResult = queued.value;
+        queueMetas.push(queued.queueMeta);
+      } finally {
+        listenDurationMs = Date.now() - listenStartedAtMs;
+      }
+
+      const omniSingleJson = parseModelJsonText(omniSingleResult.rawText, requestId);
+      const normalizedSingle = normalizeOmniSingleResponse(omniSingleJson, {
+        pageText: recommendRequest.pageText,
+      });
+      const rewriteState = rewriteRecommendedText(
+        normalizeToSimplifiedChinesePreservingLexicon(
+          removeTextSpaces(normalizedSingle.recommendedText)
+        ),
+        recommendRequest,
+        normalizedSingle.heardText
+      );
+      normalizedSingle.recommendedText = rewriteState.text;
+      if (rewriteState.rewriteResult.changed) {
+        normalizedSingle.needHumanReview = true;
+      }
+
+      responseData = buildRecommendResponse({
+        requestId,
+        request: recommendRequest,
+        listen: {
+          heardText: normalizedSingle.heardText,
+          confidence: normalizedSingle.confidence,
+          isValid: Boolean(normalizedSingle.heardText),
+          invalidReasons: normalizedSingle.heardText ? [] : ["missing-heard-text"],
+        },
+        compare: normalizedSingle,
+        listenModel: omniSingleResult.model,
+        compareModel: "",
+        listenUsage: normalizeUsage(omniSingleResult.usage),
+        compareUsage: {},
+        cost: estimateCost({
+          effectiveTime: recommendRequest.effectiveTime,
+          listenUsage: normalizeUsage(omniSingleResult.usage),
+          compareUsage: {},
+        }),
+        listenConfidence: normalizedSingle.confidence,
+        compareConfidence: normalizedSingle.confidence,
+      });
+      responseData.lexicon = {
+        enabled: Boolean(lexiconContext.enabled || rewriteState.rewriteMode !== "off"),
+        rewriteMode: rewriteState.rewriteMode,
+        matchedCount: Number(lexiconContext.matchedCount || 0),
+        rewriteChanged: rewriteState.rewriteResult.changed === true,
+        rewriteChanges: rewriteState.rewriteResult.changes,
+      };
+      responseData.timing = {
+        listenDurationMs,
+        compareDurationMs: 0,
+        totalDurationMs: Date.now() - startedAtMs,
+      };
+    } else if (pipelineMode === "fun_asr_compare") {
       const listenStartedAtMs = Date.now();
       let funAsrResult = null;
       try {
@@ -1973,7 +2139,9 @@ async function recommend(body, requestIdHint) {
       };
     }
 
-    responseData.pipelineMode = pipelineMode;
+    responseData.recognitionMode = recognitionMode;
+    responseData.pipelineMode = recognitionMode;
+    responseData.derivedPipelineMode = pipelineMode;
     responseData.runtime = createRuntimeMeta({
       cacheHit: false,
       cacheTtlMs: setCachedRecommendResult(cacheKey, responseData),
@@ -1982,11 +2150,18 @@ async function recommend(body, requestIdHint) {
     });
     responseData.thinking = {
       enableThinking: effectiveEnableThinking,
-      compareStageOnly: pipelineMode === "fun_asr_compare",
+      compareStageOnly: pipelineMode === "fun_asr_compare" || pipelineMode === "qwen_omni_compare",
     };
     responseData.normalization = {
       simplifiedChineseApplied: true,
       lexiconTermsPreserved: true,
+    };
+    responseData.modelSelection = {
+      recognitionMode,
+      listenModel: activeListenModel,
+      compareModel: activeCompareModel,
+      singleModel: activeSingleModel,
+      derivedPipelineMode: pipelineMode,
     };
 
     appendCallLogSafe({

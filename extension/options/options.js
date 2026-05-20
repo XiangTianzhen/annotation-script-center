@@ -74,6 +74,12 @@
         { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
         { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
       ];
+  const dataBakerSingleModelOptions = Array.isArray(constants.DATABAKER_AI_SINGLE_MODEL_OPTIONS)
+    ? constants.DATABAKER_AI_SINGLE_MODEL_OPTIONS
+    : [
+        { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
+        { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+      ];
   const dataBakerCompareModelOptions = Array.isArray(constants.DATABAKER_AI_COMPARE_MODEL_OPTIONS)
     ? constants.DATABAKER_AI_COMPARE_MODEL_OPTIONS
     : [
@@ -603,14 +609,40 @@
     return getDataBakerModelText(listenModel) === "fun-asr";
   }
 
-  function deriveDataBakerPipelineMode(listenModel) {
-    return isDataBakerFunAsrListenModel(listenModel) ? "fun_asr_compare" : "qwen_omni_compare";
+  function normalizeDataBakerRecognitionMode(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "two_stage" || text === "omni_single") {
+      return text;
+    }
+    if (text === "fun_asr_compare" || text === "qwen_omni_compare" || text === "qwen_omni_two_stage") {
+      return "two_stage";
+    }
+    if (text === "listen_only") {
+      return "omni_single";
+    }
+    return String(fallback || "two_stage").trim().toLowerCase() === "omni_single"
+      ? "omni_single"
+      : "two_stage";
+  }
+
+  function deriveDataBakerPipelineMode(recognitionMode, model) {
+    if (normalizeDataBakerRecognitionMode(recognitionMode, "two_stage") === "omni_single") {
+      return "omni_single";
+    }
+    return isDataBakerFunAsrListenModel(model) ? "fun_asr_compare" : "qwen_omni_compare";
   }
 
   function getDataBakerListenModelDefault(aiDefaults) {
     return normalizeDataBakerListenModel(
       aiDefaults?.listenModel,
       aiDefaults?.omniModel || "qwen3.5-omni-flash"
+    );
+  }
+
+  function getDataBakerSingleModelDefault(aiDefaults) {
+    return normalizeDataBakerSingleModel(
+      aiDefaults?.singleModel || aiDefaults?.omniModel,
+      "qwen3.5-omni-flash"
     );
   }
 
@@ -658,11 +690,31 @@
     setFieldVisibility("data-baker-ai-listen-model-note", isDataBakerFunAsrListenModel(currentListenModel));
   }
 
+  function applyDataBakerSingleModelFields(singleModel, config, aiDefaults) {
+    const currentSingleModel = normalizeDataBakerSingleModel(
+      singleModel || config?.aiRecommendSingleModel,
+      getDataBakerSingleModelDefault(aiDefaults)
+    );
+    renderFixedModelOptions(
+      "data-baker-ai-single-model-select",
+      dataBakerSingleModelOptions,
+      currentSingleModel
+    );
+    setFieldVisibility("data-baker-ai-single-model-field", true);
+    setFieldVisibility("data-baker-ai-listen-model-note", false);
+  }
+
   function getDataBakerSettingsDraftConfig(aiDefaults) {
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const recognitionSelectNode = getElement("data-baker-ai-pipeline-mode-select");
     const listenSelectNode = getElement("data-baker-ai-listen-model-select");
     const compareSelectNode = getElement("data-baker-ai-compare-model-select");
+    const singleSelectNode = getElement("data-baker-ai-single-model-select");
     return {
+      aiRecommendPipelineMode:
+        recognitionSelectNode instanceof HTMLSelectElement
+          ? normalizeDataBakerRecognitionMode(recognitionSelectNode.value, "two_stage")
+          : "two_stage",
       aiRecommendListenModel:
         listenSelectNode instanceof HTMLSelectElement
           ? normalizeDataBakerListenModel(
@@ -677,7 +729,62 @@
               String(defaults.compareModel || "qwen3.5-plus")
             )
           : String(defaults.compareModel || "qwen3.5-plus"),
+      aiRecommendSingleModel:
+        singleSelectNode instanceof HTMLSelectElement
+          ? normalizeDataBakerSingleModel(
+              singleSelectNode.value,
+              getDataBakerSingleModelDefault(defaults)
+            )
+          : getDataBakerSingleModelDefault(defaults),
     };
+  }
+
+  function applyDataBakerRecognitionModeFields(recognitionMode, config, aiDefaults) {
+    const currentRecognitionMode = normalizeDataBakerRecognitionMode(
+      recognitionMode || config?.aiRecommendPipelineMode,
+      "two_stage"
+    );
+    renderFixedModelOptions(
+      "data-baker-ai-pipeline-mode-select",
+      [
+        { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
+        { value: "omni_single", label: "单模型：Omni 单模型" },
+      ],
+      currentRecognitionMode
+    );
+    setFieldVisibility("data-baker-ai-listen-model-field", currentRecognitionMode === "two_stage");
+    setFieldVisibility("data-baker-ai-compare-model-field", currentRecognitionMode === "two_stage");
+    setFieldVisibility("data-baker-ai-single-model-field", currentRecognitionMode === "omni_single");
+    setFieldVisibility("data-baker-ai-listen-model-custom-field", false);
+    setFieldVisibility("data-baker-ai-compare-model-custom-field", false);
+    if (currentRecognitionMode === "omni_single") {
+      applyDataBakerSingleModelFields(config?.aiRecommendSingleModel, config, aiDefaults);
+      setFieldVisibility("data-baker-ai-listen-model-note", false);
+      return;
+    }
+    applyDataBakerListenModelFields(config?.aiRecommendListenModel, config, aiDefaults);
+  }
+
+  function updateDataBakerRecognitionModeFields(recognitionMode) {
+    const aiDefaults =
+      getAsrVoiceAiDefaultsCached(dataBakerRoundOneQualityScriptId).defaults || {};
+    const draftConfig = getDataBakerSettingsDraftConfig(aiDefaults);
+    draftConfig.aiRecommendPipelineMode = normalizeDataBakerRecognitionMode(recognitionMode, "two_stage");
+    if (draftConfig.aiRecommendPipelineMode === "omni_single") {
+      draftConfig.aiRecommendSingleModel = isDataBakerFunAsrListenModel(
+        draftConfig.aiRecommendListenModel
+      )
+        ? "qwen3.5-omni-flash"
+        : normalizeDataBakerSingleModel(
+            draftConfig.aiRecommendSingleModel,
+            getDataBakerSingleModelDefault(aiDefaults)
+          );
+    }
+    applyDataBakerRecognitionModeFields(
+      draftConfig.aiRecommendPipelineMode,
+      draftConfig,
+      aiDefaults
+    );
   }
 
   function updateDataBakerListenModelFields(listenModel) {
@@ -688,7 +795,11 @@
       listenModel,
       getDataBakerListenModelDefault(aiDefaults)
     );
-    applyDataBakerListenModelFields(draftConfig.aiRecommendListenModel, draftConfig, aiDefaults);
+    applyDataBakerRecognitionModeFields(
+      draftConfig.aiRecommendPipelineMode || "two_stage",
+      draftConfig,
+      aiDefaults
+    );
   }
 
   function bindJudgementModelSelect(selectId, customInputId) {
@@ -1104,10 +1215,15 @@
         scriptId === dataBakerRoundOneQualityScriptId
           ? clone(dataBakerCompareModelOptions)
           : [],
+      singleModel: "qwen3.5-omni-flash",
+      singleModelOptions:
+        scriptId === dataBakerRoundOneQualityScriptId
+          ? clone(dataBakerSingleModelOptions)
+          : [],
       funAsrModel: "fun-asr",
       omniModel: "qwen3.5-omni-flash",
       reviewModel: "",
-      pipelineMode: scriptId === dataBakerRoundOneQualityScriptId ? "qwen_omni_compare" : "",
+      pipelineMode: scriptId === dataBakerRoundOneQualityScriptId ? "two_stage" : "",
       supportedPipelineModes: [],
       timeoutMs: 120000,
       enableThinking: false,
@@ -1252,21 +1368,7 @@
   }
 
   function normalizeDataBakerPipelineMode(value, fallback) {
-    const text = String(value || "").trim().toLowerCase();
-    if (text === "fun_asr_compare" || text === "qwen_omni_compare") {
-      return text;
-    }
-    if (
-      text === "omni_single" ||
-      text === "two_stage" ||
-      text === "qwen_omni_two_stage" ||
-      text === "listen_only"
-    ) {
-      return "qwen_omni_compare";
-    }
-    return String(fallback || "qwen_omni_compare").trim().toLowerCase() === "fun_asr_compare"
-      ? "fun_asr_compare"
-      : "qwen_omni_compare";
+    return normalizeDataBakerRecognitionMode(value, fallback);
   }
 
   function getDataBakerModelText(value) {
@@ -1285,6 +1387,24 @@
 
   function normalizeDataBakerListenModel(value, fallback) {
     const allowed = dataBakerListenModelOptions
+      .map(function (item) {
+        return getDataBakerModelText(item && typeof item === "object" ? item.value : item);
+      })
+      .filter(Boolean);
+    const normalizedFallback =
+      getDataBakerModelText(fallback || "qwen3.5-omni-flash") || "qwen3.5-omni-flash";
+    const normalizedValue = getDataBakerModelText(value);
+    if (allowed.indexOf(normalizedValue) >= 0) {
+      return normalizedValue;
+    }
+    if (allowed.indexOf(normalizedFallback) >= 0) {
+      return normalizedFallback;
+    }
+    return allowed[0] || normalizedFallback;
+  }
+
+  function normalizeDataBakerSingleModel(value, fallback) {
+    const allowed = dataBakerSingleModelOptions
       .map(function (item) {
         return getDataBakerModelText(item && typeof item === "object" ? item.value : item);
       })
@@ -1620,17 +1740,18 @@
       settings?.platforms?.dataBaker?.scripts?.roundOneQuality || {};
 
     const config = Object.assign(
-      {
-        id: dataBakerRoundOneQualityScriptId,
-        enabled: true,
-        aiRecommendEnabled: true,
-        aiRecommendRequestTimeoutMs: 120000,
-        aiRecommendPipelineMode: "qwen_omni_compare",
-        aiQualifiedAutofillConcurrency: 5,
-        aiQualifiedAutofillWaitAllBeforeFill: false,
-        aiRecommendListenModel: "qwen3.5-omni-flash",
-        aiRecommendCompareModel: "qwen3.5-plus",
-        aiRecommendEnableThinking: false,
+        {
+          id: dataBakerRoundOneQualityScriptId,
+          enabled: true,
+          aiRecommendEnabled: true,
+          aiRecommendRequestTimeoutMs: 120000,
+          aiRecommendPipelineMode: "two_stage",
+          aiQualifiedAutofillConcurrency: 5,
+          aiQualifiedAutofillWaitAllBeforeFill: false,
+          aiRecommendListenModel: "qwen3.5-omni-flash",
+          aiRecommendCompareModel: "qwen3.5-plus",
+          aiRecommendSingleModel: "qwen3.5-omni-flash",
+          aiRecommendEnableThinking: false,
         aiRecommendListenPrompt: "",
         aiRecommendComparePrompt: "",
         aiRecommendTemperature: "",
@@ -1652,18 +1773,42 @@
     config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
       config.aiRecommendRequestTimeoutMs
     );
-    const defaultListenModel = normalizeDataBakerListenModel(
-      defaults.aiRecommendListenModel,
-      "qwen3.5-omni-flash"
-    );
-    config.aiRecommendListenModel = normalizeDataBakerListenModel(
-      config.aiRecommendListenModel,
-      normalizeDataBakerPipelineMode(config.aiRecommendPipelineMode, "qwen_omni_compare") ===
-        "fun_asr_compare"
-        ? "fun-asr"
-        : defaultListenModel
-    );
-    config.aiRecommendPipelineMode = deriveDataBakerPipelineMode(config.aiRecommendListenModel);
+      const defaultRecognitionMode = normalizeDataBakerRecognitionMode(
+        defaults.aiRecommendPipelineMode,
+        "two_stage"
+      );
+      const defaultListenModel = normalizeDataBakerListenModel(
+        defaults.aiRecommendListenModel,
+        "qwen3.5-omni-flash"
+      );
+      const defaultSingleModel = normalizeDataBakerSingleModel(
+        defaults.aiRecommendSingleModel || defaults.aiRecommendListenModel,
+        "qwen3.5-omni-flash"
+      );
+      const rawRecognitionMode = getDataBakerModelText(config.aiRecommendPipelineMode);
+      const normalizedRecognitionMode = normalizeDataBakerRecognitionMode(
+        config.aiRecommendPipelineMode,
+        defaultRecognitionMode
+      );
+      config.aiRecommendListenModel = normalizeDataBakerListenModel(
+        config.aiRecommendListenModel,
+        rawRecognitionMode === "fun_asr_compare"
+          ? "fun-asr"
+          : normalizedRecognitionMode === "two_stage" &&
+              isDataBakerFunAsrListenModel(config.aiRecommendListenModel)
+            ? "fun-asr"
+            : defaultListenModel
+      );
+      config.aiRecommendSingleModel = normalizeDataBakerSingleModel(
+        config.aiRecommendSingleModel ||
+          (normalizedRecognitionMode === "omni_single"
+            ? isDataBakerFunAsrListenModel(config.aiRecommendListenModel)
+              ? "qwen3.5-omni-flash"
+              : config.aiRecommendListenModel
+            : ""),
+        defaultSingleModel
+      );
+      config.aiRecommendPipelineMode = normalizedRecognitionMode;
     config.aiQualifiedAutofillConcurrency = normalizeDataBakerAutofillConcurrency(
       config.aiQualifiedAutofillConcurrency
     );
@@ -1899,6 +2044,13 @@
           (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
           '" id="' +
           prefix +
+          '-pipeline-mode-field"><span>识别模式</span><select id="' +
+          prefix +
+          '-pipeline-mode-select"></select><span class="asr-ai-help">双模型显示听音模型和比较模型；单模型只显示 AI 模型，并由单次 Omni 请求直接生成推荐文本。</span></label>',
+        '<label class="asr-ai-field' +
+          (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
+          '" id="' +
+          prefix +
           '-listen-model-field"><span id="' +
           prefix +
           '-listen-model-label">听音模型</span><select id="' +
@@ -1909,6 +2061,13 @@
         '<div class="asr-ai-field hidden" id="' +
           prefix +
           '-listen-model-note"><span class="asr-ai-help">Fun-ASR 通过统一后端 Python SDK 与 platform-resources/backend/.venv 调用；比较模型负责结合听音文本与页面文本生成推荐文本。</span></div>',
+        '<label class="asr-ai-field' +
+          (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
+          '" id="' +
+          prefix +
+          '-single-model-field"><span>AI 模型</span><select id="' +
+          prefix +
+          '-single-model-select"></select><span class="asr-ai-help">单模型只支持 qwen3.5-omni-plus / qwen3.5-omni-flash，不调用 compare。</span></label>',
         '<label class="asr-ai-field' +
           (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
           '" id="' +
@@ -1954,7 +2113,13 @@
         bindJudgementModelSelect(prefix + "-listen-model-select", prefix + "-listen-model-custom");
         bindJudgementModelSelect(prefix + "-compare-model-select", prefix + "-compare-model-custom");
       } else {
+        const recognitionNode = getElement("data-baker-ai-pipeline-mode-select");
         const listenNode = getElement("data-baker-ai-listen-model-select");
+        if (recognitionNode instanceof HTMLSelectElement) {
+          recognitionNode.addEventListener("change", function (event) {
+            updateDataBakerRecognitionModeFields(event?.target?.value);
+          });
+        }
         if (listenNode instanceof HTMLSelectElement) {
           listenNode.addEventListener("change", function (event) {
             updateDataBakerListenModelFields(event?.target?.value);
@@ -4641,8 +4806,7 @@
       getElement("data-baker-ai-timeout").value = String(
         Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
       );
-      applyDataBakerListenModelFields(config.aiRecommendListenModel, config, aiDefaults);
-      updateDataBakerListenModelFields(config.aiRecommendListenModel);
+      applyDataBakerRecognitionModeFields(config.aiRecommendPipelineMode, config, aiDefaults);
       getElement("data-baker-ai-enable-thinking").checked = Boolean(
         config.aiRecommendEnableThinking === true ||
           (config.aiRecommendEnableThinking !== true && aiDefaults.enableThinking === true)
@@ -4730,6 +4894,12 @@
       getElement("data-baker-qualified-autofill-concurrency")?.value
     );
     const autofillWaitAllBeforeFill = false;
+    const recognitionMode = hasAiSettingsPanel
+      ? normalizeDataBakerRecognitionMode(
+          getElement("data-baker-ai-pipeline-mode-select")?.value,
+          currentConfig.aiRecommendPipelineMode || "two_stage"
+        )
+      : normalizeDataBakerRecognitionMode(currentConfig.aiRecommendPipelineMode, "two_stage");
     const listenModel = hasAiSettingsPanel
       ? normalizeDataBakerListenModel(
           getElement("data-baker-ai-listen-model-select")?.value,
@@ -4745,7 +4915,19 @@
         : currentConfig.aiRecommendCompareModel,
       String(aiDefaults.compareModel || "qwen3.5-plus")
     );
-    const pipelineMode = deriveDataBakerPipelineMode(listenModel);
+    const singleModel = hasAiSettingsPanel
+      ? normalizeDataBakerSingleModel(
+          getElement("data-baker-ai-single-model-select")?.value,
+          getDataBakerSingleModelDefault(aiDefaults)
+        )
+      : normalizeDataBakerSingleModel(
+          currentConfig.aiRecommendSingleModel,
+          getDataBakerSingleModelDefault(aiDefaults)
+        );
+    const pipelineMode = deriveDataBakerPipelineMode(
+      recognitionMode,
+      recognitionMode === "omni_single" ? singleModel : listenModel
+    );
     const listenPrompt = hasAiSettingsPanel
       ? normalizePromptText(getElement("data-baker-ai-listen-prompt").value)
       : currentConfig.aiRecommendListenPrompt;
@@ -4846,13 +5028,22 @@
                 id: dataBakerRoundOneQualityScriptId,
                 aiRecommendEnabled: aiRecommendEnabled,
                 aiRecommendRequestTimeoutMs: timeoutMs,
-                aiRecommendPipelineMode: pipelineMode,
+                aiRecommendPipelineMode: recognitionMode,
                 aiRecommendListenModel:
-                  listenModel === getDataBakerListenModelDefault(aiDefaults) ? "" : listenModel,
+                  recognitionMode === "two_stage" &&
+                  listenModel !== getDataBakerListenModelDefault(aiDefaults)
+                    ? listenModel
+                    : "",
                 aiRecommendCompareModel:
-                  compareModel === String(aiDefaults.compareModel || "").trim()
-                    ? ""
-                    : compareModel,
+                  recognitionMode === "two_stage" &&
+                  compareModel !== String(aiDefaults.compareModel || "").trim()
+                    ? compareModel
+                    : "",
+                aiRecommendSingleModel:
+                  recognitionMode === "omni_single" &&
+                  singleModel !== getDataBakerSingleModelDefault(aiDefaults)
+                    ? singleModel
+                    : "",
                 aiRecommendEnableThinking:
                   enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
                 aiRecommendListenPrompt: normalizeOverridePrompt(listenPrompt, aiDefaults.listenPrompt),

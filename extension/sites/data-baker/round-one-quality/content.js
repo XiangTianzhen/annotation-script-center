@@ -32,6 +32,13 @@
         })
         .filter(Boolean)
     : ["qwen3.6-plus", "qwen3.5-plus", "qwen3.6-flash", "qwen3.5-flash"];
+  const DATABAKER_SINGLE_MODEL_OPTIONS = Array.isArray(CONSTANTS.DATABAKER_AI_SINGLE_MODEL_OPTIONS)
+    ? CONSTANTS.DATABAKER_AI_SINGLE_MODEL_OPTIONS
+        .map(function (item) {
+          return String(item && typeof item === "object" ? item.value : item || "").trim();
+        })
+        .filter(Boolean)
+    : ["qwen3.5-omni-plus", "qwen3.5-omni-flash"];
 
   let runtime = null;
   let runtimeConfigKey = "";
@@ -78,18 +85,16 @@
 
   function normalizePipelineMode(value) {
     const text = String(value || "").trim().toLowerCase();
-    if (text === "fun_asr_compare" || text === "qwen_omni_compare") {
+    if (text === "two_stage" || text === "omni_single") {
       return text;
     }
-    if (
-      text === "omni_single" ||
-      text === "two_stage" ||
-      text === "qwen_omni_two_stage" ||
-      text === "listen_only"
-    ) {
-      return "qwen_omni_compare";
+    if (text === "fun_asr_compare" || text === "qwen_omni_compare" || text === "qwen_omni_two_stage") {
+      return "two_stage";
     }
-    return "qwen_omni_compare";
+    if (text === "listen_only") {
+      return "omni_single";
+    }
+    return "two_stage";
   }
 
   function normalizeAutofillWaitAll(value) {
@@ -158,10 +163,23 @@
     return "qwen3.5-plus";
   }
 
-  function derivePipelineModeFromListenModel(listenModel) {
-    return getDataBakerModelText(listenModel) === "fun-asr"
-      ? "fun_asr_compare"
-      : "qwen_omni_compare";
+  function normalizeDataBakerSingleModel(value, fallback) {
+    const normalizedValue = getDataBakerModelText(value);
+    if (DATABAKER_SINGLE_MODEL_OPTIONS.indexOf(normalizedValue) >= 0) {
+      return normalizedValue;
+    }
+    const normalizedFallback = getDataBakerModelText(fallback || "qwen3.5-omni-flash");
+    if (DATABAKER_SINGLE_MODEL_OPTIONS.indexOf(normalizedFallback) >= 0) {
+      return normalizedFallback;
+    }
+    return "qwen3.5-omni-flash";
+  }
+
+  function derivePipelineMode(recognitionMode, model) {
+    if (normalizePipelineMode(recognitionMode) === "omni_single") {
+      return "omni_single";
+    }
+    return getDataBakerModelText(model) === "fun-asr" ? "fun_asr_compare" : "qwen_omni_compare";
   }
 
   function normalizeOptionalNumber(value, min, max) {
@@ -196,9 +214,12 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: 120000,
-        aiRecommendPipelineMode: "qwen_omni_compare",
+        aiRecommendPipelineMode: "two_stage",
         aiQualifiedAutofillConcurrency: 5,
         aiQualifiedAutofillWaitAllBeforeFill: false,
+        aiRecommendListenModel: "qwen3.5-omni-flash",
+        aiRecommendCompareModel: "qwen3.5-plus",
+        aiRecommendSingleModel: "qwen3.5-omni-flash",
         autoPageSizeEnabled: true,
         defaultPageSize: "50条/页",
         shortcuts: {},
@@ -250,12 +271,23 @@
       "https://script.xiangtianzhen.store" + DATABAKER_AI_RECOMMEND_PATH
     );
     const timeoutMs = normalizeTimeout(script.aiRecommendRequestTimeoutMs);
-    const legacyPipelineMode = normalizePipelineMode(script.aiRecommendPipelineMode);
+    const recognitionMode = normalizePipelineMode(script.aiRecommendPipelineMode);
     const listenModel = normalizeDataBakerListenModel(
       script.aiRecommendListenModel,
-      legacyPipelineMode === "fun_asr_compare" ? "fun-asr" : "qwen3.5-omni-flash"
+      recognitionMode === "two_stage" &&
+        getDataBakerModelText(script.aiRecommendListenModel) === "fun-asr"
+        ? "fun-asr"
+        : "qwen3.5-omni-flash"
     );
-    const pipelineMode = derivePipelineModeFromListenModel(listenModel);
+    const singleModel = normalizeDataBakerSingleModel(
+      script.aiRecommendSingleModel ||
+        (recognitionMode === "omni_single" ? script.aiRecommendListenModel : ""),
+      "qwen3.5-omni-flash"
+    );
+    const pipelineMode = derivePipelineMode(
+      recognitionMode,
+      recognitionMode === "omni_single" ? singleModel : listenModel
+    );
     const aiQualifiedAutofillConcurrency = normalizeAutofillConcurrency(
       script.aiQualifiedAutofillConcurrency
     );
@@ -316,8 +348,14 @@
     if (stop.length > 0) {
       aiOptions.stop = stop;
     }
-    aiOptions.listenModel = listenModel;
-    aiOptions.compareModel = normalizeDataBakerCompareModel(script.aiRecommendCompareModel);
+    const compareModel =
+      recognitionMode === "two_stage"
+        ? normalizeDataBakerCompareModel(script.aiRecommendCompareModel)
+        : "";
+    aiOptions.listenModel = recognitionMode === "omni_single" ? singleModel : listenModel;
+    aiOptions.compareModel = compareModel;
+    aiOptions.singleModel = singleModel;
+    aiOptions.omniModel = singleModel;
     aiOptions.enable_thinking = script.aiRecommendEnableThinking === true;
 
     return {
@@ -328,11 +366,13 @@
       shortcuts,
       endpoint,
       timeoutMs,
+      recognitionMode,
       pipelineMode,
       aiQualifiedAutofillConcurrency,
       aiQualifiedAutofillWaitAllBeforeFill,
-      listenModel: listenModel,
-      compareModel: normalizeDataBakerCompareModel(script.aiRecommendCompareModel),
+      listenModel: recognitionMode === "omni_single" ? singleModel : listenModel,
+      compareModel,
+      singleModel: singleModel,
       enableThinking: script.aiRecommendEnableThinking === true,
       aiOptions,
       key: [
@@ -343,11 +383,13 @@
         defaultPageSize,
         endpoint,
         String(timeoutMs),
+        recognitionMode,
         pipelineMode,
         String(aiQualifiedAutofillConcurrency),
         aiQualifiedAutofillWaitAllBeforeFill ? "1" : "0",
         listenModel,
         normalizeDataBakerCompareModel(script.aiRecommendCompareModel),
+        singleModel,
         script.aiRecommendEnableThinking === true ? "1" : "0",
         JSON.stringify(aiOptions),
         JSON.stringify(shortcuts),
@@ -370,9 +412,11 @@
     const ai = aiFactory.createRuntime({
       endpoint: config.endpoint,
       timeoutMs: config.timeoutMs,
+      recognitionMode: config.recognitionMode,
       pipelineMode: config.pipelineMode,
       listenModel: config.listenModel,
       compareModel: config.compareModel,
+      singleModel: config.singleModel,
       enableThinking: config.enableThinking === true,
       aiOptions: config.aiOptions || {},
     });

@@ -32,10 +32,19 @@
 
 ## 模型
 
-当前前端只配置两个模型字段：
+当前前端先选择“识别模式”：
+
+- `two_stage`：显示“听音模型 + 比较模型”
+- `omni_single`：只显示“AI 模型”
+
+双模型字段：
 
 - 听音模型：`fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
 - 比较模型：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`
+
+单模型字段：
+
+- AI 模型：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
 
 环境变量可覆盖：
 
@@ -49,9 +58,9 @@
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_MOCK`：设为 `1` 时走 mock，可直接写入 `config/env/ai.env`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，原生 `fetch` 请求体顶层传 `enable_thinking=false` 尝试关闭 thinking；设为 `1` 时不传该字段。
-- `DATABAKER_AI_PIPELINE_MODE`：仅作历史兼容保留；旧值 `omni_single / two_stage / qwen_omni_two_stage / listen_only` 会迁移为 Qwen Omni 听音 + compare，`fun_asr_compare` 会迁移为 Fun-ASR 听音 + compare。
+- `DATABAKER_AI_PIPELINE_MODE`：识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。旧值 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
 - `DATABAKER_AI_FUN_ASR_MODEL`：Fun-ASR 录音文件识别模型，默认 `fun-asr`。
-- `DATABAKER_AI_OMNI_MODEL`：Qwen Omni 听音模型默认值，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_AI_OMNI_MODEL`：Qwen Omni 模型默认值；双模型下用于 Omni 听音，单模型下用于 Omni 单模型推荐，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，显式指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。

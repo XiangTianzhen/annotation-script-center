@@ -45,11 +45,12 @@
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
                 aiRecommendRequestTimeoutMs: 120000,
-                aiRecommendPipelineMode: "qwen_omni_compare",
+                aiRecommendPipelineMode: "two_stage",
                 aiQualifiedAutofillConcurrency: 5,
                 aiQualifiedAutofillWaitAllBeforeFill: false,
                 aiRecommendListenModel: "qwen3.5-omni-flash",
                 aiRecommendCompareModel: "qwen3.5-plus",
+                aiRecommendSingleModel: "qwen3.5-omni-flash",
                 autoPageSizeEnabled: true,
                 defaultPageSize: "50条/页",
                 shortcuts: {
@@ -211,15 +212,19 @@
       BACKEND_ENDPOINT_MODE_SERVER: "server",
       BACKEND_ENDPOINT_MODE_LOCAL: "local",
       DATABAKER_PAGE_SIZE_OPTIONS: ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"],
-      DATABAKER_AI_PIPELINE_MODE_OPTIONS: [
-        { value: "qwen_omni_compare", label: "Qwen Omni 听音 + 比较模型" },
-        { value: "fun_asr_compare", label: "Fun-ASR + 比较模型" },
-      ],
-      DATABAKER_AI_LISTEN_MODEL_OPTIONS: [
-        { value: "fun-asr", label: "fun-asr" },
-        { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
-        { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
-      ],
+        DATABAKER_AI_PIPELINE_MODE_OPTIONS: [
+          { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
+          { value: "omni_single", label: "单模型：Omni 单模型" },
+        ],
+        DATABAKER_AI_LISTEN_MODEL_OPTIONS: [
+          { value: "fun-asr", label: "fun-asr" },
+          { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
+          { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+        ],
+        DATABAKER_AI_SINGLE_MODEL_OPTIONS: [
+          { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
+          { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+        ],
       DATABAKER_AI_OMNI_MODEL_OPTIONS: [
         { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
         { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
@@ -1179,20 +1184,18 @@
 
   function normalizeDataBakerPipelineMode(value, fallback) {
     const text = String(value || "").trim().toLowerCase();
-    if (text === "fun_asr_compare" || text === "qwen_omni_compare") {
+    if (text === "two_stage" || text === "omni_single") {
       return text;
     }
-    if (
-      text === "omni_single" ||
-      text === "two_stage" ||
-      text === "qwen_omni_two_stage" ||
-      text === "listen_only"
-    ) {
-      return "qwen_omni_compare";
+    if (text === "fun_asr_compare" || text === "qwen_omni_compare" || text === "qwen_omni_two_stage") {
+      return "two_stage";
     }
-    return String(fallback || "qwen_omni_compare").trim().toLowerCase() === "fun_asr_compare"
-      ? "fun_asr_compare"
-      : "qwen_omni_compare";
+    if (text === "listen_only") {
+      return "omni_single";
+    }
+    return String(fallback || "two_stage").trim().toLowerCase() === "omni_single"
+      ? "omni_single"
+      : "two_stage";
   }
 
   function getDataBakerListenModelOptions(constants) {
@@ -1207,6 +1210,20 @@
       return values;
     }
     return ["fun-asr", "qwen3.5-omni-plus", "qwen3.5-omni-flash"];
+  }
+
+  function getDataBakerSingleModelOptions(constants) {
+    const values = Array.isArray(constants?.DATABAKER_AI_SINGLE_MODEL_OPTIONS)
+      ? constants.DATABAKER_AI_SINGLE_MODEL_OPTIONS
+          .map(function (item) {
+            return getDataBakerModelText(item && typeof item === "object" ? item.value : item);
+          })
+          .filter(Boolean)
+      : [];
+    if (values.length > 0) {
+      return values;
+    }
+    return ["qwen3.5-omni-plus", "qwen3.5-omni-flash"];
   }
 
   function deriveDataBakerPipelineModeFromListenModel(listenModel) {
@@ -1228,13 +1245,30 @@
     return normalizedFallback;
   }
 
+  function normalizeDataBakerSingleModel(value, fallback, constants) {
+    const singleOptions = getDataBakerSingleModelOptions(constants);
+    const normalizedFallback =
+      singleOptions.indexOf(getDataBakerModelText(fallback || "")) >= 0
+        ? getDataBakerModelText(fallback || "")
+        : "qwen3.5-omni-flash";
+    const normalizedValue = getDataBakerModelText(value);
+    if (singleOptions.indexOf(normalizedValue) >= 0) {
+      return normalizedValue;
+    }
+    return normalizedFallback;
+  }
+
   function resolveDataBakerListenModel(value, pipelineMode, fallback, constants) {
     const normalizedValue = getDataBakerModelText(value);
     if (normalizedValue) {
       return normalizeDataBakerListenModel(normalizedValue, fallback, constants);
     }
-    if (normalizeDataBakerPipelineMode(pipelineMode, "qwen_omni_compare") === "fun_asr_compare") {
+    const rawPipelineMode = String(pipelineMode || "").trim().toLowerCase();
+    if (rawPipelineMode === "fun_asr_compare") {
       return "fun-asr";
+    }
+    if (rawPipelineMode === "qwen_omni_compare" || rawPipelineMode === "qwen_omni_two_stage") {
+      return normalizeDataBakerListenModel("qwen3.5-omni-flash", fallback || "qwen3.5-omni-flash", constants);
     }
     return normalizeDataBakerListenModel("", fallback || "qwen3.5-omni-flash", constants);
   }
@@ -1488,8 +1522,8 @@
       defaultConfig.aiRecommendRequestTimeoutMs || 120000
     );
     const defaultPipelineMode = normalizeDataBakerPipelineMode(
-      defaultConfig.aiRecommendPipelineMode || "qwen_omni_compare",
-      "qwen_omni_compare"
+      defaultConfig.aiRecommendPipelineMode || "two_stage",
+      "two_stage"
     );
     const defaultListenModel = resolveDataBakerListenModel(
       defaultConfig.aiRecommendListenModel,
@@ -1497,15 +1531,33 @@
       "qwen3.5-omni-flash",
       constants
     );
+    const defaultSingleModel = normalizeDataBakerSingleModel(
+      defaultConfig.aiRecommendSingleModel || defaultConfig.aiRecommendListenModel,
+      "qwen3.5-omni-flash",
+      constants
+    );
+    const rawPipelineMode = getDataBakerModelText(result.aiRecommendPipelineMode);
+    const normalizedPipelineMode = normalizeDataBakerPipelineMode(
+      result.aiRecommendPipelineMode,
+      defaultPipelineMode
+    );
     result.aiRecommendListenModel = resolveDataBakerListenModel(
       result.aiRecommendListenModel,
-      result.aiRecommendPipelineMode,
+      rawPipelineMode || (normalizedPipelineMode === "omni_single" ? "" : normalizedPipelineMode),
       defaultListenModel,
       constants
     );
-    result.aiRecommendPipelineMode = deriveDataBakerPipelineModeFromListenModel(
-      result.aiRecommendListenModel
+    result.aiRecommendSingleModel = normalizeDataBakerSingleModel(
+      result.aiRecommendSingleModel ||
+        (normalizedPipelineMode === "omni_single"
+          ? result.aiRecommendListenModel === "fun-asr"
+            ? "qwen3.5-omni-flash"
+            : result.aiRecommendListenModel
+          : ""),
+      defaultSingleModel,
+      constants
     );
+    result.aiRecommendPipelineMode = normalizedPipelineMode;
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
       defaultConfig.aiQualifiedAutofillConcurrency || 5
@@ -1592,11 +1644,12 @@
               constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
             aiRecommendRequestTimeoutMs: 120000,
-            aiRecommendPipelineMode: "qwen_omni_compare",
+            aiRecommendPipelineMode: "two_stage",
             aiQualifiedAutofillConcurrency: 5,
             aiQualifiedAutofillWaitAllBeforeFill: false,
             aiRecommendListenModel: "qwen3.5-omni-flash",
             aiRecommendCompareModel: "qwen3.5-plus",
+            aiRecommendSingleModel: "qwen3.5-omni-flash",
             autoPageSizeEnabled: true,
             defaultPageSize: "50条/页",
             shortcuts: {

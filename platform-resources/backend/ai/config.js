@@ -11,6 +11,10 @@ const DATABAKER_LISTEN_MODEL_OPTIONS = [
   "qwen3.5-omni-plus",
   "qwen3.5-omni-flash",
 ];
+const DATABAKER_SINGLE_MODEL_OPTIONS = [
+  "qwen3.5-omni-plus",
+  "qwen3.5-omni-flash",
+];
 const DATABAKER_COMPARE_MODEL_OPTIONS = [
   "qwen3.6-plus",
   "qwen3.5-plus",
@@ -117,18 +121,60 @@ function normalizeDataBakerCompareModel(value, fallback) {
   return DEFAULT_COMPARE_MODEL;
 }
 
-function deriveDataBakerPipelineMode(listenModel) {
-  return String(listenModel || "").trim() === DEFAULT_FUN_ASR_MODEL
+function normalizeDataBakerSingleModel(value, fallback) {
+  const normalizedValue = String(value || "").trim();
+  const normalizedFallback = String(fallback || DEFAULT_OMNI_MODEL).trim() || DEFAULT_OMNI_MODEL;
+  if (DATABAKER_SINGLE_MODEL_OPTIONS.indexOf(normalizedValue) >= 0) {
+    return normalizedValue;
+  }
+  if (DATABAKER_SINGLE_MODEL_OPTIONS.indexOf(normalizedFallback) >= 0) {
+    return normalizedFallback;
+  }
+  return DEFAULT_OMNI_MODEL;
+}
+
+function normalizeDataBakerRecognitionMode(value, fallback) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "two_stage" || text === "omni_single") {
+    return text;
+  }
+  if (text === "fun_asr_compare" || text === "qwen_omni_compare" || text === "qwen_omni_two_stage") {
+    return "two_stage";
+  }
+  if (text === "listen_only") {
+    return "omni_single";
+  }
+  return String(fallback || "two_stage").trim().toLowerCase() === "omni_single"
+    ? "omni_single"
+    : "two_stage";
+}
+
+function deriveDataBakerPipelineMode(recognitionMode, model) {
+  const normalizedRecognitionMode = normalizeDataBakerRecognitionMode(recognitionMode, "two_stage");
+  if (normalizedRecognitionMode === "omni_single") {
+    return "omni_single";
+  }
+  return String(model || "").trim() === DEFAULT_FUN_ASR_MODEL
     ? "fun_asr_compare"
     : "qwen_omni_compare";
 }
 
 function resolveDataBakerDefaultListenModel() {
-  const legacyPipeline = String(process.env.DATABAKER_AI_PIPELINE_MODE || "").trim().toLowerCase();
-  if (legacyPipeline === "fun_asr_compare") {
+  const legacyPipeline = normalizeDataBakerRecognitionMode(
+    process.env.DATABAKER_AI_PIPELINE_MODE || "two_stage",
+    "two_stage"
+  );
+  if (legacyPipeline === "omni_single") {
+    return normalizeDataBakerListenModel(process.env.DATABAKER_AI_OMNI_MODEL || DEFAULT_OMNI_MODEL);
+  }
+  if (String(process.env.DATABAKER_AI_PIPELINE_MODE || "").trim().toLowerCase() === "fun_asr_compare") {
     return DEFAULT_FUN_ASR_MODEL;
   }
   return normalizeDataBakerListenModel(process.env.DATABAKER_AI_OMNI_MODEL || DEFAULT_OMNI_MODEL);
+}
+
+function resolveDataBakerDefaultSingleModel() {
+  return normalizeDataBakerSingleModel(process.env.DATABAKER_AI_OMNI_MODEL || DEFAULT_OMNI_MODEL);
 }
 
 function getQwenProviderConfig() {
@@ -145,6 +191,7 @@ function getQwenProviderConfig() {
     mockEnabled: isMockEnabled(),
     hasApiKey: Boolean(apiKey),
     enableThinkingDefault: parseEnableThinkingDefault(),
+    singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
     listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
     compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
   };
@@ -166,6 +213,7 @@ function getFunAsrPythonConfig() {
     defaultVenvDir: DEFAULT_VENV_DIR,
     defaultScriptPath: DEFAULT_FUNASR_PYTHON_SCRIPT,
     defaultPythonCandidates: getDefaultPythonCandidates(),
+    singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
     listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
     compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
   };
@@ -176,6 +224,7 @@ module.exports = {
   DEFAULT_COMPARE_MODEL,
   DEFAULT_FUN_ASR_MODEL,
   DEFAULT_OMNI_MODEL,
+  DATABAKER_SINGLE_MODEL_OPTIONS,
   DATABAKER_COMPARE_MODEL_OPTIONS,
   DATABAKER_LISTEN_MODEL_OPTIONS,
   DEFAULT_REQUEST_PARAMS,
@@ -190,7 +239,10 @@ module.exports = {
   getQwenProviderConfig,
   normalizeDataBakerCompareModel,
   normalizeDataBakerListenModel,
+  normalizeDataBakerRecognitionMode,
+  normalizeDataBakerSingleModel,
   resolveDataBakerDefaultListenModel,
+  resolveDataBakerDefaultSingleModel,
   isMockEnabled,
   parseEnableThinkingDefault,
   parseLanguageHints,

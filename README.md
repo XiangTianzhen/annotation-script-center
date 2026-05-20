@@ -89,8 +89,11 @@ PM2 进程名示例：`annotation-script-center`。
 - 统一后端启动命令始终是：`node platform-resources/backend/server.js`
 - PM2 / systemd 也只是管理这个 Node 后端进程，不管理独立 Python 服务。
 - Python 不单独启动，只作为 Node 后端内部调用 Fun-ASR Python SDK 的辅助运行环境。
-- 只有把 DataBaker“听音模型”切到 `fun-asr` 时才需要 Python 虚拟环境。
-- 选择 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 时不依赖 Python 虚拟环境。
+- DataBaker 当前有两种识别模式：
+  - `two_stage`：显示“听音模型 + 比较模型”
+  - `omni_single`：只显示“AI 模型”
+- 只有在 `two_stage` 且听音模型选择 `fun-asr` 时才需要 Python 虚拟环境。
+- `omni_single` 以及 `two_stage + qwen3.5-omni-plus/qwen3.5-omni-flash` 都不依赖 Python 虚拟环境。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
 - Fun-ASR Python 依赖固定放在 `platform-resources/backend/ai/python/requirements.txt`。
