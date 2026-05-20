@@ -6,12 +6,13 @@
 - AI 推荐文本接口。
 - 导出 CSV 上传与下载接口（扩展前端导出后自动上传，后端保存 `latest.csv` 并提供下载；原始记录脱敏后单独保存 `latest-raw.json`）。
 - 前端“AI连续填入合格项”辅助能力复用现有 AI 推荐接口，不新增后端路由；当前策略为“并发分析 + 顺序填入”，只处理 `statusName=质检合格`。
-- 前端并发数默认 `50`（可配置 `1-50`）。并发越高越容易触发模型或后端限流，建议按服务承载能力调节。
+- 前端并发数默认 `5`（可配置 `1-10`）。更高并发不会绕过上游模型限流，只会更快堆积到统一后端队列。
 - 前端调度为“并发请求 + 队列消费填入”：AI 结果返回后即进入队列，由前端串行填入，不等待全部请求结束；该变更不涉及后端接口新增。
 
 ## 接口
 
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
+- `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
 - `GET /api/data-baker/round-one-quality/export/health`
 - `GET /api/data-baker/round-one-quality/export/config`
@@ -25,7 +26,10 @@
 - `ai-routes.js`：HTTP health / recommend 路由、请求校验、日志和响应组装。
 - `export-routes.js`：导出 health / config / upload / download 路由。
 - `export-store.js`：导出文件落盘、latest/history/events 存储能力。
-- `ai-client-qwen.js`：DashScope Qwen 原生 `fetch` 调用，不依赖 OpenAI SDK。
+- `ai-client-qwen.js`：DashScope Qwen 原生 `fetch` 调用，不依赖 OpenAI SDK；负责 `omni_single` 与 compare 文本模型。
+- `ai-client-funasr.js`：Fun-ASR 录音文件识别客户端，按官方 REST 异步提交/查询任务。
+- `ai-provider-queue.js`：provider/model group 维度的全局限流队列、429 退避重试与队列满保护。
+- `ai-result-cache.js`：推荐结果内存 TTL 缓存与命中统计。
 - `ai-lexicon.js`：读取闽南方言字词表 CSV，按当前页面文本和听音文本生成 prompt 上下文。
 - `ai-prompts.js`：听音 prompt 和文本对比 prompt。
 - `ai-response-schema.js`：模型 JSON 解析、字段归一化和响应体组装。
@@ -33,14 +37,15 @@
 
 ## 模型
 
-默认固定：
+当前只保留两种流水线模式：
 
-- 听音模型：`qwen3.5-omni-flash`
-- 对比模型：`qwen3.5-plus`
+- `fun_asr_compare`：默认批量模式。Fun-ASR 负责听音转写，compare 模型负责生成推荐文本。
+- `omni_single`：高质量兜底模式。单次 Qwen Omni 请求同时完成听音、比对和推荐。
 
 环境变量可覆盖：
 
-- `DATABAKER_AI_LISTEN_MODEL`
+- `DATABAKER_AI_FUN_ASR_MODEL`
+- `DATABAKER_AI_OMNI_MODEL`
 - `DATABAKER_AI_COMPARE_MODEL`
 
 ## 环境变量
@@ -49,7 +54,16 @@
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_MOCK`：设为 `1` 时走 mock，可直接写入 `config/env/ai.env`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，原生 `fetch` 请求体顶层传 `enable_thinking=false` 尝试关闭 thinking；设为 `1` 时不传该字段。
-- `DATABAKER_AI_PIPELINE_MODE`：默认 `two_stage`，即听音模型 + 对比模型；设为 `listen_only` 时跳过 `qwen3.5-plus`，只使用听音文本和本地词表强替换生成推荐文本。
+- `DATABAKER_AI_PIPELINE_MODE`：默认 `fun_asr_compare`；只接受 `fun_asr_compare | omni_single`。历史 `two_stage`、`qwen_omni_two_stage`、`listen_only` 会迁移为 `omni_single`，但不再保留旧执行分支。
+- `DATABAKER_AI_FUN_ASR_MODEL`：Fun-ASR 录音文件识别模型，默认 `fun-asr`。
+- `DATABAKER_AI_OMNI_MODEL`：Omni 单模型模式使用的 Qwen Omni 模型，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
+- `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
+- `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
+- `DATABAKER_AI_TEXT_RPM_LIMIT`：Compare 文本模型队列限流，默认 `500` RPM。
+- `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
+- `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `200`。
+- `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
@@ -106,18 +120,21 @@ CSV 字段统一口径：
 ## 推荐流程
 
 1. 校验请求体中的 `collectId`、`itemId`、`audioUrl`、`pageText`。
-2. 从 `platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv` 读取闽南方言字词表，生成听音 prompt 上下文。
-3. 调用听音模型 `qwen3.5-omni-flash`，以 `input_audio` 传入完整 `audioUrl` 和根据路径后缀推断的音频格式，并在 prompt 中要求 JSON 输出。
-4. 解析听音 JSON：`heardText`、`confidence`、`isValid`、`invalidReasons`，并删除 `heardText` 中的普通空格、全角空格、Tab 和换行。
-5. 结合 `pageText` 和 `heardText` 重新筛选词表上下文。
-6. `two_stage` 模式继续调用对比模型 `qwen3.5-plus`，输入 `pageText`、`heardText`、词表上下文和规则；`listen_only` 模式跳过该步骤。
-7. `two_stage` 模式解析对比 JSON：`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`；`listen_only` 模式直接以 `heardText` 作为推荐文本并标记 `decision=listen_only`。
-8. 对 `recommendedText` 先删除普通空格、全角空格、Tab 和换行，再默认使用 `aggressive` 模式做闽南方言词表强替换；替换后再次去空格并补全中文句末标点，强制 `needHumanReview=true`。
-9. 组装统一响应，包含推荐文本、听音文本、变更标记、置信度、模型、usage、费用估算、词表启用 / 改写状态、流水线模式、阶段耗时和 `requestId`。
+2. 生成词表上下文与缓存 key；缓存 key 使用 sha256，不保存完整 `audioUrl`。
+3. 命中缓存时直接返回历史推荐；未命中则进入 provider 队列。
+4. `fun_asr_compare`：
+   - 先进入 `fun_asr` 队列，调用 Fun-ASR 录音文件识别异步任务。
+   - Fun-ASR 返回 `heardText` 后，再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
+5. `omni_single`：
+   - 进入 `qwen_omni` 队列。
+   - 调用单次 Qwen Omni `input_audio` 请求，同时产出 `heardText`、`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`。
+6. 所有 provider 调用遇到 `429` 都走统一指数退避 + jitter 重试；超出队列长度直接返回清晰错误，不让请求无限堆积。
+7. 对 `heardText` / `recommendedText` 做现有清洗、简繁归一、词表替换与中文句末标点补全。
+8. 成功结果写入 TTL 缓存，并组装统一响应，返回模式、模型、队列、缓存、阶段耗时、`requestId` 和调试摘要。
 
 后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。
 
-`listen_only` 是极速推荐模式，只适合“AI 推荐文本”人工复核场景，不适合自动保存或自动提交。本仓库不会因为该模式自动保存、自动提交、批量识别或流转。
+`fun_asr_compare` 是默认批量模式，`omni_single` 是高质量兜底模式。本仓库不会因为任一模式自动保存、自动提交、批量识别或流转。
 
 听音模型请求中的音频片段格式：
 
@@ -131,7 +148,7 @@ CSV 字段统一口径：
 }
 ```
 
-`format` 会从 URL pathname 后缀推断，支持 `wav`、`mp3`、`aac`、`m4a`、`amr`、`3gp`、`3gpp`，无法识别时默认 `wav`。`data` 必须保留完整音频 URL，包括签名 query 参数，但日志和文档中不得记录完整 URL。
+`format` 会从 URL pathname 后缀推断，支持 `wav`、`mp3`、`aac`、`m4a`、`amr`、`3gp`、`3gpp`，无法识别时默认 `wav`。`data` 必须保留完整音频 URL，包括签名 query 参数，但日志和文档中不得记录完整 URL。Fun-ASR 模式同样只接受 `http/https` 音频 URL；若服务端无法访问平台音频地址，会返回明确错误而不是静默降级。
 
 ## 闽南方言字词表
 
@@ -183,14 +200,15 @@ console.log(__testOnly.splitTerms('透早(tao za )'));
 
 ## 真实调用排查
 
-如果前端显示 `Qwen 接口请求失败（HTTP 400）`：
+如果前端显示 `Qwen 接口请求失败（HTTP 400）` 或 `Fun-ASR 音频不可访问`：
 
 1. 先查看后端返回给前端的 `summary`，该字段已脱敏，不应包含完整音频 URL、token、cookie、`OSSAccessKeyId` 或 `Signature`。
-2. 确认 `requestListen` 使用的是 `input_audio`，不是旧的 `audio_url`。
-3. 确认听音请求没有传 `response_format`；JSON 输出只由 prompt 约束。
+2. 确认 `omni_single` 使用的是 Qwen Omni `input_audio`，不是旧的 `audio_url`。
+3. 确认 Fun-ASR 走的是录音文件识别提交/查询链路，而不是 OpenAI-compatible chat 模型。
 4. 确认当前音频 URL 在服务端可访问，且签名参数没有过期。
 5. 确认 `config/env/ai.env` 中 `DASHSCOPE_API_KEY` 正确。
-6. 将 `DATABAKER_AI_MOCK=1` 写入 `config/env/ai.env` 后重启后端，可排除前端、路由和日志链路问题。
+6. 检查 health/defaults 中的队列、重试、deprecated mode 提示与缓存统计，确认前后端模式口径一致。
+7. 将 `DATABAKER_AI_MOCK=1` 写入 `config/env/ai.env` 后重启后端，可排除前端、路由和日志链路问题。
 
 ## 日志安全
 
@@ -208,6 +226,7 @@ console.log(__testOnly.splitTerms('透早(tao za )'));
 - `requestId`
 - 音频 `hostname`
 - `sentenceNumber`
+- `pipelineMode`
 - `listenModel`
 - `compareModel`
 - 是否 mock

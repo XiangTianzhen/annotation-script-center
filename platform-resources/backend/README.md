@@ -55,9 +55,18 @@ http://127.0.0.1:3333
 - `ASR_TRANSCRIPTION_STATS_DIR`：ASR 转写统计输出目录（默认 `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`）。
 - `ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`：设为 `1` 时额外保存 `statistics-rows.json`。
 - `ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外保存 `statistics-upload-events.jsonl`。
-- `DATABAKER_AI_LISTEN_MODEL`：标贝易采 AI 听音模型，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_AI_PIPELINE_MODE`：标贝易采 AI 流水线模式，默认 `fun_asr_compare`；仅支持 `fun_asr_compare | omni_single`，历史 `two_stage / qwen_omni_two_stage / listen_only` 只做兼容迁移并标记 deprecated。
+- `DATABAKER_AI_FUN_ASR_MODEL`：标贝易采 Fun-ASR 录音文件识别模型，默认 `fun-asr`。
+- `DATABAKER_AI_OMNI_MODEL`：标贝易采 Omni 单模型模式使用的 Qwen Omni 模型，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：标贝易采 AI 对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：标贝易采 AI 请求超时，默认 `120000`。
+- `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：标贝易采 Fun-ASR 语言提示，默认 `zh`。
+- `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：标贝易采 Qwen Omni 队列限流，默认 `45` RPM。
+- `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：标贝易采 Fun-ASR 队列限流，默认 `500` RPM。
+- `DATABAKER_AI_TEXT_RPM_LIMIT`：标贝易采 compare 文本模型队列限流，默认 `500` RPM。
+- `DATABAKER_AI_PROVIDER_RETRY_MAX`：标贝易采上游 `429` 最大重试次数，默认 `3`。
+- `DATABAKER_AI_QUEUE_MAX_SIZE`：标贝易采统一 provider 队列最大长度，默认 `200`。
+- `DATABAKER_AI_CACHE_TTL_MS`：标贝易采推荐结果内存缓存 TTL，默认 `43200000`。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留 标贝易采 有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留 标贝易采 裁剪前后补齐秒数，默认 `0.12`。
 - `DATABAKER_ROUND_ONE_EXPORT_DIR`：标贝易采导出 CSV 保存目录（默认 `platform-resources/data-baker/round-one-quality/backend/export-data/`）。
@@ -190,8 +199,7 @@ pm2 restart annotation-script-center --update-env
 
 - `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载，以及 AI 建议 `health/suggest` 接口。
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。
-- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口。
-- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/recommend`，以及导出 CSV `health/config/upload/download` 接口；导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
+- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`，以及导出 CSV `health/config/upload/download` 接口；当前只保留 `fun_asr_compare` 与 `omni_single` 两种模式，导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
 - `magic-data/annotator`：Magic Data AI 质检调试接口，包含 `review-current` 与 `health`。
 - `abaka-ai/task21`：Abaka Task21 AI 分析调试接口，包含 `health/defaults/analyze`。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
@@ -233,6 +241,12 @@ ASR 转写职责边界：
   - 标贝易采 AI 推荐：`/api/data-baker/round-one-quality/ai/recommend`
   - 标贝易采导出上传：`/api/data-baker/round-one-quality/export/upload`
   - 标贝易采导出下载：`/api/data-baker/round-one-quality/export/download`
+
+DataBaker AI 架构补充：
+- `fun_asr_compare` 是默认批量模式，先走 Fun-ASR，再走 compare 文本模型。
+- `omni_single` 是高质量兜底模式，单次 Qwen Omni 请求完成听音与推荐。
+- 前端默认并发已降到 `5`，建议最大值 `10`；多人并发时只允许在后端排队，不允许浏览器直连 DashScope。
+- `429` 的根因是上游模型或账号维度限流，不是统一后端机器规格问题；同一阿里云主账号下的多个 RAM 用户/API Key 可能共享限流额度。
 
 ## 0.2.11 统计总表修正规则
 

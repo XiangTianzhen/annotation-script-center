@@ -17,7 +17,7 @@
 - 左侧句子列表上方 `filter-screen` 新增“AI连续填入合格项”按钮（位于“批量判定”按钮右侧；挂载失败时回退到 AI 面板内）。
 - 点击该按钮会先刷新当前页列表，再筛选当前页全部 `statusName=质检合格`（或 DOM 显示“一检合格”）条目。
 - 处理策略为“并发生产 + 顺序消费”：先按配置并发数发起全部合格项 AI 请求，结果返回后进入缓冲区；填入流程不等待全部请求结束，按 AI 返回顺序从队列取结果并逐条切换填入，支持运行中手动停止。
-- 并发数默认 `50`，可在 Options 配置 `1-50`（并发越高越容易触发限流）。
+- AI 连续填入默认并发改为 `5`，可在 Options 配置 `1-10`；更高并发不会绕过上游模型限流，只会更快堆积到统一后端队列。
 - 新增顶部统计悬浮窗，运行中展示 AI 返回、待填队列、填入成功/失败/跳过和失败条目。
 - 悬浮窗在任务完成或停止后保留约 30 秒，可手动关闭。
 - 失败列表提供“重新填写失败内容”按钮，仅重试已有推荐文本的填入失败项，不会重新请求 AI。
@@ -66,6 +66,7 @@ round-one-quality/
 - AI 推荐相关设置已迁移到通用隐藏部件“ASR 语音 AI 设置”（标题连续点击 10 次显示），普通设置区不再直接展示 AI 开关/超时字段。
 - 在“ASR 语音 AI 设置”中可配置启用 / 关闭 AI 推荐文本；关闭后页面不显示 AI 推荐工具卡，也不会触发推荐请求。
 - “ASR 语音 AI 设置”解锁后会请求 `GET /api/data-baker/round-one-quality/ai/recommend/defaults`，默认展示后端当前模型、Prompt 与生成参数，而不是空白输入框。
+- 标贝易采 AI 模式前端只显示两项：`fun_asr_compare`（默认批量模式）和 `omni_single`（高质量兜底模式）；旧 `qwen_omni_two_stage / two_stage / listen_only` 不再展示。
 - Prompt 与参数按 override 保存：字段清空或恢复默认时不保存 override，请求时由后端默认值生效；只有与默认不同的值才随请求透传。
 - 不支持参数前端不显示，后端二次白名单过滤；`response_format` 不对前端开放。
 - 后端接口地址由 options 首页顶部“后端接口地址”统一控制：
@@ -73,6 +74,7 @@ round-one-quality/
   - `local`：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
 - 在“ASR 语音 AI 设置”中配置前端请求超时时间，页面以秒展示，默认 `120` 秒；扩展内部仍按毫秒存储到 `aiRecommendRequestTimeoutMs`。
 - 启用 / 关闭自动每页条数，默认启用，默认目标为 `50条/页`，可选 `5条/页`、`10条/页`、`20条/页`、`50条/页`、`100条/页`。
+- AI 连续填入默认并发为 `5`，最大建议值为 `10`；更高并发不会绕过限流，只会更快堆积到后端队列。
 - 配置快捷键，默认全部未设置。支持动作：AI 推荐文本、复制 AI 听音文本、复制 AI 推荐文本、填入推荐文本、忽略 AI 推荐结果、句子判定合格 / 不合格、任务判定通过 / 部分驳回 / 全部驳回。
 - 普通输入不会被快捷键拦截；如果焦点停留在“本句话文本”输入框，只有按下已配置快捷键时才会自动 blur 输入框并执行动作。
 - 点击左侧 `.sentence-list .sentence-item` 切换题目、点击平台动作按钮、或平台自动切换 `.sentence-list .sentence-item.active` 后，脚本不再做被动 blur/focus，避免干扰音频区域加载。
@@ -125,6 +127,7 @@ node platform-resources\backend\server.js
 接口：
 
 - `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
+- `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/defaults`
 - `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
 - `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/export/health`
 - `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/export/config`
@@ -137,16 +140,35 @@ node platform-resources\backend\server.js
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/export/upload`
 - `GET https://script.xiangtianzhen.store/api/data-baker/round-one-quality/export/download`
 
-任务总表导出不再由 content script 直接 `fetch /cms/tbAudioUserTask/queryByCondition`。原因是平台可能对扩展直接请求返回 `code=51000`。当前方案改为触发页面原生分页查询并拦截响应：先展开 Element UI 分页大小下拉并选择 `100条/页`，再逐页触发并合并导出；导出后会自动上传到统一后端保存。CSV 已移除“采集ID”列，保留 UTF-8 BOM 与“原始JSON”脱敏列。
+任务总表导出不再由 content script 直接 `fetch /cms/tbAudioUserTask/queryByCondition`。原因是平台可能对扩展直接请求返回 `code=51000`。当前方案改为触发页面原生分页查询并拦截响应：先展开 Element UI 分页大小下拉并选择 `100条/页`，再逐页触发并合并导出；导出后会自动上传到统一后端保存。CSV 已移除“采集ID”列与“原始JSON”列，保留 UTF-8 BOM；原始记录改为脱敏后单独上传保存。
 
 CSV 字段统一口径：导出中的计费时长字段标题统一为 `有效时长`，值仍取 `effectivePassTotalTime`；历史标题 `有效合格时长` 不再用于新导出。
 
-第一版固定模型：
+当前只保留两种 AI 流水线模式：
 
-- 听音：`qwen3.5-omni-flash`
-- 对比：`qwen3.5-plus`
+- `fun_asr_compare`：默认批量模式。先由 Fun-ASR 录音文件识别得到 `heardText`，再调用比较模型（默认 `qwen3.5-plus`）结合页面原文、朗读要求、有效时间和词表上下文生成 `recommendedText`。
+- `omni_single`：高质量兜底模式。只发起一次 Qwen Omni 请求，同时完成听音、比对页面文本和生成推荐文本，不再额外调用 compare 模型。
 
-后端听音请求使用 Qwen-Omni `input_audio` 音频输入格式，`data` 保留完整音频 URL，`format` 从 URL pathname 后缀推断；听音请求不传 `response_format`。thinking 开关采用显式传参：关闭传 `enable_thinking=false`，开启传 `enable_thinking=true`；如供应商不支持该字段会自动移除并重试一次（仅一次，不无限重试）。后端调用日志 JSONL 保留英文 key，CSV 新建时使用中文表头。
+已删除旧运行口径：
+
+- `qwen_omni_two_stage`
+- `two_stage`
+- `listen_only`
+
+如果环境变量或旧前端配置仍传这三个旧值，后端会兼容迁移为 `omni_single`，并在 `health/defaults` 与启动日志中标记 deprecated；但前端选项不再展示，也不再保留旧执行分支。
+
+当前默认模型：
+
+- Fun-ASR：`fun-asr`
+- Omni 单模型：`qwen3.5-omni-flash`
+- Compare 文本模型：`qwen3.5-plus`
+
+Qwen Omni 与 Fun-ASR 的调用链路不同，不能只靠改模型名互换：
+
+- `fun_asr_compare` 走 Fun-ASR 录音文件识别异步任务，再走文本比较模型。
+- `omni_single` 走 Qwen Omni `input_audio` 单请求。
+
+后端统一经过 provider/model group 级全局限流队列，并带 429 指数退避重试；多人并发时浏览器请求只能在后端排队，不能直接打穿百炼限流。`429` 的根因是上游模型或账号维度限流，不是 `2 核 2G` 服务器算力问题。多个 RAM 用户或 API Key 若属于同一阿里云主账号，也可能合并计入限流。
 
 后端已接入闽南方言字词表 CSV：
 
@@ -158,12 +180,7 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 
 当后端返回 `lexicon.rewriteChanged=true` 时，推荐卡会显示“词表替换：已替换 N 处”，并列出最多 8 个替换项，例如 `他 → 伊`、`喜欢 → 欢喜`、`的 → 诶`。
 
-后端支持两种流水线模式：
-
-- `DATABAKER_AI_PIPELINE_MODE=two_stage`：默认模式，先听音，再调用 `qwen3.5-plus` 对比。
-- `DATABAKER_AI_PIPELINE_MODE=listen_only`：极速听音模式，只调用 `qwen3.5-omni-flash`，再由本地词表强替换生成推荐文本；该模式只适合人工复核推荐，不自动保存、不自动提交。
-
-推荐卡会在后端返回 `timing` 时显示听音耗时、对比耗时和总耗时；在 `listen_only` 或 `model.compare=skipped` 时显示“极速听音模式”。后续可增加“预生成当前页 AI 推荐”按钮：读取当前页 10/50 条记录，后端批量接口限制并发，例如 2，前端以内存缓存 `itemId -> result`，当前题优先读缓存。该能力默认不自动执行，避免模型成本失控。
+推荐卡会在后端返回 `timing` 时显示 Fun-ASR/Omni 耗时、compare 耗时和总耗时，并可显示队列、重试、缓存命中信息。后续如增加“预生成当前页 AI 推荐”按钮，也必须继续走统一后端排队与缓存链路，不能让前端直连 DashScope。
 
 ## 人工验证步骤
 
@@ -191,6 +208,13 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 22. 打开非 `roundOneCollect` 页面，确认不注入该工具卡。
 23. 打开 `group/detail?taskId=...` 页面，确认出现“导出数据总表”按钮；点击后状态应展示“准备导出，正在切换到 100条/页”“正在导出：第 x / y 页”，最终提示“已下载 CSV”，并显示后端上传成功或失败（失败不影响本地下载）。
 24. 导出后访问 `http://127.0.0.1:3333/api/data-baker/round-one-quality/export/download`，确认可下载后端保存的最新 CSV。
+25. 打开 options 中“ASR 语音 AI 设置”，确认标贝易采 AI 模式只剩 `fun_asr_compare` 和 `omni_single`，默认选中 `fun_asr_compare`。
+26. 点击单条“AI 推荐文本”，确认浏览器只请求统一后端接口，不直连 DashScope。
+27. 点击“AI并发分析并连续填入合格项”，确认默认并发不再是 `50`，而是 `5`，且最大值不再超过 `10`。
+28. 如果后端触发排队、429 重试或队列满，确认顶部悬浮窗/结果提示会显示“AI 排队 / 限流重试 / AI 分析失败”等友好状态，而不是误导为页面卡死。
+29. `fun_asr_compare` 需要用 `5-10` 条真实平台音频验证：后端日志不出现完整 `audioUrl`，且 Fun-ASR 能访问平台音频地址。
+30. `omni_single` 需要验证单次 Omni 请求能同时返回 `heardText` 和 `recommendedText`，且不会再调用 compare 模型。
+31. 确认页面填入后仍不自动保存、不自动提交、不自动判定、不自动流转。
 
 ## 已知限制
 
@@ -201,5 +225,6 @@ platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
 - 如果后端未启动或服务器接口未部署最新版本，导出状态会提示“后端上传失败”，但本地下载仍会成功。
 - 如果无法安全定位可编辑的“本句话文本”输入框，结果卡仍保留复制入口，但不会强行填入。
 - 有效音频裁剪第一版未启用；后端只保留环境变量和代码结构，默认把完整 `audioUrl` 交给听音模型。
+- `fun_asr_compare` 的真实可用性还取决于 Fun-ASR 服务是否能访问平台 `audioUrl`；若服务端无法访问签名音频地址，后端会返回明确错误，但不会在日志或响应中泄露完整 URL。
 
 

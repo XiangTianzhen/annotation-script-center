@@ -45,7 +45,8 @@
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
                 aiRecommendRequestTimeoutMs: 120000,
-                aiQualifiedAutofillConcurrency: 50,
+                aiRecommendPipelineMode: "fun_asr_compare",
+                aiQualifiedAutofillConcurrency: 5,
                 aiQualifiedAutofillWaitAllBeforeFill: false,
                 autoPageSizeEnabled: true,
                 defaultPageSize: "50条/页",
@@ -208,6 +209,14 @@
       BACKEND_ENDPOINT_MODE_SERVER: "server",
       BACKEND_ENDPOINT_MODE_LOCAL: "local",
       DATABAKER_PAGE_SIZE_OPTIONS: ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"],
+      DATABAKER_AI_PIPELINE_MODE_OPTIONS: [
+        { value: "fun_asr_compare", label: "Fun-ASR + 比较模型（默认）" },
+        { value: "omni_single", label: "Omni 单模型" },
+      ],
+      DATABAKER_AI_PRIMARY_MODEL_OPTIONS: [
+        { value: "fun-asr", supportsThinking: false },
+        { value: "qwen3.5-omni-flash", supportsThinking: true },
+      ],
       DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: [
         { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
         { key: "autoFillQualifiedItem", label: "AI并发分析并连续填入合格项" },
@@ -1150,8 +1159,21 @@
       ? numeric
       : Number.isFinite(fallbackNumeric)
         ? fallbackNumeric
-        : 50;
-    return Math.max(1, Math.min(50, Math.round(base)));
+        : 5;
+    return Math.max(1, Math.min(10, Math.round(base)));
+  }
+
+  function normalizeDataBakerPipelineMode(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "fun_asr_compare" || text === "omni_single") {
+      return text;
+    }
+    if (text === "two_stage" || text === "qwen_omni_two_stage" || text === "listen_only") {
+      return "omni_single";
+    }
+    return String(fallback || "fun_asr_compare").trim().toLowerCase() === "omni_single"
+      ? "omni_single"
+      : "fun_asr_compare";
   }
 
   function normalizeDataBakerWaitAllBeforeFill(value, fallback) {
@@ -1330,9 +1352,13 @@
       result.aiRecommendRequestTimeoutMs,
       defaultConfig.aiRecommendRequestTimeoutMs || 120000
     );
+    result.aiRecommendPipelineMode = normalizeDataBakerPipelineMode(
+      result.aiRecommendPipelineMode,
+      defaultConfig.aiRecommendPipelineMode || "fun_asr_compare"
+    );
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
-      defaultConfig.aiQualifiedAutofillConcurrency || 50
+      defaultConfig.aiQualifiedAutofillConcurrency || 5
     );
     result.aiQualifiedAutofillWaitAllBeforeFill = normalizeDataBakerWaitAllBeforeFill(
       result.aiQualifiedAutofillWaitAllBeforeFill,
@@ -1340,7 +1366,7 @@
     );
     result.aiRecommendListenModel = normalizeJudgementAiModelText(
       result.aiRecommendListenModel,
-      defaultConfig.aiRecommendListenModel || "qwen3.5-omni-flash"
+      defaultConfig.aiRecommendListenModel || "fun-asr"
     );
     result.aiRecommendCompareModel = normalizeJudgementAiModelText(
       result.aiRecommendCompareModel,
@@ -1419,7 +1445,8 @@
               constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
             aiRecommendRequestTimeoutMs: 120000,
-            aiQualifiedAutofillConcurrency: 50,
+            aiRecommendPipelineMode: "fun_asr_compare",
+            aiQualifiedAutofillConcurrency: 5,
             aiQualifiedAutofillWaitAllBeforeFill: false,
             autoPageSizeEnabled: true,
             defaultPageSize: "50条/页",

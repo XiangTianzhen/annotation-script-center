@@ -3,6 +3,23 @@
     "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
   const DEFAULT_TIMEOUT_MS = 120000;
 
+  function buildFriendlyErrorMessage(responseBody, status) {
+    const code = String(responseBody?.code || "");
+    if (code === "provider-queue-full") {
+      return "后端 AI 排队已满，请稍后重试。";
+    }
+    if (code === "provider-rate-limited" || Number(responseBody?.providerStatus) === 429) {
+      return "上游模型限流，后端已重试仍失败，请稍后重试。";
+    }
+    if (code === "fun-asr-audio-url-unreachable") {
+      return "Fun-ASR 无法访问当前音频链接，请刷新页面后重试；如持续失败，请确认平台 audioUrl 可被模型服务访问。";
+    }
+    if (code === "timeout") {
+      return "AI 分析超时，请稍后重试。";
+    }
+    return String(responseBody?.message || "AI 推荐接口请求失败（HTTP " + String(status) + "）。");
+  }
+
   function getClientVersion() {
     try {
       const manifest = chrome?.runtime?.getManifest ? chrome.runtime.getManifest() : null;
@@ -83,6 +100,7 @@
         effectiveTime: source.effectiveTime,
         audioDuration: source.audioDuration,
         clientVersion: getClientVersion(),
+        pipelineMode: String(config.pipelineMode || "").trim(),
       };
       if (config.listenModel) {
         requestBody.listenModel = String(config.listenModel).trim();
@@ -110,11 +128,7 @@
           return null;
         });
         if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
-          const detail = responseBody?.summary ? "：" + String(responseBody.summary || "") : "";
-          throw new Error(
-            (responseBody?.message ||
-              "AI 推荐接口请求失败（HTTP " + String(response.status) + "）。") + detail
-          );
+          throw new Error(buildFriendlyErrorMessage(responseBody, response.status));
         }
         return responseBody.data;
       } catch (error) {

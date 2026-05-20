@@ -335,7 +335,7 @@
         return "获取列表";
       }
       if (text === "analysis") {
-        return "AI并发分析";
+        return "AI排队/并发分析";
       }
       if (text === "fill") {
         return "填入中";
@@ -606,12 +606,14 @@
       createRow(
         grid,
         "模型",
-        String(model.listen || "qwen3.5-omni-flash") +
-          " + " +
-          String(model.compare || "qwen3.5-plus")
+        data.pipelineMode === "omni_single" || !String(model.compare || "").trim()
+          ? String(model.listen || "qwen3.5-omni-flash")
+          : String(model.listen || "fun-asr") + " + " + String(model.compare || "qwen3.5-plus")
       );
-      if (data.pipelineMode === "listen_only" || model.compare === "skipped") {
-        createRow(grid, "模式", "极速听音模式");
+      if (data.pipelineMode === "fun_asr_compare") {
+        createRow(grid, "模式", "Fun-ASR + 比较模型");
+      } else if (data.pipelineMode === "omni_single") {
+        createRow(grid, "模式", "Omni 单模型");
       }
       if (timing) {
         createRow(
@@ -626,6 +628,21 @@
         );
       }
       createRow(grid, "决策", data.decision || "");
+      if (data.runtime && typeof data.runtime === "object") {
+        const runtime = data.runtime;
+        const queue = runtime.queue && typeof runtime.queue === "object" ? runtime.queue : {};
+        const cache = runtime.cache && typeof runtime.cache === "object" ? runtime.cache : {};
+        createRow(
+          grid,
+          "运行时",
+          (cache.hit === true ? "命中缓存" : "实时分析") +
+            " / 排队等待 " +
+            formatDurationSeconds(queue.totalQueueWaitMs || 0) +
+            " / 重试 " +
+            String(Number(queue.totalRetryCount) || 0) +
+            " 次"
+        );
+      }
       if (lexicon.rewriteChanged === true) {
         createRow(grid, "词表替换", "已替换 " + String(rewriteChanges.length || 0) + " 处");
       }
@@ -708,7 +725,7 @@
       if (triggerButton) {
         triggerButton.disabled = true;
       }
-      setStatus("正在生成 AI 推荐文本...", "info");
+      setStatus("正在生成 AI 推荐文本，统一后端可能正在 AI 排队或限流重试...", "info");
       clearResult();
       try {
         const payload = await deps.onRecommend();

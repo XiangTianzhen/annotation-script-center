@@ -13,7 +13,6 @@ function ensureChineseSentencePunctuation(text) {
   if (!value) {
     return "";
   }
-
   const last = value[value.length - 1];
   if ("。！？；…".includes(last)) {
     return value;
@@ -42,18 +41,13 @@ function parseModelJsonText(rawText, requestId) {
   if (!source) {
     throw new Error("模型未返回文本结果。");
   }
-
-  const withoutCodeFence = source
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/i, "")
-    .trim();
+  const withoutCodeFence = source.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   const attempts = [withoutCodeFence];
   const firstBrace = withoutCodeFence.indexOf("{");
   const lastBrace = withoutCodeFence.lastIndexOf("}");
   if (firstBrace >= 0 && lastBrace > firstBrace) {
     attempts.push(withoutCodeFence.slice(firstBrace, lastBrace + 1));
   }
-
   for (let index = 0; index < attempts.length; index += 1) {
     try {
       return JSON.parse(attempts[index]);
@@ -61,17 +55,13 @@ function parseModelJsonText(rawText, requestId) {
       // try next candidate
     }
   }
-
-  throw new Error(
-    "模型输出 JSON 解析失败（requestId: " + String(requestId || "") + "）。"
-  );
+  throw new Error("模型输出 JSON 解析失败（requestId: " + String(requestId || "") + "）。");
 }
 
 function normalizeStringArray(value) {
   if (!Array.isArray(value)) {
     return [];
   }
-
   return value
     .map(function (item) {
       if (typeof item === "string") {
@@ -90,14 +80,12 @@ function normalizeChangePoints(value) {
   if (!Array.isArray(value)) {
     return [];
   }
-
   return value.slice(0, 30).map(function (item) {
     if (typeof item === "string") {
       return {
         summary: item.trim(),
       };
     }
-
     const source = item && typeof item === "object" ? item : {};
     return {
       type: String(source.type || "").trim(),
@@ -114,7 +102,6 @@ function normalizeListenResponse(modelJson) {
   if (!heardText && source.isValid !== false) {
     throw new Error("听音模型未返回 heardText。");
   }
-
   return {
     heardText,
     confidence: normalizeConfidence(source.confidence),
@@ -134,9 +121,7 @@ function normalizeCompareResponse(modelJson, context) {
   );
   const decision = String(source.decision || "").trim() || "need_human_review";
   const confidence = normalizeConfidence(source.confidence);
-  const needHumanReview =
-    source.needHumanReview === true || confidence < 0.75 || !recommendedText;
-
+  const needHumanReview = source.needHumanReview === true || confidence < 0.75 || !recommendedText;
   return {
     recommendedText,
     decision,
@@ -146,14 +131,31 @@ function normalizeCompareResponse(modelJson, context) {
   };
 }
 
+function normalizeOmniSingleResponse(modelJson, context) {
+  const source = modelJson && typeof modelJson === "object" ? modelJson : {};
+  const pageText = String(context?.pageText || "");
+  const heardText = removeTextSpaces(source.heardText || source.text || "");
+  const recommendedText = removeTextSpaces(
+    source.recommendedText === undefined || source.recommendedText === null
+      ? heardText || pageText
+      : source.recommendedText
+  );
+  const confidence = normalizeConfidence(source.confidence);
+  return {
+    heardText,
+    recommendedText,
+    decision: String(source.decision || "").trim() || (recommendedText === pageText ? "keep_page_text" : "use_heard_text"),
+    changePoints: normalizeChangePoints(source.changePoints),
+    confidence,
+    needHumanReview: source.needHumanReview === true || confidence < 0.75 || !recommendedText,
+  };
+}
+
 function normalizeUsage(usage) {
   const source = usage && typeof usage === "object" ? usage : {};
   const promptTokens = Number(source.promptTokens || source.prompt_tokens || source.input_tokens || 0);
-  const completionTokens = Number(
-    source.completionTokens || source.completion_tokens || source.output_tokens || 0
-  );
+  const completionTokens = Number(source.completionTokens || source.completion_tokens || source.output_tokens || 0);
   const totalTokens = Number(source.totalTokens || source.total_tokens || promptTokens + completionTokens || 0);
-
   return {
     promptTokens: Number.isFinite(promptTokens) ? promptTokens : 0,
     completionTokens: Number.isFinite(completionTokens) ? completionTokens : 0,
@@ -170,18 +172,18 @@ function buildRecommendResponse(parts) {
   const recommendedText = ensureChineseSentencePunctuation(
     removeTextSpaces(compare.recommendedText || listen.heardText || pageText)
   );
-  const isChanged = recommendedText.trim() !== pageText.trim();
   const listenUsage = normalizeUsage(parts?.listenUsage);
   const compareUsage = normalizeUsage(parts?.compareUsage);
-
+  const listenConfidence = parts?.listenConfidence;
+  const compareConfidence = parts?.compareConfidence;
   return {
     recommendedText,
     heardText: removeTextSpaces(listen.heardText || ""),
     pageText,
-    isChanged,
+    isChanged: recommendedText.trim() !== pageText.trim(),
     needHumanReview: compare.needHumanReview !== false || listen.isValid === false,
-    listenConfidence: normalizeConfidence(listen.confidence),
-    compareConfidence: normalizeConfidence(compare.confidence),
+    listenConfidence: normalizeConfidence(listenConfidence !== undefined ? listenConfidence : listen.confidence),
+    compareConfidence: normalizeConfidence(compareConfidence !== undefined ? compareConfidence : compare.confidence),
     decision: String(compare.decision || ""),
     changePoints: Array.isArray(compare.changePoints) ? compare.changePoints : [],
     invalidReasons: normalizeStringArray(listen.invalidReasons),
@@ -209,6 +211,7 @@ module.exports = {
   normalizeCompareResponse,
   normalizeConfidence,
   normalizeListenResponse,
+  normalizeOmniSingleResponse,
   normalizeUsage,
   parseModelJsonText,
   removeTextSpaces,

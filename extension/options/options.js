@@ -67,6 +67,18 @@
     { key: "taskPartialReject", label: "任务判定：部分驳回" },
     { key: "taskFullReject", label: "任务判定：全部驳回" },
   ];
+  const dataBakerPipelineModeOptions = Array.isArray(constants.DATABAKER_AI_PIPELINE_MODE_OPTIONS)
+    ? constants.DATABAKER_AI_PIPELINE_MODE_OPTIONS
+    : [
+        { value: "fun_asr_compare", label: "Fun-ASR + 比较模型（默认）" },
+        { value: "omni_single", label: "Omni 单模型" },
+      ];
+  const dataBakerPrimaryModelOptions = Array.isArray(constants.DATABAKER_AI_PRIMARY_MODEL_OPTIONS)
+    ? constants.DATABAKER_AI_PRIMARY_MODEL_OPTIONS
+    : [
+        { value: "fun-asr", label: "fun-asr", role: "fun_asr_compare" },
+        { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash", role: "omni_single" },
+      ];
   const judgementAiListenModels = Array.isArray(constants.JUDGEMENT_AI_LISTEN_MODELS)
     ? constants.JUDGEMENT_AI_LISTEN_MODELS
     : ["qwen3.5-omni-flash", "qwen3-omni-flash", "qwen3.5-omni-plus"];
@@ -933,9 +945,14 @@
 
   function buildFallbackAsrVoiceAiDefaults(scriptId) {
     const baseDefaults = {
-      listenModel: "qwen3.5-omni-flash",
+      listenModel: scriptId === dataBakerRoundOneQualityScriptId ? "fun-asr" : "qwen3.5-omni-flash",
       compareModel: "qwen3.5-plus",
       reviewModel: "",
+      pipelineMode: scriptId === dataBakerRoundOneQualityScriptId ? "fun_asr_compare" : "",
+      supportedPipelineModes:
+        scriptId === dataBakerRoundOneQualityScriptId
+          ? clone(dataBakerPipelineModeOptions)
+          : [],
       timeoutMs: 120000,
       enableThinking: false,
       temperature: 0.1,
@@ -1073,9 +1090,22 @@
   function normalizeDataBakerAutofillConcurrency(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
-      return 50;
+      return 5;
     }
-    return Math.min(50, Math.max(1, Math.round(number)));
+    return Math.min(10, Math.max(1, Math.round(number)));
+  }
+
+  function normalizeDataBakerPipelineMode(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "fun_asr_compare" || text === "omni_single") {
+      return text;
+    }
+    if (text === "two_stage" || text === "qwen_omni_two_stage" || text === "listen_only") {
+      return "omni_single";
+    }
+    return String(fallback || "fun_asr_compare").trim().toLowerCase() === "omni_single"
+      ? "omni_single"
+      : "fun_asr_compare";
   }
 
   function dataBakerTimeoutMsToSeconds(value) {
@@ -1386,9 +1416,10 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: 120000,
-        aiQualifiedAutofillConcurrency: 50,
+        aiRecommendPipelineMode: "fun_asr_compare",
+        aiQualifiedAutofillConcurrency: 5,
         aiQualifiedAutofillWaitAllBeforeFill: false,
-        aiRecommendListenModel: "qwen3.5-omni-flash",
+        aiRecommendListenModel: "fun-asr",
         aiRecommendCompareModel: "qwen3.5-plus",
         aiRecommendEnableThinking: false,
         aiRecommendListenPrompt: "",
@@ -1412,6 +1443,10 @@
     config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
       config.aiRecommendRequestTimeoutMs
     );
+    config.aiRecommendPipelineMode = normalizeDataBakerPipelineMode(
+      config.aiRecommendPipelineMode,
+      "fun_asr_compare"
+    );
     config.aiQualifiedAutofillConcurrency = normalizeDataBakerAutofillConcurrency(
       config.aiQualifiedAutofillConcurrency
     );
@@ -1419,7 +1454,7 @@
       config.aiQualifiedAutofillWaitAllBeforeFill === true;
     config.aiRecommendListenModel = normalizeJudgementAiModelText(
       config.aiRecommendListenModel,
-      "qwen3.5-omni-flash"
+      "fun-asr"
     );
     config.aiRecommendCompareModel = normalizeJudgementAiModelText(
       config.aiRecommendCompareModel,
@@ -1649,6 +1684,9 @@
         scriptId === dataBakerRoundOneQualityScriptId
           ? '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="data-baker-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示 AI 推荐工具卡</span></label></label>'
           : '<label class="asr-ai-field"><span>启用 AI 质检助手</span><label class="asr-ai-boolean"><input id="magic-data-enabled" type="checkbox" /><span>关闭后不显示 AI 质检建议</span></label></label>',
+        scriptId === dataBakerRoundOneQualityScriptId
+          ? '<label class="asr-ai-field"><span>AI 模式</span><select id="data-baker-ai-pipeline-mode"></select><span class="asr-ai-help">仅保留 Fun-ASR + 比较模型 与 Omni 单模型 两种模式。</span></label>'
+          : "",
         '<label class="asr-ai-field"><span>听音模型</span><select id="' + prefix + '-listen-model-select"></select></label>',
         '<label class="asr-ai-field"><span>' + modelLabel + '</span><select id="' + prefix + '-compare-model-select"></select></label>',
         '<label class="asr-ai-field"><span>听音模型自定义</span><input id="' + prefix + '-listen-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
@@ -4360,6 +4398,20 @@
     if (getElement("data-baker-ai-recommend-enabled")) {
       getElement("data-baker-ai-recommend-enabled").checked =
         config.aiRecommendEnabled !== false;
+      const pipelineNode = getElement("data-baker-ai-pipeline-mode");
+      if (pipelineNode instanceof HTMLSelectElement) {
+        pipelineNode.innerHTML = dataBakerPipelineModeOptions
+          .map(function (item) {
+            const value = String(item?.value || "");
+            const label = String(item?.label || value);
+            return '<option value="' + escapeHtml(value) + '">' + escapeHtml(label) + "</option>";
+          })
+          .join("");
+        pipelineNode.value = normalizeDataBakerPipelineMode(
+          config.aiRecommendPipelineMode,
+          String(aiDefaults.pipelineMode || "fun_asr_compare")
+        );
+      }
       getElement("data-baker-ai-timeout").value = String(
         Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
       );
@@ -4367,7 +4419,7 @@
         "data-baker-ai-listen-model-select",
         "data-baker-ai-listen-model-custom",
         getAsrVoiceAiEffectiveText(config.aiRecommendListenModel, aiDefaults.listenModel),
-        judgementAiListenModels,
+        dataBakerPrimaryModelOptions,
         "listen"
       );
       applyJudgementModelField(
@@ -4426,7 +4478,14 @@
     );
     const concurrencyInput = getElement("data-baker-qualified-autofill-concurrency");
     if (concurrencyInput) {
-      concurrencyInput.value = String(config.aiQualifiedAutofillConcurrency || 50);
+      concurrencyInput.value = String(config.aiQualifiedAutofillConcurrency || 5);
+      concurrencyInput.min = "1";
+      concurrencyInput.max = "10";
+      const parentLabel = concurrencyInput.closest(".field-card");
+      const hintNode = parentLabel ? parentLabel.querySelector("span") : null;
+      if (hintNode) {
+        hintNode.textContent = "范围 1-10，默认 5。更高并发只会更快堆积到后端队列，不会绕过上游模型限流。";
+      }
     }
     stopDataBakerShortcutRecording("");
     renderDataBakerShortcutGrid();
@@ -4457,12 +4516,18 @@
       getElement("data-baker-qualified-autofill-concurrency")?.value
     );
     const autofillWaitAllBeforeFill = false;
+    const pipelineMode = hasAiSettingsPanel
+      ? normalizeDataBakerPipelineMode(
+          getElement("data-baker-ai-pipeline-mode")?.value,
+          currentConfig.aiRecommendPipelineMode || "fun_asr_compare"
+        )
+      : currentConfig.aiRecommendPipelineMode;
     const listenModel = hasAiSettingsPanel
       ? readJudgementModelField(
           "data-baker-ai-listen-model-select",
           "data-baker-ai-listen-model-custom",
           currentConfig.aiRecommendListenModel,
-          judgementAiListenModels
+          dataBakerPrimaryModelOptions
         )
       : currentConfig.aiRecommendListenModel;
     const compareModel = hasAiSettingsPanel
@@ -4573,6 +4638,7 @@
                 id: dataBakerRoundOneQualityScriptId,
                 aiRecommendEnabled: aiRecommendEnabled,
                 aiRecommendRequestTimeoutMs: timeoutMs,
+                aiRecommendPipelineMode: pipelineMode,
                 aiRecommendListenModel:
                   listenModel === String(aiDefaults.listenModel || "").trim() ? "" : listenModel,
                 aiRecommendCompareModel:

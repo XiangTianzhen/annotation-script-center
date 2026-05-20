@@ -28,7 +28,7 @@ extension/sites/data-baker/round-one-quality/
 - 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
 - 左侧句子列表上方 `filter-screen`（“全选/批量判定”同一行）新增“AI连续填入合格项”：按钮挂载在“批量判定”右侧。
 - 点击后先刷新当前页 `queryCollectStatementByCondtion`，筛选当前页 `statusName=质检合格` 条目。
-- 先按配置并发数并发发起所有 AI 推荐（默认并发 `50`，可设 `1-50`），结果返回后进入缓冲区；填入流程不等待全部返回，按 AI 返回顺序从队列取结果后逐条选中并填入；运行中可再次点击或按 `Alt+Q` 停止。
+- 先按配置并发数并发发起所有 AI 推荐（默认并发 `5`，可设 `1-10`），结果返回后进入缓冲区；填入流程不等待全部返回，按 AI 返回顺序从队列取结果后逐条选中并填入；运行中可再次点击或按 `Alt+Q` 停止。
 - 运行中会显示顶部统计悬浮窗；完成或停止后保留约 30 秒，并展示失败条目与“重新填写失败内容”入口。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
 - 导出 CSV 不再包含“原始JSON”列；原始记录会脱敏后单独上传并由后端保存为 `latest-raw.json`（历史模式下为 `*.raw.json`）。
@@ -55,9 +55,12 @@ round-one-quality/
     README.md
     ai-lexicon.js
     index.js
+    ai-client-funasr.js
     ai-client-qwen.js
     ai-cost.js
+    ai-provider-queue.js
     ai-prompts.js
+    ai-result-cache.js
     ai-response-schema.js
     ai-routes.js
 ```
@@ -131,21 +134,53 @@ AI prompt 输出字形规则：
 环境变量：
 
 - `DASHSCOPE_API_KEY`：DashScope API Key，只由后端读取。
-- `DATABAKER_AI_LISTEN_MODEL`：听音模型，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_AI_FUN_ASR_MODEL`：Fun-ASR 录音文件识别模型，默认 `fun-asr`。
+- `DATABAKER_AI_OMNI_MODEL`：Omni 单模型模式使用的 Qwen Omni 模型，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
-- `DATABAKER_AI_PIPELINE_MODE`：默认 `two_stage`，即听音 + 对比双模型；设为 `listen_only` 时只调用 `qwen3.5-omni-flash`，再做本地词表强替换。
+- `DATABAKER_AI_PIPELINE_MODE`：默认 `fun_asr_compare`；只接受 `fun_asr_compare | omni_single`。历史 `two_stage`、`qwen_omni_two_stage`、`listen_only` 会自动迁移为 `omni_single` 并给出 deprecated 提示。
+- `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
+- `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
+- `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
+- `DATABAKER_AI_TEXT_RPM_LIMIT`：Compare 文本模型队列限流，默认 `500` RPM。
+- `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
+- `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `200`。
+- `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留裁剪前后补齐秒数，默认 `0.12`。
 
-## 速度与预生成方案
+## AI 模式与限流
 
-- 默认 `two_stage` 模式会串行调用 `qwen3.5-omni-flash` 和 `qwen3.5-plus`，日志会记录听音耗时、对比耗时、总耗时和流水线模式。
-- `listen_only` 是极速听音模式，只返回听音文本并做词表强替换，仍然只作为人工复核推荐，不自动保存或提交。
-- 后续可新增“预生成当前页 AI 推荐”按钮：前端读取当前页 10/50 条接口记录，后端批量接口限制并发，例如 2，前端以内存缓存 `itemId -> result`，当前题点击 AI 推荐时优先读缓存。
-- 当前页预生成默认不自动执行，避免在翻页或误触时产生不可控模型成本。
+当前只保留两种 AI 模式：
+
+- `fun_asr_compare`：默认批量模式。先调用 Fun-ASR 录音文件识别，再调用文本 compare 模型。
+- `omni_single`：高质量兜底模式。只调用一次 Qwen Omni，同时完成听音、页面文本对比和推荐输出。
+
+旧模式 `qwen_omni_two_stage / two_stage / listen_only` 已删除，不再保留执行分支，也不再作为前端可选项。
+
+统一约束：
+
+- 所有上游模型调用都必须进入后端 provider/model group 队列。
+- 队列按 `qwen_omni / fun_asr / text_compare` 分组限流。
+- 遇到 `429` 会做指数退避和 jitter 重试；前端只看到友好提示，不暴露 provider 原始 JSON。
+- 推荐结果会按题目、模式、模型和规则版本做内存 TTL 缓存，重复点击与多人重复处理优先命中缓存。
+- `429` 的根因是上游模型限流，不是本地或服务器 `2 核 2G` 算力问题；多个 RAM 用户或 API Key 若归属于同一阿里云主账号，也可能共享限流额度。
+- Qwen Omni 和 Fun-ASR 的调用链路不同，不能只靠改模型名互换。
+- `fun_asr_compare` 还依赖 Fun-ASR 服务能访问平台 `audioUrl`。如果音频 URL 对服务端不可访问，后端会明确报错，但日志和文档不会泄露完整签名 URL。
+
+## 真实浏览器验收建议
+
+1. 重新加载扩展。
+2. 打开 options，确认标贝易采 AI 模式只剩 `fun_asr_compare` 和 `omni_single`，默认选中 `fun_asr_compare`。
+3. 进入 `roundOneCollect` 页面，点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope。
+4. 点击“AI并发分析并连续填入合格项”，确认默认并发已降为 `5`，最大值不再超过 `10`。
+5. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。
+6. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
+7. `fun_asr_compare` 需要用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
+8. `omni_single` 需要验证单次 Omni 请求能返回 `heardText` 和 `recommendedText`，且不会再调用 compare 模型。
+9. 页面填入后仍不自动保存、不自动提交、不自动判定、不自动流转。
 
 ## 当前边界
 

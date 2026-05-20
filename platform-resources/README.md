@@ -173,6 +173,9 @@ platform-resources/
 - 运行数据目录：`platform-resources/data-baker/round-one-quality/backend/export-data/`
 - 安全说明：新导出 CSV 统一字段 `有效时长`（来源仍为 `effectivePassTotalTime`）；目录为运行数据，不提交 Git。
 - 上传返回统计字段：`incomingRowCount`、`existingRowCount`、`addedRowCount`、`updatedRowCount`、`unchangedRowCount`、`rowCount`、`taskIds`。
+- AI 模式：当前只保留 `fun_asr_compare` 与 `omni_single`；默认模式为 `fun_asr_compare`。
+- 限流与缓存：所有上游模型调用都进入统一后端队列，按 `fun_asr / qwen_omni / text_compare` 分组限流，并带 TTL 内存缓存；浏览器不直连 DashScope。
+- 风险说明：`429` 来自上游模型限流，不是服务器算力问题；`fun_asr_compare` 还依赖 Fun-ASR 能访问平台 `audioUrl`。
 
 ### Magic Data Annotator API
 

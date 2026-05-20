@@ -1,5 +1,47 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（标贝易采一检质检：AI 模式收敛为 Fun-ASR + Omni 单模型）
+
+- 标贝易采一检质检 AI 推荐架构收敛为仅保留两种模式：
+  - `fun_asr_compare`：默认批量模式，先走 Fun-ASR 录音文件识别，再走 compare 文本模型。
+  - `omni_single`：高质量兜底模式，单次 Qwen Omni 请求同时完成听音、比对与推荐。
+- 删除旧运行口径：
+  - `qwen_omni_two_stage`
+  - `two_stage`
+  - `listen_only`
+- 历史环境变量或前端旧配置若仍传以上旧值，后端只做兼容迁移到 `omni_single`，并在 `health/defaults` 与日志中给出 deprecated 提示；不再保留旧执行分支。
+- 新增 Fun-ASR 专用客户端：按阿里云百炼录音文件识别异步任务提交/轮询/结果获取链路实现，不再把 Fun-ASR 当成 OpenAI-compatible chat 模型调用。
+- 新增 Omni 单模型链路：`omni_single` 只发起一次 Qwen Omni `input_audio` 请求，不再额外调用 compare 模型。
+- 新增 provider/model group 级统一后端限流队列：
+  - `qwen_omni` 默认 `45 RPM`
+  - `fun_asr` 默认 `500 RPM`
+  - `text_compare` 默认 `500 RPM`
+  - 队列支持最大长度保护、`429` 指数退避 + jitter 重试、health/defaults 队列快照。
+- 新增推荐结果内存 TTL 缓存：
+  - key 使用 sha256
+  - 不保存完整 `audioUrl`
+  - 默认 TTL `12 小时`
+  - health/defaults 可查看 cache hit/miss 摘要
+- 标贝易采前端配置调整：
+  - options 中 AI 模式只显示 `fun_asr_compare` 与 `omni_single`
+  - 默认模式改为 `fun_asr_compare`
+  - AI 连续填入默认并发从 `50` 下调到 `5`
+  - 并发最大值建议下调到 `10`
+  - 顶部悬浮窗与错误提示新增“AI 排队 / 限流重试 / AI 分析失败”等友好状态
+- 后端与文档统一强调：
+  - `429` 根因是上游模型或账号维度限流，不是 `2 核 2G` 服务器算力问题
+  - 多个 RAM 用户或 API Key 若归属于同一阿里云主账号，也可能共享限流额度
+  - Fun-ASR 真实可用性仍取决于模型服务是否能访问平台 `audioUrl`
+  - 浏览器不直连 DashScope，所有上游请求统一走后端
+- 更新文档与配置：
+  - `extension/sites/data-baker/round-one-quality/README.md`
+  - `platform-resources/data-baker/round-one-quality/README.md`
+  - `platform-resources/data-baker/round-one-quality/network.md`
+  - `platform-resources/data-baker/round-one-quality/backend/README.md`
+  - `platform-resources/backend/README.md`
+  - `platform-resources/README.md`
+  - `config/env/ai.env.example`
+
 ## 2026-05-19（Task21助手：image_b_texts_removed 改为 T/B/R/D 差异判断）
 
 - Task21 后端 Prompt 版本升级为 `abaka-task21-ai-v4-image-b-removed-diff`。

@@ -57,9 +57,20 @@
   function normalizeAutofillConcurrency(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
-      return 50;
+      return 5;
     }
-    return Math.max(1, Math.min(50, Math.round(number)));
+    return Math.max(1, Math.min(10, Math.round(number)));
+  }
+
+  function normalizePipelineMode(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "fun_asr_compare" || text === "omni_single") {
+      return text;
+    }
+    if (text === "two_stage" || text === "qwen_omni_two_stage" || text === "listen_only") {
+      return "omni_single";
+    }
+    return "fun_asr_compare";
   }
 
   function normalizeAutofillWaitAll(value) {
@@ -126,7 +137,8 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: 120000,
-        aiQualifiedAutofillConcurrency: 50,
+        aiRecommendPipelineMode: "fun_asr_compare",
+        aiQualifiedAutofillConcurrency: 5,
         aiQualifiedAutofillWaitAllBeforeFill: false,
         autoPageSizeEnabled: true,
         defaultPageSize: "50条/页",
@@ -179,6 +191,7 @@
       "https://script.xiangtianzhen.store" + DATABAKER_AI_RECOMMEND_PATH
     );
     const timeoutMs = normalizeTimeout(script.aiRecommendRequestTimeoutMs);
+    const pipelineMode = normalizePipelineMode(script.aiRecommendPipelineMode);
     const aiQualifiedAutofillConcurrency = normalizeAutofillConcurrency(
       script.aiQualifiedAutofillConcurrency
     );
@@ -251,6 +264,7 @@
       shortcuts,
       endpoint,
       timeoutMs,
+      pipelineMode,
       aiQualifiedAutofillConcurrency,
       aiQualifiedAutofillWaitAllBeforeFill,
       listenModel: String(script.aiRecommendListenModel || "").trim(),
@@ -265,6 +279,7 @@
         defaultPageSize,
         endpoint,
         String(timeoutMs),
+        pipelineMode,
         String(aiQualifiedAutofillConcurrency),
         aiQualifiedAutofillWaitAllBeforeFill ? "1" : "0",
         String(script.aiRecommendListenModel || ""),
@@ -291,6 +306,7 @@
     const ai = aiFactory.createRuntime({
       endpoint: config.endpoint,
       timeoutMs: config.timeoutMs,
+      pipelineMode: config.pipelineMode,
       listenModel: config.listenModel,
       compareModel: config.compareModel,
       enableThinking: config.enableThinking === true,
@@ -500,7 +516,7 @@
     async function runConcurrentAiAndSequentialFill(tasks, concurrency) {
       const sourceTasks = Array.isArray(tasks) ? tasks : [];
       const totalCount = sourceTasks.length;
-      const maxConcurrency = Math.max(1, Math.min(50, Number(concurrency) || 1));
+      const maxConcurrency = Math.max(1, Math.min(10, Number(concurrency) || 1));
       const completedQueue = [];
       const queuedResultIds = new Set();
       let nextLaunchIndex = 0;
@@ -845,7 +861,7 @@
       try {
         ui.ensureMounted();
         ui.showBatchFloatingPanel?.();
-        ui.setStatus("连续填入运行中，详情见顶部统计悬浮窗。", "info");
+        ui.setStatus("连续填入运行中，统一后端可能正在 AI 排队或限流重试，详情见顶部统计悬浮窗。", "info");
         updateFloatingProgress({
           phase: "fetching",
           running: true,

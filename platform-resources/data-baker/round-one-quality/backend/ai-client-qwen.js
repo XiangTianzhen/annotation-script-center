@@ -1,7 +1,7 @@
 "use strict";
 
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
+const DEFAULT_OMNI_MODEL = "qwen3.5-omni-flash";
 const DEFAULT_COMPARE_MODEL = "qwen3.5-plus";
 const DEFAULT_REQUEST_PARAMS = {
   temperature: 0.1,
@@ -40,7 +40,7 @@ function parseTimeoutMs() {
   if (!Number.isFinite(value)) {
     return 120000;
   }
-  return Math.max(1000, Math.min(300000, value));
+  return Math.max(1000, Math.min(300000, Math.floor(value)));
 }
 
 function parseEnableThinkingDefault() {
@@ -76,7 +76,6 @@ function isEnableThinkingUnsupportedError(error) {
   if (!error || error.code !== "provider-http-error") {
     return false;
   }
-
   const summary = String(error.summary || error.message || "").toLowerCase();
   return (
     summary.indexOf("enable_thinking") >= 0 ||
@@ -92,9 +91,7 @@ function inferAudioFormat(audioUrl) {
   } catch (error) {
     pathname = String(audioUrl || "").split("?")[0] || "";
   }
-
-  const lowerPathname = pathname.toLowerCase();
-  const matched = lowerPathname.match(/\.([a-z0-9]+)$/);
+  const matched = String(pathname || "").toLowerCase().match(/\.([a-z0-9]+)$/);
   const ext = matched ? matched[1] : "";
   const supportedFormats = {
     wav: "wav",
@@ -105,31 +102,23 @@ function inferAudioFormat(audioUrl) {
     "3gp": "3gp",
     "3gpp": "3gpp",
   };
-
   return supportedFormats[ext] || "wav";
 }
 
 function normalizeNumberInRange(value, min, max) {
   const number = Number(value);
-  if (!Number.isFinite(number)) {
-    return null;
-  }
-  if (number < min || number > max) {
+  if (!Number.isFinite(number) || number < min || number > max) {
     return null;
   }
   return number;
 }
 
 function normalizeIntegerInRange(value, min, max) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) {
+  const number = Math.floor(Number(value));
+  if (!Number.isFinite(number) || number < min || number > max) {
     return null;
   }
-  const integerValue = Math.floor(number);
-  if (integerValue < min || integerValue > max) {
-    return null;
-  }
-  return integerValue;
+  return number;
 }
 
 function normalizeStopSequences(value) {
@@ -170,10 +159,7 @@ function applyAiOptionsToRequestBody(requestBody, aiOptions) {
       delete requestBody.max_tokens;
     }
   }
-  if (
-    SUPPORTED_REQUEST_PARAMS.max_tokens === true &&
-    !Number.isFinite(requestBody.max_completion_tokens)
-  ) {
+  if (SUPPORTED_REQUEST_PARAMS.max_tokens === true && !Number.isFinite(requestBody.max_completion_tokens)) {
     const value = normalizeIntegerInRange(source.max_tokens, 1, 8192);
     if (value !== null) {
       requestBody.max_tokens = value;
@@ -208,32 +194,18 @@ function applyAiOptionsToRequestBody(requestBody, aiOptions) {
 function getClientConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
-  const listenModel = String(process.env.DATABAKER_AI_LISTEN_MODEL || DEFAULT_LISTEN_MODEL).trim();
+  const omniModel = String(process.env.DATABAKER_AI_OMNI_MODEL || DEFAULT_OMNI_MODEL).trim();
   const compareModel = String(process.env.DATABAKER_AI_COMPARE_MODEL || DEFAULT_COMPARE_MODEL).trim();
-  const cropEffectiveAudio = String(process.env.DATABAKER_AI_CROP_EFFECTIVE_AUDIO || "0").trim() === "1";
-  const cropPaddingSeconds = Number(process.env.DATABAKER_AI_CROP_PADDING_SECONDS || 0.12);
-
   return {
     apiKey,
     baseUrl,
-    listenModel: listenModel || DEFAULT_LISTEN_MODEL,
+    omniModel: omniModel || DEFAULT_OMNI_MODEL,
     compareModel: compareModel || DEFAULT_COMPARE_MODEL,
     timeoutMs: parseTimeoutMs(),
     mockEnabled: isMockEnabled(),
     hasApiKey: Boolean(apiKey),
-    cropEffectiveAudio,
-    cropPaddingSeconds: Number.isFinite(cropPaddingSeconds) ? cropPaddingSeconds : 0.12,
     enableThinkingDefault: parseEnableThinkingDefault(),
   };
-}
-
-function buildMockListenResponse(input) {
-  return JSON.stringify({
-    heardText: String(input?.pageText || "").trim() || "mock 听音文本",
-    confidence: 0.82,
-    isValid: true,
-    invalidReasons: [],
-  });
 }
 
 function buildMockCompareResponse(input, heardText) {
@@ -248,12 +220,23 @@ function buildMockCompareResponse(input, heardText) {
   });
 }
 
+function buildMockOmniSingleResponse(input) {
+  const pageText = String(input?.pageText || "").trim();
+  return JSON.stringify({
+    heardText: pageText || "mock 听音文本",
+    recommendedText: pageText || "mock 推荐文本",
+    decision: "keep_page_text",
+    changePoints: [],
+    confidence: 0.84,
+    needHumanReview: true,
+  });
+}
+
 function extractDeltaText(chunk) {
   const choice = Array.isArray(chunk?.choices) ? chunk.choices[0] : null;
   if (!choice) {
     return "";
   }
-
   const deltaContent = choice?.delta?.content;
   if (typeof deltaContent === "string") {
     return deltaContent;
@@ -271,7 +254,6 @@ function extractDeltaText(chunk) {
       })
       .join("");
   }
-
   const messageContent = choice?.message?.content;
   if (typeof messageContent === "string") {
     return messageContent;
@@ -302,12 +284,12 @@ function sanitizeProviderErrorSummary(text) {
         return "[url-redacted]";
       }
     })
-    .replace(/(access_token["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
-    .replace(/(refresh_token["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
+    .replace(/(access_token["'\s:=]+)([^\s",}]+)/gi, "$1[redacted]")
+    .replace(/(refresh_token["'\s:=]+)([^\s",}]+)/gi, "$1[redacted]")
     .replace(/(cookie["'\s:=]+)([^\n\r]+)/gi, "$1[redacted]")
-    .replace(/(ossaccesskeyid["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
-    .replace(/(signature["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
-    .replace(/(api[_-]?key["'\s:=]+)([^\s"',}]+)/gi, "$1[redacted]")
+    .replace(/(ossaccesskeyid["'\s:=]+)([^\s",}]+)/gi, "$1[redacted]")
+    .replace(/(signature["'\s:=]+)([^\s",}]+)/gi, "$1[redacted]")
+    .replace(/(api[_-]?key["'\s:=]+)([^\s",}]+)/gi, "$1[redacted]")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 200);
@@ -345,7 +327,6 @@ async function readStreamCompletion(response) {
     if (!payloadText || payloadText === "[DONE]") {
       return;
     }
-
     try {
       const payload = JSON.parse(payloadText);
       aggregatedText += extractDeltaText(payload);
@@ -362,16 +343,13 @@ async function readStreamCompletion(response) {
     if (result.done) {
       break;
     }
-
     buffer += decoder.decode(result.value, { stream: true });
     const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() || "";
     lines.forEach(consumeLine);
   }
-
   buffer += decoder.decode();
   buffer.split(/\r?\n/).forEach(consumeLine);
-
   return {
     text: aggregatedText,
     usage,
@@ -389,7 +367,6 @@ async function requestChatCompletion(requestBody, options) {
   if (typeof fetch !== "function") {
     throw new Error("当前 Node 运行时不支持 fetch。");
   }
-
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs);
   const timer = controller
@@ -397,7 +374,6 @@ async function requestChatCompletion(requestBody, options) {
         controller.abort();
       }, timeoutMs)
     : null;
-
   try {
     const response = await fetch(config.baseUrl + "/chat/completions", {
       method: "POST",
@@ -408,23 +384,18 @@ async function requestChatCompletion(requestBody, options) {
       body: JSON.stringify(requestBody),
       signal: controller ? controller.signal : undefined,
     });
-
     if (!response.ok) {
       const bodyText = await response.text();
-      const providerError = new Error(
-        "Qwen 接口请求失败（HTTP " + String(response.status) + "）。"
-      );
+      const providerError = new Error("Qwen 接口请求失败（HTTP " + String(response.status) + "）。");
       providerError.code = "provider-http-error";
       providerError.statusCode = response.status;
       providerError.summary = sanitizeProviderErrorSummary(bodyText);
       throw providerError;
     }
-
     const result = await readStreamCompletion(response);
     if (!String(result.text || "").trim()) {
       throw new Error("Qwen 接口未返回有效文本。");
     }
-
     return result;
   } catch (error) {
     if (error?.name === "AbortError") {
@@ -445,7 +416,6 @@ async function requestChatCompletionWithFallback(requestBody, options) {
   const config = getClientConfig();
   const thinkingPreference = resolveThinkingPreference(options, config);
   const initialBody = withThinkingPreference(requestBody, thinkingPreference);
-
   try {
     const result = await requestChatCompletion(initialBody, options);
     return Object.assign({}, result, {
@@ -461,11 +431,7 @@ async function requestChatCompletionWithFallback(requestBody, options) {
     if (!isEnableThinkingUnsupportedError(error)) {
       throw error;
     }
-
-    const fallbackResult = await requestChatCompletion(
-      withoutThinkingPreference(initialBody),
-      options
-    );
+    const fallbackResult = await requestChatCompletion(withoutThinkingPreference(initialBody), options);
     return Object.assign({}, fallbackResult, {
       enableThinkingRequested: true,
       enableThinking: thinkingPreference.enabled === true,
@@ -478,17 +444,33 @@ async function requestChatCompletionWithFallback(requestBody, options) {
   }
 }
 
-async function requestListen(input, prompt, options) {
+function normalizeModelResult(model, result) {
+  return {
+    model,
+    rawText: result.text,
+    usage: result.usage,
+    mock: false,
+    enableThinkingRequested: result.enableThinkingRequested === true,
+    enableThinking: result.enableThinking === true,
+    thinkingPreferenceSource: result.thinkingPreferenceSource || "",
+    thinkingFallbackUsed: result.thinkingFallbackUsed === true,
+    thinkingFallbackMode: result.thinkingFallbackMode || "",
+    thinkingDisabledRequested: result.thinkingDisabledRequested,
+    thinkingDisableFallbackUsed: result.thinkingDisableFallbackUsed,
+  };
+}
+
+async function requestCompare(input, prompt, heardText, options) {
   const config = getClientConfig();
-  const model = String(options?.model || config.listenModel || DEFAULT_LISTEN_MODEL);
+  const model = String(options?.model || config.compareModel || DEFAULT_COMPARE_MODEL).trim() || DEFAULT_COMPARE_MODEL;
   if (config.mockEnabled) {
     return {
       model,
-      rawText: buildMockListenResponse(input),
+      rawText: buildMockCompareResponse(input, heardText),
       usage: {
-        prompt_tokens: 120,
-        completion_tokens: 40,
-        total_tokens: 160,
+        prompt_tokens: 180,
+        completion_tokens: 70,
+        total_tokens: 250,
       },
       mock: true,
       enableThinkingRequested: true,
@@ -500,7 +482,58 @@ async function requestListen(input, prompt, options) {
       thinkingDisableFallbackUsed: false,
     };
   }
+  const requestBody = {
+    model,
+    stream: true,
+    stream_options: {
+      include_usage: true,
+    },
+    messages: [
+      {
+        role: "system",
+        content: String(prompt?.systemPrompt || ""),
+      },
+      {
+        role: "user",
+        content: String(prompt?.userPrompt || ""),
+      },
+    ],
+    response_format: {
+      type: "json_object",
+    },
+    temperature: DEFAULT_REQUEST_PARAMS.temperature,
+    top_p: DEFAULT_REQUEST_PARAMS.top_p,
+    max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
+    presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
+    frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
+  };
+  applyAiOptionsToRequestBody(requestBody, input?.aiOptions);
+  const result = await requestChatCompletionWithFallback(requestBody, options);
+  return normalizeModelResult(model, result);
+}
 
+async function requestOmniSingle(input, prompt, options) {
+  const config = getClientConfig();
+  const model = String(options?.model || config.omniModel || DEFAULT_OMNI_MODEL).trim() || DEFAULT_OMNI_MODEL;
+  if (config.mockEnabled) {
+    return {
+      model,
+      rawText: buildMockOmniSingleResponse(input),
+      usage: {
+        prompt_tokens: 220,
+        completion_tokens: 90,
+        total_tokens: 310,
+      },
+      mock: true,
+      enableThinkingRequested: true,
+      enableThinking: resolveThinkingPreference(options, config).enabled === true,
+      thinkingPreferenceSource: resolveThinkingPreference(options, config).source,
+      thinkingFallbackUsed: false,
+      thinkingFallbackMode: "",
+      thinkingDisabledRequested: resolveThinkingPreference(options, config).enabled !== true,
+      thinkingDisableFallbackUsed: false,
+    };
+  }
   const requestBody = {
     model,
     stream: true,
@@ -538,101 +571,23 @@ async function requestListen(input, prompt, options) {
   };
   applyAiOptionsToRequestBody(requestBody, input?.aiOptions);
   const result = await requestChatCompletionWithFallback(requestBody, options);
-
-  return {
-    model,
-    rawText: result.text,
-    usage: result.usage,
-    mock: false,
-    enableThinkingRequested: result.enableThinkingRequested === true,
-    enableThinking: result.enableThinking === true,
-    thinkingPreferenceSource: result.thinkingPreferenceSource || "",
-    thinkingFallbackUsed: result.thinkingFallbackUsed === true,
-    thinkingFallbackMode: result.thinkingFallbackMode || "",
-    thinkingDisabledRequested: result.thinkingDisabledRequested,
-    thinkingDisableFallbackUsed: result.thinkingDisableFallbackUsed,
-  };
-}
-
-async function requestCompare(input, prompt, heardText, options) {
-  const config = getClientConfig();
-  const model = String(options?.model || config.compareModel || DEFAULT_COMPARE_MODEL);
-  if (config.mockEnabled) {
-    return {
-      model,
-      rawText: buildMockCompareResponse(input, heardText),
-      usage: {
-        prompt_tokens: 180,
-        completion_tokens: 70,
-        total_tokens: 250,
-      },
-      mock: true,
-      enableThinkingRequested: true,
-      enableThinking: resolveThinkingPreference(options, config).enabled === true,
-      thinkingPreferenceSource: resolveThinkingPreference(options, config).source,
-      thinkingFallbackUsed: false,
-      thinkingFallbackMode: "",
-      thinkingDisabledRequested: resolveThinkingPreference(options, config).enabled !== true,
-      thinkingDisableFallbackUsed: false,
-    };
-  }
-
-  const requestBody = {
-    model,
-    stream: true,
-    stream_options: {
-      include_usage: true,
-    },
-    messages: [
-      {
-        role: "system",
-        content: String(prompt?.systemPrompt || ""),
-      },
-      {
-        role: "user",
-        content: String(prompt?.userPrompt || ""),
-      },
-    ],
-    response_format: {
-      type: "json_object",
-    },
-    temperature: DEFAULT_REQUEST_PARAMS.temperature,
-    top_p: DEFAULT_REQUEST_PARAMS.top_p,
-    max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
-    presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
-    frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
-  };
-  applyAiOptionsToRequestBody(requestBody, input?.aiOptions);
-  const result = await requestChatCompletionWithFallback(requestBody, options);
-
-  return {
-    model,
-    rawText: result.text,
-    usage: result.usage,
-    mock: false,
-    enableThinkingRequested: result.enableThinkingRequested === true,
-    enableThinking: result.enableThinking === true,
-    thinkingPreferenceSource: result.thinkingPreferenceSource || "",
-    thinkingFallbackUsed: result.thinkingFallbackUsed === true,
-    thinkingFallbackMode: result.thinkingFallbackMode || "",
-    thinkingDisabledRequested: result.thinkingDisabledRequested,
-    thinkingDisableFallbackUsed: result.thinkingDisableFallbackUsed,
-  };
+  return normalizeModelResult(model, result);
 }
 
 module.exports = {
   DEFAULT_BASE_URL,
   DEFAULT_COMPARE_MODEL,
-  DEFAULT_LISTEN_MODEL,
+  DEFAULT_OMNI_MODEL,
   DEFAULT_REQUEST_PARAMS,
   SUPPORTED_REQUEST_PARAMS,
   getClientConfig,
   inferAudioFormat,
   isEnableThinkingUnsupportedError,
   isMockEnabled,
-  requestCompare,
   requestChatCompletionWithFallback,
-  requestListen,
+  requestCompare,
+  requestOmniSingle,
   resolveThinkingPreference,
+  sanitizeProviderErrorSummary,
   withThinkingPreference,
 };
