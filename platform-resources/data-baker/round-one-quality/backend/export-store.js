@@ -9,7 +9,14 @@ const DEFAULT_RAW_FILE_NAME = "latest-raw.json";
 const DEFAULT_HISTORY_DIR_NAME = "history";
 const DEFAULT_EVENTS_FILE_NAME = "upload-events.jsonl";
 const UTF8_BOM = "\uFEFF";
-const EFFECTIVE_DURATION_HEADERS = new Set(["有效时长", "有效时长(秒)", "有效合格时长"]);
+const LEGACY_HEADER_ALIAS = {
+  "质检人": "质检人_P",
+  "质检人_P": "质检人_P",
+  "有效时长": "有效合格时长_S",
+  "有效时长(秒)": "有效合格时长_S",
+  "有效合格时长": "有效合格时长_S",
+  "有效合格时长_S": "有效合格时长_S",
+};
 
 function sanitizeFileName(value) {
   const text = String(value || "").trim();
@@ -55,10 +62,7 @@ function stripBom(text) {
 
 function normalizeCsvHeaderName(header) {
   const value = stripBom(header).trim();
-  if (EFFECTIVE_DURATION_HEADERS.has(value)) {
-    return "有效时长";
-  }
-  return value;
+  return LEGACY_HEADER_ALIAS[value] || value;
 }
 
 function parseCsvText(csvText) {

@@ -22,12 +22,13 @@ const BASE_PATCH_COLUMNS = new Set([
   "题数",
   "有效时长",
   "有效时长(秒)",
+  "有效时长(秒)_S",
 ]);
 const ROLE_SPECIFIC_COLUMNS = new Set([
   "标注子任务ID",
   "审核子任务ID",
-  "标注员",
-  "审核员",
+  "标注员_P",
+  "审核员_P",
   "标注领取时间",
   "标注提交时间",
   "审核领取时间",
@@ -35,7 +36,45 @@ const ROLE_SPECIFIC_COLUMNS = new Set([
   "标注是否完成",
   "审核是否完成",
 ]);
-const QUALITY_CRITICAL_COLUMNS = new Set(["任务名称", "标注员", "审核员", "供应商"]);
+const QUALITY_CRITICAL_COLUMNS = new Set(["任务名称", "标注员_P", "审核员_P", "供应商"]);
+const LEGACY_COLUMN_ALIAS = {
+  "有效时长": "有效时长(秒)_S",
+  "有效时长(秒)": "有效时长(秒)_S",
+  "有效时长(秒)_S": "有效时长(秒)_S",
+  "标注员": "标注员_P",
+  "审核员": "审核员_P",
+};
+
+function normalizeCsvColumnKey(key) {
+  return LEGACY_COLUMN_ALIAS[key] || key;
+}
+
+function migrateLegacyRowColumns(row, csvColumns) {
+  const next = createEmptyRow(csvColumns);
+  const source = row && typeof row === "object" ? row : {};
+  Object.keys(source).forEach(function (key) {
+    const normalizedKey = normalizeCsvColumnKey(key);
+    if (!normalizedKey || csvColumns.indexOf(normalizedKey) < 0) {
+      return;
+    }
+    const value = source[key];
+    if (value == null || value === "") {
+      return;
+    }
+    if (normalizedKey === "有效时长(秒)_S") {
+      const normalizedDuration = formatDuration(value);
+      if (normalizedDuration !== "") {
+        next[normalizedKey] = normalizedDuration;
+      }
+      return;
+    }
+    const cleanedValue = cleanCsvValue(value);
+    if (cleanedValue !== "") {
+      next[normalizedKey] = cleanedValue;
+    }
+  });
+  return next;
+}
 
 function createEmptyRow(csvColumns) {
   const row = {};
@@ -111,9 +150,9 @@ function applyRoleRecord(row, roleRecord, payload) {
       row["审核子任务ID"] = cleanCsvValue(roleRecord.subTaskId);
     }
     if (roleRecord?.userName || roleRecord?.userId) {
-      row["审核员"] = preferHealthyText(
+      row["审核员_P"] = preferHealthyText(
         cleanCsvValue(roleRecord.userName || roleRecord.userId || ""),
-        row["审核员"] || ""
+        row["审核员_P"] || ""
       );
     }
     if (roleRecord?.receiveTime) {
@@ -131,9 +170,9 @@ function applyRoleRecord(row, roleRecord, payload) {
     row["标注子任务ID"] = cleanCsvValue(roleRecord.subTaskId);
   }
   if (roleRecord?.userName || roleRecord?.userId) {
-    row["标注员"] = preferHealthyText(
+    row["标注员_P"] = preferHealthyText(
       cleanCsvValue(roleRecord.userName || roleRecord.userId || ""),
-      row["标注员"] || ""
+      row["标注员_P"] || ""
     );
   }
   if (roleRecord?.receiveTime) {
@@ -220,7 +259,7 @@ function findExistingMergeRowId(rowsByMergeRowId, batchId, roleRecord) {
 
 function applyBasePatch(row, patch, csvColumns) {
   Object.keys(patch).forEach(function (key) {
-    const normalizedKey = key === "有效时长(秒)" ? "有效时长" : key;
+    const normalizedKey = normalizeCsvColumnKey(key);
     if (csvColumns.indexOf(normalizedKey) < 0) {
       return;
     }
@@ -228,10 +267,10 @@ function applyBasePatch(row, patch, csvColumns) {
       return;
     }
 
-    if (normalizedKey === "有效时长") {
+    if (normalizedKey === "有效时长(秒)_S") {
       const normalizedDuration = formatDuration(patch[key]);
       if (normalizedDuration !== "") {
-        row["有效时长"] = normalizedDuration;
+        row["有效时长(秒)_S"] = normalizedDuration;
       }
       return;
     }
@@ -272,7 +311,7 @@ function applyPayloadToRows(payload, rowsByMergeRowId, csvColumns) {
   const preferredMergeRowId = createMergeRowId(supplierInfo.key, batchId);
   const mergeRowId =
     findExistingMergeRowId(rowsByMergeRowId, batchId, roleRecord) || preferredMergeRowId;
-  const existingRow = rowsByMergeRowId[mergeRowId] || {};
+  const existingRow = migrateLegacyRowColumns(rowsByMergeRowId[mergeRowId] || {}, csvColumns);
   const row = Object.assign(createEmptyRow(csvColumns), existingRow);
   const stableSupplierInfo = resolveRowSupplier(payload || {}, patch, row);
 

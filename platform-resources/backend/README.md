@@ -414,3 +414,9 @@ DataBaker AI 架构补充：
 - 当前仅 Alibaba LabelX ASR 快判与 ASR 转写支持手动 `forceReplaceByBatchId` 上传语义。
 - force replace 请求体会带 `replaceMode="batch"` 和 `replaceBatchIds`；后端在 `payload-merge.js` 先删旧行，再写入本次 payloads。
 - 定时上传 `reason=schedule` 不应传 `forceReplaceByBatchId`，统一保持默认 existing 跳过逻辑。
+
+## 2026-05-21 统计 CSV 字段命名补充
+
+- LabelX 与 DataBaker 的 CSV 写出统一改为新口径字段，不再输出旧字段重复列。
+- LabelX 旧字段 `有效时长` / `有效时长(秒)` 与旧人员列会在合并阶段迁移到 `_S` / `_P` 字段。
+- DataBaker 旧字段 `质检人`、`有效时长`、`有效合格时长` 会在 `latest.csv` 合并阶段迁移到 `质检人_P` 与 `有效合格时长_S`。

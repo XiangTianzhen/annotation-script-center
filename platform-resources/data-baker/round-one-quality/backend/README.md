@@ -128,7 +128,7 @@
   - 相同文本编号再次上传会更新旧行，不会因任务ID不同而重复新增。
   - 不同任务数据可共存，前提是文本编号不同。
 - `taskId/taskIds` 只用于元信息、日志和排查，不参与唯一键判断。
-- CSV 表头会归一化 `有效时长(秒)` / `有效合格时长` 到 `有效时长`，避免重复列。
+- CSV 表头会把旧字段兼容迁移到新口径：`质检人 -> 质检人_P`，`有效时长` / `有效时长(秒)` / `有效合格时长` -> `有效合格时长_S`，避免重复列。
 - 下载接口 `GET/HEAD /api/data-baker/round-one-quality/export/download` 仍返回 `latest.csv`，现在返回的是累计合并总表。
 - 下载最新 CSV：
   - `GET /api/data-baker/round-one-quality/export/download`
@@ -141,7 +141,7 @@
 
 CSV 字段统一口径：
 
-- 新导出的 `latest.csv` 统一使用字段名 `有效时长`（数据来源仍是 `effectivePassTotalTime`）。
+- 新导出的 `latest.csv` 统一使用字段名 `有效合格时长_S`（数据来源仍是 `effectivePassTotalTime`）。
 - 历史导出中 `有效合格时长` 属于旧字段名，供兼容识别；新导出不再使用该字段名。
 - `export-data/` 属于运行数据目录，不提交 Git。
 
@@ -346,3 +346,9 @@ Fun-ASR `403` 的常见原因：
 
 
 
+
+## 2026-05-21 latest.csv 表头兼容迁移
+
+- DataBaker 后端合并 `latest.csv` 时会把旧表头兼容迁移到新口径：`质检人 -> 质检人_P`，`有效时长` / `有效合格时长` -> `有效合格时长_S`。
+- 下一次上传或合并后，写出的 `latest.csv` 只保留新字段，不再同时输出旧字段重复列。
+- `文本编号` 仍是唯一键；CSV 继续使用 UTF-8 BOM 和标准 CSV 转义。

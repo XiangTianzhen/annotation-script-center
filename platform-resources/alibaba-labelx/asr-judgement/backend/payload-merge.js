@@ -22,16 +22,17 @@ const BASE_PATCH_COLUMNS = new Set([
   "题数",
   "有效时长",
   "有效时长(秒)",
+  "有效时长(秒)_S",
 ]);
 const ROLE_SPECIFIC_COLUMNS = new Set([
   "标注员1子任务ID",
   "标注员2子任务ID",
   "标注员3子任务ID",
   "审核子任务ID",
-  "标注员1",
-  "标注员2",
-  "标注员3",
-  "审核员",
+  "标注员1_P",
+  "标注员2_P",
+  "标注员3_P",
+  "审核员_P",
   "标注员1领取时间",
   "标注员1提交时间",
   "标注员2领取时间",
@@ -47,12 +48,21 @@ const ROLE_SPECIFIC_COLUMNS = new Set([
 ]);
 const QUALITY_CRITICAL_COLUMNS = new Set([
   "任务名称",
-  "标注员1",
-  "标注员2",
-  "标注员3",
-  "审核员",
+  "标注员1_P",
+  "标注员2_P",
+  "标注员3_P",
+  "审核员_P",
   "供应商",
 ]);
+const LEGACY_COLUMN_ALIAS = {
+  "有效时长": "有效时长(秒)_S",
+  "有效时长(秒)": "有效时长(秒)_S",
+  "有效时长(秒)_S": "有效时长(秒)_S",
+  "标注员1": "标注员1_P",
+  "标注员2": "标注员2_P",
+  "标注员3": "标注员3_P",
+  "审核员": "审核员_P",
+};
 
 function createEmptyRow(csvColumns) {
   const row = {};
@@ -93,6 +103,37 @@ function normalizeCompletedValue(value) {
   return text;
 }
 
+function normalizeCsvColumnKey(key) {
+  return LEGACY_COLUMN_ALIAS[key] || key;
+}
+
+function migrateLegacyRowColumns(row, csvColumns) {
+  const next = createEmptyRow(csvColumns);
+  const source = row && typeof row === "object" ? row : {};
+  Object.keys(source).forEach(function (key) {
+    const normalizedKey = normalizeCsvColumnKey(key);
+    if (!normalizedKey || csvColumns.indexOf(normalizedKey) < 0) {
+      return;
+    }
+    const value = source[key];
+    if (value == null || value === "") {
+      return;
+    }
+    if (normalizedKey === "有效时长(秒)_S") {
+      const normalizedDuration = formatDuration(value);
+      if (normalizedDuration !== "") {
+        next[normalizedKey] = normalizedDuration;
+      }
+      return;
+    }
+    const cleanedValue = cleanCsvValue(value);
+    if (cleanedValue !== "") {
+      next[normalizedKey] = cleanedValue;
+    }
+  });
+  return next;
+}
+
 function findLabelSlot(row, subTaskId) {
   const slots = [1, 2, 3];
   const existing = slots.find(function (slot) {
@@ -123,9 +164,9 @@ function applyRoleRecord(row, roleRecord, payload) {
 
   if (role === "audit") {
     row["审核子任务ID"] = subTaskId;
-    row["审核员"] = preferHealthyText(
+    row["审核员_P"] = preferHealthyText(
       cleanCsvValue(roleRecord.userName || roleRecord.userId || ""),
-      row["审核员"] || ""
+      row["审核员_P"] || ""
     );
     row["审核领取时间"] = cleanCsvValue(roleRecord.receiveTime || "");
     row["审核提交时间"] = cleanCsvValue(roleRecord.submitTime || "");
@@ -137,9 +178,9 @@ function applyRoleRecord(row, roleRecord, payload) {
 
   const slot = findLabelSlot(row, subTaskId);
   row["标注员" + slot + "子任务ID"] = subTaskId;
-  row["标注员" + slot] = preferHealthyText(
+  row["标注员" + slot + "_P"] = preferHealthyText(
     cleanCsvValue(roleRecord.userName || roleRecord.userId || ""),
-    row["标注员" + slot] || ""
+    row["标注员" + slot + "_P"] || ""
   );
   row["标注员" + slot + "领取时间"] = cleanCsvValue(roleRecord.receiveTime || "");
   row["标注员" + slot + "提交时间"] = cleanCsvValue(roleRecord.submitTime || "");
@@ -179,17 +220,17 @@ function createMergeRowId(supplierKey, batchId) {
 
 function applyBasePatch(row, patch, csvColumns) {
   Object.keys(patch).forEach(function (key) {
-    const normalizedKey = key === "有效时长(秒)" ? "有效时长" : key;
+    const normalizedKey = normalizeCsvColumnKey(key);
     if (csvColumns.indexOf(normalizedKey) < 0) {
       return;
     }
     if (ROLE_SPECIFIC_COLUMNS.has(normalizedKey) || !BASE_PATCH_COLUMNS.has(key)) {
       return;
     }
-    if (normalizedKey === "有效时长") {
+    if (normalizedKey === "有效时长(秒)_S") {
       const normalizedDuration = formatDuration(patch[key]);
       if (normalizedDuration !== "") {
-        row["有效时长"] = normalizedDuration;
+        row["有效时长(秒)_S"] = normalizedDuration;
       }
       return;
     }
@@ -227,7 +268,7 @@ function applyPayloadToRows(payload, rowsByMergeRowId, csvColumns) {
 
   const supplierInfo = resolveRowSupplier(payload || {}, patch, null);
   const mergeRowId = createMergeRowId(supplierInfo.key, batchId);
-  const existingRow = rowsByMergeRowId[mergeRowId] || {};
+  const existingRow = migrateLegacyRowColumns(rowsByMergeRowId[mergeRowId] || {}, csvColumns);
   const row = Object.assign(createEmptyRow(csvColumns), existingRow);
   const stableSupplierInfo = resolveRowSupplier(payload || {}, patch, row);
 

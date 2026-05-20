@@ -286,3 +286,10 @@ platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
   临时恢复使用时，优先切换到 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash`。
 
 
+
+## 2026-05-21 导出 CSV 字段命名修复
+
+- DataBaker 分组导出的人员字段改为 `质检人_P`。
+- 参与有效合格时长统计的字段改为 `有效合格时长_S`。
+- `采集人`、`有效总时长`、`有效不合格时长` 保持原口径，不追加 `_P` / `_S`。
+- `_S` 表示参与时长统计 / 结算的字段，`_P` 表示人员字段。

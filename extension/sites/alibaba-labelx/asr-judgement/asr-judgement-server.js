@@ -42,7 +42,6 @@
   ];
   const CSV_COLUMNS = [
     "任务名称",
-    "供应商",
     "任务ID",
     "标注员1子任务ID",
     "标注员2子任务ID",
@@ -50,11 +49,11 @@
     "审核子任务ID",
     "分包ID",
     "题数",
-    "有效时长(秒)",
-    "标注员1",
-    "标注员2",
-    "标注员3",
-    "审核员",
+    "有效时长(秒)_S",
+    "标注员1_P",
+    "标注员2_P",
+    "标注员3_P",
+    "审核员_P",
     "标注员1领取时间",
     "标注员1提交时间",
     "标注员2领取时间",
@@ -67,6 +66,7 @@
     "标注员2是否完成",
     "标注员3是否完成",
     "审核是否完成",
+    "供应商",
   ];
   const SUPPLIER_HELPER = globalThis.ASREdgeStatisticsSupplier || {};
   const PROGRESS_HELPER = globalThis.ASREdgeProgressIndicator || {};
@@ -318,7 +318,7 @@
   }
 
   function getDurationValueForCheck(payload) {
-    const value = payload?.csvPatch?.["有效时长(秒)"];
+    const value = payload?.csvPatch?.["有效时长(秒)_S"] ?? payload?.csvPatch?.["有效时长(秒)"] ?? payload?.csvPatch?.["有效时长"];
     return value === 0 || value === "0" ? "0" : cleanText(value);
   }
 
@@ -341,12 +341,12 @@
     pushIfBlank(warningFields, csvPatch["任务ID"], "任务ID");
     pushIfBlank(warningFields, csvPatch["题数"], "题数");
     if (!getDurationValueForCheck(payload)) {
-      warningFields.push("有效时长(秒)");
+      warningFields.push("有效时长(秒)_S");
     }
 
     if (role === "audit") {
       pushIfBlank(warningFields, roleRecord.subTaskId || "", "审核子任务ID");
-      pushIfBlank(warningFields, roleRecord.userName || roleRecord.userId || "", "审核员");
+      pushIfBlank(warningFields, roleRecord.userName || roleRecord.userId || "", "审核员_P");
       pushIfBlank(warningFields, roleRecord.receiveTime || "", "审核领取时间");
       pushIfBlank(warningFields, csvPatch["审核是否完成"], "审核是否完成");
       if (cleanText(csvPatch["审核是否完成"]) === "已完成") {
@@ -360,7 +360,7 @@
     }
 
     pushIfBlank(warningFields, roleRecord.subTaskId || "", "标注员子任务ID");
-    pushIfBlank(warningFields, roleRecord.userName || roleRecord.userId || "", "标注员");
+    pushIfBlank(warningFields, roleRecord.userName || roleRecord.userId || "", "标注员_P");
     pushIfBlank(warningFields, roleRecord.receiveTime || "", "标注员领取时间");
     if (!cleanText(csvPatch["标注员1是否完成"]) && !cleanText(csvPatch["标注员2是否完成"]) && !cleanText(csvPatch["标注员3是否完成"])) {
       warningFields.push("标注员是否完成");
@@ -946,7 +946,7 @@
       任务ID: cleanText(subtaskData?.taskId || ""),
       分包ID: cleanText(subtaskData?.batchId || ""),
       题数: String(subtaskData?.size || ""),
-      "有效时长(秒)": formatDurationForCsv(durationSeconds),
+      "有效时长(秒)_S": formatDurationForCsv(durationSeconds),
     };
   }
 

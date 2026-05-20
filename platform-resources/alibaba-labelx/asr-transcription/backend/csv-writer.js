@@ -11,7 +11,7 @@ const {
   UNKNOWN_SUPPLIER_NAME,
 } = require("../../supplier-utils");
 
-const QUALITY_CRITICAL_FIELDS = new Set(["任务名称", "标注员", "审核员", "供应商"]);
+const QUALITY_CRITICAL_FIELDS = new Set(["任务名称", "标注员_P", "审核员_P", "供应商"]);
 
 function escapeCsvCell(value) {
   const text = cleanCsvValue(value);

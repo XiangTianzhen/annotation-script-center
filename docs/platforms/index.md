@@ -61,3 +61,10 @@
 - 按钮点击后会重新拉取本轮范围内全部详情，并用 `forceReplaceByBatchId=true` + `replaceBatchIds` 让后端按分包ID替换旧内容。
 - 定时上传不显示该按钮，也不会自动触发强制替换。
 - 详情页第一版不默认支持 force replace。
+
+## 2026-05-21 CSV 字段命名口径补充
+
+- Alibaba LabelX 快判：`有效时长(秒)_S`、`标注员1_P`、`标注员2_P`、`标注员3_P`、`审核员_P`。
+- Alibaba LabelX 转写：`有效时长(秒)_S`、`标注员_P`、`审核员_P`。
+- DataBaker：`质检人_P`、`有效合格时长_S`，`采集人` 保持原字段名。
+- 运行数据目录与用户上传 CSV 仍不提交 Git。

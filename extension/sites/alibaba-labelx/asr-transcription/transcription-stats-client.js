@@ -42,21 +42,21 @@
   ];
   const CSV_COLUMNS = [
     "任务名称",
-    "供应商",
     "任务ID",
     "标注子任务ID",
     "审核子任务ID",
     "分包ID",
     "题数",
-    "有效时长(秒)",
-    "标注员",
-    "审核员",
+    "有效时长(秒)_S",
+    "标注员_P",
+    "审核员_P",
     "标注领取时间",
     "标注提交时间",
     "审核领取时间",
     "审核提交时间",
     "标注是否完成",
     "审核是否完成",
+    "供应商",
   ];
   const SUPPLIER_HELPER = globalThis.ASREdgeStatisticsSupplier || {};
   const PROGRESS_HELPER = globalThis.ASREdgeProgressIndicator || {};
@@ -250,7 +250,7 @@
   }
 
   function getDurationValueForCheck(payload) {
-    const value = payload?.csvPatch?.["有效时长(秒)"];
+    const value = payload?.csvPatch?.["有效时长(秒)_S"] ?? payload?.csvPatch?.["有效时长(秒)"] ?? payload?.csvPatch?.["有效时长"];
     return value === 0 || value === "0" ? "0" : cleanText(value);
   }
 
@@ -278,7 +278,7 @@
     pushIfBlank(
       warningFields,
       roleRecord.userName || roleRecord.userId || "",
-      role === "audit" ? "审核员" : "标注员"
+      role === "audit" ? "审核员_P" : "标注员_P"
     );
     pushIfBlank(
       warningFields,
@@ -289,7 +289,7 @@
     if (cleanText(csvPatch[completedField]) === "已完成") {
       pushIfBlank(warningFields, roleRecord.submitTime || "", submitField);
       if (!getDurationValueForCheck(payload)) {
-        warningFields.push("有效时长(秒)");
+        warningFields.push("有效时长(秒)_S");
       }
     }
     return {
@@ -1245,7 +1245,7 @@
           (Array.isArray(subtaskData?.dataList) ? subtaskData.dataList.length : "") ||
           ""
       ),
-      "有效时长(秒)": formatDurationForCsv(durationSeconds),
+      "有效时长(秒)_S": formatDurationForCsv(durationSeconds),
     };
   }
 
