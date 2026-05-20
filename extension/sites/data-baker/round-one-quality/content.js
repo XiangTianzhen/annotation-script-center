@@ -474,6 +474,10 @@
           launchedCount: 0,
           activeAiCount: 0,
           completedAiCount: 0,
+          jobSubmittedCount: 0,
+          jobRunningCount: 0,
+          jobSuccessCount: 0,
+          jobFailCount: 0,
           analysisSuccessCount: 0,
           analysisFailCount: 0,
           queueCount: 0,
@@ -627,12 +631,21 @@
       const sourceTasks = Array.isArray(tasks) ? tasks : [];
       const totalCount = sourceTasks.length;
       const maxConcurrency = Math.max(1, Math.min(50, Number(concurrency) || 20));
+      const useAsyncJobsForBatch =
+        String(config.recognitionMode || "").trim() === "two_stage" &&
+        String(config.listenModel || "").trim() === "fun-asr" &&
+        typeof ai.recommendAsync === "function";
       const completedQueue = [];
       const queuedResultIds = new Set();
+      const jobStateMap = new Map();
       let nextLaunchIndex = 0;
       let launchedCount = 0;
       let activeAiCount = 0;
       let completedAiCount = 0;
+      let jobSubmittedCount = 0;
+      let jobRunningCount = 0;
+      let jobSuccessCount = 0;
+      let jobFailCount = 0;
       let analysisSuccessCount = 0;
       let analysisFailCount = 0;
       let fillStartedCount = 0;
@@ -681,6 +694,10 @@
           launchedCount,
           activeAiCount,
           completedAiCount,
+          jobSubmittedCount,
+          jobRunningCount,
+          jobSuccessCount,
+          jobFailCount,
           analysisSuccessCount,
           analysisFailCount,
           queueCount: completedQueue.length,
@@ -692,6 +709,51 @@
           failures: currentBatchFailures.slice(),
           retryableFailuresCount: currentRetryableFillFailures.length,
         });
+      }
+
+      function recalculateJobStats() {
+        let submitted = 0;
+        let running = 0;
+        let succeeded = 0;
+        let failed = 0;
+        jobStateMap.forEach(function (state) {
+          if (!state) {
+            return;
+          }
+          if (state.submitted === true) {
+            submitted += 1;
+          }
+          if (state.status === "pending" || state.status === "running") {
+            running += 1;
+          } else if (state.status === "succeeded") {
+            succeeded += 1;
+          } else if (state.status === "failed") {
+            failed += 1;
+          }
+        });
+        jobSubmittedCount = submitted;
+        jobRunningCount = running;
+        jobSuccessCount = succeeded;
+        jobFailCount = failed;
+      }
+
+      function updateJobState(processKey, patch) {
+        const key = String(processKey || "").trim();
+        if (!key) {
+          return;
+        }
+        const currentState = jobStateMap.get(key) || {
+          submitted: false,
+          status: "",
+          jobId: "",
+        };
+        const nextState = Object.assign({}, currentState, patch || {});
+        if (nextState.submitted !== true && nextState.status) {
+          nextState.submitted = true;
+        }
+        jobStateMap.set(key, nextState);
+        recalculateJobStats();
+        updateProgressStatus("");
       }
 
       function launchNextAiRequests() {
@@ -714,16 +776,36 @@
               listenModel: String(config.listenModel || ""),
               compareModel: String(config.compareModel || ""),
               recognitionMode: String(config.recognitionMode || ""),
+              asyncJobMode: useAsyncJobsForBatch,
             });
           }
           updateProgressStatus("");
 
           Promise.resolve()
             .then(function () {
+              if (useAsyncJobsForBatch) {
+                return ai.recommendAsync(task.item, {
+                  maxWaitMs: Math.max(300000, Number(config.timeoutMs) || 120000),
+                  onJobUpdate: function (jobUpdate) {
+                    const status = String(jobUpdate?.status || "").trim().toLowerCase();
+                    updateJobState(task.processKey || "index:" + String(index), {
+                      submitted: true,
+                      jobId: String(jobUpdate?.jobId || ""),
+                      status: status || "pending",
+                    });
+                  },
+                });
+              }
               return ai.recommend(task.item);
             })
             .then(function (recommendation) {
               analysisSuccessCount += 1;
+              if (useAsyncJobsForBatch) {
+                updateJobState(task.processKey || "index:" + String(index), {
+                  submitted: true,
+                  status: "succeeded",
+                });
+              }
               completedQueue.push({
                 ok: true,
                 index,
@@ -738,6 +820,12 @@
             })
             .catch(function (error) {
               analysisFailCount += 1;
+              if (useAsyncJobsForBatch) {
+                updateJobState(task.processKey || "index:" + String(index), {
+                  submitted: true,
+                  status: "failed",
+                });
+              }
               completedQueue.push({
                 ok: false,
                 index,
@@ -985,7 +1073,13 @@
       try {
         ui.ensureMounted();
         ui.showBatchFloatingPanel?.();
-        ui.setStatus("连续填入运行中，统一后端可能正在 AI 排队或限流重试，详情见顶部统计悬浮窗。", "info");
+        ui.setStatus(
+          String(config.recognitionMode || "").trim() === "two_stage" &&
+            String(config.listenModel || "").trim() === "fun-asr"
+            ? "连续填入运行中。Fun-ASR 批量会先提交后端异步任务，再轮询结果，详情见顶部统计悬浮窗。"
+            : "连续填入运行中，统一后端可能正在 AI 排队或限流重试，详情见顶部统计悬浮窗。",
+          "info"
+        );
         updateFloatingProgress({
           phase: "fetching",
           running: true,
@@ -1052,6 +1146,10 @@
           launchedCount: 0,
           activeAiCount: 0,
           completedAiCount: 0,
+          jobSubmittedCount: 0,
+          jobRunningCount: 0,
+          jobSuccessCount: 0,
+          jobFailCount: 0,
         });
         const streamSummary = await runConcurrentAiAndSequentialFill(tasks, concurrency);
         if (streamSummary.stopped) {

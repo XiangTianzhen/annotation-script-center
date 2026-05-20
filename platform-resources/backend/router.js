@@ -10,6 +10,53 @@ function normalizeMethod(method) {
 function createRouter() {
   const routes = [];
 
+  function normalizePathname(pathname) {
+    const text = String(pathname || "/").trim() || "/";
+    if (text === "/") {
+      return "/";
+    }
+    return text.replace(/\/+$/, "") || "/";
+  }
+
+  function matchRoutePath(routePath, pathname) {
+    const normalizedRoutePath = normalizePathname(routePath);
+    const normalizedPathname = normalizePathname(pathname);
+    if (normalizedRoutePath === normalizedPathname) {
+      return {};
+    }
+    if (normalizedRoutePath.indexOf("/:") < 0) {
+      return null;
+    }
+
+    const routeSegments = normalizedRoutePath.split("/");
+    const pathSegments = normalizedPathname.split("/");
+    if (routeSegments.length !== pathSegments.length) {
+      return null;
+    }
+
+    const params = {};
+    for (let index = 0; index < routeSegments.length; index += 1) {
+      const routeSegment = routeSegments[index];
+      const pathSegment = pathSegments[index];
+      if (routeSegment === pathSegment) {
+        continue;
+      }
+      if (!routeSegment || routeSegment[0] !== ":") {
+        return null;
+      }
+      const key = routeSegment.slice(1).trim();
+      if (!key) {
+        return null;
+      }
+      try {
+        params[key] = decodeURIComponent(pathSegment || "");
+      } catch (error) {
+        params[key] = pathSegment || "";
+      }
+    }
+    return params;
+  }
+
   function add(method, path, handler) {
     routes.push({
       method: normalizeMethod(method),
@@ -19,9 +66,20 @@ function createRouter() {
   }
 
   function findRoute(method, pathname) {
-    return routes.find(function (route) {
-      return route.method === method && route.path === pathname;
-    });
+    for (let index = 0; index < routes.length; index += 1) {
+      const route = routes[index];
+      if (route.method !== method) {
+        continue;
+      }
+      const params = matchRoutePath(route.path, pathname);
+      if (params) {
+        return {
+          route,
+          params,
+        };
+      }
+    }
+    return null;
   }
 
   async function handle(request, response) {
@@ -34,8 +92,8 @@ function createRouter() {
       return;
     }
 
-    const route = findRoute(method, pathname);
-    if (!route) {
+    const matched = findRoute(method, pathname);
+    if (!matched) {
       sendJson(response, 404, {
         success: false,
         message: "接口不存在。",
@@ -44,10 +102,11 @@ function createRouter() {
     }
 
     try {
-      await route.handler({
+      await matched.route.handler({
         method,
         parsedUrl,
         pathname,
+        params: matched.params || {},
         query: parsedUrl.query || {},
         request,
         response,

@@ -2,6 +2,8 @@
   const DEFAULT_ENDPOINT =
     "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
   const DEFAULT_TIMEOUT_MS = 120000;
+  const DEFAULT_JOB_POLL_INTERVAL_MS = 1000;
+  const DEFAULT_JOB_MAX_WAIT_MS = 300000;
 
   function buildFriendlyErrorMessage(responseBody, status) {
     const code = String(responseBody?.code || "");
@@ -26,7 +28,20 @@
     if (code === "timeout") {
       return "AI 分析超时，请稍后重试。";
     }
+    if (code === "ai-job-store-full") {
+      return "后端异步任务池已满，请稍后重试。";
+    }
+    if (code === "ai-job-not-found") {
+      return "后端任务不存在或已过期，请重试。";
+    }
+    if (code === "ai-jobs-disabled") {
+      return "当前后端未启用 Fun-ASR 异步任务接口。";
+    }
     return String(responseBody?.message || "AI 推荐接口请求失败（HTTP " + String(status) + "）。");
+  }
+
+  function buildFriendlyAsyncJobFetchErrorMessage() {
+    return "后端连接中断或代理超时；Fun-ASR 批量已改为异步任务，请刷新后重试，或检查后端日志。";
   }
 
   function getClientVersion() {
@@ -72,29 +87,19 @@
       }
     }
 
-    async function recommend(item) {
-      const source = item && typeof item === "object" ? item : {};
-      if (!source.collectId) {
-        throw new Error("缺少 collectId，无法调用 AI 推荐。");
+    function getJobsEndpoint() {
+      try {
+        const endpointUrl = new URL(getEndpoint());
+        endpointUrl.pathname = endpointUrl.pathname.replace(/\/+$/, "") + "/jobs";
+        endpointUrl.search = "";
+        endpointUrl.hash = "";
+        return endpointUrl.toString();
+      } catch (error) {
+        return DEFAULT_ENDPOINT.replace(/\/+$/, "") + "/jobs";
       }
-      if (!source.itemId) {
-        throw new Error("缺少当前题 itemId，请刷新或重新点击题目后再试。");
-      }
-      if (!source.audioUrl) {
-        throw new Error("缺少当前题 audioUrl，请等待列表接口加载完成后再试。");
-      }
-      if (!String(source.pageText || "").trim()) {
-        throw new Error("缺少页面候选文本。");
-      }
+    }
 
-      const controller = typeof AbortController === "function" ? new AbortController() : null;
-      const timeoutMs = Math.max(1000, Number(config.timeoutMs) || DEFAULT_TIMEOUT_MS);
-      const timer = controller
-        ? window.setTimeout(function () {
-            controller.abort();
-          }, timeoutMs)
-        : null;
-
+    function createRequestBody(source) {
       const requestBody = {
         collectId: String(source.collectId || ""),
         itemId: String(source.itemId || ""),
@@ -127,26 +132,45 @@
       if (config.aiOptions && typeof config.aiOptions === "object") {
         requestBody.aiOptions = Object.assign({}, config.aiOptions);
       }
+      return requestBody;
+    }
 
+    function delay(ms) {
+      return new Promise(function (resolve) {
+        window.setTimeout(resolve, Math.max(0, Number(ms) || 0));
+      });
+    }
+
+    async function fetchJsonWithTimeout(
+      url,
+      requestOptions,
+      timeoutMs,
+      onAbortMessage,
+      onNetworkErrorMessage
+    ) {
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timer = controller
+        ? window.setTimeout(function () {
+            controller.abort();
+          }, Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS))
+        : null;
       try {
-        const response = await fetch(getEndpoint(), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
+        const response = await fetch(url, Object.assign({}, requestOptions || {}, {
           signal: controller ? controller.signal : undefined,
-        });
+        }));
         const responseBody = await response.json().catch(function () {
           return null;
         });
-        if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
-          throw new Error(buildFriendlyErrorMessage(responseBody, response.status));
-        }
-        return responseBody.data;
+        return {
+          response: response,
+          responseBody: responseBody,
+        };
       } catch (error) {
         if (error?.name === "AbortError") {
-          throw new Error("AI 推荐接口请求超时。");
+          throw new Error(onAbortMessage || "AI 推荐接口请求超时。");
+        }
+        if (error instanceof TypeError) {
+          throw new Error(onNetworkErrorMessage || "后端连接失败，请检查统一后端是否可访问。");
         }
         throw error;
       } finally {
@@ -156,13 +180,157 @@
       }
     }
 
+    async function recommend(item) {
+      const source = item && typeof item === "object" ? item : {};
+      if (!source.collectId) {
+        throw new Error("缺少 collectId，无法调用 AI 推荐。");
+      }
+      if (!source.itemId) {
+        throw new Error("缺少当前题 itemId，请刷新或重新点击题目后再试。");
+      }
+      if (!source.audioUrl) {
+        throw new Error("缺少当前题 audioUrl，请等待列表接口加载完成后再试。");
+      }
+      if (!String(source.pageText || "").trim()) {
+        throw new Error("缺少页面候选文本。");
+      }
+
+      const timeoutMs = Math.max(1000, Number(config.timeoutMs) || DEFAULT_TIMEOUT_MS);
+      const requestBody = createRequestBody(source);
+
+      const result = await fetchJsonWithTimeout(
+        getEndpoint(),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        },
+        timeoutMs,
+        "AI 推荐接口请求超时。",
+        "后端连接失败，请检查统一后端是否可访问。"
+      );
+      const response = result.response;
+      const responseBody = result.responseBody;
+      if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
+        throw new Error(buildFriendlyErrorMessage(responseBody, response.status));
+      }
+      return responseBody.data;
+    }
+
+    async function createRecommendJob(item) {
+      const source = item && typeof item === "object" ? item : {};
+      const requestBody = createRequestBody(source);
+      const result = await fetchJsonWithTimeout(
+        getJobsEndpoint(),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        },
+        Math.min(30000, Math.max(10000, Number(config.timeoutMs) || DEFAULT_TIMEOUT_MS)),
+        "创建后端异步任务超时。",
+        buildFriendlyAsyncJobFetchErrorMessage()
+      );
+      const response = result.response;
+      const responseBody = result.responseBody;
+      if (!response.ok || responseBody?.success !== true || !responseBody?.jobId) {
+        throw new Error(buildFriendlyErrorMessage(responseBody, response.status));
+      }
+      return {
+        jobId: String(responseBody.jobId || ""),
+        requestId: String(responseBody.requestId || ""),
+        status: String(responseBody.status || "pending"),
+      };
+    }
+
+    async function pollRecommendJob(jobId, options) {
+      const runtimeOptions = options && typeof options === "object" ? options : {};
+      const onJobUpdate =
+        typeof runtimeOptions.onJobUpdate === "function" ? runtimeOptions.onJobUpdate : null;
+      const pollIntervalMs = Math.max(
+        200,
+        Number(runtimeOptions.pollIntervalMs) || DEFAULT_JOB_POLL_INTERVAL_MS
+      );
+      const maxWaitMs = Math.max(
+        Number(runtimeOptions.maxWaitMs) || 0,
+        Math.max(Number(config.timeoutMs) || DEFAULT_TIMEOUT_MS, DEFAULT_JOB_MAX_WAIT_MS)
+      );
+      const deadlineAt = Date.now() + maxWaitMs;
+      while (Date.now() <= deadlineAt) {
+        const result = await fetchJsonWithTimeout(
+          getJobsEndpoint().replace(/\/+$/, "") + "/" + encodeURIComponent(String(jobId || "").trim()),
+          {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+            },
+          },
+          Math.min(30000, maxWaitMs),
+          "查询后端异步任务超时。",
+          buildFriendlyAsyncJobFetchErrorMessage()
+        );
+        const response = result.response;
+        const responseBody = result.responseBody;
+        if (response.status === 404 || responseBody?.code === "ai-job-not-found") {
+          throw new Error("后端任务不存在或已过期，请重试。");
+        }
+        if (!response.ok) {
+          throw new Error(buildFriendlyErrorMessage(responseBody, response.status));
+        }
+        const status = String(responseBody?.status || "").trim().toLowerCase();
+        if (onJobUpdate) {
+          onJobUpdate({
+            jobId: String(jobId || ""),
+            status: status || "pending",
+            response: responseBody,
+          });
+        }
+        if (status === "succeeded" && responseBody?.data) {
+          return responseBody.data;
+        }
+        if (status === "failed") {
+          throw new Error(buildFriendlyErrorMessage(responseBody, response.status));
+        }
+        await delay(pollIntervalMs);
+      }
+      throw new Error("后端异步任务等待超时，请稍后重试。");
+    }
+
+    async function recommendAsync(item, options) {
+      const runtimeOptions = options && typeof options === "object" ? options : {};
+      const onJobUpdate =
+        typeof runtimeOptions.onJobUpdate === "function" ? runtimeOptions.onJobUpdate : null;
+      const createdJob = await createRecommendJob(item);
+      if (onJobUpdate) {
+        onJobUpdate({
+          jobId: createdJob.jobId,
+          status: createdJob.status || "pending",
+          response: createdJob,
+        });
+      }
+      return pollRecommendJob(createdJob.jobId, {
+        onJobUpdate: onJobUpdate,
+        pollIntervalMs: runtimeOptions.pollIntervalMs,
+        maxWaitMs: runtimeOptions.maxWaitMs,
+      });
+    }
+
     return {
       recommend,
+      recommendAsync,
+      createRecommendJob,
+      pollRecommendJob,
     };
   }
 
   globalThis.__ASREdgeDataBakerRoundOneAiRecommendation = {
     DEFAULT_ENDPOINT,
+    DEFAULT_JOB_MAX_WAIT_MS,
+    DEFAULT_JOB_POLL_INTERVAL_MS,
     DEFAULT_TIMEOUT_MS,
     createRuntime,
     getAnnotatorName,

@@ -50,3 +50,4 @@
 - `providers/funasr-rest.js` 会记录 `[FunASR][REST] submit start/finish` 与 `[FunASR][REST] poll start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
 - `providers/funasr-python.js` 会记录 `[FunASR] spawn start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
 - DataBaker 前端“AI连续填入合格项并发数量”只是浏览器同时发往统一后端的请求数，当前范围 `1~50`、默认 `20`；真正的上游模型并发仍由这里的 provider queue 和 RPM 限流控制。
+- DataBaker `two_stage + fun-asr` 的批量连续填入默认会先创建后端异步 job，再轮询 job 状态；这样可以避免单个 HTTP recommend 请求挂太久后被浏览器或代理中断。

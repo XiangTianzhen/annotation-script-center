@@ -5,7 +5,7 @@
 
 - AI 推荐文本接口。
 - 导出 CSV 上传与下载接口（扩展前端导出后自动上传，后端保存 `latest.csv` 并提供下载；原始记录脱敏后单独保存 `latest-raw.json`）。
-- 前端“AI连续填入合格项”辅助能力复用现有 AI 推荐接口，不新增后端路由；当前策略为“并发分析 + 顺序填入”，只处理 `statusName=质检合格`。
+- 前端“AI连续填入合格项”当前仍是“并发分析 + 顺序填入”，只处理 `statusName=质检合格`；但在 `two_stage + fun-asr` 下，批量分析会优先走后端异步 job 路由，避免同步 HTTP 长连接等待过久。
 - 前端“AI连续填入合格项并发数量”默认 `20`（可配置 `1~50`）。更高并发不会绕过上游模型限流，只会更快堆积到统一后端队列。
 - 前端调度为“并发请求 + 队列消费填入”：AI 结果返回后即进入队列，由前端串行填入，不等待全部请求结束；该变更不涉及后端接口新增。
 - 当前排查串行感时，要同时看：
@@ -18,6 +18,8 @@
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
+- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
+- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
 - `GET /api/data-baker/round-one-quality/export/health`
 - `GET /api/data-baker/round-one-quality/export/config`
 - `POST /api/data-baker/round-one-quality/export/upload`
@@ -27,8 +29,9 @@
 ## 文件职责
 
 - `index.js`：项目路由注册入口。
-- `ai-routes.js`：只负责 HTTP health / defaults / recommend 路由注册、请求体读取和响应返回。
+- `ai-routes.js`：只负责 HTTP health / defaults / recommend / jobs 路由注册、请求体读取和响应返回。
 - `ai-service.js`：DataBaker AI 业务层，集中管理请求归一化、链路推导、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
+- `ai-job-store.js`：DataBaker AI 异步 job 的内存状态管理、TTL 清理和统计快照。
 - `export-routes.js`：导出 health / config / upload / download 路由。
 - `export-store.js`：导出文件落盘、latest/history/events 存储能力。
 - `platform-resources/backend/ai/providers/funasr-rest.js`：按阿里云官方 RESTful API 提交 Fun-ASR 异步任务、轮询任务并拉取转写结果。
@@ -73,6 +76,10 @@
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，显式指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
+- `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：Fun-ASR 批量连续填入是否启用后端异步 job，默认 `1`。
+- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job TTL，默认 `120000`（2 分钟）。
+- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 最大保留数量，默认 `1000`。
+- `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端轮询 job 状态建议间隔，默认 `1000` ms。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
 - `DATABAKER_AI_TEXT_RPM_LIMIT`：Compare 文本模型队列限流，默认 `500` RPM。
@@ -150,17 +157,28 @@ CSV 字段统一口径：
    - Fun-ASR 返回 `heardText` 后，再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
    - Python SDK 只在显式设置 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时启用。
 6. 所有 provider 调用遇到 `429` 都走统一指数退避 + jitter 重试；超出队列长度直接返回清晰错误，不让请求无限堆积。
-7. provider 队列现在同时控制 RPM 和 group 并发：
+7. `two_stage + fun-asr` 的批量连续填入默认改走异步 job：
+   - 创建任务：`POST /api/data-baker/round-one-quality/ai/recommend/jobs`
+   - 查询任务：`GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
+   - 后端创建 job 后立即返回 `jobId`，后台继续执行现有 `recommend` 流程。
+   - 前端按 job 状态轮询，谁先 `succeeded`，谁先进入待填队列。
+8. provider 队列现在同时控制 RPM 和 group 并发：
    - `qwen_omni` 默认并发 `3`
    - `fun_asr` 默认并发 `2`
    - `text_compare` 默认并发 `5`
    这样 Fun-ASR 不再是“上一条完全结束后才启动下一条”的严格串行。
-8. 若批量执行时感觉仍像串行，优先检查：
+9. 若批量执行时感觉仍像串行，优先检查：
    - `fun_asr.activeCount` 是否能超过 `1`
    - `text_compare.activeCount` 是否能超过 `1`
    - `queueWaitMs` 是不是主要堆在 compare 阶段
-8. 对 `heardText` / `recommendedText` 做现有清洗、简繁归一、词表替换与中文句末标点补全。
-9. 成功结果写入 TTL 缓存，并组装统一响应，返回模式、模型、队列、缓存、阶段耗时、`requestId` 和调试摘要。
+10. 对 `heardText` / `recommendedText` 做现有清洗、简繁归一、词表替换与中文句末标点补全。
+11. 成功结果写入 TTL 缓存，并组装统一响应，返回模式、模型、队列、缓存、阶段耗时、`requestId` 和调试摘要。
+
+同步 recommend 与异步 jobs 的定位差异：
+
+- 单条“AI 推荐文本”按钮和非 Fun-ASR 批量路径仍可继续使用同步 `POST /ai/recommend`。
+- `two_stage + fun-asr` 的批量连续填入优先使用异步 job，避免一个请求同时等待：后端队列 -> Fun-ASR submit -> Fun-ASR poll -> compare -> 返回。
+- 如果浏览器里看到大批量 `Failed to fetch`，而后端日志已经显示 Fun-ASR submit/poll 成功，通常不是识别失败，而是同步 HTTP 等待太久导致链路断开。
 
 后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。Fun-ASR 本身没有 thinking 参数，也不会向 REST 或 Python provider 传 `enable_thinking`。
 

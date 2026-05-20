@@ -42,6 +42,10 @@ const {
   getCachedRecommendResult,
   setCachedRecommendResult,
 } = require("../../../backend/ai/result-cache");
+const {
+  getAiJobStoreConfig,
+  getAiJobStoreSnapshot,
+} = require("./ai-job-store");
 
 const RULE_VERSION = "data-baker-round-one-quality-ai-v8-rest-funasr-provider";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
@@ -1705,6 +1709,8 @@ function createHealthPayload() {
   const funAsrQueue = getGroupSettings("fun_asr");
   const textCompareQueue = getGroupSettings("text_compare");
   const qwenOmniQueue = getGroupSettings("qwen_omni");
+  const jobStoreConfig = getAiJobStoreConfig();
+  const jobSnapshot = getAiJobStoreSnapshot();
   logDeprecatedPipelineOnce(envPipeline);
   return {
     success: true,
@@ -1739,6 +1745,9 @@ function createHealthPayload() {
       retryMax: getGlobalRetryMax(),
       groups: getQueueSnapshots(),
     },
+    jobs: Object.assign({}, jobSnapshot, {
+      enabled: jobStoreConfig.enabled === true,
+    }),
     concurrency: {
       qwenOmni: {
         maxConcurrent: qwenOmniQueue.maxConcurrent,
@@ -1771,6 +1780,8 @@ function createDefaultsPayload() {
   const funAsrQueue = getGroupSettings("fun_asr");
   const textCompareQueue = getGroupSettings("text_compare");
   const qwenOmniQueue = getGroupSettings("qwen_omni");
+  const jobStoreConfig = getAiJobStoreConfig();
+  const jobSnapshot = getAiJobStoreSnapshot();
   logDeprecatedPipelineOnce(envPipeline);
   return {
     success: true,
@@ -1817,6 +1828,9 @@ function createDefaultsPayload() {
       retryMax: getGlobalRetryMax(),
       groups: getQueueSnapshots(),
     },
+    jobs: Object.assign({}, jobSnapshot, {
+      enabled: jobStoreConfig.enabled === true,
+    }),
     concurrency: {
       frontEndBatchDefault: 20,
       qwenOmni: {
@@ -1854,6 +1868,14 @@ function createDefaultsPayload() {
         "前端批量并发由 aiQualifiedAutofillConcurrency 控制；后端 Fun-ASR 并发由 DATABAKER_AI_FUN_ASR_CONCURRENCY 控制；compare 并发由 DATABAKER_AI_TEXT_CONCURRENCY 控制。",
       restProvider:
         "当前 Fun-ASR 只实现单条 REST 调用；file_urls batch 后续再测试，本轮不启用。",
+      asyncJobs:
+        "Fun-ASR 批量连续填入默认通过后端异步 job 执行：先短请求创建 job，再轮询 job 状态，避免同步 HTTP 长连接等待过久导致 Failed to fetch。",
+      jobPolling:
+        "异步 job 默认 TTL " +
+        String(jobStoreConfig.ttlMs) +
+        "ms，轮询间隔默认 " +
+        String(jobStoreConfig.pollIntervalMs) +
+        "ms；Node 进程重启后内存 job 会失效。",
     },
   };
 }

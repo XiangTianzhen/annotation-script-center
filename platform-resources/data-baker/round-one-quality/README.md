@@ -29,6 +29,7 @@ extension/sites/data-baker/round-one-quality/
 - 左侧句子列表上方 `filter-screen`（“全选/批量判定”同一行）新增“AI连续填入合格项”：按钮挂载在“批量判定”右侧。
 - 点击后先刷新当前页 `queryCollectStatementByCondtion`，筛选当前页 `statusName=质检合格` 条目。
 - 先按配置并发数并发发起所有 AI 推荐（默认并发 `20`，可设 `1~50`），结果返回后进入缓冲区；填入流程不等待全部返回，按 AI 返回顺序从队列取结果后逐条选中并填入；运行中可再次点击或按 `Alt+Q` 停止。
+- 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认改走后端异步 job：先 `POST /ai/recommend/jobs` 创建任务，再 `GET /ai/recommend/jobs/:jobId` 轮询结果，避免 50 个同步长连接因等待队列、Fun-ASR poll 和 compare 过久而出现 `Failed to fetch`。
 - 运行中会显示顶部统计悬浮窗；完成或停止后保留约 30 秒，并展示失败条目与“重新填写失败内容”入口。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
 - 导出 CSV 不再包含“原始JSON”列；原始记录会脱敏后单独上传并由后端保存为 `latest-raw.json`（历史模式下为 `*.raw.json`）。
@@ -94,6 +95,8 @@ node platform-resources\backend\server.js
 
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
+- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
+- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
 
 扩展默认请求服务器完整路径：
 
@@ -206,7 +209,9 @@ platform-resources/backend/ai/python/requirements.txt
 - Fun-ASR REST 补充：
   - Node 后端默认通过 `POST /services/audio/asr/transcription` 提交任务，再通过 `POST /tasks/{task_id}` 轮询
   - 当前只做单条 REST 调用，不启用 `file_urls` batch
-  - 默认链路不启动 Python 子进程，可降低本机 CPU 压力
+- 默认链路不启动 Python 子进程，可降低本机 CPU 压力
+- `two_stage + fun-asr` 的批量连续填入默认会走异步 job：单条“AI 推荐文本”按钮仍保留同步 `POST /ai/recommend`，批量则走 `POST /ai/recommend/jobs` + `GET /ai/recommend/jobs/:jobId`
+- job 默认 TTL 为 `120000`（2 分钟）；超时过期或后端重启后，前端需重新提交
 - Python fallback 编码补充：
   - 仅显式切到 `provider=python` 时，Node 后端才会向 Python 子进程显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`
   - `platform-resources/backend/ai/python/funasr_client.py` 会按 UTF-8 输出 stdout JSON
@@ -231,10 +236,14 @@ platform-resources/backend/ai/python/requirements.txt
 8. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。
 9. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
 10. 默认 REST provider 下，即使未配置 Python 虚拟环境，`two_stage + fun-asr` 也应能调用；只有显式切到 `provider=python` 或 `fallback=python` 时才依赖 `.venv`。
-11. 若切到 Python provider，再用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
-11. 若 Fun-ASR 返回 `403`，确认页面提示会说明可能是权限/地域、API Key 或平台 `audioUrl` 可访问性问题，并建议切换到 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus`。
-12. 选择 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 时，需要验证后端能先返回 `heardText`，再调用 compare 模型生成 `recommendedText`。
-13. 页面填入后仍不自动保存、不自动提交、不自动判定、不自动流转。
+11. 选择 `two_stage + fun-asr` 后点击“AI连续填入合格项”，确认 Network 中优先出现：
+    - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
+    - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
+    而不是大量长时间挂起的同步 `POST /ai/recommend`。
+12. 若切到 Python provider，再用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
+13. 若 Fun-ASR 返回 `403`，确认页面提示会说明可能是权限/地域、API Key 或平台 `audioUrl` 可访问性问题，并建议切换到 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus`。
+14. 选择 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 时，需要验证后端能先返回 `heardText`，再调用 compare 模型生成 `recommendedText`。
+15. 页面填入后仍不自动保存、不自动提交、不自动判定、不自动流转。
 
 ## 当前边界
 

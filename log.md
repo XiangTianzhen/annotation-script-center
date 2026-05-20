@@ -1,5 +1,48 @@
 # 标注脚本中心修改日志
 
+## 2026-05-21（标贝易采一检质检热修：Fun-ASR 批量连续填入改为后端异步 job）
+
+- 修复 DataBaker 在 `two_stage + fun-asr` 批量“AI连续填入合格项”时前端大量 `Failed to fetch` 的问题。
+- 根因确认：
+  - 不是 Fun-ASR 识别失败。
+  - 后端日志已显示 Fun-ASR REST submit/poll 甚至 compare 阶段成功。
+  - 真正问题是浏览器同步等待 `POST /ai/recommend` 时间过长：请求要同时等待后端队列、Fun-ASR submit、Fun-ASR poll、compare 和返回，`queueWaitMs` 可达 30 秒以上，容易被浏览器、代理或网关中断。
+- 新增 DataBaker AI 异步 job 内存存储：
+  - `platform-resources/data-baker/round-one-quality/backend/ai-job-store.js`
+  - 新增接口：
+    - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
+    - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
+  - job 只保存在当前 Node 进程内存，不落盘；后端重启后丢失是允许行为。
+  - job TTL 默认 `120000`（2 分钟），最大 job 数默认 `1000`。
+- `ai-routes.js` 保留同步 `POST /ai/recommend`，同时支持异步 jobs：
+  - 创建 job 接口快速返回 `jobId`
+  - 后台继续执行现有 `ai-service.recommend(...)`
+  - 前端轮询 job 状态并在 `succeeded` 后拿到与同步 recommend 相同结构的 `data`
+- 前端批量连续填入策略调整：
+  - 单条“AI 推荐文本”按钮仍继续走同步 recommend
+  - 仅当 `recognitionMode=two_stage` 且 `listenModel=fun-asr` 时，批量连续填入优先走异步 job
+  - 其他模式（Qwen Omni 双模型、Omni 单模型）继续走原同步 recommend
+  - 仍保持“谁先完成谁进入填入队列”的体验，不等待所有任务结束
+- 顶部悬浮窗新增后端 job 统计：
+  - `后端任务已提交`
+  - `后端任务运行中`
+  - `后端任务成功`
+  - `后端任务失败`
+- 若网络层出现 `Failed to fetch`，前端友好提示改为：
+  - `后端连接中断或代理超时；Fun-ASR 批量已改为异步任务，请刷新后重试，或检查后端日志。`
+- `health/defaults` 新增 jobs 摘要：
+  - `enabled`
+  - `ttlMs`
+  - `maxSize`
+  - `pollIntervalMs`
+  - `activeCount`
+  - `pendingCount`
+  - `runningCount`
+  - `succeededCount`
+  - `failedCount`
+- 统一后端 router 新增 `:jobId` 形式的路径参数匹配，用于 DataBaker jobs 状态查询。
+- 本轮不回退 Python，不启用 `file_urls` batch，不实现 SSE；Fun-ASR 主链路仍是 Node REST 单条调用 + provider queue 控制并发。
+
 ## 2026-05-20（标贝易采一检质检热修：Fun-ASR 默认改为 Node REST 单条调用）
 
 - DataBaker `fun-asr` 主链路从 Python SDK 子进程默认方案切换为 Node REST 单条调用：

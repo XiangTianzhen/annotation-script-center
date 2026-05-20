@@ -65,6 +65,10 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK`：默认空；仅显式设为 `python` 时，REST 失败后才允许退回 Python。
 - `DATABAKER_AI_FUN_ASR_REST_BASE_URL`：可选，覆盖 Fun-ASR REST API base；留空时按 `DASHSCOPE_BASE_URL` 推导到 `/api/v1`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
+- `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：Fun-ASR 批量连续填入是否启用后端异步 job，默认 `1`。
+- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job TTL，默认 `120000`（2 分钟）。
+- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 内存上限，默认 `1000`。
+- `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端建议轮询间隔提示，默认 `1000` ms。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv/`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：标贝易采 Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：标贝易采 Fun-ASR 队列限流，默认 `500` RPM。
@@ -208,7 +212,7 @@ pm2 restart annotation-script-center --update-env
 
 - `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载，以及 AI 建议 `health/suggest` 接口。
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。
-- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`，以及导出 CSV `health/config/upload/download` 接口；当前前端先选“识别模式”，`two_stage` 显示“听音模型 + 比较模型”，`omni_single` 只显示“AI 模型”。后端再推导 Fun-ASR、Qwen Omni 听音 + compare、或 Omni 单模型链路，导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
+- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`、异步 jobs，以及导出 CSV `health/config/upload/download` 接口；当前前端先选“识别模式”，`two_stage` 显示“听音模型 + 比较模型”，`omni_single` 只显示“AI 模型”。后端再推导 Fun-ASR、Qwen Omni 听音 + compare、或 Omni 单模型链路，导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
 - `data-baker/round-one-quality` 的 `supportedPipelineModes` 仅保留给后端兼容与排查使用，不再作为前端主配置来源；前端主配置为 `listenModelOptions` 与 `compareModelOptions`。
 - DataBaker `fun-asr` 链路默认通过 `platform-resources/backend/ai/providers/funasr-rest.js` 走 Node REST 异步任务提交 / 轮询；仅显式切到 `provider=python` 或 `fallback=python` 时才会调用 `platform-resources/backend/ai/python/funasr_client.py`。
 - 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；默认 REST 链路不经过 Python 子进程，仅显式切 Python 时才受 Python stdout 编码影响。
@@ -258,7 +262,12 @@ DataBaker AI 架构补充：
 - 当前默认链路是 Qwen Omni 听音 + compare；选择 `fun-asr` 时默认通过 Node RESTful API 调用 Fun-ASR，再走 compare 文本模型。
 - 前端“AI连续填入合格项并发数量”范围 `1~50`，默认 `20`；前端值更大只会更快把请求送进统一后端队列，不会放大后端 provider 并发上限。
 - 前端并发和后端并发是两层配置：前端 `aiQualifiedAutofillConcurrency` 负责一次发起多少浏览器请求；后端 `DATABAKER_AI_FUN_ASR_CONCURRENCY / DATABAKER_AI_TEXT_CONCURRENCY` 负责上游 provider 实际同时 in-flight 数量。
+- `two_stage + fun-asr` 的批量“AI连续填入合格项”默认改为后端异步 job：
+  - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
+  - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/{jobId}`
+  单条“AI 推荐文本”按钮仍保留同步 `POST /api/data-baker/round-one-quality/ai/recommend`。
 - 如果“AI连续填入合格项”看起来像串行，先看 `health.queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`；若长期为 `1`，优先检查 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 和 `DATABAKER_AI_FUN_ASR_RPM_LIMIT`。
+- 如果 Fun-ASR 批量时前端出现 `Failed to fetch`，更常见的根因不是识别失败，而是同步 recommend 长连接等待过久，被浏览器、Nginx 或网关中断。当前主方案是“短请求创建 job + 轮询 job 状态”，避免单个 HTTP 连接长期挂起。
 - `429` 的根因是上游模型或账号维度限流，不是统一后端机器规格问题；同一阿里云主账号下的多个 RAM 用户/API Key 可能共享限流额度。
 - Fun-ASR 不走 OpenAI-compatible chat/completions；模型名必须是小写 `fun-asr`。
 - Fun-ASR REST 是异步任务模式：先 `POST /services/audio/asr/transcription` 提交任务，再 `POST /tasks/{task_id}` 查询任务；本轮只实现单条 REST 调用，不启用 `file_urls` batch。

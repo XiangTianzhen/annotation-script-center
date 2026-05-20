@@ -99,6 +99,11 @@ PM2 进程名示例：`annotation-script-center`。
   - 提交任务：`POST /api/v1/services/audio/asr/transcription`
   - 查询任务：`POST /api/v1/tasks/{task_id}`
 - 本轮只启用单条 REST 调用，不启用 `file_urls` batch。
+- DataBaker 单条“AI 推荐文本”仍走同步 recommend。
+- DataBaker 批量“AI连续填入合格项”在 `two_stage + fun-asr` 下会改走后端异步 job：
+  - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
+  - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/{jobId}`
+- 这样前端不再让 50 个同步 HTTP 长连接一起等待完整识别 + compare 结果，可避免浏览器、反向代理或网关在长等待期间出现 `Failed to fetch`。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
 - Fun-ASR Python 依赖固定放在 `platform-resources/backend/ai/python/requirements.txt`。
@@ -215,9 +220,15 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - 前端“AI连续填入合格项”是“并发发起 AI 请求 + 顺序填入页面”的两段流程。
 - 前端并发由 `aiQualifiedAutofillConcurrency` 控制，范围 `1~50`，默认建议 `20`。
 - 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `2`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
+- Fun-ASR 批量连续填入默认启用后端异步 job：
+  - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED=1`
+  - `DATABAKER_AI_JOB_TTL_MS=120000`
+  - `DATABAKER_AI_JOB_MAX_SIZE=1000`
+  - `DATABAKER_AI_JOB_POLL_INTERVAL_MS=1000`
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
 - Compare 阶段若启用 thinking 可能明显变慢；未勾选时后端会显式关闭 compare thinking。
-- 如果批量执行看起来像串行，先看前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 待填队列`，再看 `health` 中 `queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`。
+- 如果批量执行看起来像串行，先看前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 后端任务已提交 / 后端任务运行中 / 后端任务成功 / 后端任务失败 / 待填队列`，再看 `health` 中 `queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`。
+- 如果同步 `POST /ai/recommend` 在 Fun-ASR + compare 多并发时出现 `Failed to fetch`，通常不是识别失败，而是 HTTP 长连接等待太久被浏览器、代理或网关中断。当前默认批量方案已经改为“短请求建 job + 轮询 job 状态”。
 
 详细后端配置见 `platform-resources/backend/README.md`。
 详细 API 清单见 `platform-resources/README.md` 的“统一后端 API 清单”。
