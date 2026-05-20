@@ -636,7 +636,7 @@
         listenLabelNode.textContent = "Fun-ASR 模型";
       }
       if (listenHelpNode) {
-        listenHelpNode.textContent = "Fun-ASR 通过后端 Python SDK 与 .venv-funasr 调用。";
+        listenHelpNode.textContent = "Fun-ASR 通过后端 Python SDK 与统一 .venv 调用。";
       }
       renderFixedModelOptions(
         "data-baker-ai-listen-model-select",

@@ -61,7 +61,7 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_COMPARE_MODEL`：标贝易采 AI 对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：标贝易采 AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：标贝易采 Fun-ASR 语言提示，默认 `zh`。
-- `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Fun-ASR Python 解释器路径；未设置时优先使用 `platform-resources/backend/.venv-funasr/`。
+- `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv/`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：标贝易采 Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：标贝易采 Fun-ASR 队列限流，默认 `500` RPM。
 - `DATABAKER_AI_TEXT_RPM_LIMIT`：标贝易采 compare 文本模型队列限流，默认 `500` RPM。
@@ -251,10 +251,13 @@ DataBaker AI 架构补充：
 - Fun-ASR 不走 OpenAI-compatible chat/completions；模型名必须是小写 `fun-asr`。
 - Fun-ASR 真实可用性仍取决于服务端是否能访问平台签名 `audioUrl`；若返回 `403`，需要优先排查权限/地域/API Key 和音频 URL 可访问性。
 
-### Fun-ASR Python 环境部署
+### 统一 Python 虚拟环境（.venv）
 
-- DataBaker 的 Fun-ASR Python 虚拟环境统一放在 `platform-resources/backend/.venv-funasr`。
+- 统一后端 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
+- 当前首个使用场景是 DataBaker Fun-ASR，但后续新增 Python 辅助脚本也应优先复用该目录。
 - `DATABAKER_FUNASR_PYTHON_BIN` 留空时，统一后端默认优先查找该路径。
+- 不需要单独启动 Python；Python 只作为 Node 统一后端内部辅助进程运行。
+- 标准启动入口始终是 `node platform-resources/backend/server.js`。
 - 项目级服务器部署、Windows/Linux 创建命令、重启与 `health/defaults` 验证流程统一见根目录 `README.md`。
 
 ## 0.2.11 统计总表修正规则

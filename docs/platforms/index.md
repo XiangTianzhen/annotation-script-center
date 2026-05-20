@@ -17,6 +17,8 @@
 - 一检质检运行时代码：`extension/sites/data-baker/round-one-quality/`
 - README：`extension/sites/data-baker/round-one-quality/README.md`
 - 后端与平台资料：`platform-resources/data-baker/round-one-quality/`
+- 统一后端启动入口：`node platform-resources/backend/server.js`
+- 如需 Python 辅助脚本，统一复用 `platform-resources/backend/.venv`，不单独启动 Python 服务
 
 ## Magic Data ANNOTATOR
 

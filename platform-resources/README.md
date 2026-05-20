@@ -75,6 +75,7 @@ platform-resources/
 - `network/` 放请求 URL、请求 / 响应结构、采集结论和待采集项。
 - `ai/` 放快判 AI 规则、提示词模板和少量 few-shot 示例，不放完整雷题库。
 - 根级 `backend/` 是统一 Node 后端入口，只负责启动、基础路由、响应工具和项目 API 注册。
+- 根级 `backend/` 也是统一 Python 辅助脚本虚拟环境目录；需要 Python 时统一复用 `platform-resources/backend/.venv`，仍只通过 `node platform-resources/backend/server.js` 启动 Node 后端。
 - 项目级 `backend/` 放浏览器无关的本地调试服务，并维护统计 CSV、上传 payload、服务端合并契约等资料；不被扩展 manifest 加载。
 - `unfinished.md` 放未完成方案、风险和后续验证条件。
 

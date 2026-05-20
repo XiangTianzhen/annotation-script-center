@@ -140,7 +140,7 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
 - `DATABAKER_AI_PIPELINE_MODE`：默认 `omni_single`；只接受 `omni_single | fun_asr_compare`。历史 `two_stage`、`qwen_omni_two_stage`、`listen_only` 会自动迁移为 `omni_single` 并给出 deprecated 提示。
-- `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Fun-ASR Python 解释器路径；未设置时优先使用 `platform-resources/backend/.venv-funasr`。
+- `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
@@ -178,6 +178,7 @@ AI prompt 输出字形规则：
 - Qwen Omni 和 Fun-ASR 的调用链路不同，不能只靠改模型名互换。
 - `fun_asr_compare` 还依赖 Fun-ASR 服务能访问平台 `audioUrl`。如果音频 URL 对服务端不可访问，后端会明确报错，但日志和文档不会泄露完整签名 URL。
 - Fun-ASR 不走 OpenAI-compatible chat/completions；当前通过 Python SDK 文件调用。
+- Python 只是统一 Node 后端内部调用的辅助进程，不提供独立 Python 服务；标准启动入口始终是 `node platform-resources/backend/server.js`。
 
 Fun-ASR Python 文件路径：
 
@@ -185,8 +186,8 @@ Fun-ASR Python 文件路径：
 platform-resources/data-baker/round-one-quality/backend/funasr_client.py
 ```
 
-- 默认虚拟环境路径已统一为 `platform-resources/backend/.venv-funasr`。
-- Fun-ASR Python 环境属于项目级后端部署，统一见根目录 `README.md`。
+- 默认虚拟环境路径已统一为 `platform-resources/backend/.venv`。
+- Fun-ASR Python 环境属于项目级后端部署，统一见根目录 `README.md`；后续其他 Python 辅助脚本也优先复用同一个 `.venv`。
 
 ## 真实浏览器验收建议
 
@@ -194,7 +195,7 @@ platform-resources/data-baker/round-one-quality/backend/funasr_client.py
 2. 打开 options，确认标贝易采 AI 模式只剩 `omni_single` 和 `fun_asr_compare`，默认选中 `omni_single`。
 3. 确认“听音模型”下拉不再出现 `[object Object]`。
 4. 进入 `roundOneCollect` 页面，选择 `omni_single` 后点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope，且单次 Omni 请求恢复可用。
-5. 切换 `fun_asr_compare`，确认界面显示 `fun-asr` 与 `qwen3.5-plus`，并提示依赖 `.venv-funasr`。
+5. 切换 `fun_asr_compare`，确认界面显示 `fun-asr` 与 `qwen3.5-plus`，并提示依赖统一虚拟环境 `.venv`。
 6. 点击“AI并发分析并连续填入合格项”，确认默认并发已降为 `5`，最大值不再超过 `10`。
 7. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。
 8. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。

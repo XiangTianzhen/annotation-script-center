@@ -1,5 +1,22 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（统一后端 Python 虚拟环境口径修复）
+
+- 统一 Python 虚拟环境目录从旧专用目录迁移为 `platform-resources/backend/.venv`。
+- DataBaker `ai-client-funasr.js` 默认 Python 查找路径同步改为：
+  - Windows：`platform-resources/backend/.venv/Scripts/python.exe`
+  - Linux/macOS：`platform-resources/backend/.venv/bin/python`
+- Fun-ASR 缺失环境提示同步改为要求在 `platform-resources/backend/.venv` 创建统一 Python 虚拟环境并安装 `requirements-funasr.txt`。
+- 明确统一后端标准启动入口仍然是：
+  - `node platform-resources/backend/server.js`
+- 明确 Python 只是 Node 统一后端内部通过 `child_process` 调用的辅助进程，不是独立后端服务，不需要单独启动 Python。
+- DataBaker Fun-ASR 的 `requirements-funasr.txt` 仍保留在模块目录，但安装目标改为统一 `.venv`。
+- 文档同步收敛：
+  - 根 `README.md` 改为唯一详细部署入口
+  - `platform-resources/backend/README.md` 与 DataBaker README 改为统一 `.venv` 口径
+  - `docs/platforms/index.md` 与 `platform-resources/README.md` 补充统一启动/统一虚拟环境说明
+- `.gitignore` 新增忽略 `platform-resources/backend/.venv/`，并保留旧专用目录忽略项兼容历史遗留目录。
+
 ## 2026-05-20（Task21助手：image_b_texts_removed 改为多重集精确匹配）
 
 - Task21 后端 Prompt 版本升级为 `abaka-task21-ai-v5-removed-text-multiset`。
@@ -64,11 +81,11 @@
 
 ## 2026-05-20（标贝易采一检质检热修：Fun-ASR 部署入口上移到根 README）
 
-- DataBaker Fun-ASR Python 虚拟环境默认路径改为 `platform-resources/backend/.venv-funasr`，统一归到 `platform-resources/backend` 管理。
+- DataBaker Fun-ASR Python 虚拟环境默认路径改为统一后端目录，归到 `platform-resources/backend` 管理。
 - `ai-client-funasr.js` 默认查找路径同步改为：
-  - Windows：`platform-resources/backend/.venv-funasr/Scripts/python.exe`
-  - Linux/macOS：`platform-resources/backend/.venv-funasr/bin/python`
-- 未显式设置 `DATABAKER_FUNASR_PYTHON_BIN` 且默认路径缺失时，错误提示改为要求在 `platform-resources/backend/.venv-funasr` 创建虚拟环境并安装 `requirements-funasr.txt`。
+  - Windows：`platform-resources/backend/.venv/Scripts/python.exe`
+  - Linux/macOS：`platform-resources/backend/.venv/bin/python`
+- 未显式设置 `DATABAKER_FUNASR_PYTHON_BIN` 且默认路径缺失时，错误提示改为要求在统一 `.venv` 中创建虚拟环境并安装 `requirements-funasr.txt`。
 - 根目录 `README.md` 新增项目级“Fun-ASR Python 环境部署”完整流程，包含：
   - 适用场景
   - Windows 本地命令
@@ -78,7 +95,7 @@
   - `health/defaults` 验证步骤
   - Fun-ASR `403` 常见原因与临时切回 `omni_single` 的建议
 - `platform-resources/backend/README.md`、`platform-resources/data-baker/round-one-quality/backend/README.md`、`platform-resources/data-baker/round-one-quality/README.md` 与扩展侧 README 收敛为短提示，不再重复整套服务器部署长流程。
-- `.gitignore` 新增忽略 `platform-resources/backend/.venv-funasr/`；旧路径忽略项保留，兼容本地历史遗留虚拟环境。
+- `.gitignore` 新增统一 Python 虚拟环境忽略项；旧路径忽略项保留，兼容本地历史遗留虚拟环境。
 
 ## 2026-05-20（标贝易采一检质检热修：DataBaker AI 模式设置页模型显示收敛）
 
@@ -120,15 +137,13 @@
   - 新增 `platform-resources/data-baker/round-one-quality/backend/requirements-funasr.txt`
   - `ai-client-funasr.js` 改为 Node wrapper，通过 `child_process` 调用 Python SDK 脚本
   - Python 脚本只从环境变量读取 `DASHSCOPE_API_KEY`，不把 API Key 暴露到命令行参数
-- Fun-ASR Python 虚拟环境口径固定为：
-  - `platform-resources/data-baker/round-one-quality/backend/.venv-funasr`
-  - `.venv-funasr` 与 `backend/__pycache__` 加入 `.gitignore`，不提交 Git
+- Fun-ASR Python 虚拟环境改为统一复用后端 `.venv`，并忽略 `__pycache__` 等运行产物，不提交 Git。
 - 后端链路明确分离：
   - `pipelineMode=omni_single`：只走 `requestOmniSingle`
   - `pipelineMode=fun_asr_compare`：只走 `requestFunAsrRecognition -> requestCompare`
   - 历史 `two_stage / qwen_omni_two_stage / listen_only` 只兼容迁移为 `omni_single`，不再保留旧执行逻辑
 - Fun-ASR 友好错误增强：
-  - Python 环境缺失时返回“Fun-ASR Python 环境未配置，请先创建 .venv-funasr 并安装 requirements-funasr.txt。”
+  - Python 环境缺失时返回统一 `.venv` 缺失提示，要求先安装 `requirements-funasr.txt`
   - `403` 时提示可能是 DashScope 权限/地域、API Key 权限或平台 `audioUrl` 对服务端不可访问，并建议先切回 `omni_single`
   - `fun-asr` 模型名错误时明确提示必须使用小写 `fun-asr`
 - 统一后端 `health/defaults` 补充 `funAsrPythonConfigured`，便于前端和人工排查 Python 环境是否就绪。

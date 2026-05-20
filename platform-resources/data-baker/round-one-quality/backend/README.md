@@ -58,7 +58,7 @@
 - `DATABAKER_AI_PIPELINE_MODE`：默认 `omni_single`；只接受 `omni_single | fun_asr_compare`。历史 `two_stage`、`qwen_omni_two_stage`、`listen_only` 会迁移为 `omni_single`，但不再保留旧执行分支。
 - `DATABAKER_AI_FUN_ASR_MODEL`：Fun-ASR 录音文件识别模型，默认 `fun-asr`。
 - `DATABAKER_AI_OMNI_MODEL`：Omni 单模型模式使用的 Qwen Omni 模型，默认 `qwen3.5-omni-flash`。
-- `DATABAKER_FUNASR_PYTHON_BIN`：可选，显式指定 Fun-ASR Python 解释器路径；未设置时优先使用 `platform-resources/backend/.venv-funasr`。
+- `DATABAKER_FUNASR_PYTHON_BIN`：可选，显式指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
@@ -153,19 +153,27 @@ CSV 字段统一口径：
 
 `format` 会从 URL pathname 后缀推断，支持 `wav`、`mp3`、`aac`、`m4a`、`amr`、`3gp`、`3gpp`，无法识别时默认 `wav`。`data` 必须保留完整音频 URL，包括签名 query 参数，但日志和文档中不得记录完整 URL。Fun-ASR 模式同样只接受 `http/https` 音频 URL；若服务端无法访问平台音频地址，会返回明确错误而不是静默降级。
 
-Fun-ASR Python 环境默认路径：
+统一 Python 虚拟环境默认路径：
 
 ```powershell
-platform-resources\backend\.venv-funasr\Scripts\python.exe
-platform-resources\backend\.venv-funasr\bin\python
+platform-resources\backend\.venv\Scripts\python.exe
+platform-resources\backend\.venv\bin\python
 ```
 
-`.venv-funasr` 与 `__pycache__` 都属于本地运行产物，不提交 Git。
+`.venv` 与 `__pycache__` 都属于本地运行产物，不提交 Git。
 
-## Fun-ASR Python 环境部署
+## 统一 Python 虚拟环境（.venv）
 
-- DataBaker 的 Fun-ASR Python 虚拟环境统一放在 `platform-resources/backend/.venv-funasr`。
-- `DATABAKER_FUNASR_PYTHON_BIN` 留空时，统一后端默认优先查找该路径。
+- 统一后端 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
+- 当前用于 DataBaker Fun-ASR Python SDK，后续新增 Python 辅助脚本也优先复用该目录。
+- Fun-ASR Python SDK 由 Node 统一后端通过 `child_process` 调用，不提供独立 Python 服务。
+- 用户不需要单独运行 `python xxx.py`；统一启动入口始终是 `node platform-resources/backend/server.js`。
+- `requirements-funasr.txt` 仍保留在 DataBaker 模块目录，但安装目标是统一 `.venv`，例如：
+
+```powershell
+platform-resources\backend\.venv\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
+```
+
 - 详细的 Windows/Linux 创建命令、环境变量、后端重启与验证流程统一见根目录 `README.md`。
 
 ## 闽南方言字词表

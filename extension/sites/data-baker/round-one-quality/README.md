@@ -179,17 +179,17 @@ platform-resources/data-baker/round-one-quality/backend/funasr_client.py
 
 后端优先使用以下 Python 解释器：
 
-- `platform-resources/backend/.venv-funasr/Scripts/python.exe`
-- `platform-resources/backend/.venv-funasr/bin/python`
+- `platform-resources/backend/.venv/Scripts/python.exe`
+- `platform-resources/backend/.venv/bin/python`
 - 或环境变量 `DATABAKER_FUNASR_PYTHON_BIN`
 
 如果未配置 Python 虚拟环境，前端会显示：
 
 ```text
-Fun-ASR Python 环境未配置，请在 platform-resources/backend/.venv-funasr 创建虚拟环境并安装 requirements-funasr.txt。
+Fun-ASR Python 环境未配置，请在 platform-resources/backend/.venv 创建统一 Python 虚拟环境并安装 requirements-funasr.txt。
 ```
 
-- 默认虚拟环境路径已统一为 `platform-resources/backend/.venv-funasr`。
+- 默认虚拟环境路径已统一为 `platform-resources/backend/.venv`。
 - 服务器部署、Windows/Linux 创建命令、重启与 `403` 排查统一见根目录 `README.md`。
 
 后端统一经过 provider/model group 级全局限流队列，并带 429 指数退避重试；多人并发时浏览器请求只能在后端排队，不能直接打穿百炼限流。`429` 的根因是上游模型或账号维度限流，不是 `2 核 2G` 服务器算力问题。多个 RAM 用户或 API Key 若属于同一阿里云主账号，也可能合并计入限流。
