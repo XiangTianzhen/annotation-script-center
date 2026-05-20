@@ -489,7 +489,9 @@
       const rows = [
         createFloatingRow("阶段", phaseToText(phase)),
         createFloatingRow("总合格数", Number(state.totalCount) || 0),
+        createFloatingRow("前端并发", Number(state.frontConcurrency) || 0),
         createFloatingRow("已发起AI请求", Number(state.launchedCount) || 0),
+        createFloatingRow("前端活跃AI请求", Number(state.activeAiCount) || 0),
         createFloatingRow("AI已返回", Number(state.completedAiCount) || 0),
         createFloatingRow("AI成功", Number(state.analysisSuccessCount) || 0),
         createFloatingRow("AI失败", Number(state.analysisFailCount) || 0),

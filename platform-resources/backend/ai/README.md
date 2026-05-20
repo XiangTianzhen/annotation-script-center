@@ -10,6 +10,7 @@
 - `provider-queue.js`：统一 provider 限流队列，当前支持 `qwen_omni`、`fun_asr`、`text_compare`，同时支持每个 group 独立 `maxConcurrent`。
 - `result-cache.js`：统一 TTL 内存缓存与缓存 key 生成。
 - `usage.js`：通用 usage 归一化。
+- `smoke-test-provider-queue.js`：本地并发自测脚本，用于验证 `fun_asr` 组在不同 `maxConcurrent` 下是否真正并发。
 - `providers/qwen-openai-compatible.js`：DashScope OpenAI-compatible `/chat/completions` 调用封装，支持文本比较和 Omni `input_audio`。
 - `providers/funasr-python.js`：Node 通过 `child_process` 调用 Python Fun-ASR SDK 的统一 wrapper，并显式设置 `PYTHONIOENCODING=utf-8` / `PYTHONUTF8=1`。
 - `python/funasr_client.py`：Fun-ASR Python SDK 辅助脚本。
@@ -39,3 +40,5 @@
 - `funasr_client.py` 的 stdout JSON 必须稳定按 UTF-8 输出；`funasr-python.js` 必须按 UTF-8 解码 stdout/stderr，避免 Windows 下出现 `�` / 黑菱形乱码。
 - Fun-ASR 没有 thinking 参数；thinking 只影响 Qwen Omni / compare 阶段。
 - Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `5`；如 `2 核 2G` 服务器压力高可调低到 `3`。
+- `provider-queue.js` 现在会返回并记录 `pendingCount / activeCount / maxConcurrent / queueWaitMs / durationMs`，用于判断瓶颈是在前端发起、Fun-ASR 队列还是 compare 阶段。
+- `providers/funasr-python.js` 会记录 `[FunASR] spawn start/finish`；不会输出完整 `audioUrl`、token 或 API Key。

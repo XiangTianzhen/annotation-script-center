@@ -469,8 +469,10 @@
           phase: batchAutofillPhase || "idle",
           running: batchQualifiedAutofillRunning,
           stopping: batchQualifiedAutofillCancelRequested,
+          frontConcurrency: 0,
           totalCount: 0,
           launchedCount: 0,
+          activeAiCount: 0,
           completedAiCount: 0,
           analysisSuccessCount: 0,
           analysisFailCount: 0,
@@ -674,8 +676,10 @@
           phase: batchAutofillPhase,
           running: true,
           stopping: batchQualifiedAutofillCancelRequested === true,
+          frontConcurrency: maxConcurrency,
           totalCount,
           launchedCount,
+          activeAiCount,
           completedAiCount,
           analysisSuccessCount,
           analysisFailCount,
@@ -701,6 +705,17 @@
           nextLaunchIndex += 1;
           launchedCount += 1;
           activeAiCount += 1;
+          if (typeof console !== "undefined" && typeof console.info === "function") {
+            console.info("[DataBaker][batch] launch ai request", {
+              index,
+              displayName: String(task?.displayName || ""),
+              activeAiCount,
+              frontConcurrency: maxConcurrency,
+              listenModel: String(config.listenModel || ""),
+              compareModel: String(config.compareModel || ""),
+              recognitionMode: String(config.recognitionMode || ""),
+            });
+          }
           updateProgressStatus("");
 
           Promise.resolve()
@@ -846,6 +861,7 @@
       return {
         totalCount,
         launchedCount,
+        activeAiCount,
         completedAiCount,
         analysisSuccessCount,
         analysisFailCount,
@@ -1019,11 +1035,23 @@
 
         const tasks = dataApi.createItemsFromQualifiedRecords(qualifiedRecords, refreshed.entry);
         const concurrency = normalizeAutofillConcurrency(config.aiQualifiedAutofillConcurrency);
+        if (typeof console !== "undefined" && typeof console.info === "function") {
+          console.info("[DataBaker][batch] start", {
+            frontConcurrency: concurrency,
+            listenModel: String(config.listenModel || ""),
+            compareModel: String(config.compareModel || ""),
+            recognitionMode: String(config.recognitionMode || ""),
+          });
+        }
         updateFloatingProgress({
           phase: "analysis",
           totalCount: tasks.length,
           running: true,
           stopping: false,
+          frontConcurrency: concurrency,
+          launchedCount: 0,
+          activeAiCount: 0,
+          completedAiCount: 0,
         });
         const streamSummary = await runConcurrentAiAndSequentialFill(tasks, concurrency);
         if (streamSummary.stopped) {
@@ -1047,7 +1075,9 @@
             phase: "stopped",
             running: false,
             totalCount: streamSummary.totalCount,
+            frontConcurrency: concurrency,
             launchedCount: streamSummary.launchedCount,
+            activeAiCount: streamSummary.activeAiCount,
             completedAiCount: streamSummary.completedAiCount,
             analysisSuccessCount: streamSummary.analysisSuccessCount,
             analysisFailCount: streamSummary.analysisFailCount,
@@ -1080,7 +1110,9 @@
           phase: "completed",
           running: false,
           totalCount: streamSummary.totalCount,
+          frontConcurrency: concurrency,
           launchedCount: streamSummary.launchedCount,
+          activeAiCount: streamSummary.activeAiCount,
           completedAiCount: streamSummary.completedAiCount,
           analysisSuccessCount: streamSummary.analysisSuccessCount,
           analysisFailCount: streamSummary.analysisFailCount,

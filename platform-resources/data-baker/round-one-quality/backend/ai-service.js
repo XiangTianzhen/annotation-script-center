@@ -31,6 +31,7 @@ const {
 } = require("../../../backend/ai/providers/funasr-python");
 const {
   enqueueProviderTask,
+  getGroupSettings,
   getGlobalQueueMaxSize,
   getGlobalRetryMax,
   getQueueSnapshots,
@@ -1547,6 +1548,33 @@ function appendCallLogSafe(record) {
   }
 }
 
+function sanitizeStageTiming(stageTiming) {
+  const source = stageTiming && typeof stageTiming === "object" ? stageTiming : {};
+  const result = {};
+  [
+    "listenQueuedAt",
+    "listenStartedAt",
+    "listenFinishedAt",
+    "compareQueuedAt",
+    "compareStartedAt",
+    "compareFinishedAt",
+  ].forEach(function (key) {
+    const value = Number(source[key]);
+    if (Number.isFinite(value) && value > 0) {
+      result[key] = value;
+    }
+  });
+  return result;
+}
+
+function logStageEvent(requestId, stage, phase, extra) {
+  console.info("[DataBaker][round-one-quality][ai] stage", Object.assign({
+    requestId: String(requestId || ""),
+    stage: String(stage || ""),
+    phase: String(phase || ""),
+  }, extra || {}));
+}
+
 function createHealthPayload() {
   const qwenConfig = getClientConfig();
   const funAsrConfig = getFunAsrClientConfig();
@@ -1558,6 +1586,9 @@ function createHealthPayload() {
     recognitionMode,
     recognitionMode === "omni_single" ? defaultSingleModel : defaultListenModel
   );
+  const funAsrQueue = getGroupSettings("fun_asr");
+  const textCompareQueue = getGroupSettings("text_compare");
+  const qwenOmniQueue = getGroupSettings("qwen_omni");
   logDeprecatedPipelineOnce(envPipeline);
   return {
     success: true,
@@ -1589,6 +1620,20 @@ function createHealthPayload() {
       retryMax: getGlobalRetryMax(),
       groups: getQueueSnapshots(),
     },
+    concurrency: {
+      qwenOmni: {
+        maxConcurrent: qwenOmniQueue.maxConcurrent,
+        rpm: qwenOmniQueue.rpm,
+      },
+      funAsr: {
+        maxConcurrent: funAsrQueue.maxConcurrent,
+        rpm: funAsrQueue.rpm,
+      },
+      textCompare: {
+        maxConcurrent: textCompareQueue.maxConcurrent,
+        rpm: textCompareQueue.rpm,
+      },
+    },
     status: qwenConfig.hasApiKey || qwenConfig.mockEnabled ? "ready" : "missing-api-key",
   };
 }
@@ -1604,6 +1649,9 @@ function createDefaultsPayload() {
     recognitionMode,
     recognitionMode === "omni_single" ? defaultSingleModel : defaultListenModel
   );
+  const funAsrQueue = getGroupSettings("fun_asr");
+  const textCompareQueue = getGroupSettings("text_compare");
+  const qwenOmniQueue = getGroupSettings("qwen_omni");
   logDeprecatedPipelineOnce(envPipeline);
   return {
     success: true,
@@ -1647,6 +1695,21 @@ function createDefaultsPayload() {
       retryMax: getGlobalRetryMax(),
       groups: getQueueSnapshots(),
     },
+    concurrency: {
+      frontEndBatchDefault: 5,
+      qwenOmni: {
+        maxConcurrent: qwenOmniQueue.maxConcurrent,
+        rpm: qwenOmniQueue.rpm,
+      },
+      funAsr: {
+        maxConcurrent: funAsrQueue.maxConcurrent,
+        rpm: funAsrQueue.rpm,
+      },
+      textCompare: {
+        maxConcurrent: textCompareQueue.maxConcurrent,
+        rpm: textCompareQueue.rpm,
+      },
+    },
     cache: getCacheSnapshot(),
     deprecated: envPipeline.deprecatedFrom
       ? [
@@ -1665,6 +1728,8 @@ function createDefaultsPayload() {
       qwenOmni:
         "qwen3.5-omni-plus / qwen3.5-omni-flash 在双模型下会先通过 input_audio 产出 heardText 再调用比较模型；在单模型下会一次完成听音和推荐文本。",
       queue: "所有 Fun-ASR / Omni / compare 调用都会先进入后端统一限流队列；Fun-ASR 并发由 DATABAKER_AI_FUN_ASR_CONCURRENCY 控制。",
+      batchConcurrency:
+        "前端批量并发由 aiQualifiedAutofillConcurrency 控制；后端 Fun-ASR 并发由 DATABAKER_AI_FUN_ASR_CONCURRENCY 控制；compare 并发由 DATABAKER_AI_TEXT_CONCURRENCY 控制。",
     },
   };
 }
@@ -1730,6 +1795,7 @@ function createRuntimeMeta(options) {
         return total + Math.max(0, Number(item?.retryCount) || 0);
       }, 0),
     },
+    stageTiming: sanitizeStageTiming(options?.stageTiming),
   };
 }
 
@@ -1744,6 +1810,7 @@ async function recommend(body, requestIdHint) {
   let deprecatedMode = "";
   let listenDurationMs = 0;
   let compareDurationMs = 0;
+  let stageTiming = {};
   let activeListenModel = "";
   let activeCompareModel = "";
   let activeSingleModel = "";
@@ -1951,14 +2018,35 @@ async function recommend(body, requestIdHint) {
       const listenStartedAtMs = Date.now();
       let funAsrResult = null;
       try {
+        stageTiming.listenQueuedAt = Date.now();
+        logStageEvent(requestId, "listen", "queued", {
+          groupName: "fun_asr",
+          pipelineMode,
+          listenModel: activeListenModel,
+        });
         const queued = await runQueuedProviderCall("fun_asr", function () {
           return requestFunAsrRecognition(recommendRequest, {
             model: activeListenModel,
             timeoutMs: qwenConfig.timeoutMs,
+            requestId,
           });
         });
         funAsrResult = queued.value;
         queueMetas.push(queued.queueMeta);
+        stageTiming.listenQueuedAt = Number(queued.queueMeta?.queuedAt) || stageTiming.listenQueuedAt;
+        stageTiming.listenStartedAt = Number(queued.queueMeta?.startedAt) || Date.now();
+        stageTiming.listenFinishedAt = Number(queued.queueMeta?.finishedAt) || Date.now();
+        logStageEvent(requestId, "listen", "start", {
+          groupName: "fun_asr",
+          queueWaitMs: Math.max(0, Number(queued.queueMeta?.queueWaitMs) || 0),
+          activeCount: Math.max(0, Number(queued.queueMeta?.activeCount) || 0),
+          maxConcurrent: Math.max(0, Number(queued.queueMeta?.maxConcurrent) || 0),
+        });
+        logStageEvent(requestId, "listen", "end", {
+          groupName: "fun_asr",
+          durationMs: Math.max(0, Number(queued.queueMeta?.durationMs) || 0),
+          rawStatus: String(funAsrResult?.rawStatus || ""),
+        });
       } finally {
         listenDurationMs = Date.now() - listenStartedAtMs;
       }
@@ -1981,6 +2069,13 @@ async function recommend(body, requestIdHint) {
       const compareStartedAtMs = Date.now();
       let compareResult = null;
       try {
+        stageTiming.compareQueuedAt = Date.now();
+        logStageEvent(requestId, "compare", "queued", {
+          groupName: "text_compare",
+          pipelineMode,
+          compareModel: activeCompareModel,
+          enableThinking: effectiveEnableThinking,
+        });
         const queued = await runQueuedProviderCall("text_compare", function () {
           return requestCompare(recommendRequest, comparePrompt, heardText, {
             model: activeCompareModel,
@@ -1990,6 +2085,21 @@ async function recommend(body, requestIdHint) {
         });
         compareResult = queued.value;
         queueMetas.push(queued.queueMeta);
+        stageTiming.compareQueuedAt = Number(queued.queueMeta?.queuedAt) || stageTiming.compareQueuedAt;
+        stageTiming.compareStartedAt = Number(queued.queueMeta?.startedAt) || Date.now();
+        stageTiming.compareFinishedAt = Number(queued.queueMeta?.finishedAt) || Date.now();
+        logStageEvent(requestId, "compare", "start", {
+          groupName: "text_compare",
+          queueWaitMs: Math.max(0, Number(queued.queueMeta?.queueWaitMs) || 0),
+          activeCount: Math.max(0, Number(queued.queueMeta?.activeCount) || 0),
+          maxConcurrent: Math.max(0, Number(queued.queueMeta?.maxConcurrent) || 0),
+          enableThinking: effectiveEnableThinking,
+        });
+        logStageEvent(requestId, "compare", "end", {
+          groupName: "text_compare",
+          durationMs: Math.max(0, Number(queued.queueMeta?.durationMs) || 0),
+          model: String(compareResult?.model || activeCompareModel),
+        });
       } finally {
         compareDurationMs = Date.now() - compareStartedAtMs;
       }
@@ -2147,6 +2257,7 @@ async function recommend(body, requestIdHint) {
       cacheTtlMs: setCachedRecommendResult(cacheKey, responseData),
       deprecatedMode,
       queueMetas,
+      stageTiming,
     });
     responseData.thinking = {
       enableThinking: effectiveEnableThinking,

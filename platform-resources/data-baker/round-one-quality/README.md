@@ -228,6 +228,11 @@ platform-resources/backend/ai/python/requirements.txt
 ## 当前边界
 
 - 当前“AI连续填入合格项”采用“并发分析结果入缓冲 + 顺序填入”策略，仅在当前页执行，不跨页。
+- 诊断串行感时，先区分两层并发：
+  - 前端并发：`aiQualifiedAutofillConcurrency`，默认 `5`
+  - 后端 Fun-ASR 并发：`DATABAKER_AI_FUN_ASR_CONCURRENCY`，默认 `5`
+  - 后端 compare 并发：`DATABAKER_AI_TEXT_CONCURRENCY`，默认 `5`
+- 如果前端“AI已返回”增长慢，不一定是前端没并发，也可能是 Fun-ASR 听音阶段或 compare 阶段在后端排队；优先看 `health.queue.groups.fun_asr.activeCount/maxConcurrent`。
 - 不做自动保存、不做自动提交、不做批量识别、不做自动流转。
 - 结果写入页面输入框必须由用户点击“填入推荐文本”触发。
 - 如果页面结构变化导致无法安全定位输入框，扩展只保留复制能力。

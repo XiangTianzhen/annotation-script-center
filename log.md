@@ -1,5 +1,30 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（标贝易采一检质检热修：Fun-ASR 连续填入并发诊断增强）
+
+- DataBaker “AI连续填入合格项”新增运行时诊断：
+  - 前端悬浮窗增加 `前端并发`、`已发起AI请求`、`前端活跃AI请求`、`AI已返回`、`待填队列`
+  - 前端 console 增加 `[DataBaker][batch] start` 与 `[DataBaker][batch] launch ai request`
+- 统一 provider 队列新增诊断日志：
+  - `[AIQueue] start`
+  - `[AIQueue] finish`
+  - `health.queue.groups.*` 明确保留 `pendingCount / activeCount / maxConcurrent / rpm / intervalMs / stats`
+- Fun-ASR Python wrapper 新增子进程诊断：
+  - `[FunASR] spawn start`
+  - `[FunASR] spawn finish`
+  - 日志只输出 requestId、模型、时长、rawStatus，不输出完整 `audioUrl`
+- DataBaker `fun_asr_compare` 响应新增 `runtime.stageTiming`：
+  - `listenQueuedAt / listenStartedAt / listenFinishedAt`
+  - `compareQueuedAt / compareStartedAt / compareFinishedAt`
+- 新增 `platform-resources/backend/ai/smoke-test-provider-queue.js`：
+  - `fun_asr` 并发 `5` + 5 个 `1000ms` mock 任务，总耗时约 `1.1s`
+  - `fun_asr` 并发 `1` 时，总耗时约 `5.1s`
+  - 证明当前统一 provider queue 已支持同组并发，不是 Fun-ASR Python 子进程天然串行
+- 明确口径：
+  - Fun-ASR 不支持 thinking，不给 `funasr_client.py` 传 `enable_thinking`
+  - thinking 只影响 Qwen Omni / compare 阶段
+  - 如果批量看起来像串行，优先先看前端并发值和 `health.queue.groups.fun_asr.activeCount`
+
 ## 2026-05-20（标贝易采一检质检热修：识别模式恢复为单双模型联动）
 
 - DataBaker ASR 语音 AI 设置页恢复显示“识别模式”：

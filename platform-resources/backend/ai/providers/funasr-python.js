@@ -127,6 +127,15 @@ function runPythonClient(payload, timeoutMs) {
     );
   }
   return new Promise(function (resolve, reject) {
+    const requestId = String(payload?.requestId || payload?.traceId || "").trim();
+    const spawnedAt = Date.now();
+    console.info("[FunASR] spawn start", {
+      requestId,
+      model: String(payload?.model || "").trim(),
+      pythonSource: config.pythonSource,
+      hasPythonBin: config.pythonExists === true,
+      timeoutMs: Math.max(1000, Number(timeoutMs) || config.timeoutMs),
+    });
     const child = spawn(config.pythonBin, [config.pythonScriptPath], {
       cwd: path.dirname(config.pythonScriptPath),
       stdio: ["pipe", "pipe", "pipe"],
@@ -145,6 +154,12 @@ function runPythonClient(payload, timeoutMs) {
       }
       settled = true;
       child.kill("SIGTERM");
+      console.info("[FunASR] spawn finish", {
+        requestId,
+        durationMs: Math.max(0, Date.now() - spawnedAt),
+        success: false,
+        rawStatus: "timeout",
+      });
       const stderrText = sanitizeProviderErrorSummary(decodeUtf8Chunks(stderrChunks));
       reject(
         createPythonRuntimeError("Fun-ASR Python 调用超时。", "timeout", 504, stderrText)
@@ -163,6 +178,12 @@ function runPythonClient(payload, timeoutMs) {
       }
       settled = true;
       clearTimeout(timer);
+      console.info("[FunASR] spawn finish", {
+        requestId,
+        durationMs: Math.max(0, Date.now() - spawnedAt),
+        success: false,
+        rawStatus: "launch-error",
+      });
       const stderrText = sanitizeProviderErrorSummary(decodeUtf8Chunks(stderrChunks));
       if (error?.code === "ENOENT") {
         reject(createPythonEnvironmentMissingError());
@@ -189,9 +210,21 @@ function runPythonClient(payload, timeoutMs) {
       try {
         parsed = JSON.parse(stdoutText || "{}");
       } catch (error) {
+        console.info("[FunASR] spawn finish", {
+          requestId,
+          durationMs: Math.max(0, Date.now() - spawnedAt),
+          success: false,
+          rawStatus: "",
+        });
         reject(createJsonParseError(stdoutText, stderrText));
         return;
       }
+      console.info("[FunASR] spawn finish", {
+        requestId,
+        durationMs: Math.max(0, Date.now() - spawnedAt),
+        success: parsed?.success === true && code === 0,
+        rawStatus: String(parsed?.rawStatus || "").trim(),
+      });
       if (code !== 0 && parsed?.success !== false) {
         reject(
           createPythonRuntimeError(
@@ -234,6 +267,7 @@ async function requestFunAsrRecognition(input, options) {
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs);
   const result = await runPythonClient(
     {
+      requestId: String(options?.requestId || options?.traceId || "").trim(),
       audioUrl: String(input?.audioUrl || ""),
       model,
       languageHints: config.languageHints,

@@ -212,6 +212,13 @@ class ProviderQueue {
       activeCount: this.activeCount,
       maxConcurrent: settings.maxConcurrent,
     };
+    console.info("[AIQueue] start", {
+      groupName: this.groupName,
+      activeCount: this.activeCount,
+      maxConcurrent: settings.maxConcurrent,
+      pendingCount: this.items.length,
+      queueWaitMs: queueMeta.queueWaitMs,
+    });
 
     const queue = this;
     (async function () {
@@ -230,6 +237,13 @@ class ProviderQueue {
       } finally {
         queue.stats.lastFinishedAt = Date.now();
         queue.activeCount = Math.max(0, queue.activeCount - 1);
+        console.info("[AIQueue] finish", {
+          groupName: queue.groupName,
+          activeCount: queue.activeCount,
+          maxConcurrent: settings.maxConcurrent,
+          durationMs: Math.max(0, Number(queueMeta.durationMs) || 0),
+          retryCount: Math.max(0, Number(queueMeta.retryCount) || 0),
+        });
         queue.schedule();
       }
     })();

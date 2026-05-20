@@ -181,6 +181,15 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 
 如果 `fun-asr` 曾出现听音文本乱码，修复部署后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存。`qwen3.5-omni-plus` / `qwen3.5-omni-flash` 不经过 Python 子进程，因此不受该编码问题影响。
 
+批量并发诊断要点：
+
+- 前端“AI连续填入合格项”是“并发发起 AI 请求 + 顺序填入页面”的两段流程。
+- 前端并发由 `aiQualifiedAutofillConcurrency` 控制，默认建议 `5`。
+- 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `5`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
+- Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
+- Compare 阶段若启用 thinking 可能明显变慢；未勾选时后端会显式关闭 compare thinking。
+- 如果批量执行看起来像串行，先看前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 待填队列`，再看 `health` 中 `queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`。
+
 详细后端配置见 `platform-resources/backend/README.md`。
 详细 API 清单见 `platform-resources/README.md` 的“统一后端 API 清单”。
 

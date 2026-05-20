@@ -8,6 +8,10 @@
 - 前端“AI连续填入合格项”辅助能力复用现有 AI 推荐接口，不新增后端路由；当前策略为“并发分析 + 顺序填入”，只处理 `statusName=质检合格`。
 - 前端并发数默认 `5`（可配置 `1-10`）。更高并发不会绕过上游模型限流，只会更快堆积到统一后端队列。
 - 前端调度为“并发请求 + 队列消费填入”：AI 结果返回后即进入队列，由前端串行填入，不等待全部请求结束；该变更不涉及后端接口新增。
+- 当前排查串行感时，要同时看：
+  - 前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 待填队列`
+  - 后端 `health.queue.groups.fun_asr` 与 `text_compare` 的 `activeCount/maxConcurrent/pendingCount`
+- Fun-ASR 不支持 thinking；本链路不会给 Python 传 `enable_thinking`。thinking 只影响 Qwen Omni / compare 阶段，compare 未勾选时后端会显式关闭。
 
 ## 接口
 
@@ -144,6 +148,10 @@ CSV 字段统一口径：
    - `fun_asr` 默认并发 `5`
    - `text_compare` 默认并发 `5`
    这样 Fun-ASR 不再是“上一条完全结束后才启动下一条”的严格串行。
+8. 若批量执行时感觉仍像串行，优先检查：
+   - `fun_asr.activeCount` 是否能超过 `1`
+   - `text_compare.activeCount` 是否能超过 `1`
+   - `queueWaitMs` 是不是主要堆在 compare 阶段
 8. 对 `heardText` / `recommendedText` 做现有清洗、简繁归一、词表替换与中文句末标点补全。
 9. 成功结果写入 TTL 缓存，并组装统一响应，返回模式、模型、队列、缓存、阶段耗时、`requestId` 和调试摘要。
 
