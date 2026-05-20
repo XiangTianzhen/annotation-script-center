@@ -1,6 +1,6 @@
 (function () {
   const API_PATH = "/api/magic-data/annotator/ai/review-current";
-  const DEFAULT_TIMEOUT_MS = 60000;
+  const DEFAULT_TIMEOUT_MS = 120000;
   const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:3333";
   const DEFAULT_SERVER_BASE_URL = "https://script.xiangtianzhen.store";
 

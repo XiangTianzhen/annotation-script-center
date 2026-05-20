@@ -44,7 +44,7 @@
                 aiRecommendEnabled: true,
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
-                aiRecommendRequestTimeoutMs: 60000,
+                aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
                 aiRecommendPipelineMode: "two_stage",
                 aiQualifiedAutofillConcurrency: 20,
                 aiQualifiedAutofillWaitAllBeforeFill: false,
@@ -84,7 +84,7 @@
                 aiReasoningModel: "qwen3.6-plus",
                 aiSingleModel: "qwen3.6-plus",
                 aiEnableThinking: false,
-                aiRequestTimeoutMs: 60000,
+                aiRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
                 shortcuts: {
                   sameFontTrue: {
                     ctrl: false,
@@ -335,6 +335,8 @@
   }
 
   const EXTENSION_CONTEXT_INVALIDATED_CODE = "EXTENSION_CONTEXT_INVALIDATED";
+  const DEFAULT_AI_REQUEST_TIMEOUT_MS = 120000;
+  const LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS = 60 * 1000;
 
   function isExtensionContextInvalidatedError(error) {
     const message = String((error && (error.message || error)) || "").toLowerCase();
@@ -944,7 +946,7 @@
         180000,
         normalizeNumber(
           normalizedStatsConfig.aiSuggestionRequestTimeoutMs,
-          defaults.aiSuggestionRequestTimeoutMs || 60000
+          defaults.aiSuggestionRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
         )
       )
     );
@@ -1141,14 +1143,21 @@
     }
   }
 
-  function normalizeDataBakerTimeout(value, fallback) {
-    const number = Number(value);
+  function normalizeAiRequestTimeoutValue(value, fallback) {
+    const numericValue = Number(value);
     const fallbackNumber = Number(fallback);
-    const base = Number.isFinite(fallbackNumber) ? fallbackNumber : 60000;
-    if (!Number.isFinite(number)) {
-      return Math.min(300000, Math.max(1000, Math.round(base)));
+    let resolved = Number.isFinite(numericValue) ? numericValue : fallbackNumber;
+    if (!Number.isFinite(resolved)) {
+      resolved = DEFAULT_AI_REQUEST_TIMEOUT_MS;
     }
-    return Math.min(300000, Math.max(1000, Math.round(number)));
+    if (Math.round(resolved) === LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS) {
+      resolved = DEFAULT_AI_REQUEST_TIMEOUT_MS;
+    }
+    return Math.max(1000, Math.min(300000, Math.floor(resolved)));
+  }
+
+  function normalizeDataBakerTimeout(value, fallback) {
+    return normalizeAiRequestTimeoutValue(value, fallback);
   }
 
   function normalizeDataBakerPageSize(value, fallback) {
@@ -1494,10 +1503,7 @@
   }
 
   function normalizeAbakaAiRequestTimeout(value, fallback) {
-    const numeric = Number(value);
-    const base = Number.isFinite(numeric) ? numeric : Number(fallback);
-    const resolved = Number.isFinite(base) ? base : 60000;
-    return Math.max(1000, Math.min(300000, Math.floor(resolved)));
+    return normalizeAiRequestTimeoutValue(value, fallback);
   }
 
   function normalizeDataBakerRoundOneQualityConfig(config, defaults) {
@@ -1519,7 +1525,7 @@
     );
     result.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeout(
       result.aiRecommendRequestTimeoutMs,
-      defaultConfig.aiRecommendRequestTimeoutMs || 60000
+      defaultConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
     );
     const defaultPipelineMode = normalizeDataBakerPipelineMode(
       defaultConfig.aiRecommendPipelineMode || "two_stage",
@@ -1643,7 +1649,7 @@
             aiRecommendEndpoint:
               constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
-            aiRecommendRequestTimeoutMs: 60000,
+            aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
             aiRecommendPipelineMode: "two_stage",
                 aiQualifiedAutofillConcurrency: 20,
             aiQualifiedAutofillWaitAllBeforeFill: false,
@@ -1711,7 +1717,7 @@
               aiReasoningModel: "qwen3.6-plus",
               aiSingleModel: "qwen3.6-plus",
               aiEnableThinking: false,
-              aiRequestTimeoutMs: 60000,
+              aiRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
             shortcuts: {
               sameFontTrue: { key: "1" },
               sameFontFalse: { key: "2" },
@@ -1788,7 +1794,7 @@
       aiEnableThinking: currentScript.aiEnableThinking === true,
       aiRequestTimeoutMs: normalizeAbakaAiRequestTimeout(
         currentScript.aiRequestTimeoutMs,
-        defaultScript.aiRequestTimeoutMs || 60000
+        defaultScript.aiRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
       ),
       shortcuts: normalizeAbakaAiTask21Shortcuts(
         currentScript.shortcuts,

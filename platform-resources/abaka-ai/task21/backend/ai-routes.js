@@ -155,7 +155,7 @@ function normalizeStringArrayPreserveDuplicates(value, maxItems, maxLengthPerIte
 function normalizeTimeoutMs(value, fallback) {
   const number = Number(value);
   const base = Number.isFinite(number) ? number : Number(fallback);
-  const safe = Number.isFinite(base) ? base : 60000;
+  const safe = Number.isFinite(base) ? base : 120000;
   return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, Math.floor(safe)));
 }
 
@@ -281,7 +281,7 @@ function resolveRuntimeOptions(requestBody, config) {
           : false;
   const timeoutMs = normalizeTimeoutMs(
     source.timeoutMs || options.timeoutMs || debugConfig.timeoutMs,
-    config.timeoutMs || 60000
+    config.timeoutMs || 120000
   );
   const allowClientModelOverride = config.allowClientModelOverride === true;
 

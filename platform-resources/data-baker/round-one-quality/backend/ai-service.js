@@ -49,7 +49,7 @@ const {
   getAiJobStoreSnapshot,
 } = require("./ai-job-store");
 
-const RULE_VERSION = "data-baker-round-one-quality-ai-v9-job-timeout-debug-raw";
+const RULE_VERSION = "data-baker-round-one-quality-ai-v10-direct-recommend-120s";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "你要一次完成：听音、对比页面候选文本、输出最终推荐文本。",
   "页面候选文本只作为参考，实际发声优先。",
@@ -1798,7 +1798,14 @@ function createHealthPayload() {
     },
     jobs: Object.assign({}, jobSnapshot, {
       enabled: jobStoreConfig.enabled === true,
+      mode: jobStoreConfig.enabled === true ? "compatibility" : "disabled-by-default",
     }),
+    notes: {
+      defaultResultMode: "sync-recommend",
+      asyncJobsDefaultEnabled: false,
+      requestStaggerMs: 30,
+      timeoutPolicy: "ai-model-timeout-120000ms",
+    },
     concurrency: {
       qwenOmni: {
         maxConcurrent: qwenOmniQueue.maxConcurrent,

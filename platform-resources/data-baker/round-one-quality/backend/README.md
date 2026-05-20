@@ -18,8 +18,9 @@
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
-- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
-- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
+- `POST /api/data-baker/round-one-quality/ai/recommend`（默认）
+- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`（历史兼容）
+- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`（历史兼容）
   - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId/debug`（仅 JSON 解析失败时返回脱敏 debugRawJson）
 - `GET /api/data-baker/round-one-quality/export/health`
 - `GET /api/data-baker/round-one-quality/export/config`
@@ -65,7 +66,7 @@
 ## 环境变量
 
 - `DASHSCOPE_API_KEY`：DashScope API Key，真实调用必需；统一后端启动时默认从仓库根目录 `config/env/ai.env` 自动读取。
-- `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `60000`。
+- `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_MOCK`：设为 `1` 时走 mock，可直接写入 `config/env/ai.env`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，原生 `fetch` 请求体顶层传 `enable_thinking=false` 尝试关闭 thinking；设为 `1` 时不传该字段。
 - `DATABAKER_AI_PIPELINE_MODE`：识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。旧值 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
@@ -77,8 +78,8 @@
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，显式指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
-- `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：Fun-ASR 批量连续填入是否启用后端异步 job，默认 `1`。
-- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `60000`；超时后会把 job 标记为 failed，并提示“当前任务超过60s，请重新请求。”。
+- `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：历史兼容开关，默认 `0`；当前默认链路不再依赖异步 job。
+- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `120000`。仅在历史兼容 job 被显式启用时生效。
 - `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
 - `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 最大保留数量，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
 - `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端轮询 job 状态建议间隔，默认 `1000` ms。
@@ -159,11 +160,11 @@ CSV 字段统一口径：
    - Fun-ASR 返回 `heardText` 后，再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
    - Python SDK 只在显式设置 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时启用。
 6. 所有 provider 调用遇到 `429` 都走统一指数退避 + jitter 重试；超出队列长度直接返回清晰错误，不让请求无限堆积。
-7. `two_stage + fun-asr` 的批量连续填入默认改走异步 job：
-   - 创建任务：`POST /api/data-baker/round-one-quality/ai/recommend/jobs`
-   - 查询任务：`GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
-   - 后端创建 job 后立即返回 `jobId`，后台继续执行现有 `recommend` 流程。
-   - 前端按 job 状态轮询，谁先 `succeeded`，谁先进入待填队列。
+7. `two_stage + fun-asr` 的批量连续填入默认直接调用同步 `POST /api/data-baker/round-one-quality/ai/recommend`：
+   - 前端按 `30ms` 错峰发起，谁先返回谁先进入待填队列。
+   - 前端并发参数只控制最大活跃请求数；后端 queue / RPM 限流仍继续保护 Fun-ASR 与 compare。
+   - `jobs` 相关接口仅保留为历史兼容 / 调试入口。
+
 8. provider 队列现在同时控制 RPM 和 group 并发：
    - `qwen_omni` 默认并发 `3`
    - `fun_asr` 默认并发 `2`

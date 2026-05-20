@@ -22,6 +22,10 @@
   }
 
   const EXTENSION_NAME = "标注脚本中心";
+  const DEFAULT_AI_REQUEST_TIMEOUT_MS = 120000;
+  const LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS = 60 * 1000;
+  const DATABAKER_AI_ASYNC_JOBS_ENABLED_DEFAULT = false;
+  const DATABAKER_AI_REQUEST_STAGGER_MS = 30;
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
   const SCHEMA_VERSION = 20;
@@ -739,7 +743,7 @@
     shortcutApplyAiSuggestion: null,
     shortcutSubmitTask: null,
     shortcutSubmitTaskAndFinish: null,
-    aiSuggestionRequestTimeoutMs: 60000,
+    aiSuggestionRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
     statsUploadEnabled: true,
     statsUploadEndpoint: TRANSCRIPTION_STATS_SERVER_ENDPOINT,
     statsUploadTimes: ["10:00", "16:00"],
@@ -780,7 +784,7 @@
     statsUploadRequestTimeoutMs: 20000,
     aiSuggestionEnabled: true,
     aiSuggestionEndpoint: JUDGEMENT_AI_SUGGEST_SERVER_ENDPOINT,
-    aiSuggestionRequestTimeoutMs: 60000,
+    aiSuggestionRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
     aiSuggestionListenModel: "qwen3.5-omni-flash",
     aiSuggestionCompareModel: "qwen3.5-plus",
     aiSuggestionListenPrompt: "",
@@ -1291,7 +1295,7 @@
           enabled: true,
           aiRecommendEnabled: true,
           aiRecommendEndpoint: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
-          aiRecommendRequestTimeoutMs: 60000,
+          aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           aiRecommendPipelineMode: "two_stage",
           aiQualifiedAutofillConcurrency: 20,
           aiQualifiedAutofillWaitAllBeforeFill: false,
@@ -1349,7 +1353,7 @@
           aiReasoningModel: "qwen3.6-plus",
           aiSingleModel: "qwen3.6-plus",
           aiEnableThinking: false,
-          aiRequestTimeoutMs: 60000,
+          aiRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           shortcuts: shortcuts,
         },
       },
@@ -1369,7 +1373,7 @@
           showHeardText: true,
           showEstimatedIncome: true,
           enableThinking: false,
-          aiReviewRequestTimeoutMs: 60000,
+          aiReviewRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           aiReviewListenPrompt: "",
           aiReviewComparePrompt: "",
           aiReviewTemperature: "",
@@ -1503,6 +1507,10 @@
     NUMBER_CONFIG_KEYS: NUMBER_CONFIG_KEYS,
     STRING_CONFIG_KEYS: STRING_CONFIG_KEYS,
     ASR_CONFIG_KEYS: ASR_CONFIG_KEYS,
+    DEFAULT_AI_REQUEST_TIMEOUT_MS: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+    LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS: LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS,
+    DATABAKER_AI_ASYNC_JOBS_ENABLED_DEFAULT: DATABAKER_AI_ASYNC_JOBS_ENABLED_DEFAULT,
+    DATABAKER_AI_REQUEST_STAGGER_MS: DATABAKER_AI_REQUEST_STAGGER_MS,
     DEFAULT_ASR_CONFIG: clone(DEFAULT_ASR_CONFIG),
     DEFAULT_JUDGEMENT_ASR_CONFIG: clone(DEFAULT_JUDGEMENT_ASR_CONFIG),
     DEFAULT_CACHE: clone(DEFAULT_CACHE),

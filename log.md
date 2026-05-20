@@ -1,10 +1,19 @@
+## 2026-05-21（标贝易采一检质检热修：恢复直接 recommend 请求并统一 120s 超时）
+
+- DataBaker “AI并发分析并连续填入合格项”默认不再通过异步 job 接收 AI 结果，而是直接批量调用 `POST /api/data-baker/round-one-quality/ai/recommend`。
+- 当前页有 N 条合格项时，会为 N 条任务调度对应请求；前端默认按 `30ms` 错峰发起，并继续用“AI连续填入合格项并发数量”控制最大活跃请求数，默认 `20`，范围 `1~50`。
+- 后端 provider queue / RPM 限流、Fun-ASR REST、Qwen compare、JSON 解析失败复制原始 JSON 能力继续保留。
+- 项目级默认时间规则改为：TTS 自动清除保持 `60000ms`，AI / 模型请求默认超时恢复为 `120000ms`；超过 2 分钟仍无法返回时，默认视为链路不适合当前项目。
+- `DATABAKER_AI_ASYNC_JOBS_ENABLED` 与历史兼容 `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED` 默认均为 `0`；jobs 接口仅保留为历史兼容 / 调试用途。
+- 若历史兼容 job 链路仍被调用，job 超时文案改为“当前任务超过120s，请重新请求。”。
+
 # 标注脚本中心修改日志
 
 ## 2026-05-21（标贝易采一检质检热修：异步 job 上限 600、60s 强制取消、JSON debug 复制）
 
 - DataBaker `two_stage + fun-asr` 的异步 job store 默认上限改为 `600`，统一 provider queue 默认上限也同步改为 `600`。
 - 当 job store 或 provider queue 达到上限时，后端统一返回“后端 AI 任务队列已满，请稍后重试。”，继续保留原有并发与 RPM 保护。
-- 新增 `DATABAKER_AI_JOB_TIMEOUT_MS=60000`：单个异步 job 超过 60 秒会被强制标记为 failed，并固定提示“当前任务超过60s，请重新请求。”。
+- 新增 `DATABAKER_AI_JOB_TIMEOUT_MS=120000`：历史兼容异步 job 超过 120 秒会被强制标记为 failed，并固定提示“当前任务超过120s，请重新请求。”。
 - 超时 job 会触发 `AbortController` 取消或逻辑丢弃迟到结果；迟到结果不会覆盖 failed 状态，不会进入 completedQueue，也不会继续填入页面。
 - provider queue、Fun-ASR REST 和 Qwen OpenAI-compatible 链路补充 `signal` 透传与 pending/running abort 支持。
 - DataBaker 模型 JSON 解析失败时，错误对象会保存脱敏后的 `debugRawJson`，并新增调试接口：
@@ -14,21 +23,21 @@
 
 ## 2026-05-21（标贝易采一检质检热修：异步 job TTL 改为 1 分钟）
 
-- DataBaker `two_stage + fun-asr` 批量连续填入使用的后端异步 job 默认 TTL 从 `120000`（2 分钟）调整为 `60000`（1 分钟）。
-- 代码默认值 `platform-resources/data-baker/round-one-quality/backend/ai-job-store.js` 同步改为 `60000`。
-- `config/env/ai.env.example`、根 `README.md`、统一后端 README、DataBaker 平台 README、DataBaker 后端 README 已同步改成 `60000`（1 分钟）。
+- DataBaker `two_stage + fun-asr` 批量连续填入曾短暂尝试过将异步 job 默认 TTL 调整为 1 分钟（旧口径，现已废弃）。
+- 相关 `ai-job-store.js` 代码默认值当时也同步改成了 1 分钟口径；本轮已恢复为 120 秒 AI 超时 + 同步 recommend 主链路。
+- 相关 env 示例与说明文档当时也同步改成了 1 分钟口径；本轮已统一恢复为 `120000ms` AI 默认超时。
 - 本轮不改 job 最大数量、不改轮询间隔、不改 Fun-ASR REST / compare 链路。
 
-## 2026-05-21（统一默认时间规则：TTS 自动清除 60000ms，AI 默认超时 60000ms）
+## 2026-05-21（统一默认时间规则：TTS 自动清除 60000ms，AI 默认超时 1 分钟旧口径）
 
 - 根规则更新：
-  - `AGENTS.md` 新增项目级默认时间规则：TTS 自动清除默认 `60000ms`，AI / 模型请求默认超时 `60000ms`。
+  - `AGENTS.md` 当时新增项目级默认时间规则：TTS 自动清除默认 `60000ms`，AI / 模型请求默认超时曾短暂调整为 1 分钟（现已恢复为 `120000ms`）。
   - 规则明确：新增平台、脚本、AI provider、options 默认值、后端 env fallback 与 README 示例默认沿用该值；非 AI 上传、下载、统计与普通后端接口超时不受影响。
 - DataBaker 平台：
   - 当前仓库中实际存在的自动清除时间字段定位为顶部统计悬浮窗 `autoHideMs`。
   - `autoHideMs` 默认从 `30000ms` 调整为 `60000ms`。
-  - `aiRecommendRequestTimeoutMs` 相关默认值、前端 fallback、后端 env fallback 统一改为 `60000ms`。
-- 其他 AI 平台默认超时统一改为 `60000ms`：
+  - `aiRecommendRequestTimeoutMs` 相关默认值、前端 fallback、后端 env fallback 当时曾统一改为 1 分钟（旧口径，现已恢复为 `120000ms`）。
+- 其他 AI 平台默认超时当时也曾统一为 1 分钟旧口径：
   - Alibaba LabelX ASR 转写 AI
   - Alibaba LabelX ASR 快判 AI
   - Magic Data AI 质检
@@ -49,8 +58,9 @@
 - 新增 DataBaker AI 异步 job 内存存储：
   - `platform-resources/data-baker/round-one-quality/backend/ai-job-store.js`
   - 新增接口：
-    - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
-    - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
+    - `POST /api/data-baker/round-one-quality/ai/recommend`（默认）
+- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`（历史兼容）
+- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`（历史兼容）
   - job 只保存在当前 Node 进程内存，不落盘；后端重启后丢失是允许行为。
   - job TTL 默认 `120000`（2 分钟），最大 job 数默认 `1000`。
 - `ai-routes.js` 保留同步 `POST /ai/recommend`，同时支持异步 jobs：

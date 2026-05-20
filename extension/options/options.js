@@ -177,6 +177,9 @@
     "qwen-turbo",
     "qwen-long",
   ];
+  const DEFAULT_AI_REQUEST_TIMEOUT_MS = 120000;
+  const LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS = 60 * 1000;
+
   const magicDataShortcutActions = [
     { key: "reviewCurrent", label: "AI 质检当前条" },
     { key: "copySummary", label: "复制 AI 质检摘要" },
@@ -1225,7 +1228,7 @@
       reviewModel: "",
       pipelineMode: scriptId === dataBakerRoundOneQualityScriptId ? "two_stage" : "",
       supportedPipelineModes: [],
-      timeoutMs: 60000,
+      timeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
       enableThinking: false,
       temperature: 0.1,
       top_p: 0.8,
@@ -1351,12 +1354,21 @@
     node.textContent = "已读取后端默认配置；未单独覆盖的字段将沿用后端默认。";
   }
 
-  function normalizeDataBakerTimeoutMs(value) {
+  function normalizeAiRequestTimeoutMs(value, fallback) {
     const number = Number(value);
-    if (!Number.isFinite(number)) {
-      return 60000;
+    const fallbackNumber = Number(fallback);
+    let resolved = Number.isFinite(number) ? number : fallbackNumber;
+    if (!Number.isFinite(resolved)) {
+      resolved = DEFAULT_AI_REQUEST_TIMEOUT_MS;
     }
-    return Math.min(300000, Math.max(1000, Math.round(number)));
+    if (Math.round(resolved) === LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS) {
+      resolved = DEFAULT_AI_REQUEST_TIMEOUT_MS;
+    }
+    return Math.min(300000, Math.max(1000, Math.round(resolved)));
+  }
+
+  function normalizeDataBakerTimeoutMs(value) {
+    return normalizeAiRequestTimeoutMs(value, DEFAULT_AI_REQUEST_TIMEOUT_MS);
   }
 
   function normalizeDataBakerAutofillConcurrency(value) {
@@ -1444,7 +1456,7 @@
   function dataBakerTimeoutSecondsToMs(value) {
     const seconds = Number(value);
     if (!Number.isFinite(seconds)) {
-      return 60000;
+      return DEFAULT_AI_REQUEST_TIMEOUT_MS;
     }
     return Math.min(300, Math.max(1, Math.round(seconds))) * 1000;
   }
@@ -1601,7 +1613,7 @@
   }
 
   function normalizeAbakaAiTimeout(value, fallback) {
-    return clampNumber(value, fallback || 60000, 1000, 300000, 0);
+    return normalizeAiRequestTimeoutMs(value, fallback || DEFAULT_AI_REQUEST_TIMEOUT_MS);
   }
 
   function renderAbakaAiSelectOptions(selectId, selectedValue, options, fallbackValue) {
@@ -1710,7 +1722,7 @@
       showHeardText: source.showHeardText !== false,
       showEstimatedIncome: source.showEstimatedIncome !== false,
       enableThinking: source.enableThinking === true,
-      aiReviewRequestTimeoutMs: clampNumber(source.aiReviewRequestTimeoutMs, 60000, 1000, 300000, 0),
+      aiReviewRequestTimeoutMs: normalizeAiRequestTimeoutMs(source.aiReviewRequestTimeoutMs, DEFAULT_AI_REQUEST_TIMEOUT_MS),
       aiReviewListenPrompt: normalizePromptText(source.aiReviewListenPrompt || ""),
       aiReviewComparePrompt: normalizePromptText(source.aiReviewComparePrompt || ""),
       aiReviewTemperature: normalizeOptionalNumberText(source.aiReviewTemperature, 0, 2, 3),
@@ -1744,7 +1756,7 @@
           id: dataBakerRoundOneQualityScriptId,
           enabled: true,
           aiRecommendEnabled: true,
-          aiRecommendRequestTimeoutMs: 60000,
+          aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           aiRecommendPipelineMode: "two_stage",
           aiQualifiedAutofillConcurrency: 20,
           aiQualifiedAutofillWaitAllBeforeFill: false,
@@ -1866,7 +1878,7 @@
           aiReasoningModel: "qwen3.6-plus",
           aiSingleModel: "qwen3.6-plus",
           aiEnableThinking: false,
-          aiRequestTimeoutMs: 60000,
+          aiRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           shortcuts: createAbakaAiDefaultShortcutMap(),
       },
       defaults,
@@ -1905,7 +1917,7 @@
         abakaAiTask21SingleModelOptions
       );
     merged.aiEnableThinking = merged.aiEnableThinking === true;
-    merged.aiRequestTimeoutMs = normalizeAbakaAiTimeout(merged.aiRequestTimeoutMs, 60000);
+    merged.aiRequestTimeoutMs = normalizeAbakaAiTimeout(merged.aiRequestTimeoutMs, DEFAULT_AI_REQUEST_TIMEOUT_MS);
     merged.shortcuts = normalizeAbakaAiShortcuts(
       merged.shortcuts,
       createAbakaAiDefaultShortcutMap()
@@ -1921,7 +1933,7 @@
     return {
       aiSuggestionRequestTimeoutMs: clampNumber(
         asrConfig.aiSuggestionRequestTimeoutMs,
-        defaults.aiSuggestionRequestTimeoutMs || 60000,
+        defaults.aiSuggestionRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS,
         1000,
         180000,
         0
@@ -2390,7 +2402,7 @@
       statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: 20000,
       aiSuggestionEnabled: true,
-      aiSuggestionRequestTimeoutMs: 60000,
+      aiSuggestionRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
       aiSuggestionListenModel: "qwen3.5-omni-flash",
       aiSuggestionCompareModel: "qwen3.5-plus",
       aiSuggestionListenPrompt: "",
@@ -2528,7 +2540,7 @@
       aiSuggestionEnabled: true,
       aiSuggestionRequestTimeoutMs: clampNumber(
         asrConfig.aiSuggestionRequestTimeoutMs,
-        defaults.aiSuggestionRequestTimeoutMs || 60000,
+        defaults.aiSuggestionRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS,
         1000,
         180000,
         0
@@ -3113,7 +3125,7 @@
       getElement("magic-data-show-estimated-income").checked =
         config.showEstimatedIncome !== false;
       getElement("magic-data-ai-timeout").value = String(
-        Number(config.aiReviewRequestTimeoutMs || aiDefaults.timeoutMs || 60000)
+        Number(config.aiReviewRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
       );
       getElement("magic-data-ai-enable-thinking").checked = Boolean(
         config.enableThinking === true ||
@@ -3226,7 +3238,7 @@
       return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
     };
     const aiReviewRequestTimeoutMs = hasAiSettingsPanel
-      ? clampNumber(getElement("magic-data-ai-timeout").value, 60000, 1000, 300000, 0)
+      ? clampNumber(getElement("magic-data-ai-timeout").value, DEFAULT_AI_REQUEST_TIMEOUT_MS, 1000, 300000, 0)
       : currentConfig.aiReviewRequestTimeoutMs;
     const aiReviewListenPrompt = hasAiSettingsPanel
       ? normalizeOverridePrompt(
@@ -3553,7 +3565,7 @@
     }
     const timeoutNode = getElement("abaka-ai-timeout");
     if (timeoutNode instanceof HTMLInputElement) {
-      timeoutNode.value = String(config.aiRequestTimeoutMs || 60000);
+      timeoutNode.value = String(config.aiRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS);
     }
     const mockTipNode = getElement("abaka-ai-mock-tip");
     if (mockTipNode) {
@@ -3637,8 +3649,8 @@
       : currentConfig.aiEnableThinking === true;
     const aiTimeoutNode = getElement("abaka-ai-timeout");
     const aiRequestTimeoutMs = advancedUnlocked && aiTimeoutNode instanceof HTMLInputElement
-      ? normalizeAbakaAiTimeout(aiTimeoutNode.value, currentConfig.aiRequestTimeoutMs || 60000)
-      : normalizeAbakaAiTimeout(currentConfig.aiRequestTimeoutMs, 60000);
+      ? normalizeAbakaAiTimeout(aiTimeoutNode.value, currentConfig.aiRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
+      : normalizeAbakaAiTimeout(currentConfig.aiRequestTimeoutMs, DEFAULT_AI_REQUEST_TIMEOUT_MS);
 
     setStatus("abaka-status", "正在保存 Task21助手设置...");
     try {
@@ -3705,7 +3717,7 @@
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     if (getElement("judgement-ai-suggestion-timeout")) {
       getElement("judgement-ai-suggestion-timeout").value = String(
-        Number(config.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || 60000)
+        Number(config.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
       );
       getElement("judgement-ai-suggestion-enable-thinking").checked = Boolean(
         config.aiSuggestionEnableThinking === true ||
@@ -3920,7 +3932,7 @@
     getElement("transcription-clear-on-invalid").checked = config.clearOnInvalid !== false;
     if (getElement("transcription-ai-suggestion-timeout")) {
       getElement("transcription-ai-suggestion-timeout").value = String(
-        Number(aiConfig.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || 60000)
+        Number(aiConfig.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
       );
     }
     if (getElement("transcription-ai-suggestion-enable-thinking")) {
@@ -4804,7 +4816,7 @@
       getElement("data-baker-ai-recommend-enabled").checked =
         config.aiRecommendEnabled !== false;
       getElement("data-baker-ai-timeout").value = String(
-        Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || 60000)
+        Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
       );
       applyDataBakerRecognitionModeFields(config.aiRecommendPipelineMode, config, aiDefaults);
       getElement("data-baker-ai-enable-thinking").checked = Boolean(

@@ -32,7 +32,7 @@ function createError(message, code, statusCode, summary) {
 }
 
 function createAbortError(signal, fallbackMessage) {
-  return normalizeAbortError(signal?.reason, fallbackMessage || "当前任务超过60s，请重新请求。", "aborted", 504);
+  return normalizeAbortError(signal?.reason, fallbackMessage || "当前任务超过120s，请重新请求。", "aborted", 504);
 }
 
 function isAbortSignalAborted(signal) {
@@ -227,7 +227,7 @@ async function fetchWithTimeout(url, options, timeoutMs, timeoutMessage) {
   const timer = controller
     ? setTimeout(function () {
         controller.abort();
-      }, Math.max(1000, Number(timeoutMs) || 60000))
+      }, Math.max(1000, Number(timeoutMs) || 120000))
     : null;
   try {
     return await fetch(url, Object.assign({}, options || {}, {
@@ -602,9 +602,3 @@ module.exports = {
   requestFunAsrRecognition,
   requestFunAsrRecognitionRest,
 };
-
-
-
-
-
-

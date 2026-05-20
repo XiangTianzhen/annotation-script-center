@@ -678,7 +678,7 @@
             return optionsPayload;
           })(),
         }, {
-          timeoutMs: Number(runtimeSettings.aiReviewRequestTimeoutMs || 60000) || 60000,
+          timeoutMs: Number(runtimeSettings.aiReviewRequestTimeoutMs || 120000) || 120000,
         });
         renderResult(response.data);
         renderSummary(snapshot, response.backend);

@@ -45,9 +45,9 @@ function isMockEnabled() {
 }
 
 function parseTimeoutMs() {
-  const value = Number(process.env.ASR_JUDGEMENT_AI_TIMEOUT_MS || 60000);
+  const value = Number(process.env.ASR_JUDGEMENT_AI_TIMEOUT_MS || 120000);
   if (!Number.isFinite(value)) {
-    return 60000;
+    return 120000;
   }
   return Math.max(1000, Math.min(300000, Math.floor(value)));
 }
@@ -448,7 +448,7 @@ async function requestChatCompletion(config, requestBody, options) {
   }
 
   const controller = typeof AbortController === "function" ? new AbortController() : null;
-  const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs || 60000);
+  const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs || 120000);
   const timer = controller
     ? setTimeout(function () {
         controller.abort();

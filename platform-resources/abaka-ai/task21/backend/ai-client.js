@@ -138,7 +138,7 @@ function sanitizeModelName(value, fallback) {
 function parseTimeoutMs(value, fallback) {
   const number = Number(value);
   const base = Number.isFinite(number) ? number : Number(fallback);
-  const safe = Number.isFinite(base) ? base : 60000;
+  const safe = Number.isFinite(base) ? base : 120000;
   return Math.max(1000, Math.min(300000, Math.floor(safe)));
 }
 
@@ -235,7 +235,7 @@ function getClientConfig() {
     ocrModel: ocrModel || DEFAULT_OCR_MODEL,
     reasoningModel: reasoningModel || DEFAULT_REASONING_MODEL,
     singleModel: singleModel || DEFAULT_SINGLE_MODEL,
-    timeoutMs: parseTimeoutMs(process.env.ABAKA_TASK21_AI_TIMEOUT_MS, 60000),
+    timeoutMs: parseTimeoutMs(process.env.ABAKA_TASK21_AI_TIMEOUT_MS, 120000),
     allowClientModelOverride: parseBooleanEnv("ABAKA_TASK21_AI_ALLOW_CLIENT_MODEL_OVERRIDE", false),
     allowThinkingParamFallback: parseBooleanEnv(
       "ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK",

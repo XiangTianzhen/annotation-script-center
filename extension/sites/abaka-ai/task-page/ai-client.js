@@ -1,6 +1,6 @@
 (function () {
   const ANALYZE_PATH = "/api/abaka-ai/task21/ai/analyze";
-  const DEFAULT_TIMEOUT_MS = 60000;
+  const DEFAULT_TIMEOUT_MS = 120000;
   const DEFAULT_ANALYSIS_MODE = "two_stage";
   const DEFAULT_VISION_MODEL = "qwen3.6-plus";
   const DEFAULT_OCR_MODEL = "";

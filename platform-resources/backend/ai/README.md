@@ -38,7 +38,7 @@
 统一启动口径：
 
 - 仍然只启动 Node 后端：`node platform-resources/backend/server.js`
-- 统一 AI / 模型请求默认超时时间为 `60000ms`；非 AI 接口超时另按业务设置。
+- 统一 AI / 模型请求默认超时时间为 `120000ms`；非 AI 接口超时另按业务设置。
 - Fun-ASR 默认 provider 是 Node REST，不启动 Python 子进程。
 - Python 不作为独立服务启动；只在显式切到 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时作为统一 Node 后端内部辅助进程。
 - Fun-ASR REST 是异步任务模式：`POST /services/audio/asr/transcription` 提交任务，`POST /tasks/{task_id}` 查询任务；本轮只实现单条 REST 调用，不启用 `file_urls` batch。
@@ -51,7 +51,7 @@
 - `providers/funasr-rest.js` 会记录 `[FunASR][REST] submit start/finish` 与 `[FunASR][REST] poll start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
 - `providers/funasr-python.js` 会记录 `[FunASR] spawn start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
 - DataBaker 前端“AI连续填入合格项并发数量”只是浏览器同时发往统一后端的请求数，当前范围 `1~50`、默认 `20`；真正的上游模型并发仍由这里的 provider queue 和 RPM 限流控制。
-- DataBaker `two_stage + fun-asr` 的批量连续填入默认会先创建后端异步 job，再轮询 job 状态；这样可以避免单个 HTTP recommend 请求挂太久后被浏览器或代理中断。
-- DataBaker 异步 job 默认上限 `600`，provider queue 默认上限也同步为 `600`；达到上限时统一返回“后端 AI 任务队列已满，请稍后重试。”。
-- 单个异步 job 默认超时 `60000ms`，超时后会通过 `AbortController` 取消或逻辑丢弃迟到结果，并固定提示“当前任务超过60s，请重新请求。”。
+- DataBaker `two_stage + fun-asr` 的批量连续填入默认直接发送同步 recommend 请求；前端按 `30ms` 错峰发起并用前端活跃并发上限控制节奏，后端继续通过 provider queue / RPM 限流保护上游。
+- DataBaker 异步 job 默认上限仍为 `600`，provider queue 默认上限也同步为 `600`；但 jobs 仅保留为历史兼容 / 调试接口，不再作为默认 AI 结果接收方案。
+- 单个异步 job 默认超时 `120000ms`，超时后会通过 `AbortController` 取消或逻辑丢弃迟到结果，并固定提示“当前任务超过120s，请重新请求。”。异步 job 仅保留给历史兼容 / 调试场景，默认 AI 结果接收仍应使用同步 HTTP recommend。
 - DataBaker 模型输出 JSON 解析失败时，会保留脱敏后的 `debugRawJson`，供前端“复制原始JSON”按钮通过 `/ai/recommend/jobs/:jobId/debug` 拉取。

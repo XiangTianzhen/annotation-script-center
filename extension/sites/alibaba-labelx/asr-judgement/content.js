@@ -153,7 +153,7 @@
       statsUploadRequestTimeoutMs: 20000,
       aiSuggestionEnabled: true,
       aiSuggestionEndpoint: "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest",
-      aiSuggestionRequestTimeoutMs: 60000,
+      aiSuggestionRequestTimeoutMs: 120000,
       aiSuggestionListenModel: "qwen3.5-omni-flash",
       aiSuggestionCompareModel: "qwen3.5-plus",
       aiSuggestionListenPrompt: "",

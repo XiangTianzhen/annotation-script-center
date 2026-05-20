@@ -58,7 +58,7 @@
 - `DASHSCOPE_BASE_URL`
 - `MAGIC_DATA_AI_LISTEN_MODEL`（默认 `qwen3.5-omni-flash`）
 - `MAGIC_DATA_AI_COMPARE_MODEL`（默认 `qwen3.5-plus`）
-- `MAGIC_DATA_AI_TIMEOUT_MS`（默认 `60000`）
+- `MAGIC_DATA_AI_TIMEOUT_MS`（默认 `120000`）
 - `MAGIC_DATA_AI_MOCK`（`1` 开启 mock）
 - `MAGIC_DATA_AI_ENABLE_THINKING`（默认 `0`，关闭 thinking）
 - `MAGIC_DATA_AI_PIPELINE_MODE`（默认 `two_stage`）

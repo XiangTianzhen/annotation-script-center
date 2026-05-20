@@ -37,7 +37,7 @@ function isAbortSignalAborted(signal) {
 }
 
 function createQueueAbortError(signal) {
-  return normalizeAbortError(signal?.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
+  return normalizeAbortError(signal?.reason, "当前任务超过120s，请重新请求。", "aborted", 504);
 }
 
 function delay(ms, signal) {

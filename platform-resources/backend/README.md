@@ -42,7 +42,7 @@ http://127.0.0.1:3333
 - `ASR_JUDGEMENT_SERVER_HOST` / `ASR_JUDGEMENT_SERVER_PORT`：兼容旧快判本地服务启动配置。
 - `ASR_JUDGEMENT_AI_LISTEN_MODEL`：快判 AI 听音模型，默认 `qwen3.5-omni-flash`。
 - `ASR_JUDGEMENT_AI_COMPARE_MODEL`：快判 AI 文本比较模型，默认 `qwen3.5-plus`。
-- `ASR_JUDGEMENT_AI_TIMEOUT_MS`：快判 AI 请求超时，默认 `60000`。
+- `ASR_JUDGEMENT_AI_TIMEOUT_MS`：快判 AI 请求超时，默认 `120000`。
 - `ASR_JUDGEMENT_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
 - `ASR_JUDGEMENT_AI_WEB_SEARCH_ENABLED`：默认 `1`；快判 compare 阶段默认显式启用 Web Search。
 - `ASR_JUDGEMENT_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
@@ -59,14 +59,14 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_FUN_ASR_MODEL`：标贝易采 Fun-ASR 录音文件识别模型，默认 `fun-asr`。
 - `DATABAKER_AI_OMNI_MODEL`：标贝易采 Qwen Omni 模型默认值；`two_stage` 下用于 Omni 听音，`omni_single` 下用于单模型 AI，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：标贝易采 AI 对比模型，默认 `qwen3.5-plus`。
-- `DATABAKER_AI_TIMEOUT_MS`：标贝易采 AI 请求超时，默认 `60000`。
+- `DATABAKER_AI_TIMEOUT_MS`：标贝易采 AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：标贝易采 Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_FUN_ASR_PROVIDER`：标贝易采 Fun-ASR provider 模式，默认 `rest`。
 - `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK`：默认空；仅显式设为 `python` 时，REST 失败后才允许退回 Python。
 - `DATABAKER_AI_FUN_ASR_REST_BASE_URL`：可选，覆盖 Fun-ASR REST API base；留空时按 `DASHSCOPE_BASE_URL` 推导到 `/api/v1`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
-- `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：Fun-ASR 批量连续填入是否启用后端异步 job，默认 `1`。
-- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `60000`。超时后会强制失败并提示“当前任务超过60s，请重新请求。”。
+- `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：历史兼容开关，默认 `0`；当前默认链路不再依赖异步 job。
+- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `120000`。仅在历史兼容 job 被显式启用时生效。
 - `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
 - `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 内存上限，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
 - `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端建议轮询间隔提示，默认 `1000` ms。
@@ -87,7 +87,7 @@ http://127.0.0.1:3333
 - `DATABAKER_ROUND_ONE_EXPORT_EVENTS`：设为 `1` 时写入导出上传事件日志 JSONL。
 - `MAGIC_DATA_AI_LISTEN_MODEL`：Magic Data 听音模型，默认 `qwen3.5-omni-flash`。
 - `MAGIC_DATA_AI_COMPARE_MODEL`：Magic Data 质检模型，默认 `qwen3.5-plus`。
-- `MAGIC_DATA_AI_TIMEOUT_MS`：Magic Data AI 请求超时，默认 `60000`。
+- `MAGIC_DATA_AI_TIMEOUT_MS`：Magic Data AI 请求超时，默认 `120000`。
 - `MAGIC_DATA_AI_MOCK`：设为 `1` 时启用 mock 调试模式。
 - `MAGIC_DATA_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
 - `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
@@ -104,19 +104,19 @@ http://127.0.0.1:3333
 - `ABAKA_TASK21_AI_ALLOWED_REASONING_MODELS`：允许前端覆盖的推理模型白名单（逗号分隔）。
 - `ABAKA_TASK21_AI_ALLOWED_SINGLE_MODELS`：允许前端覆盖的单模型白名单（逗号分隔）。
 - Abaka AI 模型名以官方文档与截图口径为准，旧名 `qwen-vl-max-latest`、`qwen-vl-ocr-latest`、`qvq-plus-latest` 不再作为默认或候选。
-- `ABAKA_TASK21_AI_TIMEOUT_MS`：Abaka Task21 AI 请求超时，默认 `60000`。
+- `ABAKA_TASK21_AI_TIMEOUT_MS`：Abaka Task21 AI 请求超时，默认 `120000`。
 - `ABAKA_TASK21_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `0`，是否允许请求覆盖模型名（仍受白名单限制）。
 - `ABAKA_TASK21_AI_ENABLE_THINKING`：默认 `0`；请求默认显式传 `enable_thinking=false`，开启后才传 `true`。
 - `ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK`：默认 `0`；若模型不支持 `enable_thinking`，仅在该变量为 `1` 时允许移除参数重试。
 - `ASR_TRANSCRIPTION_AI_MOCK`：设为 `1` 时启用转写 AI mock 调试模式。
 - `ASR_TRANSCRIPTION_AI_LISTEN_MODEL`：转写 AI 听音模型，默认 `qwen3.5-omni-flash`。
 - `ASR_TRANSCRIPTION_AI_COMPARE_MODEL`：转写 AI 文本比较模型，默认 `qwen3.5-plus`。
-- `ASR_TRANSCRIPTION_AI_TIMEOUT_MS`：转写 AI 请求超时，默认 `60000`。
+- `ASR_TRANSCRIPTION_AI_TIMEOUT_MS`：转写 AI 请求超时，默认 `120000`。
 
 统一默认时间规则：
 
 - TTS 自动清除默认时间统一为 `60000ms`。
-- AI / 模型请求默认超时时间统一为 `60000ms`。
+- AI / 模型请求默认超时时间统一为 `120000ms`。
 - 非 AI 模型类的上传、下载、统计与普通后端接口超时不受该规则影响。
 - `ASR_TRANSCRIPTION_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
 - `ASR_TRANSCRIPTION_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。

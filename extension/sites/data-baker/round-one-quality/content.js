@@ -1,5 +1,8 @@
 (function () {
   const CHECK_INTERVAL_MS = 1000;
+  const DEFAULT_AI_REQUEST_TIMEOUT_MS = 120000;
+  const DEFAULT_AI_ASYNC_JOBS_ENABLED = false;
+  const DEFAULT_AI_REQUEST_STAGGER_MS = 30;
   const PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const SHORTCUT_KEYS = [
     "aiRecommendCurrentItem",
@@ -70,7 +73,7 @@
   function normalizeTimeout(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
-      return 60000;
+      return DEFAULT_AI_REQUEST_TIMEOUT_MS;
     }
     return Math.min(300000, Math.max(1000, Math.round(number)));
   }
@@ -213,7 +216,7 @@
         id: CONSTANTS.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality",
         enabled: true,
         aiRecommendEnabled: true,
-        aiRecommendRequestTimeoutMs: 60000,
+        aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
         aiQualifiedAutofillConcurrency: 20,
         aiQualifiedAutofillWaitAllBeforeFill: false,
@@ -294,6 +297,8 @@
     const aiQualifiedAutofillWaitAllBeforeFill = normalizeAutofillWaitAll(
       script.aiQualifiedAutofillWaitAllBeforeFill
     );
+    const aiAsyncJobsEnabled = script.aiAsyncJobsEnabled === true && DEFAULT_AI_ASYNC_JOBS_ENABLED === true;
+    const aiRequestStaggerMs = Math.max(0, Math.min(1000, Number(script.aiRequestStaggerMs) || Number(CONSTANTS.DATABAKER_AI_REQUEST_STAGGER_MS) || DEFAULT_AI_REQUEST_STAGGER_MS));
     const defaultPageSize = normalizePageSize(script.defaultPageSize);
     const shortcuts = normalizeShortcuts(script.shortcuts);
 
@@ -370,6 +375,8 @@
       pipelineMode,
       aiQualifiedAutofillConcurrency,
       aiQualifiedAutofillWaitAllBeforeFill,
+      aiAsyncJobsEnabled,
+      aiRequestStaggerMs,
       listenModel: recognitionMode === "omni_single" ? singleModel : listenModel,
       compareModel,
       singleModel: singleModel,
@@ -387,6 +394,8 @@
         pipelineMode,
         String(aiQualifiedAutofillConcurrency),
         aiQualifiedAutofillWaitAllBeforeFill ? "1" : "0",
+        aiAsyncJobsEnabled ? "1" : "0",
+        String(aiRequestStaggerMs),
         listenModel,
         normalizeDataBakerCompareModel(script.aiRecommendCompareModel),
         singleModel,
@@ -474,10 +483,8 @@
           launchedCount: 0,
           activeAiCount: 0,
           completedAiCount: 0,
-          jobSubmittedCount: 0,
-          jobRunningCount: 0,
-          jobSuccessCount: 0,
-          jobFailCount: 0,
+          plannedSendCount: tasks.length,
+          requestStaggerMs: Math.max(0, Number(config.aiRequestStaggerMs) || DEFAULT_AI_REQUEST_STAGGER_MS),
           analysisSuccessCount: 0,
           analysisFailCount: 0,
           queueCount: 0,
@@ -635,21 +642,16 @@
       const sourceTasks = Array.isArray(tasks) ? tasks : [];
       const totalCount = sourceTasks.length;
       const maxConcurrency = Math.max(1, Math.min(50, Number(concurrency) || 20));
-      const useAsyncJobsForBatch =
-        String(config.recognitionMode || "").trim() === "two_stage" &&
-        String(config.listenModel || "").trim() === "fun-asr" &&
-        typeof ai.recommendAsync === "function";
+      const requestStaggerMs = Math.max(
+        0,
+        Math.min(1000, Number(config.aiRequestStaggerMs) || DEFAULT_AI_REQUEST_STAGGER_MS)
+      );
+      const plannedSendCount = totalCount;
       const completedQueue = [];
-      const queuedResultIds = new Set();
-      const jobStateMap = new Map();
       let nextLaunchIndex = 0;
       let launchedCount = 0;
       let activeAiCount = 0;
       let completedAiCount = 0;
-      let jobSubmittedCount = 0;
-      let jobRunningCount = 0;
-      let jobSuccessCount = 0;
-      let jobFailCount = 0;
       let analysisSuccessCount = 0;
       let analysisFailCount = 0;
       let fillStartedCount = 0;
@@ -659,10 +661,18 @@
       let producersDone = false;
       let signalResolver = null;
       let producerDoneResolver = null;
+      let launchTimer = null;
 
       const producerDonePromise = new Promise(function (resolve) {
         producerDoneResolver = resolve;
       });
+
+      function clearLaunchTimer() {
+        if (launchTimer) {
+          window.clearTimeout(launchTimer);
+          launchTimer = null;
+        }
+      }
 
       function notifySignal() {
         if (typeof signalResolver === "function") {
@@ -677,6 +687,7 @@
           return;
         }
         producersDone = true;
+        clearLaunchTimer();
         if (typeof producerDoneResolver === "function") {
           producerDoneResolver();
           producerDoneResolver = null;
@@ -684,24 +695,18 @@
         notifySignal();
       }
 
-      if (totalCount <= 0) {
-        setProducersDone();
-      }
-
       function updateProgressStatus(currentDisplayName) {
         updateFloatingProgress({
           phase: batchAutofillPhase,
           running: true,
           stopping: batchQualifiedAutofillCancelRequested === true,
-          frontConcurrency: maxConcurrency,
           totalCount,
+          plannedSendCount,
+          frontConcurrency: maxConcurrency,
+          requestStaggerMs,
           launchedCount,
           activeAiCount,
           completedAiCount,
-          jobSubmittedCount,
-          jobRunningCount,
-          jobSuccessCount,
-          jobFailCount,
           analysisSuccessCount,
           analysisFailCount,
           queueCount: completedQueue.length,
@@ -715,57 +720,34 @@
         });
       }
 
-      function recalculateJobStats() {
-        let submitted = 0;
-        let running = 0;
-        let succeeded = 0;
-        let failed = 0;
-        jobStateMap.forEach(function (state) {
-          if (!state) {
-            return;
-          }
-          if (state.submitted === true) {
-            submitted += 1;
-          }
-          if (state.status === "pending" || state.status === "running") {
-            running += 1;
-          } else if (state.status === "succeeded") {
-            succeeded += 1;
-          } else if (state.status === "failed") {
-            failed += 1;
-          }
-        });
-        jobSubmittedCount = submitted;
-        jobRunningCount = running;
-        jobSuccessCount = succeeded;
-        jobFailCount = failed;
-      }
-
-      function updateJobState(processKey, patch) {
-        const key = String(processKey || "").trim();
-        if (!key) {
+      function scheduleLaunchTick() {
+        if (launchTimer || producersDone) {
           return;
         }
-        const currentState = jobStateMap.get(key) || {
-          submitted: false,
-          status: "",
-          jobId: "",
-        };
-        const nextState = Object.assign({}, currentState, patch || {});
-        if (nextState.submitted !== true && nextState.status) {
-          nextState.submitted = true;
+        if (batchQualifiedAutofillCancelRequested === true) {
+          if (activeAiCount <= 0) {
+            setProducersDone();
+          }
+          return;
         }
-        jobStateMap.set(key, nextState);
-        recalculateJobStats();
-        updateProgressStatus("");
-      }
-
-      function launchNextAiRequests() {
-        while (
-          activeAiCount < maxConcurrency &&
-          nextLaunchIndex < totalCount &&
-          batchQualifiedAutofillCancelRequested !== true
-        ) {
+        if (nextLaunchIndex >= totalCount) {
+          if (activeAiCount <= 0) {
+            setProducersDone();
+          }
+          return;
+        }
+        launchTimer = window.setTimeout(function () {
+          launchTimer = null;
+          if (batchQualifiedAutofillCancelRequested === true) {
+            if (activeAiCount <= 0) {
+              setProducersDone();
+            }
+            return;
+          }
+          if (activeAiCount >= maxConcurrency) {
+            scheduleLaunchTick();
+            return;
+          }
           const index = nextLaunchIndex;
           const task = sourceTasks[index];
           nextLaunchIndex += 1;
@@ -777,38 +759,26 @@
               displayName: String(task?.displayName || ""),
               activeAiCount,
               frontConcurrency: maxConcurrency,
+              plannedSendCount,
+              requestStaggerMs,
               listenModel: String(config.listenModel || ""),
               compareModel: String(config.compareModel || ""),
               recognitionMode: String(config.recognitionMode || ""),
-              asyncJobMode: useAsyncJobsForBatch,
+              asyncJobMode: false,
             });
           }
           updateProgressStatus("");
-
+          if (nextLaunchIndex < totalCount) {
+            scheduleLaunchTick();
+          }
           Promise.resolve()
             .then(function () {
-              if (useAsyncJobsForBatch) {
-                return ai.recommendAsync(task.item, {
-                  maxWaitMs: Math.max(300000, Number(config.timeoutMs) || 60000),
-                  onJobUpdate: function (jobUpdate) {
-                    const status = String(jobUpdate?.status || "").trim().toLowerCase();
-                    updateJobState(task.processKey || "index:" + String(index), {
-                      submitted: true,
-                      jobId: String(jobUpdate?.jobId || ""),
-                      status: status || "pending",
-                    });
-                  },
-                });
-              }
               return ai.recommend(task.item);
             })
             .then(function (recommendation) {
               analysisSuccessCount += 1;
-              if (useAsyncJobsForBatch) {
-                updateJobState(task.processKey || "index:" + String(index), {
-                  submitted: true,
-                  status: "succeeded",
-                });
+              if (batchQualifiedAutofillCancelRequested === true) {
+                return;
               }
               completedQueue.push({
                 ok: true,
@@ -820,15 +790,11 @@
                 displayName: task.displayName,
                 completedAt: Date.now(),
               });
-              queuedResultIds.add(String(task.processKey || "index:" + String(index)));
             })
             .catch(function (error) {
               analysisFailCount += 1;
-              if (useAsyncJobsForBatch) {
-                updateJobState(task.processKey || "index:" + String(index), {
-                  submitted: true,
-                  status: "failed",
-                });
+              if (batchQualifiedAutofillCancelRequested === true) {
+                return;
               }
               completedQueue.push({
                 ok: false,
@@ -844,34 +810,29 @@
                 debugRawJson: error?.debugRawJson || null,
                 completedAt: Date.now(),
               });
-              queuedResultIds.add(String(task.processKey || "index:" + String(index)));
             })
             .finally(function () {
               activeAiCount -= 1;
               completedAiCount += 1;
               updateProgressStatus("");
               notifySignal();
-
-              if (batchQualifiedAutofillCancelRequested !== true) {
-                launchNextAiRequests();
+              if (!batchQualifiedAutofillCancelRequested && nextLaunchIndex < totalCount) {
+                scheduleLaunchTick();
               }
-
               if (
-                (batchQualifiedAutofillCancelRequested === true ||
-                  nextLaunchIndex >= totalCount) &&
+                (batchQualifiedAutofillCancelRequested === true || nextLaunchIndex >= totalCount) &&
                 activeAiCount <= 0
               ) {
                 setProducersDone();
               }
             });
-        }
+        }, requestStaggerMs);
+      }
 
-        if (
-          (batchQualifiedAutofillCancelRequested === true || nextLaunchIndex >= totalCount) &&
-          activeAiCount <= 0
-        ) {
-          setProducersDone();
-        }
+      if (totalCount <= 0) {
+        setProducersDone();
+      } else {
+        scheduleLaunchTick();
       }
 
       async function fillLoop() {
@@ -893,24 +854,21 @@
             continue;
           }
 
-          const result = completedQueue.shift();
-          if (result) {
-            queuedResultIds.delete(String(result.processKey || "index:" + String(result.index || 0)));
-          }
-
-          if (batchQualifiedAutofillCancelRequested === true) {
-            break;
-          }
-
           batchAutofillPhase = "fill";
-          setBatchButtonState(true, batchQualifiedAutofillCancelRequested === true);
-          if (!result?.ok) {
+          updateProgressStatus("");
+          const result = completedQueue.shift();
+          if (!result) {
+            continue;
+          }
+
+          if (!result.ok) {
+            fillFailCount += 1;
             pushBatchFailure({
-              type: "ai_failed",
+              type: "analysis_failed",
               retryable: false,
-              displayName: String(result?.displayName || "未命名条目"),
-              errorMessage: String(result?.errorMessage || "AI 推荐失败"),
-              errorCode: String(result?.errorCode || ""),
+              displayName: result.displayName,
+              errorMessage: result.errorMessage,
+              errorCode: result.errorCode,
               jobId: String(result?.jobId || ""),
               hasDebugRawJson: result?.hasDebugRawJson === true,
               debugRawJson: result?.debugRawJson || null,
@@ -948,18 +906,21 @@
           }
 
           updateProgressStatus(String(result?.displayName || ""));
-          if (!producersDone || completedQueue.length > 0) {
+          if (!batchQualifiedAutofillCancelRequested && (!producersDone || completedQueue.length > 0)) {
             await waitBetweenBatchItems();
           }
         }
+        clearLaunchTimer();
       }
 
-      launchNextAiRequests();
       await fillLoop();
       await producerDonePromise;
+      clearLaunchTimer();
 
       return {
         totalCount,
+        plannedSendCount,
+        requestStaggerMs,
         launchedCount,
         activeAiCount,
         completedAiCount,
@@ -970,7 +931,6 @@
         fillFailCount,
         fillSkipCount,
         bufferedCount: completedQueue.length,
-        queuedResultCount: queuedResultIds.size,
         failures: currentBatchFailures.slice(),
         retryableFailuresCount: currentRetryableFillFailures.length,
         stopped: batchQualifiedAutofillCancelRequested === true,
@@ -1098,7 +1058,7 @@
         ui.setStatus(
           String(config.recognitionMode || "").trim() === "two_stage" &&
             String(config.listenModel || "").trim() === "fun-asr"
-            ? "连续填入运行中。Fun-ASR 批量会先提交后端异步任务，再轮询结果，详情见顶部统计悬浮窗。"
+            ? "连续填入运行中。当前页合格项会直接发起 recommend 请求，统一后端仍会做 AI 排队与限流保护，详情见顶部统计悬浮窗。"
             : "连续填入运行中，统一后端可能正在 AI 排队或限流重试，详情见顶部统计悬浮窗。",
           "info"
         );

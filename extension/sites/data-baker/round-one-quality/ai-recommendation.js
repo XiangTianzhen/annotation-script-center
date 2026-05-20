@@ -1,7 +1,9 @@
 (function () {
   const DEFAULT_ENDPOINT =
     "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
-  const DEFAULT_TIMEOUT_MS = 60000;
+  const DEFAULT_TIMEOUT_MS = 120000;
+  const DEFAULT_ASYNC_JOBS_ENABLED = false;
+  const DEFAULT_REQUEST_STAGGER_MS = 30;
   const DEFAULT_JOB_POLL_INTERVAL_MS = 1000;
   const DEFAULT_JOB_MAX_WAIT_MS = 300000;
 
@@ -32,7 +34,7 @@
       return "Fun-ASR 调用被拒绝。当前更像是平台音频 URL 对模型服务不可访问。可先切换到 qwen3.5-omni-plus 或 qwen3.5-omni-flash 恢复使用。";
     }
     if (code === "ai-job-timeout") {
-      return "当前任务超过60s，请重新请求。";
+      return "当前任务超过120s，请重新请求。";
     }
     if (code === "timeout") {
       return "AI 分析超时，请稍后重试。";
@@ -387,6 +389,8 @@
     return {
       recommend,
       recommendAsync,
+      defaultAsyncJobsEnabled: DEFAULT_ASYNC_JOBS_ENABLED,
+      defaultRequestStaggerMs: DEFAULT_REQUEST_STAGGER_MS,
       createRecommendJob,
       getRecommendJobDebug,
       pollRecommendJob,
@@ -398,6 +402,8 @@
     DEFAULT_JOB_MAX_WAIT_MS,
     DEFAULT_JOB_POLL_INTERVAL_MS,
     DEFAULT_TIMEOUT_MS,
+    DEFAULT_ASYNC_JOBS_ENABLED,
+    DEFAULT_REQUEST_STAGGER_MS,
     createRuntime,
     getAnnotatorName,
   };

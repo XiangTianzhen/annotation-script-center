@@ -85,7 +85,7 @@ PM2 进程名示例：`annotation-script-center`。
 ## 默认时间规则
 
 - TTS 自动清除默认时间统一为 `60000ms`。
-- AI / 模型请求默认超时时间统一为 `60000ms`。
+- AI / 模型请求默认超时时间统一为 `120000ms`。
 - 该默认规则已写入仓库根目录 `AGENTS.md`。
 - 用户在脚本高级设置中手动保存的非默认超时值应继续保留。
 - 非 AI 模型类的上传、下载、统计与普通后端接口超时不受该规则影响。
@@ -108,10 +108,11 @@ PM2 进程名示例：`annotation-script-center`。
   - 查询任务：`POST /api/v1/tasks/{task_id}`
 - 本轮只启用单条 REST 调用，不启用 `file_urls` batch。
 - DataBaker 单条“AI 推荐文本”仍走同步 recommend。
-- DataBaker 批量“AI连续填入合格项”在 `two_stage + fun-asr` 下会改走后端异步 job：
-  - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
-  - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/{jobId}`
-- 这样前端不再让 50 个同步 HTTP 长连接一起等待完整识别 + compare 结果，可避免浏览器、反向代理或网关在长等待期间出现 `Failed to fetch`。
+- DataBaker “AI并发分析并连续填入合格项”默认直接发送 `POST /api/data-baker/round-one-quality/ai/recommend`。
+- 当前页有 N 条合格项，就会为 N 条任务发送对应请求。
+- 前端按 `30ms` 错峰发起；“AI连续填入合格项并发数量”继续只控制最大活跃请求数，默认 `20`，范围 `1~50`。
+- 谁先返回，谁先进入待填队列；填入仍然顺序消费。
+- 后端 provider queue / RPM 限流继续保护上游；异步 job 接口如保留，仅作为历史兼容 / 调试入口。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
 - Fun-ASR Python 依赖固定放在 `platform-resources/backend/ai/python/requirements.txt`。
@@ -228,16 +229,16 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - 前端“AI连续填入合格项”是“并发发起 AI 请求 + 顺序填入页面”的两段流程。
 - 前端并发由 `aiQualifiedAutofillConcurrency` 控制，范围 `1~50`，默认建议 `20`。
 - 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `2`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
-- Fun-ASR 批量连续填入默认启用后端异步 job：
-  - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED=1`
-  - `DATABAKER_AI_JOB_TIMEOUT_MS=60000`
-  - `DATABAKER_AI_JOB_TTL_MS=1800000`
-  - `DATABAKER_AI_JOB_MAX_SIZE=600`
-  - `DATABAKER_AI_JOB_POLL_INTERVAL_MS=1000`
-  - `DATABAKER_AI_QUEUE_MAX_SIZE=600`
-- 单个异步 job 超过 60 秒后会强制失败，前端统一提示“当前任务超过60s，请重新请求。”；超时任务会被取消或逻辑丢弃，迟到结果不再填入页面。
-- 如果模型输出 JSON 解析失败，前端失败列表会显示“复制原始JSON”按钮，可复制脱敏后的原始模型输出用于后续修复 Prompt / schema。
-- DataBaker 平台当前实际的自动清除时间字段位于前端顶部统计悬浮窗 `autoHideMs`，默认已统一为 `60000ms`。
+- DataBaker 批量连续填入默认直接调用同步 recommend；异步 job 接口不再作为默认 AI 结果接收链路。
+- `DATABAKER_AI_ASYNC_JOBS_ENABLED=0`
+- `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED=0`（历史兼容）
+- `DATABAKER_AI_JOB_TIMEOUT_MS=120000`（仅兼容 job 接口时生效）
+- `DATABAKER_AI_JOB_TTL_MS=1800000`
+- `DATABAKER_AI_JOB_MAX_SIZE=600`
+- `DATABAKER_AI_QUEUE_MAX_SIZE=600`
+- `DATABAKER_AI_REQUEST_STAGGER_MS=30`（前端错峰发起间隔说明）
+- 超过 2 分钟仍未返回的 AI 请求，默认认为不适合当前项目，应优化模型、Prompt、任务拆分或后端策略，而不是继续拉长超时。
+- DataBaker 平台当前实际的自动清除时间字段位于前端顶部统计悬浮窗 `autoHideMs`，默认仍为 `60000ms`。
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
 - Compare 阶段若启用 thinking 可能明显变慢；未勾选时后端会显式关闭 compare thinking。
 - 如果批量执行看起来像串行，先看前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 后端任务已提交 / 后端任务运行中 / 后端任务成功 / 后端任务失败 / 待填队列`，再看 `health` 中 `queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`。

@@ -22,7 +22,11 @@ function parseIntegerInRange(value, fallback, min, max) {
 }
 
 function isAiJobsEnabled() {
-  return String(process.env.DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED || "1").trim() !== "0";
+  const explicit = String(process.env.DATABAKER_AI_ASYNC_JOBS_ENABLED || "").trim();
+  if (explicit) {
+    return explicit !== "0";
+  }
+  return String(process.env.DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED || "0").trim() !== "0";
 }
 
 function getAiJobStoreConfig() {
@@ -177,7 +181,7 @@ class DataBakerAiJobStore {
       });
       mutableJob.providerStatus = 504;
       mutableJob.errorCode = "ai-job-timeout";
-      mutableJob.errorMessage = "当前任务超过60s，请重新请求。";
+      mutableJob.errorMessage = "当前任务超过120s，请重新请求。";
       return { ignored: false };
     });
   }
@@ -406,4 +410,3 @@ module.exports = {
   markAiRecommendJobRunning: jobStore.markRunning.bind(jobStore),
   markAiRecommendJobSucceeded: jobStore.markSucceeded.bind(jobStore),
 };
-

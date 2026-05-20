@@ -18,9 +18,9 @@
 - 点击该按钮会先刷新当前页列表，再筛选当前页全部 `statusName=质检合格`（或 DOM 显示“一检合格”）条目。
 - 处理策略为“并发生产 + 顺序消费”：先按配置并发数发起全部合格项 AI 请求，结果返回后进入缓冲区；填入流程不等待全部请求结束，按 AI 返回顺序从队列取结果并逐条切换填入，支持运行中手动停止。
 - AI连续填入合格项并发数量默认 `20`，可在 Options 配置 `1~50`；前端并发越高，后端排队越多，但不会绕过上游模型限流。
-- 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认改走后端异步 job：先创建 job，再轮询 job 状态，避免 50 个同步长连接等待完整 Fun-ASR + compare 结果时被浏览器 / 代理中断成 `Failed to fetch`。
+- 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认直接发送同步 `POST /ai/recommend`；当前页有 N 条合格项，就会调度 N 条请求，前端按 `30ms` 错峰发起，并由前端活跃并发上限与后端 provider queue / RPM 限流共同保护链路。
 - 异步 job 默认最大保留数量 `600`，provider queue 默认最大排队数 `600`。
-- 单个 job 超过 `60000ms` 后会直接失败，失败列表固定提示“当前任务超过60s，请重新请求。”，且迟到结果不会再填入页面。
+- 单条 AI / 模型请求默认超时 `120000ms`；若仍未返回，失败列表固定提示“当前任务超过120s，请重新请求。”，且迟到结果不会再进入待填队列。
 - 如果模型输出 JSON 解析失败，失败列表会出现“复制原始JSON”按钮；按钮只复制脱敏后的 debug JSON，不直接在页面正文展开长文本。
 - 新增顶部统计悬浮窗，运行中展示 AI 返回、待填队列、填入成功/失败/跳过和失败条目。
 - 顶部悬浮窗还会显示 `后端任务已提交 / 运行中 / 成功 / 失败`，方便区分是前端没发起并发，还是后端 Fun-ASR / compare 仍在排队。
@@ -142,8 +142,8 @@ node platform-resources\backend\server.js
 - `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/health`
 - `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/defaults`
 - `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
-- `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/jobs`
-- `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
+- `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/jobs`（历史兼容 / 调试）
+- `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`（历史兼容 / 调试）
 - `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/export/health`
 - `GET http://127.0.0.1:3333/api/data-baker/round-one-quality/export/config`
 - `POST http://127.0.0.1:3333/api/data-baker/round-one-quality/export/upload`
@@ -152,8 +152,8 @@ node platform-resources\backend\server.js
 扩展默认请求服务器接口：
 
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend`
-- `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend/jobs`
-- `GET https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
+- `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend/jobs`（历史兼容 / 调试）
+- `GET https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`（历史兼容 / 调试）
 - `POST https://script.xiangtianzhen.store/api/data-baker/round-one-quality/export/upload`
 - `GET https://script.xiangtianzhen.store/api/data-baker/round-one-quality/export/download`
 
@@ -259,9 +259,9 @@ platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
 34. 选择 `two_stage + qwen3.5-omni-flash` 或 `two_stage + qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认后端链路为 Qwen Omni 听音 + compare。
 35. 选择 `omni_single + qwen3.5-omni-flash` 或 `omni_single + qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认后端链路为单次 Omni，不调用 compare。
 36. 点击“AI并发分析并连续填入合格项”，确认默认并发为 `20`，可手动调到 `1~50`，但填入仍保持顺序消费。
-37. 如果当前是 `two_stage + fun-asr`，确认 Network 中看到：
-    - `POST /ai/recommend/jobs`
-    - `GET /ai/recommend/jobs/:jobId`
+37. 如果当前是 `two_stage + fun-asr`，确认 Network 中看到大量按 `30ms` 错峰发起的 `POST /ai/recommend`，而不是默认先走 `/jobs`：
+    - `POST /ai/recommend/jobs`（历史兼容 / 调试）
+    - `GET /ai/recommend/jobs/:jobId`（历史兼容 / 调试）
     而不是 50 个长时间挂起的同步 `POST /ai/recommend`。
 38. 如果后端触发排队、429 重试或队列满，确认顶部悬浮窗/结果提示会显示“AI 排队 / 限流重试 / AI 分析失败”等友好状态，而不是误导为页面卡死。
 39. 默认 REST provider 下，未配置 Python 虚拟环境时 `two_stage + fun-asr` 仍应可用；只有显式切到 `provider=python` 或 `fallback=python` 时才会报清晰环境缺失错误，不应直接展示 provider 原始 JSON。

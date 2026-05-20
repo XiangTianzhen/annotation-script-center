@@ -356,7 +356,7 @@
           aiOptions: aiOptions,
         });
         return aiSuggestionClientApi.suggestCurrent(requestPayload, {
-          timeoutMs: Number(runtime.config?.aiSuggestionRequestTimeoutMs || 60000) || 60000,
+          timeoutMs: Number(runtime.config?.aiSuggestionRequestTimeoutMs || 120000) || 120000,
         });
       },
       applySuggestionText: function (text) {

@@ -29,7 +29,7 @@ extension/sites/data-baker/round-one-quality/
 - 左侧句子列表上方 `filter-screen`（“全选/批量判定”同一行）新增“AI连续填入合格项”：按钮挂载在“批量判定”右侧。
 - 点击后先刷新当前页 `queryCollectStatementByCondtion`，筛选当前页 `statusName=质检合格` 条目。
 - 先按配置并发数并发发起所有 AI 推荐（默认并发 `20`，可设 `1~50`），结果返回后进入缓冲区；填入流程不等待全部返回，按 AI 返回顺序从队列取结果后逐条选中并填入；运行中可再次点击或按 `Alt+Q` 停止。
-- 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认改走后端异步 job：先 `POST /ai/recommend/jobs` 创建任务，再 `GET /ai/recommend/jobs/:jobId` 轮询结果，避免 50 个同步长连接因等待队列、Fun-ASR poll 和 compare 过久而出现 `Failed to fetch`。
+- 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认直接发送同步 `POST /ai/recommend`。当前页有 N 条合格项，就会为 N 条任务调度对应请求；前端按 `30ms` 错峰发起，并继续受前端活跃并发上限与后端 provider queue / RPM 限流保护。
 - 运行中会显示顶部统计悬浮窗；完成或停止后保留约 60 秒，并展示失败条目与“重新填写失败内容”入口。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
 - 导出 CSV 不再包含“原始JSON”列；原始记录会脱敏后单独上传并由后端保存为 `latest-raw.json`（历史模式下为 `*.raw.json`）。
@@ -95,8 +95,9 @@ node platform-resources\backend\server.js
 
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
-- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
-- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
+- `POST /api/data-baker/round-one-quality/ai/recommend`（默认）
+- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`（历史兼容 / 调试）
+- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`（历史兼容 / 调试）
 
 扩展默认请求服务器完整路径：
 
@@ -133,7 +134,7 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_FUN_ASR_MODEL`：Fun-ASR 录音文件识别模型，默认 `fun-asr`。
 - `DATABAKER_AI_OMNI_MODEL`：Qwen Omni 模型默认值；双模型下用于 Omni 听音，单模型下用于 Omni 单模型推荐，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
-- `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `60000`。
+- `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
 - `DATABAKER_AI_PIPELINE_MODE`：识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。旧值 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
@@ -145,7 +146,7 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_FUN_ASR_CONCURRENCY`：Fun-ASR 并发上限，默认 `5`；`2 核 2G` 服务器压力高时建议调低到 `3`。
 - `DATABAKER_AI_TEXT_CONCURRENCY`：Compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
-- `DATABAKER_AI_JOB_TIMEOUT_MS`：单个异步 job 超时，默认 `60000`；超时后前端固定提示“当前任务超过60s，请重新请求。”。
+- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `120000`。仅在历史兼容 job 被显式启用时生效。
 - `DATABAKER_AI_JOB_TTL_MS`：异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
 - `DATABAKER_AI_JOB_MAX_SIZE`：异步 job 最大保留数量，默认 `600`。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `600`。
@@ -213,10 +214,10 @@ platform-resources/backend/ai/python/requirements.txt
   - Node 后端默认通过 `POST /services/audio/asr/transcription` 提交任务，再通过 `POST /tasks/{task_id}` 轮询
   - 当前只做单条 REST 调用，不启用 `file_urls` batch
 - 默认链路不启动 Python 子进程，可降低本机 CPU 压力
-- `two_stage + fun-asr` 的批量连续填入默认会走异步 job：单条“AI 推荐文本”按钮仍保留同步 `POST /ai/recommend`，批量则走 `POST /ai/recommend/jobs` + `GET /ai/recommend/jobs/:jobId`
-- 如果单个 job 超过 `60000ms`，后端会强制失败并取消或逻辑丢弃迟到结果，前端固定显示“当前任务超过60s，请重新请求。”。
-- 如果模型输出 JSON 解析失败，失败列表会显示“复制原始JSON”按钮；点击后会从 `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId/debug` 获取脱敏 debug JSON。
-- job 默认 TTL 为 `60000`（1 分钟）；超时过期或后端重启后，前端需重新提交
+- `two_stage + fun-asr` 的批量连续填入默认直接走同步 `POST /ai/recommend`；异步 jobs 仅保留为历史兼容 / 调试接口。
+- 单条 AI / 模型请求默认超时 `120000ms`；超过 2 分钟仍未返回，默认认为该链路不适合当前项目，应优先优化模型、Prompt、任务拆分或后端策略。
+- 如果模型输出 JSON 解析失败，失败列表会显示“复制原始JSON”按钮；同步 recommend 与历史兼容 jobs 都会返回可复制的脱敏 debug 信息。
+- job 默认 TTL 仍为 `1800000`（30 分钟）；这属于历史兼容 job 记录保留时间，不影响默认同步 recommend 主链路。
 - Python fallback 编码补充：
   - 仅显式切到 `provider=python` 时，Node 后端才会向 Python 子进程显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`
   - `platform-resources/backend/ai/python/funasr_client.py` 会按 UTF-8 输出 stdout JSON
@@ -241,10 +242,11 @@ platform-resources/backend/ai/python/requirements.txt
 8. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。
 9. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
 10. 默认 REST provider 下，即使未配置 Python 虚拟环境，`two_stage + fun-asr` 也应能调用；只有显式切到 `provider=python` 或 `fallback=python` 时才依赖 `.venv`。
-11. 选择 `two_stage + fun-asr` 后点击“AI连续填入合格项”，确认 Network 中优先出现：
-    - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`
-    - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`
-    而不是大量长时间挂起的同步 `POST /ai/recommend`。
+11. 选择 `two_stage + fun-asr` 后点击“AI连续填入合格项”，确认 Network 中优先出现大量按 `30ms` 错峰发起的 `POST /api/data-baker/round-one-quality/ai/recommend`；`/jobs` 相关接口不应作为默认链路出现。
+
+- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`（历史兼容 / 调试）
+- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`（历史兼容 / 调试）
+
 12. 若切到 Python provider，再用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
 13. 若 Fun-ASR 返回 `403`，确认页面提示会说明可能是权限/地域、API Key 或平台 `audioUrl` 可访问性问题，并建议切换到 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus`。
 14. 选择 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 时，需要验证后端能先返回 `heardText`，再调用 compare 模型生成 `recommendedText`。

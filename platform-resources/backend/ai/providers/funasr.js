@@ -32,7 +32,7 @@ function getFunAsrClientConfig() {
     providerMode,
     fallbackMode,
     model: String(restConfig.model || pythonConfig.model || DEFAULT_FUN_ASR_MODEL).trim() || DEFAULT_FUN_ASR_MODEL,
-    timeoutMs: Number(restConfig.timeoutMs || pythonConfig.timeoutMs || 0) || 60000,
+    timeoutMs: Number(restConfig.timeoutMs || pythonConfig.timeoutMs || 0) || 120000,
     mockEnabled: restConfig.mockEnabled === true || pythonConfig.mockEnabled === true,
     hasApiKey: restConfig.hasApiKey === true || pythonConfig.hasApiKey === true,
     languageHints: Array.isArray(restConfig.languageHints) ? restConfig.languageHints.slice() : [],

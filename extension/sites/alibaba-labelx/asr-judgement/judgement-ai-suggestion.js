@@ -1208,7 +1208,7 @@
 
       const timeoutMs = Math.max(
         1000,
-        Math.min(180000, Number(config.aiSuggestionRequestTimeoutMs) || 60000)
+        Math.min(180000, Number(config.aiSuggestionRequestTimeoutMs) || 120000)
       );
       const pendingState = getItemPendingState(item);
       if (pendingState.pending) {
