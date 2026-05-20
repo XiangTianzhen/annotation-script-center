@@ -1,5 +1,39 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（标贝易采一检质检热修：恢复 Omni 默认并改用 Python Fun-ASR 客户端）
+
+- 标贝易采一检质检 AI 默认模式恢复为 `omni_single`，前端 options 与后端 defaults 统一改为默认展示 `Omni 单模型（默认）`。
+- 修复 ASR 语音 AI 设置中的“听音模型”下拉显示 `[object Object]`：
+  - options 侧模型选项渲染改为同时兼容字符串数组和 `{ value, label }` 对象数组。
+  - DataBaker 模式切换时改为按 `omni_single / fun_asr_compare` 分别展示对应模型字段。
+- DataBaker 前端模式只保留：
+  - `omni_single`：默认，调用 `ai-client-qwen.js`
+  - `fun_asr_compare`：调用 Python Fun-ASR 客户端，再调用 compare 模型
+- Fun-ASR 不再由 Node 手写 REST 直接调用：
+  - 新增 `platform-resources/data-baker/round-one-quality/backend/funasr_client.py`
+  - 新增 `platform-resources/data-baker/round-one-quality/backend/requirements-funasr.txt`
+  - `ai-client-funasr.js` 改为 Node wrapper，通过 `child_process` 调用 Python SDK 脚本
+  - Python 脚本只从环境变量读取 `DASHSCOPE_API_KEY`，不把 API Key 暴露到命令行参数
+- Fun-ASR Python 虚拟环境口径固定为：
+  - `platform-resources/data-baker/round-one-quality/backend/.venv-funasr`
+  - `.venv-funasr` 与 `backend/__pycache__` 加入 `.gitignore`，不提交 Git
+- 后端链路明确分离：
+  - `pipelineMode=omni_single`：只走 `requestOmniSingle`
+  - `pipelineMode=fun_asr_compare`：只走 `requestFunAsrRecognition -> requestCompare`
+  - 历史 `two_stage / qwen_omni_two_stage / listen_only` 只兼容迁移为 `omni_single`，不再保留旧执行逻辑
+- Fun-ASR 友好错误增强：
+  - Python 环境缺失时返回“Fun-ASR Python 环境未配置，请先创建 .venv-funasr 并安装 requirements-funasr.txt。”
+  - `403` 时提示可能是 DashScope 权限/地域、API Key 权限或平台 `audioUrl` 对服务端不可访问，并建议先切回 `omni_single`
+  - `fun-asr` 模型名错误时明确提示必须使用小写 `fun-asr`
+- 统一后端 `health/defaults` 补充 `funAsrPythonConfigured`，便于前端和人工排查 Python 环境是否就绪。
+- 同步更新：
+  - `extension/sites/data-baker/round-one-quality/README.md`
+  - `platform-resources/data-baker/round-one-quality/README.md`
+  - `platform-resources/data-baker/round-one-quality/backend/README.md`
+  - `platform-resources/backend/README.md`
+  - `config/env/ai.env.example`
+  - `.gitignore`
+
 ## 2026-05-20（标贝易采一检质检：AI 模式收敛为 Fun-ASR + Omni 单模型）
 
 - 标贝易采一检质检 AI 推荐架构收敛为仅保留两种模式：

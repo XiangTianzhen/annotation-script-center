@@ -53,8 +53,8 @@ const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = AI_BASE_PATH + "/defaults";
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 const SUPPORTED_PIPELINE_MODES = [
+  { value: "omni_single", label: "Omni 单模型（默认）" },
   { value: "fun_asr_compare", label: "Fun-ASR + 比较模型" },
-  { value: "omni_single", label: "Omni 单模型" },
 ];
 const LEGACY_PIPELINE_MODE_MAP = {
   two_stage: "omni_single",
@@ -138,8 +138,8 @@ function getLexiconRewriteMode() {
 }
 
 function resolvePipelineMode(value, fallbackMode, sourceLabel) {
-  const fallbackText = String(fallbackMode || "fun_asr_compare").trim().toLowerCase();
-  const normalizedFallback = fallbackText === "omni_single" ? "omni_single" : "fun_asr_compare";
+  const fallbackText = String(fallbackMode || "omni_single").trim().toLowerCase();
+  const normalizedFallback = fallbackText === "fun_asr_compare" ? "fun_asr_compare" : "omni_single";
   const rawText = String(value || "").trim().toLowerCase();
   if (!rawText) {
     return {
@@ -175,7 +175,7 @@ function resolvePipelineMode(value, fallbackMode, sourceLabel) {
 }
 
 function getEnvPipelineResolution() {
-  return resolvePipelineMode(process.env.DATABAKER_AI_PIPELINE_MODE || "fun_asr_compare", "fun_asr_compare", "env");
+  return resolvePipelineMode(process.env.DATABAKER_AI_PIPELINE_MODE || "omni_single", "omni_single", "env");
 }
 
 function logDeprecatedPipelineOnce(resolution) {
@@ -388,6 +388,7 @@ function createHealthPayload() {
     deprecatedPipelineMode: envPipeline.deprecatedFrom || "",
     supportedPipelineModes: SUPPORTED_PIPELINE_MODES,
     funAsrModel: funAsrConfig.model || DEFAULT_FUN_ASR_MODEL,
+    funAsrPythonConfigured: funAsrConfig.pythonExists === true,
     omniModel: qwenConfig.omniModel || DEFAULT_OMNI_MODEL,
     compareModel: qwenConfig.compareModel || DEFAULT_COMPARE_MODEL,
     mockEnabled: qwenConfig.mockEnabled || funAsrConfig.mockEnabled,
@@ -832,6 +833,7 @@ function registerAiRoutes(router) {
             : qwenConfig.omniModel || DEFAULT_OMNI_MODEL,
         compareModel: qwenConfig.compareModel || DEFAULT_COMPARE_MODEL,
         funAsrModel: funAsrConfig.model || DEFAULT_FUN_ASR_MODEL,
+        funAsrPythonConfigured: funAsrConfig.pythonExists === true,
         omniModel: qwenConfig.omniModel || DEFAULT_OMNI_MODEL,
         reviewModel: "",
         timeoutMs: qwenConfig.timeoutMs,
@@ -864,9 +866,9 @@ function registerAiRoutes(router) {
           ]
         : [],
       notes: {
-        promptOverride: "fun_asr_compare 仅使用比较 Prompt；omni_single 使用听音 Prompt 作为单模型 Prompt。",
+        promptOverride: "omni_single 使用单模型 Prompt；fun_asr_compare 只使用比较 Prompt，Fun-ASR 听音由 Python SDK 完成。",
         responseFormat: "结构化输出由后端固定控制，前端不配置。",
-        funAsr: "Fun-ASR 为录音文件识别接口，不是 OpenAI-compatible chat model。",
+        funAsr: "Fun-ASR 为录音文件识别接口，不走 OpenAI-compatible chat model，由后端 Python SDK 调用。",
         queue: "所有 Fun-ASR / Omni / compare 调用都会先进入后端统一限流队列。",
       },
     });

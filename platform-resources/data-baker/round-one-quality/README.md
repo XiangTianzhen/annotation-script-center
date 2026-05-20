@@ -139,7 +139,8 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
-- `DATABAKER_AI_PIPELINE_MODE`：默认 `fun_asr_compare`；只接受 `fun_asr_compare | omni_single`。历史 `two_stage`、`qwen_omni_two_stage`、`listen_only` 会自动迁移为 `omni_single` 并给出 deprecated 提示。
+- `DATABAKER_AI_PIPELINE_MODE`：默认 `omni_single`；只接受 `omni_single | fun_asr_compare`。历史 `two_stage`、`qwen_omni_two_stage`、`listen_only` 会自动迁移为 `omni_single` 并给出 deprecated 提示。
+- `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Fun-ASR Python 解释器路径；未设置时优先使用 `backend/.venv-funasr`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
@@ -155,8 +156,8 @@ AI prompt 输出字形规则：
 
 当前只保留两种 AI 模式：
 
-- `fun_asr_compare`：默认批量模式。先调用 Fun-ASR 录音文件识别，再调用文本 compare 模型。
-- `omni_single`：高质量兜底模式。只调用一次 Qwen Omni，同时完成听音、页面文本对比和推荐输出。
+- `omni_single`：默认模式。只调用一次 Qwen Omni，同时完成听音、页面文本对比和推荐输出。
+- `fun_asr_compare`：Fun-ASR + 比较模型模式。先调用 Fun-ASR 录音文件识别，再调用文本 compare 模型。
 
 旧模式 `qwen_omni_two_stage / two_stage / listen_only` 已删除，不再保留执行分支，也不再作为前端可选项。
 
@@ -169,18 +170,39 @@ AI prompt 输出字形规则：
 - `429` 的根因是上游模型限流，不是本地或服务器 `2 核 2G` 算力问题；多个 RAM 用户或 API Key 若归属于同一阿里云主账号，也可能共享限流额度。
 - Qwen Omni 和 Fun-ASR 的调用链路不同，不能只靠改模型名互换。
 - `fun_asr_compare` 还依赖 Fun-ASR 服务能访问平台 `audioUrl`。如果音频 URL 对服务端不可访问，后端会明确报错，但日志和文档不会泄露完整签名 URL。
+- Fun-ASR 不走 OpenAI-compatible chat/completions；当前通过 Python SDK 文件调用。
+
+Fun-ASR Python 文件路径：
+
+```text
+platform-resources/data-baker/round-one-quality/backend/funasr_client.py
+```
+
+本地虚拟环境建议：
+
+```powershell
+python -m venv platform-resources\data-baker\round-one-quality\backend\.venv-funasr
+platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -U pip
+platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
+```
+
+`.venv-funasr` 不提交 Git。
 
 ## 真实浏览器验收建议
 
 1. 重新加载扩展。
-2. 打开 options，确认标贝易采 AI 模式只剩 `fun_asr_compare` 和 `omni_single`，默认选中 `fun_asr_compare`。
-3. 进入 `roundOneCollect` 页面，点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope。
-4. 点击“AI并发分析并连续填入合格项”，确认默认并发已降为 `5`，最大值不再超过 `10`。
-5. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。
-6. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
-7. `fun_asr_compare` 需要用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
-8. `omni_single` 需要验证单次 Omni 请求能返回 `heardText` 和 `recommendedText`，且不会再调用 compare 模型。
-9. 页面填入后仍不自动保存、不自动提交、不自动判定、不自动流转。
+2. 打开 options，确认标贝易采 AI 模式只剩 `omni_single` 和 `fun_asr_compare`，默认选中 `omni_single`。
+3. 确认“听音模型”下拉不再出现 `[object Object]`。
+4. 进入 `roundOneCollect` 页面，选择 `omni_single` 后点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope，且单次 Omni 请求恢复可用。
+5. 切换 `fun_asr_compare`，确认界面显示 `fun-asr` 与 `qwen3.5-plus`，并提示依赖 `.venv-funasr`。
+6. 点击“AI并发分析并连续填入合格项”，确认默认并发已降为 `5`，最大值不再超过 `10`。
+7. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。
+8. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
+9. 未配置 Python 虚拟环境时，`fun_asr_compare` 应返回清晰错误，而不是一串 provider 原始 JSON。
+10. 配置 Python 虚拟环境后，`fun_asr_compare` 需要用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
+11. 若 Fun-ASR 返回 `403`，确认页面提示会说明可能是权限/地域、API Key 或平台 `audioUrl` 可访问性问题，并建议切回 `omni_single`。
+12. `omni_single` 需要验证单次 Omni 请求能返回 `heardText` 和 `recommendedText`，且不会再调用 compare 模型。
+13. 页面填入后仍不自动保存、不自动提交、不自动判定、不自动流转。
 
 ## 当前边界
 

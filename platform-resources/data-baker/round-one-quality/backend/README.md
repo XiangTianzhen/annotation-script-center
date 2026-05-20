@@ -27,7 +27,8 @@
 - `export-routes.js`：导出 health / config / upload / download 路由。
 - `export-store.js`：导出文件落盘、latest/history/events 存储能力。
 - `ai-client-qwen.js`：DashScope Qwen 原生 `fetch` 调用，不依赖 OpenAI SDK；负责 `omni_single` 与 compare 文本模型。
-- `ai-client-funasr.js`：Fun-ASR 录音文件识别客户端，按官方 REST 异步提交/查询任务。
+- `ai-client-funasr.js`：Node wrapper，只负责调起 Python Fun-ASR 客户端并归一化结果。
+- `funasr_client.py`：按阿里云官方 Python SDK 提交 Fun-ASR 录音文件识别任务、轮询状态并拉取转写结果。
 - `ai-provider-queue.js`：provider/model group 维度的全局限流队列、429 退避重试与队列满保护。
 - `ai-result-cache.js`：推荐结果内存 TTL 缓存与命中统计。
 - `ai-lexicon.js`：读取闽南方言字词表 CSV，按当前页面文本和听音文本生成 prompt 上下文。
@@ -39,8 +40,8 @@
 
 当前只保留两种流水线模式：
 
-- `fun_asr_compare`：默认批量模式。Fun-ASR 负责听音转写，compare 模型负责生成推荐文本。
-- `omni_single`：高质量兜底模式。单次 Qwen Omni 请求同时完成听音、比对和推荐。
+- `omni_single`：默认模式。单次 Qwen Omni 请求同时完成听音、比对和推荐。
+- `fun_asr_compare`：Fun-ASR + 比较模型模式。Fun-ASR 负责听音转写，compare 模型负责生成推荐文本。
 
 环境变量可覆盖：
 
@@ -54,9 +55,10 @@
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_MOCK`：设为 `1` 时走 mock，可直接写入 `config/env/ai.env`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，原生 `fetch` 请求体顶层传 `enable_thinking=false` 尝试关闭 thinking；设为 `1` 时不传该字段。
-- `DATABAKER_AI_PIPELINE_MODE`：默认 `fun_asr_compare`；只接受 `fun_asr_compare | omni_single`。历史 `two_stage`、`qwen_omni_two_stage`、`listen_only` 会迁移为 `omni_single`，但不再保留旧执行分支。
+- `DATABAKER_AI_PIPELINE_MODE`：默认 `omni_single`；只接受 `omni_single | fun_asr_compare`。历史 `two_stage`、`qwen_omni_two_stage`、`listen_only` 会迁移为 `omni_single`，但不再保留旧执行分支。
 - `DATABAKER_AI_FUN_ASR_MODEL`：Fun-ASR 录音文件识别模型，默认 `fun-asr`。
 - `DATABAKER_AI_OMNI_MODEL`：Omni 单模型模式使用的 Qwen Omni 模型，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_FUNASR_PYTHON_BIN`：可选，显式指定 Fun-ASR Python 解释器路径；未设置时优先使用 `backend/.venv-funasr`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
@@ -122,19 +124,20 @@ CSV 字段统一口径：
 1. 校验请求体中的 `collectId`、`itemId`、`audioUrl`、`pageText`。
 2. 生成词表上下文与缓存 key；缓存 key 使用 sha256，不保存完整 `audioUrl`。
 3. 命中缓存时直接返回历史推荐；未命中则进入 provider 队列。
-4. `fun_asr_compare`：
-   - 先进入 `fun_asr` 队列，调用 Fun-ASR 录音文件识别异步任务。
-   - Fun-ASR 返回 `heardText` 后，再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
-5. `omni_single`：
+4. `omni_single`：
    - 进入 `qwen_omni` 队列。
    - 调用单次 Qwen Omni `input_audio` 请求，同时产出 `heardText`、`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`。
+5. `fun_asr_compare`：
+   - 先进入 `fun_asr` 队列，由 `ai-client-funasr.js` 调起 `funasr_client.py`。
+   - Python 端按官方 SDK 调用 `fun-asr`，提交录音文件识别任务并轮询结果。
+   - Fun-ASR 返回 `heardText` 后，再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
 6. 所有 provider 调用遇到 `429` 都走统一指数退避 + jitter 重试；超出队列长度直接返回清晰错误，不让请求无限堆积。
 7. 对 `heardText` / `recommendedText` 做现有清洗、简繁归一、词表替换与中文句末标点补全。
 8. 成功结果写入 TTL 缓存，并组装统一响应，返回模式、模型、队列、缓存、阶段耗时、`requestId` 和调试摘要。
 
 后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。
 
-`fun_asr_compare` 是默认批量模式，`omni_single` 是高质量兜底模式。本仓库不会因为任一模式自动保存、自动提交、批量识别或流转。
+`omni_single` 是默认模式，`fun_asr_compare` 用于独立验证 Fun-ASR + 比较模型链路。本仓库不会因为任一模式自动保存、自动提交、批量识别或流转。
 
 听音模型请求中的音频片段格式：
 
@@ -149,6 +152,17 @@ CSV 字段统一口径：
 ```
 
 `format` 会从 URL pathname 后缀推断，支持 `wav`、`mp3`、`aac`、`m4a`、`amr`、`3gp`、`3gpp`，无法识别时默认 `wav`。`data` 必须保留完整音频 URL，包括签名 query 参数，但日志和文档中不得记录完整 URL。Fun-ASR 模式同样只接受 `http/https` 音频 URL；若服务端无法访问平台音频地址，会返回明确错误而不是静默降级。
+
+Fun-ASR Python 环境建议：
+
+```powershell
+python -m venv platform-resources\data-baker\round-one-quality\backend\.venv-funasr
+platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -U pip
+platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
+platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m py_compile platform-resources\data-baker\round-one-quality\backend\funasr_client.py
+```
+
+`.venv-funasr` 与 `__pycache__` 都属于本地运行产物，不提交 Git。
 
 ## 闽南方言字词表
 
@@ -204,11 +218,20 @@ console.log(__testOnly.splitTerms('透早(tao za )'));
 
 1. 先查看后端返回给前端的 `summary`，该字段已脱敏，不应包含完整音频 URL、token、cookie、`OSSAccessKeyId` 或 `Signature`。
 2. 确认 `omni_single` 使用的是 Qwen Omni `input_audio`，不是旧的 `audio_url`。
-3. 确认 Fun-ASR 走的是录音文件识别提交/查询链路，而不是 OpenAI-compatible chat 模型。
+3. 确认 Fun-ASR 走的是 Python SDK 录音文件识别提交/查询链路，而不是 OpenAI-compatible chat 模型。
 4. 确认当前音频 URL 在服务端可访问，且签名参数没有过期。
 5. 确认 `config/env/ai.env` 中 `DASHSCOPE_API_KEY` 正确。
 6. 检查 health/defaults 中的队列、重试、deprecated mode 提示与缓存统计，确认前后端模式口径一致。
 7. 将 `DATABAKER_AI_MOCK=1` 写入 `config/env/ai.env` 后重启后端，可排除前端、路由和日志链路问题。
+
+Fun-ASR `403` 的常见原因：
+
+- DashScope 权限未开通或地域不匹配
+- API Key 对 `fun-asr` 无权限
+- 平台签名 `audioUrl` 对 Fun-ASR 服务不可访问
+- 调用参数错误
+
+若需要先恢复可用性，优先切回 `omni_single`。
 
 ## 日志安全
 

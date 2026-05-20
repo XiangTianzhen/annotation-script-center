@@ -45,9 +45,11 @@
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
                 aiRecommendRequestTimeoutMs: 120000,
-                aiRecommendPipelineMode: "fun_asr_compare",
+                aiRecommendPipelineMode: "omni_single",
                 aiQualifiedAutofillConcurrency: 5,
                 aiQualifiedAutofillWaitAllBeforeFill: false,
+                aiRecommendListenModel: "qwen3.5-omni-flash",
+                aiRecommendCompareModel: "qwen3.5-plus",
                 autoPageSizeEnabled: true,
                 defaultPageSize: "50条/页",
                 shortcuts: {
@@ -210,13 +212,13 @@
       BACKEND_ENDPOINT_MODE_LOCAL: "local",
       DATABAKER_PAGE_SIZE_OPTIONS: ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"],
       DATABAKER_AI_PIPELINE_MODE_OPTIONS: [
-        { value: "fun_asr_compare", label: "Fun-ASR + 比较模型（默认）" },
-        { value: "omni_single", label: "Omni 单模型" },
+        { value: "omni_single", label: "Omni 单模型（默认）" },
+        { value: "fun_asr_compare", label: "Fun-ASR + 比较模型" },
       ],
-      DATABAKER_AI_PRIMARY_MODEL_OPTIONS: [
-        { value: "fun-asr", supportsThinking: false },
-        { value: "qwen3.5-omni-flash", supportsThinking: true },
+      DATABAKER_AI_OMNI_MODEL_OPTIONS: [
+        { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
       ],
+      DATABAKER_AI_FUN_ASR_MODEL_OPTIONS: [{ value: "fun-asr", label: "fun-asr" }],
       DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: [
         { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
         { key: "autoFillQualifiedItem", label: "AI并发分析并连续填入合格项" },
@@ -1171,7 +1173,7 @@
     if (text === "two_stage" || text === "qwen_omni_two_stage" || text === "listen_only") {
       return "omni_single";
     }
-    return String(fallback || "fun_asr_compare").trim().toLowerCase() === "omni_single"
+    return String(fallback || "omni_single").trim().toLowerCase() === "omni_single"
       ? "omni_single"
       : "fun_asr_compare";
   }
@@ -1354,7 +1356,7 @@
     );
     result.aiRecommendPipelineMode = normalizeDataBakerPipelineMode(
       result.aiRecommendPipelineMode,
-      defaultConfig.aiRecommendPipelineMode || "fun_asr_compare"
+      defaultConfig.aiRecommendPipelineMode || "omni_single"
     );
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
@@ -1366,7 +1368,7 @@
     );
     result.aiRecommendListenModel = normalizeJudgementAiModelText(
       result.aiRecommendListenModel,
-      defaultConfig.aiRecommendListenModel || "fun-asr"
+      defaultConfig.aiRecommendListenModel || "qwen3.5-omni-flash"
     );
     result.aiRecommendCompareModel = normalizeJudgementAiModelText(
       result.aiRecommendCompareModel,
@@ -1445,9 +1447,11 @@
               constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
             aiRecommendRequestTimeoutMs: 120000,
-            aiRecommendPipelineMode: "fun_asr_compare",
+            aiRecommendPipelineMode: "omni_single",
             aiQualifiedAutofillConcurrency: 5,
             aiQualifiedAutofillWaitAllBeforeFill: false,
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendCompareModel: "qwen3.5-plus",
             autoPageSizeEnabled: true,
             defaultPageSize: "50条/页",
             shortcuts: {

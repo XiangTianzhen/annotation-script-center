@@ -55,12 +55,13 @@ http://127.0.0.1:3333
 - `ASR_TRANSCRIPTION_STATS_DIR`：ASR 转写统计输出目录（默认 `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`）。
 - `ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`：设为 `1` 时额外保存 `statistics-rows.json`。
 - `ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外保存 `statistics-upload-events.jsonl`。
-- `DATABAKER_AI_PIPELINE_MODE`：标贝易采 AI 流水线模式，默认 `fun_asr_compare`；仅支持 `fun_asr_compare | omni_single`，历史 `two_stage / qwen_omni_two_stage / listen_only` 只做兼容迁移并标记 deprecated。
+- `DATABAKER_AI_PIPELINE_MODE`：标贝易采 AI 流水线模式，默认 `omni_single`；仅支持 `omni_single | fun_asr_compare`，历史 `two_stage / qwen_omni_two_stage / listen_only` 只做兼容迁移并标记 deprecated。
 - `DATABAKER_AI_FUN_ASR_MODEL`：标贝易采 Fun-ASR 录音文件识别模型，默认 `fun-asr`。
 - `DATABAKER_AI_OMNI_MODEL`：标贝易采 Omni 单模型模式使用的 Qwen Omni 模型，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：标贝易采 AI 对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：标贝易采 AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：标贝易采 Fun-ASR 语言提示，默认 `zh`。
+- `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Fun-ASR Python 解释器路径；未设置时优先使用 `platform-resources/data-baker/round-one-quality/backend/.venv-funasr/`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：标贝易采 Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：标贝易采 Fun-ASR 队列限流，默认 `500` RPM。
 - `DATABAKER_AI_TEXT_RPM_LIMIT`：标贝易采 compare 文本模型队列限流，默认 `500` RPM。
@@ -243,10 +244,12 @@ ASR 转写职责边界：
   - 标贝易采导出下载：`/api/data-baker/round-one-quality/export/download`
 
 DataBaker AI 架构补充：
-- `fun_asr_compare` 是默认批量模式，先走 Fun-ASR，再走 compare 文本模型。
-- `omni_single` 是高质量兜底模式，单次 Qwen Omni 请求完成听音与推荐。
+- `omni_single` 是当前默认模式，单次 Qwen Omni 请求完成听音与推荐。
+- `fun_asr_compare` 通过 Python SDK 调用 Fun-ASR，再走 compare 文本模型。
 - 前端默认并发已降到 `5`，建议最大值 `10`；多人并发时只允许在后端排队，不允许浏览器直连 DashScope。
 - `429` 的根因是上游模型或账号维度限流，不是统一后端机器规格问题；同一阿里云主账号下的多个 RAM 用户/API Key 可能共享限流额度。
+- Fun-ASR 不走 OpenAI-compatible chat/completions；模型名必须是小写 `fun-asr`。
+- Fun-ASR 真实可用性仍取决于服务端是否能访问平台签名 `audioUrl`；若返回 `403`，需要优先排查权限/地域/API Key 和音频 URL 可访问性。
 
 ## 0.2.11 统计总表修正规则
 

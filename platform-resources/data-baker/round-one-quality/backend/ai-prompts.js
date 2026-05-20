@@ -1,6 +1,6 @@
 "use strict";
 
-const RULE_VERSION = "data-baker-round-one-quality-ai-v2-fun-asr-omni-single";
+const RULE_VERSION = "data-baker-round-one-quality-ai-v3-omni-default-python-funasr";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "你要一次完成：听音、对比页面候选文本、输出最终推荐文本。",
   "页面候选文本只作为参考，实际发声优先。",

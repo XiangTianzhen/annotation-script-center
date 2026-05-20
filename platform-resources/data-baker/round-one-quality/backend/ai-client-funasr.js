@@ -1,16 +1,17 @@
 "use strict";
 
-const DEFAULT_FUN_ASR_MODEL = "fun-asr";
-const DEFAULT_POLL_INTERVAL_MS = 1200;
+const fs = require("fs");
+const path = require("path");
+const { spawn } = require("child_process");
 
-function trimSlash(value) {
-  return String(value || "").replace(/\/+$/, "");
-}
+const DEFAULT_FUN_ASR_MODEL = "fun-asr";
+const DEFAULT_TIMEOUT_MS = 120000;
+const PYTHON_SCRIPT_PATH = path.join(__dirname, "funasr_client.py");
 
 function parseTimeoutMs() {
-  const value = Number(process.env.DATABAKER_AI_TIMEOUT_MS || 120000);
+  const value = Number(process.env.DATABAKER_AI_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
   if (!Number.isFinite(value)) {
-    return 120000;
+    return DEFAULT_TIMEOUT_MS;
   }
   return Math.max(1000, Math.min(300000, Math.floor(value)));
 }
@@ -31,26 +32,6 @@ function parseLanguageHints() {
   return values.length > 0 ? values : ["zh"];
 }
 
-function getFunAsrClientConfig() {
-  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
-  const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1");
-  const endpointOrigin = new URL(baseUrl).origin;
-  const model = String(process.env.DATABAKER_AI_FUN_ASR_MODEL || DEFAULT_FUN_ASR_MODEL).trim();
-  return {
-    apiKey,
-    endpointOrigin,
-    model: model || DEFAULT_FUN_ASR_MODEL,
-    timeoutMs: parseTimeoutMs(),
-    mockEnabled: isMockEnabled(),
-    hasApiKey: Boolean(apiKey),
-    languageHints: parseLanguageHints(),
-    pollIntervalMs: Math.max(
-      300,
-      Math.min(10000, Math.floor(Number(process.env.DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS || DEFAULT_POLL_INTERVAL_MS)))
-    ),
-  };
-}
-
 function sanitizeSummary(text) {
   return String(text || "")
     .replace(/https?:\/\/[^\s"'\\]+/g, "[url-redacted]")
@@ -60,222 +41,202 @@ function sanitizeSummary(text) {
     .replace(/(api[_-]?key["'\s:=]+)([^\s",}]+)/gi, "$1[redacted]")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 200);
+    .slice(0, 240);
 }
 
-function createProviderHttpError(statusCode, bodyText) {
-  const error = new Error("Fun-ASR 接口请求失败（HTTP " + String(statusCode) + "）。");
-  error.code = "provider-http-error";
+function trimSlash(value) {
+  return String(value || "").replace(/\/+$/, "");
+}
+
+function buildSdkBaseHttpApiUrl() {
+  const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1");
+  try {
+    const parsedUrl = new URL(baseUrl);
+    return parsedUrl.origin + "/api/v1";
+  } catch (error) {
+    return "https://dashscope.aliyuncs.com/api/v1";
+  }
+}
+
+function getDefaultPythonCandidates() {
+  return [
+    path.join(__dirname, ".venv-funasr", "Scripts", "python.exe"),
+    path.join(__dirname, ".venv-funasr", "bin", "python"),
+  ];
+}
+
+function resolvePythonBin() {
+  const configured = String(process.env.DATABAKER_FUNASR_PYTHON_BIN || "").trim();
+  if (configured) {
+    return {
+      pythonBin: configured,
+      source: "env",
+      exists: fs.existsSync(configured),
+    };
+  }
+  const candidate = getDefaultPythonCandidates().find(function (item) {
+    return fs.existsSync(item);
+  });
+  if (candidate) {
+    return {
+      pythonBin: candidate,
+      source: "venv",
+      exists: true,
+    };
+  }
+  return {
+    pythonBin: "",
+    source: "missing",
+    exists: false,
+  };
+}
+
+function getFunAsrClientConfig() {
+  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
+  const model = String(process.env.DATABAKER_AI_FUN_ASR_MODEL || DEFAULT_FUN_ASR_MODEL).trim();
+  const pythonResolution = resolvePythonBin();
+  return {
+    apiKey,
+    model: model || DEFAULT_FUN_ASR_MODEL,
+    timeoutMs: parseTimeoutMs(),
+    mockEnabled: isMockEnabled(),
+    hasApiKey: Boolean(apiKey),
+    languageHints: parseLanguageHints(),
+    pythonBin: pythonResolution.pythonBin,
+    pythonSource: pythonResolution.source,
+    pythonExists: pythonResolution.exists,
+    sdkBaseHttpApiUrl: buildSdkBaseHttpApiUrl(),
+  };
+}
+
+function createConfiguredError(message, code, statusCode) {
+  const error = new Error(message);
+  error.code = code;
   error.statusCode = statusCode;
-  error.summary = sanitizeSummary(bodyText);
   return error;
 }
 
-function createAudioUrlUnavailableError(summaryText) {
-  const error = new Error("Fun-ASR 无法访问当前音频链接，请确认平台 audioUrl 对模型服务可访问。");
-  error.code = "fun-asr-audio-url-unreachable";
-  error.statusCode = 502;
-  error.summary = sanitizeSummary(summaryText);
+function createPythonEnvironmentMissingError() {
+  return createConfiguredError(
+    "Fun-ASR Python 环境未配置，请先创建 .venv-funasr 并安装 requirements-funasr.txt。",
+    "fun-asr-python-not-configured",
+    503
+  );
+}
+
+function createJsonParseError(stdoutText, stderrText) {
+  const error = createConfiguredError("Fun-ASR Python 输出解析失败。", "fun-asr-python-invalid-output", 502);
+  error.summary = sanitizeSummary(stdoutText || stderrText || "");
   return error;
 }
 
-function isAudioUrlLikelyUnavailable(summaryText) {
-  const text = String(summaryText || "").toLowerCase();
-  return (
-    text.indexOf("url") >= 0 &&
-    (text.indexOf("access") >= 0 ||
-      text.indexOf("403") >= 0 ||
-      text.indexOf("404") >= 0 ||
-      text.indexOf("forbidden") >= 0 ||
-      text.indexOf("denied") >= 0 ||
-      text.indexOf("download") >= 0)
-  );
+function normalizeFailureMessage(code, providerStatus, message) {
+  if (code === "fun-asr-python-not-configured") {
+    return "Fun-ASR Python 环境未配置，请先创建 .venv-funasr 并安装 requirements-funasr.txt。";
+  }
+  if (code === "invalid-fun-asr-model") {
+    return "Fun-ASR 模型名应为 fun-asr。";
+  }
+  if (code === "fun-asr-audio-url-unreachable") {
+    return "Fun-ASR 调用被拒绝。当前更像是平台音频 URL 对模型服务不可访问，可先切回 Omni 单模型恢复使用。";
+  }
+  if (providerStatus === 403 || code === "fun-asr-forbidden") {
+    return "Fun-ASR 调用被拒绝。可能是 DashScope 权限/地域未开通、API Key 无权限，或平台音频 URL 无法被 Fun-ASR 服务访问。可先切换到 Omni 单模型恢复使用。";
+  }
+  return String(message || "Fun-ASR 调用失败。").slice(0, 240);
 }
 
-async function fetchJson(url, options) {
-  if (typeof fetch !== "function") {
-    throw new Error("当前 Node 运行时不支持 fetch。");
-  }
-  const response = await fetch(url, options);
-  const text = await response.text();
-  if (!response.ok) {
-    if (isAudioUrlLikelyUnavailable(text)) {
-      throw createAudioUrlUnavailableError(text);
-    }
-    throw createProviderHttpError(response.status, text);
-  }
-  try {
-    return JSON.parse(text || "{}");
-  } catch (error) {
-    throw new Error("Fun-ASR 返回 JSON 解析失败。");
-  }
-}
-
-function createAbortController(timeoutMs) {
-  const controller = typeof AbortController === "function" ? new AbortController() : null;
-  const timer = controller
-    ? setTimeout(function () {
-        controller.abort();
-      }, timeoutMs)
-    : null;
-  return { controller, timer };
-}
-
-function clearAbortTimer(state) {
-  if (state && state.timer) {
-    clearTimeout(state.timer);
-  }
-}
-
-async function submitRecognitionTask(input, options) {
+function runPythonClient(payload, timeoutMs) {
   const config = getFunAsrClientConfig();
-  const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs);
-  const abortState = createAbortController(timeoutMs);
-  try {
-    return await fetchJson(config.endpointOrigin + "/api/v1/services/audio/asr/transcription", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + config.apiKey,
-        "X-DashScope-Async": "enable",
-      },
-      body: JSON.stringify({
-        model: String(options?.model || config.model || DEFAULT_FUN_ASR_MODEL),
-        input: {
-          file_urls: [String(input?.audioUrl || "")],
-        },
-        parameters: {
-          language_hints: config.languageHints,
-        },
-      }),
-      signal: abortState.controller ? abortState.controller.signal : undefined,
+  if (!config.pythonBin) {
+    return Promise.reject(createPythonEnvironmentMissingError());
+  }
+  if (config.pythonSource === "env" && !config.pythonExists) {
+    return Promise.reject(
+      createConfiguredError(
+        "DATABAKER_FUNASR_PYTHON_BIN 指向的 Python 不存在，请检查路径。",
+        "fun-asr-python-not-configured",
+        503
+      )
+    );
+  }
+  return new Promise(function (resolve, reject) {
+    const child = spawn(config.pythonBin, [PYTHON_SCRIPT_PATH], {
+      cwd: __dirname,
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+      env: process.env,
     });
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      const timeoutError = new Error("Fun-ASR 请求超时。");
-      timeoutError.code = "timeout";
-      timeoutError.statusCode = 504;
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    clearAbortTimer(abortState);
-  }
-}
-
-function extractTaskId(payload) {
-  return String(
-    payload?.output?.task_id || payload?.output?.taskId || payload?.task_id || payload?.taskId || ""
-  ).trim();
-}
-
-function extractTaskStatus(payload) {
-  return String(
-    payload?.output?.task_status || payload?.output?.taskStatus || payload?.task_status || payload?.taskStatus || ""
-  )
-    .trim()
-    .toUpperCase();
-}
-
-function extractTaskSummary(payload) {
-  return sanitizeSummary(
-    payload?.output?.message ||
-      payload?.output?.task_message ||
-      payload?.output?.taskMessage ||
-      payload?.message ||
-      payload?.msg ||
-      ""
-  );
-}
-
-function extractTranscriptionUrl(payload) {
-  const results = Array.isArray(payload?.output?.results) ? payload.output.results : [];
-  const first = results[0] && typeof results[0] === "object" ? results[0] : {};
-  return String(
-    first.transcription_url ||
-      first.transcriptionUrl ||
-      payload?.output?.transcription_url ||
-      payload?.output?.transcriptionUrl ||
-      ""
-  ).trim();
-}
-
-async function queryRecognitionTask(taskId, timeoutMs) {
-  const config = getFunAsrClientConfig();
-  const abortState = createAbortController(timeoutMs);
-  try {
-    return await fetchJson(config.endpointOrigin + "/api/v1/tasks/" + encodeURIComponent(taskId), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + config.apiKey,
-      },
-      signal: abortState.controller ? abortState.controller.signal : undefined,
-    });
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      const timeoutError = new Error("Fun-ASR 查询任务超时。");
-      timeoutError.code = "timeout";
-      timeoutError.statusCode = 504;
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    clearAbortTimer(abortState);
-  }
-}
-
-async function fetchTranscriptPayload(transcriptionUrl, timeoutMs) {
-  const abortState = createAbortController(timeoutMs);
-  try {
-    return await fetchJson(String(transcriptionUrl || ""), {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      signal: abortState.controller ? abortState.controller.signal : undefined,
-    });
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      const timeoutError = new Error("Fun-ASR 结果文件读取超时。");
-      timeoutError.code = "timeout";
-      timeoutError.statusCode = 504;
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    clearAbortTimer(abortState);
-  }
-}
-
-function extractTranscriptText(payload) {
-  const directText = String(payload?.text || payload?.output?.text || "").trim();
-  if (directText) {
-    return directText;
-  }
-
-  const candidates = [];
-  const collections = [payload?.transcripts, payload?.sentences, payload?.segments, payload?.utterances];
-  collections.forEach(function (items) {
-    if (!Array.isArray(items)) {
-      return;
-    }
-    items.forEach(function (item) {
-      if (!item || typeof item !== "object") {
+    let stdoutText = "";
+    let stderrText = "";
+    let settled = false;
+    const timer = setTimeout(function () {
+      if (settled) {
         return;
       }
-      const text = String(item.text || item.transcript || item.content || "").trim();
-      if (text) {
-        candidates.push(text);
-      }
+      settled = true;
+      child.kill("SIGTERM");
+      const error = createConfiguredError("Fun-ASR Python 调用超时。", "timeout", 504);
+      error.summary = sanitizeSummary(stderrText);
+      reject(error);
+    }, Math.max(1000, Number(timeoutMs) || config.timeoutMs));
+
+    child.stdout.on("data", function (chunk) {
+      stdoutText += String(chunk || "");
     });
+    child.stderr.on("data", function (chunk) {
+      stderrText += String(chunk || "");
+    });
+    child.on("error", function (error) {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      if (error?.code === "ENOENT") {
+        reject(createPythonEnvironmentMissingError());
+        return;
+      }
+      const nextError = createConfiguredError(
+        "Fun-ASR Python 进程启动失败。",
+        "fun-asr-python-launch-failed",
+        502
+      );
+      nextError.summary = sanitizeSummary(error?.message || stderrText);
+      reject(nextError);
+    });
+    child.on("close", function (code) {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      let parsed = null;
+      try {
+        parsed = JSON.parse(String(stdoutText || "").trim() || "{}");
+      } catch (error) {
+        reject(createJsonParseError(stdoutText, stderrText));
+        return;
+      }
+      if (code !== 0 && parsed?.success !== false) {
+        const processError = createConfiguredError(
+          "Fun-ASR Python 进程执行失败。",
+          "fun-asr-python-process-failed",
+          502
+        );
+        processError.summary = sanitizeSummary(stderrText || stdoutText);
+        reject(processError);
+        return;
+      }
+      resolve({
+        payload: parsed,
+        stderrText: sanitizeSummary(stderrText),
+      });
+    });
+
+    child.stdin.write(JSON.stringify(payload));
+    child.stdin.end();
   });
-
-  if (candidates.length > 0) {
-    return candidates.join("");
-  }
-
-  return "";
 }
 
 async function requestFunAsrRecognition(input, options) {
@@ -289,80 +250,50 @@ async function requestFunAsrRecognition(input, options) {
       usage: {},
       mock: true,
       taskId: "mock-task",
+      rawStatus: "MOCK",
     };
   }
   if (!config.hasApiKey) {
-    const error = new Error("missing-api-key");
-    error.code = "missing-api-key";
-    error.statusCode = 503;
+    throw createConfiguredError("缺少 DASHSCOPE_API_KEY。", "missing-api-key", 503);
+  }
+  const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs);
+  const result = await runPythonClient(
+    {
+      audioUrl: String(input?.audioUrl || ""),
+      model,
+      languageHints: config.languageHints,
+      timeoutMs,
+      baseHttpApiUrl: config.sdkBaseHttpApiUrl,
+    },
+    timeoutMs
+  );
+  const payload = result.payload && typeof result.payload === "object" ? result.payload : {};
+  if (payload.success !== true) {
+    const providerStatus = Number(payload.providerStatus) || 0;
+    const code = String(payload.code || "fun-asr-python-error");
+    const error = createConfiguredError(
+      normalizeFailureMessage(code, providerStatus, payload.message),
+      code,
+      providerStatus > 0 ? providerStatus : 502
+    );
+    error.providerStatus = providerStatus > 0 ? providerStatus : undefined;
+    error.summary = sanitizeSummary(payload.message || result.stderrText || "");
     throw error;
   }
-
-  const startedAt = Date.now();
-  const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs);
-  const deadlineAt = startedAt + timeoutMs;
-  const submitPayload = await submitRecognitionTask(input, {
-    model,
-    timeoutMs,
-  });
-  const taskId = extractTaskId(submitPayload);
-  if (!taskId) {
-    throw new Error("Fun-ASR 未返回 taskId。");
-  }
-
-  let taskPayload = submitPayload;
-  while (Date.now() < deadlineAt) {
-    const taskStatus = extractTaskStatus(taskPayload);
-    if (taskStatus === "SUCCEEDED" || taskStatus === "SUCCESS") {
-      break;
-    }
-    if (taskStatus === "FAILED" || taskStatus === "FAIL" || taskStatus === "CANCELED") {
-      const taskSummary = extractTaskSummary(taskPayload);
-      if (isAudioUrlLikelyUnavailable(taskSummary)) {
-        throw createAudioUrlUnavailableError(taskSummary);
-      }
-      const taskError = new Error("Fun-ASR 识别任务失败。" + (taskSummary ? " " + taskSummary : ""));
-      taskError.code = "fun-asr-task-failed";
-      taskError.statusCode = 502;
-      taskError.summary = taskSummary;
-      throw taskError;
-    }
-    await new Promise(function (resolve) {
-      setTimeout(resolve, config.pollIntervalMs);
-    });
-    taskPayload = await queryRecognitionTask(taskId, Math.max(1000, deadlineAt - Date.now()));
-  }
-
-  if (!(extractTaskStatus(taskPayload) === "SUCCEEDED" || extractTaskStatus(taskPayload) === "SUCCESS")) {
-    const timeoutError = new Error("Fun-ASR 识别结果等待超时。");
-    timeoutError.code = "timeout";
-    timeoutError.statusCode = 504;
-    throw timeoutError;
-  }
-
-  const transcriptionUrl = extractTranscriptionUrl(taskPayload);
-  let heardText = "";
-  if (transcriptionUrl) {
-    const transcriptPayload = await fetchTranscriptPayload(
-      transcriptionUrl,
-      Math.max(1000, deadlineAt - Date.now())
-    );
-    heardText = extractTranscriptText(transcriptPayload);
-  }
+  const heardText = String(payload.heardText || "").trim();
   if (!heardText) {
-    heardText = extractTranscriptText(taskPayload);
+    const error = createConfiguredError("Fun-ASR 未返回可用转写文本。", "fun-asr-empty-text", 502);
+    error.summary = sanitizeSummary(result.stderrText);
+    throw error;
   }
-  if (!heardText) {
-    throw new Error("Fun-ASR 未返回可用转写文本。");
-  }
-
   return {
-    model,
+    model: String(payload.model || model).trim() || model,
     heardText,
-    confidence: 0,
+    confidence: Number(payload.confidence || 0),
     usage: {},
     mock: false,
-    taskId,
+    taskId: String(payload.taskId || "").trim(),
+    rawStatus: String(payload.rawStatus || "").trim(),
   };
 }
 

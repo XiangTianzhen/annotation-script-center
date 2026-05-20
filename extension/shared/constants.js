@@ -86,12 +86,14 @@
     BACKEND_ENDPOINTS.local + TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH;
   const DATABAKER_PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const DATABAKER_AI_PIPELINE_MODE_OPTIONS = [
-    { value: "fun_asr_compare", label: "Fun-ASR + 比较模型（默认）" },
-    { value: "omni_single", label: "Omni 单模型" },
+    { value: "omni_single", label: "Omni 单模型（默认）" },
+    { value: "fun_asr_compare", label: "Fun-ASR + 比较模型" },
   ];
-  const DATABAKER_AI_PRIMARY_MODEL_OPTIONS = [
-    { value: "fun-asr", label: "fun-asr", role: "fun_asr_compare" },
-    { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash", role: "omni_single" },
+  const DATABAKER_AI_OMNI_MODEL_OPTIONS = [
+    { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+  ];
+  const DATABAKER_AI_FUN_ASR_MODEL_OPTIONS = [
+    { value: "fun-asr", label: "fun-asr" },
   ];
   const DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS = [
     { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
@@ -1274,10 +1276,10 @@
           aiRecommendEnabled: true,
           aiRecommendEndpoint: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
           aiRecommendRequestTimeoutMs: 120000,
-          aiRecommendPipelineMode: "fun_asr_compare",
+          aiRecommendPipelineMode: "omni_single",
           aiQualifiedAutofillConcurrency: 5,
           aiQualifiedAutofillWaitAllBeforeFill: false,
-          aiRecommendListenModel: "fun-asr",
+          aiRecommendListenModel: "qwen3.5-omni-flash",
           aiRecommendCompareModel: "qwen3.5-plus",
           aiRecommendEnableThinking: false,
           aiRecommendListenPrompt: "",
@@ -1462,7 +1464,8 @@
     TRANSCRIPTION_STATS_LOCAL_ENDPOINT: TRANSCRIPTION_STATS_LOCAL_ENDPOINT,
     DATABAKER_PAGE_SIZE_OPTIONS: clone(DATABAKER_PAGE_SIZE_OPTIONS),
     DATABAKER_AI_PIPELINE_MODE_OPTIONS: clone(DATABAKER_AI_PIPELINE_MODE_OPTIONS),
-    DATABAKER_AI_PRIMARY_MODEL_OPTIONS: clone(DATABAKER_AI_PRIMARY_MODEL_OPTIONS),
+    DATABAKER_AI_OMNI_MODEL_OPTIONS: clone(DATABAKER_AI_OMNI_MODEL_OPTIONS),
+    DATABAKER_AI_FUN_ASR_MODEL_OPTIONS: clone(DATABAKER_AI_FUN_ASR_MODEL_OPTIONS),
     DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_SHORTCUT_ACTIONS: clone(ABAKA_AI_TASK21_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_AI_ANALYSIS_MODES: clone(ABAKA_AI_TASK21_AI_ANALYSIS_MODES),

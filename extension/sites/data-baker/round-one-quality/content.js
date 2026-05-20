@@ -70,7 +70,7 @@
     if (text === "two_stage" || text === "qwen_omni_two_stage" || text === "listen_only") {
       return "omni_single";
     }
-    return "fun_asr_compare";
+    return "omni_single";
   }
 
   function normalizeAutofillWaitAll(value) {
@@ -137,7 +137,7 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: 120000,
-        aiRecommendPipelineMode: "fun_asr_compare",
+        aiRecommendPipelineMode: "omni_single",
         aiQualifiedAutofillConcurrency: 5,
         aiQualifiedAutofillWaitAllBeforeFill: false,
         autoPageSizeEnabled: true,

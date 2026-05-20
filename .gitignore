@@ -13,6 +13,8 @@
 # DataBaker AI 调用日志
 /platform-resources/data-baker/round-one-quality/backend/logs/
 /platform-resources/data-baker/round-one-quality/backend/export-data/
+/platform-resources/data-baker/round-one-quality/backend/.venv-funasr/
+/platform-resources/data-baker/round-one-quality/backend/__pycache__/
 /platform-resources/backend/project-data-download/audit-data/
 
 # 环境密钥文件

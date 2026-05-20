@@ -5,14 +5,23 @@
 
   function buildFriendlyErrorMessage(responseBody, status) {
     const code = String(responseBody?.code || "");
+    if (code === "fun-asr-python-not-configured") {
+      return "Fun-ASR Python 环境未配置，请先创建 .venv-funasr 并安装 requirements-funasr.txt。";
+    }
+    if (code === "invalid-fun-asr-model") {
+      return "Fun-ASR 模型名应为 fun-asr。";
+    }
     if (code === "provider-queue-full") {
       return "后端 AI 排队已满，请稍后重试。";
     }
     if (code === "provider-rate-limited" || Number(responseBody?.providerStatus) === 429) {
       return "上游模型限流，后端已重试仍失败，请稍后重试。";
     }
+    if (code === "fun-asr-forbidden" || Number(responseBody?.providerStatus) === 403) {
+      return "Fun-ASR 调用被拒绝。可能是 DashScope 权限/地域未开通、API Key 无权限，或平台音频 URL 无法被 Fun-ASR 服务访问。可先切换到 Omni 单模型恢复使用。";
+    }
     if (code === "fun-asr-audio-url-unreachable") {
-      return "Fun-ASR 无法访问当前音频链接，请刷新页面后重试；如持续失败，请确认平台 audioUrl 可被模型服务访问。";
+      return "Fun-ASR 调用被拒绝。当前更像是平台音频 URL 对模型服务不可访问。可先切换到 Omni 单模型恢复使用。";
     }
     if (code === "timeout") {
       return "AI 分析超时，请稍后重试。";
