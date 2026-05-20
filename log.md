@@ -1,5 +1,31 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（标贝易采一检质检热修：DataBaker AI 模式设置页模型显示收敛）
+
+- 修复 标贝易采一检质检 ASR 语音 AI 设置页模型展示逻辑，使其与实际后端模式严格一致。
+- `omni_single` 现在是设置页默认模式；切换到该模式时，只显示 AI 模式选择框与通用 AI 参数，不再显示：
+  - Fun-ASR 模型
+  - Fun-ASR 模型自定义
+  - 比较模型
+  - 比较模型自定义
+  - Fun-ASR Python SDK 提示
+- `fun_asr_compare` 模式下：
+  - Fun-ASR 模型固定为 `fun-asr`
+  - 不允许自定义 Fun-ASR 模型
+  - 比较模型只允许 `qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`
+  - 默认比较模型为 `qwen3.5-plus`
+  - 旧配置若落在上述 4 个之外，会自动迁移为 `qwen3.5-plus`
+- 修复 DataBaker 设置页历史残留的 `[object Object]` 风险：
+  - 常量层新增 DataBaker 专用比较模型选项数组
+  - options / storage / content 对对象值、空值、`[object Object]`、非法旧值统一做安全归一
+- DataBaker 保存逻辑收敛：
+  - `omni_single` 保存时不再写入无意义的 compare model override
+  - `fun_asr_compare` 保存时 `listenModel` 固定为 `fun-asr`
+  - `fun_asr_compare` 保存时 `compareModel` 只允许四选一
+- DataBaker 运行时请求体同步收敛：
+  - `omni_single` 不再把 compare model 作为实际调用依据
+  - `fun_asr_compare` 运行时固定 `listenModel=fun-asr`
+
 ## 2026-05-20（标贝易采一检质检热修：恢复 Omni 默认并改用 Python Fun-ASR 客户端）
 
 - 标贝易采一检质检 AI 默认模式恢复为 `omni_single`，前端 options 与后端 defaults 统一改为默认展示 `Omni 单模型（默认）`。

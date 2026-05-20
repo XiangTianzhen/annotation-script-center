@@ -219,6 +219,12 @@
         { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
       ],
       DATABAKER_AI_FUN_ASR_MODEL_OPTIONS: [{ value: "fun-asr", label: "fun-asr" }],
+      DATABAKER_AI_COMPARE_MODEL_OPTIONS: [
+        { value: "qwen3.6-plus", label: "qwen3.6-plus" },
+        { value: "qwen3.5-plus", label: "qwen3.5-plus" },
+        { value: "qwen3.6-flash", label: "qwen3.6-flash" },
+        { value: "qwen3.5-flash", label: "qwen3.5-flash" },
+      ],
       DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: [
         { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
         { key: "autoFillQualifiedItem", label: "AI并发分析并连续填入合格项" },
@@ -1178,6 +1184,70 @@
       : "fun_asr_compare";
   }
 
+  function getDataBakerModelText(value) {
+    if (isPlainObject(value)) {
+      if (typeof value.value === "string") {
+        return String(value.value || "").trim();
+      }
+      if (typeof value.label === "string") {
+        return String(value.label || "").trim();
+      }
+      return "";
+    }
+    const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    return text === "[object Object]" ? "" : text;
+  }
+
+  function getDataBakerCompareModelOptions(constants) {
+    const values = Array.isArray(constants?.DATABAKER_AI_COMPARE_MODEL_OPTIONS)
+      ? constants.DATABAKER_AI_COMPARE_MODEL_OPTIONS
+          .map(function (item) {
+            return getDataBakerModelText(item && typeof item === "object" ? item.value : item);
+          })
+          .filter(Boolean)
+      : [];
+    if (values.length > 0) {
+      return values;
+    }
+    return ["qwen3.6-plus", "qwen3.5-plus", "qwen3.6-flash", "qwen3.5-flash"];
+  }
+
+  function normalizeDataBakerOmniModel(value, fallback, constants) {
+    const omniOptions = Array.isArray(constants?.DATABAKER_AI_OMNI_MODEL_OPTIONS)
+      ? constants.DATABAKER_AI_OMNI_MODEL_OPTIONS
+          .map(function (item) {
+            return getDataBakerModelText(item && typeof item === "object" ? item.value : item);
+          })
+          .filter(Boolean)
+      : [];
+    const normalizedFallback =
+      getDataBakerModelText(fallback || "qwen3.5-omni-flash") || "qwen3.5-omni-flash";
+    const normalizedValue = getDataBakerModelText(value);
+    if (omniOptions.length > 0) {
+      if (normalizedValue && omniOptions.indexOf(normalizedValue) >= 0) {
+        return normalizedValue;
+      }
+      if (omniOptions.indexOf(normalizedFallback) >= 0) {
+        return normalizedFallback;
+      }
+      return omniOptions[0];
+    }
+    return normalizedValue || normalizedFallback;
+  }
+
+  function normalizeDataBakerCompareModel(value, fallback, constants) {
+    const compareOptions = getDataBakerCompareModelOptions(constants);
+    const normalizedFallback =
+      compareOptions.indexOf(getDataBakerModelText(fallback || "")) >= 0
+        ? getDataBakerModelText(fallback || "")
+        : "qwen3.5-plus";
+    const normalizedValue = getDataBakerModelText(value);
+    if (compareOptions.indexOf(normalizedValue) >= 0) {
+      return normalizedValue;
+    }
+    return normalizedFallback;
+  }
+
   function normalizeDataBakerWaitAllBeforeFill(value, fallback) {
     if (value === true || value === false) {
       return value;
@@ -1366,13 +1436,18 @@
       result.aiQualifiedAutofillWaitAllBeforeFill,
       defaultConfig.aiQualifiedAutofillWaitAllBeforeFill === true
     );
-    result.aiRecommendListenModel = normalizeJudgementAiModelText(
-      result.aiRecommendListenModel,
-      defaultConfig.aiRecommendListenModel || "qwen3.5-omni-flash"
-    );
-    result.aiRecommendCompareModel = normalizeJudgementAiModelText(
+    result.aiRecommendListenModel =
+      result.aiRecommendPipelineMode === "fun_asr_compare"
+        ? "fun-asr"
+        : normalizeDataBakerOmniModel(
+            result.aiRecommendListenModel,
+            defaultConfig.aiRecommendListenModel || "qwen3.5-omni-flash",
+            constants
+          );
+    result.aiRecommendCompareModel = normalizeDataBakerCompareModel(
       result.aiRecommendCompareModel,
-      defaultConfig.aiRecommendCompareModel || "qwen3.5-plus"
+      defaultConfig.aiRecommendCompareModel || "qwen3.5-plus",
+      constants
     );
     result.aiRecommendEnableThinking = result.aiRecommendEnableThinking === true;
     result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);

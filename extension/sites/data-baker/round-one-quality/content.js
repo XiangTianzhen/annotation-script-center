@@ -18,6 +18,13 @@
   const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const DATABAKER_AI_RECOMMEND_PATH =
     CONSTANTS.DATABAKER_AI_RECOMMEND_PATH || "/api/data-baker/round-one-quality/ai/recommend";
+  const DATABAKER_COMPARE_MODEL_OPTIONS = Array.isArray(CONSTANTS.DATABAKER_AI_COMPARE_MODEL_OPTIONS)
+    ? CONSTANTS.DATABAKER_AI_COMPARE_MODEL_OPTIONS
+        .map(function (item) {
+          return String(item && typeof item === "object" ? item.value : item || "").trim();
+        })
+        .filter(Boolean)
+    : ["qwen3.6-plus", "qwen3.5-plus", "qwen3.6-flash", "qwen3.5-flash"];
 
   let runtime = null;
   let runtimeConfigKey = "";
@@ -103,6 +110,36 @@
 
   function normalizePromptText(value) {
     return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
+  }
+
+  function getDataBakerModelText(value) {
+    if (value && typeof value === "object") {
+      if (typeof value.value === "string") {
+        return String(value.value || "").trim();
+      }
+      if (typeof value.label === "string") {
+        return String(value.label || "").trim();
+      }
+      return "";
+    }
+    const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    return text === "[object Object]" ? "" : text;
+  }
+
+  function normalizeDataBakerListenModel(value, pipelineMode) {
+    if (pipelineMode === "fun_asr_compare") {
+      return "fun-asr";
+    }
+    const normalizedValue = getDataBakerModelText(value);
+    return normalizedValue || "qwen3.5-omni-flash";
+  }
+
+  function normalizeDataBakerCompareModel(value) {
+    const normalizedValue = getDataBakerModelText(value);
+    if (DATABAKER_COMPARE_MODEL_OPTIONS.indexOf(normalizedValue) >= 0) {
+      return normalizedValue;
+    }
+    return "qwen3.5-plus";
   }
 
   function normalizeOptionalNumber(value, min, max) {
@@ -252,8 +289,10 @@
     if (stop.length > 0) {
       aiOptions.stop = stop;
     }
-    aiOptions.listenModel = String(script.aiRecommendListenModel || "").trim();
-    aiOptions.compareModel = String(script.aiRecommendCompareModel || "").trim();
+    aiOptions.listenModel = normalizeDataBakerListenModel(script.aiRecommendListenModel, pipelineMode);
+    if (pipelineMode === "fun_asr_compare") {
+      aiOptions.compareModel = normalizeDataBakerCompareModel(script.aiRecommendCompareModel);
+    }
     aiOptions.enable_thinking = script.aiRecommendEnableThinking === true;
 
     return {
@@ -267,8 +306,11 @@
       pipelineMode,
       aiQualifiedAutofillConcurrency,
       aiQualifiedAutofillWaitAllBeforeFill,
-      listenModel: String(script.aiRecommendListenModel || "").trim(),
-      compareModel: String(script.aiRecommendCompareModel || "").trim(),
+      listenModel: normalizeDataBakerListenModel(script.aiRecommendListenModel, pipelineMode),
+      compareModel:
+        pipelineMode === "fun_asr_compare"
+          ? normalizeDataBakerCompareModel(script.aiRecommendCompareModel)
+          : "",
       enableThinking: script.aiRecommendEnableThinking === true,
       aiOptions,
       key: [
@@ -282,8 +324,10 @@
         pipelineMode,
         String(aiQualifiedAutofillConcurrency),
         aiQualifiedAutofillWaitAllBeforeFill ? "1" : "0",
-        String(script.aiRecommendListenModel || ""),
-        String(script.aiRecommendCompareModel || ""),
+        normalizeDataBakerListenModel(script.aiRecommendListenModel, pipelineMode),
+        pipelineMode === "fun_asr_compare"
+          ? normalizeDataBakerCompareModel(script.aiRecommendCompareModel)
+          : "",
         script.aiRecommendEnableThinking === true ? "1" : "0",
         JSON.stringify(aiOptions),
         JSON.stringify(shortcuts),

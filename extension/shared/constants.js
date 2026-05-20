@@ -95,6 +95,12 @@
   const DATABAKER_AI_FUN_ASR_MODEL_OPTIONS = [
     { value: "fun-asr", label: "fun-asr" },
   ];
+  const DATABAKER_AI_COMPARE_MODEL_OPTIONS = [
+    { value: "qwen3.6-plus", label: "qwen3.6-plus" },
+    { value: "qwen3.5-plus", label: "qwen3.5-plus" },
+    { value: "qwen3.6-flash", label: "qwen3.6-flash" },
+    { value: "qwen3.5-flash", label: "qwen3.5-flash" },
+  ];
   const DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS = [
     { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
     { key: "autoFillQualifiedItem", label: "AI并发分析并连续填入合格项" },
@@ -1466,6 +1472,7 @@
     DATABAKER_AI_PIPELINE_MODE_OPTIONS: clone(DATABAKER_AI_PIPELINE_MODE_OPTIONS),
     DATABAKER_AI_OMNI_MODEL_OPTIONS: clone(DATABAKER_AI_OMNI_MODEL_OPTIONS),
     DATABAKER_AI_FUN_ASR_MODEL_OPTIONS: clone(DATABAKER_AI_FUN_ASR_MODEL_OPTIONS),
+    DATABAKER_AI_COMPARE_MODEL_OPTIONS: clone(DATABAKER_AI_COMPARE_MODEL_OPTIONS),
     DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_SHORTCUT_ACTIONS: clone(ABAKA_AI_TASK21_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_AI_ANALYSIS_MODES: clone(ABAKA_AI_TASK21_AI_ANALYSIS_MODES),

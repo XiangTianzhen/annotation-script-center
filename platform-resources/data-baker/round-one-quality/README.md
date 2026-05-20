@@ -159,6 +159,13 @@ AI prompt 输出字形规则：
 - `omni_single`：默认模式。只调用一次 Qwen Omni，同时完成听音、页面文本对比和推荐输出。
 - `fun_asr_compare`：Fun-ASR + 比较模型模式。先调用 Fun-ASR 录音文件识别，再调用文本 compare 模型。
 
+设置页口径：
+
+- `omni_single` 下不会显示 Fun-ASR 模型、Fun-ASR 自定义、比较模型、比较模型自定义。
+- `fun_asr_compare` 下 Fun-ASR 固定为 `fun-asr`，不支持自定义。
+- 比较模型只允许：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`。
+- 比较模型默认 `qwen3.5-plus`；旧配置若为其他值，会迁移为 `qwen3.5-plus`。
+
 旧模式 `qwen_omni_two_stage / two_stage / listen_only` 已删除，不再保留执行分支，也不再作为前端可选项。
 
 统一约束：
