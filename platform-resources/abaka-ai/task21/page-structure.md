@@ -49,21 +49,25 @@ Task21 输入区结构补充（2026-05-19）：
   - 命中后 `model.setValue(text)`
   - 再 fallback 到 editor instance / `execCommand` / textarea fallback
 - `image_b_texts_removed` 的业务判断链路：
-  - `T` = target removal texts，目标删除文本范围，只作辅助
-  - `B` = image_b 可读文本实例
-  - `R` = image_b_removed 仍可读文本实例
+  - `T` = target removal text multiset，目标删除文本多重集，只作辅助
+  - `B` = image_b 可读文本实例多重集
+  - `R` = image_b_removed 仍可读文本实例多重集
   - `D = B - R`
 - 只有 `image_b` 中存在、`image_b_removed` 中消失的文本才叫删除。
 - `image_a` 不参与 `image_b_texts_removed` 删除判断。
-- `true`：只有目标文本完整删除，且没有额外多删。
-- `specify`：目标文本部分删除，或额外非目标文本被删除，或需要逐项说明删除内容。
+- `true`：`D == T`。
 - `null`：`D` 为空。
+- `specify`：`D` 非空且 `D != T`，包括 extra deleted texts、部分删除、count mismatch。
 - 多实例比较大小写不敏感；普通空格、普通字距差异可忽略。
 - 换行和 `<br>` 有意义；带换行文本与无换行文本不能合并。
 - `specify` 行格式限定为：
   - `all instances of xxx`
   - `1 instance of xxx`
   - `N instances of xxx`
+- 例子：
+  - `Logo Variation` 只删 `Variation` 时，写 `1 instance of Variation`
+  - `MODERN<br>ABODE` 必须保留 `<br>`
+  - `image_b_removed` 中仍保留的文本不算删除，不能写 `all instances of xxx`
 - 超时诊断应至少包含：
   - `fieldItemFound`
   - `titleFound`

@@ -140,6 +140,18 @@ function normalizeStringArray(value, maxItems, maxLengthPerItem) {
   return result.slice(0, maxItems || 12);
 }
 
+function normalizeStringArrayPreserveDuplicates(value, maxItems, maxLengthPerItem) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map(function (item) {
+      return normalizeString(item, maxLengthPerItem || 300);
+    })
+    .filter(Boolean)
+    .slice(0, maxItems || 12);
+}
+
 function normalizeTimeoutMs(value, fallback) {
   const number = Number(value);
   const base = Number.isFinite(number) ? number : Number(fallback);
@@ -230,7 +242,7 @@ function normalizeAnalyzeRequest(body) {
       imageATexts: normalizeString(context.imageATexts, 12000),
       imageBTexts: normalizeString(context.imageBTexts, 12000),
       textPositions: normalizeObject(context.textPositions),
-      targetRemovalTextHints: normalizeStringArray(context.targetRemovalTextHints, 12, 240),
+      targetRemovalTextHints: normalizeStringArrayPreserveDuplicates(context.targetRemovalTextHints, 12, 240),
       currentValues: {
         same_font: normalizeString(currentValues.same_font, 300),
         image_b_texts_removed: normalizeString(currentValues.image_b_texts_removed, 3000),
@@ -446,9 +458,16 @@ function normalizeRemovedSection(section, target) {
   const applicable = target !== "same_font";
   const warnings = normalizeArray(source.warnings);
   const rawValue = String(source.value || "").trim();
-  const inferredLines = Array.isArray(source.lines) ? source.lines : rawValue.split(/\r?\n/);
-  const normalizedLines = normalizeRemovedLines(inferredLines, warnings);
   const rawChoice = normalizeChoiceText(source.choice);
+  const shouldNormalizeLines =
+    rawChoice === "specify" ||
+    (!rawChoice &&
+      rawValue &&
+      normalizeChoiceText(rawValue) !== "true" &&
+      normalizeChoiceText(rawValue) !== "null" &&
+      normalizeChoiceText(rawValue) !== "not_applicable");
+  const inferredLines = Array.isArray(source.lines) ? source.lines : rawValue.split(/\r?\n/);
+  const normalizedLines = shouldNormalizeLines ? normalizeRemovedLines(inferredLines, warnings) : [];
   let choice = "";
   if (rawChoice === "specify" || rawChoice === "true" || rawChoice === "null" || rawChoice === "not_applicable") {
     choice = rawChoice;

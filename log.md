@@ -1,5 +1,44 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（Task21助手：image_b_texts_removed 改为多重集精确匹配）
+
+- Task21 后端 Prompt 版本升级为 `abaka-task21-ai-v5-removed-text-multiset`。
+- `image_b_texts_removed` 规则进一步收紧为多重集判断：
+  - `T` = target removal text multiset
+  - `B` = image_b 可读文本实例多重集
+  - `R` = image_b_removed 仍可读文本实例多重集
+  - `D = B - R`
+- 新规则明确：
+  - `D == T` 时必须选择 `true`
+  - `D` 为空时必须选择 `null`
+  - `D` 非空且 `D != T` 时必须选择 `specify`
+- Prompt 新增并强化的误判约束：
+  - 不得因为“有文本被删”就一律 `specify`
+  - 不得因为“目标文本全删”就一律 `true`
+  - `image_b_removed` 中仍保留的文本不得写进删除列表
+  - `Logo Variation` 中若 `Logo` 保留、只删 `Variation`，必须写 `1 instance of Variation`
+  - `MODERN<br>ABODE` 必须保留 `<br>`，不能改写成空格
+  - 左侧说明/红框只能帮助识别 `T`，不能覆盖 `B/R/D` 的图片事实
+- 视觉阶段 Prompt 新增多重集与部分删除观察要求：
+  - `target_removal_text_candidates`
+  - `image_b_visible_text_instances`
+  - `image_b_removed_visible_text_instances`
+  - `deleted_text_candidates`
+  - `extra_deleted_text_candidates`
+  - `partially_deleted_target_candidates`
+- `ai-routes` 输入归一化调整：
+  - `targetRemovalTextHints` 不再去重，保留重复项，支持按多重集传入目标提示
+  - `normalizeRemovedLines` 继续保留 `all instances of xxx / 1 instance of xxx / N instances of xxx`
+  - 继续自动修正 `intance/intances` 与单复数错误
+- `data-collector` 的 `targetRemovalTextHints` 采集不再去重，避免丢失目标文本重复实例信息。
+- 文档同步更新：
+  - `extension/sites/abaka-ai/task-page/README.md`
+  - `platform-resources/abaka-ai/task21/README.md`
+  - `platform-resources/abaka-ai/task21/page-structure.md`
+  - `platform-resources/abaka-ai/README.md`
+  - `platform-resources/README.md`
+- 本轮不修改 `manifest.json`，不生成 CRX，不新增依赖，不自动保存/提交/送审。
+
 ## 2026-05-20（标贝易采一检质检热修：AI 模式切换即时显示 + Fun-ASR 部署文档补齐）
 
 - 修复 DataBaker ASR 语音 AI 设置页：切换 `AI 模式` 后，模型区域会立即按当前 select 值显示或隐藏，不需要先保存。

@@ -105,15 +105,19 @@
 - image_b_texts_removed 标准答案格式：
   - 只比较 `image_b` 与 `image_b_removed`
   - `image_a` 不参与删除判断，只用于 `same_font`
-  - 目标删除文本 `T` 只是目标范围辅助，最终仍以 `image_b` / `image_b_removed` 实际图片内容为准
-  - 新判断流程：`T` 目标删除文本、`B` image_b 可读文本、`R` image_b_removed 仍可读文本、`D = B - R`
-  - `true` 只在“只有目标文本完整删除，且没有额外多删”时成立
-  - `specify` 适用于“目标文本部分删除”或“出现额外多删除”或“需要具体列出删除项”
-  - `null` 适用于 `image_b` 没有任何可读文本在 `image_b_removed` 中消失
+  - `T` 是目标删除文本多重集（multiset），只作目标范围辅助，最终仍以 `image_b` / `image_b_removed` 实际图片内容为准
+  - `B` 是 `image_b` 可读文本实例多重集，`R` 是 `image_b_removed` 仍可读文本实例多重集，`D = B - R`
+  - `true` 条件：`D == T`
+  - `null` 条件：`D` 为空
+  - `specify` 条件：`D` 非空且 `D != T`
+  - 不要因为“有删除文本”就一律 `specify`；如果 `D == T` 必须 `true`
+  - 不要因为“目标文本全删”就一律 `true`；如果有 extra、部分删除或数量不匹配，必须 `specify`
   - 支持 `all instances of xxx` / `1 instance of xxx` / `N instances of xxx`
-  - 同一文本所有实例都被删时优先 `all instances of xxx`
-  - 大小写不敏感；普通空格、普通字距差异可忽略
-  - 换行和 `<br>` 有意义，带换行与无换行文本不能合并
+  - 多实例比较大小写不敏感；普通空格、普通字距差异可忽略
+  - 换行和 `<br>` 有意义，带换行与无换行文本不能合并；输出要保留实际文本形态，例如 `MODERN<br>ABODE`
+  - `image_b_removed` 中仍保留的文本不算删除，不能写进标准答案
+  - 组合文本只删除局部时，只写被删片段；例如 `Logo Variation` 中 `Logo` 保留、`Variation` 被删时，应写 `1 instance of Variation`
+  - 如果同一文本全部实例都消失、但 `D == T`，仍应选 `true`，不要为了 `all instances` 强行改成 `specify`
   - 仍不接受 bullet、编号、解释
 
 - other_changes 比较口径：

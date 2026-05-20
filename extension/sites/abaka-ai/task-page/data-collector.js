@@ -190,7 +190,7 @@
     ) {
       rawValue.split(/\r?\n/).forEach(function (line) {
         const text = normalizeText(line);
-        if (!text || hints.indexOf(text) >= 0) {
+        if (!text) {
           return;
         }
         hints.push(text.slice(0, 240));
