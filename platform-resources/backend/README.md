@@ -259,6 +259,7 @@ DataBaker AI 架构补充：
 - 不需要单独启动 Python；Python 只作为 Node 统一后端内部辅助进程运行。
 - 标准启动入口始终是 `node platform-resources/backend/server.js`。
 - 项目级服务器部署、Windows/Linux 创建命令、重启与 `health/defaults` 验证流程统一见根目录 `README.md`。
+- 这里不重复完整部署命令，避免误解为需要单独部署 Python 服务。
 
 ## 0.2.11 统计总表修正规则
 

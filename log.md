@@ -1,5 +1,20 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（统一后端 Fun-ASR 虚拟环境说明简化）
+
+- 根 `README.md` 的 Fun-ASR Python 环境部署段已简化为“准备统一 `.venv` + 继续用 Node 启动统一后端”的最小主流程。
+- 主流程只保留：
+  - 创建 `platform-resources/backend/.venv`
+  - 安装 `requirements-funasr.txt`
+  - 运行 `node platform-resources/backend/server.js`
+- `py_compile` 已移到“可选验证”，不再放在部署主流程中，避免误解为必须额外部署或启动 Python 服务。
+- 文档统一强调：
+  - Python 不作为独立服务启动
+  - PM2 / systemd 只管理 Node 后端进程
+  - 只有 `fun_asr_compare` 依赖 Python 虚拟环境
+  - 默认 `omni_single` 不依赖 Python 虚拟环境
+- `platform-resources/backend/README.md`、`platform-resources/data-baker/round-one-quality/backend/README.md`、`platform-resources/data-baker/round-one-quality/README.md` 收敛为短提示，不再重复完整部署命令。
+
 ## 2026-05-20（统一后端 Python 虚拟环境口径修复）
 
 - 统一 Python 虚拟环境目录从旧专用目录迁移为 `platform-resources/backend/.venv`。

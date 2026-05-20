@@ -187,7 +187,7 @@ platform-resources/data-baker/round-one-quality/backend/funasr_client.py
 ```
 
 - 默认虚拟环境路径已统一为 `platform-resources/backend/.venv`。
-- Fun-ASR Python 环境属于项目级后端部署，统一见根目录 `README.md`；后续其他 Python 辅助脚本也优先复用同一个 `.venv`。
+- Fun-ASR Python 环境属于项目级后端部署，完整流程统一见根目录 `README.md`；本平台资料不重复服务器部署命令。后续其他 Python 辅助脚本也优先复用同一个 `.venv`。
 
 ## 真实浏览器验收建议
 

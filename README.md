@@ -84,46 +84,42 @@ PM2 进程名示例：`annotation-script-center`。
 
 ### Fun-ASR Python 环境部署
 
-适用说明：
+核心说明：
 
-- 只有选择 DataBaker 的 `fun_asr_compare` 时需要 Python 虚拟环境。
-- `omni_single` 不依赖 Python 虚拟环境。
-- 统一后端 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
-- `platform-resources/backend` 是统一后端聚合目录，所以 Python 环境也放这里统一管理。
-- 不按功能单独创建专用虚拟环境；后续 Python 辅助脚本也优先复用这一个 `.venv`。
-- Fun-ASR 通过后端 Python SDK 调用，前端不直连 DashScope。
-- 不需要单独启动 Python；所有服务统一由 `node platform-resources/backend/server.js` 启动。
-- Python 只作为 Node 后端内部调用的辅助执行环境。
+- 统一后端启动命令始终是：`node platform-resources/backend/server.js`
+- PM2 / systemd 也只是管理这个 Node 后端进程，不管理独立 Python 服务。
+- Python 不单独启动，只作为 Node 后端内部调用 Fun-ASR Python SDK 的辅助运行环境。
+- 只有使用 DataBaker 的 `fun_asr_compare` 时才需要 Python 虚拟环境。
+- 默认 `omni_single` 不依赖 Python 虚拟环境。
+- 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
+- 不再使用 `platform-resources/backend/.venv-funasr`。
+- 不再使用 `platform-resources/data-baker/round-one-quality/backend/.venv-funasr`。
+- `platform-resources/backend` 是统一后端聚合目录，所以 Python 辅助环境也放这里统一管理。
 
-Windows 本地命令：
+Windows 本地准备：
 
     cd C:\Projects\annotation-script-center
     py -3 -m venv platform-resources\backend\.venv
     platform-resources\backend\.venv\Scripts\python.exe -m pip install -U pip
     platform-resources\backend\.venv\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
-    platform-resources\backend\.venv\Scripts\python.exe -m py_compile platform-resources\data-baker\round-one-quality\backend\funasr_client.py
+    node platform-resources\backend\server.js
 
-Linux 服务器命令：
+Linux 服务器准备：
 
     cd /var/www/annotation-script-center
     python3 -m venv platform-resources/backend/.venv
     platform-resources/backend/.venv/bin/python -m pip install -U pip
     platform-resources/backend/.venv/bin/python -m pip install -r platform-resources/data-baker/round-one-quality/backend/requirements-funasr.txt
-    platform-resources/backend/.venv/bin/python -m py_compile platform-resources/data-baker/round-one-quality/backend/funasr_client.py
+    node platform-resources/backend/server.js
 
-环境变量示例：
+如果使用 PM2，仍然只重启 Node 后端：
 
-    DASHSCOPE_API_KEY=your_dashscope_api_key
-    DATABAKER_AI_PIPELINE_MODE=omni_single
-    DATABAKER_AI_OMNI_MODEL=qwen3.5-omni-flash
-    DATABAKER_AI_FUN_ASR_MODEL=fun-asr
-    DATABAKER_AI_COMPARE_MODEL=qwen3.5-plus
-    DATABAKER_FUNASR_PYTHON_BIN=
-    DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS=zh
+    pm2 restart annotation-script-center --update-env
 
-说明：
+可选环境变量：
 
-- `DATABAKER_FUNASR_PYTHON_BIN` 留空时，后端自动使用 `platform-resources/backend/.venv`。
+- `DATABAKER_FUNASR_PYTHON_BIN` 一般不需要配置。
+- 留空时，后端自动使用 `platform-resources/backend/.venv`。
 - 如服务器 Python 路径特殊，可显式设置：
   `DATABAKER_FUNASR_PYTHON_BIN=/var/www/annotation-script-center/platform-resources/backend/.venv/bin/python`
 - Windows 本地可设置：
@@ -134,23 +130,15 @@ Linux 服务器命令：
 - 新部署推荐直接创建 `platform-resources/backend/.venv` 并重新安装依赖。
 - 旧服务器如果还在使用 `.venv-funasr`，可以临时把 `DATABAKER_FUNASR_PYTHON_BIN` 指向旧路径过渡，但默认口径已统一为 `.venv`。
 
-安装 Python 依赖或修改 env 后，必须重启统一后端：
+可选验证，不是启动步骤：
 
-    pm2 restart annotation-script-center --update-env
+Windows：
 
-systemd 示例：
+    platform-resources\backend\.venv\Scripts\python.exe -m py_compile platform-resources\data-baker\round-one-quality\backend\funasr_client.py
 
-    sudo systemctl restart annotation-script-center
+Linux：
 
-手动启动示例：
-
-    node platform-resources/backend/server.js
-
-说明：
-
-- 不需要单独启动 Python。
-- PM2 只管理 Node 进程，例如 `pm2 restart annotation-script-center --update-env`。
-- Python 脚本由 Node 统一后端内部通过 `child_process` 调用。
+    platform-resources/backend/.venv/bin/python -m py_compile platform-resources/data-baker/round-one-quality/backend/funasr_client.py
 
 验证接口：
 

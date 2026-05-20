@@ -168,13 +168,8 @@ platform-resources\backend\.venv\bin\python
 - 当前用于 DataBaker Fun-ASR Python SDK，后续新增 Python 辅助脚本也优先复用该目录。
 - Fun-ASR Python SDK 由 Node 统一后端通过 `child_process` 调用，不提供独立 Python 服务。
 - 用户不需要单独运行 `python xxx.py`；统一启动入口始终是 `node platform-resources/backend/server.js`。
-- `requirements-funasr.txt` 仍保留在 DataBaker 模块目录，但安装目标是统一 `.venv`，例如：
-
-```powershell
-platform-resources\backend\.venv\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
-```
-
-- 详细的 Windows/Linux 创建命令、环境变量、后端重启与验证流程统一见根目录 `README.md`。
+- `requirements-funasr.txt` 仍保留在 DataBaker 模块目录，但安装目标是统一 `.venv`。
+- 详细的 Windows/Linux 创建命令、环境变量、后端重启与验证流程统一见根目录 `README.md`，这里不重复部署主流程。
 
 ## 闽南方言字词表
 
