@@ -1,5 +1,33 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（标贝易采一检质检热修：Fun-ASR 默认改为 Node REST 单条调用）
+
+- DataBaker `fun-asr` 主链路从 Python SDK 子进程默认方案切换为 Node REST 单条调用：
+  - 新增 `platform-resources/backend/ai/providers/funasr-rest.js`
+  - 新增 `platform-resources/backend/ai/providers/funasr.js`
+  - 默认 `DATABAKER_AI_FUN_ASR_PROVIDER=rest`
+  - `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK` 默认空，不再静默退回 Python
+- Fun-ASR REST 采用官方异步任务模式：
+  - 提交任务：`POST /api/v1/services/audio/asr/transcription`
+  - 查询任务：`POST /api/v1/tasks/{task_id}`
+  - 当前只实现单条 REST 调用，不启用 `file_urls` batch
+- DataBaker `ai-service.js` 现在只调用统一 `requestFunAsrRecognition(...)` 入口，不再直接依赖 `funasr-python.js`。
+- `health/defaults/runtime` 新增 Fun-ASR provider 相关字段：
+  - `funAsrProvider`
+  - `funAsrRestConfigured`
+  - `funAsrPythonConfigured`
+  - `funAsrApiBase`（仅 host 摘要）
+- Python 代码与 requirements 继续保留：
+  - `platform-resources/backend/ai/python/funasr_client.py`
+  - `platform-resources/backend/ai/python/requirements.txt`
+  仅在显式设置 `provider=python` 或 `fallback=python` 时启用。
+- Fun-ASR provider 队列默认并发基线改为 `2`，继续由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 覆盖；RPM 限流与 queue 保护保持不变。
+- 文档与 env 示例已同步更新：
+  - Fun-ASR 默认 provider = REST
+  - Python 只作 fallback / 调试
+  - 修改 env 后需要重启统一 Node 后端
+  - 若显式切回 Python，再按根 README 安装 `.venv` 依赖
+
 ## 2026-05-20（标贝易采一检质检热修：Fun-ASR 连续填入并发诊断增强）
 
 - DataBaker “AI连续填入合格项”新增运行时诊断：

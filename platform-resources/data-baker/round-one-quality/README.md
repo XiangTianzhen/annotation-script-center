@@ -176,6 +176,7 @@ AI prompt 输出字形规则：
 - `two_stage` 下显示“听音模型”和“比较模型”，不显示“AI 模型”。
 - `omni_single` 下只显示“AI 模型”，不显示“听音模型”和“比较模型”。
 - 选择 `fun-asr` 时显示 Python SDK / `.venv` 提示。
+  - 当前默认 provider 已改为 Node REST；Python SDK 仅作为 fallback / 调试方案保留。
 - 选择 Qwen Omni 模型时隐藏 Python 提示。
 - 比较模型默认 `qwen3.5-plus`；旧配置若为其他值，会迁移为 `qwen3.5-plus`。
 
@@ -188,11 +189,11 @@ AI prompt 输出字形规则：
 - `429` 的根因是上游模型限流，不是本地或服务器 `2 核 2G` 算力问题；多个 RAM 用户或 API Key 若归属于同一阿里云主账号，也可能共享限流额度。
 - Qwen Omni 和 Fun-ASR 的调用链路不同，不能只靠改模型名互换。
 - 选择 `fun-asr` 作为听音模型时，还依赖 Fun-ASR 服务能访问平台 `audioUrl`。如果音频 URL 对服务端不可访问，后端会明确报错，但日志和文档不会泄露完整签名 URL。
-- Fun-ASR 不走 OpenAI-compatible chat/completions；当前通过 Python SDK 文件调用。
+- Fun-ASR 不走 OpenAI-compatible chat/completions；当前默认通过 Node RESTful API 调用。
 - Fun-ASR 没有 thinking 概念；thinking 只影响 Qwen Omni 听音阶段和 compare 阶段。
-- Python 只是统一 Node 后端内部调用的辅助进程，不提供独立 Python 服务；标准启动入口始终是 `node platform-resources/backend/server.js`。
+- Python 只是统一 Node 后端内部调用的 fallback / 调试辅助进程，不提供独立 Python 服务；标准启动入口始终是 `node platform-resources/backend/server.js`。
 
-Fun-ASR Python 运行环境路径：
+Fun-ASR 默认 REST / Python fallback 相关路径：
 
 ```text
 platform-resources/backend/ai/python/funasr_client.py
@@ -200,18 +201,22 @@ platform-resources/backend/ai/python/requirements.txt
 ```
 
 - 默认虚拟环境路径已统一为 `platform-resources/backend/.venv`。
-- Fun-ASR Python 运行环境统一位于 `platform-resources/backend`，完整部署流程统一见根目录 `README.md`；本平台资料不重复服务器部署命令。后续其他 Python 辅助脚本也优先复用同一个 `.venv` 与 `backend/ai/python/` 目录结构。
+- Fun-ASR 默认 provider 为 `rest`，完整部署流程统一见根目录 `README.md`；本平台资料不重复服务器部署命令。若显式切到 `provider=python`，则继续复用同一个 `.venv` 与 `backend/ai/python/` 目录结构。
 - `platform-resources/backend/ai/python/requirements.txt` 现新增 `opencc-python-reimplemented`，部署后需要重新执行 `pip install -r ai/python/requirements.txt`。
-- Fun-ASR 编码补充：
-  - Node 后端会向 Python 子进程显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`
+- Fun-ASR REST 补充：
+  - Node 后端默认通过 `POST /services/audio/asr/transcription` 提交任务，再通过 `POST /tasks/{task_id}` 轮询
+  - 当前只做单条 REST 调用，不启用 `file_urls` batch
+  - 默认链路不启动 Python 子进程，可降低本机 CPU 压力
+- Python fallback 编码补充：
+  - 仅显式切到 `provider=python` 时，Node 后端才会向 Python 子进程显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`
   - `platform-resources/backend/ai/python/funasr_client.py` 会按 UTF-8 输出 stdout JSON
   - `platform-resources/backend/ai/providers/funasr-python.js` 会按 UTF-8 解码 stdout/stderr
   - 若曾出现 `�` / 黑菱形乱码，修复部署后需要重启统一后端，避免旧内存缓存继续命中乱码结果
   - `qwen3.5-omni-plus` / `qwen3.5-omni-flash` 不经过 Python 子进程，因此不受该编码问题影响
 - Fun-ASR 简繁补充：
   - Fun-ASR 可能返回繁体或繁简混合字形
-  - 后端会先在 Python Fun-ASR 返回阶段做一次繁转简
-  - DataBaker AI 结果组装阶段会再按词表保护规则做一次繁转简兜底
+  - 默认 REST provider 下，DataBaker AI 结果组装阶段会做统一繁转简
+  - 显式切到 Python provider 时，还会先在 Python Fun-ASR 返回阶段做一次繁转简
   - `阮 / 汝 / 伊 / 诶` 等闽南词表建议用字会被保护，不按普通繁简转换覆盖
 
 ## 真实浏览器验收建议
@@ -225,8 +230,8 @@ platform-resources/backend/ai/python/requirements.txt
 7. 点击“AI并发分析并连续填入合格项”，确认默认并发为 `20`，可手动调到 `1~50`。
 8. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。
 9. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
-10. 未配置 Python 虚拟环境时，只有 `two_stage + fun-asr` 才应返回清晰错误，而不是一串 provider 原始 JSON。
-11. 配置 Python 虚拟环境后，`fun-asr` 需要用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
+10. 默认 REST provider 下，即使未配置 Python 虚拟环境，`two_stage + fun-asr` 也应能调用；只有显式切到 `provider=python` 或 `fallback=python` 时才依赖 `.venv`。
+11. 若切到 Python provider，再用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
 11. 若 Fun-ASR 返回 `403`，确认页面提示会说明可能是权限/地域、API Key 或平台 `audioUrl` 可访问性问题，并建议切换到 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus`。
 12. 选择 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 时，需要验证后端能先返回 `heardText`，再调用 compare 模型生成 `recommendedText`。
 13. 页面填入后仍不自动保存、不自动提交、不自动判定、不自动流转。
@@ -236,7 +241,7 @@ platform-resources/backend/ai/python/requirements.txt
 - 当前“AI连续填入合格项”采用“并发分析结果入缓冲 + 顺序填入”策略，仅在当前页执行，不跨页。
 - 诊断串行感时，先区分两层并发：
   - 前端并发：`aiQualifiedAutofillConcurrency`，范围 `1~50`，默认 `20`
-  - 后端 Fun-ASR 并发：`DATABAKER_AI_FUN_ASR_CONCURRENCY`，默认 `5`
+  - 后端 Fun-ASR 并发：`DATABAKER_AI_FUN_ASR_CONCURRENCY`，默认 `2`
   - 后端 compare 并发：`DATABAKER_AI_TEXT_CONCURRENCY`，默认 `5`
 - 如果前端“AI已返回”增长慢，不一定是前端没并发，也可能是 Fun-ASR 听音阶段或 compare 阶段在后端排队；优先看 `health.queue.groups.fun_asr.activeCount/maxConcurrent`。
 - 不做自动保存、不做自动提交、不做批量识别、不做自动流转。

@@ -61,12 +61,16 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_COMPARE_MODEL`：标贝易采 AI 对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：标贝易采 AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：标贝易采 Fun-ASR 语言提示，默认 `zh`。
+- `DATABAKER_AI_FUN_ASR_PROVIDER`：标贝易采 Fun-ASR provider 模式，默认 `rest`。
+- `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK`：默认空；仅显式设为 `python` 时，REST 失败后才允许退回 Python。
+- `DATABAKER_AI_FUN_ASR_REST_BASE_URL`：可选，覆盖 Fun-ASR REST API base；留空时按 `DASHSCOPE_BASE_URL` 推导到 `/api/v1`。
+- `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv/`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：标贝易采 Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：标贝易采 Fun-ASR 队列限流，默认 `500` RPM。
 - `DATABAKER_AI_TEXT_RPM_LIMIT`：标贝易采 compare 文本模型队列限流，默认 `500` RPM。
 - `DATABAKER_AI_QWEN_OMNI_CONCURRENCY`：标贝易采 Qwen Omni 并发上限，默认 `3`。
-- `DATABAKER_AI_FUN_ASR_CONCURRENCY`：标贝易采 Fun-ASR 并发上限，默认 `5`；如 `2 核 2G` 服务器压力高，可调低到 `3`。
+- `DATABAKER_AI_FUN_ASR_CONCURRENCY`：标贝易采 Fun-ASR 并发上限，默认 `2`；如 `2 核 2G` 服务器压力高，可继续调低，若资源充足也可手动调高。
 - `DATABAKER_AI_TEXT_CONCURRENCY`：标贝易采 compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：标贝易采上游 `429` 最大重试次数，默认 `3`。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：标贝易采统一 provider 队列最大长度，默认 `200`。
@@ -206,8 +210,8 @@ pm2 restart annotation-script-center --update-env
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`，以及导出 CSV `health/config/upload/download` 接口；当前前端先选“识别模式”，`two_stage` 显示“听音模型 + 比较模型”，`omni_single` 只显示“AI 模型”。后端再推导 Fun-ASR、Qwen Omni 听音 + compare、或 Omni 单模型链路，导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
 - `data-baker/round-one-quality` 的 `supportedPipelineModes` 仅保留给后端兼容与排查使用，不再作为前端主配置来源；前端主配置为 `listenModelOptions` 与 `compareModelOptions`。
-- DataBaker `fun-asr` 链路通过 Node `child_process` 调用 `platform-resources/backend/ai/python/funasr_client.py`，并显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`，避免 Windows 默认编码导致 Fun-ASR 听音文本乱码。
-- 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；Qwen Omni 听音链路不经过 Python 子进程，不受该问题影响。
+- DataBaker `fun-asr` 链路默认通过 `platform-resources/backend/ai/providers/funasr-rest.js` 走 Node REST 异步任务提交 / 轮询；仅显式切到 `provider=python` 或 `fallback=python` 时才会调用 `platform-resources/backend/ai/python/funasr_client.py`。
+- 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；默认 REST 链路不经过 Python 子进程，仅显式切 Python 时才受 Python stdout 编码影响。
 - `magic-data/annotator`：Magic Data AI 质检调试接口，包含 `review-current` 与 `health`。
 - `abaka-ai/task21`：Abaka Task21 AI 分析调试接口，包含 `health/defaults/analyze`。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
@@ -251,12 +255,13 @@ ASR 转写职责边界：
   - 标贝易采导出下载：`/api/data-baker/round-one-quality/export/download`
 
 DataBaker AI 架构补充：
-- 当前默认链路是 Qwen Omni 听音 + compare；选择 `fun-asr` 时则通过 Python SDK 调用 Fun-ASR，再走 compare 文本模型。
+- 当前默认链路是 Qwen Omni 听音 + compare；选择 `fun-asr` 时默认通过 Node RESTful API 调用 Fun-ASR，再走 compare 文本模型。
 - 前端“AI连续填入合格项并发数量”范围 `1~50`，默认 `20`；前端值更大只会更快把请求送进统一后端队列，不会放大后端 provider 并发上限。
 - 前端并发和后端并发是两层配置：前端 `aiQualifiedAutofillConcurrency` 负责一次发起多少浏览器请求；后端 `DATABAKER_AI_FUN_ASR_CONCURRENCY / DATABAKER_AI_TEXT_CONCURRENCY` 负责上游 provider 实际同时 in-flight 数量。
 - 如果“AI连续填入合格项”看起来像串行，先看 `health.queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`；若长期为 `1`，优先检查 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 和 `DATABAKER_AI_FUN_ASR_RPM_LIMIT`。
 - `429` 的根因是上游模型或账号维度限流，不是统一后端机器规格问题；同一阿里云主账号下的多个 RAM 用户/API Key 可能共享限流额度。
 - Fun-ASR 不走 OpenAI-compatible chat/completions；模型名必须是小写 `fun-asr`。
+- Fun-ASR REST 是异步任务模式：先 `POST /services/audio/asr/transcription` 提交任务，再 `POST /tasks/{task_id}` 查询任务；本轮只实现单条 REST 调用，不启用 `file_urls` batch。
 - Fun-ASR 不支持 thinking；thinking 只影响 Qwen Omni 和 compare 阶段。compare 未勾选 thinking 时，后端会显式关闭。
 - Fun-ASR 真实可用性仍取决于服务端是否能访问平台签名 `audioUrl`；若返回 `403`，需要优先排查权限/地域/API Key 和音频 URL 可访问性。
 
@@ -269,9 +274,11 @@ DataBaker AI 架构补充：
   - `platform-resources/backend/ai/python/funasr_client.py`
   - `platform-resources/backend/ai/python/requirements.txt`
 - `platform-resources/backend/ai/python/requirements.txt` 现包含 `opencc-python-reimplemented`，用于 Fun-ASR 源头繁转简。
+- Fun-ASR 默认 provider 已改为 `platform-resources/backend/ai/providers/funasr-rest.js`。
+- `platform-resources/backend/ai/providers/funasr.js` 负责统一选择 `rest/python` provider；默认 `rest`，仅在显式配置 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时使用 Python 路径。
 - DataBaker 业务目录当前只保留 `ai-routes.js + ai-service.js` 作为业务层；闽南词表参考资料位于 `platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv`。
 - `DATABAKER_FUNASR_PYTHON_BIN` 留空时，统一后端默认优先查找 `platform-resources/backend/.venv` 下的 Python。
-- 不需要单独启动 Python；Python 只作为 Node 统一后端内部辅助进程运行。
+- 默认 REST provider 不需要单独启动 Python；Python 只在显式切到 `provider=python` 或 fallback 时作为 Node 统一后端内部辅助进程运行。
 - 标准启动入口始终是 `node platform-resources/backend/server.js`。
 - 项目级服务器部署、Windows/Linux 创建命令、重启与 `health/defaults` 验证流程统一见根目录 `README.md`。
 - 这里不重复完整部署命令，避免误解为需要单独部署 Python 服务。

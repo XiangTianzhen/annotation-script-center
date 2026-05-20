@@ -324,5 +324,6 @@ async function requestFunAsrRecognition(input, options) {
 module.exports = {
   DEFAULT_FUN_ASR_MODEL,
   getFunAsrClientConfig,
+  requestFunAsrRecognitionPython: requestFunAsrRecognition,
   requestFunAsrRecognition,
 };

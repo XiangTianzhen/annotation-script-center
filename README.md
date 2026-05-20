@@ -82,33 +82,51 @@ PM2 进程名示例：`annotation-script-center`。
 - 不要提交 API Key、cookie、token、authorization、JWT secret、CRX 私钥。
 - 修改环境变量后必须执行 `pm2 restart annotation-script-center --update-env`，否则新变量可能不生效。
 
-### Fun-ASR Python 环境部署
+### Fun-ASR 默认 REST provider 与 Python fallback
 
 核心说明：
 
 - 统一后端启动命令始终是：`node platform-resources/backend/server.js`
 - PM2 / systemd 也只是管理这个 Node 后端进程，不管理独立 Python 服务。
-- Python 不单独启动，只作为 Node 后端内部调用 Fun-ASR Python SDK 的辅助运行环境。
+- Fun-ASR 默认 provider 已改为 Node RESTful API：由 Node 后端直接提交异步任务并轮询任务状态。
+- Python 不单独启动；Python SDK 只保留为 fallback / 调试方案，不再作为默认主链路。
 - DataBaker 当前有两种识别模式：
   - `two_stage`：显示“听音模型 + 比较模型”
   - `omni_single`：只显示“AI 模型”
-- 只有在 `two_stage` 且听音模型选择 `fun-asr` 时才需要 Python 虚拟环境。
+- `two_stage` 且听音模型选择 `fun-asr` 时，默认走 Node REST 单条调用，不依赖 Python 虚拟环境。
 - `omni_single` 以及 `two_stage + qwen3.5-omni-plus/qwen3.5-omni-flash` 都不依赖 Python 虚拟环境。
+- Fun-ASR REST 是异步任务模式：
+  - 提交任务：`POST /api/v1/services/audio/asr/transcription`
+  - 查询任务：`POST /api/v1/tasks/{task_id}`
+- 本轮只启用单条 REST 调用，不启用 `file_urls` batch。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
 - Fun-ASR Python 依赖固定放在 `platform-resources/backend/ai/python/requirements.txt`。
 - `platform-resources/backend/ai/python/requirements.txt` 现包含 `opencc-python-reimplemented`，用于 Fun-ASR 源头繁转简。
 - DataBaker 闽南词表参考资料固定放在 `platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv`。
 - DataBaker 后端业务层当前收敛为 `ai-routes.js + ai-service.js`；公共 provider、队列、缓存和 Python 辅助脚本统一在 `platform-resources/backend/ai/`。
-- Node 后端调用 Fun-ASR Python 子进程时会显式设置 `PYTHONIOENCODING=utf-8` 和 `PYTHONUTF8=1`。
-- `platform-resources/backend/ai/python/funasr_client.py` 会按 UTF-8 输出 stdout JSON，避免 Windows 默认控制台编码导致“AI 听音文本”出现 `�` / 黑菱形乱码。
-- Fun-ASR 若返回繁体或繁简混合字形，后端会先在 Python 阶段做一次繁转简，再在 DataBaker 结果组装阶段按词表保护规则再兜底一次。
+- `DATABAKER_AI_FUN_ASR_PROVIDER=rest` 时，Node 不会启动 Python 子进程。
+- `DATABAKER_AI_FUN_ASR_PROVIDER=python` 时，Node 后端调用 Fun-ASR Python 子进程会显式设置 `PYTHONIOENCODING=utf-8` 和 `PYTHONUTF8=1`。
+- `platform-resources/backend/ai/python/funasr_client.py` 仍会按 UTF-8 输出 stdout JSON，避免 Windows 默认控制台编码导致“AI 听音文本”出现 `�` / 黑菱形乱码。
+- Fun-ASR 若返回繁体或繁简混合字形，默认 REST 链路会在 DataBaker 结果组装阶段统一繁转简；若显式切到 Python provider，则还会先在 Python 阶段做一次繁转简。
 - `阮 / 汝 / 伊 / 诶` 等命中闽南词表的建议用字会被保护，不会被普通繁简转换覆盖。
 - 不再使用 `platform-resources/backend/.venv-funasr`。
 - 不再使用 `platform-resources/data-baker/round-one-quality/backend/.venv-funasr`。
 - `platform-resources/backend` 是统一后端聚合目录，所以 Python 辅助环境也放这里统一管理。
 
-Windows 本地准备：
+默认 REST provider 相关环境变量：
+
+    DATABAKER_AI_FUN_ASR_PROVIDER=rest
+    DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=
+    DATABAKER_AI_FUN_ASR_REST_BASE_URL=
+    DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS=1000
+
+Python fallback / 调试环境只在以下情况需要准备：
+
+- `DATABAKER_AI_FUN_ASR_PROVIDER=python`
+- 或显式设置 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python`
+
+Windows 本地准备（仅 Python fallback / 调试时需要）：
 
     cd C:\Projects\annotation-script-center\platform-resources\backend
     py -3 -m venv .venv
@@ -116,7 +134,7 @@ Windows 本地准备：
     .venv\Scripts\python.exe -m pip install -r ai\python\requirements.txt
     node server.js
 
-Linux 服务器准备：
+Linux 服务器准备（仅 Python fallback / 调试时需要）：
 
     cd /var/www/annotation-script-center/platform-resources/backend
     python3 -m venv .venv
@@ -130,13 +148,17 @@ Linux 服务器准备：
 
 可选环境变量：
 
-- `DATABAKER_FUNASR_PYTHON_BIN` 一般不需要配置。
-- 留空时，后端自动使用 `platform-resources/backend/.venv`。
+- `DATABAKER_AI_FUN_ASR_PROVIDER` 默认 `rest`。
+- `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK` 默认空；仅显式设为 `python` 时，REST 失败后才允许退回 Python。
+- `DATABAKER_AI_FUN_ASR_REST_BASE_URL` 可选；留空时按 `DASHSCOPE_BASE_URL` 推导到 `/api/v1`。
+- `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS` 默认 `1000`。
+- `DATABAKER_FUNASR_PYTHON_BIN` 一般不需要配置，仅 `provider=python` 时使用。
+- `provider=python` 且 `DATABAKER_FUNASR_PYTHON_BIN` 留空时，后端自动使用 `platform-resources/backend/.venv`。
 - `requirements.txt` 位于 `platform-resources/backend/ai/python/requirements.txt`。
 - 上面的 `pip install -r ai/python/requirements.txt` 命令是在 `platform-resources/backend` 目录内执行。
-- 如服务器 Python 路径特殊，可显式设置：
+- 如服务器 Python 路径特殊，且显式切到 `provider=python`，可设置：
   `DATABAKER_FUNASR_PYTHON_BIN=/var/www/annotation-script-center/platform-resources/backend/.venv/bin/python`
-- Windows 本地可设置：
+- Windows 本地同理：
   `DATABAKER_FUNASR_PYTHON_BIN=C:\Projects\annotation-script-center\platform-resources\backend\.venv\Scripts\python.exe`
 
 迁移提醒：
@@ -167,10 +189,13 @@ Linux：
 - `listenModelOptions` 包含 `fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`。
 - `compareModelOptions` 包含 `qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`。
 - `funAsrModel` 为 `fun-asr`。
+- `funAsrProvider` 默认 `rest`。
+- `funAsrRestConfigured` 与 `funAsrPythonConfigured` 都应可见。
 - `omniModel` 为 `qwen3.5-omni-flash`。
 - `compareModel` 为 `qwen3.5-plus`。
 - queue groups 应继续返回 `qwen_omni / fun_asr / text_compare`，并带 `maxConcurrent` 或等价并发信息。
-- 未配置 Python 虚拟环境时，`qwen3.5-omni-plus / qwen3.5-omni-flash` 仍可用；只有 `fun-asr` 会报 Python 环境缺失。
+- 默认 REST provider 下，即使未配置 Python 虚拟环境，`fun-asr` 也可调用。
+- 只有显式切到 `provider=python` 或 `fallback=python` 时，才依赖 Python 环境。
 
 Fun-ASR 返回 `403` 时，常见原因优先排查：
 
@@ -182,14 +207,14 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 
 临时恢复生产使用时，优先切换到 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash`。
 
-如果 `fun-asr` 曾出现听音文本乱码，修复部署后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存。`qwen3.5-omni-plus` / `qwen3.5-omni-flash` 不经过 Python 子进程，因此不受该编码问题影响。
-如果 `fun-asr` 曾出现听音文本或推荐文本繁体残留，部署后同样需要重新执行 `pip install -r ai/python/requirements.txt` 并重启 `node platform-resources/backend/server.js`，避免旧依赖或旧内存缓存继续生效。
+如果 `fun-asr` 曾出现听音文本乱码，修复部署后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存。当前默认 REST provider 不会启动 Python 子进程；仅显式切到 `provider=python` 时才受 Python stdout 编码影响。
+如果 `fun-asr` 曾出现听音文本或推荐文本繁体残留，默认 REST provider 下先重启 `node platform-resources/backend/server.js` 清空旧内存缓存；只有显式切到 `provider=python` 或 `fallback=python` 时，才需要重新执行 `pip install -r ai/python/requirements.txt` 后再重启后端。
 
 批量并发诊断要点：
 
 - 前端“AI连续填入合格项”是“并发发起 AI 请求 + 顺序填入页面”的两段流程。
 - 前端并发由 `aiQualifiedAutofillConcurrency` 控制，范围 `1~50`，默认建议 `20`。
-- 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `5`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
+- 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `2`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
 - Compare 阶段若启用 thinking 可能明显变慢；未勾选时后端会显式关闭 compare thinking。
 - 如果批量执行看起来像串行，先看前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 待填队列`，再看 `health` 中 `queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`。

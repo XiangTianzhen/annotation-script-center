@@ -6,6 +6,8 @@ const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_OMNI_MODEL = "qwen3.5-omni-flash";
 const DEFAULT_COMPARE_MODEL = "qwen3.5-plus";
 const DEFAULT_FUN_ASR_MODEL = "fun-asr";
+const DEFAULT_FUN_ASR_PROVIDER = "rest";
+const DEFAULT_FUN_ASR_REST_POLL_INTERVAL_MS = 1000;
 const DATABAKER_LISTEN_MODEL_OPTIONS = [
   "fun-asr",
   "qwen3.5-omni-plus",
@@ -80,14 +82,54 @@ function parseLanguageHints() {
   return values.length > 0 ? values : ["zh"];
 }
 
-function buildSdkBaseHttpApiUrl() {
-  const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
+function buildApiV1BaseUrl(baseUrl) {
+  const normalizedBaseUrl = trimSlash(baseUrl || DEFAULT_BASE_URL);
   try {
-    const parsedUrl = new URL(baseUrl);
+    const parsedUrl = new URL(normalizedBaseUrl);
+    if (/\/api\/v1$/i.test(parsedUrl.pathname || "")) {
+      return parsedUrl.origin + parsedUrl.pathname.replace(/\/+$/, "");
+    }
     return parsedUrl.origin + "/api/v1";
   } catch (error) {
     return "https://dashscope.aliyuncs.com/api/v1";
   }
+}
+
+function buildSdkBaseHttpApiUrl() {
+  const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
+  return buildApiV1BaseUrl(baseUrl);
+}
+
+function parseFunAsrPollIntervalMs() {
+  const value = Number(
+    process.env.DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS || DEFAULT_FUN_ASR_REST_POLL_INTERVAL_MS
+  );
+  if (!Number.isFinite(value)) {
+    return DEFAULT_FUN_ASR_REST_POLL_INTERVAL_MS;
+  }
+  return Math.max(200, Math.min(10000, Math.floor(value)));
+}
+
+function getFunAsrProviderMode() {
+  const normalized = String(process.env.DATABAKER_AI_FUN_ASR_PROVIDER || DEFAULT_FUN_ASR_PROVIDER)
+    .trim()
+    .toLowerCase();
+  return normalized === "python" ? "python" : "rest";
+}
+
+function getFunAsrProviderFallbackMode() {
+  const normalized = String(process.env.DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK || "")
+    .trim()
+    .toLowerCase();
+  return normalized === "python" ? "python" : "";
+}
+
+function getFunAsrRestBaseUrl() {
+  const explicitBaseUrl = trimSlash(process.env.DATABAKER_AI_FUN_ASR_REST_BASE_URL || "");
+  if (explicitBaseUrl) {
+    return buildApiV1BaseUrl(explicitBaseUrl);
+  }
+  return buildApiV1BaseUrl(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
 }
 
 function getDefaultPythonCandidates() {
@@ -219,10 +261,31 @@ function getFunAsrPythonConfig() {
   };
 }
 
+function getFunAsrRestConfig() {
+  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
+  const model = String(process.env.DATABAKER_AI_FUN_ASR_MODEL || DEFAULT_FUN_ASR_MODEL).trim();
+  const apiBase = getFunAsrRestBaseUrl();
+  return {
+    apiKey,
+    model: model || DEFAULT_FUN_ASR_MODEL,
+    timeoutMs: parseTimeoutMs(),
+    mockEnabled: isMockEnabled(),
+    hasApiKey: Boolean(apiKey),
+    languageHints: parseLanguageHints(),
+    apiBase,
+    pollIntervalMs: parseFunAsrPollIntervalMs(),
+    singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
+    listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+    compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
+  };
+}
+
 module.exports = {
   DEFAULT_BASE_URL,
   DEFAULT_COMPARE_MODEL,
   DEFAULT_FUN_ASR_MODEL,
+  DEFAULT_FUN_ASR_PROVIDER,
+  DEFAULT_FUN_ASR_REST_POLL_INTERVAL_MS,
   DEFAULT_OMNI_MODEL,
   DATABAKER_SINGLE_MODEL_OPTIONS,
   DATABAKER_COMPARE_MODEL_OPTIONS,
@@ -232,10 +295,15 @@ module.exports = {
   DEFAULT_VENV_DIR,
   DEFAULT_FUNASR_PYTHON_SCRIPT,
   SUPPORTED_REQUEST_PARAMS,
+  buildApiV1BaseUrl,
   buildSdkBaseHttpApiUrl,
   deriveDataBakerPipelineMode,
   getDefaultPythonCandidates,
+  getFunAsrProviderFallbackMode,
+  getFunAsrProviderMode,
   getFunAsrPythonConfig,
+  getFunAsrRestBaseUrl,
+  getFunAsrRestConfig,
   getQwenProviderConfig,
   normalizeDataBakerCompareModel,
   normalizeDataBakerListenModel,
@@ -245,6 +313,7 @@ module.exports = {
   resolveDataBakerDefaultSingleModel,
   isMockEnabled,
   parseEnableThinkingDefault,
+  parseFunAsrPollIntervalMs,
   parseLanguageHints,
   parseTimeoutMs,
   trimSlash,

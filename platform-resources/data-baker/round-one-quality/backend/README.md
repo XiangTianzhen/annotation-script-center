@@ -11,7 +11,7 @@
 - 当前排查串行感时，要同时看：
   - 前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 待填队列`
   - 后端 `health.queue.groups.fun_asr` 与 `text_compare` 的 `activeCount/maxConcurrent/pendingCount`
-- Fun-ASR 不支持 thinking；本链路不会给 Python 传 `enable_thinking`。thinking 只影响 Qwen Omni / compare 阶段，compare 未勾选时后端会显式关闭。
+- Fun-ASR 不支持 thinking；本链路不会给 REST 或 Python provider 传 `enable_thinking`。thinking 只影响 Qwen Omni / compare 阶段，compare 未勾选时后端会显式关闭。
 
 ## 接口
 
@@ -31,8 +31,10 @@
 - `ai-service.js`：DataBaker AI 业务层，集中管理请求归一化、链路推导、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
 - `export-routes.js`：导出 health / config / upload / download 路由。
 - `export-store.js`：导出文件落盘、latest/history/events 存储能力。
-- `platform-resources/backend/ai/python/funasr_client.py`：按阿里云官方 Python SDK 提交 Fun-ASR 录音文件识别任务、轮询状态并拉取转写结果。
-- `platform-resources/backend/ai/`：统一 AI 基座，提供 Qwen provider、Fun-ASR Python wrapper、provider 队列、结果缓存和公共脱敏/错误处理。
+- `platform-resources/backend/ai/providers/funasr-rest.js`：按阿里云官方 RESTful API 提交 Fun-ASR 异步任务、轮询任务并拉取转写结果。
+- `platform-resources/backend/ai/providers/funasr.js`：统一选择 Fun-ASR `rest/python` provider。
+- `platform-resources/backend/ai/python/funasr_client.py`：保留的 Python SDK fallback / 调试脚本。
+- `platform-resources/backend/ai/`：统一 AI 基座，提供 Qwen provider、Fun-ASR REST / Python provider、provider 队列、结果缓存和公共脱敏/错误处理。
 
 ## 模型
 
@@ -64,14 +66,18 @@
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，原生 `fetch` 请求体顶层传 `enable_thinking=false` 尝试关闭 thinking；设为 `1` 时不传该字段。
 - `DATABAKER_AI_PIPELINE_MODE`：识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。旧值 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
 - `DATABAKER_AI_FUN_ASR_MODEL`：Fun-ASR 录音文件识别模型，默认 `fun-asr`。
+- `DATABAKER_AI_FUN_ASR_PROVIDER`：Fun-ASR provider 模式，默认 `rest`。
+- `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK`：默认空；仅显式设为 `python` 时，REST 失败后才退回 Python。
+- `DATABAKER_AI_FUN_ASR_REST_BASE_URL`：可选，覆盖 Fun-ASR REST API base；留空时按 `DASHSCOPE_BASE_URL` 推导到 `/api/v1`。
 - `DATABAKER_AI_OMNI_MODEL`：Qwen Omni 模型默认值；双模型下用于 Omni 听音，单模型下用于 Omni 单模型推荐，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，显式指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
+- `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
 - `DATABAKER_AI_TEXT_RPM_LIMIT`：Compare 文本模型队列限流，默认 `500` RPM。
 - `DATABAKER_AI_QWEN_OMNI_CONCURRENCY`：Qwen Omni 并发上限，默认 `3`。
-- `DATABAKER_AI_FUN_ASR_CONCURRENCY`：Fun-ASR 并发上限，默认 `5`；如 `2 核 2G` 服务器压力高，可调低到 `3`。
+- `DATABAKER_AI_FUN_ASR_CONCURRENCY`：Fun-ASR 并发上限，默认 `2`；如 `2 核 2G` 服务器压力高，可继续调低，若资源充足也可手动调高。
 - `DATABAKER_AI_TEXT_CONCURRENCY`：Compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `200`。
@@ -139,13 +145,14 @@ CSV 字段统一口径：
    - 先调用 Qwen Omni `input_audio` 产出 `heardText`。
    - 再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
 5. 听音模型为 `fun-asr`：
-   - 先进入 `fun_asr` 队列，由统一基座 `platform-resources/backend/ai/providers/funasr-python.js` 调起 `platform-resources/backend/ai/python/funasr_client.py`。
-   - Python 端按官方 SDK 调用 `fun-asr`，提交录音文件识别任务并轮询结果。
+   - 先进入 `fun_asr` 队列，由统一基座 `platform-resources/backend/ai/providers/funasr.js` 默认转到 `platform-resources/backend/ai/providers/funasr-rest.js`。
+   - Node 端按官方 RESTful API 调用 `fun-asr`：提交异步任务，再轮询任务状态。
    - Fun-ASR 返回 `heardText` 后，再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
+   - Python SDK 只在显式设置 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时启用。
 6. 所有 provider 调用遇到 `429` 都走统一指数退避 + jitter 重试；超出队列长度直接返回清晰错误，不让请求无限堆积。
 7. provider 队列现在同时控制 RPM 和 group 并发：
    - `qwen_omni` 默认并发 `3`
-   - `fun_asr` 默认并发 `5`
+   - `fun_asr` 默认并发 `2`
    - `text_compare` 默认并发 `5`
    这样 Fun-ASR 不再是“上一条完全结束后才启动下一条”的严格串行。
 8. 若批量执行时感觉仍像串行，优先检查：
@@ -155,7 +162,7 @@ CSV 字段统一口径：
 8. 对 `heardText` / `recommendedText` 做现有清洗、简繁归一、词表替换与中文句末标点补全。
 9. 成功结果写入 TTL 缓存，并组装统一响应，返回模式、模型、队列、缓存、阶段耗时、`requestId` 和调试摘要。
 
-后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。Fun-ASR 本身没有 thinking 参数，也不会向 Python SDK 传 `enable_thinking`。
+后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。Fun-ASR 本身没有 thinking 参数，也不会向 REST 或 Python provider 传 `enable_thinking`。
 
 Qwen Omni 听音 + compare 是当前默认链路；`fun-asr` 作为可切换听音模型保留。本仓库不会因为任一链路自动保存、自动提交、批量识别或流转。
 
@@ -185,8 +192,8 @@ platform-resources\backend\.venv\bin\python
 ## 统一 Python 虚拟环境（.venv）
 
 - 统一后端 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
-- 当前用于 DataBaker Fun-ASR Python SDK，后续新增 Python 辅助脚本也优先复用该目录。
-- Fun-ASR Python SDK 由 Node 统一后端通过 `child_process` 调用，不提供独立 Python 服务。
+- 当前仅在 Fun-ASR Python fallback / 调试模式下使用该目录，后续新增 Python 辅助脚本也优先复用该目录。
+- Fun-ASR Python SDK 仅作为 fallback / 调试保留，不提供独立 Python 服务。
 - 用户不需要单独运行 `python xxx.py`；统一启动入口始终是 `node platform-resources/backend/server.js`。
 - Fun-ASR Python 运行环境统一位于 `platform-resources/backend`，其中依赖文件为 `platform-resources/backend/ai/python/requirements.txt`。
 - DataBaker 业务目录不再维护独立 Python 文件、requirements 文件、通用 provider 队列或通用缓存；这些公共能力统一收敛到 `platform-resources/backend/ai/`。
@@ -220,8 +227,8 @@ Prompt 简繁规则（2026-05-17 热修）：
 - 除了 prompt 约束，后端会在模型返回后对 `heardText` 和 `recommendedText` 再做一次普通繁体转简体归一化。
 - 归一化前会先保护词表建议用字（来自 `BASE_ENTRIES + minnan-lexicon.csv`），归一化后再恢复，避免方言建议用字被覆盖。
 - `pageText` 保持页面原始文本，不做改写，仅作为比较输入来源。
-- `platform-resources/backend/ai/python/funasr_client.py` 还会在 Python 阶段先用 `opencc-python-reimplemented`（OpenCC `t2s`）做一轮繁转简；如果 OpenCC 不可用，再退回内置映射。
-- 因此 `two_stage + fun-asr` 的 `heardText` 实际会经历“Python 源头繁转简 + DataBaker 结果组装兜底繁转简”两层处理。
+- 若显式切到 Python provider，`platform-resources/backend/ai/python/funasr_client.py` 还会在 Python 阶段先用 `opencc-python-reimplemented`（OpenCC `t2s`）做一轮繁转简；如果 OpenCC 不可用，再退回内置映射。
+- 默认 REST provider 下，`two_stage + fun-asr` 的 `heardText` 主要在 DataBaker 结果组装阶段做统一繁转简；Python provider 时则会再多一层“Python 源头繁转简”。
 - `阮 / 汝 / 伊 / 诶` 等命中词表建议用字的字符会继续保留，不改回普通话同义词。
 
 强替换只修改返回给前端展示的 `recommendedText`，不会修改原始 `pageText`，也不会触发自动保存、自动提交、批量识别或流转。后端会对 `heardText` 和最终 `recommendedText` 删除空格、Tab、换行和全角空格，日志记录的也是清理后的文本，不额外保存清理前文本。可通过 `DATABAKER_AI_LEXICON_REWRITE_MODE=off` 关闭强替换，只保留 prompt 上下文。词表缺失时后端仍可运行，但会跳过 CSV 上下文，推荐效果可能下降。后续更新词表时只需要替换 CSV 文件，不要把词表内容硬编码进 JS。
@@ -250,7 +257,7 @@ console.log(__testOnly.splitTerms('透早(tao za )'));
 
 1. 先查看后端返回给前端的 `summary`，该字段已脱敏，不应包含完整音频 URL、token、cookie、`OSSAccessKeyId` 或 `Signature`。
 2. 确认 `qwen3.5-omni-plus` / `qwen3.5-omni-flash` 听音链路使用的是 Qwen Omni `input_audio`，不是旧的 `audio_url`。
-3. 确认 Fun-ASR 走的是 Python SDK 录音文件识别提交/查询链路，而不是 OpenAI-compatible chat 模型。
+3. 确认 Fun-ASR 走的是 REST 录音文件识别提交/查询链路（默认），或在显式切换时走 Python SDK fallback，而不是 OpenAI-compatible chat 模型。
 4. 确认当前音频 URL 在服务端可访问，且签名参数没有过期。
 5. 确认 `config/env/ai.env` 中 `DASHSCOPE_API_KEY` 正确。
 6. 检查 health/defaults 中的队列、重试、deprecated mode 提示与缓存统计，确认前后端模式口径一致。

@@ -28,7 +28,7 @@ const {
 const {
   getFunAsrClientConfig,
   requestFunAsrRecognition,
-} = require("../../../backend/ai/providers/funasr-python");
+} = require("../../../backend/ai/providers/funasr");
 const {
   enqueueProviderTask,
   getGroupSettings,
@@ -43,7 +43,7 @@ const {
   setCachedRecommendResult,
 } = require("../../../backend/ai/result-cache");
 
-const RULE_VERSION = "data-baker-round-one-quality-ai-v7-simplified-funasr";
+const RULE_VERSION = "data-baker-round-one-quality-ai-v8-rest-funasr-provider";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "你要一次完成：听音、对比页面候选文本、输出最终推荐文本。",
   "页面候选文本只作为参考，实际发声优先。",
@@ -1724,7 +1724,10 @@ function createHealthPayload() {
     listenModel: defaultListenModel,
     singleModel: defaultSingleModel,
     funAsrModel: funAsrConfig.model || DEFAULT_FUN_ASR_MODEL,
+    funAsrProvider: funAsrConfig.providerMode || "rest",
+    funAsrRestConfigured: funAsrConfig.funAsrRestConfigured === true,
     funAsrPythonConfigured: funAsrConfig.pythonExists === true,
+    funAsrApiBase: funAsrConfig.funAsrApiHost || "",
     omniModel: qwenConfig.omniModel || DEFAULT_OMNI_MODEL,
     compareModel: qwenConfig.compareModel || DEFAULT_COMPARE_MODEL,
     mockEnabled: qwenConfig.mockEnabled || funAsrConfig.mockEnabled,
@@ -1788,7 +1791,10 @@ function createDefaultsPayload() {
       compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
       compareModel: qwenConfig.compareModel || DEFAULT_COMPARE_MODEL,
       funAsrModel: funAsrConfig.model || DEFAULT_FUN_ASR_MODEL,
+      funAsrProvider: funAsrConfig.providerMode || "rest",
+      funAsrRestConfigured: funAsrConfig.funAsrRestConfigured === true,
       funAsrPythonConfigured: funAsrConfig.pythonExists === true,
+      funAsrApiBase: funAsrConfig.funAsrApiHost || "",
       omniModel: qwenConfig.omniModel || DEFAULT_OMNI_MODEL,
       reviewModel: "",
       timeoutMs: qwenConfig.timeoutMs,
@@ -1812,7 +1818,7 @@ function createDefaultsPayload() {
       groups: getQueueSnapshots(),
     },
     concurrency: {
-      frontEndBatchDefault: 5,
+      frontEndBatchDefault: 20,
       qwenOmni: {
         maxConcurrent: qwenOmniQueue.maxConcurrent,
         rpm: qwenOmniQueue.rpm,
@@ -1840,17 +1846,27 @@ function createDefaultsPayload() {
         "听音阶段 Prompt 只用于产出 heardText；比较阶段 Prompt 负责结合 heardText 与页面候选文本生成 recommendedText。",
       responseFormat: "结构化输出由后端固定控制，前端不配置。",
       funAsr:
-        "Fun-ASR 为录音文件识别接口，不走 OpenAI-compatible chat model，由后端 Python SDK 调用；Fun-ASR 没有 thinking 参数。",
+        "Fun-ASR 默认通过 Node RESTful API 调用：先提交异步任务，再轮询任务状态；Python SDK 仅保留为显式 fallback/调试方案，不默认使用。",
       qwenOmni:
         "qwen3.5-omni-plus / qwen3.5-omni-flash 在双模型下会先通过 input_audio 产出 heardText 再调用比较模型；在单模型下会一次完成听音和推荐文本。",
       queue: "所有 Fun-ASR / Omni / compare 调用都会先进入后端统一限流队列；Fun-ASR 并发由 DATABAKER_AI_FUN_ASR_CONCURRENCY 控制。",
       batchConcurrency:
         "前端批量并发由 aiQualifiedAutofillConcurrency 控制；后端 Fun-ASR 并发由 DATABAKER_AI_FUN_ASR_CONCURRENCY 控制；compare 并发由 DATABAKER_AI_TEXT_CONCURRENCY 控制。",
+      restProvider:
+        "当前 Fun-ASR 只实现单条 REST 调用；file_urls batch 后续再测试，本轮不启用。",
     },
   };
 }
 
-function buildCacheKeyInput(recommendRequest, recognitionMode, pipelineMode, listenModel, compareModel, singleModel) {
+function buildCacheKeyInput(
+  recommendRequest,
+  recognitionMode,
+  pipelineMode,
+  listenModel,
+  compareModel,
+  singleModel,
+  funAsrProvider
+) {
   return {
     audioUrl: recommendRequest.audioUrl,
     effectiveStartTime: recommendRequest.effectiveStartTime,
@@ -1860,6 +1876,7 @@ function buildCacheKeyInput(recommendRequest, recognitionMode, pipelineMode, lis
     listenModel,
     compareModel,
     singleModel,
+    funAsrProvider,
     ruleVersion: RULE_VERSION,
     listenPrompt: recommendRequest.aiOptions.listenPrompt || "",
     comparePrompt: recommendRequest.aiOptions.comparePrompt || "",
@@ -1930,6 +1947,7 @@ async function recommend(body, requestIdHint) {
   let activeListenModel = "";
   let activeCompareModel = "";
   let activeSingleModel = "";
+  let activeFunAsrProvider = "rest";
   let cacheKey = "";
   try {
     recommendRequest = normalizeRecommendRequest(body || {});
@@ -1937,6 +1955,7 @@ async function recommend(body, requestIdHint) {
 
     qwenConfig = getClientConfig();
     funAsrConfig = getFunAsrClientConfig();
+    activeFunAsrProvider = String(funAsrConfig.providerMode || "rest").trim() || "rest";
     const envPipeline = getEnvPipelineResolution();
     const defaultRecognitionMode = getEnvRecognitionMode();
     const defaultListenModel = resolveDataBakerDefaultListenModel();
@@ -2007,7 +2026,8 @@ async function recommend(body, requestIdHint) {
         pipelineMode,
         activeListenModel,
         activeCompareModel,
-        activeSingleModel
+        activeSingleModel,
+        activeFunAsrProvider
       )
     );
     const cached = getCachedRecommendResult(cacheKey);
@@ -2050,6 +2070,7 @@ async function recommend(body, requestIdHint) {
       listenModel: activeListenModel,
       compareModel: activeCompareModel,
       singleModel: activeSingleModel,
+      funAsrProvider: activeFunAsrProvider,
       enableThinking: effectiveEnableThinking,
       mock: qwenConfig.mockEnabled,
     });
@@ -2139,6 +2160,7 @@ async function recommend(body, requestIdHint) {
           groupName: "fun_asr",
           pipelineMode,
           listenModel: activeListenModel,
+          funAsrProvider: activeFunAsrProvider,
         });
         const queued = await runQueuedProviderCall("fun_asr", function () {
           return requestFunAsrRecognition(recommendRequest, {
@@ -2148,6 +2170,7 @@ async function recommend(body, requestIdHint) {
           });
         });
         funAsrResult = queued.value;
+        activeFunAsrProvider = String(funAsrResult?.providerMode || activeFunAsrProvider || "rest").trim() || "rest";
         queueMetas.push(queued.queueMeta);
         stageTiming.listenQueuedAt = Number(queued.queueMeta?.queuedAt) || stageTiming.listenQueuedAt;
         stageTiming.listenStartedAt = Number(queued.queueMeta?.startedAt) || Date.now();
@@ -2162,6 +2185,7 @@ async function recommend(body, requestIdHint) {
           groupName: "fun_asr",
           durationMs: Math.max(0, Number(queued.queueMeta?.durationMs) || 0),
           rawStatus: String(funAsrResult?.rawStatus || ""),
+          funAsrProvider: activeFunAsrProvider,
         });
       } finally {
         listenDurationMs = Date.now() - listenStartedAtMs;
@@ -2383,6 +2407,7 @@ async function recommend(body, requestIdHint) {
       queueMetas,
       stageTiming,
     });
+    responseData.runtime.funAsrProvider = activeFunAsrProvider;
     responseData.thinking = {
       enableThinking: effectiveEnableThinking,
       compareStageOnly: pipelineMode === "fun_asr_compare" || pipelineMode === "qwen_omni_compare",
@@ -2396,6 +2421,7 @@ async function recommend(body, requestIdHint) {
       listenModel: activeListenModel,
       compareModel: activeCompareModel,
       singleModel: activeSingleModel,
+      funAsrProvider: activeFunAsrProvider,
       derivedPipelineMode: pipelineMode,
     };
 

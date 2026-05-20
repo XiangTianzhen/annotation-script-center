@@ -17,7 +17,7 @@ const DEFAULT_GROUP_SETTINGS = {
     rpmEnv: "DATABAKER_AI_FUN_ASR_RPM_LIMIT",
     rpm: 500,
     concurrencyEnv: "DATABAKER_AI_FUN_ASR_CONCURRENCY",
-    maxConcurrent: 5,
+    maxConcurrent: 2,
   },
   text_compare: {
     rpmEnv: "DATABAKER_AI_TEXT_RPM_LIMIT",
