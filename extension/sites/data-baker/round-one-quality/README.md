@@ -174,7 +174,7 @@ Qwen Omni 与 Fun-ASR 的调用链路不同，不能只靠改模型名互换：
 Fun-ASR 不再由 Node 手写 REST 直接调用，而是由后端 wrapper 调起：
 
 ```text
-platform-resources/data-baker/round-one-quality/backend/funasr_client.py
+platform-resources/backend/ai/python/funasr_client.py
 ```
 
 后端优先使用以下 Python 解释器：
@@ -186,7 +186,7 @@ platform-resources/data-baker/round-one-quality/backend/funasr_client.py
 如果未配置 Python 虚拟环境，前端会显示：
 
 ```text
-Fun-ASR Python 环境未配置，请在 platform-resources/backend/.venv 创建统一 Python 虚拟环境并安装 requirements-funasr.txt。
+Fun-ASR Python 环境未配置，请在 platform-resources/backend/.venv 创建统一 Python 虚拟环境，并执行 .venv\Scripts\python.exe -m pip install -r ai\python\requirements.txt。
 ```
 
 - 默认虚拟环境路径已统一为 `platform-resources/backend/.venv`。

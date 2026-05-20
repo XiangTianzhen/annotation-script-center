@@ -92,6 +92,8 @@ PM2 进程名示例：`annotation-script-center`。
 - 只有使用 DataBaker 的 `fun_asr_compare` 时才需要 Python 虚拟环境。
 - 默认 `omni_single` 不依赖 Python 虚拟环境。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
+- Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
+- Fun-ASR Python 依赖固定放在 `platform-resources/backend/ai/python/requirements.txt`。
 - 不再使用 `platform-resources/backend/.venv-funasr`。
 - 不再使用 `platform-resources/data-baker/round-one-quality/backend/.venv-funasr`。
 - `platform-resources/backend` 是统一后端聚合目录，所以 Python 辅助环境也放这里统一管理。
@@ -101,7 +103,7 @@ Windows 本地准备：
     cd C:\Projects\annotation-script-center\platform-resources\backend
     py -3 -m venv .venv
     .venv\Scripts\python.exe -m pip install -U pip
-    .venv\Scripts\python.exe -m pip install -r requirements.txt
+    .venv\Scripts\python.exe -m pip install -r ai\python\requirements.txt
     node server.js
 
 Linux 服务器准备：
@@ -109,7 +111,7 @@ Linux 服务器准备：
     cd /var/www/annotation-script-center/platform-resources/backend
     python3 -m venv .venv
     .venv/bin/python -m pip install -U pip
-    .venv/bin/python -m pip install -r requirements.txt
+    .venv/bin/python -m pip install -r ai/python/requirements.txt
     node server.js
 
 如果使用 PM2，仍然只重启 Node 后端：
@@ -120,8 +122,8 @@ Linux 服务器准备：
 
 - `DATABAKER_FUNASR_PYTHON_BIN` 一般不需要配置。
 - 留空时，后端自动使用 `platform-resources/backend/.venv`。
-- `requirements.txt` 位于 `platform-resources/backend/requirements.txt`。
-- 上面的 `pip install -r requirements.txt` 命令是在 `platform-resources/backend` 目录内执行。
+- `requirements.txt` 位于 `platform-resources/backend/ai/python/requirements.txt`。
+- 上面的 `pip install -r ai/python/requirements.txt` 命令是在 `platform-resources/backend` 目录内执行。
 - 如服务器 Python 路径特殊，可显式设置：
   `DATABAKER_FUNASR_PYTHON_BIN=/var/www/annotation-script-center/platform-resources/backend/.venv/bin/python`
 - Windows 本地可设置：
@@ -137,12 +139,12 @@ Linux 服务器准备：
 Windows：
 
     cd C:\Projects\annotation-script-center\platform-resources\backend
-    .venv\Scripts\python.exe -m py_compile funasr_client.py
+    .venv\Scripts\python.exe -m py_compile ai\python\funasr_client.py
 
 Linux：
 
     cd /var/www/annotation-script-center/platform-resources/backend
-    .venv/bin/python -m py_compile funasr_client.py
+    .venv/bin/python -m py_compile ai/python/funasr_client.py
 
 验证接口：
 

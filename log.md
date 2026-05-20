@@ -1683,3 +1683,19 @@
 - `7` 不自动确认二次弹窗；若出现确认弹窗必须用户手动确认。
 - 保持原有 Task21 same_font 与派生字段快捷键（1~5）逻辑不变。
 - 未修改后端、未提升 `manifest` 版本、未生成 CRX/ZIP/update.xml/crx-latest.json 等发布产物。
+- 2026-05-20
+  - DataBaker 通用 AI 能力开始迁移到统一后端基座 `platform-resources/backend/ai/`。
+  - 新增统一目录：
+    - `platform-resources/backend/ai/config.js`
+    - `platform-resources/backend/ai/errors.js`
+    - `platform-resources/backend/ai/sanitizer.js`
+    - `platform-resources/backend/ai/provider-queue.js`
+    - `platform-resources/backend/ai/result-cache.js`
+    - `platform-resources/backend/ai/usage.js`
+    - `platform-resources/backend/ai/providers/qwen-openai-compatible.js`
+    - `platform-resources/backend/ai/providers/funasr-python.js`
+    - `platform-resources/backend/ai/python/funasr_client.py`
+    - `platform-resources/backend/ai/python/requirements.txt`
+  - DataBaker 目录中的 `ai-client-qwen.js`、`ai-client-funasr.js`、`ai-provider-queue.js`、`ai-result-cache.js` 改为 deprecated 薄封装，只 re-export 统一基座模块。
+  - 统一后端启动入口保持不变：`node platform-resources/backend/server.js`。
+  - Python 仍不作为独立服务启动，只作为统一 Node 后端内部辅助进程调用。

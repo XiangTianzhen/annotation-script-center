@@ -68,7 +68,7 @@ round-one-quality/
 - `page-structure.md`：页面 DOM 结构、稳定选择器和当前可编辑文本框判断。
 - `network.md`：列表接口路径、请求参数、响应字段和缓存策略。
 - `ai/minnan-lexicon.csv`：闽南方言字词表，用于 标贝易采 AI 推荐文本后端 prompt 上下文。
-- `backend/`：标贝易采 AI 推荐文本本地 Node 接口。
+- `backend/`：标贝易采 AI 推荐文本业务编排目录。公共 AI provider、限流队列、缓存与 Python 辅助脚本统一收敛到 `platform-resources/backend/ai/`。
 
 ## 自动分页与快捷键
 
@@ -183,12 +183,12 @@ AI prompt 输出字形规则：
 Fun-ASR Python 运行环境路径：
 
 ```text
-platform-resources/backend/funasr_client.py
-platform-resources/backend/requirements.txt
+platform-resources/backend/ai/python/funasr_client.py
+platform-resources/backend/ai/python/requirements.txt
 ```
 
 - 默认虚拟环境路径已统一为 `platform-resources/backend/.venv`。
-- Fun-ASR Python 运行环境统一位于 `platform-resources/backend`，完整部署流程统一见根目录 `README.md`；本平台资料不重复服务器部署命令。后续其他 Python 辅助脚本也优先复用同一个 `.venv`。
+- Fun-ASR Python 运行环境统一位于 `platform-resources/backend`，完整部署流程统一见根目录 `README.md`；本平台资料不重复服务器部署命令。后续其他 Python 辅助脚本也优先复用同一个 `.venv` 与 `backend/ai/python/` 目录结构。
 
 ## 真实浏览器验收建议
 

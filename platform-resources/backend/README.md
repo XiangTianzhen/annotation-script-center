@@ -194,6 +194,7 @@ pm2 restart annotation-script-center --update-env
 - `registry.js`：显式注册启用哪些平台 / 项目 API。
 - `response.js`：JSON 响应、空响应和 CORS header。
 - `config.js`：统一后端 host / port 配置。
+- `ai/`：统一 AI 基座，放公共 provider、限流队列、缓存、脱敏与 Python 辅助脚本。
 - `project-data-download/`：统一“项目数据下载”聚合模块（options/request/file、token、审计、CSV 筛选）。
 
 ## 当前已注册 API
@@ -251,14 +252,15 @@ DataBaker AI 架构补充：
 - Fun-ASR 不走 OpenAI-compatible chat/completions；模型名必须是小写 `fun-asr`。
 - Fun-ASR 真实可用性仍取决于服务端是否能访问平台签名 `audioUrl`；若返回 `403`，需要优先排查权限/地域/API Key 和音频 URL 可访问性。
 
-### 统一 Python 虚拟环境（.venv）
+### 统一 AI 基座与 Python 虚拟环境
 
 - 统一后端 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - 当前首个使用场景是 DataBaker Fun-ASR，但后续新增 Python 辅助脚本也应优先复用该目录。
-- Fun-ASR Python 文件与依赖文件也统一位于 `platform-resources/backend/`：
-  - `funasr_client.py`
-  - `requirements.txt`
-- `DATABAKER_FUNASR_PYTHON_BIN` 留空时，统一后端默认优先查找该路径。
+- 公共 AI 基座目录是 `platform-resources/backend/ai/`。
+- Fun-ASR Python 文件与依赖文件已移动到：
+  - `platform-resources/backend/ai/python/funasr_client.py`
+  - `platform-resources/backend/ai/python/requirements.txt`
+- `DATABAKER_FUNASR_PYTHON_BIN` 留空时，统一后端默认优先查找 `platform-resources/backend/.venv` 下的 Python。
 - 不需要单独启动 Python；Python 只作为 Node 统一后端内部辅助进程运行。
 - 标准启动入口始终是 `node platform-resources/backend/server.js`。
 - 项目级服务器部署、Windows/Linux 创建命令、重启与 `health/defaults` 验证流程统一见根目录 `README.md`。

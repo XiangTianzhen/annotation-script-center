@@ -25,6 +25,16 @@ platform-resources/
     registry.js
     response.js
     config.js
+    ai/
+      README.md
+      config.js
+      errors.js
+      sanitizer.js
+      provider-queue.js
+      result-cache.js
+      usage.js
+      providers/
+      python/
   alibaba-labelx/
     README.md
     asr-judgement/
@@ -75,6 +85,7 @@ platform-resources/
 - `network/` 放请求 URL、请求 / 响应结构、采集结论和待采集项。
 - `ai/` 放快判 AI 规则、提示词模板和少量 few-shot 示例，不放完整雷题库。
 - 根级 `backend/` 是统一 Node 后端入口，只负责启动、基础路由、响应工具和项目 API 注册。
+- 根级 `backend/ai/` 是统一 AI 基座，放公共 provider、限流队列、缓存、脱敏和 Python 辅助脚本。
 - 根级 `backend/` 也是统一 Python 辅助脚本虚拟环境目录；需要 Python 时统一复用 `platform-resources/backend/.venv`，仍只通过 `node platform-resources/backend/server.js` 启动 Node 后端。
 - 项目级 `backend/` 放浏览器无关的本地调试服务，并维护统计 CSV、上传 payload、服务端合并契约等资料；不被扩展 manifest 加载。
 - `unfinished.md` 放未完成方案、风险和后续验证条件。
@@ -174,7 +185,7 @@ platform-resources/
 - 运行数据目录：`platform-resources/data-baker/round-one-quality/backend/export-data/`
 - 安全说明：新导出 CSV 统一字段 `有效时长`（来源仍为 `effectivePassTotalTime`）；目录为运行数据，不提交 Git。
 - 上传返回统计字段：`incomingRowCount`、`existingRowCount`、`addedRowCount`、`updatedRowCount`、`unchangedRowCount`、`rowCount`、`taskIds`。
-- AI 模式：当前只保留 `fun_asr_compare` 与 `omni_single`；默认模式为 `fun_asr_compare`。
+- AI 模式：当前只保留 `fun_asr_compare` 与 `omni_single`；默认模式为 `omni_single`。
 - 限流与缓存：所有上游模型调用都进入统一后端队列，按 `fun_asr / qwen_omni / text_compare` 分组限流，并带 TTL 内存缓存；浏览器不直连 DashScope。
 - 风险说明：`429` 来自上游模型限流，不是服务器算力问题；`fun_asr_compare` 还依赖 Fun-ASR 能访问平台 `audioUrl`。
 
