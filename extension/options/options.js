@@ -67,18 +67,13 @@
     { key: "taskPartialReject", label: "任务判定：部分驳回" },
     { key: "taskFullReject", label: "任务判定：全部驳回" },
   ];
-  const dataBakerPipelineModeOptions = Array.isArray(constants.DATABAKER_AI_PIPELINE_MODE_OPTIONS)
-    ? constants.DATABAKER_AI_PIPELINE_MODE_OPTIONS
+  const dataBakerListenModelOptions = Array.isArray(constants.DATABAKER_AI_LISTEN_MODEL_OPTIONS)
+    ? constants.DATABAKER_AI_LISTEN_MODEL_OPTIONS
     : [
-        { value: "omni_single", label: "Omni 单模型（默认）" },
-        { value: "fun_asr_compare", label: "Fun-ASR + 比较模型" },
+        { value: "fun-asr", label: "fun-asr" },
+        { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
+        { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
       ];
-  const dataBakerOmniModelOptions = Array.isArray(constants.DATABAKER_AI_OMNI_MODEL_OPTIONS)
-    ? constants.DATABAKER_AI_OMNI_MODEL_OPTIONS
-    : [{ value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" }];
-  const dataBakerFunAsrModelOptions = Array.isArray(constants.DATABAKER_AI_FUN_ASR_MODEL_OPTIONS)
-    ? constants.DATABAKER_AI_FUN_ASR_MODEL_OPTIONS
-    : [{ value: "fun-asr", label: "fun-asr" }];
   const dataBakerCompareModelOptions = Array.isArray(constants.DATABAKER_AI_COMPARE_MODEL_OPTIONS)
     ? constants.DATABAKER_AI_COMPARE_MODEL_OPTIONS
     : [
@@ -604,24 +599,26 @@
     node.classList.toggle("hidden", visible !== true);
   }
 
-  function getDataBakerModeDefaults(mode, aiDefaults) {
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    if (mode === "fun_asr_compare") {
-      return {
-        listenModel: "fun-asr",
-        compareModel: normalizeDataBakerCompareModel(defaults.compareModel, "qwen3.5-plus"),
-      };
-    }
-    return {
-      listenModel: String(defaults.omniModel || "qwen3.5-omni-flash").trim() || "qwen3.5-omni-flash",
-      compareModel: "",
-    };
+  function isDataBakerFunAsrListenModel(listenModel) {
+    return getDataBakerModelText(listenModel) === "fun-asr";
   }
 
-  function applyDataBakerModeFields(mode, config, aiDefaults) {
-    const normalizedMode = normalizeDataBakerPipelineMode(mode, "omni_single");
-    const defaults = getDataBakerModeDefaults(normalizedMode, aiDefaults);
-    const currentListenModel = normalizeDataBakerOmniModel(config?.aiRecommendListenModel, defaults.listenModel);
+  function deriveDataBakerPipelineMode(listenModel) {
+    return isDataBakerFunAsrListenModel(listenModel) ? "fun_asr_compare" : "qwen_omni_compare";
+  }
+
+  function getDataBakerListenModelDefault(aiDefaults) {
+    return normalizeDataBakerListenModel(
+      aiDefaults?.listenModel,
+      aiDefaults?.omniModel || "qwen3.5-omni-flash"
+    );
+  }
+
+  function applyDataBakerListenModelFields(listenModel, config, aiDefaults) {
+    const currentListenModel = normalizeDataBakerListenModel(
+      listenModel || config?.aiRecommendListenModel,
+      getDataBakerListenModelDefault(aiDefaults)
+    );
     const currentCompareModel = normalizeDataBakerCompareModel(
       config?.aiRecommendCompareModel,
       String(aiDefaults?.compareModel || "qwen3.5-plus")
@@ -631,72 +628,67 @@
     const compareSelectNode = getElement("data-baker-ai-compare-model-select");
     const listenSelectNode = getElement("data-baker-ai-listen-model-select");
 
-    if (normalizedMode === "fun_asr_compare") {
-      if (listenLabelNode) {
-        listenLabelNode.textContent = "Fun-ASR 模型";
-      }
-      if (listenHelpNode) {
-        listenHelpNode.textContent = "Fun-ASR 通过后端 Python SDK 与统一 .venv 调用。";
-      }
-      renderFixedModelOptions(
-        "data-baker-ai-listen-model-select",
-        dataBakerFunAsrModelOptions,
-        "fun-asr"
-      );
-      renderFixedModelOptions(
-        "data-baker-ai-compare-model-select",
-        dataBakerCompareModelOptions,
-        currentCompareModel
-      );
-      if (listenSelectNode instanceof HTMLSelectElement) {
-        listenSelectNode.disabled = true;
-      }
-      if (compareSelectNode instanceof HTMLSelectElement) {
-        compareSelectNode.disabled = false;
-      }
-      setFieldVisibility("data-baker-ai-listen-model-field", true);
-      setFieldVisibility("data-baker-ai-compare-model-field", true);
-      setFieldVisibility("data-baker-ai-listen-model-custom-field", false);
-      setFieldVisibility("data-baker-ai-compare-model-custom-field", false);
-      return;
+    if (listenLabelNode) {
+      listenLabelNode.textContent = "听音模型";
     }
-
     if (listenHelpNode) {
-      listenHelpNode.textContent = "";
+      listenHelpNode.textContent =
+        "听音模型为 fun-asr 时通过后端 Python SDK 调用；听音模型为 qwen3.5-omni-plus / qwen3.5-omni-flash 时通过 Qwen Omni 音频输入调用。比较模型负责结合听音文本与页面文本生成推荐文本。";
     }
+    renderFixedModelOptions(
+      "data-baker-ai-listen-model-select",
+      dataBakerListenModelOptions,
+      currentListenModel
+    );
+    renderFixedModelOptions(
+      "data-baker-ai-compare-model-select",
+      dataBakerCompareModelOptions,
+      currentCompareModel
+    );
     if (listenSelectNode instanceof HTMLSelectElement) {
-      listenSelectNode.disabled = true;
+      listenSelectNode.disabled = false;
     }
     if (compareSelectNode instanceof HTMLSelectElement) {
-      compareSelectNode.disabled = true;
+      compareSelectNode.disabled = false;
     }
-    setFieldVisibility("data-baker-ai-listen-model-field", false);
-    setFieldVisibility("data-baker-ai-compare-model-field", false);
+    setFieldVisibility("data-baker-ai-listen-model-field", true);
+    setFieldVisibility("data-baker-ai-compare-model-field", true);
     setFieldVisibility("data-baker-ai-listen-model-custom-field", false);
     setFieldVisibility("data-baker-ai-compare-model-custom-field", false);
+    setFieldVisibility("data-baker-ai-listen-model-note", isDataBakerFunAsrListenModel(currentListenModel));
   }
 
-  function getDataBakerModeDraftConfig(aiDefaults) {
+  function getDataBakerSettingsDraftConfig(aiDefaults) {
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
     const listenSelectNode = getElement("data-baker-ai-listen-model-select");
     const compareSelectNode = getElement("data-baker-ai-compare-model-select");
     return {
       aiRecommendListenModel:
         listenSelectNode instanceof HTMLSelectElement
-          ? String(listenSelectNode.value || "").trim()
-          : String(defaults.omniModel || "qwen3.5-omni-flash"),
+          ? normalizeDataBakerListenModel(
+              listenSelectNode.value,
+              getDataBakerListenModelDefault(defaults)
+            )
+          : getDataBakerListenModelDefault(defaults),
       aiRecommendCompareModel:
         compareSelectNode instanceof HTMLSelectElement
-          ? String(compareSelectNode.value || "").trim()
+          ? normalizeDataBakerCompareModel(
+              compareSelectNode.value,
+              String(defaults.compareModel || "qwen3.5-plus")
+            )
           : String(defaults.compareModel || "qwen3.5-plus"),
     };
   }
 
-  function updateDataBakerAiModeFields(mode) {
+  function updateDataBakerListenModelFields(listenModel) {
     const aiDefaults =
       getAsrVoiceAiDefaultsCached(dataBakerRoundOneQualityScriptId).defaults || {};
-    const draftConfig = getDataBakerModeDraftConfig(aiDefaults);
-    applyDataBakerModeFields(mode, draftConfig, aiDefaults);
+    const draftConfig = getDataBakerSettingsDraftConfig(aiDefaults);
+    draftConfig.aiRecommendListenModel = normalizeDataBakerListenModel(
+      listenModel,
+      getDataBakerListenModelDefault(aiDefaults)
+    );
+    applyDataBakerListenModelFields(draftConfig.aiRecommendListenModel, draftConfig, aiDefaults);
   }
 
   function bindJudgementModelSelect(selectId, customInputId) {
@@ -1102,17 +1094,21 @@
 
   function buildFallbackAsrVoiceAiDefaults(scriptId) {
     const baseDefaults = {
-      listenModel:
-        scriptId === dataBakerRoundOneQualityScriptId ? "qwen3.5-omni-flash" : "qwen3.5-omni-flash",
+      listenModel: "qwen3.5-omni-flash",
+      listenModelOptions:
+        scriptId === dataBakerRoundOneQualityScriptId
+          ? clone(dataBakerListenModelOptions)
+          : [],
       compareModel: "qwen3.5-plus",
+      compareModelOptions:
+        scriptId === dataBakerRoundOneQualityScriptId
+          ? clone(dataBakerCompareModelOptions)
+          : [],
       funAsrModel: "fun-asr",
       omniModel: "qwen3.5-omni-flash",
       reviewModel: "",
-      pipelineMode: scriptId === dataBakerRoundOneQualityScriptId ? "omni_single" : "",
-      supportedPipelineModes:
-        scriptId === dataBakerRoundOneQualityScriptId
-          ? clone(dataBakerPipelineModeOptions)
-          : [],
+      pipelineMode: scriptId === dataBakerRoundOneQualityScriptId ? "qwen_omni_compare" : "",
+      supportedPipelineModes: [],
       timeoutMs: 120000,
       enableThinking: false,
       temperature: 0.1,
@@ -1257,15 +1253,20 @@
 
   function normalizeDataBakerPipelineMode(value, fallback) {
     const text = String(value || "").trim().toLowerCase();
-    if (text === "fun_asr_compare" || text === "omni_single") {
+    if (text === "fun_asr_compare" || text === "qwen_omni_compare") {
       return text;
     }
-    if (text === "two_stage" || text === "qwen_omni_two_stage" || text === "listen_only") {
-      return "omni_single";
+    if (
+      text === "omni_single" ||
+      text === "two_stage" ||
+      text === "qwen_omni_two_stage" ||
+      text === "listen_only"
+    ) {
+      return "qwen_omni_compare";
     }
-    return String(fallback || "omni_single").trim().toLowerCase() === "omni_single"
-      ? "omni_single"
-      : "fun_asr_compare";
+    return String(fallback || "qwen_omni_compare").trim().toLowerCase() === "fun_asr_compare"
+      ? "fun_asr_compare"
+      : "qwen_omni_compare";
   }
 
   function getDataBakerModelText(value) {
@@ -1282,8 +1283,8 @@
     return text === "[object Object]" ? "" : text;
   }
 
-  function normalizeDataBakerOmniModel(value, fallback) {
-    const allowed = dataBakerOmniModelOptions
+  function normalizeDataBakerListenModel(value, fallback) {
+    const allowed = dataBakerListenModelOptions
       .map(function (item) {
         return getDataBakerModelText(item && typeof item === "object" ? item.value : item);
       })
@@ -1624,7 +1625,7 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: 120000,
-        aiRecommendPipelineMode: "omni_single",
+        aiRecommendPipelineMode: "qwen_omni_compare",
         aiQualifiedAutofillConcurrency: 5,
         aiQualifiedAutofillWaitAllBeforeFill: false,
         aiRecommendListenModel: "qwen3.5-omni-flash",
@@ -1651,19 +1652,23 @@
     config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
       config.aiRecommendRequestTimeoutMs
     );
-    config.aiRecommendPipelineMode = normalizeDataBakerPipelineMode(
-      config.aiRecommendPipelineMode,
-      "omni_single"
+    const defaultListenModel = normalizeDataBakerListenModel(
+      defaults.aiRecommendListenModel,
+      "qwen3.5-omni-flash"
     );
+    config.aiRecommendListenModel = normalizeDataBakerListenModel(
+      config.aiRecommendListenModel,
+      normalizeDataBakerPipelineMode(config.aiRecommendPipelineMode, "qwen_omni_compare") ===
+        "fun_asr_compare"
+        ? "fun-asr"
+        : defaultListenModel
+    );
+    config.aiRecommendPipelineMode = deriveDataBakerPipelineMode(config.aiRecommendListenModel);
     config.aiQualifiedAutofillConcurrency = normalizeDataBakerAutofillConcurrency(
       config.aiQualifiedAutofillConcurrency
     );
     config.aiQualifiedAutofillWaitAllBeforeFill =
       config.aiQualifiedAutofillWaitAllBeforeFill === true;
-    config.aiRecommendListenModel =
-      config.aiRecommendPipelineMode === "fun_asr_compare"
-        ? "fun-asr"
-        : normalizeDataBakerOmniModel(config.aiRecommendListenModel, "qwen3.5-omni-flash");
     config.aiRecommendCompareModel = normalizeDataBakerCompareModel(
       config.aiRecommendCompareModel,
       "qwen3.5-plus"
@@ -1890,11 +1895,31 @@
         scriptId === dataBakerRoundOneQualityScriptId
           ? '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="data-baker-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示 AI 推荐工具卡</span></label></label>'
           : '<label class="asr-ai-field"><span>启用 AI 质检助手</span><label class="asr-ai-boolean"><input id="magic-data-enabled" type="checkbox" /><span>关闭后不显示 AI 质检建议</span></label></label>',
-        scriptId === dataBakerRoundOneQualityScriptId
-          ? '<label class="asr-ai-field"><span>AI 模式</span><select id="data-baker-ai-pipeline-mode"></select><span class="asr-ai-help">仅保留 Fun-ASR + 比较模型 与 Omni 单模型 两种模式。</span></label>'
-          : "",
-        '<label class="asr-ai-field hidden" id="' + prefix + '-listen-model-field"><span id="' + prefix + '-listen-model-label">听音模型</span><select id="' + prefix + '-listen-model-select"></select><span class="asr-ai-help" id="' + prefix + '-listen-model-help"></span></label>',
-        '<label class="asr-ai-field hidden" id="' + prefix + '-compare-model-field"><span id="' + prefix + '-compare-model-label">' + modelLabel + '</span><select id="' + prefix + '-compare-model-select"></select></label>',
+        '<label class="asr-ai-field' +
+          (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
+          '" id="' +
+          prefix +
+          '-listen-model-field"><span id="' +
+          prefix +
+          '-listen-model-label">听音模型</span><select id="' +
+          prefix +
+          '-listen-model-select"></select><span class="asr-ai-help" id="' +
+          prefix +
+          '-listen-model-help"></span></label>',
+        '<div class="asr-ai-field hidden" id="' +
+          prefix +
+          '-listen-model-note"><span class="asr-ai-help">Fun-ASR 通过统一后端 Python SDK 与 platform-resources/backend/.venv 调用；比较模型负责结合听音文本与页面文本生成推荐文本。</span></div>',
+        '<label class="asr-ai-field' +
+          (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
+          '" id="' +
+          prefix +
+          '-compare-model-field"><span id="' +
+          prefix +
+          '-compare-model-label">' +
+          modelLabel +
+          '</span><select id="' +
+          prefix +
+          '-compare-model-select"></select></label>',
         '<label class="asr-ai-field hidden" id="' + prefix + '-listen-model-custom-field"><span id="' + prefix + '-listen-model-custom-label">听音模型自定义</span><input id="' + prefix + '-listen-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field hidden" id="' + prefix + '-compare-model-custom-field"><span id="' + prefix + '-compare-model-custom-label">' + modelLabel + '自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
@@ -1929,11 +1954,10 @@
         bindJudgementModelSelect(prefix + "-listen-model-select", prefix + "-listen-model-custom");
         bindJudgementModelSelect(prefix + "-compare-model-select", prefix + "-compare-model-custom");
       } else {
-        const pipelineNode = getElement("data-baker-ai-pipeline-mode");
-        if (pipelineNode instanceof HTMLSelectElement) {
-          pipelineNode.addEventListener("change", function (event) {
-            const nextMode = normalizeDataBakerPipelineMode(event?.target?.value, "omni_single");
-            updateDataBakerAiModeFields(nextMode);
+        const listenNode = getElement("data-baker-ai-listen-model-select");
+        if (listenNode instanceof HTMLSelectElement) {
+          listenNode.addEventListener("change", function (event) {
+            updateDataBakerListenModelFields(event?.target?.value);
           });
         }
       }
@@ -4614,37 +4638,11 @@
     if (getElement("data-baker-ai-recommend-enabled")) {
       getElement("data-baker-ai-recommend-enabled").checked =
         config.aiRecommendEnabled !== false;
-      const pipelineNode = getElement("data-baker-ai-pipeline-mode");
-      if (pipelineNode instanceof HTMLSelectElement) {
-        pipelineNode.innerHTML = dataBakerPipelineModeOptions
-          .map(function (item) {
-            const value = String(item?.value || "");
-            const label = String(item?.label || value);
-            return '<option value="' + escapeHtml(value) + '">' + escapeHtml(label) + "</option>";
-          })
-          .join("");
-        pipelineNode.value = normalizeDataBakerPipelineMode(
-          config.aiRecommendPipelineMode,
-          String(aiDefaults.pipelineMode || "omni_single")
-        );
-      }
       getElement("data-baker-ai-timeout").value = String(
         Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
       );
-      applyDataBakerModeFields(
-        normalizeDataBakerPipelineMode(
-          config.aiRecommendPipelineMode,
-          String(aiDefaults.pipelineMode || "omni_single")
-        ),
-        config,
-        aiDefaults
-      );
-      updateDataBakerAiModeFields(
-        normalizeDataBakerPipelineMode(
-          pipelineNode instanceof HTMLSelectElement ? pipelineNode.value : config.aiRecommendPipelineMode,
-          String(aiDefaults.pipelineMode || "omni_single")
-        )
-      );
+      applyDataBakerListenModelFields(config.aiRecommendListenModel, config, aiDefaults);
+      updateDataBakerListenModelFields(config.aiRecommendListenModel);
       getElement("data-baker-ai-enable-thinking").checked = Boolean(
         config.aiRecommendEnableThinking === true ||
           (config.aiRecommendEnableThinking !== true && aiDefaults.enableThinking === true)
@@ -4732,26 +4730,22 @@
       getElement("data-baker-qualified-autofill-concurrency")?.value
     );
     const autofillWaitAllBeforeFill = false;
-    const pipelineMode = hasAiSettingsPanel
-      ? normalizeDataBakerPipelineMode(
-          getElement("data-baker-ai-pipeline-mode")?.value,
-          currentConfig.aiRecommendPipelineMode || "omni_single"
+    const listenModel = hasAiSettingsPanel
+      ? normalizeDataBakerListenModel(
+          getElement("data-baker-ai-listen-model-select")?.value,
+          getDataBakerListenModelDefault(aiDefaults)
         )
-      : currentConfig.aiRecommendPipelineMode;
-    const listenModel =
-      pipelineMode === "fun_asr_compare"
-        ? "fun-asr"
-        : normalizeDataBakerOmniModel(
-            currentConfig.aiRecommendListenModel,
-            String(aiDefaults.omniModel || "qwen3.5-omni-flash")
-          );
-    const compareModel =
-      pipelineMode === "fun_asr_compare"
-        ? normalizeDataBakerCompareModel(
-            hasAiSettingsPanel ? getElement("data-baker-ai-compare-model-select")?.value : currentConfig.aiRecommendCompareModel,
-            String(aiDefaults.compareModel || "qwen3.5-plus")
-          )
-        : "";
+      : normalizeDataBakerListenModel(
+          currentConfig.aiRecommendListenModel,
+          getDataBakerListenModelDefault(aiDefaults)
+        );
+    const compareModel = normalizeDataBakerCompareModel(
+      hasAiSettingsPanel
+        ? getElement("data-baker-ai-compare-model-select")?.value
+        : currentConfig.aiRecommendCompareModel,
+      String(aiDefaults.compareModel || "qwen3.5-plus")
+    );
+    const pipelineMode = deriveDataBakerPipelineMode(listenModel);
     const listenPrompt = hasAiSettingsPanel
       ? normalizePromptText(getElement("data-baker-ai-listen-prompt").value)
       : currentConfig.aiRecommendListenPrompt;
@@ -4854,17 +4848,11 @@
                 aiRecommendRequestTimeoutMs: timeoutMs,
                 aiRecommendPipelineMode: pipelineMode,
                 aiRecommendListenModel:
-                  pipelineMode === "fun_asr_compare"
-                    ? "fun-asr"
-                    : listenModel === String(aiDefaults.omniModel || "").trim()
-                      ? ""
-                      : listenModel,
+                  listenModel === getDataBakerListenModelDefault(aiDefaults) ? "" : listenModel,
                 aiRecommendCompareModel:
-                  pipelineMode === "fun_asr_compare"
-                    ? compareModel === String(aiDefaults.compareModel || "").trim()
-                      ? ""
-                      : compareModel
-                    : "",
+                  compareModel === String(aiDefaults.compareModel || "").trim()
+                    ? ""
+                    : compareModel,
                 aiRecommendEnableThinking:
                   enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
                 aiRecommendListenPrompt: normalizeOverridePrompt(listenPrompt, aiDefaults.listenPrompt),

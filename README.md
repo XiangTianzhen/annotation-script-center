@@ -89,8 +89,8 @@ PM2 进程名示例：`annotation-script-center`。
 - 统一后端启动命令始终是：`node platform-resources/backend/server.js`
 - PM2 / systemd 也只是管理这个 Node 后端进程，不管理独立 Python 服务。
 - Python 不单独启动，只作为 Node 后端内部调用 Fun-ASR Python SDK 的辅助运行环境。
-- 只有使用 DataBaker 的 `fun_asr_compare` 时才需要 Python 虚拟环境。
-- 默认 `omni_single` 不依赖 Python 虚拟环境。
+- 只有把 DataBaker“听音模型”切到 `fun-asr` 时才需要 Python 虚拟环境。
+- 选择 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash` 时不依赖 Python 虚拟环境。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
 - Fun-ASR Python 依赖固定放在 `platform-resources/backend/ai/python/requirements.txt`。
@@ -153,12 +153,13 @@ Linux：
 
 期望：
 
-- 默认 `pipelineMode` 为 `omni_single`。
-- `supportedPipelineModes` 只有 `omni_single` 和 `fun_asr_compare`。
+- `defaults` 返回 `listenModelOptions` 和 `compareModelOptions`。
+- `listenModelOptions` 包含 `fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`。
+- `compareModelOptions` 包含 `qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`。
 - `funAsrModel` 为 `fun-asr`。
 - `omniModel` 为 `qwen3.5-omni-flash`。
 - `compareModel` 为 `qwen3.5-plus`。
-- 未配置 Python 虚拟环境时，`omni_single` 仍可用；只有 `fun_asr_compare` 会报 Python 环境缺失。
+- 未配置 Python 虚拟环境时，`qwen3.5-omni-plus / qwen3.5-omni-flash` 仍可用；只有 `fun-asr` 会报 Python 环境缺失。
 
 Fun-ASR 返回 `403` 时，常见原因优先排查：
 
@@ -168,7 +169,7 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - 平台 `audioUrl` 对阿里云模型服务不可访问。
 - 音频 URL 已过期或签名权限不足。
 
-临时恢复生产使用时，优先切回 `omni_single`。
+临时恢复生产使用时，优先切换到 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash`。
 
 详细后端配置见 `platform-resources/backend/README.md`。
 详细 API 清单见 `platform-resources/README.md` 的“统一后端 API 清单”。

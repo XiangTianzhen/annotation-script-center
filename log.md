@@ -1,5 +1,25 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（标贝易采一检质检：前端改为听音模型 + 比较模型，后端按听音模型自动选链路）
+
+- DataBaker ASR 语音 AI 设置页取消用户可见“AI 模式”，只保留两个核心配置：
+  - 听音模型：`fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
+  - 比较模型：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`
+- 前端不再让用户手动选择 `pipelineMode`；运行时统一由 `listenModel` 推导内部链路：
+  - `fun-asr` => `fun_asr_compare`
+  - `qwen3.5-omni-plus` / `qwen3.5-omni-flash` => `qwen_omni_compare`
+- options 页面切换听音模型时会即时刷新说明：
+  - 选择 `fun-asr` 时显示 Python SDK / `.venv` 提示
+  - 选择 Qwen Omni 听音模型时隐藏 Python 提示
+- 后端恢复并固定为“听音阶段 + 比较阶段”的两段式编排：
+  - `fun-asr`：统一 AI 基座 `providers/funasr-python.js` 调 Python SDK 拿到 `heardText`，再调用 compare 模型生成 `recommendedText`
+  - `qwen3.5-omni-plus` / `qwen3.5-omni-flash`：统一 AI 基座 `requestOmniInputAudio` 先做听音，再调用 compare 模型生成 `recommendedText`
+- `health/defaults` 新增 `listenModelOptions` 和 `compareModelOptions`；`supportedPipelineModes` 仅保留为后端兼容与排查信息，不再作为前端主配置。
+- 文档口径同步更新：
+  - 不再对用户暴露“Omni 单模型 / Fun-ASR + 比较模型”模式选择
+  - Fun-ASR 仅在选择 `fun-asr` 作为听音模型时依赖 Python 虚拟环境
+  - Qwen Omni 听音模型不依赖 Python 环境
+
 ## 2026-05-20（统一后端 Fun-ASR Python 文件与依赖文件归档）
 
 - Fun-ASR Python 运行环境继续统一收敛到 `platform-resources/backend/`：

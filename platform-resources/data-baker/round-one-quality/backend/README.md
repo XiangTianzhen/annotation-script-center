@@ -38,10 +38,10 @@
 
 ## 模型
 
-当前只保留两种流水线模式：
+当前前端只配置两个模型字段：
 
-- `omni_single`：默认模式。单次 Qwen Omni 请求同时完成听音、比对和推荐。
-- `fun_asr_compare`：Fun-ASR + 比较模型模式。Fun-ASR 负责听音转写，compare 模型负责生成推荐文本。
+- 听音模型：`fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
+- 比较模型：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`
 
 环境变量可覆盖：
 
@@ -55,9 +55,9 @@
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_MOCK`：设为 `1` 时走 mock，可直接写入 `config/env/ai.env`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，原生 `fetch` 请求体顶层传 `enable_thinking=false` 尝试关闭 thinking；设为 `1` 时不传该字段。
-- `DATABAKER_AI_PIPELINE_MODE`：默认 `omni_single`；只接受 `omni_single | fun_asr_compare`。历史 `two_stage`、`qwen_omni_two_stage`、`listen_only` 会迁移为 `omni_single`，但不再保留旧执行分支。
+- `DATABAKER_AI_PIPELINE_MODE`：仅作历史兼容保留；旧值 `omni_single / two_stage / qwen_omni_two_stage / listen_only` 会迁移为 Qwen Omni 听音 + compare，`fun_asr_compare` 会迁移为 Fun-ASR 听音 + compare。
 - `DATABAKER_AI_FUN_ASR_MODEL`：Fun-ASR 录音文件识别模型，默认 `fun-asr`。
-- `DATABAKER_AI_OMNI_MODEL`：Omni 单模型模式使用的 Qwen Omni 模型，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_AI_OMNI_MODEL`：Qwen Omni 听音模型默认值，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，显式指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
@@ -124,10 +124,11 @@ CSV 字段统一口径：
 1. 校验请求体中的 `collectId`、`itemId`、`audioUrl`、`pageText`。
 2. 生成词表上下文与缓存 key；缓存 key 使用 sha256，不保存完整 `audioUrl`。
 3. 命中缓存时直接返回历史推荐；未命中则进入 provider 队列。
-4. `omni_single`：
+4. 听音模型为 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash`：
    - 进入 `qwen_omni` 队列。
-   - 调用单次 Qwen Omni `input_audio` 请求，同时产出 `heardText`、`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`。
-5. `fun_asr_compare`：
+   - 先调用 Qwen Omni `input_audio` 产出 `heardText`。
+   - 再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
+5. 听音模型为 `fun-asr`：
    - 先进入 `fun_asr` 队列，由 `ai-client-funasr.js` 调起 `platform-resources/backend/ai/python/funasr_client.py`。
    - Python 端按官方 SDK 调用 `fun-asr`，提交录音文件识别任务并轮询结果。
    - Fun-ASR 返回 `heardText` 后，再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
@@ -137,7 +138,7 @@ CSV 字段统一口径：
 
 后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。
 
-`omni_single` 是默认模式，`fun_asr_compare` 用于独立验证 Fun-ASR + 比较模型链路。本仓库不会因为任一模式自动保存、自动提交、批量识别或流转。
+Qwen Omni 听音 + compare 是当前默认链路；`fun-asr` 作为可切换听音模型保留。本仓库不会因为任一链路自动保存、自动提交、批量识别或流转。
 
 听音模型请求中的音频片段格式：
 
@@ -225,7 +226,7 @@ console.log(__testOnly.splitTerms('透早(tao za )'));
 如果前端显示 `Qwen 接口请求失败（HTTP 400）` 或 `Fun-ASR 音频不可访问`：
 
 1. 先查看后端返回给前端的 `summary`，该字段已脱敏，不应包含完整音频 URL、token、cookie、`OSSAccessKeyId` 或 `Signature`。
-2. 确认 `omni_single` 使用的是 Qwen Omni `input_audio`，不是旧的 `audio_url`。
+2. 确认 `qwen3.5-omni-plus` / `qwen3.5-omni-flash` 听音链路使用的是 Qwen Omni `input_audio`，不是旧的 `audio_url`。
 3. 确认 Fun-ASR 走的是 Python SDK 录音文件识别提交/查询链路，而不是 OpenAI-compatible chat 模型。
 4. 确认当前音频 URL 在服务端可访问，且签名参数没有过期。
 5. 确认 `config/env/ai.env` 中 `DASHSCOPE_API_KEY` 正确。
@@ -239,7 +240,7 @@ Fun-ASR `403` 的常见原因：
 - 平台签名 `audioUrl` 对 Fun-ASR 服务不可访问
 - 调用参数错误
 
-若需要先恢复可用性，优先切回 `omni_single`。
+若需要先恢复可用性，优先切回 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus` 作为听音模型。
 
 ## 日志安全
 

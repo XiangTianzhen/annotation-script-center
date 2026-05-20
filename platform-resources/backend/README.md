@@ -55,9 +55,9 @@ http://127.0.0.1:3333
 - `ASR_TRANSCRIPTION_STATS_DIR`：ASR 转写统计输出目录（默认 `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`）。
 - `ASR_TRANSCRIPTION_PERSIST_ROWS_JSON`：设为 `1` 时额外保存 `statistics-rows.json`。
 - `ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS`：设为 `1` 时额外保存 `statistics-upload-events.jsonl`。
-- `DATABAKER_AI_PIPELINE_MODE`：标贝易采 AI 流水线模式，默认 `omni_single`；仅支持 `omni_single | fun_asr_compare`，历史 `two_stage / qwen_omni_two_stage / listen_only` 只做兼容迁移并标记 deprecated。
+- `DATABAKER_AI_PIPELINE_MODE`：标贝易采旧流水线兼容字段；历史 `omni_single / two_stage / qwen_omni_two_stage / listen_only` 会迁移到 Qwen Omni 听音 + compare，`fun_asr_compare` 会迁移到 Fun-ASR 听音 + compare。
 - `DATABAKER_AI_FUN_ASR_MODEL`：标贝易采 Fun-ASR 录音文件识别模型，默认 `fun-asr`。
-- `DATABAKER_AI_OMNI_MODEL`：标贝易采 Omni 单模型模式使用的 Qwen Omni 模型，默认 `qwen3.5-omni-flash`。
+- `DATABAKER_AI_OMNI_MODEL`：标贝易采 Qwen Omni 听音模型默认值，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：标贝易采 AI 对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：标贝易采 AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：标贝易采 Fun-ASR 语言提示，默认 `zh`。
@@ -201,7 +201,8 @@ pm2 restart annotation-script-center --update-env
 
 - `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载，以及 AI 建议 `health/suggest` 接口。
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。
-- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`，以及导出 CSV `health/config/upload/download` 接口；当前只保留 `fun_asr_compare` 与 `omni_single` 两种模式，导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
+- `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`，以及导出 CSV `health/config/upload/download` 接口；当前前端只配置“听音模型 + 比较模型”，后端再推导 Fun-ASR 或 Qwen Omni 听音链路，导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
+- `data-baker/round-one-quality` 的 `supportedPipelineModes` 仅保留给后端兼容与排查使用，不再作为前端主配置来源；前端主配置为 `listenModelOptions` 与 `compareModelOptions`。
 - `magic-data/annotator`：Magic Data AI 质检调试接口，包含 `review-current` 与 `health`。
 - `abaka-ai/task21`：Abaka Task21 AI 分析调试接口，包含 `health/defaults/analyze`。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
@@ -245,8 +246,7 @@ ASR 转写职责边界：
   - 标贝易采导出下载：`/api/data-baker/round-one-quality/export/download`
 
 DataBaker AI 架构补充：
-- `omni_single` 是当前默认模式，单次 Qwen Omni 请求完成听音与推荐。
-- `fun_asr_compare` 通过 Python SDK 调用 Fun-ASR，再走 compare 文本模型。
+- 当前默认链路是 Qwen Omni 听音 + compare；选择 `fun-asr` 时则通过 Python SDK 调用 Fun-ASR，再走 compare 文本模型。
 - 前端默认并发已降到 `5`，建议最大值 `10`；多人并发时只允许在后端排队，不允许浏览器直连 DashScope。
 - `429` 的根因是上游模型或账号维度限流，不是统一后端机器规格问题；同一阿里云主账号下的多个 RAM 用户/API Key 可能共享限流额度。
 - Fun-ASR 不走 OpenAI-compatible chat/completions；模型名必须是小写 `fun-asr`。

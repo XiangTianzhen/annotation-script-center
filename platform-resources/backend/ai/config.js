@@ -6,6 +6,17 @@ const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_OMNI_MODEL = "qwen3.5-omni-flash";
 const DEFAULT_COMPARE_MODEL = "qwen3.5-plus";
 const DEFAULT_FUN_ASR_MODEL = "fun-asr";
+const DATABAKER_LISTEN_MODEL_OPTIONS = [
+  "fun-asr",
+  "qwen3.5-omni-plus",
+  "qwen3.5-omni-flash",
+];
+const DATABAKER_COMPARE_MODEL_OPTIONS = [
+  "qwen3.6-plus",
+  "qwen3.5-plus",
+  "qwen3.6-flash",
+  "qwen3.5-flash",
+];
 const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_REQUEST_PARAMS = {
   temperature: 0.1,
@@ -82,6 +93,44 @@ function getDefaultPythonCandidates() {
   ];
 }
 
+function normalizeDataBakerListenModel(value, fallback) {
+  const normalizedValue = String(value || "").trim();
+  const normalizedFallback = String(fallback || DEFAULT_OMNI_MODEL).trim() || DEFAULT_OMNI_MODEL;
+  if (DATABAKER_LISTEN_MODEL_OPTIONS.indexOf(normalizedValue) >= 0) {
+    return normalizedValue;
+  }
+  if (DATABAKER_LISTEN_MODEL_OPTIONS.indexOf(normalizedFallback) >= 0) {
+    return normalizedFallback;
+  }
+  return DEFAULT_OMNI_MODEL;
+}
+
+function normalizeDataBakerCompareModel(value, fallback) {
+  const normalizedValue = String(value || "").trim();
+  const normalizedFallback = String(fallback || DEFAULT_COMPARE_MODEL).trim() || DEFAULT_COMPARE_MODEL;
+  if (DATABAKER_COMPARE_MODEL_OPTIONS.indexOf(normalizedValue) >= 0) {
+    return normalizedValue;
+  }
+  if (DATABAKER_COMPARE_MODEL_OPTIONS.indexOf(normalizedFallback) >= 0) {
+    return normalizedFallback;
+  }
+  return DEFAULT_COMPARE_MODEL;
+}
+
+function deriveDataBakerPipelineMode(listenModel) {
+  return String(listenModel || "").trim() === DEFAULT_FUN_ASR_MODEL
+    ? "fun_asr_compare"
+    : "qwen_omni_compare";
+}
+
+function resolveDataBakerDefaultListenModel() {
+  const legacyPipeline = String(process.env.DATABAKER_AI_PIPELINE_MODE || "").trim().toLowerCase();
+  if (legacyPipeline === "fun_asr_compare") {
+    return DEFAULT_FUN_ASR_MODEL;
+  }
+  return normalizeDataBakerListenModel(process.env.DATABAKER_AI_OMNI_MODEL || DEFAULT_OMNI_MODEL);
+}
+
 function getQwenProviderConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
@@ -96,6 +145,8 @@ function getQwenProviderConfig() {
     mockEnabled: isMockEnabled(),
     hasApiKey: Boolean(apiKey),
     enableThinkingDefault: parseEnableThinkingDefault(),
+    listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+    compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
   };
 }
 
@@ -115,6 +166,8 @@ function getFunAsrPythonConfig() {
     defaultVenvDir: DEFAULT_VENV_DIR,
     defaultScriptPath: DEFAULT_FUNASR_PYTHON_SCRIPT,
     defaultPythonCandidates: getDefaultPythonCandidates(),
+    listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+    compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
   };
 }
 
@@ -123,15 +176,21 @@ module.exports = {
   DEFAULT_COMPARE_MODEL,
   DEFAULT_FUN_ASR_MODEL,
   DEFAULT_OMNI_MODEL,
+  DATABAKER_COMPARE_MODEL_OPTIONS,
+  DATABAKER_LISTEN_MODEL_OPTIONS,
   DEFAULT_REQUEST_PARAMS,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_VENV_DIR,
   DEFAULT_FUNASR_PYTHON_SCRIPT,
   SUPPORTED_REQUEST_PARAMS,
   buildSdkBaseHttpApiUrl,
+  deriveDataBakerPipelineMode,
   getDefaultPythonCandidates,
   getFunAsrPythonConfig,
   getQwenProviderConfig,
+  normalizeDataBakerCompareModel,
+  normalizeDataBakerListenModel,
+  resolveDataBakerDefaultListenModel,
   isMockEnabled,
   parseEnableThinkingDefault,
   parseLanguageHints,

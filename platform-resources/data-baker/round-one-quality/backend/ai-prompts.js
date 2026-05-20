@@ -9,8 +9,15 @@ const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "不要把方言建议用字改回普通话同义词。",
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
+const DEFAULT_OMNI_LISTEN_TEMPLATE = [
+  "你只负责听音转写，不负责生成最终推荐文本。",
+  "页面候选文本、朗读要求和有效时间只用于辅助你更稳定地识别音频内容。",
+  "输出 JSON 字段必须包含 heardText、confidence、needHumanReview。",
+  "heardText 的普通中文统一输出简体。",
+  "只输出 JSON，不要输出 Markdown 或解释文字。",
+].join("\n");
 const DEFAULT_COMPARE_TEMPLATE = [
-  "Fun-ASR 已经完成音频转写；你现在只负责比较 heardText 与页面候选文本，输出最终推荐文本。",
+  "听音阶段已经完成音频转写；你现在只负责比较 heardText 与页面候选文本，输出最终推荐文本。",
   "以实际发声为主，不因词表存在就无依据改写。",
   "recommendedText 的普通中文统一使用简体；pageText/heardText 中的普通繁体字应转换为简体。",
   "但命中 minnan-lexicon.csv 的建议用字必须保持不变，不参与普通简繁转换。",
@@ -82,6 +89,38 @@ function buildOmniSinglePrompt(request, lexiconContext) {
   };
 }
 
+function buildOmniListenPrompt(request) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.listenPrompt,
+    DEFAULT_OMNI_LISTEN_TEMPLATE
+  );
+  const input = {
+    pageText: request.pageText,
+    readRequire: request.readRequire,
+    sentenceNumber: request.sentenceNumber,
+    effectiveStartTime: request.effectiveStartTime,
+    effectiveEndTime: request.effectiveEndTime,
+    effectiveTime: request.effectiveTime,
+    audioDuration: request.audioDuration,
+  };
+  return {
+    ruleVersion: RULE_VERSION,
+    systemPrompt:
+      "你是 DataBaker 听音助手。你会接收音频和页面上下文，必须只输出 JSON，不要输出 Markdown 或 JSON 以外文本。",
+    userPrompt: [
+      template,
+      "规则：",
+      "1. 你只负责输出 heardText，不负责生成 recommendedText。",
+      "2. pageText 只是辅助，不要机械照抄页面文本。",
+      "3. 以实际发声为主；听不清时 needHumanReview=true。",
+      "4. confidence 取 0 到 1。",
+      "5. 输出 JSON 字段：heardText、confidence、needHumanReview。",
+      "输入：",
+      JSON.stringify(input, null, 2),
+    ].join("\n"),
+  };
+}
+
 function buildComparePrompt(request, heardText, lexiconContext) {
   const template = normalizePromptTemplate(
     request?.aiOptions?.comparePrompt,
@@ -139,7 +178,9 @@ function buildComparePrompt(request, heardText, lexiconContext) {
 module.exports = {
   RULE_VERSION,
   DEFAULT_COMPARE_TEMPLATE,
+  DEFAULT_OMNI_LISTEN_TEMPLATE,
   DEFAULT_OMNI_SINGLE_TEMPLATE,
   buildComparePrompt,
+  buildOmniListenPrompt,
   buildOmniSinglePrompt,
 };
