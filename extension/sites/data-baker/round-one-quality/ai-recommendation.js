@@ -6,7 +6,7 @@
   function buildFriendlyErrorMessage(responseBody, status) {
     const code = String(responseBody?.code || "");
     if (code === "fun-asr-python-not-configured") {
-      return "Fun-ASR Python 环境未配置，请先创建 .venv-funasr 并安装 requirements-funasr.txt。";
+      return "Fun-ASR Python 环境未配置，请在 platform-resources/backend/.venv-funasr 创建虚拟环境并安装 requirements-funasr.txt。";
     }
     if (code === "invalid-fun-asr-model") {
       return "Fun-ASR 模型名应为 fun-asr。";

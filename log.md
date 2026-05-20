@@ -23,6 +23,24 @@
   - `health/defaults` 验证步骤
   - `403` 常见原因与临时切回 `omni_single` 的方案
 
+## 2026-05-20（标贝易采一检质检热修：Fun-ASR 部署入口上移到根 README）
+
+- DataBaker Fun-ASR Python 虚拟环境默认路径改为 `platform-resources/backend/.venv-funasr`，统一归到 `platform-resources/backend` 管理。
+- `ai-client-funasr.js` 默认查找路径同步改为：
+  - Windows：`platform-resources/backend/.venv-funasr/Scripts/python.exe`
+  - Linux/macOS：`platform-resources/backend/.venv-funasr/bin/python`
+- 未显式设置 `DATABAKER_FUNASR_PYTHON_BIN` 且默认路径缺失时，错误提示改为要求在 `platform-resources/backend/.venv-funasr` 创建虚拟环境并安装 `requirements-funasr.txt`。
+- 根目录 `README.md` 新增项目级“Fun-ASR Python 环境部署”完整流程，包含：
+  - 适用场景
+  - Windows 本地命令
+  - Linux 服务器命令
+  - 环境变量示例
+  - 后端重启方式
+  - `health/defaults` 验证步骤
+  - Fun-ASR `403` 常见原因与临时切回 `omni_single` 的建议
+- `platform-resources/backend/README.md`、`platform-resources/data-baker/round-one-quality/backend/README.md`、`platform-resources/data-baker/round-one-quality/README.md` 与扩展侧 README 收敛为短提示，不再重复整套服务器部署长流程。
+- `.gitignore` 新增忽略 `platform-resources/backend/.venv-funasr/`；旧路径忽略项保留，兼容本地历史遗留虚拟环境。
+
 ## 2026-05-20（标贝易采一检质检热修：DataBaker AI 模式设置页模型显示收敛）
 
 - 修复 标贝易采一检质检 ASR 语音 AI 设置页模型展示逻辑，使其与实际后端模式严格一致。

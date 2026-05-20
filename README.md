@@ -82,6 +82,86 @@ PM2 进程名示例：`annotation-script-center`。
 - 不要提交 API Key、cookie、token、authorization、JWT secret、CRX 私钥。
 - 修改环境变量后必须执行 `pm2 restart annotation-script-center --update-env`，否则新变量可能不生效。
 
+### Fun-ASR Python 环境部署
+
+适用说明：
+
+- 只有选择 DataBaker 的 `fun_asr_compare` 时需要 Python 虚拟环境。
+- `omni_single` 不依赖 Python 虚拟环境。
+- Fun-ASR Python 环境统一放在 `platform-resources/backend/.venv-funasr`。
+- `platform-resources/backend` 是统一后端聚合目录，所以 Python 环境也放这里统一管理。
+- Fun-ASR 通过后端 Python SDK 调用，前端不直连 DashScope。
+
+Windows 本地命令：
+
+    cd C:\Projects\annotation-script-center
+    py -3 -m venv platform-resources\backend\.venv-funasr
+    platform-resources\backend\.venv-funasr\Scripts\python.exe -m pip install -U pip
+    platform-resources\backend\.venv-funasr\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
+    platform-resources\backend\.venv-funasr\Scripts\python.exe -m py_compile platform-resources\data-baker\round-one-quality\backend\funasr_client.py
+
+Linux 服务器命令：
+
+    cd /var/www/annotation-script-center
+    python3 -m venv platform-resources/backend/.venv-funasr
+    platform-resources/backend/.venv-funasr/bin/python -m pip install -U pip
+    platform-resources/backend/.venv-funasr/bin/python -m pip install -r platform-resources/data-baker/round-one-quality/backend/requirements-funasr.txt
+    platform-resources/backend/.venv-funasr/bin/python -m py_compile platform-resources/data-baker/round-one-quality/backend/funasr_client.py
+
+环境变量示例：
+
+    DASHSCOPE_API_KEY=your_dashscope_api_key
+    DATABAKER_AI_PIPELINE_MODE=omni_single
+    DATABAKER_AI_OMNI_MODEL=qwen3.5-omni-flash
+    DATABAKER_AI_FUN_ASR_MODEL=fun-asr
+    DATABAKER_AI_COMPARE_MODEL=qwen3.5-plus
+    DATABAKER_FUNASR_PYTHON_BIN=
+    DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS=zh
+
+说明：
+
+- `DATABAKER_FUNASR_PYTHON_BIN` 留空时，后端自动使用 `platform-resources/backend/.venv-funasr`。
+- 如服务器 Python 路径特殊，可显式设置：
+  `DATABAKER_FUNASR_PYTHON_BIN=/var/www/annotation-script-center/platform-resources/backend/.venv-funasr/bin/python`
+- Windows 本地可设置：
+  `DATABAKER_FUNASR_PYTHON_BIN=C:\Projects\annotation-script-center\platform-resources\backend\.venv-funasr\Scripts\python.exe`
+
+安装 Python 依赖或修改 env 后，必须重启统一后端：
+
+    pm2 restart annotation-script-center --update-env
+
+systemd 示例：
+
+    sudo systemctl restart annotation-script-center
+
+手动启动示例：
+
+    node platform-resources/backend/server.js
+
+验证接口：
+
+    GET /api/data-baker/round-one-quality/ai/recommend/health
+    GET /api/data-baker/round-one-quality/ai/recommend/defaults
+
+期望：
+
+- 默认 `pipelineMode` 为 `omni_single`。
+- `supportedPipelineModes` 只有 `omni_single` 和 `fun_asr_compare`。
+- `funAsrModel` 为 `fun-asr`。
+- `omniModel` 为 `qwen3.5-omni-flash`。
+- `compareModel` 为 `qwen3.5-plus`。
+- 未配置 Python 虚拟环境时，`omni_single` 仍可用；只有 `fun_asr_compare` 会报 Python 环境缺失。
+
+Fun-ASR 返回 `403` 时，常见原因优先排查：
+
+- DashScope API Key 无权限。
+- 百炼服务地域或模型未开通。
+- Fun-ASR 不支持当前账号或地域。
+- 平台 `audioUrl` 对阿里云模型服务不可访问。
+- 音频 URL 已过期或签名权限不足。
+
+临时恢复生产使用时，优先切回 `omni_single`。
+
 详细后端配置见 `platform-resources/backend/README.md`。
 详细 API 清单见 `platform-resources/README.md` 的“统一后端 API 清单”。
 

@@ -7,6 +7,7 @@ const { spawn } = require("child_process");
 const DEFAULT_FUN_ASR_MODEL = "fun-asr";
 const DEFAULT_TIMEOUT_MS = 120000;
 const PYTHON_SCRIPT_PATH = path.join(__dirname, "funasr_client.py");
+const DEFAULT_VENV_DIR = path.join(__dirname, "..", "..", "..", "backend", ".venv-funasr");
 
 function parseTimeoutMs() {
   const value = Number(process.env.DATABAKER_AI_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
@@ -60,8 +61,8 @@ function buildSdkBaseHttpApiUrl() {
 
 function getDefaultPythonCandidates() {
   return [
-    path.join(__dirname, ".venv-funasr", "Scripts", "python.exe"),
-    path.join(__dirname, ".venv-funasr", "bin", "python"),
+    path.join(DEFAULT_VENV_DIR, "Scripts", "python.exe"),
+    path.join(DEFAULT_VENV_DIR, "bin", "python"),
   ];
 }
 
@@ -118,7 +119,7 @@ function createConfiguredError(message, code, statusCode) {
 
 function createPythonEnvironmentMissingError() {
   return createConfiguredError(
-    "Fun-ASR Python 环境未配置，请先创建 .venv-funasr 并安装 requirements-funasr.txt。",
+    "Fun-ASR Python 环境未配置，请在 platform-resources/backend/.venv-funasr 创建虚拟环境并安装 requirements-funasr.txt。",
     "fun-asr-python-not-configured",
     503
   );
@@ -132,7 +133,7 @@ function createJsonParseError(stdoutText, stderrText) {
 
 function normalizeFailureMessage(code, providerStatus, message) {
   if (code === "fun-asr-python-not-configured") {
-    return "Fun-ASR Python 环境未配置，请先创建 .venv-funasr 并安装 requirements-funasr.txt。";
+    return "Fun-ASR Python 环境未配置，请在 platform-resources/backend/.venv-funasr 创建虚拟环境并安装 requirements-funasr.txt。";
   }
   if (code === "invalid-fun-asr-model") {
     return "Fun-ASR 模型名应为 fun-asr。";

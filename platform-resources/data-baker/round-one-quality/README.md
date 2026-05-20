@@ -140,7 +140,7 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
 - `DATABAKER_AI_PIPELINE_MODE`：默认 `omni_single`；只接受 `omni_single | fun_asr_compare`。历史 `two_stage`、`qwen_omni_two_stage`、`listen_only` 会自动迁移为 `omni_single` 并给出 deprecated 提示。
-- `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Fun-ASR Python 解释器路径；未设置时优先使用 `backend/.venv-funasr`。
+- `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Fun-ASR Python 解释器路径；未设置时优先使用 `platform-resources/backend/.venv-funasr`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
@@ -185,61 +185,8 @@ Fun-ASR Python 文件路径：
 platform-resources/data-baker/round-one-quality/backend/funasr_client.py
 ```
 
-本地虚拟环境建议：
-
-```powershell
-python -m venv platform-resources\data-baker\round-one-quality\backend\.venv-funasr
-platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -U pip
-platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
-```
-
-`.venv-funasr` 不提交 Git。
-
-Fun-ASR Python 环境部署：
-
-- 只有 `fun_asr_compare` 需要 Python 虚拟环境。
-- `omni_single` 不依赖 Python 虚拟环境。
-- Fun-ASR 通过后端 Python SDK 调用，不由前端直连 DashScope。
-
-Windows 本地：
-
-```powershell
-cd C:\Projects\annotation-script-center
-py -3 -m venv platform-resources\data-baker\round-one-quality\backend\.venv-funasr
-platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -U pip
-platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
-platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m py_compile platform-resources\data-baker\round-one-quality\backend\funasr_client.py
-```
-
-Linux 服务器：
-
-```bash
-cd /path/to/annotation-script-center
-python3 -m venv platform-resources/data-baker/round-one-quality/backend/.venv-funasr
-platform-resources/data-baker/round-one-quality/backend/.venv-funasr/bin/python -m pip install -U pip
-platform-resources/data-baker/round-one-quality/backend/.venv-funasr/bin/python -m pip install -r platform-resources/data-baker/round-one-quality/backend/requirements-funasr.txt
-platform-resources/data-baker/round-one-quality/backend/.venv-funasr/bin/python -m py_compile platform-resources/data-baker/round-one-quality/backend/funasr_client.py
-```
-
-修改 env 或安装 Python 依赖后，需要重启统一后端。示例：
-
-- `pm2 restart annotation-script-center-backend`
-- `sudo systemctl restart annotation-script-center-backend`
-- `node platform-resources/backend/server.js`
-
-验证接口：
-
-- `GET /api/data-baker/round-one-quality/ai/recommend/health`
-- `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
-
-期望：
-
-- 默认 `pipelineMode=omni_single`
-- `supportedPipelineModes` 只有 `omni_single` 和 `fun_asr_compare`
-- `funAsrModel=fun-asr`
-- `omniModel=qwen3.5-omni-flash`
-- `compareModel=qwen3.5-plus`
-- 未配置 Python 环境时，`omni_single` 仍可用；只有 `fun_asr_compare` 会报 Python 环境缺失
+- 默认虚拟环境路径已统一为 `platform-resources/backend/.venv-funasr`。
+- Fun-ASR Python 环境属于项目级后端部署，统一见根目录 `README.md`。
 
 ## 真实浏览器验收建议
 
