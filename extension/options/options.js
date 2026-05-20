@@ -676,6 +676,29 @@
     setFieldVisibility("data-baker-ai-compare-model-custom-field", false);
   }
 
+  function getDataBakerModeDraftConfig(aiDefaults) {
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const listenSelectNode = getElement("data-baker-ai-listen-model-select");
+    const compareSelectNode = getElement("data-baker-ai-compare-model-select");
+    return {
+      aiRecommendListenModel:
+        listenSelectNode instanceof HTMLSelectElement
+          ? String(listenSelectNode.value || "").trim()
+          : String(defaults.omniModel || "qwen3.5-omni-flash"),
+      aiRecommendCompareModel:
+        compareSelectNode instanceof HTMLSelectElement
+          ? String(compareSelectNode.value || "").trim()
+          : String(defaults.compareModel || "qwen3.5-plus"),
+    };
+  }
+
+  function updateDataBakerAiModeFields(mode) {
+    const aiDefaults =
+      getAsrVoiceAiDefaultsCached(dataBakerRoundOneQualityScriptId).defaults || {};
+    const draftConfig = getDataBakerModeDraftConfig(aiDefaults);
+    applyDataBakerModeFields(mode, draftConfig, aiDefaults);
+  }
+
   function bindJudgementModelSelect(selectId, customInputId) {
     const selectNode = getElement(selectId);
     const customNode = getElement(customInputId);
@@ -1852,21 +1875,6 @@
         "</div></div>",
         "</div>",
       ].join("");
-      bindJudgementModelSelect(prefix + "-listen-model-select", prefix + "-listen-model-custom");
-      bindJudgementModelSelect(prefix + "-compare-model-select", prefix + "-compare-model-custom");
-      if (scriptId === dataBakerRoundOneQualityScriptId) {
-        const pipelineNode = getElement("data-baker-ai-pipeline-mode");
-        if (pipelineNode instanceof HTMLSelectElement) {
-          pipelineNode.addEventListener("change", function () {
-            const config = getDataBakerRoundOneConfig(currentSettings || {});
-            config.aiRecommendPipelineMode = normalizeDataBakerPipelineMode(
-              pipelineNode.value,
-              "omni_single"
-            );
-            applyDataBakerModeFields(config.aiRecommendPipelineMode, config, getAsrVoiceAiDefaultsCached(dataBakerRoundOneQualityScriptId).defaults || {});
-          });
-        }
-      }
       panel.classList.remove("hidden");
       return;
     }
@@ -1920,6 +1928,14 @@
       if (scriptId !== dataBakerRoundOneQualityScriptId) {
         bindJudgementModelSelect(prefix + "-listen-model-select", prefix + "-listen-model-custom");
         bindJudgementModelSelect(prefix + "-compare-model-select", prefix + "-compare-model-custom");
+      } else {
+        const pipelineNode = getElement("data-baker-ai-pipeline-mode");
+        if (pipelineNode instanceof HTMLSelectElement) {
+          pipelineNode.addEventListener("change", function (event) {
+            const nextMode = normalizeDataBakerPipelineMode(event?.target?.value, "omni_single");
+            updateDataBakerAiModeFields(nextMode);
+          });
+        }
       }
       panel.classList.remove("hidden");
       return;
@@ -4622,6 +4638,12 @@
         ),
         config,
         aiDefaults
+      );
+      updateDataBakerAiModeFields(
+        normalizeDataBakerPipelineMode(
+          pipelineNode instanceof HTMLSelectElement ? pipelineNode.value : config.aiRecommendPipelineMode,
+          String(aiDefaults.pipelineMode || "omni_single")
+        )
       );
       getElement("data-baker-ai-enable-thinking").checked = Boolean(
         config.aiRecommendEnableThinking === true ||

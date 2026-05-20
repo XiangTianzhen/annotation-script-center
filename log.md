@@ -1,5 +1,28 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（标贝易采一检质检热修：AI 模式切换即时显示 + Fun-ASR 部署文档补齐）
+
+- 修复 DataBaker ASR 语音 AI 设置页：切换 `AI 模式` 后，模型区域会立即按当前 select 值显示或隐藏，不需要先保存。
+- 本次 change 事件只更新当前 options 页面 UI，不会提前写入 `chrome.storage`。
+- `omni_single` 下会立即隐藏：
+  - Fun-ASR 模型
+  - Fun-ASR Python SDK 提示
+  - 比较模型
+  - 所有模型自定义输入
+- `fun_asr_compare` 下会立即显示：
+  - 固定 `fun-asr` 模型
+  - Fun-ASR Python SDK 提示
+  - 四选一比较模型下拉
+  - 仍继续隐藏所有模型自定义输入
+- DataBaker 新增页面态辅助函数，切换时优先读取当前表单 select 值，不回读旧 `settings/chrome.storage`。
+- 补齐 Fun-ASR Python 环境部署文档：
+  - Windows 本地创建虚拟环境
+  - Linux 服务器创建虚拟环境
+  - `DATABAKER_FUNASR_PYTHON_BIN` 与相关环境变量
+  - 安装依赖后重启统一后端
+  - `health/defaults` 验证步骤
+  - `403` 常见原因与临时切回 `omni_single` 的方案
+
 ## 2026-05-20（标贝易采一检质检热修：DataBaker AI 模式设置页模型显示收敛）
 
 - 修复 标贝易采一检质检 ASR 语音 AI 设置页模型展示逻辑，使其与实际后端模式严格一致。

@@ -197,6 +197,36 @@ platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\pyt
 platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
 ```
 
+服务器部署补充：
+
+- 只有 `fun_asr_compare` 需要 Python 虚拟环境；`omni_single` 不依赖 Python。
+- Linux 服务器可执行：
+
+```bash
+cd /path/to/annotation-script-center
+python3 -m venv platform-resources/data-baker/round-one-quality/backend/.venv-funasr
+platform-resources/data-baker/round-one-quality/backend/.venv-funasr/bin/python -m pip install -U pip
+platform-resources/data-baker/round-one-quality/backend/.venv-funasr/bin/python -m pip install -r platform-resources/data-baker/round-one-quality/backend/requirements-funasr.txt
+platform-resources/data-baker/round-one-quality/backend/.venv-funasr/bin/python -m py_compile platform-resources/data-baker/round-one-quality/backend/funasr_client.py
+```
+
+- 安装依赖或修改环境变量后，需要重启统一后端，例如：
+  - `pm2 restart annotation-script-center-backend`
+  - `sudo systemctl restart annotation-script-center-backend`
+  - `node platform-resources/backend/server.js`
+
+- 验证接口：
+  - `GET /api/data-baker/round-one-quality/ai/recommend/health`
+  - `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
+
+- 如果 Fun-ASR 返回 `403`，优先排查：
+  - DashScope API Key 无权限
+  - 百炼服务地域或模型未开通
+  - Fun-ASR 不支持当前账号/地域
+  - 平台 `audioUrl` 对阿里云模型服务不可访问
+  - 音频 URL 已过期或签名权限不足
+  临时恢复生产使用时，先切回 `omni_single`。
+
 后端统一经过 provider/model group 级全局限流队列，并带 429 指数退避重试；多人并发时浏览器请求只能在后端排队，不能直接打穿百炼限流。`429` 的根因是上游模型或账号维度限流，不是 `2 核 2G` 服务器算力问题。多个 RAM 用户或 API Key 若属于同一阿里云主账号，也可能合并计入限流。
 
 后端已接入闽南方言字词表 CSV：

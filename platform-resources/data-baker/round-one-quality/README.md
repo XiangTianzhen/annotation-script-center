@@ -195,6 +195,52 @@ platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\pyt
 
 `.venv-funasr` 不提交 Git。
 
+Fun-ASR Python 环境部署：
+
+- 只有 `fun_asr_compare` 需要 Python 虚拟环境。
+- `omni_single` 不依赖 Python 虚拟环境。
+- Fun-ASR 通过后端 Python SDK 调用，不由前端直连 DashScope。
+
+Windows 本地：
+
+```powershell
+cd C:\Projects\annotation-script-center
+py -3 -m venv platform-resources\data-baker\round-one-quality\backend\.venv-funasr
+platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -U pip
+platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
+platform-resources\data-baker\round-one-quality\backend\.venv-funasr\Scripts\python.exe -m py_compile platform-resources\data-baker\round-one-quality\backend\funasr_client.py
+```
+
+Linux 服务器：
+
+```bash
+cd /path/to/annotation-script-center
+python3 -m venv platform-resources/data-baker/round-one-quality/backend/.venv-funasr
+platform-resources/data-baker/round-one-quality/backend/.venv-funasr/bin/python -m pip install -U pip
+platform-resources/data-baker/round-one-quality/backend/.venv-funasr/bin/python -m pip install -r platform-resources/data-baker/round-one-quality/backend/requirements-funasr.txt
+platform-resources/data-baker/round-one-quality/backend/.venv-funasr/bin/python -m py_compile platform-resources/data-baker/round-one-quality/backend/funasr_client.py
+```
+
+修改 env 或安装 Python 依赖后，需要重启统一后端。示例：
+
+- `pm2 restart annotation-script-center-backend`
+- `sudo systemctl restart annotation-script-center-backend`
+- `node platform-resources/backend/server.js`
+
+验证接口：
+
+- `GET /api/data-baker/round-one-quality/ai/recommend/health`
+- `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
+
+期望：
+
+- 默认 `pipelineMode=omni_single`
+- `supportedPipelineModes` 只有 `omni_single` 和 `fun_asr_compare`
+- `funAsrModel=fun-asr`
+- `omniModel=qwen3.5-omni-flash`
+- `compareModel=qwen3.5-plus`
+- 未配置 Python 环境时，`omni_single` 仍可用；只有 `fun_asr_compare` 会报 Python 环境缺失
+
 ## 真实浏览器验收建议
 
 1. 重新加载扩展。
