@@ -10,14 +10,20 @@ const DEFAULT_GROUP_SETTINGS = {
   qwen_omni: {
     rpmEnv: "DATABAKER_AI_QWEN_OMNI_RPM_LIMIT",
     rpm: 45,
+    concurrencyEnv: "DATABAKER_AI_QWEN_OMNI_CONCURRENCY",
+    maxConcurrent: 3,
   },
   fun_asr: {
     rpmEnv: "DATABAKER_AI_FUN_ASR_RPM_LIMIT",
     rpm: 500,
+    concurrencyEnv: "DATABAKER_AI_FUN_ASR_CONCURRENCY",
+    maxConcurrent: 5,
   },
   text_compare: {
     rpmEnv: "DATABAKER_AI_TEXT_RPM_LIMIT",
     rpm: 500,
+    concurrencyEnv: "DATABAKER_AI_TEXT_CONCURRENCY",
+    maxConcurrent: 5,
   },
 };
 const queueRegistry = new Map();
@@ -65,10 +71,17 @@ function getRetryMaxDelayMs() {
 function getGroupSettings(groupName) {
   const preset = DEFAULT_GROUP_SETTINGS[groupName] || DEFAULT_GROUP_SETTINGS.text_compare;
   const rpm = parsePositiveInteger(process.env[preset.rpmEnv], preset.rpm, 1, 10000);
+  const maxConcurrent = parsePositiveInteger(
+    process.env[preset.concurrencyEnv],
+    preset.maxConcurrent,
+    1,
+    20
+  );
   return {
     groupName,
     rpm,
     intervalMs: Math.max(1, Math.ceil(60000 / rpm)),
+    maxConcurrent,
     maxSize: getGlobalQueueMaxSize(),
     retryMax: getGlobalRetryMax(),
     retryBaseDelayMs: getRetryBaseDelayMs(),
@@ -101,7 +114,8 @@ class ProviderQueue {
   constructor(groupName) {
     this.groupName = groupName;
     this.items = [];
-    this.processing = false;
+    this.activeCount = 0;
+    this.scheduled = false;
     this.nextAvailableAt = 0;
     this.stats = {
       enqueuedCount: 0,
@@ -127,7 +141,9 @@ class ProviderQueue {
       maxSize: settings.maxSize,
       retryMax: settings.retryMax,
       pendingCount: this.items.length,
-      processing: this.processing,
+      activeCount: this.activeCount,
+      maxConcurrent: settings.maxConcurrent,
+      processing: this.activeCount > 0,
       nextAvailableAt: this.nextAvailableAt || 0,
       stats: Object.assign({}, this.stats),
     };
@@ -153,64 +169,71 @@ class ProviderQueue {
   }
 
   schedule() {
-    if (this.processing) {
+    if (this.scheduled) {
       return;
     }
-    this.processing = true;
+    this.scheduled = true;
     const queue = this;
     setTimeout(function () {
+      queue.scheduled = false;
       void queue.processLoop();
     }, 0);
   }
 
   async processLoop() {
-    try {
-      while (this.items.length > 0) {
-        const settings = this.getSettings();
-        const waitBeforeStartMs = Math.max(0, this.nextAvailableAt - Date.now());
-        if (waitBeforeStartMs > 0) {
-          await delay(waitBeforeStartMs);
-        }
-
-        const item = this.items.shift();
-        if (!item) {
-          continue;
-        }
-
-        const queueStartedAt = Date.now();
-        this.stats.lastStartedAt = queueStartedAt;
-        const queueMeta = {
-          groupName: this.groupName,
-          queueWaitMs: Math.max(0, queueStartedAt - item.enqueuedAt),
-          retryCount: 0,
-          retryDelaysMs: [],
-          queuedAt: item.enqueuedAt,
-          startedAt: queueStartedAt,
-        };
-
-        try {
-          const value = await this.executeWithRetry(item.task, settings, queueMeta);
-          queueMeta.finishedAt = Date.now();
-          queueMeta.durationMs = Math.max(0, queueMeta.finishedAt - queueStartedAt);
-          this.stats.completedCount += 1;
-          item.resolve({ value, queueMeta });
-        } catch (error) {
-          queueMeta.finishedAt = Date.now();
-          queueMeta.durationMs = Math.max(0, queueMeta.finishedAt - queueStartedAt);
-          this.stats.failedCount += 1;
-          error.queueMeta = Object.assign({}, queueMeta);
-          item.reject(error);
-        } finally {
-          this.stats.lastFinishedAt = Date.now();
-          this.nextAvailableAt = Date.now() + settings.intervalMs;
-        }
+    const settings = this.getSettings();
+    while (this.items.length > 0 && this.activeCount < settings.maxConcurrent) {
+      const waitBeforeStartMs = Math.max(0, this.nextAvailableAt - Date.now());
+      if (waitBeforeStartMs > 0) {
+        setTimeout(this.schedule.bind(this), waitBeforeStartMs);
+        return;
       }
-    } finally {
-      this.processing = false;
-      if (this.items.length > 0) {
-        this.schedule();
+
+      const item = this.items.shift();
+      if (!item) {
+        return;
       }
+      this.startItem(item, settings);
     }
+  }
+
+  startItem(item, settings) {
+    const queueStartedAt = Date.now();
+    this.stats.lastStartedAt = queueStartedAt;
+    this.activeCount += 1;
+    this.nextAvailableAt = queueStartedAt + settings.intervalMs;
+    const queueMeta = {
+      groupName: this.groupName,
+      queueWaitMs: Math.max(0, queueStartedAt - item.enqueuedAt),
+      retryCount: 0,
+      retryDelaysMs: [],
+      queuedAt: item.enqueuedAt,
+      startedAt: queueStartedAt,
+      activeCount: this.activeCount,
+      maxConcurrent: settings.maxConcurrent,
+    };
+
+    const queue = this;
+    (async function () {
+      try {
+        const value = await queue.executeWithRetry(item.task, settings, queueMeta);
+        queueMeta.finishedAt = Date.now();
+        queueMeta.durationMs = Math.max(0, queueMeta.finishedAt - queueStartedAt);
+        queue.stats.completedCount += 1;
+        item.resolve({ value, queueMeta });
+      } catch (error) {
+        queueMeta.finishedAt = Date.now();
+        queueMeta.durationMs = Math.max(0, queueMeta.finishedAt - queueStartedAt);
+        queue.stats.failedCount += 1;
+        error.queueMeta = Object.assign({}, queueMeta);
+        item.reject(error);
+      } finally {
+        queue.stats.lastFinishedAt = Date.now();
+        queue.activeCount = Math.max(0, queue.activeCount - 1);
+        queue.schedule();
+      }
+    })();
+    this.schedule();
   }
 
   async executeWithRetry(task, settings, queueMeta) {

@@ -49,26 +49,19 @@ round-one-quality/
   README.md
   page-structure.md
   network.md
-  ai/
+  reference/
     minnan-lexicon.csv
   backend/
     README.md
-    ai-lexicon.js
     index.js
-    ai-client-funasr.js
-    ai-client-qwen.js
-    ai-cost.js
-    ai-provider-queue.js
-    ai-prompts.js
-    ai-result-cache.js
-    ai-response-schema.js
     ai-routes.js
+    ai-service.js
 ```
 
 - `page-structure.md`：页面 DOM 结构、稳定选择器和当前可编辑文本框判断。
 - `network.md`：列表接口路径、请求参数、响应字段和缓存策略。
-- `ai/minnan-lexicon.csv`：闽南方言字词表，用于 标贝易采 AI 推荐文本后端 prompt 上下文。
-- `backend/`：标贝易采 AI 推荐文本业务编排目录。公共 AI provider、限流队列、缓存与 Python 辅助脚本统一收敛到 `platform-resources/backend/ai/`。
+- `reference/minnan-lexicon.csv`：闽南方言字词表参考资料，用于 标贝易采 AI 推荐文本后端 prompt 上下文。
+- `backend/`：标贝易采 AI 推荐文本业务编排目录。当前只保留 `ai-routes.js + ai-service.js` 作为业务层；公共 AI provider、限流队列、缓存与 Python 辅助脚本统一收敛到 `platform-resources/backend/ai/`。`ai-service.js` 内部集中管理 prompt、schema 解析、词表、文本归一化、成本估算、调用日志和推荐结果组装。
 
 ## 自动分页与快捷键
 
@@ -113,7 +106,7 @@ node platform-resources\backend\server.js
 后端已接入闽南方言字词表 CSV：
 
 ```text
-platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
+platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
 ```
 
 词表既作为 Qwen prompt 上下文，也会默认以 `aggressive` 模式对最终推荐文本做强替换，用于帮助模型在“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“他/伊”等场景中选择更合适的字形。强替换只影响推荐文本展示，不会触发自动提交、自动保存或批量识别；如需关闭，可设置 `DATABAKER_AI_LEXICON_REWRITE_MODE=off`。词表缺失时后端仍可运行，但推荐文本效果会下降。后续更新词表时直接替换该 CSV 文件即可。
@@ -145,6 +138,9 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
 - `DATABAKER_AI_TEXT_RPM_LIMIT`：Compare 文本模型队列限流，默认 `500` RPM。
+- `DATABAKER_AI_QWEN_OMNI_CONCURRENCY`：Qwen Omni 并发上限，默认 `3`。
+- `DATABAKER_AI_FUN_ASR_CONCURRENCY`：Fun-ASR 并发上限，默认 `5`；`2 核 2G` 服务器压力高时建议调低到 `3`。
+- `DATABAKER_AI_TEXT_CONCURRENCY`：Compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `200`。
 - `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
@@ -176,13 +172,14 @@ AI prompt 输出字形规则：
 统一约束：
 
 - 所有上游模型调用都必须进入后端 provider/model group 队列。
-- 队列按 `qwen_omni / fun_asr / text_compare` 分组限流。
+- 队列按 `qwen_omni / fun_asr / text_compare` 分组限流，并按 group 配置最大并发。
 - 遇到 `429` 会做指数退避和 jitter 重试；前端只看到友好提示，不暴露 provider 原始 JSON。
 - 推荐结果会按题目、模式、模型和规则版本做内存 TTL 缓存，重复点击与多人重复处理优先命中缓存。
 - `429` 的根因是上游模型限流，不是本地或服务器 `2 核 2G` 算力问题；多个 RAM 用户或 API Key 若归属于同一阿里云主账号，也可能共享限流额度。
 - Qwen Omni 和 Fun-ASR 的调用链路不同，不能只靠改模型名互换。
 - 选择 `fun-asr` 作为听音模型时，还依赖 Fun-ASR 服务能访问平台 `audioUrl`。如果音频 URL 对服务端不可访问，后端会明确报错，但日志和文档不会泄露完整签名 URL。
 - Fun-ASR 不走 OpenAI-compatible chat/completions；当前通过 Python SDK 文件调用。
+- Fun-ASR 没有 thinking 概念；thinking 只影响 Qwen Omni 听音阶段和 compare 阶段。
 - Python 只是统一 Node 后端内部调用的辅助进程，不提供独立 Python 服务；标准启动入口始终是 `node platform-resources/backend/server.js`。
 
 Fun-ASR Python 运行环境路径：

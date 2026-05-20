@@ -1,5 +1,45 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（标贝易采一检质检：收敛 ai-service、reference 目录改名、Fun-ASR 队列并发）
+
+- DataBaker 后端 AI 业务层从多文件散落改为集中收敛：
+  - 新增 `platform-resources/data-baker/round-one-quality/backend/ai-service.js`
+  - `ai-routes.js` 改薄，只负责 `health/defaults/recommend` 路由注册、请求体读取与响应返回
+  - `ai-service.js` 集中管理请求归一化、链路推导、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列调度和推荐结果组装
+- 删除 DataBaker 目录内旧散文件：
+  - `ai-prompts.js`
+  - `ai-response-schema.js`
+  - `ai-cost.js`
+  - `ai-call-log.js`
+  - `ai-lexicon.js`
+  - `ai-text-normalizer.js`
+- 删除 DataBaker 目录内旧通用薄封装：
+  - `ai-client-qwen.js`
+  - `ai-client-funasr.js`
+  - `ai-provider-queue.js`
+  - `ai-result-cache.js`
+  当前 `ai-service.js` 直接引用 `platform-resources/backend/ai/` 统一基座，不再保留中间跳转层。
+- DataBaker 参考资料目录从 `platform-resources/data-baker/round-one-quality/ai/` 改名为 `platform-resources/data-baker/round-one-quality/reference/`。
+  - `minnan-lexicon.csv` 已迁移到 `reference/minnan-lexicon.csv`
+  - 文档统一改成“参考资料”或“词表参考资料”，不再把业务词表目录叫成 `ai/`
+- 统一 provider 队列从“单 group 串行 processing”改为“按 group 限流 + 最大并发”：
+  - `DATABAKER_AI_QWEN_OMNI_CONCURRENCY=3`
+  - `DATABAKER_AI_FUN_ASR_CONCURRENCY=5`
+  - `DATABAKER_AI_TEXT_CONCURRENCY=5`
+  - 队列仍保留 RPM 限流、队列长度限制、429 指数退避与 jitter
+  - `queueMeta` 补充 `activeCount` / `maxConcurrent`
+- Fun-ASR 并发问题定位结论：
+  - 问题主因不是 thinking，而是旧 `provider-queue.js` 对 `fun_asr` group 整体串行化
+  - 修复后允许多个 Fun-ASR Python 子进程同时 in-flight，但仍受 RPM 和 `maxConcurrent` 控制
+- thinking 口径补充：
+  - Fun-ASR 没有 thinking 概念
+  - 不向 `platform-resources/backend/ai/python/funasr_client.py` 传 `enable_thinking`
+  - thinking 只影响 Qwen Omni 听音阶段和 compare 阶段
+- 文档同步更新：
+  - DataBaker backend 当前只保留 `ai-routes.js + ai-service.js` 作为业务层
+  - 词表参考资料路径更新为 `reference/minnan-lexicon.csv`
+  - Fun-ASR 并发环境变量和 `2 核 2G` 调优建议已写入 README 和 `config/env/ai.env.example`
+
 ## 2026-05-20（标贝易采一检质检热修：Fun-ASR Python stdout 强制 UTF-8）
 
 - 修复 DataBaker 在选择 `fun-asr` 作为听音模型时，“AI 听音文本”出现 `�` / 黑菱形乱码的问题。

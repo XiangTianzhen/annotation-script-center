@@ -65,6 +65,9 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：标贝易采 Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：标贝易采 Fun-ASR 队列限流，默认 `500` RPM。
 - `DATABAKER_AI_TEXT_RPM_LIMIT`：标贝易采 compare 文本模型队列限流，默认 `500` RPM。
+- `DATABAKER_AI_QWEN_OMNI_CONCURRENCY`：标贝易采 Qwen Omni 并发上限，默认 `3`。
+- `DATABAKER_AI_FUN_ASR_CONCURRENCY`：标贝易采 Fun-ASR 并发上限，默认 `5`；如 `2 核 2G` 服务器压力高，可调低到 `3`。
+- `DATABAKER_AI_TEXT_CONCURRENCY`：标贝易采 compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：标贝易采上游 `429` 最大重试次数，默认 `3`。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：标贝易采统一 provider 队列最大长度，默认 `200`。
 - `DATABAKER_AI_CACHE_TTL_MS`：标贝易采推荐结果内存缓存 TTL，默认 `43200000`。
@@ -262,6 +265,7 @@ DataBaker AI 架构补充：
 - Fun-ASR Python 文件与依赖文件已移动到：
   - `platform-resources/backend/ai/python/funasr_client.py`
   - `platform-resources/backend/ai/python/requirements.txt`
+- DataBaker 业务目录当前只保留 `ai-routes.js + ai-service.js` 作为业务层；闽南词表参考资料位于 `platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv`。
 - `DATABAKER_FUNASR_PYTHON_BIN` 留空时，统一后端默认优先查找 `platform-resources/backend/.venv` 下的 Python。
 - 不需要单独启动 Python；Python 只作为 Node 统一后端内部辅助进程运行。
 - 标准启动入口始终是 `node platform-resources/backend/server.js`。

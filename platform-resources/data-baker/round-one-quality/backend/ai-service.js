@@ -1,0 +1,2069 @@
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+
+const {
+  DATABAKER_COMPARE_MODEL_OPTIONS,
+  DATABAKER_LISTEN_MODEL_OPTIONS,
+  DEFAULT_COMPARE_MODEL,
+  DEFAULT_FUN_ASR_MODEL,
+  DEFAULT_OMNI_MODEL,
+  DEFAULT_REQUEST_PARAMS,
+  SUPPORTED_REQUEST_PARAMS,
+  deriveDataBakerPipelineMode,
+  normalizeDataBakerCompareModel,
+  normalizeDataBakerListenModel,
+  resolveDataBakerDefaultListenModel,
+} = require("../../../backend/ai/config");
+const {
+  getClientConfig,
+  requestCompare,
+  requestOmniInputAudio,
+} = require("../../../backend/ai/providers/qwen-openai-compatible");
+const {
+  getFunAsrClientConfig,
+  requestFunAsrRecognition,
+} = require("../../../backend/ai/providers/funasr-python");
+const {
+  enqueueProviderTask,
+  getGlobalQueueMaxSize,
+  getGlobalRetryMax,
+  getQueueSnapshots,
+} = require("../../../backend/ai/provider-queue");
+const {
+  buildRecommendCacheKey,
+  getCacheSnapshot,
+  getCachedRecommendResult,
+  setCachedRecommendResult,
+} = require("../../../backend/ai/result-cache");
+
+const RULE_VERSION = "data-baker-round-one-quality-ai-v5-service-consolidation";
+const DEFAULT_OMNI_SINGLE_TEMPLATE = [
+  "你要一次完成：听音、对比页面候选文本、输出最终推荐文本。",
+  "页面候选文本只作为参考，实际发声优先。",
+  "输出 JSON 字段必须包含 recommendedText、heardText、decision、changePoints、confidence、needHumanReview。",
+  "recommendedText 与 heardText 的普通中文统一输出简体；命中 minnan-lexicon.csv 的建议用字必须保留。",
+  "不要把方言建议用字改回普通话同义词。",
+  "只输出 JSON，不要输出 Markdown 或解释文字。",
+].join("\n");
+const DEFAULT_OMNI_LISTEN_TEMPLATE = [
+  "你只负责听音转写，不负责生成最终推荐文本。",
+  "页面候选文本、朗读要求和有效时间只用于辅助你更稳定地识别音频内容。",
+  "输出 JSON 字段必须包含 heardText、confidence、needHumanReview。",
+  "heardText 的普通中文统一输出简体。",
+  "只输出 JSON，不要输出 Markdown 或解释文字。",
+].join("\n");
+const DEFAULT_COMPARE_TEMPLATE = [
+  "听音阶段已经完成音频转写；你现在只负责比较 heardText 与页面候选文本，输出最终推荐文本。",
+  "以实际发声为主，不因词表存在就无依据改写。",
+  "recommendedText 的普通中文统一使用简体；pageText/heardText 中的普通繁体字应转换为简体。",
+  "但命中 minnan-lexicon.csv 的建议用字必须保持不变，不参与普通简繁转换。",
+  "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
+  "只输出 JSON，不输出额外解释。",
+].join("\n");
+const ESTIMATE_NOTE = "按当前 qwen3.5-omni-flash + qwen3.5-plus 测试估算，可后续按百炼账单调整。";
+const EFFECTIVE_REVENUE_CNY_PER_HOUR = 350;
+const TOKEN_PRICE_CNY_PER_1K = {
+  listenPrompt: 0.018,
+  listenCompletion: 0.0133,
+  comparePrompt: 0.0008,
+  compareCompletion: 0.002,
+};
+const DEFAULT_LOG_DIR = path.join(__dirname, "logs");
+const JSONL_FILE_NAME = "recommend-calls.jsonl";
+const CSV_FILE_NAME = "recommend-calls.csv";
+const MINNAN_LEXICON_PATH = path.join(__dirname, "..", "reference", "minnan-lexicon.csv");
+const DEFAULT_CONTEXT_LIMIT = 40;
+const SUPPORTED_PIPELINE_MODES = [
+  { value: "qwen_omni_compare", label: "Qwen Omni 听音 + 比较模型" },
+  { value: "fun_asr_compare", label: "Fun-ASR + 比较模型" },
+];
+const LEGACY_PIPELINE_MODE_MAP = {
+  omni_single: "qwen_omni_compare",
+  two_stage: "qwen_omni_compare",
+  qwen_omni_two_stage: "qwen_omni_compare",
+  listen_only: "qwen_omni_compare",
+};
+const deprecatedModeLogKeys = new Set();
+const BASE_ENTRIES = [
+  { mandarin: "我/我们", suggested: "阮、咱" },
+  { mandarin: "你/你们", suggested: "汝、恁" },
+  { mandarin: "他/她/它/他们/她们", suggested: "伊、因" },
+  { mandarin: "这位", suggested: "即个" },
+  { mandarin: "现在", suggested: "即阵" },
+  { mandarin: "的", suggested: "诶" },
+  { mandarin: "很", suggested: "真" },
+  { mandarin: "喜欢", suggested: "欢喜" },
+  { mandarin: "吃", suggested: "食" },
+  { mandarin: "整天", suggested: "规日" },
+  { mandarin: "门儿清", suggested: "门理清" },
+  { mandarin: "那些事儿", suggested: "迄代志" },
+];
+const TRADITIONAL_TO_SIMPLIFIED_MAP = {
+  "這": "这",
+  "個": "个",
+  "問": "问",
+  "題": "题",
+  "複": "复",
+  "雜": "杂",
+  "聽": "听",
+  "說": "说",
+  "語": "语",
+  "體": "体",
+  "廢": "废",
+  "殘": "残",
+  "覺": "觉",
+  "認": "认",
+  "識": "识",
+  "實": "实",
+  "際": "际",
+  "發": "发",
+  "聲": "声",
+  "優": "优",
+  "輸": "输",
+  "資": "资",
+  "訊": "讯",
+  "轉": "转",
+  "換": "换",
+  "後": "后",
+  "裡": "里",
+  "還": "还",
+  "點": "点",
+  "會": "会",
+  "應": "应",
+  "對": "对",
+  "讓": "让",
+  "與": "与",
+  "為": "为",
+  "無": "无",
+  "詞": "词",
+  "標": "标",
+  "註": "注",
+  "檢": "检",
+  "稱": "称",
+  "錯": "错",
+  "過": "过",
+  "進": "进",
+  "選": "选",
+  "擇": "择",
+  "寫": "写",
+  "虛": "虚",
+  "該": "该",
+  "嗎": "吗",
+  "麼": "么",
+  "開": "开",
+  "關": "关",
+  "頁": "页",
+  "錄": "录",
+  "滿": "满",
+  "裝": "装",
+  "臺": "台",
+  "網": "网",
+  "電": "电",
+  "將": "将",
+  "衛": "卫",
+  "術": "术",
+  "萬": "万",
+  "時": "时",
+  "間": "间",
+  "長": "长",
+  "變": "变",
+  "號": "号",
+  "門": "门",
+  "員": "员",
+  "線": "线",
+  "響": "响",
+};
+const CSV_COLUMNS = [
+  { key: "createdAt", header: "创建时间" },
+  { key: "requestId", header: "请求ID" },
+  { key: "success", header: "是否成功" },
+  { key: "durationMs", header: "耗时毫秒" },
+  { key: "listenDurationMs", header: "听音耗时毫秒" },
+  { key: "compareDurationMs", header: "对比耗时毫秒" },
+  { key: "pipelineMode", header: "流水线模式" },
+  { key: "annotatorName", header: "标注员" },
+  { key: "collectId", header: "采集ID" },
+  { key: "itemId", header: "记录ID" },
+  { key: "textId", header: "文本ID" },
+  { key: "sentenceNumber", header: "句子编号" },
+  { key: "readRequire", header: "朗读要求" },
+  { key: "audioHostname", header: "音频域名" },
+  { key: "pageText", header: "页面候选文本" },
+  { key: "heardText", header: "AI听音文本" },
+  { key: "recommendedText", header: "AI推荐文本" },
+  { key: "isChanged", header: "是否变更" },
+  { key: "needHumanReview", header: "需要人工复核" },
+  { key: "decision", header: "决策" },
+  { key: "lexiconEnabled", header: "是否启用词表" },
+  { key: "lexiconRewriteMode", header: "词表替换模式" },
+  { key: "lexiconRewriteChanged", header: "词表是否改写" },
+  { key: "lexiconRewriteChangeCount", header: "词表改写数量" },
+  { key: "lexiconRewriteChanges", header: "词表改写明细" },
+  { key: "listenConfidence", header: "听音置信度" },
+  { key: "compareConfidence", header: "对比置信度" },
+  { key: "listenModel", header: "听音模型" },
+  { key: "compareModel", header: "对比模型" },
+  { key: "listenPromptTokens", header: "听音输入Token" },
+  { key: "listenCompletionTokens", header: "听音输出Token" },
+  { key: "listenTotalTokens", header: "听音总Token" },
+  { key: "comparePromptTokens", header: "对比输入Token" },
+  { key: "compareCompletionTokens", header: "对比输出Token" },
+  { key: "compareTotalTokens", header: "对比总Token" },
+  { key: "totalTokens", header: "总Token" },
+  { key: "estimatedCostCny", header: "预估AI成本人民币" },
+  { key: "effectiveRevenueCny", header: "有效时长收入人民币" },
+  { key: "grossProfitCny", header: "预估毛利润人民币" },
+  { key: "effectiveStartTime", header: "有效开始时间" },
+  { key: "effectiveEndTime", header: "有效结束时间" },
+  { key: "effectiveTime", header: "有效时长" },
+  { key: "audioDuration", header: "音频总时长" },
+  { key: "clientVersion", header: "扩展版本" },
+  { key: "mock", header: "是否Mock" },
+  { key: "errorCode", header: "错误码" },
+  { key: "errorMessage", header: "错误信息" },
+];
+
+let lexiconCache = null;
+let warnedMissing = false;
+let warnedReadFailure = false;
+
+function createRequestId() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mi = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return String(yyyy) + mm + dd + "-" + hh + mi + ss + "-" + suffix;
+}
+
+function createHttpError(statusCode, message, code) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  error.code = code || "";
+  return error;
+}
+
+function isHttpUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch (error) {
+    return false;
+  }
+}
+
+function parseAudioHostname(audioUrl) {
+  try {
+    return new URL(audioUrl).hostname || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function normalizeNullableNumber(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function normalizeAnnotatorName(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.slice(0, 40);
+}
+
+function resolvePipelineMode(value, fallbackMode, sourceLabel) {
+  const fallbackText = String(fallbackMode || "qwen_omni_compare").trim().toLowerCase();
+  const normalizedFallback =
+    fallbackText === "fun_asr_compare" ? "fun_asr_compare" : "qwen_omni_compare";
+  const rawText = String(value || "").trim().toLowerCase();
+  if (!rawText) {
+    return {
+      mode: normalizedFallback,
+      deprecatedFrom: "",
+      source: sourceLabel || "env",
+      warning: "",
+    };
+  }
+  if (rawText === "fun_asr_compare" || rawText === "qwen_omni_compare") {
+    return {
+      mode: rawText,
+      deprecatedFrom: "",
+      source: sourceLabel || "env",
+      warning: "",
+    };
+  }
+  if (LEGACY_PIPELINE_MODE_MAP[rawText]) {
+    return {
+      mode: LEGACY_PIPELINE_MODE_MAP[rawText],
+      deprecatedFrom: rawText,
+      source: sourceLabel || "env",
+      warning:
+        "deprecated pipeline mode " + rawText + " 已迁移为 " + LEGACY_PIPELINE_MODE_MAP[rawText],
+    };
+  }
+  return {
+    mode: normalizedFallback,
+    deprecatedFrom: "",
+    source: sourceLabel || "env",
+    warning: "",
+  };
+}
+
+function getEnvPipelineResolution() {
+  return resolvePipelineMode(
+    process.env.DATABAKER_AI_PIPELINE_MODE || "qwen_omni_compare",
+    "qwen_omni_compare",
+    "env"
+  );
+}
+
+function logDeprecatedPipelineOnce(resolution) {
+  if (!resolution?.deprecatedFrom || !resolution.warning) {
+    return;
+  }
+  const key = resolution.source + ":" + resolution.deprecatedFrom + ":" + resolution.mode;
+  if (deprecatedModeLogKeys.has(key)) {
+    return;
+  }
+  deprecatedModeLogKeys.add(key);
+  console.warn("[DataBaker][round-one-quality][ai]", resolution.warning);
+}
+
+function normalizePromptText(value) {
+  return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
+}
+
+function normalizeNumberInRange(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < min || number > max) {
+    return null;
+  }
+  return number;
+}
+
+function normalizeIntegerInRange(value, min, max) {
+  const number = Math.floor(Number(value));
+  if (!Number.isFinite(number) || number < min || number > max) {
+    return null;
+  }
+  return number;
+}
+
+function normalizeStopSequences(value) {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/\r?\n/)
+    : [];
+  const result = [];
+  source.forEach(function (item) {
+    const text = String(item || "").trim().slice(0, 80);
+    if (!text || result.length >= 8 || result.indexOf(text) >= 0) {
+      return;
+    }
+    result.push(text);
+  });
+  return result;
+}
+
+function normalizeModelText(value) {
+  return String(value || "").replace(/[\r\n]+/g, " ").trim().slice(0, 80);
+}
+
+function normalizeAiOptions(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const result = {};
+  const listenPrompt = normalizePromptText(source.listenPrompt);
+  const comparePrompt = normalizePromptText(source.comparePrompt);
+  const listenModel = normalizeModelText(source.listenModel);
+  const compareModel = normalizeModelText(source.compareModel);
+  if (listenPrompt) {
+    result.listenPrompt = listenPrompt;
+  }
+  if (comparePrompt) {
+    result.comparePrompt = comparePrompt;
+  }
+  if (listenModel) {
+    result.listenModel = listenModel;
+  }
+  if (compareModel) {
+    result.compareModel = compareModel;
+  }
+  if (SUPPORTED_REQUEST_PARAMS.temperature === true) {
+    const normalized = normalizeNumberInRange(source.temperature, 0, 2);
+    if (normalized !== null) {
+      result.temperature = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.top_p === true) {
+    const normalized = normalizeNumberInRange(source.top_p, 0, 1);
+    if (normalized !== null) {
+      result.top_p = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.max_tokens === true) {
+    const normalized = normalizeIntegerInRange(source.max_tokens, 1, 8192);
+    if (normalized !== null) {
+      result.max_tokens = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.max_completion_tokens === true) {
+    const normalized = normalizeIntegerInRange(source.max_completion_tokens, 1, 8192);
+    if (normalized !== null) {
+      result.max_completion_tokens = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.presence_penalty === true) {
+    const normalized = normalizeNumberInRange(source.presence_penalty, -2, 2);
+    if (normalized !== null) {
+      result.presence_penalty = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.frequency_penalty === true) {
+    const normalized = normalizeNumberInRange(source.frequency_penalty, -2, 2);
+    if (normalized !== null) {
+      result.frequency_penalty = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.seed === true) {
+    const normalized = normalizeIntegerInRange(source.seed, 0, 2147483647);
+    if (normalized !== null) {
+      result.seed = normalized;
+    }
+  }
+  if (SUPPORTED_REQUEST_PARAMS.stop === true) {
+    const normalized = normalizeStopSequences(source.stop);
+    if (normalized.length > 0) {
+      result.stop = normalized;
+    }
+  }
+  if (typeof source.enable_thinking === "boolean") {
+    result.enable_thinking = source.enable_thinking === true;
+  } else if (typeof source.enableThinking === "boolean") {
+    result.enable_thinking = source.enableThinking === true;
+  }
+  return result;
+}
+
+function normalizeRecommendRequest(body) {
+  const source = body && typeof body === "object" ? body : {};
+  const aiOptions = normalizeAiOptions(source.aiOptions);
+  const collectId = String(source.collectId || "").trim();
+  const itemId = String(source.itemId || "").trim();
+  const textId = String(source.textId || "").trim();
+  const audioUrl = String(source.audioUrl || "").trim();
+  const pageText = String(source.pageText || "").trim();
+  const readRequire = String(source.readRequire || "").trim();
+  const clientVersion = String(source.clientVersion || "").trim();
+  const sentenceNumber = normalizeNullableNumber(source.sentenceNumber);
+  const annotatorName = normalizeAnnotatorName(source.annotatorName);
+
+  if (!collectId) {
+    throw createHttpError(400, "collectId 不能为空。", "invalid-collect-id");
+  }
+  if (!itemId) {
+    throw createHttpError(400, "itemId 不能为空。", "invalid-item-id");
+  }
+  if (!isHttpUrl(audioUrl)) {
+    throw createHttpError(400, "audioUrl 必须是 http/https。", "invalid-audio-url");
+  }
+  if (!pageText) {
+    throw createHttpError(400, "pageText 不能为空。", "invalid-page-text");
+  }
+
+  return {
+    collectId,
+    itemId,
+    textId,
+    sentenceNumber,
+    readRequire,
+    audioUrl,
+    pageText,
+    annotatorName,
+    effectiveStartTime: normalizeNullableNumber(source.effectiveStartTime),
+    effectiveEndTime: normalizeNullableNumber(source.effectiveEndTime),
+    effectiveTime: normalizeNullableNumber(source.effectiveTime),
+    audioDuration: normalizeNullableNumber(source.audioDuration),
+    clientVersion,
+    pipelineMode: normalizeModelText(source.pipelineMode),
+    listenModel: normalizeModelText(source.listenModel),
+    compareModel: normalizeModelText(source.compareModel),
+    aiOptions,
+  };
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value === undefined ? null : value));
+}
+
+function resolveRequestedListenModel(recommendRequest, defaultListenModel) {
+  const explicitListenModel =
+    recommendRequest.aiOptions.listenModel || recommendRequest.listenModel || "";
+  return normalizeDataBakerListenModel(explicitListenModel, defaultListenModel);
+}
+
+function resolveRequestedCompareModel(recommendRequest, defaultCompareModel) {
+  const explicitCompareModel =
+    recommendRequest.aiOptions.compareModel || recommendRequest.compareModel || "";
+  return normalizeDataBakerCompareModel(explicitCompareModel, defaultCompareModel);
+}
+
+function normalizeConfidence(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, numericValue));
+}
+
+function ensureChineseSentencePunctuation(text) {
+  const value = String(text || "").trim();
+  if (!value) {
+    return "";
+  }
+  const last = value[value.length - 1];
+  if ("。！？；…".includes(last)) {
+    return value;
+  }
+  if (last === ".") {
+    return value.slice(0, -1) + "。";
+  }
+  if (last === "?") {
+    return value.slice(0, -1) + "？";
+  }
+  if (last === "!") {
+    return value.slice(0, -1) + "！";
+  }
+  if (last === ";") {
+    return value.slice(0, -1) + "；";
+  }
+  return value + "。";
+}
+
+function removeTextSpaces(text) {
+  return String(text || "").replace(/[\s\u3000]+/g, "");
+}
+
+function parseModelJsonText(rawText, requestId) {
+  const source = String(rawText || "").trim();
+  if (!source) {
+    throw new Error("模型未返回文本结果。");
+  }
+  const withoutCodeFence = source.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  const attempts = [withoutCodeFence];
+  const firstBrace = withoutCodeFence.indexOf("{");
+  const lastBrace = withoutCodeFence.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    attempts.push(withoutCodeFence.slice(firstBrace, lastBrace + 1));
+  }
+  for (let index = 0; index < attempts.length; index += 1) {
+    try {
+      return JSON.parse(attempts[index]);
+    } catch (error) {
+      // continue
+    }
+  }
+  throw new Error("模型输出 JSON 解析失败（requestId: " + String(requestId || "") + "）。");
+}
+
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map(function (item) {
+      if (typeof item === "string") {
+        return item.trim();
+      }
+      if (item && typeof item === "object") {
+        return JSON.stringify(item);
+      }
+      return String(item || "").trim();
+    })
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+function normalizeChangePoints(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.slice(0, 30).map(function (item) {
+    if (typeof item === "string") {
+      return { summary: item.trim() };
+    }
+    const source = item && typeof item === "object" ? item : {};
+    return {
+      type: String(source.type || "").trim(),
+      pageText: String(source.pageText || source.before || "").trim(),
+      heardText: String(source.heardText || source.after || "").trim(),
+      summary: String(source.summary || source.reason || "").trim(),
+    };
+  });
+}
+
+function normalizeCompareResponse(modelJson, context) {
+  const source = modelJson && typeof modelJson === "object" ? modelJson : {};
+  const pageText = String(context?.pageText || "");
+  const heardText = removeTextSpaces(context?.heardText || "");
+  const recommendedText = removeTextSpaces(
+    source.recommendedText === undefined || source.recommendedText === null
+      ? heardText || pageText
+      : source.recommendedText
+  );
+  const decision = String(source.decision || "").trim() || "need_human_review";
+  const confidence = normalizeConfidence(source.confidence);
+  const needHumanReview = source.needHumanReview === true || confidence < 0.75 || !recommendedText;
+  return {
+    recommendedText,
+    decision,
+    changePoints: normalizeChangePoints(source.changePoints),
+    confidence,
+    needHumanReview,
+  };
+}
+
+function normalizeOmniSingleResponse(modelJson, context) {
+  const source = modelJson && typeof modelJson === "object" ? modelJson : {};
+  const pageText = String(context?.pageText || "");
+  const heardText = removeTextSpaces(source.heardText || source.text || "");
+  const recommendedText = removeTextSpaces(
+    source.recommendedText === undefined || source.recommendedText === null
+      ? heardText || pageText
+      : source.recommendedText
+  );
+  const confidence = normalizeConfidence(source.confidence);
+  return {
+    heardText,
+    recommendedText,
+    decision:
+      String(source.decision || "").trim() ||
+      (recommendedText === pageText ? "keep_page_text" : "use_heard_text"),
+    changePoints: normalizeChangePoints(source.changePoints),
+    confidence,
+    needHumanReview: source.needHumanReview === true || confidence < 0.75 || !recommendedText,
+  };
+}
+
+function normalizeUsage(usage) {
+  const source = usage && typeof usage === "object" ? usage : {};
+  const promptTokens = Number(source.promptTokens || source.prompt_tokens || source.input_tokens || 0);
+  const completionTokens = Number(
+    source.completionTokens || source.completion_tokens || source.output_tokens || 0
+  );
+  const totalTokens = Number(
+    source.totalTokens || source.total_tokens || promptTokens + completionTokens || 0
+  );
+  return {
+    promptTokens: Number.isFinite(promptTokens) ? promptTokens : 0,
+    completionTokens: Number.isFinite(completionTokens) ? completionTokens : 0,
+    totalTokens: Number.isFinite(totalTokens) ? totalTokens : 0,
+    raw: source,
+  };
+}
+
+function normalizeOmniListenStageResult(parsed) {
+  const source = parsed && typeof parsed === "object" ? parsed : {};
+  const heardText = normalizeToSimplifiedChinesePreservingLexicon(
+    removeTextSpaces(String(source.heardText || source.text || source.transcript || ""))
+  );
+  const confidenceNumber = Number(source.confidence);
+  const needHumanReview = source.needHumanReview === true || !heardText;
+  return {
+    heardText,
+    confidence: Number.isFinite(confidenceNumber)
+      ? Math.max(0, Math.min(1, confidenceNumber))
+      : heardText
+      ? 0.8
+      : 0,
+    needHumanReview,
+    raw: source,
+  };
+}
+
+function buildRecommendResponse(parts) {
+  const listen = parts?.listen || {};
+  const compare = parts?.compare || {};
+  const request = parts?.request || {};
+  const pageText = String(request.pageText || "");
+  const recommendedText = ensureChineseSentencePunctuation(
+    removeTextSpaces(compare.recommendedText || listen.heardText || pageText)
+  );
+  const listenUsage = normalizeUsage(parts?.listenUsage);
+  const compareUsage = normalizeUsage(parts?.compareUsage);
+  const listenConfidence = parts?.listenConfidence;
+  const compareConfidence = parts?.compareConfidence;
+  return {
+    recommendedText,
+    heardText: removeTextSpaces(listen.heardText || ""),
+    pageText,
+    isChanged: recommendedText.trim() !== pageText.trim(),
+    needHumanReview: compare.needHumanReview !== false || listen.isValid === false,
+    listenConfidence: normalizeConfidence(
+      listenConfidence !== undefined ? listenConfidence : listen.confidence
+    ),
+    compareConfidence: normalizeConfidence(
+      compareConfidence !== undefined ? compareConfidence : compare.confidence
+    ),
+    decision: String(compare.decision || ""),
+    changePoints: Array.isArray(compare.changePoints) ? compare.changePoints : [],
+    invalidReasons: normalizeStringArray(listen.invalidReasons),
+    model: {
+      listen: String(parts?.listenModel || ""),
+      compare: String(parts?.compareModel || ""),
+    },
+    usage: {
+      listen: listenUsage,
+      compare: compareUsage,
+      totalTokens: listenUsage.totalTokens + compareUsage.totalTokens,
+    },
+    cost:
+      parts?.cost || {
+        estimatedCostCny: 0,
+        effectiveRevenueCny: 0,
+        grossProfitCny: 0,
+      },
+    requestId: String(parts?.requestId || ""),
+  };
+}
+
+function safeNumber(value) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function roundMoney(value) {
+  return Number(safeNumber(value).toFixed(6));
+}
+
+function estimateTokenCost(usage, promptPrice, completionPrice) {
+  const source = usage && typeof usage === "object" ? usage : {};
+  const promptTokens = safeNumber(source.promptTokens || source.prompt_tokens);
+  const completionTokens = safeNumber(source.completionTokens || source.completion_tokens);
+  return (promptTokens / 1000) * promptPrice + (completionTokens / 1000) * completionPrice;
+}
+
+function estimateCost(input) {
+  const effectiveTime = safeNumber(input?.effectiveTime);
+  const listenUsage = input?.listenUsage && typeof input.listenUsage === "object" ? input.listenUsage : {};
+  const compareUsage = input?.compareUsage && typeof input.compareUsage === "object" ? input.compareUsage : {};
+  const effectiveRevenueCny = (effectiveTime / 3600) * EFFECTIVE_REVENUE_CNY_PER_HOUR;
+  const listenCost = estimateTokenCost(
+    listenUsage,
+    TOKEN_PRICE_CNY_PER_1K.listenPrompt,
+    TOKEN_PRICE_CNY_PER_1K.listenCompletion
+  );
+  const compareCost = estimateTokenCost(
+    compareUsage,
+    TOKEN_PRICE_CNY_PER_1K.comparePrompt,
+    TOKEN_PRICE_CNY_PER_1K.compareCompletion
+  );
+  const estimatedCostCny = listenCost + compareCost;
+  const totalTokens = safeNumber(listenUsage.totalTokens) + safeNumber(compareUsage.totalTokens);
+  const note =
+    totalTokens > 0
+      ? ESTIMATE_NOTE
+      : ESTIMATE_NOTE + " 模型 usage 未返回或未解析，成本可能低估。";
+
+  return {
+    estimatedCostCny: roundMoney(estimatedCostCny),
+    effectiveRevenueCny: roundMoney(effectiveRevenueCny),
+    grossProfitCny: roundMoney(effectiveRevenueCny - estimatedCostCny),
+    note,
+  };
+}
+
+function getLogDir() {
+  const customDir = String(process.env.DATABAKER_AI_CALL_LOG_DIR || "").trim();
+  return customDir || DEFAULT_LOG_DIR;
+}
+
+function ensureDir(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function safeString(value) {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  return String(value);
+}
+
+function safeBoolean(value) {
+  return value === true;
+}
+
+function safeJsonStringify(value) {
+  try {
+    return JSON.stringify(value === undefined ? null : value);
+  } catch (error) {
+    return "";
+  }
+}
+
+function getUsageValue(usage, key) {
+  const source = usage && typeof usage === "object" ? usage : {};
+  return safeNumber(source[key]);
+}
+
+function sanitizeForLog(record) {
+  const source = record && typeof record === "object" ? record : {};
+  const request = source.request && typeof source.request === "object" ? source.request : {};
+  const response = source.response && typeof source.response === "object" ? source.response : {};
+  const usage = response.usage && typeof response.usage === "object" ? response.usage : {};
+  const listenUsage = usage.listen && typeof usage.listen === "object" ? usage.listen : {};
+  const compareUsage = usage.compare && typeof usage.compare === "object" ? usage.compare : {};
+  const cost = response.cost && typeof response.cost === "object" ? response.cost : {};
+  const model = response.model && typeof response.model === "object" ? response.model : {};
+  const lexicon = response.lexicon && typeof response.lexicon === "object" ? response.lexicon : {};
+  const timing = response.timing && typeof response.timing === "object" ? response.timing : {};
+  const rewriteChanges = Array.isArray(lexicon.rewriteChanges)
+    ? lexicon.rewriteChanges.map(function (item) {
+        const change = item && typeof item === "object" ? item : {};
+        return {
+          from: safeString(change.from),
+          to: safeString(change.to),
+          source: safeString(change.source),
+          reason: safeString(change.reason),
+        };
+      })
+    : [];
+
+  return {
+    createdAt: safeString(source.createdAt || new Date().toISOString()),
+    requestId: safeString(source.requestId),
+    success: safeBoolean(source.success),
+    durationMs: safeNumber(source.durationMs),
+    listenDurationMs: safeNumber(source.listenDurationMs || timing.listenDurationMs),
+    compareDurationMs: safeNumber(source.compareDurationMs || timing.compareDurationMs),
+    pipelineMode: safeString(response.pipelineMode || source.pipelineMode),
+    annotatorName: safeString(request.annotatorName),
+    collectId: safeString(request.collectId),
+    itemId: safeString(request.itemId),
+    textId: safeString(request.textId),
+    sentenceNumber: request.sentenceNumber === null ? "" : safeString(request.sentenceNumber),
+    readRequire: safeString(request.readRequire),
+    audioHostname: safeString(source.audioHostname || parseAudioHostname(request.audioUrl)),
+    pageText: safeString(response.pageText || request.pageText),
+    heardText: safeString(response.heardText),
+    recommendedText: safeString(response.recommendedText),
+    isChanged: response.isChanged === true,
+    needHumanReview: response.needHumanReview === true,
+    decision: safeString(response.decision),
+    lexiconEnabled: lexicon.enabled === true,
+    lexiconRewriteMode: safeString(lexicon.rewriteMode),
+    lexiconRewriteChanged: lexicon.rewriteChanged === true,
+    lexiconRewriteChangeCount: rewriteChanges.length,
+    lexiconRewriteChanges: safeJsonStringify(rewriteChanges),
+    listenConfidence: safeNumber(response.listenConfidence),
+    compareConfidence: safeNumber(response.compareConfidence),
+    listenModel: safeString(model.listen || source.listenModel),
+    compareModel: safeString(model.compare || source.compareModel),
+    listenPromptTokens: getUsageValue(listenUsage, "promptTokens"),
+    listenCompletionTokens: getUsageValue(listenUsage, "completionTokens"),
+    listenTotalTokens: getUsageValue(listenUsage, "totalTokens"),
+    comparePromptTokens: getUsageValue(compareUsage, "promptTokens"),
+    compareCompletionTokens: getUsageValue(compareUsage, "completionTokens"),
+    compareTotalTokens: getUsageValue(compareUsage, "totalTokens"),
+    totalTokens: safeNumber(usage.totalTokens),
+    estimatedCostCny: safeNumber(cost.estimatedCostCny),
+    effectiveRevenueCny: safeNumber(cost.effectiveRevenueCny),
+    grossProfitCny: safeNumber(cost.grossProfitCny),
+    effectiveStartTime: request.effectiveStartTime === null ? "" : safeString(request.effectiveStartTime),
+    effectiveEndTime: request.effectiveEndTime === null ? "" : safeString(request.effectiveEndTime),
+    effectiveTime: request.effectiveTime === null ? "" : safeString(request.effectiveTime),
+    audioDuration: request.audioDuration === null ? "" : safeString(request.audioDuration),
+    clientVersion: safeString(request.clientVersion),
+    mock: source.mock === true,
+    errorCode: safeString(source.errorCode),
+    errorMessage: safeString(source.errorMessage),
+  };
+}
+
+function escapeCsvCell(value) {
+  const text = safeString(value);
+  if (/[",\r\n]/.test(text)) {
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+  return text;
+}
+
+function toCsvLine(record) {
+  return CSV_COLUMNS.map(function (column) {
+    return escapeCsvCell(record[column.key]);
+  }).join(",") + "\n";
+}
+
+function appendJsonl(filePath, record) {
+  fs.appendFileSync(filePath, JSON.stringify(record, null, 0) + "\n", "utf8");
+}
+
+function appendCsv(filePath, record) {
+  if (!fs.existsSync(filePath)) {
+    const headerLine =
+      CSV_COLUMNS.map(function (column) {
+        return escapeCsvCell(column.header);
+      }).join(",") + "\n";
+    fs.writeFileSync(filePath, headerLine, "utf8");
+  }
+  fs.appendFileSync(filePath, toCsvLine(record), "utf8");
+}
+
+function appendAiCallLog(record) {
+  const logDir = getLogDir();
+  ensureDir(logDir);
+  const sanitized = sanitizeForLog(record);
+  appendJsonl(path.join(logDir, JSONL_FILE_NAME), sanitized);
+  appendCsv(path.join(logDir, CSV_FILE_NAME), sanitized);
+  return sanitized;
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeHeader(value) {
+  return normalizeText(value).replace(/\s+/g, "");
+}
+
+function cleanLexiconTerm(value) {
+  return normalizeText(value)
+    .replace(/（[^）]*）/g, "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[（(][^、，,；;／/\s]*/g, "")
+    .replace(/[A-Za-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜüńňǹḿ]+/gi, "")
+    .replace(/\d+/g, "")
+    .replace(/[-_.：:]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function splitTerms(value) {
+  const text = cleanLexiconTerm(value);
+  if (!text) {
+    return [];
+  }
+  return text
+    .split(/[、，,；;／/\s]+/)
+    .map(cleanLexiconTerm)
+    .filter(Boolean);
+}
+
+function parseCsvRecords(text) {
+  const source = String(text || "").replace(/^\uFEFF/, "");
+  const records = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (inQuotes) {
+      if (char === '"') {
+        if (source[index + 1] === '"') {
+          cell += '"';
+          index += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += char;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (char === ",") {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+    if (char === "\r" || char === "\n") {
+      if (char === "\r" && source[index + 1] === "\n") {
+        index += 1;
+      }
+      row.push(cell);
+      cell = "";
+      if (row.some(function (value) { return normalizeText(value); })) {
+        records.push(row);
+      }
+      row = [];
+      continue;
+    }
+    cell += char;
+  }
+
+  row.push(cell);
+  if (row.some(function (value) { return normalizeText(value); })) {
+    records.push(row);
+  }
+  return records;
+}
+
+function parseLexiconCsv(text) {
+  const records = parseCsvRecords(text);
+  if (records.length < 2) {
+    return [];
+  }
+  const headers = records[0].map(normalizeHeader);
+  return records
+    .slice(1)
+    .map(function (record) {
+      const row = {};
+      headers.forEach(function (header, index) {
+        if (header) {
+          row[header] = normalizeText(record[index]);
+        }
+      });
+      const id = normalizeText(row["编号"]);
+      const suggested = normalizeText(row["建议用字"]);
+      const mandarin = normalizeText(row["对应华语"]);
+      if (!splitTerms(suggested).length || !splitTerms(mandarin).length) {
+        return null;
+      }
+      return { id, suggested, mandarin };
+    })
+    .filter(Boolean);
+}
+
+function getLexiconState() {
+  if (lexiconCache) {
+    return lexiconCache;
+  }
+  if (!fs.existsSync(MINNAN_LEXICON_PATH)) {
+    if (!warnedMissing) {
+      warnedMissing = true;
+      console.warn("[DataBaker][round-one-quality][ai] 闽南方言词表不存在，已跳过词表上下文。", {
+        fileName: path.basename(MINNAN_LEXICON_PATH),
+      });
+    }
+    lexiconCache = { exists: false, rows: [] };
+    return lexiconCache;
+  }
+  try {
+    const text = fs.readFileSync(MINNAN_LEXICON_PATH, "utf8");
+    lexiconCache = {
+      exists: true,
+      rows: parseLexiconCsv(text),
+    };
+  } catch (error) {
+    if (!warnedReadFailure) {
+      warnedReadFailure = true;
+      console.warn("[DataBaker][round-one-quality][ai] 闽南方言词表读取失败，已跳过词表上下文。", {
+        fileName: path.basename(MINNAN_LEXICON_PATH),
+        message: error && error.message ? error.message : String(error),
+      });
+    }
+    lexiconCache = { exists: false, rows: [] };
+  }
+  return lexiconCache;
+}
+
+function loadMinnanLexicon() {
+  return getLexiconState().rows.slice();
+}
+
+function normalizeLimit(value) {
+  const number = Number(value || DEFAULT_CONTEXT_LIMIT);
+  if (!Number.isFinite(number)) {
+    return DEFAULT_CONTEXT_LIMIT;
+  }
+  return Math.max(1, Math.min(120, Math.round(number)));
+}
+
+function getEntryKey(entry) {
+  return splitTerms(entry.mandarin).join("/") + "\u0000" + splitTerms(entry.suggested).join("/");
+}
+
+function entryMatchesText(entry, text) {
+  const source = normalizeText(text);
+  if (!source) {
+    return false;
+  }
+  const terms = splitTerms(entry.mandarin).concat(splitTerms(entry.suggested));
+  return terms.some(function (term) {
+    return term && source.indexOf(term) >= 0;
+  });
+}
+
+function formatEntry(entry) {
+  const mandarin = splitTerms(entry.mandarin).join("、");
+  const suggested = splitTerms(entry.suggested).join("、");
+  if (!mandarin || !suggested) {
+    return "";
+  }
+  return "- 对应华语：" + mandarin + "；建议用字：" + suggested;
+}
+
+function getSuggestedTermForFrom(suggested, from) {
+  return (
+    splitTerms(suggested).find(function (term) {
+      return term && term !== from;
+    }) || ""
+  );
+}
+
+function addRewriteRule(rules, seen, mandarin, suggested, source) {
+  splitTerms(mandarin).forEach(function (from) {
+    if (!from || (source === "csv" && from.length < 2)) {
+      return;
+    }
+    const to = getSuggestedTermForFrom(suggested, from);
+    if (!to || from === to) {
+      return;
+    }
+    const key = from + "\u0000" + to;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    rules.push({
+      from,
+      to,
+      source,
+      reason: "命中闽南方言词表",
+    });
+  });
+}
+
+function buildRewriteRules() {
+  const state = getLexiconState();
+  const rules = [];
+  const seen = new Set();
+  BASE_ENTRIES.forEach(function (entry) {
+    addRewriteRule(rules, seen, entry.mandarin, entry.suggested, "base");
+  });
+  state.rows.forEach(function (entry) {
+    addRewriteRule(rules, seen, entry.mandarin, entry.suggested, "csv");
+  });
+  return rules.sort(function (left, right) {
+    return right.from.length - left.from.length;
+  });
+}
+
+function countOccurrences(text, searchText) {
+  if (!searchText) {
+    return 0;
+  }
+  let count = 0;
+  let index = 0;
+  while (index < text.length) {
+    const foundIndex = text.indexOf(searchText, index);
+    if (foundIndex < 0) {
+      break;
+    }
+    count += 1;
+    index = foundIndex + searchText.length;
+  }
+  return count;
+}
+
+function applyLexiconRewrite(text, options) {
+  const source = options && typeof options === "object" ? options : {};
+  const mode = String(source.mode || "aggressive").trim() || "aggressive";
+  const originalText = String(text || "");
+  if (mode === "off" || !originalText) {
+    return {
+      text: originalText,
+      changed: false,
+      changes: [],
+    };
+  }
+
+  let rewrittenText = originalText;
+  const changes = [];
+  buildRewriteRules().forEach(function (rule) {
+    if (!rule.from || !rule.to || rewrittenText.indexOf(rule.from) < 0) {
+      return;
+    }
+    if (rewrittenText.indexOf(rule.to) >= 0) {
+      return;
+    }
+    const occurrenceCount = countOccurrences(rewrittenText, rule.from);
+    if (occurrenceCount <= 0) {
+      return;
+    }
+    rewrittenText = rewrittenText.split(rule.from).join(rule.to);
+    for (let index = 0; index < occurrenceCount; index += 1) {
+      changes.push({
+        from: rule.from,
+        to: rule.to,
+        source: rule.source,
+        reason: rule.reason,
+      });
+    }
+  });
+
+  return {
+    text: rewrittenText,
+    changed: rewrittenText !== originalText,
+    changes,
+  };
+}
+
+function buildLexiconContext(options) {
+  const source = options && typeof options === "object" ? options : {};
+  const state = getLexiconState();
+  if (!state.exists) {
+    return {
+      enabled: false,
+      matchedCount: 0,
+      items: [],
+      text: "",
+    };
+  }
+  const limit = normalizeLimit(source.limit);
+  const targetText = [source.pageText, source.heardText]
+    .map(normalizeText)
+    .filter(Boolean)
+    .join("\n");
+  const items = [];
+  const seen = new Set();
+
+  BASE_ENTRIES.forEach(function (entry) {
+    const key = getEntryKey(entry);
+    if (!seen.has(key)) {
+      seen.add(key);
+      items.push({
+        mandarin: entry.mandarin,
+        suggested: entry.suggested,
+        source: "base",
+      });
+    }
+  });
+
+  const matchedRows = state.rows.filter(function (entry) {
+    return entryMatchesText(entry, targetText);
+  });
+
+  matchedRows.forEach(function (entry) {
+    if (items.length >= limit) {
+      return;
+    }
+    const key = getEntryKey(entry);
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    items.push({
+      id: entry.id,
+      mandarin: entry.mandarin,
+      suggested: entry.suggested,
+      source: "csv",
+    });
+  });
+
+  return {
+    enabled: true,
+    matchedCount: matchedRows.length,
+    items,
+    text: items.map(formatEntry).filter(Boolean).join("\n"),
+  };
+}
+
+function splitSuggestedTerms(text) {
+  return splitTerms(text);
+}
+
+function getProtectedLexiconTerms() {
+  const terms = new Set();
+  BASE_ENTRIES.forEach(function (value) {
+    splitSuggestedTerms(value.suggested).forEach(function (term) {
+      if (term) {
+        terms.add(term);
+      }
+    });
+  });
+  loadMinnanLexicon().forEach(function (entry) {
+    splitSuggestedTerms(entry && entry.suggested).forEach(function (term) {
+      if (term) {
+        terms.add(term);
+      }
+    });
+  });
+  return Array.from(terms).sort(function (left, right) {
+    return right.length - left.length;
+  });
+}
+
+function protectLexiconTerms(text, protectedTerms) {
+  const replacements = [];
+  let output = String(text || "");
+  protectedTerms.forEach(function (term, index) {
+    if (!term || output.indexOf(term) < 0) {
+      return;
+    }
+    const token = "__ASC_LEXICON_TOKEN_" + String(index) + "__";
+    output = output.split(term).join(token);
+    replacements.push({ token: token, value: term });
+  });
+  return { text: output, replacements: replacements };
+}
+
+function convertTraditionalToSimplified(text) {
+  let output = "";
+  const source = String(text || "");
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    output += TRADITIONAL_TO_SIMPLIFIED_MAP[char] || char;
+  }
+  return output;
+}
+
+function restoreLexiconTerms(text, replacements) {
+  let output = String(text || "");
+  (Array.isArray(replacements) ? replacements : []).forEach(function (entry) {
+    if (!entry || !entry.token) {
+      return;
+    }
+    output = output.split(entry.token).join(entry.value || "");
+  });
+  return output;
+}
+
+function normalizeToSimplifiedChinesePreservingLexicon(text) {
+  const source = String(text || "");
+  if (!source) {
+    return "";
+  }
+  const protectedTerms = getProtectedLexiconTerms();
+  const protectedResult = protectLexiconTerms(source, protectedTerms);
+  const simplified = convertTraditionalToSimplified(protectedResult.text);
+  return restoreLexiconTerms(simplified, protectedResult.replacements);
+}
+
+function getLexiconText(lexiconContext) {
+  return String(lexiconContext?.text || "").trim();
+}
+
+function normalizePromptTemplate(value, fallback) {
+  const text = String(value || "").replace(/\r\n/g, "\n").trim();
+  if (!text) {
+    return String(fallback || "");
+  }
+  return text.slice(0, 8000);
+}
+
+function buildOmniSinglePrompt(request, lexiconContext) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.listenPrompt,
+    DEFAULT_OMNI_SINGLE_TEMPLATE
+  );
+  const lexiconText = getLexiconText(lexiconContext);
+  const input = {
+    pageText: request.pageText,
+    readRequire: request.readRequire,
+    sentenceNumber: request.sentenceNumber,
+    effectiveStartTime: request.effectiveStartTime,
+    effectiveEndTime: request.effectiveEndTime,
+    effectiveTime: request.effectiveTime,
+    audioDuration: request.audioDuration,
+  };
+  const promptLines = [
+    template,
+    "规则：",
+    "1. 一个请求完成听音 + 对比 + 推荐文本，不要要求第二个模型继续判断。",
+    "2. 页面候选文本只是参考，实际发声优先。",
+    "3. 不自动改成普通话含义，不因为词表存在就强行改写。",
+    "4. 如果实际发声和页面候选文本一致，recommendedText 保留页面候选文本。",
+    "5. 如果实际发声明显不同，recommendedText 按实际发声输出。",
+    "6. 对‘的/诶’‘很/真’‘喜欢/欢喜’‘这位/即个’‘我/阮’‘你/汝’‘他/伊’等易混词必须按实际发声判断。",
+    "7. confidence 取 0 到 1；无法完全确认时 needHumanReview=true。",
+    "8. changePoints 可写字符串数组或对象数组；推荐至少说明页面文本与听到文本的关键差异。",
+  ];
+  if (lexiconText) {
+    promptLines.push(
+      "以下是官方闽南方言字词表上下文：",
+      lexiconText,
+      "词表使用规则：",
+      "1. 词表只用于选择字形，不用于无依据改写。",
+      "2. 如果实际发声明显符合建议用字，请优先使用建议用字。",
+      "3. 如果实际发声就是普通话词，不要因为词表存在就强行改写。",
+      "4. 命中词表建议用字后，后端仍会做普通中文简体归一化，但不会覆盖词表建议用字。"
+    );
+  }
+  promptLines.push(
+    "输出 JSON 字段：recommendedText、heardText、decision、changePoints、confidence、needHumanReview。",
+    "decision 可用值建议：keep_page_text、use_heard_text、minor_edit、uncertain。",
+    "输入：",
+    JSON.stringify(input, null, 2)
+  );
+  return {
+    ruleVersion: RULE_VERSION,
+    systemPrompt:
+      "你是 DataBaker 质检推荐助手。你会接收音频和页面上下文，必须只输出 JSON，不要输出 Markdown 或 JSON 以外文本。",
+    userPrompt: promptLines.join("\n"),
+  };
+}
+
+function buildOmniListenPrompt(request) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.listenPrompt,
+    DEFAULT_OMNI_LISTEN_TEMPLATE
+  );
+  const input = {
+    pageText: request.pageText,
+    readRequire: request.readRequire,
+    sentenceNumber: request.sentenceNumber,
+    effectiveStartTime: request.effectiveStartTime,
+    effectiveEndTime: request.effectiveEndTime,
+    effectiveTime: request.effectiveTime,
+    audioDuration: request.audioDuration,
+  };
+  return {
+    ruleVersion: RULE_VERSION,
+    systemPrompt:
+      "你是 DataBaker 听音助手。你会接收音频和页面上下文，必须只输出 JSON，不要输出 Markdown 或 JSON 以外文本。",
+    userPrompt: [
+      template,
+      "规则：",
+      "1. 你只负责输出 heardText，不负责生成 recommendedText。",
+      "2. pageText 只是辅助，不要机械照抄页面文本。",
+      "3. 以实际发声为主；听不清时 needHumanReview=true。",
+      "4. confidence 取 0 到 1。",
+      "5. 输出 JSON 字段：heardText、confidence、needHumanReview。",
+      "输入：",
+      JSON.stringify(input, null, 2),
+    ].join("\n"),
+  };
+}
+
+function buildComparePrompt(request, heardText, lexiconContext) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.comparePrompt,
+    DEFAULT_COMPARE_TEMPLATE
+  );
+  const input = {
+    pageText: request.pageText,
+    heardText,
+    readRequire: request.readRequire,
+    sentenceNumber: request.sentenceNumber,
+    effectiveStartTime: request.effectiveStartTime,
+    effectiveEndTime: request.effectiveEndTime,
+    effectiveTime: request.effectiveTime,
+    audioDuration: request.audioDuration,
+  };
+  const lexiconText = getLexiconText(lexiconContext);
+  const promptLines = [
+    template,
+    "规则：",
+    "1. 以实际发声为主。",
+    "2. 页面候选文本只是参考。",
+    "3. 不自动改成普通话含义。",
+    "4. 不因为词表存在就强行改写。",
+    "5. 如果实际发声和页面候选文本一致，recommendedText 保留页面候选文本。",
+    "6. 如果实际发声明显不同，recommendedText 按实际发声输出。",
+    "7. 只生成推荐文本，不自动提交。",
+    "8. 对‘的/诶’‘很/真’‘喜欢/欢喜’‘这位/即个’‘我/阮’‘你/汝’‘他/伊’等要按实际发声判断。",
+  ];
+  if (lexiconText) {
+    promptLines.push(
+      "以下是官方闽南方言字词表上下文：",
+      lexiconText,
+      "词表使用规则：",
+      "1. 推荐文本以实际发声为主。",
+      "2. 词表用于选择字形，不用于无依据改写。",
+      "3. 如果 heardText 命中词表建议用字，优先保留。",
+      "4. 如果 heardText 明显被页面文本保守覆盖，要按 heardText 和词表修正。",
+      "5. recommendedText 最终应对普通中文做简体化，但词表建议用字是保留项，不能被普通简繁转换覆盖。"
+    );
+  }
+  promptLines.push(
+    "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
+    "decision 可用值建议：keep_page_text、use_heard_text、minor_edit、uncertain。",
+    "输入：",
+    JSON.stringify(input, null, 2)
+  );
+  return {
+    ruleVersion: RULE_VERSION,
+    systemPrompt:
+      "你是 DataBaker 质检文本复核助手。只输出 JSON，不要输出 Markdown 或 JSON 以外文本。",
+    userPrompt: promptLines.join("\n"),
+  };
+}
+
+function summarizeQueueMeta(queueMeta) {
+  const source = queueMeta && typeof queueMeta === "object" ? queueMeta : {};
+  return {
+    groupName: String(source.groupName || ""),
+    queueWaitMs: Math.max(0, Number(source.queueWaitMs) || 0),
+    retryCount: Math.max(0, Number(source.retryCount) || 0),
+    retryDelaysMs: Array.isArray(source.retryDelaysMs) ? source.retryDelaysMs.slice(0, 6) : [],
+    durationMs: Math.max(0, Number(source.durationMs) || 0),
+    activeCount: Math.max(0, Number(source.activeCount) || 0),
+    maxConcurrent: Math.max(0, Number(source.maxConcurrent) || 0),
+  };
+}
+
+function appendCallLogSafe(record) {
+  try {
+    appendAiCallLog(record);
+  } catch (error) {
+    console.warn("[DataBaker][round-one-quality][ai] append log failed", String(error?.message || error));
+  }
+}
+
+function createHealthPayload() {
+  const qwenConfig = getClientConfig();
+  const funAsrConfig = getFunAsrClientConfig();
+  const envPipeline = getEnvPipelineResolution();
+  const defaultListenModel = resolveDataBakerDefaultListenModel();
+  logDeprecatedPipelineOnce(envPipeline);
+  return {
+    success: true,
+    service: "data-baker-round-one-quality-ai-recommend",
+    provider: "dashscope-fun-asr-and-qwen",
+    ruleVersion: RULE_VERSION,
+    pipelineMode: deriveDataBakerPipelineMode(defaultListenModel),
+    deprecatedPipelineMode: envPipeline.deprecatedFrom || "",
+    supportedPipelineModes: SUPPORTED_PIPELINE_MODES,
+    listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+    compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
+    listenModel: defaultListenModel,
+    funAsrModel: funAsrConfig.model || DEFAULT_FUN_ASR_MODEL,
+    funAsrPythonConfigured: funAsrConfig.pythonExists === true,
+    omniModel: qwenConfig.omniModel || DEFAULT_OMNI_MODEL,
+    compareModel: qwenConfig.compareModel || DEFAULT_COMPARE_MODEL,
+    mockEnabled: qwenConfig.mockEnabled || funAsrConfig.mockEnabled,
+    hasApiKey: qwenConfig.hasApiKey || funAsrConfig.hasApiKey,
+    callLogDir: getLogDir(),
+    cache: getCacheSnapshot(),
+    queue: {
+      maxSize: getGlobalQueueMaxSize(),
+      retryMax: getGlobalRetryMax(),
+      groups: getQueueSnapshots(),
+    },
+    status: qwenConfig.hasApiKey || qwenConfig.mockEnabled ? "ready" : "missing-api-key",
+  };
+}
+
+function createDefaultsPayload() {
+  const qwenConfig = getClientConfig();
+  const funAsrConfig = getFunAsrClientConfig();
+  const envPipeline = getEnvPipelineResolution();
+  const defaultListenModel = resolveDataBakerDefaultListenModel();
+  logDeprecatedPipelineOnce(envPipeline);
+  return {
+    success: true,
+    service: "data-baker-round-one-quality-ai-recommend",
+    scriptId: "dataBakerRoundOneQuality",
+    component: "asr-voice-ai",
+    defaults: {
+      pipelineMode: deriveDataBakerPipelineMode(defaultListenModel),
+      supportedPipelineModes: SUPPORTED_PIPELINE_MODES,
+      listenModel: defaultListenModel,
+      listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+      compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
+      compareModel: qwenConfig.compareModel || DEFAULT_COMPARE_MODEL,
+      funAsrModel: funAsrConfig.model || DEFAULT_FUN_ASR_MODEL,
+      funAsrPythonConfigured: funAsrConfig.pythonExists === true,
+      omniModel: qwenConfig.omniModel || DEFAULT_OMNI_MODEL,
+      reviewModel: "",
+      timeoutMs: qwenConfig.timeoutMs,
+      enableThinking: qwenConfig.enableThinkingDefault === true,
+      temperature: DEFAULT_REQUEST_PARAMS.temperature,
+      top_p: DEFAULT_REQUEST_PARAMS.top_p,
+      max_tokens: DEFAULT_REQUEST_PARAMS.max_tokens,
+      max_completion_tokens: DEFAULT_REQUEST_PARAMS.max_completion_tokens,
+      presence_penalty: DEFAULT_REQUEST_PARAMS.presence_penalty,
+      frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
+      seed: DEFAULT_REQUEST_PARAMS.seed,
+      stop: DEFAULT_REQUEST_PARAMS.stop,
+      listenPrompt: DEFAULT_OMNI_LISTEN_TEMPLATE,
+      comparePrompt: DEFAULT_COMPARE_TEMPLATE,
+      reviewPrompt: "",
+    },
+    supportedParams: SUPPORTED_REQUEST_PARAMS,
+    queue: {
+      maxSize: getGlobalQueueMaxSize(),
+      retryMax: getGlobalRetryMax(),
+      groups: getQueueSnapshots(),
+    },
+    cache: getCacheSnapshot(),
+    deprecated: envPipeline.deprecatedFrom
+      ? [
+          {
+            from: envPipeline.deprecatedFrom,
+            to: deriveDataBakerPipelineMode(defaultListenModel),
+          },
+        ]
+      : [],
+    notes: {
+      promptOverride:
+        "听音阶段 Prompt 只用于产出 heardText；比较阶段 Prompt 负责结合 heardText 与页面候选文本生成 recommendedText。",
+      responseFormat: "结构化输出由后端固定控制，前端不配置。",
+      funAsr:
+        "Fun-ASR 为录音文件识别接口，不走 OpenAI-compatible chat model，由后端 Python SDK 调用；Fun-ASR 没有 thinking 参数。",
+      qwenOmni:
+        "qwen3.5-omni-plus / qwen3.5-omni-flash 会先通过 input_audio 产出 heardText，再调用比较模型。",
+      queue: "所有 Fun-ASR / Omni / compare 调用都会先进入后端统一限流队列；Fun-ASR 并发由 DATABAKER_AI_FUN_ASR_CONCURRENCY 控制。",
+    },
+  };
+}
+
+function buildCacheKeyInput(recommendRequest, pipelineMode, listenModel, compareModel) {
+  return {
+    audioUrl: recommendRequest.audioUrl,
+    effectiveStartTime: recommendRequest.effectiveStartTime,
+    effectiveEndTime: recommendRequest.effectiveEndTime,
+    pipelineMode,
+    listenModel,
+    compareModel,
+    ruleVersion: RULE_VERSION,
+    listenPrompt: recommendRequest.aiOptions.listenPrompt || "",
+    comparePrompt: recommendRequest.aiOptions.comparePrompt || "",
+  };
+}
+
+async function runQueuedProviderCall(groupName, task) {
+  return enqueueProviderTask(groupName, task);
+}
+
+function getLexiconRewriteMode() {
+  const mode = String(process.env.DATABAKER_AI_LEXICON_REWRITE_MODE || "aggressive").trim();
+  return mode === "off" ? "off" : "aggressive";
+}
+
+function rewriteRecommendedText(recommendedText, request, heardText) {
+  const rewriteMode = getLexiconRewriteMode();
+  const rewriteResult = applyLexiconRewrite(recommendedText, {
+    pageText: request.pageText,
+    heardText: heardText,
+    mode: rewriteMode,
+  });
+  let nextText = rewriteResult.changed ? rewriteResult.text : recommendedText;
+  nextText = normalizeToSimplifiedChinesePreservingLexicon(nextText);
+  nextText = removeTextSpaces(nextText);
+  nextText = ensureChineseSentencePunctuation(nextText);
+  return {
+    rewriteMode,
+    rewriteResult,
+    text: nextText,
+  };
+}
+
+function createRuntimeMeta(options) {
+  const queueMetas = Array.isArray(options?.queueMetas) ? options.queueMetas : [];
+  return {
+    cache: {
+      hit: options?.cacheHit === true,
+      ttlMs: Number(options?.cacheTtlMs) || 0,
+      sourceRequestId: String(options?.cacheSourceRequestId || ""),
+    },
+    deprecatedMode: String(options?.deprecatedMode || ""),
+    queue: {
+      groups: queueMetas.map(summarizeQueueMeta),
+      totalQueueWaitMs: queueMetas.reduce(function (total, item) {
+        return total + Math.max(0, Number(item?.queueWaitMs) || 0);
+      }, 0),
+      totalRetryCount: queueMetas.reduce(function (total, item) {
+        return total + Math.max(0, Number(item?.retryCount) || 0);
+      }, 0),
+    },
+  };
+}
+
+async function recommend(body, requestIdHint) {
+  const startedAtMs = Date.now();
+  let requestId = String(requestIdHint || createRequestId());
+  let recommendRequest = null;
+  let qwenConfig = null;
+  let funAsrConfig = null;
+  let pipelineMode = "qwen_omni_compare";
+  let deprecatedMode = "";
+  let listenDurationMs = 0;
+  let compareDurationMs = 0;
+  let activeListenModel = "";
+  let activeCompareModel = "";
+  let cacheKey = "";
+  try {
+    recommendRequest = normalizeRecommendRequest(body || {});
+    requestId = String(body?.requestId || requestId);
+
+    qwenConfig = getClientConfig();
+    funAsrConfig = getFunAsrClientConfig();
+    const envPipeline = getEnvPipelineResolution();
+    const defaultListenModel = resolveDataBakerDefaultListenModel();
+    const requestedListenModel = resolveRequestedListenModel(recommendRequest, defaultListenModel);
+    const requestedCompareModel = resolveRequestedCompareModel(
+      recommendRequest,
+      qwenConfig.compareModel || DEFAULT_COMPARE_MODEL
+    );
+    const requestPipeline = resolvePipelineMode(
+      recommendRequest.pipelineMode,
+      deriveDataBakerPipelineMode(requestedListenModel),
+      "request"
+    );
+    logDeprecatedPipelineOnce(envPipeline);
+    logDeprecatedPipelineOnce(requestPipeline);
+    pipelineMode = requestPipeline.mode || deriveDataBakerPipelineMode(requestedListenModel);
+    deprecatedMode = requestPipeline.deprecatedFrom || envPipeline.deprecatedFrom || "";
+
+    if (!qwenConfig.hasApiKey && !qwenConfig.mockEnabled) {
+      throw createHttpError(503, "缺少 DASHSCOPE_API_KEY。", "missing-api-key");
+    }
+
+    const effectiveEnableThinking =
+      typeof recommendRequest.aiOptions.enable_thinking === "boolean"
+        ? recommendRequest.aiOptions.enable_thinking === true
+        : qwenConfig.enableThinkingDefault === true;
+
+    activeListenModel =
+      pipelineMode === "fun_asr_compare"
+        ? DEFAULT_FUN_ASR_MODEL
+        : normalizeDataBakerListenModel(
+            requestedListenModel,
+            qwenConfig.omniModel || DEFAULT_OMNI_MODEL
+          );
+    activeCompareModel = normalizeDataBakerCompareModel(
+      requestedCompareModel,
+      qwenConfig.compareModel || DEFAULT_COMPARE_MODEL
+    );
+
+    cacheKey = buildRecommendCacheKey(
+      buildCacheKeyInput(recommendRequest, pipelineMode, activeListenModel, activeCompareModel)
+    );
+    const cached = getCachedRecommendResult(cacheKey);
+    if (cached) {
+      const cacheSnapshot = getCacheSnapshot();
+      const responseData = cloneJson(cached);
+      const cacheSourceRequestId = responseData.requestId || "";
+      responseData.requestId = requestId;
+      responseData.runtime = createRuntimeMeta({
+        cacheHit: true,
+        cacheTtlMs: cacheSnapshot.ttlMs,
+        cacheSourceRequestId,
+        deprecatedMode,
+        queueMetas: [],
+      });
+      appendCallLogSafe({
+        createdAt: new Date().toISOString(),
+        requestId,
+        success: true,
+        durationMs: Date.now() - startedAtMs,
+        listenDurationMs: 0,
+        compareDurationMs: 0,
+        request: recommendRequest,
+        response: responseData,
+        listenModel: activeListenModel,
+        compareModel: activeCompareModel,
+        pipelineMode,
+        audioHostname: parseAudioHostname(recommendRequest.audioUrl),
+        mock: Boolean(qwenConfig.mockEnabled),
+      });
+      return responseData;
+    }
+
+    console.info("[DataBaker][round-one-quality][ai] recommend start", {
+      requestId,
+      hostname: parseAudioHostname(recommendRequest.audioUrl),
+      sentenceNumber: recommendRequest.sentenceNumber,
+      pipelineMode,
+      listenModel: activeListenModel,
+      compareModel: activeCompareModel,
+      enableThinking: effectiveEnableThinking,
+      mock: qwenConfig.mockEnabled,
+    });
+
+    const queueMetas = [];
+    let responseData = null;
+
+    if (pipelineMode === "fun_asr_compare") {
+      const listenStartedAtMs = Date.now();
+      let funAsrResult = null;
+      try {
+        const queued = await runQueuedProviderCall("fun_asr", function () {
+          return requestFunAsrRecognition(recommendRequest, {
+            model: activeListenModel,
+            timeoutMs: qwenConfig.timeoutMs,
+          });
+        });
+        funAsrResult = queued.value;
+        queueMetas.push(queued.queueMeta);
+      } finally {
+        listenDurationMs = Date.now() - listenStartedAtMs;
+      }
+
+      const heardText = normalizeToSimplifiedChinesePreservingLexicon(
+        removeTextSpaces(funAsrResult.heardText || "")
+      );
+      const listenData = {
+        heardText,
+        confidence: Number(funAsrResult.confidence || 0),
+        isValid: Boolean(heardText),
+        invalidReasons: [],
+      };
+      const compareLexiconContext = buildLexiconContext({
+        pageText: recommendRequest.pageText,
+        heardText: heardText,
+        limit: 60,
+      });
+      const comparePrompt = buildComparePrompt(recommendRequest, heardText, compareLexiconContext);
+      const compareStartedAtMs = Date.now();
+      let compareResult = null;
+      try {
+        const queued = await runQueuedProviderCall("text_compare", function () {
+          return requestCompare(recommendRequest, comparePrompt, heardText, {
+            model: activeCompareModel,
+            timeoutMs: qwenConfig.timeoutMs,
+            enableThinking: effectiveEnableThinking,
+          });
+        });
+        compareResult = queued.value;
+        queueMetas.push(queued.queueMeta);
+      } finally {
+        compareDurationMs = Date.now() - compareStartedAtMs;
+      }
+      const compareJson = parseModelJsonText(compareResult.rawText, requestId);
+      const normalizedCompare = normalizeCompareResponse(compareJson, {
+        pageText: recommendRequest.pageText,
+        heardText,
+      });
+      const rewriteState = rewriteRecommendedText(
+        normalizeToSimplifiedChinesePreservingLexicon(removeTextSpaces(normalizedCompare.recommendedText)),
+        recommendRequest,
+        heardText
+      );
+      normalizedCompare.recommendedText = rewriteState.text;
+      if (rewriteState.rewriteResult.changed) {
+        normalizedCompare.needHumanReview = true;
+      }
+
+      responseData = buildRecommendResponse({
+        requestId,
+        request: recommendRequest,
+        listen: listenData,
+        compare: normalizedCompare,
+        listenModel: funAsrResult.model,
+        compareModel: compareResult.model,
+        listenUsage: normalizeUsage(funAsrResult.usage),
+        compareUsage: normalizeUsage(compareResult.usage),
+        cost: estimateCost({
+          effectiveTime: recommendRequest.effectiveTime,
+          listenUsage: {},
+          compareUsage: normalizeUsage(compareResult.usage),
+        }),
+        listenConfidence: listenData.confidence,
+        compareConfidence: normalizedCompare.confidence,
+      });
+      responseData.lexicon = {
+        enabled: Boolean(compareLexiconContext.enabled || rewriteState.rewriteMode !== "off"),
+        rewriteMode: rewriteState.rewriteMode,
+        matchedCount: Number(compareLexiconContext.matchedCount || 0),
+        rewriteChanged: rewriteState.rewriteResult.changed === true,
+        rewriteChanges: rewriteState.rewriteResult.changes,
+      };
+      responseData.timing = {
+        listenDurationMs,
+        compareDurationMs,
+        totalDurationMs: Date.now() - startedAtMs,
+      };
+    } else {
+      const listenPrompt = buildOmniListenPrompt(recommendRequest);
+      const listenStartedAtMs = Date.now();
+      let omniListenResult = null;
+      try {
+        const queued = await runQueuedProviderCall("qwen_omni", function () {
+          return requestOmniInputAudio(recommendRequest, listenPrompt, {
+            model: activeListenModel,
+            timeoutMs: qwenConfig.timeoutMs,
+            enableThinking: effectiveEnableThinking,
+          });
+        });
+        omniListenResult = queued.value;
+        queueMetas.push(queued.queueMeta);
+      } finally {
+        listenDurationMs = Date.now() - listenStartedAtMs;
+      }
+
+      const listenJson = parseModelJsonText(omniListenResult.rawText, requestId);
+      const normalizedListen = normalizeOmniListenStageResult(listenJson);
+      const compareLexiconContext = buildLexiconContext({
+        pageText: recommendRequest.pageText,
+        heardText: normalizedListen.heardText,
+        limit: 60,
+      });
+      const comparePrompt = buildComparePrompt(
+        recommendRequest,
+        normalizedListen.heardText,
+        compareLexiconContext
+      );
+      const compareStartedAtMs = Date.now();
+      let compareResult = null;
+      try {
+        const queued = await runQueuedProviderCall("text_compare", function () {
+          return requestCompare(recommendRequest, comparePrompt, normalizedListen.heardText, {
+            model: activeCompareModel,
+            timeoutMs: qwenConfig.timeoutMs,
+            enableThinking: effectiveEnableThinking,
+          });
+        });
+        compareResult = queued.value;
+        queueMetas.push(queued.queueMeta);
+      } finally {
+        compareDurationMs = Date.now() - compareStartedAtMs;
+      }
+
+      const compareJson = parseModelJsonText(compareResult.rawText, requestId);
+      const normalizedCompare = normalizeCompareResponse(compareJson, {
+        pageText: recommendRequest.pageText,
+        heardText: normalizedListen.heardText,
+      });
+      const rewriteState = rewriteRecommendedText(
+        normalizeToSimplifiedChinesePreservingLexicon(
+          removeTextSpaces(normalizedCompare.recommendedText)
+        ),
+        recommendRequest,
+        normalizedListen.heardText
+      );
+      normalizedCompare.recommendedText = rewriteState.text;
+      if (rewriteState.rewriteResult.changed) {
+        normalizedCompare.needHumanReview = true;
+      }
+      if (normalizedListen.needHumanReview) {
+        normalizedCompare.needHumanReview = true;
+      }
+
+      responseData = buildRecommendResponse({
+        requestId,
+        request: recommendRequest,
+        listen: {
+          heardText: normalizedListen.heardText,
+          confidence: normalizedListen.confidence,
+          isValid: Boolean(normalizedListen.heardText),
+          invalidReasons: normalizedListen.heardText ? [] : ["missing-heard-text"],
+        },
+        compare: normalizedCompare,
+        listenModel: omniListenResult.model,
+        compareModel: compareResult.model,
+        listenUsage: normalizeUsage(omniListenResult.usage),
+        compareUsage: normalizeUsage(compareResult.usage),
+        cost: estimateCost({
+          effectiveTime: recommendRequest.effectiveTime,
+          listenUsage: normalizeUsage(omniListenResult.usage),
+          compareUsage: normalizeUsage(compareResult.usage),
+        }),
+        listenConfidence: normalizedListen.confidence,
+        compareConfidence: normalizedCompare.confidence,
+      });
+      responseData.lexicon = {
+        enabled: Boolean(compareLexiconContext.enabled || rewriteState.rewriteMode !== "off"),
+        rewriteMode: rewriteState.rewriteMode,
+        matchedCount: Number(compareLexiconContext.matchedCount || 0),
+        rewriteChanged: rewriteState.rewriteResult.changed === true,
+        rewriteChanges: rewriteState.rewriteResult.changes,
+      };
+      responseData.timing = {
+        listenDurationMs,
+        compareDurationMs,
+        totalDurationMs: Date.now() - startedAtMs,
+      };
+    }
+
+    responseData.pipelineMode = pipelineMode;
+    responseData.runtime = createRuntimeMeta({
+      cacheHit: false,
+      cacheTtlMs: setCachedRecommendResult(cacheKey, responseData),
+      deprecatedMode,
+      queueMetas,
+    });
+    responseData.thinking = {
+      enableThinking: effectiveEnableThinking,
+      compareStageOnly: pipelineMode === "fun_asr_compare",
+    };
+    responseData.normalization = {
+      simplifiedChineseApplied: true,
+      lexiconTermsPreserved: true,
+    };
+
+    appendCallLogSafe({
+      createdAt: new Date().toISOString(),
+      requestId,
+      success: true,
+      durationMs: Date.now() - startedAtMs,
+      listenDurationMs,
+      compareDurationMs,
+      request: recommendRequest,
+      response: responseData,
+      listenModel: activeListenModel,
+      compareModel: activeCompareModel,
+      pipelineMode,
+      audioHostname: parseAudioHostname(recommendRequest.audioUrl),
+      mock: Boolean(qwenConfig.mockEnabled),
+    });
+
+    return responseData;
+  } catch (error) {
+    const responseMessage = String(error?.message || "DataBaker AI recommend 请求失败。").slice(0, 240);
+    appendCallLogSafe({
+      createdAt: new Date().toISOString(),
+      requestId,
+      success: false,
+      durationMs: Date.now() - startedAtMs,
+      listenDurationMs,
+      compareDurationMs,
+      request: recommendRequest || {},
+      response: {},
+      listenModel: activeListenModel || qwenConfig?.omniModel || funAsrConfig?.model || DEFAULT_OMNI_MODEL,
+      compareModel: activeCompareModel || qwenConfig?.compareModel || DEFAULT_COMPARE_MODEL,
+      pipelineMode,
+      audioHostname: parseAudioHostname(recommendRequest?.audioUrl || ""),
+      mock: Boolean(qwenConfig?.mockEnabled || funAsrConfig?.mockEnabled),
+      errorCode: String(error?.code || ""),
+      errorMessage: responseMessage,
+    });
+    error.requestId = requestId;
+    error.safeMessage = responseMessage;
+    throw error;
+  }
+}
+
+module.exports = {
+  CSV_COLUMNS,
+  DEFAULT_COMPARE_TEMPLATE,
+  DEFAULT_OMNI_LISTEN_TEMPLATE,
+  DEFAULT_OMNI_SINGLE_TEMPLATE,
+  MINNAN_LEXICON_PATH,
+  RULE_VERSION,
+  SUPPORTED_PIPELINE_MODES,
+  __testOnly: {
+    cleanLexiconTerm,
+    splitTerms,
+  },
+  appendAiCallLog,
+  applyLexiconRewrite,
+  buildComparePrompt,
+  buildLexiconContext,
+  buildOmniListenPrompt,
+  buildOmniSinglePrompt,
+  buildRecommendResponse,
+  createDefaultsPayload,
+  createHealthPayload,
+  ensureChineseSentencePunctuation,
+  estimateCost,
+  getLogDir,
+  loadMinnanLexicon,
+  normalizeAnnotatorName,
+  normalizeCompareResponse,
+  normalizeOmniSingleResponse,
+  normalizeRecommendRequest,
+  normalizeToSimplifiedChinesePreservingLexicon,
+  normalizeUsage,
+  parseLexiconCsv,
+  parseModelJsonText,
+  recommend,
+  removeTextSpaces,
+};

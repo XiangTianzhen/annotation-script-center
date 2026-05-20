@@ -94,6 +94,8 @@ PM2 进程名示例：`annotation-script-center`。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
 - Fun-ASR Python 依赖固定放在 `platform-resources/backend/ai/python/requirements.txt`。
+- DataBaker 闽南词表参考资料固定放在 `platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv`。
+- DataBaker 后端业务层当前收敛为 `ai-routes.js + ai-service.js`；公共 provider、队列、缓存和 Python 辅助脚本统一在 `platform-resources/backend/ai/`。
 - Node 后端调用 Fun-ASR Python 子进程时会显式设置 `PYTHONIOENCODING=utf-8` 和 `PYTHONUTF8=1`。
 - `platform-resources/backend/ai/python/funasr_client.py` 会按 UTF-8 输出 stdout JSON，避免 Windows 默认控制台编码导致“AI 听音文本”出现 `�` / 黑菱形乱码。
 - 不再使用 `platform-resources/backend/.venv-funasr`。
@@ -161,6 +163,7 @@ Linux：
 - `funAsrModel` 为 `fun-asr`。
 - `omniModel` 为 `qwen3.5-omni-flash`。
 - `compareModel` 为 `qwen3.5-plus`。
+- queue groups 应继续返回 `qwen_omni / fun_asr / text_compare`，并带 `maxConcurrent` 或等价并发信息。
 - 未配置 Python 虚拟环境时，`qwen3.5-omni-plus / qwen3.5-omni-flash` 仍可用；只有 `fun-asr` 会报 Python 环境缺失。
 
 Fun-ASR 返回 `403` 时，常见原因优先排查：

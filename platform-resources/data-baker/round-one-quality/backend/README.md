@@ -23,18 +23,12 @@
 ## 文件职责
 
 - `index.js`：项目路由注册入口。
-- `ai-routes.js`：HTTP health / recommend 路由、请求校验、日志和响应组装。
+- `ai-routes.js`：只负责 HTTP health / defaults / recommend 路由注册、请求体读取和响应返回。
+- `ai-service.js`：DataBaker AI 业务层，集中管理请求归一化、链路推导、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
 - `export-routes.js`：导出 health / config / upload / download 路由。
 - `export-store.js`：导出文件落盘、latest/history/events 存储能力。
-- `ai-client-qwen.js`：deprecated 薄封装；当前只 re-export `platform-resources/backend/ai/providers/qwen-openai-compatible.js`。
-- `ai-client-funasr.js`：deprecated 薄封装；当前只 re-export `platform-resources/backend/ai/providers/funasr-python.js`。
 - `platform-resources/backend/ai/python/funasr_client.py`：按阿里云官方 Python SDK 提交 Fun-ASR 录音文件识别任务、轮询状态并拉取转写结果。
-- `ai-provider-queue.js`：deprecated 薄封装；当前只 re-export `platform-resources/backend/ai/provider-queue.js`。
-- `ai-result-cache.js`：deprecated 薄封装；当前只 re-export `platform-resources/backend/ai/result-cache.js`。
-- `ai-lexicon.js`：读取闽南方言字词表 CSV，按当前页面文本和听音文本生成 prompt 上下文。
-- `ai-prompts.js`：听音 prompt 和文本对比 prompt。
-- `ai-response-schema.js`：模型 JSON 解析、字段归一化和响应体组装。
-- `ai-cost.js`：费用估算常量和计算函数。
+- `platform-resources/backend/ai/`：统一 AI 基座，提供 Qwen provider、Fun-ASR Python wrapper、provider 队列、结果缓存和公共脱敏/错误处理。
 
 ## 模型
 
@@ -63,6 +57,9 @@
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
 - `DATABAKER_AI_TEXT_RPM_LIMIT`：Compare 文本模型队列限流，默认 `500` RPM。
+- `DATABAKER_AI_QWEN_OMNI_CONCURRENCY`：Qwen Omni 并发上限，默认 `3`。
+- `DATABAKER_AI_FUN_ASR_CONCURRENCY`：Fun-ASR 并发上限，默认 `5`；如 `2 核 2G` 服务器压力高，可调低到 `3`。
+- `DATABAKER_AI_TEXT_CONCURRENCY`：Compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `200`。
 - `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
@@ -129,14 +126,19 @@ CSV 字段统一口径：
    - 先调用 Qwen Omni `input_audio` 产出 `heardText`。
    - 再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
 5. 听音模型为 `fun-asr`：
-   - 先进入 `fun_asr` 队列，由 `ai-client-funasr.js` 调起 `platform-resources/backend/ai/python/funasr_client.py`。
+   - 先进入 `fun_asr` 队列，由统一基座 `platform-resources/backend/ai/providers/funasr-python.js` 调起 `platform-resources/backend/ai/python/funasr_client.py`。
    - Python 端按官方 SDK 调用 `fun-asr`，提交录音文件识别任务并轮询结果。
    - Fun-ASR 返回 `heardText` 后，再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
 6. 所有 provider 调用遇到 `429` 都走统一指数退避 + jitter 重试；超出队列长度直接返回清晰错误，不让请求无限堆积。
-7. 对 `heardText` / `recommendedText` 做现有清洗、简繁归一、词表替换与中文句末标点补全。
-8. 成功结果写入 TTL 缓存，并组装统一响应，返回模式、模型、队列、缓存、阶段耗时、`requestId` 和调试摘要。
+7. provider 队列现在同时控制 RPM 和 group 并发：
+   - `qwen_omni` 默认并发 `3`
+   - `fun_asr` 默认并发 `5`
+   - `text_compare` 默认并发 `5`
+   这样 Fun-ASR 不再是“上一条完全结束后才启动下一条”的严格串行。
+8. 对 `heardText` / `recommendedText` 做现有清洗、简繁归一、词表替换与中文句末标点补全。
+9. 成功结果写入 TTL 缓存，并组装统一响应，返回模式、模型、队列、缓存、阶段耗时、`requestId` 和调试摘要。
 
-后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。
+后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。Fun-ASR 本身没有 thinking 参数，也不会向 Python SDK 传 `enable_thinking`。
 
 Qwen Omni 听音 + compare 是当前默认链路；`fun-asr` 作为可切换听音模型保留。本仓库不会因为任一链路自动保存、自动提交、批量识别或流转。
 
@@ -178,7 +180,7 @@ platform-resources\backend\.venv\bin\python
 词表 CSV 路径：
 
 ```text
-platform-resources/data-baker/round-one-quality/ai/minnan-lexicon.csv
+platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
 ```
 
 CSV 表头至少包含 `编号`、`建议用字`、`对应华语`。后端使用原生 Node.js 解析 CSV，支持 UTF-8 BOM、双引号包裹和双引号转义。
@@ -192,6 +194,7 @@ Prompt 简繁规则（2026-05-17 热修）：
 
 - 听音输出 `heardText` 与推荐输出 `recommendedText` 的普通中文字符要求统一为简体中文。
 - 若 `pageText`、`heardText` 出现普通繁体字，推荐文本应转换为普通简体字形。
+- `minnan-lexicon.csv` 位于 `reference/` 目录，因为它是 DataBaker 业务参考资料，不属于统一 AI 基座。
 - `minnan-lexicon.csv` 命中的“建议用字”不参与普通简繁转换，命中后必须保留。
 - 词表建议用字优先于普通简繁转换，不可把方言建议字形改回普通话同义词。
 
@@ -215,7 +218,7 @@ PowerShell 下可用以下命令做最小清洗回归：
 
 ```powershell
 @'
-const { __testOnly } = require('./platform-resources/data-baker/round-one-quality/backend/ai-lexicon');
+const { __testOnly } = require('./platform-resources/data-baker/round-one-quality/backend/ai-service');
 console.log(__testOnly.splitTerms('家（gei、dao）、厝（cuo）'));
 console.log(__testOnly.splitTerms('透早(tao za )'));
 '@ | node -
@@ -278,7 +281,7 @@ Fun-ASR `403` 的常见原因：
 
 - 收入估算：`effectiveTime / 3600 * 350`
 - AI 成本：按 usage token 估算。
-- 价格表在 `ai-cost.js` 中维护，并标注“按当前测试估算，可后续调整”。
+- 价格表当前已合并到 `ai-service.js` 中维护，并标注“按当前测试估算，可后续调整”。
 - 如果模型 usage 未返回或未解析，`cost.note` 会提示成本可能低估。
 
 ## 有效音频裁剪
