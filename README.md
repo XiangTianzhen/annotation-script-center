@@ -82,6 +82,14 @@ PM2 进程名示例：`annotation-script-center`。
 - 不要提交 API Key、cookie、token、authorization、JWT secret、CRX 私钥。
 - 修改环境变量后必须执行 `pm2 restart annotation-script-center --update-env`，否则新变量可能不生效。
 
+## 默认时间规则
+
+- TTS 自动清除默认时间统一为 `60000ms`。
+- AI / 模型请求默认超时时间统一为 `60000ms`。
+- 该默认规则已写入仓库根目录 `AGENTS.md`。
+- 用户在脚本高级设置中手动保存的非默认超时值应继续保留。
+- 非 AI 模型类的上传、下载、统计与普通后端接口超时不受该规则影响。
+
 ### Fun-ASR 默认 REST provider 与 Python fallback
 
 核心说明：
@@ -225,6 +233,7 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
   - `DATABAKER_AI_JOB_TTL_MS=120000`
   - `DATABAKER_AI_JOB_MAX_SIZE=1000`
   - `DATABAKER_AI_JOB_POLL_INTERVAL_MS=1000`
+- DataBaker 平台当前实际的自动清除时间字段位于前端顶部统计悬浮窗 `autoHideMs`，默认已统一为 `60000ms`。
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
 - Compare 阶段若启用 thinking 可能明显变慢；未勾选时后端会显式关闭 compare thinking。
 - 如果批量执行看起来像串行，先看前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 后端任务已提交 / 后端任务运行中 / 后端任务成功 / 后端任务失败 / 待填队列`，再看 `health` 中 `queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`。

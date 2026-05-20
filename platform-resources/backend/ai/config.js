@@ -23,7 +23,7 @@ const DATABAKER_COMPARE_MODEL_OPTIONS = [
   "qwen3.6-flash",
   "qwen3.5-flash",
 ];
-const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_TIMEOUT_MS = 60000;
 const DEFAULT_REQUEST_PARAMS = {
   temperature: 0.1,
   top_p: 0.8,

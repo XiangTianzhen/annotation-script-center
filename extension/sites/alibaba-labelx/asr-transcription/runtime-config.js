@@ -76,7 +76,7 @@
     shortcutApplyAiSuggestion: null,
     shortcutSubmitTask: null,
     shortcutSubmitTaskAndFinish: null,
-    aiSuggestionRequestTimeoutMs: 120000,
+    aiSuggestionRequestTimeoutMs: 60000,
   };
   const FIXED_STATS_DEFAULTS = {
     statsUploadEnabled: true,
@@ -288,7 +288,7 @@
       shortcutApplyAiSuggestion: shortcuts.shortcutApplyAiSuggestion,
       shortcutSubmitTask: shortcuts.shortcutSubmitTask,
       shortcutSubmitTaskAndFinish: shortcuts.shortcutSubmitTaskAndFinish,
-      aiSuggestionRequestTimeoutMs: toNumber(source.aiSuggestionRequestTimeoutMs, 120000, 1000, 300000, 0),
+      aiSuggestionRequestTimeoutMs: toNumber(source.aiSuggestionRequestTimeoutMs, 60000, 1000, 300000, 0),
     };
   }
 

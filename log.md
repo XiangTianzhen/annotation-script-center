@@ -1,5 +1,25 @@
 # 标注脚本中心修改日志
 
+## 2026-05-21（统一默认时间规则：TTS 自动清除 60000ms，AI 默认超时 60000ms）
+
+- 根规则更新：
+  - `AGENTS.md` 新增项目级默认时间规则：TTS 自动清除默认 `60000ms`，AI / 模型请求默认超时 `60000ms`。
+  - 规则明确：新增平台、脚本、AI provider、options 默认值、后端 env fallback 与 README 示例默认沿用该值；非 AI 上传、下载、统计与普通后端接口超时不受影响。
+- DataBaker 平台：
+  - 当前仓库中实际存在的自动清除时间字段定位为顶部统计悬浮窗 `autoHideMs`。
+  - `autoHideMs` 默认从 `30000ms` 调整为 `60000ms`。
+  - `aiRecommendRequestTimeoutMs` 相关默认值、前端 fallback、后端 env fallback 统一改为 `60000ms`。
+- 其他 AI 平台默认超时统一改为 `60000ms`：
+  - Alibaba LabelX ASR 转写 AI
+  - Alibaba LabelX ASR 快判 AI
+  - Magic Data AI 质检
+  - Abaka AI Task21 AI 分析
+- 保持不变：
+  - DataBaker AI 异步 job TTL `120000`（2 分钟）
+  - 非 AI 统计上传超时 `20000`
+  - queue/cache/job/poll 等非模型请求时长
+  - 用户已手动保存的非默认超时值继续保留，不强制覆盖
+
 ## 2026-05-21（标贝易采一检质检热修：Fun-ASR 批量连续填入改为后端异步 job）
 
 - 修复 DataBaker 在 `two_stage + fun-asr` 批量“AI连续填入合格项”时前端大量 `Failed to fetch` 的问题。

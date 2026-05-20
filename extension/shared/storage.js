@@ -44,7 +44,7 @@
                 aiRecommendEnabled: true,
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
-                aiRecommendRequestTimeoutMs: 120000,
+                aiRecommendRequestTimeoutMs: 60000,
                 aiRecommendPipelineMode: "two_stage",
                 aiQualifiedAutofillConcurrency: 20,
                 aiQualifiedAutofillWaitAllBeforeFill: false,
@@ -84,7 +84,7 @@
                 aiReasoningModel: "qwen3.6-plus",
                 aiSingleModel: "qwen3.6-plus",
                 aiEnableThinking: false,
-                aiRequestTimeoutMs: 120000,
+                aiRequestTimeoutMs: 60000,
                 shortcuts: {
                   sameFontTrue: {
                     ctrl: false,
@@ -944,7 +944,7 @@
         180000,
         normalizeNumber(
           normalizedStatsConfig.aiSuggestionRequestTimeoutMs,
-          defaults.aiSuggestionRequestTimeoutMs || 120000
+          defaults.aiSuggestionRequestTimeoutMs || 60000
         )
       )
     );
@@ -1144,7 +1144,7 @@
   function normalizeDataBakerTimeout(value, fallback) {
     const number = Number(value);
     const fallbackNumber = Number(fallback);
-    const base = Number.isFinite(fallbackNumber) ? fallbackNumber : 120000;
+    const base = Number.isFinite(fallbackNumber) ? fallbackNumber : 60000;
     if (!Number.isFinite(number)) {
       return Math.min(300000, Math.max(1000, Math.round(base)));
     }
@@ -1496,7 +1496,7 @@
   function normalizeAbakaAiRequestTimeout(value, fallback) {
     const numeric = Number(value);
     const base = Number.isFinite(numeric) ? numeric : Number(fallback);
-    const resolved = Number.isFinite(base) ? base : 120000;
+    const resolved = Number.isFinite(base) ? base : 60000;
     return Math.max(1000, Math.min(300000, Math.floor(resolved)));
   }
 
@@ -1519,7 +1519,7 @@
     );
     result.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeout(
       result.aiRecommendRequestTimeoutMs,
-      defaultConfig.aiRecommendRequestTimeoutMs || 120000
+      defaultConfig.aiRecommendRequestTimeoutMs || 60000
     );
     const defaultPipelineMode = normalizeDataBakerPipelineMode(
       defaultConfig.aiRecommendPipelineMode || "two_stage",
@@ -1643,7 +1643,7 @@
             aiRecommendEndpoint:
               constants.DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
-            aiRecommendRequestTimeoutMs: 120000,
+            aiRecommendRequestTimeoutMs: 60000,
             aiRecommendPipelineMode: "two_stage",
                 aiQualifiedAutofillConcurrency: 20,
             aiQualifiedAutofillWaitAllBeforeFill: false,
@@ -1711,7 +1711,7 @@
               aiReasoningModel: "qwen3.6-plus",
               aiSingleModel: "qwen3.6-plus",
               aiEnableThinking: false,
-              aiRequestTimeoutMs: 120000,
+              aiRequestTimeoutMs: 60000,
             shortcuts: {
               sameFontTrue: { key: "1" },
               sameFontFalse: { key: "2" },
@@ -1788,7 +1788,7 @@
       aiEnableThinking: currentScript.aiEnableThinking === true,
       aiRequestTimeoutMs: normalizeAbakaAiRequestTimeout(
         currentScript.aiRequestTimeoutMs,
-        defaultScript.aiRequestTimeoutMs || 120000
+        defaultScript.aiRequestTimeoutMs || 60000
       ),
       shortcuts: normalizeAbakaAiTask21Shortcuts(
         currentScript.shortcuts,

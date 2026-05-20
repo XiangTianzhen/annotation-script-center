@@ -38,6 +38,7 @@
 统一启动口径：
 
 - 仍然只启动 Node 后端：`node platform-resources/backend/server.js`
+- 统一 AI / 模型请求默认超时时间为 `60000ms`；非 AI 接口超时另按业务设置。
 - Fun-ASR 默认 provider 是 Node REST，不启动 Python 子进程。
 - Python 不作为独立服务启动；只在显式切到 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时作为统一 Node 后端内部辅助进程。
 - Fun-ASR REST 是异步任务模式：`POST /services/audio/asr/transcription` 提交任务，`POST /tasks/{task_id}` 查询任务；本轮只实现单条 REST 调用，不启用 `file_urls` batch。

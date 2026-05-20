@@ -163,7 +163,7 @@ async function fetchWithTimeout(url, options, timeoutMs, timeoutMessage) {
   const timer = controller
     ? setTimeout(function () {
         controller.abort();
-      }, Math.max(1000, Number(timeoutMs) || 120000))
+      }, Math.max(1000, Number(timeoutMs) || 60000))
     : null;
   try {
     return await fetch(url, Object.assign({}, options || {}, {

@@ -1225,7 +1225,7 @@
       reviewModel: "",
       pipelineMode: scriptId === dataBakerRoundOneQualityScriptId ? "two_stage" : "",
       supportedPipelineModes: [],
-      timeoutMs: 120000,
+      timeoutMs: 60000,
       enableThinking: false,
       temperature: 0.1,
       top_p: 0.8,
@@ -1354,7 +1354,7 @@
   function normalizeDataBakerTimeoutMs(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
-      return 120000;
+      return 60000;
     }
     return Math.min(300000, Math.max(1000, Math.round(number)));
   }
@@ -1444,7 +1444,7 @@
   function dataBakerTimeoutSecondsToMs(value) {
     const seconds = Number(value);
     if (!Number.isFinite(seconds)) {
-      return 120000;
+      return 60000;
     }
     return Math.min(300, Math.max(1, Math.round(seconds))) * 1000;
   }
@@ -1601,7 +1601,7 @@
   }
 
   function normalizeAbakaAiTimeout(value, fallback) {
-    return clampNumber(value, fallback || 120000, 1000, 300000, 0);
+    return clampNumber(value, fallback || 60000, 1000, 300000, 0);
   }
 
   function renderAbakaAiSelectOptions(selectId, selectedValue, options, fallbackValue) {
@@ -1710,7 +1710,7 @@
       showHeardText: source.showHeardText !== false,
       showEstimatedIncome: source.showEstimatedIncome !== false,
       enableThinking: source.enableThinking === true,
-      aiReviewRequestTimeoutMs: clampNumber(source.aiReviewRequestTimeoutMs, 120000, 1000, 300000, 0),
+      aiReviewRequestTimeoutMs: clampNumber(source.aiReviewRequestTimeoutMs, 60000, 1000, 300000, 0),
       aiReviewListenPrompt: normalizePromptText(source.aiReviewListenPrompt || ""),
       aiReviewComparePrompt: normalizePromptText(source.aiReviewComparePrompt || ""),
       aiReviewTemperature: normalizeOptionalNumberText(source.aiReviewTemperature, 0, 2, 3),
@@ -1744,7 +1744,7 @@
           id: dataBakerRoundOneQualityScriptId,
           enabled: true,
           aiRecommendEnabled: true,
-          aiRecommendRequestTimeoutMs: 120000,
+          aiRecommendRequestTimeoutMs: 60000,
           aiRecommendPipelineMode: "two_stage",
           aiQualifiedAutofillConcurrency: 20,
           aiQualifiedAutofillWaitAllBeforeFill: false,
@@ -1866,7 +1866,7 @@
           aiReasoningModel: "qwen3.6-plus",
           aiSingleModel: "qwen3.6-plus",
           aiEnableThinking: false,
-          aiRequestTimeoutMs: 120000,
+          aiRequestTimeoutMs: 60000,
           shortcuts: createAbakaAiDefaultShortcutMap(),
       },
       defaults,
@@ -1905,7 +1905,7 @@
         abakaAiTask21SingleModelOptions
       );
     merged.aiEnableThinking = merged.aiEnableThinking === true;
-    merged.aiRequestTimeoutMs = normalizeAbakaAiTimeout(merged.aiRequestTimeoutMs, 120000);
+    merged.aiRequestTimeoutMs = normalizeAbakaAiTimeout(merged.aiRequestTimeoutMs, 60000);
     merged.shortcuts = normalizeAbakaAiShortcuts(
       merged.shortcuts,
       createAbakaAiDefaultShortcutMap()
@@ -1921,7 +1921,7 @@
     return {
       aiSuggestionRequestTimeoutMs: clampNumber(
         asrConfig.aiSuggestionRequestTimeoutMs,
-        defaults.aiSuggestionRequestTimeoutMs || 120000,
+        defaults.aiSuggestionRequestTimeoutMs || 60000,
         1000,
         180000,
         0
@@ -2390,7 +2390,7 @@
       statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: 20000,
       aiSuggestionEnabled: true,
-      aiSuggestionRequestTimeoutMs: 120000,
+      aiSuggestionRequestTimeoutMs: 60000,
       aiSuggestionListenModel: "qwen3.5-omni-flash",
       aiSuggestionCompareModel: "qwen3.5-plus",
       aiSuggestionListenPrompt: "",
@@ -2528,7 +2528,7 @@
       aiSuggestionEnabled: true,
       aiSuggestionRequestTimeoutMs: clampNumber(
         asrConfig.aiSuggestionRequestTimeoutMs,
-        defaults.aiSuggestionRequestTimeoutMs || 120000,
+        defaults.aiSuggestionRequestTimeoutMs || 60000,
         1000,
         180000,
         0
@@ -3113,7 +3113,7 @@
       getElement("magic-data-show-estimated-income").checked =
         config.showEstimatedIncome !== false;
       getElement("magic-data-ai-timeout").value = String(
-        Number(config.aiReviewRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
+        Number(config.aiReviewRequestTimeoutMs || aiDefaults.timeoutMs || 60000)
       );
       getElement("magic-data-ai-enable-thinking").checked = Boolean(
         config.enableThinking === true ||
@@ -3226,7 +3226,7 @@
       return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
     };
     const aiReviewRequestTimeoutMs = hasAiSettingsPanel
-      ? clampNumber(getElement("magic-data-ai-timeout").value, 120000, 1000, 300000, 0)
+      ? clampNumber(getElement("magic-data-ai-timeout").value, 60000, 1000, 300000, 0)
       : currentConfig.aiReviewRequestTimeoutMs;
     const aiReviewListenPrompt = hasAiSettingsPanel
       ? normalizeOverridePrompt(
@@ -3553,7 +3553,7 @@
     }
     const timeoutNode = getElement("abaka-ai-timeout");
     if (timeoutNode instanceof HTMLInputElement) {
-      timeoutNode.value = String(config.aiRequestTimeoutMs || 120000);
+      timeoutNode.value = String(config.aiRequestTimeoutMs || 60000);
     }
     const mockTipNode = getElement("abaka-ai-mock-tip");
     if (mockTipNode) {
@@ -3637,8 +3637,8 @@
       : currentConfig.aiEnableThinking === true;
     const aiTimeoutNode = getElement("abaka-ai-timeout");
     const aiRequestTimeoutMs = advancedUnlocked && aiTimeoutNode instanceof HTMLInputElement
-      ? normalizeAbakaAiTimeout(aiTimeoutNode.value, currentConfig.aiRequestTimeoutMs || 120000)
-      : normalizeAbakaAiTimeout(currentConfig.aiRequestTimeoutMs, 120000);
+      ? normalizeAbakaAiTimeout(aiTimeoutNode.value, currentConfig.aiRequestTimeoutMs || 60000)
+      : normalizeAbakaAiTimeout(currentConfig.aiRequestTimeoutMs, 60000);
 
     setStatus("abaka-status", "正在保存 Task21助手设置...");
     try {
@@ -3705,7 +3705,7 @@
     getElement("judgement-auto-advance").checked = config.autoAdvanceAfterChoice === true;
     if (getElement("judgement-ai-suggestion-timeout")) {
       getElement("judgement-ai-suggestion-timeout").value = String(
-        Number(config.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
+        Number(config.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || 60000)
       );
       getElement("judgement-ai-suggestion-enable-thinking").checked = Boolean(
         config.aiSuggestionEnableThinking === true ||
@@ -3920,7 +3920,7 @@
     getElement("transcription-clear-on-invalid").checked = config.clearOnInvalid !== false;
     if (getElement("transcription-ai-suggestion-timeout")) {
       getElement("transcription-ai-suggestion-timeout").value = String(
-        Number(aiConfig.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
+        Number(aiConfig.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || 60000)
       );
     }
     if (getElement("transcription-ai-suggestion-enable-thinking")) {
@@ -4804,7 +4804,7 @@
       getElement("data-baker-ai-recommend-enabled").checked =
         config.aiRecommendEnabled !== false;
       getElement("data-baker-ai-timeout").value = String(
-        Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || 120000)
+        Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || 60000)
       );
       applyDataBakerRecognitionModeFields(config.aiRecommendPipelineMode, config, aiDefaults);
       getElement("data-baker-ai-enable-thinking").checked = Boolean(

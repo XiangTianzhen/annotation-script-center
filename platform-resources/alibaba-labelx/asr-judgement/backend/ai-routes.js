@@ -412,7 +412,7 @@ async function handleSuggest(request, response) {
     }
 
     const hostname = parseAudioHostname(suggestRequest.audioUrl);
-    const timeoutMs = Math.max(1000, Number(config.timeoutMs || 120000));
+    const timeoutMs = Math.max(1000, Number(config.timeoutMs || 60000));
 
     console.info("[ASR Judgement][ai] suggest start", {
       requestId,

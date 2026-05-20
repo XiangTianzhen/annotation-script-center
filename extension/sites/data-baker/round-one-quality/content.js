@@ -70,7 +70,7 @@
   function normalizeTimeout(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
-      return 120000;
+      return 60000;
     }
     return Math.min(300000, Math.max(1000, Math.round(number)));
   }
@@ -213,7 +213,7 @@
         id: CONSTANTS.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality",
         enabled: true,
         aiRecommendEnabled: true,
-        aiRecommendRequestTimeoutMs: 120000,
+        aiRecommendRequestTimeoutMs: 60000,
         aiRecommendPipelineMode: "two_stage",
         aiQualifiedAutofillConcurrency: 20,
         aiQualifiedAutofillWaitAllBeforeFill: false,
@@ -508,7 +508,7 @@
         return;
       }
       const finalSummary = buildFloatingSnapshot(
-        Object.assign({ running: false, autoHideMs: 30000 }, extra || {})
+        Object.assign({ running: false, autoHideMs: 60000 }, extra || {})
       );
       ui.finishBatchFloatingProgress(finalSummary);
     }
@@ -785,7 +785,7 @@
             .then(function () {
               if (useAsyncJobsForBatch) {
                 return ai.recommendAsync(task.item, {
-                  maxWaitMs: Math.max(300000, Number(config.timeoutMs) || 120000),
+                  maxWaitMs: Math.max(300000, Number(config.timeoutMs) || 60000),
                   onJobUpdate: function (jobUpdate) {
                     const status = String(jobUpdate?.status || "").trim().toLowerCase();
                     updateJobState(task.processKey || "index:" + String(index), {
