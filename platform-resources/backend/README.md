@@ -255,6 +255,9 @@ DataBaker AI 架构补充：
 
 - 统一后端 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - 当前首个使用场景是 DataBaker Fun-ASR，但后续新增 Python 辅助脚本也应优先复用该目录。
+- Fun-ASR Python 文件与依赖文件也统一位于 `platform-resources/backend/`：
+  - `funasr_client.py`
+  - `requirements.txt`
 - `DATABAKER_FUNASR_PYTHON_BIN` 留空时，统一后端默认优先查找该路径。
 - 不需要单独启动 Python；Python 只作为 Node 统一后端内部辅助进程运行。
 - 标准启动入口始终是 `node platform-resources/backend/server.js`。

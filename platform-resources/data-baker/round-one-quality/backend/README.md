@@ -28,7 +28,7 @@
 - `export-store.js`：导出文件落盘、latest/history/events 存储能力。
 - `ai-client-qwen.js`：DashScope Qwen 原生 `fetch` 调用，不依赖 OpenAI SDK；负责 `omni_single` 与 compare 文本模型。
 - `ai-client-funasr.js`：Node wrapper，只负责调起 Python Fun-ASR 客户端并归一化结果。
-- `funasr_client.py`：按阿里云官方 Python SDK 提交 Fun-ASR 录音文件识别任务、轮询状态并拉取转写结果。
+- `platform-resources/backend/funasr_client.py`：按阿里云官方 Python SDK 提交 Fun-ASR 录音文件识别任务、轮询状态并拉取转写结果。
 - `ai-provider-queue.js`：provider/model group 维度的全局限流队列、429 退避重试与队列满保护。
 - `ai-result-cache.js`：推荐结果内存 TTL 缓存与命中统计。
 - `ai-lexicon.js`：读取闽南方言字词表 CSV，按当前页面文本和听音文本生成 prompt 上下文。
@@ -128,7 +128,7 @@ CSV 字段统一口径：
    - 进入 `qwen_omni` 队列。
    - 调用单次 Qwen Omni `input_audio` 请求，同时产出 `heardText`、`recommendedText`、`decision`、`changePoints`、`confidence`、`needHumanReview`。
 5. `fun_asr_compare`：
-   - 先进入 `fun_asr` 队列，由 `ai-client-funasr.js` 调起 `funasr_client.py`。
+   - 先进入 `fun_asr` 队列，由 `ai-client-funasr.js` 调起 `platform-resources/backend/funasr_client.py`。
    - Python 端按官方 SDK 调用 `fun-asr`，提交录音文件识别任务并轮询结果。
    - Fun-ASR 返回 `heardText` 后，再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
 6. 所有 provider 调用遇到 `429` 都走统一指数退避 + jitter 重试；超出队列长度直接返回清晰错误，不让请求无限堆积。
@@ -168,7 +168,7 @@ platform-resources\backend\.venv\bin\python
 - 当前用于 DataBaker Fun-ASR Python SDK，后续新增 Python 辅助脚本也优先复用该目录。
 - Fun-ASR Python SDK 由 Node 统一后端通过 `child_process` 调用，不提供独立 Python 服务。
 - 用户不需要单独运行 `python xxx.py`；统一启动入口始终是 `node platform-resources/backend/server.js`。
-- `requirements-funasr.txt` 仍保留在 DataBaker 模块目录，但安装目标是统一 `.venv`。
+- Fun-ASR Python 运行环境统一位于 `platform-resources/backend`，其中依赖文件为 `platform-resources/backend/requirements.txt`。
 - 详细的 Windows/Linux 创建命令、环境变量、后端重启与验证流程统一见根目录 `README.md`，这里不重复部署主流程。
 
 ## 闽南方言字词表

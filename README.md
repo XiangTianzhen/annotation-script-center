@@ -98,19 +98,19 @@ PM2 进程名示例：`annotation-script-center`。
 
 Windows 本地准备：
 
-    cd C:\Projects\annotation-script-center
-    py -3 -m venv platform-resources\backend\.venv
-    platform-resources\backend\.venv\Scripts\python.exe -m pip install -U pip
-    platform-resources\backend\.venv\Scripts\python.exe -m pip install -r platform-resources\data-baker\round-one-quality\backend\requirements-funasr.txt
-    node platform-resources\backend\server.js
+    cd C:\Projects\annotation-script-center\platform-resources\backend
+    py -3 -m venv .venv
+    .venv\Scripts\python.exe -m pip install -U pip
+    .venv\Scripts\python.exe -m pip install -r requirements.txt
+    node server.js
 
 Linux 服务器准备：
 
-    cd /var/www/annotation-script-center
-    python3 -m venv platform-resources/backend/.venv
-    platform-resources/backend/.venv/bin/python -m pip install -U pip
-    platform-resources/backend/.venv/bin/python -m pip install -r platform-resources/data-baker/round-one-quality/backend/requirements-funasr.txt
-    node platform-resources/backend/server.js
+    cd /var/www/annotation-script-center/platform-resources/backend
+    python3 -m venv .venv
+    .venv/bin/python -m pip install -U pip
+    .venv/bin/python -m pip install -r requirements.txt
+    node server.js
 
 如果使用 PM2，仍然只重启 Node 后端：
 
@@ -120,6 +120,8 @@ Linux 服务器准备：
 
 - `DATABAKER_FUNASR_PYTHON_BIN` 一般不需要配置。
 - 留空时，后端自动使用 `platform-resources/backend/.venv`。
+- `requirements.txt` 位于 `platform-resources/backend/requirements.txt`。
+- 上面的 `pip install -r requirements.txt` 命令是在 `platform-resources/backend` 目录内执行。
 - 如服务器 Python 路径特殊，可显式设置：
   `DATABAKER_FUNASR_PYTHON_BIN=/var/www/annotation-script-center/platform-resources/backend/.venv/bin/python`
 - Windows 本地可设置：
@@ -134,11 +136,13 @@ Linux 服务器准备：
 
 Windows：
 
-    platform-resources\backend\.venv\Scripts\python.exe -m py_compile platform-resources\data-baker\round-one-quality\backend\funasr_client.py
+    cd C:\Projects\annotation-script-center\platform-resources\backend
+    .venv\Scripts\python.exe -m py_compile funasr_client.py
 
 Linux：
 
-    platform-resources/backend/.venv/bin/python -m py_compile platform-resources/data-baker/round-one-quality/backend/funasr_client.py
+    cd /var/www/annotation-script-center/platform-resources/backend
+    .venv/bin/python -m py_compile funasr_client.py
 
 验证接口：
 

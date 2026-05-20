@@ -1,5 +1,24 @@
 # 标注脚本中心修改日志
 
+## 2026-05-20（统一后端 Fun-ASR Python 文件与依赖文件归档）
+
+- Fun-ASR Python 运行环境继续统一收敛到 `platform-resources/backend/`：
+  - 虚拟环境：`platform-resources/backend/.venv/`
+  - Python 文件：`platform-resources/backend/funasr_client.py`
+  - 依赖文件：`platform-resources/backend/requirements.txt`
+- 旧文件已迁移，不再作为当前口径使用：
+  - `platform-resources/data-baker/round-one-quality/backend/funasr_client.py`
+  - `platform-resources/data-baker/round-one-quality/backend/requirements-funasr.txt`
+- `ai-client-funasr.js` 改为调起 `platform-resources/backend/funasr_client.py`，缺失环境提示也改为在 `platform-resources/backend` 目录中创建 `.venv` 并安装 `requirements.txt`。
+- 根 `README.md` 的命令同步改为在 `platform-resources/backend` 目录中执行：
+  - `py -3 -m venv .venv`
+  - `pip install -r requirements.txt`
+  - `node server.js`
+- 文档统一强调：
+  - Python 只是 Node 后端内部辅助进程
+  - 不单独启动 Python 服务
+  - 从项目根目录也仍可运行 `node platform-resources/backend/server.js`
+
 ## 2026-05-20（统一后端 Fun-ASR 虚拟环境说明简化）
 
 - 根 `README.md` 的 Fun-ASR Python 环境部署段已简化为“准备统一 `.venv` + 继续用 Node 启动统一后端”的最小主流程。

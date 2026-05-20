@@ -180,14 +180,15 @@ AI prompt 输出字形规则：
 - Fun-ASR 不走 OpenAI-compatible chat/completions；当前通过 Python SDK 文件调用。
 - Python 只是统一 Node 后端内部调用的辅助进程，不提供独立 Python 服务；标准启动入口始终是 `node platform-resources/backend/server.js`。
 
-Fun-ASR Python 文件路径：
+Fun-ASR Python 运行环境路径：
 
 ```text
-platform-resources/data-baker/round-one-quality/backend/funasr_client.py
+platform-resources/backend/funasr_client.py
+platform-resources/backend/requirements.txt
 ```
 
 - 默认虚拟环境路径已统一为 `platform-resources/backend/.venv`。
-- Fun-ASR Python 环境属于项目级后端部署，完整流程统一见根目录 `README.md`；本平台资料不重复服务器部署命令。后续其他 Python 辅助脚本也优先复用同一个 `.venv`。
+- Fun-ASR Python 运行环境统一位于 `platform-resources/backend`，完整部署流程统一见根目录 `README.md`；本平台资料不重复服务器部署命令。后续其他 Python 辅助脚本也优先复用同一个 `.venv`。
 
 ## 真实浏览器验收建议
 

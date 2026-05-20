@@ -243,7 +243,7 @@ def main():
     except Exception as error:
         fail(
             "fun-asr-python-dependency-missing",
-            "Fun-ASR Python 依赖未安装，请先安装 requirements-funasr.txt。 " + sanitize_text(error),
+            "Fun-ASR Python 依赖未安装，请先安装 requirements.txt。 " + sanitize_text(error),
         )
 
     dashscope.api_key = api_key
