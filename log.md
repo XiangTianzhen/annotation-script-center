@@ -1,3 +1,14 @@
+## 2026-05-21（标贝易采一检质检热修：Qwen burst rate SSE 误报修复）
+
+- 修复 `qwen3.5-omni-flash / qwen3.5-omni-plus` 批量失败时把 SSE `data: {"error":{"code":"limit_burst_rate"...}}` 误判成 `Qwen 接口未返回有效文本` 的问题。
+- 通用 `qwen-openai-compatible.js` 与 DataBaker `ai-client-qwen-legacy.js` 现在会先识别 SSE `error` 对象，再决定是否属于真正空响应。
+- `limit_burst_rate / throttling / rate_limit / limit_requests / TooManyRequests` 现在统一按上游限流分类；DataBaker 前端失败文案改为“Qwen 请求突增限流，后端已重试仍失败。请降低前端并发或增大发送间隔后重试。”
+- Omni legacy 快速路径的 `requestListen` / `requestCompare` 现在都进入后端 provider queue：听音走 `qwen_omni`，compare 走 `text_compare`，前端仍保持 `30ms` 发到后端，但上游请求会被平滑。
+- 新增环境变量：
+  - `DATABAKER_AI_QWEN_BURST_RETRY_MAX=3`
+  - `DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS=1200`
+- `qwen-burst-rate-limited` 失败会继续生成 `debugId`，并保留“查看原始AI返回”能力；debug 中能看到脱敏后的 `providerCode=limit_burst_rate`、`rawSseText`、`stage`、`model` 等信息。
+
 ## 2026-05-21（标贝易采一检质检热修：查看原始 AI 返回弹窗恢复可见）
 
 - 修复 DataBaker 批量失败列表中“查看原始AI返回”按钮点击后无明显反馈的问题。

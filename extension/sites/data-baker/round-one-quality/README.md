@@ -27,6 +27,7 @@
 - 单条 AI / 模型请求默认超时 `120000ms`；若仍未返回，失败列表固定提示“当前任务超过120s，请重新请求。”，且迟到结果不会再进入待填队列。
 - 批量失败列表现在统一显示“查看原始AI返回”按钮；支持 `qwen-empty-response`、`model-json-parse-failed`、`provider-http-error` 等失败直接查看脱敏后的 debug JSON。
 - 点击“查看原始AI返回”后会弹出文本悬浮窗，标题为“原始 AI 返回”，并在 textarea 中展示 `JSON.stringify(debug, null, 2)`。
+- 若 Qwen Omni SSE 返回 `data: {"error":{"code":"limit_burst_rate"...}}`，前端失败文案会明确显示“Qwen 请求突增限流，后端已重试仍失败。请降低前端并发或增大发送间隔后重试。”，不再误报为“Qwen 接口未返回有效文本”。
 - 悬浮窗内提供“复制”与“关闭”按钮；若剪贴板不可用，仍可手动选择 textarea 内容复制。
 - 新增顶部统计悬浮窗，运行中展示 AI 返回、待填队列、填入成功/失败/跳过和失败条目。
 - 顶部悬浮窗还会显示 `后端任务已提交 / 运行中 / 成功 / 失败`，方便区分是前端没发起并发，还是后端 Fun-ASR / compare 仍在排队。
@@ -320,6 +321,13 @@ platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
 - 后端新增内存级 `ai-debug-store`，只保留最近一段时间的脱敏 debug，不落盘，默认 TTL 30 分钟。
 - debug 内容不包含完整音频 URL、签名 URL、cookie、token、authorization、API Key；超长原始响应会截断。
 - 当前前端仍保持直接 `POST /ai/recommend`、`30ms` 错峰、前端并发 `1~50`、默认 `20`，不默认走 `/jobs`。
+
+## 2026-05-21 Qwen burst rate SSE 误报热修
+
+- `qwen3.5-omni-flash / qwen3.5-omni-plus` 的 Omni legacy 快速路径现在会识别 SSE `data: {"error": ...}`，尤其是 `limit_burst_rate`。
+- `limit_burst_rate` 表示 Qwen 请求增长过快的上游突发限流，不属于真实空响应，也不是 JSON 解析失败。
+- 当前前端 `30ms` 错峰只是把批量请求发到统一后端；后端会继续使用 `qwen_omni` / `text_compare` provider queue 平滑上游请求。
+- legacy Omni 遇到 `limit_burst_rate` 时会做退避重试；若重试仍失败，失败列表会显示“Qwen 请求突增限流...”并继续保留“查看原始AI返回”按钮。
 
 ## 批量请求去重与诊断
 

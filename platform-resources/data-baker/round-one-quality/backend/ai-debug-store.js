@@ -110,6 +110,7 @@ function rememberAiDebug(payload) {
     stage: normalizeStage(source.stage),
     model: safeString(source.model, 160),
     provider: normalizeProvider(source.provider),
+    providerCode: safeString(source.providerCode, 120),
     errorCode: safeString(source.errorCode, 120),
     errorMessage: safeString(source.errorMessage, 240),
     providerStatus:

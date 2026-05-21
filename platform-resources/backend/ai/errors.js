@@ -19,9 +19,26 @@ function createProviderHttpError(statusCode, summary, message) {
   return error;
 }
 
-function createRateLimitError(summary) {
-  const error = createError("上游模型限流，后端已重试仍失败，请稍后重试。", "provider-rate-limited", 429);
-  error.providerStatus = 429;
+function isRateLimitProviderCode(value) {
+  const code = String(value || "").trim().toLowerCase();
+  return (
+    code === "limit_burst_rate" ||
+    code === "throttling" ||
+    code === "rate_limit" ||
+    code === "limit_requests" ||
+    code === "toomanyrequests"
+  );
+}
+
+function createRateLimitError(summary, options) {
+  const source = options && typeof options === "object" ? options : {};
+  const error = createError(
+    String(source.message || "上游模型限流，后端已重试仍失败，请稍后重试。"),
+    String(source.code || "provider-rate-limited"),
+    429
+  );
+  error.providerStatus = Number(source.providerStatus) || 429;
+  error.providerCode = String(source.providerCode || "").trim();
   error.summary = sanitizeProviderErrorSummary(summary || "");
   return error;
 }
@@ -96,8 +113,11 @@ function isProviderRateLimitedError(error) {
     return false;
   }
   return (
+    error.code === "qwen-burst-rate-limited" ||
     error.code === "provider-rate-limited" ||
-    (error.code === "provider-http-error" && Number(error.statusCode) === 429)
+    isRateLimitProviderCode(error.providerCode) ||
+    (error.code === "provider-http-error" && Number(error.statusCode) === 429) ||
+    Number(error.providerStatus) === 429
   );
 }
 
@@ -120,6 +140,7 @@ module.exports = {
   createRateLimitError,
   createTimeoutError,
   isAudioUrlLikelyUnavailable,
+  isRateLimitProviderCode,
   isProviderRateLimitedError,
   normalizeAbortError,
 };

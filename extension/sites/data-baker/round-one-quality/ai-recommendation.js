@@ -47,6 +47,7 @@
   function buildApiError(responseBody, statusCode) {
     const body = responseBody && typeof responseBody === "object" ? responseBody : {};
     const code = String(body.code || "").trim();
+    const providerCode = String(body.providerCode || "").trim();
     let message = String(body.message || "AI 推荐接口请求失败（HTTP " + String(statusCode) + "）。").trim();
     if (code === "provider-queue-full") {
       message = "后端 AI 队列已满，请稍后重试。";
@@ -54,6 +55,10 @@
       message = "后端连接中断，请稍后重试。";
     } else if (code === "timeout") {
       message = "AI 推荐接口请求超时。";
+    } else if (code === "qwen-burst-rate-limited" || providerCode === "limit_burst_rate") {
+      message = "Qwen 请求突增限流，后端已重试仍失败。请降低前端并发或增大发送间隔后重试。";
+    } else if (code === "provider-rate-limited" && Number(body.providerStatus) === 429) {
+      message = "上游模型限流，后端已重试仍失败，请稍后重试。";
     } else if (code === "qwen-empty-response") {
       message = "Qwen 接口未返回有效文本，可查看原始AI返回排查。";
     } else if (code === "model-json-parse-failed") {
@@ -66,6 +71,7 @@
     }
     return createClientError(message, {
       code,
+      providerCode,
       statusCode: Number(statusCode) || 0,
       hasRawAiDebug: body.hasRawAiDebug === true,
       debugId: String(body.debugId || ""),

@@ -8,7 +8,13 @@ const {
   SUPPORTED_REQUEST_PARAMS,
   getQwenProviderConfig,
 } = require("../config");
-const { createProviderHttpError, createTimeoutError, normalizeAbortError } = require("../errors");
+const {
+  createProviderHttpError,
+  createRateLimitError,
+  createTimeoutError,
+  isRateLimitProviderCode,
+  normalizeAbortError,
+} = require("../errors");
 const {
   sanitizeProviderDebugJson,
   sanitizeProviderDebugPayload,
@@ -274,6 +280,55 @@ function createQwenEmptyResponseError(model, stage, result) {
   return error;
 }
 
+function createQwenSseProviderError(model, stage, providerError, result) {
+  const code = String(providerError?.code || providerError?.type || "").trim();
+  const message = String(providerError?.message || "").trim();
+  const isBurstRateLimited = isRateLimitProviderCode(code);
+  const error = isBurstRateLimited
+    ? createRateLimitError(message, {
+        code: "qwen-burst-rate-limited",
+        message: "Qwen 请求突增限流，请降低并发或等待后端平滑重试。",
+        providerCode: code,
+        providerStatus: 429,
+      })
+    : createProviderHttpError(
+        429,
+        message || JSON.stringify(providerError || {}),
+        "Qwen SSE 返回错误。"
+      );
+  error.providerStatus = 429;
+  error.providerCode = code;
+  error.summary = sanitizeProviderErrorSummary(message || JSON.stringify(providerError || {}));
+  error.debugRawAiResponse = {
+    provider: "qwen",
+    model: String(model || ""),
+    stage: String(stage || "unknown"),
+    providerStatus: 429,
+    providerCode: code,
+    error: sanitizeProviderDebugJson(providerError || {}, {
+      textLimit: 4000,
+      maxDepth: 4,
+      maxObjectKeys: 40,
+    }),
+    rawSseText: sanitizeProviderDebugText(result?.rawSseText || "", 20000),
+    rawResponseText: sanitizeProviderDebugText(result?.rawResponseText || "", 20000),
+    usage: sanitizeProviderDebugJson(result?.usage || {}, {
+      textLimit: 4000,
+      maxDepth: 4,
+      maxObjectKeys: 40,
+    }),
+    parsedChunksCount: Number(result?.parsedChunksCount) || 0,
+    extractedTextLength: Number(result?.extractedTextLength) || 0,
+    finishReason: String(result?.finishReason || ""),
+    lastChunkSummary: sanitizeProviderDebugJson(result?.lastChunkSummary || {}, {
+      textLimit: 4000,
+      maxDepth: 4,
+      maxObjectKeys: 40,
+    }),
+  };
+  return error;
+}
+
 async function readStreamCompletion(response) {
   if (!response.body || typeof response.body.getReader !== "function") {
     const text = await response.text();
@@ -288,6 +343,7 @@ async function readStreamCompletion(response) {
         extractedTextLength: String(extractDeltaText(parsed) || text || "").trim().length,
         finishReason: String(parsed?.choices?.[0]?.finish_reason || ""),
         lastChunkSummary: summarizeLastChunk(parsed),
+        providerError: parsed?.error && typeof parsed.error === "object" ? parsed.error : null,
       };
     } catch (error) {
       return {
@@ -312,6 +368,7 @@ async function readStreamCompletion(response) {
   let parsedChunksCount = 0;
   let finishReason = "";
   let lastChunkSummary = null;
+  let providerError = null;
 
   function consumeLine(line) {
     const trimmed = String(line || "").trim();
@@ -326,6 +383,9 @@ async function readStreamCompletion(response) {
     try {
       const payload = JSON.parse(payloadText);
       parsedChunksCount += 1;
+      if (payload?.error && typeof payload.error === "object") {
+        providerError = payload.error;
+      }
       aggregatedText += extractDeltaText(payload);
       if (payload.usage && typeof payload.usage === "object") {
         usage = payload.usage;
@@ -360,6 +420,7 @@ async function readStreamCompletion(response) {
     extractedTextLength: String(aggregatedText || "").trim().length,
     finishReason,
     lastChunkSummary,
+    providerError,
   };
 }
 
@@ -416,6 +477,9 @@ async function requestChatCompletion(requestBody, options) {
       throw error;
     }
     const result = await readStreamCompletion(response);
+    if (result?.providerError && typeof result.providerError === "object") {
+      throw createQwenSseProviderError(model, stage, result.providerError, result);
+    }
     if (!String(result.text || "").trim()) {
       throw createQwenEmptyResponseError(model, stage, result);
     }
@@ -537,6 +601,28 @@ async function requestTextCompareJson(input, prompt, options) {
         };
         throw error;
       }
+      if (mockResponseMode === "qwen-burst-rate-limited") {
+        throw createQwenSseProviderError(
+          model,
+          "compare",
+          {
+            code: "limit_burst_rate",
+            message: "Request rate increased too quickly.",
+            type: "limit_burst_rate",
+          },
+          {
+            rawSseText:
+              'data: {"error":{"code":"limit_burst_rate","message":"Request rate increased too quickly.","type":"limit_burst_rate"}}\n',
+            rawResponseText:
+              'data: {"error":{"code":"limit_burst_rate","message":"Request rate increased too quickly.","type":"limit_burst_rate"}}\n',
+            parsedChunksCount: 1,
+            extractedTextLength: 0,
+            finishReason: "",
+            lastChunkSummary: { hasChoices: false, finishReason: "", deltaKeys: [], usageKeys: [] },
+            usage: null,
+          }
+        );
+      }
       if (mockResponseMode === "qwen-empty-response") {
         throw createQwenEmptyResponseError(model, "compare", {
           rawSseText: "data: [DONE]",
@@ -619,6 +705,28 @@ async function requestOmniInputAudio(input, prompt, options) {
         responseBody: sanitizeProviderDebugPayload(buildMockProviderErrorBody(), { textLimit: 20000 }),
         };
         throw error;
+      }
+      if (mockResponseMode === "qwen-burst-rate-limited") {
+        throw createQwenSseProviderError(
+          model,
+          "omni_single",
+          {
+            code: "limit_burst_rate",
+            message: "Request rate increased too quickly.",
+            type: "limit_burst_rate",
+          },
+          {
+            rawSseText:
+              'data: {"error":{"code":"limit_burst_rate","message":"Request rate increased too quickly.","type":"limit_burst_rate"}}\n',
+            rawResponseText:
+              'data: {"error":{"code":"limit_burst_rate","message":"Request rate increased too quickly.","type":"limit_burst_rate"}}\n',
+            parsedChunksCount: 1,
+            extractedTextLength: 0,
+            finishReason: "",
+            lastChunkSummary: { hasChoices: false, finishReason: "", deltaKeys: [], usageKeys: [] },
+            usage: null,
+          }
+        );
       }
       if (mockResponseMode === "qwen-empty-response") {
         throw createQwenEmptyResponseError(model, "omni_single", {

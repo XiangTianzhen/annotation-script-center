@@ -89,6 +89,9 @@ function buildErrorResponseBody(error, fallbackMessage) {
   } else if (Number(error?.statusCode) > 0) {
     responseBody.providerStatus = Number(error.statusCode);
   }
+  if (String(error?.providerCode || "").trim()) {
+    responseBody.providerCode = String(error.providerCode || "").trim();
+  }
   if (error?.hasRawAiDebug === true || String(error?.debugId || "").trim()) {
     responseBody.hasRawAiDebug = true;
     responseBody.debugId = String(error?.debugId || "").trim();

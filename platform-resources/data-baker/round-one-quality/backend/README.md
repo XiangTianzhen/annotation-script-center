@@ -95,6 +95,8 @@
 - `DATABAKER_AI_FUN_ASR_CONCURRENCY`：Fun-ASR 并发上限，默认 `2`；如 `2 核 2G` 服务器压力高，可继续调低，若资源充足也可手动调高。
 - `DATABAKER_AI_TEXT_CONCURRENCY`：Compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
+- `DATABAKER_AI_QWEN_BURST_RETRY_MAX`：Qwen Omni / compare 阶段识别到 `limit_burst_rate` 后的最大退避重试次数，默认 `3`。
+- `DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS`：Qwen `limit_burst_rate` 首次退避基准延迟，默认 `1200ms`，后续指数退避并带 jitter。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
 - `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
@@ -122,6 +124,7 @@
 
 - 批量失败列表会优先使用同步 `recommend` 返回的 `hasRawAiDebug/debugId`，并通过 `GET /ai/recommend/debug/:debugId` 查看脱敏后的原始 AI 返回。
 - `qwen-empty-response`、`model-json-parse-failed`、`provider-http-error` 会写入内存级 debug store，并在错误响应中返回 `debugId`。
+- `qwen-burst-rate-limited` 也会写入内存级 debug store；debug 中会保留脱敏后的 `providerCode=limit_burst_rate`、`rawSseText`、`stage`、`model`、`requestId`。
 - `jobs/:jobId/debug` 仍保留历史兼容，但同步 recommend debug 现在是默认调试入口。
 - debug 内容只保存在内存中，默认 TTL 30 分钟，不落盘。
 - debug 内容会脱敏并截断，不包含完整音频 URL、签名 URL、cookie、token、authorization、API Key。
@@ -167,6 +170,9 @@ CSV 字段统一口径：
    - 默认优先走 Omni legacy 快速路径。
    - 参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 的旧版两阶段逻辑：先调用 Qwen Omni `input_audio` 产出 `heardText`，再调用 compare 模型生成 `recommendedText`。
    - 该路径不走 async job、不走 Fun-ASR REST、不走 Python。
+   - `requestListen` 进入 `qwen_omni` 队列，`requestCompare` 进入 `text_compare` 队列；前端仍可按 `30ms` 发请求到后端，但后端会平滑上游调用。
+   - 若 SSE 返回 `data: {"error":{"code":"limit_burst_rate"...}}`，后端会识别为上游突发限流，而不是误报成 `qwen-empty-response`。
+   - `limit_burst_rate` 会触发退避重试；若重试仍失败，前端显示“Qwen 请求突增限流，后端已重试仍失败。请降低前端并发或增大发送间隔后重试。”
 5. 听音模型为 `fun-asr`：
    - 先进入 `fun_asr` 队列，由统一基座 `platform-resources/backend/ai/providers/funasr.js` 默认转到 `platform-resources/backend/ai/providers/funasr-rest.js`。
    - Node 端按官方 RESTful API 调用 `fun-asr`：提交异步任务，再轮询任务状态。

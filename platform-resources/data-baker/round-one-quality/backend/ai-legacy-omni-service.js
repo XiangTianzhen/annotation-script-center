@@ -19,6 +19,7 @@ const {
   parseModelJsonText,
   removeTextSpaces,
 } = require("./ai-service");
+const { enqueueProviderTask } = require("../../../backend/ai/provider-queue");
 const { rememberAiDebug } = require("./ai-debug-store");
 
 const LEGACY_OMNI_COMMIT = "9677e4cea98de222b70f89c9e0af1d89971dc471";
@@ -246,6 +247,36 @@ function buildComparePrompt(request, heardText, lexiconContext) {
   };
 }
 
+function summarizeQueueMeta(queueMeta) {
+  const source = queueMeta && typeof queueMeta === "object" ? queueMeta : {};
+  return {
+    groupName: String(source.groupName || ""),
+    queueWaitMs: Math.max(0, Number(source.queueWaitMs) || 0),
+    retryCount: Math.max(0, Number(source.retryCount) || 0),
+    retryDelaysMs: Array.isArray(source.retryDelaysMs) ? source.retryDelaysMs.slice(0, 6) : [],
+    durationMs: Math.max(0, Number(source.durationMs) || 0),
+    activeCount: Math.max(0, Number(source.activeCount) || 0),
+    maxConcurrent: Math.max(0, Number(source.maxConcurrent) || 0),
+  };
+}
+
+async function runLegacyQueuedProviderCall(groupName, task, options) {
+  return enqueueProviderTask(groupName, task, {
+    signal: options?.signal,
+    onRetry: function (meta) {
+      const error = meta?.error;
+      console.info("[DataBaker][legacy-omni] qwen burst retry", {
+        requestId: String(options?.requestId || ""),
+        stage: String(options?.stage || ""),
+        model: String(options?.model || ""),
+        providerCode: String(error?.providerCode || ""),
+        retryIndex: Math.max(1, Number(meta?.attemptIndex) || 1),
+        delayMs: Math.max(0, Number(meta?.delayMs) || 0),
+      });
+    },
+  });
+}
+
 function isOmniLegacyFastPathEnabled() {
   const rawValue = String(process.env.DATABAKER_AI_OMNI_LEGACY_FAST_PATH || "1")
     .trim()
@@ -330,6 +361,7 @@ function buildAiDebugPayloadFromError(error, context) {
     stage: String(source.stage || meta.stage || raw.stage || "unknown"),
     model: String(source.model || meta.model || raw.model || ""),
     provider: String(raw.provider || meta.provider || "legacy-omni"),
+    providerCode: String(raw.providerCode || source.providerCode || meta.providerCode || ""),
     errorCode: String(source.code || raw.errorCode || ""),
     errorMessage: String(source.safeMessage || source.message || raw.errorMessage || ""),
     providerStatus: Number(source.providerStatus || source.statusCode || raw.providerStatus) || 0,
@@ -369,6 +401,7 @@ async function recommendLegacyOmni(body, requestIdHint, runtimeOptions) {
   let config = null;
   let listenDurationMs = 0;
   let compareDurationMs = 0;
+  const queueMetas = [];
   const runtimeSignal = runtimeOptions?.signal;
   try {
     recommendRequest = normalizeRecommendRequest(body || {});
@@ -431,12 +464,25 @@ async function recommendLegacyOmni(body, requestIdHint, runtimeOptions) {
     const listenStartedAtMs = Date.now();
     let listenResult = null;
     try {
-      listenResult = await requestListen(recommendRequest, listenPrompt, {
-        model: listenModel,
-        timeoutMs: config.timeoutMs,
-        enableThinking: effectiveEnableThinking,
-        signal: runtimeSignal,
-      });
+      const listenQueueResult = await runLegacyQueuedProviderCall(
+        "qwen_omni",
+        function () {
+          return requestListen(recommendRequest, listenPrompt, {
+            model: listenModel,
+            timeoutMs: config.timeoutMs,
+            enableThinking: effectiveEnableThinking,
+            signal: runtimeSignal,
+          });
+        },
+        {
+          signal: runtimeSignal,
+          requestId,
+          stage: "listen",
+          model: listenModel,
+        }
+      );
+      listenResult = listenQueueResult.value;
+      queueMetas.push(listenQueueResult.queueMeta);
     } finally {
       listenDurationMs = Date.now() - listenStartedAtMs;
     }
@@ -467,17 +513,30 @@ async function recommendLegacyOmni(body, requestIdHint, runtimeOptions) {
     const compareStartedAtMs = Date.now();
     let compareResult = null;
     try {
-      compareResult = await requestCompare(
-        recommendRequest,
-        comparePrompt,
-        normalizedListen.heardText,
+      const compareQueueResult = await runLegacyQueuedProviderCall(
+        "text_compare",
+        function () {
+          return requestCompare(
+            recommendRequest,
+            comparePrompt,
+            normalizedListen.heardText,
+            {
+              model: compareModel,
+              timeoutMs: config.timeoutMs,
+              enableThinking: effectiveEnableThinking,
+              signal: runtimeSignal,
+            }
+          );
+        },
         {
-          model: compareModel,
-          timeoutMs: config.timeoutMs,
-          enableThinking: effectiveEnableThinking,
           signal: runtimeSignal,
+          requestId,
+          stage: "compare",
+          model: compareModel,
         }
       );
+      compareResult = compareQueueResult.value;
+      queueMetas.push(compareQueueResult.queueMeta);
     } finally {
       compareDurationMs = Date.now() - compareStartedAtMs;
     }
@@ -553,9 +612,14 @@ async function recommendLegacyOmni(body, requestIdHint, runtimeOptions) {
         sourceRequestId: "",
       },
       queue: {
-        enabled: false,
-        totalQueueWaitMs: 0,
-        totalRetryCount: 0,
+        enabled: true,
+        groups: queueMetas.map(summarizeQueueMeta),
+        totalQueueWaitMs: queueMetas.reduce(function (total, item) {
+          return total + Math.max(0, Number(item?.queueWaitMs) || 0);
+        }, 0),
+        totalRetryCount: queueMetas.reduce(function (total, item) {
+          return total + Math.max(0, Number(item?.retryCount) || 0);
+        }, 0),
       },
       requestMode: "sync-recommend",
       funAsrProvider: "",

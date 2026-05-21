@@ -99,6 +99,30 @@ function getRetryMaxDelayMs() {
   );
 }
 
+function getGroupRetryMax(groupName) {
+  if (groupName === "qwen_omni" || groupName === "text_compare") {
+    return parsePositiveInteger(
+      process.env.DATABAKER_AI_QWEN_BURST_RETRY_MAX,
+      getGlobalRetryMax(),
+      0,
+      10
+    );
+  }
+  return getGlobalRetryMax();
+}
+
+function getGroupRetryBaseDelayMs(groupName) {
+  if (groupName === "qwen_omni" || groupName === "text_compare") {
+    return parsePositiveInteger(
+      process.env.DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS,
+      getRetryBaseDelayMs(),
+      100,
+      60000
+    );
+  }
+  return getRetryBaseDelayMs();
+}
+
 function getGroupSettings(groupName) {
   const preset = DEFAULT_GROUP_SETTINGS[groupName] || DEFAULT_GROUP_SETTINGS.text_compare;
   const rpm = parsePositiveInteger(process.env[preset.rpmEnv], preset.rpm, 1, 10000);
@@ -114,8 +138,8 @@ function getGroupSettings(groupName) {
     intervalMs: Math.max(1, Math.ceil(60000 / rpm)),
     maxConcurrent,
     maxSize: getGlobalQueueMaxSize(),
-    retryMax: getGlobalRetryMax(),
-    retryBaseDelayMs: getRetryBaseDelayMs(),
+    retryMax: getGroupRetryMax(groupName),
+    retryBaseDelayMs: getGroupRetryBaseDelayMs(groupName),
     retryMaxDelayMs: getRetryMaxDelayMs(),
   };
 }
@@ -195,6 +219,7 @@ class ProviderQueue {
     return new Promise(function (resolve, reject) {
       const item = {
         task,
+        options: options || {},
         resolve,
         reject,
         enqueuedAt: Date.now(),
@@ -286,7 +311,13 @@ class ProviderQueue {
     const queue = this;
     (async function () {
       try {
-        const value = await queue.executeWithRetry(item.task, settings, queueMeta, item.signal);
+        const value = await queue.executeWithRetry(
+          item.task,
+          settings,
+          queueMeta,
+          item.signal,
+          item.options
+        );
         queueMeta.finishedAt = Date.now();
         queueMeta.durationMs = Math.max(0, queueMeta.finishedAt - queueStartedAt);
         queue.stats.completedCount += 1;
@@ -317,7 +348,7 @@ class ProviderQueue {
     this.schedule();
   }
 
-  async executeWithRetry(task, settings, queueMeta, signal) {
+  async executeWithRetry(task, settings, queueMeta, signal, options) {
     let lastError = null;
     for (let attempt = 0; attempt <= settings.retryMax; attempt += 1) {
       if (isAbortSignalAborted(signal)) {
@@ -337,11 +368,43 @@ class ProviderQueue {
         queueMeta.retryCount += 1;
         queueMeta.retryDelaysMs.push(retryDelayMs);
         this.stats.retriedCount += 1;
+        if (typeof options?.onRetry === "function") {
+          try {
+            options.onRetry({
+              attemptIndex: attempt + 1,
+              delayMs: retryDelayMs,
+              error,
+              groupName: this.groupName,
+            });
+          } catch (callbackError) {
+            console.warn("[AIQueue] retry hook failed", String(callbackError?.message || callbackError));
+          }
+        }
         await delay(retryDelayMs, signal);
       }
     }
     if (isProviderRateLimitedError(lastError)) {
-      throw createRateLimitError(lastError.summary || lastError.message || "");
+      if (
+        lastError.code === "provider-rate-limited" ||
+        lastError.code === "qwen-burst-rate-limited"
+      ) {
+        throw lastError;
+      }
+      const rateLimitError = createRateLimitError(lastError.summary || lastError.message || "", {
+        code: "provider-rate-limited",
+        message: "上游模型限流，后端已重试仍失败，请稍后重试。",
+        providerCode: String(lastError.providerCode || "").trim(),
+        providerStatus: Number(lastError.providerStatus || lastError.statusCode) || 429,
+      });
+      if (lastError.debugRawAiResponse) {
+        rateLimitError.debugRawAiResponse = lastError.debugRawAiResponse;
+      }
+      if (lastError.debugId) {
+        rateLimitError.debugId = lastError.debugId;
+        rateLimitError.hasRawAiDebug = lastError.hasRawAiDebug === true;
+        rateLimitError.rawAiDebug = lastError.rawAiDebug || null;
+      }
+      throw rateLimitError;
     }
     throw lastError;
   }

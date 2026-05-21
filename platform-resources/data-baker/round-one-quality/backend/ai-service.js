@@ -732,6 +732,7 @@ function buildAiDebugPayloadFromError(error, context) {
     stage: String(raw.stage || source.stage || meta.stage || "unknown"),
     model: String(raw.model || source.model || meta.model || ""),
     provider: String(raw.provider || meta.provider || "unknown"),
+    providerCode: String(raw.providerCode || source.providerCode || meta.providerCode || ""),
     errorCode: String(source.code || raw.errorCode || meta.errorCode || ""),
     errorMessage: String(source.safeMessage || source.message || raw.errorMessage || meta.errorMessage || ""),
     providerStatus: Number(source.providerStatus || source.statusCode || raw.providerStatus || 0) || 0,
