@@ -1272,17 +1272,17 @@
       const debugId = String(source.debugId || "").trim();
       if (debugId) {
         if (!ai || typeof ai.getRawAiDebug !== "function") {
-          throw new Error("当前失败项没有可查看的原始 AI 返回。");
+          throw new Error("当前失败项没有可查看的原始AI返回。");
         }
         return ai.getRawAiDebug(debugId);
       }
       const jobId = String(source.jobId || "").trim();
       if (!jobId) {
-        throw new Error("当前失败项没有可查看的原始 AI 返回。");
+        throw new Error("当前失败项没有可查看的原始AI返回。");
       }
       const recommendEndpoint = String(config.endpoint || "").trim();
       if (!recommendEndpoint) {
-        throw new Error("当前失败项没有可查看的原始 AI 返回。");
+        throw new Error("当前失败项没有可查看的原始AI返回。");
       }
       const controller = typeof AbortController === "function" ? new AbortController() : null;
       const timer = controller
@@ -1303,7 +1303,7 @@
         });
         if (!response.ok || body?.success !== true || !body?.debug) {
           throw new Error(
-            String(body?.message || "").trim() || "当前失败项没有可查看的原始 AI 返回。"
+            String(body?.message || "").trim() || "当前失败项没有可查看的原始AI返回。"
           );
         }
         return body.debug;

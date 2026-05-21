@@ -193,7 +193,7 @@ CSV 字段统一口径：
 同步 recommend 与异步 jobs 的定位差异：
 
 - 异步 job 超时后会立刻 fail 并 abort；如果底层请求已经返回迟到结果，也只会记录 `ignoredLateResult=true`，不会覆盖 job 状态。
-- 只有 JSON 解析失败才会提供“复制原始JSON”调试入口；普通失败仍保持简短错误。
+- 批量失败列表统一使用“查看原始AI返回”入口；同步 recommend 失败会优先通过 `debugId` 查询脱敏后的原始 AI 返回。
 
 - 单条“AI 推荐文本”按钮和非 Fun-ASR 批量路径仍可继续使用同步 `POST /ai/recommend`。
 - `loadFailureDebugJson` 前端兜底函数已恢复定义；没有 debug 数据时会提示“当前失败项没有可复制的原始 JSON。”，不再出现 `ReferenceError`。

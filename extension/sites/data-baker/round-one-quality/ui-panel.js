@@ -245,12 +245,39 @@
       "  padding: 12px;",
       "  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.24);",
       "}",
+      ".asr-edge-db-debug-modal-head {",
+      "  display: flex;",
+      "  align-items: center;",
+      "  justify-content: space-between;",
+      "  gap: 12px;",
+      "}",
+      ".asr-edge-db-debug-modal-title {",
+      "  color: #0f172a;",
+      "  font-size: 14px;",
+      "  font-weight: 700;",
+      "}",
+      ".asr-edge-db-debug-modal-actions {",
+      "  display: flex;",
+      "  align-items: center;",
+      "  justify-content: flex-end;",
+      "  gap: 8px;",
+      "  flex-wrap: wrap;",
+      "}",
       ".asr-edge-db-debug-modal textarea {",
       "  width: 100%;",
-      "  min-height: 280px;",
+      "  min-height: 360px;",
+      "  max-height: calc(80vh - 120px);",
       "  resize: vertical;",
+      "  padding: 10px 12px;",
+      "  border: 1px solid #cbd5e1;",
+      "  border-radius: 6px;",
+      "  background: #f8fafc;",
+      "  color: #0f172a;",
       "  font-family: Consolas, 'Courier New', monospace;",
       "  font-size: 12px;",
+      "  line-height: 1.55;",
+      "  white-space: pre;",
+      "  overflow: auto;",
       "}",
       ".asr-edge-db-batch-floating-foot-actions {",
       "  margin-top: 8px;",
@@ -539,8 +566,9 @@
         ) {
           const debugButton = createButton("查看原始AI返回", {});
           debugButton.className = "asr-edge-db-batch-failure-debug";
-          debugButton.disabled = batchAutofillRunning;
-          debugButton.addEventListener("click", function () {
+          debugButton.addEventListener("click", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
             showFailureDebugJson(failure).catch(function (error) {
               setStatus(error?.message || String(error), "error");
             });
@@ -689,15 +717,21 @@
       modal.className = "asr-edge-db-debug-modal";
       const card = document.createElement("div");
       card.className = "asr-edge-db-debug-modal-card";
+      const head = document.createElement("div");
+      head.className = "asr-edge-db-debug-modal-head";
       const title = document.createElement("div");
-      title.textContent = "原始AI返回（已脱敏，可查看并复制）：";
+      title.className = "asr-edge-db-debug-modal-title";
+      title.textContent = "原始 AI 返回";
       const textarea = document.createElement("textarea");
       textarea.value = String(text || "");
+      textarea.readOnly = true;
       const actions = document.createElement("div");
-      actions.className = "asr-edge-db-result-actions";
+      actions.className = "asr-edge-db-debug-modal-actions";
       const copyButton = createButton("复制", { "data-primary": "true" });
       const closeButton = createButton("关闭", {});
-      copyButton.addEventListener("click", function () {
+      copyButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
         copyText(String(textarea.value || ""))
           .then(function () {
             setStatus("原始AI返回已复制。", "success");
@@ -708,10 +742,15 @@
             textarea.select();
           });
       });
-      closeButton.addEventListener("click", hideDebugModal);
+      closeButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        hideDebugModal();
+      });
       actions.appendChild(copyButton);
       actions.appendChild(closeButton);
-      card.appendChild(title);
+      head.appendChild(title);
+      card.appendChild(head);
       card.appendChild(textarea);
       card.appendChild(actions);
       modal.appendChild(card);
@@ -719,6 +758,9 @@
         if (event.target === modal) {
           hideDebugModal();
         }
+      });
+      card.addEventListener("click", function (event) {
+        event.stopPropagation();
       });
       (document.body || document.documentElement).appendChild(modal);
       debugModalNode = modal;
