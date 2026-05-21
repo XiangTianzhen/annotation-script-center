@@ -12,15 +12,17 @@
 
 ## 当前重点平台与脚本
 
-- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21 快捷键 + AI 分析调试阶段）
-- 统一 CSV 对接字段：有效时长（用于平台系统自动计算）。
+- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）。
+- 当前 CSV 对接字段口径：
+  - LabelX 快判/转写：`有效时长(秒)_S` 与人员 `_P` 字段。
+  - DataBaker 一检：`有效合格时长_S` 与 `质检人_P` 字段。
 - LabelX 历史 CSV 修复脚本：`node platform-resources/alibaba-labelx/backend/legacy-csv-repair.js --dry-run`（运行数据目录修复，不提交 Git）。
 - 脚本：
   - `extension/sites/alibaba-labelx/asr-judgement/`
   - `extension/sites/alibaba-labelx/asr-transcription/`
   - `extension/sites/data-baker/round-one-quality/`
   - `extension/sites/magic-data/annotator/`
-  - `extension/sites/abaka-ai/task-page/`（Task21 快捷键 + AI 分析调试 + 页面结构/Network 脱敏采集）
+  - `extension/sites/abaka-ai/task-page/`（Task21助手 + 页面结构/Network 脱敏采集）
 
 ## 本地加载扩展
 

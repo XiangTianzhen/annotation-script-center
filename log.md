@@ -1,3 +1,15 @@
+## 2026-05-21（Abaka AI Task21助手完成态文档收口）
+
+- Task21助手进入完成态文档口径：字段旁 AI 分析 + 手动“填写 AI 答案”写入流程统一到平台文档。
+- same_font / image_b_texts_removed / other_changes / overall 四类分析说明与运行时边界已统一。
+- 明确 Monaco（`data-uri + getModels + setValue`）与 Naive UI textarea 写入策略，强调仅用户点击填写按钮才写入。
+- image_b_texts_removed 规则统一为 T/B/R/D 多重集：`D == T => true`、`D` 为空 => `null`、其余 `specify`。
+- same_font 规则明确支持 `error`，并约束 `false/unsure/error` 时后续字段 `not_applicable`。
+- other_changes 规则统一为只比较 `image_b_removed` 与 `image_b`。
+- `/task-v2/data-item` 顶部统计入口已挂载（统计当前列表/下载统计CSV）；当前仓库尚未落地统计后端与独立 runtime，文档统一为入口占位口径。
+- AI 不自动保存、不自动提交、不自动送审；仅点击“填写 AI 答案”才写入字段。
+- 本轮仅文档收尾，不发版、不生成 CRX。
+
 ## 2026-05-21（标贝易采一检质检热修：Qwen burst rate SSE 误报修复）
 
 - 修复 `qwen3.5-omni-flash / qwen3.5-omni-plus` 批量失败时把 SSE `data: {"error":{"code":"limit_burst_rate"...}}` 误判成 `Qwen 接口未返回有效文本` 的问题。

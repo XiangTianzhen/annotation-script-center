@@ -226,7 +226,7 @@ pm2 restart annotation-script-center --update-env
 - DataBaker `fun-asr` 链路默认通过 `platform-resources/backend/ai/providers/funasr-rest.js` 走 Node REST 异步任务提交 / 轮询；仅显式切到 `provider=python` 或 `fallback=python` 时才会调用 `platform-resources/backend/ai/python/funasr_client.py`。
 - 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；默认 REST 链路不经过 Python 子进程，仅显式切 Python 时才受 Python stdout 编码影响。
 - `magic-data/annotator`：Magic Data AI 质检调试接口，包含 `review-current` 与 `health`。
-- `abaka-ai/task21`：Abaka Task21 AI 分析调试接口，包含 `health/defaults/analyze`。
+- `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
 
 Magic Data 接口：

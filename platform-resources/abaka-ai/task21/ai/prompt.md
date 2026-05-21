@@ -1,83 +1,100 @@
-# Abaka AI Task21 Prompt（v2, two-stage 默认）
+# Abaka AI Task21 Prompt（abaka-task21-ai-v5-removed-text-multiset）
 
-## 方案说明
+## 版本与定位
 
-- 默认新增方案：`two_stage`
-  - 阶段一：视觉模型只提取事实（不做最终标注判断）。
-  - 可选 OCR 阶段：仅提取图中文字线索（不做规则判断）。
-  - 阶段二：推理模型按 Task21 规则输出最终 JSON 建议。
-- 保留旧方案：`single_model`
-  - 一个多模态模型直接完成图像理解与规则判断。
+- 当前规则版本：`abaka-task21-ai-v5-removed-text-multiset`（与 `backend/prompt.js` 同步）。
+- 默认分析方案：`two_stage`（vision_extract -> reasoning_decide，OCR 可选且默认关闭）。
+- 保留方案：`single_model`。
+- AI 只提供建议；不自动保存、不自动提交、不自动送审。
+- 仅当用户点击“填写 AI 答案”时，前端才执行字段写入。
 
-默认模型配置（2026-05-18）：
-- `aiVisionModel=qwen3.6-plus`
-- `aiReasoningModel=qwen3.6-plus`
-- `aiSingleModel=qwen3.6-plus`
-- `aiOcrEnabled=false`，`aiOcrModel=""`
+## same_font 规则
 
-官方核对口径：
-- 视觉理解优先核对 [https://help.aliyun.com/zh/model-studio/vision](https://help.aliyun.com/zh/model-studio/vision)
-- 旧名 `qwen-vl-max-latest`、`qwen-vl-ocr-latest`、`qvq-plus-latest` 不再作为默认/候选配置
+- same_font 只比较 `image_a` 与 `image_b` 的字体结构（typeface/weight/style）。
+- 忽略文本内容、颜色、位置、字号、大小写。
+- 允许值：
+  - `true`
+  - `false`
+  - `unsure`
+  - `error`
+  - `same underlying font+artistic effect`
+- `same_font=false/unsure/error` 时：
+  - `image_b_texts_removed=not_applicable`
+  - `other_changes=not_applicable`
 
-## 通用约束
+## image_b_texts_removed 规则（核心）
 
-- AI 只给建议，不自动写入/保存/提交。
-- 输出必须是 JSON，不输出 Markdown 和额外解释。
-- 默认显式传 `enable_thinking=false`。
-- 仅用户开启时传 `enable_thinking=true`。
+仅比较 `image_b` 与 `image_b_removed`，`image_a` 不参与删除判断。
 
-## 单模型 Prompt
+定义多重集（multiset）：
 
-### System
+- `T` = target removal text multiset（目标删除文本多重集，仅辅助范围）
+- `B` = image_b 可读文本实例多重集
+- `R` = image_b_removed 仍可读文本实例多重集
+- `D = B - R`（实际删除文本多重集）
 
-你是 Abaka AI Task21 文本移除任务的视觉标注审核助手。你会同时看图并按 Task21 规则输出最终结构化建议。你只提供辅助判断，不自动保存、不自动提交。输出必须是合法 JSON，不要输出 Markdown，不要输出额外解释。
+判定：
 
-### User（模板）
+- `D == T` => `true`
+- `D` 为空 => `null`
+- `D` 非空且 `D != T` => `specify`
 
-- 输入：`target`、`image_a_texts`、`image_b_texts`、`text_positions`、`current_page_values`、三张图。
-- 规则：
-  - same_font=false/unsure 时后两个字段应 `not_applicable`。
-  - image_b_texts_removed 只写“文本删除”。
-  - other_changes 仅英文，描述对 `image_b_removed` 的操作以得到 `image_b`。
-- 输出：最终 schema（same_font / image_b_texts_removed / other_changes / workflow）。
+补充约束：
 
-## 双模型阶段一 Prompt（vision_extract）
+- 不能因为“有删字”就一律 `specify`。
+- 不能因为“目标文本全删”就一律 `true`，若有 extra/部分删除/数量不匹配仍应 `specify`。
+- 仅 `image_b` 有且 `image_b_removed` 无，才算删除。
+- `image_b_removed` 仍保留的文本不可写入删除列表。
 
-### System
+### 归一比较规则
 
-你是 Task21 视觉事实提取器。你只负责看图提取可见事实，不做最终标注判断。你不得输出 same_font 最终值，不得输出最终 image_b_texts_removed 或 other_changes。输出必须是 JSON，且只能包含可见证据，不得编造不可见文本。
+- 大小写不敏感（case-insensitive）。
+- 普通空格和普通字距差异可归一。
+- 换行和 `<br>` 有意义，不可合并。
+- 输出时保留准确文本形态（如 `MODERN<br>ABODE`）。
 
-### User（模板）
+### specify 标准答案格式
 
-- 输入：`target`、`image_a_texts`、`image_b_texts`、`text_positions`、`current_page_values`、三张图。
-- 输出 JSON：
-  - `visual_observations.image_a_text_regions`
-  - `visual_observations.image_b_text_regions`
-  - `visual_observations.font_evidence`
-  - `visual_observations.font_similarity_observations`
-  - `visual_observations.deleted_text_candidates`
-  - `visual_observations.other_visual_change_candidates`
-  - `visual_observations.uncertainties`
+`specify` 仅允许以下行格式：
 
-## 双模型阶段二 Prompt（reasoning_decide）
+- `all instances of xxx`
+- `1 instance of xxx`
+- `N instances of xxx`
 
-### System
+说明：
 
-你是 Task21 规则判断器。你不看图片，只根据 Task21 规则与视觉观察事实输出最终建议。你必须严格区分 same_font、image_b_texts_removed、other_changes。输出必须是合法 JSON，不要输出 Markdown，不要输出额外解释。
+- 同文本全部实例删除时用 `all instances of xxx`。
+- 仅删除 1 个实例时用 `1 instance of xxx`。
+- 删除 N 个但不是全部时用 `N instances of xxx`。
+- 不允许 bullet、编号、解释句。
 
-### User（模板）
+## other_changes 规则
 
-- 输入：`target`、`image_a_texts`、`image_b_texts`、`text_positions`、`current_page_values`、`visual_observations`。
-- 若启用 OCR：额外输入 `ocr_observations`。
-- 规则：
-  - same_font=false/unsure 时跳过后两个字段。
-  - same_font=true 或 same underlying font+artistic effect 时继续后两个字段。
-  - other_changes 必须英文且不超过 40 词。
-- 输出：最终 schema（same_font / image_b_texts_removed / other_changes / workflow）。
+- 只比较 `image_b_removed` 与 `image_b`。
+- 不比较 `image_a`。
+- `specify` 输出英文短句，建议 30 词以内。
 
-## 调试响应关键字段
+## 输出 schema 摘要
 
-- `analysisMode`
-- `stages.vision / stages.ocr / stages.reasoning / stages.single`
-- `usage.total`（并保留兼容平铺 tokens）
-- `thinking.enableThinking / explicitDisableSent / fallbackUsed / paramName / paramLocation`
+最终输出必须是 JSON，核心结构：
+
+- `target`
+- `same_font`（applicable/choice/value/confidence/reason/evidence/warnings）
+- `image_b_texts_removed`（applicable/choice/value_type/value/lines/segment_count/reason/evidence/warnings）
+- `other_changes`（applicable/choice/value_type/value/word_count/reason/evidence/warnings）
+- `workflow`（skip_later_fields/skip_reason）
+
+## two_stage 阶段职责
+
+- `vision_extract`：只提取视觉事实，不输出最终字段值。
+- `reasoning_decide`：基于规则和观察事实输出最终 JSON。
+- `ocr_extract`：仅文本辅助提取（默认关闭）。
+
+## 旧口径迁移说明
+
+本文件已从旧 `v2` 口径升级到当前 `v5`：
+
+- 同步 `same_font=error`。
+- 同步 `image_b_texts_removed` 的 T/B/R/D 多重集判断。
+- 明确 `image_a` 不参与删除判断。
+- 明确 `other_changes` 只比较 `image_b_removed` 与 `image_b`。

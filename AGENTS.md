@@ -13,6 +13,7 @@
 
 - AGENTS.md 只保留项目级规则，不承载具体平台长口径。
 - 处理具体平台前，必须先读：`docs/platforms/index.md`，再读对应脚本 README、`platform-resources` 资料与相关代码。
+- Abaka AI Task21 当前为“Task21助手”完成态；具体规则以 `extension/sites/abaka-ai/task-page/README.md`、`platform-resources/abaka-ai/task21/README.md`、`platform-resources/abaka-ai/task21/ai/prompt.md` 为准。
 - 新增平台或脚本时，必须同步更新：
   - `extension/sites/<platform>/<script>/README.md`
   - `platform-resources/<platform>/<script>/README.md` 或资料目录

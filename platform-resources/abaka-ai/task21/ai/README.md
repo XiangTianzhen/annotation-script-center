@@ -1,11 +1,13 @@
-# Abaka AI Task21 AI 辅助分析（调试版）
+# Abaka AI Task21 AI 辅助分析（Task21助手）
 
 ## 目标
 
 本目录沉淀 Task21 AI 分析方案、Prompt 模板和调试口径。  
 AI 仅提供建议，不自动写入、不自动保存、不自动提交、不自动送审。
 
-## 方案
+## 规则版本与方案
+
+- Prompt 规则版本：`abaka-task21-ai-v5-removed-text-multiset`（见 `prompt.md` 与 `backend/prompt.js`）。
 
 - 默认：`two_stage`
   - 阶段一 `vision_extract`：视觉模型只提取事实（visual observations）。
@@ -48,6 +50,17 @@ Options（Abaka AI Task21 详情）“AI 调试”保存：
 - 用户开启后显式传：`enable_thinking=true`。
 - 默认不静默移除参数；若模型不支持会返回清晰错误。
 - 仅当 `ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK=true` 时允许移除参数回退。
+
+## 当前规则摘要
+
+- `same_font` 支持：`true | false | unsure | error | same underlying font+artistic effect`。
+- `image_b_texts_removed` 采用 T/B/R/D 多重集规则：
+  - `D == T => true`
+  - `D` 为空 => `null`
+  - `D` 非空且 `D != T => specify`
+- `image_b_texts_removed` 删除判断只比较 `image_b` 与 `image_b_removed`，`image_a` 不参与。
+- `specify` 支持：`all instances of xxx / 1 instance of xxx / N instances of xxx`。
+- `other_changes` 只比较 `image_b_removed` 与 `image_b`，建议英文短句（约 30 词以内）。
 
 ## 调试输出
 

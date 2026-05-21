@@ -17,7 +17,7 @@
   - AI 面板提供 same_font / image_b_texts_removed / other_changes / overall 四种分析
 - 范围：
   - 快捷键仅 DOM 点击，不直接调用平台保存/提交/领取/流转接口
-  - AI 只输出建议，不自动写入、不自动保存、不自动提交、不自动送审
+- AI 默认只输出建议；仅在用户点击“填写 AI 答案”时才写入字段，不自动保存、不自动提交、不自动送审
 
 ## 快捷键动作（默认）
 
@@ -91,7 +91,7 @@
   - 请求超时（默认 `120000ms`）
   - 前端不保存 API Key
 - 填写行为边界：
-  - AI 仍然只作辅助，不自动保存、不自动提交、不自动送审
+- AI 仍然只作辅助；仅在用户点击“填写 AI 答案”时才写入字段，不自动保存、不自动提交、不自动送审
   - 仅在用户点击 `填写 AI 答案` 时，才会写入 radio / 输入框
   - 不点击 checkbox，不绕过 disabled/readOnly 控件
   - `image_b_texts_removed` 是 `custom-md-editor / Monaco` 输入区，定位优先级为：`.l-item` + `.l-title-text=image_b_texts_removed` -> 当前字段内 `.custom-md-editor/.monaco-container/.monaco-editor`
@@ -147,7 +147,7 @@
   - Vue 重渲染或筛选刷新后会重新挂载
   - 路由离开 `/task-v2/data-item` 后会自动移除
 - 当前仓库尚未落地 Task21 统计后端与独立前端 runtime：
-  - 目前点击 `统计当前列表` 会给出“Task21统计模块未就绪，请先完成统计采集模块。”
+- 目前点击 `统计当前列表` 会给出“Task21统计模块未就绪，请先完成统计采集模块。”
   - `下载统计CSV` 默认禁用，不会伪造下载地址
 - 该入口不会自动领取标注、不会自动保存、不会自动提交、不会自动送审。
 - 如扩展刚重载，请先刷新 Abaka Task21 业务页再测试，避免旧 content script 继续停留。

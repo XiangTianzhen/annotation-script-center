@@ -44,7 +44,7 @@
 - Task21 AI 规则与 Prompt：`platform-resources/abaka-ai/task21/ai/README.md`
 - Task17 项目资料：`platform-resources/abaka-ai/task17/README.md`
 - Task17 网络差异：`platform-resources/abaka-ai/task17/network.md`
-- 当前阶段：公共 Task 页面资料已上移到 Abaka AI 根目录；Task21 已上线 Task21助手（快捷键 + AI 辅助填写，AI 设置默认隐藏并支持 10 次点击解锁，AI 仅建议且需手动点击“填写 AI 答案”才写入），Task17 保留对比和领取审核空池差异；不默认自动提交/保存/领取/流转。
+- 当前阶段：公共 Task 页面资料已上移到 Abaka AI 根目录；Task21助手已完成主要编写（快捷键、AI 辅助填写、image_b_texts_removed 的 T/B/R/D 多重集规则、列表页统计入口），其中统计后端与独立统计 runtime 仍待补齐；Task17 保留对比和领取审核空池差异；不默认自动提交/保存/领取/流转。
 
 ## 新增平台要求
 

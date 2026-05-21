@@ -133,7 +133,7 @@ platform-resources/
 - 下载文件说明：默认下载总表，文件名 `asr-judgement-statistics-merged-YYYYMMDD-HHmm.csv`（Asia/Shanghai）；带 `supplier` 时按供应商过滤并下载 `asr-judgement-<供应商safeName>-statistics-YYYYMMDD-HHmm.csv`；`supplier` 无匹配返回 `404`，不回退总表。
 - token/password：不需要
 - 运行数据目录：`platform-resources/alibaba-labelx/asr-judgement/backend/statistics-data/`
-- 安全说明：CSV 字段统一使用 `有效时长`；目录为运行数据，不提交 Git。
+- 安全说明：CSV 字段使用 `有效时长(秒)_S` 与人员 `_P` 字段；目录为运行数据，不提交 Git。
 - 分类防串表：后端会优先按 `payload.project` / `payload.rawKeys.labelModel` 判定项目类型，高置信判断数据不会写入转写表，高置信转写数据不会写入快判表。
 
 ### Alibaba LabelX ASR 转写 API
@@ -159,7 +159,7 @@ platform-resources/
 - 下载文件说明：默认下载总表，文件名 `asr-transcription-statistics-merged-YYYYMMDD-HHmm.csv`（Asia/Shanghai）；带 `supplier` 时按供应商过滤并下载 `asr-transcription-<供应商safeName>-statistics-YYYYMMDD-HHmm.csv`；`supplier` 无匹配返回 `404`，不回退总表。
 - token/password：不需要
 - 运行数据目录：`platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`
-- 安全说明：CSV 字段统一使用 `有效时长`；目录为运行数据，不提交 Git。
+- 安全说明：CSV 字段使用 `有效时长(秒)_S` 与人员 `_P` 字段；目录为运行数据，不提交 Git。
 - 历史迁移：可执行 `node platform-resources/alibaba-labelx/backend/legacy-csv-repair.js --dry-run` 预览修复；需要落盘时使用 `--write --backup`。
 
 ### DataBaker 一检质检 API
@@ -183,7 +183,7 @@ platform-resources/
 - 下载文件说明：返回累计合并总表 `latest.csv`（按“文本编号”唯一合并；相同文本编号再次上传更新旧行；任务ID仅作元信息不参与唯一键）。
 - token/password：不需要
 - 运行数据目录：`platform-resources/data-baker/round-one-quality/backend/export-data/`
-- 安全说明：新导出 CSV 统一字段 `有效时长`（来源仍为 `effectivePassTotalTime`）；目录为运行数据，不提交 Git。
+- 安全说明：导出字段使用 `有效合格时长_S`、`质检人_P`（并保留 `采集人` 原字段）；目录为运行数据，不提交 Git。
 - 上传返回统计字段：`incomingRowCount`、`existingRowCount`、`addedRowCount`、`updatedRowCount`、`unchangedRowCount`、`rowCount`、`taskIds`。
 - AI 模式：当前只保留 `fun_asr_compare` 与 `omni_single`；默认模式为 `omni_single`。
 - 限流与缓存：所有上游模型调用都进入统一后端队列，按 `fun_asr / qwen_omni / text_compare` 分组限流，并带 TTL 内存缓存；浏览器不直连 DashScope。
@@ -208,6 +208,7 @@ platform-resources/
 - token/password：不需要
 - 数据目录：当前为 AI 调试接口，无统一 CSV 下载目录
 - 安全说明：AI 仅返回建议，不自动写入、不保存、不提交；前端 Task21助手仅在用户点击“填写 AI 答案”时才执行字段写入。
+- 统计状态说明：列表页已提供“统计当前列表 / 下载统计CSV”入口；当前仓库尚未落地 Task21 统计后端接口与独立统计 runtime，故暂无统计下载 API。
 - 输出规则摘要：`same_font` 支持 `error`；`image_b_texts_removed` 只比较 `image_b` 与 `image_b_removed`，按 `T/B/R/D` 多重集判断 `true/specify/null`，`specify` 支持 `all instances of xxx / 1 instance of xxx / N instances of xxx`，并要求保留 `<br>` 等换行形态；`other_changes` 仅比较 `image_b_removed` 与 `image_b`。
 
 ### Admin 项目数据下载 API
