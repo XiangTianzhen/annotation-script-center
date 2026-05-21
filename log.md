@@ -1,3 +1,26 @@
+## 2026-05-21（标贝易采一检质检热修：Qwen Omni 默认直并发与真实限流透出）
+
+- DataBaker Omni legacy 快速路径默认不再对 Qwen 上游做后端平滑发送；前端并发多少，就按该并发直接发送多少条 `recommend` 请求，`30ms` 错峰保持不变。
+- 新增环境变量默认值：
+  - `DATABAKER_AI_QWEN_SMOOTH_ENABLED=0`
+  - `DATABAKER_AI_QWEN_BURST_RETRY_MAX=0`
+  - `DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS=1200`
+- 只有显式设置 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1` 时，Omni legacy 才会重新进入 `qwen_omni` / `text_compare` provider queue 平滑；只有手动把 `DATABAKER_AI_QWEN_BURST_RETRY_MAX` 调大时，才会对 `limit_burst_rate` 做退避重试。
+- `qwen-openai-compatible.js` 与 DataBaker `ai-client-qwen-legacy.js` 继续识别 SSE `data: {"error": ...}`；若 `error.code=limit_burst_rate`，现在统一返回：
+  - `code=qwen-burst-rate-limited`
+  - `providerCode=limit_burst_rate`
+  - `providerStatus=429`
+  - `message=Qwen 请求突增限流，接口返回请求增长过快。`
+- 前端失败文案同步改为“Qwen 请求突增限流，接口返回请求增长过快，可降低并发或稍后重试。”；`qwen-empty-response` 仅保留给真正没有 `error` 且没有文本的场景。
+- DataBaker Omni 模型选项补齐到：
+  - `qwen3.5-omni-plus`
+  - `qwen3.5-omni-flash`
+  - `qwen3.5-omni-flash-2026-03-15`
+  - `qwen3-omni-flash`
+  - `qwen3-omni-flash-2025-12-01`
+  - `qwen3-omni-flash-2025-09-15`
+- Fun-ASR REST provider、异步 job 默认链路、provider queue 其它通用能力、本地 Python fallback 均未改动。
+
 ## 2026-05-21（标贝易采一检质检热修：AI 工具卡挂载未就绪改为延迟重试）
 
 - 修复 DataBaker `roundOneCollect` 页面右侧 `DataBaker AI 推荐文本` 工具卡在 DOM 尚未渲染完成时输出 `AI panel mount target not found` 扩展报错的问题。

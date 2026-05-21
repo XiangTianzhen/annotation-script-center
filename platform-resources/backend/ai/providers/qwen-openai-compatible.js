@@ -287,7 +287,7 @@ function createQwenSseProviderError(model, stage, providerError, result) {
   const error = isBurstRateLimited
     ? createRateLimitError(message, {
         code: "qwen-burst-rate-limited",
-        message: "Qwen 请求突增限流，请降低并发或等待后端平滑重试。",
+        message: "Qwen 请求突增限流，接口返回请求增长过快。",
         providerCode: code,
         providerStatus: 429,
       })

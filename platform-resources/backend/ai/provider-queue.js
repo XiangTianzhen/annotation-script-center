@@ -8,6 +8,7 @@ const {
 
 const DEFAULT_QUEUE_MAX_SIZE = 600;
 const DEFAULT_RETRY_MAX = 3;
+const DEFAULT_QWEN_BURST_RETRY_MAX = 0;
 const DEFAULT_RETRY_BASE_DELAY_MS = 1200;
 const DEFAULT_RETRY_MAX_DELAY_MS = 12000;
 const DEFAULT_GROUP_SETTINGS = {
@@ -103,7 +104,7 @@ function getGroupRetryMax(groupName) {
   if (groupName === "qwen_omni" || groupName === "text_compare") {
     return parsePositiveInteger(
       process.env.DATABAKER_AI_QWEN_BURST_RETRY_MAX,
-      getGlobalRetryMax(),
+      DEFAULT_QWEN_BURST_RETRY_MAX,
       0,
       10
     );

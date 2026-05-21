@@ -73,12 +73,20 @@
         { value: "fun-asr", label: "fun-asr" },
         { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
         { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+        { value: "qwen3.5-omni-flash-2026-03-15", label: "qwen3.5-omni-flash-2026-03-15" },
+        { value: "qwen3-omni-flash", label: "qwen3-omni-flash" },
+        { value: "qwen3-omni-flash-2025-12-01", label: "qwen3-omni-flash-2025-12-01" },
+        { value: "qwen3-omni-flash-2025-09-15", label: "qwen3-omni-flash-2025-09-15" },
       ];
   const dataBakerSingleModelOptions = Array.isArray(constants.DATABAKER_AI_SINGLE_MODEL_OPTIONS)
     ? constants.DATABAKER_AI_SINGLE_MODEL_OPTIONS
     : [
         { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
         { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+        { value: "qwen3.5-omni-flash-2026-03-15", label: "qwen3.5-omni-flash-2026-03-15" },
+        { value: "qwen3-omni-flash", label: "qwen3-omni-flash" },
+        { value: "qwen3-omni-flash-2025-12-01", label: "qwen3-omni-flash-2025-12-01" },
+        { value: "qwen3-omni-flash-2025-09-15", label: "qwen3-omni-flash-2025-09-15" },
       ];
   const dataBakerCompareModelOptions = Array.isArray(constants.DATABAKER_AI_COMPARE_MODEL_OPTIONS)
     ? constants.DATABAKER_AI_COMPARE_MODEL_OPTIONS
@@ -668,7 +676,7 @@
     }
     if (listenHelpNode) {
       listenHelpNode.textContent =
-        "听音模型为 fun-asr 时通过后端 Python SDK 调用；听音模型为 qwen3.5-omni-plus / qwen3.5-omni-flash 时通过 Qwen Omni 音频输入调用。比较模型负责结合听音文本与页面文本生成推荐文本。";
+        "听音模型为 fun-asr 时通过后端 Python SDK 调用；听音模型为所选 Qwen Omni 模型时通过 Qwen Omni 音频输入调用。比较模型负责结合听音文本与页面文本生成推荐文本。";
     }
     renderFixedModelOptions(
       "data-baker-ai-listen-model-select",
@@ -2079,7 +2087,7 @@
           prefix +
           '-single-model-field"><span>AI 模型</span><select id="' +
           prefix +
-          '-single-model-select"></select><span class="asr-ai-help">单模型只支持 qwen3.5-omni-plus / qwen3.5-omni-flash，不调用 compare。</span></label>',
+          '-single-model-select"></select><span class="asr-ai-help">单模型只支持当前 DataBaker Omni 模型列表，不调用 compare。</span></label>',
         '<label class="asr-ai-field' +
           (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
           '" id="' +

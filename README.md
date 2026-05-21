@@ -104,7 +104,7 @@ PM2 进程名示例：`annotation-script-center`。
   - `two_stage`：显示“听音模型 + 比较模型”
   - `omni_single`：只显示“AI 模型”
 - `two_stage` 且听音模型选择 `fun-asr` 时，默认走 Node REST 单条调用，不依赖 Python 虚拟环境。
-- `omni_single` 以及 `two_stage + qwen3.5-omni-plus/qwen3.5-omni-flash` 都不依赖 Python 虚拟环境。
+- `omni_single` 以及 `two_stage + Qwen Omni` 都不依赖 Python 虚拟环境；当前 DataBaker Omni 可选模型包含 `qwen3.5-omni-plus`、`qwen3.5-omni-flash`、`qwen3.5-omni-flash-2026-03-15`、`qwen3-omni-flash`、`qwen3-omni-flash-2025-12-01`、`qwen3-omni-flash-2025-09-15`。
 - Fun-ASR REST 是异步任务模式：
   - 提交任务：`POST /api/v1/services/audio/asr/transcription`
   - 查询任务：`POST /api/v1/tasks/{task_id}`
@@ -115,7 +115,7 @@ PM2 进程名示例：`annotation-script-center`。
 - 前端按 `30ms` 错峰发起；“AI连续填入合格项并发数量”继续只控制最大活跃请求数，默认 `20`，范围 `1~50`。
 - 谁先返回，谁先进入待填队列；填入仍然顺序消费。
 - 后端 provider queue / RPM 限流继续保护上游；异步 job 接口如保留，仅作为历史兼容 / 调试入口。
-- `qwen3.5-omni-flash` / `qwen3.5-omni-plus` 当前默认优先走 DataBaker Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471`；目的先保证基础速度和稳定性。
+- DataBaker `qwen3.5-omni-flash` / `qwen3.5-omni-plus` 及新增 Omni 版本当前默认优先走 Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471`；默认按前端并发直接请求 Qwen，上游不再做后端平滑排队，除非显式设置 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1`。
 - `fun-asr` 仍走当前 Node REST provider，不走 Omni legacy 快速路径。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
@@ -204,12 +204,12 @@ Linux：
 期望：
 
 - `defaults` 返回 `listenModelOptions` 和 `compareModelOptions`。
-- `listenModelOptions` 包含 `fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`。
+- `listenModelOptions` 包含 `fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`、`qwen3.5-omni-flash-2026-03-15`、`qwen3-omni-flash`、`qwen3-omni-flash-2025-12-01`、`qwen3-omni-flash-2025-09-15`。
 - `compareModelOptions` 包含 `qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`。
 - `funAsrModel` 为 `fun-asr`。
 - `funAsrProvider` 默认 `rest`。
 - `funAsrRestConfigured` 与 `funAsrPythonConfigured` 都应可见。
-- `omniModel` 为 `qwen3.5-omni-flash`。
+- `omniModel` 默认为 `qwen3.5-omni-flash`，并允许切换到上述 DataBaker Omni 模型列表。
 - `compareModel` 为 `qwen3.5-plus`。
 - queue groups 应继续返回 `qwen_omni / fun_asr / text_compare`，并带 `maxConcurrent` 或等价并发信息。
 - 默认 REST provider 下，即使未配置 Python 虚拟环境，`fun-asr` 也可调用。

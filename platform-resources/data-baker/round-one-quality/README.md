@@ -136,7 +136,7 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_OMNI_MODEL`：Qwen Omni 模型默认值；双模型下用于 Omni 听音，单模型下用于 Omni 单模型推荐，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
-- `DATABAKER_AI_OMNI_LEGACY_FAST_PATH`：默认 `1`；开启后 `qwen3.5-omni-flash / qwen3.5-omni-plus` 会优先走参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 的 Omni legacy 快速路径。
+- `DATABAKER_AI_OMNI_LEGACY_FAST_PATH`：默认 `1`；开启后上述 DataBaker Omni 模型会优先走参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 的 Omni legacy 快速路径。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
 - `DATABAKER_AI_PIPELINE_MODE`：识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。旧值 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
@@ -148,6 +148,8 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_FUN_ASR_CONCURRENCY`：Fun-ASR 并发上限，默认 `5`；`2 核 2G` 服务器压力高时建议调低到 `3`。
 - `DATABAKER_AI_TEXT_CONCURRENCY`：Compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
+- `DATABAKER_AI_QWEN_SMOOTH_ENABLED`：默认 `0`；DataBaker Omni legacy 快速路径默认按前端并发直接请求，只有设为 `1` 时才重新启用后端平滑。
+- `DATABAKER_AI_QWEN_BURST_RETRY_MAX`：默认 `0`；`limit_burst_rate` 默认直接暴露真实错误，不自动退避重试，需要更稳时再手动改为 `3`。
 - `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `120000`。仅在历史兼容 job 被显式启用时生效。
 - `DATABAKER_AI_JOB_TTL_MS`：异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
 - `DATABAKER_AI_JOB_MAX_SIZE`：异步 job 最大保留数量，默认 `600`。
@@ -166,18 +168,18 @@ AI prompt 输出字形规则：
 
 双模型配置：
 
-- 听音模型：`fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
+- 听音模型：`fun-asr`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`、`qwen3.5-omni-flash-2026-03-15`、`qwen3-omni-flash`、`qwen3-omni-flash-2025-12-01`、`qwen3-omni-flash-2025-09-15`
 - 比较模型：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`
 
 单模型配置：
 
-- AI 模型：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
+- AI 模型：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`、`qwen3.5-omni-flash-2026-03-15`、`qwen3-omni-flash`、`qwen3-omni-flash-2025-12-01`、`qwen3-omni-flash-2025-09-15`
 
 运行时链路：
 
 - `two_stage + fun-asr`：先调用 Fun-ASR 录音文件识别，再调用文本 compare 模型。
-- `two_stage + qwen3.5-omni-plus / qwen3.5-omni-flash`：默认优先走 Omni legacy 快速路径，先通过 Qwen Omni `input_audio` 产出 `heardText`，再调用文本 compare 模型。
-- `omni_single + qwen3.5-omni-plus / qwen3.5-omni-flash`：当 `DATABAKER_AI_OMNI_LEGACY_FAST_PATH=1` 时，也优先切到 Omni legacy 快速路径兜底，以先恢复基础速度和稳定性。
+- `two_stage + Qwen Omni`：默认优先走 Omni legacy 快速路径，先通过 Qwen Omni `input_audio` 产出 `heardText`，再调用文本 compare 模型。
+- `omni_single + Qwen Omni`：当 `DATABAKER_AI_OMNI_LEGACY_FAST_PATH=1` 时，也优先切到 Omni legacy 快速路径兜底，以先恢复基础速度和稳定性。
 
 设置页口径：
 
@@ -193,7 +195,7 @@ AI prompt 输出字形规则：
 
 - 所有上游模型调用都必须进入后端 provider/model group 队列。
 - 队列按 `qwen_omni / fun_asr / text_compare` 分组限流，并按 group 配置最大并发。
-- 遇到 `429` 会做指数退避和 jitter 重试；前端只看到友好提示，不暴露 provider 原始 JSON。
+- Fun-ASR / 通用 provider 队列遇到 `429` 仍会做指数退避和 jitter 重试；但 DataBaker Omni legacy 默认不对 `limit_burst_rate` 自动重试，而是直接返回真实错误并保留 debug。
 - 推荐结果会按题目、模式、模型和规则版本做内存 TTL 缓存，重复点击与多人重复处理优先命中缓存。
 - `429` 的根因是上游模型限流，不是本地或服务器 `2 核 2G` 算力问题；多个 RAM 用户或 API Key 若归属于同一阿里云主账号，也可能共享限流额度。
 - Qwen Omni 和 Fun-ASR 的调用链路不同，不能只靠改模型名互换。
@@ -242,7 +244,7 @@ platform-resources/backend/ai/python/requirements.txt
 5. 进入 `roundOneCollect` 页面，在 `omni_single` 下选择 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope，且默认优先走 Omni legacy 快速路径。
 6. 切回 `two_stage` 并选择听音模型为 `fun-asr`，确认界面显示 Python 提示，后端链路为 Fun-ASR + compare。
 7. 点击“AI并发分析并连续填入合格项”，确认默认并发为 `20`，可手动调到 `1~50`。
-8. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。
+8. DataBaker 选择 Qwen Omni 且前端并发调到 `50` 时，浏览器应继续按 `30ms` 错峰直发 recommend；后端默认不再对 Omni legacy 做平滑排队。
 9. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
 10. 默认 REST provider 下，即使未配置 Python 虚拟环境，`two_stage + fun-asr` 也应能调用；只有显式切到 `provider=python` 或 `fallback=python` 时才依赖 `.venv`。
 11. 选择 `two_stage + fun-asr` 后点击“AI连续填入合格项”，确认 Network 中优先出现大量按 `30ms` 错峰发起的 `POST /api/data-baker/round-one-quality/ai/recommend`；`/jobs` 相关接口不应作为默认链路出现。

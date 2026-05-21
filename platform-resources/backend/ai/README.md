@@ -50,10 +50,11 @@
 - `provider-queue.js` 现在会返回并记录 `pendingCount / activeCount / maxConcurrent / queueWaitMs / durationMs`，用于判断瓶颈是在前端发起、Fun-ASR 队列还是 compare 阶段。
 - `providers/funasr-rest.js` 会记录 `[FunASR][REST] submit start/finish` 与 `[FunASR][REST] poll start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
 - `providers/funasr-python.js` 会记录 `[FunASR] spawn start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
-- DataBaker 前端“AI连续填入合格项并发数量”只是浏览器同时发往统一后端的请求数，当前范围 `1~50`、默认 `20`；真正的上游模型并发仍由这里的 provider queue 和 RPM 限流控制。
+- DataBaker 前端“AI连续填入合格项并发数量”是浏览器同时发往统一后端的请求数，当前范围 `1~50`、默认 `20`；其中 `two_stage + fun-asr` 仍继续受 provider queue / RPM 限流保护。
 - DataBaker `two_stage + fun-asr` 的批量连续填入默认直接发送同步 recommend 请求；前端按 `30ms` 错峰发起并用前端活跃并发上限控制节奏，后端继续通过 provider queue / RPM 限流保护上游。
 - Qwen provider 与 DataBaker Omni legacy client 现在都会识别 SSE `data: {"error": ...}`。若 `error.code/type` 为 `limit_burst_rate`、`throttling`、`rate_limit`、`limit_requests`、`TooManyRequests`，会按上游限流分类，而不是误判成空文本。
-- `qwen_omni` 与 `text_compare` 队列会读取 `DATABAKER_AI_QWEN_BURST_RETRY_MAX`、`DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS` 作为 Qwen 突发限流退避重试配置；若重试仍失败，会保留 debug 并返回明确限流错误。
+- DataBaker Omni legacy 快速路径默认不再把 Qwen 上游平滑进 `qwen_omni` / `text_compare` 队列；前端并发多少就直接发送多少。仅当 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1` 时，才会重新启用 Qwen 平滑队列。
+- `DATABAKER_AI_QWEN_BURST_RETRY_MAX` 默认 `0`，即 `limit_burst_rate` 默认不自动退避重试，只暴露真实错误并保留 debug；如需更稳，可手动设为 `3` 并配合 `DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS`。
 - DataBaker 异步 job 默认上限仍为 `600`，provider queue 默认上限也同步为 `600`；但 jobs 仅保留为历史兼容 / 调试接口，不再作为默认 AI 结果接收方案。
 - 单个异步 job 默认超时 `120000ms`，超时后会通过 `AbortController` 取消或逻辑丢弃迟到结果，并固定提示“当前任务超过120s，请重新请求。”。异步 job 仅保留给历史兼容 / 调试场景，默认 AI 结果接收仍应使用同步 HTTP recommend。
 - DataBaker 模型输出 JSON 解析失败时，会保留脱敏后的 `debugRawJson`，供前端“复制原始JSON”按钮通过 `/ai/recommend/jobs/:jobId/debug` 拉取。

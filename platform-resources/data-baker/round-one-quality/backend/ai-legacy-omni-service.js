@@ -23,7 +23,14 @@ const { enqueueProviderTask } = require("../../../backend/ai/provider-queue");
 const { rememberAiDebug } = require("./ai-debug-store");
 
 const LEGACY_OMNI_COMMIT = "9677e4cea98de222b70f89c9e0af1d89971dc471";
-const OMNI_LEGACY_MODELS = new Set(["qwen3.5-omni-flash", "qwen3.5-omni-plus"]);
+const OMNI_LEGACY_MODELS = new Set([
+  "qwen3.5-omni-plus",
+  "qwen3.5-omni-flash",
+  "qwen3.5-omni-flash-2026-03-15",
+  "qwen3-omni-flash",
+  "qwen3-omni-flash-2025-12-01",
+  "qwen3-omni-flash-2025-09-15",
+]);
 const RULE_VERSION = "data-baker-round-one-quality-ai-legacy-omni-" + LEGACY_OMNI_COMMIT.slice(0, 7);
 const DEFAULT_LISTEN_TEMPLATE = [
   "请听音频并输出本句话实际发声文本。",
@@ -261,6 +268,22 @@ function summarizeQueueMeta(queueMeta) {
 }
 
 async function runLegacyQueuedProviderCall(groupName, task, options) {
+  if (!isQwenSmoothEnabled()) {
+    const startedAtMs = Date.now();
+    const value = await task();
+    return {
+      value,
+      queueMeta: {
+        groupName: String(groupName || ""),
+        queueWaitMs: 0,
+        retryCount: 0,
+        retryDelaysMs: [],
+        durationMs: Date.now() - startedAtMs,
+        activeCount: 0,
+        maxConcurrent: 0,
+      },
+    };
+  }
   return enqueueProviderTask(groupName, task, {
     signal: options?.signal,
     onRetry: function (meta) {
@@ -275,6 +298,13 @@ async function runLegacyQueuedProviderCall(groupName, task, options) {
       });
     },
   });
+}
+
+function isQwenSmoothEnabled() {
+  const rawValue = String(process.env.DATABAKER_AI_QWEN_SMOOTH_ENABLED || "0")
+    .trim()
+    .toLowerCase();
+  return rawValue === "1" || rawValue === "true" || rawValue === "on";
 }
 
 function isOmniLegacyFastPathEnabled() {
@@ -612,7 +642,7 @@ async function recommendLegacyOmni(body, requestIdHint, runtimeOptions) {
         sourceRequestId: "",
       },
       queue: {
-        enabled: true,
+        enabled: isQwenSmoothEnabled(),
         groups: queueMetas.map(summarizeQueueMeta),
         totalQueueWaitMs: queueMetas.reduce(function (total, item) {
           return total + Math.max(0, Number(item?.queueWaitMs) || 0);
@@ -625,6 +655,7 @@ async function recommendLegacyOmni(body, requestIdHint, runtimeOptions) {
       funAsrProvider: "",
       omniLegacyFastPath: true,
       omniLegacyCommit: LEGACY_OMNI_COMMIT,
+      qwenSmoothEnabled: isQwenSmoothEnabled(),
     };
     responseData.thinking = {
       enableThinking: effectiveEnableThinking,
@@ -719,6 +750,7 @@ module.exports = {
   LEGACY_OMNI_COMMIT,
   RULE_VERSION,
   isOmniLegacyFastPathEnabled,
+  isQwenSmoothEnabled,
   recommendLegacyOmni,
   shouldUseLegacyOmniFastPath,
 };

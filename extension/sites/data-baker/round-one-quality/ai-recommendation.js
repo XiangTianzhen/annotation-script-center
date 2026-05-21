@@ -56,7 +56,7 @@
     } else if (code === "timeout") {
       message = "AI 推荐接口请求超时。";
     } else if (code === "qwen-burst-rate-limited" || providerCode === "limit_burst_rate") {
-      message = "Qwen 请求突增限流，后端已重试仍失败。请降低前端并发或增大发送间隔后重试。";
+      message = "Qwen 请求突增限流，接口返回请求增长过快，可降低并发或稍后重试。";
     } else if (code === "provider-rate-limited" && Number(body.providerStatus) === 429) {
       message = "上游模型限流，后端已重试仍失败，请稍后重试。";
     } else if (code === "qwen-empty-response") {

@@ -33,7 +33,15 @@
           return String(item && typeof item === "object" ? item.value : item || "").trim();
         })
         .filter(Boolean)
-    : ["fun-asr", "qwen3.5-omni-plus", "qwen3.5-omni-flash"];
+    : [
+        "fun-asr",
+        "qwen3.5-omni-plus",
+        "qwen3.5-omni-flash",
+        "qwen3.5-omni-flash-2026-03-15",
+        "qwen3-omni-flash",
+        "qwen3-omni-flash-2025-12-01",
+        "qwen3-omni-flash-2025-09-15",
+      ];
   const DATABAKER_COMPARE_MODEL_OPTIONS = Array.isArray(CONSTANTS.DATABAKER_AI_COMPARE_MODEL_OPTIONS)
     ? CONSTANTS.DATABAKER_AI_COMPARE_MODEL_OPTIONS
         .map(function (item) {
@@ -47,7 +55,14 @@
           return String(item && typeof item === "object" ? item.value : item || "").trim();
         })
         .filter(Boolean)
-    : ["qwen3.5-omni-plus", "qwen3.5-omni-flash"];
+    : [
+        "qwen3.5-omni-plus",
+        "qwen3.5-omni-flash",
+        "qwen3.5-omni-flash-2026-03-15",
+        "qwen3-omni-flash",
+        "qwen3-omni-flash-2025-12-01",
+        "qwen3-omni-flash-2025-09-15",
+      ];
 
   let runtime = null;
   let runtimeConfigKey = "";

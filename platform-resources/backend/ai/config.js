@@ -10,15 +10,18 @@ const DEFAULT_FUN_ASR_PROVIDER = "rest";
 const DEFAULT_FUN_ASR_REST_POLL_INTERVAL_MS = 1000;
 const DEFAULT_JOB_TIMEOUT_MS = 120000;
 const DEFAULT_JOB_TTL_MS = 1800000;
+const DATABAKER_OMNI_MODEL_OPTIONS = [
+  "qwen3.5-omni-plus",
+  "qwen3.5-omni-flash",
+  "qwen3.5-omni-flash-2026-03-15",
+  "qwen3-omni-flash",
+  "qwen3-omni-flash-2025-12-01",
+  "qwen3-omni-flash-2025-09-15",
+];
 const DATABAKER_LISTEN_MODEL_OPTIONS = [
   "fun-asr",
-  "qwen3.5-omni-plus",
-  "qwen3.5-omni-flash",
-];
-const DATABAKER_SINGLE_MODEL_OPTIONS = [
-  "qwen3.5-omni-plus",
-  "qwen3.5-omni-flash",
-];
+].concat(DATABAKER_OMNI_MODEL_OPTIONS);
+const DATABAKER_SINGLE_MODEL_OPTIONS = DATABAKER_OMNI_MODEL_OPTIONS.slice();
 const DATABAKER_COMPARE_MODEL_OPTIONS = [
   "qwen3.6-plus",
   "qwen3.5-plus",

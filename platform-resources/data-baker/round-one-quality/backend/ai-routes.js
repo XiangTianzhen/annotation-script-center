@@ -8,6 +8,7 @@ const { getAiDebug } = require("./ai-debug-store");
 const {
   LEGACY_OMNI_COMMIT,
   isOmniLegacyFastPathEnabled,
+  isQwenSmoothEnabled,
   recommendLegacyOmni,
   shouldUseLegacyOmniFastPath,
 } = require("./ai-legacy-omni-service");
@@ -110,6 +111,7 @@ function buildHealthPayload() {
   const payload = createHealthPayload();
   payload.dedupe = getInFlightDedupeHealth();
   payload.omniLegacyFastPath = isOmniLegacyFastPathEnabled();
+  payload.qwenSmoothEnabled = isQwenSmoothEnabled();
   payload.omniLegacyCommit = LEGACY_OMNI_COMMIT;
   payload.notes = Object.assign({}, payload.notes || {}, {
     defaultResultMode: "sync-recommend",
@@ -117,6 +119,7 @@ function buildHealthPayload() {
     requestStaggerMs: 30,
     inflightDedupe: "enabled-when-batchRunId-and-batchProcessKey-present",
     omniLegacyFastPath: isOmniLegacyFastPathEnabled(),
+    qwenSmoothEnabled: isQwenSmoothEnabled(),
     omniLegacyCommit: LEGACY_OMNI_COMMIT,
   });
   return payload;
@@ -367,9 +370,11 @@ function registerAiRoutes(router) {
   router.get(AI_DEFAULTS_PATH, function ({ response }) {
     const payload = createDefaultsPayload();
     payload.omniLegacyFastPath = isOmniLegacyFastPathEnabled();
+    payload.qwenSmoothEnabled = isQwenSmoothEnabled();
     payload.omniLegacyCommit = LEGACY_OMNI_COMMIT;
     payload.notes = Object.assign({}, payload.notes || {}, {
       omniLegacyFastPath: isOmniLegacyFastPathEnabled(),
+      qwenSmoothEnabled: isQwenSmoothEnabled(),
       omniLegacyCommit: LEGACY_OMNI_COMMIT,
     });
     sendJson(response, 200, payload);

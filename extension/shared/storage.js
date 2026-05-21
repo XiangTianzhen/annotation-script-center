@@ -220,14 +220,26 @@
           { value: "fun-asr", label: "fun-asr" },
           { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
           { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+          { value: "qwen3.5-omni-flash-2026-03-15", label: "qwen3.5-omni-flash-2026-03-15" },
+          { value: "qwen3-omni-flash", label: "qwen3-omni-flash" },
+          { value: "qwen3-omni-flash-2025-12-01", label: "qwen3-omni-flash-2025-12-01" },
+          { value: "qwen3-omni-flash-2025-09-15", label: "qwen3-omni-flash-2025-09-15" },
         ],
         DATABAKER_AI_SINGLE_MODEL_OPTIONS: [
           { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
           { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+          { value: "qwen3.5-omni-flash-2026-03-15", label: "qwen3.5-omni-flash-2026-03-15" },
+          { value: "qwen3-omni-flash", label: "qwen3-omni-flash" },
+          { value: "qwen3-omni-flash-2025-12-01", label: "qwen3-omni-flash-2025-12-01" },
+          { value: "qwen3-omni-flash-2025-09-15", label: "qwen3-omni-flash-2025-09-15" },
         ],
       DATABAKER_AI_OMNI_MODEL_OPTIONS: [
         { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
         { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+        { value: "qwen3.5-omni-flash-2026-03-15", label: "qwen3.5-omni-flash-2026-03-15" },
+        { value: "qwen3-omni-flash", label: "qwen3-omni-flash" },
+        { value: "qwen3-omni-flash-2025-12-01", label: "qwen3-omni-flash-2025-12-01" },
+        { value: "qwen3-omni-flash-2025-09-15", label: "qwen3-omni-flash-2025-09-15" },
       ],
       DATABAKER_AI_FUN_ASR_MODEL_OPTIONS: [{ value: "fun-asr", label: "fun-asr" }],
       DATABAKER_AI_COMPARE_MODEL_OPTIONS: [
@@ -1218,7 +1230,15 @@
     if (values.length > 0) {
       return values;
     }
-    return ["fun-asr", "qwen3.5-omni-plus", "qwen3.5-omni-flash"];
+    return [
+      "fun-asr",
+      "qwen3.5-omni-plus",
+      "qwen3.5-omni-flash",
+      "qwen3.5-omni-flash-2026-03-15",
+      "qwen3-omni-flash",
+      "qwen3-omni-flash-2025-12-01",
+      "qwen3-omni-flash-2025-09-15",
+    ];
   }
 
   function getDataBakerSingleModelOptions(constants) {
@@ -1232,7 +1252,14 @@
     if (values.length > 0) {
       return values;
     }
-    return ["qwen3.5-omni-plus", "qwen3.5-omni-flash"];
+    return [
+      "qwen3.5-omni-plus",
+      "qwen3.5-omni-flash",
+      "qwen3.5-omni-flash-2026-03-15",
+      "qwen3-omni-flash",
+      "qwen3-omni-flash-2025-12-01",
+      "qwen3-omni-flash-2025-09-15",
+    ];
   }
 
   function deriveDataBakerPipelineModeFromListenModel(listenModel) {
