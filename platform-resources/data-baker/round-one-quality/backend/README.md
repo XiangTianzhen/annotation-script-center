@@ -352,3 +352,11 @@ Fun-ASR `403` 的常见原因：
 - DataBaker 后端合并 `latest.csv` 时会把旧表头兼容迁移到新口径：`质检人 -> 质检人_P`，`有效时长` / `有效合格时长` -> `有效合格时长_S`。
 - 下一次上传或合并后，写出的 `latest.csv` 只保留新字段，不再同时输出旧字段重复列。
 - `文本编号` 仍是唯一键；CSV 继续使用 UTF-8 BOM 和标准 CSV 转义。
+
+## 批量 recommend 去重
+
+- DataBaker 批量连续填入仍走同步 `POST /api/data-baker/round-one-quality/ai/recommend`。
+- 当前页 N 条唯一合格项会发送 N 条请求；前端默认按 30ms 错峰发起，并继续由前端并发上限控制活跃请求数。
+- 批量请求会附带 `batchRunId`、`batchItemIndex`、`batchProcessKey`、`clientRequestId`。
+- 后端新增内存级 in-flight 去重：仅当 `batchRunId + batchProcessKey` 同时存在时启用，避免旧 content runtime 或重复点击导致同一题重复打上游模型。
+- health 返回 `dedupe.activeCount/joinedCount/completedCount/failedCount/maxSize/ttlMs`，排查重复请求时优先看悬浮窗的“唯一任务数/重复跳过”和 health 的 `dedupe.joinedCount`。

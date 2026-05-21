@@ -279,3 +279,9 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - `log.md`：长期修改日志与历史细节
 
 历史版本演进、旧方案与详细变更记录统一沉淀在 `log.md` 与 `docs/archive/`，根 README 不再堆叠历史长文。
+
+## DataBaker 批量请求诊断
+
+- 标贝易采一检质检“AI连续填入合格项”默认直接发送同步 recommend 请求，不默认走异步 jobs。
+- 每次批量运行会生成 `batchRunId`；前端会跳过同批次重复 `processKey`，并在悬浮窗展示唯一任务数、重复跳过数、已发起请求和 AI 已返回数。
+- 若怀疑重复请求，先看前端悬浮窗统计，再看后端 health 中的 `dedupe.joinedCount`。

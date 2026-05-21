@@ -549,17 +549,20 @@
       const phase = String(state.phase || "idle");
       panel.setAttribute("data-phase", phase);
 
+      const shortBatchRunId = String(state.batchRunId || "").trim();
+      const batchRunIdText = shortBatchRunId ? shortBatchRunId.slice(-8) : "-";
+      const duplicateSkippedCount = Number(state.duplicateSkippedCount) || 0;
       const rows = [
         createFloatingRow("阶段", phaseToText(phase)),
+        createFloatingRow("批次ID", batchRunIdText),
         createFloatingRow("总合格数", Number(state.totalCount) || 0),
+        createFloatingRow("唯一任务数", Number(state.uniqueTaskCount) || 0),
+        createFloatingRow("重复跳过", duplicateSkippedCount),
+        createFloatingRow("发送间隔(ms)", Number(state.requestStaggerMs) || 0),
         createFloatingRow("前端并发", Number(state.frontConcurrency) || 0),
         createFloatingRow("已发起AI请求", Number(state.launchedCount) || 0),
         createFloatingRow("前端活跃AI请求", Number(state.activeAiCount) || 0),
         createFloatingRow("AI已返回", Number(state.completedAiCount) || 0),
-        createFloatingRow("后端任务已提交", Number(state.jobSubmittedCount) || 0),
-        createFloatingRow("后端任务运行中", Number(state.jobRunningCount) || 0),
-        createFloatingRow("后端任务成功", Number(state.jobSuccessCount) || 0),
-        createFloatingRow("后端任务失败", Number(state.jobFailCount) || 0),
         createFloatingRow("AI成功", Number(state.analysisSuccessCount) || 0),
         createFloatingRow("AI失败", Number(state.analysisFailCount) || 0),
         createFloatingRow("待填队列", Number(state.queueCount) || 0),
@@ -573,8 +576,9 @@
         batchFloatingGrid.appendChild(row.labelNode);
         batchFloatingGrid.appendChild(row.valueNode);
       });
+      const duplicateHint = duplicateSkippedCount > 0 ? " | 已跳过重复任务 " + String(duplicateSkippedCount) + " 条。" : "";
       batchFloatingCurrentNode.textContent =
-        "当前处理：" + String(state.currentDisplayName || "-");
+        "当前处理：" + String(state.currentDisplayName || "-") + duplicateHint;
 
       renderBatchFailures(state.failures);
       if (batchFloatingRetryButton && batchAutofillRunning) {

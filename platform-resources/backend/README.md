@@ -420,3 +420,9 @@ DataBaker AI 架构补充：
 - LabelX 与 DataBaker 的 CSV 写出统一改为新口径字段，不再输出旧字段重复列。
 - LabelX 旧字段 `有效时长` / `有效时长(秒)` 与旧人员列会在合并阶段迁移到 `_S` / `_P` 字段。
 - DataBaker 旧字段 `质检人`、`有效时长`、`有效合格时长` 会在 `latest.csv` 合并阶段迁移到 `质检人_P` 与 `有效合格时长_S`。
+
+## DataBaker 批量 recommend 去重
+
+- DataBaker round-one-quality 的批量 AI 连续填入默认走同步 recommend，不默认使用异步 jobs。
+- 前端每次批量启动会生成 `batchRunId`，并在单题请求中附带 `clientRequestId` / `batchProcessKey`。
+- 后端会对同一 `batchRunId + batchProcessKey` 的进行中请求做 in-flight 合并，避免重复打上游模型。

@@ -1,6 +1,9 @@
 "use strict";
 
+const crypto = require("crypto");
+
 const { sendJson } = require("../../../backend/response");
+const { getInFlightDedupeHealth, runWithInFlightDedupe } = require("./ai-inflight-dedupe");
 const {
   createDefaultsPayload,
   createHealthPayload,
@@ -25,6 +28,12 @@ const AI_JOB_DETAIL_PATH = AI_JOBS_PATH + "/:jobId";
 const AI_JOB_DEBUG_PATH = AI_JOB_DETAIL_PATH + "/debug";
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 
+function createRequestId() {
+  return typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : crypto.randomBytes(16).toString("hex");
+}
+
 function readRequestBody(request) {
   return new Promise(function (resolve, reject) {
     let body = "";
@@ -45,6 +54,21 @@ function readRequestBody(request) {
   });
 }
 
+function createHttpError(statusCode, message, code) {
+  const error = new Error(String(message || "请求失败。"));
+  error.statusCode = Number(statusCode) || 500;
+  error.code = String(code || "request-failed");
+  return error;
+}
+
+function normalizeNullableInteger(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+  return number;
+}
+
 function buildErrorResponseBody(error, fallbackMessage) {
   const responseBody = {
     success: false,
@@ -54,9 +78,7 @@ function buildErrorResponseBody(error, fallbackMessage) {
   };
   if (Number(error?.providerStatus) > 0) {
     responseBody.providerStatus = Number(error.providerStatus);
-  } else if (error?.code === "provider-rate-limited") {
-    responseBody.providerStatus = 429;
-  } else if (error?.code === "provider-http-error" && Number(error?.statusCode) > 0) {
+  } else if (Number(error?.statusCode) > 0) {
     responseBody.providerStatus = Number(error.statusCode);
   }
   if (error?.debugRawJson && typeof error.debugRawJson === "object") {
@@ -66,139 +88,181 @@ function buildErrorResponseBody(error, fallbackMessage) {
   return responseBody;
 }
 
+function buildHealthPayload() {
+  const payload = createHealthPayload();
+  payload.dedupe = getInFlightDedupeHealth();
+  payload.notes = Object.assign({}, payload.notes || {}, {
+    defaultResultMode: "sync-recommend",
+    asyncJobsDefaultEnabled: false,
+    requestStaggerMs: 30,
+    inflightDedupe: "enabled-when-batchRunId-and-batchProcessKey-present",
+  });
+  return payload;
+}
+
+function buildJobStatusBody(jobLike) {
+  const job = jobLike && typeof jobLike === "object" ? jobLike : {};
+  return {
+    success: true,
+    jobId: String(job.jobId || ""),
+    requestId: String(job.requestId || ""),
+    status: String(job.status || "pending"),
+    createdAt: normalizeNullableInteger(job.createdAt),
+    updatedAt: normalizeNullableInteger(job.updatedAt),
+    startedAt: normalizeNullableInteger(job.startedAt),
+    finishedAt: normalizeNullableInteger(job.finishedAt),
+    itemId: String(job.itemId || ""),
+    textId: String(job.textId || ""),
+    sentenceNumber: normalizeNullableInteger(job.sentenceNumber),
+    hasDebugRawJson: job.hasDebugRawJson === true,
+    providerStatus: normalizeNullableInteger(job.providerStatus),
+    runtime: job.runtime && typeof job.runtime === "object" ? job.runtime : null,
+    data: job.status === "succeeded" ? job.result || null : null,
+    error:
+      job.status === "failed"
+        ? {
+            code: String(job.errorCode || ""),
+            message: String(job.errorMessage || "任务执行失败。"),
+            providerStatus: normalizeNullableInteger(job.providerStatus),
+          }
+        : null,
+  };
+}
+
+async function executeRecommendWithOptionalDedupe(requestBody, normalizedRequest, requestId, runtimeOptions) {
+  const source = normalizedRequest && typeof normalizedRequest === "object"
+    ? normalizedRequest
+    : normalizeRecommendRequest(requestBody || {});
+  return runWithInFlightDedupe(
+    {
+      batchRunId: source.batchRunId,
+      batchProcessKey: source.batchProcessKey,
+      recognitionMode: source.recognitionMode || source.pipelineMode,
+      listenModel: source.listenModel || source.aiOptions?.listenModel,
+      compareModel: source.compareModel || source.aiOptions?.compareModel,
+      singleModel: source.singleModel || source.aiOptions?.singleModel,
+    },
+    function () {
+      return recommend(requestBody || {}, requestId, runtimeOptions || {});
+    },
+    function (dedupeInfo) {
+      console.info("[DataBaker][ai][dedupe] join inflight", {
+        requestId,
+        batchRunId: String(source.batchRunId || ""),
+        batchProcessKey: String(source.batchProcessKey || ""),
+        dedupeKeyShort: String(dedupeInfo?.keyShort || ""),
+      });
+    }
+  );
+}
+
 async function handleRecommend(request, response) {
+  let requestId = createRequestId();
+  let normalizedRequest = null;
   try {
     const rawBody = await readRequestBody(request);
     let body = {};
     try {
       body = JSON.parse(rawBody || "{}");
     } catch (error) {
-      const invalidJsonError = new Error("请求体 JSON 解析失败。");
-      invalidJsonError.statusCode = 400;
-      invalidJsonError.code = "invalid-json";
-      throw invalidJsonError;
+      throw createHttpError(400, "请求体 JSON 解析失败。", "invalid-json");
     }
-    const responseData = await recommend(body, body.requestId);
+
+    requestId = String(body.requestId || requestId);
+    normalizedRequest = normalizeRecommendRequest(body);
+
+    console.info("[DataBaker][round-one-quality][ai] recommend start", {
+      requestId,
+      itemId: String(normalizedRequest.itemId || ""),
+      textId: String(normalizedRequest.textId || ""),
+      sentenceNumber: normalizeNullableInteger(normalizedRequest.sentenceNumber),
+      recognitionMode: String(normalizedRequest.recognitionMode || ""),
+      pipelineMode: String(normalizedRequest.pipelineMode || ""),
+      batchRunId: String(normalizedRequest.batchRunId || ""),
+      batchItemIndex: normalizeNullableInteger(normalizedRequest.batchItemIndex),
+      batchProcessKey: String(normalizedRequest.batchProcessKey || ""),
+      clientRequestId: String(normalizedRequest.clientRequestId || ""),
+    });
+
+    const dedupeResult = await executeRecommendWithOptionalDedupe(body, normalizedRequest, requestId, {});
+    const result = dedupeResult?.value || dedupeResult;
     sendJson(response, 200, {
       success: true,
-      data: responseData,
+      requestId,
+      data: result,
+      dedupe: {
+        enabled: dedupeResult?.dedupeEnabled === true,
+        joined: dedupeResult?.joined === true,
+        joinedInflight: dedupeResult?.joinedInflight === true,
+        keyShort: String(dedupeResult?.dedupeKeyShort || ""),
+      },
     });
   } catch (error) {
-    const statusCode = Number(error?.statusCode) || (error?.code === "timeout" ? 504 : 500);
+    const statusCode = Math.max(400, Number(error?.statusCode) || 500);
+    error.requestId = String(error?.requestId || requestId || "");
     sendJson(response, statusCode, buildErrorResponseBody(error, "DataBaker AI recommend 请求失败。"));
   }
 }
 
-function buildJobStatusBody(job) {
-  const source = job && typeof job === "object" ? job : {};
-  const base = {
-    jobId: String(source.jobId || ""),
-    status: String(source.status || "pending"),
-    requestId: String(source.requestId || ""),
-    itemId: String(source.itemId || ""),
-    textId: String(source.textId || ""),
-    sentenceNumber: Number(source.sentenceNumber) || 0,
-    updatedAt: Number(source.updatedAt) || 0,
-  };
-  if (base.status === "succeeded") {
-    return {
-      success: true,
-      jobId: base.jobId,
-      status: "succeeded",
-      data: source.result || null,
-    };
-  }
-  if (base.status === "failed") {
-    return {
-      success: false,
-      jobId: base.jobId,
-      status: "failed",
-      code: String(source.errorCode || ""),
-      message: String(source.errorMessage || "DataBaker AI recommend 失败。").slice(0, 240),
-      providerStatus: Number(source.providerStatus) > 0 ? Number(source.providerStatus) : undefined,
-      hasDebugRawJson: source.hasDebugRawJson === true,
-    };
-  }
-  return Object.assign({ success: true }, base);
-}
-
-function startRecommendJob(jobId, body, requestId) {
-  Promise.resolve()
-    .then(function () {
-      const runningOutcome = markAiRecommendJobRunning(jobId);
-      if (runningOutcome.ignored || runningOutcome.job?.status === "failed") {
-        return null;
-      }
-      return recommend(body, requestId, {
+async function runRecommendJob(jobId, requestBody, requestId) {
+  let normalizedRequest = null;
+  try {
+    normalizedRequest = normalizeRecommendRequest(requestBody || {});
+    markAiRecommendJobRunning(jobId);
+    const signal = getAiRecommendJobSignal(jobId);
+    const dedupeResult = await executeRecommendWithOptionalDedupe(
+      requestBody || {},
+      normalizedRequest,
+      requestId,
+      {
+        signal,
         jobId,
-        signal: getAiRecommendJobSignal(jobId),
-        createdAt: runningOutcome.job?.createdAt || new Date().toISOString(),
-      });
-    })
-    .then(function (responseData) {
-      if (!responseData) {
-        return;
+        createdAt: new Date().toISOString(),
       }
-      const outcome = markAiRecommendJobSucceeded(jobId, {
-        result: responseData,
-        runtime: responseData?.runtime || null,
-      });
-      if (outcome.ignored) {
-        console.info("[DataBaker][ai-job] ignored late result", {
-          jobId,
-          requestId,
-          ignoredLateResult: true,
-        });
-      }
-    })
-    .catch(function (error) {
-      const outcome = markAiRecommendJobFailed(jobId, {
-        code: String(error?.code || ""),
-        message: String(error?.safeMessage || error?.message || "DataBaker AI recommend 失败。").slice(0, 240),
-        providerStatus: Number(error?.providerStatus) || Number(error?.statusCode) || 0,
-        runtime: error?.runtime || null,
-        debugRawJson: error?.debugRawJson || null,
-      });
-      if (outcome.ignored) {
-        console.info("[DataBaker][ai-job] ignored late error", {
-          jobId,
-          requestId,
-          code: String(error?.code || ""),
-          ignoredLateResult: true,
-        });
-      }
+    );
+    const result = dedupeResult?.value || dedupeResult;
+    markAiRecommendJobSucceeded(jobId, {
+      result,
+      providerStatus: normalizeNullableInteger(result?.providerStatus) || 200,
+      runtime: result?.runtime || null,
     });
+  } catch (error) {
+    markAiRecommendJobFailed(jobId, {
+      code: String(error?.code || "ai-recommend-job-failed"),
+      message: String(error?.safeMessage || error?.message || "DataBaker AI recommend 失败。"),
+      providerStatus: normalizeNullableInteger(error?.providerStatus || error?.statusCode),
+      runtime: error?.runtime || null,
+      debugRawJson: error?.debugRawJson || null,
+    });
+  }
 }
 
 async function handleCreateRecommendJob(request, response) {
+  let requestId = createRequestId();
   try {
     const rawBody = await readRequestBody(request);
     let body = {};
     try {
       body = JSON.parse(rawBody || "{}");
     } catch (error) {
-      const invalidJsonError = new Error("请求体 JSON 解析失败。");
-      invalidJsonError.statusCode = 400;
-      invalidJsonError.code = "invalid-json";
-      throw invalidJsonError;
+      throw createHttpError(400, "请求体 JSON 解析失败。", "invalid-json");
     }
+    requestId = String(body.requestId || requestId);
     const normalizedRequest = normalizeRecommendRequest(body);
-    const requestId = String(body.requestId || "").trim() || "job-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
     const job = createAiRecommendJob({
       requestId,
       itemId: normalizedRequest.itemId,
       textId: normalizedRequest.textId,
       sentenceNumber: normalizedRequest.sentenceNumber,
     });
-    sendJson(response, 200, {
-      success: true,
-      jobId: job.jobId,
-      requestId,
-      status: "pending",
+    sendJson(response, 202, buildJobStatusBody(job));
+    Promise.resolve().then(function () {
+      return runRecommendJob(job.jobId, body, requestId);
     });
-    startRecommendJob(job.jobId, body, requestId);
   } catch (error) {
-    sendJson(response, Number(error?.statusCode) || 500, buildErrorResponseBody(error, "创建 DataBaker AI recommend job 失败。"));
+    const statusCode = Math.max(400, Number(error?.statusCode) || 500);
+    error.requestId = String(error?.requestId || requestId || "");
+    sendJson(response, statusCode, buildErrorResponseBody(error, "创建 AI recommend 异步任务失败。"));
   }
 }
 
@@ -207,7 +271,8 @@ function handleGetRecommendJobStatus(_request, response, jobId) {
     const job = getAiRecommendJob(jobId);
     sendJson(response, 200, buildJobStatusBody(job));
   } catch (error) {
-    sendJson(response, Number(error?.statusCode) || 500, buildErrorResponseBody(error, "查询 DataBaker AI recommend job 失败。"));
+    const statusCode = Math.max(400, Number(error?.statusCode) || 500);
+    sendJson(response, statusCode, buildErrorResponseBody(error, "查询 AI recommend 任务状态失败。"));
   }
 }
 
@@ -220,13 +285,14 @@ function handleGetRecommendJobDebug(_request, response, jobId) {
       debug,
     });
   } catch (error) {
-    sendJson(response, Number(error?.statusCode) || 500, buildErrorResponseBody(error, "查询 DataBaker AI recommend job debug 失败。"));
+    const statusCode = Math.max(400, Number(error?.statusCode) || 500);
+    sendJson(response, statusCode, buildErrorResponseBody(error, "查询 AI recommend 调试信息失败。"));
   }
 }
 
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
-    sendJson(response, 200, createHealthPayload());
+    sendJson(response, 200, buildHealthPayload());
   });
   router.get(AI_DEFAULTS_PATH, function ({ response }) {
     sendJson(response, 200, createDefaultsPayload());
@@ -252,6 +318,7 @@ module.exports = {
   AI_JOBS_PATH,
   AI_JOB_DEBUG_PATH,
   AI_JOB_DETAIL_PATH,
+  buildHealthPayload,
   buildJobStatusBody,
   handleCreateRecommendJob,
   handleGetRecommendJobDebug,

@@ -1987,3 +1987,10 @@
 - 现已改为基于 `plannedSendCount / totalCount` 构建摘要，不再跨作用域引用 `tasks`。
 - 额外补充：`createItemsFromQualifiedRecords(...)` 生成空任务时会给出明确提示，不再继续进入空批量流程。
 - 扩展重载后需刷新 DataBaker 页面，否则旧 content script 仍可能保留。
+
+## 2026-05-21 - fix(data-baker): add batch request dedupe tracing
+
+- 修复 DataBaker 批量连续填入缺少批次追踪的问题：每次批量运行生成 `batchRunId`，每条请求附带 `batchItemIndex`、`batchProcessKey`、`clientRequestId`。
+- 前端同批次先按 `processKey` 去重，重复任务不再发送；悬浮窗增加唯一任务数、重复跳过数、批次ID、已发起请求和活跃请求统计。
+- 页面级全局锁防止旧 content script、多 runtime 或双击按钮重复启动第二批。
+- 后端新增内存级 in-flight dedupe：同一 `batchRunId + batchProcessKey` 的请求会 join 同一 promise，避免重复打上游模型。

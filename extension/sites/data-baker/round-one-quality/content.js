@@ -21,6 +21,10 @@
   const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const DATABAKER_AI_RECOMMEND_PATH =
     CONSTANTS.DATABAKER_AI_RECOMMEND_PATH || "/api/data-baker/round-one-quality/ai/recommend";
+  const BATCH_LOCK_KEY = "__ASC_DATABAKER_ROUND_ONE_BATCH_LOCK__";
+  const BATCH_LOCK_STALE_MS = 5 * 60 * 1000;
+  const BATCH_LOCK_HEARTBEAT_MS = 2000;
+  const BATCH_TOGGLE_DEBOUNCE_MS = 500;
   const DATABAKER_LISTEN_MODEL_OPTIONS = Array.isArray(CONSTANTS.DATABAKER_AI_LISTEN_MODEL_OPTIONS)
     ? CONSTANTS.DATABAKER_AI_LISTEN_MODEL_OPTIONS
         .map(function (item) {
@@ -430,12 +434,17 @@
       aiOptions: config.aiOptions || {},
     });
     const processedQualifiedItemIds = new Set();
+    const batchLockOwnerId =
+      "data-baker-runtime-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
     let batchQualifiedAutofillRunning = false;
     let batchQualifiedAutofillCancelRequested = false;
     let batchAutofillPhase = "idle";
     let currentBatchFailures = [];
     let currentRetryableFillFailures = [];
     let lastBatchSummary = null;
+    let batchLockHeartbeatTimer = null;
+    let activeBatchRunId = "";
+    let lastBatchToggleAt = 0;
 
     function getRecordProcessKey(record) {
       const id = String(record?.id || "").trim();
@@ -451,6 +460,175 @@
         return "index:" + String(index);
       }
       return "";
+    }
+
+    function createBatchRunId() {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mi = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      const suffix = Math.random().toString(36).slice(2, 8);
+      return "data-baker-batch-" + yyyy + mm + dd + "-" + hh + mi + ss + "-" + suffix;
+    }
+
+    function createClientRequestId(batchRunId, batchItemIndex) {
+      return (
+        String(batchRunId || "data-baker-batch") +
+        "-" +
+        String(batchItemIndex || 0) +
+        "-" +
+        Math.random().toString(36).slice(2, 7)
+      );
+    }
+
+    function readPageBatchLock() {
+      const lock = window[BATCH_LOCK_KEY];
+      return lock && typeof lock === "object" ? lock : null;
+    }
+
+    function clearPageBatchLockHeartbeat() {
+      if (batchLockHeartbeatTimer) {
+        window.clearInterval(batchLockHeartbeatTimer);
+        batchLockHeartbeatTimer = null;
+      }
+    }
+
+    function writePageBatchLock(lock) {
+      if (lock && typeof lock === "object") {
+        window[BATCH_LOCK_KEY] = Object.assign({}, lock);
+        return;
+      }
+      try {
+        delete window[BATCH_LOCK_KEY];
+      } catch (error) {
+        window[BATCH_LOCK_KEY] = null;
+      }
+    }
+
+    function refreshPageBatchLockHeartbeat(batchRunId) {
+      const existing = readPageBatchLock();
+      if (!existing || existing.ownerId !== batchLockOwnerId) {
+        return;
+      }
+      if (batchRunId && String(existing.batchRunId || "") !== String(batchRunId || "")) {
+        return;
+      }
+      writePageBatchLock({
+        ownerId: batchLockOwnerId,
+        batchRunId: String(existing.batchRunId || batchRunId || ""),
+        startedAt: Number(existing.startedAt) || Date.now(),
+        lastHeartbeatAt: Date.now(),
+      });
+    }
+
+    function tryAcquirePageBatchLock(batchRunId) {
+      const now = Date.now();
+      const existing = readPageBatchLock();
+      const existingHeartbeatAt = Math.max(
+        0,
+        Number(existing?.lastHeartbeatAt) || Number(existing?.startedAt) || 0
+      );
+      const isFresh =
+        existing && existingHeartbeatAt > 0 && now - existingHeartbeatAt < BATCH_LOCK_STALE_MS;
+      if (existing && existing.ownerId !== batchLockOwnerId && isFresh) {
+        return {
+          ok: false,
+          message: "当前页面已有 AI连续填入任务运行，请先停止或刷新页面后重试。",
+        };
+      }
+      if (existing && existing.ownerId !== batchLockOwnerId && !isFresh) {
+        console.warn("[DataBaker][batch] stale page lock overwritten", {
+          previousOwnerId: String(existing.ownerId || ""),
+          previousBatchRunId: String(existing.batchRunId || ""),
+          lastHeartbeatAt: existingHeartbeatAt,
+        });
+      }
+      activeBatchRunId = String(batchRunId || "");
+      writePageBatchLock({
+        ownerId: batchLockOwnerId,
+        batchRunId: activeBatchRunId,
+        startedAt: now,
+        lastHeartbeatAt: now,
+      });
+      clearPageBatchLockHeartbeat();
+      batchLockHeartbeatTimer = window.setInterval(function () {
+        refreshPageBatchLockHeartbeat(activeBatchRunId);
+      }, BATCH_LOCK_HEARTBEAT_MS);
+      return { ok: true };
+    }
+
+    function releasePageBatchLock(batchRunId) {
+      clearPageBatchLockHeartbeat();
+      const existing = readPageBatchLock();
+      if (!existing) {
+        if (!batchRunId || String(batchRunId) === String(activeBatchRunId || "")) {
+          activeBatchRunId = "";
+        }
+        return;
+      }
+      const matchesOwner = existing.ownerId === batchLockOwnerId;
+      const matchesBatch = !batchRunId || String(existing.batchRunId || "") === String(batchRunId || "");
+      if (matchesOwner && matchesBatch) {
+        writePageBatchLock(null);
+      }
+      if (!batchRunId || String(batchRunId || "") === String(activeBatchRunId || "")) {
+        activeBatchRunId = "";
+      }
+    }
+
+    function dedupeBatchTasks(tasks, batchRunId) {
+      const source = Array.isArray(tasks) ? tasks : [];
+      const seen = new Set();
+      const uniqueTasks = [];
+      let duplicateSkippedCount = 0;
+      source.forEach(function (task, index) {
+        const processKey = String(task?.processKey || getRecordProcessKey(task?.record) || "").trim();
+        const normalizedProcessKey = processKey || "fallback-index:" + String(index);
+        if (seen.has(normalizedProcessKey)) {
+          duplicateSkippedCount += 1;
+          console.warn("[DataBaker][batch] duplicate task skipped", {
+            batchRunId: String(batchRunId || ""),
+            processKey: normalizedProcessKey,
+            displayName: String(task?.displayName || ""),
+          });
+          return;
+        }
+        seen.add(normalizedProcessKey);
+        uniqueTasks.push(
+          Object.assign({}, task || {}, {
+            processKey: normalizedProcessKey,
+          })
+        );
+      });
+      return {
+        uniqueTasks,
+        duplicateSkippedCount,
+      };
+    }
+
+    function attachBatchRequestMeta(tasks, batchRunId) {
+      const source = Array.isArray(tasks) ? tasks : [];
+      return source.map(function (task, index) {
+        const batchItemIndex = index + 1;
+        const batchProcessKey = String(task?.processKey || getRecordProcessKey(task?.record) || "").trim();
+        const clientRequestId = createClientRequestId(batchRunId, batchItemIndex);
+        const item = Object.assign({}, task?.item || {}, {
+          batchRunId: String(batchRunId || ""),
+          batchItemIndex,
+          batchProcessKey,
+          clientRequestId,
+        });
+        return Object.assign({}, task || {}, {
+          batchRunId: String(batchRunId || ""),
+          batchItemIndex,
+          batchProcessKey,
+          clientRequestId,
+          item,
+        });
+      });
     }
 
     function waitBetweenBatchItems() {
@@ -638,16 +816,20 @@
       };
     }
 
-    async function runConcurrentAiAndSequentialFill(tasks, concurrency) {
+    async function runConcurrentAiAndSequentialFill(tasks, concurrency, batchContext) {
       const sourceTasks = Array.isArray(tasks) ? tasks : [];
-      const totalCount = sourceTasks.length;
+      const context = batchContext && typeof batchContext === "object" ? batchContext : {};
+      const totalCount = Math.max(0, Number(context.totalCount) || sourceTasks.length);
+      const uniqueTaskCount = Math.max(0, Number(context.uniqueTaskCount) || sourceTasks.length);
+      const duplicateSkippedCount = Math.max(0, Number(context.duplicateSkippedCount) || 0);
+      const batchRunId = String(
+        context.batchRunId || sourceTasks[0]?.batchRunId || sourceTasks[0]?.item?.batchRunId || ""
+      ).trim();
       const maxConcurrency = Math.max(1, Math.min(50, Number(concurrency) || 20));
-      const requestStaggerMs = Math.max(
-        0,
-        Math.min(1000, Number(config.aiRequestStaggerMs) || DEFAULT_AI_REQUEST_STAGGER_MS)
-      );
-      const plannedSendCount = totalCount;
+      const requestStaggerMs = DEFAULT_AI_REQUEST_STAGGER_MS;
+      const plannedSendCount = uniqueTaskCount;
       const completedQueue = [];
+      const queuedResultIds = new Set();
       let nextLaunchIndex = 0;
       let launchedCount = 0;
       let activeAiCount = 0;
@@ -700,10 +882,13 @@
           phase: batchAutofillPhase,
           running: true,
           stopping: batchQualifiedAutofillCancelRequested === true,
+          batchRunId,
           totalCount,
+          uniqueTaskCount,
+          duplicateSkippedCount,
           plannedSendCount,
-          frontConcurrency: maxConcurrency,
           requestStaggerMs,
+          frontConcurrency: maxConcurrency,
           launchedCount,
           activeAiCount,
           completedAiCount,
@@ -730,10 +915,17 @@
           }
           return;
         }
-        if (nextLaunchIndex >= totalCount) {
+        if (nextLaunchIndex >= sourceTasks.length) {
           if (activeAiCount <= 0) {
             setProducersDone();
           }
+          return;
+        }
+        if (activeAiCount >= maxConcurrency) {
+          launchTimer = window.setTimeout(function () {
+            launchTimer = null;
+            scheduleLaunchTick();
+          }, requestStaggerMs);
           return;
         }
         launchTimer = window.setTimeout(function () {
@@ -753,24 +945,25 @@
           nextLaunchIndex += 1;
           launchedCount += 1;
           activeAiCount += 1;
-          if (typeof console !== "undefined" && typeof console.info === "function") {
-            console.info("[DataBaker][batch] launch ai request", {
-              index,
-              displayName: String(task?.displayName || ""),
-              activeAiCount,
-              frontConcurrency: maxConcurrency,
-              plannedSendCount,
-              requestStaggerMs,
-              listenModel: String(config.listenModel || ""),
-              compareModel: String(config.compareModel || ""),
-              recognitionMode: String(config.recognitionMode || ""),
-              asyncJobMode: false,
-            });
-          }
+          const batchItemIndex = Number(task?.batchItemIndex) || index + 1;
+          const batchProcessKey = String(task?.batchProcessKey || task?.processKey || "");
+          const clientRequestId = String(task?.clientRequestId || task?.item?.clientRequestId || "");
+          console.info("[DataBaker][batch] launch ai request", {
+            batchRunId,
+            batchItemIndex,
+            batchProcessKey,
+            clientRequestId,
+            displayName: String(task?.displayName || ""),
+            launchedCount,
+            activeAiCount,
+            frontConcurrency: maxConcurrency,
+            requestStaggerMs,
+          });
           updateProgressStatus("");
-          if (nextLaunchIndex < totalCount) {
+          if (nextLaunchIndex < sourceTasks.length) {
             scheduleLaunchTick();
           }
+
           Promise.resolve()
             .then(function () {
               return ai.recommend(task.item);
@@ -787,9 +980,14 @@
                 item: task.item,
                 recommendation: recommendation,
                 processKey: task.processKey,
+                batchRunId,
+                batchItemIndex,
+                batchProcessKey,
+                clientRequestId,
                 displayName: task.displayName,
                 completedAt: Date.now(),
               });
+              queuedResultIds.add(String(task.processKey || "index:" + String(index)));
             })
             .catch(function (error) {
               analysisFailCount += 1;
@@ -802,25 +1000,27 @@
                 record: task.record,
                 item: task.item,
                 processKey: task.processKey,
+                batchRunId,
+                batchItemIndex,
+                batchProcessKey,
+                clientRequestId,
                 displayName: task.displayName,
                 errorMessage: error?.message || String(error),
                 errorCode: String(error?.code || ""),
-                jobId: String(error?.jobId || ""),
-                hasDebugRawJson: error?.hasDebugRawJson === true,
-                debugRawJson: error?.debugRawJson || null,
                 completedAt: Date.now(),
               });
+              queuedResultIds.add(String(task.processKey || "index:" + String(index)));
             })
             .finally(function () {
               activeAiCount -= 1;
               completedAiCount += 1;
               updateProgressStatus("");
               notifySignal();
-              if (!batchQualifiedAutofillCancelRequested && nextLaunchIndex < totalCount) {
+              if (!batchQualifiedAutofillCancelRequested && nextLaunchIndex < sourceTasks.length) {
                 scheduleLaunchTick();
               }
               if (
-                (batchQualifiedAutofillCancelRequested === true || nextLaunchIndex >= totalCount) &&
+                (batchQualifiedAutofillCancelRequested === true || nextLaunchIndex >= sourceTasks.length) &&
                 activeAiCount <= 0
               ) {
                 setProducersDone();
@@ -829,7 +1029,7 @@
         }, requestStaggerMs);
       }
 
-      if (totalCount <= 0) {
+      if (sourceTasks.length <= 0) {
         setProducersDone();
       } else {
         scheduleLaunchTick();
@@ -854,24 +1054,23 @@
             continue;
           }
 
-          batchAutofillPhase = "fill";
-          updateProgressStatus("");
           const result = completedQueue.shift();
-          if (!result) {
-            continue;
+          if (result) {
+            queuedResultIds.delete(String(result.processKey || "index:" + String(result.index || 0)));
           }
 
-          if (!result.ok) {
-            fillFailCount += 1;
+          if (batchQualifiedAutofillCancelRequested === true) {
+            break;
+          }
+
+          batchAutofillPhase = "fill";
+          setBatchButtonState(true, batchQualifiedAutofillCancelRequested === true);
+          if (!result?.ok) {
             pushBatchFailure({
-              type: "analysis_failed",
+              type: "ai_failed",
               retryable: false,
-              displayName: result.displayName,
-              errorMessage: result.errorMessage,
-              errorCode: result.errorCode,
-              jobId: String(result?.jobId || ""),
-              hasDebugRawJson: result?.hasDebugRawJson === true,
-              debugRawJson: result?.debugRawJson || null,
+              displayName: String(result?.displayName || "未命名条目"),
+              errorMessage: String(result?.errorMessage || "AI 推荐失败"),
               result: null,
             });
           } else {
@@ -918,9 +1117,13 @@
       clearLaunchTimer();
 
       return {
+        batchRunId,
         totalCount,
+        uniqueTaskCount,
+        duplicateSkippedCount,
         plannedSendCount,
         requestStaggerMs,
+        frontConcurrency: maxConcurrency,
         launchedCount,
         activeAiCount,
         completedAiCount,
@@ -931,23 +1134,15 @@
         fillFailCount,
         fillSkipCount,
         bufferedCount: completedQueue.length,
+        queuedResultCount: queuedResultIds.size,
         failures: currentBatchFailures.slice(),
         retryableFailuresCount: currentRetryableFillFailures.length,
         stopped: batchQualifiedAutofillCancelRequested === true,
       };
     }
 
-    async function loadFailureDebugJson(failure) {
-      const source = failure && typeof failure === "object" ? failure : {};
-      if (source.debugRawJson && typeof source.debugRawJson === "object") {
-        return source.debugRawJson;
-      }
-      if (!source.hasDebugRawJson || !source.jobId || typeof ai.getRecommendJobDebug !== "function") {
-        throw new Error("当前失败项没有可复制的原始 JSON。")
-      }
-      return ai.getRecommendJobDebug(source.jobId);
-    }
     async function retryFailedFillResults() {
+
       if (batchQualifiedAutofillRunning) {
         ui.setStatus("连续填入运行中，请先停止或等待完成后再重试失败项。", "info");
         return { ok: false, message: "batch-running" };
@@ -1036,12 +1231,28 @@
     }
 
     async function autoFillQualifiedItemsBatch() {
+      ui.ensureMounted();
       if (config.aiRecommendEnabled === false) {
         ui.setStatus("AI 推荐已在 DataBaker 设置中关闭。", "error");
         return { ok: false, message: "ai-disabled" };
       }
       if (batchQualifiedAutofillRunning) {
         return stopBatchQualifiedAutofill();
+      }
+      const now = Date.now();
+      if (now - lastBatchToggleAt < BATCH_TOGGLE_DEBOUNCE_MS) {
+        console.warn("[DataBaker][batch] duplicate start click ignored", {
+          withinMs: now - lastBatchToggleAt,
+        });
+        return { ok: false, message: "start-debounced" };
+      }
+      lastBatchToggleAt = now;
+
+      let batchRunId = createBatchRunId();
+      const lockOutcome = tryAcquirePageBatchLock(batchRunId);
+      if (!lockOutcome.ok) {
+        ui.setStatus(lockOutcome.message, "error");
+        return { ok: false, message: "batch-locked" };
       }
 
       batchAutofillPhase = "analysis";
@@ -1053,19 +1264,14 @@
       setBatchButtonState(true, false);
 
       try {
-        ui.ensureMounted();
         ui.showBatchFloatingPanel?.();
-        ui.setStatus(
-          String(config.recognitionMode || "").trim() === "two_stage" &&
-            String(config.listenModel || "").trim() === "fun-asr"
-            ? "连续填入运行中。当前页合格项会直接发起 recommend 请求，统一后端仍会做 AI 排队与限流保护，详情见顶部统计悬浮窗。"
-            : "连续填入运行中，统一后端可能正在 AI 排队或限流重试，详情见顶部统计悬浮窗。",
-          "info"
-        );
+        ui.setStatus("连续填入运行中，详情见顶部统计悬浮窗。", "info");
         updateFloatingProgress({
           phase: "fetching",
           running: true,
           stopping: false,
+          batchRunId,
+          requestStaggerMs: DEFAULT_AI_REQUEST_STAGGER_MS,
         });
         const refreshed = await dataApi.refreshCurrentPageData({
           pageSize: 50,
@@ -1084,6 +1290,7 @@
           finishFloatingProgress({
             phase: "stopped",
             running: false,
+            batchRunId,
             failures: currentBatchFailures.slice(),
             retryableFailuresCount: 0,
           });
@@ -1102,56 +1309,77 @@
           finishFloatingProgress({
             phase: "completed",
             running: false,
+            batchRunId,
             totalCount: 0,
+            uniqueTaskCount: 0,
+            duplicateSkippedCount: 0,
+            plannedSendCount: 0,
             failures: [],
             retryableFailuresCount: 0,
           });
           return { ok: true, message: "no-qualified" };
         }
 
-        const tasks = dataApi.createItemsFromQualifiedRecords(qualifiedRecords, refreshed.entry);
-        if (!Array.isArray(tasks) || tasks.length <= 0) {
-          ui.setStatus("未能生成处理任务，请刷新页面后重试。", "error");
+        const rawTasks = dataApi.createItemsFromQualifiedRecords(qualifiedRecords, refreshed.entry);
+        const deduped = dedupeBatchTasks(rawTasks, batchRunId);
+        const uniqueTasks = attachBatchRequestMeta(deduped.uniqueTasks, batchRunId);
+        const duplicateSkippedCount = deduped.duplicateSkippedCount;
+        const uniqueTaskCount = uniqueTasks.length;
+        if (uniqueTaskCount <= 0) {
+          ui.setStatus("当前页没有可处理的唯一合格项。", "info");
           finishFloatingProgress({
-            phase: "stopped",
+            phase: "completed",
             running: false,
-            totalCount: 0,
+            batchRunId,
+            totalCount: qualifiedRecords.length,
+            uniqueTaskCount: 0,
+            duplicateSkippedCount,
             plannedSendCount: 0,
             failures: currentBatchFailures.slice(),
             retryableFailuresCount: currentRetryableFillFailures.length,
           });
-          return { ok: false, message: "no-tasks" };
+          return { ok: true, message: "no-unique-qualified" };
         }
+
         const concurrency = normalizeAutofillConcurrency(config.aiQualifiedAutofillConcurrency);
-        if (typeof console !== "undefined" && typeof console.info === "function") {
-          console.info("[DataBaker][batch] start", {
-            frontConcurrency: concurrency,
-            listenModel: String(config.listenModel || ""),
-            compareModel: String(config.compareModel || ""),
-            recognitionMode: String(config.recognitionMode || ""),
-          });
-        }
+        console.info("[DataBaker][batch] start", {
+          batchRunId,
+          totalCount: qualifiedRecords.length,
+          uniqueTaskCount,
+          duplicateSkippedCount,
+          frontConcurrency: concurrency,
+          requestStaggerMs: DEFAULT_AI_REQUEST_STAGGER_MS,
+          listenModel: String(config.listenModel || ""),
+          compareModel: String(config.compareModel || ""),
+          asyncJobMode: false,
+        });
         updateFloatingProgress({
           phase: "analysis",
-          totalCount: tasks.length,
           running: true,
           stopping: false,
+          batchRunId,
+          totalCount: qualifiedRecords.length,
+          uniqueTaskCount,
+          duplicateSkippedCount,
+          plannedSendCount: uniqueTaskCount,
+          requestStaggerMs: DEFAULT_AI_REQUEST_STAGGER_MS,
           frontConcurrency: concurrency,
           launchedCount: 0,
           activeAiCount: 0,
           completedAiCount: 0,
-          jobSubmittedCount: 0,
-          jobRunningCount: 0,
-          jobSuccessCount: 0,
-          jobFailCount: 0,
         });
-        const streamSummary = await runConcurrentAiAndSequentialFill(tasks, concurrency);
+        const streamSummary = await runConcurrentAiAndSequentialFill(uniqueTasks, concurrency, {
+          batchRunId,
+          totalCount: qualifiedRecords.length,
+          uniqueTaskCount,
+          duplicateSkippedCount,
+        });
         if (streamSummary.stopped) {
           ui.setStatus(
             "已停止：AI 已完成 " +
               String(streamSummary.completedAiCount) +
               "/" +
-              String(streamSummary.totalCount) +
+              String(streamSummary.uniqueTaskCount) +
               "，已填入 " +
               String(streamSummary.fillSuccessCount) +
               " 条，填入失败 " +
@@ -1166,7 +1394,12 @@
           finishFloatingProgress({
             phase: "stopped",
             running: false,
+            batchRunId,
             totalCount: streamSummary.totalCount,
+            uniqueTaskCount: streamSummary.uniqueTaskCount,
+            duplicateSkippedCount: streamSummary.duplicateSkippedCount,
+            plannedSendCount: streamSummary.plannedSendCount,
+            requestStaggerMs: streamSummary.requestStaggerMs,
             frontConcurrency: concurrency,
             launchedCount: streamSummary.launchedCount,
             activeAiCount: streamSummary.activeAiCount,
@@ -1201,7 +1434,12 @@
         finishFloatingProgress({
           phase: "completed",
           running: false,
+          batchRunId,
           totalCount: streamSummary.totalCount,
+          uniqueTaskCount: streamSummary.uniqueTaskCount,
+          duplicateSkippedCount: streamSummary.duplicateSkippedCount,
+          plannedSendCount: streamSummary.plannedSendCount,
+          requestStaggerMs: streamSummary.requestStaggerMs,
           frontConcurrency: concurrency,
           launchedCount: streamSummary.launchedCount,
           activeAiCount: streamSummary.activeAiCount,
@@ -1218,11 +1456,7 @@
         });
         return { ok: true, message: "completed" };
       } catch (error) {
-        const rawMessage = error?.message || String(error);
-        const isTasksScopeError = /tasks is not defined/i.test(rawMessage);
-        const message = isTasksScopeError
-          ? "批量流程脚本异常：tasks is not defined，请刷新页面并重试。"
-          : "连续处理失败：" + rawMessage;
+        const message = "连续处理失败：" + (error?.message || String(error));
         ui.setStatus(message, "error");
         currentBatchFailures.push({
           type: "runtime_failed",
@@ -1234,11 +1468,13 @@
         finishFloatingProgress({
           phase: "stopped",
           running: false,
+          batchRunId,
           failures: currentBatchFailures.slice(),
           retryableFailuresCount: currentRetryableFillFailures.length,
         });
         return { ok: false, message: "batch-failed" };
       } finally {
+        releasePageBatchLock(batchRunId || activeBatchRunId);
         batchQualifiedAutofillRunning = false;
         batchQualifiedAutofillCancelRequested = false;
         batchAutofillPhase = "idle";
@@ -1246,7 +1482,8 @@
       }
     }
 
-    const ui = uiFactory.createRuntime({
+    const ui = uiFactory.createRuntime(
+{
       canFillPageText: dataApi.canFillPageText,
       fillPageText: dataApi.fillPageText,
       onAutoFillQualifiedItemsBatch: autoFillQualifiedItemsBatch,

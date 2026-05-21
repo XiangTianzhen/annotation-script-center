@@ -300,3 +300,12 @@ platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
 - 根因是批量悬浮窗摘要函数在 `tasks` 作用域外直接读取 `tasks.length`；现在改为只使用 `plannedSendCount / totalCount` 等安全摘要字段。
 - 批量流程仍保持：直接 recommend 请求、`30ms` 错峰、前端并发 `1~50`、默认 `20`。
 - 扩展重载后需要刷新 DataBaker 业务页面，再重新测试，避免旧 content script 仍驻留。
+
+## 批量请求去重与诊断
+
+- “AI连续填入合格项”每次启动会生成唯一 `batchRunId`。
+- 当前页 N 条唯一合格项会发送 N 条同步 `recommend` 请求，不默认走异步 jobs。
+- 每条请求会附带 `batchRunId`、`batchItemIndex`、`batchProcessKey`、`clientRequestId`。
+- 前端同一批次会先按 `processKey` 去重，重复任务只保留第一条，并在悬浮窗显示“唯一任务数 / 重复跳过”。
+- 页面级全局锁 `window.__ASC_DATABAKER_ROUND_ONE_BATCH_LOCK__` 会阻止旧 content script、多 runtime 或双击按钮在 5 分钟内重复启动第二批任务。
+- 扩展重载后需要刷新 DataBaker 业务页面再测试，否则旧 content script 仍可能保留。
