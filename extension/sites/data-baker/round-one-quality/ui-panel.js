@@ -533,12 +533,15 @@
         const message = String(failure?.errorMessage || "");
         text.textContent = displayName + " | " + type + (message ? " | " + message : "");
         wrap.appendChild(text);
-        if (failure?.hasDebugRawJson === true && typeof loadFailureDebugJsonHandler === "function") {
-          const debugButton = createButton("复制原始JSON", {});
+        if (
+          (failure?.hasRawAiDebug === true || String(failure?.debugId || "").trim() || failure?.hasDebugRawJson === true) &&
+          typeof loadFailureDebugJsonHandler === "function"
+        ) {
+          const debugButton = createButton("查看原始AI返回", {});
           debugButton.className = "asr-edge-db-batch-failure-debug";
           debugButton.disabled = batchAutofillRunning;
           debugButton.addEventListener("click", function () {
-            copyFailureDebugJson(failure).catch(function (error) {
+            showFailureDebugJson(failure).catch(function (error) {
               setStatus(error?.message || String(error), "error");
             });
           });
@@ -687,13 +690,26 @@
       const card = document.createElement("div");
       card.className = "asr-edge-db-debug-modal-card";
       const title = document.createElement("div");
-      title.textContent = "原始 JSON 无法直接写入剪贴板，请手动复制：";
+      title.textContent = "原始AI返回（已脱敏，可查看并复制）：";
       const textarea = document.createElement("textarea");
       textarea.value = String(text || "");
       const actions = document.createElement("div");
       actions.className = "asr-edge-db-result-actions";
+      const copyButton = createButton("复制", { "data-primary": "true" });
       const closeButton = createButton("关闭", {});
+      copyButton.addEventListener("click", function () {
+        copyText(String(textarea.value || ""))
+          .then(function () {
+            setStatus("原始AI返回已复制。", "success");
+          })
+          .catch(function () {
+            setStatus("剪贴板不可用，请手动复制原始AI返回。", "info");
+            textarea.focus();
+            textarea.select();
+          });
+      });
       closeButton.addEventListener("click", hideDebugModal);
+      actions.appendChild(copyButton);
       actions.appendChild(closeButton);
       card.appendChild(title);
       card.appendChild(textarea);
@@ -710,20 +726,13 @@
       textarea.select();
     }
 
-    async function copyFailureDebugJson(failure) {
+    async function showFailureDebugJson(failure) {
       if (typeof loadFailureDebugJsonHandler !== "function") {
-        throw new Error("当前失败项没有可复制的原始 JSON。");
+        throw new Error("当前失败项没有可查看的原始 AI 返回。");
       }
       const debugPayload = await loadFailureDebugJsonHandler(failure);
       const debugText = JSON.stringify(debugPayload || {}, null, 2);
-      try {
-        await copyText(debugText);
-        hideDebugModal();
-        setStatus("原始JSON已复制。", "success");
-      } catch (error) {
-        showDebugModal(debugText);
-        setStatus("剪贴板不可用，请在弹窗中手动复制原始JSON。", "info");
-      }
+      showDebugModal(debugText);
     }
 
     function renderResult(result) {

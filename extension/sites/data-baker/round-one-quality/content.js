@@ -706,7 +706,11 @@
           displayName: "未命名条目",
           errorMessage: "",
           errorCode: "",
+          requestId: "",
           jobId: "",
+          hasRawAiDebug: false,
+          debugId: "",
+          rawAiDebug: null,
           hasDebugRawJson: false,
           debugRawJson: null,
           result: null,
@@ -1007,7 +1011,14 @@
                 displayName: task.displayName,
                 errorMessage: error?.message || String(error),
                 errorCode: String(error?.code || ""),
+                requestId: String(error?.requestId || ""),
                 jobId: String(error?.jobId || ""),
+                hasRawAiDebug: error?.hasRawAiDebug === true,
+                debugId: String(error?.debugId || ""),
+                rawAiDebug:
+                  error?.rawAiDebug && typeof error.rawAiDebug === "object"
+                    ? error.rawAiDebug
+                    : null,
                 hasDebugRawJson: error?.hasDebugRawJson === true,
                 debugRawJson:
                   error?.debugRawJson && typeof error.debugRawJson === "object"
@@ -1078,7 +1089,14 @@
               displayName: String(result?.displayName || "未命名条目"),
               errorMessage: String(result?.errorMessage || "AI 推荐失败"),
               errorCode: String(result?.errorCode || ""),
+              requestId: String(result?.requestId || ""),
               jobId: String(result?.jobId || ""),
+              hasRawAiDebug: result?.hasRawAiDebug === true,
+              debugId: String(result?.debugId || ""),
+              rawAiDebug:
+                result?.rawAiDebug && typeof result.rawAiDebug === "object"
+                  ? result.rawAiDebug
+                  : null,
               hasDebugRawJson: result?.hasDebugRawJson === true,
               debugRawJson:
                 result?.debugRawJson && typeof result.debugRawJson === "object"
@@ -1245,16 +1263,26 @@
 
     async function loadFailureDebugJson(failure) {
       const source = failure && typeof failure === "object" ? failure : {};
+      if (source.rawAiDebug && typeof source.rawAiDebug === "object") {
+        return source.rawAiDebug;
+      }
       if (source.debugRawJson && typeof source.debugRawJson === "object") {
         return source.debugRawJson;
       }
+      const debugId = String(source.debugId || "").trim();
+      if (debugId) {
+        if (!ai || typeof ai.getRawAiDebug !== "function") {
+          throw new Error("当前失败项没有可查看的原始 AI 返回。");
+        }
+        return ai.getRawAiDebug(debugId);
+      }
       const jobId = String(source.jobId || "").trim();
       if (!jobId) {
-        throw new Error("当前失败项没有可复制的原始 JSON。");
+        throw new Error("当前失败项没有可查看的原始 AI 返回。");
       }
       const recommendEndpoint = String(config.endpoint || "").trim();
       if (!recommendEndpoint) {
-        throw new Error("当前失败项没有可复制的原始 JSON。");
+        throw new Error("当前失败项没有可查看的原始 AI 返回。");
       }
       const controller = typeof AbortController === "function" ? new AbortController() : null;
       const timer = controller
@@ -1275,7 +1303,7 @@
         });
         if (!response.ok || body?.success !== true || !body?.debug) {
           throw new Error(
-            String(body?.message || "").trim() || "当前失败项没有可复制的原始 JSON。"
+            String(body?.message || "").trim() || "当前失败项没有可查看的原始 AI 返回。"
           );
         }
         return body.debug;

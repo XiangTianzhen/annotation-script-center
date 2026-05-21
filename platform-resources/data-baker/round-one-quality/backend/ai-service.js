@@ -48,6 +48,7 @@ const {
   getAiJobStoreConfig,
   getAiJobStoreSnapshot,
 } = require("./ai-job-store");
+const { rememberAiDebug } = require("./ai-debug-store");
 
 const RULE_VERSION = "data-baker-round-one-quality-ai-v10-direct-recommend-120s";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
@@ -529,6 +530,12 @@ function normalizeAiOptions(value) {
   } else if (typeof source.enableThinking === "boolean") {
     result.enable_thinking = source.enableThinking === true;
   }
+  if (String(process.env.DATABAKER_AI_MOCK || "").trim() === "1") {
+    const mockResponseMode = normalizeModelText(source.mockResponseMode);
+    if (mockResponseMode) {
+      result.mockResponseMode = mockResponseMode;
+    }
+  }
   return result;
 }
 
@@ -671,14 +678,16 @@ function normalizeParseDebugContext(requestIdOrContext) {
 
 function createModelJsonParseError(rawText, requestIdOrContext) {
   const context = normalizeParseDebugContext(requestIdOrContext);
+  const sanitizedRawModelText = sanitizeProviderText(String(rawText || ""), 4000);
   const error = createHttpError(
     502,
-    "模型输出 JSON 解析失败，可复制原始JSON后反馈修复。",
+    "模型输出 JSON 解析失败，可查看原始AI返回。",
     "model-json-parse-failed"
   );
   error.requestId = context.requestId;
   error.stage = context.stage;
   error.model = context.model;
+  error.rawModelText = sanitizedRawModelText;
   error.debugRawJson = {
     requestId: context.requestId,
     jobId: context.jobId,
@@ -686,13 +695,73 @@ function createModelJsonParseError(rawText, requestIdOrContext) {
     sentenceNumber: context.sentenceNumber,
     stage: context.stage,
     model: context.model,
-    errorCode: "model-json-parse-failed",
-    errorMessage: "模型输出 JSON 解析失败，可复制原始JSON后反馈修复。",
-    rawModelText: sanitizeProviderText(String(rawText || ""), 4000),
+      errorCode: "model-json-parse-failed",
+      errorMessage: "模型输出 JSON 解析失败，可查看原始AI返回。",
+    rawModelText: sanitizedRawModelText,
     createdAt: context.createdAt,
   };
   error.hasDebugRawJson = true;
   return error;
+}
+
+function buildAiDebugPayloadFromError(error, context) {
+  const source = error && typeof error === "object" ? error : {};
+  const meta = context && typeof context === "object" ? context : {};
+  const request = meta.request && typeof meta.request === "object" ? meta.request : {};
+  const raw = source.debugRawAiResponse && typeof source.debugRawAiResponse === "object"
+    ? source.debugRawAiResponse
+    : source.debugRawJson && typeof source.debugRawJson === "object"
+      ? source.debugRawJson
+      : null;
+  if (!raw) {
+    return null;
+  }
+  return {
+    requestId: String(source.requestId || meta.requestId || ""),
+    clientRequestId: String(request.clientRequestId || meta.clientRequestId || ""),
+    batchRunId: String(request.batchRunId || meta.batchRunId || ""),
+    batchProcessKey: String(request.batchProcessKey || meta.batchProcessKey || ""),
+    itemId: String(request.itemId || meta.itemId || raw.itemId || ""),
+    textId: String(request.textId || meta.textId || raw.textId || ""),
+    sentenceNumber:
+      request.sentenceNumber !== undefined && request.sentenceNumber !== null
+        ? request.sentenceNumber
+        : meta.sentenceNumber !== undefined && meta.sentenceNumber !== null
+          ? meta.sentenceNumber
+          : raw.sentenceNumber,
+    stage: String(raw.stage || source.stage || meta.stage || "unknown"),
+    model: String(raw.model || source.model || meta.model || ""),
+    provider: String(raw.provider || meta.provider || "unknown"),
+    errorCode: String(source.code || raw.errorCode || meta.errorCode || ""),
+    errorMessage: String(source.safeMessage || source.message || raw.errorMessage || meta.errorMessage || ""),
+    providerStatus: Number(source.providerStatus || source.statusCode || raw.providerStatus || 0) || 0,
+    rawText: raw.rawText || raw.rawModelText || "",
+    rawJson: raw.rawJson || null,
+    rawSseText: raw.rawSseText || "",
+    responseBody: raw.responseBody || null,
+    usage: raw.usage || null,
+    createdAt: String(raw.createdAt || meta.createdAt || new Date().toISOString()),
+  };
+}
+
+function attachRawAiDebugToError(error, context) {
+  const source = error && typeof error === "object" ? error : null;
+  if (!source) {
+    return "";
+  }
+  if (source.debugId) {
+    source.hasRawAiDebug = true;
+    return String(source.debugId || "");
+  }
+  const payload = buildAiDebugPayloadFromError(source, context);
+  if (!payload) {
+    return "";
+  }
+  const stored = rememberAiDebug(payload);
+  source.debugId = stored.debugId;
+  source.hasRawAiDebug = true;
+  source.rawAiDebug = stored;
+  return stored.debugId;
 }
 
 function parseModelJsonText(rawText, requestIdOrContext) {
@@ -1039,6 +1108,7 @@ function sanitizeForLog(record) {
     audioDuration: request.audioDuration === null ? "" : safeString(request.audioDuration),
     clientVersion: safeString(request.clientVersion),
     mock: source.mock === true,
+    debugId: safeString(source.debugId || response.debugId),
     errorCode: safeString(source.errorCode),
     errorMessage: safeString(source.errorMessage),
   };
@@ -2583,11 +2653,17 @@ async function recommend(body, requestIdHint, runtimeOptions) {
       pipelineMode,
       audioHostname: parseAudioHostname(recommendRequest.audioUrl),
       mock: Boolean(qwenConfig.mockEnabled),
+      debugId: safeString(responseData?.debugId),
     });
 
     return responseData;
   } catch (error) {
     const responseMessage = String(error?.message || "DataBaker AI recommend 请求失败。").slice(0, 240);
+    const debugId = attachRawAiDebugToError(error, {
+      requestId,
+      request: recommendRequest || {},
+      createdAt: runtimeCreatedAt,
+    });
     appendCallLogSafe({
       createdAt: new Date().toISOString(),
       requestId,
@@ -2602,6 +2678,7 @@ async function recommend(body, requestIdHint, runtimeOptions) {
       pipelineMode,
       audioHostname: parseAudioHostname(recommendRequest?.audioUrl || ""),
       mock: Boolean(qwenConfig?.mockEnabled || funAsrConfig?.mockEnabled),
+      debugId,
       errorCode: String(error?.code || ""),
       errorMessage: responseMessage,
     });

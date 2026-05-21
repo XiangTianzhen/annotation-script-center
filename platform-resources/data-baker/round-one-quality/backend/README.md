@@ -19,6 +19,7 @@
 - `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
 - `POST /api/data-baker/round-one-quality/ai/recommend`（默认）
+- `GET /api/data-baker/round-one-quality/ai/recommend/debug/:debugId`（同步 recommend 失败时查询脱敏后的原始 AI 返回）
 - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`（历史兼容）
 - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`（历史兼容）
   - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId/debug`（仅 JSON 解析失败时返回脱敏 debugRawJson）
@@ -35,6 +36,7 @@
 - `ai-service.js`：DataBaker AI 当前业务层，集中管理请求归一化、Fun-ASR REST 与当前通用链路、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
 - `ai-legacy-omni-service.js`：DataBaker 专用 Qwen Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 恢复旧版两阶段逻辑。
 - `ai-client-qwen-legacy.js`：DataBaker 专用 Qwen Omni legacy 客户端，只服务 Omni 快速路径，不影响统一 AI 基座。
+- `ai-debug-store.js`：原始 AI 返回的内存级调试信息暂存，默认 TTL 30 分钟、最大 1000 条，不落盘。
 - `ai-job-store.js`：DataBaker AI 异步 job 的内存状态管理、超时取消、TTL 清理、debug 原始 JSON 暂存和统计快照。
 - `export-routes.js`：导出 health / config / upload / download 路由。
 - `export-store.js`：导出文件落盘、latest/history/events 存储能力。
@@ -115,6 +117,14 @@
 
 - health 返回 `status=missing-api-key`。
 - recommend 返回 `success=false` 和 `code=missing-api-key`。
+
+## 原始 AI 返回调试
+
+- 批量失败列表会优先使用同步 `recommend` 返回的 `hasRawAiDebug/debugId`，并通过 `GET /ai/recommend/debug/:debugId` 查看脱敏后的原始 AI 返回。
+- `qwen-empty-response`、`model-json-parse-failed`、`provider-http-error` 会写入内存级 debug store，并在错误响应中返回 `debugId`。
+- `jobs/:jobId/debug` 仍保留历史兼容，但同步 recommend debug 现在是默认调试入口。
+- debug 内容只保存在内存中，默认 TTL 30 分钟，不落盘。
+- debug 内容会脱敏并截断，不包含完整音频 URL、签名 URL、cookie、token、authorization、API Key。
 
 ## 导出上传与下载
 

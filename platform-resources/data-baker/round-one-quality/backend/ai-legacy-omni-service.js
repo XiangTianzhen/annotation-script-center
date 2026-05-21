@@ -19,6 +19,7 @@ const {
   parseModelJsonText,
   removeTextSpaces,
 } = require("./ai-service");
+const { rememberAiDebug } = require("./ai-debug-store");
 
 const LEGACY_OMNI_COMMIT = "9677e4cea98de222b70f89c9e0af1d89971dc471";
 const OMNI_LEGACY_MODELS = new Set(["qwen3.5-omni-flash", "qwen3.5-omni-plus"]);
@@ -303,6 +304,64 @@ function appendCallLogSafe(record) {
   }
 }
 
+function buildAiDebugPayloadFromError(error, context) {
+  const source = error && typeof error === "object" ? error : {};
+  const meta = context && typeof context === "object" ? context : {};
+  const request = meta.request && typeof meta.request === "object" ? meta.request : {};
+  const raw = source.debugRawAiResponse && typeof source.debugRawAiResponse === "object"
+    ? source.debugRawAiResponse
+    : source.debugRawJson && typeof source.debugRawJson === "object"
+      ? source.debugRawJson
+      : null;
+  if (!raw) {
+    return null;
+  }
+  return {
+    requestId: String(source.requestId || meta.requestId || ""),
+    clientRequestId: String(request.clientRequestId || meta.clientRequestId || ""),
+    batchRunId: String(request.batchRunId || meta.batchRunId || ""),
+    batchProcessKey: String(request.batchProcessKey || meta.batchProcessKey || ""),
+    itemId: String(request.itemId || meta.itemId || raw.itemId || ""),
+    textId: String(request.textId || meta.textId || raw.textId || ""),
+    sentenceNumber:
+      request.sentenceNumber !== undefined && request.sentenceNumber !== null
+        ? Number(request.sentenceNumber) || 0
+        : Number(meta.sentenceNumber || raw.sentenceNumber) || 0,
+    stage: String(source.stage || meta.stage || raw.stage || "unknown"),
+    model: String(source.model || meta.model || raw.model || ""),
+    provider: String(raw.provider || meta.provider || "legacy-omni"),
+    errorCode: String(source.code || raw.errorCode || ""),
+    errorMessage: String(source.safeMessage || source.message || raw.errorMessage || ""),
+    providerStatus: Number(source.providerStatus || source.statusCode || raw.providerStatus) || 0,
+    rawText: String(raw.rawText || raw.rawModelText || ""),
+    rawJson: raw.rawJson && typeof raw.rawJson === "object" ? raw.rawJson : raw,
+    rawSseText: String(raw.rawSseText || raw.rawResponseText || ""),
+    responseBody: raw.responseBody || null,
+    usage: raw.usage && typeof raw.usage === "object" ? raw.usage : null,
+    createdAt: String(meta.createdAt || raw.createdAt || new Date().toISOString()),
+  };
+}
+
+function attachRawAiDebugToError(error, context) {
+  const source = error && typeof error === "object" ? error : null;
+  if (!source) {
+    return "";
+  }
+  if (source.debugId) {
+    source.hasRawAiDebug = true;
+    return String(source.debugId || "");
+  }
+  const payload = buildAiDebugPayloadFromError(source, context);
+  if (!payload) {
+    return "";
+  }
+  const stored = rememberAiDebug(payload);
+  source.debugId = stored.debugId;
+  source.hasRawAiDebug = true;
+  source.rawAiDebug = stored;
+  return stored.debugId;
+}
+
 async function recommendLegacyOmni(body, requestIdHint, runtimeOptions) {
   const startedAtMs = Date.now();
   let requestId = String(requestIdHint || createRequestId());
@@ -555,6 +614,12 @@ async function recommendLegacyOmni(body, requestIdHint, runtimeOptions) {
 
     return responseData;
   } catch (error) {
+    const debugId = attachRawAiDebugToError(error, {
+      requestId,
+      request: recommendRequest || {},
+      provider: "legacy-omni",
+      createdAt: runtimeOptions?.createdAt || new Date().toISOString(),
+    });
     appendCallLogSafe({
       createdAt: new Date().toISOString(),
       requestId,
@@ -575,6 +640,7 @@ async function recommendLegacyOmni(body, requestIdHint, runtimeOptions) {
         }
       })(),
       mock: Boolean(config?.mockEnabled),
+      debugId,
       errorCode: String(error?.code || ""),
       errorMessage: String(error?.safeMessage || error?.message || "DataBaker AI recommend 请求失败。").slice(0, 240),
     });

@@ -25,7 +25,7 @@
 - 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认直接发送同步 `POST /ai/recommend`；当前页有 N 条合格项，就会调度 N 条请求，前端按 `30ms` 错峰发起，并由前端活跃并发上限与后端 provider queue / RPM 限流共同保护链路。
 - 异步 job 默认最大保留数量 `600`，provider queue 默认最大排队数 `600`。
 - 单条 AI / 模型请求默认超时 `120000ms`；若仍未返回，失败列表固定提示“当前任务超过120s，请重新请求。”，且迟到结果不会再进入待填队列。
-- 如果模型输出 JSON 解析失败，失败列表会出现“复制原始JSON”按钮；按钮只复制脱敏后的 debug JSON，不直接在页面正文展开长文本。
+- 批量失败列表现在统一显示“查看原始AI返回”按钮；支持 `qwen-empty-response`、`model-json-parse-failed`、`provider-http-error` 等失败直接查看脱敏后的 debug JSON，并在弹窗里手动复制或点击复制。
 - 新增顶部统计悬浮窗，运行中展示 AI 返回、待填队列、填入成功/失败/跳过和失败条目。
 - 顶部悬浮窗还会显示 `后端任务已提交 / 运行中 / 成功 / 失败`，方便区分是前端没发起并发，还是后端 Fun-ASR / compare 仍在排队。
 - 悬浮窗在任务完成或停止后保留约 60 秒，可手动关闭。
@@ -307,9 +307,16 @@ platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
 
 ## 2026-05-21 Omni legacy 快速路径热修
 
-- 修复 `loadFailureDebugJson is not defined`：失败列表继续保留“复制原始JSON”按钮，没有 debug 数据时会提示“当前失败项没有可复制的原始 JSON。”。
+- 修复 `loadFailureDebugJson is not defined`：失败列表继续保留原始调试入口，没有 debug 数据时会提示“当前失败项没有可查看的原始 AI 返回。”。
 - `qwen3.5-omni-flash` / `qwen3.5-omni-plus` 默认走 Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471`。
 - Omni legacy 快速路径的目标是先恢复基础速度和稳定性；`fun-asr` 仍走当前 Node REST provider，不受该路径影响。
+
+## 2026-05-21 批量失败原始 AI 返回可观测性
+
+- DataBaker 批量失败列表新增“查看原始AI返回”按钮，点击后会弹出脱敏后的 debug JSON，并提供复制按钮。
+- 同步 `POST /api/data-baker/round-one-quality/ai/recommend` 失败时，如果属于 `qwen-empty-response`、`model-json-parse-failed`、`provider-http-error` 等可观测错误，会返回 `hasRawAiDebug=true` 和 `debugId`。
+- 后端新增内存级 `ai-debug-store`，只保留最近一段时间的脱敏 debug，不落盘，默认 TTL 30 分钟。
+- debug 内容不包含完整音频 URL、签名 URL、cookie、token、authorization、API Key；超长原始响应会截断。
 - 当前前端仍保持直接 `POST /ai/recommend`、`30ms` 错峰、前端并发 `1~50`、默认 `20`，不默认走 `/jobs`。
 
 ## 批量请求去重与诊断

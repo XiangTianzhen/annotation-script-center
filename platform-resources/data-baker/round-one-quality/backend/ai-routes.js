@@ -4,6 +4,7 @@ const crypto = require("crypto");
 
 const { sendJson } = require("../../../backend/response");
 const { getInFlightDedupeHealth, runWithInFlightDedupe } = require("./ai-inflight-dedupe");
+const { getAiDebug } = require("./ai-debug-store");
 const {
   LEGACY_OMNI_COMMIT,
   isOmniLegacyFastPathEnabled,
@@ -29,6 +30,7 @@ const {
 const AI_BASE_PATH = "/api/data-baker/round-one-quality/ai/recommend";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = AI_BASE_PATH + "/defaults";
+const AI_DEBUG_PATH = AI_BASE_PATH + "/debug/:debugId";
 const AI_JOBS_PATH = AI_BASE_PATH + "/jobs";
 const AI_JOB_DETAIL_PATH = AI_JOBS_PATH + "/:jobId";
 const AI_JOB_DEBUG_PATH = AI_JOB_DETAIL_PATH + "/debug";
@@ -86,6 +88,13 @@ function buildErrorResponseBody(error, fallbackMessage) {
     responseBody.providerStatus = Number(error.providerStatus);
   } else if (Number(error?.statusCode) > 0) {
     responseBody.providerStatus = Number(error.statusCode);
+  }
+  if (error?.hasRawAiDebug === true || String(error?.debugId || "").trim()) {
+    responseBody.hasRawAiDebug = true;
+    responseBody.debugId = String(error?.debugId || "").trim();
+    if (error?.rawAiDebug && typeof error.rawAiDebug === "object") {
+      responseBody.rawAiDebug = error.rawAiDebug;
+    }
   }
   if (error?.debugRawJson && typeof error.debugRawJson === "object") {
     responseBody.hasDebugRawJson = true;
@@ -331,6 +340,23 @@ function handleGetRecommendJobDebug(_request, response, jobId) {
   }
 }
 
+function handleGetRecommendDebug(_request, response, debugId) {
+  try {
+    const debug = getAiDebug(debugId);
+    sendJson(response, 200, {
+      success: true,
+      debug,
+    });
+  } catch (error) {
+    const statusCode = Math.max(400, Number(error?.statusCode) || 500);
+    sendJson(response, statusCode, {
+      success: false,
+      code: String(error?.code || "ai-debug-not-found"),
+      message: String(error?.message || "原始 AI 返回不存在或已过期。"),
+    });
+  }
+}
+
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendJson(response, 200, buildHealthPayload());
@@ -348,6 +374,9 @@ function registerAiRoutes(router) {
   router.post(AI_BASE_PATH, function ({ request, response }) {
     return handleRecommend(request, response);
   });
+  router.get(AI_DEBUG_PATH, function ({ response, params }) {
+    return handleGetRecommendDebug(null, response, params?.debugId);
+  });
   router.post(AI_JOBS_PATH, function ({ request, response }) {
     return handleCreateRecommendJob(request, response);
   });
@@ -361,6 +390,7 @@ function registerAiRoutes(router) {
 
 module.exports = {
   AI_BASE_PATH,
+  AI_DEBUG_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
   AI_JOBS_PATH,
@@ -369,6 +399,7 @@ module.exports = {
   buildHealthPayload,
   buildJobStatusBody,
   handleCreateRecommendJob,
+  handleGetRecommendDebug,
   handleGetRecommendJobDebug,
   handleGetRecommendJobStatus,
   handleRecommend,

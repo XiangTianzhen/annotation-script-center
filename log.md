@@ -1,3 +1,13 @@
+## 2026-05-21（标贝易采一检质检热修：批量失败支持查看原始 AI 返回）
+
+- DataBaker 批量失败列表新增“查看原始AI返回”按钮，统一替代旧的“复制原始JSON”入口。
+- 同步 `POST /api/data-baker/round-one-quality/ai/recommend` 失败时，如果属于 `qwen-empty-response`、`model-json-parse-failed`、`provider-http-error` 等可观测错误，会返回 `hasRawAiDebug=true` 和 `debugId`。
+- 后端新增 `ai-debug-store.js`，在内存中暂存最近一段时间的脱敏原始 AI debug，默认 TTL 30 分钟、最大 1000 条，不落盘。
+- 新增接口：`GET /api/data-baker/round-one-quality/ai/recommend/debug/:debugId`，前端点击失败项按钮后可查看并复制对应的脱敏 debug JSON。
+- `qwen-openai-compatible.js` 与 `ai-client-qwen-legacy.js` 现在会在空响应、HTTP 错误时附带 `debugRawAiResponse`，并在批量失败时透传到前端。
+- `ai-service.js` 与 `ai-legacy-omni-service.js` 会在 JSON 解析失败或 provider 错误时统一生成 `debugId`，并把 `debugId` 写入调用日志摘要。
+- debug 内容会脱敏并截断，不包含完整音频 URL、签名 URL、cookie、token、authorization、API Key。
+
 ## 2026-05-21（标贝易采一检质检热修：恢复右侧 AI 推荐工具卡）
 
 - 修复 `roundOneCollect` 页面右侧 `DataBaker AI 推荐文本` 工具卡因挂载目标过窄而未显示的问题。

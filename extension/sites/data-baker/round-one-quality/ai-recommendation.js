@@ -54,6 +54,12 @@
       message = "后端连接中断，请稍后重试。";
     } else if (code === "timeout") {
       message = "AI 推荐接口请求超时。";
+    } else if (code === "qwen-empty-response") {
+      message = "Qwen 接口未返回有效文本，可查看原始AI返回排查。";
+    } else if (code === "model-json-parse-failed") {
+      message = "模型输出 JSON 解析失败，可查看原始AI返回。";
+    } else if (code === "provider-http-error") {
+      message = "上游模型接口返回错误，可查看原始AI返回。";
     }
     if (body.summary) {
       message += "：" + String(body.summary || "").slice(0, 120);
@@ -61,6 +67,9 @@
     return createClientError(message, {
       code,
       statusCode: Number(statusCode) || 0,
+      hasRawAiDebug: body.hasRawAiDebug === true,
+      debugId: String(body.debugId || ""),
+      rawAiDebug: body.rawAiDebug || null,
       hasDebugRawJson: body.hasDebugRawJson === true,
       debugRawJson: body.debugRawJson || null,
       requestId: String(body.requestId || ""),
@@ -179,7 +188,51 @@
       }
     }
 
+    async function getRawAiDebug(debugId) {
+      const key = String(debugId || "").trim();
+      if (!key) {
+        throw createClientError("当前失败项没有可查看的原始 AI 返回。", {
+          code: "ai-debug-not-found",
+        });
+      }
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timeoutMs = Math.max(1000, Number(config.timeoutMs) || DEFAULT_TIMEOUT_MS);
+      const timer = controller
+        ? window.setTimeout(function () {
+            controller.abort();
+          }, timeoutMs)
+        : null;
+      try {
+        const response = await fetch(getEndpoint().replace(/\/+$/, "") + "/debug/" + encodeURIComponent(key), {
+          method: "GET",
+          signal: controller ? controller.signal : undefined,
+        });
+        const responseBody = await response.json().catch(function () {
+          return null;
+        });
+        if (!response.ok || responseBody?.success !== true || !responseBody?.debug) {
+          throw buildApiError(responseBody, response.status);
+        }
+        return responseBody.debug;
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          throw createClientError("获取原始 AI 返回超时，请稍后重试。", { code: "timeout" });
+        }
+        if (error instanceof TypeError) {
+          throw createClientError("后端连接中断，请稍后重试。", {
+            code: "network-disconnected",
+          });
+        }
+        throw error;
+      } finally {
+        if (timer) {
+          clearTimeout(timer);
+        }
+      }
+    }
+
     return {
+      getRawAiDebug,
       recommend,
       defaultRequestStaggerMs: DEFAULT_REQUEST_STAGGER_MS,
     };

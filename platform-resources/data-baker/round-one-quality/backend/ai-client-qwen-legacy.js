@@ -5,7 +5,12 @@ const {
   createTimeoutError,
   normalizeAbortError,
 } = require("../../../backend/ai/errors");
-const { sanitizeProviderErrorSummary } = require("../../../backend/ai/sanitizer");
+const {
+  sanitizeProviderDebugJson,
+  sanitizeProviderDebugPayload,
+  sanitizeProviderDebugText,
+  sanitizeProviderErrorSummary,
+} = require("../../../backend/ai/sanitizer");
 
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
@@ -243,6 +248,10 @@ function buildMockCompareResponse(input, heardText) {
   });
 }
 
+function buildMockProviderErrorBody() {
+  return '{"error":"mock provider http error","audioUrl":"https://example.com/audio.wav?token=secret"}';
+}
+
 function extractDeltaText(chunk) {
   const choice = Array.isArray(chunk?.choices) ? chunk.choices[0] : null;
   if (!choice) {
@@ -285,6 +294,50 @@ function extractDeltaText(chunk) {
   return "";
 }
 
+function summarizeLastChunk(payload) {
+  const source = payload && typeof payload === "object" ? payload : {};
+  const choice = Array.isArray(source.choices) ? source.choices[0] : null;
+  return {
+    hasChoices: Boolean(choice),
+    finishReason: String(choice?.finish_reason || ""),
+    deltaKeys:
+      choice?.delta && typeof choice.delta === "object"
+        ? Object.keys(choice.delta).slice(0, 12)
+        : [],
+    usageKeys:
+      source.usage && typeof source.usage === "object"
+        ? Object.keys(source.usage).slice(0, 12)
+        : [],
+  };
+}
+
+function createQwenEmptyResponseError(model, stage, result) {
+  const error = new Error("Qwen 接口未返回有效文本。");
+  error.code = "qwen-empty-response";
+  error.statusCode = 502;
+  error.debugRawAiResponse = {
+    provider: "legacy-omni",
+    model: String(model || ""),
+    stage: String(stage || "unknown"),
+    rawSseText: sanitizeProviderDebugText(result?.rawSseText || "", 20000),
+    rawResponseText: sanitizeProviderDebugText(result?.rawResponseText || "", 20000),
+    usage: sanitizeProviderDebugJson(result?.usage || {}, {
+      textLimit: 4000,
+      maxDepth: 4,
+      maxObjectKeys: 40,
+    }),
+    parsedChunksCount: Number(result?.parsedChunksCount) || 0,
+    extractedTextLength: Number(result?.extractedTextLength) || 0,
+    finishReason: String(result?.finishReason || ""),
+    lastChunkSummary: sanitizeProviderDebugJson(result?.lastChunkSummary || {}, {
+      textLimit: 4000,
+      maxDepth: 4,
+      maxObjectKeys: 40,
+    }),
+  };
+  return error;
+}
+
 async function readStreamCompletion(response) {
   if (!response.body || typeof response.body.getReader !== "function") {
     const text = await response.text();
@@ -293,11 +346,23 @@ async function readStreamCompletion(response) {
       return {
         text: extractDeltaText(parsed) || text,
         usage: parsed.usage || {},
+        rawSseText: text,
+        rawResponseText: text,
+        parsedChunksCount: 1,
+        extractedTextLength: String(extractDeltaText(parsed) || text || "").trim().length,
+        finishReason: String(parsed?.choices?.[0]?.finish_reason || ""),
+        lastChunkSummary: summarizeLastChunk(parsed),
       };
     } catch (error) {
       return {
         text,
         usage: {},
+        rawSseText: text,
+        rawResponseText: text,
+        parsedChunksCount: 0,
+        extractedTextLength: String(text || "").trim().length,
+        finishReason: "",
+        lastChunkSummary: null,
       };
     }
   }
@@ -307,22 +372,32 @@ async function readStreamCompletion(response) {
   let buffer = "";
   let aggregatedText = "";
   let usage = {};
+  let rawSseText = "";
+  let parsedChunksCount = 0;
+  let finishReason = "";
+  let lastChunkSummary = null;
 
   function consumeLine(line) {
     const trimmed = String(line || "").trim();
     if (!trimmed || !trimmed.startsWith("data:")) {
       return;
     }
+    rawSseText += String(line || "") + "\n";
     const payloadText = trimmed.slice(5).trim();
     if (!payloadText || payloadText === "[DONE]") {
       return;
     }
     try {
       const payload = JSON.parse(payloadText);
+      parsedChunksCount += 1;
       aggregatedText += extractDeltaText(payload);
       if (payload.usage && typeof payload.usage === "object") {
         usage = payload.usage;
       }
+      if (payload?.choices?.[0]?.finish_reason) {
+        finishReason = String(payload.choices[0].finish_reason || "");
+      }
+      lastChunkSummary = summarizeLastChunk(payload);
     } catch (error) {
       // ignore non-json chunks
     }
@@ -344,6 +419,12 @@ async function readStreamCompletion(response) {
   return {
     text: aggregatedText,
     usage,
+    rawSseText,
+    rawResponseText: rawSseText,
+    parsedChunksCount,
+    extractedTextLength: String(aggregatedText || "").trim().length,
+    finishReason,
+    lastChunkSummary,
   };
 }
 
@@ -402,6 +483,8 @@ async function requestChatCompletion(requestBody, options) {
     : null;
 
   try {
+    const model = String(requestBody?.model || options?.model || "").trim();
+    const stage = String(options?.stage || "unknown").trim() || "unknown";
     const response = await fetch(config.baseUrl + "/chat/completions", {
       method: "POST",
       headers: {
@@ -414,16 +497,25 @@ async function requestChatCompletion(requestBody, options) {
 
     if (!response.ok) {
       const bodyText = await response.text();
-      throw createProviderHttpError(
+      const error = createProviderHttpError(
         response.status,
         bodyText,
         "Qwen 接口请求失败（HTTP " + String(response.status) + "）。"
       );
+      error.providerStatus = Number(response.status) || 0;
+      error.debugRawAiResponse = {
+        provider: "legacy-omni",
+        model,
+        stage,
+        providerStatus: Number(response.status) || 0,
+        responseBody: sanitizeProviderDebugPayload(bodyText || "", { textLimit: 20000 }),
+      };
+      throw error;
     }
 
     const result = await readStreamCompletion(response);
     if (!String(result.text || "").trim()) {
-      throw new Error("Qwen 接口未返回有效文本。");
+      throw createQwenEmptyResponseError(model, stage, result);
     }
     return result;
   } catch (error) {
@@ -480,11 +572,38 @@ async function requestChatCompletionWithThinkingFallback(requestBody, options) {
 async function requestListen(input, prompt, options) {
   const config = getClientConfig();
   const model = String(options?.model || config.listenModel || DEFAULT_LISTEN_MODEL).trim() || DEFAULT_LISTEN_MODEL;
-  if (config.mockEnabled) {
-    const preference = resolveThinkingPreference(options, config);
-    return {
-      model,
-      rawText: buildMockListenResponse(input),
+  const mockResponseMode = String(input?.aiOptions?.mockResponseMode || "").trim().toLowerCase();
+    if (config.mockEnabled) {
+      if (mockResponseMode === "provider-http-error") {
+      const error = createProviderHttpError(502, "mock qwen provider http error", "Qwen 接口请求失败（HTTP 502）。");
+      error.providerStatus = 502;
+      error.debugRawAiResponse = {
+        provider: "legacy-omni",
+        model,
+        stage: "listen",
+        providerStatus: 502,
+        responseBody: sanitizeProviderDebugPayload(buildMockProviderErrorBody(), { textLimit: 20000 }),
+        };
+        throw error;
+      }
+      if (mockResponseMode === "qwen-empty-response") {
+        throw createQwenEmptyResponseError(model, "listen", {
+          rawSseText: "data: [DONE]",
+          rawResponseText: "",
+          parsedChunksCount: 0,
+          extractedTextLength: 0,
+          finishReason: "stop",
+          lastChunkSummary: null,
+          usage: null,
+        });
+      }
+      const preference = resolveThinkingPreference(options, config);
+      return {
+        model,
+        rawText:
+          mockResponseMode === "model-json-parse-failed"
+            ? "mock-not-json-response"
+            : buildMockListenResponse(input),
       usage: {
         prompt_tokens: 120,
         completion_tokens: 40,
@@ -537,11 +656,20 @@ async function requestListen(input, prompt, options) {
     frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
   };
   applyAiOptionsToRequestBody(requestBody, input?.aiOptions);
-  const result = await requestChatCompletionWithThinkingFallback(requestBody, options);
+  const result = await requestChatCompletionWithThinkingFallback(
+    requestBody,
+    Object.assign({}, options || {}, { stage: "listen" })
+  );
   return {
     model,
     rawText: result.text,
     usage: result.usage,
+    rawSseText: result.rawSseText || "",
+    rawResponseText: result.rawResponseText || "",
+    parsedChunksCount: Number(result.parsedChunksCount) || 0,
+    extractedTextLength: Number(result.extractedTextLength) || 0,
+    finishReason: String(result.finishReason || ""),
+    lastChunkSummary: result.lastChunkSummary || null,
     mock: false,
     enableThinkingRequested: result.enableThinkingRequested === true,
     enableThinking: result.enableThinking === true,
@@ -556,11 +684,38 @@ async function requestListen(input, prompt, options) {
 async function requestCompare(input, prompt, heardText, options) {
   const config = getClientConfig();
   const model = String(options?.model || config.compareModel || DEFAULT_COMPARE_MODEL).trim() || DEFAULT_COMPARE_MODEL;
-  if (config.mockEnabled) {
-    const preference = resolveThinkingPreference(options, config);
-    return {
-      model,
-      rawText: buildMockCompareResponse(input, heardText),
+  const mockResponseMode = String(input?.aiOptions?.mockResponseMode || "").trim().toLowerCase();
+    if (config.mockEnabled) {
+      if (mockResponseMode === "provider-http-error") {
+      const error = createProviderHttpError(502, "mock qwen provider http error", "Qwen 接口请求失败（HTTP 502）。");
+      error.providerStatus = 502;
+      error.debugRawAiResponse = {
+        provider: "legacy-omni",
+        model,
+        stage: "compare",
+        providerStatus: 502,
+        responseBody: sanitizeProviderDebugPayload(buildMockProviderErrorBody(), { textLimit: 20000 }),
+        };
+        throw error;
+      }
+      if (mockResponseMode === "qwen-empty-response") {
+        throw createQwenEmptyResponseError(model, "compare", {
+          rawSseText: "data: [DONE]",
+          rawResponseText: "",
+          parsedChunksCount: 0,
+          extractedTextLength: 0,
+          finishReason: "stop",
+          lastChunkSummary: null,
+          usage: null,
+        });
+      }
+      const preference = resolveThinkingPreference(options, config);
+      return {
+        model,
+        rawText:
+          mockResponseMode === "model-json-parse-failed"
+            ? "mock-not-json-response"
+            : buildMockCompareResponse(input, heardText),
       usage: {
         prompt_tokens: 180,
         completion_tokens: 70,
@@ -603,11 +758,20 @@ async function requestCompare(input, prompt, heardText, options) {
     frequency_penalty: DEFAULT_REQUEST_PARAMS.frequency_penalty,
   };
   applyAiOptionsToRequestBody(requestBody, input?.aiOptions);
-  const result = await requestChatCompletionWithThinkingFallback(requestBody, options);
+  const result = await requestChatCompletionWithThinkingFallback(
+    requestBody,
+    Object.assign({}, options || {}, { stage: "compare" })
+  );
   return {
     model,
     rawText: result.text,
     usage: result.usage,
+    rawSseText: result.rawSseText || "",
+    rawResponseText: result.rawResponseText || "",
+    parsedChunksCount: Number(result.parsedChunksCount) || 0,
+    extractedTextLength: Number(result.extractedTextLength) || 0,
+    finishReason: String(result.finishReason || ""),
+    lastChunkSummary: result.lastChunkSummary || null,
     mock: false,
     enableThinkingRequested: result.enableThinkingRequested === true,
     enableThinking: result.enableThinking === true,
