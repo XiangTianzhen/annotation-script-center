@@ -1,3 +1,11 @@
+## 2026-05-21（新增闽南语助手并重构 Magic Data 结构：v0.3.6）
+
+- 保持 `extension/manifest.json` 版本为 `0.3.6`（本轮未提升版本号）。
+- Magic Data ANNOTATOR 前端目录由单 `annotator/` 拆分为 `shared/` + `hakka-helper/` + `minnan-helper/`，并新增闽南语助手脚本入口。
+- options / popup 支持同平台双助手独立启停与识别，后端地址仍统一走 options 首页，不新增脚本详情独立后端地址。
+- 后端新增 `hakka-helper` 与 `minnan-helper` 路由；保留 `annotator` 旧接口兼容转发，避免历史配置断链。
+- 补齐平台与脚本文档（README/docs/env 示例），并明确 AI 仅辅助，不自动保存/提交/审核/领取/流转。
+
 ## 2026-05-21（脚本显示名称调整：v0.3.6）
 
 - `extension/manifest.json` patch 版本提升到 `0.3.6`。

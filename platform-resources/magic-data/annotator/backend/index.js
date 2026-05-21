@@ -1,9 +1,9 @@
 "use strict";
 
-const { registerAiRoutes } = require("./ai-routes");
+const { registerRoutes: registerHakkaRoutes } = require("../../hakka-helper/backend");
 
 function registerRoutes(router, options) {
-  registerAiRoutes(router, options && typeof options === "object" ? options : {});
+  registerHakkaRoutes(router, options && typeof options === "object" ? options : {});
 }
 
 module.exports = {

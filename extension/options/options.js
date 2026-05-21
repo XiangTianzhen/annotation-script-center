@@ -10,6 +10,8 @@
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
   const magicDataAnnotatorScriptId =
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
+  const magicDataMinnanScriptId =
+    constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
   const abakaAiTaskPageCaptureScriptId =
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
   const backendModeServer = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
@@ -299,7 +301,8 @@
     judgement: "/api/alibaba-labelx/asr-judgement/ai/defaults",
     transcription: "/api/alibaba-labelx/asr-transcription/ai/defaults",
     dataBakerRoundOneQuality: "/api/data-baker/round-one-quality/ai/recommend/defaults",
-    magicDataAnnotatorAiReview: "/api/magic-data/annotator/ai/defaults",
+    magicDataAnnotatorAiReview: "/api/magic-data/hakka-helper/ai/defaults",
+    magicDataMinnanAssistant: "/api/magic-data/minnan-helper/ai/defaults",
   };
   let projectDataDownloadDatasets = [];
 
@@ -1246,7 +1249,7 @@
   }
 
   function isMagicDataScript(scriptId) {
-    return scriptId === magicDataAnnotatorScriptId;
+    return scriptId === magicDataAnnotatorScriptId || scriptId === magicDataMinnanScriptId;
   }
 
   function isAbakaAiScript(scriptId) {
@@ -1258,7 +1261,7 @@
       scriptId === judgementProjectId ||
       scriptId === transcriptionProjectId ||
       scriptId === dataBakerRoundOneQualityScriptId ||
-      scriptId === magicDataAnnotatorScriptId
+      isMagicDataScript(scriptId)
     );
   }
 
@@ -1272,7 +1275,7 @@
     if (scriptId === dataBakerRoundOneQualityScriptId) {
       return "data-baker-status";
     }
-    if (scriptId === magicDataAnnotatorScriptId) {
+    if (isMagicDataScript(scriptId)) {
       return "magic-data-status";
     }
     return "detail-status";
@@ -1356,6 +1359,9 @@
     if (scriptId === magicDataAnnotatorScriptId) {
       return asrVoiceAiDefaultsPaths.magicDataAnnotatorAiReview;
     }
+    if (scriptId === magicDataMinnanScriptId) {
+      return asrVoiceAiDefaultsPaths.magicDataMinnanAssistant;
+    }
     return "";
   }
 
@@ -1411,7 +1417,7 @@
       response_format: false,
     };
 
-    if (scriptId === magicDataAnnotatorScriptId) {
+    if (isMagicDataScript(scriptId)) {
       baseDefaults.reviewModel = "qwen3.5-plus";
       baseDefaults.compareModel = "";
     }
@@ -1847,8 +1853,16 @@
     });
   }
 
-  function getMagicDataConfig(settings) {
-    const source = settings?.scriptCenter?.projects?.magicDataAnnotator || {};
+  function getMagicDataConfig(settings, scriptId) {
+    const targetScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataAnnotatorScriptId;
+    const source =
+      targetScriptId === magicDataMinnanScriptId
+        ? settings?.platforms?.magicData?.scripts?.minnanHelper ||
+          settings?.scriptCenter?.projects?.magicDataMinnanAssistant ||
+          {}
+        : settings?.platforms?.magicData?.scripts?.hakkaHelper ||
+          settings?.scriptCenter?.projects?.magicDataAnnotator ||
+          {};
     return {
       enabled: source.enabled !== false,
       aiReviewEnabled: source.aiReviewEnabled !== false,
@@ -2192,7 +2206,7 @@
       return;
     }
 
-    if (scriptId === dataBakerRoundOneQualityScriptId || scriptId === magicDataAnnotatorScriptId) {
+    if (scriptId === dataBakerRoundOneQualityScriptId || isMagicDataScript(scriptId)) {
       const prefix = scriptId === dataBakerRoundOneQualityScriptId ? "data-baker-ai" : "magic-data-ai";
       const modelLabel = scriptId === dataBakerRoundOneQualityScriptId ? "比较模型" : "质检模型";
       panel.innerHTML = [
@@ -2246,13 +2260,13 @@
         '<label class="asr-ai-field hidden" id="' + prefix + '-compare-model-custom-field"><span id="' + prefix + '-compare-model-custom-label">' + modelLabel + '自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
         '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时后端自动降级）</span></label></label>',
-        scriptId === magicDataAnnotatorScriptId
+        isMagicDataScript(scriptId)
           ? '<label class="asr-ai-field"><span>AI 质检模式</span><select id="magic-data-review-mode"><option value="rule_first">规则优先</option><option value="listen_assisted">听音辅助</option><option value="strict_review">严格复核</option></select></label>'
           : "",
-        scriptId === magicDataAnnotatorScriptId
+        isMagicDataScript(scriptId)
           ? '<label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-show-heard-text" type="checkbox" /><span>显示 AI 听音文本</span></label></label>'
           : "",
-        scriptId === magicDataAnnotatorScriptId
+        isMagicDataScript(scriptId)
           ? '<label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-show-estimated-income" type="checkbox" /><span>显示预计金额</span></label></label>'
           : "",
         "</div></div>",
@@ -2318,7 +2332,7 @@
     }
 
     if (isMagicDataScript(scriptId)) {
-      const config = getMagicDataConfig(settings);
+      const config = getMagicDataConfig(settings, scriptId);
       return config.enabled !== false && config.aiReviewEnabled !== false;
     }
 
@@ -2358,7 +2372,7 @@
     }
 
     if (isMagicDataScript(scriptId)) {
-      const config = getMagicDataConfig(settings);
+      const config = getMagicDataConfig(settings, scriptId);
       if (!isScriptEnabled(settings, scriptId)) {
         return { text: "未启用", tone: "disabled" };
       }
@@ -3257,9 +3271,10 @@
     renderMagicDataShortcutGrid();
   }
 
-  function applyMagicDataSettingsForm(settings) {
-    const config = getMagicDataConfig(settings);
-    const defaultsPayload = getAsrVoiceAiDefaultsCached(magicDataAnnotatorScriptId);
+  function applyMagicDataSettingsForm(settings, scriptId) {
+    const activeScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataAnnotatorScriptId;
+    const config = getMagicDataConfig(settings, activeScriptId);
+    const defaultsPayload = getAsrVoiceAiDefaultsCached(activeScriptId);
     const aiDefaults = defaultsPayload.defaults || {};
     magicDataShortcutsDraft = clone(config.shortcuts) || {};
     if (getElement("magic-data-enabled")) {
@@ -3343,8 +3358,12 @@
       shortcuts[action.key] = normalizeNullableShortcut(magicDataShortcutsDraft[action.key]);
     });
 
-    const currentConfig = getMagicDataConfig(currentSettings || {});
-    const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataAnnotatorScriptId).defaults || {};
+    const activeScriptId = getCurrentDetailScriptId();
+    const targetScriptId = isMagicDataScript(activeScriptId)
+      ? activeScriptId
+      : magicDataAnnotatorScriptId;
+    const currentConfig = getMagicDataConfig(currentSettings || {}, targetScriptId);
+    const aiDefaults = getAsrVoiceAiDefaultsCached(targetScriptId).defaults || {};
     const hasAiSettingsPanel = Boolean(getElement("magic-data-enabled"));
     const enabled = hasAiSettingsPanel
       ? getElement("magic-data-enabled").checked
@@ -3471,39 +3490,64 @@
 
     setStatus("magic-data-status", "正在保存 Magic Data 设置...");
     try {
-      currentSettings = await storage.patchSettings({
-        scriptCenter: {
-          projects: {
-            magicDataAnnotator: {
-              enabled: enabled,
-              aiReviewEnabled: enabled,
-              listenModel:
-                listenModel === String(aiDefaults.listenModel || "").trim() ? "" : listenModel,
-              reviewModel:
-                reviewModel ===
-                String(aiDefaults.reviewModel || aiDefaults.compareModel || "").trim()
-                  ? ""
-                  : reviewModel,
-              reviewMode: reviewMode,
-              showHeardText: showHeardText,
-              showEstimatedIncome: showEstimatedIncome,
-              enableThinking: enableThinking,
-              aiReviewRequestTimeoutMs: aiReviewRequestTimeoutMs,
-              aiReviewListenPrompt: aiReviewListenPrompt,
-              aiReviewComparePrompt: aiReviewComparePrompt,
-              aiReviewTemperature: aiReviewTemperature,
-              aiReviewTopP: aiReviewTopP,
-              aiReviewMaxTokens: aiReviewMaxTokens,
-              aiReviewMaxCompletionTokens: aiReviewMaxCompletionTokens,
-              aiReviewPresencePenalty: aiReviewPresencePenalty,
-              aiReviewFrequencyPenalty: aiReviewFrequencyPenalty,
-              aiReviewSeed: aiReviewSeed,
-              aiReviewStopSequences: aiReviewStopSequences,
-              shortcuts: shortcuts,
-            },
-          },
-        },
-      });
+      const payloadConfig = {
+        enabled: enabled,
+        aiReviewEnabled: enabled,
+        listenModel:
+          listenModel === String(aiDefaults.listenModel || "").trim() ? "" : listenModel,
+        reviewModel:
+          reviewModel ===
+          String(aiDefaults.reviewModel || aiDefaults.compareModel || "").trim()
+            ? ""
+            : reviewModel,
+        reviewMode: reviewMode,
+        showHeardText: showHeardText,
+        showEstimatedIncome: showEstimatedIncome,
+        enableThinking: enableThinking,
+        aiReviewRequestTimeoutMs: aiReviewRequestTimeoutMs,
+        aiReviewListenPrompt: aiReviewListenPrompt,
+        aiReviewComparePrompt: aiReviewComparePrompt,
+        aiReviewTemperature: aiReviewTemperature,
+        aiReviewTopP: aiReviewTopP,
+        aiReviewMaxTokens: aiReviewMaxTokens,
+        aiReviewMaxCompletionTokens: aiReviewMaxCompletionTokens,
+        aiReviewPresencePenalty: aiReviewPresencePenalty,
+        aiReviewFrequencyPenalty: aiReviewFrequencyPenalty,
+        aiReviewSeed: aiReviewSeed,
+        aiReviewStopSequences: aiReviewStopSequences,
+        shortcuts: shortcuts,
+      };
+      const patchPayload =
+        targetScriptId === magicDataMinnanScriptId
+          ? {
+              scriptCenter: {
+                projects: {
+                  magicDataMinnanAssistant: payloadConfig,
+                },
+              },
+              platforms: {
+                magicData: {
+                  scripts: {
+                    minnanHelper: Object.assign({ id: magicDataMinnanScriptId }, payloadConfig),
+                  },
+                },
+              },
+            }
+          : {
+              scriptCenter: {
+                projects: {
+                  magicDataAnnotator: payloadConfig,
+                },
+              },
+              platforms: {
+                magicData: {
+                  scripts: {
+                    hakkaHelper: Object.assign({ id: magicDataAnnotatorScriptId }, payloadConfig),
+                  },
+                },
+              },
+            };
+      currentSettings = await storage.patchSettings(patchPayload);
       renderCurrentView();
       setStatus("magic-data-status", "Magic Data 设置已保存；如页面未生效请刷新目标页面。");
       return true;
@@ -4877,10 +4921,7 @@
       "hidden",
       scriptId !== dataBakerRoundOneQualityScriptId
     );
-    getElement("detail-magic-data-annotator-panel").classList.toggle(
-      "hidden",
-      scriptId !== magicDataAnnotatorScriptId
-    );
+    getElement("detail-magic-data-annotator-panel").classList.toggle("hidden", !isMagicDataScript(scriptId));
     getElement("detail-abaka-ai-task-page-panel").classList.toggle(
       "hidden",
       scriptId !== abakaAiTaskPageCaptureScriptId
@@ -4903,8 +4944,8 @@
           applyTranscriptionForm(currentSettings || settings || {});
         } else if (scriptId === dataBakerRoundOneQualityScriptId) {
           applyDataBakerForm(currentSettings || settings || {});
-        } else if (scriptId === magicDataAnnotatorScriptId) {
-          applyMagicDataSettingsForm(currentSettings || settings || {});
+        } else if (isMagicDataScript(scriptId)) {
+          applyMagicDataSettingsForm(currentSettings || settings || {}, scriptId);
         }
       });
     }
@@ -4945,8 +4986,8 @@
       return;
     }
 
-    if (scriptId === magicDataAnnotatorScriptId) {
-      applyMagicDataSettingsForm(settings);
+    if (isMagicDataScript(scriptId)) {
+      applyMagicDataSettingsForm(settings, scriptId);
       setStatus(
         "magic-data-status",
         "Magic Data 页面内结果区固定展示空状态，点击 AI 质检后仅更新内容，不会自动保存或提交。"
@@ -5295,15 +5336,57 @@
 
     try {
       if (isMagicDataScript(scriptId) && typeof storage.patchSettings === "function") {
+        const magicDataPatch =
+          scriptId === magicDataMinnanScriptId
+            ? {
+                scriptCenter: {
+                  projects: {
+                    magicDataMinnanAssistant: {
+                      enabled: enabled === true,
+                      aiReviewEnabled: enabled === true,
+                    },
+                  },
+                },
+                platforms: {
+                  magicData: {
+                    scripts: {
+                      minnanHelper: {
+                        id: magicDataMinnanScriptId,
+                        enabled: enabled === true,
+                        aiReviewEnabled: enabled === true,
+                      },
+                    },
+                  },
+                },
+              }
+            : {
+                scriptCenter: {
+                  projects: {
+                    magicDataAnnotator: {
+                      enabled: enabled === true,
+                      aiReviewEnabled: enabled === true,
+                    },
+                  },
+                },
+                platforms: {
+                  magicData: {
+                    scripts: {
+                      hakkaHelper: {
+                        id: magicDataAnnotatorScriptId,
+                        enabled: enabled === true,
+                        aiReviewEnabled: enabled === true,
+                      },
+                    },
+                  },
+                },
+              };
         currentSettings = await storage.patchSettings({
-          scriptCenter: {
-            projects: {
-              magicDataAnnotator: {
-                enabled: enabled === true,
-                aiReviewEnabled: enabled === true,
-              },
+          platforms: {
+            magicData: {
+              enabled: true,
             },
           },
+          ...magicDataPatch,
         });
       } else if (typeof storage.setScriptEnabled === "function") {
         currentSettings = await storage.setScriptEnabled(scriptId, enabled);

@@ -132,7 +132,8 @@ http://127.0.0.1:3333
 - `GET /api/alibaba-labelx/asr-judgement/ai/defaults`
 - `GET /api/alibaba-labelx/asr-transcription/ai/defaults`
 - `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
-- `GET /api/magic-data/annotator/ai/defaults`
+- `GET /api/magic-data/hakka-helper/ai/defaults`
+- `GET /api/magic-data/minnan-helper/ai/defaults`
 
 统一返回字段包含：`success`、`scriptId`、`defaults`、`supportedParams`、`notes`。其中 `response_format` 对前端固定为不开放（`supportedParams.response_format=false`），结构化输出由后端控制。
 
@@ -225,13 +226,24 @@ pm2 restart annotation-script-center --update-env
 - `data-baker/round-one-quality` 的 `supportedPipelineModes` 仅保留给后端兼容与排查使用，不再作为前端主配置来源；前端主配置为 `listenModelOptions` 与 `compareModelOptions`。
 - DataBaker `fun-asr` 链路默认通过 `platform-resources/backend/ai/providers/funasr-rest.js` 走 Node REST 异步任务提交 / 轮询；仅显式切到 `provider=python` 或 `fallback=python` 时才会调用 `platform-resources/backend/ai/python/funasr_client.py`。
 - 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；默认 REST 链路不经过 Python 子进程，仅显式切 Python 时才受 Python stdout 编码影响。
-- `magic-data/annotator`：Magic Data AI 质检调试接口，包含 `review-current` 与 `health`。
+- `magic-data/hakka-helper`：Magic Data 客家话助手 AI 复核接口（保留 `annotator` 兼容路径）。
+- `magic-data/minnan-helper`：Magic Data 闽南语助手 AI 复核接口。
 - `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
 
 Magic Data 接口：
-- `GET /api/magic-data/annotator/ai/review-current/health`
-- `POST /api/magic-data/annotator/ai/review-current`
+- 客家话助手（新路径）：
+  - `GET /api/magic-data/hakka-helper/ai/review-current/health`
+  - `GET /api/magic-data/hakka-helper/ai/defaults`
+  - `POST /api/magic-data/hakka-helper/ai/review-current`
+- 闽南语助手：
+  - `GET /api/magic-data/minnan-helper/ai/review-current/health`
+  - `GET /api/magic-data/minnan-helper/ai/defaults`
+  - `POST /api/magic-data/minnan-helper/ai/review-current`
+- 兼容旧路径（客家话助手）：
+  - `GET /api/magic-data/annotator/ai/review-current/health`
+  - `GET /api/magic-data/annotator/ai/defaults`
+  - `POST /api/magic-data/annotator/ai/review-current`
 
 Abaka Task21 AI 接口：
 - `GET /api/abaka-ai/task21/ai/health`

@@ -30,7 +30,7 @@
   - `extension/sites/alibaba-labelx/asr-judgement/`
   - `extension/sites/alibaba-labelx/asr-transcription/`
   - `extension/sites/data-baker/round-one-quality/`
-  - `extension/sites/magic-data/annotator/`
+  - `extension/sites/magic-data/`（`hakka-helper` + `minnan-helper`）
   - `extension/sites/abaka-ai/task-page/`（Task21助手 + 页面结构/Network 脱敏采集）
 
 ## 本地加载扩展

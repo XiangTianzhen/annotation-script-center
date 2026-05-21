@@ -23,9 +23,11 @@
 
 ## Magic Data ANNOTATOR
 
-- 运行时代码：`extension/sites/magic-data/annotator/`
-- README：`extension/sites/magic-data/annotator/README.md`
-- 后端与平台资料：`platform-resources/magic-data/annotator/`
+- 平台运行时代码：`extension/sites/magic-data/`
+- 平台 README：`extension/sites/magic-data/README.md`
+- 客家话助手：`extension/sites/magic-data/hakka-helper/README.md`
+- 闽南语助手：`extension/sites/magic-data/minnan-helper/README.md`
+- 平台资料：`platform-resources/magic-data/README.md`
 
 ## Abaka AI
 

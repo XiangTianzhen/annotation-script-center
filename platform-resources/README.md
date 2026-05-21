@@ -189,11 +189,20 @@ platform-resources/
 - 限流与缓存：所有上游模型调用都进入统一后端队列，按 `fun_asr / qwen_omni / text_compare` 分组限流，并带 TTL 内存缓存；浏览器不直连 DashScope。
 - 风险说明：`429` 来自上游模型限流，不是服务器算力问题；`fun_asr_compare` 还依赖 Fun-ASR 能访问平台 `audioUrl`。
 
-### Magic Data Annotator API
+### Magic Data ANNOTATOR API
 
-- `GET /api/magic-data/annotator/ai/review-current/health`
-- `GET /api/magic-data/annotator/ai/defaults`
-- `POST /api/magic-data/annotator/ai/review-current`
+- 客家话助手（新路径）
+  - `GET /api/magic-data/hakka-helper/ai/review-current/health`
+  - `GET /api/magic-data/hakka-helper/ai/defaults`
+  - `POST /api/magic-data/hakka-helper/ai/review-current`
+- 闽南语助手
+  - `GET /api/magic-data/minnan-helper/ai/review-current/health`
+  - `GET /api/magic-data/minnan-helper/ai/defaults`
+  - `POST /api/magic-data/minnan-helper/ai/review-current`
+- 客家话助手兼容旧路径
+  - `GET /api/magic-data/annotator/ai/review-current/health`
+  - `GET /api/magic-data/annotator/ai/defaults`
+  - `POST /api/magic-data/annotator/ai/review-current`
 - 是否下载接口：暂无下载接口
 - token/password：不需要
 - 数据目录：按模块日志目录为主，无统一 CSV 下载目录

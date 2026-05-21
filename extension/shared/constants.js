@@ -39,6 +39,7 @@
   const LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID = "lightwheelViewPanel";
   const DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID = "dataBakerRoundOneQuality";
   const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
+  const MAGIC_DATA_MINNAN_SCRIPT_ID = "magicDataMinnanAssistant";
   const ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID = "abakaAiTaskPageCapture";
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
@@ -962,8 +963,8 @@
       label: "Magic Data ANNOTATOR",
       host: MAGIC_DATA_PLATFORM.host,
       matches: clone(MAGIC_DATA_PLATFORM.matches),
-      runtimeBridge: "magic-data-annotator-ai-review",
-      description: "Magic Data 当前条 AI 质检、快捷键与模型配置。",
+      runtimeBridge: "magic-data-assistants",
+      description: "Magic Data 当前条 AI 质检助手平台（客家话/闽南语）。",
     },
     abakaAi: {
       id: ABAKA_AI_PLATFORM_ID,
@@ -1040,6 +1041,19 @@
       capabilityScope: "rule-first-ai-review",
       statusLabel: "客家话助手",
       detailView: "magic-data-annotator-ai-review",
+      host: MAGIC_DATA_PLATFORM.host,
+      matchUrl: "https://work.magicdatatech.com/#/asrmark?taskItemId=...",
+    },
+    magicDataMinnanAssistant: {
+      id: MAGIC_DATA_MINNAN_SCRIPT_ID,
+      platformId: MAGIC_DATA_PLATFORM_ID,
+      label: "闽南语助手",
+      shortLabel: "闽南语助手",
+      description: "用于 Magic Data #/asrmark 当前条闽南语规则质检，不自动保存、不自动提交。",
+      note: "页面内结果区仅辅助复核，平台两行文本为基准答案，AI 输出以风险提示为主。",
+      capabilityScope: "rule-first-ai-review",
+      statusLabel: "闽南语助手",
+      detailView: "magic-data-minnan-assistant",
       host: MAGIC_DATA_PLATFORM.host,
       matchUrl: "https://work.magicdatatech.com/#/asrmark?taskItemId=...",
     },
@@ -1487,12 +1501,47 @@
           aiReviewStopSequences: "",
           shortcuts: {},
         },
+        magicDataMinnanAssistant: {
+          enabled: true,
+          aiReviewEnabled: true,
+          listenModel: "qwen3.5-omni-flash",
+          reviewModel: "qwen3.5-plus",
+          reviewMode: "rule_first",
+          showHeardText: true,
+          showEstimatedIncome: true,
+          enableThinking: false,
+          aiReviewRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+          aiReviewListenPrompt: "",
+          aiReviewComparePrompt: "",
+          aiReviewTemperature: "",
+          aiReviewTopP: "",
+          aiReviewMaxTokens: "",
+          aiReviewMaxCompletionTokens: "",
+          aiReviewPresencePenalty: "",
+          aiReviewFrequencyPenalty: "",
+          aiReviewSeed: "",
+          aiReviewStopSequences: "",
+          shortcuts: {},
+        },
       },
     },
     platforms: {
       alibabaLabelx: createDefaultPlatformSettings(),
       lightwheel: createDefaultLightwheelPlatformSettings(),
       dataBaker: createDefaultDataBakerPlatformSettings(),
+      magicData: {
+        enabled: true,
+        scripts: {
+          hakkaHelper: {
+            id: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
+            enabled: true,
+          },
+          minnanHelper: {
+            id: MAGIC_DATA_MINNAN_SCRIPT_ID,
+            enabled: true,
+          },
+        },
+      },
       abakaAi: createDefaultAbakaAiPlatformSettings(),
     },
     asr: clone(DEFAULT_ASR_CONFIG),
@@ -1546,6 +1595,7 @@
     ABAKA_AI_PLATFORM_ID: ABAKA_AI_PLATFORM_ID,
     DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
     MAGIC_DATA_ANNOTATOR_SCRIPT_ID: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
+    MAGIC_DATA_MINNAN_SCRIPT_ID: MAGIC_DATA_MINNAN_SCRIPT_ID,
     ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
     DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
     DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,

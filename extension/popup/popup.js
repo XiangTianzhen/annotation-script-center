@@ -10,7 +10,10 @@
   const dataBakerRoundOneQualityScriptId =
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
   const magicDataHost = "work.magicdatatech.com";
-  const magicDataScriptId = "magicDataAnnotatorAiReview";
+  const magicDataHakkaScriptId =
+    constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
+  const magicDataMinnanScriptId =
+    constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
   const abakaAiHost = (constants.ABAKA_AI_PLATFORM || {}).host || "abao.fortidyndns.com";
   const abakaAiScriptId =
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
@@ -237,31 +240,55 @@
     if (url.hostname === magicDataHost) {
       const hash = String(url.hash || "").toLowerCase();
       const isAsrmark = hash.indexOf("#/asrmark") >= 0;
+      const platformEnabled = settings?.platforms?.magicData?.enabled !== false;
+      const hakkaEnabled =
+        settings?.platforms?.magicData?.scripts?.hakkaHelper?.enabled !== false &&
+        settings?.scriptCenter?.projects?.magicDataAnnotator?.enabled !== false;
+      const minnanEnabled =
+        settings?.platforms?.magicData?.scripts?.minnanHelper?.enabled !== false &&
+        settings?.scriptCenter?.projects?.magicDataMinnanAssistant?.enabled !== false;
+      const enabledList = [];
+      if (hakkaEnabled) {
+        enabledList.push("客家话助手");
+      }
+      if (minnanEnabled) {
+        enabledList.push("闽南语助手");
+      }
+      const enabledLabel = enabledList.length > 0 ? enabledList.join(" / ") : "无";
+      const suggestedScriptId =
+        hakkaEnabled && !minnanEnabled
+          ? magicDataHakkaScriptId
+          : minnanEnabled && !hakkaEnabled
+            ? magicDataMinnanScriptId
+            : null;
       if (isAsrmark) {
         return {
-          scriptId: magicDataScriptId,
-          scriptLabel: "客家话助手",
+          scriptId: suggestedScriptId,
+          scriptLabel: enabledLabel,
           platformId: "magicData",
           platformLabel: "Magic Data ANNOTATOR",
           url: url,
-          statusText: "已支持",
-          statusTone: "success",
+          statusText: platformEnabled && enabledList.length > 0 ? "已支持" : "未启用",
+          statusTone: platformEnabled && enabledList.length > 0 ? "success" : "disabled",
           title: "当前页面：Magic Data 标注单条页",
-          description: "脚本状态：已支持客家话助手。请在页面说话内容表格下方查看客家话助手结果区。",
-          openScriptSettings: false,
+          description:
+            "脚本状态：可用助手为 " +
+            enabledLabel +
+            "。请在页面说话内容表格下方查看对应助手结果区（仅 AI 辅助，不自动保存/提交）。",
+          openScriptSettings: Boolean(suggestedScriptId),
         };
       }
       return {
-        scriptId: magicDataScriptId,
-        scriptLabel: "客家话助手",
+        scriptId: suggestedScriptId,
+        scriptLabel: enabledLabel,
         platformId: "magicData",
         platformLabel: "Magic Data ANNOTATOR",
         url: url,
         statusText: "待进入标注单条页",
         statusTone: "pending",
         title: "当前页面属于 Magic Data",
-        description: "进入 #/asrmark 后可使用客家话助手。",
-        openScriptSettings: false,
+        description: "进入 #/asrmark 后可使用已启用助手（当前：" + enabledLabel + "）。",
+        openScriptSettings: Boolean(suggestedScriptId),
       };
     }
 

@@ -168,7 +168,7 @@
         "https://work.magicdatatech.com/*"
       ],
       "js": [
-        "sites/magic-data/annotator/page-world/network-observer.js"
+        "sites/magic-data/shared/page-world/network-observer.js"
       ],
       "all_frames": false,
       "run_at": "document_start",
@@ -181,12 +181,16 @@
       "js": [
         "shared/constants.js",
         "shared/storage.js",
-        "sites/magic-data/annotator/page-detector.js",
-        "sites/magic-data/annotator/data-collector.js",
-        "sites/magic-data/annotator/ai-review-client.js",
-        "sites/magic-data/annotator/shortcuts.js",
-        "sites/magic-data/annotator/inline-panel.js",
-        "sites/magic-data/annotator/content.js"
+        "sites/magic-data/shared/page-detector.js",
+        "sites/magic-data/shared/data-collector.js",
+        "sites/magic-data/shared/ai-review-client.js",
+        "sites/magic-data/shared/shortcuts-runtime.js",
+        "sites/magic-data/shared/assistant-panel-core.js",
+        "sites/magic-data/hakka-helper/content.js",
+        "sites/magic-data/minnan-helper/ai-review-client.js",
+        "sites/magic-data/minnan-helper/shortcuts-runtime.js",
+        "sites/magic-data/minnan-helper/assistant-panel.js",
+        "sites/magic-data/minnan-helper/content.js"
       ],
       "all_frames": false,
       "run_at": "document_start",
