@@ -50,8 +50,12 @@
 - `provider-queue.js` 现在会返回并记录 `pendingCount / activeCount / maxConcurrent / queueWaitMs / durationMs`，用于判断瓶颈是在前端发起、Fun-ASR 队列还是 compare 阶段。
 - `providers/funasr-rest.js` 会记录 `[FunASR][REST] submit start/finish` 与 `[FunASR][REST] poll start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
 - `providers/funasr-python.js` 会记录 `[FunASR] spawn start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
-- DataBaker 前端“AI连续填入合格项并发数量”是浏览器同时发往统一后端的请求数，当前范围 `1~50`、默认 `20`；其中 `two_stage + fun-asr` 仍继续受 provider queue / RPM 限流保护。
+- DataBaker 前端“AI连续填入合格项并发数量”是浏览器同时发往统一后端的请求数，当前按模型动态归一：
+  - Omni：默认 `15`，范围 `1~25`
+  - Fun-ASR：默认 `25`，范围 `1~50`
+- 前端和后端都会对超范围值做归一；请求体会携带 `frontConcurrency / batchConcurrency / concurrencyModelType` 作为诊断字段，但不会传进模型 Prompt。
 - DataBaker `two_stage + fun-asr` 的批量连续填入默认直接发送同步 recommend 请求；前端按 `30ms` 错峰发起并用前端活跃并发上限控制节奏，后端继续通过 provider queue / RPM 限流保护上游。
+- Fun-ASR 错误现在会细分为鉴权/权限、音频 URL 不可访问、模型名错误、上游限流、任务失败、转写结果下载失败和通用 provider error；失败仍保留“查看原始AI返回”入口。
 - Qwen provider 与 DataBaker Omni legacy client 现在都会识别 SSE `data: {"error": ...}`。若 `error.code/type` 为 `limit_burst_rate`、`throttling`、`rate_limit`、`limit_requests`、`TooManyRequests`，会按上游限流分类，而不是误判成空文本。
 - DataBaker Omni legacy 快速路径默认不再把 Qwen 上游平滑进 `qwen_omni` / `text_compare` 队列；前端并发多少就直接发送多少。仅当 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1` 时，才会重新启用 Qwen 平滑队列。
 - `DATABAKER_AI_QWEN_BURST_RETRY_MAX` 默认 `0`，即 `limit_burst_rate` 默认不自动退避重试，只暴露真实错误并保留 debug；如需更稳，可手动设为 `3` 并配合 `DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS`。

@@ -27,8 +27,14 @@ function parsePositiveInteger(value, fallback) {
 
 function getDebugStoreConfig() {
   return {
-    ttlMs: parsePositiveInteger(process.env.DATABAKER_AI_DEBUG_TTL_MS, DEFAULT_TTL_MS),
-    maxSize: parsePositiveInteger(process.env.DATABAKER_AI_DEBUG_MAX_SIZE, DEFAULT_MAX_SIZE),
+    ttlMs: parsePositiveInteger(
+      process.env.DATABAKER_AI_DEBUG_STORE_TTL_MS || process.env.DATABAKER_AI_DEBUG_TTL_MS,
+      DEFAULT_TTL_MS
+    ),
+    maxSize: parsePositiveInteger(
+      process.env.DATABAKER_AI_DEBUG_STORE_MAX_SIZE || process.env.DATABAKER_AI_DEBUG_MAX_SIZE,
+      DEFAULT_MAX_SIZE
+    ),
     textLimit: parsePositiveInteger(process.env.DATABAKER_AI_DEBUG_TEXT_LIMIT, DEFAULT_TEXT_LIMIT),
   };
 }
@@ -50,6 +56,10 @@ function normalizeStage(value) {
     text === "compare" ||
     text === "omni_single" ||
     text === "fun_asr" ||
+    text === "fun_asr_submit" ||
+    text === "fun_asr_poll" ||
+    text === "fun_asr_transcription_download" ||
+    text === "fun_asr_parse" ||
     text === "unknown"
   ) {
     return text;
@@ -59,7 +69,13 @@ function normalizeStage(value) {
 
 function normalizeProvider(value) {
   const text = String(value || "").trim().toLowerCase();
-  if (text === "qwen" || text === "fun-asr-rest" || text === "legacy-omni") {
+  if (
+    text === "qwen" ||
+    text === "fun-asr" ||
+    text === "fun-asr-rest" ||
+    text === "legacy-omni" ||
+    text === "dashscope-fun-asr-and-qwen"
+  ) {
     return text;
   }
   return text || "unknown";
@@ -117,6 +133,8 @@ function rememberAiDebug(payload) {
       Number.isFinite(Number(source.providerStatus)) && Number(source.providerStatus) > 0
         ? Number(source.providerStatus)
         : 0,
+    taskId: safeString(source.taskId, 160),
+    taskStatus: safeString(source.taskStatus, 80),
     rawText: source.rawText ? sanitizeProviderDebugText(source.rawText, config.textLimit) : "",
     rawJson: source.rawJson
       ? sanitizeProviderDebugJson(source.rawJson, { textLimit: config.textLimit })

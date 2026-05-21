@@ -8,9 +8,10 @@ const {
 } = require("../config");
 const {
   createAudioUrlUnavailableError,
-  createProviderHttpError,
+  createFunAsrProviderError,
   createTimeoutError,
   isAudioUrlLikelyUnavailable,
+  isRateLimitProviderCode,
   normalizeAbortError,
 } = require("../errors");
 const { sanitizeProviderErrorSummary } = require("../sanitizer");
@@ -184,6 +185,92 @@ function createForbiddenError(summary, rawStatus) {
   return error;
 }
 
+function createFunAsrAuthError(summary, rawStatus) {
+  return createFunAsrProviderError(
+    "Fun-ASR 鉴权或权限错误，请检查 DASHSCOPE_API_KEY、服务开通与地域。",
+    "fun-asr-auth-error",
+    401,
+    {
+      providerStatus: 401,
+      rawStatus,
+      summary,
+    }
+  );
+}
+
+function createFunAsrRateLimitedError(summary, providerCode, rawStatus) {
+  return createFunAsrProviderError(
+    "Fun-ASR 上游限流，请稍后重试。",
+    "fun-asr-rate-limited",
+    429,
+    {
+      providerStatus: 429,
+      providerCode,
+      rawStatus,
+      summary,
+    }
+  );
+}
+
+function createFunAsrTaskFailedError(summary, rawStatus, providerCode) {
+  return createFunAsrProviderError(
+    "Fun-ASR 任务失败，可查看原始AI返回。",
+    "fun-asr-task-failed",
+    502,
+    {
+      providerStatus: 502,
+      providerCode,
+      rawStatus,
+      summary,
+    }
+  );
+}
+
+function createFunAsrTranscriptionDownloadFailedError(summary, statusCode, rawStatus, providerCode) {
+  return createFunAsrProviderError(
+    "Fun-ASR 识别结果下载失败，可查看原始AI返回。",
+    "fun-asr-transcription-download-failed",
+    statusCode || 502,
+    {
+      providerStatus: statusCode || 502,
+      providerCode,
+      rawStatus,
+      summary,
+    }
+  );
+}
+
+function attachFunAsrDebug(error, meta) {
+  const source = meta && typeof meta === "object" ? meta : {};
+  if (!(error instanceof Error)) {
+    return error;
+  }
+  error.provider = "fun-asr-rest";
+  error.stage = String(source.stage || error.stage || "fun_asr").trim() || "fun_asr";
+  error.model = String(source.model || error.model || "").trim();
+  error.taskId = String(source.taskId || error.taskId || "").trim();
+  error.taskStatus = String(source.taskStatus || source.rawStatus || error.taskStatus || error.rawStatus || "").trim();
+  if (!error.providerCode && source.providerCode) {
+    error.providerCode = String(source.providerCode || "").trim();
+  }
+  if (!Number(error.providerStatus) && Number(source.statusCode)) {
+    error.providerStatus = Number(source.statusCode) || 0;
+  }
+  error.debugRawAiResponse = {
+    provider: "fun-asr-rest",
+    stage: error.stage,
+    model: error.model,
+    providerStatus: Number(error.providerStatus || error.statusCode || source.statusCode || 0) || 0,
+    providerCode: String(error.providerCode || source.providerCode || "").trim(),
+    taskId: error.taskId,
+    taskStatus: error.taskStatus,
+    responseBody: source.payload || null,
+    rawText: String(source.rawText || source.fallbackText || "").trim(),
+    createdAt: new Date().toISOString(),
+  };
+  return error;
+}
+
 function isInvalidModelSummary(code, summary) {
   const lowered = String(code || summary || "").toLowerCase();
   return lowered.indexOf("model") >= 0 && (
@@ -249,34 +336,70 @@ async function fetchWithTimeout(url, options, timeoutMs, timeoutMessage) {
   }
 }
 
-function classifyRestFailure(statusCode, payload, fallbackText, rawStatus) {
+function classifyRestFailure(options) {
+  const source = options && typeof options === "object" ? options : {};
+  const statusCode = Number(source.statusCode) || 0;
+  const payload = source.payload || null;
+  const rawStatus = String(source.rawStatus || "").trim();
+  const stage = String(source.stage || "fun_asr").trim() || "fun_asr";
+  const model = String(source.model || "").trim();
+  const taskId = String(source.taskId || "").trim();
+  const fallbackText = String(source.fallbackText || "");
   const summary = sanitizeProviderErrorSummary(extractProviderMessage(payload, fallbackText));
   const providerCode = extractProviderCode(payload);
+  let error = null;
   if (isInvalidModelSummary(providerCode, summary)) {
-    throw createInvalidFunAsrModelError(summary);
-  }
-  if (statusCode === 403) {
+    error = createInvalidFunAsrModelError(summary);
+  } else if (statusCode === 401) {
+    error = createFunAsrAuthError(summary, rawStatus);
+  } else if (statusCode === 429 || isRateLimitProviderCode(providerCode)) {
+    error = createFunAsrRateLimitedError(summary, providerCode, rawStatus);
+  } else if (stage === "fun_asr_transcription_download") {
+    error = createFunAsrTranscriptionDownloadFailedError(summary, statusCode || 502, rawStatus, providerCode);
+  } else if (stage === "fun_asr_poll" && FAILURE_STATUS_SET.has(rawStatus)) {
+    error = createFunAsrTaskFailedError(summary, rawStatus, providerCode);
+  } else if (statusCode === 403) {
     if (isDownloadFailedSummary(providerCode, summary)) {
-      throw createAudioUrlUnavailableError(
-        "Fun-ASR 调用被拒绝。当前更像是平台音频 URL 对模型服务不可访问。",
+      error = createAudioUrlUnavailableError(
+        "Fun-ASR 无法下载平台音频，请确认 audioUrl 对阿里云服务可访问或签名未过期。",
         403,
         rawStatus
       );
+    } else {
+      error = createForbiddenError(summary, rawStatus);
     }
-    throw createForbiddenError(summary, rawStatus);
-  }
-  if (isDownloadFailedSummary(providerCode, summary)) {
-    throw createAudioUrlUnavailableError(
-      "Fun-ASR 无法访问当前音频链接，请确认平台 audioUrl 对模型服务可访问。",
+  } else if (isDownloadFailedSummary(providerCode, summary)) {
+    error = createAudioUrlUnavailableError(
+      "Fun-ASR 无法下载平台音频，请确认 audioUrl 对阿里云服务可访问或签名未过期。",
       statusCode || 403,
       rawStatus
     );
+  } else {
+    error = createFunAsrProviderError(
+      "Fun-ASR 上游模型接口返回错误，可查看原始AI返回。",
+      "fun-asr-provider-error",
+      statusCode || 502,
+      {
+        providerStatus: statusCode || 502,
+        providerCode,
+        rawStatus,
+        summary,
+      }
+    );
   }
-  throw createProviderHttpError(
-    statusCode || 502,
-    summary,
-    "Fun-ASR REST 调用失败（HTTP " + String(statusCode || 502) + "）。"
-  );
+  if (error.code === "fun-asr-audio-url-unreachable") {
+    error.providerCode = providerCode;
+  }
+  throw attachFunAsrDebug(error, {
+    stage,
+    model,
+    taskId,
+    taskStatus: rawStatus,
+    statusCode,
+    providerCode,
+    payload,
+    fallbackText,
+  });
 }
 
 async function submitTask(audioUrl, model, config, options) {
@@ -324,7 +447,14 @@ async function submitTask(audioUrl, model, config, options) {
     rawStatus,
   });
   if (!response.ok) {
-    classifyRestFailure(statusCode, body.payload, body.text, rawStatus);
+    classifyRestFailure({
+      statusCode,
+      payload: body.payload,
+      fallbackText: body.text,
+      rawStatus,
+      stage: "fun_asr_submit",
+      model,
+    });
   }
   if (!taskId) {
     throw createTaskMissingError(body.text);
@@ -366,7 +496,15 @@ async function pollTask(taskId, config, options) {
     lastPayload = body.payload || {};
     lastStatus = rawStatus;
     if (!response.ok) {
-      classifyRestFailure(body.status, body.payload, body.text, rawStatus);
+      classifyRestFailure({
+        statusCode: body.status,
+        payload: body.payload,
+        fallbackText: body.text,
+        rawStatus,
+        stage: "fun_asr_poll",
+        model: options?.model,
+        taskId,
+      });
     }
     if (SUCCESS_STATUS_SET.has(rawStatus)) {
       console.info("[FunASR][REST] poll finish", {
@@ -389,7 +527,15 @@ async function pollTask(taskId, config, options) {
         success: false,
         rawStatus,
       });
-      classifyRestFailure(502, body.payload, body.text, rawStatus);
+      classifyRestFailure({
+        statusCode: 502,
+        payload: body.payload,
+        fallbackText: body.text,
+        rawStatus,
+        stage: "fun_asr_poll",
+        model: options?.model,
+        taskId,
+      });
     }
     if (!PENDING_STATUS_SET.has(rawStatus)) {
       console.info("[FunASR][REST] poll finish", {
@@ -399,7 +545,15 @@ async function pollTask(taskId, config, options) {
         success: false,
         rawStatus,
       });
-      classifyRestFailure(502, body.payload, body.text, rawStatus);
+      classifyRestFailure({
+        statusCode: 502,
+        payload: body.payload,
+        fallbackText: body.text,
+        rawStatus,
+        stage: "fun_asr_poll",
+        model: options?.model,
+        taskId,
+      });
     }
     await waitWithSignal(config.pollIntervalMs, options?.signal);
   }
@@ -521,10 +675,32 @@ async function downloadTranscriptionPayload(transcriptionUrl, timeoutMs, options
   );
   if (!response.ok) {
     const text = await response.text();
-    classifyRestFailure(response.status, null, text, "");
+    classifyRestFailure({
+      statusCode: response.status,
+      payload: null,
+      fallbackText: text,
+      rawStatus: options?.rawStatus || "",
+      stage: "fun_asr_transcription_download",
+      model: options?.model,
+      taskId: options?.taskId,
+    });
   }
   const buffer = Buffer.from(await response.arrayBuffer());
-  return parseTranscriptionPayload(buffer);
+  try {
+    return parseTranscriptionPayload(buffer);
+  } catch (error) {
+    throw attachFunAsrDebug(error, {
+      stage: "fun_asr_parse",
+      model: options?.model,
+      taskId: options?.taskId,
+      rawStatus: options?.rawStatus || "",
+      rawText:
+        tryDecodeBytes(buffer, "utf-8-sig") ||
+        tryDecodeBytes(buffer, "utf-8") ||
+        tryDecodeBytes(buffer, "gb18030") ||
+        "",
+    });
+  }
 }
 
 async function requestFunAsrRecognitionRest(input, options) {
@@ -552,21 +728,30 @@ async function requestFunAsrRecognitionRest(input, options) {
   }
   const audioUrl = String(input?.audioUrl || "").trim();
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs) || config.timeoutMs);
-  const submitResult = await submitTask(audioUrl, model, Object.assign({}, config, { timeoutMs }), {
+  let submitResult = null;
+  let pollResult = null;
+  submitResult = await submitTask(audioUrl, model, Object.assign({}, config, { timeoutMs }), {
     requestId,
   });
-  const pollResult = await pollTask(
+  pollResult = await pollTask(
     submitResult.taskId,
     Object.assign({}, config, { timeoutMs }),
     {
       requestId,
       timeoutMs,
+      model,
     }
   );
   const transcriptionUrl = extractTranscriptionUrl(pollResult.payload, audioUrl);
   let heardText = "";
+  let transcriptPayload = null;
   if (transcriptionUrl) {
-    const transcriptPayload = await downloadTranscriptionPayload(transcriptionUrl, timeoutMs, options);
+    transcriptPayload = await downloadTranscriptionPayload(transcriptionUrl, timeoutMs, {
+      signal: options?.signal,
+      model,
+      taskId: submitResult.taskId,
+      rawStatus: pollResult.rawStatus,
+    });
     heardText = extractHeardText(transcriptPayload);
   }
   if (!heardText) {
@@ -574,10 +759,23 @@ async function requestFunAsrRecognitionRest(input, options) {
   }
   heardText = String(heardText || "").trim();
   if (!heardText) {
-    throw createEmptyTextError(String(pollResult.rawStatus || ""));
+    throw attachFunAsrDebug(createEmptyTextError(String(pollResult.rawStatus || "")), {
+      stage: "fun_asr_parse",
+      model,
+      taskId: submitResult.taskId,
+      rawStatus: pollResult.rawStatus,
+      payload: transcriptPayload || pollResult.payload || null,
+    });
   }
   if (isHeardTextLikelyMojibake(heardText)) {
-    throw createMojibakeError(String(pollResult.rawStatus || ""));
+    throw attachFunAsrDebug(createMojibakeError(String(pollResult.rawStatus || "")), {
+      stage: "fun_asr_parse",
+      model,
+      taskId: submitResult.taskId,
+      rawStatus: pollResult.rawStatus,
+      payload: transcriptPayload || pollResult.payload || null,
+      rawText: heardText,
+    });
   }
   return {
     model,

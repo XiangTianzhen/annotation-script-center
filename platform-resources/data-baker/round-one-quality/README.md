@@ -28,7 +28,11 @@ extension/sites/data-baker/round-one-quality/
 - 专属设置页新增快捷键配置，默认全部未设置，可手动绑定 AI 推荐、复制、填入、忽略、句子判定和任务判定动作。
 - 左侧句子列表上方 `filter-screen`（“全选/批量判定”同一行）新增“AI连续填入合格项”：按钮挂载在“批量判定”右侧。
 - 点击后先刷新当前页 `queryCollectStatementByCondtion`，筛选当前页 `statusName=质检合格` 条目。
-- 先按配置并发数并发发起所有 AI 推荐（默认并发 `20`，可设 `1~50`），结果返回后进入缓冲区；填入流程不等待全部返回，按 AI 返回顺序从队列取结果后逐条选中并填入；运行中可再次点击或按 `Alt+Q` 停止。
+- 先按配置并发数并发发起所有 AI 推荐，结果返回后进入缓冲区；填入流程不等待全部返回，按 AI 返回顺序从队列取结果后逐条选中并填入；运行中可再次点击或按 `Alt+Q` 停止。
+- “AI连续填入合格项并发数量”已归到 DataBaker 的“ASR 语音 AI 设置”区域，并按模型动态归一：
+  - Omni：默认 `15`，范围 `1~25`
+  - Fun-ASR：默认 `25`，范围 `1~50`
+- 前端和后端都会对超范围值做归一；请求体会额外携带 `frontConcurrency / batchConcurrency / concurrencyModelType` 诊断字段，但不会传进模型 Prompt。
 - 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认直接发送同步 `POST /ai/recommend`。当前页有 N 条合格项，就会为 N 条任务调度对应请求；前端按 `30ms` 错峰发起，并继续受前端活跃并发上限与后端 provider queue / RPM 限流保护。
 - 运行中会显示顶部统计悬浮窗；完成或停止后保留约 60 秒，并展示失败条目与“重新填写失败内容”入口。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
@@ -202,6 +206,7 @@ AI prompt 输出字形规则：
 - 选择 `fun-asr` 作为听音模型时，还依赖 Fun-ASR 服务能访问平台 `audioUrl`。如果音频 URL 对服务端不可访问，后端会明确报错，但日志和文档不会泄露完整签名 URL。
 - Fun-ASR 不走 OpenAI-compatible chat/completions；当前默认通过 Node RESTful API 调用。
 - Fun-ASR 没有 thinking 概念；thinking 只影响 Qwen Omni 听音阶段和 compare 阶段。
+- Fun-ASR 失败时，前端现在会优先区分：鉴权/权限错误、平台音频 URL 不可访问、模型名错误、上游限流、任务失败、转写结果下载失败；失败列表继续保留“查看原始AI返回”。
 - Python 只是统一 Node 后端内部调用的 fallback / 调试辅助进程，不提供独立 Python 服务；标准启动入口始终是 `node platform-resources/backend/server.js`。
 
 Fun-ASR 默认 REST / Python fallback 相关路径：
@@ -242,9 +247,9 @@ platform-resources/backend/ai/python/requirements.txt
 3. 选择 `two_stage`，确认显示“听音模型”和“比较模型”，且“听音模型”下拉不再出现 `[object Object]`。
 4. 切换到 `omni_single`，确认只显示“AI 模型”，且模型选项只包含 `qwen3.5-omni-plus`、`qwen3.5-omni-flash`。
 5. 进入 `roundOneCollect` 页面，在 `omni_single` 下选择 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope，且默认优先走 Omni legacy 快速路径。
-6. 切回 `two_stage` 并选择听音模型为 `fun-asr`，确认界面显示 Python 提示，后端链路为 Fun-ASR + compare。
-7. 点击“AI并发分析并连续填入合格项”，确认默认并发为 `20`，可手动调到 `1~50`。
-8. DataBaker 选择 Qwen Omni 且前端并发调到 `50` 时，浏览器应继续按 `30ms` 错峰直发 recommend；后端默认不再对 Omni legacy 做平滑排队。
+6. 切回 `two_stage` 并选择听音模型为 `fun-asr`，确认界面显示 Fun-ASR provider 提示，后端链路为 Fun-ASR + compare。
+7. 点击“AI并发分析并连续填入合格项”，确认在 `fun-asr` 下默认并发为 `25`、范围 `1~50`；切到 Omni 后会归一到默认 `15`、范围 `1~25`。
+8. DataBaker 选择 Qwen Omni 且前端并发调到 `25` 时，浏览器应继续按 `30ms` 错峰直发 recommend；后端默认不再对 Omni legacy 做平滑排队。
 9. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
 10. 默认 REST provider 下，即使未配置 Python 虚拟环境，`two_stage + fun-asr` 也应能调用；只有显式切到 `provider=python` 或 `fallback=python` 时才依赖 `.venv`。
 11. 选择 `two_stage + fun-asr` 后点击“AI连续填入合格项”，确认 Network 中优先出现大量按 `30ms` 错峰发起的 `POST /api/data-baker/round-one-quality/ai/recommend`；`/jobs` 相关接口不应作为默认链路出现。
@@ -261,7 +266,9 @@ platform-resources/backend/ai/python/requirements.txt
 
 - 当前“AI连续填入合格项”采用“并发分析结果入缓冲 + 顺序填入”策略，仅在当前页执行，不跨页。
 - 诊断串行感时，先区分两层并发：
-  - 前端并发：`aiQualifiedAutofillConcurrency`，范围 `1~50`，默认 `20`
+  - 前端并发：`aiQualifiedAutofillConcurrency`
+    - Omni：默认 `15`，范围 `1~25`
+    - Fun-ASR：默认 `25`，范围 `1~50`
   - 后端 Fun-ASR 并发：`DATABAKER_AI_FUN_ASR_CONCURRENCY`，默认 `2`
   - 后端 compare 并发：`DATABAKER_AI_TEXT_CONCURRENCY`，默认 `5`
 - 如果前端“AI已返回”增长慢，不一定是前端没并发，也可能是 Fun-ASR 听音阶段或 compare 阶段在后端排队；优先看 `health.queue.groups.fun_asr.activeCount/maxConcurrent`。

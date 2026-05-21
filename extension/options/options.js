@@ -620,6 +620,125 @@
     return getDataBakerModelText(listenModel) === "fun-asr";
   }
 
+  function getDataBakerAiQualifiedAutofillConcurrencyRule(configLike) {
+    const helper =
+      typeof constants.getDataBakerAiQualifiedAutofillConcurrencyRule === "function"
+        ? constants.getDataBakerAiQualifiedAutofillConcurrencyRule
+        : null;
+    if (helper) {
+      return helper(configLike || {});
+    }
+    const source = configLike && typeof configLike === "object" ? configLike : {};
+    const recognitionMode = normalizeDataBakerRecognitionMode(
+      source.recognitionMode || source.aiRecommendPipelineMode || source.pipelineMode,
+      "two_stage"
+    );
+    const listenModel = getDataBakerModelText(source.listenModel || source.aiRecommendListenModel);
+    const singleModel = getDataBakerModelText(
+      source.singleModel || source.aiRecommendSingleModel || source.aiModel
+    );
+    if (recognitionMode === "two_stage" && listenModel === "fun-asr") {
+      return { min: 1, max: 50, defaultValue: 25, modelType: "fun_asr" };
+    }
+    if (recognitionMode === "omni_single" && singleModel) {
+      return { min: 1, max: 25, defaultValue: 15, modelType: "omni" };
+    }
+    return { min: 1, max: 25, defaultValue: 15, modelType: "omni" };
+  }
+
+  function normalizeDataBakerAutofillConcurrency(value, configLike) {
+    const helper =
+      typeof constants.normalizeDataBakerAiQualifiedAutofillConcurrency === "function"
+        ? constants.normalizeDataBakerAiQualifiedAutofillConcurrency
+        : null;
+    if (helper) {
+      return helper(value, configLike || {});
+    }
+    const rule = getDataBakerAiQualifiedAutofillConcurrencyRule(configLike || {});
+    const number = Number(value);
+    const base = Number.isFinite(number) ? Math.round(number) : rule.defaultValue;
+    return Math.max(rule.min, Math.min(rule.max, base));
+  }
+
+  function moveDataBakerAutofillConcurrencyFieldIntoAiPanel() {
+    const concurrencyInput = getElement("data-baker-qualified-autofill-concurrency");
+    const timeoutField = getElement("data-baker-ai-timeout")?.closest(".asr-ai-field");
+    const sourceField = concurrencyInput?.closest(".field-card, .asr-ai-field");
+    if (!(concurrencyInput instanceof HTMLInputElement) || !(timeoutField instanceof HTMLElement) || !(sourceField instanceof HTMLElement)) {
+      return;
+    }
+    let placeholder = getElement("data-baker-qualified-autofill-concurrency-placeholder");
+    if (!(placeholder instanceof HTMLElement) && sourceField.parentElement) {
+      placeholder = document.createElement("div");
+      placeholder.id = "data-baker-qualified-autofill-concurrency-placeholder";
+      placeholder.className = "hidden";
+      sourceField.parentElement.insertBefore(placeholder, sourceField);
+    }
+    sourceField.classList.remove("hidden");
+    sourceField.classList.remove("field-card");
+    sourceField.classList.add("asr-ai-field");
+    const titleNode = sourceField.querySelector("strong");
+    if (titleNode instanceof HTMLElement) {
+      const replacement = document.createElement("span");
+      replacement.textContent = "AI连续填入合格项并发数量";
+      titleNode.replaceWith(replacement);
+    }
+    Array.from(sourceField.querySelectorAll("span")).forEach(function (node, index) {
+      if (!(node instanceof HTMLElement)) {
+        return;
+      }
+      if (index > 0) {
+        node.classList.add("asr-ai-help");
+      }
+    });
+    if (sourceField.parentElement !== timeoutField.parentElement) {
+      timeoutField.parentElement.insertBefore(sourceField, timeoutField);
+    }
+  }
+
+  function restoreDataBakerAutofillConcurrencyField() {
+    const concurrencyInput = getElement("data-baker-qualified-autofill-concurrency");
+    const sourceField = concurrencyInput?.closest(".field-card, .asr-ai-field");
+    const placeholder = getElement("data-baker-qualified-autofill-concurrency-placeholder");
+    if (!(concurrencyInput instanceof HTMLInputElement) || !(sourceField instanceof HTMLElement) || !(placeholder instanceof HTMLElement) || !placeholder.parentElement) {
+      return;
+    }
+    if (sourceField.parentElement !== placeholder.parentElement) {
+      placeholder.parentElement.insertBefore(sourceField, placeholder.nextSibling);
+    }
+  }
+
+  function updateDataBakerAutofillConcurrencyField(configLike, options) {
+    const inputNode = getElement("data-baker-qualified-autofill-concurrency");
+    if (!(inputNode instanceof HTMLInputElement)) {
+      return;
+    }
+    const config = configLike && typeof configLike === "object" ? configLike : {};
+    const rule = getDataBakerAiQualifiedAutofillConcurrencyRule(config);
+    const normalizedValue = normalizeDataBakerAutofillConcurrency(inputNode.value, config);
+    const forceDefault = options?.forceDefault === true;
+    inputNode.min = String(rule.min);
+    inputNode.max = String(rule.max);
+    inputNode.step = "1";
+    inputNode.placeholder = String(rule.defaultValue);
+    inputNode.value = String(
+      forceDefault === true
+        ? rule.defaultValue
+        : normalizeDataBakerAutofillConcurrency(
+            config.aiQualifiedAutofillConcurrency !== undefined
+              ? config.aiQualifiedAutofillConcurrency
+              : normalizedValue,
+            config
+          )
+    );
+    const fieldNode = inputNode.closest(".asr-ai-field");
+    const helpNode = fieldNode ? fieldNode.querySelector(".asr-ai-help") : null;
+    if (helpNode instanceof HTMLElement) {
+      helpNode.textContent =
+        "Omni 模型默认 15，范围 1~25。Fun-ASR 默认 25，范围 1~50。前端并发表示同时发起到统一后端的 AI 推荐请求数量；后端上游仍按各 provider 自身策略处理。";
+    }
+  }
+
   function normalizeDataBakerRecognitionMode(value, fallback) {
     const text = String(value || "").trim().toLowerCase();
     if (text === "two_stage" || text === "omni_single") {
@@ -676,7 +795,7 @@
     }
     if (listenHelpNode) {
       listenHelpNode.textContent =
-        "听音模型为 fun-asr 时通过后端 Python SDK 调用；听音模型为所选 Qwen Omni 模型时通过 Qwen Omni 音频输入调用。比较模型负责结合听音文本与页面文本生成推荐文本。";
+        "听音模型为 fun-asr 时通过统一后端 Fun-ASR provider 调用；默认是 REST，只有显式切换时才会走 Python fallback。听音模型为所选 Qwen Omni 模型时通过 Qwen Omni 音频输入调用。比较模型负责结合听音文本与页面文本生成推荐文本。";
     }
     renderFixedModelOptions(
       "data-baker-ai-listen-model-select",
@@ -713,6 +832,12 @@
     );
     setFieldVisibility("data-baker-ai-single-model-field", true);
     setFieldVisibility("data-baker-ai-listen-model-note", false);
+    updateDataBakerAutofillConcurrencyField(
+      Object.assign({}, config || {}, {
+        aiRecommendPipelineMode: "omni_single",
+        aiRecommendSingleModel: currentSingleModel,
+      })
+    );
   }
 
   function getDataBakerSettingsDraftConfig(aiDefaults) {
@@ -774,6 +899,11 @@
       return;
     }
     applyDataBakerListenModelFields(config?.aiRecommendListenModel, config, aiDefaults);
+    updateDataBakerAutofillConcurrencyField(
+      Object.assign({}, config || {}, {
+        aiRecommendPipelineMode: currentRecognitionMode,
+      })
+    );
   }
 
   function updateDataBakerRecognitionModeFields(recognitionMode) {
@@ -808,6 +938,21 @@
     );
     applyDataBakerRecognitionModeFields(
       draftConfig.aiRecommendPipelineMode || "two_stage",
+      draftConfig,
+      aiDefaults
+    );
+  }
+
+  function updateDataBakerSingleModelFields(singleModel) {
+    const aiDefaults =
+      getAsrVoiceAiDefaultsCached(dataBakerRoundOneQualityScriptId).defaults || {};
+    const draftConfig = getDataBakerSettingsDraftConfig(aiDefaults);
+    draftConfig.aiRecommendSingleModel = normalizeDataBakerSingleModel(
+      singleModel,
+      getDataBakerSingleModelDefault(aiDefaults)
+    );
+    applyDataBakerRecognitionModeFields(
+      draftConfig.aiRecommendPipelineMode || "omni_single",
       draftConfig,
       aiDefaults
     );
@@ -1379,14 +1524,6 @@
     return normalizeAiRequestTimeoutMs(value, DEFAULT_AI_REQUEST_TIMEOUT_MS);
   }
 
-  function normalizeDataBakerAutofillConcurrency(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) {
-      return 20;
-    }
-    return Math.min(50, Math.max(1, Math.round(number)));
-  }
-
   function normalizeDataBakerPipelineMode(value, fallback) {
     return normalizeDataBakerRecognitionMode(value, fallback);
   }
@@ -1766,7 +1903,7 @@
           aiRecommendEnabled: true,
           aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           aiRecommendPipelineMode: "two_stage",
-          aiQualifiedAutofillConcurrency: 20,
+          aiQualifiedAutofillConcurrency: 15,
           aiQualifiedAutofillWaitAllBeforeFill: false,
           aiRecommendListenModel: "qwen3.5-omni-flash",
           aiRecommendCompareModel: "qwen3.5-plus",
@@ -1830,7 +1967,12 @@
       );
       config.aiRecommendPipelineMode = normalizedRecognitionMode;
     config.aiQualifiedAutofillConcurrency = normalizeDataBakerAutofillConcurrency(
-      config.aiQualifiedAutofillConcurrency
+      config.aiQualifiedAutofillConcurrency,
+      {
+        aiRecommendPipelineMode: config.aiRecommendPipelineMode,
+        aiRecommendListenModel: config.aiRecommendListenModel,
+        aiRecommendSingleModel: config.aiRecommendSingleModel,
+      }
     );
     config.aiQualifiedAutofillWaitAllBeforeFill =
       config.aiQualifiedAutofillWaitAllBeforeFill === true;
@@ -2004,6 +2146,7 @@
     if (!panel) {
       return;
     }
+    restoreDataBakerAutofillConcurrencyField();
     if (!supportsAsrVoiceAiSettings(scriptId) || !isAsrVoiceAiUnlocked(scriptId)) {
       panel.classList.add("hidden");
       panel.innerHTML = "";
@@ -2080,7 +2223,7 @@
           '-listen-model-help"></span></label>',
         '<div class="asr-ai-field hidden" id="' +
           prefix +
-          '-listen-model-note"><span class="asr-ai-help">Fun-ASR 通过统一后端 Python SDK 与 platform-resources/backend/.venv 调用；比较模型负责结合听音文本与页面文本生成推荐文本。</span></div>',
+          '-listen-model-note"><span class="asr-ai-help">Fun-ASR 默认通过统一后端 REST provider 调用；只有显式切换时才会走 Python fallback。比较模型负责结合听音文本与页面文本生成推荐文本。</span></div>',
         '<label class="asr-ai-field' +
           (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
           '" id="' +
@@ -2135,6 +2278,7 @@
       } else {
         const recognitionNode = getElement("data-baker-ai-pipeline-mode-select");
         const listenNode = getElement("data-baker-ai-listen-model-select");
+        const singleNode = getElement("data-baker-ai-single-model-select");
         if (recognitionNode instanceof HTMLSelectElement) {
           recognitionNode.addEventListener("change", function (event) {
             updateDataBakerRecognitionModeFields(event?.target?.value);
@@ -2145,6 +2289,12 @@
             updateDataBakerListenModelFields(event?.target?.value);
           });
         }
+        if (singleNode instanceof HTMLSelectElement) {
+          singleNode.addEventListener("change", function (event) {
+            updateDataBakerSingleModelFields(event?.target?.value);
+          });
+        }
+        moveDataBakerAutofillConcurrencyFieldIntoAiPanel();
       }
       panel.classList.remove("hidden");
       return;
@@ -4819,6 +4969,7 @@
     const config = getDataBakerRoundOneConfig(settings);
     const defaultsPayload = getAsrVoiceAiDefaultsCached(dataBakerRoundOneQualityScriptId);
     const aiDefaults = defaultsPayload.defaults || {};
+    const concurrencyRule = getDataBakerAiQualifiedAutofillConcurrencyRule(config);
     dataBakerShortcutsDraft = clone(config.shortcuts) || {};
     if (getElement("data-baker-ai-recommend-enabled")) {
       getElement("data-baker-ai-recommend-enabled").checked =
@@ -4867,6 +5018,8 @@
       getElement("data-baker-ai-stop-sequences").value = String(
         getAsrVoiceAiEffectiveText(config.aiRecommendStopSequences, aiDefaults.stop)
       );
+      moveDataBakerAutofillConcurrencyFieldIntoAiPanel();
+      updateDataBakerAutofillConcurrencyField(config);
     }
     getElement("data-baker-auto-page-size-enabled").checked =
       config.autoPageSizeEnabled !== false;
@@ -4876,13 +5029,15 @@
     );
     const concurrencyInput = getElement("data-baker-qualified-autofill-concurrency");
     if (concurrencyInput) {
-      concurrencyInput.value = String(config.aiQualifiedAutofillConcurrency || 20);
-      concurrencyInput.min = "1";
-      concurrencyInput.max = "50";
-      const parentLabel = concurrencyInput.closest(".field-card");
-      const hintNode = parentLabel ? parentLabel.querySelector("span") : null;
-      if (hintNode) {
-        hintNode.textContent = "范围 1~50，默认 20。前端并发越高，后端排队越多；上游调用仍由后端 provider queue 控制限流和最大并发。2 核 2G 服务器压力高时可适当调低。";
+      concurrencyInput.value = String(
+        normalizeDataBakerAutofillConcurrency(config.aiQualifiedAutofillConcurrency, config)
+      );
+      concurrencyInput.min = String(concurrencyRule.min);
+      concurrencyInput.max = String(concurrencyRule.max);
+      concurrencyInput.step = "1";
+      const concurrencyField = concurrencyInput.closest(".field-card, .asr-ai-field");
+      if (concurrencyField instanceof HTMLElement && !isAsrVoiceAiUnlocked(dataBakerRoundOneQualityScriptId)) {
+        concurrencyField.classList.add("hidden");
       }
     }
     stopDataBakerShortcutRecording("");
@@ -4910,9 +5065,6 @@
       "50条/页"
     );
     const timeoutMs = normalizeDataBakerTimeoutMs(timeoutInput);
-    const autofillConcurrency = normalizeDataBakerAutofillConcurrency(
-      getElement("data-baker-qualified-autofill-concurrency")?.value
-    );
     const autofillWaitAllBeforeFill = false;
     const recognitionMode = hasAiSettingsPanel
       ? normalizeDataBakerRecognitionMode(
@@ -4944,6 +5096,20 @@
           currentConfig.aiRecommendSingleModel,
           getDataBakerSingleModelDefault(aiDefaults)
         );
+    const autofillConcurrency = normalizeDataBakerAutofillConcurrency(
+      getElement("data-baker-qualified-autofill-concurrency")?.value,
+      {
+        aiRecommendPipelineMode: recognitionMode,
+        aiRecommendListenModel: listenModel,
+        aiRecommendSingleModel: singleModel,
+      }
+    );
+    updateDataBakerAutofillConcurrencyField({
+      aiRecommendPipelineMode: recognitionMode,
+      aiRecommendListenModel: listenModel,
+      aiRecommendSingleModel: singleModel,
+      aiQualifiedAutofillConcurrency: autofillConcurrency,
+    });
     const pipelineMode = deriveDataBakerPipelineMode(
       recognitionMode,
       recognitionMode === "omni_single" ? singleModel : listenModel

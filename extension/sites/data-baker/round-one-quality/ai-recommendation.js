@@ -48,6 +48,7 @@
     const body = responseBody && typeof responseBody === "object" ? responseBody : {};
     const code = String(body.code || "").trim();
     const providerCode = String(body.providerCode || "").trim();
+    const providerStatus = Number(body.providerStatus) || Number(statusCode) || 0;
     let message = String(body.message || "AI 推荐接口请求失败（HTTP " + String(statusCode) + "）。").trim();
     if (code === "provider-queue-full") {
       message = "后端 AI 队列已满，请稍后重试。";
@@ -63,6 +64,32 @@
       message = "Qwen 接口未返回有效文本，可查看原始AI返回排查。";
     } else if (code === "model-json-parse-failed") {
       message = "模型输出 JSON 解析失败，可查看原始AI返回。";
+    } else if (code === "fun-asr-auth-error") {
+      message = "Fun-ASR 鉴权或权限错误，请检查 DASHSCOPE_API_KEY、服务开通与地域。";
+    } else if (code === "fun-asr-forbidden") {
+      message = "Fun-ASR 鉴权或权限错误，请检查 DASHSCOPE_API_KEY、服务开通与地域。";
+    } else if (code === "fun-asr-audio-url-unreachable") {
+      message = "Fun-ASR 无法下载平台音频，请确认 audioUrl 对阿里云服务可访问或签名未过期。";
+    } else if (code === "invalid-fun-asr-model") {
+      message = "Fun-ASR 模型名错误，应为 fun-asr。";
+    } else if (code === "fun-asr-rate-limited") {
+      message = "Fun-ASR 上游限流，请稍后重试。";
+    } else if (code === "fun-asr-task-failed") {
+      message = "Fun-ASR 任务失败，可查看原始AI返回。";
+    } else if (code === "fun-asr-transcription-download-failed") {
+      message = "Fun-ASR 识别结果下载失败，可查看原始AI返回。";
+    } else if (code === "fun-asr-provider-error") {
+      if (providerCode === "InvalidFile.DownloadFailed" || providerCode === "DownloadFailed") {
+        message = "Fun-ASR 无法下载平台音频，请确认 audioUrl 对阿里云服务可访问或签名未过期。";
+      } else if (providerStatus === 403) {
+        message = "Fun-ASR 调用被拒绝，请检查权限、地域配置，或确认平台 audioUrl 对阿里云服务可访问。";
+      } else if (providerStatus === 401) {
+        message = "Fun-ASR 鉴权或权限错误，请检查 DASHSCOPE_API_KEY、服务开通与地域。";
+      } else if (providerStatus === 429) {
+        message = "Fun-ASR 上游限流，请稍后重试。";
+      } else {
+        message = "Fun-ASR 上游模型接口返回错误，可查看原始AI返回。";
+      }
     } else if (code === "provider-http-error") {
       message = "上游模型接口返回错误，可查看原始AI返回。";
     }
@@ -72,6 +99,7 @@
     return createClientError(message, {
       code,
       providerCode,
+      providerStatus,
       statusCode: Number(statusCode) || 0,
       hasRawAiDebug: body.hasRawAiDebug === true,
       debugId: String(body.debugId || ""),
@@ -112,6 +140,9 @@
         batchItemIndex: source.batchItemIndex,
         batchProcessKey: String(source.batchProcessKey || ""),
         clientRequestId: String(source.clientRequestId || ""),
+        frontConcurrency: source.frontConcurrency,
+        batchConcurrency: source.batchConcurrency,
+        concurrencyModelType: String(source.concurrencyModelType || ""),
       };
       if (config.recognitionMode) {
         requestBody.recognitionMode = String(config.recognitionMode).trim();
@@ -133,6 +164,24 @@
       }
       if (config.aiOptions && typeof config.aiOptions === "object") {
         requestBody.aiOptions = Object.assign({}, config.aiOptions);
+      }
+      if (
+        requestBody.frontConcurrency === undefined &&
+        Number.isFinite(Number(config.aiQualifiedAutofillConcurrency))
+      ) {
+        requestBody.frontConcurrency = Number(config.aiQualifiedAutofillConcurrency);
+      }
+      if (
+        requestBody.batchConcurrency === undefined &&
+        Number.isFinite(Number(requestBody.frontConcurrency))
+      ) {
+        requestBody.batchConcurrency = Number(requestBody.frontConcurrency);
+      }
+      if (
+        !requestBody.concurrencyModelType &&
+        String(config.aiQualifiedAutofillModelType || "").trim()
+      ) {
+        requestBody.concurrencyModelType = String(config.aiQualifiedAutofillModelType).trim();
       }
       return requestBody;
     }

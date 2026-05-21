@@ -1,3 +1,26 @@
+## 2026-05-21（标贝易采一检质检热修：并发按模型归一 + Fun-ASR 错误分类增强）
+
+- DataBaker Options 中的“AI连续填入合格项并发数量”已移入“ASR 语音 AI 设置”区域，不再留在普通批量/自动化设置区重复显示。
+- 并发规则改为按当前识别模式和模型动态归一：
+  - Omni：默认 `15`，范围 `1~25`
+  - Fun-ASR：默认 `25`，范围 `1~50`
+- 前端切换识别模式、听音模型、AI 模型时，并发输入框会立即刷新 `min/max/default`；若当前值超范围会当场强制修正。
+- `storage`、DataBaker content runtime 和统一后端 `normalizeRecommendRequest()` 现在都会再次归一并发值；请求体会附带 `frontConcurrency / batchConcurrency / concurrencyModelType` 诊断字段，但不会进入模型 Prompt。
+- 顶部悬浮窗中的 `前端并发` 现在显示实际归一后的值；后端 runtime / call log 也会记录 `frontConcurrencyOriginal / frontConcurrencyNormalized / concurrencyModelType`。
+- Fun-ASR REST 错误诊断增强：
+  - `401/403`：区分鉴权/权限错误
+  - `InvalidFile.DownloadFailed / DownloadFailed / audio url cannot be downloaded`：区分平台音频 URL 不可访问
+  - invalid model：区分模型名错误
+  - `429`：区分上游限流
+  - task failed：区分任务失败
+  - `transcription_url` 下载失败：区分结果下载失败
+- 前端失败文案不再只显示“上游模型接口返回错误”；失败列表继续保留“查看原始AI返回”按钮。
+- Fun-ASR debug store 现在保留脱敏后的 `provider / stage / model / providerStatus / providerCode / taskId / taskStatus / responseBody / rawText` 摘要；不包含完整 `audioUrl`、签名 URL、cookie、token、authorization、API Key。
+- 新增 / 兼容调试存储环境变量：
+  - `DATABAKER_AI_DEBUG_STORE_TTL_MS=1800000`
+  - `DATABAKER_AI_DEBUG_STORE_MAX_SIZE=1000`
+- 本轮不改 Fun-ASR REST 主链路、不恢复异步 job 默认链路、不改 Qwen 直并发默认策略、不改 manifest。
+
 ## 2026-05-21（标贝易采一检质检热修：Qwen Omni 默认直并发与真实限流透出）
 
 - DataBaker Omni legacy 快速路径默认不再对 Qwen 上游做后端平滑发送；前端并发多少，就按该并发直接发送多少条 `recommend` 请求，`30ms` 错峰保持不变。

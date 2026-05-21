@@ -6,7 +6,10 @@
 - AI 推荐文本接口。
 - 导出 CSV 上传与下载接口（扩展前端导出后自动上传，后端保存 `latest.csv` 并提供下载；原始记录脱敏后单独保存 `latest-raw.json`）。
 - 前端“AI连续填入合格项”当前仍是“并发分析 + 顺序填入”，只处理 `statusName=质检合格`；默认直接走同步 `POST /ai/recommend`，不再把异步 job 作为默认 AI 结果接收链路。
-- 前端“AI连续填入合格项并发数量”默认 `20`（可配置 `1~50`）。更高并发不会绕过上游模型限流，只会更快堆积到统一后端队列。
+- 前端“AI连续填入合格项并发数量”已归到 DataBaker 的“ASR 语音 AI 设置”区域，并按模型动态归一：
+  - Omni：默认 `15`，范围 `1~25`
+  - Fun-ASR：默认 `25`，范围 `1~50`
+- 前端和后端都会对超范围值做归一；更高并发不会绕过上游模型限流，只会更快堆积到统一后端队列。
 - 前端调度为“并发请求 + 队列消费填入”：AI 结果返回后即进入队列，由前端串行填入，不等待全部请求结束；该变更不涉及后端接口新增。
 - 当前排查串行感时，要同时看：
   - 前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 待填队列`
@@ -126,6 +129,12 @@
 - 批量失败列表会优先使用同步 `recommend` 返回的 `hasRawAiDebug/debugId`，并通过 `GET /ai/recommend/debug/:debugId` 查看脱敏后的原始 AI 返回。
 - `qwen-empty-response`、`model-json-parse-failed`、`provider-http-error` 会写入内存级 debug store，并在错误响应中返回 `debugId`。
 - `qwen-burst-rate-limited` 也会写入内存级 debug store；debug 中会保留脱敏后的 `providerCode=limit_burst_rate`、`rawSseText`、`stage`、`model`、`requestId`。
+- Fun-ASR 错误也会按阶段写入 debug store：
+  - `fun_asr_submit`
+  - `fun_asr_poll`
+  - `fun_asr_transcription_download`
+  - `fun_asr_parse`
+- Fun-ASR 前端错误会优先区分：鉴权/权限、平台音频 URL 不可访问、模型名错误、上游限流、任务失败、结果下载失败。
 - `jobs/:jobId/debug` 仍保留历史兼容，但同步 recommend debug 现在是默认调试入口。
 - debug 内容只保存在内存中，默认 TTL 30 分钟，不落盘。
 - debug 内容会脱敏并截断，不包含完整音频 URL、签名 URL、cookie、token、authorization、API Key。

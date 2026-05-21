@@ -140,6 +140,9 @@
     { key: "taskPartialReject", label: "任务判定：部分驳回" },
     { key: "taskFullReject", label: "任务判定：全部驳回" },
   ];
+  const DATABAKER_AI_OMNI_MODEL_VALUES = DATABAKER_AI_OMNI_MODEL_OPTIONS.map(function (item) {
+    return String(item?.value || "").trim();
+  }).filter(Boolean);
   const ABAKA_AI_TASK21_SHORTCUT_ACTIONS = [
     { key: "sameFontTrue", label: "same_font：true" },
     { key: "sameFontFalse", label: "same_font：false" },
@@ -1309,7 +1312,7 @@
           aiRecommendEndpoint: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
           aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           aiRecommendPipelineMode: "two_stage",
-          aiQualifiedAutofillConcurrency: 20,
+          aiQualifiedAutofillConcurrency: 15,
           aiQualifiedAutofillWaitAllBeforeFill: false,
           aiRecommendListenModel: "qwen3.5-omni-flash",
           aiRecommendCompareModel: "qwen3.5-plus",
@@ -1331,6 +1334,92 @@
         },
       },
     };
+  }
+
+  function normalizeDataBakerRecognitionModeValue(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "two_stage" || text === "omni_single") {
+      return text;
+    }
+    if (text === "fun_asr_compare" || text === "qwen_omni_compare" || text === "qwen_omni_two_stage") {
+      return "two_stage";
+    }
+    if (text === "listen_only") {
+      return "omni_single";
+    }
+    return String(fallback || "two_stage").trim().toLowerCase() === "omni_single"
+      ? "omni_single"
+      : "two_stage";
+  }
+
+  function getDataBakerModelValue(value) {
+    if (value && typeof value === "object") {
+      if (typeof value.value === "string") {
+        return String(value.value || "").trim();
+      }
+      if (typeof value.label === "string") {
+        return String(value.label || "").trim();
+      }
+      return "";
+    }
+    const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
+    return text === "[object Object]" ? "" : text;
+  }
+
+  function isDataBakerOmniModelValue(value) {
+    const model = getDataBakerModelValue(value);
+    return DATABAKER_AI_OMNI_MODEL_VALUES.indexOf(model) >= 0;
+  }
+
+  function getDataBakerAiQualifiedAutofillConcurrencyRule(settings) {
+    const source = settings && typeof settings === "object" ? settings : {};
+    const recognitionMode = normalizeDataBakerRecognitionModeValue(
+      source.recognitionMode || source.aiRecommendPipelineMode || source.pipelineMode,
+      "two_stage"
+    );
+    const listenModel = getDataBakerModelValue(
+      source.listenModel || source.aiRecommendListenModel
+    );
+    const singleModel = getDataBakerModelValue(
+      source.singleModel || source.aiRecommendSingleModel || source.aiModel
+    );
+    if (recognitionMode === "two_stage" && listenModel === "fun-asr") {
+      return {
+        min: 1,
+        max: 50,
+        defaultValue: 25,
+        modelType: "fun_asr",
+      };
+    }
+    if (recognitionMode === "omni_single" && isDataBakerOmniModelValue(singleModel)) {
+      return {
+        min: 1,
+        max: 25,
+        defaultValue: 15,
+        modelType: "omni",
+      };
+    }
+    if (recognitionMode === "two_stage" && isDataBakerOmniModelValue(listenModel)) {
+      return {
+        min: 1,
+        max: 25,
+        defaultValue: 15,
+        modelType: "omni",
+      };
+    }
+    return {
+      min: 1,
+      max: 25,
+      defaultValue: 15,
+      modelType: "omni",
+    };
+  }
+
+  function normalizeDataBakerAiQualifiedAutofillConcurrency(value, settings) {
+    const rule = getDataBakerAiQualifiedAutofillConcurrencyRule(settings);
+    const numeric = Number(value);
+    const base = Number.isFinite(numeric) ? Math.round(numeric) : rule.defaultValue;
+    return Math.max(rule.min, Math.min(rule.max, base));
   }
 
   function createDefaultAbakaAiPlatformSettings() {
@@ -1502,6 +1591,9 @@
     DATABAKER_AI_OMNI_MODEL_OPTIONS: clone(DATABAKER_AI_OMNI_MODEL_OPTIONS),
     DATABAKER_AI_FUN_ASR_MODEL_OPTIONS: clone(DATABAKER_AI_FUN_ASR_MODEL_OPTIONS),
     DATABAKER_AI_COMPARE_MODEL_OPTIONS: clone(DATABAKER_AI_COMPARE_MODEL_OPTIONS),
+    getDataBakerAiQualifiedAutofillConcurrencyRule: getDataBakerAiQualifiedAutofillConcurrencyRule,
+    normalizeDataBakerAiQualifiedAutofillConcurrency:
+      normalizeDataBakerAiQualifiedAutofillConcurrency,
     DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_SHORTCUT_ACTIONS: clone(ABAKA_AI_TASK21_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_AI_ANALYSIS_MODES: clone(ABAKA_AI_TASK21_AI_ANALYSIS_MODES),

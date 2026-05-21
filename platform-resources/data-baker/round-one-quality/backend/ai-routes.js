@@ -93,6 +93,9 @@ function buildErrorResponseBody(error, fallbackMessage) {
   if (String(error?.providerCode || "").trim()) {
     responseBody.providerCode = String(error.providerCode || "").trim();
   }
+  if (String(error?.summary || "").trim()) {
+    responseBody.summary = String(error.summary || "").trim().slice(0, 240);
+  }
   if (error?.hasRawAiDebug === true || String(error?.debugId || "").trim()) {
     responseBody.hasRawAiDebug = true;
     responseBody.debugId = String(error?.debugId || "").trim();

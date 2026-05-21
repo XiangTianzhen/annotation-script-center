@@ -19,6 +19,20 @@ function createProviderHttpError(statusCode, summary, message) {
   return error;
 }
 
+function createFunAsrProviderError(message, code, statusCode, options) {
+  const source = options && typeof options === "object" ? options : {};
+  const error = createError(
+    message || "Fun-ASR 上游模型接口返回错误，可查看原始AI返回。",
+    code || "fun-asr-provider-error",
+    Number(statusCode) || 502
+  );
+  error.providerStatus = Number(source.providerStatus || statusCode) || Number(statusCode) || 502;
+  error.providerCode = String(source.providerCode || "").trim();
+  error.rawStatus = String(source.rawStatus || "").trim();
+  error.summary = sanitizeProviderErrorSummary(source.summary || "");
+  return error;
+}
+
 function isRateLimitProviderCode(value) {
   const code = String(value || "").trim().toLowerCase();
   return (
@@ -102,6 +116,7 @@ function createAudioUrlUnavailableError(message, statusCode, rawStatus) {
     statusCode || 403
   );
   error.providerStatus = statusCode || 403;
+  error.summary = sanitizeProviderErrorSummary(message || "");
   if (rawStatus) {
     error.rawStatus = String(rawStatus);
   }
@@ -115,6 +130,7 @@ function isProviderRateLimitedError(error) {
   return (
     error.code === "qwen-burst-rate-limited" ||
     error.code === "provider-rate-limited" ||
+    error.code === "fun-asr-rate-limited" ||
     isRateLimitProviderCode(error.providerCode) ||
     (error.code === "provider-http-error" && Number(error.statusCode) === 429) ||
     Number(error.providerStatus) === 429
@@ -134,6 +150,7 @@ function isAudioUrlLikelyUnavailable(text) {
 module.exports = {
   createAbortedError,
   createAudioUrlUnavailableError,
+  createFunAsrProviderError,
   createJobTimeoutError,
   createProviderHttpError,
   createPythonRuntimeError,

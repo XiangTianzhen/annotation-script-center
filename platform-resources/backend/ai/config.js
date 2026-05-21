@@ -10,6 +10,18 @@ const DEFAULT_FUN_ASR_PROVIDER = "rest";
 const DEFAULT_FUN_ASR_REST_POLL_INTERVAL_MS = 1000;
 const DEFAULT_JOB_TIMEOUT_MS = 120000;
 const DEFAULT_JOB_TTL_MS = 1800000;
+const DATABAKER_FUN_ASR_AUTOFILL_RULE = {
+  min: 1,
+  max: 50,
+  defaultValue: 25,
+  modelType: "fun_asr",
+};
+const DATABAKER_OMNI_AUTOFILL_RULE = {
+  min: 1,
+  max: 25,
+  defaultValue: 15,
+  modelType: "omni",
+};
 const DATABAKER_OMNI_MODEL_OPTIONS = [
   "qwen3.5-omni-plus",
   "qwen3.5-omni-flash",
@@ -212,6 +224,36 @@ function normalizeDataBakerRecognitionMode(value, fallback) {
     : "two_stage";
 }
 
+function getDataBakerAiQualifiedAutofillConcurrencyRule(settings) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  const recognitionMode = normalizeDataBakerRecognitionMode(
+    source.recognitionMode || source.aiRecommendPipelineMode || source.pipelineMode,
+    "two_stage"
+  );
+  const listenModel = normalizeDataBakerListenModel(
+    source.listenModel || source.aiRecommendListenModel,
+    DEFAULT_OMNI_MODEL
+  );
+  const singleModel = normalizeDataBakerSingleModel(
+    source.singleModel || source.aiRecommendSingleModel || source.aiModel,
+    DEFAULT_OMNI_MODEL
+  );
+  if (recognitionMode === "two_stage" && listenModel === DEFAULT_FUN_ASR_MODEL) {
+    return Object.assign({}, DATABAKER_FUN_ASR_AUTOFILL_RULE);
+  }
+  if (recognitionMode === "omni_single" && DATABAKER_SINGLE_MODEL_OPTIONS.indexOf(singleModel) >= 0) {
+    return Object.assign({}, DATABAKER_OMNI_AUTOFILL_RULE);
+  }
+  return Object.assign({}, DATABAKER_OMNI_AUTOFILL_RULE);
+}
+
+function normalizeDataBakerAiQualifiedAutofillConcurrency(value, settings) {
+  const rule = getDataBakerAiQualifiedAutofillConcurrencyRule(settings);
+  const number = Number(value);
+  const base = Number.isFinite(number) ? Math.round(number) : rule.defaultValue;
+  return Math.max(rule.min, Math.min(rule.max, base));
+}
+
 function deriveDataBakerPipelineMode(recognitionMode, model) {
   const normalizedRecognitionMode = normalizeDataBakerRecognitionMode(recognitionMode, "two_stage");
   if (normalizedRecognitionMode === "omni_single") {
@@ -321,6 +363,7 @@ module.exports = {
   buildApiV1BaseUrl,
   buildSdkBaseHttpApiUrl,
   deriveDataBakerPipelineMode,
+  getDataBakerAiQualifiedAutofillConcurrencyRule,
   getDefaultPythonCandidates,
   getFunAsrProviderFallbackMode,
   getFunAsrProviderMode,
@@ -328,6 +371,7 @@ module.exports = {
   getFunAsrRestBaseUrl,
   getFunAsrRestConfig,
   getQwenProviderConfig,
+  normalizeDataBakerAiQualifiedAutofillConcurrency,
   normalizeDataBakerCompareModel,
   normalizeDataBakerListenModel,
   normalizeDataBakerRecognitionMode,

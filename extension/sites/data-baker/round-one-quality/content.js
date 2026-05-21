@@ -100,12 +100,42 @@
     return Math.min(300000, Math.max(1000, Math.round(number)));
   }
 
-  function normalizeAutofillConcurrency(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) {
-      return 20;
+  function getDataBakerAiQualifiedAutofillConcurrencyRule(configLike) {
+    const helper =
+      typeof CONSTANTS.getDataBakerAiQualifiedAutofillConcurrencyRule === "function"
+        ? CONSTANTS.getDataBakerAiQualifiedAutofillConcurrencyRule
+        : null;
+    if (helper) {
+      return helper(configLike || {});
     }
-    return Math.max(1, Math.min(50, Math.round(number)));
+    const source = configLike && typeof configLike === "object" ? configLike : {};
+    const recognitionMode = normalizePipelineMode(
+      source.recognitionMode || source.aiRecommendPipelineMode || source.pipelineMode,
+      "two_stage"
+    );
+    const listenModel = getDataBakerModelText(source.listenModel || source.aiRecommendListenModel);
+    if (recognitionMode === "two_stage" && listenModel === "fun-asr") {
+      return { min: 1, max: 50, defaultValue: 25, modelType: "fun_asr" };
+    }
+    return { min: 1, max: 25, defaultValue: 15, modelType: "omni" };
+  }
+
+  function normalizeAutofillConcurrency(value, configLike) {
+    const helper =
+      typeof CONSTANTS.normalizeDataBakerAiQualifiedAutofillConcurrency === "function"
+        ? CONSTANTS.normalizeDataBakerAiQualifiedAutofillConcurrency
+        : null;
+    const rule =
+      configLike?.aiQualifiedAutofillConcurrencyRule &&
+      typeof configLike.aiQualifiedAutofillConcurrencyRule === "object"
+        ? configLike.aiQualifiedAutofillConcurrencyRule
+        : getDataBakerAiQualifiedAutofillConcurrencyRule(configLike);
+    if (helper && !configLike?.aiQualifiedAutofillConcurrencyRule) {
+      return helper(value, configLike || {});
+    }
+    const number = Number(value);
+    const base = Number.isFinite(number) ? Math.round(number) : rule.defaultValue;
+    return Math.max(rule.min, Math.min(rule.max, base));
   }
 
   function normalizePipelineMode(value) {
@@ -240,7 +270,7 @@
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
-        aiQualifiedAutofillConcurrency: 20,
+        aiQualifiedAutofillConcurrency: 15,
         aiQualifiedAutofillWaitAllBeforeFill: false,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",
@@ -313,8 +343,19 @@
       recognitionMode,
       recognitionMode === "omni_single" ? singleModel : listenModel
     );
+    const aiQualifiedAutofillConcurrencyRule = getDataBakerAiQualifiedAutofillConcurrencyRule({
+      aiRecommendPipelineMode: recognitionMode,
+      aiRecommendListenModel: listenModel,
+      aiRecommendSingleModel: singleModel,
+    });
     const aiQualifiedAutofillConcurrency = normalizeAutofillConcurrency(
-      script.aiQualifiedAutofillConcurrency
+      script.aiQualifiedAutofillConcurrency,
+      {
+        aiQualifiedAutofillConcurrencyRule,
+        aiRecommendPipelineMode: recognitionMode,
+        aiRecommendListenModel: listenModel,
+        aiRecommendSingleModel: singleModel,
+      }
     );
     const aiQualifiedAutofillWaitAllBeforeFill = normalizeAutofillWaitAll(
       script.aiQualifiedAutofillWaitAllBeforeFill
@@ -396,6 +437,8 @@
       recognitionMode,
       pipelineMode,
       aiQualifiedAutofillConcurrency,
+      aiQualifiedAutofillConcurrencyRule,
+      aiQualifiedAutofillModelType: String(aiQualifiedAutofillConcurrencyRule.modelType || "omni"),
       aiQualifiedAutofillWaitAllBeforeFill,
       aiAsyncJobsEnabled,
       aiRequestStaggerMs,
@@ -847,7 +890,10 @@
       const batchRunId = String(
         context.batchRunId || sourceTasks[0]?.batchRunId || sourceTasks[0]?.item?.batchRunId || ""
       ).trim();
-      const maxConcurrency = Math.max(1, Math.min(50, Number(concurrency) || 20));
+      const maxConcurrency = normalizeAutofillConcurrency(concurrency, {
+        aiQualifiedAutofillConcurrencyRule:
+          context.aiQualifiedAutofillConcurrencyRule || context.concurrencyRule || null,
+      });
       const requestStaggerMs = DEFAULT_AI_REQUEST_STAGGER_MS;
       const plannedSendCount = uniqueTaskCount;
       const completedQueue = [];
@@ -988,7 +1034,15 @@
 
           Promise.resolve()
             .then(function () {
-              return ai.recommend(task.item);
+              return ai.recommend(
+                Object.assign({}, task.item || {}, {
+                  frontConcurrency: maxConcurrency,
+                  batchConcurrency: maxConcurrency,
+                  concurrencyModelType: String(
+                    context.concurrencyModelType || context.aiQualifiedAutofillModelType || "omni"
+                  ),
+                })
+              );
             })
             .then(function (recommendation) {
               analysisSuccessCount += 1;
@@ -1451,7 +1505,10 @@
           return { ok: true, message: "no-unique-qualified" };
         }
 
-        const concurrency = normalizeAutofillConcurrency(config.aiQualifiedAutofillConcurrency);
+        const concurrency = normalizeAutofillConcurrency(
+          config.aiQualifiedAutofillConcurrency,
+          config
+        );
         console.info("[DataBaker][batch] start", {
           batchRunId,
           totalCount: qualifiedRecords.length,
@@ -1483,6 +1540,8 @@
           totalCount: qualifiedRecords.length,
           uniqueTaskCount,
           duplicateSkippedCount,
+          concurrencyRule: config.aiQualifiedAutofillConcurrencyRule,
+          concurrencyModelType: config.aiQualifiedAutofillModelType,
         });
         if (streamSummary.stopped) {
           ui.setStatus(

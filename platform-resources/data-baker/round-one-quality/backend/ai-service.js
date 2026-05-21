@@ -13,6 +13,8 @@ const {
   DEFAULT_REQUEST_PARAMS,
   SUPPORTED_REQUEST_PARAMS,
   deriveDataBakerPipelineMode,
+  getDataBakerAiQualifiedAutofillConcurrencyRule,
+  normalizeDataBakerAiQualifiedAutofillConcurrency,
   normalizeDataBakerCompareModel,
   normalizeDataBakerListenModel,
   normalizeDataBakerRecognitionMode,
@@ -290,6 +292,9 @@ const CSV_COLUMNS = [
   { key: "effectiveTime", header: "有效时长" },
   { key: "audioDuration", header: "音频总时长" },
   { key: "clientVersion", header: "扩展版本" },
+  { key: "frontConcurrencyOriginal", header: "前端并发原始值" },
+  { key: "frontConcurrencyNormalized", header: "前端并发归一值" },
+  { key: "concurrencyModelType", header: "前端并发模型类型" },
   { key: "mock", header: "是否Mock" },
   { key: "errorCode", header: "错误码" },
   { key: "errorMessage", header: "错误信息" },
@@ -565,6 +570,45 @@ function normalizeRecommendRequest(body) {
     throw createHttpError(400, "pageText 不能为空。", "invalid-page-text");
   }
 
+  const recognitionMode = normalizeDataBakerRecognitionMode(
+    source.recognitionMode || source.pipelineMode,
+    "two_stage"
+  );
+  const listenModel = normalizeDataBakerListenModel(
+    source.listenModel || aiOptions.listenModel,
+    DEFAULT_OMNI_MODEL
+  );
+  const singleModel = normalizeDataBakerSingleModel(
+    source.singleModel || aiOptions.singleModel || aiOptions.omniModel,
+    DEFAULT_OMNI_MODEL
+  );
+  const concurrencyOriginalRaw =
+    source.frontConcurrency !== undefined && source.frontConcurrency !== null
+      ? source.frontConcurrency
+      : source.batchConcurrency !== undefined && source.batchConcurrency !== null
+        ? source.batchConcurrency
+        : source.aiOptions?.frontConcurrency !== undefined && source.aiOptions?.frontConcurrency !== null
+          ? source.aiOptions.frontConcurrency
+          : source.aiOptions?.batchConcurrency;
+  const concurrencyRule = getDataBakerAiQualifiedAutofillConcurrencyRule({
+    recognitionMode,
+    listenModel,
+    singleModel,
+    concurrencyModelType: source.concurrencyModelType || source.aiOptions?.concurrencyModelType,
+  });
+  const frontConcurrencyOriginal = Number.isFinite(Number(concurrencyOriginalRaw))
+    ? Math.round(Number(concurrencyOriginalRaw))
+    : null;
+  const frontConcurrencyNormalized = normalizeDataBakerAiQualifiedAutofillConcurrency(
+    concurrencyOriginalRaw,
+    {
+      recognitionMode,
+      listenModel,
+      singleModel,
+      concurrencyModelType: source.concurrencyModelType || source.aiOptions?.concurrencyModelType,
+    }
+  );
+
   return {
     collectId,
     itemId,
@@ -583,11 +627,14 @@ function normalizeRecommendRequest(body) {
     batchItemIndex: normalizeNullableNumber(source.batchItemIndex),
     batchProcessKey: String(source.batchProcessKey || "").trim().slice(0, 240),
     clientRequestId: String(source.clientRequestId || "").trim().slice(0, 200),
-    recognitionMode: normalizeModelText(source.recognitionMode),
+    recognitionMode,
     pipelineMode: normalizeModelText(source.pipelineMode),
-    listenModel: normalizeModelText(source.listenModel),
+    listenModel,
     compareModel: normalizeModelText(source.compareModel),
-    singleModel: normalizeModelText(source.singleModel),
+    singleModel,
+    frontConcurrencyOriginal,
+    frontConcurrencyNormalized,
+    concurrencyModelType: String(concurrencyRule.modelType || "omni"),
     aiOptions,
   };
 }
@@ -736,6 +783,8 @@ function buildAiDebugPayloadFromError(error, context) {
     errorCode: String(source.code || raw.errorCode || meta.errorCode || ""),
     errorMessage: String(source.safeMessage || source.message || raw.errorMessage || meta.errorMessage || ""),
     providerStatus: Number(source.providerStatus || source.statusCode || raw.providerStatus || 0) || 0,
+    taskId: String(raw.taskId || source.taskId || meta.taskId || ""),
+    taskStatus: String(raw.taskStatus || source.taskStatus || source.rawStatus || meta.taskStatus || ""),
     rawText: raw.rawText || raw.rawModelText || "",
     rawJson: raw.rawJson || null,
     rawSseText: raw.rawSseText || "",
@@ -1108,6 +1157,13 @@ function sanitizeForLog(record) {
     effectiveTime: request.effectiveTime === null ? "" : safeString(request.effectiveTime),
     audioDuration: request.audioDuration === null ? "" : safeString(request.audioDuration),
     clientVersion: safeString(request.clientVersion),
+    frontConcurrencyOriginal:
+      request.frontConcurrencyOriginal === null ? "" : safeString(request.frontConcurrencyOriginal),
+    frontConcurrencyNormalized:
+      request.frontConcurrencyNormalized === null
+        ? ""
+        : safeString(request.frontConcurrencyNormalized),
+    concurrencyModelType: safeString(request.concurrencyModelType),
     mock: source.mock === true,
     debugId: safeString(source.debugId || response.debugId),
     errorCode: safeString(source.errorCode),
@@ -1832,6 +1888,11 @@ function createHealthPayload() {
     recognitionMode,
     recognitionMode === "omni_single" ? defaultSingleModel : defaultListenModel
   );
+  const frontConcurrencyRule = getDataBakerAiQualifiedAutofillConcurrencyRule({
+    recognitionMode,
+    listenModel: defaultListenModel,
+    singleModel: defaultSingleModel,
+  });
   const funAsrQueue = getGroupSettings("fun_asr");
   const textCompareQueue = getGroupSettings("text_compare");
   const qwenOmniQueue = getGroupSettings("qwen_omni");
@@ -1880,8 +1941,16 @@ function createHealthPayload() {
       asyncJobsDefaultEnabled: false,
       requestStaggerMs: 30,
       timeoutPolicy: "ai-model-timeout-120000ms",
+      frontEndBatchConcurrency:
+        "Omni 默认 15、范围 1~25；Fun-ASR 默认 25、范围 1~50；前后端都会归一超范围值。",
     },
     concurrency: {
+      frontEndBatch: {
+        defaultValue: frontConcurrencyRule.defaultValue,
+        min: frontConcurrencyRule.min,
+        max: frontConcurrencyRule.max,
+        modelType: frontConcurrencyRule.modelType,
+      },
       qwenOmni: {
         maxConcurrent: qwenOmniQueue.maxConcurrent,
         rpm: qwenOmniQueue.rpm,
@@ -1910,6 +1979,11 @@ function createDefaultsPayload() {
     recognitionMode,
     recognitionMode === "omni_single" ? defaultSingleModel : defaultListenModel
   );
+  const frontConcurrencyRule = getDataBakerAiQualifiedAutofillConcurrencyRule({
+    recognitionMode,
+    listenModel: defaultListenModel,
+    singleModel: defaultSingleModel,
+  });
   const funAsrQueue = getGroupSettings("fun_asr");
   const textCompareQueue = getGroupSettings("text_compare");
   const qwenOmniQueue = getGroupSettings("qwen_omni");
@@ -1965,7 +2039,10 @@ function createDefaultsPayload() {
       enabled: jobStoreConfig.enabled === true,
     }),
     concurrency: {
-      frontEndBatchDefault: 20,
+      frontEndBatchDefault: frontConcurrencyRule.defaultValue,
+      frontEndBatchMin: frontConcurrencyRule.min,
+      frontEndBatchMax: frontConcurrencyRule.max,
+      frontEndBatchModelType: frontConcurrencyRule.modelType,
       qwenOmni: {
         maxConcurrent: qwenOmniQueue.maxConcurrent,
         rpm: qwenOmniQueue.rpm,
@@ -1998,11 +2075,11 @@ function createDefaultsPayload() {
         "qwen3.5-omni-plus / qwen3.5-omni-flash 在双模型下会先通过 input_audio 产出 heardText 再调用比较模型；在单模型下会一次完成听音和推荐文本。",
       queue: "所有 Fun-ASR / Omni / compare 调用都会先进入后端统一限流队列；Fun-ASR 并发由 DATABAKER_AI_FUN_ASR_CONCURRENCY 控制。",
       batchConcurrency:
-        "前端批量并发由 aiQualifiedAutofillConcurrency 控制；后端 Fun-ASR 并发由 DATABAKER_AI_FUN_ASR_CONCURRENCY 控制；compare 并发由 DATABAKER_AI_TEXT_CONCURRENCY 控制。",
+        "前端批量并发在 Omni 下默认 15、范围 1~25，在 Fun-ASR 下默认 25、范围 1~50；前后端都会归一。后端 Fun-ASR / compare 仍按各 provider 自身策略处理。",
       restProvider:
         "当前 Fun-ASR 只实现单条 REST 调用；file_urls batch 后续再测试，本轮不启用。",
       asyncJobs:
-        "Fun-ASR 批量连续填入默认通过后端异步 job 执行：先短请求创建 job，再轮询 job 状态，避免同步 HTTP 长连接等待过久导致 Failed to fetch。",
+        "批量连续填入默认直接走同步 recommend；jobs 仅保留为历史兼容 / 调试入口，不作为默认结果接收链路。",
       jobPolling:
         "异步 job 默认 TTL " +
         String(jobStoreConfig.ttlMs) +
@@ -2082,6 +2159,20 @@ function createRuntimeMeta(options) {
       sourceRequestId: String(options?.cacheSourceRequestId || ""),
     },
     deprecatedMode: String(options?.deprecatedMode || ""),
+    concurrencyDiagnostic:
+      options?.concurrencyDiagnostic && typeof options.concurrencyDiagnostic === "object"
+        ? {
+            frontConcurrencyOriginal:
+              options.concurrencyDiagnostic.frontConcurrencyOriginal === null
+                ? null
+                : Number(options.concurrencyDiagnostic.frontConcurrencyOriginal) || 0,
+            frontConcurrencyNormalized:
+              Number(options.concurrencyDiagnostic.frontConcurrencyNormalized) || 0,
+            concurrencyModelType: String(
+              options.concurrencyDiagnostic.concurrencyModelType || "omni"
+            ),
+          }
+        : null,
     queue: {
       groups: queueMetas.map(summarizeQueueMeta),
       totalQueueWaitMs: queueMetas.reduce(function (total, item) {
@@ -2210,6 +2301,11 @@ async function recommend(body, requestIdHint, runtimeOptions) {
         cacheSourceRequestId,
         deprecatedMode,
         queueMetas: [],
+        concurrencyDiagnostic: {
+          frontConcurrencyOriginal: recommendRequest.frontConcurrencyOriginal,
+          frontConcurrencyNormalized: recommendRequest.frontConcurrencyNormalized,
+          concurrencyModelType: recommendRequest.concurrencyModelType,
+        },
       });
       appendCallLogSafe({
         createdAt: new Date().toISOString(),
@@ -2235,6 +2331,9 @@ async function recommend(body, requestIdHint, runtimeOptions) {
       sentenceNumber: recommendRequest.sentenceNumber,
       recognitionMode,
       pipelineMode,
+      frontConcurrencyOriginal: recommendRequest.frontConcurrencyOriginal,
+      frontConcurrencyNormalized: recommendRequest.frontConcurrencyNormalized,
+      concurrencyModelType: recommendRequest.concurrencyModelType,
       listenModel: activeListenModel,
       compareModel: activeCompareModel,
       singleModel: activeSingleModel,
@@ -2621,6 +2720,11 @@ async function recommend(body, requestIdHint, runtimeOptions) {
       deprecatedMode,
       queueMetas,
       stageTiming,
+      concurrencyDiagnostic: {
+        frontConcurrencyOriginal: recommendRequest.frontConcurrencyOriginal,
+        frontConcurrencyNormalized: recommendRequest.frontConcurrencyNormalized,
+        concurrencyModelType: recommendRequest.concurrencyModelType,
+      },
     });
     responseData.runtime.funAsrProvider = activeFunAsrProvider;
     responseData.thinking = {

@@ -46,7 +46,7 @@
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
                 aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
                 aiRecommendPipelineMode: "two_stage",
-                aiQualifiedAutofillConcurrency: 20,
+                aiQualifiedAutofillConcurrency: 15,
                 aiQualifiedAutofillWaitAllBeforeFill: false,
                 aiRecommendListenModel: "qwen3.5-omni-flash",
                 aiRecommendCompareModel: "qwen3.5-plus",
@@ -1192,15 +1192,42 @@
     return "50条/页";
   }
 
-  function normalizeDataBakerConcurrency(value, fallback) {
+  function getDataBakerAiQualifiedAutofillConcurrencyRule(settings, constants) {
+    const helper =
+      constants && typeof constants.getDataBakerAiQualifiedAutofillConcurrencyRule === "function"
+        ? constants.getDataBakerAiQualifiedAutofillConcurrencyRule
+        : null;
+    if (helper) {
+      return helper(settings || {});
+    }
+    const source = settings && typeof settings === "object" ? settings : {};
+    const recognitionMode = normalizeDataBakerPipelineMode(
+      source.recognitionMode || source.aiRecommendPipelineMode || source.pipelineMode,
+      "two_stage"
+    );
+    const listenModel = getDataBakerModelText(source.listenModel || source.aiRecommendListenModel);
+    const singleModel = getDataBakerModelText(
+      source.singleModel || source.aiRecommendSingleModel || source.aiModel
+    );
+    if (recognitionMode === "two_stage" && listenModel === "fun-asr") {
+      return { min: 1, max: 50, defaultValue: 25, modelType: "fun_asr" };
+    }
+    if (recognitionMode === "omni_single" && normalizeDataBakerSingleModel(singleModel, "qwen3.5-omni-flash", constants)) {
+      return { min: 1, max: 25, defaultValue: 15, modelType: "omni" };
+    }
+    return { min: 1, max: 25, defaultValue: 15, modelType: "omni" };
+  }
+
+  function normalizeDataBakerConcurrency(value, fallback, settings, constants) {
+    const rule = getDataBakerAiQualifiedAutofillConcurrencyRule(settings, constants);
     const numeric = Number(value);
     const fallbackNumeric = Number(fallback);
     const base = Number.isFinite(numeric)
-      ? numeric
+      ? Math.round(numeric)
       : Number.isFinite(fallbackNumeric)
-        ? fallbackNumeric
-        : 20;
-    return Math.max(1, Math.min(50, Math.round(base)));
+        ? Math.round(fallbackNumeric)
+        : rule.defaultValue;
+    return Math.max(rule.min, Math.min(rule.max, base));
   }
 
   function normalizeDataBakerPipelineMode(value, fallback) {
@@ -1593,7 +1620,13 @@
     result.aiRecommendPipelineMode = normalizedPipelineMode;
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
-      defaultConfig.aiQualifiedAutofillConcurrency || 20
+      defaultConfig.aiQualifiedAutofillConcurrency || 15,
+      {
+        aiRecommendPipelineMode: result.aiRecommendPipelineMode,
+        aiRecommendListenModel: result.aiRecommendListenModel,
+        aiRecommendSingleModel: result.aiRecommendSingleModel,
+      },
+      constants
     );
     result.aiQualifiedAutofillWaitAllBeforeFill = normalizeDataBakerWaitAllBeforeFill(
       result.aiQualifiedAutofillWaitAllBeforeFill,
@@ -1678,7 +1711,7 @@
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
             aiRecommendPipelineMode: "two_stage",
-                aiQualifiedAutofillConcurrency: 20,
+                aiQualifiedAutofillConcurrency: 15,
             aiQualifiedAutofillWaitAllBeforeFill: false,
             aiRecommendListenModel: "qwen3.5-omni-flash",
             aiRecommendCompareModel: "qwen3.5-plus",

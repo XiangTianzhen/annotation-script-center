@@ -112,7 +112,10 @@ PM2 进程名示例：`annotation-script-center`。
 - DataBaker 单条“AI 推荐文本”仍走同步 recommend。
 - DataBaker “AI并发分析并连续填入合格项”默认直接发送 `POST /api/data-baker/round-one-quality/ai/recommend`。
 - 当前页有 N 条合格项，就会为 N 条任务发送对应请求。
-- 前端按 `30ms` 错峰发起；“AI连续填入合格项并发数量”继续只控制最大活跃请求数，默认 `20`，范围 `1~50`。
+- 前端按 `30ms` 错峰发起；“AI连续填入合格项并发数量”已移到 DataBaker 的“ASR 语音 AI 设置”区域，并按当前模型动态归一：
+  - Omni：默认 `15`，范围 `1~25`
+  - Fun-ASR：默认 `25`，范围 `1~50`
+- 前端和后端都会对超范围并发值做归一；前端显示和后端诊断都以归一后的值为准。
 - 谁先返回，谁先进入待填队列；填入仍然顺序消费。
 - 后端 provider queue / RPM 限流继续保护上游；异步 job 接口如保留，仅作为历史兼容 / 调试入口。
 - DataBaker `qwen3.5-omni-flash` / `qwen3.5-omni-plus` 及新增 Omni 版本当前默认优先走 Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471`；默认按前端并发直接请求 Qwen，上游不再做后端平滑排队，除非显式设置 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1`。
@@ -231,7 +234,9 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 批量并发诊断要点：
 
 - 前端“AI连续填入合格项”是“并发发起 AI 请求 + 顺序填入页面”的两段流程。
-- 前端并发由 `aiQualifiedAutofillConcurrency` 控制，范围 `1~50`，默认建议 `20`。
+- 前端并发由 `aiQualifiedAutofillConcurrency` 控制：
+  - Omni：默认 `15`，范围 `1~25`
+  - Fun-ASR：默认 `25`，范围 `1~50`
 - 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `2`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
 - DataBaker 批量连续填入默认直接调用同步 recommend；异步 job 接口不再作为默认 AI 结果接收链路。
 - `DATABAKER_AI_ASYNC_JOBS_ENABLED=0`
@@ -245,8 +250,15 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - DataBaker 平台当前实际的自动清除时间字段位于前端顶部统计悬浮窗 `autoHideMs`，默认仍为 `60000ms`。
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
 - Compare 阶段若启用 thinking 可能明显变慢；未勾选时后端会显式关闭 compare thinking。
-- 如果批量执行看起来像串行，先看前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 后端任务已提交 / 后端任务运行中 / 后端任务成功 / 后端任务失败 / 待填队列`，再看 `health` 中 `queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`。
-- 如果同步 `POST /ai/recommend` 在 Fun-ASR + compare 多并发时出现 `Failed to fetch`，通常不是识别失败，而是 HTTP 长连接等待太久被浏览器、代理或网关中断。当前默认批量方案已经改为“短请求建 job + 轮询 job 状态”。
+- 如果批量执行看起来像串行，先看前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 待填队列`，再看 `health` 中 `queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`。
+- Fun-ASR 失败时，前端现在会优先区分：
+  - 鉴权/权限错误
+  - 平台音频 URL 不可访问
+  - 模型名错误
+  - 上游限流
+  - 任务失败
+  - 转写结果下载失败
+- 失败列表继续保留“查看原始AI返回”，弹出的 debug JSON 会脱敏，不包含完整 `audioUrl`、签名 URL、cookie、token 或 API Key。
 
 详细后端配置见 `platform-resources/backend/README.md`。
 详细 API 清单见 `platform-resources/README.md` 的“统一后端 API 清单”。
