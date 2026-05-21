@@ -10,6 +10,15 @@
 - 扩展源码目录：`extension/`（Chrome / Edge 共用同一套运行时代码）。
 - 统一后端入口：`platform-resources/backend/server.js`。
 
+## 协作摘要
+
+- 网页端默认以 `.md` 文件下载方式输出 Codex Prompt，不再默认在聊天消息中直接贴完整 Prompt。
+- 任务依赖截图、文件、日志、Network、Console、原始 JSON、音频样例等资料时，网页端应先提醒用户上传，并提示脱敏要求。
+- Git commit message 使用中文；允许保留英文范围标识，但描述必须是中文。
+- 一个新的开发 / 修复 / 优化对话默认对应一个 patch 小版本；正式发布仍使用 `ASC_RELEASE`。
+- 同一模块中重复代码超过 2 次时应优先抽取复用；新增样式优先变量化，有 SCSS 构建链时优先 SCSS。
+- 详细项目级规则见 `AGENTS.md` 与 `docs/rules/project-collaboration-rules.md`。
+
 ## 当前重点平台与脚本
 
 - 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）。
