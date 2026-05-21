@@ -1,6 +1,6 @@
-# 标贝易采一检质检后端（AI 推荐 + 导出上传）
+# 闽南语助手后端（AI 推荐 + 导出上传）
 
-本目录是 标贝易采一检质检本地 Node 后端实现，通过统一入口 `platform-resources/backend/server.js` 注册。
+本目录是 闽南语助手本地 Node 后端实现，通过统一入口 `platform-resources/backend/server.js` 注册。
 当前同时提供两类能力：
 
 - AI 推荐文本接口。

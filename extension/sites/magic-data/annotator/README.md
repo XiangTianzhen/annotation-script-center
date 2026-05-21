@@ -8,7 +8,7 @@
 - `page-world/network-observer.js`：MAIN world 只读监听 `annotateDetailInfo` 响应并回传脱敏字段。
 - `data-collector.js`：优先使用接口缓存/同源读取当前条数据，失败回退 DOM；提供填入与用户主动动作触发方法。
 - `ai-review-client.js`：调用 `/api/magic-data/annotator/ai/review-current`，按全局后端模式选 baseUrl。
-- `inline-panel.js`：页面内“Magic Data AI 质检结果”区域（插入到说话内容表格下方）。
+- `inline-panel.js`：页面内“客家话助手结果”区域（插入到说话内容表格下方）。
 - `shortcuts.js`：面板快捷键设置、持久化与键盘动作分发。
 - `content.js`：入口编排，处理 SPA 路由和 DOM 变化。
 

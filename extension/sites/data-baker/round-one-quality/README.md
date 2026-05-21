@@ -1,11 +1,11 @@
-# 标贝易采一检质检 AI 推荐文本
+# 闽南语助手 AI 推荐文本
 
-- 修复 `roundOneCollect` 页面右侧 `DataBaker AI 推荐文本` 工具卡在 DOM 尚未渲染完成时输出 `AI panel mount target not found` 的问题。
+- 修复 `roundOneCollect` 页面右侧 `闽南语助手推荐文本` 工具卡在 DOM 尚未渲染完成时输出 `AI panel mount target not found` 的问题。
 - 右侧工具卡找不到挂载点时不再作为扩展错误上报；当前只会输出一次 `console.debug`，并在后续 DOM 变更与 `300ms` 轻量延迟中继续重试挂载。
 - `findMountTarget` 现在优先定位“本句话文本”区域，再回退到右侧波形区附近容器，不会乱挂到 `body` 或左侧句子列表。
 - `clearResult` 只清结果，不删除工具卡根节点；离开页面、脚本停用或 runtime 停止时才由 `remove` 清理节点。
 - 左侧 `AI连续填入合格项` 按钮与右侧工具卡挂载继续独立；扩展重载后仍建议刷新 DataBaker 业务页面，避免旧 content script 残留。
-- 修复 `roundOneCollect` 右侧 `DataBaker AI 推荐文本` 工具卡在正文区域未挂载/误隐藏的问题。
+- 修复 `roundOneCollect` 右侧 `闽南语助手推荐文本` 工具卡在正文区域未挂载/误隐藏的问题。
 - 右侧工具卡与左侧 `AI连续填入合格项` 按钮是两个独立入口；即使 `filter-screen` 不可用，右侧工具卡也应单独显示。
 - 扩展重载后需要刷新 DataBaker 业务页面，再验证右侧工具卡和批量按钮。
 
@@ -86,7 +86,7 @@ round-one-quality/
 
 ## options 设置
 
-`标贝易采一检质检` 在 options 首页默认启用，方便上线验证；用户可在卡片中关闭脚本。专属设置页支持：
+`闽南语助手` 在 options 首页默认启用，方便上线验证；用户可在卡片中关闭脚本。专属设置页支持：
 
 - AI 推荐相关设置已迁移到通用隐藏部件“ASR 语音 AI 设置”（标题连续点击 10 次显示），普通设置区不再直接展示 AI 开关/超时字段。
 - 在“ASR 语音 AI 设置”中可配置启用 / 关闭 AI 推荐文本；关闭后页面不显示 AI 推荐工具卡，也不会触发推荐请求。
@@ -249,7 +249,7 @@ platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
 ## 人工验证步骤
 
 1. 重新加载扩展。
-2. 打开 options 页面，确认首页出现 `标贝易采` 平台和 `标贝易采一检质检` 卡片。
+2. 打开 options 页面，确认首页出现 `标贝易采` 平台和 `闽南语助手` 卡片。
 3. 点击“打开设置”，确认脚本详情页不再提供独立后端地址配置；后端地址由 options 首页顶部统一切换。
 4. 确认自动每页条数默认启用且目标为 `50条/页`；快捷键配置区域默认全部未设置。
 5. 录制一个快捷键，例如 `Alt+A` 绑定“AI 推荐文本”，保存后刷新 options 页面，确认配置仍存在。

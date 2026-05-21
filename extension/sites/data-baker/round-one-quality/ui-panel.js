@@ -1252,7 +1252,7 @@
       head.className = "asr-edge-db-head";
       const title = document.createElement("div");
       title.className = "asr-edge-db-title";
-      title.textContent = "DataBaker AI 推荐文本";
+      title.textContent = "闽南语助手推荐文本";
       const actions = document.createElement("div");
       actions.className = "asr-edge-db-actions";
       const recommendButton = createButton("AI 推荐文本", { "data-primary": "true" });

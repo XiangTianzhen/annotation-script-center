@@ -1018,13 +1018,13 @@
     dataBakerRoundOneQuality: {
       id: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
       platformId: DATA_BAKER_PLATFORM_ID,
-      label: "标贝易采一检质检",
-      shortLabel: "一检质检",
-      description: "标贝易采一检质检 roundOneCollect 页面 AI 推荐文本能力。",
+      label: "闽南语助手",
+      shortLabel: "闽南语助手",
+      description: "标贝易采 roundOneCollect 页面闽南语 AI 推荐文本能力。",
       note:
         "当前只提供单条 AI 推荐文本，不自动保存、提交、批量识别或自动流转。",
       capabilityScope: "ai-recommend-text",
-      statusLabel: "已接入 AI 推荐文本",
+      statusLabel: "闽南语助手",
       detailView: "data-baker-round-one-quality",
       host: DATA_BAKER_PLATFORM.host,
       matchUrl:
@@ -1033,12 +1033,12 @@
     magicDataAnnotatorAiReview: {
       id: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
       platformId: MAGIC_DATA_PLATFORM_ID,
-      label: "Magic Data AI 质检助手",
-      shortLabel: "AI 质检助手",
-      description: "用于 #/asrmark 当前条规则质检，不自动保存、不自动提交。",
+      label: "客家话助手",
+      shortLabel: "客家话助手",
+      description: "用于 Magic Data #/asrmark 当前条客家话规则质检，不自动保存、不自动提交。",
       note: "页面内结果区仅辅助复核，平台两行文本为基准答案，AI 输出以风险提示为主。",
       capabilityScope: "rule-first-ai-review",
-      statusLabel: "已接入 AI 质检",
+      statusLabel: "客家话助手",
       detailView: "magic-data-annotator-ai-review",
       host: MAGIC_DATA_PLATFORM.host,
       matchUrl: "https://work.magicdatatech.com/#/asrmark?taskItemId=...",
@@ -1516,7 +1516,7 @@
     STAGE_DESCRIPTION:
       "脚本中心统一管理多平台脚本，options 页负责启停与必要配置，运行时功能由各脚本独立维护。",
     CAPABILITY_SCOPE:
-      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏与统计导出、语音判别音频能力、Lightwheel 脚本占位管理，以及标贝易采一检质检 AI 推荐文本。",
+      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏与统计导出、语音判别音频能力、Lightwheel 脚本占位管理，以及闽南语助手 AI 推荐文本。",
     SCHEMA_VERSION: SCHEMA_VERSION,
     STORAGE_KEY: "asrEdgeSettings",
     PRESENCE_BADGE_ID: "asr-edge-presence-host",

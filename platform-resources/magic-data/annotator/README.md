@@ -12,7 +12,7 @@ extension/sites/magic-data/annotator/
 
 ## 当前阶段
 
-- 阶段：`0.3.1` 已发布（Magic Data AI 质检助手）
+- 阶段：`0.3.1` 已发布（客家话助手）
 - 采集日期：2026-05-08（基础结构采集）
 - 发布日期：2026-05-12（合并到 `main`）
 - 当前能力：`#/asrmark` 页面内质检卡片、当前条 AI 质检、模型/思考开关/快捷键设置、统一后端调试接口
@@ -43,7 +43,7 @@ extension/sites/magic-data/annotator/
 
 ## 2026-05 前端质检区接入（asrmark）
 
-已在扩展端接入 Magic Data `#/asrmark` 页面内“Magic Data AI 质检结果”区域（表格下方）：
+已在扩展端接入 Magic Data `#/asrmark` 页面内“客家话助手结果”区域（表格下方）：
 
 - 刷新采集
 - AI 质检当前条
@@ -63,7 +63,7 @@ extension/sites/magic-data/annotator/
 - options 形态调整为“平台卡片 -> 脚本卡片 -> 打开设置”，不再在首页直接铺开 Magic Data 长表单。
 - 听音模型与质检模型改为“下拉候选 + 自定义模型名”双模式，避免模型列表过期导致不可用。
 - 新增 `enableThinking` 开关（默认关闭）；前端会随请求下发，后端按模型能力自动兼容/降级。
-- 页面内 `Magic Data AI 质检结果` 区域固定存在，默认显示空状态，点击 AI 后只更新既有区域内容。
+- 页面内 `客家话助手结果` 区域固定存在，默认显示空状态，点击 AI 后只更新既有区域内容。
 
 ## 子目录
 

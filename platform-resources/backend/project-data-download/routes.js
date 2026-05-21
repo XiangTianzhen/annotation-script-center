@@ -123,7 +123,7 @@ function createDatasetRegistry(config) {
     },
     {
       id: "data-baker-round-one-export",
-      label: "标贝易采一检质检导出数据",
+      label: "闽南语助手导出数据",
       defaultFileName: "data-baker-round-one-quality-latest.csv",
       getCsvPath: function () {
         return path.join(dataBakerExportDir, "latest.csv");

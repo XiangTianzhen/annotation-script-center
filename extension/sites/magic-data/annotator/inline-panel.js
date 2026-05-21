@@ -759,7 +759,7 @@
       const headText = document.createElement("div");
       const title = document.createElement("div");
       title.className = "md-inline-title";
-      title.textContent = "Magic Data AI 质检结果";
+      title.textContent = "客家话助手结果";
       const sub = document.createElement("div");
       sub.className = "md-inline-sub";
       sub.textContent = "以平台现有文本为基准，AI 仅做规则质检和风险提示，不自动保存、不自动提交。";

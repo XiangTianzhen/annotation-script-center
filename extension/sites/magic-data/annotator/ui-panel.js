@@ -589,7 +589,7 @@
       const titleWrap = document.createElement("div");
       const title = document.createElement("div");
       title.className = "md-title";
-      title.textContent = "Magic Data AI 复核助手";
+      title.textContent = "客家话助手";
       const subtitle = document.createElement("div");
       subtitle.className = "md-subtitle";
       subtitle.textContent = "当前只辅助复核，不自动保存、不自动提交。";

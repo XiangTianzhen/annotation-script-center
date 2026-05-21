@@ -203,7 +203,7 @@
           scriptEnabled: scriptEnabled,
           title: "当前页面命中标贝易采",
           description:
-            "当前会尝试触发“标贝易采一检质检”。" + enabledDescriptionSuffix,
+            "当前会尝试触发“闽南语助手”。" + enabledDescriptionSuffix,
         };
       }
 
@@ -230,7 +230,7 @@
         statusTone: "pending",
         title: "当前页面属于标贝易采",
         description:
-          "进入一检详情页后会尝试触发“标贝易采一检质检”。" + enabledDescriptionSuffix,
+          "进入一检详情页后会尝试触发“闽南语助手”。" + enabledDescriptionSuffix,
       };
     }
 
@@ -240,27 +240,27 @@
       if (isAsrmark) {
         return {
           scriptId: magicDataScriptId,
-          scriptLabel: "Magic Data AI 复核助手",
+          scriptLabel: "客家话助手",
           platformId: "magicData",
           platformLabel: "Magic Data ANNOTATOR",
           url: url,
           statusText: "已支持",
           statusTone: "success",
           title: "当前页面：Magic Data 标注单条页",
-          description: "脚本状态：已支持 AI 质检助手。请在页面说话内容表格下方查看结果区。",
+          description: "脚本状态：已支持客家话助手。请在页面说话内容表格下方查看客家话助手结果区。",
           openScriptSettings: false,
         };
       }
       return {
         scriptId: magicDataScriptId,
-        scriptLabel: "Magic Data AI 复核助手",
+        scriptLabel: "客家话助手",
         platformId: "magicData",
         platformLabel: "Magic Data ANNOTATOR",
         url: url,
         statusText: "待进入标注单条页",
         statusTone: "pending",
         title: "当前页面属于 Magic Data",
-        description: "进入 #/asrmark 后可使用 AI 复核助手。",
+        description: "进入 #/asrmark 后可使用客家话助手。",
         openScriptSettings: false,
       };
     }

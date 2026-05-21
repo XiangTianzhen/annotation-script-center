@@ -27,7 +27,7 @@
 
 当前接入平台：
 
-- DataBaker 标贝易采一检质检
+- DataBaker 闽南语助手
 
 当前 DataBaker 业务层结构：
 
