@@ -31,15 +31,15 @@
 - 用户手动保存的非默认 AI 超时值继续保留；非 AI 上传、下载、统计接口超时不受该默认规则影响。
 - 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
 - 修复当前待验证版本 BUG 时，可保持 `manifest.version` 不变，不因同一版本的连续修复重复升 patch。
-- 当前版本为 `0.3.4`，持续在 `0.3.0` 基础上迭代多脚本 AI 辅助能力与 options 收口。
+- 当前版本为 `0.3.5`，持续在 `0.3.0` 基础上迭代多脚本 AI 辅助能力与 options 收口。
 - 3.0 起正式发布产物为 CRX 三件套：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 
-## 0.3.4 版本摘要
+## 0.3.5 版本摘要
 
 - Abaka AI Task21：Task21助手完成态文档与功能收口（字段旁 AI 分析、手动填写 AI 答案、Monaco/Naive UI 写入、T/B/R/D 删除文本规则、列表页统计入口）。
 - CSV 字段口径：LabelX 快判/转写使用 `有效时长(秒)_S` 与人员 `_P` 字段；DataBaker 使用 `有效合格时长_S` 与 `质检人_P`。
-- DataBaker AI 链路与调试能力持续修复（并发、队列、失败排查与调试信息增强）。
+- DataBaker AI 链路与调试能力持续修复，包含 AI 连续填入、Fun-ASR REST、Omni legacy fast path、原始 AI 返回查看、模型动态并发和批量悬浮窗状态优化。
 - 详细变更见 `log.md` 及对应平台 README。
 
 ## Options 首页下载入口规则

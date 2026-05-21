@@ -1,3 +1,18 @@
+## 2026-05-21（正式发布：v0.3.5）
+
+- 发布版本提升到 `0.3.5`，正式发布产物以 CRX 三件套为准：
+  - `dist/annotation-script-center-v0.3.5.crx`
+  - `dist/annotation-script-center-update.xml`
+  - `dist/annotation-script-center-crx-latest.json`
+- 本版本核心变化聚焦近期 DataBaker 能力收口：
+  - `AI连续填入合格项` 批量入口、前端并发分析与顺序填入
+  - Fun-ASR REST 默认链路与错误分类增强
+  - Omni legacy fast path 恢复与 `limit_burst_rate` 真实透出
+  - 批量失败“查看原始AI返回”与脱敏 debug JSON
+  - 按模型动态归一的并发规则（Omni `15 / 1~25`，Fun-ASR `25 / 1~50`）
+  - 批量悬浮窗新增 AI 链路、AI 模型、并发规则、执行耗时等状态展示
+- 本次发布不包含敏感信息，不记录完整音频 URL、签名 URL、cookie、token、authorization 或 API Key。
+
 ## 2026-05-21（标贝易采一检质检热修：批量悬浮窗显示 AI 配置与执行耗时）
 
 - DataBaker “AI连续填入合格项”顶部悬浮窗新增显示：
