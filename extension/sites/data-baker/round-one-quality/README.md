@@ -1,5 +1,10 @@
 # 标贝易采一检质检 AI 推荐文本
 
+- 修复 `roundOneCollect` 页面右侧 `DataBaker AI 推荐文本` 工具卡在 DOM 尚未渲染完成时输出 `AI panel mount target not found` 的问题。
+- 右侧工具卡找不到挂载点时不再作为扩展错误上报；当前只会输出一次 `console.debug`，并在后续 DOM 变更与 `300ms` 轻量延迟中继续重试挂载。
+- `findMountTarget` 现在优先定位“本句话文本”区域，再回退到右侧波形区附近容器，不会乱挂到 `body` 或左侧句子列表。
+- `clearResult` 只清结果，不删除工具卡根节点；离开页面、脚本停用或 runtime 停止时才由 `remove` 清理节点。
+- 左侧 `AI连续填入合格项` 按钮与右侧工具卡挂载继续独立；扩展重载后仍建议刷新 DataBaker 业务页面，避免旧 content script 残留。
 - 修复 `roundOneCollect` 右侧 `DataBaker AI 推荐文本` 工具卡在正文区域未挂载/误隐藏的问题。
 - 右侧工具卡与左侧 `AI连续填入合格项` 按钮是两个独立入口；即使 `filter-screen` 不可用，右侧工具卡也应单独显示。
 - 扩展重载后需要刷新 DataBaker 业务页面，再验证右侧工具卡和批量按钮。

@@ -1,3 +1,13 @@
+## 2026-05-21（标贝易采一检质检热修：AI 工具卡挂载未就绪改为延迟重试）
+
+- 修复 DataBaker `roundOneCollect` 页面右侧 `DataBaker AI 推荐文本` 工具卡在 DOM 尚未渲染完成时输出 `AI panel mount target not found` 扩展报错的问题。
+- `extension/sites/data-baker/round-one-quality/ui-panel.js` 的 `ensureMounted()` 现在找不到挂载点时直接返回 `null`，不再 `throw`、不再 `console.error`、不再 `console.warn` 刷屏；最多只打印一次 `console.debug`：`[DataBaker][round-one-quality] AI panel mount target not ready, will retry.`。
+- `findMountTarget()` 现在优先定位“本句话文本”文本框/表单区域，再回退到音频波形右侧内容容器、`.waver-page`、`.right`、`.app-main/.main-container` 内可见主内容容器；跳过不可见节点、已脱离文档节点，不会挂到 `body` 或左侧列表。
+- `extension/sites/data-baker/round-one-quality/content.js` 新增 `300ms` 轻量限次重试，并继续依赖既有 `MutationObserver` 重试挂载；页面切题、刷新列表、平台重绘删除 root 后，后续 `refresh` 仍会自动重挂载。
+- `clearResult()` 继续只清结果区，不删除根节点；只有 runtime 停止、离开页面、脚本禁用时 `remove()` 才会清掉工具卡。
+- 左侧 `filter-screen` 的 `AI连续填入合格项` 按钮与右侧工具卡保持独立；当左侧容器暂时未就绪时，右侧工具卡可先显示，后续左侧容器恢复后会优先回到 `filter-screen`，避免重复插入多个按钮。
+- 扩展重载后仍建议刷新 DataBaker 业务页面，避免旧 content script 残留导致 `Extension context invalidated` 或旧挂载逻辑继续驻留。
+
 ## 2026-05-21（版本号更新：0.3.4）
 
 - `extension/manifest.json` 版本更新到 `0.3.4`。

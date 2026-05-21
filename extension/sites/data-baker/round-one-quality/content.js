@@ -25,6 +25,8 @@
   const BATCH_LOCK_STALE_MS = 5 * 60 * 1000;
   const BATCH_LOCK_HEARTBEAT_MS = 2000;
   const BATCH_TOGGLE_DEBOUNCE_MS = 500;
+  const MOUNT_RETRY_DELAY_MS = 300;
+  const MAX_MOUNT_RETRY_COUNT = 4;
   const DATABAKER_LISTEN_MODEL_OPTIONS = Array.isArray(CONSTANTS.DATABAKER_AI_LISTEN_MODEL_OPTIONS)
     ? CONSTANTS.DATABAKER_AI_LISTEN_MODEL_OPTIONS
         .map(function (item) {
@@ -53,6 +55,7 @@
   let observer = null;
   let evaluating = false;
   let pendingEvaluate = false;
+  let mountRetryTimer = null;
 
   function normalizeEndpoint(value, fallback) {
     const normalized = normalizeEndpointUrl(value);
@@ -1595,6 +1598,36 @@
     const pageSize = pageSizeFactory?.createRuntime?.({
       defaultPageSize: config.defaultPageSize,
     });
+    let mountRetryCount = 0;
+
+    function clearMountRetryTimer() {
+      if (mountRetryTimer) {
+        window.clearTimeout(mountRetryTimer);
+        mountRetryTimer = null;
+      }
+    }
+
+    function scheduleMountRetry() {
+      if (mountRetryCount >= MAX_MOUNT_RETRY_COUNT || mountRetryTimer) {
+        return;
+      }
+      mountRetryCount += 1;
+      mountRetryTimer = window.setTimeout(function () {
+        mountRetryTimer = null;
+        refresh();
+      }, MOUNT_RETRY_DELAY_MS);
+    }
+
+    function ensurePanelMounted() {
+      const mountedRoot = ui.ensureMounted();
+      if (mountedRoot) {
+        mountRetryCount = 0;
+        clearMountRetryTimer();
+        return mountedRoot;
+      }
+      scheduleMountRetry();
+      return null;
+    }
 
     function showShortcutStatus(message, tone) {
       if (config.aiRecommendEnabled !== false) {
@@ -1642,8 +1675,10 @@
         return;
       }
       if (config.aiRecommendEnabled !== false) {
-        ui.ensureMounted();
+        ensurePanelMounted();
       } else {
+        clearMountRetryTimer();
+        mountRetryCount = 0;
         ui.remove();
       }
       if (config.autoPageSizeEnabled !== false) {
@@ -1668,7 +1703,7 @@
     function start() {
       dataApi.start();
       if (config.aiRecommendEnabled !== false) {
-        ui.ensureMounted();
+        ensurePanelMounted();
       }
       if (config.autoPageSizeEnabled !== false) {
         pageSize?.start?.();
@@ -1686,6 +1721,8 @@
     }
 
     function stop() {
+      clearMountRetryTimer();
+      mountRetryCount = 0;
       if (observer) {
         observer.disconnect();
         observer = null;

@@ -5,7 +5,7 @@
   let mountedLogPrinted = false;
   let fallbackLogPrinted = false;
   let panelMountedLogPrinted = false;
-  let mountTargetWarnPrinted = false;
+  let mountTargetDebugPrinted = false;
 
   function normalizeText(text) {
     return String(text || "").replace(/\s+/g, " ").trim();
@@ -331,6 +331,7 @@
     let batchFloatingCurrentNode = null;
     let batchFloatingFailuresNode = null;
     let batchFloatingRetryButton = null;
+    let panelFallbackQualifiedButtonNode = null;
     let batchFloatingCloseTimer = null;
     let batchFloatingSuppressUntil = 0;
     let batchFailureRetryHandler =
@@ -341,41 +342,79 @@
       typeof deps.onLoadFailureDebugJson === "function" ? deps.onLoadFailureDebugJson : null;
     let debugModalNode = null;
 
-    function findMountTarget() {
-      const selectors = [
-        ".waver-page .text-box",
-        ".waver-page .right .text-box",
-        ".waver-page .el-textarea",
-        ".waver-page .right .el-textarea",
-        ".waver-page .right",
-        ".waver-page",
-        ".right",
-      ];
-      for (const selector of selectors) {
-        const nodes = Array.from(document.querySelectorAll(selector)).filter(isVisibleNode);
-        if (nodes.length <= 0) {
-          continue;
-        }
-        const first = nodes[0];
-        if (selector.indexOf(".el-textarea") >= 0) {
-          const textBox = first.closest(".text-box");
-          if (textBox instanceof HTMLElement && isVisibleNode(textBox)) {
-            return textBox;
-          }
-        }
-        if (first instanceof HTMLElement) {
-          return first;
-        }
-      }
-      return null;
-    }
-
     function isVisibleNode(node) {
       if (!(node instanceof HTMLElement)) {
         return false;
       }
+      if (!node.isConnected || !document.documentElement.contains(node)) {
+        return false;
+      }
       const style = window.getComputedStyle(node);
-      return style.display !== "none" && style.visibility !== "hidden";
+      if (style.display === "none" || style.visibility === "hidden") {
+        return false;
+      }
+      return node.getClientRects().length > 0;
+    }
+
+    function findVisibleNode(selector) {
+      return Array.from(document.querySelectorAll(selector)).find(isVisibleNode) || null;
+    }
+
+    function findVisibleNodeByText(selector, keyword) {
+      return Array.from(document.querySelectorAll(selector)).find(function (node) {
+        return isVisibleNode(node) && normalizeText(node.textContent || "").indexOf(keyword) >= 0;
+      }) || null;
+    }
+
+    function findMountTargetFromSentenceText() {
+      const labeledTextBox = findVisibleNodeByText(".waver-page .text-box", "本句话文本");
+      if (labeledTextBox) {
+        return labeledTextBox;
+      }
+
+      const textarea = findVisibleNode(".waver-page .text-box textarea, .waver-page textarea");
+      const textareaContainer = textarea?.closest(".text-box, .el-form-item, .el-textarea");
+      if (textareaContainer instanceof HTMLElement && isVisibleNode(textareaContainer)) {
+        return textareaContainer;
+      }
+      if (textarea instanceof HTMLElement && isVisibleNode(textarea)) {
+        return textarea;
+      }
+
+      return findVisibleNodeByText(
+        ".waver-page .text-box, .waver-page .el-form-item, .waver-page [class*='text']",
+        "本句话文本"
+      );
+    }
+
+    function findMountTarget() {
+      const sentenceTextTarget = findMountTargetFromSentenceText();
+      if (sentenceTextTarget) {
+        return sentenceTextTarget;
+      }
+
+      const iframeBox = findVisibleNode(".waver-page #iframeBox, .waver-page iframe#myIframe");
+      const rightContent = iframeBox?.closest(".right, .waver-page");
+      if (rightContent instanceof HTMLElement && isVisibleNode(rightContent)) {
+        return rightContent;
+      }
+
+      const selectors = [
+        ".waver-page .el-textarea",
+        ".waver-page",
+        ".right",
+        ".app-main .waver-page",
+        ".main-container .waver-page",
+        ".app-main .right",
+        ".main-container .right",
+      ];
+      for (const selector of selectors) {
+        const node = findVisibleNode(selector);
+        if (node) {
+          return node;
+        }
+      }
+      return null;
     }
 
     function findFilterScreenMountTarget() {
@@ -945,23 +984,24 @@
     }
 
     function updateQualifiedAutofillButtonState() {
-      const button = autoFillQualifiedButtonNode;
-      if (!button) {
-        return;
-      }
-      if (batchAutofillRunning) {
-        if (batchAutofillStopping === true) {
-          button.textContent = "停止中...";
-          button.disabled = true;
+      [autoFillQualifiedButtonNode, panelFallbackQualifiedButtonNode].forEach(function (button) {
+        if (!button) {
           return;
         }
-        button.textContent =
-          batchAutofillPhase === "analysis" ? "停止AI分析" : "停止AI填入";
-        button.disabled = false;
-      } else {
+        if (batchAutofillRunning) {
+          if (batchAutofillStopping === true) {
+            button.textContent = "停止中...";
+            button.disabled = true;
+            return;
+          }
+          button.textContent =
+            batchAutofillPhase === "analysis" ? "停止AI分析" : "停止AI填入";
+          button.disabled = false;
+          return;
+        }
         button.textContent = "AI连续填入合格项";
         button.disabled = false;
-      }
+      });
     }
 
     async function handleAutoFillQualifiedClick() {
@@ -1018,6 +1058,10 @@
       }
       if (existing && mountTarget && mountTarget.contains(existing)) {
         autoFillQualifiedButtonNode = existing;
+        if (panelFallbackQualifiedButtonNode && panelFallbackQualifiedButtonNode.isConnected) {
+          panelFallbackQualifiedButtonNode.remove();
+        }
+        panelFallbackQualifiedButtonNode = null;
         return existing;
       }
       if (!mountTarget || !(mountTarget instanceof HTMLElement)) {
@@ -1048,8 +1092,48 @@
         mountedLogPrinted = true;
       }
       autoFillQualifiedButtonNode = topButton;
+      if (panelFallbackQualifiedButtonNode && panelFallbackQualifiedButtonNode.isConnected) {
+        panelFallbackQualifiedButtonNode.remove();
+      }
+      panelFallbackQualifiedButtonNode = null;
       updateQualifiedAutofillButtonState();
       return topButton;
+    }
+
+    function ensurePanelFallbackQualifiedButton(headActionsNode) {
+      if (!(headActionsNode instanceof HTMLElement)) {
+        return null;
+      }
+      if (ensureTopQualifiedButton()) {
+        return autoFillQualifiedButtonNode;
+      }
+      if (
+        panelFallbackQualifiedButtonNode &&
+        document.documentElement.contains(panelFallbackQualifiedButtonNode)
+      ) {
+        updateQualifiedAutofillButtonState();
+        return panelFallbackQualifiedButtonNode;
+      }
+      if (
+        !fallbackLogPrinted &&
+        typeof console !== "undefined" &&
+        typeof console.debug === "function"
+      ) {
+        console.debug(
+          "[DataBaker][round-one-quality] filter-screen mount target not ready, fallback to AI panel."
+        );
+        fallbackLogPrinted = true;
+      }
+      const fallbackButton = createButton("AI连续填入合格项");
+      fallbackButton.title =
+        "刷新当前页列表，只连续处理质检合格数据，AI 推荐并填入，不自动保存提交。";
+      fallbackButton.addEventListener("click", function () {
+        handleAutoFillQualifiedClick();
+      });
+      headActionsNode.appendChild(fallbackButton);
+      panelFallbackQualifiedButtonNode = fallbackButton;
+      updateQualifiedAutofillButtonState();
+      return fallbackButton;
     }
 
     async function requestAiRecommend() {
@@ -1122,13 +1206,19 @@
       ensureTopQualifiedButton();
       const mountTarget = findMountTarget();
       if (!mountTarget) {
-        if (!mountTargetWarnPrinted && typeof console !== "undefined" && typeof console.warn === "function") {
-          console.warn("[DataBaker][round-one-quality] AI panel mount target not found");
-          mountTargetWarnPrinted = true;
+        if (
+          !mountTargetDebugPrinted &&
+          typeof console !== "undefined" &&
+          typeof console.debug === "function"
+        ) {
+          console.debug(
+            "[DataBaker][round-one-quality] AI panel mount target not ready, will retry."
+          );
+          mountTargetDebugPrinted = true;
         }
         return null;
       }
-      mountTargetWarnPrinted = false;
+      mountTargetDebugPrinted = false;
 
       root = document.createElement("div");
       root.setAttribute(ROOT_ATTR, "true");
@@ -1157,6 +1247,11 @@
 
       if (mountTarget.classList.contains("text-box")) {
         mountTarget.insertAdjacentElement("afterend", root);
+      } else if (
+        mountTarget.matches(".el-textarea, textarea") &&
+        mountTarget.parentElement instanceof HTMLElement
+      ) {
+        mountTarget.parentElement.insertAdjacentElement("afterend", root);
       } else {
         mountTarget.insertBefore(root, mountTarget.firstElementChild || null);
       }
@@ -1164,23 +1259,7 @@
         console.info("[DataBaker][round-one-quality] AI recommend panel mounted");
         panelMountedLogPrinted = true;
       }
-      if (!ensureTopQualifiedButton()) {
-        if (!fallbackLogPrinted && typeof console !== "undefined" && typeof console.warn === "function") {
-          console.warn(
-            "[DataBaker][round-one-quality] filter-screen mount not found, fallback to AI panel."
-          );
-          fallbackLogPrinted = true;
-        }
-        const fallbackButton = createButton("AI连续填入合格项");
-        fallbackButton.title =
-          "刷新当前页列表，只连续处理质检合格数据，AI 推荐并填入，不自动保存提交。";
-        fallbackButton.addEventListener("click", function () {
-          handleAutoFillQualifiedClick();
-        });
-        head.querySelector(".asr-edge-db-actions")?.appendChild(fallbackButton);
-        autoFillQualifiedButtonNode = fallbackButton;
-        updateQualifiedAutofillButtonState();
-      }
+      ensurePanelFallbackQualifiedButton(actions);
       return root;
     }
 
@@ -1211,6 +1290,10 @@
       statusNode = null;
       recommendButtonNode = null;
       autoFillQualifiedButtonNode = null;
+      if (panelFallbackQualifiedButtonNode && panelFallbackQualifiedButtonNode.isConnected) {
+        panelFallbackQualifiedButtonNode.remove();
+      }
+      panelFallbackQualifiedButtonNode = null;
       currentResult = null;
       currentItemKey = "";
       batchAutofillRunning = false;
