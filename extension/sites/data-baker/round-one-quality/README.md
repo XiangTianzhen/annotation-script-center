@@ -293,3 +293,10 @@ platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
 - 参与有效合格时长统计的字段改为 `有效合格时长_S`。
 - `采集人`、`有效总时长`、`有效不合格时长` 保持原口径，不追加 `_P` / `_S`。
 - `_S` 表示参与时长统计 / 结算的字段，`_P` 表示人员字段。
+
+## 2026-05-21 批量连续填入 tasks 作用域热修
+
+- 修复 `AI并发分析并连续填入合格项` 中 `tasks is not defined` 的前端运行时错误。
+- 根因是批量悬浮窗摘要函数在 `tasks` 作用域外直接读取 `tasks.length`；现在改为只使用 `plannedSendCount / totalCount` 等安全摘要字段。
+- 批量流程仍保持：直接 recommend 请求、`30ms` 错峰、前端并发 `1~50`、默认 `20`。
+- 扩展重载后需要刷新 DataBaker 业务页面，再重新测试，避免旧 content script 仍驻留。

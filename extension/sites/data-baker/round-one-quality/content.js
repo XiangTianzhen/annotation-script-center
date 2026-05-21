@@ -483,7 +483,7 @@
           launchedCount: 0,
           activeAiCount: 0,
           completedAiCount: 0,
-          plannedSendCount: tasks.length,
+          plannedSendCount: Math.max(0, Number(extra?.plannedSendCount ?? lastBatchSummary?.plannedSendCount ?? lastBatchSummary?.totalCount ?? 0) || 0),
           requestStaggerMs: Math.max(0, Number(config.aiRequestStaggerMs) || DEFAULT_AI_REQUEST_STAGGER_MS),
           analysisSuccessCount: 0,
           analysisFailCount: 0,
@@ -1110,6 +1110,18 @@
         }
 
         const tasks = dataApi.createItemsFromQualifiedRecords(qualifiedRecords, refreshed.entry);
+        if (!Array.isArray(tasks) || tasks.length <= 0) {
+          ui.setStatus("未能生成处理任务，请刷新页面后重试。", "error");
+          finishFloatingProgress({
+            phase: "stopped",
+            running: false,
+            totalCount: 0,
+            plannedSendCount: 0,
+            failures: currentBatchFailures.slice(),
+            retryableFailuresCount: currentRetryableFillFailures.length,
+          });
+          return { ok: false, message: "no-tasks" };
+        }
         const concurrency = normalizeAutofillConcurrency(config.aiQualifiedAutofillConcurrency);
         if (typeof console !== "undefined" && typeof console.info === "function") {
           console.info("[DataBaker][batch] start", {
@@ -1206,7 +1218,11 @@
         });
         return { ok: true, message: "completed" };
       } catch (error) {
-        const message = "连续处理失败：" + (error?.message || String(error));
+        const rawMessage = error?.message || String(error);
+        const isTasksScopeError = /tasks is not defined/i.test(rawMessage);
+        const message = isTasksScopeError
+          ? "批量流程脚本异常：tasks is not defined，请刷新页面并重试。"
+          : "连续处理失败：" + rawMessage;
         ui.setStatus(message, "error");
         currentBatchFailures.push({
           type: "runtime_failed",

@@ -1979,3 +1979,11 @@
 - 修复 LabelX 转写导出字段：`有效时长(秒)_S`、`标注员_P`、`审核员_P`。
 - 修复 DataBaker 导出字段：`质检人_P`、`有效合格时长_S`。
 - 旧字段兼容迁移：`有效时长` / `有效时长(秒)` / `有效合格时长` 与旧人员列在下一次合并写出 CSV 时迁移到新字段，不输出重复列。
+
+## 2026-05-21（标贝易采一检质检热修：修复批量 tasks 作用域错误）
+
+- 修复 DataBaker `AI并发分析并连续填入合格项` 点击后出现 `tasks is not defined` 的前端运行时错误。
+- 根因是 `content.js` 的批量悬浮窗摘要函数在 `tasks` 块级作用域外直接读取 `tasks.length`。
+- 现已改为基于 `plannedSendCount / totalCount` 构建摘要，不再跨作用域引用 `tasks`。
+- 额外补充：`createItemsFromQualifiedRecords(...)` 生成空任务时会给出明确提示，不再继续进入空批量流程。
+- 扩展重载后需刷新 DataBaker 页面，否则旧 content script 仍可能保留。
