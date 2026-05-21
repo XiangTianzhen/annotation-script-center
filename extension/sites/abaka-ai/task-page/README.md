@@ -130,6 +130,28 @@
 - 安全：
   - 不展示完整图片 URL、完整 dataUrl、token/cookie/authorization 等敏感字段。
 
+## Task21 统计 / 导出入口（列表页）
+
+- 列表页入口：`/task-v2/data-item?taskId={taskId}&vm=all&dm=all`
+- 批次页入口：`/task-v2/data-item?taskId={taskId}&vm=batch&dm=all&batchId={batchId}`
+- 顶部按钮与 `/items` 字段旁 AI 分析按钮是两套独立入口：
+  - `/items` 详情页继续保留字段标题右侧 `AI分析 / 整体分析`
+  - `/task-v2/data-item` 列表页新增顶部右侧 `统计当前列表` 与 `下载统计CSV`
+- 挂载优先级：
+  - `.app-content-header-right .action-buttons.is-global`
+  - `.app-content-header-right .search-actions.is-global`
+  - `.app-content-header-right`
+  - 若顶部容器暂时找不到，则 fallback 为页面右上角浮动入口
+- 运行时会为列表页入口做去重与重挂载：
+  - 固定使用 `data-asc-task21-statistics-toolbar="true"`，避免重复插入多个按钮
+  - Vue 重渲染或筛选刷新后会重新挂载
+  - 路由离开 `/task-v2/data-item` 后会自动移除
+- 当前仓库尚未落地 Task21 统计后端与独立前端 runtime：
+  - 目前点击 `统计当前列表` 会给出“Task21统计模块未就绪，请先完成统计采集模块。”
+  - `下载统计CSV` 默认禁用，不会伪造下载地址
+- 该入口不会自动领取标注、不会自动保存、不会自动提交、不会自动送审。
+- 如扩展刚重载，请先刷新 Abaka Task21 业务页再测试，避免旧 content script 继续停留。
+
 ## Console 调试入口
 
 - 页面 Console 可手动调用：

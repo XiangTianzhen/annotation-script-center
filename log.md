@@ -2010,3 +2010,19 @@
 - 前端同批次先按 `processKey` 去重，重复任务不再发送；悬浮窗增加唯一任务数、重复跳过数、批次ID、已发起请求和活跃请求统计。
 - 页面级全局锁防止旧 content script、多 runtime 或双击按钮重复启动第二批。
 - 后端新增内存级 in-flight dedupe：同一 `batchRunId + batchProcessKey` 的请求会 join 同一 promise，避免重复打上游模型。
+
+## 2026-05-21（Task21 助手：恢复列表页统计/导出按钮入口）
+
+- 修复 Abaka AI Task21 `/task-v2/data-item` 列表页顶部右侧统计入口不可见问题。
+- `content.js` 新增 `isTask21DataItemListPage()`，识别 `abao.fortidyndns.com` 下带 `taskId` 且 `vm=all/batch` 的 `/task-v2/data-item` 页面。
+- 新增顶部右侧按钮挂载逻辑，优先插入：
+  - `.app-content-header-right .action-buttons.is-global`
+  - `.app-content-header-right .search-actions.is-global`
+  - `.app-content-header-right`
+  - 顶部容器缺失时 fallback 为页面右上角浮动入口
+- 按钮使用固定属性 `data-asc-task21-statistics-toolbar="true"` 去重，支持 Vue/SPA 重渲染后自动重挂载，离开列表页后自动移除。
+- 当前仓库未包含 Task21 统计后端与独立前端统计 runtime，因此：
+  - `统计当前列表` 当前会给出“Task21统计模块未就绪，请先完成统计采集模块。”
+  - `下载统计CSV` 默认禁用，不伪造下载地址
+- `/items` 详情页字段旁 `AI分析 / 整体分析` 入口保持不变。
+- 扩展重载后需刷新 Abaka Task21 页面再验证，避免旧 content script 继续驻留。

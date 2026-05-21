@@ -17,6 +17,32 @@
 
 这些值只用于人工核对，不作为脚本唯一硬编码依据。
 
+## `/task-v2/data-item` 顶部右侧工具栏
+
+Task21 列表页统计 / 导出入口优先挂载在以下容器：
+
+- `.app-content-header-right .action-buttons.is-global`
+- `.app-content-header-right .search-actions.is-global`
+- `.app-content-header-right`
+
+推荐位置：
+
+- 与 `筛选 / 搜索输入框 / 查看 / 领取标注` 同一顶部区域
+- 优先插入 `action-buttons.is-global`，避免塞进搜索框内部
+
+当前入口文案：
+
+- `统计当前列表`
+- `下载统计CSV`
+
+运行时约束：
+
+- 使用 `data-asc-task21-statistics-toolbar="true"` 去重
+- Vue 重新渲染后允许重新挂载，但不重复插入多个
+- 离开 `/task-v2/data-item` 后自动移除
+- 若顶部工具栏暂时未渲染，则 fallback 到页面右上角浮动入口
+- 该入口不会自动领取标注，不会自动保存、自动提交、自动送审
+
 ## same_font 主标注结构
 
 | 字段 | 控件类型 | 文案 / 值 | DOM 定位策略 | Network |

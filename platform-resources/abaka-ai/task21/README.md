@@ -54,6 +54,25 @@
 
 详细公共 DOM 见 `../page-structure.md`，Task21 same_font 结构见 `page-structure.md`。
 
+列表页统计 / 导出入口补充（2026-05-21）：
+
+- `/task-v2/data-item?taskId={taskId}&vm=all&dm=all`
+- `/task-v2/data-item?taskId={taskId}&vm=batch&dm=all&batchId={batchId}`
+
+上述列表页会尝试在顶部右侧工具栏挂载 Task21 统计入口：
+
+- 优先：`.app-content-header-right .action-buttons.is-global`
+- 回退：`.app-content-header-right .search-actions.is-global`
+- 再回退：`.app-content-header-right`
+- 若顶部容器暂时找不到，则使用页面右上角浮动入口兜底
+
+当前仓库状态说明：
+
+- `/items` 详情页已有 Task21 助手 AI 分析入口，不受本次列表页入口影响
+- Task21 统计后端接口与独立统计 runtime 目前未随仓库落地，因此列表页入口当前以“可见 + 明确提示”为主
+- 入口不会自动领取标注、不会自动保存、不会自动提交、不会自动送审
+- 若后续补齐统计 runtime，应优先复用该顶部入口，不要再隐藏到快捷键或 AI 浮窗内
+
 ## Network 入口
 
 - 平台通用初始化、权限、任务和资源接口：`../network.md`
