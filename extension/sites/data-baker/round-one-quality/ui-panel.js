@@ -496,6 +496,27 @@
       return { labelNode, valueNode };
     }
 
+    function formatElapsedMs(value) {
+      const totalMs = Number(value);
+      if (!Number.isFinite(totalMs) || totalMs < 0) {
+        return "-";
+      }
+      const totalSeconds = Math.floor(totalMs / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      if (hours > 0) {
+        return (
+          String(hours) +
+          ":" +
+          String(minutes).padStart(2, "0") +
+          ":" +
+          String(seconds).padStart(2, "0")
+        );
+      }
+      return String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+    }
+
     function ensureBatchFloatingPanel() {
       if (Date.now() < batchFloatingSuppressUntil) {
         return null;
@@ -648,11 +669,15 @@
       const rows = [
         createFloatingRow("阶段", phaseToText(phase)),
         createFloatingRow("批次ID", batchRunIdText),
+        createFloatingRow("执行耗时", formatElapsedMs(state.elapsedMs)),
+        createFloatingRow("当前AI链路", String(state.aiPipelineDisplayName || "-")),
+        createFloatingRow("当前AI模型", String(state.aiModelDisplayName || "-")),
+        createFloatingRow("并发规则", String(state.concurrencyRuleText || "按当前配置归一")),
+        createFloatingRow("前端并发", Number(state.frontConcurrency) || 0),
+        createFloatingRow("发送间隔(ms)", Number(state.requestStaggerMs) || 0),
         createFloatingRow("总合格数", Number(state.totalCount) || 0),
         createFloatingRow("唯一任务数", Number(state.uniqueTaskCount) || 0),
         createFloatingRow("重复跳过", duplicateSkippedCount),
-        createFloatingRow("发送间隔(ms)", Number(state.requestStaggerMs) || 0),
-        createFloatingRow("前端并发", Number(state.frontConcurrency) || 0),
         createFloatingRow("已发起AI请求", Number(state.launchedCount) || 0),
         createFloatingRow("前端活跃AI请求", Number(state.activeAiCount) || 0),
         createFloatingRow("AI已返回", Number(state.completedAiCount) || 0),

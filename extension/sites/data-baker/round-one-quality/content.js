@@ -237,6 +237,63 @@
     return getDataBakerModelText(model) === "fun-asr" ? "fun_asr_compare" : "qwen_omni_compare";
   }
 
+  function buildAiDisplayMeta(configLike) {
+    const source = configLike && typeof configLike === "object" ? configLike : {};
+    const recognitionMode = normalizePipelineMode(
+      source.recognitionMode || source.aiRecommendPipelineMode || source.pipelineMode
+    );
+    const listenModel = getDataBakerModelText(source.listenModel || source.aiRecommendListenModel);
+    const compareModel = getDataBakerModelText(source.compareModel || source.aiRecommendCompareModel);
+    const singleModel = getDataBakerModelText(source.singleModel || source.aiRecommendSingleModel);
+    const rule = getDataBakerAiQualifiedAutofillConcurrencyRule({
+      recognitionMode,
+      aiRecommendPipelineMode: recognitionMode,
+      listenModel,
+      aiRecommendListenModel: listenModel,
+      singleModel,
+      aiRecommendSingleModel: singleModel,
+    });
+    const isFunAsrTwoStage = recognitionMode === "two_stage" && listenModel === "fun-asr";
+    const isOmniSingle = recognitionMode === "omni_single";
+    const isOmniTwoStage = recognitionMode === "two_stage" && !isFunAsrTwoStage;
+    const fallbackModels = [listenModel, compareModel, singleModel].filter(Boolean).join(" + ");
+
+    if (isOmniSingle) {
+      return {
+        aiPipelineDisplayName: "Omni 单模型",
+        aiModelDisplayName: singleModel || listenModel || "qwen3.5-omni-flash",
+        concurrencyRuleText:
+          "Omni 默认" + String(rule.defaultValue || 15) + "，范围" + String(rule.min || 1) + "~" + String(rule.max || 25),
+        concurrencyModelType: "omni",
+      };
+    }
+    if (isFunAsrTwoStage) {
+      return {
+        aiPipelineDisplayName: "Fun-ASR + 比较模型",
+        aiModelDisplayName: "fun-asr + " + String(compareModel || "qwen3.5-plus"),
+        concurrencyRuleText:
+          "Fun-ASR 默认" + String(rule.defaultValue || 25) + "，范围" + String(rule.min || 1) + "~" + String(rule.max || 50),
+        concurrencyModelType: "fun_asr",
+      };
+    }
+    if (isOmniTwoStage) {
+      return {
+        aiPipelineDisplayName: "Omni 听音 + 比较模型",
+        aiModelDisplayName:
+          String(listenModel || "qwen3.5-omni-flash") + " + " + String(compareModel || "qwen3.5-plus"),
+        concurrencyRuleText:
+          "Omni 默认" + String(rule.defaultValue || 15) + "，范围" + String(rule.min || 1) + "~" + String(rule.max || 25),
+        concurrencyModelType: "omni",
+      };
+    }
+    return {
+      aiPipelineDisplayName: "AI 推荐",
+      aiModelDisplayName: fallbackModels || "当前模型字段未配置",
+      concurrencyRuleText: "按当前配置归一",
+      concurrencyModelType: String(rule.modelType || "omni"),
+    };
+  }
+
   function normalizeOptionalNumber(value, min, max) {
     const number = Number(value);
     if (!Number.isFinite(number) || number < min || number > max) {
@@ -506,6 +563,9 @@
     let batchLockHeartbeatTimer = null;
     let activeBatchRunId = "";
     let lastBatchToggleAt = 0;
+    let batchStartedAtMs = 0;
+    let batchElapsedTimer = null;
+    const aiDisplayMeta = buildAiDisplayMeta(config);
 
     function getRecordProcessKey(record) {
       const id = String(record?.id || "").trim();
@@ -711,13 +771,54 @@
       }
     }
 
+    function getBatchElapsedMs() {
+      if (batchStartedAtMs > 0) {
+        return Math.max(0, Date.now() - batchStartedAtMs);
+      }
+      return Math.max(0, Number(lastBatchSummary?.elapsedMs) || 0);
+    }
+
+    function stopBatchElapsedTimer() {
+      if (batchElapsedTimer) {
+        window.clearInterval(batchElapsedTimer);
+        batchElapsedTimer = null;
+      }
+    }
+
+    function startBatchElapsedTimer() {
+      stopBatchElapsedTimer();
+      if (batchStartedAtMs <= 0) {
+        return;
+      }
+      batchElapsedTimer = window.setInterval(function () {
+        if (!batchQualifiedAutofillRunning || batchStartedAtMs <= 0) {
+          stopBatchElapsedTimer();
+          return;
+        }
+        updateFloatingProgress({
+          batchStartedAt: batchStartedAtMs,
+          elapsedMs: Date.now() - batchStartedAtMs,
+        });
+      }, 1000);
+    }
+
     function buildFloatingSnapshot(extra) {
       const summary = Object.assign(
         {
           phase: batchAutofillPhase || "idle",
           running: batchQualifiedAutofillRunning,
           stopping: batchQualifiedAutofillCancelRequested,
-          frontConcurrency: 0,
+          batchStartedAt: batchStartedAtMs || 0,
+          elapsedMs: getBatchElapsedMs(),
+          recognitionMode: String(config.recognitionMode || ""),
+          listenModel: String(config.listenModel || ""),
+          compareModel: String(config.compareModel || ""),
+          singleModel: String(config.singleModel || ""),
+          aiPipelineDisplayName: aiDisplayMeta.aiPipelineDisplayName,
+          aiModelDisplayName: aiDisplayMeta.aiModelDisplayName,
+          concurrencyRuleText: aiDisplayMeta.concurrencyRuleText,
+          concurrencyModelType: aiDisplayMeta.concurrencyModelType,
+          frontConcurrency: normalizeAutofillConcurrency(config.aiQualifiedAutofillConcurrency, config),
           totalCount: 0,
           launchedCount: 0,
           activeAiCount: 0,
@@ -753,8 +854,18 @@
       if (typeof ui.finishBatchFloatingProgress !== "function") {
         return;
       }
+      const finalElapsedMs = Math.max(0, Number(extra?.elapsedMs) || getBatchElapsedMs());
+      stopBatchElapsedTimer();
       const finalSummary = buildFloatingSnapshot(
-        Object.assign({ running: false, autoHideMs: 60000 }, extra || {})
+        Object.assign(
+          {
+            running: false,
+            autoHideMs: 60000,
+            batchStartedAt: batchStartedAtMs || 0,
+            elapsedMs: finalElapsedMs,
+          },
+          extra || {}
+        )
       );
       ui.finishBatchFloatingProgress(finalSummary);
     }
@@ -1259,12 +1370,16 @@
       batchAutofillPhase = "retry";
       batchQualifiedAutofillRunning = true;
       batchQualifiedAutofillCancelRequested = false;
+      batchStartedAtMs = Date.now();
+      startBatchElapsedTimer();
       setBatchButtonState(true, false);
       ui.setStatus("正在重试填写失败内容，详情见顶部统计悬浮窗。", "info");
       updateFloatingProgress({
         phase: "retry",
         running: true,
         stopping: false,
+        batchStartedAt: batchStartedAtMs,
+        elapsedMs: 0,
       });
 
       let retrySuccessCount = 0;
@@ -1326,6 +1441,8 @@
         });
         return { ok: true };
       } finally {
+        stopBatchElapsedTimer();
+        batchStartedAtMs = 0;
         batchQualifiedAutofillRunning = false;
         batchQualifiedAutofillCancelRequested = false;
         batchAutofillPhase = "idle";
@@ -1425,6 +1542,8 @@
       currentBatchFailures = [];
       currentRetryableFillFailures = [];
       lastBatchSummary = null;
+      batchStartedAtMs = Date.now();
+      startBatchElapsedTimer();
       setBatchButtonState(true, false);
 
       try {
@@ -1435,6 +1554,8 @@
           running: true,
           stopping: false,
           batchRunId,
+          batchStartedAt: batchStartedAtMs,
+          elapsedMs: 0,
           requestStaggerMs: DEFAULT_AI_REQUEST_STAGGER_MS,
         });
         const refreshed = await dataApi.refreshCurrentPageData({
@@ -1643,6 +1764,8 @@
         });
         return { ok: false, message: "batch-failed" };
       } finally {
+        stopBatchElapsedTimer();
+        batchStartedAtMs = 0;
         releasePageBatchLock(batchRunId || activeBatchRunId);
         batchQualifiedAutofillRunning = false;
         batchQualifiedAutofillCancelRequested = false;
@@ -1795,6 +1918,8 @@
     }
 
     function stop() {
+      stopBatchElapsedTimer();
+      batchStartedAtMs = 0;
       clearMountRetryTimer();
       mountRetryCount = 0;
       if (observer) {
