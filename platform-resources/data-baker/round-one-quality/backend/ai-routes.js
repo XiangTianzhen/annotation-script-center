@@ -5,6 +5,12 @@ const crypto = require("crypto");
 const { sendJson } = require("../../../backend/response");
 const { getInFlightDedupeHealth, runWithInFlightDedupe } = require("./ai-inflight-dedupe");
 const {
+  LEGACY_OMNI_COMMIT,
+  isOmniLegacyFastPathEnabled,
+  recommendLegacyOmni,
+  shouldUseLegacyOmniFastPath,
+} = require("./ai-legacy-omni-service");
+const {
   createDefaultsPayload,
   createHealthPayload,
   normalizeRecommendRequest,
@@ -91,11 +97,15 @@ function buildErrorResponseBody(error, fallbackMessage) {
 function buildHealthPayload() {
   const payload = createHealthPayload();
   payload.dedupe = getInFlightDedupeHealth();
+  payload.omniLegacyFastPath = isOmniLegacyFastPathEnabled();
+  payload.omniLegacyCommit = LEGACY_OMNI_COMMIT;
   payload.notes = Object.assign({}, payload.notes || {}, {
     defaultResultMode: "sync-recommend",
     asyncJobsDefaultEnabled: false,
     requestStaggerMs: 30,
     inflightDedupe: "enabled-when-batchRunId-and-batchProcessKey-present",
+    omniLegacyFastPath: isOmniLegacyFastPathEnabled(),
+    omniLegacyCommit: LEGACY_OMNI_COMMIT,
   });
   return payload;
 }
@@ -156,6 +166,32 @@ async function executeRecommendWithOptionalDedupe(requestBody, normalizedRequest
   );
 }
 
+async function executeRecommendWithRouting(requestBody, normalizedRequest, requestId, runtimeOptions) {
+  const source = normalizedRequest && typeof normalizedRequest === "object"
+    ? normalizedRequest
+    : normalizeRecommendRequest(requestBody || {});
+  if (shouldUseLegacyOmniFastPath(source)) {
+    const value = await recommendLegacyOmni(requestBody || {}, requestId, runtimeOptions || {});
+    return {
+      value,
+      dedupeEnabled: false,
+      joined: false,
+      joinedInflight: false,
+      dedupeKeyShort: "",
+      legacyOmniFastPath: true,
+    };
+  }
+  const result = await executeRecommendWithOptionalDedupe(
+    requestBody || {},
+    source,
+    requestId,
+    runtimeOptions || {}
+  );
+  return Object.assign({}, result || {}, {
+    legacyOmniFastPath: false,
+  });
+}
+
 async function handleRecommend(request, response) {
   let requestId = createRequestId();
   let normalizedRequest = null;
@@ -184,7 +220,7 @@ async function handleRecommend(request, response) {
       clientRequestId: String(normalizedRequest.clientRequestId || ""),
     });
 
-    const dedupeResult = await executeRecommendWithOptionalDedupe(body, normalizedRequest, requestId, {});
+    const dedupeResult = await executeRecommendWithRouting(body, normalizedRequest, requestId, {});
     const result = dedupeResult?.value || dedupeResult;
     sendJson(response, 200, {
       success: true,
@@ -195,6 +231,11 @@ async function handleRecommend(request, response) {
         joined: dedupeResult?.joined === true,
         joinedInflight: dedupeResult?.joinedInflight === true,
         keyShort: String(dedupeResult?.dedupeKeyShort || ""),
+      },
+      routing: {
+        legacyOmniFastPath: dedupeResult?.legacyOmniFastPath === true,
+        omniLegacyCommit:
+          dedupeResult?.legacyOmniFastPath === true ? LEGACY_OMNI_COMMIT : "",
       },
     });
   } catch (error) {
@@ -210,7 +251,7 @@ async function runRecommendJob(jobId, requestBody, requestId) {
     normalizedRequest = normalizeRecommendRequest(requestBody || {});
     markAiRecommendJobRunning(jobId);
     const signal = getAiRecommendJobSignal(jobId);
-    const dedupeResult = await executeRecommendWithOptionalDedupe(
+    const dedupeResult = await executeRecommendWithRouting(
       requestBody || {},
       normalizedRequest,
       requestId,
@@ -295,7 +336,14 @@ function registerAiRoutes(router) {
     sendJson(response, 200, buildHealthPayload());
   });
   router.get(AI_DEFAULTS_PATH, function ({ response }) {
-    sendJson(response, 200, createDefaultsPayload());
+    const payload = createDefaultsPayload();
+    payload.omniLegacyFastPath = isOmniLegacyFastPathEnabled();
+    payload.omniLegacyCommit = LEGACY_OMNI_COMMIT;
+    payload.notes = Object.assign({}, payload.notes || {}, {
+      omniLegacyFastPath: isOmniLegacyFastPathEnabled(),
+      omniLegacyCommit: LEGACY_OMNI_COMMIT,
+    });
+    sendJson(response, 200, payload);
   });
   router.post(AI_BASE_PATH, function ({ request, response }) {
     return handleRecommend(request, response);

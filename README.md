@@ -113,6 +113,8 @@ PM2 进程名示例：`annotation-script-center`。
 - 前端按 `30ms` 错峰发起；“AI连续填入合格项并发数量”继续只控制最大活跃请求数，默认 `20`，范围 `1~50`。
 - 谁先返回，谁先进入待填队列；填入仍然顺序消费。
 - 后端 provider queue / RPM 限流继续保护上游；异步 job 接口如保留，仅作为历史兼容 / 调试入口。
+- `qwen3.5-omni-flash` / `qwen3.5-omni-plus` 当前默认优先走 DataBaker Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471`；目的先保证基础速度和稳定性。
+- `fun-asr` 仍走当前 Node REST provider，不走 Omni legacy 快速路径。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
 - Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
 - Fun-ASR Python 依赖固定放在 `platform-resources/backend/ai/python/requirements.txt`。

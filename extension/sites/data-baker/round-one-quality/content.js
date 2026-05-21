@@ -1007,6 +1007,12 @@
                 displayName: task.displayName,
                 errorMessage: error?.message || String(error),
                 errorCode: String(error?.code || ""),
+                jobId: String(error?.jobId || ""),
+                hasDebugRawJson: error?.hasDebugRawJson === true,
+                debugRawJson:
+                  error?.debugRawJson && typeof error.debugRawJson === "object"
+                    ? error.debugRawJson
+                    : null,
                 completedAt: Date.now(),
               });
               queuedResultIds.add(String(task.processKey || "index:" + String(index)));
@@ -1071,6 +1077,13 @@
               retryable: false,
               displayName: String(result?.displayName || "未命名条目"),
               errorMessage: String(result?.errorMessage || "AI 推荐失败"),
+              errorCode: String(result?.errorCode || ""),
+              jobId: String(result?.jobId || ""),
+              hasDebugRawJson: result?.hasDebugRawJson === true,
+              debugRawJson:
+                result?.debugRawJson && typeof result.debugRawJson === "object"
+                  ? result.debugRawJson
+                  : null,
               result: null,
             });
           } else {
@@ -1227,6 +1240,57 @@
         batchQualifiedAutofillCancelRequested = false;
         batchAutofillPhase = "idle";
         setBatchButtonState(false, false);
+      }
+    }
+
+    async function loadFailureDebugJson(failure) {
+      const source = failure && typeof failure === "object" ? failure : {};
+      if (source.debugRawJson && typeof source.debugRawJson === "object") {
+        return source.debugRawJson;
+      }
+      const jobId = String(source.jobId || "").trim();
+      if (!jobId) {
+        throw new Error("当前失败项没有可复制的原始 JSON。");
+      }
+      const recommendEndpoint = String(config.endpoint || "").trim();
+      if (!recommendEndpoint) {
+        throw new Error("当前失败项没有可复制的原始 JSON。");
+      }
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timer = controller
+        ? window.setTimeout(function () {
+            controller.abort();
+          }, Math.max(1000, Math.min(30000, Number(config.timeoutMs) || DEFAULT_AI_REQUEST_TIMEOUT_MS)))
+        : null;
+      try {
+        const response = await fetch(
+          recommendEndpoint.replace(/\/+$/, "") + "/jobs/" + encodeURIComponent(jobId) + "/debug",
+          {
+            method: "GET",
+            signal: controller ? controller.signal : undefined,
+          }
+        );
+        const body = await response.json().catch(function () {
+          return null;
+        });
+        if (!response.ok || body?.success !== true || !body?.debug) {
+          throw new Error(
+            String(body?.message || "").trim() || "当前失败项没有可复制的原始 JSON。"
+          );
+        }
+        return body.debug;
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          throw new Error("获取原始 JSON 超时，请稍后重试。");
+        }
+        if (error instanceof TypeError) {
+          throw new Error("后端连接中断，请稍后重试。");
+        }
+        throw error;
+      } finally {
+        if (timer) {
+          clearTimeout(timer);
+        }
       }
     }
 

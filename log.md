@@ -17,6 +17,14 @@
 
 # 标注脚本中心修改日志
 
+## 2026-05-21（标贝易采一检质检热修：恢复 Omni legacy 快速路径并修复 debug 函数）
+
+- 修复前端 `loadFailureDebugJson is not defined`：`content.js` 已补安全兜底函数，失败列表继续保留“复制原始JSON”按钮；没有 debug 数据时提示“当前失败项没有可复制的原始 JSON。”。
+- `qwen3.5-omni-flash` / `qwen3.5-omni-plus` 默认恢复走 Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471`。
+- 新增 DataBaker 专用 `ai-client-qwen-legacy.js` 与 `ai-legacy-omni-service.js`，只服务 Omni 快速路径，不影响统一 AI 基座与其他平台。
+- `two_stage + fun-asr` 仍走当前 Node REST provider；不恢复 Python 主链路，不恢复 async job 默认链路，不做 SSE / batch file_urls。
+- `health/defaults` 新增 `omniLegacyFastPath` 与 `omniLegacyCommit`，用于确认当前是否启用 legacy 快速路径。
+
 ## 2026-05-21（标贝易采一检质检热修：异步 job 上限 600、60s 强制取消、JSON debug 复制）
 
 - DataBaker `two_stage + fun-asr` 的异步 job store 默认上限改为 `600`，统一 provider queue 默认上限也同步改为 `600`。

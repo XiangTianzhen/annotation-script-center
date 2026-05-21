@@ -62,7 +62,7 @@ round-one-quality/
 - `page-structure.md`：页面 DOM 结构、稳定选择器和当前可编辑文本框判断。
 - `network.md`：列表接口路径、请求参数、响应字段和缓存策略。
 - `reference/minnan-lexicon.csv`：闽南方言字词表参考资料，用于 标贝易采 AI 推荐文本后端 prompt 上下文。
-- `backend/`：标贝易采 AI 推荐文本业务编排目录。当前只保留 `ai-routes.js + ai-service.js` 作为业务层；公共 AI provider、限流队列、缓存与 Python 辅助脚本统一收敛到 `platform-resources/backend/ai/`。`ai-service.js` 内部集中管理 prompt、schema 解析、词表、文本归一化、成本估算、调用日志和推荐结果组装。
+- `backend/`：标贝易采 AI 推荐文本业务编排目录。当前业务层以 `ai-routes.js + ai-service.js + ai-legacy-omni-service.js + ai-client-qwen-legacy.js` 组成；公共 AI provider、限流队列、缓存与 Python 辅助脚本统一收敛到 `platform-resources/backend/ai/`。`ai-service.js` 继续负责 Fun-ASR REST 和当前通用链路，Omni legacy 快速路径独立收口在 `ai-legacy-omni-service.js`。
 
 ## 自动分页与快捷键
 
@@ -132,9 +132,11 @@ AI prompt 输出字形规则：
 
 - `DASHSCOPE_API_KEY`：DashScope API Key，只由后端读取。
 - `DATABAKER_AI_FUN_ASR_MODEL`：Fun-ASR 录音文件识别模型，默认 `fun-asr`。
+- `DATABAKER_AI_LISTEN_MODEL`：DataBaker 听音模型默认值；当前 Omni legacy 快速路径默认使用 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_OMNI_MODEL`：Qwen Omni 模型默认值；双模型下用于 Omni 听音，单模型下用于 Omni 单模型推荐，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
+- `DATABAKER_AI_OMNI_LEGACY_FAST_PATH`：默认 `1`；开启后 `qwen3.5-omni-flash / qwen3.5-omni-plus` 会优先走参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 的 Omni legacy 快速路径。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
 - `DATABAKER_AI_PIPELINE_MODE`：识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。旧值 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
@@ -174,8 +176,8 @@ AI prompt 输出字形规则：
 运行时链路：
 
 - `two_stage + fun-asr`：先调用 Fun-ASR 录音文件识别，再调用文本 compare 模型。
-- `two_stage + qwen3.5-omni-plus / qwen3.5-omni-flash`：先通过 Qwen Omni `input_audio` 产出 `heardText`，再调用文本 compare 模型。
-- `omni_single + qwen3.5-omni-plus / qwen3.5-omni-flash`：单次 Qwen Omni 请求完成听音 + 推荐文本，不调用 compare。
+- `two_stage + qwen3.5-omni-plus / qwen3.5-omni-flash`：默认优先走 Omni legacy 快速路径，先通过 Qwen Omni `input_audio` 产出 `heardText`，再调用文本 compare 模型。
+- `omni_single + qwen3.5-omni-plus / qwen3.5-omni-flash`：当 `DATABAKER_AI_OMNI_LEGACY_FAST_PATH=1` 时，也优先切到 Omni legacy 快速路径兜底，以先恢复基础速度和稳定性。
 
 设置页口径：
 
@@ -217,6 +219,7 @@ platform-resources/backend/ai/python/requirements.txt
 - `two_stage + fun-asr` 的批量连续填入默认直接走同步 `POST /ai/recommend`；异步 jobs 仅保留为历史兼容 / 调试接口。
 - 单条 AI / 模型请求默认超时 `120000ms`；超过 2 分钟仍未返回，默认认为该链路不适合当前项目，应优先优化模型、Prompt、任务拆分或后端策略。
 - 如果模型输出 JSON 解析失败，失败列表会显示“复制原始JSON”按钮；同步 recommend 与历史兼容 jobs 都会返回可复制的脱敏 debug 信息。
+- 前端 `loadFailureDebugJson` 已恢复为安全兜底函数；没有 debug 数据时会明确提示“当前失败项没有可复制的原始 JSON.”，不再抛 `ReferenceError`。
 - job 默认 TTL 仍为 `1800000`（30 分钟）；这属于历史兼容 job 记录保留时间，不影响默认同步 recommend 主链路。
 - Python fallback 编码补充：
   - 仅显式切到 `provider=python` 时，Node 后端才会向 Python 子进程显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`
@@ -236,7 +239,7 @@ platform-resources/backend/ai/python/requirements.txt
 2. 打开 options，确认显示“识别模式”下拉。
 3. 选择 `two_stage`，确认显示“听音模型”和“比较模型”，且“听音模型”下拉不再出现 `[object Object]`。
 4. 切换到 `omni_single`，确认只显示“AI 模型”，且模型选项只包含 `qwen3.5-omni-plus`、`qwen3.5-omni-flash`。
-5. 进入 `roundOneCollect` 页面，在 `omni_single` 下选择 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope，且后端链路为单次 Omni。
+5. 进入 `roundOneCollect` 页面，在 `omni_single` 下选择 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope，且默认优先走 Omni legacy 快速路径。
 6. 切回 `two_stage` 并选择听音模型为 `fun-asr`，确认界面显示 Python 提示，后端链路为 Fun-ASR + compare。
 7. 点击“AI并发分析并连续填入合格项”，确认默认并发为 `20`，可手动调到 `1~50`。
 8. 三个用户同时使用时，浏览器不应直接批量收到 HTTP `429`；如触发上游限流，应由后端排队、重试或返回友好错误。

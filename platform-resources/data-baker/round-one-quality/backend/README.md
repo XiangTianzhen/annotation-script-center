@@ -5,7 +5,7 @@
 
 - AI 推荐文本接口。
 - 导出 CSV 上传与下载接口（扩展前端导出后自动上传，后端保存 `latest.csv` 并提供下载；原始记录脱敏后单独保存 `latest-raw.json`）。
-- 前端“AI连续填入合格项”当前仍是“并发分析 + 顺序填入”，只处理 `statusName=质检合格`；但在 `two_stage + fun-asr` 下，批量分析会优先走后端异步 job 路由，避免同步 HTTP 长连接等待过久。
+- 前端“AI连续填入合格项”当前仍是“并发分析 + 顺序填入”，只处理 `statusName=质检合格`；默认直接走同步 `POST /ai/recommend`，不再把异步 job 作为默认 AI 结果接收链路。
 - 前端“AI连续填入合格项并发数量”默认 `20`（可配置 `1~50`）。更高并发不会绕过上游模型限流，只会更快堆积到统一后端队列。
 - 前端调度为“并发请求 + 队列消费填入”：AI 结果返回后即进入队列，由前端串行填入，不等待全部请求结束；该变更不涉及后端接口新增。
 - 当前排查串行感时，要同时看：
@@ -31,8 +31,10 @@
 ## 文件职责
 
 - `index.js`：项目路由注册入口。
-- `ai-routes.js`：只负责 HTTP health / defaults / recommend / jobs 路由注册、请求体读取和响应返回。
-- `ai-service.js`：DataBaker AI 业务层，集中管理请求归一化、链路推导、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
+- `ai-routes.js`：负责 HTTP health / defaults / recommend / jobs 路由注册、请求体读取、Omni legacy / Fun-ASR 路由派发和响应返回。
+- `ai-service.js`：DataBaker AI 当前业务层，集中管理请求归一化、Fun-ASR REST 与当前通用链路、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
+- `ai-legacy-omni-service.js`：DataBaker 专用 Qwen Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 恢复旧版两阶段逻辑。
+- `ai-client-qwen-legacy.js`：DataBaker 专用 Qwen Omni legacy 客户端，只服务 Omni 快速路径，不影响统一 AI 基座。
 - `ai-job-store.js`：DataBaker AI 异步 job 的内存状态管理、超时取消、TTL 清理、debug 原始 JSON 暂存和统计快照。
 - `export-routes.js`：导出 health / config / upload / download 路由。
 - `export-store.js`：导出文件落盘、latest/history/events 存储能力。
@@ -67,6 +69,7 @@
 
 - `DASHSCOPE_API_KEY`：DashScope API Key，真实调用必需；统一后端启动时默认从仓库根目录 `config/env/ai.env` 自动读取。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
+- `DATABAKER_AI_OMNI_LEGACY_FAST_PATH`：默认 `1`；开启后 `qwen3.5-omni-flash / qwen3.5-omni-plus` 优先走参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 的 Omni legacy 快速路径。
 - `DATABAKER_AI_MOCK`：设为 `1` 时走 mock，可直接写入 `config/env/ai.env`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，原生 `fetch` 请求体顶层传 `enable_thinking=false` 尝试关闭 thinking；设为 `1` 时不传该字段。
 - `DATABAKER_AI_PIPELINE_MODE`：识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。旧值 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
@@ -151,9 +154,9 @@ CSV 字段统一口径：
 2. 生成词表上下文与缓存 key；缓存 key 使用 sha256，不保存完整 `audioUrl`。
 3. 命中缓存时直接返回历史推荐；未命中则进入 provider 队列。
 4. 听音模型为 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash`：
-   - 进入 `qwen_omni` 队列。
-   - 先调用 Qwen Omni `input_audio` 产出 `heardText`。
-   - 再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
+   - 默认优先走 Omni legacy 快速路径。
+   - 参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 的旧版两阶段逻辑：先调用 Qwen Omni `input_audio` 产出 `heardText`，再调用 compare 模型生成 `recommendedText`。
+   - 该路径不走 async job、不走 Fun-ASR REST、不走 Python。
 5. 听音模型为 `fun-asr`：
    - 先进入 `fun_asr` 队列，由统一基座 `platform-resources/backend/ai/providers/funasr.js` 默认转到 `platform-resources/backend/ai/providers/funasr-rest.js`。
    - Node 端按官方 RESTful API 调用 `fun-asr`：提交异步任务，再轮询任务状态。
@@ -183,7 +186,7 @@ CSV 字段统一口径：
 - 只有 JSON 解析失败才会提供“复制原始JSON”调试入口；普通失败仍保持简短错误。
 
 - 单条“AI 推荐文本”按钮和非 Fun-ASR 批量路径仍可继续使用同步 `POST /ai/recommend`。
-- `two_stage + fun-asr` 的批量连续填入优先使用异步 job，避免一个请求同时等待：后端队列 -> Fun-ASR submit -> Fun-ASR poll -> compare -> 返回。
+- `loadFailureDebugJson` 前端兜底函数已恢复定义；没有 debug 数据时会提示“当前失败项没有可复制的原始 JSON。”，不再出现 `ReferenceError`。
 - 如果浏览器里看到大批量 `Failed to fetch`，而后端日志已经显示 Fun-ASR submit/poll 成功，通常不是识别失败，而是同步 HTTP 等待太久导致链路断开。
 
 后端原生 `fetch` 请求默认在请求体顶层传 `enable_thinking=false`，不再使用 OpenAI SDK 风格的 `extra_body.enable_thinking`。如果供应商返回不支持 `enable_thinking` 的 400 错误，后端会移除该字段自动重试一次；如需开启 thinking，可设置 `DATABAKER_AI_ENABLE_THINKING=1`。Fun-ASR 本身没有 thinking 参数，也不会向 REST 或 Python provider 传 `enable_thinking`。
