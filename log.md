@@ -1,3 +1,11 @@
+## 2026-05-21（标贝易采一检质检热修：恢复右侧 AI 推荐工具卡）
+
+- 修复 `roundOneCollect` 页面右侧 `DataBaker AI 推荐文本` 工具卡因挂载目标过窄而未显示的问题。
+- `findMountTarget` 现在优先定位 `.waver-page .text-box`，并兼容 `.waver-page`、`.right` 等稳定容器；找到文本框时会挂载到“本句话文本”下方。
+- 右侧工具卡恢复后继续保留标题右侧 `AI 推荐文本` 按钮，以及结果区域的 `复制推荐文本 / 填入推荐文本 / 忽略` 三个动作。
+- 左侧 `filter-screen` 的 `AI连续填入合格项` 按钮继续保留，且与右侧工具卡的挂载逻辑完全独立。
+- 扩展重载后仍需刷新 DataBaker 业务页面，避免旧 content script 残留影响测试。
+
 ## 2026-05-21（标贝易采一检质检热修：恢复直接 recommend 请求并统一 120s 超时）
 
 - DataBaker “AI并发分析并连续填入合格项”默认不再通过异步 job 接收 AI 结果，而是直接批量调用 `POST /api/data-baker/round-one-quality/ai/recommend`。

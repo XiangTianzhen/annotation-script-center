@@ -4,6 +4,8 @@
   const TOP_BUTTON_ATTR = "data-asr-edge-databaker-qualified-autofill-button";
   let mountedLogPrinted = false;
   let fallbackLogPrinted = false;
+  let panelMountedLogPrinted = false;
+  let mountTargetWarnPrinted = false;
 
   function normalizeText(text) {
     return String(text || "").replace(/\s+/g, " ").trim();
@@ -313,11 +315,32 @@
     let debugModalNode = null;
 
     function findMountTarget() {
-      return (
-        document.querySelector(".waver-page .text-box") ||
-        document.querySelector(".waver-page") ||
-        document.querySelector(".right")
-      );
+      const selectors = [
+        ".waver-page .text-box",
+        ".waver-page .right .text-box",
+        ".waver-page .el-textarea",
+        ".waver-page .right .el-textarea",
+        ".waver-page .right",
+        ".waver-page",
+        ".right",
+      ];
+      for (const selector of selectors) {
+        const nodes = Array.from(document.querySelectorAll(selector)).filter(isVisibleNode);
+        if (nodes.length <= 0) {
+          continue;
+        }
+        const first = nodes[0];
+        if (selector.indexOf(".el-textarea") >= 0) {
+          const textBox = first.closest(".text-box");
+          if (textBox instanceof HTMLElement && isVisibleNode(textBox)) {
+            return textBox;
+          }
+        }
+        if (first instanceof HTMLElement) {
+          return first;
+        }
+      }
+      return null;
     }
 
     function isVisibleNode(node) {
@@ -1045,10 +1068,16 @@
       }
 
       ensureStyle();
+      ensureTopQualifiedButton();
       const mountTarget = findMountTarget();
       if (!mountTarget) {
+        if (!mountTargetWarnPrinted && typeof console !== "undefined" && typeof console.warn === "function") {
+          console.warn("[DataBaker][round-one-quality] AI panel mount target not found");
+          mountTargetWarnPrinted = true;
+        }
         return null;
       }
+      mountTargetWarnPrinted = false;
 
       root = document.createElement("div");
       root.setAttribute(ROOT_ATTR, "true");
@@ -1079,6 +1108,10 @@
         mountTarget.insertAdjacentElement("afterend", root);
       } else {
         mountTarget.insertBefore(root, mountTarget.firstElementChild || null);
+      }
+      if (!panelMountedLogPrinted && typeof console !== "undefined" && typeof console.info === "function") {
+        console.info("[DataBaker][round-one-quality] AI recommend panel mounted");
+        panelMountedLogPrinted = true;
       }
       if (!ensureTopQualifiedButton()) {
         if (!fallbackLogPrinted && typeof console !== "undefined" && typeof console.warn === "function") {

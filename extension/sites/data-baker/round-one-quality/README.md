@@ -1,5 +1,9 @@
 # 标贝易采一检质检 AI 推荐文本
 
+- 修复 `roundOneCollect` 右侧 `DataBaker AI 推荐文本` 工具卡在正文区域未挂载/误隐藏的问题。
+- 右侧工具卡与左侧 `AI连续填入合格项` 按钮是两个独立入口；即使 `filter-screen` 不可用，右侧工具卡也应单独显示。
+- 扩展重载后需要刷新 DataBaker 业务页面，再验证右侧工具卡和批量按钮。
+
 本目录是 标贝易采 质检站点的扩展运行时代码，目标页面为：
 
 - 首页：`https://datafactory.data-baker.com/v2/#/quality/roundOne`
