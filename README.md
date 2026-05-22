@@ -5,10 +5,11 @@
 ## 项目定位
 
 - 当前阶段：Chrome / Chromium MV3 单源码扩展 + 多平台脚本增强阶段。
-- 当前扩展版本：以 `extension/manifest.json` 为准。
-- 当前版本（待发布口径）：`v0.3.6`。
-- 扩展源码目录：`extension/`（Chrome / Edge 共用同一套运行时代码）。
-- 统一后端入口：`platform-resources/backend/server.js`。
+
+* 当前扩展版本：以 `extension/manifest.json` 为准。
+* 当前版本（待发布口径）：`v0.3.6`。
+* 扩展源码目录：`extension/`（Chrome / Edge 共用同一套运行时代码）。
+* 统一后端入口：`platform-resources/backend/server.js`。
 
 ## 协作摘要
 
@@ -43,40 +44,54 @@ Chrome：`chrome://extensions/` -> 开启开发者模式 -> 加载 `C:\Projects\
 
 在仓库根目录运行：
 
-    node platform-resources\backend\server.js
+```
+node platform-resources\backend\server.js
+```
 
 默认监听：
 
-    http://127.0.0.1:3333
+```
+http://127.0.0.1:3333
+```
 
 ## 服务器部署与重启
 
 默认服务器目录示例：
 
-    /var/www/annotation-script-center
+```
+/var/www/annotation-script-center
+```
 
-实际目录以服务器部署目录为准。  
+实际目录以服务器部署目录为准。\
 PM2 进程名示例：`annotation-script-center`。
 
 更新代码并重启：
 
-    cd /var/www/annotation-script-center
-    git pull origin main
-    pm2 restart annotation-script-center --update-env
+```
+cd /var/www/annotation-script-center
+git pull origin main
+pm2 restart annotation-script-center --update-env
+```
 
 只修改环境变量时重启：
 
-    cd /var/www/annotation-script-center
-    pm2 restart annotation-script-center --update-env
+```
+cd /var/www/annotation-script-center
+pm2 restart annotation-script-center --update-env
+```
 
 查看状态和日志：
 
-    pm2 status
-    pm2 logs annotation-script-center --lines 100
+```
+pm2 status
+pm2 logs annotation-script-center --lines 100
+```
 
 后端直接启动命令：
 
-    node platform-resources/backend/server.js
+```
+node platform-resources/backend/server.js
+```
 
 统一后端会读取以下环境配置文件（系统环境变量优先级最高）：
 
@@ -146,10 +161,12 @@ PM2 进程名示例：`annotation-script-center`。
 
 默认 REST provider 相关环境变量：
 
-    DATABAKER_AI_FUN_ASR_PROVIDER=rest
-    DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=
-    DATABAKER_AI_FUN_ASR_REST_BASE_URL=
-    DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS=1000
+```
+DATABAKER_AI_FUN_ASR_PROVIDER=rest
+DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=
+DATABAKER_AI_FUN_ASR_REST_BASE_URL=
+DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS=1000
+```
 
 Python fallback / 调试环境只在以下情况需要准备：
 
@@ -158,23 +175,29 @@ Python fallback / 调试环境只在以下情况需要准备：
 
 Windows 本地准备（仅 Python fallback / 调试时需要）：
 
-    cd C:\Projects\annotation-script-center\platform-resources\backend
-    py -3 -m venv .venv
-    .venv\Scripts\python.exe -m pip install -U pip
-    .venv\Scripts\python.exe -m pip install -r ai\python\requirements.txt
-    node server.js
+```
+cd C:\Projects\annotation-script-center\platform-resources\backend
+py -3 -m venv .venv
+.venv\Scripts\python.exe -m pip install -U pip
+.venv\Scripts\python.exe -m pip install -r ai\python\requirements.txt
+node server.js
+```
 
 Linux 服务器准备（仅 Python fallback / 调试时需要）：
 
-    cd /var/www/annotation-script-center/platform-resources/backend
-    python3 -m venv .venv
-    .venv/bin/python -m pip install -U pip
-    .venv/bin/python -m pip install -r ai/python/requirements.txt
-    node server.js
+```
+cd /var/www/annotation-script-center/platform-resources/backend
+python3 -m venv .venv
+.venv/bin/python -m pip install -U pip
+.venv/bin/python -m pip install -r ai/python/requirements.txt
+node server.js
+```
 
 如果使用 PM2，仍然只重启 Node 后端：
 
-    pm2 restart annotation-script-center --update-env
+```
+pm2 restart annotation-script-center --update-env
+```
 
 可选环境变量：
 
@@ -200,18 +223,24 @@ Linux 服务器准备（仅 Python fallback / 调试时需要）：
 
 Windows：
 
-    cd C:\Projects\annotation-script-center\platform-resources\backend
-    .venv\Scripts\python.exe -m py_compile ai\python\funasr_client.py
+```
+cd C:\Projects\annotation-script-center\platform-resources\backend
+.venv\Scripts\python.exe -m py_compile ai\python\funasr_client.py
+```
 
 Linux：
 
-    cd /var/www/annotation-script-center/platform-resources/backend
-    .venv/bin/python -m py_compile ai/python/funasr_client.py
+```
+cd /var/www/annotation-script-center/platform-resources/backend
+.venv/bin/python -m py_compile ai/python/funasr_client.py
+```
 
 验证接口：
 
-    GET /api/data-baker/round-one-quality/ai/recommend/health
-    GET /api/data-baker/round-one-quality/ai/recommend/defaults
+```
+GET /api/data-baker/round-one-quality/ai/recommend/health
+GET /api/data-baker/round-one-quality/ai/recommend/defaults
+```
 
 期望：
 
@@ -279,7 +308,7 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - `dist/annotation-script-center-v<manifest.version>.crx`
 - `dist/annotation-script-center-v<manifest.version>.zip`
 
-其中 `CRX + ZIP` 作为当前手工分发文件。  
+其中 `CRX + ZIP` 作为当前手工分发文件。\
 企业自动更新预留文件继续生成：
 
 - `dist/annotation-script-center-update.xml`
@@ -287,7 +316,9 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 
 发布命令：
 
-    node scripts/package-crx-release.js --notes "CRX enterprise release"
+```
+node scripts/package-crx-release.js --notes "CRX enterprise release"
+```
 
 说明：ZIP 是当前过渡分发产物，不替代未来企业自动更新；企业托管自动安装仍属于未完成模块，详见 `docs/unfinished/crx-enterprise-managed-install.md`。
 
@@ -310,5 +341,4 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - 闽南语助手“AI连续填入合格项”默认直接发送同步 recommend 请求，不默认走异步 jobs。
 - 每次批量运行会生成 `batchRunId`；前端会跳过同批次重复 `processKey`，并在悬浮窗展示唯一任务数、重复跳过数、已发起请求和 AI 已返回数。
 - 若怀疑重复请求，先看前端悬浮窗统计，再看后端 health 中的 `dedupe.joinedCount`。
-
 
