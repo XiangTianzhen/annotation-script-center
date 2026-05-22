@@ -13,6 +13,13 @@ const DEFAULT_COMPARE_TEMPLATE = [
   "请输出 reviewConclusion、shouldReview、textRuleCheck、recommendations、confidence。",
   "严格输出 JSON，不输出额外解释。",
 ].join("\n");
+const DEFAULT_OMNI_SINGLE_TEMPLATE = [
+  "你要一次完成：听音、复核平台两行文本、给出最终建议。",
+  "平台两行文本只作为参考，实际发声优先。",
+  "输出 JSON 字段必须包含 reviewConclusion、shouldReview、audioCheck、textRuleCheck、recommendations。",
+  "普通中文统一简体；命中词表建议用字必须保留。",
+  "只输出 JSON，不输出 Markdown 或解释文字。",
+].join("\n");
 
 function getLexiconText(lexiconContext) {
   return String(lexiconContext?.text || "").trim();
@@ -103,6 +110,8 @@ function buildComparePrompt(request, listen, lexiconContext) {
     "textRuleCheck 字段包含：dialectIssues, mandarinIssues, translationConsistencyIssues, punctuationIssues, speakerAttributeIssues, lexiconIssues, ruleIssues。",
     "recommendations 字段包含：dialectText, mandarinText, summary。",
     "不要默认推翻平台文本。没有明显问题时 recommendations 保持与平台文本一致。",
+    "普通中文统一简体；命中词表建议用字必须保留。",
+    "第二行普通话含义需与方言行含义一致；若无法确认请 shouldReview=true。",
   ];
 
   if (lexiconText) {
@@ -118,10 +127,58 @@ function buildComparePrompt(request, listen, lexiconContext) {
   };
 }
 
+function buildOmniSinglePrompt(request, lexiconContext) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.listenPrompt || request?.aiOptions?.comparePrompt,
+    DEFAULT_OMNI_SINGLE_TEMPLATE
+  );
+  const lexiconText = getLexiconText(lexiconContext);
+  const input = {
+    rulesProfile: request.rulesProfile || "minnan",
+    projectName: request.projectName || "",
+    speaker: request.speaker || {},
+    effectiveStartTime: request.effectiveStartTime,
+    effectiveEndTime: request.effectiveEndTime,
+    effectiveTime: request.effectiveTime,
+    audioDuration: request.audioDuration,
+    platformDialectText: request.platformDialectText,
+    platformMandarinText: request.platformMandarinText,
+  };
+  const promptLines = [
+    template,
+    "规则：",
+    "1. 如果实际发声与平台方言行一致，优先保留平台方言行。",
+    "2. 如果实际发声明显不同，方言建议按实际发声输出。",
+    "3. 第二行普通话含义必须与方言行含义一致；不确定时 shouldReview=true。",
+    "4. 词表只用于字形选择，不用于无依据改写。",
+    "5. 输出字段：",
+    "   reviewConclusion: pass|need_review|risky|uncertain",
+    "   shouldReview: boolean",
+    "   audioCheck: isValidAudio/heardDialectText/heardMandarinMeaning/riskFlags/invalidReasons/genderGuess/ageRangeGuess/confidence",
+    "   textRuleCheck: dialectIssues/mandarinIssues/translationConsistencyIssues/lexiconIssues/ruleIssues",
+    "   recommendations: dialectText/mandarinText/summary",
+    "6. 只输出 JSON，不输出额外说明。",
+  ];
+
+  if (lexiconText) {
+    promptLines.push("闽南语词表上下文：", lexiconText);
+  }
+
+  promptLines.push("输入信息：", JSON.stringify(input, null, 2));
+
+  return {
+    ruleVersion: RULE_VERSION,
+    systemPrompt: "你是闽南语音频与文本复核助手。严格输出 JSON，不要输出 Markdown。",
+    userPrompt: promptLines.join("\n"),
+  };
+}
+
 module.exports = {
   RULE_VERSION,
   DEFAULT_LISTEN_TEMPLATE,
   DEFAULT_COMPARE_TEMPLATE,
+  DEFAULT_OMNI_SINGLE_TEMPLATE,
   buildComparePrompt,
   buildListenPrompt,
+  buildOmniSinglePrompt,
 };

@@ -1504,6 +1504,11 @@
         magicDataMinnanAssistant: {
           enabled: true,
           aiReviewEnabled: true,
+          aiReviewRecognitionMode: "two_stage",
+          aiReviewListenModel: "qwen3.5-omni-flash",
+          aiReviewCompareModel: "qwen3.5-plus",
+          aiReviewSingleModel: "qwen3.5-omni-flash",
+          aiReviewEnableThinking: false,
           listenModel: "qwen3.5-omni-flash",
           reviewModel: "qwen3.5-plus",
           reviewMode: "rule_first",

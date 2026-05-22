@@ -31,11 +31,11 @@
 - 用户手动保存的非默认 AI 超时值继续保留；非 AI 上传、下载、统计接口超时不受该默认规则影响。
 - 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
 - 修复当前待验证版本 BUG 时，可保持 `manifest.version` 不变，不因同一版本的连续修复重复升 patch。
-- 当前版本为 `0.3.6`，持续在 `0.3.0` 基础上迭代多脚本 AI 辅助能力与 options 收口。
+- 当前版本为 `0.3.7`，持续在 `0.3.0` 基础上迭代多脚本 AI 辅助能力与 options 收口。
 - 3.0 起正式发布产物为 CRX 三件套：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 
-## 0.3.6 版本摘要
+## 0.3.7 版本摘要
 
 - Abaka AI Task21：Task21助手完成态文档与功能收口（字段旁 AI 分析、手动填写 AI 答案、Monaco/Naive UI 写入、T/B/R/D 删除文本规则、列表页统计入口）。
 - CSV 字段口径：LabelX 快判/转写使用 `有效时长(秒)_S` 与人员 `_P` 字段；DataBaker 使用 `有效合格时长_S` 与 `质检人_P`。
@@ -84,7 +84,7 @@ sites/
 - 统计上传能力默认强制启用；若脚本实现了定时上传能力，则定时上传也按脚本规则强制启用，不在脚本详情页提供关闭开关。
 - `data-baker/round-one-quality/`：闽南语助手 AI 推荐文本（`roundOneCollect`）+ 任务组总表导出（`group/detail`）；导出会本地下载并自动上传到统一后端，后端可下载最新 CSV。
 - `magic-data/hakka-helper/`：Magic Data `#/asrmark` 客家话助手；结果区固定挂载在“句子列表”下方，支持模型/思考开关/快捷键配置，保持人工确认与手动保存提交。
-- `magic-data/minnan-helper/`：Magic Data `#/asrmark` 闽南语助手；与客家话助手可独立启停、独立面板与独立快捷键配置。
+- `magic-data/minnan-helper/`：Magic Data `#/asrmark` 闽南语助手；与客家话助手可独立启停、独立面板与独立快捷键配置，AI 配置采用 DataBaker 风格 `two_stage/omni_single`，支持 `fun-asr` 与 Qwen Omni。
 - `abaka-ai/task-page/`：Abaka AI Task21助手；快捷键仅点击页面真实 DOM 选项/按钮（默认 `1~7`），`same_font=true` 与 `same underlying font+artistic effect` 默认联动两个 `specify`；AI 默认不自动写入，只有用户点击“填写 AI 答案”后才写入字段，不自动保存、不自动提交、不自动送审。
 - 后端地址配置统一入口：options 首页顶部“后端接口地址”（`server` / `local`）。各脚本详情页不再提供独立后端地址、上传地址或 AI 接口地址配置。
 - ASR 类脚本（快判、转写、标贝易采、Magic Data）统一复用隐藏的“ASR 语音 AI 设置”部件：默认隐藏，需在对应脚本详情页标题连续点击 10 次显示。

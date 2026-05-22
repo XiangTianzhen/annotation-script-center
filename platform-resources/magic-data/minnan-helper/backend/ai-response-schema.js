@@ -187,6 +187,137 @@ function normalizeRuleFirstComparison(modelJson, request, listen) {
   };
 }
 
+function normalizeOmniSingleComparison(modelJson, request) {
+  const source = modelJson && typeof modelJson === "object" ? modelJson : {};
+  const audioCheckSource =
+    source.audioCheck && typeof source.audioCheck === "object" ? source.audioCheck : {};
+  const check = source.textRuleCheck && typeof source.textRuleCheck === "object" ? source.textRuleCheck : {};
+  const recommendations =
+    source.recommendations && typeof source.recommendations === "object" ? source.recommendations : {};
+  const heardDialectText = normalizeText(
+    audioCheckSource.heardDialectText || source.heardDialectText || source.heardText || ""
+  );
+  const heardMandarinMeaning = normalizeText(
+    audioCheckSource.heardMandarinMeaning || source.heardMandarinMeaning || source.heardMeaning || ""
+  );
+
+  const fallbackConclusion =
+    source.decision === "keep_page_text"
+      ? "pass"
+      : source.needHumanReview === true
+        ? "need_review"
+        : "uncertain";
+  const reviewConclusion = normalizeReviewConclusion(source.reviewConclusion || fallbackConclusion);
+  const shouldReview =
+    source.shouldReview === true ||
+    source.needHumanReview === true ||
+    reviewConclusion === "need_review" ||
+    reviewConclusion === "risky" ||
+    reviewConclusion === "uncertain";
+
+  const dialectRecommendation = normalizeText(
+    recommendations.dialectText || source.recommendedDialectText || source.recommendedText || request.platformDialectText
+  );
+  const mandarinRecommendation = normalizeText(
+    recommendations.mandarinText || source.recommendedMandarinText || request.platformMandarinText
+  );
+  const summary = normalizeText(recommendations.summary || source.summary || "");
+
+  const ruleIssuesFromChangePoints = Array.isArray(source.changePoints)
+    ? source.changePoints.map(function (item) {
+        if (typeof item === "string") {
+          return item.trim();
+        }
+        if (item && typeof item === "object") {
+          const fromText = String(item.from || "").trim();
+          const toText = String(item.to || "").trim();
+          if (fromText || toText) {
+            return (fromText || "-") + " -> " + (toText || "-");
+          }
+          return JSON.stringify(item);
+        }
+        return String(item || "").trim();
+      }).filter(Boolean)
+    : [];
+
+  const textRuleCheck = {
+    dialectIssues: normalizeStringArray(check.dialectIssues, 30),
+    mandarinIssues: normalizeStringArray(check.mandarinIssues, 30),
+    translationConsistencyIssues: normalizeStringArray(check.translationConsistencyIssues, 30),
+    punctuationIssues: normalizeStringArray(check.punctuationIssues, 30),
+    speakerAttributeIssues: normalizeStringArray(check.speakerAttributeIssues, 30),
+    lexiconIssues: normalizeStringArray(check.lexiconIssues, 30),
+    ruleIssues: normalizeStringArray(check.ruleIssues, 30).concat(ruleIssuesFromChangePoints),
+  };
+
+  return {
+    reviewConclusion: reviewConclusion,
+    shouldReview: shouldReview,
+    confidence: normalizeConfidence(source.confidence),
+    audioCheck: {
+      isValidAudio: audioCheckSource.isValidAudio !== false,
+      validityDecision: normalizeValidityDecision(
+        audioCheckSource.validityDecision,
+        audioCheckSource.isValidAudio !== false
+      ),
+      invalidReasons: normalizeStringArray(audioCheckSource.invalidReasons, 20),
+      riskFlags: normalizeStringArray(audioCheckSource.riskFlags, 20),
+      genderGuess: ["男", "女", "uncertain"].includes(String(audioCheckSource.genderGuess || "").trim())
+        ? String(audioCheckSource.genderGuess || "").trim() || "uncertain"
+        : "uncertain",
+      ageRangeGuess: normalizeAgeRangeGuess(audioCheckSource.ageRangeGuess),
+      heardDialectText: heardDialectText,
+      heardMandarinMeaning: heardMandarinMeaning,
+      confidence: normalizeConfidence(audioCheckSource.confidence || source.confidence),
+    },
+    textRuleCheck: textRuleCheck,
+    recommendations: {
+      dialectText: dialectRecommendation,
+      mandarinText: mandarinRecommendation,
+      summary: summary,
+    },
+    legacyComparison: {
+      verdict:
+        reviewConclusion === "pass"
+          ? "same"
+          : reviewConclusion === "need_review"
+            ? "mostly_same"
+            : reviewConclusion === "risky"
+              ? "different"
+              : "uncertain",
+      dialectLine: {
+        decision:
+          reviewConclusion === "pass"
+            ? "same"
+            : reviewConclusion === "need_review"
+              ? "minor_diff"
+              : reviewConclusion === "risky"
+                ? "different"
+                : "uncertain",
+        platformText: normalizeText(request.platformDialectText),
+        aiText: heardDialectText,
+        recommendedText: dialectRecommendation,
+        issues: normalizeStringArray(textRuleCheck.dialectIssues, 30),
+      },
+      mandarinLine: {
+        decision:
+          reviewConclusion === "pass"
+            ? "same"
+            : reviewConclusion === "need_review"
+              ? "minor_diff"
+              : reviewConclusion === "risky"
+                ? "different"
+                : "uncertain",
+        platformText: normalizeText(request.platformMandarinText),
+        recommendedText: mandarinRecommendation,
+        issues: normalizeStringArray(textRuleCheck.mandarinIssues, 30),
+      },
+      lexiconIssues: normalizeStringArray(textRuleCheck.lexiconIssues, 30),
+      ruleIssues: normalizeStringArray(textRuleCheck.ruleIssues, 30),
+    },
+  };
+}
+
 function normalizeComparisonResponse(modelJson, request) {
   const source = modelJson && typeof modelJson === "object" ? modelJson : {};
   const dialectSource = source.dialectLine && typeof source.dialectLine === "object" ? source.dialectLine : {};
@@ -241,6 +372,7 @@ module.exports = {
   normalizeConfidence,
   normalizeLineDecision,
   normalizeListenResponse,
+  normalizeOmniSingleComparison,
   normalizeReviewConclusion,
   normalizeRuleFirstComparison,
   normalizeUsage,

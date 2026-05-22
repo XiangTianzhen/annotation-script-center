@@ -9,6 +9,15 @@
 - `shortcuts-runtime.js`：闽南语助手快捷键运行时（独立存储 key）。
 - `ai-review-client.js`：闽南语助手 AI 接口客户端（`/api/magic-data/minnan-helper/ai/review-current`）。
 
+## AI 配置口径
+
+- 前端行为与客家话助手对齐：只在 `#/asrmark` 挂载，用户主动点击按钮或快捷键才触发 AI。
+- options 中闽南语助手 AI 配置走 DataBaker 风格：
+  - `two_stage`：显示“听音模型 + 比较模型”
+  - `omni_single`：只显示“AI 模型”
+- `two_stage` 听音模型支持 `fun-asr` 或 Qwen Omni；`omni_single` 走 Qwen Omni 单模型。
+- 支持 Prompt override 与生成参数 override（留空时使用后端 defaults）。
+
 ## 行为边界
 
 - 只允许用户主动点击按钮或快捷键触发 AI。

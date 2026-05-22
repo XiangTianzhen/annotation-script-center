@@ -704,7 +704,11 @@ async function downloadTranscriptionPayload(transcriptionUrl, timeoutMs, options
 }
 
 async function requestFunAsrRecognitionRest(input, options) {
-  const config = getFunAsrRestConfig();
+  const overrideConfig =
+    options && options.clientConfig && typeof options.clientConfig === "object"
+      ? options.clientConfig
+      : {};
+  const config = Object.assign({}, getFunAsrRestConfig(), overrideConfig);
   const model = String(options?.model || config.model || DEFAULT_FUN_ASR_MODEL).trim() || DEFAULT_FUN_ASR_MODEL;
   const requestId = String(options?.requestId || options?.traceId || "").trim();
   if (isAbortSignalAborted(options?.signal)) {

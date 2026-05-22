@@ -961,6 +961,194 @@
     );
   }
 
+  function getMagicDataMinnanListenModelDefault(aiDefaults) {
+    return normalizeDataBakerListenModel(
+      aiDefaults?.listenModel || aiDefaults?.omniModel,
+      "qwen3.5-omni-flash"
+    );
+  }
+
+  function getMagicDataMinnanSingleModelDefault(aiDefaults) {
+    return normalizeDataBakerSingleModel(
+      aiDefaults?.singleModel || aiDefaults?.omniModel,
+      "qwen3.5-omni-flash"
+    );
+  }
+
+  function getMagicDataMinnanCompareModelDefault(aiDefaults) {
+    return normalizeDataBakerCompareModel(
+      aiDefaults?.compareModel || aiDefaults?.reviewModel,
+      "qwen3.5-plus"
+    );
+  }
+
+  function getMagicDataMinnanSettingsDraftConfig(aiDefaults) {
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const recognitionSelectNode = getElement("magic-data-ai-pipeline-mode-select");
+    const listenSelectNode = getElement("magic-data-ai-listen-model-select");
+    const compareSelectNode = getElement("magic-data-ai-compare-model-select");
+    const singleSelectNode = getElement("magic-data-ai-single-model-select");
+    return {
+      aiReviewRecognitionMode:
+        recognitionSelectNode instanceof HTMLSelectElement
+          ? normalizeDataBakerRecognitionMode(recognitionSelectNode.value, "two_stage")
+          : "two_stage",
+      aiReviewListenModel:
+        listenSelectNode instanceof HTMLSelectElement
+          ? normalizeDataBakerListenModel(
+              listenSelectNode.value,
+              getMagicDataMinnanListenModelDefault(defaults)
+            )
+          : getMagicDataMinnanListenModelDefault(defaults),
+      aiReviewCompareModel:
+        compareSelectNode instanceof HTMLSelectElement
+          ? normalizeDataBakerCompareModel(
+              compareSelectNode.value,
+              getMagicDataMinnanCompareModelDefault(defaults)
+            )
+          : getMagicDataMinnanCompareModelDefault(defaults),
+      aiReviewSingleModel:
+        singleSelectNode instanceof HTMLSelectElement
+          ? normalizeDataBakerSingleModel(
+              singleSelectNode.value,
+              getMagicDataMinnanSingleModelDefault(defaults)
+            )
+          : getMagicDataMinnanSingleModelDefault(defaults),
+    };
+  }
+
+  function applyMagicDataMinnanListenModelFields(listenModel, config, aiDefaults) {
+    const currentListenModel = normalizeDataBakerListenModel(
+      listenModel || config?.aiReviewListenModel,
+      getMagicDataMinnanListenModelDefault(aiDefaults)
+    );
+    const currentCompareModel = normalizeDataBakerCompareModel(
+      config?.aiReviewCompareModel,
+      getMagicDataMinnanCompareModelDefault(aiDefaults)
+    );
+    const listenLabelNode = getElement("magic-data-ai-listen-model-label");
+    const listenHelpNode = getElement("magic-data-ai-listen-model-help");
+    const listenSelectNode = getElement("magic-data-ai-listen-model-select");
+    const compareSelectNode = getElement("magic-data-ai-compare-model-select");
+
+    if (listenLabelNode) {
+      listenLabelNode.textContent = "听音模型";
+    }
+    if (listenHelpNode) {
+      listenHelpNode.textContent =
+        "听音模型为 fun-asr 时通过统一后端 Fun-ASR provider 调用；默认是 REST，只有显式切换时才会走 Python fallback。听音模型为所选 Qwen Omni 模型时通过 Qwen Omni 音频输入调用。比较模型负责结合听音文本与页面文本生成建议。";
+    }
+    renderFixedModelOptions(
+      "magic-data-ai-listen-model-select",
+      dataBakerListenModelOptions,
+      currentListenModel
+    );
+    renderFixedModelOptions(
+      "magic-data-ai-compare-model-select",
+      dataBakerCompareModelOptions,
+      currentCompareModel
+    );
+    if (listenSelectNode instanceof HTMLSelectElement) {
+      listenSelectNode.disabled = false;
+    }
+    if (compareSelectNode instanceof HTMLSelectElement) {
+      compareSelectNode.disabled = false;
+    }
+    setFieldVisibility("magic-data-ai-listen-model-field", true);
+    setFieldVisibility("magic-data-ai-compare-model-field", true);
+    setFieldVisibility("magic-data-ai-single-model-field", false);
+    setFieldVisibility("magic-data-ai-listen-model-custom-field", false);
+    setFieldVisibility("magic-data-ai-compare-model-custom-field", false);
+    setFieldVisibility("magic-data-ai-listen-model-note", isDataBakerFunAsrListenModel(currentListenModel));
+  }
+
+  function applyMagicDataMinnanSingleModelFields(singleModel, config, aiDefaults) {
+    const currentSingleModel = normalizeDataBakerSingleModel(
+      singleModel || config?.aiReviewSingleModel,
+      getMagicDataMinnanSingleModelDefault(aiDefaults)
+    );
+    renderFixedModelOptions(
+      "magic-data-ai-single-model-select",
+      dataBakerSingleModelOptions,
+      currentSingleModel
+    );
+    setFieldVisibility("magic-data-ai-single-model-field", true);
+    setFieldVisibility("magic-data-ai-listen-model-note", false);
+  }
+
+  function applyMagicDataMinnanRecognitionModeFields(recognitionMode, config, aiDefaults) {
+    const currentRecognitionMode = normalizeDataBakerRecognitionMode(
+      recognitionMode || config?.aiReviewRecognitionMode,
+      "two_stage"
+    );
+    renderFixedModelOptions(
+      "magic-data-ai-pipeline-mode-select",
+      [
+        { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
+        { value: "omni_single", label: "单模型：Omni 单模型" },
+      ],
+      currentRecognitionMode
+    );
+    setFieldVisibility("magic-data-ai-pipeline-mode-field", true);
+    setFieldVisibility("magic-data-ai-listen-model-field", currentRecognitionMode === "two_stage");
+    setFieldVisibility("magic-data-ai-compare-model-field", currentRecognitionMode === "two_stage");
+    setFieldVisibility("magic-data-ai-single-model-field", currentRecognitionMode === "omni_single");
+    setFieldVisibility("magic-data-ai-listen-model-custom-field", false);
+    setFieldVisibility("magic-data-ai-compare-model-custom-field", false);
+    if (currentRecognitionMode === "omni_single") {
+      applyMagicDataMinnanSingleModelFields(config?.aiReviewSingleModel, config, aiDefaults);
+      return;
+    }
+    applyMagicDataMinnanListenModelFields(config?.aiReviewListenModel, config, aiDefaults);
+  }
+
+  function updateMagicDataMinnanRecognitionModeFields(recognitionMode) {
+    const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataMinnanScriptId).defaults || {};
+    const draftConfig = getMagicDataMinnanSettingsDraftConfig(aiDefaults);
+    draftConfig.aiReviewRecognitionMode = normalizeDataBakerRecognitionMode(recognitionMode, "two_stage");
+    if (draftConfig.aiReviewRecognitionMode === "omni_single") {
+      draftConfig.aiReviewSingleModel = isDataBakerFunAsrListenModel(draftConfig.aiReviewListenModel)
+        ? "qwen3.5-omni-flash"
+        : normalizeDataBakerSingleModel(
+            draftConfig.aiReviewSingleModel,
+            getMagicDataMinnanSingleModelDefault(aiDefaults)
+          );
+    }
+    applyMagicDataMinnanRecognitionModeFields(
+      draftConfig.aiReviewRecognitionMode,
+      draftConfig,
+      aiDefaults
+    );
+  }
+
+  function updateMagicDataMinnanListenModelFields(listenModel) {
+    const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataMinnanScriptId).defaults || {};
+    const draftConfig = getMagicDataMinnanSettingsDraftConfig(aiDefaults);
+    draftConfig.aiReviewListenModel = normalizeDataBakerListenModel(
+      listenModel,
+      getMagicDataMinnanListenModelDefault(aiDefaults)
+    );
+    applyMagicDataMinnanRecognitionModeFields(
+      draftConfig.aiReviewRecognitionMode || "two_stage",
+      draftConfig,
+      aiDefaults
+    );
+  }
+
+  function updateMagicDataMinnanSingleModelFields(singleModel) {
+    const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataMinnanScriptId).defaults || {};
+    const draftConfig = getMagicDataMinnanSettingsDraftConfig(aiDefaults);
+    draftConfig.aiReviewSingleModel = normalizeDataBakerSingleModel(
+      singleModel,
+      getMagicDataMinnanSingleModelDefault(aiDefaults)
+    );
+    applyMagicDataMinnanRecognitionModeFields(
+      draftConfig.aiReviewRecognitionMode || "omni_single",
+      draftConfig,
+      aiDefaults
+    );
+  }
+
   function bindJudgementModelSelect(selectId, customInputId) {
     const selectNode = getElement(selectId);
     const customNode = getElement(customInputId);
@@ -1366,26 +1554,28 @@
   }
 
   function buildFallbackAsrVoiceAiDefaults(scriptId) {
+    const useDataBakerStyleDefaults =
+      scriptId === dataBakerRoundOneQualityScriptId || scriptId === magicDataMinnanScriptId;
     const baseDefaults = {
       listenModel: "qwen3.5-omni-flash",
       listenModelOptions:
-        scriptId === dataBakerRoundOneQualityScriptId
+        useDataBakerStyleDefaults
           ? clone(dataBakerListenModelOptions)
           : [],
       compareModel: "qwen3.5-plus",
       compareModelOptions:
-        scriptId === dataBakerRoundOneQualityScriptId
+        useDataBakerStyleDefaults
           ? clone(dataBakerCompareModelOptions)
           : [],
       singleModel: "qwen3.5-omni-flash",
       singleModelOptions:
-        scriptId === dataBakerRoundOneQualityScriptId
+        useDataBakerStyleDefaults
           ? clone(dataBakerSingleModelOptions)
           : [],
       funAsrModel: "fun-asr",
       omniModel: "qwen3.5-omni-flash",
       reviewModel: "",
-      pipelineMode: scriptId === dataBakerRoundOneQualityScriptId ? "two_stage" : "",
+      pipelineMode: useDataBakerStyleDefaults ? "two_stage" : "",
       supportedPipelineModes: [],
       timeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
       enableThinking: false,
@@ -1863,24 +2053,58 @@
         : settings?.platforms?.magicData?.scripts?.hakkaHelper ||
           settings?.scriptCenter?.projects?.magicDataAnnotator ||
           {};
+    const minnanRecognitionMode = normalizeDataBakerRecognitionMode(
+      source.aiReviewRecognitionMode || source.aiReviewPipelineMode || source.pipelineMode,
+      "two_stage"
+    );
+    const minnanListenModel = normalizeDataBakerListenModel(
+      source.aiReviewListenModel || source.listenModel,
+      "qwen3.5-omni-flash"
+    );
+    const minnanCompareModel = normalizeDataBakerCompareModel(
+      source.aiReviewCompareModel || source.reviewModel,
+      "qwen3.5-plus"
+    );
+    const minnanSingleModel = normalizeDataBakerSingleModel(
+      source.aiReviewSingleModel ||
+        (minnanRecognitionMode === "omni_single" ? source.listenModel : ""),
+      "qwen3.5-omni-flash"
+    );
+    const minnanEnableThinking =
+      typeof source.aiReviewEnableThinking === "boolean"
+        ? source.aiReviewEnableThinking === true
+        : source.enableThinking === true;
     return {
       enabled: source.enabled !== false,
       aiReviewEnabled: source.aiReviewEnabled !== false,
-      listenModel: normalizeMagicDataModel(
-        source.listenModel,
-        magicDataDefaultSettings.listenModel
-      ),
-      reviewModel: normalizeMagicDataModel(
-        source.reviewModel,
-        magicDataDefaultSettings.reviewModel
-      ),
+      aiReviewRecognitionMode:
+        targetScriptId === magicDataMinnanScriptId ? minnanRecognitionMode : "two_stage",
+      aiReviewListenModel:
+        targetScriptId === magicDataMinnanScriptId ? minnanListenModel : "",
+      aiReviewCompareModel:
+        targetScriptId === magicDataMinnanScriptId ? minnanCompareModel : "",
+      aiReviewSingleModel:
+        targetScriptId === magicDataMinnanScriptId ? minnanSingleModel : "",
+      aiReviewEnableThinking:
+        targetScriptId === magicDataMinnanScriptId ? minnanEnableThinking : source.enableThinking === true,
+      listenModel:
+        targetScriptId === magicDataMinnanScriptId
+          ? minnanListenModel
+          : normalizeMagicDataModel(source.listenModel, magicDataDefaultSettings.listenModel),
+      reviewModel:
+        targetScriptId === magicDataMinnanScriptId
+          ? minnanCompareModel
+          : normalizeMagicDataModel(source.reviewModel, magicDataDefaultSettings.reviewModel),
       reviewMode: normalizeMagicDataReviewMode(
         source.reviewMode,
         magicDataDefaultSettings.reviewMode
       ),
       showHeardText: source.showHeardText !== false,
       showEstimatedIncome: source.showEstimatedIncome !== false,
-      enableThinking: source.enableThinking === true,
+      enableThinking:
+        targetScriptId === magicDataMinnanScriptId
+          ? minnanEnableThinking
+          : source.enableThinking === true,
       aiReviewRequestTimeoutMs: normalizeAiRequestTimeoutMs(source.aiReviewRequestTimeoutMs, DEFAULT_AI_REQUEST_TIMEOUT_MS),
       aiReviewListenPrompt: normalizePromptText(source.aiReviewListenPrompt || ""),
       aiReviewComparePrompt: normalizePromptText(source.aiReviewComparePrompt || ""),
@@ -2207,8 +2431,11 @@
     }
 
     if (scriptId === dataBakerRoundOneQualityScriptId || isMagicDataScript(scriptId)) {
+      const isDataBakerPanel = scriptId === dataBakerRoundOneQualityScriptId;
+      const isMagicDataMinnanPanel = scriptId === magicDataMinnanScriptId;
+      const usePipelineModels = isDataBakerPanel || isMagicDataMinnanPanel;
       const prefix = scriptId === dataBakerRoundOneQualityScriptId ? "data-baker-ai" : "magic-data-ai";
-      const modelLabel = scriptId === dataBakerRoundOneQualityScriptId ? "比较模型" : "质检模型";
+      const modelLabel = usePipelineModels ? "比较模型" : "质检模型";
       panel.innerHTML = [
         '<div class="asr-ai-panel">',
         headerHtml,
@@ -2218,14 +2445,14 @@
           ? '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="data-baker-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示 AI 推荐工具卡</span></label></label>'
           : '<label class="asr-ai-field"><span>启用 AI 质检助手</span><label class="asr-ai-boolean"><input id="magic-data-enabled" type="checkbox" /><span>关闭后不显示 AI 质检建议</span></label></label>',
         '<label class="asr-ai-field' +
-          (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
+          (usePipelineModels ? "" : " hidden") +
           '" id="' +
           prefix +
           '-pipeline-mode-field"><span>识别模式</span><select id="' +
           prefix +
           '-pipeline-mode-select"></select><span class="asr-ai-help">双模型显示听音模型和比较模型；单模型只显示 AI 模型，并由单次 Omni 请求直接生成推荐文本。</span></label>',
         '<label class="asr-ai-field' +
-          (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
+          (usePipelineModels ? "" : " hidden") +
           '" id="' +
           prefix +
           '-listen-model-field"><span id="' +
@@ -2239,14 +2466,14 @@
           prefix +
           '-listen-model-note"><span class="asr-ai-help">Fun-ASR 默认通过统一后端 REST provider 调用；只有显式切换时才会走 Python fallback。比较模型负责结合听音文本与页面文本生成推荐文本。</span></div>',
         '<label class="asr-ai-field' +
-          (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
+          (usePipelineModels ? "" : " hidden") +
           '" id="' +
           prefix +
           '-single-model-field"><span>AI 模型</span><select id="' +
           prefix +
-          '-single-model-select"></select><span class="asr-ai-help">单模型只支持当前 DataBaker Omni 模型列表，不调用 compare。</span></label>',
+          '-single-model-select"></select><span class="asr-ai-help">单模型只支持当前 Omni 模型列表，不调用 compare。</span></label>',
         '<label class="asr-ai-field' +
-          (scriptId === dataBakerRoundOneQualityScriptId ? "" : " hidden") +
+          (usePipelineModels ? "" : " hidden") +
           '" id="' +
           prefix +
           '-compare-model-field"><span id="' +
@@ -2260,7 +2487,7 @@
         '<label class="asr-ai-field hidden" id="' + prefix + '-compare-model-custom-field"><span id="' + prefix + '-compare-model-custom-label">' + modelLabel + '自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
         '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时后端自动降级）</span></label></label>',
-        isMagicDataScript(scriptId)
+        isMagicDataScript(scriptId) && !isMagicDataMinnanPanel
           ? '<label class="asr-ai-field"><span>AI 质检模式</span><select id="magic-data-review-mode"><option value="rule_first">规则优先</option><option value="listen_assisted">听音辅助</option><option value="strict_review">严格复核</option></select></label>'
           : "",
         isMagicDataScript(scriptId)
@@ -2286,10 +2513,10 @@
         "</div></div>",
         "</div>",
       ].join("");
-      if (scriptId !== dataBakerRoundOneQualityScriptId) {
+      if (!isDataBakerPanel && !isMagicDataMinnanPanel) {
         bindJudgementModelSelect(prefix + "-listen-model-select", prefix + "-listen-model-custom");
         bindJudgementModelSelect(prefix + "-compare-model-select", prefix + "-compare-model-custom");
-      } else {
+      } else if (isDataBakerPanel) {
         const recognitionNode = getElement("data-baker-ai-pipeline-mode-select");
         const listenNode = getElement("data-baker-ai-listen-model-select");
         const singleNode = getElement("data-baker-ai-single-model-select");
@@ -2309,6 +2536,25 @@
           });
         }
         moveDataBakerAutofillConcurrencyFieldIntoAiPanel();
+      } else {
+        const recognitionNode = getElement("magic-data-ai-pipeline-mode-select");
+        const listenNode = getElement("magic-data-ai-listen-model-select");
+        const singleNode = getElement("magic-data-ai-single-model-select");
+        if (recognitionNode instanceof HTMLSelectElement) {
+          recognitionNode.addEventListener("change", function (event) {
+            updateMagicDataMinnanRecognitionModeFields(event?.target?.value);
+          });
+        }
+        if (listenNode instanceof HTMLSelectElement) {
+          listenNode.addEventListener("change", function (event) {
+            updateMagicDataMinnanListenModelFields(event?.target?.value);
+          });
+        }
+        if (singleNode instanceof HTMLSelectElement) {
+          singleNode.addEventListener("change", function (event) {
+            updateMagicDataMinnanSingleModelFields(event?.target?.value);
+          });
+        }
       }
       panel.classList.remove("hidden");
       return;
@@ -3273,27 +3519,36 @@
 
   function applyMagicDataSettingsForm(settings, scriptId) {
     const activeScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataAnnotatorScriptId;
+    const isMinnanScript = activeScriptId === magicDataMinnanScriptId;
     const config = getMagicDataConfig(settings, activeScriptId);
     const defaultsPayload = getAsrVoiceAiDefaultsCached(activeScriptId);
     const aiDefaults = defaultsPayload.defaults || {};
     magicDataShortcutsDraft = clone(config.shortcuts) || {};
     if (getElement("magic-data-enabled")) {
       getElement("magic-data-enabled").checked = config.enabled !== false;
-      applyJudgementModelField(
-        "magic-data-ai-listen-model-select",
-        "magic-data-ai-listen-model-custom",
-        getAsrVoiceAiEffectiveText(config.listenModel, aiDefaults.listenModel),
-        judgementAiListenModels,
-        "listen"
-      );
-      applyJudgementModelField(
-        "magic-data-ai-compare-model-select",
-        "magic-data-ai-compare-model-custom",
-        getAsrVoiceAiEffectiveText(config.reviewModel, aiDefaults.reviewModel || aiDefaults.compareModel),
-        judgementAiCompareModels,
-        "compare"
-      );
-      getElement("magic-data-review-mode").value = config.reviewMode;
+      if (isMinnanScript) {
+        applyMagicDataMinnanRecognitionModeFields(
+          config.aiReviewRecognitionMode || aiDefaults.recognitionMode,
+          config,
+          aiDefaults
+        );
+      } else {
+        applyJudgementModelField(
+          "magic-data-ai-listen-model-select",
+          "magic-data-ai-listen-model-custom",
+          getAsrVoiceAiEffectiveText(config.listenModel, aiDefaults.listenModel),
+          judgementAiListenModels,
+          "listen"
+        );
+        applyJudgementModelField(
+          "magic-data-ai-compare-model-select",
+          "magic-data-ai-compare-model-custom",
+          getAsrVoiceAiEffectiveText(config.reviewModel, aiDefaults.reviewModel || aiDefaults.compareModel),
+          judgementAiCompareModels,
+          "compare"
+        );
+        getElement("magic-data-review-mode").value = config.reviewMode;
+      }
       getElement("magic-data-show-heard-text").checked = config.showHeardText !== false;
       getElement("magic-data-show-estimated-income").checked =
         config.showEstimatedIncome !== false;
@@ -3301,14 +3556,18 @@
         Number(config.aiReviewRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
       );
       getElement("magic-data-ai-enable-thinking").checked = Boolean(
-        config.enableThinking === true ||
-          (config.enableThinking !== true && aiDefaults.enableThinking === true)
+        (isMinnanScript ? config.aiReviewEnableThinking : config.enableThinking) === true ||
+          ((isMinnanScript ? config.aiReviewEnableThinking : config.enableThinking) !== true &&
+            aiDefaults.enableThinking === true)
       );
       getElement("magic-data-ai-listen-prompt").value = String(
         getAsrVoiceAiEffectiveText(config.aiReviewListenPrompt, aiDefaults.listenPrompt)
       );
       getElement("magic-data-ai-compare-prompt").value = String(
-        getAsrVoiceAiEffectiveText(config.aiReviewComparePrompt, aiDefaults.reviewPrompt)
+        getAsrVoiceAiEffectiveText(
+          config.aiReviewComparePrompt,
+          isMinnanScript ? aiDefaults.comparePrompt || aiDefaults.reviewPrompt : aiDefaults.reviewPrompt
+        )
       );
       getElement("magic-data-ai-temperature").value = String(
         getAsrVoiceAiEffectiveText(config.aiReviewTemperature, aiDefaults.temperature)
@@ -3362,34 +3621,75 @@
     const targetScriptId = isMagicDataScript(activeScriptId)
       ? activeScriptId
       : magicDataAnnotatorScriptId;
+    const isMinnanScript = targetScriptId === magicDataMinnanScriptId;
     const currentConfig = getMagicDataConfig(currentSettings || {}, targetScriptId);
     const aiDefaults = getAsrVoiceAiDefaultsCached(targetScriptId).defaults || {};
     const hasAiSettingsPanel = Boolean(getElement("magic-data-enabled"));
     const enabled = hasAiSettingsPanel
       ? getElement("magic-data-enabled").checked
       : currentConfig.enabled !== false;
-    const listenModel = hasAiSettingsPanel
-      ? readJudgementModelField(
-          "magic-data-ai-listen-model-select",
-          "magic-data-ai-listen-model-custom",
-          magicDataDefaultSettings.listenModel,
-          judgementAiListenModels
-        )
-      : currentConfig.listenModel;
-    const reviewModel = hasAiSettingsPanel
-      ? readJudgementModelField(
-          "magic-data-ai-compare-model-select",
-          "magic-data-ai-compare-model-custom",
-          magicDataDefaultSettings.reviewModel,
-          judgementAiCompareModels
-        )
-      : currentConfig.reviewModel;
-    const reviewMode = hasAiSettingsPanel
-      ? normalizeMagicDataReviewMode(
-          getElement("magic-data-review-mode").value,
-          magicDataDefaultSettings.reviewMode
-        )
-      : currentConfig.reviewMode;
+    const recognitionMode = isMinnanScript
+      ? (hasAiSettingsPanel
+          ? normalizeDataBakerRecognitionMode(
+              getElement("magic-data-ai-pipeline-mode-select")?.value,
+              currentConfig.aiReviewRecognitionMode || "two_stage"
+            )
+          : normalizeDataBakerRecognitionMode(currentConfig.aiReviewRecognitionMode, "two_stage"))
+      : "two_stage";
+    const listenModel = isMinnanScript
+      ? (hasAiSettingsPanel
+          ? normalizeDataBakerListenModel(
+              getElement("magic-data-ai-listen-model-select")?.value,
+              getMagicDataMinnanListenModelDefault(aiDefaults)
+            )
+          : normalizeDataBakerListenModel(
+              currentConfig.aiReviewListenModel || currentConfig.listenModel,
+              getMagicDataMinnanListenModelDefault(aiDefaults)
+            ))
+      : (hasAiSettingsPanel
+          ? readJudgementModelField(
+              "magic-data-ai-listen-model-select",
+              "magic-data-ai-listen-model-custom",
+              magicDataDefaultSettings.listenModel,
+              judgementAiListenModels
+            )
+          : currentConfig.listenModel);
+    const reviewModel = isMinnanScript
+      ? (hasAiSettingsPanel
+          ? normalizeDataBakerCompareModel(
+              getElement("magic-data-ai-compare-model-select")?.value,
+              getMagicDataMinnanCompareModelDefault(aiDefaults)
+            )
+          : normalizeDataBakerCompareModel(
+              currentConfig.aiReviewCompareModel || currentConfig.reviewModel,
+              getMagicDataMinnanCompareModelDefault(aiDefaults)
+            ))
+      : (hasAiSettingsPanel
+          ? readJudgementModelField(
+              "magic-data-ai-compare-model-select",
+              "magic-data-ai-compare-model-custom",
+              magicDataDefaultSettings.reviewModel,
+              judgementAiCompareModels
+            )
+          : currentConfig.reviewModel);
+    const singleModel = isMinnanScript
+      ? (hasAiSettingsPanel
+          ? normalizeDataBakerSingleModel(
+              getElement("magic-data-ai-single-model-select")?.value,
+              getMagicDataMinnanSingleModelDefault(aiDefaults)
+            )
+          : normalizeDataBakerSingleModel(
+              currentConfig.aiReviewSingleModel,
+              getMagicDataMinnanSingleModelDefault(aiDefaults)
+            ))
+      : "";
+    const reviewMode =
+      hasAiSettingsPanel && !isMinnanScript
+        ? normalizeMagicDataReviewMode(
+            getElement("magic-data-review-mode").value,
+            magicDataDefaultSettings.reviewMode
+          )
+        : currentConfig.reviewMode;
     const showHeardText = hasAiSettingsPanel
       ? getElement("magic-data-show-heard-text").checked
       : currentConfig.showHeardText !== false;
@@ -3398,7 +3698,9 @@
       : currentConfig.showEstimatedIncome !== false;
     const enableThinking = hasAiSettingsPanel
       ? getElement("magic-data-ai-enable-thinking").checked === true
-      : currentConfig.enableThinking === true;
+      : (isMinnanScript
+          ? currentConfig.aiReviewEnableThinking === true
+          : currentConfig.enableThinking === true);
     const normalizeOverridePrompt = function (value, defaultValue) {
       const normalizedValue = normalizePromptText(value || "");
       const normalizedDefault = normalizePromptText(defaultValue || "");
@@ -3426,7 +3728,7 @@
     const aiReviewComparePrompt = hasAiSettingsPanel
       ? normalizeOverridePrompt(
           getElement("magic-data-ai-compare-prompt").value,
-          aiDefaults.reviewPrompt
+          isMinnanScript ? aiDefaults.comparePrompt || aiDefaults.reviewPrompt : aiDefaults.reviewPrompt
         )
       : currentConfig.aiReviewComparePrompt;
     const aiReviewTemperature = hasAiSettingsPanel
@@ -3490,33 +3792,94 @@
 
     setStatus("magic-data-status", "正在保存 Magic Data 设置...");
     try {
-      const payloadConfig = {
-        enabled: enabled,
-        aiReviewEnabled: enabled,
-        listenModel:
-          listenModel === String(aiDefaults.listenModel || "").trim() ? "" : listenModel,
-        reviewModel:
-          reviewModel ===
-          String(aiDefaults.reviewModel || aiDefaults.compareModel || "").trim()
-            ? ""
-            : reviewModel,
-        reviewMode: reviewMode,
-        showHeardText: showHeardText,
-        showEstimatedIncome: showEstimatedIncome,
-        enableThinking: enableThinking,
-        aiReviewRequestTimeoutMs: aiReviewRequestTimeoutMs,
-        aiReviewListenPrompt: aiReviewListenPrompt,
-        aiReviewComparePrompt: aiReviewComparePrompt,
-        aiReviewTemperature: aiReviewTemperature,
-        aiReviewTopP: aiReviewTopP,
-        aiReviewMaxTokens: aiReviewMaxTokens,
-        aiReviewMaxCompletionTokens: aiReviewMaxCompletionTokens,
-        aiReviewPresencePenalty: aiReviewPresencePenalty,
-        aiReviewFrequencyPenalty: aiReviewFrequencyPenalty,
-        aiReviewSeed: aiReviewSeed,
-        aiReviewStopSequences: aiReviewStopSequences,
-        shortcuts: shortcuts,
-      };
+      const payloadConfig = (function () {
+        if (!isMinnanScript) {
+          return {
+            enabled: enabled,
+            aiReviewEnabled: enabled,
+            listenModel:
+              listenModel === String(aiDefaults.listenModel || "").trim() ? "" : listenModel,
+            reviewModel:
+              reviewModel ===
+              String(aiDefaults.reviewModel || aiDefaults.compareModel || "").trim()
+                ? ""
+                : reviewModel,
+            reviewMode: reviewMode,
+            showHeardText: showHeardText,
+            showEstimatedIncome: showEstimatedIncome,
+            enableThinking: enableThinking,
+            aiReviewRequestTimeoutMs: aiReviewRequestTimeoutMs,
+            aiReviewListenPrompt: aiReviewListenPrompt,
+            aiReviewComparePrompt: aiReviewComparePrompt,
+            aiReviewTemperature: aiReviewTemperature,
+            aiReviewTopP: aiReviewTopP,
+            aiReviewMaxTokens: aiReviewMaxTokens,
+            aiReviewMaxCompletionTokens: aiReviewMaxCompletionTokens,
+            aiReviewPresencePenalty: aiReviewPresencePenalty,
+            aiReviewFrequencyPenalty: aiReviewFrequencyPenalty,
+            aiReviewSeed: aiReviewSeed,
+            aiReviewStopSequences: aiReviewStopSequences,
+            shortcuts: shortcuts,
+          };
+        }
+
+        const defaultListenModel = getMagicDataMinnanListenModelDefault(aiDefaults);
+        const defaultCompareModel = getMagicDataMinnanCompareModelDefault(aiDefaults);
+        const defaultSingleModel = getMagicDataMinnanSingleModelDefault(aiDefaults);
+        const defaultRecognitionMode = normalizeDataBakerRecognitionMode(
+          aiDefaults.recognitionMode || aiDefaults.pipelineMode,
+          "two_stage"
+        );
+        const normalizedRecognitionMode = normalizeDataBakerRecognitionMode(
+          recognitionMode,
+          defaultRecognitionMode
+        );
+
+        return {
+          enabled: enabled,
+          aiReviewEnabled: enabled,
+          aiReviewRecognitionMode: normalizedRecognitionMode,
+          aiReviewListenModel:
+            normalizedRecognitionMode === "two_stage" && listenModel !== defaultListenModel
+              ? listenModel
+              : "",
+          aiReviewCompareModel:
+            normalizedRecognitionMode === "two_stage" && reviewModel !== defaultCompareModel
+              ? reviewModel
+              : "",
+          aiReviewSingleModel:
+            normalizedRecognitionMode === "omni_single" && singleModel !== defaultSingleModel
+              ? singleModel
+              : "",
+          aiReviewEnableThinking:
+            enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
+          listenModel:
+            normalizedRecognitionMode === "two_stage" && listenModel !== defaultListenModel
+              ? listenModel
+              : "",
+          reviewModel:
+            normalizedRecognitionMode === "two_stage" && reviewModel !== defaultCompareModel
+              ? reviewModel
+              : "",
+          reviewMode: reviewMode,
+          showHeardText: showHeardText,
+          showEstimatedIncome: showEstimatedIncome,
+          enableThinking:
+            enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
+          aiReviewRequestTimeoutMs: aiReviewRequestTimeoutMs,
+          aiReviewListenPrompt: aiReviewListenPrompt,
+          aiReviewComparePrompt: aiReviewComparePrompt,
+          aiReviewTemperature: aiReviewTemperature,
+          aiReviewTopP: aiReviewTopP,
+          aiReviewMaxTokens: aiReviewMaxTokens,
+          aiReviewMaxCompletionTokens: aiReviewMaxCompletionTokens,
+          aiReviewPresencePenalty: aiReviewPresencePenalty,
+          aiReviewFrequencyPenalty: aiReviewFrequencyPenalty,
+          aiReviewSeed: aiReviewSeed,
+          aiReviewStopSequences: aiReviewStopSequences,
+          shortcuts: shortcuts,
+        };
+      })();
       const patchPayload =
         targetScriptId === magicDataMinnanScriptId
           ? {

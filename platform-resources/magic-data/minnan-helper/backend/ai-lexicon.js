@@ -6,6 +6,49 @@ const path = require("path");
 const MINNAN_XLSX_PATH = path.join(__dirname, "lexicon", "闽南语-推荐词表.xlsx");
 const MINNAN_CSV_PATH = path.join(__dirname, "lexicon", "minnan-lexicon.csv");
 const DEFAULT_LIMIT = 30;
+const BASE_ENTRIES = [
+  { mandarin: "我/我们", suggested: "阮、咱" },
+  { mandarin: "你/你们", suggested: "汝、恁" },
+  { mandarin: "他/她/它/他们/她们", suggested: "伊、因" },
+  { mandarin: "这位", suggested: "即个" },
+  { mandarin: "现在", suggested: "即阵" },
+  { mandarin: "的", suggested: "诶" },
+  { mandarin: "很", suggested: "真" },
+  { mandarin: "喜欢", suggested: "欢喜" },
+  { mandarin: "吃", suggested: "食" },
+];
+const TRADITIONAL_TO_SIMPLIFIED_MAP = {
+  "這": "这",
+  "個": "个",
+  "問": "问",
+  "題": "题",
+  "聽": "听",
+  "說": "说",
+  "語": "语",
+  "體": "体",
+  "發": "发",
+  "聲": "声",
+  "輸": "输",
+  "資": "资",
+  "訊": "讯",
+  "轉": "转",
+  "換": "换",
+  "後": "后",
+  "裡": "里",
+  "還": "还",
+  "點": "点",
+  "會": "会",
+  "應": "应",
+  "對": "对",
+  "讓": "让",
+  "與": "与",
+  "為": "为",
+  "無": "无",
+  "詞": "词",
+  "標": "标",
+  "註": "注",
+  "檢": "检",
+};
 
 let cachedState = null;
 let warnedMissing = false;
@@ -37,6 +80,178 @@ function splitTerms(value) {
     .split(/[、，,；;\/\s]+/)
     .map(normalizeText)
     .filter(Boolean);
+}
+
+function getProtectedLexiconTerms() {
+  const terms = new Set();
+  BASE_ENTRIES.forEach(function (entry) {
+    splitTerms(entry.suggested).forEach(function (term) {
+      if (term) {
+        terms.add(term);
+      }
+    });
+  });
+  getLexiconState().rows.forEach(function (entry) {
+    splitTerms(entry.unified).forEach(function (term) {
+      if (term) {
+        terms.add(term);
+      }
+    });
+  });
+  return Array.from(terms).sort(function (left, right) {
+    return right.length - left.length;
+  });
+}
+
+function protectLexiconTerms(text, protectedTerms) {
+  let output = String(text || "");
+  const replacements = [];
+  protectedTerms.forEach(function (term, index) {
+    if (!term || output.indexOf(term) < 0) {
+      return;
+    }
+    const token = "__ASC_MINNAN_LEXICON_TOKEN_" + String(index) + "__";
+    output = output.split(term).join(token);
+    replacements.push({ token: token, value: term });
+  });
+  return { text: output, replacements: replacements };
+}
+
+function restoreLexiconTerms(text, replacements) {
+  let output = String(text || "");
+  (Array.isArray(replacements) ? replacements : []).forEach(function (entry) {
+    if (!entry || !entry.token) {
+      return;
+    }
+    output = output.split(entry.token).join(entry.value || "");
+  });
+  return output;
+}
+
+function convertTraditionalToSimplified(text) {
+  const source = String(text || "");
+  let output = "";
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    output += TRADITIONAL_TO_SIMPLIFIED_MAP[char] || char;
+  }
+  return output;
+}
+
+function normalizeToSimplifiedChinesePreservingLexicon(text) {
+  const source = String(text || "");
+  if (!source) {
+    return "";
+  }
+  const protectedTerms = getProtectedLexiconTerms();
+  const protectedResult = protectLexiconTerms(source, protectedTerms);
+  const simplified = convertTraditionalToSimplified(protectedResult.text);
+  return restoreLexiconTerms(simplified, protectedResult.replacements);
+}
+
+function getSuggestedTermForFrom(suggested, from) {
+  return (
+    splitTerms(suggested).find(function (term) {
+      return term && term !== from;
+    }) || ""
+  );
+}
+
+function addRewriteRule(rules, seen, mandarin, suggested, sourceTag) {
+  splitTerms(mandarin).forEach(function (from) {
+    if (!from || (sourceTag === "csv" && from.length < 2)) {
+      return;
+    }
+    const to = getSuggestedTermForFrom(suggested, from);
+    if (!to || to === from) {
+      return;
+    }
+    const key = from + "\u0000" + to;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    rules.push({
+      from: from,
+      to: to,
+      source: sourceTag,
+      reason: "命中闽南词表建议用字",
+    });
+  });
+}
+
+function buildRewriteRules() {
+  const rules = [];
+  const seen = new Set();
+  BASE_ENTRIES.forEach(function (entry) {
+    addRewriteRule(rules, seen, entry.mandarin, entry.suggested, "base");
+  });
+  getLexiconState().rows.forEach(function (entry) {
+    addRewriteRule(rules, seen, entry.mandarin, entry.unified, "csv");
+  });
+  return rules.sort(function (left, right) {
+    return right.from.length - left.from.length;
+  });
+}
+
+function countOccurrences(text, searchText) {
+  if (!searchText) {
+    return 0;
+  }
+  let count = 0;
+  let index = 0;
+  while (index < text.length) {
+    const foundIndex = text.indexOf(searchText, index);
+    if (foundIndex < 0) {
+      break;
+    }
+    count += 1;
+    index = foundIndex + searchText.length;
+  }
+  return count;
+}
+
+function applyLexiconRewrite(text, options) {
+  const source = options && typeof options === "object" ? options : {};
+  const mode = String(source.mode || "off").trim().toLowerCase();
+  const originalText = String(text || "");
+  if (!originalText || mode === "off") {
+    return {
+      text: originalText,
+      changed: false,
+      changes: [],
+    };
+  }
+
+  let rewrittenText = originalText;
+  const changes = [];
+  buildRewriteRules().forEach(function (rule) {
+    if (!rule.from || !rule.to || rewrittenText.indexOf(rule.from) < 0) {
+      return;
+    }
+    if (rewrittenText.indexOf(rule.to) >= 0) {
+      return;
+    }
+    const occurrenceCount = countOccurrences(rewrittenText, rule.from);
+    if (occurrenceCount <= 0) {
+      return;
+    }
+    rewrittenText = rewrittenText.split(rule.from).join(rule.to);
+    for (let index = 0; index < occurrenceCount; index += 1) {
+      changes.push({
+        from: rule.from,
+        to: rule.to,
+        source: rule.source,
+        reason: rule.reason,
+      });
+    }
+  });
+
+  return {
+    text: rewrittenText,
+    changed: rewrittenText !== originalText,
+    changes: changes,
+  };
 }
 
 function parseCsvRecords(text) {
@@ -268,9 +483,12 @@ function buildLexiconContext(input) {
 }
 
 module.exports = {
+  BASE_ENTRIES,
   MINNAN_CSV_PATH,
   MINNAN_XLSX_PATH,
+  applyLexiconRewrite,
   buildLexiconContext,
   getLexiconState,
+  normalizeToSimplifiedChinesePreservingLexicon,
   parseLexiconCsv,
 };

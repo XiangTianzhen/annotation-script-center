@@ -1,3 +1,11 @@
+## 2026-05-22（Magic Data 闽南语助手功能开发：v0.3.7）
+
+- `extension/manifest.json` 版本升级：`0.3.6 -> 0.3.7`（本轮用户可见功能开发只提升一次 patch）。
+- 闽南语助手前端行为对齐客家话助手：仍只在 `#/asrmark` 用户主动触发 AI，不自动保存/提交；并修复与客家话助手并行启用时的结果区 DOM 命名空间互相覆盖风险。
+- options 中闽南语助手 AI 设置改为 DataBaker 风格：支持 `two_stage / omni_single`、`fun-asr`/Qwen Omni 听音模型、compare 模型、单模型、thinking、Prompt/参数 override，并保留旧字段兼容。
+- 闽南语助手后端路由重构为薄路由：`ai-routes.js` 改为调用 `ai-service.js`，`defaults/health` 返回 DataBaker 风格识别模式与模型选项；支持 `two_stage + fun-asr`、`two_stage + Qwen Omni`、`omni_single + Qwen Omni`。
+- 新增 Magic Data 闽南语助手环境变量占位（`MAGIC_DATA_MINNAN_AI_*`）到 `config/env/ai.env.example`，并同步更新 README/docs 口径；本轮未生成 CRX、未打 tag。
+
 ## 2026-05-22（platform-resources 全平台目录统一治理：v0.3.6）
 
 - 本轮保持 `extension/manifest.json` 为 `0.3.6`，未重复提升版本号。

@@ -112,8 +112,11 @@ function normalizeFailureMessage(code, providerStatus, message) {
   return String(message || "Fun-ASR 调用失败。").slice(0, 240);
 }
 
-function runPythonClient(payload, timeoutMs) {
-  const config = getFunAsrClientConfig();
+function runPythonClient(payload, timeoutMs, clientConfig) {
+  const config =
+    clientConfig && typeof clientConfig === "object"
+      ? clientConfig
+      : getFunAsrClientConfig();
   if (!config.pythonBin) {
     return Promise.reject(createPythonEnvironmentMissingError());
   }
@@ -248,7 +251,22 @@ function runPythonClient(payload, timeoutMs) {
 }
 
 async function requestFunAsrRecognition(input, options) {
-  const config = getFunAsrClientConfig();
+  const overrideConfig =
+    options && options.clientConfig && typeof options.clientConfig === "object"
+      ? options.clientConfig
+      : {};
+  const baseConfig = getFunAsrClientConfig();
+  const config = Object.assign({}, baseConfig, overrideConfig);
+  if (overrideConfig.pythonBin) {
+    config.pythonBin = String(overrideConfig.pythonBin || "").trim();
+    config.pythonSource = overrideConfig.pythonSource
+      ? String(overrideConfig.pythonSource)
+      : "override";
+    config.pythonExists = fs.existsSync(config.pythonBin);
+  }
+  if (overrideConfig.pythonScriptPath) {
+    config.pythonScriptPath = String(overrideConfig.pythonScriptPath || "").trim();
+  }
   const model = String(options?.model || config.model || DEFAULT_FUN_ASR_MODEL).trim() || DEFAULT_FUN_ASR_MODEL;
   if (config.mockEnabled) {
     return {
@@ -274,7 +292,8 @@ async function requestFunAsrRecognition(input, options) {
       timeoutMs,
       baseHttpApiUrl: config.sdkBaseHttpApiUrl,
     },
-    timeoutMs
+    timeoutMs,
+    config
   );
   const payload = result.payload && typeof result.payload === "object" ? result.payload : {};
   if (payload.success !== true) {

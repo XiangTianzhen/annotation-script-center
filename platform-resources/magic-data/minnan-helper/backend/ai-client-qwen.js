@@ -585,6 +585,10 @@ async function requestListen(input, prompt, options) {
   };
 }
 
+async function requestOmniSingle(input, prompt, options) {
+  return requestListen(input, prompt, options);
+}
+
 async function requestCompare(input, prompt, options) {
   const config = getClientConfig();
   const model = sanitizeModelName(options?.model, config.compareModel || DEFAULT_COMPARE_MODEL);
@@ -656,4 +660,5 @@ module.exports = {
   sanitizeModelName,
   requestCompare,
   requestListen,
+  requestOmniSingle,
 };

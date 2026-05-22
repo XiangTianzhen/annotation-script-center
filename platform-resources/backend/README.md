@@ -93,6 +93,22 @@ http://127.0.0.1:3333
 - `MAGIC_DATA_AI_MOCK`：设为 `1` 时启用 mock 调试模式。
 - `MAGIC_DATA_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
 - `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
+- `MAGIC_DATA_MINNAN_AI_PIPELINE_MODE`：闽南语助手识别模式默认值，`two_stage | omni_single`。
+- `MAGIC_DATA_MINNAN_AI_LISTEN_MODEL`：闽南语助手 `two_stage` 听音模型默认值（支持 `fun-asr` 或 Qwen Omni）。
+- `MAGIC_DATA_MINNAN_AI_OMNI_MODEL`：闽南语助手 `omni_single` 默认模型。
+- `MAGIC_DATA_MINNAN_AI_COMPARE_MODEL`：闽南语助手 compare 模型默认值。
+- `MAGIC_DATA_MINNAN_AI_FUN_ASR_MODEL`：闽南语助手 Fun-ASR 模型，默认 `fun-asr`。
+- `MAGIC_DATA_MINNAN_AI_FUN_ASR_PROVIDER`：闽南语助手 Fun-ASR provider，默认 `rest`。
+- `MAGIC_DATA_MINNAN_AI_FUN_ASR_PROVIDER_FALLBACK`：默认空；显式设为 `python` 时，REST 失败后才退回 Python。
+- `MAGIC_DATA_MINNAN_AI_FUN_ASR_REST_BASE_URL`：可选，覆盖 Fun-ASR REST API base。
+- `MAGIC_DATA_MINNAN_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
+- `MAGIC_DATA_MINNAN_AI_TIMEOUT_MS`：闽南语助手 AI 请求超时，默认 `120000`。
+- `MAGIC_DATA_MINNAN_AI_ENABLE_THINKING`：闽南语助手 thinking 默认值，默认 `0`。
+- `MAGIC_DATA_MINNAN_AI_MOCK`：设为 `1` 时启用闽南语助手 mock 调试模式。
+- `MAGIC_DATA_MINNAN_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
+- `MAGIC_DATA_MINNAN_AI_LEXICON_REWRITE_MODE`：闽南语词表改写策略，默认 `off`。
+- `MAGIC_DATA_MINNAN_AI_CACHE_TTL_MS`：闽南语助手结果缓存 TTL（毫秒）。
+- `MAGIC_DATA_MINNAN_AI_CALL_LOG_DIR`：闽南语助手调用日志目录覆盖。
 - `ABAKA_TASK21_AI_MOCK`：设为 `1` 时启用 Abaka Task21 AI mock 调试模式。
 - `ABAKA_TASK21_AI_ANALYSIS_MODE`：默认分析方案，`two_stage | single_model`，默认 `two_stage`。
 - `ABAKA_TASK21_AI_VISION_MODEL`：双模型阶段一视觉模型，默认 `qwen3.6-plus`。
@@ -227,7 +243,7 @@ pm2 restart annotation-script-center --update-env
 - DataBaker `fun-asr` 链路默认通过 `platform-resources/backend/ai/providers/funasr-rest.js` 走 Node REST 异步任务提交 / 轮询；仅显式切到 `provider=python` 或 `fallback=python` 时才会调用 `platform-resources/backend/ai/python/funasr_client.py`。
 - 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；默认 REST 链路不经过 Python 子进程，仅显式切 Python 时才受 Python stdout 编码影响。
 - `magic-data/hakka-helper`：Magic Data 客家话助手 AI 复核接口（保留 `annotator` 兼容路径）。
-- `magic-data/minnan-helper`：Magic Data 闽南语助手 AI 复核接口。
+- `magic-data/minnan-helper`：Magic Data 闽南语助手 AI 复核接口；支持 `two_stage + fun-asr`、`two_stage + Qwen Omni`、`omni_single + Qwen Omni` 三种链路。
 - `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
 

@@ -25,10 +25,16 @@
   - `GET /api/magic-data/minnan-helper/ai/review-current/health`
   - `GET /api/magic-data/minnan-helper/ai/defaults`
   - `POST /api/magic-data/minnan-helper/ai/review-current`
+  - 识别模式：`two_stage`（`fun-asr` / Qwen Omni 听音）与 `omni_single`（Qwen Omni 单模型）
 - 旧路径兼容（映射到客家话助手）：
   - `GET /api/magic-data/annotator/ai/review-current/health`
   - `GET /api/magic-data/annotator/ai/defaults`
   - `POST /api/magic-data/annotator/ai/review-current`
+
+## 平台共用与助手差异
+
+- 页面结构与 Network 资料统一维护在平台根级 `page-structure/` 与 `network/`。
+- 客家话与闽南语助手共享平台结构采集能力，但模型配置、词表、Prompt 与后端 profile 独立维护。
 
 ## 安全边界
 

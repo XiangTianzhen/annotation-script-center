@@ -209,6 +209,11 @@
     const runtimeSettingsDefault = {
       enabled: true,
       aiReviewEnabled: true,
+      aiReviewRecognitionMode: "two_stage",
+      aiReviewListenModel: "qwen3.5-omni-flash",
+      aiReviewCompareModel: "qwen3.5-plus",
+      aiReviewSingleModel: "qwen3.5-omni-flash",
+      aiReviewEnableThinking: false,
       listenModel: "qwen3.5-omni-flash",
       reviewModel: "qwen3.5-plus",
       reviewMode: "rule_first",
@@ -590,6 +595,39 @@
       setLoading(true);
       setMessage("正在调用 AI 质检后端...");
       try {
+        const recognitionMode = (function () {
+          const text = String(
+            runtimeSettings.aiReviewRecognitionMode || runtimeSettings.recognitionMode || ""
+          )
+            .trim()
+            .toLowerCase();
+          if (text === "omni_single") {
+            return "omni_single";
+          }
+          return "two_stage";
+        })();
+        const listenModel = String(
+          runtimeSettings.aiReviewListenModel || runtimeSettings.listenModel || "qwen3.5-omni-flash"
+        )
+          .trim()
+          .slice(0, 80);
+        const compareModel = String(
+          runtimeSettings.aiReviewCompareModel || runtimeSettings.reviewModel || "qwen3.5-plus"
+        )
+          .trim()
+          .slice(0, 80);
+        const singleModel = String(
+          runtimeSettings.aiReviewSingleModel ||
+            (recognitionMode === "omni_single"
+              ? runtimeSettings.listenModel || "qwen3.5-omni-flash"
+              : "qwen3.5-omni-flash")
+        )
+          .trim()
+          .slice(0, 80);
+        const enableThinking =
+          typeof runtimeSettings.aiReviewEnableThinking === "boolean"
+            ? runtimeSettings.aiReviewEnableThinking === true
+            : runtimeSettings.enableThinking === true;
         const response = await options.reviewCurrent({
           taskItemId: snapshot.taskItemId,
           samplingRecordId: snapshot.samplingRecordId,
@@ -604,16 +642,22 @@
           speaker: snapshot.speaker || {},
           rulesProfile: "minnan",
           clientVersion: options.getClientVersion ? options.getClientVersion() : "0.3.0",
-          listenModel: runtimeSettings.listenModel,
-          reviewModel: runtimeSettings.reviewModel,
+          recognitionMode: recognitionMode,
+          pipelineMode: recognitionMode,
+          listenModel: listenModel,
+          compareModel: compareModel,
+          singleModel: singleModel,
+          reviewModel: compareModel,
           reviewMode: runtimeSettings.reviewMode,
           showHeardText: runtimeSettings.showHeardText !== false,
-          enableThinking: runtimeSettings.enableThinking === true,
+          enableThinking: enableThinking,
           aiOptions: (function () {
             const optionsPayload = {
-              listenModel: String(runtimeSettings.listenModel || "").trim(),
-              reviewModel: String(runtimeSettings.reviewModel || "").trim(),
-              enable_thinking: runtimeSettings.enableThinking === true,
+              listenModel: listenModel,
+              compareModel: compareModel,
+              reviewModel: compareModel,
+              singleModel: singleModel,
+              enable_thinking: enableThinking,
             };
             const listenPrompt = String(runtimeSettings.aiReviewListenPrompt || "").trim();
             const comparePrompt = String(runtimeSettings.aiReviewComparePrompt || "").trim();
@@ -744,14 +788,13 @@
         applyPanelHeight(currentPanelHeight);
         return root;
       }
-      const existing = document.querySelector("[" + ROOT_ATTR + "], [data-asc-magic-data-review-inline='true']");
+      const existing = document.querySelector("[" + ROOT_ATTR + "]");
       if (existing && existing instanceof HTMLElement) {
         existing.remove();
       }
       ensureStyle();
       root = document.createElement("section");
       root.setAttribute(ROOT_ATTR, "true");
-      root.setAttribute("data-asc-magic-data-review-inline", "true");
       root.className = "asc-magic-data-review-inline";
 
       const head = document.createElement("div");

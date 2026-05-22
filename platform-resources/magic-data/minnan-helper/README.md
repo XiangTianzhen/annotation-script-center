@@ -18,6 +18,19 @@
 - `GET /api/magic-data/minnan-helper/ai/defaults`
 - `POST /api/magic-data/minnan-helper/ai/review-current`
 
+## AI 链路
+
+- `two_stage + fun-asr`：Fun-ASR 听音 + compare 模型复核。
+- `two_stage + Qwen Omni`：Qwen Omni 听音 + compare 模型复核。
+- `omni_single + Qwen Omni`：单模型完成听音与两行文本复核。
+- 输出结构兼容 Magic Data 面板字段：`recommendations.*`、`audioCheck.*`、`textRuleCheck.*`，并保留 `listen/comparison/verdict` legacy 字段。
+
+## 词表与环境变量
+
+- 闽南语词表：`backend/lexicon/minnan-lexicon.csv`（不依赖 DataBaker 运行时路径）。
+- 环境变量优先级：`MAGIC_DATA_MINNAN_AI_*` > `MAGIC_DATA_AI_*`。
+- `DASHSCOPE_API_KEY` / `DASHSCOPE_BASE_URL` 仍是统一 provider 配置。
+
 ## 安全边界
 
 - AI 仅做辅助建议，不自动保存、不自动提交、不自动领取、不自动审核、不自动流转。

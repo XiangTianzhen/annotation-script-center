@@ -7,7 +7,7 @@
 - 当前阶段：Chrome / Chromium MV3 单源码扩展 + 多平台脚本增强阶段。
 
 * 当前扩展版本：以 `extension/manifest.json` 为准。
-* 当前版本（待发布口径）：`v0.3.6`。
+* 当前版本（待发布口径）：`v0.3.7`。
 * 扩展源码目录：`extension/`（Chrome / Edge 共用同一套运行时代码）。
 * 统一后端入口：`platform-resources/backend/server.js`。
 
@@ -341,4 +341,3 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 - 闽南语助手“AI连续填入合格项”默认直接发送同步 recommend 请求，不默认走异步 jobs。
 - 每次批量运行会生成 `batchRunId`；前端会跳过同批次重复 `processKey`，并在悬浮窗展示唯一任务数、重复跳过数、已发起请求和 AI 已返回数。
 - 若怀疑重复请求，先看前端悬浮窗统计，再看后端 health 中的 `dedupe.joinedCount`。
-

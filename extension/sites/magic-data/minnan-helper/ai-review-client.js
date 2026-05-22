@@ -90,6 +90,15 @@ function mapErrorMessage(code, message, summary, statusCode) {
     if (mappedCode === "invalid-audio-url") {
       return "未获取到音频 URL，请先播放一次音频后再点击 AI 复核。";
     }
+    if (mappedCode === "fun-asr-auth-error" || mappedCode === "fun-asr-forbidden") {
+      return "Fun-ASR 调用被拒绝，请检查 DashScope 权限、地域或 API Key，并确认音频 URL 对模型服务可访问。";
+    }
+    if (mappedCode === "fun-asr-audio-url-unreachable") {
+      return "Fun-ASR 无法访问当前音频 URL，请刷新任务后重试，或切换到 Qwen Omni 听音。";
+    }
+    if (mappedCode === "fun-asr-rate-limited") {
+      return "Fun-ASR 上游限流，请稍后重试或切换到 Qwen Omni 听音。";
+    }
     if (mappedCode) {
       const detail = sanitizeMessage(message || "", 180);
       const extra = sanitizeMessage(summary || "", 120);
