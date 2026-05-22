@@ -1,3 +1,13 @@
+## 2026-05-22（platform-resources 全平台目录统一治理：v0.3.6）
+
+- 本轮保持 `extension/manifest.json` 为 `0.3.6`，未重复提升版本号。
+- `platform-resources` 平台资料目录统一收口：平台根级统一为 `README.md + backend/ + network/ + page-structure/ + <script-id>/`。
+- Alibaba LabelX、DataBaker、Abaka AI 的散落 `network.md / page-structure.md / actions.md / i18n.md` 已迁移到对应标准目录；脚本级资料同步迁移到 `network/` 与 `page-structure/`。
+- DataBaker 词表迁移到 `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv`，并同步修正后端读取路径与相关文档口径。
+- Alibaba LabelX 平台共用工具 `asr-project-kind.js`、`supplier-utils.js` 收口到 `platform-resources/alibaba-labelx/backend/`，并同步修正快判/转写后端 require 路径。
+- Abaka AI Task21 Prompt 资料迁移到 `platform-resources/abaka-ai/task21/backend/ai/`，脚本与平台文档路径同步更新。
+- 保留 Magic Data 旧 `annotator` API 兼容能力；本轮未改 AI 业务链路、未改模型默认值、未生成 CRX、未打 tag。
+
 ## 2026-05-22（Magic Data 平台资料目录治理与规则沉淀：v0.3.6）
 
 - 本轮保持 `extension/manifest.json` 为 `0.3.6`，未重复提升版本号。

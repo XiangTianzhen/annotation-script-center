@@ -20,11 +20,11 @@ const {
   isUnknownSupplierName,
   preferHealthyText,
   resolveSupplierInfo,
-} = require("../supplier-utils");
+} = require("./supplier-utils");
 const {
   JUDGEMENT_KIND,
   resolveAsrProjectKind,
-} = require("../asr-project-kind");
+} = require("./asr-project-kind");
 
 const DEFAULT_JUDGEMENT_CSV = path.join(
   __dirname,
@@ -488,3 +488,4 @@ module.exports = {
   parseArgs,
   runRepair,
 };
+

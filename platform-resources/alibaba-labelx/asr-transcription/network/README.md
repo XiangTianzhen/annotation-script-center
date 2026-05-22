@@ -10,7 +10,7 @@
 - 追加页面：
   - 审核首页：`/corpora/labeling/checkTask?projectId=<REDACTED_PROJECT_ID>`
   - 审核详情页：`/corpora/labeling/sdk?missionType=check&projectId=<REDACTED_PROJECT_ID>&subTaskId=<REDACTED_SUBTASK_ID>`
-- 通用接口结构已同步沉淀到 `../network.md`。
+- 通用接口结构已同步沉淀到 `../../network/README.md`。
 
 ## 脱敏规则
 
@@ -723,3 +723,4 @@
 - 不同 `missionType`（`label/audit/review`）在详情页的数据字段差异。
 - 扩展加载后的转写工具栏 DOM、按钮与快捷键行为。
 - 在 `处理中` 或正常可编辑详情页复测多条 `dataList[]` 直接保存，确认高速全页填充是否可行。
+

@@ -8,7 +8,7 @@
 - Task 页面公共 Data / `/items` 请求：`network/task-page/`
 - Task 页面公共状态流转：`network/task-page/18-status-tabs.md` 起的编号文档
 - Task21 same_font 专项：`task21/network/README.md`
-- Task17 对比资料：`task17/network.md`
+- Task17 对比资料：`task17/network/README.md`
 
 ## 采集范围
 
@@ -239,3 +239,4 @@
   - 字符串长度。
   - `masked: true`。
 - 禁止记录完整对象存储 URL、完整签名 query、完整图片 URL、完整文件 URL。
+

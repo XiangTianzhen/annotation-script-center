@@ -9,7 +9,7 @@ const {
   preferHealthyText,
   resolveSupplierInfo,
   UNKNOWN_SUPPLIER_NAME,
-} = require("../../supplier-utils");
+} = require("../../backend/supplier-utils");
 
 const QUALITY_CRITICAL_FIELDS = new Set([
   "任务名称",
@@ -130,3 +130,4 @@ module.exports = {
   getOutputCsvColumns,
   writeMergedCsv,
 };
+

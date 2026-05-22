@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 
 const RULE_VERSION = "asr-judgement-rules-20260422";
-const AI_RESOURCE_DIR = path.join(__dirname, "..", "ai");
+const AI_RESOURCE_DIR = path.join(__dirname, "ai");
 const RULES_PATH = path.join(AI_RESOURCE_DIR, "rules-v2.ai.md");
 const LISTEN_TEMPLATE_PATH = path.join(AI_RESOURCE_DIR, "listen-prompt-template.md");
 const COMPARE_TEMPLATE_PATH = path.join(AI_RESOURCE_DIR, "compare-prompt-template.md");
@@ -213,3 +213,4 @@ module.exports = {
   loadCompareTemplateText,
   loadRulesText,
 };
+

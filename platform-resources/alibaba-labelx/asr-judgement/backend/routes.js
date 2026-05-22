@@ -6,7 +6,7 @@ const { createStatisticsStore } = require("./file-store");
 const { mergeUploadPayloads } = require("./payload-merge");
 const { createMergedCsvContent } = require("./csv-writer");
 const { registerAiRoutes } = require("./ai-routes");
-const { resolveSupplierInfo, sanitizeSupplierPathSegment } = require("../../supplier-utils");
+const { resolveSupplierInfo, sanitizeSupplierPathSegment } = require("../../backend/supplier-utils");
 
 const API_BASE_PATH = "/api/alibaba-labelx/asr-judgement/statistics";
 const LEGACY_API_BASE_PATH = "/api/asr-judgement/statistics";
@@ -531,3 +531,4 @@ module.exports = {
   readRequestBody,
   registerAsrJudgementRoutes,
 };
+

@@ -257,7 +257,7 @@ platform-resources\backend\.venv\bin\python
 词表 CSV 路径：
 
 ```text
-platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
+platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv
 ```
 
 CSV 表头至少包含 `编号`、`建议用字`、`对应华语`。后端使用原生 Node.js 解析 CSV，支持 UTF-8 BOM、双引号包裹和双引号转义。
@@ -271,7 +271,7 @@ Prompt 简繁规则（2026-05-17 热修）：
 
 - 听音输出 `heardText` 与推荐输出 `recommendedText` 的普通中文字符要求统一为简体中文。
 - 若 `pageText`、`heardText` 出现普通繁体字，推荐文本应转换为普通简体字形。
-- `minnan-lexicon.csv` 位于 `reference/` 目录，因为它是 DataBaker 业务参考资料，不属于统一 AI 基座。
+- `minnan-lexicon.csv` 位于 `backend/reference/` 目录，因为它是 DataBaker 业务参考资料，不属于统一 AI 基座。
 - `minnan-lexicon.csv` 命中的“建议用字”不参与普通简繁转换，命中后必须保留。
 - 词表建议用字优先于普通简繁转换，不可把方言建议字形改回普通话同义词。
 
@@ -389,3 +389,6 @@ Fun-ASR `403` 的常见原因：
 - 批量请求会附带 `batchRunId`、`batchItemIndex`、`batchProcessKey`、`clientRequestId`。
 - 后端新增内存级 in-flight 去重：仅当 `batchRunId + batchProcessKey` 同时存在时启用，避免旧 content runtime 或重复点击导致同一题重复打上游模型。
 - health 返回 `dedupe.activeCount/joinedCount/completedCount/failedCount/maxSize/ttlMs`，排查重复请求时优先看悬浮窗的“唯一任务数/重复跳过”和 health 的 `dedupe.joinedCount`。
+
+
+

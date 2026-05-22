@@ -5,7 +5,7 @@
 - 采集日期：2026-05-16。
 - 采集方式：Google Chrome DevTools MCP、DevTools DOM snapshot、只读 Console 结构脚本。
 - 覆盖目标：Task21、Task17。
-- 说明：本文维护 Task17 / Task21 可复用的公共页面结构；Task21 same_font 专项结构见 `task21/page-structure.md`，Task17 差异见 `task17/page-structure.md`。
+- 说明：本文维护 Task17 / Task21 可复用的公共页面结构；Task21 same_font 专项结构见 `task21/page-structure/README.md`，Task17 差异见 `task17/page-structure/README.md`。
 - 说明：本文只记录页面结构、DOM、选择器候选和可见文案，不记录完整资源 URL 或原始业务响应。
 
 ## 动态任务列表页
@@ -35,7 +35,7 @@ URL 模式：
 - 创建者 / Owner
 - 创建时间 / Created Time
 
-Task21 行样例见 `task21/page-structure.md`。公共识别策略：
+Task21 行样例见 `task21/page-structure/README.md`。公共识别策略：
 
 - 优先使用 `/data-task/v2` route。
 - 使用表头文本确认表格。
@@ -271,9 +271,9 @@ URL 模式：
 
 ## 任务专项标注结构
 
-Task21 `same_font` 主标注结构已移至 `task21/page-structure.md`。Task17 标注结构差异见 `task17/page-structure.md`。根目录只维护公共容器、资源区、右侧条目列表、锁定状态、操作区和选择器策略。
+Task21 `same_font` 主标注结构已移至 `task21/page-structure/README.md`。Task17 标注结构差异见 `task17/page-structure/README.md`。根目录只维护公共容器、资源区、右侧条目列表、锁定状态、操作区和选择器策略。
 
-历史采集到的 Task21 same_font 字段摘要如下，后续以 `task21/page-structure.md` 为准：
+历史采集到的 Task21 same_font 字段摘要如下，后续以 `task21/page-structure/README.md` 为准：
 
 | 字段 | 控件类型 | 中文文案 | English 文案 | DOM 定位策略 | 是否触发 Network | 对应接口 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -316,3 +316,4 @@ Task21 `same_font` 主标注结构已移至 `task21/page-structure.md`。Task17 
 - Task17 主标注是图片二选一、skip、原因多选和其他原因 textarea，不是 Task21 的 same_font。
 
 Task17 不是当前主目标；除已按用户授权补测的内审领取空池失败响应外，不做送审、放弃、跳过、通过、驳回等状态变更。
+

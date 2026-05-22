@@ -27,12 +27,12 @@
 | 跳过条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/10-skip-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/skip-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量跳过 |
 | 送审 / 提交 | `/items` 标注页 | `danger-confirm` | `network/task-page/11-submit-review.md` | same_font 为空时前端校验阻断；填写后可触发成功提交 | 视场景而定 | 必须人工确认 |
 | 送审成功 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/23-label-submit-success.md` | `save-labels -> submit-item`，成功后 Data 页显示 `Labeled / Pending Review` | 送审后进入审核流，不按恢复处理 | 必须人工确认，不自动送审 |
-| Task21 快捷键选项选择 | `/items` 标注页 | `state-change-user-triggered` | `task21/page-structure.md`、`task21/network/08-label-save-labels.md` | 用户按 `1~5` 触发 `same_font` 与派生字段 DOM 点击；页面可能自行触发保存 | 取决于页面行为 | 扩展不直接调用保存/提交接口 |
+| Task21 快捷键选项选择 | `/items` 标注页 | `state-change-user-triggered` | `task21/page-structure/README.md`、`task21/network/08-label-save-labels.md` | 用户按 `1~5` 触发 `same_font` 与派生字段 DOM 点击；页面可能自行触发保存 | 取决于页面行为 | 扩展不直接调用保存/提交接口 |
 | Task21 快捷键暂存 | `/items` 标注页 | `state-change-user-triggered` | `task21/network/08-label-save-labels.md`、`task21/network/common/06-label-submit-success.md` | 用户按 `6` 仅点击页面真实“暂存 / Save / Stash”按钮，页面可能自行触发保存 | 取决于页面行为 | 扩展不直接调用保存接口，`viewMode=true` 不执行 |
 | Task21 快捷键送审 | `/items` 标注页 | `danger-confirm` / `state-change-user-triggered` | `task21/network/11-submit-review.md`、`task21/network/common/06-label-submit-success.md` | 用户按 `7` 仅点击页面真实“送审 / Submit / Submit Review”按钮 | 取决于平台流转 | 不自动确认弹窗；疑似标注内审环境阻止执行；扩展不直接调用提交接口 |
-| Task21 AI 单板块分析 | `/items` 标注页 | `safe-read` | `task21/ai/README.md` | 调用统一后端 `/api/abaka-ai/task21/ai/analyze` 获取建议 | 不涉及 | 只返回建议，不自动写入/保存/提交 |
-| Task21 AI 整体分析 | `/items` 标注页 | `safe-read` | `task21/ai/README.md` | 按 same_font -> 派生字段流程输出结构化建议 | 不涉及 | false/unsure 时后两项按流程 not_applicable |
-| Task21 AI 快捷键触发分析 | `/items` 标注页 | `safe-read` | `task21/ai/README.md` | `Alt+1/2/3/4` 等价于点击字段标题右侧 AI 按钮 | 不涉及 | 仅触发分析请求，不自动写入、不自动保存 |
+| Task21 AI 单板块分析 | `/items` 标注页 | `safe-read` | `task21/backend/ai/README.md` | 调用统一后端 `/api/abaka-ai/task21/ai/analyze` 获取建议 | 不涉及 | 只返回建议，不自动写入/保存/提交 |
+| Task21 AI 整体分析 | `/items` 标注页 | `safe-read` | `task21/backend/ai/README.md` | 按 same_font -> 派生字段流程输出结构化建议 | 不涉及 | false/unsure 时后两项按流程 not_applicable |
+| Task21 AI 快捷键触发分析 | `/items` 标注页 | `safe-read` | `task21/backend/ai/README.md` | `Alt+1/2/3/4` 等价于点击字段标题右侧 AI 按钮 | 不涉及 | 仅触发分析请求，不自动写入、不自动保存 |
 | Skipped 列表 | `/task-v2/data-item?dm=skipped` | `safe-read` | `network/task-page/19-skipped-list.md` | `/api/v2/item/get-task-item-skip-list` | 不涉及 | 可只读识别 |
 | Dropped 列表 | `/task-v2/data-item?dm=abandoned` | `safe-read` | `network/task-page/20-dropped-list.md` | `/api/v2/item/get-task-item-abandon-list` | 不涉及 | 可只读识别 |
 | 资源加载 | `/items` | `safe-read` | `network/task-page/17-resource-files.md` | 加载 assets、captcha、`.webp` 对象存储图片 | 不涉及 | 不记录完整 URL |
@@ -66,7 +66,7 @@
 | 切换语言 | 切换语言 | Language | 用户菜单 | 否 | 部分 | `network/task-page/16-language-switch.md` | 只记录文案，不依赖单一语言 |
 | 分页 | 上一页 / 下一页 / 10/页 | Previous / Next / 10/page 待补 | 数据条目页 | 否 | 是 | 条目列表查询 | 只做当前页读取 |
 | 全选 / 多选 | 选择框 | checkbox | 数据条目页 | 可能 | 部分 | 帧数统计或列表状态 | 禁止跨页批量自动操作 |
-| 领取审核空池 | 领取审核 | Claim Review | Task17 内审 Data 页 | 可能 | 是 | `task17/network.md`、`network/task-page/15-claim-review.md` | 只记录失败结构，不继续操作验证组件 |
+| 领取审核空池 | 领取审核 | Claim Review | Task17 内审 Data 页 | 可能 | 是 | `task17/network/README.md`、`network/task-page/15-claim-review.md` | 只记录失败结构，不继续操作验证组件 |
 
 ## 后续脚本规则
 
@@ -83,3 +83,5 @@
 - 同一动作在简体中文和 English 下都要有定位兜底，不得只依赖中文文案。
 - 未采集到接口的动作必须保持“待补”，不得按按钮文案推断接口路径。
 - `Label / 标注` 在 Task21 Data 页是角色区域，不作为状态 Tab 专属 endpoint 处理。
+
+

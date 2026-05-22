@@ -4,7 +4,7 @@
 
 本文件记录 Alibaba LabelX 在 ASR 转写和 ASR 快判中已确认共用的网络接口结构。项目专属字段、任务识别规则和统计取数策略仍维护在各脚本目录：
 
-- `asr-transcription/network.md`
+- `asr-transcription/network/README.md`
 - `asr-judgement/network/`
 
 ## 采集范围
@@ -542,3 +542,4 @@
 - 转写详情页提交失败、必填校验阻断和保存失败响应。
 - 扩展加载并启用后的转写工具栏 DOM 与按钮事件。
 - 快判页面在当前项目中的最新实时样例，用于对比历史快判资料是否仍完全适用。
+

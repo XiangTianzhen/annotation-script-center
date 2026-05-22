@@ -13,7 +13,7 @@ const {
   UNKNOWN_SUPPLIER_NAME,
   resolveSupplierInfo,
   sanitizeSupplierPathSegment,
-} = require("../../supplier-utils");
+} = require("../../backend/supplier-utils");
 
 const MERGED_CSV_FILE_NAME = "statistics-merged.csv";
 const QUALITY_CRITICAL_FIELDS = new Set(["任务名称", "标注员", "审核员", "供应商"]);
@@ -301,3 +301,4 @@ module.exports = {
   readJsonFile,
   writeJsonFile,
 };
+

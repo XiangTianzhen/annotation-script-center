@@ -307,7 +307,7 @@ DataBaker AI 架构补充：
 - `platform-resources/backend/ai/python/requirements.txt` 现包含 `opencc-python-reimplemented`，用于 Fun-ASR 源头繁转简。
 - Fun-ASR 默认 provider 已改为 `platform-resources/backend/ai/providers/funasr-rest.js`。
 - `platform-resources/backend/ai/providers/funasr.js` 负责统一选择 `rest/python` provider；默认 `rest`，仅在显式配置 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时使用 Python 路径。
-- DataBaker 业务目录当前只保留 `ai-routes.js + ai-service.js` 作为业务层；闽南词表参考资料位于 `platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv`。
+- DataBaker 业务目录当前只保留 `ai-routes.js + ai-service.js` 作为业务层；闽南词表参考资料位于 `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv`。
 - `DATABAKER_FUNASR_PYTHON_BIN` 留空时，统一后端默认优先查找 `platform-resources/backend/.venv` 下的 Python。
 - 默认 REST provider 不需要单独启动 Python；Python 只在显式切到 `provider=python` 或 fallback 时作为 Node 统一后端内部辅助进程运行。
 - 标准启动入口始终是 `node platform-resources/backend/server.js`。
@@ -438,3 +438,5 @@ DataBaker AI 架构补充：
 - DataBaker round-one-quality 的批量 AI 连续填入默认走同步 recommend，不默认使用异步 jobs。
 - 前端每次批量启动会生成 `batchRunId`，并在单题请求中附带 `clientRequestId` / `batchProcessKey`。
 - 后端会对同一 `batchRunId + batchProcessKey` 的进行中请求做 in-flight 合并，避免重复打上游模型。
+
+

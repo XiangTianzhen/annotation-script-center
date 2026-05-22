@@ -7,12 +7,12 @@ const {
   isCorruptedText,
   preferHealthyText,
   resolveSupplierInfo,
-} = require("../../supplier-utils");
+} = require("../../backend/supplier-utils");
 const {
   JUDGEMENT_KIND,
   TRANSCRIPTION_KIND,
   resolveAsrProjectKind,
-} = require("../../asr-project-kind");
+} = require("../../backend/asr-project-kind");
 
 const BASE_PATCH_COLUMNS = new Set([
   "任务名称",
@@ -482,3 +482,5 @@ module.exports = {
   removeRowsByBatchIds,
   resolveRowSupplier,
 };
+
+

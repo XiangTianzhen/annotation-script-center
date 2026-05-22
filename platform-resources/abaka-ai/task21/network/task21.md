@@ -2,15 +2,15 @@
 
 ## 目录定位
 
-本文件只维护 Task21 专项 Network 入口。公共 Data 页、领取、查看、状态 Tab、Skipped / Dropped、恢复、语言切换、资源加载等请求已上移到 `../network/`。
+本文件只维护 Task21 专项 Network 入口。公共 Data 页、领取、查看、状态 Tab、Skipped / Dropped、恢复、语言切换、资源加载等请求已上移到 `../../network/`。
 
 - `network/README.md`：Task21 专项网络索引。
 - `network/08-label-save-labels.md`：same_font、image_b_texts_removed、other_changes 保存结构。
 
 公共请求入口：
 
-- 平台通用初始化、空间、权限和任务接口：`../network.md`
-- Task 页面公共网络：`../network/README.md`
+- 平台通用初始化、空间、权限和任务接口：`../../network/platform.md`
+- Task 页面公共网络：`../../network/README.md`
 
 ## 采集范围
 
@@ -33,8 +33,8 @@
 | 类别 | 主要接口 | 详细文档 |
 | --- | --- | --- |
 | Task21 标签保存 / 暂存 | `/api/v2/label/save-labels` | `network/08-label-save-labels.md` |
-| 公共暂存按钮 | `/api/v2/label/save-labels` | `../network/task-page/12-stash-save.md` |
-| 公共提交链路 | `/api/v2/item/submit-item` | `../network/task-page/11-submit-review.md` |
+| 公共暂存按钮 | `/api/v2/label/save-labels` | `../../network/task-page/12-stash-save.md` |
+| 公共提交链路 | `/api/v2/item/submit-item` | `../../network/task-page/11-submit-review.md` |
 
 ## 状态变更边界
 
@@ -42,4 +42,6 @@
 
 - `/api/v2/label/save-labels`
 
-该接口后续扩展只能被动监听。AI 建议不得自动写入 `data.create/update/delete`，必须由用户人工确认。其他状态变更边界见 `../actions.md`。
+该接口后续扩展只能被动监听。AI 建议不得自动写入 `data.create/update/delete`，必须由用户人工确认。其他状态变更边界见 `../../page-structure/actions.md`。
+
+

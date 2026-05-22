@@ -25,7 +25,7 @@
 | `05-items-view-init.md` | `/api/v2/item/get-item-info`（viewMode） | Task21 查看页图片/文本/位置脱敏结构 |
 | `06-items-label-init.md` | `/api/v2/item/get-item-info`（label） | Task21 标注页图片/文本/位置脱敏结构与采集策略 |
 | `08-label-save-labels.md` | `/api/v2/label/save-labels` | same_font 和派生字段保存 |
-| `../ai/README.md` | `/api/abaka-ai/task21/ai/*` | Task21 AI 分析调试接口 |
+| `../backend/ai/README.md` | `/api/abaka-ai/task21/ai/*` | Task21 AI 分析调试接口 |
 | `../../network/README.md` | 公共网络入口 | Data 页、领取、查看、状态流转、语言、资源 |
 
 ## 脱敏规则
@@ -44,3 +44,4 @@
 - AI 建议只辅助展示，不自动保存或提交。
 - 对 `save-labels` 只记录脱敏结构和结果，不记录完整 payload。
 - AI 面板前端只请求统一后端 `/api/abaka-ai/task21/ai/analyze`，不直接请求 Abaka 平台保存/提交接口。
+

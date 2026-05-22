@@ -2,7 +2,7 @@
 
 ## 目录定位
 
-本文只记录 Task17 与 Abaka AI Task 页面公共结构、Task21 的差异。公共页面壳见 `../page-structure.md`。
+本文只记录 Task17 与 Abaka AI Task 页面公共结构、Task21 的差异。公共页面壳见 `../../page-structure/platform.md`。
 
 ## 已观察结构
 
@@ -21,3 +21,5 @@
 ## 边界
 
 Task17 不作为当前功能主目标；除用户明确授权的空池响应外，不主动做状态变更测试。
+
+

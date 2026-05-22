@@ -9,6 +9,13 @@
 - 当前阶段：只读页面结构与 Network 结构采集
 - 当前目标：Task21 / MMAT
 
+## 目录说明
+
+- `README.md`：Task 页面公共采集壳说明与安全边界。
+- `backend/`：脚本级后端预留目录（当前无 task-page 专属后端，保留 `.gitkeep`）。
+- `network/`：脚本级 Network 差异预留目录（公共请求集中在平台根 `../network/`）。
+- `page-structure/`：脚本级页面结构差异预留目录（公共结构集中在平台根 `../page-structure/`）。
+
 ## 本轮边界
 
 - 只做 DOM / Network 结构观察与脱敏导出。
@@ -45,4 +52,3 @@
 - 分页字段
 - 列表字段
 - 备注
-

@@ -4,7 +4,7 @@
 
 本文件记录 ASR 转写和 ASR 快判共用的 LabelX 页面结构。项目专属题型结构仍维护在：
 
-- `asr-transcription/page-structure.md`
+- `asr-transcription/page-structure/README.md`
 - `asr-judgement/page-structure/`
 
 ## 已确认页面
@@ -177,3 +177,4 @@
 - 快判详情页当前项目实时 DOM 与历史资料差异。
 - 样式设置面板展开后的 DOM。
 - 扩展启用后的转写工具栏 DOM 和按钮状态。
+

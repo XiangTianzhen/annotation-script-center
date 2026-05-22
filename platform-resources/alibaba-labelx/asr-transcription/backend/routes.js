@@ -5,7 +5,7 @@ const { createCorsHeaders, sendJson } = require("../../../backend/response");
 const { createStatisticsStore } = require("./file-store");
 const { mergeUploadPayloads } = require("./payload-merge");
 const { createMergedCsvContent } = require("./csv-writer");
-const { resolveSupplierInfo, sanitizeSupplierPathSegment } = require("../../supplier-utils");
+const { resolveSupplierInfo, sanitizeSupplierPathSegment } = require("../../backend/supplier-utils");
 
 const API_BASE_PATH = "/api/alibaba-labelx/asr-transcription/statistics";
 const LEGACY_API_BASE_PATH = "/api/asr-transcription/statistics";
@@ -543,3 +543,4 @@ module.exports = {
   readRequestBody,
   registerAsrTranscriptionRoutes,
 };
+

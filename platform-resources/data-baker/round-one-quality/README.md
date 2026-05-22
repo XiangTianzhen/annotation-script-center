@@ -52,20 +52,22 @@ extension/sites/data-baker/round-one-quality/
 ```text
 round-one-quality/
   README.md
-  page-structure.md
-  network.md
-  reference/
-    minnan-lexicon.csv
+  page-structure/
+    README.md
+  network/
+    README.md
   backend/
     README.md
     index.js
     ai-routes.js
     ai-service.js
+    reference/
+      minnan-lexicon.csv
 ```
 
-- `page-structure.md`：页面 DOM 结构、稳定选择器和当前可编辑文本框判断。
-- `network.md`：列表接口路径、请求参数、响应字段和缓存策略。
-- `reference/minnan-lexicon.csv`：闽南方言字词表参考资料，用于 标贝易采 AI 推荐文本后端 prompt 上下文。
+- `page-structure/README.md`：页面 DOM 结构、稳定选择器和当前可编辑文本框判断。
+- `network/README.md`：列表接口路径、请求参数、响应字段和缓存策略。
+- `backend/reference/minnan-lexicon.csv`：闽南方言字词表参考资料，用于 标贝易采 AI 推荐文本后端 prompt 上下文。
 - `backend/`：标贝易采 AI 推荐文本业务编排目录。当前业务层以 `ai-routes.js + ai-service.js + ai-legacy-omni-service.js + ai-client-qwen-legacy.js` 组成；公共 AI provider、限流队列、缓存与 Python 辅助脚本统一收敛到 `platform-resources/backend/ai/`。`ai-service.js` 继续负责 Fun-ASR REST 和当前通用链路，Omni legacy 快速路径独立收口在 `ai-legacy-omni-service.js`。
 
 ## 自动分页与快捷键
@@ -114,7 +116,7 @@ node platform-resources\backend\server.js
 后端已接入闽南方言字词表 CSV：
 
 ```text
-platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv
+platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv
 ```
 
 词表既作为 Qwen prompt 上下文，也会默认以 `aggressive` 模式对最终推荐文本做强替换，用于帮助模型在“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“他/伊”等场景中选择更合适的字形。强替换只影响推荐文本展示，不会触发自动提交、自动保存或批量识别；如需关闭，可设置 `DATABAKER_AI_LEXICON_REWRITE_MODE=off`。词表缺失时后端仍可运行，但推荐文本效果会下降。后续更新词表时直接替换该 CSV 文件即可。
@@ -281,4 +283,6 @@ platform-resources/backend/ai/python/requirements.txt
 - 批量连续填入会在悬浮窗展示 `batchRunId`、总合格数、唯一任务数、重复跳过、已发起请求、活跃请求、AI 已返回、待填队列。
 - 如果看到 `launchedCount` 大于 `uniqueTaskCount`，才需要优先怀疑前端重复发送；否则应先区分是后端排队等待还是连接中断。
 - 后端排队等待不等于队列已满；若后续接入队列 health，应结合 `pendingCount/maxSize` 判断是否真正满载。
+
+
 

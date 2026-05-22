@@ -15,18 +15,18 @@
 | 文件 | 职责 |
 | --- | --- |
 | `README.md` | Task21 项目入口、业务识别和资料导航。 |
-| `network.md` | Task21 专项 Network 概览。 |
+| `network/task21.md` | Task21 专项 Network 概览。 |
 | `network/README.md` | Task21 专项网络索引。 |
 | `network/08-label-save-labels.md` | Task21 same_font 与派生字段保存结构。 |
-| `page-structure.md` | Task21 same_font 页面结构和选择器策略。 |
+| `page-structure/README.md` | Task21 same_font 页面结构和选择器策略。 |
 
 公共资料入口：
 
-- 平台公共网络：`../network.md`
+- 平台公共网络：`../network/platform.md`
 - Task 页面公共网络：`../network/README.md`
-- Task 页面公共结构：`../page-structure.md`
-- Task 页面公共动作边界：`../actions.md`
-- Task 页面公共多语言：`../i18n.md`
+- Task 页面公共结构：`../page-structure/platform.md`
+- Task 页面公共动作边界：`../page-structure/actions.md`
+- Task 页面公共多语言：`../page-structure/i18n.md`
 
 ## Task21 业务识别
 
@@ -45,14 +45,14 @@
 
 | 页面 | URL 模式 | 说明 |
 | --- | --- | --- |
-| Task21 全部数据页 | `/task-v2/data-item?taskId={taskId}&vm=all&dm=all` | Data 页全部数据视图，公共结构见 `../page-structure.md`。 |
+| Task21 全部数据页 | `/task-v2/data-item?taskId={taskId}&vm=all&dm=all` | Data 页全部数据视图，公共结构见 `../page-structure/platform.md`。 |
 | Task21 批次页 | `/task-v2/data-item?taskId={taskId}&vm=batch&dm=all&batchId={batchId}` | 批次侧栏 + 条目列表。 |
 | Task21 标注角色页 | `/task-v2/data-item?taskId={taskId}&role={labelRoleId}` | 标注节点，主按钮为领取标注。 |
 | Task21 内审角色页 | `/task-v2/data-item?taskId={taskId}&role={reviewRoleId}` | 内审节点，主按钮为领取审核。 |
 | Task21 查看页 | `/items?taskId={taskId}&itemId={itemId}&selectIds={selectId}&viewMode=true&nodeId={nodeId}` | 只读查看工作页。 |
 | Task21 标注页 | `/items?taskId={taskId}&itemId={itemId}&selectIds={selectId}&nodeId={nodeId}` | 可编辑 same_font 标注工作页。 |
 
-详细公共 DOM 见 `../page-structure.md`，Task21 same_font 结构见 `page-structure.md`。
+详细公共 DOM 见 `../page-structure/platform.md`，Task21 same_font 结构见 `page-structure/README.md`。
 
 列表页统计 / 导出入口补充（2026-05-21）：
 
@@ -75,9 +75,9 @@
 
 ## Network 入口
 
-- 平台通用初始化、权限、任务和资源接口：`../network.md`
+- 平台通用初始化、权限、任务和资源接口：`../network/platform.md`
 - Data 页、`/items` 初始化、领取、状态流转、语言和资源接口：`../network/README.md`
-- Task21 same_font 保存接口：`network.md`
+- Task21 same_font 保存接口：`network/task21.md`
 - Task21 专项 Network 采集索引：`network/README.md`
 - 重点专项文档：`network/08-label-save-labels.md`
 
@@ -157,7 +157,7 @@
 - 若用户页面仍显示旧的 `2500ms` 提示，优先判断为扩展未重载或旧页面未刷新，而不是直接判定仓库代码未更新。
 - 悬浮窗主视图仅展示推荐选择、标准答案、理由和填写按钮；调试信息默认折叠。
 - 悬浮窗支持拖动、调整宽高和重置位置。
-- Prompt 与规则沉淀路径：`ai/README.md`、`ai/prompt.md`、`backend/prompt.js`。
+- Prompt 与规则沉淀路径：`backend/ai/README.md`、`backend/ai/prompt.md`、`backend/prompt.js`。
 - UI 形态：字段标题右侧内联按钮 + 字段锚点悬浮窗（不再使用右下角全局面板）。
 - 字段按钮：
   - same_font：`AI分析`、`整体分析`
@@ -199,3 +199,5 @@ Console 调试入口：
 - 内审 Reject / Label / Pass 流转接口，本轮边界禁止采集。
 - 异常弹窗、保存失败提示、权限不足提示。
 - 更多 Task21 same_font 条目状态下的字段差异。
+
+

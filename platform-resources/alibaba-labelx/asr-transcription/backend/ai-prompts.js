@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 
 const RULE_VERSION = "asr-transcription-ai-v1";
-const RULE_FILE_PATH = path.join(__dirname, "..", "ai-rules.md");
+const RULE_FILE_PATH = path.join(__dirname, "ai", "ai-rules.md");
 const DEFAULT_LISTEN_TEMPLATE = [
   "请分析当前题并给出推荐。",
   "以音频事实优先，候选文本仅供参考。",
@@ -153,3 +153,4 @@ module.exports = {
   buildPrompt,
   safeReadRules,
 };
+

@@ -133,7 +133,7 @@ PM2 进程名示例：`annotation-script-center`。
 - Fun-ASR Python 脚本固定放在 `platform-resources/backend/ai/python/funasr_client.py`。
 - Fun-ASR Python 依赖固定放在 `platform-resources/backend/ai/python/requirements.txt`。
 - `platform-resources/backend/ai/python/requirements.txt` 现包含 `opencc-python-reimplemented`，用于 Fun-ASR 源头繁转简。
-- DataBaker 闽南词表参考资料固定放在 `platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv`。
+- DataBaker 闽南词表参考资料固定放在 `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv`。
 - DataBaker 后端业务层当前收敛为 `ai-routes.js + ai-service.js`；公共 provider、队列、缓存和 Python 辅助脚本统一在 `platform-resources/backend/ai/`。
 - `DATABAKER_AI_FUN_ASR_PROVIDER=rest` 时，Node 不会启动 Python 子进程。
 - `DATABAKER_AI_FUN_ASR_PROVIDER=python` 时，Node 后端调用 Fun-ASR Python 子进程会显式设置 `PYTHONIOENCODING=utf-8` 和 `PYTHONUTF8=1`。
@@ -310,3 +310,5 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - 闽南语助手“AI连续填入合格项”默认直接发送同步 recommend 请求，不默认走异步 jobs。
 - 每次批量运行会生成 `batchRunId`；前端会跳过同批次重复 `processKey`，并在悬浮窗展示唯一任务数、重复跳过数、已发起请求和 AI 已返回数。
 - 若怀疑重复请求，先看前端悬浮窗统计，再看后端 health 中的 `dedupe.joinedCount`。
+
+

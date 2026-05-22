@@ -87,7 +87,7 @@ const TOKEN_PRICE_CNY_PER_1K = {
 const DEFAULT_LOG_DIR = path.join(__dirname, "logs");
 const JSONL_FILE_NAME = "recommend-calls.jsonl";
 const CSV_FILE_NAME = "recommend-calls.csv";
-const MINNAN_LEXICON_PATH = path.join(__dirname, "..", "reference", "minnan-lexicon.csv");
+const MINNAN_LEXICON_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
 const DEFAULT_CONTEXT_LIMIT = 40;
 const RECOGNITION_MODE_OPTIONS = [
   { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
@@ -2829,6 +2829,7 @@ module.exports = {
   recommend,
   removeTextSpaces,
 };
+
 
 
 

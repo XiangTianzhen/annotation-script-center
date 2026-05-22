@@ -2,7 +2,7 @@
 
 ## 目录定位
 
-本文只记录 Task21 相对 Abaka AI Task 页面公共结构的差异。公共页面壳、Data 页、状态 Tab、分页、角色切换、资源区和右侧条目列表见 `../page-structure.md`。
+本文只记录 Task21 相对 Abaka AI Task 页面公共结构的差异。公共页面壳、Data 页、状态 Tab、分页、角色切换、资源区和右侧条目列表见 `../../page-structure/platform.md`。
 
 ## Task21 业务识别
 
@@ -176,3 +176,5 @@ Task21 按钮快捷键（运行时）：
 - 先用 `/items` route 与 `taskId` 判断 Task21 工作页。
 - 再用 `same_font` 标题确认专项标注区。
 - 字段保存只监听 `/api/v2/label/save-labels`，不得主动写入。
+
+

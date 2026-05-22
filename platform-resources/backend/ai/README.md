@@ -33,7 +33,7 @@
 
 - `platform-resources/data-baker/round-one-quality/backend/ai-routes.js`：HTTP 路由
 - `platform-resources/data-baker/round-one-quality/backend/ai-service.js`：DataBaker 专属业务编排
-- `platform-resources/data-baker/round-one-quality/reference/minnan-lexicon.csv`：DataBaker 词表参考资料
+- `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv`：DataBaker 词表参考资料
 
 统一启动口径：
 
@@ -62,3 +62,5 @@
 - DataBaker 异步 job 默认上限仍为 `600`，provider queue 默认上限也同步为 `600`；但 jobs 仅保留为历史兼容 / 调试接口，不再作为默认 AI 结果接收方案。
 - 单个异步 job 默认超时 `120000ms`，超时后会通过 `AbortController` 取消或逻辑丢弃迟到结果，并固定提示“当前任务超过120s，请重新请求。”。异步 job 仅保留给历史兼容 / 调试场景，默认 AI 结果接收仍应使用同步 HTTP recommend。
 - DataBaker 模型输出 JSON 解析失败时，会保留脱敏后的 `debugRawJson`，供前端“复制原始JSON”按钮通过 `/ai/recommend/jobs/:jobId/debug` 拉取。
+
+

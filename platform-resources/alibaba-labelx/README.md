@@ -7,9 +7,9 @@
 当前已整理的脚本项目：
 
 - `asr-judgement/`：阿里 ASR 语音判别 / ASR 快判。
-- `asr-transcription/`：阿里 ASR 语音转写，已补充转写首页与详情页的脱敏网络请求文档（见 `asr-transcription/network.md`）。
-- `network.md`：LabelX 标注 / 审核首页和详情页中已确认可被转写、快判共用的网络接口结构。
-- `page-structure.md`：LabelX 通用顶部导航、首页列表、详情页工具栏、题卡和音频结构。
+- `asr-transcription/`：阿里 ASR 语音转写，已补充转写首页与详情页的脱敏网络请求文档（见 `asr-transcription/network/README.md`）。
+- `network/README.md`：LabelX 标注 / 审核首页和详情页中已确认可被转写、快判共用的网络接口结构。
+- `page-structure/README.md`：LabelX 通用顶部导航、首页列表、详情页工具栏、题卡和音频结构。
 
 ## 通用约定
 
@@ -120,8 +120,9 @@
 
 ## 2026-05-18（LabelX：判断/转写防串表与历史 CSV 修复）
 
-- 新增 `platform-resources/alibaba-labelx/asr-project-kind.js` 统一项目类型识别：`payload.project` / `payload.rawKeys.labelModel`（高优先） > `taskName` > CSV schema > 题数兜底（`400` 仅历史兜底）。
+- 新增 `platform-resources/alibaba-labelx/backend/asr-project-kind.js` 统一项目类型识别：`payload.project` / `payload.rawKeys.labelModel`（高优先） > `taskName` > CSV schema > 题数兜底（`400` 仅历史兜底）。
 - 快判与转写后端都接入高置信防串表校验：判断数据不写入转写表，转写数据不写入判断表；拒绝原因通过 `rejectedItems` 返回。
 - 新增历史修复工具：`node platform-resources/alibaba-labelx/backend/legacy-csv-repair.js --dry-run`、`--write --backup`。
 - 历史修复会把误入转写 CSV 的判断数据迁移到快判 CSV，并修复供应商归一（海天 / 希尔贝壳 / 棋燊）。
 - `statistics-data/` 为运行数据目录，修复仅本地或服务器执行，不提交 Git。
+
