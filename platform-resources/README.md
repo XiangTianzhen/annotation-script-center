@@ -52,6 +52,24 @@ platform-resources/
       page-structure.md
       network.md
       backend/
+  magic-data/
+    README.md
+    backend/
+      README.md
+    network/
+      README.md
+    page-structure/
+      README.md
+    hakka-helper/
+      README.md
+      backend/
+      network/
+      page-structure/
+    minnan-helper/
+      README.md
+      backend/
+      network/
+      page-structure/
   abaka-ai/
     README.md
     task-page/
@@ -79,6 +97,7 @@ platform-resources/
 
 - 涉及 LabelX 页面 DOM 或网络接口时，优先读本目录，再修改扩展运行时代码。
 - 涉及 DataBaker 页面 DOM 或网络接口时，优先读 `data-baker/round-one-quality/`，不要把 DataBaker 逻辑写入 Alibaba LabelX 目录。
+- 涉及 Magic Data ANNOTATOR 时，先读 `magic-data/README.md`；平台共用结构优先维护在 `magic-data/network/` 与 `magic-data/page-structure/`，助手专属差异再落到 `magic-data/<helper>/`。
 - 涉及 Abaka AI Task 页面结构采集时，先读 `abaka-ai/README.md`；公共页面结构、动作风险、多语言和 Network 维护在 `abaka-ai/` 根目录，Task21 same_font 专项读 `abaka-ai/task21/README.md`，Task17 对比与空池差异读 `abaka-ai/task17/README.md`。
 - Abaka AI Task21 当前 `image_b_texts_removed` 规则以 `image_b` 与 `image_b_removed` 的实际差异为准：`T/B/R/D` 都按多重集处理，判断规则是 `D == T => true`、`D` 为空 => `null`、`D` 非空且 `D != T` => `specify`。
 - `page-structure/` 放页面结构、稳定选择器和代表性 HTML 片段。
@@ -104,7 +123,7 @@ platform-resources/
 - Alibaba LabelX ASR 快判
 - Alibaba LabelX ASR 转写
 - DataBaker 一检质检
-- Magic Data Annotator
+- Magic Data（客家话助手 / 闽南语助手）
 - Abaka AI Task21
 - Admin 项目数据下载
 

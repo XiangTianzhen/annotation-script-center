@@ -52,3 +52,14 @@
 - 同一对话内不重复提升版本。
 - 正式发布仍使用 `ASC_RELEASE`。
 - 纯文档同步、只读审计或用户明确要求不动版本号的任务，不强制为了规则同步而追补版本。
+
+## 平台资料目录规则
+
+- 平台资料根目录优先使用：`README.md`、`backend/`、`network/`、`page-structure/`、`<script-id>/`。
+- 平台共用后端、共用 loader、共用词表放 `platform-resources/<platform>/backend/`。
+- 平台共用页面结构放 `platform-resources/<platform>/page-structure/`。
+- 平台共用 Network 资料放 `platform-resources/<platform>/network/`。
+- 脚本目录默认使用：`README.md`、`backend/`、`network/`、`page-structure/`；仅放脚本专属差异。
+- README 只维护实际文件职责与边界，不重复抄写默认目录模板。
+- 需要保留空目录时使用 `.gitkeep`。
+- 平台资料严禁写入 token、cookie、authorization、完整签名 URL、真实敏感文本。

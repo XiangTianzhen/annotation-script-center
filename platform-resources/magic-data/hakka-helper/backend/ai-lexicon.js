@@ -3,8 +3,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const HAKKA_XLSX_PATH = path.join(__dirname, "..", "lexicon", "客家话-正字表.xlsx");
-const HAKKA_CSV_PATH = path.join(__dirname, "..", "lexicon", "hakka-lexicon.csv");
+const HAKKA_XLSX_PATH = path.join(__dirname, "lexicon", "客家话-正字表.xlsx");
+const HAKKA_CSV_PATH = path.join(__dirname, "lexicon", "hakka-lexicon.csv");
 const DEFAULT_LIMIT = 30;
 
 let cachedState = null;

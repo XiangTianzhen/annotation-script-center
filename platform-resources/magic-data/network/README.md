@@ -26,6 +26,7 @@
 - `06-check-task-detail.md`
 - `07-asrmark-check.md`
 - `08-sensitive-operations.md`
+- `09-safety-boundary-rules.md`
 - `pending-capture.md`
 
 ## 脱敏规则

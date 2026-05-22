@@ -44,6 +44,27 @@
 - `platform-resources/backend/`：统一后端入口与路由注册。
 - `docs/`：长期文档与索引，不再把文档散落在根层。
 
+### 平台资料目录长期规则
+
+- `platform-resources/<platform>/` 的平台资料根目录优先使用：
+  - `README.md`
+  - `backend/`
+  - `network/`
+  - `page-structure/`
+  - `<script-id>/`
+- 平台共用后端、共用 loader、共用规则、共用词表优先放 `platform-resources/<platform>/backend/`。
+- 平台共用页面结构优先放 `platform-resources/<platform>/page-structure/`。
+- 平台共用 Network 资料优先放 `platform-resources/<platform>/network/`。
+- 单脚本资料目录默认使用：
+  - `README.md`
+  - `backend/`
+  - `network/`
+  - `page-structure/`
+- 只有脚本专属后端、脚本专属词表、脚本专属页面/Network 差异才放脚本目录。
+- README 不重复抄写默认目录模板，只说明实际存在文件的职责、接口、边界与差异。
+- 需要保留空目录时使用 `.gitkeep`。
+- 资料目录禁止写入 token、cookie、authorization、完整签名 URL、真实敏感文本。
+
 ## shared 模块规则（项目级）
 
 - `extension/sites/alibaba-labelx/shared/audio-controller-core.js`：LabelX 快判/转写通用音频核心。

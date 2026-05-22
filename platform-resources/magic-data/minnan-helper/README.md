@@ -1,26 +1,23 @@
 # 闽南语助手（Magic Data）资料
 
-## 作用
+本目录只维护闽南语助手专属资料。
 
-闽南语助手用于 Magic Data `#/asrmark` 当前条 AI 复核辅助。
+## 实际文件与职责
 
-## 前端入口
+- `backend/index.js`：闽南语助手后端注册入口。
+- `backend/ai-routes.js`：闽南语助手 AI 路由注册。
+- `backend/ai-*.js`：闽南语助手 AI 能力实现（模型调用、Prompt、词表、日志、成本估算）。
+- `backend/lexicon/minnan-lexicon.csv`：闽南语词表（后端运行时读取）。
+- `backend/tools/convert-hakka-lexicon.js`：闽南语词表转换脚本（文件名保留兼容，输入输出已是闽南语词表）。
+- `network/.gitkeep`：当前无助手专属 Network 差异；共用结构见平台根目录 `network/`。
+- `page-structure/.gitkeep`：当前无助手专属页面结构差异；共用结构见平台根目录 `page-structure/`。
 
-- `extension/sites/magic-data/minnan-helper/content.js`
-- 可复用平台共享模块：`extension/sites/magic-data/shared/`
+## 接口
 
-## 后端入口
-
-- `platform-resources/magic-data/minnan-helper/backend/`
 - `GET /api/magic-data/minnan-helper/ai/review-current/health`
 - `GET /api/magic-data/minnan-helper/ai/defaults`
 - `POST /api/magic-data/minnan-helper/ai/review-current`
 
-## 词表
+## 安全边界
 
-- `platform-resources/magic-data/minnan-helper/lexicon/minnan-lexicon.csv`
-- 词表示例来源：DataBaker 闽南语词表（用于初始化），后续独立在本目录维护。
-
-## 约束
-
-- AI 仅做辅助建议，不自动保存、不自动提交、不自动审核、不自动领取、不自动流转。
+- AI 仅做辅助建议，不自动保存、不自动提交、不自动领取、不自动审核、不自动流转。

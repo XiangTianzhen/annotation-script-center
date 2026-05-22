@@ -1,3 +1,12 @@
+## 2026-05-22（Magic Data 平台资料目录治理与规则沉淀：v0.3.6）
+
+- 本轮保持 `extension/manifest.json` 为 `0.3.6`，未重复提升版本号。
+- Magic Data 平台资料目录收口为 `backend/`、`network/`、`page-structure/` + 助手子目录；平台共用页面结构与 Network 统一迁移到根级目录维护。
+- 客家话/闽南语词表迁移到各自 `backend/lexicon/`，并同步修正后端词表读取与转换脚本默认路径。
+- 删除旧资料目录与散落索引：移除 `platform-resources/magic-data/annotator/`、`shared/`、根级 `network.md`、根级 `page-structure.md`，保留旧 `/api/magic-data/annotator/ai/*` 接口兼容能力。
+- 助手目录按长期规则收敛为 `README.md + backend/ + network/ + page-structure/`，其中无专属差异目录用 `.gitkeep` 保留。
+- 同步更新 `AGENTS.md` 与 `docs/rules/project-collaboration-rules.md` 的平台资料目录长期规则，并更新 Magic Data 相关 README / 索引文档口径。
+
 ## 2026-05-21（新增闽南语助手并重构 Magic Data 结构：v0.3.6）
 
 - 保持 `extension/manifest.json` 版本为 `0.3.6`（本轮未提升版本号）。

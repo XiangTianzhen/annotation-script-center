@@ -28,6 +28,10 @@
 - 客家话助手：`extension/sites/magic-data/hakka-helper/README.md`
 - 闽南语助手：`extension/sites/magic-data/minnan-helper/README.md`
 - 平台资料：`platform-resources/magic-data/README.md`
+- 平台共用页面结构：`platform-resources/magic-data/page-structure/README.md`
+- 平台共用 Network：`platform-resources/magic-data/network/README.md`
+- 客家话助手资料：`platform-resources/magic-data/hakka-helper/README.md`
+- 闽南语助手资料：`platform-resources/magic-data/minnan-helper/README.md`
 
 ## Abaka AI
 

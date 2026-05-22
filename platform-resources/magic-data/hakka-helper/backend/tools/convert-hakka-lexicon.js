@@ -3,8 +3,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const DEFAULT_INPUT = path.join(__dirname, "..", "..", "lexicon", "客家话-正字表.xlsx");
-const DEFAULT_OUTPUT = path.join(__dirname, "..", "..", "lexicon", "hakka-lexicon.csv");
+const DEFAULT_INPUT = path.join(__dirname, "..", "lexicon", "客家话-正字表.xlsx");
+const DEFAULT_OUTPUT = path.join(__dirname, "..", "lexicon", "hakka-lexicon.csv");
 const OUTPUT_COLUMNS = [
   "序号",
   "注音",

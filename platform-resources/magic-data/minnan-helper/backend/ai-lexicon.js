@@ -3,8 +3,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const MINNAN_XLSX_PATH = path.join(__dirname, "..", "lexicon", "闽南语-推荐词表.xlsx");
-const MINNAN_CSV_PATH = path.join(__dirname, "..", "lexicon", "minnan-lexicon.csv");
+const MINNAN_XLSX_PATH = path.join(__dirname, "lexicon", "闽南语-推荐词表.xlsx");
+const MINNAN_CSV_PATH = path.join(__dirname, "lexicon", "minnan-lexicon.csv");
 const DEFAULT_LIMIT = 30;
 
 let cachedState = null;
