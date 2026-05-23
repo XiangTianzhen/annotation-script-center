@@ -44,3 +44,12 @@
 - 行内说话人选择值可读取：
   - `.speaker-options-group-bg .el-radio.is-checked input.el-radio__original`
 - 页面可能存在重复 id（如 `#EasyEditableDiv`），禁止将该 id 作为唯一定位依据。
+
+## 闽南语助手左侧挂载补充（2026-05-23）
+
+- 左侧基础信息建议挂载在 `.speaker-attributes` 后方，且保持在同一个 `.grid-content` 容器中。
+- 推荐路径：
+  - `const speaker = document.querySelector(".speaker-attributes")`
+  - `const grid = speaker.closest(".grid-content")`
+  - 在 `grid` 内 `speaker.after(sideInfoRoot)`
+- 若 `.speaker-attributes` 缺失，可回退到 `.el-col.el-col-7 .grid-content` 末尾。

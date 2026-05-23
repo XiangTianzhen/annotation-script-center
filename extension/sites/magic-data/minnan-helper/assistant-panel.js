@@ -3,6 +3,7 @@
   const STYLE_ATTR = "data-asc-magic-data-minnan-review-inline-style";
   const SIDE_INFO_ATTR = "data-asc-magic-data-minnan-side-info";
   const INLINE_SUGGESTION_ATTR = "data-asc-magic-data-minnan-inline-suggestion";
+  const SPEAKER_SUGGESTION_ATTR = "data-asc-magic-data-minnan-speaker-suggestion";
   const RAW_MODAL_ATTR = "data-asc-magic-data-minnan-raw-modal";
   const PANEL_HEIGHT_STORAGE_KEY = "scriptCenter.magicDataMinnanAssistant.panelHeight";
   const DEFAULT_PANEL_HEIGHT = 420;
@@ -46,8 +47,9 @@
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = text;
+    button.className = "asc-md-minnan-btn el-button el-button--mini is-plain";
     if (className) {
-      button.className = className;
+      button.className = button.className + " " + className;
     }
     return button;
   }
@@ -122,10 +124,15 @@
       "[" + ROOT_ATTR + "] .md-tag-ok{background:rgba(34,197,94,.2);color:#86efac;border:1px solid rgba(34,197,94,.5);}",
       "[" + ROOT_ATTR + "] .md-tag-bad{background:rgba(239,68,68,.2);color:#fda4af;border:1px solid rgba(239,68,68,.5);}",
       "[" + ROOT_ATTR + "] .md-tag-uncertain{background:rgba(251,191,36,.2);color:#fde68a;border:1px solid rgba(251,191,36,.5);}",
-      "[" + ROOT_ATTR + "] button{border:1px solid #475569;border-radius:6px;padding:6px 8px;background:#1e293b;color:#e2e8f0;font-size:12px;cursor:pointer;}",
+      "[" + ROOT_ATTR + "] button{border:1px solid #475569;border-radius:6px;padding:5px 10px;background:#1e293b;color:#e2e8f0;font-size:12px;cursor:pointer;line-height:1.2;}",
       "[" + ROOT_ATTR + "] button:hover{background:#334155;}",
       "[" + ROOT_ATTR + "] button:disabled{opacity:.55;cursor:not-allowed;}",
-      "[" + ROOT_ATTR + "] .md-primary{background:#0ea5e9;border-color:#0ea5e9;color:#f8fafc;font-weight:700;}",
+      "[" + ROOT_ATTR + "] .md-primary{background:#2563eb;border-color:#2563eb;color:#f8fafc;font-weight:700;}",
+      "[" + ROOT_ATTR + "] .asc-md-minnan-btn.el-button{border-color:#4b5563;background:rgba(51,65,85,.55);color:#e5e7eb;}",
+      "[" + ROOT_ATTR + "] .asc-md-minnan-btn.el-button:hover{background:rgba(71,85,105,.78);}",
+      "[" + ROOT_ATTR + "] .asc-md-minnan-btn.el-button.el-button--primary{border-color:#2563eb;background:#2563eb;color:#f8fafc;}",
+      "[" + ROOT_ATTR + "] .asc-md-minnan-btn.el-button.el-button--primary:hover{background:#1d4ed8;}",
+      "[" + ROOT_ATTR + "] .asc-md-minnan-btn.is-plain{background:rgba(30,41,59,.68);}",
       "[" + ROOT_ATTR + "] .md-message{font-size:12px;border:1px solid #334155;background:#172554;color:#bfdbfe;border-radius:8px;padding:8px;}",
       "[" + ROOT_ATTR + "] .md-safe{font-size:11px;line-height:1.4;color:#fdba74;border:1px solid #7c2d12;background:#431407;border-radius:6px;padding:6px 7px;}",
       "[" + ROOT_ATTR + "] .asc-magic-data-review-resize-handle{height:8px;flex:0 0 auto;margin-top:8px;border-top:1px solid rgba(91,140,255,.25);background:rgba(148,163,184,.12);cursor:ns-resize;}",
@@ -135,12 +142,22 @@
       "[" + SIDE_INFO_ATTR + "] .asc-md-minnan-side-box{border:1px solid rgba(91,140,255,.45);border-radius:6px;background:rgba(15,23,42,.92);padding:8px;color:#e5e7eb;font-family:'Microsoft YaHei',sans-serif;font-size:12px;line-height:1.45;}",
       "[" + SIDE_INFO_ATTR + "] .asc-md-minnan-side-title{font-size:12px;font-weight:700;color:#dbeafe;margin-bottom:6px;}",
       "[" + SIDE_INFO_ATTR + "] .asc-md-minnan-side-grid{display:grid;grid-template-columns:88px 1fr;gap:4px 8px;}",
+      "[" + SIDE_INFO_ATTR + "] .md-k{color:#9ca3af;font-weight:700;}",
+      "[" + SIDE_INFO_ATTR + "] .md-v{color:#e5e7eb;white-space:pre-wrap;word-break:break-word;}",
+      "[" + SIDE_INFO_ATTR + "] .asc-md-minnan-side-wait{font-size:12px;color:#93c5fd;}",
       "[" + INLINE_SUGGESTION_ATTR + "]{margin-top:6px;border:1px solid #475569;border-radius:6px;background:rgba(15,23,42,.8);padding:6px;}",
       "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px;}",
       "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-title{font-weight:700;color:#bfdbfe;font-size:12px;}",
-      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-meta{font-size:11px;color:#93c5fd;}",
       "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-text{font-size:12px;color:#e2e8f0;white-space:pre-wrap;word-break:break-word;margin-bottom:4px;}",
-      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-reason{font-size:11px;color:#94a3b8;white-space:pre-wrap;word-break:break-word;}",
+      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}",
+      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-row .asc-md-minnan-inline-text{margin:0;flex:1;}",
+      "[" + SPEAKER_SUGGESTION_ATTR + "]{margin-top:4px;padding:4px 6px;border-radius:4px;border:1px solid rgba(148,163,184,.35);background:rgba(30,41,59,.55);}",
+      "[" + SPEAKER_SUGGESTION_ATTR + "] .asc-md-minnan-speaker-text{font-size:12px;color:#e5e7eb;}",
+      "[" + SPEAKER_SUGGESTION_ATTR + "] .asc-md-minnan-speaker-actions{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;}",
+      "[" + ROOT_ATTR + "] details.md-details{border:1px solid #334155;border-radius:6px;padding:0;background:#111827;margin-bottom:7px;}",
+      "[" + ROOT_ATTR + "] details.md-details > summary{list-style:none;cursor:pointer;padding:8px 10px;font-weight:700;color:#cbd5e1;}",
+      "[" + ROOT_ATTR + "] details.md-details > summary::-webkit-details-marker{display:none;}",
+      "[" + ROOT_ATTR + "] details.md-details .md-details-body{padding:0 8px 8px;}",
       "[" + RAW_MODAL_ATTR + "]{position:fixed;inset:0;background:rgba(2,6,23,.72);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;}",
       "[" + RAW_MODAL_ATTR + "] .asc-md-minnan-raw-dialog{width:min(920px,96vw);max-height:86vh;display:flex;flex-direction:column;border:1px solid #334155;border-radius:8px;background:#0f172a;color:#e5e7eb;}",
       "[" + RAW_MODAL_ATTR + "] .asc-md-minnan-raw-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;border-bottom:1px solid #334155;}",
@@ -446,25 +463,24 @@
       return segments.join("\n");
     }
 
+    function findSpeakerAttributesRoot() {
+      return document.querySelector(".speaker-attributes");
+    }
+
     function findSideInfoMountTarget() {
-      const speakerCard = document.querySelector(".speaker-attributes");
-      if (speakerCard) {
-        return { anchor: speakerCard, mode: "after" };
-      }
-      const speakerTitle = Array.from(document.querySelectorAll(".el-form-item__label")).find(function (node) {
-        return normalizeText(node?.textContent || "") === "说话人属性";
-      });
-      if (speakerTitle) {
-        const formItem = speakerTitle.closest(".el-form-item");
-        if (formItem) {
-          return { anchor: formItem, mode: "after" };
+      const speakerCard = findSpeakerAttributesRoot();
+      if (speakerCard instanceof HTMLElement) {
+        const grid = speakerCard.closest(".grid-content");
+        if (grid instanceof HTMLElement) {
+          return { mode: "speaker-after-in-grid", speaker: speakerCard, grid: grid };
         }
-        const column = speakerTitle.closest(".el-col.el-col-7, .el-col, .grid-content");
-        if (column) {
-          return { anchor: column, mode: "append" };
-        }
+        return { mode: "speaker-after", speaker: speakerCard };
       }
-      return null;
+      const fallbackGrid = document.querySelector(".el-col.el-col-7 .grid-content");
+      if (fallbackGrid instanceof HTMLElement) {
+        return { mode: "grid-append", grid: fallbackGrid };
+      }
+      return { mode: "panel-fallback", grid: null };
     }
 
     function ensureSideInfoRoot() {
@@ -476,11 +492,6 @@
         existing.remove();
       }
       const target = findSideInfoMountTarget();
-      if (!target || !(target.anchor instanceof HTMLElement)) {
-        if (typeof console !== "undefined" && typeof console.debug === "function") {
-          console.debug("[MagicData][Minnan] side info target not found, fallback to panel");
-        }
-      }
       sideInfoRoot = document.createElement("section");
       sideInfoRoot.setAttribute(SIDE_INFO_ATTR, "true");
 
@@ -507,18 +518,27 @@
       sideInfoRoot.appendChild(summaryBox);
       sideInfoRoot.appendChild(platformBox);
 
-      if (target && target.mode === "after" && target.anchor.parentElement) {
-        if (typeof target.anchor.after === "function") {
-          target.anchor.after(sideInfoRoot);
+      if (target.mode === "speaker-after-in-grid" && target.speaker?.parentElement === target.grid) {
+        if (typeof target.speaker.after === "function") {
+          target.speaker.after(sideInfoRoot);
         } else {
-          target.anchor.parentElement.insertBefore(sideInfoRoot, target.anchor.nextSibling);
+          target.grid.insertBefore(sideInfoRoot, target.speaker.nextSibling);
         }
-      } else if (target && target.anchor) {
-        target.anchor.appendChild(sideInfoRoot);
+      } else if (target.mode === "speaker-after" && target.speaker?.parentElement) {
+        if (typeof target.speaker.after === "function") {
+          target.speaker.after(sideInfoRoot);
+        } else {
+          target.speaker.parentElement.insertBefore(sideInfoRoot, target.speaker.nextSibling);
+        }
+      } else if (target.mode === "grid-append" && target.grid) {
+        target.grid.appendChild(sideInfoRoot);
       } else if (root) {
         root.insertBefore(sideInfoRoot, root.firstChild);
       } else {
         (document.body || document.documentElement).appendChild(sideInfoRoot);
+      }
+      if (typeof console !== "undefined" && typeof console.debug === "function") {
+        console.debug("[MagicData][Minnan] side info mounted", { mode: target.mode });
       }
       return sideInfoRoot;
     }
@@ -545,16 +565,22 @@
       }
       const speaker = latestSnapshot.speaker || {};
       const rows = [
-        ["taskItemId", latestSnapshot.taskItemId || "-"],
+        ["taskItemId", latestSnapshot.taskItemId || "等待采集..."],
         ["有效句子时长", toSecondsText(latestSnapshot.effectiveTime)],
         ["句子总时长", toSecondsText(latestSnapshot.totalLengthTime)],
-        ["音频 hostname", latestSnapshot.audioHostname || "未获取"],
+        ["音频 hostname", latestSnapshot.audioHostname || "等待采集..."],
         ["说话人编号", speaker.speakId || "-"],
         ["性别", speaker.gender || "-"],
         ["年龄", speaker.ageRange || "-"],
         ["后端", latestBackend?.baseUrl || "-"],
       ];
       sideSummaryNode.innerHTML = "";
+      if (!latestSnapshot.taskItemId && !latestSnapshot.platformDialectText && !latestSnapshot.platformMandarinText) {
+        const wait = document.createElement("div");
+        wait.className = "asc-md-minnan-side-wait";
+        wait.textContent = "等待采集...";
+        sideSummaryNode.appendChild(wait);
+      }
       rows.forEach(function (row) {
         const key = document.createElement("div");
         key.className = "md-k";
@@ -579,8 +605,8 @@
         ["说话人编号", speaker.speakId || "-"],
         ["性别", speaker.gender || "-"],
         ["年龄", speaker.ageRange || "-"],
-        ["平台方言行", snapshot?.platformDialectText || "未读取到平台文本"],
-        ["平台普通话行", snapshot?.platformMandarinText || "未读取到平台文本"],
+        ["平台方言行", snapshot?.platformDialectText || "等待采集..."],
+        ["平台普通话行", snapshot?.platformMandarinText || "等待采集..."],
       ];
       sidePlatformNode.innerHTML = "";
       rows.forEach(function (row) {
@@ -814,6 +840,127 @@
       });
     }
 
+    function clearSpeakerSuggestionBlocks() {
+      Array.from(document.querySelectorAll("[" + SPEAKER_SUGGESTION_ATTR + "]")).forEach(function (node) {
+        node.remove();
+      });
+    }
+
+    function isValidGenderValue(value) {
+      return ["男", "女"].indexOf(normalizeText(value)) >= 0;
+    }
+
+    function isValidAgeRangeValue(value) {
+      return ["0-5", "6-12", "13-18", "19-25", "26-36", "37-50", "51-65", "65以上"].indexOf(
+        normalizeText(value)
+      ) >= 0;
+    }
+
+    function findSpeakerFormItemByLabel(labelText) {
+      const speakerRoot = findSpeakerAttributesRoot();
+      if (!(speakerRoot instanceof HTMLElement)) {
+        return null;
+      }
+      const normalizedLabel = normalizeText(labelText);
+      const formItems = Array.from(speakerRoot.querySelectorAll(".el-form-item"));
+      return (
+        formItems.find(function (item) {
+          const label = normalizeText(item.querySelector(".el-form-item__label")?.textContent || "");
+          return label === normalizedLabel;
+        }) || null
+      );
+    }
+
+    function clickSpeakerOptionInItem(formItem, optionValue) {
+      if (!(formItem instanceof HTMLElement)) {
+        return { ok: false, message: "未找到说话人属性项。" };
+      }
+      const normalizedValue = normalizeText(optionValue);
+      const inputs = Array.from(
+        formItem.querySelectorAll("input.el-radio__original, input[type='radio']")
+      );
+      const input = inputs.find(function (node) {
+        return normalizeText(node.value) === normalizedValue;
+      });
+      if (!(input instanceof HTMLElement)) {
+        return { ok: false, message: "未找到建议值对应的单选项。" };
+      }
+      if (input.disabled) {
+        return { ok: false, message: "目标单选项不可点击。"} ;
+      }
+      const label = input.closest("label.el-radio, label");
+      if (label?.classList?.contains("is-disabled")) {
+        return { ok: false, message: "目标单选项不可点击。"} ;
+      }
+      if (label && typeof label.click === "function") {
+        label.click();
+      } else if (typeof input.click === "function") {
+        input.click();
+      }
+      return { ok: true, message: "已选择" + normalizedValue + "，未保存、未提交。" };
+    }
+
+    function renderSpeakerSuggestion(formItem, labelText, checkData, validateFn) {
+      if (!(formItem instanceof HTMLElement)) {
+        return;
+      }
+      const wrapper = document.createElement("div");
+      wrapper.setAttribute(SPEAKER_SUGGESTION_ATTR, labelText);
+      const text = document.createElement("div");
+      text.className = "asc-md-minnan-speaker-text";
+      const suggestedValue = normalizeText(checkData?.suggestedValue || "");
+      if (checkData?.isCorrect === true) {
+        text.textContent = "AI建议：正确";
+        wrapper.appendChild(text);
+        formItem.appendChild(wrapper);
+        return;
+      }
+      if (suggestedValue) {
+        text.textContent = "AI建议：" + suggestedValue;
+      } else {
+        text.textContent = "AI建议：待复核";
+      }
+      wrapper.appendChild(text);
+      const canFill = validateFn(suggestedValue);
+      if (canFill) {
+        const actions = document.createElement("div");
+        actions.className = "asc-md-minnan-speaker-actions";
+        const fillBtn = createButton("填入" + labelText, "el-button--primary");
+        fillBtn.addEventListener("click", function () {
+          let result = null;
+          if (typeof options.selectSpeakerValue === "function") {
+            result = options.selectSpeakerValue(suggestedValue);
+          }
+          if (!result || result.ok !== true) {
+            result = clickSpeakerOptionInItem(formItem, suggestedValue);
+          }
+          setMessage(result?.message || "已填入建议值。");
+        });
+        actions.appendChild(fillBtn);
+        wrapper.appendChild(actions);
+      }
+      formItem.appendChild(wrapper);
+    }
+
+    function renderSpeakerAttributeSuggestions(resultData) {
+      clearSpeakerSuggestionBlocks();
+      if (!resultData) {
+        return;
+      }
+      const speakerCheck = resultData.speakerCheck || {};
+      const genderItem = findSpeakerFormItemByLabel("性别");
+      const ageItem = findSpeakerFormItemByLabel("年龄");
+      renderSpeakerSuggestion(genderItem, "性别", speakerCheck.gender || {}, isValidGenderValue);
+      renderSpeakerSuggestion(ageItem, "年龄", speakerCheck.ageRange || {}, isValidAgeRangeValue);
+    }
+
+    function shouldShowTextFillButton(checkData) {
+      if (checkData?.isCorrect === true) {
+        return false;
+      }
+      return Boolean(normalizeText(checkData?.suggestedValue || ""));
+    }
+
     function createInlineSuggestionBlock(type, checkData) {
       const block = document.createElement("div");
       block.setAttribute(INLINE_SUGGESTION_ATTR, type);
@@ -822,27 +969,28 @@
       const title = document.createElement("div");
       title.className = "asc-md-minnan-inline-title";
       title.textContent = "AI 建议";
-      const meta = document.createElement("div");
-      meta.className = "asc-md-minnan-inline-meta";
-      meta.innerHTML = renderCorrectTag(checkData?.isCorrect) + " 置信:" + formatNumber(checkData?.confidence, 2);
       head.appendChild(title);
-      head.appendChild(meta);
+      block.appendChild(head);
+      const row = document.createElement("div");
+      row.className = "asc-md-minnan-inline-row";
       const text = document.createElement("div");
       text.className = "asc-md-minnan-inline-text";
-      text.textContent = normalizeText(checkData?.suggestedValue || "暂无建议");
-      const reason = document.createElement("div");
-      reason.className = "asc-md-minnan-inline-reason";
-      reason.textContent = "原因：" + normalizeText(checkData?.reason || "-");
-      const fillBtn = createButton("填入本行");
-      fillBtn.addEventListener("click", function () {
-        const editor = type === "dialect" ? findRowEditorByIndex(0) : findRowEditorByIndex(1);
-        const result = fillInlineEditor(editor, checkData?.suggestedValue || "");
-        setMessage(result.message);
-      });
-      block.appendChild(head);
-      block.appendChild(text);
-      block.appendChild(reason);
-      block.appendChild(fillBtn);
+      if (checkData?.isCorrect === true) {
+        text.textContent = "AI建议：正确";
+      } else {
+        text.textContent = "AI建议：" + normalizeText(checkData?.suggestedValue || "待复核");
+      }
+      row.appendChild(text);
+      if (shouldShowTextFillButton(checkData)) {
+        const fillBtn = createButton("填入本行", "el-button--primary");
+        fillBtn.addEventListener("click", function () {
+          const editor = type === "dialect" ? findRowEditorByIndex(0) : findRowEditorByIndex(1);
+          const result = fillInlineEditor(editor, checkData?.suggestedValue || "");
+          setMessage(result.message);
+        });
+        row.appendChild(fillBtn);
+      }
+      block.appendChild(row);
       return block;
     }
 
@@ -871,6 +1019,7 @@
       resultNode.innerHTML = "";
       if (!data) {
         clearInlineSuggestionBlocks();
+        clearSpeakerSuggestionBlocks();
         const emptyNode = document.createElement("div");
         emptyNode.className = "md-empty";
         emptyNode.textContent = "暂无质检结果，请点击 AI 质检当前条。";
@@ -889,6 +1038,29 @@
       const mandarinCheck = data.mandarinTextCheck || {};
       const overall = data.overall || {};
 
+      const overallBlock = document.createElement("div");
+      overallBlock.className = "md-block";
+      overallBlock.innerHTML = '<div class="md-check-title">总结论</div>';
+      overallBlock.appendChild(
+        createCheckGrid([
+          ["结论", resolveReviewConclusion({ reviewConclusion: overall.reviewConclusion || data.reviewConclusion })],
+          ["需人工复核", String(overall.shouldReview === true || data.shouldReview === true)],
+          ["摘要", normalizeText(overall.summary || data?.recommendations?.summary || "-")],
+          ["requestId", normalizeText(data.requestId || "-")],
+          ["模型与耗时", "listen=" + String(data?.models?.listenModel || "-") + " / review=" + String(data?.models?.reviewModel || data?.models?.compareModel || "-") + " / total=" + String(timing.totalDurationMs || 0) + "ms"],
+        ])
+      );
+      resultNode.appendChild(overallBlock);
+
+      const detailWrap = document.createElement("details");
+      detailWrap.className = "md-details";
+      detailWrap.open = false;
+      const detailSummary = document.createElement("summary");
+      detailSummary.textContent = "展开详细质检结果";
+      detailWrap.appendChild(detailSummary);
+      const detailsBody = document.createElement("div");
+      detailsBody.className = "md-details-body";
+
       const speakerBlock = document.createElement("div");
       speakerBlock.className = "md-block";
       speakerBlock.innerHTML = '<div class="md-check-title">说话人书写</div>';
@@ -900,7 +1072,7 @@
           ["原因", normalizeText(ageRangeCheck.reason || "-")],
         ])
       );
-      resultNode.appendChild(speakerBlock);
+      detailsBody.appendChild(speakerBlock);
 
       const dialectBlock = document.createElement("div");
       dialectBlock.className = "md-block";
@@ -914,7 +1086,7 @@
           ["置信度", formatNumber(dialectCheck.confidence, 2)],
         ])
       );
-      resultNode.appendChild(dialectBlock);
+      detailsBody.appendChild(dialectBlock);
 
       const mandarinBlock = document.createElement("div");
       mandarinBlock.className = "md-block";
@@ -928,25 +1100,25 @@
           ["置信度", formatNumber(mandarinCheck.confidence, 2)],
         ])
       );
-      resultNode.appendChild(mandarinBlock);
+      detailsBody.appendChild(mandarinBlock);
 
-      const overallBlock = document.createElement("div");
-      overallBlock.className = "md-block";
-      overallBlock.innerHTML = '<div class="md-check-title">总结论</div>';
-      overallBlock.appendChild(
+      const audioBlock = document.createElement("div");
+      audioBlock.className = "md-block";
+      audioBlock.innerHTML = '<div class="md-check-title">AI 听音/理解</div>';
+      audioBlock.appendChild(
         createCheckGrid([
-          ["结论", resolveReviewConclusion({ reviewConclusion: overall.reviewConclusion || data.reviewConclusion })],
-          ["需人工复核", String(overall.shouldReview === true || data.shouldReview === true)],
-          ["摘要", normalizeText(overall.summary || data?.recommendations?.summary || "-")],
           ["听音(闽南语)", showHeardText ? normalizeText(audioCheck.heardDialectText || data?.listen?.heardDialectText || "-") : "已关闭显示"],
           ["听音(普通话)", showHeardText ? normalizeText(audioCheck.heardMandarinMeaning || data?.listen?.heardMandarinMeaning || "-") : "已关闭显示"],
-          ["requestId", normalizeText(data.requestId || "-")],
-          ["模型与耗时", "listen=" + String(data?.models?.listenModel || "-") + " / review=" + String(data?.models?.reviewModel || data?.models?.compareModel || "-") + " / total=" + String(timing.totalDurationMs || 0) + "ms"],
+          ["音频有效性", String(audioCheck.isValidAudio !== false)],
+          ["风险标记", joinIssues(audioCheck.riskFlags || [])],
         ])
       );
-      resultNode.appendChild(overallBlock);
+      detailsBody.appendChild(audioBlock);
+      detailWrap.appendChild(detailsBody);
+      resultNode.appendChild(detailWrap);
 
       renderInlineSuggestions();
+      renderSpeakerAttributeSuggestions(data);
       refreshButtons();
     }
 
@@ -1179,6 +1351,7 @@
       latestResult = null;
       closeRawOutputModal();
       clearInlineSuggestionBlocks();
+      clearSpeakerSuggestionBlocks();
       renderResult(null);
       renderSummary(latestSnapshot || {}, latestBackend);
     }
@@ -1224,7 +1397,7 @@
       buttons.refresh.addEventListener("click", function () {
         void collectAndRenderSnapshot(true);
       });
-      buttons.review = createButton("AI 质检当前条", "md-primary");
+      buttons.review = createButton("AI 质检当前条", "md-primary el-button--primary");
       buttons.review.addEventListener("click", function () {
         void triggerReview();
       });
@@ -1311,6 +1484,7 @@
       setResizingActive(false);
       closeRawOutputModal();
       clearInlineSuggestionBlocks();
+      clearSpeakerSuggestionBlocks();
       if (root) {
         root.remove();
       }

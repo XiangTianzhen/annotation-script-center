@@ -214,6 +214,7 @@
       getClientVersion: aiClient.getClientVersion,
       refreshCurrentItem: collector.refreshCurrentItem,
       reviewCurrent: aiClient.reviewCurrent,
+      selectSpeakerValue: collector.selectSpeakerValue,
     });
 
     const shortcutsRuntime = shortcutsFactory?.createRuntime
