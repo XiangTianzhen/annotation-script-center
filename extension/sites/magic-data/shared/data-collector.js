@@ -5,6 +5,8 @@
   const DETAIL_FETCH_RETRY_INTERVAL_MS = 1500;
   const GENDER_OPTIONS = ["男", "女"];
   const AGE_OPTIONS = ["0-5", "6-12", "13-18", "19-25", "26-36", "37-50", "51-65", "65以上"];
+  const GENDER_OPTION_SET = new Set(GENDER_OPTIONS);
+  const AGE_OPTION_SET = new Set(AGE_OPTIONS);
   const REJECT_BUTTON_TEXTS = ["清除结果", "清除文本", "挂起", "驳回", "拒绝"];
   const FOCUS_SENTINEL_ATTR = "data-asc-magic-data-shortcut-focus-sentinel";
 
@@ -336,27 +338,63 @@
   }
 
   function parseSpeakerFromDom() {
-    const section = findTextNodeElementByKeyword("说话人属性");
-    const scope = section?.closest("[class*='form'], [class*='panel'], [class*='card']") || document.body;
-    const text = normalizeText(scope?.textContent || "");
-    const speaker = {};
-
-    for (let index = 0; index < GENDER_OPTIONS.length; index += 1) {
-      const value = GENDER_OPTIONS[index];
-      if (text.indexOf(value) >= 0) {
-        speaker.gender = value;
-        break;
-      }
+    function findSpeakerScope() {
+      return (
+        document.querySelector(".speaker-attributes") ||
+        findTextNodeElementByKeyword("说话人属性")?.closest(".speaker-attributes, .el-form, [class*='speaker'], [class*='attr'], [class*='card']") ||
+        findTextNodeElementByKeyword("说话人属性")?.closest("[class*='form'], [class*='panel'], [class*='card']") ||
+        null
+      );
     }
 
-    for (let index = 0; index < AGE_OPTIONS.length; index += 1) {
-      const value = AGE_OPTIONS[index];
-      if (text.indexOf(value) >= 0) {
-        speaker.ageRange = value;
-        break;
-      }
+    function findFormItemByLabel(scope, labelText) {
+      const normalizedLabel = normalizeCompactText(labelText);
+      const formItems = Array.from(scope?.querySelectorAll(".el-form-item, [class*='form-item']") || []);
+      return (
+        formItems.find(function (item) {
+          const label = item.querySelector(".el-form-item__label, label, .label, [class*='label']");
+          const text = normalizeCompactText(label?.textContent || "");
+          return text.indexOf(normalizedLabel) >= 0;
+        }) || null
+      );
     }
-    return speaker;
+
+    function readCheckedRadioValue(scope) {
+      if (!(scope instanceof Element)) {
+        return "";
+      }
+      const checkedInput = scope.querySelector(
+        ".el-radio.is-checked input.el-radio__original, .el-radio.is-checked input[type='radio']"
+      );
+      const checkedInputValue = normalizeText(checkedInput?.value || "");
+      if (checkedInputValue) {
+        return checkedInputValue;
+      }
+      const checkedLabel = scope.querySelector(".el-radio.is-checked .el-radio__label");
+      const checkedLabelValue = normalizeText(checkedLabel?.textContent || "");
+      if (checkedLabelValue) {
+        return checkedLabelValue;
+      }
+      const ariaChecked = scope.querySelector(
+        "[role='radio'][aria-checked='true'] input, [role='radio'][aria-checked='true'] .el-radio__label, [role='radio'][aria-checked='true']"
+      );
+      return normalizeText(
+        ariaChecked?.value || ariaChecked?.textContent || ariaChecked?.getAttribute?.("value") || ""
+      );
+    }
+
+    const scope = findSpeakerScope();
+    if (!scope) {
+      return {};
+    }
+    const genderItem = findFormItemByLabel(scope, "性别");
+    const ageItem = findFormItemByLabel(scope, "年龄");
+    const genderValue = readCheckedRadioValue(genderItem);
+    const ageValue = readCheckedRadioValue(ageItem);
+    return {
+      gender: GENDER_OPTION_SET.has(genderValue) ? genderValue : "",
+      ageRange: AGE_OPTION_SET.has(ageValue) ? ageValue : "",
+    };
   }
 
   function getRouteParams() {
@@ -374,8 +412,11 @@
     return {
       at: Number(source.at) || Date.now(),
       taskItemId: normalizeText(source.taskItemId),
+      samplingRecordId: normalizeText(source.samplingRecordId),
       path: String(source.path || "").trim(),
+      object_key: normalizeText(source.object_key),
       wav_name: normalizeText(source.wav_name),
+      dataItemId: normalizeText(source.dataItemId),
       start_time: toNumberOrNull(source.start_time),
       end_time: toNumberOrNull(source.end_time),
       mark_info: markInfo.map(function (item) {
@@ -388,8 +429,12 @@
       }),
       statistics: source.statistics && typeof source.statistics === "object" ? source.statistics : null,
       is_valid: source.is_valid,
-      base_speak: source.base_speak,
+      base_speak: Array.isArray(source.base_speak) ? source.base_speak : [],
       duration: toNumberOrNull(source.duration),
+      length_time: toNumberOrNull(source.length_time),
+      sentence_valid_time: toNumberOrNull(source.sentence_valid_time),
+      sentence_unvalid_time: toNumberOrNull(source.sentence_unvalid_time),
+      unlabeled_sentence_time: toNumberOrNull(source.unlabeled_sentence_time),
     };
   }
 
@@ -401,23 +446,39 @@
   }
 
   function parseDetailResponsePayload(payload, fallbackTaskItemId) {
-    const data = payload && typeof payload === "object" ? payload.data : {};
+    const outer = payload && typeof payload === "object" ? payload.data : {};
+    const detailData = outer && typeof outer.data === "object" ? outer.data : outer;
+    const segments = Array.isArray(detailData?.data) ? detailData.data : [];
+    const firstSegment = segments.find(function (item) {
+      return item && typeof item === "object";
+    }) || {};
+    const detailMarkInfo = Array.isArray(detailData?.mark_info) ? detailData.mark_info : [];
+    const segmentMarkInfo = Array.isArray(firstSegment?.mark_info) ? firstSegment.mark_info : [];
     const normalized = normalizeDetailEntry({
-      taskItemId: normalizeText(data?.taskItemId || fallbackTaskItemId),
-      path: data?.path,
-      wav_name: data?.wav_name,
-      start_time: data?.start_time,
-      end_time: data?.end_time,
-      mark_info: data?.mark_info,
-      statistics: data?.statistics,
-      is_valid: data?.is_valid,
-      base_speak: data?.base_speak,
+      taskItemId: normalizeText(outer?.taskItemId || detailData?.taskItemId || fallbackTaskItemId),
+      samplingRecordId: normalizeText(outer?.samplingRecordId || detailData?.samplingRecordId),
+      path: detailData?.path,
+      object_key: detailData?.object_key,
+      wav_name: detailData?.wav_name,
+      dataItemId: detailData?.dataItemId || firstSegment?.id,
+      start_time: firstSegment?.start_time ?? detailData?.start_time,
+      end_time: firstSegment?.end_time ?? detailData?.end_time,
+      mark_info: segmentMarkInfo.length > 0 ? segmentMarkInfo : detailMarkInfo,
+      statistics: detailData?.statistics,
+      is_valid: detailData?.is_valid,
+      base_speak: detailData?.base_speak,
       duration:
-        data?.duration !== undefined
-          ? data.duration
-          : data?.audio_duration !== undefined
-            ? data.audio_duration
-            : data?.total_duration,
+        detailData?.duration !== undefined
+          ? detailData.duration
+          : detailData?.audio_duration !== undefined
+            ? detailData.audio_duration
+            : detailData?.length_time !== undefined
+              ? detailData.length_time
+              : detailData?.total_duration,
+      length_time: detailData?.length_time,
+      sentence_valid_time: detailData?.sentence_valid_time,
+      sentence_unvalid_time: detailData?.sentence_unvalid_time,
+      unlabeled_sentence_time: detailData?.unlabeled_sentence_time,
     });
     return normalized.taskItemId ? normalized : null;
   }
@@ -499,51 +560,86 @@
   }
 
   function parseSpeakerFromDetail(detail, fallbackSpeaker) {
+    function normalizeSpeakerId(value) {
+      const text = normalizeText(value);
+      if (!text) {
+        return "";
+      }
+      const numericValue = Number(text);
+      if (Number.isFinite(numericValue)) {
+        return String(Math.trunc(numericValue));
+      }
+      return text;
+    }
+
+    function parseSpeakerFromBaseEntry(baseEntry) {
+      const result = {
+        speakId: normalizeSpeakerId(baseEntry?.speak_id || baseEntry?.speakId || baseEntry?.id),
+        gender: "",
+        ageRange: "",
+      };
+      const speakInfoList = Array.isArray(baseEntry?.speak_info)
+        ? baseEntry.speak_info
+        : Array.isArray(baseEntry?.speakInfo)
+          ? baseEntry.speakInfo
+          : [];
+      speakInfoList.forEach(function (item) {
+        const values = Array.isArray(item?.value)
+          ? item.value
+          : item?.value !== undefined && item?.value !== null
+            ? [item.value]
+            : [];
+        values.forEach(function (value) {
+          const text = normalizeText(value);
+          if (!text) {
+            return;
+          }
+          if (!result.gender && GENDER_OPTION_SET.has(text)) {
+            result.gender = text;
+            return;
+          }
+          if (!result.ageRange && AGE_OPTION_SET.has(text)) {
+            result.ageRange = text;
+          }
+        });
+      });
+      return result;
+    }
+
     const speaker = Object.assign({}, fallbackSpeaker || {});
     const markInfo = Array.isArray(detail?.mark_info) ? detail.mark_info : [];
-    const firstSpeakPeople = markInfo
-      .map(function (row) {
-        return row?.speak_people;
-      })
-      .find(function (value) {
-        return value !== undefined && value !== null && value !== "";
-      });
-    const candidates = [detail?.base_speak, firstSpeakPeople];
-    candidates.forEach(function (item) {
-      if (!item) {
-        return;
-      }
-      if (typeof item === "string") {
-        const text = normalizeText(item);
-        if (!speaker.gender && (text.indexOf("男") >= 0 || text.indexOf("女") >= 0)) {
-          speaker.gender = text.indexOf("女") >= 0 ? "女" : "男";
-        }
-        if (!speaker.ageRange) {
-          const matchedAge = AGE_OPTIONS.find(function (ageRange) {
-            return text.indexOf(ageRange) >= 0;
-          });
-          if (matchedAge) {
-            speaker.ageRange = matchedAge;
-          }
-        }
-        return;
-      }
-      if (typeof item === "object") {
-        const genderText = normalizeText(item.gender || item.sex || "");
-        if (!speaker.gender && (genderText === "男" || genderText === "女")) {
-          speaker.gender = genderText;
-        }
-        const ageRangeText = normalizeText(item.ageRange || item.age || "");
-        if (!speaker.ageRange) {
-          const matchedAge = AGE_OPTIONS.find(function (ageRange) {
-            return ageRange === ageRangeText;
-          });
-          if (matchedAge) {
-            speaker.ageRange = matchedAge;
-          }
-        }
-      }
-    });
+    const baseSpeakList = Array.isArray(detail?.base_speak) ? detail.base_speak : [];
+    const targetSpeakerId = normalizeSpeakerId(
+      markInfo
+        .map(function (row) {
+          return row?.speak_people;
+        })
+        .find(function (value) {
+          return normalizeText(value);
+        })
+    );
+    let matchedSpeaker = null;
+    if (targetSpeakerId) {
+      matchedSpeaker = baseSpeakList.find(function (item) {
+        return normalizeSpeakerId(item?.speak_id || item?.speakId || item?.id) === targetSpeakerId;
+      }) || null;
+    }
+    if (!matchedSpeaker) {
+      matchedSpeaker = baseSpeakList[0] || null;
+    }
+    const parsedSpeaker = parseSpeakerFromBaseEntry(matchedSpeaker || {});
+    if (parsedSpeaker.speakId) {
+      speaker.speakId = parsedSpeaker.speakId;
+    }
+    if (parsedSpeaker.gender) {
+      speaker.gender = parsedSpeaker.gender;
+    }
+    if (parsedSpeaker.ageRange) {
+      speaker.ageRange = parsedSpeaker.ageRange;
+    }
+    if (!speaker.speakId && targetSpeakerId) {
+      speaker.speakId = targetSpeakerId;
+    }
     return speaker;
   }
 
@@ -609,12 +705,26 @@
       startTime !== null && endTime !== null && endTime >= startTime ? Number((endTime - startTime).toFixed(3)) : null;
     const audioUrl = String(detail.path || "").trim();
     snapshot.taskItemId = normalizeText(detail.taskItemId || snapshot.taskItemId);
+    snapshot.samplingRecordId = normalizeText(detail.samplingRecordId || snapshot.samplingRecordId);
+    snapshot.objectKey = normalizeText(detail.object_key || snapshot.objectKey);
+    snapshot.wavName = normalizeText(detail.wav_name || snapshot.wavName);
+    snapshot.dataItemId = normalizeText(detail.dataItemId || snapshot.dataItemId);
     snapshot.audioUrl = audioUrl || snapshot.audioUrl || "";
     snapshot.audioHostname = parseAudioHostname(snapshot.audioUrl);
-    snapshot.audioDuration = toNumberOrNull(detail.duration) ?? snapshot.audioDuration;
+    snapshot.audioDuration =
+      toNumberOrNull(detail.duration) ??
+      toNumberOrNull(detail.length_time) ??
+      snapshot.audioDuration;
     snapshot.effectiveStartTime = startTime ?? snapshot.effectiveStartTime;
     snapshot.effectiveEndTime = endTime ?? snapshot.effectiveEndTime;
-    snapshot.effectiveTime = effectiveTime ?? snapshot.effectiveTime;
+    snapshot.effectiveTime =
+      toNumberOrNull(detail.sentence_valid_time) ??
+      effectiveTime ??
+      snapshot.effectiveTime;
+    snapshot.sentenceValidTime = toNumberOrNull(detail.sentence_valid_time) ?? snapshot.sentenceValidTime ?? null;
+    snapshot.totalLengthTime = toNumberOrNull(detail.length_time) ?? snapshot.totalLengthTime ?? null;
+    snapshot.unlabeledSentenceTime =
+      toNumberOrNull(detail.unlabeled_sentence_time) ?? snapshot.unlabeledSentenceTime ?? null;
     snapshot.platformDialectText = pickTextFromMarkInfo(detail, 0, snapshot.platformDialectText);
     snapshot.platformMandarinText = pickTextFromMarkInfo(detail, 1, snapshot.platformMandarinText);
     snapshot.speaker = parseSpeakerFromDetail(detail, snapshot.speaker);

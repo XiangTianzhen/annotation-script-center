@@ -45,20 +45,31 @@
 
   function sanitizePayload(rawPayload, target) {
     const payload = safeToObject(rawPayload);
-    const data = safeToObject(payload.data);
-    const markInfo = Array.isArray(data.mark_info) ? data.mark_info : [];
+    const outer = safeToObject(payload.data);
+    const detailData = outer && typeof outer.data === "object" ? safeToObject(outer.data) : outer;
+    const segments = Array.isArray(detailData.data) ? detailData.data : [];
+    const firstSegment = segments.find(function (item) {
+      return item && typeof item === "object";
+    }) || {};
+    const segmentMarkInfo = Array.isArray(firstSegment.mark_info) ? firstSegment.mark_info : [];
+    const detailMarkInfo = Array.isArray(detailData.mark_info) ? detailData.mark_info : [];
+    const markInfo = segmentMarkInfo.length > 0 ? segmentMarkInfo : detailMarkInfo;
     const taskItemId =
-      toText(data.taskItemId) ||
+      toText(outer.taskItemId) ||
+      toText(detailData.taskItemId) ||
       toText(payload.taskItemId) ||
       toText(target?.taskItemIdFromPath);
 
     return {
       at: Date.now(),
       taskItemId: taskItemId,
-      path: toText(data.path),
-      wav_name: toText(data.wav_name),
-      start_time: toNumberOrNull(data.start_time),
-      end_time: toNumberOrNull(data.end_time),
+      samplingRecordId: toText(outer.samplingRecordId || detailData.samplingRecordId),
+      path: toText(detailData.path),
+      object_key: toText(detailData.object_key),
+      wav_name: toText(detailData.wav_name),
+      dataItemId: toText(detailData.dataItemId || firstSegment.id),
+      start_time: toNumberOrNull(firstSegment.start_time ?? detailData.start_time),
+      end_time: toNumberOrNull(firstSegment.end_time ?? detailData.end_time),
       mark_info: markInfo.map(function (item) {
         const source = safeToObject(item);
         return {
@@ -67,16 +78,22 @@
           mark_type: toText(source.mark_type),
         };
       }),
-      statistics: data.statistics,
-      is_valid: data.is_valid,
-      base_speak: data.base_speak,
+      statistics: detailData.statistics,
+      is_valid: detailData.is_valid,
+      base_speak: Array.isArray(detailData.base_speak) ? detailData.base_speak : [],
       duration: toNumberOrNull(
-        data.duration !== undefined
-          ? data.duration
-          : data.audio_duration !== undefined
-            ? data.audio_duration
-            : data.total_duration
+        detailData.duration !== undefined
+          ? detailData.duration
+          : detailData.audio_duration !== undefined
+            ? detailData.audio_duration
+            : detailData.length_time !== undefined
+              ? detailData.length_time
+              : detailData.total_duration
       ),
+      length_time: toNumberOrNull(detailData.length_time),
+      sentence_valid_time: toNumberOrNull(detailData.sentence_valid_time),
+      sentence_unvalid_time: toNumberOrNull(detailData.sentence_unvalid_time),
+      unlabeled_sentence_time: toNumberOrNull(detailData.unlabeled_sentence_time),
     };
   }
 

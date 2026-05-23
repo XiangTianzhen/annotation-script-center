@@ -1,3 +1,12 @@
+## 2026-05-23（Magic Data 闽南语助手热修：三项预测质检 + 说话人采集修复 + 左右分区）
+
+- 保持版本口径 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- `extension/sites/magic-data/shared/data-collector.js` 修复 `annotateDetailInfo` 嵌套结构解析：改为优先读取 `payload.data.data`，支持 `base_speak + mark_info[].speak_people` 映射说话人属性。
+- 说话人 DOM fallback 改为仅读取已选 radio（`.el-radio.is-checked` / `aria-checked=true`），移除“文本包含男/女/年龄段”误判逻辑。
+- `platform-resources/magic-data/minnan-helper/backend` 调整闽南语助手质检语义为“三项预测质检”，新增/兼容 `speakerCheck`、`dialectTextCheck`、`mandarinTextCheck`、`overall` 输出，并保持 `recommendations/audioCheck/textRuleCheck` 与 legacy 字段兼容。
+- `extension/sites/magic-data/minnan-helper/assistant-panel.js` 改为左右分区布局：左侧基础信息（摘要/说话人/平台文本），右侧 AI 三项质检与操作区（AI质检、复制、填入、忽略），继续保持“不自动保存、不自动提交”。
+- 同步更新 Magic Data 平台资料文档（network/page-structure/minnan-helper README）。
+
 ## 2026-05-23（Magic Data 热修：同平台脚本互斥启用 + 版本口径回退到 v0.3.6）
 
 - 修复 Magic Data ANNOTATOR 同平台脚本互斥规则：同一时刻只允许 `客家话助手` 与 `闽南语助手` 其中一个处于启用状态；启用一个时自动关闭另一个。

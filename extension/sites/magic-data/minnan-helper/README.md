@@ -18,6 +18,16 @@
 - `two_stage` 听音模型支持 `fun-asr` 或 Qwen Omni；`omni_single` 走 Qwen Omni 单模型。
 - 支持 Prompt override 与生成参数 override（留空时使用后端 defaults）。
 
+## 三项质检口径
+
+- 闽南语助手默认执行“三项预测质检”：
+  - 说话人书写（性别、年龄）
+  - 闽南语内容（第一行）
+  - 普通话文本（第二行）
+- 面板左侧显示基础信息（当前条摘要、说话人属性、平台文本）；右侧显示 AI 三项质检结果与操作按钮。
+- 说话人属性采集优先读取 `annotateDetailInfo` 响应中的 `base_speak + mark_info[].speak_people`，DOM fallback 仅读取已选 radio（`.el-radio.is-checked` / `aria-checked=true`）。
+- 不再通过文本包含“男/女/年龄段”推断当前选中值，避免误取。
+
 ## 行为边界
 
 - 只允许用户主动点击按钮或快捷键触发 AI。

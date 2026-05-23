@@ -35,3 +35,14 @@
 - 不记录完整签名音频 URL。
 - 不记录真实员工个人信息与客户敏感全文。
 - 请求/响应示例只保留字段结构和脱敏样例。
+
+## annotateDetailInfo 结构补充（2026-05-23）
+
+- `POST /api/management-service/annotateTask/annotateDetailInfo/{taskItemId}` 返回结构需按嵌套读取：
+  - `payload.data.taskItemId`
+  - `payload.data.data.path`
+  - `payload.data.data.data[0].mark_info`
+  - `payload.data.data.base_speak`
+  - `payload.data.data.length_time`
+  - `payload.data.data.sentence_valid_time`
+- 说话人映射规则：优先用 `mark_info[].speak_people -> base_speak[].speak_id` 解析性别和年龄。

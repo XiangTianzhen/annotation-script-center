@@ -1064,6 +1064,79 @@ async function reviewCurrent(body, requestId) {
     const effectiveTimeSeconds = computeEffectiveTimeSeconds(normalizedRequest);
     const estimatedIncome = estimateIncome(effectiveTimeSeconds);
     const showHeardText = normalizedRequest.showHeardText !== false;
+    const normalizedSummary = normalizeText(
+      resultNormalized?.overall?.summary || resultNormalized?.recommendations?.summary || ""
+    );
+    const speakerCheck = {
+      gender: {
+        isCorrect:
+          resultNormalized?.speakerCheck?.gender?.isCorrect === true
+            ? true
+            : resultNormalized?.speakerCheck?.gender?.isCorrect === false
+              ? false
+              : null,
+        platformValue: normalizeText(
+          resultNormalized?.speakerCheck?.gender?.platformValue ||
+            normalizedRequest?.speaker?.gender ||
+            ""
+        ),
+        suggestedValue: normalizeText(
+          resultNormalized?.speakerCheck?.gender?.suggestedValue ||
+            listen?.genderGuess ||
+            ""
+        ),
+        reason: normalizeText(resultNormalized?.speakerCheck?.gender?.reason || ""),
+        confidence: Number(resultNormalized?.speakerCheck?.gender?.confidence || listen?.confidence || 0),
+      },
+      ageRange: {
+        isCorrect:
+          resultNormalized?.speakerCheck?.ageRange?.isCorrect === true
+            ? true
+            : resultNormalized?.speakerCheck?.ageRange?.isCorrect === false
+              ? false
+              : null,
+        platformValue: normalizeText(
+          resultNormalized?.speakerCheck?.ageRange?.platformValue ||
+            normalizedRequest?.speaker?.ageRange ||
+            ""
+        ),
+        suggestedValue: normalizeText(
+          resultNormalized?.speakerCheck?.ageRange?.suggestedValue ||
+            listen?.ageRangeGuess ||
+            ""
+        ),
+        reason: normalizeText(resultNormalized?.speakerCheck?.ageRange?.reason || ""),
+        confidence: Number(resultNormalized?.speakerCheck?.ageRange?.confidence || listen?.confidence || 0),
+      },
+    };
+    const dialectTextCheck = {
+      isCorrect:
+        resultNormalized?.dialectTextCheck?.isCorrect === true
+          ? true
+          : resultNormalized?.dialectTextCheck?.isCorrect === false
+            ? false
+            : null,
+      platformValue: normalizeText(
+        resultNormalized?.dialectTextCheck?.platformValue || normalizedRequest.platformDialectText || ""
+      ),
+      suggestedValue: dialectRecommendation.text,
+      reason: normalizeText(resultNormalized?.dialectTextCheck?.reason || ""),
+      confidence: Number(resultNormalized?.dialectTextCheck?.confidence || 0),
+    };
+    const mandarinTextCheck = {
+      isCorrect:
+        resultNormalized?.mandarinTextCheck?.isCorrect === true
+          ? true
+          : resultNormalized?.mandarinTextCheck?.isCorrect === false
+            ? false
+            : null,
+      platformValue: normalizeText(
+        resultNormalized?.mandarinTextCheck?.platformValue || normalizedRequest.platformMandarinText || ""
+      ),
+      suggestedValue: normalizeToSimplifiedChinesePreservingLexicon(mandarinRecommendation),
+      reason: normalizeText(resultNormalized?.mandarinTextCheck?.reason || ""),
+      confidence: Number(resultNormalized?.mandarinTextCheck?.confidence || 0),
+    };
 
     const responseData = {
       requestId: finalRequestId,
@@ -1079,6 +1152,14 @@ async function reviewCurrent(body, requestId) {
         mandarinText: normalizedRequest.platformMandarinText,
         gender: normalizedRequest?.speaker?.gender || "",
         ageRange: normalizedRequest?.speaker?.ageRange || "",
+      },
+      speakerCheck: speakerCheck,
+      dialectTextCheck: dialectTextCheck,
+      mandarinTextCheck: mandarinTextCheck,
+      overall: {
+        reviewConclusion: resultNormalized.reviewConclusion,
+        shouldReview: resultNormalized.shouldReview === true,
+        summary: normalizedSummary,
       },
       audioCheck: {
         isValidAudio: listen?.isValidAudio !== false,
@@ -1120,7 +1201,7 @@ async function reviewCurrent(body, requestId) {
       recommendations: {
         dialectText: dialectRecommendation.text,
         mandarinText: normalizeToSimplifiedChinesePreservingLexicon(mandarinRecommendation),
-        summary: normalizeText(resultNormalized?.recommendations?.summary || ""),
+        summary: normalizedSummary,
       },
       lexicon: {
         enabled: baseLexiconContext.enabled === true,
@@ -1402,4 +1483,3 @@ module.exports = {
   readRequestBody,
   reviewCurrent,
 };
-

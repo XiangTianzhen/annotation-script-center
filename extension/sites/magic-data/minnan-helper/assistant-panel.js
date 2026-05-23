@@ -115,13 +115,23 @@
       "[" + ROOT_ATTR + "] .md-inline-title{font-size:13px;font-weight:700;color:#f8fafc;}",
       "[" + ROOT_ATTR + "] .md-inline-sub{font-size:12px;color:#94a3b8;margin-top:2px;line-height:1.45;}",
       "[" + ROOT_ATTR + "] .md-inline-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}",
-      "[" + ROOT_ATTR + "] .asc-magic-data-review-body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:2px;}",
+      "[" + ROOT_ATTR + "] .asc-magic-data-review-body{flex:1;min-height:0;overflow:hidden;padding-right:2px;}",
+      "[" + ROOT_ATTR + "] .md-split{display:grid;grid-template-columns:minmax(280px,36%) minmax(0,1fr);gap:10px;height:100%;min-height:0;}",
+      "[" + ROOT_ATTR + "] .md-col{min-height:0;overflow:auto;}",
+      "[" + ROOT_ATTR + "] .md-col-left{padding-right:2px;}",
+      "[" + ROOT_ATTR + "] .md-col-right{padding-right:2px;}",
       "[" + ROOT_ATTR + "] .md-inline-grid{display:grid;grid-template-columns:92px 1fr;gap:3px 8px;font-size:12px;line-height:1.45;}",
       "[" + ROOT_ATTR + "] .md-k{color:#94a3b8;font-weight:700;}",
       "[" + ROOT_ATTR + "] .md-v{white-space:pre-wrap;word-break:break-word;}",
       "[" + ROOT_ATTR + "] .md-block{border:1px solid #334155;border-radius:6px;padding:7px;background:#111827;margin-bottom:7px;}",
       "[" + ROOT_ATTR + "] .md-block-title{font-size:12px;font-weight:700;color:#cbd5e1;margin-bottom:6px;}",
       "[" + ROOT_ATTR + "] .md-inline-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:7px;}",
+      "[" + ROOT_ATTR + "] .md-check-grid{display:grid;grid-template-columns:108px 1fr;gap:4px 8px;font-size:12px;line-height:1.45;}",
+      "[" + ROOT_ATTR + "] .md-check-title{font-size:12px;font-weight:700;color:#dbeafe;margin-bottom:6px;}",
+      "[" + ROOT_ATTR + "] .md-tag{display:inline-block;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:700;}",
+      "[" + ROOT_ATTR + "] .md-tag-ok{background:rgba(34,197,94,.2);color:#86efac;border:1px solid rgba(34,197,94,.5);}",
+      "[" + ROOT_ATTR + "] .md-tag-bad{background:rgba(239,68,68,.2);color:#fda4af;border:1px solid rgba(239,68,68,.5);}",
+      "[" + ROOT_ATTR + "] .md-tag-uncertain{background:rgba(251,191,36,.2);color:#fde68a;border:1px solid rgba(251,191,36,.5);}",
       "[" + ROOT_ATTR + "] button{border:1px solid #475569;border-radius:6px;padding:6px 8px;background:#1e293b;color:#e2e8f0;font-size:12px;cursor:pointer;}",
       "[" + ROOT_ATTR + "] button:hover{background:#334155;}",
       "[" + ROOT_ATTR + "] button:disabled{opacity:.55;cursor:not-allowed;}",
@@ -132,6 +142,7 @@
       "[" + ROOT_ATTR + "] .asc-magic-data-review-resize-handle:hover{background:rgba(91,140,255,.25);}",
       "[" + ROOT_ATTR + "] .md-empty{font-size:12px;color:#94a3b8;}",
       "body." + RESIZE_BODY_CLASS + "{user-select:none!important;cursor:ns-resize!important;}",
+      "@media (max-width: 980px){[" + ROOT_ATTR + "] .md-split{grid-template-columns:1fr;}}",
       "@media (max-width: 900px){[" + ROOT_ATTR + "] .md-inline-buttons{grid-template-columns:repeat(2,minmax(0,1fr));}}",
     ].join("");
     (document.head || document.documentElement).appendChild(style);
@@ -395,6 +406,7 @@
 
     function getDialectFillText() {
       const text =
+        latestResult?.dialectTextCheck?.suggestedValue ||
         latestResult?.recommendations?.dialectText ||
         latestResult?.comparison?.dialectLine?.recommendedText ||
         latestResult?.listen?.heardDialectText ||
@@ -405,6 +417,7 @@
 
     function getMandarinFillText() {
       const text =
+        latestResult?.mandarinTextCheck?.suggestedValue ||
         latestResult?.recommendations?.mandarinText ||
         latestResult?.comparison?.mandarinLine?.recommendedText ||
         latestResult?.listen?.heardMandarinMeaning ||
@@ -447,8 +460,10 @@
       const rows = [
         ["taskItemId", latestSnapshot.taskItemId || "-"],
         ["有效句子时长", toSecondsText(latestSnapshot.effectiveTime)],
+        ["句子总时长", toSecondsText(latestSnapshot.totalLengthTime)],
         ["预计金额", runtimeSettings.showEstimatedIncome === false || estimatedIncome === null ? "已隐藏" : formatNumber(estimatedIncome, 4) + " 元"],
         ["音频 hostname", latestSnapshot.audioHostname || "未获取"],
+        ["说话人编号", speaker.speakId || "-"],
         ["性别", speaker.gender || "-"],
         ["年龄", speaker.ageRange || "-"],
         ["后端", latestBackend?.baseUrl || "-"],
@@ -494,6 +509,36 @@
       return value.length > 0 ? value.join("；") : "-";
     }
 
+    function renderCorrectTag(value) {
+      if (value === true) {
+        return '<span class="md-tag md-tag-ok">正确</span>';
+      }
+      if (value === false) {
+        return '<span class="md-tag md-tag-bad">错误</span>';
+      }
+      return '<span class="md-tag md-tag-uncertain">待复核</span>';
+    }
+
+    function createCheckGrid(rows) {
+      const grid = document.createElement("div");
+      grid.className = "md-check-grid";
+      rows.forEach(function (row) {
+        const key = document.createElement("div");
+        key.className = "md-k";
+        key.textContent = row[0];
+        const value = document.createElement("div");
+        value.className = "md-v";
+        if (row[2] === true) {
+          value.innerHTML = row[1];
+        } else {
+          value.textContent = row[1];
+        }
+        grid.appendChild(key);
+        grid.appendChild(value);
+      });
+      return grid;
+    }
+
     function renderResult(data) {
       latestResult = data || null;
       if (!resultNode) {
@@ -510,37 +555,72 @@
       }
 
       const audioCheck = data.audioCheck || {};
-      const textRuleCheck = data.textRuleCheck || {};
       const timing = data.timing || {};
       const showHeardText = runtimeSettings.showHeardText !== false;
-      const rows = [
-        ["总结论", resolveReviewConclusion(data)],
-        ["shouldReview", String(Boolean(data.shouldReview))],
-        ["方言行规则检查", joinIssues(textRuleCheck.dialectIssues)],
-        ["普通话翻译检查", joinIssues(textRuleCheck.mandarinIssues)],
-        ["翻译一致性检查", joinIssues(textRuleCheck.translationConsistencyIssues)],
-        ["正字表检查", joinIssues(textRuleCheck.lexiconIssues)],
-        ["音频有效性检查", joinIssues(audioCheck.riskFlags)],
-        ["性别年龄辅助判断", [audioCheck.genderGuess || "-", audioCheck.ageRangeGuess || "-"].join(" / ")],
-        ["AI 辅助听音（闽南语，仅供参考）", showHeardText ? (audioCheck.heardDialectText || data?.listen?.heardDialectText || "-") : "已关闭显示"],
-        ["AI 辅助听音（普通话理解，仅供参考）", showHeardText ? (audioCheck.heardMandarinMeaning || data?.listen?.heardMandarinMeaning || "-") : "已关闭显示"],
-        ["requestId", data.requestId || "-"],
-        ["模型与耗时", "listen=" + String(data?.models?.listenModel || "-") + " / review=" + String(data?.models?.reviewModel || data?.models?.compareModel || "-") + " / total=" + String(timing.totalDurationMs || 0) + "ms"],
-      ];
+      const speakerCheck = data.speakerCheck || {};
+      const genderCheck = speakerCheck.gender || {};
+      const ageRangeCheck = speakerCheck.ageRange || {};
+      const dialectCheck = data.dialectTextCheck || {};
+      const mandarinCheck = data.mandarinTextCheck || {};
+      const overall = data.overall || {};
 
-      const grid = document.createElement("div");
-      grid.className = "md-inline-grid";
-      rows.forEach(function (row) {
-        const key = document.createElement("div");
-        key.className = "md-k";
-        key.textContent = row[0];
-        const value = document.createElement("div");
-        value.className = "md-v";
-        value.textContent = row[1];
-        grid.appendChild(key);
-        grid.appendChild(value);
-      });
-      resultNode.appendChild(grid);
+      const speakerBlock = document.createElement("div");
+      speakerBlock.className = "md-block";
+      speakerBlock.innerHTML = '<div class="md-check-title">说话人书写</div>';
+      speakerBlock.appendChild(
+        createCheckGrid([
+          ["性别", [renderCorrectTag(genderCheck.isCorrect), "平台：" + normalizeText(genderCheck.platformValue || "-"), "建议：" + normalizeText(genderCheck.suggestedValue || "-"), "置信：" + formatNumber(genderCheck.confidence, 2)].join(" "), true],
+          ["原因", normalizeText(genderCheck.reason || "-")],
+          ["年龄", [renderCorrectTag(ageRangeCheck.isCorrect), "平台：" + normalizeText(ageRangeCheck.platformValue || "-"), "建议：" + normalizeText(ageRangeCheck.suggestedValue || "-"), "置信：" + formatNumber(ageRangeCheck.confidence, 2)].join(" "), true],
+          ["原因", normalizeText(ageRangeCheck.reason || "-")],
+        ])
+      );
+      resultNode.appendChild(speakerBlock);
+
+      const dialectBlock = document.createElement("div");
+      dialectBlock.className = "md-block";
+      dialectBlock.innerHTML = '<div class="md-check-title">闽南语内容</div>';
+      dialectBlock.appendChild(
+        createCheckGrid([
+          ["是否正确", renderCorrectTag(dialectCheck.isCorrect), true],
+          ["平台文本", normalizeText(dialectCheck.platformValue || latestSnapshot.platformDialectText || "-")],
+          ["AI 建议", normalizeText(dialectCheck.suggestedValue || "-")],
+          ["原因", normalizeText(dialectCheck.reason || "-")],
+          ["置信度", formatNumber(dialectCheck.confidence, 2)],
+        ])
+      );
+      resultNode.appendChild(dialectBlock);
+
+      const mandarinBlock = document.createElement("div");
+      mandarinBlock.className = "md-block";
+      mandarinBlock.innerHTML = '<div class="md-check-title">普通话文本</div>';
+      mandarinBlock.appendChild(
+        createCheckGrid([
+          ["是否正确", renderCorrectTag(mandarinCheck.isCorrect), true],
+          ["平台文本", normalizeText(mandarinCheck.platformValue || latestSnapshot.platformMandarinText || "-")],
+          ["AI 建议", normalizeText(mandarinCheck.suggestedValue || "-")],
+          ["原因", normalizeText(mandarinCheck.reason || "-")],
+          ["置信度", formatNumber(mandarinCheck.confidence, 2)],
+        ])
+      );
+      resultNode.appendChild(mandarinBlock);
+
+      const overallBlock = document.createElement("div");
+      overallBlock.className = "md-block";
+      overallBlock.innerHTML = '<div class="md-check-title">总结论</div>';
+      overallBlock.appendChild(
+        createCheckGrid([
+          ["结论", resolveReviewConclusion({ reviewConclusion: overall.reviewConclusion || data.reviewConclusion })],
+          ["需人工复核", String(overall.shouldReview === true || data.shouldReview === true)],
+          ["摘要", normalizeText(overall.summary || data?.recommendations?.summary || "-")],
+          ["听音(闽南语)", showHeardText ? normalizeText(audioCheck.heardDialectText || data?.listen?.heardDialectText || "-") : "已关闭显示"],
+          ["听音(普通话)", showHeardText ? normalizeText(audioCheck.heardMandarinMeaning || data?.listen?.heardMandarinMeaning || "-") : "已关闭显示"],
+          ["requestId", normalizeText(data.requestId || "-")],
+          ["模型与耗时", "listen=" + String(data?.models?.listenModel || "-") + " / review=" + String(data?.models?.reviewModel || data?.models?.compareModel || "-") + " / total=" + String(timing.totalDurationMs || 0) + "ms"],
+        ])
+      );
+      resultNode.appendChild(overallBlock);
+
       refreshButtons();
     }
 
@@ -835,6 +915,13 @@
       bodyScrollNode = document.createElement("div");
       bodyScrollNode.className = "asc-magic-data-review-body";
 
+      const split = document.createElement("div");
+      split.className = "md-split";
+      const leftCol = document.createElement("div");
+      leftCol.className = "md-col md-col-left";
+      const rightCol = document.createElement("div");
+      rightCol.className = "md-col md-col-right";
+
       const summaryBlock = document.createElement("div");
       summaryBlock.className = "md-block";
       const summaryTitle = document.createElement("div");
@@ -844,18 +931,18 @@
       summaryNode.className = "md-inline-grid";
       summaryBlock.appendChild(summaryTitle);
       summaryBlock.appendChild(summaryNode);
-      bodyScrollNode.appendChild(summaryBlock);
+      leftCol.appendChild(summaryBlock);
 
       const platformBlock = document.createElement("div");
       platformBlock.className = "md-block";
       const platformTitle = document.createElement("div");
       platformTitle.className = "md-block-title";
-      platformTitle.textContent = "平台文本";
+      platformTitle.textContent = "平台文本与说话人";
       platformNode = document.createElement("div");
       platformNode.className = "md-inline-grid";
       platformBlock.appendChild(platformTitle);
       platformBlock.appendChild(platformNode);
-      bodyScrollNode.appendChild(platformBlock);
+      leftCol.appendChild(platformBlock);
 
       const actions = document.createElement("div");
       actions.className = "md-inline-buttons";
@@ -882,27 +969,31 @@
       actions.appendChild(buttons.fillDialect);
       actions.appendChild(buttons.fillMandarin);
       actions.appendChild(buttons.ignore);
-      bodyScrollNode.appendChild(actions);
+      rightCol.appendChild(actions);
 
       messageNode = document.createElement("div");
       messageNode.className = "md-message";
       messageNode.textContent = "就绪。";
-      bodyScrollNode.appendChild(messageNode);
+      rightCol.appendChild(messageNode);
 
       const resultBlock = document.createElement("div");
       resultBlock.className = "md-block";
       const resultTitle = document.createElement("div");
       resultTitle.className = "md-block-title";
-      resultTitle.textContent = "AI 质检结果";
+      resultTitle.textContent = "三项预测质检结果";
       resultNode = document.createElement("div");
       resultBlock.appendChild(resultTitle);
       resultBlock.appendChild(resultNode);
-      bodyScrollNode.appendChild(resultBlock);
+      rightCol.appendChild(resultBlock);
 
       const safe = document.createElement("div");
       safe.className = "md-safe";
       safe.textContent = "AI 仅辅助复核，不会自动保存、提交、审核或领取任务。";
-      bodyScrollNode.appendChild(safe);
+      rightCol.appendChild(safe);
+
+      split.appendChild(leftCol);
+      split.appendChild(rightCol);
+      bodyScrollNode.appendChild(split);
 
       root.appendChild(bodyScrollNode);
 

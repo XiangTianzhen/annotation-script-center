@@ -24,3 +24,11 @@
 1. 先看 `01-welcome.md` 了解壳层与路由。
 2. 再看 `02~04`（标注链路）与 `05~07`（审核链路）。
 3. 需要接口细节时联读 `../network/`。
+
+## 说话人属性选择器补充（2026-05-23）
+
+- 说话人属性区域关键锚点：`.speaker-attributes`（或包含标题“说话人属性”的表单容器）。
+- 性别、年龄读取只允许读取“已选 radio”：
+  - `.el-form-item`（label=性别/年龄）内 `.el-radio.is-checked input.el-radio__original`
+  - 备选：`[role="radio"][aria-checked="true"]`
+- 禁止通过容器 `textContent` 是否包含“男/女/年龄段”来判断选中项。

@@ -23,7 +23,17 @@
 - `two_stage + fun-asr`：Fun-ASR 听音 + compare 模型复核。
 - `two_stage + Qwen Omni`：Qwen Omni 听音 + compare 模型复核。
 - `omni_single + Qwen Omni`：单模型完成听音与两行文本复核。
-- 输出结构兼容 Magic Data 面板字段：`recommendations.*`、`audioCheck.*`、`textRuleCheck.*`，并保留 `listen/comparison/verdict` legacy 字段。
+- 输出结构以“三项预测质检”为主：
+  - `speakerCheck`（性别/年龄）
+  - `dialectTextCheck`（闽南语文本）
+  - `mandarinTextCheck`（普通话文本）
+  - `overall`（结论/摘要）
+- 同时兼容 Magic Data 旧面板字段：`recommendations.*`、`audioCheck.*`、`textRuleCheck.*`，并保留 `listen/comparison/verdict` legacy 字段。
+
+## 说话人数据来源
+
+- 优先读取 `annotateDetailInfo` 的 `base_speak + mark_info[].speak_people` 映射关系。
+- 前端 DOM fallback 仅允许读取已选 radio（`.el-radio.is-checked` 或 `aria-checked=true`），避免通过选项文本误判。
 
 ## 词表与环境变量
 
