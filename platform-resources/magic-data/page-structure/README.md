@@ -45,11 +45,14 @@
   - `.speaker-options-group-bg .el-radio.is-checked input.el-radio__original`
 - 页面可能存在重复 id（如 `#EasyEditableDiv`），禁止将该 id 作为唯一定位依据。
 
-## 闽南语助手左侧挂载补充（2026-05-23）
+## 闽南语助手说话人建议插入补充（2026-05-23）
 
-- 左侧基础信息建议挂载在 `.speaker-attributes` 后方，且保持在同一个 `.grid-content` 容器中。
-- 推荐路径：
-  - `const speaker = document.querySelector(".speaker-attributes")`
-  - `const grid = speaker.closest(".grid-content")`
-  - 在 `grid` 内 `speaker.after(sideInfoRoot)`
-- 若 `.speaker-attributes` 缺失，可回退到 `.el-col.el-col-7 .grid-content` 末尾。
+- 闽南语助手不再创建左侧独立大摘要框。
+- 说话人建议直接插入平台原生表单项：
+  - 根容器：`.speaker-attributes`
+  - 字段项：`.el-form-item`
+  - 字段 label：`label.el-form-item__label`（文本为 `性别` / `年龄`）
+- 建议块插入位置：
+  - 在对应 `.el-form-item` 内，优先追加到 `.el-form-item__content` 之后。
+  - 建议块属性：`data-asc-magic-data-minnan-speaker-suggestion="性别|年龄"`
+- 正确项仅显示 `AI建议：正确`；需改项显示建议值 + 填入按钮。
