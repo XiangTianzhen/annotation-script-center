@@ -13,6 +13,8 @@
 - `05-check-task.md`：审核任务页 `#/checkTask`
 - `06-check-task-detail.md`：审核任务详情页 `#/checkdata/taskDetail`
 - `07-asrmark-check.md`：审核单条页 `#/asrmarkCheck`
+- `08-devtools-readonly-check-2026-05-24.md`：闽南语助手只读排查记录（首次排查口径）
+- `09-playwright-edge-readonly-retest-2026-05-24.md`：Playwright-Edge 仅交互复测清单（扩展已挂载、按钮可点性、折叠回收与 hover 闪烁复测）
 
 ## 证据等级说明
 
