@@ -1,7 +1,9 @@
 (function () {
   const ROOT_ATTR = "data-asc-magic-data-minnan-review-inline";
   const STYLE_ATTR = "data-asc-magic-data-minnan-review-inline-style";
-  const INCOME_PER_EFFECTIVE_HOUR = 120;
+  const SIDE_INFO_ATTR = "data-asc-magic-data-minnan-side-info";
+  const INLINE_SUGGESTION_ATTR = "data-asc-magic-data-minnan-inline-suggestion";
+  const RAW_MODAL_ATTR = "data-asc-magic-data-minnan-raw-modal";
   const PANEL_HEIGHT_STORAGE_KEY = "scriptCenter.magicDataMinnanAssistant.panelHeight";
   const DEFAULT_PANEL_HEIGHT = 420;
   const MIN_PANEL_HEIGHT = 260;
@@ -27,14 +29,6 @@
   function toSecondsText(value) {
     const numericValue = Number(value);
     return Number.isFinite(numericValue) ? formatNumber(numericValue, 3) + "s" : "-";
-  }
-
-  function calcEstimatedIncome(effectiveTime) {
-    const seconds = Number(effectiveTime);
-    if (!Number.isFinite(seconds) || seconds < 0) {
-      return null;
-    }
-    return (seconds / 3600) * INCOME_PER_EFFECTIVE_HOUR;
   }
 
   function copyText(text) {
@@ -115,11 +109,7 @@
       "[" + ROOT_ATTR + "] .md-inline-title{font-size:13px;font-weight:700;color:#f8fafc;}",
       "[" + ROOT_ATTR + "] .md-inline-sub{font-size:12px;color:#94a3b8;margin-top:2px;line-height:1.45;}",
       "[" + ROOT_ATTR + "] .md-inline-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}",
-      "[" + ROOT_ATTR + "] .asc-magic-data-review-body{flex:1;min-height:0;overflow:hidden;padding-right:2px;}",
-      "[" + ROOT_ATTR + "] .md-split{display:grid;grid-template-columns:minmax(280px,36%) minmax(0,1fr);gap:10px;height:100%;min-height:0;}",
-      "[" + ROOT_ATTR + "] .md-col{min-height:0;overflow:auto;}",
-      "[" + ROOT_ATTR + "] .md-col-left{padding-right:2px;}",
-      "[" + ROOT_ATTR + "] .md-col-right{padding-right:2px;}",
+      "[" + ROOT_ATTR + "] .asc-magic-data-review-body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:2px;}",
       "[" + ROOT_ATTR + "] .md-inline-grid{display:grid;grid-template-columns:92px 1fr;gap:3px 8px;font-size:12px;line-height:1.45;}",
       "[" + ROOT_ATTR + "] .md-k{color:#94a3b8;font-weight:700;}",
       "[" + ROOT_ATTR + "] .md-v{white-space:pre-wrap;word-break:break-word;}",
@@ -141,8 +131,23 @@
       "[" + ROOT_ATTR + "] .asc-magic-data-review-resize-handle{height:8px;flex:0 0 auto;margin-top:8px;border-top:1px solid rgba(91,140,255,.25);background:rgba(148,163,184,.12);cursor:ns-resize;}",
       "[" + ROOT_ATTR + "] .asc-magic-data-review-resize-handle:hover{background:rgba(91,140,255,.25);}",
       "[" + ROOT_ATTR + "] .md-empty{font-size:12px;color:#94a3b8;}",
+      "[" + SIDE_INFO_ATTR + "]{margin-top:8px;display:flex;flex-direction:column;gap:8px;}",
+      "[" + SIDE_INFO_ATTR + "] .asc-md-minnan-side-box{border:1px solid rgba(91,140,255,.45);border-radius:6px;background:rgba(15,23,42,.92);padding:8px;color:#e5e7eb;font-family:'Microsoft YaHei',sans-serif;font-size:12px;line-height:1.45;}",
+      "[" + SIDE_INFO_ATTR + "] .asc-md-minnan-side-title{font-size:12px;font-weight:700;color:#dbeafe;margin-bottom:6px;}",
+      "[" + SIDE_INFO_ATTR + "] .asc-md-minnan-side-grid{display:grid;grid-template-columns:88px 1fr;gap:4px 8px;}",
+      "[" + INLINE_SUGGESTION_ATTR + "]{margin-top:6px;border:1px solid #475569;border-radius:6px;background:rgba(15,23,42,.8);padding:6px;}",
+      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px;}",
+      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-title{font-weight:700;color:#bfdbfe;font-size:12px;}",
+      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-meta{font-size:11px;color:#93c5fd;}",
+      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-text{font-size:12px;color:#e2e8f0;white-space:pre-wrap;word-break:break-word;margin-bottom:4px;}",
+      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-reason{font-size:11px;color:#94a3b8;white-space:pre-wrap;word-break:break-word;}",
+      "[" + RAW_MODAL_ATTR + "]{position:fixed;inset:0;background:rgba(2,6,23,.72);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;}",
+      "[" + RAW_MODAL_ATTR + "] .asc-md-minnan-raw-dialog{width:min(920px,96vw);max-height:86vh;display:flex;flex-direction:column;border:1px solid #334155;border-radius:8px;background:#0f172a;color:#e5e7eb;}",
+      "[" + RAW_MODAL_ATTR + "] .asc-md-minnan-raw-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;border-bottom:1px solid #334155;}",
+      "[" + RAW_MODAL_ATTR + "] .asc-md-minnan-raw-title{font-size:13px;font-weight:700;color:#dbeafe;}",
+      "[" + RAW_MODAL_ATTR + "] .asc-md-minnan-raw-actions{display:flex;gap:6px;}",
+      "[" + RAW_MODAL_ATTR + "] textarea{width:100%;height:60vh;border:none;outline:none;resize:none;padding:10px;background:#020617;color:#e2e8f0;font-size:12px;line-height:1.4;}",
       "body." + RESIZE_BODY_CLASS + "{user-select:none!important;cursor:ns-resize!important;}",
-      "@media (max-width: 980px){[" + ROOT_ATTR + "] .md-split{grid-template-columns:1fr;}}",
       "@media (max-width: 900px){[" + ROOT_ATTR + "] .md-inline-buttons{grid-template-columns:repeat(2,minmax(0,1fr));}}",
     ].join("");
     (document.head || document.documentElement).appendChild(style);
@@ -229,7 +234,6 @@
       reviewModel: "qwen3.5-plus",
       reviewMode: "rule_first",
       showHeardText: true,
-      showEstimatedIncome: true,
       enableThinking: false,
       aiReviewListenPrompt: "",
       aiReviewComparePrompt: "",
@@ -247,9 +251,12 @@
     let bodyScrollNode = null;
     let resizeHandleNode = null;
     let messageNode = null;
-    let summaryNode = null;
-    let platformNode = null;
+    let sideInfoRoot = null;
+    let sideSummaryNode = null;
+    let sidePlatformNode = null;
     let resultNode = null;
+    let rawOutputModal = null;
+    let rawOutputTextArea = null;
     let loading = false;
     let latestSnapshot = {};
     let latestBackend = null;
@@ -264,8 +271,7 @@
       refresh: null,
       review: null,
       copySummary: null,
-      fillDialect: null,
-      fillMandarin: null,
+      showRawOutput: null,
       ignore: null,
       resetHeight: null,
     };
@@ -359,8 +365,6 @@
 
     function refreshButtons() {
       const hasResult = Boolean(latestResult);
-      const dialectText = getDialectFillText();
-      const mandarinText = getMandarinFillText();
       if (buttons.review) {
         buttons.review.disabled = loading;
         buttons.review.textContent = loading ? "AI 质检当前条（执行中）" : "AI 质检当前条";
@@ -371,11 +375,8 @@
       if (buttons.copySummary) {
         buttons.copySummary.disabled = loading || !hasResult;
       }
-      if (buttons.fillDialect) {
-        buttons.fillDialect.disabled = loading || !dialectText;
-      }
-      if (buttons.fillMandarin) {
-        buttons.fillMandarin.disabled = loading || !mandarinText;
+      if (buttons.showRawOutput) {
+        buttons.showRawOutput.disabled = loading || !hasResult;
       }
       if (buttons.ignore) {
         buttons.ignore.disabled = loading || !hasResult;
@@ -445,30 +446,115 @@
       return segments.join("\n");
     }
 
+    function findSideInfoMountTarget() {
+      const speakerCard = document.querySelector(".speaker-attributes");
+      if (speakerCard) {
+        return { anchor: speakerCard, mode: "after" };
+      }
+      const speakerTitle = Array.from(document.querySelectorAll(".el-form-item__label")).find(function (node) {
+        return normalizeText(node?.textContent || "") === "说话人属性";
+      });
+      if (speakerTitle) {
+        const formItem = speakerTitle.closest(".el-form-item");
+        if (formItem) {
+          return { anchor: formItem, mode: "after" };
+        }
+        const column = speakerTitle.closest(".el-col.el-col-7, .el-col, .grid-content");
+        if (column) {
+          return { anchor: column, mode: "append" };
+        }
+      }
+      return null;
+    }
+
+    function ensureSideInfoRoot() {
+      if (sideInfoRoot && document.documentElement.contains(sideInfoRoot)) {
+        return sideInfoRoot;
+      }
+      const existing = document.querySelector("[" + SIDE_INFO_ATTR + "]");
+      if (existing && existing instanceof HTMLElement) {
+        existing.remove();
+      }
+      const target = findSideInfoMountTarget();
+      if (!target || !(target.anchor instanceof HTMLElement)) {
+        if (typeof console !== "undefined" && typeof console.debug === "function") {
+          console.debug("[MagicData][Minnan] side info target not found, fallback to panel");
+        }
+      }
+      sideInfoRoot = document.createElement("section");
+      sideInfoRoot.setAttribute(SIDE_INFO_ATTR, "true");
+
+      const summaryBox = document.createElement("div");
+      summaryBox.className = "asc-md-minnan-side-box";
+      const summaryTitle = document.createElement("div");
+      summaryTitle.className = "asc-md-minnan-side-title";
+      summaryTitle.textContent = "当前条摘要";
+      sideSummaryNode = document.createElement("div");
+      sideSummaryNode.className = "asc-md-minnan-side-grid";
+      summaryBox.appendChild(summaryTitle);
+      summaryBox.appendChild(sideSummaryNode);
+
+      const platformBox = document.createElement("div");
+      platformBox.className = "asc-md-minnan-side-box";
+      const platformTitle = document.createElement("div");
+      platformTitle.className = "asc-md-minnan-side-title";
+      platformTitle.textContent = "平台文本";
+      sidePlatformNode = document.createElement("div");
+      sidePlatformNode.className = "asc-md-minnan-side-grid";
+      platformBox.appendChild(platformTitle);
+      platformBox.appendChild(sidePlatformNode);
+
+      sideInfoRoot.appendChild(summaryBox);
+      sideInfoRoot.appendChild(platformBox);
+
+      if (target && target.mode === "after" && target.anchor.parentElement) {
+        if (typeof target.anchor.after === "function") {
+          target.anchor.after(sideInfoRoot);
+        } else {
+          target.anchor.parentElement.insertBefore(sideInfoRoot, target.anchor.nextSibling);
+        }
+      } else if (target && target.anchor) {
+        target.anchor.appendChild(sideInfoRoot);
+      } else if (root) {
+        root.insertBefore(sideInfoRoot, root.firstChild);
+      } else {
+        (document.body || document.documentElement).appendChild(sideInfoRoot);
+      }
+      return sideInfoRoot;
+    }
+
+    function removeSideInfoRoot() {
+      if (sideInfoRoot) {
+        sideInfoRoot.remove();
+      }
+      sideInfoRoot = null;
+      sideSummaryNode = null;
+      sidePlatformNode = null;
+    }
+
     function renderSummary(snapshot, backend) {
       latestSnapshot = snapshot || latestSnapshot || {};
       if (backend) {
         latestBackend = backend;
       }
-      if (!summaryNode) {
+      if (!sideSummaryNode) {
+        ensureSideInfoRoot();
+      }
+      if (!sideSummaryNode) {
         return;
       }
-      const estimatedIncome = Number.isFinite(Number(latestResult?.estimatedIncome))
-        ? Number(latestResult.estimatedIncome)
-        : calcEstimatedIncome(latestSnapshot.effectiveTime);
       const speaker = latestSnapshot.speaker || {};
       const rows = [
         ["taskItemId", latestSnapshot.taskItemId || "-"],
         ["有效句子时长", toSecondsText(latestSnapshot.effectiveTime)],
         ["句子总时长", toSecondsText(latestSnapshot.totalLengthTime)],
-        ["预计金额", runtimeSettings.showEstimatedIncome === false || estimatedIncome === null ? "已隐藏" : formatNumber(estimatedIncome, 4) + " 元"],
         ["音频 hostname", latestSnapshot.audioHostname || "未获取"],
         ["说话人编号", speaker.speakId || "-"],
         ["性别", speaker.gender || "-"],
         ["年龄", speaker.ageRange || "-"],
         ["后端", latestBackend?.baseUrl || "-"],
       ];
-      summaryNode.innerHTML = "";
+      sideSummaryNode.innerHTML = "";
       rows.forEach(function (row) {
         const key = document.createElement("div");
         key.className = "md-k";
@@ -476,20 +562,27 @@
         const value = document.createElement("div");
         value.className = "md-v";
         value.textContent = row[1];
-        summaryNode.appendChild(key);
-        summaryNode.appendChild(value);
+        sideSummaryNode.appendChild(key);
+        sideSummaryNode.appendChild(value);
       });
     }
 
     function renderPlatform(snapshot) {
-      if (!platformNode) {
+      if (!sidePlatformNode) {
+        ensureSideInfoRoot();
+      }
+      if (!sidePlatformNode) {
         return;
       }
+      const speaker = snapshot?.speaker || {};
       const rows = [
+        ["说话人编号", speaker.speakId || "-"],
+        ["性别", speaker.gender || "-"],
+        ["年龄", speaker.ageRange || "-"],
         ["平台方言行", snapshot?.platformDialectText || "未读取到平台文本"],
         ["平台普通话行", snapshot?.platformMandarinText || "未读取到平台文本"],
       ];
-      platformNode.innerHTML = "";
+      sidePlatformNode.innerHTML = "";
       rows.forEach(function (row) {
         const key = document.createElement("div");
         key.className = "md-k";
@@ -497,8 +590,8 @@
         const value = document.createElement("div");
         value.className = "md-v";
         value.textContent = row[1];
-        platformNode.appendChild(key);
-        platformNode.appendChild(value);
+        sidePlatformNode.appendChild(key);
+        sidePlatformNode.appendChild(value);
       });
     }
 
@@ -539,6 +632,237 @@
       return grid;
     }
 
+    function sanitizeDebugText(value) {
+      return String(value || "")
+        .replace(/https?:\/\/([^\s"'?]+)\?[^ \n\r"']+/gi, "https://$1?<signed-query-redacted>")
+        .replace(/(authorization|cookie|token|signature|ossaccesskeyid)\s*[:=]\s*([^\s,;]+)/gi, "$1=<redacted>");
+    }
+
+    function sanitizeDebugValue(value) {
+      if (value === undefined || value === null) {
+        return value;
+      }
+      if (typeof value === "string") {
+        return sanitizeDebugText(value);
+      }
+      if (Array.isArray(value)) {
+        return value.map(sanitizeDebugValue);
+      }
+      if (typeof value === "object") {
+        const next = {};
+        Object.keys(value).forEach(function (key) {
+          const lower = String(key || "").toLowerCase();
+          if (
+            lower.indexOf("authorization") >= 0 ||
+            lower.indexOf("cookie") >= 0 ||
+            lower.indexOf("token") >= 0 ||
+            lower.indexOf("signature") >= 0 ||
+            lower.indexOf("ossaccesskeyid") >= 0
+          ) {
+            next[key] = "<redacted>";
+          } else {
+            next[key] = sanitizeDebugValue(value[key]);
+          }
+        });
+        return next;
+      }
+      return value;
+    }
+
+    function closeRawOutputModal() {
+      if (rawOutputModal) {
+        rawOutputModal.remove();
+      }
+      rawOutputModal = null;
+      rawOutputTextArea = null;
+    }
+
+    function buildRawOutputPayload() {
+      const rawPayload = {
+        requestId: latestResult?.requestId || "",
+        models: latestResult?.models || {},
+        timing: latestResult?.timing || {},
+        pipeline: {
+          recognitionMode: latestResult?.recognitionMode || "",
+          pipelineMode: latestResult?.pipelineMode || "",
+          derivedPipelineMode: latestResult?.derivedPipelineMode || "",
+        },
+        rawAiDebug: latestResult?.rawAiDebug || null,
+        rawModelText: latestResult?.rawModelText || null,
+        rawJson: latestResult?.rawJson || null,
+        normalizedResult: latestResult || {},
+      };
+      return sanitizeDebugValue(rawPayload);
+    }
+
+    function openRawOutputModal() {
+      if (!latestResult) {
+        setMessage("暂无可查看的 AI 原始输出。");
+        return;
+      }
+      closeRawOutputModal();
+      const overlay = document.createElement("div");
+      overlay.setAttribute(RAW_MODAL_ATTR, "true");
+      const dialog = document.createElement("div");
+      dialog.className = "asc-md-minnan-raw-dialog";
+      const head = document.createElement("div");
+      head.className = "asc-md-minnan-raw-head";
+      const title = document.createElement("div");
+      title.className = "asc-md-minnan-raw-title";
+      title.textContent = "AI 原始输出（脱敏）";
+      const actions = document.createElement("div");
+      actions.className = "asc-md-minnan-raw-actions";
+      const copyBtn = createButton("复制");
+      copyBtn.addEventListener("click", function () {
+        copyText(rawOutputTextArea?.value || "")
+          .then(function () {
+            setMessage("已复制 AI 原始输出。");
+          })
+          .catch(function (error) {
+            setMessage(error?.message || "复制失败。");
+          });
+      });
+      const closeBtn = createButton("关闭");
+      closeBtn.addEventListener("click", closeRawOutputModal);
+      actions.appendChild(copyBtn);
+      actions.appendChild(closeBtn);
+      head.appendChild(title);
+      head.appendChild(actions);
+      const textarea = document.createElement("textarea");
+      textarea.readOnly = true;
+      textarea.value = JSON.stringify(buildRawOutputPayload(), null, 2);
+      rawOutputTextArea = textarea;
+      dialog.appendChild(head);
+      dialog.appendChild(textarea);
+      overlay.appendChild(dialog);
+      overlay.addEventListener("click", function (event) {
+        if (event.target === overlay) {
+          closeRawOutputModal();
+        }
+      });
+      (document.body || document.documentElement).appendChild(overlay);
+      rawOutputModal = overlay;
+    }
+
+    function findCurrentRegionRoot() {
+      const preferredRegionId = normalizeText(
+        latestSnapshot?.regionId || latestSnapshot?.segmentId || latestSnapshot?.dataItemId || ""
+      );
+      if (preferredRegionId) {
+        const matched = document.querySelector(
+          '.region-item[region_id="' + preferredRegionId.replace(/"/g, '\\"') + '"]'
+        );
+        if (matched instanceof HTMLElement) {
+          return matched;
+        }
+      }
+      const visibleRegions = Array.from(document.querySelectorAll(".region-item")).filter(function (node) {
+        return node.getClientRects().length > 0;
+      });
+      if (visibleRegions.length === 0) {
+        return null;
+      }
+      const withEditableRows = visibleRegions.find(function (region) {
+        const editableRows = Array.from(
+          region.querySelectorAll(".edit.region-edit[contenteditable='true']")
+        );
+        return editableRows.some(function (row) {
+          const idx = String(row.getAttribute("data-index") || row.getAttribute("alt") || "").trim();
+          return idx === "0";
+        }) && editableRows.some(function (row) {
+          const idx = String(row.getAttribute("data-index") || row.getAttribute("alt") || "").trim();
+          return idx === "1";
+        });
+      });
+      return withEditableRows || visibleRegions[0];
+    }
+
+    function findRowEditorByIndex(indexValue) {
+      const region = findCurrentRegionRoot();
+      if (!region) {
+        return null;
+      }
+      const rows = Array.from(region.querySelectorAll(".speak-item"));
+      const matched = rows.find(function (row) {
+        const editor = row.querySelector(".edit.region-edit[contenteditable='true']");
+        const indexText = String(
+          editor?.getAttribute("data-index") ||
+            row.getAttribute("data-index") ||
+            editor?.getAttribute("alt") ||
+            row.getAttribute("alt") ||
+            ""
+        ).trim();
+        return indexText === String(indexValue);
+      });
+      return matched ? matched.querySelector(".edit.region-edit[contenteditable='true']") : null;
+    }
+
+    function fillInlineEditor(editor, text) {
+      if (!(editor instanceof HTMLElement)) {
+        return { ok: false, message: "未定位到对应文本行。"};
+      }
+      editor.focus();
+      editor.textContent = normalizeText(text);
+      editor.dispatchEvent(new Event("input", { bubbles: true }));
+      editor.dispatchEvent(new Event("change", { bubbles: true }));
+      return { ok: true, message: "已填入本行，未保存、未提交，请人工确认。" };
+    }
+
+    function clearInlineSuggestionBlocks() {
+      Array.from(document.querySelectorAll("[" + INLINE_SUGGESTION_ATTR + "]")).forEach(function (node) {
+        node.remove();
+      });
+    }
+
+    function createInlineSuggestionBlock(type, checkData) {
+      const block = document.createElement("div");
+      block.setAttribute(INLINE_SUGGESTION_ATTR, type);
+      const head = document.createElement("div");
+      head.className = "asc-md-minnan-inline-head";
+      const title = document.createElement("div");
+      title.className = "asc-md-minnan-inline-title";
+      title.textContent = "AI 建议";
+      const meta = document.createElement("div");
+      meta.className = "asc-md-minnan-inline-meta";
+      meta.innerHTML = renderCorrectTag(checkData?.isCorrect) + " 置信:" + formatNumber(checkData?.confidence, 2);
+      head.appendChild(title);
+      head.appendChild(meta);
+      const text = document.createElement("div");
+      text.className = "asc-md-minnan-inline-text";
+      text.textContent = normalizeText(checkData?.suggestedValue || "暂无建议");
+      const reason = document.createElement("div");
+      reason.className = "asc-md-minnan-inline-reason";
+      reason.textContent = "原因：" + normalizeText(checkData?.reason || "-");
+      const fillBtn = createButton("填入本行");
+      fillBtn.addEventListener("click", function () {
+        const editor = type === "dialect" ? findRowEditorByIndex(0) : findRowEditorByIndex(1);
+        const result = fillInlineEditor(editor, checkData?.suggestedValue || "");
+        setMessage(result.message);
+      });
+      block.appendChild(head);
+      block.appendChild(text);
+      block.appendChild(reason);
+      block.appendChild(fillBtn);
+      return block;
+    }
+
+    function renderInlineSuggestions() {
+      clearInlineSuggestionBlocks();
+      if (!latestResult) {
+        return;
+      }
+      const dialectEditor = findRowEditorByIndex(0);
+      const mandarinEditor = findRowEditorByIndex(1);
+      const dialectContainer = dialectEditor?.closest(".edit-container");
+      const mandarinContainer = mandarinEditor?.closest(".edit-container");
+      if (dialectContainer) {
+        dialectContainer.appendChild(createInlineSuggestionBlock("dialect", latestResult?.dialectTextCheck || {}));
+      }
+      if (mandarinContainer) {
+        mandarinContainer.appendChild(createInlineSuggestionBlock("mandarin", latestResult?.mandarinTextCheck || {}));
+      }
+    }
+
     function renderResult(data) {
       latestResult = data || null;
       if (!resultNode) {
@@ -546,6 +870,7 @@
       }
       resultNode.innerHTML = "";
       if (!data) {
+        clearInlineSuggestionBlocks();
         const emptyNode = document.createElement("div");
         emptyNode.className = "md-empty";
         emptyNode.textContent = "暂无质检结果，请点击 AI 质检当前条。";
@@ -621,6 +946,7 @@
       );
       resultNode.appendChild(overallBlock);
 
+      renderInlineSuggestions();
       refreshButtons();
     }
 
@@ -851,6 +1177,8 @@
 
     function clearResult() {
       latestResult = null;
+      closeRawOutputModal();
+      clearInlineSuggestionBlocks();
       renderResult(null);
       renderSummary(latestSnapshot || {}, latestBackend);
     }
@@ -865,6 +1193,7 @@
     function ensureMounted() {
       if (root && document.documentElement && document.documentElement.contains(root)) {
         ensureRootPlacement(root);
+        ensureSideInfoRoot();
         applyPanelHeight(currentPanelHeight);
         return root;
       }
@@ -915,35 +1244,6 @@
       bodyScrollNode = document.createElement("div");
       bodyScrollNode.className = "asc-magic-data-review-body";
 
-      const split = document.createElement("div");
-      split.className = "md-split";
-      const leftCol = document.createElement("div");
-      leftCol.className = "md-col md-col-left";
-      const rightCol = document.createElement("div");
-      rightCol.className = "md-col md-col-right";
-
-      const summaryBlock = document.createElement("div");
-      summaryBlock.className = "md-block";
-      const summaryTitle = document.createElement("div");
-      summaryTitle.className = "md-block-title";
-      summaryTitle.textContent = "当前条摘要";
-      summaryNode = document.createElement("div");
-      summaryNode.className = "md-inline-grid";
-      summaryBlock.appendChild(summaryTitle);
-      summaryBlock.appendChild(summaryNode);
-      leftCol.appendChild(summaryBlock);
-
-      const platformBlock = document.createElement("div");
-      platformBlock.className = "md-block";
-      const platformTitle = document.createElement("div");
-      platformTitle.className = "md-block-title";
-      platformTitle.textContent = "平台文本与说话人";
-      platformNode = document.createElement("div");
-      platformNode.className = "md-inline-grid";
-      platformBlock.appendChild(platformTitle);
-      platformBlock.appendChild(platformNode);
-      leftCol.appendChild(platformBlock);
-
       const actions = document.createElement("div");
       actions.className = "md-inline-buttons";
       buttons.copySummary = createButton("复制 AI 质检摘要");
@@ -952,13 +1252,9 @@
           setMessage(error?.message || "复制失败。");
         });
       });
-      buttons.fillDialect = createButton("填入第一行");
-      buttons.fillDialect.addEventListener("click", function () {
-        triggerFillDialect();
-      });
-      buttons.fillMandarin = createButton("填入第二行");
-      buttons.fillMandarin.addEventListener("click", function () {
-        triggerFillMandarin();
+      buttons.showRawOutput = createButton("显示 AI 原始输出");
+      buttons.showRawOutput.addEventListener("click", function () {
+        openRawOutputModal();
       });
       buttons.ignore = createButton("忽略结果");
       buttons.ignore.addEventListener("click", function () {
@@ -966,15 +1262,14 @@
         setMessage("已忽略当前 AI 结果。");
       });
       actions.appendChild(buttons.copySummary);
-      actions.appendChild(buttons.fillDialect);
-      actions.appendChild(buttons.fillMandarin);
+      actions.appendChild(buttons.showRawOutput);
       actions.appendChild(buttons.ignore);
-      rightCol.appendChild(actions);
+      bodyScrollNode.appendChild(actions);
 
       messageNode = document.createElement("div");
       messageNode.className = "md-message";
       messageNode.textContent = "就绪。";
-      rightCol.appendChild(messageNode);
+      bodyScrollNode.appendChild(messageNode);
 
       const resultBlock = document.createElement("div");
       resultBlock.className = "md-block";
@@ -984,16 +1279,12 @@
       resultNode = document.createElement("div");
       resultBlock.appendChild(resultTitle);
       resultBlock.appendChild(resultNode);
-      rightCol.appendChild(resultBlock);
+      bodyScrollNode.appendChild(resultBlock);
 
       const safe = document.createElement("div");
       safe.className = "md-safe";
       safe.textContent = "AI 仅辅助复核，不会自动保存、提交、审核或领取任务。";
-      rightCol.appendChild(safe);
-
-      split.appendChild(leftCol);
-      split.appendChild(rightCol);
-      bodyScrollNode.appendChild(split);
+      bodyScrollNode.appendChild(safe);
 
       root.appendChild(bodyScrollNode);
 
@@ -1004,6 +1295,7 @@
       root.appendChild(resizeHandleNode);
 
       mountInlineRoot(root);
+      ensureSideInfoRoot();
       ensurePanelHeightHydrated();
       ensureViewportResizeListener();
       applyPanelHeight(currentPanelHeight);
@@ -1017,9 +1309,12 @@
     function remove() {
       stopResizeDrag(false);
       setResizingActive(false);
+      closeRawOutputModal();
+      clearInlineSuggestionBlocks();
       if (root) {
         root.remove();
       }
+      removeSideInfoRoot();
       root = null;
       bodyScrollNode = null;
       resizeHandleNode = null;
@@ -1028,8 +1323,6 @@
         viewportResizeBound = false;
       }
       messageNode = null;
-      summaryNode = null;
-      platformNode = null;
       resultNode = null;
       latestResult = null;
       latestSnapshot = {};

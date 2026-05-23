@@ -170,6 +170,43 @@ function normalizePromptText(value) {
   return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
 }
 
+function sanitizeDebugText(value) {
+  return String(value || "")
+    .replace(/https?:\/\/([^\s"'?]+)\?[^ \n\r"']+/gi, "https://$1?<signed-query-redacted>")
+    .replace(/(authorization|cookie|token|signature|ossaccesskeyid)\s*[:=]\s*([^\s,;]+)/gi, "$1=<redacted>");
+}
+
+function sanitizeDebugValue(value) {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  if (typeof value === "string") {
+    return sanitizeDebugText(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(sanitizeDebugValue);
+  }
+  if (typeof value === "object") {
+    const next = {};
+    Object.keys(value).forEach(function (key) {
+      const lower = String(key || "").toLowerCase();
+      if (
+        lower.indexOf("authorization") >= 0 ||
+        lower.indexOf("cookie") >= 0 ||
+        lower.indexOf("token") >= 0 ||
+        lower.indexOf("signature") >= 0 ||
+        lower.indexOf("ossaccesskeyid") >= 0
+      ) {
+        next[key] = "<redacted>";
+      } else {
+        next[key] = sanitizeDebugValue(value[key]);
+      }
+    });
+    return next;
+  }
+  return value;
+}
+
 function normalizeStopSequences(value) {
   const source = Array.isArray(value)
     ? value
@@ -934,6 +971,9 @@ async function reviewCurrent(body, requestId) {
     let queueMetaListen = {};
     let queueMetaCompare = {};
     let funAsrMeta = null;
+    const rawModelText = {};
+    const rawJson = {};
+    const rawAiDebugStages = [];
 
     if (normalizedRequest.recognitionMode === "omni_single") {
       const omniPrompt = buildOmniSinglePrompt(normalizedRequest, baseLexiconContext);
@@ -958,6 +998,16 @@ async function reviewCurrent(body, requestId) {
       listenModelRuntime = normalizedRequest.singleModel;
       compareModelRuntime = normalizedRequest.singleModel;
       singleModelRuntime = normalizedRequest.singleModel;
+      rawModelText.omniSingle = sanitizeDebugText(omniResult.rawText || "");
+      rawJson.omniSingle = sanitizeDebugValue(omniJson || null);
+      rawAiDebugStages.push({
+        stage: "omni_single",
+        provider: "qwen_omni",
+        model: omniResult.model || normalizedRequest.singleModel || "",
+        durationMs: compareDurationMs,
+        queueMeta: queuedOmni.queueMeta || {},
+        usage: normalizeUsage(omniResult.usage),
+      });
     } else {
       if (normalizedRequest.listenModel === "fun-asr") {
         const funAsrStartedAt = Date.now();
@@ -976,6 +1026,29 @@ async function reviewCurrent(body, requestId) {
           providerMode: funAsrResult.providerMode || profileConfig.funAsrProvider,
           providerFallbackUsed: funAsrResult.providerFallbackUsed === true,
         };
+        rawModelText.listen = sanitizeDebugValue(
+          funAsrValue.rawText ||
+            funAsrValue.heardText ||
+            funAsrValue.heardDialectText ||
+            ""
+        );
+        rawJson.listen = sanitizeDebugValue(
+          funAsrValue.rawJson || {
+            heardText: funAsrValue.heardText || "",
+            heardDialectText: funAsrValue.heardDialectText || "",
+            heardMandarinMeaning: funAsrValue.heardMandarinMeaning || "",
+            isValidAudio: listen?.isValidAudio !== false,
+          }
+        );
+        rawAiDebugStages.push({
+          stage: "listen",
+          provider: funAsrResult.providerMode || profileConfig.funAsrProvider || "fun-asr",
+          model: profileConfig.funAsrModel || "fun-asr",
+          durationMs: listenDurationMs,
+          queueMeta: funAsrResult.queueMeta || {},
+          fallbackUsed: funAsrResult.providerFallbackUsed === true,
+          usage: normalizeUsage(funAsrValue.usage),
+        });
       } else {
         const listenPrompt = buildListenPrompt(normalizedRequest, baseLexiconContext);
         const listenStartedAt = Date.now();
@@ -994,6 +1067,16 @@ async function reviewCurrent(body, requestId) {
         listen = normalizeListenResponse(listenJson);
         listenUsage = normalizeUsage(listenResult.usage);
         listenModelRuntime = listenResult.model || listenModelRuntime;
+        rawModelText.listen = sanitizeDebugText(listenResult.rawText || "");
+        rawJson.listen = sanitizeDebugValue(listenJson || null);
+        rawAiDebugStages.push({
+          stage: "listen",
+          provider: "qwen_omni",
+          model: listenResult.model || normalizedRequest.listenModel || "",
+          durationMs: listenDurationMs,
+          queueMeta: queuedListen.queueMeta || {},
+          usage: normalizeUsage(listenResult.usage),
+        });
       }
 
       const compareLexiconContext = buildLexiconContext({
@@ -1043,6 +1126,16 @@ async function reviewCurrent(body, requestId) {
       resultNormalized = normalizeRuleFirstComparison(compareJson, normalizedRequest, listen);
       compareUsage = normalizeUsage(compareResult.usage);
       compareModelRuntime = compareResult.model || compareModelRuntime;
+      rawModelText.compare = sanitizeDebugText(compareResult.rawText || "");
+      rawJson.compare = sanitizeDebugValue(compareJson || null);
+      rawAiDebugStages.push({
+        stage: "compare",
+        provider: "text_compare",
+        model: compareResult.model || normalizedRequest.compareModel || "",
+        durationMs: compareDurationMs,
+        queueMeta: queuedCompare.queueMeta || {},
+        usage: normalizeUsage(compareResult.usage),
+      });
 
       if (!listen?.isValidAudio) {
         resultNormalized.reviewConclusion = "risky";
@@ -1137,6 +1230,14 @@ async function reviewCurrent(body, requestId) {
       reason: normalizeText(resultNormalized?.mandarinTextCheck?.reason || ""),
       confidence: Number(resultNormalized?.mandarinTextCheck?.confidence || 0),
     };
+    const rawAiDebug = sanitizeDebugValue({
+      hasRaw:
+        Object.keys(rawModelText).length > 0 ||
+        Object.keys(rawJson).length > 0,
+      recognitionMode: normalizedRequest.recognitionMode,
+      derivedPipelineMode: normalizedRequest.pipelineMode,
+      stages: rawAiDebugStages,
+    });
 
     const responseData = {
       requestId: finalRequestId,
@@ -1230,6 +1331,9 @@ async function reviewCurrent(body, requestId) {
         compareDurationMs: compareDurationMs,
         totalDurationMs: totalDurationMs,
       },
+      rawAiDebug: rawAiDebug,
+      rawModelText: sanitizeDebugValue(rawModelText),
+      rawJson: sanitizeDebugValue(rawJson),
       mock: Boolean(profileConfig.mockEnabled),
       funAsr: funAsrMeta,
       // Legacy compatibility for old panel fields.

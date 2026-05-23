@@ -35,6 +35,14 @@
 - 优先读取 `annotateDetailInfo` 的 `base_speak + mark_info[].speak_people` 映射关系。
 - 前端 DOM fallback 仅允许读取已选 radio（`.el-radio.is-checked` 或 `aria-checked=true`），避免通过选项文本误判。
 
+## 前端展示与交互口径
+
+- 基础信息区（当前条摘要/说话人属性/平台文本）挂载在页面左侧“说话人属性”下方。
+- 右侧 AI 面板仅展示三项质检结果与操作按钮，不再承载基础信息，不再提供“填入第一行/填入第二行”按钮。
+- 闽南语与普通话推荐文本会直接显示在对应原文本行下方，提供“填入本行”按钮；填入后仍需人工保存/提交。
+- 当前条摘要不展示预计金额。
+- 新增“显示 AI 原始输出”按钮，展示脱敏 raw 输出与归一化结果（支持复制）。
+
 ## 词表与环境变量
 
 - 闽南语词表：`backend/lexicon/minnan-lexicon.csv`（不依赖 DataBaker 运行时路径）。

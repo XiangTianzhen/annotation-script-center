@@ -32,3 +32,15 @@
   - `.el-form-item`（label=性别/年龄）内 `.el-radio.is-checked input.el-radio__original`
   - 备选：`[role="radio"][aria-checked="true"]`
 - 禁止通过容器 `textContent` 是否包含“男/女/年龄段”来判断选中项。
+
+## 闽南语文本行结构补充（2026-05-23）
+
+- 当前条文本区域容器：`.region-item[region_id]`。
+- 每一行文本容器：`.speak-item`。
+- 可编辑文本节点：`.edit.region-edit[contenteditable="true"]`。
+- 行索引优先读取 `data-index`，兼容 `alt`：
+  - `0`：闽南语文本行
+  - `1`：普通话文本行
+- 行内说话人选择值可读取：
+  - `.speaker-options-group-bg .el-radio.is-checked input.el-radio__original`
+- 页面可能存在重复 id（如 `#EasyEditableDiv`），禁止将该 id 作为唯一定位依据。

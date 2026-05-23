@@ -1,3 +1,15 @@
+## 2026-05-23（Magic Data 闽南语助手热修：布局与行内推荐优化）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- `extension/sites/magic-data/minnan-helper/assistant-panel.js` 调整为“左侧基础信息 + 右侧 AI 面板”：
+  - 基础信息改为挂载在页面左侧“说话人属性”下方独立容器。
+  - 右侧面板不再展示基础信息与“填入第一行/填入第二行”按钮。
+  - 当前条摘要移除“预计金额”显示。
+- 新增“显示 AI 原始输出”按钮与弹窗，支持复制；展示脱敏后的 `rawAiDebug/rawModelText/rawJson` 与 `normalizedResult`。
+- 新增行内推荐块：在 `.region-item .speak-item` 对应文本行下方展示 AI 建议和“填入本行”按钮，填入后仅写文本并触发输入事件，不自动保存/提交。
+- `platform-resources/magic-data/minnan-helper/backend/ai-service.js` 返回脱敏 raw 调试字段，供前端原始输出弹窗展示。
+- 同步更新 Magic Data 相关 README 与页面结构文档，明确 `.region-item/.speak-item/.edit.region-edit[data-index|alt]` 选择器口径。
+
 ## 2026-05-23（Magic Data 闽南语助手热修：三项预测质检 + 说话人采集修复 + 左右分区）
 
 - 保持版本口径 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
