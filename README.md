@@ -7,7 +7,7 @@
 - 当前阶段：Chrome / Chromium MV3 单源码扩展 + 多平台脚本增强阶段。
 
 * 当前扩展版本：以 `extension/manifest.json` 为准。
-* 当前版本（待发布口径）：`v0.3.7`。
+* 当前版本（待发布口径）：`v0.3.6`。
 * 扩展源码目录：`extension/`（Chrome / Edge 共用同一套运行时代码）。
 * 统一后端入口：`platform-resources/backend/server.js`。
 

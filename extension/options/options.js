@@ -1440,6 +1440,30 @@
     return scriptId === magicDataAnnotatorScriptId || scriptId === magicDataMinnanScriptId;
   }
 
+  function getScriptsByPlatformId(platformId) {
+    return Object.keys(scriptLibrary || {})
+      .map(function (scriptId) {
+        const script = scriptLibrary[scriptId] || {};
+        return {
+          id: scriptId,
+          platformId: script.platformId || null,
+        };
+      })
+      .filter(function (item) {
+        return item.platformId === platformId;
+      });
+  }
+
+  function getPlatformScriptIds(platformId) {
+    return getScriptsByPlatformId(platformId).map(function (item) {
+      return item.id;
+    });
+  }
+
+  function isExclusivePlatform(platformId) {
+    return platformId === "magicData";
+  }
+
   function isAbakaAiScript(scriptId) {
     return scriptId === abakaAiTaskPageCaptureScriptId;
   }
@@ -2128,6 +2152,14 @@
     return settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId || transcriptionProjectId;
   }
 
+  function getMagicDataActiveScriptId(settings) {
+    const candidate = String(settings?.platforms?.magicData?.activeScriptId || "").trim();
+    if (candidate === magicDataAnnotatorScriptId || candidate === magicDataMinnanScriptId) {
+      return candidate;
+    }
+    return "";
+  }
+
   function getDataBakerRoundOneConfig(settings) {
     const defaults =
       constants.DEFAULT_SETTINGS?.platforms?.dataBaker?.scripts?.roundOneQuality || {};
@@ -2579,7 +2611,15 @@
 
     if (isMagicDataScript(scriptId)) {
       const config = getMagicDataConfig(settings, scriptId);
-      return config.enabled !== false && config.aiReviewEnabled !== false;
+      const platformEnabled = settings?.platforms?.magicData?.enabled !== false;
+      if (!platformEnabled || config.enabled === false || config.aiReviewEnabled === false) {
+        return false;
+      }
+      const activeScriptId = getMagicDataActiveScriptId(settings);
+      if (!activeScriptId) {
+        return true;
+      }
+      return activeScriptId === scriptId;
     }
 
     if (isAbakaAiScript(scriptId)) {
@@ -2619,7 +2659,17 @@
 
     if (isMagicDataScript(scriptId)) {
       const config = getMagicDataConfig(settings, scriptId);
+      const activeScriptId = getMagicDataActiveScriptId(settings);
       if (!isScriptEnabled(settings, scriptId)) {
+        if (activeScriptId && activeScriptId !== scriptId) {
+          const activeScript = scriptLibrary[activeScriptId] || {};
+          return {
+            text:
+              "同平台当前为 " +
+              String(activeScript.shortLabel || activeScript.label || activeScriptId),
+            tone: "pending",
+          };
+        }
         return { text: "未启用", tone: "disabled" };
       }
       return config.aiReviewEnabled === false
@@ -3880,18 +3930,42 @@
           shortcuts: shortcuts,
         };
       })();
+      const currentMagicDataActiveScriptId = getMagicDataActiveScriptId(currentSettings || {});
+      const nextMagicDataActiveScriptId = enabled
+        ? targetScriptId
+        : currentMagicDataActiveScriptId === targetScriptId
+          ? ""
+          : currentMagicDataActiveScriptId;
       const patchPayload =
         targetScriptId === magicDataMinnanScriptId
           ? {
               scriptCenter: {
                 projects: {
                   magicDataMinnanAssistant: payloadConfig,
+                  ...(enabled
+                    ? {
+                        magicDataAnnotator: {
+                          enabled: false,
+                          aiReviewEnabled: false,
+                        },
+                      }
+                    : {}),
                 },
               },
               platforms: {
                 magicData: {
+                  activeScriptId: nextMagicDataActiveScriptId,
                   scripts: {
                     minnanHelper: Object.assign({ id: magicDataMinnanScriptId }, payloadConfig),
+                    ...(enabled
+                      ? {
+                          hakkaHelper: {
+                            id: magicDataAnnotatorScriptId,
+                            enabled: false,
+                            aiReviewEnabled: false,
+                          },
+                        }
+                      : {}),
                   },
                 },
               },
@@ -3900,12 +3974,30 @@
               scriptCenter: {
                 projects: {
                   magicDataAnnotator: payloadConfig,
+                  ...(enabled
+                    ? {
+                        magicDataMinnanAssistant: {
+                          enabled: false,
+                          aiReviewEnabled: false,
+                        },
+                      }
+                    : {}),
                 },
               },
               platforms: {
                 magicData: {
+                  activeScriptId: nextMagicDataActiveScriptId,
                   scripts: {
                     hakkaHelper: Object.assign({ id: magicDataAnnotatorScriptId }, payloadConfig),
+                    ...(enabled
+                      ? {
+                          minnanHelper: {
+                            id: magicDataMinnanScriptId,
+                            enabled: false,
+                            aiReviewEnabled: false,
+                          },
+                        }
+                      : {}),
                   },
                 },
               },
@@ -5698,61 +5790,46 @@
     setStatus("detail-status", "正在" + targetStatus + " " + String(script.label || scriptId) + "...");
 
     try {
-      if (isMagicDataScript(scriptId) && typeof storage.patchSettings === "function") {
-        const magicDataPatch =
-          scriptId === magicDataMinnanScriptId
-            ? {
-                scriptCenter: {
-                  projects: {
-                    magicDataMinnanAssistant: {
-                      enabled: enabled === true,
-                      aiReviewEnabled: enabled === true,
-                    },
-                  },
-                },
-                platforms: {
-                  magicData: {
-                    scripts: {
-                      minnanHelper: {
-                        id: magicDataMinnanScriptId,
-                        enabled: enabled === true,
-                        aiReviewEnabled: enabled === true,
-                      },
-                    },
-                  },
-                },
-              }
-            : {
-                scriptCenter: {
-                  projects: {
-                    magicDataAnnotator: {
-                      enabled: enabled === true,
-                      aiReviewEnabled: enabled === true,
-                    },
-                  },
-                },
-                platforms: {
-                  magicData: {
-                    scripts: {
-                      hakkaHelper: {
-                        id: magicDataAnnotatorScriptId,
-                        enabled: enabled === true,
-                        aiReviewEnabled: enabled === true,
-                      },
-                    },
-                  },
-                },
-              };
+      if (typeof storage.setScriptEnabled === "function") {
+        currentSettings = await storage.setScriptEnabled(scriptId, enabled);
+      } else if (isMagicDataScript(scriptId) && typeof storage.patchSettings === "function") {
+        const isMinnan = scriptId === magicDataMinnanScriptId;
         currentSettings = await storage.patchSettings({
           platforms: {
             magicData: {
               enabled: true,
+              activeScriptId: enabled ? scriptId : "",
+              scripts: enabled
+                ? {
+                    hakkaHelper: {
+                      id: magicDataAnnotatorScriptId,
+                      enabled: !isMinnan,
+                      aiReviewEnabled: !isMinnan,
+                    },
+                    minnanHelper: {
+                      id: magicDataMinnanScriptId,
+                      enabled: isMinnan,
+                      aiReviewEnabled: isMinnan,
+                    },
+                  }
+                : isMinnan
+                  ? {
+                      minnanHelper: {
+                        id: magicDataMinnanScriptId,
+                        enabled: false,
+                        aiReviewEnabled: false,
+                      },
+                    }
+                  : {
+                      hakkaHelper: {
+                        id: magicDataAnnotatorScriptId,
+                        enabled: false,
+                        aiReviewEnabled: false,
+                      },
+                    },
             },
           },
-          ...magicDataPatch,
         });
-      } else if (typeof storage.setScriptEnabled === "function") {
-        currentSettings = await storage.setScriptEnabled(scriptId, enabled);
       } else {
         throw new Error("当前扩展版本不支持脚本启停。");
       }
@@ -5761,7 +5838,9 @@
         "detail-status",
         String(script.label || scriptId) +
           (enabled
-            ? " 已启用。如当前平台页面已打开，建议刷新一次。"
+            ? isMagicDataScript(scriptId)
+              ? " 已启用；同平台其他 Magic Data 助手已自动关闭。如当前平台页面已打开，建议刷新一次。"
+              : " 已启用。如当前平台页面已打开，建议刷新一次。"
             : " 已关闭。")
       );
     } catch (error) {

@@ -1758,19 +1758,138 @@
     return settings.platforms.dataBaker;
   }
 
+  function normalizeMagicDataActiveScriptId(value) {
+    const constants = getConstants();
+    const hakkaId = constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
+    const minnanId = constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
+    const text = String(value || "").trim();
+    if (text === hakkaId || text === minnanId) {
+      return text;
+    }
+    return "";
+  }
+
+  function readMagicDataScriptFlag(currentScript, legacyScript, key, fallback) {
+    if (isPlainObject(currentScript) && hasOwn(currentScript, key)) {
+      return currentScript[key] !== false;
+    }
+    if (isPlainObject(legacyScript) && hasOwn(legacyScript, key)) {
+      return legacyScript[key] !== false;
+    }
+    return fallback !== false;
+  }
+
+  function normalizeMagicDataExclusiveScripts(settings) {
+    const constants = getConstants();
+    const hakkaId = constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
+    const minnanId = constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
+    const platform = settings?.platforms?.magicData;
+    if (!isPlainObject(platform)) {
+      return;
+    }
+    if (!isPlainObject(platform.scripts)) {
+      platform.scripts = {};
+    }
+
+    const hakkaScript = isPlainObject(platform.scripts.hakkaHelper)
+      ? platform.scripts.hakkaHelper
+      : {};
+    const minnanScript = isPlainObject(platform.scripts.minnanHelper)
+      ? platform.scripts.minnanHelper
+      : {};
+
+    platform.scripts.hakkaHelper = Object.assign({}, hakkaScript, {
+      id: hakkaId,
+    });
+    platform.scripts.minnanHelper = Object.assign({}, minnanScript, {
+      id: minnanId,
+    });
+
+    let hakkaEnabled =
+      platform.scripts.hakkaHelper.enabled !== false &&
+      platform.scripts.hakkaHelper.aiReviewEnabled !== false;
+    let minnanEnabled =
+      platform.scripts.minnanHelper.enabled !== false &&
+      platform.scripts.minnanHelper.aiReviewEnabled !== false;
+    let activeScriptId = normalizeMagicDataActiveScriptId(platform.activeScriptId);
+
+    if (activeScriptId === hakkaId && !hakkaEnabled) {
+      activeScriptId = "";
+    } else if (activeScriptId === minnanId && !minnanEnabled) {
+      activeScriptId = "";
+    }
+
+    if (!activeScriptId) {
+      if (hakkaEnabled && !minnanEnabled) {
+        activeScriptId = hakkaId;
+      } else if (!hakkaEnabled && minnanEnabled) {
+        activeScriptId = minnanId;
+      } else if (hakkaEnabled && minnanEnabled) {
+        activeScriptId = hakkaId;
+      }
+    }
+
+    if (activeScriptId === hakkaId) {
+      hakkaEnabled = true;
+      minnanEnabled = false;
+    } else if (activeScriptId === minnanId) {
+      hakkaEnabled = false;
+      minnanEnabled = true;
+    } else {
+      if (hakkaEnabled && minnanEnabled) {
+        hakkaEnabled = true;
+        minnanEnabled = false;
+        activeScriptId = hakkaId;
+      }
+    }
+
+    platform.scripts.hakkaHelper.enabled = hakkaEnabled;
+    platform.scripts.hakkaHelper.aiReviewEnabled = hakkaEnabled;
+    platform.scripts.minnanHelper.enabled = minnanEnabled;
+    platform.scripts.minnanHelper.aiReviewEnabled = minnanEnabled;
+    platform.activeScriptId = activeScriptId || "";
+
+    if (!isPlainObject(settings.scriptCenter)) {
+      settings.scriptCenter = {};
+    }
+    if (!isPlainObject(settings.scriptCenter.projects)) {
+      settings.scriptCenter.projects = {};
+    }
+
+    settings.scriptCenter.projects.magicDataAnnotator = Object.assign(
+      {},
+      settings.scriptCenter.projects.magicDataAnnotator || {},
+      {
+        enabled: hakkaEnabled,
+        aiReviewEnabled: hakkaEnabled,
+      }
+    );
+    settings.scriptCenter.projects.magicDataMinnanAssistant = Object.assign(
+      {},
+      settings.scriptCenter.projects.magicDataMinnanAssistant || {},
+      {
+        enabled: minnanEnabled,
+        aiReviewEnabled: minnanEnabled,
+      }
+    );
+  }
+
   function ensureMagicDataRoot(settings) {
     const constants = getConstants();
     const defaults = clone(constants.DEFAULT_SETTINGS || {});
     const defaultPlatform = defaults?.platforms?.magicData || {
       enabled: true,
+      activeScriptId: constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview",
       scripts: {
         hakkaHelper: {
           id: constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview",
           enabled: true,
+          aiReviewEnabled: true,
         },
         minnanHelper: {
           id: constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant",
-          enabled: true,
+          enabled: false,
+          aiReviewEnabled: false,
         },
       },
     };
@@ -1800,16 +1919,27 @@
       : {};
 
     settings.platforms.magicData.enabled = settings.platforms.magicData.enabled !== false;
+    settings.platforms.magicData.activeScriptId = normalizeMagicDataActiveScriptId(
+      settings.platforms.magicData.activeScriptId
+    );
     settings.platforms.magicData.scripts.hakkaHelper = Object.assign(
       {},
       defaultHakkaScript,
       currentHakkaScript,
       {
         id: constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview",
-        enabled:
-          (hasOwn(currentHakkaScript, "enabled")
-            ? currentHakkaScript.enabled
-            : legacyHakka.enabled) !== false,
+        enabled: readMagicDataScriptFlag(
+          currentHakkaScript,
+          legacyHakka,
+          "enabled",
+          defaultHakkaScript.enabled
+        ),
+        aiReviewEnabled: readMagicDataScriptFlag(
+          currentHakkaScript,
+          legacyHakka,
+          "aiReviewEnabled",
+          defaultHakkaScript.aiReviewEnabled
+        ),
       }
     );
     settings.platforms.magicData.scripts.minnanHelper = Object.assign(
@@ -1818,12 +1948,21 @@
       currentMinnanScript,
       {
         id: constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant",
-        enabled:
-          (hasOwn(currentMinnanScript, "enabled")
-            ? currentMinnanScript.enabled
-            : legacyMinnan.enabled) !== false,
+        enabled: readMagicDataScriptFlag(
+          currentMinnanScript,
+          legacyMinnan,
+          "enabled",
+          defaultMinnanScript.enabled
+        ),
+        aiReviewEnabled: readMagicDataScriptFlag(
+          currentMinnanScript,
+          legacyMinnan,
+          "aiReviewEnabled",
+          defaultMinnanScript.aiReviewEnabled
+        ),
       }
     );
+    normalizeMagicDataExclusiveScripts(settings);
 
     return settings.platforms.magicData;
   }
@@ -2630,6 +2769,80 @@
               },
             },
           },
+        },
+      });
+    }
+
+    if (
+      scriptId === constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID ||
+      scriptId === constants.MAGIC_DATA_MINNAN_SCRIPT_ID
+    ) {
+      const hakkaId = constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
+      const minnanId = constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
+      const isMinnan = scriptId === minnanId;
+      const scriptPatch = nextEnabled
+        ? {
+            hakkaHelper: {
+              id: hakkaId,
+              enabled: !isMinnan,
+              aiReviewEnabled: !isMinnan,
+            },
+            minnanHelper: {
+              id: minnanId,
+              enabled: isMinnan,
+              aiReviewEnabled: isMinnan,
+            },
+          }
+        : isMinnan
+          ? {
+              minnanHelper: {
+                id: minnanId,
+                enabled: false,
+                aiReviewEnabled: false,
+              },
+            }
+          : {
+              hakkaHelper: {
+                id: hakkaId,
+                enabled: false,
+                aiReviewEnabled: false,
+              },
+            };
+      const legacyPatch = nextEnabled
+        ? {
+            magicDataAnnotator: {
+              enabled: !isMinnan,
+              aiReviewEnabled: !isMinnan,
+            },
+            magicDataMinnanAssistant: {
+              enabled: isMinnan,
+              aiReviewEnabled: isMinnan,
+            },
+          }
+        : isMinnan
+          ? {
+              magicDataMinnanAssistant: {
+                enabled: false,
+                aiReviewEnabled: false,
+              },
+            }
+          : {
+              magicDataAnnotator: {
+                enabled: false,
+                aiReviewEnabled: false,
+              },
+            };
+
+      return patchSettings({
+        platforms: {
+          magicData: {
+            enabled: true,
+            activeScriptId: nextEnabled ? scriptId : "",
+            scripts: scriptPatch,
+          },
+        },
+        scriptCenter: {
+          projects: legacyPatch,
         },
       });
     }

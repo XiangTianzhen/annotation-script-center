@@ -2,9 +2,11 @@
   const CHECK_INTERVAL_MS = 1000;
   const MOUNT_RETRY_MS = 220;
   const MOUNT_RETRY_LIMIT = 30;
+  const MAGIC_DATA_MINNAN_SCRIPT_ID =
+    globalThis.ASREdgeConstants?.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
   const DEFAULT_SETTINGS = {
-    enabled: true,
-    aiReviewEnabled: true,
+    enabled: false,
+    aiReviewEnabled: false,
     aiReviewRecognitionMode: "two_stage",
     aiReviewListenModel: "qwen3.5-omni-flash",
     aiReviewCompareModel: "qwen3.5-plus",
@@ -172,12 +174,22 @@
     }
     try {
       const settings = await storage.getSettings();
+      const platformEnabled = settings?.platforms?.magicData?.enabled !== false;
+      const activeScriptId = String(settings?.platforms?.magicData?.activeScriptId || "").trim();
       const projectSettings =
         settings?.platforms?.magicData?.scripts?.minnanHelper ||
         settings?.scriptCenter?.projects?.magicDataMinnanAssistant ||
         settings?.projects?.magicDataMinnanAssistant ||
         {};
       runtimeSettings = normalizeSettings(projectSettings);
+      if (!platformEnabled) {
+        runtimeSettings.enabled = false;
+        runtimeSettings.aiReviewEnabled = false;
+      }
+      if (activeScriptId && activeScriptId !== MAGIC_DATA_MINNAN_SCRIPT_ID) {
+        runtimeSettings.enabled = false;
+        runtimeSettings.aiReviewEnabled = false;
+      }
       return runtimeSettings;
     } catch (error) {
       runtimeSettings = Object.assign({}, DEFAULT_SETTINGS);
@@ -447,6 +459,11 @@
         stopRuntime();
         return;
       }
+      await loadMagicDataSettings();
+      if (runtimeSettings.enabled === false || runtimeSettings.aiReviewEnabled === false) {
+        stopRuntime();
+        return;
+      }
       if (!runtime) {
         runtime = createRuntime();
         if (!runtime) {
@@ -456,7 +473,6 @@
         await runtime.start();
         return;
       }
-      await loadMagicDataSettings();
       runtime.refresh();
     } catch (error) {
       if (isContextInvalidatedError(error)) {

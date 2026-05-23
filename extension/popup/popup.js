@@ -243,43 +243,48 @@
       const platformEnabled = settings?.platforms?.magicData?.enabled !== false;
       const hakkaEnabled =
         settings?.platforms?.magicData?.scripts?.hakkaHelper?.enabled !== false &&
-        settings?.scriptCenter?.projects?.magicDataAnnotator?.enabled !== false;
+        settings?.platforms?.magicData?.scripts?.hakkaHelper?.aiReviewEnabled !== false &&
+        settings?.scriptCenter?.projects?.magicDataAnnotator?.enabled !== false &&
+        settings?.scriptCenter?.projects?.magicDataAnnotator?.aiReviewEnabled !== false;
       const minnanEnabled =
         settings?.platforms?.magicData?.scripts?.minnanHelper?.enabled !== false &&
-        settings?.scriptCenter?.projects?.magicDataMinnanAssistant?.enabled !== false;
-      const enabledList = [];
-      if (hakkaEnabled) {
-        enabledList.push("客家话助手");
-      }
-      if (minnanEnabled) {
-        enabledList.push("闽南语助手");
-      }
-      const enabledLabel = enabledList.length > 0 ? enabledList.join(" / ") : "无";
-      const suggestedScriptId =
-        hakkaEnabled && !minnanEnabled
+        settings?.platforms?.magicData?.scripts?.minnanHelper?.aiReviewEnabled !== false &&
+        settings?.scriptCenter?.projects?.magicDataMinnanAssistant?.enabled !== false &&
+        settings?.scriptCenter?.projects?.magicDataMinnanAssistant?.aiReviewEnabled !== false;
+      const configuredActiveScriptId = String(settings?.platforms?.magicData?.activeScriptId || "").trim();
+      const activeScriptId =
+        configuredActiveScriptId === magicDataHakkaScriptId && hakkaEnabled
           ? magicDataHakkaScriptId
-          : minnanEnabled && !hakkaEnabled
+          : configuredActiveScriptId === magicDataMinnanScriptId && minnanEnabled
             ? magicDataMinnanScriptId
-            : null;
+            : hakkaEnabled && !minnanEnabled
+              ? magicDataHakkaScriptId
+              : minnanEnabled && !hakkaEnabled
+                ? magicDataMinnanScriptId
+                : null;
+      const activeScript = activeScriptId ? scriptLibrary[activeScriptId] || {} : {};
+      const enabledLabel = activeScriptId
+        ? String(activeScript.label || activeScript.shortLabel || activeScriptId)
+        : "无";
       if (isAsrmark) {
         return {
-          scriptId: suggestedScriptId,
+          scriptId: activeScriptId,
           scriptLabel: enabledLabel,
           platformId: "magicData",
           platformLabel: "Magic Data ANNOTATOR",
           url: url,
-          statusText: platformEnabled && enabledList.length > 0 ? "已支持" : "未启用",
-          statusTone: platformEnabled && enabledList.length > 0 ? "success" : "disabled",
+          statusText: platformEnabled && activeScriptId ? "已支持" : "未启用",
+          statusTone: platformEnabled && activeScriptId ? "success" : "disabled",
           title: "当前页面：Magic Data 标注单条页",
           description:
-            "脚本状态：可用助手为 " +
+            "脚本状态：当前生效助手为 " +
             enabledLabel +
             "。请在页面说话内容表格下方查看对应助手结果区（仅 AI 辅助，不自动保存/提交）。",
-          openScriptSettings: Boolean(suggestedScriptId),
+          openScriptSettings: Boolean(activeScriptId),
         };
       }
       return {
-        scriptId: suggestedScriptId,
+        scriptId: activeScriptId,
         scriptLabel: enabledLabel,
         platformId: "magicData",
         platformLabel: "Magic Data ANNOTATOR",
@@ -288,7 +293,7 @@
         statusTone: "pending",
         title: "当前页面属于 Magic Data",
         description: "进入 #/asrmark 后可使用已启用助手（当前：" + enabledLabel + "）。",
-        openScriptSettings: Boolean(suggestedScriptId),
+        openScriptSettings: Boolean(activeScriptId),
       };
     }
 

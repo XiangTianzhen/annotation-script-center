@@ -1,6 +1,14 @@
-## 2026-05-22（Magic Data 闽南语助手功能开发：v0.3.7）
+## 2026-05-23（Magic Data 热修：同平台脚本互斥启用 + 版本口径回退到 v0.3.6）
 
-- `extension/manifest.json` 版本升级：`0.3.6 -> 0.3.7`（本轮用户可见功能开发只提升一次 patch）。
+- 修复 Magic Data ANNOTATOR 同平台脚本互斥规则：同一时刻只允许 `客家话助手` 与 `闽南语助手` 其中一个处于启用状态；启用一个时自动关闭另一个。
+- `extension/shared/storage.js` 新增 Magic Data 互斥归一与旧数据自愈：历史本地设置若两个助手同时 enabled，读取后自动归一为单一 active 脚本（默认保留客家话助手）。
+- `extension/options/options.js` 启停链路改为同平台互斥，脚本卡片状态只显示一个“已启用”；关闭当前脚本时不自动启用另一个。
+- `extension/sites/magic-data/hakka-helper/content.js` 与 `minnan-helper/content.js` 在 disabled 或非 activeScriptId 时会停止挂载面板并停止运行时。
+- 回退版本口径：`extension/manifest.json` 回退到 `0.3.6`，并同步 `README.md`、`extension/README.md`、相关规则文档与本日志；本轮不发版、不生成 CRX、不打 tag。
+
+## 2026-05-22（Magic Data 闽南语助手功能开发：v0.3.7，后续已回退）
+
+- `extension/manifest.json` 当时版本曾升级到 `0.3.7`；该版本号已在 2026-05-23 热修中按用户要求回退到 `0.3.6`。
 - 闽南语助手前端行为对齐客家话助手：仍只在 `#/asrmark` 用户主动触发 AI，不自动保存/提交；并修复与客家话助手并行启用时的结果区 DOM 命名空间互相覆盖风险。
 - options 中闽南语助手 AI 设置改为 DataBaker 风格：支持 `two_stage / omni_single`、`fun-asr`/Qwen Omni 听音模型、compare 模型、单模型、thinking、Prompt/参数 override，并保留旧字段兼容。
 - 闽南语助手后端路由重构为薄路由：`ai-routes.js` 改为调用 `ai-service.js`，`defaults/health` 返回 DataBaker 风格识别模式与模型选项；支持 `two_stage + fun-asr`、`two_stage + Qwen Omni`、`omni_single + Qwen Omni`。

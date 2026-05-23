@@ -1502,8 +1502,8 @@
           shortcuts: {},
         },
         magicDataMinnanAssistant: {
-          enabled: true,
-          aiReviewEnabled: true,
+          enabled: false,
+          aiReviewEnabled: false,
           aiReviewRecognitionMode: "two_stage",
           aiReviewListenModel: "qwen3.5-omni-flash",
           aiReviewCompareModel: "qwen3.5-plus",
@@ -1536,14 +1536,17 @@
       dataBaker: createDefaultDataBakerPlatformSettings(),
       magicData: {
         enabled: true,
+        activeScriptId: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
         scripts: {
           hakkaHelper: {
             id: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
             enabled: true,
+            aiReviewEnabled: true,
           },
           minnanHelper: {
             id: MAGIC_DATA_MINNAN_SCRIPT_ID,
-            enabled: true,
+            enabled: false,
+            aiReviewEnabled: false,
           },
         },
       },

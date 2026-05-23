@@ -6,6 +6,7 @@
 
 - 客家话助手（脚本 ID：`magicDataAnnotatorAiReview`）
 - 闽南语助手（脚本 ID：`magicDataMinnanAssistant`）
+- 同平台互斥启用：同一时刻只允许一个助手处于启用状态；启用一个时会自动关闭另一个。
 
 ## 目录职责
 
