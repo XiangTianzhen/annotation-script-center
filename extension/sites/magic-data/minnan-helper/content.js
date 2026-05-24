@@ -4,6 +4,10 @@
   const MOUNT_RETRY_LIMIT = 30;
   const MAGIC_DATA_MINNAN_SCRIPT_ID =
     globalThis.ASREdgeConstants?.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
+  const PANEL_ROOT_SELECTOR = "[data-asc-magic-data-minnan-review-inline]";
+  const INLINE_SUGGESTION_SELECTOR = "[data-asc-magic-data-minnan-inline-suggestion]";
+  const SPEAKER_SUGGESTION_SELECTOR = "[data-asc-magic-data-minnan-speaker-suggestion]";
+  const RAW_MODAL_SELECTOR = "[data-asc-magic-data-minnan-raw-modal]";
   const DEFAULT_SETTINGS = {
     enabled: false,
     aiReviewEnabled: false,
@@ -225,6 +229,39 @@
 
     let lastTaskKey = "";
 
+    function isInsideOwnUi(node) {
+      if (!(node instanceof Node)) {
+        return false;
+      }
+      const element = node instanceof HTMLElement ? node : node.parentElement;
+      if (!(element instanceof HTMLElement)) {
+        return false;
+      }
+      return Boolean(
+        element.closest(PANEL_ROOT_SELECTOR) ||
+          element.closest(INLINE_SUGGESTION_SELECTOR) ||
+          element.closest(SPEAKER_SUGGESTION_SELECTOR) ||
+          element.closest(RAW_MODAL_SELECTOR)
+      );
+    }
+
+    function shouldIgnoreMutation(mutations) {
+      if (!Array.isArray(mutations) || mutations.length === 0) {
+        return false;
+      }
+      return mutations.every(function (mutation) {
+        if (!isInsideOwnUi(mutation.target)) {
+          return false;
+        }
+        const added = Array.from(mutation.addedNodes || []);
+        const removed = Array.from(mutation.removedNodes || []);
+        return (
+          added.every(isInsideOwnUi) &&
+          removed.every(isInsideOwnUi)
+        );
+      });
+    }
+
     function runActionResult(result) {
       if (result && typeof result.then === "function") {
         return result
@@ -399,7 +436,11 @@
       }
       refresh();
       ensurePanelMountedWithRetry();
-      observer = new MutationObserver(function () {
+      observer = new MutationObserver(function (mutations) {
+        const mutationList = Array.from(mutations || []);
+        if (shouldIgnoreMutation(mutationList)) {
+          return;
+        }
         window.clearTimeout(pageTimer);
         pageTimer = window.setTimeout(function () {
           refresh();

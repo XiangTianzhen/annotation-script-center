@@ -4,6 +4,7 @@
   const INLINE_SUGGESTION_ATTR = "data-asc-magic-data-minnan-inline-suggestion";
   const SPEAKER_SUGGESTION_ATTR = "data-asc-magic-data-minnan-speaker-suggestion";
   const RAW_MODAL_ATTR = "data-asc-magic-data-minnan-raw-modal";
+  const TASK_KEY_ATTR = "data-asc-task-key";
   const PANEL_HEIGHT_STORAGE_KEY = "scriptCenter.magicDataMinnanAssistant.panelHeight";
   const DEFAULT_PANEL_HEIGHT = 420;
   const MIN_PANEL_HEIGHT = 260;
@@ -274,6 +275,7 @@
     let dragState = null;
     let viewportResizeBound = false;
     let runtimeSettings = Object.assign({}, runtimeSettingsDefault);
+    const foldStateByTask = new Map();
 
     const buttons = {
       refresh: null,
@@ -371,6 +373,11 @@
       }
     }
 
+    function getSnapshotTaskKey(snapshot) {
+      const source = snapshot && typeof snapshot === "object" ? snapshot : latestSnapshot;
+      return normalizeText(source?.taskItemId || source?.samplingRecordId || "");
+    }
+
     function hasActionableTextSuggestion(checkData) {
       if (!checkData || checkData.isCorrect === true) {
         return false;
@@ -414,7 +421,7 @@
       }
       if (buttons.fillAll) {
         const canFillAll = hasResult && hasActionableSuggestion(latestResult);
-        buttons.fillAll.style.display = hasResult ? "" : "none";
+        buttons.fillAll.style.display = canFillAll ? "" : "none";
         buttons.fillAll.disabled = loading || !canFillAll;
       }
       if (buttons.resetHeight) {
@@ -710,15 +717,21 @@
       return { ok: true, message: "已填入本行，未保存、未提交，请人工确认。" };
     }
 
-    function clearInlineSuggestionBlocks() {
+    function clearInlineSuggestionBlocks(taskKey) {
+      const normalizedTaskKey = normalizeText(taskKey || "");
       Array.from(document.querySelectorAll("[" + INLINE_SUGGESTION_ATTR + "]")).forEach(function (node) {
-        node.remove();
+        if (!normalizedTaskKey || normalizeText(node.getAttribute(TASK_KEY_ATTR) || "") === normalizedTaskKey) {
+          node.remove();
+        }
       });
     }
 
-    function clearSpeakerSuggestionBlocks() {
+    function clearSpeakerSuggestionBlocks(taskKey) {
+      const normalizedTaskKey = normalizeText(taskKey || "");
       Array.from(document.querySelectorAll("[" + SPEAKER_SUGGESTION_ATTR + "]")).forEach(function (node) {
-        node.remove();
+        if (!normalizedTaskKey || normalizeText(node.getAttribute(TASK_KEY_ATTR) || "") === normalizedTaskKey) {
+          node.remove();
+        }
       });
     }
 
@@ -776,37 +789,75 @@
       return { ok: true, message: "已选择" + normalizedValue + "，未保存、未提交。" };
     }
 
+    function buildSpeakerSuggestionText(checkData) {
+      const suggestedValue = normalizeText(checkData?.suggestedValue || "");
+      if (checkData?.isCorrect === true) {
+        return "AI建议：正确";
+      }
+      if (suggestedValue) {
+        return "AI建议：" + suggestedValue;
+      }
+      return "AI建议：待复核";
+    }
+
+    function ensureSpeakerSuggestionWrapper(formItem, labelText, taskKey) {
+      if (!(formItem instanceof HTMLElement)) {
+        return null;
+      }
+      const normalizedTaskKey = normalizeText(taskKey || "");
+      const selector =
+        "[" + SPEAKER_SUGGESTION_ATTR + '="' + labelText + '"]';
+      const existed = formItem.querySelector(selector);
+      if (
+        existed &&
+        normalizeText(existed.getAttribute(TASK_KEY_ATTR) || "") === normalizedTaskKey
+      ) {
+        return existed;
+      }
+      if (existed) {
+        existed.remove();
+      }
+      const wrapper = document.createElement("div");
+      wrapper.setAttribute(SPEAKER_SUGGESTION_ATTR, labelText);
+      wrapper.setAttribute(TASK_KEY_ATTR, normalizedTaskKey);
+      const contentNode = formItem.querySelector(".el-form-item__content");
+      if (contentNode && contentNode.parentElement === formItem) {
+        formItem.insertBefore(wrapper, contentNode.nextSibling);
+      } else {
+        formItem.appendChild(wrapper);
+      }
+      return wrapper;
+    }
+
     function renderSpeakerSuggestion(formItem, labelText, checkData, validateFn) {
       if (!(formItem instanceof HTMLElement)) {
         return;
       }
-      const contentNode = formItem.querySelector(".el-form-item__content");
-      const wrapper = document.createElement("div");
-      wrapper.setAttribute(SPEAKER_SUGGESTION_ATTR, labelText);
-      const text = document.createElement("div");
-      text.className = "asc-md-minnan-speaker-text";
-      const suggestedValue = normalizeText(checkData?.suggestedValue || "");
-      if (checkData?.isCorrect === true) {
-        text.textContent = "AI建议：正确";
-        wrapper.appendChild(text);
-        if (contentNode && contentNode.parentElement === formItem) {
-          formItem.insertBefore(wrapper, contentNode.nextSibling);
-        } else {
-          formItem.appendChild(wrapper);
-        }
+      const taskKey = getSnapshotTaskKey(latestSnapshot);
+      const wrapper = ensureSpeakerSuggestionWrapper(formItem, labelText, taskKey);
+      if (!(wrapper instanceof HTMLElement)) {
         return;
       }
-      if (suggestedValue) {
-        text.textContent = "AI建议：" + suggestedValue;
-      } else {
-        text.textContent = "AI建议：待复核";
+      let text = wrapper.querySelector(".asc-md-minnan-speaker-text");
+      if (!(text instanceof HTMLElement)) {
+        text = document.createElement("div");
+        text.className = "asc-md-minnan-speaker-text";
+        wrapper.appendChild(text);
       }
-      wrapper.appendChild(text);
-      const canFill = validateFn(suggestedValue);
+      const suggestedValue = normalizeText(checkData?.suggestedValue || "");
+      text.textContent = buildSpeakerSuggestionText(checkData);
+      const oldActions = wrapper.querySelector(".asc-md-minnan-speaker-actions");
+      if (oldActions) {
+        oldActions.remove();
+      }
+      const canFill = checkData?.isCorrect !== true && validateFn(suggestedValue);
       if (canFill) {
         const actions = document.createElement("div");
         actions.className = "asc-md-minnan-speaker-actions";
         const fillBtn = createButton("填入" + labelText, "el-button--primary is-plain");
+        fillBtn.addEventListener("mousedown", function (event) {
+          event.preventDefault();
+        });
         fillBtn.addEventListener("click", function () {
           let result = null;
           if (typeof options.selectSpeakerValue === "function") {
@@ -820,16 +871,11 @@
         actions.appendChild(fillBtn);
         wrapper.appendChild(actions);
       }
-      if (contentNode && contentNode.parentElement === formItem) {
-        formItem.insertBefore(wrapper, contentNode.nextSibling);
-      } else {
-        formItem.appendChild(wrapper);
-      }
     }
 
     function renderSpeakerAttributeSuggestions(resultData) {
-      clearSpeakerSuggestionBlocks();
       if (!resultData) {
+        clearSpeakerSuggestionBlocks(getSnapshotTaskKey(latestSnapshot));
         return;
       }
       const speakerCheck = resultData.speakerCheck || {};
@@ -846,21 +892,60 @@
       return Boolean(normalizeText(checkData?.suggestedValue || ""));
     }
 
-    function createInlineSuggestionBlock(type, checkData) {
+    function getInlineSuggestionText(checkData) {
+      if (checkData?.isCorrect === true) {
+        return "正确";
+      }
+      return normalizeText(checkData?.suggestedValue || "待复核");
+    }
+
+    function ensureInlineSuggestionBlock(container, type, taskKey) {
+      if (!(container instanceof HTMLElement)) {
+        return null;
+      }
+      const normalizedTaskKey = normalizeText(taskKey || "");
+      const selector = "[" + INLINE_SUGGESTION_ATTR + '="' + type + '"]';
+      const existed = container.querySelector(selector);
+      if (
+        existed &&
+        normalizeText(existed.getAttribute(TASK_KEY_ATTR) || "") === normalizedTaskKey
+      ) {
+        return existed;
+      }
+      if (existed) {
+        existed.remove();
+      }
       const block = document.createElement("div");
       block.setAttribute(INLINE_SUGGESTION_ATTR, type);
+      block.setAttribute(TASK_KEY_ATTR, normalizedTaskKey);
       const row = document.createElement("div");
       row.className = "asc-md-minnan-inline-row";
       const text = document.createElement("div");
       text.className = "asc-md-minnan-inline-text";
-      if (checkData?.isCorrect === true) {
-        text.textContent = "正确";
-      } else {
-        text.textContent = normalizeText(checkData?.suggestedValue || "待复核");
-      }
       row.appendChild(text);
+      block.appendChild(row);
+      container.appendChild(block);
+      return block;
+    }
+
+    function updateInlineSuggestionBlock(block, type, checkData) {
+      if (!(block instanceof HTMLElement)) {
+        return;
+      }
+      const row = block.querySelector(".asc-md-minnan-inline-row") || block;
+      const textNode = row.querySelector(".asc-md-minnan-inline-text");
+      if (textNode) {
+        textNode.textContent = getInlineSuggestionText(checkData);
+      }
+      const oldButton = row.querySelector("button");
+      if (oldButton) {
+        oldButton.remove();
+      }
       if (shouldShowTextFillButton(checkData)) {
         const fillBtn = createButton("填入本行", "el-button--primary is-plain");
+        fillBtn.addEventListener("mousedown", function (event) {
+          event.preventDefault();
+        });
         fillBtn.addEventListener("click", function () {
           const editor = type === "dialect" ? findRowEditorByIndex(0) : findRowEditorByIndex(1);
           const result = fillInlineEditor(editor, checkData?.suggestedValue || "");
@@ -868,25 +953,47 @@
         });
         row.appendChild(fillBtn);
       }
-      block.appendChild(row);
-      return block;
     }
 
     function renderInlineSuggestions() {
-      clearInlineSuggestionBlocks();
       if (!latestResult) {
+        clearInlineSuggestionBlocks(getSnapshotTaskKey(latestSnapshot));
         return;
       }
+      const taskKey = getSnapshotTaskKey(latestSnapshot);
       const dialectEditor = findRowEditorByIndex(0);
       const mandarinEditor = findRowEditorByIndex(1);
       const dialectContainer = dialectEditor?.closest(".edit-container");
       const mandarinContainer = mandarinEditor?.closest(".edit-container");
       if (dialectContainer) {
-        dialectContainer.appendChild(createInlineSuggestionBlock("dialect", latestResult?.dialectTextCheck || {}));
+        const block = ensureInlineSuggestionBlock(
+          dialectContainer,
+          "dialect",
+          taskKey
+        );
+        updateInlineSuggestionBlock(block, "dialect", latestResult?.dialectTextCheck || {});
       }
       if (mandarinContainer) {
-        mandarinContainer.appendChild(createInlineSuggestionBlock("mandarin", latestResult?.mandarinTextCheck || {}));
+        const block = ensureInlineSuggestionBlock(
+          mandarinContainer,
+          "mandarin",
+          taskKey
+        );
+        updateInlineSuggestionBlock(block, "mandarin", latestResult?.mandarinTextCheck || {});
       }
+    }
+
+    function getFoldStateKey(sectionName) {
+      const taskKey = getSnapshotTaskKey(latestSnapshot) || "no-task";
+      return taskKey + "::" + sectionName;
+    }
+
+    function isFoldSectionOpen(sectionName) {
+      return foldStateByTask.get(getFoldStateKey(sectionName)) === true;
+    }
+
+    function saveFoldSectionState(sectionName, isOpen) {
+      foldStateByTask.set(getFoldStateKey(sectionName), isOpen === true);
     }
 
     function createFoldSection(title, rows) {
@@ -895,6 +1002,7 @@
       const toggle = document.createElement("button");
       toggle.type = "button";
       toggle.className = "md-fold-toggle";
+      toggle.setAttribute("data-section", title);
       toggle.textContent = title;
       const body = document.createElement("div");
       body.className = "md-fold-body";
@@ -902,8 +1010,14 @@
       block.className = "md-block";
       block.appendChild(createCheckGrid(rows));
       body.appendChild(block);
-      toggle.addEventListener("click", function () {
-        section.classList.toggle("is-open");
+      if (isFoldSectionOpen(title)) {
+        section.classList.add("is-open");
+      }
+      toggle.addEventListener("click", function (event) {
+        event.preventDefault();
+        const nextOpen = !section.classList.contains("is-open");
+        section.classList.toggle("is-open", nextOpen);
+        saveFoldSectionState(title, nextOpen);
       });
       section.appendChild(toggle);
       section.appendChild(body);
@@ -1290,10 +1404,11 @@
     }
 
     function clearResult() {
+      const taskKey = getSnapshotTaskKey(latestSnapshot);
       latestResult = null;
       closeRawOutputModal();
-      clearInlineSuggestionBlocks();
-      clearSpeakerSuggestionBlocks();
+      clearInlineSuggestionBlocks(taskKey);
+      clearSpeakerSuggestionBlocks(taskKey);
       renderResult(null);
     }
 
@@ -1331,22 +1446,7 @@
       headText.appendChild(title);
       headText.appendChild(sub);
 
-      const headActions = document.createElement("div");
-      headActions.className = "md-inline-actions";
-      buttons.refresh = createButton("刷新采集");
-      buttons.refresh.addEventListener("click", function () {
-        void collectAndRenderSnapshot(true);
-      });
-      buttons.resetHeight = createButton("重置高度");
-      buttons.resetHeight.addEventListener("click", function () {
-        applyPanelHeight(DEFAULT_PANEL_HEIGHT);
-        void persistPanelHeight(DEFAULT_PANEL_HEIGHT);
-        setMessage("卡片高度已重置为默认值。");
-      });
-      headActions.appendChild(buttons.refresh);
-      headActions.appendChild(buttons.resetHeight);
       head.appendChild(headText);
-      head.appendChild(headActions);
       root.appendChild(head);
 
       bodyScrollNode = document.createElement("div");
@@ -1372,6 +1472,18 @@
       mainActions.appendChild(buttons.fillAll);
       bodyScrollNode.appendChild(mainActions);
 
+      buttons.refresh = createButton("刷新采集");
+      buttons.refresh.addEventListener("click", function () {
+        void collectAndRenderSnapshot(true);
+      });
+      buttons.resetHeight = createButton("重置高度");
+      buttons.resetHeight.addEventListener("click", function () {
+        applyPanelHeight(DEFAULT_PANEL_HEIGHT);
+        void persistPanelHeight(DEFAULT_PANEL_HEIGHT);
+        setMessage("卡片高度已重置为默认值。");
+      });
+      actions.appendChild(buttons.refresh);
+      actions.appendChild(buttons.resetHeight);
       buttons.copySummary = createButton("复制 AI 质检摘要");
       buttons.copySummary.addEventListener("click", function () {
         triggerCopySummary().catch(function (error) {
@@ -1454,14 +1566,22 @@
       if (!node) {
         return;
       }
+      const prevTaskKey = getSnapshotTaskKey(latestSnapshot);
       if (settings && typeof settings === "object") {
         runtimeSettings = Object.assign({}, runtimeSettingsDefault, settings);
       }
       renderSummary(snapshot || {}, backend || null);
       renderPlatform(snapshot || {});
-      if (latestResult) {
-        renderResult(latestResult);
+      const nextTaskKey = getSnapshotTaskKey(snapshot || latestSnapshot);
+      if (prevTaskKey && nextTaskKey && prevTaskKey !== nextTaskKey) {
+        clearInlineSuggestionBlocks(prevTaskKey);
+        clearSpeakerSuggestionBlocks(prevTaskKey);
       }
+      if (latestResult) {
+        renderInlineSuggestions();
+        renderSpeakerAttributeSuggestions(latestResult);
+      }
+      refreshButtons();
     }
 
     function setRuntimeSettings(settings) {
@@ -1471,9 +1591,7 @@
       runtimeSettings = Object.assign({}, runtimeSettingsDefault, settings);
       applyPanelHeight(currentPanelHeight);
       renderSummary(latestSnapshot || {}, latestBackend);
-      if (latestResult) {
-        renderResult(latestResult);
-      }
+      refreshButtons();
     }
 
     function showAsrmarkCheckNotice() {

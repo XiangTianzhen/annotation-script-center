@@ -1,3 +1,14 @@
+## 2026-05-24（Magic Data 闽南语助手热修：交互稳定性修复）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- `extension/sites/magic-data/minnan-helper/assistant-panel.js`：
+  - 行内建议与说话人建议改为按 task 幂等更新，减少 `remove + recreate`，修复 hover 闪烁主因。
+  - 说话人“AI建议：正确”不再显示 `填入性别/填入年龄` 按钮；仅需修改时显示填入按钮。
+  - 三个详情折叠块状态按 `taskItemId + section` 记忆，修复点击展开后被刷新流程自动收回。
+  - 按钮布局固定为两排：上排主操作（`AI质检当前条`、`全部填入AI推荐`），下排辅助操作（刷新/重置/复制摘要/显示原始输出）。
+- `extension/sites/magic-data/minnan-helper/content.js`：MutationObserver 过滤扩展自有 UI 变更，避免自触发刷新导致抖动。
+- 新增复测记录：`platform-resources/magic-data/page-structure/10-playwright-edge-fix-retest-2026-05-24.md`（Playwright-Edge 交互复测，确认折叠保持与建议节点稳定性）。
+
 ## 2026-05-24（Magic Data 闽南语助手只读排查：DevTools MCP）
 
 - 任务按 `ASC_READONLY` 执行：未修改业务代码、未提交、未 push、未生成 CRX。
