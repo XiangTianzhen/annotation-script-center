@@ -1,3 +1,14 @@
+## 2026-05-24（Magic Data 闽南语助手只读排查：DevTools MCP）
+
+- 任务按 `ASC_READONLY` 执行：未修改业务代码、未提交、未 push、未生成 CRX。
+- 通过 DevTools MCP 只读检查 `#/asrmark`：
+  - 已确认说话人属性稳定选择器（`性别/年龄` 的 `.el-form-item` 与 checked radio 选择器）。
+  - 已确认文本行稳定选择器（`.region-item` / `.speak-item` / `.edit.region-edit[data-index]`）。
+  - 当前页未检测到任何 `data-asc-*` 扩展节点，结论为闽南语助手运行时未挂载，而非字段选择器本身失效。
+- 新增参考文档：
+  - `platform-resources/magic-data/page-structure/08-devtools-readonly-check-2026-05-24.md`
+- 同步更新 `platform-resources/magic-data/page-structure/README.md` 索引。
+
 ## 2026-05-23（Magic Data 闽南语助手热修：精简建议展示与独立折叠）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
