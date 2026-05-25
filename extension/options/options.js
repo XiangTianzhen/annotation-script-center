@@ -98,6 +98,18 @@
         { value: "qwen3.6-flash", label: "qwen3.6-flash" },
         { value: "qwen3.5-flash", label: "qwen3.5-flash" },
       ];
+  const magicDataMinnanPipelineModeOptions = Array.isArray(
+    constants.MAGIC_DATA_MINNAN_AI_PIPELINE_MODE_OPTIONS
+  )
+    ? constants.MAGIC_DATA_MINNAN_AI_PIPELINE_MODE_OPTIONS
+    : [
+        { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
+        { value: "omni_single", label: "单模型：Omni 单模型" },
+        {
+          value: "recognition_convert",
+          label: "识别转换：先听成普通话，再按词表转闽南语",
+        },
+      ];
   const judgementAiListenModels = Array.isArray(constants.JUDGEMENT_AI_LISTEN_MODELS)
     ? constants.JUDGEMENT_AI_LISTEN_MODELS
     : ["qwen3.5-omni-flash", "qwen3-omni-flash", "qwen3.5-omni-plus"];
@@ -843,6 +855,28 @@
     );
   }
 
+  function normalizeMagicDataMinnanRecognitionMode(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "two_stage" || text === "omni_single" || text === "recognition_convert") {
+      return text;
+    }
+    if (
+      text === "fun_asr_compare" ||
+      text === "qwen_omni_compare" ||
+      text === "qwen_omni_two_stage"
+    ) {
+      return "two_stage";
+    }
+    if (text === "listen_only") {
+      return "omni_single";
+    }
+    const fallbackText = String(fallback || "").trim().toLowerCase();
+    if (fallbackText === "omni_single" || fallbackText === "recognition_convert") {
+      return fallbackText;
+    }
+    return "two_stage";
+  }
+
   function getDataBakerSettingsDraftConfig(aiDefaults) {
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
     const recognitionSelectNode = getElement("data-baker-ai-pipeline-mode-select");
@@ -991,7 +1025,7 @@
     return {
       aiReviewRecognitionMode:
         recognitionSelectNode instanceof HTMLSelectElement
-          ? normalizeDataBakerRecognitionMode(recognitionSelectNode.value, "two_stage")
+          ? normalizeMagicDataMinnanRecognitionMode(recognitionSelectNode.value, "two_stage")
           : "two_stage",
       aiReviewListenModel:
         listenSelectNode instanceof HTMLSelectElement
@@ -1077,21 +1111,24 @@
   }
 
   function applyMagicDataMinnanRecognitionModeFields(recognitionMode, config, aiDefaults) {
-    const currentRecognitionMode = normalizeDataBakerRecognitionMode(
+    const currentRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
       recognitionMode || config?.aiReviewRecognitionMode,
       "two_stage"
     );
     renderFixedModelOptions(
       "magic-data-ai-pipeline-mode-select",
-      [
-        { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
-        { value: "omni_single", label: "单模型：Omni 单模型" },
-      ],
+      magicDataMinnanPipelineModeOptions,
       currentRecognitionMode
     );
     setFieldVisibility("magic-data-ai-pipeline-mode-field", true);
-    setFieldVisibility("magic-data-ai-listen-model-field", currentRecognitionMode === "two_stage");
-    setFieldVisibility("magic-data-ai-compare-model-field", currentRecognitionMode === "two_stage");
+    setFieldVisibility(
+      "magic-data-ai-listen-model-field",
+      currentRecognitionMode === "two_stage" || currentRecognitionMode === "recognition_convert"
+    );
+    setFieldVisibility(
+      "magic-data-ai-compare-model-field",
+      currentRecognitionMode === "two_stage" || currentRecognitionMode === "recognition_convert"
+    );
     setFieldVisibility("magic-data-ai-single-model-field", currentRecognitionMode === "omni_single");
     setFieldVisibility("magic-data-ai-listen-model-custom-field", false);
     setFieldVisibility("magic-data-ai-compare-model-custom-field", false);
@@ -1105,7 +1142,10 @@
   function updateMagicDataMinnanRecognitionModeFields(recognitionMode) {
     const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataMinnanScriptId).defaults || {};
     const draftConfig = getMagicDataMinnanSettingsDraftConfig(aiDefaults);
-    draftConfig.aiReviewRecognitionMode = normalizeDataBakerRecognitionMode(recognitionMode, "two_stage");
+    draftConfig.aiReviewRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
+      recognitionMode,
+      "two_stage"
+    );
     if (draftConfig.aiReviewRecognitionMode === "omni_single") {
       draftConfig.aiReviewSingleModel = isDataBakerFunAsrListenModel(draftConfig.aiReviewListenModel)
         ? "qwen3.5-omni-flash"
@@ -2077,7 +2117,7 @@
         : settings?.platforms?.magicData?.scripts?.hakkaHelper ||
           settings?.scriptCenter?.projects?.magicDataAnnotator ||
           {};
-    const minnanRecognitionMode = normalizeDataBakerRecognitionMode(
+    const minnanRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
       source.aiReviewRecognitionMode || source.aiReviewPipelineMode || source.pipelineMode,
       "two_stage"
     );
@@ -3680,11 +3720,14 @@
       : currentConfig.enabled !== false;
     const recognitionMode = isMinnanScript
       ? (hasAiSettingsPanel
-          ? normalizeDataBakerRecognitionMode(
+          ? normalizeMagicDataMinnanRecognitionMode(
               getElement("magic-data-ai-pipeline-mode-select")?.value,
               currentConfig.aiReviewRecognitionMode || "two_stage"
             )
-          : normalizeDataBakerRecognitionMode(currentConfig.aiReviewRecognitionMode, "two_stage"))
+          : normalizeMagicDataMinnanRecognitionMode(
+              currentConfig.aiReviewRecognitionMode,
+              "two_stage"
+            ))
       : "two_stage";
     const listenModel = isMinnanScript
       ? (hasAiSettingsPanel
@@ -3876,11 +3919,11 @@
         const defaultListenModel = getMagicDataMinnanListenModelDefault(aiDefaults);
         const defaultCompareModel = getMagicDataMinnanCompareModelDefault(aiDefaults);
         const defaultSingleModel = getMagicDataMinnanSingleModelDefault(aiDefaults);
-        const defaultRecognitionMode = normalizeDataBakerRecognitionMode(
+        const defaultRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
           aiDefaults.recognitionMode || aiDefaults.pipelineMode,
           "two_stage"
         );
-        const normalizedRecognitionMode = normalizeDataBakerRecognitionMode(
+        const normalizedRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
           recognitionMode,
           defaultRecognitionMode
         );

@@ -145,6 +145,12 @@
       "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-text{font-size:12px;color:#e2e8f0;white-space:pre-wrap;word-break:break-word;margin-bottom:0;}",
       "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:24px;}",
       "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-inline-row .asc-md-minnan-inline-text{margin:0;flex:1;}",
+      "[" + ROOT_ATTR + "] .asc-md-minnan-diff-same{color:#e2e8f0;}",
+      "[" + ROOT_ATTR + "] .asc-md-minnan-diff-insert{background:rgba(34,197,94,.22);color:#bbf7d0;padding:0 1px;border-radius:2px;}",
+      "[" + ROOT_ATTR + "] .asc-md-minnan-diff-delete{background:rgba(239,68,68,.24);color:#fecaca;padding:0 1px;border-radius:2px;text-decoration:line-through;}",
+      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-diff-same{color:#e2e8f0;}",
+      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-diff-insert{background:rgba(34,197,94,.22);color:#bbf7d0;padding:0 1px;border-radius:2px;}",
+      "[" + INLINE_SUGGESTION_ATTR + "] .asc-md-minnan-diff-delete{background:rgba(239,68,68,.24);color:#fecaca;padding:0 1px;border-radius:2px;text-decoration:line-through;}",
       "[" + SPEAKER_SUGGESTION_ATTR + "]{margin-top:4px;padding:4px 6px;border-radius:4px;border:1px solid rgba(100,116,139,.45);background:rgba(30,41,59,.48);}",
       "[" + SPEAKER_SUGGESTION_ATTR + "] .asc-md-minnan-speaker-text{font-size:12px;color:#e5e7eb;}",
       "[" + SPEAKER_SUGGESTION_ATTR + "] .asc-md-minnan-speaker-actions{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;}",
@@ -532,6 +538,8 @@
         value.className = "md-v";
         if (row[2] === true) {
           value.innerHTML = row[1];
+        } else if (row[2] === "node" && row[1] instanceof HTMLElement) {
+          value.appendChild(row[1]);
         } else {
           value.textContent = row[1];
         }
@@ -539,6 +547,118 @@
         grid.appendChild(value);
       });
       return grid;
+    }
+
+    function createDiffPart(type, text) {
+      return {
+        type: type,
+        text: String(text || ""),
+      };
+    }
+
+    function mergeDiffParts(parts) {
+      const source = Array.isArray(parts) ? parts : [];
+      const merged = [];
+      source.forEach(function (part) {
+        if (!part || !part.text) {
+          return;
+        }
+        const last = merged[merged.length - 1];
+        if (last && last.type === part.type) {
+          last.text += part.text;
+          return;
+        }
+        merged.push(createDiffPart(part.type, part.text));
+      });
+      return merged;
+    }
+
+    function buildTextDiffParts(originalText, suggestedText) {
+      const left = Array.from(String(originalText || ""));
+      const right = Array.from(String(suggestedText || ""));
+      const maxLength = 500;
+      if (left.length > maxLength || right.length > maxLength) {
+        return null;
+      }
+      const rows = left.length + 1;
+      const cols = right.length + 1;
+      const matrix = Array.from({ length: rows }, function () {
+        return new Array(cols).fill(0);
+      });
+
+      for (let i = 1; i < rows; i += 1) {
+        for (let j = 1; j < cols; j += 1) {
+          if (left[i - 1] === right[j - 1]) {
+            matrix[i][j] = matrix[i - 1][j - 1] + 1;
+          } else {
+            matrix[i][j] = Math.max(matrix[i - 1][j], matrix[i][j - 1]);
+          }
+        }
+      }
+
+      const parts = [];
+      let i = left.length;
+      let j = right.length;
+      while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && left[i - 1] === right[j - 1]) {
+          parts.push(createDiffPart("same", left[i - 1]));
+          i -= 1;
+          j -= 1;
+          continue;
+        }
+        const up = i > 0 ? matrix[i - 1][j] : -1;
+        const leftScore = j > 0 ? matrix[i][j - 1] : -1;
+        if (j > 0 && (i === 0 || leftScore >= up)) {
+          parts.push(createDiffPart("insert", right[j - 1]));
+          j -= 1;
+        } else if (i > 0) {
+          parts.push(createDiffPart("delete", left[i - 1]));
+          i -= 1;
+        }
+      }
+
+      return mergeDiffParts(parts.reverse());
+    }
+
+    function renderDiffParts(container, parts) {
+      if (!(container instanceof HTMLElement)) {
+        return;
+      }
+      container.innerHTML = "";
+      (Array.isArray(parts) ? parts : []).forEach(function (part) {
+        const span = document.createElement("span");
+        span.className = "asc-md-minnan-diff-" + (part.type || "same");
+        span.textContent = String(part.text || "");
+        container.appendChild(span);
+      });
+    }
+
+    function createInlineDiffNode(originalText, suggestedText) {
+      const node = document.createElement("span");
+      node.className = "asc-md-minnan-inline-text";
+      const original = normalizeText(originalText || "");
+      const suggested = normalizeText(suggestedText || "");
+      const parts = buildTextDiffParts(original, suggested);
+      if (!parts || parts.length <= 0) {
+        node.textContent = suggested;
+        return node;
+      }
+      renderDiffParts(node, parts);
+      return node;
+    }
+
+    function createDetailDiffNode(originalText, suggestedText) {
+      const node = document.createElement("div");
+      node.className = "asc-md-minnan-inline-text";
+      const original = normalizeText(originalText || "");
+      const suggested = normalizeText(suggestedText || "");
+      const parts = buildTextDiffParts(original, suggested);
+      if (!parts || parts.length <= 0) {
+        node.textContent = suggested || "-";
+        return node;
+      }
+      renderDiffParts(node, parts);
+      return node;
     }
 
     function sanitizeDebugText(value) {
@@ -899,6 +1019,20 @@
       return normalizeText(checkData?.suggestedValue || "待复核");
     }
 
+    function getOriginalTextByType(type, checkData) {
+      if (type === "dialect") {
+        return normalizeText(
+          checkData?.platformValue || latestSnapshot?.platformDialectText || ""
+        );
+      }
+      if (type === "mandarin") {
+        return normalizeText(
+          checkData?.platformValue || latestSnapshot?.platformMandarinText || ""
+        );
+      }
+      return "";
+    }
+
     function ensureInlineSuggestionBlock(container, type, taskKey) {
       if (!(container instanceof HTMLElement)) {
         return null;
@@ -935,7 +1069,13 @@
       const row = block.querySelector(".asc-md-minnan-inline-row") || block;
       const textNode = row.querySelector(".asc-md-minnan-inline-text");
       if (textNode) {
-        textNode.textContent = getInlineSuggestionText(checkData);
+        const suggestionText = getInlineSuggestionText(checkData);
+        if (checkData?.isCorrect === true || suggestionText === "待复核") {
+          textNode.textContent = suggestionText;
+        } else {
+          const diffNode = createInlineDiffNode(getOriginalTextByType(type, checkData), suggestionText);
+          textNode.replaceWith(diffNode);
+        }
       }
       const oldButton = row.querySelector("button");
       if (oldButton) {
@@ -1081,6 +1221,14 @@
           ["是否正确", renderCorrectTag(dialectCheck.isCorrect), true],
           ["平台文本", normalizeText(dialectCheck.platformValue || latestSnapshot.platformDialectText || "-")],
           ["AI建议", normalizeText(dialectCheck.suggestedValue || "-")],
+          [
+            "差异对比",
+            createDetailDiffNode(
+              normalizeText(dialectCheck.platformValue || latestSnapshot.platformDialectText || ""),
+              normalizeText(dialectCheck.suggestedValue || "")
+            ),
+            "node",
+          ],
           ["原因", normalizeText(dialectCheck.reason || "-")],
           ["置信度", formatNumber(dialectCheck.confidence, 2)],
         ])
@@ -1090,6 +1238,14 @@
           ["是否正确", renderCorrectTag(mandarinCheck.isCorrect), true],
           ["平台文本", normalizeText(mandarinCheck.platformValue || latestSnapshot.platformMandarinText || "-")],
           ["AI建议", normalizeText(mandarinCheck.suggestedValue || "-")],
+          [
+            "差异对比",
+            createDetailDiffNode(
+              normalizeText(mandarinCheck.platformValue || latestSnapshot.platformMandarinText || ""),
+              normalizeText(mandarinCheck.suggestedValue || "")
+            ),
+            "node",
+          ],
           ["原因", normalizeText(mandarinCheck.reason || "-")],
           ["置信度", formatNumber(mandarinCheck.confidence, 2)],
         ])
@@ -1157,6 +1313,9 @@
           )
             .trim()
             .toLowerCase();
+          if (text === "recognition_convert") {
+            return "recognition_convert";
+          }
           if (text === "omni_single") {
             return "omni_single";
           }

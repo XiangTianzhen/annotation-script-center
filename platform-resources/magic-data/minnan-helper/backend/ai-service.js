@@ -46,9 +46,13 @@ const {
   buildComparePrompt,
   buildListenPrompt,
   buildOmniSinglePrompt,
+  buildRecognitionConvertListenPrompt,
+  buildRecognitionConvertComparePrompt,
   DEFAULT_COMPARE_TEMPLATE,
   DEFAULT_LISTEN_TEMPLATE,
   DEFAULT_OMNI_SINGLE_TEMPLATE,
+  DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE,
+  DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE,
   RULE_VERSION,
 } = require("./ai-prompts");
 const {
@@ -66,17 +70,20 @@ const COMPONENT_NAME = "asr-voice-ai";
 const RECOGNITION_MODE_OPTIONS = [
   { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
   { value: "omni_single", label: "单模型：Omni 单模型" },
+  { value: "recognition_convert", label: "识别转换：先听成普通话，再按词表转闽南语" },
 ];
 const SUPPORTED_PIPELINE_MODES = [
   { value: "fun_asr_compare", label: "Fun-ASR 听音 + 比较模型" },
   { value: "qwen_omni_compare", label: "Qwen Omni 听音 + 比较模型" },
   { value: "omni_single", label: "Qwen Omni 单模型" },
+  { value: "recognition_convert", label: "识别转换（普通话识别 + 词表转换 + 质检）" },
 ];
 const LEGACY_PIPELINE_MODE_MAP = {
   fun_asr_compare: "two_stage",
   qwen_omni_compare: "two_stage",
   qwen_omni_two_stage: "two_stage",
   listen_only: "omni_single",
+  recognition_convert: "recognition_convert",
 };
 const LISTEN_MODEL_OPTIONS = [
   "fun-asr",
@@ -269,20 +276,26 @@ function parseAudioHostname(audioUrl) {
 
 function normalizeRecognitionMode(value, fallback) {
   const text = String(value || "").trim().toLowerCase();
-  if (text === "two_stage" || text === "omni_single") {
+  if (text === "two_stage" || text === "omni_single" || text === "recognition_convert") {
     return text;
   }
   if (text && LEGACY_PIPELINE_MODE_MAP[text]) {
     return LEGACY_PIPELINE_MODE_MAP[text];
   }
-  return String(fallback || "two_stage").trim().toLowerCase() === "omni_single"
-    ? "omni_single"
-    : "two_stage";
+  const fallbackText = String(fallback || "two_stage").trim().toLowerCase();
+  if (fallbackText === "omni_single" || fallbackText === "recognition_convert") {
+    return fallbackText;
+  }
+  return "two_stage";
 }
 
 function derivePipelineMode(recognitionMode, listenModel) {
-  if (normalizeRecognitionMode(recognitionMode, "two_stage") === "omni_single") {
+  const normalizedMode = normalizeRecognitionMode(recognitionMode, "two_stage");
+  if (normalizedMode === "omni_single") {
     return "omni_single";
+  }
+  if (normalizedMode === "recognition_convert") {
+    return "recognition_convert";
   }
   return String(listenModel || "").trim() === DEFAULT_FUN_ASR_MODEL
     ? "fun_asr_compare"
@@ -632,7 +645,9 @@ function normalizeReviewRequest(body) {
   const requestedCompareModel =
     aiOptions.compareModel ||
     aiOptions.reviewModel ||
+    aiOptions.convertModel ||
     source.compareModel ||
+    source.convertModel ||
     source.reviewModel ||
     source.aiReviewCompareModel ||
     "";
@@ -645,7 +660,7 @@ function normalizeReviewRequest(body) {
     "";
 
   const listenModel =
-    recognitionMode === "two_stage"
+    recognitionMode === "two_stage" || recognitionMode === "recognition_convert"
       ? resolveModelOverride(
           requestedListenModel,
           profileConfig.listenModel,
@@ -684,7 +699,10 @@ function normalizeReviewRequest(body) {
     rulesProfile: normalizeText(source.rulesProfile) || "minnan",
     clientVersion: normalizeText(source.clientVersion),
     recognitionMode: recognitionMode,
-    pipelineMode: derivePipelineMode(recognitionMode, recognitionMode === "omni_single" ? singleModel : listenModel),
+    pipelineMode: derivePipelineMode(
+      recognitionMode,
+      recognitionMode === "omni_single" ? singleModel : listenModel
+    ),
     listenModel: listenModel,
     compareModel: compareModel,
     reviewModel: compareModel,
@@ -760,6 +778,70 @@ function mergeLexiconIssues(baseIssues, rewriteChanges) {
     }
   });
   return issues;
+}
+
+function splitLexiconTerms(value) {
+  return String(value || "")
+    .split(/[,，、/｜|\s]+/)
+    .map(function (item) {
+      return String(item || "").trim();
+    })
+    .filter(Boolean);
+}
+
+function buildRecognitionConvertByLexicon(recognizedMandarinText, lexiconContext, platformDialectText) {
+  const sourceText = normalizeText(recognizedMandarinText);
+  const matches = Array.isArray(lexiconContext?.matches) ? lexiconContext.matches : [];
+  if (!sourceText) {
+    return {
+      recognizedMandarinText: "",
+      convertedDialectText: normalizeText(platformDialectText),
+      lexiconMatches: [],
+      conversionWarnings: ["未识别到普通话文本，保留平台闽南语并建议人工复核。"],
+    };
+  }
+
+  let convertedText = sourceText;
+  const lexiconMatches = [];
+  matches.forEach(function (entry) {
+    const target = normalizeText(entry?.unified || "");
+    if (!target) {
+      return;
+    }
+    splitLexiconTerms(entry?.mandarin || "").forEach(function (term) {
+      if (!term || convertedText.indexOf(term) < 0) {
+        return;
+      }
+      convertedText = convertedText.split(term).join(target);
+      lexiconMatches.push({
+        mandarin: term,
+        dialect: target,
+      });
+    });
+  });
+
+  const deduped = [];
+  const seen = new Set();
+  lexiconMatches.forEach(function (item) {
+    const key = String(item.mandarin || "") + "->" + String(item.dialect || "");
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    deduped.push(item);
+  });
+
+  const warnings = [];
+  if (deduped.length <= 0) {
+    warnings.push("词表未命中，转换结果可能不稳定，建议人工复核。");
+  }
+
+  return {
+    recognizedMandarinText: sourceText,
+    convertedDialectText: normalizeText(convertedText || platformDialectText),
+    lexiconMatches: deduped,
+    conversionWarnings: warnings,
+  };
 }
 
 function buildQueueSnapshotMap() {
@@ -971,6 +1053,7 @@ async function reviewCurrent(body, requestId) {
     let queueMetaListen = {};
     let queueMetaCompare = {};
     let funAsrMeta = null;
+    let recognitionConvertMeta = null;
     const rawModelText = {};
     const rawJson = {};
     const rawAiDebugStages = [];
@@ -1008,6 +1091,188 @@ async function reviewCurrent(body, requestId) {
         queueMeta: queuedOmni.queueMeta || {},
         usage: normalizeUsage(omniResult.usage),
       });
+    } else if (normalizedRequest.recognitionMode === "recognition_convert") {
+      if (normalizedRequest.listenModel === "fun-asr") {
+        const funAsrStartedAt = Date.now();
+        const funAsrResult = await runFunAsrRecognition(
+          normalizedRequest,
+          profileConfig,
+          finalRequestId,
+          signal
+        );
+        listenDurationMs = Date.now() - funAsrStartedAt;
+        queueMetaListen = funAsrResult.queueMeta || {};
+        const funAsrValue = funAsrResult.value || {};
+        listen = sanitizeAudioCheckFromFunAsr(funAsrValue, normalizedRequest);
+        listenUsage = normalizeUsage(funAsrValue.usage);
+        funAsrMeta = {
+          providerMode: funAsrResult.providerMode || profileConfig.funAsrProvider,
+          providerFallbackUsed: funAsrResult.providerFallbackUsed === true,
+        };
+        rawModelText.listen = sanitizeDebugValue(
+          funAsrValue.rawText ||
+            funAsrValue.heardText ||
+            funAsrValue.heardDialectText ||
+            ""
+        );
+        rawJson.listen = sanitizeDebugValue(
+          funAsrValue.rawJson || {
+            recognizedMandarinText: funAsrValue.heardText || "",
+            isValidAudio: listen?.isValidAudio !== false,
+          }
+        );
+        rawAiDebugStages.push({
+          stage: "recognize_mandarin",
+          provider: funAsrResult.providerMode || profileConfig.funAsrProvider || "fun-asr",
+          model: profileConfig.funAsrModel || "fun-asr",
+          durationMs: listenDurationMs,
+          queueMeta: funAsrResult.queueMeta || {},
+          fallbackUsed: funAsrResult.providerFallbackUsed === true,
+          usage: normalizeUsage(funAsrValue.usage),
+        });
+      } else {
+        const listenPrompt = buildRecognitionConvertListenPrompt(normalizedRequest, baseLexiconContext);
+        const listenStartedAt = Date.now();
+        const queuedListen = await runQueuedProviderTask("qwen_omni", function () {
+          return requestListen(normalizedRequest, listenPrompt, {
+            timeoutMs: profileConfig.timeoutMs,
+            model: normalizedRequest.listenModel,
+            enableThinking: normalizedRequest.enableThinking,
+            aiOptions: normalizedRequest.aiOptions,
+          });
+        }, signal);
+        listenDurationMs = Date.now() - listenStartedAt;
+        queueMetaListen = queuedListen.queueMeta || {};
+        const listenResult = queuedListen.value || {};
+        const listenJson = parseModelJsonText(listenResult.rawText, finalRequestId);
+        listen = normalizeListenResponse(
+          Object.assign({}, listenJson, {
+            heardMandarinMeaning:
+              normalizeText(listenJson?.recognizedMandarinText || listenJson?.heardMandarinMeaning || "") ||
+              normalizeText(listenJson?.heardText || ""),
+          })
+        );
+        listenUsage = normalizeUsage(listenResult.usage);
+        listenModelRuntime = listenResult.model || listenModelRuntime;
+        rawModelText.listen = sanitizeDebugText(listenResult.rawText || "");
+        rawJson.listen = sanitizeDebugValue(listenJson || null);
+        rawAiDebugStages.push({
+          stage: "recognize_mandarin",
+          provider: "qwen_omni",
+          model: listenResult.model || normalizedRequest.listenModel || "",
+          durationMs: listenDurationMs,
+          queueMeta: queuedListen.queueMeta || {},
+          usage: normalizeUsage(listenResult.usage),
+        });
+      }
+
+      const recognizedMandarinText = normalizeText(
+        listen?.heardMandarinMeaning || listen?.heardDialectText || ""
+      );
+      const conversion = buildRecognitionConvertByLexicon(
+        recognizedMandarinText,
+        baseLexiconContext,
+        normalizedRequest.platformDialectText
+      );
+      recognitionConvertMeta = {
+        recognizedMandarinText: conversion.recognizedMandarinText,
+        convertedDialectText: conversion.convertedDialectText,
+        lexiconMatches: conversion.lexiconMatches,
+        conversionWarnings: conversion.conversionWarnings,
+      };
+
+      const compareLexiconContext = buildLexiconContext({
+        platformDialectText: normalizedRequest.platformDialectText,
+        platformMandarinText: normalizedRequest.platformMandarinText,
+        heardDialectText: conversion.convertedDialectText || "",
+        limit: 40,
+      });
+      const comparePrompt = buildRecognitionConvertComparePrompt(normalizedRequest, {
+        recognizedMandarinText: conversion.recognizedMandarinText,
+        convertedDialectText: conversion.convertedDialectText,
+        listenEvidence: listen || {},
+        lexiconContext: compareLexiconContext,
+        lexiconMatches: conversion.lexiconMatches,
+      });
+      const compareStartedAt = Date.now();
+      const queuedCompare = await runQueuedProviderTask("text_compare", function () {
+        return requestCompare(
+          {
+            platformDialectText: normalizedRequest.platformDialectText,
+            platformMandarinText: normalizedRequest.platformMandarinText,
+            heardDialectText: conversion.convertedDialectText || "",
+            heardMandarinMeaning: conversion.recognizedMandarinText || "",
+            aiOptions: normalizedRequest.aiOptions,
+          },
+          comparePrompt,
+          {
+            timeoutMs: profileConfig.timeoutMs,
+            model: normalizedRequest.compareModel,
+            enableThinking: normalizedRequest.enableThinking,
+            aiOptions: normalizedRequest.aiOptions,
+          }
+        );
+      }, signal);
+      compareDurationMs = Date.now() - compareStartedAt;
+      queueMetaCompare = queuedCompare.queueMeta || {};
+      const compareResult = queuedCompare.value || {};
+      const compareJson = parseModelJsonText(compareResult.rawText, finalRequestId);
+      resultNormalized = normalizeRuleFirstComparison(compareJson, normalizedRequest, {
+        heardDialectText: conversion.convertedDialectText || "",
+        heardMandarinMeaning: conversion.recognizedMandarinText || "",
+        isValidAudio: listen?.isValidAudio !== false,
+        validityDecision: listen?.validityDecision || "uncertain",
+        invalidReasons: Array.isArray(listen?.invalidReasons) ? listen.invalidReasons : [],
+        riskFlags: Array.isArray(listen?.riskFlags) ? listen.riskFlags : [],
+        genderGuess: listen?.genderGuess || "uncertain",
+        ageRangeGuess: listen?.ageRangeGuess || "uncertain",
+        confidence: Number(listen?.confidence || 0),
+      });
+      compareUsage = normalizeUsage(compareResult.usage);
+      compareModelRuntime = compareResult.model || compareModelRuntime;
+      rawModelText.compare = sanitizeDebugText(compareResult.rawText || "");
+      rawJson.compare = sanitizeDebugValue(compareJson || null);
+      rawAiDebugStages.push({
+        stage: "convert_and_compare",
+        provider: "text_compare",
+        model: compareResult.model || normalizedRequest.compareModel || "",
+        durationMs: compareDurationMs,
+        queueMeta: queuedCompare.queueMeta || {},
+        usage: normalizeUsage(compareResult.usage),
+      });
+
+      if (normalizeText(resultNormalized?.recommendations?.dialectText || "") === "") {
+        resultNormalized.recommendations.dialectText = conversion.convertedDialectText || "";
+      }
+      if (Array.isArray(compareJson?.conversionWarnings) && compareJson.conversionWarnings.length > 0) {
+        recognitionConvertMeta.conversionWarnings = compareJson.conversionWarnings
+          .map(function (item) {
+            return normalizeText(item);
+          })
+          .filter(Boolean);
+      }
+      if (Array.isArray(compareJson?.lexiconMatches) && compareJson.lexiconMatches.length > 0) {
+        recognitionConvertMeta.lexiconMatches = sanitizeDebugValue(compareJson.lexiconMatches);
+      }
+      if (
+        normalizeText(compareJson?.recognizedMandarinText || "") &&
+        !recognitionConvertMeta.recognizedMandarinText
+      ) {
+        recognitionConvertMeta.recognizedMandarinText = normalizeText(compareJson.recognizedMandarinText);
+      }
+      if (
+        normalizeText(compareJson?.convertedDialectText || "") &&
+        !recognitionConvertMeta.convertedDialectText
+      ) {
+        recognitionConvertMeta.convertedDialectText = normalizeText(compareJson.convertedDialectText);
+      }
+      if (!listen?.isValidAudio) {
+        resultNormalized.reviewConclusion = "risky";
+        resultNormalized.shouldReview = true;
+        if (resultNormalized.textRuleCheck.ruleIssues.indexOf("音频无效或不清晰，建议人工复核。") < 0) {
+          resultNormalized.textRuleCheck.ruleIssues.push("音频无效或不清晰，建议人工复核。");
+        }
+      }
     } else {
       if (normalizedRequest.listenModel === "fun-asr") {
         const funAsrStartedAt = Date.now();
@@ -1236,6 +1501,14 @@ async function reviewCurrent(body, requestId) {
         Object.keys(rawJson).length > 0,
       recognitionMode: normalizedRequest.recognitionMode,
       derivedPipelineMode: normalizedRequest.pipelineMode,
+      pipelineMode:
+        normalizedRequest.recognitionMode === "recognition_convert"
+          ? "recognition_convert"
+          : normalizedRequest.pipelineMode,
+      recognizedMandarinText: recognitionConvertMeta?.recognizedMandarinText || "",
+      convertedDialectText: recognitionConvertMeta?.convertedDialectText || "",
+      lexiconMatches: recognitionConvertMeta?.lexiconMatches || [],
+      conversionWarnings: recognitionConvertMeta?.conversionWarnings || [],
       stages: rawAiDebugStages,
     });
 
@@ -1244,7 +1517,10 @@ async function reviewCurrent(body, requestId) {
       reviewConclusion: resultNormalized.reviewConclusion,
       shouldReview: resultNormalized.shouldReview === true,
       recognitionMode: normalizedRequest.recognitionMode,
-      pipelineMode: normalizedRequest.recognitionMode,
+      pipelineMode:
+        normalizedRequest.recognitionMode === "recognition_convert"
+          ? "recognition_convert"
+          : normalizedRequest.recognitionMode,
       derivedPipelineMode: normalizedRequest.pipelineMode,
       effectiveTime: effectiveTimeSeconds,
       estimatedIncome: estimatedIncome,
@@ -1314,6 +1590,10 @@ async function reviewCurrent(body, requestId) {
       models: {
         listenModel: listenModelRuntime || "",
         compareModel: compareModelRuntime || "",
+        conversionModel:
+          normalizedRequest.recognitionMode === "recognition_convert"
+            ? compareModelRuntime || ""
+            : "",
         reviewModel: compareModelRuntime || "",
         singleModel: singleModelRuntime || "",
         funAsrModel: normalizedRequest.listenModel === "fun-asr" ? profileConfig.funAsrModel : "",
@@ -1334,6 +1614,16 @@ async function reviewCurrent(body, requestId) {
       rawAiDebug: rawAiDebug,
       rawModelText: sanitizeDebugValue(rawModelText),
       rawJson: sanitizeDebugValue(rawJson),
+      recognitionConvert:
+        normalizedRequest.recognitionMode === "recognition_convert"
+          ? {
+              pipelineMode: "recognition_convert",
+              recognizedMandarinText: recognitionConvertMeta?.recognizedMandarinText || "",
+              convertedDialectText: recognitionConvertMeta?.convertedDialectText || "",
+              lexiconMatches: recognitionConvertMeta?.lexiconMatches || [],
+              conversionWarnings: recognitionConvertMeta?.conversionWarnings || [],
+            }
+          : null,
       mock: Boolean(profileConfig.mockEnabled),
       funAsr: funAsrMeta,
       // Legacy compatibility for old panel fields.
@@ -1462,6 +1752,8 @@ function createHealthPayload() {
       listenPrompt: DEFAULT_LISTEN_TEMPLATE,
       comparePrompt: DEFAULT_COMPARE_TEMPLATE,
       omniSinglePrompt: DEFAULT_OMNI_SINGLE_TEMPLATE,
+      recognitionConvertListenPrompt: DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE,
+      recognitionConvertComparePrompt: DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE,
     },
     supportedParams: SUPPORTED_REQUEST_PARAMS,
     queue: {
@@ -1533,6 +1825,8 @@ function createDefaultsPayload() {
       listenPrompt: DEFAULT_LISTEN_TEMPLATE,
       comparePrompt: DEFAULT_COMPARE_TEMPLATE,
       omniSinglePrompt: DEFAULT_OMNI_SINGLE_TEMPLATE,
+      recognitionConvertListenPrompt: DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE,
+      recognitionConvertComparePrompt: DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE,
       lexiconRewriteMode: profileConfig.lexiconRewriteMode,
     },
     supportedParams: SUPPORTED_REQUEST_PARAMS,

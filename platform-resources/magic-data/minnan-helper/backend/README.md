@@ -11,6 +11,7 @@
 - `two_stage + fun-asr`：Fun-ASR 听音 + compare 模型复核。
 - `two_stage + Qwen Omni`：Qwen Omni 听音 + compare 模型复核。
 - `omni_single + Qwen Omni`：单模型一次完成听音与两行文本复核。
+- `recognition_convert`：先将闽南语语音识别为普通话，再结合词表转换为闽南语，最后执行三项质检。
 
 ## 词表
 
@@ -22,7 +23,7 @@
 - `MAGIC_DATA_MINNAN_AI_LISTEN_MODEL`（fallback: `MAGIC_DATA_AI_LISTEN_MODEL`）
 - `MAGIC_DATA_MINNAN_AI_OMNI_MODEL`（fallback: `MAGIC_DATA_AI_LISTEN_MODEL`）
 - `MAGIC_DATA_MINNAN_AI_COMPARE_MODEL`（fallback: `MAGIC_DATA_AI_COMPARE_MODEL`）
-- `MAGIC_DATA_MINNAN_AI_PIPELINE_MODE`（`two_stage | omni_single`）
+- `MAGIC_DATA_MINNAN_AI_PIPELINE_MODE`（`two_stage | omni_single | recognition_convert`）
 - `MAGIC_DATA_MINNAN_AI_FUN_ASR_MODEL`（默认 `fun-asr`）
 - `MAGIC_DATA_MINNAN_AI_FUN_ASR_PROVIDER`（默认 `rest`）
 - `MAGIC_DATA_MINNAN_AI_FUN_ASR_PROVIDER_FALLBACK`（可选 `python`）

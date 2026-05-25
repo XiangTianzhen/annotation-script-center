@@ -20,6 +20,18 @@ const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "普通中文统一简体；命中词表建议用字必须保留。",
   "只输出 JSON，不输出 Markdown 或解释文字。",
 ].join("\n");
+const DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE = [
+  "你是闽南语音频识别助手。",
+  "请先把闽南语语音识别为普通话表达，不要直接生成闽南语字形。",
+  "输出仅用于后续词表转换和三项质检。",
+  "严格输出 JSON，不输出 Markdown 或额外解释。",
+].join("\n");
+const DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE = [
+  "当前任务是识别转换 + 三项预测质检。",
+  "先基于识别到的普通话文本，结合词表和平台上下文，生成建议闽南语文本。",
+  "再检查三项：说话人属性、闽南语内容、普通话文本。",
+  "严格输出 JSON，不输出 Markdown 或额外解释。",
+].join("\n");
 
 function getLexiconText(lexiconContext) {
   return String(lexiconContext?.text || "").trim();
@@ -170,12 +182,94 @@ function buildOmniSinglePrompt(request, lexiconContext) {
   };
 }
 
+function buildRecognitionConvertListenPrompt(request, lexiconContext) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.listenPrompt,
+    DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE
+  );
+  const lexiconText = getLexiconText(lexiconContext);
+  const input = {
+    taskItemId: request.taskItemId,
+    samplingRecordId: request.samplingRecordId,
+    projectName: request.projectName,
+    speaker: request.speaker,
+    effectiveStartTime: request.effectiveStartTime,
+    effectiveEndTime: request.effectiveEndTime,
+    effectiveTime: request.effectiveTime,
+    audioDuration: request.audioDuration,
+    platformDialectText: request.platformDialectText,
+    platformMandarinText: request.platformMandarinText,
+  };
+  const promptLines = [
+    template,
+    "先判断音频是否有效，再输出识别到的普通话文本。",
+    "JSON 必须包含字段：recognizedMandarinText, isValidAudio, validityDecision, invalidReasons, riskFlags, genderGuess, ageRangeGuess, confidence。",
+    "validityDecision 只能是 valid|invalid|uncertain。",
+    "genderGuess 只能是 男|女|uncertain。",
+    "ageRangeGuess 只能是 0-5|6-12|13-18|19-25|26-36|37-50|51-65|65以上|uncertain。",
+  ];
+  if (lexiconText) {
+    promptLines.push("词表上下文（仅辅助理解，不要求在本阶段输出闽南语）：", lexiconText);
+  }
+  promptLines.push("输入信息：", JSON.stringify(input, null, 2));
+  return {
+    ruleVersion: RULE_VERSION,
+    systemPrompt:
+      "你是闽南语语音识别助手。严格输出 JSON，不要输出 Markdown，不要输出额外解释。",
+    userPrompt: promptLines.join("\n"),
+  };
+}
+
+function buildRecognitionConvertComparePrompt(request, context) {
+  const template = normalizePromptTemplate(
+    request?.aiOptions?.comparePrompt,
+    DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE
+  );
+  const lexiconText = getLexiconText(context?.lexiconContext);
+  const input = {
+    rulesProfile: request.rulesProfile || "minnan",
+    recognizedMandarinText: context?.recognizedMandarinText || "",
+    convertedDialectText: context?.convertedDialectText || "",
+    platformBaseline: {
+      dialectText: request.platformDialectText || "",
+      mandarinText: request.platformMandarinText || "",
+      gender: request?.speaker?.gender || "",
+      ageRange: request?.speaker?.ageRange || "",
+    },
+    listenEvidence: context?.listenEvidence || {},
+    lexiconMatches: Array.isArray(context?.lexiconMatches) ? context.lexiconMatches : [],
+  };
+  const promptLines = [
+    template,
+    "输出结构必须包含：speakerCheck, dialectTextCheck, mandarinTextCheck, overall, heard。",
+    "speakerCheck 内必须有 gender 和 ageRange，字段：isCorrect, platformValue, suggestedValue, reason, confidence。",
+    "dialectTextCheck / mandarinTextCheck 字段：isCorrect, platformValue, suggestedValue, reason, confidence。",
+    "overall 字段：reviewConclusion(pass|need_review|risky|invalid_audio), shouldReview, summary。",
+    "heard 字段：heardDialectText, heardMandarinMeaning。",
+    "同时输出 recognizedMandarinText, convertedDialectText, lexiconMatches, conversionWarnings。",
+    "词表找不到对应写法时不要编造冷门闽南字，保守输出并在 conversionWarnings 标记需要人工复核。",
+  ];
+  if (lexiconText) {
+    promptLines.push("闽南语词表上下文：", lexiconText);
+  }
+  promptLines.push("输入信息：", JSON.stringify(input, null, 2));
+  return {
+    ruleVersion: RULE_VERSION,
+    systemPrompt: "你是闽南语识别转换质检助手。只能输出 JSON，不能输出额外文本。",
+    userPrompt: promptLines.join("\n"),
+  };
+}
+
 module.exports = {
   RULE_VERSION,
   DEFAULT_LISTEN_TEMPLATE,
   DEFAULT_COMPARE_TEMPLATE,
   DEFAULT_OMNI_SINGLE_TEMPLATE,
+  DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE,
+  DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE,
   buildComparePrompt,
   buildListenPrompt,
   buildOmniSinglePrompt,
+  buildRecognitionConvertListenPrompt,
+  buildRecognitionConvertComparePrompt,
 };

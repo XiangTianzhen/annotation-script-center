@@ -104,7 +104,7 @@
 
   function normalizeRecognitionMode(value) {
     const text = String(value || "").trim().toLowerCase();
-    if (text === "two_stage" || text === "omni_single") {
+    if (text === "two_stage" || text === "omni_single" || text === "recognition_convert") {
       return text;
     }
     if (text === "fun_asr_compare" || text === "qwen_omni_compare" || text === "qwen_omni_two_stage") {

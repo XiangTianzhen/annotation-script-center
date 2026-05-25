@@ -1,3 +1,21 @@
+## 2026-05-25（Magic Data 闽南语助手增强：识别转换模式 + 差异对比）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- 前端配置增强：
+  - `extension/shared/constants.js` 与 `extension/options/options.js` 新增闽南语 `recognition_convert` 模式选项（识别转换：先听成普通话，再按词表转闽南语）。
+  - 闽南语助手模式归一支持 `two_stage / omni_single / recognition_convert`，并保持 DataBaker 逻辑不变。
+- 后端链路增强（`platform-resources/magic-data/minnan-helper/backend/`）：
+  - `ai-service.js` 新增 `recognition_convert` pipeline：识别普通话 -> 词表转换闽南语 -> 三项预测质检。
+  - `ai-prompts.js` 新增识别转换专用 Prompt（listen/compare）。
+  - defaults/health 与模式枚举新增 `recognition_convert`，并返回对应默认 Prompt 模板。
+  - 原始输出新增识别转换中间产物（脱敏）：`recognizedMandarinText`、`convertedDialectText`、`lexiconMatches`、`conversionWarnings`。
+- 闽南语面板差异对比：
+  - `assistant-panel.js` 新增字符级轻量 diff（LCS），支持行内建议和右侧详情差异展示。
+  - 行内建议保持“正确/建议文本+填入本行”极简规则；右侧详情新增“差异对比”行。
+- 文档同步：
+  - 更新闽南语助手前后端 README 与平台索引口径，明确新增 `recognition_convert`、差异对比与“无并发配置”规则。
+  - 新增复测记录：`platform-resources/magic-data/page-structure/11-playwright-edge-recognition-convert-diff-2026-05-24.md`。
+
 ## 2026-05-24（Magic Data 闽南语助手热修：交互稳定性修复）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。

@@ -26,7 +26,7 @@
   - `GET /api/magic-data/minnan-helper/ai/review-current/health`
   - `GET /api/magic-data/minnan-helper/ai/defaults`
   - `POST /api/magic-data/minnan-helper/ai/review-current`
-  - 识别模式：`two_stage`（`fun-asr` / Qwen Omni 听音）与 `omni_single`（Qwen Omni 单模型）
+  - 识别模式：`two_stage`（`fun-asr` / Qwen Omni 听音）、`omni_single`（Qwen Omni 单模型）、`recognition_convert`（先普通话识别再词表转换）
   - 业务语义：三项预测质检（说话人书写、闽南语内容、普通话文本）
 - 旧路径兼容（映射到客家话助手）：
   - `GET /api/magic-data/annotator/ai/review-current/health`

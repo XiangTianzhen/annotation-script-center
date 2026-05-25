@@ -23,12 +23,19 @@
 - `two_stage + fun-asr`：Fun-ASR 听音 + compare 模型复核。
 - `two_stage + Qwen Omni`：Qwen Omni 听音 + compare 模型复核。
 - `omni_single + Qwen Omni`：单模型完成听音与两行文本复核。
+- `recognition_convert`：先听音识别普通话，再结合闽南词表转换闽南语，最后执行三项预测质检。
 - 输出结构以“三项预测质检”为主：
   - `speakerCheck`（性别/年龄）
   - `dialectTextCheck`（闽南语文本）
   - `mandarinTextCheck`（普通话文本）
   - `overall`（结论/摘要）
 - 同时兼容 Magic Data 旧面板字段：`recommendations.*`、`audioCheck.*`、`textRuleCheck.*`，并保留 `listen/comparison/verdict` legacy 字段。
+- `recognition_convert` 中间产物输出到 debug/raw（脱敏）：
+  - `recognizedMandarinText`
+  - `convertedDialectText`
+  - `lexiconMatches`
+  - `conversionWarnings`
+  - `pipelineMode=recognition_convert`
 
 ## 说话人数据来源
 
@@ -42,13 +49,14 @@
 - 右侧 AI 面板不提供“填入第一行/填入第二行”，改为行内 `填入本行` 与 `全部填入AI推荐`。
 - 文本行内建议改为极简：
   - 正确：仅显示 `正确`（不显示填入按钮）
-  - 需改：仅显示建议文本 + `填入本行`
+  - 需改：显示差异高亮建议文本 + `填入本行`
 - 说话人属性（性别/年龄）也显示 AI 建议：
   - 正确：只显示 `AI建议：正确`
   - 需改：显示建议值，并提供 `填入性别/填入年龄`
 - 行内建议与说话人建议按 task 幂等更新，避免节点反复销毁重建导致 hover 闪烁。
 - 仅在存在“需修改项”时显示 `全部填入AI推荐`；仅填需改项，不自动保存/提交。
 - 新增“显示 AI 原始输出”按钮，展示脱敏 raw 输出与归一化结果（支持复制）。
+- 闽南语助手 options 不提供并发数配置（DataBaker 的并发配置保持在 DataBaker 脚本内）。
 - 右侧结果区结构：`总结论` 置顶；`说话人属性`、`闽南语内容`、`普通话文本` 三个板块独立折叠（默认折叠），并按 `taskItemId + section` 记忆展开状态。
 
 ## 词表与环境变量

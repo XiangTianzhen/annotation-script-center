@@ -15,8 +15,15 @@
 - options 中闽南语助手 AI 配置走 DataBaker 风格：
   - `two_stage`：显示“听音模型 + 比较模型”
   - `omni_single`：只显示“AI 模型”
+  - `recognition_convert`：显示“听音模型 + 比较模型（转换）”，链路为“先识别普通话，再按词表转换闽南语”
 - `two_stage` 听音模型支持 `fun-asr` 或 Qwen Omni；`omni_single` 走 Qwen Omni 单模型。
+- `recognition_convert` 支持 `fun-asr` / Qwen Omni 听音；中间产物会进入原始输出弹窗：
+  - `recognizedMandarinText`
+  - `convertedDialectText`
+  - `lexiconMatches`
+  - `conversionWarnings`
 - 支持 Prompt override 与生成参数 override（留空时使用后端 defaults）。
+- 闽南语助手 options 不提供并发数配置（DataBaker 并发配置保持独立）。
 
 ## 三项质检口径
 
@@ -33,7 +40,7 @@
 
 - AI 结果返回后，会在对应平台文本行下方插入极简行内推荐块：
   - 正确：仅显示 `正确`。
-  - 需改：仅显示建议文本 + `填入本行` 按钮。
+  - 需改：显示差异高亮建议文本 + `填入本行` 按钮（长文本降级为纯建议文本）。
 - “填入本行”只写入当前行 `contenteditable` 文本框，并触发 `input/change`；不自动保存、不自动提交。
 - 新增 `全部填入AI推荐`：仅在 AI 完成且存在“需修改项”时显示，自动填入性别/年龄/闽南语行/普通话行中的可改项，不自动保存/提交。
 - 行内建议与说话人建议采用“按 task 幂等更新”，同任务内仅更新文本和按钮状态，避免 hover 期间反复销毁重建导致闪烁。
@@ -57,6 +64,7 @@
 
 - 右侧三块详情（说话人属性/闽南语内容/普通话文本）使用自定义折叠区，不依赖原生 `<details>`。
 - 折叠状态按 `taskItemId + section` 维度记忆；刷新采集或 observer 回调后会恢复展开状态，避免“点击后自动收回”。
+- 右侧“闽南语内容/普通话文本”详情新增原文与建议的差异对比视图（字符级 LCS，超过 500 字自动降级）。
 
 ## 行为边界
 
