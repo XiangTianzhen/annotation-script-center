@@ -20,22 +20,25 @@
 
 ## AI 链路
 
-- `two_stage + fun-asr`：Fun-ASR 听音 + compare 模型复核。
-- `two_stage + Qwen Omni`：Qwen Omni 听音 + compare 模型复核。
-- `omni_single + Qwen Omni`：单模型完成听音与两行文本复核。
-- `recognition_convert`：先听音识别普通话，再结合闽南词表转换闽南语，最后执行三项预测质检。
+- 模型方案（`modelMode`）：
+  - `two_stage`：听音模型 + 比较/转换模型
+  - `omni_single`：单模型完成听音与质检
+- 识别策略（`recognitionStrategy`）：
+  - `direct_dialect`：直接识别方言文本
+  - `mandarin_to_dialect`：先识别普通话，再结合闽南词表转换闽南语
+- 兼容旧字段：`aiReviewRecognitionMode=recognition_convert` 会映射为 `two_stage + mandarin_to_dialect`。
 - 输出结构以“三项预测质检”为主：
   - `speakerCheck`（性别/年龄）
   - `dialectTextCheck`（闽南语文本）
   - `mandarinTextCheck`（普通话文本）
   - `overall`（结论/摘要）
 - 同时兼容 Magic Data 旧面板字段：`recommendations.*`、`audioCheck.*`、`textRuleCheck.*`，并保留 `listen/comparison/verdict` legacy 字段。
-- `recognition_convert` 中间产物输出到 debug/raw（脱敏）：
+- `mandarin_to_dialect` 中间产物输出到 debug/raw（脱敏）：
   - `recognizedMandarinText`
   - `convertedDialectText`
   - `lexiconMatches`
   - `conversionWarnings`
-  - `pipelineMode=recognition_convert`
+  - `recognitionStrategy=mandarin_to_dialect`
 
 ## 说话人数据来源
 

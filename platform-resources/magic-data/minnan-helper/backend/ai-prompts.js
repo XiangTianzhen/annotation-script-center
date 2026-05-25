@@ -29,6 +29,8 @@ const DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE = [
 const DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE = [
   "当前任务是识别转换 + 三项预测质检。",
   "先基于识别到的普通话文本，结合词表和平台上下文，生成建议闽南语文本。",
+  "命中词表的闽南语建议用字优先使用繁体。",
+  "词表未覆盖时不要强行转换为生僻闽南字，可保留稳妥表达并标记待人工复核。",
   "再检查三项：说话人属性、闽南语内容、普通话文本。",
   "严格输出 JSON，不输出 Markdown 或额外解释。",
 ].join("\n");
@@ -247,7 +249,9 @@ function buildRecognitionConvertComparePrompt(request, context) {
     "overall 字段：reviewConclusion(pass|need_review|risky|invalid_audio), shouldReview, summary。",
     "heard 字段：heardDialectText, heardMandarinMeaning。",
     "同时输出 recognizedMandarinText, convertedDialectText, lexiconMatches, conversionWarnings。",
-    "词表找不到对应写法时不要编造冷门闽南字，保守输出并在 conversionWarnings 标记需要人工复核。",
+    "命中词表的闽南语建议用字优先使用繁体。",
+    "词表找不到对应写法时不要编造冷门闽南字，保守输出并在 conversionWarnings 标记 needHumanReview=true。",
+    "不要为了更像闽南语而无依据改写，普通话文本与闽南语文本必须语义一致。",
   ];
   if (lexiconText) {
     promptLines.push("闽南语词表上下文：", lexiconText);

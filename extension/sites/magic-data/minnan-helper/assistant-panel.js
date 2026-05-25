@@ -243,6 +243,8 @@
     const runtimeSettingsDefault = {
       enabled: true,
       aiReviewEnabled: true,
+      aiReviewModelMode: "two_stage",
+      aiReviewRecognitionStrategy: "direct_dialect",
       aiReviewRecognitionMode: "two_stage",
       aiReviewListenModel: "qwen3.5-omni-flash",
       aiReviewCompareModel: "qwen3.5-plus",
@@ -1164,6 +1166,23 @@
       return section;
     }
 
+    function toggleFoldSection(sectionName) {
+      if (!(resultNode instanceof HTMLElement)) {
+        return { ok: false, message: "结果区域未就绪。" };
+      }
+      const toggle = resultNode.querySelector('.md-fold-toggle[data-section="' + sectionName + '"]');
+      if (!(toggle instanceof HTMLElement)) {
+        return { ok: false, message: "未找到对应详情板块：" + sectionName };
+      }
+      toggle.click();
+      const section = toggle.closest(".md-fold-section");
+      const isOpen = Boolean(section?.classList?.contains("is-open"));
+      return {
+        ok: true,
+        message: (isOpen ? "已展开" : "已收起") + "「" + sectionName + "」详情。",
+      };
+    }
+
     function renderResult(data) {
       latestResult = data || null;
       if (!resultNode) {
@@ -1307,20 +1326,31 @@
       setLoading(true);
       setMessage("正在调用 AI 质检后端...");
       try {
-        const recognitionMode = (function () {
+        const modelMode = (function () {
           const text = String(
-            runtimeSettings.aiReviewRecognitionMode || runtimeSettings.recognitionMode || ""
+            runtimeSettings.aiReviewModelMode || runtimeSettings.aiReviewRecognitionMode || ""
           )
             .trim()
             .toLowerCase();
-          if (text === "recognition_convert") {
-            return "recognition_convert";
-          }
           if (text === "omni_single") {
             return "omni_single";
           }
           return "two_stage";
         })();
+        const recognitionStrategy = (function () {
+          const text = String(runtimeSettings.aiReviewRecognitionStrategy || "")
+            .trim()
+            .toLowerCase();
+          if (text === "mandarin_to_dialect") {
+            return "mandarin_to_dialect";
+          }
+          const legacyText = String(runtimeSettings.aiReviewRecognitionMode || "")
+            .trim()
+            .toLowerCase();
+          return legacyText === "recognition_convert" ? "mandarin_to_dialect" : "direct_dialect";
+        })();
+        const recognitionMode =
+          recognitionStrategy === "mandarin_to_dialect" ? "recognition_convert" : modelMode;
         const listenModel = String(
           runtimeSettings.aiReviewListenModel || runtimeSettings.listenModel || "qwen3.5-omni-flash"
         )
@@ -1333,7 +1363,7 @@
           .slice(0, 80);
         const singleModel = String(
           runtimeSettings.aiReviewSingleModel ||
-            (recognitionMode === "omni_single"
+            (modelMode === "omni_single"
               ? runtimeSettings.listenModel || "qwen3.5-omni-flash"
               : "qwen3.5-omni-flash")
         )
@@ -1359,6 +1389,8 @@
           clientVersion: options.getClientVersion ? options.getClientVersion() : "0.3.0",
           recognitionMode: recognitionMode,
           pipelineMode: recognitionMode,
+          modelMode: modelMode,
+          recognitionStrategy: recognitionStrategy,
           listenModel: listenModel,
           compareModel: compareModel,
           singleModel: singleModel,
@@ -1560,6 +1592,32 @@
       const message = "已填入 AI 推荐，未保存、未提交，请人工确认。";
       setMessage(message);
       return { ok: true, message: message };
+    }
+
+    async function triggerRefreshCollection() {
+      const snapshot = await collectAndRenderSnapshot(true);
+      if (!snapshot) {
+        return { ok: false, message: "刷新采集失败。" };
+      }
+      return { ok: true, message: "采集已刷新。" };
+    }
+
+    function triggerResetPanelHeight() {
+      applyPanelHeight(DEFAULT_PANEL_HEIGHT);
+      void persistPanelHeight(DEFAULT_PANEL_HEIGHT);
+      const message = "卡片高度已重置为默认值。";
+      setMessage(message);
+      return { ok: true, message: message };
+    }
+
+    function triggerShowRawOutput() {
+      if (!latestResult) {
+        const message = "暂无 AI 原始输出。";
+        setMessage(message);
+        return { ok: false, message: message };
+      }
+      openRawOutputModal();
+      return { ok: true, message: "已打开 AI 原始输出。" };
     }
 
     function clearResult() {
@@ -1768,9 +1826,22 @@
       setRuntimeSettings: setRuntimeSettings,
       showAsrmarkCheckNotice: showAsrmarkCheckNotice,
       triggerCopySummary: triggerCopySummary,
+      triggerFillAllSuggestions: triggerFillAllSuggestions,
       triggerFillDialect: triggerFillDialect,
       triggerFillMandarin: triggerFillMandarin,
+      triggerRefreshCollection: triggerRefreshCollection,
       triggerReview: triggerReview,
+      triggerResetPanelHeight: triggerResetPanelHeight,
+      triggerShowRawOutput: triggerShowRawOutput,
+      triggerToggleDialectDetail: function () {
+        return toggleFoldSection("闽南语内容");
+      },
+      triggerToggleMandarinDetail: function () {
+        return toggleFoldSection("普通话文本");
+      },
+      triggerToggleSpeakerDetail: function () {
+        return toggleFoldSection("说话人属性");
+      },
     };
   }
 

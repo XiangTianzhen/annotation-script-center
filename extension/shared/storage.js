@@ -1769,6 +1769,75 @@
     return "";
   }
 
+  function normalizeMagicDataModelMode(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "two_stage" || text === "omni_single") {
+      return text;
+    }
+    const fallbackText = String(fallback || "two_stage").trim().toLowerCase();
+    return fallbackText === "omni_single" ? "omni_single" : "two_stage";
+  }
+
+  function normalizeMagicDataRecognitionStrategy(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "direct_dialect" || text === "mandarin_to_dialect") {
+      return text;
+    }
+    const fallbackText = String(fallback || "direct_dialect").trim().toLowerCase();
+    return fallbackText === "mandarin_to_dialect" ? "mandarin_to_dialect" : "direct_dialect";
+  }
+
+  function resolveMagicDataModeAndStrategy(currentScript, legacyScript, defaultScript) {
+    const sourceCurrent = isPlainObject(currentScript) ? currentScript : {};
+    const sourceLegacy = isPlainObject(legacyScript) ? legacyScript : {};
+    const sourceDefault = isPlainObject(defaultScript) ? defaultScript : {};
+    const rawRecognitionMode =
+      sourceCurrent.aiReviewRecognitionMode ||
+      sourceCurrent.aiReviewPipelineMode ||
+      sourceCurrent.pipelineMode ||
+      sourceLegacy.aiReviewRecognitionMode ||
+      sourceLegacy.aiReviewPipelineMode ||
+      sourceLegacy.pipelineMode;
+    const legacyRecognition = String(rawRecognitionMode || "").trim().toLowerCase();
+    const defaultModelMode = normalizeMagicDataModelMode(
+      sourceDefault.aiReviewModelMode || sourceDefault.aiReviewRecognitionMode || "two_stage",
+      "two_stage"
+    );
+    const defaultStrategy = normalizeMagicDataRecognitionStrategy(
+      sourceDefault.aiReviewRecognitionStrategy || "direct_dialect",
+      "direct_dialect"
+    );
+    let modelMode = normalizeMagicDataModelMode(
+      sourceCurrent.aiReviewModelMode || sourceLegacy.aiReviewModelMode,
+      defaultModelMode
+    );
+    let recognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      sourceCurrent.aiReviewRecognitionStrategy || sourceLegacy.aiReviewRecognitionStrategy,
+      defaultStrategy
+    );
+    if (legacyRecognition === "recognition_convert") {
+      recognitionStrategy = "mandarin_to_dialect";
+      const singleModel = String(
+        sourceCurrent.aiReviewSingleModel ||
+          sourceLegacy.aiReviewSingleModel ||
+          sourceCurrent.singleModel ||
+          sourceLegacy.singleModel ||
+          ""
+      ).trim();
+      modelMode = singleModel ? "omni_single" : "two_stage";
+    } else if (legacyRecognition === "omni_single") {
+      modelMode = "omni_single";
+    } else if (legacyRecognition === "two_stage" || legacyRecognition === "fun_asr_compare" || legacyRecognition === "qwen_omni_compare" || legacyRecognition === "qwen_omni_two_stage") {
+      modelMode = "two_stage";
+    }
+    return {
+      modelMode: modelMode,
+      recognitionStrategy: recognitionStrategy,
+      legacyRecognitionMode:
+        recognitionStrategy === "mandarin_to_dialect" ? "recognition_convert" : modelMode,
+    };
+  }
+
   function readMagicDataScriptFlag(currentScript, legacyScript, key, fallback) {
     if (isPlainObject(currentScript) && hasOwn(currentScript, key)) {
       return currentScript[key] !== false;
@@ -1862,6 +1931,14 @@
       {
         enabled: hakkaEnabled,
         aiReviewEnabled: hakkaEnabled,
+        aiReviewModelMode:
+          settings?.platforms?.magicData?.scripts?.hakkaHelper?.aiReviewModelMode || "two_stage",
+        aiReviewRecognitionStrategy:
+          settings?.platforms?.magicData?.scripts?.hakkaHelper?.aiReviewRecognitionStrategy ||
+          "direct_dialect",
+        aiReviewRecognitionMode:
+          settings?.platforms?.magicData?.scripts?.hakkaHelper?.aiReviewRecognitionMode ||
+          "two_stage",
       }
     );
     settings.scriptCenter.projects.magicDataMinnanAssistant = Object.assign(
@@ -1870,6 +1947,14 @@
       {
         enabled: minnanEnabled,
         aiReviewEnabled: minnanEnabled,
+        aiReviewModelMode:
+          settings?.platforms?.magicData?.scripts?.minnanHelper?.aiReviewModelMode || "two_stage",
+        aiReviewRecognitionStrategy:
+          settings?.platforms?.magicData?.scripts?.minnanHelper?.aiReviewRecognitionStrategy ||
+          "direct_dialect",
+        aiReviewRecognitionMode:
+          settings?.platforms?.magicData?.scripts?.minnanHelper?.aiReviewRecognitionMode ||
+          "two_stage",
       }
     );
   }
@@ -1917,6 +2002,16 @@
     const currentMinnanScript = isPlainObject(settings.platforms.magicData.scripts.minnanHelper)
       ? settings.platforms.magicData.scripts.minnanHelper
       : {};
+    const hakkaModeAndStrategy = resolveMagicDataModeAndStrategy(
+      currentHakkaScript,
+      legacyHakka,
+      defaultHakkaScript
+    );
+    const minnanModeAndStrategy = resolveMagicDataModeAndStrategy(
+      currentMinnanScript,
+      legacyMinnan,
+      defaultMinnanScript
+    );
 
     settings.platforms.magicData.enabled = settings.platforms.magicData.enabled !== false;
     settings.platforms.magicData.activeScriptId = normalizeMagicDataActiveScriptId(
@@ -1940,6 +2035,9 @@
           "aiReviewEnabled",
           defaultHakkaScript.aiReviewEnabled
         ),
+        aiReviewModelMode: hakkaModeAndStrategy.modelMode,
+        aiReviewRecognitionStrategy: hakkaModeAndStrategy.recognitionStrategy,
+        aiReviewRecognitionMode: hakkaModeAndStrategy.legacyRecognitionMode,
       }
     );
     settings.platforms.magicData.scripts.minnanHelper = Object.assign(
@@ -1960,6 +2058,9 @@
           "aiReviewEnabled",
           defaultMinnanScript.aiReviewEnabled
         ),
+        aiReviewModelMode: minnanModeAndStrategy.modelMode,
+        aiReviewRecognitionStrategy: minnanModeAndStrategy.recognitionStrategy,
+        aiReviewRecognitionMode: minnanModeAndStrategy.legacyRecognitionMode,
       }
     );
     normalizeMagicDataExclusiveScripts(settings);

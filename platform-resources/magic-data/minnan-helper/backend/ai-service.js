@@ -66,6 +66,14 @@ const {
 const SERVICE_NAME = "magic-data-minnan-helper-ai-review-current";
 const SCRIPT_ID = "magicDataMinnanAssistant";
 const COMPONENT_NAME = "asr-voice-ai";
+const MODEL_MODE_OPTIONS = [
+  { value: "two_stage", label: "双模型：听音模型 + 比较/转换模型" },
+  { value: "omni_single", label: "单模型：Omni 单模型" },
+];
+const RECOGNITION_STRATEGY_OPTIONS = [
+  { value: "direct_dialect", label: "直接识别方言文本" },
+  { value: "mandarin_to_dialect", label: "识别转换：先听成普通话，再按字词表转方言" },
+];
 
 const RECOGNITION_MODE_OPTIONS = [
   { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
@@ -289,6 +297,42 @@ function normalizeRecognitionMode(value, fallback) {
   return "two_stage";
 }
 
+function normalizeModelMode(value, fallback) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "two_stage" || text === "omni_single") {
+    return text;
+  }
+  if (text === "recognition_convert") {
+    return "two_stage";
+  }
+  const fallbackText = String(fallback || "two_stage").trim().toLowerCase();
+  return fallbackText === "omni_single" ? "omni_single" : "two_stage";
+}
+
+function normalizeRecognitionStrategy(value, fallback) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "mandarin_to_dialect") {
+    return "mandarin_to_dialect";
+  }
+  if (text === "recognition_convert") {
+    return "mandarin_to_dialect";
+  }
+  const fallbackText = String(fallback || "direct_dialect").trim().toLowerCase();
+  return fallbackText === "mandarin_to_dialect" ? "mandarin_to_dialect" : "direct_dialect";
+}
+
+function deriveLegacyRecognitionMode(modelMode, recognitionStrategy) {
+  const normalizedModelMode = normalizeModelMode(modelMode, "two_stage");
+  const normalizedRecognitionStrategy = normalizeRecognitionStrategy(
+    recognitionStrategy,
+    "direct_dialect"
+  );
+  if (normalizedRecognitionStrategy === "mandarin_to_dialect") {
+    return "recognition_convert";
+  }
+  return normalizedModelMode;
+}
+
 function derivePipelineMode(recognitionMode, listenModel) {
   const normalizedMode = normalizeRecognitionMode(recognitionMode, "two_stage");
   if (normalizedMode === "omni_single") {
@@ -351,10 +395,22 @@ function normalizeFunAsrFallback(value) {
 function getProfileConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
   const baseUrl = String(process.env.DASHSCOPE_BASE_URL || "").trim();
-  const recognitionMode = normalizeRecognitionMode(readProfileEnv("PIPELINE_MODE", "two_stage"), "two_stage");
+  const legacyRecognitionMode = normalizeRecognitionMode(
+    readProfileEnv("PIPELINE_MODE", "two_stage"),
+    "two_stage"
+  );
+  const modelMode = normalizeModelMode(
+    readProfileEnv("MODEL_MODE", legacyRecognitionMode),
+    legacyRecognitionMode
+  );
+  const recognitionStrategy = normalizeRecognitionStrategy(
+    readProfileEnv("RECOGNITION_STRATEGY", legacyRecognitionMode),
+    legacyRecognitionMode
+  );
+  const recognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
   const omniModel = normalizeSingleModel(readProfileEnv("OMNI_MODEL", DEFAULT_SINGLE_MODEL), DEFAULT_SINGLE_MODEL);
   const listenModel = normalizeListenModel(
-    readProfileEnv("LISTEN_MODEL", recognitionMode === "two_stage" ? omniModel : DEFAULT_FUN_ASR_MODEL),
+    readProfileEnv("LISTEN_MODEL", modelMode === "two_stage" ? omniModel : DEFAULT_FUN_ASR_MODEL),
     omniModel
   );
   const singleModel = normalizeSingleModel(
@@ -381,12 +437,14 @@ function getProfileConfig() {
   const funAsrPollIntervalMs = parsePollIntervalMs(readProfileEnv("FUN_ASR_POLL_INTERVAL_MS", 1000));
   const lexiconRewriteMode = String(readProfileEnv("LEXICON_REWRITE_MODE", "off") || "off").trim().toLowerCase();
   const cacheTtlMs = parseCacheTtlMs(readProfileEnv("CACHE_TTL_MS", DEFAULT_CACHE_TTL_MS));
-  const derivedPipelineMode = derivePipelineMode(recognitionMode, recognitionMode === "omni_single" ? singleModel : listenModel);
+  const derivedPipelineMode = derivePipelineMode(recognitionMode, modelMode === "omni_single" ? singleModel : listenModel);
 
   return {
     apiKey,
     hasApiKey: Boolean(apiKey),
     baseUrl,
+    modelMode,
+    recognitionStrategy,
     recognitionMode,
     derivedPipelineMode,
     listenModel,
@@ -480,6 +538,8 @@ function buildReviewCacheKey(request, profileConfig) {
     effectiveStartTime: request.effectiveStartTime ?? null,
     effectiveEndTime: request.effectiveEndTime ?? null,
     effectiveTime: request.effectiveTime ?? null,
+    modelMode: String(request.modelMode || ""),
+    recognitionStrategy: String(request.recognitionStrategy || ""),
     recognitionMode: String(request.recognitionMode || ""),
     pipelineMode: String(request.pipelineMode || ""),
     listenModel: String(request.listenModel || ""),
@@ -635,10 +695,19 @@ function normalizeReviewRequest(body) {
     throw createHttpError(400, "effectiveTime 必须是非负数字。", "invalid-effective-time");
   }
 
-  const recognitionMode = normalizeRecognitionMode(
+  const fallbackLegacyMode = normalizeRecognitionMode(
     source.recognitionMode || source.pipelineMode || source.aiReviewRecognitionMode,
     profileConfig.recognitionMode
   );
+  const modelMode = normalizeModelMode(
+    source.modelMode || source.aiReviewModelMode || fallbackLegacyMode,
+    profileConfig.modelMode || fallbackLegacyMode
+  );
+  const recognitionStrategy = normalizeRecognitionStrategy(
+    source.recognitionStrategy || source.aiReviewRecognitionStrategy || fallbackLegacyMode,
+    profileConfig.recognitionStrategy || fallbackLegacyMode
+  );
+  const recognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
 
   const requestedListenModel =
     aiOptions.listenModel || source.listenModel || source.aiReviewListenModel || "";
@@ -700,7 +769,9 @@ function normalizeReviewRequest(body) {
     clientVersion: normalizeText(source.clientVersion),
     recognitionMode: recognitionMode,
     pipelineMode: derivePipelineMode(
-      recognitionMode,
+    modelMode,
+    recognitionStrategy,
+    recognitionMode,
       recognitionMode === "omni_single" ? singleModel : listenModel
     ),
     listenModel: listenModel,
@@ -1499,6 +1570,8 @@ async function reviewCurrent(body, requestId) {
       hasRaw:
         Object.keys(rawModelText).length > 0 ||
         Object.keys(rawJson).length > 0,
+      modelMode: normalizedRequest.modelMode,
+      recognitionStrategy: normalizedRequest.recognitionStrategy,
       recognitionMode: normalizedRequest.recognitionMode,
       derivedPipelineMode: normalizedRequest.pipelineMode,
       pipelineMode:
@@ -1516,6 +1589,8 @@ async function reviewCurrent(body, requestId) {
       requestId: finalRequestId,
       reviewConclusion: resultNormalized.reviewConclusion,
       shouldReview: resultNormalized.shouldReview === true,
+      modelMode: normalizedRequest.modelMode,
+      recognitionStrategy: normalizedRequest.recognitionStrategy,
       recognitionMode: normalizedRequest.recognitionMode,
       pipelineMode:
         normalizedRequest.recognitionMode === "recognition_convert"
@@ -1617,6 +1692,7 @@ async function reviewCurrent(body, requestId) {
       recognitionConvert:
         normalizedRequest.recognitionMode === "recognition_convert"
           ? {
+              recognitionStrategy: "mandarin_to_dialect",
               pipelineMode: "recognition_convert",
               recognizedMandarinText: recognitionConvertMeta?.recognizedMandarinText || "",
               convertedDialectText: recognitionConvertMeta?.convertedDialectText || "",
@@ -1726,10 +1802,14 @@ function createHealthPayload() {
     status: profileConfig.hasApiKey || profileConfig.mockEnabled ? "ready" : "missing-api-key",
     mockEnabled: profileConfig.mockEnabled === true,
     hasApiKey: profileConfig.hasApiKey === true,
+    modelMode: profileConfig.modelMode,
+    recognitionStrategy: profileConfig.recognitionStrategy,
     recognitionMode: profileConfig.recognitionMode,
     pipelineMode: profileConfig.recognitionMode,
     derivedPipelineMode: profileConfig.derivedPipelineMode,
     recognitionModeOptions: RECOGNITION_MODE_OPTIONS.slice(),
+    modelModeOptions: MODEL_MODE_OPTIONS.slice(),
+    recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
     supportedPipelineModes: SUPPORTED_PIPELINE_MODES.slice(),
     listenModel: profileConfig.listenModel,
     listenModelOptions: LISTEN_MODEL_OPTIONS.slice(),
@@ -1794,10 +1874,14 @@ function createDefaultsPayload() {
     scriptId: SCRIPT_ID,
     component: COMPONENT_NAME,
     defaults: {
+      modelMode: profileConfig.modelMode,
+      recognitionStrategy: profileConfig.recognitionStrategy,
       recognitionMode: profileConfig.recognitionMode,
       pipelineMode: profileConfig.recognitionMode,
       derivedPipelineMode: profileConfig.derivedPipelineMode,
       recognitionModeOptions: RECOGNITION_MODE_OPTIONS.slice(),
+      modelModeOptions: MODEL_MODE_OPTIONS.slice(),
+      recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
       supportedPipelineModes: SUPPORTED_PIPELINE_MODES.slice(),
       listenModel: profileConfig.listenModel,
       listenModelOptions: LISTEN_MODEL_OPTIONS.slice(),

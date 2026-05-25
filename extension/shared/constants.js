@@ -94,10 +94,16 @@
     { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
     { value: "omni_single", label: "单模型：Omni 单模型" },
   ];
-  const MAGIC_DATA_MINNAN_AI_PIPELINE_MODE_OPTIONS = [
+  const MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS = [
     { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
     { value: "omni_single", label: "单模型：Omni 单模型" },
-    { value: "recognition_convert", label: "识别转换：先听成普通话，再按词表转闽南语" },
+  ];
+  const MAGIC_DATA_HELPER_RECOGNITION_STRATEGY_OPTIONS = [
+    { value: "direct_dialect", label: "直接识别方言文本" },
+    {
+      value: "mandarin_to_dialect",
+      label: "识别转换：先听成普通话，再按字词表转方言",
+    },
   ];
   const DATABAKER_AI_LISTEN_MODEL_OPTIONS = [
     { value: "fun-asr", label: "fun-asr" },
@@ -1487,6 +1493,9 @@
         magicDataAnnotator: {
           enabled: true,
           aiReviewEnabled: true,
+          aiReviewModelMode: "two_stage",
+          aiReviewRecognitionStrategy: "direct_dialect",
+          aiReviewRecognitionMode: "two_stage",
           listenModel: "qwen3.5-omni-flash",
           reviewModel: "qwen3.5-plus",
           reviewMode: "rule_first",
@@ -1509,6 +1518,8 @@
         magicDataMinnanAssistant: {
           enabled: false,
           aiReviewEnabled: false,
+          aiReviewModelMode: "two_stage",
+          aiReviewRecognitionStrategy: "direct_dialect",
           aiReviewRecognitionMode: "two_stage",
           aiReviewListenModel: "qwen3.5-omni-flash",
           aiReviewCompareModel: "qwen3.5-plus",
@@ -1649,8 +1660,9 @@
     TRANSCRIPTION_STATS_LOCAL_ENDPOINT: TRANSCRIPTION_STATS_LOCAL_ENDPOINT,
     DATABAKER_PAGE_SIZE_OPTIONS: clone(DATABAKER_PAGE_SIZE_OPTIONS),
     DATABAKER_AI_PIPELINE_MODE_OPTIONS: clone(DATABAKER_AI_PIPELINE_MODE_OPTIONS),
-    MAGIC_DATA_MINNAN_AI_PIPELINE_MODE_OPTIONS: clone(
-      MAGIC_DATA_MINNAN_AI_PIPELINE_MODE_OPTIONS
+    MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS: clone(MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS),
+    MAGIC_DATA_HELPER_RECOGNITION_STRATEGY_OPTIONS: clone(
+      MAGIC_DATA_HELPER_RECOGNITION_STRATEGY_OPTIONS
     ),
     DATABAKER_AI_LISTEN_MODEL_OPTIONS: clone(DATABAKER_AI_LISTEN_MODEL_OPTIONS),
     DATABAKER_AI_SINGLE_MODEL_OPTIONS: clone(DATABAKER_AI_SINGLE_MODEL_OPTIONS),

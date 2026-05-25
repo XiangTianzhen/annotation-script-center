@@ -17,6 +17,14 @@
 - `assistant-panel-core.js`
 - `shortcuts-runtime.js`
 
+## 配置与快捷键
+
+- 与闽南语助手统一使用“模型方案 + 识别策略”配置字段：
+  - 模型方案：`two_stage` / `omni_single`
+  - 识别策略：`direct_dialect` / `mandarin_to_dialect`
+- 为兼容历史配置，仍保留 legacy `aiReviewRecognitionMode`（含 `recognition_convert`）映射。
+- 快捷键动作已与闽南语助手统一到同一动作集合（含 `全部填入AI推荐`、`显示 AI 原始输出`、详情折叠切换等动作键）。
+
 ## 行为边界
 
 - 只允许用户主动点击按钮或快捷键触发 AI。

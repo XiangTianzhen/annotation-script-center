@@ -1,3 +1,21 @@
+## 2026-05-25（Magic Data 双助手配置重构：模型方案/识别策略拆分）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- `extension/options/options.js`：
+  - 闽南语与客家话助手配置统一为双维度：`modelMode(two_stage/omni_single)` + `recognitionStrategy(direct_dialect/mandarin_to_dialect)`。
+  - legacy `aiReviewRecognitionMode=recognition_convert` 保留兼容映射，不再作为前端同级模型方案展示。
+  - Magic Data 快捷键动作集合同步为新口径：新增 `全部填入AI推荐`、`显示 AI 原始输出`、三块详情折叠切换、刷新采集、重置高度；常规列表移除“填入第一行/填入第二行”。
+- `extension/sites/magic-data/minnan-helper/content.js`：
+  - 请求体新增并透传 `modelMode`、`recognitionStrategy`，同时保留 legacy `recognitionMode/pipelineMode`。
+- `platform-resources/magic-data/minnan-helper/backend/ai-service.js`：
+  - 补齐 `modelMode` 与 `recognitionStrategy` 归一化与 defaults/health 回传。
+  - `mandarin_to_dialect` 策略继续输出 `recognizedMandarinText`、`convertedDialectText`、`lexiconMatches`、`conversionWarnings`（脱敏）。
+- 文档更新：
+  - 更新 Magic Data 前后端 README、平台索引与页面结构索引口径，统一使用“模型方案 + 识别策略”描述。
+  - 新增 `platform-resources/magic-data/page-structure/12-playwright-edge-dual-helper-mode-shortcuts-2026-05-24.md`。
+- MCP 复测状态：
+  - 已尝试使用 `playwright-edge`，但本机 Edge 远程调试端口未连通（`ws://localhost:9222/devtools/browser`），本轮无法完成交互复测，仅记录阻塞与待补步骤。
+
 ## 2026-05-25（Magic Data 闽南语助手增强：识别转换模式 + 差异对比）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。

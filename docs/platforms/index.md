@@ -27,7 +27,7 @@
 - 平台运行时代码：`extension/sites/magic-data/`
 - 平台 README：`extension/sites/magic-data/README.md`
 - 客家话助手：`extension/sites/magic-data/hakka-helper/README.md`
-- 闽南语助手：`extension/sites/magic-data/minnan-helper/README.md`（前端行为对齐客家话助手，AI 配置采用 DataBaker 风格 `two_stage/omni_single/recognition_convert`；与客家话助手同平台互斥启用）
+- 闽南语助手：`extension/sites/magic-data/minnan-helper/README.md`（前端行为对齐客家话助手，AI 配置拆分为“模型方案 two_stage/omni_single + 识别策略 direct_dialect/mandarin_to_dialect”；与客家话助手同平台互斥启用）
 - 平台资料：`platform-resources/magic-data/README.md`
 - 平台共用页面结构：`platform-resources/magic-data/page-structure/README.md`
 - 平台共用 Network：`platform-resources/magic-data/network/README.md`

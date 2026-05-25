@@ -98,17 +98,21 @@
         { value: "qwen3.6-flash", label: "qwen3.6-flash" },
         { value: "qwen3.5-flash", label: "qwen3.5-flash" },
       ];
-  const magicDataMinnanPipelineModeOptions = Array.isArray(
-    constants.MAGIC_DATA_MINNAN_AI_PIPELINE_MODE_OPTIONS
+  const magicDataHelperModelModeOptions = Array.isArray(
+    constants.MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS
   )
-    ? constants.MAGIC_DATA_MINNAN_AI_PIPELINE_MODE_OPTIONS
+    ? constants.MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS
     : [
-        { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
+        { value: "two_stage", label: "双模型：听音模型 + 比较/转换模型" },
         { value: "omni_single", label: "单模型：Omni 单模型" },
-        {
-          value: "recognition_convert",
-          label: "识别转换：先听成普通话，再按词表转闽南语",
-        },
+      ];
+  const magicDataHelperRecognitionStrategyOptions = Array.isArray(
+    constants.MAGIC_DATA_HELPER_RECOGNITION_STRATEGY_OPTIONS
+  )
+    ? constants.MAGIC_DATA_HELPER_RECOGNITION_STRATEGY_OPTIONS
+    : [
+        { value: "direct_dialect", label: "直接识别方言文本" },
+        { value: "mandarin_to_dialect", label: "识别转换：先听成普通话，再按字词表转方言" },
       ];
   const judgementAiListenModels = Array.isArray(constants.JUDGEMENT_AI_LISTEN_MODELS)
     ? constants.JUDGEMENT_AI_LISTEN_MODELS
@@ -204,9 +208,14 @@
 
   const magicDataShortcutActions = [
     { key: "reviewCurrent", label: "AI 质检当前条" },
+    { key: "fillAllAiSuggestions", label: "全部填入AI推荐" },
     { key: "copySummary", label: "复制 AI 质检摘要" },
-    { key: "fillDialectLine", label: "填入第一行" },
-    { key: "fillMandarinLine", label: "填入第二行" },
+    { key: "showRawAiOutput", label: "显示 AI 原始输出" },
+    { key: "toggleSpeakerDetail", label: "展开/收起说话人属性详情" },
+    { key: "toggleDialectDetail", label: "展开/收起方言内容详情" },
+    { key: "toggleMandarinDetail", label: "展开/收起普通话文本详情" },
+    { key: "refreshCollection", label: "刷新采集" },
+    { key: "resetPanelHeight", label: "重置高度" },
     { key: "save", label: "保存" },
     { key: "submit", label: "提交" },
     { key: "genderMale", label: "性别男" },
@@ -877,6 +886,42 @@
     return "two_stage";
   }
 
+  function normalizeMagicDataModelMode(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "two_stage" || text === "omni_single") {
+      return text;
+    }
+    if (text === "recognition_convert") {
+      return "two_stage";
+    }
+    const fallbackText = String(fallback || "").trim().toLowerCase();
+    return fallbackText === "omni_single" ? "omni_single" : "two_stage";
+  }
+
+  function normalizeMagicDataRecognitionStrategy(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "mandarin_to_dialect") {
+      return "mandarin_to_dialect";
+    }
+    if (text === "recognition_convert") {
+      return "mandarin_to_dialect";
+    }
+    const fallbackText = String(fallback || "").trim().toLowerCase();
+    return fallbackText === "mandarin_to_dialect" ? "mandarin_to_dialect" : "direct_dialect";
+  }
+
+  function deriveLegacyRecognitionModeByModeAndStrategy(modelMode, recognitionStrategy) {
+    const normalizedModelMode = normalizeMagicDataModelMode(modelMode, "two_stage");
+    const normalizedRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      recognitionStrategy,
+      "direct_dialect"
+    );
+    if (normalizedRecognitionStrategy === "mandarin_to_dialect") {
+      return "recognition_convert";
+    }
+    return normalizedModelMode;
+  }
+
   function getDataBakerSettingsDraftConfig(aiDefaults) {
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
     const recognitionSelectNode = getElement("data-baker-ai-pipeline-mode-select");
@@ -1018,15 +1063,35 @@
 
   function getMagicDataMinnanSettingsDraftConfig(aiDefaults) {
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    const recognitionSelectNode = getElement("magic-data-ai-pipeline-mode-select");
+    const modelModeSelectNode = getElement("magic-data-ai-pipeline-mode-select");
+    const strategySelectNode = getElement("magic-data-ai-recognition-strategy-select");
     const listenSelectNode = getElement("magic-data-ai-listen-model-select");
     const compareSelectNode = getElement("magic-data-ai-compare-model-select");
     const singleSelectNode = getElement("magic-data-ai-single-model-select");
+    const defaultLegacyMode = normalizeMagicDataMinnanRecognitionMode(
+      defaults.recognitionMode || defaults.pipelineMode,
+      "two_stage"
+    );
+    const defaultModelMode = normalizeMagicDataModelMode(defaultLegacyMode, "two_stage");
+    const defaultRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      defaultLegacyMode,
+      "direct_dialect"
+    );
+    const modelMode =
+      modelModeSelectNode instanceof HTMLSelectElement
+        ? normalizeMagicDataModelMode(modelModeSelectNode.value, defaultModelMode)
+        : defaultModelMode;
+    const recognitionStrategy =
+      strategySelectNode instanceof HTMLSelectElement
+        ? normalizeMagicDataRecognitionStrategy(strategySelectNode.value, defaultRecognitionStrategy)
+        : defaultRecognitionStrategy;
     return {
-      aiReviewRecognitionMode:
-        recognitionSelectNode instanceof HTMLSelectElement
-          ? normalizeMagicDataMinnanRecognitionMode(recognitionSelectNode.value, "two_stage")
-          : "two_stage",
+      aiReviewModelMode: modelMode,
+      aiReviewRecognitionStrategy: recognitionStrategy,
+      aiReviewRecognitionMode: deriveLegacyRecognitionModeByModeAndStrategy(
+        modelMode,
+        recognitionStrategy
+      ),
       aiReviewListenModel:
         listenSelectNode instanceof HTMLSelectElement
           ? normalizeDataBakerListenModel(
@@ -1111,42 +1176,60 @@
   }
 
   function applyMagicDataMinnanRecognitionModeFields(recognitionMode, config, aiDefaults) {
-    const currentRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
+    const legacyRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
       recognitionMode || config?.aiReviewRecognitionMode,
       "two_stage"
     );
+    const currentModelMode = normalizeMagicDataModelMode(
+      config?.aiReviewModelMode || legacyRecognitionMode,
+      "two_stage"
+    );
+    const currentRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      config?.aiReviewRecognitionStrategy || legacyRecognitionMode,
+      "direct_dialect"
+    );
     renderFixedModelOptions(
       "magic-data-ai-pipeline-mode-select",
-      magicDataMinnanPipelineModeOptions,
-      currentRecognitionMode
+      magicDataHelperModelModeOptions,
+      currentModelMode
+    );
+    renderFixedModelOptions(
+      "magic-data-ai-recognition-strategy-select",
+      magicDataHelperRecognitionStrategyOptions,
+      currentRecognitionStrategy
     );
     setFieldVisibility("magic-data-ai-pipeline-mode-field", true);
+    setFieldVisibility("magic-data-ai-recognition-strategy-field", true);
     setFieldVisibility(
       "magic-data-ai-listen-model-field",
-      currentRecognitionMode === "two_stage" || currentRecognitionMode === "recognition_convert"
+      currentModelMode === "two_stage"
     );
     setFieldVisibility(
       "magic-data-ai-compare-model-field",
-      currentRecognitionMode === "two_stage" || currentRecognitionMode === "recognition_convert"
+      currentModelMode === "two_stage"
     );
-    setFieldVisibility("magic-data-ai-single-model-field", currentRecognitionMode === "omni_single");
+    setFieldVisibility("magic-data-ai-single-model-field", currentModelMode === "omni_single");
     setFieldVisibility("magic-data-ai-listen-model-custom-field", false);
     setFieldVisibility("magic-data-ai-compare-model-custom-field", false);
-    if (currentRecognitionMode === "omni_single") {
+    if (currentModelMode === "omni_single") {
       applyMagicDataMinnanSingleModelFields(config?.aiReviewSingleModel, config, aiDefaults);
       return;
     }
     applyMagicDataMinnanListenModelFields(config?.aiReviewListenModel, config, aiDefaults);
   }
 
-  function updateMagicDataMinnanRecognitionModeFields(recognitionMode) {
+  function updateMagicDataMinnanRecognitionModeFields(nextValue) {
     const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataMinnanScriptId).defaults || {};
     const draftConfig = getMagicDataMinnanSettingsDraftConfig(aiDefaults);
-    draftConfig.aiReviewRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
-      recognitionMode,
-      "two_stage"
+    draftConfig.aiReviewModelMode = normalizeMagicDataModelMode(
+      nextValue,
+      draftConfig.aiReviewModelMode || "two_stage"
     );
-    if (draftConfig.aiReviewRecognitionMode === "omni_single") {
+    draftConfig.aiReviewRecognitionMode = deriveLegacyRecognitionModeByModeAndStrategy(
+      draftConfig.aiReviewModelMode,
+      draftConfig.aiReviewRecognitionStrategy
+    );
+    if (draftConfig.aiReviewModelMode === "omni_single") {
       draftConfig.aiReviewSingleModel = isDataBakerFunAsrListenModel(draftConfig.aiReviewListenModel)
         ? "qwen3.5-omni-flash"
         : normalizeDataBakerSingleModel(
@@ -1154,6 +1237,24 @@
             getMagicDataMinnanSingleModelDefault(aiDefaults)
           );
     }
+    applyMagicDataMinnanRecognitionModeFields(
+      draftConfig.aiReviewRecognitionMode,
+      draftConfig,
+      aiDefaults
+    );
+  }
+
+  function updateMagicDataMinnanRecognitionStrategyFields(nextValue) {
+    const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataMinnanScriptId).defaults || {};
+    const draftConfig = getMagicDataMinnanSettingsDraftConfig(aiDefaults);
+    draftConfig.aiReviewRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      nextValue,
+      draftConfig.aiReviewRecognitionStrategy || "direct_dialect"
+    );
+    draftConfig.aiReviewRecognitionMode = deriveLegacyRecognitionModeByModeAndStrategy(
+      draftConfig.aiReviewModelMode,
+      draftConfig.aiReviewRecognitionStrategy
+    );
     applyMagicDataMinnanRecognitionModeFields(
       draftConfig.aiReviewRecognitionMode,
       draftConfig,
@@ -2121,6 +2222,14 @@
       source.aiReviewRecognitionMode || source.aiReviewPipelineMode || source.pipelineMode,
       "two_stage"
     );
+    const magicDataModelMode = normalizeMagicDataModelMode(
+      source.aiReviewModelMode || minnanRecognitionMode,
+      "two_stage"
+    );
+    const magicDataRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      source.aiReviewRecognitionStrategy || minnanRecognitionMode,
+      "direct_dialect"
+    );
     const minnanListenModel = normalizeDataBakerListenModel(
       source.aiReviewListenModel || source.listenModel,
       "qwen3.5-omni-flash"
@@ -2141,16 +2250,17 @@
     return {
       enabled: source.enabled !== false,
       aiReviewEnabled: source.aiReviewEnabled !== false,
+      aiReviewModelMode: magicDataModelMode,
+      aiReviewRecognitionStrategy: magicDataRecognitionStrategy,
       aiReviewRecognitionMode:
-        targetScriptId === magicDataMinnanScriptId ? minnanRecognitionMode : "two_stage",
-      aiReviewListenModel:
-        targetScriptId === magicDataMinnanScriptId ? minnanListenModel : "",
-      aiReviewCompareModel:
-        targetScriptId === magicDataMinnanScriptId ? minnanCompareModel : "",
-      aiReviewSingleModel:
-        targetScriptId === magicDataMinnanScriptId ? minnanSingleModel : "",
-      aiReviewEnableThinking:
-        targetScriptId === magicDataMinnanScriptId ? minnanEnableThinking : source.enableThinking === true,
+        deriveLegacyRecognitionModeByModeAndStrategy(
+          magicDataModelMode,
+          magicDataRecognitionStrategy
+        ),
+      aiReviewListenModel: minnanListenModel,
+      aiReviewCompareModel: minnanCompareModel,
+      aiReviewSingleModel: minnanSingleModel,
+      aiReviewEnableThinking: minnanEnableThinking,
       listenModel:
         targetScriptId === magicDataMinnanScriptId
           ? minnanListenModel
@@ -2505,7 +2615,8 @@
     if (scriptId === dataBakerRoundOneQualityScriptId || isMagicDataScript(scriptId)) {
       const isDataBakerPanel = scriptId === dataBakerRoundOneQualityScriptId;
       const isMagicDataMinnanPanel = scriptId === magicDataMinnanScriptId;
-      const usePipelineModels = isDataBakerPanel || isMagicDataMinnanPanel;
+      const isMagicDataPanel = isMagicDataScript(scriptId);
+      const usePipelineModels = isDataBakerPanel || isMagicDataPanel;
       const prefix = scriptId === dataBakerRoundOneQualityScriptId ? "data-baker-ai" : "magic-data-ai";
       const modelLabel = usePipelineModels ? "比较模型" : "质检模型";
       panel.innerHTML = [
@@ -2520,9 +2631,16 @@
           (usePipelineModels ? "" : " hidden") +
           '" id="' +
           prefix +
-          '-pipeline-mode-field"><span>识别模式</span><select id="' +
+          '-pipeline-mode-field"><span>模型方案</span><select id="' +
           prefix +
-          '-pipeline-mode-select"></select><span class="asr-ai-help">双模型显示听音模型和比较模型；单模型只显示 AI 模型，并由单次 Omni 请求直接生成推荐文本。</span></label>',
+          '-pipeline-mode-select"></select><span class="asr-ai-help">模型方案：双模型或单模型。</span></label>',
+        '<label class="asr-ai-field' +
+          (isMagicDataPanel ? "" : " hidden") +
+          '" id="' +
+          prefix +
+          '-recognition-strategy-field"><span>识别策略</span><select id="' +
+          prefix +
+          '-recognition-strategy-select"></select><span class="asr-ai-help">直接识别方言文本，或先识别普通话再按字词表转换为方言文本。</span></label>',
         '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +
           '" id="' +
@@ -2610,11 +2728,17 @@
         moveDataBakerAutofillConcurrencyFieldIntoAiPanel();
       } else {
         const recognitionNode = getElement("magic-data-ai-pipeline-mode-select");
+        const strategyNode = getElement("magic-data-ai-recognition-strategy-select");
         const listenNode = getElement("magic-data-ai-listen-model-select");
         const singleNode = getElement("magic-data-ai-single-model-select");
         if (recognitionNode instanceof HTMLSelectElement) {
           recognitionNode.addEventListener("change", function (event) {
             updateMagicDataMinnanRecognitionModeFields(event?.target?.value);
+          });
+        }
+        if (strategyNode instanceof HTMLSelectElement) {
+          strategyNode.addEventListener("change", function (event) {
+            updateMagicDataMinnanRecognitionStrategyFields(event?.target?.value);
           });
         }
         if (listenNode instanceof HTMLSelectElement) {
@@ -3616,28 +3740,16 @@
     magicDataShortcutsDraft = clone(config.shortcuts) || {};
     if (getElement("magic-data-enabled")) {
       getElement("magic-data-enabled").checked = config.enabled !== false;
-      if (isMinnanScript) {
-        applyMagicDataMinnanRecognitionModeFields(
-          config.aiReviewRecognitionMode || aiDefaults.recognitionMode,
-          config,
-          aiDefaults
-        );
-      } else {
-        applyJudgementModelField(
-          "magic-data-ai-listen-model-select",
-          "magic-data-ai-listen-model-custom",
-          getAsrVoiceAiEffectiveText(config.listenModel, aiDefaults.listenModel),
-          judgementAiListenModels,
-          "listen"
-        );
-        applyJudgementModelField(
-          "magic-data-ai-compare-model-select",
-          "magic-data-ai-compare-model-custom",
-          getAsrVoiceAiEffectiveText(config.reviewModel, aiDefaults.reviewModel || aiDefaults.compareModel),
-          judgementAiCompareModels,
-          "compare"
-        );
-        getElement("magic-data-review-mode").value = config.reviewMode;
+      applyMagicDataMinnanRecognitionModeFields(
+        config.aiReviewRecognitionMode || aiDefaults.recognitionMode,
+        config,
+        aiDefaults
+      );
+      if (!isMinnanScript) {
+        const reviewModeField = getElement("magic-data-review-mode");
+        if (reviewModeField) {
+          reviewModeField.value = config.reviewMode;
+        }
       }
       getElement("magic-data-show-heard-text").checked = config.showHeardText !== false;
       getElement("magic-data-show-estimated-income").checked =
@@ -3718,64 +3830,55 @@
     const enabled = hasAiSettingsPanel
       ? getElement("magic-data-enabled").checked
       : currentConfig.enabled !== false;
-    const recognitionMode = isMinnanScript
-      ? (hasAiSettingsPanel
-          ? normalizeMagicDataMinnanRecognitionMode(
-              getElement("magic-data-ai-pipeline-mode-select")?.value,
-              currentConfig.aiReviewRecognitionMode || "two_stage"
-            )
-          : normalizeMagicDataMinnanRecognitionMode(
-              currentConfig.aiReviewRecognitionMode,
-              "two_stage"
-            ))
-      : "two_stage";
-    const listenModel = isMinnanScript
-      ? (hasAiSettingsPanel
-          ? normalizeDataBakerListenModel(
-              getElement("magic-data-ai-listen-model-select")?.value,
-              getMagicDataMinnanListenModelDefault(aiDefaults)
-            )
-          : normalizeDataBakerListenModel(
-              currentConfig.aiReviewListenModel || currentConfig.listenModel,
-              getMagicDataMinnanListenModelDefault(aiDefaults)
-            ))
-      : (hasAiSettingsPanel
-          ? readJudgementModelField(
-              "magic-data-ai-listen-model-select",
-              "magic-data-ai-listen-model-custom",
-              magicDataDefaultSettings.listenModel,
-              judgementAiListenModels
-            )
-          : currentConfig.listenModel);
-    const reviewModel = isMinnanScript
-      ? (hasAiSettingsPanel
-          ? normalizeDataBakerCompareModel(
-              getElement("magic-data-ai-compare-model-select")?.value,
-              getMagicDataMinnanCompareModelDefault(aiDefaults)
-            )
-          : normalizeDataBakerCompareModel(
-              currentConfig.aiReviewCompareModel || currentConfig.reviewModel,
-              getMagicDataMinnanCompareModelDefault(aiDefaults)
-            ))
-      : (hasAiSettingsPanel
-          ? readJudgementModelField(
-              "magic-data-ai-compare-model-select",
-              "magic-data-ai-compare-model-custom",
-              magicDataDefaultSettings.reviewModel,
-              judgementAiCompareModels
-            )
-          : currentConfig.reviewModel);
-    const singleModel = isMinnanScript
-      ? (hasAiSettingsPanel
-          ? normalizeDataBakerSingleModel(
-              getElement("magic-data-ai-single-model-select")?.value,
-              getMagicDataMinnanSingleModelDefault(aiDefaults)
-            )
-          : normalizeDataBakerSingleModel(
-              currentConfig.aiReviewSingleModel,
-              getMagicDataMinnanSingleModelDefault(aiDefaults)
-            ))
-      : "";
+    const modelMode = hasAiSettingsPanel
+      ? normalizeMagicDataModelMode(
+          getElement("magic-data-ai-pipeline-mode-select")?.value,
+          currentConfig.aiReviewModelMode || currentConfig.aiReviewRecognitionMode || "two_stage"
+        )
+      : normalizeMagicDataModelMode(
+          currentConfig.aiReviewModelMode || currentConfig.aiReviewRecognitionMode,
+          "two_stage"
+        );
+    const recognitionStrategy = hasAiSettingsPanel
+      ? normalizeMagicDataRecognitionStrategy(
+          getElement("magic-data-ai-recognition-strategy-select")?.value,
+          currentConfig.aiReviewRecognitionStrategy || currentConfig.aiReviewRecognitionMode || "direct_dialect"
+        )
+      : normalizeMagicDataRecognitionStrategy(
+          currentConfig.aiReviewRecognitionStrategy || currentConfig.aiReviewRecognitionMode,
+          "direct_dialect"
+        );
+    const recognitionMode = deriveLegacyRecognitionModeByModeAndStrategy(
+      modelMode,
+      recognitionStrategy
+    );
+    const listenModel = hasAiSettingsPanel
+      ? normalizeDataBakerListenModel(
+          getElement("magic-data-ai-listen-model-select")?.value,
+          getMagicDataMinnanListenModelDefault(aiDefaults)
+        )
+      : normalizeDataBakerListenModel(
+          currentConfig.aiReviewListenModel || currentConfig.listenModel,
+          getMagicDataMinnanListenModelDefault(aiDefaults)
+        );
+    const reviewModel = hasAiSettingsPanel
+      ? normalizeDataBakerCompareModel(
+          getElement("magic-data-ai-compare-model-select")?.value,
+          getMagicDataMinnanCompareModelDefault(aiDefaults)
+        )
+      : normalizeDataBakerCompareModel(
+          currentConfig.aiReviewCompareModel || currentConfig.reviewModel,
+          getMagicDataMinnanCompareModelDefault(aiDefaults)
+        );
+    const singleModel = hasAiSettingsPanel
+      ? normalizeDataBakerSingleModel(
+          getElement("magic-data-ai-single-model-select")?.value,
+          getMagicDataMinnanSingleModelDefault(aiDefaults)
+        )
+      : normalizeDataBakerSingleModel(
+          currentConfig.aiReviewSingleModel,
+          getMagicDataMinnanSingleModelDefault(aiDefaults)
+        );
     const reviewMode =
       hasAiSettingsPanel && !isMinnanScript
         ? normalizeMagicDataReviewMode(
@@ -3890,6 +3993,23 @@
           return {
             enabled: enabled,
             aiReviewEnabled: enabled,
+            aiReviewModelMode: modelMode,
+            aiReviewRecognitionStrategy: recognitionStrategy,
+            aiReviewRecognitionMode: recognitionMode,
+            aiReviewListenModel:
+              modelMode === "two_stage" && listenModel !== String(aiDefaults.listenModel || "").trim()
+                ? listenModel
+                : "",
+            aiReviewCompareModel:
+              modelMode === "two_stage" &&
+              reviewModel !== String(aiDefaults.reviewModel || aiDefaults.compareModel || "").trim()
+                ? reviewModel
+                : "",
+            aiReviewSingleModel:
+              modelMode === "omni_single" &&
+              singleModel !== String(aiDefaults.singleModel || aiDefaults.omniModel || "").trim()
+                ? singleModel
+                : "",
             listenModel:
               listenModel === String(aiDefaults.listenModel || "").trim() ? "" : listenModel,
             reviewModel:
@@ -3919,39 +4039,34 @@
         const defaultListenModel = getMagicDataMinnanListenModelDefault(aiDefaults);
         const defaultCompareModel = getMagicDataMinnanCompareModelDefault(aiDefaults);
         const defaultSingleModel = getMagicDataMinnanSingleModelDefault(aiDefaults);
-        const defaultRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
-          aiDefaults.recognitionMode || aiDefaults.pipelineMode,
-          "two_stage"
-        );
-        const normalizedRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
-          recognitionMode,
-          defaultRecognitionMode
-        );
+        const normalizedRecognitionMode = normalizeMagicDataMinnanRecognitionMode(recognitionMode, "two_stage");
 
         return {
           enabled: enabled,
           aiReviewEnabled: enabled,
+          aiReviewModelMode: modelMode,
+          aiReviewRecognitionStrategy: recognitionStrategy,
           aiReviewRecognitionMode: normalizedRecognitionMode,
           aiReviewListenModel:
-            normalizedRecognitionMode === "two_stage" && listenModel !== defaultListenModel
+            modelMode === "two_stage" && listenModel !== defaultListenModel
               ? listenModel
               : "",
           aiReviewCompareModel:
-            normalizedRecognitionMode === "two_stage" && reviewModel !== defaultCompareModel
+            modelMode === "two_stage" && reviewModel !== defaultCompareModel
               ? reviewModel
               : "",
           aiReviewSingleModel:
-            normalizedRecognitionMode === "omni_single" && singleModel !== defaultSingleModel
+            modelMode === "omni_single" && singleModel !== defaultSingleModel
               ? singleModel
               : "",
           aiReviewEnableThinking:
             enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
           listenModel:
-            normalizedRecognitionMode === "two_stage" && listenModel !== defaultListenModel
+            modelMode === "two_stage" && listenModel !== defaultListenModel
               ? listenModel
               : "",
           reviewModel:
-            normalizedRecognitionMode === "two_stage" && reviewModel !== defaultCompareModel
+            modelMode === "two_stage" && reviewModel !== defaultCompareModel
               ? reviewModel
               : "",
           reviewMode: reviewMode,

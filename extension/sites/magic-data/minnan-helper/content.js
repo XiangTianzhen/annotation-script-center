@@ -11,6 +11,8 @@
   const DEFAULT_SETTINGS = {
     enabled: false,
     aiReviewEnabled: false,
+    aiReviewModelMode: "two_stage",
+    aiReviewRecognitionStrategy: "direct_dialect",
     aiReviewRecognitionMode: "two_stage",
     aiReviewListenModel: "qwen3.5-omni-flash",
     aiReviewCompareModel: "qwen3.5-plus",
@@ -102,6 +104,22 @@
     return "rule_first";
   }
 
+  function normalizeModelMode(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "two_stage" || text === "omni_single") {
+      return text;
+    }
+    return "two_stage";
+  }
+
+  function normalizeRecognitionStrategy(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "mandarin_to_dialect") {
+      return "mandarin_to_dialect";
+    }
+    return "direct_dialect";
+  }
+
   function normalizeRecognitionMode(value) {
     const text = String(value || "").trim().toLowerCase();
     if (text === "two_stage" || text === "omni_single" || text === "recognition_convert") {
@@ -116,6 +134,13 @@
     return "two_stage";
   }
 
+  function deriveLegacyRecognitionMode(modelMode, recognitionStrategy) {
+    if (normalizeRecognitionStrategy(recognitionStrategy) === "mandarin_to_dialect") {
+      return "recognition_convert";
+    }
+    return normalizeModelMode(modelMode);
+  }
+
   function normalizePromptText(value) {
     return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
   }
@@ -123,9 +148,17 @@
   function normalizeSettings(value) {
     const source = value && typeof value === "object" ? value : {};
     const shortcuts = source.shortcuts && typeof source.shortcuts === "object" ? source.shortcuts : {};
-    const recognitionMode = normalizeRecognitionMode(
+    const legacyRecognitionMode = normalizeRecognitionMode(
       source.aiReviewRecognitionMode || source.aiReviewPipelineMode || source.pipelineMode
     );
+    const modelMode = normalizeModelMode(
+      source.aiReviewModelMode || legacyRecognitionMode
+    );
+    const recognitionStrategy = normalizeRecognitionStrategy(
+      source.aiReviewRecognitionStrategy ||
+        (legacyRecognitionMode === "recognition_convert" ? "mandarin_to_dialect" : "direct_dialect")
+    );
+    const recognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
     const listenModel = normalizeModelName(
       source.aiReviewListenModel || source.listenModel,
       DEFAULT_SETTINGS.aiReviewListenModel
@@ -145,6 +178,8 @@
     return {
       enabled: source.enabled !== false,
       aiReviewEnabled: source.aiReviewEnabled !== false,
+      aiReviewModelMode: modelMode,
+      aiReviewRecognitionStrategy: recognitionStrategy,
       aiReviewRecognitionMode: recognitionMode,
       aiReviewListenModel: listenModel,
       aiReviewCompareModel: compareModel,
@@ -312,17 +347,32 @@
         copySummary: function () {
           return runActionResult(panel.triggerCopySummary());
         },
-        fillDialectLine: function () {
-          return runActionResult(panel.triggerFillDialect());
-        },
-        fillMandarinLine: function () {
-          return runActionResult(panel.triggerFillMandarin());
+        fillAllAiSuggestions: function () {
+          return runActionResult(panel.triggerFillAllSuggestions());
         },
         genderFemale: function () {
           return runActionResult(collector.selectSpeakerValue("女"));
         },
         genderMale: function () {
           return runActionResult(collector.selectSpeakerValue("男"));
+        },
+        refreshCollection: function () {
+          return runActionResult(panel.triggerRefreshCollection());
+        },
+        resetPanelHeight: function () {
+          return runActionResult(panel.triggerResetPanelHeight());
+        },
+        showRawAiOutput: function () {
+          return runActionResult(panel.triggerShowRawOutput());
+        },
+        toggleDialectDetail: function () {
+          return runActionResult(panel.triggerToggleDialectDetail());
+        },
+        toggleMandarinDetail: function () {
+          return runActionResult(panel.triggerToggleMandarinDetail());
+        },
+        toggleSpeakerDetail: function () {
+          return runActionResult(panel.triggerToggleSpeakerDetail());
         },
         onMissingAction: function (actionKey) {
           panel.setMessage("未实现的快捷键动作：" + actionKey);

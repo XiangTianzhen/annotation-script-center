@@ -7,6 +7,9 @@
   const DEFAULT_SETTINGS = {
     enabled: true,
     aiReviewEnabled: true,
+    aiReviewModelMode: "two_stage",
+    aiReviewRecognitionStrategy: "direct_dialect",
+    aiReviewRecognitionMode: "two_stage",
     listenModel: "qwen3.5-omni-flash",
     reviewModel: "qwen3.5-plus",
     reviewMode: "rule_first",
@@ -231,6 +234,20 @@
         copySummary: function () {
           return runActionResult(panel.triggerCopySummary());
         },
+        fillAllAiSuggestions: function () {
+          const first = panel.triggerFillDialect ? panel.triggerFillDialect() : null;
+          const second = panel.triggerFillMandarin ? panel.triggerFillMandarin() : null;
+          if (first?.ok || second?.ok) {
+            return runActionResult({
+              ok: true,
+              message: "已执行可用的填入操作，未保存、未提交，请人工确认。",
+            });
+          }
+          return runActionResult({
+            ok: false,
+            message: "当前结果无可填入项。",
+          });
+        },
         fillDialectLine: function () {
           return runActionResult(panel.triggerFillDialect());
         },
@@ -242,6 +259,33 @@
         },
         genderMale: function () {
           return runActionResult(collector.selectSpeakerValue("男"));
+        },
+        refreshCollection: function () {
+          return runActionResult(collector.refreshCurrentItem ? collector.refreshCurrentItem({}) : {
+            ok: false,
+            message: "采集能力未就绪。",
+          });
+        },
+        resetPanelHeight: function () {
+          return runActionResult({
+            ok: true,
+            message: "请点击面板上的“重置高度”。",
+          });
+        },
+        showRawAiOutput: function () {
+          return runActionResult({
+            ok: false,
+            message: "客家话助手当前未提供原始输出弹窗。",
+          });
+        },
+        toggleDialectDetail: function () {
+          return runActionResult({ ok: false, message: "客家话助手当前未提供折叠详情切换。" });
+        },
+        toggleMandarinDetail: function () {
+          return runActionResult({ ok: false, message: "客家话助手当前未提供折叠详情切换。" });
+        },
+        toggleSpeakerDetail: function () {
+          return runActionResult({ ok: false, message: "客家话助手当前未提供折叠详情切换。" });
         },
         onMissingAction: function (actionKey) {
           panel.setMessage("未实现的快捷键动作：" + actionKey);

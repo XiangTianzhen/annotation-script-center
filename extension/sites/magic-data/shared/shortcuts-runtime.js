@@ -2,9 +2,14 @@
   const LEGACY_STORAGE_KEY = "scriptCenter.magicDataAnnotator.shortcuts";
   const ACTION_DEFINITIONS = [
     { key: "reviewCurrent", label: "AI 质检当前条" },
+    { key: "fillAllAiSuggestions", label: "全部填入AI推荐" },
     { key: "copySummary", label: "复制 AI 质检摘要" },
-    { key: "fillDialectLine", label: "填入第一行" },
-    { key: "fillMandarinLine", label: "填入第二行" },
+    { key: "showRawAiOutput", label: "显示 AI 原始输出" },
+    { key: "toggleSpeakerDetail", label: "展开/收起说话人属性详情" },
+    { key: "toggleDialectDetail", label: "展开/收起方言内容详情" },
+    { key: "toggleMandarinDetail", label: "展开/收起普通话文本详情" },
+    { key: "refreshCollection", label: "刷新采集" },
+    { key: "resetPanelHeight", label: "重置高度" },
     { key: "save", label: "保存" },
     { key: "submit", label: "提交" },
     { key: "genderMale", label: "性别男" },

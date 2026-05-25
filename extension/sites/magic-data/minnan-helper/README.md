@@ -12,12 +12,11 @@
 ## AI 配置口径
 
 - 前端行为与客家话助手对齐：只在 `#/asrmark` 挂载，用户主动点击按钮或快捷键才触发 AI。
-- options 中闽南语助手 AI 配置走 DataBaker 风格：
-  - `two_stage`：显示“听音模型 + 比较模型”
-  - `omni_single`：只显示“AI 模型”
-  - `recognition_convert`：显示“听音模型 + 比较模型（转换）”，链路为“先识别普通话，再按词表转换闽南语”
+- options 中闽南语助手 AI 配置拆分为两个维度：
+  - 模型方案：`two_stage`（听音模型 + 比较/转换模型）、`omni_single`（单模型）
+  - 识别策略：`direct_dialect`（直接识别方言）、`mandarin_to_dialect`（先普通话再按词表转方言）
 - `two_stage` 听音模型支持 `fun-asr` 或 Qwen Omni；`omni_single` 走 Qwen Omni 单模型。
-- `recognition_convert` 支持 `fun-asr` / Qwen Omni 听音；中间产物会进入原始输出弹窗：
+- `mandarin_to_dialect` 支持 `fun-asr` / Qwen Omni 听音；中间产物会进入原始输出弹窗：
   - `recognizedMandarinText`
   - `convertedDialectText`
   - `lexiconMatches`

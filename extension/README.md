@@ -84,7 +84,7 @@ sites/
 - 统计上传能力默认强制启用；若脚本实现了定时上传能力，则定时上传也按脚本规则强制启用，不在脚本详情页提供关闭开关。
 - `data-baker/round-one-quality/`：闽南语助手 AI 推荐文本（`roundOneCollect`）+ 任务组总表导出（`group/detail`）；导出会本地下载并自动上传到统一后端，后端可下载最新 CSV。
 - `magic-data/hakka-helper/`：Magic Data `#/asrmark` 客家话助手；结果区固定挂载在“句子列表”下方，支持模型/思考开关/快捷键配置，保持人工确认与手动保存提交。
-- `magic-data/minnan-helper/`：Magic Data `#/asrmark` 闽南语助手；与客家话助手互斥启停（同平台同一时刻仅一个助手生效），并保持独立面板与独立快捷键配置，AI 配置采用 DataBaker 风格 `two_stage/omni_single/recognition_convert`，支持 `fun-asr` 与 Qwen Omni。
+- `magic-data/minnan-helper/`：Magic Data `#/asrmark` 闽南语助手；与客家话助手互斥启停（同平台同一时刻仅一个助手生效），并保持独立面板与独立快捷键配置，AI 配置拆分为“模型方案（`two_stage/omni_single`）+ 识别策略（`direct_dialect/mandarin_to_dialect`）”，支持 `fun-asr` 与 Qwen Omni。
 - `abaka-ai/task-page/`：Abaka AI Task21助手；快捷键仅点击页面真实 DOM 选项/按钮（默认 `1~7`），`same_font=true` 与 `same underlying font+artistic effect` 默认联动两个 `specify`；AI 默认不自动写入，只有用户点击“填写 AI 答案”后才写入字段，不自动保存、不自动提交、不自动送审。
 - 后端地址配置统一入口：options 首页顶部“后端接口地址”（`server` / `local`）。各脚本详情页不再提供独立后端地址、上传地址或 AI 接口地址配置。
 - ASR 类脚本（快判、转写、标贝易采、Magic Data）统一复用隐藏的“ASR 语音 AI 设置”部件：默认隐藏，需在对应脚本详情页标题连续点击 10 次显示。
