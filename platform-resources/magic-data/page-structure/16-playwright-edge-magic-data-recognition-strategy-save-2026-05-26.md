@@ -1,83 +1,68 @@
-# Playwright-Edge 复测记录（Magic Data 识别策略保存回滚热修）
+# Playwright-Edge 复测记录（Magic Data 识别策略保存回滚修复）
 
 ## 时间
 
 - 2026-05-26
 
-## 背景
+## 目标
 
-- 问题：在 options 中把识别策略切为 `direct_dialect` 后，保存会回滚为 `mandarin_to_dialect`（legacy `recognition_convert`）。
-- 目标：只要用户明确保存 `aiReviewRecognitionStrategy=direct_dialect`，不允许 legacy 字段覆盖。
+- 验证 `direct_dialect` 保存后不会再被 legacy `recognition_convert` 回滚。
+- 验证 Hakka 与 Minnan 两条存储路径（platform + legacy）字段一致。
 
-## 本轮复核方式
+## 复测页面
 
-- 按用户要求，本轮不做真实业务页浏览器调试。
-- 使用代码链路 + storage 字段优先级复核：
-  - `extension/options/options.js`
-  - `extension/shared/storage.js`
+- `chrome-extension://cdnkiookailoaheehghkolcgjpcidghe/options/options.html?script=magicDataAnnotatorAiReview`
+- `chrome-extension://cdnkiookailoaheehghkolcgjpcidghe/options/options.html?script=magicDataMinnanAssistant`
 
-## 核心修复点
+## 复测步骤（实际执行）
 
-1. 新字段优先级提升（options）
-- 新增/使用 `resolveMagicDataRecognitionStrategyFromSource(...)`：
-  - 优先 `aiReviewRecognitionStrategy`
-  - 次优 `recognitionStrategy`
-  - 再 fallback
-  - 最后才使用 legacy `aiReviewRecognitionMode/recognitionMode/pipelineMode`
-- 避免 `direct_dialect` 被 `recognition_convert` 抢回。
+1. 在脚本详情页标题连续点击 10 次，解锁 `ASR 语音 AI 设置`。
+2. 分别对 Hakka / Minnan 执行：
+   - 设置 `modelMode=two_stage`
+   - 设置 `recognitionStrategy=direct_dialect`（并验证可从 `mandarin_to_dialect` 切回）
+   - 保存后读取 DOM 当前值
+   - 读取 `chrome.storage.local.asrEdgeSettings` 两条路径
+3. Hakka 额外执行一次：
+   - 先保存 `mandarin_to_dialect + qwen3.5-plus`
+   - 再切回 `direct_dialect + qwen3.5-flash`
+   - 再次读取双路径字段
 
-2. legacy 字段显式覆盖（options 保存）
-- 保存时同步写入：
-  - `aiReviewRecognitionStrategy`
-  - `aiReviewRecognitionMode`
-  - `recognitionStrategy`
-  - `recognitionMode`
-  - `pipelineMode`
-- `direct_dialect` 时 legacy 强制写 `two_stage`（或对应 modelMode），不保留旧 `recognition_convert` 残留。
+## 关键结果
 
-3. storage 显式策略判定补全
-- `hasExplicitStrategy` 增加兼容字段判断：
-  - `sourceCurrent.recognitionStrategy`
-  - `sourceLegacy.recognitionStrategy`
-- 避免 `aiReviewRecognitionStrategy` 缺失但兼容字段已明确时，仍被 legacy 回写。
+### Hakka（`magicDataAnnotatorAiReview`）
 
-4. 平台路径与 legacy 路径一致性
-- normalize 后统一写回：
-  - `platforms.magicData.scripts.hakkaHelper/minnanHelper`
-  - `scriptCenter.projects.magicDataAnnotator/magicDataMinnanAssistant`
-- 两路径的策略字段保持一致，避免 UI 二次回显冲突。
+- `mandarin_to_dialect` 保存后：
+  - `aiReviewRecognitionStrategy=mandarin_to_dialect`
+  - `aiReviewRecognitionMode=recognition_convert`
+- 切回 `direct_dialect` 保存后：
+  - `aiReviewRecognitionStrategy=direct_dialect`
+  - `aiReviewRecognitionMode=two_stage`
+  - `recognitionMode=two_stage`
+  - `pipelineMode=two_stage`
+- platform 路径与 legacy 路径一致：
+  - `platforms.magicData.scripts.hakkaHelper.*`
+  - `scriptCenter.projects.magicDataAnnotator.*`
 
-## 预期保存矩阵（人工复测用）
+### Minnan（`magicDataMinnanAssistant`）
 
-### Hakka
+- 保存 `two_stage + direct_dialect + qwen3.5-flash` 后：
+  - DOM 回显仍为 `direct_dialect`
+  - `aiReviewRecognitionMode=two_stage`
+  - `recognitionMode=two_stage`
+  - `pipelineMode=two_stage`
+- platform 路径与 legacy 路径一致：
+  - `platforms.magicData.scripts.minnanHelper.*`
+  - `scriptCenter.projects.magicDataMinnanAssistant.*`
 
-1. `two_stage + direct_dialect` 保存后刷新仍为 `direct_dialect`
-2. `two_stage + mandarin_to_dialect` 保存后刷新仍为 `mandarin_to_dialect`
-3. 从 `mandarin_to_dialect` 切回 `direct_dialect` 后，刷新仍为 `direct_dialect`
+## 结论
 
-### Minnan
-
-1. `two_stage + direct_dialect` 保存后刷新不回滚
-2. `two_stage + mandarin_to_dialect` 保存后刷新不丢失
-3. 从 `mandarin_to_dialect` 切回 `direct_dialect` 后保持
-
-## storage 关键字段检查口径（脱敏）
-
-```js
-settings.platforms.magicData.scripts.hakkaHelper.aiReviewRecognitionStrategy
-settings.platforms.magicData.scripts.hakkaHelper.aiReviewRecognitionMode
-settings.platforms.magicData.scripts.hakkaHelper.recognitionStrategy
-settings.platforms.magicData.scripts.hakkaHelper.recognitionMode
-settings.platforms.magicData.scripts.hakkaHelper.pipelineMode
-
-settings.scriptCenter.projects.magicDataAnnotator.aiReviewRecognitionStrategy
-settings.scriptCenter.projects.magicDataAnnotator.aiReviewRecognitionMode
-settings.scriptCenter.projects.magicDataAnnotator.recognitionStrategy
-settings.scriptCenter.projects.magicDataAnnotator.recognitionMode
-settings.scriptCenter.projects.magicDataAnnotator.pipelineMode
-```
+- `direct_dialect` 保存后回滚为 `mandarin_to_dialect` 的问题已复现关闭。
+- 新字段优先级与 legacy 覆盖策略符合预期：
+  - 新字段优先读取
+  - 保存时同步覆盖 legacy 衍生字段
+  - 双路径配置一致
 
 ## 安全说明
 
-- 本记录未包含 token/cookie/authorization。
-- 未记录完整签名音频 URL。
+- 本记录未包含 token、cookie、authorization。
+- 未记录完整签名 URL 或完整音频 URL。

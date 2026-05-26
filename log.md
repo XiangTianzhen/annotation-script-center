@@ -1,3 +1,18 @@
+## 2026-05-26（v0.3.6 收尾：Magic Data 双助手规则与文档同步）
+
+- 保持版本 `0.3.6`，本轮未升版本、未生成 CRX、未打 tag（非 `ASC_RELEASE`）。
+- 项目级规则与文档收尾：
+  - `AGENTS.md` 增补 Magic Data 长期短规则：双助手互斥、`模型方案 + 识别策略`、`asrmarkCheck` 审核页支持、安全边界与并发口径。
+  - `README.md`、`extension/README.md`、`docs/platforms/index.md`、`docs/rules/project-collaboration-rules.md` 同步 `v0.3.6` 收口说明。
+  - Magic Data 前后端 README 同步“取消 AI 质检模式 UI、识别策略优先级、审核页填入边界”。
+- Playwright-Edge 复测补全：
+  - 新增/重写 `platform-resources/magic-data/page-structure/16-playwright-edge-magic-data-recognition-strategy-save-2026-05-26.md`。
+  - 已实测 Hakka 与 Minnan 在 options 中从 `mandarin_to_dialect` 切回 `direct_dialect` 后不再回滚。
+  - 已验证 storage 双路径一致：`platforms.magicData.scripts.*` 与 `scriptCenter.projects.*` 同步写入 `aiReviewRecognitionStrategy` 与 legacy 派生字段。
+- 安全与数据清理：
+  - 清理本地 `.playwright-mcp/` 调试日志目录，避免误提交会话日志。
+  - 本轮未提交 token/cookie/authorization/完整签名 URL/评测原始数据文件。
+
 ## 2026-05-26（Magic Data AI 面板与审核页填入热修）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。

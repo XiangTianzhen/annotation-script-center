@@ -32,6 +32,8 @@
 - 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
 - 修复当前待验证版本 BUG 时，可保持 `manifest.version` 不变，不因同一版本的连续修复重复升 patch。
 - 当前版本为 `0.3.6`，持续在 `0.3.0` 基础上迭代多脚本 AI 辅助能力与 options 收口。
+- `0.3.6` 收尾口径：Magic Data 双助手 AI 配置统一为“模型方案 + 识别策略”，不再展示“AI 质检模式”。
+- 客家话助手已支持 `#/asrmark` 与 `#/asrmarkCheck`；审核页文本可编辑时支持行内填入，但始终不自动保存、不自动提交、不自动点击合格/不合格。
 - 3.0 起正式发布产物为 CRX 三件套：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 

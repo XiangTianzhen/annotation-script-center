@@ -77,6 +77,10 @@
 
 - 各脚本详情页不得新增独立后端地址；后端地址统一走 options 首页入口。
 - 同一平台存在多个脚本时，默认互斥启用：同一时刻只允许一个脚本生效；启用某脚本时必须自动关闭同平台其他脚本。若需并行启用，必须由当前 Prompt 明确授权。
+- Magic Data 为同平台互斥助手平台：`magicDataAnnotatorAiReview`（客家话助手）与 `magicDataMinnanAssistant`（闽南语助手）同一时刻只允许启用一个。
+- Magic Data AI 面板统一按“模型方案 + 识别策略”控制；`识别转换` 属于识别策略，不再作为模型方案或独立“AI 质检模式”。
+- Magic Data 审核页 `#/asrmarkCheck` 已纳入客家话助手支持范围；AI 仅作辅助，不自动保存/提交/审核/流转。
+- Magic Data 默认不提供前端并发配置；上游限流与排队保护由后端 provider queue 等机制处理。
 - AI 建议/推荐仅作辅助，不自动保存、不自动提交、不自动领取、不自动流转。
 - 前端不得保存 API Key、cookie、token、完整签名 URL、完整音频 URL。
 - 日志必须脱敏，不输出敏感字段全文。

@@ -900,6 +900,9 @@
 
   function normalizeMagicDataRecognitionStrategy(value, fallback) {
     const text = String(value || "").trim().toLowerCase();
+    if (text === "direct_dialect") {
+      return "direct_dialect";
+    }
     if (text === "mandarin_to_dialect") {
       return "mandarin_to_dialect";
     }

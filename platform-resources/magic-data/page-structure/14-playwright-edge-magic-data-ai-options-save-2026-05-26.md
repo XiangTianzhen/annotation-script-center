@@ -7,6 +7,7 @@
   - 已调用 `playwright-edge` MCP 进行页面可达性探测；
   - 访问 `https://work.magicdatatech.com/#/asrmarkCheck?formType=1&id=3373750` 被重定向到 `#/login`，当前会话无法直接完成登录后 options 实测；
   - 本记录保留代码修复点和人工复测矩阵，供扩展重载后逐项核对。
+  - 后续已补充真实 options 保存复测，请联读 `16-playwright-edge-magic-data-recognition-strategy-save-2026-05-26.md`。
 
 ## 问题摘要
 
