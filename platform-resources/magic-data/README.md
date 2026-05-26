@@ -23,6 +23,7 @@
   - `GET /api/magic-data/hakka-helper/ai/defaults`
   - `POST /api/magic-data/hakka-helper/ai/review-current`
   - 默认评测落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，`enable_thinking=false`
+  - 2026-05-26：后端输出结构已对齐闽南语助手，返回 `speakerCheck/dialectTextCheck/mandarinTextCheck/overall` 与脱敏 `rawAiDebug` 字段，legacy `annotator` 路径继续兼容
 - 闽南语助手：
   - `GET /api/magic-data/minnan-helper/ai/review-current/health`
   - `GET /api/magic-data/minnan-helper/ai/defaults`

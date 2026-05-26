@@ -1,3 +1,28 @@
+## 2026-05-26（Magic Data 客家话助手：后端输出结构对齐修复）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- 修复问题：客家话助手后端返回字段不完整，导致新版前端面板大量显示“待复核”或空值。
+- 后端修复：
+  - `platform-resources/magic-data/hakka-helper/backend/ai-routes.js` 返回结构补齐：
+    - `service/scriptId/component`
+    - `speakerCheck`
+    - `dialectTextCheck`
+    - `mandarinTextCheck`
+    - `overall`
+    - `recommendations`
+    - `rawAiDebug/rawModelText/rawJson`（脱敏）
+  - `platform-resources/magic-data/hakka-helper/backend/ai-response-schema.js` 增加 tri-state 归一与 fallback，模型字段缺失时按平台文本/听音文本兜底，避免前端全空。
+  - `platform-resources/magic-data/hakka-helper/backend/ai-prompts.js` 强化 compare/omni/识别转换 Prompt，要求输出完整三项质检 JSON 结构。
+- 客家话默认配置继续保持评测结论：
+  - `two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`
+  - `enable_thinking=false`
+- 兼容性：
+  - 保留 `/api/magic-data/hakka-helper/ai/*` 新路径；
+  - 保留 `/api/magic-data/annotator/ai/*` legacy 路径。
+- 文档同步：
+  - 更新客家话助手前后端 README、Magic Data 平台 README、平台索引与统一后端 README；
+  - 新增记录 `platform-resources/magic-data/page-structure/14-playwright-edge-hakka-backend-align-2026-05-24.md`（按用户要求，本轮未执行真实浏览器复测，仅记录后端对齐与人工复核清单）。
+
 ## 2026-05-26（Magic Data 客家话助手：新版面板前端对齐修复）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。

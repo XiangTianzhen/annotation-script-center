@@ -34,6 +34,18 @@
 - 旧 `shared/assistant-panel-core.js` 与 `hakka-helper/ui-panel.js` 仅作 legacy 兼容，不再作为客家话主链路入口。
 - 运行时接口仍使用客家话路径 `/api/magic-data/hakka-helper/ai/review-current`，并保留 legacy `/api/magic-data/annotator/ai/review-current` 兼容。
 
+## 2026-05-26 后端输出结构对齐
+
+- 客家话后端已按闽南语后端口径补齐结构化输出，核心字段包含：
+  - `speakerCheck.gender/ageRange`
+  - `dialectTextCheck`
+  - `mandarinTextCheck`
+  - `overall.reviewConclusion/shouldReview/summary`
+  - `recommendations.dialectText/mandarinText/summary`
+  - `audioCheck.heardDialectText/heardMandarinMeaning`
+- 当模型未返回完整结构时，后端会按平台文本和听音结果做兜底，避免前端全部显示为空。
+- `rawAiDebug/rawModelText/rawJson` 返回前会做脱敏，不输出 token/cookie/完整签名 URL。
+
 ## 2026-05-25 客家话模型评测结论（50条样本）
 
 - 样本规模：50 条

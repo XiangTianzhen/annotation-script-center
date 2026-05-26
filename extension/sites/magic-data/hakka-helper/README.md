@@ -40,6 +40,17 @@
 - 行内建议直接显示在两行文本下方；正确项仅显示“正确”，需改项显示建议文本 + `填入本行`。
 - 说话人建议直接插入平台原生“说话人属性”表单项，正确项只显示 `AI建议：正确`。
 
+## 2026-05-26 后端对齐说明
+
+- 客家话助手前端新版面板依赖后端返回完整结构化字段：
+  - `speakerCheck`
+  - `dialectTextCheck`
+  - `mandarinTextCheck`
+  - `overall`
+  - `recommendations`
+  - `audioCheck`
+- 客家话后端已按闽南语后端结构补齐上述字段，并保留 legacy `listen/comparison/verdict` 兼容字段。
+
 ## 行为边界
 
 - 只允许用户主动点击按钮或快捷键触发 AI。

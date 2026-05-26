@@ -252,6 +252,8 @@ Magic Data 接口：
   - `GET /api/magic-data/hakka-helper/ai/review-current/health`
   - `GET /api/magic-data/hakka-helper/ai/defaults`
   - `POST /api/magic-data/hakka-helper/ai/review-current`
+  - 返回结构对齐新版面板：`speakerCheck`、`dialectTextCheck`、`mandarinTextCheck`、`overall`、`recommendations`、`audioCheck`，并保留 legacy `listen/comparison/verdict`
+  - 默认配置：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，`enable_thinking=false`
 - 闽南语助手：
   - `GET /api/magic-data/minnan-helper/ai/review-current/health`
   - `GET /api/magic-data/minnan-helper/ai/defaults`
