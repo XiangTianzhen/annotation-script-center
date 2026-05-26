@@ -23,6 +23,7 @@
 - `13-playwright-edge-hakka-check-page-2026-05-26.md`：客家话助手审核页（`#/asrmarkCheck`）接入记录与稳定性复核要点（本轮按用户要求未做真实浏览器调试，记录代码路径与复测清单）
 - `14-playwright-edge-magic-data-ai-options-save-2026-05-26.md`：Magic Data 双助手 AI 面板保存链路复核（本轮按用户要求未做真实浏览器调试，记录保存矩阵与代码修复点）
 - `15-playwright-edge-hakka-check-page-fill-2026-05-26.md`：客家话助手审核页行内填入与“全部填入AI推荐”文本项复核（含登录态阻塞说明与人工复测矩阵）
+- `16-playwright-edge-magic-data-recognition-strategy-save-2026-05-26.md`：识别策略 `direct_dialect` 保存后回滚热修复核（新字段优先级、legacy 覆盖修复、双路径一致性检查）
 
 ## 证据等级说明
 

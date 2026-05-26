@@ -915,6 +915,49 @@
     return text === "direct_dialect" || text === "mandarin_to_dialect";
   }
 
+  function resolveMagicDataRecognitionStrategyFromSource(source, fallback) {
+    const safeSource = source && typeof source === "object" ? source : {};
+    const explicitStrategy = hasValidMagicDataRecognitionStrategy(safeSource.aiReviewRecognitionStrategy)
+      ? normalizeMagicDataRecognitionStrategy(safeSource.aiReviewRecognitionStrategy, "direct_dialect")
+      : "";
+    if (explicitStrategy) {
+      return explicitStrategy;
+    }
+    const compatStrategy = hasValidMagicDataRecognitionStrategy(safeSource.recognitionStrategy)
+      ? normalizeMagicDataRecognitionStrategy(safeSource.recognitionStrategy, "direct_dialect")
+      : "";
+    if (compatStrategy) {
+      return compatStrategy;
+    }
+    const fallbackStrategy = hasValidMagicDataRecognitionStrategy(fallback)
+      ? normalizeMagicDataRecognitionStrategy(fallback, "direct_dialect")
+      : "";
+    if (fallbackStrategy) {
+      return fallbackStrategy;
+    }
+    return normalizeMagicDataRecognitionStrategy(
+      safeSource.aiReviewRecognitionMode || safeSource.recognitionMode || safeSource.pipelineMode,
+      "direct_dialect"
+    );
+  }
+
+  function buildMagicDataLegacyRecognitionFields(modelMode, recognitionStrategy) {
+    const normalizedModelMode = normalizeMagicDataModelMode(modelMode, "two_stage");
+    const normalizedRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      recognitionStrategy,
+      "direct_dialect"
+    );
+    const legacyRecognitionMode = deriveLegacyRecognitionModeByModeAndStrategy(
+      normalizedModelMode,
+      normalizedRecognitionStrategy
+    );
+    return {
+      aiReviewRecognitionMode: legacyRecognitionMode,
+      recognitionMode: legacyRecognitionMode,
+      pipelineMode: legacyRecognitionMode,
+    };
+  }
+
   function deriveLegacyRecognitionModeByModeAndStrategy(modelMode, recognitionStrategy) {
     const normalizedModelMode = normalizeMagicDataModelMode(modelMode, "two_stage");
     const normalizedRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
@@ -1194,9 +1237,9 @@
       config?.aiReviewModelMode || legacyRecognitionMode,
       "two_stage"
     );
-    const currentRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
-      config?.aiReviewRecognitionStrategy || legacyRecognitionMode,
-      "direct_dialect"
+    const currentRecognitionStrategy = resolveMagicDataRecognitionStrategyFromSource(
+      config,
+      legacyRecognitionMode
     );
     renderFixedModelOptions(
       "magic-data-ai-pipeline-mode-select",
@@ -2268,9 +2311,9 @@
       source.aiReviewRecognitionMode || source.aiReviewPipelineMode || source.pipelineMode,
       "two_stage"
     );
-    const hasExplicitRecognitionStrategy = hasValidMagicDataRecognitionStrategy(
-      source.aiReviewRecognitionStrategy
-    );
+    const hasExplicitRecognitionStrategy =
+      hasValidMagicDataRecognitionStrategy(source.aiReviewRecognitionStrategy) ||
+      hasValidMagicDataRecognitionStrategy(source.recognitionStrategy);
     const hasExplicitModelMode = (function () {
       const text = String(source.aiReviewModelMode || "").trim().toLowerCase();
       return text === "two_stage" || text === "omni_single";
@@ -2279,7 +2322,7 @@
       ? normalizeMagicDataModelMode(source.aiReviewModelMode, "two_stage")
       : normalizeMagicDataModelMode(minnanRecognitionMode, "two_stage");
     const magicDataRecognitionStrategy = hasExplicitRecognitionStrategy
-      ? normalizeMagicDataRecognitionStrategy(source.aiReviewRecognitionStrategy, "direct_dialect")
+      ? resolveMagicDataRecognitionStrategyFromSource(source, "direct_dialect")
       : normalizeMagicDataRecognitionStrategy(minnanRecognitionMode, "direct_dialect");
     const minnanListenModel = normalizeDataBakerListenModel(
       source.aiReviewListenModel || source.listenModel,
@@ -2305,11 +2348,10 @@
       aiReviewEnabled: source.aiReviewEnabled !== false,
       aiReviewModelMode: magicDataModelMode,
       aiReviewRecognitionStrategy: magicDataRecognitionStrategy,
-      aiReviewRecognitionMode:
-        deriveLegacyRecognitionModeByModeAndStrategy(
-          magicDataModelMode,
-          magicDataRecognitionStrategy
-        ),
+      aiReviewRecognitionMode: buildMagicDataLegacyRecognitionFields(
+        magicDataModelMode,
+        magicDataRecognitionStrategy
+      ).aiReviewRecognitionMode,
       aiReviewListenModel: minnanListenModel,
       aiReviewCompareModel: minnanCompareModel,
       aiReviewSingleModel: minnanSingleModel,
@@ -3888,21 +3930,21 @@
           currentConfig.aiReviewModelMode || currentConfig.aiReviewRecognitionMode,
           "two_stage"
         );
-    const recognitionStrategyFallback = hasValidMagicDataRecognitionStrategy(
-      currentConfig.aiReviewRecognitionStrategy
-    )
-      ? currentConfig.aiReviewRecognitionStrategy
-      : currentConfig.aiReviewRecognitionMode;
+    const recognitionStrategyFallback = resolveMagicDataRecognitionStrategyFromSource(
+      currentConfig,
+      "direct_dialect"
+    );
     const recognitionStrategy = hasAiSettingsPanel
       ? normalizeMagicDataRecognitionStrategy(
           getElement("magic-data-ai-recognition-strategy-select")?.value,
           recognitionStrategyFallback || "direct_dialect"
         )
       : normalizeMagicDataRecognitionStrategy(recognitionStrategyFallback, "direct_dialect");
-    const recognitionMode = deriveLegacyRecognitionModeByModeAndStrategy(
+    const legacyRecognitionFields = buildMagicDataLegacyRecognitionFields(
       modelMode,
       recognitionStrategy
     );
+    const recognitionMode = legacyRecognitionFields.aiReviewRecognitionMode;
     const listenModel = hasAiSettingsPanel
       ? normalizeDataBakerListenModel(
           getElement("magic-data-ai-listen-model-select")?.value,
@@ -4033,17 +4075,16 @@
     setStatus("magic-data-status", "正在保存 Magic Data 设置...");
     try {
       const payloadConfig = (function () {
-        const normalizedRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
-          recognitionMode,
-          "two_stage"
-        );
         const normalizedThinking = enableThinking === true;
         return {
           enabled: enabled,
           aiReviewEnabled: enabled,
           aiReviewModelMode: modelMode,
           aiReviewRecognitionStrategy: recognitionStrategy,
-          aiReviewRecognitionMode: normalizedRecognitionMode,
+          aiReviewRecognitionMode: legacyRecognitionFields.aiReviewRecognitionMode,
+          recognitionMode: legacyRecognitionFields.recognitionMode,
+          pipelineMode: legacyRecognitionFields.pipelineMode,
+          recognitionStrategy: recognitionStrategy,
           aiReviewListenModel: listenModel,
           aiReviewCompareModel: reviewModel,
           aiReviewSingleModel: singleModel,

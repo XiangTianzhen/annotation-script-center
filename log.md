@@ -2466,3 +2466,13 @@
   - `下载统计CSV` 默认禁用，不伪造下载地址
 - `/items` 详情页字段旁 `AI分析 / 整体分析` 入口保持不变。
 - 扩展重载后需刷新 Abaka Task21 页面再验证，避免旧 content script 继续驻留。
+
+## 2026-05-26（Magic Data 识别策略保存回滚热修）
+
+- 修复 `Magic Data` 双助手在 options 中将识别策略切回 `direct_dialect` 后被 legacy `recognition_convert` 回滚的问题。
+- 修复点：
+  - `extension/options/options.js` 新增显式策略解析优先级：`aiReviewRecognitionStrategy > recognitionStrategy > fallback > legacy recognitionMode`。
+  - 保存时同步覆盖 `aiReviewRecognitionMode/recognitionMode/pipelineMode`，避免深合并保留旧 `recognition_convert`。
+  - `extension/shared/storage.js` 的显式策略检测补充 `recognitionStrategy` 兼容字段，避免 normalize 阶段误回写。
+  - `platforms.magicData.scripts.*` 与 `scriptCenter.projects.*` 双路径同步同一策略和 legacy 派生字段，避免回显冲突。
+- 当前版本口径保持 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
