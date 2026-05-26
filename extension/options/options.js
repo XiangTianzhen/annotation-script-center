@@ -1063,8 +1063,9 @@
     );
   }
 
-  function getMagicDataMinnanSettingsDraftConfig(aiDefaults) {
+  function getMagicDataSettingsDraftConfig(aiDefaults, scriptId) {
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const targetScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataMinnanScriptId;
     const modelModeSelectNode = getElement("magic-data-ai-pipeline-mode-select");
     const strategySelectNode = getElement("magic-data-ai-recognition-strategy-select");
     const listenSelectNode = getElement("magic-data-ai-listen-model-select");
@@ -1105,9 +1106,9 @@
         compareSelectNode instanceof HTMLSelectElement
           ? normalizeDataBakerCompareModel(
               compareSelectNode.value,
-              getMagicDataMinnanCompareModelDefault(defaults)
+              getMagicDataMinnanCompareModelDefault(defaults, targetScriptId)
             )
-          : getMagicDataMinnanCompareModelDefault(defaults),
+          : getMagicDataMinnanCompareModelDefault(defaults, targetScriptId),
       aiReviewSingleModel:
         singleSelectNode instanceof HTMLSelectElement
           ? normalizeDataBakerSingleModel(
@@ -1118,14 +1119,15 @@
     };
   }
 
-  function applyMagicDataMinnanListenModelFields(listenModel, config, aiDefaults) {
+  function applyMagicDataMinnanListenModelFields(listenModel, config, aiDefaults, scriptId) {
+    const targetScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataMinnanScriptId;
     const currentListenModel = normalizeDataBakerListenModel(
       listenModel || config?.aiReviewListenModel,
       getMagicDataMinnanListenModelDefault(aiDefaults)
     );
     const currentCompareModel = normalizeDataBakerCompareModel(
       config?.aiReviewCompareModel,
-      getMagicDataMinnanCompareModelDefault(aiDefaults)
+      getMagicDataMinnanCompareModelDefault(aiDefaults, targetScriptId)
     );
     const listenLabelNode = getElement("magic-data-ai-listen-model-label");
     const listenHelpNode = getElement("magic-data-ai-listen-model-help");
@@ -1177,7 +1179,8 @@
     setFieldVisibility("magic-data-ai-listen-model-note", false);
   }
 
-  function applyMagicDataMinnanRecognitionModeFields(recognitionMode, config, aiDefaults) {
+  function applyMagicDataMinnanRecognitionModeFields(recognitionMode, config, aiDefaults, scriptId) {
+    const targetScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataMinnanScriptId;
     const legacyRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
       recognitionMode || config?.aiReviewRecognitionMode,
       "two_stage"
@@ -1217,12 +1220,18 @@
       applyMagicDataMinnanSingleModelFields(config?.aiReviewSingleModel, config, aiDefaults);
       return;
     }
-    applyMagicDataMinnanListenModelFields(config?.aiReviewListenModel, config, aiDefaults);
+    applyMagicDataMinnanListenModelFields(
+      config?.aiReviewListenModel,
+      config,
+      aiDefaults,
+      targetScriptId
+    );
   }
 
-  function updateMagicDataMinnanRecognitionModeFields(nextValue) {
-    const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataMinnanScriptId).defaults || {};
-    const draftConfig = getMagicDataMinnanSettingsDraftConfig(aiDefaults);
+  function updateMagicDataRecognitionModeFields(scriptId, nextValue) {
+    const targetScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataMinnanScriptId;
+    const aiDefaults = getAsrVoiceAiDefaultsCached(targetScriptId).defaults || {};
+    const draftConfig = getMagicDataSettingsDraftConfig(aiDefaults, targetScriptId);
     draftConfig.aiReviewModelMode = normalizeMagicDataModelMode(
       nextValue,
       draftConfig.aiReviewModelMode || "two_stage"
@@ -1234,21 +1243,23 @@
     if (draftConfig.aiReviewModelMode === "omni_single") {
       draftConfig.aiReviewSingleModel = isDataBakerFunAsrListenModel(draftConfig.aiReviewListenModel)
         ? "qwen3.5-omni-flash"
-        : normalizeDataBakerSingleModel(
-            draftConfig.aiReviewSingleModel,
-            getMagicDataMinnanSingleModelDefault(aiDefaults)
-          );
+          : normalizeDataBakerSingleModel(
+              draftConfig.aiReviewSingleModel,
+              getMagicDataMinnanSingleModelDefault(aiDefaults)
+            );
     }
     applyMagicDataMinnanRecognitionModeFields(
       draftConfig.aiReviewRecognitionMode,
       draftConfig,
-      aiDefaults
+      aiDefaults,
+      targetScriptId
     );
   }
 
-  function updateMagicDataMinnanRecognitionStrategyFields(nextValue) {
-    const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataMinnanScriptId).defaults || {};
-    const draftConfig = getMagicDataMinnanSettingsDraftConfig(aiDefaults);
+  function updateMagicDataRecognitionStrategyFields(scriptId, nextValue) {
+    const targetScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataMinnanScriptId;
+    const aiDefaults = getAsrVoiceAiDefaultsCached(targetScriptId).defaults || {};
+    const draftConfig = getMagicDataSettingsDraftConfig(aiDefaults, targetScriptId);
     draftConfig.aiReviewRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
       nextValue,
       draftConfig.aiReviewRecognitionStrategy || "direct_dialect"
@@ -1260,13 +1271,15 @@
     applyMagicDataMinnanRecognitionModeFields(
       draftConfig.aiReviewRecognitionMode,
       draftConfig,
-      aiDefaults
+      aiDefaults,
+      targetScriptId
     );
   }
 
-  function updateMagicDataMinnanListenModelFields(listenModel) {
-    const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataMinnanScriptId).defaults || {};
-    const draftConfig = getMagicDataMinnanSettingsDraftConfig(aiDefaults);
+  function updateMagicDataListenModelFields(scriptId, listenModel) {
+    const targetScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataMinnanScriptId;
+    const aiDefaults = getAsrVoiceAiDefaultsCached(targetScriptId).defaults || {};
+    const draftConfig = getMagicDataSettingsDraftConfig(aiDefaults, targetScriptId);
     draftConfig.aiReviewListenModel = normalizeDataBakerListenModel(
       listenModel,
       getMagicDataMinnanListenModelDefault(aiDefaults)
@@ -1274,13 +1287,15 @@
     applyMagicDataMinnanRecognitionModeFields(
       draftConfig.aiReviewRecognitionMode || "two_stage",
       draftConfig,
-      aiDefaults
+      aiDefaults,
+      targetScriptId
     );
   }
 
-  function updateMagicDataMinnanSingleModelFields(singleModel) {
-    const aiDefaults = getAsrVoiceAiDefaultsCached(magicDataMinnanScriptId).defaults || {};
-    const draftConfig = getMagicDataMinnanSettingsDraftConfig(aiDefaults);
+  function updateMagicDataSingleModelFields(scriptId, singleModel) {
+    const targetScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataMinnanScriptId;
+    const aiDefaults = getAsrVoiceAiDefaultsCached(targetScriptId).defaults || {};
+    const draftConfig = getMagicDataSettingsDraftConfig(aiDefaults, targetScriptId);
     draftConfig.aiReviewSingleModel = normalizeDataBakerSingleModel(
       singleModel,
       getMagicDataMinnanSingleModelDefault(aiDefaults)
@@ -1288,7 +1303,8 @@
     applyMagicDataMinnanRecognitionModeFields(
       draftConfig.aiReviewRecognitionMode || "omni_single",
       draftConfig,
-      aiDefaults
+      aiDefaults,
+      targetScriptId
     );
   }
 
@@ -2712,10 +2728,7 @@
         "</div></div>",
         "</div>",
       ].join("");
-      if (!isDataBakerPanel && !isMagicDataMinnanPanel) {
-        bindJudgementModelSelect(prefix + "-listen-model-select", prefix + "-listen-model-custom");
-        bindJudgementModelSelect(prefix + "-compare-model-select", prefix + "-compare-model-custom");
-      } else if (isDataBakerPanel) {
+      if (isDataBakerPanel) {
         const recognitionNode = getElement("data-baker-ai-pipeline-mode-select");
         const listenNode = getElement("data-baker-ai-listen-model-select");
         const singleNode = getElement("data-baker-ai-single-model-select");
@@ -2735,31 +2748,37 @@
           });
         }
         moveDataBakerAutofillConcurrencyFieldIntoAiPanel();
-      } else {
+      } else if (isMagicDataPanel) {
+        const magicDataScriptId = isMagicDataScript(scriptId)
+          ? scriptId
+          : magicDataAnnotatorScriptId;
         const recognitionNode = getElement("magic-data-ai-pipeline-mode-select");
         const strategyNode = getElement("magic-data-ai-recognition-strategy-select");
         const listenNode = getElement("magic-data-ai-listen-model-select");
         const singleNode = getElement("magic-data-ai-single-model-select");
         if (recognitionNode instanceof HTMLSelectElement) {
           recognitionNode.addEventListener("change", function (event) {
-            updateMagicDataMinnanRecognitionModeFields(event?.target?.value);
+            updateMagicDataRecognitionModeFields(magicDataScriptId, event?.target?.value);
           });
         }
         if (strategyNode instanceof HTMLSelectElement) {
           strategyNode.addEventListener("change", function (event) {
-            updateMagicDataMinnanRecognitionStrategyFields(event?.target?.value);
+            updateMagicDataRecognitionStrategyFields(magicDataScriptId, event?.target?.value);
           });
         }
         if (listenNode instanceof HTMLSelectElement) {
           listenNode.addEventListener("change", function (event) {
-            updateMagicDataMinnanListenModelFields(event?.target?.value);
+            updateMagicDataListenModelFields(magicDataScriptId, event?.target?.value);
           });
         }
         if (singleNode instanceof HTMLSelectElement) {
           singleNode.addEventListener("change", function (event) {
-            updateMagicDataMinnanSingleModelFields(event?.target?.value);
+            updateMagicDataSingleModelFields(magicDataScriptId, event?.target?.value);
           });
         }
+      } else {
+        bindJudgementModelSelect(prefix + "-listen-model-select", prefix + "-listen-model-custom");
+        bindJudgementModelSelect(prefix + "-compare-model-select", prefix + "-compare-model-custom");
       }
       panel.classList.remove("hidden");
       return;
@@ -3752,7 +3771,8 @@
       applyMagicDataMinnanRecognitionModeFields(
         config.aiReviewRecognitionMode || aiDefaults.recognitionMode,
         config,
-        aiDefaults
+        aiDefaults,
+        activeScriptId
       );
       if (!isMinnanScript) {
         const reviewModeField = getElement("magic-data-review-mode");
@@ -3998,91 +4018,27 @@
     setStatus("magic-data-status", "正在保存 Magic Data 设置...");
     try {
       const payloadConfig = (function () {
-        if (!isMinnanScript) {
-          return {
-            enabled: enabled,
-            aiReviewEnabled: enabled,
-            aiReviewModelMode: modelMode,
-            aiReviewRecognitionStrategy: recognitionStrategy,
-            aiReviewRecognitionMode: recognitionMode,
-            aiReviewListenModel:
-              modelMode === "two_stage" && listenModel !== String(aiDefaults.listenModel || "").trim()
-                ? listenModel
-                : "",
-            aiReviewCompareModel:
-              modelMode === "two_stage" &&
-              reviewModel !== String(aiDefaults.reviewModel || aiDefaults.compareModel || "").trim()
-                ? reviewModel
-                : "",
-            aiReviewSingleModel:
-              modelMode === "omni_single" &&
-              singleModel !== String(aiDefaults.singleModel || aiDefaults.omniModel || "").trim()
-                ? singleModel
-                : "",
-            listenModel:
-              listenModel === String(aiDefaults.listenModel || "").trim() ? "" : listenModel,
-            reviewModel:
-              reviewModel ===
-              String(aiDefaults.reviewModel || aiDefaults.compareModel || "").trim()
-                ? ""
-                : reviewModel,
-            reviewMode: reviewMode,
-            showHeardText: showHeardText,
-            showEstimatedIncome: showEstimatedIncome,
-            enableThinking: enableThinking,
-            aiReviewRequestTimeoutMs: aiReviewRequestTimeoutMs,
-            aiReviewListenPrompt: aiReviewListenPrompt,
-            aiReviewComparePrompt: aiReviewComparePrompt,
-            aiReviewTemperature: aiReviewTemperature,
-            aiReviewTopP: aiReviewTopP,
-            aiReviewMaxTokens: aiReviewMaxTokens,
-            aiReviewMaxCompletionTokens: aiReviewMaxCompletionTokens,
-            aiReviewPresencePenalty: aiReviewPresencePenalty,
-            aiReviewFrequencyPenalty: aiReviewFrequencyPenalty,
-            aiReviewSeed: aiReviewSeed,
-            aiReviewStopSequences: aiReviewStopSequences,
-            shortcuts: shortcuts,
-          };
-        }
-
-        const defaultListenModel = getMagicDataMinnanListenModelDefault(aiDefaults);
-        const defaultCompareModel = getMagicDataMinnanCompareModelDefault(aiDefaults);
-        const defaultSingleModel = getMagicDataMinnanSingleModelDefault(aiDefaults);
-        const normalizedRecognitionMode = normalizeMagicDataMinnanRecognitionMode(recognitionMode, "two_stage");
-
+        const normalizedRecognitionMode = normalizeMagicDataMinnanRecognitionMode(
+          recognitionMode,
+          "two_stage"
+        );
+        const normalizedThinking = enableThinking === true;
         return {
           enabled: enabled,
           aiReviewEnabled: enabled,
           aiReviewModelMode: modelMode,
           aiReviewRecognitionStrategy: recognitionStrategy,
           aiReviewRecognitionMode: normalizedRecognitionMode,
-          aiReviewListenModel:
-            modelMode === "two_stage" && listenModel !== defaultListenModel
-              ? listenModel
-              : "",
-          aiReviewCompareModel:
-            modelMode === "two_stage" && reviewModel !== defaultCompareModel
-              ? reviewModel
-              : "",
-          aiReviewSingleModel:
-            modelMode === "omni_single" && singleModel !== defaultSingleModel
-              ? singleModel
-              : "",
-          aiReviewEnableThinking:
-            enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
-          listenModel:
-            modelMode === "two_stage" && listenModel !== defaultListenModel
-              ? listenModel
-              : "",
-          reviewModel:
-            modelMode === "two_stage" && reviewModel !== defaultCompareModel
-              ? reviewModel
-              : "",
+          aiReviewListenModel: listenModel,
+          aiReviewCompareModel: reviewModel,
+          aiReviewSingleModel: singleModel,
+          aiReviewEnableThinking: normalizedThinking,
+          listenModel: listenModel,
+          reviewModel: reviewModel,
           reviewMode: reviewMode,
           showHeardText: showHeardText,
           showEstimatedIncome: showEstimatedIncome,
-          enableThinking:
-            enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
+          enableThinking: normalizedThinking,
           aiReviewRequestTimeoutMs: aiReviewRequestTimeoutMs,
           aiReviewListenPrompt: aiReviewListenPrompt,
           aiReviewComparePrompt: aiReviewComparePrompt,

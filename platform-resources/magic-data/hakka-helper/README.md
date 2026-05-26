@@ -33,6 +33,7 @@
 - 客家话助手前端已切换到与闽南语助手一致的新面板体系（行内建议、说话人建议、原始输出、全部填入、独立折叠）。
 - 旧 `shared/assistant-panel-core.js` 与 `hakka-helper/ui-panel.js` 仅作 legacy 兼容，不再作为客家话主链路入口。
 - 运行时接口仍使用客家话路径 `/api/magic-data/hakka-helper/ai/review-current`，并保留 legacy `/api/magic-data/annotator/ai/review-current` 兼容。
+- 2026-05-26 Options 保存链路修复后，客家话助手的 `识别策略` 与 `比较模型` 会通过前端显式写入配置（`aiReviewRecognitionStrategy`、`aiReviewCompareModel` 与 legacy `reviewModel` 同步），刷新后保持一致。
 
 ## 2026-05-26 后端输出结构对齐
 

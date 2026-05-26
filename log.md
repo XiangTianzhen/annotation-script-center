@@ -1,3 +1,19 @@
+## 2026-05-26（Magic Data 客家话助手：AI 配置保存链路热修）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- 修复 `Options -> Magic Data ANNOTATOR -> 客家话助手` 中 `识别策略`、`比较模型` 切换后刷新丢失的问题。
+- `extension/options/options.js` 关键修复：
+  - 将 Magic Data pipeline 字段联动函数改为按 `scriptId` 通用处理，避免 Hakka 误走 Minnan 硬编码 defaults。
+  - `renderAsrVoiceAiSettingsSection` 中 Magic Data Hakka 与 Minnan 统一绑定 `模型方案/识别策略/听音模型/单模型` change 事件，不再让 Hakka 落入旧 `bindJudgementModelSelect` 分支。
+  - `saveMagicDataSettings` 改为显式保存模型字段，不再因“等于默认值”写空字符串：
+    - `aiReviewModelMode/aiReviewRecognitionStrategy/aiReviewRecognitionMode`
+    - `aiReviewListenModel/aiReviewCompareModel/aiReviewSingleModel`
+    - legacy `listenModel/reviewModel`
+  - thinking 保存保持布尔显式值，并同步 `aiReviewEnableThinking` 与 `enableThinking`。
+- 兼容性说明：
+  - 客家话默认配置仍为 `two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`（thinking 默认关闭）。
+  - 闽南语保存链路同步受益，未回退其现有配置能力。
+
 ## 2026-05-26（Magic Data 客家话助手：后端输出结构对齐修复）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。

@@ -31,6 +31,9 @@
   - 听音：`qwen3.5-omni-flash`
   - 比较：`qwen3.5-flash`
 - `enable_thinking=false`
+- 2026-05-26 Options 保存链路热修：
+  - 客家话助手与闽南语助手统一走 Magic Data pipeline 字段联动（模型方案/识别策略/听音模型/比较模型/单模型）。
+  - 保存时同时写入新字段与 legacy 字段（`aiReview*` + `listenModel/reviewModel`），并显式持久化模型选择值，避免刷新后回退显示。
 
 ## 前端交互（新版）
 
