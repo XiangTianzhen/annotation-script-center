@@ -24,6 +24,7 @@
 - 支持 Prompt override 与生成参数 override（留空时使用后端 defaults）。
 - 闽南语助手 options 不提供并发数配置（DataBaker 并发配置保持独立）。
 - 2026-05-26 保存链路热修后，模型方案/识别策略/听音模型/比较模型/单模型按当前脚本显式保存；`recognition_convert` legacy 字段仅作兼容映射，不再覆盖用户显式选择。
+- 2026-05-26 options 面板口径调整：移除 `AI 质检模式` 字段，闽南语助手统一按 `模型方案 + 识别策略` 运行；`direct_dialect` 与 `mandarin_to_dialect` 保存后刷新保持不回滚。
 
 ## 三项质检口径
 

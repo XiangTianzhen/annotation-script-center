@@ -417,6 +417,10 @@
       );
     }
 
+    function hasEditableTextRows() {
+      return Boolean(findRowEditorByIndex(0) || findRowEditorByIndex(1));
+    }
+
     function refreshButtons() {
       const hasResult = Boolean(latestResult);
       if (buttons.review) {
@@ -433,7 +437,18 @@
         buttons.showRawOutput.disabled = loading || !hasResult;
       }
       if (buttons.fillAll) {
-        const canFillAll = hasResult && !isCheckPageSnapshot() && hasActionableSuggestion(latestResult);
+        const canFillAll = (function () {
+          if (!hasResult || !hasEditableTextRows()) {
+            return false;
+          }
+          if (isCheckPageSnapshot()) {
+            return (
+              hasActionableTextSuggestion(latestResult?.dialectTextCheck || {}) ||
+              hasActionableTextSuggestion(latestResult?.mandarinTextCheck || {})
+            );
+          }
+          return hasActionableSuggestion(latestResult);
+        })();
         buttons.fillAll.style.display = canFillAll ? "" : "none";
         buttons.fillAll.disabled = loading || !canFillAll;
       }
@@ -1088,13 +1103,13 @@
       if (oldButton) {
         oldButton.remove();
       }
-      if (!isCheckPageSnapshot() && shouldShowTextFillButton(checkData)) {
+      const editor = type === "dialect" ? findRowEditorByIndex(0) : findRowEditorByIndex(1);
+      if (editor && shouldShowTextFillButton(checkData)) {
         const fillBtn = createButton("填入本行", "el-button--primary is-plain");
         fillBtn.addEventListener("mousedown", function (event) {
           event.preventDefault();
         });
         fillBtn.addEventListener("click", function () {
-          const editor = type === "dialect" ? findRowEditorByIndex(0) : findRowEditorByIndex(1);
           const result = fillInlineEditor(editor, checkData?.suggestedValue || "");
           setMessage(result.message);
         });
@@ -1407,7 +1422,6 @@
           compareModel: compareModel,
           singleModel: singleModel,
           reviewModel: compareModel,
-          reviewMode: runtimeSettings.reviewMode,
           showHeardText: runtimeSettings.showHeardText !== false,
           enableThinking: enableThinking,
           aiOptions: (function () {
@@ -1529,16 +1543,17 @@
     }
 
     function triggerFillAllSuggestions() {
-      if (isCheckPageSnapshot()) {
-        const message = "审核页当前不自动改写平台文本；可复制建议或手动参考。";
-        setMessage(message);
-        return { ok: false, message: message };
-      }
       if (!latestResult) {
         const message = "暂无 AI 结果可填入。";
         setMessage(message);
         return { ok: false, message: message };
       }
+      if (!hasEditableTextRows()) {
+        const message = "当前页面文本不可编辑，无法执行填入。";
+        setMessage(message);
+        return { ok: false, message: message };
+      }
+      const isCheckPage = isCheckPageSnapshot();
       const speakerCheck = latestResult.speakerCheck || {};
       const genderCheck = speakerCheck.gender || {};
       const ageRangeCheck = speakerCheck.ageRange || {};
@@ -1548,7 +1563,7 @@
       let appliedCount = 0;
       const results = [];
 
-      if (hasActionableSpeakerSuggestion(genderCheck, isValidGenderValue)) {
+      if (!isCheckPage && hasActionableSpeakerSuggestion(genderCheck, isValidGenderValue)) {
         const genderItem = findSpeakerFormItemByLabel("性别");
         const suggestedValue = normalizeText(genderCheck.suggestedValue || "");
         let result = null;
@@ -1564,7 +1579,7 @@
         results.push(result);
       }
 
-      if (hasActionableSpeakerSuggestion(ageRangeCheck, isValidAgeRangeValue)) {
+      if (!isCheckPage && hasActionableSpeakerSuggestion(ageRangeCheck, isValidAgeRangeValue)) {
         const ageItem = findSpeakerFormItemByLabel("年龄");
         const suggestedValue = normalizeText(ageRangeCheck.suggestedValue || "");
         let result = null;
@@ -1830,7 +1845,11 @@
 
     function showAsrmarkCheckNotice() {
       ensureMounted();
-      setMessage("审核页已接入 AI 质检；AI 仅给出客家话规则质检和风险提示，不自动保存、不自动提交。");
+      if (hasEditableTextRows()) {
+        setMessage("审核页已接入 AI 质检与文本填入；仅在你点击按钮时填入文本，不自动保存、不自动提交。");
+      } else {
+        setMessage("审核页已接入 AI 质检；当前仅提供建议与风险提示，不自动保存、不自动提交。");
+      }
       refreshButtons();
     }
 

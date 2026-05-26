@@ -1807,16 +1807,30 @@
       sourceDefault.aiReviewRecognitionStrategy || "direct_dialect",
       "direct_dialect"
     );
-    const hasExplicitModelMode =
-      typeof sourceCurrent.aiReviewModelMode === "string" && sourceCurrent.aiReviewModelMode.trim() !== ""
-        ? true
-        : typeof sourceLegacy.aiReviewModelMode === "string" && sourceLegacy.aiReviewModelMode.trim() !== "";
-    const hasExplicitStrategy =
-      typeof sourceCurrent.aiReviewRecognitionStrategy === "string" &&
-      sourceCurrent.aiReviewRecognitionStrategy.trim() !== ""
-        ? true
-        : typeof sourceLegacy.aiReviewRecognitionStrategy === "string" &&
-          sourceLegacy.aiReviewRecognitionStrategy.trim() !== "";
+    const hasExplicitModelMode = (function () {
+      const currentMode = String(sourceCurrent.aiReviewModelMode || "").trim().toLowerCase();
+      const legacyMode = String(sourceLegacy.aiReviewModelMode || "").trim().toLowerCase();
+      return (
+        currentMode === "two_stage" ||
+        currentMode === "omni_single" ||
+        legacyMode === "two_stage" ||
+        legacyMode === "omni_single"
+      );
+    })();
+    const hasExplicitStrategy = (function () {
+      const currentStrategy = String(sourceCurrent.aiReviewRecognitionStrategy || "")
+        .trim()
+        .toLowerCase();
+      const legacyStrategy = String(sourceLegacy.aiReviewRecognitionStrategy || "")
+        .trim()
+        .toLowerCase();
+      return (
+        currentStrategy === "direct_dialect" ||
+        currentStrategy === "mandarin_to_dialect" ||
+        legacyStrategy === "direct_dialect" ||
+        legacyStrategy === "mandarin_to_dialect"
+      );
+    })();
     let modelMode = normalizeMagicDataModelMode(
       sourceCurrent.aiReviewModelMode || sourceLegacy.aiReviewModelMode,
       defaultModelMode

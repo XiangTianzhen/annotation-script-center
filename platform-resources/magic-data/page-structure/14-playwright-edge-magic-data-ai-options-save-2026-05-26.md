@@ -3,7 +3,10 @@
 - 日期：2026-05-26
 - 范围：Magic Data ANNOTATOR 双助手（客家话 / 闽南语）Options AI 配置保存链路
 - 目标：定位“保存后模型方案/识别策略被覆盖”的问题并给出复核清单
-- 说明：按用户要求，本轮未执行真实浏览器调试；本记录基于代码修复后的复核矩阵与手动验收步骤整理。
+- 说明：
+  - 已调用 `playwright-edge` MCP 进行页面可达性探测；
+  - 访问 `https://work.magicdatatech.com/#/asrmarkCheck?formType=1&id=3373750` 被重定向到 `#/login`，当前会话无法直接完成登录后 options 实测；
+  - 本记录保留代码修复点和人工复测矩阵，供扩展重载后逐项核对。
 
 ## 问题摘要
 
@@ -26,7 +29,20 @@
 2. `extension/options/options.js`
    - 新增 `updateMagicDataCompareModelFields(scriptId, compareModel)`
    - 为 `magic-data-ai-compare-model-select` 绑定 change 事件
+   - 移除 Magic Data 面板 `AI 质检模式` 字段展示与读取（legacy `reviewMode` 仅兼容保留）
    - 保持按当前 scriptId（客家话/闽南语）读取 defaults 与草稿配置
+
+## MCP 探测结果（本轮）
+
+- 已访问：
+  - `chrome-extension://cdnkiookailoaheehghkolcgjpcidghe/options/options.html?script=magicDataAnnotatorAiReview`
+  - `chrome-extension://cdnkiookailoaheehghkolcgjpcidghe/options/options.html?script=magicDataMinnanAssistant`
+- 探测结果：
+  - `#magic-data-review-mode` 未找到（符合“移除 AI 质检模式 UI”）
+  - `#magic-data-ai-pipeline-mode-select` / `#magic-data-ai-recognition-strategy-select` / `#magic-data-ai-compare-model-select` 本轮探测未定位到
+- 说明：
+  - 当前 MCP 会话无法稳定复现“解锁 ASR 面板后的完整 DOM”（页面可能处于未展开状态或 UI 状态与本地运行实例不同）。
+  - 因此完整“保存-刷新-回显”以人工矩阵复测为准。
 
 ## 保存复核矩阵（人工执行）
 

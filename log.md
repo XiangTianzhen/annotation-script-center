@@ -1,3 +1,21 @@
+## 2026-05-26（Magic Data AI 面板与审核页填入热修）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- `extension/options/options.js`：
+  - Magic Data 双助手 AI 面板移除 `AI 质检模式` 字段，统一按 `模型方案 + 识别策略` 配置。
+  - 修复识别策略保存回滚：`aiReviewRecognitionStrategy` 显式字段优先，避免被 legacy `recognition_convert` 覆盖。
+  - 比较模型下拉联动保持，保存后回显不再丢失。
+- `extension/shared/storage.js`：
+  - `resolveMagicDataModeAndStrategy` 显式字段优先规则加强，仅在无有效新字段时才采用 legacy 推导。
+- `extension/sites/magic-data/hakka-helper/assistant-panel.js`：
+  - 审核页（`#/asrmarkCheck`）文本可编辑时，行内建议支持 `填入本行`。
+  - `全部填入AI推荐` 在审核页仅填文本项，不填说话人，不自动保存/提交，不自动点击合格/不合格。
+- 文档同步：
+  - 更新 Magic Data 双助手 README 与平台索引口径。
+  - 更新 `14-playwright-edge-magic-data-ai-options-save-2026-05-26.md`。
+  - 新增 `15-playwright-edge-hakka-check-page-fill-2026-05-26.md`（记录 MCP 登录态阻塞与人工复测矩阵）。
+  - 已补充本轮 `playwright-edge` MCP 探测结果：审核页 URL 会话中重定向到 `#/login`，options 页面可达但完整解锁态需人工复测。
+
 ## 2026-05-26（Magic Data AI 面板：保存后被覆盖热修）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。

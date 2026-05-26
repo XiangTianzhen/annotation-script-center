@@ -27,10 +27,12 @@
 - 平台运行时代码：`extension/sites/magic-data/`
 - 平台 README：`extension/sites/magic-data/README.md`
 - 客家话助手：`extension/sites/magic-data/hakka-helper/README.md`
+- 客家话助手补充：审核页 `#/asrmarkCheck` 已接入 AI 质检；文本可编辑时支持行内 `填入本行` 与文本项 `全部填入AI推荐`（不自动保存/提交）。
 - 客家话助手默认配置（2026-05-25 评测落地）：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 默认关闭
 - 客家话助手前端（2026-05-26）：已切换到与闽南语一致的新面板体系（行内建议、说话人建议、全部填入、原始输出、独立折叠）
 - 客家话助手后端（2026-05-26）：`review-current` 输出结构已对齐闽南语（`speakerCheck/dialectTextCheck/mandarinTextCheck/overall`），legacy `annotator` API 保持兼容
 - 闽南语助手：`extension/sites/magic-data/minnan-helper/README.md`（前端行为对齐客家话助手，AI 配置拆分为“模型方案 two_stage/omni_single + 识别策略 direct_dialect/mandarin_to_dialect”；与客家话助手同平台互斥启用）
+- 双助手 options 口径：不再展示 `AI 质检模式`，统一使用“模型方案 + 识别策略”。
 - 平台资料：`platform-resources/magic-data/README.md`
 - 平台共用页面结构：`platform-resources/magic-data/page-structure/README.md`
 - 平台共用 Network：`platform-resources/magic-data/network/README.md`

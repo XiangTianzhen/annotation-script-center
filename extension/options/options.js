@@ -910,6 +910,11 @@
     return fallbackText === "mandarin_to_dialect" ? "mandarin_to_dialect" : "direct_dialect";
   }
 
+  function hasValidMagicDataRecognitionStrategy(value) {
+    const text = String(value || "").trim().toLowerCase();
+    return text === "direct_dialect" || text === "mandarin_to_dialect";
+  }
+
   function deriveLegacyRecognitionModeByModeAndStrategy(modelMode, recognitionStrategy) {
     const normalizedModelMode = normalizeMagicDataModelMode(modelMode, "two_stage");
     const normalizedRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
@@ -2263,14 +2268,19 @@
       source.aiReviewRecognitionMode || source.aiReviewPipelineMode || source.pipelineMode,
       "two_stage"
     );
-    const magicDataModelMode = normalizeMagicDataModelMode(
-      source.aiReviewModelMode || minnanRecognitionMode,
-      "two_stage"
+    const hasExplicitRecognitionStrategy = hasValidMagicDataRecognitionStrategy(
+      source.aiReviewRecognitionStrategy
     );
-    const magicDataRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
-      source.aiReviewRecognitionStrategy || minnanRecognitionMode,
-      "direct_dialect"
-    );
+    const hasExplicitModelMode = (function () {
+      const text = String(source.aiReviewModelMode || "").trim().toLowerCase();
+      return text === "two_stage" || text === "omni_single";
+    })();
+    const magicDataModelMode = hasExplicitModelMode
+      ? normalizeMagicDataModelMode(source.aiReviewModelMode, "two_stage")
+      : normalizeMagicDataModelMode(minnanRecognitionMode, "two_stage");
+    const magicDataRecognitionStrategy = hasExplicitRecognitionStrategy
+      ? normalizeMagicDataRecognitionStrategy(source.aiReviewRecognitionStrategy, "direct_dialect")
+      : normalizeMagicDataRecognitionStrategy(minnanRecognitionMode, "direct_dialect");
     const minnanListenModel = normalizeDataBakerListenModel(
       source.aiReviewListenModel || source.listenModel,
       "qwen3.5-omni-flash"
@@ -2283,7 +2293,7 @@
     );
     const minnanSingleModel = normalizeDataBakerSingleModel(
       source.aiReviewSingleModel ||
-        (minnanRecognitionMode === "omni_single" ? source.listenModel : ""),
+        (magicDataModelMode === "omni_single" ? source.listenModel : ""),
       "qwen3.5-omni-flash"
     );
     const minnanEnableThinking =
@@ -2312,10 +2322,7 @@
         targetScriptId === magicDataMinnanScriptId
           ? minnanCompareModel
           : normalizeMagicDataModel(source.reviewModel, magicDataDefaultSettings.reviewModel),
-      reviewMode: normalizeMagicDataReviewMode(
-        source.reviewMode,
-        magicDataDefaultSettings.reviewMode
-      ),
+      reviewMode: normalizeMagicDataReviewMode(source.reviewMode, magicDataDefaultSettings.reviewMode),
       showHeardText: source.showHeardText !== false,
       showEstimatedIncome: source.showEstimatedIncome !== false,
       enableThinking:
@@ -2718,9 +2725,6 @@
         '<label class="asr-ai-field hidden" id="' + prefix + '-compare-model-custom-field"><span id="' + prefix + '-compare-model-custom-label">' + modelLabel + '自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
         '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时后端自动降级）</span></label></label>',
-        isMagicDataScript(scriptId) && !isMagicDataMinnanPanel
-          ? '<label class="asr-ai-field"><span>AI 质检模式</span><select id="magic-data-review-mode"><option value="rule_first">规则优先</option><option value="listen_assisted">听音辅助</option><option value="strict_review">严格复核</option></select></label>'
-          : "",
         isMagicDataScript(scriptId)
           ? '<label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-show-heard-text" type="checkbox" /><span>显示 AI 听音文本</span></label></label>'
           : "",
@@ -3796,12 +3800,6 @@
         aiDefaults,
         activeScriptId
       );
-      if (!isMinnanScript) {
-        const reviewModeField = getElement("magic-data-review-mode");
-        if (reviewModeField) {
-          reviewModeField.value = config.reviewMode;
-        }
-      }
       getElement("magic-data-show-heard-text").checked = config.showHeardText !== false;
       getElement("magic-data-show-estimated-income").checked =
         config.showEstimatedIncome !== false;
@@ -3890,15 +3888,17 @@
           currentConfig.aiReviewModelMode || currentConfig.aiReviewRecognitionMode,
           "two_stage"
         );
+    const recognitionStrategyFallback = hasValidMagicDataRecognitionStrategy(
+      currentConfig.aiReviewRecognitionStrategy
+    )
+      ? currentConfig.aiReviewRecognitionStrategy
+      : currentConfig.aiReviewRecognitionMode;
     const recognitionStrategy = hasAiSettingsPanel
       ? normalizeMagicDataRecognitionStrategy(
           getElement("magic-data-ai-recognition-strategy-select")?.value,
-          currentConfig.aiReviewRecognitionStrategy || currentConfig.aiReviewRecognitionMode || "direct_dialect"
+          recognitionStrategyFallback || "direct_dialect"
         )
-      : normalizeMagicDataRecognitionStrategy(
-          currentConfig.aiReviewRecognitionStrategy || currentConfig.aiReviewRecognitionMode,
-          "direct_dialect"
-        );
+      : normalizeMagicDataRecognitionStrategy(recognitionStrategyFallback, "direct_dialect");
     const recognitionMode = deriveLegacyRecognitionModeByModeAndStrategy(
       modelMode,
       recognitionStrategy
@@ -3930,13 +3930,6 @@
           currentConfig.aiReviewSingleModel,
           getMagicDataMinnanSingleModelDefault(aiDefaults)
         );
-    const reviewMode =
-      hasAiSettingsPanel && !isMinnanScript
-        ? normalizeMagicDataReviewMode(
-            getElement("magic-data-review-mode").value,
-            magicDataDefaultSettings.reviewMode
-          )
-        : currentConfig.reviewMode;
     const showHeardText = hasAiSettingsPanel
       ? getElement("magic-data-show-heard-text").checked
       : currentConfig.showHeardText !== false;
@@ -4057,7 +4050,6 @@
           aiReviewEnableThinking: normalizedThinking,
           listenModel: listenModel,
           reviewModel: reviewModel,
-          reviewMode: reviewMode,
           showHeardText: showHeardText,
           showEstimatedIncome: showEstimatedIncome,
           enableThinking: normalizedThinking,

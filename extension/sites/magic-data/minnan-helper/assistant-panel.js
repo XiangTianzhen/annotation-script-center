@@ -1395,7 +1395,6 @@
           compareModel: compareModel,
           singleModel: singleModel,
           reviewModel: compareModel,
-          reviewMode: runtimeSettings.reviewMode,
           showHeardText: runtimeSettings.showHeardText !== false,
           enableThinking: enableThinking,
           aiOptions: (function () {
@@ -1814,7 +1813,7 @@
     function showAsrmarkCheckNotice() {
       ensureMounted();
       clearResult();
-      setMessage("审核页暂未接入填入，只支持后续扩展。");
+      setMessage("审核页当前不启用闽南语写入；可切换到客家话助手进行审核页 AI 质检。");
     }
 
     return {
