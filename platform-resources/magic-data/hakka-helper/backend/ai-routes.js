@@ -35,6 +35,33 @@ const LEGACY_AI_HEALTH_PATH = LEGACY_AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = "/api/magic-data/hakka-helper/ai/defaults";
 const LEGACY_AI_DEFAULTS_PATH = "/api/magic-data/annotator/ai/defaults";
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
+const MODEL_MODE_OPTIONS = [
+  { value: "two_stage", label: "双模型：听音模型 + 比较/转换模型" },
+  { value: "omni_single", label: "单模型：Omni 单模型" },
+];
+const RECOGNITION_STRATEGY_OPTIONS = [
+  { value: "direct_dialect", label: "直接识别方言文本" },
+  { value: "mandarin_to_dialect", label: "识别转换：先听成普通话，再按字词表转方言" },
+];
+const RECOGNITION_MODE_OPTIONS = [
+  { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
+  { value: "omni_single", label: "单模型：Omni 单模型" },
+  { value: "recognition_convert", label: "识别转换：先听成普通话，再按词表转客家话" },
+];
+const LISTEN_MODEL_OPTIONS = [
+  "qwen3.5-omni-plus",
+  "qwen3.5-omni-flash",
+  "qwen3.5-omni-flash-2026-03-15",
+  "qwen3-omni-flash",
+  "qwen3-omni-flash-2025-12-01",
+  "qwen3-omni-flash-2025-09-15",
+];
+const COMPARE_MODEL_OPTIONS = [
+  "qwen3.6-plus",
+  "qwen3.5-plus",
+  "qwen3.6-flash",
+  "qwen3.5-flash",
+];
 
 function createRequestId() {
   const now = new Date();
@@ -136,6 +163,32 @@ function normalizeReviewRequest(body) {
     throw createHttpError(400, "effectiveTime 必须是非负数字。", "invalid-effective-time");
   }
 
+  const fallbackLegacyMode = normalizeRecognitionMode(
+    source.aiReviewRecognitionMode || source.aiReviewPipelineMode || source.pipelineMode
+  );
+  const modelMode = normalizeModelMode(
+    source.modelMode || source.aiReviewModelMode || fallbackLegacyMode,
+    fallbackLegacyMode
+  );
+  const recognitionStrategy = normalizeRecognitionStrategy(
+    source.recognitionStrategy || source.aiReviewRecognitionStrategy || fallbackLegacyMode,
+    fallbackLegacyMode
+  );
+  const recognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
+  const listenModel = sanitizeModelName(aiOptions.listenModel || source.listenModel || source.aiReviewListenModel, "");
+  const compareModel = sanitizeModelName(
+    aiOptions.compareModel ||
+      aiOptions.reviewModel ||
+      source.compareModel ||
+      source.reviewModel ||
+      source.aiReviewCompareModel,
+    ""
+  );
+  const singleModel = sanitizeModelName(
+    aiOptions.singleModel || source.singleModel || source.aiReviewSingleModel,
+    ""
+  );
+
   return {
     taskItemId,
     samplingRecordId,
@@ -151,18 +204,68 @@ function normalizeReviewRequest(body) {
       gender: normalizeText(source?.speaker?.gender),
       ageRange: normalizeText(source?.speaker?.ageRange),
     },
+    modelMode: modelMode,
+    recognitionStrategy: recognitionStrategy,
+    recognitionMode: recognitionMode,
+    pipelineMode: recognitionMode,
     rulesProfile: normalizeText(source.rulesProfile) || "hakka",
     clientVersion: normalizeText(source.clientVersion),
-    listenModel: sanitizeModelName(aiOptions.listenModel || source.listenModel, ""),
-    reviewModel: sanitizeModelName(aiOptions.reviewModel || source.reviewModel, ""),
+    listenModel: listenModel,
+    compareModel: compareModel,
+    singleModel: singleModel,
+    reviewModel: compareModel,
     reviewMode: normalizeReviewMode(source.reviewMode),
     showHeardText: source.showHeardText !== false,
     enableThinking:
       typeof aiOptions.enable_thinking === "boolean"
         ? aiOptions.enable_thinking === true
-        : source.enableThinking === true,
+        : source.aiReviewEnableThinking === true || source.enableThinking === true,
     aiOptions,
   };
+}
+
+function normalizeRecognitionMode(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "two_stage" || text === "omni_single" || text === "recognition_convert") {
+    return text;
+  }
+  if (text === "fun_asr_compare" || text === "qwen_omni_compare" || text === "qwen_omni_two_stage") {
+    return "two_stage";
+  }
+  if (text === "listen_only") {
+    return "omni_single";
+  }
+  return "two_stage";
+}
+
+function normalizeModelMode(value, fallback) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "two_stage" || text === "omni_single") {
+    return text;
+  }
+  if (text === "recognition_convert") {
+    return "two_stage";
+  }
+  return String(fallback || "two_stage").trim().toLowerCase() === "omni_single"
+    ? "omni_single"
+    : "two_stage";
+}
+
+function normalizeRecognitionStrategy(value, fallback) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "mandarin_to_dialect" || text === "recognition_convert") {
+    return "mandarin_to_dialect";
+  }
+  return String(fallback || "direct_dialect").trim().toLowerCase() === "mandarin_to_dialect"
+    ? "mandarin_to_dialect"
+    : "direct_dialect";
+}
+
+function deriveLegacyRecognitionMode(modelMode, recognitionStrategy) {
+  if (normalizeRecognitionStrategy(recognitionStrategy, "direct_dialect") === "mandarin_to_dialect") {
+    return "recognition_convert";
+  }
+  return normalizeModelMode(modelMode, "two_stage");
 }
 
 function normalizePromptText(value) {
@@ -215,7 +318,8 @@ function normalizeAiOptions(value) {
   const listenPrompt = normalizePromptText(source.listenPrompt);
   const comparePrompt = normalizePromptText(source.comparePrompt || source.reviewPrompt);
   const listenModel = sanitizeModelName(source.listenModel, "");
-  const reviewModel = sanitizeModelName(source.reviewModel || source.compareModel, "");
+  const compareModel = sanitizeModelName(source.compareModel || source.reviewModel, "");
+  const singleModel = sanitizeModelName(source.singleModel, "");
   if (listenPrompt) {
     result.listenPrompt = listenPrompt;
   }
@@ -225,8 +329,12 @@ function normalizeAiOptions(value) {
   if (listenModel) {
     result.listenModel = listenModel;
   }
-  if (reviewModel) {
-    result.reviewModel = reviewModel;
+  if (compareModel) {
+    result.compareModel = compareModel;
+    result.reviewModel = compareModel;
+  }
+  if (singleModel) {
+    result.singleModel = singleModel;
   }
   if (SUPPORTED_REQUEST_PARAMS.temperature === true) {
     const normalized = normalizeNumberInRange(source.temperature, 0, 2);
@@ -318,26 +426,55 @@ function appendCallLogSafe(record) {
 function buildHealthResponse() {
   const config = getClientConfig();
   const lexiconState = getLexiconState();
+  const modelMode = normalizeModelMode(config.pipelineMode || "two_stage", "two_stage");
+  const recognitionStrategy = normalizeRecognitionStrategy(
+    config.pipelineMode || "direct_dialect",
+    "direct_dialect"
+  );
+  const recognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
   return {
     success: true,
     service: "magic-data-hakka-helper-ai-review-current",
+    scriptId: "magicDataAnnotatorAiReview",
+    component: "asr-voice-ai",
     provider: "dashscope-qwen",
     ruleVersion: RULE_VERSION,
     status: config.hasApiKey || config.mockEnabled ? "ready" : "missing-api-key",
     mockEnabled: config.mockEnabled,
     hasApiKey: config.hasApiKey,
+    modelMode: modelMode,
+    recognitionStrategy: recognitionStrategy,
+    recognitionMode: recognitionMode,
+    pipelineMode: recognitionMode,
+    derivedPipelineMode: modelMode === "omni_single" ? "omni_single" : "qwen_omni_compare",
+    modelModeOptions: MODEL_MODE_OPTIONS.slice(),
+    recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
+    recognitionModeOptions: RECOGNITION_MODE_OPTIONS.slice(),
     listenModel: config.listenModel || DEFAULT_LISTEN_MODEL,
+    listenModelOptions: LISTEN_MODEL_OPTIONS.slice(),
     reviewModel: config.compareModel || DEFAULT_COMPARE_MODEL,
+    compareModel: config.compareModel || DEFAULT_COMPARE_MODEL,
+    compareModelOptions: COMPARE_MODEL_OPTIONS.slice(),
+    singleModel: config.listenModel || DEFAULT_LISTEN_MODEL,
+    singleModelOptions: LISTEN_MODEL_OPTIONS.slice(),
     allowClientModelOverride: config.allowClientModelOverride === true,
     enableThinkingDefault: config.enableThinkingDefault === true,
+    enableThinking: config.enableThinkingDefault === true,
     timeoutMs: config.timeoutMs,
-    pipelineMode: config.pipelineMode,
     lexiconRewriteMode: config.lexiconRewriteMode,
     lexicon: {
       enabled: lexiconState.enabled,
       status: lexiconState.status,
       source: lexiconState.source,
       rowCount: Array.isArray(lexiconState.rows) ? lexiconState.rows.length : 0,
+    },
+    evaluation: {
+      sampleCount: 50,
+      totalAudioSeconds: 398.932,
+      recommendedDefault: "direct_dialect + qwen3.5-flash",
+      estimatedCostPerHourCny: 27.71,
+      estimatedCostPer10000HoursCny: 277100,
+      note: "客家话文本质量优先，生产默认使用双模型+直接识别客家话，thinking 默认关闭。",
     },
     callLogDir: getLogDir(),
   };
@@ -367,12 +504,16 @@ async function handleReviewCurrent(request, response) {
     }
 
     const listenModel = resolveModelOverride(
-      reviewRequest.listenModel,
+      reviewRequest.modelMode === "omni_single"
+        ? reviewRequest.singleModel || reviewRequest.listenModel
+        : reviewRequest.listenModel,
       config.listenModel || DEFAULT_LISTEN_MODEL,
       config
     );
     const reviewModel = resolveModelOverride(
-      reviewRequest.reviewModel,
+      reviewRequest.modelMode === "omni_single"
+        ? reviewRequest.singleModel || reviewRequest.compareModel || reviewRequest.reviewModel
+        : reviewRequest.compareModel || reviewRequest.reviewModel,
       config.compareModel || DEFAULT_COMPARE_MODEL,
       config
     );
@@ -446,6 +587,11 @@ async function handleReviewCurrent(request, response) {
       requestId,
       reviewConclusion: ruleFirst.reviewConclusion,
       shouldReview: ruleFirst.shouldReview === true,
+      modelMode: reviewRequest.modelMode,
+      recognitionStrategy: reviewRequest.recognitionStrategy,
+      recognitionMode: reviewRequest.recognitionMode,
+      pipelineMode: reviewRequest.recognitionMode,
+      derivedPipelineMode: reviewRequest.modelMode === "omni_single" ? "omni_single" : "qwen_omni_compare",
       effectiveTime: effectiveTimeSeconds,
       estimatedIncome,
       platformBaseline: {
@@ -477,6 +623,7 @@ async function handleReviewCurrent(request, response) {
         listenModel: listenResult.model || listenModel || DEFAULT_LISTEN_MODEL,
         reviewModel: compareResult.model || reviewModel || DEFAULT_COMPARE_MODEL,
         compareModel: compareResult.model || reviewModel || DEFAULT_COMPARE_MODEL,
+        singleModel: reviewRequest.singleModel || "",
       },
       usage: {
         listen: listenUsage,
@@ -578,14 +725,32 @@ async function handleReviewCurrent(request, response) {
 
 function registerAiRoutes(router) {
   function buildDefaultsPayload(config) {
+    const modelMode = normalizeModelMode(config.pipelineMode || "two_stage", "two_stage");
+    const recognitionStrategy = normalizeRecognitionStrategy(
+      config.pipelineMode || "direct_dialect",
+      "direct_dialect"
+    );
+    const recognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
     return {
       success: true,
       service: "magic-data-hakka-helper-ai-review-current",
       scriptId: "magicDataAnnotatorAiReview",
       component: "asr-voice-ai",
       defaults: {
+        modelMode: modelMode,
+        recognitionStrategy: recognitionStrategy,
+        recognitionMode: recognitionMode,
+        pipelineMode: recognitionMode,
+        derivedPipelineMode: modelMode === "omni_single" ? "omni_single" : "qwen_omni_compare",
+        modelModeOptions: MODEL_MODE_OPTIONS.slice(),
+        recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
+        recognitionModeOptions: RECOGNITION_MODE_OPTIONS.slice(),
         listenModel: config.listenModel || DEFAULT_LISTEN_MODEL,
-        compareModel: "",
+        listenModelOptions: LISTEN_MODEL_OPTIONS.slice(),
+        compareModel: config.compareModel || DEFAULT_COMPARE_MODEL,
+        compareModelOptions: COMPARE_MODEL_OPTIONS.slice(),
+        singleModel: config.listenModel || DEFAULT_LISTEN_MODEL,
+        singleModelOptions: LISTEN_MODEL_OPTIONS.slice(),
         reviewModel: config.compareModel || DEFAULT_COMPARE_MODEL,
         timeoutMs: config.timeoutMs,
         enableThinking: config.enableThinkingDefault === true,
@@ -602,9 +767,25 @@ function registerAiRoutes(router) {
         reviewPrompt: DEFAULT_COMPARE_TEMPLATE,
       },
       supportedParams: SUPPORTED_REQUEST_PARAMS,
+      evaluation: {
+        sampleCount: 50,
+        totalAudioSeconds: 398.932,
+        recommendedDefault: "direct_dialect + qwen3.5-flash",
+        highQualityCandidate: "direct_dialect + qwen3.5-plus",
+        mandarinPriorityCandidate: "mandarin_to_dialect + qwen3.5-plus",
+        costPer10000HoursCny: {
+          directFlash: 277100,
+          directPlus: 287500,
+          convertFlash: 273600,
+          convertPlus: 284200,
+        },
+        note: "评测口径：50条样本，398.932秒；默认强制 enable_thinking=false。",
+      },
       notes: {
         promptOverride: "Prompt 可在前端覆盖；空 override 使用后端默认。",
         responseFormat: "结构化输出由后端固定控制，前端不配置。",
+        compatibility:
+          "兼容旧字段 listenModel/reviewModel/enableThinking/reviewPrompt；新字段优先 modelMode/recognitionStrategy/listenModel/compareModel/singleModel。",
       },
     };
   }

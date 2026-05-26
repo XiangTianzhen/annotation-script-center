@@ -22,6 +22,7 @@
   - `GET /api/magic-data/hakka-helper/ai/review-current/health`
   - `GET /api/magic-data/hakka-helper/ai/defaults`
   - `POST /api/magic-data/hakka-helper/ai/review-current`
+  - 默认评测落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，`enable_thinking=false`
 - 闽南语助手：
   - `GET /api/magic-data/minnan-helper/ai/review-current/health`
   - `GET /api/magic-data/minnan-helper/ai/defaults`

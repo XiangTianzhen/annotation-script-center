@@ -209,8 +209,15 @@
     const runtimeSettingsDefault = {
       enabled: true,
       aiReviewEnabled: true,
+      aiReviewModelMode: "two_stage",
+      aiReviewRecognitionStrategy: "direct_dialect",
+      aiReviewRecognitionMode: "two_stage",
+      aiReviewListenModel: "qwen3.5-omni-flash",
+      aiReviewCompareModel: "qwen3.5-flash",
+      aiReviewSingleModel: "qwen3.5-omni-flash",
+      aiReviewEnableThinking: false,
       listenModel: "qwen3.5-omni-flash",
-      reviewModel: "qwen3.5-plus",
+      reviewModel: "qwen3.5-flash",
       reviewMode: "rule_first",
       showHeardText: true,
       showEstimatedIncome: true,
@@ -590,6 +597,44 @@
       setLoading(true);
       setMessage("正在调用 AI 质检后端...");
       try {
+        const modelMode = String(
+          runtimeSettings.aiReviewModelMode || runtimeSettings.aiReviewRecognitionMode || "two_stage"
+        )
+          .trim()
+          .toLowerCase() === "omni_single"
+          ? "omni_single"
+          : "two_stage";
+        const recognitionStrategy = String(runtimeSettings.aiReviewRecognitionStrategy || "")
+          .trim()
+          .toLowerCase() === "mandarin_to_dialect"
+          ? "mandarin_to_dialect"
+          : "direct_dialect";
+        const recognitionMode =
+          recognitionStrategy === "mandarin_to_dialect" ? "recognition_convert" : modelMode;
+        const listenModel = String(
+          runtimeSettings.aiReviewListenModel || runtimeSettings.listenModel || "qwen3.5-omni-flash"
+        )
+          .trim()
+          .slice(0, 80);
+        const compareModel = String(
+          runtimeSettings.aiReviewCompareModel || runtimeSettings.reviewModel || "qwen3.5-flash"
+        )
+          .trim()
+          .slice(0, 80);
+        const singleModel = String(
+          runtimeSettings.aiReviewSingleModel ||
+            (modelMode === "omni_single"
+              ? runtimeSettings.aiReviewListenModel ||
+                runtimeSettings.listenModel ||
+                "qwen3.5-omni-flash"
+              : "qwen3.5-omni-flash")
+        )
+          .trim()
+          .slice(0, 80);
+        const enableThinking =
+          typeof runtimeSettings.aiReviewEnableThinking === "boolean"
+            ? runtimeSettings.aiReviewEnableThinking === true
+            : runtimeSettings.enableThinking === true;
         const response = await options.reviewCurrent({
           taskItemId: snapshot.taskItemId,
           samplingRecordId: snapshot.samplingRecordId,
@@ -604,16 +649,24 @@
           speaker: snapshot.speaker || {},
           rulesProfile: "hakka",
           clientVersion: options.getClientVersion ? options.getClientVersion() : "0.3.0",
-          listenModel: runtimeSettings.listenModel,
-          reviewModel: runtimeSettings.reviewModel,
+          recognitionMode: recognitionMode,
+          pipelineMode: recognitionMode,
+          modelMode: modelMode,
+          recognitionStrategy: recognitionStrategy,
+          listenModel: listenModel,
+          compareModel: compareModel,
+          singleModel: singleModel,
+          reviewModel: compareModel,
           reviewMode: runtimeSettings.reviewMode,
           showHeardText: runtimeSettings.showHeardText !== false,
-          enableThinking: runtimeSettings.enableThinking === true,
+          enableThinking: enableThinking,
           aiOptions: (function () {
             const optionsPayload = {
-              listenModel: String(runtimeSettings.listenModel || "").trim(),
-              reviewModel: String(runtimeSettings.reviewModel || "").trim(),
-              enable_thinking: runtimeSettings.enableThinking === true,
+              listenModel: listenModel,
+              compareModel: compareModel,
+              reviewModel: compareModel,
+              singleModel: singleModel,
+              enable_thinking: enableThinking,
             };
             const listenPrompt = String(runtimeSettings.aiReviewListenPrompt || "").trim();
             const comparePrompt = String(runtimeSettings.aiReviewComparePrompt || "").trim();

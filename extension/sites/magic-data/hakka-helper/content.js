@@ -10,8 +10,12 @@
     aiReviewModelMode: "two_stage",
     aiReviewRecognitionStrategy: "direct_dialect",
     aiReviewRecognitionMode: "two_stage",
+    aiReviewListenModel: "qwen3.5-omni-flash",
+    aiReviewCompareModel: "qwen3.5-flash",
+    aiReviewSingleModel: "qwen3.5-omni-flash",
+    aiReviewEnableThinking: false,
     listenModel: "qwen3.5-omni-flash",
-    reviewModel: "qwen3.5-plus",
+    reviewModel: "qwen3.5-flash",
     reviewMode: "rule_first",
     showHeardText: true,
     showEstimatedIncome: true,
@@ -96,6 +100,43 @@
     return "rule_first";
   }
 
+  function normalizeModelMode(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "two_stage" || text === "omni_single") {
+      return text;
+    }
+    return "two_stage";
+  }
+
+  function normalizeRecognitionStrategy(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "mandarin_to_dialect") {
+      return "mandarin_to_dialect";
+    }
+    return "direct_dialect";
+  }
+
+  function normalizeRecognitionMode(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "two_stage" || text === "omni_single" || text === "recognition_convert") {
+      return text;
+    }
+    if (text === "fun_asr_compare" || text === "qwen_omni_compare" || text === "qwen_omni_two_stage") {
+      return "two_stage";
+    }
+    if (text === "listen_only") {
+      return "omni_single";
+    }
+    return "two_stage";
+  }
+
+  function deriveLegacyRecognitionMode(modelMode, recognitionStrategy) {
+    if (normalizeRecognitionStrategy(recognitionStrategy) === "mandarin_to_dialect") {
+      return "recognition_convert";
+    }
+    return normalizeModelMode(modelMode);
+  }
+
   function normalizePromptText(value) {
     return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
   }
@@ -103,15 +144,49 @@
   function normalizeSettings(value) {
     const source = value && typeof value === "object" ? value : {};
     const shortcuts = source.shortcuts && typeof source.shortcuts === "object" ? source.shortcuts : {};
+    const legacyRecognitionMode = normalizeRecognitionMode(
+      source.aiReviewRecognitionMode || source.aiReviewPipelineMode || source.pipelineMode
+    );
+    const modelMode = normalizeModelMode(
+      source.aiReviewModelMode || legacyRecognitionMode
+    );
+    const recognitionStrategy = normalizeRecognitionStrategy(
+      source.aiReviewRecognitionStrategy ||
+        (legacyRecognitionMode === "recognition_convert" ? "mandarin_to_dialect" : "direct_dialect")
+    );
+    const recognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
+    const listenModel = normalizeModelName(
+      source.aiReviewListenModel || source.listenModel,
+      DEFAULT_SETTINGS.aiReviewListenModel
+    );
+    const compareModel = normalizeModelName(
+      source.aiReviewCompareModel || source.reviewModel,
+      DEFAULT_SETTINGS.aiReviewCompareModel
+    );
+    const singleModel = normalizeModelName(
+      source.aiReviewSingleModel || source.singleModel || source.aiReviewModel,
+      DEFAULT_SETTINGS.aiReviewSingleModel
+    );
+    const enableThinking =
+      typeof source.aiReviewEnableThinking === "boolean"
+        ? source.aiReviewEnableThinking === true
+        : source.enableThinking === true;
     return {
       enabled: source.enabled !== false,
       aiReviewEnabled: source.aiReviewEnabled !== false,
-      listenModel: normalizeModelName(source.listenModel, DEFAULT_SETTINGS.listenModel),
-      reviewModel: normalizeModelName(source.reviewModel, DEFAULT_SETTINGS.reviewModel),
+      aiReviewModelMode: modelMode,
+      aiReviewRecognitionStrategy: recognitionStrategy,
+      aiReviewRecognitionMode: recognitionMode,
+      aiReviewListenModel: listenModel,
+      aiReviewCompareModel: compareModel,
+      aiReviewSingleModel: singleModel,
+      aiReviewEnableThinking: enableThinking,
+      listenModel: listenModel,
+      reviewModel: compareModel,
       reviewMode: normalizeReviewMode(source.reviewMode),
       showHeardText: source.showHeardText !== false,
       showEstimatedIncome: source.showEstimatedIncome !== false,
-      enableThinking: source.enableThinking === true,
+      enableThinking: enableThinking,
       aiReviewListenPrompt: normalizePromptText(source.aiReviewListenPrompt || ""),
       aiReviewComparePrompt: normalizePromptText(source.aiReviewComparePrompt || ""),
       aiReviewTemperature: String(source.aiReviewTemperature || "").trim(),

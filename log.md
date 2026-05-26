@@ -1,3 +1,21 @@
+## 2026-05-26（Magic Data 客家话助手：评测默认配置落地）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- 落地客家话助手默认 AI 配置（50 条评测结论）：
+  - `modelMode=two_stage`
+  - `recognitionStrategy=direct_dialect`
+  - `listenModel=qwen3.5-omni-flash`
+  - `compareModel=qwen3.5-flash`
+  - `enable_thinking=false`
+- 前端配置同步：
+  - `extension/shared/constants.js`、`extension/sites/magic-data/hakka-helper/content.js`、`extension/sites/magic-data/shared/assistant-panel-core.js` 默认比较模型改为 `qwen3.5-flash`，并补齐 `modelMode/recognitionStrategy` 兼容字段。
+  - `extension/options/options.js` 更新客家话默认兜底、后端默认提示文案，并按脚本区分客家话/闽南语默认比较模型。
+- 后端接口同步：
+  - `platform-resources/magic-data/hakka-helper/backend/ai-routes.js` 兼容新请求字段 `modelMode/recognitionStrategy/compareModel/singleModel`，并在 `defaults/health` 返回模型方案与识别策略选项、评测摘要字段。
+  - 继续保留 legacy `/api/magic-data/annotator/ai/*` 兼容路径。
+- 文档更新：
+  - 客家话前后端 README、Magic Data 平台 README、`docs/platforms/index.md` 已补充评测结论与默认配置口径。
+
 ## 2026-05-25（Magic Data 双助手配置重构：模型方案/识别策略拆分）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。

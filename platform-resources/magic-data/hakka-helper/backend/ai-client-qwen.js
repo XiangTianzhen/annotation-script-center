@@ -2,7 +2,7 @@
 
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
-const DEFAULT_COMPARE_MODEL = "qwen3.5-plus";
+const DEFAULT_COMPARE_MODEL = "qwen3.5-flash";
 const DEFAULT_REQUEST_PARAMS = {
   temperature: 0.1,
   top_p: 0.8,

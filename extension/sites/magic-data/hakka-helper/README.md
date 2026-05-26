@@ -24,6 +24,11 @@
   - 识别策略：`direct_dialect` / `mandarin_to_dialect`
 - 为兼容历史配置，仍保留 legacy `aiReviewRecognitionMode`（含 `recognition_convert`）映射。
 - 快捷键动作已与闽南语助手统一到同一动作集合（含 `全部填入AI推荐`、`显示 AI 原始输出`、详情折叠切换等动作键）。
+- 2026-05-25 客家话评测默认配置已落地：
+  - `two_stage + direct_dialect`
+  - 听音：`qwen3.5-omni-flash`
+  - 比较：`qwen3.5-flash`
+  - `enable_thinking=false`
 
 ## 行为边界
 

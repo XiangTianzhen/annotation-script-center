@@ -24,6 +24,19 @@
 - `MAGIC_DATA_HAKKA_AI_MOCK`（fallback: `MAGIC_DATA_AI_MOCK`）
 - `MAGIC_DATA_HAKKA_AI_CALL_LOG_DIR`（fallback: `MAGIC_DATA_AI_CALL_LOG_DIR`）
 
+## 默认配置（2026-05-25 评测落地）
+
+- `modelMode`: `two_stage`
+- `recognitionStrategy`: `direct_dialect`
+- `listenModel`: `qwen3.5-omni-flash`
+- `compareModel`: `qwen3.5-flash`
+- `enable_thinking`: `false`
+
+候选配置：
+
+- 高质量：`direct_dialect + qwen3.5-plus`
+- 普通话优先：`mandarin_to_dialect + qwen3.5-plus`
+
 ## 安全边界
 
 - 不记录完整签名音频 URL、token、cookie、authorization、API Key。

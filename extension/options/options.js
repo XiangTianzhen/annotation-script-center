@@ -183,7 +183,7 @@
     enabled: true,
     aiReviewEnabled: true,
     listenModel: "qwen3.5-omni-flash",
-    reviewModel: "qwen3.5-plus",
+    reviewModel: "qwen3.5-flash",
     reviewMode: "rule_first",
     showHeardText: true,
     showEstimatedIncome: true,
@@ -1054,10 +1054,12 @@
     );
   }
 
-  function getMagicDataMinnanCompareModelDefault(aiDefaults) {
+  function getMagicDataMinnanCompareModelDefault(aiDefaults, scriptId) {
+    const fallback =
+      scriptId === magicDataAnnotatorScriptId ? "qwen3.5-flash" : "qwen3.5-plus";
     return normalizeDataBakerCompareModel(
       aiDefaults?.compareModel || aiDefaults?.reviewModel,
-      "qwen3.5-plus"
+      fallback
     );
   }
 
@@ -1720,7 +1722,7 @@
 
   function buildFallbackAsrVoiceAiDefaults(scriptId) {
     const useDataBakerStyleDefaults =
-      scriptId === dataBakerRoundOneQualityScriptId || scriptId === magicDataMinnanScriptId;
+      scriptId === dataBakerRoundOneQualityScriptId || isMagicDataScript(scriptId);
     const baseDefaults = {
       listenModel: "qwen3.5-omni-flash",
       listenModelOptions:
@@ -1773,8 +1775,10 @@
     };
 
     if (isMagicDataScript(scriptId)) {
-      baseDefaults.reviewModel = "qwen3.5-plus";
-      baseDefaults.compareModel = "";
+      const defaultCompareModel =
+        scriptId === magicDataAnnotatorScriptId ? "qwen3.5-flash" : "qwen3.5-plus";
+      baseDefaults.reviewModel = defaultCompareModel;
+      baseDefaults.compareModel = defaultCompareModel;
     }
     return {
       defaults: baseDefaults,
@@ -1863,6 +1867,11 @@
     const payload = defaultsPayload || getAsrVoiceAiDefaultsCached(scriptId);
     if (payload.error) {
       node.textContent = payload.error;
+      return;
+    }
+    if (scriptId === magicDataAnnotatorScriptId) {
+      node.textContent =
+        "已读取后端默认配置。客家话50条评测建议默认：双模型 + 直接识别客家话 + qwen3.5-omni-flash + qwen3.5-flash（thinking 默认关闭）。";
       return;
     }
     node.textContent = "已读取后端默认配置；未单独覆盖的字段将沿用后端默认。";
@@ -2234,9 +2243,11 @@
       source.aiReviewListenModel || source.listenModel,
       "qwen3.5-omni-flash"
     );
+    const defaultCompareModel =
+      targetScriptId === magicDataMinnanScriptId ? "qwen3.5-plus" : "qwen3.5-flash";
     const minnanCompareModel = normalizeDataBakerCompareModel(
       source.aiReviewCompareModel || source.reviewModel,
-      "qwen3.5-plus"
+      defaultCompareModel
     );
     const minnanSingleModel = normalizeDataBakerSingleModel(
       source.aiReviewSingleModel ||
@@ -2276,9 +2287,7 @@
       showHeardText: source.showHeardText !== false,
       showEstimatedIncome: source.showEstimatedIncome !== false,
       enableThinking:
-        targetScriptId === magicDataMinnanScriptId
-          ? minnanEnableThinking
-          : source.enableThinking === true,
+        minnanEnableThinking,
       aiReviewRequestTimeoutMs: normalizeAiRequestTimeoutMs(source.aiReviewRequestTimeoutMs, DEFAULT_AI_REQUEST_TIMEOUT_MS),
       aiReviewListenPrompt: normalizePromptText(source.aiReviewListenPrompt || ""),
       aiReviewComparePrompt: normalizePromptText(source.aiReviewComparePrompt || ""),
@@ -3864,11 +3873,11 @@
     const reviewModel = hasAiSettingsPanel
       ? normalizeDataBakerCompareModel(
           getElement("magic-data-ai-compare-model-select")?.value,
-          getMagicDataMinnanCompareModelDefault(aiDefaults)
+          getMagicDataMinnanCompareModelDefault(aiDefaults, targetScriptId)
         )
       : normalizeDataBakerCompareModel(
           currentConfig.aiReviewCompareModel || currentConfig.reviewModel,
-          getMagicDataMinnanCompareModelDefault(aiDefaults)
+          getMagicDataMinnanCompareModelDefault(aiDefaults, targetScriptId)
         );
     const singleModel = hasAiSettingsPanel
       ? normalizeDataBakerSingleModel(
