@@ -28,6 +28,12 @@
 
 - AI 仅做辅助建议，不自动保存、不自动提交、不自动领取、不自动审核、不自动流转。
 
+## 前端联动口径（2026-05-26）
+
+- 客家话助手前端已切换到与闽南语助手一致的新面板体系（行内建议、说话人建议、原始输出、全部填入、独立折叠）。
+- 旧 `shared/assistant-panel-core.js` 与 `hakka-helper/ui-panel.js` 仅作 legacy 兼容，不再作为客家话主链路入口。
+- 运行时接口仍使用客家话路径 `/api/magic-data/hakka-helper/ai/review-current`，并保留 legacy `/api/magic-data/annotator/ai/review-current` 兼容。
+
 ## 2026-05-25 客家话模型评测结论（50条样本）
 
 - 样本规模：50 条

@@ -186,6 +186,8 @@
         "sites/magic-data/shared/ai-review-client.js",
         "sites/magic-data/shared/shortcuts-runtime.js",
         "sites/magic-data/shared/assistant-panel-core.js",
+        "sites/magic-data/hakka-helper/shortcuts-runtime.js",
+        "sites/magic-data/hakka-helper/assistant-panel.js",
         "sites/magic-data/hakka-helper/content.js",
         "sites/magic-data/minnan-helper/ai-review-client.js",
         "sites/magic-data/minnan-helper/shortcuts-runtime.js",

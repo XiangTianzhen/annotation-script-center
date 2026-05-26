@@ -1,3 +1,28 @@
+## 2026-05-26（Magic Data 客家话助手：新版面板前端对齐修复）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- 修复根因：客家话 `content.js` 仍挂载旧 `shared/assistant-panel-core.js` 全局（`__ASREdgeMagicDataAnnotatorInlinePanel`），导致显示旧按钮与旧结果结构。
+- 客家话前端链路切换为新版：
+  - 新增 `extension/sites/magic-data/hakka-helper/assistant-panel.js`（基于闽南语新版参数化为客家话文案与命名空间）。
+  - 新增 `extension/sites/magic-data/hakka-helper/shortcuts-runtime.js`（客家话新版快捷键运行时）。
+  - `extension/sites/magic-data/hakka-helper/content.js` 改为使用：
+    - `__ASREdgeMagicDataHakkaInlinePanel`
+    - `__ASREdgeMagicDataHakkaShortcuts`
+  - `extension/manifest.json` 调整 Magic Data ISOLATED 注入顺序，确保客家话新版模块在客家话 content 之前加载。
+- 客家话新版面板能力与闽南语对齐：
+  - 行内建议（正确/建议文本+填入本行）
+  - 说话人建议（性别/年龄）
+  - 总结论 + 三个独立折叠详情
+  - `全部填入AI推荐`
+  - `显示 AI 原始输出`
+  - 不再显示旧按钮：`填入第一行`、`填入第二行`、`忽略结果`
+- 默认模型口径保持评测结论：
+  - `two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`
+  - `enable_thinking=false`
+- 文档同步：
+  - 更新 Magic Data 前后端 README 与索引；
+  - 新增 `platform-resources/magic-data/page-structure/13-playwright-edge-hakka-panel-align-2026-05-24.md`（按用户要求本轮未做真实浏览器复测，仅记录链路与待人工复核清单）。
+
 ## 2026-05-26（Magic Data 客家话助手：评测默认配置落地）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。

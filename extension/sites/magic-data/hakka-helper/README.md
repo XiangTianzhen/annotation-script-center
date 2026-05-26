@@ -5,7 +5,9 @@
 ## 文件
 
 - `content.js`：客家话助手入口编排与挂载。
-- `ui-panel.js`：兼容旧面板实现（未默认挂载，保留以防回退）。
+- `assistant-panel.js`：客家话助手新版结果面板（与闽南语助手同能力，独立 DOM 命名空间）。
+- `shortcuts-runtime.js`：客家话助手快捷键运行时（独立存储 key）。
+- `ui-panel.js`：旧版兼容面板（legacy，当前主链路不再挂载）。
 
 ## 复用模块
 
@@ -14,8 +16,8 @@
 - `page-detector.js`
 - `data-collector.js`
 - `ai-review-client.js`（`/api/magic-data/hakka-helper/ai/review-current`）
-- `assistant-panel-core.js`
-- `shortcuts-runtime.js`
+- `assistant-panel-core.js`（legacy 兼容模块，当前客家话主链路不再使用）
+- `shortcuts-runtime.js`（legacy 兼容模块，当前客家话主链路不再使用）
 
 ## 配置与快捷键
 
@@ -28,7 +30,15 @@
   - `two_stage + direct_dialect`
   - 听音：`qwen3.5-omni-flash`
   - 比较：`qwen3.5-flash`
-  - `enable_thinking=false`
+- `enable_thinking=false`
+
+## 前端交互（新版）
+
+- 右侧按钮布局：主操作 `AI 质检当前条`、`全部填入AI推荐`；辅助操作 `刷新采集`、`重置高度`、`复制 AI 质检摘要`、`显示 AI 原始输出`。
+- 已移除旧按钮：`填入第一行`、`填入第二行`、`忽略结果`。
+- 三个详情块独立折叠：`说话人属性`、`客家话内容`、`普通话文本`，并按 `taskItemId + section` 记忆展开状态。
+- 行内建议直接显示在两行文本下方；正确项仅显示“正确”，需改项显示建议文本 + `填入本行`。
+- 说话人建议直接插入平台原生“说话人属性”表单项，正确项只显示 `AI建议：正确`。
 
 ## 行为边界
 

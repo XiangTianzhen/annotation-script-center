@@ -3,7 +3,11 @@
   const MOUNT_RETRY_MS = 220;
   const MOUNT_RETRY_LIMIT = 30;
   const MAGIC_DATA_HAKKA_SCRIPT_ID =
-    globalThis.ASREdgeConstants?.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
+    globalThis.ASREdgeConstants?.MAGIC_DATA_HAKKA_SCRIPT_ID || "magicDataAnnotatorAiReview";
+  const PANEL_ROOT_SELECTOR = "[data-asc-magic-data-hakka-review-inline]";
+  const INLINE_SUGGESTION_SELECTOR = "[data-asc-magic-data-hakka-inline-suggestion]";
+  const SPEAKER_SUGGESTION_SELECTOR = "[data-asc-magic-data-hakka-speaker-suggestion]";
+  const RAW_MODAL_SELECTOR = "[data-asc-magic-data-hakka-raw-modal]";
   const DEFAULT_SETTINGS = {
     enabled: true,
     aiReviewEnabled: true,
@@ -236,8 +240,8 @@
     const detector = globalThis.__ASREdgeMagicDataAnnotatorPageDetector;
     const collector = globalThis.__ASREdgeMagicDataAnnotatorDataCollector;
     const aiClient = globalThis.__ASREdgeMagicDataAnnotatorAiReviewClient;
-    const panelFactory = globalThis.__ASREdgeMagicDataAnnotatorInlinePanel;
-    const shortcutsFactory = globalThis.__ASREdgeMagicDataAnnotatorShortcuts;
+    const panelFactory = globalThis.__ASREdgeMagicDataHakkaInlinePanel;
+    const shortcutsFactory = globalThis.__ASREdgeMagicDataHakkaShortcuts;
     if (!detector || !collector || !aiClient || !panelFactory) {
       return null;
     }
@@ -249,6 +253,7 @@
       getClientVersion: aiClient.getClientVersion,
       refreshCurrentItem: collector.refreshCurrentItem,
       reviewCurrent: aiClient.reviewCurrent,
+      selectSpeakerValue: collector.selectSpeakerValue,
     });
 
     const shortcutsRuntime = shortcutsFactory?.createRuntime
@@ -258,6 +263,39 @@
       : null;
 
     let lastTaskKey = "";
+
+    function isInsideOwnUi(node) {
+      if (!(node instanceof Node)) {
+        return false;
+      }
+      const element = node instanceof HTMLElement ? node : node.parentElement;
+      if (!(element instanceof HTMLElement)) {
+        return false;
+      }
+      return Boolean(
+        element.closest(PANEL_ROOT_SELECTOR) ||
+          element.closest(INLINE_SUGGESTION_SELECTOR) ||
+          element.closest(SPEAKER_SUGGESTION_SELECTOR) ||
+          element.closest(RAW_MODAL_SELECTOR)
+      );
+    }
+
+    function shouldIgnoreMutation(mutations) {
+      if (!Array.isArray(mutations) || mutations.length === 0) {
+        return false;
+      }
+      return mutations.every(function (mutation) {
+        if (!isInsideOwnUi(mutation.target)) {
+          return false;
+        }
+        const added = Array.from(mutation.addedNodes || []);
+        const removed = Array.from(mutation.removedNodes || []);
+        return (
+          added.every(isInsideOwnUi) &&
+          removed.every(isInsideOwnUi)
+        );
+      });
+    }
 
     function runActionResult(result) {
       if (result && typeof result.then === "function") {
@@ -310,24 +348,7 @@
           return runActionResult(panel.triggerCopySummary());
         },
         fillAllAiSuggestions: function () {
-          const first = panel.triggerFillDialect ? panel.triggerFillDialect() : null;
-          const second = panel.triggerFillMandarin ? panel.triggerFillMandarin() : null;
-          if (first?.ok || second?.ok) {
-            return runActionResult({
-              ok: true,
-              message: "已执行可用的填入操作，未保存、未提交，请人工确认。",
-            });
-          }
-          return runActionResult({
-            ok: false,
-            message: "当前结果无可填入项。",
-          });
-        },
-        fillDialectLine: function () {
-          return runActionResult(panel.triggerFillDialect());
-        },
-        fillMandarinLine: function () {
-          return runActionResult(panel.triggerFillMandarin());
+          return runActionResult(panel.triggerFillAllSuggestions());
         },
         genderFemale: function () {
           return runActionResult(collector.selectSpeakerValue("女"));
@@ -336,31 +357,22 @@
           return runActionResult(collector.selectSpeakerValue("男"));
         },
         refreshCollection: function () {
-          return runActionResult(collector.refreshCurrentItem ? collector.refreshCurrentItem({}) : {
-            ok: false,
-            message: "采集能力未就绪。",
-          });
+          return runActionResult(panel.triggerRefreshCollection());
         },
         resetPanelHeight: function () {
-          return runActionResult({
-            ok: true,
-            message: "请点击面板上的“重置高度”。",
-          });
+          return runActionResult(panel.triggerResetPanelHeight());
         },
         showRawAiOutput: function () {
-          return runActionResult({
-            ok: false,
-            message: "客家话助手当前未提供原始输出弹窗。",
-          });
+          return runActionResult(panel.triggerShowRawOutput());
         },
         toggleDialectDetail: function () {
-          return runActionResult({ ok: false, message: "客家话助手当前未提供折叠详情切换。" });
+          return runActionResult(panel.triggerToggleDialectDetail());
         },
         toggleMandarinDetail: function () {
-          return runActionResult({ ok: false, message: "客家话助手当前未提供折叠详情切换。" });
+          return runActionResult(panel.triggerToggleMandarinDetail());
         },
         toggleSpeakerDetail: function () {
-          return runActionResult({ ok: false, message: "客家话助手当前未提供折叠详情切换。" });
+          return runActionResult(panel.triggerToggleSpeakerDetail());
         },
         onMissingAction: function (actionKey) {
           panel.setMessage("未实现的快捷键动作：" + actionKey);
@@ -389,7 +401,7 @@
       const pageType = detector.getPageType();
       if (pageType !== lastRouteLog) {
         lastRouteLog = pageType;
-        safeInfo("[MagicData][AI Review] route detected: " + pageType);
+        safeInfo("[MagicData][Hakka] route detected: " + pageType);
       }
 
       if (pageType === "asrmark") {
@@ -456,7 +468,7 @@
         return;
       }
       if (mountRetryCount >= MOUNT_RETRY_LIMIT) {
-        safeWarn("[MagicData][AI Review] panel mount retry exhausted");
+        safeWarn("[MagicData][Hakka] panel mount retry exhausted");
         return;
       }
       mountRetryCount += 1;
@@ -474,7 +486,11 @@
       }
       refresh();
       ensurePanelMountedWithRetry();
-      observer = new MutationObserver(function () {
+      observer = new MutationObserver(function (mutations) {
+        const mutationList = Array.from(mutations || []);
+        if (shouldIgnoreMutation(mutationList)) {
+          return;
+        }
         window.clearTimeout(pageTimer);
         pageTimer = window.setTimeout(function () {
           refresh();
@@ -543,7 +559,7 @@
       if (!runtime) {
         runtime = createRuntime();
         if (!runtime) {
-          safeWarn("[MagicData][AI Review] runtime dependencies missing");
+          safeWarn("[MagicData][Hakka] runtime dependencies missing");
           return;
         }
         await runtime.start();
@@ -556,7 +572,7 @@
         stopRuntime();
         return;
       }
-      safeWarn("[MagicData][AI Review] runtime error: " + String(error?.message || error || "unknown"));
+      safeWarn("[MagicData][Hakka] runtime error: " + String(error?.message || error || "unknown"));
       if (runtime) {
         runtime.refresh();
       }
@@ -583,7 +599,7 @@
 
   if (!startLogged) {
     startLogged = true;
-    safeInfo("[MagicData][AI Review] content started");
+    safeInfo("[MagicData][Hakka] content started");
   }
 
   if (document.readyState === "loading") {
@@ -593,3 +609,4 @@
   }
   installRouteWatch();
 })();
+

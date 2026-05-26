@@ -18,6 +18,7 @@
 - `10-playwright-edge-fix-retest-2026-05-24.md`：Playwright-Edge 修复后复测记录（幂等更新、折叠保持、按钮布局与批量填入行为）
 - `11-playwright-edge-recognition-convert-diff-2026-05-24.md`：识别策略 `mandarin_to_dialect` 与差异对比复测记录（含当前环境限制说明）
 - `12-playwright-edge-dual-helper-mode-shortcuts-2026-05-24.md`：双助手“模型方案 + 识别策略 + 快捷键”复测记录（本轮含 Edge 远程调试连接阻塞说明）
+- `13-playwright-edge-hakka-panel-align-2026-05-24.md`：客家话助手新版面板对齐记录（本轮按用户要求未执行真实浏览器复测，记录改动链路与待人工复核项）
 
 ## 证据等级说明
 
