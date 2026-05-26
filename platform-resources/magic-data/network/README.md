@@ -46,3 +46,9 @@
   - `payload.data.data.length_time`
   - `payload.data.data.sentence_valid_time`
 - 说话人映射规则：优先用 `mark_info[].speak_people -> base_speak[].speak_id` 解析性别和年龄。
+
+## asrmarkCheck 审核页补充（2026-05-26）
+
+- 审核页路由参数主键通常为 `id`，前端解析后映射为 `samplingRecordId`。
+- 审核页 AI 质检请求允许 `taskItemId` 为空，但应带 `samplingRecordId` 与 `pageType=asrmarkCheck`。
+- 审核页默认不自动改写平台文本，仅提供质检结论与风险提示；不自动保存、不自动提交。

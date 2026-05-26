@@ -263,6 +263,7 @@
       : null;
 
     let lastTaskKey = "";
+    let lastRouteKey = "";
 
     function isInsideOwnUi(node) {
       if (!(node instanceof Node)) {
@@ -404,7 +405,7 @@
         safeInfo("[MagicData][Hakka] route detected: " + pageType);
       }
 
-      if (pageType === "asrmark") {
+      if (pageType === "asrmark" || pageType === "asrmarkCheck") {
         const mounted = panel.ensureMounted();
         if (!mounted) {
           return;
@@ -418,24 +419,35 @@
         snapshot = snapshot || {};
         snapshot.pageType = pageType;
         const nextTaskKey = String(snapshot.taskItemId || snapshot.samplingRecordId || "");
-        if (nextTaskKey && lastTaskKey && nextTaskKey !== lastTaskKey) {
+        const nextRouteKey = [
+          pageType,
+          String(snapshot.taskItemId || ""),
+          String(snapshot.samplingRecordId || ""),
+        ].join(":");
+        if (nextRouteKey && lastRouteKey && nextRouteKey !== lastRouteKey) {
           panel.clearResult();
           panel.setMessage("当前条已变化，请重新点击 AI 质检当前条。");
         }
+        lastRouteKey = nextRouteKey;
         lastTaskKey = nextTaskKey;
         panel.setRuntimeSettings(runtimeSettings);
         panel.refreshPageSnapshot(snapshot, null, runtimeSettings);
         if (
+          pageType === "asrmark" &&
           snapshot.taskItemId &&
           typeof collector.getCachedDetail === "function" &&
           typeof collector.refreshCurrentItem === "function" &&
           !collector.getCachedDetail(snapshot.taskItemId)
         ) {
           collector
-            .refreshCurrentItem({ taskItemId: snapshot.taskItemId })
+            .refreshCurrentItem({
+              pageType: pageType,
+              taskItemId: snapshot.taskItemId,
+              samplingRecordId: snapshot.samplingRecordId,
+            })
             .then(function (latestSnapshot) {
               const nextSnapshot = latestSnapshot && typeof latestSnapshot === "object" ? latestSnapshot : snapshot;
-              nextSnapshot.pageType = "asrmark";
+              nextSnapshot.pageType = pageType;
               panel.refreshPageSnapshot(nextSnapshot, null, runtimeSettings);
             })
             .catch(function () {
@@ -444,13 +456,8 @@
         }
         return;
       }
-      if (pageType === "asrmarkCheck") {
-        lastTaskKey = "";
-        panel.setRuntimeSettings(runtimeSettings);
-        panel.showAsrmarkCheckNotice();
-        return;
-      }
       lastTaskKey = "";
+      lastRouteKey = "";
       panel.remove();
     }
 
@@ -458,7 +465,8 @@
       if (!detector.isMagicDataHost()) {
         return;
       }
-      if (detector.getPageType() !== "asrmark") {
+      const pageType = detector.getPageType();
+      if (pageType !== "asrmark" && pageType !== "asrmarkCheck") {
         return;
       }
       const mounted = panel.ensureMounted();

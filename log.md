@@ -1,3 +1,21 @@
+## 2026-05-26（Magic Data 客家话助手：审核页 asrmarkCheck 支持热修）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- 修复问题：客家话助手在 `#/asrmarkCheck` 审核页会反复回到“未接入”提示，并清空已展示的 AI 结果。
+- `extension/sites/magic-data/hakka-helper/content.js`：
+  - 审核页从阻断分支改为正式接入分支，`asrmark` 与 `asrmarkCheck` 共用挂载/采集/渲染主链路。
+  - 路由稳定键改为 `pageType + taskItemId + samplingRecordId`，仅切条时清空结果，避免 MutationObserver 刷新导致结果闪现后消失。
+  - 审核页与标注页都走统一面板刷新与 settings 注入。
+- `extension/sites/magic-data/hakka-helper/assistant-panel.js`：
+  - 移除审核页“未接入”清空行为，改为“已接入 AI 质检”提示。
+  - 审核页默认隐藏填入能力（行内填入按钮与“全部填入AI推荐”），保留质检与只读建议展示。
+  - 刷新采集时向 `refreshCurrentItem` 透传 `pageType/samplingRecordId`。
+- `extension/sites/magic-data/shared/data-collector.js`：
+  - snapshot 新增 `pageType`，并在刷新链路保留 `samplingRecordId/pageType` 上下文。
+- 文档同步：
+  - 更新客家话助手前后端 README、Magic Data 平台 README、页面结构索引、Network 索引。
+  - 新增 `platform-resources/magic-data/page-structure/13-playwright-edge-hakka-check-page-2026-05-26.md`（按用户要求本轮未做真实浏览器调试，记录代码修复与人工复测清单）。
+
 ## 2026-05-26（Magic Data 客家话助手：AI 配置保存链路热修）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。

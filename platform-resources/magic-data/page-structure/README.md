@@ -20,6 +20,7 @@
 - `12-playwright-edge-dual-helper-mode-shortcuts-2026-05-24.md`：双助手“模型方案 + 识别策略 + 快捷键”复测记录（本轮含 Edge 远程调试连接阻塞说明）
 - `13-playwright-edge-hakka-panel-align-2026-05-24.md`：客家话助手新版面板对齐记录（本轮按用户要求未执行真实浏览器复测，记录改动链路与待人工复核项）
 - `14-playwright-edge-hakka-backend-align-2026-05-24.md`：客家话后端输出结构对齐记录（本轮按用户要求未执行真实浏览器复测，记录后端字段对齐与人工复核清单）
+- `13-playwright-edge-hakka-check-page-2026-05-26.md`：客家话助手审核页（`#/asrmarkCheck`）接入记录与稳定性复核要点（本轮按用户要求未做真实浏览器调试，记录代码路径与复测清单）
 
 ## 证据等级说明
 

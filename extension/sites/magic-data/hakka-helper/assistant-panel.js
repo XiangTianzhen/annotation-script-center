@@ -386,6 +386,11 @@
       return normalizeText(source?.taskItemId || source?.samplingRecordId || "");
     }
 
+    function isCheckPageSnapshot(snapshot) {
+      const source = snapshot && typeof snapshot === "object" ? snapshot : latestSnapshot;
+      return normalizeText(source?.pageType || "") === "asrmarkCheck";
+    }
+
     function hasActionableTextSuggestion(checkData) {
       if (!checkData || checkData.isCorrect === true) {
         return false;
@@ -428,7 +433,7 @@
         buttons.showRawOutput.disabled = loading || !hasResult;
       }
       if (buttons.fillAll) {
-        const canFillAll = hasResult && hasActionableSuggestion(latestResult);
+        const canFillAll = hasResult && !isCheckPageSnapshot() && hasActionableSuggestion(latestResult);
         buttons.fillAll.style.display = canFillAll ? "" : "none";
         buttons.fillAll.disabled = loading || !canFillAll;
       }
@@ -972,7 +977,7 @@
       if (oldActions) {
         oldActions.remove();
       }
-      const canFill = checkData?.isCorrect !== true && validateFn(suggestedValue);
+      const canFill = !isCheckPageSnapshot() && checkData?.isCorrect !== true && validateFn(suggestedValue);
       if (canFill) {
         const actions = document.createElement("div");
         actions.className = "asc-md-hakka-speaker-actions";
@@ -1083,7 +1088,7 @@
       if (oldButton) {
         oldButton.remove();
       }
-      if (shouldShowTextFillButton(checkData)) {
+      if (!isCheckPageSnapshot() && shouldShowTextFillButton(checkData)) {
         const fillBtn = createButton("填入本行", "el-button--primary is-plain");
         fillBtn.addEventListener("mousedown", function (event) {
           event.preventDefault();
@@ -1284,7 +1289,9 @@
       if (preferApi && typeof options.refreshCurrentItem === "function") {
         try {
           snapshot = await options.refreshCurrentItem({
+            pageType: snapshot.pageType || latestSnapshot.pageType || "asrmark",
             taskItemId: snapshot.taskItemId,
+            samplingRecordId: snapshot.samplingRecordId,
           });
         } catch (error) {
           // keep dom fallback
@@ -1296,7 +1303,11 @@
       if (!snapshot.audioUrl) {
         setMessage("未获取到音频 URL，请先播放一次音频后再点刷新采集或 AI 质检。");
       } else {
-        setMessage("采集完成，可点击 AI 质检当前条。");
+        if (isCheckPageSnapshot(snapshot)) {
+          setMessage("审核页已接入 AI 质检；AI 仅给出客家话规则质检和风险提示，不自动保存、不自动提交。");
+        } else {
+          setMessage("采集完成，可点击 AI 质检当前条。");
+        }
       }
       return snapshot;
     }
@@ -1318,7 +1329,7 @@
         return { ok: false, message: "未获取到音频 URL。" };
       }
       if (!snapshot.platformDialectText && !snapshot.platformMandarinText) {
-        const message = "未读取到平台两行文本，请先确认当前页面是标注单条页。";
+        const message = "未读取到平台两行文本，请先确认当前页面存在可复核文本。";
         setMessage(message);
         return { ok: false, message: message };
       }
@@ -1374,6 +1385,7 @@
             ? runtimeSettings.aiReviewEnableThinking === true
             : runtimeSettings.enableThinking === true;
         const response = await options.reviewCurrent({
+          pageType: snapshot.pageType || "asrmark",
           taskItemId: snapshot.taskItemId,
           samplingRecordId: snapshot.samplingRecordId,
           projectName: snapshot.projectName,
@@ -1517,6 +1529,11 @@
     }
 
     function triggerFillAllSuggestions() {
+      if (isCheckPageSnapshot()) {
+        const message = "审核页当前不自动改写平台文本；可复制建议或手动参考。";
+        setMessage(message);
+        return { ok: false, message: message };
+      }
       if (!latestResult) {
         const message = "暂无 AI 结果可填入。";
         setMessage(message);
@@ -1813,8 +1830,8 @@
 
     function showAsrmarkCheckNotice() {
       ensureMounted();
-      clearResult();
-      setMessage("审核页暂未接入填入，只支持后续扩展。");
+      setMessage("审核页已接入 AI 质检；AI 仅给出客家话规则质检和风险提示，不自动保存、不自动提交。");
+      refreshButtons();
     }
 
     return {

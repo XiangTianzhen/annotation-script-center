@@ -181,6 +181,7 @@ function normalizeReviewMode(value) {
 function normalizeReviewRequest(body) {
   const source = body && typeof body === "object" ? body : {};
   const aiOptions = normalizeAiOptions(source.aiOptions);
+  const pageType = normalizePageType(source.pageType);
   const taskItemId = normalizeText(source.taskItemId);
   const samplingRecordId = normalizeText(source.samplingRecordId);
   const projectName = normalizeText(source.projectName);
@@ -231,6 +232,7 @@ function normalizeReviewRequest(body) {
   );
 
   return {
+    pageType,
     taskItemId,
     samplingRecordId,
     projectName,
@@ -263,6 +265,14 @@ function normalizeReviewRequest(body) {
         : source.aiReviewEnableThinking === true || source.enableThinking === true,
     aiOptions,
   };
+}
+
+function normalizePageType(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "asrmarkcheck") {
+    return "asrmarkCheck";
+  }
+  return "asrmark";
 }
 
 function normalizeRecognitionMode(value) {
@@ -657,6 +667,9 @@ async function handleReviewCurrent(request, response) {
       service: SERVICE_NAME,
       scriptId: SCRIPT_ID,
       component: COMPONENT_NAME,
+      pageType: reviewRequest.pageType || "asrmark",
+      taskItemId: reviewRequest.taskItemId || "",
+      samplingRecordId: reviewRequest.samplingRecordId || "",
       reviewConclusion: normalizedResult.reviewConclusion,
       shouldReview: normalizedResult.shouldReview === true,
       modelMode: reviewRequest.modelMode,

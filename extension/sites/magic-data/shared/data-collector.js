@@ -658,6 +658,7 @@
   }
 
   function collectDomSnapshot() {
+    const detector = globalThis.__ASREdgeMagicDataAnnotatorPageDetector;
     const routeParams = getRouteParams();
     const textFields = pickDialectAndMandarinFields();
     const dialectText = normalizeText(getEditableValue(textFields.dialectField));
@@ -675,6 +676,7 @@
       findNearbyNumberByKeyword("有效结束时间") ?? findNearbyNumberByKeyword("结束时间");
 
     return {
+      pageType: typeof detector?.getPageType === "function" ? detector.getPageType() : "",
       taskItemId: normalizeText(routeParams.taskItemId),
       samplingRecordId: normalizeText(routeParams.samplingRecordId),
       projectName: findProjectNameFromDom(),
@@ -741,6 +743,14 @@
     const config = options && typeof options === "object" ? options : {};
     const domSnapshot = collectDomSnapshot();
     const taskItemId = normalizeText(config.taskItemId || domSnapshot.taskItemId || getCurrentTaskItemId());
+    const samplingRecordId = normalizeText(config.samplingRecordId || domSnapshot.samplingRecordId);
+    if (samplingRecordId && !domSnapshot.samplingRecordId) {
+      domSnapshot.samplingRecordId = samplingRecordId;
+    }
+    const pageType = normalizeText(config.pageType || domSnapshot.pageType);
+    if (pageType && !domSnapshot.pageType) {
+      domSnapshot.pageType = pageType;
+    }
     if (!taskItemId) {
       return domSnapshot;
     }

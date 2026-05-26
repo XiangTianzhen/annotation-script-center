@@ -22,6 +22,7 @@
   - `GET /api/magic-data/hakka-helper/ai/review-current/health`
   - `GET /api/magic-data/hakka-helper/ai/defaults`
   - `POST /api/magic-data/hakka-helper/ai/review-current`
+  - 页面支持：`#/asrmark`、`#/asrmarkCheck`
   - 默认评测落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，`enable_thinking=false`
   - 2026-05-26：后端输出结构已对齐闽南语助手，返回 `speakerCheck/dialectTextCheck/mandarinTextCheck/overall` 与脱敏 `rawAiDebug` 字段，legacy `annotator` 路径继续兼容
 - 闽南语助手：
@@ -42,6 +43,7 @@
 - 页面结构与 Network 资料统一维护在平台根级 `page-structure/` 与 `network/`。
 - 客家话与闽南语助手共享平台结构采集能力，但模型配置、词表、Prompt 与后端 profile 独立维护。
 - 客家话与闽南语助手前端交互能力已对齐：行内建议、说话人建议、原始输出、全部填入、三块独立折叠与差异对比保持同一口径；差异仅在语言文案、词表、Prompt、`rulesProfile` 与 API endpoint。
+- 客家话助手审核页（`#/asrmarkCheck`）默认以“只读质检建议”为主，不自动改写平台文本，不自动保存/提交；用户可手动参考结论执行页面操作。
 - 2026-05-26：Options 对 Magic Data 双助手的模型方案/识别策略/听音模型/比较模型/单模型统一为显式保存；保存时同步写 `aiReview*` 与 legacy 字段，避免 Hakka 切换策略/比较模型后刷新回退。
 - 闽南语助手展示改为“左侧页面基础信息 + 右侧 AI 面板”：
   - 不再创建左侧独立大摘要框，避免空白占位；说话人建议直接插入“说话人属性”表单项。
