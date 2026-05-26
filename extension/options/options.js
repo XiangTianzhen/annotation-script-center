@@ -1308,6 +1308,22 @@
     );
   }
 
+  function updateMagicDataCompareModelFields(scriptId, compareModel) {
+    const targetScriptId = isMagicDataScript(scriptId) ? scriptId : magicDataMinnanScriptId;
+    const aiDefaults = getAsrVoiceAiDefaultsCached(targetScriptId).defaults || {};
+    const draftConfig = getMagicDataSettingsDraftConfig(aiDefaults, targetScriptId);
+    draftConfig.aiReviewCompareModel = normalizeDataBakerCompareModel(
+      compareModel,
+      getMagicDataMinnanCompareModelDefault(aiDefaults, targetScriptId)
+    );
+    applyMagicDataMinnanRecognitionModeFields(
+      draftConfig.aiReviewRecognitionMode || "two_stage",
+      draftConfig,
+      aiDefaults,
+      targetScriptId
+    );
+  }
+
   function bindJudgementModelSelect(selectId, customInputId) {
     const selectNode = getElement(selectId);
     const customNode = getElement(customInputId);
@@ -2755,6 +2771,7 @@
         const recognitionNode = getElement("magic-data-ai-pipeline-mode-select");
         const strategyNode = getElement("magic-data-ai-recognition-strategy-select");
         const listenNode = getElement("magic-data-ai-listen-model-select");
+        const compareNode = getElement("magic-data-ai-compare-model-select");
         const singleNode = getElement("magic-data-ai-single-model-select");
         if (recognitionNode instanceof HTMLSelectElement) {
           recognitionNode.addEventListener("change", function (event) {
@@ -2769,6 +2786,11 @@
         if (listenNode instanceof HTMLSelectElement) {
           listenNode.addEventListener("change", function (event) {
             updateMagicDataListenModelFields(magicDataScriptId, event?.target?.value);
+          });
+        }
+        if (compareNode instanceof HTMLSelectElement) {
+          compareNode.addEventListener("change", function (event) {
+            updateMagicDataCompareModelFields(magicDataScriptId, event?.target?.value);
           });
         }
         if (singleNode instanceof HTMLSelectElement) {

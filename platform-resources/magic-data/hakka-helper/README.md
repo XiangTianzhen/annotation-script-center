@@ -34,6 +34,7 @@
 - 旧 `shared/assistant-panel-core.js` 与 `hakka-helper/ui-panel.js` 仅作 legacy 兼容，不再作为客家话主链路入口。
 - 运行时接口仍使用客家话路径 `/api/magic-data/hakka-helper/ai/review-current`，并保留 legacy `/api/magic-data/annotator/ai/review-current` 兼容。
 - 2026-05-26 Options 保存链路修复后，客家话助手的 `识别策略` 与 `比较模型` 会通过前端显式写入配置（`aiReviewRecognitionStrategy`、`aiReviewCompareModel` 与 legacy `reviewModel` 同步），刷新后保持一致。
+- `storage` 归一逻辑已调整为显式字段优先：当用户明确保存 `aiReviewModelMode` 时，不再被 legacy `recognition_convert` 推断覆盖为 `omni_single`。
 - 2026-05-26 审核页支持热修：
   - 客家话助手支持 `#/asrmarkCheck` 审核页采集与 AI 质检。
   - 不再显示“审核页暂未接入填入”提示。

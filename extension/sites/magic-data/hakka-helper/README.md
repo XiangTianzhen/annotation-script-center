@@ -34,6 +34,7 @@
 - 2026-05-26 Options 保存链路热修：
   - 客家话助手与闽南语助手统一走 Magic Data pipeline 字段联动（模型方案/识别策略/听音模型/比较模型/单模型）。
   - 保存时同时写入新字段与 legacy 字段（`aiReview*` + `listenModel/reviewModel`），并显式持久化模型选择值，避免刷新后回退显示。
+  - `storage` legacy 迁移逻辑改为“显式字段优先”，`recognition_convert` 不再覆盖用户已选择的 `aiReviewModelMode`，避免保存后被强制回写为单模型。
 
 ## 前端交互（新版）
 

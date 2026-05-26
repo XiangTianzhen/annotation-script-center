@@ -1,3 +1,17 @@
+## 2026-05-26（Magic Data AI 面板：保存后被覆盖热修）
+
+- 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+- 修复问题：Magic Data 客家话/闽南语助手在 options 保存后，模型方案可能被回写为单模型、识别策略可能被回写为识别转换、比较模型切换后可能丢失。
+- `extension/shared/storage.js`：
+  - `resolveMagicDataModeAndStrategy` 增加“显式字段优先”判定。
+  - 当已保存 `aiReviewModelMode` / `aiReviewRecognitionStrategy` 时，不再被 legacy `recognition_convert` 迁移逻辑反向覆盖。
+- `extension/options/options.js`：
+  - 新增 `updateMagicDataCompareModelFields`，补齐 `magic-data-ai-compare-model-select` 的 change 联动。
+  - 保持 Magic Data 双助手按当前 `scriptId` 更新草稿配置与字段显示，避免 Hakka/Minnan 串用 defaults。
+- 文档同步：
+  - 更新双助手 README 与平台页面结构索引。
+  - 新增 `platform-resources/magic-data/page-structure/14-playwright-edge-magic-data-ai-options-save-2026-05-26.md`（本轮按用户要求未做真实浏览器调试，记录复核矩阵与代码修复点）。
+
 ## 2026-05-26（Magic Data 客家话助手：审核页 asrmarkCheck 支持热修）
 
 - 保持版本 `0.3.6`，未提升版本、未生成 CRX、未打 tag。

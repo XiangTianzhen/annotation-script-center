@@ -1807,6 +1807,16 @@
       sourceDefault.aiReviewRecognitionStrategy || "direct_dialect",
       "direct_dialect"
     );
+    const hasExplicitModelMode =
+      typeof sourceCurrent.aiReviewModelMode === "string" && sourceCurrent.aiReviewModelMode.trim() !== ""
+        ? true
+        : typeof sourceLegacy.aiReviewModelMode === "string" && sourceLegacy.aiReviewModelMode.trim() !== "";
+    const hasExplicitStrategy =
+      typeof sourceCurrent.aiReviewRecognitionStrategy === "string" &&
+      sourceCurrent.aiReviewRecognitionStrategy.trim() !== ""
+        ? true
+        : typeof sourceLegacy.aiReviewRecognitionStrategy === "string" &&
+          sourceLegacy.aiReviewRecognitionStrategy.trim() !== "";
     let modelMode = normalizeMagicDataModelMode(
       sourceCurrent.aiReviewModelMode || sourceLegacy.aiReviewModelMode,
       defaultModelMode
@@ -1816,19 +1826,27 @@
       defaultStrategy
     );
     if (legacyRecognition === "recognition_convert") {
-      recognitionStrategy = "mandarin_to_dialect";
-      const singleModel = String(
-        sourceCurrent.aiReviewSingleModel ||
-          sourceLegacy.aiReviewSingleModel ||
-          sourceCurrent.singleModel ||
-          sourceLegacy.singleModel ||
-          ""
-      ).trim();
-      modelMode = singleModel ? "omni_single" : "two_stage";
+      if (!hasExplicitStrategy) {
+        recognitionStrategy = "mandarin_to_dialect";
+      }
+      if (!hasExplicitModelMode) {
+        const singleModel = String(
+          sourceCurrent.aiReviewSingleModel ||
+            sourceLegacy.aiReviewSingleModel ||
+            sourceCurrent.singleModel ||
+            sourceLegacy.singleModel ||
+            ""
+        ).trim();
+        modelMode = singleModel ? "omni_single" : "two_stage";
+      }
     } else if (legacyRecognition === "omni_single") {
-      modelMode = "omni_single";
+      if (!hasExplicitModelMode) {
+        modelMode = "omni_single";
+      }
     } else if (legacyRecognition === "two_stage" || legacyRecognition === "fun_asr_compare" || legacyRecognition === "qwen_omni_compare" || legacyRecognition === "qwen_omni_two_stage") {
-      modelMode = "two_stage";
+      if (!hasExplicitModelMode) {
+        modelMode = "two_stage";
+      }
     }
     return {
       modelMode: modelMode,
