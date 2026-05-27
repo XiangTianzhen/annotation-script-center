@@ -11,6 +11,7 @@
 - 转写 README：`extension/sites/alibaba-labelx/asr-transcription/README.md`
 - 转写平台资料：`platform-resources/alibaba-labelx/asr-transcription/`
 - LabelX shared：`extension/sites/alibaba-labelx/shared/`
+- 当前后端状态：转写与快判的 `download / suppliers / existing` 已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core；外部接口路径保持不变。
 
 ## 标贝易采
 

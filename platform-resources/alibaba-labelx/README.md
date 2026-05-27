@@ -31,6 +31,19 @@
 - 详情页保存当前题数据使用 `POST /api/v1/label/center/subTask/{subTaskId}/data`，提交当前包使用 `POST /api/v1/label/center/subTask/{subTaskId}/commit`。
 - 当前已采集响应中没有独立 `supplier/vendor/company/provider/供应商` 字段；供应商只能从任务名称前缀推断。
 
+## 2026-05-28 下载链路共享 core
+
+- 转写与快判当前都保留原有外部下载接口：
+  - `/api/alibaba-labelx/asr-transcription/statistics/download|suppliers|existing`
+  - `/api/alibaba-labelx/asr-judgement/statistics/download|suppliers|existing`
+- 两套后端内部实现已开始复用：
+  - `platform-resources/backend/project-data-download/labelx-download-core.js`
+  - `platform-resources/backend/project-data-download/labelx-existing-core.js`
+- 脚本级差异分别由：
+  - `platform-resources/alibaba-labelx/asr-transcription/data/adapter.js`
+  - `platform-resources/alibaba-labelx/asr-judgement/data/adapter.js`
+  提供。
+
 ## 0.2.11 统计总表修正（转写/快判共识）
 
 - 当前版本维持 `0.2.11`，本轮为 `0.2.11` 修正增强，不升级 `0.2.12`。

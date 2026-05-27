@@ -1,3 +1,15 @@
+## 2026-05-28（Alibaba LabelX 快判下载链路接入共享 core 第二块）
+
+- 新增 `platform-resources/alibaba-labelx/asr-judgement/data/adapter.js`：
+  - 收口快判下载 / existing 的脚本级差异。
+- 新增 `platform-resources/alibaba-labelx/asr-judgement/data/adapter.test.js`：
+  - 固定 3 个标注槽位、审核槽位与 `complete` 判定行为。
+- 更新 `platform-resources/alibaba-labelx/asr-judgement/backend/routes.js`：
+  - `download / suppliers / existing` 改为通过共享 LabelX 下载 core 驱动。
+  - 外部 API path 保持不变。
+- 更新快判 README、后端 README、LabelX 平台 README、平台索引、`platform-resources/README.md` 与统一后端 README：
+  - 明确 LabelX 转写与快判的下载链路都已开始复用共享 core。
+
 ## 2026-05-28（Alibaba LabelX 转写下载链路接入共享 core 第一块）
 
 - 新增 `platform-resources/backend/project-data-download/labelx-download-core.js`：

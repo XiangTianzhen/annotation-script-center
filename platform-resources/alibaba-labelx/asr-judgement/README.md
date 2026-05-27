@@ -15,8 +15,8 @@ extension/sites/alibaba-labelx/asr-judgement/
 - `page-structure/`：快判详情页、标注首页、审核首页 DOM 结构和代表性 HTML 片段。
 - `network/`：LabelX 快判相关请求采集，包含详情页 data、首页 tasks / subTasks、保存、提交、领取、释放等接口记录。
 - `ai/`：快判 AI framework adapter 与后续资产目录；当前已新增 `adapter.js` / `adapter.test.js`，Prompt 与规则资产仍暂存于 `backend/ai/`。
-- `data/`：后续脚本级下载脚本、字段映射、供应商样例与脱敏样例目录。
-- `backend/`：快判统计上传本地 Node 调试服务，并保留当前 AI health/defaults/suggest 业务层与现有规则资产。
+- `data/`：脚本级数据 adapter 目录；当前已新增 `adapter.js`，负责快判下载 / existing 的项目差异。
+- `backend/`：快判统计上传本地 Node 调试服务；上传、合并与 CSV 写入仍在本目录，下载 / suppliers / existing 已开始复用统一 LabelX 下载 core。
 - `unfinished.md`：未完成能力、风险点和后续验证条件。
 
 ## AI framework 桥接状态（2026-05-28）
@@ -29,6 +29,14 @@ extension/sites/alibaba-labelx/asr-judgement/
 - `platform-resources/alibaba-labelx/asr-judgement/backend/ai-suggest-request.js` 负责 AI 请求归一、AI 参数清洗与脱敏错误辅助函数，供 adapter 与业务层共用。
 - `GET /api/alibaba-labelx/asr-judgement/ai/health` 与 `GET /api/alibaba-labelx/asr-judgement/ai/defaults` 当前保持原有返回语义，本轮先做桥接式迁移。
 - 统计上传、existing 检查、suppliers、download 与 CSV 落盘链路本轮不动，仍保留在 `backend/`。
+
+## 下载链路共享 core 状态（2026-05-28）
+
+- `GET/HEAD /api/alibaba-labelx/asr-judgement/statistics/download`
+- `GET /api/alibaba-labelx/asr-judgement/statistics/suppliers`
+- `POST /api/alibaba-labelx/asr-judgement/statistics/existing`
+- 以上 3 条链路已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core。
+- 当前快判脚本级差异已收口到 `platform-resources/alibaba-labelx/asr-judgement/data/adapter.js`。
 
 ## 当前已迁移资料
 

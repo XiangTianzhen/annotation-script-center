@@ -238,7 +238,7 @@ pm2 restart annotation-script-center --update-env
 
 ## 当前已注册 API
 
-- `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载，以及 AI 建议 `health/suggest` 接口。
+- `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载，以及 AI 建议 `health/suggest` 接口。当前下载 / suppliers / existing 已开始复用 `project-data-download/` 下的 LabelX 共享 core，外部 path 保持不变。
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。当前下载 / suppliers / existing 已开始复用 `project-data-download/` 下的 LabelX 共享 core，外部 path 保持不变。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`、历史兼容 jobs，以及导出 CSV `health/config/upload/download` 接口；当前前端先选“识别模式”，`two_stage` 显示“听音模型 + 比较模型”，`omni_single` 只显示“AI 模型”。后端再派发到 Fun-ASR REST 当前链路，或 `qwen3.5-omni-flash / qwen3.5-omni-plus` 的 Omni legacy 快速路径；导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
 - `data-baker/round-one-quality` 的 `supportedPipelineModes` 仅保留给后端兼容与排查使用，不再作为前端主配置来源；前端主配置为 `listenModelOptions` 与 `compareModelOptions`。

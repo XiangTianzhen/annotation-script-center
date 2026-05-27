@@ -50,6 +50,9 @@
   - `backend/`
   - `network/README.md`
   - `page-structure/README.md`
+- 当前共享后端收口：
+  - 转写与快判的 `download / suppliers / existing` 已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core。
+  - 脚本级差异分别收口在各自 `data/adapter.js`。
 - 脚本：
   - `asr-judgement/`
   - `asr-transcription/`
