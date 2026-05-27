@@ -63,10 +63,10 @@
 ## Aishell Tech
 
 - 平台资料总览：`platform-resources/aishell-tech/README.md`
-- 网络请求采集（6 页）：`platform-resources/aishell-tech/network/README.md`
-- 页面 DOM 结构采集（5 页）：`platform-resources/aishell-tech/page-structure/README.md`
-- 敏感写操作与安全边界：`platform-resources/aishell-tech/network/06-sensitive-operations.md`
-- 当前阶段：核心标注链路（任务列表 → 任务详情 → 数据标注）network 与 page-structure 均已完整采集。
+- 网络请求采集（5 页 + 安全边界说明）：`platform-resources/aishell-tech/network/README.md`
+- 页面 DOM 结构采集（4 页完成 + 1 页待补）：`platform-resources/aishell-tech/page-structure/README.md`
+- 安全边界：以 `platform-resources/aishell-tech/README.md` 的“安全边界”章节与 `network/README.md` 的脱敏规则为准。
+- 当前阶段：只读平台资料初始化，尚无 `extension/sites/aishell-tech/` 运行时代码和专属后端注册；核心标注链路（任务列表 → 任务详情 → 数据标注）的 network 与 page-structure 已完整采集，`我的团队` 页面结构仍在 `pending-capture`。
 
 ## 新增平台要求
 

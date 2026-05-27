@@ -17,6 +17,7 @@
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 默认关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
+- Aishell Tech 平台资料已初始化，当前仅处于 `platform-resources/aishell-tech/` 只读探测阶段：已补齐核心标注链路的 Network 与页面结构资料，尚无 `extension/sites/aishell-tech/` 运行时代码和专属后端注册。
 
 ## 协作摘要
 
@@ -29,7 +30,7 @@
 
 ## 当前重点平台与脚本
 
-- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）。
+- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（只读平台资料采集阶段）。
 - 当前 CSV 对接字段口径：
   - LabelX 快判/转写：`有效时长(秒)_S` 与人员 `_P` 字段。
   - DataBaker 一检：`有效合格时长_S` 与 `质检人_P` 字段。
@@ -40,6 +41,10 @@
   - `extension/sites/data-baker/round-one-quality/`
   - `extension/sites/magic-data/`（`hakka-helper` + `minnan-helper`）
   - `extension/sites/abaka-ai/task-page/`（Task21助手 + 页面结构/Network 脱敏采集）
+- Aishell Tech 当前仅维护平台资料：
+  - `platform-resources/aishell-tech/README.md`
+  - `platform-resources/aishell-tech/network/README.md`
+  - `platform-resources/aishell-tech/page-structure/README.md`
 
 ## 本地加载扩展
 
@@ -334,7 +339,10 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 - `AGENTS.md`：长期协作规则
 - `extension/README.md`：扩展源码说明
 - `platform-resources/backend/README.md`：统一后端说明
+- `docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`：`platform-resources` AI 框架设计
+- `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`：`platform-resources` AI 框架迁移计划
 - `platform-resources/abaka-ai/README.md`：Abaka AI 平台资料入口
+- `platform-resources/aishell-tech/README.md`：Aishell Tech 平台资料入口
 - `docs/README.md`：docs 文档导航
 - `docs/platforms/index.md`：平台与脚本文档索引
 - `docs/workflow/codex-prompt-style.md`：Codex Prompt 格式规范
@@ -342,7 +350,6 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 - `log.md`：长期修改日志与历史细节
 
 历史版本演进、旧方案与详细变更记录统一沉淀在 `log.md` 与 `docs/archive/`，根 README 不再堆叠历史长文。
-
 ## DataBaker 批量请求诊断
 
 - 闽南语助手“AI连续填入合格项”默认直接发送同步 recommend 请求，不默认走异步 jobs。

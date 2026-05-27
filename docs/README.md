@@ -16,6 +16,8 @@
 
 - `docs/architecture/current-architecture.md`：当前架构
 - `docs/architecture/module-boundaries.md`：模块边界
+- `docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`：`platform-resources` AI 框架设计
+- `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`：`platform-resources` AI 框架迁移计划
 - `docs/platforms/index.md`：平台与脚本文档索引
 - `docs/workflow/codex-prompt-style.md`：Codex Prompt 输出格式规范
 - `docs/workflow/manual-flow-acceptance-checklist.md`：人工验收清单

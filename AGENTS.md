@@ -14,11 +14,16 @@
 - AGENTS.md 只保留项目级规则，不承载具体平台长口径。
 - 处理具体平台前，必须先读：`docs/platforms/index.md`，再读对应脚本 README、`platform-resources` 资料与相关代码。
 - Abaka AI Task21 当前为“Task21助手”完成态；具体规则以 `extension/sites/abaka-ai/task-page/README.md`、`platform-resources/abaka-ai/task21/README.md`、`platform-resources/abaka-ai/task21/backend/ai/prompt.md` 为准。
+- Aishell Tech 当前为“平台资料初始化 / 只读探测态”；具体规则以 `platform-resources/aishell-tech/README.md`、`platform-resources/aishell-tech/network/README.md`、`platform-resources/aishell-tech/page-structure/README.md` 为准。
+- 处理 `platform-resources/backend/` 或各平台 AI 后端迁移前，必须先读：
+  - `docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`
+  - `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`
 - 新增平台或脚本时，必须同步更新：
   - `extension/sites/<platform>/<script>/README.md`
   - `platform-resources/<platform>/<script>/README.md` 或资料目录
   - `docs/platforms/index.md`
   - `log.md`
+- 仅平台资料初始化、尚未接入扩展运行时代码的平台（如 Aishell Tech）不要伪造 `extension/sites/<platform>/` 目录；先同步 `platform-resources/<platform>/README.md`、`docs/platforms/index.md`、根 `README.md` 与 `log.md`，待真正接入脚本后再补运行时 README。
 
 ## 协作与 Git 规则
 

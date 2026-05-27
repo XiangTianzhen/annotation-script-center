@@ -34,12 +34,12 @@
 
 | 目录 | 内容 | 状态 |
 |------|------|------|
-| `network/` | 6 个编号文档 + pending-capture + README | 完成 |
-| `page-structure/` | 5 个编号文档 + pending-capture + README | 完成 |
+| `network/` | 5 个编号文档 + pending-capture + README | 完成 |
+| `page-structure/` | 5 个编号文档 + pending-capture + README | 核心链路完成，`05-organization` 待补采 |
 
 ## 当前阶段
 
-**只读探测阶段**（2026-05-27）。已完成 5 个核心页面的 DOM 和网络全量采集。
+**只读探测阶段**（2026-05-27）。已完成首页、我的任务、任务详情、数据标注的 DOM 与网络采集；我的团队页面的 network 已完成，page-structure 仍待补采。当前仅维护平台资料，尚无 `extension/sites/aishell-tech/` 运行时代码和专属后端注册。
 
 ## 关键发现
 

@@ -30,3 +30,7 @@
 - 不记录完整签名音频 URL（OSS `Signature` 参数已截断）。
 - 不记录真实员工个人信息与客户敏感全文。
 - 请求/响应示例只保留字段结构和脱敏样例。
+
+## 说明
+
+- 原 `06-sensitive-operations.md` 已移除；相关敏感写操作边界统一收口到 `platform-resources/aishell-tech/README.md` 的“安全边界”章节。

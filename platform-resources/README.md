@@ -25,12 +25,19 @@
 - `network/`
 - `page-structure/`
 
+仅做平台资料初始化、尚未接入运行时代码的平台可临时例外：
+
+- `platform-resources/<platform>/README.md`
+- `platform-resources/<platform>/network/`
+- `platform-resources/<platform>/page-structure/`
+
 约束：
 
 - 平台共用后端能力优先放平台根级 `backend/`。
 - 平台共用页面结构优先放平台根级 `page-structure/`。
 - 平台共用 Network 资料优先放平台根级 `network/`。
 - 仅脚本专属后端、词表、页面差异放脚本目录。
+- 未实际接入运行时代码前，不提前伪造 `backend/` 或 `<script-id>/` 目录。
 - 空目录使用 `.gitkeep`。
 - 不写入 token、cookie、authorization、完整签名 URL、真实敏感文本。
 
@@ -82,11 +89,26 @@
   - `task17/`
   - `task21/`
 
+### Aishell Tech
+
+- 目录：`platform-resources/aishell-tech/`
+- 当前阶段：平台资料初始化 / 只读探测态，暂未接入 `extension/sites/aishell-tech/` 运行时代码，也未在统一后端注册专属接口。
+- 平台资料：
+  - `README.md`
+  - `network/README.md`
+  - `page-structure/README.md`
+
 ## 后端接口边界
 
 - 根级 `platform-resources/backend/` 是统一后端基础设施目录，不按平台模板重排。
 - 平台实现通过 `platform-resources/backend/registry.js` 注册。
 - 不新增独立后端服务；所有接口由统一后端进程承载。
+
+## 当前迁移文档
+
+- AI 框架设计：`docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`
+- AI 框架迁移计划：`docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`
+- Aishell Tech 仍保持资料态，不进入本轮 AI 框架迁移；协作者继续按 `platform-resources/aishell-tech/README.md`、`network/README.md`、`page-structure/README.md` 补资料。
 
 ## 安全边界
 

@@ -1,3 +1,35 @@
+## 2026-05-28（platform-resources AI 框架迁移基线）
+
+- 新增 `docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`：
+  - 固定统一 AI 框架目标：`platform-resources/backend/ai-framework/ + 项目 adapter + prompt/schema/lexicon 资产目录`。
+  - 固定脚本级新目录口径：`ai/` 与 `data/` 同级，`network/`、`page-structure/` 继续保留为长期平台资料。
+  - 明确 Aishell Tech 当前仍是资料初始化平台，不进入本轮 AI 后端迁移主线。
+- 新增 `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`：
+  - 按“文档基线 -> 框架骨架 -> DataBaker -> Magic Data -> Abaka -> LabelX -> data 目录归一”拆成可逐块提交的迁移顺序。
+  - 每块要求先验证，再提交，便于回退版本。
+- 更新 `AGENTS.md`、根 `README.md`、`docs/README.md`、`platform-resources/README.md`：
+  - 把两份迁移文档接入协作入口，降低后续协作者继续改 `platform-resources` 时的理解偏差。
+
+## 2026-05-27（Aishell Tech 协作文档同步）
+
+- 基于合并提交 `089bdb8`（`合并 PR #2: Aishell Tech 平台资料初始化`）补齐项目级协作文档。
+- 更新 `AGENTS.md`：
+  - 新增 Aishell Tech 平台读取入口，明确当前为“平台资料初始化 / 只读探测态”。
+  - 补充例外规则：未接入运行时代码的平台不要伪造 `extension/sites/<platform>/` 目录，应先同步 `platform-resources/<platform>/README.md`、`docs/platforms/index.md`、根 `README.md` 与 `log.md`。
+- 更新根 `README.md`：
+  - 将 Aishell Tech 纳入当前重点平台口径。
+  - 明确当前仅有 `platform-resources/aishell-tech/` 资料、尚无运行时代码和专属后端注册。
+  - 增补 Aishell Tech 文档入口。
+- 更新 `platform-resources/README.md`：
+  - 新增 Aishell Tech 平台总览。
+  - 明确“平台资料初始化阶段”可临时仅保留 `README.md + network/ + page-structure/`，不提前伪造 `backend/` 或 `<script-id>/` 目录。
+- 更新 `docs/platforms/index.md`：
+  - 修正已删除 `platform-resources/aishell-tech/network/06-sensitive-operations.md` 的错误引用。
+  - 改为引用 Aishell Tech 根 README 的安全边界章节，并补充“我的团队 page-structure 待补采”的当前状态。
+- 更新 `platform-resources/aishell-tech/README.md` 与 `platform-resources/aishell-tech/network/README.md`：
+  - 对齐实际采集状态，明确 `page-structure/05-organization.md` 仍待补采。
+  - 说明敏感写操作边界已收口到平台根 README，不再单独维护 `06-sensitive-operations.md`。
+
 ## 2026-05-27（Aishell Tech 平台资料初始化）
 
 - 新建 `platform-resources/aishell-tech/` 目录，完成平台只读探测阶段文档。
