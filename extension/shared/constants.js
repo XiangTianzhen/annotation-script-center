@@ -1689,6 +1689,7 @@
     meta: {
       schemaVersion: SCHEMA_VERSION,
       backendEndpointMode: BACKEND_ENDPOINT_MODE_SERVER,
+      aiUsageOperatorName: "",
       lastBootstrapReason: null,
       lastBootstrappedAt: null,
     },

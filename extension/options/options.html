@@ -483,9 +483,14 @@
         display: grid;
         gap: 8px;
       }
+      .home-endpoint-row {
+        display: grid;
+        gap: 8px;
+      }
 
       .project-download-row input[type="text"],
-      .project-download-row select {
+      .project-download-row select,
+      .home-endpoint-row input[type="text"] {
         width: 100%;
         max-width: 360px;
         padding: 9px 10px;
@@ -493,6 +498,10 @@
         border-radius: 10px;
         font: inherit;
         background: #ffffff;
+      }
+      .home-endpoint-help {
+        font-size: 12px;
+        color: #475569;
       }
 
       .asr-ai-field input[type="number"],
@@ -685,6 +694,11 @@
             <button id="home-endpoint-local" class="segmented-button" type="button">本机</button>
           </div>
           <span>该设置统一控制所有脚本的后端请求：ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。各脚本详情页不再单独设置后端地址。</span>
+          <div class="home-endpoint-row">
+            <span>AI 调用使用人</span>
+            <input id="home-ai-usage-operator" type="text" maxlength="40" placeholder="填写真实姓名" />
+            <span class="home-endpoint-help">所有 AI 请求共用；未填写时不允许调用 AI。</span>
+          </div>
           <div id="home-endpoint-status" class="status-text"></div>
         </div>
         <div id="project-data-download-panel" class="home-endpoint-card hidden">
@@ -1228,6 +1242,7 @@
 
     <script src="../shared/constants.js"></script>
     <script src="../shared/storage.js"></script>
+    <script src="../shared/ai-usage-meta.js"></script>
     <script src="./options.js"></script>
   </body>
 </html>

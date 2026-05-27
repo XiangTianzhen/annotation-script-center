@@ -6,7 +6,9 @@
   "update_url": "https://script.xiangtianzhen.store/downloads/annotation-script-center-update.xml",
   "permissions": [
     "storage",
-    "tabs"
+    "tabs",
+    "scripting",
+    "webNavigation"
   ],
   "host_permissions": [
     "https://labelx.alibaba-inc.com/*",
@@ -60,6 +62,7 @@
       "js": [
         "shared/constants.js",
         "shared/storage.js",
+        "shared/ai-usage-meta.js",
         "sites/abaka-ai/task-page/toast.js",
         "sites/abaka-ai/task-page/pricing.js",
         "sites/abaka-ai/task-page/data-collector.js",
@@ -106,6 +109,7 @@
       "js": [
         "shared/constants.js",
         "shared/storage.js",
+        "shared/ai-usage-meta.js",
         "shared/progress-indicator.js",
         "shared/statistics-supplier.js",
         "sites/alibaba-labelx/shared/audio-controller-core.js",
@@ -153,6 +157,7 @@
       "js": [
         "shared/constants.js",
         "shared/storage.js",
+        "shared/ai-usage-meta.js",
         "sites/data-baker/round-one-quality/data-api.js",
         "sites/data-baker/round-one-quality/ai-recommendation.js",
         "sites/data-baker/round-one-quality/ui-panel.js",
@@ -183,6 +188,7 @@
       "js": [
         "shared/constants.js",
         "shared/storage.js",
+        "shared/ai-usage-meta.js",
         "sites/magic-data/shared/page-detector.js",
         "sites/magic-data/shared/data-collector.js",
         "sites/magic-data/shared/ai-review-client.js",
@@ -218,6 +224,7 @@
       "js": [
         "shared/constants.js",
         "shared/storage.js",
+        "shared/ai-usage-meta.js",
         "sites/aishell-tech/minnan-helper/data-api.js",
         "sites/aishell-tech/minnan-helper/ai-recommendation.js",
         "sites/aishell-tech/minnan-helper/ui-panel.js",

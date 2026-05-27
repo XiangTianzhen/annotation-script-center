@@ -224,6 +224,7 @@
         meta: {
           schemaVersion: 7,
           backendEndpointMode: "server",
+          aiUsageOperatorName: "",
         },
       },
       DEFAULT_ASR_CONFIG: {},

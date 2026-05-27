@@ -1,6 +1,7 @@
 (function () {
   const constants = globalThis.ASREdgeConstants || {};
   const storage = globalThis.ASREdgeStorage || null;
+  const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const platformLibrary = constants.PLATFORM_LIBRARY || {};
   const scriptLibrary = constants.SCRIPT_LIBRARY || {};
   const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
@@ -222,6 +223,25 @@
   ];
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 120000;
   const LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS = 60 * 1000;
+  const normalizeAiUsageOperatorName =
+    typeof aiUsageMeta.normalizeAiUsageOperatorName === "function"
+      ? aiUsageMeta.normalizeAiUsageOperatorName
+      : function (value) {
+          return String(value === undefined || value === null ? "" : value)
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 40);
+        };
+  const createAiUsageOperatorSettingsPatch =
+    typeof aiUsageMeta.createAiUsageOperatorSettingsPatch === "function"
+      ? aiUsageMeta.createAiUsageOperatorSettingsPatch
+      : function (operatorName) {
+          return {
+            meta: {
+              aiUsageOperatorName: normalizeAiUsageOperatorName(operatorName),
+            },
+          };
+        };
 
   const magicDataShortcutActions = [
     { key: "reviewCurrent", label: "AI 质检当前条" },
@@ -5583,6 +5603,7 @@
 
   function renderScriptCenter(settings) {
     renderHomeBackendEndpoint(settings);
+    renderHomeAiUsageOperator(settings);
 
     const center = getElement("script-center-view");
     const platformIds = Object.keys(platformLibrary);
@@ -5735,6 +5756,31 @@
 
   function normalizeText(value) {
     return String(value === undefined || value === null ? "" : value).trim();
+  }
+
+  function getAiUsageOperatorName(settings) {
+    return normalizeAiUsageOperatorName(settings?.meta?.aiUsageOperatorName);
+  }
+
+  async function persistAiUsageOperatorName(operatorName) {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      return;
+    }
+    const normalizedName = normalizeAiUsageOperatorName(operatorName);
+    const currentName = getAiUsageOperatorName(currentSettings || {});
+    if (normalizedName === currentName) {
+      return;
+    }
+    currentSettings = await storage.patchSettings(
+      createAiUsageOperatorSettingsPatch(operatorName)
+    );
+  }
+
+  function renderHomeAiUsageOperator(settings) {
+    const operatorInput = getElement("home-ai-usage-operator");
+    if (operatorInput instanceof HTMLInputElement) {
+      operatorInput.value = getAiUsageOperatorName(settings || {});
+    }
   }
 
   function getProjectDataDownloadDatasetById(datasetId) {
@@ -7245,6 +7291,19 @@
         void persistProjectDataDownloadOperatorName(projectDownloadOperator.value).catch(function () {
           setProjectDataDownloadStatus("保存获取人姓名失败，请稍后重试。");
         });
+      });
+    }
+
+    const homeAiUsageOperator = getElement("home-ai-usage-operator");
+    if (homeAiUsageOperator instanceof HTMLInputElement) {
+      homeAiUsageOperator.addEventListener("blur", function () {
+        void persistAiUsageOperatorName(homeAiUsageOperator.value)
+          .then(function () {
+            homeAiUsageOperator.value = getAiUsageOperatorName(currentSettings || {});
+          })
+          .catch(function () {
+            setStatus("home-endpoint-status", "保存 AI 调用使用人失败，请稍后重试。");
+          });
       });
     }
 

@@ -5,6 +5,7 @@ const assert = require("assert");
 const {
   normalizeAiUsageOperatorName,
   buildAiUsageRequestMeta,
+  createAiUsageOperatorSettingsPatch,
   createMissingAiUsageOperatorError,
 } = require("./ai-usage-meta");
 
@@ -26,6 +27,19 @@ test("buildAiUsageRequestMeta keeps platform user fields optional", function () 
       platformUserId: "",
     }
   );
+});
+
+test("createAiUsageOperatorSettingsPatch stores the normalized name in settings.meta", function () {
+  assert.deepEqual(createAiUsageOperatorSettingsPatch("  王 五  "), {
+    meta: {
+      aiUsageOperatorName: "王 五",
+    },
+  });
+  assert.deepEqual(createAiUsageOperatorSettingsPatch(""), {
+    meta: {
+      aiUsageOperatorName: "",
+    },
+  });
 });
 
 test("createMissingAiUsageOperatorError returns a stable code", function () {
