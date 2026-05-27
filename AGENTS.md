@@ -14,7 +14,7 @@
 - AGENTS.md 只保留项目级规则，不承载具体平台长口径。
 - 处理具体平台前，必须先读：`docs/platforms/index.md`，再读对应脚本 README、`platform-resources` 资料与相关代码。
 - Abaka AI Task21 当前为“Task21助手”完成态；具体规则以 `extension/sites/abaka-ai/task-page/README.md`、`platform-resources/abaka-ai/task21/README.md`、`platform-resources/abaka-ai/task21/backend/ai/prompt.md` 为准。
-- Aishell Tech 当前为“平台资料初始化 / 只读探测态”；具体规则以 `platform-resources/aishell-tech/README.md`、`platform-resources/aishell-tech/network/README.md`、`platform-resources/aishell-tech/page-structure/README.md` 为准。
+- Aishell Tech 当前为“正式接入准备态”；核心标注链路资料已齐，尚无 `extension/sites/aishell-tech/` 运行时代码与专属后端注册。具体规则以 `platform-resources/aishell-tech/README.md`、`platform-resources/aishell-tech/network/README.md`、`platform-resources/aishell-tech/page-structure/README.md` 为准。
 - 处理 `platform-resources/backend/` 或各平台 AI 后端迁移前，必须先读：
   - `docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`
   - `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`

@@ -92,7 +92,7 @@
 ### Aishell Tech
 
 - 目录：`platform-resources/aishell-tech/`
-- 当前阶段：平台资料初始化 / 只读探测态，暂未接入 `extension/sites/aishell-tech/` 运行时代码，也未在统一后端注册专属接口。
+- 当前阶段：正式接入准备态。核心标注链路资料已齐，首阶段运行时代码可不依赖专属后端先行开发；暂未接入 `extension/sites/aishell-tech/` 运行时代码，也未在统一后端注册专属接口。
 - 平台资料：
   - `README.md`
   - `network/README.md`

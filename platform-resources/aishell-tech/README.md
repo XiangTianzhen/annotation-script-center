@@ -35,11 +35,56 @@
 | 目录 | 内容 | 状态 |
 |------|------|------|
 | `network/` | 5 个编号文档 + pending-capture + README | 完成 |
-| `page-structure/` | 5 个编号文档 + pending-capture + README | 核心链路完成，`05-organization` 待补采 |
+| `page-structure/` | 5 个编号文档 + pending-capture + README | 核心链路完成；`05-organization` 已有初版占位，详细 DOM 仍待补 |
 
 ## 当前阶段
 
-**只读探测阶段**（2026-05-27）。已完成首页、我的任务、任务详情、数据标注的 DOM 与网络采集；我的团队页面的 network 已完成，page-structure 仍待补采。当前仅维护平台资料，尚无 `extension/sites/aishell-tech/` 运行时代码和专属后端注册。
+**正式接入准备阶段**（2026-05-28）。已完成首页、我的任务、任务详情、数据标注的 DOM 与网络采集；我的团队页面的 network 已完成，page-structure 已补一版占位说明。当前仍无 `extension/sites/aishell-tech/` 运行时代码和专属后端注册，但核心标注链路资料已足够支撑首阶段运行时代码开发。
+
+## 正式接入建议
+
+### 首阶段范围
+
+建议首阶段只覆盖核心标注链路：
+
+1. `/mytask/index`
+2. `/mytask/detail/:taskId`
+3. `/mytask/mark?taskId=...&packageId=...`
+
+这三页当前已经具备：
+
+- 稳定路由
+- 关键 DOM 选择器
+- 任务 / 分包 / 条目请求链
+- 保存接口结构 `POST /api/mark/SaveShortMark`
+- 音频拼接规则 `dataRoot + url`
+
+### 首阶段是否需要专属后端
+
+当前**不需要**先做专属后端。首阶段运行时代码可以先做：
+
+- 页面识别
+- 任务列表 / 任务详情 / 数据标注页 DOM 读取
+- 音频播放辅助
+- 标注输入框辅助填入
+- 保存前只读检查
+
+原因：
+
+- 保存接口和表单结构已经明确。
+- 音频地址当前无需签名拼接和后端代理。
+- 现阶段更缺的是运行时代码接入，而不是额外 Node 路由。
+
+### 当前不阻塞首阶段、但后续要补的资料
+
+- `/organization/myteam` 详细 DOM
+- 质检 / 验收角色可见的 `.check-area`
+- 历史标注记录弹窗
+- 修改任务信息 / 数据分包 / 定向分配 / 选择团队等对话框
+- 长标注 `saveLongMark`
+- 质检 / 重检 / 验收写操作 payload
+
+这些项不阻塞首阶段“标注员视角 + 短音频标注”接入，但会影响后续扩到组织管理、质检和验收视角。
 
 ## 关键发现
 

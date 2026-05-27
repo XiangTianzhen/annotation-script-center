@@ -12,7 +12,7 @@
 | 02 | `02-mytask-index.md` | 我的任务列表 `/mytask/index` | 完成 |
 | 03 | `03-mytask-detail.md` | 任务详情 `/mytask/detail/:taskId` | 完成 |
 | 04 | `04-mytask-mark.md` | 数据标注 `/mytask/mark` | 完成 |
-| 05 | `05-organization.md` | 我的团队 `/organization/myteam` | 待补采 |
+| 05 | `05-organization.md` | 我的团队 `/organization/myteam` | 初版占位完成，详细 DOM 待补 |
 | - | `pending-capture.md` | 待补采项清单 | 持续更新 |
 
 ## 全局组件
@@ -90,3 +90,9 @@
 2. `02-mytask-index.md` → 任务列表
 3. `03-mytask-detail.md` → 任务详情
 4. `04-mytask-mark.md` → 数据标注（核心工作页）
+5. `05-organization.md` → 组织管理占位与后续补采入口
+
+## 接入判断
+
+- 当前资料已足够支撑首阶段运行时代码围绕“我的任务 → 任务详情 → 数据标注”开工。
+- `05-organization.md` 目前只承担组织管理页占位说明，不建议把组织管理能力纳入首阶段脚本范围。

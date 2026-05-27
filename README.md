@@ -17,7 +17,7 @@
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 默认关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
-- Aishell Tech 平台资料已初始化，当前仅处于 `platform-resources/aishell-tech/` 只读探测阶段：已补齐核心标注链路的 Network 与页面结构资料，尚无 `extension/sites/aishell-tech/` 运行时代码和专属后端注册。
+- Aishell Tech 当前已进入 `platform-resources/aishell-tech/` 正式接入准备阶段：核心标注链路（我的任务 → 任务详情 → 数据标注）的 Network 与页面结构资料已可支撑首阶段运行时代码开发，当前仍无 `extension/sites/aishell-tech/` 运行时代码和专属后端注册。
 
 ## 协作摘要
 
@@ -41,7 +41,7 @@
   - `extension/sites/data-baker/round-one-quality/`
   - `extension/sites/magic-data/`（`hakka-helper` + `minnan-helper`）
   - `extension/sites/abaka-ai/task-page/`（Task21助手 + 页面结构/Network 脱敏采集）
-- Aishell Tech 当前仅维护平台资料：
+- Aishell Tech 当前已完成首阶段接入资料：
   - `platform-resources/aishell-tech/README.md`
   - `platform-resources/aishell-tech/network/README.md`
   - `platform-resources/aishell-tech/page-structure/README.md`

@@ -1,3 +1,19 @@
+## 2026-05-28（Aishell Tech 正式接入准备态同步）
+
+- 更新 `platform-resources/aishell-tech/README.md`：
+  - 将状态从“只读探测”收口为“正式接入准备”。
+  - 明确首阶段接入范围是 `我的任务 -> 任务详情 -> 数据标注`。
+  - 明确当前首阶段不需要专属后端，可先做运行时代码接入。
+  - 明确后续待补项：组织管理详细 DOM、质检/验收角色视图、弹窗、长标注与质检/验收写操作。
+- 更新 `platform-resources/aishell-tech/network/README.md` 与 `page-structure/README.md`：
+  - 统一口径为“核心链路资料已足够支撑首阶段运行时代码开工”。
+  - `05-organization.md` 改为“初版占位完成，详细 DOM 待补”，不再与文件实际存在状态冲突。
+- 更新 `platform-resources/aishell-tech/network/pending-capture.md` 与 `page-structure/pending-capture.md`：
+  - 修正编号混乱，按首阶段阻塞度重新排序。
+- 更新 `AGENTS.md`、根 `README.md`、`docs/platforms/index.md`、`platform-resources/README.md`：
+  - 把 Aishell Tech 的仓库级状态统一改为“正式接入准备态”。
+  - 明确当前仍无 `extension/sites/aishell-tech/` 运行时代码与专属后端注册。
+
 ## 2026-05-28（DataBaker adapter 接入 AI framework）
 
 - 新增 `platform-resources/data-baker/round-one-quality/ai/adapter.js`：
