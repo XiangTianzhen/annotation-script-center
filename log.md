@@ -3,13 +3,32 @@
 - 保持版本 `0.3.6`，本轮为只读数据抓取与平台资料新建，未升级版本、未修改 extension 运行时 JS 代码、未生成 CRX、未打 tag。
 - 新增 Aishell Tech (https://mark.aishelltech.com/) 平台资料：
   - `platform-resources/aishell-tech/README.md`：建立平台资料主控文档，声明技术栈与安全约束。
-  - `platform-resources/aishell-tech/network/README.md`：归纳音频详情捕获接口，并深度补充标注（SaveShortMark/saveLongMark）与质检验收（saveCheck/saveAccept）的核心保存 Payload 字段协议。
+  - `platform-resources/aishell-tech/network/README.md`：归纳音频详情捕获接口，并深度补充标注（SaveShortMark/saveLongMark）与质检验送（saveCheck/saveAccept）的核心保存 Payload 字段协议。
   - `platform-resources/aishell-tech/page-structure/README.md`：深入提炼多路由（标注/质检/验收）匹配表，并梳理多通道音轨（.channel-row/channel-waveform）和切片标记 DOM 选择器特征。
 - 同步更新平台索引文档：
   - `docs/platforms/index.md`：注册 `Aishell Tech` 平台资料目录与研究阶段说明。
 - 清理与安全保证：
   - 本轮未在 Git 中提交任何真实的 token/cookie/明文密码。
   - 本地用于自动化抓取的测试脚本和脱敏的 API 原始响应 JSON 文件（`probe_result.json`）均保存在本地 `scratch` 临时目录，不提交 Git 仓库。
+
+## 2026-05-27（Magic Data 客家话助手：AI 结果繁体字热修）
+
+- 当前版本继续保持 `0.3.7`，本轮不再自动提升版本号。
+- 修复问题：Magic Data ANNOTATOR 的客家话助手 AI 结果区、行内建议与听音相关文本偶发出现繁体字或繁简混合。
+- 根因：
+  - 客家话助手原 prompt 对“必须输出简体”的约束不够硬，模型仍可能返回 `聽講/這個/化學競賽/輔導` 一类普通繁体字。
+  - 因此模型一旦返回 `聽講/這個/化學競賽/輔導` 一类普通繁体字，前端会直接展示并填入页面。
+- Prompt 修复：
+  - `platform-resources/magic-data/hakka-helper/backend/ai-prompts.js` 强化 listen / compare / omni / recognition-convert 四条链路的文本约束。
+  - 明确要求所有普通中文字段必须输出简体，禁止输出普通繁体字；只有命中客家话词表统一用字时才保留对应写法。
+  - `RULE_VERSION` 升级为 `magic-data-hakka-helper-ai-review-v2-prompt-simplified-only`，避免旧缓存继续命中旧 prompt 输出。
+- 本地收口回退：
+  - 移除 `platform-resources/magic-data/hakka-helper/backend/ai-routes.js` 中本地响应繁转简逻辑。
+  - 移除 `platform-resources/magic-data/hakka-helper/backend/ai-lexicon.js` 中本地繁转简函数。
+  - 删除 `platform-resources/magic-data/hakka-helper/backend/ai-text-normalization.test.js`。
+- 文档同步：
+  - 更新根 README、扩展 README、Magic Data 平台/客家话助手 README、平台索引。
+  - 更新 `AGENTS.md` 与 `docs/rules/project-collaboration-rules.md`：默认保持 `0.3.7`，只有用户明确要求完成当前版本/打包/发布时才提升版本。
 
 ## 2026-05-26（v0.3.6 收尾：Magic Data 双助手规则与文档同步）
 

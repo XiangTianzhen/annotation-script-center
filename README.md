@@ -7,22 +7,23 @@
 - 当前阶段：Chrome / Chromium MV3 单源码扩展 + 多平台脚本增强阶段。
 
 * 当前扩展版本：以 `extension/manifest.json` 为准。
-* 当前版本（待发布口径）：`v0.3.6`。
+* 当前版本（待发布口径）：`v0.3.7`。
 * 扩展源码目录：`extension/`（Chrome / Edge 共用同一套运行时代码）。
 * 统一后端入口：`platform-resources/backend/server.js`。
 
-## v0.3.6 收尾状态
+## v0.3.7 当前状态
 
-- 本轮为 `v0.3.6` 项目规则与文档收尾，不是 `ASC_RELEASE` 正式发布流程。
+- 当前 `0.3.7` 仍处于持续修正阶段；在用户明确要求“完成 0.3.7 / 开始打包发布”前，默认继续保持 `v0.3.7`。
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 默认关闭。
+- 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
 
 ## 协作摘要
 
 - 网页端默认以 `.md` 文件下载方式输出 Codex Prompt，不再默认在聊天消息中直接贴完整 Prompt。
 - 任务依赖截图、文件、日志、Network、Console、原始 JSON、音频样例等资料时，网页端应先提醒用户上传，并提示脱敏要求。
 - Git commit message 使用中文；允许保留英文范围标识，但描述必须是中文。
-- 一个新的开发 / 修复 / 优化对话默认对应一个 patch 小版本；正式发布仍使用 `ASC_RELEASE`。
+- 默认不自动提升 patch 版本；只有用户明确要求“完成当前版本 / 打包 / 发布 / 升版本”时，才调整 `manifest.version`。正式发布仍使用 `ASC_RELEASE`。
 - 同一模块中重复代码超过 2 次时应优先抽取复用；新增样式优先变量化，有 SCSS 构建链时优先 SCSS。
 - 详细项目级规则见 `AGENTS.md` 与 `docs/rules/project-collaboration-rules.md`。
 

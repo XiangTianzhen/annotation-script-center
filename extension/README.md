@@ -29,16 +29,17 @@
 - 浏览器差异优先放到 manifest、浏览器 API 兼容层、打包配置或发布说明里处理。
 - TTS 自动清除默认时间统一为 `60000ms`；AI / 模型请求默认超时时间统一为 `120000ms`。
 - 用户手动保存的非默认 AI 超时值继续保留；非 AI 上传、下载、统计接口超时不受该默认规则影响。
-- 发布或用户明确要求打包时，需先检查并更新 `extension/manifest.json` 版本号；默认有代码或用户可见行为变化时提升 patch 版本。
-- 修复当前待验证版本 BUG 时，可保持 `manifest.version` 不变，不因同一版本的连续修复重复升 patch。
-- 当前版本为 `0.3.6`，持续在 `0.3.0` 基础上迭代多脚本 AI 辅助能力与 options 收口。
-- `0.3.6` 收尾口径：Magic Data 双助手 AI 配置统一为“模型方案 + 识别策略”，不再展示“AI 质检模式”。
+- 发布或用户明确要求打包时，才检查是否需要更新 `extension/manifest.json` 版本号。
+- 默认继续保持当前 `manifest.version=0.3.7`，不因同版本内的连续修复自动升到 `0.3.8`。
+- 当前版本为 `0.3.7`，持续在 `0.3.0` 基础上迭代多脚本 AI 辅助能力与 options 收口。
+- `0.3.7` 热修口径：Magic Data 客家话助手通过 AI prompt 约束普通中文输出简体，并在命中词表统一用字时保留对应写法。
 - 客家话助手已支持 `#/asrmark` 与 `#/asrmarkCheck`；审核页文本可编辑时支持行内填入，但始终不自动保存、不自动提交、不自动点击合格/不合格。
 - 3.0 起正式发布产物为 CRX 三件套：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 
-## 0.3.6 当前热修摘要
+## 0.3.7 当前热修摘要
 
+- Magic Data 客家话助手：改为通过 AI prompt 约束普通中文输出简体；不再依赖本地后端结果二次繁转简。
 - Abaka AI Task21：Task21助手完成态文档与功能收口（字段旁 AI 分析、手动填写 AI 答案、Monaco/Naive UI 写入、T/B/R/D 删除文本规则、列表页统计入口）。
 - CSV 字段口径：LabelX 快判/转写使用 `有效时长(秒)_S` 与人员 `_P` 字段；DataBaker 使用 `有效合格时长_S` 与 `质检人_P`。
 - DataBaker AI 链路与调试能力持续修复，包含 AI 连续填入、Fun-ASR REST、Omni legacy fast path、原始 AI 返回查看、模型动态并发和批量悬浮窗状态优化。
