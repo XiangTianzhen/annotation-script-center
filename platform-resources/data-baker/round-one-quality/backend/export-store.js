@@ -2,6 +2,11 @@
 
 const fs = require("fs");
 const path = require("path");
+const {
+  EXPORT_ROW_KEY_FIELD_GROUPS,
+  LEGACY_HEADER_ALIAS,
+  TASK_ID_FIELD_GROUP,
+} = require("../data/field-mappings");
 
 const DEFAULT_LATEST_FILE_NAME = "latest.csv";
 const DEFAULT_META_FILE_NAME = "latest.json";
@@ -9,14 +14,6 @@ const DEFAULT_RAW_FILE_NAME = "latest-raw.json";
 const DEFAULT_HISTORY_DIR_NAME = "history";
 const DEFAULT_EVENTS_FILE_NAME = "upload-events.jsonl";
 const UTF8_BOM = "\uFEFF";
-const LEGACY_HEADER_ALIAS = {
-  "质检人": "质检人_P",
-  "质检人_P": "质检人_P",
-  "有效时长": "有效合格时长_S",
-  "有效时长(秒)": "有效合格时长_S",
-  "有效合格时长": "有效合格时长_S",
-  "有效合格时长_S": "有效合格时长_S",
-};
 
 function sanitizeFileName(value) {
   const text = String(value || "").trim();
@@ -212,20 +209,20 @@ function readFirst(row, keys) {
 }
 
 function createCsvRowKey(row) {
-  const textNumber = readFirst(row, ["文本编号", "textNumber", "textNo", "text_number"]);
+  const textNumber = readFirst(row, EXPORT_ROW_KEY_FIELD_GROUPS.textNumber);
   if (textNumber) {
     return "textNumber:" + textNumber;
   }
-  const fileName = readFirst(row, ["文件名", "fileName"]);
-  const segmentNumber = readFirst(row, ["段编号", "segmentNumber"]);
+  const fileName = readFirst(row, EXPORT_ROW_KEY_FIELD_GROUPS.fileName);
+  const segmentNumber = readFirst(row, EXPORT_ROW_KEY_FIELD_GROUPS.segmentNumber);
   if (fileName && segmentNumber) {
     return "file+segment:" + fileName + "::" + segmentNumber;
   }
   if (fileName) {
     return "file:" + fileName;
   }
-  const collector = readFirst(row, ["采集人", "userName", "collectName"]);
-  const mobile = readFirst(row, ["手机号", "mobile"]);
+  const collector = readFirst(row, EXPORT_ROW_KEY_FIELD_GROUPS.collector);
+  const mobile = readFirst(row, EXPORT_ROW_KEY_FIELD_GROUPS.mobile);
   if (collector && mobile && segmentNumber) {
     return "collector+mobile+segment:" + collector + "::" + mobile + "::" + segmentNumber;
   }
@@ -236,7 +233,7 @@ function pickTaskIds(rows) {
   const set = new Set();
   const list = Array.isArray(rows) ? rows : [];
   for (let i = 0; i < list.length; i += 1) {
-    const taskId = readFirst(list[i], ["任务ID", "taskId"]);
+    const taskId = readFirst(list[i], TASK_ID_FIELD_GROUP);
     if (taskId) {
       set.add(taskId);
     }
@@ -335,7 +332,7 @@ function mergeCsvRows(existingCsvText, incomingCsvText) {
 }
 
 function createRawRecordKey(record) {
-  const textNumber = readFirst(record, ["textNumber", "textNo", "text_number", "文本编号"]);
+  const textNumber = readFirst(record, EXPORT_ROW_KEY_FIELD_GROUPS.textNumber);
   if (textNumber) {
     return "textNumber:" + textNumber;
   }

@@ -21,7 +21,7 @@
 - 后端与平台资料：`platform-resources/data-baker/round-one-quality/`
 - 统一后端启动入口：`node platform-resources/backend/server.js`
 - 公共 AI provider 基座：`platform-resources/backend/ai/`
-- 当前后端状态：AI recommend 已接入统一 `ai-framework`；`export/download` 已开始复用 `platform-resources/backend/project-data-download/` 下的通用 CSV 文件下载 core，外部接口路径保持不变。
+- 当前后端状态：AI recommend 已接入统一 `ai-framework`；`export/download` 已开始复用 `platform-resources/backend/project-data-download/` 下的通用 CSV 文件下载 core，外部接口路径保持不变；下载相关脚本、字段映射和脱敏样例已开始收口到 `platform-resources/data-baker/round-one-quality/data/`。
 - 如需 Python 辅助脚本，统一复用 `platform-resources/backend/.venv`，Fun-ASR Python 文件位于 `platform-resources/backend/ai/python/`，不单独启动 Python 服务
 
 ## Magic Data ANNOTATOR

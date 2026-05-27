@@ -36,6 +36,9 @@
 
 - `../ai/adapter.js`：DataBaker 接入统一 `ai-framework` 的项目 adapter，先负责输入归一和旧 recommend 响应兼容。
 - `../data/adapter.js`：DataBaker 脚本级 data adapter，统一收口共享下载轨道所需的数据集元数据、`latest.csv` 路径解析和兼容下载文件名。
+- `../data/field-mappings.js`：DataBaker 导出字段口径中心，统一维护 canonical CSV 列、legacy alias 和唯一键字段组。
+- `../data/scripts/download.js`：DataBaker 下载脚本 helper，把 `latest.csv` 转成共享下载 core 可直接消费的 target。
+- `../data/scripts/fetch.js`：DataBaker 导出读取 helper，统一 latest 快照和 history CSV 列表读取。
 - `index.js`：项目路由注册入口。
 - `ai-routes.js`：负责 HTTP health / defaults / recommend / jobs 路由注册；recommend 入口当前已改由统一 `ai-framework` route factory 驱动，但仍保留旧接口响应结构。
 - `ai-service.js`：DataBaker AI 当前业务层，集中管理请求归一化、Fun-ASR REST 与当前通用链路、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
@@ -50,7 +53,8 @@
 - `platform-resources/backend/ai/python/funasr_client.py`：保留的 Python SDK fallback / 调试脚本。
 - `platform-resources/backend/ai/`：统一 AI 基座，提供 Qwen provider、Fun-ASR REST / Python provider、provider 队列、结果缓存和公共脱敏/错误处理。
 - `../ai/assets/`：DataBaker AI 资产目录占位；当前仍沿用 `ai-service.js` 与 `backend/reference/`，后续逐步迁移 prompt/rules/schema。
-- `../data/README.md`：DataBaker 脚本级 data 目录说明；当前只固定目录边界，不直接迁移运行数据。
+- `../data/assets/`：DataBaker 数据资产目录，当前补充了字段映射说明和脱敏样例。
+- `../data/README.md`：DataBaker 脚本级 data 目录说明；当前已开始承接下载脚本、字段映射和脱敏样例，不直接迁移运行数据。
 
 ## 模型
 

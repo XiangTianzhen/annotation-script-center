@@ -1,3 +1,27 @@
+## 2026-05-28（DataBaker data 目录继续收口下载脚本与样例）
+
+- 新增 `platform-resources/data-baker/round-one-quality/data/field-mappings.js`：
+  - 抽出 DataBaker 导出 canonical CSV 列、legacy 表头 alias 和唯一键字段组。
+- 新增 `platform-resources/data-baker/round-one-quality/data/scripts/download.js`：
+  - 抽出 DataBaker `latest.csv` 下载 target 组装逻辑。
+- 新增 `platform-resources/data-baker/round-one-quality/data/scripts/fetch.js`：
+  - 抽出 latest 快照存在性读取和 history CSV 列表读取逻辑。
+- 新增测试：
+  - `platform-resources/data-baker/round-one-quality/data/field-mappings.test.js`
+  - `platform-resources/data-baker/round-one-quality/data/scripts/download.test.js`
+  - `platform-resources/data-baker/round-one-quality/data/scripts/fetch.test.js`
+- 新增数据资产目录：
+  - `data/assets/mappings/export-columns.md`
+  - `data/assets/samples/latest-sample.csv`
+  - `data/assets/samples/latest-raw-sample.json`
+  - `data/runtime/.gitkeep`
+- 更新 `platform-resources/data-baker/round-one-quality/backend/export-store.js`：
+  - 改为复用 `data/field-mappings.js` 中的 alias 和唯一键字段组。
+- 更新 `platform-resources/data-baker/round-one-quality/backend/export-routes.js`：
+  - `download` 改为复用 `data/scripts/download.js`
+  - `list` 改为复用 `data/scripts/fetch.js`
+  - `config` 补充 latest 快照存在性字段
+
 ## 2026-05-28（DataBaker 导出下载链路接入共享 core）
 
 - 新增 `platform-resources/backend/project-data-download/csv-file-download-core.js`：

@@ -1,12 +1,13 @@
 "use strict";
 
+const fs = require("fs");
 const { sendJson } = require("../../../backend/response");
-const {
-  createCsvDownloadTarget,
-  sendCsvDownload,
-} = require("../../../backend/project-data-download/csv-file-download-core");
 const { MAX_CSV_BYTES, createExportStore } = require("./export-store");
-const { createLegacyExportDownloadTarget } = require("../data/adapter");
+const { createLatestCsvDownloadTarget } = require("../data/scripts/download");
+const {
+  listHistoryCsvFiles,
+  readLatestExportSnapshot,
+} = require("../data/scripts/fetch");
 
 const EXPORT_BASE_PATH = "/api/data-baker/round-one-quality/export";
 const EXPORT_HEALTH_PATH = EXPORT_BASE_PATH + "/health";
@@ -53,6 +54,9 @@ function sendHealth(response, store) {
 
 function sendConfig(response, store) {
   const paths = store.getPaths();
+  const snapshot = readLatestExportSnapshot({
+    dataDir: paths.dataDir,
+  });
   sendJson(response, 200, {
     success: true,
     data: {
@@ -63,21 +67,28 @@ function sendConfig(response, store) {
       latestMetaPath: paths.latestMetaPath,
       historyDirPath: paths.historyDirPath || "",
       maxCsvBytes: MAX_CSV_BYTES,
+      latestCsvExists: snapshot.exists.latestCsv,
+      latestMetaJsonExists: snapshot.exists.latestMetaJson,
+      latestRawJsonExists: snapshot.exists.latestRawJson,
     },
   });
 }
 
 function handleDownload(request, response, store) {
   try {
-    const target = createLegacyExportDownloadTarget({
+    const downloadTarget = createLatestCsvDownloadTarget({
       dataDir: store.getPaths().dataDir,
     });
-    const downloadTarget = createCsvDownloadTarget(target.filePath, {
-      fileName: target.fileName,
-      missingMessage: "latest.csv 不存在，请先上传导出数据。",
-      invalidPathMessage: "latest.csv 路径不是文件。",
+    response.writeHead(200, downloadTarget.headers);
+    if (request.method === "HEAD") {
+      response.end();
+      return;
+    }
+    const stream = fs.createReadStream(downloadTarget.filePath);
+    stream.on("error", function (error) {
+      response.destroy(error);
     });
-    sendCsvDownload(request, response, downloadTarget);
+    stream.pipe(response);
   } catch (error) {
     sendJson(response, 404, {
       success: false,
@@ -87,35 +98,11 @@ function handleDownload(request, response, store) {
 }
 
 function handleList(response, store) {
-  const paths = store.getPaths();
-  const historyDir = paths.historyDirPath;
-  if (!historyDir || !fs.existsSync(historyDir)) {
-    sendJson(response, 200, {
-      success: true,
-      data: [],
-    });
-    return;
-  }
-  const files = fs
-    .readdirSync(historyDir)
-    .map(function (name) {
-      const filePath = path.join(historyDir, name);
-      const stat = fs.statSync(filePath);
-      return {
-        name: name,
-        size: stat.size,
-        modifiedAt: stat.mtime.toISOString(),
-      };
-    })
-    .filter(function (entry) {
-      return /\.csv$/i.test(entry.name);
-    })
-    .sort(function (a, b) {
-      return String(b.modifiedAt).localeCompare(String(a.modifiedAt));
-    });
   sendJson(response, 200, {
     success: true,
-    data: files,
+    data: listHistoryCsvFiles({
+      dataDir: store.getPaths().dataDir,
+    }),
   });
 }
 

@@ -8,13 +8,27 @@
   - 统一定义 `data-baker-round-one-export` 数据集元数据
   - 统一定义共享下载轨道使用的默认文件名
   - 统一定义当前 `export/download` 兼容路径继续返回的 `latest.csv` 目标
+- `data/field-mappings.js` 负责 DataBaker 导出字段口径：
+  - 统一定义 canonical CSV 列
+  - 统一定义旧表头兼容 alias
+  - 统一定义 `文本编号 / 文件名 / 段编号 / 采集人 / 手机号` 的唯一键优先级
+- `data/scripts/download.js` 负责 DataBaker 下载脚本 helper：
+  - 把 `latest.csv` 转成共享下载 core 可直接消费的 target
+- `data/scripts/fetch.js` 负责 DataBaker 导出读取 helper：
+  - 统一读取 latest 快照存在性
+  - 统一列出 history 下可下载的 CSV 文件
+- `data/assets/` 当前已落：
+  - `mappings/export-columns.md`
+  - `samples/latest-sample.csv`
+  - `samples/latest-raw-sample.json`
+- `data/runtime/.gitkeep` 作为运行时占位目录，真实运行数据仍不提交 Git。
 - 上传统计与导出聚合逻辑仍由 `backend/export-routes.js`、`backend/export-store.js` 负责。
 - `GET/HEAD /api/data-baker/round-one-quality/export/download` 现在内部已接到 `platform-resources/backend/project-data-download/` 的共享下载 core，但外部 API path 不变。
 - 真实运行数据仍在被忽略的 `backend/export-data/` 下。
 
 后续会逐步把下面几类内容收口到这里：
 
-- 下载脚本
-- 数据字段映射
-- 脱敏样例
-- runtime 占位目录说明
+- 更多下载脚本
+- 更完整的数据字段映射
+- 更多脱敏样例
+- runtime 目录说明与边界
