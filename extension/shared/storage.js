@@ -69,6 +69,43 @@
               },
             },
           },
+          aishellTech: {
+            enabled: true,
+            scripts: {
+              minnanHelper: {
+                id: "aishellTechMinnanAssistant",
+                enabled: true,
+                aiRecommendEnabled: true,
+                aiRecommendEndpoint:
+                  "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
+                aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+                aiRecommendPipelineMode: "two_stage",
+                aiQualifiedAutofillConcurrency: 15,
+                aiRecommendListenModel: "qwen3.5-omni-flash",
+                aiRecommendCompareModel: "qwen3.5-plus",
+                aiRecommendSingleModel: "qwen3.5-omni-flash",
+                aiRecommendEnableThinking: false,
+                aiRecommendListenPrompt: "",
+                aiRecommendComparePrompt: "",
+                aiRecommendTemperature: "",
+                aiRecommendTopP: "",
+                aiRecommendMaxTokens: "",
+                aiRecommendMaxCompletionTokens: "",
+                aiRecommendPresencePenalty: "",
+                aiRecommendFrequencyPenalty: "",
+                aiRecommendSeed: "",
+                aiRecommendStopSequences: "",
+                shortcuts: {
+                  aiRecommendCurrentItem: null,
+                  autoFillQualifiedItem: null,
+                  copyAiHeardText: null,
+                  copyRecommendedText: null,
+                  fillRecommendedText: null,
+                  ignoreAiResult: null,
+                },
+              },
+            },
+          },
           abakaAi: {
             enabled: true,
             scripts: {
@@ -192,6 +229,7 @@
       DEFAULT_ASR_CONFIG: {},
       DEFAULT_JUDGEMENT_ASR_CONFIG: {},
       DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: {},
+      DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS: {},
       DEFAULT_ABAKA_AI_PLATFORM_SETTINGS: {},
       SCRIPT_PROJECTS: {},
       SCRIPT_LIBRARY: {},
@@ -199,12 +237,18 @@
       JUDGEMENT_PROJECT_ID: "judgement",
       LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: "lightwheelViewPanel",
       DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: "dataBakerRoundOneQuality",
+      AISHELL_TECH_PLATFORM_ID: "aishellTech",
+      AISHELL_TECH_MINNAN_SCRIPT_ID: "aishellTechMinnanAssistant",
       ABAKA_AI_PLATFORM_ID: "abakaAi",
       ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: "abakaAiTaskPageCapture",
       DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT:
         "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
       DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT:
         "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend",
+      AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT:
+        "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
+      AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT:
+        "http://127.0.0.1:3333/api/aishell-tech/minnan-helper/ai/recommend",
       TRANSCRIPTION_STATS_SERVER_ENDPOINT:
         "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-transcription/statistics/upload",
       TRANSCRIPTION_STATS_LOCAL_ENDPOINT:
@@ -1454,6 +1498,32 @@
     return result;
   }
 
+  function normalizeAishellTechShortcuts(value, fallback) {
+    const constants = getConstants();
+    const actions = Array.isArray(constants.AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS)
+      ? constants.AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS
+      : [
+          { key: "aiRecommendCurrentItem" },
+          { key: "autoFillQualifiedItem" },
+          { key: "copyAiHeardText" },
+          { key: "copyRecommendedText" },
+          { key: "fillRecommendedText" },
+          { key: "ignoreAiResult" },
+        ];
+    const source = isPlainObject(value) ? value : {};
+    const fallbackSource = isPlainObject(fallback) ? fallback : {};
+    const result = {};
+
+    actions.forEach(function (action) {
+      const key = action.key;
+      result[key] = hasOwn(source, key)
+        ? normalizeNullableShortcut(source[key], fallbackSource[key] || null)
+        : normalizeNullableShortcut(fallbackSource[key] || null, null);
+    });
+
+    return result;
+  }
+
   function normalizeAbakaAiTask21Shortcuts(value, fallback) {
     const constants = getConstants();
     const actions = Array.isArray(constants.ABAKA_AI_TASK21_SHORTCUT_ACTIONS)
@@ -1695,6 +1765,131 @@
     return result;
   }
 
+  function normalizeAishellTechMinnanConfig(config, defaults) {
+    const source = isPlainObject(config) ? config : {};
+    const defaultConfig = isPlainObject(defaults) ? defaults : {};
+    const result = deepMerge(defaultConfig, source);
+    const constants = getConstants();
+
+    result.id =
+      constants.AISHELL_TECH_MINNAN_SCRIPT_ID || result.id || "aishellTechMinnanAssistant";
+    result.enabled = result.enabled !== false;
+    result.aiRecommendEnabled = result.aiRecommendEnabled !== false;
+    result.aiRecommendEndpoint = normalizeDataBakerAiEndpoint(
+      result.aiRecommendEndpoint,
+      defaultConfig.aiRecommendEndpoint ||
+        constants.AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT ||
+        "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend"
+    );
+    result.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeout(
+      result.aiRecommendRequestTimeoutMs,
+      defaultConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
+    );
+    const defaultPipelineMode = normalizeDataBakerPipelineMode(
+      defaultConfig.aiRecommendPipelineMode || "two_stage",
+      "two_stage"
+    );
+    const defaultListenModel = resolveDataBakerListenModel(
+      defaultConfig.aiRecommendListenModel,
+      defaultPipelineMode,
+      "qwen3.5-omni-flash",
+      constants
+    );
+    const defaultSingleModel = normalizeDataBakerSingleModel(
+      defaultConfig.aiRecommendSingleModel || defaultConfig.aiRecommendListenModel,
+      "qwen3.5-omni-flash",
+      constants
+    );
+    const rawPipelineMode = getDataBakerModelText(result.aiRecommendPipelineMode);
+    const normalizedPipelineMode = normalizeDataBakerPipelineMode(
+      result.aiRecommendPipelineMode,
+      defaultPipelineMode
+    );
+    result.aiRecommendListenModel = resolveDataBakerListenModel(
+      result.aiRecommendListenModel,
+      rawPipelineMode || (normalizedPipelineMode === "omni_single" ? "" : normalizedPipelineMode),
+      defaultListenModel,
+      constants
+    );
+    result.aiRecommendSingleModel = normalizeDataBakerSingleModel(
+      result.aiRecommendSingleModel ||
+        (normalizedPipelineMode === "omni_single"
+          ? result.aiRecommendListenModel === "fun-asr"
+            ? "qwen3.5-omni-flash"
+            : result.aiRecommendListenModel
+          : ""),
+      defaultSingleModel,
+      constants
+    );
+    result.aiRecommendPipelineMode = normalizedPipelineMode;
+    result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
+      result.aiQualifiedAutofillConcurrency,
+      defaultConfig.aiQualifiedAutofillConcurrency || 15,
+      {
+        aiRecommendPipelineMode: result.aiRecommendPipelineMode,
+        aiRecommendListenModel: result.aiRecommendListenModel,
+        aiRecommendSingleModel: result.aiRecommendSingleModel,
+      },
+      constants
+    );
+    result.aiRecommendCompareModel = normalizeDataBakerCompareModel(
+      result.aiRecommendCompareModel,
+      defaultConfig.aiRecommendCompareModel || "qwen3.5-plus",
+      constants
+    );
+    result.aiRecommendEnableThinking = result.aiRecommendEnableThinking === true;
+    result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);
+    result.aiRecommendComparePrompt = normalizeJudgementAiPrompt(result.aiRecommendComparePrompt);
+    result.aiRecommendTemperature = normalizeJudgementAiOptionalNumberText(
+      result.aiRecommendTemperature,
+      0,
+      2,
+      3
+    );
+    result.aiRecommendTopP = normalizeJudgementAiOptionalNumberText(
+      result.aiRecommendTopP,
+      0,
+      1,
+      3
+    );
+    result.aiRecommendMaxTokens = normalizeJudgementAiOptionalIntegerText(
+      result.aiRecommendMaxTokens,
+      1,
+      8192
+    );
+    result.aiRecommendMaxCompletionTokens = normalizeJudgementAiOptionalIntegerText(
+      result.aiRecommendMaxCompletionTokens,
+      1,
+      8192
+    );
+    result.aiRecommendPresencePenalty = normalizeJudgementAiOptionalNumberText(
+      result.aiRecommendPresencePenalty,
+      -2,
+      2,
+      3
+    );
+    result.aiRecommendFrequencyPenalty = normalizeJudgementAiOptionalNumberText(
+      result.aiRecommendFrequencyPenalty,
+      -2,
+      2,
+      3
+    );
+    result.aiRecommendSeed = normalizeJudgementAiOptionalIntegerText(
+      result.aiRecommendSeed,
+      0,
+      2147483647
+    );
+    result.aiRecommendStopSequences = normalizeJudgementAiStopSequences(
+      result.aiRecommendStopSequences
+    );
+    result.shortcuts = normalizeAishellTechShortcuts(
+      result.shortcuts,
+      defaultConfig.shortcuts || {}
+    );
+
+    return result;
+  }
+
   function ensureDataBakerRoot(settings) {
     const constants = getConstants();
     const defaults = clone(constants.DEFAULT_SETTINGS || {});
@@ -1756,6 +1951,72 @@
       );
 
     return settings.platforms.dataBaker;
+  }
+
+  function ensureAishellTechRoot(settings) {
+    const constants = getConstants();
+    const defaults = clone(constants.DEFAULT_SETTINGS || {});
+    const defaultPlatform =
+      defaults?.platforms?.aishellTech || constants.DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS || {
+        enabled: true,
+        scripts: {
+          minnanHelper: {
+            id: constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant",
+            enabled: true,
+            aiRecommendEnabled: true,
+            aiRecommendEndpoint:
+              constants.AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT ||
+              "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
+            aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+            aiRecommendPipelineMode: "two_stage",
+            aiQualifiedAutofillConcurrency: 15,
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendCompareModel: "qwen3.5-plus",
+            aiRecommendSingleModel: "qwen3.5-omni-flash",
+            aiRecommendEnableThinking: false,
+            aiRecommendListenPrompt: "",
+            aiRecommendComparePrompt: "",
+            aiRecommendTemperature: "",
+            aiRecommendTopP: "",
+            aiRecommendMaxTokens: "",
+            aiRecommendMaxCompletionTokens: "",
+            aiRecommendPresencePenalty: "",
+            aiRecommendFrequencyPenalty: "",
+            aiRecommendSeed: "",
+            aiRecommendStopSequences: "",
+            shortcuts: {
+              aiRecommendCurrentItem: null,
+              autoFillQualifiedItem: null,
+              copyAiHeardText: null,
+              copyRecommendedText: null,
+              fillRecommendedText: null,
+              ignoreAiResult: null,
+            },
+          },
+        },
+      };
+
+    if (!isPlainObject(settings.platforms)) {
+      settings.platforms = {};
+    }
+
+    settings.platforms.aishellTech = deepMerge(
+      defaultPlatform,
+      settings.platforms.aishellTech || {}
+    );
+
+    if (!isPlainObject(settings.platforms.aishellTech.scripts)) {
+      settings.platforms.aishellTech.scripts = {};
+    }
+
+    settings.platforms.aishellTech.enabled = settings.platforms.aishellTech.enabled !== false;
+    settings.platforms.aishellTech.scripts.minnanHelper =
+      normalizeAishellTechMinnanConfig(
+        settings.platforms.aishellTech.scripts.minnanHelper,
+        defaultPlatform.scripts?.minnanHelper || {}
+      );
+
+    return settings.platforms.aishellTech;
   }
 
   function normalizeMagicDataActiveScriptId(value) {
@@ -2656,6 +2917,7 @@
     ensureScriptCenter(settings);
     ensureLightwheelRoot(settings);
     ensureDataBakerRoot(settings);
+    ensureAishellTechRoot(settings);
     ensureMagicDataRoot(settings);
     ensureAbakaAiRoot(settings);
     ensureGlobalBackendEndpointMode(settings, input || {}, defaults);
@@ -2845,6 +3107,13 @@
       nextSettings.platforms.dataBaker.scripts = clone(current.platforms.dataBaker.scripts || {});
     }
 
+    if (preservePlatformEnabled && current?.platforms?.aishellTech) {
+      nextSettings.platforms.aishellTech.enabled = Boolean(current.platforms.aishellTech.enabled);
+      nextSettings.platforms.aishellTech.scripts = clone(
+        current.platforms.aishellTech.scripts || {}
+      );
+    }
+
     if (preservePlatformEnabled && current?.platforms?.magicData) {
       nextSettings.platforms.magicData.enabled = Boolean(current.platforms.magicData.enabled);
       nextSettings.platforms.magicData.scripts = clone(current.platforms.magicData.scripts || {});
@@ -2953,6 +3222,24 @@
                   constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID ||
                   "dataBakerRoundOneQuality",
                 enabled: nextEnabled,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    if (scriptId === constants.AISHELL_TECH_MINNAN_SCRIPT_ID) {
+      return patchSettings({
+        platforms: {
+          aishellTech: {
+            enabled: nextEnabled,
+            scripts: {
+              minnanHelper: {
+                id:
+                  constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant",
+                enabled: nextEnabled,
+                aiRecommendEnabled: nextEnabled,
               },
             },
           },

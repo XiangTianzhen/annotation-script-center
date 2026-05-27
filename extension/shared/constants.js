@@ -34,6 +34,7 @@
   const DATA_BAKER_PLATFORM_ID = "dataBaker";
   const MAGIC_DATA_PLATFORM_ID = "magicData";
   const ABAKA_AI_PLATFORM_ID = "abakaAi";
+  const AISHELL_TECH_PLATFORM_ID = "aishellTech";
   const TRANSCRIPTION_PROJECT_ID = "transcription";
   const JUDGEMENT_PROJECT_ID = "judgement";
   const LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID = "lightwheelViewPanel";
@@ -41,6 +42,7 @@
   const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
   const MAGIC_DATA_MINNAN_SCRIPT_ID = "magicDataMinnanAssistant";
   const ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID = "abakaAiTaskPageCapture";
+  const AISHELL_TECH_MINNAN_SCRIPT_ID = "aishellTechMinnanAssistant";
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
   const BACKEND_ENDPOINTS = {
@@ -55,6 +57,7 @@
   const JUDGEMENT_AI_SUGGEST_PATH = "/api/alibaba-labelx/asr-judgement/ai/suggest";
   const TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH =
     "/api/alibaba-labelx/asr-transcription/ai/suggest-current";
+  const AISHELL_TECH_AI_RECOMMEND_PATH = "/api/aishell-tech/minnan-helper/ai/recommend";
   const TRANSCRIPTION_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
   const TRANSCRIPTION_STATS_DOWNLOAD_PATH =
     "/api/alibaba-labelx/asr-transcription/statistics/download";
@@ -89,6 +92,10 @@
     BACKEND_ENDPOINTS.server + TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH;
   const TRANSCRIPTION_AI_SUGGEST_CURRENT_LOCAL_ENDPOINT =
     BACKEND_ENDPOINTS.local + TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH;
+  const AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT =
+    BACKEND_ENDPOINTS.server + AISHELL_TECH_AI_RECOMMEND_PATH;
+  const AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT =
+    BACKEND_ENDPOINTS.local + AISHELL_TECH_AI_RECOMMEND_PATH;
   const DATABAKER_PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const DATABAKER_AI_PIPELINE_MODE_OPTIONS = [
     { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
@@ -151,6 +158,14 @@
     { key: "taskPass", label: "任务判定：通过" },
     { key: "taskPartialReject", label: "任务判定：部分驳回" },
     { key: "taskFullReject", label: "任务判定：全部驳回" },
+  ];
+  const AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS = [
+    { key: "aiRecommendCurrentItem", label: "AI 推荐当前条" },
+    { key: "autoFillQualifiedItem", label: "批量推荐并保存" },
+    { key: "copyAiHeardText", label: "复制 AI 听音文本" },
+    { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
+    { key: "fillRecommendedText", label: "填入推荐文本" },
+    { key: "ignoreAiResult", label: "忽略 AI 结果" },
   ];
   const DATABAKER_AI_OMNI_MODEL_VALUES = DATABAKER_AI_OMNI_MODEL_OPTIONS.map(function (item) {
     return String(item?.value || "").trim();
@@ -522,6 +537,13 @@
     label: "Abaka AI",
     host: "abao.fortidyndns.com",
     matches: ["http://abao.fortidyndns.com:30473/*"],
+  };
+
+  const AISHELL_TECH_PLATFORM = {
+    id: "aishell-tech",
+    label: "Aishell Tech",
+    host: "mark.aishelltech.com",
+    matches: ["https://mark.aishelltech.com/*"],
   };
 
   const PAGE_OPTIONS = [
@@ -985,6 +1007,14 @@
       runtimeBridge: "abaka-ai-task-page-capture",
       description: "Abaka AI 任务页结构与 Network 只读采集平台。",
     },
+    aishellTech: {
+      id: AISHELL_TECH_PLATFORM_ID,
+      label: "Aishell Tech",
+      host: AISHELL_TECH_PLATFORM.host,
+      matches: clone(AISHELL_TECH_PLATFORM.matches),
+      runtimeBridge: "aishell-tech-minnan-helper",
+      description: "Aishell Tech 标注页闽南语助手平台。",
+    },
   };
 
   const SCRIPT_LIBRARY = {
@@ -1082,6 +1112,21 @@
       detailView: "abaka-ai-task-page-capture",
       host: ABAKA_AI_PLATFORM.host,
       matchUrl: "http://abao.fortidyndns.com:30473/login",
+    },
+    aishellTechMinnanAssistant: {
+      id: AISHELL_TECH_MINNAN_SCRIPT_ID,
+      platformId: AISHELL_TECH_PLATFORM_ID,
+      label: "闽南语助手",
+      shortLabel: "闽南语助手",
+      description: "Aishell Tech /mytask/mark 当前条推荐文本与批量串行保存助手。",
+      note:
+        "批量模式只处理当前分包，从当前选中条开始跳过已完成条目；每条填入后点击页面真实保存按钮，不自动提交任务。",
+      capabilityScope: "ai-recommend-text-with-real-save",
+      statusLabel: "闽南语助手",
+      detailView: "aishell-tech-minnan-helper",
+      host: AISHELL_TECH_PLATFORM.host,
+      matchUrl:
+        "https://mark.aishelltech.com/mytask/mark?taskId=...&packageId=...",
     },
   };
 
@@ -1486,6 +1531,43 @@
     };
   }
 
+  function createDefaultAishellTechPlatformSettings() {
+    const shortcuts = {};
+    AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS.forEach(function (action) {
+      shortcuts[action.key] = null;
+    });
+
+    return {
+      enabled: true,
+      scripts: {
+        minnanHelper: {
+          id: AISHELL_TECH_MINNAN_SCRIPT_ID,
+          enabled: true,
+          aiRecommendEnabled: true,
+          aiRecommendEndpoint: AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT,
+          aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+          aiRecommendPipelineMode: "two_stage",
+          aiQualifiedAutofillConcurrency: 15,
+          aiRecommendListenModel: "qwen3.5-omni-flash",
+          aiRecommendCompareModel: "qwen3.5-plus",
+          aiRecommendSingleModel: "qwen3.5-omni-flash",
+          aiRecommendEnableThinking: false,
+          aiRecommendListenPrompt: "",
+          aiRecommendComparePrompt: "",
+          aiRecommendTemperature: "",
+          aiRecommendTopP: "",
+          aiRecommendMaxTokens: "",
+          aiRecommendMaxCompletionTokens: "",
+          aiRecommendPresencePenalty: "",
+          aiRecommendFrequencyPenalty: "",
+          aiRecommendSeed: "",
+          aiRecommendStopSequences: "",
+          shortcuts: shortcuts,
+        },
+      },
+    };
+  }
+
   const DEFAULT_SETTINGS = {
     stage: STAGE_ID,
     scriptCenter: {
@@ -1596,6 +1678,7 @@
         },
       },
       abakaAi: createDefaultAbakaAiPlatformSettings(),
+      aishellTech: createDefaultAishellTechPlatformSettings(),
     },
     asr: clone(DEFAULT_ASR_CONFIG),
     debug: {
@@ -1618,7 +1701,7 @@
     STAGE_DESCRIPTION:
       "脚本中心统一管理多平台脚本，options 页负责启停与必要配置，运行时功能由各脚本独立维护。",
     CAPABILITY_SCOPE:
-      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏与统计导出、语音判别音频能力、Lightwheel 脚本占位管理，以及闽南语助手 AI 推荐文本。",
+      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏与统计导出、语音判别音频能力、Lightwheel 脚本占位管理、DataBaker 与 Aishell 闽南语助手 AI 推荐文本。",
     SCHEMA_VERSION: SCHEMA_VERSION,
     STORAGE_KEY: "asrEdgeSettings",
     PRESENCE_BADGE_ID: "asr-edge-presence-host",
@@ -1627,6 +1710,7 @@
     DATA_BAKER_PLATFORM: DATA_BAKER_PLATFORM,
     MAGIC_DATA_PLATFORM: MAGIC_DATA_PLATFORM,
     ABAKA_AI_PLATFORM: ABAKA_AI_PLATFORM,
+    AISHELL_TECH_PLATFORM: AISHELL_TECH_PLATFORM,
     PLATFORM_LIBRARY: clone(PLATFORM_LIBRARY),
     MESSAGE_TYPES: MESSAGE_TYPES,
     PAGE_OPTIONS: PAGE_OPTIONS,
@@ -1646,10 +1730,12 @@
     DATA_BAKER_PLATFORM_ID: DATA_BAKER_PLATFORM_ID,
     MAGIC_DATA_PLATFORM_ID: MAGIC_DATA_PLATFORM_ID,
     ABAKA_AI_PLATFORM_ID: ABAKA_AI_PLATFORM_ID,
+    AISHELL_TECH_PLATFORM_ID: AISHELL_TECH_PLATFORM_ID,
     DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
     MAGIC_DATA_ANNOTATOR_SCRIPT_ID: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
     MAGIC_DATA_MINNAN_SCRIPT_ID: MAGIC_DATA_MINNAN_SCRIPT_ID,
     ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
+    AISHELL_TECH_MINNAN_SCRIPT_ID: AISHELL_TECH_MINNAN_SCRIPT_ID,
     DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
     DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,
     DATABAKER_AI_RECOMMEND_PATH: DATABAKER_AI_RECOMMEND_PATH,
@@ -1663,6 +1749,7 @@
     JUDGEMENT_STATS_DOWNLOAD_PATH: JUDGEMENT_STATS_DOWNLOAD_PATH,
     JUDGEMENT_AI_SUGGEST_PATH: JUDGEMENT_AI_SUGGEST_PATH,
     TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH: TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH,
+    AISHELL_TECH_AI_RECOMMEND_PATH: AISHELL_TECH_AI_RECOMMEND_PATH,
     TRANSCRIPTION_STATS_UPLOAD_PATH: TRANSCRIPTION_STATS_UPLOAD_PATH,
     TRANSCRIPTION_STATS_DOWNLOAD_PATH: TRANSCRIPTION_STATS_DOWNLOAD_PATH,
     PROJECT_DATA_DOWNLOAD_OPTIONS_PATH: PROJECT_DATA_DOWNLOAD_OPTIONS_PATH,
@@ -1679,6 +1766,8 @@
       TRANSCRIPTION_AI_SUGGEST_CURRENT_SERVER_ENDPOINT,
     TRANSCRIPTION_AI_SUGGEST_CURRENT_LOCAL_ENDPOINT:
       TRANSCRIPTION_AI_SUGGEST_CURRENT_LOCAL_ENDPOINT,
+    AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT: AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT,
+    AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT: AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT,
     normalizeBackendEndpointMode: normalizeBackendEndpointMode,
     inferBackendEndpointModeFromEndpoint: inferBackendEndpointModeFromEndpoint,
     getBackendEndpointModeFromSettings: getBackendEndpointModeFromSettings,
@@ -1702,6 +1791,7 @@
     normalizeDataBakerAiQualifiedAutofillConcurrency:
       normalizeDataBakerAiQualifiedAutofillConcurrency,
     DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
+    AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS: clone(AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_SHORTCUT_ACTIONS: clone(ABAKA_AI_TASK21_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_AI_ANALYSIS_MODES: clone(ABAKA_AI_TASK21_AI_ANALYSIS_MODES),
     ABAKA_AI_TASK21_VISION_MODEL_OPTIONS: clone(ABAKA_AI_TASK21_VISION_MODEL_OPTIONS),
@@ -1729,6 +1819,7 @@
     DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: createDefaultLightwheelPlatformSettings(),
     DEFAULT_DATA_BAKER_PLATFORM_SETTINGS: createDefaultDataBakerPlatformSettings(),
     DEFAULT_ABAKA_AI_PLATFORM_SETTINGS: createDefaultAbakaAiPlatformSettings(),
+    DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS: createDefaultAishellTechPlatformSettings(),
     DEFAULT_SETTINGS: clone(DEFAULT_SETTINGS),
     LEGACY_ROOT_DEBUG_KEY: LEGACY_ROOT_DEBUG_KEY,
     LEGACY_ROOT_CACHE_KEYS: Object.assign({}, LEGACY_ROOT_CACHE_KEYS),

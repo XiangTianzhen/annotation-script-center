@@ -14,6 +14,9 @@
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
   const magicDataMinnanScriptId =
     constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
+  const aishellTechHost = (constants.AISHELL_TECH_PLATFORM || {}).host || "mark.aishelltech.com";
+  const aishellTechMinnanScriptId =
+    constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
   const abakaAiHost = (constants.ABAKA_AI_PLATFORM || {}).host || "abao.fortidyndns.com";
   const abakaAiScriptId =
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
@@ -297,6 +300,78 @@
       };
     }
 
+    if (url.hostname === aishellTechHost) {
+      const pathname = String(url.pathname || "").toLowerCase();
+      const platformEnabled = settings?.platforms?.aishellTech?.enabled !== false;
+      const scriptConfig = settings?.platforms?.aishellTech?.scripts?.minnanHelper || {};
+      const scriptEnabled = scriptConfig.enabled !== false;
+      const aiRecommendEnabled = scriptConfig.aiRecommendEnabled !== false;
+      const enabled = platformEnabled && scriptEnabled;
+      const aiReady = enabled && aiRecommendEnabled;
+
+      if (pathname === "/mytask/mark") {
+        return {
+          scriptId: aishellTechMinnanScriptId,
+          platformId: "aishellTech",
+          platformLabel: "Aishell Tech",
+          url: url,
+          platformEnabled: platformEnabled,
+          scriptEnabled: scriptEnabled,
+          statusText: !enabled ? "未启用" : aiRecommendEnabled ? "已支持" : "AI 推荐已关闭",
+          statusTone: !enabled ? "disabled" : aiRecommendEnabled ? "success" : "pending",
+          title: "当前页面命中 Aishell Tech 数据标注页",
+          description: aiReady
+            ? "当前页可使用闽南语助手：支持当前条 AI 推荐、复制、填入，以及当前分包内从当前选中条开始的批量串行保存。"
+            : "当前页已命中 Aishell Tech 数据标注页，但平台脚本未启用或 AI 推荐面板已关闭。",
+        };
+      }
+
+      if (pathname.indexOf("/mytask/detail/") === 0) {
+        return {
+          scriptId: aishellTechMinnanScriptId,
+          platformId: "aishellTech",
+          platformLabel: "Aishell Tech",
+          url: url,
+          platformEnabled: platformEnabled,
+          scriptEnabled: scriptEnabled,
+          statusText: enabled ? "待进入数据标注页" : "未启用",
+          statusTone: enabled ? "pending" : "disabled",
+          title: "当前页面属于 Aishell Tech 任务详情页",
+          description:
+            "点击分包“查看”进入 /mytask/mark 后，才会触发闽南语助手运行时。",
+        };
+      }
+
+      if (pathname === "/mytask/index") {
+        return {
+          scriptId: aishellTechMinnanScriptId,
+          platformId: "aishellTech",
+          platformLabel: "Aishell Tech",
+          url: url,
+          platformEnabled: platformEnabled,
+          scriptEnabled: scriptEnabled,
+          statusText: enabled ? "待进入任务详情/标注页" : "未启用",
+          statusTone: enabled ? "pending" : "disabled",
+          title: "当前页面属于 Aishell Tech 我的任务页",
+          description:
+            "当前脚本只在任务详情页和数据标注页做路由覆盖，实际业务能力只在 /mytask/mark 生效。",
+        };
+      }
+
+      return {
+        scriptId: aishellTechMinnanScriptId,
+        platformId: "aishellTech",
+        platformLabel: "Aishell Tech",
+        url: url,
+        platformEnabled: platformEnabled,
+        scriptEnabled: scriptEnabled,
+        statusText: enabled ? "待进入业务页" : "未启用",
+        statusTone: enabled ? "pending" : "disabled",
+        title: "当前页面属于 Aishell Tech",
+        description: "当前脚本主要围绕 /mytask/mark 工作；其余页面只做路由覆盖与资料复用。",
+      };
+    }
+
     if (url.hostname === abakaAiHost) {
       const platformEnabled = settings?.platforms?.abakaAi?.enabled !== false;
       const scriptEnabled = settings?.platforms?.abakaAi?.scripts?.taskPageCapture?.enabled !== false;
@@ -408,6 +483,10 @@
     }
 
     if (context.platformId === "magicData") {
+      return context;
+    }
+
+    if (context.platformId === "aishellTech") {
       return context;
     }
 

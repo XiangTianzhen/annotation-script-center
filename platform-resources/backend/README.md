@@ -150,6 +150,7 @@ http://127.0.0.1:3333
 - `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
 - `GET /api/magic-data/hakka-helper/ai/defaults`
 - `GET /api/magic-data/minnan-helper/ai/defaults`
+- `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults`
 
 统一返回字段包含：`success`、`scriptId`、`defaults`、`supportedParams`、`notes`。其中 `response_format` 对前端固定为不开放（`supportedParams.response_format=false`），结构化输出由后端控制。
 
@@ -245,6 +246,7 @@ pm2 restart annotation-script-center --update-env
 - 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；默认 REST 链路不经过 Python 子进程，仅显式切 Python 时才受 Python stdout 编码影响。
 - `magic-data/hakka-helper`：Magic Data 客家话助手 AI 复核接口（保留 `annotator` 兼容路径）。
 - `magic-data/minnan-helper`：Magic Data 闽南语助手 AI 复核接口；支持 `two_stage + fun-asr`、`two_stage + Qwen Omni`、`omni_single + Qwen Omni` 三种链路。
+- `aishell-tech/minnan-helper`：Aishell Tech 闽南语助手 AI 推荐接口；当前条推荐与批量串行真实保存共用同一 recommend 路由，独立保持 `health/defaults/recommend` 三个入口，执行链复用 DataBaker 已验证推荐链路。
 - `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
 
@@ -268,6 +270,11 @@ Abaka Task21 AI 接口：
 - `GET /api/abaka-ai/task21/ai/health`
 - `GET /api/abaka-ai/task21/ai/defaults`
 - `POST /api/abaka-ai/task21/ai/analyze`
+
+Aishell Tech AI 接口：
+- `GET /api/aishell-tech/minnan-helper/ai/recommend/health`
+- `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults`
+- `POST /api/aishell-tech/minnan-helper/ai/recommend`
 
 项目数据下载接口：
 - `GET /api/admin/project-data-download/options`
@@ -295,6 +302,7 @@ ASR 转写职责边界：
   - ASR 快判 AI 建议：`/api/alibaba-labelx/asr-judgement/ai/suggest`
   - ASR 转写 AI 推荐：`/api/alibaba-labelx/asr-transcription/ai/suggest-current`
   - 标贝易采 AI 推荐：`/api/data-baker/round-one-quality/ai/recommend`
+  - Aishell Tech AI 推荐：`/api/aishell-tech/minnan-helper/ai/recommend`
   - 标贝易采导出上传：`/api/data-baker/round-one-quality/export/upload`
   - 标贝易采导出下载：`/api/data-baker/round-one-quality/export/download`
 

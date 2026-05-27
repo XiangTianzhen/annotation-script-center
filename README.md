@@ -17,7 +17,7 @@
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 默认关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
-- Aishell Tech 当前已进入 `platform-resources/aishell-tech/` 正式接入准备阶段：核心标注链路（我的任务 → 任务详情 → 数据标注）的 Network 与页面结构资料已可支撑首阶段运行时代码开发，当前仍无 `extension/sites/aishell-tech/` 运行时代码和专属后端注册。
+- Aishell Tech 已完成独立闽南语助手首版接入：`/mytask/mark` 支持当前条 AI 推荐与批量串行真实保存，后端已注册 `/api/aishell-tech/minnan-helper/ai/recommend*` 独立接口。
 
 ## 协作摘要
 
@@ -30,7 +30,7 @@
 
 ## 当前重点平台与脚本
 
-- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（正式接入准备态，核心链路资料已齐，尚无运行时代码与专属后端注册）。
+- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（闽南语助手已接入，当前业务能力仅在 `/mytask/mark` 生效）。
 - 当前 CSV 对接字段口径：
   - LabelX 快判/转写：`有效时长(秒)_S` 与人员 `_P` 字段。
   - DataBaker 一检：`有效合格时长_S` 与 `质检人_P` 字段。
@@ -41,7 +41,9 @@
   - `extension/sites/data-baker/round-one-quality/`
   - `extension/sites/magic-data/`（`hakka-helper` + `minnan-helper`）
   - `extension/sites/abaka-ai/task-page/`（Task21助手 + 页面结构/Network 脱敏采集）
-- Aishell Tech 当前已完成首阶段接入资料：
+- Aishell Tech 当前目录：
+  - `extension/sites/aishell-tech/minnan-helper/README.md`
+  - `platform-resources/aishell-tech/minnan-helper/README.md`
   - `platform-resources/aishell-tech/README.md`
   - `platform-resources/aishell-tech/network/README.md`
   - `platform-resources/aishell-tech/page-structure/README.md`

@@ -9,6 +9,7 @@ const { registerRoutes: registerDataBakerRoundOneRoutes } = require("../data-bak
 const { registerRoutes: registerMagicDataHakkaRoutes } = require("../magic-data/hakka-helper/backend");
 const { registerRoutes: registerMagicDataMinnanRoutes } = require("../magic-data/minnan-helper/backend");
 const { registerRoutes: registerAbakaTask21AiRoutes } = require("../abaka-ai/task21/backend");
+const { registerRoutes: registerAishellTechMinnanRoutes } = require("../aishell-tech/minnan-helper/backend");
 const { registerRoutes: registerProjectDataDownloadRoutes } = require("./project-data-download");
 
 function registerProjectRoutes(router, options) {
@@ -51,6 +52,7 @@ function registerProjectRoutes(router, options) {
   );
   registerMagicDataMinnanRoutes(router, config.magicDataMinnanHelper || {});
   registerAbakaTask21AiRoutes(router, config.abakaTask21Ai || {});
+  registerAishellTechMinnanRoutes(router, config.aishellTechMinnanHelper || {});
   registerProjectDataDownloadRoutes(router, config.projectDataDownload || {});
 }
 

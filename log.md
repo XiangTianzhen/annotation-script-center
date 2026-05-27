@@ -1,3 +1,20 @@
+## 2026-05-28（Aishell Tech 闽南语助手独立全量接入）
+
+- 新增 `extension/sites/aishell-tech/minnan-helper/` 运行时代码：
+  - 通过 page-world 观察层缓存 `task/detail`、`packageItemList`、`markDetail`、`getShortMark`、`SaveShortMark`，不直接处理平台 JWT。
+  - `/mytask/mark` 新增当前条 AI 推荐、复制、填入和批量串行真实保存面板。
+  - 批量模式固定为“并发预取 AI 结果 + 串行填入并点击页面真实保存按钮”，只处理当前分包、从当前选中条开始、跳过已完成条目。
+- 新增 `platform-resources/aishell-tech/minnan-helper/` 脚本级目录：
+  - `ai/adapter.js`、`backend/ai-service.js`、`backend/ai-routes.js`、`backend/index.js`。
+  - 新增独立接口 `GET /api/aishell-tech/minnan-helper/ai/recommend/health`、`GET /defaults`、`POST /recommend`。
+  - 默认 Prompt、模型白名单、并发归一与推荐执行链参考 DataBaker round-one-quality，但保持 Aishell 独立脚本 ID、独立词表目录和独立响应包装。
+- 更新扩展侧接入：
+  - `extension/manifest.json` 增加 `mark.aishelltech.com` / `markapi.aishelltech.com` 权限与内容脚本注入。
+  - `extension/shared/constants.js`、`extension/shared/storage.js`、`extension/options/options.js`、`extension/options/options.html`、`extension/popup/popup.js` 新增 Aishell 平台、脚本、详情页配置与当前页识别。
+- 更新文档：
+  - `platform-resources/aishell-tech/README.md` 从“正式接入准备态”改为“独立脚本已接入”。
+  - 补齐 `extension/sites/aishell-tech/minnan-helper/README.md`、`platform-resources/aishell-tech/minnan-helper/README.md`、`platform-resources/backend/README.md`、根 `README.md`、`docs/platforms/index.md` 的同步说明。
+
 ## 2026-05-28（Alibaba LabelX 快判接入 AI framework 桥接层）
 
 - 新增 `platform-resources/alibaba-labelx/asr-judgement/ai/adapter.js`：

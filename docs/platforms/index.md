@@ -63,10 +63,12 @@
 ## Aishell Tech
 
 - 平台资料总览：`platform-resources/aishell-tech/README.md`
+- 运行时脚本：`extension/sites/aishell-tech/minnan-helper/README.md`
+- 脚本级资料与后端：`platform-resources/aishell-tech/minnan-helper/README.md`
 - 网络请求采集（5 页 + 安全边界说明）：`platform-resources/aishell-tech/network/README.md`
 - 页面 DOM 结构采集（4 页完整 + 1 页组织管理初版占位）：`platform-resources/aishell-tech/page-structure/README.md`
 - 安全边界：以 `platform-resources/aishell-tech/README.md` 的“安全边界”章节与 `network/README.md` 的脱敏规则为准。
-- 当前阶段：正式接入准备态，尚无 `extension/sites/aishell-tech/` 运行时代码和专属后端注册；首阶段运行时代码可直接围绕“我的任务 → 任务详情 → 数据标注”开工，当前不要求专属后端；`我的团队` 页面仅完成 network 和 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
+- 当前阶段：独立闽南语助手已接入。当前业务能力只在 `/mytask/mark` 生效，`/mytask/index` 与 `/mytask/detail/:taskId` 仅做路由覆盖与资料复用；已注册独立接口 `/api/aishell-tech/minnan-helper/ai/recommend`；`我的团队` 页面仍只有 network 和 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
 
 ## 新增平台要求
 

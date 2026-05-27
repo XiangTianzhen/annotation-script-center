@@ -39,13 +39,19 @@
 
 ## 当前阶段
 
-**正式接入准备阶段**（2026-05-28）。已完成首页、我的任务、任务详情、数据标注的 DOM 与网络采集；我的团队页面的 network 已完成，page-structure 已补一版占位说明。当前仍无 `extension/sites/aishell-tech/` 运行时代码和专属后端注册，但核心标注链路资料已足够支撑首阶段运行时代码开发。
+**独立脚本已接入**（2026-05-28）。已完成：
 
-## 正式接入建议
+- `extension/sites/aishell-tech/minnan-helper/` 运行时代码。
+- `platform-resources/aishell-tech/minnan-helper/backend/` 独立 AI recommend 路由。
+- `/mytask/index`、`/mytask/detail/:taskId`、`/mytask/mark` 的路由覆盖与资料复用。
 
-### 首阶段范围
+当前业务能力只在 `/mytask/mark` 生效；`我的团队` 页面仍只有 network 与 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
 
-建议首阶段只覆盖核心标注链路：
+## 当前接入范围
+
+### 已落地范围
+
+当前首版覆盖核心标注链路：
 
 1. `/mytask/index`
 2. `/mytask/detail/:taskId`
@@ -59,21 +65,26 @@
 - 保存接口结构 `POST /api/mark/SaveShortMark`
 - 音频拼接规则 `dataRoot + url`
 
-### 首阶段是否需要专属后端
+### 当前专属后端
 
-当前**不需要**先做专属后端。首阶段运行时代码可以先做：
+当前已接入独立后端接口：
 
-- 页面识别
-- 任务列表 / 任务详情 / 数据标注页 DOM 读取
-- 音频播放辅助
-- 标注输入框辅助填入
-- 保存前只读检查
+- `GET /api/aishell-tech/minnan-helper/ai/recommend/health`
+- `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults`
+- `POST /api/aishell-tech/minnan-helper/ai/recommend`
 
-原因：
+实现边界：
 
-- 保存接口和表单结构已经明确。
-- 音频地址当前无需签名拼接和后端代理。
-- 现阶段更缺的是运行时代码接入，而不是额外 Node 路由。
+- Aishell 保持独立路由、独立脚本 ID、独立词表目录。
+- Prompt、模型白名单、并发默认值与推荐链路参考 DataBaker round-one-quality。
+- v1 不引入异步 job、SSE 或 WebSocket，仍按同步 HTTP 返回推荐结果。
+
+### 当前运行时能力
+
+- 仅在 `https://mark.aishelltech.com/mytask/mark?...` 注入业务面板。
+- 当前条支持 AI 推荐、复制听音文本、复制推荐文本、填入当前条。
+- 批量模式只处理当前分包，从当前选中条开始，跳过已完成条目。
+- AI 请求按前端并发预取；页面填入与保存严格串行，每条都点击页面真实“保存”按钮并等待选中项切换后再继续。
 
 ### 当前不阻塞首阶段、但后续要补的资料
 
