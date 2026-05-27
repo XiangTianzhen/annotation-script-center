@@ -16,6 +16,13 @@
   - 把 `latest.csv` 转成共享下载 core 可直接消费的 target
 - `data/scripts/upload.js` 负责 DataBaker 上传字段归一 helper：
   - 统一 `export/upload` 的 payload 字段校验与 legacy alias 兼容
+- `data/scripts/csv.js` 负责 DataBaker CSV helper：
+  - 统一 legacy 表头归一
+  - 统一 CSV 解析、行数统计和写出
+- `data/scripts/merge.js` 负责 DataBaker merge helper：
+  - 统一 CSV 唯一键计算
+  - 统一 CSV merge 统计
+  - 统一 rawRecords merge
 - `data/scripts/persist.js` 负责 DataBaker latest/history/events 持久化 helper：
   - 统一 latest.csv / latest-raw.json / latest.json 写入
   - 统一 history CSV / raw.json 写入
@@ -36,7 +43,7 @@
   - `samples/upload-events-sample.jsonl`
 - `data/runtime/.gitkeep` 作为运行时占位目录，真实运行数据仍不提交 Git。
 - 上传统计与导出聚合逻辑仍由 `backend/export-routes.js`、`backend/export-store.js` 负责。
-- `backend/export-store.js` 当前继续负责 CSV / raw merge、旧 latest 读取和总体编排；latest/history/events 的实际写入已开始下沉到 `data/scripts/persist.js`。
+- `backend/export-store.js` 当前继续负责旧 latest 读取和总体编排；CSV 解析/写出、merge、latest/history/events 持久化都已开始下沉到 `data/scripts/*.js`。
 - `GET/HEAD /api/data-baker/round-one-quality/export/download` 现在内部已接到 `platform-resources/backend/project-data-download/` 的共享下载 core，但外部 API path 不变。
 - 真实运行数据仍在被忽略的 `backend/export-data/` 下。
 
@@ -45,6 +52,7 @@
 - 更多下载脚本
 - 更完整的 upload / history 读取脚本
 - 更完整的 merge / write 分层
+- 更清晰的 data adapter / script helper 边界
 - 更完整的数据字段映射
 - 更多脱敏样例
 - runtime 目录说明与边界

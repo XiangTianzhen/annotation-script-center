@@ -67,7 +67,7 @@
 - 当前共享后端收口：
   - `export/download` 已开始复用 `platform-resources/backend/project-data-download/` 下的通用 CSV 文件下载 core。
   - 脚本级差异收口在 `round-one-quality/data/adapter.js`。
-  - DataBaker 导出字段映射、upload 字段归一、latest/history/events 持久化 helper、history 读取 helper、下载 helper 和脱敏样例已开始收口到 `round-one-quality/data/field-mappings.js`、`data/scripts/`、`data/assets/`。
+  - DataBaker 导出字段映射、upload 字段归一、CSV helper、merge helper、latest/history/events 持久化 helper、history 读取 helper、下载 helper 和脱敏样例已开始收口到 `round-one-quality/data/field-mappings.js`、`data/scripts/`、`data/assets/`。
 - 脚本：
   - `round-one-quality/`
 - 闽南语词表：`platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv`

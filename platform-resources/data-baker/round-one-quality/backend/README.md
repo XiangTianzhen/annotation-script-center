@@ -38,6 +38,8 @@
 - `../ai/adapter.js`：DataBaker 接入统一 `ai-framework` 的项目 adapter，先负责输入归一和旧 recommend 响应兼容。
 - `../data/adapter.js`：DataBaker 脚本级 data adapter，统一收口共享下载轨道所需的数据集元数据、`latest.csv` 路径解析和兼容下载文件名。
 - `../data/field-mappings.js`：DataBaker 导出字段口径中心，统一维护 canonical CSV 列、legacy alias 和唯一键字段组。
+- `../data/scripts/csv.js`：DataBaker CSV helper，统一 legacy 表头归一、CSV 解析、行数统计和写出。
+- `../data/scripts/merge.js`：DataBaker merge helper，统一 CSV 唯一键计算、CSV merge 统计和 rawRecords merge。
 - `../data/scripts/download.js`：DataBaker 下载脚本 helper，把 `latest.csv` 转成共享下载 core 可直接消费的 target。
 - `../data/scripts/upload.js`：DataBaker 上传字段归一 helper，统一 `export/upload` payload 校验、字段归一和 `rawJson` legacy alias 兼容。
 - `../data/scripts/persist.js`：DataBaker 导出持久化 helper，统一 latest/history/events 写入和 meta/event payload 组装。
@@ -50,14 +52,14 @@
 - `ai-debug-store.js`：原始 AI 返回的内存级调试信息暂存，默认 TTL 30 分钟、最大 1000 条，不落盘。
 - `ai-job-store.js`：DataBaker AI 异步 job 的内存状态管理、超时取消、TTL 清理、debug 原始 JSON 暂存和统计快照。
 - `export-routes.js`：导出 health / config / upload / download 路由。当前 `download` 已改为复用 `platform-resources/backend/project-data-download/csv-file-download-core.js`，外部 path 保持不变。
-- `export-store.js`：导出 CSV / raw merge、旧 latest 读取和整体编排；latest/history/events 的实际写入与 meta/event payload 组装已开始复用 `../data/scripts/persist.js`。
+- `export-store.js`：导出 overall store，当前主要保留旧 latest 读取和总体编排；CSV 解析/写出、CSV/raw merge、latest/history/events 持久化都已开始复用 `../data/scripts/*.js`。
 - `platform-resources/backend/ai/providers/funasr-rest.js`：按阿里云官方 RESTful API 提交 Fun-ASR 异步任务、轮询任务并拉取转写结果。
 - `platform-resources/backend/ai/providers/funasr.js`：统一选择 Fun-ASR `rest/python` provider。
 - `platform-resources/backend/ai/python/funasr_client.py`：保留的 Python SDK fallback / 调试脚本。
 - `platform-resources/backend/ai/`：统一 AI 基座，提供 Qwen provider、Fun-ASR REST / Python provider、provider 队列、结果缓存和公共脱敏/错误处理。
 - `../ai/assets/`：DataBaker AI 资产目录占位；当前仍沿用 `ai-service.js` 与 `backend/reference/`，后续逐步迁移 prompt/rules/schema。
 - `../data/assets/`：DataBaker 数据资产目录，当前补充了字段映射说明、upload payload 说明和脱敏样例。
-- `../data/README.md`：DataBaker 脚本级 data 目录说明；当前已开始承接下载脚本、upload 字段归一、history 读取 helper、字段映射和脱敏样例，不直接迁移运行数据。
+- `../data/README.md`：DataBaker 脚本级 data 目录说明；当前已开始承接下载脚本、upload 字段归一、CSV helper、merge helper、history 读取 helper、字段映射和脱敏样例，不直接迁移运行数据。
 
 ## 模型
 

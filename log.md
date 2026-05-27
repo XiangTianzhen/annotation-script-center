@@ -1,3 +1,17 @@
+## 2026-05-28（DataBaker data 目录继续收口 CSV 与 merge 逻辑）
+
+- 新增 `platform-resources/data-baker/round-one-quality/data/scripts/csv.js`：
+  - 抽出 legacy 表头归一、CSV 解析、行数统计和 UTF-8 BOM 写出。
+- 新增 `platform-resources/data-baker/round-one-quality/data/scripts/merge.js`：
+  - 抽出 CSV 唯一键计算、CSV merge 统计和 rawRecords merge。
+- 新增测试：
+  - `platform-resources/data-baker/round-one-quality/data/scripts/csv.test.js`
+  - `platform-resources/data-baker/round-one-quality/data/scripts/merge.test.js`
+- 更新 `platform-resources/data-baker/round-one-quality/backend/export-store.js`：
+  - 不再内联维护 CSV parse/stringify、表头归一和 merge 细节。
+  - 当前主要保留旧 latest 读取与导出总体编排；CSV helper、merge helper 与 persist helper 已下沉到 `data/scripts/*.js`。
+  - 顺手修正 history 文件名生成，避免 `persistHistory=1` 时把 ISO 时间里的 `:` 写进文件名，导致 Windows 下无法落盘。
+
 ## 2026-05-28（DataBaker data 目录继续收口持久化写入逻辑）
 
 - 新增 `platform-resources/data-baker/round-one-quality/data/scripts/persist.js`：
