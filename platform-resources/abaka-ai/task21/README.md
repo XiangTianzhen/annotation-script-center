@@ -15,6 +15,8 @@
 | 文件 | 职责 |
 | --- | --- |
 | `README.md` | Task21 项目入口、业务识别和资料导航。 |
+| `ai/assets/README.md` | Task21 接入统一 AI framework 后的资产目录边界说明。 |
+| `data/README.md` | Task21 脚本级统计/下载数据目录边界说明。 |
 | `network/task21.md` | Task21 专项 Network 概览。 |
 | `network/README.md` | Task21 专项网络索引。 |
 | `network/08-label-save-labels.md` | Task21 same_font 与派生字段保存结构。 |
@@ -83,6 +85,12 @@
 
 ## 当前能力与后续候选
 
+- AI 后端桥接迁移状态（2026-05-28）：
+  - `POST /api/abaka-ai/task21/ai/analyze` 已改为通过 `platform-resources/backend/ai-framework/` route factory 驱动。
+  - `platform-resources/abaka-ai/task21/ai/adapter.js` 负责请求映射、旧响应结构兼容和脚本级结果暴露。
+  - `platform-resources/abaka-ai/task21/backend/ai-analyze-request.js` 负责 Task21 analyze 请求归一，与 adapter 共用。
+  - `GET /api/abaka-ai/task21/ai/health` 与 `GET /api/abaka-ai/task21/ai/defaults` 当前仍保留旧实现，本轮先做桥接，不一次性推倒两阶段视觉链路。
+  - `ai/assets/` 与 `data/` 当前先固定目录边界，后续再逐步迁移 prompt / rules / schema / defaults / 统计下载逻辑。
 - 已完成能力：
   - 快捷键 1~7（含暂存、送审）
   - 字段旁 AI 分析 / 整体分析

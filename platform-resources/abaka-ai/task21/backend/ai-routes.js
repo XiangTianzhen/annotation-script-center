@@ -1,6 +1,8 @@
 "use strict";
 
 const { sendJson } = require("../../../backend/response");
+const { createAiRoute } = require("../../../backend/ai-framework");
+const task21Adapter = require("../ai/adapter");
 const {
   DEFAULT_ANALYSIS_MODE,
   DEFAULT_OCR_MODEL,
@@ -12,8 +14,13 @@ const {
   analyzeTask21,
   getClientConfig,
   normalizeAnalysisMode,
-  sanitizeModelName,
 } = require("./ai-client");
+const {
+  SCRIPT_ID,
+  createHttpError,
+  normalizeAnalyzeRequest,
+  resolveRuntimeOptions,
+} = require("./ai-analyze-request");
 const {
   OCR_EXTRACT_SYSTEM_PROMPT,
   REASONING_DECIDE_SYSTEM_PROMPT,
@@ -36,6 +43,7 @@ const ALLOWED_TARGETS = ["same_font", "image_b_texts_removed", "other_changes", 
 const ALLOWED_IMAGE_FIELDS = ["image_a", "image_b", "image_b_removed"];
 const MIN_TIMEOUT_MS = 1000;
 const MAX_TIMEOUT_MS = 300000;
+const SERVICE_NAME = "abaka-ai-task21-ai-analysis";
 
 function createRequestId() {
   const now = new Date();
@@ -50,13 +58,6 @@ function createRequestId() {
   return "abaka-task21-" + yyyy + mm + dd + "-" + hh + mi + ss + ms + "-" + random;
 }
 
-function createHttpError(statusCode, code, message) {
-  const error = new Error(String(message || "request-error"));
-  error.statusCode = statusCode;
-  error.code = String(code || "request-error");
-  return error;
-}
-
 function sanitizeText(value, maxLength) {
   return String(value || "")
     .replace(/https?:\/\/[^\s"'\\]+/g, "[url-redacted]")
@@ -67,23 +68,6 @@ function sanitizeText(value, maxLength) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength || 240);
-}
-
-function readRequestBody(request) {
-  return new Promise(function (resolve, reject) {
-    let body = "";
-    request.on("data", function (chunk) {
-      body += chunk;
-      if (Buffer.byteLength(body, "utf8") > MAX_BODY_BYTES) {
-        reject(createHttpError(413, "payload-too-large", "请求体超过 20MB。"));
-        request.destroy();
-      }
-    });
-    request.on("end", function () {
-      resolve(body);
-    });
-    request.on("error", reject);
-  });
 }
 
 function safeParseJson(text) {
@@ -157,187 +141,6 @@ function normalizeTimeoutMs(value, fallback) {
   const base = Number.isFinite(number) ? number : Number(fallback);
   const safe = Number.isFinite(base) ? base : 120000;
   return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, Math.floor(safe)));
-}
-
-function normalizeTarget(value) {
-  const text = String(value || "").trim();
-  if (ALLOWED_TARGETS.indexOf(text) >= 0) {
-    return text;
-  }
-  return "";
-}
-
-function normalizeImageRecord(record) {
-  const source = normalizeObject(record);
-  const fieldName = String(source.fieldName || "").trim();
-  const safeFieldName = ALLOWED_IMAGE_FIELDS.indexOf(fieldName) >= 0 ? fieldName : "";
-  const dataUrl = String(source.dataUrl || "").trim();
-  const imageUrl = String(source.imageUrl || "").trim();
-  const mime = String(source.mime || "").trim().slice(0, 80) || "unknown";
-  const width = Number(source.width);
-  const height = Number(source.height);
-  const bytes = Number(source.bytes);
-
-  return {
-    fieldName: safeFieldName,
-    dataUrl,
-    imageUrl,
-    mime,
-    width: Number.isFinite(width) && width > 0 ? Math.floor(width) : "unknown",
-    height: Number.isFinite(height) && height > 0 ? Math.floor(height) : "unknown",
-    bytes: Number.isFinite(bytes) && bytes >= 0 ? Math.floor(bytes) : "unknown",
-    sourceKind: dataUrl ? "dataUrl" : imageUrl ? "url" : "unknown",
-  };
-}
-
-function normalizeImages(images) {
-  const source = Array.isArray(images) ? images : [];
-  const normalized = [];
-  source.forEach(function (item) {
-    const row = normalizeImageRecord(item);
-    if (!row.fieldName) {
-      return;
-    }
-    const exists = normalized.some(function (entry) {
-      return entry.fieldName === row.fieldName;
-    });
-    if (!exists) {
-      normalized.push(row);
-    }
-  });
-  ALLOWED_IMAGE_FIELDS.forEach(function (fieldName) {
-    const exists = normalized.some(function (entry) {
-      return entry.fieldName === fieldName;
-    });
-    if (exists) {
-      return;
-    }
-    normalized.push({
-      fieldName,
-      dataUrl: "",
-      imageUrl: "",
-      mime: "unknown",
-      width: "unknown",
-      height: "unknown",
-      bytes: "unknown",
-      sourceKind: "unknown",
-    });
-  });
-  return normalized;
-}
-
-function normalizeAnalyzeRequest(body) {
-  const source = normalizeObject(body);
-  const target = normalizeTarget(source.target);
-  if (!target) {
-    throw createHttpError(400, "unsupported-target", "target 不受支持。");
-  }
-
-  const context = normalizeObject(source.context);
-  const currentValues = normalizeObject(context.currentValues);
-  return {
-    target,
-    debug: source.debug === true,
-    context: {
-      imageATexts: normalizeString(context.imageATexts, 12000),
-      imageBTexts: normalizeString(context.imageBTexts, 12000),
-      textPositions: normalizeObject(context.textPositions),
-      targetRemovalTextHints: normalizeStringArrayPreserveDuplicates(context.targetRemovalTextHints, 12, 240),
-      currentValues: {
-        same_font: normalizeString(currentValues.same_font, 300),
-        image_b_texts_removed: normalizeString(currentValues.image_b_texts_removed, 3000),
-        other_changes: normalizeString(currentValues.other_changes, 3000),
-      },
-      route: normalizeObject(context.route),
-    },
-    images: normalizeImages(source.images),
-  };
-}
-
-function resolveRuntimeOptions(requestBody, config) {
-  const source = normalizeObject(requestBody);
-  const options = normalizeObject(source.options);
-  const debugConfig = normalizeObject(source.debugConfig);
-
-  const analysisMode = normalizeAnalysisMode(
-    source.analysisMode || options.analysisMode || debugConfig.analysisMode,
-    DEFAULT_ANALYSIS_MODE
-  );
-  const ocrEnabledValue =
-    typeof source.ocrEnabled === "boolean"
-      ? source.ocrEnabled
-      : typeof options.ocrEnabled === "boolean"
-        ? options.ocrEnabled
-        : typeof debugConfig.ocrEnabled === "boolean"
-          ? debugConfig.ocrEnabled
-          : config.ocrEnabled === true;
-  const enableThinkingValue =
-    typeof source.enableThinking === "boolean"
-      ? source.enableThinking
-      : typeof options.enableThinking === "boolean"
-        ? options.enableThinking
-        : typeof debugConfig.enableThinking === "boolean"
-          ? debugConfig.enableThinking
-          : false;
-  const timeoutMs = normalizeTimeoutMs(
-    source.timeoutMs || options.timeoutMs || debugConfig.timeoutMs,
-    config.timeoutMs || 120000
-  );
-  const allowClientModelOverride = config.allowClientModelOverride === true;
-
-  function resolveModel(fieldName, defaultModel, allowedModels) {
-    const requested = sanitizeModelName(
-      source[fieldName] || options[fieldName] || debugConfig[fieldName] || "",
-      ""
-    );
-    if (!allowClientModelOverride) {
-      return defaultModel;
-    }
-    const allowed = Array.isArray(allowedModels) ? allowedModels : [];
-    if (requested && allowed.indexOf(requested) >= 0) {
-      return requested;
-    }
-    return defaultModel;
-  }
-
-  const visionModel = resolveModel("visionModel", config.visionModel || DEFAULT_VISION_MODEL, config.allowedVisionModels);
-  const ocrModel = resolveModel("ocrModel", config.ocrModel || DEFAULT_OCR_MODEL, config.allowedOcrModels);
-  const reasoningModel = resolveModel(
-    "reasoningModel",
-    config.reasoningModel || DEFAULT_REASONING_MODEL,
-    config.allowedReasoningModels
-  );
-  const singleModel = resolveModel(
-    "singleModel",
-    config.singleModel || DEFAULT_SINGLE_MODEL,
-    config.allowedSingleModels
-  );
-
-  let thinkingSource = "server-default";
-  if (
-    typeof source.enableThinking === "boolean" ||
-    typeof options.enableThinking === "boolean" ||
-    typeof debugConfig.enableThinking === "boolean"
-  ) {
-    thinkingSource = enableThinkingValue === true ? "options-enabled" : "options-default";
-  }
-
-  return {
-    analysisMode,
-    visionModel,
-    ocrEnabled: ocrEnabledValue === true,
-    ocrModel,
-    reasoningModel,
-    singleModel,
-    enableThinking: enableThinkingValue === true,
-    timeoutMs,
-    thinkingSource,
-    allowClientModelOverride,
-    allowedVisionModels: config.allowedVisionModels,
-    allowedOcrModels: config.allowedOcrModels,
-    allowedReasoningModels: config.allowedReasoningModels,
-    allowedSingleModels: config.allowedSingleModels,
-  };
 }
 
 function sanitizeImageStats(images) {
@@ -652,7 +455,7 @@ function buildHealthResponse() {
   const config = getClientConfig();
   return {
     success: true,
-    service: "abaka-ai-task21-ai-analysis",
+    service: SERVICE_NAME,
     ruleVersion: TASK21_AI_RULE_VERSION,
     status: config.mockEnabled || config.hasApiKey ? "ready" : "missing-api-key",
     mockEnabled: config.mockEnabled,
@@ -686,8 +489,8 @@ function buildDefaultsResponse() {
   const config = getClientConfig();
   return {
     success: true,
-    service: "abaka-ai-task21-ai-analysis",
-    scriptId: "abakaAiTaskPageCapture",
+    service: SERVICE_NAME,
+    scriptId: SCRIPT_ID,
     analysisMode: config.analysisMode || DEFAULT_ANALYSIS_MODE,
     visionModel: config.visionModel || DEFAULT_VISION_MODEL,
     ocrEnabled: config.ocrEnabled === true,
@@ -743,19 +546,14 @@ function buildDefaultsResponse() {
   };
 }
 
-async function handleAnalyze(request, response) {
+async function analyzeRequest(body, requestId) {
   const startedAt = Date.now();
-  let requestId = createRequestId();
+  requestId = normalizeString(requestId) || createRequestId();
   try {
-    const rawBody = await readRequestBody(request);
-    const jsonBody = safeParseJson(rawBody || "{}");
-    if (!jsonBody) {
-      throw createHttpError(400, "invalid-json", "请求体 JSON 解析失败。");
-    }
-
-    const normalizedRequest = normalizeAnalyzeRequest(jsonBody);
+    const rawBody = normalizeObject(body);
+    const normalizedRequest = normalizeAnalyzeRequest(rawBody);
     const config = getClientConfig();
-    const runtimeOptions = resolveRuntimeOptions(jsonBody, config);
+    const runtimeOptions = resolveRuntimeOptions(rawBody, config);
 
     if (!config.mockEnabled && !config.hasApiKey) {
       throw createHttpError(
@@ -836,22 +634,22 @@ async function handleAnalyze(request, response) {
     }
 
     const normalizedResult = normalizeResultSchema(normalizedRequest.target, parsedResult);
-      const totalUsage = aiResponse.usage
-        ? normalizeUsage(aiResponse.usage, { source: "provider" })
-        : normalizeUsage(
-            estimateUsageFromTexts(
-              singleUserPrompt + "\n" + visionUserPrompt + "\n" + ocrUserPrompt,
-              rawText
-            ),
-            {
+    const totalUsage = aiResponse.usage
+      ? normalizeUsage(aiResponse.usage, { source: "provider" })
+      : normalizeUsage(
+          estimateUsageFromTexts(
+            singleUserPrompt + "\n" + visionUserPrompt + "\n" + ocrUserPrompt,
+            rawText
+          ),
+          {
             source: "estimated",
-            }
-          );
+          }
+        );
     const stages = normalizeStagePayload(aiResponse.stages || {});
     const usage = buildUsagePayload(totalUsage, stages);
     const thinkingPayload = normalizeObject(aiResponse.thinking);
 
-    sendJson(response, 200, {
+    return {
       success: true,
       requestId,
       target: normalizedRequest.target,
@@ -894,22 +692,49 @@ async function handleAnalyze(request, response) {
         .concat(normalizeArray(normalizedResult.image_b_texts_removed.warnings))
         .concat(normalizeArray(normalizedResult.other_changes.warnings)),
       mock: aiResponse.mock === true,
-    });
+    };
   } catch (error) {
     const statusCode = Number(error?.statusCode) || (error?.code === "timeout" ? 504 : 500);
+    const elapsedMs = Date.now() - startedAt;
     const errorBody = {
-      success: false,
       requestId,
       code: String(error?.code || "internal-error"),
       message: sanitizeText(error?.message || "Task21 AI analyze 请求失败。", 300),
-      elapsedMs: Date.now() - startedAt,
+      elapsedMs,
     };
     if (error?.summary) {
       errorBody.summary = sanitizeText(error.summary, 300);
     }
-    sendJson(response, statusCode, errorBody);
+    const propagatedError =
+      error instanceof Error
+        ? error
+        : new Error(errorBody.message);
+    propagatedError.statusCode = statusCode;
+    propagatedError.requestId = requestId;
+    propagatedError.code = errorBody.code;
+    propagatedError.message = errorBody.message;
+    propagatedError.elapsedMs = elapsedMs;
+    if (errorBody.summary) {
+      propagatedError.summary = errorBody.summary;
+    }
+    throw propagatedError;
   }
 }
+
+const handleAnalyze = createAiRoute(task21Adapter, {
+  maxBodyBytes: MAX_BODY_BYTES,
+  run(context) {
+    const requestId = normalizeString(context?.normalizedRequest?.requestId || createRequestId());
+    const body = context?.runtimeContext?.rawBody || {};
+    return analyzeRequest(body, requestId);
+  },
+  createSuccessBody(context) {
+    return task21Adapter.buildAnalyzeSuccessBody(context);
+  },
+  createErrorBody(context) {
+    return task21Adapter.buildAnalyzeErrorBody(context);
+  },
+});
 
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
@@ -920,8 +745,8 @@ function registerAiRoutes(router) {
     sendJson(response, 200, buildDefaultsResponse());
   });
 
-  router.post(AI_BASE_PATH, function ({ request, response }) {
-    return handleAnalyze(request, response);
+  router.post(AI_BASE_PATH, function (routeContext) {
+    return handleAnalyze(routeContext);
   });
 }
 
@@ -929,6 +754,7 @@ module.exports = {
   AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  analyzeRequest,
   normalizeResultSchema,
   registerAiRoutes,
 };

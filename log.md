@@ -1,3 +1,23 @@
+## 2026-05-28（Abaka AI Task21 接入 AI framework 桥接层）
+
+- 新增 `platform-resources/abaka-ai/task21/ai/adapter.js`：
+  - 把 Task21 `analyze` 请求映射到统一 `ai-framework` 输入契约。
+  - 保留旧成功/失败响应结构，避免前端同步改契约。
+- 新增 `platform-resources/abaka-ai/task21/ai/adapter.test.js`：
+  - 固定 `normalizeInput`、legacy success body、legacy error body 三个桥接行为。
+- 新增目录说明：
+  - `platform-resources/abaka-ai/task21/ai/assets/README.md`
+  - `platform-resources/abaka-ai/task21/data/README.md`
+- 新增 `platform-resources/abaka-ai/task21/backend/ai-analyze-request.js`：
+  - 抽出 analyze 请求归一和运行时模型选项解析，供 adapter 与 Task21 业务层共用。
+- 更新 `platform-resources/abaka-ai/task21/backend/ai-routes.js`：
+  - `POST /api/abaka-ai/task21/ai/analyze` 改为通过统一 `ai-framework` route factory 驱动。
+  - 对外继续保持 Task21 旧成功/失败响应结构。
+  - `health/defaults` 保持原实现，本轮先做桥接式迁移。
+- 更新 Task21 README 与后端 README：
+  - 明确当前只迁移 analyze 主链路。
+  - 固定 `ai/assets/` 与 `data/` 目录边界，后续再逐步迁移 prompt / rules / schema / defaults / 统计下载逻辑。
+
 ## 2026-05-28（Magic Data 客家话助手接入 AI framework 桥接层）
 
 - 新增 `platform-resources/magic-data/hakka-helper/ai/adapter.js`：

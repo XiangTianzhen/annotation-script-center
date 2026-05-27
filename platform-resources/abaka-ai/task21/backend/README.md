@@ -6,6 +6,18 @@
 - `GET /api/abaka-ai/task21/ai/defaults`
 - `POST /api/abaka-ai/task21/ai/analyze`
 
+## 统一 AI framework 桥接状态
+
+- 当前阶段采用桥接式迁移，不直接重写 Task21 原有两阶段视觉业务层。
+- `POST /api/abaka-ai/task21/ai/analyze` 已改为通过 `platform-resources/backend/ai-framework/` route factory 驱动。
+- `platform-resources/abaka-ai/task21/ai/adapter.js` 负责：
+  - 请求映射到统一输入契约
+  - 旧 success / error body 兼容
+  - `result` 暴露给 framework 的脚本级结果通道
+- `platform-resources/abaka-ai/task21/backend/ai-analyze-request.js` 负责 analyze 请求归一与运行时模型选项解析，供 adapter 与业务层共用。
+- `GET /health`、`GET /defaults` 当前仍走旧实现；Prompt 与规则暂时仍保留在 `backend/prompt.js`、`backend/ai/prompt.md`。
+- `platform-resources/abaka-ai/task21/ai/assets/` 当前是资产目录占位，后续再逐步迁移 prompt / rules / schema / defaults。
+
 ## 分析方案
 
 - `two_stage`（默认）：
