@@ -223,6 +223,9 @@
     const panel = uiFactory.createRuntime({
       onRecommend: handleRecommend,
       onBatchRecommend: handleBatchRecommend,
+      onBatchStop: handleBatchStop,
+      canFillPageText: dataApi.canFillPageText,
+      fillPageText: dataApi.fillPageText,
     });
 
     let mountTimer = null;
@@ -230,6 +233,7 @@
       single: false,
       batch: false,
     };
+    let batchStopRequested = false;
 
     function syncBusyState(nextState) {
       currentBusyState = Object.assign({}, currentBusyState, nextState || {});
@@ -255,59 +259,124 @@
       }
     }
 
+    async function handleBatchStop() {
+      if (currentBusyState.batch !== true) {
+        panel.setStatus("当前没有正在运行的批量识别。", "warning");
+        return;
+      }
+      batchStopRequested = true;
+      panel.setStatus("已请求停止，将在当前条完成后结束本轮批量。", "warning");
+      panel.updateBatch({
+        phaseText: "停止中",
+        running: true,
+      });
+    }
+
     async function handleBatchRecommend() {
       syncBusyState({ batch: true });
+      batchStopRequested = false;
       panel.setStatus("正在准备批量识别...", "info");
       try {
         const tasks = await dataApi.getBatchTasksFromCurrentSelection();
         if (!tasks.length) {
           throw new Error("从当前选中条开始没有可识别的未完成条目。");
         }
+        const failures = [];
+        let processedCount = 0;
         panel.updateBatch({
           phaseText: "开始",
           total: tasks.length,
           completed: 0,
           failed: 0,
           currentText: tasks[0].displayName,
+          failures: failures,
+          running: true,
         });
 
         for (let index = 0; index < tasks.length; index += 1) {
+          if (batchStopRequested === true) {
+            break;
+          }
           const task = tasks[index];
           panel.updateBatch({
             phaseText: "识别中",
             total: tasks.length,
             completed: index,
-            failed: 0,
+            failed: failures.length,
             currentText: task.displayName,
+            failures: failures,
+            running: true,
           });
-          const item = await dataApi.getItemByIndex(task.index, {
-            includeCurrentInput: false,
-          });
-          if (!item) {
-            throw new Error("无法定位批量条目：" + task.displayName);
+          try {
+            const item = await dataApi.getItemByIndex(task.index, {
+              includeCurrentInput: false,
+            });
+            if (!item) {
+              throw new Error("无法定位批量条目。");
+            }
+            const result = await aiClient.recommend(item);
+            panel.renderResult(result);
+            processedCount += 1;
+            panel.updateBatch({
+              phaseText: "已完成当前条",
+              total: tasks.length,
+              completed: processedCount,
+              failed: failures.length,
+              currentText: task.displayName,
+              failures: failures,
+              running: true,
+            });
+          } catch (error) {
+            processedCount += 1;
+            failures.push({
+              displayName: task.displayName,
+              message: error?.message || String(error),
+            });
+            panel.updateBatch({
+              phaseText: "当前条失败",
+              total: tasks.length,
+              completed: processedCount,
+              failed: failures.length,
+              currentText: task.displayName,
+              failures: failures,
+              running: true,
+            });
           }
-          const result = await aiClient.recommend(item);
-          panel.renderResult(result);
+        }
+
+        if (batchStopRequested === true) {
           panel.updateBatch({
-            phaseText: "已完成当前条",
+            phaseText: "已停止",
             total: tasks.length,
-            completed: index + 1,
-            failed: 0,
-            currentText: task.displayName,
+            completed: processedCount,
+            failed: failures.length,
+            currentText: "",
+            failures: failures,
+            running: false,
           });
+          panel.setStatus("本轮批量识别已按请求停止。", "warning");
+          return;
         }
 
         panel.updateBatch({
           phaseText: "已完成",
           total: tasks.length,
-          completed: tasks.length,
-          failed: 0,
+          completed: processedCount,
+          failed: failures.length,
           currentText: "",
+          failures: failures,
+          running: false,
         });
-        panel.setStatus("当前分包批量识别完成。", "success");
+        panel.setStatus(
+          failures.length > 0
+            ? "当前分包批量识别完成，存在失败条目。"
+            : "当前分包批量识别完成。",
+          failures.length > 0 ? "warning" : "success"
+        );
       } catch (error) {
         panel.setStatus(error?.message || String(error), "error");
       } finally {
+        batchStopRequested = false;
         syncBusyState({ batch: false });
       }
     }

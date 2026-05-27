@@ -7,10 +7,6 @@
   const ROOT_ATTR = "data-asr-edge-aishell-tech-panel";
   const STYLE_ID = "asr-edge-aishell-tech-panel-style";
 
-  function normalizeText(value) {
-    return String(value || "").replace(/\s+/g, " ").trim();
-  }
-
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
       return;
@@ -40,7 +36,7 @@
       "[" + ROOT_ATTR + "] .asc-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }",
       "[" + ROOT_ATTR + "] .asc-title { color: #1d4ed8; font-size: 14px; font-weight: 700; }",
       "[" + ROOT_ATTR + "] .asc-subtitle { color: #64748b; margin-top: 2px; }",
-      "[" + ROOT_ATTR + "] .asc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }",
+      "[" + ROOT_ATTR + "] .asc-actions, [" + ROOT_ATTR + "] .asc-result-actions, [" + ROOT_ATTR + "] .asc-batch-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }",
       "[" + ROOT_ATTR + "] button {",
       "  min-height: 30px;",
       "  padding: 0 12px;",
@@ -52,6 +48,7 @@
       "  font-size: 12px;",
       "}",
       "[" + ROOT_ATTR + "] button[data-primary='true'] { background: #1d4ed8; border-color: #1d4ed8; color: #ffffff; font-weight: 700; }",
+      "[" + ROOT_ATTR + "] button[data-danger='true'] { border-color: #dc2626; color: #b91c1c; }",
       "[" + ROOT_ATTR + "] button:disabled { opacity: 0.6; cursor: not-allowed; }",
       "[" + ROOT_ATTR + "] .asc-status { margin-top: 12px; color: #475569; white-space: pre-wrap; }",
       "[" + ROOT_ATTR + "] .asc-status[data-tone='success'] { color: #047857; }",
@@ -62,6 +59,8 @@
       "[" + ROOT_ATTR + "] .asc-grid { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 6px 8px; }",
       "[" + ROOT_ATTR + "] .asc-label { color: #475569; font-weight: 700; }",
       "[" + ROOT_ATTR + "] .asc-value { white-space: pre-wrap; overflow-wrap: anywhere; }",
+      "[" + ROOT_ATTR + "] .asc-failures { margin: 8px 0 0 16px; padding: 0; }",
+      "[" + ROOT_ATTR + "] .asc-failures li { margin-bottom: 6px; color: #b91c1c; }",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -76,6 +75,29 @@
     return button;
   }
 
+  function copyText(text) {
+    const value = String(text || "");
+    if (!value) {
+      return Promise.reject(new Error("没有可复制的文本。"));
+    }
+    if (navigator.clipboard?.writeText) {
+      return navigator.clipboard.writeText(value);
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "readonly");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const ok = document.execCommand("copy");
+    textarea.remove();
+    if (!ok) {
+      return Promise.reject(new Error("浏览器未允许复制。"));
+    }
+    return Promise.resolve();
+  }
+
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
     let root = null;
@@ -84,7 +106,9 @@
     let batchNode = null;
     let singleButtonNode = null;
     let batchButtonNode = null;
+    let stopButtonNode = null;
     let currentItemKey = "";
+    let currentResult = null;
 
     function ensureRoot() {
       ensureStyle();
@@ -104,7 +128,7 @@
       title.textContent = "Aishell Tech 闽南语助手";
       const subtitle = document.createElement("div");
       subtitle.className = "asc-subtitle";
-      subtitle.textContent = "最小悬浮窗重构版：只保留识别与批量识别。";
+      subtitle.textContent = "悬浮窗版：识别、填入、批量识别与失败反馈。";
       titleWrap.appendChild(title);
       titleWrap.appendChild(subtitle);
 
@@ -139,8 +163,19 @@
         }
       });
 
+      stopButtonNode = createButton("停止批量", {
+        "data-danger": "true",
+      });
+      stopButtonNode.disabled = true;
+      stopButtonNode.addEventListener("click", function () {
+        if (typeof deps.onBatchStop === "function") {
+          void deps.onBatchStop();
+        }
+      });
+
       actions.appendChild(singleButtonNode);
       actions.appendChild(batchButtonNode);
+      actions.appendChild(stopButtonNode);
       root.appendChild(actions);
 
       statusNode = document.createElement("div");
@@ -169,6 +204,7 @@
     }
 
     function clearResult() {
+      currentResult = null;
       if (resultNode) {
         resultNode.remove();
       }
@@ -200,6 +236,9 @@
       if (batchButtonNode) {
         batchButtonNode.disabled = nextState.batch === true || nextState.single === true;
       }
+      if (stopButtonNode) {
+        stopButtonNode.disabled = nextState.batch !== true;
+      }
     }
 
     function renderResult(result) {
@@ -209,6 +248,7 @@
       if (!source) {
         return;
       }
+      currentResult = source;
       resultNode = document.createElement("div");
       resultNode.className = "asc-section";
 
@@ -234,6 +274,60 @@
         ["requestId", source.debug?.requestId || ""],
       ]);
 
+      const actions = document.createElement("div");
+      actions.className = "asc-result-actions";
+
+      const copyHeardButton = createButton("复制听音文本");
+      copyHeardButton.addEventListener("click", function () {
+        copyText(source.heardText || "")
+          .then(function () {
+            setStatus("听音文本已复制。", "success");
+          })
+          .catch(function (error) {
+            setStatus(error?.message || String(error), "error");
+          });
+      });
+
+      const copyRecommendedButton = createButton("复制推荐文本", {
+        "data-primary": "true",
+      });
+      copyRecommendedButton.addEventListener("click", function () {
+        copyText(source.recommendedText || "")
+          .then(function () {
+            setStatus("推荐文本已复制。", "success");
+          })
+          .catch(function (error) {
+            setStatus(error?.message || String(error), "error");
+          });
+      });
+
+      const fillButton = createButton("填入当前条");
+      fillButton.disabled =
+        typeof deps.canFillPageText === "function" ? deps.canFillPageText() !== true : true;
+      fillButton.addEventListener("click", function () {
+        if (typeof deps.fillPageText !== "function") {
+          setStatus("当前运行时没有填入能力。", "error");
+          return;
+        }
+        const fillResult = deps.fillPageText(source.recommendedText || "");
+        setStatus(
+          fillResult?.message || "已填入当前条。",
+          fillResult?.ok === false ? "error" : "success"
+        );
+      });
+
+      const ignoreButton = createButton("忽略");
+      ignoreButton.addEventListener("click", function () {
+        clearResult();
+        setStatus("已忽略本次识别结果。", "info");
+      });
+
+      actions.appendChild(copyHeardButton);
+      actions.appendChild(copyRecommendedButton);
+      actions.appendChild(fillButton);
+      actions.appendChild(ignoreButton);
+      resultNode.appendChild(actions);
+
       root.appendChild(resultNode);
     }
 
@@ -257,6 +351,36 @@
         ["失败", Number(source.failed || 0)],
         ["当前条", source.currentText || "-"],
       ]);
+
+      if (Array.isArray(source.failures) && source.failures.length > 0) {
+        const failureTitle = document.createElement("div");
+        failureTitle.className = "asc-section-title";
+        failureTitle.textContent = "失败清单";
+        batchNode.appendChild(failureTitle);
+
+        const list = document.createElement("ul");
+        list.className = "asc-failures";
+        source.failures.forEach(function (entry) {
+          const item = document.createElement("li");
+          item.textContent = String(entry?.displayName || "未知条目") + "： " + String(entry?.message || "失败");
+          list.appendChild(item);
+        });
+        batchNode.appendChild(list);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "asc-batch-actions";
+      const stopButton = createButton("停止本轮批量", {
+        "data-danger": "true",
+      });
+      stopButton.disabled = source.running !== true;
+      stopButton.addEventListener("click", function () {
+        if (typeof deps.onBatchStop === "function") {
+          void deps.onBatchStop();
+        }
+      });
+      actions.appendChild(stopButton);
+      batchNode.appendChild(actions);
 
       root.appendChild(batchNode);
     }
@@ -284,6 +408,7 @@
       statusNode = null;
       singleButtonNode = null;
       batchButtonNode = null;
+      stopButtonNode = null;
       currentItemKey = "";
     }
 

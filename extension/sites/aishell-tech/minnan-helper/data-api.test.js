@@ -4,8 +4,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  ensureChineseSentencePunctuation,
   extractAuthTokenFromUnknown,
   findAuthTokenInEntries,
+  removeTextSpaces,
 } = require("./data-api.js");
 
 test("extractAuthTokenFromUnknown reads bearer token from nested json string", function () {
@@ -39,4 +41,13 @@ test("findAuthTokenInEntries prefers token-like storage values", function () {
   ]);
 
   assert.equal(token, "zzz.yyy.xxx");
+});
+
+test("removeTextSpaces removes full-width and half-width spaces", function () {
+  assert.equal(removeTextSpaces(" 昨晚 去 公园　散步 "), "昨晚去公园散步");
+});
+
+test("ensureChineseSentencePunctuation appends chinese full stop when missing", function () {
+  assert.equal(ensureChineseSentencePunctuation("昨晚去公园散步"), "昨晚去公园散步。");
+  assert.equal(ensureChineseSentencePunctuation("昨晚去公园散步？"), "昨晚去公园散步？");
 });

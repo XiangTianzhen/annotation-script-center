@@ -20,6 +20,34 @@
     return String(value || "").replace(/\s+/g, " ").trim();
   }
 
+  function removeTextSpaces(text) {
+    return String(text || "").replace(/[\s\u3000]+/g, "");
+  }
+
+  function ensureChineseSentencePunctuation(text) {
+    const value = String(text || "").trim();
+    if (!value) {
+      return "";
+    }
+    const last = value[value.length - 1];
+    if ("。！？；…".indexOf(last) >= 0) {
+      return value;
+    }
+    if (last === ".") {
+      return value.slice(0, -1) + "。";
+    }
+    if (last === "?") {
+      return value.slice(0, -1) + "？";
+    }
+    if (last === "!") {
+      return value.slice(0, -1) + "！";
+    }
+    if (last === ";") {
+      return value.slice(0, -1) + "；";
+    }
+    return value + "。";
+  }
+
   function isMarkPage() {
     return (
       location.hostname === "mark.aishelltech.com" &&
@@ -194,6 +222,11 @@
   function getCurrentInputValue() {
     const input = document.querySelector(".mark-area input.el-input__inner[type='text']");
     return input instanceof HTMLInputElement ? normalizeText(input.value) : "";
+  }
+
+  function getTextInput() {
+    const input = document.querySelector(".mark-area input.el-input__inner[type='text']");
+    return input instanceof HTMLInputElement ? input : null;
   }
 
   function getReferenceTextFromDom() {
@@ -460,11 +493,42 @@
       syncRouteKey();
     }
 
+    function canFillPageText() {
+      return getTextInput() instanceof HTMLInputElement;
+    }
+
+    function fillPageText(text) {
+      const input = getTextInput();
+      if (!(input instanceof HTMLInputElement)) {
+        return {
+          ok: false,
+          message: "当前页面没有定位到可编辑文本框。",
+        };
+      }
+      const nextValue = ensureChineseSentencePunctuation(removeTextSpaces(text));
+      if (!nextValue) {
+        return {
+          ok: false,
+          message: "没有可填入的推荐文本。",
+        };
+      }
+      input.focus();
+      input.value = nextValue;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      return {
+        ok: true,
+        message: "已填入当前条文本框，请人工复核后决定是否保存。",
+      };
+    }
+
     function stop() {
       clearRouteCache();
     }
 
     return {
+      canFillPageText,
+      fillPageText,
       getBatchTasksFromCurrentSelection,
       getCurrentItem,
       getItemByIndex,
@@ -479,11 +543,13 @@
 
   const api = {
     createRuntime,
+    ensureChineseSentencePunctuation,
     extractAuthTokenFromUnknown,
     findAuthTokenInEntries,
     isMarkPage,
     parseRouteParams,
     readStorageEntries,
+    removeTextSpaces,
   };
 
   if (typeof module !== "undefined" && module.exports) {
