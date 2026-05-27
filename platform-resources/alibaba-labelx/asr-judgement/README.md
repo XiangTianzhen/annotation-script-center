@@ -14,9 +14,21 @@ extension/sites/alibaba-labelx/asr-judgement/
 
 - `page-structure/`：快判详情页、标注首页、审核首页 DOM 结构和代表性 HTML 片段。
 - `network/`：LabelX 快判相关请求采集，包含详情页 data、首页 tasks / subTasks、保存、提交、领取、释放等接口记录。
-- `ai/`：快判 AI 半自动建议规则资料，包含规则压缩版、prompt 模板和 few-shot 示例。
-- `backend/`：快判统计上传本地 Node 调试服务，按分包 ID 合并 CSV 宽表，并提供统计接口、CSV 下载接口和数据契约说明。
+- `ai/`：快判 AI framework adapter 与后续资产目录；当前已新增 `adapter.js` / `adapter.test.js`，Prompt 与规则资产仍暂存于 `backend/ai/`。
+- `data/`：后续脚本级下载脚本、字段映射、供应商样例与脱敏样例目录。
+- `backend/`：快判统计上传本地 Node 调试服务，并保留当前 AI health/defaults/suggest 业务层与现有规则资产。
 - `unfinished.md`：未完成能力、风险点和后续验证条件。
+
+## AI framework 桥接状态（2026-05-28）
+
+- `POST /api/alibaba-labelx/asr-judgement/ai/suggest` 已改为通过 `platform-resources/backend/ai-framework/` route factory 驱动。
+- `platform-resources/alibaba-labelx/asr-judgement/ai/adapter.js` 负责：
+  - 请求映射到统一输入契约
+  - 旧 success / error body 兼容
+  - 快判建议结果暴露给 framework 的脚本级结果通道
+- `platform-resources/alibaba-labelx/asr-judgement/backend/ai-suggest-request.js` 负责 AI 请求归一、AI 参数清洗与脱敏错误辅助函数，供 adapter 与业务层共用。
+- `GET /api/alibaba-labelx/asr-judgement/ai/health` 与 `GET /api/alibaba-labelx/asr-judgement/ai/defaults` 当前保持原有返回语义，本轮先做桥接式迁移。
+- 统计上传、existing 检查、suppliers、download 与 CSV 落盘链路本轮不动，仍保留在 `backend/`。
 
 ## 当前已迁移资料
 

@@ -1,22 +1,21 @@
 "use strict";
 
 const { sendJson } = require("../../../backend/response");
+const { createAiRoute } = require("../../../backend/ai-framework");
+const judgementAdapter = require("../ai/adapter");
 const {
   DEFAULT_REQUEST_PARAMS,
   DEFAULT_COMPARE_MODEL,
   DEFAULT_LISTEN_MODEL,
-  SUPPORTED_REQUEST_PARAMS,
   getClientConfig,
   requestCompare,
   requestListen,
-  sanitizeModelName,
 } = require("./ai-client-qwen");
 const {
   buildComparePrompt,
   buildListenPrompt,
   loadCompareTemplateText,
   loadListenTemplateText,
-  RULE_VERSION,
 } = require("./ai-prompt");
 const {
   buildSuggestResponse,
@@ -24,16 +23,23 @@ const {
   normalizeListenResponse,
   parseModelJsonText,
 } = require("./ai-response-schema");
+const {
+  DEFAULT_RULE_VERSION,
+  JUDGEMENT_AI_SUPPORTED_PARAMS,
+  SCRIPT_ID,
+  createHttpError,
+  normalizeSuggestRequest,
+  normalizeText,
+  parseAudioHostname,
+  sanitizeLogSummary,
+} = require("./ai-suggest-request");
 
 const AI_BASE_PATH = "/api/alibaba-labelx/asr-judgement/ai";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = AI_BASE_PATH + "/defaults";
 const AI_SUGGEST_PATH = AI_BASE_PATH + "/suggest";
-const DEFAULT_RULE_VERSION = RULE_VERSION;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
-const JUDGEMENT_AI_SUPPORTED_PARAMS = Object.assign({}, SUPPORTED_REQUEST_PARAMS, {
-  response_format: false,
-});
+const SERVICE_NAME = "asr-judgement-ai";
 
 function createRequestId() {
   const now = new Date();
@@ -47,293 +53,11 @@ function createRequestId() {
   return String(yyyy) + mm + dd + "-" + hh + mi + ss + "-" + suffix;
 }
 
-function readRequestBody(request) {
-  return new Promise(function (resolve, reject) {
-    let body = "";
-    request.on("data", function (chunk) {
-      body += chunk;
-      if (Buffer.byteLength(body, "utf8") > MAX_BODY_BYTES) {
-        const tooLargeError = new Error("请求体超过 2MB。");
-        tooLargeError.statusCode = 413;
-        tooLargeError.code = "payload-too-large";
-        reject(tooLargeError);
-        request.destroy();
-      }
-    });
-    request.on("end", function () {
-      resolve(body);
-    });
-    request.on("error", reject);
-  });
-}
-
-function createHttpError(statusCode, message, code) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.code = code || "";
-  return error;
-}
-
-function parseAudioHostname(audioUrl) {
-  try {
-    return new URL(audioUrl).hostname || "";
-  } catch (error) {
-    return "";
-  }
-}
-
-function isHttpUrl(value) {
-  try {
-    const url = new URL(String(value || ""));
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch (error) {
-    return false;
-  }
-}
-
-function normalizeBoolean(value, fallback) {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  if (value === "1" || value === 1) {
-    return true;
-  }
-  if (value === "0" || value === 0) {
-    return false;
-  }
-  return fallback === true;
-}
-
-function normalizeContextText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim().slice(0, 1200);
-}
-
-function normalizePromptText(value) {
-  return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, 8000);
-}
-
-function normalizeNumberInRange(value, min, max) {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) {
-    return null;
-  }
-  if (numericValue < min || numericValue > max) {
-    return null;
-  }
-  return numericValue;
-}
-
-function normalizeIntegerInRange(value, min, max) {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) {
-    return null;
-  }
-  const normalizedValue = Math.floor(numericValue);
-  if (normalizedValue < min || normalizedValue > max) {
-    return null;
-  }
-  return normalizedValue;
-}
-
-function normalizeStopSequences(value) {
-  if (Array.isArray(value)) {
-    return value
-      .map(function (item) {
-        return String(item || "").trim().slice(0, 80);
-      })
-      .filter(Boolean)
-      .slice(0, 8);
-  }
-  if (typeof value === "string") {
-    return value
-      .split(/\r?\n/)
-      .map(function (item) {
-        return String(item || "").trim().slice(0, 80);
-      })
-      .filter(Boolean)
-      .slice(0, 8);
-  }
-  return [];
-}
-
-function normalizeAiOptions(source, supportedParams) {
-  const payload = source && typeof source === "object" ? source : {};
-  const normalized = {};
-  const listenPrompt = normalizePromptText(payload.listenPrompt);
-  const comparePrompt = normalizePromptText(payload.comparePrompt);
-  const listenModel = sanitizeModelName(payload.listenModel, "");
-  const compareModel = sanitizeModelName(payload.compareModel, "");
-  if (listenPrompt) {
-    normalized.listenPrompt = listenPrompt;
-  }
-  if (comparePrompt) {
-    normalized.comparePrompt = comparePrompt;
-  }
-  if (listenModel) {
-    normalized.listenModel = listenModel;
-  }
-  if (compareModel) {
-    normalized.compareModel = compareModel;
-  }
-
-  if (supportedParams.temperature === true) {
-    const value = normalizeNumberInRange(payload.temperature, 0, 2);
-    if (value !== null) {
-      normalized.temperature = value;
-    }
-  }
-  if (supportedParams.top_p === true) {
-    const value = normalizeNumberInRange(payload.top_p, 0, 1);
-    if (value !== null) {
-      normalized.top_p = value;
-    }
-  }
-  if (supportedParams.max_tokens === true) {
-    const value = normalizeIntegerInRange(payload.max_tokens, 1, 8192);
-    if (value !== null) {
-      normalized.max_tokens = value;
-    }
-  }
-  if (supportedParams.max_completion_tokens === true) {
-    const value = normalizeIntegerInRange(payload.max_completion_tokens, 1, 8192);
-    if (value !== null) {
-      normalized.max_completion_tokens = value;
-    }
-  }
-  if (supportedParams.presence_penalty === true) {
-    const value = normalizeNumberInRange(payload.presence_penalty, -2, 2);
-    if (value !== null) {
-      normalized.presence_penalty = value;
-    }
-  }
-  if (supportedParams.frequency_penalty === true) {
-    const value = normalizeNumberInRange(payload.frequency_penalty, -2, 2);
-    if (value !== null) {
-      normalized.frequency_penalty = value;
-    }
-  }
-  if (supportedParams.seed === true) {
-    const value = normalizeIntegerInRange(payload.seed, 0, 2147483647);
-    if (value !== null) {
-      normalized.seed = value;
-    }
-  }
-  if (supportedParams.stop === true) {
-    const stop = normalizeStopSequences(payload.stop);
-    if (stop.length > 0) {
-      normalized.stop = stop;
-    }
-  }
-  if (supportedParams.enable_thinking === true && typeof payload.enable_thinking === "boolean") {
-    normalized.enable_thinking = payload.enable_thinking === true;
-  }
-  if (supportedParams.web_search === true && typeof payload.webSearchEnabled === "boolean") {
-    normalized.webSearchEnabled = payload.webSearchEnabled === true;
-  }
-  return normalized;
-}
-
-function normalizeSuggestRequest(body) {
-  const source = body && typeof body === "object" ? body : {};
+function buildHealthResponse() {
   const config = getClientConfig();
-  const aiOptions = normalizeAiOptions(source.aiOptions, JUDGEMENT_AI_SUPPORTED_PARAMS);
-  const projectId = String(source.projectId || "").trim();
-  const subTaskId = String(source.subTaskId || "").trim();
-  const itemId = String(source.itemId || "").trim();
-  const audioUrl = String(source.audioUrl || "").trim();
-  const asrText1 = String(source.asrText1 || "").trim();
-  const asrText2 = String(source.asrText2 || "").trim();
-  const contextText = normalizeContextText(source.contextText);
-  const contextAvailable = contextText.length > 0;
-  const includeContext = contextAvailable
-    ? normalizeBoolean(source.includeContext, true)
-    : false;
-  const ruleVersion = String(source.ruleVersion || DEFAULT_RULE_VERSION).trim();
-  const clientVersion = String(source.clientVersion || "").trim();
-  const rawItemIndex = source.itemIndex;
-  const itemIndex =
-    rawItemIndex === undefined || rawItemIndex === null || rawItemIndex === ""
-      ? 0
-      : Number(rawItemIndex);
-  const requestedListenModel = sanitizeModelName(aiOptions.listenModel || source.listenModel, "");
-  const requestedCompareModel = sanitizeModelName(
-    aiOptions.compareModel || source.compareModel || source.model,
-    ""
-  );
-  const listenModel = config.allowClientModelOverride
-    ? sanitizeModelName(requestedListenModel, config.listenModel)
-    : sanitizeModelName(config.listenModel, DEFAULT_LISTEN_MODEL);
-  const compareModel = config.allowClientModelOverride
-    ? sanitizeModelName(
-        requestedCompareModel,
-        config.compareModel || config.legacyModel || DEFAULT_COMPARE_MODEL
-      )
-    : sanitizeModelName(
-        config.compareModel || config.legacyModel || DEFAULT_COMPARE_MODEL,
-        DEFAULT_COMPARE_MODEL
-      );
-  const enableThinking = normalizeBoolean(
-    aiOptions.enable_thinking,
-    normalizeBoolean(source.enableThinking, config.enableThinkingDefault === true)
-  );
-  const webSearchEnabled = normalizeBoolean(
-    aiOptions.webSearchEnabled,
-    normalizeBoolean(
-      source.webSearchEnabled,
-      config.webSearchEnabledDefault !== false
-    )
-  );
-
-  if (!projectId) {
-    throw createHttpError(400, "projectId 不能为空。", "invalid-project-id");
-  }
-  if (!subTaskId) {
-    throw createHttpError(400, "subTaskId 不能为空。", "invalid-subtask-id");
-  }
-  if (!isHttpUrl(audioUrl)) {
-    throw createHttpError(400, "audioUrl 必须是 http/https。", "invalid-audio-url");
-  }
-  if (!asrText1 || !asrText2) {
-    throw createHttpError(400, "asrText1/asrText2 不能为空。", "invalid-asr-text");
-  }
-  if (!Number.isFinite(itemIndex)) {
-    throw createHttpError(400, "itemIndex 必须是数字。", "invalid-item-index");
-  }
-
   return {
-    projectId,
-    subTaskId,
-    itemId,
-    itemIndex,
-    audioUrl,
-    asrText1,
-    asrText2,
-    contextText,
-    contextAvailable,
-    includeContext,
-    listenModel: listenModel || DEFAULT_LISTEN_MODEL,
-    compareModel: compareModel || DEFAULT_COMPARE_MODEL,
-    enableThinking,
-    webSearchEnabled,
-    aiOptions,
-    ruleVersion,
-    clientVersion,
-  };
-}
-
-function sanitizeLogSummary(text) {
-  return String(text || "")
-    .replace(/https?:\/\/[^\s"'\\]+/g, "[url-redacted]")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 200);
-}
-
-function sendHealth(response) {
-  const config = getClientConfig();
-  sendJson(response, 200, {
     success: true,
-    service: "asr-judgement-ai",
+    service: SERVICE_NAME,
     provider: "dashscope-qwen",
     listenModel: config.listenModel || DEFAULT_LISTEN_MODEL,
     compareModel: config.compareModel || DEFAULT_COMPARE_MODEL,
@@ -347,15 +71,15 @@ function sendHealth(response) {
     hasApiKey: config.hasApiKey,
     ruleVersion: DEFAULT_RULE_VERSION,
     status: config.hasApiKey || config.mockEnabled ? "ready" : "missing-api-key",
-  });
+  };
 }
 
 function buildDefaultsResponse() {
   const config = getClientConfig();
   return {
     success: true,
-    service: "asr-judgement-ai",
-    scriptId: "judgement",
+    service: SERVICE_NAME,
+    scriptId: SCRIPT_ID,
     component: "asr-voice-ai",
     defaults: {
       listenModel: config.listenModel || DEFAULT_LISTEN_MODEL,
@@ -384,24 +108,16 @@ function buildDefaultsResponse() {
   };
 }
 
-async function handleSuggest(request, response) {
+async function suggestRequest(body, requestId) {
   const startedAtMs = Date.now();
-  let suggestRequest = null;
-  let requestId = createRequestId();
+  let normalizedRequest = null;
   let listenDurationMs = 0;
   let compareDurationMs = 0;
+  requestId = normalizeText(body?.requestId || requestId) || createRequestId();
 
   try {
-    const rawBody = await readRequestBody(request);
-    let body = {};
-    try {
-      body = JSON.parse(rawBody || "{}");
-    } catch (error) {
-      throw createHttpError(400, "请求体 JSON 解析失败。", "invalid-json");
-    }
-
-    suggestRequest = normalizeSuggestRequest(body);
-    requestId = String(body.requestId || requestId);
+    const rawBody = body && typeof body === "object" ? body : {};
+    normalizedRequest = normalizeSuggestRequest(rawBody);
     const config = getClientConfig();
     if (!config.hasApiKey && !config.mockEnabled) {
       throw createHttpError(
@@ -411,36 +127,36 @@ async function handleSuggest(request, response) {
       );
     }
 
-    const hostname = parseAudioHostname(suggestRequest.audioUrl);
+    const hostname = parseAudioHostname(normalizedRequest.audioUrl);
     const timeoutMs = Math.max(1000, Number(config.timeoutMs || 120000));
 
     console.info("[ASR Judgement][ai] suggest start", {
       requestId,
       hostname,
-      itemIndex: suggestRequest.itemIndex,
-      listenModel: suggestRequest.listenModel,
-      compareModel: suggestRequest.compareModel,
-      includeContext: suggestRequest.includeContext === true,
-      contextLength: suggestRequest.contextText.length,
-      webSearchEnabled: suggestRequest.webSearchEnabled === true,
+      itemIndex: normalizedRequest.itemIndex,
+      listenModel: normalizedRequest.listenModel,
+      compareModel: normalizedRequest.compareModel,
+      includeContext: normalizedRequest.includeContext === true,
+      contextLength: normalizedRequest.contextText.length,
+      webSearchEnabled: normalizedRequest.webSearchEnabled === true,
     });
 
     console.info("[ASR Judgement][ai] listen start", {
       requestId,
       hostname,
-      itemIndex: suggestRequest.itemIndex,
-      listenModel: suggestRequest.listenModel,
+      itemIndex: normalizedRequest.itemIndex,
+      listenModel: normalizedRequest.listenModel,
     });
-    const listenPrompt = buildListenPrompt(suggestRequest);
+    const listenPrompt = buildListenPrompt(normalizedRequest);
     const listenStartedAtMs = Date.now();
-    const listenResult = await requestListen(suggestRequest, listenPrompt, {
-      model: suggestRequest.listenModel,
+    const listenResult = await requestListen(normalizedRequest, listenPrompt, {
+      model: normalizedRequest.listenModel,
       timeoutMs: timeoutMs,
       requestId,
       hostname,
-      itemIndex: suggestRequest.itemIndex,
-      enableThinking: suggestRequest.enableThinking,
-      aiOptions: suggestRequest.aiOptions,
+      itemIndex: normalizedRequest.itemIndex,
+      enableThinking: normalizedRequest.enableThinking,
+      aiOptions: normalizedRequest.aiOptions,
     });
     listenDurationMs = Math.max(0, Date.now() - listenStartedAtMs);
     const listenJson = parseModelJsonText(listenResult.rawText, requestId);
@@ -448,7 +164,7 @@ async function handleSuggest(request, response) {
     console.info("[ASR Judgement][ai] listen success", {
       requestId,
       hostname,
-      itemIndex: suggestRequest.itemIndex,
+      itemIndex: normalizedRequest.itemIndex,
       listenModel: listenResult.model,
       durationMs: listenDurationMs,
       providerStatus: Number(listenResult.providerStatus || 0),
@@ -460,41 +176,41 @@ async function handleSuggest(request, response) {
     console.info("[ASR Judgement][ai] compare start", {
       requestId,
       hostname,
-      itemIndex: suggestRequest.itemIndex,
-      compareModel: suggestRequest.compareModel,
-      includeContext: suggestRequest.includeContext === true,
-      contextLength: suggestRequest.contextText.length,
-      webSearchEnabled: suggestRequest.webSearchEnabled === true,
+      itemIndex: normalizedRequest.itemIndex,
+      compareModel: normalizedRequest.compareModel,
+      includeContext: normalizedRequest.includeContext === true,
+      contextLength: normalizedRequest.contextText.length,
+      webSearchEnabled: normalizedRequest.webSearchEnabled === true,
     });
-    const comparePrompt = buildComparePrompt(suggestRequest, normalizedListen);
+    const comparePrompt = buildComparePrompt(normalizedRequest, normalizedListen);
     const compareStartedAtMs = Date.now();
     const compareResult = await requestCompare(
-      Object.assign({}, suggestRequest, {
+      Object.assign({}, normalizedRequest, {
         heardText: normalizedListen.heardText,
       }),
       comparePrompt,
       {
-        model: suggestRequest.compareModel,
+        model: normalizedRequest.compareModel,
         timeoutMs: timeoutMs,
         requestId,
         hostname,
-        itemIndex: suggestRequest.itemIndex,
-        enableThinking: suggestRequest.enableThinking,
-        webSearchEnabled: suggestRequest.webSearchEnabled === true,
-        aiOptions: suggestRequest.aiOptions,
+        itemIndex: normalizedRequest.itemIndex,
+        enableThinking: normalizedRequest.enableThinking,
+        webSearchEnabled: normalizedRequest.webSearchEnabled === true,
+        aiOptions: normalizedRequest.aiOptions,
       }
     );
     compareDurationMs = Math.max(0, Date.now() - compareStartedAtMs);
     const compareJson = parseModelJsonText(compareResult.rawText, requestId);
     const normalizedCompare = normalizeCompareResponse(compareJson, {
-      contextAvailable: suggestRequest.contextAvailable,
-      contextIncluded: suggestRequest.includeContext,
+      contextAvailable: normalizedRequest.contextAvailable,
+      contextIncluded: normalizedRequest.includeContext,
       heardText: normalizedListen.heardText,
     });
     console.info("[ASR Judgement][ai] compare success", {
       requestId,
       hostname,
-      itemIndex: suggestRequest.itemIndex,
+      itemIndex: normalizedRequest.itemIndex,
       compareModel: compareResult.model,
       durationMs: compareDurationMs,
       providerStatus: Number(compareResult.providerStatus || 0),
@@ -510,8 +226,8 @@ async function handleSuggest(request, response) {
     const responseData = buildSuggestResponse({
       requestId: requestId,
       request: {
-        contextAvailable: suggestRequest.contextAvailable,
-        contextIncluded: suggestRequest.includeContext,
+        contextAvailable: normalizedRequest.contextAvailable,
+        contextIncluded: normalizedRequest.includeContext,
       },
       listen: normalizedListen,
       compare: normalizedCompare,
@@ -523,29 +239,29 @@ async function handleSuggest(request, response) {
       compareDurationMs: compareDurationMs,
       totalDurationMs: totalDurationMs,
       thinking: {
-        requested: suggestRequest.enableThinking === true,
+        requested: normalizedRequest.enableThinking === true,
         listenFallbackUsed: listenResult.thinkingFallbackUsed === true,
         compareFallbackUsed: compareResult.thinkingFallbackUsed === true,
       },
       webSearch: {
-        enabled: suggestRequest.webSearchEnabled === true,
+        enabled: normalizedRequest.webSearchEnabled === true,
         used: compareResult.webSearchUsed === true,
         fallbackUsed: compareResult.webSearchFallbackUsed === true,
         fallbackReason: String(compareResult.webSearchFallbackReason || ""),
       },
-      ruleVersion: suggestRequest.ruleVersion || DEFAULT_RULE_VERSION,
+      ruleVersion: normalizedRequest.ruleVersion || DEFAULT_RULE_VERSION,
       mock: Boolean(config.mockEnabled || listenResult.mock || compareResult.mock),
     });
 
     console.info("[ASR Judgement][ai] suggest success", {
       requestId,
       hostname,
-      itemIndex: suggestRequest.itemIndex,
+      itemIndex: normalizedRequest.itemIndex,
       listenModel: listenResult.model,
       compareModel: compareResult.model,
-      includeContext: suggestRequest.includeContext === true,
-      contextLength: suggestRequest.contextText.length,
-      webSearchEnabled: suggestRequest.webSearchEnabled === true,
+      includeContext: normalizedRequest.includeContext === true,
+      contextLength: normalizedRequest.contextText.length,
+      webSearchEnabled: normalizedRequest.webSearchEnabled === true,
       webSearchUsed: compareResult.webSearchUsed === true,
       webSearchFallbackUsed: compareResult.webSearchFallbackUsed === true,
       durationMs: totalDurationMs,
@@ -556,56 +272,70 @@ async function handleSuggest(request, response) {
       summary: "answer=" + String(responseData.answer || ""),
     });
 
-    sendJson(response, 200, {
-      success: true,
-      data: responseData,
-    });
+    return responseData;
   } catch (error) {
     const statusCode = Number(error?.statusCode) || (error?.code === "timeout" ? 504 : 500);
     const providerStatus = Number(error?.providerStatus || error?.statusCode || 0) || undefined;
     const code = String(error?.code || "internal-error");
     const message = String(error?.message || "AI suggest 请求失败。").slice(0, 240);
     const summaryText = sanitizeLogSummary(error?.summary || message);
-    const responseBody = {
-      success: false,
-      requestId,
-      code,
-      message,
-    };
-    if (providerStatus) {
-      responseBody.providerStatus = providerStatus;
-    }
-    if (summaryText) {
-      responseBody.summary = summaryText;
-    }
 
     console.info("[ASR Judgement][ai] suggest failed", {
       requestId,
-      hostname: parseAudioHostname(suggestRequest?.audioUrl || ""),
-      itemIndex: Number(suggestRequest?.itemIndex || 0),
-      listenModel: String(suggestRequest?.listenModel || ""),
-      compareModel: String(suggestRequest?.compareModel || ""),
-      includeContext: suggestRequest?.includeContext === true,
-      contextLength: Number(suggestRequest?.contextText?.length || 0),
-      webSearchEnabled: suggestRequest?.webSearchEnabled === true,
+      hostname: parseAudioHostname(normalizedRequest?.audioUrl || ""),
+      itemIndex: Number(normalizedRequest?.itemIndex || 0),
+      listenModel: String(normalizedRequest?.listenModel || ""),
+      compareModel: String(normalizedRequest?.compareModel || ""),
+      includeContext: normalizedRequest?.includeContext === true,
+      contextLength: Number(normalizedRequest?.contextText?.length || 0),
+      webSearchEnabled: normalizedRequest?.webSearchEnabled === true,
       durationMs: Math.max(0, Date.now() - startedAtMs),
       providerStatus: Number(providerStatus || 0),
       errorCode: code,
       summary: summaryText || "ai suggest failed",
     });
-    sendJson(response, statusCode, responseBody);
+
+    const propagatedError =
+      error instanceof Error ? error : new Error(message || "AI suggest 请求失败。");
+    propagatedError.statusCode = statusCode;
+    propagatedError.requestId = requestId;
+    propagatedError.code = code;
+    propagatedError.message = message;
+    if (providerStatus) {
+      propagatedError.providerStatus = providerStatus;
+    }
+    if (summaryText) {
+      propagatedError.summary = summaryText;
+    }
+    throw propagatedError;
   }
 }
 
+const handleSuggest = createAiRoute(judgementAdapter, {
+  maxBodyBytes: MAX_BODY_BYTES,
+  run(context) {
+    const requestId =
+      normalizeText(context?.runtimeContext?.rawBody?.requestId) || createRequestId();
+    const body = context?.runtimeContext?.rawBody || {};
+    return suggestRequest(body, requestId);
+  },
+  createSuccessBody(context) {
+    return judgementAdapter.buildSuggestSuccessBody(context);
+  },
+  createErrorBody(context) {
+    return judgementAdapter.buildSuggestErrorBody(context);
+  },
+});
+
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
-    sendHealth(response);
+    sendJson(response, 200, buildHealthResponse());
   });
   router.get(AI_DEFAULTS_PATH, function ({ response }) {
     sendJson(response, 200, buildDefaultsResponse());
   });
-  router.post(AI_SUGGEST_PATH, function ({ request, response }) {
-    return handleSuggest(request, response);
+  router.post(AI_SUGGEST_PATH, function (routeContext) {
+    return handleSuggest(routeContext);
   });
 }
 
@@ -618,4 +348,5 @@ module.exports = {
   handleSuggest,
   normalizeSuggestRequest,
   registerAiRoutes,
+  suggestRequest,
 };
