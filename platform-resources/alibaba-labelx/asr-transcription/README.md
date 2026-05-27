@@ -16,6 +16,12 @@
   - `platform-resources/alibaba-labelx/asr-transcription/backend/ai-suggest-request.js` 负责 AI 请求归一，与 adapter 共用。
   - 统计上传、CSV 合并、下载与 suppliers 相关逻辑仍保留在 `backend/`，本轮不动。
   - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health` 与 `GET /api/alibaba-labelx/asr-transcription/ai/defaults` 当前仍保留旧实现。
+- 下载链路共享 core 状态（2026-05-28）：
+  - `GET/HEAD /api/alibaba-labelx/asr-transcription/statistics/download`
+  - `GET /api/alibaba-labelx/asr-transcription/statistics/suppliers`
+  - `POST /api/alibaba-labelx/asr-transcription/statistics/existing`
+  - 以上 3 条链路已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core。
+  - 当前转写脚本级差异已收口到 `platform-resources/alibaba-labelx/asr-transcription/data/adapter.js`。
 
 ## 当前业务口径（与扩展运行时一致）
 
@@ -50,9 +56,9 @@
 - `runtime-config.js`：启用状态与固定默认值。
 - `transcription-stats-client.js`：浏览器端统计上传客户端，只做采集、上传、按钮和定时调度，不做 CSV 落盘。
 - `shortcut-bus.js`：浏览器端转写快捷键运行时，只调当前保留动作，不引入保存/提交/AI/批量动作。
-- `backend/`：Node 后端统计服务，负责 health/config/upload/download、分包合并、CSV 写入与下载。
+- `backend/`：Node 后端统计服务；上传、合并与 CSV 写入仍在本目录，下载 / suppliers / existing 已开始复用统一 LabelX 下载 core。
 - `ai/`：统一 AI framework adapter 与后续 AI 资产目录。
-- `data/`：后续脚本级数据脚本、字段映射与脱敏样例目录。
+- `data/`：脚本级数据 adapter 目录；当前已新增 `adapter.js`，负责转写下载 / existing 的项目差异。
 - `active-item.js`：当前题定位。
 - `item-actions.js`：当前题动作。
 - `audio-controller.js`：当前音频动作。

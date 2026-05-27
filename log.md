@@ -1,3 +1,22 @@
+## 2026-05-28（Alibaba LabelX 转写下载链路接入共享 core 第一块）
+
+- 新增 `platform-resources/backend/project-data-download/labelx-download-core.js`：
+  - 抽出 LabelX 转写/快判共用的下载文件名、响应头、供应商过滤和 `GET/HEAD /download` 主流程。
+- 新增 `platform-resources/backend/project-data-download/labelx-existing-core.js`：
+  - 抽出 LabelX 转写/快判共用的 `existing` 分包分组与响应组装流程。
+- 新增测试：
+  - `platform-resources/backend/project-data-download/__tests__/labelx-download-core.test.js`
+  - `platform-resources/backend/project-data-download/__tests__/labelx-existing-core.test.js`
+- 新增 `platform-resources/alibaba-labelx/asr-transcription/data/adapter.js`：
+  - 收口转写下载 / existing 的脚本级差异。
+- 新增 `platform-resources/alibaba-labelx/asr-transcription/data/adapter.test.js`：
+  - 固定按角色选 row、`complete` 判定和元数据导出行为。
+- 更新 `platform-resources/alibaba-labelx/asr-transcription/backend/routes.js`：
+  - `download / suppliers / existing` 改为通过共享 LabelX 下载 core 驱动。
+  - 外部 API path 保持不变。
+- 更新转写 README、后端 README、统一后端 README：
+  - 明确当前只统一内部下载实现，不改对外下载入口。
+
 ## 2026-05-28（Aishell Tech 闽南语助手独立全量接入）
 
 - 新增 `extension/sites/aishell-tech/minnan-helper/` 运行时代码：

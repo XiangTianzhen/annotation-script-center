@@ -234,12 +234,12 @@ pm2 restart annotation-script-center --update-env
 - `config.js`：统一后端 host / port 配置。
 - `ai-framework/`：统一 AI 框架骨架，提供公共 request/response 契约、route 工厂、资产 loader、pipeline 执行器和 adapter 注册表。
 - `ai/`：统一 AI 基座，放公共 provider、限流队列、缓存、脱敏与 Python 辅助脚本。
-- `project-data-download/`：统一“项目数据下载”聚合模块（options/request/file、token、审计、CSV 筛选）。
+- `project-data-download/`：统一“项目数据下载”聚合模块（options/request/file、token、审计、CSV 筛选），并开始承载 LabelX 共享下载 core（`labelx-download-core.js`、`labelx-existing-core.js`）。
 
 ## 当前已注册 API
 
 - `alibaba-labelx/asr-judgement`：快判统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载，以及 AI 建议 `health/suggest` 接口。
-- `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。
+- `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。当前下载 / suppliers / existing 已开始复用 `project-data-download/` 下的 LabelX 共享 core，外部 path 保持不变。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`、历史兼容 jobs，以及导出 CSV `health/config/upload/download` 接口；当前前端先选“识别模式”，`two_stage` 显示“听音模型 + 比较模型”，`omni_single` 只显示“AI 模型”。后端再派发到 Fun-ASR REST 当前链路，或 `qwen3.5-omni-flash / qwen3.5-omni-plus` 的 Omni legacy 快速路径；导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。
 - `data-baker/round-one-quality` 的 `supportedPipelineModes` 仅保留给后端兼容与排查使用，不再作为前端主配置来源；前端主配置为 `listenModelOptions` 与 `compareModelOptions`。
 - DataBaker `fun-asr` 链路默认通过 `platform-resources/backend/ai/providers/funasr-rest.js` 走 Node REST 异步任务提交 / 轮询；仅显式切到 `provider=python` 或 `fallback=python` 时才会调用 `platform-resources/backend/ai/python/funasr_client.py`。
@@ -285,7 +285,7 @@ Aishell Tech AI 接口：
 
 ASR 转写职责边界：
 - 扩展前端客户端：`extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只负责采集、上传、按钮和调度。
-- Node 后端服务：`platform-resources/alibaba-labelx/asr-transcription/backend/`，负责路由、合并、CSV 写入与下载。
+- Node 后端服务：`platform-resources/alibaba-labelx/asr-transcription/backend/`，负责路由、合并、CSV 写入与上传；下载 / suppliers / existing 已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享 core。
 - 转写 AI 推荐接口：
   - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health`
   - `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current`
