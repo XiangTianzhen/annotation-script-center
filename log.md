@@ -1,3 +1,23 @@
+## 2026-05-28（Alibaba LabelX 转写接入 AI framework 桥接层）
+
+- 新增 `platform-resources/alibaba-labelx/asr-transcription/ai/adapter.js`：
+  - 把转写 `suggest-current` 请求映射到统一 `ai-framework` 输入契约。
+  - 保留旧成功/失败响应结构，避免前端同步改契约。
+- 新增 `platform-resources/alibaba-labelx/asr-transcription/ai/adapter.test.js`：
+  - 固定 `normalizeInput`、legacy success body、legacy error body 三个桥接行为。
+- 新增目录说明：
+  - `platform-resources/alibaba-labelx/asr-transcription/ai/assets/README.md`
+  - `platform-resources/alibaba-labelx/asr-transcription/data/README.md`
+- 新增 `platform-resources/alibaba-labelx/asr-transcription/backend/ai-suggest-request.js`：
+  - 抽出转写 AI 请求归一、AI 参数清洗和脱敏错误辅助函数，供 adapter 与业务层共用。
+- 更新 `platform-resources/alibaba-labelx/asr-transcription/backend/ai-routes.js`：
+  - `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current` 改为通过统一 `ai-framework` route factory 驱动。
+  - 对外继续保持 `success + data` 与原错误结构兼容。
+  - `health/defaults` 保持原实现，本轮先做桥接式迁移。
+- 更新转写 README 与后端 README：
+  - 明确当前只迁移 AI 推荐主链路。
+  - 统计上传、CSV 合并、下载与 suppliers 逻辑仍保留在 `backend/`。
+
 ## 2026-05-28（Abaka AI Task21 接入 AI framework 桥接层）
 
 - 新增 `platform-resources/abaka-ai/task21/ai/adapter.js`：

@@ -10,6 +10,12 @@
 - 工具栏已改为页面内注入：优先 `.mark-toolbox`，找不到时回退到首条题卡前，不再默认顶部固定悬浮。
 - 新增“转写统计导出”链路：复用快判上传架构口径，独立后端目录与独立 CSV 列；统计上传与定时上传运行时强制启用。
 - 当前版本保持 `0.2.11`，本轮为 0.2.11 修正增强，不升级 `0.2.12`。
+- AI 后端桥接迁移状态（2026-05-28）：
+  - `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current` 已改为通过 `platform-resources/backend/ai-framework/` route factory 驱动。
+  - `platform-resources/alibaba-labelx/asr-transcription/ai/adapter.js` 负责请求映射与旧响应结构兼容。
+  - `platform-resources/alibaba-labelx/asr-transcription/backend/ai-suggest-request.js` 负责 AI 请求归一，与 adapter 共用。
+  - 统计上传、CSV 合并、下载与 suppliers 相关逻辑仍保留在 `backend/`，本轮不动。
+  - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health` 与 `GET /api/alibaba-labelx/asr-transcription/ai/defaults` 当前仍保留旧实现。
 
 ## 当前业务口径（与扩展运行时一致）
 
@@ -45,6 +51,8 @@
 - `transcription-stats-client.js`：浏览器端统计上传客户端，只做采集、上传、按钮和定时调度，不做 CSV 落盘。
 - `shortcut-bus.js`：浏览器端转写快捷键运行时，只调当前保留动作，不引入保存/提交/AI/批量动作。
 - `backend/`：Node 后端统计服务，负责 health/config/upload/download、分包合并、CSV 写入与下载。
+- `ai/`：统一 AI framework adapter 与后续 AI 资产目录。
+- `data/`：后续脚本级数据脚本、字段映射与脱敏样例目录。
 - `active-item.js`：当前题定位。
 - `item-actions.js`：当前题动作。
 - `audio-controller.js`：当前音频动作。

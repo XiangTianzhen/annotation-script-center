@@ -8,6 +8,18 @@
 当前 `0.2.11` 稳定口径：转写统计内部按“供应商 + 分包ID”合并，主写入根级总表；历史供应商目录仅兼容读取，不作为主输出。
 当前 `0.3.2` 新增“当前题 AI 推荐”接口：只返回辅助推荐，不做自动保存/提交。
 
+## 统一 AI framework 桥接状态
+
+- 当前阶段采用桥接式迁移，不重写转写统计上传和 CSV 合并链路。
+- `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current` 已改为通过 `platform-resources/backend/ai-framework/` route factory 驱动。
+- `platform-resources/alibaba-labelx/asr-transcription/ai/adapter.js` 负责：
+  - 请求映射到统一输入契约
+  - 旧 success / error body 兼容
+  - 转写推荐结果暴露给 framework 的脚本级结果通道
+- `platform-resources/alibaba-labelx/asr-transcription/backend/ai-suggest-request.js` 负责 AI 请求归一、AI 参数清洗与脱敏错误辅助函数，供 adapter 与业务层共用。
+- `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health` 与 `GET /api/alibaba-labelx/asr-transcription/ai/defaults` 当前仍保留旧实现。
+- 统计上传、existing 检查、suppliers、download 与 CSV 落盘链路本轮不动。
+
 ## 默认数据目录
 
 - `platform-resources/alibaba-labelx/asr-transcription/backend/statistics-data/`
@@ -36,6 +48,7 @@
 - `GET /api/alibaba-labelx/asr-transcription/statistics/download`
 - `HEAD /api/alibaba-labelx/asr-transcription/statistics/download`
 - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health`
+- `GET /api/alibaba-labelx/asr-transcription/ai/defaults`
 - `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current`
 
 下载接口默认返回根级总表，不要求 `supplier` 参数；`suppliers` 接口仅作为辅助信息接口。下载文件名统一带 `YYYYMMDD-HHmm`（Asia/Shanghai）。
