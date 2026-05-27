@@ -1,23 +1,21 @@
 ## 2026-05-27（Magic Data 客家话助手：AI 结果繁体字热修）
 
-- `extension/manifest.json` patch 版本提升到 `0.3.7`。
+- 当前版本继续保持 `0.3.7`，本轮不再自动提升版本号。
 - 修复问题：Magic Data ANNOTATOR 的客家话助手 AI 结果区、行内建议与听音相关文本偶发出现繁体字或繁简混合。
 - 根因：
-  - 客家话助手 prompt 虽要求“普通中文统一简体”，但后端返回阶段缺少像 DataBaker / 闽南语助手那样的统一文本收口。
+  - 客家话助手原 prompt 对“必须输出简体”的约束不够硬，模型仍可能返回 `聽講/這個/化學競賽/輔導` 一类普通繁体字。
   - 因此模型一旦返回 `聽講/這個/化學競賽/輔導` 一类普通繁体字，前端会直接展示并填入页面。
-- 后端修复：
-  - `platform-resources/magic-data/hakka-helper/backend/ai-lexicon.js` 新增普通中文繁转简函数，并保护词表 `语料统一用字` 不被覆盖。
-  - `platform-resources/magic-data/hakka-helper/backend/ai-routes.js` 新增 `normalizeResponseTextFields(...)`，在响应出口统一归一：
-    - `dialectTextCheck/mandarinTextCheck`
-    - `audioCheck/listen`
-    - `recommendations/overall`
-    - `comparison`
-    - `recognitionConvert`
-- 回归测试：
-  - 新增 `platform-resources/magic-data/hakka-helper/backend/ai-text-normalization.test.js`
-  - 使用 `node --test platform-resources/magic-data/hakka-helper/backend/ai-text-normalization.test.js` 验证“普通中文转简体 + 客家话统一用字保留”。
+- Prompt 修复：
+  - `platform-resources/magic-data/hakka-helper/backend/ai-prompts.js` 强化 listen / compare / omni / recognition-convert 四条链路的文本约束。
+  - 明确要求所有普通中文字段必须输出简体，禁止输出普通繁体字；只有命中客家话词表统一用字时才保留对应写法。
+  - `RULE_VERSION` 升级为 `magic-data-hakka-helper-ai-review-v2-prompt-simplified-only`，避免旧缓存继续命中旧 prompt 输出。
+- 本地收口回退：
+  - 移除 `platform-resources/magic-data/hakka-helper/backend/ai-routes.js` 中本地响应繁转简逻辑。
+  - 移除 `platform-resources/magic-data/hakka-helper/backend/ai-lexicon.js` 中本地繁转简函数。
+  - 删除 `platform-resources/magic-data/hakka-helper/backend/ai-text-normalization.test.js`。
 - 文档同步：
   - 更新根 README、扩展 README、Magic Data 平台/客家话助手 README、平台索引。
+  - 更新 `AGENTS.md` 与 `docs/rules/project-collaboration-rules.md`：默认保持 `0.3.7`，只有用户明确要求完成当前版本/打包/发布时才提升版本。
 
 ## 2026-05-26（v0.3.6 收尾：Magic Data 双助手规则与文档同步）
 

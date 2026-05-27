@@ -1,16 +1,18 @@
 "use strict";
 
-const RULE_VERSION = "magic-data-hakka-helper-ai-review-v1";
+const RULE_VERSION = "magic-data-hakka-helper-ai-review-v2-prompt-simplified-only";
 const DEFAULT_LISTEN_TEMPLATE = [
   "你是客家话音频辅助检查助手。",
   "听音结果只作为辅助证据，不作为平台文本自动替换依据。",
   "请优先判断音频有效性与风险，并辅助判断说话人属性。",
+  "所有普通中文字段一律输出简体中文，禁止输出普通繁体字；只有命中客家话词表统一用字时才保留该写法。",
   "严格输出 JSON，不输出 Markdown 或额外解释。",
 ].join("\n");
 const DEFAULT_COMPARE_TEMPLATE = [
   "当前任务是客家话三项预测质检，不是直接改写平台文本。",
   "请分别检查：说话人书写（性别/年龄）、客家话内容、普通话文本。",
   "每项必须给出是否正确、平台值、建议值、原因、置信度。",
+  "所有普通中文字段一律输出简体中文，禁止输出普通繁体字；只有命中客家话词表统一用字时才保留该写法。",
   "严格输出 JSON，不输出额外解释。",
 ].join("\n");
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
@@ -24,6 +26,7 @@ const DEFAULT_RECOGNITION_CONVERT_LISTEN_TEMPLATE = [
   "你是客家话音频识别助手。",
   "请先把客家话语音识别为普通话表达，不要直接生成客家话字形。",
   "输出仅用于后续词表转换和三项质检。",
+  "所有普通中文字段一律输出简体中文，禁止输出普通繁体字。",
   "严格输出 JSON，不输出 Markdown 或额外解释。",
 ].join("\n");
 const DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE = [
@@ -31,6 +34,7 @@ const DEFAULT_RECOGNITION_CONVERT_COMPARE_TEMPLATE = [
   "先基于识别到的普通话文本，结合词表和平台上下文，生成建议客家话文本。",
   "命中词表的客家话建议用字优先保留词表写法，不强制繁体。",
   "词表未覆盖时不要强行转换为生僻客家字，可保留稳妥表达并标记待人工复核。",
+  "所有普通中文字段一律输出简体中文，禁止输出普通繁体字；只有命中客家话词表统一用字时才保留该写法。",
   "再检查三项：说话人属性、客家话内容、普通话文本。",
   "严格输出 JSON，不输出 Markdown 或额外解释。",
 ].join("\n");
@@ -73,6 +77,7 @@ function buildListenPrompt(request, lexiconContext) {
     "输出严格 JSON 字段：heardDialectText, heardMandarinMeaning, isValidAudio, validityDecision, invalidReasons, riskFlags, genderGuess, ageRangeGuess, confidence。",
     "validityDecision 只能是 valid|invalid|uncertain。",
     "ageRangeGuess 只能是 0-5|6-12|13-18|19-25|26-36|37-50|51-65|65以上|uncertain。",
+    "heardDialectText 与 heardMandarinMeaning 中的普通中文必须使用简体，禁止输出 這/個/聽/講/說/學/競/賽/輔/導 等普通繁体字。",
   ];
 
   if (lexiconText) {
@@ -124,7 +129,7 @@ function buildComparePrompt(request, listen, lexiconContext) {
     "overall 字段包含：reviewConclusion(pass|need_review|risky|invalid_audio), shouldReview, summary。",
     "heard 字段包含：heardDialectText, heardMandarinMeaning。",
     "不要默认推翻平台文本。没有明显问题时 suggestedValue 应保持与平台值一致。",
-    "普通中文统一简体；命中词表建议用字优先保留。",
+    "普通中文统一简体；禁止输出普通繁体字；命中词表建议用字优先保留。",
     "第二行普通话含义需与方言行含义一致；若无法确认请 shouldReview=true。",
   ];
 
@@ -168,7 +173,8 @@ function buildOmniSinglePrompt(request, lexiconContext) {
     "5. 词表只用于字形选择，不用于无依据改写。",
     "6. 输出字段：speakerCheck / dialectTextCheck / mandarinTextCheck / overall / heard。",
     "7. overall.reviewConclusion 只能是 pass|need_review|risky|invalid_audio。",
-    "8. 只输出 JSON，不输出额外说明。",
+    "8. 所有普通中文字段必须使用简体，禁止输出普通繁体字；只有命中词表统一用字时才保留。",
+    "9. 只输出 JSON，不输出额外说明。",
   ];
 
   if (lexiconText) {
@@ -209,6 +215,7 @@ function buildRecognitionConvertListenPrompt(request, lexiconContext) {
     "validityDecision 只能是 valid|invalid|uncertain。",
     "genderGuess 只能是 男|女|uncertain。",
     "ageRangeGuess 只能是 0-5|6-12|13-18|19-25|26-36|37-50|51-65|65以上|uncertain。",
+    "recognizedMandarinText 必须使用简体中文，禁止输出普通繁体字。",
   ];
   if (lexiconText) {
     promptLines.push("词表上下文（仅辅助理解，不要求在本阶段输出客家话）：", lexiconText);
@@ -250,6 +257,7 @@ function buildRecognitionConvertComparePrompt(request, context) {
     "heard 字段：heardDialectText, heardMandarinMeaning。",
     "同时输出 recognizedMandarinText, convertedDialectText, lexiconMatches, conversionWarnings。",
     "命中词表的客家话建议用字优先保留词表写法，不强制繁体。",
+    "所有普通中文字段必须使用简体中文，禁止输出普通繁体字；只有命中词表统一用字时才保留。",
     "词表找不到对应写法时不要编造冷门客家字，保守输出并在 conversionWarnings 标记 needHumanReview=true。",
     "不要为了更像客家话而无依据改写，普通话文本与客家话文本必须语义一致。",
   ];
