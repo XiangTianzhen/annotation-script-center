@@ -1,3 +1,21 @@
+## 2026-05-28（AI 调用日志实现计划）
+
+- 新增实现计划：
+  - `docs/superpowers/plans/2026-05-28-ai-call-logging-implementation.md`
+- 固定实现顺序：
+  - 前端共享 `ai-usage-meta` 助手
+  - options 首页全局 `AI 调用使用人`
+  - 各平台前端 AI 请求统一拦截与 request meta 注入
+  - `platform-resources/backend/ai-call-log/` 共享日志核心
+  - `ai-framework` 路由层统一校验与日志钩子
+  - DataBaker / Aishell / Magic Data / LabelX / Task21 分块接入
+- 固定实现口径：
+  - 日志按脚本目录按天写 CSV
+  - 公共列最小化，不再复用 DataBaker 旧大宽表
+  - `promptTokens / completionTokens` 为主，`totalTokens` 仅兜底
+  - 默认保留脱敏后的 `rawResponseJson / rawErrorJson`
+  - 项目默认不使用 mock，日志实现不围绕 mock 展开
+
 ## 2026-05-28（AI 调用日志统一记录设计文档）
 
 - 新增设计文档：
