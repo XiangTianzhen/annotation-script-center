@@ -7,6 +7,7 @@ const {
   ensureChineseSentencePunctuation,
   extractAuthTokenFromUnknown,
   findAuthTokenInEntries,
+  isSaveCompletionState,
   removeTextSpaces,
 } = require("./data-api.js");
 
@@ -50,4 +51,31 @@ test("removeTextSpaces removes full-width and half-width spaces", function () {
 test("ensureChineseSentencePunctuation appends chinese full stop when missing", function () {
   assert.equal(ensureChineseSentencePunctuation("昨晚去公园散步"), "昨晚去公园散步。");
   assert.equal(ensureChineseSentencePunctuation("昨晚去公园散步？"), "昨晚去公园散步？");
+});
+
+test("isSaveCompletionState returns true when selected index advances", function () {
+  assert.equal(
+    isSaveCompletionState(1, {
+      selectedIndex: 2,
+      previousItemFinished: false,
+    }),
+    true
+  );
+});
+
+test("isSaveCompletionState returns true when previous item becomes finished", function () {
+  assert.equal(
+    isSaveCompletionState(4, {
+      selectedIndex: 4,
+      previousItemFinished: true,
+    }),
+    true
+  );
+  assert.equal(
+    isSaveCompletionState(4, {
+      selectedIndex: 4,
+      previousItemFinished: false,
+    }),
+    false
+  );
 });

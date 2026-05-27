@@ -128,7 +128,7 @@
       title.textContent = "Aishell Tech 闽南语助手";
       const subtitle = document.createElement("div");
       subtitle.className = "asc-subtitle";
-      subtitle.textContent = "悬浮窗版：识别、填入、批量识别与失败反馈。";
+      subtitle.textContent = "悬浮窗版：识别、填入后保存、批量识别后顺序保存。";
       titleWrap.appendChild(title);
       titleWrap.appendChild(subtitle);
 
@@ -301,19 +301,25 @@
           });
       });
 
-      const fillButton = createButton("填入当前条");
+      const fillButton = createButton("填入并保存当前条");
       fillButton.disabled =
         typeof deps.canFillPageText === "function" ? deps.canFillPageText() !== true : true;
       fillButton.addEventListener("click", function () {
-        if (typeof deps.fillPageText !== "function") {
-          setStatus("当前运行时没有填入能力。", "error");
+        if (typeof deps.fillAndSaveCurrent !== "function") {
+          setStatus("当前运行时没有填入并保存能力。", "error");
           return;
         }
-        const fillResult = deps.fillPageText(source.recommendedText || "");
-        setStatus(
-          fillResult?.message || "已填入当前条。",
-          fillResult?.ok === false ? "error" : "success"
-        );
+        setStatus("正在填入并点击页面真实保存...", "info");
+        Promise.resolve(deps.fillAndSaveCurrent(source.recommendedText || ""))
+          .then(function (fillResult) {
+            setStatus(
+              fillResult?.message || "已填入并保存当前条。",
+              fillResult?.ok === false ? "error" : "success"
+            );
+          })
+          .catch(function (error) {
+            setStatus(error?.message || String(error), "error");
+          });
       });
 
       const ignoreButton = createButton("忽略");

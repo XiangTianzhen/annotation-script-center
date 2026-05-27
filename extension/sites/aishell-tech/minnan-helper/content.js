@@ -225,7 +225,7 @@
       onBatchRecommend: handleBatchRecommend,
       onBatchStop: handleBatchStop,
       canFillPageText: dataApi.canFillPageText,
-      fillPageText: dataApi.fillPageText,
+      fillAndSaveCurrent: dataApi.fillAndSaveCurrent,
     });
 
     let mountTimer = null;
@@ -308,17 +308,29 @@
             running: true,
           });
           try {
+            const switchResult = await dataApi.selectItemByIndex(task.index, {
+              timeoutMs: 5000,
+            });
+            if (switchResult?.ok === false) {
+              throw new Error(switchResult.message || "切换批量条目失败。");
+            }
             const item = await dataApi.getItemByIndex(task.index, {
-              includeCurrentInput: false,
+              includeCurrentInput: true,
             });
             if (!item) {
               throw new Error("无法定位批量条目。");
             }
             const result = await aiClient.recommend(item);
             panel.renderResult(result);
+            const saveResult = await dataApi.fillAndSaveCurrent(result.recommendedText || "", {
+              timeoutMs: 15000,
+            });
+            if (saveResult?.ok === false) {
+              throw new Error(saveResult.message || "填入并保存失败。");
+            }
             processedCount += 1;
             panel.updateBatch({
-              phaseText: "已完成当前条",
+              phaseText: "已识别并保存",
               total: tasks.length,
               completed: processedCount,
               failed: failures.length,

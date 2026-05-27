@@ -274,6 +274,22 @@
     return selectedIndex >= 0 ? selectedIndex : items.length > 0 ? 0 : -1;
   }
 
+  function getSaveButton() {
+    return (
+      Array.from(document.querySelectorAll(".mark-area button.el-button--primary")).find(
+        function (button) {
+          return button instanceof HTMLButtonElement && normalizeText(button.textContent || "") === "保存";
+        }
+      ) || null
+    );
+  }
+
+  function sleep(ms) {
+    return new Promise(function (resolve) {
+      window.setTimeout(resolve, ms);
+    });
+  }
+
   function getRecordDisplayName(record) {
     const number = Number(record?.number || 0) || 0;
     const fileName = normalizeText(record?.fileName);
@@ -287,6 +303,17 @@
       return "第 " + String(number) + " 条";
     }
     return "未命名条目";
+  }
+
+  function isSaveCompletionState(previousIndex, snapshot) {
+    const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+    if (!Number.isInteger(Number(previousIndex)) || Number(previousIndex) < 0) {
+      return false;
+    }
+    if (Number(source.selectedIndex) !== Number(previousIndex)) {
+      return true;
+    }
+    return source.previousItemFinished === true;
   }
 
   function createRuntime() {
@@ -309,6 +336,20 @@
         state.routeKey = nextKey;
         clearRouteCache();
       }
+    }
+
+    function captureListState(previousIndex) {
+      const domItems = getListDomItems();
+      const normalizedPreviousIndex = Number(previousIndex);
+      return {
+        selectedIndex: getSelectedIndex(),
+        previousItemFinished:
+          Number.isInteger(normalizedPreviousIndex) &&
+          normalizedPreviousIndex >= 0 &&
+          domItems[normalizedPreviousIndex]
+            ? domItems[normalizedPreviousIndex].finished === true
+            : false,
+      };
     }
 
     function getAuthToken() {
@@ -489,6 +530,44 @@
         });
     }
 
+    async function waitForSelectedIndex(targetIndex, timeoutMs) {
+      const deadline = Date.now() + Math.max(1000, Number(timeoutMs || 5000) || 5000);
+      while (Date.now() < deadline) {
+        if (getSelectedIndex() === targetIndex) {
+          return true;
+        }
+        await sleep(120);
+      }
+      return getSelectedIndex() === targetIndex;
+    }
+
+    async function selectItemByIndex(targetIndex, options) {
+      const selectedIndex = getSelectedIndex();
+      if (selectedIndex === targetIndex) {
+        return {
+          ok: true,
+          message: "当前条已选中。",
+        };
+      }
+      const domItems = getListDomItems();
+      const entry = domItems[targetIndex];
+      const trigger = entry?.button;
+      if (!(trigger instanceof HTMLElement)) {
+        return {
+          ok: false,
+          message: "无法定位要切换的列表条目。",
+        };
+      }
+      trigger.click();
+      const ready = await waitForSelectedIndex(
+        targetIndex,
+        options?.timeoutMs || 5000
+      );
+      return ready
+        ? { ok: true, message: "已切换到目标条目。" }
+        : { ok: false, message: "切换条目超时，页面没有选中目标条目。" };
+    }
+
     function start() {
       syncRouteKey();
     }
@@ -522,13 +601,58 @@
       };
     }
 
+    async function clickSaveAndWait(options) {
+      const selectedIndex = getSelectedIndex();
+      if (selectedIndex < 0) {
+        return {
+          ok: false,
+          message: "当前没有选中的条目，无法保存。",
+        };
+      }
+      const button = getSaveButton();
+      if (!(button instanceof HTMLButtonElement)) {
+        return {
+          ok: false,
+          message: "当前页面没有定位到真实“保存”按钮。",
+        };
+      }
+      button.click();
+      const deadline = Date.now() + Math.max(3000, Number(options?.timeoutMs || 15000) || 15000);
+      while (Date.now() < deadline) {
+        if (isSaveCompletionState(selectedIndex, captureListState(selectedIndex))) {
+          return {
+            ok: true,
+            message: "已点击真实保存按钮并等待页面完成切条。",
+          };
+        }
+        await sleep(150);
+      }
+      return {
+        ok: false,
+        message: "点击保存后等待页面切条超时，请检查平台是否保存成功。",
+      };
+    }
+
+    async function fillAndSaveCurrent(text, options) {
+      const fillResult = fillPageText(text);
+      if (fillResult?.ok === false) {
+        return fillResult;
+      }
+      await sleep(Number(options?.postFillDelayMs || 120) || 120);
+      return clickSaveAndWait({
+        timeoutMs: options?.timeoutMs || 15000,
+      });
+    }
+
     function stop() {
       clearRouteCache();
     }
 
     return {
       canFillPageText,
+      clickSaveAndWait,
       fillPageText,
+      fillAndSaveCurrent,
       getBatchTasksFromCurrentSelection,
       getCurrentItem,
       getItemByIndex,
@@ -536,6 +660,7 @@
       getSelectedIndex,
       isMarkPage,
       parseRouteParams,
+      selectItemByIndex,
       start,
       stop,
     };
@@ -546,6 +671,7 @@
     ensureChineseSentencePunctuation,
     extractAuthTokenFromUnknown,
     findAuthTokenInEntries,
+    isSaveCompletionState,
     isMarkPage,
     parseRouteParams,
     readStorageEntries,
