@@ -21,7 +21,7 @@
 | 02 | `02-mytask-index.md` | 我的任务列表 `/mytask/index` | 完成 |
 | 03 | `03-mytask-detail.md` | 任务详情 `/mytask/detail/:taskId` | 完成 |
 | 04 | `04-mytask-mark.md` | 数据标注 `/mytask/mark` | 完成（含 SaveShortMark 实测） |
-| 05 | `06-organization.md` | 我的团队 `/organization/myteam` | 完成 |
+| 05 | `05-organization.md` | 我的团队 `/organization/myteam` | 完成 |
 | - | `pending-capture.md` | 待补采项清单 | 持续更新 |
 
 ## 脱敏规则
