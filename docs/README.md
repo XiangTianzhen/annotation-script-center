@@ -5,6 +5,7 @@
 ## 目录说明
 
 - `docs/architecture/`：当前架构、模块边界、状态契约、资产清单。
+- `docs/superpowers/specs/`：已确认需求的设计文档与实现前规格。
 - `docs/platforms/`：平台和脚本文档索引。
 - `docs/workflow/`：协作流程、验收清单、Prompt 输出规范。
 - `docs/external-docs/`：外部官方文档索引（集中入口）。
@@ -18,6 +19,7 @@
 - `docs/architecture/module-boundaries.md`：模块边界
 - `docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`：`platform-resources` AI 框架设计
 - `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`：`platform-resources` AI 框架迁移计划
+- `docs/superpowers/specs/2026-05-28-ai-call-logging-design.md`：AI 调用日志统一记录设计
 - `docs/platforms/index.md`：平台与脚本文档索引
 - `docs/workflow/codex-prompt-style.md`：Codex Prompt 输出格式规范
 - `docs/workflow/manual-flow-acceptance-checklist.md`：人工验收清单

@@ -1,3 +1,15 @@
+## 2026-05-28（AI 调用日志统一记录设计文档）
+
+- 新增设计文档：
+  - `docs/superpowers/specs/2026-05-28-ai-call-logging-design.md`
+- 固定本轮 AI 调用日志方案：
+  - 各脚本目录独立保存、按天切分 CSV
+  - 公共字段最小化，脚本字段扩展化
+  - `AI 调用使用人` 作为前端全局公共必填字段
+  - `promptTokens / completionTokens` 为主，`totalTokens` 仅作兜底
+  - 默认保留脱敏后的原始返回 JSON，不再把业务结果统一拆列
+  - 项目默认不使用 mock，日志设计不围绕 mock 构建
+
 ## 2026-05-28（DataBaker data 目录继续收口 CSV 与 merge 逻辑）
 
 - 新增 `platform-resources/data-baker/round-one-quality/data/scripts/csv.js`：
@@ -2854,6 +2866,11 @@
 - 修复 `Aishell Tech` 标注页面板初次挂到不可见区域后不会自动回到表单区的问题：
   - `extension/sites/aishell-tech/minnan-helper/ui-panel.js` 改为优先挂到 `.mark-area` 内、表单节点之前。
   - 当 `.mark-area` 后加载出来时，现会自动把已存在的面板重新搬回可见表单区。
+- 修复 `Aishell Tech` 页面在真实 Edge 中整组 content scripts 未落到页面的问题：
+  - 复测确认 `detail -> 查看 -> mark` 链路可稳定打开，但 `window.__ASREdgeAishellTechMarkObserverInstalled` 与面板节点都不存在。
+  - `Secure Preferences` 显示扩展 host 权限已授予、`withholding_permissions=false`，排除站点权限未放开。
+  - `chrome.storage.local` 可见 `aishellTech.enabled=true`、`minnanHelper.aiRecommendEnabled=true`，排除脚本设置被关闭。
+  - 现新增 `background/service-worker.js` 对 Aishell 的 `registerContentScripts` 兜底注册，并给 `data-api / ai-recommendation / ui-panel / shortcuts / content` 增加安装守卫，避免与 `manifest content_scripts` 双注入时重复执行。
 - 新增平台实测口径：
   - 实测应优先从 `/mytask/detail/:taskId` 进入，再点击分包“查看”进入 `/mytask/mark`。
   - 直接手输 `/mytask/mark?...` 时，平台自身可能出现卡住；这不作为助手面板故障判定依据。
