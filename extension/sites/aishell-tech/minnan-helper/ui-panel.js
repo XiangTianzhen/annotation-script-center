@@ -107,8 +107,40 @@
     let batchFloatingCurrentNode = null;
     let batchFloatingFailuresNode = null;
 
-    function findMountTarget() {
-      return document.querySelector(".mark-area") || document.querySelector(".mark-container");
+    function findMountContext() {
+      const markArea = document.querySelector(".mark-area");
+      if (!(markArea instanceof HTMLElement)) {
+        const markContainer = document.querySelector(".mark-container");
+        if (!(markContainer instanceof HTMLElement)) {
+          return null;
+        }
+        return {
+          container: markContainer,
+          anchor: null,
+        };
+      }
+      const formNode = markArea.querySelector("form.el-form, .el-form");
+      return {
+        container: markArea,
+        anchor: formNode instanceof HTMLElement ? formNode : null,
+      };
+    }
+
+    function applyMountContext(targetNode, mountContext) {
+      const mountTarget = mountContext?.container;
+      if (!(targetNode instanceof HTMLElement) || !(mountTarget instanceof HTMLElement)) {
+        return false;
+      }
+      const anchorNode = mountContext?.anchor;
+      if (
+        anchorNode instanceof HTMLElement &&
+        anchorNode.parentElement === mountTarget
+      ) {
+        mountTarget.insertBefore(targetNode, anchorNode);
+        return true;
+      }
+      mountTarget.appendChild(targetNode);
+      return true;
     }
 
     function setStatus(message, tone) {
@@ -369,10 +401,13 @@
 
     function ensureMounted() {
       if (root && document.documentElement.contains(root)) {
+        const existingMountContext = findMountContext();
+        applyMountContext(root, existingMountContext);
         return root;
       }
       ensureStyle();
-      const mountTarget = findMountTarget();
+      const mountContext = findMountContext();
+      const mountTarget = mountContext?.container;
       if (!(mountTarget instanceof HTMLElement)) {
         return null;
       }
@@ -421,7 +456,7 @@
       statusNode.textContent = "请选择当前条后手动触发。";
       root.appendChild(statusNode);
 
-      mountTarget.insertAdjacentElement("afterend", root);
+      applyMountContext(root, mountContext);
       return root;
     }
 

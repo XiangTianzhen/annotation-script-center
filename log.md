@@ -2844,3 +2844,16 @@
   - `extension/shared/storage.js` 的显式策略检测补充 `recognitionStrategy` 兼容字段，避免 normalize 阶段误回写。
   - `platforms.magicData.scripts.*` 与 `scriptCenter.projects.*` 双路径同步同一策略和 legacy 派生字段，避免回显冲突。
 - 当前版本口径保持 `0.3.6`，未提升版本、未生成 CRX、未打 tag。
+
+## 2026-05-28（Aishell Tech defaults 与面板挂载热修）
+
+- 修复 `Aishell Tech` options 页模型选择为空、Prompt 默认值缺失的问题：
+  - `extension/options/options.js` 新增 DataBaker 风格的模型下拉构建函数，供 Aishell 复用。
+  - Aishell defaults 读取顺序调整为：Aishell 独立 defaults -> DataBaker defaults -> 本地 DataBaker Prompt/模型默认值。
+  - Aishell 本地回退 Prompt 现与 `platform-resources/data-baker/round-one-quality` 保持一致。
+- 修复 `Aishell Tech` 标注页面板初次挂到不可见区域后不会自动回到表单区的问题：
+  - `extension/sites/aishell-tech/minnan-helper/ui-panel.js` 改为优先挂到 `.mark-area` 内、表单节点之前。
+  - 当 `.mark-area` 后加载出来时，现会自动把已存在的面板重新搬回可见表单区。
+- 新增平台实测口径：
+  - 实测应优先从 `/mytask/detail/:taskId` 进入，再点击分包“查看”进入 `/mytask/mark`。
+  - 直接手输 `/mytask/mark?...` 时，平台自身可能出现卡住；这不作为助手面板故障判定依据。

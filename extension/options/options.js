@@ -100,6 +100,21 @@
         { value: "qwen3.6-flash", label: "qwen3.6-flash" },
         { value: "qwen3.5-flash", label: "qwen3.5-flash" },
       ];
+  const dataBakerDefaultListenPrompt = [
+    "你只负责听音转写，不负责生成最终推荐文本。",
+    "页面候选文本、朗读要求和有效时间只用于辅助你更稳定地识别音频内容。",
+    "输出 JSON 字段必须包含 heardText、confidence、needHumanReview。",
+    "heardText 的普通中文统一输出简体。",
+    "只输出 JSON，不要输出 Markdown 或解释文字。",
+  ].join("\n");
+  const dataBakerDefaultComparePrompt = [
+    "听音阶段已经完成音频转写；你现在只负责比较 heardText 与页面候选文本，输出最终推荐文本。",
+    "以实际发声为主，不因词表存在就无依据改写。",
+    "recommendedText 的普通中文统一使用简体；pageText/heardText 中的普通繁体字应转换为简体。",
+    "但命中 minnan-lexicon.csv 的建议用字必须保持不变，不参与普通简繁转换。",
+    "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
+    "只输出 JSON，不输出额外解释。",
+  ].join("\n");
   const magicDataHelperModelModeOptions = Array.isArray(
     constants.MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS
   )
@@ -800,6 +815,82 @@
     return normalizeDataBakerSingleModel(
       aiDefaults?.singleModel || aiDefaults?.omniModel,
       "qwen3.5-omni-flash"
+    );
+  }
+
+  function normalizeFixedModelOption(item) {
+    if (item && typeof item === "object") {
+      const value = normalizeJudgementAiModelText(
+        item.value || item.id || item.name || item.label || "",
+        ""
+      );
+      if (!value) {
+        return null;
+      }
+      return {
+        value: value,
+        label: String(item.label || item.name || value).trim() || value,
+      };
+    }
+    const value = normalizeJudgementAiModelText(item, "");
+    if (!value) {
+      return null;
+    }
+    return {
+      value: value,
+      label: value,
+    };
+  }
+
+  function buildMergedModelOptions(primaryOptions, fallbackOptions, extraValues) {
+    const merged = [];
+    const seen = new Set();
+
+    function appendOption(item) {
+      const normalized = normalizeFixedModelOption(item);
+      if (!normalized || seen.has(normalized.value)) {
+        return;
+      }
+      seen.add(normalized.value);
+      merged.push(normalized);
+    }
+
+    (Array.isArray(primaryOptions) ? primaryOptions : []).forEach(appendOption);
+    (Array.isArray(fallbackOptions) ? fallbackOptions : []).forEach(appendOption);
+    (Array.isArray(extraValues) ? extraValues : []).forEach(appendOption);
+    return merged;
+  }
+
+  function buildDataBakerListenModelOptions(aiDefaults, config) {
+    return buildMergedModelOptions(
+      aiDefaults?.listenModelOptions,
+      dataBakerListenModelOptions,
+      [
+        config?.aiRecommendListenModel,
+        aiDefaults?.listenModel,
+        aiDefaults?.funAsrModel,
+        aiDefaults?.omniModel,
+      ]
+    );
+  }
+
+  function buildDataBakerCompareModelOptions(aiDefaults) {
+    return buildMergedModelOptions(
+      aiDefaults?.compareModelOptions,
+      dataBakerCompareModelOptions,
+      [aiDefaults?.compareModel]
+    );
+  }
+
+  function buildDataBakerSingleModelOptions(aiDefaults, config) {
+    return buildMergedModelOptions(
+      aiDefaults?.singleModelOptions,
+      dataBakerSingleModelOptions,
+      [
+        config?.aiRecommendSingleModel,
+        aiDefaults?.singleModel,
+        aiDefaults?.omniModel,
+      ]
     );
   }
 
@@ -2035,6 +2126,8 @@
       scriptId === dataBakerRoundOneQualityScriptId ||
       isMagicDataScript(scriptId) ||
       isAishellTechScript(scriptId);
+    const useDataBakerPromptDefaults =
+      scriptId === dataBakerRoundOneQualityScriptId || isAishellTechScript(scriptId);
     const baseDefaults = {
       listenModel: "qwen3.5-omni-flash",
       listenModelOptions:
@@ -2067,8 +2160,8 @@
       seed: "",
       stop: "",
       webSearchEnabled: scriptId === judgementProjectId,
-      listenPrompt: "",
-      comparePrompt: "",
+      listenPrompt: useDataBakerPromptDefaults ? dataBakerDefaultListenPrompt : "",
+      comparePrompt: useDataBakerPromptDefaults ? dataBakerDefaultComparePrompt : "",
       reviewPrompt: "",
     };
     const supportedParams = {
@@ -2135,21 +2228,38 @@
       return fallback;
     }
     const request = (async function () {
+      const pathCandidates = [path];
+      if (
+        scriptId === aishellTechMinnanScriptId &&
+        asrVoiceAiDefaultsPaths.dataBakerRoundOneQuality &&
+        path !== asrVoiceAiDefaultsPaths.dataBakerRoundOneQuality
+      ) {
+        pathCandidates.push(asrVoiceAiDefaultsPaths.dataBakerRoundOneQuality);
+      }
       try {
-        const endpoint = buildBackendUrl(path, settings || currentSettings || {});
-        const response = await fetch(endpoint, { method: "GET" });
-        const payload = await response.json().catch(function () {
-          return null;
-        });
-        if (!response.ok || !payload || payload.success !== true) {
-          throw new Error("defaults-fetch-failed");
+        for (const candidatePath of pathCandidates) {
+          const endpoint = buildBackendUrl(candidatePath, settings || currentSettings || {});
+          const response = await fetch(endpoint, { method: "GET" });
+          const payload = await response.json().catch(function () {
+            return null;
+          });
+          if (!response.ok || !payload || payload.success !== true) {
+            continue;
+          }
+          const normalized = normalizeAsrVoiceAiDefaultsPayload(payload, scriptId);
+          normalized.error =
+            candidatePath === path
+              ? ""
+              : "Aishell 默认配置暂时回退到 DataBaker defaults。";
+          asrVoiceAiDefaultsCache[key] = normalized;
+          return normalized;
         }
-        const normalized = normalizeAsrVoiceAiDefaultsPayload(payload, scriptId);
-        asrVoiceAiDefaultsCache[key] = normalized;
-        return normalized;
+        throw new Error("defaults-fetch-failed");
       } catch (error) {
         const fallback = buildFallbackAsrVoiceAiDefaults(scriptId);
-        fallback.error = "后端默认配置读取失败，已使用本地默认值。";
+        fallback.error = isAishellTechScript(scriptId)
+          ? "Aishell 后端默认配置读取失败，已回退到本地 DataBaker 默认值。"
+          : "后端默认配置读取失败，已使用本地默认值。";
         asrVoiceAiDefaultsCache[key] = fallback;
         return fallback;
       } finally {
