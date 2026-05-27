@@ -42,6 +42,10 @@
   - 审核页默认只做质检与风险提示，不自动改写平台文本，不自动保存/提交。
   - 结果稳定性按 `pageType + taskItemId + samplingRecordId` 保持，避免轻微刷新后自动清空。
   - 文本可编辑时支持行内 `填入本行`；审核页 `全部填入AI推荐` 仅填文本项，不自动保存/提交，也不自动点击合格/不合格。
+- 2026-05-27 繁体字热修：
+  - 客家话后端新增普通中文繁转简能力，覆盖 `dialectTextCheck/mandarinTextCheck/recommendations/audioCheck/listen/comparison/recognitionConvert` 等返回字段。
+  - `backend/ai-lexicon.js` 新增“保留客家话统一用字”的文本归一化函数；`backend/ai-routes.js` 在响应出口统一调用。
+  - 最小回归测试文件：`backend/ai-text-normalization.test.js`。
 
 ## 2026-05-26 后端输出结构对齐
 

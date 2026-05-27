@@ -38,6 +38,10 @@
 - 2026-05-26 面板热修：
   - options 中移除 `AI 质检模式` 选择，客家话助手仅使用 `模型方案 + 识别策略`。
   - 审核页（`#/asrmarkCheck`）文本可编辑时，行内建议支持 `填入本行`；`全部填入AI推荐` 在审核页仅填文本项，不填说话人，不自动保存/提交。
+- 2026-05-27 简体化热修：
+  - 客家话后端新增普通中文繁转简收口，结果区与行内建议默认输出简体。
+  - 客家话词表 `语料统一用字` 继续保留，不会被普通繁转简覆盖。
+  - 最小回归测试：`platform-resources/magic-data/hakka-helper/backend/ai-text-normalization.test.js`。
 
 ## 前端交互（新版）
 
@@ -62,6 +66,7 @@
   - `recommendations`
   - `audioCheck`
 - 客家话后端已按闽南语后端结构补齐上述字段，并保留 legacy `listen/comparison/verdict` 兼容字段。
+- 前端会直接展示后端归一后的 `suggestedValue/recommendations/audioCheck/listen/comparison` 文本，不再额外做繁简兜底。
 
 ## 行为边界
 

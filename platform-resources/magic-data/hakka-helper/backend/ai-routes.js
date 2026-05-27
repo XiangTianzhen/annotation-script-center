@@ -13,7 +13,11 @@ const {
 } = require("./ai-client-qwen");
 const { appendAiCallLog, getLogDir } = require("./ai-call-log");
 const { estimateIncome } = require("./ai-cost");
-const { buildLexiconContext, getLexiconState } = require("./ai-lexicon");
+const {
+  buildLexiconContext,
+  getLexiconState,
+  normalizeToSimplifiedChinesePreservingLexicon,
+} = require("./ai-lexicon");
 const {
   buildComparePrompt,
   buildListenPrompt,
@@ -106,6 +110,114 @@ function readRequestBody(request) {
 
 function normalizeText(value) {
   return String(value || "").trim();
+}
+
+function normalizeResponseTextValue(value) {
+  return normalizeToSimplifiedChinesePreservingLexicon(normalizeText(value));
+}
+
+function normalizeResponseTextArray(values) {
+  if (!Array.isArray(values)) {
+    return values;
+  }
+  return values.map(function (value) {
+    return typeof value === "string" ? normalizeResponseTextValue(value) : value;
+  });
+}
+
+function normalizeResponseTextFields(value) {
+  const output =
+    value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : {};
+
+  if (output.speakerCheck?.gender) {
+    output.speakerCheck.gender.suggestedValue = normalizeResponseTextValue(
+      output.speakerCheck.gender.suggestedValue
+    );
+    output.speakerCheck.gender.reason = normalizeResponseTextValue(output.speakerCheck.gender.reason);
+  }
+  if (output.speakerCheck?.ageRange) {
+    output.speakerCheck.ageRange.suggestedValue = normalizeResponseTextValue(
+      output.speakerCheck.ageRange.suggestedValue
+    );
+    output.speakerCheck.ageRange.reason = normalizeResponseTextValue(output.speakerCheck.ageRange.reason);
+  }
+  if (output.dialectTextCheck) {
+    output.dialectTextCheck.suggestedValue = normalizeResponseTextValue(
+      output.dialectTextCheck.suggestedValue
+    );
+    output.dialectTextCheck.reason = normalizeResponseTextValue(output.dialectTextCheck.reason);
+  }
+  if (output.mandarinTextCheck) {
+    output.mandarinTextCheck.suggestedValue = normalizeResponseTextValue(
+      output.mandarinTextCheck.suggestedValue
+    );
+    output.mandarinTextCheck.reason = normalizeResponseTextValue(output.mandarinTextCheck.reason);
+  }
+  if (output.overall) {
+    output.overall.summary = normalizeResponseTextValue(output.overall.summary);
+  }
+  if (output.audioCheck) {
+    output.audioCheck.heardDialectText = normalizeResponseTextValue(output.audioCheck.heardDialectText);
+    output.audioCheck.heardMandarinMeaning = normalizeResponseTextValue(
+      output.audioCheck.heardMandarinMeaning
+    );
+    output.audioCheck.riskFlags = normalizeResponseTextArray(output.audioCheck.riskFlags);
+    output.audioCheck.invalidReasons = normalizeResponseTextArray(output.audioCheck.invalidReasons);
+  }
+  if (output.textRuleCheck) {
+    output.textRuleCheck.dialectIssues = normalizeResponseTextArray(output.textRuleCheck.dialectIssues);
+    output.textRuleCheck.mandarinIssues = normalizeResponseTextArray(output.textRuleCheck.mandarinIssues);
+    output.textRuleCheck.translationConsistencyIssues = normalizeResponseTextArray(
+      output.textRuleCheck.translationConsistencyIssues
+    );
+    output.textRuleCheck.punctuationIssues = normalizeResponseTextArray(output.textRuleCheck.punctuationIssues);
+    output.textRuleCheck.speakerAttributeIssues = normalizeResponseTextArray(
+      output.textRuleCheck.speakerAttributeIssues
+    );
+    output.textRuleCheck.lexiconIssues = normalizeResponseTextArray(output.textRuleCheck.lexiconIssues);
+    output.textRuleCheck.ruleIssues = normalizeResponseTextArray(output.textRuleCheck.ruleIssues);
+  }
+  if (output.recommendations) {
+    output.recommendations.dialectText = normalizeResponseTextValue(output.recommendations.dialectText);
+    output.recommendations.mandarinText = normalizeResponseTextValue(output.recommendations.mandarinText);
+    output.recommendations.summary = normalizeResponseTextValue(output.recommendations.summary);
+  }
+  if (output.listen) {
+    output.listen.heardDialectText = normalizeResponseTextValue(output.listen.heardDialectText);
+    output.listen.heardMandarinMeaning = normalizeResponseTextValue(output.listen.heardMandarinMeaning);
+    output.listen.riskFlags = normalizeResponseTextArray(output.listen.riskFlags);
+    output.listen.invalidReasons = normalizeResponseTextArray(output.listen.invalidReasons);
+  }
+  if (output.comparison?.dialectLine) {
+    output.comparison.dialectLine.aiText = normalizeResponseTextValue(output.comparison.dialectLine.aiText);
+    output.comparison.dialectLine.recommendedText = normalizeResponseTextValue(
+      output.comparison.dialectLine.recommendedText
+    );
+    output.comparison.dialectLine.issues = normalizeResponseTextArray(output.comparison.dialectLine.issues);
+  }
+  if (output.comparison?.mandarinLine) {
+    output.comparison.mandarinLine.recommendedText = normalizeResponseTextValue(
+      output.comparison.mandarinLine.recommendedText
+    );
+    output.comparison.mandarinLine.issues = normalizeResponseTextArray(output.comparison.mandarinLine.issues);
+  }
+  if (output.comparison) {
+    output.comparison.lexiconIssues = normalizeResponseTextArray(output.comparison.lexiconIssues);
+    output.comparison.ruleIssues = normalizeResponseTextArray(output.comparison.ruleIssues);
+  }
+  if (output.recognitionConvert) {
+    output.recognitionConvert.recognizedMandarinText = normalizeResponseTextValue(
+      output.recognitionConvert.recognizedMandarinText
+    );
+    output.recognitionConvert.convertedDialectText = normalizeResponseTextValue(
+      output.recognitionConvert.convertedDialectText
+    );
+    output.recognitionConvert.conversionWarnings = normalizeResponseTextArray(
+      output.recognitionConvert.conversionWarnings
+    );
+  }
+
+  return output;
 }
 
 function sanitizeDebugText(value) {
@@ -662,7 +774,7 @@ async function handleReviewCurrent(request, response) {
     const normalizedSummary = normalizeText(
       overall.summary || normalizedResult?.recommendations?.summary || ""
     );
-    const responseData = {
+    const responseData = normalizeResponseTextFields({
       requestId,
       service: SERVICE_NAME,
       scriptId: SCRIPT_ID,
@@ -803,7 +915,7 @@ async function handleReviewCurrent(request, response) {
         lexiconIssues: normalizedResult.legacyComparison.lexiconIssues,
         ruleIssues: normalizedResult.legacyComparison.ruleIssues,
       },
-    };
+    });
 
     appendCallLogSafe({
       createdAt: new Date().toISOString(),
@@ -958,5 +1070,6 @@ module.exports = {
   AI_HEALTH_PATH,
   handleReviewCurrent,
   normalizeReviewRequest,
+  normalizeResponseTextFields,
   registerAiRoutes,
 };

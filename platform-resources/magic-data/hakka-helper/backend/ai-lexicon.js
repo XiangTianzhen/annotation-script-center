@@ -6,6 +6,47 @@ const path = require("path");
 const HAKKA_XLSX_PATH = path.join(__dirname, "lexicon", "客家话-正字表.xlsx");
 const HAKKA_CSV_PATH = path.join(__dirname, "lexicon", "hakka-lexicon.csv");
 const DEFAULT_LIMIT = 30;
+const TRADITIONAL_TO_SIMPLIFIED_MAP = {
+  "這": "这",
+  "個": "个",
+  "問": "问",
+  "題": "题",
+  "聽": "听",
+  "講": "讲",
+  "說": "说",
+  "語": "语",
+  "體": "体",
+  "發": "发",
+  "聲": "声",
+  "輸": "输",
+  "資": "资",
+  "訊": "讯",
+  "轉": "转",
+  "換": "换",
+  "後": "后",
+  "裡": "里",
+  "還": "还",
+  "點": "点",
+  "會": "会",
+  "應": "应",
+  "對": "对",
+  "讓": "让",
+  "與": "与",
+  "為": "为",
+  "無": "无",
+  "詞": "词",
+  "標": "标",
+  "註": "注",
+  "檢": "检",
+  "學": "学",
+  "競": "竞",
+  "賽": "赛",
+  "輔": "辅",
+  "導": "导",
+  "師": "师",
+  "報": "报",
+  "別": "别",
+};
 
 let cachedState = null;
 let warnedMissing = false;
@@ -37,6 +78,62 @@ function splitTerms(value) {
     .split(/[、，,；;\/\s]+/)
     .map(normalizeText)
     .filter(Boolean);
+}
+
+function getProtectedLexiconTerms() {
+  return getLexiconState().rows
+    .flatMap(function (entry) {
+      return splitTerms(entry.unified);
+    })
+    .filter(Boolean)
+    .sort(function (left, right) {
+      return right.length - left.length;
+    });
+}
+
+function protectLexiconTerms(text, protectedTerms) {
+  let output = String(text || "");
+  const replacements = [];
+  (Array.isArray(protectedTerms) ? protectedTerms : []).forEach(function (term, index) {
+    if (!term || output.indexOf(term) < 0) {
+      return;
+    }
+    const token = "__ASC_HAKKA_LEXICON_TOKEN_" + String(index) + "__";
+    output = output.split(term).join(token);
+    replacements.push({ token: token, value: term });
+  });
+  return { text: output, replacements: replacements };
+}
+
+function restoreLexiconTerms(text, replacements) {
+  let output = String(text || "");
+  (Array.isArray(replacements) ? replacements : []).forEach(function (entry) {
+    if (!entry || !entry.token) {
+      return;
+    }
+    output = output.split(entry.token).join(entry.value || "");
+  });
+  return output;
+}
+
+function convertTraditionalToSimplified(text) {
+  const source = String(text || "");
+  let output = "";
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    output += TRADITIONAL_TO_SIMPLIFIED_MAP[char] || char;
+  }
+  return output;
+}
+
+function normalizeToSimplifiedChinesePreservingLexicon(text) {
+  const source = String(text || "");
+  if (!source) {
+    return "";
+  }
+  const protectedResult = protectLexiconTerms(source, getProtectedLexiconTerms());
+  const simplified = convertTraditionalToSimplified(protectedResult.text);
+  return restoreLexiconTerms(simplified, protectedResult.replacements);
 }
 
 function parseCsvRecords(text) {
@@ -272,5 +369,6 @@ module.exports = {
   HAKKA_XLSX_PATH,
   buildLexiconContext,
   getLexiconState,
+  normalizeToSimplifiedChinesePreservingLexicon,
   parseLexiconCsv,
 };

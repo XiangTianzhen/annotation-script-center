@@ -7,15 +7,16 @@
 - 当前阶段：Chrome / Chromium MV3 单源码扩展 + 多平台脚本增强阶段。
 
 * 当前扩展版本：以 `extension/manifest.json` 为准。
-* 当前版本（待发布口径）：`v0.3.6`。
+* 当前版本（待发布口径）：`v0.3.7`。
 * 扩展源码目录：`extension/`（Chrome / Edge 共用同一套运行时代码）。
 * 统一后端入口：`platform-resources/backend/server.js`。
 
-## v0.3.6 收尾状态
+## v0.3.7 当前状态
 
-- 本轮为 `v0.3.6` 项目规则与文档收尾，不是 `ASC_RELEASE` 正式发布流程。
+- 本轮包含 `v0.3.7` 小修：修复 Magic Data 客家话助手 AI 结果偶发繁体字残留的问题；非 `ASC_RELEASE` 正式发布流程。
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 默认关闭。
+- 客家话助手后端现已在响应出口统一做“普通中文繁转简 + 客家话统一用字保留”收口，减少结果区与行内建议出现繁体字。
 
 ## 协作摘要
 
