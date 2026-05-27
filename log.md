@@ -155,6 +155,21 @@
   - Aishell defaults 读取失败时，先回退到 DataBaker defaults 接口；若仍失败，再回退到本地 DataBaker Prompt 与模型默认值。
   - 本地 fallback 默认值改为直接带出 DataBaker 同款 `listenPrompt` / `comparePrompt`，确保 options 页面能看到同款 Prompt 基线。
 
+## 2026-05-28（Aishell Tech 最小悬浮窗重构）
+
+- 用户复现确认：
+  - `detail -> 查看 -> mark` 时旧版 Aishell 运行时经常不出现面板。
+  - 手动刷新后有时才出现按钮，但启用脚本时刷新还会导致页面白屏。
+  - 禁用 Aishell 脚本后页面恢复正常。
+- 本轮不再继续叠加补注入热修，直接把 Aishell 前端收敛为最小稳定版：
+  - `extension/manifest.json` 删除 Aishell 的 `page-world/network-observer.js`、`shortcuts.js`、`shared/ai-usage-meta.js` 注入，并移除 `scripting` / `webNavigation` 权限。
+  - `extension/background/service-worker.js` 删除 Aishell 的 `registerContentScripts / executeScript / webNavigation / tabs.onUpdated` 动态补注入逻辑。
+  - `extension/sites/aishell-tech/minnan-helper/ui-panel.js` 重写为纯悬浮窗，只保留 `识别` 与 `批量识别` 两个按钮，不再往原页面业务区插入行内按钮。
+  - `extension/sites/aishell-tech/minnan-helper/content.js` 重写为最小运行时：只做路由识别、单条识别、顺序批量识别与悬浮窗状态更新。
+  - `extension/sites/aishell-tech/minnan-helper/data-api.js` 改为直接从页面 `localStorage/sessionStorage` 扫描 JWT，并直接请求 `markapi.aishelltech.com` 的 `task/detail` 与 `packageItemList`，不再依赖主世界抓包缓存。
+- 当前边界重新收紧：
+  - 只验证悬浮窗可见性与识别链路。
+  - 不自动填入，不自动保存，不自动提交，不跨分包。
 ## 2026-05-28（Aishell Tech 闽南语助手独立全量接入）
 
 - 新增 `extension/sites/aishell-tech/minnan-helper/` 运行时代码：
@@ -2892,3 +2907,4 @@
 - 新增平台实测口径：
   - 实测应优先从 `/mytask/detail/:taskId` 进入，再点击分包“查看”进入 `/mytask/mark`。
   - 直接手输 `/mytask/mark?...` 时，平台自身可能出现卡住；这不作为助手面板故障判定依据。
+

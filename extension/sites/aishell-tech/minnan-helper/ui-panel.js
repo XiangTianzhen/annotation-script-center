@@ -1,37 +1,14 @@
 (function () {
+  if (globalThis.__ASREdgeAishellTechMinnanUiPanelInstalled === true) {
+    return;
+  }
+  globalThis.__ASREdgeAishellTechMinnanUiPanelInstalled = true;
+
   const ROOT_ATTR = "data-asr-edge-aishell-tech-panel";
   const STYLE_ID = "asr-edge-aishell-tech-panel-style";
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
-  }
-
-  function removeTextSpaces(value) {
-    return String(value || "").replace(/[\s\u3000]+/g, "");
-  }
-
-  function ensureChineseSentencePunctuation(value) {
-    const text = String(value || "").trim();
-    if (!text) {
-      return "";
-    }
-    const last = text[text.length - 1];
-    if ("。！？；…".indexOf(last) >= 0) {
-      return text;
-    }
-    if (last === ".") {
-      return text.slice(0, -1) + "。";
-    }
-    if (last === "?") {
-      return text.slice(0, -1) + "？";
-    }
-    if (last === "!") {
-      return text.slice(0, -1) + "！";
-    }
-    if (last === ";") {
-      return text.slice(0, -1) + "；";
-    }
-    return text + "。";
   }
 
   function ensureStyle() {
@@ -42,42 +19,49 @@
     style.id = STYLE_ID;
     style.textContent = [
       "[" + ROOT_ATTR + "] {",
-      "  box-sizing: border-box;",
-      "  margin-top: 16px;",
-      "  padding: 12px 14px;",
+      "  position: fixed;",
+      "  right: 16px;",
+      "  bottom: 16px;",
+      "  width: 420px;",
+      "  max-width: calc(100vw - 32px);",
+      "  max-height: calc(100vh - 32px);",
+      "  padding: 14px;",
+      "  overflow: auto;",
       "  border: 1px solid #bfdbfe;",
-      "  border-radius: 10px;",
+      "  border-radius: 12px;",
       "  background: #f8fbff;",
       "  color: #1f2937;",
+      "  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);",
+      "  z-index: 2147483000;",
       "  font-size: 12px;",
       "  line-height: 1.6;",
       "}",
       "[" + ROOT_ATTR + "] * { box-sizing: border-box; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-title { color: #1d4ed8; font-weight: 700; font-size: 13px; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-actions, [" + ROOT_ATTR + "] .asc-aishell-result-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }",
-      "[" + ROOT_ATTR + "] button { min-height: 28px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1f2937; cursor: pointer; font-size: 12px; }",
-      "[" + ROOT_ATTR + "] button[data-primary='true'] { background: #1d4ed8; border-color: #1d4ed8; color: #fff; font-weight: 700; }",
-      "[" + ROOT_ATTR + "] button[data-danger='true'] { background: #b91c1c; border-color: #b91c1c; color: #fff; }",
+      "[" + ROOT_ATTR + "] .asc-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }",
+      "[" + ROOT_ATTR + "] .asc-title { color: #1d4ed8; font-size: 14px; font-weight: 700; }",
+      "[" + ROOT_ATTR + "] .asc-subtitle { color: #64748b; margin-top: 2px; }",
+      "[" + ROOT_ATTR + "] .asc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }",
+      "[" + ROOT_ATTR + "] button {",
+      "  min-height: 30px;",
+      "  padding: 0 12px;",
+      "  border: 1px solid #cbd5e1;",
+      "  border-radius: 8px;",
+      "  background: #ffffff;",
+      "  color: #1f2937;",
+      "  cursor: pointer;",
+      "  font-size: 12px;",
+      "}",
+      "[" + ROOT_ATTR + "] button[data-primary='true'] { background: #1d4ed8; border-color: #1d4ed8; color: #ffffff; font-weight: 700; }",
       "[" + ROOT_ATTR + "] button:disabled { opacity: 0.6; cursor: not-allowed; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-status { margin-top: 8px; color: #64748b; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-status[data-tone='error'] { color: #b91c1c; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-status[data-tone='success'] { color: #047857; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-result { margin-top: 10px; border-top: 1px solid #dbeafe; padding-top: 10px; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-grid { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 6px 8px; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-label { color: #475569; font-weight: 700; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-value { white-space: pre-wrap; overflow-wrap: anywhere; }",
-      "[" + ROOT_ATTR + "] .asc-aishell-note { margin-top: 8px; color: #b45309; font-weight: 700; }",
-      ".asc-aishell-batch-floating { position: fixed; top: 16px; right: 16px; width: 360px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; padding: 12px; border: 1px solid #a7f3d0; border-radius: 8px; background: #f0fdf4; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16); z-index: 2147483000; color: #064e3b; font-size: 12px; line-height: 1.6; }",
-      ".asc-aishell-batch-floating[data-tone='error'], .asc-aishell-batch-floating[data-tone='stopped'] { border-color: #fecaca; background: #fef2f2; color: #7f1d1d; }",
-      ".asc-aishell-batch-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }",
-      ".asc-aishell-batch-title { font-size: 13px; font-weight: 700; }",
-      ".asc-aishell-batch-grid { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 4px 6px; margin-top: 8px; }",
-      ".asc-aishell-batch-label { font-weight: 700; }",
-      ".asc-aishell-batch-current { margin-top: 8px; font-weight: 700; }",
-      ".asc-aishell-batch-failures { margin-top: 8px; border-top: 1px dashed rgba(15, 23, 42, 0.18); padding-top: 8px; }",
-      ".asc-aishell-batch-failures ul { margin: 6px 0 0 16px; padding: 0; }",
-      ".asc-aishell-batch-failures li { margin: 0 0 6px; overflow-wrap: anywhere; }",
+      "[" + ROOT_ATTR + "] .asc-status { margin-top: 12px; color: #475569; white-space: pre-wrap; }",
+      "[" + ROOT_ATTR + "] .asc-status[data-tone='success'] { color: #047857; }",
+      "[" + ROOT_ATTR + "] .asc-status[data-tone='error'] { color: #b91c1c; }",
+      "[" + ROOT_ATTR + "] .asc-status[data-tone='warning'] { color: #b45309; }",
+      "[" + ROOT_ATTR + "] .asc-section { margin-top: 12px; border-top: 1px solid #dbeafe; padding-top: 12px; }",
+      "[" + ROOT_ATTR + "] .asc-section-title { font-weight: 700; color: #0f172a; margin-bottom: 8px; }",
+      "[" + ROOT_ATTR + "] .asc-grid { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 6px 8px; }",
+      "[" + ROOT_ATTR + "] .asc-label { color: #475569; font-weight: 700; }",
+      "[" + ROOT_ATTR + "] .asc-value { white-space: pre-wrap; overflow-wrap: anywhere; }",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -95,55 +79,111 @@
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
     let root = null;
-    let resultNode = null;
     let statusNode = null;
-    let recommendButtonNode = null;
-    let batchStartButtonNode = null;
-    let batchStopButtonNode = null;
-    let currentResult = null;
+    let resultNode = null;
+    let batchNode = null;
+    let singleButtonNode = null;
+    let batchButtonNode = null;
     let currentItemKey = "";
-    let batchFloatingNode = null;
-    let batchFloatingGrid = null;
-    let batchFloatingCurrentNode = null;
-    let batchFloatingFailuresNode = null;
 
-    function findMountContext() {
-      const markArea = document.querySelector(".mark-area");
-      if (!(markArea instanceof HTMLElement)) {
-        const markContainer = document.querySelector(".mark-container");
-        if (!(markContainer instanceof HTMLElement)) {
-          return null;
-        }
-        return {
-          container: markContainer,
-          anchor: null,
-        };
+    function ensureRoot() {
+      ensureStyle();
+      if (root && document.documentElement.contains(root)) {
+        return root;
       }
-      const formNode = markArea.querySelector("form.el-form, .el-form");
-      return {
-        container: markArea,
-        anchor: formNode instanceof HTMLElement ? formNode : null,
-      };
+
+      root = document.createElement("div");
+      root.setAttribute(ROOT_ATTR, "true");
+
+      const head = document.createElement("div");
+      head.className = "asc-head";
+
+      const titleWrap = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "asc-title";
+      title.textContent = "Aishell Tech 闽南语助手";
+      const subtitle = document.createElement("div");
+      subtitle.className = "asc-subtitle";
+      subtitle.textContent = "最小悬浮窗重构版：只保留识别与批量识别。";
+      titleWrap.appendChild(title);
+      titleWrap.appendChild(subtitle);
+
+      const closeButton = createButton("关闭");
+      closeButton.addEventListener("click", function () {
+        if (root) {
+          root.remove();
+        }
+        root = null;
+      });
+
+      head.appendChild(titleWrap);
+      head.appendChild(closeButton);
+      root.appendChild(head);
+
+      const actions = document.createElement("div");
+      actions.className = "asc-actions";
+
+      singleButtonNode = createButton("识别", {
+        "data-primary": "true",
+      });
+      singleButtonNode.addEventListener("click", function () {
+        if (typeof deps.onRecommend === "function") {
+          void deps.onRecommend();
+        }
+      });
+
+      batchButtonNode = createButton("批量识别");
+      batchButtonNode.addEventListener("click", function () {
+        if (typeof deps.onBatchRecommend === "function") {
+          void deps.onBatchRecommend();
+        }
+      });
+
+      actions.appendChild(singleButtonNode);
+      actions.appendChild(batchButtonNode);
+      root.appendChild(actions);
+
+      statusNode = document.createElement("div");
+      statusNode.className = "asc-status";
+      statusNode.textContent = "等待进入标注页并点击“识别”或“批量识别”。";
+      root.appendChild(statusNode);
+
+      document.documentElement.appendChild(root);
+      return root;
     }
 
-    function applyMountContext(targetNode, mountContext) {
-      const mountTarget = mountContext?.container;
-      if (!(targetNode instanceof HTMLElement) || !(mountTarget instanceof HTMLElement)) {
-        return false;
+    function renderKeyValueRows(container, rows) {
+      const grid = document.createElement("div");
+      grid.className = "asc-grid";
+      rows.forEach(function (row) {
+        const labelNode = document.createElement("div");
+        labelNode.className = "asc-label";
+        labelNode.textContent = row[0];
+        const valueNode = document.createElement("div");
+        valueNode.className = "asc-value";
+        valueNode.textContent = String(row[1] || "");
+        grid.appendChild(labelNode);
+        grid.appendChild(valueNode);
+      });
+      container.appendChild(grid);
+    }
+
+    function clearResult() {
+      if (resultNode) {
+        resultNode.remove();
       }
-      const anchorNode = mountContext?.anchor;
-      if (
-        anchorNode instanceof HTMLElement &&
-        anchorNode.parentElement === mountTarget
-      ) {
-        mountTarget.insertBefore(targetNode, anchorNode);
-        return true;
+      resultNode = null;
+    }
+
+    function clearBatch() {
+      if (batchNode) {
+        batchNode.remove();
       }
-      mountTarget.appendChild(targetNode);
-      return true;
+      batchNode = null;
     }
 
     function setStatus(message, tone) {
+      ensureRoot();
       if (!statusNode) {
         return;
       }
@@ -151,381 +191,107 @@
       statusNode.setAttribute("data-tone", String(tone || "info"));
     }
 
-    async function copyText(text) {
-      const content = String(text || "");
-      if (!content) {
-        throw new Error("暂无可复制内容。");
+    function setBusy(state) {
+      const nextState = state && typeof state === "object" ? state : {};
+      ensureRoot();
+      if (singleButtonNode) {
+        singleButtonNode.disabled = nextState.single === true || nextState.batch === true;
       }
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-        await navigator.clipboard.writeText(content);
-        return;
+      if (batchButtonNode) {
+        batchButtonNode.disabled = nextState.batch === true || nextState.single === true;
       }
-      const textarea = document.createElement("textarea");
-      textarea.value = content;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      textarea.remove();
-    }
-
-    function clearResult() {
-      currentResult = null;
-      if (resultNode) {
-        resultNode.remove();
-      }
-      resultNode = null;
-    }
-
-    function renderRow(grid, label, value) {
-      const labelNode = document.createElement("div");
-      labelNode.className = "asc-aishell-label";
-      labelNode.textContent = label;
-      const valueNode = document.createElement("div");
-      valueNode.className = "asc-aishell-value";
-      valueNode.textContent = String(value || "");
-      grid.appendChild(labelNode);
-      grid.appendChild(valueNode);
     }
 
     function renderResult(result) {
-      if (!root) {
-        return;
-      }
+      const source = result && typeof result === "object" ? result : null;
+      ensureRoot();
       clearResult();
-      currentResult = result && typeof result === "object" ? result : null;
-      if (!currentResult) {
+      if (!source) {
         return;
       }
-      const resultWrap = document.createElement("div");
-      resultWrap.className = "asc-aishell-result";
-      const grid = document.createElement("div");
-      grid.className = "asc-aishell-grid";
-      renderRow(grid, "听音文本", currentResult.heardText || "");
-      renderRow(grid, "推荐文本", currentResult.recommendedText || "");
-      renderRow(grid, "参考文本", currentResult.referenceText || "");
-      renderRow(grid, "决策", currentResult.decision || "");
-      renderRow(
-        grid,
-        "模型",
-        [
-          currentResult.models?.listenModel,
-          currentResult.models?.compareModel,
-        ]
-          .filter(Boolean)
-          .join(" + ") || currentResult.models?.singleModel || ""
-      );
-      renderRow(
-        grid,
-        "耗时",
-        "听音 " +
-          String(Number(currentResult.timing?.listenDurationMs || 0)) +
-          "ms / 对比 " +
-          String(Number(currentResult.timing?.compareDurationMs || 0)) +
-          "ms / 总计 " +
-          String(Number(currentResult.timing?.totalDurationMs || 0)) +
-          "ms"
-      );
-      renderRow(grid, "requestId", currentResult.debug?.requestId || "");
-      resultWrap.appendChild(grid);
+      resultNode = document.createElement("div");
+      resultNode.className = "asc-section";
 
-      const actions = document.createElement("div");
-      actions.className = "asc-aishell-result-actions";
-      const copyHeardButton = createButton("复制听音文本");
-      copyHeardButton.addEventListener("click", function () {
-        copyText(removeTextSpaces(currentResult.heardText || ""))
-          .then(function () {
-            setStatus("AI 听音文本已复制。", "success");
-          })
-          .catch(function (error) {
-            setStatus(error?.message || String(error), "error");
-          });
-      });
-      const copyRecommendedButton = createButton("复制推荐文本", {
-        "data-primary": "true",
-      });
-      copyRecommendedButton.addEventListener("click", function () {
-        copyText(removeTextSpaces(currentResult.recommendedText || ""))
-          .then(function () {
-            setStatus("AI 推荐文本已复制。", "success");
-          })
-          .catch(function (error) {
-            setStatus(error?.message || String(error), "error");
-          });
-      });
-      const fillButton = createButton("填入当前条");
-      fillButton.disabled =
-        typeof deps.canFillPageText === "function" ? !deps.canFillPageText() : false;
-      fillButton.addEventListener("click", function () {
-        if (typeof deps.fillPageText !== "function") {
-          setStatus("填入能力未就绪。", "error");
-          return;
-        }
-        const fillResult = deps.fillPageText(
-          ensureChineseSentencePunctuation(removeTextSpaces(currentResult.recommendedText || ""))
-        );
-        setStatus(fillResult?.message || "已填入推荐文本。", fillResult?.ok === false ? "error" : "success");
-      });
-      const ignoreButton = createButton("忽略");
-      ignoreButton.addEventListener("click", function () {
-        clearResult();
-        setStatus("已忽略当前推荐结果。", "info");
-      });
-      actions.appendChild(copyHeardButton);
-      actions.appendChild(copyRecommendedButton);
-      actions.appendChild(fillButton);
-      actions.appendChild(ignoreButton);
-      resultWrap.appendChild(actions);
-
-      const note = document.createElement("div");
-      note.className = "asc-aishell-note";
-      note.textContent =
-        "AI 结果仅作辅助。单条不会自动保存；批量模式会在每条填入后点击页面真实保存按钮。";
-      resultWrap.appendChild(note);
-
-      root.appendChild(resultWrap);
-      resultNode = resultWrap;
-    }
-
-    function ensureBatchFloating() {
-      if (batchFloatingNode && document.documentElement.contains(batchFloatingNode)) {
-        return batchFloatingNode;
-      }
-      batchFloatingNode = document.createElement("div");
-      batchFloatingNode.className = "asc-aishell-batch-floating";
-      const head = document.createElement("div");
-      head.className = "asc-aishell-batch-head";
       const title = document.createElement("div");
-      title.className = "asc-aishell-batch-title";
-      title.textContent = "Aishell 批量推荐并保存";
-      const closeButton = createButton("关闭");
-      closeButton.addEventListener("click", function () {
-        if (batchFloatingNode) {
-          batchFloatingNode.remove();
-        }
-        batchFloatingNode = null;
-        batchFloatingGrid = null;
-        batchFloatingCurrentNode = null;
-        batchFloatingFailuresNode = null;
-      });
-      head.appendChild(title);
-      head.appendChild(closeButton);
-      batchFloatingNode.appendChild(head);
-      batchFloatingGrid = document.createElement("div");
-      batchFloatingGrid.className = "asc-aishell-batch-grid";
-      batchFloatingNode.appendChild(batchFloatingGrid);
-      batchFloatingCurrentNode = document.createElement("div");
-      batchFloatingCurrentNode.className = "asc-aishell-batch-current";
-      batchFloatingNode.appendChild(batchFloatingCurrentNode);
-      batchFloatingFailuresNode = document.createElement("div");
-      batchFloatingFailuresNode.className = "asc-aishell-batch-failures";
-      batchFloatingNode.appendChild(batchFloatingFailuresNode);
-      document.documentElement.appendChild(batchFloatingNode);
-      return batchFloatingNode;
+      title.className = "asc-section-title";
+      title.textContent = "当前识别结果";
+      resultNode.appendChild(title);
+
+      renderKeyValueRows(resultNode, [
+        ["听音文本", source.heardText || ""],
+        ["推荐文本", source.recommendedText || ""],
+        ["参考文本", source.referenceText || ""],
+        [
+          "模型",
+          [
+            source.models?.listenModel,
+            source.models?.compareModel,
+            source.models?.singleModel,
+          ]
+            .filter(Boolean)
+            .join(" + "),
+        ],
+        ["requestId", source.debug?.requestId || ""],
+      ]);
+
+      root.appendChild(resultNode);
     }
 
     function updateBatch(snapshot) {
-      const data = snapshot && typeof snapshot === "object" ? snapshot : {};
-      const floating = ensureBatchFloating();
-      if (!floating || !batchFloatingGrid || !batchFloatingCurrentNode || !batchFloatingFailuresNode) {
-        return;
-      }
-      floating.setAttribute("data-tone", String(data.tone || "running"));
-      batchFloatingGrid.innerHTML = "";
-      [
-        ["阶段", data.phaseText || "-"],
-        ["总数", Number(data.total || 0)],
-        ["已完成", Number(data.completed || 0)],
-        ["失败", Number(data.failed || 0)],
-        ["并发", Number(data.concurrency || 0)],
-        ["耗时", String(data.elapsedText || "-")],
-      ].forEach(function (row) {
-        const label = document.createElement("div");
-        label.className = "asc-aishell-batch-label";
-        label.textContent = row[0];
-        const value = document.createElement("div");
-        value.textContent = String(row[1]);
-        batchFloatingGrid.appendChild(label);
-        batchFloatingGrid.appendChild(value);
-      });
-      batchFloatingCurrentNode.textContent = data.currentText
-        ? "当前条目：" + data.currentText
-        : "当前条目：-";
-      const failures = Array.isArray(data.failures) ? data.failures : [];
-      if (!failures.length) {
-        batchFloatingFailuresNode.innerHTML = "<strong>失败清单</strong><div>暂无失败项。</div>";
-        return;
-      }
-      const list = document.createElement("ul");
-      failures.slice(0, 12).forEach(function (failure) {
-        const item = document.createElement("li");
-        item.textContent =
-          normalizeText(failure?.displayName || "未命名条目") +
-          "：" +
-          normalizeText(failure?.message || "未知错误");
-        list.appendChild(item);
-      });
-      batchFloatingFailuresNode.innerHTML = "<strong>失败清单</strong>";
-      batchFloatingFailuresNode.appendChild(list);
-    }
+      const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+      ensureRoot();
+      clearBatch();
 
-    function setBatchButtons(running, stopping) {
-      if (batchStartButtonNode) {
-        batchStartButtonNode.disabled = running === true;
-      }
-      if (batchStopButtonNode) {
-        batchStopButtonNode.disabled = running !== true || stopping === true;
-      }
-    }
+      batchNode = document.createElement("div");
+      batchNode.className = "asc-section";
 
-    async function requestAiRecommend() {
-      if (typeof deps.onRecommend !== "function") {
-        setStatus("AI 推荐运行时未就绪。", "error");
-        return { ok: false };
-      }
-      recommendButtonNode.disabled = true;
-      setStatus("正在生成 AI 推荐文本...", "info");
-      try {
-        const result = await deps.onRecommend();
-        renderResult(result);
-        setStatus("AI 推荐文本已生成，请人工复核。", "success");
-        return { ok: true };
-      } catch (error) {
-        setStatus(error?.message || String(error), "error");
-        return { ok: false };
-      } finally {
-        recommendButtonNode.disabled = false;
-      }
-    }
-
-    function ensureMounted() {
-      if (root && document.documentElement.contains(root)) {
-        const existingMountContext = findMountContext();
-        applyMountContext(root, existingMountContext);
-        return root;
-      }
-      ensureStyle();
-      const mountContext = findMountContext();
-      const mountTarget = mountContext?.container;
-      if (!(mountTarget instanceof HTMLElement)) {
-        return null;
-      }
-      root = document.createElement("div");
-      root.setAttribute(ROOT_ATTR, "true");
-
-      const head = document.createElement("div");
-      head.className = "asc-aishell-head";
-      const titleWrap = document.createElement("div");
       const title = document.createElement("div");
-      title.className = "asc-aishell-title";
-      title.textContent = "闽南语助手推荐文本";
-      const subtitle = document.createElement("div");
-      subtitle.textContent = "当前页只处理当前分包，从当前选中条开始，跳过已完成条目。";
-      titleWrap.appendChild(title);
-      titleWrap.appendChild(subtitle);
-      head.appendChild(titleWrap);
-      root.appendChild(head);
+      title.className = "asc-section-title";
+      title.textContent = "批量识别状态";
+      batchNode.appendChild(title);
 
-      const actions = document.createElement("div");
-      actions.className = "asc-aishell-actions";
-      recommendButtonNode = createButton("AI 推荐当前条", { "data-primary": "true" });
-      recommendButtonNode.addEventListener("click", function () {
-        void requestAiRecommend();
-      });
-      batchStartButtonNode = createButton("批量开始");
-      batchStartButtonNode.addEventListener("click", function () {
-        if (typeof deps.onBatchStart === "function") {
-          void deps.onBatchStart();
-        }
-      });
-      batchStopButtonNode = createButton("批量停止", { "data-danger": "true" });
-      batchStopButtonNode.disabled = true;
-      batchStopButtonNode.addEventListener("click", function () {
-        if (typeof deps.onBatchStop === "function") {
-          void deps.onBatchStop();
-        }
-      });
-      actions.appendChild(recommendButtonNode);
-      actions.appendChild(batchStartButtonNode);
-      actions.appendChild(batchStopButtonNode);
-      root.appendChild(actions);
+      renderKeyValueRows(batchNode, [
+        ["阶段", source.phaseText || "-"],
+        ["总数", Number(source.total || 0)],
+        ["已完成", Number(source.completed || 0)],
+        ["失败", Number(source.failed || 0)],
+        ["当前条", source.currentText || "-"],
+      ]);
 
-      statusNode = document.createElement("div");
-      statusNode.className = "asc-aishell-status";
-      statusNode.textContent = "请选择当前条后手动触发。";
-      root.appendChild(statusNode);
-
-      applyMountContext(root, mountContext);
-      return root;
+      root.appendChild(batchNode);
     }
 
     function updateCurrentItemKey(itemKey) {
       const nextKey = String(itemKey || "");
       if (nextKey && currentItemKey && nextKey !== currentItemKey) {
         clearResult();
-        setStatus("当前条已变化，请重新点击 AI 推荐当前条。", "info");
+        setStatus("当前条已变化，请重新点击“识别”。", "warning");
       }
       currentItemKey = nextKey;
     }
 
-    function copyHeardText() {
-      return copyText(removeTextSpaces(currentResult?.heardText || ""));
-    }
-
-    function copyRecommendedText() {
-      return copyText(removeTextSpaces(currentResult?.recommendedText || ""));
-    }
-
-    function fillRecommendedText() {
-      if (typeof deps.fillPageText !== "function") {
-        return {
-          ok: false,
-          message: "填入能力未就绪。",
-        };
-      }
-      return deps.fillPageText(
-        ensureChineseSentencePunctuation(removeTextSpaces(currentResult?.recommendedText || ""))
-      );
-    }
-
-    function ignoreAiResult() {
-      clearResult();
-      setStatus("已忽略当前推荐结果。", "info");
+    function ensureMounted() {
+      return ensureRoot();
     }
 
     function remove() {
       clearResult();
+      clearBatch();
       if (root) {
         root.remove();
       }
       root = null;
-      resultNode = null;
       statusNode = null;
-      recommendButtonNode = null;
-      batchStartButtonNode = null;
-      batchStopButtonNode = null;
-      currentResult = null;
+      singleButtonNode = null;
+      batchButtonNode = null;
       currentItemKey = "";
-      if (batchFloatingNode) {
-        batchFloatingNode.remove();
-      }
-      batchFloatingNode = null;
-      batchFloatingGrid = null;
-      batchFloatingCurrentNode = null;
-      batchFloatingFailuresNode = null;
     }
 
     return {
-      copyHeardText,
-      copyRecommendedText,
       ensureMounted,
-      fillRecommendedText,
-      ignoreAiResult,
       remove,
       renderResult,
-      requestAiRecommend,
-      setBatchButtons,
+      setBusy,
       setStatus,
       updateBatch,
       updateCurrentItemKey,
@@ -534,7 +300,5 @@
 
   globalThis.__ASREdgeAishellTechMinnanUiPanel = {
     createRuntime,
-    ensureChineseSentencePunctuation,
-    removeTextSpaces,
   };
 })();

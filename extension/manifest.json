@@ -6,9 +6,7 @@
   "update_url": "https://script.xiangtianzhen.store/downloads/annotation-script-center-update.xml",
   "permissions": [
     "storage",
-    "tabs",
-    "scripting",
-    "webNavigation"
+    "tabs"
   ],
   "host_permissions": [
     "https://labelx.alibaba-inc.com/*",
@@ -211,24 +209,11 @@
         "https://mark.aishelltech.com/*"
       ],
       "js": [
-        "sites/aishell-tech/minnan-helper/page-world/network-observer.js"
-      ],
-      "all_frames": false,
-      "run_at": "document_start",
-      "world": "MAIN"
-    },
-    {
-      "matches": [
-        "https://mark.aishelltech.com/*"
-      ],
-      "js": [
         "shared/constants.js",
         "shared/storage.js",
-        "shared/ai-usage-meta.js",
         "sites/aishell-tech/minnan-helper/data-api.js",
         "sites/aishell-tech/minnan-helper/ai-recommendation.js",
         "sites/aishell-tech/minnan-helper/ui-panel.js",
-        "sites/aishell-tech/minnan-helper/shortcuts.js",
         "sites/aishell-tech/minnan-helper/content.js"
       ],
       "all_frames": false,
