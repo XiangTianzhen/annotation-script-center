@@ -145,27 +145,44 @@ function createAiRoute(adapter, options) {
         runner,
       });
 
-      sendJson(
-        response,
-        200,
-        createNormalizedResponse({
-          success: true,
-          requestId: normalizedRequest.requestId,
-          platform: normalizedRequest.platform,
-          scriptId: normalizedRequest.scriptId,
-          routeKey: normalizedRequest.routeKey,
-          models: execution.models,
-          usage: execution.usage,
-          timing: execution.timing,
-          cache: execution.cache,
-          debug: execution.debug,
-          notes: execution.notes,
-          projectResult: execution.projectResult,
-        })
-      );
+      const successBody =
+        typeof runtimeOptions.createSuccessBody === "function"
+          ? runtimeOptions.createSuccessBody({
+              adapter: source,
+              routeContext: context,
+              parsedBody,
+              normalizedRequest,
+              assets,
+              execution,
+            })
+          : createNormalizedResponse({
+              success: true,
+              requestId: normalizedRequest.requestId,
+              platform: normalizedRequest.platform,
+              scriptId: normalizedRequest.scriptId,
+              routeKey: normalizedRequest.routeKey,
+              models: execution.models,
+              usage: execution.usage,
+              timing: execution.timing,
+              cache: execution.cache,
+              debug: execution.debug,
+              notes: execution.notes,
+              projectResult: execution.projectResult,
+            });
+
+      sendJson(response, 200, successBody);
     } catch (error) {
       const statusCode = Math.max(400, Number(error && error.statusCode) || 500);
-      sendJson(response, statusCode, createErrorBody(error, requestId));
+      const errorBody =
+        typeof runtimeOptions.createErrorBody === "function"
+          ? runtimeOptions.createErrorBody({
+              adapter: source,
+              routeContext: context,
+              error,
+              requestId: normalizeString((error && error.requestId) || requestId),
+            })
+          : createErrorBody(error, requestId);
+      sendJson(response, statusCode, errorBody);
     }
   };
 }

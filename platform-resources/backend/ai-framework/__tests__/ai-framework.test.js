@@ -309,3 +309,95 @@ test("createAiRoute returns 400 for invalid JSON", async function () {
     requestId: "",
   });
 });
+
+test("createAiRoute supports custom success and error body builders", async function () {
+  const routeHandler = createAiRoute(
+    {
+      projectId: "data-baker/round-one-quality",
+      platform: "data-baker",
+      scriptId: "round-one-quality",
+      normalizeInput(body) {
+        return {
+          input: {
+            pageText: body.pageText,
+          },
+        };
+      },
+    },
+    {
+      run(context) {
+        if (context.normalizedRequest.input.pageText === "fail") {
+          const error = new Error("custom failure");
+          error.statusCode = 422;
+          error.code = "custom-failure";
+          throw error;
+        }
+        return {
+          recommendedText: context.normalizedRequest.input.pageText,
+        };
+      },
+      createSuccessBody(context) {
+        return {
+          success: true,
+          data: context.execution.pipelineResult,
+          requestId: context.normalizedRequest.requestId,
+        };
+      },
+      createErrorBody(context) {
+        return {
+          success: false,
+          code: context.error.code,
+          message: context.error.message,
+          requestId: context.requestId,
+        };
+      },
+    }
+  );
+
+  const successRequest = createJsonRequest({
+    requestId: "request-4",
+    pageText: "兼容返回",
+  });
+  const successResponse = createMockResponse();
+
+  await routeHandler({
+    method: "POST",
+    pathname: "/api/data-baker/round-one-quality/ai/recommend",
+    query: {},
+    params: {},
+    request: successRequest,
+    response: successResponse,
+  });
+
+  assert.equal(successResponse.statusCode, 200);
+  assert.deepEqual(JSON.parse(successResponse.body), {
+    success: true,
+    data: {
+      recommendedText: "兼容返回",
+    },
+    requestId: "request-4",
+  });
+
+  const failRequest = createJsonRequest({
+    requestId: "request-5",
+    pageText: "fail",
+  });
+  const failResponse = createMockResponse();
+
+  await routeHandler({
+    method: "POST",
+    pathname: "/api/data-baker/round-one-quality/ai/recommend",
+    query: {},
+    params: {},
+    request: failRequest,
+    response: failResponse,
+  });
+
+  assert.equal(failResponse.statusCode, 422);
+  assert.deepEqual(JSON.parse(failResponse.body), {
+    success: false,
+    code: "custom-failure",
+    message: "custom failure",
+    requestId: "request-5",
+  });
+});

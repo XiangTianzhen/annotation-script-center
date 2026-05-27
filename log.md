@@ -1,3 +1,20 @@
+## 2026-05-28（DataBaker adapter 接入 AI framework）
+
+- 新增 `platform-resources/data-baker/round-one-quality/ai/adapter.js`：
+  - 作为首个脚本级 adapter，把 DataBaker recommend 请求映射到统一 framework 输入契约。
+  - 保留旧 recommend 成功/失败响应结构，避免前端同步改契约。
+- 新增 `platform-resources/data-baker/round-one-quality/ai/adapter.test.js`：
+  - 固定 `normalizeInput`、旧 success body、旧 error body 三个桥接行为。
+- 新增目录说明：
+  - `platform-resources/data-baker/round-one-quality/ai/assets/README.md`
+  - `platform-resources/data-baker/round-one-quality/data/README.md`
+- 更新 `platform-resources/data-baker/round-one-quality/backend/ai-routes.js`：
+  - recommend 入口改由统一 `ai-framework` route factory 驱动。
+  - 继续复用原 `ai-service.js`、`ai-legacy-omni-service.js`、dedupe 与 jobs 逻辑。
+  - `health/defaults/jobs` 当前保持原实现，先做桥接式迁移，不一次性推倒业务层。
+- 更新 `platform-resources/backend/ai-framework/README.md`：
+  - 明确 route factory 现已支持 `createSuccessBody / createErrorBody`，便于旧项目逐个迁移。
+
 ## 2026-05-28（backend AI framework 骨架）
 
 - 新增 `platform-resources/backend/ai-framework/` 第一版骨架：

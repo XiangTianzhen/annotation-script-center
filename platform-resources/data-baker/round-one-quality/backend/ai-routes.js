@@ -3,6 +3,8 @@
 const crypto = require("crypto");
 
 const { sendJson } = require("../../../backend/response");
+const { createAiRoute } = require("../../../backend/ai-framework");
+const dataBakerRoundOneAdapter = require("../ai/adapter");
 const { getInFlightDedupeHealth, runWithInFlightDedupe } = require("./ai-inflight-dedupe");
 const { getAiDebug } = require("./ai-debug-store");
 const {
@@ -210,23 +212,14 @@ async function executeRecommendWithRouting(requestBody, normalizedRequest, reque
   });
 }
 
-async function handleRecommend(request, response) {
-  let requestId = createRequestId();
-  let normalizedRequest = null;
-  try {
-    const rawBody = await readRequestBody(request);
-    let body = {};
-    try {
-      body = JSON.parse(rawBody || "{}");
-    } catch (error) {
-      throw createHttpError(400, "请求体 JSON 解析失败。", "invalid-json");
-    }
-
-    requestId = String(body.requestId || requestId);
-    normalizedRequest = normalizeRecommendRequest(body);
+const handleRecommend = createAiRoute(dataBakerRoundOneAdapter, {
+  run(context) {
+    const normalizedRequest =
+      context?.normalizedRequest?.runtimeContext?.normalizedRecommendRequest ||
+      normalizeRecommendRequest(context?.runtimeContext?.rawBody || {});
 
     console.info("[DataBaker][round-one-quality][ai] recommend start", {
-      requestId,
+      requestId: String(context?.normalizedRequest?.requestId || ""),
       itemId: String(normalizedRequest.itemId || ""),
       textId: String(normalizedRequest.textId || ""),
       sentenceNumber: normalizeNullableInteger(normalizedRequest.sentenceNumber),
@@ -238,30 +231,20 @@ async function handleRecommend(request, response) {
       clientRequestId: String(normalizedRequest.clientRequestId || ""),
     });
 
-    const dedupeResult = await executeRecommendWithRouting(body, normalizedRequest, requestId, {});
-    const result = dedupeResult?.value || dedupeResult;
-    sendJson(response, 200, {
-      success: true,
-      requestId,
-      data: result,
-      dedupe: {
-        enabled: dedupeResult?.dedupeEnabled === true,
-        joined: dedupeResult?.joined === true,
-        joinedInflight: dedupeResult?.joinedInflight === true,
-        keyShort: String(dedupeResult?.dedupeKeyShort || ""),
-      },
-      routing: {
-        legacyOmniFastPath: dedupeResult?.legacyOmniFastPath === true,
-        omniLegacyCommit:
-          dedupeResult?.legacyOmniFastPath === true ? LEGACY_OMNI_COMMIT : "",
-      },
-    });
-  } catch (error) {
-    const statusCode = Math.max(400, Number(error?.statusCode) || 500);
-    error.requestId = String(error?.requestId || requestId || "");
-    sendJson(response, statusCode, buildErrorResponseBody(error, "DataBaker AI recommend 请求失败。"));
-  }
-}
+    return executeRecommendWithRouting(
+      context?.runtimeContext?.rawBody || {},
+      normalizedRequest,
+      String(context?.normalizedRequest?.requestId || ""),
+      {}
+    );
+  },
+  createSuccessBody(context) {
+    return dataBakerRoundOneAdapter.buildRecommendSuccessBody(context);
+  },
+  createErrorBody(context) {
+    return dataBakerRoundOneAdapter.buildRecommendErrorBody(context);
+  },
+});
 
 async function runRecommendJob(jobId, requestBody, requestId) {
   let normalizedRequest = null;

@@ -34,8 +34,9 @@
 
 ## 文件职责
 
+- `../ai/adapter.js`：DataBaker 接入统一 `ai-framework` 的项目 adapter，先负责输入归一和旧 recommend 响应兼容。
 - `index.js`：项目路由注册入口。
-- `ai-routes.js`：负责 HTTP health / defaults / recommend / jobs 路由注册、请求体读取、Omni legacy / Fun-ASR 路由派发和响应返回。
+- `ai-routes.js`：负责 HTTP health / defaults / recommend / jobs 路由注册；recommend 入口当前已改由统一 `ai-framework` route factory 驱动，但仍保留旧接口响应结构。
 - `ai-service.js`：DataBaker AI 当前业务层，集中管理请求归一化、Fun-ASR REST 与当前通用链路、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
 - `ai-legacy-omni-service.js`：DataBaker 专用 Qwen Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 恢复旧版两阶段逻辑。
 - `ai-client-qwen-legacy.js`：DataBaker 专用 Qwen Omni legacy 客户端，只服务 Omni 快速路径，不影响统一 AI 基座。
@@ -47,6 +48,8 @@
 - `platform-resources/backend/ai/providers/funasr.js`：统一选择 Fun-ASR `rest/python` provider。
 - `platform-resources/backend/ai/python/funasr_client.py`：保留的 Python SDK fallback / 调试脚本。
 - `platform-resources/backend/ai/`：统一 AI 基座，提供 Qwen provider、Fun-ASR REST / Python provider、provider 队列、结果缓存和公共脱敏/错误处理。
+- `../ai/assets/`：DataBaker AI 资产目录占位；当前仍沿用 `ai-service.js` 与 `backend/reference/`，后续逐步迁移 prompt/rules/schema。
+- `../data/README.md`：DataBaker 脚本级 data 目录说明；当前只固定目录边界，不直接迁移运行数据。
 
 ## 模型
 
