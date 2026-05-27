@@ -6,6 +6,14 @@
 - `GET /api/magic-data/minnan-helper/ai/defaults`
 - `POST /api/magic-data/minnan-helper/ai/review-current`
 
+## 当前迁移状态
+
+- `POST /api/magic-data/minnan-helper/ai/review-current` 当前已改为通过统一 `platform-resources/backend/ai-framework/` route factory 驱动。
+- 对外成功 / 失败响应结构保持原兼容形态：
+  - 成功：`success + data + cache + backend`
+  - 失败：`success + requestId + code + message + scriptId (+ summary)`
+- `health/defaults` 仍保持原实现，本轮先做桥接式迁移，不一次性推倒业务层。
+
 ## 识别模式
 
 - `two_stage + fun-asr`：Fun-ASR 听音 + compare 模型复核。

@@ -1,3 +1,21 @@
+## 2026-05-28（Magic Data 闽南语助手接入 AI framework 桥接层）
+
+- 新增 `platform-resources/magic-data/minnan-helper/ai/adapter.js`：
+  - 把闽南语助手 `review-current` 请求映射为统一 `ai-framework` 输入契约。
+  - 保留旧成功/失败返回结构，避免前端同步改契约。
+- 新增 `platform-resources/magic-data/minnan-helper/ai/adapter.test.js`：
+  - 固定 `normalizeInput`、legacy success body、legacy error body 三个桥接行为。
+- 新增目录说明：
+  - `platform-resources/magic-data/minnan-helper/ai/assets/README.md`
+  - `platform-resources/magic-data/minnan-helper/data/README.md`
+- 更新 `platform-resources/magic-data/minnan-helper/backend/ai-routes.js`：
+  - `POST /api/magic-data/minnan-helper/ai/review-current` 改为通过统一 `ai-framework` route factory 驱动。
+  - 继续复用原 `ai-service.js` 的 `reviewCurrent`、health/defaults、队列、缓存、词表与 provider 逻辑。
+  - 对外响应结构保持 `success + data + cache + backend` 与原错误结构兼容。
+- 更新闽南语助手 README 与后端 README：
+  - 明确当前是桥接式迁移，`health/defaults` 仍保留旧实现。
+  - 固定 `ai/` 与 `data/` 目录边界，后续再逐步把 prompt / schema / lexicon 迁入 `ai/assets/`。
+
 ## 2026-05-28（Aishell Tech 正式接入准备态同步）
 
 - 更新 `platform-resources/aishell-tech/README.md`：

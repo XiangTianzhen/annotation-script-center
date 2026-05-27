@@ -108,7 +108,7 @@
 
 - AI 框架设计：`docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`
 - AI 框架迁移计划：`docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`
-- Aishell Tech 仍保持资料态，不进入本轮 AI 框架迁移；协作者继续按 `platform-resources/aishell-tech/README.md`、`network/README.md`、`page-structure/README.md` 补资料。
+- Aishell Tech 当前处于正式接入准备态，但仍不进入本轮 AI 框架迁移；协作者继续按 `platform-resources/aishell-tech/README.md`、`network/README.md`、`page-structure/README.md` 补资料，并按该目录资料直接支持后续运行时代码开发。
 
 ## 安全边界
 

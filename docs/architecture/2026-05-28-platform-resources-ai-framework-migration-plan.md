@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 把 `platform-resources/` 的 AI 后端逐步迁移为统一框架，并补齐协作文档、脚本级 `ai/` / `data/` 目录口径与 Aishell Tech 资料态说明。
+**Goal:** 把 `platform-resources/` 的 AI 后端逐步迁移为统一框架，并补齐协作文档、脚本级 `ai/` / `data/` 目录口径与 Aishell Tech 正式接入准备态说明。
 
 **Architecture:** 继续复用 `platform-resources/backend/server.js` 作为统一入口，在 `platform-resources/backend/` 下新增 `ai-framework/` 公共层；各脚本改为“轻量 adapter + assets”模式，外部 API path 保持不变。`data/` 作为脚本级数据逻辑目录独立落地，但上传统计逻辑本轮不合并。
 
@@ -61,7 +61,7 @@
 - 脚本级 ai/ 与 data/ 结构
 - adapter 允许/禁止职责
 - 统一 request/response 契约
-- Aishell Tech 资料态例外
+- Aishell Tech 正式接入准备态例外
 ```
 
 - [ ] **Step 2: 写入迁移计划**
@@ -436,6 +436,6 @@ git commit -m "优化(data): 归一脚本级 data 目录与下载能力"
 
 ## 自检
 
-- 设计与计划是否覆盖 AI framework、adapter、`ai/` / `data/` 目录、Aishell Tech 资料态和逐块提交要求。
+- 设计与计划是否覆盖 AI framework、adapter、`ai/` / `data/` 目录、Aishell Tech 正式接入准备态和逐块提交要求。
 - 计划中的文件路径是否都落在真实目录下。
 - 第一轮是否避免误把 `extension/` 与上传统计重构卷入 AI 迁移。

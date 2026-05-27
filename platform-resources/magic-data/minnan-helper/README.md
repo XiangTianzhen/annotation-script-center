@@ -4,8 +4,11 @@
 
 ## 实际文件与职责
 
+- `ai/adapter.js`：闽南语助手接入统一 `ai-framework` 的项目 adapter。
+- `ai/assets/README.md`：AI 资产目录占位说明。
+- `data/README.md`：脚本级 data 目录占位说明。
 - `backend/index.js`：闽南语助手后端注册入口。
-- `backend/ai-routes.js`：闽南语助手 AI 路由注册。
+- `backend/ai-routes.js`：闽南语助手 AI 路由注册；`review-current` 已改为通过统一 `ai-framework` route factory 驱动，但外部响应结构保持兼容。
 - `backend/ai-*.js`：闽南语助手 AI 能力实现（模型调用、Prompt、词表、日志、成本估算）。
 - `backend/lexicon/minnan-lexicon.csv`：闽南语词表（后端运行时读取）。
 - `backend/tools/convert-hakka-lexicon.js`：闽南语词表转换脚本（文件名保留兼容，输入输出已是闽南语词表）。

@@ -1,6 +1,8 @@
 "use strict";
 
 const { sendJson } = require("../../../backend/response");
+const { createAiRoute } = require("../../../backend/ai-framework");
+const minnanHelperAdapter = require("../ai/adapter");
 const {
   SCRIPT_ID,
   createDefaultsPayload,
@@ -29,46 +31,23 @@ function normalizeText(value) {
   return String(value || "").trim();
 }
 
-async function handleReviewCurrent(request, response) {
-  let requestId = createRequestId();
-  try {
-    const rawBody = await readRequestBody(request);
-    let body = {};
-    try {
-      body = JSON.parse(rawBody || "{}");
-    } catch (error) {
-      const parseError = new Error("请求体 JSON 解析失败。");
-      parseError.code = "invalid-json";
-      parseError.statusCode = 400;
-      throw parseError;
+const handleReviewCurrent = createAiRoute(minnanHelperAdapter, {
+  run(context) {
+    const requestId = normalizeText(context?.normalizedRequest?.requestId || createRequestId());
+    const body = context?.runtimeContext?.rawBody || {};
+    return reviewCurrent(body, requestId);
+  },
+  createSuccessBody(context) {
+    return minnanHelperAdapter.buildReviewSuccessBody(context);
+  },
+  createErrorBody(context) {
+    const error = context?.error || {};
+    if (error?.code === "timeout" && !error.statusCode) {
+      error.statusCode = 504;
     }
-
-    requestId = normalizeText(body?.requestId) || requestId;
-    const result = await reviewCurrent(body, requestId);
-    sendJson(response, 200, {
-      success: true,
-      data: result?.data || {},
-      cache: result?.cache || { hit: false },
-      backend: result?.backend || {},
-    });
-  } catch (error) {
-    const statusCode = Number(error?.statusCode) || (error?.code === "timeout" ? 504 : 500);
-    const code = normalizeText(error?.code) || (statusCode >= 500 ? "internal-error" : "request-error");
-    const message = normalizeText(error?.message || "Magic Data 闽南语助手请求失败。").slice(0, 240);
-    const responseBody = {
-      success: false,
-      requestId: normalizeText(error?.requestId || requestId),
-      code,
-      message,
-      scriptId: SCRIPT_ID,
-    };
-    const summary = normalizeText(error?.summary || "");
-    if (summary) {
-      responseBody.summary = summary.slice(0, 200);
-    }
-    sendJson(response, statusCode, responseBody);
-  }
-}
+    return minnanHelperAdapter.buildReviewErrorBody(context);
+  },
+});
 
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
@@ -91,4 +70,3 @@ module.exports = {
   handleReviewCurrent,
   registerAiRoutes,
 };
-

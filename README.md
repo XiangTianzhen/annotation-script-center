@@ -30,7 +30,7 @@
 
 ## 当前重点平台与脚本
 
-- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（只读平台资料采集阶段）。
+- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（正式接入准备态，核心链路资料已齐，尚无运行时代码与专属后端注册）。
 - 当前 CSV 对接字段口径：
   - LabelX 快判/转写：`有效时长(秒)_S` 与人员 `_P` 字段。
   - DataBaker 一检：`有效合格时长_S` 与 `质检人_P` 字段。

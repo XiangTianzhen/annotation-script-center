@@ -11,7 +11,7 @@
 - 每个脚本目录只保留少量 adapter 代码和 prompt/schema/lexicon/rules 资产。
 - 每个脚本目录新增与 `ai/` 同级的 `data/`，用于放数据脚本、字段映射、下载逻辑和脱敏样例。
 - `network/`、`page-structure/` 继续按阿里系资料规范维护 Markdown 文档。
-- Aishell Tech 当前保持资料初始化态，只同步协作文档，不进入本轮 AI 迁移主线。
+- Aishell Tech 当前处于正式接入准备态：核心标注链路资料已足够支撑首阶段运行时代码开发，但尚无运行时代码与专属后端注册，因此仍不进入本轮 AI 迁移主线。
 
 ## 当前现状
 
@@ -231,7 +231,7 @@ platform-resources/<platform>/<script-id>/
 
 ## Aishell Tech 定位
 
-`platform-resources/aishell-tech/` 当前仍是资料平台，不接入：
+`platform-resources/aishell-tech/` 当前处于正式接入准备态，但本轮仍不接入：
 
 - `extension/sites/aishell-tech/`
 - `platform-resources/aishell-tech/backend/`
@@ -243,7 +243,7 @@ platform-resources/<platform>/<script-id>/
 - 补齐 `network/*.md`
 - 补齐 `page-structure/*.md`
 
-未来若 Aishell Tech 真接入脚本，再按本设计落 `ai/`、`data/`、`network/`、`page-structure/`。
+后续若 Aishell Tech 开始落运行时代码，再按本设计补齐 `ai/`、`data/`、`network/`、`page-structure/`。
 
 ## 非目标
 
@@ -253,7 +253,7 @@ platform-resources/<platform>/<script-id>/
 - 不改前端后端地址配置模型
 - 不合并 LabelX 与 DataBaker 的上传统计逻辑
 - 不引入 SSE / WebSocket / async job 作为新的默认 AI 返回链路
-- 不把 Aishell Tech 从资料平台直接升级成运行时代码平台
+- 不在本轮 AI 迁移中顺手把 Aishell Tech 从“正式接入准备态”直接升级成运行时代码平台
 
 ## 提交策略
 
