@@ -1,3 +1,22 @@
+## 2026-05-28（Magic Data 客家话助手接入 AI framework 桥接层）
+
+- 新增 `platform-resources/magic-data/hakka-helper/ai/adapter.js`：
+  - 把客家话助手 `review-current` 请求映射为统一 `ai-framework` 输入契约。
+  - 保留旧成功/失败返回结构，并继续兼容 legacy `annotator` 路径。
+- 新增 `platform-resources/magic-data/hakka-helper/ai/adapter.test.js`：
+  - 固定 `normalizeInput`、legacy success body、legacy error body 三个桥接行为。
+- 新增目录说明：
+  - `platform-resources/magic-data/hakka-helper/ai/assets/README.md`
+  - `platform-resources/magic-data/hakka-helper/data/README.md`
+- 新增 `platform-resources/magic-data/hakka-helper/backend/ai-review-request.js`：
+  - 抽出请求归一 helper，供 adapter 与旧业务层共用，避免重复维护客家话请求映射规则。
+- 更新 `platform-resources/magic-data/hakka-helper/backend/ai-routes.js`：
+  - `POST /api/magic-data/hakka-helper/ai/review-current` 改为通过统一 `ai-framework` route factory 驱动。
+  - legacy `/api/magic-data/annotator/ai/review-current` 继续保留，并复用同一条 framework 桥接链路。
+  - `health/defaults` 保持原实现，本轮先做桥接式迁移。
+- 共享桥接修正：
+  - 修正 `platform-resources/magic-data/minnan-helper/backend/ai-routes.js` 中 route factory 的 `routeContext` 转发方式，避免真实 POST 请求上下文传递错误。
+
 ## 2026-05-28（Magic Data 闽南语助手接入 AI framework 桥接层）
 
 - 新增 `platform-resources/magic-data/minnan-helper/ai/adapter.js`：

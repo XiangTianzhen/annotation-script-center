@@ -11,6 +11,15 @@
   - `GET /api/magic-data/annotator/ai/defaults`
   - `POST /api/magic-data/annotator/ai/review-current`
 
+## 当前迁移状态
+
+- `POST /api/magic-data/hakka-helper/ai/review-current` 当前已改为通过统一 `platform-resources/backend/ai-framework/` route factory 驱动。
+- legacy `annotator` 兼容路径继续保留，并与新路径共用同一条 framework 桥接链路。
+- 对外成功 / 失败响应结构保持原兼容形态：
+  - 成功：`success + data`
+  - 失败：`success + requestId + code + message (+ summary)`
+- `health/defaults` 仍保持原实现，本轮先做桥接式迁移，不一次性推倒业务层。
+
 ## 词表
 
 - `./lexicon/hakka-lexicon.csv`

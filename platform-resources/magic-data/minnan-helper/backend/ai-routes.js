@@ -58,8 +58,8 @@ function registerAiRoutes(router) {
     sendJson(response, 200, createDefaultsPayload());
   });
 
-  router.post(AI_BASE_PATH, function ({ request, response }) {
-    return handleReviewCurrent(request, response);
+  router.post(AI_BASE_PATH, function (routeContext) {
+    return handleReviewCurrent(routeContext);
   });
 }
 

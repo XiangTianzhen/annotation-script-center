@@ -4,8 +4,12 @@
 
 ## 实际文件与职责
 
+- `ai/adapter.js`：客家话助手接入统一 `ai-framework` 的项目 adapter。
+- `ai/assets/README.md`：AI 资产目录占位说明。
+- `data/README.md`：脚本级 data 目录占位说明。
 - `backend/index.js`：客家话助手后端注册入口。
-- `backend/ai-routes.js`：客家话助手 AI 路由；同时注册旧 `annotator` 兼容 API。
+- `backend/ai-routes.js`：客家话助手 AI 路由；`review-current` 已改为通过统一 `ai-framework` route factory 驱动，同时保留旧 `annotator` 兼容 API。
+- `backend/ai-review-request.js`：客家话助手请求归一 helper，供 adapter 与旧业务层共用。
 - `backend/ai-*.js`：客家话助手 AI 能力实现（模型调用、Prompt、词表、日志、成本估算）。
 - `backend/lexicon/hakka-lexicon.csv`：客家话词表（后端运行时读取）。
 - `backend/lexicon/客家话-正字表.xlsx`：词表原始来源文件（可选）。
@@ -23,6 +27,15 @@
   - `GET /api/magic-data/annotator/ai/review-current/health`
   - `GET /api/magic-data/annotator/ai/defaults`
   - `POST /api/magic-data/annotator/ai/review-current`
+
+## 当前迁移状态
+
+- `POST /api/magic-data/hakka-helper/ai/review-current` 当前已改为通过统一 `platform-resources/backend/ai-framework/` route factory 驱动。
+- legacy `/api/magic-data/annotator/ai/review-current` 兼容路径继续保留，并复用同一条 framework 桥接链路。
+- 对外成功 / 失败响应结构保持原兼容形态：
+  - 成功：`success + data`
+  - 失败：`success + requestId + code + message (+ summary)`
+- `health/defaults` 仍保持原实现，本轮先做桥接式迁移，不一次性推倒业务层。
 
 ## 安全边界
 
