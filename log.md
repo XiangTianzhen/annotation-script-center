@@ -1,3 +1,17 @@
+## 2026-05-28（DataBaker data 目录继续收口持久化写入逻辑）
+
+- 新增 `platform-resources/data-baker/round-one-quality/data/scripts/persist.js`：
+  - 抽出 latest.csv / latest-raw.json / latest.json 写入
+  - 抽出 history CSV / raw.json 写入
+  - 抽出 upload events JSONL 追加
+  - 抽出 latest meta 与 upload event payload 组装
+- 新增测试：
+  - `platform-resources/data-baker/round-one-quality/data/scripts/persist.test.js`
+- 更新 `platform-resources/data-baker/round-one-quality/backend/export-store.js`：
+  - `ensureDataDir` 改为复用 `data/scripts/persist.js`
+  - latest/history/events 的实际写入和 meta/event payload 组装改为复用 `data/scripts/persist.js`
+  - `export-store.js` 当前主要保留 CSV / raw merge、旧 latest 读取和总体编排
+
 ## 2026-05-28（DataBaker data 目录继续收口 upload 与 history 侧）
 
 - 新增 `platform-resources/data-baker/round-one-quality/data/scripts/upload.js`：

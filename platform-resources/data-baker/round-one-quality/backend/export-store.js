@@ -7,6 +7,14 @@ const {
   LEGACY_HEADER_ALIAS,
   TASK_ID_FIELD_GROUP,
 } = require("../data/field-mappings");
+const {
+  appendUploadEventRecord,
+  createUploadEventPayload,
+  createUploadMeta,
+  ensureExportRuntimeDirs,
+  writeHistoryExportArtifacts,
+  writeLatestExportArtifacts,
+} = require("../data/scripts/persist");
 
 const DEFAULT_LATEST_FILE_NAME = "latest.csv";
 const DEFAULT_META_FILE_NAME = "latest.json";
@@ -393,45 +401,11 @@ function createExportStore(options) {
   const persistEvents = config.persistEvents === true;
 
   function ensureDataDir() {
-    fs.mkdirSync(dataDir, { recursive: true });
-    if (persistHistory) {
-      fs.mkdirSync(historyDirPath, { recursive: true });
-    }
-  }
-
-  function writeLatest(csvText, rawRecords, meta) {
-    ensureDataDir();
-    fs.writeFileSync(latestCsvPath, String(csvText || ""), "utf8");
-    fs.writeFileSync(latestRawPath, JSON.stringify(Array.isArray(rawRecords) ? rawRecords : [], null, 2), "utf8");
-    fs.writeFileSync(latestMetaPath, JSON.stringify(meta || {}, null, 2), "utf8");
-  }
-
-  function writeHistory(csvText, rawRecords, fileName) {
-    if (!persistHistory) {
-      return {
-        csvPath: "",
-        rawPath: "",
-      };
-    }
-    ensureDataDir();
-    const safeFileName = ensureCsvExtension(fileName, "history-export.csv");
-    const historyCsvPath = path.join(historyDirPath, safeFileName);
-    const rawFileName = safeFileName.replace(/\.csv$/i, ".raw.json");
-    const historyRawPath = path.join(historyDirPath, rawFileName);
-    fs.writeFileSync(historyCsvPath, String(csvText || ""), "utf8");
-    fs.writeFileSync(historyRawPath, JSON.stringify(Array.isArray(rawRecords) ? rawRecords : [], null, 2), "utf8");
-    return {
-      csvPath: historyCsvPath,
-      rawPath: historyRawPath,
-    };
-  }
-
-  function appendEvent(eventPayload) {
-    if (!persistEvents) {
-      return;
-    }
-    ensureDataDir();
-    fs.appendFileSync(eventsPath, safeJsonStringify(eventPayload) + "\n", "utf8");
+    ensureExportRuntimeDirs({
+      dataDir: dataDir,
+      historyDirPath: historyDirPath,
+      includeHistory: persistHistory,
+    });
   }
 
   function saveUpload(payload) {
@@ -477,59 +451,48 @@ function createExportStore(options) {
       mergedRawRecords = existingRawRecords;
     }
 
-    const meta = {
-      schemaVersion: 1,
-      source: String(payload?.source || ""),
-      project: String(payload?.project || ""),
+    const meta = createUploadMeta({
+      payload: payload,
       fileName: fileName,
-      rowCount: mergeResult.rowCount,
-      taskId: String(payload?.taskId || ""),
-      exportedAt: String(payload?.exportedAt || ""),
       uploadedAt: uploadedAt,
-      route: payload?.route && typeof payload.route === "object" ? payload.route : {},
-      summary: payload?.summary && typeof payload.summary === "object" ? payload.summary : {},
-      mergedSummary: {
-        incomingRowCount: mergeResult.incomingRowCount,
-        existingRowCount: mergeResult.existingRowCount,
-        addedRowCount: mergeResult.addedRowCount,
-        updatedRowCount: mergeResult.updatedRowCount,
-        unchangedRowCount: mergeResult.unchangedRowCount,
-        rowCount: mergeResult.rowCount,
-      },
-      taskIds: mergeResult.taskIds,
-      lastUpload: {
-        fileName: fileName,
-        incomingRowCount: mergeResult.incomingRowCount,
-        addedRowCount: mergeResult.addedRowCount,
-        updatedRowCount: mergeResult.updatedRowCount,
-        unchangedRowCount: mergeResult.unchangedRowCount,
-        uploadedAt: uploadedAt,
-      },
-      warnings,
-    };
-
-    writeLatest(mergedCsvText, mergedRawRecords, meta);
-    const history = writeHistory(
-      csvText,
-      rawRecords,
-      uploadedAt.replace(/[^\dTZ:-]/g, "") + "-" + fileName
-    );
-    appendEvent({
-      uploadedAt: uploadedAt,
-      fileName: fileName,
-      rowCount: mergeResult.rowCount,
-      incomingRowCount: mergeResult.incomingRowCount,
-      existingRowCount: mergeResult.existingRowCount,
-      addedRowCount: mergeResult.addedRowCount,
-      updatedRowCount: mergeResult.updatedRowCount,
-      unchangedRowCount: mergeResult.unchangedRowCount,
-      taskId: meta.taskId,
-      taskIds: mergeResult.taskIds,
-      latestCsvPath: latestCsvPath,
-      rawJsonPath: latestRawPath,
-      historyPath: history.csvPath,
-      historyRawJsonPath: history.rawPath,
+      mergeResult: mergeResult,
+      warnings: warnings,
     });
+
+    writeLatestExportArtifacts({
+      latestCsvPath: latestCsvPath,
+      latestRawPath: latestRawPath,
+      latestMetaPath: latestMetaPath,
+      csvText: mergedCsvText,
+      rawRecords: mergedRawRecords,
+      meta: meta,
+    });
+    const history = persistHistory
+      ? writeHistoryExportArtifacts({
+          historyDirPath: historyDirPath,
+          fileName: uploadedAt.replace(/[^\dTZ:-]/g, "") + "-" + fileName,
+          csvText: csvText,
+          rawRecords: rawRecords,
+        })
+      : {
+          csvPath: "",
+          rawPath: "",
+        };
+    if (persistEvents) {
+      appendUploadEventRecord({
+        eventsPath: eventsPath,
+        eventPayload: createUploadEventPayload({
+          uploadedAt: uploadedAt,
+          fileName: fileName,
+          mergeResult: mergeResult,
+          taskId: meta.taskId,
+          latestCsvPath: latestCsvPath,
+          latestRawPath: latestRawPath,
+          historyPath: history.csvPath,
+          historyRawJsonPath: history.rawPath,
+        }),
+      });
+    }
 
     return {
       fileName: fileName,

@@ -40,6 +40,7 @@
 - `../data/field-mappings.js`：DataBaker 导出字段口径中心，统一维护 canonical CSV 列、legacy alias 和唯一键字段组。
 - `../data/scripts/download.js`：DataBaker 下载脚本 helper，把 `latest.csv` 转成共享下载 core 可直接消费的 target。
 - `../data/scripts/upload.js`：DataBaker 上传字段归一 helper，统一 `export/upload` payload 校验、字段归一和 `rawJson` legacy alias 兼容。
+- `../data/scripts/persist.js`：DataBaker 导出持久化 helper，统一 latest/history/events 写入和 meta/event payload 组装。
 - `../data/scripts/fetch.js`：DataBaker 导出读取 helper，统一 latest 快照、`latest.json`、history CSV 列表和 `upload-events.jsonl` 读取。
 - `index.js`：项目路由注册入口。
 - `ai-routes.js`：负责 HTTP health / defaults / recommend / jobs 路由注册；recommend 入口当前已改由统一 `ai-framework` route factory 驱动，但仍保留旧接口响应结构。
@@ -49,7 +50,7 @@
 - `ai-debug-store.js`：原始 AI 返回的内存级调试信息暂存，默认 TTL 30 分钟、最大 1000 条，不落盘。
 - `ai-job-store.js`：DataBaker AI 异步 job 的内存状态管理、超时取消、TTL 清理、debug 原始 JSON 暂存和统计快照。
 - `export-routes.js`：导出 health / config / upload / download 路由。当前 `download` 已改为复用 `platform-resources/backend/project-data-download/csv-file-download-core.js`，外部 path 保持不变。
-- `export-store.js`：导出文件落盘、latest/history/events 存储能力。
+- `export-store.js`：导出 CSV / raw merge、旧 latest 读取和整体编排；latest/history/events 的实际写入与 meta/event payload 组装已开始复用 `../data/scripts/persist.js`。
 - `platform-resources/backend/ai/providers/funasr-rest.js`：按阿里云官方 RESTful API 提交 Fun-ASR 异步任务、轮询任务并拉取转写结果。
 - `platform-resources/backend/ai/providers/funasr.js`：统一选择 Fun-ASR `rest/python` provider。
 - `platform-resources/backend/ai/python/funasr_client.py`：保留的 Python SDK fallback / 调试脚本。
