@@ -1,3 +1,16 @@
+## 2026-05-27（Aishell Tech 数据处理工作平台结构抓取与资料建立）
+
+- 保持版本 `0.3.6`，本轮为只读数据抓取与平台资料新建，未升级版本、未修改 extension 运行时 JS 代码、未生成 CRX、未打 tag。
+- 新增 Aishell Tech (https://mark.aishelltech.com/) 平台资料：
+  - `platform-resources/aishell-tech/README.md`：建立平台资料主控文档，声明技术栈与安全约束。
+  - `platform-resources/aishell-tech/network/README.md`：归纳音频详情捕获接口，并深度补充标注（SaveShortMark/saveLongMark）与质检验收（saveCheck/saveAccept）的核心保存 Payload 字段协议。
+  - `platform-resources/aishell-tech/page-structure/README.md`：深入提炼多路由（标注/质检/验收）匹配表，并梳理多通道音轨（.channel-row/channel-waveform）和切片标记 DOM 选择器特征。
+- 同步更新平台索引文档：
+  - `docs/platforms/index.md`：注册 `Aishell Tech` 平台资料目录与研究阶段说明。
+- 清理与安全保证：
+  - 本轮未在 Git 中提交任何真实的 token/cookie/明文密码。
+  - 本地用于自动化抓取的测试脚本和脱敏的 API 原始响应 JSON 文件（`probe_result.json`）均保存在本地 `scratch` 临时目录，不提交 Git 仓库。
+
 ## 2026-05-26（v0.3.6 收尾：Magic Data 双助手规则与文档同步）
 
 - 保持版本 `0.3.6`，本轮未升版本、未生成 CRX、未打 tag（非 `ASC_RELEASE`）。
