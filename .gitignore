@@ -48,3 +48,6 @@ Thumbs.db
 *.tmp
 *.log
 /_incoming_visual_assets/
+
+# 工具skills
+.agent

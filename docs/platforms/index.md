@@ -60,6 +60,14 @@
 - Task17 网络差异：`platform-resources/abaka-ai/task17/network/README.md`
 - 当前阶段：公共 Task 页面资料已上移到 Abaka AI 根目录；Task21助手已完成主要编写（快捷键、AI 辅助填写、image_b_texts_removed 的 T/B/R/D 多重集规则、列表页统计入口），其中统计后端与独立统计 runtime 仍待补齐；Task17 保留对比和领取审核空池差异；不默认自动提交/保存/领取/流转。
 
+## Aishell Tech
+
+- 平台资料总览：`platform-resources/aishell-tech/README.md`
+- 网络请求采集（6 页）：`platform-resources/aishell-tech/network/README.md`
+- 页面 DOM 结构采集（5 页）：`platform-resources/aishell-tech/page-structure/README.md`
+- 敏感写操作与安全边界：`platform-resources/aishell-tech/network/06-sensitive-operations.md`
+- 当前阶段：核心标注链路（任务列表 → 任务详情 → 数据标注）network 与 page-structure 均已完整采集。
+
 ## 新增平台要求
 
 新增平台或脚本时，必须同步：
