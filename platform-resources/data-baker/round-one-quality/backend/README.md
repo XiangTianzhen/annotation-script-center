@@ -35,6 +35,7 @@
 ## 文件职责
 
 - `../ai/adapter.js`：DataBaker 接入统一 `ai-framework` 的项目 adapter，先负责输入归一和旧 recommend 响应兼容。
+- `../data/adapter.js`：DataBaker 脚本级 data adapter，统一收口共享下载轨道所需的数据集元数据、`latest.csv` 路径解析和兼容下载文件名。
 - `index.js`：项目路由注册入口。
 - `ai-routes.js`：负责 HTTP health / defaults / recommend / jobs 路由注册；recommend 入口当前已改由统一 `ai-framework` route factory 驱动，但仍保留旧接口响应结构。
 - `ai-service.js`：DataBaker AI 当前业务层，集中管理请求归一化、Fun-ASR REST 与当前通用链路、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
@@ -42,7 +43,7 @@
 - `ai-client-qwen-legacy.js`：DataBaker 专用 Qwen Omni legacy 客户端，只服务 Omni 快速路径，不影响统一 AI 基座。
 - `ai-debug-store.js`：原始 AI 返回的内存级调试信息暂存，默认 TTL 30 分钟、最大 1000 条，不落盘。
 - `ai-job-store.js`：DataBaker AI 异步 job 的内存状态管理、超时取消、TTL 清理、debug 原始 JSON 暂存和统计快照。
-- `export-routes.js`：导出 health / config / upload / download 路由。
+- `export-routes.js`：导出 health / config / upload / download 路由。当前 `download` 已改为复用 `platform-resources/backend/project-data-download/csv-file-download-core.js`，外部 path 保持不变。
 - `export-store.js`：导出文件落盘、latest/history/events 存储能力。
 - `platform-resources/backend/ai/providers/funasr-rest.js`：按阿里云官方 RESTful API 提交 Fun-ASR 异步任务、轮询任务并拉取转写结果。
 - `platform-resources/backend/ai/providers/funasr.js`：统一选择 Fun-ASR `rest/python` provider。
@@ -143,6 +144,11 @@
 - debug 内容会脱敏并截断，不包含完整音频 URL、签名 URL、cookie、token、authorization、API Key。
 
 ## 导出上传与下载
+
+导出下载边界：
+
+- `upload`、`latest.csv` 合并、`latest-raw.json`、history/events 仍由 DataBaker 自己维护。
+- `download` 现在内部走统一 `project-data-download` 共享下载 core，继续返回同一个 `latest.csv`，不改前端接口地址。
 
 - 扩展前端在 `group/detail` 导出 CSV 后，会调用：
   - `POST /api/data-baker/round-one-quality/export/upload`

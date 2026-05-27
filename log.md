@@ -1,3 +1,17 @@
+## 2026-05-28（DataBaker 导出下载链路接入共享 core）
+
+- 新增 `platform-resources/backend/project-data-download/csv-file-download-core.js`：
+  - 抽出通用 CSV 文件下载 core，统一处理文件存在性检查、下载文件名和 `GET/HEAD` 下载响应头。
+- 新增 `platform-resources/data-baker/round-one-quality/data/adapter.js`：
+  - 收口 DataBaker 下载轨道元数据、`latest.csv` 路径解析和共享下载轨道数据集定义。
+- 更新 `platform-resources/data-baker/round-one-quality/backend/export-store.js`：
+  - 抽出 `resolveExportStorePaths`，统一 `export-data` 路径口径，供 data adapter 和旧导出 store 共同复用。
+- 更新 `platform-resources/data-baker/round-one-quality/backend/export-routes.js`：
+  - `GET/HEAD /api/data-baker/round-one-quality/export/download` 改为通过共享 CSV 文件下载 core 驱动。
+  - 外部 API path 保持不变；上传、CSV 合并、`latest-raw.json`、history/events 逻辑仍保留在 DataBaker 自己的后端实现里。
+- 更新 DataBaker README、统一后端 README、平台索引与 `platform-resources/README.md`：
+  - 明确 DataBaker 下载链路已开始接入与 LabelX 同一条 `project-data-download` 复用轨道。
+
 ## 2026-05-28（Alibaba LabelX 快判下载链路接入共享 core 第二块）
 
 - 新增 `platform-resources/alibaba-labelx/asr-judgement/data/adapter.js`：
@@ -28,6 +42,15 @@
   - 外部 API path 保持不变。
 - 更新转写 README、后端 README、统一后端 README：
   - 明确当前只统一内部下载实现，不改对外下载入口。
+
+## 2026-05-28（Aishell Tech 可见性与 defaults 回退修复）
+
+- 更新 `extension/sites/aishell-tech/minnan-helper/ui-panel.js`：
+  - 面板不再插在 `.mark-area` 外部底部，改为挂在标注表单可见区内、表单前方，避免按钮落到页面最下方看不见。
+- 更新 `extension/options/options.js`：
+  - 补齐 Aishell 复用 DataBaker 模型下拉的选项构建函数，修复听音模型、比较模型、单模型下拉为空的问题。
+  - Aishell defaults 读取失败时，先回退到 DataBaker defaults 接口；若仍失败，再回退到本地 DataBaker Prompt 与模型默认值。
+  - 本地 fallback 默认值改为直接带出 DataBaker 同款 `listenPrompt` / `comparePrompt`，确保 options 页面能看到同款 Prompt 基线。
 
 ## 2026-05-28（Aishell Tech 闽南语助手独立全量接入）
 

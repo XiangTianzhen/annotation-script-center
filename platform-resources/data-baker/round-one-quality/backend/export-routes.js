@@ -1,9 +1,12 @@
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
-const { createCorsHeaders, sendJson } = require("../../../backend/response");
+const { sendJson } = require("../../../backend/response");
+const {
+  createCsvDownloadTarget,
+  sendCsvDownload,
+} = require("../../../backend/project-data-download/csv-file-download-core");
 const { MAX_CSV_BYTES, createExportStore } = require("./export-store");
+const { createLegacyExportDownloadTarget } = require("../data/adapter");
 
 const EXPORT_BASE_PATH = "/api/data-baker/round-one-quality/export";
 const EXPORT_HEALTH_PATH = EXPORT_BASE_PATH + "/health";
@@ -32,21 +35,6 @@ function readRequestBody(request) {
       resolve(body);
     });
     request.on("error", reject);
-  });
-}
-
-function createCsvDownloadHeaders(filePath, fileSize) {
-  const fallbackName = "data-baker-round-one-quality-latest.csv";
-  const fileName = path.basename(filePath || fallbackName) || fallbackName;
-  return createCorsHeaders({
-    "Cache-Control": "no-store",
-    "Content-Type": "text/csv; charset=utf-8",
-    "Content-Length": String(fileSize),
-    "Content-Disposition":
-      'attachment; filename="' +
-      fileName.replace(/"/g, "") +
-      '"; filename*=UTF-8\'\'' +
-      encodeURIComponent(fileName),
   });
 }
 
@@ -80,41 +68,22 @@ function sendConfig(response, store) {
 }
 
 function handleDownload(request, response, store) {
-  const latestCsvPath = store.getPaths().latestCsvPath;
-  if (!fs.existsSync(latestCsvPath)) {
+  try {
+    const target = createLegacyExportDownloadTarget({
+      dataDir: store.getPaths().dataDir,
+    });
+    const downloadTarget = createCsvDownloadTarget(target.filePath, {
+      fileName: target.fileName,
+      missingMessage: "latest.csv 不存在，请先上传导出数据。",
+      invalidPathMessage: "latest.csv 路径不是文件。",
+    });
+    sendCsvDownload(request, response, downloadTarget);
+  } catch (error) {
     sendJson(response, 404, {
       success: false,
-      message: "latest.csv 不存在，请先上传导出数据。",
+      message: error && error.message ? error.message : String(error),
     });
-    return;
   }
-
-  const stat = fs.statSync(latestCsvPath);
-  if (!stat.isFile()) {
-    sendJson(response, 404, {
-      success: false,
-      message: "latest.csv 路径不是文件。",
-    });
-    return;
-  }
-
-  response.writeHead(200, createCsvDownloadHeaders(latestCsvPath, stat.size));
-  if (request.method === "HEAD") {
-    response.end();
-    return;
-  }
-  const stream = fs.createReadStream(latestCsvPath);
-  stream.on("error", function (error) {
-    if (!response.headersSent) {
-      sendJson(response, 500, {
-        success: false,
-        message: error && error.message ? error.message : String(error),
-      });
-      return;
-    }
-    response.destroy(error);
-  });
-  stream.pipe(response);
 }
 
 function handleList(response, store) {

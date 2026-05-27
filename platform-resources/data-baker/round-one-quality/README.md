@@ -57,6 +57,7 @@ round-one-quality/
     assets/
       README.md
   data/
+    adapter.js
     README.md
   page-structure/
     README.md
@@ -75,8 +76,9 @@ round-one-quality/
 - `network/README.md`：列表接口路径、请求参数、响应字段和缓存策略。
 - `backend/reference/minnan-lexicon.csv`：闽南方言字词表参考资料，用于 标贝易采 AI 推荐文本后端 prompt 上下文。
 - `ai/`：DataBaker 接入统一 `platform-resources/backend/ai-framework/` 的项目 adapter 与未来 prompt/schema/lexicon 资产目录。
-- `data/`：DataBaker 脚本级数据逻辑目录。当前先固定边界，真实导出运行数据仍在 `backend/export-data/`。
+- `data/`：DataBaker 脚本级数据逻辑目录。当前 `data/adapter.js` 已开始承接下载轨道元数据与路径解析；真实导出运行数据仍在 `backend/export-data/`。
 - `backend/`：标贝易采 AI 推荐文本业务编排目录。当前业务层以 `ai-routes.js + ai-service.js + ai-legacy-omni-service.js + ai-client-qwen-legacy.js` 组成；公共 AI provider、限流队列、缓存与 Python 辅助脚本统一收敛到 `platform-resources/backend/ai/`。`ai-routes.js` 的 recommend 入口已改为通过 `ai-framework` route factory 驱动，但对外仍保留旧接口响应结构。`ai-service.js` 继续负责 Fun-ASR REST 和当前通用链路，Omni legacy 快速路径独立收口在 `ai-legacy-omni-service.js`。
+- `backend/export-routes.js` 的 `export/download` 当前已接到 `platform-resources/backend/project-data-download/` 下的共享 CSV 文件下载 core；对外继续保持 `GET/HEAD /api/data-baker/round-one-quality/export/download`。
 
 ## 自动分页与快捷键
 

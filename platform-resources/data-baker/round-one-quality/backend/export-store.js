@@ -370,14 +370,28 @@ function mergeRawRecords(existingRecords, incomingRecords) {
   return merged;
 }
 
-function createExportStore(options) {
+function resolveExportStorePaths(options) {
   const config = options && typeof options === "object" ? options : {};
   const dataDir = config.dataDir || path.join(__dirname, "export-data");
-  const latestCsvPath = path.join(dataDir, DEFAULT_LATEST_FILE_NAME);
-  const latestMetaPath = path.join(dataDir, DEFAULT_META_FILE_NAME);
-  const latestRawPath = path.join(dataDir, DEFAULT_RAW_FILE_NAME);
-  const historyDirPath = path.join(dataDir, DEFAULT_HISTORY_DIR_NAME);
-  const eventsPath = path.join(dataDir, DEFAULT_EVENTS_FILE_NAME);
+  return {
+    dataDir: dataDir,
+    latestCsvPath: path.join(dataDir, DEFAULT_LATEST_FILE_NAME),
+    latestMetaPath: path.join(dataDir, DEFAULT_META_FILE_NAME),
+    latestRawPath: path.join(dataDir, DEFAULT_RAW_FILE_NAME),
+    historyDirPath: path.join(dataDir, DEFAULT_HISTORY_DIR_NAME),
+    eventsPath: path.join(dataDir, DEFAULT_EVENTS_FILE_NAME),
+  };
+}
+
+function createExportStore(options) {
+  const config = options && typeof options === "object" ? options : {};
+  const resolvedPaths = resolveExportStorePaths(config);
+  const dataDir = resolvedPaths.dataDir;
+  const latestCsvPath = resolvedPaths.latestCsvPath;
+  const latestMetaPath = resolvedPaths.latestMetaPath;
+  const latestRawPath = resolvedPaths.latestRawPath;
+  const historyDirPath = resolvedPaths.historyDirPath;
+  const eventsPath = resolvedPaths.eventsPath;
   const persistHistory = config.persistHistory === true;
   const persistEvents = config.persistEvents === true;
 
@@ -558,6 +572,11 @@ function createExportStore(options) {
 }
 
 module.exports = {
+  DEFAULT_EVENTS_FILE_NAME,
+  DEFAULT_HISTORY_DIR_NAME,
+  DEFAULT_LATEST_FILE_NAME,
+  DEFAULT_META_FILE_NAME,
+  DEFAULT_RAW_FILE_NAME,
   MAX_CSV_BYTES: 20 * 1024 * 1024,
   createCsvRowKey,
   createExportStore,
@@ -566,6 +585,7 @@ module.exports = {
   normalizeCsvHeaderName,
   parseCsvText,
   readCsvRowCount,
+  resolveExportStorePaths,
   sanitizeFileName,
   stringifyCsv,
 };

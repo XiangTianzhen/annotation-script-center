@@ -5,6 +5,7 @@ const path = require("path");
 const { createCorsHeaders, sendJson } = require("../response");
 const { createAuditStore } = require("./audit-store");
 const { createSha256Hex, createSignedToken, timingSafeEqualHex, verifySignedToken } = require("./jwt");
+const { createProjectDownloadDataset } = require("../../data-baker/round-one-quality/data/adapter");
 const {
   appendSupplierSuffix,
   collectSuppliers,
@@ -103,6 +104,9 @@ function createDatasetRegistry(config) {
     normalizeText(options.dataBakerExportDir) ||
     normalizeText(process.env.DATABAKER_ROUND_ONE_EXPORT_DIR) ||
     path.join(__dirname, "..", "..", "data-baker", "round-one-quality", "backend", "export-data");
+  const dataBakerDataset = createProjectDownloadDataset({
+    dataDir: dataBakerExportDir,
+  });
 
   return [
     {
@@ -121,14 +125,7 @@ function createDatasetRegistry(config) {
         return path.join(asrTranscriptionDir, "statistics-merged.csv");
       },
     },
-    {
-      id: "data-baker-round-one-export",
-      label: "闽南语助手导出数据",
-      defaultFileName: "data-baker-round-one-quality-latest.csv",
-      getCsvPath: function () {
-        return path.join(dataBakerExportDir, "latest.csv");
-      },
-    },
+    dataBakerDataset,
   ];
 }
 

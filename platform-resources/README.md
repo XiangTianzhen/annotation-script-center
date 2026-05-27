@@ -64,6 +64,9 @@
   - `backend/`
   - `network/`
   - `page-structure/`
+- 当前共享后端收口：
+  - `export/download` 已开始复用 `platform-resources/backend/project-data-download/` 下的通用 CSV 文件下载 core。
+  - 脚本级差异收口在 `round-one-quality/data/adapter.js`。
 - 脚本：
   - `round-one-quality/`
 - 闽南语词表：`platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv`
