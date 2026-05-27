@@ -8,7 +8,9 @@ const test = require("node:test");
 
 const {
   listHistoryCsvFiles,
+  readLatestExportMeta,
   readLatestExportSnapshot,
+  readUploadEventEntries,
 } = require("./fetch");
 
 function createTempDir() {
@@ -54,5 +56,56 @@ test("DataBaker fetch script lists only history csv files and sorts them by modi
       return item.name;
     }),
     ["20260528-second.csv", "20260528-first.csv"]
+  );
+  assert.equal(items[0].rawJsonExists, true);
+  assert.equal(items[0].rawJsonName, "20260528-second.raw.json");
+  assert.equal(items[1].rawJsonExists, false);
+});
+
+test("DataBaker fetch script reads latest export meta and recent upload events", function () {
+  const tempDir = createTempDir();
+  fs.writeFileSync(
+    path.join(tempDir, "latest.json"),
+    JSON.stringify(
+      {
+        fileName: "latest.csv",
+        rowCount: 12,
+        taskIds: ["TASK-001"],
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(tempDir, "upload-events.jsonl"),
+    [
+      JSON.stringify({
+        uploadedAt: "2026-05-28T10:00:00.000Z",
+        fileName: "20260528-a.csv",
+      }),
+      "not-json",
+      JSON.stringify({
+        uploadedAt: "2026-05-28T11:00:00.000Z",
+        fileName: "20260528-b.csv",
+      }),
+    ].join("\n"),
+    "utf8"
+  );
+
+  const latestMeta = readLatestExportMeta({
+    dataDir: tempDir,
+  });
+  const recentEvents = readUploadEventEntries({
+    dataDir: tempDir,
+  });
+
+  assert.equal(latestMeta.fileName, "latest.csv");
+  assert.equal(latestMeta.rowCount, 12);
+  assert.deepEqual(
+    recentEvents.map(function (item) {
+      return item.fileName;
+    }),
+    ["20260528-b.csv", "20260528-a.csv"]
   );
 });

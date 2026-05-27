@@ -13,7 +13,7 @@
 - `backend/`：平台共用后端能力预留目录（当前暂无 DataBaker 跨脚本共用后端实现，保留 `.gitkeep`）。
 - `network/`：平台共用 Network 资料预留目录（当前暂无跨脚本共用差异，保留 `.gitkeep`）。
 - `page-structure/`：平台共用页面结构资料预留目录（当前暂无跨脚本共用差异，保留 `.gitkeep`）。
-- `round-one-quality/`：闽南语助手脚本专属资料目录（包含专属后端、`data/adapter.js`、`data/field-mappings.js`、`data/scripts/*`、`data/assets/*`、Network、页面结构、词表）。
+- `round-one-quality/`：闽南语助手脚本专属资料目录（包含专属后端、`data/adapter.js`、`data/field-mappings.js`、`data/scripts/*`、`data/assets/*`、Network、页面结构、词表）；当前 `data/` 已开始承接 upload 字段归一、history 读取 helper 和脱敏样例。
 
 ## 安全边界
 

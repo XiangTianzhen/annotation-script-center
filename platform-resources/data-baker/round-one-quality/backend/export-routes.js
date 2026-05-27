@@ -6,8 +6,14 @@ const { MAX_CSV_BYTES, createExportStore } = require("./export-store");
 const { createLatestCsvDownloadTarget } = require("../data/scripts/download");
 const {
   listHistoryCsvFiles,
+  readLatestExportMeta,
   readLatestExportSnapshot,
+  readUploadEventEntries,
 } = require("../data/scripts/fetch");
+const {
+  MAX_RAW_RECORDS_BYTES,
+  normalizeExportUploadPayload,
+} = require("../data/scripts/upload");
 
 const EXPORT_BASE_PATH = "/api/data-baker/round-one-quality/export";
 const EXPORT_HEALTH_PATH = EXPORT_BASE_PATH + "/health";
@@ -15,7 +21,6 @@ const EXPORT_CONFIG_PATH = EXPORT_BASE_PATH + "/config";
 const EXPORT_UPLOAD_PATH = EXPORT_BASE_PATH + "/upload";
 const EXPORT_DOWNLOAD_PATH = EXPORT_BASE_PATH + "/download";
 const EXPORT_LIST_PATH = EXPORT_BASE_PATH + "/list";
-const MAX_RAW_RECORDS_BYTES = 10 * 1024 * 1024;
 const MAX_BODY_BYTES = MAX_CSV_BYTES + MAX_RAW_RECORDS_BYTES + 1024 * 1024;
 
 function createRequestId() {
@@ -57,6 +62,16 @@ function sendConfig(response, store) {
   const snapshot = readLatestExportSnapshot({
     dataDir: paths.dataDir,
   });
+  const latestMeta = readLatestExportMeta({
+    dataDir: paths.dataDir,
+  });
+  const recentUploadEvents = readUploadEventEntries({
+    dataDir: paths.dataDir,
+    limit: 5,
+  });
+  const historyItems = listHistoryCsvFiles({
+    dataDir: paths.dataDir,
+  });
   sendJson(response, 200, {
     success: true,
     data: {
@@ -70,6 +85,10 @@ function sendConfig(response, store) {
       latestCsvExists: snapshot.exists.latestCsv,
       latestMetaJsonExists: snapshot.exists.latestMetaJson,
       latestRawJsonExists: snapshot.exists.latestRawJson,
+      uploadEventsExists: snapshot.exists.uploadEvents,
+      historyCsvCount: historyItems.length,
+      latestMeta: latestMeta,
+      recentUploadEvents: recentUploadEvents,
     },
   });
 }
@@ -106,40 +125,6 @@ function handleList(response, store) {
   });
 }
 
-function normalizeUploadPayload(value) {
-  const body = value && typeof value === "object" ? value : {};
-  const csvText = String(body.csvText || "");
-  if (!csvText.trim()) {
-    throw new Error("csvText 不能为空。");
-  }
-  const csvBytes = Buffer.byteLength(csvText, "utf8");
-  if (csvBytes > MAX_CSV_BYTES) {
-    throw new Error("csvText 超过 20MB 限制。");
-  }
-  const rawRecords = Array.isArray(body.rawRecords)
-    ? body.rawRecords
-    : Array.isArray(body.rawJson)
-      ? body.rawJson
-      : [];
-  const rawRecordsBytes = Buffer.byteLength(JSON.stringify(rawRecords), "utf8");
-  if (rawRecordsBytes > MAX_RAW_RECORDS_BYTES) {
-    throw new Error("rawRecords 超过 10MB 限制。");
-  }
-  return {
-    schemaVersion: Number(body.schemaVersion) || 1,
-    source: String(body.source || ""),
-    project: String(body.project || ""),
-    exportedAt: String(body.exportedAt || ""),
-    fileName: String(body.fileName || ""),
-    csvText: csvText,
-    rawRecords: rawRecords,
-    rowCount: Number(body.rowCount),
-    taskId: String(body.taskId || ""),
-    route: body.route && typeof body.route === "object" ? body.route : {},
-    summary: body.summary && typeof body.summary === "object" ? body.summary : {},
-  };
-}
-
 async function handleUpload(request, response, store) {
   const requestId = createRequestId();
   try {
@@ -148,7 +133,7 @@ async function handleUpload(request, response, store) {
       throw new Error("仅支持 application/json 请求体。");
     }
     const rawBody = await readRequestBody(request);
-    const payload = normalizeUploadPayload(JSON.parse(rawBody || "{}"));
+    const payload = normalizeExportUploadPayload(JSON.parse(rawBody || "{}"));
     const saved = store.saveUpload(payload);
     const baseUrl = "http://" + String(request.headers.host || "127.0.0.1:3333");
     const downloadUrl = baseUrl + EXPORT_DOWNLOAD_PATH;

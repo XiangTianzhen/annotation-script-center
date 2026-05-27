@@ -31,6 +31,7 @@
 - `POST /api/data-baker/round-one-quality/export/upload`
 - `GET /api/data-baker/round-one-quality/export/download`
 - `HEAD /api/data-baker/round-one-quality/export/download`
+- `GET /api/data-baker/round-one-quality/export/list`
 
 ## 文件职责
 
@@ -38,7 +39,8 @@
 - `../data/adapter.js`：DataBaker 脚本级 data adapter，统一收口共享下载轨道所需的数据集元数据、`latest.csv` 路径解析和兼容下载文件名。
 - `../data/field-mappings.js`：DataBaker 导出字段口径中心，统一维护 canonical CSV 列、legacy alias 和唯一键字段组。
 - `../data/scripts/download.js`：DataBaker 下载脚本 helper，把 `latest.csv` 转成共享下载 core 可直接消费的 target。
-- `../data/scripts/fetch.js`：DataBaker 导出读取 helper，统一 latest 快照和 history CSV 列表读取。
+- `../data/scripts/upload.js`：DataBaker 上传字段归一 helper，统一 `export/upload` payload 校验、字段归一和 `rawJson` legacy alias 兼容。
+- `../data/scripts/fetch.js`：DataBaker 导出读取 helper，统一 latest 快照、`latest.json`、history CSV 列表和 `upload-events.jsonl` 读取。
 - `index.js`：项目路由注册入口。
 - `ai-routes.js`：负责 HTTP health / defaults / recommend / jobs 路由注册；recommend 入口当前已改由统一 `ai-framework` route factory 驱动，但仍保留旧接口响应结构。
 - `ai-service.js`：DataBaker AI 当前业务层，集中管理请求归一化、Fun-ASR REST 与当前通用链路、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
@@ -53,8 +55,8 @@
 - `platform-resources/backend/ai/python/funasr_client.py`：保留的 Python SDK fallback / 调试脚本。
 - `platform-resources/backend/ai/`：统一 AI 基座，提供 Qwen provider、Fun-ASR REST / Python provider、provider 队列、结果缓存和公共脱敏/错误处理。
 - `../ai/assets/`：DataBaker AI 资产目录占位；当前仍沿用 `ai-service.js` 与 `backend/reference/`，后续逐步迁移 prompt/rules/schema。
-- `../data/assets/`：DataBaker 数据资产目录，当前补充了字段映射说明和脱敏样例。
-- `../data/README.md`：DataBaker 脚本级 data 目录说明；当前已开始承接下载脚本、字段映射和脱敏样例，不直接迁移运行数据。
+- `../data/assets/`：DataBaker 数据资产目录，当前补充了字段映射说明、upload payload 说明和脱敏样例。
+- `../data/README.md`：DataBaker 脚本级 data 目录说明；当前已开始承接下载脚本、upload 字段归一、history 读取 helper、字段映射和脱敏样例，不直接迁移运行数据。
 
 ## 模型
 
@@ -175,7 +177,10 @@
 - 仅当开启 `DATABAKER_ROUND_ONE_EXPORT_HISTORY=1` 时才写入 `history/*.csv` 和对应 `history/*.raw.json`；history 保存的是“本次原始上传文件”，不是累计快照。
 - 仅当开启 `DATABAKER_ROUND_ONE_EXPORT_EVENTS=1` 时才写入 `upload-events.jsonl`。
 - 上传接口只接受 JSON 且 `csvText` 非空，CSV 超过 `20MB` 会拒绝。
+- 上传接口继续兼容 `rawJson`，但内部统一归一到 `rawRecords`。
 - 上传接口返回合并统计：`incomingRowCount/existingRowCount/addedRowCount/updatedRowCount/unchangedRowCount/rowCount/taskIds`。
+- `export/config` 当前会附带 latest 快照存在性、`latestMeta` 摘要和最近 5 条脱敏 upload events，便于协作者核对运行状态。
+- `export/list` 当前返回 history CSV 列表，并补充对应 `*.raw.json` 是否存在。
 - 后端日志只输出 `requestId`、`incomingRowCount`、`existingRowCount`、`addedRowCount`、`updatedRowCount`、`rowCount`、`fileName`、`csvPath`、`uploadedAt`、`taskIds`，不打印完整 CSV 内容。
 
 CSV 字段统一口径：

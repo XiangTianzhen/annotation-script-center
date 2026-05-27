@@ -1,3 +1,24 @@
+## 2026-05-28（DataBaker data 目录继续收口 upload 与 history 侧）
+
+- 新增 `platform-resources/data-baker/round-one-quality/data/scripts/upload.js`：
+  - 抽出 `export/upload` 的 payload 归一、大小校验和 `rawJson -> rawRecords` legacy alias 兼容。
+- 更新 `platform-resources/data-baker/round-one-quality/data/scripts/fetch.js`：
+  - 新增 `latest.json` 读取。
+  - history 列表补充对应 `*.raw.json` 是否存在。
+  - 新增 `upload-events.jsonl` 最近事件读取。
+- 更新 `platform-resources/data-baker/round-one-quality/backend/export-routes.js`：
+  - `upload` 改为复用 `data/scripts/upload.js`
+  - `config` 补充 latest meta、history 数量和最近 upload events 摘要
+  - `list` 返回的 history CSV 项补充 `rawJsonExists/rawJsonName`
+- 新增测试：
+  - `platform-resources/data-baker/round-one-quality/data/scripts/upload.test.js`
+  - `platform-resources/data-baker/round-one-quality/data/scripts/fetch.test.js` 新增 upload/history 场景
+- 新增数据资产：
+  - `data/assets/mappings/upload-payload.md`
+  - `data/assets/samples/upload-payload-sample.json`
+  - `data/assets/samples/latest-meta-sample.json`
+  - `data/assets/samples/upload-events-sample.jsonl`
+
 ## 2026-05-28（DataBaker data 目录继续收口下载脚本与样例）
 
 - 新增 `platform-resources/data-baker/round-one-quality/data/field-mappings.js`：

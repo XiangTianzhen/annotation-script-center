@@ -14,13 +14,21 @@
   - 统一定义 `文本编号 / 文件名 / 段编号 / 采集人 / 手机号` 的唯一键优先级
 - `data/scripts/download.js` 负责 DataBaker 下载脚本 helper：
   - 把 `latest.csv` 转成共享下载 core 可直接消费的 target
+- `data/scripts/upload.js` 负责 DataBaker 上传字段归一 helper：
+  - 统一 `export/upload` 的 payload 字段校验与 legacy alias 兼容
 - `data/scripts/fetch.js` 负责 DataBaker 导出读取 helper：
   - 统一读取 latest 快照存在性
-  - 统一列出 history 下可下载的 CSV 文件
+  - 统一读取 `latest.json`
+  - 统一列出 history 下可下载的 CSV 文件，并补充对应 `*.raw.json` 信息
+  - 统一读取 `upload-events.jsonl`
 - `data/assets/` 当前已落：
   - `mappings/export-columns.md`
+  - `mappings/upload-payload.md`
   - `samples/latest-sample.csv`
   - `samples/latest-raw-sample.json`
+  - `samples/upload-payload-sample.json`
+  - `samples/latest-meta-sample.json`
+  - `samples/upload-events-sample.jsonl`
 - `data/runtime/.gitkeep` 作为运行时占位目录，真实运行数据仍不提交 Git。
 - 上传统计与导出聚合逻辑仍由 `backend/export-routes.js`、`backend/export-store.js` 负责。
 - `GET/HEAD /api/data-baker/round-one-quality/export/download` 现在内部已接到 `platform-resources/backend/project-data-download/` 的共享下载 core，但外部 API path 不变。
@@ -29,6 +37,7 @@
 后续会逐步把下面几类内容收口到这里：
 
 - 更多下载脚本
+- 更完整的 upload / history 读取脚本
 - 更完整的数据字段映射
 - 更多脱敏样例
 - runtime 目录说明与边界
