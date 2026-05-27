@@ -1,3 +1,21 @@
+## 2026-05-28（backend AI framework 骨架）
+
+- 新增 `platform-resources/backend/ai-framework/` 第一版骨架：
+  - `contracts/normalized-request.js`
+  - `contracts/normalized-response.js`
+  - `core/create-ai-route.js`
+  - `loaders/project-assets.js`
+  - `runtime/execute-project-pipeline.js`
+  - `registry/project-ai-registry.js`
+  - `index.js`
+  - `README.md`
+- 新增 `platform-resources/backend/ai-framework/__tests__/ai-framework.test.js`：
+  - 先用 Node 内置测试固定 request/response 契约、资产加载、pipeline 编排、registry 和 route factory 的最小行为。
+  - 先验证缺模块时测试失败，再补骨架实现，保持这一块可回归。
+- 更新 `platform-resources/backend/README.md`：
+  - 把 `ai-framework/` 纳入统一后端职责说明。
+  - 明确当前只是骨架阶段，旧项目路由尚未切换，后续按迁移计划逐块接入。
+
 ## 2026-05-28（platform-resources AI 框架迁移基线）
 
 - 新增 `docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`：
