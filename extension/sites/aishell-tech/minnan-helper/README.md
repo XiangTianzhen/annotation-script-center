@@ -17,6 +17,7 @@
   - 内容脚本直接从页面 `localStorage/sessionStorage` 里扫描 JWT。
   - 直接请求 `markapi.aishelltech.com` 的 `task/detail` 与 `packageItemList`。
   - `detail -> mark` 只靠同一个 content script 的 URL 轮询识别路由切换，不再额外二次注入。
+  - AI 请求会额外从头像下拉 `.avatar-dropdown .user-name .hidden-xs-only` 读取平台账号，并把 `ASmnbz001【标注人员】` 这类显示文本归一成纯账号 `ASmnbz001`。
 - 当前条识别支持：
   - 读取当前选中条。
   - 请求后端 AI recommend。
@@ -49,3 +50,4 @@
 - 不跨分包处理。
 - 不触发 `.check-area`。
 - 不再使用主世界抓包或动态脚本补注入。
+- AI 调用使用人仍来自 options 首页全局设置；平台账号只从当前页面头像区自动提取，不在前端本地额外持久化。

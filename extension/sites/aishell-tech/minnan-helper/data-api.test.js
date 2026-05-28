@@ -9,8 +9,10 @@ const {
   ensureChineseSentencePunctuation,
   doesDomListItemMatchTask,
   doesListFileHintMatch,
+  extractPlatformAccountName,
   extractSavedMarkText,
   extractAuthTokenFromUnknown,
+  findPlatformAccountNameFromDocument,
   findAuthTokenInEntries,
   isSaveCompletionState,
   parseListItemLabel,
@@ -53,6 +55,24 @@ test("findAuthTokenInEntries prefers token-like storage values", function () {
 
 test("removeTextSpaces removes full-width and half-width spaces", function () {
   assert.equal(removeTextSpaces(" 昨晚 去 公园　散步 "), "昨晚去公园散步");
+});
+
+test("extractPlatformAccountName strips role suffix from avatar text", function () {
+  assert.equal(extractPlatformAccountName(" ASmnbz001【标注人员】 "), "ASmnbz001");
+  assert.equal(extractPlatformAccountName("ASmnbz001"), "ASmnbz001");
+});
+
+test("findPlatformAccountNameFromDocument reads avatar dropdown account", function () {
+  const documentLike = {
+    querySelector(selector) {
+      assert.equal(selector, ".avatar-dropdown .user-name .hidden-xs-only");
+      return {
+        textContent: " ASmnbz001【标注人员】 ",
+      };
+    },
+  };
+
+  assert.equal(findPlatformAccountNameFromDocument(documentLike), "ASmnbz001");
 });
 
 test("ensureChineseSentencePunctuation appends chinese full stop when missing", function () {

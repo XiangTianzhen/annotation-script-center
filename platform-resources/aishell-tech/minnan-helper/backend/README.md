@@ -16,6 +16,11 @@
 - 同时支持 `direct_dialect`（直接听写闽南语）测试模式。
 - v1 直接复用 DataBaker 已验证的推荐执行链，不额外引入异步 job、SSE 或 WebSocket。
 - 返回结构固定为 `success/requestId/data`，便于扩展端按推荐文本型脚本统一处理。
+- recommend 请求当前会接收并继续透传到 Aishell -> DataBaker 推荐请求：
+  - `aiUsageOperatorName`：options 首页全局“AI 调用使用人”
+  - `platformUserName`：Aishell 页面头像下拉自动提取的纯平台账号，例如 `ASmnbz001`
+  - `platformUserId`：当前先保留空字符串占位
+- 为兼容现有 DataBaker 推荐日志宽表，若前端未单独传 `annotatorName`，后端会把 `platformUserName` 作为 `annotatorName` fallback 传给 DataBaker 推荐链。
 - `defaults/health` 会返回：
   - `modelModeOptions`
   - `recognitionStrategyOptions`

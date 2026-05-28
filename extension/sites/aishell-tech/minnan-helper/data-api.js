@@ -67,6 +67,37 @@
     };
   }
 
+  function extractPlatformAccountName(value) {
+    const text = normalizeText(value);
+    if (!text) {
+      return "";
+    }
+    return normalizeText(text.replace(/[【\[].*$/, ""));
+  }
+
+  function findPlatformAccountNameFromDocument(documentLike) {
+    const source = documentLike && typeof documentLike.querySelector === "function" ? documentLike : null;
+    if (!source) {
+      return "";
+    }
+    const primaryText = extractPlatformAccountName(
+      source.querySelector(".avatar-dropdown .user-name .hidden-xs-only")?.textContent || ""
+    );
+    if (primaryText) {
+      return primaryText;
+    }
+    return extractPlatformAccountName(
+      source.querySelector(".avatar-dropdown .user-name")?.textContent || ""
+    );
+  }
+
+  function getPlatformUserMetaFromPage() {
+    return {
+      platformUserName: findPlatformAccountNameFromDocument(document),
+      platformUserId: "",
+    };
+  }
+
   function safeJsonParse(value) {
     try {
       return JSON.parse(String(value || ""));
@@ -832,6 +863,7 @@
       const referenceText = normalizeText(record.text) || getReferenceTextFromDom();
       const audioUrl =
         taskDetail.dataRoot && record.url ? taskDetail.dataRoot + record.url : "";
+      const userMeta = getPlatformUserMetaFromPage();
       return {
         taskId: routeParams.taskId,
         packageId: routeParams.packageId,
@@ -845,6 +877,8 @@
         spendTime: Number(record.spendTime || 0) || 0,
         dataStatus: Number(record.dataStatus || 0) || 0,
         checkStatus: Number(record.checkStatus || 0) || 0,
+        platformUserName: userMeta.platformUserName,
+        platformUserId: userMeta.platformUserId,
         key: [
           routeParams.taskId,
           routeParams.packageId,
@@ -1189,8 +1223,10 @@
     doesListFileHintMatch,
     doesRenderedItemMatch,
     ensureChineseSentencePunctuation,
+    extractPlatformAccountName,
     extractSavedMarkText,
     extractAuthTokenFromUnknown,
+    findPlatformAccountNameFromDocument,
     findAuthTokenInEntries,
     isSaveCompletionState,
     isMarkPage,

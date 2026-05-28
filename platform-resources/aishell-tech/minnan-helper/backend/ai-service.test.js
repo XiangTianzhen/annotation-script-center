@@ -23,6 +23,9 @@ test("Aishell ai-service normalizes request and maps to DataBaker recommend payl
     batchProcessKey: "item:item-1",
     clientRequestId: "client-1",
     frontConcurrency: 25,
+    aiUsageOperatorName: "张三",
+    platformUserName: "ASmnbz001",
+    platformUserId: "user-1",
     aiOptions: {
       comparePrompt: "prompt",
     },
@@ -35,10 +38,17 @@ test("Aishell ai-service normalizes request and maps to DataBaker recommend payl
   assert.equal(normalized.modelMode, "two_stage");
   assert.equal(normalized.recognitionStrategy, "mandarin_to_dialect");
   assert.equal(normalized.recognitionMode, "recognition_convert");
+  assert.equal(normalized.aiUsageOperatorName, "张三");
+  assert.equal(normalized.platformUserName, "ASmnbz001");
+  assert.equal(normalized.platformUserId, "user-1");
   assert.equal(normalized.dataBakerRequest.collectId, "task-1");
   assert.equal(normalized.dataBakerRequest.itemId, "item-1");
   assert.equal(normalized.dataBakerRequest.textId, "package-1");
   assert.equal(normalized.dataBakerRequest.pageText, "平台参考文本");
+  assert.equal(normalized.dataBakerRequest.annotatorName, "ASmnbz001");
+  assert.equal(normalized.dataBakerRequest.aiUsageOperatorName, "张三");
+  assert.equal(normalized.dataBakerRequest.platformUserName, "ASmnbz001");
+  assert.equal(normalized.dataBakerRequest.platformUserId, "user-1");
   assert.equal(normalized.dataBakerRequest.recognitionMode, "two_stage");
   assert.equal(normalized.dataBakerRequest.batchRunId, "batch-1");
   assert.equal(normalized.dataBakerRequest.batchItemIndex, 3);

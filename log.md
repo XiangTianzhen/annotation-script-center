@@ -1,3 +1,17 @@
+## 2026-05-28（Aishell Tech AI 请求补齐平台账号提取）
+
+- 更新 `extension/sites/aishell-tech/minnan-helper/data-api.js`：
+  - 新增头像区平台账号提取逻辑，优先读取 `.avatar-dropdown .user-name .hidden-xs-only`。
+  - `ASmnbz001【标注人员】` 这类显示文本现在会先归一成纯账号 `ASmnbz001`。
+  - 当前条与批量条目对象都会默认带上 `platformUserName`，`platformUserId` 当前保留空字符串。
+- 更新 `platform-resources/aishell-tech/minnan-helper/backend/ai-service.js`：
+  - recommend 请求开始保留 `aiUsageOperatorName / platformUserName / platformUserId`。
+  - 这 3 个字段会继续透传到 Aishell -> DataBaker recommend payload。
+  - 若前端未单独提供 `annotatorName`，后端会把 `platformUserName` 作为 DataBaker 推荐链的 `annotatorName` fallback，便于沿用现有日志链路。
+- 补齐测试：
+  - `extension/sites/aishell-tech/minnan-helper/data-api.test.js` 新增平台账号解析与 DOM 提取用例。
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 新增 AI 调用元数据透传与 `annotatorName` fallback 断言。
+
 ## 2026-05-28（Aishell Tech 嵌入式面板与原生按钮注入）
 
 - 合并 Aishell Tech 闽南语助手界面重构：
