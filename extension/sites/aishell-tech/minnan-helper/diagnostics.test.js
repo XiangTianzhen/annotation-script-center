@@ -33,6 +33,10 @@ test("buildCurrentResultDiagnostics exposes timing, models, concurrency and toke
         requestId: "request-1",
         debugId: "debug-1",
         frontConcurrencyNormalized: 15,
+        clientBackendMode: "server",
+        clientBackendEndpoint:
+          "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
+        clientFallbackUsed: true,
       },
     },
     {
@@ -51,6 +55,12 @@ test("buildCurrentResultDiagnostics exposes timing, models, concurrency and toke
     "输入 120 / 输出 36 / 合计 156"
   );
   assert.equal(diagnostics.rows.find((row) => row[0] === "FunASR")[1], "rest");
+  assert.equal(diagnostics.rows.find((row) => row[0] === "后端模式")[1], "server");
+  assert.equal(
+    diagnostics.rows.find((row) => row[0] === "后端地址")[1],
+    "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend"
+  );
+  assert.equal(diagnostics.rows.find((row) => row[0] === "自动回退")[1], "是");
 });
 
 test("buildBatchFailureEntry keeps stage label, diagnostics and raw json context", function () {

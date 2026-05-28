@@ -1,3 +1,21 @@
+## 2026-05-28（Aishell Tech AI 请求网络诊断与本机回退增强）
+
+- 更新 `extension/sites/aishell-tech/minnan-helper/ai-recommendation.js`：
+  - 新增 Node 可测导出，补齐前端请求层测试入口。
+  - 当前后端模式为“本机（127.0.0.1:3333）”且浏览器层请求失败时，会自动回退一次 `script.xiangtianzhen.store` 服务器接口；只影响当前请求，不改写用户 settings。
+  - 若本机和服务器都无法连通，前端不再只显示笼统的“后端连接中断”，而是把 `backendMode / endpoint / fallbackEndpoint / originalErrorName / originalErrorMessage / online` 写入原始诊断 JSON。
+  - 额外识别 `Extension context invalidated`，改为明确提示“扩展上下文已失效，请刷新当前业务页面后重试。”，避免继续误判成普通网络错误。
+  - 成功请求会把本次实际使用的后端模式、endpoint 以及是否发生自动回退写入 `result.debug.client*` 字段，便于前端后续展示或排查。
+- 更新 `extension/sites/aishell-tech/minnan-helper/diagnostics.js` 与测试：
+  - “当前识别结果 / 查看详情”新增展示后端模式、后端地址、是否自动回退。
+- 新增 `extension/sites/aishell-tech/minnan-helper/ai-recommendation.test.js`：
+  - 覆盖“本机失败后自动回退服务器成功”。
+  - 覆盖“本机与服务器都失败时返回详细网络诊断”。
+  - 覆盖“扩展上下文失效时给出专门提示”。
+- 更新 `extension/sites/aishell-tech/minnan-helper/README.md` 与 `platform-resources/aishell-tech/minnan-helper/README.md`：
+  - 补充 Aishell 当前请求层的本机回退策略。
+  - 补充浏览器层网络失败/扩展上下文失效时的原始诊断信息口径。
+
 ## 2026-05-28（Aishell Tech 单独落地平台 AI 调用 CSV）
 
 - 新增 `platform-resources/aishell-tech/minnan-helper/data/ai-call-log.js` 与测试：

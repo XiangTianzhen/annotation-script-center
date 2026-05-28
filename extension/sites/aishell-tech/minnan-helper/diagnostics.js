@@ -127,6 +127,9 @@
       ["前端并发", formatConcurrency(debug, sourceOptions.fallbackFrontConcurrency)],
       ["Token", formatTokenSummary(usage)],
       ["FunASR", normalizeText(models.funAsrProvider) || "-"],
+      ["后端模式", normalizeText(debug.clientBackendMode) || "-"],
+      ["后端地址", normalizeText(debug.clientBackendEndpoint) || "-"],
+      ["自动回退", debug.clientFallbackUsed === true ? "是" : "否"],
       ["requestId", normalizeText(debug.requestId) || "-"],
       ["debugId", normalizeText(debug.debugId) || "-"],
     ];

@@ -3,8 +3,14 @@
     return;
   }
   globalThis.__ASREdgeAishellTechMinnanAiRecommendationInstalled = true;
+  const constants = globalThis.ASREdgeConstants || {};
+  const storage = globalThis.ASREdgeStorage || null;
   const DEFAULT_ENDPOINT =
     "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend";
+  const RECOMMEND_PATH =
+    constants.AISHELL_TECH_AI_RECOMMEND_PATH || "/api/aishell-tech/minnan-helper/ai/recommend";
+  const BACKEND_MODE_SERVER = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
+  const BACKEND_MODE_LOCAL = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const DEFAULT_TIMEOUT_MS = 120000;
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const buildAiUsageRequestMeta =
@@ -38,6 +44,115 @@
     const error = new Error(String(message || "请求失败。"));
     Object.assign(error, details || {});
     return error;
+  }
+
+  function isExtensionContextInvalidatedError(error) {
+    if (storage && typeof storage.isExtensionContextInvalidatedError === "function") {
+      try {
+        if (storage.isExtensionContextInvalidatedError(error)) {
+          return true;
+        }
+      } catch (_innerError) {
+        // Ignore storage helper failures and fall back to text matching.
+      }
+    }
+    if (String(error?.code || "") === "EXTENSION_CONTEXT_INVALIDATED") {
+      return true;
+    }
+    const message = String(error?.message || error || "").toLowerCase();
+    return (
+      message.indexOf("extension context invalidated") >= 0 ||
+      message.indexOf("context invalidated") >= 0
+    );
+  }
+
+  function inferBackendModeFromEndpoint(endpoint, fallbackMode) {
+    const text = String(endpoint || "").trim().toLowerCase();
+    if (text.indexOf("127.0.0.1") >= 0 || text.indexOf("localhost") >= 0) {
+      return BACKEND_MODE_LOCAL;
+    }
+    if (text.indexOf("http://") === 0 || text.indexOf("https://") === 0) {
+      return BACKEND_MODE_SERVER;
+    }
+    return fallbackMode === BACKEND_MODE_LOCAL ? BACKEND_MODE_LOCAL : BACKEND_MODE_SERVER;
+  }
+
+  function getBackendModeFromSettings(settings, endpoint) {
+    if (typeof constants.getBackendEndpointModeFromSettings === "function") {
+      const resolved = normalizeText(constants.getBackendEndpointModeFromSettings(settings || {}));
+      if (resolved === BACKEND_MODE_LOCAL || resolved === BACKEND_MODE_SERVER) {
+        return resolved;
+      }
+    }
+    const rawMode = normalizeText(
+      settings?.meta?.backendEndpointMode ||
+        settings?.backend?.endpointMode ||
+        settings?.backendEndpointMode
+    ).toLowerCase();
+    if (rawMode === BACKEND_MODE_LOCAL || rawMode === "localhost" || rawMode === "127.0.0.1") {
+      return BACKEND_MODE_LOCAL;
+    }
+    if (rawMode === BACKEND_MODE_SERVER) {
+      return BACKEND_MODE_SERVER;
+    }
+    return inferBackendModeFromEndpoint(endpoint, BACKEND_MODE_SERVER);
+  }
+
+  function buildBackendUrl(path, mode) {
+    if (typeof constants.buildBackendUrl === "function") {
+      const built = normalizeText(constants.buildBackendUrl(path, mode));
+      if (built) {
+        return built;
+      }
+    }
+    const baseUrl =
+      mode === BACKEND_MODE_LOCAL
+        ? "http://127.0.0.1:3333"
+        : "https://script.xiangtianzhen.store";
+    return baseUrl + String(path || "");
+  }
+
+  function getOnlineState() {
+    if (typeof navigator !== "undefined" && typeof navigator.onLine === "boolean") {
+      return navigator.onLine;
+    }
+    return null;
+  }
+
+  function createNetworkErrorMeta(input) {
+    const source = input && typeof input === "object" ? input : {};
+    return {
+      type: "client-network-error",
+      backendMode: normalizeText(source.backendMode),
+      endpoint: normalizeText(source.endpoint),
+      fallbackEndpoint: normalizeText(source.fallbackEndpoint),
+      fallbackAttempted: source.fallbackAttempted === true,
+      originalErrorName: normalizeText(source.error?.name),
+      originalErrorMessage: normalizeText(source.error?.message || source.error),
+      online: getOnlineState(),
+    };
+  }
+
+  function createDetailedClientError(message, code, meta) {
+    const error = createClientError(message, {
+      code: normalizeText(code) || "request-error",
+      rawResponse: meta && typeof meta === "object" ? meta : null,
+    });
+    return error;
+  }
+
+  function attachClientDebug(result, meta) {
+    const source = result && typeof result === "object" ? result : {};
+    const debug = source.debug && typeof source.debug === "object" ? source.debug : {};
+    return Object.assign({}, source, {
+      debug: Object.assign({}, debug, {
+        clientBackendMode: normalizeText(meta?.backendMode),
+        clientBackendEndpoint: normalizeText(meta?.endpoint),
+        clientFallbackUsed: meta?.fallbackUsed === true,
+        clientPrimaryBackendMode: normalizeText(meta?.primaryBackendMode),
+        clientPrimaryBackendEndpoint: normalizeText(meta?.primaryEndpoint),
+      }),
+    });
   }
 
   function buildApiError(responseBody, statusCode) {
@@ -88,6 +203,12 @@
 
   function createRuntime(options) {
     const config = options && typeof options === "object" ? options : {};
+    const fetchImpl =
+      typeof config.fetchImpl === "function"
+        ? config.fetchImpl
+        : typeof fetch === "function"
+          ? fetch.bind(globalThis)
+          : null;
 
     function getEndpoint() {
       try {
@@ -95,6 +216,16 @@
       } catch (_error) {
         return DEFAULT_ENDPOINT;
       }
+    }
+
+    function getFallbackEndpoint(primaryEndpoint, primaryMode) {
+      if (primaryMode !== BACKEND_MODE_LOCAL) {
+        return "";
+      }
+      const fallback = buildBackendUrl(RECOMMEND_PATH, BACKEND_MODE_SERVER);
+      return normalizeText(fallback) && normalizeText(fallback) !== normalizeText(primaryEndpoint)
+        ? fallback
+        : "";
     }
 
     function getPlatformUserMeta(item) {
@@ -165,6 +296,42 @@
       return requestBody;
     }
 
+    async function sendRequest(endpoint, requestBody, timeoutMs) {
+      if (typeof fetchImpl !== "function") {
+        throw createClientError("当前环境不支持 fetch，无法调用 AI 推荐接口。", {
+          code: "fetch-unavailable",
+        });
+      }
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timer = controller
+        ? globalThis.setTimeout(function () {
+            controller.abort();
+          }, timeoutMs)
+        : null;
+
+      try {
+        const response = await fetchImpl(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller ? controller.signal : undefined,
+        });
+        const responseBody = await response.json().catch(function () {
+          return null;
+        });
+        if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
+          throw buildApiError(responseBody, response.status);
+        }
+        return responseBody.data;
+      } finally {
+        if (timer) {
+          clearTimeout(timer);
+        }
+      }
+    }
+
     async function recommend(item) {
       const source = item && typeof item === "object" ? item : {};
       if (!source.taskId) {
@@ -182,45 +349,91 @@
       if (!normalizeText(source.referenceText)) {
         throw new Error("缺少平台参考文本。");
       }
-
-      const controller = typeof AbortController === "function" ? new AbortController() : null;
       const timeoutMs = Math.max(1000, Number(config.timeoutMs) || DEFAULT_TIMEOUT_MS);
-      const timer = controller
-        ? window.setTimeout(function () {
-            controller.abort();
-          }, timeoutMs)
-        : null;
+      const requestBody = createRequestBody(source);
+      const endpoint = getEndpoint();
+      const backendMode = getBackendModeFromSettings(config.settings || {}, endpoint);
+      const fallbackEndpoint = getFallbackEndpoint(endpoint, backendMode);
 
       try {
-        const response = await fetch(getEndpoint(), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(createRequestBody(source)),
-          signal: controller ? controller.signal : undefined,
+        const result = await sendRequest(endpoint, requestBody, timeoutMs);
+        return attachClientDebug(result, {
+          backendMode: backendMode,
+          endpoint: endpoint,
+          fallbackUsed: false,
         });
-        const responseBody = await response.json().catch(function () {
-          return null;
-        });
-        if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
-          throw buildApiError(responseBody, response.status);
-        }
-        return responseBody.data;
       } catch (error) {
         if (error?.name === "AbortError") {
           throw createClientError("AI 推荐接口请求超时。", { code: "timeout" });
         }
+        if (isExtensionContextInvalidatedError(error)) {
+          throw createDetailedClientError(
+            "扩展上下文已失效，请刷新当前业务页面后重试。",
+            "extension-context-invalidated",
+            createNetworkErrorMeta({
+              backendMode: backendMode,
+              endpoint: endpoint,
+              error,
+            })
+          );
+        }
         if (error instanceof TypeError) {
-          throw createClientError("后端连接中断，请稍后重试。", {
-            code: "network-disconnected",
-          });
+          if (fallbackEndpoint) {
+            try {
+              const fallbackResult = await sendRequest(fallbackEndpoint, requestBody, timeoutMs);
+              return attachClientDebug(fallbackResult, {
+                backendMode: BACKEND_MODE_SERVER,
+                endpoint: fallbackEndpoint,
+                fallbackUsed: true,
+                primaryBackendMode: backendMode,
+                primaryEndpoint: endpoint,
+              });
+            } catch (fallbackError) {
+              if (fallbackError?.name === "AbortError") {
+                throw createClientError("AI 推荐接口请求超时。", { code: "timeout" });
+              }
+              if (isExtensionContextInvalidatedError(fallbackError)) {
+                throw createDetailedClientError(
+                  "扩展上下文已失效，请刷新当前业务页面后重试。",
+                  "extension-context-invalidated",
+                  createNetworkErrorMeta({
+                    backendMode: BACKEND_MODE_SERVER,
+                    endpoint: fallbackEndpoint,
+                    fallbackEndpoint: fallbackEndpoint,
+                    fallbackAttempted: true,
+                    error: fallbackError,
+                  })
+                );
+              }
+              if (!(fallbackError instanceof TypeError)) {
+                throw fallbackError;
+              }
+              throw createDetailedClientError(
+                "本机后端连接失败，且回退服务器接口也失败。请检查本机服务是否启动，或在 options 首页把后端接口地址切回服务器。",
+                "network-disconnected",
+                createNetworkErrorMeta({
+                  backendMode: backendMode,
+                  endpoint: endpoint,
+                  fallbackEndpoint: fallbackEndpoint,
+                  fallbackAttempted: true,
+                  error,
+                })
+              );
+            }
+          }
+          throw createDetailedClientError(
+            "后端连接中断，请稍后重试。",
+            "network-disconnected",
+            createNetworkErrorMeta({
+              backendMode: backendMode,
+              endpoint: endpoint,
+              fallbackEndpoint: fallbackEndpoint,
+              fallbackAttempted: false,
+              error,
+            })
+          );
         }
         throw error;
-      } finally {
-        if (timer) {
-          clearTimeout(timer);
-        }
       }
     }
 
@@ -229,9 +442,15 @@
     };
   }
 
-  globalThis.__ASREdgeAishellTechMinnanAiRecommendation = {
+  const api = {
     DEFAULT_ENDPOINT,
     DEFAULT_TIMEOUT_MS,
     createRuntime,
   };
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
+
+  globalThis.__ASREdgeAishellTechMinnanAiRecommendation = api;
 })();
