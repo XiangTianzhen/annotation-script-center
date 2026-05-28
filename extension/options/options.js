@@ -1208,6 +1208,7 @@
   function getAishellTechSettingsDraftConfig(aiDefaults) {
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
     const recognitionSelectNode = getElement("aishell-tech-ai-pipeline-mode-select");
+    const strategySelectNode = getElement("aishell-tech-ai-recognition-strategy-select");
     const listenSelectNode = getElement("aishell-tech-ai-listen-model-select");
     const compareSelectNode = getElement("aishell-tech-ai-compare-model-select");
     const singleSelectNode = getElement("aishell-tech-ai-single-model-select");
@@ -1216,6 +1217,13 @@
         recognitionSelectNode instanceof HTMLSelectElement
           ? normalizeDataBakerRecognitionMode(recognitionSelectNode.value, "two_stage")
           : "two_stage",
+      aiRecommendRecognitionStrategy:
+        strategySelectNode instanceof HTMLSelectElement
+          ? normalizeMagicDataRecognitionStrategy(
+              strategySelectNode.value,
+              getAishellTechRecognitionStrategyDefault(defaults)
+            )
+          : getAishellTechRecognitionStrategyDefault(defaults),
       aiRecommendListenModel:
         listenSelectNode instanceof HTMLSelectElement
           ? normalizeDataBakerListenModel(
@@ -1238,6 +1246,71 @@
             )
           : getDataBakerSingleModelDefault(defaults),
     };
+  }
+
+  function getAishellTechRecognitionStrategyDefault(aiDefaults) {
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    return normalizeMagicDataRecognitionStrategy(
+      defaults.recognitionStrategy || defaults.aiRecommendRecognitionStrategy || defaults.pipelineMode,
+      "mandarin_to_dialect"
+    );
+  }
+
+  function getAishellTechPromptProfile(aiDefaults, recognitionStrategy) {
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const profiles =
+      defaults.promptProfiles && typeof defaults.promptProfiles === "object"
+        ? defaults.promptProfiles
+        : {};
+    const normalizedStrategy = normalizeMagicDataRecognitionStrategy(
+      recognitionStrategy,
+      getAishellTechRecognitionStrategyDefault(defaults)
+    );
+    const profile =
+      profiles[normalizedStrategy] && typeof profiles[normalizedStrategy] === "object"
+        ? profiles[normalizedStrategy]
+        : {};
+    return {
+      listenPrompt: String(profile.listenPrompt || defaults.listenPrompt || ""),
+      comparePrompt: String(profile.comparePrompt || defaults.comparePrompt || ""),
+    };
+  }
+
+  function shouldReplaceAishellPromptValue(currentValue, aiDefaults, promptKey) {
+    const normalizedCurrent = normalizePromptText(currentValue || "");
+    if (!normalizedCurrent) {
+      return true;
+    }
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const promptProfiles =
+      defaults.promptProfiles && typeof defaults.promptProfiles === "object"
+        ? defaults.promptProfiles
+        : {};
+    const candidates = [defaults[promptKey]];
+    Object.keys(promptProfiles).forEach(function (key) {
+      candidates.push(promptProfiles[key]?.[promptKey]);
+    });
+    return candidates.some(function (candidate) {
+      return normalizePromptText(candidate || "") === normalizedCurrent;
+    });
+  }
+
+  function applyAishellTechPromptProfile(recognitionStrategy, aiDefaults) {
+    const listenPromptNode = getElement("aishell-tech-ai-listen-prompt");
+    const comparePromptNode = getElement("aishell-tech-ai-compare-prompt");
+    const profile = getAishellTechPromptProfile(aiDefaults, recognitionStrategy);
+    if (
+      listenPromptNode instanceof HTMLTextAreaElement &&
+      shouldReplaceAishellPromptValue(listenPromptNode.value, aiDefaults, "listenPrompt")
+    ) {
+      listenPromptNode.value = String(profile.listenPrompt || "");
+    }
+    if (
+      comparePromptNode instanceof HTMLTextAreaElement &&
+      shouldReplaceAishellPromptValue(comparePromptNode.value, aiDefaults, "comparePrompt")
+    ) {
+      comparePromptNode.value = String(profile.comparePrompt || "");
+    }
   }
 
   function updateAishellTechAutofillConcurrencyField(configLike, options) {
@@ -1275,6 +1348,10 @@
   function applyAishellTechListenModelFields(listenModel, config, aiDefaults) {
     const currentConfig = Object.assign({}, config || {});
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const currentRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      currentConfig.aiRecommendRecognitionStrategy,
+      getAishellTechRecognitionStrategyDefault(defaults)
+    );
     const currentListenModel = normalizeDataBakerListenModel(
       listenModel || currentConfig.aiRecommendListenModel,
       getDataBakerListenModelDefault(defaults)
@@ -1296,8 +1373,17 @@
     if (listenHelpNode instanceof HTMLElement) {
       listenHelpNode.textContent =
         currentListenModel === "fun-asr"
-          ? "Fun-ASR 负责音频识别，比较模型结合听音文本与参考文本生成推荐文本。"
-          : "Omni 听音后，再由比较模型结合参考文本生成推荐文本。";
+          ? currentRecognitionStrategy === "mandarin_to_dialect"
+            ? "Fun-ASR 先把闽南语音频听成普通话文本，再由转换模型结合预测闽南语文本和字词表输出最终推荐。"
+            : "Fun-ASR 先直接识别闽南语文本，再由比较模型结合预测文本输出最终推荐。"
+          : currentRecognitionStrategy === "mandarin_to_dialect"
+            ? "Omni 听音阶段先输出普通话文本，再由转换模型结合预测闽南语文本生成最终推荐。"
+            : "Omni 听音阶段直接输出闽南语文本，再由比较模型结合预测文本生成最终推荐。";
+    }
+    const compareLabelNode = getElement("aishell-tech-ai-compare-model-label");
+    if (compareLabelNode instanceof HTMLElement) {
+      compareLabelNode.textContent =
+        currentRecognitionStrategy === "mandarin_to_dialect" ? "转换模型" : "比较模型";
     }
     const noteNode = getElement("aishell-tech-ai-listen-model-note");
     if (noteNode instanceof HTMLElement) {
@@ -1341,6 +1427,10 @@
       recognitionMode || config?.aiRecommendPipelineMode,
       "two_stage"
     );
+    const currentRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      config?.aiRecommendRecognitionStrategy,
+      getAishellTechRecognitionStrategyDefault(aiDefaults)
+    );
     renderFixedModelOptions(
       "aishell-tech-ai-pipeline-mode-select",
       [
@@ -1349,6 +1439,15 @@
       ],
       currentRecognitionMode
     );
+    renderFixedModelOptions(
+      "aishell-tech-ai-recognition-strategy-select",
+      [
+        { value: "mandarin_to_dialect", label: "普通话对照默认" },
+        { value: "direct_dialect", label: "直接听写闽南语" },
+      ],
+      currentRecognitionStrategy
+    );
+    setFieldVisibility("aishell-tech-ai-recognition-strategy-field", true);
     setFieldVisibility("aishell-tech-ai-listen-model-field", currentRecognitionMode === "two_stage");
     setFieldVisibility("aishell-tech-ai-compare-model-field", currentRecognitionMode === "two_stage");
     setFieldVisibility("aishell-tech-ai-single-model-field", currentRecognitionMode === "omni_single");
@@ -1388,6 +1487,21 @@
       draftConfig,
       aiDefaults
     );
+  }
+
+  function updateAishellTechRecognitionStrategyFields(recognitionStrategy) {
+    const aiDefaults = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId).defaults || {};
+    const draftConfig = getAishellTechSettingsDraftConfig(aiDefaults);
+    draftConfig.aiRecommendRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      recognitionStrategy,
+      getAishellTechRecognitionStrategyDefault(aiDefaults)
+    );
+    applyAishellTechRecognitionModeFields(
+      draftConfig.aiRecommendPipelineMode || "two_stage",
+      draftConfig,
+      aiDefaults
+    );
+    applyAishellTechPromptProfile(draftConfig.aiRecommendRecognitionStrategy, aiDefaults);
   }
 
   function updateAishellTechListenModelFields(listenModel) {
@@ -2895,6 +3009,7 @@
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
+        aiRecommendRecognitionStrategy: "mandarin_to_dialect",
         aiQualifiedAutofillConcurrency: 15,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",
@@ -2923,6 +3038,7 @@
       defaults.aiRecommendPipelineMode,
       "two_stage"
     );
+    const defaultRecognitionStrategy = getAishellTechRecognitionStrategyDefault(defaults);
     const defaultListenModel = normalizeDataBakerListenModel(
       defaults.aiRecommendListenModel,
       "qwen3.5-omni-flash"
@@ -2955,6 +3071,10 @@
       defaultSingleModel
     );
     config.aiRecommendPipelineMode = normalizedRecognitionMode;
+    config.aiRecommendRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      config.aiRecommendRecognitionStrategy || config.recognitionStrategy || config.pipelineMode,
+      defaultRecognitionStrategy
+    );
     config.aiQualifiedAutofillConcurrency = normalizeDataBakerAutofillConcurrency(
       config.aiQualifiedAutofillConcurrency,
       {
@@ -3191,6 +3311,7 @@
       const isAishellPanel = isAishellTechScript(scriptId);
       const isMagicDataMinnanPanel = scriptId === magicDataMinnanScriptId;
       const isMagicDataPanel = isMagicDataScript(scriptId);
+      const useRecognitionStrategy = isMagicDataPanel || isAishellPanel;
       const usePipelineModels = isDataBakerPanel || isMagicDataPanel || isAishellPanel;
       const prefix = isDataBakerPanel
         ? "data-baker-ai"
@@ -3216,7 +3337,7 @@
           prefix +
           '-pipeline-mode-select"></select><span class="asr-ai-help">模型方案：双模型或单模型。</span></label>',
         '<label class="asr-ai-field' +
-          (isMagicDataPanel ? "" : " hidden") +
+          (useRecognitionStrategy ? "" : " hidden") +
           '" id="' +
           prefix +
           '-recognition-strategy-field"><span>识别策略</span><select id="' +
@@ -3303,11 +3424,17 @@
         moveDataBakerAutofillConcurrencyFieldIntoAiPanel();
       } else if (isAishellPanel) {
         const recognitionNode = getElement("aishell-tech-ai-pipeline-mode-select");
+        const strategyNode = getElement("aishell-tech-ai-recognition-strategy-select");
         const listenNode = getElement("aishell-tech-ai-listen-model-select");
         const singleNode = getElement("aishell-tech-ai-single-model-select");
         if (recognitionNode instanceof HTMLSelectElement) {
           recognitionNode.addEventListener("change", function (event) {
             updateAishellTechRecognitionModeFields(event?.target?.value);
+          });
+        }
+        if (strategyNode instanceof HTMLSelectElement) {
+          strategyNode.addEventListener("change", function (event) {
+            updateAishellTechRecognitionStrategyFields(event?.target?.value);
           });
         }
         if (listenNode instanceof HTMLSelectElement) {
@@ -6307,11 +6434,15 @@
         config.aiRecommendEnableThinking === true ||
           (config.aiRecommendEnableThinking !== true && aiDefaults.enableThinking === true)
       );
+      const promptProfile = getAishellTechPromptProfile(
+        aiDefaults,
+        config.aiRecommendRecognitionStrategy
+      );
       getElement("aishell-tech-ai-listen-prompt").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendListenPrompt, aiDefaults.listenPrompt)
+        getAsrVoiceAiEffectiveText(config.aiRecommendListenPrompt, promptProfile.listenPrompt)
       );
       getElement("aishell-tech-ai-compare-prompt").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendComparePrompt, aiDefaults.comparePrompt)
+        getAsrVoiceAiEffectiveText(config.aiRecommendComparePrompt, promptProfile.comparePrompt)
       );
       getElement("aishell-tech-ai-temperature").value = String(
         getAsrVoiceAiEffectiveText(config.aiRecommendTemperature, aiDefaults.temperature)
@@ -6601,6 +6732,15 @@
           currentConfig.aiRecommendPipelineMode || "two_stage"
         )
       : normalizeDataBakerRecognitionMode(currentConfig.aiRecommendPipelineMode, "two_stage");
+    const recognitionStrategy = hasAiSettingsPanel
+      ? normalizeMagicDataRecognitionStrategy(
+          getElement("aishell-tech-ai-recognition-strategy-select")?.value,
+          currentConfig.aiRecommendRecognitionStrategy || "mandarin_to_dialect"
+        )
+      : normalizeMagicDataRecognitionStrategy(
+          currentConfig.aiRecommendRecognitionStrategy,
+          "mandarin_to_dialect"
+        );
     const listenModel = hasAiSettingsPanel
       ? normalizeDataBakerListenModel(
           getElement("aishell-tech-ai-listen-model-select")?.value,
@@ -6645,6 +6785,7 @@
     const comparePrompt = hasAiSettingsPanel
       ? normalizePromptText(getElement("aishell-tech-ai-compare-prompt").value)
       : currentConfig.aiRecommendComparePrompt;
+    const promptProfile = getAishellTechPromptProfile(aiDefaults, recognitionStrategy);
     const normalizeOverridePrompt = function (value, defaultValue) {
       const normalizedValue = normalizePromptText(value || "");
       const normalizedDefault = normalizePromptText(defaultValue || "");
@@ -6746,6 +6887,7 @@
                 aiRecommendEnabled: aiRecommendEnabled,
                 aiRecommendRequestTimeoutMs: timeoutMs,
                 aiRecommendPipelineMode: recognitionMode,
+                aiRecommendRecognitionStrategy: recognitionStrategy,
                 aiRecommendListenModel:
                   recognitionMode === "two_stage" &&
                   listenModel !== getDataBakerListenModelDefault(aiDefaults)
@@ -6763,8 +6905,14 @@
                     : "",
                 aiRecommendEnableThinking:
                   enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
-                aiRecommendListenPrompt: normalizeOverridePrompt(listenPrompt, aiDefaults.listenPrompt),
-                aiRecommendComparePrompt: normalizeOverridePrompt(comparePrompt, aiDefaults.comparePrompt),
+                aiRecommendListenPrompt: normalizeOverridePrompt(
+                  listenPrompt,
+                  promptProfile.listenPrompt
+                ),
+                aiRecommendComparePrompt: normalizeOverridePrompt(
+                  comparePrompt,
+                  promptProfile.comparePrompt
+                ),
                 aiRecommendTemperature: temperature,
                 aiRecommendTopP: topP,
                 aiRecommendMaxTokens: maxTokens,

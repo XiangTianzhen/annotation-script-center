@@ -1,4 +1,8 @@
 (function () {
+  if (globalThis.__ASREdgeAishellTechMinnanAiRecommendationInstalled === true) {
+    return;
+  }
+  globalThis.__ASREdgeAishellTechMinnanAiRecommendationInstalled = true;
   const DEFAULT_ENDPOINT =
     "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend";
   const DEFAULT_TIMEOUT_MS = 120000;
@@ -90,7 +94,15 @@
 
       if (config.recognitionMode) {
         requestBody.recognitionMode = normalizeText(config.recognitionMode);
+      }
+      if (config.modelMode) {
+        requestBody.modelMode = normalizeText(config.modelMode);
+        requestBody.pipelineMode = normalizeText(config.modelMode);
+      } else if (config.recognitionMode) {
         requestBody.pipelineMode = normalizeText(config.recognitionMode);
+      }
+      if (config.recognitionStrategy) {
+        requestBody.recognitionStrategy = normalizeText(config.recognitionStrategy);
       }
       if (config.listenModel) {
         requestBody.listenModel = normalizeText(config.listenModel);

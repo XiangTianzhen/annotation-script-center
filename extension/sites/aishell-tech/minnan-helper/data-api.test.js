@@ -8,6 +8,7 @@ const {
   extractAuthTokenFromUnknown,
   findAuthTokenInEntries,
   isSaveCompletionState,
+  createRateLimitedTaskScheduler,
   removeTextSpaces,
 } = require("./data-api.js");
 
@@ -78,4 +79,32 @@ test("isSaveCompletionState returns true when previous item becomes finished", f
     }),
     false
   );
+});
+
+test("createRateLimitedTaskScheduler spaces task start time by staggerMs", async function () {
+  const startTimes = [];
+  const scheduler = createRateLimitedTaskScheduler({
+    concurrency: 2,
+    staggerMs: 50,
+  });
+
+  const tasks = Array.from({ length: 4 }).map(function (_value, index) {
+    return scheduler.run(function () {
+      startTimes.push({
+        index: index,
+        at: Date.now(),
+      });
+      return Promise.resolve(index);
+    });
+  });
+
+  const values = await Promise.all(tasks);
+  assert.deepEqual(values, [0, 1, 2, 3]);
+  assert.equal(startTimes.length, 4);
+  for (let index = 1; index < startTimes.length; index += 1) {
+    assert.ok(
+      startTimes[index].at - startTimes[index - 1].at >= 40,
+      "expected stagger between dispatched requests"
+    );
+  }
 });

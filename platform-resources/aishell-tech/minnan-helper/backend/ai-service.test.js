@@ -32,14 +32,40 @@ test("Aishell ai-service normalizes request and maps to DataBaker recommend payl
   assert.equal(normalized.packageId, "package-1");
   assert.equal(normalized.taskItemId, "item-1");
   assert.equal(normalized.duration, 15.2);
+  assert.equal(normalized.modelMode, "two_stage");
+  assert.equal(normalized.recognitionStrategy, "mandarin_to_dialect");
+  assert.equal(normalized.recognitionMode, "recognition_convert");
   assert.equal(normalized.dataBakerRequest.collectId, "task-1");
   assert.equal(normalized.dataBakerRequest.itemId, "item-1");
   assert.equal(normalized.dataBakerRequest.textId, "package-1");
   assert.equal(normalized.dataBakerRequest.pageText, "平台参考文本");
+  assert.equal(normalized.dataBakerRequest.recognitionMode, "two_stage");
   assert.equal(normalized.dataBakerRequest.batchRunId, "batch-1");
   assert.equal(normalized.dataBakerRequest.batchItemIndex, 3);
   assert.equal(normalized.dataBakerRequest.batchProcessKey, "item:item-1");
   assert.equal(normalized.dataBakerRequest.clientRequestId, "client-1");
+  assert.ok(normalized.dataBakerRequest.aiOptions.listenPrompt);
+  assert.ok(normalized.dataBakerRequest.aiOptions.comparePrompt);
+});
+
+test("Aishell ai-service keeps direct dialect strategy and direct prompts", function () {
+  const normalized = service.normalizeRecommendRequest({
+    taskId: "task-2",
+    packageId: "package-2",
+    taskItemId: "item-2",
+    fileName: "clip-2.wav",
+    audioUrl: "https://example.com/audio-2.wav",
+    referenceText: "页面预测闽南语文本",
+    recognitionStrategy: "direct_dialect",
+    aiOptions: {},
+  });
+
+  assert.equal(normalized.modelMode, "two_stage");
+  assert.equal(normalized.recognitionStrategy, "direct_dialect");
+  assert.equal(normalized.recognitionMode, "two_stage");
+  assert.equal(normalized.dataBakerRequest.recognitionMode, "two_stage");
+  assert.match(normalized.dataBakerRequest.aiOptions.listenPrompt, /闽南语/);
+  assert.match(normalized.dataBakerRequest.aiOptions.comparePrompt, /闽南语/);
 });
 
 test("Aishell ai-service reshapes DataBaker result into recommend response body", function () {
@@ -125,8 +151,14 @@ test("Aishell ai-service exposes health and defaults payloads", function () {
   assert.equal(health.success, true);
   assert.equal(health.scriptId, service.SCRIPT_ID);
   assert.ok(Number(health.timeoutMs) >= 1000);
+  assert.equal(health.recognitionStrategy, "mandarin_to_dialect");
+  assert.ok(Array.isArray(health.recognitionStrategyOptions));
   assert.equal(defaults.success, true);
   assert.equal(defaults.scriptId, service.SCRIPT_ID);
   assert.ok(defaults.defaults);
   assert.ok(Array.isArray(defaults.defaults.listenModelOptions));
+  assert.equal(defaults.defaults.modelMode, "two_stage");
+  assert.equal(defaults.defaults.recognitionStrategy, "mandarin_to_dialect");
+  assert.ok(Array.isArray(defaults.defaults.recognitionStrategyOptions));
+  assert.match(String(defaults.defaults.listenPrompt || ""), /普通话/);
 });

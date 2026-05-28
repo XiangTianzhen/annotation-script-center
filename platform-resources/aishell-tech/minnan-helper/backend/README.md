@@ -10,8 +10,17 @@
 
 - 当前实现保持 Aishell 独立路由、独立脚本 ID、独立词表目录。
 - 模型、Prompt 默认值、并发归一规则与推荐链路参考 `platform-resources/data-baker/round-one-quality/backend/`。
+- 当前默认识别策略为 `mandarin_to_dialect`（普通话对照默认）：
+  - 听音模型先把闽南语音频转成普通话文本。
+  - 比较/转换模型再结合页面预测闽南语文本与字词表输出最终闽南语推荐。
+- 同时支持 `direct_dialect`（直接听写闽南语）测试模式。
 - v1 直接复用 DataBaker 已验证的推荐执行链，不额外引入异步 job、SSE 或 WebSocket。
 - 返回结构固定为 `success/requestId/data`，便于扩展端按推荐文本型脚本统一处理。
+- `defaults/health` 会返回：
+  - `modelModeOptions`
+  - `recognitionStrategyOptions`
+  - 当前策略对应的默认 `listenPrompt / comparePrompt`
+  - `promptProfiles`（两种策略的默认 Prompt）
 
 ## 安全边界
 

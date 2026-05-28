@@ -31,7 +31,9 @@ test("Aishell adapter normalizes recommend request into framework payload", func
     duration: 12.5,
   });
   assert.deepEqual(normalized.projectOptions, {
-    recognitionMode: "two_stage",
+    modelMode: "two_stage",
+    recognitionStrategy: "mandarin_to_dialect",
+    recognitionMode: "recognition_convert",
     listenModel: "fun-asr",
     compareModel: "qwen3.5-plus",
     singleModel: "qwen3.5-omni-flash",

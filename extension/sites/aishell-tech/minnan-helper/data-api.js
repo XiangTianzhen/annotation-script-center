@@ -290,6 +290,87 @@
     });
   }
 
+  function createRateLimitedTaskScheduler(options) {
+    const config = options && typeof options === "object" ? options : {};
+    const concurrency = Math.max(1, Math.floor(Number(config.concurrency || 1) || 1));
+    const staggerMs = Math.max(0, Math.floor(Number(config.staggerMs || 0) || 0));
+    const state = {
+      activeCount: 0,
+      queue: [],
+      nextDispatchAt: 0,
+      cancelled: false,
+      cancelReason: null,
+    };
+
+    function scheduleNext() {
+      while (
+        state.cancelled !== true &&
+        state.activeCount < concurrency &&
+        state.queue.length > 0
+      ) {
+        const entry = state.queue.shift();
+        if (!entry) {
+          return;
+        }
+        const now = Date.now();
+        const dispatchAt = Math.max(now, state.nextDispatchAt);
+        state.nextDispatchAt = dispatchAt + staggerMs;
+        state.activeCount += 1;
+        globalThis.setTimeout(function () {
+          Promise.resolve()
+            .then(function () {
+              if (state.cancelled === true) {
+                throw state.cancelReason || new Error("调度已取消。");
+              }
+              return entry.task();
+            })
+            .then(entry.resolve, entry.reject)
+            .finally(function () {
+              state.activeCount = Math.max(0, state.activeCount - 1);
+              scheduleNext();
+            });
+        }, Math.max(0, dispatchAt - now));
+      }
+    }
+
+    return {
+      run(task) {
+        if (typeof task !== "function") {
+          return Promise.reject(new Error("scheduler task 必须是函数。"));
+        }
+        if (state.cancelled === true) {
+          return Promise.reject(state.cancelReason || new Error("调度已取消。"));
+        }
+        return new Promise(function (resolve, reject) {
+          state.queue.push({
+            task: task,
+            resolve: resolve,
+            reject: reject,
+          });
+          scheduleNext();
+        });
+      },
+      cancelPending(reason) {
+        state.cancelled = true;
+        state.cancelReason =
+          reason instanceof Error ? reason : new Error(String(reason || "调度已取消。"));
+        while (state.queue.length > 0) {
+          const entry = state.queue.shift();
+          entry.reject(state.cancelReason);
+        }
+      },
+      getSnapshot() {
+        return {
+          activeCount: state.activeCount,
+          queuedCount: state.queue.length,
+          concurrency: concurrency,
+          staggerMs: staggerMs,
+          cancelled: state.cancelled === true,
+        };
+      },
+    };
+  }
+
   function getRecordDisplayName(record) {
     const number = Number(record?.number || 0) || 0;
     const fileName = normalizeText(record?.fileName);
@@ -667,6 +748,7 @@
   }
 
   const api = {
+    createRateLimitedTaskScheduler,
     createRuntime,
     ensureChineseSentencePunctuation,
     extractAuthTokenFromUnknown,

@@ -11,3 +11,5 @@
 - 仅服务 `https://mark.aishelltech.com/mytask/mark?...` 的闽南语推荐文本助手。
 - 接口独立为 `/api/aishell-tech/minnan-helper/ai/recommend*`。
 - Prompt、模型白名单、并发默认值参考 DataBaker round-one-quality。
+- 默认识别策略为 `mandarin_to_dialect`（先听成普通话，再结合页面预测闽南语文本与字词表输出最终闽南语）。
+- 同时保留 `direct_dialect`（直接听写闽南语）测试模式。

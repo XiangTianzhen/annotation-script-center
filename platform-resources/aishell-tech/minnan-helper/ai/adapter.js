@@ -24,6 +24,8 @@ function normalizeInput(body) {
       duration: normalizedRecommendRequest.duration,
     },
     projectOptions: {
+      modelMode: normalizedRecommendRequest.modelMode,
+      recognitionStrategy: normalizedRecommendRequest.recognitionStrategy,
       recognitionMode: normalizedRecommendRequest.recognitionMode,
       listenModel: normalizedRecommendRequest.listenModel,
       compareModel: normalizedRecommendRequest.compareModel,

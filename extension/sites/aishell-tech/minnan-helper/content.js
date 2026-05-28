@@ -27,6 +27,22 @@
       : "two_stage";
   }
 
+  function normalizeRecognitionStrategy(value) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "direct_dialect") {
+      return "direct_dialect";
+    }
+    return "mandarin_to_dialect";
+  }
+
+  function createBatchRunId() {
+    return [
+      "aishell",
+      Date.now().toString(36),
+      Math.random().toString(36).slice(2, 8),
+    ].join("-");
+  }
+
   function normalizeOptionalNumber(value, min, max) {
     if (value === undefined || value === null || value === "") {
       return "";
@@ -150,6 +166,8 @@
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: DEFAULT_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
+        aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+        aiQualifiedAutofillConcurrency: 15,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",
         aiRecommendSingleModel: "qwen3.5-omni-flash",
@@ -186,6 +204,13 @@
     merged.aiRecommendPipelineMode = normalizeRecognitionMode(
       merged.aiRecommendPipelineMode || merged.recognitionMode
     );
+    merged.aiRecommendRecognitionStrategy = normalizeRecognitionStrategy(
+      merged.aiRecommendRecognitionStrategy || merged.recognitionStrategy
+    );
+    merged.aiQualifiedAutofillConcurrency = Math.max(
+      1,
+      Math.floor(Number(merged.aiQualifiedAutofillConcurrency || 15) || 15)
+    );
     merged.aiRecommendRequestTimeoutMs = Math.max(
       1000,
       Number(merged.aiRecommendRequestTimeoutMs || DEFAULT_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS
@@ -212,6 +237,8 @@
     const aiClient = aiFactory.createRuntime({
       endpoint: config.aiRecommendEndpoint,
       timeoutMs: config.aiRecommendRequestTimeoutMs,
+      modelMode: config.aiRecommendPipelineMode,
+      recognitionStrategy: config.aiRecommendRecognitionStrategy,
       recognitionMode: config.aiRecommendPipelineMode,
       listenModel: config.aiRecommendListenModel,
       compareModel: config.aiRecommendCompareModel,
@@ -234,6 +261,7 @@
       batch: false,
     };
     let batchStopRequested = false;
+    let activeBatchContext = null;
 
     function syncBusyState(nextState) {
       currentBusyState = Object.assign({}, currentBusyState, nextState || {});
@@ -265,6 +293,9 @@
         return;
       }
       batchStopRequested = true;
+      if (activeBatchContext?.scheduler?.cancelPending) {
+        activeBatchContext.scheduler.cancelPending("批量识别已手动停止。");
+      }
       panel.setStatus("已请求停止，将在当前条完成后结束本轮批量。", "warning");
       panel.updateBatch({
         phaseText: "停止中",
@@ -281,8 +312,46 @@
         if (!tasks.length) {
           throw new Error("从当前选中条开始没有可识别的未完成条目。");
         }
+        const batchRunId = createBatchRunId();
+        const batchConcurrency = Math.max(
+          1,
+          Number(config.aiQualifiedAutofillConcurrency || 15) || 15
+        );
+        const scheduler = dataApi.createRateLimitedTaskScheduler({
+          concurrency: batchConcurrency,
+          staggerMs: 50,
+        });
+        activeBatchContext = {
+          scheduler: scheduler,
+          batchRunId: batchRunId,
+        };
         const failures = [];
-        let processedCount = 0;
+        const pendingResults = [];
+        const resultWaiters = [];
+        let consumedCount = 0;
+        let producersDone = false;
+
+        function enqueueBatchResult(entry) {
+          if (resultWaiters.length > 0) {
+            const resolve = resultWaiters.shift();
+            resolve(entry);
+            return;
+          }
+          pendingResults.push(entry);
+        }
+
+        function nextBatchResult() {
+          if (pendingResults.length > 0) {
+            return Promise.resolve(pendingResults.shift());
+          }
+          if (producersDone === true) {
+            return Promise.resolve(null);
+          }
+          return new Promise(function (resolve) {
+            resultWaiters.push(resolve);
+          });
+        }
+
         panel.updateBatch({
           phaseText: "开始",
           total: tasks.length,
@@ -293,53 +362,122 @@
           running: true,
         });
 
-        for (let index = 0; index < tasks.length; index += 1) {
+        const producerPromises = tasks.map(function (task, index) {
+          return scheduler
+            .run(async function () {
+              if (batchStopRequested === true) {
+                throw new Error("批量识别已手动停止。");
+              }
+              const item = await dataApi.getItemByIndex(task.index, {
+                includeCurrentInput: false,
+              });
+              if (!item) {
+                throw new Error("无法定位批量条目。");
+              }
+              item.batchRunId = batchRunId;
+              item.batchItemIndex = index;
+              item.batchProcessKey = "task-item:" + String(item.taskItemId || task.taskItemId || index);
+              item.clientRequestId = [
+                batchRunId,
+                String(index + 1),
+                String(item.taskItemId || "unknown"),
+              ].join(":");
+              item.frontConcurrency = batchConcurrency;
+              const result = await aiClient.recommend(item);
+              enqueueBatchResult({
+                ok: true,
+                task: task,
+                result: result,
+              });
+            })
+            .catch(function (error) {
+              const message = error?.message || String(error);
+              if (batchStopRequested === true && message.indexOf("手动停止") >= 0) {
+                return;
+              }
+              enqueueBatchResult({
+                ok: false,
+                task: task,
+                error: error,
+              });
+            });
+        });
+
+        Promise.allSettled(producerPromises).then(function () {
+          producersDone = true;
+          while (resultWaiters.length > 0) {
+            const resolve = resultWaiters.shift();
+            resolve(null);
+          }
+        });
+
+        while (consumedCount < tasks.length) {
+          const entry = await nextBatchResult();
+          if (!entry) {
+            if (producersDone === true) {
+              break;
+            }
+            continue;
+          }
           if (batchStopRequested === true) {
             break;
           }
-          const task = tasks[index];
+          const task = entry.task;
           panel.updateBatch({
-            phaseText: "识别中",
+            phaseText: entry.ok === true ? "回填保存中" : "当前条失败",
             total: tasks.length,
-            completed: index,
+            completed: consumedCount,
             failed: failures.length,
             currentText: task.displayName,
             failures: failures,
             running: true,
           });
+          if (entry.ok !== true) {
+            consumedCount += 1;
+            failures.push({
+              displayName: task.displayName,
+              message: entry.error?.message || String(entry.error),
+            });
+            panel.updateBatch({
+              phaseText: "当前条失败",
+              total: tasks.length,
+              completed: consumedCount,
+              failed: failures.length,
+              currentText: task.displayName,
+              failures: failures,
+              running: true,
+            });
+            continue;
+          }
           try {
+            panel.renderResult(entry.result);
             const switchResult = await dataApi.selectItemByIndex(task.index, {
               timeoutMs: 5000,
             });
             if (switchResult?.ok === false) {
               throw new Error(switchResult.message || "切换批量条目失败。");
             }
-            const item = await dataApi.getItemByIndex(task.index, {
-              includeCurrentInput: true,
-            });
-            if (!item) {
-              throw new Error("无法定位批量条目。");
-            }
-            const result = await aiClient.recommend(item);
-            panel.renderResult(result);
-            const saveResult = await dataApi.fillAndSaveCurrent(result.recommendedText || "", {
-              timeoutMs: 15000,
-            });
+            const saveResult = await dataApi.fillAndSaveCurrent(
+              entry.result.recommendedText || "",
+              {
+                timeoutMs: 15000,
+              }
+            );
             if (saveResult?.ok === false) {
               throw new Error(saveResult.message || "填入并保存失败。");
             }
-            processedCount += 1;
+            consumedCount += 1;
             panel.updateBatch({
               phaseText: "已识别并保存",
               total: tasks.length,
-              completed: processedCount,
+              completed: consumedCount,
               failed: failures.length,
               currentText: task.displayName,
               failures: failures,
               running: true,
             });
           } catch (error) {
-            processedCount += 1;
+            consumedCount += 1;
             failures.push({
               displayName: task.displayName,
               message: error?.message || String(error),
@@ -347,7 +485,7 @@
             panel.updateBatch({
               phaseText: "当前条失败",
               total: tasks.length,
-              completed: processedCount,
+              completed: consumedCount,
               failed: failures.length,
               currentText: task.displayName,
               failures: failures,
@@ -360,7 +498,7 @@
           panel.updateBatch({
             phaseText: "已停止",
             total: tasks.length,
-            completed: processedCount,
+            completed: consumedCount,
             failed: failures.length,
             currentText: "",
             failures: failures,
@@ -373,7 +511,7 @@
         panel.updateBatch({
           phaseText: "已完成",
           total: tasks.length,
-          completed: processedCount,
+          completed: consumedCount,
           failed: failures.length,
           currentText: "",
           failures: failures,
@@ -388,6 +526,7 @@
       } catch (error) {
         panel.setStatus(error?.message || String(error), "error");
       } finally {
+        activeBatchContext = null;
         batchStopRequested = false;
         syncBusyState({ batch: false });
       }
