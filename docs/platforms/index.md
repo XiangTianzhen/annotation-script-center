@@ -2,6 +2,8 @@
 
 本目录用于索引各平台、各脚本的长期规则。项目指令和 AGENTS.md 不直接堆放平台细节；需要处理具体平台时，先读对应 README 和 `platform-resources` 资料。
 
+- 当前统一查看入口：options 首页隐藏高级区已同时提供“项目数据下载”和“AI 请求记录”两个导出面板；AI 请求记录走 `platform-resources/backend/ai-call-log-download/` 聚合接口，导出时可选填写日期范围。
+
 ## Alibaba LabelX
 
 - 快判运行时代码：`extension/sites/alibaba-labelx/asr-judgement/`

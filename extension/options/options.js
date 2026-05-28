@@ -52,7 +52,12 @@
     constants.PROJECT_DATA_DOWNLOAD_OPTIONS_PATH || "/api/admin/project-data-download/options";
   const projectDataDownloadRequestPath =
     constants.PROJECT_DATA_DOWNLOAD_REQUEST_PATH || "/api/admin/project-data-download/request";
+  const aiCallLogDownloadOptionsPath =
+    constants.AI_CALL_LOG_DOWNLOAD_OPTIONS_PATH || "/api/admin/ai-call-log/options";
+  const aiCallLogDownloadRequestPath =
+    constants.AI_CALL_LOG_DOWNLOAD_REQUEST_PATH || "/api/admin/ai-call-log/request";
   const scriptDownloadCenterUrl = "https://script.xiangtianzhen.store/downloads/";
+  const dateTextPattern = /^\d{4}-\d{2}-\d{2}$/;
   const dataBakerPageSizeOptions = (
     Array.isArray(constants.DATABAKER_PAGE_SIZE_OPTIONS)
       ? constants.DATABAKER_PAGE_SIZE_OPTIONS
@@ -375,6 +380,7 @@
     aishellTechMinnanAssistant: "/api/aishell-tech/minnan-helper/ai/recommend/defaults",
   };
   let projectDataDownloadDatasets = [];
+  let aiCallLogDownloadDatasets = [];
 
   function getElement(id) {
     return document.getElementById(id);
@@ -6030,6 +6036,7 @@
       }
       if (endpointAdvancedUnlocked) {
         void loadProjectDataDownloadOptions();
+        void loadAiCallLogOptions();
       }
     } catch (error) {
       if (statusNode) {
@@ -6049,6 +6056,11 @@
 
   function normalizeText(value) {
     return String(value === undefined || value === null ? "" : value).trim();
+  }
+
+  function normalizeDateText(value) {
+    const text = normalizeText(value);
+    return dateTextPattern.test(text) ? text : "";
   }
 
   function getAiUsageOperatorName(settings) {
@@ -6166,7 +6178,7 @@
     });
   }
 
-  function getProjectDataDownloadClientInfo() {
+  function getDownloadClientInfo() {
     const screenText =
       globalThis.screen && Number(screen.width) > 0 && Number(screen.height) > 0
         ? String(screen.width) + "x" + String(screen.height)
@@ -6177,6 +6189,17 @@
       language: normalizeText(globalThis.navigator?.language || ""),
       screen: screenText,
     };
+  }
+
+  function triggerDownloadLink(downloadUrl) {
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   function getProjectDataDownloadErrorMessage(body, statusCode) {
@@ -6204,6 +6227,211 @@
       return "后端服务异常，请稍后重试。";
     }
     return "请求失败，请稍后重试。";
+  }
+
+  function getAiCallLogDatasetById(datasetId) {
+    const targetId = normalizeText(datasetId);
+    if (!targetId) {
+      return null;
+    }
+    for (let index = 0; index < aiCallLogDownloadDatasets.length; index += 1) {
+      const item = aiCallLogDownloadDatasets[index] || {};
+      if (normalizeText(item.id) === targetId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  function setAiCallLogStatus(text) {
+    setStatus("ai-call-log-status", text);
+  }
+
+  function getAiCallLogOperatorName(settings) {
+    return normalizeText(settings?.meta?.aiCallLogDownloadOperatorName);
+  }
+
+  async function persistAiCallLogOperatorName(operatorName) {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      return;
+    }
+    const normalizedName = normalizeText(operatorName).slice(0, 60);
+    const currentName = getAiCallLogOperatorName(currentSettings || {});
+    if (normalizedName === currentName) {
+      return;
+    }
+    currentSettings = await storage.patchSettings({
+      meta: {
+        aiCallLogDownloadOperatorName: normalizedName,
+      },
+    });
+  }
+
+  function getAiCallLogErrorMessage(body, statusCode) {
+    const message = normalizeText(body?.message || "");
+    const code = normalizeText(body?.code || "");
+    if (code === "ai-call-log-download-auth-not-configured") {
+      return "后端未配置 AI 请求记录下载鉴权环境变量。";
+    }
+    if (code === "ai-call-log-download-password-invalid") {
+      return "下载密码错误，请重试。";
+    }
+    if (code === "ai-call-log-download-dataset-invalid") {
+      return "脚本类型无效，请重新选择。";
+    }
+    if (code === "ai-call-log-download-empty") {
+      return "当前筛选范围内没有 AI 请求记录。";
+    }
+    if (
+      code === "ai-call-log-download-token-invalid" ||
+      code === "ai-call-log-download-token-expired"
+    ) {
+      return "下载链接无效或已过期，请重新申请。";
+    }
+    if (message) {
+      return message;
+    }
+    if (Number(statusCode) >= 500) {
+      return "后端服务异常，请稍后重试。";
+    }
+    return "请求失败，请稍后重试。";
+  }
+
+  function buildAiCallLogDatasetStatusText(datasetInfo) {
+    if (!datasetInfo) {
+      return "请选择脚本类型。";
+    }
+    if (datasetInfo.hasData === false) {
+      return "当前脚本暂无 AI 请求记录。";
+    }
+    const parts = [];
+    const dateFrom = normalizeDateText(datasetInfo.dateFrom);
+    const dateTo = normalizeDateText(datasetInfo.dateTo);
+    const fileCount = Number(datasetInfo.fileCount || 0);
+    if (dateFrom || dateTo) {
+      parts.push("可导出范围：" + (dateFrom || "未知") + " 至 " + (dateTo || "未知"));
+    }
+    if (fileCount > 0) {
+      parts.push("日志文件数：" + String(fileCount));
+    }
+    return parts.length > 0 ? parts.join("；") : "当前脚本可导出 AI 请求记录。";
+  }
+
+  function updateAiCallLogDateInputs(options) {
+    const settings = options && typeof options === "object" ? options : {};
+    const datasetSelect = getElement("ai-call-log-dataset");
+    const dateFromInput = getElement("ai-call-log-date-from");
+    const dateToInput = getElement("ai-call-log-date-to");
+    const exportButton = getElement("ai-call-log-export");
+    if (
+      !(datasetSelect instanceof HTMLSelectElement) ||
+      !(dateFromInput instanceof HTMLInputElement) ||
+      !(dateToInput instanceof HTMLInputElement)
+    ) {
+      return;
+    }
+
+    const datasetInfo = getAiCallLogDatasetById(datasetSelect.value);
+    const hasData = Boolean(datasetInfo && datasetInfo.hasData !== false);
+    const dateFrom = normalizeDateText(datasetInfo?.dateFrom);
+    const dateTo = normalizeDateText(datasetInfo?.dateTo);
+
+    dateFromInput.min = dateFrom;
+    dateFromInput.max = dateTo;
+    dateToInput.min = dateFrom;
+    dateToInput.max = dateTo;
+
+    if (!hasData) {
+      dateFromInput.value = "";
+      dateToInput.value = "";
+      if (exportButton instanceof HTMLButtonElement) {
+        exportButton.disabled = true;
+      }
+      if (settings.silent !== true) {
+        setAiCallLogStatus(buildAiCallLogDatasetStatusText(datasetInfo));
+      }
+      return;
+    }
+
+    if (
+      !normalizeDateText(dateFromInput.value) ||
+      (dateFrom && dateFromInput.value < dateFrom) ||
+      (dateTo && dateFromInput.value > dateTo)
+    ) {
+      dateFromInput.value = dateFrom;
+    }
+    if (
+      !normalizeDateText(dateToInput.value) ||
+      (dateFrom && dateToInput.value < dateFrom) ||
+      (dateTo && dateToInput.value > dateTo)
+    ) {
+      dateToInput.value = dateTo;
+    }
+    if (exportButton instanceof HTMLButtonElement) {
+      exportButton.disabled = false;
+    }
+    if (settings.silent !== true) {
+      setAiCallLogStatus(buildAiCallLogDatasetStatusText(datasetInfo));
+    }
+  }
+
+  function renderAiCallLogDatasets(datasets) {
+    const datasetSelect = getElement("ai-call-log-dataset");
+    if (!(datasetSelect instanceof HTMLSelectElement)) {
+      return;
+    }
+    const previousValue = normalizeText(datasetSelect.value);
+    aiCallLogDownloadDatasets = Array.isArray(datasets) ? clone(datasets) : [];
+    datasetSelect.innerHTML = ['<option value="">请选择脚本类型</option>']
+      .concat(
+        aiCallLogDownloadDatasets.map(function (item) {
+          const id = escapeHtml(item.id || "");
+          const label =
+            escapeHtml(item.label || item.id || "") +
+            (item?.hasData === false ? "（暂无记录）" : "");
+          return '<option value="' + id + '">' + label + "</option>";
+        })
+      )
+      .join("");
+    const fallbackDataset = aiCallLogDownloadDatasets.find(function (item) {
+      return item?.hasData !== false;
+    });
+    const nextValue =
+      (previousValue && getAiCallLogDatasetById(previousValue) && previousValue) ||
+      normalizeText(fallbackDataset?.id || aiCallLogDownloadDatasets[0]?.id || "");
+    datasetSelect.value = nextValue;
+    updateAiCallLogDateInputs({ silent: true });
+  }
+
+  async function loadAiCallLogOptions() {
+    if (!endpointAdvancedUnlocked) {
+      return;
+    }
+    setAiCallLogStatus("正在加载 AI 请求记录脚本类型...");
+    const url = buildBackendUrl(aiCallLogDownloadOptionsPath, currentSettings || {});
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        cache: "no-store",
+      });
+      const body = parseJsonSafely(await response.text());
+      if (!response.ok || body?.success !== true) {
+        renderAiCallLogDatasets([]);
+        setAiCallLogStatus(getAiCallLogErrorMessage(body, response.status));
+        return;
+      }
+      renderAiCallLogDatasets(body?.data || []);
+      if (aiCallLogDownloadDatasets.length <= 0) {
+        setAiCallLogStatus("暂无可导出的 AI 请求记录脚本类型。");
+        return;
+      }
+      updateAiCallLogDateInputs();
+    } catch (error) {
+      renderAiCallLogDatasets([]);
+      setAiCallLogStatus(
+        "加载失败：" + (error && error.message ? error.message : String(error))
+      );
+    }
   }
 
   async function loadProjectDataDownloadOptions() {
@@ -6245,8 +6473,14 @@
     if (panel) {
       panel.classList.remove("hidden");
     }
+    const aiCallLogPanel = getElement("ai-call-log-download-panel");
+    if (aiCallLogPanel) {
+      aiCallLogPanel.classList.remove("hidden");
+    }
     setProjectDataDownloadStatus("正在拉取可下载类型...");
+    setAiCallLogStatus("正在拉取 AI 请求记录脚本类型...");
     void loadProjectDataDownloadOptions();
+    void loadAiCallLogOptions();
   }
 
   async function ensureBackendModeServerOnInit() {
@@ -6274,6 +6508,18 @@
       operatorInput.value = getProjectDataDownloadOperatorName(settings || {});
     }
     updateProjectDataDownloadSupplierVisibility();
+  }
+
+  function renderAiCallLogPanel(settings) {
+    const panel = getElement("ai-call-log-download-panel");
+    const operatorInput = getElement("ai-call-log-operator");
+    if (panel) {
+      panel.classList.toggle("hidden", endpointAdvancedUnlocked !== true);
+    }
+    if (operatorInput instanceof HTMLInputElement) {
+      operatorInput.value = getAiCallLogOperatorName(settings || {});
+    }
+    updateAiCallLogDateInputs({ silent: true });
   }
 
   async function handleProjectDataDownloadExport() {
@@ -6333,7 +6579,7 @@
           supplier: supplier,
           password: String(password),
           operatorName: operatorName,
-          clientInfo: getProjectDataDownloadClientInfo(),
+          clientInfo: getDownloadClientInfo(),
         }),
       });
       const body = parseJsonSafely(await response.text());
@@ -6347,14 +6593,7 @@
         setProjectDataDownloadStatus("后端未返回下载链接，请重试。");
         return;
       }
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      triggerDownloadLink(downloadUrl);
 
       const expiresInSeconds = Number(body?.data?.expiresInSeconds || 0);
       if (expiresInSeconds > 0) {
@@ -6364,6 +6603,101 @@
       }
     } catch (error) {
       setProjectDataDownloadStatus(
+        "申请下载失败：" + (error && error.message ? error.message : String(error))
+      );
+    }
+  }
+
+  async function handleAiCallLogExport() {
+    const operatorInput = getElement("ai-call-log-operator");
+    const datasetSelect = getElement("ai-call-log-dataset");
+    const dateFromInput = getElement("ai-call-log-date-from");
+    const dateToInput = getElement("ai-call-log-date-to");
+    if (
+      !(operatorInput instanceof HTMLInputElement) ||
+      !(datasetSelect instanceof HTMLSelectElement) ||
+      !(dateFromInput instanceof HTMLInputElement) ||
+      !(dateToInput instanceof HTMLInputElement)
+    ) {
+      return;
+    }
+
+    const operatorName = normalizeText(operatorInput.value).slice(0, 60);
+    if (!operatorName) {
+      setAiCallLogStatus("请先填写获取人姓名。");
+      operatorInput.focus();
+      return;
+    }
+
+    const datasetId = normalizeText(datasetSelect.value);
+    const datasetInfo = getAiCallLogDatasetById(datasetId);
+    if (!datasetId || !datasetInfo) {
+      setAiCallLogStatus("请先选择脚本类型。");
+      datasetSelect.focus();
+      return;
+    }
+    if (datasetInfo.hasData === false) {
+      setAiCallLogStatus("当前脚本暂无 AI 请求记录。");
+      return;
+    }
+
+    const dateFrom = normalizeDateText(dateFromInput.value);
+    const dateTo = normalizeDateText(dateToInput.value);
+    if (dateFrom > dateTo) {
+      setAiCallLogStatus("开始日期不能晚于结束日期。");
+      return;
+    }
+
+    const password = globalThis.prompt("请输入下载密码");
+    if (password === null) {
+      setAiCallLogStatus("已取消导出。");
+      return;
+    }
+    if (!normalizeText(password)) {
+      setAiCallLogStatus("下载密码不能为空。");
+      return;
+    }
+
+    setAiCallLogStatus("正在申请 AI 请求记录下载链接...");
+    try {
+      await persistAiCallLogOperatorName(operatorName);
+      const response = await fetch(buildBackendUrl(aiCallLogDownloadRequestPath, currentSettings || {}), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          operatorName: operatorName,
+          dataset: datasetId,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          password: String(password),
+          clientInfo: getDownloadClientInfo(),
+        }),
+      });
+      const body = parseJsonSafely(await response.text());
+      if (!response.ok || body?.success !== true) {
+        setAiCallLogStatus(getAiCallLogErrorMessage(body, response.status));
+        return;
+      }
+
+      const downloadUrl = normalizeText(body?.data?.downloadUrl);
+      if (!downloadUrl) {
+        setAiCallLogStatus("后端未返回下载链接，请重试。");
+        return;
+      }
+
+      triggerDownloadLink(downloadUrl);
+      const expiresInSeconds = Number(body?.data?.expiresInSeconds || 0);
+      if (expiresInSeconds > 0) {
+        setAiCallLogStatus(
+          "下载链接已生成（" + String(expiresInSeconds) + " 秒内有效）。"
+        );
+      } else {
+        setAiCallLogStatus("下载链接已生成。");
+      }
+    } catch (error) {
+      setAiCallLogStatus(
         "申请下载失败：" + (error && error.message ? error.message : String(error))
       );
     }
@@ -7477,6 +7811,7 @@
       getElement("script-detail-view").classList.add("hidden");
       getElement("home-endpoint-card").classList.remove("hidden");
       renderProjectDataDownloadPanel(settings);
+      renderAiCallLogPanel(settings);
       renderScriptCenter(settings);
       return;
     }
@@ -7485,6 +7820,7 @@
     getElement("script-detail-view").classList.remove("hidden");
     getElement("home-endpoint-card").classList.add("hidden");
     getElement("project-data-download-panel").classList.add("hidden");
+    getElement("ai-call-log-download-panel").classList.add("hidden");
     renderDetail(settings, scriptId);
   }
 
@@ -7612,6 +7948,26 @@
       });
     }
 
+    const aiCallLogDataset = getElement("ai-call-log-dataset");
+    if (aiCallLogDataset instanceof HTMLSelectElement) {
+      aiCallLogDataset.addEventListener("change", function () {
+        updateAiCallLogDateInputs();
+      });
+    }
+
+    const aiCallLogOperator = getElement("ai-call-log-operator");
+    if (aiCallLogOperator instanceof HTMLInputElement) {
+      aiCallLogOperator.addEventListener("blur", function () {
+        void persistAiCallLogOperatorName(aiCallLogOperator.value)
+          .then(function () {
+            aiCallLogOperator.value = getAiCallLogOperatorName(currentSettings || {});
+          })
+          .catch(function () {
+            setAiCallLogStatus("保存获取人姓名失败，请稍后重试。");
+          });
+      });
+    }
+
     const homeAiUsageOperator = getElement("home-ai-usage-operator");
     if (homeAiUsageOperator instanceof HTMLInputElement) {
       homeAiUsageOperator.addEventListener("blur", function () {
@@ -7629,6 +7985,13 @@
     if (projectDownloadExportButton instanceof HTMLButtonElement) {
       projectDownloadExportButton.addEventListener("click", function () {
         void handleProjectDataDownloadExport();
+      });
+    }
+
+    const aiCallLogExportButton = getElement("ai-call-log-export");
+    if (aiCallLogExportButton instanceof HTMLButtonElement) {
+      aiCallLogExportButton.addEventListener("click", function () {
+        void handleAiCallLogExport();
       });
     }
 

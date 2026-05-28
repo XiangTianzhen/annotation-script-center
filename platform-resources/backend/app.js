@@ -18,6 +18,7 @@ function createPlatformResourcesServer(options) {
         "data-baker/round-one-quality",
         "aishell-tech/minnan-helper",
         "admin/project-data-download",
+        "admin/ai-call-log",
       ],
     });
   });

@@ -5,9 +5,9 @@ const path = require("path");
 const {
   createAiCallLogger,
 } = require("../../../backend/ai-call-log");
-const { SCRIPT_ID } = require("./ai-service");
 
 const DEFAULT_LOG_DIR = path.join(__dirname, "logs");
+const SCRIPT_ID = "magicDataMinnanAssistant";
 
 function normalizeText(value) {
   return String(value || "").trim();

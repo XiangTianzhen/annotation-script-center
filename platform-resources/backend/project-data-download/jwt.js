@@ -54,17 +54,28 @@ function buildTokenPayload(data, expiresInSeconds) {
   const ttl = Number.isFinite(Number(expiresInSeconds)) && Number(expiresInSeconds) > 0
     ? Math.floor(Number(expiresInSeconds))
     : 120;
-  return {
-    dataset: String(data?.dataset || ""),
-    supplier: String(data?.supplier || ""),
-    operatorName: String(data?.operatorName || ""),
-    iat: nowSeconds,
-    exp: nowSeconds + ttl,
-    jti:
-      typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : crypto.randomBytes(16).toString("hex"),
-  };
+  const source = data && typeof data === "object" ? data : {};
+  const payload = {};
+
+  Object.keys(source).forEach(function assignKey(key) {
+    if (key === "iat" || key === "exp" || key === "jti") {
+      return;
+    }
+    payload[key] =
+      typeof source[key] === "string"
+        ? source[key]
+        : source[key] === undefined || source[key] === null
+          ? ""
+          : String(source[key]);
+  });
+
+  payload.iat = nowSeconds;
+  payload.exp = nowSeconds + ttl;
+  payload.jti =
+    typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : crypto.randomBytes(16).toString("hex");
+  return payload;
 }
 
 function createSignedToken(data, secret, expiresInSeconds) {
@@ -76,12 +87,14 @@ function createSignedToken(data, secret, expiresInSeconds) {
   };
 }
 
-function verifySignedToken(token, secret) {
+function verifySignedToken(token, secret, options) {
+  const config = options && typeof options === "object" ? options : {};
+  const errorPrefix = String(config.errorPrefix || "project-data-download").trim() || "project-data-download";
   const rawToken = String(token || "").trim();
   if (!rawToken) {
     return {
       ok: false,
-      code: "project-data-download-token-missing",
+      code: errorPrefix + "-token-missing",
       message: "缺少下载 token。",
     };
   }
@@ -89,7 +102,7 @@ function verifySignedToken(token, secret) {
   if (parts.length !== 3) {
     return {
       ok: false,
-      code: "project-data-download-token-invalid",
+      code: errorPrefix + "-token-invalid",
       message: "下载 token 格式无效。",
     };
   }
@@ -106,14 +119,14 @@ function verifySignedToken(token, secret) {
   if (expectedSignature.length !== actualSignature.length) {
     return {
       ok: false,
-      code: "project-data-download-token-invalid",
+      code: errorPrefix + "-token-invalid",
       message: "下载 token 签名无效。",
     };
   }
   if (!crypto.timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(actualSignature))) {
     return {
       ok: false,
-      code: "project-data-download-token-invalid",
+      code: errorPrefix + "-token-invalid",
       message: "下载 token 签名无效。",
     };
   }
@@ -124,7 +137,7 @@ function verifySignedToken(token, secret) {
   } catch (error) {
     return {
       ok: false,
-      code: "project-data-download-token-invalid",
+      code: errorPrefix + "-token-invalid",
       message: "下载 token 内容无效。",
     };
   }
@@ -134,7 +147,7 @@ function verifySignedToken(token, secret) {
   if (!Number.isFinite(exp) || exp <= nowSeconds) {
     return {
       ok: false,
-      code: "project-data-download-token-expired",
+      code: errorPrefix + "-token-expired",
       message: "下载 token 已过期。",
       payload: payload,
     };

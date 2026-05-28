@@ -135,6 +135,11 @@
 - LabelX 快判：`/api/alibaba-labelx/asr-judgement/ai/suggest/logs/summary`
 - LabelX 转写：`/api/alibaba-labelx/asr-transcription/ai/suggest-current/logs/summary`
 - Abaka Task21：`/api/abaka-ai/task21/ai/analyze/logs/summary`
+- 统一查看入口：options 首页隐藏高级区当前已补齐“AI 请求记录”面板，后端聚合接口为：
+  - `GET /api/admin/ai-call-log/options`
+  - `POST /api/admin/ai-call-log/request`
+  - `GET /api/admin/ai-call-log/file?token=...`
+  - 当前 `options` 只返回脚本类型，不提前暴露日志存在性与日期范围；日期筛选在导出请求阶段处理。
 
 ## 安全边界
 

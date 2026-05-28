@@ -31,6 +31,7 @@
 /__pycache__/
 *.pyc
 /platform-resources/backend/project-data-download/audit-data/
+/platform-resources/backend/audit-data/ai-call-log-download/
 
 # 环境密钥文件
 .env

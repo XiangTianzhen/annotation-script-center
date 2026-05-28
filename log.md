@@ -1,3 +1,27 @@
+## 2026-05-28（统一 AI 请求记录查看入口）
+
+- 统一后端新增 `platform-resources/backend/ai-call-log-download/`，提供：
+  - `GET /api/admin/ai-call-log/options`
+  - `POST /api/admin/ai-call-log/request`
+  - `GET /api/admin/ai-call-log/file?token=...`
+  - `HEAD /api/admin/ai-call-log/file?token=...`
+- 统一导出范围当前覆盖：
+  - DataBaker 一检 AI
+  - Aishell Tech 闽南语助手 AI
+  - Magic Data 客家话 / 闽南语助手 AI
+  - LabelX 快判 / 转写 AI
+  - Abaka Task21 AI
+- options 首页隐藏高级区新增“AI 请求记录”面板，交互方式与“项目数据下载”一致：
+  - 连续点击“后端接口地址”标题 10 次后显示
+  - 填写获取人姓名
+  - 选择脚本类型
+  - 可选填写开始日期 / 结束日期；留空则导出当前脚本全部记录
+  - 输入下载密码后导出 CSV
+- `platform-resources/backend/project-data-download/jwt.js` 当前已扩展为可复用 token 工具，支持不同错误码前缀。
+- `GET /api/admin/ai-call-log/options` 当前只返回脚本 `id/label`，不提前暴露日志存在性、文件数和日期范围。
+- AI 请求记录下载审计目录当前落在 `platform-resources/backend/audit-data/ai-call-log-download/`，并已加入 `.gitignore`。
+- 顺手修正 `platform-resources/magic-data/minnan-helper/backend/ai-call-log.js` 对 `ai-service.js` 的循环依赖，避免统一导出入口加载时刷 warning。
+
 ## 2026-05-28（全量 AI 脚本接入调用日志与统计）
 
 - 新增共享日志核心：
@@ -3308,3 +3332,26 @@
   - 继续使用前端并发窗口和“哪条先返回就先进保存队列”的消费方式。
   - 回填时先切到目标条并填入页面文本框，再直接调用平台原生 `POST /api/mark/SaveShortMark`，不再依赖页面按钮。
   - 保存成功判定统一改为轮询 `getShortMark` 与 `packageItemList`，确认平台文本和 `dataStatus` 已更新后再继续下一条。
+
+## 2026-05-28（统一 AI jobs 与按模型全局队列）
+
+- 统一后端 AI framework 新增公共 `ai-job-store` 与通用 jobs 路由辅助：
+  - `platform-resources/backend/ai-framework/runtime/ai-job-store.js`
+  - `platform-resources/backend/ai-framework/core/create-ai-job-routes.js`
+- 统一 provider queue 支持按“具体模型名”建共享池：
+  - 新增 `buildModelQueueKey(modelName)`。
+  - 默认模型池速率调整为 `20 req/s`，即 `50ms` 一个发出机会；默认并发上限 `15`。
+  - 同一模型跨平台、跨脚本共享池，不再按脚本分组各自排队。
+- 已接入 jobs 默认链路的平台：
+  - Aishell Minnan `recommend`
+  - DataBaker round-one-quality `recommend`
+  - Magic Data hakka/minnan `review-current`
+  - LabelX asr-judgement `suggest`
+  - LabelX asr-transcription `suggest-current`
+  - Abaka Task21 `analyze`
+- 前端新增共享 `extension/shared/ai-job-client.js`：
+  - 统一负责 `POST /jobs`、轮询 `GET /jobs/:jobId`、读取 `GET /jobs/:jobId/debug`。
+  - DataBaker、Aishell、Magic Data、LabelX、Abaka 的默认 AI 客户端均已切到 jobs 链路。
+- Aishell 这轮重点修复的是“高并发下同步 recommend 长连接被浏览器 / Nginx / 代理层中断”的根因：
+  - 前端批量逻辑保留原有结果消费顺序控制。
+  - 底层 AI 请求改为短请求建任务 + 轮询，避免单个同步 `POST` 长时间挂起。

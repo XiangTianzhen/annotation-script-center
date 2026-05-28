@@ -142,6 +142,8 @@ http://127.0.0.1:3333
 - `ASR_TRANSCRIPTION_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`：项目数据下载密码的 SHA256（兼容旧 `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`）。
 - `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`：项目数据下载 token 签名密钥（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）。
+- `ASC_AI_CALL_LOG_DOWNLOAD_PASSWORD_SHA256`：AI 请求记录下载密码的 SHA256；未设置时回退 `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`。
+- `ASC_AI_CALL_LOG_DOWNLOAD_JWT_SECRET`：AI 请求记录下载 token 签名密钥；未设置时回退 `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`。
 
 ## ASR AI Defaults 接口
 
@@ -188,6 +190,7 @@ http://127.0.0.1:3333
 - 前端必须携带 `aiUsageOperatorName`；未填写时前端与后端都会拦截。
 - token 只按 `promptTokens / completionTokens` 作为主统计口径；只有两者都缺失时才回退 `totalTokens`。
 - 默认保留脱敏后的原始成功 / 失败 JSON，不再把大块业务结果拆成公共列。
+- options 首页隐藏高级区当前已补齐统一查看入口：按脚本 + 日期范围导出 AI 调用 CSV，后端聚合接口为 `admin/ai-call-log`。
 
 当前统计接口：
 
@@ -211,6 +214,16 @@ http://127.0.0.1:3333
 - `stats.byDate`
 - `stats.byOperator`
 - `stats.byErrorCode`
+
+统一查看 / 导出接口：
+
+- `GET /api/admin/ai-call-log/options`
+- `POST /api/admin/ai-call-log/request`
+- `GET /api/admin/ai-call-log/file?token=...`
+- `HEAD /api/admin/ai-call-log/file?token=...`
+- 说明：`options` 只返回脚本类型 `id/label`，不提前暴露日志存在性、文件数和起止日期。
+- 日期范围：前端可选填写 `dateFrom/dateTo`；留空时导出该脚本当前全部 AI 请求记录。
+- 审计目录：`platform-resources/backend/audit-data/ai-call-log-download/`（运行数据，不提交 git）
 
 ## 项目数据下载密码配置教程
 
@@ -298,6 +311,7 @@ pm2 restart annotation-script-center --update-env
   - `labelx-download-core.js`
   - `labelx-existing-core.js`
   - `csv-file-download-core.js`（通用 CSV 文件下载 core，当前已被 DataBaker `export/download` 复用）
+- `ai-call-log-download/`：统一“AI 请求记录”聚合模块（options/request/file、token、审计、按脚本 + 日期范围导出 CSV）。
 
 ## 当前已注册 API
 
@@ -309,9 +323,10 @@ pm2 restart annotation-script-center --update-env
 - 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；默认 REST 链路不经过 Python 子进程，仅显式切 Python 时才受 Python stdout 编码影响。
 - `magic-data/hakka-helper`：Magic Data 客家话助手 AI 复核接口（保留 `annotator` 兼容路径）。
 - `magic-data/minnan-helper`：Magic Data 闽南语助手 AI 复核接口；支持 `two_stage + fun-asr`、`two_stage + Qwen Omni`、`omni_single + Qwen Omni` 三种链路。
-- `aishell-tech/minnan-helper`：Aishell Tech 闽南语助手 AI 推荐接口；当前条推荐与批量串行真实保存共用同一 recommend 路由，独立保持 `health/defaults/recommend` 三个入口，执行链已独立为 Aishell 自己的同步推荐链，并补充独立 `dashscope-omni-client.js`。
+- `aishell-tech/minnan-helper`：Aishell Tech 闽南语助手 AI 推荐接口；当前条推荐与批量串行真实保存共用同一 recommend 业务入口，默认由 `POST /jobs` + `GET /jobs/:jobId` 承接前端结果链路，并继续保留同步 recommend 路由作为兼容 / 调试入口。
 - `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
+- `admin/ai-call-log`：AI 请求记录聚合接口，支持密码校验、短期 token 下载链接、按脚本 + 日期范围导出 CSV 和审计日志。
 
 Magic Data 接口：
 - 客家话助手（新路径）：
@@ -346,6 +361,13 @@ Aishell Tech AI 接口：
 - `HEAD /api/admin/project-data-download/file?token=...`
 - 审计目录：`platform-resources/backend/project-data-download/audit-data/`（运行数据，不提交 git）
 
+AI 请求记录接口：
+- `GET /api/admin/ai-call-log/options`
+- `POST /api/admin/ai-call-log/request`
+- `GET /api/admin/ai-call-log/file?token=...`
+- `HEAD /api/admin/ai-call-log/file?token=...`
+- 审计目录：`platform-resources/backend/audit-data/ai-call-log-download/`（运行数据，不提交 git）
+
 ASR 转写职责边界：
 - 扩展前端客户端：`extension/sites/alibaba-labelx/asr-transcription/transcription-stats-client.js`，只负责采集、上传、按钮和调度。
 - Node 后端服务：`platform-resources/alibaba-labelx/asr-transcription/backend/`，负责路由、合并、CSV 写入与上传；下载 / suppliers / existing 已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享 core。
@@ -373,7 +395,7 @@ DataBaker AI 架构补充：
 - 当前默认链路是：`qwen3.5-omni-flash / qwen3.5-omni-plus` 优先走 Omni legacy 快速路径；选择 `fun-asr` 时默认通过 Node RESTful API 调用 Fun-ASR，再走 compare 文本模型。
 - 前端“AI连续填入合格项并发数量”范围 `1~50`，默认 `20`；前端值更大只会更快把请求送进统一后端队列，不会放大后端 provider 并发上限。
 - 前端并发和后端并发是两层配置：前端 `aiQualifiedAutofillConcurrency` 负责一次发起多少浏览器请求；后端 `DATABAKER_AI_FUN_ASR_CONCURRENCY / DATABAKER_AI_TEXT_CONCURRENCY` 负责上游 provider 实际同时 in-flight 数量。
-- DataBaker 批量“AI连续填入合格项”默认直接发送同步 `POST /api/data-baker/round-one-quality/ai/recommend`；`/jobs` 仅保留历史兼容 / 调试接口，默认不作为 AI 结果接收主链路。
+- DataBaker 批量“AI连续填入合格项”默认改为短请求创建 `POST /api/data-baker/round-one-quality/ai/recommend/jobs`，再轮询 `GET /jobs/:jobId`；同步 recommend 保留为兼容 / 调试入口。
 - Omni legacy 快速路径不使用 async job、Fun-ASR REST、Python 或 SSE；它只用于先恢复 Qwen Omni 的基础速度和稳定性。
 - job health 会返回 `jobs.maxSize / jobs.timeoutMs / jobs.activeCount / jobs.pendingCount / jobs.runningCount / jobs.succeededCount / jobs.failedCount` 以及 `queue.maxSize / queue.groups.*.pendingCount / activeCount / maxConcurrent`。
 - `loadFailureDebugJson` 前端兜底函数已恢复定义；如果当前失败项没有 debug 数据，会提示“当前失败项没有可复制的原始 JSON。”，不再抛 `ReferenceError`。
@@ -526,8 +548,22 @@ DataBaker AI 架构补充：
 
 ## DataBaker 批量 recommend 去重
 
-- DataBaker round-one-quality 的批量 AI 连续填入默认走同步 recommend，不默认使用异步 jobs。
+- DataBaker round-one-quality 的批量 AI 连续填入默认走异步 jobs；同步 recommend 只保留给兼容调用和人工调试。
 - 前端每次批量启动会生成 `batchRunId`，并在单题请求中附带 `clientRequestId` / `batchProcessKey`。
 - 后端会对同一 `batchRunId + batchProcessKey` 的进行中请求做 in-flight 合并，避免重复打上游模型。
+
+## 统一 AI jobs 与模型池
+
+- 2026-05-28 起，已接入 AI 的脚本默认统一走“短请求创建 job + 轮询状态”链路：
+  - Aishell Minnan `recommend`
+  - DataBaker round-one-quality `recommend`
+  - Magic Data hakka/minnan `review-current`
+  - LabelX asr-judgement `suggest`
+  - LabelX asr-transcription `suggest-current`
+  - Abaka Task21 `analyze`
+- 统一后端 provider queue 的 key 已从“脚本分组”扩展为“具体模型名”：
+  - 同一模型跨平台、跨脚本共享同一上游发送池。
+  - 默认模型池速率为 `20 req/s`（`50ms` 一次发出机会），默认并发上限 `15`。
+  - 两阶段链路中的听音模型和比较 / 推理模型分别按各自真实模型名进入独立池。
 
 

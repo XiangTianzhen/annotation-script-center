@@ -489,6 +489,7 @@
       }
 
       .project-download-row input[type="text"],
+      .project-download-row input[type="date"],
       .project-download-row select,
       .home-endpoint-row input[type="text"] {
         width: 100%;
@@ -723,6 +724,33 @@
             <button id="project-download-export" class="primary-button" type="button">导出</button>
           </div>
           <div id="project-download-status" class="status-text"></div>
+        </div>
+        <div id="ai-call-log-download-panel" class="home-endpoint-card hidden">
+          <strong>AI 请求记录</strong>
+          <div class="project-download-row">
+            <span>获取人姓名</span>
+            <input id="ai-call-log-operator" type="text" maxlength="60" placeholder="请输入获取人姓名" />
+          </div>
+          <div class="project-download-row">
+            <span>脚本类型</span>
+            <select id="ai-call-log-dataset">
+              <option value="">请选择脚本类型</option>
+            </select>
+          </div>
+          <div class="detail-grid two">
+            <div class="project-download-row">
+              <span>开始日期</span>
+              <input id="ai-call-log-date-from" type="date" />
+            </div>
+            <div class="project-download-row">
+              <span>结束日期</span>
+              <input id="ai-call-log-date-to" type="date" />
+            </div>
+          </div>
+          <div class="field-actions">
+            <button id="ai-call-log-export" class="primary-button" type="button">导出记录</button>
+          </div>
+          <div id="ai-call-log-status" class="status-text"></div>
         </div>
       </section>
 

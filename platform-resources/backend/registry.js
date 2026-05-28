@@ -11,6 +11,7 @@ const { registerRoutes: registerMagicDataMinnanRoutes } = require("../magic-data
 const { registerRoutes: registerAbakaTask21AiRoutes } = require("../abaka-ai/task21/backend");
 const { registerRoutes: registerAishellTechMinnanRoutes } = require("../aishell-tech/minnan-helper/backend");
 const { registerRoutes: registerProjectDataDownloadRoutes } = require("./project-data-download");
+const { registerRoutes: registerAiCallLogDownloadRoutes } = require("./ai-call-log-download");
 
 function registerProjectRoutes(router, options) {
   const config = options && typeof options === "object" ? options : {};
@@ -54,6 +55,7 @@ function registerProjectRoutes(router, options) {
   registerAbakaTask21AiRoutes(router, config.abakaTask21Ai || {});
   registerAishellTechMinnanRoutes(router, config.aishellTechMinnanHelper || {});
   registerProjectDataDownloadRoutes(router, config.projectDataDownload || {});
+  registerAiCallLogDownloadRoutes(router, config.aiCallLogDownload || {});
 }
 
 module.exports = {

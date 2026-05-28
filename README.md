@@ -18,6 +18,7 @@
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 当前已全局固定关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
 - Aishell Tech 已完成独立闽南语助手首版接入：`/mytask/mark` 支持当前条 AI 推荐与批量串行真实保存，后端已注册 `/api/aishell-tech/minnan-helper/ai/recommend*` 独立接口，并已从 DataBaker recommend orchestration 独立为 Aishell 自己的同步链路、独立队列与 `success/data/meta` 契约。
+- options 首页隐藏高级区当前已同时支持“项目数据下载”和“AI 请求记录”导出；AI 请求记录可按脚本导出 CSV，也可选填日期范围缩小导出范围。
 
 ## 协作摘要
 

@@ -97,6 +97,21 @@ server.listen(config.port, config.host, function () {
       baseUrl +
       "/api/admin/project-data-download/file?token=..."
   );
+  console.info(
+    "[Platform Resources][backend] AI call log options: " +
+      baseUrl +
+      "/api/admin/ai-call-log/options"
+  );
+  console.info(
+    "[Platform Resources][backend] AI call log request: " +
+      baseUrl +
+      "/api/admin/ai-call-log/request"
+  );
+  console.info(
+    "[Platform Resources][backend] AI call log file: " +
+      baseUrl +
+      "/api/admin/ai-call-log/file?token=..."
+  );
 });
 
 module.exports = server;
