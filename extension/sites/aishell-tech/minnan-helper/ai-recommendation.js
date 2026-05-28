@@ -143,9 +143,44 @@
 
   function attachClientDebug(result, meta) {
     const source = result && typeof result === "object" ? result : {};
+    const responseMeta = source.meta && typeof source.meta === "object" ? source.meta : {};
+    const responseDebug =
+      responseMeta.debug && typeof responseMeta.debug === "object" ? responseMeta.debug : {};
     const debug = source.debug && typeof source.debug === "object" ? source.debug : {};
     return Object.assign({}, source, {
+      meta: responseMeta,
+      models: source.models || responseMeta.models || {},
+      timing: source.timing || responseMeta.timing || {},
+      usage: source.usage || responseMeta.usage || {},
       debug: Object.assign({}, debug, {
+        requestId: normalizeText(responseMeta.requestId) || normalizeText(debug.requestId),
+        debugId: normalizeText(responseMeta.debugId) || normalizeText(debug.debugId),
+        cacheHit:
+          responseMeta.cache?.hit === true ||
+          debug.cacheHit === true,
+        cacheSourceRequestId:
+          normalizeText(responseMeta.cache?.sourceRequestId) ||
+          normalizeText(debug.cacheSourceRequestId),
+        totalQueueWaitMs:
+          Number(responseMeta.queue?.totalQueueWaitMs || 0) ||
+          Number(debug.totalQueueWaitMs || 0),
+        totalRetryCount:
+          Number(responseMeta.retryCount || 0) ||
+          Number(debug.totalRetryCount || 0),
+        queueGroups:
+          Array.isArray(responseMeta.queue?.groups)
+            ? responseMeta.queue.groups.length
+            : Number(debug.queueGroups || 0),
+        cancelled:
+          responseMeta.cancelled === true || debug.cancelled === true,
+        stage:
+          normalizeText(responseMeta.stage) || normalizeText(debug.stage),
+        frontConcurrencyOriginal:
+          responseDebug.frontConcurrencyOriginal ?? debug.frontConcurrencyOriginal ?? null,
+        frontConcurrencyNormalized:
+          responseDebug.frontConcurrencyNormalized ?? debug.frontConcurrencyNormalized ?? null,
+        concurrencyModelType:
+          normalizeText(responseDebug.concurrencyModelType || debug.concurrencyModelType),
         clientBackendMode: normalizeText(meta?.backendMode),
         clientBackendEndpoint: normalizeText(meta?.endpoint),
         clientFallbackUsed: meta?.fallbackUsed === true,
@@ -157,10 +192,15 @@
 
   function buildApiError(responseBody, statusCode) {
     const body = responseBody && typeof responseBody === "object" ? responseBody : {};
-    const code = normalizeText(body.code);
-    const providerCode = normalizeText(body.providerCode);
-    const providerStatus = Number(body.providerStatus || statusCode || 0) || 0;
-    let message = normalizeText(body.message) || "Aishell AI 推荐接口请求失败（HTTP " + String(statusCode) + "）。";
+    const errorBody = body.error && typeof body.error === "object" ? body.error : {};
+    const metaBody = body.meta && typeof body.meta === "object" ? body.meta : {};
+    const code = normalizeText(errorBody.code || body.code);
+    const providerCode = normalizeText(errorBody.providerCode || body.providerCode);
+    const providerStatus =
+      Number(errorBody.providerStatus || body.providerStatus || statusCode || 0) || 0;
+    let message =
+      normalizeText(errorBody.message || body.message) ||
+      "Aishell AI 推荐接口请求失败（HTTP " + String(statusCode) + "）。";
 
     if (code === "provider-queue-full") {
       message = "后端 AI 队列已满，请稍后重试。";
@@ -185,8 +225,10 @@
       providerCode: providerCode,
       providerStatus: providerStatus,
       statusCode: Number(statusCode) || 0,
-      requestId: normalizeText(body.requestId),
-      debugId: normalizeText(body.debugId),
+      requestId: normalizeText(metaBody.requestId || body.requestId),
+      debugId: normalizeText(metaBody.debugId || body.debugId),
+      stage: normalizeText(errorBody.stage),
+      retryable: errorBody.retryable === true,
     });
     error.rawResponse = body;
     return error;
@@ -335,7 +377,9 @@
         if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
           throw buildApiError(responseBody, response.status);
         }
-        return responseBody.data;
+        return Object.assign({}, responseBody.data || {}, {
+          meta: responseBody.meta && typeof responseBody.meta === "object" ? responseBody.meta : {},
+        });
       } finally {
         if (timer) {
           clearTimeout(timer);

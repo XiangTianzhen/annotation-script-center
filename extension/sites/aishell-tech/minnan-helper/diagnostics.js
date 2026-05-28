@@ -113,13 +113,48 @@
     ].join(" / ");
   }
 
+  function formatQueueWaitSummary(queue) {
+    const source = queue && typeof queue === "object" ? queue : {};
+    const totalQueueWaitMs = Number(source.totalQueueWaitMs || 0);
+    if (totalQueueWaitMs <= 0) {
+      return "-";
+    }
+    return formatDurationMs(totalQueueWaitMs);
+  }
+
+  function formatCacheSummary(cache) {
+    const source = cache && typeof cache === "object" ? cache : {};
+    return source.hit === true ? "是" : "否";
+  }
+
+  function pickDiagnosticsMeta(result) {
+    const source = result && typeof result === "object" ? result : {};
+    return source.meta && typeof source.meta === "object"
+      ? source.meta
+      : {
+          models: source.models && typeof source.models === "object" ? source.models : {},
+          usage: source.usage && typeof source.usage === "object" ? source.usage : {},
+          timing: source.timing && typeof source.timing === "object" ? source.timing : {},
+          queue: {},
+          cache: {},
+          debugId: normalizeText(source.debug?.debugId),
+          requestId: normalizeText(source.debug?.requestId),
+          retryCount: Number(source.debug?.totalRetryCount || 0) || 0,
+          cancelled: source.debug?.cancelled === true,
+          debug: source.debug && typeof source.debug === "object" ? source.debug : {},
+        };
+  }
+
   function buildCurrentResultDiagnostics(result, options) {
     const source = result && typeof result === "object" ? result : {};
     const sourceOptions = options && typeof options === "object" ? options : {};
-    const models = source.models && typeof source.models === "object" ? source.models : {};
-    const usage = source.usage && typeof source.usage === "object" ? source.usage : {};
-    const timing = source.timing && typeof source.timing === "object" ? source.timing : {};
-    const debug = source.debug && typeof source.debug === "object" ? source.debug : {};
+    const meta = pickDiagnosticsMeta(source);
+    const models = meta.models && typeof meta.models === "object" ? meta.models : {};
+    const usage = meta.usage && typeof meta.usage === "object" ? meta.usage : {};
+    const timing = meta.timing && typeof meta.timing === "object" ? meta.timing : {};
+    const queue = meta.queue && typeof meta.queue === "object" ? meta.queue : {};
+    const cache = meta.cache && typeof meta.cache === "object" ? meta.cache : {};
+    const debug = meta.debug && typeof meta.debug === "object" ? meta.debug : {};
     const rows = [
       ["识别策略", formatModeSummary(models)],
       ["模型选择", formatModelSelection(models)],
@@ -127,11 +162,13 @@
       ["前端并发", formatConcurrency(debug, sourceOptions.fallbackFrontConcurrency)],
       ["Token", formatTokenSummary(usage)],
       ["FunASR", normalizeText(models.funAsrProvider) || "-"],
+      ["排队等待", formatQueueWaitSummary(queue)],
+      ["缓存命中", formatCacheSummary(cache)],
       ["后端模式", normalizeText(debug.clientBackendMode) || "-"],
       ["后端地址", normalizeText(debug.clientBackendEndpoint) || "-"],
       ["自动回退", debug.clientFallbackUsed === true ? "是" : "否"],
-      ["requestId", normalizeText(debug.requestId) || "-"],
-      ["debugId", normalizeText(debug.debugId) || "-"],
+      ["requestId", normalizeText(meta.requestId || debug.requestId) || "-"],
+      ["debugId", normalizeText(meta.debugId || debug.debugId) || "-"],
     ];
     return {
       rows: rows,
@@ -167,6 +204,12 @@
     const task = source.task && typeof source.task === "object" ? source.task : {};
     const stage = normalizeText(source.stage);
     const message = normalizeText(source.message || source.error?.message || "失败");
+    const rawJson = buildRawFailureJson(source);
+    const errorStage = normalizeText(
+      rawJson?.error?.stage ||
+      rawJson?.saveResult?.responseBody?.error?.stage ||
+      rawJson?.aiDebug?.stage
+    );
     const diagnostics = buildCurrentResultDiagnostics(source.result, {
       fallbackFrontConcurrency: source.batchConcurrency,
     });
@@ -177,9 +220,10 @@
       stageLabel: createStageLabel(stage),
       detailRows: [
         ["失败阶段", createStageLabel(stage)],
+        ["模型阶段", errorStage || "-"],
         ["错误摘要", message || "-"],
       ].concat(diagnostics.rows),
-      rawJson: buildRawFailureJson(source),
+      rawJson: rawJson,
     };
   }
 
@@ -190,6 +234,7 @@
     formatConcurrency,
     formatDurationMs,
     formatModelSelection,
+    formatQueueWaitSummary,
     formatTimingSummary,
     formatTokenSummary,
   };

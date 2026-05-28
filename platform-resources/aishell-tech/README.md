@@ -76,8 +76,12 @@
 实现边界：
 
 - Aishell 保持独立路由、独立脚本 ID、独立词表目录。
-- Prompt、模型白名单、并发默认值与推荐链路参考 DataBaker round-one-quality。
-- v1 不引入异步 job、SSE 或 WebSocket，仍按同步 HTTP 返回推荐结果。
+- Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径，但推荐编排、缓存、日志、同步超时、取消与队列已经改成 Aishell 自己维护。
+- 底层只复用公共 provider HTTP 工具，不再复用 DataBaker recommend orchestration。
+- 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
+- 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
+- v1 不引入异步 job、SSE 或 WebSocket，仍按同步 HTTP 返回推荐结果；默认同步总超时为 `60000ms`。
+- 成功响应固定为 `success + data + meta`，失败响应固定为 `success=false + error + meta`。
 
 ### 当前运行时能力
 

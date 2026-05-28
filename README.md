@@ -17,7 +17,7 @@
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 默认关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
-- Aishell Tech 已完成独立闽南语助手首版接入：`/mytask/mark` 支持当前条 AI 推荐与批量串行真实保存，后端已注册 `/api/aishell-tech/minnan-helper/ai/recommend*` 独立接口。
+- Aishell Tech 已完成独立闽南语助手首版接入：`/mytask/mark` 支持当前条 AI 推荐与批量串行真实保存，后端已注册 `/api/aishell-tech/minnan-helper/ai/recommend*` 独立接口，并已从 DataBaker recommend orchestration 独立为 Aishell 自己的同步链路、独立队列与 `success/data/meta` 契约。
 
 ## 协作摘要
 

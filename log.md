@@ -1,3 +1,34 @@
+## 2026-05-28（Aishell Tech 后端同步推荐链完全独立化）
+
+- 重构 `platform-resources/aishell-tech/minnan-helper/backend/`：
+  - 新增 `config.js / errors.js / cache.js / queue.js / pipeline.js`，把 Aishell 推荐链拆成独立配置、错误、缓存、队列和流水线模块。
+  - `ai-service.js` 不再把 Aishell 请求转成 DataBaker recommend payload，也不再直接调用 DataBaker `recommend()`；改为输出 Aishell 自己的请求归一、默认 Prompt、health/defaults 与 `success + data + meta / success=false + error + meta` 契约。
+  - `ai-routes.js` 改成 Aishell 自己的同步路由执行链：客户端断开、同步超时和手动 abort 统一透传到上游 provider；只有响应真正成功写回后才允许写成功缓存和成功日志。
+  - `pipeline.js` 当前只复用公共 provider HTTP 工具，不再复用 DataBaker recommend orchestration；Aishell 队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
+  - 环境变量默认优先读取 `AISHELL_AI_*`，第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
+- 更新 `platform-resources/aishell-tech/minnan-helper/data/ai-call-log.js`：
+  - CSV 新增取消态、阶段、听音耗时、比较耗时、排队等待、重试次数、缓存命中和流水线模式字段。
+  - 日志读取新契约 `meta`，同时兼容旧的 `result.usage / result.timing / result.models` 字段。
+- 更新前端 Aishell recommend 消费层：
+  - `extension/sites/aishell-tech/minnan-helper/ai-recommendation.js` 改为优先消费 `success/data/meta/error`，并向上兼容旧展示字段。
+  - `extension/sites/aishell-tech/minnan-helper/diagnostics.js` 改为统一从 `meta` 展示排队等待、缓存命中和阶段信息。
+- 更新 `platform-resources/aishell-tech/minnan-helper/ai/adapter.js`：
+  - 对齐 Aishell 新请求归一与响应契约，去掉 DataBaker recommend 业务层耦合。
+- 新增/更新测试：
+  - `platform-resources/aishell-tech/minnan-helper/backend/pipeline.test.js`
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-routes.test.js`
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js`
+  - `platform-resources/aishell-tech/minnan-helper/ai/adapter.test.js`
+  - `extension/sites/aishell-tech/minnan-helper/ai-recommendation.test.js`
+  - `extension/sites/aishell-tech/minnan-helper/diagnostics.test.js`
+- 同步更新 README：
+  - `README.md`
+  - `docs/platforms/index.md`
+  - `extension/sites/aishell-tech/minnan-helper/README.md`
+  - `platform-resources/aishell-tech/README.md`
+  - `platform-resources/aishell-tech/minnan-helper/README.md`
+  - `platform-resources/aishell-tech/minnan-helper/backend/README.md`
+
 ## 2026-05-28（Aishell Tech AI 请求网络诊断与本机回退增强）
 
 - 更新 `extension/sites/aishell-tech/minnan-helper/ai-recommendation.js`：

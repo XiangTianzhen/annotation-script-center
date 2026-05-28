@@ -70,7 +70,7 @@
 - 网络请求采集（5 页 + 安全边界说明）：`platform-resources/aishell-tech/network/README.md`
 - 页面 DOM 结构采集（4 页完整 + 1 页组织管理初版占位）：`platform-resources/aishell-tech/page-structure/README.md`
 - 安全边界：以 `platform-resources/aishell-tech/README.md` 的“安全边界”章节与 `network/README.md` 的脱敏规则为准。
-- 当前阶段：独立闽南语助手已接入。当前业务能力只在 `/mytask/mark` 生效，`/mytask/index` 与 `/mytask/detail/:taskId` 仅做路由覆盖与资料复用；已注册独立接口 `/api/aishell-tech/minnan-helper/ai/recommend`；`我的团队` 页面仍只有 network 和 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
+- 当前阶段：独立闽南语助手已接入。当前业务能力只在 `/mytask/mark` 生效，`/mytask/index` 与 `/mytask/detail/:taskId` 仅做路由覆盖与资料复用；已注册独立接口 `/api/aishell-tech/minnan-helper/ai/recommend`，后端推荐编排已从 DataBaker recommend orchestration 独立出来，改为 Aishell 自己的同步链路、独立队列与 `success/data/meta` 契约；`我的团队` 页面仍只有 network 和 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
 
 ## 新增平台要求
 

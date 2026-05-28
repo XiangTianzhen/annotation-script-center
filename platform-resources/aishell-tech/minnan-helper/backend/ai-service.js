@@ -3,7 +3,29 @@
 const fs = require("fs");
 const path = require("path");
 
-const dataBakerService = require("../../../data-baker/round-one-quality/backend/ai-service");
+const {
+  DEFAULT_COMPARE_MODEL,
+  DEFAULT_FUN_ASR_MODEL,
+  DEFAULT_OMNI_MODEL,
+  DATABAKER_COMPARE_MODEL_OPTIONS,
+  DATABAKER_LISTEN_MODEL_OPTIONS,
+  DATABAKER_SINGLE_MODEL_OPTIONS,
+  DEFAULT_REQUEST_PARAMS,
+  derivePipelineMode,
+  getQueueGroupsHealth,
+  normalizeDataBakerCompareModel,
+  normalizeDataBakerListenModel,
+  normalizeDataBakerSingleModel,
+  normalizeModelMode,
+  normalizeRecognitionStrategy,
+  parseTimeoutMs,
+  resolveDefaultCompareModel,
+  resolveDefaultListenModel,
+  resolveDefaultSingleModel,
+} = require("./config");
+const {
+  parseLexiconCsv,
+} = require("../../../data-baker/round-one-quality/backend/ai-service");
 
 const SERVICE_NAME = "aishell-tech-minnan-helper-ai-recommend";
 const SCRIPT_ID = "aishellTechMinnanAssistant";
@@ -18,11 +40,6 @@ const MODEL_MODE_OPTIONS = [
 const RECOGNITION_STRATEGY_OPTIONS = [
   { value: "mandarin_to_dialect", label: "普通话对照默认：先听成普通话，再按预测文本和字词表转闽南语" },
   { value: "direct_dialect", label: "直接听音：直接写出闽南语文本" },
-];
-const RECOGNITION_MODE_OPTIONS = [
-  { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
-  { value: "omni_single", label: "单模型：Omni 单模型" },
-  { value: "recognition_convert", label: "识别转换：先听成普通话，再按字词表转闽南语" },
 ];
 const DEFAULT_MANDARIN_LISTEN_TEMPLATE = [
   "你正在处理闽南语音频。",
@@ -95,21 +112,6 @@ function createHttpError(statusCode, message, code) {
   return error;
 }
 
-function sanitizeSignedUrl(value) {
-  const text = normalizeText(value);
-  if (!text) {
-    return "";
-  }
-  try {
-    const url = new URL(text);
-    const pathParts = url.pathname.split("/").filter(Boolean);
-    const tail = pathParts.length > 0 ? pathParts[pathParts.length - 1] : "";
-    return url.origin + "/<redacted>/" + tail;
-  } catch (_error) {
-    return "<signed-url-redacted>";
-  }
-}
-
 function normalizeStopSequences(value) {
   const source = Array.isArray(value)
     ? value
@@ -151,40 +153,6 @@ function normalizeIntegerInRange(value, min, max) {
 
 function normalizeModelText(value) {
   return String(value || "").replace(/[\r\n]+/g, " ").trim().slice(0, 80);
-}
-
-function normalizeModelMode(value, fallback) {
-  const text = String(value || "").trim().toLowerCase();
-  if (text === "two_stage" || text === "omni_single") {
-    return text;
-  }
-  if (text === "recognition_convert") {
-    return "two_stage";
-  }
-  return String(fallback || DEFAULT_MODEL_MODE).trim().toLowerCase() === "omni_single"
-    ? "omni_single"
-    : "two_stage";
-}
-
-function normalizeRecognitionStrategy(value, fallback) {
-  const text = String(value || "").trim().toLowerCase();
-  if (text === "direct_dialect") {
-    return "direct_dialect";
-  }
-  if (text === "mandarin_to_dialect" || text === "recognition_convert") {
-    return "mandarin_to_dialect";
-  }
-  return String(fallback || DEFAULT_RECOGNITION_STRATEGY).trim().toLowerCase() ===
-    "direct_dialect"
-    ? "direct_dialect"
-    : "mandarin_to_dialect";
-}
-
-function deriveLegacyRecognitionMode(modelMode, recognitionStrategy) {
-  return normalizeRecognitionStrategy(recognitionStrategy, DEFAULT_RECOGNITION_STRATEGY) ===
-    "mandarin_to_dialect"
-    ? "recognition_convert"
-    : normalizeModelMode(modelMode, DEFAULT_MODEL_MODE);
 }
 
 function getStrategyPromptDefaults(recognitionStrategy) {
@@ -282,66 +250,33 @@ function applyStrategyPromptDefaults(aiOptions, recognitionStrategy) {
   return next;
 }
 
-function createDataBakerRequest(normalizedRequest) {
-  const request = normalizedRequest && typeof normalizedRequest === "object" ? normalizedRequest : {};
-  const aiOptions = applyStrategyPromptDefaults(
-    normalizeAiOptions(request.aiOptions),
-    request.recognitionStrategy
-  );
-  const duration = normalizeNullableNumber(request.duration);
-
-  const dataBakerRequest = {
-    collectId: normalizeText(request.taskId),
-    itemId: normalizeText(request.taskItemId),
-    textId: normalizeText(request.packageId),
-    sentenceNumber: normalizeNullableNumber(request.itemNumber),
-    readRequire: normalizeText(request.fileName),
-    audioUrl: normalizeText(request.audioUrl),
-    pageText: normalizeText(request.referenceText),
-    annotatorName: normalizeText(request.annotatorName || request.platformUserName),
-    aiUsageOperatorName: normalizeText(request.aiUsageOperatorName).slice(0, 40),
-    platformUserName: normalizeText(request.platformUserName).slice(0, 80),
-    platformUserId: normalizeText(request.platformUserId).slice(0, 120),
-    effectiveTime: duration,
-    audioDuration: duration,
-    clientVersion: normalizeText(request.clientVersion),
-    batchRunId: normalizeText(request.batchRunId).slice(0, 160),
-    batchItemIndex: normalizeNullableNumber(request.batchItemIndex),
-    batchProcessKey: normalizeText(request.batchProcessKey).slice(0, 240),
-    clientRequestId: normalizeText(request.clientRequestId).slice(0, 200),
-    frontConcurrency: request.frontConcurrency,
-    batchConcurrency: request.frontConcurrency,
-    concurrencyModelType: normalizeText(request.concurrencyModelType || aiOptions.concurrencyModelType),
-    aiOptions: aiOptions,
-  };
-
-  const modelMode = normalizeModelMode(request.modelMode || request.recognitionMode, DEFAULT_MODEL_MODE);
-  if (modelMode) {
-    dataBakerRequest.recognitionMode = modelMode;
-    dataBakerRequest.pipelineMode = modelMode;
+function buildLexiconState() {
+  if (!fs.existsSync(LEXICON_PATH)) {
+    return {
+      enabled: false,
+      status: "missing",
+      source: path.basename(LEXICON_PATH),
+      rowCount: 0,
+    };
   }
-
-  const listenModel = normalizeModelText(request.listenModel || aiOptions.listenModel);
-  if (listenModel) {
-    dataBakerRequest.listenModel = listenModel;
+  try {
+    const text = fs.readFileSync(LEXICON_PATH, "utf8");
+    const rows = parseLexiconCsv(text);
+    return {
+      enabled: rows.length > 0,
+      status: rows.length > 0 ? "ready" : "empty",
+      source: path.basename(LEXICON_PATH),
+      rowCount: rows.length,
+    };
+  } catch (error) {
+    return {
+      enabled: false,
+      status: "read-failed",
+      source: path.basename(LEXICON_PATH),
+      rowCount: 0,
+      message: normalizeText(error?.message).slice(0, 160),
+    };
   }
-  const compareModel = normalizeModelText(request.compareModel || aiOptions.compareModel);
-  if (compareModel) {
-    dataBakerRequest.compareModel = compareModel;
-  }
-  const singleModel = normalizeModelText(
-    request.singleModel || aiOptions.singleModel || aiOptions.omniModel
-  );
-  if (singleModel) {
-    dataBakerRequest.singleModel = singleModel;
-  }
-  if (typeof request.enableThinking === "boolean") {
-    dataBakerRequest.enableThinking = request.enableThinking === true;
-  } else if (typeof aiOptions.enable_thinking === "boolean") {
-    dataBakerRequest.enableThinking = aiOptions.enable_thinking === true;
-  }
-
-  return dataBakerRequest;
 }
 
 function normalizeRecommendRequest(body) {
@@ -371,21 +306,30 @@ function normalizeRecommendRequest(body) {
     throw createHttpError(400, "referenceText 不能为空。", "invalid-reference-text");
   }
 
-  const fallbackLegacyMode = normalizeModelMode(
-    source.recognitionMode || source.pipelineMode,
-    DEFAULT_MODEL_MODE
-  );
   const modelMode = normalizeModelMode(
-    source.modelMode || source.aiRecommendModelMode || source.pipelineMode,
-    fallbackLegacyMode
+    source.modelMode || source.aiRecommendModelMode || source.recognitionMode || source.pipelineMode,
+    DEFAULT_MODEL_MODE
   );
   const recognitionStrategy = normalizeRecognitionStrategy(
     source.recognitionStrategy || source.aiRecommendRecognitionStrategy || source.pipelineMode,
     DEFAULT_RECOGNITION_STRATEGY
   );
-  const legacyRecognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
+  const aiOptions = applyStrategyPromptDefaults(
+    normalizeAiOptions(source.aiOptions),
+    recognitionStrategy
+  );
+  const listenModel = normalizeModelText(
+    source.listenModel || aiOptions.listenModel || resolveDefaultListenModel(modelMode)
+  );
+  const compareModel = normalizeModelText(
+    source.compareModel || aiOptions.compareModel || resolveDefaultCompareModel()
+  );
+  const singleModel = normalizeModelText(
+    source.singleModel || aiOptions.singleModel || aiOptions.omniModel || resolveDefaultSingleModel()
+  );
+  const pipelineMode = derivePipelineMode(modelMode, listenModel, singleModel);
 
-  const normalizedRequest = {
+  return {
     taskId,
     packageId,
     taskItemId,
@@ -413,238 +357,107 @@ function normalizeRecommendRequest(body) {
             ? Math.round(Number(source.aiOptions.frontConcurrency))
             : null,
     concurrencyModelType: normalizeText(
-      source.concurrencyModelType || source.aiOptions?.concurrencyModelType
+      source.concurrencyModelType || source.aiOptions?.concurrencyModelType || "omni"
     ),
-    modelMode: modelMode,
-    recognitionStrategy: recognitionStrategy,
-    recognitionMode: legacyRecognitionMode,
-    listenModel: normalizeModelText(source.listenModel),
-    compareModel: normalizeModelText(source.compareModel),
-    singleModel: normalizeModelText(source.singleModel),
+    modelMode,
+    recognitionStrategy,
+    recognitionMode: modelMode,
+    pipelineMode,
+    listenModel:
+      pipelineMode === "omni_single"
+        ? normalizeDataBakerListenModel(DEFAULT_OMNI_MODEL, DEFAULT_OMNI_MODEL)
+        : pipelineMode === "fun_asr_compare"
+          ? DEFAULT_FUN_ASR_MODEL
+          : normalizeDataBakerListenModel(listenModel, DEFAULT_OMNI_MODEL),
+    compareModel: normalizeDataBakerCompareModel(compareModel, DEFAULT_COMPARE_MODEL),
+    singleModel: normalizeDataBakerSingleModel(singleModel, DEFAULT_OMNI_MODEL),
     enableThinking:
       typeof source.enableThinking === "boolean"
         ? source.enableThinking === true
-        : typeof source.aiOptions?.enableThinking === "boolean"
-          ? source.aiOptions.enableThinking === true
-          : typeof source.aiOptions?.enable_thinking === "boolean"
-            ? source.aiOptions.enable_thinking === true
-            : false,
-    aiOptions: applyStrategyPromptDefaults(
-      normalizeAiOptions(source.aiOptions),
-      recognitionStrategy
-    ),
+        : typeof aiOptions.enable_thinking === "boolean"
+          ? aiOptions.enable_thinking === true
+          : false,
+    aiOptions,
   };
-
-  normalizedRequest.dataBakerRequest = createDataBakerRequest(normalizedRequest);
-  normalizedRequest.dataBakerNormalizedRequest =
-    dataBakerService.normalizeRecommendRequest(normalizedRequest.dataBakerRequest);
-  normalizedRequest.modelMode =
-    normalizeText(normalizedRequest.dataBakerNormalizedRequest.recognitionMode) ||
-    normalizedRequest.modelMode;
-  normalizedRequest.listenModel =
-    normalizeText(normalizedRequest.dataBakerNormalizedRequest.listenModel) ||
-    normalizedRequest.listenModel;
-  normalizedRequest.compareModel =
-    normalizeText(normalizedRequest.dataBakerNormalizedRequest.compareModel) ||
-    normalizedRequest.compareModel;
-  normalizedRequest.singleModel =
-    normalizeText(normalizedRequest.dataBakerNormalizedRequest.singleModel) ||
-    normalizedRequest.singleModel;
-  normalizedRequest.frontConcurrency =
-    normalizedRequest.dataBakerNormalizedRequest.frontConcurrencyNormalized ??
-    normalizedRequest.frontConcurrency;
-  normalizedRequest.concurrencyModelType =
-    normalizeText(normalizedRequest.dataBakerNormalizedRequest.concurrencyModelType) ||
-    normalizedRequest.concurrencyModelType;
-
-  return normalizedRequest;
 }
 
-function buildLexiconState() {
-  if (!fs.existsSync(LEXICON_PATH)) {
-    return {
-      enabled: false,
-      status: "missing",
-      source: path.basename(LEXICON_PATH),
-      rowCount: 0,
-    };
-  }
-  try {
-    const text = fs.readFileSync(LEXICON_PATH, "utf8");
-    const rows = dataBakerService.parseLexiconCsv(text);
-    return {
-      enabled: rows.length > 0,
-      status: rows.length > 0 ? "ready" : "empty",
-      source: path.basename(LEXICON_PATH),
-      rowCount: rows.length,
-    };
-  } catch (error) {
-    return {
-      enabled: false,
-      status: "read-failed",
-      source: path.basename(LEXICON_PATH),
-      rowCount: 0,
-      message: normalizeText(error?.message).slice(0, 160),
-    };
-  }
-}
-
-function sanitizeDebug(dataBakerResult, normalizedRequest) {
-  const result = dataBakerResult && typeof dataBakerResult === "object" ? dataBakerResult : {};
-  const runtime = result.runtime && typeof result.runtime === "object" ? result.runtime : {};
-  const queue = runtime.queue && typeof runtime.queue === "object" ? runtime.queue : {};
-  const concurrencyDiagnostic =
-    runtime.concurrencyDiagnostic && typeof runtime.concurrencyDiagnostic === "object"
-      ? runtime.concurrencyDiagnostic
-      : {};
+function buildMeta(meta, requestId) {
+  const source = meta && typeof meta === "object" ? meta : {};
   return {
-    requestId: normalizeText(result.requestId),
-    cacheHit: runtime.cache?.hit === true,
-    cacheSourceRequestId: normalizeText(runtime.cache?.sourceRequestId),
-    totalQueueWaitMs: Number(queue.totalQueueWaitMs || 0),
-    totalRetryCount: Number(queue.totalRetryCount || 0),
-    queueGroups: Array.isArray(queue.groups) ? queue.groups.length : 0,
-    debugId: normalizeText(result.debugId),
-    hasRawAiDebug: result.hasRawAiDebug === true,
-    frontConcurrencyOriginal:
-      concurrencyDiagnostic.frontConcurrencyOriginal === null
-        ? null
-        : Number(concurrencyDiagnostic.frontConcurrencyOriginal) || 0,
-    frontConcurrencyNormalized: Number(concurrencyDiagnostic.frontConcurrencyNormalized) || 0,
-    concurrencyModelType: normalizeText(concurrencyDiagnostic.concurrencyModelType || normalizedRequest?.concurrencyModelType),
-    audioUrl: sanitizeSignedUrl(normalizedRequest?.audioUrl),
+    requestId: normalizeText(source.requestId || requestId),
+    stage: normalizeText(source.stage || "complete"),
+    models: source.models && typeof source.models === "object" ? source.models : {},
+    timing: source.timing && typeof source.timing === "object" ? source.timing : {},
+    usage: source.usage && typeof source.usage === "object" ? source.usage : {},
+    queue: source.queue && typeof source.queue === "object" ? source.queue : {},
+    cache: source.cache && typeof source.cache === "object" ? source.cache : {},
+    debugId: normalizeText(source.debugId),
+    retryCount: Number(source.retryCount || 0) || 0,
+    cancelled: source.cancelled === true,
+    debug: source.debug && typeof source.debug === "object" ? source.debug : {},
   };
 }
 
-function transformRecommendResult(dataBakerResult, normalizedRequest) {
-  const result = dataBakerResult && typeof dataBakerResult === "object" ? dataBakerResult : {};
-  const usage = result.usage && typeof result.usage === "object" ? result.usage : {};
-  const model = result.model && typeof result.model === "object" ? result.model : {};
-  const modelSelection =
-    result.modelSelection && typeof result.modelSelection === "object" ? result.modelSelection : {};
-  const timing = result.timing && typeof result.timing === "object" ? result.timing : {};
-  const transformed = {
-    taskId: normalizeText(normalizedRequest?.taskId),
-    packageId: normalizeText(normalizedRequest?.packageId),
-    taskItemId: normalizeText(normalizedRequest?.taskItemId),
-    fileName: normalizeText(normalizedRequest?.fileName),
-    referenceText: normalizeText(normalizedRequest?.referenceText),
-    existingMarkText: normalizeText(normalizedRequest?.existingMarkText),
-    heardText: normalizeText(result.heardText),
-    recommendedText: normalizeText(result.recommendedText),
-    isChanged: result.isChanged === true,
-    needHumanReview: result.needHumanReview === true,
-    decision: normalizeText(result.decision),
-    changePoints: Array.isArray(result.changePoints) ? result.changePoints : [],
-    models: {
-      modelMode: normalizeText(normalizedRequest?.modelMode),
-      recognitionStrategy: normalizeText(normalizedRequest?.recognitionStrategy),
-      recognitionMode: normalizeText(result.recognitionMode || normalizedRequest?.recognitionMode),
-      derivedPipelineMode: normalizeText(result.derivedPipelineMode),
-      listenModel: normalizeText(model.listen || modelSelection.listenModel),
-      compareModel: normalizeText(model.compare || modelSelection.compareModel),
-      singleModel: normalizeText(modelSelection.singleModel),
-      funAsrProvider: normalizeText(modelSelection.funAsrProvider || result.runtime?.funAsrProvider),
-    },
-    usage: {
-      totalTokens: Number(usage.totalTokens || 0),
-      promptTokens: Number(usage.promptTokens || 0),
-      completionTokens: Number(usage.completionTokens || 0),
-      listen: usage.listen && typeof usage.listen === "object" ? usage.listen : null,
-      compare: usage.compare && typeof usage.compare === "object" ? usage.compare : null,
-      estimatedCostCny:
-        result.cost && typeof result.cost === "object" ? Number(result.cost.estimatedCostCny || 0) : 0,
-    },
-    timing: {
-      listenDurationMs: Number(timing.listenDurationMs || 0),
-      compareDurationMs: Number(timing.compareDurationMs || 0),
-      totalDurationMs: Number(timing.totalDurationMs || 0),
-    },
-    debug: sanitizeDebug(result, normalizedRequest),
+function buildRecommendSuccessBody(input) {
+  const source = input && typeof input === "object" ? input : {};
+  return {
+    success: true,
+    data: source.data && typeof source.data === "object" ? source.data : null,
+    meta: buildMeta(source.meta, source.requestId),
   };
+}
 
-  if (result.lexicon && typeof result.lexicon === "object") {
-    transformed.lexicon = {
-      enabled: result.lexicon.enabled === true,
-      rewriteMode: normalizeText(result.lexicon.rewriteMode),
-      rewriteChanged: result.lexicon.rewriteChanged === true,
-      matchedCount: Number(result.lexicon.matchedCount || 0),
-      rewriteChanges: Array.isArray(result.lexicon.rewriteChanges)
-        ? result.lexicon.rewriteChanges.slice(0, 20)
-        : [],
-    };
-  }
-
-  return transformed;
+function buildRecommendErrorBody(input) {
+  const source = input && typeof input === "object" ? input : {};
+  const error = source.error && typeof source.error === "object" ? source.error : {};
+  return {
+    success: false,
+    error: {
+      code: normalizeText(error.code) || "request-error",
+      message: normalizeText(error.safeMessage || error.message || "Aishell 闽南语助手请求失败。").slice(0, 240),
+      stage: normalizeText(error.stage) || "post_process",
+      retryable: error.retryable === true,
+      providerStatus: Number(error.providerStatus || error.statusCode || 0) || 0,
+      providerCode: normalizeText(error.providerCode),
+    },
+    meta: buildMeta(error.meta, source.requestId || error.requestId),
+  };
 }
 
 function createHealthPayload() {
-  const baseHealth = dataBakerService.createHealthPayload();
-  const baseDefaults = dataBakerService.createDefaultsPayload();
-  const lexicon = buildLexiconState();
-  const defaultStrategyPrompts = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
+  const queueGroups = getQueueGroupsHealth();
+  const defaults = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
   return {
     success: true,
     service: SERVICE_NAME,
     scriptId: SCRIPT_ID,
     component: COMPONENT_NAME,
-    provider: baseHealth.provider,
-    ruleVersion: dataBakerService.RULE_VERSION,
-    status: baseHealth.status,
+    status: "ready",
+    timeoutMs: parseTimeoutMs(),
     modelMode: DEFAULT_MODEL_MODE,
     recognitionStrategy: DEFAULT_RECOGNITION_STRATEGY,
-    recognitionMode: deriveLegacyRecognitionMode(
-      DEFAULT_MODEL_MODE,
-      DEFAULT_RECOGNITION_STRATEGY
-    ),
-    pipelineMode: DEFAULT_MODEL_MODE,
-    derivedPipelineMode: baseHealth.derivedPipelineMode,
     modelModeOptions: MODEL_MODE_OPTIONS.slice(),
     recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
-    recognitionModeOptions: Array.isArray(baseHealth.recognitionModeOptions)
-      ? RECOGNITION_MODE_OPTIONS.slice()
-      : [],
-    supportedPipelineModes: Array.isArray(baseHealth.supportedPipelineModes)
-      ? baseHealth.supportedPipelineModes.slice()
-      : [],
-    listenModelOptions: Array.isArray(baseHealth.listenModelOptions)
-      ? baseHealth.listenModelOptions.slice()
-      : [],
-    singleModelOptions: Array.isArray(baseHealth.singleModelOptions)
-      ? baseHealth.singleModelOptions.slice()
-      : [],
-    compareModelOptions: Array.isArray(baseHealth.compareModelOptions)
-      ? baseHealth.compareModelOptions.slice()
-      : [],
-    listenModel: normalizeText(baseHealth.listenModel),
-    singleModel: normalizeText(baseHealth.singleModel),
-    compareModel: normalizeText(baseHealth.compareModel),
-    funAsrModel: normalizeText(baseHealth.funAsrModel),
-    funAsrProvider: normalizeText(baseHealth.funAsrProvider),
-    funAsrRestConfigured: baseHealth.funAsrRestConfigured === true,
-    funAsrPythonConfigured: baseHealth.funAsrPythonConfigured === true,
-    funAsrApiBase: normalizeText(baseHealth.funAsrApiBase),
-    omniModel: normalizeText(baseHealth.omniModel),
-    timeoutMs: Number(baseDefaults?.defaults?.timeoutMs || 120000),
-    queue: baseHealth.queue || {},
-    concurrency: baseHealth.concurrency || {},
-    cache: baseHealth.cache || {},
-    lexicon: lexicon,
-    callLogDir: dataBakerService.getLogDir(),
+    listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+    compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
+    singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
+    listenModel: resolveDefaultListenModel(DEFAULT_MODEL_MODE),
+    compareModel: resolveDefaultCompareModel(),
+    singleModel: resolveDefaultSingleModel(),
+    queue: {
+      groups: queueGroups,
+    },
+    lexicon: buildLexiconState(),
     notes: {
-      defaultsSource: "参考 data-baker/round-one-quality，并保留 Aishell 独立接口与脚本 ID。",
-      saveBoundary: "当前脚本只在用户触发批量时点击页面真实保存按钮；不自动提交、不跨分包、不触发质检区。",
-      promptOverride: "支持前端覆盖听音/比较 Prompt；为空时按当前识别策略加载 Aishell 默认模板。",
-      batchConcurrency:
-        "Fun-ASR 默认 25、范围 1~50；Omni 默认 15、范围 1~25；前后端都会归一。",
-      defaultRecognitionStrategy: "默认使用普通话对照：先听成普通话，再结合预测闽南语文本与字词表输出最终闽南语。",
-      defaultListenPromptPreview: defaultStrategyPrompts.listenPrompt,
+      backendMode: "independent-aishell-pipeline",
+      timeout: "Aishell 独立同步超时墙默认小于 60s。",
+      cancellation: "客户端断开、服务端超时和手动取消会统一透传 AbortSignal。",
+      defaultListenPromptPreview: defaults.listenPrompt,
     },
   };
 }
 
 function createDefaultsPayload() {
-  const baseDefaults = dataBakerService.createDefaultsPayload();
   const directPrompts = getStrategyPromptDefaults("direct_dialect");
   const defaultPrompts = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
   return {
@@ -652,19 +465,24 @@ function createDefaultsPayload() {
     service: SERVICE_NAME,
     scriptId: SCRIPT_ID,
     component: COMPONENT_NAME,
-    defaults: Object.assign({}, baseDefaults.defaults || {}, {
+    defaults: Object.assign({}, DEFAULT_REQUEST_PARAMS, {
+      timeoutMs: parseTimeoutMs(),
       modelMode: DEFAULT_MODEL_MODE,
       recognitionStrategy: DEFAULT_RECOGNITION_STRATEGY,
+      recognitionMode: DEFAULT_MODEL_MODE,
+      pipelineMode: derivePipelineMode(
+        DEFAULT_MODEL_MODE,
+        resolveDefaultListenModel(DEFAULT_MODEL_MODE),
+        resolveDefaultSingleModel()
+      ),
       modelModeOptions: MODEL_MODE_OPTIONS.slice(),
       recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
-      recognitionMode: deriveLegacyRecognitionMode(
-        DEFAULT_MODEL_MODE,
-        DEFAULT_RECOGNITION_STRATEGY
-      ),
-      pipelineMode: DEFAULT_MODEL_MODE,
-      recognitionModeOptions: RECOGNITION_MODE_OPTIONS.slice(),
-      pipelineModeOptions: MODEL_MODE_OPTIONS.slice(),
-      reviewModel: "",
+      listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+      compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
+      singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
+      listenModel: resolveDefaultListenModel(DEFAULT_MODEL_MODE),
+      compareModel: resolveDefaultCompareModel(),
+      singleModel: resolveDefaultSingleModel(),
       listenPrompt: defaultPrompts.listenPrompt,
       comparePrompt: defaultPrompts.comparePrompt,
       promptProfiles: {
@@ -672,17 +490,11 @@ function createDefaultsPayload() {
         direct_dialect: directPrompts,
       },
     }),
-    supportedParams: Object.assign({}, baseDefaults.supportedParams || {}),
-    queue: baseDefaults.queue || {},
-    concurrency: baseDefaults.concurrency || {},
-    cache: baseDefaults.cache || {},
-    notes: Object.assign({}, baseDefaults.notes || {}, {
-      defaultsSource: "DataBaker recommend defaults blueprint",
-      responseFormat: "返回结构固定为 success/requestId/data，前端不单独配置 response_format。",
-      saveBoundary: "批量只填当前分包未完成条目，并在每条填入后点击页面真实保存按钮。",
-      recognitionStrategy:
-        "Aishell 默认策略为普通话对照；也支持直接听写闽南语文本进行对比测试。",
-    }),
+    notes: {
+      defaultsSource: "Aishell independent backend defaults",
+      requestMode: "sync-http-only",
+      responseFormat: "success + data + meta / success=false + error + meta",
+    },
   };
 }
 
@@ -691,9 +503,10 @@ module.exports = {
   LEXICON_PATH,
   SCRIPT_ID,
   SERVICE_NAME,
-  createDataBakerRequest,
+  buildRecommendErrorBody,
+  buildRecommendSuccessBody,
   createDefaultsPayload,
   createHealthPayload,
+  getStrategyPromptDefaults,
   normalizeRecommendRequest,
-  transformRecommendResult,
 };

@@ -36,7 +36,23 @@ test("Aishell ai-recommendation retries server endpoint after local fetch failur
         success: true,
         data: {
           recommendedText: "阮爱你。",
-          debug: {},
+        },
+        meta: {
+          requestId: "request-1",
+          stage: "complete",
+          models: {},
+          timing: {},
+          usage: {},
+          queue: {
+            totalQueueWaitMs: 0,
+            groups: [],
+          },
+          cache: {
+            hit: false,
+          },
+          debugId: "",
+          retryCount: 0,
+          cancelled: false,
         },
       }).apply(null, arguments);
     },
@@ -61,6 +77,8 @@ test("Aishell ai-recommendation retries server endpoint after local fetch failur
     result.debug.clientBackendEndpoint,
     "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend"
   );
+  assert.equal(result.meta.requestId, "request-1");
+  assert.equal(result.meta.stage, "complete");
 });
 
 test("Aishell ai-recommendation exposes endpoint details for network failures", async function () {

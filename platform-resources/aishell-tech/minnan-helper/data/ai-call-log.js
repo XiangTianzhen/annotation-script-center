@@ -10,9 +10,16 @@ const CSV_COLUMNS = [
   { key: "platformId", header: "平台ID" },
   { key: "scriptId", header: "脚本ID" },
   { key: "success", header: "是否成功" },
+  { key: "cancelled", header: "是否取消" },
+  { key: "stage", header: "阶段" },
   { key: "errorCode", header: "错误码" },
   { key: "errorMessage", header: "错误信息" },
-  { key: "durationMs", header: "耗时毫秒" },
+  { key: "durationMs", header: "总耗时毫秒" },
+  { key: "listenDurationMs", header: "听音耗时毫秒" },
+  { key: "compareDurationMs", header: "比较耗时毫秒" },
+  { key: "queueWaitMs", header: "排队等待毫秒" },
+  { key: "retryCount", header: "重试次数" },
+  { key: "cacheHit", header: "缓存命中" },
   { key: "promptTokens", header: "输入Token" },
   { key: "completionTokens", header: "输出Token" },
   { key: "totalTokens", header: "总Token" },
@@ -24,6 +31,7 @@ const CSV_COLUMNS = [
   { key: "taskItemId", header: "条目ID" },
   { key: "modelMode", header: "模型方案" },
   { key: "recognitionStrategy", header: "识别策略" },
+  { key: "pipelineMode", header: "流水线模式" },
   { key: "listenModel", header: "听音模型" },
   { key: "compareModel", header: "比较模型" },
   { key: "singleModel", header: "单模型" },
@@ -45,7 +53,7 @@ function truncateText(value, maxLength) {
 
 function safeNumberString(value) {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) {
+  if (!Number.isFinite(numeric) || numeric < 0) {
     return "";
   }
   return String(numeric);
@@ -132,21 +140,21 @@ function getAishellAiCallLogFilePath(logDir, createdAt) {
   return path.join(targetDir, "ai-calls-" + formatDatePart(createdAt) + ".csv");
 }
 
-function pickPromptTokens(result) {
-  return safeNumberString(result?.usage?.promptTokens);
+function pickPromptTokens(usage) {
+  return safeNumberString(usage?.promptTokens);
 }
 
-function pickCompletionTokens(result) {
-  return safeNumberString(result?.usage?.completionTokens);
+function pickCompletionTokens(usage) {
+  return safeNumberString(usage?.completionTokens);
 }
 
-function pickTotalTokens(result) {
-  const promptTokens = pickPromptTokens(result);
-  const completionTokens = pickCompletionTokens(result);
+function pickTotalTokens(usage) {
+  const promptTokens = pickPromptTokens(usage);
+  const completionTokens = pickCompletionTokens(usage);
   if (promptTokens || completionTokens) {
     return "";
   }
-  return safeNumberString(result?.usage?.totalTokens);
+  return safeNumberString(usage?.totalTokens);
 }
 
 function buildErrorJson(error, requestId) {
@@ -154,11 +162,14 @@ function buildErrorJson(error, requestId) {
   return {
     requestId: normalizeText(source.requestId || requestId),
     code: normalizeText(source.code),
+    stage: normalizeText(source.stage),
     message: truncateText(source.safeMessage || source.message || "", 500),
     providerCode: normalizeText(source.providerCode),
     providerStatus: Number(source.providerStatus || source.statusCode || 0) || 0,
+    retryable: source.retryable === true,
     rawResponse: source.rawResponse && typeof source.rawResponse === "object" ? source.rawResponse : null,
     debugRawJson: source.debugRawJson && typeof source.debugRawJson === "object" ? source.debugRawJson : null,
+    meta: source.meta && typeof source.meta === "object" ? source.meta : null,
   };
 }
 
@@ -168,32 +179,53 @@ function buildAishellAiCallLogRow(input) {
     ? source.normalizedRequest
     : {};
   const result = source.result && typeof source.result === "object" ? source.result : {};
+  const meta = result.meta && typeof result.meta === "object" ? result.meta : {};
   const error = source.error && typeof source.error === "object" ? source.error : null;
-  const timingDuration = safeNumberString(result?.timing?.totalDurationMs);
+  const errorMeta = error?.meta && typeof error.meta === "object" ? error.meta : {};
+  const finalMeta = error ? errorMeta : meta;
+  const usage = finalMeta.usage && typeof finalMeta.usage === "object"
+    ? finalMeta.usage
+    : (result.usage && typeof result.usage === "object" ? result.usage : {});
+  const models = finalMeta.models && typeof finalMeta.models === "object"
+    ? finalMeta.models
+    : (result.models && typeof result.models === "object" ? result.models : {});
+  const timing = finalMeta.timing && typeof finalMeta.timing === "object"
+    ? finalMeta.timing
+    : (result.timing && typeof result.timing === "object" ? result.timing : {});
+  const queue = finalMeta.queue && typeof finalMeta.queue === "object" ? finalMeta.queue : {};
+  const cache = finalMeta.cache && typeof finalMeta.cache === "object" ? finalMeta.cache : {};
 
   return {
     createdAt: normalizeText(source.createdAt || new Date().toISOString()),
-    requestId: normalizeText(source.requestId || request.requestId || error?.requestId),
+    requestId: normalizeText(source.requestId || finalMeta.requestId || error?.requestId),
     platformId: "aishellTech",
     scriptId: "aishellTechMinnanAssistant",
     success: error ? "false" : "true",
+    cancelled: finalMeta.cancelled === true ? "true" : "false",
+    stage: normalizeText(error?.stage || finalMeta.stage),
     errorCode: error ? normalizeText(error.code) : "",
     errorMessage: error ? truncateText(error.safeMessage || error.message || "", 500) : "",
-    durationMs: timingDuration || safeNumberString(source.durationMs),
-    promptTokens: pickPromptTokens(result),
-    completionTokens: pickCompletionTokens(result),
-    totalTokens: pickTotalTokens(result),
+    durationMs: safeNumberString(timing.totalDurationMs || source.durationMs),
+    listenDurationMs: safeNumberString(timing.listenDurationMs),
+    compareDurationMs: safeNumberString(timing.compareDurationMs),
+    queueWaitMs: safeNumberString(queue.totalQueueWaitMs),
+    retryCount: safeNumberString(finalMeta.retryCount),
+    cacheHit: cache.hit === true ? "true" : "false",
+    promptTokens: pickPromptTokens(usage),
+    completionTokens: pickCompletionTokens(usage),
+    totalTokens: pickTotalTokens(usage),
     aiUsageOperatorName: normalizeText(request.aiUsageOperatorName).slice(0, 40),
     platformUserName: normalizeText(request.platformUserName).slice(0, 80),
     platformUserId: normalizeText(request.platformUserId).slice(0, 120),
     taskId: normalizeText(request.taskId),
     packageId: normalizeText(request.packageId),
     taskItemId: normalizeText(request.taskItemId),
-    modelMode: normalizeText(request.modelMode),
-    recognitionStrategy: normalizeText(request.recognitionStrategy),
-    listenModel: normalizeText(result?.models?.listenModel || request.listenModel),
-    compareModel: normalizeText(result?.models?.compareModel || request.compareModel),
-    singleModel: normalizeText(result?.models?.singleModel || request.singleModel),
+    modelMode: normalizeText(request.modelMode || models.modelMode),
+    recognitionStrategy: normalizeText(request.recognitionStrategy || models.recognitionStrategy),
+    pipelineMode: normalizeText(request.pipelineMode || models.pipelineMode),
+    listenModel: normalizeText(models.listenModel || request.listenModel),
+    compareModel: normalizeText(models.compareModel || request.compareModel),
+    singleModel: normalizeText(models.singleModel || request.singleModel),
     rawResponseJson: error ? "" : safeJsonStringify(result),
     rawErrorJson: error ? safeJsonStringify(buildErrorJson(error, source.requestId)) : "",
   };
