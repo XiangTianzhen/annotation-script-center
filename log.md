@@ -1,3 +1,34 @@
+## 2026-05-28（AI 调用日志全局使用人设置第一块）
+
+- 新增 `extension/shared/ai-usage-meta.js` 设置补丁能力：
+  - 新增 `createAiUsageOperatorSettingsPatch()`，统一把全局使用人写入 `settings.meta.aiUsageOperatorName`。
+- 更新 `extension/shared/constants.js` 与 `extension/shared/storage.js`：
+  - 默认设置与 fallback 默认设置都补齐 `meta.aiUsageOperatorName` 空字符串初始值。
+- 更新 `extension/options/options.html` 与 `extension/options/options.js`：
+  - options 首页“后端接口地址”卡片新增全局 `AI 调用使用人` 输入项。
+  - 输入值在 blur 时持久保存到 `settings.meta.aiUsageOperatorName`，再次进入首页会自动回显。
+  - 帮助文案明确：所有 AI 请求共用，未填写时不允许调用 AI。
+- 更新 `extension/manifest.json`：
+  - 所有 AI 相关内容脚本注入序列统一补入 `shared/ai-usage-meta.js`，为后续各平台请求注入统一元数据做准备。
+- 更新测试：
+  - `extension/shared/ai-usage-meta.test.js` 新增 `createAiUsageOperatorSettingsPatch` 契约验证。
+
+## 2026-05-28（Aishell Tech 最小悬浮窗重构）
+
+- 用户复现确认：
+  - `detail -> 查看 -> mark` 时旧版 Aishell 运行时经常不出现面板。
+  - 手动刷新后有时才出现按钮，但启用脚本时刷新还会导致页面白屏。
+  - 禁用 Aishell 脚本后页面恢复正常。
+- 本轮不再继续叠加补注入热修，直接把 Aishell 前端收敛为最小稳定版：
+  - `extension/manifest.json` 删除 Aishell 的 `page-world/network-observer.js`、`shortcuts.js`、`shared/ai-usage-meta.js` 注入，并移除 `scripting` / `webNavigation` 权限。
+  - `extension/background/service-worker.js` 删除 Aishell 的 `registerContentScripts / executeScript / webNavigation / tabs.onUpdated` 动态补注入逻辑。
+  - `extension/sites/aishell-tech/minnan-helper/ui-panel.js` 重写为纯悬浮窗，只保留 `识别` 与 `批量识别` 两个按钮，不再往原页面业务区插入行内按钮。
+  - `extension/sites/aishell-tech/minnan-helper/content.js` 重写为最小运行时：只做路由识别、单条识别、顺序批量识别与悬浮窗状态更新。
+  - `extension/sites/aishell-tech/minnan-helper/data-api.js` 改为直接从页面 `localStorage/sessionStorage` 扫描 JWT，并直接请求 `markapi.aishelltech.com` 的 `task/detail` 与 `packageItemList`，不再依赖主世界抓包缓存。
+- 当前边界重新收紧：
+  - 只验证悬浮窗可见性与识别链路。
+  - 不自动填入，不自动保存，不自动提交，不跨分包。
+
 ## 2026-05-28（AI 调用日志实现计划）
 
 - 新增实现计划：
@@ -155,21 +186,6 @@
   - Aishell defaults 读取失败时，先回退到 DataBaker defaults 接口；若仍失败，再回退到本地 DataBaker Prompt 与模型默认值。
   - 本地 fallback 默认值改为直接带出 DataBaker 同款 `listenPrompt` / `comparePrompt`，确保 options 页面能看到同款 Prompt 基线。
 
-## 2026-05-28（Aishell Tech 最小悬浮窗重构）
-
-- 用户复现确认：
-  - `detail -> 查看 -> mark` 时旧版 Aishell 运行时经常不出现面板。
-  - 手动刷新后有时才出现按钮，但启用脚本时刷新还会导致页面白屏。
-  - 禁用 Aishell 脚本后页面恢复正常。
-- 本轮不再继续叠加补注入热修，直接把 Aishell 前端收敛为最小稳定版：
-  - `extension/manifest.json` 删除 Aishell 的 `page-world/network-observer.js`、`shortcuts.js`、`shared/ai-usage-meta.js` 注入，并移除 `scripting` / `webNavigation` 权限。
-  - `extension/background/service-worker.js` 删除 Aishell 的 `registerContentScripts / executeScript / webNavigation / tabs.onUpdated` 动态补注入逻辑。
-  - `extension/sites/aishell-tech/minnan-helper/ui-panel.js` 重写为纯悬浮窗，只保留 `识别` 与 `批量识别` 两个按钮，不再往原页面业务区插入行内按钮。
-  - `extension/sites/aishell-tech/minnan-helper/content.js` 重写为最小运行时：只做路由识别、单条识别、顺序批量识别与悬浮窗状态更新。
-  - `extension/sites/aishell-tech/minnan-helper/data-api.js` 改为直接从页面 `localStorage/sessionStorage` 扫描 JWT，并直接请求 `markapi.aishelltech.com` 的 `task/detail` 与 `packageItemList`，不再依赖主世界抓包缓存。
-- 当前边界重新收紧：
-  - 只验证悬浮窗可见性与识别链路。
-  - 不自动填入，不自动保存，不自动提交，不跨分包。
 ## 2026-05-28（Aishell Tech 闽南语助手独立全量接入）
 
 - 新增 `extension/sites/aishell-tech/minnan-helper/` 运行时代码：
@@ -2904,6 +2920,18 @@
   - `Secure Preferences` 显示扩展 host 权限已授予、`withholding_permissions=false`，排除站点权限未放开。
   - `chrome.storage.local` 可见 `aishellTech.enabled=true`、`minnanHelper.aiRecommendEnabled=true`，排除脚本设置被关闭。
   - 现新增 `background/service-worker.js` 对 Aishell 的 `registerContentScripts` 兜底注册，并给 `data-api / ai-recommendation / ui-panel / shortcuts / content` 增加安装守卫，避免与 `manifest content_scripts` 双注入时重复执行。
+- 新增 Aishell 测试按钮模式：
+  - 单条 `识别` 按钮挂到页面底部 `保存` 按钮旁。
+  - `批量识别 / 停止` 按钮挂到文件名行旁。
+  - 单条与批量都先只做识别与悬浮展示，不自动填入，不自动保存；便于先验证注入、请求和 Prompt 输出。
+- 修复 Aishell `detail -> mark` 场景的路由切换漏注入：
+  - 用户复现：从 `https://mark.aishelltech.com/mytask/detail/:taskId` 点击“查看”进入 `mark?...` 后，按钮不出现；手动刷新后会出现，但平台会卡住。
+  - 处理方式：`manifest.json` 新增 `webNavigation` 权限，`background/service-worker.js` 新增 `onHistoryStateUpdated / onCompleted / tabs.onUpdated` 三层兜底，在进入 Aishell `detail / mark / index` 路由时主动执行脚本注入。
+  - Aishell 各前端模块已带安装守卫，因此补注入不会导致重复绑定。
+- 补充前端路由检测兜底：
+  - 根据用户复现，平台从 `detail` 进入 `mark` 时可能未走标准 `history` 路由事件。
+  - `extension/sites/aishell-tech/minnan-helper/content.js` 新增 `250ms` URL 轮询；只要同页 URL 变化，就会重新执行运行时评估。
+  - `page-world/network-observer.js` 与 `content.js` 额外写入 `data-asc-aishell-main-world / data-asc-aishell-isolated` 调试标记，便于确认到底是主世界、隔离世界还是按钮挂载层失效。
 - 新增平台实测口径：
   - 实测应优先从 `/mytask/detail/:taskId` 进入，再点击分包“查看”进入 `/mytask/mark`。
   - 直接手输 `/mytask/mark?...` 时，平台自身可能出现卡住；这不作为助手面板故障判定依据。
@@ -2930,11 +2958,6 @@
   - `批量识别` 现在会先切到目标条目、请求 AI、成功后立即填入并点击真实 `保存`。
   - 每条都等待页面切条成功后再继续下一条。
   - 失败条继续进入失败清单，不阻塞后续条目。
-
-## 2026-05-28（Aishell Tech 批量调度器运行时热修）
-
-- 修复批量识别报错 `dataApi.createRateLimitedTaskScheduler is not a function`。
-- 根因是 `data-api.js` 虽然定义并导出了调度器，但 `createRuntime()` 返回的 runtime 对象漏暴露该函数；现已补回并增加运行时测试覆盖。
 
 ## 2026-05-28（Aishell Tech 并发识别与双策略模式）
 

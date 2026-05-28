@@ -30,6 +30,16 @@ function createAiUsageOperatorSettingsPatch(operatorName) {
   };
 }
 
+function appendAiUsageRequestMeta(payload, requestMeta) {
+  const sourcePayload = payload && typeof payload === "object" ? payload : {};
+  const meta = requestMeta && typeof requestMeta === "object" ? requestMeta : {};
+  return Object.assign({}, sourcePayload, {
+    aiUsageOperatorName: normalizeAiUsageOperatorName(meta.aiUsageOperatorName),
+    platformUserName: normalizeText(meta.platformUserName, 80),
+    platformUserId: normalizeText(meta.platformUserId, 120),
+  });
+}
+
 function assertAiUsageOperatorConfigured(requestMeta) {
   if (!normalizeAiUsageOperatorName(requestMeta?.aiUsageOperatorName)) {
     throw createMissingAiUsageOperatorError();
@@ -47,6 +57,7 @@ const api = {
   normalizeAiUsageOperatorName,
   buildAiUsageRequestMeta,
   createAiUsageOperatorSettingsPatch,
+  appendAiUsageRequestMeta,
   assertAiUsageOperatorConfigured,
   createMissingAiUsageOperatorError,
 };

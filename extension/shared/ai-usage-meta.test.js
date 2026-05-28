@@ -7,6 +7,7 @@ const {
   buildAiUsageRequestMeta,
   createAiUsageOperatorSettingsPatch,
   assertAiUsageOperatorConfigured,
+  appendAiUsageRequestMeta,
   createMissingAiUsageOperatorError,
 } = require("./ai-usage-meta");
 
@@ -52,6 +53,27 @@ test("assertAiUsageOperatorConfigured throws the stable missing-operator error",
       return error && error.code === "missing-ai-usage-operator-name";
     }
   );
+});
+
+test("appendAiUsageRequestMeta appends normalized fields without mutating payload", function () {
+  const payload = {
+    foo: "bar",
+  };
+  const result = appendAiUsageRequestMeta(payload, {
+    aiUsageOperatorName: "  王五  ",
+    platformUserName: " labelx-user ",
+    platformUserId: " user-1 ",
+  });
+
+  assert.deepEqual(payload, {
+    foo: "bar",
+  });
+  assert.deepEqual(result, {
+    foo: "bar",
+    aiUsageOperatorName: "王五",
+    platformUserName: "labelx-user",
+    platformUserId: "user-1",
+  });
 });
 
 test("createMissingAiUsageOperatorError returns a stable code", function () {

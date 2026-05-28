@@ -16,6 +16,9 @@
     return;
   }
   window[INSTALL_FLAG] = true;
+  try {
+    document.documentElement.setAttribute("data-asc-aishell-main-world", "1");
+  } catch (_error) {}
 
   const state = {
     taskDetails: [],

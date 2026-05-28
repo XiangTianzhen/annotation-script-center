@@ -3,6 +3,39 @@
   const DEFAULT_TIMEOUT_MS = 120000;
   const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:3333";
   const DEFAULT_SERVER_BASE_URL = "https://script.xiangtianzhen.store";
+  const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
+  const buildAiUsageRequestMeta =
+    typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
+      ? aiUsageMeta.buildAiUsageRequestMeta
+      : function (input) {
+          const source = input && typeof input === "object" ? input : {};
+          return {
+            aiUsageOperatorName: String(source.settings?.meta?.aiUsageOperatorName || "").replace(/\s+/g, " ").trim().slice(0, 40),
+            platformUserName: String(source.platformUserName || "").replace(/\s+/g, " ").trim().slice(0, 80),
+            platformUserId: String(source.platformUserId || "").replace(/\s+/g, " ").trim().slice(0, 120),
+          };
+        };
+  const appendAiUsageRequestMeta =
+    typeof aiUsageMeta.appendAiUsageRequestMeta === "function"
+      ? aiUsageMeta.appendAiUsageRequestMeta
+      : function (payload, requestMeta) {
+          return Object.assign({}, payload || {}, {
+            aiUsageOperatorName: String(requestMeta?.aiUsageOperatorName || "").replace(/\s+/g, " ").trim().slice(0, 40),
+            platformUserName: String(requestMeta?.platformUserName || "").replace(/\s+/g, " ").trim().slice(0, 80),
+            platformUserId: String(requestMeta?.platformUserId || "").replace(/\s+/g, " ").trim().slice(0, 120),
+          });
+        };
+  const assertAiUsageOperatorConfigured =
+    typeof aiUsageMeta.assertAiUsageOperatorConfigured === "function"
+      ? aiUsageMeta.assertAiUsageOperatorConfigured
+      : function (requestMeta) {
+          if (!String(requestMeta?.aiUsageOperatorName || "").replace(/\s+/g, " ").trim()) {
+            const error = new Error("请先在 options 首页填写 AI 调用使用人。");
+            error.code = "missing-ai-usage-operator-name";
+            throw error;
+          }
+          return requestMeta;
+        };
 
   function sanitizeMessage(value, maxLength) {
     return String(value || "")
@@ -73,7 +106,17 @@
       mode,
       baseUrl: normalizedBaseUrl,
       endpoint,
+      settings,
     };
+  }
+
+  function resolvePlatformUserId() {
+    const detector = globalThis.__ASREdgeMagicDataAnnotatorPageDetector || {};
+    if (typeof detector.parseHashParams !== "function") {
+      return "";
+    }
+    const params = detector.parseHashParams() || {};
+    return String(params.userId || "").replace(/\s+/g, " ").trim().slice(0, 120);
   }
 
 function mapErrorMessage(code, message, summary, statusCode) {
@@ -118,9 +161,16 @@ function mapErrorMessage(code, message, summary, statusCode) {
         }, timeoutMs)
       : null;
 
-    const requestBody = Object.assign({}, payload || {}, {
+    const requestMeta = assertAiUsageOperatorConfigured(
+      buildAiUsageRequestMeta({
+        settings: config.settings || backend.settings || {},
+        platformUserName: "",
+        platformUserId: resolvePlatformUserId(),
+      })
+    );
+    const requestBody = appendAiUsageRequestMeta(Object.assign({}, payload || {}, {
       clientVersion: payload?.clientVersion || getClientVersion(),
-    });
+    }), requestMeta);
 
     try {
       const response = await fetch(backend.endpoint, {

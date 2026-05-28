@@ -3,6 +3,39 @@
   const DEFAULT_TIMEOUT_MS = 120000;
   const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:3333";
   const DEFAULT_SERVER_BASE_URL = "https://script.xiangtianzhen.store";
+  const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
+  const buildAiUsageRequestMeta =
+    typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
+      ? aiUsageMeta.buildAiUsageRequestMeta
+      : function (input) {
+          const source = input && typeof input === "object" ? input : {};
+          return {
+            aiUsageOperatorName: String(source.settings?.meta?.aiUsageOperatorName || "").replace(/\s+/g, " ").trim().slice(0, 40),
+            platformUserName: String(source.platformUserName || "").replace(/\s+/g, " ").trim().slice(0, 80),
+            platformUserId: String(source.platformUserId || "").replace(/\s+/g, " ").trim().slice(0, 120),
+          };
+        };
+  const appendAiUsageRequestMeta =
+    typeof aiUsageMeta.appendAiUsageRequestMeta === "function"
+      ? aiUsageMeta.appendAiUsageRequestMeta
+      : function (payload, requestMeta) {
+          return Object.assign({}, payload || {}, {
+            aiUsageOperatorName: String(requestMeta?.aiUsageOperatorName || "").replace(/\s+/g, " ").trim().slice(0, 40),
+            platformUserName: String(requestMeta?.platformUserName || "").replace(/\s+/g, " ").trim().slice(0, 80),
+            platformUserId: String(requestMeta?.platformUserId || "").replace(/\s+/g, " ").trim().slice(0, 120),
+          });
+        };
+  const assertAiUsageOperatorConfigured =
+    typeof aiUsageMeta.assertAiUsageOperatorConfigured === "function"
+      ? aiUsageMeta.assertAiUsageOperatorConfigured
+      : function (requestMeta) {
+          if (!String(requestMeta?.aiUsageOperatorName || "").replace(/\s+/g, " ").trim()) {
+            const error = new Error("请先在 options 首页填写 AI 调用使用人。");
+            error.code = "missing-ai-usage-operator-name";
+            throw error;
+          }
+          return requestMeta;
+        };
 
   function sanitizeMessage(value, maxLength) {
     return String(value || "")
@@ -32,6 +65,120 @@
     } catch (error) {
       return "0.3.0";
     }
+  }
+
+  function isIgnoredUserText(text) {
+    return (
+      !text ||
+      text === "填写问卷" ||
+      text === "退出登录" ||
+      text === "标注中心" ||
+      text === "帮助文档" ||
+      text === "智能标注" ||
+      text.indexOf("总时长") >= 0 ||
+      text.indexOf("上传统计") >= 0 ||
+      text.indexOf("上传转写统计") >= 0
+    );
+  }
+
+  function getCurrentUserText() {
+    const candidates = Array.from(
+      document.querySelectorAll(
+        ".header-component-container .ant-v5-select-selection-item, .header-component-container [title], .header-component-container"
+      )
+    );
+
+    for (let index = 0; index < candidates.length; index += 1) {
+      const text = String(candidates[index].textContent || candidates[index].getAttribute("title") || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!isIgnoredUserText(text) && text.length <= 40) {
+        return text;
+      }
+    }
+
+    return "";
+  }
+
+  function delay(ms) {
+    return new Promise(function (resolve) {
+      window.setTimeout(resolve, ms);
+    });
+  }
+
+  function getVisibleText(node) {
+    return String(node?.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function dispatchMouseEvent(element, type) {
+    if (!element) {
+      return;
+    }
+
+    element.dispatchEvent(
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+      })
+    );
+  }
+
+  function findAvatarTrigger() {
+    return (
+      document.querySelector(
+        ".ant-v5-dropdown-trigger[class*='NavAvatar-module__userInfoWrapper'], .ant-v5-dropdown-trigger.avatar, [class*='NavAvatar-module__userInfoWrapper'], .header-component-container .ant-v5-avatar"
+      ) || null
+    );
+  }
+
+  function readVisibleAvatarDropdownUserText() {
+    const menuItems = Array.from(
+      document.querySelectorAll(
+        ".ant-v5-dropdown:not(.ant-v5-dropdown-hidden) .ant-v5-dropdown-menu-item, .ant-v5-dropdown-menu:not(.ant-v5-dropdown-menu-hidden) .ant-v5-dropdown-menu-item"
+      )
+    );
+
+    const userItem =
+      menuItems.find(function (item) {
+        return String(item.className || "").indexOf("NavAvatar-module__userAvatar") >= 0;
+      }) || menuItems[0] || null;
+    const candidates = userItem
+      ? Array.from(
+          userItem.querySelectorAll(
+            ".ant-v5-dropdown-menu-title-content, [class*='title-content'], span, div"
+          )
+        )
+      : [];
+    if (userItem) {
+      candidates.unshift(userItem);
+    }
+
+    for (let index = 0; index < candidates.length; index += 1) {
+      const text = getVisibleText(candidates[index]);
+      if (!isIgnoredUserText(text) && text.length <= 50) {
+        return text;
+      }
+    }
+
+    return "";
+  }
+
+  async function resolveCurrentUserText() {
+    const avatar = findAvatarTrigger();
+    if (avatar) {
+      dispatchMouseEvent(avatar, "mouseenter");
+      dispatchMouseEvent(avatar, "mouseover");
+      dispatchMouseEvent(avatar, "mousemove");
+      await delay(180);
+      const dropdownText = readVisibleAvatarDropdownUserText();
+      dispatchMouseEvent(avatar, "mouseleave");
+      if (dropdownText) {
+        return dropdownText;
+      }
+    }
+
+    return getCurrentUserText();
   }
 
   async function resolveBackendConfig() {
@@ -75,6 +222,7 @@
       mode,
       baseUrl: normalizedBaseUrl,
       endpoint,
+      settings,
     };
   }
 
@@ -111,9 +259,16 @@
         }, timeoutMs)
       : null;
 
-    const requestBody = Object.assign({}, payload || {}, {
+    const requestMeta = assertAiUsageOperatorConfigured(
+      buildAiUsageRequestMeta({
+        settings: config.settings || backend.settings || {},
+        platformUserName: await resolveCurrentUserText(),
+        platformUserId: payload?.platformUserId || "",
+      })
+    );
+    const requestBody = appendAiUsageRequestMeta(Object.assign({}, payload || {}, {
       clientVersion: payload?.clientVersion || getClientVersion(),
-    });
+    }), requestMeta);
 
     try {
       const response = await fetch(backend.endpoint, {

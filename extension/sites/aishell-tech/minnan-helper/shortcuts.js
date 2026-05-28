@@ -1,4 +1,8 @@
 (function () {
+  if (globalThis.__ASREdgeAishellTechMinnanShortcutsInstalled === true) {
+    return;
+  }
+  globalThis.__ASREdgeAishellTechMinnanShortcutsInstalled = true;
   const ACTION_LABELS = {
     aiRecommendCurrentItem: "AI 推荐当前条",
     autoFillQualifiedItem: "批量推荐并保存",
