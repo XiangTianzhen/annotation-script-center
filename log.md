@@ -12,9 +12,13 @@
   - 覆盖“本机失败后自动回退服务器成功”。
   - 覆盖“本机与服务器都失败时返回详细网络诊断”。
   - 覆盖“扩展上下文失效时给出专门提示”。
+- 继续增强 `extension/sites/aishell-tech/minnan-helper/ai-recommendation.js`：
+  - 当真实 `POST /recommend` 直接 `Failed to fetch` 时，前端会自动再探测一次 `/recommend/health`。
+  - 如果 health 成功，会明确提示“服务器入口可达，但真实推荐请求在网络层被中断”，并把 `healthCheck` 结果写入原始诊断 JSON，帮助区分“入口挂了”还是“真实请求链路被重置/中断”。
 - 更新 `extension/sites/aishell-tech/minnan-helper/README.md` 与 `platform-resources/aishell-tech/minnan-helper/README.md`：
   - 补充 Aishell 当前请求层的本机回退策略。
   - 补充浏览器层网络失败/扩展上下文失效时的原始诊断信息口径。
+  - 补充 network fail 后自动补探 health 的口径。
 
 ## 2026-05-28（Aishell Tech 单独落地平台 AI 调用 CSV）
 

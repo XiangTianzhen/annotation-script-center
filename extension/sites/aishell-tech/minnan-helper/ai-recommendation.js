@@ -228,6 +228,17 @@
         : "";
     }
 
+    function buildHealthEndpoint(endpoint) {
+      const text = normalizeText(endpoint);
+      if (!text) {
+        return "";
+      }
+      if (/\/health$/i.test(text)) {
+        return text;
+      }
+      return text.replace(/\/+$/, "") + "/health";
+    }
+
     function getPlatformUserMeta(item) {
       const source = item && typeof item === "object" ? item : {};
       return {
@@ -332,6 +343,54 @@
       }
     }
 
+    async function probeHealthEndpoint(endpoint, timeoutMs) {
+      const healthEndpoint = buildHealthEndpoint(endpoint);
+      if (!healthEndpoint || typeof fetchImpl !== "function") {
+        return {
+          ok: false,
+          endpoint: healthEndpoint,
+          reason: "health-probe-unavailable",
+        };
+      }
+
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timer = controller
+        ? globalThis.setTimeout(function () {
+            controller.abort();
+          }, Math.max(1000, Math.min(Number(timeoutMs) || 8000, 8000)))
+        : null;
+
+      try {
+        const response = await fetchImpl(healthEndpoint, {
+          method: "GET",
+          signal: controller ? controller.signal : undefined,
+        });
+        let body = null;
+        try {
+          body = await response.json();
+        } catch (_error) {
+          body = null;
+        }
+        return {
+          ok: response.ok && body?.success === true,
+          endpoint: healthEndpoint,
+          statusCode: Number(response.status) || 0,
+          body: body,
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          endpoint: healthEndpoint,
+          errorName: normalizeText(error?.name),
+          errorMessage: normalizeText(error?.message || error),
+        };
+      } finally {
+        if (timer) {
+          clearTimeout(timer);
+        }
+      }
+    }
+
     async function recommend(item) {
       const source = item && typeof item === "object" ? item : {};
       if (!source.taskId) {
@@ -408,28 +467,38 @@
               if (!(fallbackError instanceof TypeError)) {
                 throw fallbackError;
               }
+              const healthCheck = await probeHealthEndpoint(fallbackEndpoint, timeoutMs);
               throw createDetailedClientError(
-                "本机后端连接失败，且回退服务器接口也失败。请检查本机服务是否启动，或在 options 首页把后端接口地址切回服务器。",
+                healthCheck.ok === true
+                  ? "本机后端连接失败，回退服务器时服务器 health 可达，但 AI recommend 请求仍在网络层被中断。请检查服务器 Nginx、PM2 和后端日志。"
+                  : "本机后端连接失败，且回退服务器接口也失败。请检查本机服务是否启动，或在 options 首页把后端接口地址切回服务器。",
                 "network-disconnected",
-                createNetworkErrorMeta({
+                Object.assign(createNetworkErrorMeta({
                   backendMode: backendMode,
                   endpoint: endpoint,
                   fallbackEndpoint: fallbackEndpoint,
                   fallbackAttempted: true,
                   error,
+                }), {
+                  healthCheck: healthCheck,
                 })
               );
             }
           }
+          const healthCheck = await probeHealthEndpoint(endpoint, timeoutMs);
           throw createDetailedClientError(
-            "后端连接中断，请稍后重试。",
+            healthCheck.ok === true
+              ? "服务器 health 可达，但 AI recommend 请求在网络层被中断。请检查 Nginx 反向代理、PM2 进程状态和后端日志。"
+              : "后端连接中断，请稍后重试。",
             "network-disconnected",
-            createNetworkErrorMeta({
+            Object.assign(createNetworkErrorMeta({
               backendMode: backendMode,
               endpoint: endpoint,
               fallbackEndpoint: fallbackEndpoint,
               fallbackAttempted: false,
               error,
+            }), {
+              healthCheck: healthCheck,
             })
           );
         }

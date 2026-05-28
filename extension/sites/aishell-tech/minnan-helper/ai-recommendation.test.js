@@ -134,3 +134,56 @@ test("Aishell ai-recommendation reports extension context invalidated explicitly
     }
   );
 });
+
+test("Aishell ai-recommendation probes health when server-mode recommend fetch fails", async function () {
+  const calls = [];
+  const runtime = createRuntime({
+    endpoint: "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
+    settings: {
+      meta: {
+        aiUsageOperatorName: "张三",
+        backendEndpointMode: "server",
+      },
+    },
+    fetchImpl: async function fetchImpl(url) {
+      calls.push(String(url || ""));
+      if (String(url || "").indexOf("/health") >= 0) {
+        return {
+          ok: true,
+          status: 200,
+          json: async function () {
+            return {
+              success: true,
+            };
+          },
+        };
+      }
+      throw new TypeError("Failed to fetch");
+    },
+  });
+
+  await assert.rejects(
+    runtime.recommend({
+      taskId: "task-1",
+      packageId: "package-1",
+      taskItemId: "item-1",
+      fileName: "clip-1.wav",
+      audioUrl: "https://example.com/audio.wav",
+      referenceText: "我爱你。",
+    }),
+    function (error) {
+      assert.equal(
+        error.message,
+        "服务器 health 可达，但 AI recommend 请求在网络层被中断。请检查 Nginx 反向代理、PM2 进程状态和后端日志。"
+      );
+      assert.deepEqual(calls, [
+        "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
+        "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend/health",
+      ]);
+      assert.equal(error.rawResponse.backendMode, "server");
+      assert.equal(error.rawResponse.healthCheck.ok, true);
+      assert.equal(error.rawResponse.healthCheck.statusCode, 200);
+      return true;
+    }
+  );
+});

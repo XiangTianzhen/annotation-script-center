@@ -13,6 +13,7 @@
   - “当前识别结果”区会额外显示 AI 诊断信息：识别策略、模型选择、AI耗时、前端并发、输入/输出/总 token、FunASR provider、后端模式、后端地址、是否发生自动回退、requestId、debugId。
   - 如果当前后端模式是“本机（127.0.0.1:3333）”且本机接口不可达，前端会自动回退一次 `script.xiangtianzhen.store` 服务器接口；只影响本次请求，不会改写用户设置。
   - 如果 AI 请求在浏览器层直接失败（例如本机后端没启动、网络层失败、扩展上下文失效），状态区会直接展开原始诊断 JSON，至少包含：当前后端模式、请求 endpoint、回退 endpoint、浏览器原始异常名/异常消息、在线状态。
+  - 当 `POST /recommend` 直接 `Failed to fetch` 时，前端还会立刻再探测一次 `/recommend/health`；如果 health 正常，会明确提示“入口活着，但真实推荐请求链路在网络层被中断”，方便优先排查 Nginx / PM2 / Node 进程日志。
   - 该形态作为 Aishell 前端的默认长期样式基线，后续迭代优先在这套嵌入式结构上继续细化。
 - 已移除 Aishell 的高风险注入链：
   - 移除 `page-world/network-observer.js` 注入。
