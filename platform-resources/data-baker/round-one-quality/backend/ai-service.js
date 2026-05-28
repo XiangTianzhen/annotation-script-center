@@ -52,7 +52,7 @@ const {
 } = require("./ai-job-store");
 const { rememberAiDebug } = require("./ai-debug-store");
 
-const RULE_VERSION = "data-baker-round-one-quality-ai-v10-direct-recommend-120s";
+const RULE_VERSION = "data-baker-round-one-quality-ai-v11-direct-recommend-60s";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "你要一次完成：听音、对比页面候选文本、输出最终推荐文本。",
   "页面候选文本只作为参考，实际发声优先。",
@@ -1940,7 +1940,7 @@ function createHealthPayload() {
       defaultResultMode: "sync-recommend",
       asyncJobsDefaultEnabled: false,
       requestStaggerMs: 30,
-      timeoutPolicy: "ai-model-timeout-120000ms",
+      timeoutPolicy: "ai-model-timeout-60000ms",
       frontEndBatchConcurrency:
         "Omni 默认 15、范围 1~25；Fun-ASR 默认 25、范围 1~50；前后端都会归一超范围值。",
     },

@@ -115,10 +115,10 @@ function createLifecycleController(request, response, timeoutMs, requestId, crea
     controller.abort({
       code: "aborted",
       statusCode: 504,
-      message: "当前同步请求超过 120s，已取消。",
+      message: "当前同步请求超过 60s，已取消。",
       requestId,
     });
-  }, Math.max(1000, Number(timeoutMs) || 120000));
+  }, Math.max(1000, Number(timeoutMs) || 60000));
 
   const onRequestClosed = function () {
     if (completed || response.writableEnded === true) {

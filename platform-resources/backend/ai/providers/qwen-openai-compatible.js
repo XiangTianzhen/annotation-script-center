@@ -433,7 +433,7 @@ async function requestChatCompletion(requestBody, options) {
   }
   const signal = options?.signal;
   if (isAbortSignalAborted(signal)) {
-    throw normalizeAbortError(signal.reason, "当前任务超过120s，请重新请求。", "aborted", 504);
+    throw normalizeAbortError(signal.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
   }
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   const unbindAbort = bindAbortSignal(controller, signal);
@@ -483,7 +483,7 @@ async function requestChatCompletion(requestBody, options) {
   } catch (error) {
     if (error?.name === "AbortError") {
       if (isAbortSignalAborted(signal)) {
-        throw normalizeAbortError(signal.reason, "当前任务超过120s，请重新请求。", "aborted", 504);
+        throw normalizeAbortError(signal.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
       }
       throw createTimeoutError("Qwen 请求超时。");
     }

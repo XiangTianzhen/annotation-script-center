@@ -229,7 +229,7 @@
     "qwen-turbo",
     "qwen-long",
   ];
-  const DEFAULT_AI_REQUEST_TIMEOUT_MS = 120000;
+  const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS = 60 * 1000;
   const normalizeAiUsageOperatorName =
     typeof aiUsageMeta.normalizeAiUsageOperatorName === "function"

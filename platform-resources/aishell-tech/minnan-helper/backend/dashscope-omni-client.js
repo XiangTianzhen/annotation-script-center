@@ -346,7 +346,7 @@ async function requestDashScopeOmniAudioText(input, prompt, options) {
 
   const signal = options?.signal;
   if (isAbortSignalAborted(signal)) {
-    throw normalizeAbortError(signal.reason, "当前任务超过120s，请重新请求。", "aborted", 504);
+    throw normalizeAbortError(signal.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
   }
 
   const controller = typeof AbortController === "function" ? new AbortController() : null;
@@ -447,7 +447,7 @@ async function requestDashScopeOmniAudioText(input, prompt, options) {
   } catch (error) {
     if (error?.name === "AbortError") {
       if (isAbortSignalAborted(signal)) {
-        throw normalizeAbortError(signal.reason, "当前任务超过120s，请重新请求。", "aborted", 504);
+        throw normalizeAbortError(signal.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
       }
       throw createTimeoutError("DashScope Omni 请求超时。");
     }

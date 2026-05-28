@@ -181,7 +181,7 @@ class DataBakerAiJobStore {
       });
       mutableJob.providerStatus = 504;
       mutableJob.errorCode = "ai-job-timeout";
-      mutableJob.errorMessage = "当前任务超过120s，请重新请求。";
+      mutableJob.errorMessage = "当前任务超过60s，请重新请求。";
       return { ignored: false };
     });
   }

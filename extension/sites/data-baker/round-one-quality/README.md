@@ -32,7 +32,7 @@
 - 当前 DataBaker Qwen Omni 默认按前端并发直接请求，`30ms` 错峰保持不变；Fun-ASR REST 仍继续走自己的后端并发保护。
 - 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认直接发送同步 `POST /ai/recommend`；当前页有 N 条合格项，就会调度 N 条请求，前端按 `30ms` 错峰发起，并由前端活跃并发上限与后端 provider queue / RPM 限流共同保护链路。
 - 异步 job 默认最大保留数量 `600`，provider queue 默认最大排队数 `600`。
-- 单条 AI / 模型请求默认超时 `120000ms`；若仍未返回，失败列表固定提示“当前任务超过120s，请重新请求。”，且迟到结果不会再进入待填队列。
+- 单条 AI / 模型请求默认超时 `60000ms`；若仍未返回，失败列表固定提示“当前任务超过60s，请重新请求。”，且迟到结果不会再进入待填队列。
 - 批量失败列表现在统一显示“查看原始AI返回”按钮；支持 `qwen-empty-response`、`model-json-parse-failed`、`provider-http-error`、`fun-asr-auth-error`、`fun-asr-audio-url-unreachable`、`fun-asr-task-failed` 等失败直接查看脱敏后的 debug JSON。
 - 点击“查看原始AI返回”后会弹出文本悬浮窗，标题为“原始 AI 返回”，并在 textarea 中展示 `JSON.stringify(debug, null, 2)`。
 - 若 Qwen Omni SSE 返回 `data: {"error":{"code":"limit_burst_rate"...}}`，前端失败文案会明确显示“Qwen 请求突增限流，接口返回请求增长过快，可降低并发或稍后重试。”，不再误报为“Qwen 接口未返回有效文本”。

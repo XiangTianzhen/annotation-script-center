@@ -39,7 +39,7 @@ Options（Abaka AI Task21 详情）“AI 调试”保存：
 - `aiReasoningModel`
 - `aiSingleModel`
 - `aiEnableThinking`（默认 `false`）
-- `aiRequestTimeoutMs`（默认 `120000`）
+- `aiRequestTimeoutMs`（默认 `60000`）
 
 前端调用 `/api/abaka-ai/task21/ai/analyze` 时显式携带上述参数。  
 前端不保存 API Key。

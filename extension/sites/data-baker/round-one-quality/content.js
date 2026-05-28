@@ -1,6 +1,6 @@
 (function () {
   const CHECK_INTERVAL_MS = 1000;
-  const DEFAULT_AI_REQUEST_TIMEOUT_MS = 120000;
+  const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const DEFAULT_AI_ASYNC_JOBS_ENABLED = false;
   const DEFAULT_AI_REQUEST_STAGGER_MS = 30;
   const PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];

@@ -118,7 +118,7 @@ const COMPARE_MODEL_OPTIONS = [
 ];
 const DEFAULT_SINGLE_MODEL = "qwen3.5-omni-flash";
 const DEFAULT_FUN_ASR_MODEL = "fun-asr";
-const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_TIMEOUT_MS = 60000;
 const DEFAULT_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 
@@ -1067,7 +1067,7 @@ function sanitizeError(error) {
     return error;
   }
   if (error.name === "AbortError") {
-    return normalizeAbortError(error, "当前任务超过120s，请重新请求。", "aborted", 504);
+    return normalizeAbortError(error, "当前任务超过60s，请重新请求。", "aborted", 504);
   }
   return error;
 }

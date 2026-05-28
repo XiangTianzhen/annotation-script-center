@@ -38,7 +38,7 @@
 统一启动口径：
 
 - 仍然只启动 Node 后端：`node platform-resources/backend/server.js`
-- 统一 AI / 模型请求默认超时时间为 `120000ms`；非 AI 接口超时另按业务设置。
+- 统一 AI / 模型请求默认超时时间为 `60000ms`；非 AI 接口超时另按业务设置。
 - Fun-ASR 默认 provider 是 Node REST，不启动 Python 子进程。
 - Python 不作为独立服务启动；只在显式切到 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时作为统一 Node 后端内部辅助进程。
 - Fun-ASR REST 是异步任务模式：`POST /services/audio/asr/transcription` 提交任务，`POST /tasks/{task_id}` 查询任务；本轮只实现单条 REST 调用，不启用 `file_urls` batch。
@@ -60,7 +60,7 @@
 - DataBaker Omni legacy 快速路径默认不再把 Qwen 上游平滑进 `qwen_omni` / `text_compare` 队列；前端并发多少就直接发送多少。仅当 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1` 时，才会重新启用 Qwen 平滑队列。
 - `DATABAKER_AI_QWEN_BURST_RETRY_MAX` 默认 `0`，即 `limit_burst_rate` 默认不自动退避重试，只暴露真实错误并保留 debug；如需更稳，可手动设为 `3` 并配合 `DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS`。
 - DataBaker 异步 job 默认上限仍为 `600`，provider queue 默认上限也同步为 `600`；但 jobs 仅保留为历史兼容 / 调试接口，不再作为默认 AI 结果接收方案。
-- 单个异步 job 默认超时 `120000ms`，超时后会通过 `AbortController` 取消或逻辑丢弃迟到结果，并固定提示“当前任务超过120s，请重新请求。”。异步 job 仅保留给历史兼容 / 调试场景，默认 AI 结果接收仍应使用同步 HTTP recommend。
+- 单个异步 job 默认超时 `60000ms`，超时后会通过 `AbortController` 取消或逻辑丢弃迟到结果，并固定提示“当前任务超过60s，请重新请求。”。异步 job 仅保留给历史兼容 / 调试场景，默认 AI 结果接收仍应使用同步 HTTP recommend。
 - DataBaker 模型输出 JSON 解析失败时，会保留脱敏后的 `debugRawJson`，供前端“复制原始JSON”按钮通过 `/ai/recommend/jobs/:jobId/debug` 拉取。
 
 

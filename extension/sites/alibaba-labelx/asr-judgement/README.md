@@ -27,7 +27,7 @@
 - AI 建议地址不再由脚本详情页单独配置；统一使用 options 首页顶部“后端接口地址”拼接：
   - `server`：`https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/ai/suggest`
   - `local`：`http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest`
-- 请求超时字段：`aiSuggestionRequestTimeoutMs`，默认 `120000`。
+- 请求超时字段：`aiSuggestionRequestTimeoutMs`，默认 `60000`。
 - 快判 options 新增 AI 字段：
   - `aiSuggestionListenModel`（默认 `qwen3.5-omni-flash`）
   - `aiSuggestionCompareModel`（默认 `qwen3.5-plus`）

@@ -74,9 +74,9 @@ function withThinkingPreference(requestBody, preference) {
 }
 
 function parseTimeoutMs() {
-  const value = Number(readProfileEnv("TIMEOUT_MS", 120000));
+  const value = Number(readProfileEnv("TIMEOUT_MS", 60000));
   if (!Number.isFinite(value)) {
-    return 120000;
+    return 60000;
   }
   return Math.max(1000, Math.min(300000, value));
 }

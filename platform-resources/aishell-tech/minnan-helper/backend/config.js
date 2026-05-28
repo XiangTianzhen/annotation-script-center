@@ -16,7 +16,7 @@ const {
 } = require("../../../backend/ai/config");
 
 const DEFAULT_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
-const AISHELL_DEFAULT_TIMEOUT_MS = 120000;
+const AISHELL_DEFAULT_TIMEOUT_MS = 60000;
 const DEFAULT_QUEUE_MAX_SIZE = 600;
 const DEFAULT_RETRY_MAX = 3;
 const DEFAULT_QWEN_BURST_RETRY_MAX = 0;

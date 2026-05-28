@@ -1,7 +1,7 @@
 (function () {
   const DEFAULT_ENDPOINT =
     "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
-  const DEFAULT_TIMEOUT_MS = 120000;
+  const DEFAULT_TIMEOUT_MS = 60000;
   const DEFAULT_REQUEST_STAGGER_MS = 30;
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const buildAiUsageRequestMeta =

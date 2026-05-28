@@ -98,7 +98,7 @@ function normalizeAbortError(reason, fallbackMessage, fallbackCode, fallbackStat
 }
 
 function createJobTimeoutError() {
-  return createAbortedError("当前任务超过120s，请重新请求。", "ai-job-timeout", 504);
+  return createAbortedError("当前任务超过60s，请重新请求。", "ai-job-timeout", 504);
 }
 
 function createPythonRuntimeError(message, code, statusCode, summary) {

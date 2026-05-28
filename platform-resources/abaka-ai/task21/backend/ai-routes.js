@@ -139,7 +139,7 @@ function normalizeStringArrayPreserveDuplicates(value, maxItems, maxLengthPerIte
 function normalizeTimeoutMs(value, fallback) {
   const number = Number(value);
   const base = Number.isFinite(number) ? number : Number(fallback);
-  const safe = Number.isFinite(base) ? base : 120000;
+  const safe = Number.isFinite(base) ? base : 60000;
   return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, Math.floor(safe)));
 }
 

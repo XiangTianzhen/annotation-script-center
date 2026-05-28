@@ -8,7 +8,7 @@ const DEFAULT_COMPARE_MODEL = "qwen3.5-plus";
 const DEFAULT_FUN_ASR_MODEL = "fun-asr";
 const DEFAULT_FUN_ASR_PROVIDER = "rest";
 const DEFAULT_FUN_ASR_REST_POLL_INTERVAL_MS = 1000;
-const DEFAULT_JOB_TIMEOUT_MS = 120000;
+const DEFAULT_JOB_TIMEOUT_MS = 60000;
 const DEFAULT_JOB_TTL_MS = 1800000;
 const DATABAKER_FUN_ASR_AUTOFILL_RULE = {
   min: 1,
@@ -40,7 +40,7 @@ const DATABAKER_COMPARE_MODEL_OPTIONS = [
   "qwen3.6-flash",
   "qwen3.5-flash",
 ];
-const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_TIMEOUT_MS = 60000;
 const DEFAULT_REQUEST_PARAMS = {
   temperature: 0.1,
   top_p: 0.8,

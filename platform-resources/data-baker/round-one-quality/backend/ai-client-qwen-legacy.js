@@ -50,9 +50,9 @@ function isMockEnabled() {
 }
 
 function parseTimeoutMs() {
-  const value = Number(process.env.DATABAKER_AI_TIMEOUT_MS || 120000);
+  const value = Number(process.env.DATABAKER_AI_TIMEOUT_MS || 60000);
   if (!Number.isFinite(value)) {
-    return 120000;
+    return 60000;
   }
   return Math.max(1000, Math.min(300000, Math.floor(value)));
 }
@@ -523,7 +523,7 @@ async function requestChatCompletion(requestBody, options) {
   }
   const signal = options?.signal;
   if (isAbortSignalAborted(signal)) {
-    throw normalizeAbortError(signal.reason, "当前任务超过120s，请重新请求。", "aborted", 504);
+    throw normalizeAbortError(signal.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
   }
 
   const controller = typeof AbortController === "function" ? new AbortController() : null;
@@ -577,7 +577,7 @@ async function requestChatCompletion(requestBody, options) {
   } catch (error) {
     if (error?.name === "AbortError") {
       if (isAbortSignalAborted(signal)) {
-        throw normalizeAbortError(signal.reason, "当前任务超过120s，请重新请求。", "aborted", 504);
+        throw normalizeAbortError(signal.reason, "当前任务超过60s，请重新请求。", "aborted", 504);
       }
       throw createTimeoutError("Qwen 请求超时。");
     }

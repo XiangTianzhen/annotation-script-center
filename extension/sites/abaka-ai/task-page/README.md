@@ -88,7 +88,7 @@
     - 候选：`qwen3.6-plus`、`qwen3.6-flash`、`qwen3.5-plus`、`qwen3.5-flash`
   - 单模型（single_model）
   - thinking 当前已全局固定关闭
-  - 请求超时（默认 `120000ms`）
+  - 请求超时（默认 `60000ms`）
   - 前端不保存 API Key
 - AI 调用元数据：
   - 每次 AI 请求默认附带 `aiUsageOperatorName`

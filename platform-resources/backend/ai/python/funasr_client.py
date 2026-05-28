@@ -392,7 +392,7 @@ def main():
     payload = parse_stdin()
     audio_url = str(payload.get("audioUrl") or "").strip()
     model = str(payload.get("model") or "fun-asr").strip() or "fun-asr"
-    timeout_ms = max(1000, min(300000, int(float(payload.get("timeoutMs") or 120000))))
+    timeout_ms = max(1000, min(300000, int(float(payload.get("timeoutMs") or 60000))))
     language_hints = normalize_language_hints(payload.get("languageHints"))
     api_key = str(os.getenv("DASHSCOPE_API_KEY") or "").strip()
 

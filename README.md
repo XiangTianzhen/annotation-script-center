@@ -125,7 +125,7 @@ node platform-resources/backend/server.js
 ## 默认时间规则
 
 - TTS 自动清除默认时间统一为 `60000ms`。
-- AI / 模型请求默认超时时间统一为 `120000ms`。
+- AI / 模型请求默认超时时间统一为 `60000ms`。
 - 该默认规则已写入仓库根目录 `AGENTS.md`。
 - 用户在脚本高级设置中手动保存的非默认超时值应继续保留。
 - 非 AI 模型类的上传、下载、统计与普通后端接口超时不受该规则影响。
@@ -293,12 +293,12 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - DataBaker 批量连续填入默认直接调用同步 recommend；异步 job 接口不再作为默认 AI 结果接收链路。
 - `DATABAKER_AI_ASYNC_JOBS_ENABLED=0`
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED=0`（历史兼容）
-- `DATABAKER_AI_JOB_TIMEOUT_MS=120000`（仅兼容 job 接口时生效）
+- `DATABAKER_AI_JOB_TIMEOUT_MS=60000`（仅兼容 job 接口时生效）
 - `DATABAKER_AI_JOB_TTL_MS=1800000`
 - `DATABAKER_AI_JOB_MAX_SIZE=600`
 - `DATABAKER_AI_QUEUE_MAX_SIZE=600`
 - `DATABAKER_AI_REQUEST_STAGGER_MS=30`（前端错峰发起间隔说明）
-- 超过 2 分钟仍未返回的 AI 请求，默认认为不适合当前项目，应优化模型、Prompt、任务拆分或后端策略，而不是继续拉长超时。
+- 超过 1 分钟仍未返回的 AI 请求，默认认为不适合当前项目，应优化模型、Prompt、任务拆分或后端策略，而不是继续拉长超时。
 - DataBaker 平台当前实际的自动清除时间字段位于前端顶部统计悬浮窗 `autoHideMs`，默认仍为 `60000ms`。
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
 - 当前仓库所有 AI 链路都已强制 `enable_thinking=false`；若仍出现慢请求，应优先排查模型链路、队列等待或 provider 行为，而不是 thinking 开关。

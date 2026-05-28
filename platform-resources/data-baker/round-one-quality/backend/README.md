@@ -86,7 +86,7 @@
 ## 环境变量
 
 - `DASHSCOPE_API_KEY`：DashScope API Key，真实调用必需；统一后端启动时默认从仓库根目录 `config/env/ai.env` 自动读取。
-- `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
+- `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `60000`。
 - `DATABAKER_AI_OMNI_LEGACY_FAST_PATH`：默认 `1`；开启后上述 DataBaker Omni 模型优先走参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 的 Omni legacy 快速路径。
 - `DATABAKER_AI_MOCK`：设为 `1` 时走 mock，可直接写入 `config/env/ai.env`。
 - `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，原生 `fetch` 请求体顶层传 `enable_thinking=false` 尝试关闭 thinking；设为 `1` 时不传该字段。
@@ -100,7 +100,7 @@
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：历史兼容开关，默认 `0`；当前默认链路不再依赖异步 job。
-- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `120000`。仅在历史兼容 job 被显式启用时生效。
+- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `60000`。仅在历史兼容 job 被显式启用时生效。
 - `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
 - `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 最大保留数量，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
 - `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端轮询 job 状态建议间隔，默认 `1000` ms。

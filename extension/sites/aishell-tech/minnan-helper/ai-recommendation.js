@@ -11,7 +11,7 @@
     constants.AISHELL_TECH_AI_RECOMMEND_PATH || "/api/aishell-tech/minnan-helper/ai/recommend";
   const BACKEND_MODE_SERVER = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const BACKEND_MODE_LOCAL = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
-  const DEFAULT_TIMEOUT_MS = 120000;
+  const DEFAULT_TIMEOUT_MS = 60000;
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const buildAiUsageRequestMeta =
     typeof aiUsageMeta.buildAiUsageRequestMeta === "function"

@@ -1,3 +1,21 @@
+## 2026-05-28（AI 默认超时统一收紧到 60 秒，并清理 AI 测试文件口径）
+
+- 按项目新口径，将仓库内 AI / 模型默认超时从 `120000ms` 统一收紧到 `60000ms`：
+  - 前端默认配置、options、storage 和各平台 AI client fallback 全部改为 `60000ms`
+  - 后端公共 AI config、Aishell 独立链路、DataBaker、Magic Data、Abaka、LabelX 的默认 AI timeout 与超时报错文案统一改为 `60s`
+  - 历史兼容 DataBaker AI job timeout 默认值同步改为 `60000ms`
+- 同步更新当前生效文档：
+  - `AGENTS.md`
+  - 根 `README.md`
+  - `config/env/ai.env.example`
+  - 各平台 AI 相关 README
+- `AGENTS.md` 新增规则：
+  - AI / 模型相关 `*.test.js` 默认视为临时验证文件，验证完成后删除，不作为长期仓库资产保留，除非当前 Prompt 明确保留。
+- 本轮已在验证后删除一批 AI 相关 `*.test.js`：
+  - Aishell 前后端临时测试
+  - AI framework / provider 临时测试
+  - Abaka / LabelX / DataBaker / Magic Data 的 AI adapter 临时测试
+
 ## 2026-05-28（Aishell Tech recommend 路由修复 request.close 误判断连）
 
 - 修复 `platform-resources/aishell-tech/minnan-helper/backend/ai-routes.js`：

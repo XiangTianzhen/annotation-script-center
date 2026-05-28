@@ -170,7 +170,7 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_LISTEN_MODEL`：DataBaker 听音模型默认值；当前 Omni legacy 快速路径默认使用 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_OMNI_MODEL`：Qwen Omni 模型默认值；双模型下用于 Omni 听音，单模型下用于 Omni 单模型推荐，默认 `qwen3.5-omni-flash`。
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
-- `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
+- `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `60000`。
 - `DATABAKER_AI_OMNI_LEGACY_FAST_PATH`：默认 `1`；开启后上述 DataBaker Omni 模型会优先走参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 的 Omni legacy 快速路径。
 - `DATABAKER_AI_ENABLE_THINKING`：历史兼容变量；当前仓库已统一固定关闭 thinking，DataBaker 会继续显式传 `enable_thinking=false`，不再允许通过该变量开启。
 - `DATABAKER_AI_PIPELINE_MODE`：识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。旧值 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
@@ -185,7 +185,7 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
 - `DATABAKER_AI_QWEN_SMOOTH_ENABLED`：默认 `0`；DataBaker Omni legacy 快速路径默认按前端并发直接请求，只有设为 `1` 时才重新启用后端平滑。
 - `DATABAKER_AI_QWEN_BURST_RETRY_MAX`：默认 `0`；`limit_burst_rate` 默认直接暴露真实错误，不自动退避重试，需要更稳时再手动改为 `3`。
-- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `120000`。仅在历史兼容 job 被显式启用时生效。
+- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `60000`。仅在历史兼容 job 被显式启用时生效。
 - `DATABAKER_AI_JOB_TTL_MS`：异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
 - `DATABAKER_AI_JOB_MAX_SIZE`：异步 job 最大保留数量，默认 `600`。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `600`。
@@ -255,7 +255,7 @@ platform-resources/backend/ai/python/requirements.txt
   - 当前只做单条 REST 调用，不启用 `file_urls` batch
 - 默认链路不启动 Python 子进程，可降低本机 CPU 压力
 - `two_stage + fun-asr` 的批量连续填入默认直接走同步 `POST /ai/recommend`；异步 jobs 仅保留为历史兼容 / 调试接口。
-- 单条 AI / 模型请求默认超时 `120000ms`；超过 2 分钟仍未返回，默认认为该链路不适合当前项目，应优先优化模型、Prompt、任务拆分或后端策略。
+- 单条 AI / 模型请求默认超时 `60000ms`；超过 1 分钟仍未返回，默认认为该链路不适合当前项目，应优先优化模型、Prompt、任务拆分或后端策略。
 - 如果模型输出 JSON 解析失败，失败列表会显示“复制原始JSON”按钮；同步 recommend 与历史兼容 jobs 都会返回可复制的脱敏 debug 信息。
 - 前端 `loadFailureDebugJson` 已恢复为安全兜底函数；没有 debug 数据时会明确提示“当前失败项没有可复制的原始 JSON.”，不再抛 `ReferenceError`。
 - job 默认 TTL 仍为 `1800000`（30 分钟）；这属于历史兼容 job 记录保留时间，不影响默认同步 recommend 主链路。

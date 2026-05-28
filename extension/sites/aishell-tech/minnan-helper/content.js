@@ -6,7 +6,7 @@
 
   const CONSTANTS = globalThis.ASREdgeConstants || {};
   const STORAGE = globalThis.ASREdgeStorage || null;
-  const DEFAULT_TIMEOUT_MS = Number(CONSTANTS.DEFAULT_AI_REQUEST_TIMEOUT_MS || 120000) || 120000;
+  const DEFAULT_TIMEOUT_MS = Number(CONSTANTS.DEFAULT_AI_REQUEST_TIMEOUT_MS || 60000) || 60000;
   const SCRIPT_ID =
     CONSTANTS.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
   const RECOMMEND_PATH =
