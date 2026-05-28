@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  createRuntime,
   ensureChineseSentencePunctuation,
   extractAuthTokenFromUnknown,
   findAuthTokenInEntries,
@@ -107,4 +108,10 @@ test("createRateLimitedTaskScheduler spaces task start time by staggerMs", async
       "expected stagger between dispatched requests"
     );
   }
+});
+
+test("createRuntime exposes createRateLimitedTaskScheduler for content runtime", function () {
+  const runtime = createRuntime();
+
+  assert.equal(typeof runtime.createRateLimitedTaskScheduler, "function");
 });

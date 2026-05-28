@@ -732,6 +732,7 @@
     return {
       canFillPageText,
       clickSaveAndWait,
+      createRateLimitedTaskScheduler,
       fillPageText,
       fillAndSaveCurrent,
       getBatchTasksFromCurrentSelection,

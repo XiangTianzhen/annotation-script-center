@@ -2931,6 +2931,11 @@
   - 每条都等待页面切条成功后再继续下一条。
   - 失败条继续进入失败清单，不阻塞后续条目。
 
+## 2026-05-28（Aishell Tech 批量调度器运行时热修）
+
+- 修复批量识别报错 `dataApi.createRateLimitedTaskScheduler is not a function`。
+- 根因是 `data-api.js` 虽然定义并导出了调度器，但 `createRuntime()` 返回的 runtime 对象漏暴露该函数；现已补回并增加运行时测试覆盖。
+
 ## 2026-05-28（Aishell Tech 并发识别与双策略模式）
 
 - 批量识别从“先切条再识别”改为“直接读取 `packageItemList` 后并发发起 AI 请求”：
