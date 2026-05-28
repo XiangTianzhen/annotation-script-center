@@ -7,10 +7,13 @@ const {
   buildSaveShortMarkPayload,
   createRuntime,
   ensureChineseSentencePunctuation,
+  doesDomListItemMatchTask,
+  doesListFileHintMatch,
   extractSavedMarkText,
   extractAuthTokenFromUnknown,
   findAuthTokenInEntries,
   isSaveCompletionState,
+  parseListItemLabel,
   createRateLimitedTaskScheduler,
   removeTextSpaces,
 } = require("./data-api.js");
@@ -100,6 +103,40 @@ test("buildSaveShortMarkPayload matches aishell save contract", function () {
   );
 });
 
+test("parseListItemLabel extracts number and truncated file hint", function () {
+  assert.deepEqual(parseListItemLabel("35:  ...59666546823.wav"), {
+    number: 35,
+    fileHint: "...59666546823.wav",
+  });
+});
+
+test("doesListFileHintMatch accepts truncated suffix labels", function () {
+  assert.equal(
+    doesListFileHintMatch("AS-mn-002_035_20589090959666546823.wav", "...59666546823.wav"),
+    true
+  );
+  assert.equal(
+    doesListFileHintMatch("AS-mn-002_035_20589090959666546823.wav", "...59666546824.wav"),
+    false
+  );
+});
+
+test("doesDomListItemMatchTask matches by number and file suffix", function () {
+  assert.equal(
+    doesDomListItemMatchTask(
+      {
+        number: 35,
+        fileHint: "...59666546823.wav",
+      },
+      {
+        number: 35,
+        fileName: "AS-mn-002_035_20589090959666546823.wav",
+      }
+    ),
+    true
+  );
+});
+
 test("isSaveCompletionState returns true when selected index advances", function () {
   assert.equal(
     isSaveCompletionState(1, {
@@ -161,4 +198,6 @@ test("createRuntime exposes createRateLimitedTaskScheduler for content runtime",
   assert.equal(typeof runtime.createRateLimitedTaskScheduler, "function");
   assert.equal(typeof runtime.buildSaveShortMarkPayload, "function");
   assert.equal(typeof runtime.extractSavedMarkText, "function");
+  assert.equal(typeof runtime.selectTask, "function");
+  assert.equal(typeof runtime.getItemByTask, "function");
 });

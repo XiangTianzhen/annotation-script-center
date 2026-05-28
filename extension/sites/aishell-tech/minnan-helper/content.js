@@ -182,6 +182,7 @@
         aiRecommendFrequencyPenalty: "",
         aiRecommendSeed: "",
         aiRecommendStopSequences: "",
+        shortcuts: {},
       },
       defaults || {}
     );
@@ -229,6 +230,7 @@
     const dataApiFactory = globalThis.__ASREdgeAishellTechMinnanDataApi;
     const aiFactory = globalThis.__ASREdgeAishellTechMinnanAiRecommendation;
     const uiFactory = globalThis.__ASREdgeAishellTechMinnanUiPanel;
+    const shortcutsFactory = globalThis.__ASREdgeAishellTechMinnanShortcuts;
 
     if (!dataApiFactory?.createRuntime || !aiFactory?.createRuntime || !uiFactory?.createRuntime) {
       return null;
@@ -256,6 +258,20 @@
       canFillPageText: dataApi.canFillPageText,
       fillAndSaveCurrent: dataApi.fillAndSaveCurrent,
     });
+    const shortcuts = shortcutsFactory?.createRuntime
+      ? shortcutsFactory.createRuntime({
+          shortcuts: config.shortcuts || {},
+          actions: {
+            requestAiRecommend: handleRecommend,
+            autoFillQualifiedItem: handleBatchRecommend,
+            copyHeardText: panel.copyHeardText,
+            copyRecommendedText: panel.copyRecommendedText,
+            fillRecommendedText: panel.fillRecommendedText,
+            ignoreAiResult: panel.ignoreAiResult,
+            showStatus: panel.setStatus,
+          },
+        })
+      : null;
 
     let mountTimer = null;
     let currentBusyState = {
@@ -370,7 +386,7 @@
               if (batchStopRequested === true) {
                 throw new Error("批量识别已手动停止。");
               }
-              const item = await dataApi.getItemByIndex(task.index, {
+              const item = await dataApi.getItemByTask(task, {
                 includeCurrentInput: false,
               });
               if (!item) {
@@ -453,8 +469,9 @@
           }
           try {
             panel.renderResult(entry.result);
-            const switchResult = await dataApi.selectItemByIndex(task.index, {
-              timeoutMs: 8000,
+            const switchResult = await dataApi.selectTask(task, {
+              timeoutMs: 12000,
+              maxAttempts: 4,
             });
             if (switchResult?.ok === false) {
               throw new Error(switchResult.message || "切换批量条目失败。");
@@ -546,6 +563,7 @@
 
     function start() {
       dataApi.start();
+      shortcuts?.start?.();
       ensureMounted();
       mountTimer = window.setInterval(ensureMounted, 1200);
       panel.setStatus("闽南语助手已就绪。", "success");
@@ -556,6 +574,7 @@
         window.clearInterval(mountTimer);
         mountTimer = null;
       }
+      shortcuts?.stop?.();
       dataApi.stop();
       panel.remove();
     }

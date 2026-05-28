@@ -1086,7 +1086,7 @@
           <div class="field-card">
             <strong>Aishell Tech 闽南语助手</strong>
             <span>当前仅在 `https://mark.aishelltech.com/mytask/mark?...` 生效。</span>
-            <span>当前条支持 AI 推荐、复制、填入；批量模式支持并发预取 AI 结果，再按页面真实保存按钮串行写入。</span>
+            <span>当前条支持 AI 推荐、复制、填入并保存；批量模式支持并发预取 AI 结果，再按条目标识串行回填并调用平台原生保存接口。</span>
           </div>
 
           <div class="detail-grid two" style="margin-top: 18px;">
@@ -1112,8 +1112,15 @@
 
           <div class="field-card" style="margin-top: 18px;">
             <strong>平台边界</strong>
-            <span>只点击页面真实“保存”按钮，不自动提交任务，不跨分包，不触发 `.check-area`。</span>
+            <span>仅在用户点击单条或批量入口后执行保存，不自动提交任务，不跨分包，不触发 `.check-area`。</span>
             <span>后端地址仍由首页顶部“后端接口地址”统一控制；当前页不单独配置接口地址。</span>
+          </div>
+
+          <div class="field-card shortcut-panel" style="margin-top: 18px;">
+            <strong>快捷键配置</strong>
+            <span>默认全部未设置。点击“录制”后按键盘组合键，按 Esc 取消录制。</span>
+            <div id="aishell-tech-shortcut-grid" class="shortcut-grid"></div>
+            <div id="aishell-tech-recording-status" class="shortcut-recording hidden"></div>
           </div>
 
           <div class="field-actions" style="margin-top: 18px;">

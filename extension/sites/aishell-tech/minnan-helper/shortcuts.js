@@ -5,10 +5,10 @@
   globalThis.__ASREdgeAishellTechMinnanShortcutsInstalled = true;
   const ACTION_LABELS = {
     aiRecommendCurrentItem: "AI 推荐当前条",
-    autoFillQualifiedItem: "批量推荐并保存",
+    autoFillQualifiedItem: "批量识别并保存",
     copyAiHeardText: "复制 AI 听音文本",
     copyRecommendedText: "复制 AI 推荐文本",
-    fillRecommendedText: "填入推荐文本",
+    fillRecommendedText: "填入并保存当前条",
     ignoreAiResult: "忽略 AI 结果",
   };
   const HANDLED_FLAG = "__asrEdgeAishellTechShortcutHandled";
@@ -112,7 +112,7 @@
         return;
       }
       if (actionKey === "fillRecommendedText" && typeof actions.fillRecommendedText === "function") {
-        actions.fillRecommendedText();
+        runPromiseAction(actions.fillRecommendedText(), actions);
         return;
       }
       if (actionKey === "ignoreAiResult" && typeof actions.ignoreAiResult === "function") {

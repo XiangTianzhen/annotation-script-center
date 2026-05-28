@@ -161,10 +161,10 @@
   ];
   const AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS = [
     { key: "aiRecommendCurrentItem", label: "AI 推荐当前条" },
-    { key: "autoFillQualifiedItem", label: "批量推荐并保存" },
+    { key: "autoFillQualifiedItem", label: "批量识别并保存" },
     { key: "copyAiHeardText", label: "复制 AI 听音文本" },
     { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
-    { key: "fillRecommendedText", label: "填入推荐文本" },
+    { key: "fillRecommendedText", label: "填入并保存当前条" },
     { key: "ignoreAiResult", label: "忽略 AI 结果" },
   ];
   const DATABAKER_AI_OMNI_MODEL_VALUES = DATABAKER_AI_OMNI_MODEL_OPTIONS.map(function (item) {

@@ -1,3 +1,15 @@
+## 2026-05-28（Aishell Tech 批量切条对齐与快捷键接入）
+
+- 修复 Aishell 批量识别里“AI 已返回，但页面没有切到对应条目就直接填入保存”的问题：
+  - `extension/sites/aishell-tech/minnan-helper/data-api.js` 不再只按左侧 DOM 索引切条。
+  - 新增按 `number + fileName 后缀` 匹配左侧 `.list-item` 的定位逻辑，兼容页面里 `...59666546823.wav` 这类截断文件名。
+  - 新增 `selectTask()` 与 `getItemByTask()`，批量回填前会重新按条目标识定位，并等待右侧表单与目标条真正对齐。
+- 补齐 Aishell 快捷键接入：
+  - `extension/manifest.json` 重新补入 `sites/aishell-tech/minnan-helper/shortcuts.js` 注入。
+  - `extension/sites/aishell-tech/minnan-helper/content.js` 开始实例化 Aishell shortcuts runtime。
+  - `extension/sites/aishell-tech/minnan-helper/ui-panel.js` 对外暴露复制听音文本、复制推荐文本、填入并保存当前条、忽略结果动作，供快捷键调用。
+  - `extension/options/options.html` 与 `extension/options/options.js` 新增 Aishell 独立快捷键录制面板、草稿态与保存逻辑。
+
 ## 2026-05-28（AI 调用日志全局使用人设置第一块）
 
 - 新增 `extension/shared/ai-usage-meta.js` 设置补丁能力：

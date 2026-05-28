@@ -72,6 +72,14 @@
     { key: "taskPartialReject", label: "任务判定：部分驳回" },
     { key: "taskFullReject", label: "任务判定：全部驳回" },
   ];
+  const aishellTechShortcutActions = constants.AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS || [
+    { key: "aiRecommendCurrentItem", label: "AI 推荐当前条" },
+    { key: "autoFillQualifiedItem", label: "批量识别并保存" },
+    { key: "copyAiHeardText", label: "复制 AI 听音文本" },
+    { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
+    { key: "fillRecommendedText", label: "填入并保存当前条" },
+    { key: "ignoreAiResult", label: "忽略 AI 结果" },
+  ];
   const dataBakerListenModelOptions = Array.isArray(constants.DATABAKER_AI_LISTEN_MODEL_OPTIONS)
     ? constants.DATABAKER_AI_LISTEN_MODEL_OPTIONS
     : [
@@ -338,6 +346,9 @@
   let dataBakerShortcutsDraft = {};
   let dataBakerRecordingKey = null;
   let stopDataBakerRecordingListeners = null;
+  let aishellTechShortcutsDraft = {};
+  let aishellTechRecordingKey = null;
+  let stopAishellTechRecordingListeners = null;
   let magicDataShortcutsDraft = {};
   let magicDataRecordingKey = null;
   let stopMagicDataRecordingListeners = null;
@@ -2563,6 +2574,17 @@
     return result;
   }
 
+  function normalizeAishellTechShortcuts(shortcuts) {
+    const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
+    const result = {};
+    aishellTechShortcutActions.forEach(function (action) {
+      result[action.key] = hasOwn(source, action.key)
+        ? normalizeNullableShortcut(source[action.key])
+        : null;
+    });
+    return result;
+  }
+
   function normalizeMagicDataModel(value, fallback) {
     const text = String(value || "").replace(/[\r\n]+/g, " ").trim();
     if (!text) {
@@ -3118,6 +3140,7 @@
     config.aiRecommendStopSequences = normalizeStopSequencesText(
       config.aiRecommendStopSequences || ""
     );
+    config.shortcuts = normalizeAishellTechShortcuts(config.shortcuts);
     return config;
   }
 
@@ -4364,6 +4387,132 @@
     };
 
     renderDataBakerShortcutGrid();
+  }
+
+  function ensureAishellTechShortcutDraft() {
+    aishellTechShortcutActions.forEach(function (action) {
+      if (!hasOwn(aishellTechShortcutsDraft, action.key)) {
+        aishellTechShortcutsDraft[action.key] = null;
+      }
+    });
+  }
+
+  function renderAishellTechShortcutGrid() {
+    const grid = getElement("aishell-tech-shortcut-grid");
+    if (!grid) {
+      return;
+    }
+
+    ensureAishellTechShortcutDraft();
+    grid.innerHTML = aishellTechShortcutActions
+      .map(function (action) {
+        const recording = aishellTechRecordingKey === action.key;
+        return [
+          '<div class="shortcut-row">',
+          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
+          '<span class="shortcut-value">' +
+            escapeHtml(recording ? "录制中..." : formatShortcut(aishellTechShortcutsDraft[action.key])) +
+            "</span>",
+          '<button type="button" class="secondary-button" data-record-aishell-tech-shortcut="' +
+            escapeHtml(action.key) +
+            '">' +
+            (recording ? "录制中" : "录制") +
+            "</button>",
+          '<button type="button" class="ghost-button" data-clear-aishell-tech-shortcut="' +
+            escapeHtml(action.key) +
+            '">删除</button>',
+          "</div>",
+        ].join("");
+      })
+      .join("");
+
+    Array.from(grid.querySelectorAll("[data-record-aishell-tech-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        startAishellTechShortcutRecording(button.getAttribute("data-record-aishell-tech-shortcut"));
+      });
+    });
+
+    Array.from(grid.querySelectorAll("[data-clear-aishell-tech-shortcut]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        const key = button.getAttribute("data-clear-aishell-tech-shortcut");
+        aishellTechShortcutsDraft[key] = null;
+        if (aishellTechRecordingKey === key) {
+          stopAishellTechShortcutRecording("快捷键录制已取消。");
+          return;
+        }
+        setAishellTechRecordingStatus("快捷键已删除，保存后生效。");
+        renderAishellTechShortcutGrid();
+      });
+    });
+  }
+
+  function setAishellTechRecordingStatus(text) {
+    const node = getElement("aishell-tech-recording-status");
+    if (!node) {
+      return;
+    }
+    node.textContent = text || "";
+    node.classList.toggle("hidden", !text);
+  }
+
+  function stopAishellTechShortcutRecording(statusText) {
+    if (typeof stopAishellTechRecordingListeners === "function") {
+      stopAishellTechRecordingListeners();
+      stopAishellTechRecordingListeners = null;
+    }
+
+    aishellTechRecordingKey = null;
+    setAishellTechRecordingStatus(statusText || "");
+    renderAishellTechShortcutGrid();
+  }
+
+  function applyRecordedAishellTechShortcut(shortcut) {
+    if (!aishellTechRecordingKey || shortcut === false) {
+      return;
+    }
+
+    if (!shortcut) {
+      stopAishellTechShortcutRecording("已取消快捷键录制。");
+      return;
+    }
+
+    aishellTechShortcutsDraft[aishellTechRecordingKey] = normalizeNullableShortcut(shortcut);
+    stopAishellTechShortcutRecording("快捷键已录制，保存后生效。");
+  }
+
+  function startAishellTechShortcutRecording(actionKey) {
+    if (!actionKey) {
+      return;
+    }
+
+    if (typeof stopAishellTechRecordingListeners === "function") {
+      stopAishellTechRecordingListeners();
+    }
+
+    aishellTechRecordingKey = actionKey;
+    const action = aishellTechShortcutActions.find(function (item) {
+      return item.key === actionKey;
+    });
+
+    setAishellTechRecordingStatus(
+      "正在录制「" + String(action?.label || actionKey) + "」：按键盘组合键，Esc 取消。"
+    );
+
+    const keydownListener = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+      applyRecordedAishellTechShortcut(shortcutFromKeyboardEvent(event));
+    };
+
+    window.addEventListener("keydown", keydownListener, true);
+    stopAishellTechRecordingListeners = function () {
+      window.removeEventListener("keydown", keydownListener, true);
+    };
+
+    renderAishellTechShortcutGrid();
   }
 
   function ensureMagicDataShortcutDraft() {
@@ -6314,7 +6463,7 @@
       applyAishellTechForm(settings);
       setStatus(
         "aishell-tech-status",
-        "Aishell Tech 批量模式只处理当前分包、从当前选中条开始、跳过已完成条目；每条填入后点击页面真实保存按钮，不自动提交任务。"
+        "Aishell Tech 批量模式只处理当前分包、从当前选中条开始、跳过已完成条目；每条会先对齐到目标条，再调用平台原生保存接口，不自动提交任务。"
       );
       return;
     }
@@ -6423,6 +6572,7 @@
     const defaultsPayload = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId);
     const aiDefaults = defaultsPayload.defaults || {};
     const concurrencyRule = getDataBakerAiQualifiedAutofillConcurrencyRule(config);
+    aishellTechShortcutsDraft = clone(config.shortcuts) || {};
     if (getElement("aishell-tech-ai-recommend-enabled")) {
       getElement("aishell-tech-ai-recommend-enabled").checked =
         config.aiRecommendEnabled !== false;
@@ -6485,6 +6635,8 @@
       concurrencyInput.max = String(concurrencyRule.max);
       concurrencyInput.step = "1";
     }
+    stopAishellTechShortcutRecording("");
+    renderAishellTechShortcutGrid();
   }
 
   async function saveDataBakerSettings() {
@@ -6873,6 +7025,12 @@
     const enableThinking = hasAiSettingsPanel
       ? getElement("aishell-tech-ai-enable-thinking").checked === true
       : currentConfig.aiRecommendEnableThinking === true;
+    const shortcuts = {};
+
+    ensureAishellTechShortcutDraft();
+    aishellTechShortcutActions.forEach(function (action) {
+      shortcuts[action.key] = normalizeNullableShortcut(aishellTechShortcutsDraft[action.key]);
+    });
 
     setStatus("aishell-tech-status", "正在保存 Aishell Tech 设置...");
 
@@ -6922,6 +7080,7 @@
                 aiRecommendSeed: seed,
                 aiRecommendStopSequences: stopSequences,
                 aiQualifiedAutofillConcurrency: autofillConcurrency,
+                shortcuts: shortcuts,
               },
             },
           },

@@ -264,18 +264,85 @@
     });
   }
 
+  function parseListItemLabel(label) {
+    const text = normalizeText(label);
+    const match = text.match(/^(\d+)\s*:\s*(.+)$/);
+    if (!match) {
+      return {
+        number: 0,
+        fileHint: text,
+      };
+    }
+    return {
+      number: Number(match[1] || 0) || 0,
+      fileHint: normalizeText(match[2] || ""),
+    };
+  }
+
+  function normalizeListFileHint(value) {
+    return normalizeText(value).replace(/^\.{3,}/, "").trim();
+  }
+
+  function doesListFileHintMatch(expectedFileName, fileHint) {
+    const expected = normalizeText(expectedFileName);
+    const hint = normalizeListFileHint(fileHint);
+    if (!hint) {
+      return !expected;
+    }
+    if (!expected) {
+      return true;
+    }
+    return expected === hint || expected.endsWith(hint);
+  }
+
+  function doesDomListItemMatchTask(item, task) {
+    const targetNumber = Number(task?.number || 0) || 0;
+    const targetFileName = normalizeText(task?.fileName);
+    if (targetNumber > 0 && Number(item?.number || 0) !== targetNumber) {
+      return false;
+    }
+    return doesListFileHintMatch(targetFileName, item?.fileHint || item?.label || "");
+  }
+
   function getListDomItems() {
     return getListItemNodes().map(function (node, index) {
       const button = node.querySelector("button.el-button--text, button");
+      const label = normalizeText(button?.textContent || node.textContent || "");
+      const parsed = parseListItemLabel(label);
       return {
         index: index,
         node: node,
         button: button instanceof HTMLElement ? button : node,
         selected: node.classList.contains("list-item-selected"),
         finished: node.classList.contains("list-item-finshed"),
-        label: normalizeText(button?.textContent || node.textContent || ""),
+        label: label,
+        number: parsed.number,
+        fileHint: parsed.fileHint,
       };
     });
+  }
+
+  function getSelectedDomItem() {
+    return (
+      getListDomItems().find(function (item) {
+        return item.selected === true;
+      }) || null
+    );
+  }
+
+  function findDomItemForTask(task) {
+    const domItems = getListDomItems();
+    const exact = domItems.find(function (item) {
+      return doesDomListItemMatchTask(item, task);
+    });
+    if (exact) {
+      return exact;
+    }
+    const targetIndex = Number(task?.index);
+    if (Number.isInteger(targetIndex) && targetIndex >= 0) {
+      return domItems[targetIndex] || null;
+    }
+    return null;
   }
 
   function getSelectedIndex() {
@@ -675,6 +742,30 @@
       };
     }
 
+    async function getExpectedItemForTask(task) {
+      if (!task || typeof task !== "object") {
+        return null;
+      }
+      syncRouteKey();
+      const routeParams = parseRouteParams();
+      const packageEntry = await ensurePackageItems(routeParams.packageId);
+      const taskItemId = normalizeText(task.taskItemId);
+      const record = taskItemId
+        ? packageEntry.items.find(function (item) {
+            return normalizeText(item?.id) === taskItemId;
+          })
+        : packageEntry.items[Number(task.index)];
+      if (!record) {
+        return null;
+      }
+      return {
+        fileName: normalizeText(record.fileName),
+        referenceText: normalizeText(record.text),
+        taskItemId: normalizeText(record.id),
+        number: Number(record.number || 0) || 0,
+      };
+    }
+
     async function waitForItemRender(targetIndex, options) {
       const timeoutMs = Math.max(1000, Number(options?.timeoutMs || 5000) || 5000);
       const deadline = Date.now() + timeoutMs;
@@ -691,26 +782,57 @@
       return getSelectedIndex() === targetIndex && doesRenderedItemMatch(expected);
     }
 
-    async function getItemByIndex(index, options) {
+    async function waitForTaskRender(task, options) {
+      const timeoutMs = Math.max(1000, Number(options?.timeoutMs || 5000) || 5000);
+      const deadline = Date.now() + timeoutMs;
+      const expected =
+        options?.expected && typeof options.expected === "object"
+          ? options.expected
+          : await getExpectedItemForTask(task);
+      while (Date.now() < deadline) {
+        const selectedItem = getSelectedDomItem();
+        if (selectedItem && doesDomListItemMatchTask(selectedItem, task) && doesRenderedItemMatch(expected)) {
+          return true;
+        }
+        await sleep(120);
+      }
+      const selectedItem = getSelectedDomItem();
+      return Boolean(
+        selectedItem &&
+          doesDomListItemMatchTask(selectedItem, task) &&
+          doesRenderedItemMatch(expected)
+      );
+    }
+
+    async function getItemRecordByTask(task) {
       syncRouteKey();
       const routeParams = parseRouteParams();
-      const selectedIndex = Number(index);
-      if (!Number.isInteger(selectedIndex) || selectedIndex < 0) {
-        return null;
-      }
-      const taskDetail = await ensureTaskDetail(routeParams.taskId);
       const packageEntry = await ensurePackageItems(routeParams.packageId);
-      const record = packageEntry.items[selectedIndex];
-      if (!record) {
-        return null;
+      const taskItemId = normalizeText(task?.taskItemId);
+      if (taskItemId) {
+        const matched = packageEntry.items.find(function (item) {
+          return normalizeText(item?.id) === taskItemId;
+        });
+        if (matched) {
+          return matched;
+        }
       }
+      const targetIndex = Number(task?.index);
+      if (Number.isInteger(targetIndex) && targetIndex >= 0) {
+        return packageEntry.items[targetIndex] || null;
+      }
+      return null;
+    }
+
+    function buildItemFromRecord(record, routeParams, taskDetail, options, fallbackIndex) {
       const source = options && typeof options === "object" ? options : {};
+      const selectedIndex = Number(fallbackIndex);
       const existingMarkText =
         source.includeCurrentInput === true ? getCurrentInputValue() : "";
       const referenceText = normalizeText(record.text) || getReferenceTextFromDom();
       const audioUrl =
         taskDetail.dataRoot && record.url ? taskDetail.dataRoot + record.url : "";
-      const item = {
+      return {
         taskId: routeParams.taskId,
         packageId: routeParams.packageId,
         taskItemId: normalizeText(record.id),
@@ -730,7 +852,38 @@
           normalizeText(record.fileName),
         ].join("|"),
       };
-      return item;
+    }
+
+    async function getItemByIndex(index, options) {
+      syncRouteKey();
+      const routeParams = parseRouteParams();
+      const selectedIndex = Number(index);
+      if (!Number.isInteger(selectedIndex) || selectedIndex < 0) {
+        return null;
+      }
+      const taskDetail = await ensureTaskDetail(routeParams.taskId);
+      const packageEntry = await ensurePackageItems(routeParams.packageId);
+      const record = packageEntry.items[selectedIndex];
+      if (!record) {
+        return null;
+      }
+      return buildItemFromRecord(record, routeParams, taskDetail, options, selectedIndex);
+    }
+
+    async function getItemByTask(task, options) {
+      const routeParams = parseRouteParams();
+      const taskDetail = await ensureTaskDetail(routeParams.taskId);
+      const record = await getItemRecordByTask(task);
+      if (!record) {
+        return null;
+      }
+      return buildItemFromRecord(
+        record,
+        routeParams,
+        taskDetail,
+        options,
+        Number(task?.index || 0) || 0
+      );
     }
 
     async function getCurrentItem() {
@@ -772,6 +925,8 @@
           return {
             index: entry.index,
             taskItemId: normalizeText(entry.record.id),
+            number: Number(entry.record.number || entry.index + 1) || entry.index + 1,
+            fileName: normalizeText(entry.record.fileName),
             displayName: getRecordDisplayName(entry.record),
           };
         });
@@ -826,6 +981,55 @@
       return ready
         ? { ok: true, message: "已切换到目标条目，且表单已完成加载。" }
         : { ok: false, message: "切换条目后表单长时间没有完成加载。" };
+    }
+
+    async function selectTask(task, options) {
+      const expected =
+        options?.expected && typeof options.expected === "object"
+          ? options.expected
+          : await getExpectedItemForTask(task);
+      const maxAttempts = Math.max(1, Math.floor(Number(options?.maxAttempts || 3) || 3));
+      const timeoutMs = Math.max(1000, Number(options?.timeoutMs || 9000) || 9000);
+      const attemptTimeoutMs = Math.max(1000, Math.floor(timeoutMs / maxAttempts));
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const domEntry = findDomItemForTask(task);
+        if (!(domEntry?.button instanceof HTMLElement)) {
+          return {
+            ok: false,
+            message: "无法在左侧列表中定位目标条目。",
+          };
+        }
+        domEntry.node?.scrollIntoView?.({
+          block: "center",
+          inline: "nearest",
+        });
+        if (domEntry.selected !== true || doesRenderedItemMatch(expected) !== true) {
+          await sleep(80);
+          domEntry.button.click();
+        }
+        const ready = await waitForTaskRender(task, {
+          timeoutMs: attemptTimeoutMs,
+          expected: expected,
+        });
+        if (ready) {
+          return {
+            ok: true,
+            message: "已切换到目标条目，且右侧表单已与当前识别结果对齐。",
+          };
+        }
+        await sleep(160);
+      }
+      const selectedItem = getSelectedDomItem();
+      if (selectedItem && doesDomListItemMatchTask(selectedItem, task)) {
+        return {
+          ok: false,
+          message: "当前条虽然已选中，但右侧表单还没有完成切换。",
+        };
+      }
+      return {
+        ok: false,
+        message: "切换条目后右侧表单长时间没有完成加载。",
+      };
     }
 
     function start() {
@@ -965,11 +1169,13 @@
       getBatchTasksFromCurrentSelection,
       getCurrentItem,
       getItemByIndex,
+      getItemByTask,
       getRecordDisplayName,
       getSelectedIndex,
       isMarkPage,
       parseRouteParams,
       selectItemByIndex,
+      selectTask,
       start,
       stop,
     };
@@ -979,6 +1185,8 @@
     createRateLimitedTaskScheduler,
     createRuntime,
     buildSaveShortMarkPayload,
+    doesDomListItemMatchTask,
+    doesListFileHintMatch,
     doesRenderedItemMatch,
     ensureChineseSentencePunctuation,
     extractSavedMarkText,
@@ -987,6 +1195,7 @@
     isSaveCompletionState,
     isMarkPage,
     parseRouteParams,
+    parseListItemLabel,
     readStorageEntries,
     removeTextSpaces,
   };

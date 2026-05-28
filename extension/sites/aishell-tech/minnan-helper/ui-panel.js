@@ -110,6 +110,58 @@
     let currentItemKey = "";
     let currentResult = null;
 
+    function requireCurrentResult() {
+      if (!currentResult || typeof currentResult !== "object") {
+        throw new Error("当前没有可操作的识别结果。");
+      }
+      return currentResult;
+    }
+
+    function copyCurrentHeardText() {
+      const result = requireCurrentResult();
+      return copyText(result.heardText || "").then(function () {
+        setStatus("听音文本已复制。", "success");
+        return {
+          ok: true,
+        };
+      });
+    }
+
+    function copyCurrentRecommendedText() {
+      const result = requireCurrentResult();
+      return copyText(result.recommendedText || "").then(function () {
+        setStatus("推荐文本已复制。", "success");
+        return {
+          ok: true,
+        };
+      });
+    }
+
+    function fillCurrentRecommendedText() {
+      const result = requireCurrentResult();
+      if (typeof deps.fillAndSaveCurrent !== "function") {
+        return Promise.reject(new Error("当前运行时没有填入并保存能力。"));
+      }
+      setStatus("正在填入并保存当前条...", "info");
+      return Promise.resolve(deps.fillAndSaveCurrent(result.recommendedText || "")).then(
+        function (fillResult) {
+          setStatus(
+            fillResult?.message || "已填入并保存当前条。",
+            fillResult?.ok === false ? "error" : "success"
+          );
+          return fillResult;
+        }
+      );
+    }
+
+    function ignoreCurrentResult() {
+      clearResult();
+      setStatus("已忽略本次识别结果。", "info");
+      return {
+        ok: true,
+      };
+    }
+
     function ensureRoot() {
       ensureStyle();
       if (root && document.documentElement.contains(root)) {
@@ -279,10 +331,7 @@
 
       const copyHeardButton = createButton("复制听音文本");
       copyHeardButton.addEventListener("click", function () {
-        copyText(source.heardText || "")
-          .then(function () {
-            setStatus("听音文本已复制。", "success");
-          })
+        copyCurrentHeardText()
           .catch(function (error) {
             setStatus(error?.message || String(error), "error");
           });
@@ -292,10 +341,7 @@
         "data-primary": "true",
       });
       copyRecommendedButton.addEventListener("click", function () {
-        copyText(source.recommendedText || "")
-          .then(function () {
-            setStatus("推荐文本已复制。", "success");
-          })
+        copyCurrentRecommendedText()
           .catch(function (error) {
             setStatus(error?.message || String(error), "error");
           });
@@ -305,18 +351,7 @@
       fillButton.disabled =
         typeof deps.canFillPageText === "function" ? deps.canFillPageText() !== true : true;
       fillButton.addEventListener("click", function () {
-        if (typeof deps.fillAndSaveCurrent !== "function") {
-          setStatus("当前运行时没有填入并保存能力。", "error");
-          return;
-        }
-        setStatus("正在填入并点击页面真实保存...", "info");
-        Promise.resolve(deps.fillAndSaveCurrent(source.recommendedText || ""))
-          .then(function (fillResult) {
-            setStatus(
-              fillResult?.message || "已填入并保存当前条。",
-              fillResult?.ok === false ? "error" : "success"
-            );
-          })
+        fillCurrentRecommendedText()
           .catch(function (error) {
             setStatus(error?.message || String(error), "error");
           });
@@ -324,8 +359,7 @@
 
       const ignoreButton = createButton("忽略");
       ignoreButton.addEventListener("click", function () {
-        clearResult();
-        setStatus("已忽略本次识别结果。", "info");
+        ignoreCurrentResult();
       });
 
       actions.appendChild(copyHeardButton);
@@ -422,6 +456,10 @@
       ensureMounted,
       remove,
       renderResult,
+      copyHeardText: copyCurrentHeardText,
+      copyRecommendedText: copyCurrentRecommendedText,
+      fillRecommendedText: fillCurrentRecommendedText,
+      ignoreAiResult: ignoreCurrentResult,
       setBusy,
       setStatus,
       updateBatch,
