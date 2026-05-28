@@ -24,6 +24,9 @@ const {
   resolveDefaultSingleModel,
 } = require("./config");
 const {
+  listModelsByFamily,
+} = require("../../../backend/ai/model-dispatcher");
+const {
   parseLexiconCsv,
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
 
@@ -418,6 +421,11 @@ function buildRecommendErrorBody(input) {
 function createHealthPayload() {
   const queueGroups = getQueueGroupsHealth();
   const defaults = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
+  const modelCatalog = {
+    text: listModelsByFamily("text"),
+    omni: listModelsByFamily("omni"),
+    asr: listModelsByFamily("asr"),
+  };
   return {
     success: true,
     service: SERVICE_NAME,
@@ -436,6 +444,7 @@ function createHealthPayload() {
     listenModel: resolveDefaultListenModel(DEFAULT_MODEL_MODE),
     compareModel: resolveDefaultCompareModel(),
     singleModel: resolveDefaultSingleModel(),
+    modelCatalog,
     queue: {
       groups: queueGroups,
     },
@@ -452,6 +461,11 @@ function createHealthPayload() {
 function createDefaultsPayload() {
   const directPrompts = getStrategyPromptDefaults("direct_dialect");
   const defaultPrompts = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
+  const modelCatalog = {
+    text: listModelsByFamily("text"),
+    omni: listModelsByFamily("omni"),
+    asr: listModelsByFamily("asr"),
+  };
   return {
     success: true,
     service: SERVICE_NAME,
@@ -482,6 +496,7 @@ function createDefaultsPayload() {
         mandarin_to_dialect: defaultPrompts,
         direct_dialect: directPrompts,
       },
+      modelCatalog,
     }),
     notes: {
       defaultsSource: "Aishell independent backend defaults",

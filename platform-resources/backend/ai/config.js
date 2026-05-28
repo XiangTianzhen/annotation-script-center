@@ -1,6 +1,14 @@
 "use strict";
 
 const path = require("path");
+const {
+  buildModelOptionsByFamily,
+  getModelDocs,
+  getModelMeta,
+  getRecommendedModelsByFamily,
+  listAllModels,
+  listModelIdsByFamily,
+} = require("./model-catalog");
 
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_OMNI_MODEL = "qwen3.5-omni-flash";
@@ -22,9 +30,8 @@ const DATABAKER_OMNI_AUTOFILL_RULE = {
   defaultValue: 15,
   modelType: "omni",
 };
-const DATABAKER_OMNI_MODEL_OPTIONS = [
-  "qwen3.5-omni-plus",
-  "qwen3.5-omni-flash",
+const DATABAKER_OMNI_MODEL_OPTIONS = listModelIdsByFamily("omni");
+const LEGACY_OMNI_COMPATIBILITY_MODEL_OPTIONS = [
   "qwen3.5-omni-flash-2026-03-15",
   "qwen3-omni-flash",
   "qwen3-omni-flash-2025-12-01",
@@ -34,12 +41,7 @@ const DATABAKER_LISTEN_MODEL_OPTIONS = [
   "fun-asr",
 ].concat(DATABAKER_OMNI_MODEL_OPTIONS);
 const DATABAKER_SINGLE_MODEL_OPTIONS = DATABAKER_OMNI_MODEL_OPTIONS.slice();
-const DATABAKER_COMPARE_MODEL_OPTIONS = [
-  "qwen3.6-plus",
-  "qwen3.5-plus",
-  "qwen3.6-flash",
-  "qwen3.5-flash",
-];
+const DATABAKER_COMPARE_MODEL_OPTIONS = listModelIdsByFamily("text");
 const DEFAULT_TIMEOUT_MS = 60000;
 const DEFAULT_REQUEST_PARAMS = {
   temperature: 0.1,
@@ -66,6 +68,7 @@ const SUPPORTED_REQUEST_PARAMS = {
 };
 const DEFAULT_VENV_DIR = path.join(__dirname, "..", ".venv");
 const DEFAULT_FUNASR_PYTHON_SCRIPT = path.join(__dirname, "python", "funasr_client.py");
+const DEFAULT_QWEN_PYTHON_SCRIPT = path.join(__dirname, "python", "qwen_openai_client.py");
 
 function trimSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -172,13 +175,23 @@ function getDefaultPythonCandidates() {
   ];
 }
 
+function isCompatibleLegacyOmniModel(value) {
+  return LEGACY_OMNI_COMPATIBILITY_MODEL_OPTIONS.indexOf(String(value || "").trim()) >= 0;
+}
+
 function normalizeDataBakerListenModel(value, fallback) {
   const normalizedValue = String(value || "").trim();
   const normalizedFallback = String(fallback || DEFAULT_OMNI_MODEL).trim() || DEFAULT_OMNI_MODEL;
-  if (DATABAKER_LISTEN_MODEL_OPTIONS.indexOf(normalizedValue) >= 0) {
+  if (
+    DATABAKER_LISTEN_MODEL_OPTIONS.indexOf(normalizedValue) >= 0 ||
+    isCompatibleLegacyOmniModel(normalizedValue)
+  ) {
     return normalizedValue;
   }
-  if (DATABAKER_LISTEN_MODEL_OPTIONS.indexOf(normalizedFallback) >= 0) {
+  if (
+    DATABAKER_LISTEN_MODEL_OPTIONS.indexOf(normalizedFallback) >= 0 ||
+    isCompatibleLegacyOmniModel(normalizedFallback)
+  ) {
     return normalizedFallback;
   }
   return DEFAULT_OMNI_MODEL;
@@ -199,10 +212,16 @@ function normalizeDataBakerCompareModel(value, fallback) {
 function normalizeDataBakerSingleModel(value, fallback) {
   const normalizedValue = String(value || "").trim();
   const normalizedFallback = String(fallback || DEFAULT_OMNI_MODEL).trim() || DEFAULT_OMNI_MODEL;
-  if (DATABAKER_SINGLE_MODEL_OPTIONS.indexOf(normalizedValue) >= 0) {
+  if (
+    DATABAKER_SINGLE_MODEL_OPTIONS.indexOf(normalizedValue) >= 0 ||
+    isCompatibleLegacyOmniModel(normalizedValue)
+  ) {
     return normalizedValue;
   }
-  if (DATABAKER_SINGLE_MODEL_OPTIONS.indexOf(normalizedFallback) >= 0) {
+  if (
+    DATABAKER_SINGLE_MODEL_OPTIONS.indexOf(normalizedFallback) >= 0 ||
+    isCompatibleLegacyOmniModel(normalizedFallback)
+  ) {
     return normalizedFallback;
   }
   return DEFAULT_OMNI_MODEL;
@@ -302,6 +321,28 @@ function getQwenProviderConfig() {
   };
 }
 
+function getQwenPythonConfig() {
+  const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
+  const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
+  const pythonBin = String(
+    process.env.DATABAKER_QWEN_PYTHON_BIN || process.env.DATABAKER_AI_QWEN_PYTHON_BIN || ""
+  ).trim();
+  return {
+    apiKey,
+    baseUrl,
+    timeoutMs: parseTimeoutMs(),
+    mockEnabled: isMockEnabled(),
+    hasApiKey: Boolean(apiKey),
+    pythonBin,
+    defaultVenvDir: DEFAULT_VENV_DIR,
+    defaultScriptPath: DEFAULT_QWEN_PYTHON_SCRIPT,
+    defaultPythonCandidates: getDefaultPythonCandidates(),
+    singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
+    listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+    compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
+  };
+}
+
 function getFunAsrPythonConfig() {
   const apiKey = String(process.env.DASHSCOPE_API_KEY || "").trim();
   const model = String(process.env.DATABAKER_AI_FUN_ASR_MODEL || DEFAULT_FUN_ASR_MODEL).trim();
@@ -359,10 +400,13 @@ module.exports = {
   DEFAULT_TIMEOUT_MS,
   DEFAULT_VENV_DIR,
   DEFAULT_FUNASR_PYTHON_SCRIPT,
+  DEFAULT_QWEN_PYTHON_SCRIPT,
   SUPPORTED_REQUEST_PARAMS,
+  buildModelOptionsByFamily,
   buildApiV1BaseUrl,
   buildSdkBaseHttpApiUrl,
   deriveDataBakerPipelineMode,
+  getAllSharedModelMeta: listAllModels,
   getDataBakerAiQualifiedAutofillConcurrencyRule,
   getDefaultPythonCandidates,
   getFunAsrProviderFallbackMode,
@@ -370,7 +414,11 @@ module.exports = {
   getFunAsrPythonConfig,
   getFunAsrRestBaseUrl,
   getFunAsrRestConfig,
+  getModelDocs,
+  getModelMeta,
   getQwenProviderConfig,
+  getQwenPythonConfig,
+  getRecommendedModelsByFamily,
   normalizeDataBakerAiQualifiedAutofillConcurrency,
   normalizeDataBakerCompareModel,
   normalizeDataBakerListenModel,

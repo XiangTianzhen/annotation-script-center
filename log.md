@@ -3233,6 +3233,18 @@
   - 每条都等待页面切条成功后再继续下一条。
   - 失败条继续进入失败清单，不阻塞后续条目。
 
+## 2026-05-28（百炼模型统一注册与双通道调用）
+
+- `platform-resources/backend/ai/` 新增统一模型注册与派发层：
+  - `model-catalog.js` 作为百炼核心模型唯一事实源，统一登记 `qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`、`qwen3.5-omni-plus`、`qwen3.5-omni-flash`、`fun-asr` 的文档地址、费用文档、family、tier、thinking 默认策略与运行时顺序。
+  - `model-dispatcher.js` 统一提供 `getModelMeta / listModelsByFamily / invokeModel / getModelDocs`，默认 `JS 优先，Python 备用`。
+- 通用 Qwen Python 备用链路已补齐：
+  - 新增 `platform-resources/backend/ai/python/qwen_openai_client.py`。
+  - 新增 `platform-resources/backend/ai/providers/qwen-python.js`。
+  - 文本比较与 Omni `input_audio` 现在都具备 JS/Python 双通道调用能力；Fun-ASR 继续保留 REST + Python SDK 双通道。
+- `config.js`、Aishell/DataBaker health/defaults 和前端共享兜底常量已开始改为从统一模型目录衍生，避免模型名单继续散落硬编码。
+- `docs/external-docs/aliyun-bailian.md` 已新增“模型目录”段，统一记录 7 个核心模型的官方文档、API 文档、费用文档与默认 thinking 策略。
+
 ## 2026-05-28（Aishell Tech 并发识别与双策略模式）
 
 - 批量识别从“先切条再识别”改为“直接读取 `packageItemList` 后并发发起 AI 请求”：

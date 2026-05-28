@@ -112,40 +112,113 @@
       label: "识别转换：先听成普通话，再按字词表转方言",
     },
   ];
-  const DATABAKER_AI_LISTEN_MODEL_OPTIONS = [
-    { value: "fun-asr", label: "fun-asr" },
-    { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
-    { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
-    { value: "qwen3.5-omni-flash-2026-03-15", label: "qwen3.5-omni-flash-2026-03-15" },
-    { value: "qwen3-omni-flash", label: "qwen3-omni-flash" },
-    { value: "qwen3-omni-flash-2025-12-01", label: "qwen3-omni-flash-2025-12-01" },
-    { value: "qwen3-omni-flash-2025-09-15", label: "qwen3-omni-flash-2025-09-15" },
+  const BAILIAN_MODEL_DOC_URLS = {
+    pricing:
+      "https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148",
+    api:
+      "https://bailian.console.aliyun.com/cn-beijing?tab=api#/api/?type=model&url=3016807",
+    text:
+      "https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2841718",
+    omni:
+      "https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2867839",
+    asr:
+      "https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2880903",
+    recordApi: "https://help.aliyun.com/zh/model-studio/recording-file-recognition-api-details",
+    market: "https://bailian.console.aliyun.com/cn-beijing?tab=model#/model-market/all",
+  };
+  const BAILIAN_CORE_MODEL_CATALOG = [
+    {
+      value: "qwen3.6-plus",
+      label: "qwen3.6-plus",
+      family: "text",
+      tier: "plus",
+      supportsThinking: true,
+      defaultThinking: false,
+      docUrl: BAILIAN_MODEL_DOC_URLS.text,
+      apiUrl: BAILIAN_MODEL_DOC_URLS.api,
+      pricingUrl: BAILIAN_MODEL_DOC_URLS.pricing,
+    },
+    {
+      value: "qwen3.5-plus",
+      label: "qwen3.5-plus",
+      family: "text",
+      tier: "plus",
+      supportsThinking: true,
+      defaultThinking: false,
+      docUrl: BAILIAN_MODEL_DOC_URLS.text,
+      apiUrl: BAILIAN_MODEL_DOC_URLS.api,
+      pricingUrl: BAILIAN_MODEL_DOC_URLS.pricing,
+    },
+    {
+      value: "qwen3.6-flash",
+      label: "qwen3.6-flash",
+      family: "text",
+      tier: "flash",
+      supportsThinking: true,
+      defaultThinking: false,
+      docUrl: BAILIAN_MODEL_DOC_URLS.text,
+      apiUrl: BAILIAN_MODEL_DOC_URLS.api,
+      pricingUrl: BAILIAN_MODEL_DOC_URLS.pricing,
+    },
+    {
+      value: "qwen3.5-flash",
+      label: "qwen3.5-flash",
+      family: "text",
+      tier: "flash",
+      supportsThinking: true,
+      defaultThinking: false,
+      docUrl: BAILIAN_MODEL_DOC_URLS.text,
+      apiUrl: BAILIAN_MODEL_DOC_URLS.api,
+      pricingUrl: BAILIAN_MODEL_DOC_URLS.pricing,
+    },
+    {
+      value: "qwen3.5-omni-plus",
+      label: "qwen3.5-omni-plus",
+      family: "omni",
+      tier: "plus",
+      supportsThinking: true,
+      defaultThinking: false,
+      docUrl: BAILIAN_MODEL_DOC_URLS.omni,
+      apiUrl: BAILIAN_MODEL_DOC_URLS.api,
+      pricingUrl: BAILIAN_MODEL_DOC_URLS.pricing,
+    },
+    {
+      value: "qwen3.5-omni-flash",
+      label: "qwen3.5-omni-flash",
+      family: "omni",
+      tier: "flash",
+      supportsThinking: true,
+      defaultThinking: false,
+      docUrl: BAILIAN_MODEL_DOC_URLS.omni,
+      apiUrl: BAILIAN_MODEL_DOC_URLS.api,
+      pricingUrl: BAILIAN_MODEL_DOC_URLS.pricing,
+    },
+    {
+      value: "fun-asr",
+      label: "fun-asr",
+      family: "asr",
+      tier: "flash",
+      supportsThinking: false,
+      defaultThinking: false,
+      docUrl: BAILIAN_MODEL_DOC_URLS.asr,
+      apiUrl: BAILIAN_MODEL_DOC_URLS.recordApi,
+      pricingUrl: BAILIAN_MODEL_DOC_URLS.pricing,
+    },
   ];
-  const DATABAKER_AI_SINGLE_MODEL_OPTIONS = [
-    { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
-    { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
-    { value: "qwen3.5-omni-flash-2026-03-15", label: "qwen3.5-omni-flash-2026-03-15" },
-    { value: "qwen3-omni-flash", label: "qwen3-omni-flash" },
-    { value: "qwen3-omni-flash-2025-12-01", label: "qwen3-omni-flash-2025-12-01" },
-    { value: "qwen3-omni-flash-2025-09-15", label: "qwen3-omni-flash-2025-09-15" },
-  ];
-  const DATABAKER_AI_OMNI_MODEL_OPTIONS = [
-    { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
-    { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
-    { value: "qwen3.5-omni-flash-2026-03-15", label: "qwen3.5-omni-flash-2026-03-15" },
-    { value: "qwen3-omni-flash", label: "qwen3-omni-flash" },
-    { value: "qwen3-omni-flash-2025-12-01", label: "qwen3-omni-flash-2025-12-01" },
-    { value: "qwen3-omni-flash-2025-09-15", label: "qwen3-omni-flash-2025-09-15" },
-  ];
-  const DATABAKER_AI_FUN_ASR_MODEL_OPTIONS = [
-    { value: "fun-asr", label: "fun-asr" },
-  ];
-  const DATABAKER_AI_COMPARE_MODEL_OPTIONS = [
-    { value: "qwen3.6-plus", label: "qwen3.6-plus" },
-    { value: "qwen3.5-plus", label: "qwen3.5-plus" },
-    { value: "qwen3.6-flash", label: "qwen3.6-flash" },
-    { value: "qwen3.5-flash", label: "qwen3.5-flash" },
-  ];
+  function buildBailianModelOptionsByFamily(family) {
+    return BAILIAN_CORE_MODEL_CATALOG.filter(function (item) {
+      return item.family === family;
+    }).map(function (item) {
+      return Object.assign({}, item);
+    });
+  }
+  const DATABAKER_AI_LISTEN_MODEL_OPTIONS = buildBailianModelOptionsByFamily("asr").concat(
+    buildBailianModelOptionsByFamily("omni")
+  );
+  const DATABAKER_AI_SINGLE_MODEL_OPTIONS = buildBailianModelOptionsByFamily("omni");
+  const DATABAKER_AI_OMNI_MODEL_OPTIONS = buildBailianModelOptionsByFamily("omni");
+  const DATABAKER_AI_FUN_ASR_MODEL_OPTIONS = buildBailianModelOptionsByFamily("asr");
+  const DATABAKER_AI_COMPARE_MODEL_OPTIONS = buildBailianModelOptionsByFamily("text");
   const DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS = [
     { key: "aiRecommendCurrentItem", label: "AI 推荐文本" },
     { key: "autoFillQualifiedItem", label: "AI并发分析并连续填入合格项" },

@@ -23,6 +23,9 @@ const {
   resolveDataBakerDefaultSingleModel,
 } = require("../../../backend/ai/config");
 const {
+  listModelsByFamily,
+} = require("../../../backend/ai/model-dispatcher");
+const {
   getClientConfig,
   requestCompare,
   requestOmniInputAudio,
@@ -1898,6 +1901,11 @@ function createHealthPayload() {
   const qwenOmniQueue = getGroupSettings("qwen_omni");
   const jobStoreConfig = getAiJobStoreConfig();
   const jobSnapshot = getAiJobStoreSnapshot();
+  const modelCatalog = {
+    text: listModelsByFamily("text"),
+    omni: listModelsByFamily("omni"),
+    asr: listModelsByFamily("asr"),
+  };
   logDeprecatedPipelineOnce(envPipeline);
   return {
     success: true,
@@ -1925,6 +1933,7 @@ function createHealthPayload() {
     compareModel: qwenConfig.compareModel || DEFAULT_COMPARE_MODEL,
     mockEnabled: qwenConfig.mockEnabled || funAsrConfig.mockEnabled,
     hasApiKey: qwenConfig.hasApiKey || funAsrConfig.hasApiKey,
+    modelCatalog,
     callLogDir: getLogDir(),
     cache: getCacheSnapshot(),
     queue: {
@@ -1989,6 +1998,11 @@ function createDefaultsPayload() {
   const qwenOmniQueue = getGroupSettings("qwen_omni");
   const jobStoreConfig = getAiJobStoreConfig();
   const jobSnapshot = getAiJobStoreSnapshot();
+  const modelCatalog = {
+    text: listModelsByFamily("text"),
+    omni: listModelsByFamily("omni"),
+    asr: listModelsByFamily("asr"),
+  };
   logDeprecatedPipelineOnce(envPipeline);
   return {
     success: true,
@@ -2028,6 +2042,7 @@ function createDefaultsPayload() {
       listenPrompt: DEFAULT_OMNI_LISTEN_TEMPLATE,
       comparePrompt: DEFAULT_COMPARE_TEMPLATE,
       reviewPrompt: "",
+      modelCatalog,
     },
     supportedParams: SUPPORTED_REQUEST_PARAMS,
     queue: {

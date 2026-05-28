@@ -168,6 +168,12 @@ node platform-resources/backend/server.js
 - `DATABAKER_AI_FUN_ASR_PROVIDER=python` 时，Node 后端调用 Fun-ASR Python 子进程会显式设置 `PYTHONIOENCODING=utf-8` 和 `PYTHONUTF8=1`。
 - `platform-resources/backend/ai/python/funasr_client.py` 仍会按 UTF-8 输出 stdout JSON，避免 Windows 默认控制台编码导致“AI 听音文本”出现 `�` / 黑菱形乱码。
 - Fun-ASR 若返回繁体或繁简混合字形，默认 REST 链路会在 DataBaker 结果组装阶段统一繁转简；若显式切到 Python provider，则还会先在 Python 阶段做一次繁转简。
+- `platform-resources/backend/ai/model-catalog.js` 现在作为百炼核心模型的统一注册表，集中维护：
+  - 文本：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`
+  - 多模态：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
+  - 语音识别：`fun-asr`
+- `platform-resources/backend/ai/model-dispatcher.js` 统一按模型名派发运行时；默认 `JS 优先，Python 备用`。
+- `platform-resources/backend/ai/python/qwen_openai_client.py` 已加入统一 Python 辅助脚本目录，用于 Qwen OpenAI-compatible 文本/Omni 的 Python 备用链路。
 - `阮 / 汝 / 伊 / 诶` 等命中闽南词表的建议用字会被保护，不会被普通繁简转换覆盖。
 - 不再使用 `platform-resources/backend/.venv-funasr`。
 - 不再使用 `platform-resources/data-baker/round-one-quality/backend/.venv-funasr`。

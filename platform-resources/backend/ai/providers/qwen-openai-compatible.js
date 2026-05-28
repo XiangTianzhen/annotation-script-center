@@ -806,6 +806,7 @@ module.exports = {
   DEFAULT_OMNI_MODEL,
   DEFAULT_REQUEST_PARAMS,
   SUPPORTED_REQUEST_PARAMS,
+  applyAiOptionsToRequestBody,
   getClientConfig: getQwenProviderConfig,
   inferAudioFormat,
   isEnableThinkingUnsupportedError,
@@ -820,5 +821,6 @@ module.exports = {
   requestTextCompareJson,
   resolveThinkingPreference,
   sanitizeProviderErrorSummary,
+  withoutThinkingPreference,
   withThinkingPreference,
 };

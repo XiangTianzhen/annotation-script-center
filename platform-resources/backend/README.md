@@ -236,6 +236,8 @@ pm2 restart annotation-script-center --update-env
 - `config.js`：统一后端 host / port 配置。
 - `ai-framework/`：统一 AI 框架骨架，提供公共 request/response 契约、route 工厂、资产 loader、pipeline 执行器和 adapter 注册表。
 - `ai/`：统一 AI 基座，放公共 provider、限流队列、缓存、脱敏与 Python 辅助脚本。
+- `ai/model-catalog.js`：百炼核心模型统一注册表，集中维护文档链接、费用链接、family、tier、thinking 默认策略与运行时顺序。
+- `ai/model-dispatcher.js`：按模型名统一派发 JS / Python 运行时；默认 `JS 优先，Python 备用`。
 - `project-data-download/`：统一“项目数据下载”聚合模块（options/request/file、token、审计、CSV 筛选），并开始承载共享下载 core：
   - `labelx-download-core.js`
   - `labelx-existing-core.js`

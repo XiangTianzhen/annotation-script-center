@@ -5,6 +5,8 @@
 当前目录结构：
 
 - `config.js`：统一读取 DashScope、Fun-ASR provider 模式、REST API base、限流、Python 运行环境，以及 DataBaker 识别模式、听音模型、单模型、比较模型白名单配置。
+- `model-catalog.js`：统一模型注册表；维护模型名、官方文档、费用文档、family、tier、thinking 默认策略和运行时顺序。
+- `model-dispatcher.js`：统一模型调度层；按模型名决定走 JS 还是 Python 实现，并提供 `getModelMeta / listModelsByFamily / invokeModel / getModelDocs`。
 - `sanitizer.js`：统一脱敏工具，避免日志输出完整音频 URL、签名 URL、token、cookie。
 - `errors.js`：统一 provider / Python 运行时错误包装。
 - `provider-queue.js`：统一 provider 限流队列，当前支持 `qwen_omni`、`fun_asr`、`text_compare`，同时支持每个 group 独立 `maxConcurrent`。
@@ -12,10 +14,12 @@
 - `usage.js`：通用 usage 归一化。
 - `smoke-test-provider-queue.js`：本地并发自测脚本，用于验证 `fun_asr` 组在不同 `maxConcurrent` 下是否真正并发。
 - `providers/qwen-openai-compatible.js`：DashScope OpenAI-compatible `/chat/completions` 调用封装，支持文本比较和 Omni `input_audio`。
+- `providers/qwen-python.js`：Qwen Python 通道 wrapper；Node 通过子进程调用 `python/qwen_openai_client.py`，用于文本比较和 Omni `input_audio` 的 Python 备用链路。
 - `providers/funasr-rest.js`：Node 直接调用 Fun-ASR RESTful API，负责提交异步任务、轮询任务状态、下载 `transcription_url` 并提取单条 `heardText`。
 - `providers/funasr-python.js`：Node 通过 `child_process` 调用 Python Fun-ASR SDK 的统一 wrapper，并显式设置 `PYTHONIOENCODING=utf-8` / `PYTHONUTF8=1`。
 - `providers/funasr.js`：统一 Fun-ASR 入口，负责 `rest/python` provider 选择与显式 fallback。
 - `python/funasr_client.py`：Fun-ASR Python SDK 辅助脚本。
+- `python/qwen_openai_client.py`：Qwen OpenAI-compatible Python 辅助脚本。
 - `python/requirements.txt`：Fun-ASR Python 依赖，当前包含 `dashscope` 与 `opencc-python-reimplemented`。
 
 边界规则：
@@ -24,6 +28,17 @@
 - 这里不放具体平台字段归一化。
 - 这里不放具体平台推荐结果组装。
 - 平台目录只保留自己的业务编排、Prompt、schema、词表、结果组装。
+
+统一模型规则：
+
+- 百炼核心模型统一只在 `model-catalog.js` 注册，不再允许每个平台长期手写一份完整模型清单。
+- 当前统一注册的核心模型固定为：
+  - 文本：`qwen3.6-plus`、`qwen3.5-plus`、`qwen3.6-flash`、`qwen3.5-flash`
+  - 多模态：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
+  - 语音识别：`fun-asr`
+- 默认运行时顺序统一为 `JS 优先，Python 备用`。
+- thinking 默认统一关闭；模型元数据只记录“是否支持 thinking”，不把开启 thinking 作为默认路径。
+- 旧的 `qwen3-omni-flash*` / dated Omni 型号仍可作为兼容旧配置被识别，但不再作为统一模型目录的推荐选项。
 
 当前接入平台：
 

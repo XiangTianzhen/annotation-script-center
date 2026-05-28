@@ -28,10 +28,86 @@ DashScope：
 
 - 模型列表：  
   [https://bailian.console.aliyun.com/cn-beijing?tab=model#/model-market/all](https://bailian.console.aliyun.com/cn-beijing?tab=model#/model-market/all)
+- 模型费用：
+  [https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148)
 - 调用地区：  
   [https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=3004398](https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=3004398)
 - 限流限制：  
   [https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2840182](https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2840182)
+
+## 模型目录
+
+### 文本模型
+
+- `qwen3.6-plus`
+  - `modelId`：`qwen3.6-plus`
+  - `family`：`text`
+  - `categoryDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2841718`
+  - `apiDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=api#/api/?type=model&url=3016807`
+  - `pricingUrl`：`https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148`
+  - `supportsThinking`：`true`
+  - `defaultThinking`：`false`
+  - `recommendedUsage`：质量优先文本比较/转换
+- `qwen3.5-plus`
+  - `modelId`：`qwen3.5-plus`
+  - `family`：`text`
+  - `categoryDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2841718`
+  - `apiDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=api#/api/?type=model&url=3016807`
+  - `pricingUrl`：`https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148`
+  - `supportsThinking`：`true`
+  - `defaultThinking`：`false`
+  - `recommendedUsage`：稳妥文本比较/转换
+- `qwen3.6-flash`
+  - `modelId`：`qwen3.6-flash`
+  - `family`：`text`
+  - `categoryDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2841718`
+  - `apiDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=api#/api/?type=model&url=3016807`
+  - `pricingUrl`：`https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148`
+  - `supportsThinking`：`true`
+  - `defaultThinking`：`false`
+  - `recommendedUsage`：更快的文本比较/转换
+- `qwen3.5-flash`
+  - `modelId`：`qwen3.5-flash`
+  - `family`：`text`
+  - `categoryDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2841718`
+  - `apiDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=api#/api/?type=model&url=3016807`
+  - `pricingUrl`：`https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148`
+  - `supportsThinking`：`true`
+  - `defaultThinking`：`false`
+  - `recommendedUsage`：速度优先文本比较/转换默认候选
+
+### 多模态模型
+
+- `qwen3.5-omni-plus`
+  - `modelId`：`qwen3.5-omni-plus`
+  - `family`：`omni`
+  - `categoryDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2867839`
+  - `apiDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=api#/api/?type=model&url=3016807`
+  - `pricingUrl`：`https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148`
+  - `supportsThinking`：`true`
+  - `defaultThinking`：`false`
+  - `recommendedUsage`：质量优先音频理解/听音
+- `qwen3.5-omni-flash`
+  - `modelId`：`qwen3.5-omni-flash`
+  - `family`：`omni`
+  - `categoryDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2867839`
+  - `apiDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=api#/api/?type=model&url=3016807`
+  - `pricingUrl`：`https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148`
+  - `supportsThinking`：`true`
+  - `defaultThinking`：`false`
+  - `recommendedUsage`：速度优先音频理解/听音默认候选
+
+### 音频识别模型
+
+- `fun-asr`
+  - `modelId`：`fun-asr`
+  - `family`：`asr`
+  - `categoryDocUrl`：`https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2880903`
+  - `apiDocUrl`：`https://help.aliyun.com/zh/model-studio/recording-file-recognition-api-details`
+  - `pricingUrl`：`https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148`
+  - `supportsThinking`：`false`
+  - `defaultThinking`：`false`
+  - `recommendedUsage`：速度优先录音文件识别默认候选
 
 ## 文本生成
 
