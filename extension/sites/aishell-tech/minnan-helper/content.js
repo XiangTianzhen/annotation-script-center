@@ -230,8 +230,26 @@
     const dataApiFactory = globalThis.__ASREdgeAishellTechMinnanDataApi;
     const aiFactory = globalThis.__ASREdgeAishellTechMinnanAiRecommendation;
     const batchWindowFactory = globalThis.__ASREdgeAishellTechMinnanBatchWindow;
+    const diagnosticsFactory = globalThis.__ASREdgeAishellTechMinnanDiagnostics || {};
     const uiFactory = globalThis.__ASREdgeAishellTechMinnanUiPanel;
     const shortcutsFactory = globalThis.__ASREdgeAishellTechMinnanShortcuts;
+    const buildBatchFailureEntry =
+      typeof diagnosticsFactory.buildBatchFailureEntry === "function"
+        ? diagnosticsFactory.buildBatchFailureEntry
+        : function (input) {
+            const source = input && typeof input === "object" ? input : {};
+            return {
+              displayName: source.task?.displayName || "未知条目",
+              message: source.message || "失败",
+              stage: source.stage || "unknown",
+              stageLabel: source.stage || "unknown",
+              detailRows: [],
+              rawJson:
+                source.error?.rawResponse && typeof source.error.rawResponse === "object"
+                  ? source.error.rawResponse
+                  : {},
+            };
+          };
 
     if (
       !dataApiFactory?.createRuntime ||
@@ -482,10 +500,15 @@
           });
           if (entry.ok !== true) {
             consumedCount += 1;
-            failures.push({
-              displayName: task.displayName,
-              message: entry.error?.message || String(entry.error),
-            });
+            failures.push(
+              buildBatchFailureEntry({
+                task: task,
+                stage: "ai_request",
+                message: entry.error?.message || String(entry.error),
+                error: entry.error,
+                batchConcurrency: batchConcurrency,
+              })
+            );
             panel.updateBatch({
               phaseText: "当前条失败",
               total: tasks.length,
@@ -496,16 +519,20 @@
               running: true,
             });
           } else {
+            let switchResult = null;
+            let saveResult = null;
+            let failureStage = "select_task";
             try {
               panel.renderResult(entry.result);
-              const switchResult = await dataApi.selectTask(task, {
+              switchResult = await dataApi.selectTask(task, {
                 timeoutMs: 12000,
                 maxAttempts: 4,
               });
               if (switchResult?.ok === false) {
                 throw new Error(switchResult.message || "切换批量条目失败。");
               }
-              const saveResult = await dataApi.fillAndSaveCurrent(
+              failureStage = "save_current";
+              saveResult = await dataApi.fillAndSaveCurrent(
                 entry.result.recommendedText || "",
                 {
                   timeoutMs: 15000,
@@ -526,10 +553,18 @@
               });
             } catch (error) {
               consumedCount += 1;
-              failures.push({
-                displayName: task.displayName,
-                message: error?.message || String(error),
-              });
+              failures.push(
+                buildBatchFailureEntry({
+                  task: task,
+                  stage: failureStage,
+                  message: error?.message || String(error),
+                  error: error,
+                  result: entry.result,
+                  switchResult: switchResult,
+                  saveResult: saveResult,
+                  batchConcurrency: batchConcurrency,
+                })
+              );
               panel.updateBatch({
                 phaseText: "当前条失败",
                 total: tasks.length,

@@ -214,6 +214,7 @@
         "sites/aishell-tech/minnan-helper/data-api.js",
         "sites/aishell-tech/minnan-helper/ai-recommendation.js",
         "sites/aishell-tech/minnan-helper/batch-window.js",
+        "sites/aishell-tech/minnan-helper/diagnostics.js",
         "sites/aishell-tech/minnan-helper/ui-panel.js",
         "sites/aishell-tech/minnan-helper/shortcuts.js",
         "sites/aishell-tech/minnan-helper/content.js"

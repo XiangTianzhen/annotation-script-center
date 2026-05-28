@@ -47,6 +47,12 @@
       "[" + ROOT_ATTR + "] .asc-toggle-bar { display: flex; justify-content: center; margin-top: 12px; border-top: 1px solid #dbeafe; padding-top: 8px; }",
       "[" + ROOT_ATTR + "] .asc-toggle-btn { background: none; border: none; color: #1d4ed8; cursor: pointer; font-weight: 700; font-size: 11px; min-height: 20px; padding: 0; }",
       "[" + ROOT_ATTR + "] .asc-error-json { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 11px; overflow: auto; margin-top: 10px; white-space: pre-wrap; max-height: 200px; }",
+      "[" + ROOT_ATTR + "] .asc-failure-item-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }",
+      "[" + ROOT_ATTR + "] .asc-failure-item-text { flex: 1; min-width: 0; }",
+      "[" + ROOT_ATTR + "] .asc-failure-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }",
+      "[" + ROOT_ATTR + "] .asc-link-btn { border: none; background: none; padding: 0; color: #1d4ed8; cursor: pointer; font-size: 11px; font-weight: 700; }",
+      "[" + ROOT_ATTR + "] .asc-failure-detail { margin-top: 8px; padding: 8px 10px; border: 1px solid #dbeafe; border-radius: 8px; background: #ffffff; color: #334155; }",
+      "[" + ROOT_ATTR + "] .asc-failure-raw { margin-top: 8px; max-height: 220px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: #0f172a; color: #e2e8f0; font-family: monospace; font-size: 11px; white-space: pre-wrap; }",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -121,6 +127,13 @@
 
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
+    const diagnosticsFactory = globalThis.__ASREdgeAishellTechMinnanDiagnostics || {};
+    const buildCurrentResultDiagnostics =
+      typeof diagnosticsFactory.buildCurrentResultDiagnostics === "function"
+        ? diagnosticsFactory.buildCurrentResultDiagnostics
+        : function () {
+            return { rows: [] };
+          };
     let root = null;
     let statusNode = null;
     let resultNode = null;
@@ -612,18 +625,13 @@
         ["听音文本", source.heardText || ""],
         ["推荐文本", recommendedText],
         ["参考文本", referenceText],
-        [
-          "模型",
-          [
-            source.models?.listenModel,
-            source.models?.compareModel,
-            source.models?.singleModel,
-          ]
-            .filter(Boolean)
-            .join(" + "),
-        ],
-        ["requestId", source.debug?.requestId || ""],
       ]);
+      const diagnostics = buildCurrentResultDiagnostics(source, {
+        fallbackFrontConcurrency: source.debug?.frontConcurrencyNormalized,
+      });
+      if (Array.isArray(diagnostics.rows) && diagnostics.rows.length > 0) {
+        renderKeyValueRows(resultNode, diagnostics.rows);
+      }
 
       advancedSectionNode.appendChild(resultNode);
     }
@@ -659,8 +667,58 @@
         list.className = "asc-failures";
         source.failures.forEach(function (entry) {
           const item = document.createElement("li");
-          item.textContent =
+          const row = document.createElement("div");
+          row.className = "asc-failure-item-row";
+
+          const textNode = document.createElement("div");
+          textNode.className = "asc-failure-item-text";
+          textNode.textContent =
             String(entry?.displayName || "未知条目") + "： " + String(entry?.message || "失败");
+          row.appendChild(textNode);
+
+          const actions = document.createElement("div");
+          actions.className = "asc-failure-actions";
+
+          const detailNode = document.createElement("div");
+          detailNode.className = "asc-failure-detail";
+          detailNode.style.display = "none";
+          if (Array.isArray(entry?.detailRows) && entry.detailRows.length > 0) {
+            renderKeyValueRows(detailNode, entry.detailRows);
+          } else {
+            detailNode.textContent = "当前没有更多详情。";
+          }
+
+          const rawNode = document.createElement("pre");
+          rawNode.className = "asc-failure-raw";
+          rawNode.style.display = "none";
+          rawNode.textContent = JSON.stringify(entry?.rawJson || {}, null, 2);
+
+          const detailBtn = document.createElement("button");
+          detailBtn.type = "button";
+          detailBtn.className = "asc-link-btn";
+          detailBtn.textContent = "查看详情";
+          detailBtn.addEventListener("click", function () {
+            const nextVisible = detailNode.style.display === "none";
+            detailNode.style.display = nextVisible ? "block" : "none";
+            detailBtn.textContent = nextVisible ? "收起详情" : "查看详情";
+          });
+          actions.appendChild(detailBtn);
+
+          const rawBtn = document.createElement("button");
+          rawBtn.type = "button";
+          rawBtn.className = "asc-link-btn";
+          rawBtn.textContent = "查看原始JSON";
+          rawBtn.addEventListener("click", function () {
+            const nextVisible = rawNode.style.display === "none";
+            rawNode.style.display = nextVisible ? "block" : "none";
+            rawBtn.textContent = nextVisible ? "收起原始JSON" : "查看原始JSON";
+          });
+          actions.appendChild(rawBtn);
+
+          row.appendChild(actions);
+          item.appendChild(row);
+          item.appendChild(detailNode);
+          item.appendChild(rawNode);
           list.appendChild(item);
         });
         batchNode.appendChild(list);

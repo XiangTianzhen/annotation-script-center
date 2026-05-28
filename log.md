@@ -33,6 +33,26 @@
 - 补齐测试：
   - `extension/sites/aishell-tech/minnan-helper/data-api.test.js` 新增真实结构回归用例，覆盖“首个 span 只有编号、整行才有完整文件名”的场景。
 
+## 2026-05-28（Aishell Tech 批量失败详情与 AI 诊断增强）
+
+- 新增 `extension/sites/aishell-tech/minnan-helper/diagnostics.js`：
+  - 抽出 Aishell 当前识别结果与批量失败项的诊断摘要逻辑。
+  - 统一生成识别策略、模型选择、AI耗时、前端并发、token、FunASR provider、requestId、debugId 等展示字段。
+  - 统一生成批量失败项的 `stage / stageLabel / detailRows / rawJson` 结构。
+- 更新 `extension/sites/aishell-tech/minnan-helper/content.js`：
+  - 批量失败清单不再只保留 `displayName + message`。
+  - 现在会区分 `ai_request / select_task / save_current` 三类失败阶段。
+  - AI 请求失败优先挂后端原始返回；切条/保存失败则保留对应链路上下文与 AI debug 信息。
+- 更新 `extension/sites/aishell-tech/minnan-helper/ui-panel.js`：
+  - “当前识别结果”区新增 AI 诊断信息展示。
+  - 批量失败清单每条新增 `查看详情` 与 `查看原始JSON` 按钮。
+  - `查看详情` 展开失败阶段、错误摘要、AI耗时、模型、并发、token 等字段。
+  - `查看原始JSON` 展开该条完整失败上下文，便于人工定位问题。
+- 更新 `extension/manifest.json`：
+  - Aishell content script 注入序列新增 `sites/aishell-tech/minnan-helper/diagnostics.js`。
+- 补齐测试：
+  - 新增 `extension/sites/aishell-tech/minnan-helper/diagnostics.test.js`，覆盖当前结果诊断与批量失败项详情结构。
+
 ## 2026-05-28（Aishell Tech AI识别按钮不可点击热修）
 
 - 修复 `AI识别` 注入按钮在页面上可见但不能点击的问题：
