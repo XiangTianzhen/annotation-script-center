@@ -217,6 +217,7 @@
     );
     return {
       config: merged,
+      settings: settings || {},
       enabled:
         settings?.platforms?.aishellTech?.enabled !== false &&
         merged.enabled !== false &&
@@ -237,6 +238,7 @@
     const aiClient = aiFactory.createRuntime({
       endpoint: config.aiRecommendEndpoint,
       timeoutMs: config.aiRecommendRequestTimeoutMs,
+      settings: config.settings || {},
       modelMode: config.aiRecommendPipelineMode,
       recognitionStrategy: config.aiRecommendRecognitionStrategy,
       recognitionMode: config.aiRecommendPipelineMode,
@@ -582,7 +584,11 @@
       return;
     }
     if (!activeRuntime) {
-      const runtime = createRuntime(runtimeConfig.config);
+      const runtime = createRuntime(
+        Object.assign({}, runtimeConfig.config || {}, {
+          settings: runtimeConfig.settings || {},
+        })
+      );
       if (!runtime) {
         return;
       }

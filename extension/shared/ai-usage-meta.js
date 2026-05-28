@@ -30,6 +30,13 @@ function createAiUsageOperatorSettingsPatch(operatorName) {
   };
 }
 
+function assertAiUsageOperatorConfigured(requestMeta) {
+  if (!normalizeAiUsageOperatorName(requestMeta?.aiUsageOperatorName)) {
+    throw createMissingAiUsageOperatorError();
+  }
+  return requestMeta;
+}
+
 function createMissingAiUsageOperatorError() {
   const error = new Error("请先在 options 首页填写 AI 调用使用人。");
   error.code = "missing-ai-usage-operator-name";
@@ -40,6 +47,7 @@ const api = {
   normalizeAiUsageOperatorName,
   buildAiUsageRequestMeta,
   createAiUsageOperatorSettingsPatch,
+  assertAiUsageOperatorConfigured,
   createMissingAiUsageOperatorError,
 };
 

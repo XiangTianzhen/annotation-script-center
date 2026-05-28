@@ -6,6 +6,29 @@
   const DEFAULT_ENDPOINT =
     "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend";
   const DEFAULT_TIMEOUT_MS = 120000;
+  const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
+  const buildAiUsageRequestMeta =
+    typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
+      ? aiUsageMeta.buildAiUsageRequestMeta
+      : function (input) {
+          const source = input && typeof input === "object" ? input : {};
+          return {
+            aiUsageOperatorName: normalizeText(source.settings?.meta?.aiUsageOperatorName).slice(0, 40),
+            platformUserName: normalizeText(source.platformUserName).slice(0, 80),
+            platformUserId: normalizeText(source.platformUserId).slice(0, 120),
+          };
+        };
+  const assertAiUsageOperatorConfigured =
+    typeof aiUsageMeta.assertAiUsageOperatorConfigured === "function"
+      ? aiUsageMeta.assertAiUsageOperatorConfigured
+      : function (requestMeta) {
+          if (!normalizeText(requestMeta?.aiUsageOperatorName)) {
+            const error = new Error("请先在 options 首页填写 AI 调用使用人。");
+            error.code = "missing-ai-usage-operator-name";
+            throw error;
+          }
+          return requestMeta;
+        };
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -72,8 +95,23 @@
       }
     }
 
+    function getPlatformUserMeta(item) {
+      const source = item && typeof item === "object" ? item : {};
+      return {
+        platformUserName: normalizeText(source.platformUserName),
+        platformUserId: normalizeText(source.platformUserId),
+      };
+    }
+
     function createRequestBody(item) {
       const source = item && typeof item === "object" ? item : {};
+      const userMeta = getPlatformUserMeta(source);
+      const requestMeta = buildAiUsageRequestMeta({
+        settings: config.settings,
+        platformUserName: userMeta.platformUserName,
+        platformUserId: userMeta.platformUserId,
+      });
+      assertAiUsageOperatorConfigured(requestMeta);
       const requestBody = {
         taskId: normalizeText(source.taskId),
         packageId: normalizeText(source.packageId),
@@ -90,6 +128,9 @@
         batchProcessKey: normalizeText(source.batchProcessKey),
         clientRequestId: normalizeText(source.clientRequestId),
         frontConcurrency: source.frontConcurrency,
+        aiUsageOperatorName: requestMeta.aiUsageOperatorName,
+        platformUserName: requestMeta.platformUserName,
+        platformUserId: requestMeta.platformUserId,
       };
 
       if (config.recognitionMode) {

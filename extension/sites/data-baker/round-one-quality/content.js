@@ -504,6 +504,7 @@
       singleModel: singleModel,
       enableThinking: script.aiRecommendEnableThinking === true,
       aiOptions,
+      settings: settings || {},
       key: [
         platform.enabled !== false ? "1" : "0",
         script.enabled !== false ? "1" : "0",
@@ -543,6 +544,7 @@
     const ai = aiFactory.createRuntime({
       endpoint: config.endpoint,
       timeoutMs: config.timeoutMs,
+      settings: config.settings || {},
       recognitionMode: config.recognitionMode,
       pipelineMode: config.pipelineMode,
       listenModel: config.listenModel,

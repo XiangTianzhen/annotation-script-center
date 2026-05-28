@@ -3,6 +3,29 @@
     "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
   const DEFAULT_TIMEOUT_MS = 120000;
   const DEFAULT_REQUEST_STAGGER_MS = 30;
+  const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
+  const buildAiUsageRequestMeta =
+    typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
+      ? aiUsageMeta.buildAiUsageRequestMeta
+      : function (input) {
+          const source = input && typeof input === "object" ? input : {};
+          return {
+            aiUsageOperatorName: normalizeText(source.settings?.meta?.aiUsageOperatorName).slice(0, 40),
+            platformUserName: normalizeText(source.platformUserName).slice(0, 80),
+            platformUserId: normalizeText(source.platformUserId).slice(0, 120),
+          };
+        };
+  const assertAiUsageOperatorConfigured =
+    typeof aiUsageMeta.assertAiUsageOperatorConfigured === "function"
+      ? aiUsageMeta.assertAiUsageOperatorConfigured
+      : function (requestMeta) {
+          if (!normalizeText(requestMeta?.aiUsageOperatorName)) {
+            const error = new Error("请先在 options 首页填写 AI 调用使用人。");
+            error.code = "missing-ai-usage-operator-name";
+            throw error;
+          }
+          return requestMeta;
+        };
 
   function getClientVersion() {
     try {
@@ -122,6 +145,13 @@
     }
 
     function createRequestBody(source) {
+      const platformUserName = String(source.annotatorName || getAnnotatorName() || "");
+      const requestMeta = buildAiUsageRequestMeta({
+        settings: config.settings,
+        platformUserName: platformUserName,
+        platformUserId: "",
+      });
+      assertAiUsageOperatorConfigured(requestMeta);
       const requestBody = {
         collectId: String(source.collectId || ""),
         itemId: String(source.itemId || ""),
@@ -130,7 +160,10 @@
         readRequire: String(source.readRequire || ""),
         audioUrl: String(source.audioUrl || ""),
         pageText: String(source.pageText || ""),
-        annotatorName: String(source.annotatorName || getAnnotatorName() || ""),
+        annotatorName: platformUserName,
+        aiUsageOperatorName: requestMeta.aiUsageOperatorName,
+        platformUserName: requestMeta.platformUserName,
+        platformUserId: requestMeta.platformUserId,
         effectiveStartTime: source.effectiveStartTime,
         effectiveEndTime: source.effectiveEndTime,
         effectiveTime: source.effectiveTime,

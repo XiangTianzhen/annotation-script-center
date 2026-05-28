@@ -6,6 +6,7 @@ const {
   normalizeAiUsageOperatorName,
   buildAiUsageRequestMeta,
   createAiUsageOperatorSettingsPatch,
+  assertAiUsageOperatorConfigured,
   createMissingAiUsageOperatorError,
 } = require("./ai-usage-meta");
 
@@ -40,6 +41,17 @@ test("createAiUsageOperatorSettingsPatch stores the normalized name in settings.
       aiUsageOperatorName: "",
     },
   });
+});
+
+test("assertAiUsageOperatorConfigured throws the stable missing-operator error", function () {
+  assert.throws(
+    function () {
+      assertAiUsageOperatorConfigured({ aiUsageOperatorName: "" });
+    },
+    function (error) {
+      return error && error.code === "missing-ai-usage-operator-name";
+    }
+  );
 });
 
 test("createMissingAiUsageOperatorError returns a stable code", function () {
