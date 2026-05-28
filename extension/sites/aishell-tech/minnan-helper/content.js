@@ -333,9 +333,9 @@
       batchStopRequested = false;
       panel.setStatus("正在准备批量识别...", "info");
       try {
-        const tasks = await dataApi.getBatchTasksFromCurrentSelection();
+        const tasks = await dataApi.getBatchTasksForPackage();
         if (!tasks.length) {
-          throw new Error("从当前选中条开始没有可识别的未完成条目。");
+          throw new Error("当前分包没有可识别的未完成条目。");
         }
         const batchRunId = createBatchRunId();
         const batchConcurrency = Math.max(

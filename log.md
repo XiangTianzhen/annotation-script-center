@@ -41,6 +41,10 @@
   - 新增 `extension/sites/aishell-tech/minnan-helper/batch-window.js`，把批量请求窗口改成“先发满并发，消费一条后再补发一条”的滚动补位模型。
   - `extension/sites/aishell-tech/minnan-helper/content.js` 改为基于该窗口调度 AI 请求，保持“谁先返回谁先保存”，但后续补发时机改为“上一条保存完成后”。
   - `extension/sites/aishell-tech/minnan-helper/data-api.js` 新增 Aishell 固定 OSS 根地址回退；`task/detail.project.dataRoot` 缺失时，仍可用 `https://bpp-collect.oss-cn-hangzhou.aliyuncs.com + item.url` 组装音频地址。
+- 2026-05-28 同轮追加：
+  - Aishell 批量任务源改为“当前分包从第 1 条到最后 1 条”整包扫描，不再从当前选中条开始。
+  - 过滤口径收紧为只跳过 `dataStatus === 2` 的已完成条目；`dataStatus=0/1` 都继续参与本轮批量。
+  - `extension/sites/aishell-tech/minnan-helper/data-api.test.js` 新增整包扫描与状态过滤断言。
 - 测试与资源：
   - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 新增默认 Prompt 简体约束断言。
   - `extension/sites/aishell-tech/minnan-helper/batch-window.test.js` 新增滚动并发窗口补位测试。

@@ -704,3 +704,64 @@ test("getCurrentItem falls back to default aishell audio root when task detail h
     }
   );
 });
+
+test("createBatchTasksFromPackageItems scans whole package and skips only dataStatus 2", function () {
+  const runtime = createRuntime();
+  const tasks = runtime.createBatchTasksFromPackageItems([
+    {
+      id: "item-1",
+      number: 1,
+      fileName: "clip-1.wav",
+      dataStatus: 0,
+    },
+    {
+      id: "item-2",
+      number: 2,
+      fileName: "clip-2.wav",
+      dataStatus: 2,
+    },
+    {
+      id: "item-3",
+      number: 3,
+      fileName: "clip-3.wav",
+      dataStatus: 1,
+    },
+    {
+      id: "item-4",
+      number: 4,
+      fileName: "clip-4.wav",
+      dataStatus: 0,
+    },
+  ]);
+
+  assert.deepEqual(
+    tasks.map(function (task) {
+      return {
+        index: task.index,
+        taskItemId: task.taskItemId,
+        number: task.number,
+        fileName: task.fileName,
+      };
+    }),
+    [
+      {
+        index: 0,
+        taskItemId: "item-1",
+        number: 1,
+        fileName: "clip-1.wav",
+      },
+      {
+        index: 2,
+        taskItemId: "item-3",
+        number: 3,
+        fileName: "clip-3.wav",
+      },
+      {
+        index: 3,
+        taskItemId: "item-4",
+        number: 4,
+        fileName: "clip-4.wav",
+      },
+    ]
+  );
+});

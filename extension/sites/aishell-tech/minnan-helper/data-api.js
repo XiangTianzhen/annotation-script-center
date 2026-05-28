@@ -626,6 +626,33 @@
     return "未命名条目";
   }
 
+  function shouldSkipBatchRecord(record) {
+    return Number(record?.dataStatus || 0) === 2;
+  }
+
+  function createBatchTasksFromPackageItems(records) {
+    const source = Array.isArray(records) ? records : [];
+    return source
+      .map(function (record, index) {
+        return {
+          index: index,
+          record: record && typeof record === "object" ? record : {},
+        };
+      })
+      .filter(function (entry) {
+        return shouldSkipBatchRecord(entry.record) !== true;
+      })
+      .map(function (entry) {
+        return {
+          index: entry.index,
+          taskItemId: normalizeText(entry.record.id),
+          number: Number(entry.record.number || entry.index + 1) || entry.index + 1,
+          fileName: normalizeText(entry.record.fileName),
+          displayName: getRecordDisplayName(entry.record),
+        };
+      });
+  }
+
   function isSaveCompletionState(previousIndex, snapshot) {
     const source = snapshot && typeof snapshot === "object" ? snapshot : {};
     if (!Number.isInteger(Number(previousIndex)) || Number(previousIndex) < 0) {
@@ -996,40 +1023,11 @@
       });
     }
 
-    async function getBatchTasksFromCurrentSelection() {
+    async function getBatchTasksForPackage() {
       syncRouteKey();
       const routeParams = parseRouteParams();
       const packageEntry = await ensurePackageItems(routeParams.packageId);
-      const domItems = getListDomItems();
-      const selectedIndex = getSelectedIndex();
-      if (selectedIndex < 0) {
-        return [];
-      }
-      return packageEntry.items
-        .map(function (record, index) {
-          return {
-            index: index,
-            record: record,
-            dom: domItems[index] || null,
-          };
-        })
-        .filter(function (entry) {
-          return (
-            entry.index >= selectedIndex &&
-            entry.dom &&
-            entry.dom.finished !== true &&
-            Number(entry.record?.dataStatus || 0) <= 0
-          );
-        })
-        .map(function (entry) {
-          return {
-            index: entry.index,
-            taskItemId: normalizeText(entry.record.id),
-            number: Number(entry.record.number || entry.index + 1) || entry.index + 1,
-            fileName: normalizeText(entry.record.fileName),
-            displayName: getRecordDisplayName(entry.record),
-          };
-        });
+      return createBatchTasksFromPackageItems(packageEntry.items);
     }
 
     async function waitForSelectedIndex(targetIndex, timeoutMs) {
@@ -1287,13 +1285,14 @@
     return {
       canFillPageText,
       clickSaveAndWait,
+      createBatchTasksFromPackageItems,
       createRateLimitedTaskScheduler,
       buildSaveShortMarkPayload,
       doesRenderedItemMatch,
       extractSavedMarkText,
       fillPageText,
       fillAndSaveCurrent,
-      getBatchTasksFromCurrentSelection,
+      getBatchTasksForPackage,
       getCurrentItem,
       getItemByIndex,
       getItemByTask,
@@ -1312,6 +1311,7 @@
     createRateLimitedTaskScheduler,
     createRuntime,
     buildSaveShortMarkPayload,
+    createBatchTasksFromPackageItems,
     doesDomListItemMatchTask,
     doesListFileHintMatch,
     doesRenderedItemMatch,
