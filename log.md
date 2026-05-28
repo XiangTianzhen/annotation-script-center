@@ -2978,3 +2978,11 @@
 - `extension/sites/aishell-tech/minnan-helper/data-api.js` 已补两层确认：
   - 切条后先等待右侧表单真正切到目标文件，再执行填入与保存。
   - 点击保存后，除继续观察 DOM 外，还会轮询 `getShortMark` 与 `packageItemList` 确认平台状态已更新。
+
+## 2026-05-28（Aishell Tech 批量保存节奏放慢热修）
+
+- 根据人工复测反馈，当前主要失败点从“保存误判”收敛到“切条后右侧表单仍未完全稳定就继续保存”。
+- 本轮没有改 AI 并发请求策略，只放慢真实页面操作节奏：
+  - `content.js` 调高批量切条超时，并在切条成功后增加额外稳定等待。
+  - `fillAndSaveCurrent` 现在支持 `postSaveSettleMs`，保存成功后会额外等待一段时间，再处理下一条。
+  - 批量循环每条结束后都会再等一个短间隔，降低连续切条/连续保存把 Aishell 页面打乱的概率。

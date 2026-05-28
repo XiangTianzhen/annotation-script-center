@@ -813,15 +813,27 @@
       const expectedText = normalizeMarkCompareText(options?.expectedText || "");
       const taskItemId = normalizeText(options?.taskItemId);
       const packageId = normalizeText(options?.packageId);
+      const successSettleMs = Math.max(
+        0,
+        Number(options?.successSettleMs || 0) || 0
+      );
+
+      async function buildSuccessResult(message) {
+        if (successSettleMs > 0) {
+          await sleep(successSettleMs);
+        }
+        return {
+          ok: true,
+          message: message,
+        };
+      }
+
       button.click();
       const deadline = Date.now() + Math.max(3000, Number(options?.timeoutMs || 15000) || 15000);
       let networkCheckAt = 0;
       while (Date.now() < deadline) {
         if (isSaveCompletionState(selectedIndex, captureListState(selectedIndex))) {
-          return {
-            ok: true,
-            message: "已点击真实保存按钮，并检测到页面切条或条目变为完成。",
-          };
+          return buildSuccessResult("已点击真实保存按钮，并检测到页面切条或条目变为完成。");
         }
         const now = Date.now();
         if (now - networkCheckAt >= 450) {
@@ -831,10 +843,7 @@
               const shortMarkResult = await getShortMarkResult(taskItemId);
               const savedText = extractSavedMarkText(shortMarkResult);
               if (savedText && normalizeMarkCompareText(savedText) === expectedText) {
-                return {
-                  ok: true,
-                  message: "已点击真实保存按钮，并确认平台已保存当前文本。",
-                };
+                return buildSuccessResult("已点击真实保存按钮，并确认平台已保存当前文本。");
               }
             }
           } catch (_error) {}
@@ -847,10 +856,9 @@
                   })
                 : null;
               if (isPackageItemSaved(matchedRecord)) {
-                return {
-                  ok: true,
-                  message: "已点击真实保存按钮，并检测到平台条目状态已更新为已标注。",
-                };
+                return buildSuccessResult(
+                  "已点击真实保存按钮，并检测到平台条目状态已更新为已标注。"
+                );
               }
             }
           } catch (_error) {}
@@ -882,6 +890,7 @@
         expectedText: normalizedText,
         taskItemId: currentItem.taskItemId,
         packageId: currentItem.packageId,
+        successSettleMs: options?.postSaveSettleMs || 0,
       });
     }
 
