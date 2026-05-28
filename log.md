@@ -12,6 +12,15 @@
   - `extension/sites/aishell-tech/minnan-helper/data-api.test.js` 新增平台账号解析与 DOM 提取用例。
   - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 新增 AI 调用元数据透传与 `annotatorName` fallback 断言。
 
+## 2026-05-28（Aishell Tech 批量切条误判热修）
+
+- 修复 Aishell 批量识别里“左侧已切到目标条，但右侧仍被误判成未切换”的问题：
+  - 真页复测发现 `.fileName-line` 的第一个 `span` 只有 `646:` 这类编号，完整文件名在同一行外层节点里，且右侧工具按钮也共用该行。
+  - `extension/sites/aishell-tech/minnan-helper/data-api.js` 不再只读取 `.fileName-line span`，改为优先从整行文本中提取 `编号: 文件名.wav`，再用于右侧表单对齐判断。
+  - 这样即使平台把编号、文件名、`AI批量识别 / 停止批量` 等按钮混排在一行里，也不会再把正确切条误判成“右侧表单未完成切换”。
+- 补齐测试：
+  - `extension/sites/aishell-tech/minnan-helper/data-api.test.js` 新增真实结构回归用例，覆盖“首个 span 只有编号、整行才有完整文件名”的场景。
+
 ## 2026-05-28（Aishell Tech AI识别按钮不可点击热修）
 
 - 修复 `AI识别` 注入按钮在页面上可见但不能点击的问题：
