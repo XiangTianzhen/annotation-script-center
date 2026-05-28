@@ -2986,3 +2986,11 @@
   - `content.js` 调高批量切条超时，并在切条成功后增加额外稳定等待。
   - `fillAndSaveCurrent` 现在支持 `postSaveSettleMs`，保存成功后会额外等待一段时间，再处理下一条。
   - 批量循环每条结束后都会再等一个短间隔，降低连续切条/连续保存把 Aishell 页面打乱的概率。
+
+## 2026-05-28（Aishell Tech 批量保存切回原生 SaveShortMark）
+
+- 根据复测反馈，Aishell 批量的核心问题不是 AI 并发本身，而是“切条后依赖页面真实保存按钮”这一步容易受页面切换状态干扰。
+- 本轮收口为更接近 DataBaker 的模式：
+  - 继续使用前端并发窗口和“哪条先返回就先进保存队列”的消费方式。
+  - 回填时先切到目标条并填入页面文本框，再直接调用平台原生 `POST /api/mark/SaveShortMark`，不再依赖页面按钮。
+  - 保存成功判定统一改为轮询 `getShortMark` 与 `packageItemList`，确认平台文本和 `dataStatus` 已更新后再继续下一条。

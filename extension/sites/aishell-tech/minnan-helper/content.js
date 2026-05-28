@@ -12,12 +12,6 @@
   const RECOMMEND_PATH =
     CONSTANTS.AISHELL_TECH_AI_RECOMMEND_PATH ||
     "/api/aishell-tech/minnan-helper/ai/recommend";
-  const BATCH_SWITCH_TIMEOUT_MS = 12000;
-  const BATCH_SWITCH_SETTLE_MS = 900;
-  const BATCH_FILL_SAVE_TIMEOUT_MS = 22000;
-  const BATCH_POST_FILL_DELAY_MS = 300;
-  const BATCH_POST_SAVE_SETTLE_MS = 1200;
-  const BATCH_BETWEEN_ITEMS_DELAY_MS = 650;
 
   let activeRuntime = null;
   let currentUrl = location.href;
@@ -47,12 +41,6 @@
       Date.now().toString(36),
       Math.random().toString(36).slice(2, 8),
     ].join("-");
-  }
-
-  function sleep(ms) {
-    return new Promise(function (resolve) {
-      window.setTimeout(resolve, Math.max(0, Number(ms || 0) || 0));
-    });
   }
 
   function normalizeOptionalNumber(value, min, max) {
@@ -466,18 +454,15 @@
           try {
             panel.renderResult(entry.result);
             const switchResult = await dataApi.selectItemByIndex(task.index, {
-              timeoutMs: BATCH_SWITCH_TIMEOUT_MS,
+              timeoutMs: 8000,
             });
             if (switchResult?.ok === false) {
               throw new Error(switchResult.message || "切换批量条目失败。");
             }
-            await sleep(BATCH_SWITCH_SETTLE_MS);
             const saveResult = await dataApi.fillAndSaveCurrent(
               entry.result.recommendedText || "",
               {
-                timeoutMs: BATCH_FILL_SAVE_TIMEOUT_MS,
-                postFillDelayMs: BATCH_POST_FILL_DELAY_MS,
-                postSaveSettleMs: BATCH_POST_SAVE_SETTLE_MS,
+                timeoutMs: 15000,
               }
             );
             if (saveResult?.ok === false) {
@@ -493,7 +478,6 @@
               failures: failures,
               running: true,
             });
-            await sleep(BATCH_BETWEEN_ITEMS_DELAY_MS);
           } catch (error) {
             consumedCount += 1;
             failures.push({
@@ -509,7 +493,6 @@
               failures: failures,
               running: true,
             });
-            await sleep(BATCH_BETWEEN_ITEMS_DELAY_MS);
           }
         }
 

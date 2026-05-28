@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  buildSaveShortMarkPayload,
   createRuntime,
   ensureChineseSentencePunctuation,
   extractSavedMarkText,
@@ -79,6 +80,26 @@ test("extractSavedMarkText parses mark json string and direct text", function ()
   );
 });
 
+test("buildSaveShortMarkPayload matches aishell save contract", function () {
+  assert.deepEqual(
+    buildSaveShortMarkPayload(
+      {
+        taskItemId: "task-item-1",
+        spendTime: 0,
+        duration: 14.159541666666666,
+      },
+      " 汝 会 做 炒米粉焦无  "
+    ),
+    {
+      mark: "{\"text\":\"汝会做炒米粉焦无。\"}",
+      taskItemId: "task-item-1",
+      spendTime: 5,
+      scene: "mark",
+      duration: 14.159541666666666,
+    }
+  );
+});
+
 test("isSaveCompletionState returns true when selected index advances", function () {
   assert.equal(
     isSaveCompletionState(1, {
@@ -138,5 +159,6 @@ test("createRuntime exposes createRateLimitedTaskScheduler for content runtime",
   const runtime = createRuntime();
 
   assert.equal(typeof runtime.createRateLimitedTaskScheduler, "function");
+  assert.equal(typeof runtime.buildSaveShortMarkPayload, "function");
   assert.equal(typeof runtime.extractSavedMarkText, "function");
 });

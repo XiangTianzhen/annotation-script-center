@@ -404,6 +404,30 @@
     return "";
   }
 
+  function normalizeSaveSpendTime(value) {
+    const numeric = Math.round(Number(value) || 0);
+    return numeric > 0 ? numeric : 5;
+  }
+
+  function normalizeSaveDuration(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+  }
+
+  function buildSaveShortMarkPayload(item, text, options) {
+    const source = item && typeof item === "object" ? item : {};
+    const normalizedText = ensureChineseSentencePunctuation(removeTextSpaces(text || ""));
+    return {
+      mark: JSON.stringify({
+        text: normalizedText,
+      }),
+      taskItemId: normalizeText(source.taskItemId),
+      spendTime: normalizeSaveSpendTime(options?.spendTime ?? source.spendTime),
+      scene: "mark",
+      duration: normalizeSaveDuration(options?.duration ?? source.duration),
+    };
+  }
+
   function isPackageItemSaved(record) {
     const source = record && typeof record === "object" ? record : {};
     return Number(source.dataStatus || 0) > 0;
@@ -454,11 +478,13 @@
       routeKey: "",
       taskDetailByTaskId: Object.create(null),
       packageItemsByPackageId: Object.create(null),
+      markDetailByTaskItemId: Object.create(null),
     };
 
     function clearRouteCache() {
       state.taskDetailByTaskId = Object.create(null);
       state.packageItemsByPackageId = Object.create(null);
+      state.markDetailByTaskItemId = Object.create(null);
     }
 
     function syncRouteKey() {
@@ -497,14 +523,26 @@
     }
 
     async function requestJson(path) {
+      return requestJsonWithOptions("GET", path);
+    }
+
+    async function requestJsonWithOptions(method, path, body) {
       syncRouteKey();
       const token = getAuthToken();
+      const httpMethod = normalizeText(method || "GET").toUpperCase() || "GET";
+      const headers = {
+        Accept: "application/json",
+        Authorization: "Bearer " + token,
+      };
+      let payloadBody;
+      if (httpMethod !== "GET" && body !== undefined) {
+        headers["Content-Type"] = "application/json;charset=UTF-8";
+        payloadBody = JSON.stringify(body);
+      }
       const response = await fetch(buildApiUrl(path), {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          Authorization: "Bearer " + token,
-        },
+        method: httpMethod,
+        headers: headers,
+        body: payloadBody,
       });
       const payload = await response.json().catch(function () {
         return null;
@@ -523,6 +561,29 @@
         throw createRequestError(normalizeText(payload?.data?.message) || "Aishell 平台返回失败。");
       }
       return payload;
+    }
+
+    async function ensureMarkDetail(taskItemId) {
+      const key = normalizeText(taskItemId);
+      if (!key) {
+        throw createRequestError("当前缺少 taskItemId。");
+      }
+      if (state.markDetailByTaskItemId[key]) {
+        return state.markDetailByTaskItemId[key];
+      }
+      const payload = await requestJson("/api/taskItem/markDetail/" + encodeURIComponent(key));
+      const result = payload?.data?.result || {};
+      const entry = {
+        taskItemId: key,
+        fileName: normalizeText(result.fileName),
+        referenceText: normalizeText(result.text),
+        duration: Number(result.audioLength || 0) || 0,
+        url: normalizeText(result.url),
+        dataRoot: normalizeText(result.dataRoot),
+        raw: result,
+      };
+      state.markDetailByTaskItemId[key] = entry;
+      return entry;
     }
 
     async function ensureTaskDetail(taskId) {
@@ -700,7 +761,12 @@
           };
         })
         .filter(function (entry) {
-          return entry.index >= selectedIndex && entry.dom && entry.dom.finished !== true;
+          return (
+            entry.index >= selectedIndex &&
+            entry.dom &&
+            entry.dom.finished !== true &&
+            Number(entry.record?.dataStatus || 0) <= 0
+          );
         })
         .map(function (entry) {
           return {
@@ -796,70 +862,48 @@
     }
 
     async function clickSaveAndWait(options) {
-      const selectedIndex = getSelectedIndex();
-      if (selectedIndex < 0) {
-        return {
-          ok: false,
-          message: "当前没有选中的条目，无法保存。",
-        };
-      }
-      const button = getSaveButton();
-      if (!(button instanceof HTMLButtonElement)) {
-        return {
-          ok: false,
-          message: "当前页面没有定位到真实“保存”按钮。",
-        };
-      }
       const expectedText = normalizeMarkCompareText(options?.expectedText || "");
       const taskItemId = normalizeText(options?.taskItemId);
       const packageId = normalizeText(options?.packageId);
-      const successSettleMs = Math.max(
-        0,
-        Number(options?.successSettleMs || 0) || 0
-      );
-
-      async function buildSuccessResult(message) {
-        if (successSettleMs > 0) {
-          await sleep(successSettleMs);
-        }
+      const savePayload =
+        options?.savePayload && typeof options.savePayload === "object"
+          ? options.savePayload
+          : null;
+      if (!taskItemId || !packageId || !savePayload) {
         return {
-          ok: true,
-          message: message,
+          ok: false,
+          message: "当前保存缺少必要参数。",
         };
       }
-
-      button.click();
+      await requestJsonWithOptions("POST", "/api/mark/SaveShortMark", savePayload);
       const deadline = Date.now() + Math.max(3000, Number(options?.timeoutMs || 15000) || 15000);
       let networkCheckAt = 0;
       while (Date.now() < deadline) {
-        if (isSaveCompletionState(selectedIndex, captureListState(selectedIndex))) {
-          return buildSuccessResult("已点击真实保存按钮，并检测到页面切条或条目变为完成。");
-        }
         const now = Date.now();
         if (now - networkCheckAt >= 450) {
           networkCheckAt = now;
           try {
-            if (taskItemId) {
-              const shortMarkResult = await getShortMarkResult(taskItemId);
-              const savedText = extractSavedMarkText(shortMarkResult);
-              if (savedText && normalizeMarkCompareText(savedText) === expectedText) {
-                return buildSuccessResult("已点击真实保存按钮，并确认平台已保存当前文本。");
-              }
+            const shortMarkResult = await getShortMarkResult(taskItemId);
+            const savedText = extractSavedMarkText(shortMarkResult);
+            if (savedText && normalizeMarkCompareText(savedText) === expectedText) {
+              return {
+                ok: true,
+                message: "已调用平台 SaveShortMark，并确认平台已保存当前文本。",
+              };
             }
           } catch (_error) {}
           try {
-            if (packageId && taskItemId) {
-              const packageEntry = await refreshPackageItems(packageId);
-              const matchedRecord = Array.isArray(packageEntry?.items)
-                ? packageEntry.items.find(function (item) {
-                    return normalizeText(item?.id) === taskItemId;
-                  })
-                : null;
-              if (isPackageItemSaved(matchedRecord)) {
-                return buildSuccessResult(
-                  "已点击真实保存按钮，并检测到平台条目状态已更新为已标注。"
-                );
-              }
+            const packageEntry = await refreshPackageItems(packageId);
+            const matchedRecord = Array.isArray(packageEntry?.items)
+              ? packageEntry.items.find(function (item) {
+                  return normalizeText(item?.id) === taskItemId;
+                })
+              : null;
+            if (isPackageItemSaved(matchedRecord)) {
+              return {
+                ok: true,
+                message: "已调用平台 SaveShortMark，并检测到平台条目状态已更新为已标注。",
+              };
             }
           } catch (_error) {}
         }
@@ -867,7 +911,7 @@
       }
       return {
         ok: false,
-        message: "点击保存后既没有检测到页面切条，也没有确认到平台保存状态，请检查平台是否保存成功。",
+        message: "调用 SaveShortMark 后未能确认平台保存状态，请检查平台是否已保存成功。",
       };
     }
 
@@ -883,14 +927,25 @@
       if (fillResult?.ok === false) {
         return fillResult;
       }
+      const detail = await ensureMarkDetail(currentItem.taskItemId).catch(function () {
+        return null;
+      });
+      const runtimeItem = Object.assign({}, currentItem, {
+        duration:
+          normalizeSaveDuration(detail?.duration) ||
+          normalizeSaveDuration(currentItem.duration),
+        referenceText: normalizeText(detail?.referenceText || currentItem.referenceText),
+        fileName: normalizeText(detail?.fileName || currentItem.fileName),
+      });
       const normalizedText = normalizeMarkCompareText(text);
       await sleep(Number(options?.postFillDelayMs || 120) || 120);
+      const savePayload = buildSaveShortMarkPayload(runtimeItem, normalizedText, options);
       return clickSaveAndWait({
         timeoutMs: options?.timeoutMs || 15000,
         expectedText: normalizedText,
         taskItemId: currentItem.taskItemId,
         packageId: currentItem.packageId,
-        successSettleMs: options?.postSaveSettleMs || 0,
+        savePayload: savePayload,
       });
     }
 
@@ -902,6 +957,7 @@
       canFillPageText,
       clickSaveAndWait,
       createRateLimitedTaskScheduler,
+      buildSaveShortMarkPayload,
       doesRenderedItemMatch,
       extractSavedMarkText,
       fillPageText,
@@ -922,6 +978,7 @@
   const api = {
     createRateLimitedTaskScheduler,
     createRuntime,
+    buildSaveShortMarkPayload,
     doesRenderedItemMatch,
     ensureChineseSentencePunctuation,
     extractSavedMarkText,
