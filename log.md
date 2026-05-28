@@ -2943,3 +2943,15 @@
   - 前端按配置并发数发起请求，但固定每 `50ms` 才允许发出下一条，整体请求速率不超过 `20 req/s`。
   - 哪条结果先返回，就先切到哪条并执行“填入并保存当前条”。
 - Aishell 独立补齐两种闽南语识别策略，并对齐 options/defaults/backend：
+  - 默认策略改为 `mandarin_to_dialect`（普通话对照默认）：听音模型先输出普通话，再结合页面预测闽南语文本和字词表生成最终闽南语。
+  - 保留 `direct_dialect`（直接听写闽南语）测试模式。
+  - `defaults/health` 新增 `modelModeOptions`、`recognitionStrategyOptions`、`promptProfiles`，Aishell options 面板改为真正保存 `模型方案 + 识别策略`。
+
+## 2026-05-28（Aishell Tech 乱序批量保存判定热修）
+
+- 修复批量识别中“第一条成功、后续大量提示保存超时”的问题：
+  - 旧逻辑只按 DOM 是否自动切条 / 条目是否出现 `list-item-finshed` 来判断保存成功。
+  - 在乱序保存场景下，平台不一定自动切到下一条，导致保存已成功也会被误判成失败。
+- `extension/sites/aishell-tech/minnan-helper/data-api.js` 已补两层确认：
+  - 切条后先等待右侧表单真正切到目标文件，再执行填入与保存。
+  - 点击保存后，除继续观察 DOM 外，还会轮询 `getShortMark` 与 `packageItemList` 确认平台状态已更新。

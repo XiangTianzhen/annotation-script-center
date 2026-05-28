@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 const {
   createRuntime,
   ensureChineseSentencePunctuation,
+  extractSavedMarkText,
   extractAuthTokenFromUnknown,
   findAuthTokenInEntries,
   isSaveCompletionState,
@@ -53,6 +54,29 @@ test("removeTextSpaces removes full-width and half-width spaces", function () {
 test("ensureChineseSentencePunctuation appends chinese full stop when missing", function () {
   assert.equal(ensureChineseSentencePunctuation("昨晚去公园散步"), "昨晚去公园散步。");
   assert.equal(ensureChineseSentencePunctuation("昨晚去公园散步？"), "昨晚去公园散步？");
+});
+
+test("extractSavedMarkText parses mark json string and direct text", function () {
+  assert.equal(
+    extractSavedMarkText({
+      mark: "{\"text\":\"阮欲去看电影。\"}",
+    }),
+    "阮欲去看电影。"
+  );
+  assert.equal(
+    extractSavedMarkText({
+      mark: {
+        text: "阮欲去看电影。",
+      },
+    }),
+    "阮欲去看电影。"
+  );
+  assert.equal(
+    extractSavedMarkText({
+      text: "阮欲去看电影。",
+    }),
+    "阮欲去看电影。"
+  );
 });
 
 test("isSaveCompletionState returns true when selected index advances", function () {
@@ -114,4 +138,5 @@ test("createRuntime exposes createRateLimitedTaskScheduler for content runtime",
   const runtime = createRuntime();
 
   assert.equal(typeof runtime.createRateLimitedTaskScheduler, "function");
+  assert.equal(typeof runtime.extractSavedMarkText, "function");
 });

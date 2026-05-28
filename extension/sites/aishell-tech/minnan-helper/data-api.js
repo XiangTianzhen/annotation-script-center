@@ -24,6 +24,10 @@
     return String(text || "").replace(/[\s\u3000]+/g, "");
   }
 
+  function normalizeMarkCompareText(text) {
+    return ensureChineseSentencePunctuation(removeTextSpaces(text || ""));
+  }
+
   function ensureChineseSentencePunctuation(text) {
     const value = String(text || "").trim();
     if (!value) {
@@ -244,6 +248,14 @@
     return normalizeText(String(content.textContent || "").replace(/^原始文本/, ""));
   }
 
+  function getCurrentFileNameLineText() {
+    const nodes = Array.from(document.querySelectorAll(".fileName-line span"));
+    const first = nodes.find(function (node) {
+      return node instanceof HTMLElement && normalizeText(node.textContent || "");
+    });
+    return first instanceof HTMLElement ? normalizeText(first.textContent || "") : "";
+  }
+
   function getListItemNodes() {
     return Array.from(
       document.querySelectorAll(".list .list-item, .list .list-item-selected, .list .list-item-finshed")
@@ -369,6 +381,45 @@
         };
       },
     };
+  }
+
+  function extractSavedMarkText(result) {
+    const source = result && typeof result === "object" ? result : null;
+    if (!source) {
+      return "";
+    }
+    if (source.mark && typeof source.mark === "object") {
+      return normalizeText(source.mark.text || "");
+    }
+    if (typeof source.mark === "string") {
+      const parsed = safeJsonParse(source.mark);
+      if (parsed && typeof parsed === "object") {
+        return normalizeText(parsed.text || "");
+      }
+      return normalizeText(source.mark);
+    }
+    if (typeof source.text === "string") {
+      return normalizeText(source.text);
+    }
+    return "";
+  }
+
+  function isPackageItemSaved(record) {
+    const source = record && typeof record === "object" ? record : {};
+    return Number(source.dataStatus || 0) > 0;
+  }
+
+  function doesRenderedItemMatch(expected) {
+    const source = expected && typeof expected === "object" ? expected : {};
+    const expectedFileName = normalizeText(source.fileName);
+    const expectedReferenceText = normalizeText(source.referenceText);
+    const currentFileName = getCurrentFileNameLineText();
+    const currentReferenceText = getReferenceTextFromDom();
+    const fileMatched = !expectedFileName || currentFileName.indexOf(expectedFileName) >= 0;
+    const referenceMatched =
+      !expectedReferenceText ||
+      removeTextSpaces(currentReferenceText) === removeTextSpaces(expectedReferenceText);
+    return fileMatched && referenceMatched;
   }
 
   function getRecordDisplayName(record) {
@@ -530,6 +581,55 @@
       return entry;
     }
 
+    async function refreshPackageItems(packageId) {
+      const key = normalizeText(packageId || parseRouteParams().packageId);
+      if (!key) {
+        throw createRequestError("当前页面缺少 packageId。");
+      }
+      delete state.packageItemsByPackageId[key];
+      return ensurePackageItems(key);
+    }
+
+    async function getShortMarkResult(taskItemId) {
+      const key = normalizeText(taskItemId);
+      if (!key) {
+        return null;
+      }
+      const payload = await requestJson("/api/mark/getShortMark/" + encodeURIComponent(key));
+      return payload?.data?.result || null;
+    }
+
+    async function getExpectedItemForIndex(index) {
+      syncRouteKey();
+      const routeParams = parseRouteParams();
+      const packageEntry = await ensurePackageItems(routeParams.packageId);
+      const record = packageEntry.items[Number(index)];
+      if (!record) {
+        return null;
+      }
+      return {
+        fileName: normalizeText(record.fileName),
+        referenceText: normalizeText(record.text),
+        taskItemId: normalizeText(record.id),
+      };
+    }
+
+    async function waitForItemRender(targetIndex, options) {
+      const timeoutMs = Math.max(1000, Number(options?.timeoutMs || 5000) || 5000);
+      const deadline = Date.now() + timeoutMs;
+      const expected =
+        options?.expected && typeof options.expected === "object"
+          ? options.expected
+          : await getExpectedItemForIndex(targetIndex);
+      while (Date.now() < deadline) {
+        if (getSelectedIndex() === targetIndex && doesRenderedItemMatch(expected)) {
+          return true;
+        }
+        await sleep(120);
+      }
+      return getSelectedIndex() === targetIndex && doesRenderedItemMatch(expected);
+    }
+
     async function getItemByIndex(index, options) {
       syncRouteKey();
       const routeParams = parseRouteParams();
@@ -624,11 +724,24 @@
 
     async function selectItemByIndex(targetIndex, options) {
       const selectedIndex = getSelectedIndex();
+      const expected =
+        options?.expected && typeof options.expected === "object"
+          ? options.expected
+          : await getExpectedItemForIndex(targetIndex);
       if (selectedIndex === targetIndex) {
-        return {
-          ok: true,
-          message: "当前条已选中。",
-        };
+        const readyWhenAlreadySelected = await waitForItemRender(targetIndex, {
+          timeoutMs: options?.timeoutMs || 5000,
+          expected: expected,
+        });
+        return readyWhenAlreadySelected
+          ? {
+              ok: true,
+              message: "当前条已选中且表单已对齐。",
+            }
+          : {
+              ok: false,
+              message: "当前条虽然已选中，但右侧表单没有完成切换。",
+            };
       }
       const domItems = getListDomItems();
       const entry = domItems[targetIndex];
@@ -640,13 +753,13 @@
         };
       }
       trigger.click();
-      const ready = await waitForSelectedIndex(
-        targetIndex,
-        options?.timeoutMs || 5000
-      );
+      const ready = await waitForItemRender(targetIndex, {
+        timeoutMs: options?.timeoutMs || 5000,
+        expected: expected,
+      });
       return ready
-        ? { ok: true, message: "已切换到目标条目。" }
-        : { ok: false, message: "切换条目超时，页面没有选中目标条目。" };
+        ? { ok: true, message: "已切换到目标条目，且表单已完成加载。" }
+        : { ok: false, message: "切换条目后表单长时间没有完成加载。" };
     }
 
     function start() {
@@ -697,31 +810,78 @@
           message: "当前页面没有定位到真实“保存”按钮。",
         };
       }
+      const expectedText = normalizeMarkCompareText(options?.expectedText || "");
+      const taskItemId = normalizeText(options?.taskItemId);
+      const packageId = normalizeText(options?.packageId);
       button.click();
       const deadline = Date.now() + Math.max(3000, Number(options?.timeoutMs || 15000) || 15000);
+      let networkCheckAt = 0;
       while (Date.now() < deadline) {
         if (isSaveCompletionState(selectedIndex, captureListState(selectedIndex))) {
           return {
             ok: true,
-            message: "已点击真实保存按钮并等待页面完成切条。",
+            message: "已点击真实保存按钮，并检测到页面切条或条目变为完成。",
           };
+        }
+        const now = Date.now();
+        if (now - networkCheckAt >= 450) {
+          networkCheckAt = now;
+          try {
+            if (taskItemId) {
+              const shortMarkResult = await getShortMarkResult(taskItemId);
+              const savedText = extractSavedMarkText(shortMarkResult);
+              if (savedText && normalizeMarkCompareText(savedText) === expectedText) {
+                return {
+                  ok: true,
+                  message: "已点击真实保存按钮，并确认平台已保存当前文本。",
+                };
+              }
+            }
+          } catch (_error) {}
+          try {
+            if (packageId && taskItemId) {
+              const packageEntry = await refreshPackageItems(packageId);
+              const matchedRecord = Array.isArray(packageEntry?.items)
+                ? packageEntry.items.find(function (item) {
+                    return normalizeText(item?.id) === taskItemId;
+                  })
+                : null;
+              if (isPackageItemSaved(matchedRecord)) {
+                return {
+                  ok: true,
+                  message: "已点击真实保存按钮，并检测到平台条目状态已更新为已标注。",
+                };
+              }
+            }
+          } catch (_error) {}
         }
         await sleep(150);
       }
       return {
         ok: false,
-        message: "点击保存后等待页面切条超时，请检查平台是否保存成功。",
+        message: "点击保存后既没有检测到页面切条，也没有确认到平台保存状态，请检查平台是否保存成功。",
       };
     }
 
     async function fillAndSaveCurrent(text, options) {
+      const currentItem = await getCurrentItem();
+      if (!currentItem?.taskItemId) {
+        return {
+          ok: false,
+          message: "当前没有可保存的条目上下文。",
+        };
+      }
       const fillResult = fillPageText(text);
       if (fillResult?.ok === false) {
         return fillResult;
       }
+      const normalizedText = normalizeMarkCompareText(text);
       await sleep(Number(options?.postFillDelayMs || 120) || 120);
       return clickSaveAndWait({
         timeoutMs: options?.timeoutMs || 15000,
+        expectedText: normalizedText,
+        taskItemId: currentItem.taskItemId,
+        packageId: currentItem.packageId,
       });
     }
 
@@ -733,6 +893,8 @@
       canFillPageText,
       clickSaveAndWait,
       createRateLimitedTaskScheduler,
+      doesRenderedItemMatch,
+      extractSavedMarkText,
       fillPageText,
       fillAndSaveCurrent,
       getBatchTasksFromCurrentSelection,
@@ -751,7 +913,9 @@
   const api = {
     createRateLimitedTaskScheduler,
     createRuntime,
+    doesRenderedItemMatch,
     ensureChineseSentencePunctuation,
+    extractSavedMarkText,
     extractAuthTokenFromUnknown,
     findAuthTokenInEntries,
     isSaveCompletionState,
