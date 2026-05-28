@@ -19,6 +19,7 @@
 /platform-resources/magic-data/**/detail_results/
 /platform-resources/magic-data/**/hakka_single_vs_two_stage/
 /platform-resources/magic-data/**/phase_06_strategy_compare/
+/platform-resources/aishell-tech/minnan-helper/data/runtime/*.csv
 /.venv/
 /platform-resources/backend/.venv/
 /platform-resources/backend/.venv-funasr/

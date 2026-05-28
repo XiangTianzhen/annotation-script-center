@@ -11,6 +11,9 @@ const {
   transformRecommendResult,
 } = require("./ai-service");
 const {
+  appendAishellAiCallLogSafe,
+} = require("../data/ai-call-log");
+const {
   recommend,
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
 
@@ -28,13 +31,36 @@ const handleRecommend = createAiRoute(aishellAdapter, {
       normalizedRecommendRequest.dataBakerRequest ||
       createDataBakerRequest(normalizedRecommendRequest);
     const requestId = String(context?.normalizedRequest?.requestId || "").trim();
-    const dataBakerResult = await recommend(dataBakerRequest, requestId, {});
-    return {
-      data: transformRecommendResult(dataBakerResult, normalizedRecommendRequest),
-      upstream: {
-        requestId: dataBakerResult?.requestId || "",
-      },
-    };
+    const startedAtMs = Date.now();
+    try {
+      const dataBakerResult = await recommend(dataBakerRequest, requestId, {});
+      const transformedResult = transformRecommendResult(
+        dataBakerResult,
+        normalizedRecommendRequest
+      );
+      appendAishellAiCallLogSafe({
+        createdAt: new Date().toISOString(),
+        requestId: requestId || dataBakerResult?.requestId || "",
+        normalizedRequest: normalizedRecommendRequest,
+        result: transformedResult,
+        durationMs: Date.now() - startedAtMs,
+      });
+      return {
+        data: transformedResult,
+        upstream: {
+          requestId: dataBakerResult?.requestId || "",
+        },
+      };
+    } catch (error) {
+      appendAishellAiCallLogSafe({
+        createdAt: new Date().toISOString(),
+        requestId: requestId || error?.requestId || "",
+        normalizedRequest: normalizedRecommendRequest,
+        error,
+        durationMs: Date.now() - startedAtMs,
+      });
+      throw error;
+    }
   },
   createSuccessBody(context) {
     return aishellAdapter.buildRecommendSuccessBody(context);

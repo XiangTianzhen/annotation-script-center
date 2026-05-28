@@ -1,3 +1,15 @@
+## 2026-05-28（Aishell Tech 单独落地平台 AI 调用 CSV）
+
+- 新增 `platform-resources/aishell-tech/minnan-helper/data/ai-call-log.js` 与测试：
+  - 先不接统一日志核心，单独为 Aishell 生成平台专属 AI 调用 CSV 副本。
+  - 默认落盘到 `platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`。
+  - 记录当前阶段最小公共信息：请求 ID、成功状态、耗时、输入/输出 token、总 token 兜底、AI 调用使用人、平台账号、Aishell 任务/分包/条目 ID、模型信息，以及脱敏后的原始返回/错误 JSON。
+- 更新 `platform-resources/aishell-tech/minnan-helper/backend/ai-routes.js`：
+  - Aishell recommend 成功和失败都会追加这份平台专属 CSV。
+  - 当前仍保留 DataBaker 原有推荐链，不先动共享日志合并层。
+- 更新 `.gitignore` 与 `platform-resources/aishell-tech/minnan-helper/data/README.md`：
+  - `data/runtime/` 运行文件不提交 Git。
+
 ## 2026-05-28（Aishell Tech AI 请求补齐平台账号提取）
 
 - 更新 `extension/sites/aishell-tech/minnan-helper/data-api.js`：

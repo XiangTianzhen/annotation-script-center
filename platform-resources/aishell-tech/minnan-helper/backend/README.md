@@ -25,6 +25,10 @@
   - `platformUserName`：Aishell 页面头像下拉自动提取的纯平台账号，例如 `ASmnbz001`
   - `platformUserId`：当前先保留空字符串占位
 - 为兼容现有 DataBaker 推荐日志宽表，若前端未单独传 `annotatorName`，后端会把 `platformUserName` 作为 `annotatorName` fallback 传给 DataBaker 推荐链。
+- 当前额外落地一份 Aishell 平台专属日志副本：
+  - 文件路径：`platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`
+  - 触发时机：每次 `/api/aishell-tech/minnan-helper/ai/recommend` 成功或失败后追加一行
+  - 当前目标：先满足 Aishell 单平台单文件留存，不替代后续统一 AI 日志方案
 - `defaults/health` 会返回：
   - `modelModeOptions`
   - `recognitionStrategyOptions`
