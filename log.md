@@ -1,3 +1,20 @@
+## 2026-05-28（Aishell Tech 前端显示名切换为“希尔贝壳”，并收口 AI 错误展示）
+
+- 仅调整前端用户可见文案，不改内部平台 ID、文件夹名、接口路径、后端注册名或 URL：
+  - `extension/shared/constants.js`
+  - `extension/popup/popup.js`
+  - `extension/options/options.html`
+  - `extension/options/options.js`
+  - `extension/sites/aishell-tech/minnan-helper/ui-panel.js`
+- Aishell 前端新增共享错误展示模块：
+  - 新增 `extension/shared/ai-error-display.js`
+  - 当前先接入 `extension/sites/aishell-tech/minnan-helper/diagnostics.js` 与 `ui-panel.js`
+- 当前错误展示口径：
+  - 系统/网络类错误：不再把 `health/defaults/queue` 等大对象整包塞给用户；改为中文摘要 + 精简 JSON，保留接口地址、health 状态、原始异常和排查建议。
+  - AI/上游模型类错误：继续完整保留后端原始返回，同时增加“错误解读 / 可能原因”。
+  - `429 + limit_burst_rate` 统一解释为“上游模型限流 / 请求增长过快”。
+  - 只有 `400 + Arrearage` 才解释为“账号欠费或余额不足”；其他 `400` 不再误判为余额问题。
+
 ## 2026-05-28（AI 默认超时统一收紧到 60 秒，并清理 AI 测试文件口径）
 
 - 按项目新口径，将仓库内 AI / 模型默认超时从 `120000ms` 统一收紧到 `60000ms`：

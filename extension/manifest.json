@@ -211,6 +211,7 @@
       "js": [
         "shared/constants.js",
         "shared/storage.js",
+        "shared/ai-error-display.js",
         "sites/aishell-tech/minnan-helper/data-api.js",
         "sites/aishell-tech/minnan-helper/ai-recommendation.js",
         "sites/aishell-tech/minnan-helper/batch-window.js",

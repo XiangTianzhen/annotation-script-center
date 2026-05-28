@@ -313,16 +313,16 @@
         return {
           scriptId: aishellTechMinnanScriptId,
           platformId: "aishellTech",
-          platformLabel: "Aishell Tech",
+          platformLabel: "希尔贝壳",
           url: url,
           platformEnabled: platformEnabled,
           scriptEnabled: scriptEnabled,
           statusText: !enabled ? "未启用" : aiRecommendEnabled ? "已支持" : "AI 推荐已关闭",
           statusTone: !enabled ? "disabled" : aiRecommendEnabled ? "success" : "pending",
-          title: "当前页面命中 Aishell Tech 数据标注页",
+          title: "当前页面命中希尔贝壳数据标注页",
           description: aiReady
             ? "当前页可使用闽南语助手：支持当前条 AI 推荐、复制、填入，以及当前分包内从当前选中条开始的批量串行保存。"
-            : "当前页已命中 Aishell Tech 数据标注页，但平台脚本未启用或 AI 推荐面板已关闭。",
+            : "当前页已命中希尔贝壳数据标注页，但平台脚本未启用或 AI 推荐面板已关闭。",
         };
       }
 
@@ -330,13 +330,13 @@
         return {
           scriptId: aishellTechMinnanScriptId,
           platformId: "aishellTech",
-          platformLabel: "Aishell Tech",
+          platformLabel: "希尔贝壳",
           url: url,
           platformEnabled: platformEnabled,
           scriptEnabled: scriptEnabled,
           statusText: enabled ? "待进入数据标注页" : "未启用",
           statusTone: enabled ? "pending" : "disabled",
-          title: "当前页面属于 Aishell Tech 任务详情页",
+          title: "当前页面属于希尔贝壳任务详情页",
           description:
             "点击分包“查看”进入 /mytask/mark 后，才会触发闽南语助手运行时。",
         };
@@ -346,13 +346,13 @@
         return {
           scriptId: aishellTechMinnanScriptId,
           platformId: "aishellTech",
-          platformLabel: "Aishell Tech",
+          platformLabel: "希尔贝壳",
           url: url,
           platformEnabled: platformEnabled,
           scriptEnabled: scriptEnabled,
           statusText: enabled ? "待进入任务详情/标注页" : "未启用",
           statusTone: enabled ? "pending" : "disabled",
-          title: "当前页面属于 Aishell Tech 我的任务页",
+          title: "当前页面属于希尔贝壳我的任务页",
           description:
             "当前脚本只在任务详情页和数据标注页做路由覆盖，实际业务能力只在 /mytask/mark 生效。",
         };
@@ -361,13 +361,13 @@
       return {
         scriptId: aishellTechMinnanScriptId,
         platformId: "aishellTech",
-        platformLabel: "Aishell Tech",
+        platformLabel: "希尔贝壳",
         url: url,
         platformEnabled: platformEnabled,
         scriptEnabled: scriptEnabled,
         statusText: enabled ? "待进入业务页" : "未启用",
         statusTone: enabled ? "pending" : "disabled",
-        title: "当前页面属于 Aishell Tech",
+        title: "当前页面属于希尔贝壳",
         description: "当前脚本主要围绕 /mytask/mark 工作；其余页面只做路由覆盖与资料复用。",
       };
     }

@@ -3,6 +3,21 @@
     return;
   }
   globalThis.__ASREdgeAishellTechMinnanDiagnosticsInstalled = true;
+  const errorDisplay = globalThis.ASREdgeAiErrorDisplay || {};
+  const buildAiErrorDisplay =
+    typeof errorDisplay.buildAiErrorDisplay === "function"
+      ? errorDisplay.buildAiErrorDisplay
+      : function (input) {
+          const source = input && typeof input === "object" ? input : {};
+          return {
+            category: "unknown",
+            summary: normalizeText(source.message || "失败"),
+            inference: "",
+            detailRows: [["错误解读", normalizeText(source.message || "失败") || "-"]],
+            rawJson:
+              source.rawResponse && typeof source.rawResponse === "object" ? source.rawResponse : {},
+          };
+        };
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -179,7 +194,10 @@
     const source = input && typeof input === "object" ? input : {};
     const error = source.error && typeof source.error === "object" ? source.error : null;
     if (error?.rawResponse && typeof error.rawResponse === "object") {
-      return error.rawResponse;
+      return buildAiErrorDisplay({
+        message: source.message || error.message,
+        rawResponse: error.rawResponse,
+      }).rawJson;
     }
     return {
       stage: normalizeText(source.stage),
@@ -205,6 +223,13 @@
     const stage = normalizeText(source.stage);
     const message = normalizeText(source.message || source.error?.message || "失败");
     const rawJson = buildRawFailureJson(source);
+    const errorDisplayInfo = buildAiErrorDisplay({
+      message: message,
+      rawResponse:
+        source.error?.rawResponse && typeof source.error.rawResponse === "object"
+          ? source.error.rawResponse
+          : null,
+    });
     const errorStage = normalizeText(
       rawJson?.error?.stage ||
       rawJson?.saveResult?.responseBody?.error?.stage ||
@@ -222,7 +247,7 @@
         ["失败阶段", createStageLabel(stage)],
         ["模型阶段", errorStage || "-"],
         ["错误摘要", message || "-"],
-      ].concat(diagnostics.rows),
+      ].concat(errorDisplayInfo.detailRows || [], diagnostics.rows),
       rawJson: rawJson,
     };
   }

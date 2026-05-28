@@ -6480,7 +6480,7 @@
       applyAishellTechForm(settings);
       setStatus(
         "aishell-tech-status",
-        "Aishell Tech 批量模式只处理当前分包、从当前选中条开始、跳过已完成条目；每条会先对齐到目标条，再调用平台原生保存接口，不自动提交任务。"
+        "希尔贝壳批量模式只处理当前分包、从当前选中条开始、跳过已完成条目；每条会先对齐到目标条，再调用平台原生保存接口，不自动提交任务。"
       );
       return;
     }
@@ -6599,7 +6599,7 @@
       applyAishellTechRecognitionModeFields(config.aiRecommendPipelineMode, config, aiDefaults);
       applyForcedThinkingToggle(
         "aishell-tech-ai-enable-thinking",
-        "thinking 已全局固定关闭；Aishell Tech 不再允许开启 Omni 思考模式。"
+        "thinking 已全局固定关闭；希尔贝壳不再允许开启 Omni 思考模式。"
       );
       const promptProfile = getAishellTechPromptProfile(
         aiDefaults,
@@ -6879,7 +6879,7 @@
 
   async function saveAishellTechSettings() {
     if (!storage || typeof storage.patchSettings !== "function") {
-      setStatus("aishell-tech-status", "当前扩展版本不支持保存 Aishell Tech 设置。");
+      setStatus("aishell-tech-status", "当前扩展版本不支持保存希尔贝壳设置。");
       return false;
     }
 
@@ -7045,7 +7045,7 @@
       shortcuts[action.key] = normalizeNullableShortcut(aishellTechShortcutsDraft[action.key]);
     });
 
-    setStatus("aishell-tech-status", "正在保存 Aishell Tech 设置...");
+    setStatus("aishell-tech-status", "正在保存希尔贝壳设置...");
 
     try {
       currentSettings = await storage.patchSettings({
@@ -7102,7 +7102,7 @@
       applyAishellTechForm(currentSettings);
       setStatus(
         "aishell-tech-status",
-        "Aishell Tech 设置已保存；已打开的标注页请刷新或等待自动同步。"
+        "希尔贝壳设置已保存；已打开的标注页请刷新或等待自动同步。"
       );
       return true;
     } catch (error) {

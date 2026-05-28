@@ -6,6 +6,18 @@
 
   const ROOT_ATTR = "data-asr-edge-aishell-tech-panel";
   const STYLE_ID = "asr-edge-aishell-tech-panel-style";
+  const errorDisplay = globalThis.ASREdgeAiErrorDisplay || {};
+  const buildAiErrorDisplay =
+    typeof errorDisplay.buildAiErrorDisplay === "function"
+      ? errorDisplay.buildAiErrorDisplay
+      : function (input) {
+          const source = input && typeof input === "object" ? input : {};
+          return {
+            summary: String(source.message || ""),
+            rawJson:
+              source.rawResponse && typeof source.rawResponse === "object" ? source.rawResponse : {},
+          };
+        };
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
@@ -278,7 +290,7 @@
 
       const resultsTitle = document.createElement("div");
       resultsTitle.className = "asc-section-title";
-      resultsTitle.textContent = "Aishell Tech 闽南语推荐";
+      resultsTitle.textContent = "希尔贝壳闽南语推荐";
       resultsSection.appendChild(resultsTitle);
 
       const recommendRow = document.createElement("div");
@@ -409,13 +421,20 @@
       if (!statusNode) {
         return;
       }
-      statusNode.textContent = String(message || "");
+      const displayError =
+        tone === "error" && rawResponse && typeof rawResponse === "object"
+          ? buildAiErrorDisplay({
+              message: message,
+              rawResponse: rawResponse,
+            })
+          : null;
+      statusNode.textContent = String(displayError?.summary || message || "");
       statusNode.setAttribute("data-tone", String(tone || "info"));
       clearErrorJson();
       if (tone === "error" && rawResponse && typeof rawResponse === "object") {
         errorJsonNode = document.createElement("pre");
         errorJsonNode.className = "asc-error-json";
-        errorJsonNode.textContent = JSON.stringify(rawResponse, null, 2);
+        errorJsonNode.textContent = JSON.stringify(displayError?.rawJson || rawResponse, null, 2);
         statusNode.parentNode.insertBefore(errorJsonNode, statusNode.nextSibling);
         isExpanded = true;
         syncLayoutVisibility();
