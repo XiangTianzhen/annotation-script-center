@@ -256,6 +256,7 @@
       onBatchRecommend: handleBatchRecommend,
       onBatchStop: handleBatchStop,
       canFillPageText: dataApi.canFillPageText,
+      fillPageText: dataApi.fillPageText,
       fillAndSaveCurrent: dataApi.fillAndSaveCurrent,
     });
     const shortcuts = shortcutsFactory?.createRuntime
@@ -299,7 +300,7 @@
         panel.renderResult(result);
         panel.setStatus("当前条识别完成。", "success");
       } catch (error) {
-        panel.setStatus(error?.message || String(error), "error");
+        panel.setStatus(error?.message || String(error), "error", error?.rawResponse || null);
       } finally {
         syncBusyState({ single: false });
       }

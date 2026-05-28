@@ -1,3 +1,15 @@
+## 2026-05-28（Aishell Tech 嵌入式面板与原生按钮注入）
+
+- 合并 Aishell Tech 闽南语助手界面重构：
+  - `extension/sites/aishell-tech/minnan-helper/ui-panel.js` 从固定悬浮窗改为嵌入式卡片，优先挂在 `.mark-area form.el-form` 下方。
+  - 面板主区只保留 `AI推荐文本` 展示、状态提示和详细信息折叠；详细结果与批量状态收进折叠区。
+  - `AI识别` 按钮改为注入到页面原生“保存”按钮右侧；`AI批量识别 / 停止批量` 改为注入到页面原生工具按钮区域。
+  - 当推荐文本与页面参考文本一致时，主展示区改为提示 `无需修改`，但仍保留真实推荐文本供填入并保存。
+- 错误透传增强：
+  - `extension/sites/aishell-tech/minnan-helper/ai-recommendation.js` 的客户端错误对象补充 `rawResponse`。
+  - `extension/sites/aishell-tech/minnan-helper/content.js` 与 `ui-panel.js` 支持在识别报错时展开显示脱敏后的后端原始返回 JSON。
+- 同步更新 Aishell 运行时 README，明确当前是“嵌入式卡片 + 原生按钮注入”口径。
+
 ## 2026-05-28（Aishell Tech 批量切条对齐与快捷键接入）
 
 - 修复 Aishell 批量识别里“AI 已返回，但页面没有切到对应条目就直接填入保存”的问题：
