@@ -13,7 +13,7 @@
 - 对外成功 / 失败响应结构保持原兼容形态：
   - 成功：`success + data + cache + backend`
   - 失败：`success + requestId + code + message + scriptId (+ summary)`
-- `health/defaults` 仍保持原实现，本轮先做桥接式迁移，不一次性推倒业务层。
+- `health/defaults` 当前已补齐公共 jobs / runtime 元信息：默认链路为 `POST /jobs` + 轮询 `GET /jobs/:jobId`，并附带共享模型池默认策略。
 
 ## AI 调用日志与统计
 

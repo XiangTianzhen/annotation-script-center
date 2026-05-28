@@ -3,6 +3,12 @@
 const { sendJson } = require("../../../backend/response");
 const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log");
 const { createAiRoute } = require("../../../backend/ai-framework");
+const { createAiJobRouteHandlers } = require("../../../backend/ai-framework/core/create-ai-job-routes");
+const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
+const {
+  buildModelQueueKey,
+  enqueueProviderTask,
+} = require("../../../backend/ai/provider-queue");
 const hakkaHelperAdapter = require("../ai/adapter");
 const {
   DEFAULT_COMPARE_MODEL,
@@ -45,8 +51,15 @@ const AI_HEALTH_PATH = HAKKA_AI_BASE_PATH + "/health";
 const LEGACY_AI_HEALTH_PATH = LEGACY_AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = "/api/magic-data/hakka-helper/ai/defaults";
 const LEGACY_AI_DEFAULTS_PATH = "/api/magic-data/annotator/ai/defaults";
+const HAKKA_AI_JOBS_PATH = HAKKA_AI_BASE_PATH + "/jobs";
+const HAKKA_AI_JOB_DETAIL_PATH = HAKKA_AI_JOBS_PATH + "/:jobId";
+const HAKKA_AI_JOB_DEBUG_PATH = HAKKA_AI_JOB_DETAIL_PATH + "/debug";
+const LEGACY_AI_JOBS_PATH = LEGACY_AI_BASE_PATH + "/jobs";
+const LEGACY_AI_JOB_DETAIL_PATH = LEGACY_AI_JOBS_PATH + "/:jobId";
+const LEGACY_AI_JOB_DEBUG_PATH = LEGACY_AI_JOB_DETAIL_PATH + "/debug";
 const AI_LOG_SUMMARY_PATH = HAKKA_AI_BASE_PATH + "/logs/summary";
 const LEGACY_AI_LOG_SUMMARY_PATH = LEGACY_AI_BASE_PATH + "/logs/summary";
+const MAX_BODY_BYTES = 3 * 1024 * 1024;
 const MODEL_MODE_OPTIONS = [
   { value: "two_stage", label: "双模型：听音模型 + 比较/转换模型" },
   { value: "omni_single", label: "单模型：Omni 单模型" },
@@ -94,6 +107,15 @@ function createHttpError(statusCode, message, code) {
   error.statusCode = statusCode;
   error.code = code || "";
   return error;
+}
+
+async function runQueuedModelTask(modelName, task) {
+  const normalizedModel = sanitizeModelName(modelName, "");
+  if (!normalizedModel) {
+    return task();
+  }
+  const queued = await enqueueProviderTask(buildModelQueueKey(normalizedModel), task);
+  return queued?.value;
 }
 
 function normalizeText(value) {
@@ -176,6 +198,7 @@ function buildHealthResponse() {
     "direct_dialect"
   );
   const recognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
+  const runtime = buildAsyncJobRuntimeMeta({ includeQueueSnapshots: true });
   return {
     success: true,
     service: "magic-data-hakka-helper-ai-review-current",
@@ -221,6 +244,8 @@ function buildHealthResponse() {
       note: "客家话文本质量优先，生产默认使用双模型+直接识别客家话，thinking 默认关闭。",
     },
     callLogDir: getLogDir(),
+    jobs: runtime.jobs,
+    runtime,
   };
 }
 
@@ -261,11 +286,13 @@ async function reviewCurrent(body, requestId) {
     const listenPrompt = buildListenPrompt(reviewRequest, beforeListenLexicon);
 
     const listenStartedAt = Date.now();
-    const listenResult = await requestListen(reviewRequest, listenPrompt, {
-      timeoutMs: config.timeoutMs,
-      model: listenModel,
-      enableThinking: reviewRequest.enableThinking,
-      aiOptions: reviewRequest.aiOptions,
+    const listenResult = await runQueuedModelTask(listenModel, function () {
+      return requestListen(reviewRequest, listenPrompt, {
+        timeoutMs: config.timeoutMs,
+        model: listenModel,
+        enableThinking: reviewRequest.enableThinking,
+        aiOptions: reviewRequest.aiOptions,
+      });
     });
     listenDurationMs = Date.now() - listenStartedAt;
 
@@ -280,21 +307,23 @@ async function reviewCurrent(body, requestId) {
 
     const comparePrompt = buildComparePrompt(reviewRequest, listen, lexiconContext);
     const compareStartedAt = Date.now();
-    const compareResult = await requestCompare(
-      {
-        platformDialectText: reviewRequest.platformDialectText,
-        platformMandarinText: reviewRequest.platformMandarinText,
-        heardDialectText: listen.heardDialectText,
-        heardMandarinMeaning: listen.heardMandarinMeaning,
-      },
-      comparePrompt,
-      {
-        timeoutMs: config.timeoutMs,
-        model: reviewModel,
-        enableThinking: reviewRequest.enableThinking,
-        aiOptions: reviewRequest.aiOptions,
-      }
-    );
+    const compareResult = await runQueuedModelTask(reviewModel, function () {
+      return requestCompare(
+        {
+          platformDialectText: reviewRequest.platformDialectText,
+          platformMandarinText: reviewRequest.platformMandarinText,
+          heardDialectText: listen.heardDialectText,
+          heardMandarinMeaning: listen.heardMandarinMeaning,
+        },
+        comparePrompt,
+        {
+          timeoutMs: config.timeoutMs,
+          model: reviewModel,
+          enableThinking: reviewRequest.enableThinking,
+          aiOptions: reviewRequest.aiOptions,
+        }
+      );
+    });
     compareDurationMs = Date.now() - compareStartedAt;
 
     const compareJson = parseModelJsonText(compareResult.rawText, requestId);
@@ -523,7 +552,8 @@ async function reviewCurrent(body, requestId) {
   }
 }
 
-const handleReviewCurrent = createAiRoute(hakkaHelperAdapter, {
+const reviewCurrentRouteOptions = {
+  maxBodyBytes: MAX_BODY_BYTES,
   run(context) {
     const requestId = normalizeText(context?.normalizedRequest?.requestId || createRequestId());
     const body = context?.runtimeContext?.rawBody || {};
@@ -539,7 +569,12 @@ const handleReviewCurrent = createAiRoute(hakkaHelperAdapter, {
     }
     return hakkaHelperAdapter.buildReviewErrorBody(context);
   },
-});
+};
+const handleReviewCurrent = createAiRoute(hakkaHelperAdapter, reviewCurrentRouteOptions);
+const reviewCurrentJobHandlers = createAiJobRouteHandlers(
+  hakkaHelperAdapter,
+  reviewCurrentRouteOptions
+);
 function registerAiRoutes(router) {
   function buildDefaultsPayload(config) {
     const modelMode = normalizeModelMode(config.pipelineMode || "two_stage", "two_stage");
@@ -548,6 +583,7 @@ function registerAiRoutes(router) {
       "direct_dialect"
     );
     const recognitionMode = deriveLegacyRecognitionMode(modelMode, recognitionStrategy);
+    const runtime = buildAsyncJobRuntimeMeta();
     return {
       success: true,
       service: "magic-data-hakka-helper-ai-review-current",
@@ -584,6 +620,8 @@ function registerAiRoutes(router) {
         reviewPrompt: DEFAULT_COMPARE_TEMPLATE,
       },
       supportedParams: SUPPORTED_REQUEST_PARAMS,
+      jobs: runtime.jobs,
+      runtime,
       evaluation: {
         sampleCount: 50,
         totalAudioSeconds: 398.932,
@@ -601,6 +639,8 @@ function registerAiRoutes(router) {
       notes: {
         promptOverride: "Prompt 可在前端覆盖；空 override 使用后端默认。",
         responseFormat: "结构化输出由后端固定控制，前端不配置。",
+        requestMode:
+          "默认短请求创建 /jobs 任务，再轮询 job 状态；同步 review-current 仅保留兼容 / 调试入口。",
         compatibility:
           "兼容旧字段 listenModel/reviewModel/enableThinking/reviewPrompt；新字段优先 modelMode/recognitionStrategy/listenModel/compareModel/singleModel。",
       },
@@ -626,8 +666,26 @@ function registerAiRoutes(router) {
   router.post(HAKKA_AI_BASE_PATH, function (routeContext) {
     return handleReviewCurrent(routeContext);
   });
+  router.post(HAKKA_AI_JOBS_PATH, function (routeContext) {
+    return reviewCurrentJobHandlers.handleCreateJob(routeContext);
+  });
+  router.get(HAKKA_AI_JOB_DETAIL_PATH, function (routeContext) {
+    return reviewCurrentJobHandlers.handleGetJobStatus(routeContext);
+  });
+  router.get(HAKKA_AI_JOB_DEBUG_PATH, function (routeContext) {
+    return reviewCurrentJobHandlers.handleGetJobDebug(routeContext);
+  });
   router.post(LEGACY_AI_BASE_PATH, function (routeContext) {
     return handleReviewCurrent(routeContext);
+  });
+  router.post(LEGACY_AI_JOBS_PATH, function (routeContext) {
+    return reviewCurrentJobHandlers.handleCreateJob(routeContext);
+  });
+  router.get(LEGACY_AI_JOB_DETAIL_PATH, function (routeContext) {
+    return reviewCurrentJobHandlers.handleGetJobStatus(routeContext);
+  });
+  router.get(LEGACY_AI_JOB_DEBUG_PATH, function (routeContext) {
+    return reviewCurrentJobHandlers.handleGetJobDebug(routeContext);
   });
   router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
     sendJson(
@@ -659,8 +717,14 @@ module.exports = {
   AI_BASE_PATH: HAKKA_AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_JOB_DEBUG_PATH: HAKKA_AI_JOB_DEBUG_PATH,
+  AI_JOB_DETAIL_PATH: HAKKA_AI_JOB_DETAIL_PATH,
+  AI_JOBS_PATH: HAKKA_AI_JOBS_PATH,
   AI_LOG_SUMMARY_PATH,
   handleReviewCurrent,
+  LEGACY_AI_JOB_DEBUG_PATH,
+  LEGACY_AI_JOB_DETAIL_PATH,
+  LEGACY_AI_JOBS_PATH,
   LEGACY_AI_LOG_SUMMARY_PATH,
   normalizeReviewRequest,
   reviewCurrent,

@@ -10,7 +10,9 @@ const {
   createJobTimeoutError,
   normalizeAbortError,
 } = require("../../../backend/ai/errors");
+const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
 const {
+  buildModelQueueKey,
   enqueueProviderTask,
   getGroupSettings,
   getGlobalQueueMaxSize,
@@ -960,8 +962,10 @@ function buildFunAsrRuntimeConfig(profileConfig) {
   };
 }
 
-async function runQueuedProviderTask(groupName, task, signal) {
-  const queued = await enqueueProviderTask(groupName, task, {
+async function runQueuedProviderTask(groupName, task, signal, options) {
+  const normalizedModel = String(options?.model || "").trim();
+  const queueKey = normalizedModel ? buildModelQueueKey(normalizedModel) : groupName;
+  const queued = await enqueueProviderTask(queueKey, task, {
     signal: signal,
   });
   return {
@@ -994,7 +998,9 @@ async function runFunAsrRecognition(request, profileConfig, requestId, signal) {
           pollIntervalMs: profileConfig.funAsrPollIntervalMs,
         },
       });
-    }, signal);
+    }, signal, {
+      model: profileConfig.funAsrModel,
+    });
   };
   const callPython = function () {
     return runQueuedProviderTask("fun_asr", function () {
@@ -1014,7 +1020,9 @@ async function runFunAsrRecognition(request, profileConfig, requestId, signal) {
           pythonScriptPath: runtimeConfig.pythonScriptPath,
         },
       });
-    }, signal);
+    }, signal, {
+      model: profileConfig.funAsrModel,
+    });
   };
 
   if (runtimeConfig.providerMode === "python") {
@@ -1128,7 +1136,9 @@ async function reviewCurrent(body, requestId) {
           enableThinking: normalizedRequest.enableThinking,
           aiOptions: normalizedRequest.aiOptions,
         });
-      }, signal);
+      }, signal, {
+        model: normalizedRequest.singleModel,
+      });
       compareDurationMs = Date.now() - omniStartedAt;
       queueMetaCompare = queuedOmni.queueMeta || {};
       const omniResult = queuedOmni.value || {};
@@ -1200,7 +1210,9 @@ async function reviewCurrent(body, requestId) {
             enableThinking: normalizedRequest.enableThinking,
             aiOptions: normalizedRequest.aiOptions,
           });
-        }, signal);
+        }, signal, {
+          model: normalizedRequest.listenModel,
+        });
         listenDurationMs = Date.now() - listenStartedAt;
         queueMetaListen = queuedListen.queueMeta || {};
         const listenResult = queuedListen.value || {};
@@ -1272,7 +1284,9 @@ async function reviewCurrent(body, requestId) {
             aiOptions: normalizedRequest.aiOptions,
           }
         );
-      }, signal);
+      }, signal, {
+        model: normalizedRequest.compareModel,
+      });
       compareDurationMs = Date.now() - compareStartedAt;
       queueMetaCompare = queuedCompare.queueMeta || {};
       const compareResult = queuedCompare.value || {};
@@ -1384,7 +1398,9 @@ async function reviewCurrent(body, requestId) {
             enableThinking: normalizedRequest.enableThinking,
             aiOptions: normalizedRequest.aiOptions,
           });
-        }, signal);
+        }, signal, {
+          model: normalizedRequest.listenModel,
+        });
         listenDurationMs = Date.now() - listenStartedAt;
         queueMetaListen = queuedListen.queueMeta || {};
         const listenResult = queuedListen.value || {};
@@ -1443,7 +1459,9 @@ async function reviewCurrent(body, requestId) {
             aiOptions: normalizedRequest.aiOptions,
           }
         );
-      }, signal);
+      }, signal, {
+        model: normalizedRequest.compareModel,
+      });
       compareDurationMs = Date.now() - compareStartedAt;
       queueMetaCompare = queuedCompare.queueMeta || {};
       const compareResult = queuedCompare.value || {};
@@ -1748,6 +1766,7 @@ function createHealthPayload() {
   const queueGroups = buildQueueSnapshotMap();
   const lexiconState = getLexiconState();
   const funAsrPythonConfig = getFunAsrPythonClientConfig();
+  const runtime = buildAsyncJobRuntimeMeta();
 
   return {
     success: true,
@@ -1802,7 +1821,10 @@ function createHealthPayload() {
       },
       maxSize: getGlobalQueueMaxSize(),
       retryMax: getGlobalRetryMax(),
+      modelPoolPolicy: runtime.queue.defaultModelPool,
     },
+    jobs: runtime.jobs,
+    runtime,
     cache: getCacheSnapshot(profileConfig),
     lexicon: {
       enabled: lexiconState.enabled === true,
@@ -1825,6 +1847,7 @@ function createDefaultsPayload() {
   const profileConfig = getProfileConfig();
   const queueGroups = buildQueueSnapshotMap();
   const funAsrPythonConfig = getFunAsrPythonClientConfig();
+  const runtime = buildAsyncJobRuntimeMeta();
   return {
     success: true,
     service: SERVICE_NAME,
@@ -1880,13 +1903,18 @@ function createDefaultsPayload() {
       },
       maxSize: getGlobalQueueMaxSize(),
       retryMax: getGlobalRetryMax(),
+      modelPoolPolicy: runtime.queue.defaultModelPool,
     },
+    jobs: runtime.jobs,
+    runtime,
     cache: getCacheSnapshot(profileConfig),
     notes: {
       promptOverride: "Prompt 可在前端覆盖；空 override 使用后端默认。",
       responseFormat: "结构化输出由后端固定控制，前端不配置。",
       compatibility:
         "兼容 reviewModel/listenModel/enableThinking/reviewPrompt 旧字段；新字段优先 recognitionMode/listenModel/compareModel/singleModel。",
+      requestMode:
+        "默认短请求创建 /jobs 任务，再轮询 job 状态；同步 review-current 只保留兼容 / 调试入口。",
     },
   };
 }

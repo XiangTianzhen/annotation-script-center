@@ -148,15 +148,15 @@ node platform-resources/backend/server.js
   - 提交任务：`POST /api/v1/services/audio/asr/transcription`
   - 查询任务：`POST /api/v1/tasks/{task_id}`
 - 本轮只启用单条 REST 调用，不启用 `file_urls` batch。
-- DataBaker 单条“AI 推荐文本”仍走同步 recommend。
-- DataBaker “AI并发分析并连续填入合格项”默认直接发送 `POST /api/data-baker/round-one-quality/ai/recommend`。
+- DataBaker 单条“AI 推荐文本”默认改为短请求创建 `POST /api/data-baker/round-one-quality/ai/recommend/jobs`，再轮询 `GET /jobs/:jobId`。
+- DataBaker “AI并发分析并连续填入合格项”默认也走同一 jobs 链路。
 - 当前页有 N 条合格项，就会为 N 条任务发送对应请求。
-- 前端按 `30ms` 错峰发起；“AI连续填入合格项并发数量”已移到 DataBaker 的“ASR 语音 AI 设置”区域，并按当前模型动态归一：
+- 前端默认按 `50ms` 错峰发起，确保 1 秒内发出的建任务请求不超过 `20` 次；“AI连续填入合格项并发数量”已移到 DataBaker 的“ASR 语音 AI 设置”区域，并按当前模型动态归一：
   - Omni：默认 `15`，范围 `1~25`
   - Fun-ASR：默认 `25`，范围 `1~50`
 - 前端和后端都会对超范围并发值做归一；前端显示和后端诊断都以归一后的值为准。
 - 谁先返回，谁先进入待填队列；填入仍然顺序消费。
-- 后端 provider queue / RPM 限流继续保护上游；异步 job 接口如保留，仅作为历史兼容 / 调试入口。
+- 后端 provider queue / RPM 限流继续保护上游；同步 recommend 如保留，仅作为历史兼容 / 调试入口。
 - DataBaker `qwen3.5-omni-flash` / `qwen3.5-omni-plus` 及新增 Omni 版本当前默认优先走 Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471`；默认按前端并发直接请求 Qwen，上游不再做后端平滑排队，除非显式设置 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1`。
 - `fun-asr` 仍走当前 Node REST provider，不走 Omni legacy 快速路径。
 - 统一 Python 虚拟环境固定放在 `platform-resources/backend/.venv`。
@@ -297,14 +297,14 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
   - Omni：默认 `15`，范围 `1~25`
   - Fun-ASR：默认 `25`，范围 `1~50`
 - 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `2`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
-- DataBaker 批量连续填入默认直接调用同步 recommend；异步 job 接口不再作为默认 AI 结果接收链路。
+- DataBaker 批量连续填入默认改为短请求创建 job，再轮询 job 状态；同步 recommend 只保留兼容 / 调试用途。
 - `DATABAKER_AI_ASYNC_JOBS_ENABLED=0`
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED=0`（历史兼容）
 - `DATABAKER_AI_JOB_TIMEOUT_MS=60000`（仅兼容 job 接口时生效）
 - `DATABAKER_AI_JOB_TTL_MS=1800000`
 - `DATABAKER_AI_JOB_MAX_SIZE=600`
 - `DATABAKER_AI_QUEUE_MAX_SIZE=600`
-- `DATABAKER_AI_REQUEST_STAGGER_MS=30`（前端错峰发起间隔说明）
+- `DATABAKER_AI_REQUEST_STAGGER_MS=50`（前端错峰发起间隔说明；默认不低于 `50ms`）
 - 超过 1 分钟仍未返回的 AI 请求，默认认为不适合当前项目，应优化模型、Prompt、任务拆分或后端策略，而不是继续拉长超时。
 - DataBaker 平台当前实际的自动清除时间字段位于前端顶部统计悬浮窗 `autoHideMs`，默认仍为 `60000ms`。
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
@@ -361,6 +361,6 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 历史版本演进、旧方案与详细变更记录统一沉淀在 `log.md` 与 `docs/archive/`，根 README 不再堆叠历史长文。
 ## DataBaker 批量请求诊断
 
-- 闽南语助手“AI连续填入合格项”默认直接发送同步 recommend 请求，不默认走异步 jobs。
+- 闽南语助手“AI连续填入合格项”默认先创建 job，再轮询 job 状态，不再让大量长时间挂起的同步 recommend 占住浏览器连接。
 - 每次批量运行会生成 `batchRunId`；前端会跳过同批次重复 `processKey`，并在悬浮窗展示唯一任务数、重复跳过数、已发起请求和 AI 已返回数。
 - 若怀疑重复请求，先看前端悬浮窗统计，再看后端 health 中的 `dedupe.joinedCount`。

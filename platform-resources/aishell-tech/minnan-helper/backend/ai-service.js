@@ -26,6 +26,7 @@ const {
 const {
   listModelsByFamily,
 } = require("../../../backend/ai/model-dispatcher");
+const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
 const {
   parseLexiconCsv,
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
@@ -421,6 +422,7 @@ function buildRecommendErrorBody(input) {
 function createHealthPayload() {
   const queueGroups = getQueueGroupsHealth();
   const defaults = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
+  const runtime = buildAsyncJobRuntimeMeta();
   const modelCatalog = {
     text: listModelsByFamily("text"),
     omni: listModelsByFamily("omni"),
@@ -447,11 +449,14 @@ function createHealthPayload() {
     modelCatalog,
     queue: {
       groups: queueGroups,
+      modelPoolPolicy: runtime.queue.defaultModelPool,
     },
+    jobs: runtime.jobs,
+    runtime,
     lexicon: buildLexiconState(),
     notes: {
       backendMode: "independent-aishell-pipeline",
-      timeout: "Aishell 独立同步超时墙当前统一为 60s。",
+      timeout: "Aishell 独立超时墙当前统一为 60s，前端默认通过短请求建 job + 轮询接收结果。",
       cancellation: "客户端断开、服务端超时和手动取消会统一透传 AbortSignal。",
       defaultListenPromptPreview: defaults.listenPrompt,
     },
@@ -461,6 +466,7 @@ function createHealthPayload() {
 function createDefaultsPayload() {
   const directPrompts = getStrategyPromptDefaults("direct_dialect");
   const defaultPrompts = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
+  const runtime = buildAsyncJobRuntimeMeta();
   const modelCatalog = {
     text: listModelsByFamily("text"),
     omni: listModelsByFamily("omni"),
@@ -498,9 +504,12 @@ function createDefaultsPayload() {
       },
       modelCatalog,
     }),
+    jobs: runtime.jobs,
+    runtime,
     notes: {
       defaultsSource: "Aishell independent backend defaults",
-      requestMode: "sync-http-only",
+      requestMode: "async-job-default",
+      compatibilityMode: "sync-recommend-kept-for-debug",
       responseFormat: "success + data + meta / success=false + error + meta",
     },
   };

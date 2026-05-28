@@ -2,7 +2,8 @@
   const DEFAULT_ENDPOINT =
     "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend";
   const DEFAULT_TIMEOUT_MS = 60000;
-  const DEFAULT_REQUEST_STAGGER_MS = 30;
+  const DEFAULT_REQUEST_STAGGER_MS = 50;
+  const jobClient = globalThis.ASREdgeAiJobClient || null;
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const buildAiUsageRequestMeta =
     typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
@@ -69,10 +70,15 @@
 
   function buildApiError(responseBody, statusCode) {
     const body = responseBody && typeof responseBody === "object" ? responseBody : {};
-    const code = String(body.code || "").trim();
-    const providerCode = String(body.providerCode || "").trim();
-    const providerStatus = Number(body.providerStatus) || Number(statusCode) || 0;
-    let message = String(body.message || "AI 推荐接口请求失败（HTTP " + String(statusCode) + "）。").trim();
+    const errorBody = body.error && typeof body.error === "object" ? body.error : body;
+    const metaBody = body.meta && typeof body.meta === "object" ? body.meta : {};
+    const code = String(errorBody.code || body.code || "").trim();
+    const providerCode = String(errorBody.providerCode || body.providerCode || "").trim();
+    const providerStatus =
+      Number(errorBody.providerStatus || body.providerStatus) || Number(statusCode) || 0;
+    let message = String(
+      errorBody.message || body.message || "AI 推荐接口请求失败（HTTP " + String(statusCode) + "）。"
+    ).trim();
     if (code === "provider-queue-full") {
       message = "后端 AI 队列已满，请稍后重试。";
     } else if (code === "network-disconnected") {
@@ -129,7 +135,8 @@
       rawAiDebug: body.rawAiDebug || null,
       hasDebugRawJson: body.hasDebugRawJson === true,
       debugRawJson: body.debugRawJson || null,
-      requestId: String(body.requestId || ""),
+      requestId: String(body.requestId || metaBody.requestId || ""),
+      jobId: String(body.jobId || ""),
     });
   }
 
@@ -244,21 +251,40 @@
       const requestBody = createRequestBody(source);
 
       try {
-        const response = await fetch(getEndpoint(), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller ? controller.signal : undefined,
-        });
-        const responseBody = await response.json().catch(function () {
-          return null;
-        });
-        if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
-          throw buildApiError(responseBody, response.status);
+        if (!jobClient || typeof jobClient.runJobLifecycle !== "function") {
+          const response = await fetch(getEndpoint(), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+            signal: controller ? controller.signal : undefined,
+          });
+          const responseBody = await response.json().catch(function () {
+            return null;
+          });
+          if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
+            throw buildApiError(responseBody, response.status);
+          }
+          return responseBody.data;
         }
-        return responseBody.data;
+        const jobResult = await jobClient.runJobLifecycle({
+          endpoint: getEndpoint(),
+          body: requestBody,
+          timeoutMs: timeoutMs,
+          fetchImpl: fetch.bind(globalThis),
+          pollIntervalMs: Math.max(200, Number(config.jobPollIntervalMs) || 800),
+          buildApiError: function (responseBody, requestStatusCode) {
+            return buildApiError(responseBody, requestStatusCode);
+          },
+          buildTerminalError: function (jobBody) {
+            return buildApiError(jobBody, Number(jobBody?.error?.providerStatus || jobBody?.providerStatus || 500));
+          },
+          mapSuccess: function (jobBody) {
+            return jobBody?.data;
+          },
+        });
+        return jobResult.data;
       } catch (error) {
         if (error?.name === "AbortError") {
           throw createClientError("AI 推荐接口请求超时。", { code: "timeout" });

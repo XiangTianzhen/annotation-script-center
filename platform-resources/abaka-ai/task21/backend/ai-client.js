@@ -1,5 +1,10 @@
 "use strict";
 
+const {
+  buildModelQueueKey,
+  enqueueProviderTask,
+} = require("../../../backend/ai/provider-queue");
+
 const DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_ANALYSIS_MODE = "two_stage";
 const DEFAULT_VISION_MODEL = "qwen3.6-plus";
@@ -401,10 +406,12 @@ async function requestChatCompletion(requestBody, options) {
 }
 
 async function requestChatCompletionWithThinking(requestBody, options) {
+  const normalizedModelName = sanitizeModelName(options?.model || requestBody?.model, "");
+  const runRequest = async function runRequest() {
   const config = getClientConfig();
   const enableThinking = false;
   const timeoutMs = parseTimeoutMs(options?.timeoutMs, config.timeoutMs);
-  const modelName = sanitizeModelName(options?.model || requestBody?.model, "");
+  const modelName = normalizedModelName;
   const profile = getModelProfile(modelName);
   const supportsThinking = profile.supportsThinking;
   if (supportsThinking !== true) {
@@ -474,6 +481,12 @@ async function requestChatCompletionWithThinking(requestBody, options) {
       },
     });
   }
+  };
+  if (!normalizedModelName) {
+    return runRequest();
+  }
+  const queued = await enqueueProviderTask(buildModelQueueKey(normalizedModelName), runRequest);
+  return queued?.value;
 }
 
 function createProviderUsage(usage) {

@@ -35,6 +35,7 @@ const {
   requestFunAsrRecognition,
 } = require("../../../backend/ai/providers/funasr");
 const {
+  buildModelQueueKey,
   enqueueProviderTask,
   getGroupSettings,
   getGlobalQueueMaxSize,
@@ -54,6 +55,7 @@ const {
   getAiJobStoreSnapshot,
 } = require("./ai-job-store");
 const { rememberAiDebug } = require("./ai-debug-store");
+const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
 
 const RULE_VERSION = "data-baker-round-one-quality-ai-v11-direct-recommend-60s";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
@@ -1895,6 +1897,7 @@ function createHealthPayload() {
   const qwenOmniQueue = getGroupSettings("qwen_omni");
   const jobStoreConfig = getAiJobStoreConfig();
   const jobSnapshot = getAiJobStoreSnapshot();
+  const runtime = buildAsyncJobRuntimeMeta();
   const modelCatalog = {
     text: listModelsByFamily("text"),
     omni: listModelsByFamily("omni"),
@@ -1934,16 +1937,19 @@ function createHealthPayload() {
       maxSize: getGlobalQueueMaxSize(),
       retryMax: getGlobalRetryMax(),
       groups: getQueueSnapshots(),
+      modelPoolPolicy: runtime.queue.defaultModelPool,
     },
     jobs: Object.assign({}, jobSnapshot, {
       enabled: jobStoreConfig.enabled === true,
-      mode: jobStoreConfig.enabled === true ? "compatibility" : "disabled-by-default",
+      mode: jobStoreConfig.enabled === true ? "async-job-default" : "disabled",
     }),
+    runtime,
     notes: {
-      defaultResultMode: "sync-recommend",
-      asyncJobsDefaultEnabled: false,
-      requestStaggerMs: 30,
+      defaultResultMode: "async-job-default",
+      asyncJobsDefaultEnabled: jobStoreConfig.enabled === true,
+      requestStaggerMs: 50,
       timeoutPolicy: "ai-model-timeout-60000ms",
+      queueKeyStrategy: "concrete-model-name",
       frontEndBatchConcurrency:
         "Omni 默认 15、范围 1~25；Fun-ASR 默认 25、范围 1~50；前后端都会归一超范围值。",
     },
@@ -1992,6 +1998,7 @@ function createDefaultsPayload() {
   const qwenOmniQueue = getGroupSettings("qwen_omni");
   const jobStoreConfig = getAiJobStoreConfig();
   const jobSnapshot = getAiJobStoreSnapshot();
+  const runtime = buildAsyncJobRuntimeMeta();
   const modelCatalog = {
     text: listModelsByFamily("text"),
     omni: listModelsByFamily("omni"),
@@ -2043,10 +2050,13 @@ function createDefaultsPayload() {
       maxSize: getGlobalQueueMaxSize(),
       retryMax: getGlobalRetryMax(),
       groups: getQueueSnapshots(),
+      modelPoolPolicy: runtime.queue.defaultModelPool,
     },
     jobs: Object.assign({}, jobSnapshot, {
       enabled: jobStoreConfig.enabled === true,
+      mode: jobStoreConfig.enabled === true ? "async-job-default" : "disabled",
     }),
+    runtime,
     concurrency: {
       frontEndBatchDefault: frontConcurrencyRule.defaultValue,
       frontEndBatchMin: frontConcurrencyRule.min,
@@ -2088,13 +2098,13 @@ function createDefaultsPayload() {
       restProvider:
         "当前 Fun-ASR 只实现单条 REST 调用；file_urls batch 后续再测试，本轮不启用。",
       asyncJobs:
-        "批量连续填入默认直接走同步 recommend；jobs 仅保留为历史兼容 / 调试入口，不作为默认结果接收链路。",
+        "批量连续填入默认先创建 /jobs 任务，再轮询 job 状态；同步 recommend 仅保留为兼容 / 调试入口。",
       jobPolling:
         "异步 job 默认 TTL " +
         String(jobStoreConfig.ttlMs) +
         "ms，轮询间隔默认 " +
         String(jobStoreConfig.pollIntervalMs) +
-        "ms；Node 进程重启后内存 job 会失效。",
+        "ms；默认前端错峰统一为 50ms，Node 进程重启后内存 job 会失效。",
     },
   };
 }
@@ -2131,7 +2141,9 @@ function throwIfSignalAborted(signal) {
 }
 
 async function runQueuedProviderCall(groupName, task, options) {
-  return enqueueProviderTask(groupName, task, {
+  const normalizedModel = String(options?.model || "").trim();
+  const queueKey = normalizedModel ? buildModelQueueKey(normalizedModel) : groupName;
+  return enqueueProviderTask(queueKey, task, {
     signal: options?.signal,
   });
 }
@@ -2372,6 +2384,7 @@ async function recommend(body, requestIdHint, runtimeOptions) {
             signal: runtimeSignal,
           });
         }, {
+          model: activeSingleModel,
           signal: runtimeSignal,
         });
         omniSingleResult = queued.value;
@@ -2457,6 +2470,7 @@ async function recommend(body, requestIdHint, runtimeOptions) {
             signal: runtimeSignal,
           });
         }, {
+          model: activeListenModel,
           signal: runtimeSignal,
         });
         funAsrResult = queued.value;
@@ -2522,6 +2536,7 @@ async function recommend(body, requestIdHint, runtimeOptions) {
             signal: runtimeSignal,
           });
         }, {
+          model: activeCompareModel,
           signal: runtimeSignal,
         });
         compareResult = queued.value;
@@ -2609,6 +2624,7 @@ async function recommend(body, requestIdHint, runtimeOptions) {
             signal: runtimeSignal,
           });
         }, {
+          model: activeListenModel,
           signal: runtimeSignal,
         });
         omniListenResult = queued.value;
@@ -2648,6 +2664,7 @@ async function recommend(body, requestIdHint, runtimeOptions) {
             signal: runtimeSignal,
           });
         }, {
+          model: activeCompareModel,
           signal: runtimeSignal,
         });
         compareResult = queued.value;

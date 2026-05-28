@@ -2,7 +2,7 @@
   const CHECK_INTERVAL_MS = 1000;
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const DEFAULT_AI_ASYNC_JOBS_ENABLED = false;
-  const DEFAULT_AI_REQUEST_STAGGER_MS = 30;
+  const DEFAULT_AI_REQUEST_STAGGER_MS = 50;
   const PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const SHORTCUT_KEYS = [
     "aiRecommendCurrentItem",
@@ -98,6 +98,14 @@
       return DEFAULT_AI_REQUEST_TIMEOUT_MS;
     }
     return Math.min(300000, Math.max(1000, Math.round(number)));
+  }
+
+  function normalizeRequestStaggerMs(value) {
+    const number = Math.round(Number(value));
+    if (!Number.isFinite(number)) {
+      return DEFAULT_AI_REQUEST_STAGGER_MS;
+    }
+    return Math.min(1000, Math.max(DEFAULT_AI_REQUEST_STAGGER_MS, number));
   }
 
   function getDataBakerAiQualifiedAutofillConcurrencyRule(configLike) {
@@ -418,7 +426,9 @@
       script.aiQualifiedAutofillWaitAllBeforeFill
     );
     const aiAsyncJobsEnabled = script.aiAsyncJobsEnabled === true && DEFAULT_AI_ASYNC_JOBS_ENABLED === true;
-    const aiRequestStaggerMs = Math.max(0, Math.min(1000, Number(script.aiRequestStaggerMs) || Number(CONSTANTS.DATABAKER_AI_REQUEST_STAGGER_MS) || DEFAULT_AI_REQUEST_STAGGER_MS));
+    const aiRequestStaggerMs = normalizeRequestStaggerMs(
+      script.aiRequestStaggerMs || CONSTANTS.DATABAKER_AI_REQUEST_STAGGER_MS
+    );
     const defaultPageSize = normalizePageSize(script.defaultPageSize);
     const shortcuts = normalizeShortcuts(script.shortcuts);
 
@@ -826,7 +836,7 @@
           activeAiCount: 0,
           completedAiCount: 0,
           plannedSendCount: Math.max(0, Number(extra?.plannedSendCount ?? lastBatchSummary?.plannedSendCount ?? lastBatchSummary?.totalCount ?? 0) || 0),
-          requestStaggerMs: Math.max(0, Number(config.aiRequestStaggerMs) || DEFAULT_AI_REQUEST_STAGGER_MS),
+          requestStaggerMs: normalizeRequestStaggerMs(config.aiRequestStaggerMs),
           analysisSuccessCount: 0,
           analysisFailCount: 0,
           queueCount: 0,
@@ -1007,7 +1017,7 @@
         aiQualifiedAutofillConcurrencyRule:
           context.aiQualifiedAutofillConcurrencyRule || context.concurrencyRule || null,
       });
-      const requestStaggerMs = DEFAULT_AI_REQUEST_STAGGER_MS;
+      const requestStaggerMs = normalizeRequestStaggerMs(context.requestStaggerMs);
       const plannedSendCount = uniqueTaskCount;
       const completedQueue = [];
       const queuedResultIds = new Set();
@@ -1558,7 +1568,7 @@
           batchRunId,
           batchStartedAt: batchStartedAtMs,
           elapsedMs: 0,
-          requestStaggerMs: DEFAULT_AI_REQUEST_STAGGER_MS,
+          requestStaggerMs: config.aiRequestStaggerMs,
         });
         const refreshed = await dataApi.refreshCurrentPageData({
           pageSize: 50,
@@ -1638,10 +1648,10 @@
           uniqueTaskCount,
           duplicateSkippedCount,
           frontConcurrency: concurrency,
-          requestStaggerMs: DEFAULT_AI_REQUEST_STAGGER_MS,
+          requestStaggerMs: config.aiRequestStaggerMs,
           listenModel: String(config.listenModel || ""),
           compareModel: String(config.compareModel || ""),
-          asyncJobMode: false,
+          asyncJobMode: true,
         });
         updateFloatingProgress({
           phase: "analysis",
@@ -1652,7 +1662,7 @@
           uniqueTaskCount,
           duplicateSkippedCount,
           plannedSendCount: uniqueTaskCount,
-          requestStaggerMs: DEFAULT_AI_REQUEST_STAGGER_MS,
+          requestStaggerMs: config.aiRequestStaggerMs,
           frontConcurrency: concurrency,
           launchedCount: 0,
           activeAiCount: 0,
@@ -1665,6 +1675,7 @@
           duplicateSkippedCount,
           concurrencyRule: config.aiQualifiedAutofillConcurrencyRule,
           concurrencyModelType: config.aiQualifiedAutofillModelType,
+          requestStaggerMs: config.aiRequestStaggerMs,
         });
         if (streamSummary.stopped) {
           ui.setStatus(

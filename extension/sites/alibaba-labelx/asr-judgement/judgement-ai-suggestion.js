@@ -39,6 +39,7 @@
   };
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const storage = globalThis.ASREdgeStorage || {};
+  const jobClient = globalThis.ASREdgeAiJobClient || null;
   const buildAiUsageRequestMeta =
     typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
       ? aiUsageMeta.buildAiUsageRequestMeta
@@ -1426,25 +1427,64 @@
         },
       });
       try {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller ? controller.signal : undefined,
-        });
-        responseBody = await response.json().catch(function () {
-          return null;
-        });
-        if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
-          const requestId = String(responseBody?.requestId || "");
-          const responseError = new Error(
-            responseBody?.message || "AI 服务请求失败（HTTP " + String(response.status) + "）。"
-          );
-          responseError.code = String(responseBody?.code || "");
-          responseError.requestId = requestId;
-          throw responseError;
+        if (jobClient && typeof jobClient.runJobLifecycle === "function") {
+          const jobResult = await jobClient.runJobLifecycle({
+            endpoint: endpoint,
+            body: requestBody,
+            timeoutMs: timeoutMs,
+            fetchImpl: fetch.bind(globalThis),
+            pollIntervalMs: Math.max(200, Number(config.jobPollIntervalMs) || 800),
+            buildApiError: function (jobResponseBody, requestStatusCode) {
+              const body = jobResponseBody && typeof jobResponseBody === "object" ? jobResponseBody : {};
+              const errorBody = body.error && typeof body.error === "object" ? body.error : body;
+              const responseError = new Error(
+                errorBody.message || body.message || "AI 服务请求失败（HTTP " + String(requestStatusCode) + "）。"
+              );
+              responseError.code = String(errorBody.code || body.code || "");
+              responseError.requestId = String(body.requestId || body.meta?.requestId || "");
+              responseError.jobId = String(body.jobId || "");
+              throw responseError;
+            },
+            buildTerminalError: function (jobBody) {
+              const errorBody = jobBody?.error && typeof jobBody.error === "object" ? jobBody.error : {};
+              const nestedError = errorBody.error && typeof errorBody.error === "object" ? errorBody.error : errorBody;
+              const responseError = new Error(
+                nestedError.message || errorBody.message || "AI 服务请求失败。"
+              );
+              responseError.code = String(nestedError.code || errorBody.code || "job-failed");
+              responseError.requestId = String(jobBody?.requestId || errorBody?.meta?.requestId || "");
+              responseError.jobId = String(jobBody?.jobId || "");
+              throw responseError;
+            },
+            mapSuccess: function (jobBody) {
+              return jobBody?.data;
+            },
+          });
+          responseBody = {
+            success: true,
+            data: jobResult.data,
+          };
+        } else {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+            signal: controller ? controller.signal : undefined,
+          });
+          responseBody = await response.json().catch(function () {
+            return null;
+          });
+          if (!response.ok || responseBody?.success !== true || !responseBody?.data) {
+            const requestId = String(responseBody?.requestId || "");
+            const responseError = new Error(
+              responseBody?.message || "AI 服务请求失败（HTTP " + String(response.status) + "）。"
+            );
+            responseError.code = String(responseBody?.code || "");
+            responseError.requestId = requestId;
+            throw responseError;
+          }
         }
       } catch (error) {
         const message = extractErrorMessage(error);

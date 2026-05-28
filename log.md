@@ -22,6 +22,16 @@
 - AI 请求记录下载审计目录当前落在 `platform-resources/backend/audit-data/ai-call-log-download/`，并已加入 `.gitignore`。
 - 顺手修正 `platform-resources/magic-data/minnan-helper/backend/ai-call-log.js` 对 `ai-service.js` 的循环依赖，避免统一导出入口加载时刷 warning。
 
+## 2026-05-28（统一 AI jobs 默认链路与模型池补齐）
+
+- DataBaker 私有 `backend/ai-job-store.js` 已改成公共 `platform-resources/backend/ai-framework/runtime/ai-job-store.js` 的适配层，不再独立维护一套 job store 逻辑。
+- 后端新增 `platform-resources/backend/ai-framework/runtime/ai-runtime-meta.js`，统一给 health/defaults 暴露：
+  - 默认请求模式：`POST /jobs` + 轮询 `GET /jobs/:jobId`
+  - 公共 job store 快照
+  - 按具体模型名共享池的默认策略
+- DataBaker 默认前端错峰从 `30ms` 调整为 `50ms`，确保默认 1 秒内发出的建任务请求不超过 `20` 次。
+- Aishell、Magic Data、LabelX、Abaka 的 health/defaults 也已补齐 jobs / runtime 元信息，方便前端和运维确认当前默认链路是否已切到 jobs。
+
 ## 2026-05-28（全量 AI 脚本接入调用日志与统计）
 
 - 新增共享日志核心：

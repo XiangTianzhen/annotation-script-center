@@ -3,6 +3,12 @@
 const { sendJson } = require("../../../backend/response");
 const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log");
 const { createAiRoute } = require("../../../backend/ai-framework");
+const { createAiJobRouteHandlers } = require("../../../backend/ai-framework/core/create-ai-job-routes");
+const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
+const {
+  buildModelQueueKey,
+  enqueueProviderTask,
+} = require("../../../backend/ai/provider-queue");
 const transcriptionAdapter = require("../ai/adapter");
 const {
   DEFAULT_REQUEST_PARAMS,
@@ -39,6 +45,9 @@ const AI_ROOT_PATH = "/api/alibaba-labelx/asr-transcription/ai";
 const AI_BASE_PATH = AI_ROOT_PATH + "/suggest-current";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = AI_ROOT_PATH + "/defaults";
+const AI_JOBS_PATH = AI_BASE_PATH + "/jobs";
+const AI_JOB_DETAIL_PATH = AI_JOBS_PATH + "/:jobId";
+const AI_JOB_DEBUG_PATH = AI_JOB_DETAIL_PATH + "/debug";
 const AI_LOG_SUMMARY_PATH = AI_BASE_PATH + "/logs/summary";
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 const SERVICE_NAME = "asr-transcription-ai-suggest-current";
@@ -66,8 +75,18 @@ function resolveModelOverride(requestModel, defaultModel, config) {
   return normalized;
 }
 
+async function runQueuedModelTask(modelName, task) {
+  const normalizedModel = sanitizeModelName(modelName, "");
+  if (!normalizedModel) {
+    return task();
+  }
+  const queued = await enqueueProviderTask(buildModelQueueKey(normalizedModel), task);
+  return queued?.value;
+}
+
 function buildHealthResponse() {
   const config = getClientConfig();
+  const runtime = buildAsyncJobRuntimeMeta({ includeQueueSnapshots: true });
   return {
     success: true,
     service: SERVICE_NAME,
@@ -82,6 +101,8 @@ function buildHealthResponse() {
     enableThinkingDefault: config.enableThinkingDefault === true,
     timeoutMs: config.timeoutMs,
     callLogDir: getLogDir(),
+    jobs: runtime.jobs,
+    runtime,
   };
 }
 
@@ -92,12 +113,14 @@ async function requestWithPossibleFallback(suggestRequest, prompt, models, confi
     Array.isArray(suggestRequest.textCandidates) && suggestRequest.textCandidates.length > 0;
 
   if (!hasAudio) {
-    const compareResult = await requestCurrentSuggestion(suggestRequest, prompt, {
-      model: models.compareModel,
-      includeAudio: false,
-      timeoutMs: config.timeoutMs,
-      enableThinking: suggestRequest.enableThinking,
-      aiOptions: suggestRequest.aiOptions,
+    const compareResult = await runQueuedModelTask(models.compareModel, function () {
+      return requestCurrentSuggestion(suggestRequest, prompt, {
+        model: models.compareModel,
+        includeAudio: false,
+        timeoutMs: config.timeoutMs,
+        enableThinking: suggestRequest.enableThinking,
+        aiOptions: suggestRequest.aiOptions,
+      });
     });
     return Object.assign({}, compareResult, {
       mode: "text-only",
@@ -106,12 +129,14 @@ async function requestWithPossibleFallback(suggestRequest, prompt, models, confi
   }
 
   try {
-    const listenResult = await requestCurrentSuggestion(suggestRequest, prompt, {
-      model: models.listenModel,
-      includeAudio: true,
-      timeoutMs: config.timeoutMs,
-      enableThinking: suggestRequest.enableThinking,
-      aiOptions: suggestRequest.aiOptions,
+    const listenResult = await runQueuedModelTask(models.listenModel, function () {
+      return requestCurrentSuggestion(suggestRequest, prompt, {
+        model: models.listenModel,
+        includeAudio: true,
+        timeoutMs: config.timeoutMs,
+        enableThinking: suggestRequest.enableThinking,
+        aiOptions: suggestRequest.aiOptions,
+      });
     });
     return Object.assign({}, listenResult, {
       mode: "audio+text",
@@ -122,12 +147,14 @@ async function requestWithPossibleFallback(suggestRequest, prompt, models, confi
       throw error;
     }
 
-    const fallbackResult = await requestCurrentSuggestion(suggestRequest, prompt, {
-      model: models.compareModel,
-      includeAudio: false,
-      timeoutMs: config.timeoutMs,
-      enableThinking: suggestRequest.enableThinking,
-      aiOptions: suggestRequest.aiOptions,
+    const fallbackResult = await runQueuedModelTask(models.compareModel, function () {
+      return requestCurrentSuggestion(suggestRequest, prompt, {
+        model: models.compareModel,
+        includeAudio: false,
+        timeoutMs: config.timeoutMs,
+        enableThinking: suggestRequest.enableThinking,
+        aiOptions: suggestRequest.aiOptions,
+      });
     });
 
     return Object.assign({}, fallbackResult, {
@@ -247,7 +274,7 @@ async function suggestCurrentRequest(body, requestId) {
   }
 }
 
-const handleSuggestCurrent = createAiRoute(transcriptionAdapter, {
+const suggestCurrentRouteOptions = {
   maxBodyBytes: MAX_BODY_BYTES,
   run(context) {
     const requestId =
@@ -261,13 +288,19 @@ const handleSuggestCurrent = createAiRoute(transcriptionAdapter, {
   createErrorBody(context) {
     return transcriptionAdapter.buildSuggestErrorBody(context);
   },
-});
+};
+const handleSuggestCurrent = createAiRoute(transcriptionAdapter, suggestCurrentRouteOptions);
+const suggestCurrentJobHandlers = createAiJobRouteHandlers(
+  transcriptionAdapter,
+  suggestCurrentRouteOptions
+);
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendJson(response, 200, buildHealthResponse());
   });
   router.get(AI_DEFAULTS_PATH, function ({ response }) {
     const config = getClientConfig();
+    const runtime = buildAsyncJobRuntimeMeta();
     sendJson(response, 200, {
       success: true,
       service: SERVICE_NAME,
@@ -292,15 +325,28 @@ function registerAiRoutes(router) {
         reviewPrompt: "",
       },
       supportedParams: SUPPORTED_REQUEST_PARAMS,
+      jobs: runtime.jobs,
+      runtime,
       notes: {
         promptOverride: "Prompt 可在前端覆盖；空 override 使用后端默认。",
         responseFormat: "结构化输出由后端固定控制，前端不配置。",
+        requestMode:
+          "默认短请求创建 /jobs 任务，再轮询 job 状态；同步 suggest-current 仅保留兼容 / 调试入口。",
       },
     });
   });
 
   router.post(AI_BASE_PATH, function (routeContext) {
     return handleSuggestCurrent(routeContext);
+  });
+  router.post(AI_JOBS_PATH, function (routeContext) {
+    return suggestCurrentJobHandlers.handleCreateJob(routeContext);
+  });
+  router.get(AI_JOB_DETAIL_PATH, function (routeContext) {
+    return suggestCurrentJobHandlers.handleGetJobStatus(routeContext);
+  });
+  router.get(AI_JOB_DEBUG_PATH, function (routeContext) {
+    return suggestCurrentJobHandlers.handleGetJobDebug(routeContext);
   });
   router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
     sendJson(
@@ -320,6 +366,9 @@ module.exports = {
   AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_JOB_DEBUG_PATH,
+  AI_JOB_DETAIL_PATH,
+  AI_JOBS_PATH,
   AI_LOG_SUMMARY_PATH,
   handleSuggestCurrent,
   normalizeSuggestRequest,

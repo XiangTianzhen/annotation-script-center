@@ -33,7 +33,7 @@ extension/sites/data-baker/round-one-quality/
   - Omni：默认 `15`，范围 `1~25`
   - Fun-ASR：默认 `25`，范围 `1~50`
 - 前端和后端都会对超范围值做归一；请求体会额外携带 `frontConcurrency / batchConcurrency / concurrencyModelType` 诊断字段，但不会传进模型 Prompt。
-- 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认直接发送同步 `POST /ai/recommend`。当前页有 N 条合格项，就会为 N 条任务调度对应请求；前端按 `30ms` 错峰发起，并继续受前端活跃并发上限与后端 provider queue / RPM 限流保护。
+- 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认短请求创建 `POST /ai/recommend/jobs`。当前页有 N 条合格项，就会为 N 条任务调度对应请求；前端按 `50ms` 错峰发起，并继续受前端活跃并发上限与后端 provider queue / RPM 限流保护。
 - 运行中会显示顶部统计悬浮窗；完成或停止后保留约 60 秒，并展示失败条目与“重新填写失败内容”入口。
 - `group/detail?taskId=...` 页面新增“导出数据总表”按钮，先点击 Element UI 分页大小选择器并选择 `100条/页`，再逐页触发页面原生请求，由 MAIN world 拦截 `queryByCondition` 响应合并导出 CSV（使用当前登录态，不依赖本地后端）。
 - 导出 CSV 不再包含“原始JSON”列；原始记录会脱敏后单独上传并由后端保存为 `latest-raw.json`（历史模式下为 `*.raw.json`）。
@@ -288,13 +288,10 @@ platform-resources/backend/ai/python/requirements.txt
 5. 进入 `roundOneCollect` 页面，在 `omni_single` 下选择 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus` 后点击单条“AI 推荐文本”，确认浏览器请求只走统一后端接口，不直连 DashScope，且默认优先走 Omni legacy 快速路径。
 6. 切回 `two_stage` 并选择听音模型为 `fun-asr`，确认界面显示 Fun-ASR provider 提示，后端链路为 Fun-ASR + compare。
 7. 点击“AI并发分析并连续填入合格项”，确认在 `fun-asr` 下默认并发为 `25`、范围 `1~50`；切到 Omni 后会归一到默认 `15`、范围 `1~25`。
-8. DataBaker 选择 Qwen Omni 且前端并发调到 `25` 时，浏览器应继续按 `30ms` 错峰直发 recommend；后端默认不再对 Omni legacy 做平滑排队。
+8. DataBaker 选择 Qwen Omni 且前端并发调到 `25` 时，浏览器应继续按 `50ms` 错峰创建 jobs；后端默认不再对 Omni legacy 做平滑排队。
 9. 后端日志可看到模式、排队、重试、cache hit/miss，但不能出现完整 `audioUrl`、签名 URL、cookie 或 token。
 10. 默认 REST provider 下，即使未配置 Python 虚拟环境，`two_stage + fun-asr` 也应能调用；只有显式切到 `provider=python` 或 `fallback=python` 时才依赖 `.venv`。
-11. 选择 `two_stage + fun-asr` 后点击“AI连续填入合格项”，确认 Network 中优先出现大量按 `30ms` 错峰发起的 `POST /api/data-baker/round-one-quality/ai/recommend`；`/jobs` 相关接口不应作为默认链路出现。
-
-- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`（历史兼容 / 调试）
-- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`（历史兼容 / 调试）
+11. 选择 `two_stage + fun-asr` 后点击“AI连续填入合格项”，确认 Network 中优先出现大量按 `50ms` 错峰发起的 `POST /api/data-baker/round-one-quality/ai/recommend/jobs`，随后再轮询 `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`。
 
 12. 若切到 Python provider，再用 `5-10` 条真实平台音频验证 Fun-ASR 可访问。
 13. 若 Fun-ASR 返回 `403`，确认页面提示会说明可能是权限/地域、API Key 或平台 `audioUrl` 可访问性问题，并建议切换到 `qwen3.5-omni-flash` 或 `qwen3.5-omni-plus`。

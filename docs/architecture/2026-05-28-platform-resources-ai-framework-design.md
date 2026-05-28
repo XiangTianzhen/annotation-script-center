@@ -252,7 +252,8 @@ platform-resources/<platform>/<script-id>/
 - 不重写统一后端 HTTP server
 - 不改前端后端地址配置模型
 - 不合并 LabelX 与 DataBaker 的上传统计逻辑
-- 不引入 SSE / WebSocket / async job 作为新的默认 AI 返回链路
+- 统一默认 AI 返回链路改为“短请求创建 async job + HTTP 轮询结果”
+  - 不引入 SSE / WebSocket 作为本轮默认返回通道
 - 不在本轮 AI 迁移中顺手把 Aishell Tech 从“正式接入准备态”直接升级成运行时代码平台
 
 ## 提交策略

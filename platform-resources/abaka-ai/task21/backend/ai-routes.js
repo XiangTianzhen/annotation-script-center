@@ -3,6 +3,8 @@
 const { sendJson } = require("../../../backend/response");
 const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log");
 const { createAiRoute } = require("../../../backend/ai-framework");
+const { createAiJobRouteHandlers } = require("../../../backend/ai-framework/core/create-ai-job-routes");
+const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
 const task21Adapter = require("../ai/adapter");
 const { getLogDir } = require("./ai-call-log");
 const {
@@ -40,6 +42,9 @@ const { estimateUsageFromTexts, normalizeUsage } = require("./usage");
 const AI_BASE_PATH = "/api/abaka-ai/task21/ai/analyze";
 const AI_HEALTH_PATH = "/api/abaka-ai/task21/ai/health";
 const AI_DEFAULTS_PATH = "/api/abaka-ai/task21/ai/defaults";
+const AI_JOBS_PATH = AI_BASE_PATH + "/jobs";
+const AI_JOB_DETAIL_PATH = AI_JOBS_PATH + "/:jobId";
+const AI_JOB_DEBUG_PATH = AI_JOB_DETAIL_PATH + "/debug";
 const AI_LOG_SUMMARY_PATH = AI_BASE_PATH + "/logs/summary";
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const ALLOWED_TARGETS = ["same_font", "image_b_texts_removed", "other_changes", "overall"];
@@ -456,6 +461,7 @@ function buildUsagePayload(totalUsage, stages) {
 
 function buildHealthResponse() {
   const config = getClientConfig();
+  const runtime = buildAsyncJobRuntimeMeta({ includeQueueSnapshots: true });
   return {
     success: true,
     service: SERVICE_NAME,
@@ -486,11 +492,14 @@ function buildHealthResponse() {
       defaultEnabled: false,
       explicitDisableRequired: true,
     },
+    jobs: runtime.jobs,
+    runtime,
   };
 }
 
 function buildDefaultsResponse() {
   const config = getClientConfig();
+  const runtime = buildAsyncJobRuntimeMeta();
   return {
     success: true,
     service: SERVICE_NAME,
@@ -517,6 +526,8 @@ function buildDefaultsResponse() {
       defaultEnabled: false,
       explicitDisableRequired: true,
     },
+    jobs: runtime.jobs,
+    runtime,
     defaults: {
       analysisMode: config.analysisMode || DEFAULT_ANALYSIS_MODE,
       visionModel: config.visionModel || DEFAULT_VISION_MODEL,
@@ -546,6 +557,7 @@ function buildDefaultsResponse() {
     notes: {
       promptOverride: "Prompt 模板由后端维护；前端不保存 API Key。",
       safety: "AI 仅返回建议，不自动写入/保存/提交。",
+      requestMode: "默认短请求创建 /jobs 任务，再轮询 job 状态；同步 analyze 仅保留兼容 / 调试入口。",
     },
   };
 }
@@ -725,7 +737,7 @@ async function analyzeRequest(body, requestId) {
   }
 }
 
-const handleAnalyze = createAiRoute(task21Adapter, {
+const analyzeRouteOptions = {
   maxBodyBytes: MAX_BODY_BYTES,
   run(context) {
     const requestId = normalizeString(context?.normalizedRequest?.requestId || createRequestId());
@@ -738,7 +750,9 @@ const handleAnalyze = createAiRoute(task21Adapter, {
   createErrorBody(context) {
     return task21Adapter.buildAnalyzeErrorBody(context);
   },
-});
+};
+const handleAnalyze = createAiRoute(task21Adapter, analyzeRouteOptions);
+const analyzeJobHandlers = createAiJobRouteHandlers(task21Adapter, analyzeRouteOptions);
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendJson(response, 200, buildHealthResponse());
@@ -750,6 +764,15 @@ function registerAiRoutes(router) {
 
   router.post(AI_BASE_PATH, function (routeContext) {
     return handleAnalyze(routeContext);
+  });
+  router.post(AI_JOBS_PATH, function (routeContext) {
+    return analyzeJobHandlers.handleCreateJob(routeContext);
+  });
+  router.get(AI_JOB_DETAIL_PATH, function (routeContext) {
+    return analyzeJobHandlers.handleGetJobStatus(routeContext);
+  });
+  router.get(AI_JOB_DEBUG_PATH, function (routeContext) {
+    return analyzeJobHandlers.handleGetJobDebug(routeContext);
   });
   router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
     sendJson(
@@ -769,6 +792,9 @@ module.exports = {
   AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_JOB_DEBUG_PATH,
+  AI_JOB_DETAIL_PATH,
+  AI_JOBS_PATH,
   AI_LOG_SUMMARY_PATH,
   analyzeRequest,
   normalizeResultSchema,

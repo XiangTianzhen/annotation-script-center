@@ -3,6 +3,12 @@
 const { sendJson } = require("../../../backend/response");
 const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log");
 const { createAiRoute } = require("../../../backend/ai-framework");
+const { createAiJobRouteHandlers } = require("../../../backend/ai-framework/core/create-ai-job-routes");
+const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
+const {
+  buildModelQueueKey,
+  enqueueProviderTask,
+} = require("../../../backend/ai/provider-queue");
 const judgementAdapter = require("../ai/adapter");
 const { getLogDir } = require("./ai-call-log");
 const {
@@ -40,6 +46,9 @@ const AI_BASE_PATH = "/api/alibaba-labelx/asr-judgement/ai";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = AI_BASE_PATH + "/defaults";
 const AI_SUGGEST_PATH = AI_BASE_PATH + "/suggest";
+const AI_JOBS_PATH = AI_SUGGEST_PATH + "/jobs";
+const AI_JOB_DETAIL_PATH = AI_JOBS_PATH + "/:jobId";
+const AI_JOB_DEBUG_PATH = AI_JOB_DETAIL_PATH + "/debug";
 const AI_LOG_SUMMARY_PATH = AI_SUGGEST_PATH + "/logs/summary";
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const SERVICE_NAME = "asr-judgement-ai";
@@ -58,6 +67,7 @@ function createRequestId() {
 
 function buildHealthResponse() {
   const config = getClientConfig();
+  const runtime = buildAsyncJobRuntimeMeta({ includeQueueSnapshots: true });
   return {
     success: true,
     service: SERVICE_NAME,
@@ -75,11 +85,14 @@ function buildHealthResponse() {
     callLogDir: getLogDir(),
     ruleVersion: DEFAULT_RULE_VERSION,
     status: config.hasApiKey || config.mockEnabled ? "ready" : "missing-api-key",
+    jobs: runtime.jobs,
+    runtime,
   };
 }
 
 function buildDefaultsResponse() {
   const config = getClientConfig();
+  const runtime = buildAsyncJobRuntimeMeta();
   return {
     success: true,
     service: SERVICE_NAME,
@@ -105,9 +118,12 @@ function buildDefaultsResponse() {
       reviewPrompt: "",
     },
     supportedParams: JUDGEMENT_AI_SUPPORTED_PARAMS,
+    jobs: runtime.jobs,
+    runtime,
     notes: {
       promptOverride: "Prompt 可在前端覆盖；空 override 使用后端默认。",
       responseFormat: "结构化输出由后端固定控制，前端不配置。",
+      requestMode: "默认短请求创建 /jobs 任务，再轮询 job 状态；同步 suggest 仅保留兼容 / 调试入口。",
     },
   };
 }
@@ -153,14 +169,16 @@ async function suggestRequest(body, requestId) {
     });
     const listenPrompt = buildListenPrompt(normalizedRequest);
     const listenStartedAtMs = Date.now();
-    const listenResult = await requestListen(normalizedRequest, listenPrompt, {
-      model: normalizedRequest.listenModel,
-      timeoutMs: timeoutMs,
-      requestId,
-      hostname,
-      itemIndex: normalizedRequest.itemIndex,
-      enableThinking: normalizedRequest.enableThinking,
-      aiOptions: normalizedRequest.aiOptions,
+    const listenResult = await runQueuedModelTask(normalizedRequest.listenModel, function () {
+      return requestListen(normalizedRequest, listenPrompt, {
+        model: normalizedRequest.listenModel,
+        timeoutMs: timeoutMs,
+        requestId,
+        hostname,
+        itemIndex: normalizedRequest.itemIndex,
+        enableThinking: normalizedRequest.enableThinking,
+        aiOptions: normalizedRequest.aiOptions,
+      });
     });
     listenDurationMs = Math.max(0, Date.now() - listenStartedAtMs);
     const listenJson = parseModelJsonText(listenResult.rawText, requestId);
@@ -188,22 +206,24 @@ async function suggestRequest(body, requestId) {
     });
     const comparePrompt = buildComparePrompt(normalizedRequest, normalizedListen);
     const compareStartedAtMs = Date.now();
-    const compareResult = await requestCompare(
-      Object.assign({}, normalizedRequest, {
-        heardText: normalizedListen.heardText,
-      }),
-      comparePrompt,
-      {
-        model: normalizedRequest.compareModel,
-        timeoutMs: timeoutMs,
-        requestId,
-        hostname,
-        itemIndex: normalizedRequest.itemIndex,
-        enableThinking: normalizedRequest.enableThinking,
-        webSearchEnabled: normalizedRequest.webSearchEnabled === true,
-        aiOptions: normalizedRequest.aiOptions,
-      }
-    );
+    const compareResult = await runQueuedModelTask(normalizedRequest.compareModel, function () {
+      return requestCompare(
+        Object.assign({}, normalizedRequest, {
+          heardText: normalizedListen.heardText,
+        }),
+        comparePrompt,
+        {
+          model: normalizedRequest.compareModel,
+          timeoutMs: timeoutMs,
+          requestId,
+          hostname,
+          itemIndex: normalizedRequest.itemIndex,
+          enableThinking: normalizedRequest.enableThinking,
+          webSearchEnabled: normalizedRequest.webSearchEnabled === true,
+          aiOptions: normalizedRequest.aiOptions,
+        }
+      );
+    });
     compareDurationMs = Math.max(0, Date.now() - compareStartedAtMs);
     const compareJson = parseModelJsonText(compareResult.rawText, requestId);
     const normalizedCompare = normalizeCompareResponse(compareJson, {
@@ -315,7 +335,7 @@ async function suggestRequest(body, requestId) {
   }
 }
 
-const handleSuggest = createAiRoute(judgementAdapter, {
+const suggestRouteOptions = {
   maxBodyBytes: MAX_BODY_BYTES,
   run(context) {
     const requestId =
@@ -329,7 +349,9 @@ const handleSuggest = createAiRoute(judgementAdapter, {
   createErrorBody(context) {
     return judgementAdapter.buildSuggestErrorBody(context);
   },
-});
+};
+const handleSuggest = createAiRoute(judgementAdapter, suggestRouteOptions);
+const suggestJobHandlers = createAiJobRouteHandlers(judgementAdapter, suggestRouteOptions);
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendJson(response, 200, buildHealthResponse());
@@ -339,6 +361,15 @@ function registerAiRoutes(router) {
   });
   router.post(AI_SUGGEST_PATH, function (routeContext) {
     return handleSuggest(routeContext);
+  });
+  router.post(AI_JOBS_PATH, function (routeContext) {
+    return suggestJobHandlers.handleCreateJob(routeContext);
+  });
+  router.get(AI_JOB_DETAIL_PATH, function (routeContext) {
+    return suggestJobHandlers.handleGetJobStatus(routeContext);
+  });
+  router.get(AI_JOB_DEBUG_PATH, function (routeContext) {
+    return suggestJobHandlers.handleGetJobDebug(routeContext);
   });
   router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
     sendJson(
@@ -354,10 +385,22 @@ function registerAiRoutes(router) {
   });
 }
 
+async function runQueuedModelTask(modelName, task) {
+  const normalizedModel = String(modelName || "").trim();
+  if (!normalizedModel) {
+    return task();
+  }
+  const queued = await enqueueProviderTask(buildModelQueueKey(normalizedModel), task);
+  return queued?.value;
+}
+
 module.exports = {
   AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_JOB_DEBUG_PATH,
+  AI_JOB_DETAIL_PATH,
+  AI_JOBS_PATH,
   AI_LOG_SUMMARY_PATH,
   AI_SUGGEST_PATH,
   DEFAULT_RULE_VERSION,

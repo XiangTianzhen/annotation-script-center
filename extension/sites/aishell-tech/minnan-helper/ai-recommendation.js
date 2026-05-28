@@ -12,6 +12,7 @@
   const BACKEND_MODE_SERVER = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const BACKEND_MODE_LOCAL = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
   const DEFAULT_TIMEOUT_MS = 60000;
+  const jobClient = globalThis.ASREdgeAiJobClient || null;
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const buildAiUsageRequestMeta =
     typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
@@ -348,6 +349,37 @@
     }
 
     async function sendRequest(endpoint, requestBody, timeoutMs) {
+      if (jobClient && typeof jobClient.runJobLifecycle === "function") {
+        const jobResult = await jobClient.runJobLifecycle({
+          endpoint: endpoint,
+          body: requestBody,
+          timeoutMs: timeoutMs,
+          fetchImpl: fetchImpl,
+          pollIntervalMs: Math.max(200, Number(config.jobPollIntervalMs) || 800),
+          buildApiError: function (responseBody, statusCode) {
+            return buildApiError(responseBody, statusCode);
+          },
+          buildTerminalError: function (jobBody) {
+            const errorBody = jobBody?.error && typeof jobBody.error === "object"
+              ? jobBody.error
+              : jobBody;
+            const providerStatus = Number(
+              errorBody?.error?.providerStatus ||
+                errorBody?.providerStatus ||
+                jobBody?.providerStatus ||
+                500
+            ) || 500;
+            return buildApiError(errorBody, providerStatus);
+          },
+          mapSuccess: function (jobBody) {
+            const payload = jobBody?.data && typeof jobBody.data === "object" ? jobBody.data : {};
+            return Object.assign({}, payload.data || {}, {
+              meta: payload.meta && typeof payload.meta === "object" ? payload.meta : {},
+            });
+          },
+        });
+        return jobResult.data;
+      }
       if (typeof fetchImpl !== "function") {
         throw createClientError("当前环境不支持 fetch，无法调用 AI 推荐接口。", {
           code: "fetch-unavailable",

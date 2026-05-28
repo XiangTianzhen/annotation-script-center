@@ -19,7 +19,10 @@ const {
   parseModelJsonText,
   removeTextSpaces,
 } = require("./ai-service");
-const { enqueueProviderTask } = require("../../../backend/ai/provider-queue");
+const {
+  buildModelQueueKey,
+  enqueueProviderTask,
+} = require("../../../backend/ai/provider-queue");
 const { rememberAiDebug } = require("./ai-debug-store");
 
 const LEGACY_OMNI_COMMIT = "9677e4cea98de222b70f89c9e0af1d89971dc471";
@@ -284,7 +287,9 @@ async function runLegacyQueuedProviderCall(groupName, task, options) {
       },
     };
   }
-  return enqueueProviderTask(groupName, task, {
+  const normalizedModel = String(options?.model || "").trim();
+  const queueKey = normalizedModel ? buildModelQueueKey(normalizedModel) : groupName;
+  return enqueueProviderTask(queueKey, task, {
     signal: options?.signal,
     onRetry: function (meta) {
       const error = meta?.error;

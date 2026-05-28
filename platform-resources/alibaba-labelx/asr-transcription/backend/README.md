@@ -17,7 +17,7 @@
   - 旧 success / error body 兼容
   - 转写推荐结果暴露给 framework 的脚本级结果通道
 - `platform-resources/alibaba-labelx/asr-transcription/backend/ai-suggest-request.js` 负责 AI 请求归一、AI 参数清洗与脱敏错误辅助函数，供 adapter 与业务层共用。
-- `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health` 与 `GET /api/alibaba-labelx/asr-transcription/ai/defaults` 当前仍保留旧实现。
+- `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health` 与 `GET /api/alibaba-labelx/asr-transcription/ai/defaults` 当前已补齐公共 jobs / runtime 元信息，默认链路为 `POST /jobs` + 轮询 `GET /jobs/:jobId`。
 - 统计上传、existing 检查、suppliers、download 与 CSV 落盘链路本轮不动。
 
 ## 统一下载 core 桥接状态

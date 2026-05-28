@@ -11,6 +11,9 @@ const DEFAULT_RETRY_MAX = 3;
 const DEFAULT_QWEN_BURST_RETRY_MAX = 0;
 const DEFAULT_RETRY_BASE_DELAY_MS = 1200;
 const DEFAULT_RETRY_MAX_DELAY_MS = 12000;
+const DEFAULT_MODEL_QUEUE_RPM = 1200;
+const DEFAULT_MODEL_QUEUE_MAX_CONCURRENT = 15;
+const MODEL_QUEUE_KEY_PREFIX = "model:";
 const DEFAULT_GROUP_SETTINGS = {
   qwen_omni: {
     rpmEnv: "DATABAKER_AI_QWEN_OMNI_RPM_LIMIT",
@@ -74,17 +77,50 @@ function parsePositiveInteger(value, fallback, min, max) {
   return Math.max(min, Math.min(max, numericValue));
 }
 
+function normalizeModelText(value) {
+  return String(value || "").trim();
+}
+
+function normalizeModelEnvSegment(value) {
+  return normalizeModelText(value)
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase();
+}
+
+function isModelQueueKey(groupName) {
+  return String(groupName || "").trim().toLowerCase().indexOf(MODEL_QUEUE_KEY_PREFIX) === 0;
+}
+
+function buildModelQueueKey(modelName) {
+  const normalizedModel = normalizeModelText(modelName);
+  if (!normalizedModel) {
+    return MODEL_QUEUE_KEY_PREFIX + "unknown";
+  }
+  return MODEL_QUEUE_KEY_PREFIX + normalizedModel;
+}
+
 function getGlobalQueueMaxSize() {
-  return parsePositiveInteger(process.env.DATABAKER_AI_QUEUE_MAX_SIZE, DEFAULT_QUEUE_MAX_SIZE, 1, 5000);
+  return parsePositiveInteger(
+    process.env.ASC_AI_QUEUE_MAX_SIZE || process.env.DATABAKER_AI_QUEUE_MAX_SIZE,
+    DEFAULT_QUEUE_MAX_SIZE,
+    1,
+    5000
+  );
 }
 
 function getGlobalRetryMax() {
-  return parsePositiveInteger(process.env.DATABAKER_AI_PROVIDER_RETRY_MAX, DEFAULT_RETRY_MAX, 0, 10);
+  return parsePositiveInteger(
+    process.env.ASC_AI_PROVIDER_RETRY_MAX || process.env.DATABAKER_AI_PROVIDER_RETRY_MAX,
+    DEFAULT_RETRY_MAX,
+    0,
+    10
+  );
 }
 
 function getRetryBaseDelayMs() {
   return parsePositiveInteger(
-    process.env.DATABAKER_AI_PROVIDER_RETRY_BASE_DELAY_MS,
+    process.env.ASC_AI_PROVIDER_RETRY_BASE_DELAY_MS || process.env.DATABAKER_AI_PROVIDER_RETRY_BASE_DELAY_MS,
     DEFAULT_RETRY_BASE_DELAY_MS,
     100,
     60000
@@ -93,7 +129,7 @@ function getRetryBaseDelayMs() {
 
 function getRetryMaxDelayMs() {
   return parsePositiveInteger(
-    process.env.DATABAKER_AI_PROVIDER_RETRY_MAX_DELAY_MS,
+    process.env.ASC_AI_PROVIDER_RETRY_MAX_DELAY_MS || process.env.DATABAKER_AI_PROVIDER_RETRY_MAX_DELAY_MS,
     DEFAULT_RETRY_MAX_DELAY_MS,
     100,
     120000
@@ -101,6 +137,14 @@ function getRetryMaxDelayMs() {
 }
 
 function getGroupRetryMax(groupName) {
+  if (isModelQueueKey(groupName)) {
+    return parsePositiveInteger(
+      process.env.ASC_AI_QWEN_BURST_RETRY_MAX || process.env.DATABAKER_AI_QWEN_BURST_RETRY_MAX,
+      DEFAULT_QWEN_BURST_RETRY_MAX,
+      0,
+      10
+    );
+  }
   if (groupName === "qwen_omni" || groupName === "text_compare") {
     return parsePositiveInteger(
       process.env.DATABAKER_AI_QWEN_BURST_RETRY_MAX,
@@ -113,6 +157,14 @@ function getGroupRetryMax(groupName) {
 }
 
 function getGroupRetryBaseDelayMs(groupName) {
+  if (isModelQueueKey(groupName)) {
+    return parsePositiveInteger(
+      process.env.ASC_AI_QWEN_BURST_RETRY_BASE_MS || process.env.DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS,
+      getRetryBaseDelayMs(),
+      100,
+      60000
+    );
+  }
   if (groupName === "qwen_omni" || groupName === "text_compare") {
     return parsePositiveInteger(
       process.env.DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS,
@@ -124,7 +176,54 @@ function getGroupRetryBaseDelayMs(groupName) {
   return getRetryBaseDelayMs();
 }
 
+function getModelQueueSettings(groupName) {
+  const normalizedKey = buildModelQueueKey(String(groupName || "").replace(/^model:/i, ""));
+  const modelName = normalizedKey.slice(MODEL_QUEUE_KEY_PREFIX.length);
+  const envSegment = normalizeModelEnvSegment(modelName);
+  const rpm = parsePositiveInteger(
+    process.env["ASC_AI_MODEL_QUEUE_" + envSegment + "_RPM_LIMIT"] ||
+      process.env.ASC_AI_MODEL_QUEUE_DEFAULT_RPM_LIMIT,
+    DEFAULT_MODEL_QUEUE_RPM,
+    1,
+    10000
+  );
+  const maxConcurrent = parsePositiveInteger(
+    process.env["ASC_AI_MODEL_QUEUE_" + envSegment + "_CONCURRENCY"] ||
+      process.env.ASC_AI_MODEL_QUEUE_DEFAULT_CONCURRENCY,
+    DEFAULT_MODEL_QUEUE_MAX_CONCURRENT,
+    1,
+    20
+  );
+  return {
+    groupName: normalizedKey,
+    rpm,
+    intervalMs: Math.max(1, Math.ceil(60000 / rpm)),
+    maxConcurrent,
+    maxSize: getGlobalQueueMaxSize(),
+    retryMax: getGroupRetryMax(normalizedKey),
+    retryBaseDelayMs: getGroupRetryBaseDelayMs(normalizedKey),
+    retryMaxDelayMs: getRetryMaxDelayMs(),
+  };
+}
+
+function getModelQueuePolicy() {
+  const settings = getModelQueueSettings(MODEL_QUEUE_KEY_PREFIX + "default");
+  return {
+    keyStrategy: "concrete-model-name",
+    defaultRpm: settings.rpm,
+    dispatchIntervalMs: settings.intervalMs,
+    defaultMaxConcurrent: settings.maxConcurrent,
+    maxSize: settings.maxSize,
+    retryMax: settings.retryMax,
+    retryBaseDelayMs: settings.retryBaseDelayMs,
+    retryMaxDelayMs: settings.retryMaxDelayMs,
+  };
+}
+
 function getGroupSettings(groupName) {
+  if (isModelQueueKey(groupName)) {
+    return getModelQueueSettings(groupName);
+  }
   const preset = DEFAULT_GROUP_SETTINGS[groupName] || DEFAULT_GROUP_SETTINGS.text_compare;
   const rpm = parsePositiveInteger(process.env[preset.rpmEnv], preset.rpm, 1, 10000);
   const maxConcurrent = parsePositiveInteger(
@@ -412,7 +511,9 @@ class ProviderQueue {
 }
 
 function getOrCreateQueue(groupName) {
-  const key = String(groupName || "text_compare");
+  const key = isModelQueueKey(groupName)
+    ? buildModelQueueKey(String(groupName || "").replace(/^model:/i, ""))
+    : String(groupName || "text_compare");
   if (!queueRegistry.has(key)) {
     queueRegistry.set(key, new ProviderQueue(key));
   }
@@ -424,16 +525,21 @@ async function enqueueProviderTask(groupName, task, options) {
 }
 
 function getQueueSnapshots() {
-  return Object.keys(DEFAULT_GROUP_SETTINGS).map(function (groupName) {
+  const keys = queueRegistry.size > 0
+    ? Array.from(queueRegistry.keys())
+    : Object.keys(DEFAULT_GROUP_SETTINGS);
+  return keys.map(function (groupName) {
     return getOrCreateQueue(groupName).getSnapshot();
   });
 }
 
 module.exports = {
   DEFAULT_GROUP_SETTINGS,
+  buildModelQueueKey,
   createQueueOverflowError,
   enqueueProviderTask,
   getGroupSettings,
+  getModelQueuePolicy,
   getQueueSnapshots,
   getGlobalQueueMaxSize,
   getGlobalRetryMax,

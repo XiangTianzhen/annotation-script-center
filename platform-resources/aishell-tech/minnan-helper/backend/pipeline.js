@@ -288,7 +288,7 @@ function createRecommendPipeline(overrides) {
       };
 
       const providerInput = createProviderInput(request);
-      const runQueuedTask = async function runQueuedTask(groupName, stage, task) {
+      const runQueuedTask = async function runQueuedTask(groupName, stage, task, queueOptions) {
         const queued = await withStageMeta(
           requestId,
           request,
@@ -296,7 +296,7 @@ function createRecommendPipeline(overrides) {
           Object.assign({}, timing),
           stage,
           function () {
-            return deps.enqueueTask(groupName, task, { signal });
+            return deps.enqueueTask(groupName, task, Object.assign({ signal }, queueOptions || {}));
           }
         );
         queueMetas.push(queued.queueMeta || {});
@@ -339,6 +339,8 @@ function createRecommendPipeline(overrides) {
             enableThinking: false,
             signal,
           });
+        }, {
+          modelName: activeSingleModel,
         });
         listenDurationMs = Math.max(0, deps.now() - stageStartedAt);
         timing.listenDurationMs = listenDurationMs;
@@ -440,6 +442,8 @@ function createRecommendPipeline(overrides) {
             requestId,
             signal,
           });
+        }, {
+          modelName: activeListenModel,
         });
         listenDurationMs = Math.max(0, deps.now() - listenStartedAt);
         timing.listenDurationMs = listenDurationMs;
@@ -456,6 +460,8 @@ function createRecommendPipeline(overrides) {
             enableThinking: false,
             signal,
           });
+        }, {
+          modelName: activeListenModel,
         });
         listenDurationMs = Math.max(0, deps.now() - listenStartedAt);
         timing.listenDurationMs = listenDurationMs;
@@ -488,6 +494,8 @@ function createRecommendPipeline(overrides) {
           enableThinking: false,
           signal,
         });
+      }, {
+        modelName: activeCompareModel,
       });
       compareDurationMs = Math.max(0, deps.now() - compareStartedAt);
       timing.compareDurationMs = compareDurationMs;

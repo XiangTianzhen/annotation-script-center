@@ -22,6 +22,7 @@
 ## AI 调用日志与统计
 
 - Task21 当前已默认记录每次 `analyze` 调用。
+- `health/defaults` 当前已补齐公共 jobs / runtime 元信息，默认链路为 `POST /jobs` + 轮询 `GET /jobs/:jobId`，同步 `analyze` 只保留兼容 / 调试入口。
 - 日志文件：
   - `platform-resources/abaka-ai/task21/backend/logs/ai-calls-YYYY-MM-DD.csv`
 - 统计接口：

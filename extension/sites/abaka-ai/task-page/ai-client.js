@@ -6,6 +6,7 @@
   const DEFAULT_OCR_MODEL = "";
   const DEFAULT_REASONING_MODEL = "qwen3.6-plus";
   const DEFAULT_SINGLE_MODEL = "qwen3.6-plus";
+  const jobClient = globalThis.ASREdgeAiJobClient || null;
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const buildAiUsageRequestMeta =
     typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
@@ -233,30 +234,69 @@
     }), requestMeta);
 
     try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestPayload),
-        signal: controller.signal,
-      });
-
-      const text = await response.text();
       let body = null;
-      try {
-        body = JSON.parse(text || "{}");
-      } catch (error) {
-        body = null;
-      }
+      if (jobClient && typeof jobClient.runJobLifecycle === "function") {
+        const jobResult = await jobClient.runJobLifecycle({
+          endpoint: endpoint,
+          body: requestPayload,
+          timeoutMs: timeoutMs,
+          fetchImpl: fetch.bind(globalThis),
+          pollIntervalMs: Math.max(200, Number(config.jobPollIntervalMs) || 800),
+          buildApiError: function (responseBody, requestStatusCode) {
+            const payload = responseBody && typeof responseBody === "object" ? responseBody : {};
+            const errorBody = payload.error && typeof payload.error === "object" ? payload.error : payload;
+            const code = errorBody.code || payload.code || "request-error";
+            const requestError = new Error(
+              mapErrorMessage(requestStatusCode, code, errorBody.message || payload.message)
+            );
+            requestError.code = code;
+            requestError.statusCode = requestStatusCode;
+            requestError.requestId = payload?.requestId || payload?.meta?.requestId || "";
+            requestError.jobId = payload?.jobId || "";
+            throw requestError;
+          },
+          buildTerminalError: function (jobBody) {
+            const errorBody = jobBody?.error && typeof jobBody.error === "object" ? jobBody.error : {};
+            const code = errorBody.code || "job-failed";
+            const requestError = new Error(
+              mapErrorMessage(errorBody.providerStatus || 500, code, errorBody.message)
+            );
+            requestError.code = code;
+            requestError.statusCode = Number(errorBody.providerStatus || 500) || 500;
+            requestError.requestId = jobBody?.requestId || "";
+            requestError.jobId = jobBody?.jobId || "";
+            throw requestError;
+          },
+          mapSuccess: function (jobBody) {
+            return jobBody?.data;
+          },
+        });
+        body = jobResult.data;
+      } else {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestPayload),
+          signal: controller.signal,
+        });
 
-      if (!response.ok || !body || body.success !== true) {
-        const code = body && body.code ? body.code : "request-error";
-        const requestError = new Error(mapErrorMessage(response.status, code, body && body.message));
-        requestError.code = code;
-        requestError.statusCode = response.status;
-        requestError.requestId = body && body.requestId ? body.requestId : "";
-        throw requestError;
+        const text = await response.text();
+        try {
+          body = JSON.parse(text || "{}");
+        } catch (error) {
+          body = null;
+        }
+
+        if (!response.ok || !body || body.success !== true) {
+          const code = body && body.code ? body.code : "request-error";
+          const requestError = new Error(mapErrorMessage(response.status, code, body && body.message));
+          requestError.code = code;
+          requestError.statusCode = response.status;
+          requestError.requestId = body && body.requestId ? body.requestId : "";
+          throw requestError;
+        }
       }
 
       return {

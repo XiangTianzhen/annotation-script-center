@@ -3,6 +3,7 @@
   const DEFAULT_TIMEOUT_MS = 60000;
   const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:3333";
   const DEFAULT_SERVER_BASE_URL = "https://script.xiangtianzhen.store";
+  const jobClient = globalThis.ASREdgeAiJobClient || null;
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const buildAiUsageRequestMeta =
     typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
@@ -173,34 +174,83 @@ function mapErrorMessage(code, message, summary, statusCode) {
     }), requestMeta);
 
     try {
-      const response = await fetch(backend.endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller ? controller.signal : undefined,
-      });
-      const responseText = await response.text();
       let json = null;
-      try {
-        json = JSON.parse(responseText || "{}");
-      } catch (error) {
-        json = null;
-      }
+      if (jobClient && typeof jobClient.runJobLifecycle === "function") {
+        const jobResult = await jobClient.runJobLifecycle({
+          endpoint: backend.endpoint,
+          body: requestBody,
+          timeoutMs: timeoutMs,
+          fetchImpl: fetch.bind(globalThis),
+          pollIntervalMs: Math.max(200, Number(config.jobPollIntervalMs) || 800),
+          buildApiError: function (responseBody, requestStatusCode) {
+            const body = responseBody && typeof responseBody === "object" ? responseBody : {};
+            const errorBody = body.error && typeof body.error === "object" ? body.error : body;
+            const code =
+              errorBody.code || (requestStatusCode >= 500 ? "provider-http-error" : "request-error");
+            const message = mapErrorMessage(
+              code,
+              errorBody.message || body.message || "AI 复核失败。",
+              errorBody.summary || body.summary || "",
+              requestStatusCode
+            );
+            const error = new Error(message);
+            error.code = code;
+            error.requestId = body?.requestId || body?.meta?.requestId || "";
+            error.jobId = body?.jobId || "";
+            throw error;
+          },
+          buildTerminalError: function (jobBody) {
+            const errorBody = jobBody?.error && typeof jobBody.error === "object" ? jobBody.error : {};
+            const code = errorBody.code || "job-failed";
+            const message = mapErrorMessage(
+              code,
+              errorBody.message || "AI 复核失败。",
+              errorBody.summary || "",
+              errorBody.providerStatus || 500
+            );
+            const error = new Error(message);
+            error.code = code;
+            error.requestId = jobBody?.requestId || "";
+            error.jobId = jobBody?.jobId || "";
+            throw error;
+          },
+          mapSuccess: function (jobBody) {
+            return jobBody?.data;
+          },
+        });
+        json = {
+          success: true,
+          data: jobResult.data,
+        };
+      } else {
+        const response = await fetch(backend.endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller ? controller.signal : undefined,
+        });
+        const responseText = await response.text();
+        try {
+          json = JSON.parse(responseText || "{}");
+        } catch (error) {
+          json = null;
+        }
 
-      if (!response.ok || !json || json.success !== true || !json.data) {
-        const code = json?.code || (response.status >= 500 ? "provider-http-error" : "request-error");
-        const message = mapErrorMessage(
-          code,
-          json?.message || "AI 复核失败。",
-          json?.summary || "",
-          response.status
-        );
-        const error = new Error(message);
-        error.code = code;
-        error.requestId = json?.requestId || "";
-        throw error;
+        if (!response.ok || !json || json.success !== true || !json.data) {
+          const code = json?.code || (response.status >= 500 ? "provider-http-error" : "request-error");
+          const message = mapErrorMessage(
+            code,
+            json?.message || "AI 复核失败。",
+            json?.summary || "",
+            response.status
+          );
+          const error = new Error(message);
+          error.code = code;
+          error.requestId = json?.requestId || "";
+          throw error;
+        }
       }
 
       return {

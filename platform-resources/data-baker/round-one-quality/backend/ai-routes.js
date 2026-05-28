@@ -125,9 +125,9 @@ function buildHealthPayload() {
   payload.qwenSmoothEnabled = isQwenSmoothEnabled();
   payload.omniLegacyCommit = LEGACY_OMNI_COMMIT;
   payload.notes = Object.assign({}, payload.notes || {}, {
-    defaultResultMode: "sync-recommend",
-    asyncJobsDefaultEnabled: false,
-    requestStaggerMs: 30,
+    defaultResultMode: "async-job-default",
+    asyncJobsDefaultEnabled: true,
+    requestStaggerMs: 50,
     inflightDedupe: "enabled-when-batchRunId-and-batchProcessKey-present",
     omniLegacyFastPath: isOmniLegacyFastPathEnabled(),
     qwenSmoothEnabled: isQwenSmoothEnabled(),

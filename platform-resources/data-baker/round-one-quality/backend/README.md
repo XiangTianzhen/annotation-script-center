@@ -5,7 +5,7 @@
 
 - AI 推荐文本接口。
 - 导出 CSV 上传与下载接口（扩展前端导出后自动上传，后端保存 `latest.csv` 并提供下载；原始记录脱敏后单独保存 `latest-raw.json`）。
-- 前端“AI连续填入合格项”当前仍是“并发分析 + 顺序填入”，只处理 `statusName=质检合格`；默认直接走同步 `POST /ai/recommend`，不再把异步 job 作为默认 AI 结果接收链路。
+- 前端“AI连续填入合格项”当前仍是“并发分析 + 顺序填入”，只处理 `statusName=质检合格`；默认改为短请求创建 `POST /ai/recommend/jobs`，再轮询 `GET /jobs/:jobId`，同步 recommend 只保留兼容 / 调试入口。
 - 前端“AI连续填入合格项并发数量”已归到 DataBaker 的“ASR 语音 AI 设置”区域，并按模型动态归一：
   - Omni：默认 `15`，范围 `1~25`
   - Fun-ASR：默认 `25`，范围 `1~50`
@@ -24,8 +24,8 @@
 - `GET /api/data-baker/round-one-quality/ai/recommend/logs/summary`
 - `POST /api/data-baker/round-one-quality/ai/recommend`（默认）
 - `GET /api/data-baker/round-one-quality/ai/recommend/debug/:debugId`（同步 recommend 失败时查询脱敏后的原始 AI 返回）
-- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`（历史兼容）
-- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`（历史兼容）
+- `POST /api/data-baker/round-one-quality/ai/recommend/jobs`（默认）
+- `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId`（默认轮询）
   - `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId/debug`（仅 JSON 解析失败时返回脱敏 debugRawJson）
 - `GET /api/data-baker/round-one-quality/export/health`
 - `GET /api/data-baker/round-one-quality/export/config`
@@ -216,7 +216,7 @@ CSV 字段统一口径：
    - 默认优先走 Omni legacy 快速路径。
    - 参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 的旧版两阶段逻辑：先调用 Qwen Omni `input_audio` 产出 `heardText`，再调用 compare 模型生成 `recommendedText`。
    - 该路径不走 async job、不走 Fun-ASR REST、不走 Python。
-   - 默认按前端并发直接调用 Qwen 上游；前端仍按 `30ms` 错峰发请求到后端，但后端不再对 Omni legacy 做平滑排队，除非显式设置 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1`。
+   - 默认按前端并发直接调用 Qwen 上游；前端建任务请求固定不低于 `50ms` 错峰发到后端，但后端不再对 Omni legacy 做平滑排队，除非显式设置 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1`。
    - 若 SSE 返回 `data: {"error":{"code":"limit_burst_rate"...}}`，后端会识别为上游突发限流，而不是误报成 `qwen-empty-response`。
    - `limit_burst_rate` 默认不自动退避重试；前端直接显示“Qwen 请求突增限流，接口返回请求增长过快，可降低并发或稍后重试。”，并继续保留原始 debug。
 5. 听音模型为 `fun-asr`：
@@ -225,10 +225,10 @@ CSV 字段统一口径：
    - Fun-ASR 返回 `heardText` 后，再进入 `text_compare` 队列调用 compare 模型生成 `recommendedText`。
    - Python SDK 只在显式设置 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时启用。
 6. Fun-ASR / 通用 provider 队列遇到 `429` 仍走统一指数退避 + jitter 重试；但 DataBaker Omni legacy 默认不对 `limit_burst_rate` 自动重试，除非显式设置 `DATABAKER_AI_QWEN_BURST_RETRY_MAX>0` 或开启 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1`。
-7. `two_stage + fun-asr` 的批量连续填入默认直接调用同步 `POST /api/data-baker/round-one-quality/ai/recommend`：
-   - 前端按 `30ms` 错峰发起，谁先返回谁先进入待填队列。
-   - 前端并发参数只控制最大活跃请求数；后端 queue / RPM 限流仍继续保护 Fun-ASR 与 compare。
-   - `jobs` 相关接口仅保留为历史兼容 / 调试入口。
+7. `two_stage + fun-asr` 的批量连续填入默认短请求创建 `POST /api/data-baker/round-one-quality/ai/recommend/jobs`：
+   - 前端按 `50ms` 错峰发起，谁先完成 job，谁先进入待填队列。
+   - 前端并发参数只控制最大活跃任务数；后端 queue / RPM 限流仍继续保护 Fun-ASR 与 compare。
+   - 同步 recommend 仅保留为兼容 / 调试入口。
 
 8. provider 队列现在同时控制 RPM 和 group 并发：
    - `qwen_omni` 默认并发 `3`
@@ -420,8 +420,8 @@ Fun-ASR `403` 的常见原因：
 
 ## 批量 recommend 去重
 
-- DataBaker 批量连续填入仍走同步 `POST /api/data-baker/round-one-quality/ai/recommend`。
-- 当前页 N 条唯一合格项会发送 N 条请求；前端默认按 30ms 错峰发起，并继续由前端并发上限控制活跃请求数。
+- DataBaker 批量连续填入默认走 `POST /api/data-baker/round-one-quality/ai/recommend/jobs`。
+- 当前页 N 条唯一合格项会发送 N 条建任务请求；前端默认按 50ms 错峰发起，并继续由前端并发上限控制活跃任务数。
 - 批量请求会附带 `batchRunId`、`batchItemIndex`、`batchProcessKey`、`clientRequestId`。
 - 后端新增内存级 in-flight 去重：仅当 `batchRunId + batchProcessKey` 同时存在时启用，避免旧 content runtime 或重复点击导致同一题重复打上游模型。
 - health 返回 `dedupe.activeCount/joinedCount/completedCount/failedCount/maxSize/ttlMs`，排查重复请求时优先看悬浮窗的“唯一任务数/重复跳过”和 health 的 `dedupe.joinedCount`。
