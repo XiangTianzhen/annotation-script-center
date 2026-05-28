@@ -1,3 +1,31 @@
+## 2026-05-28（全量 AI 脚本接入调用日志与统计）
+
+- 新增共享日志核心：
+  - `platform-resources/backend/ai-call-log/schema.js`
+  - `platform-resources/backend/ai-call-log/sanitizer.js`
+  - `platform-resources/backend/ai-call-log/csv-writer.js`
+  - `platform-resources/backend/ai-call-log/index.js`
+- `platform-resources/backend/ai-framework/core/create-ai-route.js` 当前已统一补上：
+  - `aiUsageOperatorName` 后端必填校验
+  - 成功 / 失败默认写共享 AI 调用日志
+- 以下 AI 脚本当前都已默认写脚本级 CSV，并补齐统计接口：
+  - DataBaker：`/api/data-baker/round-one-quality/ai/recommend/logs/summary`
+  - Aishell Tech：`/api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
+  - Magic Data 客家话：`/api/magic-data/hakka-helper/ai/review-current/logs/summary`
+  - Magic Data 客家话 legacy：`/api/magic-data/annotator/ai/review-current/logs/summary`
+  - Magic Data 闽南语：`/api/magic-data/minnan-helper/ai/review-current/logs/summary`
+  - LabelX 快判：`/api/alibaba-labelx/asr-judgement/ai/suggest/logs/summary`
+  - LabelX 转写：`/api/alibaba-labelx/asr-transcription/ai/suggest-current/logs/summary`
+  - Abaka Task21：`/api/abaka-ai/task21/ai/analyze/logs/summary`
+- 各脚本日志目录：
+  - DataBaker：`platform-resources/data-baker/round-one-quality/backend/logs/`
+  - Aishell Tech：`platform-resources/aishell-tech/minnan-helper/data/runtime/`
+  - Magic Data 客家话：`platform-resources/magic-data/hakka-helper/backend/logs/`
+  - Magic Data 闽南语：`platform-resources/magic-data/minnan-helper/backend/logs/`
+  - LabelX 快判：`platform-resources/alibaba-labelx/asr-judgement/backend/logs/`
+  - LabelX 转写：`platform-resources/alibaba-labelx/asr-transcription/backend/logs/`
+  - Abaka Task21：`platform-resources/abaka-ai/task21/backend/logs/`
+
 ## 2026-05-28（Aishell Tech 默认配置改为速度优先组合）
 
 - 将希尔贝壳 / Aishell Tech 闽南语助手默认配置统一改为：

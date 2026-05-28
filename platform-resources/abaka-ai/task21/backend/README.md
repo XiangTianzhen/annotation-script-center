@@ -5,6 +5,7 @@
 - `GET /api/abaka-ai/task21/ai/health`
 - `GET /api/abaka-ai/task21/ai/defaults`
 - `POST /api/abaka-ai/task21/ai/analyze`
+- `GET /api/abaka-ai/task21/ai/analyze/logs/summary`
 
 ## 统一 AI framework 桥接状态
 
@@ -17,6 +18,14 @@
 - `platform-resources/abaka-ai/task21/backend/ai-analyze-request.js` 负责 analyze 请求归一与运行时模型选项解析，供 adapter 与业务层共用。
 - `GET /health`、`GET /defaults` 当前仍走旧实现；Prompt 与规则暂时仍保留在 `backend/prompt.js`、`backend/ai/prompt.md`。
 - `platform-resources/abaka-ai/task21/ai/assets/` 当前是资产目录占位，后续再逐步迁移 prompt / rules / schema / defaults。
+
+## AI 调用日志与统计
+
+- Task21 当前已默认记录每次 `analyze` 调用。
+- 日志文件：
+  - `platform-resources/abaka-ai/task21/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/abaka-ai/task21/ai/analyze/logs/summary`
 
 ## 分析方案
 

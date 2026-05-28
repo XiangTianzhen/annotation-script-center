@@ -21,6 +21,7 @@
 - `GET /api/data-baker/round-one-quality/ai/recommend/health`
 - `GET /api/data-baker/round-one-quality/ai/recommend/defaults`
 - `POST /api/data-baker/round-one-quality/ai/recommend`
+- `GET /api/data-baker/round-one-quality/ai/recommend/logs/summary`
 - `POST /api/data-baker/round-one-quality/ai/recommend`（默认）
 - `GET /api/data-baker/round-one-quality/ai/recommend/debug/:debugId`（同步 recommend 失败时查询脱敏后的原始 AI 返回）
 - `POST /api/data-baker/round-one-quality/ai/recommend/jobs`（历史兼容）
@@ -46,6 +47,7 @@
 - `../data/scripts/fetch.js`：DataBaker 导出读取 helper，统一 latest 快照、`latest.json`、history CSV 列表和 `upload-events.jsonl` 读取。
 - `index.js`：项目路由注册入口。
 - `ai-routes.js`：负责 HTTP health / defaults / recommend / jobs 路由注册；recommend 入口当前已改由统一 `ai-framework` route factory 驱动，但仍保留旧接口响应结构。
+- `ai-call-log.js`：DataBaker AI 调用日志桥接层，把旧 recommend 记录归一到共享 `platform-resources/backend/ai-call-log/`，并提供 `logs/summary` 统计。
 - `ai-service.js`：DataBaker AI 当前业务层，集中管理请求归一化、Fun-ASR REST 与当前通用链路、prompt、schema 解析、词表、文本归一化、成本估算、调用日志、缓存、队列和推荐响应组装。
 - `ai-legacy-omni-service.js`：DataBaker 专用 Qwen Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 恢复旧版两阶段逻辑。
 - `ai-client-qwen-legacy.js`：DataBaker 专用 Qwen Omni legacy 客户端，只服务 Omni 快速路径，不影响统一 AI 基座。
@@ -60,6 +62,19 @@
 - `../ai/assets/`：DataBaker AI 资产目录占位；当前仍沿用 `ai-service.js` 与 `backend/reference/`，后续逐步迁移 prompt/rules/schema。
 - `../data/assets/`：DataBaker 数据资产目录，当前补充了字段映射说明、upload payload 说明和脱敏样例。
 - `../data/README.md`：DataBaker 脚本级 data 目录说明；当前已开始承接下载脚本、upload 字段归一、CSV helper、merge helper、history 读取 helper、字段映射和脱敏样例，不直接迁移运行数据。
+
+## AI 调用日志与统计
+
+- AI 调用 CSV 当前落在：
+  - `platform-resources/data-baker/round-one-quality/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- `recommend` 与历史兼容 `jobs` 结果都会复用同一套共享日志核心。
+- `GET /api/data-baker/round-one-quality/ai/recommend/logs/summary` 当前会返回：
+  - 总调用数 / 成功数 / 失败数
+  - 输入 Token / 输出 Token / 总 Token 统计
+  - 按日期聚合
+  - 按 `AI 调用使用人` 聚合
+  - 按错误码聚合
+- `DATABAKER_AI_CALL_LOG_DIR` 可覆盖默认日志目录。
 
 ## 模型
 

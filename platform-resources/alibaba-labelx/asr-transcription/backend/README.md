@@ -62,12 +62,21 @@
 - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health`
 - `GET /api/alibaba-labelx/asr-transcription/ai/defaults`
 - `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current`
+- `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/logs/summary`
 
 下载接口默认返回根级总表，不要求 `supplier` 参数；`suppliers` 接口仅作为辅助信息接口。下载文件名统一带 `YYYYMMDD-HHmm`（Asia/Shanghai）。
 - 总表：`asr-transcription-statistics-merged-YYYYMMDD-HHmm.csv`
 - 供应商：`asr-transcription-<供应商safeName>-statistics-YYYYMMDD-HHmm.csv`
 - `supplier` 有值但无匹配时返回 `404`，不回退总表。
 - `existing` 当前也走共享 LabelX existing core，但返回结构保持原样：`success + data.items`。
+
+## AI 调用日志与统计
+
+- 转写当前题 AI 推荐现在会默认写调用日志。
+- 日志文件：
+  - `platform-resources/alibaba-labelx/asr-transcription/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/logs/summary`
 
 兼容短路径：
 

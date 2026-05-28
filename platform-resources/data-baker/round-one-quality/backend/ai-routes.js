@@ -3,8 +3,13 @@
 const crypto = require("crypto");
 
 const { sendJson } = require("../../../backend/response");
+const {
+  assertAiUsageOperatorName,
+  buildAiCallLogSummaryPayload,
+} = require("../../../backend/ai-call-log");
 const { createAiRoute } = require("../../../backend/ai-framework");
 const dataBakerRoundOneAdapter = require("../ai/adapter");
+const { aiCallLogger } = require("./ai-call-log");
 const { getInFlightDedupeHealth, runWithInFlightDedupe } = require("./ai-inflight-dedupe");
 const { getAiDebug } = require("./ai-debug-store");
 const {
@@ -33,6 +38,7 @@ const {
 const AI_BASE_PATH = "/api/data-baker/round-one-quality/ai/recommend";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = AI_BASE_PATH + "/defaults";
+const AI_LOG_SUMMARY_PATH = AI_BASE_PATH + "/logs/summary";
 const AI_DEBUG_PATH = AI_BASE_PATH + "/debug/:debugId";
 const AI_JOBS_PATH = AI_BASE_PATH + "/jobs";
 const AI_JOB_DETAIL_PATH = AI_JOBS_PATH + "/:jobId";
@@ -290,6 +296,7 @@ async function handleCreateRecommendJob(request, response) {
       throw createHttpError(400, "请求体 JSON 解析失败。", "invalid-json");
     }
     requestId = String(body.requestId || requestId);
+    assertAiUsageOperatorName(body);
     const normalizedRequest = normalizeRecommendRequest(body);
     const job = createAiRecommendJob({
       requestId,
@@ -368,6 +375,18 @@ function registerAiRoutes(router) {
   router.post(AI_BASE_PATH, function ({ request, response }) {
     return handleRecommend(request, response);
   });
+  router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
+    sendJson(
+      response,
+      200,
+      buildAiCallLogSummaryPayload({
+        service: "data-baker-round-one-quality-ai-recommend",
+        scriptId: "dataBakerRoundOneQuality",
+        logger: aiCallLogger,
+        query,
+      })
+    );
+  });
   router.get(AI_DEBUG_PATH, function ({ response, params }) {
     return handleGetRecommendDebug(null, response, params?.debugId);
   });
@@ -387,6 +406,7 @@ module.exports = {
   AI_DEBUG_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_LOG_SUMMARY_PATH,
   AI_JOBS_PATH,
   AI_JOB_DEBUG_PATH,
   AI_JOB_DETAIL_PATH,

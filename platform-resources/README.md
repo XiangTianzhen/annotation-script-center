@@ -53,6 +53,7 @@
 - 当前共享后端收口：
   - 转写与快判的 `download / suppliers / existing` 已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core。
   - 脚本级差异分别收口在各自 `data/adapter.js`。
+  - 转写与快判 AI 调用当前都已默认记录脚本级 CSV，并分别开放 `logs/summary` 统计接口。
 - 脚本：
   - `asr-judgement/`
   - `asr-transcription/`
@@ -68,6 +69,7 @@
   - `export/download` 已开始复用 `platform-resources/backend/project-data-download/` 下的通用 CSV 文件下载 core。
   - 脚本级差异收口在 `round-one-quality/data/adapter.js`。
   - DataBaker 导出字段映射、upload 字段归一、CSV helper、merge helper、latest/history/events 持久化 helper、history 读取 helper、下载 helper 和脱敏样例已开始收口到 `round-one-quality/data/field-mappings.js`、`data/scripts/`、`data/assets/`。
+  - DataBaker AI recommend 当前已默认记录脚本级 CSV，并开放 `logs/summary` 统计接口。
 - 脚本：
   - `round-one-quality/`
 - 闽南语词表：`platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv`
@@ -83,6 +85,7 @@
   - `hakka-helper/`
   - `minnan-helper/`
 - 旧接口兼容：`/api/magic-data/annotator/ai/*`（转发到客家话助手链路）
+- 两个 AI 助手当前都已默认记录脚本级 CSV，并开放 `logs/summary` 统计接口。
 
 ### Abaka AI
 
@@ -95,15 +98,20 @@
   - `task-page/`
   - `task17/`
   - `task21/`
+- `task21/` 当前已默认记录 AI analyze 调用 CSV，并开放 `logs/summary` 统计接口。
 
 ### Aishell Tech
 
 - 目录：`platform-resources/aishell-tech/`
-- 当前阶段：正式接入准备态。核心标注链路资料已齐，首阶段运行时代码可不依赖专属后端先行开发；暂未接入 `extension/sites/aishell-tech/` 运行时代码，也未在统一后端注册专属接口。
+- 当前阶段：独立闽南语助手已接入运行时代码与专属后端；平台公共资料和脚本资料继续并行维护。
 - 平台资料：
   - `README.md`
   - `network/README.md`
   - `page-structure/README.md`
+- 脚本级 AI 日志：
+  - `platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
 
 ## 后端接口边界
 
@@ -115,7 +123,18 @@
 
 - AI 框架设计：`docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`
 - AI 框架迁移计划：`docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`
-- Aishell Tech 当前处于正式接入准备态，但仍不进入本轮 AI 框架迁移；协作者继续按 `platform-resources/aishell-tech/README.md`、`network/README.md`、`page-structure/README.md` 补资料，并按该目录资料直接支持后续运行时代码开发。
+- Aishell Tech 当前已进入独立闽南语助手运行态，但仍保持与其余平台不同的脚本级日志目录：`data/runtime/`。
+
+## 当前 AI 调用日志覆盖范围
+
+- DataBaker：`/api/data-baker/round-one-quality/ai/recommend/logs/summary`
+- Aishell Tech：`/api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
+- Magic Data 客家话：`/api/magic-data/hakka-helper/ai/review-current/logs/summary`
+- Magic Data 客家话 legacy：`/api/magic-data/annotator/ai/review-current/logs/summary`
+- Magic Data 闽南语：`/api/magic-data/minnan-helper/ai/review-current/logs/summary`
+- LabelX 快判：`/api/alibaba-labelx/asr-judgement/ai/suggest/logs/summary`
+- LabelX 转写：`/api/alibaba-labelx/asr-transcription/ai/suggest-current/logs/summary`
+- Abaka Task21：`/api/abaka-ai/task21/ai/analyze/logs/summary`
 
 ## 安全边界
 

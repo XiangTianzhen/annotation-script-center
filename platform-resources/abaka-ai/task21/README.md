@@ -75,6 +75,14 @@
 - 入口不会自动领取标注、不会自动保存、不会自动提交、不会自动送审
 - 若后续补齐统计 runtime，应优先复用该顶部入口，不要再隐藏到快捷键或 AI 浮窗内
 
+## AI 调用日志与统计（2026-05-28）
+
+- Task21 AI analyze 当前已默认记录成功 / 失败调用。
+- 日志文件：
+  - `platform-resources/abaka-ai/task21/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/abaka-ai/task21/ai/analyze/logs/summary`
+
 ## Network 入口
 
 - 平台通用初始化、权限、任务和资源接口：`../network/platform.md`

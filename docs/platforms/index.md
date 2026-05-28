@@ -12,6 +12,7 @@
 - 转写平台资料：`platform-resources/alibaba-labelx/asr-transcription/`
 - LabelX shared：`extension/sites/alibaba-labelx/shared/`
 - 当前后端状态：转写与快判的 `download / suppliers / existing` 已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core；外部接口路径保持不变。
+- 当前 AI 日志状态：转写与快判都已默认写脚本级 AI 调用 CSV，并分别开放 `logs/summary` 统计接口。
 
 ## 标贝易采
 
@@ -22,6 +23,7 @@
 - 统一后端启动入口：`node platform-resources/backend/server.js`
 - 公共 AI provider 基座：`platform-resources/backend/ai/`
 - 当前后端状态：AI recommend 已接入统一 `ai-framework`；`export/download` 已开始复用 `platform-resources/backend/project-data-download/` 下的通用 CSV 文件下载 core，外部接口路径保持不变；下载相关脚本、upload 字段归一、CSV helper、merge helper、latest/history/events 持久化 helper、history 读取 helper、字段映射和脱敏样例已开始收口到 `platform-resources/data-baker/round-one-quality/data/`。
+- 当前 AI 日志状态：DataBaker recommend 当前已默认写脚本级 AI 调用 CSV，并开放 `logs/summary` 统计接口。
 - 如需 Python 辅助脚本，统一复用 `platform-resources/backend/.venv`，Fun-ASR Python 文件位于 `platform-resources/backend/ai/python/`，不单独启动 Python 服务
 
 ## Magic Data ANNOTATOR
@@ -42,6 +44,7 @@
 - 平台共用 Network：`platform-resources/magic-data/network/README.md`
 - 客家话助手资料：`platform-resources/magic-data/hakka-helper/README.md`
 - 闽南语助手资料：`platform-resources/magic-data/minnan-helper/README.md`
+- 当前 AI 日志状态：客家话与闽南语助手都已默认写脚本级 AI 调用 CSV，并开放 `logs/summary` 统计接口；客家话 legacy `annotator` 路径也复用同一份统计。
 
 ## Abaka AI
 
@@ -61,6 +64,7 @@
 - Task17 项目资料：`platform-resources/abaka-ai/task17/README.md`
 - Task17 网络差异：`platform-resources/abaka-ai/task17/network/README.md`
 - 当前阶段：公共 Task 页面资料已上移到 Abaka AI 根目录；Task21助手已完成主要编写（快捷键、AI 辅助填写、image_b_texts_removed 的 T/B/R/D 多重集规则、列表页统计入口），其中统计后端与独立统计 runtime 仍待补齐；Task17 保留对比和领取审核空池差异；不默认自动提交/保存/领取/流转。
+- 当前 AI 日志状态：Task21 analyze 当前已默认写脚本级 AI 调用 CSV，并开放 `logs/summary` 统计接口。
 
 ## Aishell Tech
 
@@ -71,6 +75,7 @@
 - 页面 DOM 结构采集（4 页完整 + 1 页组织管理初版占位）：`platform-resources/aishell-tech/page-structure/README.md`
 - 安全边界：以 `platform-resources/aishell-tech/README.md` 的“安全边界”章节与 `network/README.md` 的脱敏规则为准。
 - 当前阶段：独立闽南语助手已接入。当前业务能力只在 `/mytask/mark` 生效，`/mytask/index` 与 `/mytask/detail/:taskId` 仅做路由覆盖与资料复用；已注册独立接口 `/api/aishell-tech/minnan-helper/ai/recommend`，后端推荐编排已从 DataBaker recommend orchestration 独立出来，改为 Aishell 自己的同步链路、独立队列与 `success/data/meta` 契约；`我的团队` 页面仍只有 network 和 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
+- 当前 AI 日志状态：Aishell 当前会把 AI 调用写到 `platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`，并开放 `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`。
 
 ## 新增平台要求
 

@@ -45,6 +45,14 @@
   - `conversionWarnings`
   - `recognitionStrategy=mandarin_to_dialect`
 
+## AI 调用日志与统计
+
+- 闽南语助手当前已默认记录每次 `review-current` 调用。
+- 日志文件：
+  - `platform-resources/magic-data/minnan-helper/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/magic-data/minnan-helper/ai/review-current/logs/summary`
+
 ## 说话人数据来源
 
 - 优先读取 `annotateDetailInfo` 的 `base_speak + mark_info[].speak_people` 映射关系。

@@ -6,10 +6,12 @@
   - `GET /api/magic-data/hakka-helper/ai/review-current/health`
   - `GET /api/magic-data/hakka-helper/ai/defaults`
   - `POST /api/magic-data/hakka-helper/ai/review-current`
+  - `GET /api/magic-data/hakka-helper/ai/review-current/logs/summary`
 - 兼容旧接口：
   - `GET /api/magic-data/annotator/ai/review-current/health`
   - `GET /api/magic-data/annotator/ai/defaults`
   - `POST /api/magic-data/annotator/ai/review-current`
+  - `GET /api/magic-data/annotator/ai/review-current/logs/summary`
 
 ## 当前迁移状态
 
@@ -19,6 +21,16 @@
   - 成功：`success + data`
   - 失败：`success + requestId + code + message (+ summary)`
 - `health/defaults` 仍保持原实现，本轮先做桥接式迁移，不一次性推倒业务层。
+
+## AI 调用日志与统计
+
+- 客家话助手当前已默认记录 AI 质检调用。
+- 日志文件：
+  - `platform-resources/magic-data/hakka-helper/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/magic-data/hakka-helper/ai/review-current/logs/summary`
+  - `GET /api/magic-data/annotator/ai/review-current/logs/summary`
+- `MAGIC_DATA_HAKKA_AI_CALL_LOG_DIR` 或 `MAGIC_DATA_AI_CALL_LOG_DIR` 可覆盖默认日志目录。
 
 ## 词表
 

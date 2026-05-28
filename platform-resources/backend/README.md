@@ -156,6 +156,62 @@ http://127.0.0.1:3333
 
 统一返回字段包含：`success`、`scriptId`、`defaults`、`supportedParams`、`notes`。其中 `response_format` 对前端固定为不开放（`supportedParams.response_format=false`），结构化输出由后端控制。
 
+## 统一 AI 调用日志
+
+2026-05-28 起，仓库内所有已接入 AI 的脚本都默认记录调用日志，并提供按脚本独立的统计汇总接口。
+
+共享核心目录：
+
+- `platform-resources/backend/ai-call-log/`
+
+共享公共列：
+
+- `createdAt`
+- `requestId`
+- `platformId`
+- `scriptId`
+- `success`
+- `errorCode`
+- `errorMessage`
+- `durationMs`
+- `promptTokens`
+- `completionTokens`
+- `totalTokens`
+- `aiUsageOperatorName`
+- `platformUserName`
+- `platformUserId`
+- `rawResponseJson`
+- `rawErrorJson`
+
+统一规则：
+
+- 前端必须携带 `aiUsageOperatorName`；未填写时前端与后端都会拦截。
+- token 只按 `promptTokens / completionTokens` 作为主统计口径；只有两者都缺失时才回退 `totalTokens`。
+- 默认保留脱敏后的原始成功 / 失败 JSON，不再把大块业务结果拆成公共列。
+
+当前统计接口：
+
+- `GET /api/data-baker/round-one-quality/ai/recommend/logs/summary`
+- `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
+- `GET /api/magic-data/hakka-helper/ai/review-current/logs/summary`
+- `GET /api/magic-data/annotator/ai/review-current/logs/summary`
+- `GET /api/magic-data/minnan-helper/ai/review-current/logs/summary`
+- `GET /api/alibaba-labelx/asr-judgement/ai/suggest/logs/summary`
+- `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/logs/summary`
+- `GET /api/abaka-ai/task21/ai/analyze/logs/summary`
+
+返回结构统一包含：
+
+- `success`
+- `service`
+- `scriptId`
+- `callLogDir`
+- `stats.fileCount`
+- `stats.totals`
+- `stats.byDate`
+- `stats.byOperator`
+- `stats.byErrorCode`
+
 ## 项目数据下载密码配置教程
 
 项目数据下载不保存明文密码。后端仅校验 SHA256，并使用 JWT Secret 生成短期下载 token。

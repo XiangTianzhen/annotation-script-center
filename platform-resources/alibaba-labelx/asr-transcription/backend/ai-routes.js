@@ -1,6 +1,7 @@
 "use strict";
 
 const { sendJson } = require("../../../backend/response");
+const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log");
 const { createAiRoute } = require("../../../backend/ai-framework");
 const transcriptionAdapter = require("../ai/adapter");
 const {
@@ -12,7 +13,7 @@ const {
   requestCurrentSuggestion,
   sanitizeModelName,
 } = require("./ai-client-qwen");
-const { appendAiCallLog, getLogDir } = require("./ai-call-log");
+const { getLogDir } = require("./ai-call-log");
 const {
   buildPrompt,
   DEFAULT_COMPARE_TEMPLATE,
@@ -38,6 +39,7 @@ const AI_ROOT_PATH = "/api/alibaba-labelx/asr-transcription/ai";
 const AI_BASE_PATH = AI_ROOT_PATH + "/suggest-current";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = AI_ROOT_PATH + "/defaults";
+const AI_LOG_SUMMARY_PATH = AI_BASE_PATH + "/logs/summary";
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 const SERVICE_NAME = "asr-transcription-ai-suggest-current";
 
@@ -62,17 +64,6 @@ function resolveModelOverride(requestModel, defaultModel, config) {
     return sanitizeModelName(defaultModel, defaultModel);
   }
   return normalized;
-}
-
-function appendCallLogSafe(record) {
-  try {
-    appendAiCallLog(record);
-  } catch (error) {
-    console.warn("[ASR Transcription][ai] 调用日志写入失败", {
-      requestId: record?.requestId,
-      message: error?.message || String(error),
-    });
-  }
 }
 
 function buildHealthResponse() {
@@ -230,26 +221,6 @@ async function suggestCurrentRequest(body, requestId) {
       },
     };
 
-    appendCallLogSafe({
-      createdAt: new Date().toISOString(),
-      requestId,
-      success: true,
-      durationMs,
-      model: selectedModels.listenModel,
-      compareModel: selectedModels.compareModel,
-      enableThinking: suggestRequest.enableThinking === true,
-      thinkingFallbackUsed: modelResult.thinkingFallbackUsed === true,
-      thinkingFallbackMode: modelResult.thinkingFallbackMode || "",
-      audioHostnames: suggestRequest.audioCandidates.map(function (item) {
-        return parseAudioHostname(item.url);
-      }),
-      textCandidateCount: suggestRequest.textCandidates.length,
-      hasAudio: suggestRequest.audioCandidates.length > 0,
-      decision: responseData.decision,
-      confidence: responseData.confidence,
-      mock: responseData.mock === true,
-    });
-
     return responseData;
   } catch (error) {
     const statusCode = Number(error?.statusCode) || (error?.code === "timeout" ? 504 : 500);
@@ -262,28 +233,6 @@ async function suggestCurrentRequest(body, requestId) {
     if (error?.code === "provider-http-error" && error?.summary) {
       errorBody.summary = sanitizeErrorMessage(error.summary).slice(0, 200);
     }
-
-    appendCallLogSafe({
-      createdAt: new Date().toISOString(),
-      requestId,
-      success: false,
-      durationMs: Date.now() - startedAtMs,
-      model: selectedModels?.listenModel || config?.listenModel || DEFAULT_LISTEN_MODEL,
-      compareModel: selectedModels?.compareModel || config?.compareModel || DEFAULT_COMPARE_MODEL,
-      enableThinking: suggestRequest?.enableThinking === true,
-      audioHostnames: Array.isArray(suggestRequest?.audioCandidates)
-        ? suggestRequest.audioCandidates.map(function (item) {
-            return parseAudioHostname(item.url);
-          })
-        : [],
-      textCandidateCount: Number(suggestRequest?.textCandidates?.length || 0),
-      hasAudio:
-        Array.isArray(suggestRequest?.audioCandidates) &&
-        suggestRequest.audioCandidates.length > 0,
-      mock: Boolean(config?.mockEnabled),
-      errorCode: errorBody.code,
-      errorMessage: errorBody.message,
-    });
 
     const propagatedError =
       error instanceof Error ? error : new Error(errorBody.message || "AI 推荐请求失败。");
@@ -313,7 +262,6 @@ const handleSuggestCurrent = createAiRoute(transcriptionAdapter, {
     return transcriptionAdapter.buildSuggestErrorBody(context);
   },
 });
-
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendJson(response, 200, buildHealthResponse());
@@ -354,12 +302,25 @@ function registerAiRoutes(router) {
   router.post(AI_BASE_PATH, function (routeContext) {
     return handleSuggestCurrent(routeContext);
   });
+  router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
+    sendJson(
+      response,
+      200,
+      buildAiCallLogSummaryPayload({
+        service: SERVICE_NAME,
+        scriptId: SCRIPT_ID,
+        logger: transcriptionAdapter.aiCallLogger,
+        query,
+      })
+    );
+  });
 }
 
 module.exports = {
   AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_LOG_SUMMARY_PATH,
   handleSuggestCurrent,
   normalizeSuggestRequest,
   registerAiRoutes,

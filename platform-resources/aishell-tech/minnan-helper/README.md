@@ -31,6 +31,8 @@
   - 保存成功优先以页面 `保存成功!` 提示为准；若提示未及时出现，再回退检查 `getShortMark / packageItemList` 的保存结果。
 - 后端默认 Prompt 已限制 `heardText / recommendedText` 必须使用简体中文，不允许输出繁体字；前端不再做二次繁简转换。
 - Aishell 当前会额外把每次 recommend 的成功/失败调用写一份到 `data/runtime/ai-calls-YYYY-MM-DD.csv`，作为本平台单独日志副本；这一步先独立实现，暂不并入统一日志合并层。
+- 当前也已补齐平台内统计接口：
+  - `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
 - 前端 UI 口径当前固定为“嵌入式推荐卡片 + 原生按钮注入”：
   - 推荐卡片嵌入标注表单下方。
   - `AI识别` 放在原生“保存”按钮右侧。

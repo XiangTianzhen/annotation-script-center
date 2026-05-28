@@ -37,6 +37,15 @@
   - 失败：`success + requestId + code + message (+ summary)`
 - `health/defaults` 仍保持原实现，本轮先做桥接式迁移，不一次性推倒业务层。
 
+## AI 调用日志与统计
+
+- 客家话助手当前已默认记录每次 `review-current` 调用。
+- 日志文件：
+  - `platform-resources/magic-data/hakka-helper/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/magic-data/hakka-helper/ai/review-current/logs/summary`
+  - `GET /api/magic-data/annotator/ai/review-current/logs/summary`
+
 ## 安全边界
 
 - AI 仅做辅助建议，不自动保存、不自动提交、不自动领取、不自动审核、不自动流转。

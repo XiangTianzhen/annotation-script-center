@@ -1,5 +1,6 @@
 "use strict";
 
+const { aiCallLogger } = require("../backend/ai-call-log");
 const {
   SCRIPT_ID,
   normalizeReviewRequest,
@@ -85,6 +86,7 @@ module.exports = {
   scriptId: SCRIPT_ID,
   routeKey: "review-current",
   routeAliases: ["magic-data/annotator"],
+  aiCallLogger,
   normalizeInput,
   exposeProjectResult,
   buildReviewSuccessBody,

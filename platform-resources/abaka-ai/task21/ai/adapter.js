@@ -1,5 +1,6 @@
 "use strict";
 
+const { aiCallLogger } = require("../backend/ai-call-log");
 const { getClientConfig } = require("../backend/ai-client");
 const {
   SCRIPT_ID,
@@ -76,6 +77,7 @@ module.exports = {
   platform: "abaka-ai",
   scriptId: SCRIPT_ID,
   routeKey: "analyze",
+  aiCallLogger,
   normalizeInput,
   exposeProjectResult,
   buildAnalyzeSuccessBody,

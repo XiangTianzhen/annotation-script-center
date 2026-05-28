@@ -1,6 +1,7 @@
 "use strict";
 
 const { sendJson } = require("../../../backend/response");
+const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log");
 const { createAiRoute } = require("../../../backend/ai-framework");
 const minnanHelperAdapter = require("../ai/adapter");
 const {
@@ -14,6 +15,7 @@ const {
 const AI_BASE_PATH = "/api/magic-data/minnan-helper/ai/review-current";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = "/api/magic-data/minnan-helper/ai/defaults";
+const AI_LOG_SUMMARY_PATH = AI_BASE_PATH + "/logs/summary";
 
 function createRequestId() {
   const now = new Date();
@@ -48,7 +50,6 @@ const handleReviewCurrent = createAiRoute(minnanHelperAdapter, {
     return minnanHelperAdapter.buildReviewErrorBody(context);
   },
 });
-
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendJson(response, 200, createHealthPayload());
@@ -61,12 +62,25 @@ function registerAiRoutes(router) {
   router.post(AI_BASE_PATH, function (routeContext) {
     return handleReviewCurrent(routeContext);
   });
+  router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
+    sendJson(
+      response,
+      200,
+      buildAiCallLogSummaryPayload({
+        service: "magic-data-minnan-helper-ai-review-current",
+        scriptId: SCRIPT_ID,
+        logger: minnanHelperAdapter.aiCallLogger,
+        query,
+      })
+    );
+  });
 }
 
 module.exports = {
   AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_LOG_SUMMARY_PATH,
   handleReviewCurrent,
   registerAiRoutes,
 };

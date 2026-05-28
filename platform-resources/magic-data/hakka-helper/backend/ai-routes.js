@@ -1,6 +1,7 @@
 "use strict";
 
 const { sendJson } = require("../../../backend/response");
+const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log");
 const { createAiRoute } = require("../../../backend/ai-framework");
 const hakkaHelperAdapter = require("../ai/adapter");
 const {
@@ -13,7 +14,7 @@ const {
   requestListen,
   sanitizeModelName,
 } = require("./ai-client-qwen");
-const { appendAiCallLog, getLogDir } = require("./ai-call-log");
+const { getLogDir } = require("./ai-call-log");
 const { estimateIncome } = require("./ai-cost");
 const { buildLexiconContext, getLexiconState } = require("./ai-lexicon");
 const {
@@ -44,6 +45,8 @@ const AI_HEALTH_PATH = HAKKA_AI_BASE_PATH + "/health";
 const LEGACY_AI_HEALTH_PATH = LEGACY_AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = "/api/magic-data/hakka-helper/ai/defaults";
 const LEGACY_AI_DEFAULTS_PATH = "/api/magic-data/annotator/ai/defaults";
+const AI_LOG_SUMMARY_PATH = HAKKA_AI_BASE_PATH + "/logs/summary";
+const LEGACY_AI_LOG_SUMMARY_PATH = LEGACY_AI_BASE_PATH + "/logs/summary";
 const MODEL_MODE_OPTIONS = [
   { value: "two_stage", label: "双模型：听音模型 + 比较/转换模型" },
   { value: "omni_single", label: "单模型：Omni 单模型" },
@@ -162,17 +165,6 @@ function computeEffectiveTimeSeconds(request) {
     return Math.max(0, Number.isFinite(diff) ? diff : 0);
   }
   return 0;
-}
-
-function appendCallLogSafe(record) {
-  try {
-    appendAiCallLog(record);
-  } catch (error) {
-    console.warn("[MagicData][hakka][ai] 调用日志写入失败", {
-      requestId: record?.requestId,
-      message: error && error.message ? error.message : String(error),
-    });
-  }
 }
 
 function buildHealthResponse() {
@@ -497,22 +489,6 @@ async function reviewCurrent(body, requestId) {
       },
     };
 
-    appendCallLogSafe({
-      createdAt: new Date().toISOString(),
-      requestId,
-      success: true,
-      durationMs: totalDurationMs,
-      listenDurationMs,
-      compareDurationMs,
-      request: reviewRequest,
-      response: responseData,
-      listenModel: responseData.models.listenModel,
-      compareModel: responseData.models.reviewModel,
-      enableThinking: reviewRequest.enableThinking === true,
-      audioHostname: parseAudioHostname(reviewRequest.audioUrl),
-      mock: responseData.mock,
-    });
-
     return {
       data: responseData,
     };
@@ -543,22 +519,6 @@ async function reviewCurrent(body, requestId) {
       propagatedError.summary = responseBody.summary;
     }
 
-    appendCallLogSafe({
-      createdAt: new Date().toISOString(),
-      requestId,
-      success: false,
-      durationMs: Date.now() - startedAtMs,
-      listenDurationMs,
-      compareDurationMs,
-      request: reviewRequest || {},
-      response: {},
-      listenModel: config?.listenModel || DEFAULT_LISTEN_MODEL,
-      compareModel: config?.compareModel || DEFAULT_COMPARE_MODEL,
-      audioHostname: parseAudioHostname(reviewRequest?.audioUrl || ""),
-      mock: Boolean(config?.mockEnabled),
-      errorCode: propagatedError.code,
-      errorMessage: propagatedError.message,
-    });
     throw propagatedError;
   }
 }
@@ -580,7 +540,6 @@ const handleReviewCurrent = createAiRoute(hakkaHelperAdapter, {
     return hakkaHelperAdapter.buildReviewErrorBody(context);
   },
 });
-
 function registerAiRoutes(router) {
   function buildDefaultsPayload(config) {
     const modelMode = normalizeModelMode(config.pipelineMode || "two_stage", "two_stage");
@@ -670,13 +629,39 @@ function registerAiRoutes(router) {
   router.post(LEGACY_AI_BASE_PATH, function (routeContext) {
     return handleReviewCurrent(routeContext);
   });
+  router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
+    sendJson(
+      response,
+      200,
+      buildAiCallLogSummaryPayload({
+        service: SERVICE_NAME,
+        scriptId: SCRIPT_ID,
+        logger: hakkaHelperAdapter.aiCallLogger,
+        query,
+      })
+    );
+  });
+  router.get(LEGACY_AI_LOG_SUMMARY_PATH, function ({ response, query }) {
+    sendJson(
+      response,
+      200,
+      buildAiCallLogSummaryPayload({
+        service: SERVICE_NAME,
+        scriptId: SCRIPT_ID,
+        logger: hakkaHelperAdapter.aiCallLogger,
+        query,
+      })
+    );
+  });
 }
 
 module.exports = {
   AI_BASE_PATH: HAKKA_AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_LOG_SUMMARY_PATH,
   handleReviewCurrent,
+  LEGACY_AI_LOG_SUMMARY_PATH,
   normalizeReviewRequest,
   reviewCurrent,
   registerAiRoutes,

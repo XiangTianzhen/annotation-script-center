@@ -5,7 +5,7 @@ const path = require("path");
 const {
   createAiCallLogger,
 } = require("../../../backend/ai-call-log");
-const { SCRIPT_ID } = require("./ai-suggest-request");
+const { SCRIPT_ID, parseAudioHostname } = require("./ai-suggest-request");
 
 const DEFAULT_LOG_DIR = path.join(__dirname, "logs");
 
@@ -18,28 +18,28 @@ const aiCallLogger = createAiCallLogger({
   platformId: "alibabaLabelx",
   scriptId: SCRIPT_ID,
   extraColumns: [
+    { key: "subTaskId", header: "子任务ID" },
     { key: "itemIndex", header: "条目序号" },
-    { key: "audioCandidateCount", header: "音频候选数" },
-    { key: "textCandidateCount", header: "文本候选数" },
-    { key: "invalidAudioCount", header: "无效音频数" },
-    { key: "currentTextLength", header: "当前文本长度" },
+    { key: "audioHostname", header: "音频域名" },
+    { key: "includeContext", header: "带上下文" },
+    { key: "contextLength", header: "上下文长度" },
     { key: "listenModel", header: "听音模型" },
     { key: "compareModel", header: "比较模型" },
-    { key: "enableThinking", header: "开启Thinking" },
+    { key: "webSearchEnabled", header: "启用联网搜索" },
   ],
   buildExtendedRow(context) {
     const input = context?.normalizedRequest?.input || {};
     const projectOptions = context?.normalizedRequest?.projectOptions || {};
     const models = context?.execution?.models || {};
     return {
+      subTaskId: normalizeText(input.subTaskId),
       itemIndex: normalizeText(input.itemIndex),
-      audioCandidateCount: normalizeText(Array.isArray(input.audioCandidates) ? input.audioCandidates.length : 0),
-      textCandidateCount: normalizeText(Array.isArray(input.textCandidates) ? input.textCandidates.length : 0),
-      invalidAudioCount: normalizeText(input.invalidAudioCount),
-      currentTextLength: normalizeText(String(input.currentText || "").length),
+      audioHostname: parseAudioHostname(input.audioUrl),
+      includeContext: input.includeContext === true ? "true" : "false",
+      contextLength: normalizeText(String(input.contextText || "").length),
       listenModel: normalizeText(models.listenModel || projectOptions.listenModel),
       compareModel: normalizeText(models.compareModel || projectOptions.compareModel),
-      enableThinking: projectOptions.enableThinking === true ? "true" : "false",
+      webSearchEnabled: projectOptions.webSearchEnabled === true ? "true" : "false",
     };
   },
 });

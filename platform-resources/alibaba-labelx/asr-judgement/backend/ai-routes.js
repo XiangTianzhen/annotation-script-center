@@ -1,8 +1,10 @@
 "use strict";
 
 const { sendJson } = require("../../../backend/response");
+const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log");
 const { createAiRoute } = require("../../../backend/ai-framework");
 const judgementAdapter = require("../ai/adapter");
+const { getLogDir } = require("./ai-call-log");
 const {
   DEFAULT_REQUEST_PARAMS,
   DEFAULT_COMPARE_MODEL,
@@ -38,6 +40,7 @@ const AI_BASE_PATH = "/api/alibaba-labelx/asr-judgement/ai";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = AI_BASE_PATH + "/defaults";
 const AI_SUGGEST_PATH = AI_BASE_PATH + "/suggest";
+const AI_LOG_SUMMARY_PATH = AI_SUGGEST_PATH + "/logs/summary";
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const SERVICE_NAME = "asr-judgement-ai";
 
@@ -69,6 +72,7 @@ function buildHealthResponse() {
     supportedParams: JUDGEMENT_AI_SUPPORTED_PARAMS,
     mockEnabled: config.mockEnabled,
     hasApiKey: config.hasApiKey,
+    callLogDir: getLogDir(),
     ruleVersion: DEFAULT_RULE_VERSION,
     status: config.hasApiKey || config.mockEnabled ? "ready" : "missing-api-key",
   };
@@ -326,7 +330,6 @@ const handleSuggest = createAiRoute(judgementAdapter, {
     return judgementAdapter.buildSuggestErrorBody(context);
   },
 });
-
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendJson(response, 200, buildHealthResponse());
@@ -337,12 +340,25 @@ function registerAiRoutes(router) {
   router.post(AI_SUGGEST_PATH, function (routeContext) {
     return handleSuggest(routeContext);
   });
+  router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
+    sendJson(
+      response,
+      200,
+      buildAiCallLogSummaryPayload({
+        service: SERVICE_NAME,
+        scriptId: SCRIPT_ID,
+        logger: judgementAdapter.aiCallLogger,
+        query,
+      })
+    );
+  });
 }
 
 module.exports = {
   AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_LOG_SUMMARY_PATH,
   AI_SUGGEST_PATH,
   DEFAULT_RULE_VERSION,
   handleSuggest,

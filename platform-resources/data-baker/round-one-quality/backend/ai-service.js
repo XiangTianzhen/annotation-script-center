@@ -1060,8 +1060,7 @@ function estimateCost(input) {
 }
 
 function getLogDir() {
-  const customDir = String(process.env.DATABAKER_AI_CALL_LOG_DIR || "").trim();
-  return customDir || DEFAULT_LOG_DIR;
+  return require("./ai-call-log").getLogDir();
 }
 
 function ensureDir(dirPath) {
@@ -1204,12 +1203,7 @@ function appendCsv(filePath, record) {
 }
 
 function appendAiCallLog(record) {
-  const logDir = getLogDir();
-  ensureDir(logDir);
-  const sanitized = sanitizeForLog(record);
-  appendJsonl(path.join(logDir, JSONL_FILE_NAME), sanitized);
-  appendCsv(path.join(logDir, CSV_FILE_NAME), sanitized);
-  return sanitized;
+  return require("./ai-call-log").appendAiCallLog(record);
 }
 
 function normalizeText(value) {

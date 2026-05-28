@@ -96,8 +96,16 @@ round-one-quality/
 - `backend/reference/minnan-lexicon.csv`：闽南方言字词表参考资料，用于 标贝易采 AI 推荐文本后端 prompt 上下文。
 - `ai/`：DataBaker 接入统一 `platform-resources/backend/ai-framework/` 的项目 adapter 与未来 prompt/schema/lexicon 资产目录。
 - `data/`：DataBaker 脚本级数据逻辑目录。当前已开始收口 `adapter.js`、`field-mappings.js`、`scripts/csv.js`、`scripts/merge.js`、`scripts/download.js`、`scripts/upload.js`、`scripts/persist.js`、`scripts/fetch.js`，并补了 `assets/mappings` 与 `assets/samples`；真实导出运行数据仍在 `backend/export-data/`。
-- `backend/`：标贝易采 AI 推荐文本业务编排目录。当前业务层以 `ai-routes.js + ai-service.js + ai-legacy-omni-service.js + ai-client-qwen-legacy.js` 组成；公共 AI provider、限流队列、缓存与 Python 辅助脚本统一收敛到 `platform-resources/backend/ai/`。`ai-routes.js` 的 recommend 入口已改为通过 `ai-framework` route factory 驱动，但对外仍保留旧接口响应结构。`ai-service.js` 继续负责 Fun-ASR REST 和当前通用链路，Omni legacy 快速路径独立收口在 `ai-legacy-omni-service.js`。
+- `backend/`：标贝易采 AI 推荐文本业务编排目录。当前业务层以 `ai-routes.js + ai-call-log.js + ai-service.js + ai-legacy-omni-service.js + ai-client-qwen-legacy.js` 组成；公共 AI provider、限流队列、缓存与 Python 辅助脚本统一收敛到 `platform-resources/backend/ai/`。`ai-routes.js` 的 recommend 入口已改为通过 `ai-framework` route factory 驱动，但对外仍保留旧接口响应结构。`ai-service.js` 继续负责 Fun-ASR REST 和当前通用链路，Omni legacy 快速路径独立收口在 `ai-legacy-omni-service.js`。
 - `backend/export-routes.js` 的 `export/download` 当前已接到 `platform-resources/backend/project-data-download/` 下的共享 CSV 文件下载 core；对外继续保持 `GET/HEAD /api/data-baker/round-one-quality/export/download`。
+
+## AI 调用日志与统计
+
+- DataBaker 当前已默认记录每次 AI recommend 的成功 / 失败调用。
+- 日志文件：
+  - `platform-resources/data-baker/round-one-quality/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/data-baker/round-one-quality/ai/recommend/logs/summary`
 
 ## 自动分页与快捷键
 

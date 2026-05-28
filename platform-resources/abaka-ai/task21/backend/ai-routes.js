@@ -1,8 +1,10 @@
 "use strict";
 
 const { sendJson } = require("../../../backend/response");
+const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log");
 const { createAiRoute } = require("../../../backend/ai-framework");
 const task21Adapter = require("../ai/adapter");
+const { getLogDir } = require("./ai-call-log");
 const {
   DEFAULT_ANALYSIS_MODE,
   DEFAULT_OCR_MODEL,
@@ -38,6 +40,7 @@ const { estimateUsageFromTexts, normalizeUsage } = require("./usage");
 const AI_BASE_PATH = "/api/abaka-ai/task21/ai/analyze";
 const AI_HEALTH_PATH = "/api/abaka-ai/task21/ai/health";
 const AI_DEFAULTS_PATH = "/api/abaka-ai/task21/ai/defaults";
+const AI_LOG_SUMMARY_PATH = AI_BASE_PATH + "/logs/summary";
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const ALLOWED_TARGETS = ["same_font", "image_b_texts_removed", "other_changes", "overall"];
 const ALLOWED_IMAGE_FIELDS = ["image_a", "image_b", "image_b_removed"];
@@ -476,6 +479,7 @@ function buildHealthResponse() {
     timeoutMs: config.timeoutMs,
     allowClientModelOverride: config.allowClientModelOverride === true,
     allowThinkingParamFallback: config.allowThinkingParamFallback === true,
+    callLogDir: getLogDir(),
     thinkingParam: {
       paramName: THINKING_PARAM_NAME,
       paramLocation: THINKING_PARAM_LOCATION,
@@ -735,7 +739,6 @@ const handleAnalyze = createAiRoute(task21Adapter, {
     return task21Adapter.buildAnalyzeErrorBody(context);
   },
 });
-
 function registerAiRoutes(router) {
   router.get(AI_HEALTH_PATH, function ({ response }) {
     sendJson(response, 200, buildHealthResponse());
@@ -748,12 +751,25 @@ function registerAiRoutes(router) {
   router.post(AI_BASE_PATH, function (routeContext) {
     return handleAnalyze(routeContext);
   });
+  router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
+    sendJson(
+      response,
+      200,
+      buildAiCallLogSummaryPayload({
+        service: SERVICE_NAME,
+        scriptId: SCRIPT_ID,
+        logger: task21Adapter.aiCallLogger,
+        query,
+      })
+    );
+  });
 }
 
 module.exports = {
   AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_LOG_SUMMARY_PATH,
   analyzeRequest,
   normalizeResultSchema,
   registerAiRoutes,

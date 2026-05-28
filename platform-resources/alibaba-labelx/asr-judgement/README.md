@@ -38,6 +38,14 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 以上 3 条链路已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core。
 - 当前快判脚本级差异已收口到 `platform-resources/alibaba-labelx/asr-judgement/data/adapter.js`。
 
+## AI 调用日志与统计（2026-05-28）
+
+- 快判 AI 建议当前已默认记录成功 / 失败调用。
+- 日志文件：
+  - `platform-resources/alibaba-labelx/asr-judgement/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/alibaba-labelx/asr-judgement/ai/suggest/logs/summary`
+
 ## 当前已迁移资料
 
 - 快判详情页：`/corpora/labeling/sdk?missionType=label&projectId=...&subTaskId=...`

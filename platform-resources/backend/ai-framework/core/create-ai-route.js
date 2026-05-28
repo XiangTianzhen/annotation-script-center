@@ -2,6 +2,9 @@
 
 const { sendJson } = require("../../response");
 const {
+  assertAiUsageOperatorName,
+} = require("../../ai-call-log");
+const {
   createNormalizedRequest,
   createRequestId,
 } = require("../contracts/normalized-request");
@@ -99,10 +102,12 @@ function createAiRoute(adapter, options) {
     const request = context.request;
     const response = context.response;
     let requestId = "";
+    let parsedBody = {};
+    let normalizedRequest = null;
+    let shouldAppendLog = false;
 
     try {
       const rawBody = await readRequestBody(request, runtimeOptions.maxBodyBytes);
-      let parsedBody = {};
       try {
         parsedBody = JSON.parse(rawBody || "{}");
       } catch (_error) {
@@ -110,6 +115,8 @@ function createAiRoute(adapter, options) {
       }
 
       requestId = normalizeString(parsedBody.requestId) || createRequestId();
+      assertAiUsageOperatorName(parsedBody);
+      shouldAppendLog = true;
 
       const normalizedAdapterPayload = normalizeAdapterPayload(
         typeof source.normalizeInput === "function"
@@ -117,7 +124,7 @@ function createAiRoute(adapter, options) {
           : parsedBody
       );
 
-      const normalizedRequest = createNormalizedRequest({
+      normalizedRequest = createNormalizedRequest({
         requestId,
         platform: source.platform,
         scriptId: source.scriptId,
@@ -144,6 +151,15 @@ function createAiRoute(adapter, options) {
         },
         runner,
       });
+      if (source.aiCallLogger && typeof source.aiCallLogger.appendSafe === "function") {
+        source.aiCallLogger.appendSafe({
+          createdAt: new Date().toISOString(),
+          requestId: normalizedRequest.requestId,
+          rawBody: parsedBody,
+          normalizedRequest,
+          execution,
+        });
+      }
 
       const successBody =
         typeof runtimeOptions.createSuccessBody === "function"
@@ -172,6 +188,15 @@ function createAiRoute(adapter, options) {
 
       sendJson(response, 200, successBody);
     } catch (error) {
+      if (shouldAppendLog && source.aiCallLogger && typeof source.aiCallLogger.appendSafe === "function") {
+        source.aiCallLogger.appendSafe({
+          createdAt: new Date().toISOString(),
+          requestId: normalizeString((error && error.requestId) || requestId),
+          rawBody: parsedBody,
+          normalizedRequest,
+          error,
+        });
+      }
       const statusCode = Math.max(400, Number(error && error.statusCode) || 500);
       const errorBody =
         typeof runtimeOptions.createErrorBody === "function"

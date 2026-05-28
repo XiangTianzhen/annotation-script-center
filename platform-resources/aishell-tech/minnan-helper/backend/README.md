@@ -5,6 +5,7 @@
 - `GET /api/aishell-tech/minnan-helper/ai/recommend/health`
 - `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults`
 - `POST /api/aishell-tech/minnan-helper/ai/recommend`
+- `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
 
 ## 模块边界
 
@@ -96,6 +97,8 @@
   - 重试次数
   - 缓存命中
   - Aishell 模式与模型信息
+- 统计接口：
+  - `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
 - 只有完整同步返回成功并真正写出响应后，才允许写成功缓存和成功日志。
 
 ## 安全边界

@@ -4,6 +4,11 @@ const crypto = require("crypto");
 
 const { sendJson: defaultSendJson } = require("../../../backend/response");
 const {
+  assertAiUsageOperatorName,
+  buildAiCallLogSummaryPayload,
+} = require("../../../backend/ai-call-log");
+const {
+  aiCallLogger: defaultAiCallLogger,
   appendAishellAiCallLogSafe: defaultAppendAishellAiCallLogSafe,
 } = require("../data/ai-call-log");
 const {
@@ -23,11 +28,13 @@ const {
   createDefaultsPayload: defaultCreateDefaultsPayload,
   createHealthPayload: defaultCreateHealthPayload,
   normalizeRecommendRequest: defaultNormalizeRecommendRequest,
+  SCRIPT_ID,
 } = require("./ai-service");
 
 const AI_BASE_PATH = "/api/aishell-tech/minnan-helper/ai/recommend";
 const AI_HEALTH_PATH = AI_BASE_PATH + "/health";
 const AI_DEFAULTS_PATH = AI_BASE_PATH + "/defaults";
+const AI_LOG_SUMMARY_PATH = AI_BASE_PATH + "/logs/summary";
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 
 function createRequestId() {
@@ -206,6 +213,7 @@ function buildCachedSuccessResult(cachedResult, requestId) {
 function createRecommendRouteRuntime(overrides) {
   const deps = Object.assign(
     {
+      aiCallLogger: defaultAiCallLogger,
       appendAishellAiCallLogSafe: defaultAppendAishellAiCallLogSafe,
       buildRecommendCacheKey: defaultBuildRecommendCacheKey,
       buildRecommendErrorBody: defaultBuildRecommendErrorBody,
@@ -270,6 +278,7 @@ function createRecommendRouteRuntime(overrides) {
         throw createHttpError(400, "请求体 JSON 解析失败。", "invalid-json");
       }
       requestId = normalizeText(body.requestId) || requestId;
+      assertAiUsageOperatorName(body);
       normalizedRequest = deps.normalizeRecommendRequest(body);
 
       const cacheKey = deps.buildRecommendCacheKey(buildCacheKeyParts(normalizedRequest));
@@ -358,6 +367,18 @@ function createRecommendRouteRuntime(overrides) {
     router.post(AI_BASE_PATH, function (routeContext) {
       return handleRecommend(routeContext);
     });
+    router.get(AI_LOG_SUMMARY_PATH, function ({ response, query }) {
+      deps.sendJson(
+        response,
+        200,
+        buildAiCallLogSummaryPayload({
+          service: "aishell-tech-minnan-helper-ai-recommend",
+          scriptId: SCRIPT_ID,
+          logger: deps.aiCallLogger,
+          query,
+        })
+      );
+    });
   }
 
   return {
@@ -374,6 +395,7 @@ module.exports = {
   AI_BASE_PATH,
   AI_DEFAULTS_PATH,
   AI_HEALTH_PATH,
+  AI_LOG_SUMMARY_PATH,
   createRecommendRouteRuntime,
   handleRecommend,
   registerAiRoutes,

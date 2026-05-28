@@ -5,6 +5,7 @@
 - `GET /api/magic-data/minnan-helper/ai/review-current/health`
 - `GET /api/magic-data/minnan-helper/ai/defaults`
 - `POST /api/magic-data/minnan-helper/ai/review-current`
+- `GET /api/magic-data/minnan-helper/ai/review-current/logs/summary`
 
 ## 当前迁移状态
 
@@ -13,6 +14,15 @@
   - 成功：`success + data + cache + backend`
   - 失败：`success + requestId + code + message + scriptId (+ summary)`
 - `health/defaults` 仍保持原实现，本轮先做桥接式迁移，不一次性推倒业务层。
+
+## AI 调用日志与统计
+
+- 闽南语助手当前已默认记录 AI 质检调用。
+- 日志文件：
+  - `platform-resources/magic-data/minnan-helper/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/magic-data/minnan-helper/ai/review-current/logs/summary`
+- `MAGIC_DATA_MINNAN_AI_CALL_LOG_DIR` 或 `MAGIC_DATA_AI_CALL_LOG_DIR` 可覆盖默认日志目录。
 
 ## 识别模式
 

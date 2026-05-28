@@ -1,5 +1,6 @@
 "use strict";
 
+const { aiCallLogger } = require("../backend/ai-call-log");
 const {
   DEFAULT_COMPARE_MODEL,
   DEFAULT_LISTEN_MODEL,
@@ -70,6 +71,7 @@ module.exports = {
   platform: "alibaba-labelx",
   scriptId: SCRIPT_ID,
   routeKey: "suggest",
+  aiCallLogger,
   normalizeInput,
   exposeProjectResult,
   buildSuggestSuccessBody,

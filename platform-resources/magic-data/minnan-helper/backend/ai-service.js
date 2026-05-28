@@ -24,7 +24,7 @@ const {
   getFunAsrClientConfig: getFunAsrPythonClientConfig,
   requestFunAsrRecognitionPython,
 } = require("../../../backend/ai/providers/funasr-python");
-const { appendAiCallLog, getLogDir } = require("./ai-call-log");
+const { getLogDir } = require("./ai-call-log");
 const {
   DEFAULT_COMPARE_MODEL,
   DEFAULT_LISTEN_MODEL,
@@ -1048,17 +1048,6 @@ function ensureApiKeyAvailable(profileConfig) {
   throw createHttpError(503, "missing-api-key", "missing-api-key");
 }
 
-function appendCallLogSafe(record) {
-  try {
-    appendAiCallLog(record);
-  } catch (error) {
-    console.warn("[MagicData][minnan][ai] 调用日志写入失败", {
-      requestId: record?.requestId,
-      message: error && error.message ? error.message : String(error),
-    });
-  }
-}
-
 function sanitizeError(error) {
   if (!error || typeof error !== "object") {
     return createHttpError(500, "unknown-error", "internal-error");
@@ -1735,22 +1724,6 @@ async function reviewCurrent(body, requestId) {
 
     setCachedResult(cacheKey, responseData, profileConfig.cacheTtlMs);
 
-    appendCallLogSafe({
-      createdAt: new Date().toISOString(),
-      requestId: finalRequestId,
-      success: true,
-      durationMs: totalDurationMs,
-      listenDurationMs: listenDurationMs,
-      compareDurationMs: compareDurationMs,
-      request: normalizedRequest,
-      response: responseData,
-      listenModel: responseData.models.listenModel,
-      compareModel: responseData.models.compareModel,
-      enableThinking: normalizedRequest.enableThinking === true,
-      audioHostname: parseAudioHostname(normalizedRequest.audioUrl),
-      mock: responseData.mock,
-    });
-
     return {
       data: responseData,
       cache: {
@@ -1762,22 +1735,6 @@ async function reviewCurrent(body, requestId) {
     };
   } catch (error) {
     const normalizedError = sanitizeError(error);
-    appendCallLogSafe({
-      createdAt: new Date().toISOString(),
-      requestId: finalRequestId,
-      success: false,
-      durationMs: Date.now() - startedAtMs,
-      listenDurationMs: listenDurationMs,
-      compareDurationMs: compareDurationMs,
-      request: normalizedRequest || {},
-      response: {},
-      listenModel: normalizedRequest?.listenModel || profileConfig.listenModel,
-      compareModel: normalizedRequest?.compareModel || profileConfig.compareModel,
-      audioHostname: parseAudioHostname(normalizedRequest?.audioUrl || ""),
-      mock: profileConfig.mockEnabled === true,
-      errorCode: String(normalizedError?.code || ""),
-      errorMessage: String(normalizedError?.message || ""),
-    });
     throw normalizedError;
   } finally {
     if (timeoutTimer) {

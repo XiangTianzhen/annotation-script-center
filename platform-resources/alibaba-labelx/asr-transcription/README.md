@@ -23,6 +23,14 @@
   - 以上 3 条链路已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core。
   - 当前转写脚本级差异已收口到 `platform-resources/alibaba-labelx/asr-transcription/data/adapter.js`。
 
+## AI 调用日志与统计
+
+- 转写 AI 推荐当前已默认记录成功 / 失败调用。
+- 日志文件：
+  - `platform-resources/alibaba-labelx/asr-transcription/backend/logs/ai-calls-YYYY-MM-DD.csv`
+- 统计接口：
+  - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/logs/summary`
+
 ## 当前业务口径（与扩展运行时一致）
 
 - 一条音频对应一个完整文本框。
