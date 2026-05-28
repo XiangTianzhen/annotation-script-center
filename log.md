@@ -1,3 +1,29 @@
+## 2026-05-28（Aishell Tech 闽南语助手前端嵌入式卡片与原生化按钮深度融合重构）
+
+- 更新 `extension/sites/aishell-tech/minnan-helper/ui-panel.js`：
+  - 注入式原生交互融合（单条识别与批量按钮外挂及生命周期同步）：
+    - 原生“保存”按钮右侧深度注入：新增 `getNativeSaveButton()`、`syncInjectedSingleButton()` 及 `getScopedDataVAttrs()` 机制。利用 Vue Scoped CSS 隔离属性克隆技术，将 **[AI识别]** 主按钮的 DOM 创建完全移出卡片，直接以 100% 风格一致的原生 `.el-button--primary` 蓝色小巧主按钮样式，无缝注入挂载在平台原生的“保存”按钮的右侧（保持 12px 间距）。让操作（识别、编辑、保存）在同一个原生按钮区域流式一气呵成，标注焦点与鼠标位置无需跨版块摇摆，极大顺应了工作流。
+    - 原生“文字”按钮栏左侧批量注入：新增 `getNativeButtonContainer()` 及 `syncInjectedBatchButtons()`。将 **[AI批量识别]**（加粗深蓝文字）与 **[停止批量]**（运行中高亮红）文字按钮，直接注入融合至页面原生“删除音频标点”与“查看历史标注记录”按钮的最左侧，外观、间距与悬浮 hover 达到 100% 的宿主平台一致性。
+    - 防销毁挂载与无污染卸载：在 1.2s 周期轮询 `ensureMounted` 中对全部 3 颗外挂注入的按钮实施自动检测重建，完美抵御 SPA 切条重绘销毁；并在 `remove()` 时安全干净拔除全部注入节点，保持平台原生 DOM 树零污染。
+  - 卡片面板极致纯净化与大号蓝色标题：
+    - 面板卡片彻底纯净化：在 `ensureRoot()` 中回滚在卡片内创建单条按钮的设计，面板彻底纯净化不保留任何主动操作按钮，使其成为纯粹的成果展架。
+    - 标题大号深蓝化：标题栏 `.asc-section-title` 的字号显式增大至 **14px**，颜色更改为代表主题的 **深蓝色（#1d4ed8）**，带来极具呼吸感的通透版面。
+    - 系统状态节点外置：将状态节点 `statusNode` 从折叠区中剥离，移至结果展示区底部常驻可见，实现无黑盒操作反馈。
+  - 成果展示框护眼配色、智能“无需修改”判定与异常 Debug 呈现：
+    - 温润淡绿护眼配色：将第二行左侧标签设为沉稳的深灰色（`#475569`），并将“AI推荐文本展示框”重构为温润护眼的淡绿色调（背景 `#f0fdf4`、边框 `#bbf7d0`、文字 `#166534` 加粗），形成高级的冷色系色彩碰撞，显著减轻长时间标注眼部疲劳。
+    - 数据与展示完美解耦：重构 `fillRecommendBtn` 事件为直接从底层 `currentResult.recommendedText` 实体数据中抓取目标值，彻底将 DOM 内容与填入动作解耦，允许 DOM 完美展示人性化提示。
+    - “无需修改”智能判定：在 `renderResult()` 中增加比对，当推荐文本与页面原参考文本完全一致时，展示框内呈现优雅的斜体中灰 **“无需修改”**，并自动联动切换为极安静的清凉灰配色（背景 `#f1f5f9`、边框 `#e2e8f0`、文字 `#64748b`）；文本有差异时则正常渲染并恢复温润淡绿高亮。
+    - 异常 JSON 结构化呈现：当后端接口推荐报错时，动态在状态文字下方渲染一个只读、高对比度的 `<pre>` 代码块，格式化展示 API 原始 JSON 响应，并自动将折叠卡片展开，提供极致极速的 Debug 排障交互。
+- 更新 `extension/sites/aishell-tech/minnan-helper/ai-recommendation.js`：
+  - 在 `buildApiError` 中将后端抛出的原始 JSON 响应体数据（`responseBody`）挂载到错误对象身上（`error.rawResponse = body`），提供给前端做精确的 Debug 展现。
+- 更新 `extension/sites/aishell-tech/minnan-helper/content.js`：
+  - 在 `handleRecommend` 的 catch 块中，把获取的 `error.rawResponse` 传递给面板状态更新函数（`panel.setStatus(..., "error", error.rawResponse)`）。
+- 更新 `extension/sites/aishell-tech/minnan-helper/README.md`：
+  - 全量同步更新前端卡片面板纯净化、AI识别按钮及批量控制按钮注入原生按钮位置的排版布局与底层数据解耦机制说明。
+- 校验与正确性验证：
+  - 运行 `node --check` 静态语法检测，确认 `ui-panel.js` 和 `content.js` 100% 顺利通过。
+
+
 ## 2026-05-28（AI 调用日志全局使用人设置第一块）
 
 - 新增 `extension/shared/ai-usage-meta.js` 设置补丁能力：

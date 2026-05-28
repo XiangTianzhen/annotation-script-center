@@ -65,7 +65,7 @@
       message += "：" + String(body.summary || "").slice(0, 120);
     }
 
-    return createClientError(message, {
+    const err = createClientError(message, {
       code: code,
       providerCode: providerCode,
       providerStatus: providerStatus,
@@ -73,6 +73,8 @@
       requestId: normalizeText(body.requestId),
       debugId: normalizeText(body.debugId),
     });
+    err.rawResponse = body;
+    return err;
   }
 
   function getClientVersion() {
