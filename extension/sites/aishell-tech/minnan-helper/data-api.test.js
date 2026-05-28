@@ -17,6 +17,7 @@ const {
   isSaveCompletionState,
   parseListItemLabel,
   createRateLimitedTaskScheduler,
+  extractFileNameLineText,
   removeTextSpaces,
 } = require("./data-api.js");
 
@@ -240,6 +241,15 @@ test("extractSavedMarkText parses mark json string and direct text", function ()
   );
 });
 
+test("extractFileNameLineText keeps full filename when toolbar text is appended", function () {
+  assert.equal(
+    extractFileNameLineText(
+      "656: AS-mn-075_098_2059431320014164965.wav AI批量识别 停止批量 删除音频标点"
+    ),
+    "656: AS-mn-075_098_2059431320014164965.wav"
+  );
+});
+
 test("buildSaveShortMarkPayload matches aishell save contract", function () {
   assert.deepEqual(
     buildSaveShortMarkPayload(
@@ -357,6 +367,115 @@ test("createRuntime exposes createRateLimitedTaskScheduler for content runtime",
   assert.equal(typeof runtime.extractSavedMarkText, "function");
   assert.equal(typeof runtime.selectTask, "function");
   assert.equal(typeof runtime.getItemByTask, "function");
+});
+
+test("selectTask treats fileName-line wrapper text as current item filename", async function () {
+  const selectedItem = createListNode("656: ...20014164965.wav", [
+    "list-item-selected",
+  ]);
+  const fileLineNode = new FakeElement(
+    "656: AS-mn-075_098_2059431320014164965.wav AI批量识别 停止批量 删除音频标点"
+  );
+  const fileNameSpan = new FakeElement("656:");
+  const rawTextContent = new FakeElement("原始文本你慢捏刹车，别一下捏死，速度放慢点就没事。");
+  rawTextContent.className = "el-form-item__content";
+  const rawTextRow = new FakeElement("原始文本 你慢捏刹车，别一下捏死，速度放慢点就没事。");
+  rawTextRow.querySelector = function (selector) {
+    if (selector === ".el-form-item__content") {
+      return rawTextContent;
+    }
+    return null;
+  };
+
+  const documentLike = {
+    querySelector(selector) {
+      if (selector === ".fileName-line") {
+        return fileLineNode;
+      }
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (selector === ".list .list-item, .list .list-item-selected, .list .list-item-finshed") {
+        return [selectedItem];
+      }
+      if (selector === ".fileName-line span") {
+        return [fileNameSpan];
+      }
+      if (selector === ".mark-area .el-form-item") {
+        return [rawTextRow];
+      }
+      return [];
+    },
+  };
+
+  await withPatchedGlobals(
+    {
+      document: documentLike,
+      window: {
+        localStorage: createStorage([
+          {
+            key: "userInfo",
+            value: JSON.stringify({
+              token: "aaa.bbb.ccc",
+            }),
+          },
+        ]),
+        sessionStorage: createStorage([]),
+        setTimeout: setTimeout,
+      },
+      location: {
+        hostname: "mark.aishelltech.com",
+        pathname: "/mytask/mark",
+        search: "?taskId=task-1&packageId=package-1",
+      },
+      HTMLElement: FakeElement,
+      HTMLButtonElement: FakeButton,
+      HTMLInputElement: FakeInput,
+      fetch: async function (url) {
+        const path = String(url).replace("https://markapi.aishelltech.com", "");
+        if (path === "/api/taskItem/packageItemList/package-1") {
+          return {
+            ok: true,
+            status: 200,
+            json: async function () {
+              return {
+                data: {
+                  result: {
+                    totalCount: 1,
+                    items: [
+                      {
+                        id: "item-656",
+                        number: 656,
+                        fileName: "AS-mn-075_098_2059431320014164965.wav",
+                        url: "/audio-656.wav",
+                        text: "你慢捏刹车，别一下捏死，速度放慢点就没事。",
+                        spendTime: 0,
+                        dataStatus: 0,
+                        checkStatus: 0,
+                      },
+                    ],
+                  },
+                },
+              };
+            },
+          };
+        }
+        throw new Error("Unexpected fetch path: " + path);
+      },
+    },
+    async function () {
+      const runtime = createRuntime();
+      const result = await runtime.selectTask({
+        index: 0,
+        taskItemId: "item-656",
+        number: 656,
+        fileName: "AS-mn-075_098_2059431320014164965.wav",
+      });
+
+      assert.equal(result?.ok, true);
+      assert.equal(selectedItem.button.clickCount, 0);
+    }
+  );
 });
 
 test("fillAndSaveCurrent clicks native save button instead of posting SaveShortMark directly", async function () {

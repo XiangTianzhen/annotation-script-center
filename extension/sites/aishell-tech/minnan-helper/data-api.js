@@ -292,12 +292,33 @@
     return normalizeText(String(content.textContent || "").replace(/^原始文本/, ""));
   }
 
+  function extractFileNameLineText(value) {
+    const text = normalizeText(value);
+    if (!text) {
+      return "";
+    }
+    const matched = text.match(/(\d+\s*:\s*[^\s]+\.(?:wav|mp3|flac|pcm|m4a|ogg))/i);
+    return matched ? normalizeText(matched[1] || "") : text;
+  }
+
   function getCurrentFileNameLineText() {
+    const lineNode =
+      document && typeof document.querySelector === "function"
+        ? document.querySelector(".fileName-line")
+        : null;
+    if (lineNode instanceof HTMLElement) {
+      const lineText = extractFileNameLineText(lineNode.textContent || "");
+      if (lineText) {
+        return lineText;
+      }
+    }
     const nodes = Array.from(document.querySelectorAll(".fileName-line span"));
     const first = nodes.find(function (node) {
       return node instanceof HTMLElement && normalizeText(node.textContent || "");
     });
-    return first instanceof HTMLElement ? normalizeText(first.textContent || "") : "";
+    return first instanceof HTMLElement
+      ? extractFileNameLineText(first.textContent || "")
+      : "";
   }
 
   function getListItemNodes() {
@@ -1317,6 +1338,7 @@
     doesRenderedItemMatch,
     ensureChineseSentencePunctuation,
     extractPlatformAccountName,
+    extractFileNameLineText,
     extractSavedMarkText,
     extractAuthTokenFromUnknown,
     findPlatformAccountNameFromDocument,
