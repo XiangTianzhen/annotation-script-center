@@ -229,10 +229,16 @@
   function createRuntime(config) {
     const dataApiFactory = globalThis.__ASREdgeAishellTechMinnanDataApi;
     const aiFactory = globalThis.__ASREdgeAishellTechMinnanAiRecommendation;
+    const batchWindowFactory = globalThis.__ASREdgeAishellTechMinnanBatchWindow;
     const uiFactory = globalThis.__ASREdgeAishellTechMinnanUiPanel;
     const shortcutsFactory = globalThis.__ASREdgeAishellTechMinnanShortcuts;
 
-    if (!dataApiFactory?.createRuntime || !aiFactory?.createRuntime || !uiFactory?.createRuntime) {
+    if (
+      !dataApiFactory?.createRuntime ||
+      !aiFactory?.createRuntime ||
+      !batchWindowFactory?.createRollingBatchWindow ||
+      !uiFactory?.createRuntime
+    ) {
       return null;
     }
 
@@ -340,6 +346,10 @@
           concurrency: batchConcurrency,
           staggerMs: 50,
         });
+        const requestWindow = batchWindowFactory.createRollingBatchWindow(
+          tasks,
+          batchConcurrency
+        );
         activeBatchContext = {
           scheduler: scheduler,
           batchRunId: batchRunId,
@@ -349,6 +359,7 @@
         const resultWaiters = [];
         let consumedCount = 0;
         let producersDone = false;
+        let activeProducerCount = 0;
 
         function enqueueBatchResult(entry) {
           if (resultWaiters.length > 0) {
@@ -371,6 +382,71 @@
           });
         }
 
+        function markProducersDoneIfNeeded() {
+          const snapshot = requestWindow.getSnapshot();
+          if (snapshot.nextIndex >= tasks.length && activeProducerCount === 0) {
+            producersDone = true;
+            while (resultWaiters.length > 0) {
+              const resolve = resultWaiters.shift();
+              resolve(null);
+            }
+          }
+        }
+
+        function launchBatchTasks(taskEntries) {
+          const source = Array.isArray(taskEntries) ? taskEntries : [];
+          if (batchStopRequested === true) {
+            return;
+          }
+          source.forEach(function (task) {
+            activeProducerCount += 1;
+            scheduler
+              .run(async function () {
+                if (batchStopRequested === true) {
+                  throw new Error("批量识别已手动停止。");
+                }
+                const item = await dataApi.getItemByTask(task, {
+                  includeCurrentInput: false,
+                });
+                if (!item) {
+                  throw new Error("无法定位批量条目。");
+                }
+                item.batchRunId = batchRunId;
+                item.batchItemIndex = Number(task.index || 0) || 0;
+                item.batchProcessKey =
+                  "task-item:" + String(item.taskItemId || task.taskItemId || task.index || "unknown");
+                item.clientRequestId = [
+                  batchRunId,
+                  String(item.batchItemIndex + 1),
+                  String(item.taskItemId || "unknown"),
+                ].join(":");
+                item.frontConcurrency = batchConcurrency;
+                const result = await aiClient.recommend(item);
+                enqueueBatchResult({
+                  ok: true,
+                  task: task,
+                  result: result,
+                });
+              })
+              .catch(function (error) {
+                const message = error?.message || String(error);
+                if (batchStopRequested === true && message.indexOf("手动停止") >= 0) {
+                  return;
+                }
+                enqueueBatchResult({
+                  ok: false,
+                  task: task,
+                  error: error,
+                });
+              })
+              .finally(function () {
+                activeProducerCount = Math.max(0, activeProducerCount - 1);
+                markProducersDoneIfNeeded();
+              });
+          });
+          markProducersDoneIfNeeded();
+        }
+
         panel.updateBatch({
           phaseText: "开始",
           total: tasks.length,
@@ -381,54 +457,7 @@
           running: true,
         });
 
-        const producerPromises = tasks.map(function (task, index) {
-          return scheduler
-            .run(async function () {
-              if (batchStopRequested === true) {
-                throw new Error("批量识别已手动停止。");
-              }
-              const item = await dataApi.getItemByTask(task, {
-                includeCurrentInput: false,
-              });
-              if (!item) {
-                throw new Error("无法定位批量条目。");
-              }
-              item.batchRunId = batchRunId;
-              item.batchItemIndex = index;
-              item.batchProcessKey = "task-item:" + String(item.taskItemId || task.taskItemId || index);
-              item.clientRequestId = [
-                batchRunId,
-                String(index + 1),
-                String(item.taskItemId || "unknown"),
-              ].join(":");
-              item.frontConcurrency = batchConcurrency;
-              const result = await aiClient.recommend(item);
-              enqueueBatchResult({
-                ok: true,
-                task: task,
-                result: result,
-              });
-            })
-            .catch(function (error) {
-              const message = error?.message || String(error);
-              if (batchStopRequested === true && message.indexOf("手动停止") >= 0) {
-                return;
-              }
-              enqueueBatchResult({
-                ok: false,
-                task: task,
-                error: error,
-              });
-            });
-        });
-
-        Promise.allSettled(producerPromises).then(function () {
-          producersDone = true;
-          while (resultWaiters.length > 0) {
-            const resolve = resultWaiters.shift();
-            resolve(null);
-          }
-        });
+        launchBatchTasks(requestWindow.takeUntilCapacity());
 
         while (consumedCount < tasks.length) {
           const entry = await nextBatchResult();
@@ -466,52 +495,54 @@
               failures: failures,
               running: true,
             });
-            continue;
-          }
-          try {
-            panel.renderResult(entry.result);
-            const switchResult = await dataApi.selectTask(task, {
-              timeoutMs: 12000,
-              maxAttempts: 4,
-            });
-            if (switchResult?.ok === false) {
-              throw new Error(switchResult.message || "切换批量条目失败。");
-            }
-            const saveResult = await dataApi.fillAndSaveCurrent(
-              entry.result.recommendedText || "",
-              {
-                timeoutMs: 15000,
+          } else {
+            try {
+              panel.renderResult(entry.result);
+              const switchResult = await dataApi.selectTask(task, {
+                timeoutMs: 12000,
+                maxAttempts: 4,
+              });
+              if (switchResult?.ok === false) {
+                throw new Error(switchResult.message || "切换批量条目失败。");
               }
-            );
-            if (saveResult?.ok === false) {
-              throw new Error(saveResult.message || "填入并保存失败。");
+              const saveResult = await dataApi.fillAndSaveCurrent(
+                entry.result.recommendedText || "",
+                {
+                  timeoutMs: 15000,
+                }
+              );
+              if (saveResult?.ok === false) {
+                throw new Error(saveResult.message || "填入并保存失败。");
+              }
+              consumedCount += 1;
+              panel.updateBatch({
+                phaseText: "已识别并保存",
+                total: tasks.length,
+                completed: consumedCount,
+                failed: failures.length,
+                currentText: task.displayName,
+                failures: failures,
+                running: true,
+              });
+            } catch (error) {
+              consumedCount += 1;
+              failures.push({
+                displayName: task.displayName,
+                message: error?.message || String(error),
+              });
+              panel.updateBatch({
+                phaseText: "当前条失败",
+                total: tasks.length,
+                completed: consumedCount,
+                failed: failures.length,
+                currentText: task.displayName,
+                failures: failures,
+                running: true,
+              });
             }
-            consumedCount += 1;
-            panel.updateBatch({
-              phaseText: "已识别并保存",
-              total: tasks.length,
-              completed: consumedCount,
-              failed: failures.length,
-              currentText: task.displayName,
-              failures: failures,
-              running: true,
-            });
-          } catch (error) {
-            consumedCount += 1;
-            failures.push({
-              displayName: task.displayName,
-              message: error?.message || String(error),
-            });
-            panel.updateBatch({
-              phaseText: "当前条失败",
-              total: tasks.length,
-              completed: consumedCount,
-              failed: failures.length,
-              currentText: task.displayName,
-              failures: failures,
-              running: true,
-            });
           }
+          launchBatchTasks(requestWindow.markConsumed());
+          markProducersDoneIfNeeded();
         }
 
         if (batchStopRequested === true) {

@@ -12,6 +12,41 @@
   - `extension/sites/aishell-tech/minnan-helper/data-api.test.js` 新增平台账号解析与 DOM 提取用例。
   - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 新增 AI 调用元数据透传与 `annotatorName` fallback 断言。
 
+## 2026-05-28（Aishell Tech AI识别按钮不可点击热修）
+
+- 修复 `AI识别` 注入按钮在页面上可见但不能点击的问题：
+  - 根因是按钮直接继承了原生“保存”按钮的完整 class，宿主按钮上的 `is-disabled` 等禁用态样式会一起带过来，导致新按钮被 Element UI 的禁用规则拦截点击。
+  - `extension/sites/aishell-tech/minnan-helper/ui-panel.js` 新增按钮 class 清洗与禁用态同步逻辑，注入时主动移除 `is-disabled`，并显式恢复 `pointer-events`。
+  - 同时给 `AI识别 / AI批量识别 / 停止批量` 的点击事件补充 `stopPropagation()`，降低宿主页级事件干扰。
+- 文档同步：
+  - 明确 Aishell 后续默认沿用“嵌入式推荐卡片 + 原生按钮注入”这一前端形态。
+
+## 2026-05-28（Aishell Tech 闽南语助手保存链修正）
+
+- 修正 Aishell 闽南语助手“填入并保存”链路：
+  - 根因是内容脚本填入后直接 `POST /api/mark/SaveShortMark`，没有触发平台原生“保存”按钮，导致平台前端自身的保存联动与成功提示口径可能被绕开。
+  - `extension/sites/aishell-tech/minnan-helper/data-api.js` 改为点击页面真实“保存”按钮，再等待页面 `保存成功!` 提示、列表条目完成态，必要时回退检查 `getShortMark / packageItemList`。
+  - 保留批量模式的“AI 并发请求 + 页面串行保存”总流程，但每条保存统一走宿主页面真实动作。
+- 测试与文档：
+  - `extension/sites/aishell-tech/minnan-helper/data-api.test.js` 新增“必须点击真实保存按钮且不能直接 POST SaveShortMark”用例。
+  - 同步更新 `extension/sites/aishell-tech/minnan-helper/README.md` 与 `platform-resources/aishell-tech/minnan-helper/README.md` 的保存链说明。
+
+## 2026-05-28（Aishell Tech Prompt 简体约束与批量窗口补位）
+
+- 更新 `platform-resources/aishell-tech/minnan-helper/backend/ai-service.js` 默认 Prompt：
+  - `mandarin_to_dialect` 比较 Prompt 明确要求 `recommendedText` 只能输出简体中文，不允许繁体字。
+  - `direct_dialect` 听音/比较 Prompt 同步要求 `heardText / recommendedText` 使用简体中文，不允许繁体字。
+  - 本轮不在前端做二次繁简纠正，约束完全落在 Prompt。
+- 更新 Aishell 前端批量识别窗口：
+  - 新增 `extension/sites/aishell-tech/minnan-helper/batch-window.js`，把批量请求窗口改成“先发满并发，消费一条后再补发一条”的滚动补位模型。
+  - `extension/sites/aishell-tech/minnan-helper/content.js` 改为基于该窗口调度 AI 请求，保持“谁先返回谁先保存”，但后续补发时机改为“上一条保存完成后”。
+  - `extension/sites/aishell-tech/minnan-helper/data-api.js` 新增 Aishell 固定 OSS 根地址回退；`task/detail.project.dataRoot` 缺失时，仍可用 `https://bpp-collect.oss-cn-hangzhou.aliyuncs.com + item.url` 组装音频地址。
+- 测试与资源：
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 新增默认 Prompt 简体约束断言。
+  - `extension/sites/aishell-tech/minnan-helper/batch-window.test.js` 新增滚动并发窗口补位测试。
+  - `extension/sites/aishell-tech/minnan-helper/data-api.test.js` 新增默认 OSS 根地址回退断言。
+  - `extension/manifest.json` 补充加载 `sites/aishell-tech/minnan-helper/batch-window.js`。
+
 ## 2026-05-28（Aishell Tech 嵌入式面板与原生按钮注入）
 
 - 合并 Aishell Tech 闽南语助手界面重构：

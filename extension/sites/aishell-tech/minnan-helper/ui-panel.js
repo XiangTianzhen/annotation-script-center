@@ -88,6 +88,37 @@
     return String(text || "").replace(/[\s\u3000]+/g, "").trim();
   }
 
+  function sanitizeButtonClassName(className, fallback) {
+    const tokens = String(className || "")
+      .split(/\s+/)
+      .map(function (token) {
+        return String(token || "").trim();
+      })
+      .filter(function (token) {
+        return token && token !== "is-disabled";
+      });
+    if (tokens.length > 0) {
+      return Array.from(new Set(tokens)).join(" ");
+    }
+    return String(fallback || "el-button");
+  }
+
+  function syncButtonDisabledState(button, disabled) {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    button.disabled = disabled === true;
+    if (disabled === true) {
+      button.setAttribute("aria-disabled", "true");
+      button.classList.add("is-disabled");
+    } else {
+      button.removeAttribute("disabled");
+      button.setAttribute("aria-disabled", "false");
+      button.classList.remove("is-disabled");
+      button.style.pointerEvents = "auto";
+    }
+  }
+
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
     let root = null;
@@ -383,14 +414,20 @@
       currentBusyState = Object.assign({}, nextState);
       ensureRoot();
       if (singleButtonNode) {
-        singleButtonNode.disabled = nextState.single === true || nextState.batch === true;
+        syncButtonDisabledState(
+          singleButtonNode,
+          nextState.single === true || nextState.batch === true
+        );
       }
       if (batchButtonNode) {
-        batchButtonNode.disabled = nextState.batch === true || nextState.single === true;
+        syncButtonDisabledState(
+          batchButtonNode,
+          nextState.batch === true || nextState.single === true
+        );
         batchButtonNode.style.color = batchButtonNode.disabled ? "#94a3b8" : "#1d4ed8";
       }
       if (stopButtonNode) {
-        stopButtonNode.disabled = nextState.batch !== true;
+        syncButtonDisabledState(stopButtonNode, nextState.batch !== true);
         stopButtonNode.style.color = stopButtonNode.disabled ? "#94a3b8" : "#dc2626";
         stopButtonNode.style.fontWeight = stopButtonNode.disabled ? "400" : "700";
       }
@@ -426,16 +463,21 @@
       const scopedAttrs = getScopedDataAttrs(saveButton);
       singleButtonNode = document.createElement("button");
       singleButtonNode.type = "button";
-      singleButtonNode.className = saveButton.className || "el-button el-button--primary";
+      singleButtonNode.className = sanitizeButtonClassName(
+        saveButton.className,
+        "el-button el-button--primary"
+      );
       applyScopedAttrs(singleButtonNode, scopedAttrs);
       singleButtonNode.setAttribute("data-asc-injected-single", "true");
       singleButtonNode.style.marginLeft = "12px";
+      singleButtonNode.style.pointerEvents = "auto";
       const label = document.createElement("span");
       applyScopedAttrs(label, scopedAttrs);
       label.textContent = "AI识别";
       singleButtonNode.appendChild(label);
       singleButtonNode.addEventListener("click", function (event) {
         event.preventDefault();
+        event.stopPropagation();
         if (typeof deps.onRecommend === "function") {
           void deps.onRecommend();
         }
@@ -480,12 +522,14 @@
       batchButtonNode.style.marginRight = "12px";
       batchButtonNode.style.color = "#1d4ed8";
       batchButtonNode.style.fontWeight = "700";
+      batchButtonNode.style.pointerEvents = "auto";
       const batchLabel = document.createElement("span");
       applyScopedAttrs(batchLabel, scopedAttrs);
       batchLabel.textContent = "AI批量识别";
       batchButtonNode.appendChild(batchLabel);
       batchButtonNode.addEventListener("click", function (event) {
         event.preventDefault();
+        event.stopPropagation();
         if (typeof deps.onBatchRecommend === "function") {
           void deps.onBatchRecommend();
         }
@@ -498,12 +542,14 @@
       applyScopedAttrs(stopButtonNode, scopedAttrs);
       stopButtonNode.style.marginRight = "12px";
       stopButtonNode.style.color = "#94a3b8";
+      stopButtonNode.style.pointerEvents = "auto";
       const stopLabel = document.createElement("span");
       applyScopedAttrs(stopLabel, scopedAttrs);
       stopLabel.textContent = "停止批量";
       stopButtonNode.appendChild(stopLabel);
       stopButtonNode.addEventListener("click", function (event) {
         event.preventDefault();
+        event.stopPropagation();
         if (typeof deps.onBatchStop === "function") {
           void deps.onBatchStop();
         }

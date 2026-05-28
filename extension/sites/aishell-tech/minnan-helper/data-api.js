@@ -5,6 +5,7 @@
   globalThis.__ASREdgeAishellTechMinnanDataApiInstalled = true;
 
   const API_ORIGIN = "https://markapi.aishelltech.com";
+  const DEFAULT_AUDIO_ROOT = "https://bpp-collect.oss-cn-hangzhou.aliyuncs.com";
   const TOKEN_PATTERN = /^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$/;
   const PRIORITY_TOKEN_KEYS = [
     "authorization",
@@ -254,6 +255,18 @@
     return API_ORIGIN + String(path || "");
   }
 
+  function buildAudioUrl(dataRoot, relativeUrl) {
+    const root = normalizeText(dataRoot || DEFAULT_AUDIO_ROOT).replace(/\/+$/, "");
+    const path = String(relativeUrl || "").trim();
+    if (!path) {
+      return "";
+    }
+    if (/^https?:\/\//i.test(path)) {
+      return path;
+    }
+    return root + (path.charAt(0) === "/" ? path : "/" + path);
+  }
+
   function getCurrentInputValue() {
     const input = document.querySelector(".mark-area input.el-input__inner[type='text']");
     return input instanceof HTMLInputElement ? normalizeText(input.value) : "";
@@ -392,6 +405,60 @@
         }
       ) || null
     );
+  }
+
+  function getToastMessageNodes() {
+    return Array.from(document.querySelectorAll(".el-message")).filter(function (node) {
+      return node instanceof HTMLElement;
+    });
+  }
+
+  function getToastMessageText(node) {
+    if (!(node instanceof HTMLElement)) {
+      return "";
+    }
+    const contentNode = node.querySelector(".el-message__content");
+    if (contentNode instanceof HTMLElement) {
+      return normalizeText(contentNode.textContent || "");
+    }
+    return normalizeText(node.textContent || "");
+  }
+
+  function findNewToastMessage(previousNodes) {
+    const seen = previousNodes instanceof Set ? previousNodes : new Set(previousNodes || []);
+    const nodes = getToastMessageNodes();
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index];
+      if (seen.has(node)) {
+        continue;
+      }
+      const text = getToastMessageText(node);
+      if (!text) {
+        continue;
+      }
+      return {
+        node: node,
+        text: text,
+        success:
+          String(node.className || "").indexOf("el-message--success") >= 0 &&
+          text.indexOf("保存成功") >= 0,
+        error:
+          String(node.className || "").indexOf("el-message--error") >= 0 ||
+          String(node.className || "").indexOf("el-message--warning") >= 0,
+      };
+    }
+    return null;
+  }
+
+  function triggerNativeSaveButton(button) {
+    if (!(button instanceof HTMLButtonElement)) {
+      return false;
+    }
+    if (typeof button.focus === "function") {
+      button.focus();
+    }
+    button.click();
+    return true;
   }
 
   function sleep(ms) {
@@ -861,8 +928,7 @@
       const existingMarkText =
         source.includeCurrentInput === true ? getCurrentInputValue() : "";
       const referenceText = normalizeText(record.text) || getReferenceTextFromDom();
-      const audioUrl =
-        taskDetail.dataRoot && record.url ? taskDetail.dataRoot + record.url : "";
+      const audioUrl = buildAudioUrl(taskDetail.dataRoot, record.url);
       const userMeta = getPlatformUserMetaFromPage();
       return {
         taskId: routeParams.taskId,
@@ -1103,20 +1169,58 @@
       const expectedText = normalizeMarkCompareText(options?.expectedText || "");
       const taskItemId = normalizeText(options?.taskItemId);
       const packageId = normalizeText(options?.packageId);
-      const savePayload =
-        options?.savePayload && typeof options.savePayload === "object"
-          ? options.savePayload
-          : null;
-      if (!taskItemId || !packageId || !savePayload) {
+      const previousIndex = Number.isInteger(Number(options?.selectedIndex))
+        ? Number(options.selectedIndex)
+        : getSelectedIndex();
+      if (!taskItemId || !packageId) {
         return {
           ok: false,
           message: "当前保存缺少必要参数。",
         };
       }
-      await requestJsonWithOptions("POST", "/api/mark/SaveShortMark", savePayload);
+      const saveButton = getSaveButton();
+      if (!(saveButton instanceof HTMLButtonElement)) {
+        return {
+          ok: false,
+          message: "当前页面没有定位到平台“保存”按钮。",
+        };
+      }
+      if (saveButton.disabled === true) {
+        return {
+          ok: false,
+          message: "平台“保存”按钮当前不可用，请先确认页面已完成填入。",
+        };
+      }
+      const previousMessages = new Set(getToastMessageNodes());
+      const clicked = triggerNativeSaveButton(saveButton);
+      if (clicked !== true) {
+        return {
+          ok: false,
+          message: "未能触发平台“保存”按钮。",
+        };
+      }
       const deadline = Date.now() + Math.max(3000, Number(options?.timeoutMs || 15000) || 15000);
       let networkCheckAt = 0;
       while (Date.now() < deadline) {
+        const toastMessage = findNewToastMessage(previousMessages);
+        if (toastMessage?.success === true) {
+          return {
+            ok: true,
+            message: "已触发平台真实保存按钮，并检测到页面提示“保存成功！”。",
+          };
+        }
+        if (toastMessage?.error === true) {
+          return {
+            ok: false,
+            message: toastMessage.text || "平台保存失败，请检查页面提示。",
+          };
+        }
+        if (isSaveCompletionState(previousIndex, captureListState(previousIndex))) {
+          return {
+            ok: true,
+            message: "已触发平台真实保存按钮，并检测到列表条目已切换完成。",
+          };
+        }
         const now = Date.now();
         if (now - networkCheckAt >= 450) {
           networkCheckAt = now;
@@ -1126,7 +1230,7 @@
             if (savedText && normalizeMarkCompareText(savedText) === expectedText) {
               return {
                 ok: true,
-                message: "已调用平台 SaveShortMark，并确认平台已保存当前文本。",
+                message: "已触发平台真实保存按钮，并确认平台已保存当前文本。",
               };
             }
           } catch (_error) {}
@@ -1140,7 +1244,7 @@
             if (isPackageItemSaved(matchedRecord)) {
               return {
                 ok: true,
-                message: "已调用平台 SaveShortMark，并检测到平台条目状态已更新为已标注。",
+                message: "已触发平台真实保存按钮，并检测到平台条目状态已更新为已标注。",
               };
             }
           } catch (_error) {}
@@ -1149,7 +1253,7 @@
       }
       return {
         ok: false,
-        message: "调用 SaveShortMark 后未能确认平台保存状态，请检查平台是否已保存成功。",
+        message: "触发平台保存后未能确认成功状态，请检查页面提示或平台请求结果。",
       };
     }
 
@@ -1165,25 +1269,14 @@
       if (fillResult?.ok === false) {
         return fillResult;
       }
-      const detail = await ensureMarkDetail(currentItem.taskItemId).catch(function () {
-        return null;
-      });
-      const runtimeItem = Object.assign({}, currentItem, {
-        duration:
-          normalizeSaveDuration(detail?.duration) ||
-          normalizeSaveDuration(currentItem.duration),
-        referenceText: normalizeText(detail?.referenceText || currentItem.referenceText),
-        fileName: normalizeText(detail?.fileName || currentItem.fileName),
-      });
       const normalizedText = normalizeMarkCompareText(text);
       await sleep(Number(options?.postFillDelayMs || 120) || 120);
-      const savePayload = buildSaveShortMarkPayload(runtimeItem, normalizedText, options);
       return clickSaveAndWait({
         timeoutMs: options?.timeoutMs || 15000,
         expectedText: normalizedText,
         taskItemId: currentItem.taskItemId,
         packageId: currentItem.packageId,
-        savePayload: savePayload,
+        selectedIndex: getSelectedIndex(),
       });
     }
 

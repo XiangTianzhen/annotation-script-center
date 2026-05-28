@@ -78,6 +78,17 @@ test("Aishell ai-service keeps direct dialect strategy and direct prompts", func
   assert.match(normalized.dataBakerRequest.aiOptions.comparePrompt, /闽南语/);
 });
 
+test("Aishell ai-service default prompts require simplified chinese output", function () {
+  const defaults = service.createDefaultsPayload();
+  const mandarinProfile = defaults.defaults?.promptProfiles?.mandarin_to_dialect || {};
+  const directProfile = defaults.defaults?.promptProfiles?.direct_dialect || {};
+
+  assert.match(String(mandarinProfile.comparePrompt || ""), /简体/);
+  assert.match(String(mandarinProfile.comparePrompt || ""), /recommendedText/);
+  assert.match(String(directProfile.listenPrompt || ""), /简体/);
+  assert.match(String(directProfile.comparePrompt || ""), /简体/);
+});
+
 test("Aishell ai-service reshapes DataBaker result into recommend response body", function () {
   const transformed = service.transformRecommendResult(
     {

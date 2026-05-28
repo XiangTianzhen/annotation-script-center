@@ -29,6 +29,7 @@ const DEFAULT_MANDARIN_LISTEN_TEMPLATE = [
   "你只负责听音，不负责直接输出最终闽南语文本。",
   "请把听到的内容转写成简体普通话表达，优先保留原句语义，不要补充解释。",
   "如果音频里出现明显的闽南语专有用字、语气词或人名地名，可按实际发音保留，但主体输出仍以普通话转写为主。",
+  "heardText 必须使用简体中文，不允许输出繁体字。",
   "输出 JSON 字段必须包含 heardText、confidence、needHumanReview。",
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
@@ -39,6 +40,7 @@ const DEFAULT_MANDARIN_COMPARE_TEMPLATE = [
   "你的任务是结合 pageText、heardText 和闽南语字词对照表，输出最终的闽南语推荐文本。",
   "以实际发声语义为主，pageText 负责提供闽南语用字候选，不要机械照抄页面文本。",
   "如果 heardText 与 pageText 语义一致，应优先选择符合闽南语词表的写法。",
+  "recommendedText 必须使用简体中文书写，不允许出现任何繁体字；命中闽南语词表时也必须优先使用对应的简体推荐写法。",
   "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
@@ -46,6 +48,7 @@ const DEFAULT_DIRECT_DIALECT_LISTEN_TEMPLATE = [
   "你正在处理闽南语音频。",
   "你只负责直接听写出闽南语文本，不要先翻译成普通话。",
   "听不清时请基于音频给出最可信的闽南语写法，并通过 needHumanReview 标记不确定性。",
+  "heardText 必须使用简体中文书写，不允许出现任何繁体字。",
   "输出 JSON 字段必须包含 heardText、confidence、needHumanReview。",
   "heardText 必须直接写闽南语文本。",
   "只输出 JSON，不要输出 Markdown 或解释文字。",
@@ -55,6 +58,7 @@ const DEFAULT_DIRECT_DIALECT_COMPARE_TEMPLATE = [
   "你的任务是对比两者并输出最终闽南语推荐文本。",
   "以实际发声为主，pageText 只作为闽南语写法参考。",
   "如果词表中存在更合适的闽南语建议用字，可在语义一致时优先采用。",
+  "recommendedText 必须使用简体中文书写，不允许出现任何繁体字。",
   "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
