@@ -69,10 +69,12 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK`：默认空；仅显式设为 `python` 时，REST 失败后才允许退回 Python。
 - `DATABAKER_AI_FUN_ASR_REST_BASE_URL`：可选，覆盖 Fun-ASR REST API base；留空时按 `DASHSCOPE_BASE_URL` 推导到 `/api/v1`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
+- `ASC_AI_ASYNC_JOBS_ENABLED`：统一 jobs 开关，默认 `1`；当前已接入 AI 的脚本默认走 jobs 链路。
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：历史兼容开关，默认 `0`；当前默认链路不再依赖异步 job。
 - `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `60000`。仅在历史兼容 job 被显式启用时生效。
 - `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
-- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 内存上限，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
+- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 内存上限，默认 `9999`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
+- `DATABAKER_AI_JOB_FAILED_RETENTION_MS`：排队超时失败记录保留时间，默认 `60000`；超过后会转为 `expired`，不再占用 job 容量。
 - `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端建议轮询间隔提示，默认 `1000` ms。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv/`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：标贝易采 Qwen Omni 队列限流，默认 `45` RPM。
@@ -82,7 +84,8 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_FUN_ASR_CONCURRENCY`：标贝易采 Fun-ASR 并发上限，默认 `2`；如 `2 核 2G` 服务器压力高，可继续调低，若资源充足也可手动调高。
 - `DATABAKER_AI_TEXT_CONCURRENCY`：标贝易采 compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：标贝易采上游 `429` 最大重试次数，默认 `3`。
-- `DATABAKER_AI_QUEUE_MAX_SIZE`：标贝易采统一 provider 队列最大长度，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”，不会取消并发和 RPM 保护。
+- `DATABAKER_AI_QUEUE_MAX_SIZE`：标贝易采统一 provider 队列最大长度，默认 `9999`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”，不会取消并发和 RPM 保护。
+- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS`：标贝易采 provider 队列待启动超时，默认 `120000`；排队超过 120s 仍未启动会直接返回 `failed`。
 - `DATABAKER_AI_CACHE_TTL_MS`：标贝易采推荐结果内存缓存 TTL，默认 `43200000`。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留 标贝易采 有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留 标贝易采 裁剪前后补齐秒数，默认 `0.12`。
@@ -564,6 +567,16 @@ DataBaker AI 架构补充：
 - 统一后端 provider queue 的 key 已从“脚本分组”扩展为“具体模型名”：
   - 同一模型跨平台、跨脚本共享同一上游发送池。
   - 默认模型池速率为 `20 req/s`（`50ms` 一次发出机会），默认并发上限 `15`。
+  - 默认模型池最大排队长度为 `9999`，待启动超时为 `120000ms`。
   - 两阶段链路中的听音模型和比较 / 推理模型分别按各自真实模型名进入独立池。
+- 公共 job store 当前也统一为：
+  - 默认 `maxSize=9999`
+  - `runningTimeoutMs=60000`
+  - `failedRetentionMs=60000`（仅排队超时失败默认走 1 分钟保留）
+- `health/defaults.runtime` 现在会继续暴露：
+  - `jobs.runningTimeoutMs`
+  - `jobs.failedRetentionMs`
+  - `queue.defaultModelPool.maxSize`
+  - `queue.defaultModelPool.pendingTimeoutMs`
 
 

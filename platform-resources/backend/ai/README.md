@@ -9,7 +9,7 @@
 - `model-dispatcher.js`：统一模型调度层；按模型名决定走 JS 还是 Python 实现，并提供 `getModelMeta / listModelsByFamily / invokeModel / getModelDocs`。
 - `sanitizer.js`：统一脱敏工具，避免日志输出完整音频 URL、签名 URL、token、cookie。
 - `errors.js`：统一 provider / Python 运行时错误包装。
-- `provider-queue.js`：统一 provider 限流队列，当前支持 `qwen_omni`、`fun_asr`、`text_compare`，同时支持每个 group 独立 `maxConcurrent`。
+- `provider-queue.js`：统一 provider 限流队列；默认按“具体模型名”建共享池，同时兼容 `qwen_omni`、`fun_asr`、`text_compare` 等 legacy group。
 - `result-cache.js`：统一 TTL 内存缓存与缓存 key 生成。
 - `usage.js`：通用 usage 归一化。
 - `smoke-test-provider-queue.js`：本地并发自测脚本，用于验证 `fun_asr` 组在不同 `maxConcurrent` 下是否真正并发。
@@ -40,9 +40,13 @@
 - thinking 默认统一关闭；模型元数据只记录“是否支持 thinking”，不把开启 thinking 作为默认路径。
 - 旧的 `qwen3-omni-flash*` / dated Omni 型号仍可作为兼容旧配置被识别，但不再作为统一模型目录的推荐选项。
 
-当前接入平台：
+当前统一 AI 基座已服务的脚本：
 
-- DataBaker 闽南语助手
+- DataBaker round-one-quality
+- Aishell Tech minnan-helper
+- Magic Data hakka-helper / minnan-helper
+- Alibaba LabelX asr-judgement / asr-transcription
+- Abaka AI task21
 
 当前 DataBaker 业务层结构：
 
@@ -74,8 +78,10 @@
 - Qwen provider 与 DataBaker Omni legacy client 现在都会识别 SSE `data: {"error": ...}`。若 `error.code/type` 为 `limit_burst_rate`、`throttling`、`rate_limit`、`limit_requests`、`TooManyRequests`，会按上游限流分类，而不是误判成空文本。
 - DataBaker Omni legacy 快速路径默认不再把 Qwen 上游平滑进 `qwen_omni` / `text_compare` 队列；前端并发多少就直接发送多少。仅当 `DATABAKER_AI_QWEN_SMOOTH_ENABLED=1` 时，才会重新启用 Qwen 平滑队列。
 - `DATABAKER_AI_QWEN_BURST_RETRY_MAX` 默认 `0`，即 `limit_burst_rate` 默认不自动退避重试，只暴露真实错误并保留 debug；如需更稳，可手动设为 `3` 并配合 `DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS`。
-- DataBaker 异步 job 默认上限仍为 `600`，provider queue 默认上限也同步为 `600`；当前 jobs 已是默认 AI 结果接收方案，同步 recommend 只保留兼容 / 调试入口。
+- DataBaker 异步 job 默认上限已放大到 `9999`，provider queue 默认上限也同步为 `9999`；当前 jobs 已是默认 AI 结果接收方案，同步 recommend 只保留兼容 / 调试入口。
 - 单个异步 job 默认超时 `60000ms`，超时后会通过 `AbortController` 取消或逻辑丢弃迟到结果，并固定提示“当前任务超过60s，请重新请求。”。默认 AI 结果接收链路为“短请求创建 job + 轮询状态”。
+- 按模型拆分的 provider queue 默认待启动超时为 `120000ms`；任务排队超过 120s 仍未开始时，会直接以 `provider-queue-pending-timeout` 失败，不再继续占着模型池。
+- 这类排队超时失败会在公共 job store 中默认保留 `60000ms` 供前端轮询读取，随后转为 `expired` 并释放容量。
 - DataBaker 模型输出 JSON 解析失败时，会保留脱敏后的 `debugRawJson`，供前端“复制原始JSON”按钮通过 `/ai/recommend/jobs/:jobId/debug` 拉取。
 
 

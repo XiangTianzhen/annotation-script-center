@@ -191,6 +191,13 @@ platform-resources/<platform>/<script-id>/
 
 `health/defaults` 也走统一框架，但只读 adapter 元数据和 defaults 资产，不再让每个项目重复造一套。
 
+当前统一 runtime 口径补充：
+
+- 公共 job store 默认 `maxSize=9999`。
+- 按具体模型名拆分的 provider queue 默认速率为 `20 req/s`（`50ms` 一次发出机会），默认并发上限 `15`，默认最大排队长度 `9999`。
+- provider queue 中排队超过 `120000ms` 仍未开始执行的任务会直接失败；失败记录默认保留 `60000ms` 供前端轮询读取，随后转为 `expired`。
+- 已经开始执行的任务仍保持 `60000ms` 运行超时，不和排队超时共用一个阈值。
+
 ## 项目与迁移顺序
 
 本轮纳入统一框架的 AI 项目：

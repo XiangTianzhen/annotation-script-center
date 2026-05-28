@@ -1,3 +1,30 @@
+## 2026-05-29（统一 AI 队列容量扩到 9999，并补齐 120s 排队超时清理）
+
+- 统一后端 `platform-resources/backend/ai/provider-queue.js` 默认容量从 `600` 调整为 `9999`，继续保持按“具体模型名”分池：
+  - `qwen3.5-omni-plus`
+  - `qwen3.5-omni-flash`
+  - `fun-asr`
+  - 其它模型名也会各自独立成池
+- 每个模型池继续各占自己的 `50ms` 发出节奏，不共用一个全局 `50ms`。
+- 统一 provider queue 新增待启动超时：
+  - 任务排队超过 `120000ms` 仍未开始执行时，直接以 `provider-queue-pending-timeout` 失败
+  - 不再继续占着模型池等待
+- 公共 `ai-job-store` 默认容量也从 `600` 调整为 `9999`，避免前面的共享任务登记池先被打满。
+- 公共 `ai-job-store` 新增失败记录保留语义：
+  - 排队超时失败默认保留 `60000ms`
+  - 之后转为 `expired`
+  - 转为 `expired` 后不再占用 job 容量
+- 已开始执行的任务仍保持 `60000ms` 运行超时，不改成 `120s`。
+- `health/defaults.runtime` 当前已补齐：
+  - `jobs.runningTimeoutMs`
+  - `jobs.failedRetentionMs`
+  - `queue.defaultModelPool.maxSize`
+  - `queue.defaultModelPool.pendingTimeoutMs`
+- 本轮补充单测覆盖：
+  - 不同模型池彼此隔离，一个池满载不应联动堵死另一个池
+  - 排队超过阈值未启动会直接失败
+  - 失败记录保留 `1 分钟` 后转为 `expired`
+
 ## 2026-05-28（统一 AI 请求记录查看入口）
 
 - 统一后端新增 `platform-resources/backend/ai-call-log-download/`，提供：

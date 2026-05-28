@@ -6,8 +6,9 @@ const { createJobTimeoutError } = require("../../ai/errors");
 
 const DEFAULT_JOB_TIMEOUT_MS = 60000;
 const DEFAULT_JOB_TTL_MS = 30 * 60 * 1000;
-const DEFAULT_JOB_MAX_SIZE = 600;
+const DEFAULT_JOB_MAX_SIZE = 9999;
 const DEFAULT_JOB_POLL_INTERVAL_MS = 1000;
+const DEFAULT_JOB_FAILED_RETENTION_MS = 60000;
 
 function parseIntegerInRange(value, fallback, min, max) {
   const number = Math.floor(Number(value));
@@ -63,6 +64,7 @@ function createExpiredJob(job) {
   return Object.assign({}, source, {
     status: "expired",
     updatedAt: Number(source.updatedAt || 0),
+    expireAt: Number(source.expireAt || 0),
   });
 }
 
@@ -89,7 +91,7 @@ function getDefaultAiJobStoreConfig() {
       process.env.ASC_AI_JOB_MAX_SIZE || process.env.DATABAKER_AI_JOB_MAX_SIZE,
       DEFAULT_JOB_MAX_SIZE,
       1,
-      10000
+      20000
     ),
     pollIntervalMs: parseIntegerInRange(
       process.env.ASC_AI_JOB_POLL_INTERVAL_MS || process.env.DATABAKER_AI_JOB_POLL_INTERVAL_MS,
@@ -97,7 +99,21 @@ function getDefaultAiJobStoreConfig() {
       200,
       10000
     ),
+    failedRetentionMs: parseIntegerInRange(
+      process.env.ASC_AI_JOB_FAILED_RETENTION_MS || process.env.DATABAKER_AI_JOB_FAILED_RETENTION_MS,
+      DEFAULT_JOB_FAILED_RETENTION_MS,
+      1000,
+      24 * 60 * 60 * 1000
+    ),
   };
+}
+
+function getJobExpireAt(job, config) {
+  const explicitExpireAt = Number(job?.expireAt || 0);
+  if (explicitExpireAt > 0) {
+    return explicitExpireAt;
+  }
+  return Number(job?.updatedAt || 0) + Number(config?.ttlMs || DEFAULT_JOB_TTL_MS);
 }
 
 class AiJobStore {
@@ -133,13 +149,19 @@ class AiJobStore {
         this.options.maxSize,
         defaults.maxSize,
         1,
-        10000
+        20000
       ),
       pollIntervalMs: parseIntegerInRange(
         this.options.pollIntervalMs,
         defaults.pollIntervalMs,
         200,
         10000
+      ),
+      failedRetentionMs: parseIntegerInRange(
+        this.options.failedRetentionMs,
+        defaults.failedRetentionMs,
+        1000,
+        24 * 60 * 60 * 1000
       ),
     };
   }
@@ -155,15 +177,29 @@ class AiJobStore {
     control.timeoutTimer = null;
   }
 
+  startJobTimeout(jobId, timeoutMs) {
+    const control = this.controls.get(jobId);
+    if (!control) {
+      return;
+    }
+    if (control.timeoutTimer) {
+      clearTimeout(control.timeoutTimer);
+    }
+    control.timeoutTimer = setTimeout(
+      this.handleTimeout.bind(this, jobId),
+      Math.max(1000, Number(timeoutMs) || DEFAULT_JOB_TIMEOUT_MS)
+    );
+  }
+
   pruneExpired(now) {
     const currentTime = Number(now) || this.now();
-    const ttlMs = this.getConfig().ttlMs;
+    const config = this.getConfig();
     this.jobs.forEach(
       function (job, jobId) {
         if (!job || isTerminalStatus(job.status) === false) {
           return;
         }
-        if (currentTime - Number(job.updatedAt || 0) <= ttlMs) {
+        if (currentTime < getJobExpireAt(job, config)) {
           return;
         }
         this.clearControl(jobId);
@@ -176,13 +212,13 @@ class AiJobStore {
 
   cleanupExpired(now) {
     const currentTime = Number(now) || this.now();
-    const ttlMs = this.getConfig().ttlMs;
+    const config = this.getConfig();
     this.jobs.forEach(
       function (job, jobId) {
         if (!job || !job.updatedAt) {
           return;
         }
-        if (currentTime - Number(job.updatedAt || 0) <= ttlMs) {
+        if (currentTime < getJobExpireAt(job, config)) {
           return;
         }
         this.clearControl(jobId);
@@ -228,10 +264,13 @@ class AiJobStore {
   handleTimeout(jobId) {
     const control = this.controls.get(jobId);
     const job = this.jobs.get(jobId);
-    if (!control || !job || isTerminalStatus(job.status)) {
+    if (!control || !job || isTerminalStatus(job.status) || job.status !== "running") {
       return;
     }
     control.timedOut = true;
+    if (control.timeoutTimer) {
+      clearTimeout(control.timeoutTimer);
+    }
     control.timeoutTimer = null;
     if (control.controller && typeof control.controller.abort === "function") {
       try {
@@ -245,15 +284,16 @@ class AiJobStore {
         return { ignored: true };
       }
       mutableJob.status = "failed";
-      mutableJob.finishedAt = Date.now();
+      mutableJob.finishedAt = this.now();
       mutableJob.responseBody = null;
       mutableJob.errorBody = {
         success: false,
         code: "ai-job-timeout",
         message: "当前任务超过60s，请重新请求。",
       };
+      mutableJob.expireAt = 0;
       return { ignored: false };
-    });
+    }.bind(this));
   }
 
   createJob(meta) {
@@ -283,6 +323,7 @@ class AiJobStore {
       responseBody: null,
       errorBody: null,
       hasDebugPayload: false,
+      expireAt: 0,
     };
     const controller = typeof AbortController === "function" ? new AbortController() : null;
     const control = {
@@ -290,10 +331,6 @@ class AiJobStore {
       timeoutTimer: null,
       timedOut: false,
     };
-    control.timeoutTimer = setTimeout(
-      this.handleTimeout.bind(this, jobId),
-      Math.max(1000, Number(config.timeoutMs) || DEFAULT_JOB_TIMEOUT_MS)
-    );
     this.jobs.set(jobId, job);
     this.controls.set(jobId, control);
     return cloneJson(job);
@@ -363,16 +400,24 @@ class AiJobStore {
   }
 
   markJobRunning(jobId) {
-    return this.updateJob(jobId, function (job) {
+    const outcome = this.updateJob(jobId, function (job) {
       if (isTerminalStatus(job.status)) {
         return { ignored: true };
       }
+      if (job.status === "running") {
+        return { ignored: true };
+      }
       if (!job.startedAt) {
-        job.startedAt = Date.now();
+        job.startedAt = this.now();
       }
       job.status = "running";
+      job.expireAt = 0;
       return { ignored: false };
-    });
+    }.bind(this));
+    if (!outcome.ignored) {
+      this.startJobTimeout(jobId, this.getConfig().timeoutMs);
+    }
+    return outcome;
   }
 
   markJobSucceeded(jobId, payload) {
@@ -382,11 +427,12 @@ class AiJobStore {
         return { ignored: true };
       }
       job.status = "succeeded";
-      job.finishedAt = Date.now();
+      job.finishedAt = this.now();
       job.responseBody = source.responseBody || null;
       job.errorBody = null;
+      job.expireAt = 0;
       return { ignored: false };
-    });
+    }.bind(this));
     if (!outcome.ignored) {
       this.clearControl(jobId);
     }
@@ -395,6 +441,15 @@ class AiJobStore {
 
   markJobFailed(jobId, payload) {
     const source = payload && typeof payload === "object" ? payload : {};
+    const config = this.getConfig();
+    const errorBody = source.errorBody && typeof source.errorBody === "object" ? source.errorBody : null;
+    const errorCode = String(errorBody?.code || errorBody?.error?.code || "").trim();
+    const retentionMs =
+      Number(source.retentionMs) > 0
+        ? Number(source.retentionMs)
+        : errorCode === "provider-queue-pending-timeout"
+          ? config.failedRetentionMs
+          : 0;
     if (source.debugPayload && typeof source.debugPayload === "object") {
       this.saveDebug(jobId, source.debugPayload);
     }
@@ -403,11 +458,12 @@ class AiJobStore {
         return { ignored: true };
       }
       job.status = "failed";
-      job.finishedAt = Date.now();
+      job.finishedAt = this.now();
       job.responseBody = null;
       job.errorBody = source.errorBody || null;
+      job.expireAt = retentionMs > 0 ? this.now() + retentionMs : 0;
       return { ignored: false };
-    });
+    }.bind(this));
     if (!outcome.ignored) {
       this.clearControl(jobId);
     }
@@ -442,8 +498,10 @@ class AiJobStore {
       enabled: config.enabled,
       ttlMs: config.ttlMs,
       timeoutMs: config.timeoutMs,
+      runningTimeoutMs: config.timeoutMs,
       maxSize: config.maxSize,
       pollIntervalMs: config.pollIntervalMs,
+      failedRetentionMs: config.failedRetentionMs,
       pendingCount,
       runningCount,
       succeededCount,
@@ -461,6 +519,7 @@ function createAiJobStore(options) {
 }
 
 module.exports = {
+  DEFAULT_JOB_FAILED_RETENTION_MS,
   DEFAULT_JOB_MAX_SIZE,
   DEFAULT_JOB_POLL_INTERVAL_MS,
   DEFAULT_JOB_TIMEOUT_MS,

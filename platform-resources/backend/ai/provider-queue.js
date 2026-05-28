@@ -6,13 +6,14 @@ const {
   normalizeAbortError,
 } = require("./errors");
 
-const DEFAULT_QUEUE_MAX_SIZE = 600;
+const DEFAULT_QUEUE_MAX_SIZE = 9999;
 const DEFAULT_RETRY_MAX = 3;
 const DEFAULT_QWEN_BURST_RETRY_MAX = 0;
 const DEFAULT_RETRY_BASE_DELAY_MS = 1200;
 const DEFAULT_RETRY_MAX_DELAY_MS = 12000;
 const DEFAULT_MODEL_QUEUE_RPM = 1200;
 const DEFAULT_MODEL_QUEUE_MAX_CONCURRENT = 15;
+const DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS = 120000;
 const MODEL_QUEUE_KEY_PREFIX = "model:";
 const DEFAULT_GROUP_SETTINGS = {
   qwen_omni: {
@@ -105,7 +106,16 @@ function getGlobalQueueMaxSize() {
     process.env.ASC_AI_QUEUE_MAX_SIZE || process.env.DATABAKER_AI_QUEUE_MAX_SIZE,
     DEFAULT_QUEUE_MAX_SIZE,
     1,
-    5000
+    20000
+  );
+}
+
+function getGlobalPendingTimeoutMs() {
+  return parsePositiveInteger(
+    process.env.ASC_AI_QUEUE_PENDING_TIMEOUT_MS || process.env.DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS,
+    DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS,
+    1000,
+    30 * 60 * 1000
   );
 }
 
@@ -194,12 +204,22 @@ function getModelQueueSettings(groupName) {
     1,
     20
   );
+  const pendingTimeoutMs = parsePositiveInteger(
+    process.env["ASC_AI_MODEL_QUEUE_" + envSegment + "_PENDING_TIMEOUT_MS"] ||
+      process.env.ASC_AI_MODEL_QUEUE_DEFAULT_PENDING_TIMEOUT_MS ||
+      process.env.ASC_AI_QUEUE_PENDING_TIMEOUT_MS ||
+      process.env.DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS,
+    DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS,
+    1000,
+    30 * 60 * 1000
+  );
   return {
     groupName: normalizedKey,
     rpm,
     intervalMs: Math.max(1, Math.ceil(60000 / rpm)),
     maxConcurrent,
     maxSize: getGlobalQueueMaxSize(),
+    pendingTimeoutMs,
     retryMax: getGroupRetryMax(normalizedKey),
     retryBaseDelayMs: getGroupRetryBaseDelayMs(normalizedKey),
     retryMaxDelayMs: getRetryMaxDelayMs(),
@@ -214,6 +234,7 @@ function getModelQueuePolicy() {
     dispatchIntervalMs: settings.intervalMs,
     defaultMaxConcurrent: settings.maxConcurrent,
     maxSize: settings.maxSize,
+    pendingTimeoutMs: settings.pendingTimeoutMs,
     retryMax: settings.retryMax,
     retryBaseDelayMs: settings.retryBaseDelayMs,
     retryMaxDelayMs: settings.retryMaxDelayMs,
@@ -238,6 +259,7 @@ function getGroupSettings(groupName) {
     intervalMs: Math.max(1, Math.ceil(60000 / rpm)),
     maxConcurrent,
     maxSize: getGlobalQueueMaxSize(),
+    pendingTimeoutMs: getGlobalPendingTimeoutMs(),
     retryMax: getGroupRetryMax(groupName),
     retryBaseDelayMs: getGroupRetryBaseDelayMs(groupName),
     retryMaxDelayMs: getRetryMaxDelayMs(),
@@ -256,6 +278,43 @@ function createQueueOverflowError(groupName, settings) {
   return error;
 }
 
+function formatDurationLabel(durationMs) {
+  const safeDurationMs = Math.max(0, Number(durationMs) || 0);
+  if (safeDurationMs >= 1000 && safeDurationMs % 1000 === 0) {
+    return String(Math.floor(safeDurationMs / 1000)) + "s";
+  }
+  if (safeDurationMs >= 1000) {
+    return (safeDurationMs / 1000).toFixed(1).replace(/\.0$/, "") + "s";
+  }
+  return String(safeDurationMs) + "ms";
+}
+
+function createQueuePendingTimeoutError(groupName, settings, item) {
+  const pendingTimeoutMs = Math.max(1, Number(settings?.pendingTimeoutMs) || DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS);
+  const error = new Error(
+    "排队超过" + formatDurationLabel(pendingTimeoutMs) + "未开始执行，任务已失败。"
+  );
+  error.code = "provider-queue-pending-timeout";
+  error.statusCode = 504;
+  error.groupName = groupName;
+  error.queue = {
+    groupName,
+    maxSize: Number(settings?.maxSize || 0) || DEFAULT_QUEUE_MAX_SIZE,
+    pendingTimeoutMs,
+  };
+  error.queueMeta = {
+    groupName,
+    queueWaitMs: Math.max(0, Date.now() - Number(item?.enqueuedAt || 0)),
+    retryCount: 0,
+    retryDelaysMs: [],
+    queuedAt: Number(item?.enqueuedAt || 0),
+    startedAt: 0,
+    activeCount: 0,
+    maxConcurrent: Number(settings?.maxConcurrent || 0) || 0,
+  };
+  return error;
+}
+
 function createBackoffDelayMs(attemptIndex, settings) {
   const baseDelayMs = Math.min(
     settings.retryMaxDelayMs,
@@ -266,8 +325,9 @@ function createBackoffDelayMs(attemptIndex, settings) {
 }
 
 class ProviderQueue {
-  constructor(groupName) {
+  constructor(groupName, options) {
     this.groupName = groupName;
+    this.options = options && typeof options === "object" ? options : {};
     this.items = [];
     this.activeCount = 0;
     this.scheduled = false;
@@ -279,12 +339,16 @@ class ProviderQueue {
       retriedCount: 0,
       overflowCount: 0,
       abortedCount: 0,
+      pendingTimeoutCount: 0,
       lastStartedAt: 0,
       lastFinishedAt: 0,
     };
   }
 
   getSettings() {
+    if (typeof this.options.getSettings === "function") {
+      return this.options.getSettings(this.groupName);
+    }
     return getGroupSettings(this.groupName);
   }
 
@@ -295,6 +359,7 @@ class ProviderQueue {
       rpm: settings.rpm,
       intervalMs: settings.intervalMs,
       maxSize: settings.maxSize,
+      pendingTimeoutMs: settings.pendingTimeoutMs,
       retryMax: settings.retryMax,
       pendingCount: this.items.length,
       activeCount: this.activeCount,
@@ -326,7 +391,25 @@ class ProviderQueue {
         signal,
         started: false,
         abortHandler: null,
+        pendingTimeoutTimer: null,
       };
+      if (settings.pendingTimeoutMs > 0) {
+        item.pendingTimeoutTimer = setTimeout(function () {
+          if (item.started) {
+            return;
+          }
+          const index = queue.items.indexOf(item);
+          if (index < 0) {
+            return;
+          }
+          queue.items.splice(index, 1);
+          queue.clearPendingItem(item);
+          queue.stats.failedCount += 1;
+          queue.stats.pendingTimeoutCount += 1;
+          reject(createQueuePendingTimeoutError(queue.groupName, settings, item));
+          queue.schedule();
+        }, Math.max(1, Number(settings.pendingTimeoutMs) || DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS));
+      }
       if (signal && typeof signal.addEventListener === "function") {
         item.abortHandler = function () {
           if (item.started) {
@@ -336,8 +419,10 @@ class ProviderQueue {
           if (index >= 0) {
             queue.items.splice(index, 1);
           }
+          queue.clearPendingItem(item);
           queue.stats.abortedCount += 1;
           reject(createQueueAbortError(signal));
+          queue.schedule();
         };
         signal.addEventListener("abort", item.abortHandler, { once: true });
       }
@@ -372,9 +457,7 @@ class ProviderQueue {
       if (!item) {
         return;
       }
-      if (item.abortHandler && item.signal && typeof item.signal.removeEventListener === "function") {
-        item.signal.removeEventListener("abort", item.abortHandler);
-      }
+      this.clearPendingItem(item);
       if (isAbortSignalAborted(item.signal)) {
         this.stats.abortedCount += 1;
         item.reject(createQueueAbortError(item.signal));
@@ -508,6 +591,20 @@ class ProviderQueue {
     }
     throw lastError;
   }
+
+  clearPendingItem(item) {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    if (item.pendingTimeoutTimer) {
+      clearTimeout(item.pendingTimeoutTimer);
+      item.pendingTimeoutTimer = null;
+    }
+    if (item.abortHandler && item.signal && typeof item.signal.removeEventListener === "function") {
+      item.signal.removeEventListener("abort", item.abortHandler);
+    }
+    item.abortHandler = null;
+  }
 }
 
 function getOrCreateQueue(groupName) {
@@ -542,5 +639,10 @@ module.exports = {
   getModelQueuePolicy,
   getQueueSnapshots,
   getGlobalQueueMaxSize,
+  getGlobalPendingTimeoutMs,
   getGlobalRetryMax,
+  __private__: {
+    ProviderQueue,
+    createQueuePendingTimeoutError,
+  },
 };
