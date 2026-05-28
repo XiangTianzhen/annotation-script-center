@@ -260,7 +260,7 @@ function createRecommendPipeline(overrides) {
       const options = runtimeOptions && typeof runtimeOptions === "object" ? runtimeOptions : {};
       const requestId = normalizeText(options.requestId);
       const startedAtMs = Number(options.startedAtMs || deps.now());
-      const timeoutMs = Math.max(1000, Number(options.timeoutMs) || 60000);
+      const timeoutMs = Math.max(1000, Number(options.timeoutMs) || 120000);
       const signal = options.signal || null;
       const queueMetas = [];
       let listenDurationMs = 0;

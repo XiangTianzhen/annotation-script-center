@@ -169,7 +169,7 @@ test("Aishell pipeline returns independent success contract for two-stage reques
 });
 
 test("Aishell pipeline maps aborted listen stage to retry-disabled error", async function () {
-  const abortError = new Error("当前任务超过60s，请重新请求。");
+  const abortError = new Error("当前任务超过120s，请重新请求。");
   abortError.code = "aborted";
   abortError.statusCode = 504;
 

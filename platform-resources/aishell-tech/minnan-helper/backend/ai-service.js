@@ -442,7 +442,7 @@ function createHealthPayload() {
     lexicon: buildLexiconState(),
     notes: {
       backendMode: "independent-aishell-pipeline",
-      timeout: "Aishell 独立同步超时墙默认小于 60s。",
+      timeout: "Aishell 独立同步超时墙当前统一为 120s。",
       cancellation: "客户端断开、服务端超时和手动取消会统一透传 AbortSignal。",
       defaultListenPromptPreview: defaults.listenPrompt,
     },

@@ -88,7 +88,7 @@ test("Aishell ai-routes writes success cache and log only after response finish"
       return createNormalizedRequest();
     },
     parseTimeoutMs: function parseTimeoutMs() {
-      return 60000;
+      return 120000;
     },
     pipeline: {
       run: async function run() {
@@ -174,7 +174,7 @@ test("Aishell ai-routes does not write success cache when response closes early"
       return createNormalizedRequest();
     },
     parseTimeoutMs: function parseTimeoutMs() {
-      return 60000;
+      return 120000;
     },
     pipeline: {
       run: async function run() {

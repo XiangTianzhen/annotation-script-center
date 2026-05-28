@@ -28,7 +28,7 @@
   - `platform-resources/backend/ai/providers/funasr.js`
 - 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 即使收到前端或旧配置的 thinking 请求，也会强制归一为 `false`。
 - 当前保持同步 HTTP 返回，不引入异步 job、SSE 或 WebSocket。
-- 默认同步总超时为 `60000ms`；环境变量可用 `AISHELL_AI_TIMEOUT_MS` 覆盖。
+- 默认同步总超时统一为 `120000ms`；环境变量可用 `AISHELL_AI_TIMEOUT_MS` 覆盖。
 - 客户端主动刷新、关闭页面或代理提前断开时，Aishell 会通过 `AbortSignal` 取消后续链路，不再把这类中断请求写成成功缓存或成功 CSV 行。
 
 ## 推荐模式

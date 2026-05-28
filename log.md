@@ -1,3 +1,17 @@
+## 2026-05-28（Aishell Tech 同步超时口径统一回 120 秒）
+
+- 根据当前项目统一规则，Aishell 不再单独维持 60 秒同步超时。
+- 更新：
+  - `platform-resources/aishell-tech/minnan-helper/backend/config.js`
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-routes.js`
+  - `platform-resources/aishell-tech/minnan-helper/backend/pipeline.js`
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.js`
+- 当前 Aishell health/defaults 与后端运行时统一回 `120000ms`。
+- 同步更新：
+  - `platform-resources/aishell-tech/README.md`
+  - `platform-resources/aishell-tech/minnan-helper/README.md`
+  - `platform-resources/aishell-tech/minnan-helper/backend/README.md`
+
 ## 2026-05-28（全项目固定关闭 thinking，并拆出 Aishell 独立 DashScope Omni 客户端）
 
 - 统一关闭全仓库 AI thinking：

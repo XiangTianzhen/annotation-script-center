@@ -81,7 +81,7 @@
 - 底层只复用公共 provider HTTP 工具，不再复用 DataBaker recommend orchestration。
 - 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
-- v1 不引入异步 job、SSE 或 WebSocket，仍按同步 HTTP 返回推荐结果；默认同步总超时为 `60000ms`。
+- v1 不引入异步 job、SSE 或 WebSocket，仍按同步 HTTP 返回推荐结果；当前同步总超时统一为 `120000ms`。
 - 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 不再开放 thinking 作为有效配置项。
 - 成功响应固定为 `success + data + meta`，失败响应固定为 `success=false + error + meta`。
 
