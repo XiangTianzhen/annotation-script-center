@@ -6,13 +6,13 @@
   "filename": "annotation-script-center-v0.3.7.crx",
   "download_url": "https://script.xiangtianzhen.store/downloads/annotation-script-center-v0.3.7.crx",
   "update_xml_url": "https://script.xiangtianzhen.store/downloads/annotation-script-center-update.xml",
-  "sha256": "58d86598b7f7a29b0ca0fa15c6659cd9c0af2f0c1a5e9c89c8fe7d15a5452e33",
-  "size_bytes": 561913,
+  "sha256": "094751482324f10d7309600bc11fc3b3b80456a0fd2383323ad90a73db064d47",
+  "size_bytes": 570420,
   "zip_filename": "annotation-script-center-v0.3.7.zip",
   "zip_download_url": "https://script.xiangtianzhen.store/downloads/annotation-script-center-v0.3.7.zip",
-  "zip_sha256": "61923d7b8f0d18870de221e7b5d8e26bf87c227059fbea274fd3bfa6d2641d7f",
-  "zip_size_bytes": 552359,
-  "created_at": "2026-05-28T07:46:31.598Z",
+  "zip_sha256": "c133de6ce06a996ef09c05d3fe66e899bdc0989de6bc39fe16b3f16471a29671",
+  "zip_size_bytes": 560737,
+  "created_at": "2026-05-28T09:51:40.000Z",
   "min_agent_version": "0.1.0",
   "release_notes": "CRX enterprise release"
 }
