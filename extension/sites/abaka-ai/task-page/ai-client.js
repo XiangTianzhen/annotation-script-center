@@ -6,6 +6,39 @@
   const DEFAULT_OCR_MODEL = "";
   const DEFAULT_REASONING_MODEL = "qwen3.6-plus";
   const DEFAULT_SINGLE_MODEL = "qwen3.6-plus";
+  const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
+  const buildAiUsageRequestMeta =
+    typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
+      ? aiUsageMeta.buildAiUsageRequestMeta
+      : function (input) {
+          const source = input && typeof input === "object" ? input : {};
+          return {
+            aiUsageOperatorName: String(source.settings?.meta?.aiUsageOperatorName || "").replace(/\s+/g, " ").trim().slice(0, 40),
+            platformUserName: String(source.platformUserName || "").replace(/\s+/g, " ").trim().slice(0, 80),
+            platformUserId: String(source.platformUserId || "").replace(/\s+/g, " ").trim().slice(0, 120),
+          };
+        };
+  const appendAiUsageRequestMeta =
+    typeof aiUsageMeta.appendAiUsageRequestMeta === "function"
+      ? aiUsageMeta.appendAiUsageRequestMeta
+      : function (payload, requestMeta) {
+          return Object.assign({}, payload || {}, {
+            aiUsageOperatorName: String(requestMeta?.aiUsageOperatorName || "").replace(/\s+/g, " ").trim().slice(0, 40),
+            platformUserName: String(requestMeta?.platformUserName || "").replace(/\s+/g, " ").trim().slice(0, 80),
+            platformUserId: String(requestMeta?.platformUserId || "").replace(/\s+/g, " ").trim().slice(0, 120),
+          });
+        };
+  const assertAiUsageOperatorConfigured =
+    typeof aiUsageMeta.assertAiUsageOperatorConfigured === "function"
+      ? aiUsageMeta.assertAiUsageOperatorConfigured
+      : function (requestMeta) {
+          if (!String(requestMeta?.aiUsageOperatorName || "").replace(/\s+/g, " ").trim()) {
+            const error = new Error("请先在 options 首页填写 AI 调用使用人。");
+            error.code = "missing-ai-usage-operator-name";
+            throw error;
+          }
+          return requestMeta;
+        };
 
   function sanitizeText(value, maxLength) {
     return String(value || "")
@@ -187,10 +220,17 @@
     const analyzeOptions = buildAnalyzeOptionsPayload(taskConfig, timeoutMs);
     const endpoint = buildEndpoint(config.settings || null);
     const controller = createTimeoutController(timeoutMs);
-    const requestPayload = Object.assign({}, payload || {}, {
+    const requestMeta = assertAiUsageOperatorConfigured(
+      buildAiUsageRequestMeta({
+        settings: config.settings || {},
+        platformUserName: payload?.platformUserName || "",
+        platformUserId: payload?.platformUserId || "",
+      })
+    );
+    const requestPayload = appendAiUsageRequestMeta(Object.assign({}, payload || {}, {
       options: Object.assign({}, analyzeOptions),
       debugConfig: Object.assign({}, analyzeOptions),
-    });
+    }), requestMeta);
 
     try {
       const response = await fetch(endpoint, {

@@ -90,6 +90,10 @@
   - 启用思考（默认关闭）
   - 请求超时（默认 `120000ms`）
   - 前端不保存 API Key
+- AI 调用元数据：
+  - 每次 AI 请求默认附带 `aiUsageOperatorName`
+  - `aiUsageOperatorName` 取自 options 首页全局字段“AI 调用使用人”，未填写时直接阻止请求
+  - 当前 Task21 运行时代码还没有稳定的平台当前用户来源，`platformUserName/platformUserId` 暂时按空字符串发送
 - 填写行为边界：
 - AI 仍然只作辅助；仅在用户点击“填写 AI 答案”时才写入字段，不自动保存、不自动提交、不自动送审
   - 仅在用户点击 `填写 AI 答案` 时，才会写入 radio / 输入框
