@@ -1,3 +1,13 @@
+## 2026-05-28（Aishell Tech recommend 路由修复 request.close 误判断连）
+
+- 修复 `platform-resources/aishell-tech/minnan-helper/backend/ai-routes.js`：
+  - 生命周期取消监听不再把 `request.close` 当成客户端断开。
+  - 只保留 `request.aborted` 和 `response.close` 作为真实断连信号。
+- 背景：
+  - `request.close` 在请求体正常读完后也可能触发，会把仍在执行中的 recommend 请求误判为已断开。
+  - 误判后后端可能直接放弃返回 JSON，前端就会只看到 `TypeError: Failed to fetch`，即使 `health` 仍然可达。
+- 新增测试 `Aishell ai-routes should not treat request close after body end as client disconnect`，覆盖“请求体正常结束后触发 close，路由仍应继续返回成功响应”。
+
 ## 2026-05-28（Aishell Tech 同步超时口径统一回 120 秒）
 
 - 根据当前项目统一规则，Aishell 不再单独维持 60 秒同步超时。

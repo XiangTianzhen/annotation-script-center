@@ -19,6 +19,14 @@ function createFakeRequest(body) {
   return request;
 }
 
+function createFakeRequestWithCloseAfterEnd(body) {
+  const request = createFakeRequest(body);
+  setImmediate(function emitClose() {
+    request.emit("close");
+  });
+  return request;
+}
+
 function createFakeResponse() {
   const response = new EventEmitter();
   response.destroyed = false;
@@ -221,4 +229,87 @@ test("Aishell ai-routes does not write success cache when response closes early"
   assert.equal(Boolean(logs[0].result), false);
   assert.equal(logs[0].error.code, "client-disconnected");
   assert.equal(logs[0].error.stage, "post_process");
+});
+
+test("Aishell ai-routes should not treat request close after body end as client disconnect", async function () {
+  const logs = [];
+  const runtime = createRecommendRouteRuntime({
+    appendAishellAiCallLogSafe: function appendAishellAiCallLogSafe(entry) {
+      logs.push(entry);
+      return entry;
+    },
+    buildRecommendCacheKey: function buildRecommendCacheKey() {
+      return "cache-key-3";
+    },
+    buildRecommendErrorBody: function buildRecommendErrorBody(payload) {
+      return {
+        success: false,
+        error: {
+          code: payload.error.code,
+        },
+        meta: payload.error.meta || {},
+      };
+    },
+    buildRecommendSuccessBody: function buildRecommendSuccessBody(result) {
+      return {
+        success: true,
+        data: result.data,
+        meta: result.meta,
+      };
+    },
+    createRequestId: function createRequestId() {
+      return "server-request-3";
+    },
+    getCachedRecommendResult: function getCachedRecommendResult() {
+      return null;
+    },
+    normalizeRecommendRequest: function normalizeRecommendRequest() {
+      return createNormalizedRequest();
+    },
+    parseTimeoutMs: function parseTimeoutMs() {
+      return 120000;
+    },
+    pipeline: {
+      run: async function run() {
+        await new Promise(function (resolve) {
+          setTimeout(resolve, 5);
+        });
+        return {
+          data: {
+            taskItemId: "item-1",
+            recommendedText: "推荐文本",
+          },
+          meta: {
+            requestId: "client-request-3",
+            stage: "complete",
+            cache: {
+              hit: false,
+              sourceRequestId: "",
+            },
+          },
+        };
+      },
+    },
+    sendJson: function sendJson(response, statusCode, body) {
+      response.writeHead(statusCode, {
+        "Content-Type": "application/json; charset=utf-8",
+      });
+      response.end(JSON.stringify(body));
+      response.writableEnded = true;
+      response.writableFinished = true;
+      response.emit("finish");
+    },
+    setCachedRecommendResult: function setCachedRecommendResult() {},
+  });
+
+  const request = createFakeRequestWithCloseAfterEnd({
+    requestId: "client-request-3",
+  });
+  const response = createFakeResponse();
+  await runtime.handleRecommend({ request, response });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(logs.length, 1);
+  assert.equal(Boolean(logs[0].result), true);
+  assert.equal(Boolean(logs[0].error), false);
 });

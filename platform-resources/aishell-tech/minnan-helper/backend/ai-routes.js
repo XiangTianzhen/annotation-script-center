@@ -128,7 +128,6 @@ function createLifecycleController(request, response, timeoutMs, requestId, crea
   };
 
   request.on("aborted", onRequestClosed);
-  request.on("close", onRequestClosed);
   response.on("close", onRequestClosed);
 
   return {
@@ -137,7 +136,6 @@ function createLifecycleController(request, response, timeoutMs, requestId, crea
       completed = true;
       clearTimeout(timer);
       request.off("aborted", onRequestClosed);
-      request.off("close", onRequestClosed);
       response.off("close", onRequestClosed);
     },
   };
