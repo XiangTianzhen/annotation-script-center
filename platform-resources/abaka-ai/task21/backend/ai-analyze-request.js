@@ -164,14 +164,7 @@ function resolveRuntimeOptions(requestBody, config) {
         : typeof debugConfig.ocrEnabled === "boolean"
           ? debugConfig.ocrEnabled
           : safeConfig.ocrEnabled === true;
-  const enableThinkingValue =
-    typeof source.enableThinking === "boolean"
-      ? source.enableThinking
-      : typeof options.enableThinking === "boolean"
-        ? options.enableThinking
-        : typeof debugConfig.enableThinking === "boolean"
-          ? debugConfig.enableThinking
-          : false;
+  const enableThinkingValue = false;
   const timeoutMs = normalizeTimeoutMs(
     source.timeoutMs || options.timeoutMs || debugConfig.timeoutMs,
     safeConfig.timeoutMs || 120000
@@ -214,14 +207,7 @@ function resolveRuntimeOptions(requestBody, config) {
     safeConfig.allowedSingleModels
   );
 
-  let thinkingSource = "server-default";
-  if (
-    typeof source.enableThinking === "boolean" ||
-    typeof options.enableThinking === "boolean" ||
-    typeof debugConfig.enableThinking === "boolean"
-  ) {
-    thinkingSource = enableThinkingValue === true ? "options-enabled" : "options-default";
-  }
+  const thinkingSource = "forced-off";
 
   return {
     analysisMode,

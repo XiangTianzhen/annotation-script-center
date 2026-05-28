@@ -380,6 +380,27 @@
     return document.getElementById(id);
   }
 
+  function applyForcedThinkingToggle(inputId, message) {
+    const input = getElement(inputId);
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+
+    const normalizedMessage =
+      typeof message === "string" && message.trim()
+        ? message.trim()
+        : "thinking 已全局固定关闭，以避免 Omni 思考模式拖慢请求。";
+    input.checked = false;
+    input.disabled = true;
+    input.title = normalizedMessage;
+    input.setAttribute("aria-disabled", "true");
+
+    const labelTextNode = input.parentElement?.querySelector("span");
+    if (labelTextNode) {
+      labelTextNode.textContent = normalizedMessage;
+    }
+  }
+
   function openScriptDownloadCenter() {
     if (globalThis.chrome?.tabs && typeof globalThis.chrome.tabs.create === "function") {
       globalThis.chrome.tabs.create({ url: scriptDownloadCenterUrl });
@@ -2318,7 +2339,7 @@
       frequency_penalty: true,
       seed: true,
       stop: true,
-      enable_thinking: true,
+      enable_thinking: false,
       web_search: scriptId === judgementProjectId,
       reasoning_effort: false,
       response_format: false,
@@ -2347,8 +2368,10 @@
         ? source.supportedParams
         : {};
     return {
-      defaults: Object.assign({}, fallback.defaults, defaults),
-      supportedParams: Object.assign({}, fallback.supportedParams, supportedParams),
+      defaults: Object.assign({}, fallback.defaults, defaults, { enableThinking: false }),
+      supportedParams: Object.assign({}, fallback.supportedParams, supportedParams, {
+        enable_thinking: false,
+      }),
       loadedFromBackend: source.success === true,
       error: "",
     };
@@ -2438,7 +2461,7 @@
     }
     if (scriptId === magicDataAnnotatorScriptId) {
       node.textContent =
-        "已读取后端默认配置。客家话50条评测建议默认：双模型 + 直接识别客家话 + qwen3.5-omni-flash + qwen3.5-flash（thinking 默认关闭）。";
+        "已读取后端默认配置。客家话50条评测建议默认：双模型 + 直接识别客家话 + qwen3.5-omni-flash + qwen3.5-flash（thinking 当前已全局固定关闭）。";
       return;
     }
     node.textContent = "已读取后端默认配置；未单独覆盖的字段将沿用后端默认。";
@@ -3300,7 +3323,7 @@
         '<label class="asr-ai-field"><span>听音模型自定义</span><input id="' + prefix + '-listen-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field"><span>比较模型自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="180000" step="1000" /></label>',
-        '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时后端自动降级）</span></label></label>',
+        '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免 Omni 思考模式拖慢请求。</span></label></label>',
         scriptId === judgementProjectId
           ? '<label class="asr-ai-field"><span>联网搜索</span><label class="asr-ai-boolean"><input id="' + prefix + '-web-search-enabled" type="checkbox" /><span>启用 Web Search 联网搜索（专有名词/实体词消歧）</span></label></label>'
           : "",
@@ -3401,7 +3424,7 @@
         '<label class="asr-ai-field hidden" id="' + prefix + '-listen-model-custom-field"><span id="' + prefix + '-listen-model-custom-label">听音模型自定义</span><input id="' + prefix + '-listen-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field hidden" id="' + prefix + '-compare-model-custom-field"><span id="' + prefix + '-compare-model-custom-label">' + modelLabel + '自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
-        '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>启用 thinking（不支持时后端自动降级）</span></label></label>',
+        '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免 Omni 思考模式拖慢请求。</span></label></label>',
         isMagicDataScript(scriptId)
           ? '<label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-show-heard-text" type="checkbox" /><span>显示 AI 听音文本</span></label></label>'
           : "",
@@ -4656,10 +4679,9 @@
       getElement("magic-data-ai-timeout").value = String(
         Number(config.aiReviewRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
       );
-      getElement("magic-data-ai-enable-thinking").checked = Boolean(
-        (isMinnanScript ? config.aiReviewEnableThinking : config.enableThinking) === true ||
-          ((isMinnanScript ? config.aiReviewEnableThinking : config.enableThinking) !== true &&
-            aiDefaults.enableThinking === true)
+      applyForcedThinkingToggle(
+        "magic-data-ai-enable-thinking",
+        "thinking 已全局固定关闭；Magic Data 不再允许开启 Omni 思考模式。"
       );
       getElement("magic-data-ai-listen-prompt").value = String(
         getAsrVoiceAiEffectiveText(config.aiReviewListenPrompt, aiDefaults.listenPrompt)
@@ -4786,11 +4808,7 @@
     const showEstimatedIncome = hasAiSettingsPanel
       ? getElement("magic-data-show-estimated-income").checked
       : currentConfig.showEstimatedIncome !== false;
-    const enableThinking = hasAiSettingsPanel
-      ? getElement("magic-data-ai-enable-thinking").checked === true
-      : (isMinnanScript
-          ? currentConfig.aiReviewEnableThinking === true
-          : currentConfig.enableThinking === true);
+    const enableThinking = false;
     const normalizeOverridePrompt = function (value, defaultValue) {
       const normalizedValue = normalizePromptText(value || "");
       const normalizedDefault = normalizePromptText(defaultValue || "");
@@ -5204,8 +5222,12 @@
     }
     const enableThinkingNode = getElement("abaka-ai-enable-thinking");
     if (enableThinkingNode instanceof HTMLInputElement) {
-      enableThinkingNode.checked = config.aiEnableThinking === true;
+      enableThinkingNode.checked = false;
     }
+    applyForcedThinkingToggle(
+      "abaka-ai-enable-thinking",
+      "thinking 已全局固定关闭；Task21 不再允许开启思考模式。"
+    );
     const timeoutNode = getElement("abaka-ai-timeout");
     if (timeoutNode instanceof HTMLInputElement) {
       timeoutNode.value = String(config.aiRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS);
@@ -5286,10 +5308,7 @@
           "qwen3.6-plus",
           abakaAiTask21SingleModelOptions
         );
-    const aiEnableThinkingNode = getElement("abaka-ai-enable-thinking");
-    const aiEnableThinking = advancedUnlocked && aiEnableThinkingNode instanceof HTMLInputElement
-      ? aiEnableThinkingNode.checked === true
-      : currentConfig.aiEnableThinking === true;
+    const aiEnableThinking = false;
     const aiTimeoutNode = getElement("abaka-ai-timeout");
     const aiRequestTimeoutMs = advancedUnlocked && aiTimeoutNode instanceof HTMLInputElement
       ? normalizeAbakaAiTimeout(aiTimeoutNode.value, currentConfig.aiRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
@@ -5362,9 +5381,9 @@
       getElement("judgement-ai-suggestion-timeout").value = String(
         Number(config.aiSuggestionRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
       );
-      getElement("judgement-ai-suggestion-enable-thinking").checked = Boolean(
-        config.aiSuggestionEnableThinking === true ||
-          (config.aiSuggestionEnableThinking !== true && aiDefaults.enableThinking === true)
+      applyForcedThinkingToggle(
+        "judgement-ai-suggestion-enable-thinking",
+        "thinking 已全局固定关闭；快判链路统一禁止开启思考模式。"
       );
       const webSearchEnabledNode = getElement("judgement-ai-suggestion-web-search-enabled");
       if (webSearchEnabledNode instanceof HTMLInputElement) {
@@ -5579,11 +5598,10 @@
       );
     }
     if (getElement("transcription-ai-suggestion-enable-thinking")) {
-      getElement("transcription-ai-suggestion-enable-thinking").checked =
-        Boolean(
-          aiConfig.aiSuggestionEnableThinking === true ||
-            (aiConfig.aiSuggestionEnableThinking !== true && aiDefaults.enableThinking === true)
-        );
+      applyForcedThinkingToggle(
+        "transcription-ai-suggestion-enable-thinking",
+        "thinking 已全局固定关闭；转写链路统一禁止开启思考模式。"
+      );
     }
     if (getElement("transcription-ai-suggestion-listen-model-select")) {
       applyJudgementModelField(
@@ -5849,8 +5867,7 @@
             return value && value !== defaultValue ? value : "";
           })()
         : "";
-      patch.aiSuggestionEnableThinking =
-        getElement("transcription-ai-suggestion-enable-thinking").checked === true;
+      patch.aiSuggestionEnableThinking = false;
       patch.aiSuggestionModel = patch.aiSuggestionCompareModel;
       patch.aiSuggestionListenModel =
         patch.aiSuggestionListenModel === String(aiDefaults.listenModel || "").trim()
@@ -6501,9 +6518,9 @@
         Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
       );
       applyDataBakerRecognitionModeFields(config.aiRecommendPipelineMode, config, aiDefaults);
-      getElement("data-baker-ai-enable-thinking").checked = Boolean(
-        config.aiRecommendEnableThinking === true ||
-          (config.aiRecommendEnableThinking !== true && aiDefaults.enableThinking === true)
+      applyForcedThinkingToggle(
+        "data-baker-ai-enable-thinking",
+        "thinking 已全局固定关闭；DataBaker 不再允许开启 Omni 思考模式。"
       );
       getElement("data-baker-ai-listen-prompt").value = String(
         getAsrVoiceAiEffectiveText(config.aiRecommendListenPrompt, aiDefaults.listenPrompt)
@@ -6580,9 +6597,9 @@
         Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
       );
       applyAishellTechRecognitionModeFields(config.aiRecommendPipelineMode, config, aiDefaults);
-      getElement("aishell-tech-ai-enable-thinking").checked = Boolean(
-        config.aiRecommendEnableThinking === true ||
-          (config.aiRecommendEnableThinking !== true && aiDefaults.enableThinking === true)
+      applyForcedThinkingToggle(
+        "aishell-tech-ai-enable-thinking",
+        "thinking 已全局固定关闭；Aishell Tech 不再允许开启 Omni 思考模式。"
       );
       const promptProfile = getAishellTechPromptProfile(
         aiDefaults,
@@ -6788,9 +6805,7 @@
           return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
         })()
       : currentConfig.aiRecommendStopSequences;
-    const enableThinking = hasAiSettingsPanel
-      ? getElement("data-baker-ai-enable-thinking").checked === true
-      : currentConfig.aiRecommendEnableThinking === true;
+    const enableThinking = false;
     const shortcuts = {};
 
     ensureDataBakerShortcutDraft();
@@ -7022,9 +7037,7 @@
           return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
         })()
       : currentConfig.aiRecommendStopSequences;
-    const enableThinking = hasAiSettingsPanel
-      ? getElement("aishell-tech-ai-enable-thinking").checked === true
-      : currentConfig.aiRecommendEnableThinking === true;
+    const enableThinking = false;
     const shortcuts = {};
 
     ensureAishellTechShortcutDraft();
@@ -7244,9 +7257,7 @@
           judgementAiCompareModels
         )
       : currentConfig.aiSuggestionCompareModel;
-    const aiSuggestionEnableThinking = hasAiSettingsPanel
-      ? getElement("judgement-ai-suggestion-enable-thinking").checked === true
-      : currentConfig.aiSuggestionEnableThinking === true;
+    const aiSuggestionEnableThinking = false;
     const webSearchEnabledNode = getElement("judgement-ai-suggestion-web-search-enabled");
     const aiSuggestionWebSearchEnabled =
       hasAiSettingsPanel &&

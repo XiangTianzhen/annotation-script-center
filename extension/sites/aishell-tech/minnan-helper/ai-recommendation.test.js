@@ -205,3 +205,60 @@ test("Aishell ai-recommendation probes health when server-mode recommend fetch f
     }
   );
 });
+
+test("Aishell ai-recommendation always sends enableThinking false", async function () {
+  const requests = [];
+  const runtime = createRuntime({
+    endpoint: "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
+    settings: {
+      meta: {
+        aiUsageOperatorName: "张三",
+        backendEndpointMode: "server",
+      },
+    },
+    modelMode: "two_stage",
+    recognitionStrategy: "mandarin_to_dialect",
+    listenModel: "qwen3.5-omni-flash",
+    compareModel: "qwen3.5-plus",
+    singleModel: "qwen3.5-omni-flash",
+    enableThinking: true,
+    fetchImpl: async function fetchImpl(_url, init) {
+      requests.push(JSON.parse(String(init?.body || "{}")));
+      return createFetchOk({
+        success: true,
+        data: {
+          recommendedText: "阮爱你。",
+        },
+        meta: {
+          requestId: "request-2",
+          stage: "complete",
+          models: {},
+          timing: {},
+          usage: {},
+          queue: {
+            totalQueueWaitMs: 0,
+            groups: [],
+          },
+          cache: {
+            hit: false,
+          },
+          debugId: "",
+          retryCount: 0,
+          cancelled: false,
+        },
+      }).apply(null, arguments);
+    },
+  });
+
+  await runtime.recommend({
+    taskId: "task-2",
+    packageId: "package-2",
+    taskItemId: "item-2",
+    fileName: "clip-2.wav",
+    audioUrl: "https://example.com/audio-2.wav",
+    referenceText: "我爱你。",
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].enableThinking, false);
+});

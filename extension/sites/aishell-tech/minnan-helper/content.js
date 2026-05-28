@@ -99,9 +99,7 @@
     if (config.aiRecommendSingleModel) {
       options.singleModel = config.aiRecommendSingleModel;
     }
-    if (config.aiRecommendEnableThinking === true) {
-      options.enableThinking = true;
-    }
+    options.enableThinking = false;
     const temperature = normalizeOptionalNumber(config.aiRecommendTemperature, 0, 2);
     if (temperature !== "") {
       options.temperature = temperature;
@@ -271,7 +269,7 @@
       listenModel: config.aiRecommendListenModel,
       compareModel: config.aiRecommendCompareModel,
       singleModel: config.aiRecommendSingleModel,
-      enableThinking: config.aiRecommendEnableThinking === true,
+      enableThinking: false,
       aiOptions: buildAiOptions(config),
     });
 

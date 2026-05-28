@@ -1078,8 +1078,7 @@
     normalizedStatsConfig.aiSuggestionStopSequences = normalizeJudgementAiStopSequences(
       normalizedStatsConfig.aiSuggestionStopSequences
     );
-    normalizedStatsConfig.aiSuggestionEnableThinking =
-      normalizedStatsConfig.aiSuggestionEnableThinking === true;
+    normalizedStatsConfig.aiSuggestionEnableThinking = false;
     normalizedStatsConfig.aiSuggestionWebSearchEnabled =
       normalizedStatsConfig.aiSuggestionWebSearchEnabled !== false;
     // legacy compatibility: keep single model field aligned with compare model.
@@ -1708,7 +1707,7 @@
       defaultConfig.aiRecommendCompareModel || "qwen3.5-plus",
       constants
     );
-    result.aiRecommendEnableThinking = result.aiRecommendEnableThinking === true;
+    result.aiRecommendEnableThinking = false;
     result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);
     result.aiRecommendComparePrompt = normalizeJudgementAiPrompt(result.aiRecommendComparePrompt);
     result.aiRecommendTemperature = normalizeJudgementAiOptionalNumberText(
@@ -1838,7 +1837,7 @@
       defaultConfig.aiRecommendCompareModel || "qwen3.5-plus",
       constants
     );
-    result.aiRecommendEnableThinking = result.aiRecommendEnableThinking === true;
+    result.aiRecommendEnableThinking = false;
     result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);
     result.aiRecommendComparePrompt = normalizeJudgementAiPrompt(result.aiRecommendComparePrompt);
     result.aiRecommendTemperature = normalizeJudgementAiOptionalNumberText(
@@ -2411,6 +2410,18 @@
         pipelineMode: minnanModeAndStrategy.legacyRecognitionMode,
       }
     );
+    settings.platforms.magicData.scripts.hakkaHelper.aiReviewEnableThinking = false;
+    settings.platforms.magicData.scripts.hakkaHelper.enableThinking = false;
+    settings.platforms.magicData.scripts.minnanHelper.aiReviewEnableThinking = false;
+    settings.platforms.magicData.scripts.minnanHelper.enableThinking = false;
+    if (isPlainObject(settings.scriptCenter?.projects?.magicDataAnnotator)) {
+      settings.scriptCenter.projects.magicDataAnnotator.aiReviewEnableThinking = false;
+      settings.scriptCenter.projects.magicDataAnnotator.enableThinking = false;
+    }
+    if (isPlainObject(settings.scriptCenter?.projects?.magicDataMinnanAssistant)) {
+      settings.scriptCenter.projects.magicDataMinnanAssistant.aiReviewEnableThinking = false;
+      settings.scriptCenter.projects.magicDataMinnanAssistant.enableThinking = false;
+    }
     normalizeMagicDataExclusiveScripts(settings);
 
     return settings.platforms.magicData;
@@ -2509,7 +2520,7 @@
           defaultScript.aiSingleModel || "qwen3.6-plus",
           constants.ABAKA_AI_TASK21_SINGLE_MODEL_OPTIONS || []
         ),
-      aiEnableThinking: currentScript.aiEnableThinking === true,
+      aiEnableThinking: false,
       aiRequestTimeoutMs: normalizeAbakaAiRequestTimeout(
         currentScript.aiRequestTimeoutMs,
         defaultScript.aiRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS

@@ -86,7 +86,7 @@ sites/
   - 下载示例：`/api/alibaba-labelx/asr-judgement/statistics/download`
 - 统计上传能力默认强制启用；若脚本实现了定时上传能力，则定时上传也按脚本规则强制启用，不在脚本详情页提供关闭开关。
 - `data-baker/round-one-quality/`：闽南语助手 AI 推荐文本（`roundOneCollect`）+ 任务组总表导出（`group/detail`）；导出会本地下载并自动上传到统一后端，后端可下载最新 CSV。
-- `magic-data/hakka-helper/`：Magic Data `#/asrmark` 客家话助手；结果区固定挂载在“句子列表”下方，支持模型/思考开关/快捷键配置，保持人工确认与手动保存提交。
+- `magic-data/hakka-helper/`：Magic Data `#/asrmark` 客家话助手；结果区固定挂载在“句子列表”下方，支持模型/快捷键配置，thinking 已全局固定关闭，保持人工确认与手动保存提交。
 - `magic-data/minnan-helper/`：Magic Data `#/asrmark` 闽南语助手；与客家话助手互斥启停（同平台同一时刻仅一个助手生效），并保持独立面板与独立快捷键配置，AI 配置拆分为“模型方案（`two_stage/omni_single`）+ 识别策略（`direct_dialect/mandarin_to_dialect`）”，支持 `fun-asr` 与 Qwen Omni。
 - `abaka-ai/task-page/`：Abaka AI Task21助手；快捷键仅点击页面真实 DOM 选项/按钮（默认 `1~7`），`same_font=true` 与 `same underlying font+artistic effect` 默认联动两个 `specify`；AI 默认不自动写入，只有用户点击“填写 AI 答案”后才写入字段，不自动保存、不自动提交、不自动送审。
 - 后端地址配置统一入口：options 首页顶部“后端接口地址”（`server` / `local`）。各脚本详情页不再提供独立后端地址、上传地址或 AI 接口地址配置。
@@ -95,7 +95,7 @@ sites/
 - “ASR 语音 AI 设置”在解锁后会按当前脚本调用后端 `defaults` 接口，展示默认模型、Prompt 与默认参数；如果读取失败则回退本地默认值。
 - 前端仅保存脚本级 override：字段清空或恢复为默认时不再固化默认值；运行时仅透传 override，后端负责“默认值 + 白名单参数”合并。
 - `response_format` 不对前端开放；结构化输出格式由后端固定控制。
-- thinking 开关语义统一：关闭会显式传 `enable_thinking=false`，开启会显式传 `enable_thinking=true`；仅当模型/接口不支持该参数时，后端移除参数重试一次（不做无限重试）。
+- thinking 当前在全仓库统一固定关闭：前端不再开放有效开关，后端统一显式传 `enable_thinking=false`。
 - 阿里 LabelX 快判与转写的音频基础能力统一复用 `extension/sites/alibaba-labelx/shared/audio-controller-core.js`：默认倍速、默认音量、倍速步进、前进/后退步长、切题停旧播新与自动播放逻辑共用；脚本配置独立保存（快判默认 `2x`，转写默认 `1.5x`）。
 - 阿里 LabelX 快判与转写的提交类快捷键动作统一复用 `extension/sites/alibaba-labelx/shared/submit-actions.js`。
 - 快判与转写都支持“提交任务 / 提交任务并结束”快捷键；顶部工具栏不显示提交按钮。

@@ -2,8 +2,10 @@
 
 const {
   requestCompare,
-  requestOmniInputAudio,
 } = require("../../../backend/ai/providers/qwen-openai-compatible");
+const {
+  requestOmniInputAudio,
+} = require("./dashscope-omni-client");
 const {
   requestFunAsrRecognition,
 } = require("../../../backend/ai/providers/funasr");
@@ -334,7 +336,7 @@ function createRecommendPipeline(overrides) {
           return deps.requestOmniInputAudio(providerInput, prompt, {
             model: activeSingleModel,
             timeoutMs: getRemainingTimeoutMs(startedAtMs, timeoutMs),
-            enableThinking: request.enableThinking === true,
+            enableThinking: false,
             signal,
           });
         });
@@ -451,7 +453,7 @@ function createRecommendPipeline(overrides) {
           return deps.requestOmniInputAudio(providerInput, listenPrompt, {
             model: activeListenModel,
             timeoutMs: getRemainingTimeoutMs(startedAtMs, timeoutMs),
-            enableThinking: request.enableThinking === true,
+            enableThinking: false,
             signal,
           });
         });
@@ -483,7 +485,7 @@ function createRecommendPipeline(overrides) {
         return deps.requestCompare(providerInput, comparePrompt, heardText, {
           model: activeCompareModel,
           timeoutMs: getRemainingTimeoutMs(startedAtMs, timeoutMs),
-          enableThinking: request.enableThinking === true,
+          enableThinking: false,
           signal,
         });
       });

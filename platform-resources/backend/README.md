@@ -37,13 +37,15 @@ http://127.0.0.1:3333
 
 可用环境变量：
 
+- 2026-05-28 起，仓库内所有 `*_ENABLE_THINKING` 变量只保留历史兼容读取；实际请求统一固定 `enable_thinking=false`，不再通过前端配置或环境变量开启 thinking。
+
 - `PLATFORM_RESOURCES_SERVER_HOST`：统一后端监听地址，默认 `127.0.0.1`。
 - `PLATFORM_RESOURCES_SERVER_PORT`：统一后端监听端口，默认 `3333`。
 - `ASR_JUDGEMENT_SERVER_HOST` / `ASR_JUDGEMENT_SERVER_PORT`：兼容旧快判本地服务启动配置。
 - `ASR_JUDGEMENT_AI_LISTEN_MODEL`：快判 AI 听音模型，默认 `qwen3.5-omni-flash`。
 - `ASR_JUDGEMENT_AI_COMPARE_MODEL`：快判 AI 文本比较模型，默认 `qwen3.5-plus`。
 - `ASR_JUDGEMENT_AI_TIMEOUT_MS`：快判 AI 请求超时，默认 `120000`。
-- `ASR_JUDGEMENT_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
+- `ASR_JUDGEMENT_AI_ENABLE_THINKING`：历史兼容变量；当前快判链路统一固定 `enable_thinking=false`。
 - `ASR_JUDGEMENT_AI_WEB_SEARCH_ENABLED`：默认 `1`；快判 compare 阶段默认显式启用 Web Search。
 - `ASR_JUDGEMENT_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASR_JUDGEMENT_AI_MODEL`：历史兼容 compare model fallback（建议迁移到 `ASR_JUDGEMENT_AI_COMPARE_MODEL`）。
@@ -91,7 +93,7 @@ http://127.0.0.1:3333
 - `MAGIC_DATA_AI_COMPARE_MODEL`：Magic Data 质检模型，默认 `qwen3.5-plus`。
 - `MAGIC_DATA_AI_TIMEOUT_MS`：Magic Data AI 请求超时，默认 `120000`。
 - `MAGIC_DATA_AI_MOCK`：设为 `1` 时启用 mock 调试模式。
-- `MAGIC_DATA_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
+- `MAGIC_DATA_AI_ENABLE_THINKING`：历史兼容变量；当前 Magic Data 客家话助手统一固定 `enable_thinking=false`。
 - `MAGIC_DATA_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `MAGIC_DATA_MINNAN_AI_PIPELINE_MODE`：闽南语助手识别模式默认值，`two_stage | omni_single`。
 - `MAGIC_DATA_MINNAN_AI_LISTEN_MODEL`：闽南语助手 `two_stage` 听音模型默认值（支持 `fun-asr` 或 Qwen Omni）。
@@ -103,7 +105,7 @@ http://127.0.0.1:3333
 - `MAGIC_DATA_MINNAN_AI_FUN_ASR_REST_BASE_URL`：可选，覆盖 Fun-ASR REST API base。
 - `MAGIC_DATA_MINNAN_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
 - `MAGIC_DATA_MINNAN_AI_TIMEOUT_MS`：闽南语助手 AI 请求超时，默认 `120000`。
-- `MAGIC_DATA_MINNAN_AI_ENABLE_THINKING`：闽南语助手 thinking 默认值，默认 `0`。
+- `MAGIC_DATA_MINNAN_AI_ENABLE_THINKING`：历史兼容变量；当前 Magic Data 闽南语助手统一固定 `enable_thinking=false`。
 - `MAGIC_DATA_MINNAN_AI_MOCK`：设为 `1` 时启用闽南语助手 mock 调试模式。
 - `MAGIC_DATA_MINNAN_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `MAGIC_DATA_MINNAN_AI_LEXICON_REWRITE_MODE`：闽南语词表改写策略，默认 `off`。
@@ -124,8 +126,8 @@ http://127.0.0.1:3333
 - Abaka AI 模型名以官方文档与截图口径为准，旧名 `qwen-vl-max-latest`、`qwen-vl-ocr-latest`、`qvq-plus-latest` 不再作为默认或候选。
 - `ABAKA_TASK21_AI_TIMEOUT_MS`：Abaka Task21 AI 请求超时，默认 `120000`。
 - `ABAKA_TASK21_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `0`，是否允许请求覆盖模型名（仍受白名单限制）。
-- `ABAKA_TASK21_AI_ENABLE_THINKING`：默认 `0`；请求默认显式传 `enable_thinking=false`，开启后才传 `true`。
-- `ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK`：默认 `0`；若模型不支持 `enable_thinking`，仅在该变量为 `1` 时允许移除参数重试。
+- `ABAKA_TASK21_AI_ENABLE_THINKING`：历史兼容变量；当前 Task21 链路统一固定 `enable_thinking=false`。
+- `ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK`：历史兼容变量；当前固定关闭 thinking 后，正常链路不会再依赖它开启思考。
 - `ASR_TRANSCRIPTION_AI_MOCK`：设为 `1` 时启用转写 AI mock 调试模式。
 - `ASR_TRANSCRIPTION_AI_LISTEN_MODEL`：转写 AI 听音模型，默认 `qwen3.5-omni-flash`。
 - `ASR_TRANSCRIPTION_AI_COMPARE_MODEL`：转写 AI 文本比较模型，默认 `qwen3.5-plus`。
@@ -136,7 +138,7 @@ http://127.0.0.1:3333
 - TTS 自动清除默认时间统一为 `60000ms`。
 - AI / 模型请求默认超时时间统一为 `120000ms`。
 - 非 AI 模型类的上传、下载、统计与普通后端接口超时不受该规则影响。
-- `ASR_TRANSCRIPTION_AI_ENABLE_THINKING`：默认 `0`；请求会显式传 `enable_thinking=false`，开启后显式传 `enable_thinking=true`。
+- `ASR_TRANSCRIPTION_AI_ENABLE_THINKING`：历史兼容变量；当前转写链路统一固定 `enable_thinking=false`。
 - `ASR_TRANSCRIPTION_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`：项目数据下载密码的 SHA256（兼容旧 `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`）。
 - `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`：项目数据下载 token 签名密钥（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）。
@@ -249,7 +251,7 @@ pm2 restart annotation-script-center --update-env
 - 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；默认 REST 链路不经过 Python 子进程，仅显式切 Python 时才受 Python stdout 编码影响。
 - `magic-data/hakka-helper`：Magic Data 客家话助手 AI 复核接口（保留 `annotator` 兼容路径）。
 - `magic-data/minnan-helper`：Magic Data 闽南语助手 AI 复核接口；支持 `two_stage + fun-asr`、`two_stage + Qwen Omni`、`omni_single + Qwen Omni` 三种链路。
-- `aishell-tech/minnan-helper`：Aishell Tech 闽南语助手 AI 推荐接口；当前条推荐与批量串行真实保存共用同一 recommend 路由，独立保持 `health/defaults/recommend` 三个入口，执行链复用 DataBaker 已验证推荐链路。
+- `aishell-tech/minnan-helper`：Aishell Tech 闽南语助手 AI 推荐接口；当前条推荐与批量串行真实保存共用同一 recommend 路由，独立保持 `health/defaults/recommend` 三个入口，执行链已独立为 Aishell 自己的同步推荐链，并补充独立 `dashscope-omni-client.js`。
 - `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
 
@@ -323,7 +325,7 @@ DataBaker AI 架构补充：
 - `429` 的根因是上游模型或账号维度限流，不是统一后端机器规格问题；同一阿里云主账号下的多个 RAM 用户/API Key 可能共享限流额度。
 - Fun-ASR 不走 OpenAI-compatible chat/completions；模型名必须是小写 `fun-asr`。
 - Fun-ASR REST 是异步任务模式：先 `POST /services/audio/asr/transcription` 提交任务，再 `POST /tasks/{task_id}` 查询任务；本轮只实现单条 REST 调用，不启用 `file_urls` batch。
-- Fun-ASR 不支持 thinking；thinking 只影响 Qwen Omni 和 compare 阶段。compare 未勾选 thinking 时，后端会显式关闭。
+- Fun-ASR 不支持 thinking；当前 Qwen Omni 和 compare 阶段也已统一固定关闭 thinking。
 - Fun-ASR 真实可用性仍取决于服务端是否能访问平台签名 `audioUrl`；若返回 `403`，需要优先排查权限/地域/API Key 和音频 URL 可访问性。
 
 ### 统一 AI 基座与 Python 虚拟环境

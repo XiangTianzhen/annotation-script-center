@@ -402,7 +402,7 @@ async function requestChatCompletion(requestBody, options) {
 
 async function requestChatCompletionWithThinking(requestBody, options) {
   const config = getClientConfig();
-  const enableThinking = options?.enableThinking === true;
+  const enableThinking = false;
   const timeoutMs = parseTimeoutMs(options?.timeoutMs, config.timeoutMs);
   const modelName = sanitizeModelName(options?.model || requestBody?.model, "");
   const profile = getModelProfile(modelName);
@@ -1012,10 +1012,7 @@ async function analyzeTask21(input, prompts, options) {
       defaultOcrModel: config.ocrModel,
       defaultReasoningModel: config.reasoningModel,
       defaultSingleModel: config.singleModel,
-    enableThinking:
-      typeof runtimeOptions.enableThinking === "boolean"
-        ? runtimeOptions.enableThinking === true
-        : config.defaultEnableThinking === true,
+    enableThinking: false,
     timeoutMs: parseTimeoutMs(runtimeOptions.timeoutMs, config.timeoutMs),
   };
 

@@ -221,11 +221,7 @@ function normalizeAiOptions(value) {
   if (stop.length > 0) {
     result.stop = stop;
   }
-  if (typeof source.enable_thinking === "boolean") {
-    result.enable_thinking = source.enable_thinking === true;
-  } else if (typeof source.enableThinking === "boolean") {
-    result.enable_thinking = source.enableThinking === true;
-  }
+  result.enable_thinking = false;
   if (Number.isFinite(Number(source.frontConcurrency))) {
     result.frontConcurrency = Math.round(Number(source.frontConcurrency));
   }
@@ -371,12 +367,7 @@ function normalizeRecommendRequest(body) {
           : normalizeDataBakerListenModel(listenModel, DEFAULT_OMNI_MODEL),
     compareModel: normalizeDataBakerCompareModel(compareModel, DEFAULT_COMPARE_MODEL),
     singleModel: normalizeDataBakerSingleModel(singleModel, DEFAULT_OMNI_MODEL),
-    enableThinking:
-      typeof source.enableThinking === "boolean"
-        ? source.enableThinking === true
-        : typeof aiOptions.enable_thinking === "boolean"
-          ? aiOptions.enable_thinking === true
-          : false,
+    enableThinking: false,
     aiOptions,
   };
 }
@@ -436,6 +427,7 @@ function createHealthPayload() {
     timeoutMs: parseTimeoutMs(),
     modelMode: DEFAULT_MODEL_MODE,
     recognitionStrategy: DEFAULT_RECOGNITION_STRATEGY,
+    enableThinking: false,
     modelModeOptions: MODEL_MODE_OPTIONS.slice(),
     recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
     listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
@@ -470,6 +462,7 @@ function createDefaultsPayload() {
       modelMode: DEFAULT_MODEL_MODE,
       recognitionStrategy: DEFAULT_RECOGNITION_STRATEGY,
       recognitionMode: DEFAULT_MODEL_MODE,
+      enableThinking: false,
       pipelineMode: derivePipelineMode(
         DEFAULT_MODEL_MODE,
         resolveDefaultListenModel(DEFAULT_MODEL_MODE),

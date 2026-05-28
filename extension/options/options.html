@@ -1178,7 +1178,7 @@
                 <span>qwen3.6-flash 速度更快、成本更低；qwen3-vl-plus 适合高精度定位。</span>
                 <span>qwen-vl-max / qwen-vl-plus 属于 Qwen2.5-VL 兼容备选，不作为默认。</span>
                 <span>OCR 专用模型待官方文档进一步核对，默认关闭且不预置默认 OCR 模型。</span>
-                <span>默认关闭思考。由于部分模型未传参数时可能默认启用思考，后端会显式传 enable_thinking=false。</span>
+                <span>thinking 已在当前仓库全局固定关闭，避免 Omni 思考模式拖慢请求。</span>
                 <span>API Key 只从后端环境变量读取，前端不保存。</span>
                 <span>AI 只提供建议，不自动写入、不保存、不提交。</span>
 
@@ -1214,7 +1214,7 @@
 
             <label class="field-toggle" style="margin-top: 6px;">
               <input id="abaka-ai-enable-thinking" type="checkbox" />
-              <span>启用思考</span>
+              <span>thinking 已全局固定关闭</span>
             </label>
 
             <label class="field-card" style="margin: 6px 0 0; padding: 12px 14px;">

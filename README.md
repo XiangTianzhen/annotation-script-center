@@ -15,7 +15,7 @@
 
 - 当前 `0.3.7` 仍处于持续修正阶段；在用户明确要求“完成 0.3.7 / 开始打包发布”前，默认继续保持 `v0.3.7`。
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
-- 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 默认关闭。
+- 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 当前已全局固定关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
 - Aishell Tech 已完成独立闽南语助手首版接入：`/mytask/mark` 支持当前条 AI 推荐与批量串行真实保存，后端已注册 `/api/aishell-tech/minnan-helper/ai/recommend*` 独立接口，并已从 DataBaker recommend orchestration 独立为 Aishell 自己的同步链路、独立队列与 `success/data/meta` 契约。
 
@@ -301,7 +301,7 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - 超过 2 分钟仍未返回的 AI 请求，默认认为不适合当前项目，应优化模型、Prompt、任务拆分或后端策略，而不是继续拉长超时。
 - DataBaker 平台当前实际的自动清除时间字段位于前端顶部统计悬浮窗 `autoHideMs`，默认仍为 `60000ms`。
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
-- Compare 阶段若启用 thinking 可能明显变慢；未勾选时后端会显式关闭 compare thinking。
+- 当前仓库所有 AI 链路都已强制 `enable_thinking=false`；若仍出现慢请求，应优先排查模型链路、队列等待或 provider 行为，而不是 thinking 开关。
 - 如果批量执行看起来像串行，先看前端悬浮窗里的 `前端并发 / 已发起AI请求 / 前端活跃AI请求 / AI已返回 / 待填队列`，再看 `health` 中 `queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`。
 - Fun-ASR 失败时，前端现在会优先区分：
   - 鉴权/权限错误

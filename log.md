@@ -1,3 +1,33 @@
+## 2026-05-28（全项目固定关闭 thinking，并拆出 Aishell 独立 DashScope Omni 客户端）
+
+- 统一关闭全仓库 AI thinking：
+  - `platform-resources/backend/ai/providers/qwen-openai-compatible.js`
+  - `platform-resources/data-baker/round-one-quality/backend/ai-client-qwen-legacy.js`
+  - `platform-resources/alibaba-labelx/asr-transcription/backend/ai-client-qwen.js`
+  - `platform-resources/alibaba-labelx/asr-judgement/backend/ai-client-qwen.js`
+  - `platform-resources/magic-data/hakka-helper/backend/ai-client-qwen.js`
+  - `platform-resources/magic-data/minnan-helper/backend/ai-client-qwen.js`
+  - `platform-resources/abaka-ai/task21/backend/ai-client.js`
+  - `platform-resources/abaka-ai/task21/backend/ai-analyze-request.js`
+  - 以上链路现在都强制 `enable_thinking=false`，不再允许通过前端配置或旧环境变量重新开启。
+- Aishell Tech 补充独立 Omni 客户端：
+  - 新增 `platform-resources/aishell-tech/minnan-helper/backend/dashscope-omni-client.js`，直接按 DashScope compatible-mode 构造 `input_audio` 流式请求。
+  - `pipeline.js` 改为优先使用这个独立客户端处理 Aishell Omni 听音/单模型链路，不再让该平台继续跟共享 DataBaker Omni 口径耦合。
+- options 口径同步收口：
+  - `extension/options/options.js` 与 `extension/options/options.html` 现在会把 Aishell、DataBaker、Magic Data、Abaka、快判、转写的 thinking 开关统一显示为只读关闭。
+  - 保存配置时也会强制写回 `false`，避免用户勾选后产生“已开启”的错觉。
+- Aishell 前端请求层同步固定关闭：
+  - `extension/sites/aishell-tech/minnan-helper/content.js`
+  - `extension/sites/aishell-tech/minnan-helper/ai-recommendation.js`
+  - 两处都会显式发送 `enableThinking=false`，即使旧设置里保存过 `true` 也不会再透传。
+- 补充测试：
+  - `platform-resources/aishell-tech/minnan-helper/backend/dashscope-omni-client.test.js`
+  - `platform-resources/backend/ai/providers/qwen-openai-compatible.test.js`
+  - `platform-resources/abaka-ai/task21/backend/ai-analyze-request.test.js`
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js`
+  - `platform-resources/aishell-tech/minnan-helper/backend/pipeline.test.js`
+  - `extension/sites/aishell-tech/minnan-helper/ai-recommendation.test.js`
+
 ## 2026-05-28（Aishell Tech 后端同步推荐链完全独立化）
 
 - 重构 `platform-resources/aishell-tech/minnan-helper/backend/`：

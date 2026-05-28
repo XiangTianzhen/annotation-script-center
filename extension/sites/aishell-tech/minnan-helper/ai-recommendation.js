@@ -340,9 +340,7 @@
       if (config.singleModel) {
         requestBody.singleModel = normalizeText(config.singleModel);
       }
-      if (typeof config.enableThinking === "boolean") {
-        requestBody.enableThinking = config.enableThinking === true;
-      }
+      requestBody.enableThinking = false;
       if (config.aiOptions && typeof config.aiOptions === "object") {
         requestBody.aiOptions = Object.assign({}, config.aiOptions);
       }

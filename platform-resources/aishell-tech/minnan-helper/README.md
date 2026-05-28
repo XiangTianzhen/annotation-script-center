@@ -16,6 +16,8 @@
 - 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
 - 当前保持同步 HTTP 返回，不引入异步 job、SSE 或 WebSocket；默认同步总超时为 `60000ms`。
+- Aishell 当前已单独拆出 `backend/dashscope-omni-client.js` 处理 DashScope compatible-mode 的 Omni 音频请求，并固定 `enable_thinking=false`。
+- 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 不再开放 thinking 作为有效配置项。
 - 成功响应固定为 `success + data + meta`，失败响应固定为 `success=false + error + meta`。
 - 只有响应真正成功写回客户端后，才允许写成功缓存与成功 CSV；取消、超时或连接中断不会再在刷新后伪装成缓存命中结果。
 - 前端会在构建 recommend 请求前，自动从 Aishell 头像下拉提取平台账号；`ASmnbz001【标注人员】` 这类显示文本会先归一成纯账号 `ASmnbz001`，再作为 `platformUserName` 发往后端。

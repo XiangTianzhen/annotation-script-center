@@ -16,6 +16,7 @@
   - `aishell_fun_asr`
   - `aishell_text_compare`
 - `pipeline.js`：Aishell 自己的同步推荐编排，只复用公共 provider HTTP 工具，不复用 DataBaker recommend orchestration。
+- `dashscope-omni-client.js`：Aishell 独立 DashScope compatible-mode Omni 客户端，直接构造 `input_audio` 流式请求并固定 `enable_thinking=false`。
 - `ai-service.js`：请求归一、默认 Prompt、health/defaults、统一成功/失败响应包装。
 - `ai-routes.js`：HTTP 路由、客户端断开取消、同步超时墙、成功后写缓存与 CSV 日志。
 
@@ -25,6 +26,7 @@
 - 底层仍复用公共 provider 工具：
   - `platform-resources/backend/ai/providers/qwen-openai-compatible.js`
   - `platform-resources/backend/ai/providers/funasr.js`
+- 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 即使收到前端或旧配置的 thinking 请求，也会强制归一为 `false`。
 - 当前保持同步 HTTP 返回，不引入异步 job、SSE 或 WebSocket。
 - 默认同步总超时为 `60000ms`；环境变量可用 `AISHELL_AI_TIMEOUT_MS` 覆盖。
 - 客户端主动刷新、关闭页面或代理提前断开时，Aishell 会通过 `AbortSignal` 取消后续链路，不再把这类中断请求写成成功缓存或成功 CSV 行。

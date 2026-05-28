@@ -36,6 +36,8 @@ function createNormalizedRequest(overrides) {
 
 test("Aishell pipeline returns independent success contract for two-stage requests", async function () {
   const queueCalls = [];
+  const listenOptions = [];
+  const compareOptions = [];
   const pipeline = createRecommendPipeline({
     enqueueTask: async function enqueueTask(groupName, task) {
       queueCalls.push(groupName);
@@ -50,7 +52,8 @@ test("Aishell pipeline returns independent success contract for two-stage reques
         },
       };
     },
-    requestOmniInputAudio: async function requestOmniInputAudio() {
+    requestOmniInputAudio: async function requestOmniInputAudio(_input, _prompt, options) {
+      listenOptions.push(options);
       return {
         model: "qwen3.5-omni-flash",
         rawText: JSON.stringify({
@@ -65,7 +68,8 @@ test("Aishell pipeline returns independent success contract for two-stage reques
         },
       };
     },
-    requestCompare: async function requestCompare() {
+    requestCompare: async function requestCompare(_input, _prompt, _heardText, options) {
+      compareOptions.push(options);
       return {
         model: "qwen3.5-plus",
         rawText: JSON.stringify({
@@ -138,12 +142,21 @@ test("Aishell pipeline returns independent success contract for two-stage reques
     })(),
   });
 
-  const result = await pipeline.run(createNormalizedRequest(), {
+  const result = await pipeline.run(createNormalizedRequest({
+    enableThinking: true,
+    aiOptions: {
+      listenPrompt: "listen prompt",
+      comparePrompt: "compare prompt",
+      enable_thinking: true,
+    },
+  }), {
     requestId: "request-1",
     signal: null,
   });
 
   assert.deepEqual(queueCalls, ["aishell_qwen_omni", "aishell_text_compare"]);
+  assert.equal(listenOptions[0]?.enableThinking, false);
+  assert.equal(compareOptions[0]?.enableThinking, false);
   assert.equal(result.data.recommendedText, "阮爱你。");
   assert.equal(result.meta.requestId, "request-1");
   assert.equal(result.meta.stage, "complete");

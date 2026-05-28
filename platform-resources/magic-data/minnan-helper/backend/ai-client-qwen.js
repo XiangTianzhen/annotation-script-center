@@ -60,15 +60,10 @@ function parseEnableThinkingDefault() {
 }
 
 function resolveThinkingPreference(options) {
-  if (options && typeof options.enableThinking === "boolean") {
-    return {
-      source: "request",
-      enabled: options.enableThinking === true,
-    };
-  }
+  void options;
   return {
-    source: "env",
-    enabled: parseEnableThinkingDefault(),
+    source: "forced-off",
+    enabled: false,
   };
 }
 

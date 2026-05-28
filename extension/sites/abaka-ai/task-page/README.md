@@ -87,7 +87,7 @@
   - 推理模型（双模型阶段二）
     - 候选：`qwen3.6-plus`、`qwen3.6-flash`、`qwen3.5-plus`、`qwen3.5-flash`
   - 单模型（single_model）
-  - 启用思考（默认关闭）
+  - thinking 当前已全局固定关闭
   - 请求超时（默认 `120000ms`）
   - 前端不保存 API Key
 - AI 调用元数据：
@@ -187,6 +187,6 @@ window.__ASCAbakaAiCapture && window.__ASCAbakaAiCapture.download()
 - 不记录账号密码、cookie、token、authorization、password、secret、signature。
 - 不记录完整图片、音频、文件、对象存储 URL。
 - 不提交原始 HAR、JSON、截图、CSV 或完整响应。
-- 默认显式传 `enable_thinking=false`；仅在 Options 手动开启时传 `enable_thinking=true`。
-- 若模型不支持或能力未知，不会盲传 `enable_thinking`；调试信息会标记 `notApplicable`。
-- 已确认支持 thinking 的模型会显式传 `enable_thinking`（默认 `false`）；仅当后端设置 `ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK=true` 才允许失败后回退移除。
+- 当前统一显式传 `enable_thinking=false`；Task21 不再开放手动开启 thinking。
+- 若模型不支持或能力未知，仍不会盲传 `enable_thinking`；调试信息继续标记 `notApplicable`。
+- `ABAKA_TASK21_AI_ALLOW_THINKING_PARAM_FALLBACK` 仅保留历史兼容说明；当前固定关闭 thinking 后，正常链路不会再依赖它开启思考。

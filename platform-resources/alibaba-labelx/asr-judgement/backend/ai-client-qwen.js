@@ -215,7 +215,7 @@ function sanitizeAiOptions(rawOptions) {
     SUPPORTED_REQUEST_PARAMS.enable_thinking === true &&
     typeof source.enable_thinking === "boolean"
   ) {
-    sanitized.enable_thinking = source.enable_thinking === true;
+    sanitized.enable_thinking = false;
   }
   if (
     SUPPORTED_REQUEST_PARAMS.web_search === true &&
@@ -557,7 +557,7 @@ async function requestChatCompletion(config, requestBody, options) {
 }
 
 async function requestWithThinkingFallback(config, requestBody, options) {
-  const enableThinking = options?.enableThinking === true;
+  const enableThinking = false;
   const webSearchEnabled = options?.webSearchEnabled === true;
   let currentBody = Object.assign({}, requestBody, {
     enable_thinking: enableThinking === true,
@@ -648,12 +648,7 @@ async function requestListen(input, prompt, options) {
   const config = getClientConfig();
   const model = sanitizeModelName(options?.model, config.listenModel || DEFAULT_LISTEN_MODEL);
   const normalizedAiOptions = sanitizeAiOptions(options?.aiOptions);
-  const enableThinking =
-    typeof normalizedAiOptions.enable_thinking === "boolean"
-      ? normalizedAiOptions.enable_thinking === true
-      : typeof options?.enableThinking === "boolean"
-      ? options.enableThinking === true
-      : config.enableThinkingDefault === true;
+  const enableThinking = false;
   const webSearchEnabled =
     typeof options?.webSearchEnabled === "boolean"
       ? options.webSearchEnabled === true
@@ -766,12 +761,7 @@ async function requestCompare(input, prompt, options) {
   const config = getClientConfig();
   const model = sanitizeModelName(options?.model, config.compareModel || DEFAULT_COMPARE_MODEL);
   const normalizedAiOptions = sanitizeAiOptions(options?.aiOptions);
-  const enableThinking =
-    typeof normalizedAiOptions.enable_thinking === "boolean"
-      ? normalizedAiOptions.enable_thinking === true
-      : typeof options?.enableThinking === "boolean"
-      ? options.enableThinking === true
-      : config.enableThinkingDefault === true;
+  const enableThinking = false;
   const webSearchEnabled =
     typeof options?.webSearchEnabled === "boolean"
       ? options.webSearchEnabled === true

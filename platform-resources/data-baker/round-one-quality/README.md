@@ -172,7 +172,7 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_COMPARE_MODEL`：对比模型，默认 `qwen3.5-plus`。
 - `DATABAKER_AI_TIMEOUT_MS`：AI 请求超时，默认 `120000`。
 - `DATABAKER_AI_OMNI_LEGACY_FAST_PATH`：默认 `1`；开启后上述 DataBaker Omni 模型会优先走参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471` 的 Omni legacy 快速路径。
-- `DATABAKER_AI_ENABLE_THINKING`：默认 `0`，后端原生 `fetch` 会在请求体顶层传 `enable_thinking=false`，不再使用 `extra_body`；设为 `1` 时不传该字段。
+- `DATABAKER_AI_ENABLE_THINKING`：历史兼容变量；当前仓库已统一固定关闭 thinking，DataBaker 会继续显式传 `enable_thinking=false`，不再允许通过该变量开启。
 - `DATABAKER_AI_PIPELINE_MODE`：识别模式默认值与历史兼容字段；当前主值是 `two_stage / omni_single`。旧值 `qwen_omni_compare / fun_asr_compare / qwen_omni_two_stage / listen_only` 会迁移到新的识别模式。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv`。
 - `DATABAKER_AI_FUN_ASR_LANGUAGE_HINTS`：Fun-ASR 语言提示，默认 `zh`。
@@ -236,7 +236,7 @@ AI prompt 输出字形规则：
 - Qwen Omni 和 Fun-ASR 的调用链路不同，不能只靠改模型名互换。
 - 选择 `fun-asr` 作为听音模型时，还依赖 Fun-ASR 服务能访问平台 `audioUrl`。如果音频 URL 对服务端不可访问，后端会明确报错，但日志和文档不会泄露完整签名 URL。
 - Fun-ASR 不走 OpenAI-compatible chat/completions；当前默认通过 Node RESTful API 调用。
-- Fun-ASR 没有 thinking 概念；thinking 只影响 Qwen Omni 听音阶段和 compare 阶段。
+- Fun-ASR 没有 thinking 概念；当前 DataBaker 的 Qwen Omni 听音阶段和 compare 阶段也已统一固定关闭 thinking。
 - Fun-ASR 失败时，前端现在会优先区分：鉴权/权限错误、平台音频 URL 不可访问、模型名错误、上游限流、任务失败、转写结果下载失败；失败列表继续保留“查看原始AI返回”。
 - Python 只是统一 Node 后端内部调用的 fallback / 调试辅助进程，不提供独立 Python 服务；标准启动入口始终是 `node platform-resources/backend/server.js`。
 

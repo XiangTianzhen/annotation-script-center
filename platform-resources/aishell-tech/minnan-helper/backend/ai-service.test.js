@@ -79,6 +79,24 @@ test("Aishell ai-service default prompts require simplified chinese output", fun
   assert.match(String(directProfile.comparePrompt || ""), /简体/);
 });
 
+test("Aishell ai-service forces thinking off even when request asks for true", function () {
+  const normalized = service.normalizeRecommendRequest({
+    taskId: "task-thinking",
+    packageId: "package-thinking",
+    taskItemId: "item-thinking",
+    fileName: "thinking.wav",
+    audioUrl: "https://example.com/thinking.wav",
+    referenceText: "页面文本",
+    enableThinking: true,
+    aiOptions: {
+      enable_thinking: true,
+    },
+  });
+
+  assert.equal(normalized.enableThinking, false);
+  assert.equal(normalized.aiOptions.enable_thinking, false);
+});
+
 test("Aishell ai-service builds success response with data and meta contract", function () {
   const responseBody = service.buildRecommendSuccessBody({
     requestId: "request-1",
