@@ -305,7 +305,7 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - `DATABAKER_AI_JOB_MAX_SIZE=9999`
 - `DATABAKER_AI_JOB_FAILED_RETENTION_MS=60000`（排队超时失败记录默认保留 1 分钟供轮询读取）
 - `DATABAKER_AI_QUEUE_MAX_SIZE=9999`
-- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS=120000`（排队超过 120s 仍未启动会直接 failed）
+- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS=0`（当前默认关闭，等效无限等待；仅手动设为正数时才启用排队超时）
 - `DATABAKER_AI_REQUEST_STAGGER_MS=50`（前端错峰发起间隔说明；默认不低于 `50ms`）
 - 超过 1 分钟仍未返回的 AI 请求，默认认为不适合当前项目，应优化模型、Prompt、任务拆分或后端策略，而不是继续拉长超时。
 - 共享 job store 与按模型拆分的 provider queue 当前默认都放大到 `9999`；同一具体模型各占自己的 `50ms` 发出节奏，不共用一个全局 `50ms`。

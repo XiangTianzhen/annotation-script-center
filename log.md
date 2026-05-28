@@ -1,3 +1,10 @@
+## 2026-05-29（临时关闭统一 provider queue 的排队超时阈值）
+
+- 按最新口径，统一 `provider queue` 的待启动超时当前默认关闭，等效无限等待。
+- `platform-resources/backend/ai/provider-queue.js` 当前默认 `pendingTimeoutMs=0`；只有手动把环境变量设成正数时，才会重新启用 `provider-queue-pending-timeout`。
+- 公共 `job store` 的 `failedRetentionMs=60000` 保留不删，作为后续重新启用排队超时时的失败记录保留策略。
+- 已开始执行的任务仍保持 `60000ms` 运行超时。
+
 ## 2026-05-29（统一 AI 队列容量扩到 9999，并补齐 120s 排队超时清理）
 
 - 统一后端 `platform-resources/backend/ai/provider-queue.js` 默认容量从 `600` 调整为 `9999`，继续保持按“具体模型名”分池：

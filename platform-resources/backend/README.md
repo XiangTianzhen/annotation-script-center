@@ -85,7 +85,7 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_TEXT_CONCURRENCY`：标贝易采 compare 文本模型并发上限，默认 `5`。
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：标贝易采上游 `429` 最大重试次数，默认 `3`。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：标贝易采统一 provider 队列最大长度，默认 `9999`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”，不会取消并发和 RPM 保护。
-- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS`：标贝易采 provider 队列待启动超时，默认 `120000`；排队超过 120s 仍未启动会直接返回 `failed`。
+- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS`：标贝易采 provider 队列待启动超时，默认 `0`；当前默认关闭，等效无限等待。仅手动设为正数时，排队超时才会直接返回 `failed`。
 - `DATABAKER_AI_CACHE_TTL_MS`：标贝易采推荐结果内存缓存 TTL，默认 `43200000`。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留 标贝易采 有效音频裁剪开关，默认 `0`。
 - `DATABAKER_AI_CROP_PADDING_SECONDS`：预留 标贝易采 裁剪前后补齐秒数，默认 `0.12`。
@@ -567,7 +567,7 @@ DataBaker AI 架构补充：
 - 统一后端 provider queue 的 key 已从“脚本分组”扩展为“具体模型名”：
   - 同一模型跨平台、跨脚本共享同一上游发送池。
   - 默认模型池速率为 `20 req/s`（`50ms` 一次发出机会），默认并发上限 `15`。
-  - 默认模型池最大排队长度为 `9999`，待启动超时为 `120000ms`。
+  - 默认模型池最大排队长度为 `9999`，待启动超时当前默认关闭（`pendingTimeoutMs=0`，等效无限等待）。
   - 两阶段链路中的听音模型和比较 / 推理模型分别按各自真实模型名进入独立池。
 - 公共 job store 当前也统一为：
   - 默认 `maxSize=9999`

@@ -198,7 +198,7 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_JOB_MAX_SIZE`：异步 job 最大保留数量，默认 `9999`。
 - `DATABAKER_AI_JOB_FAILED_RETENTION_MS`：排队超时失败记录保留时间，默认 `60000`。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `9999`。
-- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS`：provider 队列待启动超时，默认 `120000`。
+- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS`：provider 队列待启动超时，默认 `0`；当前默认关闭，等效无限等待。
 - `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。
@@ -269,7 +269,7 @@ platform-resources/backend/ai/python/requirements.txt
 - 如果模型输出 JSON 解析失败，失败列表会显示“复制原始JSON”按钮；同步 recommend 与历史兼容 jobs 都会返回可复制的脱敏 debug 信息。
 - 前端 `loadFailureDebugJson` 已恢复为安全兜底函数；没有 debug 数据时会明确提示“当前失败项没有可复制的原始 JSON.”，不再抛 `ReferenceError`。
 - job 默认 TTL 仍为 `1800000`（30 分钟）；这属于历史兼容成功 / 普通失败记录保留时间，不影响默认 jobs 主链路。
-- 排队超过 `120s` 仍未启动的任务会直接 `failed`，并在 job store 中额外保留 `1 分钟` 供前端轮询读取，然后转为 `expired`。
+- 当前默认不做“排队超时失败”；只有手动把 `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS` 设成正数时，才会触发 `failed`，并在 job store 中额外保留 `1 分钟` 供前端轮询读取，然后转为 `expired`。
 - Python fallback 编码补充：
   - 仅显式切到 `provider=python` 时，Node 后端才会向 Python 子进程显式设置 `PYTHONIOENCODING=utf-8` 与 `PYTHONUTF8=1`
   - `platform-resources/backend/ai/python/funasr_client.py` 会按 UTF-8 输出 stdout JSON

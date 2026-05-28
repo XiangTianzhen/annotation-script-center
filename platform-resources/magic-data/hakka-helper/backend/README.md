@@ -20,7 +20,7 @@
 - 对外成功 / 失败响应结构保持原兼容形态：
   - 成功：`success + data`
   - 失败：`success + requestId + code + message (+ summary)`
-- `health/defaults` 当前已补齐公共 jobs / runtime 元信息：默认链路为 `POST /jobs` + 轮询 `GET /jobs/:jobId`，并附带共享模型池默认策略；其中默认 `jobs.runningTimeoutMs=60000`、`jobs.failedRetentionMs=60000`、`queue.defaultModelPool.maxSize=9999`、`queue.defaultModelPool.pendingTimeoutMs=120000`。
+- `health/defaults` 当前已补齐公共 jobs / runtime 元信息：默认链路为 `POST /jobs` + 轮询 `GET /jobs/:jobId`，并附带共享模型池默认策略；其中默认 `jobs.runningTimeoutMs=60000`、`jobs.failedRetentionMs=60000`、`queue.defaultModelPool.maxSize=9999`、`queue.defaultModelPool.pendingTimeoutMs=0`。
 
 ## AI 调用日志与统计
 

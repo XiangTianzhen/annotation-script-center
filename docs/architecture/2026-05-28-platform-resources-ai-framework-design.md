@@ -195,7 +195,7 @@ platform-resources/<platform>/<script-id>/
 
 - 公共 job store 默认 `maxSize=9999`。
 - 按具体模型名拆分的 provider queue 默认速率为 `20 req/s`（`50ms` 一次发出机会），默认并发上限 `15`，默认最大排队长度 `9999`。
-- provider queue 中排队超过 `120000ms` 仍未开始执行的任务会直接失败；失败记录默认保留 `60000ms` 供前端轮询读取，随后转为 `expired`。
+- provider queue 当前默认不做待启动超时清理；只有显式把 `pendingTimeoutMs` 设为正数时，排队超时任务才会直接失败。对应失败记录默认仍保留 `60000ms` 供前端轮询读取，随后转为 `expired`。
 - 已经开始执行的任务仍保持 `60000ms` 运行超时，不和排队超时共用一个阈值。
 
 ## 项目与迁移顺序
