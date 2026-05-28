@@ -11,7 +11,7 @@
 - 仅服务 `https://mark.aishelltech.com/mytask/mark?...` 的闽南语推荐文本助手。
 - 接口独立为 `/api/aishell-tech/minnan-helper/ai/recommend*`。
 - Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径，但推荐编排、缓存、日志、同步超时、取消与队列已经改成 Aishell 自己维护。
-- 默认识别策略为 `mandarin_to_dialect`（先听成普通话，再结合页面预测闽南语文本与字词表输出最终闽南语）。
+- 当前默认配置偏速度优先：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`。
 - 同时保留 `direct_dialect`（直接听写闽南语）测试模式。
 - 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。

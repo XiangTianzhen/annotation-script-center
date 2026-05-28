@@ -82,6 +82,7 @@
   - 当前默认策略
   - 当前同步超时
   - Aishell 独立队列组配置
+- 当前默认组合偏速度优先：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`。
 
 ## 日志与缓存
 

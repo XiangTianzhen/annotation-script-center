@@ -32,7 +32,7 @@ const SCRIPT_ID = "aishellTechMinnanAssistant";
 const COMPONENT_NAME = "asr-voice-ai";
 const LEXICON_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
 const DEFAULT_MODEL_MODE = "two_stage";
-const DEFAULT_RECOGNITION_STRATEGY = "mandarin_to_dialect";
+const DEFAULT_RECOGNITION_STRATEGY = "direct_dialect";
 const MODEL_MODE_OPTIONS = [
   { value: "two_stage", label: "双模型：听音模型 + 比较/转换模型" },
   { value: "omni_single", label: "单模型：Omni 单模型" },

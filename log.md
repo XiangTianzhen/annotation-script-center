@@ -1,3 +1,17 @@
+## 2026-05-28（Aishell Tech 默认配置改为速度优先组合）
+
+- 将希尔贝壳 / Aishell Tech 闽南语助手默认配置统一改为：
+  - `two_stage`
+  - `direct_dialect`
+  - `qwen3.5-omni-flash`
+  - `qwen3.5-flash`
+- 覆盖范围：
+  - 前端共享默认配置：`extension/shared/constants.js`
+  - Aishell 运行时 fallback 默认值：`extension/sites/aishell-tech/minnan-helper/content.js`
+  - Aishell 后端 `defaults/health` 与请求归一默认值：`platform-resources/aishell-tech/minnan-helper/backend/config.js`、`platform-resources/aishell-tech/minnan-helper/backend/ai-service.js`
+- 目的：
+  - 当前口径偏速度优先，减少默认落到 `mandarin_to_dialect + qwen3.5-plus` 的较慢组合。
+
 ## 2026-05-28（Aishell Tech 前端显示名切换为“希尔贝壳”，并收口 AI 错误展示）
 
 - 仅调整前端用户可见文案，不改内部平台 ID、文件夹名、接口路径、后端注册名或 URL：

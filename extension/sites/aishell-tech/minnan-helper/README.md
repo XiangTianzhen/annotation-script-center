@@ -4,6 +4,7 @@
 
 - 仅在 `https://mark.aishelltech.com/mytask/mark?...` 生效。
 - 前端显示名当前统一使用 `希尔贝壳`；仅改用户可见文案，不改内部平台 ID、文件夹名、接口路径或后端注册名。
+- 当前默认配置偏速度优先：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`。
 - 实测验收建议先打开 `https://mark.aishelltech.com/mytask/detail/:taskId`，再点击分包“查看”进入标注页；直接输入 `/mytask/mark?...` 在平台侧可能出现卡住。
 - 当前前端已按“嵌入式卡片与原生栏注入”集成：
   - 面板以相对布局自适应嵌入在原表单正下方。

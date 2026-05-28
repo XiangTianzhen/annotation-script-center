@@ -175,8 +175,11 @@ function resolveDefaultListenModel(modelMode) {
 }
 
 function resolveDefaultCompareModel() {
-  const config = getQwenProviderConfig();
-  return normalizeDataBakerCompareModel(config.compareModel || DEFAULT_COMPARE_MODEL, DEFAULT_COMPARE_MODEL);
+  const compareModel = readEnvValue(
+    ["AISHELL_AI_COMPARE_MODEL", "DATABAKER_AI_COMPARE_MODEL"],
+    "qwen3.5-flash"
+  );
+  return normalizeDataBakerCompareModel(compareModel, "qwen3.5-flash");
 }
 
 function resolveDefaultSingleModel() {
