@@ -1178,6 +1178,7 @@
       input.value = nextValue;
       input.dispatchEvent(new Event("input", { bubbles: true }));
       input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.dispatchEvent(new Event("blur", { bubbles: true }));
       return {
         ok: true,
         message: "已填入当前条文本框，请人工复核后决定是否保存。",
@@ -1218,6 +1219,8 @@
           message: "未能触发平台“保存”按钮。",
         };
       }
+      // 在点击保存按钮后，先等待 250ms，以避开点击瞬间的 DOM 状态竞争和残留 Toast 提示的干扰
+      await sleep(250);
       const deadline = Date.now() + Math.max(3000, Number(options?.timeoutMs || 15000) || 15000);
       let networkCheckAt = 0;
       while (Date.now() < deadline) {
@@ -1284,15 +1287,46 @@
           message: "当前没有可保存的条目上下文。",
         };
       }
-      const fillResult = fillPageText(text);
-      if (fillResult?.ok === false) {
-        return fillResult;
+      const normalizedText = ensureChineseSentencePunctuation(removeTextSpaces(text));
+      if (!normalizedText) {
+        return {
+          ok: false,
+          message: "没有可填入的推荐文本。",
+        };
       }
-      const normalizedText = normalizeMarkCompareText(text);
-      await sleep(Number(options?.postFillDelayMs || 120) || 120);
+      const delayMs = Number(options?.postFillDelayMs || 120) || 120;
+      let fillSuccess = false;
+      let lastErrorMessage = "";
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const fillResult = fillPageText(text);
+        if (fillResult?.ok === false) {
+          lastErrorMessage = fillResult.message || "填入失败";
+          await sleep(100);
+          continue;
+        }
+        // 填入后等待页面框架渲染与数据绑定
+        await sleep(delayMs);
+        // 重新获取输入框的值并与期望文本进行比对
+        const currentInputVal = getCurrentInputValue();
+        if (normalizeMarkCompareText(currentInputVal) === normalizeMarkCompareText(normalizedText)) {
+          fillSuccess = true;
+          break;
+        } else {
+          lastErrorMessage = `输入框值校验不一致。预期: "${normalizedText}"，实际: "${currentInputVal}"，可能已被页面重置。`;
+          console.warn(`[Aishell][minnan-helper] ${lastErrorMessage} (尝试 ${attempt + 1}/5)`);
+          await sleep(150);
+        }
+      }
+      if (!fillSuccess) {
+        return {
+          ok: false,
+          message: `文本填入校验失败: ${lastErrorMessage}`,
+        };
+      }
+      const compareText = normalizeMarkCompareText(text);
       return clickSaveAndWait({
         timeoutMs: options?.timeoutMs || 15000,
-        expectedText: normalizedText,
+        expectedText: compareText,
         taskItemId: currentItem.taskItemId,
         packageId: currentItem.packageId,
         selectedIndex: getSelectedIndex(),

@@ -1,3 +1,13 @@
+## 2026-05-30（修复 Aishell Tech 批量填入保存与瞬时竞态判定漏洞）
+
+- 强化批量自动填入与保存的安全可靠性，解决在网络/电脑卡顿用户上出现的“文本识别后尚未填入输入框即被保存跳过”的缺陷：
+  - 更新 `extension/sites/aishell-tech/minnan-helper/data-api.js` 的 `fillAndSaveCurrent` 函数，引入 **“填入校验与 5 次重试” 机制**。在 `fillPageText` 触发后，重新比对输入框 value，如果因 Vue 组件重新渲染覆盖而导致数据被重置，则重新进行填入和事件分发，最大尝试 5 次，确保数据确实成功绑定后再执行保存动作。
+  - 在 `fillPageText` 中派发 `input` 和 `change` 事件后，追加派发 `blur` 事件，强迫某些在失焦时同步状态的第三方输入框组件完成数据绑定。
+  - 在 `clickSaveAndWait` 中，点击页面原生保存按钮后，**增加 250ms 的防竞态判定延迟**。避免由于点击瞬间的 DOM 状态不一致、残留 toast 提示或上一次保存结果的迟滞刷新，导致 `isSaveCompletionState` 产生瞬时竞态误判而过早进入下一条。
+- 同步更新：
+  - `extension/sites/aishell-tech/minnan-helper/README.md` 中的“批量识别支持”说明。
+  - `platform-resources/aishell-tech/minnan-helper/README.md` 中的“前端批量链路”说明。
+
 ## 2026-05-29（临时关闭统一 provider queue 的排队超时阈值）
 
 - 按最新口径，统一 `provider queue` 的待启动超时当前默认关闭，等效无限等待。
