@@ -1,3 +1,17 @@
+## 2026-06-01（Options 浅色运营后台色板校正）
+
+- 根据最新视觉参考，将 `extension/options/options.css` 的工作台覆盖层从深蓝渐变仪表盘色板切换为浅色运营后台色板：
+  - 页面底色改为浅灰蓝 + 微弱暖色高光
+  - 左侧导航改为白底卡片、浅蓝选中态与轻边框
+  - 公开中心 hero、平台摘要、脚本卡、详情头部、系统管理 banner 全部收口为白底/浅蓝高亮方案
+  - 保留现有布局、路由和功能，不改后端接口、不改脚本详情字段结构
+- 同步更新文档口径：
+  - `README.md`
+  - `extension/README.md`
+- 本轮验证继续覆盖：
+  - `node --check extension/options/options.js`
+  - 真实扩展页 `?view=center` 与 `?view=admin&tab=overview` 静态快照复查
+
 ## 2026-05-31（0.4.0 Options 工作台视觉重做）
 
 - 按“首版视觉方向”的工作台口径重做 `extension/options/`：
