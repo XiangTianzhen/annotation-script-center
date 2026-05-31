@@ -18,7 +18,24 @@
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 当前已全局固定关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
 - Aishell Tech 已完成独立闽南语助手首版接入：`/mytask/mark` 支持当前条 AI 推荐与批量串行真实保存，后端已注册 `/api/aishell-tech/minnan-helper/ai/recommend*` 独立接口，并已从 DataBaker recommend orchestration 独立为 Aishell 自己的同步链路、独立队列与 `success/data/meta` 契约。
-- options 首页隐藏高级区当前已同时支持“项目数据下载”和“AI 请求记录”导出；AI 请求记录可按脚本导出 CSV，也可选填日期范围缩小导出范围。
+
+## v0.3.8 开发中（Options 后台重构）
+
+- `extension/options/options.html` 仍保持单入口，但当前前端路由已切到 query 驱动：
+  - `?view=center`
+  - `?view=script&script=<scriptId>`
+  - `?view=admin&tab=overview|backend|downloads|stats`
+- options 当前拆成两层结构：
+  - `公开脚本中心`：默认直接进入，只展示平台、脚本状态、启停入口和脚本详情入口。
+  - `系统管理`：进入时需要输入密码；统一承载后端设置、下载中心、运行统计和模型池占用仪表盘。
+- “后端接口地址 / AI 调用使用人 / 项目数据下载 / AI 请求记录导出”已从公开首页迁入系统管理页；公开首页不再保留隐藏高级区。
+- 系统管理密码当前复用项目数据下载密码环境变量：
+  - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`
+  - `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`
+- 下载中心当前支持两类导出：
+  - 项目数据下载
+  - AI 请求记录导出（按脚本，可选日期范围）
+- “脚本下载中心”外链当前已移入系统管理的“下载中心”页签，不再放在公开首页主视觉按钮位。
 
 ## v0.3.7 发布说明
 

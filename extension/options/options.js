@@ -56,7 +56,58 @@
     constants.AI_CALL_LOG_DOWNLOAD_OPTIONS_PATH || "/api/admin/ai-call-log/options";
   const aiCallLogDownloadRequestPath =
     constants.AI_CALL_LOG_DOWNLOAD_REQUEST_PATH || "/api/admin/ai-call-log/request";
+  const adminSessionUnlockPath = "/api/admin/session/unlock";
+  const adminDashboardOverviewPath = "/api/admin/dashboard/overview";
   const scriptDownloadCenterUrl = "https://script.xiangtianzhen.store/downloads/";
+  const optionsRouteState = globalThis.ASREdgeOptionsRouteState || {};
+  const parseOptionsRoute =
+    typeof optionsRouteState.parseOptionsRoute === "function"
+      ? optionsRouteState.parseOptionsRoute
+      : function (search, scripts) {
+          const query = new URLSearchParams(String(search || "").replace(/^\?/, ""));
+          const scriptId = String(query.get("script") || "").trim();
+          const view = String(query.get("view") || "").trim().toLowerCase();
+          const tab = String(query.get("tab") || "").trim().toLowerCase();
+          if (view === "script" && scripts && scripts[scriptId]) {
+            return {
+              view: "script",
+              scriptId,
+              adminTab: "overview",
+            };
+          }
+          if (view === "admin") {
+            return {
+              view: "admin",
+              scriptId: null,
+              adminTab: ["overview", "backend", "downloads", "stats"].indexOf(tab) >= 0 ? tab : "overview",
+            };
+          }
+          return {
+            view: "center",
+            scriptId: null,
+            adminTab: "overview",
+          };
+        };
+  const buildOptionsRouteHref =
+    typeof optionsRouteState.buildOptionsRouteHref === "function"
+      ? optionsRouteState.buildOptionsRouteHref
+      : function (currentHref, route) {
+          const next = route && typeof route === "object" ? route : {};
+          const url = new URL(String(currentHref || location.href));
+          const view = String(next.view || "center").trim().toLowerCase();
+          url.searchParams.set("view", view === "admin" || view === "script" ? view : "center");
+          url.searchParams.delete("script");
+          url.searchParams.delete("tab");
+          if (view === "script" && String(next.scriptId || "").trim()) {
+            url.searchParams.set("script", String(next.scriptId || "").trim());
+          }
+          if (view === "admin") {
+            url.searchParams.set("tab", String(next.adminTab || "overview").trim() || "overview");
+          }
+          return url.toString();
+        };
+  const adminSessionStorageKey = "asc-options-admin-session";
+  const adminTabs = ["overview", "backend", "downloads", "stats"];
   const dateTextPattern = /^\d{4}-\d{2}-\d{2}$/;
   const dataBakerPageSizeOptions = (
     Array.isArray(constants.DATABAKER_PAGE_SIZE_OPTIONS)
@@ -363,7 +414,6 @@
   let abakaAiAdvancedRevealCount = 0;
   let abakaAiAdvancedUnlocked = false;
   let abakaAiAdvancedLastClickAt = 0;
-  let endpointAdvancedRevealCount = 0;
   let endpointAdvancedUnlocked = false;
   let judgementAiAdvancedRevealCount = 0;
   let judgementAiAdvancedUnlocked = false;
@@ -381,6 +431,10 @@
   };
   let projectDataDownloadDatasets = [];
   let aiCallLogDownloadDatasets = [];
+  let adminSessionState = null;
+  let adminAuthMessage = "";
+  let adminDashboardCache = null;
+  let adminDashboardLoading = null;
 
   function getElement(id) {
     return document.getElementById(id);
@@ -420,21 +474,49 @@
     return new URLSearchParams(location.search || "");
   }
 
+  function getCurrentRouteState() {
+    return parseOptionsRoute(location.search || "", scriptLibrary);
+  }
+
   function getCurrentDetailScriptId() {
-    const scriptId = getSearchParams().get("script");
-    return typeof scriptId === "string" && scriptLibrary[scriptId] ? scriptId : null;
+    const route = getCurrentRouteState();
+    return route.view === "script" ? route.scriptId : null;
+  }
+
+  function getCurrentAdminTab() {
+    const route = getCurrentRouteState();
+    return route.view === "admin" ? route.adminTab : "overview";
+  }
+
+  function navigateToRoute(route) {
+    history.replaceState({}, "", buildOptionsRouteHref(location.href, route));
+    renderCurrentView();
+  }
+
+  function navigateToCenter() {
+    navigateToRoute({
+      view: "center",
+    });
   }
 
   function navigateToScript(scriptId) {
-    const nextUrl = new URL(location.href);
-    if (scriptId) {
-      nextUrl.searchParams.set("script", scriptId);
-    } else {
-      nextUrl.searchParams.delete("script");
-    }
+    navigateToRoute(
+      scriptId
+        ? {
+            view: "script",
+            scriptId: scriptId,
+          }
+        : {
+            view: "center",
+          }
+    );
+  }
 
-    history.replaceState({}, "", nextUrl.toString());
-    renderCurrentView();
+  function navigateToAdmin(tab) {
+    navigateToRoute({
+      view: "admin",
+      adminTab: adminTabs.indexOf(String(tab || "").trim()) >= 0 ? String(tab).trim() : "overview",
+    });
   }
 
   function showError(message) {
@@ -5901,20 +5983,37 @@
   }
 
   function renderScriptCenter(settings) {
-    renderHomeBackendEndpoint(settings);
-    renderHomeAiUsageOperator(settings);
-
+    ensurePublicHeroShell();
     const center = getElement("script-center-view");
     const platformIds = Object.keys(platformLibrary);
+    const scriptIds = Object.keys(scriptLibrary);
+    const enabledCount = scriptIds.filter(function (scriptId) {
+      return isScriptEnabled(settings, scriptId);
+    }).length;
+    const platformCountNode = getElement("public-platform-count");
+    const scriptCountNode = getElement("public-script-count");
+    const enabledCountNode = getElement("public-enabled-count");
+    if (platformCountNode) {
+      platformCountNode.textContent = formatNumber(platformIds.length);
+    }
+    if (scriptCountNode) {
+      scriptCountNode.textContent = formatNumber(scriptIds.length);
+    }
+    if (enabledCountNode) {
+      enabledCountNode.textContent = formatNumber(enabledCount);
+    }
 
     center.innerHTML = platformIds
       .map(function (platformId) {
         const platform = platformLibrary[platformId] || {};
-        const scriptIds = Object.keys(scriptLibrary).filter(function (scriptId) {
+        const platformScriptIds = Object.keys(scriptLibrary).filter(function (scriptId) {
           return scriptLibrary[scriptId]?.platformId === platformId;
         });
+        const activeScriptCount = platformScriptIds.filter(function (scriptId) {
+          return isScriptEnabled(settings, scriptId);
+        }).length;
 
-        const scriptMarkup = scriptIds
+        const scriptMarkup = platformScriptIds
           .map(function (scriptId) {
             const script = scriptLibrary[scriptId] || {};
             const status = getScriptStatus(settings, scriptId);
@@ -5930,9 +6029,13 @@
               '<span class="script-pill ' + status.tone + '">' + status.text + "</span>",
               "</div>",
               "</div>",
+              '<span class="script-route-pill">' + escapeHtml(getScriptHostText(scriptId)) + "</span>",
               "</div>",
               '<p class="script-copy">' + String(script.description || "") + "</p>",
-              '<p class="script-copy">匹配 URL：' + getScriptHostText(scriptId) + "</p>",
+              '<div class="script-metadata">',
+              '<span>匹配 URL：' + escapeHtml(getScriptHostText(scriptId)) + "</span>",
+              '<span>入口：脚本详情 / ' + (active ? "当前生效" : "待启用") + "</span>",
+              "</div>",
               '<div class="script-actions">',
               '<button type="button" class="primary-button" data-open-script="' + scriptId + '">打开设置</button>',
               isScriptEnabled(settings, scriptId)
@@ -5953,6 +6056,7 @@
           "</div>",
           '<div class="status-row">',
           '<span class="pill info">' + String(platform.host || "") + "</span>",
+          '<span class="pill ' + (activeScriptCount > 0 ? "enabled" : "pending") + '">生效脚本 ' + formatNumber(activeScriptCount) + " / " + formatNumber(platformScriptIds.length) + "</span>",
           "</div>",
           "</div>",
           '<div class="script-grid">' + scriptMarkup + "</div>",
@@ -6220,6 +6324,12 @@
     if (code === "project-data-download-token-invalid") {
       return "下载链接无效或已过期，请重新申请。";
     }
+    if (
+      code === "project-data-download-token-expired" ||
+      code === "project-data-download-token-missing"
+    ) {
+      return "管理员会话已失效，请重新进入系统管理登录。";
+    }
     if (message) {
       return message;
     }
@@ -6287,6 +6397,9 @@
       code === "ai-call-log-download-token-expired"
     ) {
       return "下载链接无效或已过期，请重新申请。";
+    }
+    if (code === "ai-call-log-download-token-missing") {
+      return "管理员会话已失效，请重新进入系统管理登录。";
     }
     if (message) {
       return message;
@@ -6464,38 +6577,761 @@
   }
 
   function unlockEndpointAdvancedPanel() {
-    if (endpointAdvancedUnlocked) {
-      return;
-    }
     endpointAdvancedUnlocked = true;
-    renderHomeBackendEndpoint(currentSettings || {});
-    const panel = getElement("project-data-download-panel");
-    if (panel) {
-      panel.classList.remove("hidden");
+    if (projectDataDownloadDatasets.length <= 0) {
+      void loadProjectDataDownloadOptions();
     }
-    const aiCallLogPanel = getElement("ai-call-log-download-panel");
-    if (aiCallLogPanel) {
-      aiCallLogPanel.classList.remove("hidden");
+    if (aiCallLogDownloadDatasets.length <= 0) {
+      void loadAiCallLogOptions();
     }
-    setProjectDataDownloadStatus("正在拉取可下载类型...");
-    setAiCallLogStatus("正在拉取 AI 请求记录脚本类型...");
-    void loadProjectDataDownloadOptions();
-    void loadAiCallLogOptions();
   }
 
   async function ensureBackendModeServerOnInit() {
-    if (!storage || typeof storage.patchSettings !== "function") {
+    return;
+  }
+
+  function getChromeSessionStorageArea() {
+    return globalThis.chrome?.storage?.session || null;
+  }
+
+  function getAdminStatusNode() {
+    return getElement("admin-auth-status");
+  }
+
+  function setAdminAuthStatus(text, tone) {
+    const node = getAdminStatusNode();
+    if (!node) {
       return;
     }
-    const mode = getBackendModeFromSettings(currentSettings || {});
-    if (mode === backendModeServer) {
-      return;
+    node.textContent = String(text || "");
+    node.dataset.tone = String(tone || "neutral");
+  }
+
+  function setAdminPanelStatus(targetId, text) {
+    const node = getElement(targetId);
+    if (node) {
+      node.textContent = String(text || "");
     }
-    currentSettings = await storage.patchSettings({
-      meta: {
-        backendEndpointMode: backendModeServer,
-      },
+  }
+
+  function normalizeAdminSessionPayload(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const token = normalizeText(source.token);
+    const expiresAt = normalizeText(source.expiresAt);
+    if (!token || !expiresAt) {
+      return null;
+    }
+    return {
+      token: token,
+      expiresAt: expiresAt,
+      expiresInSeconds: Math.max(0, Number(source.expiresInSeconds || 0) || 0),
+      remember: source.remember === true,
+    };
+  }
+
+  function isAdminSessionExpired(session) {
+    const payload = normalizeAdminSessionPayload(session);
+    if (!payload) {
+      return true;
+    }
+    const expiresAt = Date.parse(payload.expiresAt);
+    if (!Number.isFinite(expiresAt)) {
+      return true;
+    }
+    return expiresAt <= Date.now() + 1000;
+  }
+
+  function hasActiveAdminSession() {
+    return !isAdminSessionExpired(adminSessionState);
+  }
+
+  function readSessionStorageValue(key) {
+    try {
+      return globalThis.sessionStorage?.getItem(key) || "";
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function writeSessionStorageValue(key, value) {
+    try {
+      globalThis.sessionStorage?.setItem(key, value);
+    } catch (_error) {
+      // Ignore session storage write failure.
+    }
+  }
+
+  function removeSessionStorageValue(key) {
+    try {
+      globalThis.sessionStorage?.removeItem(key);
+    } catch (_error) {
+      // Ignore session storage removal failure.
+    }
+  }
+
+  function readJsonText(value) {
+    try {
+      return JSON.parse(String(value || ""));
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function readChromeSessionValue(key) {
+    const area = getChromeSessionStorageArea();
+    if (!area) {
+      return Promise.resolve(null);
+    }
+    return new Promise(function (resolve) {
+      area.get([key], function (result) {
+        resolve(result && result[key] ? result[key] : null);
+      });
     });
+  }
+
+  function writeChromeSessionValue(key, value) {
+    const area = getChromeSessionStorageArea();
+    if (!area) {
+      return Promise.resolve();
+    }
+    return new Promise(function (resolve) {
+      const nextValue = {};
+      nextValue[key] = value;
+      area.set(nextValue, function () {
+        resolve();
+      });
+    });
+  }
+
+  function removeChromeSessionValue(key) {
+    const area = getChromeSessionStorageArea();
+    if (!area) {
+      return Promise.resolve();
+    }
+    return new Promise(function (resolve) {
+      area.remove([key], function () {
+        resolve();
+      });
+    });
+  }
+
+  async function clearAdminSession(options) {
+    const config = options && typeof options === "object" ? options : {};
+    adminSessionState = null;
+    adminDashboardCache = null;
+    endpointAdvancedUnlocked = false;
+    removeSessionStorageValue(adminSessionStorageKey);
+    await removeChromeSessionValue(adminSessionStorageKey);
+    if (config.keepStatus !== true) {
+      setAdminAuthStatus("", "neutral");
+    }
+  }
+
+  async function restoreAdminSession() {
+    const fromPage = normalizeAdminSessionPayload(readJsonText(readSessionStorageValue(adminSessionStorageKey)));
+    if (fromPage && !isAdminSessionExpired(fromPage)) {
+      adminSessionState = fromPage;
+      endpointAdvancedUnlocked = true;
+      return;
+    }
+    const fromBrowser = normalizeAdminSessionPayload(await readChromeSessionValue(adminSessionStorageKey));
+    if (fromBrowser && !isAdminSessionExpired(fromBrowser)) {
+      adminSessionState = fromBrowser;
+      endpointAdvancedUnlocked = true;
+      writeSessionStorageValue(adminSessionStorageKey, JSON.stringify(fromBrowser));
+      return;
+    }
+    await clearAdminSession({
+      keepStatus: true,
+    });
+  }
+
+  async function persistAdminSession(session, remember) {
+    const payload = normalizeAdminSessionPayload(
+      Object.assign({}, session || {}, {
+        remember: remember === true,
+      })
+    );
+    if (!payload) {
+      return;
+    }
+    adminSessionState = payload;
+    endpointAdvancedUnlocked = true;
+    writeSessionStorageValue(adminSessionStorageKey, JSON.stringify(payload));
+    if (remember === true) {
+      await writeChromeSessionValue(adminSessionStorageKey, payload);
+    } else {
+      await removeChromeSessionValue(adminSessionStorageKey);
+    }
+  }
+
+  function buildAdminAuthorizationHeaders(extraHeaders) {
+    const headers = Object.assign({}, extraHeaders || {});
+    if (hasActiveAdminSession()) {
+      headers.Authorization = "Bearer " + adminSessionState.token;
+    }
+    return headers;
+  }
+
+  function getAdminAuthErrorMessage(body, statusCode) {
+    const code = normalizeText(body?.code || "");
+    const message = normalizeText(body?.message || "");
+    if (code === "admin-session-password-invalid") {
+      return "管理员密码错误。";
+    }
+    if (code === "admin-session-auth-not-configured") {
+      return "后端未配置管理员鉴权环境变量。";
+    }
+    if (message) {
+      return message;
+    }
+    if (Number(statusCode) >= 500) {
+      return "系统管理鉴权服务异常，请稍后重试。";
+    }
+    return "管理员鉴权失败，请稍后重试。";
+  }
+
+  function getAdminDashboardErrorMessage(body, statusCode) {
+    const message = normalizeText(body?.message || "");
+    if (message) {
+      return message;
+    }
+    if (Number(statusCode) >= 500) {
+      return "系统管理总览加载失败，请稍后重试。";
+    }
+    return "系统管理总览加载失败。";
+  }
+
+  async function requestAdminJson(path, options) {
+    const config = options && typeof options === "object" ? options : {};
+    if (!hasActiveAdminSession()) {
+      adminAuthMessage = "进入系统管理前需要先输入密码。";
+      await clearAdminSession({
+        keepStatus: true,
+      });
+      return {
+        authFailed: true,
+      };
+    }
+
+    const response = await fetch(buildBackendUrl(path, currentSettings || {}), {
+      method: config.method || "GET",
+      cache: config.cache || "no-store",
+      headers: buildAdminAuthorizationHeaders(config.headers),
+      body: config.body,
+    });
+    const body = parseJsonSafely(await response.text());
+    if (response.status === 401) {
+      adminAuthMessage =
+        normalizeText(body?.message || "") || "管理员会话已失效，请重新输入密码。";
+      await clearAdminSession({
+        keepStatus: true,
+      });
+      return {
+        authFailed: true,
+        response,
+        body,
+      };
+    }
+    return {
+      response,
+      body,
+    };
+  }
+
+  function ensurePublicHeroShell() {
+    const hero = document.querySelector(".hero");
+    if (!(hero instanceof HTMLElement)) {
+      return;
+    }
+    hero.classList.add("public-hero");
+    const actionButton = getElement("stage-label");
+    if (actionButton instanceof HTMLButtonElement) {
+      actionButton.textContent = "系统管理";
+      actionButton.title = "进入系统管理";
+      actionButton.setAttribute("aria-label", "进入系统管理");
+      actionButton.classList.add("admin-entry-button");
+    }
+    if (!getElement("public-summary-strip")) {
+      const summary = document.createElement("div");
+      summary.id = "public-summary-strip";
+      summary.className = "public-summary-strip";
+      summary.innerHTML = [
+        '<article class="public-summary-card"><span class="summary-label">平台总数</span><strong id="public-platform-count">0</strong><span class="summary-note">按平台分类管理脚本</span></article>',
+        '<article class="public-summary-card"><span class="summary-label">脚本总数</span><strong id="public-script-count">0</strong><span class="summary-note">公开脚本中心直接启停</span></article>',
+        '<article class="public-summary-card"><span class="summary-label">当前生效</span><strong id="public-enabled-count">0</strong><span class="summary-note">同平台互斥规则自动生效</span></article>',
+      ].join("");
+      hero.appendChild(summary);
+    }
+  }
+
+  function ensureAdminWorkspace() {
+    if (getElement("admin-workspace")) {
+      return;
+    }
+    ensurePublicHeroShell();
+    const detailView = getElement("script-detail-view");
+    if (!(detailView instanceof HTMLElement)) {
+      return;
+    }
+
+    const adminSection = document.createElement("section");
+    adminSection.id = "admin-workspace";
+    adminSection.className = "admin-workspace hidden";
+    adminSection.innerHTML = [
+      '<div class="admin-shell">',
+      '<aside class="admin-sidebar">',
+      '<div class="admin-sidebar-brand">',
+      "<h2>系统管理</h2>",
+      "<p>后端设置、下载导出、模型池占用和运行统计统一收口到这里。</p>",
+      "</div>",
+      '<nav class="admin-nav">',
+      '<button type="button" class="admin-nav-button" data-admin-tab="overview">仪表盘</button>',
+      '<button type="button" class="admin-nav-button" data-admin-tab="backend">后端设置</button>',
+      '<button type="button" class="admin-nav-button" data-admin-tab="downloads">下载中心</button>',
+      '<button type="button" class="admin-nav-button" data-admin-tab="stats">运行统计</button>',
+      "</nav>",
+      '<div class="admin-sidebar-actions">',
+      '<button id="admin-return-center" class="ghost-button" type="button">返回公开中心</button>',
+      '<button id="admin-logout-button" class="secondary-button" type="button">退出登录</button>',
+      "</div>",
+      "</aside>",
+      '<div class="admin-stage">',
+      '<div class="admin-stage-banner">',
+      '<div><strong>系统管理后台</strong><span id="admin-stage-endpoint" class="status-text"></span></div>',
+      '<button id="admin-refresh-dashboard" class="ghost-button" type="button">刷新数据</button>',
+      "</div>",
+      '<section id="admin-auth-gate" class="admin-auth-gate">',
+      "<h3>输入系统管理密码</h3>",
+      "<p>系统管理页会复用下载鉴权密码。登录后当前浏览器会话内可直接查看仪表盘和发起导出。</p>",
+      '<label class="admin-auth-field"><span>管理员密码</span><input id="admin-password-input" type="password" autocomplete="current-password" placeholder="请输入密码" /></label>',
+      '<label class="field-toggle"><input id="admin-remember-session" type="checkbox" /><span>记住本次浏览器会话</span></label>',
+      '<div class="field-actions"><button id="admin-unlock-button" class="primary-button" type="button">进入系统管理</button></div>',
+      '<div id="admin-auth-status" class="status-text"></div>',
+      "</section>",
+      '<div id="admin-content" class="admin-content hidden">',
+      '<section id="admin-tab-overview" class="admin-tab-panel">',
+      '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>查看当前模型池占用、今日 AI 调用和脚本级运行摘要。</p></div></div>',
+      '<div id="admin-overview-summary" class="admin-summary-grid"></div>',
+      '<div class="admin-two-column">',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>模型池占用</strong><span>实时取自统一 queue 快照</span></div><div id="admin-overview-pools"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>失败摘要</strong><span>基于今日调用统计</span></div><div id="admin-overview-failures"></div></section>',
+      "</div>",
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>脚本摘要</strong><span>展示今日与累计调用情况</span></div><div id="admin-overview-scripts"></div></section>',
+      '<div id="admin-overview-status" class="status-text"></div>',
+      "</section>",
+      '<section id="admin-tab-backend" class="admin-tab-panel hidden">',
+      '<div class="admin-panel-head"><div><h3>后端设置</h3><p>统一控制后端入口与 AI 调用使用人。各脚本详情页不再提供单独后端地址。</p></div></div>',
+      '<div class="admin-two-column">',
+      '<div id="admin-backend-card-slot" class="admin-surface-card"></div>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>运行时说明</strong><span>当前页面状态与后端侧运行元信息</span></div><div id="admin-backend-runtime"></div></section>',
+      "</div>",
+      "</section>",
+      '<section id="admin-tab-downloads" class="admin-tab-panel hidden">',
+      '<div class="admin-panel-head"><div><h3>下载中心</h3><p>项目数据下载、AI 请求记录导出与脚本分发入口统一放在这里。</p></div><div class="field-actions"><button id="admin-open-script-download-center" class="secondary-button" type="button">打开脚本下载中心</button></div></div>',
+      '<div id="admin-download-summary" class="admin-summary-grid"></div>',
+      '<div id="admin-download-grid" class="admin-download-grid"></div>',
+      "</section>",
+      '<section id="admin-tab-stats" class="admin-tab-panel hidden">',
+      '<div class="admin-panel-head"><div><h3>运行统计</h3><p>汇总脚本级调用趋势、调用人排行与错误码分布。</p></div></div>',
+      '<div class="admin-two-column">',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>近 14 天调用趋势</strong><span>统一 AI 调用日志聚合</span></div><div id="admin-stats-trend"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>调用人排行</strong><span>按累计调用量排序</span></div><div id="admin-stats-operators"></div></section>',
+      "</div>",
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>按脚本统计</strong><span>查看今日 / 累计调用量与失败数</span></div><div id="admin-stats-scripts"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>错误码分布</strong><span>今日失败 Top 错误码</span></div><div id="admin-stats-errors"></div></section>',
+      '<div id="admin-stats-status" class="status-text"></div>',
+      "</section>",
+      "</div>",
+      "</div>",
+      "</section>",
+      "</div>",
+    ].join("");
+    detailView.insertAdjacentElement("afterend", adminSection);
+
+    const homeEndpointCard = getElement("home-endpoint-card");
+    const backendSlot = getElement("admin-backend-card-slot");
+    if (homeEndpointCard instanceof HTMLElement && backendSlot instanceof HTMLElement) {
+      backendSlot.appendChild(homeEndpointCard);
+    }
+    const projectDownloadPanel = getElement("project-data-download-panel");
+    const aiCallLogPanel = getElement("ai-call-log-download-panel");
+    const downloadGrid = getElement("admin-download-grid");
+    if (downloadGrid instanceof HTMLElement) {
+      if (projectDownloadPanel instanceof HTMLElement) {
+        downloadGrid.appendChild(projectDownloadPanel);
+      }
+      if (aiCallLogPanel instanceof HTMLElement) {
+        downloadGrid.appendChild(aiCallLogPanel);
+      }
+    }
+  }
+
+  function formatNumber(value) {
+    return Number(value || 0).toLocaleString("zh-CN");
+  }
+
+  function buildEmptyState(message) {
+    return '<div class="empty-state">' + escapeHtml(message || "暂无数据") + "</div>";
+  }
+
+  function buildPoolChartMarkup(pools) {
+    const rows = Array.isArray(pools) ? pools : [];
+    if (rows.length <= 0) {
+      return buildEmptyState("当前没有活跃模型池。");
+    }
+    const width = 560;
+    const rowHeight = 48;
+    const height = rows.length * rowHeight + 20;
+    const barLeft = 210;
+    const barWidth = 260;
+    const maxPercent = 100;
+    const content = rows
+      .map(function (pool, index) {
+        const y = 10 + index * rowHeight;
+        const ratio = Math.max(0, Math.min(maxPercent, Number(pool.utilizationPercent || 0)));
+        return [
+          '<text x="0" y="' + (y + 16) + '" class="pool-chart-name">' + escapeHtml(pool.displayName || pool.groupName || "unknown") + "</text>",
+          '<text x="0" y="' + (y + 33) + '" class="pool-chart-meta">活跃 ' + escapeHtml(String(pool.activeCount || 0)) + ' / ' + escapeHtml(String(pool.maxConcurrent || 0)) + " · 排队 " + escapeHtml(String(pool.pendingCount || 0)) + "</text>",
+          '<rect x="' + barLeft + '" y="' + y + '" width="' + barWidth + '" height="14" rx="7" class="pool-chart-track"></rect>',
+          '<rect x="' + barLeft + '" y="' + y + '" width="' + Math.round((ratio / 100) * barWidth) + '" height="14" rx="7" class="pool-chart-fill"></rect>',
+          '<text x="' + (barLeft + barWidth + 14) + '" y="' + (y + 12) + '" class="pool-chart-value">' + String(ratio) + "%</text>",
+        ].join("");
+      })
+      .join("");
+    return '<svg class="admin-chart" viewBox="0 0 ' + width + " " + height + '">' + content + "</svg>";
+  }
+
+  function buildTrendChartMarkup(byDate) {
+    const rows = Array.isArray(byDate) ? byDate.slice(-14) : [];
+    if (rows.length <= 0) {
+      return buildEmptyState("当前还没有趋势数据。");
+    }
+    const width = Math.max(420, rows.length * 42 + 30);
+    const height = 220;
+    const maxCalls = rows.reduce(function (maxValue, item) {
+      return Math.max(maxValue, Number(item.totalCalls || 0) || 0);
+    }, 1);
+    const baseline = 170;
+    const content = rows
+      .map(function (item, index) {
+        const totalCalls = Number(item.totalCalls || 0) || 0;
+        const barHeight = Math.max(6, Math.round((totalCalls / maxCalls) * 110));
+        const x = 24 + index * 42;
+        const y = baseline - barHeight;
+        const label = String(item.date || "").slice(5);
+        return [
+          '<rect x="' + x + '" y="' + y + '" width="22" height="' + barHeight + '" rx="11" class="trend-chart-bar"></rect>',
+          '<text x="' + (x + 11) + '" y="' + (baseline + 18) + '" text-anchor="middle" class="trend-chart-label">' + escapeHtml(label) + "</text>",
+          '<text x="' + (x + 11) + '" y="' + (y - 8) + '" text-anchor="middle" class="trend-chart-value">' + escapeHtml(String(totalCalls)) + "</text>",
+        ].join("");
+      })
+      .join("");
+    return '<svg class="admin-chart" viewBox="0 0 ' + width + " " + height + '">' + content + "</svg>";
+  }
+
+  function buildOperatorTableMarkup(rows) {
+    const items = Array.isArray(rows) ? rows.slice(0, 8) : [];
+    if (items.length <= 0) {
+      return buildEmptyState("当前没有调用人数据。");
+    }
+    return [
+      '<div class="admin-table">',
+      '<div class="admin-table-row admin-table-head"><span>调用人</span><span>调用量</span><span>失败</span></div>',
+      items
+        .map(function (item) {
+          return (
+            '<div class="admin-table-row"><span>' +
+            escapeHtml(item.aiUsageOperatorName === "<empty>" ? "未填写" : item.aiUsageOperatorName) +
+            "</span><span>" +
+            escapeHtml(formatNumber(item.totalCalls)) +
+            "</span><span>" +
+            escapeHtml(formatNumber(item.failedCalls)) +
+            "</span></div>"
+          );
+        })
+        .join(""),
+      "</div>",
+    ].join("");
+  }
+
+  function buildScriptStatsTableMarkup(rows) {
+    const items = Array.isArray(rows) ? rows : [];
+    if (items.length <= 0) {
+      return buildEmptyState("当前没有脚本统计数据。");
+    }
+    return [
+      '<div class="admin-table admin-table-wide">',
+      '<div class="admin-table-row admin-table-head"><span>脚本</span><span>今日调用</span><span>今日失败</span><span>累计调用</span></div>',
+      items
+        .map(function (item) {
+          return (
+            '<div class="admin-table-row"><span>' +
+            escapeHtml(item.label || item.id || "") +
+            "</span><span>" +
+            escapeHtml(formatNumber(item.today?.totals?.totalCalls || 0)) +
+            "</span><span>" +
+            escapeHtml(formatNumber(item.today?.totals?.failedCalls || 0)) +
+            "</span><span>" +
+            escapeHtml(formatNumber(item.allTime?.totals?.totalCalls || 0)) +
+            "</span></div>"
+          );
+        })
+        .join(""),
+      "</div>",
+    ].join("");
+  }
+
+  function buildFailuresMarkup(rows) {
+    const items = Array.isArray(rows) ? rows.slice(0, 6) : [];
+    if (items.length <= 0) {
+      return buildEmptyState("今日没有失败错误码。");
+    }
+    return items
+      .map(function (item) {
+        return (
+          '<div class="failure-chip"><strong>' +
+          escapeHtml(item.errorCode || "unknown") +
+          "</strong><span>" +
+          escapeHtml(formatNumber(item.totalCalls || 0)) +
+          " 次</span></div>"
+        );
+      })
+      .join("");
+  }
+
+  function renderAdminDownloadSummary(data) {
+    const node = getElement("admin-download-summary");
+    if (!node) {
+      return;
+    }
+    const downloads = data?.downloads && typeof data.downloads === "object" ? data.downloads : {};
+    const projectCount = Array.isArray(downloads.projectDataDatasets)
+      ? downloads.projectDataDatasets.length
+      : 0;
+    const aiCount = Array.isArray(downloads.aiCallLogDatasets)
+      ? downloads.aiCallLogDatasets.length
+      : 0;
+    node.innerHTML = [
+      '<article class="public-summary-card"><span class="summary-label">项目数据类型</span><strong>' + formatNumber(projectCount) + "</strong><span class=\"summary-note\">支持 CSV 聚合下载</span></article>",
+      '<article class="public-summary-card"><span class="summary-label">AI 日志脚本</span><strong>' + formatNumber(aiCount) + "</strong><span class=\"summary-note\">支持按日期范围导出</span></article>",
+      '<article class="public-summary-card"><span class="summary-label">脚本分发入口</span><strong>1</strong><span class=\"summary-note\">可跳转到外部脚本下载中心</span></article>',
+    ].join("");
+  }
+
+  function renderAdminBackendSummary(data) {
+    const node = getElement("admin-backend-runtime");
+    if (!node) {
+      return;
+    }
+    const runtime = data?.runtime && typeof data.runtime === "object" ? data.runtime : {};
+    const queue = runtime.queue && typeof runtime.queue === "object" ? runtime.queue : {};
+    const backend = data?.backend && typeof data.backend === "object" ? data.backend : {};
+    node.innerHTML = [
+      '<div class="admin-runtime-list">',
+      '<div><strong>管理员鉴权</strong><span>' + escapeHtml(backend.adminAuthConfigured ? "已配置" : "未配置") + "</span></div>",
+      '<div><strong>会话有效期</strong><span>' + escapeHtml(String(backend.sessionTtlSeconds || 0)) + " 秒</span></div>",
+      '<div><strong>模型池策略</strong><span>' + escapeHtml(queue.keyStrategy || "concrete-model-name") + "</span></div>",
+      '<div><strong>活跃模型池</strong><span>' + escapeHtml(formatNumber(queue.activePools?.length || 0)) + "</span></div>",
+      '<div><strong>任务池</strong><span>运行中 ' + escapeHtml(formatNumber(runtime.jobs?.runningCount || runtime.jobs?.activeCount || 0)) + " / 待处理 " + escapeHtml(formatNumber(runtime.jobs?.pendingCount || 0)) + "</span></div>",
+      "</div>",
+    ].join("");
+  }
+
+  function renderAdminDashboard(data) {
+    const overview = data && typeof data === "object" ? data : null;
+    if (!overview) {
+      return;
+    }
+    const backend = overview.backend || {};
+    const stats = overview.stats || {};
+    const queue = overview.runtime?.queue || {};
+    const summaryNode = getElement("admin-overview-summary");
+    if (summaryNode) {
+      summaryNode.innerHTML = [
+        '<article class="public-summary-card"><span class="summary-label">后端状态</span><strong>' + escapeHtml(backend.status === "ready" ? "就绪" : "需配置") + '</strong><span class="summary-note">管理员鉴权' + (backend.adminAuthConfigured ? "已就绪" : "未配置") + "</span></article>",
+        '<article class="public-summary-card"><span class="summary-label">今日 AI 调用</span><strong>' + formatNumber(stats.today?.totalCalls || 0) + '</strong><span class="summary-note">成功 ' + formatNumber(stats.today?.successCalls || 0) + " / 失败 " + formatNumber(stats.today?.failedCalls || 0) + "</span></article>",
+        '<article class="public-summary-card"><span class="summary-label">活跃模型池</span><strong>' + formatNumber(queue.activePools?.length || 0) + '</strong><span class="summary-note">共享具体模型名队列</span></article>',
+      ].join("");
+    }
+    const poolsNode = getElement("admin-overview-pools");
+    if (poolsNode) {
+      poolsNode.innerHTML = buildPoolChartMarkup(queue.activePools || []);
+    }
+    const failuresNode = getElement("admin-overview-failures");
+    if (failuresNode) {
+      failuresNode.innerHTML = buildFailuresMarkup(stats.failures || []);
+    }
+    const scriptsNode = getElement("admin-overview-scripts");
+    if (scriptsNode) {
+      scriptsNode.innerHTML = buildScriptStatsTableMarkup(stats.scripts || []);
+    }
+    const endpointNode = getElement("admin-stage-endpoint");
+    if (endpointNode) {
+      const currentMode = getBackendModeFromSettings(currentSettings || {});
+      endpointNode.textContent =
+        "当前后端入口：" +
+        (currentMode === backendModeLocal ? "本机（127.0.0.1:3333）" : "服务器（script.xiangtianzhen.store）");
+    }
+    renderAdminBackendSummary(overview);
+    renderAdminDownloadSummary(overview);
+    const trendNode = getElement("admin-stats-trend");
+    if (trendNode) {
+      trendNode.innerHTML = buildTrendChartMarkup(stats.byDate || []);
+    }
+    const operatorNode = getElement("admin-stats-operators");
+    if (operatorNode) {
+      operatorNode.innerHTML = buildOperatorTableMarkup(stats.byOperator || []);
+    }
+    const scriptStatsNode = getElement("admin-stats-scripts");
+    if (scriptStatsNode) {
+      scriptStatsNode.innerHTML = buildScriptStatsTableMarkup(stats.scripts || []);
+    }
+    const errorNode = getElement("admin-stats-errors");
+    if (errorNode) {
+      errorNode.innerHTML = buildFailuresMarkup(stats.failures || []);
+    }
+  }
+
+  async function loadAdminDashboard(forceRefresh) {
+    if (!hasActiveAdminSession()) {
+      return null;
+    }
+    if (adminDashboardCache && forceRefresh !== true) {
+      return adminDashboardCache;
+    }
+    if (adminDashboardLoading) {
+      return adminDashboardLoading;
+    }
+    setAdminPanelStatus("admin-overview-status", "正在加载系统总览...");
+    adminDashboardLoading = requestAdminJson(adminDashboardOverviewPath, {
+      method: "GET",
+    })
+      .then(async function (result) {
+        if (!result || result.authFailed) {
+          return null;
+        }
+        if (!result.response.ok || result.body?.success !== true) {
+          setAdminPanelStatus(
+            "admin-overview-status",
+            getAdminDashboardErrorMessage(result.body, result.response.status)
+          );
+          setAdminPanelStatus(
+            "admin-stats-status",
+            getAdminDashboardErrorMessage(result.body, result.response.status)
+          );
+          return null;
+        }
+        adminDashboardCache = result.body.data || null;
+        renderAdminDashboard(adminDashboardCache);
+        setAdminPanelStatus(
+          "admin-overview-status",
+          "总览已更新：" + normalizeText(adminDashboardCache?.generatedAt || "")
+        );
+        setAdminPanelStatus(
+          "admin-stats-status",
+          "统计数据已更新。"
+        );
+        return adminDashboardCache;
+      })
+      .finally(function () {
+        adminDashboardLoading = null;
+      });
+    return adminDashboardLoading;
+  }
+
+  async function handleAdminUnlock() {
+    const passwordInput = getElement("admin-password-input");
+    const rememberInput = getElement("admin-remember-session");
+    if (!(passwordInput instanceof HTMLInputElement)) {
+      return;
+    }
+    const password = normalizeText(passwordInput.value);
+    if (!password) {
+      setAdminAuthStatus("请输入管理员密码。", "error");
+      passwordInput.focus();
+      return;
+    }
+    setAdminAuthStatus("正在校验管理员密码...", "pending");
+    try {
+      const response = await fetch(buildBackendUrl(adminSessionUnlockPath, currentSettings || {}), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          password: password,
+          operatorName: getAiUsageOperatorName(currentSettings || {}),
+        }),
+      });
+      const body = parseJsonSafely(await response.text());
+      if (!response.ok || body?.success !== true) {
+        setAdminAuthStatus(getAdminAuthErrorMessage(body, response.status), "error");
+        return;
+      }
+      await persistAdminSession(body?.data || {}, rememberInput instanceof HTMLInputElement && rememberInput.checked === true);
+      adminAuthMessage = "";
+      passwordInput.value = "";
+      setAdminAuthStatus("验证成功，正在进入系统管理。", "success");
+      adminDashboardCache = null;
+      navigateToAdmin(getCurrentAdminTab());
+    } catch (error) {
+      setAdminAuthStatus(
+        "登录失败：" + (error && error.message ? error.message : String(error)),
+        "error"
+      );
+    }
+  }
+
+  async function handleAdminLogout() {
+    adminAuthMessage = "已退出系统管理登录。";
+    await clearAdminSession({
+      keepStatus: true,
+    });
+    renderCurrentView();
+  }
+
+  function renderAdminWorkspace(tab) {
+    ensureAdminWorkspace();
+    const workspace = getElement("admin-workspace");
+    const authGate = getElement("admin-auth-gate");
+    const content = getElement("admin-content");
+    if (!(workspace instanceof HTMLElement) || !(authGate instanceof HTMLElement) || !(content instanceof HTMLElement)) {
+      return;
+    }
+    workspace.classList.remove("hidden");
+    const currentTab = adminTabs.indexOf(String(tab || "").trim()) >= 0 ? String(tab).trim() : "overview";
+    Array.from(workspace.querySelectorAll("[data-admin-tab]")).forEach(function (button) {
+      const matches = button.getAttribute("data-admin-tab") === currentTab;
+      button.classList.toggle("active", matches);
+      button.setAttribute("aria-pressed", String(matches));
+    });
+    adminTabs.forEach(function (tabKey) {
+      const panel = getElement("admin-tab-" + tabKey);
+      if (panel) {
+        panel.classList.toggle("hidden", tabKey !== currentTab);
+      }
+    });
+
+    const unlocked = hasActiveAdminSession();
+    endpointAdvancedUnlocked = unlocked;
+    authGate.classList.toggle("hidden", unlocked);
+    content.classList.toggle("hidden", !unlocked);
+    renderHomeBackendEndpoint(currentSettings || {});
+    renderHomeAiUsageOperator(currentSettings || {});
+    renderProjectDataDownloadPanel(currentSettings || {});
+    renderAiCallLogPanel(currentSettings || {});
+    if (unlocked) {
+      unlockEndpointAdvancedPanel();
+      if (adminAuthMessage) {
+        setAdminAuthStatus(adminAuthMessage, "warning");
+      } else {
+        setAdminAuthStatus("管理员会话有效，可直接切换各功能页。", "success");
+      }
+      void loadAdminDashboard(false);
+    } else {
+      setAdminAuthStatus(adminAuthMessage || "进入系统管理前需要输入密码。", adminAuthMessage ? "warning" : "neutral");
+    }
   }
 
   function renderProjectDataDownloadPanel(settings) {
@@ -6556,20 +7392,17 @@
       return;
     }
 
-    const password = globalThis.prompt("请输入下载密码");
-    if (password === null) {
-      setProjectDataDownloadStatus("已取消下载。");
-      return;
-    }
-    if (!normalizeText(password)) {
-      setProjectDataDownloadStatus("下载密码不能为空。");
+    if (!hasActiveAdminSession()) {
+      adminAuthMessage = "管理员会话已失效，请重新输入密码后再导出。";
+      setProjectDataDownloadStatus(adminAuthMessage);
+      navigateToAdmin("downloads");
       return;
     }
 
     setProjectDataDownloadStatus("正在申请短期下载链接...");
     try {
       await persistProjectDataDownloadOperatorName(operatorName);
-      const response = await fetch(buildBackendUrl(projectDataDownloadRequestPath, currentSettings || {}), {
+      const result = await requestAdminJson(projectDataDownloadRequestPath, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -6577,25 +7410,30 @@
         body: JSON.stringify({
           dataset: datasetId,
           supplier: supplier,
-          password: String(password),
           operatorName: operatorName,
           clientInfo: getDownloadClientInfo(),
         }),
       });
-      const body = parseJsonSafely(await response.text());
-      if (!response.ok || body?.success !== true) {
-        setProjectDataDownloadStatus(getProjectDataDownloadErrorMessage(body, response.status));
+      if (!result || result.authFailed) {
+        setProjectDataDownloadStatus(adminAuthMessage || "管理员会话已失效，请重新登录后再导出。");
+        navigateToAdmin("downloads");
+        return;
+      }
+      if (!result.response.ok || result.body?.success !== true) {
+        setProjectDataDownloadStatus(
+          getProjectDataDownloadErrorMessage(result.body, result.response.status)
+        );
         return;
       }
 
-      const downloadUrl = normalizeText(body?.data?.downloadUrl);
+      const downloadUrl = normalizeText(result.body?.data?.downloadUrl);
       if (!downloadUrl) {
         setProjectDataDownloadStatus("后端未返回下载链接，请重试。");
         return;
       }
       triggerDownloadLink(downloadUrl);
 
-      const expiresInSeconds = Number(body?.data?.expiresInSeconds || 0);
+      const expiresInSeconds = Number(result.body?.data?.expiresInSeconds || 0);
       if (expiresInSeconds > 0) {
         setProjectDataDownloadStatus("下载链接已生成（" + String(expiresInSeconds) + " 秒内有效）。");
       } else {
@@ -6648,20 +7486,17 @@
       return;
     }
 
-    const password = globalThis.prompt("请输入下载密码");
-    if (password === null) {
-      setAiCallLogStatus("已取消导出。");
-      return;
-    }
-    if (!normalizeText(password)) {
-      setAiCallLogStatus("下载密码不能为空。");
+    if (!hasActiveAdminSession()) {
+      adminAuthMessage = "管理员会话已失效，请重新输入密码后再导出。";
+      setAiCallLogStatus(adminAuthMessage);
+      navigateToAdmin("downloads");
       return;
     }
 
     setAiCallLogStatus("正在申请 AI 请求记录下载链接...");
     try {
       await persistAiCallLogOperatorName(operatorName);
-      const response = await fetch(buildBackendUrl(aiCallLogDownloadRequestPath, currentSettings || {}), {
+      const result = await requestAdminJson(aiCallLogDownloadRequestPath, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -6671,24 +7506,27 @@
           dataset: datasetId,
           dateFrom: dateFrom,
           dateTo: dateTo,
-          password: String(password),
           clientInfo: getDownloadClientInfo(),
         }),
       });
-      const body = parseJsonSafely(await response.text());
-      if (!response.ok || body?.success !== true) {
-        setAiCallLogStatus(getAiCallLogErrorMessage(body, response.status));
+      if (!result || result.authFailed) {
+        setAiCallLogStatus(adminAuthMessage || "管理员会话已失效，请重新登录后再导出。");
+        navigateToAdmin("downloads");
+        return;
+      }
+      if (!result.response.ok || result.body?.success !== true) {
+        setAiCallLogStatus(getAiCallLogErrorMessage(result.body, result.response.status));
         return;
       }
 
-      const downloadUrl = normalizeText(body?.data?.downloadUrl);
+      const downloadUrl = normalizeText(result.body?.data?.downloadUrl);
       if (!downloadUrl) {
         setAiCallLogStatus("后端未返回下载链接，请重试。");
         return;
       }
 
       triggerDownloadLink(downloadUrl);
-      const expiresInSeconds = Number(body?.data?.expiresInSeconds || 0);
+      const expiresInSeconds = Number(result.body?.data?.expiresInSeconds || 0);
       if (expiresInSeconds > 0) {
         setAiCallLogStatus(
           "下载链接已生成（" + String(expiresInSeconds) + " 秒内有效）。"
@@ -7794,51 +8632,65 @@
 
   async function renderCurrentView() {
     hideError();
-    const scriptId = getCurrentDetailScriptId();
+    ensurePublicHeroShell();
+    ensureAdminWorkspace();
+    const route = getCurrentRouteState();
+    const scriptId = route.view === "script" ? route.scriptId : null;
     const settings = currentSettings || (await loadSettings());
+    const centerView = getElement("script-center-view");
+    const detailView = getElement("script-detail-view");
+    const adminWorkspace = getElement("admin-workspace");
 
     document.title = (constants.EXTENSION_NAME || "标注脚本中心") + " - 设置";
     getElement("extension-name").textContent = constants.EXTENSION_NAME || "标注脚本中心";
-    const stageLabel = getElement("stage-label");
-    if (stageLabel) {
-      stageLabel.textContent = "脚本下载中心";
-      stageLabel.setAttribute("title", "打开脚本下载中心");
-      stageLabel.setAttribute("aria-label", "打开脚本下载中心");
+
+    if (route.view === "admin") {
+      if (centerView) {
+        centerView.classList.add("hidden");
+      }
+      if (detailView) {
+        detailView.classList.add("hidden");
+      }
+      if (adminWorkspace) {
+        adminWorkspace.classList.remove("hidden");
+      }
+      renderAdminWorkspace(route.adminTab);
+      return;
     }
 
     if (!scriptId) {
-      getElement("script-center-view").classList.remove("hidden");
-      getElement("script-detail-view").classList.add("hidden");
-      getElement("home-endpoint-card").classList.remove("hidden");
-      renderProjectDataDownloadPanel(settings);
-      renderAiCallLogPanel(settings);
+      if (centerView) {
+        centerView.classList.remove("hidden");
+      }
+      if (detailView) {
+        detailView.classList.add("hidden");
+      }
+      if (adminWorkspace) {
+        adminWorkspace.classList.add("hidden");
+      }
       renderScriptCenter(settings);
       return;
     }
 
-    getElement("script-center-view").classList.add("hidden");
-    getElement("script-detail-view").classList.remove("hidden");
-    getElement("home-endpoint-card").classList.add("hidden");
-    getElement("project-data-download-panel").classList.add("hidden");
-    getElement("ai-call-log-download-panel").classList.add("hidden");
+    if (centerView) {
+      centerView.classList.add("hidden");
+    }
+    if (detailView) {
+      detailView.classList.remove("hidden");
+    }
+    if (adminWorkspace) {
+      adminWorkspace.classList.add("hidden");
+    }
     renderDetail(settings, scriptId);
   }
 
   document.addEventListener("DOMContentLoaded", async function () {
+    ensurePublicHeroShell();
+    ensureAdminWorkspace();
     const stageLabel = getElement("stage-label");
     if (stageLabel) {
       stageLabel.addEventListener("click", function () {
-        openScriptDownloadCenter();
-      });
-    }
-
-    const homeEndpointTitle = getElement("home-endpoint-title");
-    if (homeEndpointTitle) {
-      homeEndpointTitle.addEventListener("click", function () {
-        endpointAdvancedRevealCount += 1;
-        if (endpointAdvancedRevealCount >= 10) {
-          unlockEndpointAdvancedPanel();
-        }
+        navigateToAdmin(getCurrentAdminTab());
       });
     }
 
@@ -7870,7 +8722,7 @@
     }
 
     getElement("back-to-center").addEventListener("click", function () {
-      navigateToScript(null);
+      navigateToCenter();
     });
 
     getElement("detail-enable-button").addEventListener("click", function () {
@@ -7995,9 +8847,60 @@
       });
     }
 
+    Array.from(document.querySelectorAll("[data-admin-tab]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        navigateToAdmin(button.getAttribute("data-admin-tab"));
+      });
+    });
+
+    const adminReturnCenterButton = getElement("admin-return-center");
+    if (adminReturnCenterButton instanceof HTMLButtonElement) {
+      adminReturnCenterButton.addEventListener("click", function () {
+        navigateToCenter();
+      });
+    }
+
+    const adminLogoutButton = getElement("admin-logout-button");
+    if (adminLogoutButton instanceof HTMLButtonElement) {
+      adminLogoutButton.addEventListener("click", function () {
+        void handleAdminLogout();
+      });
+    }
+
+    const adminRefreshButton = getElement("admin-refresh-dashboard");
+    if (adminRefreshButton instanceof HTMLButtonElement) {
+      adminRefreshButton.addEventListener("click", function () {
+        void loadAdminDashboard(true);
+      });
+    }
+
+    const adminUnlockButton = getElement("admin-unlock-button");
+    if (adminUnlockButton instanceof HTMLButtonElement) {
+      adminUnlockButton.addEventListener("click", function () {
+        void handleAdminUnlock();
+      });
+    }
+
+    const adminPasswordInput = getElement("admin-password-input");
+    if (adminPasswordInput instanceof HTMLInputElement) {
+      adminPasswordInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          void handleAdminUnlock();
+        }
+      });
+    }
+
+    const adminOpenScriptDownloadCenterButton = getElement("admin-open-script-download-center");
+    if (adminOpenScriptDownloadCenterButton instanceof HTMLButtonElement) {
+      adminOpenScriptDownloadCenterButton.addEventListener("click", function () {
+        openScriptDownloadCenter();
+      });
+    }
+
     try {
       await loadSettings();
-      await ensureBackendModeServerOnInit();
+      await restoreAdminSession();
       await renderCurrentView();
     } catch (error) {
       showError(error && error.message ? error.message : String(error));

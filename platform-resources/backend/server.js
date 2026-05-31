@@ -83,6 +83,16 @@ server.listen(config.port, config.host, function () {
       "/api/data-baker/round-one-quality/export/download"
   );
   console.info(
+    "[Platform Resources][backend] Admin session unlock: " +
+      baseUrl +
+      "/api/admin/session/unlock"
+  );
+  console.info(
+    "[Platform Resources][backend] Admin dashboard overview: " +
+      baseUrl +
+      "/api/admin/dashboard/overview"
+  );
+  console.info(
     "[Platform Resources][backend] Project data download options: " +
       baseUrl +
       "/api/admin/project-data-download/options"

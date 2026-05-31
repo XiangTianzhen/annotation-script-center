@@ -1,3 +1,49 @@
+## 2026-05-31（0.3.8 Options 后台重构首版）
+
+- options 入口当前保留 `extension/options/options.html` 单页，但正式切换为 query 路由：
+  - `?view=center`
+  - `?view=script&script=<scriptId>`
+  - `?view=admin&tab=overview|backend|downloads|stats`
+- 前端完成“公开脚本中心 + 受保护系统管理”两层结构首版重构：
+  - 公开脚本中心只保留平台卡、脚本状态、启停入口与脚本详情入口。
+  - 原首页的后端设置、项目数据下载、AI 请求记录导出全部迁入系统管理页。
+  - 系统管理页固定 4 个页签：`仪表盘 / 后端设置 / 下载中心 / 运行统计`。
+  - 新增 `extension/options/options.css`，把原 `options.html` 内联大样式外提，并统一公开中心、脚本详情页和后台工作台视觉壳层。
+  - 新增 `extension/options/options-route-state.js`，集中处理 options 路由解析与 href 构造。
+- 系统管理页当前接入密码门禁与会话恢复：
+  - 页面内优先使用 `sessionStorage`
+  - 勾选“记住本次浏览器会话”时额外镜像到 `chrome.storage.session`
+  - 会话失效后自动退回密码门禁
+- 统一后端新增系统管理接口与鉴权 helper：
+  - `POST /api/admin/session/unlock`
+  - `GET /api/admin/dashboard/overview`
+  - `platform-resources/backend/admin-auth.js` 统一处理密码 hash 校验、Bearer token 读取和会话 token 校验
+- 仪表盘当前聚合内容：
+  - 统一模型池 / provider queue 占用
+  - 脚本级 AI 调用汇总
+  - 今日失败错误码摘要
+  - 下载中心快捷摘要
+- `POST /api/admin/project-data-download/request` 与 `POST /api/admin/ai-call-log/request` 当前已支持双鉴权：
+  - 旧模式：body `password`
+  - 新模式：`Authorization: Bearer <admin-session-token>`
+- 新增测试：
+  - `platform-resources/backend/admin-auth.test.js`
+  - `platform-resources/backend/admin-dashboard/overview.test.js`
+  - `platform-resources/backend/project-data-download/__tests__/request-auth.test.js`
+  - `platform-resources/backend/ai-call-log-download/request-auth.test.js`
+  - `extension/options/options-route-state.test.js`
+- 本轮验证：
+  - `node --check extension/options/options.js`
+  - `node --check extension/options/options-route-state.js`
+  - `node --check platform-resources/backend/admin-auth.js`
+  - `node --check platform-resources/backend/admin-session/routes.js`
+  - `node --check platform-resources/backend/admin-dashboard/overview.js`
+  - `node --check platform-resources/backend/admin-dashboard/routes.js`
+  - `node --check platform-resources/backend/project-data-download/routes.js`
+  - `node --check platform-resources/backend/ai-call-log-download/routes.js`
+  - `node --test platform-resources/backend/admin-auth.test.js platform-resources/backend/admin-dashboard/overview.test.js platform-resources/backend/project-data-download/__tests__/request-auth.test.js platform-resources/backend/ai-call-log-download/request-auth.test.js extension/options/options-route-state.test.js`
+- 真实浏览器自动化静态验收未完成：本机 Edge 远程调试端口当前返回 `403 Forbidden`，Playwright 无法接入；扩展的最终 UI/门禁/导出流程仍需在真实 Chrome / Edge 中加载 unpacked extension 后手工验收。
+
 ## 2026-05-31（发布：v0.3.7）
 
 - 确认 `extension/manifest.json` 当前版本为 `0.3.7`，本轮不再提升到 `0.3.8`。

@@ -2,9 +2,10 @@
 
 const fs = require("fs");
 const path = require("path");
+const { authenticateAdminRequest, getAdminAuthConfig } = require("../admin-auth");
 const { createCorsHeaders, sendJson } = require("../response");
 const { createAuditStore } = require("./audit-store");
-const { createSha256Hex, createSignedToken, timingSafeEqualHex, verifySignedToken } = require("./jwt");
+const { createSignedToken, verifySignedToken } = require("./jwt");
 const { createProjectDownloadDataset } = require("../../data-baker/round-one-quality/data/adapter");
 const {
   appendSupplierSuffix,
@@ -92,6 +93,9 @@ function getAuthConfig() {
 
 function createDatasetRegistry(config) {
   const options = config && typeof config === "object" ? config : {};
+  if (Array.isArray(options.datasets) && options.datasets.length > 0) {
+    return options.datasets.slice();
+  }
   const asrJudgementDir =
     normalizeText(options.asrJudgementStatsDir) ||
     normalizeText(process.env.ASR_JUDGEMENT_STATS_DIR) ||
@@ -160,6 +164,21 @@ function readDatasetCsvMeta(dataset) {
     headers: parsed.headers || [],
     rows: parsed.rows || [],
   };
+}
+
+function buildProjectDataDownloadOption(dataset) {
+  const meta = readDatasetCsvMeta(dataset);
+  return {
+    id: dataset.id,
+    label: dataset.label,
+    supplierRequired: meta.supplierRequired,
+    suppliers: meta.suppliers,
+    hasData: meta.exists,
+  };
+}
+
+function listProjectDataDownloadDatasets(config) {
+  return createDatasetRegistry(config).map(buildProjectDataDownloadOption);
 }
 
 function toStatusCodeForCode(code) {
@@ -276,15 +295,7 @@ function registerProjectDataDownloadRoutes(router, options) {
   auditStore.ensureDataDir();
 
   router.get(OPTIONS_PATH, function ({ response }) {
-    const result = datasets.map(function (dataset) {
-      const meta = readDatasetCsvMeta(dataset);
-      return {
-        id: dataset.id,
-        label: dataset.label,
-        supplierRequired: meta.supplierRequired,
-        suppliers: meta.suppliers,
-      };
-    });
+    const result = datasets.map(buildProjectDataDownloadOption);
     sendJson(response, 200, {
       success: true,
       data: result,
@@ -373,9 +384,23 @@ function registerProjectDataDownloadRoutes(router, options) {
         return;
       }
 
-      const passwordSha256 = createSha256Hex(password);
-      if (!timingSafeEqualHex(authConfig.passwordSha256, passwordSha256)) {
-        const code = "project-data-download-password-invalid";
+      const authResult = authenticateAdminRequest({
+        request,
+        password,
+        authConfig,
+        sessionAuthConfig: getAdminAuthConfig(),
+      });
+      if (!authResult.ok) {
+        const code =
+          authResult.code === "admin-auth-not-configured"
+            ? "project-data-download-auth-not-configured"
+            : authResult.code === "admin-auth-password-invalid"
+              ? "project-data-download-password-invalid"
+              : authResult.code === "admin-auth-missing"
+                ? "project-data-download-token-missing"
+                : authResult.code === "admin-session-token-expired"
+                  ? "project-data-download-token-expired"
+                  : "project-data-download-token-invalid";
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
@@ -392,7 +417,14 @@ function registerProjectDataDownloadRoutes(router, options) {
             requestedAt: new Date().toISOString(),
           })
         );
-        sendError(response, code, "下载密码错误。", requestId);
+        sendError(
+          response,
+          code,
+          code === "project-data-download-password-invalid"
+            ? "下载密码错误。"
+            : authResult.message || "管理员会话无效。",
+          requestId
+        );
         return;
       }
 
@@ -746,5 +778,6 @@ module.exports = {
   FILE_PATH,
   OPTIONS_PATH,
   REQUEST_PATH,
+  listProjectDataDownloadDatasets,
   registerProjectDataDownloadRoutes,
 };

@@ -17,6 +17,8 @@ function createPlatformResourcesServer(options) {
         "alibaba-labelx/asr-transcription",
         "data-baker/round-one-quality",
         "aishell-tech/minnan-helper",
+        "admin/session",
+        "admin/dashboard",
         "admin/project-data-download",
         "admin/ai-call-log",
       ],

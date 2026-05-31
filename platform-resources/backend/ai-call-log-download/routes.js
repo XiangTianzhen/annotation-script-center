@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require("path");
+const { authenticateAdminRequest, getAdminAuthConfig } = require("../admin-auth");
 const {
   buildHeaderLine,
   listLogFiles,
@@ -11,9 +12,7 @@ const { normalizeText } = require("../ai-call-log/sanitizer");
 const { createCorsHeaders, sendJson } = require("../response");
 const { createAuditStore } = require("../project-data-download/audit-store");
 const {
-  createSha256Hex,
   createSignedToken,
-  timingSafeEqualHex,
   verifySignedToken,
 } = require("../project-data-download/jwt");
 
@@ -101,7 +100,11 @@ function getAuthConfig() {
   };
 }
 
-function createDatasetRegistry() {
+function createDatasetRegistry(config) {
+  const options = config && typeof config === "object" ? config : {};
+  if (Array.isArray(options.datasets) && options.datasets.length > 0) {
+    return options.datasets.slice();
+  }
   return [
     {
       id: "data-baker-round-one-quality-ai",
@@ -204,6 +207,22 @@ function readDatasetLogMeta(dataset, range) {
     dateFrom: dates.length > 0 ? dates[0] : "",
     dateTo: dates.length > 0 ? dates[dates.length - 1] : "",
   };
+}
+
+function buildAiCallLogDatasetOption(dataset) {
+  const meta = readDatasetLogMeta(dataset, {});
+  return {
+    id: dataset.id,
+    label: dataset.label,
+    hasData: meta.hasData,
+    fileCount: meta.fileCount,
+    dateFrom: meta.dateFrom,
+    dateTo: meta.dateTo,
+  };
+}
+
+function listAiCallLogDatasets(config) {
+  return createDatasetRegistry(config).map(buildAiCallLogDatasetOption);
 }
 
 function toStatusCodeForCode(code) {
@@ -363,7 +382,7 @@ function createCsvHeaders(fileName, fileSize) {
 
 function registerAiCallLogDownloadRoutes(router, options) {
   const config = options && typeof options === "object" ? options : {};
-  const datasets = createDatasetRegistry();
+  const datasets = createDatasetRegistry(config);
   const auditStore = createAuditStore({
     dataDir:
       normalizeText(config.auditDataDir) ||
@@ -373,12 +392,7 @@ function registerAiCallLogDownloadRoutes(router, options) {
   auditStore.ensureDataDir();
 
   router.get(OPTIONS_PATH, function ({ response }) {
-    const result = datasets.map(function (dataset) {
-      return {
-        id: dataset.id,
-        label: dataset.label,
-      };
-    });
+    const result = datasets.map(buildAiCallLogDatasetOption);
     sendJson(response, 200, {
       success: true,
       data: result,
@@ -489,9 +503,23 @@ function registerAiCallLogDownloadRoutes(router, options) {
         return;
       }
 
-      const passwordSha256 = createSha256Hex(password);
-      if (!timingSafeEqualHex(authConfig.passwordSha256, passwordSha256)) {
-        const code = "ai-call-log-download-password-invalid";
+      const authResult = authenticateAdminRequest({
+        request,
+        password,
+        authConfig,
+        sessionAuthConfig: getAdminAuthConfig(),
+      });
+      if (!authResult.ok) {
+        const code =
+          authResult.code === "admin-auth-not-configured"
+            ? "ai-call-log-download-auth-not-configured"
+            : authResult.code === "admin-auth-password-invalid"
+              ? "ai-call-log-download-password-invalid"
+              : authResult.code === "admin-auth-missing"
+                ? "ai-call-log-download-token-missing"
+                : authResult.code === "admin-session-token-expired"
+                  ? "ai-call-log-download-token-expired"
+                  : "ai-call-log-download-token-invalid";
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
@@ -509,7 +537,14 @@ function registerAiCallLogDownloadRoutes(router, options) {
             requestedAt: new Date().toISOString(),
           })
         );
-        sendError(response, code, "下载密码错误。", requestId);
+        sendError(
+          response,
+          code,
+          code === "ai-call-log-download-password-invalid"
+            ? "下载密码错误。"
+            : authResult.message || "管理员会话无效。",
+          requestId
+        );
         return;
       }
 
@@ -765,5 +800,6 @@ module.exports = {
   FILE_PATH,
   OPTIONS_PATH,
   REQUEST_PATH,
+  listAiCallLogDatasets,
   registerAiCallLogDownloadRoutes,
 };

@@ -10,6 +10,8 @@ const { registerRoutes: registerMagicDataHakkaRoutes } = require("../magic-data/
 const { registerRoutes: registerMagicDataMinnanRoutes } = require("../magic-data/minnan-helper/backend");
 const { registerRoutes: registerAbakaTask21AiRoutes } = require("../abaka-ai/task21/backend");
 const { registerRoutes: registerAishellTechMinnanRoutes } = require("../aishell-tech/minnan-helper/backend");
+const { registerRoutes: registerAdminSessionRoutes } = require("./admin-session");
+const { registerRoutes: registerAdminDashboardRoutes } = require("./admin-dashboard");
 const { registerRoutes: registerProjectDataDownloadRoutes } = require("./project-data-download");
 const { registerRoutes: registerAiCallLogDownloadRoutes } = require("./ai-call-log-download");
 
@@ -54,6 +56,11 @@ function registerProjectRoutes(router, options) {
   registerMagicDataMinnanRoutes(router, config.magicDataMinnanHelper || {});
   registerAbakaTask21AiRoutes(router, config.abakaTask21Ai || {});
   registerAishellTechMinnanRoutes(router, config.aishellTechMinnanHelper || {});
+  registerAdminSessionRoutes(router, config.adminSession || {});
+  registerAdminDashboardRoutes(router, {
+    projectDataDownload: config.projectDataDownload || {},
+    aiCallLogDownload: config.aiCallLogDownload || {},
+  });
   registerProjectDataDownloadRoutes(router, config.projectDataDownload || {});
   registerAiCallLogDownloadRoutes(router, config.aiCallLogDownload || {});
 }

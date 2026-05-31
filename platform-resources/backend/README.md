@@ -141,7 +141,8 @@ http://127.0.0.1:3333
 - `ASR_TRANSCRIPTION_AI_ENABLE_THINKING`：历史兼容变量；当前转写链路统一固定 `enable_thinking=false`。
 - `ASR_TRANSCRIPTION_AI_ALLOW_CLIENT_MODEL_OVERRIDE`：默认 `1`，允许前端请求体覆盖模型名。
 - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`：项目数据下载密码的 SHA256（兼容旧 `ASC_DATA_DOWNLOAD_PASSWORD_SHA256`）。
-- `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`：项目数据下载 token 签名密钥（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）。
+- `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`：项目数据下载 token 签名密钥（兼容旧 `ASC_DATA_DOWNLOAD_JWT_SECRET`）；当前也复用为系统管理后台会话 token 的签名密钥。
+- `POST /api/admin/session/unlock` 当前直接复用上述两项环境变量校验系统管理密码，不再新增第二套后台密码配置。
 - `ASC_AI_CALL_LOG_DOWNLOAD_PASSWORD_SHA256`：AI 请求记录下载密码的 SHA256；未设置时回退 `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`。
 - `ASC_AI_CALL_LOG_DOWNLOAD_JWT_SECRET`：AI 请求记录下载 token 签名密钥；未设置时回退 `ASC_PROJECT_DATA_DOWNLOAD_JWT_SECRET`。
 
@@ -190,7 +191,7 @@ http://127.0.0.1:3333
 - 前端必须携带 `aiUsageOperatorName`；未填写时前端与后端都会拦截。
 - token 只按 `promptTokens / completionTokens` 作为主统计口径；只有两者都缺失时才回退 `totalTokens`。
 - 默认保留脱敏后的原始成功 / 失败 JSON，不再把大块业务结果拆成公共列。
-- options 首页隐藏高级区当前已补齐统一查看入口：按脚本 + 日期范围导出 AI 调用 CSV，后端聚合接口为 `admin/ai-call-log`。
+- options 当前统一改为“公开脚本中心 + 受保护系统管理”两层结构；AI 请求记录导出已迁入系统管理的“下载中心”页签。
 
 当前统计接口：
 
@@ -221,13 +222,13 @@ http://127.0.0.1:3333
 - `POST /api/admin/ai-call-log/request`
 - `GET /api/admin/ai-call-log/file?token=...`
 - `HEAD /api/admin/ai-call-log/file?token=...`
-- 说明：`options` 只返回脚本类型 `id/label`，不提前暴露日志存在性、文件数和起止日期。
+- 说明：`options` 当前返回脚本类型 `id/label`，并补充 `hasData/fileCount/dateFrom/dateTo`，供系统管理页直接显示空态和可导出范围。
 - 日期范围：前端可选填写 `dateFrom/dateTo`；留空时导出该脚本当前全部 AI 请求记录。
 - 审计目录：`platform-resources/backend/audit-data/ai-call-log-download/`（运行数据，不提交 git）
 
 ## 项目数据下载密码配置教程
 
-项目数据下载不保存明文密码。后端仅校验 SHA256，并使用 JWT Secret 生成短期下载 token。
+项目数据下载与系统管理会话都不保存明文密码。后端仅校验 SHA256，并使用 JWT Secret 生成短期下载 token / 管理员会话 token。
 
 创建真实配置文件：
 
@@ -291,7 +292,10 @@ pm2 restart annotation-script-center --update-env
 安全要求：
 - 禁止把真实密码、真实 hash、JWT secret 提交到仓库。
 - 不要提交 `config/env/backend.env`、`config/env/backend.local.env`。
-- 下载密码只允许在 `POST /api/admin/project-data-download/request` 的 body 中传输，不允许放 query。
+- `POST /api/admin/project-data-download/request` 与 `POST /api/admin/ai-call-log/request` 当前支持两种鉴权方式：
+  - 直接在 body 里传 `password`
+  - 通过 `Authorization: Bearer <admin-session-token>` 复用已登录系统管理会话
+- 下载密码与管理员会话 token 都不允许放 query。
 - 审计日志只记录必要追踪字段，不记录密码和完整 token。
 
 ## 文件职责
@@ -307,6 +311,9 @@ pm2 restart annotation-script-center --update-env
 - `ai/`：统一 AI 基座，放公共 provider、限流队列、缓存、脱敏与 Python 辅助脚本。
 - `ai/model-catalog.js`：百炼核心模型统一注册表，集中维护文档链接、费用链接、family、tier、thinking 默认策略与运行时顺序。
 - `ai/model-dispatcher.js`：按模型名统一派发 JS / Python 运行时；默认 `JS 优先，Python 备用`。
+- `admin-auth.js`：系统管理会话与下载导出共用的管理员鉴权 helper，负责密码 hash 校验、Bearer token 读取和会话 token 签发/校验。
+- `admin-session/`：系统管理登录接口。
+- `admin-dashboard/`：系统管理仪表盘聚合接口，汇总模型池、运行时、下载中心摘要和脚本级 AI 统计。
 - `project-data-download/`：统一“项目数据下载”聚合模块（options/request/file、token、审计、CSV 筛选），并开始承载共享下载 core：
   - `labelx-download-core.js`
   - `labelx-existing-core.js`
@@ -325,8 +332,10 @@ pm2 restart annotation-script-center --update-env
 - `magic-data/minnan-helper`：Magic Data 闽南语助手 AI 复核接口；支持 `two_stage + fun-asr`、`two_stage + Qwen Omni`、`omni_single + Qwen Omni` 三种链路。
 - `aishell-tech/minnan-helper`：Aishell Tech 闽南语助手 AI 推荐接口；当前条推荐与批量串行真实保存共用同一 recommend 业务入口，默认由 `POST /jobs` + `GET /jobs/:jobId` 承接前端结果链路，并继续保留同步 recommend 路由作为兼容 / 调试入口。
 - `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
-- `admin/project-data-download`：项目数据下载聚合接口，支持密码校验、短期 token 下载链接、供应商筛选下载和审计日志。
-- `admin/ai-call-log`：AI 请求记录聚合接口，支持密码校验、短期 token 下载链接、按脚本 + 日期范围导出 CSV 和审计日志。
+- `admin/session`：系统管理登录接口，负责签发短期管理员会话 token。
+- `admin/dashboard`：系统管理仪表盘聚合接口，负责汇总模型池占用、脚本 AI 调用统计、失败摘要和下载中心快捷信息。
+- `admin/project-data-download`：项目数据下载聚合接口，支持密码校验或管理员 Bearer 会话、短期 token 下载链接、供应商筛选下载和审计日志。
+- `admin/ai-call-log`：AI 请求记录聚合接口，支持密码校验或管理员 Bearer 会话、短期 token 下载链接、按脚本 + 日期范围导出 CSV 和审计日志。
 
 Magic Data 接口：
 - 客家话助手（新路径）：
@@ -354,11 +363,16 @@ Aishell Tech AI 接口：
 - `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults`
 - `POST /api/aishell-tech/minnan-helper/ai/recommend`
 
+系统管理接口：
+- `POST /api/admin/session/unlock`
+- `GET /api/admin/dashboard/overview`
+
 项目数据下载接口：
 - `GET /api/admin/project-data-download/options`
 - `POST /api/admin/project-data-download/request`
 - `GET /api/admin/project-data-download/file?token=...`
 - `HEAD /api/admin/project-data-download/file?token=...`
+- `request` 当前支持 body `password` 或 `Authorization: Bearer <admin-session-token>`
 - 审计目录：`platform-resources/backend/project-data-download/audit-data/`（运行数据，不提交 git）
 
 AI 请求记录接口：
@@ -366,6 +380,7 @@ AI 请求记录接口：
 - `POST /api/admin/ai-call-log/request`
 - `GET /api/admin/ai-call-log/file?token=...`
 - `HEAD /api/admin/ai-call-log/file?token=...`
+- `request` 当前支持 body `password` 或 `Authorization: Bearer <admin-session-token>`
 - 审计目录：`platform-resources/backend/audit-data/ai-call-log-download/`（运行数据，不提交 git）
 
 ASR 转写职责边界：
