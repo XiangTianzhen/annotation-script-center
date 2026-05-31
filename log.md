@@ -1,3 +1,17 @@
+## 2026-06-01（Options 宽度自适应修正）
+
+- 修正 `extension/options/options.css` 的页面宽度策略：
+  - 去掉 `.page` 的固定 `max-width` 限制，改为占满当前浏览器窗口宽度
+  - `workspace-shell` 改为固定可读侧栏 + 自适应主内容区
+  - 平台摘要列和脚本卡网格改为更柔性的 `minmax(...)` 宽度
+  - 大屏下主内容区不再缩在中间，小屏断点行为保持不变
+- 同步更新：
+  - `README.md`
+  - `extension/README.md`
+- 本轮验证：
+  - `node --check extension/options/options.js`
+  - 真实扩展页 `?view=center` 与 `?view=admin&tab=overview` 静态打开检查
+
 ## 2026-06-01（Options 浅色运营后台色板校正）
 
 - 根据最新视觉参考，将 `extension/options/options.css` 的工作台覆盖层从深蓝渐变仪表盘色板切换为浅色运营后台色板：
