@@ -16,7 +16,7 @@
 - 当前运行时默认会按真实 `modelName` 落入共享 provider model pool；只有缺少模型名时，才回退旧的 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare` 组名。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
 - 当前默认链路已经切到“短请求创建 job + 轮询结果”；同步 `POST /recommend` 只保留兼容 / 调试入口，不引入 SSE 或 WebSocket。
-- 共享 model pool 与公共 job store 默认容量都已提升到 `9999`；模型池待启动超时当前默认关闭（等效无限等待）。若后续重新启用排队超时，失败记录仍默认保留 `60000ms` 供轮询读取。
+- 共享 model pool 与公共 job store 默认容量都已提升到 `9999`；模型池待启动超时 `120000ms`，排队超时失败记录默认保留 `60000ms` 供轮询读取。
 - Aishell 当前已单独拆出 `backend/dashscope-omni-client.js` 处理 DashScope compatible-mode 的 Omni 音频请求，并固定 `enable_thinking=false`。
 - 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 不再开放 thinking 作为有效配置项。
 - 成功响应固定为 `success + data + meta`，失败响应固定为 `success=false + error + meta`。

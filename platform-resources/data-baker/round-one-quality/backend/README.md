@@ -131,7 +131,7 @@
 - `DATABAKER_AI_QWEN_BURST_RETRY_MAX`：Qwen Omni / compare 阶段识别到 `limit_burst_rate` 后的最大退避重试次数，默认 `0`；需要更稳时可手动设为 `3`。
 - `DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS`：Qwen `limit_burst_rate` 首次退避基准延迟，默认 `1200ms`，后续指数退避并带 jitter。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `9999`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
-- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS`：统一 provider 队列待启动超时，默认 `0`；当前默认关闭，等效无限等待。仅手动设为正数时，排队超时才会直接失败。
+- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS`：统一 provider 队列待启动超时，默认 `120000`；排队超过 120s 仍未启动时直接失败。
 - `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。

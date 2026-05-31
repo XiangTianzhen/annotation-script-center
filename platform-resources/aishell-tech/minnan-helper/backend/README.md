@@ -30,7 +30,7 @@
 - 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 即使收到前端或旧配置的 thinking 请求，也会强制归一为 `false`。
 - 当前默认链路改为“短请求创建 job + HTTP 轮询结果”；同步 recommend 继续保留为兼容 / 调试入口，不引入 SSE 或 WebSocket。
 - 默认同步总超时统一为 `60000ms`；环境变量可用 `AISHELL_AI_TIMEOUT_MS` 覆盖。
-- 共享 model pool 与公共 job store 默认容量都已提升到 `9999`；模型池待启动超时当前默认关闭（等效无限等待）。若后续重新启用排队超时，失败记录仍默认保留 `60000ms` 供轮询读取。
+- 共享 model pool 与公共 job store 默认容量都已提升到 `9999`；模型池待启动超时 `120000ms`，排队超时失败记录默认保留 `60000ms` 供轮询读取。
 - 客户端主动刷新、关闭页面或代理提前断开时，Aishell 会通过 `AbortSignal` 取消后续链路，不再把这类中断请求写成成功缓存或成功 CSV 行。
 - 路由层当前只把 `request.aborted` 与 `response.close` 视为真实断连；不会再把请求体正常读完后的 `request.close` 误判成客户端已断开。
 
@@ -88,7 +88,7 @@
   - `jobs.runningTimeoutMs=60000`
   - `jobs.failedRetentionMs=60000`
   - `queue.defaultModelPool.maxSize=9999`
-  - `queue.defaultModelPool.pendingTimeoutMs=0`
+  - `queue.defaultModelPool.pendingTimeoutMs=120000`
 - 当前默认组合偏速度优先：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`。
 
 ## 日志与缓存

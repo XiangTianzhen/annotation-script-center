@@ -13,7 +13,7 @@ const DEFAULT_RETRY_BASE_DELAY_MS = 1200;
 const DEFAULT_RETRY_MAX_DELAY_MS = 12000;
 const DEFAULT_MODEL_QUEUE_RPM = 1200;
 const DEFAULT_MODEL_QUEUE_MAX_CONCURRENT = 15;
-const DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS = 0;
+const DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS = 120000;
 const MODEL_QUEUE_KEY_PREFIX = "model:";
 const DEFAULT_GROUP_SETTINGS = {
   qwen_omni: {
@@ -111,19 +111,12 @@ function getGlobalQueueMaxSize() {
 }
 
 function getGlobalPendingTimeoutMs() {
-  const rawValue = process.env.ASC_AI_QUEUE_PENDING_TIMEOUT_MS || process.env.DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS;
-  return normalizePendingTimeoutMs(rawValue, DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS);
-}
-
-function normalizePendingTimeoutMs(rawValue, fallback) {
-  if (String(rawValue || "").trim() === "") {
-    return Number(fallback) > 0 ? Number(fallback) : 0;
-  }
-  const numericValue = Math.floor(Number(rawValue));
-  if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    return 0;
-  }
-  return Math.max(1000, Math.min(30 * 60 * 1000, numericValue));
+  return parsePositiveInteger(
+    process.env.ASC_AI_QUEUE_PENDING_TIMEOUT_MS || process.env.DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS,
+    DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS,
+    1000,
+    30 * 60 * 1000
+  );
 }
 
 function getGlobalRetryMax() {
@@ -211,15 +204,15 @@ function getModelQueueSettings(groupName) {
     1,
     20
   );
-  const rawPendingTimeoutMs =
+  const pendingTimeoutMs = parsePositiveInteger(
     process.env["ASC_AI_MODEL_QUEUE_" + envSegment + "_PENDING_TIMEOUT_MS"] ||
-    process.env.ASC_AI_MODEL_QUEUE_DEFAULT_PENDING_TIMEOUT_MS ||
-    process.env.ASC_AI_QUEUE_PENDING_TIMEOUT_MS ||
-    process.env.DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS;
-  const pendingTimeoutMs =
-    String(rawPendingTimeoutMs || "").trim() === ""
-      ? DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS
-      : normalizePendingTimeoutMs(rawPendingTimeoutMs, DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS);
+      process.env.ASC_AI_MODEL_QUEUE_DEFAULT_PENDING_TIMEOUT_MS ||
+      process.env.ASC_AI_QUEUE_PENDING_TIMEOUT_MS ||
+      process.env.DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS,
+    DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS,
+    1000,
+    30 * 60 * 1000
+  );
   return {
     groupName: normalizedKey,
     rpm,
@@ -297,7 +290,7 @@ function formatDurationLabel(durationMs) {
 }
 
 function createQueuePendingTimeoutError(groupName, settings, item) {
-  const pendingTimeoutMs = Math.max(1, Number(settings?.pendingTimeoutMs) || 0);
+  const pendingTimeoutMs = Math.max(1, Number(settings?.pendingTimeoutMs) || DEFAULT_MODEL_QUEUE_PENDING_TIMEOUT_MS);
   const error = new Error(
     "排队超过" + formatDurationLabel(pendingTimeoutMs) + "未开始执行，任务已失败。"
   );

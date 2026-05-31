@@ -33,7 +33,7 @@ test("provider queue uses model defaults of 20 req/s and 15 concurrency", functi
   assert.equal(settings.intervalMs, 50);
   assert.equal(settings.maxConcurrent, 15);
   assert.equal(settings.maxSize, 9999);
-  assert.equal(settings.pendingTimeoutMs, 0);
+  assert.equal(settings.pendingTimeoutMs, 120000);
   assert.equal(settings.groupName, "model:qwen3.5-omni-flash");
 });
 
@@ -45,7 +45,7 @@ test("provider queue exposes shared model pool policy", function () {
   assert.equal(policy.dispatchIntervalMs, 50);
   assert.equal(policy.defaultMaxConcurrent, 15);
   assert.equal(policy.maxSize, 9999);
-  assert.equal(policy.pendingTimeoutMs, 0);
+  assert.equal(policy.pendingTimeoutMs, 120000);
 });
 
 test("provider queue keeps different model pools isolated when one pool is full", async function () {
