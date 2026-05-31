@@ -1,3 +1,16 @@
+## 2026-05-31（发布：v0.3.7）
+
+- 确认 `extension/manifest.json` 当前版本为 `0.3.7`，本轮不再提升到 `0.3.8`。
+- 将 `0.3.7` 作为当前阶段最终版本收尾，后续新的开发 / 修复 / 优化进入 `0.3.8` 周期。
+- 本轮按发布口径生成 CRX 发布产物：
+  - `dist/annotation-script-center-v0.3.7.crx`
+  - `dist/annotation-script-center-v0.3.7.zip`
+  - `dist/annotation-script-center-update.xml`
+  - `dist/annotation-script-center-crx-latest.json`
+- 本轮追加 Git tag：
+  - `v0.3.7`
+- 后续版本完成时，统一保留“提交 main + 生成发布产物 + 打版本 tag + 推送 tag”的发布流程，用于稳定下载和版本回溯。
+
 ## 2026-05-28（统一 AI 请求记录查看入口）
 
 - 统一后端新增 `platform-resources/backend/ai-call-log-download/`，提供：
