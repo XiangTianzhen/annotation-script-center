@@ -117,8 +117,7 @@
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：历史兼容开关，默认 `0`；当前默认链路不再依赖异步 job。
 - `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `60000`。仅在历史兼容 job 被显式启用时生效。
 - `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
-- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 最大保留数量，默认 `9999`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
-- `DATABAKER_AI_JOB_FAILED_RETENTION_MS`：排队超时失败记录保留时间，默认 `60000`；到期后会转为 `expired` 并释放容量。
+- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 最大保留数量，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
 - `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端轮询 job 状态建议间隔，默认 `1000` ms。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：Fun-ASR 队列限流，默认 `500` RPM。
@@ -130,8 +129,7 @@
 - `DATABAKER_AI_QWEN_SMOOTH_ENABLED`：默认 `0`；为 `1` 时才让 DataBaker Omni legacy 快速路径重新经过 `qwen_omni` / `text_compare` 平滑队列。
 - `DATABAKER_AI_QWEN_BURST_RETRY_MAX`：Qwen Omni / compare 阶段识别到 `limit_burst_rate` 后的最大退避重试次数，默认 `0`；需要更稳时可手动设为 `3`。
 - `DATABAKER_AI_QWEN_BURST_RETRY_BASE_MS`：Qwen `limit_burst_rate` 首次退避基准延迟，默认 `1200ms`，后续指数退避并带 jitter。
-- `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `9999`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
-- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS`：统一 provider 队列待启动超时，默认 `120000`；排队超过 120s 仍未启动时直接失败。
+- `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
 - `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文，不做强替换。
 - `DATABAKER_AI_CROP_EFFECTIVE_AUDIO`：预留有效音频裁剪开关，默认 `0`。

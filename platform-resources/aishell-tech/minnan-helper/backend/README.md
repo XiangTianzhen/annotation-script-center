@@ -15,7 +15,10 @@
 - `config.js`：Aishell 独立配置、模型默认值、队列组设置与 `AISHELL_AI_*` 环境变量读取；第一阶段允许只读回退旧的 `DATABAKER_AI_*`。
 - `errors.js`：Aishell 自己的错误包装，统一阶段、可重试标记、provider 状态码与取消态。
 - `cache.js`：Aishell recommend 成功缓存。
-- `queue.js`：Aishell 队列入口；优先按真实 `modelName` 进入共享 provider model pool，只有缺少模型名时才回退旧组名。
+- `queue.js`：Aishell 独立 provider queue 入口，默认组名：
+  - `aishell_qwen_omni`
+  - `aishell_fun_asr`
+  - `aishell_text_compare`
 - `pipeline.js`：Aishell 自己的同步推荐编排，只复用公共 provider HTTP 工具，不复用 DataBaker recommend orchestration。
 - `dashscope-omni-client.js`：Aishell 独立 DashScope compatible-mode Omni 客户端，直接构造 `input_audio` 流式请求并固定 `enable_thinking=false`。
 - `ai-service.js`：请求归一、默认 Prompt、health/defaults、统一成功/失败响应包装。
@@ -30,7 +33,6 @@
 - 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 即使收到前端或旧配置的 thinking 请求，也会强制归一为 `false`。
 - 当前默认链路改为“短请求创建 job + HTTP 轮询结果”；同步 recommend 继续保留为兼容 / 调试入口，不引入 SSE 或 WebSocket。
 - 默认同步总超时统一为 `60000ms`；环境变量可用 `AISHELL_AI_TIMEOUT_MS` 覆盖。
-- 共享 model pool 与公共 job store 默认容量都已提升到 `9999`；模型池待启动超时 `120000ms`，排队超时失败记录默认保留 `60000ms` 供轮询读取。
 - 客户端主动刷新、关闭页面或代理提前断开时，Aishell 会通过 `AbortSignal` 取消后续链路，不再把这类中断请求写成成功缓存或成功 CSV 行。
 - 路由层当前只把 `request.aborted` 与 `response.close` 视为真实断连；不会再把请求体正常读完后的 `request.close` 误判成客户端已断开。
 
@@ -84,11 +86,6 @@
   - 当前默认策略
   - 当前同步超时
   - Aishell 独立队列组配置
-- `health/defaults.runtime` 当前还会附带：
-  - `jobs.runningTimeoutMs=60000`
-  - `jobs.failedRetentionMs=60000`
-  - `queue.defaultModelPool.maxSize=9999`
-  - `queue.defaultModelPool.pendingTimeoutMs=120000`
 - 当前默认组合偏速度优先：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`。
 
 ## 日志与缓存

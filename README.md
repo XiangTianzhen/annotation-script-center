@@ -298,17 +298,14 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
   - Fun-ASR：默认 `25`，范围 `1~50`
 - 后端 Fun-ASR 并发由 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 控制，默认 `2`；Compare 并发由 `DATABAKER_AI_TEXT_CONCURRENCY` 控制，默认 `5`。
 - DataBaker 批量连续填入默认改为短请求创建 job，再轮询 job 状态；同步 recommend 只保留兼容 / 调试用途。
-- `ASC_AI_ASYNC_JOBS_ENABLED=1`（当前已接入 AI 的脚本默认走 jobs 链路）
+- `DATABAKER_AI_ASYNC_JOBS_ENABLED=0`
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED=0`（历史兼容）
 - `DATABAKER_AI_JOB_TIMEOUT_MS=60000`（仅兼容 job 接口时生效）
 - `DATABAKER_AI_JOB_TTL_MS=1800000`
-- `DATABAKER_AI_JOB_MAX_SIZE=9999`
-- `DATABAKER_AI_JOB_FAILED_RETENTION_MS=60000`（排队超时失败记录默认保留 1 分钟供轮询读取）
-- `DATABAKER_AI_QUEUE_MAX_SIZE=9999`
-- `DATABAKER_AI_QUEUE_PENDING_TIMEOUT_MS=120000`（排队超过 120s 仍未启动会直接 failed）
+- `DATABAKER_AI_JOB_MAX_SIZE=600`
+- `DATABAKER_AI_QUEUE_MAX_SIZE=600`
 - `DATABAKER_AI_REQUEST_STAGGER_MS=50`（前端错峰发起间隔说明；默认不低于 `50ms`）
 - 超过 1 分钟仍未返回的 AI 请求，默认认为不适合当前项目，应优化模型、Prompt、任务拆分或后端策略，而不是继续拉长超时。
-- 共享 job store 与按模型拆分的 provider queue 当前默认都放大到 `9999`；同一具体模型各占自己的 `50ms` 发出节奏，不共用一个全局 `50ms`。
 - DataBaker 平台当前实际的自动清除时间字段位于前端顶部统计悬浮窗 `autoHideMs`，默认仍为 `60000ms`。
 - Fun-ASR 不支持 thinking；不要给 Fun-ASR Python 传 `enable_thinking`。
 - 当前仓库所有 AI 链路都已强制 `enable_thinking=false`；若仍出现慢请求，应优先排查模型链路、队列等待或 provider 行为，而不是 thinking 开关。
@@ -362,7 +359,6 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 - `log.md`：长期修改日志与历史细节
 
 历史版本演进、旧方案与详细变更记录统一沉淀在 `log.md` 与 `docs/archive/`，根 README 不再堆叠历史长文。
-
 ## DataBaker 批量请求诊断
 
 - 闽南语助手“AI连续填入合格项”默认先创建 job，再轮询 job 状态，不再让大量长时间挂起的同步 recommend 占住浏览器连接。
