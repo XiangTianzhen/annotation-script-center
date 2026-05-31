@@ -8,12 +8,59 @@
   </head>
   <body>
     <main class="page">
+      <div class="workspace-shell">
+        <aside class="workspace-sidebar">
+          <div class="workspace-brand">
+            <span class="workspace-brand-mark">ASC</span>
+            <div class="workspace-brand-copy">
+              <strong id="workspace-brand-title">标注脚本中心</strong>
+              <span id="workspace-version">版本读取中</span>
+            </div>
+          </div>
+
+          <nav class="workspace-nav" aria-label="功能导航">
+            <button id="workspace-nav-center" class="workspace-nav-button active" type="button">
+              公开脚本中心
+            </button>
+            <button id="workspace-nav-admin" class="workspace-nav-button" type="button">
+              系统管理
+            </button>
+          </nav>
+
+          <section class="workspace-side-card">
+            <span class="workspace-side-label">当前视图</span>
+            <strong id="workspace-view-name">公开脚本中心</strong>
+            <p id="workspace-view-note" class="workspace-side-copy">
+              默认展示平台与脚本状态，只保留启停和详情入口。
+            </p>
+          </section>
+
+          <section class="workspace-side-card workspace-side-card-dark">
+            <span class="workspace-side-label">运行概况</span>
+            <div class="workspace-side-list">
+              <div><span>扩展版本</span><strong id="workspace-version-compact">读取中</strong></div>
+              <div><span>后端模式</span><strong id="workspace-backend-mode">服务器</strong></div>
+              <div><span>当前生效</span><strong id="workspace-enabled-count">0</strong></div>
+              <div><span>平台 / 脚本</span><strong id="workspace-library-count">0 / 0</strong></div>
+            </div>
+          </section>
+
+          <section class="workspace-side-card workspace-side-card-muted">
+            <span class="workspace-side-label">页面边界</span>
+            <p class="workspace-side-copy">
+              公开中心只负责启停与入口。后端设置、下载、统计与模型池状态统一迁入系统管理。
+            </p>
+          </section>
+        </aside>
+
+        <section class="workspace-stage">
       <section class="hero">
         <div class="hero-top">
           <div>
+            <span id="hero-kicker" class="hero-kicker">PUBLIC SCRIPT CENTER</span>
             <h1 id="extension-name">标注脚本中心</h1>
-            <p>
-              当前扩展按平台管理标注脚本。脚本中心首页只负责展示脚本库和启停状态；进入脚本详情页后，再编辑该脚本自己的详细设置。
+            <p id="hero-description">
+              公开脚本中心只保留启停与详情入口；后端设置、下载导出、运行统计和模型池状态统一进入系统管理工作台。
             </p>
           </div>
           <div class="hero-badges">
@@ -21,10 +68,10 @@
               id="stage-label"
               class="badge stage"
               type="button"
-              title="打开脚本下载中心"
-              aria-label="打开脚本下载中心"
+              title="进入系统管理"
+              aria-label="进入系统管理"
             >
-              脚本下载中心
+              系统管理
             </button>
           </div>
         </div>
@@ -613,6 +660,8 @@
       </section>
 
       <div id="options-error" class="fallback-error hidden" role="alert"></div>
+        </section>
+      </div>
     </main>
 
     <script src="../shared/constants.js"></script>

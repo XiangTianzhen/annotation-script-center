@@ -21,7 +21,7 @@
 - popup/options 视觉资源目录：`extension/assets/brand/`（如 `asc-logo.svg`、`options-hero.svg`）。
 - 临时导入目录 `_incoming_visual_assets/` 仅用于本地复制资源，复制完成后应删除，不作为仓库正式资源。
 - 修改 `manifest.json` 中图标字段后，必须校验 JSON 可解析且引用路径存在。
-- 当前品牌视觉增强任务仅更新资源和 UI，不提升版本、不生成发布产物。
+- 当前 options 工作台视觉重构已按用户要求同步提升到 `manifest.version=0.4.0`；是否生成发布产物仍以 `ASC_RELEASE` 或用户明确要求为准。
 
 ## 维护约束
 
@@ -30,29 +30,35 @@
 - TTS 自动清除默认时间统一为 `60000ms`；AI / 模型请求默认超时时间统一为 `60000ms`。
 - 用户手动保存的非默认 AI 超时值继续保留；非 AI 上传、下载、统计接口超时不受该默认规则影响。
 - 发布或用户明确要求打包时，才检查是否需要更新 `extension/manifest.json` 版本号。
-- 默认继续保持当前 `manifest.version=0.3.7`，不因同版本内的连续修复自动升到 `0.3.8`。
-- 当前版本为 `0.3.7`，持续在 `0.3.0` 基础上迭代多脚本 AI 辅助能力与 options 收口。
-- `0.3.7` 热修口径：Magic Data 客家话助手通过 AI prompt 约束普通中文输出简体，并在命中词表统一用字时保留对应写法。
+- 当前版本已提升为 `0.4.0`，用于承接 options 工作台视觉重构与系统管理后台收口。
+- 非发布类改动默认继续保持当前 `manifest.version=0.4.0`，不因同版本内的连续修复自动升到 `0.4.1`。
+- `0.4.0` 当前开发口径：在保留现有脚本能力的前提下，重点重构 options 信息架构、视觉壳层与系统管理入口。
 - 客家话助手已支持 `#/asrmark` 与 `#/asrmarkCheck`；审核页文本可编辑时支持行内填入，但始终不自动保存、不自动提交、不自动点击合格/不合格。
 - 3.0 起正式发布产物为 CRX 三件套：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
 - 修改 `manifest.json` 后需要确认 JSON 可解析，并确认 manifest 引用的脚本路径都存在。
 
-## 0.3.7 当前热修摘要
+## 0.4.0 当前开发摘要
 
-- Magic Data 客家话助手：改为通过 AI prompt 约束普通中文输出简体；不再依赖本地后端结果二次繁转简。
-- Abaka AI Task21：Task21助手完成态文档与功能收口（字段旁 AI 分析、手动填写 AI 答案、Monaco/Naive UI 写入、T/B/R/D 删除文本规则、列表页统计入口）。
-- CSV 字段口径：LabelX 快判/转写使用 `有效时长(秒)_S` 与人员 `_P` 字段；DataBaker 使用 `有效合格时长_S` 与 `质检人_P`。
-- DataBaker AI 链路与调试能力持续修复，包含 AI 连续填入、Fun-ASR REST、Omni legacy fast path、原始 AI 返回查看、模型动态并发和批量悬浮窗状态优化。
+- options 已切换为“公开脚本中心 + 系统管理”两层结构，并统一用 query 路由管理页面视图。
+- 公开脚本中心当前改为工作台风格功能页：左侧固定导航与运行概况，右侧承载深色主视觉、平台模块与紧凑脚本功能卡。
+- 系统管理页统一承载后端设置、下载中心、运行统计与模型池占用仪表盘，并要求进入时输入密码。
+- 现有平台脚本运行时代码和后端接口契约保持兼容，脚本详情页只重做视觉壳层，不重写原字段结构。
 - 详细变更见 `log.md` 及对应平台 README。
 
-## Options 首页下载入口规则
+## Options 工作台结构规则
 
-- Options 首页右上角提供“脚本下载中心”入口，点击后会在新标签页打开 `https://script.xiangtianzhen.store/downloads/`。
-- “后端接口地址”在 options 首页默认只显示文案，不直接显示“服务器 / 本机”切换按钮。
-- 连续点击同一“后端接口地址”文案 10 次后，才会同时显示：
-  - “服务器 / 本机”切换按钮；
-  - “项目数据下载”隐藏面板。
-- “项目数据下载”只保存“获取人姓名”；下载密码只在请求体中使用，不写入存储。
+- `options/options.html` 保持单入口，但当前路由固定为：
+  - `?view=center`
+  - `?view=script&script=<scriptId>`
+  - `?view=admin&tab=overview|backend|downloads|stats`
+- `公开脚本中心` 默认直接进入，只保留：
+  - 平台概览
+  - 脚本启停
+  - 脚本详情入口
+- `系统管理` 进入时要求输入密码；密码复用项目数据下载鉴权口径。
+- “后端接口地址 / AI 调用使用人”统一迁到 `?view=admin&tab=backend`。
+- “项目数据下载 / AI 请求记录导出 / 脚本下载中心外链”统一迁到 `?view=admin&tab=downloads`。
+- 公开首页不再保留“连续点击 10 次显示隐藏下载面板”的旧交互。
 
 ## 当前站点脚本
 

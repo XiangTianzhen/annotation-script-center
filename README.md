@@ -7,19 +7,20 @@
 - 当前阶段：Chrome / Chromium MV3 单源码扩展 + 多平台脚本增强阶段。
 
 * 当前扩展版本：以 `extension/manifest.json` 为准。
-* 当前版本（待发布口径）：`v0.3.7`。
+* 当前版本（待发布口径）：`v0.4.0`。
 * 扩展源码目录：`extension/`（Chrome / Edge 共用同一套运行时代码）。
 * 统一后端入口：`platform-resources/backend/server.js`。
 
-## v0.3.7 当前状态
+## v0.4.0 当前状态
 
-- 当前 `0.3.7` 已作为最终版本收尾完成；后续新的开发 / 修复 / 优化进入 `0.3.8` 周期。
+- 当前开发口径已提升到 `0.4.0`，用于承接 options 工作台视觉重构与系统管理后台收口。
+- `v0.3.7` 仍是最近一次正式发布版本；在下一次 `ASC_RELEASE` 前，发布产物与 Git tag 仍保持 `v0.3.7`。
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 当前已全局固定关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
 - Aishell Tech 已完成独立闽南语助手首版接入：`/mytask/mark` 支持当前条 AI 推荐与批量串行真实保存，后端已注册 `/api/aishell-tech/minnan-helper/ai/recommend*` 独立接口，并已从 DataBaker recommend orchestration 独立为 Aishell 自己的同步链路、独立队列与 `success/data/meta` 契约。
 
-## v0.3.8 开发中（Options 后台重构）
+## v0.4.0 开发中（Options 工作台视觉重做）
 
 - `extension/options/options.html` 仍保持单入口，但当前前端路由已切到 query 驱动：
   - `?view=center`
@@ -28,6 +29,10 @@
 - options 当前拆成两层结构：
   - `公开脚本中心`：默认直接进入，只展示平台、脚本状态、启停入口和脚本详情入口。
   - `系统管理`：进入时需要输入密码；统一承载后端设置、下载中心、运行统计和模型池占用仪表盘。
+- 公开脚本中心本轮已改成更明确的功能页样式：
+  - 左侧固定工作台导航与运行概况
+  - 右侧深色主视觉 + 平台功能模块
+  - 脚本卡改为“启停 / 详情 / 目标路由”紧凑功能卡，不再沿用旧首页的大块白底卡片排法
 - “后端接口地址 / AI 调用使用人 / 项目数据下载 / AI 请求记录导出”已从公开首页迁入系统管理页；公开首页不再保留隐藏高级区。
 - 系统管理密码当前复用项目数据下载密码环境变量：
   - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`

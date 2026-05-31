@@ -440,6 +440,75 @@
     return document.getElementById(id);
   }
 
+  function getExtensionManifestVersion() {
+    try {
+      return normalizeText(globalThis.chrome?.runtime?.getManifest?.().version || "");
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function renderWorkspaceSidebar(settings, route) {
+    const activeRoute = route && typeof route === "object" ? route : getCurrentRouteState();
+    const version = getExtensionManifestVersion() || "未知版本";
+    const enabledCount = Object.keys(scriptLibrary).filter(function (scriptId) {
+      return isScriptEnabled(settings || {}, scriptId);
+    }).length;
+    const platformCount = Object.keys(platformLibrary).length;
+    const scriptCount = Object.keys(scriptLibrary).length;
+    const backendMode = getBackendModeFromSettings(settings || {});
+    const routeNameNode = getElement("workspace-view-name");
+    const routeNoteNode = getElement("workspace-view-note");
+    const versionNode = getElement("workspace-version");
+    const versionCompactNode = getElement("workspace-version-compact");
+    const backendModeNode = getElement("workspace-backend-mode");
+    const enabledNode = getElement("workspace-enabled-count");
+    const libraryNode = getElement("workspace-library-count");
+    const navCenterButton = getElement("workspace-nav-center");
+    const navAdminButton = getElement("workspace-nav-admin");
+    const detailScriptId = activeRoute.view === "script" ? activeRoute.scriptId : "";
+    const detailScript = detailScriptId ? scriptLibrary[detailScriptId] || {} : null;
+
+    if (versionNode) {
+      versionNode.textContent = "版本 " + version;
+    }
+    if (versionCompactNode) {
+      versionCompactNode.textContent = version;
+    }
+    if (backendModeNode) {
+      backendModeNode.textContent = backendMode === backendModeLocal ? "本机" : "服务器";
+    }
+    if (enabledNode) {
+      enabledNode.textContent = formatNumber(enabledCount);
+    }
+    if (libraryNode) {
+      libraryNode.textContent = formatNumber(platformCount) + " / " + formatNumber(scriptCount);
+    }
+    if (navCenterButton instanceof HTMLButtonElement) {
+      const active = activeRoute.view !== "admin";
+      navCenterButton.classList.toggle("active", active);
+      navCenterButton.setAttribute("aria-pressed", String(active));
+    }
+    if (navAdminButton instanceof HTMLButtonElement) {
+      const active = activeRoute.view === "admin";
+      navAdminButton.classList.toggle("active", active);
+      navAdminButton.setAttribute("aria-pressed", String(active));
+    }
+
+    if (routeNameNode && routeNoteNode) {
+      if (activeRoute.view === "admin") {
+        routeNameNode.textContent = "系统管理";
+        routeNoteNode.textContent = "统一处理后端设置、下载导出、模型池状态与运行统计。";
+      } else if (detailScript) {
+        routeNameNode.textContent = String(detailScript.label || detailScriptId || "脚本详情");
+        routeNoteNode.textContent = "当前正在编辑脚本专属设置，公共后端地址和下载能力仍统一走系统管理。";
+      } else {
+        routeNameNode.textContent = "公开脚本中心";
+        routeNoteNode.textContent = "默认展示平台与脚本状态，只保留启停和详情入口。";
+      }
+    }
+  }
+
   function applyForcedThinkingToggle(inputId, message) {
     const input = getElement(inputId);
     if (!(input instanceof HTMLInputElement)) {
@@ -6021,6 +6090,7 @@
 
             return [
               '<article class="script-card' + (active ? " active" : "") + '">',
+              '<div class="script-primary">',
               '<div class="script-head">',
               '<div class="script-title">',
               "<h3>" + String(script.label || scriptId) + "</h3>",
@@ -6029,18 +6099,21 @@
               '<span class="script-pill ' + status.tone + '">' + status.text + "</span>",
               "</div>",
               "</div>",
-              '<span class="script-route-pill">' + escapeHtml(getScriptHostText(scriptId)) + "</span>",
               "</div>",
               '<p class="script-copy">' + String(script.description || "") + "</p>",
               '<div class="script-metadata">',
               '<span>匹配 URL：' + escapeHtml(getScriptHostText(scriptId)) + "</span>",
               '<span>入口：脚本详情 / ' + (active ? "当前生效" : "待启用") + "</span>",
               "</div>",
+              "</div>",
+              '<div class="script-side">',
+              '<span class="script-route-pill">' + escapeHtml(getScriptHostText(scriptId)) + "</span>",
               '<div class="script-actions">',
               '<button type="button" class="primary-button" data-open-script="' + scriptId + '">打开设置</button>',
               isScriptEnabled(settings, scriptId)
                 ? '<button type="button" class="danger-button" data-disable-script="' + scriptId + '">关闭脚本</button>'
                 : '<button type="button" class="secondary-button" data-enable-script="' + scriptId + '">启用脚本</button>',
+              "</div>",
               "</div>",
               "</article>",
             ].join("");
@@ -6048,18 +6121,23 @@
           .join("");
 
         return [
-          '<section class="platform-section">',
+          '<section class="platform-section platform-module">',
+          '<div class="platform-body">',
+          '<div class="platform-summary">',
           '<div class="platform-head">',
           "<div>",
           "<h2>" + String(platform.label || platformId) + "</h2>",
           '<p class="platform-copy">' + String(platform.description || "") + "</p>",
           "</div>",
-          '<div class="status-row">',
+          "</div>",
+          '<div class="platform-facts">',
           '<span class="pill info">' + String(platform.host || "") + "</span>",
-          '<span class="pill ' + (activeScriptCount > 0 ? "enabled" : "pending") + '">生效脚本 ' + formatNumber(activeScriptCount) + " / " + formatNumber(platformScriptIds.length) + "</span>",
+          '<span class="pill ' + (activeScriptCount > 0 ? "enabled" : "pending") + '">生效 ' + formatNumber(activeScriptCount) + " / " + formatNumber(platformScriptIds.length) + "</span>",
+          '<span class="platform-fact-text">当前平台脚本统一收口到功能面板，公开页只保留启停与详情入口。</span>',
           "</div>",
           "</div>",
-          '<div class="script-grid">' + scriptMarkup + "</div>",
+          '<div class="script-grid platform-script-stack">' + scriptMarkup + "</div>",
+          "</div>",
           "</section>",
         ].join("");
       })
@@ -6852,6 +6930,10 @@
       actionButton.setAttribute("aria-label", "进入系统管理");
       actionButton.classList.add("admin-entry-button");
     }
+    const homeEndpointCard = getElement("home-endpoint-card");
+    if (homeEndpointCard) {
+      homeEndpointCard.classList.add("hero-command-card");
+    }
     if (!getElement("public-summary-strip")) {
       const summary = document.createElement("div");
       summary.id = "public-summary-strip";
@@ -6862,6 +6944,53 @@
         '<article class="public-summary-card"><span class="summary-label">当前生效</span><strong id="public-enabled-count">0</strong><span class="summary-note">同平台互斥规则自动生效</span></article>',
       ].join("");
       hero.appendChild(summary);
+    }
+  }
+
+  function updateHeroForRoute(route) {
+    const hero = document.querySelector(".hero");
+    const heroKicker = getElement("hero-kicker");
+    const heroDescription = getElement("hero-description");
+    const summaryStrip = getElement("public-summary-strip");
+    if (!(hero instanceof HTMLElement)) {
+      return;
+    }
+    hero.classList.remove("hero-mode-center", "hero-mode-script", "hero-mode-admin", "hero-compact");
+    if (route.view === "admin") {
+      hero.classList.add("hero-mode-admin", "hero-compact");
+      if (heroKicker) {
+        heroKicker.textContent = "SYSTEM MANAGEMENT";
+      }
+      if (heroDescription) {
+        heroDescription.textContent = "系统管理统一承载后端设置、下载中心、运行统计与模型池状态；进入前需要密码验证。";
+      }
+      if (summaryStrip) {
+        summaryStrip.classList.add("hidden");
+      }
+      return;
+    }
+    if (route.view === "script") {
+      hero.classList.add("hero-mode-script", "hero-compact");
+      if (heroKicker) {
+        heroKicker.textContent = "SCRIPT DETAIL";
+      }
+      if (heroDescription) {
+        heroDescription.textContent = "当前页面用于编辑脚本专属设置；公共后端入口、下载导出与运行统计仍统一走系统管理。";
+      }
+      if (summaryStrip) {
+        summaryStrip.classList.add("hidden");
+      }
+      return;
+    }
+    hero.classList.add("hero-mode-center");
+    if (heroKicker) {
+      heroKicker.textContent = "PUBLIC SCRIPT CENTER";
+    }
+    if (heroDescription) {
+      heroDescription.textContent = "公开脚本中心只保留启停与详情入口；后端设置、下载导出、运行统计和模型池状态统一进入系统管理工作台。";
+    }
+    if (summaryStrip) {
+      summaryStrip.classList.remove("hidden");
     }
   }
 
@@ -6880,26 +7009,14 @@
     adminSection.className = "admin-workspace hidden";
     adminSection.innerHTML = [
       '<div class="admin-shell">',
-      '<aside class="admin-sidebar">',
-      '<div class="admin-sidebar-brand">',
-      "<h2>系统管理</h2>",
-      "<p>后端设置、下载导出、模型池占用和运行统计统一收口到这里。</p>",
-      "</div>",
-      '<nav class="admin-nav">',
-      '<button type="button" class="admin-nav-button" data-admin-tab="overview">仪表盘</button>',
-      '<button type="button" class="admin-nav-button" data-admin-tab="backend">后端设置</button>',
-      '<button type="button" class="admin-nav-button" data-admin-tab="downloads">下载中心</button>',
-      '<button type="button" class="admin-nav-button" data-admin-tab="stats">运行统计</button>',
-      "</nav>",
-      '<div class="admin-sidebar-actions">',
+      '<div class="admin-stage">',
+      '<div class="admin-stage-banner">',
+      '<div class="admin-stage-copy"><strong>系统管理后台</strong><span id="admin-stage-endpoint" class="status-text"></span><p>后端设置、下载导出、模型池占用和运行统计统一收口到这里。</p></div>',
+      '<div class="field-actions">',
+      '<button id="admin-refresh-dashboard" class="ghost-button" type="button">刷新数据</button>',
       '<button id="admin-return-center" class="ghost-button" type="button">返回公开中心</button>',
       '<button id="admin-logout-button" class="secondary-button" type="button">退出登录</button>',
       "</div>",
-      "</aside>",
-      '<div class="admin-stage">',
-      '<div class="admin-stage-banner">',
-      '<div><strong>系统管理后台</strong><span id="admin-stage-endpoint" class="status-text"></span></div>',
-      '<button id="admin-refresh-dashboard" class="ghost-button" type="button">刷新数据</button>',
       "</div>",
       '<section id="admin-auth-gate" class="admin-auth-gate">',
       "<h3>输入系统管理密码</h3>",
@@ -6910,6 +7027,12 @@
       '<div id="admin-auth-status" class="status-text"></div>',
       "</section>",
       '<div id="admin-content" class="admin-content hidden">',
+      '<nav class="admin-tab-strip">',
+      '<button type="button" class="admin-nav-button" data-admin-tab="overview">仪表盘</button>',
+      '<button type="button" class="admin-nav-button" data-admin-tab="backend">后端设置</button>',
+      '<button type="button" class="admin-nav-button" data-admin-tab="downloads">下载中心</button>',
+      '<button type="button" class="admin-nav-button" data-admin-tab="stats">运行统计</button>',
+      "</nav>",
       '<section id="admin-tab-overview" class="admin-tab-panel">',
       '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>查看当前模型池占用、今日 AI 调用和脚本级运行摘要。</p></div></div>',
       '<div id="admin-overview-summary" class="admin-summary-grid"></div>',
@@ -6943,8 +7066,6 @@
       '<div id="admin-stats-status" class="status-text"></div>',
       "</section>",
       "</div>",
-      "</div>",
-      "</section>",
       "</div>",
     ].join("");
     detailView.insertAdjacentElement("afterend", adminSection);
@@ -8643,6 +8764,24 @@
 
     document.title = (constants.EXTENSION_NAME || "标注脚本中心") + " - 设置";
     getElement("extension-name").textContent = constants.EXTENSION_NAME || "标注脚本中心";
+    updateHeroForRoute(route);
+    const workspaceBrandTitle = getElement("workspace-brand-title");
+    if (workspaceBrandTitle) {
+      workspaceBrandTitle.textContent = constants.EXTENSION_NAME || "标注脚本中心";
+    }
+    renderWorkspaceSidebar(settings, route);
+    const stageLabel = getElement("stage-label");
+    if (stageLabel instanceof HTMLButtonElement) {
+      if (route.view === "admin") {
+        stageLabel.textContent = "返回公开中心";
+        stageLabel.title = "返回公开中心";
+        stageLabel.setAttribute("aria-label", "返回公开中心");
+      } else {
+        stageLabel.textContent = "系统管理";
+        stageLabel.title = "进入系统管理";
+        stageLabel.setAttribute("aria-label", "进入系统管理");
+      }
+    }
 
     if (route.view === "admin") {
       if (centerView) {
@@ -8690,6 +8829,24 @@
     const stageLabel = getElement("stage-label");
     if (stageLabel) {
       stageLabel.addEventListener("click", function () {
+        if (getCurrentRouteState().view === "admin") {
+          navigateToCenter();
+          return;
+        }
+        navigateToAdmin(getCurrentAdminTab());
+      });
+    }
+
+    const workspaceNavCenter = getElement("workspace-nav-center");
+    if (workspaceNavCenter instanceof HTMLButtonElement) {
+      workspaceNavCenter.addEventListener("click", function () {
+        navigateToCenter();
+      });
+    }
+
+    const workspaceNavAdmin = getElement("workspace-nav-admin");
+    if (workspaceNavAdmin instanceof HTMLButtonElement) {
+      workspaceNavAdmin.addEventListener("click", function () {
         navigateToAdmin(getCurrentAdminTab());
       });
     }

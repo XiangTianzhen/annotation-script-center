@@ -1,3 +1,22 @@
+## 2026-05-31（0.4.0 Options 工作台视觉重做）
+
+- 按“首版视觉方向”的工作台口径重做 `extension/options/`：
+  - 外层改为左侧固定导航 + 右侧工作台内容区
+  - 公开脚本中心主视觉改为深色仪表盘风格，不再保留旧首页的轻量信息卡观感
+  - 平台区块改成“平台摘要侧栏 + 脚本功能卡矩阵”结构，脚本卡只保留启停、详情和目标路由等核心信息
+  - 系统管理页继续承载 `仪表盘 / 后端设置 / 下载中心 / 运行统计`，并与新的工作台壳层统一
+- 当前已将 `extension/manifest.json` 版本从 `0.3.7` 提升到 `0.4.0`，用于承接本轮 options 视觉与信息架构升级。
+- 同步更新版本与规则口径：
+  - `README.md`
+  - `extension/README.md`
+  - `docs/rules/project-collaboration-rules.md`
+  - `AGENTS.md`
+- 本轮验证继续覆盖：
+  - `node --check extension/options/options.js`
+  - `node --check extension/options/options-route-state.js`
+  - `node --test platform-resources/backend/admin-auth.test.js platform-resources/backend/admin-dashboard/overview.test.js platform-resources/backend/project-data-download/__tests__/request-auth.test.js platform-resources/backend/ai-call-log-download/request-auth.test.js extension/options/options-route-state.test.js`
+- 真实 Chrome / Edge 的扩展 UI 验收仍需手工完成；当前自动化浏览器接入能力仍不足以直接替代扩展真机验收。
+
 ## 2026-05-31（0.3.8 Options 后台重构首版）
 
 - options 入口当前保留 `extension/options/options.html` 单页，但正式切换为 query 路由：
