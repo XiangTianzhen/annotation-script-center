@@ -1,3 +1,22 @@
+## 2026-06-01（Options 二次收口：显式保存 + 双栏详情页）
+
+- 按最新 0.4.0 收口方案继续优化 `extension/options/`：
+  - 系统管理页 hero 右上角主按钮统一改为“脚本下载中心”，不再在 admin 路由显示“返回公开中心”。
+  - `?view=admin&tab=backend` 改成显式保存工作台：切换服务器 / 本机和修改 `AI 调用使用人` 只更新草稿，点击“保存后端设置”后才写入本地缓存。
+  - 左侧固定侧栏新增 `AI 调用使用人` 只读摘要，便于随时确认当前全局 AI 调用身份。
+  - 系统管理后台后端设置页改成左右双卡结构：左侧编辑区，右侧展示当前缓存、草稿状态和运行元信息。
+  - 脚本详情页统一改成左右双栏：左侧保留脚本业务设置与快捷键，右侧承载 `ASR 语音 AI 设置` 或统一运行说明卡。
+  - 取消 ASR / AI 设置的“连续点击标题 10 次解锁”旧交互；快判、转写、标贝易采、Magic Data、Aishell 的 AI 参数当前默认直接展示。
+  - Task21 助手的 AI 调试设置当前也默认常显，不再通过标题点击解锁。
+- 同步更新：
+  - `README.md`
+  - `extension/README.md`
+- 本轮验证：
+  - `node --check extension/options/options.js`
+  - `chrome-extension://.../options/options.html?view=admin&tab=backend`
+  - `chrome-extension://.../options/options.html?view=script&script=judgement`
+  - `chrome-extension://.../options/options.html?view=script&script=dataBakerRoundOneQuality`
+
 ## 2026-06-01（Options 细节视觉收口）
 
 - 按最新人工反馈继续收口 `extension/options/` 的细节表现：

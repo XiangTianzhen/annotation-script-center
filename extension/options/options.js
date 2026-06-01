@@ -435,6 +435,7 @@
   let adminAuthMessage = "";
   let adminDashboardCache = null;
   let adminDashboardLoading = null;
+  let adminBackendDraft = null;
 
   function getElement(id) {
     return document.getElementById(id);
@@ -462,6 +463,7 @@
     const versionNode = getElement("workspace-version");
     const versionCompactNode = getElement("workspace-version-compact");
     const backendModeNode = getElement("workspace-backend-mode");
+    const aiUsageOperatorNode = getElement("workspace-ai-usage-operator");
     const enabledNode = getElement("workspace-enabled-count");
     const libraryNode = getElement("workspace-library-count");
     const navCenterButton = getElement("workspace-nav-center");
@@ -477,6 +479,10 @@
     }
     if (backendModeNode) {
       backendModeNode.textContent = backendMode === backendModeLocal ? "本机" : "服务器";
+    }
+    if (aiUsageOperatorNode) {
+      const operatorName = getAiUsageOperatorName(settings || {});
+      aiUsageOperatorNode.textContent = operatorName || "未设置";
     }
     if (enabledNode) {
       enabledNode.textContent = formatNumber(enabledCount);
@@ -507,6 +513,46 @@
         routeNoteNode.textContent = "默认展示平台与脚本状态，只保留启停和详情入口。";
       }
     }
+  }
+
+  function createAdminBackendDraft(settings) {
+    return {
+      backendEndpointMode: getBackendModeFromSettings(settings || {}),
+      aiUsageOperatorName: getAiUsageOperatorName(settings || {}),
+    };
+  }
+
+  function ensureAdminBackendDraft(settings) {
+    if (!adminBackendDraft) {
+      adminBackendDraft = createAdminBackendDraft(settings);
+      return adminBackendDraft;
+    }
+    return adminBackendDraft;
+  }
+
+  function resetAdminBackendDraft(settings) {
+    adminBackendDraft = createAdminBackendDraft(settings);
+    return adminBackendDraft;
+  }
+
+  function getAdminBackendDraft() {
+    return ensureAdminBackendDraft(currentSettings || {});
+  }
+
+  function isAdminBackendDraftDirty(settings) {
+    const saved = createAdminBackendDraft(settings || currentSettings || {});
+    const draft = getAdminBackendDraft();
+    return (
+      draft.backendEndpointMode !== saved.backendEndpointMode ||
+      normalizeAiUsageOperatorName(draft.aiUsageOperatorName) !==
+        normalizeAiUsageOperatorName(saved.aiUsageOperatorName)
+    );
+  }
+
+  function buildBackendModeDisplayText(mode) {
+    return String(mode || "").trim().toLowerCase() === backendModeLocal
+      ? "本机（127.0.0.1:3333）"
+      : "服务器（script.xiangtianzhen.store）";
   }
 
   function applyForcedThinkingToggle(inputId, message) {
@@ -2384,44 +2430,18 @@
   }
 
   function isAsrVoiceAiUnlocked(scriptId) {
-    return getAsrVoiceAiRevealState(scriptId).unlocked === true;
+    return supportsAsrVoiceAiSettings(scriptId);
   }
 
   function registerAsrVoiceAiRevealClick(scriptId) {
-    const state = getAsrVoiceAiRevealState(scriptId);
-    if (state.unlocked) {
-      return false;
-    }
-    const now = Date.now();
-    if (now - state.lastClickAt > 3000) {
-      state.clickCount = 0;
-    }
-    state.lastClickAt = now;
-    state.clickCount += 1;
-    if (state.clickCount < 10) {
-      return false;
-    }
-    state.unlocked = true;
-    return true;
+    return supportsAsrVoiceAiSettings(scriptId);
   }
 
   function isAbakaAiAdvancedUnlocked() {
-    return abakaAiAdvancedUnlocked === true;
+    return true;
   }
 
   function registerAbakaAiAdvancedRevealClick() {
-    if (abakaAiAdvancedUnlocked) {
-      return false;
-    }
-    const now = Date.now();
-    if (now - abakaAiAdvancedLastClickAt > 3000) {
-      abakaAiAdvancedRevealCount = 0;
-    }
-    abakaAiAdvancedLastClickAt = now;
-    abakaAiAdvancedRevealCount += 1;
-    if (abakaAiAdvancedRevealCount < 10) {
-      return false;
-    }
     abakaAiAdvancedUnlocked = true;
     return true;
   }
@@ -2431,9 +2451,7 @@
     if (!node) {
       return;
     }
-    node.textContent = isAbakaAiAdvancedUnlocked()
-      ? "AI 设置已显示，仅调试时修改。"
-      : "AI 设置已隐藏。";
+    node.textContent = "AI 设置默认常显，仅调试时修改。";
   }
 
   function getAsrVoiceAiDefaultsPath(scriptId) {
@@ -5350,7 +5368,7 @@
     abakaAiShortcutsDraft = clone(config.shortcuts) || {};
     const advancedPanel = getElement("abaka-ai-settings-advanced");
     if (advancedPanel) {
-      advancedPanel.classList.toggle("hidden", !isAbakaAiAdvancedUnlocked());
+      advancedPanel.classList.remove("hidden");
     }
     updateAbakaAiAdvancedTip();
     const autoSelectNode = getElement("abaka-auto-select-specify-on-same-font-true");
@@ -6183,7 +6201,9 @@
       return;
     }
 
-    const mode = getBackendModeFromSettings(settings);
+    const draft = ensureAdminBackendDraft(settings || {});
+    const savedMode = getBackendModeFromSettings(settings || {});
+    const mode = draft.backendEndpointMode;
     const statusNode = getElement("home-endpoint-status");
     const isLocal = mode === backendModeLocal;
 
@@ -6193,53 +6213,26 @@
     localButton.setAttribute("aria-pressed", String(isLocal));
     const toggleNode = getElement("home-endpoint-toggle");
     if (toggleNode) {
-      toggleNode.classList.toggle("hidden", endpointAdvancedUnlocked !== true);
+      toggleNode.classList.remove("hidden");
     }
 
     if (statusNode) {
-      statusNode.textContent = endpointAdvancedUnlocked
-        ? "当前已选择：" + (isLocal ? "本机（127.0.0.1:3333）" : "服务器（script.xiangtianzhen.store）")
-        : "";
+      statusNode.textContent = isAdminBackendDraftDirty(settings || {})
+        ? "当前草稿：" +
+          buildBackendModeDisplayText(mode) +
+          "；尚未保存到本地缓存。"
+        : "当前生效：" + buildBackendModeDisplayText(savedMode);
     }
   }
 
   async function setHomeBackendEndpoint(mode) {
-    if (!storage || typeof storage.patchSettings !== "function") {
-      const statusNode = getElement("home-endpoint-status");
-      if (statusNode) {
-        statusNode.textContent = "当前扩展版本不支持保存后端接口地址。";
-      }
-      return;
-    }
-
     const normalizedMode =
       String(mode || "").trim().toLowerCase() === backendModeLocal ? backendModeLocal : backendModeServer;
-    const statusNode = getElement("home-endpoint-status");
-    if (statusNode) {
-      statusNode.textContent = "正在保存后端接口地址...";
-    }
-
-    try {
-      currentSettings = await storage.patchSettings({
-        meta: {
-          backendEndpointMode: normalizedMode,
-        },
-      });
-      renderHomeBackendEndpoint(currentSettings);
-      if (statusNode) {
-        statusNode.textContent =
-          "后端接口地址已保存为" + (normalizedMode === backendModeLocal ? "本机" : "服务器") + "。";
-      }
-      if (endpointAdvancedUnlocked) {
-        void loadProjectDataDownloadOptions();
-        void loadAiCallLogOptions();
-      }
-    } catch (error) {
-      if (statusNode) {
-        statusNode.textContent =
-          "保存失败：" + (error && error.message ? error.message : String(error));
-      }
-    }
+    const draft = getAdminBackendDraft();
+    draft.backendEndpointMode = normalizedMode;
+    renderHomeBackendEndpoint(currentSettings || {});
+    renderHomeAiUsageOperator(currentSettings || {});
+    renderAdminBackendSummary(adminDashboardCache || {});
   }
 
   function parseJsonSafely(text) {
@@ -6263,24 +6256,51 @@
     return normalizeAiUsageOperatorName(settings?.meta?.aiUsageOperatorName);
   }
 
-  async function persistAiUsageOperatorName(operatorName) {
-    if (!storage || typeof storage.patchSettings !== "function") {
-      return;
-    }
-    const normalizedName = normalizeAiUsageOperatorName(operatorName);
-    const currentName = getAiUsageOperatorName(currentSettings || {});
-    if (normalizedName === currentName) {
-      return;
-    }
-    currentSettings = await storage.patchSettings(
-      createAiUsageOperatorSettingsPatch(operatorName)
-    );
-  }
-
   function renderHomeAiUsageOperator(settings) {
     const operatorInput = getElement("home-ai-usage-operator");
     if (operatorInput instanceof HTMLInputElement) {
-      operatorInput.value = getAiUsageOperatorName(settings || {});
+      operatorInput.value = ensureAdminBackendDraft(settings || {}).aiUsageOperatorName || "";
+    }
+  }
+
+  async function saveAdminBackendSettings() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      setStatus("home-endpoint-status", "当前扩展版本不支持保存后端设置。");
+      return false;
+    }
+    const draft = getAdminBackendDraft();
+    const normalizedMode =
+      String(draft.backendEndpointMode || "").trim().toLowerCase() === backendModeLocal
+        ? backendModeLocal
+        : backendModeServer;
+    const operatorName = normalizeAiUsageOperatorName(draft.aiUsageOperatorName);
+    setStatus("home-endpoint-status", "正在保存后端设置...");
+    try {
+      currentSettings = await storage.patchSettings({
+        meta: {
+          backendEndpointMode: normalizedMode,
+          aiUsageOperatorName: operatorName,
+        },
+      });
+      resetAdminBackendDraft(currentSettings);
+      renderWorkspaceSidebar(currentSettings || {}, getCurrentRouteState());
+      renderHomeBackendEndpoint(currentSettings || {});
+      renderHomeAiUsageOperator(currentSettings || {});
+      renderAdminBackendSummary(adminDashboardCache || {});
+      if (endpointAdvancedUnlocked) {
+        projectDataDownloadDatasets = [];
+        aiCallLogDownloadDatasets = [];
+        void loadProjectDataDownloadOptions();
+        void loadAiCallLogOptions();
+      }
+      setStatus("home-endpoint-status", "后端设置已保存到本地缓存。");
+      return true;
+    } catch (error) {
+      setStatus(
+        "home-endpoint-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+      return false;
     }
   }
 
@@ -6812,6 +6832,7 @@
     adminSessionState = null;
     adminDashboardCache = null;
     endpointAdvancedUnlocked = false;
+    adminBackendDraft = null;
     removeSessionStorageValue(adminSessionStorageKey);
     await removeChromeSessionValue(adminSessionStorageKey);
     if (config.keepStatus !== true) {
@@ -7058,10 +7079,10 @@
       '<div id="admin-overview-status" class="status-text"></div>',
       "</section>",
       '<section id="admin-tab-backend" class="admin-tab-panel hidden">',
-      '<div class="admin-panel-head"><div><h3>后端设置</h3><p>统一控制后端入口与 AI 调用使用人。各脚本详情页不再提供单独后端地址。</p></div></div>',
+      '<div class="admin-panel-head"><div><h3>后端设置</h3><p>这里改成显式保存工作台：切换后端入口和 AI 调用使用人时，先保留草稿，点击保存后再写入本地缓存。</p></div></div>',
       '<div class="admin-two-column">',
-      '<div id="admin-backend-card-slot" class="admin-surface-card"></div>',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>运行时说明</strong><span>当前页面状态与后端侧运行元信息</span></div><div id="admin-backend-runtime"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>编辑区</strong><span>统一保存后端入口与 AI 调用使用人</span></div><div id="admin-backend-card-slot"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>当前生效配置</strong><span>展示当前缓存、草稿状态与后端运行元信息</span></div><div id="admin-backend-runtime"></div></section>',
       "</div>",
       "</section>",
       '<section id="admin-tab-downloads" class="admin-tab-panel hidden">',
@@ -7259,11 +7280,25 @@
     if (!node) {
       return;
     }
+    const draft = ensureAdminBackendDraft(currentSettings || {});
+    const draftDirty = isAdminBackendDraftDirty(currentSettings || {});
     const runtime = data?.runtime && typeof data.runtime === "object" ? data.runtime : {};
     const queue = runtime.queue && typeof runtime.queue === "object" ? runtime.queue : {};
     const backend = data?.backend && typeof data.backend === "object" ? data.backend : {};
+    const savedOperatorName = getAiUsageOperatorName(currentSettings || {}) || "未设置";
+    const draftOperatorName = normalizeAiUsageOperatorName(draft.aiUsageOperatorName) || "未设置";
     node.innerHTML = [
       '<div class="admin-runtime-list">',
+      '<div><strong>当前生效后端</strong><span>' + escapeHtml(buildBackendModeDisplayText(getBackendModeFromSettings(currentSettings || {}))) + "</span></div>",
+      '<div><strong>AI 调用使用人</strong><span>' + escapeHtml(savedOperatorName) + "</span></div>",
+      '<div><strong>草稿状态</strong><span>' + escapeHtml(draftDirty ? "有未保存改动" : "与当前缓存一致") + "</span></div>",
+      draftDirty
+        ? '<div><strong>草稿预览</strong><span>' +
+          escapeHtml(buildBackendModeDisplayText(draft.backendEndpointMode)) +
+          " / " +
+          escapeHtml(draftOperatorName) +
+          "</span></div>"
+        : "",
       '<div><strong>管理员鉴权</strong><span>' + escapeHtml(backend.adminAuthConfigured ? "已配置" : "未配置") + "</span></div>",
       '<div><strong>会话有效期</strong><span>' + escapeHtml(String(backend.sessionTtlSeconds || 0)) + " 秒</span></div>",
       '<div><strong>模型池策略</strong><span>' + escapeHtml(queue.keyStrategy || "concrete-model-name") + "</span></div>",
@@ -7454,6 +7489,7 @@
     content.classList.toggle("hidden", !unlocked);
     renderHomeBackendEndpoint(currentSettings || {});
     renderHomeAiUsageOperator(currentSettings || {});
+    renderAdminBackendSummary(adminDashboardCache || {});
     renderProjectDataDownloadPanel(currentSettings || {});
     renderAiCallLogPanel(currentSettings || {});
     if (unlocked) {
@@ -7704,6 +7740,37 @@
     disableButton.disabled = !enabled;
   }
 
+  function renderDetailSupportPanel(settings, scriptId) {
+    const panel = getElement("detail-support-panel");
+    if (!(panel instanceof HTMLElement)) {
+      return;
+    }
+    const script = scriptLibrary[scriptId] || {};
+    const platform = platformLibrary[script.platformId] || {};
+    const operatorName = getAiUsageOperatorName(settings || {}) || "未设置";
+    const backendMode = buildBackendModeDisplayText(getBackendModeFromSettings(settings || {}));
+    const supportTitle = supportsAsrVoiceAiSettings(scriptId)
+      ? "运行说明与当前配置"
+      : "辅助说明与当前配置";
+    const supportDescription = supportsAsrVoiceAiSettings(scriptId)
+      ? "右侧工作区承载 AI 参数和全局说明；左侧只保留脚本行为、快捷键和常用业务设置。"
+      : "当前脚本没有独立 AI 参数区，右侧统一展示运行边界、后端模式和平台说明。";
+    panel.innerHTML = [
+      '<div class="detail-support-copy">',
+      "<strong>" + escapeHtml(supportTitle) + "</strong>",
+      "<span>" + escapeHtml(supportDescription) + "</span>",
+      "</div>",
+      '<div class="admin-runtime-list detail-runtime-list">',
+      "<div><strong>所属平台</strong><span>" + escapeHtml(String(platform.label || script.platformId || "未知平台")) + "</span></div>",
+      "<div><strong>默认入口</strong><span>" + escapeHtml(String(platform.host || "默认平台地址")) + "</span></div>",
+      "<div><strong>当前后端</strong><span>" + escapeHtml(backendMode) + "</span></div>",
+      "<div><strong>AI 调用使用人</strong><span>" + escapeHtml(operatorName) + "</span></div>",
+      "<div><strong>保存方式</strong><span>" + escapeHtml("脚本设置按当前页面按钮保存；公共后端入口统一在系统管理中显式保存。") + "</span></div>",
+      "</div>",
+    ].join("");
+    panel.classList.remove("hidden");
+  }
+
   function showDetailPanel(scriptId) {
     getElement("detail-transcription-panel").classList.toggle("hidden", scriptId !== transcriptionProjectId);
     getElement("detail-judgement-panel").classList.toggle("hidden", scriptId !== judgementProjectId);
@@ -7726,10 +7793,11 @@
   function renderDetail(settings, scriptId) {
     renderDetailHeader(settings, scriptId);
     renderAsrVoiceAiSettingsSection(settings, scriptId);
+    renderDetailSupportPanel(settings, scriptId);
     updateAsrVoiceAiDefaultsTip(scriptId, getAsrVoiceAiDefaultsCached(scriptId));
-    if (supportsAsrVoiceAiSettings(scriptId) && isAsrVoiceAiUnlocked(scriptId)) {
+    if (supportsAsrVoiceAiSettings(scriptId)) {
       void loadAsrVoiceAiDefaults(scriptId, settings).then(function (payload) {
-        if (getCurrentDetailScriptId() !== scriptId || !isAsrVoiceAiUnlocked(scriptId)) {
+        if (getCurrentDetailScriptId() !== scriptId || !supportsAsrVoiceAiSettings(scriptId)) {
           return;
         }
         updateAsrVoiceAiDefaultsTip(scriptId, payload);
@@ -7882,10 +7950,6 @@
       concurrencyInput.min = String(concurrencyRule.min);
       concurrencyInput.max = String(concurrencyRule.max);
       concurrencyInput.step = "1";
-      const concurrencyField = concurrencyInput.closest(".field-card, .asr-ai-field");
-      if (concurrencyField instanceof HTMLElement && !isAsrVoiceAiUnlocked(dataBakerRoundOneQualityScriptId)) {
-        concurrencyField.classList.add("hidden");
-      }
     }
     stopDataBakerShortcutRecording("");
     renderDataBakerShortcutGrid();
@@ -8434,6 +8498,7 @@
     }
 
     currentSettings = await storage.getSettings();
+    resetAdminBackendDraft(currentSettings);
     return currentSettings;
   }
 
@@ -8786,11 +8851,7 @@
     renderWorkspaceSidebar(settings, route);
     const stageLabel = getElement("stage-label");
     if (stageLabel instanceof HTMLButtonElement) {
-      if (route.view === "admin") {
-        stageLabel.textContent = "返回公开中心";
-        stageLabel.title = "返回公开中心";
-        stageLabel.setAttribute("aria-label", "返回公开中心");
-      } else if (route.view === "script") {
+      if (route.view === "script") {
         stageLabel.textContent = "系统管理";
         stageLabel.title = "进入系统管理";
         stageLabel.setAttribute("aria-label", "进入系统管理");
@@ -8848,10 +8909,6 @@
     if (stageLabel) {
       stageLabel.addEventListener("click", function () {
         const route = getCurrentRouteState();
-        if (route.view === "admin") {
-          navigateToCenter();
-          return;
-        }
         if (route.view === "script") {
           navigateToAdmin(getCurrentAdminTab());
           return;
@@ -8871,33 +8928,6 @@
     if (workspaceNavAdmin instanceof HTMLButtonElement) {
       workspaceNavAdmin.addEventListener("click", function () {
         navigateToAdmin(getCurrentAdminTab());
-      });
-    }
-
-    const detailScriptName = getElement("detail-script-name");
-    if (detailScriptName) {
-      detailScriptName.addEventListener("click", function () {
-        const scriptId = getCurrentDetailScriptId();
-        if (!scriptId) {
-          return;
-        }
-        if (isAbakaAiScript(scriptId)) {
-          const justUnlockedAbaka = registerAbakaAiAdvancedRevealClick();
-          if (justUnlockedAbaka) {
-            renderDetail(currentSettings || {}, scriptId);
-            setStatus("abaka-status", "AI 设置已显示，仅调试时修改。");
-          }
-          return;
-        }
-        if (!supportsAsrVoiceAiSettings(scriptId)) {
-          return;
-        }
-        const justUnlockedAsr = registerAsrVoiceAiRevealClick(scriptId);
-        if (justUnlockedAsr) {
-          renderDetail(currentSettings || {}, scriptId);
-          const statusTarget = getAsrVoiceAiStatusTargetId(scriptId);
-          setStatus(statusTarget, "ASR 语音 AI 设置已显示，仅影响当前脚本。");
-        }
       });
     }
 
@@ -8964,6 +8994,13 @@
       void setHomeBackendEndpoint("local");
     });
 
+    const homeEndpointSaveButton = getElement("home-endpoint-save");
+    if (homeEndpointSaveButton instanceof HTMLButtonElement) {
+      homeEndpointSaveButton.addEventListener("click", function () {
+        void saveAdminBackendSettings();
+      });
+    }
+
     const projectDownloadDataset = getElement("project-download-dataset");
     if (projectDownloadDataset instanceof HTMLSelectElement) {
       projectDownloadDataset.addEventListener("change", function () {
@@ -9002,14 +9039,11 @@
 
     const homeAiUsageOperator = getElement("home-ai-usage-operator");
     if (homeAiUsageOperator instanceof HTMLInputElement) {
-      homeAiUsageOperator.addEventListener("blur", function () {
-        void persistAiUsageOperatorName(homeAiUsageOperator.value)
-          .then(function () {
-            homeAiUsageOperator.value = getAiUsageOperatorName(currentSettings || {});
-          })
-          .catch(function () {
-            setStatus("home-endpoint-status", "保存 AI 调用使用人失败，请稍后重试。");
-          });
+      homeAiUsageOperator.addEventListener("input", function () {
+        const draft = getAdminBackendDraft();
+        draft.aiUsageOperatorName = normalizeAiUsageOperatorName(homeAiUsageOperator.value);
+        renderHomeBackendEndpoint(currentSettings || {});
+        renderAdminBackendSummary(adminDashboardCache || {});
       });
     }
 

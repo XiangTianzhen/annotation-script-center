@@ -46,6 +46,7 @@
             <div class="workspace-side-list">
               <div><span>当前版本</span><strong id="workspace-version-compact">读取中</strong></div>
               <div><span>后端模式</span><strong id="workspace-backend-mode">服务器</strong></div>
+              <div><span>AI 调用使用人</span><strong id="workspace-ai-usage-operator">未设置</strong></div>
               <div><span>当前生效</span><strong id="workspace-enabled-count">0</strong></div>
               <div><span>平台 / 脚本</span><strong id="workspace-library-count">0 / 0</strong></div>
             </div>
@@ -84,7 +85,10 @@
           <div class="home-endpoint-row">
             <span>AI 调用使用人</span>
             <input id="home-ai-usage-operator" type="text" maxlength="40" placeholder="填写真实姓名" />
-            <span class="home-endpoint-help">所有 AI 请求共用；未填写时不允许调用 AI。</span>
+            <span class="home-endpoint-help">所有 AI 请求共用；修改后点击“保存后端设置”才会写入本地缓存。</span>
+          </div>
+          <div class="field-actions">
+            <button id="home-endpoint-save" class="primary-button" type="button">保存后端设置</button>
           </div>
           <div id="home-endpoint-status" class="status-text"></div>
         </div>
@@ -165,7 +169,9 @@
           <p id="detail-script-note" class="detail-note"></p>
         </section>
 
-        <section id="detail-transcription-panel" class="detail-panel hidden">
+        <div class="detail-workbench">
+          <div class="detail-column detail-column-primary">
+            <section id="detail-transcription-panel" class="detail-panel hidden">
           <div class="detail-grid two">
             <label class="field-card">
               <strong>自动播放</strong>
@@ -252,9 +258,9 @@
             </button>
           </div>
           <div id="transcription-status" class="status-text"></div>
-        </section>
+            </section>
 
-        <section id="detail-judgement-panel" class="detail-panel hidden">
+            <section id="detail-judgement-panel" class="detail-panel hidden">
           <div class="detail-grid two">
             <label class="field-card">
               <strong>默认音量 (0~1000%)</strong>
@@ -404,9 +410,9 @@
             <button id="save-judgement-settings" class="primary-button" type="button">保存语音判别设置</button>
           </div>
           <div id="judgement-status" class="status-text"></div>
-        </section>
+            </section>
 
-        <section id="detail-lightwheel-panel" class="detail-panel hidden">
+            <section id="detail-lightwheel-panel" class="detail-panel hidden">
           <div class="detail-grid">
             <div class="field-card">
               <strong>运行态迁移状态</strong>
@@ -421,13 +427,13 @@
             </div>
           </div>
           <div id="lightwheel-status" class="status-text"></div>
-        </section>
+            </section>
 
-        <section id="detail-data-baker-round-one-quality-panel" class="detail-panel hidden">
+            <section id="detail-data-baker-round-one-quality-panel" class="detail-panel hidden">
           <div class="field-card">
             <strong>AI 推荐文本</strong>
-            <span>AI 推荐文本属于高级能力，默认隐藏在“ASR 语音 AI 设置”中。</span>
-            <span>如需修改模型、超时、Prompt 等参数，请在当前脚本标题连续点击 10 次后显示高级设置。</span>
+            <span>AI 推荐文本的模型、超时、Prompt 和生成参数统一放在右侧的“ASR 语音 AI 设置”工作区中。</span>
+            <span>业务页只保留分页、快捷键和批量填入等常用行为设置。</span>
           </div>
 
           <div class="detail-grid two" style="margin-top: 18px;">
@@ -494,9 +500,9 @@
             <button id="save-data-baker-settings" class="primary-button" type="button">保存标贝易采设置</button>
           </div>
           <div id="data-baker-status" class="status-text"></div>
-        </section>
+            </section>
 
-        <section id="detail-aishell-tech-minnan-helper-panel" class="detail-panel hidden">
+            <section id="detail-aishell-tech-minnan-helper-panel" class="detail-panel hidden">
           <div class="field-card">
             <strong>希尔贝壳闽南语助手</strong>
             <span>当前仅在 `https://mark.aishelltech.com/mytask/mark?...` 生效。</span>
@@ -543,13 +549,13 @@
             </button>
           </div>
           <div id="aishell-tech-status" class="status-text"></div>
-        </section>
+            </section>
 
-        <section id="detail-magic-data-annotator-panel" class="detail-panel hidden">
+            <section id="detail-magic-data-annotator-panel" class="detail-panel hidden">
           <div class="field-card">
             <strong>AI 质检助手</strong>
-            <span>AI 质检高级参数默认隐藏在“ASR 语音 AI 设置”中，当前页只保留业务设置和快捷键设置。</span>
-            <span>点击当前脚本标题 10 次后可显示 AI 高级设置。</span>
+            <span>AI 质检模型、Prompt 和生成参数统一放在右侧的“ASR 语音 AI 设置”工作区中。</span>
+            <span>当前页只保留业务设置和快捷键设置。</span>
           </div>
 
           <div class="field-card shortcut-panel" style="margin-top: 18px;">
@@ -563,9 +569,9 @@
             <button id="save-magic-data-settings" class="primary-button" type="button">保存 Magic Data 设置</button>
           </div>
           <div id="magic-data-status" class="status-text"></div>
-        </section>
+            </section>
 
-        <section id="detail-abaka-ai-task-page-panel" class="detail-panel hidden">
+            <section id="detail-abaka-ai-task-page-panel" class="detail-panel hidden">
           <div class="field-card">
             <strong>Task21助手</strong>
             <span>快捷键仅用于点击页面真实选项/按钮，不直接调用平台接口。</span>
@@ -581,7 +587,7 @@
 
           <div class="field-card" style="margin-top: 18px;">
             <strong>AI 设置</strong>
-            <span>默认隐藏。连续点击当前页标题 10 次后显示，仅调试时修改。</span>
+            <span>AI 调试参数当前默认常显，仅用于调试和模型对比，不自动写入页面、不自动保存。</span>
             <span id="abaka-ai-advanced-tip" class="status-text"></span>
           </div>
 
@@ -653,7 +659,14 @@
             <button id="save-abaka-settings" class="primary-button" type="button">保存 Task21助手设置</button>
           </div>
           <div id="abaka-status" class="status-text"></div>
-        </section>
+            </section>
+          </div>
+
+          <div class="detail-column detail-column-secondary">
+            <section id="detail-shared-asr-ai-panel" class="detail-panel hidden"></section>
+            <section id="detail-support-panel" class="detail-panel detail-support-panel"></section>
+          </div>
+        </div>
 
         <div id="detail-status" class="status-text"></div>
       </section>
