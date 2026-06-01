@@ -40,17 +40,24 @@ test("options route falls back to overview tab for invalid admin tab", function 
   assert.equal(route.adminTab, "overview");
 });
 
+test("options route aliases stats tab to overview for legacy links", function () {
+  const route = parseOptionsRoute("?view=admin&tab=stats", scriptLibrary);
+
+  assert.equal(route.view, "admin");
+  assert.equal(route.adminTab, "overview");
+});
+
 test("options route builds href with admin tab and without stale script query", function () {
   const href = buildOptionsRouteHref(
     "chrome-extension://extension-id/options/options.html?view=script&script=judgement",
     {
       view: "admin",
-      adminTab: "stats",
+      adminTab: "overview",
     }
   );
 
   assert.equal(
     href,
-    "chrome-extension://extension-id/options/options.html?view=admin&tab=stats"
+    "chrome-extension://extension-id/options/options.html?view=admin&tab=overview"
   );
 });

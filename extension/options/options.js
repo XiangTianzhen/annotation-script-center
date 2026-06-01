@@ -58,6 +58,7 @@
     constants.AI_CALL_LOG_DOWNLOAD_REQUEST_PATH || "/api/admin/ai-call-log/request";
   const adminSessionUnlockPath = "/api/admin/session/unlock";
   const adminDashboardOverviewPath = "/api/admin/dashboard/overview";
+  const adminDashboardRuntimeLogsPath = "/api/admin/dashboard/runtime-logs";
   const scriptDownloadCenterUrl = "https://script.xiangtianzhen.store/downloads/";
   const optionsRouteState = globalThis.ASREdgeOptionsRouteState || {};
   const parseOptionsRoute =
@@ -79,7 +80,7 @@
             return {
               view: "admin",
               scriptId: null,
-              adminTab: ["overview", "backend", "downloads", "stats"].indexOf(tab) >= 0 ? tab : "overview",
+              adminTab: ["overview", "backend", "downloads"].indexOf(tab) >= 0 ? tab : "overview",
             };
           }
           return {
@@ -107,7 +108,9 @@
           return url.toString();
         };
   const adminSessionStorageKey = "asc-options-admin-session";
-  const adminTabs = ["overview", "backend", "downloads", "stats"];
+  const adminTabs = ["overview", "backend", "downloads"];
+  const adminDashboardAutoRefreshIntervalMs = 60000;
+  const adminDashboardRuntimeLogLimit = 18;
   const dateTextPattern = /^\d{4}-\d{2}-\d{2}$/;
   const dataBakerPageSizeOptions = (
     Array.isArray(constants.DATABAKER_PAGE_SIZE_OPTIONS)
@@ -435,6 +438,7 @@
   let adminAuthMessage = "";
   let adminDashboardCache = null;
   let adminDashboardLoading = null;
+  let adminDashboardAutoRefreshTimer = null;
   let adminBackendDraft = null;
 
   function getElement(id) {
@@ -508,7 +512,7 @@
     if (routeNameNode && routeNoteNode) {
       if (activeRoute.view === "admin") {
         routeNameNode.textContent = "系统管理";
-        routeNoteNode.textContent = "统一处理后端设置、下载导出、模型池状态与运行统计。";
+        routeNoteNode.textContent = "统一处理后端设置、下载导出、模型池状态与系统仪表盘。";
       } else if (detailScript) {
         routeNameNode.textContent = String(detailScript.label || detailScriptId || "脚本详情");
         routeNoteNode.textContent = "当前正在编辑脚本专属设置，公共后端地址和下载能力仍统一走系统管理。";
@@ -6862,6 +6866,7 @@
     const config = options && typeof options === "object" ? options : {};
     adminSessionState = null;
     adminDashboardCache = null;
+    stopAdminDashboardAutoRefresh();
     endpointAdvancedUnlocked = false;
     adminBackendDraft = null;
     removeSessionStorageValue(adminSessionStorageKey);
@@ -6907,6 +6912,32 @@
     } else {
       await removeChromeSessionValue(adminSessionStorageKey);
     }
+  }
+
+  function stopAdminDashboardAutoRefresh() {
+    if (adminDashboardAutoRefreshTimer) {
+      clearInterval(adminDashboardAutoRefreshTimer);
+      adminDashboardAutoRefreshTimer = null;
+    }
+  }
+
+  function shouldAutoRefreshAdminDashboard() {
+    const route = getCurrentRouteState();
+    return route.view === "admin" && hasActiveAdminSession();
+  }
+
+  function startAdminDashboardAutoRefresh() {
+    stopAdminDashboardAutoRefresh();
+    if (!shouldAutoRefreshAdminDashboard()) {
+      return;
+    }
+    adminDashboardAutoRefreshTimer = setInterval(function () {
+      if (!shouldAutoRefreshAdminDashboard()) {
+        stopAdminDashboardAutoRefresh();
+        return;
+      }
+      void loadAdminDashboard(true, "auto");
+    }, adminDashboardAutoRefreshIntervalMs);
   }
 
   function buildAdminAuthorizationHeaders(extraHeaders) {
@@ -7028,7 +7059,7 @@
         heroKicker.textContent = "SYSTEM MANAGEMENT";
       }
       if (heroDescription) {
-        heroDescription.textContent = "系统管理统一承载后端设置、下载中心、运行统计与模型池状态；进入前需要密码验证。";
+        heroDescription.textContent = "系统管理统一承载后端设置、下载中心与系统仪表盘；进入前需要密码验证。";
       }
       if (summaryStrip) {
         summaryStrip.classList.add("hidden");
@@ -7041,7 +7072,7 @@
         heroKicker.textContent = "SCRIPT DETAIL";
       }
       if (heroDescription) {
-        heroDescription.textContent = "当前页面用于编辑脚本专属设置；公共后端入口、下载导出与运行统计仍统一走系统管理。";
+        heroDescription.textContent = "当前页面用于编辑脚本专属设置；公共后端入口、下载导出与系统仪表盘仍统一走系统管理。";
       }
       if (summaryStrip) {
         summaryStrip.classList.add("hidden");
@@ -7053,7 +7084,7 @@
       heroKicker.textContent = "PUBLIC SCRIPT CENTER";
     }
     if (heroDescription) {
-      heroDescription.textContent = "公开脚本中心只保留启停与详情入口；后端设置、下载导出、运行统计和模型池状态统一进入系统管理工作台。";
+      heroDescription.textContent = "公开脚本中心只保留启停与详情入口；后端设置、下载导出和系统仪表盘统一进入系统管理工作台。";
     }
     if (summaryStrip) {
       summaryStrip.classList.remove("hidden");
@@ -7097,16 +7128,20 @@
       '<button type="button" class="admin-nav-button" data-admin-tab="overview">仪表盘</button>',
       '<button type="button" class="admin-nav-button" data-admin-tab="backend">后端设置</button>',
       '<button type="button" class="admin-nav-button" data-admin-tab="downloads">下载中心</button>',
-      '<button type="button" class="admin-nav-button" data-admin-tab="stats">运行统计</button>',
       "</nav>",
       '<section id="admin-tab-overview" class="admin-tab-panel">',
-      '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>查看当前模型池占用、今日 AI 调用和脚本级运行摘要。</p></div></div>',
+      '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>统一查看模型池占用、调用趋势、调用排行、脚本统计与近期运行日志；页面每 60 秒自动刷新一次，也可手动刷新。</p></div></div>',
       '<div id="admin-overview-summary" class="admin-summary-grid"></div>',
       '<div class="admin-two-column">',
       '<section class="admin-surface-card"><div class="admin-card-head"><strong>模型池占用</strong><span>实时取自统一 queue 快照</span></div><div id="admin-overview-pools"></div></section>',
       '<section class="admin-surface-card"><div class="admin-card-head"><strong>失败摘要</strong><span>基于今日调用统计</span></div><div id="admin-overview-failures"></div></section>',
       "</div>",
+      '<div class="admin-two-column">',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>近 14 天调用趋势</strong><span>统一 AI 调用日志聚合</span></div><div id="admin-overview-trend"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>调用人排行</strong><span>按累计调用量排序</span></div><div id="admin-overview-operators"></div></section>',
+      "</div>",
       '<section class="admin-surface-card"><div class="admin-card-head"><strong>脚本摘要</strong><span>展示今日与累计调用情况</span></div><div id="admin-overview-scripts"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>运行日志</strong><span>展示最近接口、导出与鉴权事件</span></div><div id="admin-overview-runtime-logs"></div></section>',
       '<div id="admin-overview-status" class="status-text"></div>',
       "</section>",
       '<section id="admin-tab-backend" class="admin-tab-panel hidden">',
@@ -7117,16 +7152,6 @@
       '<div class="admin-panel-head"><div><h3>下载中心</h3><p>项目数据下载、AI 请求记录导出与脚本分发入口统一放在这里。</p></div><div class="field-actions"><button id="admin-open-script-download-center" class="secondary-button" type="button">打开脚本下载中心</button></div></div>',
       '<div id="admin-download-summary" class="admin-summary-grid"></div>',
       '<div id="admin-download-grid" class="admin-download-grid"></div>',
-      "</section>",
-      '<section id="admin-tab-stats" class="admin-tab-panel hidden">',
-      '<div class="admin-panel-head"><div><h3>运行统计</h3><p>汇总脚本级调用趋势、调用人排行与错误码分布。</p></div></div>',
-      '<div class="admin-two-column">',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>近 14 天调用趋势</strong><span>统一 AI 调用日志聚合</span></div><div id="admin-stats-trend"></div></section>',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>调用人排行</strong><span>按累计调用量排序</span></div><div id="admin-stats-operators"></div></section>',
-      "</div>",
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>按脚本统计</strong><span>查看今日 / 累计调用量与失败数</span></div><div id="admin-stats-scripts"></div></section>',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>错误码分布</strong><span>今日失败 Top 错误码</span></div><div id="admin-stats-errors"></div></section>',
-      '<div id="admin-stats-status" class="status-text"></div>',
       "</section>",
       "</div>",
       "</div>",
@@ -7153,6 +7178,34 @@
 
   function formatNumber(value) {
     return Number(value || 0).toLocaleString("zh-CN");
+  }
+
+  function formatIsoDateTime(value) {
+    const text = normalizeText(value);
+    if (!text) {
+      return "未知时间";
+    }
+    const date = new Date(text);
+    if (Number.isNaN(date.getTime())) {
+      return text;
+    }
+    return date.toLocaleString("zh-CN", {
+      hour12: false,
+    });
+  }
+
+  function buildRuntimeLogLevelText(level) {
+    const normalized = normalizeText(level).toLowerCase();
+    if (normalized === "error") {
+      return "错误";
+    }
+    if (normalized === "warn") {
+      return "警告";
+    }
+    if (normalized === "success") {
+      return "成功";
+    }
+    return "信息";
   }
 
   function buildEmptyState(message) {
@@ -7284,6 +7337,43 @@
       .join("");
   }
 
+  function buildRuntimeLogTableMarkup(rows) {
+    const items = Array.isArray(rows) ? rows.slice(0, adminDashboardRuntimeLogLimit) : [];
+    if (items.length <= 0) {
+      return buildEmptyState("当前还没有可展示的运行日志。");
+    }
+    return [
+      '<div class="admin-table admin-log-table">',
+      '<div class="admin-table-row admin-table-head"><span>时间 / 事件</span><span>级别</span><span>范围</span></div>',
+      items
+        .map(function (item) {
+          const detailText = Object.entries(item.details || {})
+            .filter(function (entry) {
+              return normalizeText(entry[1]);
+            })
+            .map(function (entry) {
+              return entry[0] + "=" + entry[1];
+            })
+            .slice(0, 4)
+            .join(" · ");
+          return (
+            '<div class="admin-table-row admin-log-row"><span><strong>' +
+            escapeHtml(item.message || "运行事件") +
+            "</strong><small>" +
+            escapeHtml(formatIsoDateTime(item.createdAt)) +
+            (detailText ? " · " + escapeHtml(detailText) : "") +
+            "</small></span><span>" +
+            escapeHtml(buildRuntimeLogLevelText(item.level)) +
+            "</span><span>" +
+            escapeHtml(item.scope || "backend") +
+            "</span></div>"
+          );
+        })
+        .join(""),
+      "</div>",
+    ].join("");
+  }
+
   function renderAdminDownloadSummary(data) {
     const node = getElement("admin-download-summary");
     if (!node) {
@@ -7364,6 +7454,18 @@
     if (scriptsNode) {
       scriptsNode.innerHTML = buildScriptStatsTableMarkup(stats.scripts || []);
     }
+    const trendNode = getElement("admin-overview-trend");
+    if (trendNode) {
+      trendNode.innerHTML = buildTrendChartMarkup(stats.byDate || []);
+    }
+    const operatorNode = getElement("admin-overview-operators");
+    if (operatorNode) {
+      operatorNode.innerHTML = buildOperatorTableMarkup(stats.byOperator || []);
+    }
+    const logsNode = getElement("admin-overview-runtime-logs");
+    if (logsNode) {
+      logsNode.innerHTML = buildRuntimeLogTableMarkup(overview.runtimeLogs || []);
+    }
     const endpointNode = getElement("admin-stage-endpoint");
     if (endpointNode) {
       const currentMode = getBackendModeFromSettings(currentSettings || {});
@@ -7373,25 +7475,9 @@
     }
     renderAdminBackendSummary(overview);
     renderAdminDownloadSummary(overview);
-    const trendNode = getElement("admin-stats-trend");
-    if (trendNode) {
-      trendNode.innerHTML = buildTrendChartMarkup(stats.byDate || []);
-    }
-    const operatorNode = getElement("admin-stats-operators");
-    if (operatorNode) {
-      operatorNode.innerHTML = buildOperatorTableMarkup(stats.byOperator || []);
-    }
-    const scriptStatsNode = getElement("admin-stats-scripts");
-    if (scriptStatsNode) {
-      scriptStatsNode.innerHTML = buildScriptStatsTableMarkup(stats.scripts || []);
-    }
-    const errorNode = getElement("admin-stats-errors");
-    if (errorNode) {
-      errorNode.innerHTML = buildFailuresMarkup(stats.failures || []);
-    }
   }
 
-  async function loadAdminDashboard(forceRefresh) {
+  async function loadAdminDashboard(forceRefresh, refreshSource) {
     if (!hasActiveAdminSession()) {
       return null;
     }
@@ -7402,33 +7488,49 @@
       return adminDashboardLoading;
     }
     setAdminPanelStatus("admin-overview-status", "正在加载系统总览...");
-    adminDashboardLoading = requestAdminJson(adminDashboardOverviewPath, {
-      method: "GET",
-    })
-      .then(async function (result) {
-        if (!result || result.authFailed) {
+    adminDashboardLoading = Promise.all([
+      requestAdminJson(adminDashboardOverviewPath, {
+        method: "GET",
+        headers: {
+          "X-ASC-Dashboard-Refresh": normalizeText(refreshSource) || (forceRefresh === true ? "manual" : "initial"),
+        },
+      }),
+      requestAdminJson(adminDashboardRuntimeLogsPath + "?limit=" + String(adminDashboardRuntimeLogLimit), {
+        method: "GET",
+      }),
+    ])
+      .then(async function (responses) {
+        const overviewResult = responses[0];
+        const runtimeLogsResult = responses[1];
+        if (!overviewResult || overviewResult.authFailed || !runtimeLogsResult || runtimeLogsResult.authFailed) {
           return null;
         }
-        if (!result.response.ok || result.body?.success !== true) {
+        if (!overviewResult.response.ok || overviewResult.body?.success !== true) {
           setAdminPanelStatus(
             "admin-overview-status",
-            getAdminDashboardErrorMessage(result.body, result.response.status)
-          );
-          setAdminPanelStatus(
-            "admin-stats-status",
-            getAdminDashboardErrorMessage(result.body, result.response.status)
+            getAdminDashboardErrorMessage(overviewResult.body, overviewResult.response.status)
           );
           return null;
         }
-        adminDashboardCache = result.body.data || null;
+        if (!runtimeLogsResult.response.ok || runtimeLogsResult.body?.success !== true) {
+          setAdminPanelStatus(
+            "admin-overview-status",
+            getAdminDashboardErrorMessage(runtimeLogsResult.body, runtimeLogsResult.response.status)
+          );
+          return null;
+        }
+        adminDashboardCache = Object.assign({}, overviewResult.body.data || {}, {
+          runtimeLogs:
+            runtimeLogsResult.body?.data && Array.isArray(runtimeLogsResult.body.data.items)
+              ? runtimeLogsResult.body.data.items
+              : [],
+        });
         renderAdminDashboard(adminDashboardCache);
         setAdminPanelStatus(
           "admin-overview-status",
-          "总览已更新：" + normalizeText(adminDashboardCache?.generatedAt || "")
-        );
-        setAdminPanelStatus(
-          "admin-stats-status",
-          "统计数据已更新。"
+          "总览已更新：" +
+            normalizeText(adminDashboardCache?.generatedAt || "") +
+            "；60 秒自动刷新已启用。"
         );
         return adminDashboardCache;
       })
@@ -7527,8 +7629,10 @@
       } else {
         setAdminAuthStatus("管理员会话有效，可直接切换各功能页。", "success");
       }
-      void loadAdminDashboard(false);
+      startAdminDashboardAutoRefresh();
+      void loadAdminDashboard(false, "initial");
     } else {
+      stopAdminDashboardAutoRefresh();
       setAdminAuthStatus(adminAuthMessage || "进入系统管理前需要输入密码。", adminAuthMessage ? "warning" : "neutral");
     }
   }
@@ -8909,6 +9013,8 @@
       return;
     }
 
+    stopAdminDashboardAutoRefresh();
+
     if (!scriptId) {
       if (centerView) {
         centerView.classList.remove("hidden");
@@ -9121,7 +9227,7 @@
     const adminRefreshButton = getElement("admin-refresh-dashboard");
     if (adminRefreshButton instanceof HTMLButtonElement) {
       adminRefreshButton.addEventListener("click", function () {
-        void loadAdminDashboard(true);
+        void loadAdminDashboard(true, "manual");
       });
     }
 

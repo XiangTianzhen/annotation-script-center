@@ -19,6 +19,7 @@ function createPlatformResourcesServer(options) {
         "aishell-tech/minnan-helper",
         "admin/session",
         "admin/dashboard",
+        "admin/dashboard/runtime-logs",
         "admin/project-data-download",
         "admin/ai-call-log",
       ],

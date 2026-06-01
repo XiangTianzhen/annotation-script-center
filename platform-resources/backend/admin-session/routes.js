@@ -1,5 +1,6 @@
 "use strict";
 
+const { appendRuntimeLog } = require("../runtime-log-store");
 const { sendJson } = require("../response");
 const {
   createAdminSessionToken,
@@ -50,6 +51,13 @@ function registerAdminSessionRoutes(router) {
     try {
       const authConfig = getAdminAuthConfig();
       if (!isAdminAuthConfigured(authConfig)) {
+        appendRuntimeLog({
+          level: "error",
+          scope: "admin.session",
+          action: "unlock_failed",
+          message: "管理员登录失败：后端未配置鉴权环境变量",
+          requestId,
+        });
         sendError(
           response,
           500,
@@ -63,6 +71,13 @@ function registerAdminSessionRoutes(router) {
       const body = JSON.parse((await readRequestBody(request)) || "{}");
       const password = normalizeText(body?.password);
       if (!password) {
+        appendRuntimeLog({
+          level: "warn",
+          scope: "admin.session",
+          action: "unlock_failed",
+          message: "管理员登录失败：缺少密码",
+          requestId,
+        });
         sendError(response, 400, "admin-session-password-required", "请输入管理员密码。", requestId);
         return;
       }
@@ -74,6 +89,20 @@ function registerAdminSessionRoutes(router) {
         authConfig,
       });
       if (!authResult.ok) {
+        appendRuntimeLog({
+          level: "warn",
+          scope: "admin.session",
+          action: "unlock_failed",
+          message:
+            authResult.code === "admin-auth-password-invalid"
+              ? "管理员登录失败：密码错误"
+              : "管理员登录失败：鉴权未通过",
+          requestId,
+          details: {
+            code: authResult.code,
+            operatorName: normalizeText(body?.operatorName),
+          },
+        });
         sendError(
           response,
           authResult.code === "admin-auth-not-configured" ? 500 : 401,
@@ -97,6 +126,18 @@ function registerAdminSessionRoutes(router) {
         }
       );
 
+      appendRuntimeLog({
+        level: "success",
+        scope: "admin.session",
+        action: "unlock_success",
+        message: "管理员已进入系统管理",
+        requestId,
+        details: {
+          operatorName: normalizeText(body?.operatorName) || "未设置",
+          expiresInSeconds: issued.expiresInSeconds,
+        },
+      });
+
       sendJson(response, 200, {
         success: true,
         data: {
@@ -107,6 +148,16 @@ function registerAdminSessionRoutes(router) {
         requestId,
       });
     } catch (error) {
+      appendRuntimeLog({
+        level: "error",
+        scope: "admin.session",
+        action: "unlock_failed",
+        message: "管理员登录请求无效",
+        requestId,
+        details: {
+          error: error && error.message ? error.message : String(error),
+        },
+      });
       sendError(
         response,
         400,

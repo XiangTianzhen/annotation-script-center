@@ -1,3 +1,27 @@
+## 2026-06-02（系统仪表盘接入后端聚合与运行日志）
+
+- 继续完善 `extension/options/` 的系统管理仪表盘：
+  - 将原来的“运行统计”并入 `?view=admin&tab=overview`，不再保留独立页签
+  - 仪表盘统一展示模型池占用、失败摘要、近 14 天趋势、调用人排行、脚本统计和最近运行日志
+  - 顶部“刷新数据”继续保留，同时新增每 `60` 秒自动刷新一次的前端轮询
+  - 旧 `?view=admin&tab=stats` 链接回退到 `overview`
+- 后端新增系统管理运行日志能力：
+  - 新增 `platform-resources/backend/runtime-log-store.js` 作为轻量内存日志缓冲
+  - 新增 `GET /api/admin/dashboard/runtime-logs`
+  - 管理员登录、仪表盘刷新、项目数据下载、AI 调用日志导出和后端启动都会写入运行日志
+- 同步更新：
+  - `README.md`
+  - `extension/README.md`
+  - `platform-resources/backend/README.md`
+- 本轮验证：
+  - `node --check extension/options/options.js`
+  - `node --check extension/options/options-route-state.js`
+  - `node --check platform-resources/backend/admin-dashboard/routes.js`
+  - `node --check platform-resources/backend/runtime-log-store.js`
+  - `node --check platform-resources/backend/project-data-download/routes.js`
+  - `node --check platform-resources/backend/ai-call-log-download/routes.js`
+  - `node --test platform-resources/backend/admin-dashboard/overview.test.js platform-resources/backend/admin-dashboard/runtime-logs.test.js platform-resources/backend/runtime-log-store.test.js extension/options/options-route-state.test.js`
+
 ## 2026-06-01（Options 二次收口：显式保存 + 双栏详情页）
 
 - 按最新 0.4.0 收口方案继续优化 `extension/options/`：

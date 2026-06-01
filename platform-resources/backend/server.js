@@ -3,6 +3,7 @@
 const { loadDefaultEnvFiles } = require("./env-loader");
 const { createPlatformResourcesServer } = require("./app");
 const { getServerConfig } = require("./config");
+const { appendRuntimeLog } = require("./runtime-log-store");
 
 loadDefaultEnvFiles();
 
@@ -11,6 +12,15 @@ const server = createPlatformResourcesServer();
 
 server.listen(config.port, config.host, function () {
   const baseUrl = "http://" + config.host + ":" + String(config.port);
+  appendRuntimeLog({
+    level: "success",
+    scope: "backend.server",
+    action: "listen",
+    message: "platform-resources 后端已启动",
+    details: {
+      baseUrl,
+    },
+  });
   console.info("[Platform Resources][backend] listening on " + baseUrl);
   console.info(
     "[Platform Resources][backend] ASR judgement upload: " +
@@ -91,6 +101,11 @@ server.listen(config.port, config.host, function () {
     "[Platform Resources][backend] Admin dashboard overview: " +
       baseUrl +
       "/api/admin/dashboard/overview"
+  );
+  console.info(
+    "[Platform Resources][backend] Admin dashboard runtime logs: " +
+      baseUrl +
+      "/api/admin/dashboard/runtime-logs"
   );
   console.info(
     "[Platform Resources][backend] Project data download options: " +

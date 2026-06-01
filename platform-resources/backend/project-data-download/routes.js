@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { authenticateAdminRequest, getAdminAuthConfig } = require("../admin-auth");
+const { appendRuntimeLog } = require("../runtime-log-store");
 const { createCorsHeaders, sendJson } = require("../response");
 const { createAuditStore } = require("./audit-store");
 const { createSignedToken, verifySignedToken } = require("./jwt");
@@ -269,6 +270,24 @@ function buildAuditPayload(input) {
   };
 }
 
+function appendProjectDownloadRuntimeLog(level, action, requestId, payload) {
+  const data = payload && typeof payload === "object" ? payload : {};
+  appendRuntimeLog({
+    level: level,
+    scope: "admin.project_data_download",
+    action: action,
+    message: normalizeText(data.message) || "项目数据下载事件",
+    requestId,
+    details: {
+      dataset: normalizeText(data.dataset),
+      supplier: normalizeText(data.supplier),
+      operatorName: normalizeText(data.operatorName),
+      reason: normalizeText(data.reason),
+      fileName: normalizeText(data.fileName),
+    },
+  });
+}
+
 function createCsvHeaders(fileName, fileSize) {
   const safeFileName = normalizeText(fileName).replace(/"/g, "") || "project-data-download.csv";
   const asciiFileName = safeFileName.replace(/[^\x20-\x7E]/g, "_");
@@ -320,6 +339,13 @@ function registerProjectDataDownloadRoutes(router, options) {
       const dataset = getDatasetById(datasets, datasetId);
       if (!dataset) {
         const code = "project-data-download-dataset-invalid";
+        appendProjectDownloadRuntimeLog("warn", "request_failed", requestId, {
+          dataset: datasetId,
+          supplier,
+          operatorName,
+          reason: code,
+          message: "项目数据下载失败：数据类型无效",
+        });
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
@@ -341,6 +367,13 @@ function registerProjectDataDownloadRoutes(router, options) {
       }
       if (!operatorName) {
         const code = "project-data-download-operator-name-required";
+        appendProjectDownloadRuntimeLog("warn", "request_failed", requestId, {
+          dataset: dataset.id,
+          supplier,
+          operatorName,
+          reason: code,
+          message: "项目数据下载失败：未填写获取人姓名",
+        });
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
@@ -364,6 +397,13 @@ function registerProjectDataDownloadRoutes(router, options) {
       const authConfig = getAuthConfig();
       if (!authConfig.passwordSha256 || !authConfig.jwtSecret) {
         const code = "project-data-download-auth-not-configured";
+        appendProjectDownloadRuntimeLog("error", "request_failed", requestId, {
+          dataset: dataset.id,
+          supplier,
+          operatorName,
+          reason: code,
+          message: "项目数据下载失败：后端未配置下载鉴权",
+        });
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
@@ -401,6 +441,13 @@ function registerProjectDataDownloadRoutes(router, options) {
                 : authResult.code === "admin-session-token-expired"
                   ? "project-data-download-token-expired"
                   : "project-data-download-token-invalid";
+        appendProjectDownloadRuntimeLog("warn", "request_failed", requestId, {
+          dataset: dataset.id,
+          supplier,
+          operatorName,
+          reason: code,
+          message: "项目数据下载失败：管理员鉴权未通过",
+        });
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
@@ -509,6 +556,13 @@ function registerProjectDataDownloadRoutes(router, options) {
         DEFAULT_EXPIRES_IN_SECONDS
       );
       const downloadUrl = getRequestBaseUrl(request) + FILE_PATH + "?token=" + encodeURIComponent(signed.token);
+      appendProjectDownloadRuntimeLog("success", "request_success", requestId, {
+        dataset: dataset.id,
+        supplier,
+        operatorName,
+        reason: "ok",
+        message: "项目数据下载链接已生成",
+      });
 
       auditStore.append(
         buildAuditPayload({
@@ -538,6 +592,10 @@ function registerProjectDataDownloadRoutes(router, options) {
         requestId: requestId,
       });
     } catch (error) {
+      appendProjectDownloadRuntimeLog("error", "request_failed", requestId, {
+        reason: "project-data-download-request-invalid",
+        message: "项目数据下载失败：请求参数无效",
+      });
       auditStore.append(
         buildAuditPayload({
           requestId: requestId,
@@ -574,6 +632,13 @@ function registerProjectDataDownloadRoutes(router, options) {
     const token = normalizeTokenText(query?.token);
     const verified = verifySignedToken(token, authConfig.jwtSecret);
     if (!verified.ok) {
+      appendProjectDownloadRuntimeLog("warn", "download_failed", requestId, {
+        dataset: normalizeText(verified?.payload?.dataset),
+        supplier: normalizeText(verified?.payload?.supplier),
+        operatorName: normalizeText(verified?.payload?.operatorName),
+        reason: verified.code,
+        message: "项目数据下载失败：token 无效",
+      });
       auditStore.append(
         buildAuditPayload({
           requestId: requestId,
@@ -756,6 +821,14 @@ function registerProjectDataDownloadRoutes(router, options) {
         fileSize: fileSize,
       })
     );
+    appendProjectDownloadRuntimeLog("success", method === "HEAD" ? "download_head" : "download_success", requestId, {
+      dataset: dataset.id,
+      supplier,
+      operatorName: normalizeText(payload.operatorName),
+      reason: method === "HEAD" ? "head" : "ok",
+      fileName,
+      message: method === "HEAD" ? "项目数据下载 HEAD 校验成功" : "项目数据下载成功",
+    });
 
     response.writeHead(200, createCsvHeaders(fileName, fileSize));
     if (method === "HEAD") {

@@ -313,7 +313,7 @@ pm2 restart annotation-script-center --update-env
 - `ai/model-dispatcher.js`：按模型名统一派发 JS / Python 运行时；默认 `JS 优先，Python 备用`。
 - `admin-auth.js`：系统管理会话与下载导出共用的管理员鉴权 helper，负责密码 hash 校验、Bearer token 读取和会话 token 签发/校验。
 - `admin-session/`：系统管理登录接口。
-- `admin-dashboard/`：系统管理仪表盘聚合接口，汇总模型池、运行时、下载中心摘要和脚本级 AI 统计。
+- `admin-dashboard/`：系统管理仪表盘聚合接口，汇总模型池、运行时、下载中心摘要、脚本级 AI 统计与近期运行日志接口。
 - `project-data-download/`：统一“项目数据下载”聚合模块（options/request/file、token、审计、CSV 筛选），并开始承载共享下载 core：
   - `labelx-download-core.js`
   - `labelx-existing-core.js`
@@ -333,7 +333,7 @@ pm2 restart annotation-script-center --update-env
 - `aishell-tech/minnan-helper`：Aishell Tech 闽南语助手 AI 推荐接口；当前条推荐与批量串行真实保存共用同一 recommend 业务入口，默认由 `POST /jobs` + `GET /jobs/:jobId` 承接前端结果链路，并继续保留同步 recommend 路由作为兼容 / 调试入口。
 - `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
 - `admin/session`：系统管理登录接口，负责签发短期管理员会话 token。
-- `admin/dashboard`：系统管理仪表盘聚合接口，负责汇总模型池占用、脚本 AI 调用统计、失败摘要和下载中心快捷信息。
+- `admin/dashboard`：系统管理仪表盘聚合接口，负责汇总模型池占用、脚本 AI 调用统计、失败摘要、下载中心快捷信息，并额外提供近期运行日志接口。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验或管理员 Bearer 会话、短期 token 下载链接、供应商筛选下载和审计日志。
 - `admin/ai-call-log`：AI 请求记录聚合接口，支持密码校验或管理员 Bearer 会话、短期 token 下载链接、按脚本 + 日期范围导出 CSV 和审计日志。
 
@@ -366,6 +366,13 @@ Aishell Tech AI 接口：
 系统管理接口：
 - `POST /api/admin/session/unlock`
 - `GET /api/admin/dashboard/overview`
+- `GET /api/admin/dashboard/runtime-logs`
+  - 需要管理员 Bearer 会话
+  - 支持 `?limit=<n>`，默认返回最近运行日志
+  - 当前日志来源包括：管理员登录、仪表盘刷新、项目数据下载、AI 调用日志导出、后端启动
+- `GET /api/admin/dashboard/overview`
+  - 当前仍负责返回模型池占用、失败摘要、脚本统计、趋势和调用人排行
+  - 前端 `options` 仪表盘默认每 `60` 秒自动刷新一次，并可手动刷新
 
 项目数据下载接口：
 - `GET /api/admin/project-data-download/options`

@@ -889,8 +889,28 @@ svg.admin-chart::before {
 }
 
 .admin-surface-card #admin-overview-pools .admin-chart,
-.admin-surface-card #admin-stats-trend .admin-chart {
+.admin-surface-card #admin-overview-trend .admin-chart {
   min-height: 180px;
+}
+
+.admin-log-table .admin-table-row {
+  grid-template-columns: minmax(0, 2.8fr) minmax(88px, 0.7fr) minmax(150px, 1fr);
+}
+
+.admin-log-row span:first-child {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-log-row strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.admin-log-row small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .detail-note {

@@ -11,7 +11,6 @@
     overview: true,
     backend: true,
     downloads: true,
-    stats: true,
   };
 
   function normalizeText(value) {
@@ -20,6 +19,9 @@
 
   function normalizeAdminTab(value) {
     const tab = normalizeText(value).toLowerCase();
+    if (tab === "stats") {
+      return "overview";
+    }
     return VALID_ADMIN_TABS[tab] ? tab : "overview";
   }
 

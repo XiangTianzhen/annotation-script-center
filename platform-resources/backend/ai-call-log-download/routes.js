@@ -2,6 +2,7 @@
 
 const path = require("path");
 const { authenticateAdminRequest, getAdminAuthConfig } = require("../admin-auth");
+const { appendRuntimeLog } = require("../runtime-log-store");
 const {
   buildHeaderLine,
   listLogFiles,
@@ -285,6 +286,25 @@ function buildAuditPayload(input) {
   };
 }
 
+function appendAiCallLogRuntimeLog(level, action, requestId, payload) {
+  const data = payload && typeof payload === "object" ? payload : {};
+  appendRuntimeLog({
+    level: level,
+    scope: "admin.ai_call_log_download",
+    action: action,
+    message: normalizeText(data.message) || "AI 调用日志事件",
+    requestId,
+    details: {
+      dataset: normalizeText(data.dataset),
+      operatorName: normalizeText(data.operatorName),
+      dateFrom: normalizeDateText(data.dateFrom),
+      dateTo: normalizeDateText(data.dateTo),
+      reason: normalizeText(data.reason),
+      fileName: normalizeText(data.fileName),
+    },
+  });
+}
+
 function validateDateRange(dateFrom, dateTo) {
   if (dateFrom && !DATE_TEXT_PATTERN.test(dateFrom)) {
     return {
@@ -413,6 +433,14 @@ function registerAiCallLogDownloadRoutes(router, options) {
       const dataset = getDatasetById(datasets, datasetId);
       if (!dataset) {
         const code = "ai-call-log-download-dataset-invalid";
+        appendAiCallLogRuntimeLog("warn", "request_failed", requestId, {
+          dataset: datasetId,
+          operatorName,
+          dateFrom: rawDateFrom,
+          dateTo: rawDateTo,
+          reason: code,
+          message: "AI 调用日志导出失败：脚本类型无效",
+        });
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
@@ -435,6 +463,14 @@ function registerAiCallLogDownloadRoutes(router, options) {
       }
       if (!operatorName) {
         const code = "ai-call-log-download-operator-name-required";
+        appendAiCallLogRuntimeLog("warn", "request_failed", requestId, {
+          dataset: dataset.id,
+          operatorName,
+          dateFrom: rawDateFrom,
+          dateTo: rawDateTo,
+          reason: code,
+          message: "AI 调用日志导出失败：未填写获取人姓名",
+        });
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
@@ -482,6 +518,14 @@ function registerAiCallLogDownloadRoutes(router, options) {
       const authConfig = getAuthConfig();
       if (!authConfig.passwordSha256 || !authConfig.jwtSecret) {
         const code = "ai-call-log-download-auth-not-configured";
+        appendAiCallLogRuntimeLog("error", "request_failed", requestId, {
+          dataset: dataset.id,
+          operatorName,
+          dateFrom: validatedDateRange.from,
+          dateTo: validatedDateRange.to,
+          reason: code,
+          message: "AI 调用日志导出失败：后端未配置下载鉴权",
+        });
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
@@ -520,6 +564,14 @@ function registerAiCallLogDownloadRoutes(router, options) {
                 : authResult.code === "admin-session-token-expired"
                   ? "ai-call-log-download-token-expired"
                   : "ai-call-log-download-token-invalid";
+        appendAiCallLogRuntimeLog("warn", "request_failed", requestId, {
+          dataset: dataset.id,
+          operatorName,
+          dateFrom: validatedDateRange.from,
+          dateTo: validatedDateRange.to,
+          reason: code,
+          message: "AI 调用日志导出失败：管理员鉴权未通过",
+        });
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
@@ -583,6 +635,14 @@ function registerAiCallLogDownloadRoutes(router, options) {
         DEFAULT_EXPIRES_IN_SECONDS
       );
       const downloadUrl = getRequestBaseUrl(request) + FILE_PATH + "?token=" + encodeURIComponent(signed.token);
+      appendAiCallLogRuntimeLog("success", "request_success", requestId, {
+        dataset: dataset.id,
+        operatorName,
+        dateFrom: validatedDateRange.from,
+        dateTo: validatedDateRange.to,
+        reason: "ok",
+        message: "AI 调用日志导出链接已生成",
+      });
 
       auditStore.append(
         buildAuditPayload({
@@ -613,6 +673,10 @@ function registerAiCallLogDownloadRoutes(router, options) {
         requestId: requestId,
       });
     } catch (error) {
+      appendAiCallLogRuntimeLog("error", "request_failed", requestId, {
+        reason: "ai-call-log-download-request-invalid",
+        message: "AI 调用日志导出失败：请求参数无效",
+      });
       auditStore.append(
         buildAuditPayload({
           requestId: requestId,
@@ -654,6 +718,14 @@ function registerAiCallLogDownloadRoutes(router, options) {
       }
     );
     if (!verified.ok) {
+      appendAiCallLogRuntimeLog("warn", "download_failed", requestId, {
+        dataset: normalizeText(verified?.payload?.dataset),
+        operatorName: normalizeText(verified?.payload?.operatorName),
+        dateFrom: normalizeDateText(verified?.payload?.dateFrom),
+        dateTo: normalizeDateText(verified?.payload?.dateTo),
+        reason: verified.code,
+        message: "AI 调用日志导出失败：token 无效",
+      });
       auditStore.append(
         buildAuditPayload({
           requestId: requestId,
@@ -778,6 +850,15 @@ function registerAiCallLogDownloadRoutes(router, options) {
         rowCount: exported.rowCount,
       })
     );
+    appendAiCallLogRuntimeLog("success", method === "HEAD" ? "download_head" : "download_success", requestId, {
+      dataset: dataset.id,
+      operatorName: normalizeText(payload.operatorName),
+      dateFrom: normalizeDateText(payload.dateFrom),
+      dateTo: normalizeDateText(payload.dateTo),
+      reason: method === "HEAD" ? "head" : "ok",
+      fileName,
+      message: method === "HEAD" ? "AI 调用日志 HEAD 校验成功" : "AI 调用日志导出成功",
+    });
 
     response.writeHead(200, createCsvHeaders(fileName, fileSize));
     if (method === "HEAD") {
