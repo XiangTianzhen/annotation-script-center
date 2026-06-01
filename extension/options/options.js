@@ -470,10 +470,10 @@
     const detailScript = detailScriptId ? scriptLibrary[detailScriptId] || {} : null;
 
     if (versionNode) {
-      versionNode.textContent = "版本 " + version;
+      versionNode.textContent = "浏览器扩展 v" + version;
     }
     if (versionCompactNode) {
-      versionCompactNode.textContent = version;
+      versionCompactNode.textContent = "v" + version;
     }
     if (backendModeNode) {
       backendModeNode.textContent = backendMode === backendModeLocal ? "本机" : "服务器";
@@ -555,6 +555,20 @@
   function getCurrentAdminTab() {
     const route = getCurrentRouteState();
     return route.view === "admin" ? route.adminTab : "overview";
+  }
+
+  function getPreferredPlatformScript(platformScriptIds, settings) {
+    const candidates = Array.isArray(platformScriptIds) ? platformScriptIds : [];
+    const activeScriptId = candidates.find(function (scriptId) {
+      return isScriptEnabled(settings || {}, scriptId);
+    });
+    const targetScriptId = activeScriptId || candidates[0] || "";
+    const script = targetScriptId ? scriptLibrary[targetScriptId] || {} : null;
+    return {
+      scriptId: targetScriptId,
+      label: script ? String(script.shortLabel || script.label || targetScriptId) : "未设置",
+      isActive: Boolean(activeScriptId),
+    };
   }
 
   function navigateToRoute(route) {
@@ -6078,9 +6092,7 @@
         const platformScriptIds = Object.keys(scriptLibrary).filter(function (scriptId) {
           return scriptLibrary[scriptId]?.platformId === platformId;
         });
-        const activeScriptCount = platformScriptIds.filter(function (scriptId) {
-          return isScriptEnabled(settings, scriptId);
-        }).length;
+        const preferredScript = getPreferredPlatformScript(platformScriptIds, settings);
 
         const scriptMarkup = platformScriptIds
           .map(function (scriptId) {
@@ -6102,12 +6114,11 @@
               "</div>",
               '<p class="script-copy">' + String(script.description || "") + "</p>",
               '<div class="script-metadata">',
-              '<span>匹配 URL：' + escapeHtml(getScriptHostText(scriptId)) + "</span>",
+              "<span>匹配入口：默认平台地址</span>",
               '<span>入口：脚本详情 / ' + (active ? "当前生效" : "待启用") + "</span>",
               "</div>",
               "</div>",
               '<div class="script-side">',
-              '<span class="script-route-pill">' + escapeHtml(getScriptHostText(scriptId)) + "</span>",
               '<div class="script-actions">',
               '<button type="button" class="primary-button" data-open-script="' + scriptId + '">打开设置</button>',
               isScriptEnabled(settings, scriptId)
@@ -6128,14 +6139,17 @@
           "<div>",
           "<h2>" + String(platform.label || platformId) + "</h2>",
           '<p class="platform-copy">' + String(platform.description || "") + "</p>",
-          "</div>",
-          "</div>",
-          '<div class="platform-facts">',
-          '<span class="pill info">' + String(platform.host || "") + "</span>",
-          '<span class="pill ' + (activeScriptCount > 0 ? "enabled" : "pending") + '">生效 ' + formatNumber(activeScriptCount) + " / " + formatNumber(platformScriptIds.length) + "</span>",
-          '<span class="platform-fact-text">当前平台脚本统一收口到功能面板，公开页只保留启停与详情入口。</span>',
-          "</div>",
-          "</div>",
+           "</div>",
+           "</div>",
+           '<div class="platform-facts">',
+           '<span class="pill info">' + String(platform.host || "") + "</span>",
+           '<span class="pill ' + (preferredScript.isActive ? "enabled" : "info") + '">' +
+             (preferredScript.isActive ? "当前启用：" : "默认启用：") +
+             escapeHtml(preferredScript.label) +
+             "</span>",
+           '<span class="platform-fact-text">当前平台脚本统一收口到功能面板，公开页只保留启停与详情入口。</span>',
+           "</div>",
+           "</div>",
           '<div class="script-grid platform-script-stack">' + scriptMarkup + "</div>",
           "</div>",
           "</section>",
@@ -6925,9 +6939,9 @@
     hero.classList.add("public-hero");
     const actionButton = getElement("stage-label");
     if (actionButton instanceof HTMLButtonElement) {
-      actionButton.textContent = "系统管理";
-      actionButton.title = "进入系统管理";
-      actionButton.setAttribute("aria-label", "进入系统管理");
+      actionButton.textContent = "脚本下载中心";
+      actionButton.title = "打开脚本下载中心";
+      actionButton.setAttribute("aria-label", "打开脚本下载中心");
       actionButton.classList.add("admin-entry-button");
     }
     const homeEndpointCard = getElement("home-endpoint-card");
@@ -7010,14 +7024,6 @@
     adminSection.innerHTML = [
       '<div class="admin-shell">',
       '<div class="admin-stage">',
-      '<div class="admin-stage-banner">',
-      '<div class="admin-stage-copy"><strong>系统管理后台</strong><span id="admin-stage-endpoint" class="status-text"></span><p>后端设置、下载导出、模型池占用和运行统计统一收口到这里。</p></div>',
-      '<div class="field-actions">',
-      '<button id="admin-refresh-dashboard" class="ghost-button" type="button">刷新数据</button>',
-      '<button id="admin-return-center" class="ghost-button" type="button">返回公开中心</button>',
-      '<button id="admin-logout-button" class="secondary-button" type="button">退出登录</button>',
-      "</div>",
-      "</div>",
       '<section id="admin-auth-gate" class="admin-auth-gate">',
       "<h3>输入系统管理密码</h3>",
       "<p>系统管理页会复用下载鉴权密码。登录后当前浏览器会话内可直接查看仪表盘和发起导出。</p>",
@@ -7027,6 +7033,14 @@
       '<div id="admin-auth-status" class="status-text"></div>',
       "</section>",
       '<div id="admin-content" class="admin-content hidden">',
+      '<div class="admin-toolbar field-actions">',
+      '<span id="admin-stage-endpoint" class="status-text"></span>',
+      '<div class="field-actions">',
+      '<button id="admin-refresh-dashboard" class="ghost-button" type="button">刷新数据</button>',
+      '<button id="admin-return-center" class="ghost-button" type="button">返回公开中心</button>',
+      '<button id="admin-logout-button" class="secondary-button" type="button">退出登录</button>',
+      "</div>",
+      "</div>",
       '<nav class="admin-tab-strip">',
       '<button type="button" class="admin-nav-button" data-admin-tab="overview">仪表盘</button>',
       '<button type="button" class="admin-nav-button" data-admin-tab="backend">后端设置</button>',
@@ -8776,10 +8790,14 @@
         stageLabel.textContent = "返回公开中心";
         stageLabel.title = "返回公开中心";
         stageLabel.setAttribute("aria-label", "返回公开中心");
-      } else {
+      } else if (route.view === "script") {
         stageLabel.textContent = "系统管理";
         stageLabel.title = "进入系统管理";
         stageLabel.setAttribute("aria-label", "进入系统管理");
+      } else {
+        stageLabel.textContent = "脚本下载中心";
+        stageLabel.title = "打开脚本下载中心";
+        stageLabel.setAttribute("aria-label", "打开脚本下载中心");
       }
     }
 
@@ -8829,11 +8847,16 @@
     const stageLabel = getElement("stage-label");
     if (stageLabel) {
       stageLabel.addEventListener("click", function () {
-        if (getCurrentRouteState().view === "admin") {
+        const route = getCurrentRouteState();
+        if (route.view === "admin") {
           navigateToCenter();
           return;
         }
-        navigateToAdmin(getCurrentAdminTab());
+        if (route.view === "script") {
+          navigateToAdmin(getCurrentAdminTab());
+          return;
+        }
+        openScriptDownloadCenter();
       });
     }
 

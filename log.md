@@ -1,3 +1,18 @@
+## 2026-06-01（Options 细节视觉收口）
+
+- 按最新人工反馈继续收口 `extension/options/` 的细节表现：
+  - 左上角品牌方块不再显示 `ASC` 文字，改为复用 `extension/assets/brand/asc-logo.svg`
+  - 左侧侧栏移除“页面边界”说明卡，品牌区版本文案统一改成 `浏览器扩展 v<version>`
+  - 公开脚本中心右上角主按钮从“系统管理”改为直接打开“脚本下载中心”外链
+  - 平台摘要不再显示“生效 x / y”，改为显示“当前启用 / 默认启用”脚本名
+  - 单个脚本卡不再显示重复 URL pill，匹配入口统一改成“默认平台地址”
+  - 系统管理页移除 hero 下方重复的独立 banner，把刷新 / 返回 / 退出动作并入后台内容工具条
+- 同步更新：
+  - `README.md`
+  - `extension/README.md`
+- 本轮验证：
+  - `node --check extension/options/options.js`
+
 ## 2026-06-01（Options 宽度自适应修正）
 
 - 修正 `extension/options/options.css` 的页面宽度策略：
