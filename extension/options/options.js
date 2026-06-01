@@ -7138,9 +7138,9 @@
       "</div>",
       '<div class="admin-two-column">',
       '<section class="admin-surface-card"><div class="admin-card-head"><strong>近 14 天调用趋势</strong><span>统一 AI 调用日志聚合</span></div><div id="admin-overview-trend"></div></section>',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>调用人排行</strong><span>按累计调用量排序</span></div><div id="admin-overview-operators"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>调用人排行</strong><span>按近期调用量排序</span></div><div id="admin-overview-operators"></div></section>',
       "</div>",
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>脚本摘要</strong><span>展示今日与累计调用情况</span></div><div id="admin-overview-scripts"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>脚本摘要</strong><span>展示今日与近期调用情况</span></div><div id="admin-overview-scripts"></div></section>',
       '<section class="admin-surface-card"><div class="admin-card-head"><strong>运行日志</strong><span>展示最近接口、导出与鉴权事件</span></div><div id="admin-overview-runtime-logs"></div></section>',
       '<div id="admin-overview-status" class="status-text"></div>',
       "</section>",
@@ -7292,14 +7292,15 @@
     ].join("");
   }
 
-  function buildScriptStatsTableMarkup(rows) {
+  function buildScriptStatsTableMarkup(rows, windowLabel) {
     const items = Array.isArray(rows) ? rows : [];
+    const summaryLabel = normalizeText(windowLabel) || "近14天";
     if (items.length <= 0) {
       return buildEmptyState("当前没有脚本统计数据。");
     }
     return [
       '<div class="admin-table admin-table-wide">',
-      '<div class="admin-table-row admin-table-head"><span>脚本</span><span>今日调用</span><span>今日失败</span><span>累计调用</span></div>',
+      '<div class="admin-table-row admin-table-head"><span>脚本</span><span>今日调用</span><span>今日失败</span><span>' + escapeHtml(summaryLabel) + '调用</span></div>',
       items
         .map(function (item) {
           return (
@@ -7434,6 +7435,7 @@
     const backend = overview.backend || {};
     const stats = overview.stats || {};
     const queue = overview.runtime?.queue || {};
+    const statsWindowLabel = stats.window?.label || "近14天";
     const summaryNode = getElement("admin-overview-summary");
     if (summaryNode) {
       summaryNode.innerHTML = [
@@ -7452,7 +7454,7 @@
     }
     const scriptsNode = getElement("admin-overview-scripts");
     if (scriptsNode) {
-      scriptsNode.innerHTML = buildScriptStatsTableMarkup(stats.scripts || []);
+      scriptsNode.innerHTML = buildScriptStatsTableMarkup(stats.scripts || [], statsWindowLabel);
     }
     const trendNode = getElement("admin-overview-trend");
     if (trendNode) {

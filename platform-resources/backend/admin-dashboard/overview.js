@@ -14,6 +14,7 @@ const { aiCallLogger: asrTranscriptionLogger } = require("../../alibaba-labelx/a
 const { aiCallLogger: abakaTask21Logger } = require("../../abaka-ai/task21/backend/ai-call-log");
 
 const SCRIPT_DOWNLOAD_CENTER_URL = "https://script.xiangtianzhen.store/downloads/";
+const DASHBOARD_STATS_WINDOW_DAYS = 14;
 
 const SCRIPT_SUMMARY_DEFINITIONS = [
   {
@@ -161,6 +162,10 @@ function buildAdminDashboardOverview(input) {
   const source = input && typeof input === "object" ? input : {};
   const runtime = normalizeRuntime(source.runtime);
   const scriptSummaries = Array.isArray(source.scriptSummaries) ? source.scriptSummaries : [];
+  const statsWindow =
+    source.statsWindow && typeof source.statsWindow === "object"
+      ? source.statsWindow
+      : buildDashboardStatsWindow(new Date());
   const todayTotals = createTotals();
   const allTimeTotals = createTotals();
   const byDateMap = new Map();
@@ -231,6 +236,12 @@ function buildAdminDashboardOverview(input) {
         source.downloads && typeof source.downloads === "object" ? source.downloads : {}
       ),
       stats: {
+        window: {
+          days: Number(statsWindow.days || DASHBOARD_STATS_WINDOW_DAYS) || DASHBOARD_STATS_WINDOW_DAYS,
+          label: normalizeText(statsWindow.label) || "最近" + String(DASHBOARD_STATS_WINDOW_DAYS) + "天",
+          from: normalizeText(statsWindow.from),
+          to: normalizeText(statsWindow.to),
+        },
         today: todayTotals,
         allTime: allTimeTotals,
         byDate: toSortedBucketArray(byDateMap, "date"),
@@ -250,8 +261,31 @@ function formatLocalDate(now) {
   return yyyy + "-" + mm + "-" + dd;
 }
 
-function buildScriptSummariesForDashboard(dateText) {
+function shiftDate(date, offsetDays) {
+  const next = new Date(date instanceof Date ? date.getTime() : Date.now());
+  next.setDate(next.getDate() + (Number(offsetDays || 0) || 0));
+  return next;
+}
+
+function buildDashboardStatsWindow(now) {
+  const current = now instanceof Date ? now : new Date();
+  const to = formatLocalDate(current);
+  const from = formatLocalDate(shiftDate(current, -(DASHBOARD_STATS_WINDOW_DAYS - 1)));
+  return {
+    days: DASHBOARD_STATS_WINDOW_DAYS,
+    label: "最近" + String(DASHBOARD_STATS_WINDOW_DAYS) + "天",
+    from,
+    to,
+  };
+}
+
+function buildScriptSummariesForDashboard(dateText, statsWindow) {
+  const windowRange = statsWindow && typeof statsWindow === "object" ? statsWindow : {};
   return SCRIPT_SUMMARY_DEFINITIONS.map(function mapDefinition(definition) {
+    const windowSummary = definition.logger.summarize({
+      from: windowRange.from,
+      to: windowRange.to,
+    });
     return {
       id: definition.id,
       label: definition.label,
@@ -260,7 +294,7 @@ function buildScriptSummariesForDashboard(dateText) {
         from: dateText,
         to: dateText,
       }),
-      allTime: definition.logger.summarize({}),
+      allTime: windowSummary,
     };
   });
 }
@@ -269,6 +303,7 @@ function createLiveAdminDashboardOverview(options) {
   const config = options && typeof options === "object" ? options : {};
   const now = new Date();
   const today = formatLocalDate(now);
+  const statsWindow = buildDashboardStatsWindow(now);
   return buildAdminDashboardOverview({
     now: now.toISOString(),
     adminAuthConfigured: isAdminAuthConfigured(getAdminAuthConfig()),
@@ -281,7 +316,8 @@ function createLiveAdminDashboardOverview(options) {
       projectDataDatasets: listProjectDataDownloadDatasets(config.projectDataDownload || {}),
       aiCallLogDatasets: listAiCallLogDatasets(config.aiCallLogDownload || {}),
     },
-    scriptSummaries: buildScriptSummariesForDashboard(today),
+    statsWindow,
+    scriptSummaries: buildScriptSummariesForDashboard(today, statsWindow),
   });
 }
 

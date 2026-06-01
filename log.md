@@ -9,6 +9,10 @@
   - 新增 `platform-resources/backend/runtime-log-store.js` 作为轻量内存日志缓冲
   - 新增 `GET /api/admin/dashboard/runtime-logs`
   - 管理员登录、仪表盘刷新、项目数据下载、AI 调用日志导出和后端启动都会写入运行日志
+- 根据线上日志追加热修：
+  - 发现 `GET /api/admin/dashboard/overview` 在高日志量环境下会触发 Node `heap out of memory`
+  - 根因是仪表盘刷新时对多个脚本执行全量 `all-time summarize`
+  - 当前改为只聚合“今日 + 最近 14 天”窗口，避免 PM2 因内存溢出反复重启
 - 同步更新：
   - `README.md`
   - `extension/README.md`

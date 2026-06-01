@@ -12,6 +12,12 @@ test("admin dashboard overview aggregates today totals, pools and failures", fun
     now: "2026-05-31T10:00:00.000Z",
     adminAuthConfigured: true,
     sessionTtlSeconds: 1800,
+    statsWindow: {
+      days: 14,
+      label: "最近14天",
+      from: "2026-05-18",
+      to: "2026-05-31",
+    },
     runtime: {
       jobs: {
         activeCount: 2,
@@ -135,6 +141,8 @@ test("admin dashboard overview aggregates today totals, pools and failures", fun
   assert.equal(overview.data.stats.today.totalCalls, 17);
   assert.equal(overview.data.stats.today.failedCalls, 2);
   assert.equal(overview.data.stats.today.totalTokens, 3400);
+  assert.equal(overview.data.stats.window.label, "最近14天");
+  assert.equal(overview.data.stats.window.from, "2026-05-18");
   assert.equal(overview.data.runtime.queue.activePools[0].utilizationPercent, 40);
   assert.deepEqual(overview.data.stats.failures[0], {
     errorCode: "provider-rate-limited",
