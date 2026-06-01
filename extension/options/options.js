@@ -464,6 +464,7 @@
     const versionCompactNode = getElement("workspace-version-compact");
     const backendModeNode = getElement("workspace-backend-mode");
     const aiUsageOperatorNode = getElement("workspace-ai-usage-operator");
+    const aiUsageOperatorInput = getElement("workspace-ai-usage-operator-input");
     const enabledNode = getElement("workspace-enabled-count");
     const libraryNode = getElement("workspace-library-count");
     const navCenterButton = getElement("workspace-nav-center");
@@ -483,6 +484,9 @@
     if (aiUsageOperatorNode) {
       const operatorName = getAiUsageOperatorName(settings || {});
       aiUsageOperatorNode.textContent = operatorName || "未设置";
+    }
+    if (aiUsageOperatorInput instanceof HTMLInputElement) {
+      aiUsageOperatorInput.value = getAiUsageOperatorName(settings || {});
     }
     if (enabledNode) {
       enabledNode.textContent = formatNumber(enabledCount);
@@ -6257,9 +6261,9 @@
   }
 
   function renderHomeAiUsageOperator(settings) {
-    const operatorInput = getElement("home-ai-usage-operator");
+    const operatorInput = getElement("workspace-ai-usage-operator-input");
     if (operatorInput instanceof HTMLInputElement) {
-      operatorInput.value = ensureAdminBackendDraft(settings || {}).aiUsageOperatorName || "";
+      operatorInput.value = getAiUsageOperatorName(settings || {});
     }
   }
 
@@ -6273,19 +6277,16 @@
       String(draft.backendEndpointMode || "").trim().toLowerCase() === backendModeLocal
         ? backendModeLocal
         : backendModeServer;
-    const operatorName = normalizeAiUsageOperatorName(draft.aiUsageOperatorName);
-    setStatus("home-endpoint-status", "正在保存后端设置...");
+    setStatus("home-endpoint-status", "正在保存后端地址...");
     try {
       currentSettings = await storage.patchSettings({
         meta: {
           backendEndpointMode: normalizedMode,
-          aiUsageOperatorName: operatorName,
         },
       });
       resetAdminBackendDraft(currentSettings);
       renderWorkspaceSidebar(currentSettings || {}, getCurrentRouteState());
       renderHomeBackendEndpoint(currentSettings || {});
-      renderHomeAiUsageOperator(currentSettings || {});
       renderAdminBackendSummary(adminDashboardCache || {});
       if (endpointAdvancedUnlocked) {
         projectDataDownloadDatasets = [];
@@ -6293,11 +6294,41 @@
         void loadProjectDataDownloadOptions();
         void loadAiCallLogOptions();
       }
-      setStatus("home-endpoint-status", "后端设置已保存到本地缓存。");
+      setStatus("home-endpoint-status", "后端地址已保存到本地缓存。");
       return true;
     } catch (error) {
       setStatus(
         "home-endpoint-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+      return false;
+    }
+  }
+
+  async function saveWorkspaceAiUsageOperatorName() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      setStatus("workspace-ai-usage-operator-status", "当前扩展版本不支持保存 AI 调用使用人。");
+      return false;
+    }
+    const input = getElement("workspace-ai-usage-operator-input");
+    if (!(input instanceof HTMLInputElement)) {
+      return false;
+    }
+    const operatorName = normalizeAiUsageOperatorName(input.value);
+    setStatus("workspace-ai-usage-operator-status", "正在保存 AI 调用使用人...");
+    try {
+      currentSettings = await storage.patchSettings(
+        createAiUsageOperatorSettingsPatch(operatorName)
+      );
+      resetAdminBackendDraft(currentSettings);
+      renderWorkspaceSidebar(currentSettings || {}, getCurrentRouteState());
+      renderHomeAiUsageOperator(currentSettings || {});
+      renderAdminBackendSummary(adminDashboardCache || {});
+      setStatus("workspace-ai-usage-operator-status", "AI 调用使用人已保存到本地缓存。");
+      return true;
+    } catch (error) {
+      setStatus(
+        "workspace-ai-usage-operator-status",
         "保存失败：" + (error && error.message ? error.message : String(error))
       );
       return false;
@@ -7079,11 +7110,8 @@
       '<div id="admin-overview-status" class="status-text"></div>',
       "</section>",
       '<section id="admin-tab-backend" class="admin-tab-panel hidden">',
-      '<div class="admin-panel-head"><div><h3>后端设置</h3><p>这里改成显式保存工作台：切换后端入口和 AI 调用使用人时，先保留草稿，点击保存后再写入本地缓存。</p></div></div>',
-      '<div class="admin-two-column">',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>编辑区</strong><span>统一保存后端入口与 AI 调用使用人</span></div><div id="admin-backend-card-slot"></div></section>',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>当前生效配置</strong><span>展示当前缓存、草稿状态与后端运行元信息</span></div><div id="admin-backend-runtime"></div></section>',
-      "</div>",
+      '<div class="admin-panel-head"><div><h3>后端设置</h3><p>主内容区只保留后端接口地址；AI 调用使用人和全局摘要统一放在左侧侧栏中管理。</p></div></div>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>后端接口地址</strong><span>切换服务器 / 本机后，点击按钮才写入本地缓存</span></div><div id="admin-backend-card-slot"></div></section>',
       "</section>",
       '<section id="admin-tab-downloads" class="admin-tab-panel hidden">',
       '<div class="admin-panel-head"><div><h3>下载中心</h3><p>项目数据下载、AI 请求记录导出与脚本分发入口统一放在这里。</p></div><div class="field-actions"><button id="admin-open-script-download-center" class="secondary-button" type="button">打开脚本下载中心</button></div></div>',
@@ -7743,6 +7771,11 @@
   function renderDetailSupportPanel(settings, scriptId) {
     const panel = getElement("detail-support-panel");
     if (!(panel instanceof HTMLElement)) {
+      return;
+    }
+    if (supportsAsrVoiceAiSettings(scriptId)) {
+      panel.classList.add("hidden");
+      panel.innerHTML = "";
       return;
     }
     const script = scriptLibrary[scriptId] || {};
@@ -9037,13 +9070,17 @@
       });
     }
 
-    const homeAiUsageOperator = getElement("home-ai-usage-operator");
-    if (homeAiUsageOperator instanceof HTMLInputElement) {
-      homeAiUsageOperator.addEventListener("input", function () {
-        const draft = getAdminBackendDraft();
-        draft.aiUsageOperatorName = normalizeAiUsageOperatorName(homeAiUsageOperator.value);
-        renderHomeBackendEndpoint(currentSettings || {});
-        renderAdminBackendSummary(adminDashboardCache || {});
+    const workspaceAiUsageOperatorInput = getElement("workspace-ai-usage-operator-input");
+    if (workspaceAiUsageOperatorInput instanceof HTMLInputElement) {
+      workspaceAiUsageOperatorInput.addEventListener("input", function () {
+        setStatus("workspace-ai-usage-operator-status", "");
+      });
+    }
+
+    const workspaceAiUsageOperatorSave = getElement("workspace-ai-usage-operator-save");
+    if (workspaceAiUsageOperatorSave instanceof HTMLButtonElement) {
+      workspaceAiUsageOperatorSave.addEventListener("click", function () {
+        void saveWorkspaceAiUsageOperatorName();
       });
     }
 

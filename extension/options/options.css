@@ -1140,6 +1140,11 @@ body {
   line-height: 1.65;
 }
 
+.workspace-side-form {
+  display: grid;
+  gap: 10px;
+}
+
 .workspace-side-list {
   display: grid;
   gap: 10px;
@@ -1435,6 +1440,11 @@ body {
   align-content: start;
 }
 
+.detail-column-secondary .detail-panel {
+  position: sticky;
+  top: 18px;
+}
+
 .detail-top {
   padding: 28px;
   border-radius: 24px;
@@ -1472,11 +1482,6 @@ body {
 .detail-top .pill.disabled {
   background: rgba(254, 226, 226, 1);
   color: #dc2626;
-}
-
-.detail-support-panel {
-  position: sticky;
-  top: 18px;
 }
 
 .detail-support-copy {
@@ -1593,6 +1598,10 @@ body {
   backdrop-filter: none;
 }
 
+.admin-stage #admin-backend-card-slot {
+  width: 100%;
+}
+
 .admin-stage #admin-backend-card-slot .hero-command-card span,
 .admin-stage #admin-backend-card-slot .hero-command-card strong,
 .admin-stage #admin-backend-card-slot .hero-command-card .home-endpoint-help,
@@ -1655,7 +1664,7 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .detail-support-panel {
+  .detail-column-secondary .detail-panel {
     position: static;
   }
 

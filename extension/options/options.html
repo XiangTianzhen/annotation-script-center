@@ -41,6 +41,28 @@
             </p>
           </section>
 
+          <section class="workspace-side-card workspace-side-card-muted">
+            <span class="workspace-side-label">AI 调用使用人</span>
+            <strong id="workspace-ai-usage-operator-title">全局 AI 调用身份</strong>
+            <p class="workspace-side-copy">
+              这里统一保存当前扩展使用 AI 时的调用人姓名。点击按钮后才会写入本地缓存。
+            </p>
+            <div class="workspace-side-form">
+              <input
+                id="workspace-ai-usage-operator-input"
+                type="text"
+                maxlength="40"
+                placeholder="填写真实姓名"
+              />
+              <div class="field-actions">
+                <button id="workspace-ai-usage-operator-save" class="primary-button" type="button">
+                  保存使用人
+                </button>
+              </div>
+              <div id="workspace-ai-usage-operator-status" class="status-text"></div>
+            </div>
+          </section>
+
           <section class="workspace-side-card workspace-side-card-dark">
             <span class="workspace-side-label">运行概况</span>
             <div class="workspace-side-list">
@@ -82,13 +104,8 @@
             <button id="home-endpoint-local" class="segmented-button" type="button">本机</button>
           </div>
           <span>该设置统一控制所有脚本的后端请求：ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。各脚本详情页不再单独设置后端地址。</span>
-          <div class="home-endpoint-row">
-            <span>AI 调用使用人</span>
-            <input id="home-ai-usage-operator" type="text" maxlength="40" placeholder="填写真实姓名" />
-            <span class="home-endpoint-help">所有 AI 请求共用；修改后点击“保存后端设置”才会写入本地缓存。</span>
-          </div>
           <div class="field-actions">
-            <button id="home-endpoint-save" class="primary-button" type="button">保存后端设置</button>
+            <button id="home-endpoint-save" class="primary-button" type="button">保存后端地址</button>
           </div>
           <div id="home-endpoint-status" class="status-text"></div>
         </div>
@@ -161,16 +178,15 @@
 
         <section id="detail-shared-asr-ai-panel" class="detail-panel hidden"></section>
 
-        <section class="detail-panel">
-          <div class="detail-actions">
-            <button id="detail-enable-button" class="primary-button" type="button">启用脚本</button>
-            <button id="detail-disable-button" class="danger-button" type="button">关闭脚本</button>
-          </div>
-          <p id="detail-script-note" class="detail-note"></p>
-        </section>
-
         <div class="detail-workbench">
           <div class="detail-column detail-column-primary">
+            <section class="detail-panel">
+              <div class="detail-actions">
+                <button id="detail-enable-button" class="primary-button" type="button">启用脚本</button>
+                <button id="detail-disable-button" class="danger-button" type="button">关闭脚本</button>
+              </div>
+              <p id="detail-script-note" class="detail-note"></p>
+            </section>
             <section id="detail-transcription-panel" class="detail-panel hidden">
           <div class="detail-grid two">
             <label class="field-card">
