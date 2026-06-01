@@ -87,13 +87,11 @@ function registerAdminDashboardRoutes(router, options) {
       level: "info",
       scope: "admin.dashboard.overview",
       action: "read",
-      message: "系统仪表盘总览已刷新",
+      message: "系统仪表盘模型池总览已刷新",
       requestId,
       details: {
         refreshSource: getRefreshSource(request),
         activePools: payload?.data?.runtime?.queue?.activePools?.length || 0,
-        todayCalls: payload?.data?.stats?.today?.totalCalls || 0,
-        failures: payload?.data?.stats?.today?.failedCalls || 0,
       },
     });
     sendJson(response, 200, payload);

@@ -818,26 +818,6 @@ p {
   font-weight: 700;
 }
 
-.admin-table-wide .admin-table-row {
-  grid-template-columns: minmax(0, 2.2fr) repeat(3, minmax(88px, 0.8fr));
-}
-
-.failure-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 10px 10px 0;
-  padding: 10px 12px;
-  border-radius: 999px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.14);
-  color: var(--brand-danger);
-}
-
-.failure-chip strong {
-  font-size: 12px;
-}
-
 .empty-state {
   padding: 22px 16px;
   border-radius: 16px;
@@ -869,15 +849,9 @@ p {
   font-weight: 700;
 }
 
-.pool-chart-meta,
-.trend-chart-label,
-.trend-chart-value {
+.pool-chart-meta {
   fill: var(--text-secondary);
   font-size: 11px;
-}
-
-.trend-chart-bar {
-  fill: rgba(21, 94, 239, 0.78);
 }
 
 svg.admin-chart {
@@ -888,29 +862,8 @@ svg.admin-chart::before {
   content: none;
 }
 
-.admin-surface-card #admin-overview-pools .admin-chart,
-.admin-surface-card #admin-overview-trend .admin-chart {
+.admin-surface-card #admin-overview-pools .admin-chart {
   min-height: 180px;
-}
-
-.admin-log-table .admin-table-row {
-  grid-template-columns: minmax(0, 2.8fr) minmax(88px, 0.7fr) minmax(150px, 1fr);
-}
-
-.admin-log-row span:first-child {
-  display: grid;
-  gap: 6px;
-}
-
-.admin-log-row strong {
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-.admin-log-row small {
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .detail-note {
@@ -953,8 +906,7 @@ svg.admin-chart::before {
   }
 
   .shortcut-row,
-  .admin-table-row,
-  .admin-table-wide .admin-table-row {
+  .admin-table-row {
     grid-template-columns: 1fr;
   }
 

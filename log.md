@@ -1,3 +1,16 @@
+## 2026-06-02（系统仪表盘收缩为模型池占用）
+
+- 问题背景：
+  - 用户反馈系统管理仪表盘持续空白，并上传了服务器控制台日志。
+  - 日志显示后端在启动后约 1 分钟内出现 `JavaScript heap out of memory` 并被 PM2 反复拉起。
+- 本次收口：
+  - 前端 `?view=admin&tab=overview` 只保留“模型池占用”卡片，移除失败摘要、趋势、调用排行、脚本摘要与运行日志展示。
+  - 前端仪表盘只请求 `GET /api/admin/dashboard/overview`，不再额外请求运行日志接口。
+  - 后端 `admin-dashboard/overview` 改成轻量返回：只保留模型池 queue 快照、后端状态和下载中心摘要，不再聚合 AI 调用统计。
+- 验证：
+  - 运行 `node --test platform-resources/backend/admin-dashboard/overview.test.js` 通过。
+  - 额外执行临时 60 秒 soak 测试与 65 秒后端存活测试，确认聚合函数与后端进程都能稳定运行超过 1 分钟；验证后已删除临时测试文件。
+
 ## 2026-06-02（系统仪表盘接入后端聚合与运行日志）
 
 - 继续完善 `extension/options/` 的系统管理仪表盘：

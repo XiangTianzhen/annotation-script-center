@@ -58,7 +58,6 @@
     constants.AI_CALL_LOG_DOWNLOAD_REQUEST_PATH || "/api/admin/ai-call-log/request";
   const adminSessionUnlockPath = "/api/admin/session/unlock";
   const adminDashboardOverviewPath = "/api/admin/dashboard/overview";
-  const adminDashboardRuntimeLogsPath = "/api/admin/dashboard/runtime-logs";
   const scriptDownloadCenterUrl = "https://script.xiangtianzhen.store/downloads/";
   const optionsRouteState = globalThis.ASREdgeOptionsRouteState || {};
   const parseOptionsRoute =
@@ -110,7 +109,6 @@
   const adminSessionStorageKey = "asc-options-admin-session";
   const adminTabs = ["overview", "backend", "downloads"];
   const adminDashboardAutoRefreshIntervalMs = 60000;
-  const adminDashboardRuntimeLogLimit = 18;
   const dateTextPattern = /^\d{4}-\d{2}-\d{2}$/;
   const dataBakerPageSizeOptions = (
     Array.isArray(constants.DATABAKER_PAGE_SIZE_OPTIONS)
@@ -7130,18 +7128,8 @@
       '<button type="button" class="admin-nav-button" data-admin-tab="downloads">下载中心</button>',
       "</nav>",
       '<section id="admin-tab-overview" class="admin-tab-panel">',
-      '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>统一查看模型池占用、调用趋势、调用排行、脚本统计与近期运行日志；页面每 60 秒自动刷新一次，也可手动刷新。</p></div></div>',
-      '<div id="admin-overview-summary" class="admin-summary-grid"></div>',
-      '<div class="admin-two-column">',
+      '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>当前只保留模型池占用，页面每 60 秒自动刷新一次，也可手动刷新。</p></div></div>',
       '<section class="admin-surface-card"><div class="admin-card-head"><strong>模型池占用</strong><span>实时取自统一 queue 快照</span></div><div id="admin-overview-pools"></div></section>',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>失败摘要</strong><span>基于今日调用统计</span></div><div id="admin-overview-failures"></div></section>',
-      "</div>",
-      '<div class="admin-two-column">',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>近 14 天调用趋势</strong><span>统一 AI 调用日志聚合</span></div><div id="admin-overview-trend"></div></section>',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>调用人排行</strong><span>按近期调用量排序</span></div><div id="admin-overview-operators"></div></section>',
-      "</div>",
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>脚本摘要</strong><span>展示今日与近期调用情况</span></div><div id="admin-overview-scripts"></div></section>',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>运行日志</strong><span>展示最近接口、导出与鉴权事件</span></div><div id="admin-overview-runtime-logs"></div></section>',
       '<div id="admin-overview-status" class="status-text"></div>',
       "</section>",
       '<section id="admin-tab-backend" class="admin-tab-panel hidden">',
@@ -7180,34 +7168,6 @@
     return Number(value || 0).toLocaleString("zh-CN");
   }
 
-  function formatIsoDateTime(value) {
-    const text = normalizeText(value);
-    if (!text) {
-      return "未知时间";
-    }
-    const date = new Date(text);
-    if (Number.isNaN(date.getTime())) {
-      return text;
-    }
-    return date.toLocaleString("zh-CN", {
-      hour12: false,
-    });
-  }
-
-  function buildRuntimeLogLevelText(level) {
-    const normalized = normalizeText(level).toLowerCase();
-    if (normalized === "error") {
-      return "错误";
-    }
-    if (normalized === "warn") {
-      return "警告";
-    }
-    if (normalized === "success") {
-      return "成功";
-    }
-    return "信息";
-  }
-
   function buildEmptyState(message) {
     return '<div class="empty-state">' + escapeHtml(message || "暂无数据") + "</div>";
   }
@@ -7237,142 +7197,6 @@
       })
       .join("");
     return '<svg class="admin-chart" viewBox="0 0 ' + width + " " + height + '">' + content + "</svg>";
-  }
-
-  function buildTrendChartMarkup(byDate) {
-    const rows = Array.isArray(byDate) ? byDate.slice(-14) : [];
-    if (rows.length <= 0) {
-      return buildEmptyState("当前还没有趋势数据。");
-    }
-    const width = Math.max(420, rows.length * 42 + 30);
-    const height = 220;
-    const maxCalls = rows.reduce(function (maxValue, item) {
-      return Math.max(maxValue, Number(item.totalCalls || 0) || 0);
-    }, 1);
-    const baseline = 170;
-    const content = rows
-      .map(function (item, index) {
-        const totalCalls = Number(item.totalCalls || 0) || 0;
-        const barHeight = Math.max(6, Math.round((totalCalls / maxCalls) * 110));
-        const x = 24 + index * 42;
-        const y = baseline - barHeight;
-        const label = String(item.date || "").slice(5);
-        return [
-          '<rect x="' + x + '" y="' + y + '" width="22" height="' + barHeight + '" rx="11" class="trend-chart-bar"></rect>',
-          '<text x="' + (x + 11) + '" y="' + (baseline + 18) + '" text-anchor="middle" class="trend-chart-label">' + escapeHtml(label) + "</text>",
-          '<text x="' + (x + 11) + '" y="' + (y - 8) + '" text-anchor="middle" class="trend-chart-value">' + escapeHtml(String(totalCalls)) + "</text>",
-        ].join("");
-      })
-      .join("");
-    return '<svg class="admin-chart" viewBox="0 0 ' + width + " " + height + '">' + content + "</svg>";
-  }
-
-  function buildOperatorTableMarkup(rows) {
-    const items = Array.isArray(rows) ? rows.slice(0, 8) : [];
-    if (items.length <= 0) {
-      return buildEmptyState("当前没有调用人数据。");
-    }
-    return [
-      '<div class="admin-table">',
-      '<div class="admin-table-row admin-table-head"><span>调用人</span><span>调用量</span><span>失败</span></div>',
-      items
-        .map(function (item) {
-          return (
-            '<div class="admin-table-row"><span>' +
-            escapeHtml(item.aiUsageOperatorName === "<empty>" ? "未填写" : item.aiUsageOperatorName) +
-            "</span><span>" +
-            escapeHtml(formatNumber(item.totalCalls)) +
-            "</span><span>" +
-            escapeHtml(formatNumber(item.failedCalls)) +
-            "</span></div>"
-          );
-        })
-        .join(""),
-      "</div>",
-    ].join("");
-  }
-
-  function buildScriptStatsTableMarkup(rows, windowLabel) {
-    const items = Array.isArray(rows) ? rows : [];
-    const summaryLabel = normalizeText(windowLabel) || "近14天";
-    if (items.length <= 0) {
-      return buildEmptyState("当前没有脚本统计数据。");
-    }
-    return [
-      '<div class="admin-table admin-table-wide">',
-      '<div class="admin-table-row admin-table-head"><span>脚本</span><span>今日调用</span><span>今日失败</span><span>' + escapeHtml(summaryLabel) + '调用</span></div>',
-      items
-        .map(function (item) {
-          return (
-            '<div class="admin-table-row"><span>' +
-            escapeHtml(item.label || item.id || "") +
-            "</span><span>" +
-            escapeHtml(formatNumber(item.today?.totals?.totalCalls || 0)) +
-            "</span><span>" +
-            escapeHtml(formatNumber(item.today?.totals?.failedCalls || 0)) +
-            "</span><span>" +
-            escapeHtml(formatNumber(item.allTime?.totals?.totalCalls || 0)) +
-            "</span></div>"
-          );
-        })
-        .join(""),
-      "</div>",
-    ].join("");
-  }
-
-  function buildFailuresMarkup(rows) {
-    const items = Array.isArray(rows) ? rows.slice(0, 6) : [];
-    if (items.length <= 0) {
-      return buildEmptyState("今日没有失败错误码。");
-    }
-    return items
-      .map(function (item) {
-        return (
-          '<div class="failure-chip"><strong>' +
-          escapeHtml(item.errorCode || "unknown") +
-          "</strong><span>" +
-          escapeHtml(formatNumber(item.totalCalls || 0)) +
-          " 次</span></div>"
-        );
-      })
-      .join("");
-  }
-
-  function buildRuntimeLogTableMarkup(rows) {
-    const items = Array.isArray(rows) ? rows.slice(0, adminDashboardRuntimeLogLimit) : [];
-    if (items.length <= 0) {
-      return buildEmptyState("当前还没有可展示的运行日志。");
-    }
-    return [
-      '<div class="admin-table admin-log-table">',
-      '<div class="admin-table-row admin-table-head"><span>时间 / 事件</span><span>级别</span><span>范围</span></div>',
-      items
-        .map(function (item) {
-          const detailText = Object.entries(item.details || {})
-            .filter(function (entry) {
-              return normalizeText(entry[1]);
-            })
-            .map(function (entry) {
-              return entry[0] + "=" + entry[1];
-            })
-            .slice(0, 4)
-            .join(" · ");
-          return (
-            '<div class="admin-table-row admin-log-row"><span><strong>' +
-            escapeHtml(item.message || "运行事件") +
-            "</strong><small>" +
-            escapeHtml(formatIsoDateTime(item.createdAt)) +
-            (detailText ? " · " + escapeHtml(detailText) : "") +
-            "</small></span><span>" +
-            escapeHtml(buildRuntimeLogLevelText(item.level)) +
-            "</span><span>" +
-            escapeHtml(item.scope || "backend") +
-            "</span></div>"
-          );
-        })
-        .join(""),
-      "</div>",
-    ].join("");
   }
 
   function renderAdminDownloadSummary(data) {
@@ -7432,41 +7256,10 @@
     if (!overview) {
       return;
     }
-    const backend = overview.backend || {};
-    const stats = overview.stats || {};
     const queue = overview.runtime?.queue || {};
-    const statsWindowLabel = stats.window?.label || "近14天";
-    const summaryNode = getElement("admin-overview-summary");
-    if (summaryNode) {
-      summaryNode.innerHTML = [
-        '<article class="public-summary-card"><span class="summary-label">后端状态</span><strong>' + escapeHtml(backend.status === "ready" ? "就绪" : "需配置") + '</strong><span class="summary-note">管理员鉴权' + (backend.adminAuthConfigured ? "已就绪" : "未配置") + "</span></article>",
-        '<article class="public-summary-card"><span class="summary-label">今日 AI 调用</span><strong>' + formatNumber(stats.today?.totalCalls || 0) + '</strong><span class="summary-note">成功 ' + formatNumber(stats.today?.successCalls || 0) + " / 失败 " + formatNumber(stats.today?.failedCalls || 0) + "</span></article>",
-        '<article class="public-summary-card"><span class="summary-label">活跃模型池</span><strong>' + formatNumber(queue.activePools?.length || 0) + '</strong><span class="summary-note">共享具体模型名队列</span></article>',
-      ].join("");
-    }
     const poolsNode = getElement("admin-overview-pools");
     if (poolsNode) {
       poolsNode.innerHTML = buildPoolChartMarkup(queue.activePools || []);
-    }
-    const failuresNode = getElement("admin-overview-failures");
-    if (failuresNode) {
-      failuresNode.innerHTML = buildFailuresMarkup(stats.failures || []);
-    }
-    const scriptsNode = getElement("admin-overview-scripts");
-    if (scriptsNode) {
-      scriptsNode.innerHTML = buildScriptStatsTableMarkup(stats.scripts || [], statsWindowLabel);
-    }
-    const trendNode = getElement("admin-overview-trend");
-    if (trendNode) {
-      trendNode.innerHTML = buildTrendChartMarkup(stats.byDate || []);
-    }
-    const operatorNode = getElement("admin-overview-operators");
-    if (operatorNode) {
-      operatorNode.innerHTML = buildOperatorTableMarkup(stats.byOperator || []);
-    }
-    const logsNode = getElement("admin-overview-runtime-logs");
-    if (logsNode) {
-      logsNode.innerHTML = buildRuntimeLogTableMarkup(overview.runtimeLogs || []);
     }
     const endpointNode = getElement("admin-stage-endpoint");
     if (endpointNode) {
@@ -7489,22 +7282,15 @@
     if (adminDashboardLoading) {
       return adminDashboardLoading;
     }
-    setAdminPanelStatus("admin-overview-status", "正在加载系统总览...");
-    adminDashboardLoading = Promise.all([
-      requestAdminJson(adminDashboardOverviewPath, {
-        method: "GET",
-        headers: {
-          "X-ASC-Dashboard-Refresh": normalizeText(refreshSource) || (forceRefresh === true ? "manual" : "initial"),
-        },
-      }),
-      requestAdminJson(adminDashboardRuntimeLogsPath + "?limit=" + String(adminDashboardRuntimeLogLimit), {
-        method: "GET",
-      }),
-    ])
-      .then(async function (responses) {
-        const overviewResult = responses[0];
-        const runtimeLogsResult = responses[1];
-        if (!overviewResult || overviewResult.authFailed || !runtimeLogsResult || runtimeLogsResult.authFailed) {
+    setAdminPanelStatus("admin-overview-status", "正在加载模型池占用...");
+    adminDashboardLoading = requestAdminJson(adminDashboardOverviewPath, {
+      method: "GET",
+      headers: {
+        "X-ASC-Dashboard-Refresh": normalizeText(refreshSource) || (forceRefresh === true ? "manual" : "initial"),
+      },
+    })
+      .then(async function (overviewResult) {
+        if (!overviewResult || overviewResult.authFailed) {
           return null;
         }
         if (!overviewResult.response.ok || overviewResult.body?.success !== true) {
@@ -7514,23 +7300,11 @@
           );
           return null;
         }
-        if (!runtimeLogsResult.response.ok || runtimeLogsResult.body?.success !== true) {
-          setAdminPanelStatus(
-            "admin-overview-status",
-            getAdminDashboardErrorMessage(runtimeLogsResult.body, runtimeLogsResult.response.status)
-          );
-          return null;
-        }
-        adminDashboardCache = Object.assign({}, overviewResult.body.data || {}, {
-          runtimeLogs:
-            runtimeLogsResult.body?.data && Array.isArray(runtimeLogsResult.body.data.items)
-              ? runtimeLogsResult.body.data.items
-              : [],
-        });
+        adminDashboardCache = Object.assign({}, overviewResult.body.data || {});
         renderAdminDashboard(adminDashboardCache);
         setAdminPanelStatus(
           "admin-overview-status",
-          "总览已更新：" +
+          "模型池占用已更新：" +
             normalizeText(adminDashboardCache?.generatedAt || "") +
             "；60 秒自动刷新已启用。"
         );
