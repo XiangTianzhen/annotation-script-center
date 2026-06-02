@@ -1,3 +1,30 @@
+## 2026-06-02（公开脚本中心入口与下载中心版本选择优化）
+
+- 公开脚本中心平台摘要中的域名标签改为可点击入口：
+  - 按平台 `matches` 的第一个 URL 模式推导根域名
+  - 保留协议与端口
+  - 点击后在新标签页打开，不打断当前 options 工作台
+- 公开脚本中心脚本卡中部文案区改成“项目备注 / 当前功能”视图：
+  - 优先显示 `script.note`
+  - `note + description` 同时存在时拆成“两段式备注”
+  - 只有 `description` 时自动回退为单段说明
+- 系统管理“下载中心”新增扩展版本下载面板：
+  - 默认突出最新版 CRX
+  - 历史版本改为下拉框选择
+  - 当前选中版本按存在性展示 `CRX` 主下载按钮和可选 `ZIP` 次下载按钮
+  - 面板保留“打开外部目录”作为兜底入口
+- 统一后端新增 `GET /api/admin/download-center/releases`：
+  - 聚合 `annotation-script-center-crx-latest.json`
+  - 解析远端 `/downloads/` 目录页中的历史 `annotation-script-center-v*.crx/.zip`
+  - 目录索引抓取失败时回退为“仅返回最新版”
+- 本轮验证：
+  - `node --check extension/options/options.js`
+  - `node --check platform-resources/backend/admin-download-center/releases.js`
+  - `node --check platform-resources/backend/admin-download-center/routes.js`
+  - `node --check platform-resources/backend/registry.js`
+  - `node --check platform-resources/backend/app.js`
+  - `node --test platform-resources/backend/admin-download-center/releases.test.js platform-resources/backend/admin-dashboard/overview.test.js extension/options/options-route-state.test.js`
+
 ## 2026-06-02（模型池占用改为中文状态卡，并切换为 999 总容量语义）
 
 - 系统管理仪表盘继续只保留“模型池占用”，但前端不再显示 `活跃 x / y · 排队 z` 技术文案。

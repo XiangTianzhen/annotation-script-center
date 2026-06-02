@@ -20,6 +20,7 @@ function createPlatformResourcesServer(options) {
         "admin/session",
         "admin/dashboard",
         "admin/dashboard/runtime-logs",
+        "admin/download-center",
         "admin/project-data-download",
         "admin/ai-call-log",
       ],

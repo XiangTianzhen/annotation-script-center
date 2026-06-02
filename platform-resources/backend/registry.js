@@ -12,6 +12,7 @@ const { registerRoutes: registerAbakaTask21AiRoutes } = require("../abaka-ai/tas
 const { registerRoutes: registerAishellTechMinnanRoutes } = require("../aishell-tech/minnan-helper/backend");
 const { registerRoutes: registerAdminSessionRoutes } = require("./admin-session");
 const { registerRoutes: registerAdminDashboardRoutes } = require("./admin-dashboard");
+const { registerRoutes: registerAdminDownloadCenterRoutes } = require("./admin-download-center");
 const { registerRoutes: registerProjectDataDownloadRoutes } = require("./project-data-download");
 const { registerRoutes: registerAiCallLogDownloadRoutes } = require("./ai-call-log-download");
 
@@ -61,6 +62,7 @@ function registerProjectRoutes(router, options) {
     projectDataDownload: config.projectDataDownload || {},
     aiCallLogDownload: config.aiCallLogDownload || {},
   });
+  registerAdminDownloadCenterRoutes(router, config.adminDownloadCenter || {});
   registerProjectDataDownloadRoutes(router, config.projectDataDownload || {});
   registerAiCallLogDownloadRoutes(router, config.aiCallLogDownload || {});
 }

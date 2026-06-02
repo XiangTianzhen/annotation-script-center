@@ -768,6 +768,41 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.download-release-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.1fr);
+  gap: 18px;
+}
+
+.download-release-highlight,
+.download-release-selector {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: rgba(248, 250, 255, 0.88);
+}
+
+.download-release-highlight strong {
+  font-size: 28px;
+}
+
+.download-release-current {
+  display: grid;
+  gap: 12px;
+}
+
+.download-release-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.download-release-actions button {
+  min-width: 128px;
+}
+
 .admin-runtime-list {
   gap: 12px;
 }
@@ -989,6 +1024,7 @@ p {
   .admin-summary-grid,
   .admin-two-column,
   .admin-download-grid,
+  .download-release-layout,
   .pool-stat-grid,
   .detail-grid.two,
   .asr-ai-grid.two,
@@ -1419,6 +1455,16 @@ body {
   max-width: 100%;
 }
 
+.platform-link-pill {
+  gap: 8px;
+  border: 1px solid rgba(191, 219, 254, 0.96);
+  background: rgba(239, 246, 255, 1);
+}
+
+.platform-link-mark {
+  font-size: 11px;
+}
+
 .platform-fact-text {
   color: var(--text-secondary);
   font-size: 13px;
@@ -1481,6 +1527,35 @@ body {
 
 .script-copy {
   font-size: 13px;
+}
+
+.script-remark-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(220, 252, 231, 0.96);
+  background: linear-gradient(180deg, rgba(240, 253, 244, 0.92), rgba(255, 255, 255, 0.96));
+}
+
+.script-remark-block {
+  display: grid;
+  gap: 6px;
+}
+
+.script-remark-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #15803d;
+}
+
+.script-remark-copy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.68;
 }
 
 .script-metadata {

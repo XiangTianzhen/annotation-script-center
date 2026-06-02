@@ -371,6 +371,12 @@ Aishell Tech AI 接口：
   - 为避免高日志量环境下 Node OOM，失败摘要、脚本统计、趋势、调用人排行和运行日志已从仪表盘主接口中移除
   - 前端 `options` 仪表盘默认每 `60` 秒自动刷新一次，并可手动刷新
   - 模型池快照当前按“总容量”语义返回：`capacity / usedCount / availableCount / isFull / utilizationPercent`
+- `GET /api/admin/download-center/releases`
+  - 面向 `options` 系统管理“下载中心”页签，返回结构化扩展版本列表
+  - 先读取远端 `annotation-script-center-crx-latest.json` 获取最新版
+  - 再解析远端 `/downloads/` 目录页中的历史 `annotation-script-center-v*.crx/.zip`
+  - 合并后按版本倒序返回：`latestVersion`、`items[].version/crxUrl/zipUrl/createdAt/isLatest`
+  - 若目录页抓取或解析失败，至少回退返回 latest json 对应的最新版一项，并在 `source.usedFallback` / `source.fallbackReason` 中标记
 
 项目数据下载接口：
 - `GET /api/admin/project-data-download/options`

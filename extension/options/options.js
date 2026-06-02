@@ -58,6 +58,7 @@
     constants.AI_CALL_LOG_DOWNLOAD_REQUEST_PATH || "/api/admin/ai-call-log/request";
   const adminSessionUnlockPath = "/api/admin/session/unlock";
   const adminDashboardOverviewPath = "/api/admin/dashboard/overview";
+  const adminDownloadCenterReleasesPath = "/api/admin/download-center/releases";
   const scriptDownloadCenterUrl = "https://script.xiangtianzhen.store/downloads/";
   const optionsRouteState = globalThis.ASREdgeOptionsRouteState || {};
   const parseOptionsRoute =
@@ -437,6 +438,9 @@
   let adminDashboardCache = null;
   let adminDashboardLoading = null;
   let adminDashboardAutoRefreshTimer = null;
+  let adminDownloadCenterReleasesCache = null;
+  let adminDownloadCenterReleasesLoading = null;
+  let adminSelectedReleaseVersion = "";
   let adminBackendDraft = null;
 
   function getElement(id) {
@@ -582,13 +586,66 @@
     }
   }
 
-  function openScriptDownloadCenter() {
+  function openExternalUrl(url) {
+    const targetUrl = normalizeText(url);
+    if (!targetUrl) {
+      return;
+    }
     if (globalThis.chrome?.tabs && typeof globalThis.chrome.tabs.create === "function") {
-      globalThis.chrome.tabs.create({ url: scriptDownloadCenterUrl });
+      globalThis.chrome.tabs.create({ url: targetUrl });
       return;
     }
 
-    globalThis.open(scriptDownloadCenterUrl, "_blank", "noopener");
+    globalThis.open(targetUrl, "_blank", "noopener");
+  }
+
+  function openScriptDownloadCenter() {
+    navigateToAdmin("downloads");
+  }
+
+  function openExternalScriptDownloadCenter() {
+    openExternalUrl(scriptDownloadCenterUrl);
+  }
+
+  function buildPlatformRootUrl(platform) {
+    const matches = Array.isArray(platform?.matches) ? platform.matches : [];
+    const firstPattern = normalizeText(matches[0]);
+    if (!firstPattern) {
+      return "";
+    }
+    try {
+      const url = new URL(firstPattern.replace(/\*.*$/, ""));
+      return url.origin;
+    } catch (_error) {
+      const matched = /^(https?:\/\/[^/*]+)/i.exec(firstPattern);
+      return matched ? normalizeText(matched[1]) : "";
+    }
+  }
+
+  function buildScriptRemarkMarkup(script) {
+    const note = normalizeText(script?.note);
+    const description = normalizeText(script?.description);
+    const entries = [];
+    if (note) {
+      entries.push(
+        '<div class="script-remark-block"><span class="script-remark-label">项目备注</span><p class="script-remark-copy">' +
+          escapeHtml(note) +
+          "</p></div>"
+      );
+    }
+    if (description && description !== note) {
+      entries.push(
+        '<div class="script-remark-block"><span class="script-remark-label">当前功能</span><p class="script-remark-copy">' +
+          escapeHtml(description) +
+          "</p></div>"
+      );
+    }
+    if (entries.length <= 0) {
+      entries.push(
+        '<div class="script-remark-block"><span class="script-remark-label">项目备注</span><p class="script-remark-copy">当前脚本暂未补充备注。</p></div>'
+      );
+    }
+    return '<div class="script-remark-panel">' + entries.join("") + "</div>";
   }
 
   function getSearchParams() {
@@ -6136,7 +6193,7 @@
               "</div>",
               "</div>",
               "</div>",
-              '<p class="script-copy">' + String(script.description || "") + "</p>",
+              buildScriptRemarkMarkup(script),
               '<div class="script-metadata">',
               "<span>匹配入口：默认平台地址</span>",
               '<span>入口：脚本详情 / ' + (active ? "当前生效" : "待启用") + "</span>",
@@ -6166,7 +6223,11 @@
            "</div>",
            "</div>",
            '<div class="platform-facts">',
-           '<span class="pill info">' + String(platform.host || "") + "</span>",
+           '<button type="button" class="pill info platform-link-pill" data-platform-entry="' +
+             escapeHtml(buildPlatformRootUrl(platform)) +
+             '">' +
+             escapeHtml(String(platform.host || "")) +
+             '<span class="platform-link-mark" aria-hidden="true">↗</span></button>',
            '<span class="pill ' + (preferredScript.isActive ? "enabled" : "info") + '">' +
              (preferredScript.isActive ? "当前启用：" : "默认启用：") +
              escapeHtml(preferredScript.label) +
@@ -6864,6 +6925,8 @@
     const config = options && typeof options === "object" ? options : {};
     adminSessionState = null;
     adminDashboardCache = null;
+    adminDownloadCenterReleasesCache = null;
+    adminSelectedReleaseVersion = "";
     stopAdminDashboardAutoRefresh();
     endpointAdvancedUnlocked = false;
     adminBackendDraft = null;
@@ -7021,8 +7084,8 @@
     const actionButton = getElement("stage-label");
     if (actionButton instanceof HTMLButtonElement) {
       actionButton.textContent = "脚本下载中心";
-      actionButton.title = "打开脚本下载中心";
-      actionButton.setAttribute("aria-label", "打开脚本下载中心");
+      actionButton.title = "进入下载中心";
+      actionButton.setAttribute("aria-label", "进入下载中心");
       actionButton.classList.add("admin-entry-button");
     }
     const homeEndpointCard = getElement("home-endpoint-card");
@@ -7137,8 +7200,9 @@
       '<section class="admin-surface-card"><div class="admin-card-head"><strong>后端接口地址</strong><span>切换服务器 / 本机后，点击按钮才写入本地缓存</span></div><div id="admin-backend-card-slot"></div></section>',
       "</section>",
       '<section id="admin-tab-downloads" class="admin-tab-panel hidden">',
-      '<div class="admin-panel-head"><div><h3>下载中心</h3><p>项目数据下载、AI 请求记录导出与脚本分发入口统一放在这里。</p></div><div class="field-actions"><button id="admin-open-script-download-center" class="secondary-button" type="button">打开脚本下载中心</button></div></div>',
+      '<div class="admin-panel-head"><div><h3>下载中心</h3><p>项目数据下载、AI 请求记录导出与扩展版本分发统一放在这里。</p></div><div class="field-actions"><button id="admin-open-script-download-center" class="ghost-button" type="button">打开外部目录</button></div></div>',
       '<div id="admin-download-summary" class="admin-summary-grid"></div>',
+      '<section id="admin-script-release-panel" class="admin-surface-card"></section>',
       '<div id="admin-download-grid" class="admin-download-grid"></div>',
       "</section>",
       "</div>",
@@ -7166,6 +7230,25 @@
 
   function formatNumber(value) {
     return Number(value || 0).toLocaleString("zh-CN");
+  }
+
+  function formatDateTimeLabel(value) {
+    const text = normalizeText(value);
+    if (!text) {
+      return "时间未知";
+    }
+    const date = new Date(text);
+    if (Number.isNaN(date.getTime())) {
+      return text;
+    }
+    return date.toLocaleString("zh-CN", {
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 
   function buildEmptyState(message) {
@@ -7221,17 +7304,159 @@
       return;
     }
     const downloads = data?.downloads && typeof data.downloads === "object" ? data.downloads : {};
+    const releases = adminDownloadCenterReleasesCache || {};
     const projectCount = Array.isArray(downloads.projectDataDatasets)
       ? downloads.projectDataDatasets.length
       : 0;
     const aiCount = Array.isArray(downloads.aiCallLogDatasets)
       ? downloads.aiCallLogDatasets.length
       : 0;
+    const releaseItems = Array.isArray(releases.items) ? releases.items : [];
     node.innerHTML = [
-      '<article class="public-summary-card"><span class="summary-label">项目数据类型</span><strong>' + formatNumber(projectCount) + "</strong><span class=\"summary-note\">支持 CSV 聚合下载</span></article>",
-      '<article class="public-summary-card"><span class="summary-label">AI 日志脚本</span><strong>' + formatNumber(aiCount) + "</strong><span class=\"summary-note\">支持按日期范围导出</span></article>",
-      '<article class="public-summary-card"><span class="summary-label">脚本分发入口</span><strong>1</strong><span class=\"summary-note\">可跳转到外部脚本下载中心</span></article>',
+      '<article class="public-summary-card"><span class="summary-label">当前最新版</span><strong>' +
+        escapeHtml(releases.latestVersion ? "v" + releases.latestVersion : "读取中") +
+        '</strong><span class="summary-note">默认优先展示当前可分发的最新版扩展。</span></article>',
+      '<article class="public-summary-card"><span class="summary-label">历史版本</span><strong>' +
+        formatNumber(Math.max(0, releaseItems.length - (releases.latestVersion ? 1 : 0))) +
+        '</strong><span class="summary-note">下拉选择历史版本后，可切换对应 CRX / ZIP 下载。</span></article>',
+      '<article class="public-summary-card"><span class="summary-label">导出能力</span><strong>' +
+        formatNumber(projectCount + aiCount) +
+        '</strong><span class="summary-note">项目数据与 AI 请求记录导出继续保留在本页。</span></article>',
     ].join("");
+  }
+
+  function getAdminDownloadCenterSelectedRelease(releases) {
+    const items = Array.isArray(releases?.items) ? releases.items : [];
+    if (items.length <= 0) {
+      return null;
+    }
+    const matched = items.find(function (item) {
+      return normalizeText(item?.version) === normalizeText(adminSelectedReleaseVersion);
+    });
+    return matched || items[0];
+  }
+
+  function buildAdminReleaseDownloadButtons(item, source) {
+    const release = item && typeof item === "object" ? item : null;
+    if (!release || !normalizeText(release.crxUrl)) {
+      return buildEmptyState("当前未读取到可用 CRX 下载地址，请稍后重试。");
+    }
+    return [
+      '<div class="download-release-actions">',
+      '<button type="button" class="primary-button" data-release-download-url="' +
+        escapeHtml(release.crxUrl) +
+        '">下载 CRX</button>',
+      normalizeText(release.zipUrl)
+        ? '<button type="button" class="secondary-button" data-release-download-url="' +
+          escapeHtml(release.zipUrl) +
+          '">下载 ZIP</button>'
+        : "",
+      '<button type="button" class="ghost-button" data-release-download-url="' +
+        escapeHtml(normalizeText(source?.directoryIndexUrl) || scriptDownloadCenterUrl) +
+        '">查看外部目录</button>',
+      "</div>",
+    ].join("");
+  }
+
+  function renderAdminDownloadCenterPanel(releases) {
+    const panel = getElement("admin-script-release-panel");
+    if (!(panel instanceof HTMLElement)) {
+      return;
+    }
+    const data = releases && typeof releases === "object" ? releases : {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (items.length <= 0) {
+      panel.innerHTML = [
+        '<div class="admin-card-head"><strong>扩展版本下载</strong><span>默认突出最新版，历史版本放在下拉中选择。</span></div>',
+        buildEmptyState("正在读取版本列表；如果持续为空，请稍后手动刷新或打开外部目录。"),
+      ].join("");
+      return;
+    }
+    const selected = getAdminDownloadCenterSelectedRelease(data) || items[0];
+    adminSelectedReleaseVersion = normalizeText(selected?.version) || normalizeText(data.latestVersion);
+    const latestItem =
+      items.find(function (item) {
+        return item?.isLatest === true;
+      }) || items[0];
+    panel.innerHTML = [
+      '<div class="admin-card-head"><strong>扩展版本下载</strong><span>默认突出最新版，历史版本放在下拉中选择。</span></div>',
+      '<div class="download-release-layout">',
+      '<article class="download-release-highlight">',
+      '<span class="summary-label">当前可分发最新版</span>',
+      "<strong>v" + escapeHtml(normalizeText(latestItem.version) || "未知版本") + "</strong>",
+      '<span class="summary-note">发布时间：' + escapeHtml(formatDateTimeLabel(latestItem.createdAt)) + "</span>",
+      '<p class="workspace-side-copy">优先下载最新版 CRX；如果需要开发者模式解压加载或保留旧构建，可切换到历史版本并按需下载 ZIP。</p>',
+      "</article>",
+      '<div class="download-release-selector">',
+      '<label class="project-download-row" for="admin-release-version-select">',
+      "<span>选择下载版本</span>",
+      '<select id="admin-release-version-select">',
+      items
+        .map(function (item) {
+          const version = normalizeText(item?.version);
+          return (
+            '<option value="' +
+            escapeHtml(version) +
+            '"' +
+            (version === adminSelectedReleaseVersion ? " selected" : "") +
+            ">" +
+            escapeHtml("v" + version + (item?.isLatest ? "（最新版）" : "")) +
+            "</option>"
+          );
+        })
+        .join(""),
+      "</select>",
+      "</label>",
+      '<div class="download-release-current">',
+      '<div class="admin-runtime-list">',
+      "<div><strong>当前选择</strong><span>" + escapeHtml("v" + normalizeText(selected.version)) + "</span></div>",
+      "<div><strong>可下载格式</strong><span>" + escapeHtml(normalizeText(selected.zipUrl) ? "CRX / ZIP" : "仅 CRX") + "</span></div>",
+      "<div><strong>版本时间</strong><span>" + escapeHtml(formatDateTimeLabel(selected.createdAt)) + "</span></div>",
+      "</div>",
+      buildAdminReleaseDownloadButtons(selected, data.source || {}),
+      (data.source?.usedFallback === true
+        ? '<div class="status-text" data-tone="warning">目录索引暂不可用，当前已回退为仅展示最新版：' +
+          escapeHtml(normalizeText(data.source?.fallbackReason) || "未知原因") +
+          "</div>"
+        : '<div class="status-text">版本列表来自脚本下载中心目录；如发布后未出现新版本，请先确认服务器分发目录已更新。</div>') +
+      "</div>",
+      "</div>",
+      "</div>",
+    ].join("");
+  }
+
+  async function loadAdminDownloadCenterReleases(forceRefresh) {
+    if (!hasActiveAdminSession()) {
+      return null;
+    }
+    if (adminDownloadCenterReleasesCache && forceRefresh !== true) {
+      renderAdminDownloadCenterPanel(adminDownloadCenterReleasesCache);
+      return adminDownloadCenterReleasesCache;
+    }
+    if (adminDownloadCenterReleasesLoading) {
+      return adminDownloadCenterReleasesLoading;
+    }
+    adminDownloadCenterReleasesLoading = requestAdminJson(adminDownloadCenterReleasesPath, {
+      method: "GET",
+    })
+      .then(function (result) {
+        if (!result || result.authFailed) {
+          renderAdminDownloadCenterPanel(null);
+          return null;
+        }
+        if (!result.response.ok || result.body?.success !== true) {
+          renderAdminDownloadCenterPanel(null);
+          return null;
+        }
+        adminDownloadCenterReleasesCache = Object.assign({}, result.body.data || {});
+        renderAdminDownloadSummary(adminDashboardCache || {});
+        renderAdminDownloadCenterPanel(adminDownloadCenterReleasesCache);
+        return adminDownloadCenterReleasesCache;
+      })
+      .finally(function () {
+        adminDownloadCenterReleasesLoading = null;
+      });
+    return adminDownloadCenterReleasesLoading;
   }
 
   function renderAdminBackendSummary(data) {
@@ -7423,9 +7648,16 @@
       }
       startAdminDashboardAutoRefresh();
       void loadAdminDashboard(false, "initial");
+      if (currentTab === "downloads") {
+        renderAdminDownloadCenterPanel(adminDownloadCenterReleasesCache || {});
+        void loadAdminDownloadCenterReleases(false);
+      } else if (adminDownloadCenterReleasesCache) {
+        renderAdminDownloadCenterPanel(adminDownloadCenterReleasesCache);
+      }
     } else {
       stopAdminDashboardAutoRefresh();
       setAdminAuthStatus(adminAuthMessage || "进入系统管理前需要输入密码。", adminAuthMessage ? "warning" : "neutral");
+      renderAdminDownloadCenterPanel(null);
     }
   }
 
@@ -8786,8 +9018,8 @@
         stageLabel.setAttribute("aria-label", "进入系统管理");
       } else {
         stageLabel.textContent = "脚本下载中心";
-        stageLabel.title = "打开脚本下载中心";
-        stageLabel.setAttribute("aria-label", "打开脚本下载中心");
+        stageLabel.title = "进入下载中心";
+        stageLabel.setAttribute("aria-label", "进入下载中心");
       }
     }
 
@@ -9020,6 +9252,9 @@
     if (adminRefreshButton instanceof HTMLButtonElement) {
       adminRefreshButton.addEventListener("click", function () {
         void loadAdminDashboard(true, "manual");
+        if (getCurrentAdminTab() === "downloads") {
+          void loadAdminDownloadCenterReleases(true);
+        }
       });
     }
 
@@ -9043,7 +9278,47 @@
     const adminOpenScriptDownloadCenterButton = getElement("admin-open-script-download-center");
     if (adminOpenScriptDownloadCenterButton instanceof HTMLButtonElement) {
       adminOpenScriptDownloadCenterButton.addEventListener("click", function () {
-        openScriptDownloadCenter();
+        openExternalScriptDownloadCenter();
+      });
+    }
+
+    const scriptCenterView = getElement("script-center-view");
+    if (scriptCenterView instanceof HTMLElement) {
+      scriptCenterView.addEventListener("click", function (event) {
+        const target = event.target instanceof Element ? event.target.closest("[data-platform-entry]") : null;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        const url = normalizeText(target.getAttribute("data-platform-entry"));
+        if (!url) {
+          return;
+        }
+        event.preventDefault();
+        openExternalUrl(url);
+      });
+    }
+
+    const adminScriptReleasePanel = getElement("admin-script-release-panel");
+    if (adminScriptReleasePanel instanceof HTMLElement) {
+      adminScriptReleasePanel.addEventListener("change", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLSelectElement) || target.id !== "admin-release-version-select") {
+          return;
+        }
+        adminSelectedReleaseVersion = normalizeText(target.value);
+        renderAdminDownloadCenterPanel(adminDownloadCenterReleasesCache || {});
+      });
+      adminScriptReleasePanel.addEventListener("click", function (event) {
+        const target = event.target instanceof Element ? event.target.closest("[data-release-download-url]") : null;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        const url = normalizeText(target.getAttribute("data-release-download-url"));
+        if (!url) {
+          return;
+        }
+        event.preventDefault();
+        openExternalUrl(url);
       });
     }
 
