@@ -1,3 +1,38 @@
+## 2026-06-02（功能面板排序编辑与详情页层叠工作台精修）
+
+- `extension/options/` 继续收口公开页与详情页：
+  - 左侧导航、当前视图和公开页 hero 文案统一从 `公开脚本中心` 改为 `功能面板`
+  - 英文 kicker 从 `PUBLIC SCRIPT CENTER` 改为 `FUNCTION PANEL`
+- 功能面板新增平台排序编辑能力：
+  - 顶部新增 `编辑顺序 / 完成编辑`
+  - 默认浏览态不可拖动
+  - 编辑态下仅允许拖动整个平台区块上下重排
+  - 通过 `settings.meta.publicCenterPlatformOrder` 持久化本机 UI 顺序
+  - 拖动时为相邻平台区块提供上下滑移与吸附指示，`prefers-reduced-motion` 下自动降级
+- 平台入口展示与跳转当前优先走显式字段：
+  - `标贝易采` -> `datafactory.data-baker.com/v2`
+  - `Abaka AI` -> `abao.fortidyndns.com:30473`
+- 功能面板平台区块当前收口为三层结构：
+  - 顶层平台身份区
+  - 中层脚本操作区
+  - 底层整行浅蓝“项目备注”
+- 脚本详情页进一步改成层叠工作台：
+  - 启停区继续整宽置顶
+  - `基础设置` 作为左侧主轨
+  - `AI 设置` 作为右侧高栏
+  - `快捷键` 作为基础设置下方独立长带
+  - 缺失某块时其余板块自动前移；只剩单块时保持左半宽
+- 本轮验证：
+  - `node --check extension/options/options-workbench-state.js`
+  - `node --check extension/options/options.js`
+  - `node --check extension/shared/constants.js`
+  - `node --check extension/shared/storage.js`
+  - `node --test extension/options/options-workbench-state.test.js extension/options/options-route-state.test.js`
+  - 真实扩展页静态复查：
+    - `?view=center`
+    - `?view=script&script=transcription`
+    - `?view=script&script=lightwheelViewPanel`
+
 ## 2026-06-02（公开中心脚本卡两层化与详情页三板块重排）
 
 - 继续收口 `extension/options/` 的公开脚本中心与脚本详情页：

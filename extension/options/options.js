@@ -123,6 +123,103 @@
           }
           return url.toString();
         };
+  const optionsWorkbenchState = globalThis.ASREdgeOptionsWorkbenchState || {};
+  const buildPlatformEntryDescriptor =
+    typeof optionsWorkbenchState.buildPlatformEntryDescriptor === "function"
+      ? optionsWorkbenchState.buildPlatformEntryDescriptor
+      : function (platform) {
+          const target = platform && typeof platform === "object" ? platform : {};
+          const explicitEntryUrl = String(target.entryUrl || "").trim();
+          const displayHost = String(target.displayHost || target.host || "").trim();
+          if (explicitEntryUrl) {
+            return {
+              displayHost,
+              entryUrl: explicitEntryUrl,
+            };
+          }
+          const matches = Array.isArray(target.matches) ? target.matches : [];
+          const firstPattern = String(matches[0] || "").trim();
+          if (!firstPattern) {
+            return {
+              displayHost,
+              entryUrl: "",
+            };
+          }
+          try {
+            const url = new URL(firstPattern.replace(/\*.*$/, ""));
+            return {
+              displayHost,
+              entryUrl: url.origin,
+            };
+          } catch (_error) {
+            const matched = /^(https?:\/\/[^/*]+)/i.exec(firstPattern);
+            return {
+              displayHost,
+              entryUrl: matched ? String(matched[1] || "").trim() : "",
+            };
+          }
+        };
+  const buildOrderedPlatformIds =
+    typeof optionsWorkbenchState.buildOrderedPlatformIds === "function"
+      ? optionsWorkbenchState.buildOrderedPlatformIds
+      : function (platformIds, savedOrder) {
+          const sourceIds = Array.isArray(platformIds) ? platformIds : [];
+          const preferredOrder = Array.isArray(savedOrder) ? savedOrder : [];
+          const result = [];
+          const knownIds = new Set(sourceIds);
+          const seen = new Set();
+          preferredOrder.forEach(function (platformId) {
+            const normalizedId = String(platformId || "").trim();
+            if (!normalizedId || !knownIds.has(normalizedId) || seen.has(normalizedId)) {
+              return;
+            }
+            seen.add(normalizedId);
+            result.push(normalizedId);
+          });
+          sourceIds.forEach(function (platformId) {
+            const normalizedId = String(platformId || "").trim();
+            if (!normalizedId || seen.has(normalizedId)) {
+              return;
+            }
+            seen.add(normalizedId);
+            result.push(normalizedId);
+          });
+          return result;
+        };
+  const movePlatformOrderItem =
+    typeof optionsWorkbenchState.movePlatformOrderItem === "function"
+      ? optionsWorkbenchState.movePlatformOrderItem
+      : function (platformIds, movingPlatformId, nextIndex) {
+          const orderedIds = Array.isArray(platformIds) ? platformIds.slice() : [];
+          const normalizedMovingId = String(movingPlatformId || "").trim();
+          const currentIndex = orderedIds.indexOf(normalizedMovingId);
+          if (currentIndex < 0) {
+            return orderedIds;
+          }
+          const clampedIndex = Math.max(0, Math.min(orderedIds.length - 1, Number(nextIndex) || 0));
+          if (clampedIndex === currentIndex) {
+            return orderedIds;
+          }
+          orderedIds.splice(currentIndex, 1);
+          orderedIds.splice(clampedIndex, 0, normalizedMovingId);
+          return orderedIds;
+        };
+  const getDetailWorkbenchLayoutMode =
+    typeof optionsWorkbenchState.getDetailWorkbenchLayoutMode === "function"
+      ? optionsWorkbenchState.getDetailWorkbenchLayoutMode
+      : function (input) {
+          const config = input && typeof input === "object" ? input : {};
+          if (config.hasBasePanel !== false && config.hasAiPanel === true && config.hasShortcutPanel === true) {
+            return "base-ai-shortcut";
+          }
+          if (config.hasBasePanel !== false && config.hasAiPanel === true) {
+            return "base-ai";
+          }
+          if (config.hasBasePanel !== false && config.hasShortcutPanel === true) {
+            return "base-shortcut";
+          }
+          return "single";
+        };
   const adminSessionStorageKey = "asc-options-admin-session";
   const adminTabs = ["overview", "backend", "exports"];
   const adminDashboardAutoRefreshIntervalMs = 60000;
@@ -458,6 +555,8 @@
   let adminDownloadCenterReleasesLoading = null;
   let adminSelectedReleaseVersion = "";
   let adminBackendDraft = null;
+  let publicCenterEditMode = false;
+  let publicCenterDragState = null;
 
   function getElement(id) {
     return document.getElementById(id);
@@ -542,9 +641,9 @@
         routeNoteNode.textContent = "公开提供扩展版本下载，默认突出最新版，并支持切换历史版本。";
       } else if (detailScript) {
         routeNameNode.textContent = String(detailScript.label || detailScriptId || "脚本详情");
-        routeNoteNode.textContent = "当前正在编辑脚本专属设置，公共后端地址和下载能力仍统一走系统管理。";
+        routeNoteNode.textContent = "当前正在编辑脚本专属设置，公共后端地址与数据导出能力仍统一走系统管理。";
       } else {
-        routeNameNode.textContent = "公开脚本中心";
+        routeNameNode.textContent = "功能面板";
         routeNoteNode.textContent = "默认展示平台与脚本状态，只保留启停和详情入口。";
       }
     }
@@ -633,26 +732,26 @@
   }
 
   function buildPlatformDisplayHost(platform) {
-    return normalizeText(platform?.displayHost) || normalizeText(platform?.host);
+    return normalizeText(buildPlatformEntryDescriptor(platform).displayHost);
   }
 
   function buildPlatformRootUrl(platform) {
-    const explicitEntryUrl = normalizeText(platform?.entryUrl);
-    if (explicitEntryUrl) {
-      return explicitEntryUrl;
-    }
-    const matches = Array.isArray(platform?.matches) ? platform.matches : [];
-    const firstPattern = normalizeText(matches[0]);
-    if (!firstPattern) {
-      return "";
-    }
-    try {
-      const url = new URL(firstPattern.replace(/\*.*$/, ""));
-      return url.origin;
-    } catch (_error) {
-      const matched = /^(https?:\/\/[^/*]+)/i.exec(firstPattern);
-      return matched ? normalizeText(matched[1]) : "";
-    }
+    return normalizeText(buildPlatformEntryDescriptor(platform).entryUrl);
+  }
+
+  function getSavedPlatformOrder(settings) {
+    const rawOrder = settings?.meta?.publicCenterPlatformOrder;
+    return Array.isArray(rawOrder)
+      ? rawOrder
+          .map(function (platformId) {
+            return normalizeText(platformId);
+          })
+          .filter(Boolean)
+      : [];
+  }
+
+  function getOrderedPlatformIds(settings) {
+    return buildOrderedPlatformIds(Object.keys(platformLibrary), getSavedPlatformOrder(settings));
   }
 
   function buildScriptRemarkText(script) {
@@ -673,6 +772,217 @@
       "</div>",
       "</div>",
     ].join("");
+  }
+
+  function setPublicCenterEditStatus(message, tone) {
+    const statusNode = getElement("public-center-edit-status");
+    if (!(statusNode instanceof HTMLElement)) {
+      return;
+    }
+    statusNode.className = "status-text public-center-edit-status" + (tone ? " " + tone : "");
+    statusNode.textContent = normalizeText(message);
+  }
+
+  function getPlatformSectionNodes(root) {
+    if (!(root instanceof HTMLElement)) {
+      return [];
+    }
+    return Array.from(root.querySelectorAll(".platform-section.platform-module[data-platform-id]"));
+  }
+
+  function clearPlatformDropIndicators(root) {
+    getPlatformSectionNodes(root).forEach(function (section) {
+      section.classList.remove("is-drop-before", "is-drop-after", "is-dragging");
+    });
+  }
+
+  function getCurrentRenderedPlatformOrder(root) {
+    return getPlatformSectionNodes(root)
+      .map(function (section) {
+        return normalizeText(section.getAttribute("data-platform-id"));
+      })
+      .filter(Boolean);
+  }
+
+  function buildPlatformOrderAfterDrop(platformIds, movingId, targetId, position) {
+    const source = Array.isArray(platformIds) ? platformIds.slice() : [];
+    const normalizedMovingId = normalizeText(movingId);
+    const normalizedTargetId = normalizeText(targetId);
+    if (!normalizedMovingId || !normalizedTargetId || normalizedMovingId === normalizedTargetId) {
+      return source;
+    }
+
+    const filtered = source.filter(function (platformId) {
+      return platformId !== normalizedMovingId;
+    });
+    let insertionIndex = filtered.indexOf(normalizedTargetId);
+    if (insertionIndex < 0) {
+      return source;
+    }
+    if (position === "after") {
+      insertionIndex += 1;
+    }
+    filtered.splice(Math.max(0, Math.min(filtered.length, insertionIndex)), 0, normalizedMovingId);
+    return filtered;
+  }
+
+  function animatePlatformWorkbenchFlip(workbench, mutate) {
+    if (!(workbench instanceof HTMLElement) || typeof mutate !== "function") {
+      return;
+    }
+    const reducedMotion = Boolean(
+      globalThis.matchMedia &&
+        globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+    const beforeRects = new Map();
+    getPlatformSectionNodes(workbench).forEach(function (section) {
+      beforeRects.set(section.getAttribute("data-platform-id"), section.getBoundingClientRect());
+    });
+
+    mutate();
+
+    if (reducedMotion) {
+      return;
+    }
+
+    getPlatformSectionNodes(workbench).forEach(function (section) {
+      const platformId = section.getAttribute("data-platform-id");
+      const before = beforeRects.get(platformId);
+      if (!before) {
+        return;
+      }
+      const after = section.getBoundingClientRect();
+      const deltaX = before.left - after.left;
+      const deltaY = before.top - after.top;
+      if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) {
+        return;
+      }
+      section.style.transition = "none";
+      section.style.transform = "translate(" + deltaX + "px, " + deltaY + "px)";
+      void section.offsetWidth;
+      section.style.transition = "transform 280ms cubic-bezier(0.2, 0.82, 0.2, 1)";
+      section.style.transform = "";
+      const cleanup = function () {
+        section.style.transition = "";
+        section.removeEventListener("transitionend", cleanup);
+      };
+      section.addEventListener("transitionend", cleanup);
+    });
+  }
+
+  async function persistPublicCenterPlatformOrder(nextOrder) {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      setPublicCenterEditStatus("当前扩展版本不支持保存平台顺序。", "warning");
+      return false;
+    }
+    try {
+      currentSettings = await storage.patchSettings({
+        meta: {
+          publicCenterPlatformOrder: nextOrder,
+        },
+      });
+      renderWorkspaceSidebar(currentSettings || {}, getCurrentRouteState());
+      setPublicCenterEditStatus("平台顺序已保存到本地缓存。", "success");
+      return true;
+    } catch (error) {
+      setPublicCenterEditStatus(
+        "平台顺序保存失败：" + (error && error.message ? error.message : String(error)),
+        "error"
+      );
+      return false;
+    }
+  }
+
+  function bindPlatformReorderInteractions(center, settings) {
+    const workbench = center.querySelector(".platform-workbench");
+    if (!(workbench instanceof HTMLElement)) {
+      return;
+    }
+    const toggleButton = getElement("public-center-edit-toggle");
+    if (toggleButton instanceof HTMLButtonElement) {
+      toggleButton.addEventListener("click", function () {
+        publicCenterEditMode = !publicCenterEditMode;
+        renderScriptCenter(currentSettings || settings || {});
+      });
+    }
+
+    if (!publicCenterEditMode) {
+      setPublicCenterEditStatus("点击“编辑顺序”后可拖动平台区块上下重排。", "");
+      return;
+    }
+
+    setPublicCenterEditStatus("拖动平台手柄可调整顺序；完成编辑后顺序会保存在当前浏览器。", "");
+
+    Array.from(center.querySelectorAll("[data-platform-drag-handle]")).forEach(function (handle) {
+      handle.addEventListener("dragstart", function (event) {
+        const section = handle.closest(".platform-section.platform-module");
+        const platformId = normalizeText(handle.getAttribute("data-platform-drag-handle"));
+        if (!(section instanceof HTMLElement) || !platformId) {
+          return;
+        }
+        publicCenterDragState = { platformId };
+        section.classList.add("is-dragging");
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", platformId);
+        }
+      });
+
+      handle.addEventListener("dragend", function () {
+        publicCenterDragState = null;
+        clearPlatformDropIndicators(workbench);
+      });
+    });
+
+    getPlatformSectionNodes(workbench).forEach(function (section) {
+      section.addEventListener("dragover", function (event) {
+        if (!publicCenterDragState?.platformId) {
+          return;
+        }
+        event.preventDefault();
+        const rect = section.getBoundingClientRect();
+        const dropPosition = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+        clearPlatformDropIndicators(workbench);
+        section.classList.add(dropPosition === "before" ? "is-drop-before" : "is-drop-after");
+      });
+
+      section.addEventListener("dragleave", function (event) {
+        if (!(event.relatedTarget instanceof Node) || !section.contains(event.relatedTarget)) {
+          section.classList.remove("is-drop-before", "is-drop-after");
+        }
+      });
+
+      section.addEventListener("drop", function (event) {
+        const movingId = publicCenterDragState?.platformId;
+        const targetId = normalizeText(section.getAttribute("data-platform-id"));
+        if (!movingId || !targetId || movingId === targetId) {
+          clearPlatformDropIndicators(workbench);
+          return;
+        }
+        event.preventDefault();
+        const rect = section.getBoundingClientRect();
+        const dropPosition = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+        const currentOrder = getCurrentRenderedPlatformOrder(workbench);
+        const nextOrder = buildPlatformOrderAfterDrop(currentOrder, movingId, targetId, dropPosition);
+        if (!nextOrder.length || nextOrder.join("|") === currentOrder.join("|")) {
+          clearPlatformDropIndicators(workbench);
+          return;
+        }
+
+        animatePlatformWorkbenchFlip(workbench, function () {
+          nextOrder.forEach(function (platformId) {
+            const nextSection = workbench.querySelector(
+              '.platform-section.platform-module[data-platform-id="' + platformId + '"]'
+            );
+            if (nextSection instanceof HTMLElement) {
+              workbench.appendChild(nextSection);
+            }
+          });
+        });
+        clearPlatformDropIndicators(workbench);
+        void persistPublicCenterPlatformOrder(nextOrder);
+      });
+    });
   }
 
   function getSearchParams() {
@@ -6182,7 +6492,7 @@
   function renderScriptCenter(settings) {
     ensurePublicHeroShell();
     const center = getElement("script-center-view");
-    const platformIds = Object.keys(platformLibrary);
+    const platformIds = getOrderedPlatformIds(settings);
     const scriptIds = Object.keys(scriptLibrary);
     const enabledCount = scriptIds.filter(function (scriptId) {
       return isScriptEnabled(settings, scriptId);
@@ -6200,73 +6510,100 @@
       enabledCountNode.textContent = formatNumber(enabledCount);
     }
 
-    center.innerHTML = platformIds
-      .map(function (platformId) {
-        const platform = platformLibrary[platformId] || {};
-        const platformScriptIds = Object.keys(scriptLibrary).filter(function (scriptId) {
-          return scriptLibrary[scriptId]?.platformId === platformId;
-        });
-        const preferredScript = getPreferredPlatformScript(platformScriptIds, settings);
+    center.innerHTML = [
+      '<section class="public-center-toolbar">',
+      '<div class="public-center-toolbar-copy">',
+      "<strong>功能面板工作台</strong>",
+      "<span>默认只读浏览；进入编辑模式后可拖动整个平台区块上下重排。</span>",
+      "</div>",
+      '<div class="public-center-toolbar-actions">',
+      '<button id="public-center-edit-toggle" class="' +
+        (publicCenterEditMode ? "primary-button" : "ghost-button") +
+        '" type="button">' +
+        (publicCenterEditMode ? "完成编辑" : "编辑顺序") +
+        "</button>",
+      "</div>",
+      '<div id="public-center-edit-status" class="status-text public-center-edit-status"></div>',
+      "</section>",
+      '<div class="platform-workbench' + (publicCenterEditMode ? " is-editing" : "") + '">',
+      platformIds
+        .map(function (platformId) {
+          const platform = platformLibrary[platformId] || {};
+          const platformScriptIds = Object.keys(scriptLibrary).filter(function (scriptId) {
+            return scriptLibrary[scriptId]?.platformId === platformId;
+          });
+          const preferredScript = getPreferredPlatformScript(platformScriptIds, settings);
 
-        const scriptMarkup = platformScriptIds
-          .map(function (scriptId) {
-            const script = scriptLibrary[scriptId] || {};
-            const status = getScriptStatus(settings, scriptId);
-            const active = status.tone === "enabled";
+          const scriptMarkup = platformScriptIds
+            .map(function (scriptId) {
+              const script = scriptLibrary[scriptId] || {};
+              const status = getScriptStatus(settings, scriptId);
+              const active = status.tone === "enabled";
 
-            return [
-              '<article class="script-card' + (active ? " active" : "") + '">',
-              '<div class="script-card-top">',
-              '<div class="script-card-main">',
-              '<div class="script-title">',
-              "<h3>" + String(script.label || scriptId) + "</h3>",
-              '<div class="meta-row">',
-              '<span class="script-pill info">' + String(script.statusLabel || "脚本") + "</span>",
-              '<span class="script-pill ' + status.tone + '">' + status.text + "</span>",
-              "</div>",
-              "</div>",
-              "</div>",
-              '<div class="script-actions">',
-              '<button type="button" class="primary-button" data-open-script="' + scriptId + '">打开设置</button>',
-              isScriptEnabled(settings, scriptId)
-                ? '<button type="button" class="danger-button" data-disable-script="' + scriptId + '">关闭脚本</button>'
-                : '<button type="button" class="secondary-button" data-enable-script="' + scriptId + '">启用脚本</button>',
-              "</div>",
-              "</div>",
-              buildScriptRemarkMarkup(script),
-              "</article>",
-            ].join("");
-          })
-          .join("");
+              return [
+                '<article class="script-card' + (active ? " active" : "") + '">',
+                '<div class="script-card-top">',
+                '<div class="script-card-main">',
+                '<div class="script-title">',
+                "<h3>" + String(script.label || scriptId) + "</h3>",
+                '<div class="meta-row">',
+                '<span class="script-pill info">' + String(script.statusLabel || "脚本") + "</span>",
+                '<span class="script-pill ' + status.tone + '">' + status.text + "</span>",
+                "</div>",
+                "</div>",
+                "</div>",
+                '<div class="script-actions">',
+                '<button type="button" class="primary-button" data-open-script="' + scriptId + '">打开设置</button>',
+                isScriptEnabled(settings, scriptId)
+                  ? '<button type="button" class="danger-button" data-disable-script="' + scriptId + '">关闭脚本</button>'
+                  : '<button type="button" class="secondary-button" data-enable-script="' + scriptId + '">启用脚本</button>',
+                "</div>",
+                "</div>",
+                buildScriptRemarkMarkup(script),
+                "</article>",
+              ].join("");
+            })
+            .join("");
 
-        return [
-          '<section class="platform-section platform-module">',
-          '<div class="platform-body">',
-          '<div class="platform-summary">',
-          '<div class="platform-head">',
-          "<div>",
-          "<h2>" + String(platform.label || platformId) + "</h2>",
-          '<p class="platform-copy">' + String(platform.description || "") + "</p>",
-           "</div>",
-           "</div>",
-           '<div class="platform-facts">',
-           '<button type="button" class="pill info platform-link-pill" data-platform-entry="' +
-             escapeHtml(buildPlatformRootUrl(platform)) +
-             '">' +
-             escapeHtml(buildPlatformDisplayHost(platform)) +
-             '<span class="platform-link-mark" aria-hidden="true">↗</span></button>',
-           '<span class="pill ' + (preferredScript.isActive ? "enabled" : "info") + '">' +
-             (preferredScript.isActive ? "当前启用：" : "默认启用：") +
-             escapeHtml(preferredScript.label) +
-             "</span>",
-           "</div>",
-           "</div>",
-          '<div class="script-grid platform-script-stack">' + scriptMarkup + "</div>",
-          "</div>",
-          "</section>",
-        ].join("");
-      })
-      .join("");
+          return [
+            '<section class="platform-section platform-module' +
+              (publicCenterEditMode ? " is-editing" : "") +
+              '" data-platform-id="' +
+              escapeHtml(platformId) +
+              '">',
+            '<div class="platform-body">',
+            '<div class="platform-summary">',
+            '<div class="platform-head platform-head-inline">',
+            "<div>",
+            "<h2>" + String(platform.label || platformId) + "</h2>",
+            '<p class="platform-copy">' + String(platform.description || "") + "</p>",
+            "</div>",
+            publicCenterEditMode
+              ? '<button type="button" class="platform-drag-handle" draggable="true" data-platform-drag-handle="' +
+                escapeHtml(platformId) +
+                '" aria-label="拖动排序" title="拖动排序"><span></span><span></span><span></span></button>'
+              : "",
+            "</div>",
+            '<div class="platform-facts">',
+            '<button type="button" class="pill info platform-link-pill" data-platform-entry="' +
+              escapeHtml(buildPlatformRootUrl(platform)) +
+              '">' +
+              escapeHtml(buildPlatformDisplayHost(platform)) +
+              '<span class="platform-link-mark" aria-hidden="true">↗</span></button>',
+            '<span class="pill ' + (preferredScript.isActive ? "enabled" : "info") + '">' +
+              (preferredScript.isActive ? "当前启用：" : "默认启用：") +
+              escapeHtml(preferredScript.label) +
+              "</span>",
+            "</div>",
+            "</div>",
+            '<div class="platform-script-stack">' + scriptMarkup + "</div>",
+            "</div>",
+            "</section>",
+          ].join("");
+        })
+        .join(""),
+      "</div>",
+    ].join("");
 
     Array.from(center.querySelectorAll("[data-open-script]")).forEach(function (button) {
       button.addEventListener("click", function () {
@@ -6285,6 +6622,8 @@
         void toggleScript(button.getAttribute("data-disable-script"), false);
       });
     });
+
+    bindPlatformReorderInteractions(center, settings);
   }
 
   function renderHomeBackendEndpoint(settings) {
@@ -7122,7 +7461,7 @@
       summary.className = "public-summary-strip";
       summary.innerHTML = [
         '<article class="public-summary-card"><span class="summary-label">平台总数</span><strong id="public-platform-count">0</strong><span class="summary-note">按平台分类管理脚本</span></article>',
-        '<article class="public-summary-card"><span class="summary-label">脚本总数</span><strong id="public-script-count">0</strong><span class="summary-note">公开脚本中心直接启停</span></article>',
+        '<article class="public-summary-card"><span class="summary-label">脚本总数</span><strong id="public-script-count">0</strong><span class="summary-note">功能面板直接启停</span></article>',
         '<article class="public-summary-card"><span class="summary-label">当前生效</span><strong id="public-enabled-count">0</strong><span class="summary-note">同平台互斥规则自动生效</span></article>',
       ].join("");
       hero.appendChild(summary);
@@ -7174,7 +7513,7 @@
         heroKicker.textContent = "SCRIPT DETAIL";
       }
       if (heroDescription) {
-        heroDescription.textContent = "当前页面用于编辑脚本专属设置；公共后端入口、数据导出与系统仪表盘仍统一走系统管理，扩展版本下载统一走脚本下载中心。";
+        heroDescription.textContent = "当前页面用于编辑脚本专属设置；功能面板只保留启停入口，公共后端地址与数据导出仍统一走系统管理。";
       }
       if (stageLabel instanceof HTMLButtonElement) {
         stageLabel.textContent = "系统管理";
@@ -7189,10 +7528,10 @@
     }
     hero.classList.add("hero-mode-center");
     if (heroKicker) {
-      heroKicker.textContent = "PUBLIC SCRIPT CENTER";
+      heroKicker.textContent = "FUNCTION PANEL";
     }
     if (heroDescription) {
-      heroDescription.textContent = "公开脚本中心只保留启停与详情入口；扩展版本下载统一进入脚本下载中心，后端设置、数据导出和系统仪表盘统一进入系统管理工作台。";
+      heroDescription.textContent = "功能面板只保留启停与详情入口；扩展版本下载统一进入脚本下载中心，后端设置、数据导出和系统仪表盘统一进入系统管理工作台。";
     }
     if (summaryStrip) {
       summaryStrip.classList.remove("hidden");
@@ -7228,7 +7567,7 @@
       '<span id="admin-stage-endpoint" class="status-text"></span>',
       '<div class="field-actions">',
       '<button id="admin-refresh-dashboard" class="ghost-button" type="button">刷新数据</button>',
-      '<button id="admin-return-center" class="ghost-button" type="button">返回公开中心</button>',
+      '<button id="admin-return-center" class="ghost-button" type="button">返回功能面板</button>',
       '<button id="admin-logout-button" class="secondary-button" type="button">退出登录</button>',
       "</div>",
       "</div>",
@@ -8029,7 +8368,21 @@
       const visiblePanelCount = Array.from(workbench.children).filter(function (node) {
         return node instanceof HTMLElement && !node.classList.contains("hidden");
       }).length;
+      const hasVisibleBasePanel = Boolean(
+        workbench.querySelector(".detail-panel-base:not(.hidden)")
+      );
+      const hasVisibleAiPanel = Boolean(
+        workbench.querySelector(".detail-ai-panel:not(.hidden)")
+      );
+      const hasVisibleShortcutPanel = Boolean(
+        workbench.querySelector(".detail-shortcut-panel:not(.hidden)")
+      );
       workbench.dataset.panelCount = String(visiblePanelCount);
+      workbench.dataset.layout = getDetailWorkbenchLayoutMode({
+        hasBasePanel: hasVisibleBasePanel,
+        hasAiPanel: hasVisibleAiPanel,
+        hasShortcutPanel: hasVisibleShortcutPanel,
+      });
     }
   }
 

@@ -225,6 +225,7 @@
           schemaVersion: 7,
           backendEndpointMode: "server",
           aiUsageOperatorName: "",
+          publicCenterPlatformOrder: [],
         },
       },
       DEFAULT_ASR_CONFIG: {},
@@ -437,6 +438,21 @@
       result[key] = clone(patch[key]);
     });
 
+    return result;
+  }
+
+  function normalizeStringList(value) {
+    const input = Array.isArray(value) ? value : [];
+    const result = [];
+    const seen = new Set();
+    input.forEach(function (item) {
+      const text = String(item || "").trim();
+      if (!text || seen.has(text)) {
+        return;
+      }
+      seen.add(text);
+      result.push(text);
+    });
     return result;
   }
 
@@ -3025,6 +3041,9 @@
     settings.meta.backendEndpointMode = normalizeBackendEndpointMode(
       settings.meta.backendEndpointMode,
       defaults?.meta?.backendEndpointMode || "server"
+    );
+    settings.meta.publicCenterPlatformOrder = normalizeStringList(
+      settings.meta.publicCenterPlatformOrder
     );
     settings.meta.schemaVersion = constants.SCHEMA_VERSION || 7;
     return settings;
