@@ -598,6 +598,8 @@
     id: "data-baker",
     label: "标贝易采",
     host: "datafactory.data-baker.com",
+    displayHost: "datafactory.data-baker.com/v2",
+    entryUrl: "https://datafactory.data-baker.com/v2",
     matches: ["https://datafactory.data-baker.com/*"],
   };
 
@@ -612,6 +614,8 @@
     id: "abaka-ai",
     label: "Abaka AI",
     host: "abao.fortidyndns.com",
+    displayHost: "abao.fortidyndns.com:30473",
+    entryUrl: "http://abao.fortidyndns.com:30473",
     matches: ["http://abao.fortidyndns.com:30473/*"],
   };
 
@@ -1027,7 +1031,7 @@
     transcription: {
       id: TRANSCRIPTION_PROJECT_ID,
       shortLabel: "语音转写",
-      label: "阿里ASR语音转写",
+      label: "普通话语音转写",
       description: "基础转写能力（当前题处理 + 当前音频控制 + 页面工具栏）。",
       note: "支持当前题 AI 推荐（人工确认填入），不自动保存/提交/流转；保持轻量统计导出能力。",
       capabilityScope: "basic-transcription",
@@ -1035,7 +1039,7 @@
     judgement: {
       id: JUDGEMENT_PROJECT_ID,
       shortLabel: "语音判别",
-      label: "阿里ASR语音判别",
+      label: "普通话语音判别",
       description: "同域名下的轻量音频判别项目。",
       note: "当前启用音量、倍速、快捷键提示与自动播放音频能力。",
       capabilityScope: "audio-lite",

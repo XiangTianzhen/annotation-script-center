@@ -10,7 +10,7 @@ const {
 
 const scriptLibrary = {
   judgement: {
-    label: "阿里ASR语音判别",
+    label: "普通话语音判别",
   },
   dataBakerRoundOneQuality: {
     label: "标贝易采一检质检",

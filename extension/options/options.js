@@ -632,7 +632,15 @@
     openExternalUrl(scriptDownloadCenterUrl);
   }
 
+  function buildPlatformDisplayHost(platform) {
+    return normalizeText(platform?.displayHost) || normalizeText(platform?.host);
+  }
+
   function buildPlatformRootUrl(platform) {
+    const explicitEntryUrl = normalizeText(platform?.entryUrl);
+    if (explicitEntryUrl) {
+      return explicitEntryUrl;
+    }
     const matches = Array.isArray(platform?.matches) ? platform.matches : [];
     const firstPattern = normalizeText(matches[0]);
     if (!firstPattern) {
@@ -651,7 +659,7 @@
     const note = normalizeText(script?.note);
     const description = normalizeText(script?.description);
     if (note && description && description !== note) {
-      return note + " " + description;
+      return note + "；" + description;
     }
     return note || description || "当前脚本暂未补充备注。";
   }
@@ -2366,7 +2374,7 @@
     }
     statusNode.classList.toggle("hidden", judgementAiAdvancedUnlocked !== true);
     if (judgementAiAdvancedUnlocked) {
-      statusNode.textContent = "AI 高级设置已显示；这些设置仅影响阿里ASR语音判别脚本。";
+      statusNode.textContent = "AI 高级设置已显示；这些设置仅影响普通话语音判别脚本。";
     } else {
       statusNode.textContent = "";
     }
@@ -2380,7 +2388,7 @@
     renderJudgementAiAdvancedPanel();
     setStatus(
       "judgement-status",
-      "AI 高级设置已显示；这些设置仅影响阿里ASR语音判别脚本。"
+      "AI 高级设置已显示；这些设置仅影响普通话语音判别脚本。"
     );
   }
 
@@ -3566,7 +3574,7 @@
     return [
       '<div class="asr-ai-head">',
       '<div class="asr-ai-title">',
-      "<strong>ASR 语音 AI 设置</strong>",
+      "<strong>AI 设置</strong>",
       '<p class="asr-ai-copy">这些设置仅影响当前脚本的 AI 辅助能力。普通用户无需修改；后端地址仍由首页顶部“后端接口地址”统一控制。</p>',
       "</div>",
       '<span class="asr-ai-pill">' + escapeHtml(scriptLabel) + "</span>",
@@ -6208,8 +6216,8 @@
 
             return [
               '<article class="script-card' + (active ? " active" : "") + '">',
-              '<div class="script-primary">',
-              '<div class="script-head">',
+              '<div class="script-card-top">',
+              '<div class="script-card-main">',
               '<div class="script-title">',
               "<h3>" + String(script.label || scriptId) + "</h3>",
               '<div class="meta-row">',
@@ -6218,9 +6226,6 @@
               "</div>",
               "</div>",
               "</div>",
-              buildScriptRemarkMarkup(script),
-              "</div>",
-              '<div class="script-side">',
               '<div class="script-actions">',
               '<button type="button" class="primary-button" data-open-script="' + scriptId + '">打开设置</button>',
               isScriptEnabled(settings, scriptId)
@@ -6228,6 +6233,7 @@
                 : '<button type="button" class="secondary-button" data-enable-script="' + scriptId + '">启用脚本</button>',
               "</div>",
               "</div>",
+              buildScriptRemarkMarkup(script),
               "</article>",
             ].join("");
           })
@@ -6247,7 +6253,7 @@
            '<button type="button" class="pill info platform-link-pill" data-platform-entry="' +
              escapeHtml(buildPlatformRootUrl(platform)) +
              '">' +
-             escapeHtml(String(platform.host || "")) +
+             escapeHtml(buildPlatformDisplayHost(platform)) +
              '<span class="platform-link-mark" aria-hidden="true">↗</span></button>',
            '<span class="pill ' + (preferredScript.isActive ? "enabled" : "info") + '">' +
              (preferredScript.isActive ? "当前启用：" : "默认启用：") +
@@ -7961,22 +7967,69 @@
     panel.classList.add("hidden");
   }
 
+  function getDetailShortcutPanelId(scriptId) {
+    if (scriptId === transcriptionProjectId) {
+      return "detail-transcription-shortcuts-panel";
+    }
+    if (scriptId === judgementProjectId) {
+      return "detail-judgement-shortcuts-panel";
+    }
+    if (scriptId === dataBakerRoundOneQualityScriptId) {
+      return "detail-data-baker-shortcuts-panel";
+    }
+    if (scriptId === aishellTechMinnanScriptId) {
+      return "detail-aishell-tech-shortcuts-panel";
+    }
+    if (isMagicDataScript(scriptId)) {
+      return "detail-magic-data-shortcuts-panel";
+    }
+    if (isAbakaAiScript(scriptId)) {
+      return "detail-abaka-shortcuts-panel";
+    }
+    return "";
+  }
+
+  function showDetailShortcutPanel(scriptId) {
+    const activePanelId = getDetailShortcutPanelId(scriptId);
+    [
+      "detail-transcription-shortcuts-panel",
+      "detail-judgement-shortcuts-panel",
+      "detail-data-baker-shortcuts-panel",
+      "detail-aishell-tech-shortcuts-panel",
+      "detail-magic-data-shortcuts-panel",
+      "detail-abaka-shortcuts-panel",
+    ].forEach(function (panelId) {
+      const panel = getElement(panelId);
+      if (panel instanceof HTMLElement) {
+        panel.classList.toggle("hidden", panelId !== activePanelId);
+      }
+    });
+  }
+
   function updateDetailLayout(scriptId) {
     const workbench = document.querySelector("#script-detail-view .detail-workbench");
-    const secondaryColumn = getElement("detail-secondary-column");
-    const aiPanel = getElement("detail-shared-asr-ai-panel");
-    const hasAiPanel = supportsAsrVoiceAiSettings(scriptId);
-    if (workbench instanceof HTMLElement) {
-      workbench.classList.toggle("no-secondary", !hasAiPanel);
-    }
-    if (secondaryColumn instanceof HTMLElement) {
-      secondaryColumn.classList.toggle("hidden", !hasAiPanel);
-    }
-    if (aiPanel instanceof HTMLElement) {
-      aiPanel.classList.toggle("hidden", !hasAiPanel);
-      if (!hasAiPanel) {
-        aiPanel.innerHTML = "";
+    const sharedAiPanel = getElement("detail-shared-asr-ai-panel");
+    const abakaAiPanel = getElement("detail-abaka-ai-panel");
+    const hasSharedAiPanel = supportsAsrVoiceAiSettings(scriptId);
+    const hasAbakaAiPanel = isAbakaAiScript(scriptId);
+
+    if (sharedAiPanel instanceof HTMLElement) {
+      sharedAiPanel.classList.toggle("hidden", !hasSharedAiPanel);
+      if (!hasSharedAiPanel) {
+        sharedAiPanel.innerHTML = "";
       }
+    }
+    if (abakaAiPanel instanceof HTMLElement) {
+      abakaAiPanel.classList.toggle("hidden", !hasAbakaAiPanel);
+    }
+
+    showDetailShortcutPanel(scriptId);
+
+    if (workbench instanceof HTMLElement) {
+      const visiblePanelCount = Array.from(workbench.children).filter(function (node) {
+        return node instanceof HTMLElement && !node.classList.contains("hidden");
+      }).length;
+      workbench.dataset.panelCount = String(visiblePanelCount);
     }
   }
 
@@ -8001,6 +8054,7 @@
 
   function renderDetail(settings, scriptId) {
     renderDetailHeader(settings, scriptId);
+    showDetailPanel(scriptId);
     renderAsrVoiceAiSettingsSection(settings, scriptId);
     renderDetailSupportPanel(settings, scriptId);
     updateDetailLayout(scriptId);
@@ -8024,7 +8078,6 @@
         }
       });
     }
-    showDetailPanel(scriptId);
     setStatus("detail-status", "");
 
     if (scriptId === transcriptionProjectId) {

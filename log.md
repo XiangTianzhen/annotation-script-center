@@ -1,3 +1,28 @@
+## 2026-06-02（公开中心脚本卡两层化与详情页三板块重排）
+
+- 继续收口 `extension/options/` 的公开脚本中心与脚本详情页：
+  - 每个脚本卡改成“上层左右信息 + 下层整行项目备注”的两层结构。
+  - `项目备注` 统一改成浅蓝中性整行板块，不再塞在左右主布局中。
+  - 平台域名入口不再只按 `matches` 推导；当前优先读取平台显式 `displayHost / entryUrl`，并在新标签页打开。
+- 用户可见名称与入口地址统一：
+  - `阿里ASR语音转写` -> `普通话语音转写`
+  - `阿里ASR语音判别` -> `普通话语音判别`
+  - `Abaka AI` 入口显示与跳转统一为 `abao.fortidyndns.com:30473`
+  - `标贝易采` 入口显示与跳转统一为 `datafactory.data-baker.com/v2`
+- 脚本详情页当前改成三板块工作台：
+  - 启停区继续整宽置顶
+  - 启停区下方固定按 `基础设置 -> AI 设置 -> 快捷键` 顺序进入两列网格
+  - 共享 AI 配置继续复用 `detail-shared-asr-ai-panel`
+  - Task21 的 AI 调试区从基础设置中拆出，改成独立 `AI 设置` 板块
+  - 转写、判别、标贝易采、Magic Data、Aishell、Abaka 的快捷键区已从基础设置中拆出，变成独立快捷键板块
+- 样式同步收口：
+  - 统一三类详情面板的间距、内边距、输入框/下拉框/textarea 尺寸与边框风格
+  - 快捷键面板改为更清晰的列表式卡片布局，减少连续白板堆叠感
+- 本轮验证：
+  - `node --check extension/options/options.js`
+  - `node --check extension/options/options-route-state.js`
+  - `node --check extension/shared/constants.js`
+
 ## 2026-06-02（公开下载页独立与详情页左右工作台收口）
 
 - options 左侧导航新增公开 `脚本下载中心`：

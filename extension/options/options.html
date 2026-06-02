@@ -203,501 +203,567 @@
         </section>
 
         <div class="detail-workbench">
-          <div id="detail-primary-column" class="detail-column detail-column-primary">
-            <section id="detail-transcription-panel" class="detail-panel hidden">
-          <div class="detail-grid two">
-            <label class="field-card">
-              <strong>自动播放</strong>
-              <span>进入当前题时尝试自动播放当前音频。</span>
-              <span class="field-toggle">
-                <input id="transcription-auto-play" type="checkbox" />
+          <section id="detail-transcription-panel" class="detail-panel detail-panel-base hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>基础设置</strong>
+                <span>保留转写脚本的常用音频行为和页面辅助能力。</span>
+              </div>
+            </div>
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>自动播放</strong>
+                <span>进入当前题时尝试自动播放当前音频。</span>
+                <span class="field-toggle">
+                  <input id="transcription-auto-play" type="checkbox" />
+                  <span>启用自动播放</span>
+                </span>
+              </label>
+
+              <label class="field-card">
+                <strong>默认音量 (0~1000%)</strong>
+                <span>重置音量和新音频默认使用此值。</span>
+                <input id="transcription-volume" type="number" min="0" max="1000" step="10" />
+              </label>
+            </div>
+
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>默认倍速</strong>
+                <span>新音频和重置倍速时使用该值。</span>
+                <input id="transcription-playback-rate" type="number" min="0.25" max="5" step="0.05" />
+              </label>
+
+              <label class="field-card">
+                <strong>重置倍速</strong>
+                <span>点击“重置倍速”时使用该值。</span>
+                <input id="transcription-reset-rate" type="number" min="0.25" max="5" step="0.05" />
+              </label>
+            </div>
+
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>倍速步进</strong>
+                <span>用于“提高倍速 / 降低倍速”。</span>
+                <select id="transcription-rate-step">
+                  <option value="0.1">0.1</option>
+                  <option value="0.25">0.25</option>
+                  <option value="0.5">0.5</option>
+                  <option value="1">1</option>
+                </select>
+              </label>
+
+              <label class="field-card">
+                <strong>前进 / 后退步长</strong>
+                <span>用于当前音频前进、后退。</span>
+                <select id="transcription-seek-step">
+                  <option value="0.5">0.5 秒</option>
+                  <option value="1">1 秒</option>
+                  <option value="2">2 秒</option>
+                  <option value="3">3 秒</option>
+                  <option value="5">5 秒</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="detail-grid two">
+              <label class="field-card field-toggle">
+                <input id="transcription-default-valid" type="checkbox" />
+                <span>默认有效行为（仅影响当前题动作）</span>
+              </label>
+
+              <label class="field-card field-toggle">
+                <input id="transcription-fill-on-valid" type="checkbox" />
+                <span>标有效时自动填入当前题文本</span>
+              </label>
+
+              <label class="field-card field-toggle">
+                <input id="transcription-clear-on-invalid" type="checkbox" />
+                <span>标无效时清空当前题文本</span>
+              </label>
+            </div>
+
+            <div class="field-actions">
+              <button id="save-transcription-settings" class="primary-button" type="button">
+                保存转写设置
+              </button>
+            </div>
+            <div id="transcription-status" class="status-text"></div>
+          </section>
+
+          <section id="detail-judgement-panel" class="detail-panel detail-panel-base hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>基础设置</strong>
+                <span>管理音频判别的播放、页面密度和差异展示规则。</span>
+              </div>
+            </div>
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>默认音量 (0~1000%)</strong>
+                <span>新加载音频默认使用该音量；快捷键只临时调整当前音频，重置音量回到这里的默认值。</span>
+                <input id="judgement-volume" type="number" min="0" max="1000" step="50" />
+              </label>
+
+              <label class="field-card">
+                <strong>默认倍速</strong>
+                <span>新加载音频默认使用该倍速；快捷键只临时调整当前音频，重置倍速回到这里的默认值。</span>
+                <input id="judgement-reset-rate" type="number" min="0.25" max="5" step="0.05" list="judgement-rate-options" />
+                <datalist id="judgement-rate-options">
+                  <option value="0.5"></option>
+                  <option value="0.75"></option>
+                  <option value="1"></option>
+                  <option value="1.25"></option>
+                  <option value="1.5"></option>
+                  <option value="2"></option>
+                  <option value="2.5"></option>
+                  <option value="3"></option>
+                </datalist>
+              </label>
+            </div>
+
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>倍速步进</strong>
+                <span>用于“提高倍速 / 降低倍速”快捷键，只影响当前音频。</span>
+                <select id="judgement-rate-step">
+                  <option value="0.1">0.1</option>
+                  <option value="0.25">0.25</option>
+                  <option value="0.5">0.5</option>
+                  <option value="1">1</option>
+                </select>
+              </label>
+
+              <label class="field-card">
+                <strong>前进 / 后退步长</strong>
+                <span>用于当前音频的快进和快退快捷键，默认 0.5 秒。</span>
+                <select id="judgement-seek-step">
+                  <option value="0.1">0.1 秒</option>
+                  <option value="0.25">0.25 秒</option>
+                  <option value="0.5">0.5 秒</option>
+                  <option value="1">1 秒</option>
+                </select>
+              </label>
+
+              <label class="field-card">
+                <strong>默认每页条数</strong>
+                <span>进入快判详情页后自动尝试切换每页条数；400 条/页会通过请求改写加载全量题卡。</span>
+                <select id="judgement-items-per-page">
+                  <option value="1 条/页">1 条/页</option>
+                  <option value="2 条/页">2 条/页</option>
+                  <option value="3 条/页">3 条/页</option>
+                  <option value="4 条/页">4 条/页</option>
+                  <option value="5 条/页">5 条/页</option>
+                  <option value="10 条/页">10 条/页</option>
+                  <option value="20 条/页">20 条/页</option>
+                  <option value="30 条/页">30 条/页</option>
+                  <option value="40 条/页">40 条/页</option>
+                  <option value="50 条/页">50 条/页</option>
+                  <option value="400 条/页">400 条/页</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="field-card">
+              <strong>自动播放音频</strong>
+              <span>切换到当前条目时自动尝试播放。</span>
+              <label class="field-toggle">
+                <input id="judgement-auto-play" type="checkbox" />
                 <span>启用自动播放</span>
-              </span>
-            </label>
-
-            <label class="field-card">
-              <strong>默认音量 (0~1000%)</strong>
-              <span>重置音量和新音频默认使用此值。</span>
-              <input id="transcription-volume" type="number" min="0" max="1000" step="10" />
-            </label>
-          </div>
-
-          <div class="detail-grid two">
-            <label class="field-card">
-              <strong>默认倍速</strong>
-              <span>新音频和重置倍速时使用该值。</span>
-              <input id="transcription-playback-rate" type="number" min="0.25" max="5" step="0.05" />
-            </label>
-
-            <label class="field-card">
-              <strong>重置倍速</strong>
-              <span>点击“重置倍速”时使用该值。</span>
-              <input id="transcription-reset-rate" type="number" min="0.25" max="5" step="0.05" />
-            </label>
-          </div>
-
-          <div class="detail-grid two">
-            <label class="field-card">
-              <strong>倍速步进</strong>
-              <span>用于“提高倍速 / 降低倍速”。</span>
-              <select id="transcription-rate-step">
-                <option value="0.1">0.1</option>
-                <option value="0.25">0.25</option>
-                <option value="0.5">0.5</option>
-                <option value="1">1</option>
-              </select>
-            </label>
-
-            <label class="field-card">
-              <strong>前进 / 后退步长</strong>
-              <span>用于当前音频前进、后退。</span>
-              <select id="transcription-seek-step">
-                <option value="0.5">0.5 秒</option>
-                <option value="1">1 秒</option>
-                <option value="2">2 秒</option>
-                <option value="3">3 秒</option>
-                <option value="5">5 秒</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="detail-grid two">
-            <label class="field-card field-toggle">
-              <input id="transcription-default-valid" type="checkbox" />
-              <span>默认有效行为（仅影响当前题动作）</span>
-            </label>
-
-            <label class="field-card field-toggle">
-              <input id="transcription-fill-on-valid" type="checkbox" />
-              <span>标有效时自动填入当前题文本</span>
-            </label>
-
-            <label class="field-card field-toggle">
-              <input id="transcription-clear-on-invalid" type="checkbox" />
-              <span>标无效时清空当前题文本</span>
-            </label>
-          </div>
-
-          <div class="field-card shortcut-panel">
-            <strong>转写快捷键</strong>
-            <span>只支持当前保留功能动作；普通输入不会被普通字符快捷键打断。</span>
-            <div id="transcription-shortcut-grid" class="shortcut-grid"></div>
-            <div id="transcription-recording-status" class="shortcut-recording hidden"></div>
-          </div>
-
-          <div class="field-actions" style="margin-top: 12px;">
-            <button id="save-transcription-settings" class="primary-button" type="button">
-              保存转写设置
-            </button>
-          </div>
-          <div id="transcription-status" class="status-text"></div>
-            </section>
-
-            <section id="detail-judgement-panel" class="detail-panel hidden">
-          <div class="detail-grid two">
-            <label class="field-card">
-              <strong>默认音量 (0~1000%)</strong>
-              <span>新加载音频默认使用该音量；快捷键只临时调整当前音频，重置音量回到这里的默认值。</span>
-              <input id="judgement-volume" type="number" min="0" max="1000" step="50" />
-            </label>
-
-            <label class="field-card">
-              <strong>默认倍速</strong>
-              <span>新加载音频默认使用该倍速；快捷键只临时调整当前音频，重置倍速回到这里的默认值。</span>
-              <input id="judgement-reset-rate" type="number" min="0.25" max="5" step="0.05" list="judgement-rate-options" />
-              <datalist id="judgement-rate-options">
-                <option value="0.5"></option>
-                <option value="0.75"></option>
-                <option value="1"></option>
-                <option value="1.25"></option>
-                <option value="1.5"></option>
-                <option value="2"></option>
-                <option value="2.5"></option>
-                <option value="3"></option>
-              </datalist>
-            </label>
-          </div>
-
-          <div class="detail-grid two">
-            <label class="field-card">
-              <strong>倍速步进</strong>
-              <span>用于“提高倍速 / 降低倍速”快捷键，只影响当前音频。</span>
-              <select id="judgement-rate-step">
-                <option value="0.1">0.1</option>
-                <option value="0.25">0.25</option>
-                <option value="0.5">0.5</option>
-                <option value="1">1</option>
-              </select>
-            </label>
-
-            <label class="field-card">
-              <strong>前进 / 后退步长</strong>
-              <span>用于当前音频的快进和快退快捷键，默认 0.5 秒。</span>
-              <select id="judgement-seek-step">
-                <option value="0.1">0.1 秒</option>
-                <option value="0.25">0.25 秒</option>
-                <option value="0.5">0.5 秒</option>
-                <option value="1">1 秒</option>
-              </select>
-            </label>
-
-            <label class="field-card">
-              <strong>默认每页条数</strong>
-              <span>进入快判详情页后自动尝试切换每页条数；400 条/页会通过请求改写加载全量题卡。</span>
-              <select id="judgement-items-per-page">
-                <option value="1 条/页">1 条/页</option>
-                <option value="2 条/页">2 条/页</option>
-                <option value="3 条/页">3 条/页</option>
-                <option value="4 条/页">4 条/页</option>
-                <option value="5 条/页">5 条/页</option>
-                <option value="10 条/页">10 条/页</option>
-                <option value="20 条/页">20 条/页</option>
-                <option value="30 条/页">30 条/页</option>
-                <option value="40 条/页">40 条/页</option>
-                <option value="50 条/页">50 条/页</option>
-                <option value="400 条/页">400 条/页</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="field-card">
-            <strong>自动播放音频</strong>
-            <span>切换到当前条目时自动尝试播放。</span>
-            <label class="field-toggle">
-              <input id="judgement-auto-play" type="checkbox" />
-              <span>启用自动播放</span>
-            </label>
-          </div>
-
-          <div class="field-card">
-            <strong>ASR 对齐差异视图</strong>
-            <span>将两个 ASR 文本改成对齐显示，并高亮缺字、多字、替换和标点差异。</span>
-            <label class="field-toggle">
-              <input id="judgement-asr-diff-view" type="checkbox" />
-              <span>启用 ASR 差异高亮</span>
-            </label>
-            <div class="color-grid">
-              <label class="color-field">
-                <span>替换 / 不同字</span>
-                <input id="judgement-diff-change-bg" type="color" />
-              </label>
-              <label class="color-field">
-                <span>缺字 / 多字</span>
-                <input id="judgement-diff-gap-bg" type="color" />
-              </label>
-              <label class="color-field">
-                <span>标点 / 空格</span>
-                <input id="judgement-diff-punctuation-bg" type="color" />
               </label>
             </div>
-          </div>
 
-          <div class="field-card">
-            <strong>轻量题卡摘要</strong>
-            <span>在每个题卡内显示两个 ASR 文本和当前判别状态；配合 LabelX 隐藏内容区 / 回答区与卡片大小设置使用。</span>
-            <label class="field-toggle">
-              <input id="judgement-compact-card" type="checkbox" />
-              <span>启用轻量题卡摘要</span>
-            </label>
-          </div>
-
-          <div class="field-card">
-            <strong>雷题判断</strong>
-            <span>命中雷题库时，在轻量题卡摘要和特殊情况标注区域显示标准答案；当前选择不一致时显示严重提示。</span>
-            <label class="field-toggle">
-              <input id="judgement-thunder-question" type="checkbox" />
-              <span>启用雷题判断</span>
-            </label>
-          </div>
-
-          <div class="field-card">
-            <strong>选择后辅助流转</strong>
-            <span>通过 1~5 快捷键或快判工具栏选择判别结果后，自动跳转到当前页下一题。</span>
-            <label class="field-toggle">
-              <input id="judgement-auto-advance" type="checkbox" />
-              <span>选择后自动下一题</span>
-            </label>
-          </div>
-
-          <div class="field-card">
-            <strong>AI 半自动参考建议</strong>
-            <span>AI 半自动参考建议为默认能力：只在你手动点击“AI 分析当前题”按钮或快捷键后触发，不会自动采用、保存、提交、领取或流转。</span>
-            <span>AI 建议后端地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
-          </div>
-
-          <div class="field-card">
-            <strong>统计数据上传</strong>
-            <span>统计上传为脚本默认能力，已强制启用；定时上传按脚本能力强制启用，不在此处配置。</span>
-            <span>上传接口地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
-          </div>
-
-          <div class="field-card shortcut-panel">
-            <strong>快捷键配置</strong>
-            <span>默认 1~5 分别选择五个“哪个ASR更优”选项；默认增大音量为 [，减小音量为 ]，重置音量为 \，后退/前进当前音频为方向键，播放/暂停当前音频为 Space，AI 分析当前题默认未绑定。点击“录制”后按键或点击鼠标按键；按 Esc 取消录制，不保存。</span>
-            <span>“提交任务 / 提交任务并结束”快捷键仅触发页面系统按钮；若出现二次确认弹窗，请手动确认。</span>
-            <div id="judgement-shortcut-grid" class="shortcut-grid"></div>
-            <div id="judgement-recording-status" class="shortcut-recording hidden"></div>
-          </div>
-
-          <div class="field-actions">
-            <button id="save-judgement-settings" class="primary-button" type="button">保存语音判别设置</button>
-          </div>
-          <div id="judgement-status" class="status-text"></div>
-            </section>
-
-            <section id="detail-lightwheel-panel" class="detail-panel hidden">
-          <div class="detail-grid">
             <div class="field-card">
-              <strong>运行态迁移状态</strong>
+              <strong>ASR 对齐差异视图</strong>
+              <span>将两个 ASR 文本改成对齐显示，并高亮缺字、多字、替换和标点差异。</span>
+              <label class="field-toggle">
+                <input id="judgement-asr-diff-view" type="checkbox" />
+                <span>启用 ASR 差异高亮</span>
+              </label>
+              <div class="color-grid">
+                <label class="color-field">
+                  <span>替换 / 不同字</span>
+                  <input id="judgement-diff-change-bg" type="color" />
+                </label>
+                <label class="color-field">
+                  <span>缺字 / 多字</span>
+                  <input id="judgement-diff-gap-bg" type="color" />
+                </label>
+                <label class="color-field">
+                  <span>标点 / 空格</span>
+                  <input id="judgement-diff-punctuation-bg" type="color" />
+                </label>
+              </div>
+            </div>
+
+            <div class="field-card">
+              <strong>轻量题卡摘要</strong>
+              <span>在每个题卡内显示两个 ASR 文本和当前判别状态；配合 LabelX 隐藏内容区 / 回答区与卡片大小设置使用。</span>
+              <label class="field-toggle">
+                <input id="judgement-compact-card" type="checkbox" />
+                <span>启用轻量题卡摘要</span>
+              </label>
+            </div>
+
+            <div class="field-card">
+              <strong>雷题判断</strong>
+              <span>命中雷题库时，在轻量题卡摘要和特殊情况标注区域显示标准答案；当前选择不一致时显示严重提示。</span>
+              <label class="field-toggle">
+                <input id="judgement-thunder-question" type="checkbox" />
+                <span>启用雷题判断</span>
+              </label>
+            </div>
+
+            <div class="field-card">
+              <strong>选择后辅助流转</strong>
+              <span>通过 1~5 快捷键或快判工具栏选择判别结果后，自动跳转到当前页下一题。</span>
+              <label class="field-toggle">
+                <input id="judgement-auto-advance" type="checkbox" />
+                <span>选择后自动下一题</span>
+              </label>
+            </div>
+
+            <div class="field-card">
+              <strong>AI 半自动参考建议</strong>
+              <span>AI 半自动参考建议为默认能力：只在你手动点击“AI 分析当前题”按钮或快捷键后触发，不会自动采用、保存、提交、领取或流转。</span>
+              <span>AI 建议后端地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
+            </div>
+
+            <div class="field-card">
+              <strong>统计数据上传</strong>
+              <span>统计上传为脚本默认能力，已强制启用；定时上传按脚本能力强制启用，不在此处配置。</span>
+              <span>上传接口地址由脚本中心首页顶部的“后端接口地址”统一控制。</span>
+            </div>
+
+            <div class="field-actions">
+              <button id="save-judgement-settings" class="primary-button" type="button">保存语音判别设置</button>
+            </div>
+            <div id="judgement-status" class="status-text"></div>
+          </section>
+
+          <section id="detail-lightwheel-panel" class="detail-panel detail-panel-base hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>基础设置</strong>
+                <span>当前阶段先保留查看态脚本的统一入口和后续迁移说明。</span>
+              </div>
+            </div>
+            <div class="detail-grid">
+              <div class="field-card">
+                <strong>运行态迁移状态</strong>
+                <span>
+                  该脚本目前只纳入脚本中心与 URL 检测，旧版参考文件位于
+                  <code>legacy-reference/Lightwheel 查看态面板.js</code>。
+                </span>
+              </div>
+              <div class="field-card">
+                <strong>当前预留设置</strong>
+                <span>当前先保留脚本启停入口。后续迁移时，再把 access-key、分页、拖拽尺寸、上下条跳转等设置接入扩展版。</span>
+              </div>
+            </div>
+            <div id="lightwheel-status" class="status-text"></div>
+          </section>
+
+          <section id="detail-data-baker-round-one-quality-panel" class="detail-panel detail-panel-base hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>基础设置</strong>
+                <span>只保留分页、批量填入与导出上传等业务动作，AI 参数统一放在 AI 设置区。</span>
+              </div>
+            </div>
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>自动每页条数</strong>
+                <span>用于减少翻页次数。脚本只尝试设置页面分页，不自动提交任何任务。</span>
+                <span class="field-toggle">
+                  <input id="data-baker-auto-page-size-enabled" type="checkbox" />
+                  进入标贝易采一检详情页后，自动设置每页条数
+                </span>
+              </label>
+
+              <label class="field-card">
+                <strong>默认每页条数</strong>
+                <span>默认 50 条/页；可按标贝易采页面原生选项调整。</span>
+                <select id="data-baker-default-page-size">
+                  <option value="5条/页">5条/页</option>
+                  <option value="10条/页">10条/页</option>
+                  <option value="20条/页">20条/页</option>
+                  <option value="50条/页">50条/页</option>
+                  <option value="100条/页">100条/页</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>AI连续填入合格项并发数量</strong>
+                <span>范围 1-50，默认 50。并发越高越可能触发后端或模型限流。</span>
+                <input
+                  id="data-baker-qualified-autofill-concurrency"
+                  type="number"
+                  min="1"
+                  max="50"
+                  step="1"
+                />
+              </label>
+
+              <div class="field-card">
+                <strong>调度策略（固定）</strong>
+                <span>当前页合格项会先按并发数发起 AI 请求；结果返回即进入缓冲区。</span>
+                <span>填入流程不会等待全部请求完成，而是按 AI 返回顺序从队列取结果并串行填入。</span>
+              </div>
+            </div>
+
+            <div class="field-card">
+              <strong>导出数据上传（默认能力）</strong>
               <span>
-                该脚本目前只纳入脚本中心与 URL 检测，旧版参考文件位于
-                <code>legacy-reference/Lightwheel 查看态面板.js</code>。
+                标贝易采 `group/detail` 页面导出 CSV 时，会在本地下载的同时自动上传到后端保存。
+              </span>
+              <span>
+                上传与下载地址由脚本中心首页顶部“后端接口地址”统一控制，不在此处单独配置。
               </span>
             </div>
-            <div class="field-card">
-              <strong>当前预留设置</strong>
-              <span>当前先保留脚本启停入口。后续迁移时，再把 access-key、分页、拖拽尺寸、上下条跳转等设置接入扩展版。</span>
+
+            <div class="field-actions">
+              <button id="save-data-baker-settings" class="primary-button" type="button">保存标贝易采设置</button>
             </div>
-          </div>
-          <div id="lightwheel-status" class="status-text"></div>
-            </section>
+            <div id="data-baker-status" class="status-text"></div>
+          </section>
 
-            <section id="detail-data-baker-round-one-quality-panel" class="detail-panel hidden">
-          <div class="field-card">
-            <strong>AI 推荐文本</strong>
-            <span>AI 推荐文本的模型、超时、Prompt 和生成参数统一放在右侧的“ASR 语音 AI 设置”工作区中。</span>
-            <span>业务页只保留分页、快捷键和批量填入等常用行为设置。</span>
-          </div>
+          <section id="detail-aishell-tech-minnan-helper-panel" class="detail-panel detail-panel-base hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>基础设置</strong>
+                <span>控制希尔贝壳批量保存节奏和当前分包处理边界。</span>
+              </div>
+            </div>
+            <div class="field-card">
+              <strong>希尔贝壳闽南语助手</strong>
+              <span>当前仅在 `https://mark.aishelltech.com/mytask/mark?...` 生效。</span>
+              <span>当前条支持 AI 推荐、复制、填入并保存；批量模式支持并发预取 AI 结果，再按条目标识串行回填并调用平台原生保存接口。</span>
+            </div>
 
-          <div class="detail-grid two" style="margin-top: 18px;">
-            <label class="field-card">
-              <strong>自动每页条数</strong>
-              <span>用于减少翻页次数。脚本只尝试设置页面分页，不自动提交任何任务。</span>
-              <span class="field-toggle">
-                <input id="data-baker-auto-page-size-enabled" type="checkbox" />
-                进入标贝易采一检详情页后，自动设置每页条数
-              </span>
-            </label>
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>AI 连续填入并发数量</strong>
+                <span>按当前模型规则自动约束：Fun-ASR 默认 25，Omni 默认 15。</span>
+                <input
+                  id="aishell-tech-qualified-autofill-concurrency"
+                  type="number"
+                  min="1"
+                  max="50"
+                  step="1"
+                />
+                <span id="aishell-tech-qualified-autofill-concurrency-help" class="status-text"></span>
+              </label>
 
-            <label class="field-card">
-              <strong>默认每页条数</strong>
-              <span>默认 50 条/页；可按标贝易采页面原生选项调整。</span>
-              <select id="data-baker-default-page-size">
-                <option value="5条/页">5条/页</option>
-                <option value="10条/页">10条/页</option>
-                <option value="20条/页">20条/页</option>
-                <option value="50条/页">50条/页</option>
-                <option value="100条/页">100条/页</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="detail-grid two" style="margin-top: 18px;">
-            <label class="field-card">
-              <strong>AI连续填入合格项并发数量</strong>
-              <span>范围 1-50，默认 50。并发越高越可能触发后端或模型限流。</span>
-              <input
-                id="data-baker-qualified-autofill-concurrency"
-                type="number"
-                min="1"
-                max="50"
-                step="1"
-              />
-            </label>
+              <div class="field-card">
+                <strong>批量保存策略（固定）</strong>
+                <span>只处理当前分包，从当前选中条开始，自动跳过已完成条目。</span>
+                <span>AI 请求可并发预取，但页面填入与保存严格串行；每条保存后等待页面切到下一条再继续。</span>
+              </div>
+            </div>
 
             <div class="field-card">
-              <strong>调度策略（固定）</strong>
-              <span>当前页合格项会先按并发数发起 AI 请求；结果返回即进入缓冲区。</span>
-              <span>填入流程不会等待全部请求完成，而是按 AI 返回顺序从队列取结果并串行填入。</span>
+              <strong>平台边界</strong>
+              <span>仅在用户点击单条或批量入口后执行保存，不自动提交任务，不跨分包，不触发 `.check-area`。</span>
+              <span>后端地址仍由首页顶部“后端接口地址”统一控制；当前页不单独配置接口地址。</span>
             </div>
-          </div>
 
-          <div class="field-card" style="margin-top: 18px;">
-            <strong>导出数据上传（默认能力）</strong>
-            <span>
-              标贝易采 `group/detail` 页面导出 CSV 时，会在本地下载的同时自动上传到后端保存。
-            </span>
-            <span>
-              上传与下载地址由脚本中心首页顶部“后端接口地址”统一控制，不在此处单独配置。
-            </span>
-          </div>
+            <div class="field-actions">
+              <button id="save-aishell-tech-settings" class="primary-button" type="button">
+                保存希尔贝壳设置
+              </button>
+            </div>
+            <div id="aishell-tech-status" class="status-text"></div>
+          </section>
 
-          <div class="field-card shortcut-panel" style="margin-top: 18px;">
-            <strong>快捷键配置</strong>
-            <span>默认全部未设置。点击“录制”后按键盘组合，按 Esc 取消录制；快捷键不会在输入框聚焦时触发。</span>
-            <div id="data-baker-shortcut-grid" class="shortcut-grid"></div>
-            <div id="data-baker-recording-status" class="shortcut-recording hidden"></div>
-          </div>
+          <section id="detail-magic-data-annotator-panel" class="detail-panel detail-panel-base hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>基础设置</strong>
+                <span>当前页仅保留业务侧说明与保存入口，AI 质检参数放入 AI 设置区。</span>
+              </div>
+            </div>
+            <div class="field-card">
+              <strong>AI 质检助手</strong>
+              <span>AI 质检模型、Prompt 和生成参数统一放在右侧的“AI 设置”工作区中。</span>
+              <span>当前页只保留业务设置和快捷键设置。</span>
+            </div>
 
-          <div class="field-actions">
-            <button id="save-data-baker-settings" class="primary-button" type="button">保存标贝易采设置</button>
-          </div>
-          <div id="data-baker-status" class="status-text"></div>
-            </section>
+            <div class="field-actions">
+              <button id="save-magic-data-settings" class="primary-button" type="button">保存 Magic Data 设置</button>
+            </div>
+            <div id="magic-data-status" class="status-text"></div>
+          </section>
 
-            <section id="detail-aishell-tech-minnan-helper-panel" class="detail-panel hidden">
-          <div class="field-card">
-            <strong>希尔贝壳闽南语助手</strong>
-            <span>当前仅在 `https://mark.aishelltech.com/mytask/mark?...` 生效。</span>
-            <span>当前条支持 AI 推荐、复制、填入并保存；批量模式支持并发预取 AI 结果，再按条目标识串行回填并调用平台原生保存接口。</span>
-          </div>
-
-          <div class="detail-grid two" style="margin-top: 18px;">
-            <label class="field-card">
-              <strong>AI 连续填入并发数量</strong>
-              <span>按当前模型规则自动约束：Fun-ASR 默认 25，Omni 默认 15。</span>
-              <input
-                id="aishell-tech-qualified-autofill-concurrency"
-                type="number"
-                min="1"
-                max="50"
-                step="1"
-              />
-              <span id="aishell-tech-qualified-autofill-concurrency-help" class="status-text"></span>
-            </label>
+          <section id="detail-abaka-ai-task-page-panel" class="detail-panel detail-panel-base hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>基础设置</strong>
+                <span>保留 Task21 的页面动作与自动选择规则，AI 调试参数单独放到右侧 AI 设置。</span>
+              </div>
+            </div>
+            <div class="field-card">
+              <strong>Task21助手</strong>
+              <span>快捷键仅用于点击页面真实选项/按钮，不直接调用平台接口。</span>
+              <span>仅在 Task21 `/items` 且检测到 `same_font` 字段时触发。</span>
+            </div>
 
             <div class="field-card">
-              <strong>批量保存策略（固定）</strong>
-              <span>只处理当前分包，从当前选中条开始，自动跳过已完成条目。</span>
-              <span>AI 请求可并发预取，但页面填入与保存严格串行；每条保存后等待页面切到下一条再继续。</span>
+              <label class="field-toggle">
+                <input id="abaka-auto-select-specify-on-same-font-true" type="checkbox" />
+                <span>same_font=true 后自动选择 image_b_texts_removed=specify 与 other_changes=specify</span>
+              </label>
             </div>
-          </div>
 
-          <div class="field-card" style="margin-top: 18px;">
-            <strong>平台边界</strong>
-            <span>仅在用户点击单条或批量入口后执行保存，不自动提交任务，不跨分包，不触发 `.check-area`。</span>
-            <span>后端地址仍由首页顶部“后端接口地址”统一控制；当前页不单独配置接口地址。</span>
-          </div>
+            <div class="field-actions">
+              <button id="save-abaka-settings" class="primary-button" type="button">保存 Task21助手设置</button>
+            </div>
+            <div id="abaka-status" class="status-text"></div>
+          </section>
 
-          <div class="field-card shortcut-panel" style="margin-top: 18px;">
-            <strong>快捷键配置</strong>
-            <span>默认全部未设置。点击“录制”后按键盘组合键，按 Esc 取消录制。</span>
-            <div id="aishell-tech-shortcut-grid" class="shortcut-grid"></div>
-            <div id="aishell-tech-recording-status" class="shortcut-recording hidden"></div>
-          </div>
+          <section id="detail-shared-asr-ai-panel" class="detail-panel detail-ai-panel hidden"></section>
 
-          <div class="field-actions" style="margin-top: 18px;">
-            <button id="save-aishell-tech-settings" class="primary-button" type="button">
-              保存希尔贝壳设置
-            </button>
-          </div>
-          <div id="aishell-tech-status" class="status-text"></div>
-            </section>
+          <section id="detail-abaka-ai-panel" class="detail-panel detail-ai-panel hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>AI 设置</strong>
+                <span>调试视觉、OCR 与推理模型组合，仅用于当前 Task21 辅助分析。</span>
+              </div>
+            </div>
+            <div class="field-card">
+              <strong>AI 调试说明</strong>
+              <span>AI 调试参数当前默认常显，仅用于调试和模型对比，不自动写入页面、不自动保存。</span>
+              <span id="abaka-ai-advanced-tip" class="status-text"></span>
+            </div>
 
-            <section id="detail-magic-data-annotator-panel" class="detail-panel hidden">
-          <div class="field-card">
-            <strong>AI 质检助手</strong>
-            <span>AI 质检模型、Prompt 和生成参数统一放在右侧的“ASR 语音 AI 设置”工作区中。</span>
-            <span>当前页只保留业务设置和快捷键设置。</span>
-          </div>
-
-          <div class="field-card shortcut-panel" style="margin-top: 18px;">
-            <strong>快捷键设置（常显）</strong>
-            <span>默认全部未设置。点击“录制”后输入组合键，Esc 取消录制。</span>
-            <div id="magic-data-shortcut-grid" class="shortcut-grid"></div>
-            <div id="magic-data-recording-status" class="shortcut-recording hidden"></div>
-          </div>
-
-          <div class="field-actions">
-            <button id="save-magic-data-settings" class="primary-button" type="button">保存 Magic Data 设置</button>
-          </div>
-          <div id="magic-data-status" class="status-text"></div>
-            </section>
-
-            <section id="detail-abaka-ai-task-page-panel" class="detail-panel hidden">
-          <div class="field-card">
-            <strong>Task21助手</strong>
-            <span>快捷键仅用于点击页面真实选项/按钮，不直接调用平台接口。</span>
-            <span>仅在 Task21 `/items` 且检测到 `same_font` 字段时触发。</span>
-          </div>
-
-          <div class="field-card" style="margin-top: 18px;">
-            <label class="field-toggle">
-              <input id="abaka-auto-select-specify-on-same-font-true" type="checkbox" />
-              <span>same_font=true 后自动选择 image_b_texts_removed=specify 与 other_changes=specify</span>
-            </label>
-          </div>
-
-          <div class="field-card" style="margin-top: 18px;">
-            <strong>AI 设置</strong>
-            <span>AI 调试参数当前默认常显，仅用于调试和模型对比，不自动写入页面、不自动保存。</span>
-            <span id="abaka-ai-advanced-tip" class="status-text"></span>
-          </div>
-
-          <div id="abaka-ai-settings-advanced" class="field-card hidden" style="margin-top: 18px;">
+            <div id="abaka-ai-settings-advanced" class="field-card hidden">
               <strong>AI 调试</strong>
-                <span>默认使用双模型方案：qwen3.6-plus（视觉） + qwen3.6-plus（推理）。</span>
-                <span>单模型方案默认：qwen3.6-plus；可用于快速对比。</span>
-                <span>qwen3.6-flash 速度更快、成本更低；qwen3-vl-plus 适合高精度定位。</span>
-                <span>qwen-vl-max / qwen-vl-plus 属于 Qwen2.5-VL 兼容备选，不作为默认。</span>
-                <span>OCR 专用模型待官方文档进一步核对，默认关闭且不预置默认 OCR 模型。</span>
-                <span>thinking 已在当前仓库全局固定关闭，避免 Omni 思考模式拖慢请求。</span>
-                <span>API Key 只从后端环境变量读取，前端不保存。</span>
-                <span>AI 只提供建议，不自动写入、不保存、不提交。</span>
+              <span>默认使用双模型方案：qwen3.6-plus（视觉） + qwen3.6-plus（推理）。</span>
+              <span>单模型方案默认：qwen3.6-plus；可用于快速对比。</span>
+              <span>qwen3.6-flash 速度更快、成本更低；qwen3-vl-plus 适合高精度定位。</span>
+              <span>qwen-vl-max / qwen-vl-plus 属于 Qwen2.5-VL 兼容备选，不作为默认。</span>
+              <span>OCR 专用模型待官方文档进一步核对，默认关闭且不预置默认 OCR 模型。</span>
+              <span>thinking 已在当前仓库全局固定关闭，避免 Omni 思考模式拖慢请求。</span>
+              <span>API Key 只从后端环境变量读取，前端不保存。</span>
+              <span>AI 只提供建议，不自动写入、不保存、不提交。</span>
 
-            <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
-              <strong>分析方案</strong>
-              <select id="abaka-ai-analysis-mode"></select>
-            </label>
+              <label class="field-card">
+                <strong>分析方案</strong>
+                <select id="abaka-ai-analysis-mode"></select>
+              </label>
 
-              <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
+              <label class="field-card">
                 <strong>视觉模型（阶段一）</strong>
                 <select id="abaka-ai-vision-model"></select>
               </label>
 
-              <label class="field-toggle" style="margin-top: 6px;">
+              <label class="field-toggle">
                 <input id="abaka-ai-ocr-enabled" type="checkbox" />
                 <span>启用 OCR 辅助阶段（默认关闭）</span>
               </label>
 
-              <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
+              <label class="field-card">
                 <strong>OCR 模型（可选）</strong>
                 <select id="abaka-ai-ocr-model"></select>
               </label>
 
-              <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
+              <label class="field-card">
                 <strong>推理模型（阶段二）</strong>
                 <select id="abaka-ai-reasoning-model"></select>
               </label>
 
-            <label class="field-card" style="margin: 8px 0 0; padding: 12px 14px;">
-              <strong>单模型（single_model）</strong>
-              <select id="abaka-ai-single-model"></select>
-            </label>
+              <label class="field-card">
+                <strong>单模型（single_model）</strong>
+                <select id="abaka-ai-single-model"></select>
+              </label>
 
-            <label class="field-toggle" style="margin-top: 6px;">
-              <input id="abaka-ai-enable-thinking" type="checkbox" />
-              <span>thinking 已全局固定关闭</span>
-            </label>
+              <label class="field-toggle">
+                <input id="abaka-ai-enable-thinking" type="checkbox" />
+                <span>thinking 已全局固定关闭</span>
+              </label>
 
-            <label class="field-card" style="margin: 6px 0 0; padding: 12px 14px;">
-              <strong>请求超时（毫秒）</strong>
-              <input id="abaka-ai-timeout" type="number" min="1000" max="300000" step="1000" />
-            </label>
+              <label class="field-card">
+                <strong>请求超时（毫秒）</strong>
+                <input id="abaka-ai-timeout" type="number" min="1000" max="300000" step="1000" />
+              </label>
 
-            <span id="abaka-ai-mock-tip" class="status-text"></span>
-          </div>
+              <span id="abaka-ai-mock-tip" class="status-text"></span>
+            </div>
+          </section>
 
-          <div class="field-card shortcut-panel" style="margin-top: 18px;">
-            <strong>快捷键配置</strong>
-            <span>默认键位：1/2/3/4/5/6/7 + Alt+1/2/3/4。点击“录制”后按键盘组合或鼠标按键，Esc 取消录制。</span>
+          <section id="detail-transcription-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>快捷键</strong>
+                <span>只支持当前保留功能动作；普通输入不会被普通字符快捷键打断。</span>
+              </div>
+            </div>
+            <div id="transcription-shortcut-grid" class="shortcut-grid"></div>
+            <div id="transcription-recording-status" class="shortcut-recording hidden"></div>
+          </section>
+
+          <section id="detail-judgement-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>快捷键</strong>
+                <span>默认 1~5 选择“哪个ASR更优”，播放控制与 AI 分析都集中在这里管理。</span>
+              </div>
+            </div>
+            <div class="field-card">
+              <span>“提交任务 / 提交任务并结束”快捷键仅触发页面系统按钮；若出现二次确认弹窗，请手动确认。</span>
+            </div>
+            <div id="judgement-shortcut-grid" class="shortcut-grid"></div>
+            <div id="judgement-recording-status" class="shortcut-recording hidden"></div>
+          </section>
+
+          <section id="detail-data-baker-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>快捷键</strong>
+                <span>默认全部未设置。点击“录制”后按键盘组合，按 Esc 取消录制；快捷键不会在输入框聚焦时触发。</span>
+              </div>
+            </div>
+            <div id="data-baker-shortcut-grid" class="shortcut-grid"></div>
+            <div id="data-baker-recording-status" class="shortcut-recording hidden"></div>
+          </section>
+
+          <section id="detail-aishell-tech-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>快捷键</strong>
+                <span>默认全部未设置。点击“录制”后按键盘组合键，按 Esc 取消录制。</span>
+              </div>
+            </div>
+            <div id="aishell-tech-shortcut-grid" class="shortcut-grid"></div>
+            <div id="aishell-tech-recording-status" class="shortcut-recording hidden"></div>
+          </section>
+
+          <section id="detail-magic-data-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>快捷键</strong>
+                <span>默认全部未设置。点击“录制”后输入组合键，Esc 取消录制。</span>
+              </div>
+            </div>
+            <div id="magic-data-shortcut-grid" class="shortcut-grid"></div>
+            <div id="magic-data-recording-status" class="shortcut-recording hidden"></div>
+          </section>
+
+          <section id="detail-abaka-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>快捷键</strong>
+                <span>默认键位：1/2/3/4/5/6/7 + Alt+1/2/3/4。点击“录制”后按键盘组合或鼠标按键，Esc 取消录制。</span>
+              </div>
+            </div>
             <div id="abaka-ai-shortcut-grid" class="shortcut-grid"></div>
             <div id="abaka-ai-recording-status" class="shortcut-recording hidden"></div>
-            <div class="field-actions" style="margin-top: 10px;">
+            <div class="field-actions">
               <button id="abaka-reset-shortcuts" class="secondary-button" type="button">恢复默认快捷键</button>
             </div>
-          </div>
-
-          <div class="field-actions">
-            <button id="save-abaka-settings" class="primary-button" type="button">保存 Task21助手设置</button>
-          </div>
-          <div id="abaka-status" class="status-text"></div>
-            </section>
-          </div>
-
-          <div id="detail-secondary-column" class="detail-column detail-column-secondary">
-            <section id="detail-shared-asr-ai-panel" class="detail-panel hidden"></section>
-          </div>
+          </section>
         </div>
 
         <div id="detail-status" class="status-text"></div>
