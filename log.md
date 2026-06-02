@@ -1,3 +1,32 @@
+## 2026-06-02（公开下载页独立与详情页左右工作台收口）
+
+- options 左侧导航新增公开 `脚本下载中心`：
+  - 新路由 `?view=downloads`
+  - 公开可进入，不要求系统管理密码
+  - 旧 `?view=admin&tab=downloads` 当前自动回落到 `?view=admin&tab=exports`
+- 两个右上角“脚本下载中心”按钮移除；公开下载能力不再挂在 hero 右上角。
+- 系统管理页签从 `下载中心` 改为 `数据导出`：
+  - 只保留项目数据下载
+  - 只保留 AI 请求记录导出
+  - 扩展版本下载完全移出后台
+- 公开脚本中心平台卡继续收口：
+  - 删除“当前平台脚本统一收口到功能面板...”说明性正文
+  - 删除脚本卡底部“匹配入口 / 入口”元信息
+  - 脚本备注区改为单块 `项目备注`
+  - `script.note + script.description` 同时存在时合并成一段简要功能说明
+- 脚本详情页重排为真正的工作台布局：
+  - 启停操作单独置顶为整宽卡片
+  - 下方固定为“左侧基础设置 / 右侧 AI 设置”
+  - 没有 AI 设置的脚本自动隐藏右栏，基础设置占满整行
+- 扩展版本列表接口 `GET /api/admin/download-center/releases` 当前改为公开可读，供公开下载页直接读取。
+- 本轮验证：
+  - `node --check extension/options/options.js`
+  - `node --check extension/options/options-route-state.js`
+  - `node --check platform-resources/backend/admin-download-center/routes.js`
+  - `node --check platform-resources/backend/admin-download-center/releases.js`
+  - `node --test extension/options/options-route-state.test.js`
+  - `node --test platform-resources/backend/admin-download-center/releases.test.js`
+
 ## 2026-06-02（公开脚本中心入口与下载中心版本选择优化）
 
 - 公开脚本中心平台摘要中的域名标签改为可点击入口：

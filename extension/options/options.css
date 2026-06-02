@@ -1531,7 +1531,7 @@ body {
 
 .script-remark-panel {
   display: grid;
-  gap: 10px;
+  gap: 0;
   padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid rgba(220, 252, 231, 0.96);
@@ -1575,11 +1575,24 @@ body {
   box-shadow: none;
 }
 
+.detail-actions-panel {
+  display: grid;
+  gap: 12px;
+  padding: 20px 22px;
+  background:
+    radial-gradient(circle at right top, rgba(191, 219, 254, 0.2), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 251, 255, 1));
+}
+
 .detail-workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  grid-template-columns: minmax(0, 1.16fr) minmax(340px, 0.84fr);
   gap: 18px;
   align-items: start;
+}
+
+.detail-workbench.no-secondary {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .detail-column {
@@ -1589,9 +1602,31 @@ body {
   align-content: start;
 }
 
+.detail-column-secondary.hidden {
+  display: none;
+}
+
 .detail-column-secondary .detail-panel {
   position: sticky;
   top: 18px;
+}
+
+.detail-column-primary > .detail-panel,
+.detail-column-secondary > .detail-panel {
+  overflow: hidden;
+}
+
+.download-center-shell {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.download-center-top {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .detail-top {
@@ -1784,7 +1819,7 @@ body {
   }
 
   .workspace-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .platform-body {

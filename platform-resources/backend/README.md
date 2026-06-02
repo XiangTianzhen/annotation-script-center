@@ -191,7 +191,7 @@ http://127.0.0.1:3333
 - 前端必须携带 `aiUsageOperatorName`；未填写时前端与后端都会拦截。
 - token 只按 `promptTokens / completionTokens` 作为主统计口径；只有两者都缺失时才回退 `totalTokens`。
 - 默认保留脱敏后的原始成功 / 失败 JSON，不再把大块业务结果拆成公共列。
-- options 当前统一改为“公开脚本中心 + 受保护系统管理”两层结构；AI 请求记录导出已迁入系统管理的“下载中心”页签。
+- options 当前统一改为“公开脚本中心 + 公开脚本下载中心 + 受保护系统管理”结构；AI 请求记录导出已迁入系统管理的“数据导出”页签。
 
 当前统计接口：
 
@@ -313,7 +313,7 @@ pm2 restart annotation-script-center --update-env
 - `ai/model-dispatcher.js`：按模型名统一派发 JS / Python 运行时；默认 `JS 优先，Python 备用`。
 - `admin-auth.js`：系统管理会话与下载导出共用的管理员鉴权 helper，负责密码 hash 校验、Bearer token 读取和会话 token 签发/校验。
 - `admin-session/`：系统管理登录接口。
-- `admin-dashboard/`：系统管理仪表盘聚合接口，当前只返回模型池占用所需的运行时快照、后端元信息与下载中心摘要。
+- `admin-dashboard/`：系统管理仪表盘聚合接口，当前只返回模型池占用所需的运行时快照、后端元信息与数据导出摘要。
 - `project-data-download/`：统一“项目数据下载”聚合模块（options/request/file、token、审计、CSV 筛选），并开始承载共享下载 core：
   - `labelx-download-core.js`
   - `labelx-existing-core.js`
@@ -333,7 +333,7 @@ pm2 restart annotation-script-center --update-env
 - `aishell-tech/minnan-helper`：Aishell Tech 闽南语助手 AI 推荐接口；当前条推荐与批量串行真实保存共用同一 recommend 业务入口，默认由 `POST /jobs` + `GET /jobs/:jobId` 承接前端结果链路，并继续保留同步 recommend 路由作为兼容 / 调试入口。
 - `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
 - `admin/session`：系统管理登录接口，负责签发短期管理员会话 token。
-- `admin/dashboard`：系统管理仪表盘聚合接口，当前负责汇总模型池占用、后端状态与下载中心快捷信息。
+- `admin/dashboard`：系统管理仪表盘聚合接口，当前负责汇总模型池占用、后端状态与数据导出快捷信息。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验或管理员 Bearer 会话、短期 token 下载链接、供应商筛选下载和审计日志。
 - `admin/ai-call-log`：AI 请求记录聚合接口，支持密码校验或管理员 Bearer 会话、短期 token 下载链接、按脚本 + 日期范围导出 CSV 和审计日志。
 
@@ -367,16 +367,17 @@ Aishell Tech AI 接口：
 - `POST /api/admin/session/unlock`
 - `GET /api/admin/dashboard/overview`
 - `GET /api/admin/dashboard/overview`
-  - 当前只返回模型池占用所需的 queue 快照、后端状态和下载中心摘要
+  - 当前只返回模型池占用所需的 queue 快照、后端状态和数据导出摘要
   - 为避免高日志量环境下 Node OOM，失败摘要、脚本统计、趋势、调用人排行和运行日志已从仪表盘主接口中移除
   - 前端 `options` 仪表盘默认每 `60` 秒自动刷新一次，并可手动刷新
   - 模型池快照当前按“总容量”语义返回：`capacity / usedCount / availableCount / isFull / utilizationPercent`
 - `GET /api/admin/download-center/releases`
-  - 面向 `options` 系统管理“下载中心”页签，返回结构化扩展版本列表
+  - 面向 `options` 公开“脚本下载中心”页，返回结构化扩展版本列表
   - 先读取远端 `annotation-script-center-crx-latest.json` 获取最新版
   - 再解析远端 `/downloads/` 目录页中的历史 `annotation-script-center-v*.crx/.zip`
   - 合并后按版本倒序返回：`latestVersion`、`items[].version/crxUrl/zipUrl/createdAt/isLatest`
   - 若目录页抓取或解析失败，至少回退返回 latest json 对应的最新版一项，并在 `source.usedFallback` / `source.fallbackReason` 中标记
+  - 当前为公开可读接口，不要求管理员会话
 
 项目数据下载接口：
 - `GET /api/admin/project-data-download/options`

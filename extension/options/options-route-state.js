@@ -3,6 +3,7 @@
 (function initOptionsRouteState(globalObject) {
   const VALID_VIEWS = {
     center: true,
+    downloads: true,
     script: true,
     admin: true,
   };
@@ -10,7 +11,7 @@
   const VALID_ADMIN_TABS = {
     overview: true,
     backend: true,
-    downloads: true,
+    exports: true,
   };
 
   function normalizeText(value) {
@@ -21,6 +22,9 @@
     const tab = normalizeText(value).toLowerCase();
     if (tab === "stats") {
       return "overview";
+    }
+    if (tab === "downloads") {
+      return "exports";
     }
     return VALID_ADMIN_TABS[tab] ? tab : "overview";
   }

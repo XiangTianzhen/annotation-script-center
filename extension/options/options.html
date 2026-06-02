@@ -28,6 +28,9 @@
             <button id="workspace-nav-center" class="workspace-nav-button active" type="button">
               公开脚本中心
             </button>
+            <button id="workspace-nav-downloads" class="workspace-nav-button" type="button">
+              脚本下载中心
+            </button>
             <button id="workspace-nav-admin" class="workspace-nav-button" type="button">
               系统管理
             </button>
@@ -163,6 +166,21 @@
 
       <section id="script-center-view" class="platform-grid"></section>
 
+      <section id="download-center-view" class="detail-shell hidden">
+        <section class="detail-panel download-center-shell">
+          <div class="detail-top download-center-top">
+            <div class="detail-title">
+              <h2>脚本下载中心</h2>
+              <p class="detail-copy">
+                这里集中分发扩展版本。默认展示最新版，历史版本可通过下拉框切换。
+              </p>
+            </div>
+          </div>
+          <div id="public-download-summary" class="admin-summary-grid"></div>
+          <section id="public-script-release-panel" class="admin-surface-card"></section>
+        </section>
+      </section>
+
       <section id="script-detail-view" class="detail-shell hidden">
         <div class="detail-top">
           <div class="detail-title">
@@ -176,17 +194,16 @@
           </div>
         </div>
 
-        <section id="detail-shared-asr-ai-panel" class="detail-panel hidden"></section>
+        <section id="detail-actions-panel" class="detail-panel detail-actions-panel">
+          <div class="detail-actions">
+            <button id="detail-enable-button" class="primary-button" type="button">启用脚本</button>
+            <button id="detail-disable-button" class="danger-button" type="button">关闭脚本</button>
+          </div>
+          <p id="detail-script-note" class="detail-note"></p>
+        </section>
 
         <div class="detail-workbench">
-          <div class="detail-column detail-column-primary">
-            <section class="detail-panel">
-              <div class="detail-actions">
-                <button id="detail-enable-button" class="primary-button" type="button">启用脚本</button>
-                <button id="detail-disable-button" class="danger-button" type="button">关闭脚本</button>
-              </div>
-              <p id="detail-script-note" class="detail-note"></p>
-            </section>
+          <div id="detail-primary-column" class="detail-column detail-column-primary">
             <section id="detail-transcription-panel" class="detail-panel hidden">
           <div class="detail-grid two">
             <label class="field-card">
@@ -678,9 +695,8 @@
             </section>
           </div>
 
-          <div class="detail-column detail-column-secondary">
+          <div id="detail-secondary-column" class="detail-column detail-column-secondary">
             <section id="detail-shared-asr-ai-panel" class="detail-panel hidden"></section>
-            <section id="detail-support-panel" class="detail-panel detail-support-panel"></section>
           </div>
         </div>
 

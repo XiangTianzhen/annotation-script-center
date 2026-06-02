@@ -80,7 +80,19 @@
             return {
               view: "admin",
               scriptId: null,
-              adminTab: ["overview", "backend", "downloads"].indexOf(tab) >= 0 ? tab : "overview",
+              adminTab:
+                ["overview", "backend", "exports"].indexOf(tab === "downloads" ? "exports" : tab) >= 0
+                  ? tab === "downloads"
+                    ? "exports"
+                    : tab
+                  : "overview",
+            };
+          }
+          if (view === "downloads") {
+            return {
+              view: "downloads",
+              scriptId: null,
+              adminTab: "overview",
             };
           }
           return {
@@ -96,19 +108,23 @@
           const next = route && typeof route === "object" ? route : {};
           const url = new URL(String(currentHref || location.href));
           const view = String(next.view || "center").trim().toLowerCase();
-          url.searchParams.set("view", view === "admin" || view === "script" ? view : "center");
+          url.searchParams.set(
+            "view",
+            view === "admin" || view === "script" || view === "downloads" ? view : "center"
+          );
           url.searchParams.delete("script");
           url.searchParams.delete("tab");
           if (view === "script" && String(next.scriptId || "").trim()) {
             url.searchParams.set("script", String(next.scriptId || "").trim());
           }
           if (view === "admin") {
-            url.searchParams.set("tab", String(next.adminTab || "overview").trim() || "overview");
+            const adminTab = String(next.adminTab || "overview").trim() || "overview";
+            url.searchParams.set("tab", adminTab === "downloads" ? "exports" : adminTab);
           }
           return url.toString();
         };
   const adminSessionStorageKey = "asc-options-admin-session";
-  const adminTabs = ["overview", "backend", "downloads"];
+  const adminTabs = ["overview", "backend", "exports"];
   const adminDashboardAutoRefreshIntervalMs = 60000;
   const dateTextPattern = /^\d{4}-\d{2}-\d{2}$/;
   const dataBakerPageSizeOptions = (
@@ -474,6 +490,7 @@
     const enabledNode = getElement("workspace-enabled-count");
     const libraryNode = getElement("workspace-library-count");
     const navCenterButton = getElement("workspace-nav-center");
+    const navDownloadsButton = getElement("workspace-nav-downloads");
     const navAdminButton = getElement("workspace-nav-admin");
     const detailScriptId = activeRoute.view === "script" ? activeRoute.scriptId : "";
     const detailScript = detailScriptId ? scriptLibrary[detailScriptId] || {} : null;
@@ -501,9 +518,14 @@
       libraryNode.textContent = formatNumber(platformCount) + " / " + formatNumber(scriptCount);
     }
     if (navCenterButton instanceof HTMLButtonElement) {
-      const active = activeRoute.view !== "admin";
+      const active = activeRoute.view === "center" || activeRoute.view === "script";
       navCenterButton.classList.toggle("active", active);
       navCenterButton.setAttribute("aria-pressed", String(active));
+    }
+    if (navDownloadsButton instanceof HTMLButtonElement) {
+      const active = activeRoute.view === "downloads";
+      navDownloadsButton.classList.toggle("active", active);
+      navDownloadsButton.setAttribute("aria-pressed", String(active));
     }
     if (navAdminButton instanceof HTMLButtonElement) {
       const active = activeRoute.view === "admin";
@@ -514,7 +536,10 @@
     if (routeNameNode && routeNoteNode) {
       if (activeRoute.view === "admin") {
         routeNameNode.textContent = "系统管理";
-        routeNoteNode.textContent = "统一处理后端设置、下载导出、模型池状态与系统仪表盘。";
+        routeNoteNode.textContent = "统一处理后端设置、数据导出、模型池状态与系统仪表盘。";
+      } else if (activeRoute.view === "downloads") {
+        routeNameNode.textContent = "脚本下载中心";
+        routeNoteNode.textContent = "公开提供扩展版本下载，默认突出最新版，并支持切换历史版本。";
       } else if (detailScript) {
         routeNameNode.textContent = String(detailScript.label || detailScriptId || "脚本详情");
         routeNoteNode.textContent = "当前正在编辑脚本专属设置，公共后端地址和下载能力仍统一走系统管理。";
@@ -600,7 +625,7 @@
   }
 
   function openScriptDownloadCenter() {
-    navigateToAdmin("downloads");
+    navigateToDownloads();
   }
 
   function openExternalScriptDownloadCenter() {
@@ -622,30 +647,24 @@
     }
   }
 
-  function buildScriptRemarkMarkup(script) {
+  function buildScriptRemarkText(script) {
     const note = normalizeText(script?.note);
     const description = normalizeText(script?.description);
-    const entries = [];
-    if (note) {
-      entries.push(
-        '<div class="script-remark-block"><span class="script-remark-label">项目备注</span><p class="script-remark-copy">' +
-          escapeHtml(note) +
-          "</p></div>"
-      );
+    if (note && description && description !== note) {
+      return note + " " + description;
     }
-    if (description && description !== note) {
-      entries.push(
-        '<div class="script-remark-block"><span class="script-remark-label">当前功能</span><p class="script-remark-copy">' +
-          escapeHtml(description) +
-          "</p></div>"
-      );
-    }
-    if (entries.length <= 0) {
-      entries.push(
-        '<div class="script-remark-block"><span class="script-remark-label">项目备注</span><p class="script-remark-copy">当前脚本暂未补充备注。</p></div>'
-      );
-    }
-    return '<div class="script-remark-panel">' + entries.join("") + "</div>";
+    return note || description || "当前脚本暂未补充备注。";
+  }
+
+  function buildScriptRemarkMarkup(script) {
+    return [
+      '<div class="script-remark-panel">',
+      '<div class="script-remark-block">',
+      '<span class="script-remark-label">项目备注</span>',
+      '<p class="script-remark-copy">' + escapeHtml(buildScriptRemarkText(script)) + "</p>",
+      "</div>",
+      "</div>",
+    ].join("");
   }
 
   function getSearchParams() {
@@ -688,6 +707,12 @@
   function navigateToCenter() {
     navigateToRoute({
       view: "center",
+    });
+  }
+
+  function navigateToDownloads() {
+    navigateToRoute({
+      view: "downloads",
     });
   }
 
@@ -6194,10 +6219,6 @@
               "</div>",
               "</div>",
               buildScriptRemarkMarkup(script),
-              '<div class="script-metadata">',
-              "<span>匹配入口：默认平台地址</span>",
-              '<span>入口：脚本详情 / ' + (active ? "当前生效" : "待启用") + "</span>",
-              "</div>",
               "</div>",
               '<div class="script-side">',
               '<div class="script-actions">',
@@ -6232,7 +6253,6 @@
              (preferredScript.isActive ? "当前启用：" : "默认启用：") +
              escapeHtml(preferredScript.label) +
              "</span>",
-           '<span class="platform-fact-text">当前平台脚本统一收口到功能面板，公开页只保留启停与详情入口。</span>',
            "</div>",
            "</div>",
           '<div class="script-grid platform-script-stack">' + scriptMarkup + "</div>",
@@ -7083,10 +7103,8 @@
     hero.classList.add("public-hero");
     const actionButton = getElement("stage-label");
     if (actionButton instanceof HTMLButtonElement) {
-      actionButton.textContent = "脚本下载中心";
-      actionButton.title = "进入下载中心";
-      actionButton.setAttribute("aria-label", "进入下载中心");
       actionButton.classList.add("admin-entry-button");
+      actionButton.classList.add("hidden");
     }
     const homeEndpointCard = getElement("home-endpoint-card");
     if (homeEndpointCard) {
@@ -7110,17 +7128,34 @@
     const heroKicker = getElement("hero-kicker");
     const heroDescription = getElement("hero-description");
     const summaryStrip = getElement("public-summary-strip");
+    const stageLabel = getElement("stage-label");
     if (!(hero instanceof HTMLElement)) {
       return;
     }
     hero.classList.remove("hero-mode-center", "hero-mode-script", "hero-mode-admin", "hero-compact");
+    if (stageLabel instanceof HTMLButtonElement) {
+      stageLabel.classList.add("hidden");
+    }
     if (route.view === "admin") {
       hero.classList.add("hero-mode-admin", "hero-compact");
       if (heroKicker) {
         heroKicker.textContent = "SYSTEM MANAGEMENT";
       }
       if (heroDescription) {
-        heroDescription.textContent = "系统管理统一承载后端设置、下载中心与系统仪表盘；进入前需要密码验证。";
+        heroDescription.textContent = "系统管理统一承载后端设置、数据导出与系统仪表盘；进入前需要密码验证。";
+      }
+      if (summaryStrip) {
+        summaryStrip.classList.add("hidden");
+      }
+      return;
+    }
+    if (route.view === "downloads") {
+      hero.classList.add("hero-mode-center", "hero-compact");
+      if (heroKicker) {
+        heroKicker.textContent = "DOWNLOAD CENTER";
+      }
+      if (heroDescription) {
+        heroDescription.textContent = "公开下载中心集中提供扩展版本分发；默认推荐最新版，同时支持切换历史版本。";
       }
       if (summaryStrip) {
         summaryStrip.classList.add("hidden");
@@ -7133,7 +7168,13 @@
         heroKicker.textContent = "SCRIPT DETAIL";
       }
       if (heroDescription) {
-        heroDescription.textContent = "当前页面用于编辑脚本专属设置；公共后端入口、下载导出与系统仪表盘仍统一走系统管理。";
+        heroDescription.textContent = "当前页面用于编辑脚本专属设置；公共后端入口、数据导出与系统仪表盘仍统一走系统管理，扩展版本下载统一走脚本下载中心。";
+      }
+      if (stageLabel instanceof HTMLButtonElement) {
+        stageLabel.textContent = "系统管理";
+        stageLabel.title = "进入系统管理";
+        stageLabel.setAttribute("aria-label", "进入系统管理");
+        stageLabel.classList.remove("hidden");
       }
       if (summaryStrip) {
         summaryStrip.classList.add("hidden");
@@ -7145,7 +7186,7 @@
       heroKicker.textContent = "PUBLIC SCRIPT CENTER";
     }
     if (heroDescription) {
-      heroDescription.textContent = "公开脚本中心只保留启停与详情入口；后端设置、下载导出和系统仪表盘统一进入系统管理工作台。";
+      heroDescription.textContent = "公开脚本中心只保留启停与详情入口；扩展版本下载统一进入脚本下载中心，后端设置、数据导出和系统仪表盘统一进入系统管理工作台。";
     }
     if (summaryStrip) {
       summaryStrip.classList.remove("hidden");
@@ -7188,7 +7229,7 @@
       '<nav class="admin-tab-strip">',
       '<button type="button" class="admin-nav-button" data-admin-tab="overview">仪表盘</button>',
       '<button type="button" class="admin-nav-button" data-admin-tab="backend">后端设置</button>',
-      '<button type="button" class="admin-nav-button" data-admin-tab="downloads">下载中心</button>',
+      '<button type="button" class="admin-nav-button" data-admin-tab="exports">数据导出</button>',
       "</nav>",
       '<section id="admin-tab-overview" class="admin-tab-panel">',
       '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>这里只展示每个模型池还能接收多少请求；页面每 60 秒自动刷新一次，也可手动刷新。</p></div></div>',
@@ -7199,10 +7240,9 @@
       '<div class="admin-panel-head"><div><h3>后端设置</h3><p>主内容区只保留后端接口地址；AI 调用使用人和全局摘要统一放在左侧侧栏中管理。</p></div></div>',
       '<section class="admin-surface-card"><div class="admin-card-head"><strong>后端接口地址</strong><span>切换服务器 / 本机后，点击按钮才写入本地缓存</span></div><div id="admin-backend-card-slot"></div></section>',
       "</section>",
-      '<section id="admin-tab-downloads" class="admin-tab-panel hidden">',
-      '<div class="admin-panel-head"><div><h3>下载中心</h3><p>项目数据下载、AI 请求记录导出与扩展版本分发统一放在这里。</p></div><div class="field-actions"><button id="admin-open-script-download-center" class="ghost-button" type="button">打开外部目录</button></div></div>',
+      '<section id="admin-tab-exports" class="admin-tab-panel hidden">',
+      '<div class="admin-panel-head"><div><h3>数据导出</h3><p>这里只保留项目数据下载和 AI 请求记录导出；扩展版本下载已移到公开脚本下载中心。</p></div></div>',
       '<div id="admin-download-summary" class="admin-summary-grid"></div>',
-      '<section id="admin-script-release-panel" class="admin-surface-card"></section>',
       '<div id="admin-download-grid" class="admin-download-grid"></div>',
       "</section>",
       "</div>",
@@ -7304,24 +7344,20 @@
       return;
     }
     const downloads = data?.downloads && typeof data.downloads === "object" ? data.downloads : {};
-    const releases = adminDownloadCenterReleasesCache || {};
     const projectCount = Array.isArray(downloads.projectDataDatasets)
       ? downloads.projectDataDatasets.length
       : 0;
     const aiCount = Array.isArray(downloads.aiCallLogDatasets)
       ? downloads.aiCallLogDatasets.length
       : 0;
-    const releaseItems = Array.isArray(releases.items) ? releases.items : [];
     node.innerHTML = [
-      '<article class="public-summary-card"><span class="summary-label">当前最新版</span><strong>' +
-        escapeHtml(releases.latestVersion ? "v" + releases.latestVersion : "读取中") +
-        '</strong><span class="summary-note">默认优先展示当前可分发的最新版扩展。</span></article>',
-      '<article class="public-summary-card"><span class="summary-label">历史版本</span><strong>' +
-        formatNumber(Math.max(0, releaseItems.length - (releases.latestVersion ? 1 : 0))) +
-        '</strong><span class="summary-note">下拉选择历史版本后，可切换对应 CRX / ZIP 下载。</span></article>',
-      '<article class="public-summary-card"><span class="summary-label">导出能力</span><strong>' +
-        formatNumber(projectCount + aiCount) +
-        '</strong><span class="summary-note">项目数据与 AI 请求记录导出继续保留在本页。</span></article>',
+      '<article class="public-summary-card"><span class="summary-label">项目数据类型</span><strong>' +
+        formatNumber(projectCount) +
+        '</strong><span class="summary-note">按数据集类型导出标注项目数据，必要时可继续按供应商筛选。</span></article>',
+      '<article class="public-summary-card"><span class="summary-label">AI 日志类型</span><strong>' +
+        formatNumber(aiCount) +
+        '</strong><span class="summary-note">按脚本类型和日期范围导出 AI 请求记录，便于排查和复盘。</span></article>',
+      '<article class="public-summary-card"><span class="summary-label">导出说明</span><strong>仅后台可用</strong><span class="summary-note">扩展版本下载已经移到公开脚本下载中心，这里只保留导出能力。</span></article>',
     ].join("");
   }
 
@@ -7358,8 +7394,31 @@
     ].join("");
   }
 
-  function renderAdminDownloadCenterPanel(releases) {
-    const panel = getElement("admin-script-release-panel");
+  function renderPublicDownloadSummary(releases) {
+    const panel = getElement("public-download-summary");
+    if (!(panel instanceof HTMLElement)) {
+      return;
+    }
+    const data = releases && typeof releases === "object" ? releases : {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    const latestItem =
+      items.find(function (item) {
+        return item?.isLatest === true;
+      }) || items[0] || null;
+    const historyCount = Math.max(0, items.length - (latestItem ? 1 : 0));
+    panel.innerHTML = [
+      '<article class="public-summary-card"><span class="summary-label">推荐版本</span><strong>' +
+        escapeHtml(latestItem ? "v" + normalizeText(latestItem.version) : "读取中") +
+        '</strong><span class="summary-note">默认推荐最新版 CRX，适合直接安装或覆盖更新。</span></article>',
+      '<article class="public-summary-card"><span class="summary-label">历史版本</span><strong>' +
+        formatNumber(historyCount) +
+        '</strong><span class="summary-note">如需回退或保留旧版本，可从下拉框切换到历史版本。</span></article>',
+      '<article class="public-summary-card"><span class="summary-label">下载方式</span><strong>CRX / ZIP</strong><span class="summary-note">CRX 为主下载格式；若该版本提供 ZIP，也会同步显示辅助下载按钮。</span></article>',
+    ].join("");
+  }
+
+  function renderPublicDownloadCenterPanel(releases) {
+    const panel = getElement("public-script-release-panel");
     if (!(panel instanceof HTMLElement)) {
       return;
     }
@@ -7367,8 +7426,8 @@
     const items = Array.isArray(data.items) ? data.items : [];
     if (items.length <= 0) {
       panel.innerHTML = [
-        '<div class="admin-card-head"><strong>扩展版本下载</strong><span>默认突出最新版，历史版本放在下拉中选择。</span></div>',
-        buildEmptyState("正在读取版本列表；如果持续为空，请稍后手动刷新或打开外部目录。"),
+        '<div class="admin-card-head"><strong>扩展版本下载</strong><span>默认展示最新版，历史版本可通过下拉框切换。</span></div>',
+        buildEmptyState("正在读取版本列表；如果持续为空，请稍后手动刷新或直接打开外部目录。"),
       ].join("");
       return;
     }
@@ -7379,18 +7438,18 @@
         return item?.isLatest === true;
       }) || items[0];
     panel.innerHTML = [
-      '<div class="admin-card-head"><strong>扩展版本下载</strong><span>默认突出最新版，历史版本放在下拉中选择。</span></div>',
+      '<div class="admin-card-head"><strong>扩展版本下载</strong><span>默认推荐最新版，历史版本可通过下拉框切换。</span></div>',
       '<div class="download-release-layout">',
       '<article class="download-release-highlight">',
       '<span class="summary-label">当前可分发最新版</span>',
       "<strong>v" + escapeHtml(normalizeText(latestItem.version) || "未知版本") + "</strong>",
       '<span class="summary-note">发布时间：' + escapeHtml(formatDateTimeLabel(latestItem.createdAt)) + "</span>",
-      '<p class="workspace-side-copy">优先下载最新版 CRX；如果需要开发者模式解压加载或保留旧构建，可切换到历史版本并按需下载 ZIP。</p>',
+      '<p class="workspace-side-copy">优先下载最新版 CRX；如需历史构建或保留开发者模式解压包，可切换到历史版本并按需下载 ZIP。</p>',
       "</article>",
       '<div class="download-release-selector">',
-      '<label class="project-download-row" for="admin-release-version-select">',
+      '<label class="project-download-row" for="public-release-version-select">',
       "<span>选择下载版本</span>",
-      '<select id="admin-release-version-select">',
+      '<select id="public-release-version-select">',
       items
         .map(function (item) {
           const version = normalizeText(item?.version);
@@ -7418,7 +7477,7 @@
         ? '<div class="status-text" data-tone="warning">目录索引暂不可用，当前已回退为仅展示最新版：' +
           escapeHtml(normalizeText(data.source?.fallbackReason) || "未知原因") +
           "</div>"
-        : '<div class="status-text">版本列表来自脚本下载中心目录；如发布后未出现新版本，请先确认服务器分发目录已更新。</div>') +
+        : '<div class="status-text">如最新版本暂未出现，请稍后刷新，或通过外部目录确认服务器分发目录是否已经更新。</div>') +
       "</div>",
       "</div>",
       "</div>",
@@ -7426,31 +7485,28 @@
   }
 
   async function loadAdminDownloadCenterReleases(forceRefresh) {
-    if (!hasActiveAdminSession()) {
-      return null;
-    }
     if (adminDownloadCenterReleasesCache && forceRefresh !== true) {
-      renderAdminDownloadCenterPanel(adminDownloadCenterReleasesCache);
+      renderPublicDownloadSummary(adminDownloadCenterReleasesCache);
+      renderPublicDownloadCenterPanel(adminDownloadCenterReleasesCache);
       return adminDownloadCenterReleasesCache;
     }
     if (adminDownloadCenterReleasesLoading) {
       return adminDownloadCenterReleasesLoading;
     }
-    adminDownloadCenterReleasesLoading = requestAdminJson(adminDownloadCenterReleasesPath, {
+    adminDownloadCenterReleasesLoading = fetch(buildBackendUrl(adminDownloadCenterReleasesPath, currentSettings || {}), {
       method: "GET",
+      cache: "no-store",
     })
-      .then(function (result) {
-        if (!result || result.authFailed) {
-          renderAdminDownloadCenterPanel(null);
+      .then(async function (response) {
+        const body = parseJsonSafely(await response.text());
+        if (!response.ok || body?.success !== true) {
+          renderPublicDownloadSummary(null);
+          renderPublicDownloadCenterPanel(null);
           return null;
         }
-        if (!result.response.ok || result.body?.success !== true) {
-          renderAdminDownloadCenterPanel(null);
-          return null;
-        }
-        adminDownloadCenterReleasesCache = Object.assign({}, result.body.data || {});
-        renderAdminDownloadSummary(adminDashboardCache || {});
-        renderAdminDownloadCenterPanel(adminDownloadCenterReleasesCache);
+        adminDownloadCenterReleasesCache = Object.assign({}, body.data || {});
+        renderPublicDownloadSummary(adminDownloadCenterReleasesCache);
+        renderPublicDownloadCenterPanel(adminDownloadCenterReleasesCache);
         return adminDownloadCenterReleasesCache;
       })
       .finally(function () {
@@ -7608,6 +7664,12 @@
     renderCurrentView();
   }
 
+  function renderPublicDownloadsView() {
+    renderPublicDownloadSummary(adminDownloadCenterReleasesCache || {});
+    renderPublicDownloadCenterPanel(adminDownloadCenterReleasesCache || {});
+    void loadAdminDownloadCenterReleases(false);
+  }
+
   function renderAdminWorkspace(tab) {
     ensureAdminWorkspace();
     const workspace = getElement("admin-workspace");
@@ -7648,16 +7710,9 @@
       }
       startAdminDashboardAutoRefresh();
       void loadAdminDashboard(false, "initial");
-      if (currentTab === "downloads") {
-        renderAdminDownloadCenterPanel(adminDownloadCenterReleasesCache || {});
-        void loadAdminDownloadCenterReleases(false);
-      } else if (adminDownloadCenterReleasesCache) {
-        renderAdminDownloadCenterPanel(adminDownloadCenterReleasesCache);
-      }
     } else {
       stopAdminDashboardAutoRefresh();
       setAdminAuthStatus(adminAuthMessage || "进入系统管理前需要输入密码。", adminAuthMessage ? "warning" : "neutral");
-      renderAdminDownloadCenterPanel(null);
     }
   }
 
@@ -7722,7 +7777,7 @@
     if (!hasActiveAdminSession()) {
       adminAuthMessage = "管理员会话已失效，请重新输入密码后再导出。";
       setProjectDataDownloadStatus(adminAuthMessage);
-      navigateToAdmin("downloads");
+      navigateToAdmin("exports");
       return;
     }
 
@@ -7743,7 +7798,7 @@
       });
       if (!result || result.authFailed) {
         setProjectDataDownloadStatus(adminAuthMessage || "管理员会话已失效，请重新登录后再导出。");
-        navigateToAdmin("downloads");
+        navigateToAdmin("exports");
         return;
       }
       if (!result.response.ok || result.body?.success !== true) {
@@ -7816,7 +7871,7 @@
     if (!hasActiveAdminSession()) {
       adminAuthMessage = "管理员会话已失效，请重新输入密码后再导出。";
       setAiCallLogStatus(adminAuthMessage);
-      navigateToAdmin("downloads");
+      navigateToAdmin("exports");
       return;
     }
 
@@ -7838,7 +7893,7 @@
       });
       if (!result || result.authFailed) {
         setAiCallLogStatus(adminAuthMessage || "管理员会话已失效，请重新登录后再导出。");
-        navigateToAdmin("downloads");
+        navigateToAdmin("exports");
         return;
       }
       if (!result.response.ok || result.body?.success !== true) {
@@ -7901,35 +7956,28 @@
     if (!(panel instanceof HTMLElement)) {
       return;
     }
-    if (supportsAsrVoiceAiSettings(scriptId)) {
-      panel.classList.add("hidden");
-      panel.innerHTML = "";
-      return;
-    }
-    const script = scriptLibrary[scriptId] || {};
-    const platform = platformLibrary[script.platformId] || {};
-    const operatorName = getAiUsageOperatorName(settings || {}) || "未设置";
-    const backendMode = buildBackendModeDisplayText(getBackendModeFromSettings(settings || {}));
-    const supportTitle = supportsAsrVoiceAiSettings(scriptId)
-      ? "运行说明与当前配置"
-      : "辅助说明与当前配置";
-    const supportDescription = supportsAsrVoiceAiSettings(scriptId)
-      ? "右侧工作区承载 AI 参数和全局说明；左侧只保留脚本行为、快捷键和常用业务设置。"
-      : "当前脚本没有独立 AI 参数区，右侧统一展示运行边界、后端模式和平台说明。";
-    panel.innerHTML = [
-      '<div class="detail-support-copy">',
-      "<strong>" + escapeHtml(supportTitle) + "</strong>",
-      "<span>" + escapeHtml(supportDescription) + "</span>",
-      "</div>",
-      '<div class="admin-runtime-list detail-runtime-list">',
-      "<div><strong>所属平台</strong><span>" + escapeHtml(String(platform.label || script.platformId || "未知平台")) + "</span></div>",
-      "<div><strong>默认入口</strong><span>" + escapeHtml(String(platform.host || "默认平台地址")) + "</span></div>",
-      "<div><strong>当前后端</strong><span>" + escapeHtml(backendMode) + "</span></div>",
-      "<div><strong>AI 调用使用人</strong><span>" + escapeHtml(operatorName) + "</span></div>",
-      "<div><strong>保存方式</strong><span>" + escapeHtml("脚本设置按当前页面按钮保存；公共后端入口统一在系统管理中显式保存。") + "</span></div>",
-      "</div>",
-    ].join("");
     panel.classList.remove("hidden");
+    panel.innerHTML = "";
+    panel.classList.add("hidden");
+  }
+
+  function updateDetailLayout(scriptId) {
+    const workbench = document.querySelector("#script-detail-view .detail-workbench");
+    const secondaryColumn = getElement("detail-secondary-column");
+    const aiPanel = getElement("detail-shared-asr-ai-panel");
+    const hasAiPanel = supportsAsrVoiceAiSettings(scriptId);
+    if (workbench instanceof HTMLElement) {
+      workbench.classList.toggle("no-secondary", !hasAiPanel);
+    }
+    if (secondaryColumn instanceof HTMLElement) {
+      secondaryColumn.classList.toggle("hidden", !hasAiPanel);
+    }
+    if (aiPanel instanceof HTMLElement) {
+      aiPanel.classList.toggle("hidden", !hasAiPanel);
+      if (!hasAiPanel) {
+        aiPanel.innerHTML = "";
+      }
+    }
   }
 
   function showDetailPanel(scriptId) {
@@ -7955,6 +8003,7 @@
     renderDetailHeader(settings, scriptId);
     renderAsrVoiceAiSettingsSection(settings, scriptId);
     renderDetailSupportPanel(settings, scriptId);
+    updateDetailLayout(scriptId);
     updateAsrVoiceAiDefaultsTip(scriptId, getAsrVoiceAiDefaultsCached(scriptId));
     if (supportsAsrVoiceAiSettings(scriptId)) {
       void loadAsrVoiceAiDefaults(scriptId, settings).then(function (payload) {
@@ -8999,6 +9048,7 @@
     const scriptId = route.view === "script" ? route.scriptId : null;
     const settings = currentSettings || (await loadSettings());
     const centerView = getElement("script-center-view");
+    const downloadCenterView = getElement("download-center-view");
     const detailView = getElement("script-detail-view");
     const adminWorkspace = getElement("admin-workspace");
 
@@ -9016,16 +9066,18 @@
         stageLabel.textContent = "系统管理";
         stageLabel.title = "进入系统管理";
         stageLabel.setAttribute("aria-label", "进入系统管理");
+        stageLabel.classList.remove("hidden");
       } else {
-        stageLabel.textContent = "脚本下载中心";
-        stageLabel.title = "进入下载中心";
-        stageLabel.setAttribute("aria-label", "进入下载中心");
+        stageLabel.classList.add("hidden");
       }
     }
 
     if (route.view === "admin") {
       if (centerView) {
         centerView.classList.add("hidden");
+      }
+      if (downloadCenterView) {
+        downloadCenterView.classList.add("hidden");
       }
       if (detailView) {
         detailView.classList.add("hidden");
@@ -9039,9 +9091,29 @@
 
     stopAdminDashboardAutoRefresh();
 
+    if (route.view === "downloads") {
+      if (centerView) {
+        centerView.classList.add("hidden");
+      }
+      if (downloadCenterView) {
+        downloadCenterView.classList.remove("hidden");
+      }
+      if (detailView) {
+        detailView.classList.add("hidden");
+      }
+      if (adminWorkspace) {
+        adminWorkspace.classList.add("hidden");
+      }
+      renderPublicDownloadsView();
+      return;
+    }
+
     if (!scriptId) {
       if (centerView) {
         centerView.classList.remove("hidden");
+      }
+      if (downloadCenterView) {
+        downloadCenterView.classList.add("hidden");
       }
       if (detailView) {
         detailView.classList.add("hidden");
@@ -9055,6 +9127,9 @@
 
     if (centerView) {
       centerView.classList.add("hidden");
+    }
+    if (downloadCenterView) {
+      downloadCenterView.classList.add("hidden");
     }
     if (detailView) {
       detailView.classList.remove("hidden");
@@ -9074,9 +9149,7 @@
         const route = getCurrentRouteState();
         if (route.view === "script") {
           navigateToAdmin(getCurrentAdminTab());
-          return;
         }
-        openScriptDownloadCenter();
       });
     }
 
@@ -9084,6 +9157,13 @@
     if (workspaceNavCenter instanceof HTMLButtonElement) {
       workspaceNavCenter.addEventListener("click", function () {
         navigateToCenter();
+      });
+    }
+
+    const workspaceNavDownloads = getElement("workspace-nav-downloads");
+    if (workspaceNavDownloads instanceof HTMLButtonElement) {
+      workspaceNavDownloads.addEventListener("click", function () {
+        navigateToDownloads();
       });
     }
 
@@ -9252,9 +9332,6 @@
     if (adminRefreshButton instanceof HTMLButtonElement) {
       adminRefreshButton.addEventListener("click", function () {
         void loadAdminDashboard(true, "manual");
-        if (getCurrentAdminTab() === "downloads") {
-          void loadAdminDownloadCenterReleases(true);
-        }
       });
     }
 
@@ -9275,13 +9352,6 @@
       });
     }
 
-    const adminOpenScriptDownloadCenterButton = getElement("admin-open-script-download-center");
-    if (adminOpenScriptDownloadCenterButton instanceof HTMLButtonElement) {
-      adminOpenScriptDownloadCenterButton.addEventListener("click", function () {
-        openExternalScriptDownloadCenter();
-      });
-    }
-
     const scriptCenterView = getElement("script-center-view");
     if (scriptCenterView instanceof HTMLElement) {
       scriptCenterView.addEventListener("click", function (event) {
@@ -9298,17 +9368,17 @@
       });
     }
 
-    const adminScriptReleasePanel = getElement("admin-script-release-panel");
-    if (adminScriptReleasePanel instanceof HTMLElement) {
-      adminScriptReleasePanel.addEventListener("change", function (event) {
+    const publicScriptReleasePanel = getElement("public-script-release-panel");
+    if (publicScriptReleasePanel instanceof HTMLElement) {
+      publicScriptReleasePanel.addEventListener("change", function (event) {
         const target = event.target;
-        if (!(target instanceof HTMLSelectElement) || target.id !== "admin-release-version-select") {
+        if (!(target instanceof HTMLSelectElement) || target.id !== "public-release-version-select") {
           return;
         }
         adminSelectedReleaseVersion = normalizeText(target.value);
-        renderAdminDownloadCenterPanel(adminDownloadCenterReleasesCache || {});
+        renderPublicDownloadCenterPanel(adminDownloadCenterReleasesCache || {});
       });
-      adminScriptReleasePanel.addEventListener("click", function (event) {
+      publicScriptReleasePanel.addEventListener("click", function (event) {
         const target = event.target instanceof Element ? event.target.closest("[data-release-download-url]") : null;
         if (!(target instanceof HTMLElement)) {
           return;
