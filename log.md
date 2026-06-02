@@ -1,3 +1,27 @@
+## 2026-06-02（功能面板三列脚本卡与详情页双轨工作台精修）
+
+- `extension/options/` 继续收口功能面板与脚本详情页前端结构，不改后端接口与脚本设置 schema。
+- 功能面板平台区块继续保留“左侧平台摘要 + 右侧脚本区”，但右侧脚本区当前已改成真正的流式脚本卡布局：
+  - 宽屏每行最多 `3` 个脚本卡
+  - 中屏回落为 `2` 列
+  - 窄屏回落为 `1` 列
+  - 每张脚本卡继续保留“上层操作 + 下层项目备注”，其中 `项目备注` 改成更柔和的底栏式说明板块
+- 详情页当前从共享等高 grid 改成“两条独立纵轨”：
+  - 左轨承载 `基础设置` 与下方 `快捷键`
+  - 右轨承载 `AI 设置`
+  - 右侧 AI 面板按自身内容自然增高，不再为了适配左侧而被拉成长白板
+  - 只剩一个板块时继续保持左半宽
+- 平台排序交互从原生 `drag/drop` 升级为自定义拖拽：
+  - 编辑模式下拖动整个平台区块时，卡片会跟随鼠标移动
+  - 原位置保留占位块
+  - 进入目标区域停留约 `0.2s` 后，周围平台区块自动让位并带纵向滑移动画
+  - 临近页面上下边缘时自动滚动，松手后继续把排序保存到 `settings.meta.publicCenterPlatformOrder`
+- 本轮验证：
+  - `node --check extension/options/options.js`
+  - `node --check extension/options/options-workbench-state.js`
+  - `node --check extension/shared/storage.js`
+  - `node --test extension/options/options-workbench-state.test.js extension/options/options-route-state.test.js`
+
 ## 2026-06-02（功能面板排序编辑与详情页层叠工作台精修）
 
 - `extension/options/` 继续收口公开页与详情页：

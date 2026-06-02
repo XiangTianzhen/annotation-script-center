@@ -220,6 +220,39 @@
           }
           return "single";
         };
+  const buildDetailWorkbenchTrackState =
+    typeof optionsWorkbenchState.buildDetailWorkbenchTrackState === "function"
+      ? optionsWorkbenchState.buildDetailWorkbenchTrackState
+      : function (input) {
+          const config = input && typeof input === "object" ? input : {};
+          const orderedKinds = [];
+          if (config.hasBasePanel !== false) {
+            orderedKinds.push("base");
+          }
+          if (config.hasAiPanel === true) {
+            orderedKinds.push("ai");
+          }
+          if (config.hasShortcutPanel === true) {
+            orderedKinds.push("shortcut");
+          }
+          const primary = [];
+          const secondary = [];
+          if (orderedKinds[0]) {
+            primary.push(orderedKinds[0]);
+          }
+          if (orderedKinds[1]) {
+            secondary.push(orderedKinds[1]);
+          }
+          if (orderedKinds[2]) {
+            primary.push(orderedKinds[2]);
+          }
+          return {
+            primary,
+            secondary,
+            panelCount: orderedKinds.length,
+            isSingle: orderedKinds.length <= 1,
+          };
+        };
   const adminSessionStorageKey = "asc-options-admin-session";
   const adminTabs = ["overview", "backend", "exports"];
   const adminDashboardAutoRefreshIntervalMs = 60000;
@@ -557,6 +590,9 @@
   let adminBackendDraft = null;
   let publicCenterEditMode = false;
   let publicCenterDragState = null;
+  const PLATFORM_REORDER_HOVER_DELAY_MS = 200;
+  const PLATFORM_REORDER_EDGE_SCROLL_MARGIN = 92;
+  const PLATFORM_REORDER_EDGE_SCROLL_STEP = 22;
 
   function getElement(id) {
     return document.getElementById(id);
@@ -792,7 +828,7 @@
 
   function clearPlatformDropIndicators(root) {
     getPlatformSectionNodes(root).forEach(function (section) {
-      section.classList.remove("is-drop-before", "is-drop-after", "is-dragging");
+      section.classList.remove("is-drop-before", "is-drop-after", "is-dragging", "is-drop-active");
     });
   }
 
@@ -870,6 +906,316 @@
     });
   }
 
+  function isReducedMotionPreferred() {
+    return Boolean(
+      globalThis.matchMedia &&
+        globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  }
+
+  function buildPlatformDragPlaceholder(section) {
+    const rect = section.getBoundingClientRect();
+    const placeholder = document.createElement("div");
+    placeholder.className = "platform-workbench-placeholder";
+    placeholder.style.height = Math.max(120, Math.round(rect.height)) + "px";
+    return placeholder;
+  }
+
+  function createPlatformDragGhost(section, rect) {
+    const ghost = section.cloneNode(true);
+    ghost.classList.add("platform-drag-ghost");
+    ghost.style.width = Math.round(rect.width) + "px";
+    ghost.style.height = Math.round(rect.height) + "px";
+    ghost.style.left = Math.round(rect.left) + "px";
+    ghost.style.top = Math.round(rect.top) + "px";
+    Array.from(ghost.querySelectorAll("button, a, input, select, textarea")).forEach(function (node) {
+      node.setAttribute("tabindex", "-1");
+      node.setAttribute("aria-hidden", "true");
+    });
+    document.body.appendChild(ghost);
+    return ghost;
+  }
+
+  function updatePlatformDragGhostPosition(state, clientX, clientY) {
+    if (!state?.ghost) {
+      return;
+    }
+    state.ghost.style.left = Math.round(clientX - state.offsetX) + "px";
+    state.ghost.style.top = Math.round(clientY - state.offsetY) + "px";
+  }
+
+  function getPlatformReorderCandidate(workbench, movingId, clientY) {
+    const sections = getPlatformSectionNodes(workbench).filter(function (section) {
+      return normalizeText(section.getAttribute("data-platform-id")) !== normalizeText(movingId);
+    });
+    if (!sections.length) {
+      return null;
+    }
+
+    const entries = sections.map(function (section) {
+      return {
+        section,
+        rect: section.getBoundingClientRect(),
+      };
+    });
+
+    let entry =
+      entries.find(function (item) {
+        return clientY >= item.rect.top && clientY <= item.rect.bottom;
+      }) || null;
+
+    if (!entry) {
+      if (clientY < entries[0].rect.top) {
+        entry = entries[0];
+      } else {
+        entry = entries[entries.length - 1];
+      }
+    }
+
+    const position = clientY < entry.rect.top + entry.rect.height / 2 ? "before" : "after";
+    return {
+      target: entry.section,
+      targetId: normalizeText(entry.section.getAttribute("data-platform-id")),
+      position,
+    };
+  }
+
+  function movePlatformPlaceholder(workbench, placeholder, target, position) {
+    if (!(workbench instanceof HTMLElement) || !(placeholder instanceof HTMLElement) || !(target instanceof HTMLElement)) {
+      return;
+    }
+    const desiredParent = target.parentElement;
+    if (!(desiredParent instanceof HTMLElement)) {
+      return;
+    }
+    const currentPrevious = placeholder.previousElementSibling;
+    const currentNext = placeholder.nextElementSibling;
+    if (
+      (position === "before" && currentNext === target) ||
+      (position === "after" && currentPrevious === target)
+    ) {
+      return;
+    }
+    animatePlatformWorkbenchFlip(workbench, function () {
+      if (position === "before") {
+        desiredParent.insertBefore(placeholder, target);
+        return;
+      }
+      desiredParent.insertBefore(placeholder, target.nextSibling);
+    });
+  }
+
+  function clearPlatformHoverTimer() {
+    if (publicCenterDragState?.hoverTimer) {
+      globalThis.clearTimeout(publicCenterDragState.hoverTimer);
+      publicCenterDragState.hoverTimer = null;
+    }
+  }
+
+  function updatePlatformHoverIndicator(workbench, target, position) {
+    clearPlatformDropIndicators(workbench);
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    target.classList.add(position === "before" ? "is-drop-before" : "is-drop-after", "is-drop-active");
+  }
+
+  function maybeAutoScrollPlatformWorkbench(clientY) {
+    const viewportHeight = Number(globalThis.innerHeight || 0);
+    if (!viewportHeight) {
+      return;
+    }
+    if (clientY <= PLATFORM_REORDER_EDGE_SCROLL_MARGIN) {
+      globalThis.scrollBy(0, -PLATFORM_REORDER_EDGE_SCROLL_STEP);
+      return;
+    }
+    if (clientY >= viewportHeight - PLATFORM_REORDER_EDGE_SCROLL_MARGIN) {
+      globalThis.scrollBy(0, PLATFORM_REORDER_EDGE_SCROLL_STEP);
+    }
+  }
+
+  function cleanupPlatformDragState(options) {
+    const config = options && typeof options === "object" ? options : {};
+    const state = publicCenterDragState;
+    if (!state) {
+      return;
+    }
+
+    clearPlatformHoverTimer();
+    clearPlatformDropIndicators(state.workbench);
+    if (state.workbench instanceof HTMLElement) {
+      state.workbench.classList.remove("is-sorting");
+    }
+    if (state.ghost instanceof HTMLElement && state.ghost.parentNode) {
+      state.ghost.parentNode.removeChild(state.ghost);
+    }
+    if (state.placeholder instanceof HTMLElement && state.placeholder.parentNode && config.keepPlaceholder !== true) {
+      state.placeholder.parentNode.removeChild(state.placeholder);
+    }
+    document.body.classList.remove("is-platform-reordering");
+    window.removeEventListener("pointermove", state.onPointerMove);
+    window.removeEventListener("pointerup", state.onPointerUp);
+    window.removeEventListener("pointercancel", state.onPointerUp);
+    window.removeEventListener("keydown", state.onKeyDown);
+    publicCenterDragState = null;
+  }
+
+  function bindPlatformReorderInteractions(center, settings) {
+    const workbench = center.querySelector(".platform-workbench");
+    if (!(workbench instanceof HTMLElement)) {
+      return;
+    }
+    const toggleButton = getElement("public-center-edit-toggle");
+    if (toggleButton instanceof HTMLButtonElement) {
+      toggleButton.addEventListener("click", function () {
+        if (publicCenterDragState) {
+          cleanupPlatformDragState();
+        }
+        publicCenterEditMode = !publicCenterEditMode;
+        renderScriptCenter(currentSettings || settings || {});
+      });
+    }
+
+    if (!publicCenterEditMode) {
+      setPublicCenterEditStatus("点击“编辑顺序”后可拖动平台区块上下重排。", "");
+      return;
+    }
+
+    setPublicCenterEditStatus("按住平台手柄拖动；在目标区域停留片刻后，平台会自动让位并保存顺序。", "");
+
+    Array.from(center.querySelectorAll("[data-platform-drag-handle]")).forEach(function (handle) {
+      handle.addEventListener("pointerdown", function (event) {
+        if (!publicCenterEditMode || event.button !== 0) {
+          return;
+        }
+        const section = handle.closest(".platform-section.platform-module");
+        const platformId = normalizeText(handle.getAttribute("data-platform-drag-handle"));
+        if (!(section instanceof HTMLElement) || !platformId) {
+          return;
+        }
+
+        event.preventDefault();
+        cleanupPlatformDragState();
+
+        const rect = section.getBoundingClientRect();
+        const placeholder = buildPlatformDragPlaceholder(section);
+        const ghost = createPlatformDragGhost(section, rect);
+        section.replaceWith(placeholder);
+        workbench.classList.add("is-sorting");
+        document.body.classList.add("is-platform-reordering");
+
+        const dragState = {
+          platformId,
+          workbench,
+          sourceSection: section,
+          placeholder,
+          ghost,
+          offsetX: event.clientX - rect.left,
+          offsetY: event.clientY - rect.top,
+          hoverTargetId: "",
+          hoverPosition: "",
+          hoverTimer: null,
+          isFinalizing: false,
+          onPointerMove: null,
+          onPointerUp: null,
+          onKeyDown: null,
+        };
+
+        const handleHoverCandidate = function (clientY) {
+          const candidate = getPlatformReorderCandidate(workbench, platformId, clientY);
+          if (!candidate) {
+            dragState.hoverTargetId = "";
+            dragState.hoverPosition = "";
+            clearPlatformHoverTimer();
+            clearPlatformDropIndicators(workbench);
+            return;
+          }
+
+          updatePlatformHoverIndicator(workbench, candidate.target, candidate.position);
+          if (
+            dragState.hoverTargetId === candidate.targetId &&
+            dragState.hoverPosition === candidate.position
+          ) {
+            return;
+          }
+
+          dragState.hoverTargetId = candidate.targetId;
+          dragState.hoverPosition = candidate.position;
+          clearPlatformHoverTimer();
+          dragState.hoverTimer = globalThis.setTimeout(function () {
+            movePlatformPlaceholder(workbench, placeholder, candidate.target, candidate.position);
+            updatePlatformHoverIndicator(workbench, candidate.target, candidate.position);
+          }, PLATFORM_REORDER_HOVER_DELAY_MS);
+        };
+
+        const finalizeDrag = function (cancelled) {
+          if (dragState.isFinalizing) {
+            return;
+          }
+          dragState.isFinalizing = true;
+          clearPlatformHoverTimer();
+          clearPlatformDropIndicators(workbench);
+          const finish = function () {
+            placeholder.replaceWith(section);
+            cleanupPlatformDragState({ keepPlaceholder: true });
+            if (cancelled) {
+              setPublicCenterEditStatus("已取消平台重排。", "");
+              return;
+            }
+            const nextOrder = getCurrentRenderedPlatformOrder(workbench);
+            if (nextOrder.length) {
+              void persistPublicCenterPlatformOrder(nextOrder);
+            }
+          };
+
+          if (!(ghost instanceof HTMLElement) || isReducedMotionPreferred()) {
+            finish();
+            return;
+          }
+
+          const targetRect = placeholder.getBoundingClientRect();
+          ghost.style.transition = "left 180ms cubic-bezier(0.2, 0.82, 0.2, 1), top 180ms cubic-bezier(0.2, 0.82, 0.2, 1), transform 180ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 180ms ease";
+          ghost.style.left = Math.round(targetRect.left) + "px";
+          ghost.style.top = Math.round(targetRect.top) + "px";
+          ghost.style.transform = "scale(0.98)";
+          let completed = false;
+          const done = function () {
+            if (completed) {
+              return;
+            }
+            completed = true;
+            ghost.removeEventListener("transitionend", done);
+            finish();
+          };
+          ghost.addEventListener("transitionend", done);
+          globalThis.setTimeout(done, 220);
+        };
+
+        dragState.onPointerMove = function (moveEvent) {
+          updatePlatformDragGhostPosition(dragState, moveEvent.clientX, moveEvent.clientY);
+          maybeAutoScrollPlatformWorkbench(moveEvent.clientY);
+          handleHoverCandidate(moveEvent.clientY);
+        };
+        dragState.onPointerUp = function () {
+          finalizeDrag(false);
+        };
+        dragState.onKeyDown = function (keyEvent) {
+          if (keyEvent.key === "Escape") {
+            finalizeDrag(true);
+          }
+        };
+
+        publicCenterDragState = dragState;
+        updatePlatformDragGhostPosition(dragState, event.clientX, event.clientY);
+        handleHoverCandidate(event.clientY);
+        window.addEventListener("pointermove", dragState.onPointerMove);
+        window.addEventListener("pointerup", dragState.onPointerUp, { once: true });
+        window.addEventListener("pointercancel", dragState.onPointerUp, { once: true });
+        window.addEventListener("keydown", dragState.onKeyDown);
+      });
+    });
+  }
+
   async function persistPublicCenterPlatformOrder(nextOrder) {
     if (!storage || typeof storage.patchSettings !== "function") {
       setPublicCenterEditStatus("当前扩展版本不支持保存平台顺序。", "warning");
@@ -893,97 +1239,6 @@
     }
   }
 
-  function bindPlatformReorderInteractions(center, settings) {
-    const workbench = center.querySelector(".platform-workbench");
-    if (!(workbench instanceof HTMLElement)) {
-      return;
-    }
-    const toggleButton = getElement("public-center-edit-toggle");
-    if (toggleButton instanceof HTMLButtonElement) {
-      toggleButton.addEventListener("click", function () {
-        publicCenterEditMode = !publicCenterEditMode;
-        renderScriptCenter(currentSettings || settings || {});
-      });
-    }
-
-    if (!publicCenterEditMode) {
-      setPublicCenterEditStatus("点击“编辑顺序”后可拖动平台区块上下重排。", "");
-      return;
-    }
-
-    setPublicCenterEditStatus("拖动平台手柄可调整顺序；完成编辑后顺序会保存在当前浏览器。", "");
-
-    Array.from(center.querySelectorAll("[data-platform-drag-handle]")).forEach(function (handle) {
-      handle.addEventListener("dragstart", function (event) {
-        const section = handle.closest(".platform-section.platform-module");
-        const platformId = normalizeText(handle.getAttribute("data-platform-drag-handle"));
-        if (!(section instanceof HTMLElement) || !platformId) {
-          return;
-        }
-        publicCenterDragState = { platformId };
-        section.classList.add("is-dragging");
-        if (event.dataTransfer) {
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", platformId);
-        }
-      });
-
-      handle.addEventListener("dragend", function () {
-        publicCenterDragState = null;
-        clearPlatformDropIndicators(workbench);
-      });
-    });
-
-    getPlatformSectionNodes(workbench).forEach(function (section) {
-      section.addEventListener("dragover", function (event) {
-        if (!publicCenterDragState?.platformId) {
-          return;
-        }
-        event.preventDefault();
-        const rect = section.getBoundingClientRect();
-        const dropPosition = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
-        clearPlatformDropIndicators(workbench);
-        section.classList.add(dropPosition === "before" ? "is-drop-before" : "is-drop-after");
-      });
-
-      section.addEventListener("dragleave", function (event) {
-        if (!(event.relatedTarget instanceof Node) || !section.contains(event.relatedTarget)) {
-          section.classList.remove("is-drop-before", "is-drop-after");
-        }
-      });
-
-      section.addEventListener("drop", function (event) {
-        const movingId = publicCenterDragState?.platformId;
-        const targetId = normalizeText(section.getAttribute("data-platform-id"));
-        if (!movingId || !targetId || movingId === targetId) {
-          clearPlatformDropIndicators(workbench);
-          return;
-        }
-        event.preventDefault();
-        const rect = section.getBoundingClientRect();
-        const dropPosition = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
-        const currentOrder = getCurrentRenderedPlatformOrder(workbench);
-        const nextOrder = buildPlatformOrderAfterDrop(currentOrder, movingId, targetId, dropPosition);
-        if (!nextOrder.length || nextOrder.join("|") === currentOrder.join("|")) {
-          clearPlatformDropIndicators(workbench);
-          return;
-        }
-
-        animatePlatformWorkbenchFlip(workbench, function () {
-          nextOrder.forEach(function (platformId) {
-            const nextSection = workbench.querySelector(
-              '.platform-section.platform-module[data-platform-id="' + platformId + '"]'
-            );
-            if (nextSection instanceof HTMLElement) {
-              workbench.appendChild(nextSection);
-            }
-          });
-        });
-        clearPlatformDropIndicators(workbench);
-        void persistPublicCenterPlatformOrder(nextOrder);
-      });
-    });
-  }
 
   function getSearchParams() {
     return new URLSearchParams(location.search || "");
@@ -8345,6 +8600,38 @@
     });
   }
 
+  function ensureDetailWorkbenchTracks(workbench) {
+    if (!(workbench instanceof HTMLElement)) {
+      return {
+        primaryTrack: null,
+        secondaryTrack: null,
+      };
+    }
+
+    let primaryTrack = workbench.querySelector(".detail-track.detail-track-primary");
+    let secondaryTrack = workbench.querySelector(".detail-track.detail-track-secondary");
+
+    if (!(primaryTrack instanceof HTMLElement)) {
+      primaryTrack = document.createElement("div");
+      primaryTrack.className = "detail-track detail-track-primary";
+      workbench.insertBefore(primaryTrack, workbench.firstChild);
+    }
+    if (!(secondaryTrack instanceof HTMLElement)) {
+      secondaryTrack = document.createElement("div");
+      secondaryTrack.className = "detail-track detail-track-secondary";
+      if (primaryTrack.nextSibling) {
+        workbench.insertBefore(secondaryTrack, primaryTrack.nextSibling);
+      } else {
+        workbench.appendChild(secondaryTrack);
+      }
+    }
+
+    return {
+      primaryTrack,
+      secondaryTrack,
+    };
+  }
+
   function updateDetailLayout(scriptId) {
     const workbench = document.querySelector("#script-detail-view .detail-workbench");
     const sharedAiPanel = getElement("detail-shared-asr-ai-panel");
@@ -8365,24 +8652,52 @@
     showDetailShortcutPanel(scriptId);
 
     if (workbench instanceof HTMLElement) {
-      const visiblePanelCount = Array.from(workbench.children).filter(function (node) {
-        return node instanceof HTMLElement && !node.classList.contains("hidden");
-      }).length;
-      const hasVisibleBasePanel = Boolean(
-        workbench.querySelector(".detail-panel-base:not(.hidden)")
-      );
-      const hasVisibleAiPanel = Boolean(
-        workbench.querySelector(".detail-ai-panel:not(.hidden)")
-      );
+      const hasVisibleBasePanel = Boolean(workbench.querySelector(".detail-panel-base:not(.hidden)"));
+      const hasVisibleAiPanel = Boolean(workbench.querySelector(".detail-ai-panel:not(.hidden)"));
       const hasVisibleShortcutPanel = Boolean(
         workbench.querySelector(".detail-shortcut-panel:not(.hidden)")
       );
-      workbench.dataset.panelCount = String(visiblePanelCount);
+      const trackState = buildDetailWorkbenchTrackState({
+        hasBasePanel: hasVisibleBasePanel,
+        hasAiPanel: hasVisibleAiPanel,
+        hasShortcutPanel: hasVisibleShortcutPanel,
+      });
+      const tracks = ensureDetailWorkbenchTracks(workbench);
+      const panelMap = {
+        base: workbench.querySelector(".detail-panel-base:not(.hidden)"),
+        ai: workbench.querySelector(".detail-ai-panel:not(.hidden)"),
+        shortcut: workbench.querySelector(".detail-shortcut-panel:not(.hidden)"),
+      };
+
+      trackState.primary.forEach(function (panelKind) {
+        const panel = panelMap[panelKind];
+        if (panel instanceof HTMLElement && tracks.primaryTrack instanceof HTMLElement) {
+          tracks.primaryTrack.appendChild(panel);
+        }
+      });
+
+      trackState.secondary.forEach(function (panelKind) {
+        const panel = panelMap[panelKind];
+        if (panel instanceof HTMLElement && tracks.secondaryTrack instanceof HTMLElement) {
+          tracks.secondaryTrack.appendChild(panel);
+        }
+      });
+
+      if (tracks.primaryTrack instanceof HTMLElement) {
+        tracks.primaryTrack.classList.toggle("is-empty", trackState.primary.length === 0);
+      }
+      if (tracks.secondaryTrack instanceof HTMLElement) {
+        tracks.secondaryTrack.classList.toggle("is-empty", trackState.secondary.length === 0);
+      }
+
+      workbench.dataset.panelCount = String(trackState.panelCount);
       workbench.dataset.layout = getDetailWorkbenchLayoutMode({
         hasBasePanel: hasVisibleBasePanel,
         hasAiPanel: hasVisibleAiPanel,
         hasShortcutPanel: hasVisibleShortcutPanel,
       });
+      workbench.classList.toggle("is-single", trackState.isSingle);
+      workbench.classList.toggle("has-secondary-track", trackState.secondary.length > 0);
     }
   }
 

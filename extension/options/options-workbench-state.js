@@ -117,8 +117,42 @@
     return "single";
   }
 
+  function buildDetailWorkbenchTrackState(input) {
+    const config = input && typeof input === "object" ? input : {};
+    const orderedPanelKinds = [];
+    if (config.hasBasePanel !== false) {
+      orderedPanelKinds.push("base");
+    }
+    if (config.hasAiPanel === true) {
+      orderedPanelKinds.push("ai");
+    }
+    if (config.hasShortcutPanel === true) {
+      orderedPanelKinds.push("shortcut");
+    }
+
+    const primary = [];
+    const secondary = [];
+    if (orderedPanelKinds[0]) {
+      primary.push(orderedPanelKinds[0]);
+    }
+    if (orderedPanelKinds[1]) {
+      secondary.push(orderedPanelKinds[1]);
+    }
+    if (orderedPanelKinds[2]) {
+      primary.push(orderedPanelKinds[2]);
+    }
+
+    return {
+      primary,
+      secondary,
+      panelCount: orderedPanelKinds.length,
+      isSingle: orderedPanelKinds.length <= 1,
+    };
+  }
+
   const api = {
     buildPlatformEntryDescriptor,
+    buildDetailWorkbenchTrackState,
     buildOrderedPlatformIds,
     getDetailWorkbenchLayoutMode,
     movePlatformOrderItem,

@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
+  buildDetailWorkbenchTrackState,
   buildPlatformEntryDescriptor,
   buildOrderedPlatformIds,
   movePlatformOrderItem,
@@ -99,5 +100,49 @@ test("detail workbench layout mode uses layered defaults", function () {
       hasShortcutPanel: false,
     }),
     "single"
+  );
+});
+
+test("detail workbench track state distributes panels across primary and secondary tracks", function () {
+  assert.deepEqual(
+    buildDetailWorkbenchTrackState({
+      hasBasePanel: true,
+      hasAiPanel: true,
+      hasShortcutPanel: true,
+    }),
+    {
+      primary: ["base", "shortcut"],
+      secondary: ["ai"],
+      panelCount: 3,
+      isSingle: false,
+    }
+  );
+
+  assert.deepEqual(
+    buildDetailWorkbenchTrackState({
+      hasBasePanel: true,
+      hasAiPanel: false,
+      hasShortcutPanel: true,
+    }),
+    {
+      primary: ["base"],
+      secondary: ["shortcut"],
+      panelCount: 2,
+      isSingle: false,
+    }
+  );
+
+  assert.deepEqual(
+    buildDetailWorkbenchTrackState({
+      hasBasePanel: true,
+      hasAiPanel: false,
+      hasShortcutPanel: false,
+    }),
+    {
+      primary: ["base"],
+      secondary: [],
+      panelCount: 1,
+      isSingle: true,
+    }
   );
 });
