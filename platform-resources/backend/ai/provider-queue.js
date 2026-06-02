@@ -12,7 +12,7 @@ const DEFAULT_QWEN_BURST_RETRY_MAX = 0;
 const DEFAULT_RETRY_BASE_DELAY_MS = 1200;
 const DEFAULT_RETRY_MAX_DELAY_MS = 12000;
 const DEFAULT_MODEL_QUEUE_RPM = 1200;
-const DEFAULT_MODEL_QUEUE_MAX_CONCURRENT = 15;
+const DEFAULT_MODEL_QUEUE_TOTAL_CAPACITY = 999;
 const MODEL_QUEUE_KEY_PREFIX = "model:";
 const DEFAULT_GROUP_SETTINGS = {
   qwen_omni: {
@@ -187,19 +187,21 @@ function getModelQueueSettings(groupName) {
     1,
     10000
   );
-  const maxConcurrent = parsePositiveInteger(
+  const totalCapacity = parsePositiveInteger(
     process.env["ASC_AI_MODEL_QUEUE_" + envSegment + "_CONCURRENCY"] ||
       process.env.ASC_AI_MODEL_QUEUE_DEFAULT_CONCURRENCY,
-    DEFAULT_MODEL_QUEUE_MAX_CONCURRENT,
+    DEFAULT_MODEL_QUEUE_TOTAL_CAPACITY,
     1,
-    20
+    999
   );
   return {
     groupName: normalizedKey,
+    isModelQueue: true,
     rpm,
     intervalMs: Math.max(1, Math.ceil(60000 / rpm)),
-    maxConcurrent,
-    maxSize: getGlobalQueueMaxSize(),
+    maxConcurrent: totalCapacity,
+    totalCapacity,
+    maxSize: totalCapacity,
     retryMax: getGroupRetryMax(normalizedKey),
     retryBaseDelayMs: getGroupRetryBaseDelayMs(normalizedKey),
     retryMaxDelayMs: getRetryMaxDelayMs(),
@@ -212,6 +214,7 @@ function getModelQueuePolicy() {
     keyStrategy: "concrete-model-name",
     defaultRpm: settings.rpm,
     dispatchIntervalMs: settings.intervalMs,
+    defaultCapacity: settings.totalCapacity || settings.maxConcurrent,
     defaultMaxConcurrent: settings.maxConcurrent,
     maxSize: settings.maxSize,
     retryMax: settings.retryMax,
@@ -234,6 +237,7 @@ function getGroupSettings(groupName) {
   );
   return {
     groupName,
+    isModelQueue: false,
     rpm,
     intervalMs: Math.max(1, Math.ceil(60000 / rpm)),
     maxConcurrent,
@@ -245,12 +249,13 @@ function getGroupSettings(groupName) {
 }
 
 function createQueueOverflowError(groupName, settings) {
-  const error = new Error("后端 AI 任务队列已满，请稍后重试。");
+  const error = new Error("后端池已满，请稍后重试。");
   error.code = "provider-queue-full";
   error.statusCode = 503;
   error.groupName = groupName;
   error.queue = {
     groupName,
+    totalCapacity: settings.totalCapacity || settings.maxConcurrent || settings.maxSize,
     maxSize: settings.maxSize,
   };
   return error;
@@ -290,14 +295,21 @@ class ProviderQueue {
 
   getSnapshot() {
     const settings = this.getSettings();
+    const totalCapacity = Number(settings.totalCapacity || settings.maxConcurrent || settings.maxSize || 0) || 0;
+    const usedCount = this.activeCount + this.items.length;
     return {
       groupName: this.groupName,
+      isModelQueue: settings.isModelQueue === true,
       rpm: settings.rpm,
       intervalMs: settings.intervalMs,
       maxSize: settings.maxSize,
       retryMax: settings.retryMax,
       pendingCount: this.items.length,
       activeCount: this.activeCount,
+      usedCount,
+      totalCapacity,
+      availableCount: Math.max(0, totalCapacity - usedCount),
+      isFull: totalCapacity > 0 && usedCount >= totalCapacity,
       maxConcurrent: settings.maxConcurrent,
       processing: this.activeCount > 0,
       nextAvailableAt: this.nextAvailableAt || 0,
@@ -308,10 +320,16 @@ class ProviderQueue {
   enqueue(task, options) {
     const settings = this.getSettings();
     const signal = options?.signal;
+    const totalCapacity = Number(settings.totalCapacity || settings.maxConcurrent || settings.maxSize || 0) || 0;
+    const usedCount = this.activeCount + this.items.length;
     if (isAbortSignalAborted(signal)) {
       return Promise.reject(createQueueAbortError(signal));
     }
-    if (this.items.length >= settings.maxSize) {
+    if (totalCapacity > 0 && usedCount >= totalCapacity) {
+      this.stats.overflowCount += 1;
+      return Promise.reject(createQueueOverflowError(this.groupName, settings));
+    }
+    if (totalCapacity <= 0 && this.items.length >= settings.maxSize) {
       this.stats.overflowCount += 1;
       return Promise.reject(createQueueOverflowError(this.groupName, settings));
     }

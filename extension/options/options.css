@@ -828,42 +828,133 @@ p {
   line-height: 1.6;
 }
 
-.admin-chart {
-  display: block;
-  width: 100%;
-  height: auto;
+.pool-card-grid {
+  display: grid;
+  gap: 14px;
 }
 
-.pool-chart-track {
-  fill: rgba(148, 163, 184, 0.18);
+.pool-card {
+  padding: 18px 18px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(191, 219, 254, 0.9);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96)),
+    linear-gradient(135deg, rgba(59, 130, 246, 0.06), rgba(16, 185, 129, 0.04));
+  box-shadow: 0 14px 34px rgba(148, 163, 184, 0.12);
 }
 
-.pool-chart-fill {
-  fill: rgba(21, 94, 239, 0.82);
+.pool-card[data-pool-state="busy"] {
+  border-color: rgba(96, 165, 250, 0.9);
 }
 
-.pool-chart-name,
-.pool-chart-value {
-  fill: var(--text-primary);
-  font-size: 12px;
+.pool-card[data-pool-state="full"] {
+  border-color: rgba(248, 113, 113, 0.7);
+  box-shadow: 0 16px 36px rgba(248, 113, 113, 0.12);
+}
+
+.pool-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.pool-card-name {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.pool-card-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.pool-card-status {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--brand-primary);
+  font-size: 13px;
   font-weight: 700;
 }
 
-.pool-chart-meta {
-  fill: var(--text-secondary);
-  font-size: 11px;
+.pool-card[data-pool-state="idle"] .pool-card-status {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary);
 }
 
-svg.admin-chart {
-  overflow: visible;
+.pool-card[data-pool-state="full"] .pool-card-status {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--brand-danger);
 }
 
-svg.admin-chart::before {
-  content: none;
+.pool-progress {
+  height: 16px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
 }
 
-.admin-surface-card #admin-overview-pools .admin-chart {
-  min-height: 180px;
+.pool-progress-bar {
+  height: 100%;
+  min-width: 10px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.92), rgba(16, 185, 129, 0.82));
+}
+
+.pool-card[data-pool-state="idle"] .pool-progress-bar {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.42), rgba(148, 163, 184, 0.22));
+}
+
+.pool-card[data-pool-state="full"] .pool-progress-bar {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.92), rgba(249, 115, 22, 0.88));
+}
+
+.pool-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pool-progress-meta strong {
+  font-size: 22px;
+  color: var(--text-primary);
+}
+
+.pool-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pool-stat {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.92);
+}
+
+.pool-stat-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pool-stat strong {
+  font-size: 18px;
+  color: var(--text-primary);
 }
 
 .detail-note {
@@ -898,6 +989,7 @@ svg.admin-chart::before {
   .admin-summary-grid,
   .admin-two-column,
   .admin-download-grid,
+  .pool-stat-grid,
   .detail-grid.two,
   .asr-ai-grid.two,
   .asr-ai-grid.three,
@@ -929,6 +1021,16 @@ svg.admin-chart::before {
   .admin-surface-card,
   .admin-sidebar {
     padding: 18px;
+  }
+
+  .pool-card-head,
+  .pool-progress-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pool-card-name {
+    font-size: 24px;
   }
 
   .hero::before {

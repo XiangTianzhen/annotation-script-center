@@ -30,13 +30,23 @@ function normalizeRuntime(runtime) {
           : {},
       activePools: activePools
         .map(function mapPool(pool) {
-          const maxConcurrent = Number(pool.maxConcurrent || 0) || 0;
           const activeCount = Number(pool.activeCount || 0) || 0;
+          const pendingCount = Number(pool.pendingCount || 0) || 0;
+          const capacity = Number(pool.totalCapacity || pool.maxConcurrent || 0) || 0;
+          const usedCount = Number(pool.usedCount || activeCount + pendingCount) || 0;
+          const availableCount = Math.max(
+            0,
+            Number(pool.availableCount || capacity - usedCount) || 0
+          );
           return Object.assign({}, pool, {
             displayName: toPoolDisplayName(pool.groupName),
+            capacity,
+            usedCount,
+            availableCount,
+            isFull: pool.isFull === true || (capacity > 0 && usedCount >= capacity),
             utilizationPercent:
-              maxConcurrent > 0
-                ? Math.round((activeCount / maxConcurrent) * 100)
+              capacity > 0
+                ? Math.round((usedCount / capacity) * 100)
                 : 0,
           });
         })

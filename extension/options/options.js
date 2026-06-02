@@ -7128,8 +7128,8 @@
       '<button type="button" class="admin-nav-button" data-admin-tab="downloads">下载中心</button>',
       "</nav>",
       '<section id="admin-tab-overview" class="admin-tab-panel">',
-      '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>当前只保留模型池占用，页面每 60 秒自动刷新一次，也可手动刷新。</p></div></div>',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>模型池占用</strong><span>实时取自统一 queue 快照</span></div><div id="admin-overview-pools"></div></section>',
+      '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>这里只展示每个模型池还能接收多少请求；页面每 60 秒自动刷新一次，也可手动刷新。</p></div></div>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>模型池占用</strong><span>按顺序排队，每 50ms 发起 1 个请求</span></div><div id="admin-overview-pools"></div></section>',
       '<div id="admin-overview-status" class="status-text"></div>',
       "</section>",
       '<section id="admin-tab-backend" class="admin-tab-panel hidden">',
@@ -7177,26 +7177,42 @@
     if (rows.length <= 0) {
       return buildEmptyState("当前没有活跃模型池。");
     }
-    const width = 560;
-    const rowHeight = 48;
-    const height = rows.length * rowHeight + 20;
-    const barLeft = 210;
-    const barWidth = 260;
-    const maxPercent = 100;
-    const content = rows
+    return [
+      '<div class="pool-card-grid">',
+      rows
       .map(function (pool, index) {
-        const y = 10 + index * rowHeight;
-        const ratio = Math.max(0, Math.min(maxPercent, Number(pool.utilizationPercent || 0)));
+        const ratio = Math.max(0, Math.min(100, Number(pool.utilizationPercent || 0)));
+        const capacity = Number(pool.capacity || pool.totalCapacity || 0) || 0;
+        const activeCount = Number(pool.activeCount || 0) || 0;
+        const pendingCount = Number(pool.pendingCount || 0) || 0;
+        const usedCount = Number(pool.usedCount || activeCount + pendingCount) || 0;
+        const availableCount = Math.max(0, Number(pool.availableCount || capacity - usedCount) || 0);
+        const statusText = pool.isFull
+          ? "后端池已满"
+          : usedCount <= 0
+            ? "当前空闲"
+            : "当前占用 " + String(ratio) + "%";
         return [
-          '<text x="0" y="' + (y + 16) + '" class="pool-chart-name">' + escapeHtml(pool.displayName || pool.groupName || "unknown") + "</text>",
-          '<text x="0" y="' + (y + 33) + '" class="pool-chart-meta">活跃 ' + escapeHtml(String(pool.activeCount || 0)) + ' / ' + escapeHtml(String(pool.maxConcurrent || 0)) + " · 排队 " + escapeHtml(String(pool.pendingCount || 0)) + "</text>",
-          '<rect x="' + barLeft + '" y="' + y + '" width="' + barWidth + '" height="14" rx="7" class="pool-chart-track"></rect>',
-          '<rect x="' + barLeft + '" y="' + y + '" width="' + Math.round((ratio / 100) * barWidth) + '" height="14" rx="7" class="pool-chart-fill"></rect>',
-          '<text x="' + (barLeft + barWidth + 14) + '" y="' + (y + 12) + '" class="pool-chart-value">' + String(ratio) + "%</text>",
+          '<article class="pool-card" data-pool-state="' + (pool.isFull ? "full" : usedCount > 0 ? "busy" : "idle") + '">',
+          '<div class="pool-card-head">',
+          '<div><h4 class="pool-card-name">' + escapeHtml(pool.displayName || pool.groupName || "unknown") + "</h4>",
+          '<p class="pool-card-note">按进入顺序排队；后端每 50ms 发起 1 个请求。</p></div>',
+          '<span class="pool-card-status">' + escapeHtml(statusText) + "</span>",
+          "</div>",
+          '<div class="pool-progress"><div class="pool-progress-bar" style="width:' + escapeHtml(String(ratio)) + '%"></div></div>',
+          '<div class="pool-progress-meta"><strong>' + escapeHtml(String(ratio)) + '%</strong><span>已使用 ' + escapeHtml(formatNumber(usedCount)) + ' / ' + escapeHtml(formatNumber(capacity)) + "</span></div>",
+          '<div class="pool-stat-grid">',
+          '<div class="pool-stat"><span class="pool-stat-label">正在处理</span><strong>' + escapeHtml(formatNumber(activeCount)) + " 个</strong></div>",
+          '<div class="pool-stat"><span class="pool-stat-label">等待处理</span><strong>' + escapeHtml(formatNumber(pendingCount)) + " 个</strong></div>",
+          '<div class="pool-stat"><span class="pool-stat-label">池容量</span><strong>' + escapeHtml(formatNumber(capacity)) + " 个</strong></div>",
+          '<div class="pool-stat"><span class="pool-stat-label">剩余可接收</span><strong>' + escapeHtml(formatNumber(availableCount)) + " 个</strong></div>",
+          "</div>",
+          "</article>",
         ].join("");
       })
-      .join("");
-    return '<svg class="admin-chart" viewBox="0 0 ' + width + " " + height + '">' + content + "</svg>";
+      .join(""),
+      "</div>",
+    ].join("");
   }
 
   function renderAdminDownloadSummary(data) {

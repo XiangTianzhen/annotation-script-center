@@ -370,6 +370,7 @@ Aishell Tech AI 接口：
   - 当前只返回模型池占用所需的 queue 快照、后端状态和下载中心摘要
   - 为避免高日志量环境下 Node OOM，失败摘要、脚本统计、趋势、调用人排行和运行日志已从仪表盘主接口中移除
   - 前端 `options` 仪表盘默认每 `60` 秒自动刷新一次，并可手动刷新
+  - 模型池快照当前按“总容量”语义返回：`capacity / usedCount / availableCount / isFull / utilizationPercent`
 
 项目数据下载接口：
 - `GET /api/admin/project-data-download/options`
@@ -582,7 +583,8 @@ DataBaker AI 架构补充：
   - Abaka Task21 `analyze`
 - 统一后端 provider queue 的 key 已从“脚本分组”扩展为“具体模型名”：
   - 同一模型跨平台、跨脚本共享同一上游发送池。
-  - 默认模型池速率为 `20 req/s`（`50ms` 一次发出机会），默认并发上限 `15`。
+  - 默认模型池速率为 `20 req/s`（`50ms` 一次发出机会），并按 FIFO 顺序发起请求。
+  - 单个模型池默认总容量为 `999`（`正在处理 + 等待处理`）；达到 `999` 后返回“后端池已满，请稍后重试。”
   - 两阶段链路中的听音模型和比较 / 推理模型分别按各自真实模型名进入独立池。
 
 

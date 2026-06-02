@@ -21,20 +21,23 @@ test("admin dashboard overview only returns pool occupancy payload", function ()
         keyStrategy: "concrete-model-name",
         defaultModelPool: {
           defaultRpm: 1200,
-          defaultMaxConcurrent: 15,
+          defaultCapacity: 999,
+          defaultMaxConcurrent: 999,
         },
         activePools: [
           {
             groupName: "model:qwen3.5-omni-flash",
             activeCount: 6,
             pendingCount: 3,
-            maxConcurrent: 15,
+            maxConcurrent: 999,
+            totalCapacity: 999,
           },
           {
             groupName: "model:qwen3.5-plus",
             activeCount: 2,
             pendingCount: 0,
-            maxConcurrent: 15,
+            maxConcurrent: 999,
+            totalCapacity: 999,
           },
         ],
       },
@@ -54,7 +57,12 @@ test("admin dashboard overview only returns pool occupancy payload", function ()
   assert.equal(overview.data.generatedAt, "2026-06-02T10:00:00.000Z");
   assert.equal(overview.data.backend.status, "ready");
   assert.equal(overview.data.runtime.queue.activePools[0].displayName, "qwen3.5-omni-flash");
-  assert.equal(overview.data.runtime.queue.activePools[0].utilizationPercent, 40);
+  assert.equal(overview.data.runtime.queue.defaultModelPool.defaultCapacity, 999);
+  assert.equal(overview.data.runtime.queue.activePools[0].capacity, 999);
+  assert.equal(overview.data.runtime.queue.activePools[0].usedCount, 9);
+  assert.equal(overview.data.runtime.queue.activePools[0].availableCount, 990);
+  assert.equal(overview.data.runtime.queue.activePools[0].isFull, false);
+  assert.equal(overview.data.runtime.queue.activePools[0].utilizationPercent, 1);
   assert.equal(overview.data.downloads.projectDataDatasets.length, 1);
   assert.equal(overview.data.downloads.aiCallLogDatasets.length, 1);
   assert.equal("stats" in overview.data, false);
