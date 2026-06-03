@@ -922,18 +922,36 @@
   }
 
   function createPlatformDragGhost(section, rect) {
-    const ghost = section.cloneNode(true);
-    ghost.classList.add("platform-drag-ghost");
-    ghost.style.width = Math.round(rect.width) + "px";
-    ghost.style.height = Math.round(rect.height) + "px";
-    ghost.style.left = Math.round(rect.left) + "px";
-    ghost.style.top = Math.round(rect.top) + "px";
-    Array.from(ghost.querySelectorAll("button, a, input, select, textarea")).forEach(function (node) {
-      node.setAttribute("tabindex", "-1");
-      node.setAttribute("aria-hidden", "true");
-    });
-    document.body.appendChild(ghost);
-    return ghost;
+    section.classList.add("platform-drag-ghost");
+    section.style.width = Math.round(rect.width) + "px";
+    section.style.height = Math.round(rect.height) + "px";
+    section.style.left = Math.round(rect.left) + "px";
+    section.style.top = Math.round(rect.top) + "px";
+    section.style.position = "fixed";
+    section.style.margin = "0";
+    section.style.zIndex = "1200";
+    section.style.pointerEvents = "none";
+    section.style.boxSizing = "border-box";
+    document.body.appendChild(section);
+    return section;
+  }
+
+  function resetPlatformDragGhost(section) {
+    if (!(section instanceof HTMLElement)) {
+      return;
+    }
+    section.classList.remove("platform-drag-ghost");
+    section.style.width = "";
+    section.style.height = "";
+    section.style.left = "";
+    section.style.top = "";
+    section.style.position = "";
+    section.style.margin = "";
+    section.style.zIndex = "";
+    section.style.pointerEvents = "";
+    section.style.boxSizing = "";
+    section.style.transition = "";
+    section.style.transform = "";
   }
 
   function updatePlatformDragGhostPosition(state, clientX, clientY) {
@@ -1046,8 +1064,12 @@
     if (state.workbench instanceof HTMLElement) {
       state.workbench.classList.remove("is-sorting");
     }
-    if (state.ghost instanceof HTMLElement && state.ghost.parentNode) {
-      state.ghost.parentNode.removeChild(state.ghost);
+    if (state.ghost instanceof HTMLElement) {
+      if (state.ghost === state.sourceSection) {
+        resetPlatformDragGhost(state.ghost);
+      } else if (state.ghost.parentNode) {
+        state.ghost.parentNode.removeChild(state.ghost);
+      }
     }
     if (state.placeholder instanceof HTMLElement && state.placeholder.parentNode && config.keepPlaceholder !== true) {
       state.placeholder.parentNode.removeChild(state.placeholder);
@@ -1081,15 +1103,14 @@
       return;
     }
 
-    setPublicCenterEditStatus("按住平台手柄拖动；在目标区域停留片刻后，平台会自动让位并保存顺序。", "");
+    setPublicCenterEditStatus("按住平台区块拖动；在目标区域停留片刻后，平台会自动让位并保存顺序。", "");
 
-    Array.from(center.querySelectorAll("[data-platform-drag-handle]")).forEach(function (handle) {
-      handle.addEventListener("pointerdown", function (event) {
+    Array.from(center.querySelectorAll(".platform-section.platform-module")).forEach(function (section) {
+      section.addEventListener("pointerdown", function (event) {
         if (!publicCenterEditMode || event.button !== 0) {
           return;
         }
-        const section = handle.closest(".platform-section.platform-module");
-        const platformId = normalizeText(handle.getAttribute("data-platform-drag-handle"));
+        const platformId = normalizeText(section.getAttribute("data-platform-id"));
         if (!(section instanceof HTMLElement) || !platformId) {
           return;
         }
@@ -1099,8 +1120,9 @@
 
         const rect = section.getBoundingClientRect();
         const placeholder = buildPlatformDragPlaceholder(section);
-        const ghost = createPlatformDragGhost(section, rect);
+        const sourceIndex = getPlatformSectionNodes(workbench).indexOf(section);
         section.replaceWith(placeholder);
+        const ghost = createPlatformDragGhost(section, rect);
         workbench.classList.add("is-sorting");
         document.body.classList.add("is-platform-reordering");
 
@@ -1110,6 +1132,7 @@
           sourceSection: section,
           placeholder,
           ghost,
+          sourceIndex,
           offsetX: event.clientX - rect.left,
           offsetY: event.clientY - rect.top,
           hoverTargetId: "",
@@ -1156,6 +1179,17 @@
           clearPlatformHoverTimer();
           clearPlatformDropIndicators(workbench);
           const finish = function () {
+            if (cancelled && placeholder.parentNode) {
+              const siblingSections = getPlatformSectionNodes(workbench).filter(function (item) {
+                return item !== placeholder;
+              });
+              const restoreBefore = siblingSections[Math.max(0, dragState.sourceIndex)] || null;
+              if (restoreBefore instanceof HTMLElement) {
+                placeholder.parentNode.insertBefore(placeholder, restoreBefore);
+              } else {
+                placeholder.parentNode.appendChild(placeholder);
+              }
+            }
             placeholder.replaceWith(section);
             cleanupPlatformDragState({ keepPlaceholder: true });
             if (cancelled) {
@@ -6833,11 +6867,6 @@
             "<h2>" + String(platform.label || platformId) + "</h2>",
             '<p class="platform-copy">' + String(platform.description || "") + "</p>",
             "</div>",
-            publicCenterEditMode
-              ? '<button type="button" class="platform-drag-handle" draggable="true" data-platform-drag-handle="' +
-                escapeHtml(platformId) +
-                '" aria-label="拖动排序" title="拖动排序"><span></span><span></span><span></span></button>'
-              : "",
             "</div>",
             '<div class="platform-facts">',
             '<button type="button" class="pill info platform-link-pill" data-platform-entry="' +
