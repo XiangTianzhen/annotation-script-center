@@ -1,3 +1,13 @@
+## 2026-06-04（beta 构建与隐藏解锁方案设计）
+
+- 新增 `docs/superpowers/specs/2026-06-04-beta-build-and-hidden-unlock-design.md`，用于收口 `v0.4.0` 的正式包 / beta 包方案。
+- 本轮设计固定以下边界：
+  - 正式包与 beta 包共用主代码，不长期分叉
+  - `脚本下载中心` 只展示正式包，beta 包只通过“查看外部目录”获取
+  - beta 包默认界面与正式版一致，只有“隐藏交互 + 口令”解锁后才增量显示 beta 平台、beta 脚本与 `Beta 服务器`
+  - popup / 右上角命中提示不能只看 URL，必须复用统一可见性状态；beta 平台被禁用后也不得继续显示命中
+- 当前以 `Lightwheel` 作为 beta 平台示例，明确了功能面板、脚本详情、命中检测与系统管理的统一过滤口径。
+
 ## 2026-06-04（LabelX 局部覆盖导出 + 系统仪表盘文件日志）
 
 - Alibaba LabelX ASR 转写 / ASR 快判的 `forceReplaceByBatchId` 语义改为“局部覆盖当前人员”：

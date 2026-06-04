@@ -22,6 +22,7 @@
 - `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`：`platform-resources` AI 框架迁移计划
 - `docs/superpowers/plans/2026-05-28-ai-call-logging-implementation.md`：AI 调用日志正式实现计划
 - `docs/superpowers/specs/2026-05-28-ai-call-logging-design.md`：AI 调用日志统一记录设计
+- `docs/superpowers/specs/2026-06-04-beta-build-and-hidden-unlock-design.md`：正式包 / beta 包与隐藏解锁设计
 - `docs/platforms/index.md`：平台与脚本文档索引
 - `docs/workflow/codex-prompt-style.md`：Codex Prompt 输出格式规范
 - `docs/workflow/manual-flow-acceptance-checklist.md`：人工验收清单
