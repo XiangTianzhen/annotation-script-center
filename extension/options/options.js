@@ -669,8 +669,13 @@
     if (!(node instanceof HTMLElement)) {
       return;
     }
-    node.className = "status-text" + (tone ? " " + tone : "");
-    node.textContent = normalizeText(message);
+    const text = normalizeText(message);
+    node.className = "status-text hidden";
+    node.textContent = "";
+    node.setAttribute("aria-hidden", "true");
+    if (!text || !tone) {
+      return;
+    }
   }
 
   function resetBetaUnlockTapSequence() {
@@ -699,17 +704,20 @@
       return;
     }
     if (!defaultBetaUnlockPasswordSha256) {
-      setBetaStatus("当前 beta 包未配置口令，无法解锁。", "error");
+      if (typeof globalThis.alert === "function") {
+        globalThis.alert("当前 beta 包未配置口令，无法解锁。");
+      }
       return;
     }
     const password = globalThis.prompt("请输入 beta 口令");
     if (!normalizeText(password)) {
-      setBetaStatus("已取消 beta 解锁。", "pending");
       return;
     }
     const hashed = await sha256Hex(password);
     if (hashed !== defaultBetaUnlockPasswordSha256) {
-      setBetaStatus("beta 口令错误。", "error");
+      if (typeof globalThis.alert === "function") {
+        globalThis.alert("beta 口令错误。");
+      }
       return;
     }
     currentSettings = await storage.patchSettings({
@@ -719,7 +727,6 @@
       },
     });
     resetAdminBackendDraft(currentSettings);
-    setBetaStatus("beta 功能已解锁并保存到本地缓存。", "enabled");
     await renderCurrentView();
   }
 
@@ -738,7 +745,6 @@
       meta: nextMeta,
     });
     resetAdminBackendDraft(currentSettings);
-    setBetaStatus("已退出 beta 模式。", "pending");
     await renderCurrentView();
   }
 
@@ -835,13 +841,7 @@
         !betaUnlocked || betaFeaturesVisibleByDefault
       );
     }
-    if (!isBetaBuild()) {
-      setBetaStatus("");
-    } else if (betaUnlocked) {
-      setBetaStatus("当前 beta 功能已解锁。", "enabled");
-    } else {
-      setBetaStatus("连续点击左上角品牌区 7 次后可输入 beta 口令。", "pending");
-    }
+    setBetaStatus("");
 
     if (routeNameNode && routeNoteNode) {
       if (activeRoute.view === "admin") {
@@ -10330,15 +10330,9 @@
         navigateToAdmin(getCurrentAdminTab());
       });
     }
-    const workspaceBrandTitle = getElement("workspace-brand-title");
-    if (workspaceBrandTitle instanceof HTMLElement) {
-      workspaceBrandTitle.addEventListener("click", function () {
-        registerBetaUnlockTap();
-      });
-    }
-    const workspaceVersionCompact = getElement("workspace-version-compact");
-    if (workspaceVersionCompact instanceof HTMLElement) {
-      workspaceVersionCompact.addEventListener("click", function () {
+    const workspaceBrandIcon = getElement("workspace-brand-icon");
+    if (workspaceBrandIcon instanceof HTMLElement) {
+      workspaceBrandIcon.addEventListener("click", function () {
         registerBetaUnlockTap();
       });
     }

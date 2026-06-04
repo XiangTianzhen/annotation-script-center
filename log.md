@@ -10,9 +10,9 @@
   - `public` 继续只展示公开平台与公开脚本
   - `beta` 继续打成单一 `annotation-script-center-beta.zip`
   - beta ZIP 会自动写入 `betaFeaturesVisibleByDefault=false`
-- `extension/options/options.js` 当前恢复为隐藏解锁文案：
-  - 未解锁时显示“连续点击左上角品牌区 7 次后可输入 beta 口令”
-  - 解锁后才显示“当前 beta 功能已解锁”
+- `extension/options/options.js` 当前恢复为隐藏解锁口径：
+  - 连续点击左上角品牌图片 `7` 次后才触发 beta 口令输入
+  - 页面侧栏不再主动显示 beta 解锁提示文案
 - 本轮验证：
   - `node --test extension/shared/build-meta.test.js`
   - `node --test extension/shared/constants.release.test.js`
@@ -57,7 +57,7 @@
   - `Beta 服务器` 后端模式
   - `Lightwheel` 作为 beta 平台的统一可见性判断
 - options 当前已接入 beta 隐藏解锁：
-  - 连续点击左上角品牌区 `7` 次后可输入 beta 口令
+  - 连续点击左上角品牌图片 `7` 次后可输入 beta 口令
   - 解锁成功后把状态保存到本地缓存
   - 当前页面直接增量显示 beta 平台、beta 脚本与 `Beta 服务器`
   - 退出 beta 模式时会清空解锁态，并把当前全局后端模式从 `beta` 回退到正式服务器
