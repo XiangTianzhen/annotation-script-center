@@ -119,7 +119,7 @@
 
 ## 当前重点平台与脚本
 
-- 平台：Alibaba LabelX、标贝易采、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（闽南语助手已接入，当前业务能力仅在 `/mytask/mark` 生效）。
+- 平台：Alibaba LabelX、标贝易采、DataBaker CVPC（平台资料首轮初始化完成，尚未接入运行时代码）、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（闽南语助手已接入，当前业务能力仅在 `/mytask/mark` 生效）。
 - 当前 CSV 对接字段口径：
   - LabelX 快判/转写：`有效时长(秒)_S` 与人员 `_P` 字段。
   - DataBaker 一检：`有效合格时长_S` 与 `质检人_P` 字段。
@@ -136,6 +136,10 @@
   - `platform-resources/aishell-tech/README.md`
   - `platform-resources/aishell-tech/network/README.md`
   - `platform-resources/aishell-tech/page-structure/README.md`
+- DataBaker CVPC 当前目录：
+  - `platform-resources/data-baker-cvpc/README.md`
+  - `platform-resources/data-baker-cvpc/network/README.md`
+  - `platform-resources/data-baker-cvpc/page-structure/README.md`
 
 ## 本地加载扩展
 
@@ -489,6 +493,7 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 - `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`：`platform-resources` AI 框架迁移计划
 - `platform-resources/abaka-ai/README.md`：Abaka AI 平台资料入口
 - `platform-resources/aishell-tech/README.md`：Aishell Tech 平台资料入口
+- `platform-resources/data-baker-cvpc/README.md`：DataBaker CVPC 平台资料入口
 - `docs/README.md`：docs 文档导航
 - `docs/platforms/index.md`：平台与脚本文档索引
 - `docs/workflow/codex-prompt-style.md`：Codex Prompt 格式规范

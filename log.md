@@ -1,3 +1,38 @@
+## 2026-06-05（DataBaker CVPC 首轮资料初始化）
+
+- 新增平台资料目录 `platform-resources/data-baker-cvpc/`，作为全新平台初始化入口；当前未创建 `extension/sites/data-baker-cvpc/`，也未接入专属后端。
+- 首轮网络资料已补齐：
+  - `network/01-login-and-boot.md`
+  - `network/02-post-login-shell-home.md`
+  - `network/03-home-to-editor-route.md`
+  - `network/04-editor-asr-init.md`
+  - `network/pending-capture.md`
+  - `network/next-session-handoff.md`
+- 首轮页面结构资料已补齐：
+  - `page-structure/01-login-and-shell.md`
+  - `page-structure/02-post-login-home.md`
+  - `page-structure/03-home-to-editor-route.md`
+  - `page-structure/04-editor-asr.md`
+  - `page-structure/pending-capture.md`
+- 首轮范围固定为：
+  - `#/login` 路由行为
+  - `#/home`
+  - `#/my-job`
+  - `#/my-job/:projectId/callout`
+  - `#/my-job/:projectId/callout/:taskProcessId/:taskId/job?...`
+  - `/app/editor/asr/?...`
+- 文档统一引入 4 个标记：
+  - `routeKey`
+  - `riskLevel`
+  - `selectorConfidence`
+  - `requestClass`
+- 当前安全边界：
+  - 只保留脱敏结构摘要，不提交 HAR、原始凭证、完整签名 URL、真实转写内容
+  - `领取 / 保存 / 挂起 / 提交 / 修改` 等动作继续按 `write-action` 处理，本轮未触发
+- 同步更新：
+  - `docs/platforms/index.md`
+  - `README.md`
+
 ## 2026-06-05（闽南语助手 AI 设置布局统一与并发默认值收口）
 
 - DataBaker 与 Aishell 两个闽南语助手的 `AI 连续填入并发数量` 默认值已统一收口为 `5`。

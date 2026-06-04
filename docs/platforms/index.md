@@ -28,6 +28,14 @@
 - 当前 AI 日志状态：DataBaker recommend 当前已默认写脚本级 AI 调用 CSV，并开放 `logs/summary` 统计接口。
 - 如需 Python 辅助脚本，统一复用 `platform-resources/backend/.venv`，Fun-ASR Python 文件位于 `platform-resources/backend/ai/python/`，不单独启动 Python 服务
 
+## DataBaker CVPC
+
+- 平台资料总览：`platform-resources/data-baker-cvpc/README.md`
+- 网络请求采集（4 段首轮链路 + handoff）：`platform-resources/data-baker-cvpc/network/README.md`
+- 页面结构采集（4 段首轮结构）：`platform-resources/data-baker-cvpc/page-structure/README.md`
+- 当前阶段：仅完成平台资料初始化，覆盖 `#/login`、`#/home`、`#/my-job`、项目任务列表、作业列表与 `/app/editor/asr/` 首屏；尚未创建 `extension/sites/data-baker-cvpc/` 运行时代码，也未注册专属后端。
+- 安全边界：首轮只保留 `readonly` 与 `safe-ui` 资料；`领取 / 保存 / 挂起 / 提交 / 修改` 等动作仍按 `write-action` 管理，未做真实触发采集。
+
 ## Magic Data ANNOTATOR
 
 - 平台运行时代码：`extension/sites/magic-data/`
