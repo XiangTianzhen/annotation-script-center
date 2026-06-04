@@ -4,6 +4,12 @@
   - 未显式传 `--channel` 时，会在一次执行中同时生成正式包与 beta 包
   - 正式包继续产出 `CRX + ZIP + update.xml + crx-latest.json`
   - beta 包继续产出单一 `annotation-script-center-beta.zip`
+- 打包默认值已收口到 `config`：
+  - 新增 `config/release/package-crx-release.json`
+  - 新增 `config/release/README.md`
+  - 本地私有 `config/secrets/package-crx-release.local.json` 用于保存 `betaUnlockPasswordSha256`
+  - 默认 beta 后端地址固定为 `http://47.109.197.170:3333`
+- `.gitignore` 当前已允许 `dist/annotation-script-center-beta.zip` 参与 Git 跟踪，并忽略本地私有 `config/secrets/package-crx-release.local.json`
 - beta 打包参数当前支持直接走命令行，避免先写多行环境变量：
   - `--betaUnlockPasswordSha256`
   - `--betaBackendBaseUrl`

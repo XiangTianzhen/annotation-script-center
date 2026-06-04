@@ -431,13 +431,22 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 单行同时生成正式包与 beta 包：
 
 ```
-node scripts/package-crx-release.js --notes "CRX enterprise release" --betaUnlockPasswordSha256 "<sha256>" --betaBackendBaseUrl "https://beta.example.test"
+node scripts/package-crx-release.js --notes "CRX enterprise release"
 ```
 
 可选：
 
 - 只打正式包：`node scripts/package-crx-release.js --channel public --notes "CRX enterprise release"`
-- 只打 beta 包：`node scripts/package-crx-release.js --channel beta --notes "Beta build" --betaUnlockPasswordSha256 "<sha256>" --betaBackendBaseUrl "https://beta.example.test"`
+- 只打 beta 包：`node scripts/package-crx-release.js --channel beta --notes "Beta build"`
+
+当前默认配置来源：
+
+- `config/release/package-crx-release.json`
+  - 默认 `channel=all`
+  - 默认 `betaBackendBaseUrl=http://47.109.197.170:3333`
+- `config/secrets/package-crx-release.local.json`
+  - 存放本地私有 `betaUnlockPasswordSha256`
+- 环境变量与命令行参数仍可覆盖上述默认值
 
 说明：ZIP 是当前过渡分发产物，不替代未来企业自动更新；企业托管自动安装仍属于未完成模块，详见 `docs/unfinished/crx-enterprise-managed-install.md`。
 

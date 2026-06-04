@@ -25,6 +25,13 @@ const UPDATE_XML_FILENAME = `${APP_NAME}-update.xml`;
 const DEFAULT_UPDATE_XML_URL = `${DEFAULT_DOWNLOAD_BASE_URL}${UPDATE_XML_FILENAME}`;
 const CRX_LATEST_FILENAME = `${APP_NAME}-crx-latest.json`;
 const DEFAULT_MIN_AGENT_VERSION = "0.1.0";
+const RELEASE_CONFIG_PATH = path.join(REPO_ROOT, "config", "release", "package-crx-release.json");
+const RELEASE_LOCAL_CONFIG_PATH = path.join(
+  REPO_ROOT,
+  "config",
+  "secrets",
+  "package-crx-release.local.json"
+);
 const ZIP_PROTECTED_NAME_PATTERNS = [
   /^config\//i,
   /^platform-resources\//i,
@@ -77,6 +84,33 @@ function parseArgs(argv) {
     result[normalizedKey] = "true";
   }
   return result;
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readJsonConfigFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return {};
+  }
+  const raw = fs.readFileSync(filePath, "utf8");
+  if (!String(raw || "").trim()) {
+    return {};
+  }
+  const parsed = JSON.parse(raw);
+  if (!isPlainObject(parsed)) {
+    throw new Error(`配置文件必须是 JSON 对象：${filePath}`);
+  }
+  return parsed;
+}
+
+function loadReleaseConfig() {
+  return Object.assign(
+    {},
+    readJsonConfigFile(RELEASE_CONFIG_PATH),
+    readJsonConfigFile(RELEASE_LOCAL_CONFIG_PATH)
+  );
 }
 
 function normalizeBaseUrl(input) {
@@ -499,16 +533,27 @@ function packageReleaseProfile(options) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
+  const releaseConfig = loadReleaseConfig();
   const { version } = readManifestMeta();
-  const downloadBaseUrl = normalizeBaseUrl(process.env.ASC_DOWNLOAD_BASE_URL);
-  const buildMode = normalizeReleaseBuildMode(args.channel || process.env.ASC_RELEASE_CHANNEL);
+  const downloadBaseUrl = normalizeBaseUrl(
+    args.downloadBaseUrl || process.env.ASC_DOWNLOAD_BASE_URL || releaseConfig.downloadBaseUrl
+  );
+  const buildMode = normalizeReleaseBuildMode(
+    args.channel || process.env.ASC_RELEASE_CHANNEL || releaseConfig.channel
+  );
   const betaUnlockPasswordSha256 = String(
-    args.betaUnlockPasswordSha256 || process.env.ASC_BETA_UNLOCK_PASSWORD_SHA256 || ""
+    args.betaUnlockPasswordSha256 ||
+      process.env.ASC_BETA_UNLOCK_PASSWORD_SHA256 ||
+      releaseConfig.betaUnlockPasswordSha256 ||
+      ""
   )
     .trim()
     .toLowerCase();
   const betaBackendBaseUrl = String(
-    args.betaBackendBaseUrl || process.env.ASC_BETA_BACKEND_BASE_URL || ""
+    args.betaBackendBaseUrl ||
+      process.env.ASC_BETA_BACKEND_BASE_URL ||
+      releaseConfig.betaBackendBaseUrl ||
+      ""
   )
     .trim();
   const releaseNotes = typeof args.notes === "string" && args.notes.trim()

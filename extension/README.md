@@ -209,7 +209,7 @@ node scripts/package-crx-release.js --notes "CRX enterprise release test"
 单行同时生成正式包与 beta 包：
 
 ```powershell
-node scripts/package-crx-release.js --notes "CRX enterprise release test" --betaUnlockPasswordSha256 "<sha256>" --betaBackendBaseUrl "https://beta.example.test"
+node scripts/package-crx-release.js --notes "CRX enterprise release test"
 ```
 
 输出文件：
@@ -222,7 +222,17 @@ node scripts/package-crx-release.js --notes "CRX enterprise release test" --beta
 
 可选：
 - 只打正式包：`node scripts/package-crx-release.js --channel public --notes "CRX enterprise release test"`
-- 只打 beta 包：`node scripts/package-crx-release.js --channel beta --notes "Beta build" --betaUnlockPasswordSha256 "<sha256>" --betaBackendBaseUrl "https://beta.example.test"`
+- 只打 beta 包：`node scripts/package-crx-release.js --channel beta --notes "Beta build"`
+
+默认打包配置当前收口到：
+
+- `config/release/package-crx-release.json`
+- `config/secrets/package-crx-release.local.json`
+
+其中：
+
+- 默认 beta 后端地址：`http://47.109.197.170:3333`
+- `betaUnlockPasswordSha256` 只建议放在本地私有配置，不提交 Git
 
 前置要求：
 - `manifest.json` 必须包含：
