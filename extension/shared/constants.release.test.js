@@ -45,42 +45,7 @@ test("public build never enables beta visibility or beta backend mode", function
   assert.equal(constants.isScriptVisible("lightwheelViewPanel", settings), false);
 });
 
-test("beta build exposes beta platform by default for test builds", function () {
-  const constants = loadConstantsWithBuildMeta({
-    releaseChannel: "beta",
-    betaFeaturesVisibleByDefault: true,
-    betaUnlockPasswordSha256: "abc",
-    betaBackendBaseUrl: "https://beta.example.test",
-  });
-  const settings = {
-    meta: {
-      betaUnlocked: false,
-      backendEndpointMode: "beta",
-      betaBackendBaseUrl: "https://beta.example.test",
-    },
-    platforms: {
-      lightwheel: {
-        enabled: true,
-        scripts: {
-          viewPanel: {
-            enabled: true,
-          },
-        },
-      },
-    },
-  };
-
-  assert.equal(constants.canUseBetaFeatures(settings), true);
-  assert.equal(constants.isPlatformVisible("lightwheel", settings), true);
-  assert.equal(constants.isScriptVisible("lightwheelViewPanel", settings), true);
-  assert.equal(constants.getBackendEndpointModeFromSettings(settings), "beta");
-  assert.equal(
-    constants.buildBackendUrl("/api/example", settings),
-    "https://beta.example.test/api/example"
-  );
-});
-
-test("beta build still supports hidden unlock fallback when default visibility is off", function () {
+test("beta build keeps beta platform hidden until unlock", function () {
   const constants = loadConstantsWithBuildMeta({
     releaseChannel: "beta",
     betaFeaturesVisibleByDefault: false,
@@ -114,14 +79,22 @@ test("beta build still supports hidden unlock fallback when default visibility i
 
   assert.equal(constants.canUseBetaFeatures(lockedSettings), false);
   assert.equal(constants.isPlatformVisible("lightwheel", lockedSettings), false);
+  assert.equal(constants.isScriptVisible("lightwheelViewPanel", lockedSettings), false);
+
   assert.equal(constants.canUseBetaFeatures(unlockedSettings), true);
   assert.equal(constants.isPlatformVisible("lightwheel", unlockedSettings), true);
+  assert.equal(constants.isScriptVisible("lightwheelViewPanel", unlockedSettings), true);
+  assert.equal(constants.getBackendEndpointModeFromSettings(unlockedSettings), "beta");
+  assert.equal(
+    constants.buildBackendUrl("/api/example", unlockedSettings),
+    "https://beta.example.test/api/example"
+  );
 });
 
 test("beta build hides disabled beta script from effective runtime access", function () {
   const constants = loadConstantsWithBuildMeta({
     releaseChannel: "beta",
-    betaFeaturesVisibleByDefault: true,
+    betaFeaturesVisibleByDefault: false,
     betaUnlockPasswordSha256: "abc",
     betaBackendBaseUrl: "https://beta.example.test",
   });

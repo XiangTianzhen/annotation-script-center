@@ -83,7 +83,7 @@ test("beta manifest keeps beta marker and beta host permissions", function () {
   ]);
 });
 
-test("beta build meta content defaults to visible beta features", function () {
+test("beta build meta content keeps hidden beta features by default", function () {
   const content = buildBuildMetaContent({
     releaseChannel: "beta",
     betaUnlockPasswordSha256: "abc123",
@@ -91,7 +91,7 @@ test("beta build meta content defaults to visible beta features", function () {
   });
 
   assert.match(content, /releaseChannel:\s*"beta"/);
-  assert.match(content, /betaFeaturesVisibleByDefault:\s*true/);
+  assert.match(content, /betaFeaturesVisibleByDefault:\s*false/);
   assert.match(content, /betaUnlockPasswordSha256:\s*"abc123"/);
   assert.match(content, /betaBackendBaseUrl:\s*"https:\/\/beta\.example\.test"/);
 });

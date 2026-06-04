@@ -12,7 +12,7 @@ test("source build meta defaults unpacked extension to beta test mode", function
   require(modulePath);
 
   assert.equal(globalThis.ASREdgeBuildMeta?.releaseChannel, "beta");
-  assert.equal(globalThis.ASREdgeBuildMeta?.betaFeaturesVisibleByDefault, true);
+  assert.equal(globalThis.ASREdgeBuildMeta?.betaFeaturesVisibleByDefault, false);
   assert.equal(globalThis.ASREdgeBuildMeta?.betaBackendBaseUrl, "http://47.109.197.170:3333");
 
   delete require.cache[modulePath];

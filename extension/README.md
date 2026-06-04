@@ -85,7 +85,7 @@
   - 脚本详情入口
 - `脚本下载中心` 为公开入口，不要求管理员密码；当前负责扩展版本分发。
 - beta 构建当前不进入 `脚本下载中心`；只通过“查看外部目录”获取单一 `annotation-script-center-beta.zip`。
-- 仓库内 `extension/` 源码目录当前默认按测试版 build meta 运行：开发者模式直接加载时，会直接显示 beta 平台、beta 脚本与 `Beta 服务器`。
+- 仓库内 `extension/` 源码目录当前默认按 beta 通道 build meta 运行：开发者模式直接加载时，beta 平台、beta 脚本与 `Beta 服务器` 默认隐藏，只有走隐藏入口并输入正确口令后才显示。
 - `系统管理` 进入时要求输入密码；密码复用项目数据下载鉴权口径。
 - “后端接口地址 / AI 调用使用人”统一迁到 `?view=admin&tab=backend`。
 - “项目数据下载 / AI 请求记录导出”统一迁到 `?view=admin&tab=exports`。
@@ -106,8 +106,8 @@
   - `Beta 服务器地址` 输入框
   - 地址保存后才允许把全局后端模式切到 beta
 - 左侧侧栏当前新增 `AI 调用使用人` 编辑卡：输入姓名后点击按钮才保存到本地缓存；运行概况里继续保留只读摘要。
-- beta ZIP 当前默认直接显示 beta 平台、beta 脚本与 `Beta 服务器`；正式包继续只显示公开平台与公开脚本。
-- 如后续需要切回“beta 包默认隐藏”，可继续复用现有的连续点击品牌区 `7` 次 + 口令解锁逻辑。
+- beta ZIP 当前默认隐藏 beta 平台、beta 脚本与 `Beta 服务器`；正式包继续只显示公开平台与公开脚本。
+- beta 通道继续复用现有的连续点击品牌区 `7` 次 + 口令解锁逻辑；public 包则不会渲染这些 beta 板块。
 - 脚本详情页当前固定为：
   - 顶部标题区
   - 启停操作整宽卡片
@@ -235,7 +235,7 @@ node scripts/package-crx-release.js --notes "CRX enterprise release test"
 
 - 默认 beta 后端地址：`http://47.109.197.170:3333`
 - `betaUnlockPasswordSha256` 只建议放在本地私有配置，不提交 Git
-- beta 构建会自动写入 `betaFeaturesVisibleByDefault=true`，本地 `extension/` 源码目录也保持同一测试版口径
+- beta 构建会自动写入 `releaseChannel=beta`，但 `betaFeaturesVisibleByDefault=false`；本地 `extension/` 源码目录也保持同一隐藏口径
 
 前置要求：
 - `manifest.json` 必须包含：

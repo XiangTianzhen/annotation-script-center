@@ -837,8 +837,6 @@
     }
     if (!isBetaBuild()) {
       setBetaStatus("");
-    } else if (betaFeaturesVisibleByDefault) {
-      setBetaStatus("当前为测试版构建，beta 功能默认可见。", "enabled");
     } else if (betaUnlocked) {
       setBetaStatus("当前 beta 功能已解锁。", "enabled");
     } else {

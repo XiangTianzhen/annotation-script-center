@@ -89,11 +89,11 @@
   - 保留“查看外部目录”作为兜底入口
   - 后端通过 `GET /api/admin/download-center/releases` 聚合 `crx-latest.json` 和远端 `/downloads/` 目录索引；目录索引失败时至少回退展示最新版
   - 该接口当前为公开可读，不要求先进入系统管理
-- 本轮 beta 构建口径已收口为“测试版默认全显”：
-  - 本地直接加载 `extension/` 时，默认按测试版构建运行
+- 本轮 beta 构建口径已收口为“测试通道默认隐藏”：
+  - 本地直接加载 `extension/` 时，默认按 beta 通道构建运行，但 beta 平台和 beta 脚本默认隐藏
   - beta 包不进入“脚本下载中心”，只通过“查看外部目录”获取
-  - beta 包与本地直加载默认直接显示 beta 平台、beta 脚本与 `Beta 服务器`
-  - 正式包继续只展示公开平台与公开脚本；`Lightwheel` 在正式包前端保持不可见
+  - beta 通道需连续点击左上角品牌区 `7` 次并输入正确口令后，才增量显示 beta 平台、beta 脚本与 `Beta 服务器`
+  - 正式包继续只展示公开平台与公开脚本；`Lightwheel` 在正式包前端保持不可见，也不参与对应板块渲染
 
 ## v0.3.7 发布说明
 
@@ -451,7 +451,7 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 当前构建可见性规则：
 
 - 仓库内 `extension/` 源码目录默认写入测试版 build meta，本地开发者模式直加载时直接显示 beta 内容。
-- `--channel beta` 或默认双产物中的 beta ZIP 会自动写入 `betaFeaturesVisibleByDefault=true`。
+- `--channel beta` 或默认双产物中的 beta ZIP 会自动写入 `releaseChannel=beta`，但 `betaFeaturesVisibleByDefault=false`。
 - `--channel public` 继续写入 `releaseChannel=public`，正式包前端不会显示 `Lightwheel` 等 beta 板块。
 
 说明：ZIP 是当前过渡分发产物，不替代未来企业自动更新；企业托管自动安装仍属于未完成模块，详见 `docs/unfinished/crx-enterprise-managed-install.md`。

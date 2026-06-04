@@ -73,7 +73,7 @@ function buildBuildMetaContent(input) {
   const betaFeaturesVisibleByDefault =
     typeof config.betaFeaturesVisibleByDefault === "boolean"
       ? config.betaFeaturesVisibleByDefault
-      : releaseChannel === "beta";
+      : false;
   const betaUnlockPasswordSha256 = String(config.betaUnlockPasswordSha256 || "")
     .trim()
     .toLowerCase();

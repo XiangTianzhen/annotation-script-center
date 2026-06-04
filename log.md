@@ -1,17 +1,18 @@
-## 2026-06-04（本地直加载默认测试版与 beta 默认全显）
+## 2026-06-04（本地直加载默认 beta 通道，但默认隐藏 beta 内容）
 
-- `extension/shared/build-meta.js` 当前默认改为测试版 build meta：
+- 修正上一轮错误实现：`beta` 通道不再默认全显。
+- `extension/shared/build-meta.js` 当前默认改为：
   - `releaseChannel=beta`
-  - `betaFeaturesVisibleByDefault=true`
+  - `betaFeaturesVisibleByDefault=false`
   - 默认 beta 后端地址固定为 `http://47.109.197.170:3333`
-- `extension/` 源码目录在 Chrome / Edge 开发者模式直接加载时，默认直接显示 beta 平台、beta 脚本与 `Beta 服务器`，不再要求先走隐藏解锁。
+- `extension/` 源码目录在 Chrome / Edge 开发者模式直接加载时，当前默认仍属于 beta 通道，但 beta 平台、beta 脚本与 `Beta 服务器` 默认隐藏，只有触发隐藏入口并输入正确口令后才显示。
 - 正式打包口径保持不变：
   - `public` 继续只展示公开平台与公开脚本
   - `beta` 继续打成单一 `annotation-script-center-beta.zip`
-  - beta ZIP 会自动写入 `betaFeaturesVisibleByDefault=true`
-- `extension/options/options.js` 当前补了测试版状态文案：
-  - 默认测试版构建显示“当前为测试版构建，beta 功能默认可见”
-  - 不再给默认测试版展示“退出 beta 模式”按钮
+  - beta ZIP 会自动写入 `betaFeaturesVisibleByDefault=false`
+- `extension/options/options.js` 当前恢复为隐藏解锁文案：
+  - 未解锁时显示“连续点击左上角品牌区 7 次后可输入 beta 口令”
+  - 解锁后才显示“当前 beta 功能已解锁”
 - 本轮验证：
   - `node --test extension/shared/build-meta.test.js`
   - `node --test extension/shared/constants.release.test.js`
