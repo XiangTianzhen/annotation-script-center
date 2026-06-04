@@ -52,6 +52,9 @@ function normalizeRuntime(runtime) {
           });
         })
         .sort(function sortPools(left, right) {
+          if (Number(left.usedCount || 0) !== Number(right.usedCount || 0)) {
+            return Number(right.usedCount || 0) - Number(left.usedCount || 0);
+          }
           if (Number(left.activeCount || 0) !== Number(right.activeCount || 0)) {
             return Number(right.activeCount || 0) - Number(left.activeCount || 0);
           }

@@ -33,6 +33,13 @@ test("admin dashboard overview returns pool occupancy and runtime log summary pa
             totalCapacity: 999,
           },
           {
+            groupName: "model:qwen3.6-plus",
+            activeCount: 2,
+            pendingCount: 20,
+            maxConcurrent: 999,
+            totalCapacity: 999,
+          },
+          {
             groupName: "model:qwen3.5-plus",
             activeCount: 2,
             pendingCount: 0,
@@ -71,13 +78,14 @@ test("admin dashboard overview returns pool occupancy and runtime log summary pa
   assert.equal(overview.success, true);
   assert.equal(overview.data.generatedAt, "2026-06-02T10:00:00.000Z");
   assert.equal(overview.data.backend.status, "ready");
-  assert.equal(overview.data.runtime.queue.activePools[0].displayName, "qwen3.5-omni-flash");
+  assert.equal(overview.data.runtime.queue.activePools[0].displayName, "qwen3.6-plus");
   assert.equal(overview.data.runtime.queue.defaultModelPool.defaultCapacity, 999);
   assert.equal(overview.data.runtime.queue.activePools[0].capacity, 999);
-  assert.equal(overview.data.runtime.queue.activePools[0].usedCount, 9);
-  assert.equal(overview.data.runtime.queue.activePools[0].availableCount, 990);
+  assert.equal(overview.data.runtime.queue.activePools[0].usedCount, 22);
+  assert.equal(overview.data.runtime.queue.activePools[0].availableCount, 977);
   assert.equal(overview.data.runtime.queue.activePools[0].isFull, false);
-  assert.equal(overview.data.runtime.queue.activePools[0].utilizationPercent, 1);
+  assert.equal(overview.data.runtime.queue.activePools[0].utilizationPercent, 2);
+  assert.equal(overview.data.runtime.queue.activePools[1].displayName, "qwen3.5-omni-flash");
   assert.equal(overview.data.downloads.projectDataDatasets.length, 1);
   assert.equal(overview.data.downloads.aiCallLogDatasets.length, 1);
   assert.equal(overview.data.logsSummary.retentionDays, 7);

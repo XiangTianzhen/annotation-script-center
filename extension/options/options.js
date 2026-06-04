@@ -8164,19 +8164,20 @@
           ? "后端池已满"
           : usedCount <= 0
             ? "当前空闲"
-            : "当前占用 " + String(ratio) + "%";
+            : "总占用 " + String(ratio) + "%";
         return [
           '<article class="pool-card" data-pool-state="' + (pool.isFull ? "full" : usedCount > 0 ? "busy" : "idle") + '">',
           '<div class="pool-card-head">',
           '<div><h4 class="pool-card-name">' + escapeHtml(pool.displayName || pool.groupName || "unknown") + "</h4>",
-          '<p class="pool-card-note">按进入顺序排队；后端每 50ms 发起 1 个请求。</p></div>',
+          '<p class="pool-card-note">总占用 = 正在调用上游 + 等待发起；后端按顺序排队，每 50ms 发起 1 个请求。</p></div>',
           '<span class="pool-card-status">' + escapeHtml(statusText) + "</span>",
           "</div>",
           '<div class="pool-progress"><div class="pool-progress-bar" style="width:' + escapeHtml(String(ratio)) + '%"></div></div>',
           '<div class="pool-progress-meta"><strong>' + escapeHtml(String(ratio)) + '%</strong><span>已使用 ' + escapeHtml(formatNumber(usedCount)) + ' / ' + escapeHtml(formatNumber(capacity)) + "</span></div>",
           '<div class="pool-stat-grid">',
-          '<div class="pool-stat"><span class="pool-stat-label">正在处理</span><strong>' + escapeHtml(formatNumber(activeCount)) + " 个</strong></div>",
-          '<div class="pool-stat"><span class="pool-stat-label">等待处理</span><strong>' + escapeHtml(formatNumber(pendingCount)) + " 个</strong></div>",
+          '<div class="pool-stat"><span class="pool-stat-label">总占用</span><strong>' + escapeHtml(formatNumber(usedCount)) + " 个</strong></div>",
+          '<div class="pool-stat"><span class="pool-stat-label">正在调用上游</span><strong>' + escapeHtml(formatNumber(activeCount)) + " 个</strong></div>",
+          '<div class="pool-stat"><span class="pool-stat-label">等待发起</span><strong>' + escapeHtml(formatNumber(pendingCount)) + " 个</strong></div>",
           '<div class="pool-stat"><span class="pool-stat-label">池容量</span><strong>' + escapeHtml(formatNumber(capacity)) + " 个</strong></div>",
           '<div class="pool-stat"><span class="pool-stat-label">剩余可接收</span><strong>' + escapeHtml(formatNumber(availableCount)) + " 个</strong></div>",
           "</div>",

@@ -12,6 +12,7 @@
   const RECOMMEND_PATH =
     CONSTANTS.AISHELL_TECH_AI_RECOMMEND_PATH ||
     "/api/aishell-tech/minnan-helper/ai/recommend";
+  const concurrentRequestStreamFactory = globalThis.ASREdgeConcurrentAiRequestStream || null;
 
   let activeRuntime = null;
   let currentUrl = location.href;
@@ -250,7 +251,6 @@
   function createRuntime(config) {
     const dataApiFactory = globalThis.__ASREdgeAishellTechMinnanDataApi;
     const aiFactory = globalThis.__ASREdgeAishellTechMinnanAiRecommendation;
-    const batchWindowFactory = globalThis.__ASREdgeAishellTechMinnanBatchWindow;
     const diagnosticsFactory = globalThis.__ASREdgeAishellTechMinnanDiagnostics || {};
     const uiFactory = globalThis.__ASREdgeAishellTechMinnanUiPanel;
     const shortcutsFactory = globalThis.__ASREdgeAishellTechMinnanShortcuts;
@@ -275,7 +275,7 @@
     if (
       !dataApiFactory?.createRuntime ||
       !aiFactory?.createRuntime ||
-      !batchWindowFactory?.createRollingBatchWindow ||
+      !concurrentRequestStreamFactory?.createConcurrentAiRequestStream ||
       !uiFactory?.createRuntime
     ) {
       return null;
@@ -358,8 +358,11 @@
         return;
       }
       batchStopRequested = true;
-      if (activeBatchContext?.scheduler?.cancelPending) {
-        activeBatchContext.scheduler.cancelPending("批量识别已手动停止。");
+      if (activeBatchContext?.requestStream?.cancelPending) {
+        activeBatchContext.requestStream.cancelPending("批量识别已手动停止。");
+      }
+      if (typeof activeBatchContext?.notifyStopSignal === "function") {
+        activeBatchContext.notifyStopSignal();
       }
       const batchMeta = getBatchModeMeta(activeBatchContext?.mode);
       panel.setStatus(
@@ -374,6 +377,7 @@
 
     async function runBatchRecommend(mode) {
       const batchMeta = getBatchModeMeta(mode);
+      let batchClosed = false;
       syncBusyState({ batch: true });
       batchStopRequested = false;
       panel.setStatus("正在准备" + batchMeta.label + "...", "info");
@@ -389,145 +393,117 @@
           1,
           Number(config.aiQualifiedAutofillConcurrency || 5) || 5
         );
-        const scheduler = dataApi.createRateLimitedTaskScheduler({
-          concurrency: batchConcurrency,
-          staggerMs: 50,
-        });
-        const requestWindow = batchWindowFactory.createRollingBatchWindow(
-          tasks,
-          batchConcurrency
-        );
-        activeBatchContext = {
-          mode: batchMeta.mode,
-          scheduler: scheduler,
-          batchRunId: batchRunId,
-        };
         const failures = [];
-        const pendingResults = [];
-        const resultWaiters = [];
         let consumedCount = 0;
-        let producersDone = false;
-        let activeProducerCount = 0;
-
-        function enqueueBatchResult(entry) {
-          if (resultWaiters.length > 0) {
-            const resolve = resultWaiters.shift();
-            resolve(entry);
-            return;
-          }
-          pendingResults.push(entry);
-        }
-
-        function nextBatchResult() {
-          if (pendingResults.length > 0) {
-            return Promise.resolve(pendingResults.shift());
-          }
-          if (producersDone === true) {
-            return Promise.resolve(null);
-          }
-          return new Promise(function (resolve) {
-            resultWaiters.push(resolve);
-          });
-        }
-
-        function markProducersDoneIfNeeded() {
-          const snapshot = requestWindow.getSnapshot();
-          if (snapshot.nextIndex >= tasks.length && activeProducerCount === 0) {
-            producersDone = true;
-            while (resultWaiters.length > 0) {
-              const resolve = resultWaiters.shift();
-              resolve(null);
-            }
-          }
-        }
-
-        function launchBatchTasks(taskEntries) {
-          const source = Array.isArray(taskEntries) ? taskEntries : [];
-          if (batchStopRequested === true) {
-            return;
-          }
-          source.forEach(function (task) {
-            activeProducerCount += 1;
-            scheduler
-              .run(async function () {
-                if (batchStopRequested === true) {
-                  throw new Error("批量识别已手动停止。");
-                }
-                const item = await dataApi.getItemByTask(task, {
-                  includeCurrentInput: false,
-                });
-                if (!item) {
-                  throw new Error("无法定位批量条目。");
-                }
-                item.batchRunId = batchRunId;
-                item.batchItemIndex = Number(task.index || 0) || 0;
-                item.batchProcessKey =
-                  "task-item:" + String(item.taskItemId || task.taskItemId || task.index || "unknown");
-                item.clientRequestId = [
-                  batchRunId,
-                  String(item.batchItemIndex + 1),
-                  String(item.taskItemId || "unknown"),
-                ].join(":");
-                item.frontConcurrency = batchConcurrency;
-                const result = await aiClient.recommend(item);
-                enqueueBatchResult({
-                  ok: true,
-                  task: task,
-                  result: result,
-                });
-              })
-              .catch(function (error) {
-                const message = error?.message || String(error);
-                if (batchStopRequested === true && message.indexOf("手动停止") >= 0) {
-                  return;
-                }
-                enqueueBatchResult({
-                  ok: false,
-                  task: task,
-                  error: error,
-                });
-              })
-              .finally(function () {
-                activeProducerCount = Math.max(0, activeProducerCount - 1);
-                markProducersDoneIfNeeded();
-              });
-          });
-          markProducersDoneIfNeeded();
-        }
-
-        panel.updateBatch({
-          phaseText: batchMeta.label + "开始",
-          total: tasks.length,
-          completed: 0,
-          failed: 0,
-          currentText: tasks[0].displayName,
-          failures: failures,
-          running: true,
+        let currentPhaseText = batchMeta.label + "开始";
+        let currentDisplayText = tasks[0].displayName || "";
+        let requestStream = null;
+        let resolveStopSignal = null;
+        const stopSignalPromise = new Promise(function (resolve) {
+          resolveStopSignal = resolve;
         });
 
-        launchBatchTasks(requestWindow.takeUntilCapacity());
+        function notifyStopSignal() {
+          if (typeof resolveStopSignal === "function") {
+            resolveStopSignal({ type: "stop" });
+            resolveStopSignal = null;
+          }
+        }
 
-        while (consumedCount < tasks.length) {
-          const entry = await nextBatchResult();
-          if (!entry) {
-            if (producersDone === true) {
-              break;
-            }
-            continue;
+        function updateBatchSnapshot(phaseText, currentText, running) {
+          if (!requestStream) {
+            return;
           }
-          if (batchStopRequested === true) {
-            break;
+          if (typeof phaseText === "string" && phaseText) {
+            currentPhaseText = phaseText;
           }
-          const task = entry.task;
+          if (currentText !== undefined) {
+            currentDisplayText = String(currentText || "");
+          }
+          const snapshot = requestStream.getSnapshot();
           panel.updateBatch({
-            phaseText: entry.ok === true ? batchMeta.label + "回填保存中" : batchMeta.label + "当前条失败",
+            phaseText: currentPhaseText,
             total: tasks.length,
             completed: consumedCount,
             failed: failures.length,
-            currentText: task.displayName,
+            currentText: currentDisplayText,
             failures: failures,
-            running: true,
+            running: running !== false,
+            frontConcurrency: snapshot.frontConcurrency,
+            requestStaggerMs: snapshot.requestStaggerMs,
+            launchedCount: snapshot.launchedCount,
+            activeAiCount: snapshot.activeAiCount,
+            completedAiCount: snapshot.completedAiCount,
+            bufferedCount: snapshot.bufferedCount,
           });
+        }
+
+        requestStream = concurrentRequestStreamFactory.createConcurrentAiRequestStream({
+          tasks: tasks,
+          concurrency: batchConcurrency,
+          staggerMs: 50,
+          onStateChange: function () {
+            if (batchClosed === true) {
+              return;
+            }
+            updateBatchSnapshot(currentPhaseText, currentDisplayText, true);
+          },
+          runTask: async function (task, index) {
+            const item = await dataApi.getItemByTask(task, {
+              includeCurrentInput: false,
+            });
+            if (!item) {
+              throw new Error("无法定位批量条目。");
+            }
+            item.batchRunId = batchRunId;
+            item.batchItemIndex = Number(task.index || 0) || index + 1;
+            item.batchProcessKey =
+              "task-item:" + String(item.taskItemId || task.taskItemId || task.index || "unknown");
+            item.clientRequestId = [
+              batchRunId,
+              String(item.batchItemIndex + 1),
+              String(item.taskItemId || "unknown"),
+            ].join(":");
+            item.frontConcurrency = batchConcurrency;
+            return aiClient.recommend(item);
+          },
+        });
+
+        activeBatchContext = {
+          mode: batchMeta.mode,
+          requestStream: requestStream,
+          batchRunId: batchRunId,
+          notifyStopSignal: notifyStopSignal,
+        };
+
+        updateBatchSnapshot(batchMeta.label + "开始", tasks[0].displayName, true);
+
+        while (consumedCount < tasks.length) {
+          const outcome = batchStopRequested === true
+            ? { type: "stop" }
+            : await Promise.race([
+                requestStream.nextResult().then(function (entry) {
+                  return {
+                    type: "result",
+                    entry: entry,
+                  };
+                }),
+                stopSignalPromise,
+              ]);
+
+          if (outcome?.type === "stop") {
+            break;
+          }
+          const entry = outcome?.entry || null;
+          if (!entry) {
+            break;
+          }
+          const task = entry.task;
+          updateBatchSnapshot(
+            entry.ok === true ? batchMeta.label + "回填保存中" : batchMeta.label + "当前条失败",
+            task.displayName,
+            true
+          );
           if (entry.ok !== true) {
             consumedCount += 1;
             failures.push(
@@ -539,21 +515,13 @@
                 batchConcurrency: batchConcurrency,
               })
             );
-            panel.updateBatch({
-              phaseText: batchMeta.label + "当前条失败",
-              total: tasks.length,
-              completed: consumedCount,
-              failed: failures.length,
-              currentText: task.displayName,
-              failures: failures,
-              running: true,
-            });
+            updateBatchSnapshot(batchMeta.label + "当前条失败", task.displayName, true);
           } else {
             let switchResult = null;
             let saveResult = null;
             let failureStage = "select_task";
             try {
-              panel.renderResult(entry.result);
+              panel.renderResult(entry.value);
               switchResult = await dataApi.selectTask(task, {
                 timeoutMs: 12000,
                 maxAttempts: 4,
@@ -563,7 +531,7 @@
               }
               failureStage = "save_current";
               saveResult = await dataApi.fillAndSaveCurrent(
-                entry.result.recommendedText || "",
+                entry.value.recommendedText || "",
                 {
                   timeoutMs: 15000,
                 }
@@ -572,15 +540,7 @@
                 throw new Error(saveResult.message || "填入并保存失败。");
               }
               consumedCount += 1;
-              panel.updateBatch({
-                phaseText: batchMeta.label + "已识别并保存",
-                total: tasks.length,
-                completed: consumedCount,
-                failed: failures.length,
-                currentText: task.displayName,
-                failures: failures,
-                running: true,
-              });
+              updateBatchSnapshot(batchMeta.label + "已识别并保存", task.displayName, true);
             } catch (error) {
               consumedCount += 1;
               failures.push(
@@ -589,50 +549,25 @@
                   stage: failureStage,
                   message: error?.message || String(error),
                   error: error,
-                  result: entry.result,
+                  result: entry.value,
                   switchResult: switchResult,
                   saveResult: saveResult,
                   batchConcurrency: batchConcurrency,
                 })
               );
-              panel.updateBatch({
-                phaseText: batchMeta.label + "当前条失败",
-                total: tasks.length,
-                completed: consumedCount,
-                failed: failures.length,
-                currentText: task.displayName,
-                failures: failures,
-                running: true,
-              });
+              updateBatchSnapshot(batchMeta.label + "当前条失败", task.displayName, true);
             }
           }
-          launchBatchTasks(requestWindow.markConsumed());
-          markProducersDoneIfNeeded();
         }
 
         if (batchStopRequested === true) {
-          panel.updateBatch({
-            phaseText: batchMeta.label + "已停止",
-            total: tasks.length,
-            completed: consumedCount,
-            failed: failures.length,
-            currentText: "",
-            failures: failures,
-            running: false,
-          });
+          updateBatchSnapshot(batchMeta.label + "已停止", "", false);
           panel.setStatus("本轮" + batchMeta.label + "已按请求停止。", "warning");
           return;
         }
 
-        panel.updateBatch({
-          phaseText: batchMeta.label + "已完成",
-          total: tasks.length,
-          completed: consumedCount,
-          failed: failures.length,
-          currentText: "",
-          failures: failures,
-          running: false,
-        });
+        await requestStream.whenProducersDone;
+        updateBatchSnapshot(batchMeta.label + "已完成", "", false);
         panel.setStatus(
           failures.length > 0
             ? "当前分包" + batchMeta.label + "完成，存在失败条目。"
@@ -642,6 +577,7 @@
       } catch (error) {
         panel.setStatus(error?.message || String(error), "error");
       } finally {
+        batchClosed = true;
         activeBatchContext = null;
         batchStopRequested = false;
         syncBusyState({ batch: false });

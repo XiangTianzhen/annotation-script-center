@@ -27,6 +27,7 @@
   const BATCH_TOGGLE_DEBOUNCE_MS = 500;
   const MOUNT_RETRY_DELAY_MS = 300;
   const MAX_MOUNT_RETRY_COUNT = 4;
+  const concurrentRequestStreamFactory = globalThis.ASREdgeConcurrentAiRequestStream || null;
   const DATABAKER_LISTEN_MODEL_OPTIONS = Array.isArray(CONSTANTS.DATABAKER_AI_LISTEN_MODEL_OPTIONS)
     ? CONSTANTS.DATABAKER_AI_LISTEN_MODEL_OPTIONS
         .map(function (item) {
@@ -574,6 +575,7 @@
     let lastBatchSummary = null;
     let batchLockHeartbeatTimer = null;
     let activeBatchRunId = "";
+    let activeBatchRequestStream = null;
     let lastBatchToggleAt = 0;
     let batchStartedAtMs = 0;
     let batchElapsedTimer = null;
@@ -913,6 +915,9 @@
         return { ok: false, message: "not-running" };
       }
       batchQualifiedAutofillCancelRequested = true;
+      if (activeBatchRequestStream?.cancelPending) {
+        activeBatchRequestStream.cancelPending("连续填入已手动停止。");
+      }
       setBatchButtonState(true, true);
       ui.setStatus("连续填入停止中，详情见顶部统计悬浮窗。", "info");
       updateFloatingProgress({
@@ -1005,6 +1010,13 @@
     }
 
     async function runConcurrentAiAndSequentialFill(tasks, concurrency, batchContext) {
+      if (
+        !concurrentRequestStreamFactory ||
+        typeof concurrentRequestStreamFactory.createConcurrentAiRequestStream !== "function"
+      ) {
+        throw new Error("共享并发 AI 请求流未加载。");
+      }
+
       const sourceTasks = Array.isArray(tasks) ? tasks : [];
       const context = batchContext && typeof batchContext === "object" ? batchContext : {};
       const totalCount = Math.max(0, Number(context.totalCount) || sourceTasks.length);
@@ -1019,56 +1031,17 @@
       });
       const requestStaggerMs = normalizeRequestStaggerMs(context.requestStaggerMs);
       const plannedSendCount = uniqueTaskCount;
-      const completedQueue = [];
-      const queuedResultIds = new Set();
-      let nextLaunchIndex = 0;
-      let launchedCount = 0;
-      let activeAiCount = 0;
-      let completedAiCount = 0;
-      let analysisSuccessCount = 0;
-      let analysisFailCount = 0;
+      let requestStream = null;
       let fillStartedCount = 0;
       let fillSuccessCount = 0;
       let fillFailCount = 0;
       let fillSkipCount = 0;
-      let producersDone = false;
-      let signalResolver = null;
-      let producerDoneResolver = null;
-      let launchTimer = null;
-
-      const producerDonePromise = new Promise(function (resolve) {
-        producerDoneResolver = resolve;
-      });
-
-      function clearLaunchTimer() {
-        if (launchTimer) {
-          window.clearTimeout(launchTimer);
-          launchTimer = null;
-        }
-      }
-
-      function notifySignal() {
-        if (typeof signalResolver === "function") {
-          const resolve = signalResolver;
-          signalResolver = null;
-          resolve();
-        }
-      }
-
-      function setProducersDone() {
-        if (producersDone) {
-          return;
-        }
-        producersDone = true;
-        clearLaunchTimer();
-        if (typeof producerDoneResolver === "function") {
-          producerDoneResolver();
-          producerDoneResolver = null;
-        }
-        notifySignal();
-      }
 
       function updateProgressStatus(currentDisplayName) {
+        if (!requestStream) {
+          return;
+        }
+        const snapshot = requestStream.getSnapshot();
         updateFloatingProgress({
           phase: batchAutofillPhase,
           running: true,
@@ -1080,12 +1053,12 @@
           plannedSendCount,
           requestStaggerMs,
           frontConcurrency: maxConcurrency,
-          launchedCount,
-          activeAiCount,
-          completedAiCount,
-          analysisSuccessCount,
-          analysisFailCount,
-          queueCount: completedQueue.length,
+          launchedCount: snapshot.launchedCount,
+          activeAiCount: snapshot.activeAiCount,
+          completedAiCount: snapshot.completedAiCount,
+          analysisSuccessCount: snapshot.succeededCount,
+          analysisFailCount: snapshot.failedCount,
+          queueCount: snapshot.bufferedCount,
           fillStartedCount,
           fillSuccessCount,
           fillFailCount,
@@ -1096,46 +1069,14 @@
         });
       }
 
-      function scheduleLaunchTick() {
-        if (launchTimer || producersDone) {
-          return;
-        }
-        if (batchQualifiedAutofillCancelRequested === true) {
-          if (activeAiCount <= 0) {
-            setProducersDone();
-          }
-          return;
-        }
-        if (nextLaunchIndex >= sourceTasks.length) {
-          if (activeAiCount <= 0) {
-            setProducersDone();
-          }
-          return;
-        }
-        if (activeAiCount >= maxConcurrency) {
-          launchTimer = window.setTimeout(function () {
-            launchTimer = null;
-            scheduleLaunchTick();
-          }, requestStaggerMs);
-          return;
-        }
-        launchTimer = window.setTimeout(function () {
-          launchTimer = null;
-          if (batchQualifiedAutofillCancelRequested === true) {
-            if (activeAiCount <= 0) {
-              setProducersDone();
-            }
-            return;
-          }
-          if (activeAiCount >= maxConcurrency) {
-            scheduleLaunchTick();
-            return;
-          }
-          const index = nextLaunchIndex;
-          const task = sourceTasks[index];
-          nextLaunchIndex += 1;
-          launchedCount += 1;
-          activeAiCount += 1;
+      requestStream = concurrentRequestStreamFactory.createConcurrentAiRequestStream({
+        tasks: sourceTasks,
+        concurrency: maxConcurrency,
+        staggerMs: requestStaggerMs,
+        onStateChange: function () {
+          updateProgressStatus("");
+        },
+        runTask: function (task, index) {
           const batchItemIndex = Number(task?.batchItemIndex) || index + 1;
           const batchProcessKey = String(task?.batchProcessKey || task?.processKey || "");
           const clientRequestId = String(task?.clientRequestId || task?.item?.clientRequestId || "");
@@ -1145,107 +1086,21 @@
             batchProcessKey,
             clientRequestId,
             displayName: String(task?.displayName || ""),
-            launchedCount,
-            activeAiCount,
             frontConcurrency: maxConcurrency,
             requestStaggerMs,
           });
-          updateProgressStatus("");
-          if (nextLaunchIndex < sourceTasks.length) {
-            scheduleLaunchTick();
-          }
-
-          Promise.resolve()
-            .then(function () {
-              return ai.recommend(
-                Object.assign({}, task.item || {}, {
-                  frontConcurrency: maxConcurrency,
-                  batchConcurrency: maxConcurrency,
-                  concurrencyModelType: String(
-                    context.concurrencyModelType || context.aiQualifiedAutofillModelType || "omni"
-                  ),
-                })
-              );
+          return ai.recommend(
+            Object.assign({}, task.item || {}, {
+              frontConcurrency: maxConcurrency,
+              batchConcurrency: maxConcurrency,
+              concurrencyModelType: String(
+                context.concurrencyModelType || context.aiQualifiedAutofillModelType || "omni"
+              ),
             })
-            .then(function (recommendation) {
-              analysisSuccessCount += 1;
-              if (batchQualifiedAutofillCancelRequested === true) {
-                return;
-              }
-              completedQueue.push({
-                ok: true,
-                index,
-                record: task.record,
-                item: task.item,
-                recommendation: recommendation,
-                processKey: task.processKey,
-                batchRunId,
-                batchItemIndex,
-                batchProcessKey,
-                clientRequestId,
-                displayName: task.displayName,
-                completedAt: Date.now(),
-              });
-              queuedResultIds.add(String(task.processKey || "index:" + String(index)));
-            })
-            .catch(function (error) {
-              analysisFailCount += 1;
-              if (batchQualifiedAutofillCancelRequested === true) {
-                return;
-              }
-              completedQueue.push({
-                ok: false,
-                index,
-                record: task.record,
-                item: task.item,
-                processKey: task.processKey,
-                batchRunId,
-                batchItemIndex,
-                batchProcessKey,
-                clientRequestId,
-                displayName: task.displayName,
-                errorMessage: error?.message || String(error),
-                errorCode: String(error?.code || ""),
-                requestId: String(error?.requestId || ""),
-                jobId: String(error?.jobId || ""),
-                hasRawAiDebug: error?.hasRawAiDebug === true,
-                debugId: String(error?.debugId || ""),
-                rawAiDebug:
-                  error?.rawAiDebug && typeof error.rawAiDebug === "object"
-                    ? error.rawAiDebug
-                    : null,
-                hasDebugRawJson: error?.hasDebugRawJson === true,
-                debugRawJson:
-                  error?.debugRawJson && typeof error.debugRawJson === "object"
-                    ? error.debugRawJson
-                    : null,
-                completedAt: Date.now(),
-              });
-              queuedResultIds.add(String(task.processKey || "index:" + String(index)));
-            })
-            .finally(function () {
-              activeAiCount -= 1;
-              completedAiCount += 1;
-              updateProgressStatus("");
-              notifySignal();
-              if (!batchQualifiedAutofillCancelRequested && nextLaunchIndex < sourceTasks.length) {
-                scheduleLaunchTick();
-              }
-              if (
-                (batchQualifiedAutofillCancelRequested === true || nextLaunchIndex >= sourceTasks.length) &&
-                activeAiCount <= 0
-              ) {
-                setProducersDone();
-              }
-            });
-        }, requestStaggerMs);
-      }
-
-      if (sourceTasks.length <= 0) {
-        setProducersDone();
-      } else {
-        scheduleLaunchTick();
-      }
+          );
+        },
+      });
+      activeBatchRequestStream = requestStream;
 
       async function fillLoop() {
         while (true) {
@@ -1253,24 +1108,59 @@
             break;
           }
 
-          if (completedQueue.length <= 0) {
-            if (producersDone) {
-              if (activeAiCount <= 0) {
-                break;
+          const streamEntry = await requestStream.nextResult();
+          if (!streamEntry) {
+            break;
+          }
+
+          const task = streamEntry.task;
+          const batchItemIndex = Number(task?.batchItemIndex) || Number(streamEntry.index || 0) + 1;
+          const batchProcessKey = String(task?.batchProcessKey || task?.processKey || "");
+          const clientRequestId = String(task?.clientRequestId || task?.item?.clientRequestId || "");
+          const result = streamEntry.ok
+            ? {
+                ok: true,
+                index: streamEntry.index,
+                record: task?.record,
+                item: task?.item,
+                recommendation: streamEntry.value,
+                processKey: task?.processKey,
+                batchRunId,
+                batchItemIndex,
+                batchProcessKey,
+                clientRequestId,
+                displayName: task?.displayName,
+                completedAt: streamEntry.completedAt,
               }
-            } else {
-              await new Promise(function (resolve) {
-                signalResolver = resolve;
-              });
-            }
-            continue;
-          }
-
-          const result = completedQueue.shift();
-          if (result) {
-            queuedResultIds.delete(String(result.processKey || "index:" + String(result.index || 0)));
-          }
-
+            : {
+                ok: false,
+                index: streamEntry.index,
+                record: task?.record,
+                item: task?.item,
+                processKey: task?.processKey,
+                batchRunId,
+                batchItemIndex,
+                batchProcessKey,
+                clientRequestId,
+                displayName: task?.displayName,
+                errorMessage: streamEntry.error?.message || String(streamEntry.error),
+                errorCode: String(streamEntry.error?.code || ""),
+                requestId: String(streamEntry.error?.requestId || ""),
+                jobId: String(streamEntry.error?.jobId || ""),
+                hasRawAiDebug: streamEntry.error?.hasRawAiDebug === true,
+                debugId: String(streamEntry.error?.debugId || ""),
+                rawAiDebug:
+                  streamEntry.error?.rawAiDebug && typeof streamEntry.error.rawAiDebug === "object"
+                    ? streamEntry.error.rawAiDebug
+                    : null,
+                hasDebugRawJson: streamEntry.error?.hasDebugRawJson === true,
+                debugRawJson:
+                  streamEntry.error?.debugRawJson &&
+                  typeof streamEntry.error.debugRawJson === "object"
+                    ? streamEntry.error.debugRawJson
+                    : null,
+                completedAt: streamEntry.completedAt,
+              };
           if (batchQualifiedAutofillCancelRequested === true) {
             break;
           }
@@ -1331,16 +1221,19 @@
           }
 
           updateProgressStatus(String(result?.displayName || ""));
-          if (!batchQualifiedAutofillCancelRequested && (!producersDone || completedQueue.length > 0)) {
+          if (
+            !batchQualifiedAutofillCancelRequested &&
+            (requestStream.getSnapshot().producersDone !== true ||
+              requestStream.getSnapshot().bufferedCount > 0)
+          ) {
             await waitBetweenBatchItems();
           }
         }
-        clearLaunchTimer();
       }
 
       await fillLoop();
-      await producerDonePromise;
-      clearLaunchTimer();
+      await requestStream.whenProducersDone;
+      const finalSnapshot = requestStream.getSnapshot();
 
       return {
         batchRunId,
@@ -1350,17 +1243,16 @@
         plannedSendCount,
         requestStaggerMs,
         frontConcurrency: maxConcurrency,
-        launchedCount,
-        activeAiCount,
-        completedAiCount,
-        analysisSuccessCount,
-        analysisFailCount,
+        launchedCount: finalSnapshot.launchedCount,
+        activeAiCount: finalSnapshot.activeAiCount,
+        completedAiCount: finalSnapshot.completedAiCount,
+        analysisSuccessCount: finalSnapshot.succeededCount,
+        analysisFailCount: finalSnapshot.failedCount,
         fillStartedCount,
         fillSuccessCount,
         fillFailCount,
         fillSkipCount,
-        bufferedCount: completedQueue.length,
-        queuedResultCount: queuedResultIds.size,
+        bufferedCount: finalSnapshot.bufferedCount,
         failures: currentBatchFailures.slice(),
         retryableFailuresCount: currentRetryableFillFailures.length,
         stopped: batchQualifiedAutofillCancelRequested === true,
@@ -1780,6 +1672,7 @@
         stopBatchElapsedTimer();
         batchStartedAtMs = 0;
         releasePageBatchLock(batchRunId || activeBatchRunId);
+        activeBatchRequestStream = null;
         batchQualifiedAutofillRunning = false;
         batchQualifiedAutofillCancelRequested = false;
         batchAutofillPhase = "idle";

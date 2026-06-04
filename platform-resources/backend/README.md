@@ -425,13 +425,14 @@ ASR 转写职责边界：
 DataBaker AI 架构补充：
 - 当前默认链路是：`qwen3.5-omni-flash / qwen3.5-omni-plus` 优先走 Omni legacy 快速路径；选择 `fun-asr` 时默认通过 Node RESTful API 调用 Fun-ASR，再走 compare 文本模型。
 - 前端“AI连续填入合格项并发数量”当前按模型动态归一：Omni 默认 `5`、范围 `1~25`；Fun-ASR 默认 `5`、范围 `1~50`。前端值更大只会更快把请求送进统一后端队列，不会放大后端 provider 并发上限。
-- 前端并发和后端并发是两层配置：前端 `aiQualifiedAutofillConcurrency` 负责一次发起多少浏览器请求；后端 `DATABAKER_AI_FUN_ASR_CONCURRENCY / DATABAKER_AI_TEXT_CONCURRENCY` 负责上游 provider 实际同时 in-flight 数量。
+- 前端并发和后端并发是两层配置：前端 `aiQualifiedAutofillConcurrency` 控制浏览器同时维持多少个在途 AI 请求窗口；某条 AI 一旦返回，就会立即补发下一条，不等待页面保存完成。后端 `DATABAKER_AI_FUN_ASR_CONCURRENCY / DATABAKER_AI_TEXT_CONCURRENCY` 负责上游 provider 实际同时 in-flight 数量。
 - DataBaker 批量“AI连续填入合格项”默认改为短请求创建 `POST /api/data-baker/round-one-quality/ai/recommend/jobs`，再轮询 `GET /jobs/:jobId`；同步 recommend 保留为兼容 / 调试入口。
 - Omni legacy 快速路径不使用 async job、Fun-ASR REST、Python 或 SSE；它只用于先恢复 Qwen Omni 的基础速度和稳定性。
 - job health 会返回 `jobs.maxSize / jobs.timeoutMs / jobs.activeCount / jobs.pendingCount / jobs.runningCount / jobs.succeededCount / jobs.failedCount` 以及 `queue.maxSize / queue.groups.*.pendingCount / activeCount / maxConcurrent`。
+- 系统仪表盘与模型池卡片当前优先展示 `总占用 = activeCount + pendingCount`：`activeCount` 表示已经开始调用上游但尚未完成，`pendingCount` 表示已接收但仍在等待发起。
 - `loadFailureDebugJson` 前端兜底函数已恢复定义；如果当前失败项没有 debug 数据，会提示“当前失败项没有可复制的原始 JSON。”，不再抛 `ReferenceError`。
 - 如果模型输出 JSON 解析失败，可通过 `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId/debug` 复制脱敏后的原始模型输出排查 Prompt / schema。
-- 如果“AI连续填入合格项”看起来像串行，先看 `health.queue.groups.fun_asr.activeCount/maxConcurrent` 是否能超过 `1`；若长期为 `1`，优先检查 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 和 `DATABAKER_AI_FUN_ASR_RPM_LIMIT`。
+- 如果“AI连续填入合格项”看起来像串行，先区分两层：前端悬浮窗是否已经灌满请求窗口（`已发起AI请求 / 前端活跃AI请求 / AI已返回`），以及后端 `health.queue.groups.fun_asr.activeCount/maxConcurrent` 与系统仪表盘 `总占用` 是否能持续拉高；若 `activeCount` 长期为 `1` 且总占用也上不去，优先检查 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 和 `DATABAKER_AI_FUN_ASR_RPM_LIMIT`。
 - 如果 Fun-ASR 批量时前端出现 `Failed to fetch`，更常见的根因不是识别失败，而是同步 recommend 长连接等待过久，被浏览器、Nginx 或网关中断。当前主方案是“短请求创建 job + 轮询 job 状态”，避免单个 HTTP 连接长期挂起。
 - `429` 的根因是上游模型或账号维度限流，不是统一后端机器规格问题；同一阿里云主账号下的多个 RAM 用户/API Key 可能共享限流额度。
 - Fun-ASR 不走 OpenAI-compatible chat/completions；模型名必须是小写 `fun-asr`。
@@ -595,7 +596,8 @@ DataBaker AI 架构补充：
 - 统一后端 provider queue 的 key 已从“脚本分组”扩展为“具体模型名”：
   - 同一模型跨平台、跨脚本共享同一上游发送池。
   - 默认模型池速率为 `20 req/s`（`50ms` 一次发出机会），并按 FIFO 顺序发起请求。
-  - 单个模型池默认总容量为 `999`（`正在处理 + 等待处理`）；达到 `999` 后返回“后端池已满，请稍后重试。”
+  - 系统仪表盘优先展示 `总占用 usedCount = activeCount + pendingCount`，并拆成 `正在调用上游 / 等待发起` 两部分。
+  - 单个模型池默认总容量为 `999`（即 `usedCount` 上限）；达到 `999` 后返回“后端池已满，请稍后重试。”
   - 两阶段链路中的听音模型和比较 / 推理模型分别按各自真实模型名进入独立池。
 
 

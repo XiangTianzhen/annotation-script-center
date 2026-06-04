@@ -1,3 +1,24 @@
+## 2026-06-05（前端并发语义统一为请求窗口灌满）
+
+- 新增 `extension/shared/concurrent-ai-request-stream.js`，把共享前端并发语义统一为：
+  - 固定 `50ms` 错峰发起。
+  - 启动后先把前端请求窗口灌满到当前并发上限。
+  - 某条 AI 一旦返回，就立即释放 1 个前端请求槽位并补发下一条。
+  - AI 结果按完成顺序进入缓冲区；页面填入 / 保存继续按各脚本自己的安全链路串行执行。
+- `extension/sites/aishell-tech/minnan-helper/content.js` 当前已改成“AI 请求流水线 + 保存流水线”解耦：
+  - 停止后不再发起新的 AI 请求；当前保存步骤收尾后结束本轮。
+  - 批量状态补充 `前端并发 / 发送间隔 / 已发请求 / AI处理中 / AI已返回 / 待保存队列`。
+- `extension/sites/data-baker/round-one-quality/content.js` 的连续填入现改为复用同一共享并发流，不改对外产品行为，只收口内部并发语义。
+- 系统仪表盘模型池当前优先展示 `总占用 = activeCount + pendingCount`，并固定区分：
+  - `正在调用上游`
+  - `等待发起`
+  - `池容量`
+  - `剩余可接收`
+- 新增 / 更新验证：
+  - `extension/shared/concurrent-ai-request-stream.test.js`
+  - `extension/sites/aishell-tech/minnan-helper/batch-pipeline.test.js`
+  - `platform-resources/backend/admin-dashboard/overview.test.js`
+
 ## 2026-06-05（DataBaker CVPC 首轮资料初始化）
 
 - 新增平台资料目录 `platform-resources/data-baker-cvpc/`，作为全新平台初始化入口；当前未创建 `extension/sites/data-baker-cvpc/`，也未接入专属后端。
