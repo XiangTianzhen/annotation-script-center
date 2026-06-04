@@ -1,3 +1,20 @@
+## 2026-06-04（CRX 打包命令收口为单行双产物）
+
+- `scripts/package-crx-release.js` 当前默认不再只打单通道：
+  - 未显式传 `--channel` 时，会在一次执行中同时生成正式包与 beta 包
+  - 正式包继续产出 `CRX + ZIP + update.xml + crx-latest.json`
+  - beta 包继续产出单一 `annotation-script-center-beta.zip`
+- beta 打包参数当前支持直接走命令行，避免先写多行环境变量：
+  - `--betaUnlockPasswordSha256`
+  - `--betaBackendBaseUrl`
+- 仍保留按需单独打包：
+  - `--channel public`
+  - `--channel beta`
+- 本轮验证：
+  - `node --test scripts/package-crx-build-profile.test.js`
+  - `node --check scripts/package-crx-build-profile.js`
+  - `node --check scripts/package-crx-release.js`
+
 ## 2026-06-04（beta 构建、隐藏解锁与 Lightwheel 可见性收口）
 
 - 扩展新增共享构建元信息：
@@ -20,7 +37,7 @@
   - beta 包已解锁但 `Lightwheel` 被禁用时也不显示
 - 打包脚本当前已支持双构建：
   - `public`：继续产出 `annotation-script-center-v<version>.crx`、`ZIP`、`update.xml`、`crx-latest.json`
-  - `beta`：产出单一 `annotation-script-center-beta.crx`
+  - `beta`：产出单一 `annotation-script-center-beta.zip`
   - beta 构建会写入 `version_name=beta`，并通过临时构建目录注入 build meta；public 构建会过滤 `Lightwheel` host 权限
 - 本轮验证：
   - `node --test extension/shared/constants.release.test.js scripts/package-crx-build-profile.test.js`

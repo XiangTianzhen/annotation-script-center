@@ -84,7 +84,7 @@
   - 脚本启停
   - 脚本详情入口
 - `脚本下载中心` 为公开入口，不要求管理员密码；当前负责扩展版本分发。
-- beta 构建当前不进入 `脚本下载中心`；只通过“查看外部目录”获取单一 `annotation-script-center-beta.crx`。
+- beta 构建当前不进入 `脚本下载中心`；只通过“查看外部目录”获取单一 `annotation-script-center-beta.zip`。
 - `系统管理` 进入时要求输入密码；密码复用项目数据下载鉴权口径。
 - “后端接口地址 / AI 调用使用人”统一迁到 `?view=admin&tab=backend`。
 - “项目数据下载 / AI 请求记录导出”统一迁到 `?view=admin&tab=exports`。
@@ -206,13 +206,10 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 node scripts/package-crx-release.js --notes "CRX enterprise release test"
 ```
 
-beta 构建（仍在仓库根目录执行）：
+单行同时生成正式包与 beta 包：
 
 ```powershell
-$env:ASC_RELEASE_CHANNEL="beta"
-$env:ASC_BETA_UNLOCK_PASSWORD_SHA256="<sha256>"
-$env:ASC_BETA_BACKEND_BASE_URL="https://beta.example.test"
-node scripts/package-crx-release.js --notes "Beta build"
+node scripts/package-crx-release.js --notes "CRX enterprise release test" --betaUnlockPasswordSha256 "<sha256>" --betaBackendBaseUrl "https://beta.example.test"
 ```
 
 输出文件：
@@ -220,8 +217,12 @@ node scripts/package-crx-release.js --notes "Beta build"
 - `dist/annotation-script-center-update.xml`
 - `dist/annotation-script-center-crx-latest.json`
 - beta 构建输出：
-  - `dist/annotation-script-center-beta.crx`
-  - 不生成 `ZIP / update.xml / crx-latest.json`
+  - `dist/annotation-script-center-beta.zip`
+  - 不生成 `CRX / update.xml / crx-latest.json`
+
+可选：
+- 只打正式包：`node scripts/package-crx-release.js --channel public --notes "CRX enterprise release test"`
+- 只打 beta 包：`node scripts/package-crx-release.js --channel beta --notes "Beta build" --betaUnlockPasswordSha256 "<sha256>" --betaBackendBaseUrl "https://beta.example.test"`
 
 前置要求：
 - `manifest.json` 必须包含：

@@ -7,6 +7,7 @@ const {
   buildBuildMetaContent,
   buildManifestForChannel,
   buildReleaseProfile,
+  buildReleaseProfiles,
 } = require("./package-crx-build-profile");
 
 test("public profile keeps versioned public artifacts", function () {
@@ -19,14 +20,32 @@ test("public profile keeps versioned public artifacts", function () {
   assert.equal(profile.includeLatestJson, true);
 });
 
-test("beta profile emits single beta crx and no public metadata", function () {
+test("beta profile emits single beta zip and no public metadata", function () {
   const profile = buildReleaseProfile("beta", "0.4.0");
   assert.equal(profile.channel, "beta");
-  assert.equal(profile.crxFilename, "annotation-script-center-beta.crx");
-  assert.equal(profile.zipFilename, "");
-  assert.equal(profile.includeZip, false);
+  assert.equal(profile.crxFilename, "");
+  assert.equal(profile.zipFilename, "annotation-script-center-beta.zip");
+  assert.equal(profile.includeZip, true);
   assert.equal(profile.includeUpdateXml, false);
   assert.equal(profile.includeLatestJson, false);
+});
+
+test("default release mode emits both public and beta profiles", function () {
+  const profiles = buildReleaseProfiles("", "0.4.0");
+  assert.equal(Array.isArray(profiles), true);
+  assert.equal(profiles.length, 2);
+  assert.deepEqual(
+    profiles.map(function (profile) {
+      return profile.channel;
+    }),
+    ["public", "beta"]
+  );
+  assert.deepEqual(
+    profiles.map(function (profile) {
+      return profile.crxFilename || profile.zipFilename;
+    }),
+    ["annotation-script-center-v0.4.0.crx", "annotation-script-center-beta.zip"]
+  );
 });
 
 test("public manifest strips beta marker and beta hosts", function () {

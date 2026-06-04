@@ -6,14 +6,22 @@ function normalizeReleaseChannel(value) {
   return String(value || "").trim().toLowerCase() === "beta" ? "beta" : "public";
 }
 
+function normalizeReleaseBuildMode(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "public" || text === "beta") {
+    return text;
+  }
+  return "all";
+}
+
 function buildReleaseProfile(channel, version) {
   const normalizedChannel = normalizeReleaseChannel(channel);
   if (normalizedChannel === "beta") {
     return {
       channel: normalizedChannel,
-      crxFilename: "annotation-script-center-beta.crx",
-      zipFilename: "",
-      includeZip: false,
+      crxFilename: "",
+      zipFilename: "annotation-script-center-beta.zip",
+      includeZip: true,
       includeUpdateXml: false,
       includeLatestJson: false,
     };
@@ -26,6 +34,17 @@ function buildReleaseProfile(channel, version) {
     includeUpdateXml: true,
     includeLatestJson: true,
   };
+}
+
+function buildReleaseProfiles(mode, version) {
+  const normalizedMode = normalizeReleaseBuildMode(mode);
+  if (normalizedMode === "all") {
+    return [
+      buildReleaseProfile("public", version),
+      buildReleaseProfile("beta", version),
+    ];
+  }
+  return [buildReleaseProfile(normalizedMode, version)];
 }
 
 function buildManifestForChannel(manifest, channel) {
@@ -74,5 +93,7 @@ module.exports = {
   buildBuildMetaContent,
   buildManifestForChannel,
   buildReleaseProfile,
+  buildReleaseProfiles,
+  normalizeReleaseBuildMode,
   normalizeReleaseChannel,
 };

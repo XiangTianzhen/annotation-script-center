@@ -9,6 +9,8 @@ const {
   buildBuildMetaContent,
   buildManifestForChannel,
   buildReleaseProfile,
+  buildReleaseProfiles,
+  normalizeReleaseBuildMode,
   normalizeReleaseChannel,
 } = require("./package-crx-build-profile");
 
@@ -157,8 +159,9 @@ function runPackExtension(browserExe, extensionDir, keyPathOrNull) {
 }
 
 function ensureCrxAndKey(browserExe, extensionDir) {
-  const tempCrxPath = path.join(REPO_ROOT, "extension.crx");
-  const tempPemPath = path.join(REPO_ROOT, "extension.pem");
+  const packOutputDir = path.dirname(extensionDir);
+  const tempCrxPath = path.join(packOutputDir, "extension.crx");
+  const tempPemPath = path.join(packOutputDir, "extension.pem");
   safeUnlink(tempCrxPath);
   safeUnlink(tempPemPath);
 
@@ -393,39 +396,28 @@ function validateUpdateXml(xmlText, extensionId, codebaseUrl, version) {
   }
 }
 
-function main() {
-  const args = parseArgs(process.argv.slice(2));
-  const { version } = readManifestMeta();
-  const browserExe = resolveBrowserExecutable();
-  const downloadBaseUrl = normalizeBaseUrl(process.env.ASC_DOWNLOAD_BASE_URL);
-  const channel = normalizeReleaseChannel(args.channel || process.env.ASC_RELEASE_CHANNEL);
-  const betaUnlockPasswordSha256 = String(
-    args.betaUnlockPasswordSha256 || process.env.ASC_BETA_UNLOCK_PASSWORD_SHA256 || ""
-  )
-    .trim()
-    .toLowerCase();
-  const betaBackendBaseUrl = String(
-    args.betaBackendBaseUrl || process.env.ASC_BETA_BACKEND_BASE_URL || ""
-  )
-    .trim();
-  if (channel === "beta" && !betaUnlockPasswordSha256) {
-    throw new Error("beta 构建缺少 ASC_BETA_UNLOCK_PASSWORD_SHA256 或 --betaUnlockPasswordSha256。");
+function packageReleaseProfile(options) {
+  const config = options && typeof options === "object" ? options : {};
+  const version = String(config.version || "").trim();
+  const browserExe = String(config.browserExe || "").trim();
+  const downloadBaseUrl = normalizeBaseUrl(config.downloadBaseUrl);
+  const releaseNotes = String(config.releaseNotes || "").trim() || `${APP_NAME} release ${version}`;
+  const profile = config.profile;
+  if (!profile || typeof profile !== "object") {
+    throw new Error("缺少有效打包 profile。");
   }
-  const releaseNotes = typeof args.notes === "string" && args.notes.trim()
-    ? args.notes.trim()
-    : `${APP_NAME} release ${version}`;
-  const profile = buildReleaseProfile(channel, version);
+
   const preparedBuild = createPreparedExtensionBuild({
-    channel,
-    betaUnlockPasswordSha256,
-    betaBackendBaseUrl,
+    channel: profile.channel,
+    betaUnlockPasswordSha256: config.betaUnlockPasswordSha256 || "",
+    betaBackendBaseUrl: config.betaBackendBaseUrl || "",
   });
 
   try {
     fs.mkdirSync(DIST_DIR, { recursive: true });
     const crxFilename = profile.crxFilename;
     const zipFilename = profile.zipFilename;
-    const crxOutputPath = path.join(DIST_DIR, crxFilename);
+    const crxOutputPath = crxFilename ? path.join(DIST_DIR, crxFilename) : "";
     const zipOutputPath = zipFilename ? path.join(DIST_DIR, zipFilename) : "";
     const updateXmlPath = profile.includeUpdateXml
       ? path.join(DIST_DIR, UPDATE_XML_FILENAME)
@@ -434,14 +426,20 @@ function main() {
       ? path.join(DIST_DIR, CRX_LATEST_FILENAME)
       : "";
 
-    const { tempCrxPath, generatedNewKey } = ensureCrxAndKey(browserExe, preparedBuild.extensionDir);
-    safeUnlink(crxOutputPath);
-    fs.renameSync(tempCrxPath, crxOutputPath);
-    ensureFileExists(KEY_PATH, "CRX 私钥文件");
-
-    const extensionId = computeExtensionIdFromPrivateKeyPem(KEY_PATH);
-    const stat = fs.statSync(crxOutputPath);
-    const downloadUrl = `${downloadBaseUrl}${crxFilename}`;
+    let generatedNewKey = false;
+    let extensionId = "";
+    let stat = null;
+    let downloadUrl = "";
+    if (crxFilename) {
+      const crxPackResult = ensureCrxAndKey(browserExe, preparedBuild.extensionDir);
+      safeUnlink(crxOutputPath);
+      fs.renameSync(crxPackResult.tempCrxPath, crxOutputPath);
+      ensureFileExists(KEY_PATH, "CRX 私钥文件");
+      generatedNewKey = crxPackResult.generatedNewKey;
+      extensionId = computeExtensionIdFromPrivateKeyPem(KEY_PATH);
+      stat = fs.statSync(crxOutputPath);
+      downloadUrl = `${downloadBaseUrl}${crxFilename}`;
+    }
 
     let zipPackTool = "";
     let zipMeta = null;
@@ -451,7 +449,6 @@ function main() {
     }
 
     if (profile.includeUpdateXml && updateXmlPath) {
-      const updateXmlUrl = `${downloadBaseUrl}${UPDATE_XML_FILENAME}`;
       const updateXml = buildUpdateXml(extensionId, downloadUrl, version);
       validateUpdateXml(updateXml, extensionId, downloadUrl, version);
       fs.writeFileSync(updateXmlPath, updateXml, "utf8");
@@ -469,7 +466,7 @@ function main() {
         download_url: downloadUrl,
         update_xml_url: updateXmlUrl,
         sha256: sha256File(crxOutputPath),
-        size_bytes: stat.size,
+        size_bytes: stat ? stat.size : 0,
         zip_filename: zipFilename,
         zip_download_url: zipDownloadUrl,
         zip_sha256: zipMeta.sha256,
@@ -482,43 +479,114 @@ function main() {
       fs.writeFileSync(crxLatestPath, `${JSON.stringify(crxLatestPayload, null, 2)}\n`, "utf8");
     }
 
-    console.log("release generated:");
-    console.log(`- channel: ${channel}`);
-    console.log(`- CRX: ${crxOutputPath}`);
-    if (profile.includeZip && zipOutputPath) {
-      console.log(`- ZIP: ${zipOutputPath}`);
-    }
-    if (profile.includeUpdateXml && updateXmlPath) {
-      console.log(`- update.xml: ${updateXmlPath}`);
-    }
-    if (profile.includeLatestJson && crxLatestPath) {
-      console.log(`- latest json: ${crxLatestPath}`);
-    }
-    console.log(`extension id: ${extensionId}`);
-    if (zipMeta) {
-      console.log(`zip pack tool: ${zipPackTool}, entries: ${zipMeta.entriesCount}`);
-    }
-    console.log("");
-    console.log("当前手工分发文件：");
-    console.log(`1. ${crxOutputPath}`);
-    if (profile.includeZip && zipOutputPath) {
-      console.log(`2. ${zipOutputPath}`);
-    }
-    if (profile.includeUpdateXml && updateXmlPath && profile.includeLatestJson && crxLatestPath) {
-      console.log("");
-      console.log("企业自动更新预留文件：");
-      console.log(`1. ${updateXmlPath}`);
-      console.log(`2. ${crxLatestPath}`);
-    }
-    if (generatedNewKey) {
-      console.log(
-        `首次生成私钥：${KEY_PATH}。请离线备份该 pem；丢失会导致 extension ID 变化并需要重配企业策略。`
-      );
-    }
+    return {
+      channel: profile.channel,
+      crxOutputPath,
+      zipOutputPath,
+      updateXmlPath,
+      crxLatestPath,
+      extensionId,
+      generatedNewKey,
+      zipPackTool,
+      zipEntriesCount: zipMeta ? zipMeta.entriesCount : 0,
+    };
   } finally {
     if (preparedBuild?.tempRoot && fs.existsSync(preparedBuild.tempRoot)) {
       fs.rmSync(preparedBuild.tempRoot, { recursive: true, force: true });
     }
+  }
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const { version } = readManifestMeta();
+  const downloadBaseUrl = normalizeBaseUrl(process.env.ASC_DOWNLOAD_BASE_URL);
+  const buildMode = normalizeReleaseBuildMode(args.channel || process.env.ASC_RELEASE_CHANNEL);
+  const betaUnlockPasswordSha256 = String(
+    args.betaUnlockPasswordSha256 || process.env.ASC_BETA_UNLOCK_PASSWORD_SHA256 || ""
+  )
+    .trim()
+    .toLowerCase();
+  const betaBackendBaseUrl = String(
+    args.betaBackendBaseUrl || process.env.ASC_BETA_BACKEND_BASE_URL || ""
+  )
+    .trim();
+  const releaseNotes = typeof args.notes === "string" && args.notes.trim()
+    ? args.notes.trim()
+    : `${APP_NAME} release ${version}`;
+  const profiles = buildReleaseProfiles(buildMode, version);
+  const needsBetaArtifacts = profiles.some(function (profile) {
+    return normalizeReleaseChannel(profile.channel) === "beta";
+  });
+  const needsCrxArtifacts = profiles.some(function (profile) {
+    return Boolean(profile.crxFilename);
+  });
+  if (needsBetaArtifacts && !betaUnlockPasswordSha256) {
+    throw new Error(
+      "当前命令会生成 beta 包，缺少 ASC_BETA_UNLOCK_PASSWORD_SHA256 或 --betaUnlockPasswordSha256。"
+    );
+  }
+  const browserExe = needsCrxArtifacts ? resolveBrowserExecutable() : "";
+
+  const results = profiles.map(function (profile) {
+    return packageReleaseProfile({
+      version,
+      browserExe,
+      downloadBaseUrl,
+      releaseNotes,
+      profile,
+      betaUnlockPasswordSha256,
+      betaBackendBaseUrl,
+    });
+  });
+
+  console.log("release generated:");
+  results.forEach(function (result) {
+    const profile = buildReleaseProfile(result.channel, version);
+    console.log(`- channel: ${result.channel}`);
+    if (result.crxOutputPath) {
+      console.log(`  CRX: ${result.crxOutputPath}`);
+    }
+    if (profile.includeZip && result.zipOutputPath) {
+      console.log(`  ZIP: ${result.zipOutputPath}`);
+    }
+    if (profile.includeUpdateXml && result.updateXmlPath) {
+      console.log(`  update.xml: ${result.updateXmlPath}`);
+    }
+    if (profile.includeLatestJson && result.crxLatestPath) {
+      console.log(`  latest json: ${result.crxLatestPath}`);
+    }
+    console.log(`  extension id: ${result.extensionId}`);
+    if (result.zipPackTool) {
+      console.log(`  zip pack tool: ${result.zipPackTool}, entries: ${result.zipEntriesCount}`);
+    }
+  });
+  console.log("");
+  console.log("当前手工分发文件：");
+  let outputIndex = 1;
+  results.forEach(function (result) {
+    if (result.crxOutputPath) {
+      console.log(`${outputIndex}. ${result.crxOutputPath}`);
+      outputIndex += 1;
+    }
+    if (result.zipOutputPath) {
+      console.log(`${outputIndex}. ${result.zipOutputPath}`);
+      outputIndex += 1;
+    }
+  });
+  const publicResult = results.find(function (result) {
+    return result.channel === "public";
+  });
+  if (publicResult && publicResult.updateXmlPath && publicResult.crxLatestPath) {
+    console.log("");
+    console.log("企业自动更新预留文件：");
+    console.log(`1. ${publicResult.updateXmlPath}`);
+    console.log(`2. ${publicResult.crxLatestPath}`);
+  }
+  if (results.some(function (result) { return result.generatedNewKey; })) {
+    console.log(
+      `首次生成私钥：${KEY_PATH}。请离线备份该 pem；丢失会导致 extension ID 变化并需要重配企业策略。`
+    );
   }
 }
 
