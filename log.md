@@ -1,3 +1,25 @@
+## 2026-06-05（Aishell Tech 批量识别按钮拆分）
+
+- 更新 `extension/sites/aishell-tech/minnan-helper/ui-panel.js`：
+  - 原单个 `AI批量识别` 按钮拆成 `全部AI批量识别`、`未完成的AI批量识别` 和 `停止批量` 三个原生工具区按钮。
+  - 单条识别或任一批量运行时，两个批量按钮会统一禁用；只有批量运行中才启用 `停止批量`。
+- 更新 `extension/sites/aishell-tech/minnan-helper/content.js`：
+  - 批量执行链路收口成带 `mode=all|pending` 的复用入口。
+  - 页面双按钮分别对应“整包全量重跑”和“只处理未完成条目”。
+  - 现有快捷键 `autoFillQualifiedItem` 保持不变，继续对应“未完成的AI批量识别”。
+  - 运行中文案改成双入口口径，空结果、完成和停止提示会明确区分“全部”与“未完成”。
+- 更新 `extension/sites/aishell-tech/minnan-helper/data-api.js`：
+  - `getBatchTasksForPackage()` 与 `createBatchTasksFromPackageItems()` 新增 `mode` 选项。
+  - `pending` 模式继续跳过 `dataStatus === 2`；`all` 模式改为保留整包所有条目。
+- 文档同步：
+  - `extension/sites/aishell-tech/minnan-helper/README.md`
+  - `platform-resources/aishell-tech/minnan-helper/README.md`
+- 本轮验证：
+  - `node --check extension/sites/aishell-tech/minnan-helper/ui-panel.js`
+  - `node --check extension/sites/aishell-tech/minnan-helper/content.js`
+  - `node --check extension/sites/aishell-tech/minnan-helper/data-api.js`
+  - 内联 Node 断言：验证 `createBatchTasksFromPackageItems(..., { mode: 'all' })` 会保留已完成条目，而 `mode: 'pending'` 仍会过滤已完成条目。
+
 ## 2026-06-05（Aishell Tech 闽南语标准对齐到 DataBaker 一检质检）
 
 - 对齐 `Aishell Tech / minnan-helper` 的闽南语标准：

@@ -647,11 +647,19 @@
     return "未命名条目";
   }
 
-  function shouldSkipBatchRecord(record) {
+  function normalizeBatchTaskMode(value) {
+    return String(value || "").trim().toLowerCase() === "all" ? "all" : "pending";
+  }
+
+  function shouldSkipBatchRecord(record, options) {
+    const mode = normalizeBatchTaskMode(options?.mode);
+    if (mode === "all") {
+      return false;
+    }
     return Number(record?.dataStatus || 0) === 2;
   }
 
-  function createBatchTasksFromPackageItems(records) {
+  function createBatchTasksFromPackageItems(records, options) {
     const source = Array.isArray(records) ? records : [];
     return source
       .map(function (record, index) {
@@ -661,7 +669,7 @@
         };
       })
       .filter(function (entry) {
-        return shouldSkipBatchRecord(entry.record) !== true;
+        return shouldSkipBatchRecord(entry.record, options) !== true;
       })
       .map(function (entry) {
         return {
@@ -1044,11 +1052,11 @@
       });
     }
 
-    async function getBatchTasksForPackage() {
+    async function getBatchTasksForPackage(options) {
       syncRouteKey();
       const routeParams = parseRouteParams();
       const packageEntry = await ensurePackageItems(routeParams.packageId);
-      return createBatchTasksFromPackageItems(packageEntry.items);
+      return createBatchTasksFromPackageItems(packageEntry.items, options);
     }
 
     async function waitForSelectedIndex(targetIndex, timeoutMs) {

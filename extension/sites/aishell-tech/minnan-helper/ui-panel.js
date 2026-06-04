@@ -151,7 +151,8 @@
     let resultNode = null;
     let batchNode = null;
     let singleButtonNode = null;
-    let batchButtonNode = null;
+    let batchAllButtonNode = null;
+    let batchPendingButtonNode = null;
     let stopButtonNode = null;
     let currentItemKey = "";
     let currentResult = null;
@@ -330,7 +331,7 @@
 
       statusNode = document.createElement("div");
       statusNode.className = "asc-status";
-      statusNode.textContent = "等待进入标注页并点击“AI识别”或“AI批量识别”。";
+      statusNode.textContent = "等待进入标注页并点击“AI识别”或批量识别按钮。";
       resultsSection.appendChild(statusNode);
       root.appendChild(resultsSection);
 
@@ -451,12 +452,19 @@
           nextState.single === true || nextState.batch === true
         );
       }
-      if (batchButtonNode) {
+      if (batchAllButtonNode) {
         syncButtonDisabledState(
-          batchButtonNode,
+          batchAllButtonNode,
           nextState.batch === true || nextState.single === true
         );
-        batchButtonNode.style.color = batchButtonNode.disabled ? "#94a3b8" : "#1d4ed8";
+        batchAllButtonNode.style.color = batchAllButtonNode.disabled ? "#94a3b8" : "#1d4ed8";
+      }
+      if (batchPendingButtonNode) {
+        syncButtonDisabledState(
+          batchPendingButtonNode,
+          nextState.batch === true || nextState.single === true
+        );
+        batchPendingButtonNode.style.color = batchPendingButtonNode.disabled ? "#94a3b8" : "#1d4ed8";
       }
       if (stopButtonNode) {
         syncButtonDisabledState(stopButtonNode, nextState.batch !== true);
@@ -524,15 +532,20 @@
         return;
       }
       if (
-        batchButtonNode &&
+        batchAllButtonNode &&
+        batchPendingButtonNode &&
         stopButtonNode &&
-        document.documentElement.contains(batchButtonNode) &&
+        document.documentElement.contains(batchAllButtonNode) &&
+        document.documentElement.contains(batchPendingButtonNode) &&
         document.documentElement.contains(stopButtonNode)
       ) {
         return;
       }
-      if (batchButtonNode) {
-        batchButtonNode.remove();
+      if (batchAllButtonNode) {
+        batchAllButtonNode.remove();
+      }
+      if (batchPendingButtonNode) {
+        batchPendingButtonNode.remove();
       }
       if (stopButtonNode) {
         stopButtonNode.remove();
@@ -546,26 +559,50 @@
         return text.indexOf("删除音频标点") >= 0 || text.indexOf("查看历史标注记录") >= 0;
       });
 
-      batchButtonNode = document.createElement("button");
-      batchButtonNode.type = "button";
-      batchButtonNode.className = "el-button el-button--text el-button--small";
-      batchButtonNode.setAttribute("data-asc-injected-batch", "true");
-      applyScopedAttrs(batchButtonNode, scopedAttrs);
-      batchButtonNode.style.marginRight = "12px";
-      batchButtonNode.style.color = "#1d4ed8";
-      batchButtonNode.style.fontWeight = "700";
-      batchButtonNode.style.pointerEvents = "auto";
-      const batchLabel = document.createElement("span");
-      applyScopedAttrs(batchLabel, scopedAttrs);
-      batchLabel.textContent = "AI批量识别";
-      batchButtonNode.appendChild(batchLabel);
-      batchButtonNode.addEventListener("click", function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (typeof deps.onBatchRecommend === "function") {
-          void deps.onBatchRecommend();
+      function createToolbarButton(text, attrName, onClick) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "el-button el-button--text el-button--small";
+        button.setAttribute(attrName, "true");
+        applyScopedAttrs(button, scopedAttrs);
+        button.style.marginRight = "12px";
+        button.style.color = "#1d4ed8";
+        button.style.fontWeight = "700";
+        button.style.pointerEvents = "auto";
+        const label = document.createElement("span");
+        applyScopedAttrs(label, scopedAttrs);
+        label.textContent = text;
+        button.appendChild(label);
+        button.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof onClick === "function") {
+            void onClick();
+          }
+        });
+        return button;
+      }
+
+      batchAllButtonNode = createToolbarButton(
+        "全部AI批量识别",
+        "data-asc-injected-batch-all",
+        function () {
+          if (typeof deps.onBatchRecommendAll === "function") {
+            return deps.onBatchRecommendAll();
+          }
+          return null;
         }
-      });
+      );
+      batchPendingButtonNode = createToolbarButton(
+        "未完成的AI批量识别",
+        "data-asc-injected-batch-pending",
+        function () {
+          if (typeof deps.onBatchRecommendPending === "function") {
+            return deps.onBatchRecommendPending();
+          }
+          return null;
+        }
+      );
 
       stopButtonNode = document.createElement("button");
       stopButtonNode.type = "button";
@@ -589,9 +626,11 @@
 
       if (referenceButton) {
         container.insertBefore(stopButtonNode, referenceButton);
-        container.insertBefore(batchButtonNode, stopButtonNode);
+        container.insertBefore(batchPendingButtonNode, stopButtonNode);
+        container.insertBefore(batchAllButtonNode, batchPendingButtonNode);
       } else {
-        container.appendChild(batchButtonNode);
+        container.appendChild(batchAllButtonNode);
+        container.appendChild(batchPendingButtonNode);
         container.appendChild(stopButtonNode);
       }
       setBusy(currentBusyState);
@@ -765,8 +804,11 @@
       if (singleButtonNode) {
         singleButtonNode.remove();
       }
-      if (batchButtonNode) {
-        batchButtonNode.remove();
+      if (batchAllButtonNode) {
+        batchAllButtonNode.remove();
+      }
+      if (batchPendingButtonNode) {
+        batchPendingButtonNode.remove();
       }
       if (stopButtonNode) {
         stopButtonNode.remove();
@@ -777,7 +819,8 @@
       root = null;
       statusNode = null;
       singleButtonNode = null;
-      batchButtonNode = null;
+      batchAllButtonNode = null;
+      batchPendingButtonNode = null;
       stopButtonNode = null;
       currentItemKey = "";
       advancedSectionNode = null;

@@ -43,6 +43,26 @@
     ].join("-");
   }
 
+  function normalizeBatchMode(value) {
+    return String(value || "").trim().toLowerCase() === "all" ? "all" : "pending";
+  }
+
+  function getBatchModeMeta(value) {
+    const mode = normalizeBatchMode(value);
+    if (mode === "all") {
+      return {
+        mode: "all",
+        label: "全部AI批量识别",
+        emptyMessage: "当前分包没有可识别条目。",
+      };
+    }
+    return {
+      mode: "pending",
+      label: "未完成的AI批量识别",
+      emptyMessage: "当前分包没有可识别的未完成条目。",
+    };
+  }
+
   function normalizeOptionalNumber(value, min, max) {
     if (value === undefined || value === null || value === "") {
       return "";
@@ -278,18 +298,19 @@
 
     const panel = uiFactory.createRuntime({
       onRecommend: handleRecommend,
-      onBatchRecommend: handleBatchRecommend,
+      onBatchRecommendAll: handleBatchRecommendAll,
+      onBatchRecommendPending: handleBatchRecommendPending,
       onBatchStop: handleBatchStop,
       canFillPageText: dataApi.canFillPageText,
       fillPageText: dataApi.fillPageText,
       fillAndSaveCurrent: dataApi.fillAndSaveCurrent,
     });
     const shortcuts = shortcutsFactory?.createRuntime
-      ? shortcutsFactory.createRuntime({
+        ? shortcutsFactory.createRuntime({
           shortcuts: config.shortcuts || {},
           actions: {
             requestAiRecommend: handleRecommend,
-            autoFillQualifiedItem: handleBatchRecommend,
+            autoFillQualifiedItem: handleBatchRecommendPending,
             copyHeardText: panel.copyHeardText,
             copyRecommendedText: panel.copyRecommendedText,
             fillRecommendedText: panel.fillRecommendedText,
@@ -340,21 +361,28 @@
       if (activeBatchContext?.scheduler?.cancelPending) {
         activeBatchContext.scheduler.cancelPending("批量识别已手动停止。");
       }
-      panel.setStatus("已请求停止，将在当前条完成后结束本轮批量。", "warning");
+      const batchMeta = getBatchModeMeta(activeBatchContext?.mode);
+      panel.setStatus(
+        "已请求停止，将在当前条完成后结束本轮" + batchMeta.label + "。",
+        "warning"
+      );
       panel.updateBatch({
-        phaseText: "停止中",
+        phaseText: batchMeta.label + "停止中",
         running: true,
       });
     }
 
-    async function handleBatchRecommend() {
+    async function runBatchRecommend(mode) {
+      const batchMeta = getBatchModeMeta(mode);
       syncBusyState({ batch: true });
       batchStopRequested = false;
-      panel.setStatus("正在准备批量识别...", "info");
+      panel.setStatus("正在准备" + batchMeta.label + "...", "info");
       try {
-        const tasks = await dataApi.getBatchTasksForPackage();
+        const tasks = await dataApi.getBatchTasksForPackage({
+          mode: batchMeta.mode,
+        });
         if (!tasks.length) {
-          throw new Error("当前分包没有可识别的未完成条目。");
+          throw new Error(batchMeta.emptyMessage);
         }
         const batchRunId = createBatchRunId();
         const batchConcurrency = Math.max(
@@ -370,6 +398,7 @@
           batchConcurrency
         );
         activeBatchContext = {
+          mode: batchMeta.mode,
           scheduler: scheduler,
           batchRunId: batchRunId,
         };
@@ -467,7 +496,7 @@
         }
 
         panel.updateBatch({
-          phaseText: "开始",
+          phaseText: batchMeta.label + "开始",
           total: tasks.length,
           completed: 0,
           failed: 0,
@@ -491,7 +520,7 @@
           }
           const task = entry.task;
           panel.updateBatch({
-            phaseText: entry.ok === true ? "回填保存中" : "当前条失败",
+            phaseText: entry.ok === true ? batchMeta.label + "回填保存中" : batchMeta.label + "当前条失败",
             total: tasks.length,
             completed: consumedCount,
             failed: failures.length,
@@ -511,7 +540,7 @@
               })
             );
             panel.updateBatch({
-              phaseText: "当前条失败",
+              phaseText: batchMeta.label + "当前条失败",
               total: tasks.length,
               completed: consumedCount,
               failed: failures.length,
@@ -544,7 +573,7 @@
               }
               consumedCount += 1;
               panel.updateBatch({
-                phaseText: "已识别并保存",
+                phaseText: batchMeta.label + "已识别并保存",
                 total: tasks.length,
                 completed: consumedCount,
                 failed: failures.length,
@@ -567,7 +596,7 @@
                 })
               );
               panel.updateBatch({
-                phaseText: "当前条失败",
+                phaseText: batchMeta.label + "当前条失败",
                 total: tasks.length,
                 completed: consumedCount,
                 failed: failures.length,
@@ -583,7 +612,7 @@
 
         if (batchStopRequested === true) {
           panel.updateBatch({
-            phaseText: "已停止",
+            phaseText: batchMeta.label + "已停止",
             total: tasks.length,
             completed: consumedCount,
             failed: failures.length,
@@ -591,12 +620,12 @@
             failures: failures,
             running: false,
           });
-          panel.setStatus("本轮批量识别已按请求停止。", "warning");
+          panel.setStatus("本轮" + batchMeta.label + "已按请求停止。", "warning");
           return;
         }
 
         panel.updateBatch({
-          phaseText: "已完成",
+          phaseText: batchMeta.label + "已完成",
           total: tasks.length,
           completed: consumedCount,
           failed: failures.length,
@@ -606,8 +635,8 @@
         });
         panel.setStatus(
           failures.length > 0
-            ? "当前分包批量识别完成，存在失败条目。"
-            : "当前分包批量识别完成。",
+            ? "当前分包" + batchMeta.label + "完成，存在失败条目。"
+            : "当前分包" + batchMeta.label + "完成。",
           failures.length > 0 ? "warning" : "success"
         );
       } catch (error) {
@@ -617,6 +646,14 @@
         batchStopRequested = false;
         syncBusyState({ batch: false });
       }
+    }
+
+    async function handleBatchRecommendAll() {
+      return runBatchRecommend("all");
+    }
+
+    async function handleBatchRecommendPending() {
+      return runBatchRecommend("pending");
     }
 
     function ensureMounted() {
