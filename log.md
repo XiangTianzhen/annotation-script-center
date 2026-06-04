@@ -1,3 +1,17 @@
+## 2026-06-05（修复 CRX 打包脚本错误导入）
+
+- 修复 `node scripts/package-crx-release.js --notes "CRX enterprise release"` 启动即报：
+  - `[crx-release] buildEmptyLocalBuildMetaContent is not a function`
+- 根因：
+  - `scripts/package-crx-release.js` 仍从 `package-crx-build-profile.js` 读取 `buildEmptyLocalBuildMetaContent`
+  - 该函数实际已迁移到 `scripts/build-meta-local.js`
+- 当前已改为从 `build-meta-local.js` 单独导入空 stub 生成函数，恢复正式包 / beta 包打包流程。
+- 新增回归测试：
+  - `scripts/package-crx-release-source.test.js`
+- README 当前同步补充：
+  - 本地 beta 口令入口先执行 `node scripts/sync-local-build-meta.js`
+  - 正式打包命令继续使用 `node scripts/package-crx-release.js --notes "CRX enterprise release"`
+
 ## 2026-06-04（本地 beta 口令改为从 config 同步，config 文档统一收口）
 
 - 修复本地开发者模式直加载 `extension/` 时点击隐藏入口提示“当前 beta 包未配置口令，无法解锁”的问题。

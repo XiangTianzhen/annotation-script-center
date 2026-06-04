@@ -461,9 +461,21 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 
 当前构建可见性规则：
 
-- 仓库内 `extension/` 源码目录默认写入测试版 build meta，本地开发者模式直加载时直接显示 beta 内容。
+- 仓库内 `extension/` 源码目录默认写入 beta 通道 build meta，但 beta 内容默认隐藏。
 - `--channel beta` 或默认双产物中的 beta ZIP 会自动写入 `releaseChannel=beta`，但 `betaFeaturesVisibleByDefault=false`。
 - `--channel public` 继续写入 `releaseChannel=public`，正式包前端不会显示 `Lightwheel` 等 beta 板块。
+
+本地直加载如果需要测试 beta 口令入口，先执行：
+
+```powershell
+node scripts/sync-local-build-meta.js
+```
+
+然后再加载 `extension/` 目录。正式打包命令保持不变：
+
+```powershell
+node scripts/package-crx-release.js --notes "CRX enterprise release"
+```
 
 说明：ZIP 是当前过渡分发产物，不替代未来企业自动更新；企业托管自动安装仍属于未完成模块，详见 `docs/unfinished/crx-enterprise-managed-install.md`。
 

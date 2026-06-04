@@ -6,7 +6,6 @@ const path = require("path");
 const crypto = require("crypto");
 const childProcess = require("child_process");
 const {
-  buildEmptyLocalBuildMetaContent,
   buildBuildMetaContent,
   buildManifestForChannel,
   buildReleaseProfile,
@@ -14,6 +13,7 @@ const {
   normalizeReleaseBuildMode,
   normalizeReleaseChannel,
 } = require("./package-crx-build-profile");
+const { buildEmptyLocalBuildMetaContent } = require("./build-meta-local");
 
 const APP_NAME = "annotation-script-center";
 const REPO_ROOT = path.resolve(__dirname, "..");
