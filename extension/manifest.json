@@ -58,6 +58,7 @@
         "http://abao.fortidyndns.com:30473/*"
       ],
       "js": [
+        "shared/build-meta.js",
         "shared/constants.js",
         "shared/storage.js",
         "shared/ai-usage-meta.js",
@@ -106,6 +107,7 @@
         "https://labelx.alibaba-inc.com/*"
       ],
       "js": [
+        "shared/build-meta.js",
         "shared/constants.js",
         "shared/storage.js",
         "shared/ai-usage-meta.js",
@@ -155,6 +157,7 @@
         "https://datafactory.data-baker.com/*"
       ],
       "js": [
+        "shared/build-meta.js",
         "shared/constants.js",
         "shared/storage.js",
         "shared/ai-usage-meta.js",
@@ -187,6 +190,7 @@
         "https://work.magicdatatech.com/*"
       ],
       "js": [
+        "shared/build-meta.js",
         "shared/constants.js",
         "shared/storage.js",
         "shared/ai-usage-meta.js",
@@ -213,6 +217,7 @@
         "https://mark.aishelltech.com/*"
       ],
       "js": [
+        "shared/build-meta.js",
         "shared/constants.js",
         "shared/storage.js",
         "shared/ai-error-display.js",

@@ -84,6 +84,7 @@
   - 脚本启停
   - 脚本详情入口
 - `脚本下载中心` 为公开入口，不要求管理员密码；当前负责扩展版本分发。
+- beta 构建当前不进入 `脚本下载中心`；只通过“查看外部目录”获取单一 `annotation-script-center-beta.crx`。
 - `系统管理` 进入时要求输入密码；密码复用项目数据下载鉴权口径。
 - “后端接口地址 / AI 调用使用人”统一迁到 `?view=admin&tab=backend`。
 - “项目数据下载 / AI 请求记录导出”统一迁到 `?view=admin&tab=exports`。
@@ -99,7 +100,12 @@
 - `?view=admin&tab=downloads` 作为旧链接兼容入口，当前会自动回落到 `?view=admin&tab=exports`。
 - 公开首页不再保留“连续点击 10 次显示隐藏下载面板”的旧交互。
 - `?view=admin&tab=backend` 当前主内容区只保留“后端接口地址”；切换服务器 / 本机后点击按钮才写入本地缓存。
+- beta 包解锁后，`?view=admin&tab=backend` 会额外显示：
+  - `Beta 服务器`
+  - `Beta 服务器地址` 输入框
+  - 地址保存后才允许把全局后端模式切到 beta
 - 左侧侧栏当前新增 `AI 调用使用人` 编辑卡：输入姓名后点击按钮才保存到本地缓存；运行概况里继续保留只读摘要。
+- beta 包默认与正式版一致；当前通过连续点击左上角品牌区 `7` 次触发口令输入，成功后把解锁状态保存在本地缓存，并在当前页面增量显示 beta 平台和脚本。
 - 脚本详情页当前固定为：
   - 顶部标题区
   - 启停操作整宽卡片
@@ -200,10 +206,22 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 node scripts/package-crx-release.js --notes "CRX enterprise release test"
 ```
 
+beta 构建（仍在仓库根目录执行）：
+
+```powershell
+$env:ASC_RELEASE_CHANNEL="beta"
+$env:ASC_BETA_UNLOCK_PASSWORD_SHA256="<sha256>"
+$env:ASC_BETA_BACKEND_BASE_URL="https://beta.example.test"
+node scripts/package-crx-release.js --notes "Beta build"
+```
+
 输出文件：
 - `dist/annotation-script-center-v<manifest.version>.crx`
 - `dist/annotation-script-center-update.xml`
 - `dist/annotation-script-center-crx-latest.json`
+- beta 构建输出：
+  - `dist/annotation-script-center-beta.crx`
+  - 不生成 `ZIP / update.xml / crx-latest.json`
 
 前置要求：
 - `manifest.json` 必须包含：

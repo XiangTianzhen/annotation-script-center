@@ -222,8 +222,11 @@
         },
         cache: {},
         meta: {
-          schemaVersion: 7,
+          schemaVersion: 21,
           backendEndpointMode: "server",
+          betaUnlocked: false,
+          betaUnlockedAt: null,
+          betaBackendBaseUrl: "",
           aiUsageOperatorName: "",
           publicCenterPlatformOrder: [],
         },
@@ -526,10 +529,20 @@
     const constants = getConstants();
     const localMode = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
     const serverMode = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
-    const fallbackMode = String(fallback || "").trim().toLowerCase() === localMode ? localMode : serverMode;
+    const betaMode = constants.BACKEND_ENDPOINT_MODE_BETA || "beta";
+    const fallbackText = String(fallback || "").trim().toLowerCase();
+    const fallbackMode =
+      fallbackText === localMode
+        ? localMode
+        : fallbackText === betaMode
+          ? betaMode
+          : serverMode;
     const text = String(value || "").trim().toLowerCase();
     if (text === localMode || text === "localhost" || text === "127.0.0.1") {
       return localMode;
+    }
+    if (text === betaMode) {
+      return betaMode;
     }
     if (text === serverMode) {
       return serverMode;
@@ -539,11 +552,16 @@
 
   function inferBackendModeFromEndpoint(value) {
     const text = String(value || "").trim().toLowerCase();
+    const constants = getConstants();
+    const betaBase = String(constants.DEFAULT_BETA_BACKEND_BASE_URL || "").trim().toLowerCase();
     if (!text) {
       return "";
     }
     if (text.indexOf("127.0.0.1") >= 0 || text.indexOf("localhost") >= 0) {
       return "local";
+    }
+    if (betaBase && text.indexOf(betaBase) >= 0) {
+      return constants.BACKEND_ENDPOINT_MODE_BETA || "beta";
     }
     if (text.indexOf("http://") === 0 || text.indexOf("https://") === 0) {
       return "server";
@@ -3042,6 +3060,15 @@
       settings.meta.backendEndpointMode,
       defaults?.meta?.backendEndpointMode || "server"
     );
+    settings.meta.betaUnlocked = settings.meta.betaUnlocked === true;
+    settings.meta.betaUnlockedAt =
+      typeof settings.meta.betaUnlockedAt === "string" && settings.meta.betaUnlockedAt.trim()
+        ? settings.meta.betaUnlockedAt.trim()
+        : null;
+    settings.meta.betaBackendBaseUrl =
+      typeof settings.meta.betaBackendBaseUrl === "string"
+        ? settings.meta.betaBackendBaseUrl.trim().replace(/\/+$/, "")
+        : "";
     settings.meta.publicCenterPlatformOrder = normalizeStringList(
       settings.meta.publicCenterPlatformOrder
     );

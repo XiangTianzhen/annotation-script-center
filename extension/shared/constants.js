@@ -28,7 +28,11 @@
   const DATABAKER_AI_REQUEST_STAGGER_MS = 50;
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 20;
+  const SCHEMA_VERSION = 21;
+  const RELEASE_CHANNEL_PUBLIC = "public";
+  const RELEASE_CHANNEL_BETA = "beta";
+  const RELEASE_VISIBILITY_PUBLIC = "public";
+  const RELEASE_VISIBILITY_BETA = "beta";
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const DATA_BAKER_PLATFORM_ID = "dataBaker";
@@ -45,9 +49,37 @@
   const AISHELL_TECH_MINNAN_SCRIPT_ID = "aishellTechMinnanAssistant";
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
+  const BACKEND_ENDPOINT_MODE_BETA = "beta";
+  const BUILD_META = globalThis.ASREdgeBuildMeta || {};
+  function normalizeReleaseChannel(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === RELEASE_CHANNEL_BETA) {
+      return RELEASE_CHANNEL_BETA;
+    }
+    return fallback === RELEASE_CHANNEL_BETA ? RELEASE_CHANNEL_BETA : RELEASE_CHANNEL_PUBLIC;
+  }
+  function normalizeBetaBackendBaseUrl(value) {
+    const text = String(value || "")
+      .trim()
+      .replace(/\/+$/, "");
+    return /^https?:\/\//i.test(text) ? text : "";
+  }
+  const RELEASE_CHANNEL = normalizeReleaseChannel(
+    BUILD_META.releaseChannel,
+    RELEASE_CHANNEL_PUBLIC
+  );
+  const BETA_UNLOCK_PASSWORD_SHA256 = String(
+    BUILD_META.betaUnlockPasswordSha256 || ""
+  )
+    .trim()
+    .toLowerCase();
+  const DEFAULT_BETA_BACKEND_BASE_URL = normalizeBetaBackendBaseUrl(
+    BUILD_META.betaBackendBaseUrl
+  );
   const BACKEND_ENDPOINTS = {
     server: "https://script.xiangtianzhen.store",
     local: "http://127.0.0.1:3333",
+    beta: DEFAULT_BETA_BACKEND_BASE_URL,
   };
   const DATABAKER_AI_RECOMMEND_PATH = "/api/data-baker/round-one-quality/ai/recommend";
   const DATABAKER_EXPORT_UPLOAD_PATH = "/api/data-baker/round-one-quality/export/upload";
@@ -515,13 +547,19 @@
   };
 
   function normalizeBackendEndpointMode(value, fallback) {
+    const fallbackText = String(fallback || "").trim().toLowerCase();
     const fallbackMode =
-      fallback === BACKEND_ENDPOINT_MODE_LOCAL
+      fallbackText === BACKEND_ENDPOINT_MODE_LOCAL
         ? BACKEND_ENDPOINT_MODE_LOCAL
-        : BACKEND_ENDPOINT_MODE_SERVER;
+        : fallbackText === BACKEND_ENDPOINT_MODE_BETA
+          ? BACKEND_ENDPOINT_MODE_BETA
+          : BACKEND_ENDPOINT_MODE_SERVER;
     const text = String(value || "").trim().toLowerCase();
     if (text === BACKEND_ENDPOINT_MODE_LOCAL || text === "localhost" || text === "127.0.0.1") {
       return BACKEND_ENDPOINT_MODE_LOCAL;
+    }
+    if (text === BACKEND_ENDPOINT_MODE_BETA) {
+      return BACKEND_ENDPOINT_MODE_BETA;
     }
     if (text === BACKEND_ENDPOINT_MODE_SERVER) {
       return BACKEND_ENDPOINT_MODE_SERVER;
@@ -538,10 +576,28 @@
     if (text.indexOf("127.0.0.1") >= 0 || text.indexOf("localhost") >= 0) {
       return BACKEND_ENDPOINT_MODE_LOCAL;
     }
+    if (DEFAULT_BETA_BACKEND_BASE_URL && text.indexOf(DEFAULT_BETA_BACKEND_BASE_URL.toLowerCase()) >= 0) {
+      return BACKEND_ENDPOINT_MODE_BETA;
+    }
     if (text.indexOf("script.xiangtianzhen.store") >= 0 || text.indexOf("http://") >= 0 || text.indexOf("https://") >= 0) {
       return BACKEND_ENDPOINT_MODE_SERVER;
     }
     return fallbackMode;
+  }
+
+  function canUseBetaFeatures(settings) {
+    return RELEASE_CHANNEL === RELEASE_CHANNEL_BETA && settings?.meta?.betaUnlocked === true;
+  }
+
+  function getBetaBackendBaseUrlFromSettings(settings) {
+    return (
+      normalizeBetaBackendBaseUrl(settings?.meta?.betaBackendBaseUrl) ||
+      DEFAULT_BETA_BACKEND_BASE_URL
+    );
+  }
+
+  function canUseBetaBackendMode(settings) {
+    return canUseBetaFeatures(settings) && Boolean(getBetaBackendBaseUrlFromSettings(settings));
   }
 
   function getBackendEndpointModeFromSettings(settings) {
@@ -549,18 +605,25 @@
       settings?.meta?.backendEndpointMode ||
       settings?.backend?.endpointMode ||
       settings?.backendEndpointMode;
-    return normalizeBackendEndpointMode(mode, BACKEND_ENDPOINT_MODE_SERVER);
+    const normalizedMode = normalizeBackendEndpointMode(mode, BACKEND_ENDPOINT_MODE_SERVER);
+    if (normalizedMode === BACKEND_ENDPOINT_MODE_BETA) {
+      return canUseBetaBackendMode(settings) ? BACKEND_ENDPOINT_MODE_BETA : BACKEND_ENDPOINT_MODE_SERVER;
+    }
+    return normalizedMode;
   }
 
-  function getBackendBaseUrlByMode(mode) {
+  function getBackendBaseUrlByMode(mode, settings) {
     const normalizedMode = normalizeBackendEndpointMode(mode, BACKEND_ENDPOINT_MODE_SERVER);
+    if (normalizedMode === BACKEND_ENDPOINT_MODE_BETA) {
+      return getBetaBackendBaseUrlFromSettings(settings || {});
+    }
     return normalizedMode === BACKEND_ENDPOINT_MODE_LOCAL
       ? BACKEND_ENDPOINTS.local
       : BACKEND_ENDPOINTS.server;
   }
 
   function getBackendBaseUrlFromSettings(settings) {
-    return getBackendBaseUrlByMode(getBackendEndpointModeFromSettings(settings));
+    return getBackendBaseUrlByMode(getBackendEndpointModeFromSettings(settings), settings);
   }
 
   function buildBackendUrl(path, settingsOrMode) {
@@ -575,7 +638,7 @@
       typeof settingsOrMode === "string"
         ? settingsOrMode
         : getBackendEndpointModeFromSettings(settingsOrMode || {});
-    const baseUrl = getBackendBaseUrlByMode(mode).replace(/\/+$/, "");
+    const baseUrl = getBackendBaseUrlByMode(mode, settingsOrMode || {}).replace(/\/+$/, "");
     const normalizedPath = text.charAt(0) === "/" ? text : "/" + text;
     return baseUrl + normalizedPath;
   }
@@ -1060,6 +1123,7 @@
       label: "Lightwheel",
       host: LIGHTWHEEL_PLATFORM.host,
       matches: clone(LIGHTWHEEL_PLATFORM.matches),
+      visibility: RELEASE_VISIBILITY_BETA,
       runtimeBridge: "none",
       description: "Lightwheel 视频标注查看态平台。",
     },
@@ -1127,6 +1191,7 @@
     lightwheelViewPanel: {
       id: LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID,
       platformId: LIGHTWHEEL_PLATFORM_ID,
+      visibility: RELEASE_VISIBILITY_BETA,
       label: "Lightwheel 查看态面板",
       shortLabel: "查看态面板",
       description:
@@ -1774,6 +1839,9 @@
     meta: {
       schemaVersion: SCHEMA_VERSION,
       backendEndpointMode: BACKEND_ENDPOINT_MODE_SERVER,
+      betaUnlocked: false,
+      betaUnlockedAt: null,
+      betaBackendBaseUrl: "",
       aiUsageOperatorName: "",
       aiCallLogDownloadOperatorName: "",
       publicCenterPlatformOrder: [],
@@ -1782,7 +1850,105 @@
     },
   };
 
-  globalThis.ASREdgeConstants = {
+  function normalizeReleaseVisibility(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === RELEASE_VISIBILITY_BETA) {
+      return RELEASE_VISIBILITY_BETA;
+    }
+    return fallback === RELEASE_VISIBILITY_BETA
+      ? RELEASE_VISIBILITY_BETA
+      : RELEASE_VISIBILITY_PUBLIC;
+  }
+
+  function getPlatformDefinition(platformId) {
+    const normalizedId = String(platformId || "").trim();
+    return normalizedId ? PLATFORM_LIBRARY[normalizedId] || null : null;
+  }
+
+  function getScriptDefinition(scriptId) {
+    const normalizedId = String(scriptId || "").trim();
+    return normalizedId ? SCRIPT_LIBRARY[normalizedId] || null : null;
+  }
+
+  function isPlatformVisible(platformId, settings) {
+    const platform = getPlatformDefinition(platformId);
+    if (!platform) {
+      return false;
+    }
+    const visibility = normalizeReleaseVisibility(platform.visibility, RELEASE_VISIBILITY_PUBLIC);
+    return visibility !== RELEASE_VISIBILITY_BETA || canUseBetaFeatures(settings);
+  }
+
+  function isScriptVisible(scriptId, settings) {
+    const script = getScriptDefinition(scriptId);
+    if (!script) {
+      return false;
+    }
+    const visibility = normalizeReleaseVisibility(script.visibility, RELEASE_VISIBILITY_PUBLIC);
+    if (visibility === RELEASE_VISIBILITY_BETA && !canUseBetaFeatures(settings)) {
+      return false;
+    }
+    return isPlatformVisible(script.platformId, settings);
+  }
+
+  function isScriptRuntimeAccessible(scriptId, settings) {
+    const script = getScriptDefinition(scriptId);
+    if (!script || !isScriptVisible(scriptId, settings)) {
+      return false;
+    }
+
+    if (script.id === LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID) {
+      return Boolean(
+        settings?.platforms?.lightwheel?.enabled &&
+          settings?.platforms?.lightwheel?.scripts?.viewPanel?.enabled
+      );
+    }
+
+    if (script.platformId === ALIBABA_LABELX_PLATFORM_ID) {
+      return Boolean(
+        settings?.platforms?.alibabaLabelx?.enabled &&
+          settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId === scriptId
+      );
+    }
+
+    if (script.platformId === DATA_BAKER_PLATFORM_ID) {
+      return Boolean(
+        settings?.platforms?.dataBaker?.enabled !== false &&
+          settings?.platforms?.dataBaker?.scripts?.roundOneQuality?.enabled !== false
+      );
+    }
+
+    if (script.platformId === AISHELL_TECH_PLATFORM_ID) {
+      return Boolean(
+        settings?.platforms?.aishellTech?.enabled !== false &&
+          settings?.platforms?.aishellTech?.scripts?.minnanHelper?.enabled !== false
+      );
+    }
+
+    if (script.platformId === ABAKA_AI_PLATFORM_ID) {
+      return Boolean(
+        settings?.platforms?.abakaAi?.enabled !== false &&
+          settings?.platforms?.abakaAi?.scripts?.taskPageCapture?.enabled !== false
+      );
+    }
+
+    if (script.platformId === MAGIC_DATA_PLATFORM_ID) {
+      const activeScriptId = String(settings?.platforms?.magicData?.activeScriptId || "").trim();
+      const scriptKey =
+        scriptId === MAGIC_DATA_ANNOTATOR_SCRIPT_ID ? "hakkaHelper" : "minnanHelper";
+      const scriptSettings = settings?.platforms?.magicData?.scripts?.[scriptKey] || {};
+      return Boolean(
+        settings?.platforms?.magicData?.enabled !== false &&
+          scriptSettings.enabled !== false &&
+          scriptSettings.aiReviewEnabled !== false &&
+          (!activeScriptId || activeScriptId === scriptId)
+      );
+    }
+
+    return false;
+  }
+
+  const api = {
     EXTENSION_NAME: EXTENSION_NAME,
     STAGE_ID: STAGE_ID,
     STAGE_LABEL: STAGE_LABEL,
@@ -1791,6 +1957,13 @@
     CAPABILITY_SCOPE:
       "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏与统计导出、语音判别音频能力、Lightwheel 脚本占位管理、DataBaker 与 Aishell 闽南语助手 AI 推荐文本。",
     SCHEMA_VERSION: SCHEMA_VERSION,
+    RELEASE_CHANNEL_PUBLIC: RELEASE_CHANNEL_PUBLIC,
+    RELEASE_CHANNEL_BETA: RELEASE_CHANNEL_BETA,
+    RELEASE_CHANNEL: RELEASE_CHANNEL,
+    RELEASE_VISIBILITY_PUBLIC: RELEASE_VISIBILITY_PUBLIC,
+    RELEASE_VISIBILITY_BETA: RELEASE_VISIBILITY_BETA,
+    BETA_UNLOCK_PASSWORD_SHA256: BETA_UNLOCK_PASSWORD_SHA256,
+    DEFAULT_BETA_BACKEND_BASE_URL: DEFAULT_BETA_BACKEND_BASE_URL,
     STORAGE_KEY: "asrEdgeSettings",
     PRESENCE_BADGE_ID: "asr-edge-presence-host",
     TARGET_PLATFORM: TARGET_PLATFORM,
@@ -1848,6 +2021,7 @@
     AI_CALL_LOG_DOWNLOAD_FILE_PATH: AI_CALL_LOG_DOWNLOAD_FILE_PATH,
     BACKEND_ENDPOINT_MODE_SERVER: BACKEND_ENDPOINT_MODE_SERVER,
     BACKEND_ENDPOINT_MODE_LOCAL: BACKEND_ENDPOINT_MODE_LOCAL,
+    BACKEND_ENDPOINT_MODE_BETA: BACKEND_ENDPOINT_MODE_BETA,
     BACKEND_ENDPOINTS: clone(BACKEND_ENDPOINTS),
     JUDGEMENT_STATS_SERVER_ENDPOINT: JUDGEMENT_STATS_SERVER_ENDPOINT,
     JUDGEMENT_STATS_LOCAL_ENDPOINT: JUDGEMENT_STATS_LOCAL_ENDPOINT,
@@ -1860,9 +2034,14 @@
     AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT: AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT,
     AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT: AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT,
     normalizeBackendEndpointMode: normalizeBackendEndpointMode,
+    normalizeReleaseChannel: normalizeReleaseChannel,
+    normalizeBetaBackendBaseUrl: normalizeBetaBackendBaseUrl,
     inferBackendEndpointModeFromEndpoint: inferBackendEndpointModeFromEndpoint,
+    canUseBetaFeatures: canUseBetaFeatures,
+    canUseBetaBackendMode: canUseBetaBackendMode,
     getBackendEndpointModeFromSettings: getBackendEndpointModeFromSettings,
     getBackendBaseUrlByMode: getBackendBaseUrlByMode,
+    getBetaBackendBaseUrlFromSettings: getBetaBackendBaseUrlFromSettings,
     getBackendBaseUrlFromSettings: getBackendBaseUrlFromSettings,
     buildBackendUrl: buildBackendUrl,
     TRANSCRIPTION_STATS_SERVER_ENDPOINT: TRANSCRIPTION_STATS_SERVER_ENDPOINT,
@@ -1892,6 +2071,9 @@
     ABAKA_AI_TASK21_AI_MODEL_OPTIONS: clone(ABAKA_AI_TASK21_AI_MODEL_OPTIONS),
     SCRIPT_PROJECTS: clone(SCRIPT_PROJECTS),
     SCRIPT_LIBRARY: clone(SCRIPT_LIBRARY),
+    isPlatformVisible: isPlatformVisible,
+    isScriptVisible: isScriptVisible,
+    isScriptRuntimeAccessible: isScriptRuntimeAccessible,
     JUDGEMENT_SHORTCUT_ACTIONS: clone(JUDGEMENT_SHORTCUT_ACTIONS),
     JUDGEMENT_PROJECT_ASR_KEYS: clone(JUDGEMENT_PROJECT_ASR_KEYS),
     BUSINESS_ACTIONS: BUSINESS_ACTIONS,
@@ -1915,4 +2097,10 @@
     LEGACY_ROOT_DEBUG_KEY: LEGACY_ROOT_DEBUG_KEY,
     LEGACY_ROOT_CACHE_KEYS: Object.assign({}, LEGACY_ROOT_CACHE_KEYS),
   };
+
+  globalThis.ASREdgeConstants = api;
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
 })();

@@ -1,14 +1,21 @@
 "use strict";
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 const childProcess = require("child_process");
+const {
+  buildBuildMetaContent,
+  buildManifestForChannel,
+  buildReleaseProfile,
+  normalizeReleaseChannel,
+} = require("./package-crx-build-profile");
 
 const APP_NAME = "annotation-script-center";
 const REPO_ROOT = path.resolve(__dirname, "..");
-const EXTENSION_DIR = path.join(REPO_ROOT, "extension");
-const MANIFEST_PATH = path.join(EXTENSION_DIR, "manifest.json");
+const SOURCE_EXTENSION_DIR = path.join(REPO_ROOT, "extension");
+const MANIFEST_PATH = path.join(SOURCE_EXTENSION_DIR, "manifest.json");
 const DIST_DIR = path.join(REPO_ROOT, "dist");
 const KEY_PATH = path.join(REPO_ROOT, "config", "secrets", `${APP_NAME}.pem`);
 const DEFAULT_DOWNLOAD_BASE_URL = "https://script.xiangtianzhen.store/downloads/";
@@ -128,8 +135,8 @@ function resolveBrowserExecutable() {
   );
 }
 
-function runPackExtension(browserExe, keyPathOrNull) {
-  const args = [`--pack-extension=${EXTENSION_DIR}`];
+function runPackExtension(browserExe, extensionDir, keyPathOrNull) {
+  const args = [`--pack-extension=${extensionDir}`];
   if (keyPathOrNull) {
     args.push(`--pack-extension-key=${keyPathOrNull}`);
   }
@@ -149,7 +156,7 @@ function runPackExtension(browserExe, keyPathOrNull) {
   }
 }
 
-function ensureCrxAndKey(browserExe) {
+function ensureCrxAndKey(browserExe, extensionDir) {
   const tempCrxPath = path.join(REPO_ROOT, "extension.crx");
   const tempPemPath = path.join(REPO_ROOT, "extension.pem");
   safeUnlink(tempCrxPath);
@@ -157,7 +164,7 @@ function ensureCrxAndKey(browserExe) {
 
   const keyExists = fs.existsSync(KEY_PATH);
   if (keyExists) {
-    runPackExtension(browserExe, KEY_PATH);
+    runPackExtension(browserExe, extensionDir, KEY_PATH);
     ensureFileExists(tempCrxPath, "浏览器打包输出 extension.crx");
     if (fs.existsSync(tempPemPath)) {
       safeUnlink(tempPemPath);
@@ -166,7 +173,7 @@ function ensureCrxAndKey(browserExe) {
   }
 
   fs.mkdirSync(path.dirname(KEY_PATH), { recursive: true });
-  runPackExtension(browserExe, null);
+  runPackExtension(browserExe, extensionDir, null);
   ensureFileExists(tempCrxPath, "浏览器打包输出 extension.crx");
   ensureFileExists(tempPemPath, "浏览器打包输出 extension.pem");
   if (fs.existsSync(KEY_PATH)) {
@@ -216,11 +223,11 @@ function runCommand(command, args, options) {
   return result;
 }
 
-function createZipArchive(zipOutputPath) {
+function createZipArchive(zipOutputPath, extensionDir) {
   safeUnlink(zipOutputPath);
   if (process.platform === "win32") {
     const commandText = [
-      `Set-Location -LiteralPath '${escapeSingleQuotes(EXTENSION_DIR)}'`,
+      `Set-Location -LiteralPath '${escapeSingleQuotes(extensionDir)}'`,
       `Compress-Archive -Path * -DestinationPath '${escapeSingleQuotes(zipOutputPath)}' -Force`
     ].join("; ");
     const result = runCommand("powershell.exe", ["-NoProfile", "-Command", commandText], {
@@ -232,11 +239,11 @@ function createZipArchive(zipOutputPath) {
     return "powershell";
   }
 
-  const probe = runCommand("zip", ["-v"], { cwd: EXTENSION_DIR });
+  const probe = runCommand("zip", ["-v"], { cwd: extensionDir });
   if (probe.status !== 0) {
     throw new Error("未找到可用 ZIP 工具。Windows 请使用 PowerShell Compress-Archive；Linux/macOS 请安装 zip。");
   }
-  const result = runCommand("zip", ["-r", zipOutputPath, "."], { cwd: EXTENSION_DIR });
+  const result = runCommand("zip", ["-r", zipOutputPath, "."], { cwd: extensionDir });
   if (result.status !== 0) {
     throw new Error(`ZIP 打包失败（zip）：${(result.stderr || result.stdout || "").trim() || "无额外输出"}`);
   }
@@ -303,6 +310,36 @@ function validateZipArchive(zipOutputPath) {
   };
 }
 
+function createPreparedExtensionBuild(options) {
+  const config = options && typeof options === "object" ? options : {};
+  const channel = normalizeReleaseChannel(config.channel);
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), `${APP_NAME}-${channel}-`));
+  const extensionDir = path.join(tempRoot, "extension");
+  fs.cpSync(SOURCE_EXTENSION_DIR, extensionDir, { recursive: true });
+
+  const manifestPath = path.join(extensionDir, "manifest.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const nextManifest = buildManifestForChannel(manifest, channel);
+  fs.writeFileSync(manifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`, "utf8");
+
+  const buildMetaPath = path.join(extensionDir, "shared", "build-meta.js");
+  fs.writeFileSync(
+    buildMetaPath,
+    buildBuildMetaContent({
+      releaseChannel: channel,
+      betaUnlockPasswordSha256: config.betaUnlockPasswordSha256 || "",
+      betaBackendBaseUrl: config.betaBackendBaseUrl || "",
+    }),
+    "utf8"
+  );
+
+  return {
+    tempRoot,
+    extensionDir,
+    manifest: nextManifest,
+  };
+}
+
 function buildUpdateXml(extensionId, codebaseUrl, version) {
   return [
     "<?xml version='1.0' encoding='UTF-8'?>",
@@ -361,74 +398,127 @@ function main() {
   const { version } = readManifestMeta();
   const browserExe = resolveBrowserExecutable();
   const downloadBaseUrl = normalizeBaseUrl(process.env.ASC_DOWNLOAD_BASE_URL);
+  const channel = normalizeReleaseChannel(args.channel || process.env.ASC_RELEASE_CHANNEL);
+  const betaUnlockPasswordSha256 = String(
+    args.betaUnlockPasswordSha256 || process.env.ASC_BETA_UNLOCK_PASSWORD_SHA256 || ""
+  )
+    .trim()
+    .toLowerCase();
+  const betaBackendBaseUrl = String(
+    args.betaBackendBaseUrl || process.env.ASC_BETA_BACKEND_BASE_URL || ""
+  )
+    .trim();
+  if (channel === "beta" && !betaUnlockPasswordSha256) {
+    throw new Error("beta 构建缺少 ASC_BETA_UNLOCK_PASSWORD_SHA256 或 --betaUnlockPasswordSha256。");
+  }
   const releaseNotes = typeof args.notes === "string" && args.notes.trim()
     ? args.notes.trim()
     : `${APP_NAME} release ${version}`;
+  const profile = buildReleaseProfile(channel, version);
+  const preparedBuild = createPreparedExtensionBuild({
+    channel,
+    betaUnlockPasswordSha256,
+    betaBackendBaseUrl,
+  });
 
-  fs.mkdirSync(DIST_DIR, { recursive: true });
-  const crxFilename = `${APP_NAME}-v${version}.crx`;
-  const zipFilename = `${APP_NAME}-v${version}.zip`;
-  const crxOutputPath = path.join(DIST_DIR, crxFilename);
-  const zipOutputPath = path.join(DIST_DIR, zipFilename);
-  const updateXmlPath = path.join(DIST_DIR, UPDATE_XML_FILENAME);
-  const crxLatestPath = path.join(DIST_DIR, CRX_LATEST_FILENAME);
+  try {
+    fs.mkdirSync(DIST_DIR, { recursive: true });
+    const crxFilename = profile.crxFilename;
+    const zipFilename = profile.zipFilename;
+    const crxOutputPath = path.join(DIST_DIR, crxFilename);
+    const zipOutputPath = zipFilename ? path.join(DIST_DIR, zipFilename) : "";
+    const updateXmlPath = profile.includeUpdateXml
+      ? path.join(DIST_DIR, UPDATE_XML_FILENAME)
+      : "";
+    const crxLatestPath = profile.includeLatestJson
+      ? path.join(DIST_DIR, CRX_LATEST_FILENAME)
+      : "";
 
-  const { tempCrxPath, generatedNewKey } = ensureCrxAndKey(browserExe);
-  safeUnlink(crxOutputPath);
-  fs.renameSync(tempCrxPath, crxOutputPath);
-  ensureFileExists(KEY_PATH, "CRX 私钥文件");
+    const { tempCrxPath, generatedNewKey } = ensureCrxAndKey(browserExe, preparedBuild.extensionDir);
+    safeUnlink(crxOutputPath);
+    fs.renameSync(tempCrxPath, crxOutputPath);
+    ensureFileExists(KEY_PATH, "CRX 私钥文件");
 
-  const extensionId = computeExtensionIdFromPrivateKeyPem(KEY_PATH);
-  const zipPackTool = createZipArchive(zipOutputPath);
-  const zipMeta = validateZipArchive(zipOutputPath);
-  const downloadUrl = `${downloadBaseUrl}${crxFilename}`;
-  const zipDownloadUrl = `${downloadBaseUrl}${zipFilename}`;
-  const updateXmlUrl = `${downloadBaseUrl}${UPDATE_XML_FILENAME}`;
-  const updateXml = buildUpdateXml(extensionId, downloadUrl, version);
-  validateUpdateXml(updateXml, extensionId, downloadUrl, version);
-  fs.writeFileSync(updateXmlPath, updateXml, "utf8");
+    const extensionId = computeExtensionIdFromPrivateKeyPem(KEY_PATH);
+    const stat = fs.statSync(crxOutputPath);
+    const downloadUrl = `${downloadBaseUrl}${crxFilename}`;
 
-  const stat = fs.statSync(crxOutputPath);
-  const crxLatestPayload = {
-    name: APP_NAME,
-    release_type: "crx",
-    latest_version: version,
-    extension_id: extensionId,
-    filename: crxFilename,
-    download_url: downloadUrl,
-    update_xml_url: updateXmlUrl,
-    sha256: sha256File(crxOutputPath),
-    size_bytes: stat.size,
-    zip_filename: zipFilename,
-    zip_download_url: zipDownloadUrl,
-    zip_sha256: zipMeta.sha256,
-    zip_size_bytes: zipMeta.sizeBytes,
-    created_at: new Date().toISOString(),
-    min_agent_version: DEFAULT_MIN_AGENT_VERSION,
-    release_notes: releaseNotes
-  };
-  validateCrxLatestPayload(crxLatestPayload);
-  fs.writeFileSync(crxLatestPath, `${JSON.stringify(crxLatestPayload, null, 2)}\n`, "utf8");
+    let zipPackTool = "";
+    let zipMeta = null;
+    if (profile.includeZip && zipOutputPath) {
+      zipPackTool = createZipArchive(zipOutputPath, preparedBuild.extensionDir);
+      zipMeta = validateZipArchive(zipOutputPath);
+    }
 
-  console.log("release generated:");
-  console.log(`- CRX: ${crxOutputPath}`);
-  console.log(`- ZIP: ${zipOutputPath}`);
-  console.log(`- update.xml: ${updateXmlPath}`);
-  console.log(`- latest json: ${crxLatestPath}`);
-  console.log(`extension id: ${extensionId}`);
-  console.log(`zip pack tool: ${zipPackTool}, entries: ${zipMeta.entriesCount}`);
-  console.log("");
-  console.log("当前手工分发文件：");
-  console.log(`1. ${crxOutputPath}`);
-  console.log(`2. ${zipOutputPath}`);
-  console.log("");
-  console.log("企业自动更新预留文件：");
-  console.log(`1. ${updateXmlPath}`);
-  console.log(`2. ${crxLatestPath}`);
-  if (generatedNewKey) {
-    console.log(
-      `首次生成私钥：${KEY_PATH}。请离线备份该 pem；丢失会导致 extension ID 变化并需要重配企业策略。`
-    );
+    if (profile.includeUpdateXml && updateXmlPath) {
+      const updateXmlUrl = `${downloadBaseUrl}${UPDATE_XML_FILENAME}`;
+      const updateXml = buildUpdateXml(extensionId, downloadUrl, version);
+      validateUpdateXml(updateXml, extensionId, downloadUrl, version);
+      fs.writeFileSync(updateXmlPath, updateXml, "utf8");
+    }
+
+    if (profile.includeLatestJson && crxLatestPath && zipMeta) {
+      const zipDownloadUrl = `${downloadBaseUrl}${zipFilename}`;
+      const updateXmlUrl = `${downloadBaseUrl}${UPDATE_XML_FILENAME}`;
+      const crxLatestPayload = {
+        name: APP_NAME,
+        release_type: "crx",
+        latest_version: version,
+        extension_id: extensionId,
+        filename: crxFilename,
+        download_url: downloadUrl,
+        update_xml_url: updateXmlUrl,
+        sha256: sha256File(crxOutputPath),
+        size_bytes: stat.size,
+        zip_filename: zipFilename,
+        zip_download_url: zipDownloadUrl,
+        zip_sha256: zipMeta.sha256,
+        zip_size_bytes: zipMeta.sizeBytes,
+        created_at: new Date().toISOString(),
+        min_agent_version: DEFAULT_MIN_AGENT_VERSION,
+        release_notes: releaseNotes
+      };
+      validateCrxLatestPayload(crxLatestPayload);
+      fs.writeFileSync(crxLatestPath, `${JSON.stringify(crxLatestPayload, null, 2)}\n`, "utf8");
+    }
+
+    console.log("release generated:");
+    console.log(`- channel: ${channel}`);
+    console.log(`- CRX: ${crxOutputPath}`);
+    if (profile.includeZip && zipOutputPath) {
+      console.log(`- ZIP: ${zipOutputPath}`);
+    }
+    if (profile.includeUpdateXml && updateXmlPath) {
+      console.log(`- update.xml: ${updateXmlPath}`);
+    }
+    if (profile.includeLatestJson && crxLatestPath) {
+      console.log(`- latest json: ${crxLatestPath}`);
+    }
+    console.log(`extension id: ${extensionId}`);
+    if (zipMeta) {
+      console.log(`zip pack tool: ${zipPackTool}, entries: ${zipMeta.entriesCount}`);
+    }
+    console.log("");
+    console.log("当前手工分发文件：");
+    console.log(`1. ${crxOutputPath}`);
+    if (profile.includeZip && zipOutputPath) {
+      console.log(`2. ${zipOutputPath}`);
+    }
+    if (profile.includeUpdateXml && updateXmlPath && profile.includeLatestJson && crxLatestPath) {
+      console.log("");
+      console.log("企业自动更新预留文件：");
+      console.log(`1. ${updateXmlPath}`);
+      console.log(`2. ${crxLatestPath}`);
+    }
+    if (generatedNewKey) {
+      console.log(
+        `首次生成私钥：${KEY_PATH}。请离线备份该 pem；丢失会导致 extension ID 变化并需要重配企业策略。`
+      );
+    }
+  } finally {
+    if (preparedBuild?.tempRoot && fs.existsSync(preparedBuild.tempRoot)) {
+      fs.rmSync(preparedBuild.tempRoot, { recursive: true, force: true });
+    }
   }
 }
 

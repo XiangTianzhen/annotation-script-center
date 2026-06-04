@@ -74,7 +74,9 @@
 
   function openScriptCenter(scriptId) {
     const targetUrl = scriptId
-      ? chrome.runtime.getURL("options/options.html?script=" + encodeURIComponent(scriptId))
+      ? chrome.runtime.getURL(
+          "options/options.html?view=script&script=" + encodeURIComponent(scriptId)
+        )
       : chrome.runtime.getURL("options/options.html");
     chrome.tabs.create({ url: targetUrl });
     window.close();
@@ -145,6 +147,25 @@
     }
 
     if (url.hostname === (constants.LIGHTWHEEL_PLATFORM || {}).host) {
+      const scriptVisible =
+        typeof constants.isScriptVisible === "function"
+          ? constants.isScriptVisible(lightwheelScriptId, settings || {})
+          : true;
+      const scriptRuntimeAccessible =
+        typeof constants.isScriptRuntimeAccessible === "function"
+          ? constants.isScriptRuntimeAccessible(lightwheelScriptId, settings || {})
+          : isLightwheelEnabled(settings);
+      if (!scriptVisible || !scriptRuntimeAccessible) {
+        return {
+          scriptId: null,
+          platformId: null,
+          url: url,
+          statusText: "未触发",
+          statusTone: "pending",
+          title: "当前页面未命中已启用脚本",
+          description: "当前页面没有可对外显示的已启用脚本。",
+        };
+      }
       const access = url.searchParams.get("access") || "";
       const enabled = isLightwheelEnabled(settings);
 

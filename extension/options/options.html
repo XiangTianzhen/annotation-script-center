@@ -18,11 +18,15 @@
                 alt="标注脚本中心图标"
               />
             </span>
-            <div class="workspace-brand-copy">
-              <strong id="workspace-brand-title">标注脚本中心</strong>
-              <span id="workspace-version">版本读取中</span>
-            </div>
+          <div class="workspace-brand-copy">
+            <strong id="workspace-brand-title">标注脚本中心</strong>
+            <span id="workspace-version">版本读取中</span>
+            <div id="workspace-beta-status" class="status-text"></div>
+            <button id="workspace-beta-exit" class="ghost-button hidden" type="button">
+              退出内测模式
+            </button>
           </div>
+        </div>
 
           <nav class="workspace-nav" aria-label="功能导航">
             <button id="workspace-nav-center" class="workspace-nav-button active" type="button">
@@ -105,8 +109,15 @@
           <div id="home-endpoint-toggle" class="segmented-control hidden" role="group" aria-label="后端接口地址">
             <button id="home-endpoint-server" class="segmented-button" type="button">服务器</button>
             <button id="home-endpoint-local" class="segmented-button" type="button">本机</button>
+            <button id="home-endpoint-beta" class="segmented-button hidden" type="button">Beta 服务器</button>
           </div>
           <span>该设置统一控制所有脚本的后端请求：ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。各脚本详情页不再单独设置后端地址。</span>
+          <input
+            id="home-endpoint-beta-url"
+            class="hidden"
+            type="url"
+            placeholder="https://beta.example.test"
+          />
           <div class="field-actions">
             <button id="home-endpoint-save" class="primary-button" type="button">保存后端地址</button>
           </div>
@@ -774,6 +785,7 @@
       </div>
     </main>
 
+    <script src="../shared/build-meta.js"></script>
     <script src="../shared/constants.js"></script>
     <script src="../shared/storage.js"></script>
     <script src="../shared/ai-usage-meta.js"></script>

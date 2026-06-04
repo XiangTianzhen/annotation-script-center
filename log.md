@@ -1,3 +1,38 @@
+## 2026-06-04（beta 构建、隐藏解锁与 Lightwheel 可见性收口）
+
+- 扩展新增共享构建元信息：
+  - `extension/shared/build-meta.js`
+  - `public / beta` 发行通道
+  - beta 解锁口令 hash 与默认 beta 后端地址注入能力
+- `extension/shared/constants.js` 与 `extension/shared/storage.js` 当前已补齐：
+  - `releaseChannel`
+  - `betaUnlocked / betaUnlockedAt / betaBackendBaseUrl`
+  - `Beta 服务器` 后端模式
+  - `Lightwheel` 作为 beta 平台的统一可见性判断
+- options 当前已接入 beta 隐藏解锁：
+  - 连续点击左上角品牌区 `7` 次后可输入 beta 口令
+  - 解锁成功后把状态保存到本地缓存
+  - 当前页面直接增量显示 beta 平台、beta 脚本与 `Beta 服务器`
+  - 退出 beta 模式时会清空解锁态，并把当前全局后端模式从 `beta` 回退到正式服务器
+- popup 当前已修正 `Lightwheel` 命中口径：
+  - 正式包不显示
+  - beta 包未解锁不显示
+  - beta 包已解锁但 `Lightwheel` 被禁用时也不显示
+- 打包脚本当前已支持双构建：
+  - `public`：继续产出 `annotation-script-center-v<version>.crx`、`ZIP`、`update.xml`、`crx-latest.json`
+  - `beta`：产出单一 `annotation-script-center-beta.crx`
+  - beta 构建会写入 `version_name=beta`，并通过临时构建目录注入 build meta；public 构建会过滤 `Lightwheel` host 权限
+- 本轮验证：
+  - `node --test extension/shared/constants.release.test.js scripts/package-crx-build-profile.test.js`
+  - `node --test extension/options/options-workbench-state.test.js platform-resources/backend/admin-download-center/releases.test.js`
+  - `node --check extension/shared/constants.js`
+  - `node --check extension/shared/storage.js`
+  - `node --check extension/options/options.js`
+  - `node --check extension/popup/popup.js`
+  - `node --check extension/background/service-worker.js`
+  - `node --check scripts/package-crx-release.js`
+  - `node -`（解析 `extension/manifest.json` 并确认所有依赖 `shared/constants.js` 的 content script 都先加载 `shared/build-meta.js`）
+
 ## 2026-06-04（beta 构建与隐藏解锁方案设计）
 
 - 新增 `docs/superpowers/specs/2026-06-04-beta-build-and-hidden-unlock-design.md`，用于收口 `v0.4.0` 的正式包 / beta 包方案。

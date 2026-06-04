@@ -19,6 +19,38 @@
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
   const backendModeServer = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const backendModeLocal = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
+  const backendModeBeta = constants.BACKEND_ENDPOINT_MODE_BETA || "beta";
+  const releaseChannel = constants.RELEASE_CHANNEL || "public";
+  const canUseBetaFeatures =
+    typeof constants.canUseBetaFeatures === "function"
+      ? constants.canUseBetaFeatures
+      : function () {
+          return false;
+        };
+  const isPlatformVisibleByRelease =
+    typeof constants.isPlatformVisible === "function"
+      ? constants.isPlatformVisible
+      : function () {
+          return true;
+        };
+  const isScriptVisibleByRelease =
+    typeof constants.isScriptVisible === "function"
+      ? constants.isScriptVisible
+      : function () {
+          return true;
+        };
+  const normalizeBetaBackendBaseUrl =
+    typeof constants.normalizeBetaBackendBaseUrl === "function"
+      ? constants.normalizeBetaBackendBaseUrl
+      : function (value) {
+          const text = String(value || "").trim().replace(/\/+$/, "");
+          return /^https?:\/\//i.test(text) ? text : "";
+        };
+  const defaultBetaUnlockPasswordSha256 = String(
+    constants.BETA_UNLOCK_PASSWORD_SHA256 || ""
+  )
+    .trim()
+    .toLowerCase();
   const getBackendModeFromSettings =
     typeof constants.getBackendEndpointModeFromSettings === "function"
       ? constants.getBackendEndpointModeFromSettings
@@ -591,6 +623,8 @@
   let adminBackendDraft = null;
   let publicCenterEditMode = false;
   let publicCenterDragState = null;
+  let betaUnlockTapCount = 0;
+  let betaUnlockTapTimer = null;
   const PLATFORM_REORDER_HOVER_DELAY_MS = 200;
   const PLATFORM_REORDER_EDGE_SCROLL_MARGIN = 92;
   const PLATFORM_REORDER_EDGE_SCROLL_STEP = 22;
@@ -607,14 +641,133 @@
     }
   }
 
+  function isBetaBuild() {
+    return releaseChannel === "beta";
+  }
+
+  function getVisibleScriptIds(settings) {
+    return Object.keys(scriptLibrary).filter(function (scriptId) {
+      return isScriptVisibleByRelease(scriptId, settings || {});
+    });
+  }
+
+  function getVisiblePlatformIds(settings) {
+    return getOrderedPlatformIds(settings).filter(function (platformId) {
+      return isPlatformVisibleByRelease(platformId, settings || {});
+    });
+  }
+
+  function getVisiblePlatformScriptIds(settings, platformId) {
+    return getVisibleScriptIds(settings).filter(function (scriptId) {
+      return scriptLibrary[scriptId]?.platformId === platformId;
+    });
+  }
+
+  function setBetaStatus(message, tone) {
+    const node = getElement("workspace-beta-status");
+    if (!(node instanceof HTMLElement)) {
+      return;
+    }
+    node.className = "status-text" + (tone ? " " + tone : "");
+    node.textContent = normalizeText(message);
+  }
+
+  function resetBetaUnlockTapSequence() {
+    betaUnlockTapCount = 0;
+    if (betaUnlockTapTimer) {
+      clearTimeout(betaUnlockTapTimer);
+      betaUnlockTapTimer = null;
+    }
+  }
+
+  async function sha256Hex(value) {
+    const text = String(value || "");
+    if (!text || !globalThis.crypto?.subtle || typeof TextEncoder !== "function") {
+      return "";
+    }
+    const buffer = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buffer))
+      .map(function (item) {
+        return item.toString(16).padStart(2, "0");
+      })
+      .join("");
+  }
+
+  async function handleBetaUnlockAttempt() {
+    if (!isBetaBuild()) {
+      return;
+    }
+    if (!defaultBetaUnlockPasswordSha256) {
+      setBetaStatus("当前 beta 包未配置口令，无法解锁。", "error");
+      return;
+    }
+    const password = globalThis.prompt("请输入 beta 口令");
+    if (!normalizeText(password)) {
+      setBetaStatus("已取消 beta 解锁。", "pending");
+      return;
+    }
+    const hashed = await sha256Hex(password);
+    if (hashed !== defaultBetaUnlockPasswordSha256) {
+      setBetaStatus("beta 口令错误。", "error");
+      return;
+    }
+    currentSettings = await storage.patchSettings({
+      meta: {
+        betaUnlocked: true,
+        betaUnlockedAt: new Date().toISOString(),
+      },
+    });
+    resetAdminBackendDraft(currentSettings);
+    setBetaStatus("beta 功能已解锁并保存到本地缓存。", "enabled");
+    await renderCurrentView();
+  }
+
+  async function exitBetaMode() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      return;
+    }
+    const nextMeta = {
+      betaUnlocked: false,
+      betaUnlockedAt: null,
+    };
+    if (getBackendModeFromSettings(currentSettings || {}) === backendModeBeta) {
+      nextMeta.backendEndpointMode = backendModeServer;
+    }
+    currentSettings = await storage.patchSettings({
+      meta: nextMeta,
+    });
+    resetAdminBackendDraft(currentSettings);
+    setBetaStatus("已退出 beta 模式。", "pending");
+    await renderCurrentView();
+  }
+
+  function registerBetaUnlockTap() {
+    if (!isBetaBuild() || canUseBetaFeatures(currentSettings || {})) {
+      return;
+    }
+    betaUnlockTapCount += 1;
+    if (betaUnlockTapTimer) {
+      clearTimeout(betaUnlockTapTimer);
+    }
+    betaUnlockTapTimer = setTimeout(function () {
+      resetBetaUnlockTapSequence();
+    }, 3000);
+    if (betaUnlockTapCount >= 7) {
+      resetBetaUnlockTapSequence();
+      void handleBetaUnlockAttempt();
+    }
+  }
+
   function renderWorkspaceSidebar(settings, route) {
     const activeRoute = route && typeof route === "object" ? route : getCurrentRouteState();
     const version = getExtensionManifestVersion() || "未知版本";
-    const enabledCount = Object.keys(scriptLibrary).filter(function (scriptId) {
+    const visibleScriptIds = getVisibleScriptIds(settings);
+    const visiblePlatformIds = getVisiblePlatformIds(settings);
+    const enabledCount = visibleScriptIds.filter(function (scriptId) {
       return isScriptEnabled(settings || {}, scriptId);
     }).length;
-    const platformCount = Object.keys(platformLibrary).length;
-    const scriptCount = Object.keys(scriptLibrary).length;
+    const platformCount = visiblePlatformIds.length;
+    const scriptCount = visibleScriptIds.length;
     const backendMode = getBackendModeFromSettings(settings || {});
     const routeNameNode = getElement("workspace-view-name");
     const routeNoteNode = getElement("workspace-view-note");
@@ -628,8 +781,10 @@
     const navCenterButton = getElement("workspace-nav-center");
     const navDownloadsButton = getElement("workspace-nav-downloads");
     const navAdminButton = getElement("workspace-nav-admin");
+    const betaExitButton = getElement("workspace-beta-exit");
     const detailScriptId = activeRoute.view === "script" ? activeRoute.scriptId : "";
     const detailScript = detailScriptId ? scriptLibrary[detailScriptId] || {} : null;
+    const betaUnlocked = canUseBetaFeatures(settings || {});
 
     if (versionNode) {
       versionNode.textContent = "浏览器扩展 v" + version;
@@ -638,7 +793,12 @@
       versionCompactNode.textContent = "v" + version;
     }
     if (backendModeNode) {
-      backendModeNode.textContent = backendMode === backendModeLocal ? "本机" : "服务器";
+      backendModeNode.textContent =
+        backendMode === backendModeLocal
+          ? "本机"
+          : backendMode === backendModeBeta
+            ? "Beta"
+            : "服务器";
     }
     if (aiUsageOperatorNode) {
       const operatorName = getAiUsageOperatorName(settings || {});
@@ -668,6 +828,16 @@
       navAdminButton.classList.toggle("active", active);
       navAdminButton.setAttribute("aria-pressed", String(active));
     }
+    if (betaExitButton instanceof HTMLButtonElement) {
+      betaExitButton.classList.toggle("hidden", !betaUnlocked);
+    }
+    if (!isBetaBuild()) {
+      setBetaStatus("");
+    } else if (betaUnlocked) {
+      setBetaStatus("当前 beta 功能已解锁。", "enabled");
+    } else {
+      setBetaStatus("连续点击左上角品牌区 7 次后可输入 beta 口令。", "pending");
+    }
 
     if (routeNameNode && routeNoteNode) {
       if (activeRoute.view === "admin") {
@@ -689,6 +859,9 @@
   function createAdminBackendDraft(settings) {
     return {
       backendEndpointMode: getBackendModeFromSettings(settings || {}),
+      betaBackendBaseUrl: normalizeBetaBackendBaseUrl(
+        settings?.meta?.betaBackendBaseUrl || constants.DEFAULT_BETA_BACKEND_BASE_URL || ""
+      ),
       aiUsageOperatorName: getAiUsageOperatorName(settings || {}),
     };
   }
@@ -715,15 +888,25 @@
     const draft = getAdminBackendDraft();
     return (
       draft.backendEndpointMode !== saved.backendEndpointMode ||
+      normalizeBetaBackendBaseUrl(draft.betaBackendBaseUrl) !==
+        normalizeBetaBackendBaseUrl(saved.betaBackendBaseUrl) ||
       normalizeAiUsageOperatorName(draft.aiUsageOperatorName) !==
         normalizeAiUsageOperatorName(saved.aiUsageOperatorName)
     );
   }
 
   function buildBackendModeDisplayText(mode) {
-    return String(mode || "").trim().toLowerCase() === backendModeLocal
-      ? "本机（127.0.0.1:3333）"
-      : "服务器（script.xiangtianzhen.store）";
+    const normalizedMode = String(mode || "").trim().toLowerCase();
+    if (normalizedMode === backendModeLocal) {
+      return "本机（127.0.0.1:3333）";
+    }
+    if (normalizedMode === backendModeBeta) {
+      const betaUrl = normalizeBetaBackendBaseUrl(
+        getAdminBackendDraft()?.betaBackendBaseUrl || constants.DEFAULT_BETA_BACKEND_BASE_URL || ""
+      );
+      return betaUrl ? "Beta（" + betaUrl + "）" : "Beta（未配置地址）";
+    }
+    return "服务器（script.xiangtianzhen.store）";
   }
 
   function applyForcedThinkingToggle(inputId, message) {
@@ -6782,8 +6965,10 @@
   function renderScriptCenter(settings) {
     ensurePublicHeroShell();
     const center = getElement("script-center-view");
-    const platformIds = getOrderedPlatformIds(settings);
-    const scriptIds = Object.keys(scriptLibrary);
+    const platformIds = getVisiblePlatformIds(settings).filter(function (platformId) {
+      return getVisiblePlatformScriptIds(settings, platformId).length > 0;
+    });
+    const scriptIds = getVisibleScriptIds(settings);
     const enabledCount = scriptIds.filter(function (scriptId) {
       return isScriptEnabled(settings, scriptId);
     }).length;
@@ -6819,9 +7004,7 @@
       platformIds
         .map(function (platformId) {
           const platform = platformLibrary[platformId] || {};
-          const platformScriptIds = Object.keys(scriptLibrary).filter(function (scriptId) {
-            return scriptLibrary[scriptId]?.platformId === platformId;
-          });
+          const platformScriptIds = getVisiblePlatformScriptIds(settings, platformId);
           const preferredScript = getPreferredPlatformScript(platformScriptIds, settings);
 
           const scriptMarkup = platformScriptIds
@@ -6914,6 +7097,8 @@
   function renderHomeBackendEndpoint(settings) {
     const serverButton = getElement("home-endpoint-server");
     const localButton = getElement("home-endpoint-local");
+    const betaButton = getElement("home-endpoint-beta");
+    const betaUrlInput = getElement("home-endpoint-beta-url");
     if (!(serverButton instanceof HTMLButtonElement) || !(localButton instanceof HTMLButtonElement)) {
       return;
     }
@@ -6923,11 +7108,24 @@
     const mode = draft.backendEndpointMode;
     const statusNode = getElement("home-endpoint-status");
     const isLocal = mode === backendModeLocal;
+    const isBeta = mode === backendModeBeta;
+    const betaUnlocked = canUseBetaFeatures(settings || {});
 
-    serverButton.classList.toggle("active", !isLocal);
+    serverButton.classList.toggle("active", !isLocal && !isBeta);
     localButton.classList.toggle("active", isLocal);
-    serverButton.setAttribute("aria-pressed", String(!isLocal));
+    serverButton.setAttribute("aria-pressed", String(!isLocal && !isBeta));
     localButton.setAttribute("aria-pressed", String(isLocal));
+    if (betaButton instanceof HTMLButtonElement) {
+      betaButton.classList.toggle("hidden", !betaUnlocked);
+      betaButton.classList.toggle("active", isBeta);
+      betaButton.setAttribute("aria-pressed", String(isBeta));
+    }
+    if (betaUrlInput instanceof HTMLInputElement) {
+      betaUrlInput.classList.toggle("hidden", !betaUnlocked);
+      betaUrlInput.value = normalizeBetaBackendBaseUrl(
+        draft.betaBackendBaseUrl || constants.DEFAULT_BETA_BACKEND_BASE_URL || ""
+      );
+    }
     const toggleNode = getElement("home-endpoint-toggle");
     if (toggleNode) {
       toggleNode.classList.remove("hidden");
@@ -6943,9 +7141,18 @@
   }
 
   async function setHomeBackendEndpoint(mode) {
+    const rawMode = String(mode || "").trim().toLowerCase();
     const normalizedMode =
-      String(mode || "").trim().toLowerCase() === backendModeLocal ? backendModeLocal : backendModeServer;
+      rawMode === backendModeLocal
+        ? backendModeLocal
+        : rawMode === backendModeBeta
+          ? backendModeBeta
+          : backendModeServer;
     const draft = getAdminBackendDraft();
+    if (normalizedMode === backendModeBeta && !canUseBetaFeatures(currentSettings || {})) {
+      setStatus("home-endpoint-status", "当前版本未解锁 beta 功能。");
+      return;
+    }
     draft.backendEndpointMode = normalizedMode;
     renderHomeBackendEndpoint(currentSettings || {});
     renderHomeAiUsageOperator(currentSettings || {});
@@ -6986,15 +7193,24 @@
       return false;
     }
     const draft = getAdminBackendDraft();
+    const rawMode = String(draft.backendEndpointMode || "").trim().toLowerCase();
     const normalizedMode =
-      String(draft.backendEndpointMode || "").trim().toLowerCase() === backendModeLocal
+      rawMode === backendModeLocal
         ? backendModeLocal
-        : backendModeServer;
+        : rawMode === backendModeBeta
+          ? backendModeBeta
+          : backendModeServer;
+    const normalizedBetaBackendBaseUrl = normalizeBetaBackendBaseUrl(draft.betaBackendBaseUrl);
+    if (normalizedMode === backendModeBeta && !normalizedBetaBackendBaseUrl) {
+      setStatus("home-endpoint-status", "请先填写有效的 Beta 服务器地址。");
+      return false;
+    }
     setStatus("home-endpoint-status", "正在保存后端地址...");
     try {
       currentSettings = await storage.patchSettings({
         meta: {
           backendEndpointMode: normalizedMode,
+          betaBackendBaseUrl: normalizedBetaBackendBaseUrl,
         },
       });
       resetAdminBackendDraft(currentSettings);
@@ -9644,6 +9860,10 @@
       setStatus("detail-status", "当前扩展版本不支持脚本启停。");
       return;
     }
+    if (!isScriptVisibleByRelease(scriptId, currentSettings || {})) {
+      setStatus("detail-status", "当前版本不允许显示该脚本。");
+      return;
+    }
 
     const script = scriptLibrary[scriptId] || {};
     const targetStatus = enabled ? "启用" : "关闭";
@@ -9978,6 +10198,7 @@
     const downloadCenterView = getElement("download-center-view");
     const detailView = getElement("script-detail-view");
     const adminWorkspace = getElement("admin-workspace");
+    const scriptVisible = scriptId ? isScriptVisibleByRelease(scriptId, settings || {}) : true;
 
     document.title = (constants.EXTENSION_NAME || "标注脚本中心") + " - 设置";
     getElement("extension-name").textContent = constants.EXTENSION_NAME || "标注脚本中心";
@@ -10032,6 +10253,11 @@
         adminWorkspace.classList.add("hidden");
       }
       renderPublicDownloadsView();
+      return;
+    }
+
+    if (scriptId && !scriptVisible) {
+      navigateToCenter();
       return;
     }
 
@@ -10100,6 +10326,24 @@
         navigateToAdmin(getCurrentAdminTab());
       });
     }
+    const workspaceBrandTitle = getElement("workspace-brand-title");
+    if (workspaceBrandTitle instanceof HTMLElement) {
+      workspaceBrandTitle.addEventListener("click", function () {
+        registerBetaUnlockTap();
+      });
+    }
+    const workspaceVersionCompact = getElement("workspace-version-compact");
+    if (workspaceVersionCompact instanceof HTMLElement) {
+      workspaceVersionCompact.addEventListener("click", function () {
+        registerBetaUnlockTap();
+      });
+    }
+    const workspaceBetaExit = getElement("workspace-beta-exit");
+    if (workspaceBetaExit instanceof HTMLButtonElement) {
+      workspaceBetaExit.addEventListener("click", function () {
+        void exitBetaMode();
+      });
+    }
 
     getElement("back-to-center").addEventListener("click", function () {
       navigateToCenter();
@@ -10163,6 +10407,20 @@
     getElement("home-endpoint-local").addEventListener("click", function () {
       void setHomeBackendEndpoint("local");
     });
+    const homeEndpointBeta = getElement("home-endpoint-beta");
+    if (homeEndpointBeta instanceof HTMLButtonElement) {
+      homeEndpointBeta.addEventListener("click", function () {
+        void setHomeBackendEndpoint("beta");
+      });
+    }
+    const homeEndpointBetaUrl = getElement("home-endpoint-beta-url");
+    if (homeEndpointBetaUrl instanceof HTMLInputElement) {
+      homeEndpointBetaUrl.addEventListener("input", function () {
+        const draft = getAdminBackendDraft();
+        draft.betaBackendBaseUrl = homeEndpointBetaUrl.value;
+        renderHomeBackendEndpoint(currentSettings || {});
+      });
+    }
 
     const homeEndpointSaveButton = getElement("home-endpoint-save");
     if (homeEndpointSaveButton instanceof HTMLButtonElement) {

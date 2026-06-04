@@ -1,6 +1,7 @@
+const sharedBuildMetaUrl = chrome.runtime.getURL("shared/build-meta.js");
 const sharedConstantsUrl = chrome.runtime.getURL("shared/constants.js");
 const sharedStorageUrl = chrome.runtime.getURL("shared/storage.js");
-importScripts(sharedConstantsUrl, sharedStorageUrl);
+importScripts(sharedBuildMetaUrl, sharedConstantsUrl, sharedStorageUrl);
 
 const constants = globalThis.ASREdgeConstants;
 const storage = globalThis.ASREdgeStorage;

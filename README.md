@@ -89,6 +89,11 @@
   - 保留“查看外部目录”作为兜底入口
   - 后端通过 `GET /api/admin/download-center/releases` 聚合 `crx-latest.json` 和远端 `/downloads/` 目录索引；目录索引失败时至少回退展示最新版
   - 该接口当前为公开可读，不要求先进入系统管理
+- 本轮新增 beta 构建与隐藏解锁能力：
+  - 正式包继续只展示公开平台与公开脚本
+  - beta 包不进入“脚本下载中心”，只通过“查看外部目录”获取
+  - beta 包默认界面与正式版一致；连续点击左上角品牌区 `7` 次并输入正确口令后，才增量显示 beta 平台、beta 脚本与 `Beta 服务器`
+  - `Lightwheel` 当前按 beta 平台处理：未解锁或已禁用时，popup / 命中提示都不再显示
 
 ## v0.3.7 发布说明
 
@@ -423,6 +428,15 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 node scripts/package-crx-release.js --notes "CRX enterprise release"
 ```
 
+beta 包命令示例：
+
+```
+$env:ASC_RELEASE_CHANNEL="beta"
+$env:ASC_BETA_UNLOCK_PASSWORD_SHA256="<sha256>"
+$env:ASC_BETA_BACKEND_BASE_URL="https://beta.example.test"
+node scripts/package-crx-release.js --notes "Beta build"
+```
+
 说明：ZIP 是当前过渡分发产物，不替代未来企业自动更新；企业托管自动安装仍属于未完成模块，详见 `docs/unfinished/crx-enterprise-managed-install.md`。
 
 ## 文档入口
@@ -447,4 +461,3 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 - 闽南语助手“AI连续填入合格项”默认先创建 job，再轮询 job 状态，不再让大量长时间挂起的同步 recommend 占住浏览器连接。
 - 每次批量运行会生成 `batchRunId`；前端会跳过同批次重复 `processKey`，并在悬浮窗展示唯一任务数、重复跳过数、已发起请求和 AI 已返回数。
 - 若怀疑重复请求，先看前端悬浮窗统计，再看后端 health 中的 `dedupe.joinedCount`。
-
