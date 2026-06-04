@@ -313,7 +313,7 @@ pm2 restart annotation-script-center --update-env
 - `ai/model-dispatcher.js`：按模型名统一派发 JS / Python 运行时；默认 `JS 优先，Python 备用`。
 - `admin-auth.js`：系统管理会话与下载导出共用的管理员鉴权 helper，负责密码 hash 校验、Bearer token 读取和会话 token 签发/校验。
 - `admin-session/`：系统管理登录接口。
-- `admin-dashboard/`：系统管理仪表盘聚合接口，当前只返回模型池占用所需的运行时快照、后端元信息与数据导出摘要。
+- `admin-dashboard/`：系统管理仪表盘聚合接口，当前返回模型池占用、后端元信息、数据导出摘要、最近 `24` 小时日志统计和最近运行日志。
 - `project-data-download/`：统一“项目数据下载”聚合模块（options/request/file、token、审计、CSV 筛选），并开始承载共享下载 core：
   - `labelx-download-core.js`
   - `labelx-existing-core.js`
@@ -333,7 +333,7 @@ pm2 restart annotation-script-center --update-env
 - `aishell-tech/minnan-helper`：Aishell Tech 闽南语助手 AI 推荐接口；当前条推荐与批量串行真实保存共用同一 recommend 业务入口，默认由 `POST /jobs` + `GET /jobs/:jobId` 承接前端结果链路，并继续保留同步 recommend 路由作为兼容 / 调试入口。
 - `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
 - `admin/session`：系统管理登录接口，负责签发短期管理员会话 token。
-- `admin/dashboard`：系统管理仪表盘聚合接口，当前负责汇总模型池占用、后端状态与数据导出快捷信息。
+- `admin/dashboard`：系统管理仪表盘聚合接口，当前负责汇总模型池占用、后端状态、数据导出快捷信息、日志统计概况与最近运行日志。
 - `admin/project-data-download`：项目数据下载聚合接口，支持密码校验或管理员 Bearer 会话、短期 token 下载链接、供应商筛选下载和审计日志。
 - `admin/ai-call-log`：AI 请求记录聚合接口，支持密码校验或管理员 Bearer 会话、短期 token 下载链接、按脚本 + 日期范围导出 CSV 和审计日志。
 
@@ -367,10 +367,14 @@ Aishell Tech AI 接口：
 - `POST /api/admin/session/unlock`
 - `GET /api/admin/dashboard/overview`
 - `GET /api/admin/dashboard/overview`
-  - 当前只返回模型池占用所需的 queue 快照、后端状态和数据导出摘要
-  - 为避免高日志量环境下 Node OOM，失败摘要、脚本统计、趋势、调用人排行和运行日志已从仪表盘主接口中移除
+  - 当前返回模型池占用所需的 queue 快照、后端状态、数据导出摘要和 `logsSummary`
+  - `logsSummary` 包含最近 `24` 小时 `success / warn / error` 计数、`retentionDays=7` 和最近一条失败摘要
   - 前端 `options` 仪表盘默认每 `60` 秒自动刷新一次，并可手动刷新
   - 模型池快照当前按“总容量”语义返回：`capacity / usedCount / availableCount / isFull / utilizationPercent`
+- `GET /api/admin/dashboard/runtime-logs`
+  - 返回最近运行日志，默认近 `20` 条、按时间倒序
+  - 日志文件落在 `platform-resources/backend/admin-dashboard/runtime-data/runtime-YYYY-MM-DD.jsonl`
+  - 文件默认保留 `7` 天；PM2 重启后仍可查看近 `7` 天应用日志，但不会直接读取 PM2 stdout/stderr
 - `GET /api/admin/download-center/releases`
   - 面向 `options` 公开“脚本下载中心”页，返回结构化扩展版本列表
   - 先读取远端 `annotation-script-center-crx-latest.json` 获取最新版
@@ -564,7 +568,7 @@ DataBaker AI 架构补充：
 
 - 统一后端继续复用原有 LabelX 统计上传地址，不新增独立 force replace 路由。
 - 当前仅 Alibaba LabelX ASR 快判与 ASR 转写支持手动 `forceReplaceByBatchId` 上传语义。
-- force replace 请求体会带 `replaceMode="batch"` 和 `replaceBatchIds`；后端在 `payload-merge.js` 先删旧行，再写入本次 payloads。
+- force replace 请求体会带 `replaceMode="batch"` 和 `replaceBatchIds`；后端继续以 `分包ID` 归并行，但只局部覆盖当前角色 / 当前人员槽位，不再删整分包旧行。
 - 定时上传 `reason=schedule` 不应传 `forceReplaceByBatchId`，统一保持默认 existing 跳过逻辑。
 
 ## 2026-05-21 统计 CSV 字段命名补充

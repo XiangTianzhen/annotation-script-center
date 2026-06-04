@@ -550,7 +550,8 @@ platform-resources/alibaba-labelx/asr-judgement/
 ## 2026-05-21 快判统计取消跳过上传
 
 - 手动点击首页“上传统计”时，仍先走 existing 检查，`complete=true` 的分包默认跳过。
-- 如果本轮存在 `skippedCompleteCount > 0`，上传完成后会在首页顶部按钮旁显示“取消跳过上传数据”。
+- 如果本轮存在 `skippedCompleteCount > 0`，上传完成后会在首页顶部按钮旁显示“补传并覆盖当前人员”。
 - 点击按钮后会使用 `reason=home-manual-force-replace` 重新拉取本轮全部快判详情，并携带 `forceReplaceByBatchId=true`、`replaceMode="batch"`、`replaceBatchIds` 上传。
+- 后端仍以 `分包ID` 归并行，但 force replace 只会覆盖当前标注员槽位或当前审核列，不会删除同分包的其他标注员列。
 - 定时上传不会显示该按钮，也不会自动触发强制替换。
-- 详情页第一版不默认显示 force replace 按钮，避免单角色上传导致另一角色列丢失。
+- 详情页第一版不默认显示 force replace 按钮，避免详情页只拿到单角色时误判当前人员覆盖范围。

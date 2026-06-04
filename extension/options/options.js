@@ -58,6 +58,7 @@
     constants.AI_CALL_LOG_DOWNLOAD_REQUEST_PATH || "/api/admin/ai-call-log/request";
   const adminSessionUnlockPath = "/api/admin/session/unlock";
   const adminDashboardOverviewPath = "/api/admin/dashboard/overview";
+  const adminDashboardRuntimeLogsPath = "/api/admin/dashboard/runtime-logs";
   const adminDownloadCenterReleasesPath = "/api/admin/download-center/releases";
   const scriptDownloadCenterUrl = "https://script.xiangtianzhen.store/downloads/";
   const optionsRouteState = globalThis.ASREdgeOptionsRouteState || {};
@@ -7861,8 +7862,10 @@
       '<button type="button" class="admin-nav-button" data-admin-tab="exports">数据导出</button>',
       "</nav>",
       '<section id="admin-tab-overview" class="admin-tab-panel">',
-      '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>这里只展示每个模型池还能接收多少请求；页面每 60 秒自动刷新一次，也可手动刷新。</p></div></div>',
+      '<div class="admin-panel-head"><div><h3>系统仪表盘</h3><p>这里展示模型池占用、最近 24 小时日志统计和最近运行日志；页面每 60 秒自动刷新一次，也可手动刷新。</p></div></div>',
       '<section class="admin-surface-card"><div class="admin-card-head"><strong>模型池占用</strong><span>按顺序排队，每 50ms 发起 1 个请求</span></div><div id="admin-overview-pools"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>日志统计概况</strong><span id="admin-overview-log-summary-note">最近 24 小时汇总，文件日志保留 7 天</span></div><div id="admin-overview-log-summary" class="admin-summary-grid"></div></section>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>最近运行日志</strong><span id="admin-overview-runtime-logs-note">默认显示近 20 条后台运行日志</span></div><div id="admin-overview-runtime-logs"></div></section>',
       '<div id="admin-overview-status" class="status-text"></div>',
       "</section>",
       '<section id="admin-tab-backend" class="admin-tab-panel hidden">',
@@ -7963,6 +7966,114 @@
         ].join("");
       })
       .join(""),
+      "</div>",
+    ].join("");
+  }
+
+  function getRuntimeLogLevelText(level) {
+    const normalizedLevel = normalizeText(level).toLowerCase();
+    if (normalizedLevel === "success") {
+      return "成功";
+    }
+    if (normalizedLevel === "warn") {
+      return "警告";
+    }
+    if (normalizedLevel === "error") {
+      return "失败";
+    }
+    return "信息";
+  }
+
+  function getRuntimeLogLevelPillClass(level) {
+    const normalizedLevel = normalizeText(level).toLowerCase();
+    if (normalizedLevel === "success") {
+      return "enabled";
+    }
+    if (normalizedLevel === "warn") {
+      return "pending";
+    }
+    if (normalizedLevel === "error") {
+      return "disabled";
+    }
+    return "info";
+  }
+
+  function buildAdminLogSummaryMarkup(logsSummary) {
+    const summary = logsSummary && typeof logsSummary === "object" ? logsSummary : {};
+    const recent24Hours =
+      summary.recent24Hours && typeof summary.recent24Hours === "object"
+        ? summary.recent24Hours
+        : {};
+    const latestFailure =
+      summary.latestFailure && typeof summary.latestFailure === "object"
+        ? summary.latestFailure
+        : null;
+    return [
+      '<article class="public-summary-card"><span>最近 24 小时成功</span><strong>' +
+        escapeHtml(formatNumber(recent24Hours.successCount || 0)) +
+        '</strong><span class="summary-note">已写入文件的成功事件数量。</span></article>',
+      '<article class="public-summary-card"><span>最近 24 小时警告</span><strong>' +
+        escapeHtml(formatNumber(recent24Hours.warnCount || 0)) +
+        '</strong><span class="summary-note">需要人工关注但未中断流程的事件。</span></article>',
+      '<article class="public-summary-card"><span>最近 24 小时失败</span><strong>' +
+        escapeHtml(formatNumber(recent24Hours.errorCount || 0)) +
+        '</strong><span class="summary-note">接口失败、鉴权失败和下载失败等错误事件。</span></article>',
+      '<article class="public-summary-card admin-log-highlight"><span>最近一条失败</span><strong>' +
+        escapeHtml(latestFailure ? getRuntimeLogLevelText(latestFailure.level) : "无") +
+        '</strong><span class="summary-note">' +
+        escapeHtml(
+          latestFailure
+            ? formatDateTimeLabel(latestFailure.createdAt) +
+                " · " +
+                normalizeText(latestFailure.scope || "backend") +
+                " · " +
+                normalizeText(latestFailure.message || "运行失败")
+            : "近 7 天内暂未记录失败或警告事件。"
+        ) +
+        "</span></article>",
+    ].join("");
+  }
+
+  function buildAdminRuntimeLogsMarkup(runtimeLogs) {
+    const payload = runtimeLogs && typeof runtimeLogs === "object" ? runtimeLogs : {};
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    if (normalizeText(payload.errorMessage)) {
+      return buildEmptyState(payload.errorMessage);
+    }
+    if (items.length <= 0) {
+      return buildEmptyState("近 7 天内暂无可展示的后台运行日志。");
+    }
+    return [
+      '<div class="admin-runtime-log-list">',
+      items
+        .map(function (item) {
+          const level = normalizeText(item?.level).toLowerCase() || "info";
+          const scope = normalizeText(item?.scope) || "backend";
+          const action = normalizeText(item?.action);
+          const message = normalizeText(item?.message) || "运行事件";
+          const requestId = normalizeText(item?.requestId);
+          return [
+            '<article class="admin-runtime-log-item" data-log-level="' + escapeHtml(level) + '">',
+            '<div class="admin-runtime-log-head">',
+            '<div class="admin-runtime-log-tags">',
+            '<span class="pill ' +
+              escapeHtml(getRuntimeLogLevelPillClass(level)) +
+              '">' +
+              escapeHtml(getRuntimeLogLevelText(level)) +
+              "</span>",
+            "<strong>" + escapeHtml(scope) + "</strong>",
+            action ? '<span class="admin-runtime-log-action">' + escapeHtml(action) + "</span>" : "",
+            "</div>",
+            "<time>" + escapeHtml(formatDateTimeLabel(item?.createdAt)) + "</time>",
+            "</div>",
+            '<p class="admin-runtime-log-message">' + escapeHtml(message) + "</p>",
+            requestId
+              ? '<div class="admin-runtime-log-meta">requestId: ' + escapeHtml(requestId) + "</div>"
+              : "",
+            "</article>",
+          ].join("");
+        })
+        .join(""),
       "</div>",
     ].join("");
   }
@@ -8183,9 +8294,40 @@
       return;
     }
     const queue = overview.runtime?.queue || {};
+    const logsSummary = overview.logsSummary && typeof overview.logsSummary === "object"
+      ? overview.logsSummary
+      : {};
+    const runtimeLogs = overview.runtimeLogs && typeof overview.runtimeLogs === "object"
+      ? overview.runtimeLogs
+      : {};
     const poolsNode = getElement("admin-overview-pools");
     if (poolsNode) {
       poolsNode.innerHTML = buildPoolChartMarkup(queue.activePools || []);
+    }
+    const logSummaryNode = getElement("admin-overview-log-summary");
+    if (logSummaryNode) {
+      logSummaryNode.innerHTML = buildAdminLogSummaryMarkup(logsSummary);
+    }
+    const logSummaryNoteNode = getElement("admin-overview-log-summary-note");
+    if (logSummaryNoteNode) {
+      logSummaryNoteNode.textContent =
+        "最近 24 小时汇总，文件日志保留 " +
+        String(Number(logsSummary.retentionDays || runtimeLogs.retentionDays || 7) || 7) +
+        " 天";
+    }
+    const runtimeLogsNode = getElement("admin-overview-runtime-logs");
+    if (runtimeLogsNode) {
+      runtimeLogsNode.innerHTML = buildAdminRuntimeLogsMarkup(runtimeLogs);
+    }
+    const runtimeLogsNoteNode = getElement("admin-overview-runtime-logs-note");
+    if (runtimeLogsNoteNode) {
+      runtimeLogsNoteNode.textContent = normalizeText(runtimeLogs.errorMessage)
+        ? "最近运行日志加载失败，请稍后手动刷新。"
+        : "默认显示近 " +
+          String(Number(runtimeLogs.limit || 20) || 20) +
+          " 条后台运行日志，文件日志保留 " +
+          String(Number(runtimeLogs.retentionDays || logsSummary.retentionDays || 7) || 7) +
+          " 天";
     }
     const endpointNode = getElement("admin-stage-endpoint");
     if (endpointNode) {
@@ -8208,15 +8350,27 @@
     if (adminDashboardLoading) {
       return adminDashboardLoading;
     }
-    setAdminPanelStatus("admin-overview-status", "正在加载模型池占用...");
-    adminDashboardLoading = requestAdminJson(adminDashboardOverviewPath, {
-      method: "GET",
-      headers: {
-        "X-ASC-Dashboard-Refresh": normalizeText(refreshSource) || (forceRefresh === true ? "manual" : "initial"),
-      },
-    })
-      .then(async function (overviewResult) {
-        if (!overviewResult || overviewResult.authFailed) {
+    const dashboardRefreshSource =
+      normalizeText(refreshSource) || (forceRefresh === true ? "manual" : "initial");
+    setAdminPanelStatus("admin-overview-status", "正在加载系统仪表盘...");
+    adminDashboardLoading = Promise.all([
+      requestAdminJson(adminDashboardOverviewPath, {
+        method: "GET",
+        headers: {
+          "X-ASC-Dashboard-Refresh": dashboardRefreshSource,
+        },
+      }),
+      requestAdminJson(adminDashboardRuntimeLogsPath + "?limit=20", {
+        method: "GET",
+        headers: {
+          "X-ASC-Dashboard-Refresh": dashboardRefreshSource,
+        },
+      }),
+    ])
+      .then(async function (results) {
+        const overviewResult = Array.isArray(results) ? results[0] : null;
+        const runtimeLogsResult = Array.isArray(results) ? results[1] : null;
+        if (!overviewResult || overviewResult.authFailed || !runtimeLogsResult || runtimeLogsResult.authFailed) {
           return null;
         }
         if (!overviewResult.response.ok || overviewResult.body?.success !== true) {
@@ -8226,13 +8380,36 @@
           );
           return null;
         }
-        adminDashboardCache = Object.assign({}, overviewResult.body.data || {});
+        const runtimeLogsData =
+          runtimeLogsResult.response?.ok && runtimeLogsResult.body?.success === true
+            ? Object.assign({}, runtimeLogsResult.body.data || {})
+            : {
+                items: [],
+                limit: 20,
+                retentionDays:
+                  Number(overviewResult.body?.data?.logsSummary?.retentionDays || 7) || 7,
+                errorMessage: getAdminDashboardErrorMessage(
+                  runtimeLogsResult.body,
+                  runtimeLogsResult.response?.status
+                ),
+              };
+        adminDashboardCache = Object.assign({}, overviewResult.body.data || {}, {
+          runtimeLogs: runtimeLogsData,
+        });
         renderAdminDashboard(adminDashboardCache);
         setAdminPanelStatus(
           "admin-overview-status",
-          "模型池占用已更新：" +
+          "系统仪表盘已更新：" +
             normalizeText(adminDashboardCache?.generatedAt || "") +
-            "；60 秒自动刷新已启用。"
+            "；日志保留 " +
+            String(
+              Number(
+                adminDashboardCache?.runtimeLogs?.retentionDays ||
+                  adminDashboardCache?.logsSummary?.retentionDays ||
+                  7
+              ) || 7
+            ) +
+            " 天；60 秒自动刷新已启用。"
         );
         return adminDashboardCache;
       })

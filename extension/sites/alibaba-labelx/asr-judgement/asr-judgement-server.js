@@ -1423,8 +1423,8 @@
         const forceButton = document.createElement("button");
         forceButton.type = "button";
         forceButton.dataset.role = "upload-force-replace";
-        forceButton.textContent = forceAction.busy ? "重新上传中" : "取消跳过上传数据";
-        forceButton.title = "重新拉取本轮跳过的完整数据，并按分包ID替换后端旧内容。定时上传不会触发。";
+        forceButton.textContent = forceAction.busy ? "重新上传中" : "补传并覆盖当前人员";
+        forceButton.title = "重新拉取本轮跳过的完整数据，并只覆盖当前人员或当前审核角色对应列。定时上传不会触发。";
         forceButton.disabled = state.uploading || forceAction.busy;
         Object.assign(forceButton.style, {
           border: "1px solid rgba(217, 119, 6, 0.42)",
@@ -2030,7 +2030,7 @@
           success: false,
           ok: false,
           reason: uploadReason,
-          message: "详情页不支持取消跳过上传数据，请回到首页后重新上传。",
+          message: "详情页不支持“补传并覆盖当前人员”，请回到首页后重新上传。",
         };
       }
       if (state.uploading) {
@@ -2068,7 +2068,7 @@
         let postResult = null;
         if (uploadPayloadList.length > 0) {
           updateUploadProgress({
-            phase: isForceReplaceUpload ? "按分包ID替换上传" : "上传后端",
+            phase: isForceReplaceUpload ? "补传并覆盖当前人员" : "上传后端",
             total: 1,
             completed: 0,
             concurrency: 1,
@@ -2079,7 +2079,7 @@
             update: updateUploadProgress,
           });
           updateUploadProgress({
-            phase: isForceReplaceUpload ? "按分包ID替换上传" : "上传后端",
+            phase: isForceReplaceUpload ? "补传并覆盖当前人员" : "上传后端",
             total: 1,
             completed: 1,
             concurrency: 1,
@@ -2100,11 +2100,9 @@
             String(summary.subTaskCount || 0) +
             "，上传 " +
             String(summary.payloadCount || uploadPayloadList.length || 0) +
-            "，按分包ID替换 " +
+            "，局部覆盖 " +
             String(postResult?.data?.replacedBatchCount || summary.forceReplaceBatchCount || 0) +
-            " 个分包，删除旧行 " +
-            String(postResult?.data?.deletedRowCount || 0) +
-            " 行，失败 " +
+            " 个分包的当前人员列，失败 " +
             String(failedCount) +
             "。";
         } else {
@@ -2139,7 +2137,7 @@
             isManualReason(uploadReason) &&
             !isForceReplaceUpload
           ) {
-            summaryMessage += "。可点击“取消跳过上传数据”重新拉取并替换这些分包。";
+            summaryMessage += "。可点击“补传并覆盖当前人员”重新拉取这些分包，但只会覆盖当前人员或当前审核角色对应列。";
           }
         }
         completeUploadProgress(summaryMessage);

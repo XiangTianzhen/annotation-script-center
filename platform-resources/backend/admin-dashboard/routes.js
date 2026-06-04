@@ -82,19 +82,41 @@ function registerAdminDashboardRoutes(router, options) {
       return;
     }
 
-    const payload = createLiveAdminDashboardOverview(config);
-    appendRuntimeLog({
-      level: "info",
-      scope: "admin.dashboard.overview",
-      action: "read",
-      message: "系统仪表盘模型池总览已刷新",
-      requestId,
-      details: {
-        refreshSource: getRefreshSource(request),
-        activePools: payload?.data?.runtime?.queue?.activePools?.length || 0,
-      },
-    });
-    sendJson(response, 200, payload);
+    try {
+      const payload = createLiveAdminDashboardOverview(config);
+      appendRuntimeLog({
+        level: "success",
+        scope: "admin.dashboard.overview",
+        action: "read",
+        message: "系统仪表盘总览已刷新",
+        requestId,
+        persist: false,
+        details: {
+          refreshSource: getRefreshSource(request),
+          activePools: payload?.data?.runtime?.queue?.activePools?.length || 0,
+        },
+      });
+      sendJson(response, 200, payload);
+    } catch (error) {
+      appendRuntimeLog({
+        level: "error",
+        scope: "admin.dashboard.overview",
+        action: "read_failed",
+        message: "系统仪表盘总览加载失败",
+        requestId,
+        details: {
+          refreshSource: getRefreshSource(request),
+          error: error && error.message ? error.message : String(error),
+        },
+      });
+      sendError(
+        response,
+        500,
+        "admin-dashboard-overview-failed",
+        error && error.message ? error.message : "系统仪表盘总览加载失败。",
+        requestId
+      );
+    }
   });
 
   router.get(RUNTIME_LOGS_PATH, function ({ request, response, query }) {
@@ -109,13 +131,33 @@ function registerAdminDashboardRoutes(router, options) {
       return;
     }
 
-    sendJson(
-      response,
-      200,
-      buildAdminDashboardRuntimeLogs({
-        limit: query?.limit,
-      })
-    );
+    try {
+      sendJson(
+        response,
+        200,
+        buildAdminDashboardRuntimeLogs({
+          limit: query?.limit,
+        })
+      );
+    } catch (error) {
+      appendRuntimeLog({
+        level: "error",
+        scope: "admin.dashboard.runtime_logs",
+        action: "read_failed",
+        message: "系统仪表盘运行日志加载失败",
+        requestId,
+        details: {
+          error: error && error.message ? error.message : String(error),
+        },
+      });
+      sendError(
+        response,
+        500,
+        "admin-dashboard-runtime-logs-failed",
+        error && error.message ? error.message : "系统仪表盘运行日志加载失败。",
+        requestId
+      );
+    }
   });
 }
 

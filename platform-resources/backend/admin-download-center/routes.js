@@ -31,6 +31,7 @@ function registerAdminDownloadCenterRoutes(router, options) {
         action: "read",
         message: "脚本下载版本列表已刷新",
         requestId,
+        persist: false,
         details: {
           latestVersion: data.latestVersion,
           items: Array.isArray(data.items) ? data.items.length : 0,
@@ -49,6 +50,7 @@ function registerAdminDownloadCenterRoutes(router, options) {
         action: "read_failed",
         message: "脚本下载版本列表加载失败",
         requestId,
+        persist: false,
         details: {
           error: error && error.message ? error.message : String(error),
         },

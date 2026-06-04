@@ -32,6 +32,7 @@
 *.pyc
 /platform-resources/backend/project-data-download/audit-data/
 /platform-resources/backend/audit-data/ai-call-log-download/
+/platform-resources/backend/admin-dashboard/runtime-data/
 
 # 环境密钥文件
 .env

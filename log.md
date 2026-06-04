@@ -1,3 +1,24 @@
+## 2026-06-04（LabelX 局部覆盖导出 + 系统仪表盘文件日志）
+
+- Alibaba LabelX ASR 转写 / ASR 快判的 `forceReplaceByBatchId` 语义改为“局部覆盖当前人员”：
+  - 后端继续以 `分包ID` 归并 CSV 行，但不再按 `replaceBatchIds` 删整行重建
+  - 转写只覆盖当前 `label / audit` 角色列，快判只覆盖命中的标注员槽位或审核列
+  - 空字段不再把旧值清空，避免按人分批导出时把同分包其他列覆盖掉
+- 首页手动补传入口统一改名为“补传并覆盖当前人员”：
+  - 仅在首页手动上传且本轮 `skippedCompleteCount > 0` 时显示
+  - 详情页继续不提供该入口
+  - 上传提示文案同步改成局部覆盖语义，不再显示“删除旧行”
+- 系统管理 `?view=admin&tab=overview` 重新扩成三块：
+  - 模型池占用
+  - 最近 `24` 小时日志统计概况
+  - 最近运行日志（默认近 `20` 条）
+- 后端运行日志改为文件持久化：
+  - `platform-resources/backend/runtime-log-store.js` 继续保留内存最近项，同时把后台操作 / 运维事件按天写入 `platform-resources/backend/admin-dashboard/runtime-data/runtime-YYYY-MM-DD.jsonl`
+  - 文件默认保留 `7` 天；PM2 重启后仍可读取近 `7` 天应用日志，但不会直接读取 PM2 stdout/stderr
+  - 仪表盘自动刷新成功事件不落持久日志，避免被 `60` 秒轮询刷满
+- 本轮验证：
+  - `node --test platform-resources/alibaba-labelx/asr-transcription/backend/payload-merge.test.js platform-resources/alibaba-labelx/asr-judgement/backend/payload-merge.test.js platform-resources/backend/runtime-log-store.test.js platform-resources/backend/admin-dashboard/overview.test.js platform-resources/backend/admin-dashboard/runtime-logs.test.js`
+
 ## 2026-06-03（功能面板拖拽交互细修）
 
 - `extension/options/` 继续只调整功能面板前端交互，不改后端接口和脚本设置 schema。

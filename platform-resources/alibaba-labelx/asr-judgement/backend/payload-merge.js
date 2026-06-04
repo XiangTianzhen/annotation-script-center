@@ -103,6 +103,53 @@ function normalizeCompletedValue(value) {
   return text;
 }
 
+function inferCompleted(roleRecord, payload) {
+  if (cleanCsvValue(roleRecord?.submitTime || "")) {
+    return "已完成";
+  }
+
+  const statusValue =
+    roleRecord?.status !== undefined
+      ? roleRecord.status
+      : payload?.rawKeys?.status !== undefined
+        ? payload.rawKeys.status
+        : "";
+  const normalizedStatus = cleanCsvValue(statusValue);
+  if (!normalizedStatus) {
+    return "";
+  }
+  if (normalizedStatus === "true" || normalizedStatus === "1") {
+    return "已完成";
+  }
+  if (
+    normalizedStatus === "false" ||
+    normalizedStatus === "0" ||
+    normalizedStatus === "待提交" ||
+    normalizedStatus === "待完成"
+  ) {
+    return "未完成";
+  }
+  const numericStatus = Number(statusValue);
+  if (Number.isFinite(numericStatus)) {
+    return numericStatus > 0 ? "已完成" : "未完成";
+  }
+  return "";
+}
+
+function applyNonEmptyValue(row, key, value) {
+  const nextValue = cleanCsvValue(value);
+  if (nextValue) {
+    row[key] = nextValue;
+  }
+}
+
+function applyCompletedValue(row, key, roleRecord, payload) {
+  const nextValue = normalizeCompletedValue(roleRecord?.completed) || inferCompleted(roleRecord, payload);
+  if (nextValue) {
+    row[key] = nextValue;
+  }
+}
+
 function normalizeCsvColumnKey(key) {
   return LEGACY_COLUMN_ALIAS[key] || key;
 }
@@ -164,29 +211,31 @@ function applyRoleRecord(row, roleRecord, payload) {
 
   if (role === "audit") {
     row["审核子任务ID"] = subTaskId;
-    row["审核员_P"] = preferHealthyText(
+    const auditUser = preferHealthyText(
       cleanCsvValue(roleRecord.userName || roleRecord.userId || ""),
       row["审核员_P"] || ""
     );
-    row["审核领取时间"] = cleanCsvValue(roleRecord.receiveTime || "");
-    row["审核提交时间"] = cleanCsvValue(roleRecord.submitTime || "");
-    row["审核是否完成"] =
-      normalizeCompletedValue(roleRecord.completed) ||
-      (payload?.rawKeys?.status ? "已完成" : "未完成");
+    if (auditUser) {
+      row["审核员_P"] = auditUser;
+    }
+    applyNonEmptyValue(row, "审核领取时间", roleRecord.receiveTime);
+    applyNonEmptyValue(row, "审核提交时间", roleRecord.submitTime);
+    applyCompletedValue(row, "审核是否完成", roleRecord, payload);
     return;
   }
 
   const slot = findLabelSlot(row, subTaskId);
   row["标注员" + slot + "子任务ID"] = subTaskId;
-  row["标注员" + slot + "_P"] = preferHealthyText(
+  const labelUser = preferHealthyText(
     cleanCsvValue(roleRecord.userName || roleRecord.userId || ""),
     row["标注员" + slot + "_P"] || ""
   );
-  row["标注员" + slot + "领取时间"] = cleanCsvValue(roleRecord.receiveTime || "");
-  row["标注员" + slot + "提交时间"] = cleanCsvValue(roleRecord.submitTime || "");
-  row["标注员" + slot + "是否完成"] =
-    normalizeCompletedValue(roleRecord.completed) ||
-    (payload?.rawKeys?.status ? "已完成" : "未完成");
+  if (labelUser) {
+    row["标注员" + slot + "_P"] = labelUser;
+  }
+  applyNonEmptyValue(row, "标注员" + slot + "领取时间", roleRecord.receiveTime);
+  applyNonEmptyValue(row, "标注员" + slot + "提交时间", roleRecord.submitTime);
+  applyCompletedValue(row, "标注员" + slot + "是否完成", roleRecord, payload);
 }
 
 function getBatchId(payload, patch, roleRecord) {
@@ -417,11 +466,9 @@ function mergeUploadPayloads(payload, store) {
   const forceReplaceByBatchId = isForceReplaceByBatchId(payload);
   const replaceBatchIds = forceReplaceByBatchId ? normalizeReplaceBatchIds(payload) : [];
   if (forceReplaceByBatchId && replaceBatchIds.length === 0) {
-    throw new Error("force replace 缺少 replaceBatchIds / 分包ID，无法按分包ID替换旧数据。");
+    throw new Error("force replace 缺少 replaceBatchIds / 分包ID，无法执行当前人员局部覆盖。");
   }
-  const deleteResult = forceReplaceByBatchId
-    ? removeRowsByBatchIds(rowsByMergeRowId, replaceBatchIds)
-    : { deletedRowCount: 0, deletedBatchIds: [] };
+  const deleteResult = { deletedRowCount: 0, deletedBatchIds: [] };
   const results = [];
   const failures = [];
   payloads.forEach(function (item) {

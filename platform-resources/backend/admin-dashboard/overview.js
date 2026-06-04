@@ -4,6 +4,7 @@ const { ADMIN_SESSION_TTL_SECONDS, getAdminAuthConfig, isAdminAuthConfigured } =
 const { buildAsyncJobRuntimeMeta } = require("../ai-framework/runtime/ai-runtime-meta");
 const { listAiCallLogDatasets } = require("../ai-call-log-download/routes");
 const { listProjectDataDownloadDatasets } = require("../project-data-download/routes");
+const { summarizeRuntimeLogs } = require("../runtime-log-store");
 
 const SCRIPT_DOWNLOAD_CENTER_URL = "https://script.xiangtianzhen.store/downloads/";
 
@@ -60,6 +61,35 @@ function normalizeRuntime(runtime) {
   };
 }
 
+function normalizeLogsSummary(input) {
+  const source = input && typeof input === "object" ? input : {};
+  const recent24Hours =
+    source.recent24Hours && typeof source.recent24Hours === "object"
+      ? source.recent24Hours
+      : {};
+  const latestFailure =
+    source.latestFailure && typeof source.latestFailure === "object"
+      ? source.latestFailure
+      : null;
+  return {
+    retentionDays: Math.max(1, Number(source.retentionDays || 7) || 7),
+    recent24Hours: {
+      successCount: Math.max(0, Number(recent24Hours.successCount || 0) || 0),
+      warnCount: Math.max(0, Number(recent24Hours.warnCount || 0) || 0),
+      errorCount: Math.max(0, Number(recent24Hours.errorCount || 0) || 0),
+    },
+    latestFailure: latestFailure
+      ? {
+          createdAt: normalizeText(latestFailure.createdAt),
+          level: normalizeText(latestFailure.level) || "error",
+          scope: normalizeText(latestFailure.scope) || "backend",
+          message: normalizeText(latestFailure.message) || "最近失败事件",
+          requestId: normalizeText(latestFailure.requestId),
+        }
+      : null,
+  };
+}
+
 function buildAdminDashboardOverview(input) {
   const source = input && typeof input === "object" ? input : {};
   return {
@@ -84,6 +114,7 @@ function buildAdminDashboardOverview(input) {
         },
         source.downloads && typeof source.downloads === "object" ? source.downloads : {}
       ),
+      logsSummary: normalizeLogsSummary(source.logsSummary),
     },
   };
 }
@@ -102,6 +133,7 @@ function createLiveAdminDashboardOverview(options) {
       projectDataDatasets: listProjectDataDownloadDatasets(config.projectDataDownload || {}),
       aiCallLogDatasets: listAiCallLogDatasets(config.aiCallLogDownload || {}),
     },
+    logsSummary: summarizeRuntimeLogs(),
   });
 }
 

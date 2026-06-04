@@ -262,7 +262,8 @@
 ## 2026-05-21 转写统计取消跳过上传
 
 - 手动点击首页“上传转写统计”时，仍先检查后端 existing 状态，完整分包默认跳过。
-- 普通手动上传完成后，如果本轮有 `skippedCompleteCount > 0`，会显示“取消跳过上传数据”按钮。
-- 点击后使用 `reason=home-manual-force-replace` 重新拉取本轮全部转写详情，并按 `分包ID` 覆盖后端旧内容。
+- 普通手动上传完成后，如果本轮有 `skippedCompleteCount > 0`，会显示“补传并覆盖当前人员”按钮。
+- 点击后使用 `reason=home-manual-force-replace` 重新拉取本轮全部转写详情，并携带 `forceReplaceByBatchId=true`、`replaceMode="batch"`、`replaceBatchIds` 上传。
+- 后端仍以 `分包ID` 归并行，但 force replace 只会局部覆盖当前 `label / audit` 角色列，不会删除同分包其他人员或其他角色已存在的列数据。
 - 定时上传不会出现这个按钮，也不会进入 force replace 模式。
-- 详情页第一版不默认支持 force replace，避免单角色覆盖整行。
+- 详情页第一版不默认支持 force replace，避免详情页只拿到单角色时误判当前人员覆盖范围。

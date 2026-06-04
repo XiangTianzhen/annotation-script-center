@@ -235,12 +235,12 @@ AI 日志与数据边界：
 ## 2026-05-21 手动取消跳过上传（快判）
 
 - 首页 / 列表页手动点击“上传统计”时，仍会先调用 existing 检查；`complete=true` 的分包默认跳过，不重复拉详情。
-- 只有手动首页上传结束后，且本轮 `skippedCompleteCount > 0` 时，顶部按钮旁才会出现“取消跳过上传数据”。
+- 只有手动首页上传结束后，且本轮 `skippedCompleteCount > 0` 时，顶部按钮旁才会出现“补传并覆盖当前人员”。
 - 点击后前端会改用 `reason=home-manual-force-replace`，重新拉取本轮范围内的全部快判详情，不再按 `complete=true` 跳过。
 - 强制上传 payload 会带上 `forceReplaceByBatchId=true`、`replaceMode="batch"` 和 `replaceBatchIds`。
-- 后端收到 force replace 后，会先按 `replaceBatchIds` 删除旧 CSV 行，再用本次 payloads 重建对应分包；不是在旧行上做补丁合并。
-- 定时上传 `reason=schedule` 仍保留默认跳过逻辑，不显示“取消跳过上传数据”，也不会触发按分包替换。
-- 详情页第一版不显示 force replace 按钮，避免只上传单角色后把另一角色字段清空。
+- 后端收到 force replace 后，不再按 `replaceBatchIds` 删除旧 CSV 行；只会覆盖当前标注员槽位或当前审核列，空字段不会把旧值清空。
+- 定时上传 `reason=schedule` 仍保留默认跳过逻辑，不显示“补传并覆盖当前人员”，也不会触发当前人员局部覆盖。
+- 详情页第一版不显示 force replace 按钮，避免详情页只上传单角色后误判当前人员覆盖范围。
 - CSV 字段口径不变，`statistics-data/` 仍属于运行产物，不提交 Git。
 
 ## 2026-05-21 CSV 字段命名口径修复

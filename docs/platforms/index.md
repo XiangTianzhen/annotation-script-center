@@ -90,8 +90,8 @@
 ## 2026-05-21 Alibaba LabelX 统计上传补充
 
 - 快判统计上传与转写统计上传都保留“existing 检查后默认跳过已完整分包”的主流程。
-- 仅手动首页上传完成后，若本轮有 `skippedCompleteCount > 0`，前端才出现“取消跳过上传数据”按钮。
-- 按钮点击后会重新拉取本轮范围内全部详情，并用 `forceReplaceByBatchId=true` + `replaceBatchIds` 让后端按分包ID替换旧内容。
+- 仅手动首页上传完成后，若本轮有 `skippedCompleteCount > 0`，前端才出现“补传并覆盖当前人员”按钮。
+- 按钮点击后会重新拉取本轮范围内全部详情，并用 `forceReplaceByBatchId=true` + `replaceBatchIds` 触发后端局部覆盖；后端只会更新当前角色 / 当前人员槽位，不再整分包删行重建。
 - 定时上传不显示该按钮，也不会自动触发强制替换。
 - 详情页第一版不默认支持 force replace。
 

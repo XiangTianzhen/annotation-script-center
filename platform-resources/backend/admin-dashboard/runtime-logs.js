@@ -1,6 +1,6 @@
 "use strict";
 
-const { listRuntimeLogs } = require("../runtime-log-store");
+const { RUNTIME_LOG_RETENTION_DAYS, listRuntimeLogs } = require("../runtime-log-store");
 
 function buildAdminDashboardRuntimeLogs(options) {
   const config = options && typeof options === "object" ? options : {};
@@ -9,6 +9,8 @@ function buildAdminDashboardRuntimeLogs(options) {
     success: true,
     data: {
       generatedAt: new Date().toISOString(),
+      retentionDays: RUNTIME_LOG_RETENTION_DAYS,
+      limit,
       items: listRuntimeLogs({
         limit,
       }),
