@@ -73,6 +73,8 @@
   )
     .trim()
     .toLowerCase();
+  const BETA_FEATURES_VISIBLE_BY_DEFAULT =
+    RELEASE_CHANNEL === RELEASE_CHANNEL_BETA && BUILD_META.betaFeaturesVisibleByDefault === true;
   const DEFAULT_BETA_BACKEND_BASE_URL = normalizeBetaBackendBaseUrl(
     BUILD_META.betaBackendBaseUrl
   );
@@ -586,7 +588,10 @@
   }
 
   function canUseBetaFeatures(settings) {
-    return RELEASE_CHANNEL === RELEASE_CHANNEL_BETA && settings?.meta?.betaUnlocked === true;
+    return (
+      RELEASE_CHANNEL === RELEASE_CHANNEL_BETA &&
+      (BETA_FEATURES_VISIBLE_BY_DEFAULT || settings?.meta?.betaUnlocked === true)
+    );
   }
 
   function getBetaBackendBaseUrlFromSettings(settings) {
@@ -1963,6 +1968,7 @@
     RELEASE_VISIBILITY_PUBLIC: RELEASE_VISIBILITY_PUBLIC,
     RELEASE_VISIBILITY_BETA: RELEASE_VISIBILITY_BETA,
     BETA_UNLOCK_PASSWORD_SHA256: BETA_UNLOCK_PASSWORD_SHA256,
+    BETA_FEATURES_VISIBLE_BY_DEFAULT: BETA_FEATURES_VISIBLE_BY_DEFAULT,
     DEFAULT_BETA_BACKEND_BASE_URL: DEFAULT_BETA_BACKEND_BASE_URL,
     STORAGE_KEY: "asrEdgeSettings",
     PRESENCE_BADGE_ID: "asr-edge-presence-host",

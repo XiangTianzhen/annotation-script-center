@@ -1,3 +1,26 @@
+## 2026-06-04（本地直加载默认测试版与 beta 默认全显）
+
+- `extension/shared/build-meta.js` 当前默认改为测试版 build meta：
+  - `releaseChannel=beta`
+  - `betaFeaturesVisibleByDefault=true`
+  - 默认 beta 后端地址固定为 `http://47.109.197.170:3333`
+- `extension/` 源码目录在 Chrome / Edge 开发者模式直接加载时，默认直接显示 beta 平台、beta 脚本与 `Beta 服务器`，不再要求先走隐藏解锁。
+- 正式打包口径保持不变：
+  - `public` 继续只展示公开平台与公开脚本
+  - `beta` 继续打成单一 `annotation-script-center-beta.zip`
+  - beta ZIP 会自动写入 `betaFeaturesVisibleByDefault=true`
+- `extension/options/options.js` 当前补了测试版状态文案：
+  - 默认测试版构建显示“当前为测试版构建，beta 功能默认可见”
+  - 不再给默认测试版展示“退出 beta 模式”按钮
+- 本轮验证：
+  - `node --test extension/shared/build-meta.test.js`
+  - `node --test extension/shared/constants.release.test.js`
+  - `node --test scripts/package-crx-build-profile.test.js`
+  - `node --check extension/shared/build-meta.js`
+  - `node --check extension/shared/constants.js`
+  - `node --check scripts/package-crx-build-profile.js`
+  - `node --check extension/options/options.js`
+
 ## 2026-06-04（CRX 打包命令收口为单行双产物）
 
 - `scripts/package-crx-release.js` 当前默认不再只打单通道：

@@ -70,6 +70,10 @@ function buildManifestForChannel(manifest, channel) {
 function buildBuildMetaContent(input) {
   const config = input && typeof input === "object" ? input : {};
   const releaseChannel = normalizeReleaseChannel(config.releaseChannel);
+  const betaFeaturesVisibleByDefault =
+    typeof config.betaFeaturesVisibleByDefault === "boolean"
+      ? config.betaFeaturesVisibleByDefault
+      : releaseChannel === "beta";
   const betaUnlockPasswordSha256 = String(config.betaUnlockPasswordSha256 || "")
     .trim()
     .toLowerCase();
@@ -80,6 +84,7 @@ function buildBuildMetaContent(input) {
     "(function () {",
     "  globalThis.ASREdgeBuildMeta = {",
     `    releaseChannel: ${JSON.stringify(releaseChannel)},`,
+    `    betaFeaturesVisibleByDefault: ${betaFeaturesVisibleByDefault ? "true" : "false"},`,
     `    betaUnlockPasswordSha256: ${JSON.stringify(betaUnlockPasswordSha256)},`,
     `    betaBackendBaseUrl: ${JSON.stringify(betaBackendBaseUrl)},`,
     "  };",

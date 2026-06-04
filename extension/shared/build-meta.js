@@ -1,7 +1,8 @@
 (function () {
   globalThis.ASREdgeBuildMeta = {
-    releaseChannel: "public",
+    releaseChannel: "beta",
+    betaFeaturesVisibleByDefault: true,
     betaUnlockPasswordSha256: "",
-    betaBackendBaseUrl: "",
+    betaBackendBaseUrl: "http://47.109.197.170:3333",
   };
 })();

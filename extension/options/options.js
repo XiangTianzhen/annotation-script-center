@@ -51,6 +51,7 @@
   )
     .trim()
     .toLowerCase();
+  const betaFeaturesVisibleByDefault = constants.BETA_FEATURES_VISIBLE_BY_DEFAULT === true;
   const getBackendModeFromSettings =
     typeof constants.getBackendEndpointModeFromSettings === "function"
       ? constants.getBackendEndpointModeFromSettings
@@ -829,10 +830,15 @@
       navAdminButton.setAttribute("aria-pressed", String(active));
     }
     if (betaExitButton instanceof HTMLButtonElement) {
-      betaExitButton.classList.toggle("hidden", !betaUnlocked);
+      betaExitButton.classList.toggle(
+        "hidden",
+        !betaUnlocked || betaFeaturesVisibleByDefault
+      );
     }
     if (!isBetaBuild()) {
       setBetaStatus("");
+    } else if (betaFeaturesVisibleByDefault) {
+      setBetaStatus("当前为测试版构建，beta 功能默认可见。", "enabled");
     } else if (betaUnlocked) {
       setBetaStatus("当前 beta 功能已解锁。", "enabled");
     } else {
