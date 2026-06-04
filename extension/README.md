@@ -14,6 +14,13 @@
 
 - Edge：打开 `edge://extensions/`，开启“开发人员模式”，选择 `C:\Projects\annotation-script-center\extension`。
 - Chrome：打开 `chrome://extensions/`，开启“开发者模式”，选择 `C:\Projects\annotation-script-center\extension`。
+- 如果要在本地直加载时使用 beta 隐藏口令，先在仓库根目录执行：
+
+```powershell
+node scripts/sync-local-build-meta.js
+```
+
+  该命令会生成本地专用的 `extension/shared/build-meta.local.js`，不提交 Git。
 
 ## 品牌资源
 
@@ -228,6 +235,7 @@ node scripts/package-crx-release.js --notes "CRX enterprise release test"
 
 默认打包配置当前收口到：
 
+- `config/README.md`
 - `config/release/package-crx-release.json`
 - `config/secrets/package-crx-release.local.json`
 

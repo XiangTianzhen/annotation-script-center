@@ -1,7 +1,14 @@
 const sharedBuildMetaUrl = chrome.runtime.getURL("shared/build-meta.js");
+const sharedBuildMetaLocalUrl = chrome.runtime.getURL("shared/build-meta.local.js");
 const sharedConstantsUrl = chrome.runtime.getURL("shared/constants.js");
 const sharedStorageUrl = chrome.runtime.getURL("shared/storage.js");
-importScripts(sharedBuildMetaUrl, sharedConstantsUrl, sharedStorageUrl);
+importScripts(sharedBuildMetaUrl);
+try {
+  importScripts(sharedBuildMetaLocalUrl);
+} catch (_error) {
+  // Local override is optional for unpacked development builds only.
+}
+importScripts(sharedConstantsUrl, sharedStorageUrl);
 
 const constants = globalThis.ASREdgeConstants;
 const storage = globalThis.ASREdgeStorage;

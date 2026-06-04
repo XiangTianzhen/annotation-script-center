@@ -6,6 +6,7 @@ const path = require("path");
 const crypto = require("crypto");
 const childProcess = require("child_process");
 const {
+  buildEmptyLocalBuildMetaContent,
   buildBuildMetaContent,
   buildManifestForChannel,
   buildReleaseProfile,
@@ -360,6 +361,7 @@ function createPreparedExtensionBuild(options) {
   fs.writeFileSync(manifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`, "utf8");
 
   const buildMetaPath = path.join(extensionDir, "shared", "build-meta.js");
+  const buildMetaLocalPath = path.join(extensionDir, "shared", "build-meta.local.js");
   fs.writeFileSync(
     buildMetaPath,
     buildBuildMetaContent({
@@ -369,6 +371,7 @@ function createPreparedExtensionBuild(options) {
     }),
     "utf8"
   );
+  fs.writeFileSync(buildMetaLocalPath, buildEmptyLocalBuildMetaContent(), "utf8");
 
   return {
     tempRoot,

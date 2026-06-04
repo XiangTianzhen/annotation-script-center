@@ -10,6 +10,7 @@ test("beta unlock uses brand image click target and keeps page hint hidden", fun
   const script = fs.readFileSync(path.resolve(__dirname, "options.js"), "utf8");
 
   assert.match(html, /id="workspace-brand-icon"/);
+  assert.match(html, /shared\/build-meta\.local\.js/);
   assert.match(script, /getElement\("workspace-brand-icon"\)/);
   assert.doesNotMatch(script, /连续点击左上角品牌区 7 次后可输入 beta 口令/);
 });

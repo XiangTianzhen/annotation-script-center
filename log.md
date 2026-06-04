@@ -1,3 +1,24 @@
+## 2026-06-04（本地 beta 口令改为从 config 同步，config 文档统一收口）
+
+- 修复本地开发者模式直加载 `extension/` 时点击隐藏入口提示“当前 beta 包未配置口令，无法解锁”的问题。
+- 当前新增：
+  - `scripts/build-meta-local.js`
+  - `scripts/sync-local-build-meta.js`
+  - `extension/shared/build-meta.local.js` 本地覆盖机制（文件本身已加入 `.gitignore`）
+- `options/options.html` 与 `popup/popup.html` 当前会在 `build-meta.js` 后继续加载 `build-meta.local.js`。
+- `background/service-worker.js` 当前也会尝试按可选文件方式加载本地 override；文件缺失时自动忽略。
+- `scripts/package-crx-release.js` 当前会在临时打包目录中把 `build-meta.local.js` 覆盖成安全 stub，避免把本地私有 beta 口令 hash 带进正式包或 beta ZIP。
+- `config` 文档当前统一收口到：
+  - `config/README.md`
+  - 不再保留 `config/release/README.md` 与 `config/secrets/README.md`
+- 本轮验证：
+  - `node --test scripts/build-meta-local.test.js extension/options/options-beta-unlock.test.js`
+  - `node --check scripts/build-meta-local.js`
+  - `node --check scripts/sync-local-build-meta.js`
+  - `node --check scripts/package-crx-release.js`
+  - `node --check extension/background/service-worker.js`
+  - `node scripts/sync-local-build-meta.js`
+
 ## 2026-06-04（本地直加载默认 beta 通道，但默认隐藏 beta 内容）
 
 - 修正上一轮错误实现：`beta` 通道不再默认全显。

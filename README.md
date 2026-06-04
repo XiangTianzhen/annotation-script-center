@@ -142,6 +142,15 @@ Edge：`edge://extensions/` -> 开启开发人员模式 -> 加载 `C:\Projects\a
 
 Chrome：`chrome://extensions/` -> 开启开发者模式 -> 加载 `C:\Projects\annotation-script-center\extension`
 
+本地直加载 beta 口令同步：
+
+```powershell
+node scripts/sync-local-build-meta.js
+```
+
+- 该命令会把本地 `config` 中的 beta 口令 hash 与 beta 后端地址写入 `extension/shared/build-meta.local.js`
+- 开发者模式直加载前建议先执行一次；否则点击隐藏入口时会提示“当前 beta 包未配置口令，无法解锁”
+
 ## 本地启动后端
 
 在仓库根目录运行：
@@ -446,6 +455,8 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
   - 默认 `betaBackendBaseUrl=http://47.109.197.170:3333`
 - `config/secrets/package-crx-release.local.json`
   - 存放本地私有 `betaUnlockPasswordSha256`
+- `config/README.md`
+  - 统一说明 `config/env`、`config/release`、`config/secrets` 的用途与本地同步命令
 - 环境变量与命令行参数仍可覆盖上述默认值
 
 当前构建可见性规则：

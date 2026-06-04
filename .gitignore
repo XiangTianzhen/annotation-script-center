@@ -47,6 +47,7 @@
 /config/secrets/*.key
 /config/secrets/*.p12
 /config/secrets/package-crx-release.local.json
+/extension/shared/build-meta.local.js
 !/config/env/ai.env.example
 !/config/env/backend.env.example
 
