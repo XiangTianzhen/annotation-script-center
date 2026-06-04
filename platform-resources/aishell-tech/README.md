@@ -72,16 +72,19 @@
 - `GET /api/aishell-tech/minnan-helper/ai/recommend/health`
 - `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults`
 - `POST /api/aishell-tech/minnan-helper/ai/recommend`
+- `POST /api/aishell-tech/minnan-helper/ai/recommend/jobs`
+- `GET /api/aishell-tech/minnan-helper/ai/recommend/jobs/:jobId`
+- `GET /api/aishell-tech/minnan-helper/ai/recommend/jobs/:jobId/debug`
 
 实现边界：
 
 - Aishell 保持独立路由、独立脚本 ID、独立词表目录。
-- Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径，但推荐编排、缓存、日志、同步超时、取消与队列已经改成 Aishell 自己维护。
+- Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；其中闽南语词表、默认识别策略与默认比较模型当前已对齐 DataBaker 一检质检标准，但推荐编排、缓存、日志、同步超时、取消与队列继续由 Aishell 自己维护。
 - Aishell 的 Omni 音频调用已拆到 `platform-resources/aishell-tech/minnan-helper/backend/dashscope-omni-client.js`，直接按 DashScope compatible-mode 请求体构造并固定 `enable_thinking=false`。
 - 底层只复用公共 provider HTTP 工具，不再复用 DataBaker recommend orchestration。
 - 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
-- v1 不引入异步 job、SSE 或 WebSocket，仍按同步 HTTP 返回推荐结果；当前同步总超时统一为 `60000ms`。
+- 当前默认链路为 `POST /jobs` + 轮询 `GET /jobs/:jobId`；同步 `POST /recommend` 只保留兼容 / 调试用途，不引入 SSE 或 WebSocket；当前同步总超时统一为 `60000ms`。
 - 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 不再开放 thinking 作为有效配置项。
 - 成功响应固定为 `success + data + meta`，失败响应固定为 `success=false + error + meta`。
 

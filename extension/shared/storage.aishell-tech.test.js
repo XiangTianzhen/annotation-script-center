@@ -1,0 +1,138 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const test = require("node:test");
+
+const constantsModulePath = path.resolve(__dirname, "constants.js");
+const storageModulePath = path.resolve(__dirname, "storage.js");
+
+function loadStorageApi(initialSettings) {
+  delete require.cache[constantsModulePath];
+  delete require.cache[storageModulePath];
+  delete globalThis.ASREdgeConstants;
+  delete globalThis.ASREdgeStorage;
+
+  const constants = require(constantsModulePath);
+  const store = {
+    [constants.STORAGE_KEY]: initialSettings || {},
+  };
+
+  globalThis.ASREdgeConstants = constants;
+  globalThis.chrome = {
+    runtime: {
+      id: "test-extension",
+      lastError: null,
+    },
+    storage: {
+      local: {
+        get: function (key, callback) {
+          const result = {};
+          if (typeof key === "string") {
+            result[key] = store[key];
+          }
+          callback(result);
+        },
+        set: function (payload, callback) {
+          Object.keys(payload || {}).forEach(function (key) {
+            store[key] = payload[key];
+          });
+          callback();
+        },
+      },
+    },
+  };
+
+  require(storageModulePath);
+
+  return {
+    constants,
+    storage: globalThis.ASREdgeStorage,
+    cleanup: function () {
+      delete require.cache[constantsModulePath];
+      delete require.cache[storageModulePath];
+      delete globalThis.ASREdgeConstants;
+      delete globalThis.ASREdgeStorage;
+      delete globalThis.chrome;
+    },
+  };
+}
+
+test("Aishell storage defaults use the aligned Minnan standard", async function () {
+  const harness = loadStorageApi({});
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.aishellTech.scripts.minnanHelper;
+
+    assert.equal(script.aiRecommendPipelineMode, "two_stage");
+    assert.equal(script.aiRecommendRecognitionStrategy, "mandarin_to_dialect");
+    assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Aishell storage migrates only the legacy default combo to the aligned standard", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      aishellTech: {
+        enabled: true,
+        scripts: {
+          minnanHelper: {
+            id: "aishellTechMinnanAssistant",
+            enabled: true,
+            aiRecommendEnabled: true,
+            aiRecommendPipelineMode: "two_stage",
+            aiRecommendRecognitionStrategy: "direct_dialect",
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendCompareModel: "qwen3.5-flash",
+            aiRecommendSingleModel: "qwen3.5-omni-flash",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.aishellTech.scripts.minnanHelper;
+
+    assert.equal(script.aiRecommendRecognitionStrategy, "mandarin_to_dialect");
+    assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Aishell storage keeps customized strategy/model choices untouched", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      aishellTech: {
+        enabled: true,
+        scripts: {
+          minnanHelper: {
+            id: "aishellTechMinnanAssistant",
+            enabled: true,
+            aiRecommendEnabled: true,
+            aiRecommendPipelineMode: "two_stage",
+            aiRecommendRecognitionStrategy: "direct_dialect",
+            aiRecommendListenModel: "fun-asr",
+            aiRecommendCompareModel: "qwen3.6-plus",
+            aiRecommendSingleModel: "qwen3.5-omni-flash",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.aishellTech.scripts.minnanHelper;
+
+    assert.equal(script.aiRecommendRecognitionStrategy, "direct_dialect");
+    assert.equal(script.aiRecommendCompareModel, "qwen3.6-plus");
+  } finally {
+    harness.cleanup();
+  }
+});

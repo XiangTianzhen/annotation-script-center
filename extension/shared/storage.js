@@ -80,6 +80,7 @@
                   "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
                 aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
                 aiRecommendPipelineMode: "two_stage",
+                aiRecommendRecognitionStrategy: "mandarin_to_dialect",
                 aiQualifiedAutofillConcurrency: 15,
                 aiRecommendListenModel: "qwen3.5-omni-flash",
                 aiRecommendCompareModel: "qwen3.5-plus",
@@ -1792,6 +1793,34 @@
     const defaultConfig = isPlainObject(defaults) ? defaults : {};
     const result = deepMerge(defaultConfig, source);
     const constants = getConstants();
+    const defaultRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      defaultConfig.aiRecommendRecognitionStrategy || defaultConfig.recognitionStrategy,
+      "mandarin_to_dialect"
+    );
+    const legacyRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      source.aiRecommendRecognitionStrategy || source.recognitionStrategy,
+      "direct_dialect"
+    );
+    const legacyPipelineMode = normalizeDataBakerPipelineMode(
+      source.aiRecommendPipelineMode || source.recognitionMode || source.pipelineMode,
+      "two_stage"
+    );
+    const legacyListenModel = resolveDataBakerListenModel(
+      source.aiRecommendListenModel || source.listenModel,
+      legacyPipelineMode,
+      "qwen3.5-omni-flash",
+      constants
+    );
+    const legacyCompareModel = normalizeDataBakerCompareModel(
+      source.aiRecommendCompareModel || source.compareModel,
+      "qwen3.5-plus",
+      constants
+    );
+    const shouldMigrateLegacyDefaultCombo =
+      legacyPipelineMode === "two_stage" &&
+      legacyRecognitionStrategy === "direct_dialect" &&
+      legacyListenModel === "qwen3.5-omni-flash" &&
+      legacyCompareModel === "qwen3.5-flash";
 
     result.id =
       constants.AISHELL_TECH_MINNAN_SCRIPT_ID || result.id || "aishellTechMinnanAssistant";
@@ -1844,6 +1873,12 @@
       constants
     );
     result.aiRecommendPipelineMode = normalizedPipelineMode;
+    result.aiRecommendRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+      shouldMigrateLegacyDefaultCombo
+        ? "mandarin_to_dialect"
+        : result.aiRecommendRecognitionStrategy || result.recognitionStrategy,
+      defaultRecognitionStrategy
+    );
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
       defaultConfig.aiQualifiedAutofillConcurrency || 15,
@@ -1855,10 +1890,16 @@
       constants
     );
     result.aiRecommendCompareModel = normalizeDataBakerCompareModel(
-      result.aiRecommendCompareModel,
+      shouldMigrateLegacyDefaultCombo
+        ? "qwen3.5-plus"
+        : result.aiRecommendCompareModel || result.compareModel,
       defaultConfig.aiRecommendCompareModel || "qwen3.5-plus",
       constants
     );
+    result.recognitionStrategy = result.aiRecommendRecognitionStrategy;
+    result.recognitionMode = result.aiRecommendPipelineMode;
+    result.pipelineMode = result.aiRecommendPipelineMode;
+    result.compareModel = result.aiRecommendCompareModel;
     result.aiRecommendEnableThinking = false;
     result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);
     result.aiRecommendComparePrompt = normalizeJudgementAiPrompt(result.aiRecommendComparePrompt);
@@ -1991,6 +2032,7 @@
               "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
             aiRecommendPipelineMode: "two_stage",
+            aiRecommendRecognitionStrategy: "mandarin_to_dialect",
             aiQualifiedAutofillConcurrency: 15,
             aiRecommendListenModel: "qwen3.5-omni-flash",
             aiRecommendCompareModel: "qwen3.5-plus",

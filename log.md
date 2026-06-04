@@ -1,3 +1,34 @@
+## 2026-06-05（Aishell Tech 闽南语标准对齐到 DataBaker 一检质检）
+
+- 对齐 `Aishell Tech / minnan-helper` 的闽南语标准：
+  - `platform-resources/aishell-tech/minnan-helper/backend/reference/minnan-lexicon.csv` 现已直接同步为 `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv` 的同版内容。
+  - 后端默认识别策略改为 `mandarin_to_dialect`。
+  - 后端默认比较模型改为共享/DataBaker 默认值 `qwen3.5-plus`。
+- 修复 `platform-resources/aishell-tech/minnan-helper/backend/ai-service.js`：
+  - `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults` 当前默认返回 `two_stage + mandarin_to_dialect + qwen3.5-omni-flash + qwen3.5-plus`。
+  - 修复 `promptProfiles` 映射错误，`mandarin_to_dialect` 与 `direct_dialect` 现在各自返回自己的默认 Prompt。
+  - 默认 Prompt 当前补齐 DataBaker 一检质检约束：普通中文统一简体，命中词表建议用字时必须保留，不再把方言建议用字改回普通话同义词。
+- 同步收口前端默认值与旧默认迁移：
+  - `extension/shared/constants.js`
+  - `extension/shared/storage.js`
+  - `extension/sites/aishell-tech/minnan-helper/content.js`
+  - 空配置与运行时兜底默认值统一改为 `mandarin_to_dialect + qwen3.5-plus`。
+  - 仅当浏览器里仍是旧出厂默认组合 `two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash` 时，才自动迁移到新标准；自定义配置保持不动。
+  - Aishell 兼容镜像字段 `recognitionStrategy / recognitionMode / pipelineMode / compareModel` 也会同步到当前归一结果，避免 options、storage 与运行时混跑。
+- 文档同步更新：
+  - `README.md`
+  - `docs/platforms/index.md`
+  - `platform-resources/aishell-tech/README.md`
+  - `platform-resources/aishell-tech/minnan-helper/README.md`
+  - `platform-resources/aishell-tech/minnan-helper/backend/README.md`
+  - `extension/sites/aishell-tech/minnan-helper/README.md`
+  - 统一改为：Aishell 默认标准对齐 DataBaker 一检质检，默认链路为 `POST /jobs` + 轮询，`POST /recommend` 只保留兼容 / 调试用途。
+- 新增回归测试：
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js`
+  - `extension/shared/storage.aishell-tech.test.js`
+- 本轮验证：
+  - `node --test platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js extension/shared/storage.aishell-tech.test.js`
+
 ## 2026-06-05（修复 CRX 打包脚本错误导入）
 
 - 修复 `node scripts/package-crx-release.js --notes "CRX enterprise release"` 启动即报：

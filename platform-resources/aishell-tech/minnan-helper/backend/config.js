@@ -177,9 +177,9 @@ function resolveDefaultListenModel(modelMode) {
 function resolveDefaultCompareModel() {
   const compareModel = readEnvValue(
     ["AISHELL_AI_COMPARE_MODEL", "DATABAKER_AI_COMPARE_MODEL"],
-    "qwen3.5-flash"
+    DEFAULT_COMPARE_MODEL
   );
-  return normalizeDataBakerCompareModel(compareModel, "qwen3.5-flash");
+  return normalizeDataBakerCompareModel(compareModel, DEFAULT_COMPARE_MODEL);
 }
 
 function resolveDefaultSingleModel() {

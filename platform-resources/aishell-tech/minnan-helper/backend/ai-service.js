@@ -36,7 +36,7 @@ const SCRIPT_ID = "aishellTechMinnanAssistant";
 const COMPONENT_NAME = "asr-voice-ai";
 const LEXICON_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
 const DEFAULT_MODEL_MODE = "two_stage";
-const DEFAULT_RECOGNITION_STRATEGY = "direct_dialect";
+const DEFAULT_RECOGNITION_STRATEGY = "mandarin_to_dialect";
 const MODEL_MODE_OPTIONS = [
   { value: "two_stage", label: "双模型：听音模型 + 比较/转换模型" },
   { value: "omni_single", label: "单模型：Omni 单模型" },
@@ -61,7 +61,8 @@ const DEFAULT_MANDARIN_COMPARE_TEMPLATE = [
   "你的任务是结合 pageText、heardText 和闽南语字词对照表，输出最终的闽南语推荐文本。",
   "以实际发声语义为主，pageText 负责提供闽南语用字候选，不要机械照抄页面文本。",
   "如果 heardText 与 pageText 语义一致，应优先选择符合闽南语词表的写法。",
-  "recommendedText 必须使用简体中文书写，不允许出现任何繁体字；命中闽南语词表时也必须优先使用对应的简体推荐写法。",
+  "recommendedText 与 heardText 的普通中文统一输出简体；命中 minnan-lexicon.csv 的建议用字必须保留。",
+  "不要把方言建议用字改回普通话同义词。",
   "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
@@ -79,7 +80,8 @@ const DEFAULT_DIRECT_DIALECT_COMPARE_TEMPLATE = [
   "你的任务是对比两者并输出最终闽南语推荐文本。",
   "以实际发声为主，pageText 只作为闽南语写法参考。",
   "如果词表中存在更合适的闽南语建议用字，可在语义一致时优先采用。",
-  "recommendedText 必须使用简体中文书写，不允许出现任何繁体字。",
+  "recommendedText 的普通中文统一使用简体；命中 minnan-lexicon.csv 的建议用字必须保持不变。",
+  "不要把方言建议用字改回普通话同义词。",
   "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
@@ -464,6 +466,7 @@ function createHealthPayload() {
 }
 
 function createDefaultsPayload() {
+  const mandarinPrompts = getStrategyPromptDefaults("mandarin_to_dialect");
   const directPrompts = getStrategyPromptDefaults("direct_dialect");
   const defaultPrompts = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
   const runtime = buildAsyncJobRuntimeMeta();
@@ -499,7 +502,7 @@ function createDefaultsPayload() {
       listenPrompt: defaultPrompts.listenPrompt,
       comparePrompt: defaultPrompts.comparePrompt,
       promptProfiles: {
-        mandarin_to_dialect: defaultPrompts,
+        mandarin_to_dialect: mandarinPrompts,
         direct_dialect: directPrompts,
       },
       modelCatalog,

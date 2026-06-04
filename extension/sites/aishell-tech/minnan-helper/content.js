@@ -164,10 +164,10 @@
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: DEFAULT_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
-        aiRecommendRecognitionStrategy: "direct_dialect",
+        aiRecommendRecognitionStrategy: "mandarin_to_dialect",
         aiQualifiedAutofillConcurrency: 15,
         aiRecommendListenModel: "qwen3.5-omni-flash",
-        aiRecommendCompareModel: "qwen3.5-flash",
+        aiRecommendCompareModel: "qwen3.5-plus",
         aiRecommendSingleModel: "qwen3.5-omni-flash",
         aiRecommendEnableThinking: false,
         aiRecommendListenPrompt: "",
@@ -206,6 +206,9 @@
     merged.aiRecommendRecognitionStrategy = normalizeRecognitionStrategy(
       merged.aiRecommendRecognitionStrategy || merged.recognitionStrategy
     );
+    merged.recognitionStrategy = merged.aiRecommendRecognitionStrategy;
+    merged.recognitionMode = merged.aiRecommendPipelineMode;
+    merged.pipelineMode = merged.aiRecommendPipelineMode;
     merged.aiQualifiedAutofillConcurrency = Math.max(
       1,
       Math.floor(Number(merged.aiQualifiedAutofillConcurrency || 15) || 15)

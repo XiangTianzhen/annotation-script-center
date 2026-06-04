@@ -10,12 +10,12 @@
 
 - 仅服务 `https://mark.aishelltech.com/mytask/mark?...` 的闽南语推荐文本助手。
 - 接口独立为 `/api/aishell-tech/minnan-helper/ai/recommend*`。
-- Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径，但推荐编排、缓存、日志、同步超时、取消与队列已经改成 Aishell 自己维护。
-- 当前默认配置偏速度优先：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`。
+- Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；其中闽南语词表已与 `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv` 1:1 对齐，但推荐编排、缓存、日志、同步超时、取消与队列已经改成 Aishell 自己维护。
+- 当前默认配置已按 DataBaker 一检质检标准对齐：`two_stage + mandarin_to_dialect + qwen3.5-omni-flash + qwen3.5-plus`。
 - 同时保留 `direct_dialect`（直接听写闽南语）测试模式。
 - 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
-- 当前保持同步 HTTP 返回，不引入异步 job、SSE 或 WebSocket；当前同步总超时统一为 `60000ms`。
+- 当前默认链路为短请求创建 job + HTTP 轮询结果；同步 `POST /recommend` 仅保留兼容 / 调试用途，不引入 SSE 或 WebSocket；当前同步总超时统一为 `60000ms`。
 - Aishell 当前已单独拆出 `backend/dashscope-omni-client.js` 处理 DashScope compatible-mode 的 Omni 音频请求，并固定 `enable_thinking=false`。
 - 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 不再开放 thinking 作为有效配置项。
 - 成功响应固定为 `success + data + meta`，失败响应固定为 `success=false + error + meta`。
