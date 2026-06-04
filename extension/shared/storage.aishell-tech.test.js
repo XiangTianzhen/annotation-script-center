@@ -63,11 +63,14 @@ test("Aishell storage defaults use the aligned Minnan standard", async function 
 
   try {
     const settings = await harness.storage.getSettings();
+    const dataBakerScript = settings.platforms.dataBaker.scripts.roundOneQuality;
     const script = settings.platforms.aishellTech.scripts.minnanHelper;
 
+    assert.equal(dataBakerScript.aiQualifiedAutofillConcurrency, 5);
     assert.equal(script.aiRecommendPipelineMode, "two_stage");
     assert.equal(script.aiRecommendRecognitionStrategy, "mandarin_to_dialect");
     assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
+    assert.equal(script.aiQualifiedAutofillConcurrency, 5);
   } finally {
     harness.cleanup();
   }
@@ -132,6 +135,51 @@ test("Aishell storage keeps customized strategy/model choices untouched", async 
 
     assert.equal(script.aiRecommendRecognitionStrategy, "direct_dialect");
     assert.equal(script.aiRecommendCompareModel, "qwen3.6-plus");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("storage keeps customized legal autofill concurrency values untouched", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBaker: {
+        enabled: true,
+        scripts: {
+          roundOneQuality: {
+            id: "dataBakerRoundOneQuality",
+            enabled: true,
+            aiRecommendEnabled: true,
+            aiRecommendPipelineMode: "two_stage",
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendSingleModel: "qwen3.5-omni-flash",
+            aiQualifiedAutofillConcurrency: 12,
+          },
+        },
+      },
+      aishellTech: {
+        enabled: true,
+        scripts: {
+          minnanHelper: {
+            id: "aishellTechMinnanAssistant",
+            enabled: true,
+            aiRecommendEnabled: true,
+            aiRecommendPipelineMode: "two_stage",
+            aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+            aiRecommendListenModel: "fun-asr",
+            aiRecommendSingleModel: "qwen3.5-omni-flash",
+            aiQualifiedAutofillConcurrency: 9,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+
+    assert.equal(settings.platforms.dataBaker.scripts.roundOneQuality.aiQualifiedAutofillConcurrency, 12);
+    assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.aiQualifiedAutofillConcurrency, 9);
   } finally {
     harness.cleanup();
   }

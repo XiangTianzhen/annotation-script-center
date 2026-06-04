@@ -1951,7 +1951,7 @@ function createHealthPayload() {
       timeoutPolicy: "ai-model-timeout-60000ms",
       queueKeyStrategy: "concrete-model-name",
       frontEndBatchConcurrency:
-        "Omni 默认 15、范围 1~25；Fun-ASR 默认 25、范围 1~50；前后端都会归一超范围值。",
+        "Omni 默认 5、范围 1~25；Fun-ASR 默认 5、范围 1~50；前后端都会归一超范围值。",
     },
     concurrency: {
       frontEndBatch: {
@@ -2094,7 +2094,7 @@ function createDefaultsPayload() {
         "qwen3.5-omni-plus / qwen3.5-omni-flash 在双模型下会先通过 input_audio 产出 heardText 再调用比较模型；在单模型下会一次完成听音和推荐文本。",
       queue: "所有 Fun-ASR / Omni / compare 调用都会先进入后端统一限流队列；Fun-ASR 并发由 DATABAKER_AI_FUN_ASR_CONCURRENCY 控制。",
       batchConcurrency:
-        "前端批量并发在 Omni 下默认 15、范围 1~25，在 Fun-ASR 下默认 25、范围 1~50；前后端都会归一。后端 Fun-ASR / compare 仍按各 provider 自身策略处理。",
+        "前端批量并发在 Omni 下默认 5、范围 1~25，在 Fun-ASR 下默认 5、范围 1~50；前后端都会归一。后端 Fun-ASR / compare 仍按各 provider 自身策略处理。",
       restProvider:
         "当前 Fun-ASR 只实现单条 REST 调用；file_urls batch 后续再测试，本轮不启用。",
       asyncJobs:

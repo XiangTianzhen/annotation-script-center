@@ -21,13 +21,13 @@ const DEFAULT_JOB_TTL_MS = 1800000;
 const DATABAKER_FUN_ASR_AUTOFILL_RULE = {
   min: 1,
   max: 50,
-  defaultValue: 25,
+  defaultValue: 5,
   modelType: "fun_asr",
 };
 const DATABAKER_OMNI_AUTOFILL_RULE = {
   min: 1,
   max: 25,
-  defaultValue: 15,
+  defaultValue: 5,
   modelType: "omni",
 };
 const DATABAKER_OMNI_MODEL_OPTIONS = listModelIdsByFamily("omni");

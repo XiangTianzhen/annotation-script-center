@@ -26,9 +26,9 @@
 - 左侧句子列表上方 `filter-screen` 新增“AI连续填入合格项”按钮（位于“批量判定”按钮右侧；挂载失败时回退到 AI 面板内）。
 - 点击该按钮会先刷新当前页列表，再筛选当前页全部 `statusName=质检合格`（或 DOM 显示“一检合格”）条目。
 - 处理策略为“并发生产 + 顺序消费”：先按配置并发数发起全部合格项 AI 请求，结果返回后进入缓冲区；填入流程不等待全部请求结束，按 AI 返回顺序从队列取结果并逐条切换填入，支持运行中手动停止。
-- AI连续填入合格项并发数量已迁到 DataBaker 的“ASR 语音 AI 设置”区域，并按模型动态归一：
-  - Omni：默认 `15`，范围 `1~25`
-  - Fun-ASR：默认 `25`，范围 `1~50`
+- AI连续填入合格项并发数量已迁到共享的“AI 设置”区域，并按模型动态归一：
+  - Omni：默认 `5`，范围 `1~25`
+  - Fun-ASR：默认 `5`，范围 `1~50`
 - 当前 DataBaker Qwen Omni 默认按前端并发创建 jobs，前端固定按不低于 `50ms` 错峰发起；Fun-ASR REST 仍继续走自己的后端并发保护。
 - 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认短请求创建 `POST /ai/recommend/jobs`，再轮询 `GET /jobs/:jobId`；当前页有 N 条合格项，就会调度 N 条任务，前端按 `50ms` 错峰发起，并由前端活跃并发上限与后端 provider queue / RPM 限流共同保护链路。
 - 异步 job 默认最大保留数量 `600`，provider queue 默认最大排队数 `600`。
@@ -105,9 +105,9 @@ round-one-quality/
   - `local`：`http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend`
 - 在“ASR 语音 AI 设置”中配置前端请求超时时间，页面以秒展示，默认 `60` 秒；扩展内部仍按毫秒存储到 `aiRecommendRequestTimeoutMs`。
 - 启用 / 关闭自动每页条数，默认启用，默认目标为 `50条/页`，可选 `5条/页`、`10条/页`、`20条/页`、`50条/页`、`100条/页`。
-- AI连续填入合格项并发数量已经归到“ASR 语音 AI 设置”区域：
-  - Omni：默认 `15`，范围 `1~25`
-  - Fun-ASR：默认 `25`，范围 `1~50`
+- AI连续填入合格项并发数量已经归到共享“AI 设置”区域：
+  - Omni：默认 `5`，范围 `1~25`
+  - Fun-ASR：默认 `5`，范围 `1~50`
 - 前端和后端都会对超范围值做归一；DataBaker Qwen Omni 当前默认按前端并发直接请求，后端不再对 Omni legacy 上游做平滑排队；Fun-ASR REST 不在本次调整范围。
 - 运行中顶部悬浮窗会显示：`前端并发`、`已发起AI请求`、`前端活跃AI请求`、`AI已返回`、`待填队列`，用于判断是前端没发起并发，还是后端 Fun-ASR / compare 阶段在排队。
 - 悬浮窗中的 `前端并发` 会显示实际归一后的值；若当前是 `two_stage + fun-asr`，请求体还会附带 `frontConcurrency / batchConcurrency / concurrencyModelType` 诊断字段，便于后端排查。

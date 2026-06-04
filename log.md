@@ -1,3 +1,25 @@
+## 2026-06-05（闽南语助手 AI 设置布局统一与并发默认值收口）
+
+- DataBaker 与 Aishell 两个闽南语助手的 `AI 连续填入并发数量` 默认值已统一收口为 `5`。
+  - Omni：范围 `1~25`
+  - Fun-ASR：范围 `1~50`
+- `extension/options/options.html` 与 `extension/options/options.js` 当前已去掉 DataBaker 旧的“左侧基础设置先渲染，再搬运进 AI 面板”的兼容写法。
+- 新增 `extension/options/options-shared-asr-ai-panel.js`：
+  - 统一描述 DataBaker / Aishell / Magic Data 共享 `AI 设置` 的字段顺序与显示规则。
+  - DataBaker 与 Aishell 的 `AI 连续填入并发数量` 现在由共享 AI 面板直接渲染。
+  - Aishell 的并发字段已从左侧 `基础设置` 移到右侧 `AI 设置`，与 DataBaker 使用同一固定顺序。
+- `extension/shared/constants.js`、`extension/shared/storage.js`、`extension/options/options.js`、`extension/sites/data-baker/round-one-quality/content.js`、`extension/sites/aishell-tech/minnan-helper/content.js` 现在统一把默认值、空值回退值和非法值归一值收口为 `5`。
+- `platform-resources/backend/ai/config.js` 与 `platform-resources/data-baker/round-one-quality/backend/ai-service.js` 的并发规则诊断文案已同步为新默认值，避免 health/defaults 与前端显示分叉。
+- 文档同步更新：
+  - `README.md`
+  - `extension/sites/data-baker/round-one-quality/README.md`
+  - `extension/sites/aishell-tech/minnan-helper/README.md`
+  - `platform-resources/data-baker/round-one-quality/README.md`
+  - `platform-resources/data-baker/round-one-quality/backend/README.md`
+  - `platform-resources/aishell-tech/minnan-helper/README.md`
+  - `platform-resources/backend/README.md`
+  - `platform-resources/backend/ai/README.md`
+
 ## 2026-06-05（Aishell Tech 批量识别按钮拆分）
 
 - 更新 `extension/sites/aishell-tech/minnan-helper/ui-panel.js`：

@@ -158,6 +158,7 @@
           return url.toString();
         };
   const optionsWorkbenchState = globalThis.ASREdgeOptionsWorkbenchState || {};
+  const sharedAsrAiPanel = globalThis.ASREdgeOptionsSharedAsrAiPanel || {};
   const buildPlatformEntryDescriptor =
     typeof optionsWorkbenchState.buildPlatformEntryDescriptor === "function"
       ? optionsWorkbenchState.buildPlatformEntryDescriptor
@@ -237,6 +238,45 @@
           orderedIds.splice(currentIndex, 1);
           orderedIds.splice(clampedIndex, 0, normalizedMovingId);
           return orderedIds;
+        };
+  const buildSharedAsrAiPanelSpec =
+    typeof sharedAsrAiPanel.buildSharedAsrAiPanelSpec === "function"
+      ? sharedAsrAiPanel.buildSharedAsrAiPanelSpec
+      : function () {
+          return {
+            showAutofillConcurrency: false,
+            showRecognitionStrategy: false,
+            concurrencyInputId: "",
+            concurrencyHelpId: "",
+            modelFieldOrder: [],
+          };
+        };
+  const renderSharedAsrAutofillConcurrencyField =
+    typeof sharedAsrAiPanel.renderSharedAsrAutofillConcurrencyField === "function"
+      ? sharedAsrAiPanel.renderSharedAsrAutofillConcurrencyField
+      : function () {
+          return "";
+        };
+  const buildSharedAsrAutofillConcurrencyHelp =
+    typeof sharedAsrAiPanel.buildSharedAsrAutofillConcurrencyHelp === "function"
+      ? sharedAsrAiPanel.buildSharedAsrAutofillConcurrencyHelp
+      : function (_scriptId, rule) {
+          const currentRule = rule && typeof rule === "object" ? rule : {};
+          const modelLabel = currentRule.modelType === "fun_asr" ? "Fun-ASR" : "Omni";
+          const defaultValue = Number.isFinite(Number(currentRule.defaultValue))
+            ? Math.round(Number(currentRule.defaultValue))
+            : 5;
+          const min = Number.isFinite(Number(currentRule.min)) ? Math.round(Number(currentRule.min)) : 1;
+          const max = Number.isFinite(Number(currentRule.max)) ? Math.round(Number(currentRule.max)) : 25;
+          return (
+            modelLabel +
+            " 默认 " +
+            String(defaultValue) +
+            "，范围 " +
+            String(min) +
+            "~" +
+            String(max)
+          );
         };
   const getDetailWorkbenchLayoutMode =
     typeof optionsWorkbenchState.getDetailWorkbenchLayoutMode === "function"
@@ -1832,12 +1872,12 @@
       source.singleModel || source.aiRecommendSingleModel || source.aiModel
     );
     if (recognitionMode === "two_stage" && listenModel === "fun-asr") {
-      return { min: 1, max: 50, defaultValue: 25, modelType: "fun_asr" };
+      return { min: 1, max: 50, defaultValue: 5, modelType: "fun_asr" };
     }
     if (recognitionMode === "omni_single" && singleModel) {
-      return { min: 1, max: 25, defaultValue: 15, modelType: "omni" };
+      return { min: 1, max: 25, defaultValue: 5, modelType: "omni" };
     }
-    return { min: 1, max: 25, defaultValue: 15, modelType: "omni" };
+    return { min: 1, max: 25, defaultValue: 5, modelType: "omni" };
   }
 
   function normalizeDataBakerAutofillConcurrency(value, configLike) {
@@ -1854,56 +1894,9 @@
     return Math.max(rule.min, Math.min(rule.max, base));
   }
 
-  function moveDataBakerAutofillConcurrencyFieldIntoAiPanel() {
-    const concurrencyInput = getElement("data-baker-qualified-autofill-concurrency");
-    const timeoutField = getElement("data-baker-ai-timeout")?.closest(".asr-ai-field");
-    const sourceField = concurrencyInput?.closest(".field-card, .asr-ai-field");
-    if (!(concurrencyInput instanceof HTMLInputElement) || !(timeoutField instanceof HTMLElement) || !(sourceField instanceof HTMLElement)) {
-      return;
-    }
-    let placeholder = getElement("data-baker-qualified-autofill-concurrency-placeholder");
-    if (!(placeholder instanceof HTMLElement) && sourceField.parentElement) {
-      placeholder = document.createElement("div");
-      placeholder.id = "data-baker-qualified-autofill-concurrency-placeholder";
-      placeholder.className = "hidden";
-      sourceField.parentElement.insertBefore(placeholder, sourceField);
-    }
-    sourceField.classList.remove("hidden");
-    sourceField.classList.remove("field-card");
-    sourceField.classList.add("asr-ai-field");
-    const titleNode = sourceField.querySelector("strong");
-    if (titleNode instanceof HTMLElement) {
-      const replacement = document.createElement("span");
-      replacement.textContent = "AI连续填入合格项并发数量";
-      titleNode.replaceWith(replacement);
-    }
-    Array.from(sourceField.querySelectorAll("span")).forEach(function (node, index) {
-      if (!(node instanceof HTMLElement)) {
-        return;
-      }
-      if (index > 0) {
-        node.classList.add("asr-ai-help");
-      }
-    });
-    if (sourceField.parentElement !== timeoutField.parentElement) {
-      timeoutField.parentElement.insertBefore(sourceField, timeoutField);
-    }
-  }
-
-  function restoreDataBakerAutofillConcurrencyField() {
-    const concurrencyInput = getElement("data-baker-qualified-autofill-concurrency");
-    const sourceField = concurrencyInput?.closest(".field-card, .asr-ai-field");
-    const placeholder = getElement("data-baker-qualified-autofill-concurrency-placeholder");
-    if (!(concurrencyInput instanceof HTMLInputElement) || !(sourceField instanceof HTMLElement) || !(placeholder instanceof HTMLElement) || !placeholder.parentElement) {
-      return;
-    }
-    if (sourceField.parentElement !== placeholder.parentElement) {
-      placeholder.parentElement.insertBefore(sourceField, placeholder.nextSibling);
-    }
-  }
-
-  function updateDataBakerAutofillConcurrencyField(configLike, options) {
-    const inputNode = getElement("data-baker-qualified-autofill-concurrency");
+  function updateSharedAsrAutofillConcurrencyField(scriptId, configLike, options) {
+    const spec = buildSharedAsrAiPanelSpec(scriptId);
+    const inputNode = getElement(spec.concurrencyInputId);
     if (!(inputNode instanceof HTMLInputElement)) {
       return;
     }
@@ -1911,6 +1904,7 @@
     const rule = getDataBakerAiQualifiedAutofillConcurrencyRule(config);
     const normalizedValue = normalizeDataBakerAutofillConcurrency(inputNode.value, config);
     const forceDefault = options?.forceDefault === true;
+
     inputNode.min = String(rule.min);
     inputNode.max = String(rule.max);
     inputNode.step = "1";
@@ -1925,12 +1919,19 @@
             config
           )
     );
-    const fieldNode = inputNode.closest(".asr-ai-field");
-    const helpNode = fieldNode ? fieldNode.querySelector(".asr-ai-help") : null;
+
+    const helpNode = getElement(spec.concurrencyHelpId);
     if (helpNode instanceof HTMLElement) {
-      helpNode.textContent =
-        "Omni 模型默认 15，范围 1~25。Fun-ASR 默认 25，范围 1~50。前端并发表示同时发起到统一后端的 AI 推荐请求数量；后端上游仍按各 provider 自身策略处理。";
+      helpNode.textContent = buildSharedAsrAutofillConcurrencyHelp(scriptId, rule);
     }
+  }
+
+  function updateDataBakerAutofillConcurrencyField(configLike, options) {
+    updateSharedAsrAutofillConcurrencyField(
+      dataBakerRoundOneQualityScriptId,
+      configLike,
+      options
+    );
   }
 
   function normalizeDataBakerRecognitionMode(value, fallback) {
@@ -2446,35 +2447,7 @@
   }
 
   function updateAishellTechAutofillConcurrencyField(configLike, options) {
-    const inputNode = getElement("aishell-tech-qualified-autofill-concurrency");
-    if (!(inputNode instanceof HTMLInputElement)) {
-      return;
-    }
-    const config = configLike && typeof configLike === "object" ? configLike : {};
-    const rule = getDataBakerAiQualifiedAutofillConcurrencyRule(config);
-    const normalizedValue = normalizeDataBakerAutofillConcurrency(inputNode.value, config);
-    const forceDefault = options?.forceDefault === true;
-    inputNode.min = String(rule.min);
-    inputNode.max = String(rule.max);
-    inputNode.step = "1";
-    inputNode.placeholder = String(rule.defaultValue);
-    inputNode.value = String(
-      forceDefault === true
-        ? rule.defaultValue
-        : normalizeDataBakerAutofillConcurrency(
-            config.aiQualifiedAutofillConcurrency !== undefined
-              ? config.aiQualifiedAutofillConcurrency
-              : normalizedValue,
-            config
-          )
-    );
-    const helpNode = getElement("aishell-tech-qualified-autofill-concurrency-help");
-    if (helpNode instanceof HTMLElement) {
-      helpNode.textContent =
-        rule.modelType === "fun_asr"
-          ? "当前为 Fun-ASR 并发规则：默认 25，范围 1~50。"
-          : "当前为 Omni 并发规则：默认 15，范围 1~25。";
-    }
+    updateSharedAsrAutofillConcurrencyField(aishellTechMinnanScriptId, configLike, options);
   }
 
   function applyAishellTechListenModelFields(listenModel, config, aiDefaults) {
@@ -4006,7 +3979,7 @@
           aiRecommendEnabled: true,
           aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           aiRecommendPipelineMode: "two_stage",
-          aiQualifiedAutofillConcurrency: 15,
+          aiQualifiedAutofillConcurrency: 5,
           aiQualifiedAutofillWaitAllBeforeFill: false,
           aiRecommendListenModel: "qwen3.5-omni-flash",
           aiRecommendCompareModel: "qwen3.5-plus",
@@ -4127,7 +4100,7 @@
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
         aiRecommendRecognitionStrategy: "mandarin_to_dialect",
-        aiQualifiedAutofillConcurrency: 15,
+        aiQualifiedAutofillConcurrency: 5,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",
         aiRecommendSingleModel: "qwen3.5-omni-flash",
@@ -4374,7 +4347,6 @@
     if (!panel) {
       return;
     }
-    restoreDataBakerAutofillConcurrencyField();
     if (!supportsAsrVoiceAiSettings(scriptId) || !isAsrVoiceAiUnlocked(scriptId)) {
       panel.classList.add("hidden");
       panel.innerHTML = "";
@@ -4425,43 +4397,44 @@
       isMagicDataScript(scriptId) ||
       isAishellTechScript(scriptId)
     ) {
+      const panelSpec = buildSharedAsrAiPanelSpec(scriptId);
       const isDataBakerPanel = scriptId === dataBakerRoundOneQualityScriptId;
       const isAishellPanel = isAishellTechScript(scriptId);
-      const isMagicDataMinnanPanel = scriptId === magicDataMinnanScriptId;
       const isMagicDataPanel = isMagicDataScript(scriptId);
-      const useRecognitionStrategy = isMagicDataPanel || isAishellPanel;
-      const usePipelineModels = isDataBakerPanel || isMagicDataPanel || isAishellPanel;
-      const prefix = isDataBakerPanel
-        ? "data-baker-ai"
-        : isAishellPanel
-          ? "aishell-tech-ai"
-          : "magic-data-ai";
-      const modelLabel = usePipelineModels ? "比较模型" : "质检模型";
-      panel.innerHTML = [
-        '<div class="asr-ai-panel">',
-        headerHtml,
-        '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
-        '<div class="asr-ai-block"><strong>基础模型</strong><div class="asr-ai-grid two">',
-        isDataBakerPanel
+      const useRecognitionStrategy = panelSpec.showRecognitionStrategy === true;
+      const usePipelineModels = panelSpec.showPipelineMode === true;
+      const prefix =
+        panelSpec.prefix ||
+        (isDataBakerPanel
+          ? "data-baker-ai"
+          : isAishellPanel
+            ? "aishell-tech-ai"
+            : "magic-data-ai");
+      const modelLabel = panelSpec.modelLabel || (usePipelineModels ? "比较模型" : "质检模型");
+      const modelFieldMarkup = {
+        enabled: isDataBakerPanel
           ? '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="data-baker-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示 AI 推荐工具卡</span></label></label>'
           : isAishellPanel
             ? '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="aishell-tech-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示当前条推荐与批量保存面板</span></label></label>'
-          : '<label class="asr-ai-field"><span>启用 AI 质检助手</span><label class="asr-ai-boolean"><input id="magic-data-enabled" type="checkbox" /><span>关闭后不显示 AI 质检建议</span></label></label>',
-        '<label class="asr-ai-field' +
+            : '<label class="asr-ai-field"><span>启用 AI 质检助手</span><label class="asr-ai-boolean"><input id="magic-data-enabled" type="checkbox" /><span>关闭后不显示 AI 质检建议</span></label></label>',
+        pipelineMode:
+          '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +
           '" id="' +
           prefix +
           '-pipeline-mode-field"><span>模型方案</span><select id="' +
           prefix +
           '-pipeline-mode-select"></select><span class="asr-ai-help">模型方案：双模型或单模型。</span></label>',
-        '<label class="asr-ai-field' +
+        recognitionStrategy:
+          '<label class="asr-ai-field' +
           (useRecognitionStrategy ? "" : " hidden") +
           '" id="' +
           prefix +
           '-recognition-strategy-field"><span>识别策略</span><select id="' +
           prefix +
           '-recognition-strategy-select"></select><span class="asr-ai-help">直接识别方言文本，或先识别普通话再按字词表转换为方言文本。</span></label>',
-        '<label class="asr-ai-field' +
+        listenModel:
+          '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +
           '" id="' +
           prefix +
@@ -4472,17 +4445,20 @@
           '-listen-model-select"></select><span class="asr-ai-help" id="' +
           prefix +
           '-listen-model-help"></span></label>',
-        '<div class="asr-ai-field hidden" id="' +
+        listenModelNote:
+          '<div class="asr-ai-field hidden" id="' +
           prefix +
           '-listen-model-note"><span class="asr-ai-help">Fun-ASR 默认通过统一后端 REST provider 调用；只有显式切换时才会走 Python fallback。比较模型负责结合听音文本与页面文本生成推荐文本。</span></div>',
-        '<label class="asr-ai-field' +
+        singleModel:
+          '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +
           '" id="' +
           prefix +
           '-single-model-field"><span>AI 模型</span><select id="' +
           prefix +
           '-single-model-select"></select><span class="asr-ai-help">单模型只支持当前 Omni 模型列表，不调用 compare。</span></label>',
-        '<label class="asr-ai-field' +
+        compareModel:
+          '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +
           '" id="' +
           prefix +
@@ -4493,16 +4469,39 @@
           '</span><select id="' +
           prefix +
           '-compare-model-select"></select></label>',
-        '<label class="asr-ai-field hidden" id="' + prefix + '-listen-model-custom-field"><span id="' + prefix + '-listen-model-custom-label">听音模型自定义</span><input id="' + prefix + '-listen-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
-        '<label class="asr-ai-field hidden" id="' + prefix + '-compare-model-custom-field"><span id="' + prefix + '-compare-model-custom-label">' + modelLabel + '自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
-        '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' + prefix + '-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
-        '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' + prefix + '-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免 Omni 思考模式拖慢请求。</span></label></label>',
-        isMagicDataScript(scriptId)
+        autofillConcurrency: renderSharedAsrAutofillConcurrencyField(scriptId),
+        timeout:
+          '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="' +
+          prefix +
+          '-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
+        thinking:
+          '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="' +
+          prefix +
+          '-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免 Omni 思考模式拖慢请求。</span></label></label>',
+        showHeardText: isMagicDataPanel
           ? '<label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-show-heard-text" type="checkbox" /><span>显示 AI 听音文本</span></label></label>'
           : "",
-        isMagicDataScript(scriptId)
+        showEstimatedIncome: isMagicDataPanel
           ? '<label class="asr-ai-field"><label class="asr-ai-boolean"><input id="magic-data-show-estimated-income" type="checkbox" /><span>显示预计金额</span></label></label>'
           : "",
+      };
+      const orderedModelFields = (
+        Array.isArray(panelSpec.modelFieldOrder) && panelSpec.modelFieldOrder.length > 0
+          ? panelSpec.modelFieldOrder
+          : Object.keys(modelFieldMarkup)
+      )
+        .map(function (fieldKey) {
+          return modelFieldMarkup[fieldKey] || "";
+        })
+        .join("");
+      panel.innerHTML = [
+        '<div class="asr-ai-panel">',
+        headerHtml,
+        '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
+        '<div class="asr-ai-block"><strong>基础模型</strong><div class="asr-ai-grid two">',
+        orderedModelFields,
+        '<label class="asr-ai-field hidden" id="' + prefix + '-listen-model-custom-field"><span id="' + prefix + '-listen-model-custom-label">听音模型自定义</span><input id="' + prefix + '-listen-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
+        '<label class="asr-ai-field hidden" id="' + prefix + '-compare-model-custom-field"><span id="' + prefix + '-compare-model-custom-label">' + modelLabel + '自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         "</div></div>",
         '<div class="asr-ai-block"><strong>Prompt</strong><div class="asr-ai-grid">',
         '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="' + prefix + '-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
@@ -4539,7 +4538,6 @@
             updateDataBakerSingleModelFields(event?.target?.value);
           });
         }
-        moveDataBakerAutofillConcurrencyFieldIntoAiPanel();
       } else if (isAishellPanel) {
         const recognitionNode = getElement("aishell-tech-ai-pipeline-mode-select");
         const strategyNode = getElement("aishell-tech-ai-recognition-strategy-select");
@@ -9241,7 +9239,6 @@
     const config = getDataBakerRoundOneConfig(settings);
     const defaultsPayload = getAsrVoiceAiDefaultsCached(dataBakerRoundOneQualityScriptId);
     const aiDefaults = defaultsPayload.defaults || {};
-    const concurrencyRule = getDataBakerAiQualifiedAutofillConcurrencyRule(config);
     dataBakerShortcutsDraft = clone(config.shortcuts) || {};
     if (getElement("data-baker-ai-recommend-enabled")) {
       getElement("data-baker-ai-recommend-enabled").checked =
@@ -9290,7 +9287,6 @@
       getElement("data-baker-ai-stop-sequences").value = String(
         getAsrVoiceAiEffectiveText(config.aiRecommendStopSequences, aiDefaults.stop)
       );
-      moveDataBakerAutofillConcurrencyFieldIntoAiPanel();
       updateDataBakerAutofillConcurrencyField(config);
     }
     getElement("data-baker-auto-page-size-enabled").checked =
@@ -9299,15 +9295,6 @@
       config.defaultPageSize,
       "50条/页"
     );
-    const concurrencyInput = getElement("data-baker-qualified-autofill-concurrency");
-    if (concurrencyInput) {
-      concurrencyInput.value = String(
-        normalizeDataBakerAutofillConcurrency(config.aiQualifiedAutofillConcurrency, config)
-      );
-      concurrencyInput.min = String(concurrencyRule.min);
-      concurrencyInput.max = String(concurrencyRule.max);
-      concurrencyInput.step = "1";
-    }
     stopDataBakerShortcutRecording("");
     renderDataBakerShortcutGrid();
   }
@@ -9316,7 +9303,6 @@
     const config = getAishellTechMinnanConfig(settings);
     const defaultsPayload = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId);
     const aiDefaults = defaultsPayload.defaults || {};
-    const concurrencyRule = getDataBakerAiQualifiedAutofillConcurrencyRule(config);
     aishellTechShortcutsDraft = clone(config.shortcuts) || {};
     if (getElement("aishell-tech-ai-recommend-enabled")) {
       getElement("aishell-tech-ai-recommend-enabled").checked =
@@ -9370,15 +9356,6 @@
         getAsrVoiceAiEffectiveText(config.aiRecommendStopSequences, aiDefaults.stop)
       );
       updateAishellTechAutofillConcurrencyField(config);
-    }
-    const concurrencyInput = getElement("aishell-tech-qualified-autofill-concurrency");
-    if (concurrencyInput instanceof HTMLInputElement) {
-      concurrencyInput.value = String(
-        normalizeDataBakerAutofillConcurrency(config.aiQualifiedAutofillConcurrency, config)
-      );
-      concurrencyInput.min = String(concurrencyRule.min);
-      concurrencyInput.max = String(concurrencyRule.max);
-      concurrencyInput.step = "1";
     }
     stopAishellTechShortcutRecording("");
     renderAishellTechShortcutGrid();

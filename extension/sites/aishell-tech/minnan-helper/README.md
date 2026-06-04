@@ -5,6 +5,7 @@
 - 仅在 `https://mark.aishelltech.com/mytask/mark?...` 生效。
 - 前端显示名当前统一使用 `希尔贝壳`；仅改用户可见文案，不改内部平台 ID、文件夹名、接口路径或后端注册名。
 - 当前默认配置已对齐 DataBaker 一检质检：`two_stage + mandarin_to_dialect + qwen3.5-omni-flash + qwen3.5-plus`。
+- options 页当前已与 DataBaker 共用固定顺序的右侧 `AI 设置` 模块；`AI 连续填入并发数量` 已移到该区域，默认 `5`，Omni 范围 `1~25`，Fun-ASR 范围 `1~50`。
 - 实测验收建议先打开 `https://mark.aishelltech.com/mytask/detail/:taskId`，再点击分包“查看”进入标注页；直接输入 `/mytask/mark?...` 在平台侧可能出现卡住。
 - 当前前端已按“嵌入式卡片与原生栏注入”集成：
   - 面板以相对布局自适应嵌入在原表单正下方。

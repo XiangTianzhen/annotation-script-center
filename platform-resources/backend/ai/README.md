@@ -66,8 +66,8 @@
 - `providers/funasr-rest.js` 会记录 `[FunASR][REST] submit start/finish` 与 `[FunASR][REST] poll start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
 - `providers/funasr-python.js` 会记录 `[FunASR] spawn start/finish`；不会输出完整 `audioUrl`、token 或 API Key。
 - DataBaker 前端“AI连续填入合格项并发数量”是浏览器同时发往统一后端的请求数，当前按模型动态归一：
-  - Omni：默认 `15`，范围 `1~25`
-  - Fun-ASR：默认 `25`，范围 `1~50`
+  - Omni：默认 `5`，范围 `1~25`
+  - Fun-ASR：默认 `5`，范围 `1~50`
 - 前端和后端都会对超范围值做归一；请求体会携带 `frontConcurrency / batchConcurrency / concurrencyModelType` 作为诊断字段，但不会传进模型 Prompt。
 - DataBaker `two_stage + fun-asr` 的批量连续填入默认先创建 recommend jobs；前端按 `50ms` 错峰发起并用前端活跃并发上限控制节奏，后端继续通过 provider queue / RPM 限流保护上游。
 - Fun-ASR 错误现在会细分为鉴权/权限、音频 URL 不可访问、模型名错误、上游限流、任务失败、转写结果下载失败和通用 provider error；失败仍保留“查看原始AI返回”入口。

@@ -44,9 +44,9 @@
                 aiRecommendEnabled: true,
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
-                aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
-                aiRecommendPipelineMode: "two_stage",
-                aiQualifiedAutofillConcurrency: 15,
+            aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+            aiRecommendPipelineMode: "two_stage",
+                aiQualifiedAutofillConcurrency: 5,
                 aiQualifiedAutofillWaitAllBeforeFill: false,
                 aiRecommendListenModel: "qwen3.5-omni-flash",
                 aiRecommendCompareModel: "qwen3.5-plus",
@@ -81,7 +81,7 @@
                 aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
                 aiRecommendPipelineMode: "two_stage",
                 aiRecommendRecognitionStrategy: "mandarin_to_dialect",
-                aiQualifiedAutofillConcurrency: 15,
+                aiQualifiedAutofillConcurrency: 5,
                 aiRecommendListenModel: "qwen3.5-omni-flash",
                 aiRecommendCompareModel: "qwen3.5-plus",
                 aiRecommendSingleModel: "qwen3.5-omni-flash",
@@ -1277,12 +1277,15 @@
       source.singleModel || source.aiRecommendSingleModel || source.aiModel
     );
     if (recognitionMode === "two_stage" && listenModel === "fun-asr") {
-      return { min: 1, max: 50, defaultValue: 25, modelType: "fun_asr" };
+      return { min: 1, max: 50, defaultValue: 5, modelType: "fun_asr" };
     }
-    if (recognitionMode === "omni_single" && normalizeDataBakerSingleModel(singleModel, "qwen3.5-omni-flash", constants)) {
-      return { min: 1, max: 25, defaultValue: 15, modelType: "omni" };
+    if (
+      recognitionMode === "omni_single" &&
+      normalizeDataBakerSingleModel(singleModel, "qwen3.5-omni-flash", constants)
+    ) {
+      return { min: 1, max: 25, defaultValue: 5, modelType: "omni" };
     }
-    return { min: 1, max: 25, defaultValue: 15, modelType: "omni" };
+    return { min: 1, max: 25, defaultValue: 5, modelType: "omni" };
   }
 
   function normalizeDataBakerConcurrency(value, fallback, settings, constants) {
@@ -1713,7 +1716,7 @@
     result.aiRecommendPipelineMode = normalizedPipelineMode;
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
-      defaultConfig.aiQualifiedAutofillConcurrency || 15,
+      defaultConfig.aiQualifiedAutofillConcurrency || 5,
       {
         aiRecommendPipelineMode: result.aiRecommendPipelineMode,
         aiRecommendListenModel: result.aiRecommendListenModel,
@@ -1881,7 +1884,7 @@
     );
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
-      defaultConfig.aiQualifiedAutofillConcurrency || 15,
+      defaultConfig.aiQualifiedAutofillConcurrency || 5,
       {
         aiRecommendPipelineMode: result.aiRecommendPipelineMode,
         aiRecommendListenModel: result.aiRecommendListenModel,
@@ -1969,7 +1972,7 @@
               "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
             aiRecommendPipelineMode: "two_stage",
-                aiQualifiedAutofillConcurrency: 15,
+                aiQualifiedAutofillConcurrency: 5,
             aiQualifiedAutofillWaitAllBeforeFill: false,
             aiRecommendListenModel: "qwen3.5-omni-flash",
             aiRecommendCompareModel: "qwen3.5-plus",
@@ -2033,7 +2036,7 @@
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
             aiRecommendPipelineMode: "two_stage",
             aiRecommendRecognitionStrategy: "mandarin_to_dialect",
-            aiQualifiedAutofillConcurrency: 15,
+            aiQualifiedAutofillConcurrency: 5,
             aiRecommendListenModel: "qwen3.5-omni-flash",
             aiRecommendCompareModel: "qwen3.5-plus",
             aiRecommendSingleModel: "qwen3.5-omni-flash",

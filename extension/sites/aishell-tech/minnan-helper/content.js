@@ -185,7 +185,7 @@
         aiRecommendRequestTimeoutMs: DEFAULT_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
         aiRecommendRecognitionStrategy: "mandarin_to_dialect",
-        aiQualifiedAutofillConcurrency: 15,
+        aiQualifiedAutofillConcurrency: 5,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",
         aiRecommendSingleModel: "qwen3.5-omni-flash",
@@ -231,7 +231,7 @@
     merged.pipelineMode = merged.aiRecommendPipelineMode;
     merged.aiQualifiedAutofillConcurrency = Math.max(
       1,
-      Math.floor(Number(merged.aiQualifiedAutofillConcurrency || 15) || 15)
+      Math.floor(Number(merged.aiQualifiedAutofillConcurrency || 5) || 5)
     );
     merged.aiRecommendRequestTimeoutMs = Math.max(
       1000,
@@ -387,7 +387,7 @@
         const batchRunId = createBatchRunId();
         const batchConcurrency = Math.max(
           1,
-          Number(config.aiQualifiedAutofillConcurrency || 15) || 15
+          Number(config.aiQualifiedAutofillConcurrency || 5) || 5
         );
         const scheduler = dataApi.createRateLimitedTaskScheduler({
           concurrency: batchConcurrency,

@@ -424,7 +424,7 @@ ASR 转写职责边界：
 
 DataBaker AI 架构补充：
 - 当前默认链路是：`qwen3.5-omni-flash / qwen3.5-omni-plus` 优先走 Omni legacy 快速路径；选择 `fun-asr` 时默认通过 Node RESTful API 调用 Fun-ASR，再走 compare 文本模型。
-- 前端“AI连续填入合格项并发数量”范围 `1~50`，默认 `20`；前端值更大只会更快把请求送进统一后端队列，不会放大后端 provider 并发上限。
+- 前端“AI连续填入合格项并发数量”当前按模型动态归一：Omni 默认 `5`、范围 `1~25`；Fun-ASR 默认 `5`、范围 `1~50`。前端值更大只会更快把请求送进统一后端队列，不会放大后端 provider 并发上限。
 - 前端并发和后端并发是两层配置：前端 `aiQualifiedAutofillConcurrency` 负责一次发起多少浏览器请求；后端 `DATABAKER_AI_FUN_ASR_CONCURRENCY / DATABAKER_AI_TEXT_CONCURRENCY` 负责上游 provider 实际同时 in-flight 数量。
 - DataBaker 批量“AI连续填入合格项”默认改为短请求创建 `POST /api/data-baker/round-one-quality/ai/recommend/jobs`，再轮询 `GET /jobs/:jobId`；同步 recommend 保留为兼容 / 调试入口。
 - Omni legacy 快速路径不使用 async job、Fun-ASR REST、Python 或 SSE；它只用于先恢复 Qwen Omni 的基础速度和稳定性。

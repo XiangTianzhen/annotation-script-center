@@ -29,9 +29,9 @@ extension/sites/data-baker/round-one-quality/
 - 左侧句子列表上方 `filter-screen`（“全选/批量判定”同一行）新增“AI连续填入合格项”：按钮挂载在“批量判定”右侧。
 - 点击后先刷新当前页 `queryCollectStatementByCondtion`，筛选当前页 `statusName=质检合格` 条目。
 - 先按配置并发数并发发起所有 AI 推荐，结果返回后进入缓冲区；填入流程不等待全部返回，按 AI 返回顺序从队列取结果后逐条选中并填入；运行中可再次点击或按 `Alt+Q` 停止。
-- “AI连续填入合格项并发数量”已归到 DataBaker 的“ASR 语音 AI 设置”区域，并按模型动态归一：
-  - Omni：默认 `15`，范围 `1~25`
-  - Fun-ASR：默认 `25`，范围 `1~50`
+- “AI连续填入合格项并发数量”已归到共享“AI 设置”区域，并按模型动态归一：
+  - Omni：默认 `5`，范围 `1~25`
+  - Fun-ASR：默认 `5`，范围 `1~50`
 - 前端和后端都会对超范围值做归一；请求体会额外携带 `frontConcurrency / batchConcurrency / concurrencyModelType` 诊断字段，但不会传进模型 Prompt。
 - 当识别模式为 `two_stage` 且听音模型为 `fun-asr` 时，批量连续填入默认短请求创建 `POST /ai/recommend/jobs`。当前页有 N 条合格项，就会为 N 条任务调度对应请求；前端按 `50ms` 错峰发起，并继续受前端活跃并发上限与后端 provider queue / RPM 限流保护。
 - 运行中会显示顶部统计悬浮窗；完成或停止后保留约 60 秒，并展示失败条目与“重新填写失败内容”入口。

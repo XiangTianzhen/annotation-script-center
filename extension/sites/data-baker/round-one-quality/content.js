@@ -123,9 +123,9 @@
     );
     const listenModel = getDataBakerModelText(source.listenModel || source.aiRecommendListenModel);
     if (recognitionMode === "two_stage" && listenModel === "fun-asr") {
-      return { min: 1, max: 50, defaultValue: 25, modelType: "fun_asr" };
+      return { min: 1, max: 50, defaultValue: 5, modelType: "fun_asr" };
     }
-    return { min: 1, max: 25, defaultValue: 15, modelType: "omni" };
+    return { min: 1, max: 25, defaultValue: 5, modelType: "omni" };
   }
 
   function normalizeAutofillConcurrency(value, configLike) {
@@ -271,7 +271,7 @@
         aiPipelineDisplayName: "Omni 单模型",
         aiModelDisplayName: singleModel || listenModel || "qwen3.5-omni-flash",
         concurrencyRuleText:
-          "Omni 默认" + String(rule.defaultValue || 15) + "，范围" + String(rule.min || 1) + "~" + String(rule.max || 25),
+          "Omni 默认" + String(rule.defaultValue || 5) + "，范围" + String(rule.min || 1) + "~" + String(rule.max || 25),
         concurrencyModelType: "omni",
       };
     }
@@ -280,7 +280,7 @@
         aiPipelineDisplayName: "Fun-ASR + 比较模型",
         aiModelDisplayName: "fun-asr + " + String(compareModel || "qwen3.5-plus"),
         concurrencyRuleText:
-          "Fun-ASR 默认" + String(rule.defaultValue || 25) + "，范围" + String(rule.min || 1) + "~" + String(rule.max || 50),
+          "Fun-ASR 默认" + String(rule.defaultValue || 5) + "，范围" + String(rule.min || 1) + "~" + String(rule.max || 50),
         concurrencyModelType: "fun_asr",
       };
     }
@@ -290,7 +290,7 @@
         aiModelDisplayName:
           String(listenModel || "qwen3.5-omni-flash") + " + " + String(compareModel || "qwen3.5-plus"),
         concurrencyRuleText:
-          "Omni 默认" + String(rule.defaultValue || 15) + "，范围" + String(rule.min || 1) + "~" + String(rule.max || 25),
+          "Omni 默认" + String(rule.defaultValue || 5) + "，范围" + String(rule.min || 1) + "~" + String(rule.max || 25),
         concurrencyModelType: "omni",
       };
     }
@@ -335,7 +335,7 @@
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
-        aiQualifiedAutofillConcurrency: 15,
+        aiQualifiedAutofillConcurrency: 5,
         aiQualifiedAutofillWaitAllBeforeFill: false,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",

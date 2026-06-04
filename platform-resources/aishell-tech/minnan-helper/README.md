@@ -12,6 +12,7 @@
 - 接口独立为 `/api/aishell-tech/minnan-helper/ai/recommend*`。
 - Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；其中闽南语词表已与 `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv` 1:1 对齐，但推荐编排、缓存、日志、同步超时、取消与队列已经改成 Aishell 自己维护。
 - 当前默认配置已按 DataBaker 一检质检标准对齐：`two_stage + mandarin_to_dialect + qwen3.5-omni-flash + qwen3.5-plus`。
+- options 页当前已与 DataBaker 共用固定顺序的右侧 `AI 设置` 模块；`AI 连续填入并发数量` 已移动到该区域，默认 `5`，Omni 范围 `1~25`，Fun-ASR 范围 `1~50`。
 - 同时保留 `direct_dialect`（直接听写闽南语）测试模式。
 - 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
