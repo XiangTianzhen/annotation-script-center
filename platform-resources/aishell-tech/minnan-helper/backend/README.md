@@ -42,7 +42,7 @@
   - 听音阶段按实际发音输出，允许普通话词与闽南语词混合存在。
   - 比较阶段当前固定使用三文本对照：
     - `pageText`
-    - `lexiconCandidateText`：先按词表把 `pageText` 生成标准闽南语候选文本
+    - `lexiconCandidateText`：先单独调用一次文本模型，结合 `minnan-lexicon.csv` 把 `pageText` 生成标准闽南语候选文本
     - `heardText`
   - 比较模型只重点判断 `heardText` 与 `lexiconCandidateText` 的差异项；音频里没读到的词不补回。
   - `audioFirstReferenceCorrectionThreshold` 默认 `0.75`；当 `correctionConfidence` 低于阈值时，后端会优先保留 `heardText`，并把 `needHumanReview` 置为 `true`。
@@ -85,10 +85,10 @@
 
 ## defaults / health
 
-- `defaults` 返回：
+  - `defaults` 返回：
   - `modelModeOptions`
   - `recognitionStrategyOptions`
-  - 当前策略默认 `listenPrompt / comparePrompt`
+  - 当前策略默认 `listenPrompt / candidatePrompt / comparePrompt`
   - `promptProfiles`
   - `audioFirstReferenceCorrectionThreshold`
   - `audio_first_reference` 对应的 `promptProfiles` 会明确要求按实际发音输出，并允许普通话/闽南语混合保留

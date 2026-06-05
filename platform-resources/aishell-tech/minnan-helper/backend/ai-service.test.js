@@ -69,6 +69,10 @@ test("Aishell defaults expose only the audio-first prompt profile", function () 
     payload.defaults?.listenPrompt
   );
   assert.equal(
+    profiles.audio_first_reference?.candidatePrompt,
+    payload.defaults?.candidatePrompt
+  );
+  assert.equal(
     profiles.audio_first_reference?.comparePrompt,
     payload.defaults?.comparePrompt
   );
@@ -81,10 +85,15 @@ test("Aishell defaults expose only the audio-first prompt profile", function () 
     true
   );
   assert.equal(typeof profiles.audio_first_reference?.listenPrompt, "string");
+  assert.equal(typeof profiles.audio_first_reference?.candidatePrompt, "string");
   assert.equal(typeof profiles.audio_first_reference?.comparePrompt, "string");
   assert.match(
     profiles.audio_first_reference?.listenPrompt || "",
     /按实际发音输出 heardText/
+  );
+  assert.match(
+    profiles.audio_first_reference?.candidatePrompt || "",
+    /candidateText/
   );
   assert.match(
     profiles.audio_first_reference?.comparePrompt || "",
@@ -99,6 +108,7 @@ test("Aishell defaults expose only the audio-first prompt profile", function () 
 test("Aishell audio-first strategy builds candidate context and keeps final rewrite mode off", async function () {
   const rewriteModes = [];
   let currentNow = 1000;
+  let compareCallCount = 0;
   const pipeline = createRecommendPipeline({
     now: function () {
       currentNow += 5;
@@ -125,13 +135,28 @@ test("Aishell audio-first strategy builds candidate context and keeps final rewr
       };
     },
     requestCompare: async function () {
+      compareCallCount += 1;
       return {
         rawText: "{}",
         model: "qwen3.5-plus",
         usage: {},
       };
     },
-    parseModelJsonText: function () {
+    parseModelJsonText: function (_rawText, options) {
+      if (options?.stage === "candidate") {
+        return {
+          candidateText: "拍着声音闷闷诶，纹路清晰诶西瓜一般都挺甜。",
+          candidatePairs: [
+            {
+              sourceText: "的",
+              candidateText: "诶",
+              source: "csv",
+            },
+          ],
+          confidence: 0.95,
+          needHumanReview: false,
+        };
+      }
       return {};
     },
     normalizeCompareResponse: function () {
@@ -205,16 +230,19 @@ test("Aishell audio-first strategy builds candidate context and keeps final rewr
     }
   );
 
-  assert.deepEqual(rewriteModes, ["aggressive", "off"]);
+  assert.deepEqual(rewriteModes, ["off"]);
   assert.equal(result.data?.lexicon?.enabled, true);
   assert.equal(result.data?.lexicon?.rewriteMode, "off");
   assert.equal(result.meta?.audioFirstReference?.candidateText, "拍着声音闷闷诶，纹路清晰诶西瓜一般都挺甜。");
   assert.equal(result.meta?.models?.recognitionStrategy, "audio_first_reference");
+  assert.equal(compareCallCount, 2);
 });
 
-test("Aishell audio-first strategy uses lexicon candidate context and falls back to heardText below threshold", async function () {
+test("Aishell audio-first strategy builds candidate text from a dedicated text-model stage before compare", async function () {
   let currentNow = 2000;
   let capturedCorrectionContext = null;
+  let compareCallCount = 0;
+  const parseStages = [];
   const pipeline = createRecommendPipeline({
     now: function () {
       currentNow += 5;
@@ -241,13 +269,26 @@ test("Aishell audio-first strategy uses lexicon candidate context and falls back
       };
     },
     requestCompare: async function () {
+      compareCallCount += 1;
       return {
         rawText: "{}",
         model: "qwen3.5-plus",
         usage: {},
       };
     },
-    parseModelJsonText: function () {
+    parseModelJsonText: function (_rawText, options) {
+      parseStages.push(options?.stage || "");
+      if (options?.stage === "candidate") {
+        return {
+          candidateText: "路况良好，主要是高速甲省道，缀着导航行即可。",
+          candidatePairs: [
+            { sourceText: "和", candidateText: "甲", source: "csv" },
+            { sourceText: "跟", candidateText: "缀", source: "csv" },
+          ],
+          confidence: 0.94,
+          needHumanReview: false,
+        };
+      }
       return {
         recommendedText: "路况良好，主要是高速甲省道，缀着导航行即可。",
         decision: "use_lexicon_candidate",
@@ -293,11 +334,10 @@ test("Aishell audio-first strategy uses lexicon candidate context and falls back
     applyLexiconRewrite: function (text, options) {
       if (options?.mode === "aggressive") {
         return {
-          text: "路况良好，主要是高速甲省道，缀着导航行即可。",
+          text: "路况良好，主要是高速和省道，跟着导航走即可。",
           changed: true,
           changes: [
-            { from: "和", to: "甲", source: "csv", reason: "命中闽南方言词表" },
-            { from: "跟", to: "缀", source: "csv", reason: "命中闽南方言词表" },
+            { from: "和", to: "和", source: "csv", reason: "本地词表重写模拟错误结果" },
           ],
         };
       }
@@ -355,10 +395,13 @@ test("Aishell audio-first strategy uses lexicon candidate context and falls back
   assert.equal(result.data?.lexicon?.rewriteMode, "off");
   assert.equal(result.meta?.audioFirstReference?.correctionThreshold, 0.75);
   assert.equal(result.meta?.audioFirstReference?.correctionConfidence, 0.61);
+  assert.equal(compareCallCount, 2);
+  assert.deepEqual(parseStages, ["candidate", "compare"]);
 });
 
 test("Aishell audio-first strategy can adopt lexicon candidate text above threshold", async function () {
   let currentNow = 3000;
+  let compareCallCount = 0;
   const pipeline = createRecommendPipeline({
     now: function () {
       currentNow += 5;
@@ -385,13 +428,25 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
       };
     },
     requestCompare: async function () {
+      compareCallCount += 1;
       return {
         rawText: "{}",
         model: "qwen3.5-plus",
         usage: {},
       };
     },
-    parseModelJsonText: function () {
+    parseModelJsonText: function (_rawText, options) {
+      if (options?.stage === "candidate") {
+        return {
+          candidateText: "路况良好，主要是高速甲省道，缀着导航行即可。",
+          candidatePairs: [
+            { sourceText: "和", candidateText: "甲", source: "csv" },
+            { sourceText: "跟", candidateText: "缀", source: "csv" },
+          ],
+          confidence: 0.95,
+          needHumanReview: false,
+        };
+      }
       return {
         recommendedText: "路况良好，主要是高速甲省道，缀着导航行即可。",
         decision: "use_lexicon_candidate",
@@ -482,6 +537,7 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
   assert.equal(result.data?.recommendedText, "路况良好，主要是高速甲省道，缀着导航行即可。");
   assert.equal(result.data?.needHumanReview, false);
   assert.equal(result.meta?.audioFirstReference?.correctionConfidence, 0.92);
+  assert.equal(compareCallCount, 2);
 });
 
 test("Aishell Minnan lexicon stays byte-for-byte aligned with DataBaker reference", function () {

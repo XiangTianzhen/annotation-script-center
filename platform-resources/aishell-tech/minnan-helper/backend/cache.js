@@ -60,8 +60,12 @@ function buildRecommendCacheKey(parts) {
     listenModel: String(parts?.listenModel || ""),
     compareModel: String(parts?.compareModel || ""),
     singleModel: String(parts?.singleModel || ""),
+    candidatePrompt: String(parts?.candidatePrompt || ""),
     listenPrompt: String(parts?.listenPrompt || ""),
     comparePrompt: String(parts?.comparePrompt || ""),
+    audioFirstReferenceCandidatePromptVersion: String(
+      parts?.audioFirstReferenceCandidatePromptVersion || ""
+    ),
     audioFirstReferenceCorrectionThreshold: String(
       parts?.audioFirstReferenceCorrectionThreshold || ""
     ),

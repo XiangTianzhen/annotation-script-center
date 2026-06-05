@@ -51,13 +51,17 @@
     const source = timing && typeof timing === "object" ? timing : {};
     const total = Number(source.totalDurationMs || 0);
     const listen = Number(source.listenDurationMs || 0);
+    const candidate = Number(source.candidateDurationMs || 0);
     const compare = Number(source.compareDurationMs || 0);
-    if (total <= 0 && listen <= 0 && compare <= 0) {
+    if (total <= 0 && listen <= 0 && candidate <= 0 && compare <= 0) {
       return "-";
     }
     const detailParts = [];
     if (listen > 0) {
       detailParts.push("听音 " + formatDurationMs(listen));
+    }
+    if (candidate > 0) {
+      detailParts.push("候选转写 " + formatDurationMs(candidate));
     }
     if (compare > 0) {
       detailParts.push("比较 " + formatDurationMs(compare));

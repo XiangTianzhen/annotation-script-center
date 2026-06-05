@@ -7,7 +7,7 @@
   - options 页不再显示 Aishell 的 `识别策略` 下拉；`词表候选校正阈值` 继续保留
 - `希尔贝壳闽南语推荐` 当前结果卡增强：
   - 新增 `原始文本`
-  - 新增 `词表转写文本`（原始文本按字词表转写后的闽南语候选）
+  - 新增 `词表转写文本`（原始文本先单独调用文本模型并结合 `minnan-lexicon.csv` 生成的闽南语候选）
   - 新增 `听音文本 vs 词表转写文本` 差异高亮展示
   - 原 `词表候选文本` 从诊断区移除，避免和主结果区重复
 - 回归验证补强：
@@ -19,10 +19,10 @@
 
 - `希尔贝壳 / 闽南语助手` 的 `audio_first_reference` 策略当前已升级为“三文本对照”：
   - `pageText`
-  - `lexiconCandidateText`：先按词表把 `pageText` 转成标准闽南语候选文本
+  - `lexiconCandidateText`：先单独调用文本模型，结合 `minnan-lexicon.csv` 把 `pageText` 转成标准闽南语候选文本
   - `heardText`
 - 后端 `pipeline.js` 现已新增候选校正上下文：
-  - 只把词表强替换用于生成候选文本与 `candidatePairs`
+  - 候选文本当前改为通过独立文本模型生成；不再使用本地词表强替换直接产出 `candidateText`
   - 最终 `lexicon.rewriteMode` 仍固定为 `off`，不会重新开启强制词表改写
   - 当 `correctionConfidence < audioFirstReferenceCorrectionThreshold` 时，会优先保留 `heardText` 并标记 `needHumanReview=true`
 - Aishell options / storage / runtime 新增 `词表候选校正阈值`：

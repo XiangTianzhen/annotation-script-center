@@ -582,6 +582,7 @@ function bindAbortSignal(controller, signal) {
 async function requestTextCompareJson(input, prompt, options) {
   const config = getQwenProviderConfig();
   const model = String(options?.model || config.compareModel || DEFAULT_COMPARE_MODEL).trim() || DEFAULT_COMPARE_MODEL;
+  const stage = String(options?.stage || "compare").trim() || "compare";
   const mockResponseMode = String(input?.aiOptions?.mockResponseMode || "").trim().toLowerCase();
   const heardText = String(options?.heardText || input?.heardText || "").trim();
     if (config.mockEnabled) {
@@ -591,7 +592,7 @@ async function requestTextCompareJson(input, prompt, options) {
       error.debugRawAiResponse = {
         provider: "qwen",
         model,
-        stage: "compare",
+        stage,
         providerStatus: 502,
         responseBody: sanitizeProviderDebugPayload(buildMockProviderErrorBody(), { textLimit: 20000 }),
         };
@@ -600,7 +601,7 @@ async function requestTextCompareJson(input, prompt, options) {
       if (mockResponseMode === "qwen-burst-rate-limited") {
         throw createQwenSseProviderError(
           model,
-          "compare",
+          stage,
           {
             code: "limit_burst_rate",
             message: "Request rate increased too quickly.",
@@ -620,7 +621,7 @@ async function requestTextCompareJson(input, prompt, options) {
         );
       }
       if (mockResponseMode === "qwen-empty-response") {
-        throw createQwenEmptyResponseError(model, "compare", {
+        throw createQwenEmptyResponseError(model, stage, {
           rawSseText: "data: [DONE]",
           rawResponseText: "",
           parsedChunksCount: 0,
@@ -680,7 +681,7 @@ async function requestTextCompareJson(input, prompt, options) {
   applyAiOptionsToRequestBody(requestBody, input?.aiOptions);
   const result = await requestChatCompletionWithThinkingFallback(
     requestBody,
-    Object.assign({}, options || {}, { stage: "compare" })
+    Object.assign({}, options || {}, { stage })
   );
   return normalizeModelResult(model, result);
 }
