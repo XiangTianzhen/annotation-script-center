@@ -150,9 +150,7 @@
     },
   ];
   const AISHELL_TECH_RECOGNITION_STRATEGY_OPTIONS = [
-    { value: "mandarin_to_dialect", label: "普通话对照默认" },
-    { value: "direct_dialect", label: "直接听写闽南语" },
-    { value: "audio_first_reference", label: "音频优先，文本参考" },
+    { value: "audio_first_reference", label: "三文本对照（音频优先，文本参考）" },
   ];
   const BAILIAN_MODEL_DOC_URLS = {
     pricing:
@@ -1706,7 +1704,7 @@
           aiRecommendEndpoint: AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT,
           aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           aiRecommendPipelineMode: "two_stage",
-          aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+          aiRecommendRecognitionStrategy: "audio_first_reference",
           aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
           aiQualifiedAutofillConcurrency: 5,
           aiRecommendListenModel: "qwen3.5-omni-flash",

@@ -37,15 +37,16 @@ const SCRIPT_ID = "aishellTechMinnanAssistant";
 const COMPONENT_NAME = "asr-voice-ai";
 const LEXICON_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
 const DEFAULT_MODEL_MODE = "two_stage";
-const DEFAULT_RECOGNITION_STRATEGY = "mandarin_to_dialect";
+const DEFAULT_RECOGNITION_STRATEGY = "audio_first_reference";
 const MODEL_MODE_OPTIONS = [
   { value: "two_stage", label: "双模型：听音模型 + 比较/转换模型" },
   { value: "omni_single", label: "单模型：Omni 单模型" },
 ];
 const RECOGNITION_STRATEGY_OPTIONS = [
-  { value: "mandarin_to_dialect", label: "普通话对照默认：先听成普通话，再按预测文本和字词表转闽南语" },
-  { value: "direct_dialect", label: "直接听音：直接写出闽南语文本" },
-  { value: "audio_first_reference", label: "音频优先，文本参考：按实际发音输出，页面文本和字词表只做参考" },
+  {
+    value: "audio_first_reference",
+    label: "三文本对照：按实际发音输出，页面原文和词表候选只做参考",
+  },
 ];
 const DEFAULT_MANDARIN_LISTEN_TEMPLATE = [
   "你正在处理闽南语音频。",
@@ -193,12 +194,6 @@ function getStrategyPromptDefaults(recognitionStrategy) {
     recognitionStrategy,
     DEFAULT_RECOGNITION_STRATEGY
   );
-  if (normalizedStrategy === "direct_dialect") {
-    return {
-      listenPrompt: DEFAULT_DIRECT_DIALECT_LISTEN_TEMPLATE,
-      comparePrompt: DEFAULT_DIRECT_DIALECT_COMPARE_TEMPLATE,
-    };
-  }
   if (normalizedStrategy === "audio_first_reference") {
     return {
       listenPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE,
@@ -517,8 +512,6 @@ function createHealthPayload() {
 }
 
 function createDefaultsPayload() {
-  const mandarinPrompts = getStrategyPromptDefaults("mandarin_to_dialect");
-  const directPrompts = getStrategyPromptDefaults("direct_dialect");
   const audioFirstPrompts = getStrategyPromptDefaults("audio_first_reference");
   const defaultPrompts = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
   const runtime = buildAsyncJobRuntimeMeta();
@@ -555,8 +548,6 @@ function createDefaultsPayload() {
       listenPrompt: defaultPrompts.listenPrompt,
       comparePrompt: defaultPrompts.comparePrompt,
       promptProfiles: {
-        mandarin_to_dialect: mandarinPrompts,
-        direct_dialect: directPrompts,
         audio_first_reference: audioFirstPrompts,
       },
       modelCatalog,

@@ -199,7 +199,6 @@
     ];
     if (normalizeText(audioFirstReference.candidateText)) {
       rows.splice(2, 0,
-        ["词表候选文本", normalizeText(audioFirstReference.candidateText)],
         [
           "校正阈值",
           formatOptionalConfidence(audioFirstReference.correctionThreshold),

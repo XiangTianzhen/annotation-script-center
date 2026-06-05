@@ -38,13 +38,7 @@
 
 ## 推荐模式
 
-- `two_stage + mandarin_to_dialect`
-  - 听音阶段先输出普通话。
-  - 比较阶段再结合页面预测闽南语文本与词表给出最终推荐。
-- `two_stage + direct_dialect`
-  - 听音阶段直接输出闽南语。
-  - 比较阶段再结合页面预测文本给出推荐。
-- `two_stage + audio_first_reference`
+- 当前只保留 `two_stage + audio_first_reference`
   - 听音阶段按实际发音输出，允许普通话词与闽南语词混合存在。
   - 比较阶段当前固定使用三文本对照：
     - `pageText`
@@ -54,7 +48,7 @@
   - `audioFirstReferenceCorrectionThreshold` 默认 `0.75`；当 `correctionConfidence` 低于阈值时，后端会优先保留 `heardText`，并把 `needHumanReview` 置为 `true`。
   - 该策略仍会构建词表上下文给模型参考，但后处理 `lexicon.rewriteMode` 固定为 `off`，不会再做强制词表改写。
 - `omni_single`
-  - 单模型一次完成听音、对比与推荐。
+  - 仍保留为模型方案；但识别策略当前固定为 `audio_first_reference`。
 
 ## 返回契约
 
@@ -104,7 +98,7 @@
   - `audioFirstReferenceCorrectionThreshold`
   - 当前同步超时
   - Aishell 独立队列组配置
-- 当前默认组合已对齐 DataBaker 一检质检：`two_stage + mandarin_to_dialect + qwen3.5-omni-flash + qwen3.5-plus`。
+- 当前默认组合已收口为：`two_stage + audio_first_reference + qwen3.5-omni-flash + qwen3.5-plus`。
 
 ## 日志与缓存
 

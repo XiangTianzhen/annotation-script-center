@@ -1,3 +1,20 @@
+## 2026-06-05（Aishell 三文本对照方案收口与结果展示增强）
+
+- `希尔贝壳 / 闽南语助手` 当前已不再保留旧的 `mandarin_to_dialect` 与 `direct_dialect` 两套识别方案。
+- Aishell 前后端、options、storage 与 runtime 当前统一只保留 `audio_first_reference`：
+  - 默认组合收口为 `two_stage + audio_first_reference + qwen3.5-omni-flash + qwen3.5-plus`
+  - 旧配置里如果仍保存旧策略值，运行时会统一归一到 `audio_first_reference`
+  - options 页不再显示 Aishell 的 `识别策略` 下拉；`词表候选校正阈值` 继续保留
+- `希尔贝壳闽南语推荐` 当前结果卡增强：
+  - 新增 `原始文本`
+  - 新增 `词表转写文本`（原始文本按字词表转写后的闽南语候选）
+  - 新增 `听音文本 vs 词表转写文本` 差异高亮展示
+  - 原 `词表候选文本` 从诊断区移除，避免和主结果区重复
+- 回归验证补强：
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 更新为只校验 `audio_first_reference`
+  - `extension/shared/storage.aishell-tech.test.js` 更新为只校验 Aishell 归一到 `audio_first_reference`
+  - `extension/options/options-shared-asr-ai-panel.test.js` 更新为 Aishell 不再显示识别策略字段
+
 ## 2026-06-05（Aishell 音频优先候选校正升级）
 
 - `希尔贝壳 / 闽南语助手` 的 `audio_first_reference` 策略当前已升级为“三文本对照”：

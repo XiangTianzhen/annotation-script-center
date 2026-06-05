@@ -28,16 +28,15 @@ test("shared AI panel spec keeps DataBaker concurrency field in the fixed model 
   ]);
 });
 
-test("shared AI panel spec keeps Aishell recognition strategy and concurrency field in the fixed order", function () {
+test("shared AI panel spec keeps Aishell concurrency field in the fixed order and removes strategy selector", function () {
   const spec = buildSharedAsrAiPanelSpec("aishellTechMinnanAssistant");
 
   assert.equal(spec.showAutofillConcurrency, true);
-  assert.equal(spec.showRecognitionStrategy, true);
+  assert.equal(spec.showRecognitionStrategy, false);
   assert.equal(spec.concurrencyInputId, "aishell-tech-qualified-autofill-concurrency");
   assert.deepEqual(spec.modelFieldOrder, [
     "enabled",
     "pipelineMode",
-    "recognitionStrategy",
     "listenModel",
     "listenModelNote",
     "singleModel",

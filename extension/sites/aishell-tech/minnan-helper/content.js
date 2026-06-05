@@ -30,13 +30,10 @@
 
   function normalizeRecognitionStrategy(value) {
     const text = String(value || "").trim().toLowerCase();
-    if (text === "direct_dialect") {
-      return "direct_dialect";
-    }
     if (text === "audio_first_reference") {
       return "audio_first_reference";
     }
-    return "mandarin_to_dialect";
+    return "audio_first_reference";
   }
 
   function createBatchRunId() {
@@ -198,7 +195,7 @@
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: DEFAULT_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
-        aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+        aiRecommendRecognitionStrategy: "audio_first_reference",
         aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
         aiQualifiedAutofillConcurrency: 5,
         aiRecommendListenModel: "qwen3.5-omni-flash",

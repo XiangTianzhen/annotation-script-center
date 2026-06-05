@@ -30,7 +30,7 @@ test("Aishell defaults align to DataBaker-style Minnan standard", function () {
   const defaults = payload.defaults || {};
 
   assert.equal(defaults.modelMode, "two_stage");
-  assert.equal(defaults.recognitionStrategy, "mandarin_to_dialect");
+  assert.equal(defaults.recognitionStrategy, "audio_first_reference");
   assert.equal(defaults.compareModel, "qwen3.5-plus");
   assert.equal(defaults.audioFirstReferenceCorrectionThreshold, 0.75);
   assert.equal(defaults.pipelineMode, "qwen_omni_compare");
@@ -44,34 +44,36 @@ test("Aishell health and defaults expose the audio-first correction threshold", 
   assert.equal(healthPayload.audioFirstReferenceCorrectionThreshold, 0.75);
 });
 
-test("Aishell config accepts the audio-first recognition strategy", function () {
+test("Aishell config normalizes legacy recognition strategies to audio-first", function () {
   assert.equal(
     normalizeRecognitionStrategy("audio_first_reference", "mandarin_to_dialect"),
     "audio_first_reference"
   );
+  assert.equal(
+    normalizeRecognitionStrategy("mandarin_to_dialect", "audio_first_reference"),
+    "audio_first_reference"
+  );
+  assert.equal(
+    normalizeRecognitionStrategy("direct_dialect", "audio_first_reference"),
+    "audio_first_reference"
+  );
 });
 
-test("Aishell defaults expose independent prompt profiles for all recognition strategies", function () {
+test("Aishell defaults expose only the audio-first prompt profile", function () {
   const payload = createDefaultsPayload();
   const profiles = payload.defaults?.promptProfiles || {};
   const strategyOptions = payload.defaults?.recognitionStrategyOptions || [];
 
   assert.equal(
-    profiles.mandarin_to_dialect?.listenPrompt,
+    profiles.audio_first_reference?.listenPrompt,
     payload.defaults?.listenPrompt
   );
   assert.equal(
-    profiles.mandarin_to_dialect?.comparePrompt,
+    profiles.audio_first_reference?.comparePrompt,
     payload.defaults?.comparePrompt
   );
-  assert.notEqual(
-    profiles.mandarin_to_dialect?.listenPrompt,
-    profiles.direct_dialect?.listenPrompt
-  );
-  assert.notEqual(
-    profiles.mandarin_to_dialect?.comparePrompt,
-    profiles.direct_dialect?.comparePrompt
-  );
+  assert.deepEqual(Object.keys(profiles), ["audio_first_reference"]);
+  assert.equal(strategyOptions.length, 1);
   assert.equal(
     strategyOptions.some(function (item) {
       return item?.value === "audio_first_reference";
@@ -91,10 +93,6 @@ test("Aishell defaults expose independent prompt profiles for all recognition st
   assert.match(
     profiles.audio_first_reference?.comparePrompt || "",
     /candidateDecisions/
-  );
-  assert.notEqual(
-    profiles.audio_first_reference?.comparePrompt,
-    profiles.direct_dialect?.comparePrompt
   );
 });
 

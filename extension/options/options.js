@@ -422,11 +422,7 @@
     constants.AISHELL_TECH_RECOGNITION_STRATEGY_OPTIONS
   )
     ? constants.AISHELL_TECH_RECOGNITION_STRATEGY_OPTIONS
-    : [
-        { value: "mandarin_to_dialect", label: "普通话对照默认" },
-        { value: "direct_dialect", label: "直接听写闽南语" },
-        { value: "audio_first_reference", label: "音频优先，文本参考" },
-      ];
+    : [{ value: "audio_first_reference", label: "三文本对照（音频优先，文本参考）" }];
   const judgementAiListenModels = Array.isArray(constants.JUDGEMENT_AI_LISTEN_MODELS)
     ? constants.JUDGEMENT_AI_LISTEN_MODELS
     : ["qwen3.5-omni-flash", "qwen3-omni-flash", "qwen3.5-omni-plus"];
@@ -2176,30 +2172,15 @@
 
   function normalizeAishellTechRecognitionStrategy(value, fallback) {
     const text = String(value || "").trim().toLowerCase();
-    if (
-      text === "direct_dialect" ||
-      text === "mandarin_to_dialect" ||
-      text === "audio_first_reference"
-    ) {
-      return text;
-    }
-    const fallbackText = String(fallback || "").trim().toLowerCase();
-    if (fallbackText === "direct_dialect") {
-      return "direct_dialect";
-    }
-    if (fallbackText === "audio_first_reference") {
+    if (text === "audio_first_reference") {
       return "audio_first_reference";
     }
-    return "mandarin_to_dialect";
+    return "audio_first_reference";
   }
 
   function hasValidAishellTechRecognitionStrategy(value) {
     const text = String(value || "").trim().toLowerCase();
-    return (
-      text === "direct_dialect" ||
-      text === "mandarin_to_dialect" ||
-      text === "audio_first_reference"
-    );
+    return text === "audio_first_reference";
   }
 
   function resolveMagicDataRecognitionStrategyFromSource(source, fallback) {
@@ -2396,7 +2377,7 @@
               strategySelectNode.value,
               getAishellTechRecognitionStrategyDefault(defaults)
             )
-          : getAishellTechRecognitionStrategyDefault(defaults),
+          : "audio_first_reference",
       aiRecommendListenModel:
         listenSelectNode instanceof HTMLSelectElement
           ? normalizeDataBakerListenModel(
@@ -2430,7 +2411,7 @@
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
     return normalizeAishellTechRecognitionStrategy(
       defaults.recognitionStrategy || defaults.aiRecommendRecognitionStrategy || defaults.pipelineMode,
-      "mandarin_to_dialect"
+      "audio_first_reference"
     );
   }
 
@@ -2578,25 +2559,12 @@
     if (listenHelpNode instanceof HTMLElement) {
       listenHelpNode.textContent =
         currentListenModel === "fun-asr"
-          ? currentRecognitionStrategy === "mandarin_to_dialect"
-            ? "Fun-ASR 先把闽南语音频听成普通话文本，再由转换模型结合预测闽南语文本和字词表输出最终推荐。"
-            : currentRecognitionStrategy === "audio_first_reference"
-              ? "Fun-ASR 先按实际发音输出 heardText；比较/参考模型只把页面文本和字词表当参考，不再强制整句转成闽南语。"
-              : "Fun-ASR 先直接识别闽南语文本，再由比较模型结合预测文本输出最终推荐。"
-          : currentRecognitionStrategy === "mandarin_to_dialect"
-            ? "Omni 听音阶段先输出普通话文本，再由转换模型结合预测闽南语文本生成最终推荐。"
-            : currentRecognitionStrategy === "audio_first_reference"
-              ? "Omni 听音阶段按实际发音输出 heardText；比较/参考模型只把页面文本和字词表当参考，允许普通话和闽南语混合保留。"
-              : "Omni 听音阶段直接输出闽南语文本，再由比较模型结合预测文本生成最终推荐。";
+          ? "Fun-ASR 先按实际发音输出 heardText；比较/参考模型再结合原始文本和词表候选，只检查两者差异项。"
+          : "Omni 听音阶段按实际发音输出 heardText；比较/参考模型再结合原始文本和词表候选，允许普通话和闽南语混合保留。";
     }
     const compareLabelNode = getElement("aishell-tech-ai-compare-model-label");
     if (compareLabelNode instanceof HTMLElement) {
-      compareLabelNode.textContent =
-        currentRecognitionStrategy === "mandarin_to_dialect"
-          ? "转换模型"
-          : currentRecognitionStrategy === "audio_first_reference"
-            ? "比较/参考模型"
-            : "比较模型";
+      compareLabelNode.textContent = "比较/参考模型";
     }
     const noteNode = getElement("aishell-tech-ai-listen-model-note");
     if (noteNode instanceof HTMLElement) {
@@ -2657,7 +2625,7 @@
       aishellTechRecognitionStrategyOptions,
       currentRecognitionStrategy
     );
-    setFieldVisibility("aishell-tech-ai-recognition-strategy-field", true);
+    setFieldVisibility("aishell-tech-ai-recognition-strategy-field", false);
     setFieldVisibility("aishell-tech-ai-listen-model-field", currentRecognitionMode === "two_stage");
     setFieldVisibility("aishell-tech-ai-compare-model-field", currentRecognitionMode === "two_stage");
     setFieldVisibility("aishell-tech-ai-single-model-field", currentRecognitionMode === "omni_single");
@@ -4221,7 +4189,7 @@
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
-        aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+        aiRecommendRecognitionStrategy: "audio_first_reference",
         aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
         aiQualifiedAutofillConcurrency: 5,
         aiRecommendListenModel: "qwen3.5-omni-flash",
@@ -9739,13 +9707,10 @@
         )
       : normalizeDataBakerRecognitionMode(currentConfig.aiRecommendPipelineMode, "two_stage");
     const recognitionStrategy = hasAiSettingsPanel
-      ? normalizeAishellTechRecognitionStrategy(
-          getElement("aishell-tech-ai-recognition-strategy-select")?.value,
-          currentConfig.aiRecommendRecognitionStrategy || "mandarin_to_dialect"
-        )
+      ? "audio_first_reference"
       : normalizeAishellTechRecognitionStrategy(
           currentConfig.aiRecommendRecognitionStrategy,
-          "mandarin_to_dialect"
+          "audio_first_reference"
         );
     const listenModel = hasAiSettingsPanel
       ? normalizeDataBakerListenModel(

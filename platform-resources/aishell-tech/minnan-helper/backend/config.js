@@ -156,23 +156,17 @@ function normalizeModelMode(value, fallback) {
 
 function normalizeRecognitionStrategy(value, fallback) {
   const text = String(value || "").trim().toLowerCase();
-  if (text === "direct_dialect") {
-    return "direct_dialect";
-  }
   if (text === "audio_first_reference") {
     return "audio_first_reference";
   }
-  if (text === "mandarin_to_dialect" || text === "recognition_convert") {
-    return "mandarin_to_dialect";
-  }
-  const fallbackText = String(fallback || "mandarin_to_dialect").trim().toLowerCase();
-  if (fallbackText === "direct_dialect") {
-    return "direct_dialect";
-  }
-  if (fallbackText === "audio_first_reference") {
+  if (
+    text === "mandarin_to_dialect" ||
+    text === "recognition_convert" ||
+    text === "direct_dialect"
+  ) {
     return "audio_first_reference";
   }
-  return "mandarin_to_dialect";
+  return "audio_first_reference";
 }
 
 function resolveDefaultListenModel(modelMode) {

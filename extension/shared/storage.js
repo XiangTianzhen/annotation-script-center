@@ -80,7 +80,7 @@
                   "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
                 aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
                 aiRecommendPipelineMode: "two_stage",
-                aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+                aiRecommendRecognitionStrategy: "audio_first_reference",
                 aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
                 aiQualifiedAutofillConcurrency: 5,
                 aiRecommendListenModel: "qwen3.5-omni-flash",
@@ -1799,32 +1799,8 @@
     const constants = getConstants();
     const defaultRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
       defaultConfig.aiRecommendRecognitionStrategy || defaultConfig.recognitionStrategy,
-      "mandarin_to_dialect"
+      "audio_first_reference"
     );
-    const legacyRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
-      source.aiRecommendRecognitionStrategy || source.recognitionStrategy,
-      "direct_dialect"
-    );
-    const legacyPipelineMode = normalizeDataBakerPipelineMode(
-      source.aiRecommendPipelineMode || source.recognitionMode || source.pipelineMode,
-      "two_stage"
-    );
-    const legacyListenModel = resolveDataBakerListenModel(
-      source.aiRecommendListenModel || source.listenModel,
-      legacyPipelineMode,
-      "qwen3.5-omni-flash",
-      constants
-    );
-    const legacyCompareModel = normalizeDataBakerCompareModel(
-      source.aiRecommendCompareModel || source.compareModel,
-      "qwen3.5-plus",
-      constants
-    );
-    const shouldMigrateLegacyDefaultCombo =
-      legacyPipelineMode === "two_stage" &&
-      legacyRecognitionStrategy === "direct_dialect" &&
-      legacyListenModel === "qwen3.5-omni-flash" &&
-      legacyCompareModel === "qwen3.5-flash";
 
     result.id =
       constants.AISHELL_TECH_MINNAN_SCRIPT_ID || result.id || "aishellTechMinnanAssistant";
@@ -1878,9 +1854,7 @@
     );
     result.aiRecommendPipelineMode = normalizedPipelineMode;
     result.aiRecommendRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
-      shouldMigrateLegacyDefaultCombo
-        ? "mandarin_to_dialect"
-        : result.aiRecommendRecognitionStrategy || result.recognitionStrategy,
+      result.aiRecommendRecognitionStrategy || result.recognitionStrategy,
       defaultRecognitionStrategy
     );
     result.aiRecommendAudioFirstReferenceCorrectionThreshold =
@@ -1899,9 +1873,7 @@
       constants
     );
     result.aiRecommendCompareModel = normalizeDataBakerCompareModel(
-      shouldMigrateLegacyDefaultCombo
-        ? "qwen3.5-plus"
-        : result.aiRecommendCompareModel || result.compareModel,
+      result.aiRecommendCompareModel || result.compareModel,
       defaultConfig.aiRecommendCompareModel || "qwen3.5-plus",
       constants
     );
@@ -2041,7 +2013,7 @@
               "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
             aiRecommendPipelineMode: "two_stage",
-            aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+            aiRecommendRecognitionStrategy: "audio_first_reference",
             aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
             aiQualifiedAutofillConcurrency: 5,
             aiRecommendListenModel: "qwen3.5-omni-flash",
@@ -2129,21 +2101,10 @@
 
   function normalizeAishellTechRecognitionStrategy(value, fallback) {
     const text = String(value || "").trim().toLowerCase();
-    if (
-      text === "direct_dialect" ||
-      text === "mandarin_to_dialect" ||
-      text === "audio_first_reference"
-    ) {
-      return text;
-    }
-    const fallbackText = String(fallback || "mandarin_to_dialect").trim().toLowerCase();
-    if (fallbackText === "direct_dialect") {
-      return "direct_dialect";
-    }
-    if (fallbackText === "audio_first_reference") {
+    if (text === "audio_first_reference") {
       return "audio_first_reference";
     }
-    return "mandarin_to_dialect";
+    return "audio_first_reference";
   }
 
   function normalizeAishellTechAudioFirstReferenceCorrectionThreshold(value, fallback) {
@@ -2160,11 +2121,7 @@
 
   function hasValidAishellTechRecognitionStrategy(value) {
     const text = String(value || "").trim().toLowerCase();
-    return (
-      text === "direct_dialect" ||
-      text === "mandarin_to_dialect" ||
-      text === "audio_first_reference"
-    );
+    return text === "audio_first_reference";
   }
 
   function resolveMagicDataModeAndStrategy(currentScript, legacyScript, defaultScript) {

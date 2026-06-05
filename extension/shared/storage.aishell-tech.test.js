@@ -68,7 +68,7 @@ test("Aishell storage defaults use the aligned Minnan standard", async function 
 
     assert.equal(dataBakerScript.aiQualifiedAutofillConcurrency, 5);
     assert.equal(script.aiRecommendPipelineMode, "two_stage");
-    assert.equal(script.aiRecommendRecognitionStrategy, "mandarin_to_dialect");
+    assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
     assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
     assert.equal(script.aiRecommendAudioFirstReferenceCorrectionThreshold, 0.75);
     assert.equal(script.aiQualifiedAutofillConcurrency, 5);
@@ -77,7 +77,7 @@ test("Aishell storage defaults use the aligned Minnan standard", async function 
   }
 });
 
-test("Aishell storage migrates only the legacy default combo to the aligned standard", async function () {
+test("Aishell storage upgrades legacy strategy values to audio-first", async function () {
   const harness = loadStorageApi({
     platforms: {
       aishellTech: {
@@ -102,14 +102,14 @@ test("Aishell storage migrates only the legacy default combo to the aligned stan
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.aishellTech.scripts.minnanHelper;
 
-    assert.equal(script.aiRecommendRecognitionStrategy, "mandarin_to_dialect");
-    assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
+    assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
+    assert.equal(script.aiRecommendCompareModel, "qwen3.5-flash");
   } finally {
     harness.cleanup();
   }
 });
 
-test("Aishell storage keeps customized strategy/model choices untouched", async function () {
+test("Aishell storage keeps customized model choices but still normalizes strategy to audio-first", async function () {
   const harness = loadStorageApi({
     platforms: {
       aishellTech: {
@@ -134,7 +134,7 @@ test("Aishell storage keeps customized strategy/model choices untouched", async 
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.aishellTech.scripts.minnanHelper;
 
-    assert.equal(script.aiRecommendRecognitionStrategy, "direct_dialect");
+    assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
     assert.equal(script.aiRecommendCompareModel, "qwen3.6-plus");
   } finally {
     harness.cleanup();
