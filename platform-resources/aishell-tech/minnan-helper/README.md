@@ -12,11 +12,12 @@
 - 接口独立为 `/api/aishell-tech/minnan-helper/ai/recommend*`。
 - Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；但 Aishell 现在维护自己的闽南语转换词表副本，可做小范围高确定性修正，不再要求与 DataBaker `byte-for-byte` 完全一致。
 - 当前默认配置已收口为独立的 `转换 / 听音 / 比较` 三板块：`转换 qwen3.5-plus + 听音 qwen3.5-omni-flash + Qwen 比较 qwen3.5-plus`。
+- `转换` 当前改为“规则优先 + 歧义时 AI 兜底”：默认直接按 `minnan-lexicon.csv` 的 `对应华语 -> 建议用字` 做最长匹配替换，只有命中多候选或切分冲突时才调用转换模型。
 - options 页当前已与 DataBaker 共用固定顺序的右侧 `AI 设置` 模块；`AI 连续填入并发数量` 已移动到该区域，默认 `5`，Omni 范围 `1~25`，Fun-ASR 范围 `1~50`。
 - 当前只保留三板块并行口径：
-  - `转换`：文本模型只负责把 `pageText` 中命中词表的内容改成闽南语写法，输出 `convertedText`。
+  - `转换`：先按词表规则做最长匹配替换；只有命中歧义词或切分冲突时，才会调用文本模型做受限兜底，输出 `convertedText`。
   - `听音`：继续按实际发音输出 `heardText`，不负责最终推荐。
-  - `比较`：必须等待前两段都完成后执行；`Qwen` 只做纯文本比较，`Omni` 会在比较阶段再次听音。
+  - `比较`：`Qwen` 只做纯文本比较；`Omni` 在听音/比较模型相同时会合并成一次终判请求，同时输出 `heardText + recommendedText`，模型不同才保留第二次听音。
   - `pageText` 与词表只作为参考，不再主导改写；音频里没有读出的词不补回。
   - options 页当前可单独配置三段模型、Prompt 和参数；比较段额外支持 `比较方式` 与 `采纳阈值`。
   - 后端仍会构建词表上下文给模型参考，但 `lexicon.rewriteMode` 固定为 `off`，不会再做后端强制词表改写。

@@ -29,6 +29,10 @@ const {
 } = require("./config");
 const { createStageError } = require("./errors");
 const { enqueueTask } = require("./queue");
+const {
+  buildRuleFirstConvertPlan,
+  composeResolvedConvertText,
+} = require("./lexicon");
 
 function normalizeText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
@@ -49,7 +53,22 @@ function isFunAsrListenModel(value) {
   return normalizeText(value).toLowerCase() === DEFAULT_FUN_ASR_MODEL;
 }
 
-function deriveParallelPipelineMode(listenModel, compareFamily) {
+function shouldMergeOmniListenCompare(listenModel, compareFamily, compareModel) {
+  if (normalizeCompareFamily(compareFamily, "qwen") !== "omni") {
+    return false;
+  }
+  if (isFunAsrListenModel(listenModel)) {
+    return false;
+  }
+  const normalizedListenModel = normalizeText(listenModel).toLowerCase();
+  const normalizedCompareModel = normalizeText(compareModel || listenModel).toLowerCase();
+  return Boolean(normalizedListenModel) && normalizedListenModel === normalizedCompareModel;
+}
+
+function deriveParallelPipelineMode(listenModel, compareFamily, compareModel) {
+  if (shouldMergeOmniListenCompare(listenModel, compareFamily, compareModel)) {
+    return "omni_merged_listen_compare";
+  }
   return normalizeCompareFamily(compareFamily, "qwen") === "omni"
     ? isFunAsrListenModel(listenModel)
       ? "fun_asr_omni_compare"
@@ -103,6 +122,30 @@ function buildLexiconCsvAttachmentText(lexiconContext) {
     );
   });
   return lines.join("\n");
+}
+
+function buildConvertPromptAmbiguousSegments(convertPlan) {
+  return Array.isArray(convertPlan?.ambiguousSegments)
+    ? convertPlan.ambiguousSegments.map(function (segment) {
+        return {
+          segmentIndex: Number(segment?.segmentIndex || 0) || 0,
+          sourceText: normalizeText(segment?.sourceText),
+          currentText: normalizeText(segment?.currentText || segment?.sourceText),
+          candidateOptions: Array.isArray(segment?.candidateOptions)
+            ? segment.candidateOptions.map(normalizeText).filter(Boolean)
+            : [],
+          matchedMandarinVariants: Array.isArray(segment?.matchedMandarinVariants)
+            ? segment.matchedMandarinVariants.map(normalizeText).filter(Boolean)
+            : [],
+          entryIds: Array.isArray(segment?.entryIds)
+            ? segment.entryIds.map(normalizeText).filter(Boolean)
+            : [],
+          start: Number(segment?.start || 0) || 0,
+          end: Number(segment?.end || 0) || 0,
+          reason: normalizeText(segment?.reason),
+        };
+      })
+    : [];
 }
 
 function buildAudioFirstReferencePayload(correctionContext, correctionThreshold) {
@@ -302,27 +345,15 @@ function createComparePrompt(request, heardText, lexiconContext, correctionConte
   );
 }
 
-function createConvertPrompt(request, lexiconContext) {
+function createConvertPrompt(request, convertPlan) {
   const promptLines = [request.aiStages?.convert?.prompt || request.aiOptions?.candidatePrompt || ""];
-  if (lexiconContext?.text) {
-    promptLines.push("词表上下文：", lexiconContext.text);
-  }
-  const structuredEntries = buildLexiconStructuredEntries(lexiconContext);
-  if (structuredEntries.length > 0) {
-    promptLines.push(
-      "词表相关词条：",
-      JSON.stringify(structuredEntries, null, 2)
-    );
-  }
-  const csvAttachmentText = buildLexiconCsvAttachmentText(lexiconContext);
-  if (csvAttachmentText) {
-    promptLines.push("词表原始CSV附件：", csvAttachmentText);
-  }
   promptLines.push(
     "输入：",
     JSON.stringify(
       {
         pageText: request.referenceText,
+        ruleConvertedText: convertPlan?.convertedText || request.referenceText,
+        ambiguousSegments: buildConvertPromptAmbiguousSegments(convertPlan),
         fileName: request.fileName,
         duration: request.duration,
         itemNumber: request.itemNumber,
@@ -337,14 +368,16 @@ function createConvertPrompt(request, lexiconContext) {
   );
 }
 
-function createOmniComparePrompt(request, heardText, lexiconContext, correctionContext) {
+function createOmniComparePrompt(request, heardText, lexiconContext, correctionContext, options) {
+  const mergedMode = options?.merged === true;
   const promptLines = [
     request.aiStages?.compare?.prompt || request.aiOptions?.comparePrompt || "",
     "输入：",
     JSON.stringify(
       {
         pageText: request.referenceText,
-        heardText,
+        convertedText: normalizeText(correctionContext?.convertedText || ""),
+        heardText: mergedMode ? undefined : heardText,
         fileName: request.fileName,
         duration: request.duration,
         itemNumber: request.itemNumber,
@@ -383,7 +416,8 @@ function createOmniSinglePrompt(request, lexiconContext, correctionContext) {
     request,
     "",
     lexiconContext,
-    correctionContext
+    correctionContext,
+    { merged: true }
   );
 }
 
@@ -424,6 +458,21 @@ function normalizeCandidateResponse(modelJson, request) {
     confidence: Number(modelJson?.confidence || 0) || 0,
     needHumanReview: modelJson?.needHumanReview === true,
   };
+}
+
+function resolveConvertedTextFromFallback(convertPlan, modelJson, normalizedConvert, request, deps) {
+  const ruleText = deps.normalizeRecommendedText(
+    convertPlan?.convertedText || request?.referenceText || ""
+  );
+  if (Array.isArray(modelJson?.resolvedSegments) && modelJson.resolvedSegments.length > 0) {
+    return deps.normalizeRecommendedText(
+      composeResolvedConvertText(convertPlan, modelJson.resolvedSegments)
+    );
+  }
+  const fallbackText = deps.normalizeRecommendedText(
+    normalizedConvert?.convertedText || modelJson?.convertedText || ruleText
+  );
+  return fallbackText || ruleText;
 }
 
 function normalizeRecommendedText(text) {
@@ -705,7 +754,7 @@ function createRecommendPipeline(overrides) {
       );
       const pipelineMode =
         normalizeText(request.pipelineMode) ||
-        deriveParallelPipelineMode(request.listenModel, compareFamily);
+        deriveParallelPipelineMode(request.listenModel, compareFamily, request.compareModel);
       const cacheKey = buildRecommendCacheKey({
         taskItemId: request.taskItemId,
         audioUrl: request.audioUrl,
@@ -730,6 +779,7 @@ function createRecommendPipeline(overrides) {
         convertDurationMs: 0,
         candidateDurationMs: 0,
         compareDurationMs: 0,
+        omniMergedDurationMs: 0,
         totalDurationMs: 0,
       };
 
@@ -761,6 +811,7 @@ function createRecommendPipeline(overrides) {
       let convertUsage = {};
       let listenUsage = {};
       let compareUsage = {};
+      let omniMergedUsage = {};
       let audioFirstReferenceMeta = null;
       const activeConvertModel =
         normalizeText(request.convertModel || request.candidateModel) ||
@@ -770,6 +821,11 @@ function createRecommendPipeline(overrides) {
         compareFamily === "omni"
           ? normalizeText(request.compareModel) || DEFAULT_OMNI_MODEL
           : normalizeText(request.compareModel);
+      const mergedOmniListenCompare = shouldMergeOmniListenCompare(
+        activeListenModel,
+        compareFamily,
+        activeCompareModel
+      );
       const lexiconRewriteMode = resolveLexiconRewriteMode(request.recognitionStrategy);
       let lexicon = {
         enabled: false,
@@ -785,11 +841,46 @@ function createRecommendPipeline(overrides) {
         limit: 60,
       });
       let conversionContext = null;
+      const execution = {
+        mergedStages: mergedOmniListenCompare ? ["listen", "compare"] : [],
+      };
+
+      const correctionThreshold =
+        request.aiStages?.compare?.adoptionThreshold ??
+        request.aiOptions?.audioFirstReferenceCorrectionThreshold;
+      const convertPlan = buildRuleFirstConvertPlan(request.referenceText);
+      const buildConversionContext = function (nextConvertedText, nextHeardText, convertStageResult) {
+        const context = {
+          enabled: Boolean(nextConvertedText),
+          convertedText: nextConvertedText,
+          lexiconCandidateText: nextConvertedText,
+          convertPairs: deps.buildConvertPairs(request.referenceText, nextConvertedText),
+          candidatePairs: deps.buildConvertPairs(request.referenceText, nextConvertedText),
+          convertDiffCount: 0,
+          candidateDiffCount: 0,
+          differenceSegments: deps.buildHeardConvertDifferenceSegments(nextHeardText, nextConvertedText),
+          confidence: normalizeCorrectionConfidence(convertStageResult?.confidence),
+          needHumanReview: convertStageResult?.needHumanReview === true,
+        };
+        context.convertDiffCount = context.differenceSegments.length;
+        context.candidateDiffCount = context.differenceSegments.length;
+        return context;
+      };
 
       const runConvertStage = async function () {
         ensureNotAborted(signal, requestId, queueMetas, timing, request, "convert");
-        const convertPrompt = deps.buildConvertPrompt(request, lexiconContext);
         const convertStartedAt = deps.now();
+        if (!convertPlan.requiresModelFallback) {
+          timing.convertDurationMs = Math.max(0, deps.now() - convertStartedAt);
+          timing.candidateDurationMs = timing.convertDurationMs;
+          return {
+            convertedText: deps.normalizeRecommendedText(convertPlan.convertedText || request.referenceText),
+            confidence: 1,
+            needHumanReview: false,
+            usage: {},
+          };
+        }
+        const convertPrompt = deps.buildConvertPrompt(request, convertPlan);
         const convertResult = await runQueuedTask("aishell_text_compare", "convert", function () {
           return deps.requestCompare(providerInput, convertPrompt, request.referenceText, Object.assign(
             {},
@@ -813,8 +904,12 @@ function createRecommendPipeline(overrides) {
         });
         const normalizedConvert = deps.normalizeConvertResponse(convertJson, request);
         return {
-          convertedText: deps.normalizeRecommendedText(
-            normalizedConvert.convertedText || request.referenceText
+          convertedText: resolveConvertedTextFromFallback(
+            convertPlan,
+            convertJson,
+            normalizedConvert,
+            request,
+            deps
           ),
           confidence: normalizedConvert.confidence,
           needHumanReview: normalizedConvert.needHumanReview === true,
@@ -881,146 +976,222 @@ function createRecommendPipeline(overrides) {
         };
       };
 
-      const stageResults = await Promise.all([runConvertStage(), runListenStage()]);
-      const convertStageResult = stageResults[0] || {};
-      const listenStageResult = stageResults[1] || {};
-      convertedText = normalizeText(convertStageResult.convertedText || request.referenceText);
-      heardText = normalizeText(listenStageResult.heardText);
-      listenConfidence = Number(listenStageResult.confidence || 0) || 0;
-      convertUsage = convertStageResult.usage || {};
-      listenUsage = listenStageResult.usage || {};
-
-      lexiconContext = deps.buildLexiconContext({
-        pageText: request.referenceText,
-        heardText,
-        limit: 60,
-      });
-      conversionContext = {
-        enabled: Boolean(convertedText),
-        convertedText,
-        lexiconCandidateText: convertedText,
-        convertPairs: deps.buildConvertPairs(request.referenceText, convertedText),
-        candidatePairs: deps.buildConvertPairs(request.referenceText, convertedText),
-        convertDiffCount: 0,
-        candidateDiffCount: 0,
-        differenceSegments: deps.buildHeardConvertDifferenceSegments(heardText, convertedText),
-        confidence: normalizeCorrectionConfidence(convertStageResult.confidence),
-        needHumanReview: convertStageResult.needHumanReview === true,
-      };
-      conversionContext.convertDiffCount = conversionContext.differenceSegments.length;
-      conversionContext.candidateDiffCount = conversionContext.differenceSegments.length;
-
-      ensureNotAborted(signal, requestId, queueMetas, timing, request, "compare");
-      let resolvedCompare = null;
-      if (compareFamily === "omni") {
-        const omniComparePrompt = deps.buildOmniComparePrompt(
+      const runMergedOmniListenCompareStage = async function () {
+        ensureNotAborted(signal, requestId, queueMetas, timing, request, "listen_compare_merged");
+        const mergedPrompt = deps.buildOmniSinglePrompt(
           request,
-          heardText,
           lexiconContext,
           conversionContext
         );
-        const compareStartedAt = deps.now();
-        const omniCompareResult = await runQueuedTask("aishell_qwen_omni", "compare", function () {
-          return deps.requestOmniInputAudio(providerInput, omniComparePrompt, Object.assign(
-            {},
-            request.aiStages?.compare?.params || {},
-            {
-              model: activeCompareModel || DEFAULT_OMNI_MODEL,
-              timeoutMs: getRemainingTimeoutMs(startedAtMs, timeoutMs),
-              enableThinking: false,
-              signal,
-            }
-          ));
-        }, {
-          modelName: activeCompareModel || DEFAULT_OMNI_MODEL,
-        });
-        timing.compareDurationMs = Math.max(0, deps.now() - compareStartedAt);
-        const compareJson = deps.parseModelJsonText(omniCompareResult.rawText, {
+        const mergedStartedAt = deps.now();
+        const mergedResult = await runQueuedTask(
+          "aishell_qwen_omni",
+          "listen_compare_merged",
+          function () {
+            return deps.requestOmniInputAudio(providerInput, mergedPrompt, Object.assign(
+              {},
+              request.aiStages?.compare?.params || {},
+              {
+                model: activeCompareModel || DEFAULT_OMNI_MODEL,
+                timeoutMs: getRemainingTimeoutMs(startedAtMs, timeoutMs),
+                enableThinking: false,
+                signal,
+              }
+            ));
+          },
+          {
+            modelName: activeCompareModel || DEFAULT_OMNI_MODEL,
+          }
+        );
+        timing.omniMergedDurationMs = Math.max(0, deps.now() - mergedStartedAt);
+        const mergedJson = deps.parseModelJsonText(mergedResult.rawText, {
           requestId,
-          stage: "omni_compare",
-          model: omniCompareResult.model,
+          stage: "listen_compare_merged",
+          model: mergedResult.model,
         });
-        const normalizedCompare = deps.normalizeOmniSingleResponse(compareJson, {
+        const normalizedMerged = deps.normalizeOmniSingleResponse(mergedJson, {
           pageText: request.referenceText,
         });
+        return {
+          heardText: normalizeText(normalizedMerged.heardText),
+          confidence: Number(normalizedMerged.confidence || 0) || 0,
+          needHumanReview: normalizedMerged.needHumanReview === true,
+          usage: deps.normalizeUsage(mergedResult.usage || {}),
+          compareJson: mergedJson,
+          normalizedCompare: normalizedMerged,
+        };
+      };
+
+      let convertStageResult = null;
+      let listenStageResult = null;
+      let resolvedCompare = null;
+      if (mergedOmniListenCompare) {
+        convertStageResult = await runConvertStage();
+        convertedText = normalizeText(convertStageResult.convertedText || request.referenceText);
+        convertUsage = convertStageResult.usage || {};
+        conversionContext = buildConversionContext(convertedText, "", convertStageResult);
+        const mergedLexiconContext = deps.buildLexiconContext({
+          pageText: request.referenceText,
+          heardText: "",
+          limit: 60,
+        });
+        lexiconContext = mergedLexiconContext;
+        const mergedStageResult = await runMergedOmniListenCompareStage();
+        heardText = normalizeText(mergedStageResult.heardText);
+        listenConfidence = Number(mergedStageResult.confidence || 0) || 0;
+        omniMergedUsage = mergedStageResult.usage || {};
+        conversionContext = buildConversionContext(convertedText, heardText, convertStageResult);
+        lexiconContext = deps.buildLexiconContext({
+          pageText: request.referenceText,
+          heardText,
+          limit: 60,
+        });
         audioFirstReferenceMeta = buildAudioFirstReferenceMeta(
-          compareJson,
+          mergedStageResult.compareJson,
           conversionContext,
-          request.aiStages?.compare?.adoptionThreshold ??
-            request.aiOptions?.audioFirstReferenceCorrectionThreshold
+          correctionThreshold
         );
         resolvedCompare = isAudioFirstReferenceStrategy(request)
           ? resolveAudioFirstReferenceCompareResult({
-              normalizedCompare,
+              normalizedCompare: mergedStageResult.normalizedCompare,
               heardText,
               meta: audioFirstReferenceMeta,
             })
-          : normalizedCompare;
-        decision = normalizeText(normalizedCompare.decision);
-        changePoints = Array.isArray(normalizedCompare.changePoints)
-          ? normalizedCompare.changePoints
+          : mergedStageResult.normalizedCompare;
+        decision = normalizeText(mergedStageResult.normalizedCompare.decision);
+        changePoints = Array.isArray(mergedStageResult.normalizedCompare.changePoints)
+          ? mergedStageResult.normalizedCompare.changePoints
           : [];
-        compareConfidence = Number(normalizedCompare.confidence || 0) || 0;
-        compareUsage = deps.normalizeUsage(omniCompareResult.usage || {});
+        compareConfidence = Number(mergedStageResult.normalizedCompare.confidence || 0) || 0;
         needHumanReview =
           resolvedCompare.needHumanReview === true ||
-          listenStageResult.needHumanReview === true ||
           convertStageResult.needHumanReview === true;
       } else {
-        const comparePrompt = deps.buildComparePrompt(
-          request,
-          heardText,
-          lexiconContext,
-          conversionContext
-        );
-        const compareStartedAt = deps.now();
-        const compareResult = await runQueuedTask("aishell_text_compare", "compare", function () {
-          return deps.requestCompare(providerInput, comparePrompt, heardText, Object.assign(
-            {},
-            request.aiStages?.compare?.params || {},
-            {
-              model: activeCompareModel,
-              timeoutMs: getRemainingTimeoutMs(startedAtMs, timeoutMs),
-              enableThinking: false,
-              signal,
-            }
-          ));
-        }, {
-          modelName: activeCompareModel,
-        });
-        timing.compareDurationMs = Math.max(0, deps.now() - compareStartedAt);
-        const compareJson = deps.parseModelJsonText(compareResult.rawText, {
-          requestId,
-          stage: "compare",
-          model: compareResult.model,
-        });
-        const normalizedCompare = deps.normalizeCompareResponse(compareJson, {
+        const stageResults = await Promise.all([runConvertStage(), runListenStage()]);
+        convertStageResult = stageResults[0] || {};
+        listenStageResult = stageResults[1] || {};
+        convertedText = normalizeText(convertStageResult.convertedText || request.referenceText);
+        heardText = normalizeText(listenStageResult.heardText);
+        listenConfidence = Number(listenStageResult.confidence || 0) || 0;
+        convertUsage = convertStageResult.usage || {};
+        listenUsage = listenStageResult.usage || {};
+
+        lexiconContext = deps.buildLexiconContext({
           pageText: request.referenceText,
           heardText,
+          limit: 60,
         });
-        audioFirstReferenceMeta = buildAudioFirstReferenceMeta(
-          compareJson,
-          conversionContext,
-          request.aiStages?.compare?.adoptionThreshold ??
-            request.aiOptions?.audioFirstReferenceCorrectionThreshold
-        );
-        resolvedCompare = isAudioFirstReferenceStrategy(request)
-          ? resolveAudioFirstReferenceCompareResult({
-              normalizedCompare,
-              heardText,
-              meta: audioFirstReferenceMeta,
-            })
-          : normalizedCompare;
-        decision = normalizeText(normalizedCompare.decision);
-        changePoints = Array.isArray(normalizedCompare.changePoints)
-          ? normalizedCompare.changePoints
-          : [];
-        compareConfidence = Number(normalizedCompare.confidence || 0) || 0;
-        compareUsage = deps.normalizeUsage(compareResult.usage || {});
-        needHumanReview =
-          resolvedCompare.needHumanReview === true ||
-          listenStageResult.needHumanReview === true ||
-          convertStageResult.needHumanReview === true;
+        conversionContext = buildConversionContext(convertedText, heardText, convertStageResult);
+
+        ensureNotAborted(signal, requestId, queueMetas, timing, request, "compare");
+        if (compareFamily === "omni") {
+          const omniComparePrompt = deps.buildOmniComparePrompt(
+            request,
+            heardText,
+            lexiconContext,
+            conversionContext
+          );
+          const compareStartedAt = deps.now();
+          const omniCompareResult = await runQueuedTask("aishell_qwen_omni", "compare", function () {
+            return deps.requestOmniInputAudio(providerInput, omniComparePrompt, Object.assign(
+              {},
+              request.aiStages?.compare?.params || {},
+              {
+                model: activeCompareModel || DEFAULT_OMNI_MODEL,
+                timeoutMs: getRemainingTimeoutMs(startedAtMs, timeoutMs),
+                enableThinking: false,
+                signal,
+              }
+            ));
+          }, {
+            modelName: activeCompareModel || DEFAULT_OMNI_MODEL,
+          });
+          timing.compareDurationMs = Math.max(0, deps.now() - compareStartedAt);
+          const compareJson = deps.parseModelJsonText(omniCompareResult.rawText, {
+            requestId,
+            stage: "omni_compare",
+            model: omniCompareResult.model,
+          });
+          const normalizedCompare = deps.normalizeOmniSingleResponse(compareJson, {
+            pageText: request.referenceText,
+          });
+          audioFirstReferenceMeta = buildAudioFirstReferenceMeta(
+            compareJson,
+            conversionContext,
+            correctionThreshold
+          );
+          resolvedCompare = isAudioFirstReferenceStrategy(request)
+            ? resolveAudioFirstReferenceCompareResult({
+                normalizedCompare,
+                heardText,
+                meta: audioFirstReferenceMeta,
+              })
+            : normalizedCompare;
+          decision = normalizeText(normalizedCompare.decision);
+          changePoints = Array.isArray(normalizedCompare.changePoints)
+            ? normalizedCompare.changePoints
+            : [];
+          compareConfidence = Number(normalizedCompare.confidence || 0) || 0;
+          compareUsage = deps.normalizeUsage(omniCompareResult.usage || {});
+          needHumanReview =
+            resolvedCompare.needHumanReview === true ||
+            listenStageResult.needHumanReview === true ||
+            convertStageResult.needHumanReview === true;
+        } else {
+          const comparePrompt = deps.buildComparePrompt(
+            request,
+            heardText,
+            lexiconContext,
+            conversionContext
+          );
+          const compareStartedAt = deps.now();
+          const compareResult = await runQueuedTask("aishell_text_compare", "compare", function () {
+            return deps.requestCompare(providerInput, comparePrompt, heardText, Object.assign(
+              {},
+              request.aiStages?.compare?.params || {},
+              {
+                model: activeCompareModel,
+                timeoutMs: getRemainingTimeoutMs(startedAtMs, timeoutMs),
+                enableThinking: false,
+                signal,
+              }
+            ));
+          }, {
+            modelName: activeCompareModel,
+          });
+          timing.compareDurationMs = Math.max(0, deps.now() - compareStartedAt);
+          const compareJson = deps.parseModelJsonText(compareResult.rawText, {
+            requestId,
+            stage: "compare",
+            model: compareResult.model,
+          });
+          const normalizedCompare = deps.normalizeCompareResponse(compareJson, {
+            pageText: request.referenceText,
+            heardText,
+          });
+          audioFirstReferenceMeta = buildAudioFirstReferenceMeta(
+            compareJson,
+            conversionContext,
+            correctionThreshold
+          );
+          resolvedCompare = isAudioFirstReferenceStrategy(request)
+            ? resolveAudioFirstReferenceCompareResult({
+                normalizedCompare,
+                heardText,
+                meta: audioFirstReferenceMeta,
+              })
+            : normalizedCompare;
+          decision = normalizeText(normalizedCompare.decision);
+          changePoints = Array.isArray(normalizedCompare.changePoints)
+            ? normalizedCompare.changePoints
+            : [];
+          compareConfidence = Number(normalizedCompare.confidence || 0) || 0;
+          compareUsage = deps.normalizeUsage(compareResult.usage || {});
+          needHumanReview =
+            resolvedCompare.needHumanReview === true ||
+            listenStageResult.needHumanReview === true ||
+            convertStageResult.needHumanReview === true;
+        }
       }
 
       const rewriteState = deps.applyLexiconRewrite(
@@ -1075,24 +1246,29 @@ function createRecommendPipeline(overrides) {
             singleModel: compareFamily === "omni" ? activeCompareModel : "",
             funAsrProvider: isFunAsrListenModel(activeListenModel) ? "rest" : "",
           },
+          execution: Object.assign({}, execution),
           timing: Object.assign({}, timing),
           usage: {
             promptTokens:
               Number(convertUsage.promptTokens || 0) +
               Number(listenUsage.promptTokens || 0) +
-              Number(compareUsage.promptTokens || 0),
+              Number(compareUsage.promptTokens || 0) +
+              Number(omniMergedUsage.promptTokens || 0),
             completionTokens:
               Number(convertUsage.completionTokens || 0) +
               Number(listenUsage.completionTokens || 0) +
-              Number(compareUsage.completionTokens || 0),
+              Number(compareUsage.completionTokens || 0) +
+              Number(omniMergedUsage.completionTokens || 0),
             totalTokens:
               Number(convertUsage.totalTokens || 0) +
               Number(listenUsage.totalTokens || 0) +
-              Number(compareUsage.totalTokens || 0),
+              Number(compareUsage.totalTokens || 0) +
+              Number(omniMergedUsage.totalTokens || 0),
             convert: convertUsage,
             candidate: convertUsage,
             listen: listenUsage,
             compare: compareUsage,
+            omniMerged: omniMergedUsage,
           },
           queue: buildQueueMeta(queueMetas),
           cache: {

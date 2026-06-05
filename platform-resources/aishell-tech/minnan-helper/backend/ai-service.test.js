@@ -171,24 +171,60 @@ test("Aishell normalizeRecommendRequest maps aiStages into standalone stage conf
   assert.equal(request.aiStages?.compare?.adoptionThreshold, 0.812);
 });
 
-test("Aishell convert/qwen/omni prompts are split and convert prompt enforces strict replacement", function () {
-  const defaults = createDefaultsPayload().defaults || {};
+test("Aishell normalizeRecommendRequest derives merged omni pipeline mode for matching listen/compare models", function () {
+  const request = normalizeRecommendRequest({
+    taskId: "task-merged",
+    packageId: "package-merged",
+    taskItemId: "item-merged",
+    fileName: "merged.wav",
+    audioUrl: "https://example.com/audio-merged.wav",
+    referenceText: "老板沿导航前进即可。",
+    aiStages: {
+      convert: {
+        model: "qwen3.5-plus",
+        prompt: "convert prompt",
+        params: {},
+      },
+      listen: {
+        model: "qwen3.5-omni-flash",
+        prompt: "listen prompt",
+        params: {},
+      },
+      compare: {
+        family: "omni",
+        model: "qwen3.5-omni-flash",
+        prompt: "omni compare prompt",
+        params: {},
+        adoptionThreshold: 0.75,
+      },
+    },
+  });
 
-  assert.match(defaults.stages?.convert?.prompt || "", /保留 pageText 原文/);
-  assert.match(defaults.stages?.convert?.prompt || "", /不要强行转换/);
-  assert.match(defaults.stages?.convert?.prompt || "", /convertedText/);
-  assert.match(defaults.stages?.compare?.qwenPrompt || "", /convertedText/);
-  assert.match(defaults.stages?.compare?.qwenPrompt || "", /convertPairs/);
-  assert.match(defaults.stages?.compare?.omniPrompt || "", /再次听音频/);
+  assert.equal(request.listenModel, "qwen3.5-omni-flash");
+  assert.equal(request.compareFamily, "omni");
+  assert.equal(request.compareModel, "qwen3.5-omni-flash");
+  assert.equal(request.pipelineMode, "omni_merged_listen_compare");
 });
 
-test("Aishell pipeline runs convert and listen in parallel before qwen compare", async function () {
+test("Aishell convert/qwen/omni prompts reflect ambiguity fallback and merged omni semantics", function () {
+  const defaults = createDefaultsPayload().defaults || {};
+
+  assert.match(defaults.stages?.convert?.prompt || "", /只能在冲突片段内做选择/);
+  assert.match(defaults.stages?.convert?.prompt || "", /resolvedSegments/);
+  assert.doesNotMatch(defaults.stages?.convert?.prompt || "", /词表原始CSV附件|词表原始 CSV 文本块附件/);
+  assert.match(defaults.stages?.compare?.qwenPrompt || "", /convertedText/);
+  assert.match(defaults.stages?.compare?.qwenPrompt || "", /convertPairs/);
+  assert.match(defaults.stages?.compare?.omniPrompt || "", /先按实际发音生成 heardText/);
+  assert.match(defaults.stages?.compare?.omniPrompt || "", /不要拆成两轮推理/);
+});
+
+test("Aishell pipeline keeps convert rule-based when unambiguous and waits for listen before qwen compare", async function () {
   let currentNow = 1000;
   let qwenCallCount = 0;
   let compareStarted = false;
-  const convertDeferred = createDeferred();
   const listenDeferred = createDeferred();
   const stageOrder = [];
+  const parseStages = [];
 
   const pipeline = createRecommendPipeline({
     now: function () {
@@ -214,9 +250,6 @@ test("Aishell pipeline runs convert and listen in parallel before qwen compare",
     },
     requestCompare: async function (_providerInput, prompt, _comparisonText, options) {
       qwenCallCount += 1;
-      if (qwenCallCount === 1) {
-        return convertDeferred.promise;
-      }
       compareStarted = true;
       assert.match(prompt?.userPrompt || "", /convertedText/);
       return {
@@ -226,30 +259,15 @@ test("Aishell pipeline runs convert and listen in parallel before qwen compare",
       };
     },
     parseModelJsonText: function (_rawText, options) {
-      if (options?.stage === "convert") {
-        return {
-          convertedText: "路况良好，主要是高速甲省道，甲着导航行即可。",
-          confidence: 0.88,
-          needHumanReview: false,
-        };
-      }
+      parseStages.push(options?.stage || "");
       return {
-        recommendedText: "路况良好，主要是高速同省道，甲导航行即可。",
-        decision: "use_heard_text",
+        recommendedText: "头家沿导航前进即可。",
+        decision: "use_heard_or_converted_text",
         changePoints: [],
-        confidence: 0.86,
+        confidence: 0.96,
         needHumanReview: false,
-        correctionConfidence: 0.61,
-        candidateDecisions: [
-          {
-            sourceText: "和",
-            candidateText: "甲",
-            heardFragment: "同",
-            applyCandidate: false,
-            confidence: 0.61,
-            reason: "音频证据不足，保留听音文本。",
-          },
-        ],
+        correctionConfidence: 0.96,
+        candidateDecisions: [],
       };
     },
     normalizeCompareResponse: function (modelJson) {
@@ -257,13 +275,6 @@ test("Aishell pipeline runs convert and listen in parallel before qwen compare",
         recommendedText: modelJson.recommendedText,
         decision: modelJson.decision,
         changePoints: modelJson.changePoints,
-        confidence: modelJson.confidence,
-        needHumanReview: modelJson.needHumanReview,
-      };
-    },
-    normalizeConvertResponse: function (modelJson) {
-      return {
-        convertedText: modelJson.convertedText,
         confidence: modelJson.confidence,
         needHumanReview: modelJson.needHumanReview,
       };
@@ -283,6 +294,7 @@ test("Aishell pipeline runs convert and listen in parallel before qwen compare",
 
   const runPromise = pipeline.run(
     createBaseRequest({
+      referenceText: "老板沿导航前进即可。",
       listenModel: "fun-asr",
       compareFamily: "qwen",
       compareModel: "qwen3.5-plus",
@@ -299,16 +311,8 @@ test("Aishell pipeline runs convert and listen in parallel before qwen compare",
   await Promise.resolve();
   assert.equal(compareStarted, false);
 
-  convertDeferred.resolve({
-    rawText: "{}",
-    model: "qwen3.5-plus",
-    usage: {},
-  });
-  await Promise.resolve();
-  assert.equal(compareStarted, false);
-
   listenDeferred.resolve({
-    heardText: "路况良好，主要是高速同省道，甲导航行即可。",
+    heardText: "头家沿导航前进即可。",
     confidence: 0.93,
     usage: {},
   });
@@ -316,23 +320,23 @@ test("Aishell pipeline runs convert and listen in parallel before qwen compare",
   const result = await runPromise;
 
   assert.equal(compareStarted, true);
-  assert.equal(result.data?.convertedText, "路况良好，主要是高速甲省道，甲着导航行即可。");
-  assert.equal(result.data?.recommendedText, "路况良好，主要是高速同省道，甲导航行即可。");
-  assert.equal(result.data?.needHumanReview, true);
+  assert.equal(result.data?.convertedText, "头家沿导航前进即可。");
+  assert.equal(result.data?.recommendedText, "头家沿导航前进即可。");
+  assert.equal(result.data?.needHumanReview, false);
   assert.equal(result.meta?.models?.convertModel, "qwen3.5-plus");
   assert.equal(result.meta?.models?.listenModel, "fun-asr");
   assert.equal(result.meta?.models?.compareModelFamily, "qwen");
   assert.equal(result.meta?.models?.compareModel, "qwen3.5-plus");
   assert.equal(typeof result.meta?.timing?.convertDurationMs, "number");
-  assert.deepEqual(Object.keys(result.meta?.usage || {}).includes("convert"), true);
-  assert.equal(qwenCallCount, 2);
-  assert.deepEqual(stageOrder.slice(0, 2), ["aishell_text_compare", "aishell_fun_asr"]);
+  assert.equal(Number(result.meta?.usage?.convert?.totalTokens || 0), 0);
+  assert.equal(qwenCallCount, 1);
+  assert.deepEqual(stageOrder, ["aishell_fun_asr", "aishell_text_compare"]);
+  assert.deepEqual(parseStages, ["compare"]);
 });
 
-test("Aishell omni compare re-reads audio after the standalone listen stage", async function () {
+test("Aishell convert stage only calls AI for ambiguous segments", async function () {
   let currentNow = 2000;
   let qwenCallCount = 0;
-  let omniCallCount = 0;
   const parseStages = [];
   const prompts = [];
 
@@ -354,6 +358,13 @@ test("Aishell omni compare re-reads audio after the standalone listen stage", as
         },
       };
     },
+    requestFunAsrRecognition: async function () {
+      return {
+        heardText: "即阵会使出发。",
+        confidence: 0.91,
+        usage: {},
+      };
+    },
     requestCompare: async function (_providerInput, prompt, _comparisonText, options) {
       qwenCallCount += 1;
       prompts.push(prompt);
@@ -363,49 +374,42 @@ test("Aishell omni compare re-reads audio after the standalone listen stage", as
         usage: {},
       };
     },
-    requestOmniInputAudio: async function (_providerInput, prompt, options) {
-      omniCallCount += 1;
-      prompts.push(prompt);
-      return {
-        rawText: "{}",
-        model: String(options?.model || "qwen3.5-omni-flash"),
-        usage: {},
-      };
-    },
     parseModelJsonText: function (_rawText, options) {
       parseStages.push(options?.stage || "");
       if (options?.stage === "convert") {
         return {
-          convertedText: "路况良好，主要是高速甲省道，甲着导航行即可。",
-          confidence: 0.9,
-          needHumanReview: false,
-        };
-      }
-      if (options?.stage === "listen") {
-        return {
-          heardText: "路况良好，主要是高速佮省道，缀着导航行即可。",
-          confidence: 0.91,
+          resolvedSegments: [
+            {
+              segmentIndex: 0,
+              selectedText: "即阵",
+            },
+            {
+              segmentIndex: 1,
+              selectedText: "会使",
+            },
+          ],
+          convertedText: "即阵会使出发。",
+          confidence: 0.82,
           needHumanReview: false,
         };
       }
       return {
-        heardText: "路况良好，主要是高速佮省道，缀着导航行即可。",
-        recommendedText: "路况良好，主要是高速甲省道，缀着导航行即可。",
-        decision: "use_mixed_segments",
-        changePoints: ["第一个差异项采用转换文本，第二个差异项保留听音文本。"],
-        confidence: 0.93,
+        recommendedText: "即阵会使出发。",
+        decision: "use_converted_text",
+        changePoints: [],
+        confidence: 0.9,
         needHumanReview: false,
-        correctionConfidence: 0.93,
-        candidateDecisions: [
-          {
-            sourceText: "和",
-            candidateText: "甲",
-            heardFragment: "佮",
-            applyCandidate: true,
-            confidence: 0.93,
-            reason: "发音接近，采用转换文本。",
-          },
-        ],
+        correctionConfidence: 0.9,
+        candidateDecisions: [],
+      };
+    },
+    normalizeCompareResponse: function (modelJson) {
+      return {
+        recommendedText: modelJson.recommendedText,
+        decision: modelJson.decision,
+        changePoints: modelJson.changePoints,
+        confidence: modelJson.confidence,
+        needHumanReview: modelJson.needHumanReview,
       };
     },
     applyLexiconRewrite: function (text, options) {
@@ -423,26 +427,218 @@ test("Aishell omni compare re-reads audio after the standalone listen stage", as
 
   const result = await pipeline.run(
     createBaseRequest({
-      listenModel: "qwen3.5-omni-flash",
-      compareFamily: "omni",
-      compareModel: "qwen3.5-omni-flash",
-      pipelineMode: "omni_omni_compare",
+      referenceText: "现在可以出发。",
+      listenModel: "fun-asr",
+      compareFamily: "qwen",
+      compareModel: "qwen3.5-plus",
+      pipelineMode: "fun_asr_text_compare",
     }),
     {
-      requestId: "req-omni-compare",
+      requestId: "req-convert-ambiguous",
       startedAtMs: 2000,
       timeoutMs: 60000,
     }
   );
 
-  assert.equal(qwenCallCount, 1);
+  assert.equal(qwenCallCount, 2);
+  assert.match(prompts[0]?.userPrompt || "", /ambiguousSegments/);
+  assert.match(prompts[0]?.userPrompt || "", /candidateOptions/);
+  assert.doesNotMatch(prompts[0]?.userPrompt || "", /词表原始CSV附件|词表原始 CSV 文本块附件/);
+  assert.equal(result.data?.convertedText, "即阵会使出发。");
+  assert.equal(result.data?.recommendedText, "即阵会使出发。");
+  assert.deepEqual(parseStages, ["convert", "compare"]);
+});
+
+test("Aishell merges listen and compare into one omni request when models match", async function () {
+  let currentNow = 3000;
+  let qwenCallCount = 0;
+  let omniCallCount = 0;
+  const parseStages = [];
+  const prompts = [];
+  const stageOrder = [];
+
+  const pipeline = createRecommendPipeline({
+    now: function () {
+      currentNow += 7;
+      return currentNow;
+    },
+    enqueueTask: async function (groupName, task) {
+      stageOrder.push(groupName);
+      return {
+        value: await task(),
+        queueMeta: {
+          groupName,
+          queueWaitMs: 0,
+          retryCount: 0,
+          durationMs: 0,
+          activeCount: 1,
+          maxConcurrent: 4,
+        },
+      };
+    },
+    requestCompare: async function () {
+      qwenCallCount += 1;
+      return {
+        rawText: "{}",
+        model: "qwen3.5-plus",
+        usage: {},
+      };
+    },
+    requestOmniInputAudio: async function (_providerInput, prompt, options) {
+      omniCallCount += 1;
+      prompts.push(prompt);
+      return {
+        rawText: "{}",
+        model: String(options?.model || "qwen3.5-omni-flash"),
+        usage: {
+          promptTokens: 12,
+          completionTokens: 6,
+          totalTokens: 18,
+        },
+      };
+    },
+    parseModelJsonText: function (_rawText, options) {
+      parseStages.push(options?.stage || "");
+      return {
+        heardText: "头家沿导航前进即可。",
+        recommendedText: "头家沿导航前进即可。",
+        decision: "use_heard_text",
+        changePoints: [],
+        confidence: 0.94,
+        needHumanReview: false,
+        correctionConfidence: 0.94,
+        candidateDecisions: [],
+      };
+    },
+    applyLexiconRewrite: function (text, options) {
+      assert.equal(options?.mode, "off");
+      return {
+        text,
+        changed: false,
+        changes: [],
+      };
+    },
+    normalizeUsage: function (value) {
+      return value && typeof value === "object" ? value : {};
+    },
+  });
+
+  const result = await pipeline.run(
+    createBaseRequest({
+      referenceText: "老板沿导航前进即可。",
+      listenModel: "qwen3.5-omni-flash",
+      compareFamily: "omni",
+      compareModel: "qwen3.5-omni-flash",
+      pipelineMode: "omni_merged_listen_compare",
+    }),
+    {
+      requestId: "req-omni-merged",
+      startedAtMs: 3000,
+      timeoutMs: 60000,
+    }
+  );
+
+  assert.equal(qwenCallCount, 0);
+  assert.equal(omniCallCount, 1);
+  assert.match(prompts[0]?.userPrompt || "", /convertedText/);
+  assert.equal(result.data?.convertedText, "头家沿导航前进即可。");
+  assert.equal(result.data?.heardText, "头家沿导航前进即可。");
+  assert.equal(result.data?.recommendedText, "头家沿导航前进即可。");
+  assert.equal(result.meta?.models?.pipelineMode, "omni_merged_listen_compare");
+  assert.deepEqual(result.meta?.execution?.mergedStages, ["listen", "compare"]);
+  assert.equal(typeof result.meta?.timing?.omniMergedDurationMs, "number");
+  assert.equal(Number(result.meta?.usage?.omniMerged?.totalTokens || 0), 18);
+  assert.deepEqual(stageOrder, ["aishell_qwen_omni"]);
+  assert.deepEqual(parseStages, ["listen_compare_merged"]);
+});
+
+test("Aishell still keeps standalone listen plus omni compare when models differ", async function () {
+  let qwenCallCount = 0;
+  let omniCallCount = 0;
+  const parseStages = [];
+
+  const pipeline = createRecommendPipeline({
+    enqueueTask: async function (groupName, task) {
+      return {
+        value: await task(),
+        queueMeta: {
+          groupName,
+          queueWaitMs: 0,
+          retryCount: 0,
+          durationMs: 0,
+          activeCount: 1,
+          maxConcurrent: 4,
+        },
+      };
+    },
+    requestCompare: async function () {
+      qwenCallCount += 1;
+      return {
+        rawText: "{}",
+        model: "qwen3.5-plus",
+        usage: {},
+      };
+    },
+    requestOmniInputAudio: async function (_providerInput, _prompt, options) {
+      omniCallCount += 1;
+      return {
+        rawText: "{}",
+        model: String(options?.model || "qwen3.5-omni-flash"),
+        usage: {},
+      };
+    },
+    parseModelJsonText: function (_rawText, options) {
+      parseStages.push(options?.stage || "");
+      if (options?.stage === "listen") {
+        return {
+          heardText: "头家沿导航前进即可。",
+          confidence: 0.93,
+          needHumanReview: false,
+        };
+      }
+      return {
+        heardText: "头家沿导航前进即可。",
+        recommendedText: "头家沿导航前进即可。",
+        decision: "use_heard_text",
+        changePoints: [],
+        confidence: 0.94,
+        needHumanReview: false,
+        correctionConfidence: 0.94,
+        candidateDecisions: [],
+      };
+    },
+    applyLexiconRewrite: function (text, options) {
+      assert.equal(options?.mode, "off");
+      return {
+        text,
+        changed: false,
+        changes: [],
+      };
+    },
+    normalizeUsage: function (value) {
+      return value && typeof value === "object" ? value : {};
+    },
+  });
+
+  const result = await pipeline.run(
+    createBaseRequest({
+      referenceText: "老板沿导航前进即可。",
+      listenModel: "qwen3.5-omni-flash",
+      compareFamily: "omni",
+      compareModel: "qwen3.5-omni-plus",
+      pipelineMode: "omni_omni_compare",
+    }),
+    {
+      requestId: "req-omni-split",
+      startedAtMs: 4000,
+      timeoutMs: 60000,
+    }
+  );
+
+  assert.equal(qwenCallCount, 0);
   assert.equal(omniCallCount, 2);
-  assert.match(prompts[2]?.userPrompt || "", /convertedText/);
-  assert.equal(result.data?.convertedText, "路况良好，主要是高速甲省道，甲着导航行即可。");
-  assert.equal(result.data?.recommendedText, "路况良好，主要是高速甲省道，缀着导航行即可。");
-  assert.equal(result.meta?.models?.compareModelFamily, "omni");
-  assert.equal(result.meta?.models?.compareModel, "qwen3.5-omni-flash");
-  assert.deepEqual(parseStages, ["convert", "listen", "omni_compare"]);
+  assert.equal(result.meta?.models?.pipelineMode, "omni_omni_compare");
+  assert.deepEqual(parseStages, ["listen", "omni_compare"]);
 });
 
 test("Aishell Minnan lexicon remains parseable and keeps key high-confidence entries", function () {

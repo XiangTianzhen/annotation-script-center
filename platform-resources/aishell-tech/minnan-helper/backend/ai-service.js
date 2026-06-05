@@ -30,8 +30,8 @@ const {
 } = require("../../../backend/ai/model-dispatcher");
 const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
 const {
-  parseLexiconCsv,
-} = require("../../../data-baker/round-one-quality/backend/ai-service");
+  getLexiconState,
+} = require("./lexicon");
 
 const SERVICE_NAME = "aishell-tech-minnan-helper-ai-recommend";
 const SCRIPT_ID = "aishellTechMinnanAssistant";
@@ -57,13 +57,14 @@ const DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE = [
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE = [
-  "你正在执行“转换”阶段：把 pageText 中命中词表的普通话词或短语改写成对应的闽南语写法。",
-  "你不负责听音，也不负责润色整句。",
-  "你会收到 pageText、词表相关词条，以及一段词表原始 CSV 文本块附件。只能依据 pageText、句子语境和词表附件做转换。",
-  "如果某个词或短语在词表附件里没有明确候选写法，就保留 pageText 原文，不要强行转换，不要自行新增词表里没有的改写。",
+  "你正在执行“转换”阶段的歧义兜底。",
+  "规则替换已经先完成；只有 ambiguousSegments 标出的冲突片段允许你做选择。",
+  "你会收到 pageText、ruleConvertedText 和 ambiguousSegments。只能在冲突片段内做选择，其余非冲突片段必须与 ruleConvertedText 完全一致。",
+  "selectedText 必须从每个冲突片段的 candidateOptions 中选择；如果没有足够把握，就保留 currentText，不要自行创造词表外写法。",
   "普通中文必须输出简体，不允许出现任何繁体字。",
   "不要输出多个备选，不要解释原因，也不要做整句风格统一。",
-  "输出 JSON 字段必须包含 convertedText、confidence、needHumanReview。",
+  "输出 JSON 字段必须包含 resolvedSegments、convertedText、confidence、needHumanReview。",
+  "resolvedSegments 中每项至少包含 segmentIndex 和 selectedText。",
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE = [
@@ -83,9 +84,10 @@ const DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE = [
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_OMNI_COMPARE_TEMPLATE = [
-  "你正在执行“比较”阶段，并且本阶段允许再次听音频。",
-  "你会收到 pageText、convertedText、heardText，以及需要重点检查的 differenceSegments。",
-  "先参考 heardText 和 convertedText，再结合当前音频做二次判断，输出最终 recommendedText。",
+  "你正在执行 Omni 终判阶段；本阶段可能同时承担听音和比较。",
+  "你会收到 pageText、convertedText，以及当前音频；有些场景还会额外收到 heardText 和 differenceSegments。",
+  "先按实际发音生成 heardText，再结合 pageText 和 convertedText 给出最终 recommendedText。",
+  "不要拆成两轮推理，必须在同一次回答里同时产出 heardText 和 recommendedText。",
   "如果某个词在音频里读的是普通话，就保留普通话简体；如果读的是闽南语，就输出对应闽南语写法；如果没有读出来，就不要补回。",
   "当 convertedText 与 heardText 发音接近、语义一致，且你对标准写法有把握时，可以采用转换文本中的写法。",
   "audioFirstReferenceCorrectionThreshold 是采纳阈值；当 correctionConfidence 低于该阈值时，应优先保留 heardText，并将 needHumanReview 设为 true。",
@@ -185,8 +187,23 @@ function isFunAsrListenModel(value) {
   return normalizeDataBakerListenModel(value, DEFAULT_OMNI_MODEL) === DEFAULT_FUN_ASR_MODEL;
 }
 
-function deriveParallelPipelineMode(listenModel, compareFamily) {
+function shouldMergeOmniListenCompare(listenModel, compareFamily, compareModel) {
+  if (normalizeCompareFamily(compareFamily, DEFAULT_COMPARE_FAMILY) !== "omni") {
+    return false;
+  }
+  if (isFunAsrListenModel(listenModel)) {
+    return false;
+  }
+  const normalizedListenModel = normalizeModelText(listenModel);
+  const normalizedCompareModel = normalizeModelText(compareModel || listenModel);
+  return Boolean(normalizedListenModel) && normalizedListenModel === normalizedCompareModel;
+}
+
+function deriveParallelPipelineMode(listenModel, compareFamily, compareModel) {
   const family = normalizeCompareFamily(compareFamily, DEFAULT_COMPARE_FAMILY);
+  if (shouldMergeOmniListenCompare(listenModel, family, compareModel)) {
+    return "omni_merged_listen_compare";
+  }
   if (family === "omni") {
     return isFunAsrListenModel(listenModel) ? "fun_asr_omni_compare" : "omni_omni_compare";
   }
@@ -391,13 +408,12 @@ function buildLexiconState() {
     };
   }
   try {
-    const text = fs.readFileSync(LEXICON_PATH, "utf8");
-    const rows = parseLexiconCsv(text);
+    const state = getLexiconState();
     return {
-      enabled: rows.length > 0,
-      status: rows.length > 0 ? "ready" : "empty",
+      enabled: Number(state?.rowCount || 0) > 0,
+      status: Number(state?.rowCount || 0) > 0 ? "ready" : "empty",
       source: path.basename(LEXICON_PATH),
-      rowCount: rows.length,
+      rowCount: Number(state?.rowCount || 0) || 0,
     };
   } catch (error) {
     return {
@@ -564,7 +580,11 @@ function normalizeRecommendRequest(body) {
       ) ?? stageDefaults.compare.adoptionThreshold,
   };
   const modelMode = "three_stage_parallel";
-  const pipelineMode = deriveParallelPipelineMode(listenStage.model, compareFamily);
+  const pipelineMode = deriveParallelPipelineMode(
+    listenStage.model,
+    compareFamily,
+    compareStage.model
+  );
 
   return {
     taskId,
@@ -628,6 +648,7 @@ function buildMeta(meta, requestId) {
     requestId: normalizeText(source.requestId || requestId),
     stage: normalizeText(source.stage || "complete"),
     models: source.models && typeof source.models === "object" ? source.models : {},
+    execution: source.execution && typeof source.execution === "object" ? source.execution : {},
     timing: source.timing && typeof source.timing === "object" ? source.timing : {},
     usage: source.usage && typeof source.usage === "object" ? source.usage : {},
     queue: source.queue && typeof source.queue === "object" ? source.queue : {},
@@ -734,7 +755,8 @@ function createDefaultsPayload() {
       enableThinking: false,
       pipelineMode: deriveParallelPipelineMode(
         stageDefaults.listen.model,
-        stageDefaults.compare.family
+        stageDefaults.compare.family,
+        stageDefaults.compare.model || stageDefaults.compare.omniModel
       ),
       stages: stageDefaults,
       listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),

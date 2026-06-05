@@ -80,6 +80,7 @@
 
 - Aishell 保持独立路由、独立脚本 ID、独立词表目录。
 - Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；其中闽南语转换词表、三板块默认模型与比较方式继续由 Aishell 自己维护，可与 DataBaker 小幅独立调整。
+- 转换阶段当前改为“规则优先 + 歧义时 AI 兜底”：默认直接按 `minnan-lexicon.csv` 的 `对应华语 -> 建议用字` 做最长匹配替换，只有命中多候选或切分冲突时才调用转换模型。
 - Aishell 的 Omni 音频调用已拆到 `platform-resources/aishell-tech/minnan-helper/backend/dashscope-omni-client.js`，直接按 DashScope compatible-mode 请求体构造并固定 `enable_thinking=false`。
 - 底层只复用公共 provider HTTP 工具，不再复用 DataBaker recommend orchestration。
 - 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
@@ -91,7 +92,7 @@
 ### 当前运行时能力
 
 - 仅在 `https://mark.aishelltech.com/mytask/mark?...` 注入业务面板。
-- 当前 AI 配置固定为独立的 `转换 / 听音 / 比较` 三板块；`转换` 与 `听音` 并行执行，`比较` 最后汇总。
+- 当前 AI 配置固定为独立的 `转换 / 听音 / 比较` 三板块；`Qwen` 比较继续走文本汇总，`Omni` 比较在听音/比较模型相同时会合并成一次终判请求，模型不同才保留第二次听音。
 - 当前条支持 AI 推荐、复制听音文本、复制推荐文本、填入当前条。
 - 批量模式只处理当前分包，从当前选中条开始，跳过已完成条目。
 - AI 请求按前端并发预取；页面填入与保存严格串行，每条都点击页面真实“保存”按钮并等待选中项切换后再继续。

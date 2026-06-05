@@ -2732,7 +2732,7 @@
     if (compareModelHelpNode instanceof HTMLElement) {
       compareModelHelpNode.textContent =
         compareFamily === "omni"
-          ? "Omni 会在比较阶段再次读取音频，并结合转换结果与听音结果输出最终判断。"
+          ? "Omni 负责终判；若听音模型相同，后端会合并成一次请求，同时产出 heardText 和最终推荐。"
           : "Qwen 只做文本比较，基于原文、转换结果和听音结果决定是否采纳。";
     }
     setFieldVisibility("aishell-tech-ai-compare-qwen-prompt-field", compareFamily === "qwen");
@@ -2756,7 +2756,7 @@
       listenHelpNode.textContent =
         currentListenModel === "fun-asr"
           ? "Fun-ASR 只负责听音转写；转换板块会并行做词表替换，比较板块最后再汇总。"
-          : "Omni 负责听音转写；比较板块是否再次听音由比较方式决定。";
+          : "Omni 负责听音转写；若比较方式也选 Omni 且模型相同，后端会自动并入比较请求。";
     }
     const noteNode = getElement("aishell-tech-ai-listen-model-note");
     if (noteNode instanceof HTMLElement) {
@@ -2765,7 +2765,7 @@
         escapeHtml(
           currentListenModel === "fun-asr"
             ? "当前为 Fun-ASR 听音链路：先并行完成转换和听音，再由比较板块做纯文本或二次听音判断。"
-            : "当前为 Omni 听音链路：听音阶段先产出 heardText；若比较方式也选 Omni，则比较阶段还会再次听音。"
+            : "当前为 Omni 听音链路：同模型时会直接合并成一次 Omni 终判；不同模型时仍保留“先听音、再 Omni 对比”。"
         ) +
         "</span>";
     }
@@ -4795,7 +4795,7 @@
       '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="aishell-tech-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
       "</div></div>",
       '<div class="asr-ai-block"><strong>转换</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>转换模型</span><select id="aishell-tech-ai-convert-model-select"></select><span class="asr-ai-help">只用于根据词表把命中词替换成闽南语写法，不做整句润色。</span></label>',
+      '<label class="asr-ai-field"><span>转换模型</span><select id="aishell-tech-ai-convert-model-select"></select><span class="asr-ai-help">默认先走词表规则替换；只有命中歧义词或切分冲突时，才会调用这里的模型兜底。</span></label>',
       '<label class="asr-ai-field"><span>转换 Prompt（可选）</span><textarea id="aishell-tech-ai-convert-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
       '</div><div class="asr-ai-grid three">' +
         buildAishellTechStageParamFieldsMarkup("convert", false) +
@@ -4808,10 +4808,10 @@
         buildAishellTechStageParamFieldsMarkup("listen", false) +
         "</div></div>",
       '<div class="asr-ai-block"><strong>比较</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>比较方式</span><select id="aishell-tech-ai-compare-family-select"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-family-help">Qwen 只做文本比较；Omni 会在比较阶段再次听音频。</span></label>',
+      '<label class="asr-ai-field"><span>比较方式</span><select id="aishell-tech-ai-compare-family-select"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-family-help">Qwen 只做文本比较；Omni 在同模型时会合并听音与比较，不同模型时保留二次听音。</span></label>',
       '<label class="asr-ai-field"><span>比较模型</span><select id="aishell-tech-ai-compare-model-select"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-model-help"></span></label>',
       '<label class="asr-ai-field" id="aishell-tech-ai-compare-qwen-prompt-field"><span>Qwen 比较 Prompt（可选）</span><textarea id="aishell-tech-ai-compare-qwen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">用于纯文本比对，不再二次听音。</span></label>',
-      '<label class="asr-ai-field" id="aishell-tech-ai-compare-omni-prompt-field"><span>Omni 比较 Prompt（可选）</span><textarea id="aishell-tech-ai-compare-omni-prompt" maxlength="8000"></textarea><span class="asr-ai-help">用于比较阶段再次听音并综合判断。</span></label>',
+      '<label class="asr-ai-field" id="aishell-tech-ai-compare-omni-prompt-field"><span>Omni 终判 Prompt（可选）</span><textarea id="aishell-tech-ai-compare-omni-prompt" maxlength="8000"></textarea><span class="asr-ai-help">同模型时会一次产出 heardText + recommendedText；不同模型时用于第二段 Omni 对比。</span></label>',
       '</div><div class="asr-ai-grid three">' +
         buildAishellTechStageParamFieldsMarkup("compare", true) +
         "</div></div>",

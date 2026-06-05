@@ -270,11 +270,17 @@ function buildCacheKeyParts(request) {
     modelMode: request.modelMode,
     recognitionStrategy: request.recognitionStrategy,
     pipelineMode: request.pipelineMode,
+    compareFamily: request.compareFamily,
+    convertModel: request.convertModel || request.candidateModel,
     listenModel: request.listenModel,
     compareModel: request.compareModel,
     singleModel: request.singleModel,
+    convertPrompt: request.aiStages?.convert?.prompt || request.aiOptions?.candidatePrompt,
     listenPrompt: request.aiOptions?.listenPrompt,
-    comparePrompt: request.aiOptions?.comparePrompt,
+    comparePrompt: request.aiStages?.compare?.prompt || request.aiOptions?.comparePrompt,
+    audioFirstReferenceCorrectionThreshold:
+      request.aiStages?.compare?.adoptionThreshold ??
+      request.aiOptions?.audioFirstReferenceCorrectionThreshold,
   };
 }
 

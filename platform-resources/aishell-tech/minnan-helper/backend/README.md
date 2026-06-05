@@ -39,11 +39,12 @@
 ## 推荐模式
 
 - 当前不再使用旧“模型方案 + 识别策略”，后端统一按三个阶段执行：
-  - `转换`：文本模型结合 `pageText`、相关词条结构化上下文和原始 CSV 文本块附件，输出 `convertedText`；未命中词表的部分保持原文。
+  - `转换`：先按 `minnan-lexicon.csv` 的 `对应华语 -> 建议用字` 做最长匹配替换；只有命中多候选或切分冲突时，才会调用文本模型做歧义兜底，输出 `convertedText`。
   - `听音`：按实际发音输出 `heardText`；可选 `Fun-ASR` 或 `Omni`，但都只负责听音本身。
-  - `比较`：必须等待转换和听音都完成后执行：
+  - `比较`：必须等待转换完成后执行最终判断：
     - `compareFamily=qwen`：复用文本队列做纯文本比较。
-    - `compareFamily=omni`：复用 Omni 队列再次听音后给出最终判断。
+    - `compareFamily=omni` 且 `listen.model === compare.model`：复用 Omni 队列，把听音和比较合并成一次终判请求，同时产出 `heardText + recommendedText`。
+    - `compareFamily=omni` 且模型不同：保留“先听音、再二次 Omni compare”。
 - `compareAdoptionThreshold` 默认 `0.75`；当 `correctionConfidence` 低于阈值时，后端会优先保留 `heardText`，并把 `needHumanReview` 置为 `true`。
 - 后处理 `lexicon.rewriteMode` 固定为 `off`，不会再做强制词表改写。
 
@@ -59,8 +60,11 @@
   - `requestId`
   - `stage`
   - `models`
+  - `execution`
   - `timing`
+    - 合并模式下额外返回 `omniMergedDurationMs`
   - `usage`
+    - 合并模式下额外返回 `omniMerged`
   - `queue`
   - `cache`
   - `debugId`
@@ -86,6 +90,7 @@
   - `stages.convert / stages.listen / stages.compare`
   - 每个阶段的默认模型、Prompt、参数与模型列表
   - 比较阶段额外返回 `family / familyOptions / qwenPrompt / omniPrompt / adoptionThreshold`
+  - `omniPrompt` 当前语义为“Omni 终判 Prompt”：同模型时用于一次性产出 `heardText + recommendedText`，不同模型时用于第二段 Omni compare
 - `health` 返回：
   - 当前三阶段默认配置
   - 当前同步超时
@@ -103,7 +108,7 @@
   - 排队等待
   - 重试次数
   - 缓存命中
-  - Aishell 当前执行链路与三阶段模型信息
+  - Aishell 当前执行链路与三阶段模型信息；命中合并模式时 `pipelineMode=omni_merged_listen_compare`
 - 统计接口：
   - `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
 - 只有完整同步返回成功并真正写出响应后，才允许写成功缓存和成功日志。

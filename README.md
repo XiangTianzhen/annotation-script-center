@@ -18,7 +18,7 @@
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 当前已全局固定关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
-- Aishell Tech 已完成独立闽南语助手三板块重构：`/mytask/mark` 当前使用 `转换 / 听音 / 比较` 三个独立 AI 板块，转换与听音并行执行，比较最后汇总；后端继续使用独立接口 `/api/aishell-tech/minnan-helper/ai/recommend*`、独立队列与 `success/data/meta` 契约。默认组合当前为 `转换 qwen3.5-plus + 听音 qwen3.5-omni-flash + Qwen 比较 qwen3.5-plus`；比较切到 Omni 时会在比较阶段再次听音。结果区当前展示 `转换文本`、`听音文本`、`推荐文本`，不再沿用旧“模型方案 + 识别策略”口径。
+- Aishell Tech 已完成独立闽南语助手三板块第二轮优化：`/mytask/mark` 当前使用 `转换 / 听音 / 比较` 三个独立 AI 板块；转换改为“规则优先 + 歧义时 AI 兜底”，默认直接按 `minnan-lexicon.csv` 的 `对应华语 -> 建议用字` 做最长匹配替换。默认组合当前为 `转换 qwen3.5-plus + 听音 qwen3.5-omni-flash + Qwen 比较 qwen3.5-plus`；若比较切到 Omni 且听音/比较模型相同，后端会把听音和比较合并成一次 Omni 终判请求，只有模型不同才保留第二次听音。结果区当前展示 `转换文本`、`听音文本`、`推荐文本`，不再沿用旧“模型方案 + 识别策略”口径。
 - DataBaker CVPC 已接入 beta 专属 `柳州话脚本`：当前只在 `/app/editor/asr/` 生效，支持当前音频画段建议、当前段 AI 推荐和实验性字段填入；前后端都固定为“建议生成 + 人工确认”，不自动保存、不自动提交、不自动切下一条，真实画段写入契约仍待补采。
 
 ## v0.4.0 开发中（Options 工作台视觉重做）

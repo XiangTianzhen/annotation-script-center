@@ -26,6 +26,25 @@
   - 页面字段稳定写入契约
   - 未检测到安全写入桥时，画段应用仍只返回提示，不直接画段
 
+## 2026-06-05（Aishell 三板块第二轮优化）
+
+- `希尔贝壳 / 闽南语助手` 当前在“三板块”基础上继续优化执行策略：
+  - `转换` 改为“规则优先 + 歧义时 AI 兜底”。
+  - `听音 + 比较` 在 `compareFamily=omni` 且 `listen.model === compare.model` 时会自动合并成一次 Omni 终判请求。
+- 词表转换当前不再把 `minnan-lexicon.csv` 原始文本块整段塞给转换模型：
+  - 后端运行时会先把 CSV 投影成结构化映射。
+  - 规则替换只按 `对应华语 -> 建议用字` 做最长匹配。
+  - 只有命中多候选或切分冲突时，才会把 `ruleConvertedText + ambiguousSegments` 发给转换模型兜底。
+- Aishell pipeline 当前已补齐合并模式元数据：
+  - `meta.models.pipelineMode=omni_merged_listen_compare`
+  - `meta.execution.mergedStages=["listen","compare"]`
+  - `meta.timing.omniMergedDurationMs`
+  - `meta.usage.omniMerged`
+- options / 诊断 / 文档同步更新：
+  - 听音卡与比较卡当前会明确提示“同模型时自动合并请求”。
+  - 转换卡当前会明确提示“模型只在词表歧义时参与兜底”。
+  - 诊断区当前会显示 `转换 + 听音比较合并 / Omni`，并优先展示合并耗时。
+
 ## 2026-06-05（Aishell 真三板块重构）
 
 - `希尔贝壳 / 闽南语助手` 已取消旧 `模型方案 + 识别策略` 口径，前后端统一改成独立的 `转换 / 听音 / 比较` 三板块：
