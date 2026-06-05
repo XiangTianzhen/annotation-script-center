@@ -1707,6 +1707,7 @@
           aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           aiRecommendPipelineMode: "two_stage",
           aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+          aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
           aiQualifiedAutofillConcurrency: 5,
           aiRecommendListenModel: "qwen3.5-omni-flash",
           aiRecommendCompareModel: "qwen3.5-plus",

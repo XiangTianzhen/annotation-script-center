@@ -81,6 +81,7 @@
                 aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
                 aiRecommendPipelineMode: "two_stage",
                 aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+                aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
                 aiQualifiedAutofillConcurrency: 5,
                 aiRecommendListenModel: "qwen3.5-omni-flash",
                 aiRecommendCompareModel: "qwen3.5-plus",
@@ -1882,6 +1883,11 @@
         : result.aiRecommendRecognitionStrategy || result.recognitionStrategy,
       defaultRecognitionStrategy
     );
+    result.aiRecommendAudioFirstReferenceCorrectionThreshold =
+      normalizeAishellTechAudioFirstReferenceCorrectionThreshold(
+        result.aiRecommendAudioFirstReferenceCorrectionThreshold,
+        defaultConfig.aiRecommendAudioFirstReferenceCorrectionThreshold || 0.75
+      );
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
       defaultConfig.aiQualifiedAutofillConcurrency || 5,
@@ -2036,6 +2042,7 @@
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
             aiRecommendPipelineMode: "two_stage",
             aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+            aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
             aiQualifiedAutofillConcurrency: 5,
             aiRecommendListenModel: "qwen3.5-omni-flash",
             aiRecommendCompareModel: "qwen3.5-plus",
@@ -2137,6 +2144,18 @@
       return "audio_first_reference";
     }
     return "mandarin_to_dialect";
+  }
+
+  function normalizeAishellTechAudioFirstReferenceCorrectionThreshold(value, fallback) {
+    const fallbackNumber = Number(fallback);
+    const normalizedFallback = Number.isFinite(fallbackNumber)
+      ? Math.max(0, Math.min(1, Number(fallbackNumber.toFixed(3))))
+      : 0.75;
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return normalizedFallback;
+    }
+    return Math.max(0, Math.min(1, Number(numericValue.toFixed(3))));
   }
 
   function hasValidAishellTechRecognitionStrategy(value) {

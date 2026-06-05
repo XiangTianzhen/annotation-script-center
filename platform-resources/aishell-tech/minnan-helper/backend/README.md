@@ -46,7 +46,12 @@
   - 比较阶段再结合页面预测文本给出推荐。
 - `two_stage + audio_first_reference`
   - 听音阶段按实际发音输出，允许普通话词与闽南语词混合存在。
-  - 比较阶段只把 `pageText` 和词表当参考；音频里没读到的词不补回。
+  - 比较阶段当前固定使用三文本对照：
+    - `pageText`
+    - `lexiconCandidateText`：先按词表把 `pageText` 生成标准闽南语候选文本
+    - `heardText`
+  - 比较模型只重点判断 `heardText` 与 `lexiconCandidateText` 的差异项；音频里没读到的词不补回。
+  - `audioFirstReferenceCorrectionThreshold` 默认 `0.75`；当 `correctionConfidence` 低于阈值时，后端会优先保留 `heardText`，并把 `needHumanReview` 置为 `true`。
   - 该策略仍会构建词表上下文给模型参考，但后处理 `lexicon.rewriteMode` 固定为 `off`，不会再做强制词表改写。
 - `omni_single`
   - 单模型一次完成听音、对比与推荐。
@@ -70,6 +75,12 @@
   - `debugId`
   - `retryCount`
   - `cancelled`
+  - `audioFirstReference`
+    - `candidateText`
+    - `candidatePairs`
+    - `correctionThreshold`
+    - `correctionConfidence`
+    - `candidateDecisions`
 - `error` 固定放：
   - `code`
   - `message`
@@ -85,10 +96,12 @@
   - `recognitionStrategyOptions`
   - 当前策略默认 `listenPrompt / comparePrompt`
   - `promptProfiles`
+  - `audioFirstReferenceCorrectionThreshold`
   - `audio_first_reference` 对应的 `promptProfiles` 会明确要求按实际发音输出，并允许普通话/闽南语混合保留
 - `health` 返回：
   - 当前默认模式
   - 当前默认策略
+  - `audioFirstReferenceCorrectionThreshold`
   - 当前同步超时
   - Aishell 独立队列组配置
 - 当前默认组合已对齐 DataBaker 一检质检：`two_stage + mandarin_to_dialect + qwen3.5-omni-flash + qwen3.5-plus`。

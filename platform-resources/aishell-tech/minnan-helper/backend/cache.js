@@ -62,6 +62,9 @@ function buildRecommendCacheKey(parts) {
     singleModel: String(parts?.singleModel || ""),
     listenPrompt: String(parts?.listenPrompt || ""),
     comparePrompt: String(parts?.comparePrompt || ""),
+    audioFirstReferenceCorrectionThreshold: String(
+      parts?.audioFirstReferenceCorrectionThreshold || ""
+    ),
   });
 }
 

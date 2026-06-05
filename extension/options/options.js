@@ -2382,6 +2382,9 @@
     const listenSelectNode = getElement("aishell-tech-ai-listen-model-select");
     const compareSelectNode = getElement("aishell-tech-ai-compare-model-select");
     const singleSelectNode = getElement("aishell-tech-ai-single-model-select");
+    const correctionThresholdNode = getElement(
+      "aishell-tech-audio-first-reference-correction-threshold"
+    );
     return {
       aiRecommendPipelineMode:
         recognitionSelectNode instanceof HTMLSelectElement
@@ -2415,6 +2418,11 @@
               getDataBakerSingleModelDefault(defaults)
             )
           : getDataBakerSingleModelDefault(defaults),
+      aiRecommendAudioFirstReferenceCorrectionThreshold:
+        correctionThresholdNode instanceof HTMLInputElement
+          ? normalizeOptionalNumberText(correctionThresholdNode.value, 0, 1, 3) ||
+            getAishellTechAudioFirstReferenceCorrectionThresholdDefault(defaults)
+          : getAishellTechAudioFirstReferenceCorrectionThresholdDefault(defaults),
     };
   }
 
@@ -2423,6 +2431,14 @@
     return normalizeAishellTechRecognitionStrategy(
       defaults.recognitionStrategy || defaults.aiRecommendRecognitionStrategy || defaults.pipelineMode,
       "mandarin_to_dialect"
+    );
+  }
+
+  function getAishellTechAudioFirstReferenceCorrectionThresholdDefault(aiDefaults) {
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    return (
+      normalizeOptionalNumberText(defaults.audioFirstReferenceCorrectionThreshold, 0, 1, 3) ||
+      "0.75"
     );
   }
 
@@ -2485,6 +2501,53 @@
 
   function updateAishellTechAutofillConcurrencyField(configLike, options) {
     updateSharedAsrAutofillConcurrencyField(aishellTechMinnanScriptId, configLike, options);
+  }
+
+  function updateAishellTechAudioFirstReferenceCorrectionThresholdField(configLike, aiDefaults) {
+    const config = configLike && typeof configLike === "object" ? configLike : {};
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const correctionThresholdNode = getElement(
+      "aishell-tech-audio-first-reference-correction-threshold"
+    );
+    const correctionThresholdHelpNode = getElement(
+      "aishell-tech-audio-first-reference-correction-threshold-help"
+    );
+    const currentRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
+      config.aiRecommendRecognitionStrategy,
+      getAishellTechRecognitionStrategyDefault(defaults)
+    );
+    const currentRecognitionMode = normalizeDataBakerRecognitionMode(
+      config.aiRecommendPipelineMode,
+      "two_stage"
+    );
+    const defaultValue = getAishellTechAudioFirstReferenceCorrectionThresholdDefault(defaults);
+    const effectiveValue =
+      normalizeOptionalNumberText(
+        config.aiRecommendAudioFirstReferenceCorrectionThreshold,
+        0,
+        1,
+        3
+      ) || defaultValue;
+
+    setFieldVisibility(
+      "aishell-tech-audio-first-reference-correction-threshold-field",
+      currentRecognitionStrategy === "audio_first_reference"
+    );
+
+    if (correctionThresholdNode instanceof HTMLInputElement) {
+      correctionThresholdNode.min = "0";
+      correctionThresholdNode.max = "1";
+      correctionThresholdNode.step = "0.001";
+      correctionThresholdNode.placeholder = defaultValue;
+      correctionThresholdNode.value = effectiveValue;
+    }
+
+    if (correctionThresholdHelpNode instanceof HTMLElement) {
+      correctionThresholdHelpNode.textContent =
+        currentRecognitionMode === "two_stage"
+          ? "仅在“音频优先，文本参考”策略下生效；默认 0.75。高于阈值时允许采用词表候选标准写法，低于阈值时优先保留听音文本并标记人工复核。"
+          : "当前为单模型方案；该阈值会保留，但只有双模型比较阶段才会实际生效。";
+    }
   }
 
   function applyAishellTechListenModelFields(listenModel, config, aiDefaults) {
@@ -2602,6 +2665,13 @@
     setFieldVisibility("aishell-tech-ai-compare-model-custom-field", false);
     if (currentRecognitionMode === "omni_single") {
       applyAishellTechSingleModelFields(config?.aiRecommendSingleModel, config, aiDefaults);
+      updateAishellTechAudioFirstReferenceCorrectionThresholdField(
+        Object.assign({}, config || {}, {
+          aiRecommendPipelineMode: currentRecognitionMode,
+          aiRecommendRecognitionStrategy: currentRecognitionStrategy,
+        }),
+        aiDefaults
+      );
       return;
     }
     applyAishellTechListenModelFields(config?.aiRecommendListenModel, config, aiDefaults);
@@ -2609,6 +2679,13 @@
       Object.assign({}, config || {}, {
         aiRecommendPipelineMode: currentRecognitionMode,
       })
+    );
+    updateAishellTechAudioFirstReferenceCorrectionThresholdField(
+      Object.assign({}, config || {}, {
+        aiRecommendPipelineMode: currentRecognitionMode,
+        aiRecommendRecognitionStrategy: currentRecognitionStrategy,
+      }),
+      aiDefaults
     );
   }
 
@@ -3438,6 +3515,9 @@
       baseDefaults.reviewModel = defaultCompareModel;
       baseDefaults.compareModel = defaultCompareModel;
     }
+    if (isAishellTechScript(scriptId)) {
+      baseDefaults.audioFirstReferenceCorrectionThreshold = 0.75;
+    }
     return {
       defaults: baseDefaults,
       supportedParams: supportedParams,
@@ -4142,6 +4222,7 @@
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
         aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+        aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
         aiQualifiedAutofillConcurrency: 5,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",
@@ -4207,6 +4288,13 @@
       config.aiRecommendRecognitionStrategy || config.recognitionStrategy || config.pipelineMode,
       defaultRecognitionStrategy
     );
+    config.aiRecommendAudioFirstReferenceCorrectionThreshold =
+      normalizeOptionalNumberText(
+        config.aiRecommendAudioFirstReferenceCorrectionThreshold,
+        0,
+        1,
+        3
+      ) || getAishellTechAudioFirstReferenceCorrectionThresholdDefault(defaults);
     config.aiQualifiedAutofillConcurrency = normalizeDataBakerAutofillConcurrency(
       config.aiQualifiedAutofillConcurrency,
       {
@@ -4550,6 +4638,9 @@
         '<label class="asr-ai-field"><span>' + modelLabel + ' Prompt（可选）</span><textarea id="' + prefix + '-compare-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
         "</div></div>",
         '<div class="asr-ai-block"><strong>生成参数</strong><div class="asr-ai-grid three">',
+        isAishellPanel
+          ? '<label class="asr-ai-field hidden" id="aishell-tech-audio-first-reference-correction-threshold-field"><span>词表候选校正阈值</span><input id="aishell-tech-audio-first-reference-correction-threshold" type="number" min="0" max="1" step="0.001" /><span class="asr-ai-help" id="aishell-tech-audio-first-reference-correction-threshold-help"></span></label>'
+          : "",
         '<label class="asr-ai-field"><span>temperature</span><input id="' + prefix + '-temperature" type="number" min="0" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
         '<label class="asr-ai-field"><span>top_p</span><input id="' + prefix + '-top-p" type="number" min="0" max="1" step="0.05" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
         '<label class="asr-ai-field"><span>max_tokens</span><input id="' + prefix + '-max-tokens" type="number" min="1" max="8192" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
@@ -9694,6 +9785,19 @@
       aiRecommendSingleModel: singleModel,
       aiQualifiedAutofillConcurrency: autofillConcurrency,
     });
+    const audioFirstReferenceCorrectionThreshold = hasAiSettingsPanel
+      ? normalizeOptionalNumberText(
+          getElement("aishell-tech-audio-first-reference-correction-threshold")?.value,
+          0,
+          1,
+          3
+        ) || getAishellTechAudioFirstReferenceCorrectionThresholdDefault(aiDefaults)
+      : normalizeOptionalNumberText(
+          currentConfig.aiRecommendAudioFirstReferenceCorrectionThreshold,
+          0,
+          1,
+          3
+        ) || getAishellTechAudioFirstReferenceCorrectionThresholdDefault(aiDefaults);
     const listenPrompt = hasAiSettingsPanel
       ? normalizePromptText(getElement("aishell-tech-ai-listen-prompt").value)
       : currentConfig.aiRecommendListenPrompt;
@@ -9807,6 +9911,9 @@
                 aiRecommendRequestTimeoutMs: timeoutMs,
                 aiRecommendPipelineMode: recognitionMode,
                 aiRecommendRecognitionStrategy: recognitionStrategy,
+                aiRecommendAudioFirstReferenceCorrectionThreshold: Number(
+                  audioFirstReferenceCorrectionThreshold
+                ),
                 aiRecommendListenModel:
                   recognitionMode === "two_stage" &&
                   listenModel !== getDataBakerListenModelDefault(aiDefaults)

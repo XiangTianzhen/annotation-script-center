@@ -16,8 +16,10 @@
 - 同时保留 `direct_dialect`（直接听写闽南语）测试模式。
 - 同时新增 `audio_first_reference`（音频优先，文本参考）策略：
   - 以音频实际发音为准，允许同一句里混合普通话词和闽南语词。
+  - 比较阶段当前改成 `heardText + lexiconCandidateText + pageText` 三文本对照：先把 `pageText` 按词表转成标准闽南语候选，再只重点检查与 `heardText` 的差异项。
   - `pageText` 与词表只作为参考，不再主导改写。
   - 音频里没有读出的词不补回。
+  - options 页新增 `词表候选校正阈值`，默认 `0.75`；当比较模型给出的 `correctionConfidence` 低于阈值时，后端会优先保留 `heardText` 并标记人工复核。
   - 后端仍会构建词表上下文给模型参考，但 `lexicon.rewriteMode` 固定为 `off`，不会再做后端强制词表改写。
 - 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
@@ -47,7 +49,7 @@
   - 推荐卡片嵌入标注表单下方。
   - `AI识别` 放在原生“保存”按钮右侧。
   - `全部AI批量识别 / 未完成的AI批量识别 / 停止批量` 放在原生工具按钮区域。
-  - 当前识别结果区会显示识别策略、模型选择、AI耗时、前端并发、token、FunASR provider、后端模式、后端地址、是否发生自动回退、requestId、debugId。
+  - 当前识别结果区会显示识别策略、模型选择、词表候选文本、校正阈值、校正置信度、AI耗时、前端并发、token、FunASR provider、后端模式、后端地址、是否发生自动回退、requestId、debugId。
   - 当前识别结果区与批量失败详情现在统一优先读取后端 `meta`，额外展示排队等待、缓存命中与阶段信息。
   - 批量状态区会显示 `前端并发 / 发送间隔 / 已发请求 / AI处理中 / AI已返回 / 待保存队列 / 已完成 / 失败数`，方便区分是前端未灌满请求窗口，还是后端模型池仍在排队。
   - 若用户当前把全局后端模式切到“本机（127.0.0.1:3333）”，但本机接口不可达，前端会对本次请求自动回退一次服务器接口 `script.xiangtianzhen.store`，同时保留当前设置不变。

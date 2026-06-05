@@ -128,6 +128,14 @@
     ].join(" / ");
   }
 
+  function formatOptionalConfidence(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return "-";
+    }
+    return String(Number(numeric.toFixed(3)));
+  }
+
   function formatQueueWaitSummary(queue) {
     const source = queue && typeof queue === "object" ? queue : {};
     const totalQueueWaitMs = Number(source.totalQueueWaitMs || 0);
@@ -170,6 +178,10 @@
     const queue = meta.queue && typeof meta.queue === "object" ? meta.queue : {};
     const cache = meta.cache && typeof meta.cache === "object" ? meta.cache : {};
     const debug = meta.debug && typeof meta.debug === "object" ? meta.debug : {};
+    const audioFirstReference =
+      meta.audioFirstReference && typeof meta.audioFirstReference === "object"
+        ? meta.audioFirstReference
+        : {};
     const rows = [
       ["识别策略", formatModeSummary(models)],
       ["模型选择", formatModelSelection(models)],
@@ -185,6 +197,19 @@
       ["requestId", normalizeText(meta.requestId || debug.requestId) || "-"],
       ["debugId", normalizeText(meta.debugId || debug.debugId) || "-"],
     ];
+    if (normalizeText(audioFirstReference.candidateText)) {
+      rows.splice(2, 0,
+        ["词表候选文本", normalizeText(audioFirstReference.candidateText)],
+        [
+          "校正阈值",
+          formatOptionalConfidence(audioFirstReference.correctionThreshold),
+        ],
+        [
+          "校正置信度",
+          formatOptionalConfidence(audioFirstReference.correctionConfidence),
+        ]
+      );
+    }
     return {
       rows: rows,
     };
@@ -259,6 +284,7 @@
     formatConcurrency,
     formatDurationMs,
     formatModelSelection,
+    formatOptionalConfidence,
     formatQueueWaitSummary,
     formatTimingSummary,
     formatTokenSummary,

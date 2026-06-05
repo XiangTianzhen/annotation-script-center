@@ -205,6 +205,7 @@ test("Aishell AI runtime sends audio-first recognition strategy to backend", asy
       aiOptions: {
         listenPrompt: "listen-prompt",
         comparePrompt: "compare-prompt",
+        audioFirstReferenceCorrectionThreshold: 0.75,
       },
     });
     const result = await runtime.recommend({
@@ -223,6 +224,10 @@ test("Aishell AI runtime sends audio-first recognition strategy to backend", asy
     assert.equal(result.echoedBody?.recognitionStrategy, "audio_first_reference");
     assert.equal(result.echoedBody?.compareModel, "qwen3.5-plus");
     assert.equal(result.echoedBody?.listenModel, "fun-asr");
+    assert.equal(
+      result.echoedBody?.aiOptions?.audioFirstReferenceCorrectionThreshold,
+      0.75
+    );
   } finally {
     harness.cleanup();
   }

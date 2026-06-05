@@ -21,6 +21,7 @@ const {
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
 const { buildRecommendCacheKey } = require("./cache");
 const {
+  DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
   DEFAULT_FUN_ASR_MODEL,
   DEFAULT_OMNI_MODEL,
   derivePipelineMode,
@@ -44,6 +45,151 @@ function createPromptObject(systemPrompt, userPrompt) {
   };
 }
 
+function isAudioFirstReferenceStrategy(request) {
+  return normalizeRecognitionStrategy(request?.recognitionStrategy, "mandarin_to_dialect") ===
+    "audio_first_reference";
+}
+
+function normalizeAudioFirstReferenceCorrectionThreshold(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD;
+  }
+  return Math.max(0, Math.min(1, Number(number.toFixed(3))));
+}
+
+function normalizeCorrectionConfidence(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  return Math.max(0, Math.min(1, Number(number.toFixed(3))));
+}
+
+function normalizeCandidatePairs(changes) {
+  const source = Array.isArray(changes) ? changes : [];
+  const seen = new Set();
+  const result = [];
+  source.forEach(function (item) {
+    const sourceText = normalizeText(item?.from);
+    const candidateText = normalizeText(item?.to);
+    const pairSource = normalizeText(item?.source) || "csv";
+    if (!sourceText || !candidateText || sourceText === candidateText) {
+      return;
+    }
+    const key = [sourceText, candidateText, pairSource].join("\u0000");
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push({
+      sourceText,
+      candidateText,
+      source: pairSource === "base" ? "base" : "csv",
+    });
+  });
+  return result;
+}
+
+function buildAudioFirstReferenceCorrectionContext(request, deps) {
+  const referenceText = normalizeText(request?.referenceText);
+  if (!referenceText) {
+    return {
+      enabled: false,
+      lexiconCandidateText: "",
+      candidatePairs: [],
+      candidateDiffCount: 0,
+    };
+  }
+  const rewriteState = deps.applyLexiconRewrite(referenceText, {
+    mode: "aggressive",
+  });
+  const candidatePairs = normalizeCandidatePairs(rewriteState?.changes);
+  return {
+    enabled: true,
+    lexiconCandidateText: deps.normalizeRecommendedText(rewriteState?.text || referenceText),
+    candidatePairs,
+    candidateDiffCount: candidatePairs.length,
+  };
+}
+
+function normalizeCandidateDecisions(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .slice(0, 20)
+    .map(function (item) {
+      const source = item && typeof item === "object" ? item : {};
+      return {
+        sourceText: normalizeText(source.sourceText),
+        candidateText: normalizeText(source.candidateText),
+        heardFragment: normalizeText(source.heardFragment),
+        applyCandidate: source.applyCandidate === true,
+        confidence: normalizeCorrectionConfidence(source.confidence),
+        reason: normalizeText(source.reason).slice(0, 240),
+      };
+    })
+    .filter(function (item) {
+      return item.sourceText || item.candidateText || item.heardFragment;
+    });
+}
+
+function buildAudioFirstReferenceMeta(compareJson, correctionContext, correctionThreshold) {
+  const source = compareJson && typeof compareJson === "object" ? compareJson : {};
+  const context = correctionContext && typeof correctionContext === "object" ? correctionContext : {};
+  return {
+    candidateText: normalizeText(context.lexiconCandidateText),
+    candidatePairs: Array.isArray(context.candidatePairs) ? context.candidatePairs : [],
+    correctionThreshold: normalizeAudioFirstReferenceCorrectionThreshold(correctionThreshold),
+    correctionConfidence: normalizeCorrectionConfidence(source.correctionConfidence),
+    candidateDecisions: normalizeCandidateDecisions(source.candidateDecisions),
+  };
+}
+
+function resolveAudioFirstReferenceCompareResult(input) {
+  const source = input && typeof input === "object" ? input : {};
+  const normalizedCompare =
+    source.normalizedCompare && typeof source.normalizedCompare === "object"
+      ? source.normalizedCompare
+      : {};
+  const heardText = normalizeText(source.heardText);
+  const meta = source.meta && typeof source.meta === "object" ? source.meta : {};
+  const candidatePairs = Array.isArray(meta.candidatePairs) ? meta.candidatePairs : [];
+  const candidateDecisions = Array.isArray(meta.candidateDecisions) ? meta.candidateDecisions : [];
+  const correctionConfidence = normalizeCorrectionConfidence(meta.correctionConfidence);
+  const correctionThreshold = normalizeAudioFirstReferenceCorrectionThreshold(
+    meta.correctionThreshold
+  );
+  const normalizedRecommendedText = normalizeText(normalizedCompare.recommendedText);
+  const correctionAttempted =
+    candidatePairs.length > 0 &&
+    normalizedRecommendedText &&
+    normalizedRecommendedText !== heardText;
+  const shouldKeepHeardText =
+    correctionAttempted === true &&
+    correctionConfidence !== null &&
+    correctionConfidence < correctionThreshold;
+
+  return {
+    recommendedText: shouldKeepHeardText === true
+      ? heardText
+      : normalizedCompare.recommendedText,
+    needHumanReview:
+      normalizedCompare.needHumanReview === true ||
+      (candidatePairs.length > 0 &&
+        correctionConfidence !== null &&
+        correctionConfidence < correctionThreshold) ||
+      (candidateDecisions.length > 0 &&
+        candidateDecisions.some(function (item) {
+          return item.applyCandidate !== true && item.confidence !== null && item.confidence < correctionThreshold;
+        })),
+  };
+}
+
 function createListenPrompt(request) {
   return createPromptObject(
     "你是 Aishell 闽南语听音助手。你必须只输出 JSON，不要输出 Markdown 或额外解释。",
@@ -64,25 +210,47 @@ function createListenPrompt(request) {
   );
 }
 
-function createComparePrompt(request, heardText, lexiconContext) {
-  const promptLines = [
-    request.aiOptions?.comparePrompt || "",
-    "输入：",
-    JSON.stringify(
-      {
-        pageText: request.referenceText,
-        heardText,
-        fileName: request.fileName,
-        duration: request.duration,
-        itemNumber: request.itemNumber,
-      },
-      null,
-      2
-    ),
-  ];
+function createComparePrompt(request, heardText, lexiconContext, correctionContext) {
+  const compareInput = {
+    pageText: request.referenceText,
+    heardText,
+    fileName: request.fileName,
+    duration: request.duration,
+    itemNumber: request.itemNumber,
+  };
+  const promptLines = [request.aiOptions?.comparePrompt || ""];
   if (lexiconContext?.text) {
-    promptLines.splice(1, 0, "词表上下文：", lexiconContext.text);
+    promptLines.push("词表上下文：", lexiconContext.text);
   }
+  if (isAudioFirstReferenceStrategy(request) && correctionContext?.enabled === true) {
+    compareInput.lexiconCandidateText = correctionContext.lexiconCandidateText;
+    compareInput.candidatePairs = Array.isArray(correctionContext.candidatePairs)
+      ? correctionContext.candidatePairs
+      : [];
+    compareInput.candidateDiffCount = Number(correctionContext.candidateDiffCount || 0) || 0;
+    compareInput.audioFirstReferenceCorrectionThreshold =
+      normalizeAudioFirstReferenceCorrectionThreshold(
+        request.aiOptions?.audioFirstReferenceCorrectionThreshold
+      );
+    promptLines.push(
+      "词表候选校正：",
+      JSON.stringify(
+        {
+          lexiconCandidateText: compareInput.lexiconCandidateText,
+          candidatePairs: compareInput.candidatePairs,
+          candidateDiffCount: compareInput.candidateDiffCount,
+          audioFirstReferenceCorrectionThreshold:
+            compareInput.audioFirstReferenceCorrectionThreshold,
+        },
+        null,
+        2
+      )
+    );
+  }
+  promptLines.push(
+    "输入：",
+    JSON.stringify(compareInput, null, 2)
+  );
   return createPromptObject(
     "你是 Aishell 闽南语推荐助手。你必须只输出 JSON，不要输出 Markdown 或额外解释。",
     promptLines.join("\n")
@@ -287,6 +455,8 @@ function createRecommendPipeline(overrides) {
         singleModel: request.singleModel,
         listenPrompt: request.aiOptions?.listenPrompt,
         comparePrompt: request.aiOptions?.comparePrompt,
+        audioFirstReferenceCorrectionThreshold:
+          request.aiOptions?.audioFirstReferenceCorrectionThreshold,
       });
 
       const timing = {
@@ -321,6 +491,7 @@ function createRecommendPipeline(overrides) {
       let listenConfidence = 0;
       let listenUsage = {};
       let compareUsage = {};
+      let audioFirstReferenceMeta = null;
       let activeListenModel = normalizeText(request.listenModel) || DEFAULT_OMNI_MODEL;
       let activeCompareModel = normalizeText(request.compareModel);
       let activeSingleModel = normalizeText(request.singleModel) || DEFAULT_OMNI_MODEL;
@@ -494,7 +665,15 @@ function createRecommendPipeline(overrides) {
         heardText,
         limit: 60,
       });
-      const comparePrompt = deps.buildComparePrompt(request, heardText, lexiconContext);
+      const correctionContext = isAudioFirstReferenceStrategy(request)
+        ? buildAudioFirstReferenceCorrectionContext(request, deps)
+        : null;
+      const comparePrompt = deps.buildComparePrompt(
+        request,
+        heardText,
+        lexiconContext,
+        correctionContext
+      );
       const compareStartedAt = deps.now();
       const compareResult = await runQueuedTask("aishell_text_compare", "compare", function () {
         return deps.requestCompare(providerInput, comparePrompt, heardText, {
@@ -518,8 +697,22 @@ function createRecommendPipeline(overrides) {
         pageText: request.referenceText,
         heardText,
       });
+      if (isAudioFirstReferenceStrategy(request)) {
+        audioFirstReferenceMeta = buildAudioFirstReferenceMeta(
+          compareJson,
+          correctionContext,
+          request.aiOptions?.audioFirstReferenceCorrectionThreshold
+        );
+      }
+      const resolvedCompare = isAudioFirstReferenceStrategy(request)
+        ? resolveAudioFirstReferenceCompareResult({
+            normalizedCompare,
+            heardText,
+            meta: audioFirstReferenceMeta,
+          })
+        : normalizedCompare;
       const rewriteState = deps.applyLexiconRewrite(
-        deps.normalizeRecommendedText(normalizedCompare.recommendedText),
+        deps.normalizeRecommendedText(resolvedCompare.recommendedText),
         {
           mode: lexiconRewriteMode,
         }
@@ -527,7 +720,7 @@ function createRecommendPipeline(overrides) {
       changePoints = Array.isArray(normalizedCompare.changePoints) ? normalizedCompare.changePoints : [];
       decision = normalizeText(normalizedCompare.decision);
       needHumanReview =
-        normalizedCompare.needHumanReview === true ||
+        resolvedCompare.needHumanReview === true ||
         rewriteState.changed === true;
       compareConfidence = Number(normalizedCompare.confidence || 0) || 0;
       compareUsage = deps.normalizeUsage(compareResult.usage || {});
@@ -595,6 +788,7 @@ function createRecommendPipeline(overrides) {
             frontConcurrencyNormalized: request.frontConcurrency ?? null,
             concurrencyModelType: normalizeText(request.concurrencyModelType),
           },
+          audioFirstReference: audioFirstReferenceMeta,
         },
       };
     },

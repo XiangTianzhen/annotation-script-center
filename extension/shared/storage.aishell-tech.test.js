@@ -70,6 +70,7 @@ test("Aishell storage defaults use the aligned Minnan standard", async function 
     assert.equal(script.aiRecommendPipelineMode, "two_stage");
     assert.equal(script.aiRecommendRecognitionStrategy, "mandarin_to_dialect");
     assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
+    assert.equal(script.aiRecommendAudioFirstReferenceCorrectionThreshold, 0.75);
     assert.equal(script.aiQualifiedAutofillConcurrency, 5);
   } finally {
     harness.cleanup();
@@ -152,6 +153,7 @@ test("Aishell storage keeps audio-first recognition strategy untouched", async f
             aiRecommendEnabled: true,
             aiRecommendPipelineMode: "two_stage",
             aiRecommendRecognitionStrategy: "audio_first_reference",
+            aiRecommendAudioFirstReferenceCorrectionThreshold: 0.812,
             aiRecommendListenModel: "fun-asr",
             aiRecommendCompareModel: "qwen3.5-plus",
             aiRecommendSingleModel: "qwen3.5-omni-flash",
@@ -167,6 +169,7 @@ test("Aishell storage keeps audio-first recognition strategy untouched", async f
 
     assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
     assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
+    assert.equal(script.aiRecommendAudioFirstReferenceCorrectionThreshold, 0.812);
   } finally {
     harness.cleanup();
   }

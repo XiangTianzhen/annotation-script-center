@@ -1,3 +1,28 @@
+## 2026-06-05（Aishell 音频优先候选校正升级）
+
+- `希尔贝壳 / 闽南语助手` 的 `audio_first_reference` 策略当前已升级为“三文本对照”：
+  - `pageText`
+  - `lexiconCandidateText`：先按词表把 `pageText` 转成标准闽南语候选文本
+  - `heardText`
+- 后端 `pipeline.js` 现已新增候选校正上下文：
+  - 只把词表强替换用于生成候选文本与 `candidatePairs`
+  - 最终 `lexicon.rewriteMode` 仍固定为 `off`，不会重新开启强制词表改写
+  - 当 `correctionConfidence < audioFirstReferenceCorrectionThreshold` 时，会优先保留 `heardText` 并标记 `needHumanReview=true`
+- Aishell options / storage / runtime 新增 `词表候选校正阈值`：
+  - 存储字段：`aiRecommendAudioFirstReferenceCorrectionThreshold`
+  - 请求字段：`aiOptions.audioFirstReferenceCorrectionThreshold`
+  - 默认值：`0.75`
+  - 切到非 `audio_first_reference` 时只隐藏，不删除已保存值
+- 当前识别结果诊断区新增：
+  - `词表候选文本`
+  - `校正阈值`
+  - `校正置信度`
+  - 详细 `candidateDecisions` 继续留在原始 JSON / 后端诊断里
+- 回归验证补强：
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 新增候选文本生成、低置信回退和高置信采用候选写法覆盖
+  - `extension/shared/storage.aishell-tech.test.js` 新增阈值默认值与自定义值保真覆盖
+  - `extension/sites/aishell-tech/minnan-helper/batch-pipeline.test.js` 新增前端把 `audioFirstReferenceCorrectionThreshold` 发给后端的覆盖
+
 ## 2026-06-05（Aishell 音频优先识别策略）
 
 - `希尔贝壳 / 闽南语助手` 新增第三种识别策略 `audio_first_reference`，前端显示名固定为 `音频优先，文本参考`。

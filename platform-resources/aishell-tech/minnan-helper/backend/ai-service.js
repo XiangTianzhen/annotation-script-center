@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 
 const {
+  DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
   DEFAULT_COMPARE_MODEL,
   DEFAULT_FUN_ASR_MODEL,
   DEFAULT_OMNI_MODEL,
@@ -98,17 +99,17 @@ const DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE = [
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE = [
-  "你会收到 pageText（平台预测文本）和 heardText（按实际发音转写出的文本）。",
-  "你的任务是输出最终 recommendedText，但必须以实际发音为准。",
-  "pageText 只作为参考，不能机械照抄，也不能主导改写。",
-  "闽南语字词表只作为候选提示，不允许因为词表里有建议用字，就把普通话实际发音强行改成闽南语写法。",
-  "如果某个词在音频里读的是普通话，就保留普通话简体。",
-  "如果某个词在音频里读的是闽南语，就输出对应闽南语写法。",
-  "如果某个词在音频里没有读出来，就不要补回。",
+  "你会收到三份上下文：pageText（平台原始文本）、lexiconCandidateText（按词表把 pageText 转成的标准闽南语候选文本）、heardText（按实际发音转写出的文本）。",
+  "你的任务是输出最终 recommendedText，但必须以实际发音为准；不要机械照抄 pageText，也不要把整句强行统一成闽南语。",
+  "先看 heardText，再看 lexiconCandidateText，最后只把 pageText 当作语义兜底参考。",
+  "candidatePairs 只列出词表候选改写项，请重点检查这些差异项，不要求整句统一方言化。",
+  "如果某个词在音频里读的是普通话，就保留普通话简体；如果读的是闽南语，就输出对应闽南语写法；如果没有读出来，就不要补回。",
   "一句话里允许同时保留普通话词和闽南语词。",
-  "只有在音频不清楚时，才允许参考 pageText 和词表保守判断，并将 needHumanReview 设为 true。",
-  "recommendedText 与 heardText 的普通中文统一输出简体；命中 minnan-lexicon.csv 的建议用字只在确认音频确实这样读时才保留。",
-  "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
+  "当 lexiconCandidateText 与 heardText 发音接近、语义一致，且你对候选标准写法有把握时，可以采用词表候选写法。",
+  "audioFirstReferenceCorrectionThreshold 是词表候选校正阈值；当 correctionConfidence 低于该阈值时，应优先保留 heardText，并将 needHumanReview 设为 true。",
+  "当低于阈值但存在明显冲突时，candidateDecisions 里要明确说明原因；不要为了命中词表而强行转换。",
+  "recommendedText 与 heardText 的普通中文统一输出简体；命中 minnan-lexicon.csv 的建议用字只在确认音频确实这样读，或确认候选标准化更合理时才保留。",
+  "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview、correctionConfidence、candidateDecisions。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
 
@@ -273,6 +274,15 @@ function normalizeAiOptions(value) {
   if (normalizeModelText(source.concurrencyModelType)) {
     result.concurrencyModelType = normalizeModelText(source.concurrencyModelType);
   }
+  const audioFirstReferenceCorrectionThreshold = normalizeNumberInRange(
+    source.audioFirstReferenceCorrectionThreshold,
+    0,
+    1
+  );
+  result.audioFirstReferenceCorrectionThreshold =
+    audioFirstReferenceCorrectionThreshold === null
+      ? DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD
+      : Number(audioFirstReferenceCorrectionThreshold.toFixed(3));
   return result;
 }
 
@@ -428,6 +438,10 @@ function buildMeta(meta, requestId) {
     retryCount: Number(source.retryCount || 0) || 0,
     cancelled: source.cancelled === true,
     debug: source.debug && typeof source.debug === "object" ? source.debug : {},
+    audioFirstReference:
+      source.audioFirstReference && typeof source.audioFirstReference === "object"
+        ? source.audioFirstReference
+        : null,
   };
 }
 
@@ -475,6 +489,7 @@ function createHealthPayload() {
     timeoutMs: parseTimeoutMs(),
     modelMode: DEFAULT_MODEL_MODE,
     recognitionStrategy: DEFAULT_RECOGNITION_STRATEGY,
+    audioFirstReferenceCorrectionThreshold: DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
     enableThinking: false,
     modelModeOptions: MODEL_MODE_OPTIONS.slice(),
     recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
@@ -536,6 +551,7 @@ function createDefaultsPayload() {
       listenModel: resolveDefaultListenModel(DEFAULT_MODEL_MODE),
       compareModel: resolveDefaultCompareModel(),
       singleModel: resolveDefaultSingleModel(),
+      audioFirstReferenceCorrectionThreshold: DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
       listenPrompt: defaultPrompts.listenPrompt,
       comparePrompt: defaultPrompts.comparePrompt,
       promptProfiles: {

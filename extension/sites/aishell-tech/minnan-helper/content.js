@@ -168,6 +168,16 @@
     if (stop.length > 0) {
       options.stop = stop;
     }
+    const audioFirstReferenceCorrectionThreshold = normalizeOptionalNumber(
+      config.aiRecommendAudioFirstReferenceCorrectionThreshold,
+      0,
+      1
+    );
+    if (audioFirstReferenceCorrectionThreshold !== "") {
+      options.audioFirstReferenceCorrectionThreshold = Number(
+        audioFirstReferenceCorrectionThreshold.toFixed(3)
+      );
+    }
     return options;
   }
 
@@ -189,6 +199,7 @@
         aiRecommendRequestTimeoutMs: DEFAULT_TIMEOUT_MS,
         aiRecommendPipelineMode: "two_stage",
         aiRecommendRecognitionStrategy: "mandarin_to_dialect",
+        aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
         aiQualifiedAutofillConcurrency: 5,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendCompareModel: "qwen3.5-plus",
@@ -230,6 +241,15 @@
     merged.aiRecommendRecognitionStrategy = normalizeRecognitionStrategy(
       merged.aiRecommendRecognitionStrategy || merged.recognitionStrategy
     );
+    const normalizedAudioFirstReferenceCorrectionThreshold = normalizeOptionalNumber(
+      merged.aiRecommendAudioFirstReferenceCorrectionThreshold,
+      0,
+      1
+    );
+    merged.aiRecommendAudioFirstReferenceCorrectionThreshold =
+      normalizedAudioFirstReferenceCorrectionThreshold !== ""
+        ? Number(normalizedAudioFirstReferenceCorrectionThreshold.toFixed(3))
+        : 0.75;
     merged.recognitionStrategy = merged.aiRecommendRecognitionStrategy;
     merged.recognitionMode = merged.aiRecommendPipelineMode;
     merged.pipelineMode = merged.aiRecommendPipelineMode;
