@@ -112,7 +112,7 @@
             <button id="home-endpoint-local" class="segmented-button" type="button">本机</button>
             <button id="home-endpoint-beta" class="segmented-button hidden" type="button">Beta 服务器</button>
           </div>
-          <span>该设置统一控制所有脚本的后端请求：ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐。各脚本详情页不再单独设置后端地址。</span>
+          <span>该设置统一控制所有脚本的后端请求：ASR 转写统计、ASR 快判统计、ASR 快判 AI 建议、标贝易采 AI 推荐、CVPC 柳州话建议接口和 Aishell Tech AI 推荐。各脚本详情页不再单独设置后端地址。</span>
           <input
             id="home-endpoint-beta-url"
             class="hidden"
@@ -526,6 +526,74 @@
               <button id="save-data-baker-settings" class="primary-button" type="button">保存标贝易采设置</button>
             </div>
             <div id="data-baker-status" class="status-text"></div>
+          </section>
+
+          <section id="detail-data-baker-cvpc-liuzhou-panel" class="detail-panel detail-panel-base hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>基础设置</strong>
+                <span>当前只开放“建议生成 + 人工确认”链路，真实画段写入契约仍在补采。</span>
+              </div>
+            </div>
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>启用画段建议</strong>
+                <span>只生成当前音频的分段建议，不自动画段，不自动保存。</span>
+                <span class="field-toggle">
+                  <input id="data-baker-cvpc-segment-preview-enabled" type="checkbox" />
+                  在 `/app/editor/asr/` 显示画段建议入口
+                </span>
+              </label>
+
+              <label class="field-card">
+                <strong>启用当前段 AI 推荐</strong>
+                <span>仅对当前段生成“柳州话文本 + 普通话顺滑”，需要人工确认后再填入。</span>
+                <span class="field-toggle">
+                  <input id="data-baker-cvpc-ai-recommend-enabled" type="checkbox" />
+                  在编辑器显示当前段 AI 推荐入口
+                </span>
+              </label>
+            </div>
+
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>AI 请求超时（ms）</strong>
+                <span>只影响当前段推荐接口；不改变画段建议的建议生成边界。</span>
+                <input
+                  id="data-baker-cvpc-ai-timeout"
+                  type="number"
+                  min="1000"
+                  max="300000"
+                  step="1000"
+                />
+              </label>
+
+              <div class="field-card">
+                <strong>写入契约状态</strong>
+                <span id="data-baker-cvpc-contract-mode">
+                  仅允许 DOM 守卫下的显式写入；真实画段写入契约仍待补采。
+                </span>
+              </div>
+            </div>
+
+            <div class="field-card">
+              <strong>固定快捷键</strong>
+              <span><code>Alt + Shift + 1/2/3</code>：当前段有效 / 无效 / 未填写补为有效。</span>
+              <span><code>Alt + Shift + 4/5/6/7</code>：画段建议 / 应用建议 / 当前段 AI 推荐 / 填入当前段建议。</span>
+            </div>
+
+            <div class="field-card">
+              <strong>当前边界</strong>
+              <span>当前页只处理当前音频 / 当前作业，不跨整包遍历，不自动保存，不自动提交，不自动切下一条。</span>
+              <span>全局 Invalid 不做自动判定；画段应用只有在页面存在安全写入桥时才会执行。</span>
+            </div>
+
+            <div class="field-actions">
+              <button id="save-data-baker-cvpc-settings" class="primary-button" type="button">
+                保存 CVPC 柳州话设置
+              </button>
+            </div>
+            <div id="data-baker-cvpc-status" class="status-text"></div>
           </section>
 
           <section id="detail-aishell-tech-minnan-helper-panel" class="detail-panel detail-panel-base hidden">

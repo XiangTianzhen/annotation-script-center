@@ -13,6 +13,7 @@
     "https://label-cloud.lightwheel.net/*",
     "https://script.xiangtianzhen.store/*",
     "https://datafactory.data-baker.com/*",
+    "https://cvpc.data-baker.com/*",
     "https://work.magicdatatech.com/*",
     "https://mark.aishelltech.com/*",
     "https://markapi.aishelltech.com/*",
@@ -170,6 +171,25 @@
         "sites/data-baker/round-one-quality/shortcuts.js",
         "sites/data-baker/round-one-quality/group-export.js",
         "sites/data-baker/round-one-quality/content.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "https://cvpc.data-baker.com/*"
+      ],
+      "js": [
+        "shared/build-meta.js",
+        "shared/constants.js",
+        "shared/storage.js",
+        "sites/data-baker-cvpc/liuzhou-helper/data-api.js",
+        "sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js",
+        "sites/data-baker-cvpc/liuzhou-helper/segmentation-controller.js",
+        "sites/data-baker-cvpc/liuzhou-helper/ui-panel.js",
+        "sites/data-baker-cvpc/liuzhou-helper/shortcuts.js",
+        "sites/data-baker-cvpc/liuzhou-helper/content.js"
       ],
       "all_frames": false,
       "run_at": "document_start",

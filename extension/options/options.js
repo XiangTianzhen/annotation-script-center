@@ -9,6 +9,8 @@
   const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
   const dataBakerRoundOneQualityScriptId =
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
+  const dataBakerCvpcLiuzhouScriptId =
+    constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID || "dataBakerCvpcLiuzhouAssistant";
   const magicDataAnnotatorScriptId =
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
   const magicDataMinnanScriptId =
@@ -10071,6 +10073,62 @@
     }
   }
 
+  async function saveDataBakerCvpcSettings() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      setStatus("data-baker-cvpc-status", "当前扩展版本不支持保存 CVPC 柳州话设置。");
+      return false;
+    }
+
+    const currentConfig = getDataBakerCvpcLiuzhouConfig(currentSettings || {});
+    const segmentPreviewEnabled = getElement("data-baker-cvpc-segment-preview-enabled").checked;
+    const aiRecommendEnabled = getElement("data-baker-cvpc-ai-recommend-enabled").checked;
+    const timeoutMs = normalizeDataBakerTimeoutMs(
+      getElement("data-baker-cvpc-ai-timeout").value ||
+        String(currentConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
+    );
+    const aiRecommendPath =
+      constants.DATA_BAKER_CVPC_AI_RECOMMEND_PATH ||
+      "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
+    const segmentPreviewPath =
+      constants.DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH ||
+      "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
+
+    setStatus("data-baker-cvpc-status", "正在保存 CVPC 柳州话设置...");
+
+    try {
+      currentSettings = await storage.patchSettings({
+        platforms: {
+          dataBakerCvpc: {
+            scripts: {
+              liuzhouAssistant: {
+                id: dataBakerCvpcLiuzhouScriptId,
+                segmentPreviewEnabled: segmentPreviewEnabled,
+                segmentPreviewEndpoint: buildBackendUrl(segmentPreviewPath, currentSettings || {}),
+                aiRecommendEnabled: aiRecommendEnabled,
+                aiRecommendEndpoint: buildBackendUrl(aiRecommendPath, currentSettings || {}),
+                aiRecommendRequestTimeoutMs: timeoutMs,
+                aiRecommendModel: currentConfig.aiRecommendModel || "qwen3.5-omni-flash",
+                contractMode: "dom-guarded",
+              },
+            },
+          },
+        },
+      });
+      applyDataBakerCvpcForm(currentSettings);
+      setStatus(
+        "data-baker-cvpc-status",
+        "CVPC 柳州话设置已保存；已打开的编辑器页面如未同步，请刷新业务页。"
+      );
+      return true;
+    } catch (error) {
+      setStatus(
+        "data-baker-cvpc-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+      return false;
+    }
+  }
+
   async function saveAishellTechSettings() {
     if (!storage || typeof storage.patchSettings !== "function") {
       setStatus("aishell-tech-status", "当前扩展版本不支持保存希尔贝壳设置。");
@@ -10803,6 +10861,13 @@
     getElement("save-data-baker-settings").addEventListener("click", function () {
       void saveDataBakerSettings();
     });
+
+    const saveDataBakerCvpcSettingsButton = getElement("save-data-baker-cvpc-settings");
+    if (saveDataBakerCvpcSettingsButton) {
+      saveDataBakerCvpcSettingsButton.addEventListener("click", function () {
+        void saveDataBakerCvpcSettings();
+      });
+    }
 
     const saveAishellSettingsButton = getElement("save-aishell-tech-settings");
     if (saveAishellSettingsButton) {

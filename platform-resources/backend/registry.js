@@ -6,6 +6,9 @@ const {
   registerRoutes: registerAsrTranscriptionRoutes,
 } = require("../alibaba-labelx/asr-transcription/backend");
 const { registerRoutes: registerDataBakerRoundOneRoutes } = require("../data-baker/round-one-quality/backend");
+const {
+  registerRoutes: registerDataBakerCvpcLiuzhouRoutes,
+} = require("../data-baker-cvpc/liuzhou-helper/backend");
 const { registerRoutes: registerMagicDataHakkaRoutes } = require("../magic-data/hakka-helper/backend");
 const { registerRoutes: registerMagicDataMinnanRoutes } = require("../magic-data/minnan-helper/backend");
 const { registerRoutes: registerAbakaTask21AiRoutes } = require("../abaka-ai/task21/backend");
@@ -50,6 +53,7 @@ function registerProjectRoutes(router, options) {
       process.env.ASR_TRANSCRIPTION_PERSIST_UPLOAD_EVENTS === "1",
   });
   registerDataBakerRoundOneRoutes(router, config.dataBakerRoundOneQuality || {});
+  registerDataBakerCvpcLiuzhouRoutes(router, config.dataBakerCvpcLiuzhouHelper || {});
   registerMagicDataHakkaRoutes(
     router,
     config.magicDataHakkaHelper || config.magicDataAnnotator || {}

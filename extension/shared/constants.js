@@ -36,6 +36,7 @@
   const ALIBABA_LABELX_PLATFORM_ID = "alibabaLabelx";
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const DATA_BAKER_PLATFORM_ID = "dataBaker";
+  const DATA_BAKER_CVPC_PLATFORM_ID = "dataBakerCvpc";
   const MAGIC_DATA_PLATFORM_ID = "magicData";
   const ABAKA_AI_PLATFORM_ID = "abakaAi";
   const AISHELL_TECH_PLATFORM_ID = "aishellTech";
@@ -43,6 +44,7 @@
   const JUDGEMENT_PROJECT_ID = "judgement";
   const LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID = "lightwheelViewPanel";
   const DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID = "dataBakerRoundOneQuality";
+  const DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
   const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
   const MAGIC_DATA_MINNAN_SCRIPT_ID = "magicDataMinnanAssistant";
   const ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID = "abakaAiTaskPageCapture";
@@ -84,6 +86,10 @@
     beta: DEFAULT_BETA_BACKEND_BASE_URL,
   };
   const DATABAKER_AI_RECOMMEND_PATH = "/api/data-baker/round-one-quality/ai/recommend";
+  const DATA_BAKER_CVPC_AI_RECOMMEND_PATH =
+    "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
+  const DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH =
+    "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
   const DATABAKER_EXPORT_UPLOAD_PATH = "/api/data-baker/round-one-quality/export/upload";
   const DATABAKER_EXPORT_DOWNLOAD_PATH = "/api/data-baker/round-one-quality/export/download";
   const JUDGEMENT_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/upload";
@@ -105,6 +111,14 @@
     BACKEND_ENDPOINTS.server + DATABAKER_AI_RECOMMEND_PATH;
   const DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT =
     BACKEND_ENDPOINTS.local + DATABAKER_AI_RECOMMEND_PATH;
+  const DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT =
+    BACKEND_ENDPOINTS.server + DATA_BAKER_CVPC_AI_RECOMMEND_PATH;
+  const DATA_BAKER_CVPC_AI_RECOMMEND_LOCAL_ENDPOINT =
+    BACKEND_ENDPOINTS.local + DATA_BAKER_CVPC_AI_RECOMMEND_PATH;
+  const DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT =
+    BACKEND_ENDPOINTS.server + DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH;
+  const DATA_BAKER_CVPC_SEGMENT_PREVIEW_LOCAL_ENDPOINT =
+    BACKEND_ENDPOINTS.local + DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH;
   const DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT =
     BACKEND_ENDPOINTS.server + DATABAKER_EXPORT_UPLOAD_PATH;
   const DATABAKER_EXPORT_UPLOAD_LOCAL_ENDPOINT =
@@ -674,6 +688,15 @@
     matches: ["https://datafactory.data-baker.com/*"],
   };
 
+  const DATA_BAKER_CVPC_PLATFORM = {
+    id: "data-baker-cvpc",
+    label: "DataBaker CVPC",
+    host: "cvpc.data-baker.com",
+    displayHost: "cvpc.data-baker.com/app/editor/asr",
+    entryUrl: "https://cvpc.data-baker.com/app/web/",
+    matches: ["https://cvpc.data-baker.com/*"],
+  };
+
   const MAGIC_DATA_PLATFORM = {
     id: "magic-data",
     label: "Magic Data ANNOTATOR",
@@ -1145,6 +1168,17 @@
       runtimeBridge: "data-baker-round-one-quality",
       description: "标贝易采质检站点。",
     },
+    dataBakerCvpc: {
+      id: DATA_BAKER_CVPC_PLATFORM_ID,
+      label: "DataBaker CVPC",
+      host: DATA_BAKER_CVPC_PLATFORM.host,
+      displayHost: DATA_BAKER_CVPC_PLATFORM.displayHost,
+      entryUrl: DATA_BAKER_CVPC_PLATFORM.entryUrl,
+      matches: clone(DATA_BAKER_CVPC_PLATFORM.matches),
+      visibility: RELEASE_VISIBILITY_BETA,
+      runtimeBridge: "data-baker-cvpc-liuzhou-helper",
+      description: "CVPC 语音编辑器柳州话脚本 beta 平台。",
+    },
     magicData: {
       id: MAGIC_DATA_PLATFORM_ID,
       label: "Magic Data ANNOTATOR",
@@ -1228,6 +1262,22 @@
       host: DATA_BAKER_PLATFORM.host,
       matchUrl:
         "https://datafactory.data-baker.com/v2/#/quality/roundOneCollect?collectId=...&checkType=0",
+    },
+    dataBakerCvpcLiuzhouAssistant: {
+      id: DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID,
+      platformId: DATA_BAKER_CVPC_PLATFORM_ID,
+      visibility: RELEASE_VISIBILITY_BETA,
+      label: "柳州话脚本",
+      shortLabel: "柳州话脚本",
+      description: "CVPC /app/editor/asr/ 柳州话分段建议、当前段 AI 推荐与辅助填入助手。",
+      note:
+        "当前只做建议生成 + 人工确认，不自动保存、不自动提交、不自动切下一条；真实画段写入契约仍待补采。",
+      capabilityScope: "liuzhou-segmentation-and-current-segment-assist-beta",
+      statusLabel: "柳州话脚本 Beta",
+      detailView: "data-baker-cvpc-liuzhou-helper",
+      host: DATA_BAKER_CVPC_PLATFORM.host,
+      matchUrl:
+        "https://cvpc.data-baker.com/app/editor/asr/?project_id=...&task_id=...&process_id=...",
     },
     magicDataAnnotatorAiReview: {
       id: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
@@ -1703,27 +1753,70 @@
           aiRecommendEnabled: true,
           aiRecommendEndpoint: AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT,
           aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
-          aiRecommendPipelineMode: "two_stage",
-          aiRecommendRecognitionStrategy: "audio_first_reference",
-          aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
           aiQualifiedAutofillConcurrency: 5,
+          aiRecommendConvertModel: "qwen3.5-plus",
+          aiRecommendConvertPrompt: "",
+          aiRecommendConvertTemperature: "",
+          aiRecommendConvertTopP: "",
+          aiRecommendConvertMaxTokens: "",
+          aiRecommendConvertMaxCompletionTokens: "",
+          aiRecommendConvertPresencePenalty: "",
+          aiRecommendConvertFrequencyPenalty: "",
+          aiRecommendConvertSeed: "",
+          aiRecommendConvertStopSequences: "",
           aiRecommendListenModel: "qwen3.5-omni-flash",
-          aiRecommendCandidateModel: "qwen3.5-plus",
-          aiRecommendCompareModel: "qwen3.5-plus",
-          aiRecommendSingleModel: "qwen3.5-omni-flash",
-          aiRecommendEnableThinking: false,
-          aiRecommendCandidatePrompt: "",
           aiRecommendListenPrompt: "",
-          aiRecommendComparePrompt: "",
-          aiRecommendTemperature: "",
-          aiRecommendTopP: "",
-          aiRecommendMaxTokens: "",
-          aiRecommendMaxCompletionTokens: "",
-          aiRecommendPresencePenalty: "",
-          aiRecommendFrequencyPenalty: "",
-          aiRecommendSeed: "",
-          aiRecommendStopSequences: "",
+          aiRecommendListenTemperature: "",
+          aiRecommendListenTopP: "",
+          aiRecommendListenMaxTokens: "",
+          aiRecommendListenMaxCompletionTokens: "",
+          aiRecommendListenPresencePenalty: "",
+          aiRecommendListenFrequencyPenalty: "",
+          aiRecommendListenSeed: "",
+          aiRecommendListenStopSequences: "",
+          aiRecommendCompareFamily: "qwen",
+          aiRecommendCompareModel: "qwen3.5-plus",
+          aiRecommendCompareQwenPrompt: "",
+          aiRecommendCompareOmniPrompt: "",
+          aiRecommendCompareTemperature: "",
+          aiRecommendCompareTopP: "",
+          aiRecommendCompareMaxTokens: "",
+          aiRecommendCompareMaxCompletionTokens: "",
+          aiRecommendComparePresencePenalty: "",
+          aiRecommendCompareFrequencyPenalty: "",
+          aiRecommendCompareSeed: "",
+          aiRecommendCompareStopSequences: "",
+          aiRecommendCompareAdoptionThreshold: 0.75,
+          aiRecommendEnableThinking: false,
           shortcuts: shortcuts,
+        },
+      },
+    };
+  }
+
+  function createDefaultDataBakerCvpcPlatformSettings() {
+    return {
+      enabled: true,
+      scripts: {
+        liuzhouAssistant: {
+          id: DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID,
+          enabled: true,
+          segmentPreviewEnabled: true,
+          segmentPreviewEndpoint: DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT,
+          aiRecommendEnabled: true,
+          aiRecommendEndpoint: DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT,
+          aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+          aiRecommendModel: "qwen3.5-omni-flash",
+          contractMode: "dom-guarded",
+          shortcuts: {
+            preview: createShortcut("4", { alt: true, shift: true }),
+            applyPreview: createShortcut("5", { alt: true, shift: true }),
+            recommend: createShortcut("6", { alt: true, shift: true }),
+            applyRecommend: createShortcut("7", { alt: true, shift: true }),
+            valid: createShortcut("1", { alt: true, shift: true }),
+            invalid: createShortcut("2", { alt: true, shift: true }),
+            fillAllValid: createShortcut("3", { alt: true, shift: true }),
+          },
         },
       },
     };
@@ -1797,6 +1890,7 @@
       alibabaLabelx: createDefaultPlatformSettings(),
       lightwheel: createDefaultLightwheelPlatformSettings(),
       dataBaker: createDefaultDataBakerPlatformSettings(),
+      dataBakerCvpc: createDefaultDataBakerCvpcPlatformSettings(),
       magicData: {
         enabled: true,
         activeScriptId: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
@@ -1929,6 +2023,13 @@
       );
     }
 
+    if (script.platformId === DATA_BAKER_CVPC_PLATFORM_ID) {
+      return Boolean(
+        settings?.platforms?.dataBakerCvpc?.enabled !== false &&
+          settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant?.enabled !== false
+      );
+    }
+
     if (script.platformId === AISHELL_TECH_PLATFORM_ID) {
       return Boolean(
         settings?.platforms?.aishellTech?.enabled !== false &&
@@ -1981,6 +2082,7 @@
     TARGET_PLATFORM: TARGET_PLATFORM,
     LIGHTWHEEL_PLATFORM: LIGHTWHEEL_PLATFORM,
     DATA_BAKER_PLATFORM: DATA_BAKER_PLATFORM,
+    DATA_BAKER_CVPC_PLATFORM: DATA_BAKER_CVPC_PLATFORM,
     MAGIC_DATA_PLATFORM: MAGIC_DATA_PLATFORM,
     ABAKA_AI_PLATFORM: ABAKA_AI_PLATFORM,
     AISHELL_TECH_PLATFORM: AISHELL_TECH_PLATFORM,
@@ -2001,10 +2103,13 @@
     JUDGEMENT_PROJECT_ID: JUDGEMENT_PROJECT_ID,
     LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID,
     DATA_BAKER_PLATFORM_ID: DATA_BAKER_PLATFORM_ID,
+    DATA_BAKER_CVPC_PLATFORM_ID: DATA_BAKER_CVPC_PLATFORM_ID,
     MAGIC_DATA_PLATFORM_ID: MAGIC_DATA_PLATFORM_ID,
     ABAKA_AI_PLATFORM_ID: ABAKA_AI_PLATFORM_ID,
     AISHELL_TECH_PLATFORM_ID: AISHELL_TECH_PLATFORM_ID,
     DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
+    DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID:
+      DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID,
     MAGIC_DATA_ANNOTATOR_SCRIPT_ID: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
     MAGIC_DATA_MINNAN_SCRIPT_ID: MAGIC_DATA_MINNAN_SCRIPT_ID,
     ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
@@ -2012,6 +2117,16 @@
     DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
     DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,
     DATABAKER_AI_RECOMMEND_PATH: DATABAKER_AI_RECOMMEND_PATH,
+    DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT:
+      DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT,
+    DATA_BAKER_CVPC_AI_RECOMMEND_LOCAL_ENDPOINT:
+      DATA_BAKER_CVPC_AI_RECOMMEND_LOCAL_ENDPOINT,
+    DATA_BAKER_CVPC_AI_RECOMMEND_PATH: DATA_BAKER_CVPC_AI_RECOMMEND_PATH,
+    DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT:
+      DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT,
+    DATA_BAKER_CVPC_SEGMENT_PREVIEW_LOCAL_ENDPOINT:
+      DATA_BAKER_CVPC_SEGMENT_PREVIEW_LOCAL_ENDPOINT,
+    DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH: DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH,
     DATABAKER_EXPORT_UPLOAD_PATH: DATABAKER_EXPORT_UPLOAD_PATH,
     DATABAKER_EXPORT_DOWNLOAD_PATH: DATABAKER_EXPORT_DOWNLOAD_PATH,
     DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT: DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT,
@@ -2106,6 +2221,7 @@
     DEFAULT_PLATFORM_SETTINGS: createDefaultPlatformSettings(),
     DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: createDefaultLightwheelPlatformSettings(),
     DEFAULT_DATA_BAKER_PLATFORM_SETTINGS: createDefaultDataBakerPlatformSettings(),
+    DEFAULT_DATA_BAKER_CVPC_PLATFORM_SETTINGS: createDefaultDataBakerCvpcPlatformSettings(),
     DEFAULT_ABAKA_AI_PLATFORM_SETTINGS: createDefaultAbakaAiPlatformSettings(),
     DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS: createDefaultAishellTechPlatformSettings(),
     DEFAULT_SETTINGS: clone(DEFAULT_SETTINGS),

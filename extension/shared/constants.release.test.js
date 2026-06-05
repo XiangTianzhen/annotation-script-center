@@ -74,16 +74,34 @@ test("beta build keeps beta platform hidden until unlock", function () {
           },
         },
       },
+      dataBakerCvpc: {
+        enabled: true,
+        scripts: {
+          liuzhouAssistant: {
+            enabled: true,
+          },
+        },
+      },
     },
   };
 
   assert.equal(constants.canUseBetaFeatures(lockedSettings), false);
   assert.equal(constants.isPlatformVisible("lightwheel", lockedSettings), false);
   assert.equal(constants.isScriptVisible("lightwheelViewPanel", lockedSettings), false);
+  assert.equal(constants.isPlatformVisible("dataBakerCvpc", lockedSettings), false);
+  assert.equal(
+    constants.isScriptVisible("dataBakerCvpcLiuzhouAssistant", lockedSettings),
+    false
+  );
 
   assert.equal(constants.canUseBetaFeatures(unlockedSettings), true);
   assert.equal(constants.isPlatformVisible("lightwheel", unlockedSettings), true);
   assert.equal(constants.isScriptVisible("lightwheelViewPanel", unlockedSettings), true);
+  assert.equal(constants.isPlatformVisible("dataBakerCvpc", unlockedSettings), true);
+  assert.equal(
+    constants.isScriptVisible("dataBakerCvpcLiuzhouAssistant", unlockedSettings),
+    true
+  );
   assert.equal(constants.getBackendEndpointModeFromSettings(unlockedSettings), "beta");
   assert.equal(
     constants.buildBackendUrl("/api/example", unlockedSettings),
@@ -113,10 +131,24 @@ test("beta build hides disabled beta script from effective runtime access", func
           },
         },
       },
+      dataBakerCvpc: {
+        enabled: false,
+        scripts: {
+          liuzhouAssistant: {
+            enabled: false,
+          },
+        },
+      },
     },
   };
 
   assert.equal(constants.isPlatformVisible("lightwheel", settings), true);
   assert.equal(constants.isScriptVisible("lightwheelViewPanel", settings), true);
   assert.equal(constants.isScriptRuntimeAccessible("lightwheelViewPanel", settings), false);
+  assert.equal(constants.isPlatformVisible("dataBakerCvpc", settings), true);
+  assert.equal(constants.isScriptVisible("dataBakerCvpcLiuzhouAssistant", settings), true);
+  assert.equal(
+    constants.isScriptRuntimeAccessible("dataBakerCvpcLiuzhouAssistant", settings),
+    false
+  );
 });

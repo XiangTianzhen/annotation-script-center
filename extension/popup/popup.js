@@ -9,6 +9,10 @@
   const lightwheelScriptId = constants.LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID || "lightwheelViewPanel";
   const dataBakerRoundOneQualityScriptId =
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
+  const dataBakerCvpcHost =
+    (constants.DATA_BAKER_CVPC_PLATFORM || {}).host || "cvpc.data-baker.com";
+  const dataBakerCvpcLiuzhouScriptId =
+    constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID || "dataBakerCvpcLiuzhouAssistant";
   const magicDataHost = "work.magicdatatech.com";
   const magicDataHakkaScriptId =
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
@@ -318,6 +322,61 @@
         title: "当前页面属于 Magic Data",
         description: "进入 #/asrmark 后可使用已启用助手（当前：" + enabledLabel + "）。",
         openScriptSettings: Boolean(activeScriptId),
+      };
+    }
+
+    if (url.hostname === dataBakerCvpcHost) {
+      const scriptVisible =
+        typeof constants.isScriptVisible === "function"
+          ? constants.isScriptVisible(dataBakerCvpcLiuzhouScriptId, settings || {})
+          : true;
+      const scriptRuntimeAccessible =
+        typeof constants.isScriptRuntimeAccessible === "function"
+          ? constants.isScriptRuntimeAccessible(dataBakerCvpcLiuzhouScriptId, settings || {})
+          : true;
+      if (!scriptVisible) {
+        return {
+          scriptId: null,
+          platformId: null,
+          url: url,
+          statusText: "未触发",
+          statusTone: "pending",
+          title: "当前页面未命中已启用脚本",
+          description: "当前 beta 平台或脚本尚未解锁。",
+        };
+      }
+      const pathname = String(url.pathname || "").toLowerCase();
+      const platformEnabled = settings?.platforms?.dataBakerCvpc?.enabled !== false;
+      const scriptEnabled =
+        settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant?.enabled !== false;
+      const enabled = platformEnabled && scriptEnabled && scriptRuntimeAccessible;
+      if (pathname === "/app/editor/asr/") {
+        return {
+          scriptId: dataBakerCvpcLiuzhouScriptId,
+          platformId: "dataBakerCvpc",
+          platformLabel: "DataBaker CVPC",
+          url: url,
+          platformEnabled: platformEnabled,
+          scriptEnabled: scriptEnabled,
+          statusText: enabled ? "已支持 Beta" : "未启用",
+          statusTone: enabled ? "success" : "disabled",
+          title: "当前页面命中 DataBaker CVPC",
+          description: enabled
+            ? "当前页会尝试触发“柳州话脚本” beta 运行时：生成画段建议、当前段 AI 推荐和辅助填入。"
+            : "当前 URL 已命中 CVPC 编辑器，但平台脚本未启用或尚未解锁 beta。 ",
+        };
+      }
+      return {
+        scriptId: dataBakerCvpcLiuzhouScriptId,
+        platformId: "dataBakerCvpc",
+        platformLabel: "DataBaker CVPC",
+        url: url,
+        platformEnabled: platformEnabled,
+        scriptEnabled: scriptEnabled,
+        statusText: enabled ? "待进入编辑器" : "未启用",
+        statusTone: enabled ? "pending" : "disabled",
+        title: "当前页面属于 DataBaker CVPC",
+        description: "进入 /app/editor/asr/ 后，才会触发柳州话脚本 beta 运行时。",
       };
     }
 

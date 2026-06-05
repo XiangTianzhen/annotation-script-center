@@ -5,7 +5,7 @@
 - 平台标识：`data-baker-cvpc`
 - 平台入口：`https://cvpc.data-baker.com/app/web/`
 - 核心工作页：`https://cvpc.data-baker.com/app/editor/asr/`
-- 当前状态：仅完成首轮资料初始化；未创建 `extension/sites/data-baker-cvpc/`；未接入专属后端
+- 当前状态：`beta` 首版已接入脚本中心、扩展运行时与独立后端；真实画段写入契约仍待补采
 - 技术观察：
   - `app/web` 壳层从 DOM 特征看是 `Ant Design + utility class` 组合
   - `app/editor/asr` 是独立编辑器壳，按钮/表单样式来自 `Element UI`，波形区通过 `iframe` 承载
@@ -44,11 +44,13 @@
 - `network/`：已记录 4 段核心链路，覆盖登录启动、登录后壳层、首页到编辑器导航、编辑器初始化
 - `page-structure/`：已记录 4 段页面结构，覆盖登录路由重定向、首页壳层、列表导航链、编辑器壳层
 - `pending-capture`：明确列出未触发或未补采的写操作、角色视图和弹窗差异
+- `liuzhou-helper/`：已补脚本级规则资产、独立后端接口和扩展运行时 README
 
 ## 首轮边界
 
-- 首轮只做浏览器联动只读采集和安全 UI 跳转观察
-- 不触发 `领取`、`保存`、`挂起`、`提交`、批量流转等写操作
+- 当前脚本仍以“建议生成 + 人工确认”为边界
+- 不自动保存、不自动提交、不自动切下一条、不跨当前音频自动遍历
+- `segment create/update`、保存链路与字段稳定写入契约仍未补采完成
 - 不提交 HAR、原始请求包、未脱敏 JSON、完整签名资源 URL
 - 正文只保留结构摘要、参数键、字段层级、选择器建议和风险说明
 

@@ -113,6 +113,16 @@
 - 统计接口：
   - `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
 
+### DataBaker CVPC
+
+- 目录：`platform-resources/data-baker-cvpc/`
+- 当前脚本：
+  - `liuzhou-helper/`
+- 当前状态：
+  - `beta` 首版已接入扩展运行时与独立后端。
+  - 规则资产位于 `liuzhou-helper/ai/assets/`。
+  - 当前只支持“建议生成 + 人工确认”；真实画段写入契约仍待补采。
+
 ## 后端接口边界
 
 - 根级 `platform-resources/backend/` 是统一后端基础设施目录，不按平台模板重排。
@@ -128,6 +138,7 @@
 ## 当前 AI 调用日志覆盖范围
 
 - DataBaker：`/api/data-baker/round-one-quality/ai/recommend/logs/summary`
+- DataBaker CVPC：当前未写脚本级 AI 调用日志 CSV，也未开放 `logs/summary`
 - Aishell Tech：`/api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
 - Magic Data 客家话：`/api/magic-data/hakka-helper/ai/review-current/logs/summary`
 - Magic Data 客家话 legacy：`/api/magic-data/annotator/ai/review-current/logs/summary`
