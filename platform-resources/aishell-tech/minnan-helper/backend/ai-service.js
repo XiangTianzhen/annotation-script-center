@@ -44,6 +44,7 @@ const MODEL_MODE_OPTIONS = [
 const RECOGNITION_STRATEGY_OPTIONS = [
   { value: "mandarin_to_dialect", label: "普通话对照默认：先听成普通话，再按预测文本和字词表转闽南语" },
   { value: "direct_dialect", label: "直接听音：直接写出闽南语文本" },
+  { value: "audio_first_reference", label: "音频优先，文本参考：按实际发音输出，页面文本和字词表只做参考" },
 ];
 const DEFAULT_MANDARIN_LISTEN_TEMPLATE = [
   "你正在处理闽南语音频。",
@@ -82,6 +83,31 @@ const DEFAULT_DIRECT_DIALECT_COMPARE_TEMPLATE = [
   "如果词表中存在更合适的闽南语建议用字，可在语义一致时优先采用。",
   "recommendedText 的普通中文统一使用简体；命中 minnan-lexicon.csv 的建议用字必须保持不变。",
   "不要把方言建议用字改回普通话同义词。",
+  "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
+  "只输出 JSON，不输出额外解释。",
+].join("\n");
+const DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE = [
+  "你正在处理闽南语音频。",
+  "你只负责按实际发音输出 heardText，不要为了统一风格把整句强行改成普通话或闽南语。",
+  "如果音频里某个词读的是普通话，就直接保留普通话简体写法；如果读的是闽南语词或闽南语语气词，就按实际闽南语写法输出。",
+  "一句话里允许同时出现普通话词和闽南语词。",
+  "如果某个词没有读出来，就不要补写。",
+  "听不清时可结合上下文给出最可信写法，并通过 needHumanReview 标记不确定性。",
+  "heardText 必须使用简体中文，不允许输出繁体字。",
+  "输出 JSON 字段必须包含 heardText、confidence、needHumanReview。",
+  "只输出 JSON，不要输出 Markdown 或解释文字。",
+].join("\n");
+const DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE = [
+  "你会收到 pageText（平台预测文本）和 heardText（按实际发音转写出的文本）。",
+  "你的任务是输出最终 recommendedText，但必须以实际发音为准。",
+  "pageText 只作为参考，不能机械照抄，也不能主导改写。",
+  "闽南语字词表只作为候选提示，不允许因为词表里有建议用字，就把普通话实际发音强行改成闽南语写法。",
+  "如果某个词在音频里读的是普通话，就保留普通话简体。",
+  "如果某个词在音频里读的是闽南语，就输出对应闽南语写法。",
+  "如果某个词在音频里没有读出来，就不要补回。",
+  "一句话里允许同时保留普通话词和闽南语词。",
+  "只有在音频不清楚时，才允许参考 pageText 和词表保守判断，并将 needHumanReview 设为 true。",
+  "recommendedText 与 heardText 的普通中文统一输出简体；命中 minnan-lexicon.csv 的建议用字只在确认音频确实这样读时才保留。",
   "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
@@ -162,16 +188,26 @@ function normalizeModelText(value) {
 }
 
 function getStrategyPromptDefaults(recognitionStrategy) {
-  return normalizeRecognitionStrategy(recognitionStrategy, DEFAULT_RECOGNITION_STRATEGY) ===
-    "direct_dialect"
-    ? {
-        listenPrompt: DEFAULT_DIRECT_DIALECT_LISTEN_TEMPLATE,
-        comparePrompt: DEFAULT_DIRECT_DIALECT_COMPARE_TEMPLATE,
-      }
-    : {
-        listenPrompt: DEFAULT_MANDARIN_LISTEN_TEMPLATE,
-        comparePrompt: DEFAULT_MANDARIN_COMPARE_TEMPLATE,
-      };
+  const normalizedStrategy = normalizeRecognitionStrategy(
+    recognitionStrategy,
+    DEFAULT_RECOGNITION_STRATEGY
+  );
+  if (normalizedStrategy === "direct_dialect") {
+    return {
+      listenPrompt: DEFAULT_DIRECT_DIALECT_LISTEN_TEMPLATE,
+      comparePrompt: DEFAULT_DIRECT_DIALECT_COMPARE_TEMPLATE,
+    };
+  }
+  if (normalizedStrategy === "audio_first_reference") {
+    return {
+      listenPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE,
+      comparePrompt: DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE,
+    };
+  }
+  return {
+    listenPrompt: DEFAULT_MANDARIN_LISTEN_TEMPLATE,
+    comparePrompt: DEFAULT_MANDARIN_COMPARE_TEMPLATE,
+  };
 }
 
 function normalizeAiOptions(value) {
@@ -468,6 +504,7 @@ function createHealthPayload() {
 function createDefaultsPayload() {
   const mandarinPrompts = getStrategyPromptDefaults("mandarin_to_dialect");
   const directPrompts = getStrategyPromptDefaults("direct_dialect");
+  const audioFirstPrompts = getStrategyPromptDefaults("audio_first_reference");
   const defaultPrompts = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
   const runtime = buildAsyncJobRuntimeMeta();
   const modelCatalog = {
@@ -504,6 +541,7 @@ function createDefaultsPayload() {
       promptProfiles: {
         mandarin_to_dialect: mandarinPrompts,
         direct_dialect: directPrompts,
+        audio_first_reference: audioFirstPrompts,
       },
       modelCatalog,
     }),

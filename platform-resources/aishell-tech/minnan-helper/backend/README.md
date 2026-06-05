@@ -44,6 +44,10 @@
 - `two_stage + direct_dialect`
   - 听音阶段直接输出闽南语。
   - 比较阶段再结合页面预测文本给出推荐。
+- `two_stage + audio_first_reference`
+  - 听音阶段按实际发音输出，允许普通话词与闽南语词混合存在。
+  - 比较阶段只把 `pageText` 和词表当参考；音频里没读到的词不补回。
+  - 该策略仍会构建词表上下文给模型参考，但后处理 `lexicon.rewriteMode` 固定为 `off`，不会再做强制词表改写。
 - `omni_single`
   - 单模型一次完成听音、对比与推荐。
 
@@ -81,6 +85,7 @@
   - `recognitionStrategyOptions`
   - 当前策略默认 `listenPrompt / comparePrompt`
   - `promptProfiles`
+  - `audio_first_reference` 对应的 `promptProfiles` 会明确要求按实际发音输出，并允许普通话/闽南语混合保留
 - `health` 返回：
   - 当前默认模式
   - 当前默认策略

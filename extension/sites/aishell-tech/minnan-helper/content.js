@@ -33,6 +33,9 @@
     if (text === "direct_dialect") {
       return "direct_dialect";
     }
+    if (text === "audio_first_reference") {
+      return "audio_first_reference";
+    }
     return "mandarin_to_dialect";
   }
 

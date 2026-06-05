@@ -14,6 +14,11 @@
 - 当前默认配置已按 DataBaker 一检质检标准对齐：`two_stage + mandarin_to_dialect + qwen3.5-omni-flash + qwen3.5-plus`。
 - options 页当前已与 DataBaker 共用固定顺序的右侧 `AI 设置` 模块；`AI 连续填入并发数量` 已移动到该区域，默认 `5`，Omni 范围 `1~25`，Fun-ASR 范围 `1~50`。
 - 同时保留 `direct_dialect`（直接听写闽南语）测试模式。
+- 同时新增 `audio_first_reference`（音频优先，文本参考）策略：
+  - 以音频实际发音为准，允许同一句里混合普通话词和闽南语词。
+  - `pageText` 与词表只作为参考，不再主导改写。
+  - 音频里没有读出的词不补回。
+  - 后端仍会构建词表上下文给模型参考，但 `lexicon.rewriteMode` 固定为 `off`，不会再做后端强制词表改写。
 - 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
 - 当前默认链路为短请求创建 job + HTTP 轮询结果；同步 `POST /recommend` 仅保留兼容 / 调试用途，不引入 SSE 或 WebSocket；当前同步总超时统一为 `60000ms`。

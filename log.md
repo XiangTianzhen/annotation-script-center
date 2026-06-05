@@ -1,3 +1,22 @@
+## 2026-06-05（Aishell 音频优先识别策略）
+
+- `希尔贝壳 / 闽南语助手` 新增第三种识别策略 `audio_first_reference`，前端显示名固定为 `音频优先，文本参考`。
+- 后端当前已补齐第三种策略的 defaults / health / 请求归一 / Prompt profile：
+  - 听音阶段按实际发音输出，允许普通话词和闽南语词混合存在。
+  - 比较阶段把 `pageText` 和闽南语字词表收口为“软参考”，不再主导改写。
+  - 音频里没有读出的词不补回；音频不清时继续通过 `needHumanReview=true` 标记。
+- `platform-resources/aishell-tech/minnan-helper/backend/pipeline.js` 当前已按策略收口词表后处理：
+  - `audio_first_reference` 仍会构建 lexicon context 给模型参考。
+  - 但 `lexicon.rewriteMode` 现固定为 `off`，不会再走后端 `aggressive` 强制词表改写。
+- 前端与配置同步补齐：
+  - `extension/shared/constants.js`、`extension/shared/storage.js`、`extension/options/options.js`、`extension/sites/aishell-tech/minnan-helper/content.js` 现都接受 `audio_first_reference`。
+  - options 页 `识别策略` 下拉新增 `音频优先，文本参考`。
+  - Aishell `比较模型` 文案会按该策略显示为 `比较/参考模型`。
+- 回归验证补强：
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 现覆盖第三种策略、promptProfiles 与 `lexicon.rewriteMode=off`。
+  - `extension/shared/storage.aishell-tech.test.js` 现覆盖 `audio_first_reference` 存储保真。
+  - `extension/sites/aishell-tech/minnan-helper/batch-pipeline.test.js` 现覆盖前端 runtime 会把 `recognitionStrategy=audio_first_reference` 发给后端。
+
 ## 2026-06-05（前端并发语义统一为请求窗口灌满）
 
 - 新增 `extension/shared/concurrent-ai-request-stream.js`，把共享前端并发语义统一为：

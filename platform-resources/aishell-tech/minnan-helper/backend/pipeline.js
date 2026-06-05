@@ -24,6 +24,7 @@ const {
   DEFAULT_FUN_ASR_MODEL,
   DEFAULT_OMNI_MODEL,
   derivePipelineMode,
+  normalizeRecognitionStrategy,
 } = require("./config");
 const { createStageError } = require("./errors");
 const { enqueueTask } = require("./queue");
@@ -138,6 +139,13 @@ function normalizeListenResponse(modelJson) {
 
 function normalizeRecommendedText(text) {
   return normalizeToSimplifiedChinesePreservingLexicon(removeTextSpaces(String(text || "")));
+}
+
+function resolveLexiconRewriteMode(recognitionStrategy) {
+  return normalizeRecognitionStrategy(recognitionStrategy, "mandarin_to_dialect") ===
+    "audio_first_reference"
+    ? "off"
+    : "aggressive";
 }
 
 function buildQueueMeta(queueMetas) {
@@ -316,9 +324,10 @@ function createRecommendPipeline(overrides) {
       let activeListenModel = normalizeText(request.listenModel) || DEFAULT_OMNI_MODEL;
       let activeCompareModel = normalizeText(request.compareModel);
       let activeSingleModel = normalizeText(request.singleModel) || DEFAULT_OMNI_MODEL;
+      const lexiconRewriteMode = resolveLexiconRewriteMode(request.recognitionStrategy);
       let lexicon = {
         enabled: false,
-        rewriteMode: "aggressive",
+        rewriteMode: lexiconRewriteMode,
         rewriteChanged: false,
         matchedCount: 0,
         rewriteChanges: [],
@@ -356,7 +365,7 @@ function createRecommendPipeline(overrides) {
         const rewriteState = deps.applyLexiconRewrite(
           deps.normalizeRecommendedText(normalizedSingle.recommendedText),
           {
-            mode: "aggressive",
+            mode: lexiconRewriteMode,
           }
         );
         heardText = normalizeText(normalizedSingle.heardText);
@@ -369,7 +378,7 @@ function createRecommendPipeline(overrides) {
         compareUsage = {};
         lexicon = {
           enabled: lexiconContext.enabled === true,
-          rewriteMode: "aggressive",
+          rewriteMode: lexiconRewriteMode,
           rewriteChanged: rewriteState.changed === true,
           matchedCount: Number(lexiconContext.matchedCount || 0) || 0,
           rewriteChanges: Array.isArray(rewriteState.changes) ? rewriteState.changes : [],
@@ -512,7 +521,7 @@ function createRecommendPipeline(overrides) {
       const rewriteState = deps.applyLexiconRewrite(
         deps.normalizeRecommendedText(normalizedCompare.recommendedText),
         {
-          mode: "aggressive",
+          mode: lexiconRewriteMode,
         }
       );
       changePoints = Array.isArray(normalizedCompare.changePoints) ? normalizedCompare.changePoints : [];
@@ -524,7 +533,7 @@ function createRecommendPipeline(overrides) {
       compareUsage = deps.normalizeUsage(compareResult.usage || {});
       lexicon = {
         enabled: lexiconContext.enabled === true,
-        rewriteMode: "aggressive",
+        rewriteMode: lexiconRewriteMode,
         rewriteChanged: rewriteState.changed === true,
         matchedCount: Number(lexiconContext.matchedCount || 0) || 0,
         rewriteChanges: Array.isArray(rewriteState.changes) ? rewriteState.changes : [],

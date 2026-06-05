@@ -1796,11 +1796,11 @@
     const defaultConfig = isPlainObject(defaults) ? defaults : {};
     const result = deepMerge(defaultConfig, source);
     const constants = getConstants();
-    const defaultRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+    const defaultRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
       defaultConfig.aiRecommendRecognitionStrategy || defaultConfig.recognitionStrategy,
       "mandarin_to_dialect"
     );
-    const legacyRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+    const legacyRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
       source.aiRecommendRecognitionStrategy || source.recognitionStrategy,
       "direct_dialect"
     );
@@ -1876,7 +1876,7 @@
       constants
     );
     result.aiRecommendPipelineMode = normalizedPipelineMode;
-    result.aiRecommendRecognitionStrategy = normalizeMagicDataRecognitionStrategy(
+    result.aiRecommendRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
       shouldMigrateLegacyDefaultCombo
         ? "mandarin_to_dialect"
         : result.aiRecommendRecognitionStrategy || result.recognitionStrategy,
@@ -2118,6 +2118,34 @@
   function hasValidMagicDataRecognitionStrategy(value) {
     const text = String(value || "").trim().toLowerCase();
     return text === "direct_dialect" || text === "mandarin_to_dialect";
+  }
+
+  function normalizeAishellTechRecognitionStrategy(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (
+      text === "direct_dialect" ||
+      text === "mandarin_to_dialect" ||
+      text === "audio_first_reference"
+    ) {
+      return text;
+    }
+    const fallbackText = String(fallback || "mandarin_to_dialect").trim().toLowerCase();
+    if (fallbackText === "direct_dialect") {
+      return "direct_dialect";
+    }
+    if (fallbackText === "audio_first_reference") {
+      return "audio_first_reference";
+    }
+    return "mandarin_to_dialect";
+  }
+
+  function hasValidAishellTechRecognitionStrategy(value) {
+    const text = String(value || "").trim().toLowerCase();
+    return (
+      text === "direct_dialect" ||
+      text === "mandarin_to_dialect" ||
+      text === "audio_first_reference"
+    );
   }
 
   function resolveMagicDataModeAndStrategy(currentScript, legacyScript, defaultScript) {

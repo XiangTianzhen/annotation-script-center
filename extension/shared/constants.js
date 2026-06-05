@@ -149,6 +149,11 @@
       label: "识别转换：先听成普通话，再按字词表转方言",
     },
   ];
+  const AISHELL_TECH_RECOGNITION_STRATEGY_OPTIONS = [
+    { value: "mandarin_to_dialect", label: "普通话对照默认" },
+    { value: "direct_dialect", label: "直接听写闽南语" },
+    { value: "audio_first_reference", label: "音频优先，文本参考" },
+  ];
   const BAILIAN_MODEL_DOC_URLS = {
     pricing:
       "https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148",
@@ -2057,6 +2062,9 @@
     MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS: clone(MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS),
     MAGIC_DATA_HELPER_RECOGNITION_STRATEGY_OPTIONS: clone(
       MAGIC_DATA_HELPER_RECOGNITION_STRATEGY_OPTIONS
+    ),
+    AISHELL_TECH_RECOGNITION_STRATEGY_OPTIONS: clone(
+      AISHELL_TECH_RECOGNITION_STRATEGY_OPTIONS
     ),
     DATABAKER_AI_LISTEN_MODEL_OPTIONS: clone(DATABAKER_AI_LISTEN_MODEL_OPTIONS),
     DATABAKER_AI_SINGLE_MODEL_OPTIONS: clone(DATABAKER_AI_SINGLE_MODEL_OPTIONS),

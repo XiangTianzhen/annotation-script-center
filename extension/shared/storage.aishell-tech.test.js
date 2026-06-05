@@ -140,6 +140,38 @@ test("Aishell storage keeps customized strategy/model choices untouched", async 
   }
 });
 
+test("Aishell storage keeps audio-first recognition strategy untouched", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      aishellTech: {
+        enabled: true,
+        scripts: {
+          minnanHelper: {
+            id: "aishellTechMinnanAssistant",
+            enabled: true,
+            aiRecommendEnabled: true,
+            aiRecommendPipelineMode: "two_stage",
+            aiRecommendRecognitionStrategy: "audio_first_reference",
+            aiRecommendListenModel: "fun-asr",
+            aiRecommendCompareModel: "qwen3.5-plus",
+            aiRecommendSingleModel: "qwen3.5-omni-flash",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.aishellTech.scripts.minnanHelper;
+
+    assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
+    assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("storage keeps customized legal autofill concurrency values untouched", async function () {
   const harness = loadStorageApi({
     platforms: {
