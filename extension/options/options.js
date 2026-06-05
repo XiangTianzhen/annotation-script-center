@@ -2697,6 +2697,167 @@
     );
   }
 
+  function updateAishellTechComparePromptFieldMode(mode) {
+    const currentMode = String(mode || "").trim().toLowerCase() === "omni" ? "omni" : "compare";
+    const labelNode = getElement("aishell-tech-ai-compare-prompt-label");
+    const helpNode = getElement("aishell-tech-ai-compare-prompt-help");
+    if (labelNode instanceof HTMLElement) {
+      labelNode.textContent =
+        currentMode === "omni" ? "Omni判断 Prompt（可选）" : "差异比较 Prompt（可选）";
+    }
+    if (helpNode instanceof HTMLElement) {
+      helpNode.textContent =
+        currentMode === "omni"
+          ? "当前为 Omni 听音链路：不再调用差异比较模型；这里的 Prompt 会作为 Omni 一边听音一边判断差异的约束。留空或恢复默认时，使用后端默认 Prompt。"
+          : "当前为 Fun-ASR 听音链路：这里的 Prompt 会作为差异比较模型的判断约束。留空或恢复默认时，使用后端默认 Prompt。";
+    }
+  }
+
+  function updateAishellTechAudioFirstReferenceCorrectionThresholdField(configLike, aiDefaults) {
+    const config = configLike && typeof configLike === "object" ? configLike : {};
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const correctionThresholdNode = getElement(
+      "aishell-tech-audio-first-reference-correction-threshold"
+    );
+    const correctionThresholdHelpNode = getElement(
+      "aishell-tech-audio-first-reference-correction-threshold-help"
+    );
+    const currentRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
+      config.aiRecommendRecognitionStrategy,
+      getAishellTechRecognitionStrategyDefault(defaults)
+    );
+    const currentRecognitionMode = normalizeDataBakerRecognitionMode(
+      config.aiRecommendPipelineMode,
+      "two_stage"
+    );
+    const defaultValue = getAishellTechAudioFirstReferenceCorrectionThresholdDefault(defaults);
+    const effectiveValue =
+      normalizeOptionalNumberText(
+        config.aiRecommendAudioFirstReferenceCorrectionThreshold,
+        0,
+        1,
+        3
+      ) || defaultValue;
+
+    setFieldVisibility(
+      "aishell-tech-audio-first-reference-correction-threshold-field",
+      currentRecognitionStrategy === "audio_first_reference"
+    );
+
+    if (correctionThresholdNode instanceof HTMLInputElement) {
+      correctionThresholdNode.min = "0";
+      correctionThresholdNode.max = "1";
+      correctionThresholdNode.step = "0.001";
+      correctionThresholdNode.placeholder = defaultValue;
+      correctionThresholdNode.value = effectiveValue;
+    }
+
+    if (correctionThresholdHelpNode instanceof HTMLElement) {
+      correctionThresholdHelpNode.textContent =
+        currentRecognitionMode === "two_stage"
+          ? "默认 0.75。Fun-ASR 路径会在差异比较模型阶段使用该阈值；Omni 听音路径会在 Omni 一边听音一边判断差异时使用该阈值。低于阈值时优先保留 heardText，并标记人工复核。"
+          : "当前为 Omni 单模型链路；该阈值会在 Omni 一边听音一边判断差异时使用。低于阈值时优先保留 heardText，并标记人工复核。";
+    }
+  }
+
+  function applyAishellTechListenModelFields(listenModel, config, aiDefaults) {
+    const currentConfig = Object.assign({}, config || {});
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const currentListenModel = normalizeDataBakerListenModel(
+      listenModel || currentConfig.aiRecommendListenModel,
+      getDataBakerListenModelDefault(defaults)
+    );
+    renderFixedModelOptions(
+      "aishell-tech-ai-listen-model-select",
+      buildDataBakerListenModelOptions(defaults, currentConfig),
+      currentListenModel
+    );
+    renderFixedModelOptions(
+      "aishell-tech-ai-candidate-model-select",
+      buildDataBakerCompareModelOptions(defaults),
+      normalizeDataBakerCompareModel(
+        currentConfig.aiRecommendCandidateModel,
+        getAishellTechCandidateModelDefault(defaults)
+      )
+    );
+    renderFixedModelOptions(
+      "aishell-tech-ai-compare-model-select",
+      buildDataBakerCompareModelOptions(defaults),
+      normalizeDataBakerCompareModel(
+        currentConfig.aiRecommendCompareModel,
+        String(defaults.compareModel || "qwen3.5-plus")
+      )
+    );
+    const listenHelpNode = getElement("aishell-tech-ai-listen-model-help");
+    if (listenHelpNode instanceof HTMLElement) {
+      listenHelpNode.textContent =
+        currentListenModel === "fun-asr"
+          ? "Fun-ASR 先按实际发音输出 heardText；随后再调用差异比较模型，只判断 heardText 与词表转写文本的差异项。"
+          : "Omni 先结合候选转写文本与音频直接输出 heardText，并同步判断每个差异项是否要采用词表候选写法。";
+    }
+    const compareLabelNode = getElement("aishell-tech-ai-compare-model-label");
+    if (compareLabelNode instanceof HTMLElement) {
+      compareLabelNode.textContent = "差异比较模型";
+    }
+    const noteNode = getElement("aishell-tech-ai-listen-model-note");
+    if (noteNode instanceof HTMLElement) {
+      noteNode.classList.remove("hidden");
+      noteNode.textContent =
+        currentListenModel === "fun-asr"
+          ? "当前为 Fun-ASR 听音链路：候选转写模型会先结合原始文本与词表附件生成词表转写文本，再由差异比较模型决定哪些差异项需要采纳。"
+          : "当前为 Omni 听音链路：候选转写完成后，由 Omni 一边听音一边判断差异，不再调用差异比较模型。";
+    }
+    setFieldVisibility("aishell-tech-ai-compare-model-field", currentListenModel === "fun-asr");
+    updateAishellTechComparePromptFieldMode(
+      currentListenModel === "fun-asr" ? "compare" : "omni"
+    );
+    setFieldVisibility("aishell-tech-ai-single-model-field", false);
+    updateAishellTechAutofillConcurrencyField(
+      Object.assign({}, currentConfig || {}, {
+        aiRecommendListenModel: currentListenModel,
+      })
+    );
+  }
+
+  function applyAishellTechSingleModelFields(singleModel, config, aiDefaults) {
+    const currentConfig = Object.assign({}, config || {});
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const currentSingleModel = normalizeDataBakerSingleModel(
+      singleModel || currentConfig.aiRecommendSingleModel,
+      getDataBakerSingleModelDefault(defaults)
+    );
+    renderFixedModelOptions(
+      "aishell-tech-ai-candidate-model-select",
+      buildDataBakerCompareModelOptions(defaults),
+      normalizeDataBakerCompareModel(
+        currentConfig.aiRecommendCandidateModel,
+        getAishellTechCandidateModelDefault(defaults)
+      )
+    );
+    renderFixedModelOptions(
+      "aishell-tech-ai-single-model-select",
+      buildDataBakerSingleModelOptions(defaults, currentConfig),
+      currentSingleModel
+    );
+    updateAishellTechComparePromptFieldMode("omni");
+    setFieldVisibility("aishell-tech-ai-listen-model-field", false);
+    setFieldVisibility("aishell-tech-ai-compare-model-field", false);
+    setFieldVisibility("aishell-tech-ai-listen-model-custom-field", false);
+    setFieldVisibility("aishell-tech-ai-compare-model-custom-field", false);
+    setFieldVisibility("aishell-tech-ai-listen-model-note", true);
+    const noteNode = getElement("aishell-tech-ai-listen-model-note");
+    if (noteNode instanceof HTMLElement) {
+      noteNode.textContent =
+        "当前为 Omni 单模型链路：候选转写完成后，由 Omni 一边听音一边判断差异，不再调用差异比较模型。";
+    }
+    updateAishellTechAutofillConcurrencyField(
+      Object.assign({}, currentConfig || {}, {
+        aiRecommendPipelineMode: "omni_single",
+        aiRecommendSingleModel: currentSingleModel,
+      })
+    );
+  }
+
   function updateAishellTechRecognitionModeFields(recognitionMode) {
     const aiDefaults = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId).defaults || {};
     const draftConfig = getAishellTechSettingsDraftConfig(aiDefaults);
@@ -4658,7 +4819,7 @@
           ? '<label class="asr-ai-field"><span>词表转写 Prompt（可选）</span><textarea id="aishell-tech-ai-candidate-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>'
           : "",
         '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="' + prefix + '-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
-        '<label class="asr-ai-field"><span>' + modelLabel + ' Prompt（可选）</span><textarea id="' + prefix + '-compare-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+        '<label class="asr-ai-field"><span id="' + prefix + '-compare-prompt-label">' + modelLabel + ' Prompt（可选）</span><textarea id="' + prefix + '-compare-prompt" maxlength="8000"></textarea><span class="asr-ai-help" id="' + prefix + '-compare-prompt-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
         "</div></div>",
         '<div class="asr-ai-block"><strong>生成参数</strong><div class="asr-ai-grid three">',
         isAishellPanel
@@ -9956,7 +10117,6 @@
                     ? candidateModel
                     : "",
                 aiRecommendCompareModel:
-                  recognitionMode === "two_stage" &&
                   compareModel !== String(aiDefaults.compareModel || "").trim()
                     ? compareModel
                     : "",

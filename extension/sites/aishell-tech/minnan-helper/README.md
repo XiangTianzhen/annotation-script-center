@@ -4,7 +4,7 @@
 
 - 仅在 `https://mark.aishelltech.com/mytask/mark?...` 生效。
 - 前端显示名当前统一使用 `希尔贝壳`；仅改用户可见文案，不改内部平台 ID、文件夹名、接口路径或后端注册名。
-- 当前默认配置已收口为唯一的“三文本对照”方案：`two_stage + audio_first_reference + 候选 qwen3.5-plus + 听音 qwen3.5-omni-flash + 差异比较 qwen3.5-plus`。
+- 当前默认配置已收口为唯一的“三文本对照”方案：`two_stage + audio_first_reference + 候选 qwen3.5-plus + 听音 qwen3.5-omni-flash`。
 - options 页当前已与 DataBaker 共用固定顺序的右侧 `AI 设置` 模块；`AI 连续填入并发数量` 已移到该区域，默认 `5`，Omni 范围 `1~25`，Fun-ASR 范围 `1~50`。
 - 实测验收建议先打开 `https://mark.aishelltech.com/mytask/detail/:taskId`，再点击分包“查看”进入标注页；直接输入 `/mytask/mark?...` 在平台侧可能出现卡住。
 - 当前前端已按“嵌入式卡片与原生栏注入”集成：
@@ -13,7 +13,7 @@
   - `AI识别` 按钮直接注入到页面原生“保存”按钮右侧。
   - `全部AI批量识别`、`未完成的AI批量识别` 与 `停止批量` 按钮直接注入到页面原生工具按钮区域，并跟随页面重渲染自动恢复。
   - 当 AI 推荐文本与页面参考文本一致时，面板会显示 `无需修改` 提示，但底层仍保留真实推荐文本用于后续填入。
-- “当前识别结果”区会额外显示：原始文本、候选转写模型结合 `pageText + minnan-lexicon.csv` 上下文生成的词表转写文本、听音文本、推荐文本，以及“听音文本 vs 词表转写文本”的差异高亮。
+- “当前识别结果”区会额外显示：原始文本、候选转写模型结合相关词条与原始 CSV 文本块生成的词表转写文本、听音文本、推荐文本，以及“听音文本 vs 词表转写文本”的差异高亮。
   - AI 诊断信息会继续显示：识别策略、模型选择、校正阈值、校正置信度、AI耗时、前端并发、输入/输出/总 token、FunASR provider、后端模式、后端地址、是否发生自动回退、requestId、debugId。
   - 诊断展示当前统一优先读取后端 `meta`：额外包含排队等待、缓存命中和当前阶段，不再依赖旧的零散字段拼装。
   - 如果当前后端模式是“本机（127.0.0.1:3333）”且本机接口不可达，前端会自动回退一次 `script.xiangtianzhen.store` 服务器接口；只影响本次请求，不会改写用户设置。
@@ -86,10 +86,10 @@
 - 当前仅保留 `音频优先，文本参考`：
   - 听音模型按实际发音直接输出 `heardText`，允许一句里同时保留普通话词和闽南语词。
   - 比较/参考模型现在走“三文本对照”：`heardText + lexiconCandidateText + pageText`。
-  - 后端会先用独立的候选转写模型，结合 `pageText` 与 `minnan-lexicon.csv` 词表上下文生成 `lexiconCandidateText`，再只聚焦 `heardText` 与候选文本的差异项。
+  - 后端会先用独立的候选转写模型，结合 `pageText`、相关词条和原始 CSV 文本块生成 `lexiconCandidateText`，再只聚焦 `heardText` 与候选文本的差异项。
   - options 页当前可单独配置 `词表转写模型` 与 `词表转写 Prompt（可选）`；默认候选模型为 `qwen3.5-plus`。
-  - 比较/参考模型只把 `pageText` 和闽南语字词表当参考，不允许因为词表命中就强制整句改成闽南语。
-  - `two_stage` 下会先跑候选转写模型、再跑听音模型、最后跑差异比较模型；`omni_single` 下仍会先生成候选文本，再由 Omni 一边听音一边判断差异项该保留哪一侧。
+  - 听音模型为 Omni 时，右侧 AI 设置会隐藏 `差异比较模型`，并把 `comparePrompt` 标签改成 `Omni判断 Prompt（可选）`；该链路由 Omni 一边听音一边判断差异，不再调用差异比较模型。
+  - 听音模型切回 Fun-ASR 时，右侧 AI 设置会恢复 `差异比较模型` 与 `差异比较 Prompt（可选）`；此时 `two_stage` 走“候选转写模型 -> Fun-ASR -> 差异比较模型”三段链路。
   - 音频里读成普通话的词保留普通话简体；读成闽南语的词才写成对应闽南语写法。
   - 音频里没有读出来的词不补回；只有音频不清时，才允许参考 `pageText` 和词表保守判断，并标记 `needHumanReview=true`。
   - options 页新增 `词表候选校正阈值`，默认 `0.75`；当模型对候选标准写法的 `correctionConfidence` 低于该阈值时，后端会优先保留 `heardText` 并标记人工复核。

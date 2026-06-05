@@ -40,16 +40,17 @@
 
 - 当前只保留 `two_stage + audio_first_reference`
   - 听音阶段按实际发音输出，允许普通话词与闽南语词混合存在。
-  - `two_stage` 当前固定使用三段式：
-    - 候选转写阶段：候选模型先结合 `pageText` 与 `minnan-lexicon.csv` 词表上下文生成 `lexiconCandidateText`
-    - 听音阶段：输出 `heardText`
-    - 差异比较阶段：再基于 `pageText + lexiconCandidateText + heardText` 做最终推荐
-  - 比较模型只重点判断 `heardText` 与 `lexiconCandidateText` 的差异项；音频里没读到的词不补回。
+  - 候选转写阶段固定先跑：候选模型会同时接收 `pageText`、相关词条结构化上下文和一段原始 CSV 文本块附件，再生成 `lexiconCandidateText`。
+  - `two_stage` 当前按听音模型分成两条链路：
+    - `listenModel=fun-asr`：`候选转写模型 -> Fun-ASR -> 差异比较模型`
+    - `listenModel=Omni`：`候选转写模型 -> Omni 听音并同步判断差异`
+  - Omni 听音链路不再调用文本 `compareModel`；前端会继续保留 `comparePrompt` 存储键，但该字段在 Omni 路径下语义改成 `Omni判断 Prompt`。
+  - Fun-ASR 路径下，比较模型只重点判断 `heardText` 与 `lexiconCandidateText` 的差异项；音频里没读到的词不补回。
   - `audioFirstReferenceCorrectionThreshold` 默认 `0.75`；当 `correctionConfidence` 低于阈值时，后端会优先保留 `heardText`，并把 `needHumanReview` 置为 `true`。
   - 该策略仍会构建词表上下文给模型参考，但后处理 `lexicon.rewriteMode` 固定为 `off`，不会再做强制词表改写。
 - `omni_single`
   - 仍保留为模型方案；但识别策略当前固定为 `audio_first_reference`。
-  - 该模式下也会先生成 `lexiconCandidateText`，再由 Omni 在单次音频请求里结合候选文本与原文判断差异项该保留哪一侧。
+  - 该模式下也会先生成 `lexiconCandidateText`，再由 Omni 在单次音频请求里结合候选文本与原文判断差异项该保留哪一侧；同样不调用差异比较模型。
 
 ## 返回契约
 
@@ -94,14 +95,16 @@
   - `candidateModel`
   - `promptProfiles`
   - `audioFirstReferenceCorrectionThreshold`
-  - `audio_first_reference` 对应的 `promptProfiles` 会明确要求按实际发音输出，并允许普通话/闽南语混合保留
+  - `audio_first_reference` 对应的 `promptProfiles` 会明确要求：
+    - `candidatePrompt`：这是闽南话候选转写，必须结合语境与词表附件，不得凭感觉扩写
+    - `comparePrompt`：Fun-ASR 路径下作为差异比较 Prompt；Omni 路径下作为 `Omni判断 Prompt`
 - `health` 返回：
   - 当前默认模式
   - 当前默认策略
   - `audioFirstReferenceCorrectionThreshold`
   - 当前同步超时
   - Aishell 独立队列组配置
-- 当前默认组合已收口为：`two_stage + audio_first_reference + 候选 qwen3.5-plus + 听音 qwen3.5-omni-flash + 差异比较 qwen3.5-plus`。
+- 当前默认组合已收口为：`two_stage + audio_first_reference + 候选 qwen3.5-plus + 听音 qwen3.5-omni-flash`；默认听音为 Omni，因此默认链路不再调用差异比较模型。切换到 Fun-ASR 时，再启用默认 `qwen3.5-plus` 差异比较模型。
 
 ## 日志与缓存
 

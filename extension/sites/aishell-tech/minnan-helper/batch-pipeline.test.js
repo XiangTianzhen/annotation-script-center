@@ -236,3 +236,53 @@ test("Aishell AI runtime sends audio-first recognition strategy to backend", asy
     harness.cleanup();
   }
 });
+
+test("Aishell AI runtime omits compare model for Omni listen but keeps Omni judgement prompt", async function () {
+  const harness = loadAiRecommendationApi();
+
+  try {
+    const runtime = harness.api.createRuntime({
+      endpoint: "https://example.com/api/aishell-tech/minnan-helper/ai/recommend",
+      timeoutMs: 60000,
+      settings: {
+        meta: {
+          aiUsageOperatorName: "tester",
+        },
+      },
+      modelMode: "two_stage",
+      recognitionMode: "two_stage",
+      recognitionStrategy: "audio_first_reference",
+      listenModel: "qwen3.5-omni-flash",
+      compareModel: "qwen3.5-plus",
+      singleModel: "qwen3.5-omni-flash",
+      aiOptions: {
+        candidateModel: "qwen3.5-plus",
+        candidatePrompt: "candidate-prompt",
+        listenPrompt: "listen-prompt",
+        comparePrompt: "omni-judge-prompt",
+        audioFirstReferenceCorrectionThreshold: 0.75,
+      },
+    });
+    const result = await runtime.recommend({
+      taskId: "task-2",
+      packageId: "package-2",
+      taskItemId: "item-2",
+      fileName: "2.wav",
+      audioUrl: "https://example.com/audio-2.wav",
+      referenceText: "路况良好，主要是高速和省道，跟着导航走即可。",
+      duration: 1200,
+      number: 2,
+      frontConcurrency: 5,
+    });
+
+    assert.equal(result.echoedBody?.recognitionStrategy, "audio_first_reference");
+    assert.equal(result.echoedBody?.listenModel, "qwen3.5-omni-flash");
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(result.echoedBody || {}, "compareModel"),
+      false
+    );
+    assert.equal(result.echoedBody?.aiOptions?.comparePrompt, "omni-judge-prompt");
+  } finally {
+    harness.cleanup();
+  }
+});

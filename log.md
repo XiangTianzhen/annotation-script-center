@@ -1,3 +1,22 @@
+## 2026-06-05（Aishell 候选 Prompt 强化与 Omni/Fun-ASR 分流）
+
+- `希尔贝壳 / 闽南语助手` 的 `audio_first_reference` 当前继续保持“三文本对照”，但链路已按听音模型明确分流：
+  - 候选转写阶段固定先跑，继续使用独立候选转写模型。
+  - `listenModel=Omni`：走“候选转写模型 -> Omni 听音并同步判断差异”，不再调用差异比较模型。
+  - `listenModel=fun-asr`：走“候选转写模型 -> Fun-ASR -> 差异比较模型”三段链路。
+- Aishell 候选转写 Prompt 当前已强化为“闽南话 + 语境 + 词表附件”口径：
+  - 默认 `candidatePrompt` 现在明确要求把任务理解为闽南话/闽南语候选转写。
+  - 候选阶段会同时附带 `词表相关词条` 与 `词表原始CSV附件` 给模型，不再只给简化词表上下文。
+- Aishell options / runtime 当前已补齐 Omni/Fun-ASR 联动：
+  - 听音模型为 Omni 时，隐藏 `差异比较模型`。
+  - 同一个 `comparePrompt` 存储键在 Omni 路径下会显示为 `Omni判断 Prompt（可选）`。
+  - 切回 Fun-ASR 时，恢复 `差异比较模型` 与 `差异比较 Prompt（可选）`；隐藏期间已保存的 compare model / prompt 不丢失。
+- 前端 Aishell runtime 当前会在 Omni 听音路径下省略请求体顶层 `compareModel`，但继续保留 `comparePrompt` 作为 Omni 判断 Prompt 发往后端。
+- 回归验证新增覆盖：
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 覆盖候选 Prompt 附件、`two_stage + Omni` 跳过 compare 模型、`comparePrompt` 复用为 Omni 判断 Prompt。
+  - `extension/sites/aishell-tech/minnan-helper/batch-pipeline.test.js` 覆盖 Omni 路径请求体不再携带顶层 `compareModel`。
+  - `extension/options/options-aishell-tech-ui.test.js` 覆盖 options 源码包含 `Omni判断 Prompt（可选）`、Omni 隐藏比较模型与联动提示文案。
+
 ## 2026-06-05（Aishell 候选转写恢复为 AI 并开放独立配置）
 
 - `希尔贝壳 / 闽南语助手` 的 `词表转写文本` 当前已从“纯代码候选转写”恢复为“独立候选转写模型生成”：

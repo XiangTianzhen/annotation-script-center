@@ -45,6 +45,53 @@ function createPromptObject(systemPrompt, userPrompt) {
   };
 }
 
+function escapeCsvCell(value) {
+  return '"' + String(value === undefined || value === null ? "" : value).replace(/"/g, '""') + '"';
+}
+
+function buildLexiconStructuredEntries(lexiconContext) {
+  const items = Array.isArray(lexiconContext?.items) ? lexiconContext.items : [];
+  return items.slice(0, 60).map(function (item) {
+    return {
+      id: normalizeText(item?.id),
+      suggested: normalizeText(item?.suggested),
+      mandarin: normalizeText(item?.mandarin),
+      source: normalizeText(item?.source) || "csv",
+    };
+  });
+}
+
+function buildLexiconCsvAttachmentText(lexiconContext) {
+  const entries = buildLexiconStructuredEntries(lexiconContext);
+  if (entries.length === 0) {
+    return "";
+  }
+  const lines = ['"编号","建议用字","对应华语","来源"'];
+  entries.forEach(function (entry) {
+    lines.push(
+      [
+        escapeCsvCell(entry.id),
+        escapeCsvCell(entry.suggested),
+        escapeCsvCell(entry.mandarin),
+        escapeCsvCell(entry.source),
+      ].join(",")
+    );
+  });
+  return lines.join("\n");
+}
+
+function buildAudioFirstReferencePayload(correctionContext, correctionThreshold) {
+  const context = correctionContext && typeof correctionContext === "object" ? correctionContext : {};
+  return {
+    lexiconCandidateText: normalizeText(context.lexiconCandidateText),
+    candidatePairs: Array.isArray(context.candidatePairs) ? context.candidatePairs : [],
+    differenceSegments: Array.isArray(context.differenceSegments) ? context.differenceSegments : [],
+    candidateDiffCount: Number(context.candidateDiffCount || 0) || 0,
+    audioFirstReferenceCorrectionThreshold:
+      normalizeAudioFirstReferenceCorrectionThreshold(correctionThreshold),
+  };
+}
+
 function isAudioFirstReferenceStrategy(request) {
   return normalizeRecognitionStrategy(request?.recognitionStrategy, "mandarin_to_dialect") ===
     "audio_first_reference";
@@ -194,18 +241,7 @@ function createComparePrompt(request, heardText, lexiconContext, correctionConte
       );
     promptLines.push(
       "词表候选校正：",
-      JSON.stringify(
-        {
-          lexiconCandidateText: compareInput.lexiconCandidateText,
-          candidatePairs: compareInput.candidatePairs,
-          differenceSegments: compareInput.differenceSegments,
-          candidateDiffCount: compareInput.candidateDiffCount,
-          audioFirstReferenceCorrectionThreshold:
-            compareInput.audioFirstReferenceCorrectionThreshold,
-        },
-        null,
-        2
-      )
+      JSON.stringify(buildAudioFirstReferencePayload(correctionContext, request.aiOptions?.audioFirstReferenceCorrectionThreshold), null, 2)
     );
   }
   promptLines.push(
@@ -222,6 +258,17 @@ function createCandidatePrompt(request, lexiconContext) {
   const promptLines = [request.aiOptions?.candidatePrompt || ""];
   if (lexiconContext?.text) {
     promptLines.push("词表上下文：", lexiconContext.text);
+  }
+  const structuredEntries = buildLexiconStructuredEntries(lexiconContext);
+  if (structuredEntries.length > 0) {
+    promptLines.push(
+      "词表相关词条：",
+      JSON.stringify(structuredEntries, null, 2)
+    );
+  }
+  const csvAttachmentText = buildLexiconCsvAttachmentText(lexiconContext);
+  if (csvAttachmentText) {
+    promptLines.push("词表原始CSV附件：", csvAttachmentText);
   }
   promptLines.push(
     "输入：",
@@ -242,10 +289,13 @@ function createCandidatePrompt(request, lexiconContext) {
   );
 }
 
-function createOmniSinglePrompt(request, lexiconContext, correctionContext) {
+function createOmniJudgePrompt(request, lexiconContext, correctionContext) {
   const promptLines = [
+    "听音要求：",
     request.aiOptions?.listenPrompt || "",
-    "规则：一个请求直接完成听音、对比和推荐文本输出。",
+    "Omni判断要求：",
+    request.aiOptions?.comparePrompt || "",
+    "规则：当前链路由 Omni 一边听音，一边判断是否采用词表候选写法；不要再额外假设存在差异比较模型。",
     "输入：",
     JSON.stringify(
       {
@@ -267,24 +317,23 @@ function createOmniSinglePrompt(request, lexiconContext, correctionContext) {
       0,
       "词表候选校正：",
       JSON.stringify(
-        {
-          lexiconCandidateText: correctionContext.lexiconCandidateText,
-          candidatePairs: correctionContext.candidatePairs,
-          differenceSegments: correctionContext.differenceSegments,
-          audioFirstReferenceCorrectionThreshold:
-            normalizeAudioFirstReferenceCorrectionThreshold(
-              request.aiOptions?.audioFirstReferenceCorrectionThreshold
-            ),
-        },
+        buildAudioFirstReferencePayload(
+          correctionContext,
+          request.aiOptions?.audioFirstReferenceCorrectionThreshold
+        ),
         null,
         2
       )
     );
   }
   return createPromptObject(
-    "你是 Aishell 闽南语单模型推荐助手。你必须只输出 JSON，不要输出 Markdown 或额外解释。",
+    "你是 Aishell 闽南语 Omni 判断助手。你必须只输出 JSON，不要输出 Markdown 或额外解释。",
     promptLines.join("\n")
   );
+}
+
+function createOmniSinglePrompt(request, lexiconContext, correctionContext) {
+  return createOmniJudgePrompt(request, lexiconContext, correctionContext);
 }
 
 function createProviderInput(request) {
@@ -555,6 +604,7 @@ function createRecommendPipeline(overrides) {
       buildComparePrompt: createComparePrompt,
       buildLexiconContext,
       buildListenPrompt: createListenPrompt,
+      buildOmniJudgePrompt: createOmniJudgePrompt,
       buildOmniSinglePrompt: createOmniSinglePrompt,
       buildCandidatePairs,
       buildHeardCandidateDifferenceSegments,
@@ -845,10 +895,14 @@ function createRecommendPipeline(overrides) {
         listenConfidence = Number(funAsrResult.confidence || 0) || 0;
         listenUsage = deps.normalizeUsage(funAsrResult.usage || {});
       } else {
-        const listenPrompt = deps.buildListenPrompt(request);
+        const omniJudgePrompt = deps.buildOmniJudgePrompt(
+          request,
+          lexiconContext,
+          correctionContext
+        );
         const listenStartedAt = deps.now();
-        const omniListenResult = await runQueuedTask("aishell_qwen_omni", "listen", function () {
-          return deps.requestOmniInputAudio(providerInput, listenPrompt, {
+        const omniJudgeResult = await runQueuedTask("aishell_qwen_omni", "listen", function () {
+          return deps.requestOmniInputAudio(providerInput, omniJudgePrompt, {
             model: activeListenModel,
             timeoutMs: getRemainingTimeoutMs(startedAtMs, timeoutMs),
             enableThinking: false,
@@ -859,17 +913,130 @@ function createRecommendPipeline(overrides) {
         });
         listenDurationMs = Math.max(0, deps.now() - listenStartedAt);
         timing.listenDurationMs = listenDurationMs;
-        const listenJson = deps.parseModelJsonText(omniListenResult.rawText, {
+        const omniJudgeJson = deps.parseModelJsonText(omniJudgeResult.rawText, {
           requestId,
-          stage: "listen",
-          model: omniListenResult.model,
+          stage: "omni_judge",
+          model: omniJudgeResult.model,
         });
-        const normalizedListen = deps.normalizeListenResponse(listenJson, {
+        const normalizedOmniJudge = deps.normalizeOmniSingleResponse(omniJudgeJson, {
           pageText: request.referenceText,
         });
-        heardText = normalizeText(normalizedListen.heardText);
-        listenConfidence = Number(normalizedListen.confidence || 0) || 0;
-        listenUsage = deps.normalizeUsage(omniListenResult.usage || {});
+        heardText = normalizeText(normalizedOmniJudge.heardText);
+        listenConfidence = Number(normalizedOmniJudge.confidence || 0) || 0;
+        listenUsage = deps.normalizeUsage(omniJudgeResult.usage || {});
+        if (isAudioFirstReferenceStrategy(request)) {
+          correctionContext = Object.assign(
+            {
+              enabled: false,
+              lexiconCandidateText: deps.normalizeRecommendedText(request.referenceText),
+              candidatePairs: [],
+              candidateDiffCount: 0,
+              differenceSegments: [],
+              confidence: null,
+              needHumanReview: false,
+            },
+            correctionContext && typeof correctionContext === "object" ? correctionContext : {}
+          );
+          correctionContext.differenceSegments = deps.buildHeardCandidateDifferenceSegments(
+            heardText,
+            correctionContext.lexiconCandidateText
+          );
+          correctionContext.candidateDiffCount = correctionContext.differenceSegments.length;
+          audioFirstReferenceMeta = buildAudioFirstReferenceMeta(
+            omniJudgeJson,
+            correctionContext,
+            request.aiOptions?.audioFirstReferenceCorrectionThreshold
+          );
+        }
+        const resolvedOmniJudge = isAudioFirstReferenceStrategy(request)
+          ? resolveAudioFirstReferenceCompareResult({
+              normalizedCompare: normalizedOmniJudge,
+              heardText,
+              meta: audioFirstReferenceMeta,
+            })
+          : normalizedOmniJudge;
+        const rewriteState = deps.applyLexiconRewrite(
+          deps.normalizeRecommendedText(resolvedOmniJudge.recommendedText),
+          {
+            mode: lexiconRewriteMode,
+          }
+        );
+        decision = normalizeText(normalizedOmniJudge.decision);
+        changePoints = Array.isArray(normalizedOmniJudge.changePoints)
+          ? normalizedOmniJudge.changePoints
+          : [];
+        needHumanReview = resolvedOmniJudge.needHumanReview === true || rewriteState.changed === true;
+        compareConfidence = Number(normalizedOmniJudge.confidence || 0) || 0;
+        compareUsage = {};
+        lexicon = {
+          enabled: lexiconContext.enabled === true,
+          rewriteMode: lexiconRewriteMode,
+          rewriteChanged: rewriteState.changed === true,
+          matchedCount: Number(lexiconContext.matchedCount || 0) || 0,
+          rewriteChanges: Array.isArray(rewriteState.changes) ? rewriteState.changes : [],
+        };
+        timing.totalDurationMs = Math.max(0, deps.now() - startedAtMs);
+        return {
+          cacheEntry: {
+            key: cacheKey,
+          },
+          data: {
+            taskId: request.taskId,
+            packageId: request.packageId,
+            taskItemId: request.taskItemId,
+            fileName: request.fileName,
+            referenceText: request.referenceText,
+            existingMarkText: request.existingMarkText,
+            heardText,
+            recommendedText: rewriteState.text,
+            isChanged: normalizeText(rewriteState.text) !== normalizeText(request.referenceText),
+            needHumanReview,
+            decision,
+            changePoints,
+            lexicon,
+          },
+          meta: {
+            requestId,
+            stage: "complete",
+            models: {
+              modelMode: request.modelMode,
+              recognitionStrategy: request.recognitionStrategy,
+              pipelineMode,
+              candidateModel: activeCandidateModel,
+              listenModel: activeListenModel,
+              compareModel: "",
+              singleModel: "",
+              funAsrProvider: "",
+            },
+            timing: Object.assign({}, timing),
+            usage: {
+              promptTokens:
+                Number(candidateUsage.promptTokens || 0) + Number(listenUsage.promptTokens || 0),
+              completionTokens:
+                Number(candidateUsage.completionTokens || 0) +
+                Number(listenUsage.completionTokens || 0),
+              totalTokens:
+                Number(candidateUsage.totalTokens || 0) + Number(listenUsage.totalTokens || 0),
+              candidate: candidateUsage,
+              listen: listenUsage,
+              compare: {},
+            },
+            queue: buildQueueMeta(queueMetas),
+            cache: {
+              hit: false,
+              sourceRequestId: "",
+            },
+            debugId: "",
+            retryCount: buildRetryCount(queueMetas),
+            cancelled: false,
+            debug: {
+              frontConcurrencyOriginal: request.frontConcurrency ?? null,
+              frontConcurrencyNormalized: request.frontConcurrency ?? null,
+              concurrencyModelType: normalizeText(request.concurrencyModelType),
+            },
+            audioFirstReference: audioFirstReferenceMeta,
+          },
+        };
       }
 
       lexiconContext = deps.buildLexiconContext({

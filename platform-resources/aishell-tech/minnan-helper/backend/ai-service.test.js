@@ -77,7 +77,9 @@ test("Aishell defaults expose only the strict audio-first prompt profile", funct
     }),
     true
   );
-  assert.match(defaults.candidatePrompt || "", /lexiconCandidateText/);
+  assert.match(defaults.candidatePrompt || "", /闽南话|闽南语/);
+  assert.match(defaults.candidatePrompt || "", /词表附件|CSV/);
+  assert.match(defaults.candidatePrompt || "", /语境/);
   assert.match(defaults.listenPrompt || "", /按实际发音输出 heardText/);
   assert.match(defaults.comparePrompt || "", /differenceSegments/);
   assert.match(defaults.comparePrompt || "", /candidateDecisions/);
@@ -249,6 +251,8 @@ test("Aishell audio-first strategy builds AI lexicon candidate text before compa
   assert.equal(result.data?.lexicon?.rewriteMode, "off");
   assert.equal(result.meta?.audioFirstReference?.correctionThreshold, 0.75);
   assert.equal(result.meta?.audioFirstReference?.correctionConfidence, 0.61);
+  assert.match(capturedCandidatePrompt?.userPrompt || "", /词表相关词条/);
+  assert.match(capturedCandidatePrompt?.userPrompt || "", /词表原始CSV附件/);
   assert.equal(compareCallCount, 2);
   assert.deepEqual(parseStages, ["candidate", "compare"]);
 });
@@ -388,6 +392,133 @@ test("Aishell audio-first strategy can mix candidate and heard text by diff segm
   assert.equal(result.meta?.audioFirstReference?.correctionConfidence, 0.92);
   assert.equal(result.meta?.audioFirstReference?.candidateText, "路况良好，主要是高速甲省道，甲着导航行即可。");
   assert.equal(compareCallCount, 2);
+});
+
+test("Aishell audio-first omni path reuses compare prompt as Omni judgement and skips compare model", async function () {
+  let currentNow = 4000;
+  let compareCallCount = 0;
+  let omniCallCount = 0;
+  let capturedCandidatePrompt = null;
+  let capturedOmniPrompt = null;
+  let capturedCandidateModel = "";
+  const parseStages = [];
+  const pipeline = createRecommendPipeline({
+    now: function () {
+      currentNow += 7;
+      return currentNow;
+    },
+    enqueueTask: async function (_groupName, task) {
+      return {
+        value: await task(),
+        queueMeta: {
+          groupName: "aishell_qwen_omni",
+          queueWaitMs: 0,
+          retryCount: 0,
+          durationMs: 0,
+          activeCount: 1,
+          maxConcurrent: 4,
+        },
+      };
+    },
+    requestCompare: async function (_providerInput, prompt, _comparisonText, options) {
+      compareCallCount += 1;
+      capturedCandidatePrompt = prompt;
+      capturedCandidateModel = String(options?.model || "");
+      return {
+        rawText: "{}",
+        model: String(options?.model || "qwen3.5-plus"),
+        usage: {},
+      };
+    },
+    requestOmniInputAudio: async function (_providerInput, prompt, options) {
+      omniCallCount += 1;
+      capturedOmniPrompt = prompt;
+      return {
+        rawText: "{}",
+        model: String(options?.model || "qwen3.5-omni-flash"),
+        usage: {},
+      };
+    },
+    parseModelJsonText: function (_rawText, options) {
+      parseStages.push(options?.stage || "");
+      if (options?.stage === "candidate") {
+        return {
+          lexiconCandidateText: "路况良好，主要是高速甲省道，甲着导航行即可。",
+          confidence: 0.9,
+          needHumanReview: false,
+        };
+      }
+      return {
+        heardText: "路况良好，主要是高速佮省道，缀着导航行即可。",
+        recommendedText: "路况良好，主要是高速甲省道，缀着导航行即可。",
+        decision: "use_mixed_segments",
+        changePoints: ["第一个差异项采用候选，第二个差异项保留听音。"],
+        confidence: 0.93,
+        needHumanReview: false,
+        correctionConfidence: 0.93,
+        candidateDecisions: [
+          {
+            sourceText: "和",
+            candidateText: "甲",
+            heardFragment: "佮",
+            applyCandidate: true,
+            confidence: 0.93,
+            reason: "发音接近但标准写法应采用甲。",
+          },
+          {
+            sourceText: "跟",
+            candidateText: "甲着",
+            heardFragment: "缀着",
+            applyCandidate: false,
+            confidence: 0.96,
+            reason: "听音文本已经正确，保留缀着。",
+          },
+        ],
+      };
+    },
+  });
+
+  const result = await pipeline.run(
+    {
+      taskId: "task-4",
+      packageId: "package-4",
+      taskItemId: "item-4",
+      fileName: "4.wav",
+      audioUrl: "https://example.com/audio-4.wav",
+      referenceText: "路况良好，主要是高速和省道，跟着导航走即可。",
+      existingMarkText: "",
+      duration: 1800,
+      itemNumber: 4,
+      modelMode: "two_stage",
+      pipelineMode: "qwen_omni_compare",
+      recognitionStrategy: "audio_first_reference",
+      listenModel: "qwen3.5-omni-flash",
+      compareModel: "qwen3.5-plus",
+      singleModel: "",
+      aiOptions: {
+        candidatePrompt: "candidate-prompt",
+        comparePrompt: "omni-judge-prompt",
+        audioFirstReferenceCorrectionThreshold: 0.75,
+      },
+      frontConcurrency: 5,
+      concurrencyModelType: "omni",
+    },
+    {
+      requestId: "req-audio-first-omni-two-stage",
+      startedAtMs: 4000,
+      timeoutMs: 60000,
+    }
+  );
+
+  assert.equal(compareCallCount, 1);
+  assert.equal(omniCallCount, 1);
+  assert.equal(capturedCandidateModel, "qwen3.5-plus");
+  assert.match(capturedCandidatePrompt?.userPrompt || "", /词表原始CSV附件/);
+  assert.match(capturedOmniPrompt?.userPrompt || "", /omni-judge-prompt/);
+  assert.match(capturedOmniPrompt?.userPrompt || "", /词表候选校正/);
+  assert.equal(result.data?.recommendedText, "路况良好，主要是高速甲省道，缀着导航行即可。");
+  assert.equal(result.meta?.models?.compareModel, "");
+  assert.deepEqual(parseStages, ["candidate", "omni_judge"]);
 });
 
 test("Aishell Minnan lexicon stays byte-for-byte aligned with DataBaker reference", function () {

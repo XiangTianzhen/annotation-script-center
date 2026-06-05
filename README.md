@@ -18,7 +18,7 @@
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 当前已全局固定关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
-- Aishell Tech 已完成独立闽南语助手首版接入：`/mytask/mark` 支持当前条 AI 推荐与批量串行真实保存，后端已注册 `/api/aishell-tech/minnan-helper/ai/recommend*` 独立接口；当前已收口为唯一的“三文本对照”策略：`two_stage + audio_first_reference + 候选 qwen3.5-plus + 听音 qwen3.5-omni-flash + 差异比较 qwen3.5-plus`，默认链路为 `POST /jobs` + 轮询，Aishell 继续保留自己的独立队列与 `success/data/meta` 契约。
+- Aishell Tech 已完成独立闽南语助手首版接入：`/mytask/mark` 支持当前条 AI 推荐与批量串行真实保存，后端已注册 `/api/aishell-tech/minnan-helper/ai/recommend*` 独立接口；当前已收口为唯一的“三文本对照”策略：`two_stage + audio_first_reference + 候选 qwen3.5-plus + 听音 qwen3.5-omni-flash`。候选转写阶段会把相关词条和原始 CSV 文本块一并发给候选模型；听音为 Omni 时由 Omni 直接完成差异判断，不再调用差异比较模型，切换 Fun-ASR 时再启用 `qwen3.5-plus` 差异比较模型。默认链路为 `POST /jobs` + 轮询，Aishell 继续保留自己的独立队列与 `success/data/meta` 契约。
 
 ## v0.4.0 开发中（Options 工作台视觉重做）
 

@@ -47,6 +47,23 @@
     return error;
   }
 
+  function normalizeRecognitionMode(value) {
+    return normalizeText(value).toLowerCase() === "omni_single" ? "omni_single" : "two_stage";
+  }
+
+  function isFunAsrModel(value) {
+    return normalizeText(value).toLowerCase() === "fun-asr";
+  }
+
+  function shouldUseCompareModel(configLike) {
+    const source = configLike && typeof configLike === "object" ? configLike : {};
+    const recognitionMode = normalizeRecognitionMode(source.modelMode || source.recognitionMode);
+    if (recognitionMode === "omni_single") {
+      return false;
+    }
+    return isFunAsrModel(source.listenModel);
+  }
+
   function isExtensionContextInvalidatedError(error) {
     if (storage && typeof storage.isExtensionContextInvalidatedError === "function") {
       try {
@@ -293,6 +310,7 @@
     function createRequestBody(item) {
       const source = item && typeof item === "object" ? item : {};
       const userMeta = getPlatformUserMeta(source);
+      const useCompareModel = shouldUseCompareModel(config);
       const requestMeta = buildAiUsageRequestMeta({
         settings: config.settings,
         platformUserName: userMeta.platformUserName,
@@ -335,7 +353,7 @@
       if (config.listenModel) {
         requestBody.listenModel = normalizeText(config.listenModel);
       }
-      if (config.compareModel) {
+      if (useCompareModel && config.compareModel) {
         requestBody.compareModel = normalizeText(config.compareModel);
       }
       if (config.singleModel) {
@@ -344,6 +362,9 @@
       requestBody.enableThinking = false;
       if (config.aiOptions && typeof config.aiOptions === "object") {
         requestBody.aiOptions = Object.assign({}, config.aiOptions);
+        if (!useCompareModel) {
+          delete requestBody.aiOptions.compareModel;
+        }
       }
       return requestBody;
     }

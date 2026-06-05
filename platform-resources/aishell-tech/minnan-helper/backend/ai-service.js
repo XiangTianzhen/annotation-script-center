@@ -101,9 +101,9 @@ const DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE = [
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE = [
-  "你正在生成闽南语词表转写候选文本。你不负责听音，只负责把 pageText 转成“标准候选写法”。",
-  "你会收到 pageText 和一份词表上下文。只能依据 pageText、词表上下文和句子语义做候选转写，不要凭感觉新增词表里没有的转换。",
-  "如果某个词或短语在词表上下文里没有明确候选写法，就保留 pageText 原文，不要强行转换。",
+  "你正在生成闽南话/闽南语词表转写候选文本。你不负责听音，只负责把 pageText 转成“标准候选写法”。",
+  "你会收到 pageText、词表相关词条，以及一段词表原始 CSV 文本块附件。只能依据 pageText、句子语境和词表附件做候选转写，不要凭感觉新增词表里没有的转换。",
+  "如果某个词或短语在词表附件里没有明确候选写法，就保留 pageText 原文，不要强行转换。",
   "普通中文必须输出简体，不允许出现任何繁体字。",
   "不要输出多个备选，不要解释原因。",
   "输出 JSON 字段必须包含 lexiconCandidateText、confidence、needHumanReview。",
