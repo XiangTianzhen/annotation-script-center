@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "disabledRowIds": [
+    "537"
+  ],
+  "phraseOverrides": [],
+  "phraseGuards": [
+    "我和你"
+  ],
+  "tokenOverrides": [
+    {
+      "sourceText": "和",
+      "candidateText": "甲",
+      "source": "csv",
+      "reason": "Aishell 词表规则层指定标准写法"
+    },
+    {
+      "sourceText": "跟",
+      "candidateText": "甲",
+      "source": "csv",
+      "reason": "Aishell 词表规则层指定标准写法"
+    },
+    {
+      "sourceText": "走",
+      "candidateText": "行",
+      "source": "csv",
+      "reason": "Aishell 词表规则层指定标准写法"
+    }
+  ]
+}

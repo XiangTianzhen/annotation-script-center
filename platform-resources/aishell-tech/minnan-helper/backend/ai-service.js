@@ -99,18 +99,8 @@ const DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE = [
   "输出 JSON 字段必须包含 heardText、confidence、needHumanReview。",
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
-const DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE = [
-  "你现在只负责把 pageText 转成标准闽南语候选文本，不要参考音频，也不要输出最终推荐结论。",
-  "转换依据只允许使用 pageText 的原始语义、词表上下文以及常见闽南语标准写法判断。",
-  "如果词表中存在明确对应关系，例如 和/跟 -> 甲、缀，应优先转成标准闽南语候选写法。",
-  "如果没有足够依据，不要凭空改写；可以保留原词。",
-  "candidateText 必须是给后续听音对照使用的标准闽南语候选文本，普通中文统一输出简体。",
-  "candidatePairs 只列出真正发生改写的差异项，元素字段固定为 sourceText、candidateText、source。",
-  "输出 JSON 字段必须包含 candidateText、candidatePairs、confidence、needHumanReview。",
-  "只输出 JSON，不要输出 Markdown 或额外解释。",
-].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE = [
-  "你会收到三份上下文：pageText（平台原始文本）、lexiconCandidateText（先由独立文本模型结合词表生成的标准闽南语候选文本）、heardText（按实际发音转写出的文本）。",
+  "你会收到三份上下文：pageText（平台原始文本）、lexiconCandidateText（先按词表与规则层严格生成的标准闽南语候选文本）、heardText（按实际发音转写出的文本）。",
   "你的任务是输出最终 recommendedText，但必须以实际发音为准；不要机械照抄 pageText，也不要把整句强行统一成闽南语。",
   "先看 heardText，再看 lexiconCandidateText，最后只把 pageText 当作语义兜底参考。",
   "candidatePairs 只列出词表候选改写项，请重点检查这些差异项，不要求整句统一方言化。",
@@ -206,13 +196,11 @@ function getStrategyPromptDefaults(recognitionStrategy) {
   );
   if (normalizedStrategy === "audio_first_reference") {
     return {
-      candidatePrompt: DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE,
       listenPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE,
       comparePrompt: DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE,
     };
   }
   return {
-    candidatePrompt: "",
     listenPrompt: DEFAULT_MANDARIN_LISTEN_TEMPLATE,
     comparePrompt: DEFAULT_MANDARIN_COMPARE_TEMPLATE,
   };
@@ -223,7 +211,6 @@ function normalizeAiOptions(value) {
   const result = {};
   const stringFields = [
     "listenPrompt",
-    "candidatePrompt",
     "comparePrompt",
     "listenModel",
     "compareModel",
@@ -299,9 +286,6 @@ function applyStrategyPromptDefaults(aiOptions, recognitionStrategy) {
   const defaults = getStrategyPromptDefaults(recognitionStrategy);
   if (!normalizePromptText(next.listenPrompt)) {
     next.listenPrompt = defaults.listenPrompt;
-  }
-  if (defaults.candidatePrompt && !normalizePromptText(next.candidatePrompt)) {
-    next.candidatePrompt = defaults.candidatePrompt;
   }
   if (!normalizePromptText(next.comparePrompt)) {
     next.comparePrompt = defaults.comparePrompt;
@@ -562,7 +546,6 @@ function createDefaultsPayload() {
       singleModel: resolveDefaultSingleModel(),
       audioFirstReferenceCorrectionThreshold: DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
       listenPrompt: defaultPrompts.listenPrompt,
-      candidatePrompt: defaultPrompts.candidatePrompt,
       comparePrompt: defaultPrompts.comparePrompt,
       promptProfiles: {
         audio_first_reference: audioFirstPrompts,

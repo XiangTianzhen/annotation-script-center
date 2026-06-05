@@ -25,7 +25,7 @@ const dataBakerLexiconPath = path.join(
   "minnan-lexicon.csv"
 );
 
-test("Aishell defaults align to DataBaker-style Minnan standard", function () {
+test("Aishell defaults align to the strict audio-first Minnan standard", function () {
   const payload = createDefaultsPayload();
   const defaults = payload.defaults || {};
 
@@ -59,23 +59,16 @@ test("Aishell config normalizes legacy recognition strategies to audio-first", f
   );
 });
 
-test("Aishell defaults expose only the audio-first prompt profile", function () {
+test("Aishell defaults expose only the strict audio-first prompt profile", function () {
   const payload = createDefaultsPayload();
-  const profiles = payload.defaults?.promptProfiles || {};
-  const strategyOptions = payload.defaults?.recognitionStrategyOptions || [];
+  const defaults = payload.defaults || {};
+  const profiles = defaults.promptProfiles || {};
+  const strategyOptions = defaults.recognitionStrategyOptions || [];
 
-  assert.equal(
-    profiles.audio_first_reference?.listenPrompt,
-    payload.defaults?.listenPrompt
-  );
-  assert.equal(
-    profiles.audio_first_reference?.candidatePrompt,
-    payload.defaults?.candidatePrompt
-  );
-  assert.equal(
-    profiles.audio_first_reference?.comparePrompt,
-    payload.defaults?.comparePrompt
-  );
+  assert.equal(defaults.listenPrompt, profiles.audio_first_reference?.listenPrompt);
+  assert.equal(defaults.comparePrompt, profiles.audio_first_reference?.comparePrompt);
+  assert.equal("candidatePrompt" in defaults, false);
+  assert.equal("candidatePrompt" in (profiles.audio_first_reference || {}), false);
   assert.deepEqual(Object.keys(profiles), ["audio_first_reference"]);
   assert.equal(strategyOptions.length, 1);
   assert.equal(
@@ -84,164 +77,15 @@ test("Aishell defaults expose only the audio-first prompt profile", function () 
     }),
     true
   );
-  assert.equal(typeof profiles.audio_first_reference?.listenPrompt, "string");
-  assert.equal(typeof profiles.audio_first_reference?.candidatePrompt, "string");
-  assert.equal(typeof profiles.audio_first_reference?.comparePrompt, "string");
-  assert.match(
-    profiles.audio_first_reference?.listenPrompt || "",
-    /按实际发音输出 heardText/
-  );
-  assert.match(
-    profiles.audio_first_reference?.candidatePrompt || "",
-    /candidateText/
-  );
-  assert.match(
-    profiles.audio_first_reference?.comparePrompt || "",
-    /lexiconCandidateText/
-  );
-  assert.match(
-    profiles.audio_first_reference?.comparePrompt || "",
-    /candidateDecisions/
-  );
+  assert.match(defaults.listenPrompt || "", /按实际发音输出 heardText/);
+  assert.match(defaults.comparePrompt || "", /按词表与规则层严格生成/);
+  assert.match(defaults.comparePrompt || "", /candidateDecisions/);
 });
 
-test("Aishell audio-first strategy builds candidate context and keeps final rewrite mode off", async function () {
-  const rewriteModes = [];
-  let currentNow = 1000;
-  let compareCallCount = 0;
-  const pipeline = createRecommendPipeline({
-    now: function () {
-      currentNow += 5;
-      return currentNow;
-    },
-    enqueueTask: async function (groupName, task) {
-      return {
-        value: await task(),
-        queueMeta: {
-          groupName,
-          queueWaitMs: 0,
-          retryCount: 0,
-          durationMs: 0,
-          activeCount: 1,
-          maxConcurrent: 4,
-        },
-      };
-    },
-    requestFunAsrRecognition: async function () {
-      return {
-        heardText: "拍着声音闷闷诶，纹路清晰的西瓜一般都挺甜。",
-        confidence: 0.92,
-        usage: {},
-      };
-    },
-    requestCompare: async function () {
-      compareCallCount += 1;
-      return {
-        rawText: "{}",
-        model: "qwen3.5-plus",
-        usage: {},
-      };
-    },
-    parseModelJsonText: function (_rawText, options) {
-      if (options?.stage === "candidate") {
-        return {
-          candidateText: "拍着声音闷闷诶，纹路清晰诶西瓜一般都挺甜。",
-          candidatePairs: [
-            {
-              sourceText: "的",
-              candidateText: "诶",
-              source: "csv",
-            },
-          ],
-          confidence: 0.95,
-          needHumanReview: false,
-        };
-      }
-      return {};
-    },
-    normalizeCompareResponse: function () {
-      return {
-        recommendedText: "拍着声音闷闷诶，纹路清晰的西瓜一般都挺甜。",
-        decision: "audio_first_reference",
-        changePoints: [],
-        confidence: 0.91,
-        needHumanReview: false,
-      };
-    },
-    buildLexiconContext: function () {
-      return {
-        enabled: true,
-        text: "西瓜,西瓜",
-        matchedCount: 1,
-      };
-    },
-    applyLexiconRewrite: function (text, options) {
-      rewriteModes.push(options?.mode || "");
-      if (options?.mode === "aggressive") {
-        return {
-          text: "拍着声音闷闷诶，纹路清晰诶西瓜一般都挺甜。",
-          changed: true,
-          changes: [
-            {
-              from: "的",
-              to: "诶",
-              source: "csv",
-              reason: "命中闽南方言词表",
-            },
-          ],
-        };
-      }
-      return {
-        text,
-        changed: false,
-        changes: [],
-      };
-    },
-    normalizeUsage: function (value) {
-      return value && typeof value === "object" ? value : {};
-    },
-  });
-
-  const result = await pipeline.run(
-    {
-      taskId: "task-1",
-      packageId: "package-1",
-      taskItemId: "item-1",
-      fileName: "1.wav",
-      audioUrl: "https://example.com/audio.wav",
-      referenceText: "拍着声音闷闷的，纹路清晰的西瓜一般都挺甜的。",
-      existingMarkText: "",
-      duration: 1200,
-      itemNumber: 1,
-      modelMode: "two_stage",
-      pipelineMode: "fun_asr_compare",
-      recognitionStrategy: "audio_first_reference",
-      listenModel: "fun-asr",
-      compareModel: "qwen3.5-plus",
-      singleModel: "",
-      aiOptions: {},
-      frontConcurrency: 5,
-      concurrencyModelType: "fun-asr",
-    },
-    {
-      requestId: "req-audio-first",
-      startedAtMs: 1000,
-      timeoutMs: 60000,
-    }
-  );
-
-  assert.deepEqual(rewriteModes, ["off"]);
-  assert.equal(result.data?.lexicon?.enabled, true);
-  assert.equal(result.data?.lexicon?.rewriteMode, "off");
-  assert.equal(result.meta?.audioFirstReference?.candidateText, "拍着声音闷闷诶，纹路清晰诶西瓜一般都挺甜。");
-  assert.equal(result.meta?.models?.recognitionStrategy, "audio_first_reference");
-  assert.equal(compareCallCount, 2);
-});
-
-test("Aishell audio-first strategy builds candidate text from a dedicated text-model stage before compare", async function () {
+test("Aishell audio-first strategy builds strict lexicon candidate text before compare", async function () {
   let currentNow = 2000;
-  let capturedCorrectionContext = null;
   let compareCallCount = 0;
+  let capturedCorrectionContext = null;
   const parseStages = [];
   const pipeline = createRecommendPipeline({
     now: function () {
@@ -263,7 +107,7 @@ test("Aishell audio-first strategy builds candidate text from a dedicated text-m
     },
     requestFunAsrRecognition: async function () {
       return {
-        heardText: "路况良好，主要是高速佮省道，缀着导航行即可。",
+        heardText: "路况良好，主要是高速同省道，甲导航行即可。",
         confidence: 0.93,
         usage: {},
       };
@@ -278,19 +122,8 @@ test("Aishell audio-first strategy builds candidate text from a dedicated text-m
     },
     parseModelJsonText: function (_rawText, options) {
       parseStages.push(options?.stage || "");
-      if (options?.stage === "candidate") {
-        return {
-          candidateText: "路况良好，主要是高速甲省道，缀着导航行即可。",
-          candidatePairs: [
-            { sourceText: "和", candidateText: "甲", source: "csv" },
-            { sourceText: "跟", candidateText: "缀", source: "csv" },
-          ],
-          confidence: 0.94,
-          needHumanReview: false,
-        };
-      }
       return {
-        recommendedText: "路况良好，主要是高速甲省道，缀着导航行即可。",
+        recommendedText: "路况良好，主要是高速甲省道，甲着导航行即可。",
         decision: "use_lexicon_candidate",
         changePoints: [],
         confidence: 0.86,
@@ -300,10 +133,10 @@ test("Aishell audio-first strategy builds candidate text from a dedicated text-m
           {
             sourceText: "和",
             candidateText: "甲",
-            heardFragment: "佮",
+            heardFragment: "同",
             applyCandidate: false,
             confidence: 0.61,
-            reason: "近音但证据不足，保留听音文本。",
+            reason: "音频证据不足，保留听音文本。",
           },
         ],
       };
@@ -324,23 +157,8 @@ test("Aishell audio-first strategy builds candidate text from a dedicated text-m
         userPrompt: "user",
       };
     },
-    buildLexiconContext: function () {
-      return {
-        enabled: true,
-        text: "和=>甲\n跟=>缀",
-        matchedCount: 2,
-      };
-    },
     applyLexiconRewrite: function (text, options) {
-      if (options?.mode === "aggressive") {
-        return {
-          text: "路况良好，主要是高速和省道，跟着导航走即可。",
-          changed: true,
-          changes: [
-            { from: "和", to: "和", source: "csv", reason: "本地词表重写模拟错误结果" },
-          ],
-        };
-      }
+      assert.equal(options?.mode, "off");
       return {
         text,
         changed: false,
@@ -384,19 +202,27 @@ test("Aishell audio-first strategy builds candidate text from a dedicated text-m
 
   assert.equal(
     capturedCorrectionContext?.lexiconCandidateText,
-    "路况良好，主要是高速甲省道，缀着导航行即可。"
+    "路况良好，主要是高速甲省道，甲着导航行即可。"
   );
-  assert.deepEqual(capturedCorrectionContext?.candidatePairs, [
-    { sourceText: "和", candidateText: "甲", source: "csv" },
-    { sourceText: "跟", candidateText: "缀", source: "csv" },
-  ]);
-  assert.equal(result.data?.recommendedText, "路况良好，主要是高速佮省道，缀着导航行即可。");
+  assert.deepEqual(
+    (capturedCorrectionContext?.candidatePairs || []).slice().sort(function (left, right) {
+      return left.sourceText.localeCompare(right.sourceText, "zh-Hans-CN");
+    }),
+    [
+      { sourceText: "和", candidateText: "甲", source: "csv" },
+      { sourceText: "跟", candidateText: "甲", source: "csv" },
+      { sourceText: "走", candidateText: "行", source: "csv" },
+    ].sort(function (left, right) {
+      return left.sourceText.localeCompare(right.sourceText, "zh-Hans-CN");
+    })
+  );
+  assert.equal(result.data?.recommendedText, "路况良好，主要是高速同省道，甲导航行即可。");
   assert.equal(result.data?.needHumanReview, true);
   assert.equal(result.data?.lexicon?.rewriteMode, "off");
   assert.equal(result.meta?.audioFirstReference?.correctionThreshold, 0.75);
   assert.equal(result.meta?.audioFirstReference?.correctionConfidence, 0.61);
-  assert.equal(compareCallCount, 2);
-  assert.deepEqual(parseStages, ["candidate", "compare"]);
+  assert.equal(compareCallCount, 1);
+  assert.deepEqual(parseStages, ["compare"]);
 });
 
 test("Aishell audio-first strategy can adopt lexicon candidate text above threshold", async function () {
@@ -422,7 +248,7 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
     },
     requestFunAsrRecognition: async function () {
       return {
-        heardText: "路况良好，主要是高速佮省道，缀着导航行即可。",
+        heardText: "路况良好，主要是高速同省道，甲导航行即可。",
         confidence: 0.93,
         usage: {},
       };
@@ -435,20 +261,9 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
         usage: {},
       };
     },
-    parseModelJsonText: function (_rawText, options) {
-      if (options?.stage === "candidate") {
-        return {
-          candidateText: "路况良好，主要是高速甲省道，缀着导航行即可。",
-          candidatePairs: [
-            { sourceText: "和", candidateText: "甲", source: "csv" },
-            { sourceText: "跟", candidateText: "缀", source: "csv" },
-          ],
-          confidence: 0.95,
-          needHumanReview: false,
-        };
-      }
+    parseModelJsonText: function () {
       return {
-        recommendedText: "路况良好，主要是高速甲省道，缀着导航行即可。",
+        recommendedText: "路况良好，主要是高速甲省道，甲着导航行即可。",
         decision: "use_lexicon_candidate",
         changePoints: [],
         confidence: 0.92,
@@ -458,10 +273,10 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
           {
             sourceText: "和",
             candidateText: "甲",
-            heardFragment: "佮",
+            heardFragment: "同",
             applyCandidate: true,
             confidence: 0.92,
-            reason: "候选标准写法与发音接近，采用词表标准写法。",
+            reason: "词表标准写法与音频接近，采用候选文本。",
           },
         ],
       };
@@ -475,24 +290,8 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
         needHumanReview: modelJson.needHumanReview,
       };
     },
-    buildLexiconContext: function () {
-      return {
-        enabled: true,
-        text: "和=>甲\n跟=>缀",
-        matchedCount: 2,
-      };
-    },
     applyLexiconRewrite: function (text, options) {
-      if (options?.mode === "aggressive") {
-        return {
-          text: "路况良好，主要是高速甲省道，缀着导航行即可。",
-          changed: true,
-          changes: [
-            { from: "和", to: "甲", source: "csv", reason: "命中闽南方言词表" },
-            { from: "跟", to: "缀", source: "csv", reason: "命中闽南方言词表" },
-          ],
-        };
-      }
+      assert.equal(options?.mode, "off");
       return {
         text,
         changed: false,
@@ -534,10 +333,10 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
     }
   );
 
-  assert.equal(result.data?.recommendedText, "路况良好，主要是高速甲省道，缀着导航行即可。");
+  assert.equal(result.data?.recommendedText, "路况良好，主要是高速甲省道，甲着导航行即可。");
   assert.equal(result.data?.needHumanReview, false);
   assert.equal(result.meta?.audioFirstReference?.correctionConfidence, 0.92);
-  assert.equal(compareCallCount, 2);
+  assert.equal(compareCallCount, 1);
 });
 
 test("Aishell Minnan lexicon stays byte-for-byte aligned with DataBaker reference", function () {

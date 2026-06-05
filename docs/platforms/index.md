@@ -84,7 +84,7 @@
 - 网络请求采集（5 页 + 安全边界说明）：`platform-resources/aishell-tech/network/README.md`
 - 页面 DOM 结构采集（4 页完整 + 1 页组织管理初版占位）：`platform-resources/aishell-tech/page-structure/README.md`
 - 安全边界：以 `platform-resources/aishell-tech/README.md` 的“安全边界”章节与 `network/README.md` 的脱敏规则为准。
-- 当前阶段：独立闽南语助手已接入。当前业务能力只在 `/mytask/mark` 生效，`/mytask/index` 与 `/mytask/detail/:taskId` 仅做路由覆盖与资料复用；已注册独立接口 `/api/aishell-tech/minnan-helper/ai/recommend*`，当前默认 AI 标准已收口为唯一的“三文本对照”策略 `two_stage + audio_first_reference + qwen3.5-omni-flash + qwen3.5-plus`，并在结果卡中额外展示“原始文本先经独立文本模型结合词表生成的候选文本”与“听音文本 vs 词表转写文本”差异；默认链路为短请求建 job + HTTP 轮询结果，Aishell 继续保留自己的独立队列与 `success/data/meta` 契约；`我的团队` 页面仍只有 network 和 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
+- 当前阶段：独立闽南语助手已接入。当前业务能力只在 `/mytask/mark` 生效，`/mytask/index` 与 `/mytask/detail/:taskId` 仅做路由覆盖与资料复用；已注册独立接口 `/api/aishell-tech/minnan-helper/ai/recommend*`，当前默认 AI 标准已收口为唯一的“三文本对照”策略 `two_stage + audio_first_reference + qwen3.5-omni-flash + qwen3.5-plus`，并在结果卡中额外展示“原始文本先按 `minnan-lexicon.csv + minnan-lexicon-rules.json` 严格生成的词表转写文本”与“听音文本 vs 词表转写文本”差异；默认链路为短请求建 job + HTTP 轮询结果，Aishell 继续保留自己的独立队列与 `success/data/meta` 契约；`我的团队` 页面仍只有 network 和 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
 - 当前 AI 日志状态：Aishell 当前会把 AI 调用写到 `platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`，并开放 `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`。
 
 ## 新增平台要求
