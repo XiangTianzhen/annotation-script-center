@@ -185,6 +185,19 @@ function resolveDefaultCompareModel() {
   return normalizeDataBakerCompareModel(compareModel, DEFAULT_COMPARE_MODEL);
 }
 
+function resolveDefaultCandidateModel() {
+  const candidateModel = readEnvValue(
+    [
+      "AISHELL_AI_CANDIDATE_MODEL",
+      "DATABAKER_AI_CANDIDATE_MODEL",
+      "AISHELL_AI_COMPARE_MODEL",
+      "DATABAKER_AI_COMPARE_MODEL",
+    ],
+    DEFAULT_COMPARE_MODEL
+  );
+  return normalizeDataBakerCompareModel(candidateModel, DEFAULT_COMPARE_MODEL);
+}
+
 function resolveDefaultSingleModel() {
   const config = getQwenProviderConfig();
   return normalizeDataBakerSingleModel(config.omniModel || DEFAULT_OMNI_MODEL, DEFAULT_OMNI_MODEL);
@@ -234,6 +247,7 @@ module.exports = {
   normalizeModelMode,
   normalizeRecognitionStrategy,
   parseCacheTtlMs,
+  resolveDefaultCandidateModel,
   parseTimeoutMs,
   resolveDefaultCompareModel,
   resolveDefaultListenModel,

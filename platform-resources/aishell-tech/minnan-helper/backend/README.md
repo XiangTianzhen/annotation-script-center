@@ -40,16 +40,16 @@
 
 - 当前只保留 `two_stage + audio_first_reference`
   - 听音阶段按实际发音输出，允许普通话词与闽南语词混合存在。
-  - 比较阶段当前固定使用三文本对照：
-    - `pageText`
-    - `lexiconCandidateText`：先按 `minnan-lexicon.csv` 与 `minnan-lexicon-rules.json` 纯代码生成标准闽南语候选文本
-    - `heardText`
+  - `two_stage` 当前固定使用三段式：
+    - 候选转写阶段：候选模型先结合 `pageText` 与 `minnan-lexicon.csv` 词表上下文生成 `lexiconCandidateText`
+    - 听音阶段：输出 `heardText`
+    - 差异比较阶段：再基于 `pageText + lexiconCandidateText + heardText` 做最终推荐
   - 比较模型只重点判断 `heardText` 与 `lexiconCandidateText` 的差异项；音频里没读到的词不补回。
   - `audioFirstReferenceCorrectionThreshold` 默认 `0.75`；当 `correctionConfidence` 低于阈值时，后端会优先保留 `heardText`，并把 `needHumanReview` 置为 `true`。
   - 该策略仍会构建词表上下文给模型参考，但后处理 `lexicon.rewriteMode` 固定为 `off`，不会再做强制词表改写。
-  - `lexicon-candidate.js` 当前负责把 CSV 与规则层编译成确定性候选转写规则；若词表或规则层未命中，就保持原文不转换。
 - `omni_single`
   - 仍保留为模型方案；但识别策略当前固定为 `audio_first_reference`。
+  - 该模式下也会先生成 `lexiconCandidateText`，再由 Omni 在单次音频请求里结合候选文本与原文判断差异项该保留哪一侧。
 
 ## 返回契约
 
@@ -86,10 +86,12 @@
 
 ## defaults / health
 
-  - `defaults` 返回：
+- `defaults` 返回：
   - `modelModeOptions`
   - `recognitionStrategyOptions`
-  - 当前策略默认 `listenPrompt / comparePrompt`
+  - 当前策略默认 `candidatePrompt / listenPrompt / comparePrompt`
+  - `candidateModelOptions`
+  - `candidateModel`
   - `promptProfiles`
   - `audioFirstReferenceCorrectionThreshold`
   - `audio_first_reference` 对应的 `promptProfiles` 会明确要求按实际发音输出，并允许普通话/闽南语混合保留
@@ -99,7 +101,7 @@
   - `audioFirstReferenceCorrectionThreshold`
   - 当前同步超时
   - Aishell 独立队列组配置
-- 当前默认组合已收口为：`two_stage + audio_first_reference + qwen3.5-omni-flash + qwen3.5-plus`。
+- 当前默认组合已收口为：`two_stage + audio_first_reference + 候选 qwen3.5-plus + 听音 qwen3.5-omni-flash + 差异比较 qwen3.5-plus`。
 
 ## 日志与缓存
 
@@ -108,7 +110,7 @@
 - CSV 当前会记录：
   - 是否取消
   - 当前阶段
-  - 总耗时 / 听音耗时 / 比较耗时
+  - 总耗时 / 候选转写耗时 / 听音耗时 / 比较耗时
   - 排队等待
   - 重试次数
   - 缓存命中

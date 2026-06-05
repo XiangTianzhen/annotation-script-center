@@ -203,6 +203,8 @@ test("Aishell AI runtime sends audio-first recognition strategy to backend", asy
       compareModel: "qwen3.5-plus",
       singleModel: "qwen3.5-omni-flash",
       aiOptions: {
+        candidateModel: "qwen3.5-plus",
+        candidatePrompt: "candidate-prompt",
         listenPrompt: "listen-prompt",
         comparePrompt: "compare-prompt",
         audioFirstReferenceCorrectionThreshold: 0.75,
@@ -224,6 +226,8 @@ test("Aishell AI runtime sends audio-first recognition strategy to backend", asy
     assert.equal(result.echoedBody?.recognitionStrategy, "audio_first_reference");
     assert.equal(result.echoedBody?.compareModel, "qwen3.5-plus");
     assert.equal(result.echoedBody?.listenModel, "fun-asr");
+    assert.equal(result.echoedBody?.aiOptions?.candidateModel, "qwen3.5-plus");
+    assert.equal(result.echoedBody?.aiOptions?.candidatePrompt, "candidate-prompt");
     assert.equal(
       result.echoedBody?.aiOptions?.audioFirstReferenceCorrectionThreshold,
       0.75

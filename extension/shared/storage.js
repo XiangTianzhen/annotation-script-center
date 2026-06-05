@@ -84,9 +84,11 @@
                 aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
                 aiQualifiedAutofillConcurrency: 5,
                 aiRecommendListenModel: "qwen3.5-omni-flash",
+                aiRecommendCandidateModel: "qwen3.5-plus",
                 aiRecommendCompareModel: "qwen3.5-plus",
                 aiRecommendSingleModel: "qwen3.5-omni-flash",
                 aiRecommendEnableThinking: false,
+                aiRecommendCandidatePrompt: "",
                 aiRecommendListenPrompt: "",
                 aiRecommendComparePrompt: "",
                 aiRecommendTemperature: "",
@@ -1872,6 +1874,11 @@
       },
       constants
     );
+    result.aiRecommendCandidateModel = normalizeDataBakerCompareModel(
+      result.aiRecommendCandidateModel || result.candidateModel,
+      defaultConfig.aiRecommendCandidateModel || defaultConfig.aiRecommendCompareModel || "qwen3.5-plus",
+      constants
+    );
     result.aiRecommendCompareModel = normalizeDataBakerCompareModel(
       result.aiRecommendCompareModel || result.compareModel,
       defaultConfig.aiRecommendCompareModel || "qwen3.5-plus",
@@ -1880,8 +1887,10 @@
     result.recognitionStrategy = result.aiRecommendRecognitionStrategy;
     result.recognitionMode = result.aiRecommendPipelineMode;
     result.pipelineMode = result.aiRecommendPipelineMode;
+    result.candidateModel = result.aiRecommendCandidateModel;
     result.compareModel = result.aiRecommendCompareModel;
     result.aiRecommendEnableThinking = false;
+    result.aiRecommendCandidatePrompt = normalizeJudgementAiPrompt(result.aiRecommendCandidatePrompt);
     result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);
     result.aiRecommendComparePrompt = normalizeJudgementAiPrompt(result.aiRecommendComparePrompt);
     result.aiRecommendTemperature = normalizeJudgementAiOptionalNumberText(
@@ -2017,9 +2026,11 @@
             aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
             aiQualifiedAutofillConcurrency: 5,
             aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendCandidateModel: "qwen3.5-plus",
             aiRecommendCompareModel: "qwen3.5-plus",
             aiRecommendSingleModel: "qwen3.5-omni-flash",
             aiRecommendEnableThinking: false,
+            aiRecommendCandidatePrompt: "",
             aiRecommendListenPrompt: "",
             aiRecommendComparePrompt: "",
             aiRecommendTemperature: "",

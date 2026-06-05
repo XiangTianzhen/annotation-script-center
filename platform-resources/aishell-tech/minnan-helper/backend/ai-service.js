@@ -20,6 +20,7 @@ const {
   normalizeModelMode,
   normalizeRecognitionStrategy,
   parseTimeoutMs,
+  resolveDefaultCandidateModel,
   resolveDefaultCompareModel,
   resolveDefaultListenModel,
   resolveDefaultSingleModel,
@@ -99,11 +100,21 @@ const DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE = [
   "输出 JSON 字段必须包含 heardText、confidence、needHumanReview。",
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
+const DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE = [
+  "你正在生成闽南语词表转写候选文本。你不负责听音，只负责把 pageText 转成“标准候选写法”。",
+  "你会收到 pageText 和一份词表上下文。只能依据 pageText、词表上下文和句子语义做候选转写，不要凭感觉新增词表里没有的转换。",
+  "如果某个词或短语在词表上下文里没有明确候选写法，就保留 pageText 原文，不要强行转换。",
+  "普通中文必须输出简体，不允许出现任何繁体字。",
+  "不要输出多个备选，不要解释原因。",
+  "输出 JSON 字段必须包含 lexiconCandidateText、confidence、needHumanReview。",
+  "只输出 JSON，不要输出 Markdown 或解释文字。",
+].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE = [
-  "你会收到三份上下文：pageText（平台原始文本）、lexiconCandidateText（先按词表与规则层严格生成的标准闽南语候选文本）、heardText（按实际发音转写出的文本）。",
+  "你会收到三份上下文：pageText（平台原始文本）、lexiconCandidateText（结合词表生成的标准闽南语候选文本）、heardText（按实际发音转写出的文本）。",
   "你的任务是输出最终 recommendedText，但必须以实际发音为准；不要机械照抄 pageText，也不要把整句强行统一成闽南语。",
   "先看 heardText，再看 lexiconCandidateText，最后只把 pageText 当作语义兜底参考。",
-  "candidatePairs 只列出词表候选改写项，请重点检查这些差异项，不要求整句统一方言化。",
+  "candidatePairs 列出 pageText 与词表候选文本的改写项；differenceSegments 只列出 heardText 与 lexiconCandidateText 的差异项，请逐项判断这些差异要保留哪一侧。",
+  "允许只采纳其中一部分差异项：例如前一个差异改用词表候选、后一个差异继续保留 heardText。",
   "如果某个词在音频里读的是普通话，就保留普通话简体；如果读的是闽南语，就输出对应闽南语写法；如果没有读出来，就不要补回。",
   "一句话里允许同时保留普通话词和闽南语词。",
   "当 lexiconCandidateText 与 heardText 发音接近、语义一致，且你对候选标准写法有把握时，可以采用词表候选写法。",
@@ -196,11 +207,13 @@ function getStrategyPromptDefaults(recognitionStrategy) {
   );
   if (normalizedStrategy === "audio_first_reference") {
     return {
+      candidatePrompt: DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE,
       listenPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE,
       comparePrompt: DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE,
     };
   }
   return {
+    candidatePrompt: DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE,
     listenPrompt: DEFAULT_MANDARIN_LISTEN_TEMPLATE,
     comparePrompt: DEFAULT_MANDARIN_COMPARE_TEMPLATE,
   };
@@ -210,8 +223,10 @@ function normalizeAiOptions(value) {
   const source = value && typeof value === "object" ? value : {};
   const result = {};
   const stringFields = [
+    "candidatePrompt",
     "listenPrompt",
     "comparePrompt",
+    "candidateModel",
     "listenModel",
     "compareModel",
     "singleModel",
@@ -284,6 +299,9 @@ function normalizeAiOptions(value) {
 function applyStrategyPromptDefaults(aiOptions, recognitionStrategy) {
   const next = Object.assign({}, aiOptions || {});
   const defaults = getStrategyPromptDefaults(recognitionStrategy);
+  if (!normalizePromptText(next.candidatePrompt)) {
+    next.candidatePrompt = defaults.candidatePrompt;
+  }
   if (!normalizePromptText(next.listenPrompt)) {
     next.listenPrompt = defaults.listenPrompt;
   }
@@ -361,6 +379,9 @@ function normalizeRecommendRequest(body) {
     normalizeAiOptions(source.aiOptions),
     recognitionStrategy
   );
+  const candidateModel = normalizeModelText(
+    source.candidateModel || aiOptions.candidateModel || resolveDefaultCandidateModel()
+  );
   const listenModel = normalizeModelText(
     source.listenModel || aiOptions.listenModel || resolveDefaultListenModel(modelMode)
   );
@@ -406,6 +427,7 @@ function normalizeRecommendRequest(body) {
     recognitionStrategy,
     recognitionMode: modelMode,
     pipelineMode,
+    candidateModel: normalizeDataBakerCompareModel(candidateModel, resolveDefaultCandidateModel()),
     listenModel:
       pipelineMode === "omni_single"
         ? normalizeDataBakerListenModel(DEFAULT_OMNI_MODEL, DEFAULT_OMNI_MODEL)
@@ -490,7 +512,9 @@ function createHealthPayload() {
     recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
     listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
     compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
+    candidateModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
     singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
+    candidateModel: resolveDefaultCandidateModel(),
     listenModel: resolveDefaultListenModel(DEFAULT_MODEL_MODE),
     compareModel: resolveDefaultCompareModel(),
     singleModel: resolveDefaultSingleModel(),
@@ -540,11 +564,14 @@ function createDefaultsPayload() {
       recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
       listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
       compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
+      candidateModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
       singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
+      candidateModel: resolveDefaultCandidateModel(),
       listenModel: resolveDefaultListenModel(DEFAULT_MODEL_MODE),
       compareModel: resolveDefaultCompareModel(),
       singleModel: resolveDefaultSingleModel(),
       audioFirstReferenceCorrectionThreshold: DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
+      candidatePrompt: defaultPrompts.candidatePrompt,
       listenPrompt: defaultPrompts.listenPrompt,
       comparePrompt: defaultPrompts.comparePrompt,
       promptProfiles: {

@@ -48,7 +48,7 @@
         showAutofillConcurrency: true,
         enableFieldLabel: "启用 AI 推荐文本",
         enableFieldHelp: "关闭后不显示当前条推荐与批量保存面板",
-        modelLabel: "比较/参考模型",
+        modelLabel: "差异比较模型",
         concurrencyInputId: "aishell-tech-qualified-autofill-concurrency",
         concurrencyHelpId: "aishell-tech-qualified-autofill-concurrency-help",
         modelFieldOrder: [
@@ -56,6 +56,7 @@
           "pipelineMode",
           "listenModel",
           "listenModelNote",
+          "candidateModel",
           "singleModel",
           "compareModel",
           "autofillConcurrency",

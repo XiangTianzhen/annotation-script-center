@@ -39,6 +39,7 @@ test("shared AI panel spec keeps Aishell concurrency field in the fixed order an
     "pipelineMode",
     "listenModel",
     "listenModelNote",
+    "candidateModel",
     "singleModel",
     "compareModel",
     "autofillConcurrency",

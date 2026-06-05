@@ -57,14 +57,13 @@ function buildRecommendCacheKey(parts) {
     modelMode: String(parts?.modelMode || ""),
     recognitionStrategy: String(parts?.recognitionStrategy || ""),
     pipelineMode: String(parts?.pipelineMode || ""),
+    candidateModel: String(parts?.candidateModel || ""),
     listenModel: String(parts?.listenModel || ""),
     compareModel: String(parts?.compareModel || ""),
     singleModel: String(parts?.singleModel || ""),
+    candidatePrompt: String(parts?.candidatePrompt || ""),
     listenPrompt: String(parts?.listenPrompt || ""),
     comparePrompt: String(parts?.comparePrompt || ""),
-    audioFirstReferenceCandidateRuleVersion: String(
-      parts?.audioFirstReferenceCandidateRuleVersion || ""
-    ),
     audioFirstReferenceCorrectionThreshold: String(
       parts?.audioFirstReferenceCorrectionThreshold || ""
     ),

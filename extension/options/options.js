@@ -2361,6 +2361,7 @@
     const recognitionSelectNode = getElement("aishell-tech-ai-pipeline-mode-select");
     const strategySelectNode = getElement("aishell-tech-ai-recognition-strategy-select");
     const listenSelectNode = getElement("aishell-tech-ai-listen-model-select");
+    const candidateSelectNode = getElement("aishell-tech-ai-candidate-model-select");
     const compareSelectNode = getElement("aishell-tech-ai-compare-model-select");
     const singleSelectNode = getElement("aishell-tech-ai-single-model-select");
     const correctionThresholdNode = getElement(
@@ -2385,6 +2386,13 @@
               getDataBakerListenModelDefault(defaults)
             )
           : getDataBakerListenModelDefault(defaults),
+      aiRecommendCandidateModel:
+        candidateSelectNode instanceof HTMLSelectElement
+          ? normalizeDataBakerCompareModel(
+              candidateSelectNode.value,
+              getAishellTechCandidateModelDefault(defaults)
+            )
+          : getAishellTechCandidateModelDefault(defaults),
       aiRecommendCompareModel:
         compareSelectNode instanceof HTMLSelectElement
           ? normalizeDataBakerCompareModel(
@@ -2423,6 +2431,14 @@
     );
   }
 
+  function getAishellTechCandidateModelDefault(aiDefaults) {
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    return normalizeDataBakerCompareModel(
+      defaults.candidateModel || defaults.compareModel,
+      "qwen3.5-plus"
+    );
+  }
+
   function getAishellTechPromptProfile(aiDefaults, recognitionStrategy) {
     const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
     const profiles =
@@ -2438,6 +2454,7 @@
         ? profiles[normalizedStrategy]
         : {};
     return {
+      candidatePrompt: String(profile.candidatePrompt || defaults.candidatePrompt || ""),
       listenPrompt: String(profile.listenPrompt || defaults.listenPrompt || ""),
       comparePrompt: String(profile.comparePrompt || defaults.comparePrompt || ""),
     };
@@ -2463,9 +2480,16 @@
   }
 
   function applyAishellTechPromptProfile(recognitionStrategy, aiDefaults) {
+    const candidatePromptNode = getElement("aishell-tech-ai-candidate-prompt");
     const listenPromptNode = getElement("aishell-tech-ai-listen-prompt");
     const comparePromptNode = getElement("aishell-tech-ai-compare-prompt");
     const profile = getAishellTechPromptProfile(aiDefaults, recognitionStrategy);
+    if (
+      candidatePromptNode instanceof HTMLTextAreaElement &&
+      shouldReplaceAishellPromptValue(candidatePromptNode.value, aiDefaults, "candidatePrompt")
+    ) {
+      candidatePromptNode.value = String(profile.candidatePrompt || "");
+    }
     if (
       listenPromptNode instanceof HTMLTextAreaElement &&
       shouldReplaceAishellPromptValue(listenPromptNode.value, aiDefaults, "listenPrompt")
@@ -2548,6 +2572,14 @@
       currentListenModel
     );
     renderFixedModelOptions(
+      "aishell-tech-ai-candidate-model-select",
+      buildDataBakerCompareModelOptions(defaults),
+      normalizeDataBakerCompareModel(
+        currentConfig.aiRecommendCandidateModel,
+        getAishellTechCandidateModelDefault(defaults)
+      )
+    );
+    renderFixedModelOptions(
       "aishell-tech-ai-compare-model-select",
       buildDataBakerCompareModelOptions(defaults),
       normalizeDataBakerCompareModel(
@@ -2564,7 +2596,7 @@
     }
     const compareLabelNode = getElement("aishell-tech-ai-compare-model-label");
     if (compareLabelNode instanceof HTMLElement) {
-      compareLabelNode.textContent = "比较/参考模型";
+      compareLabelNode.textContent = "差异比较模型";
     }
     const noteNode = getElement("aishell-tech-ai-listen-model-note");
     if (noteNode instanceof HTMLElement) {
@@ -2584,6 +2616,14 @@
     const currentSingleModel = normalizeDataBakerSingleModel(
       singleModel || currentConfig.aiRecommendSingleModel,
       getDataBakerSingleModelDefault(defaults)
+    );
+    renderFixedModelOptions(
+      "aishell-tech-ai-candidate-model-select",
+      buildDataBakerCompareModelOptions(defaults),
+      normalizeDataBakerCompareModel(
+        currentConfig.aiRecommendCandidateModel,
+        getAishellTechCandidateModelDefault(defaults)
+      )
     );
     renderFixedModelOptions(
       "aishell-tech-ai-single-model-select",
@@ -3484,6 +3524,8 @@
       baseDefaults.compareModel = defaultCompareModel;
     }
     if (isAishellTechScript(scriptId)) {
+      baseDefaults.candidateModel = "qwen3.5-plus";
+      baseDefaults.candidatePrompt = "";
       baseDefaults.audioFirstReferenceCorrectionThreshold = 0.75;
     }
     return {
@@ -4193,9 +4235,11 @@
         aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
         aiQualifiedAutofillConcurrency: 5,
         aiRecommendListenModel: "qwen3.5-omni-flash",
+        aiRecommendCandidateModel: "qwen3.5-plus",
         aiRecommendCompareModel: "qwen3.5-plus",
         aiRecommendSingleModel: "qwen3.5-omni-flash",
         aiRecommendEnableThinking: false,
+        aiRecommendCandidatePrompt: "",
         aiRecommendListenPrompt: "",
         aiRecommendComparePrompt: "",
         aiRecommendTemperature: "",
@@ -4271,11 +4315,16 @@
         aiRecommendSingleModel: config.aiRecommendSingleModel,
       }
     );
+    config.aiRecommendCandidateModel = normalizeDataBakerCompareModel(
+      config.aiRecommendCandidateModel,
+      getAishellTechCandidateModelDefault(defaults)
+    );
     config.aiRecommendCompareModel = normalizeDataBakerCompareModel(
       config.aiRecommendCompareModel,
       "qwen3.5-plus"
     );
     config.aiRecommendEnableThinking = config.aiRecommendEnableThinking === true;
+    config.aiRecommendCandidatePrompt = normalizePromptText(config.aiRecommendCandidatePrompt || "");
     config.aiRecommendListenPrompt = normalizePromptText(config.aiRecommendListenPrompt || "");
     config.aiRecommendComparePrompt = normalizePromptText(config.aiRecommendComparePrompt || "");
     config.aiRecommendTemperature = normalizeOptionalNumberText(config.aiRecommendTemperature, 0, 2, 3);
@@ -4546,7 +4595,10 @@
         listenModelNote:
           '<div class="asr-ai-field hidden" id="' +
           prefix +
-          '-listen-model-note"><span class="asr-ai-help">Fun-ASR 默认通过统一后端 REST provider 调用；只有显式切换时才会走 Python fallback。比较模型负责结合听音文本与页面文本生成推荐文本。</span></div>',
+          '-listen-model-note"><span class="asr-ai-help">Fun-ASR 默认通过统一后端 REST provider 调用；只有显式切换时才会走 Python fallback。候选转写模型先结合页面原文与词表上下文生成词表转写文本，再由差异比较模型判断哪些差异需要采纳。</span></div>',
+        candidateModel: isAishellPanel
+          ? '<label class="asr-ai-field" id="aishell-tech-ai-candidate-model-field"><span>词表转写模型</span><select id="aishell-tech-ai-candidate-model-select"></select><span class="asr-ai-help">先根据原始文本和词表上下文生成词表转写文本；仅 Aishell 三文本对照链路使用。</span></label>'
+          : "",
         singleModel:
           '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +
@@ -4602,6 +4654,9 @@
         '<label class="asr-ai-field hidden" id="' + prefix + '-compare-model-custom-field"><span id="' + prefix + '-compare-model-custom-label">' + modelLabel + '自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         "</div></div>",
         '<div class="asr-ai-block"><strong>Prompt</strong><div class="asr-ai-grid">',
+        isAishellPanel
+          ? '<label class="asr-ai-field"><span>词表转写 Prompt（可选）</span><textarea id="aishell-tech-ai-candidate-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>'
+          : "",
         '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="' + prefix + '-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
         '<label class="asr-ai-field"><span>' + modelLabel + ' Prompt（可选）</span><textarea id="' + prefix + '-compare-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
         "</div></div>",
@@ -9421,6 +9476,9 @@
         aiDefaults,
         config.aiRecommendRecognitionStrategy
       );
+      getElement("aishell-tech-ai-candidate-prompt").value = String(
+        getAsrVoiceAiEffectiveText(config.aiRecommendCandidatePrompt, promptProfile.candidatePrompt)
+      );
       getElement("aishell-tech-ai-listen-prompt").value = String(
         getAsrVoiceAiEffectiveText(config.aiRecommendListenPrompt, promptProfile.listenPrompt)
       );
@@ -9727,6 +9785,12 @@
         : currentConfig.aiRecommendCompareModel,
       String(aiDefaults.compareModel || "qwen3.5-plus")
     );
+    const candidateModel = normalizeDataBakerCompareModel(
+      hasAiSettingsPanel
+        ? getElement("aishell-tech-ai-candidate-model-select")?.value
+        : currentConfig.aiRecommendCandidateModel,
+      getAishellTechCandidateModelDefault(aiDefaults)
+    );
     const singleModel = hasAiSettingsPanel
       ? normalizeDataBakerSingleModel(
           getElement("aishell-tech-ai-single-model-select")?.value,
@@ -9763,6 +9827,9 @@
           1,
           3
         ) || getAishellTechAudioFirstReferenceCorrectionThresholdDefault(aiDefaults);
+    const candidatePrompt = hasAiSettingsPanel
+      ? normalizePromptText(getElement("aishell-tech-ai-candidate-prompt").value)
+      : currentConfig.aiRecommendCandidatePrompt;
     const listenPrompt = hasAiSettingsPanel
       ? normalizePromptText(getElement("aishell-tech-ai-listen-prompt").value)
       : currentConfig.aiRecommendListenPrompt;
@@ -9884,6 +9951,10 @@
                   listenModel !== getDataBakerListenModelDefault(aiDefaults)
                     ? listenModel
                     : "",
+                aiRecommendCandidateModel:
+                  candidateModel !== getAishellTechCandidateModelDefault(aiDefaults)
+                    ? candidateModel
+                    : "",
                 aiRecommendCompareModel:
                   recognitionMode === "two_stage" &&
                   compareModel !== String(aiDefaults.compareModel || "").trim()
@@ -9896,6 +9967,10 @@
                     : "",
                 aiRecommendEnableThinking:
                   enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
+                aiRecommendCandidatePrompt: normalizeOverridePrompt(
+                  candidatePrompt,
+                  promptProfile.candidatePrompt
+                ),
                 aiRecommendListenPrompt: normalizeOverridePrompt(
                   listenPrompt,
                   promptProfile.listenPrompt

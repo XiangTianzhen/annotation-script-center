@@ -105,11 +105,17 @@
 
   function buildAiOptions(config) {
     const options = {};
+    if (config.aiRecommendCandidatePrompt) {
+      options.candidatePrompt = config.aiRecommendCandidatePrompt;
+    }
     if (config.aiRecommendListenPrompt) {
       options.listenPrompt = config.aiRecommendListenPrompt;
     }
     if (config.aiRecommendComparePrompt) {
       options.comparePrompt = config.aiRecommendComparePrompt;
+    }
+    if (config.aiRecommendCandidateModel) {
+      options.candidateModel = config.aiRecommendCandidateModel;
     }
     if (config.aiRecommendListenModel) {
       options.listenModel = config.aiRecommendListenModel;
@@ -199,9 +205,11 @@
         aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
         aiQualifiedAutofillConcurrency: 5,
         aiRecommendListenModel: "qwen3.5-omni-flash",
+        aiRecommendCandidateModel: "qwen3.5-plus",
         aiRecommendCompareModel: "qwen3.5-plus",
         aiRecommendSingleModel: "qwen3.5-omni-flash",
         aiRecommendEnableThinking: false,
+        aiRecommendCandidatePrompt: "",
         aiRecommendListenPrompt: "",
         aiRecommendComparePrompt: "",
         aiRecommendTemperature: "",

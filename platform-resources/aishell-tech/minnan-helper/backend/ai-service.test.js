@@ -31,6 +31,7 @@ test("Aishell defaults align to the strict audio-first Minnan standard", functio
 
   assert.equal(defaults.modelMode, "two_stage");
   assert.equal(defaults.recognitionStrategy, "audio_first_reference");
+  assert.equal(defaults.candidateModel, "qwen3.5-plus");
   assert.equal(defaults.compareModel, "qwen3.5-plus");
   assert.equal(defaults.audioFirstReferenceCorrectionThreshold, 0.75);
   assert.equal(defaults.pipelineMode, "qwen_omni_compare");
@@ -65,10 +66,9 @@ test("Aishell defaults expose only the strict audio-first prompt profile", funct
   const profiles = defaults.promptProfiles || {};
   const strategyOptions = defaults.recognitionStrategyOptions || [];
 
+  assert.equal(defaults.candidatePrompt, profiles.audio_first_reference?.candidatePrompt);
   assert.equal(defaults.listenPrompt, profiles.audio_first_reference?.listenPrompt);
   assert.equal(defaults.comparePrompt, profiles.audio_first_reference?.comparePrompt);
-  assert.equal("candidatePrompt" in defaults, false);
-  assert.equal("candidatePrompt" in (profiles.audio_first_reference || {}), false);
   assert.deepEqual(Object.keys(profiles), ["audio_first_reference"]);
   assert.equal(strategyOptions.length, 1);
   assert.equal(
@@ -77,15 +77,19 @@ test("Aishell defaults expose only the strict audio-first prompt profile", funct
     }),
     true
   );
+  assert.match(defaults.candidatePrompt || "", /lexiconCandidateText/);
   assert.match(defaults.listenPrompt || "", /按实际发音输出 heardText/);
-  assert.match(defaults.comparePrompt || "", /按词表与规则层严格生成/);
+  assert.match(defaults.comparePrompt || "", /differenceSegments/);
   assert.match(defaults.comparePrompt || "", /candidateDecisions/);
 });
 
-test("Aishell audio-first strategy builds strict lexicon candidate text before compare", async function () {
+test("Aishell audio-first strategy builds AI lexicon candidate text before compare", async function () {
   let currentNow = 2000;
   let compareCallCount = 0;
+  let capturedCandidatePrompt = null;
   let capturedCorrectionContext = null;
+  let capturedCandidateModel = "";
+  let capturedCompareModel = "";
   const parseStages = [];
   const pipeline = createRecommendPipeline({
     now: function () {
@@ -112,16 +116,29 @@ test("Aishell audio-first strategy builds strict lexicon candidate text before c
         usage: {},
       };
     },
-    requestCompare: async function () {
+    requestCompare: async function (_providerInput, prompt, _comparisonText, options) {
       compareCallCount += 1;
+      if (compareCallCount === 1) {
+        capturedCandidatePrompt = prompt;
+        capturedCandidateModel = String(options?.model || "");
+      } else {
+        capturedCompareModel = String(options?.model || "");
+      }
       return {
         rawText: "{}",
-        model: "qwen3.5-plus",
+        model: String(options?.model || "qwen3.5-plus"),
         usage: {},
       };
     },
     parseModelJsonText: function (_rawText, options) {
       parseStages.push(options?.stage || "");
+      if (options?.stage === "candidate") {
+        return {
+          lexiconCandidateText: "路况良好，主要是高速甲省道，甲着导航行即可。",
+          confidence: 0.88,
+          needHumanReview: false,
+        };
+      }
       return {
         recommendedText: "路况良好，主要是高速甲省道，甲着导航行即可。",
         decision: "use_lexicon_candidate",
@@ -146,6 +163,13 @@ test("Aishell audio-first strategy builds strict lexicon candidate text before c
         recommendedText: modelJson.recommendedText,
         decision: modelJson.decision,
         changePoints: modelJson.changePoints,
+        confidence: modelJson.confidence,
+        needHumanReview: modelJson.needHumanReview,
+      };
+    },
+    normalizeCandidateResponse: function (modelJson) {
+      return {
+        lexiconCandidateText: modelJson.lexiconCandidateText,
         confidence: modelJson.confidence,
         needHumanReview: modelJson.needHumanReview,
       };
@@ -204,28 +228,32 @@ test("Aishell audio-first strategy builds strict lexicon candidate text before c
     capturedCorrectionContext?.lexiconCandidateText,
     "路况良好，主要是高速甲省道，甲着导航行即可。"
   );
-  assert.deepEqual(
-    (capturedCorrectionContext?.candidatePairs || []).slice().sort(function (left, right) {
-      return left.sourceText.localeCompare(right.sourceText, "zh-Hans-CN");
-    }),
-    [
-      { sourceText: "和", candidateText: "甲", source: "csv" },
-      { sourceText: "跟", candidateText: "甲", source: "csv" },
-      { sourceText: "走", candidateText: "行", source: "csv" },
-    ].sort(function (left, right) {
-      return left.sourceText.localeCompare(right.sourceText, "zh-Hans-CN");
-    })
+  assert.match(capturedCandidatePrompt?.userPrompt || "", /词表上下文/);
+  assert.equal(capturedCandidateModel, "qwen3.5-plus");
+  assert.equal(capturedCompareModel, "qwen3.5-plus");
+  assert.equal(
+    Array.isArray(capturedCorrectionContext?.differenceSegments),
+    true
+  );
+  assert.equal(capturedCorrectionContext?.differenceSegments?.length, 2);
+  assert.equal(
+    capturedCorrectionContext?.differenceSegments?.[0]?.candidateText,
+    "甲"
+  );
+  assert.equal(
+    capturedCorrectionContext?.differenceSegments?.[0]?.heardFragment,
+    "同"
   );
   assert.equal(result.data?.recommendedText, "路况良好，主要是高速同省道，甲导航行即可。");
   assert.equal(result.data?.needHumanReview, true);
   assert.equal(result.data?.lexicon?.rewriteMode, "off");
   assert.equal(result.meta?.audioFirstReference?.correctionThreshold, 0.75);
   assert.equal(result.meta?.audioFirstReference?.correctionConfidence, 0.61);
-  assert.equal(compareCallCount, 1);
-  assert.deepEqual(parseStages, ["compare"]);
+  assert.equal(compareCallCount, 2);
+  assert.deepEqual(parseStages, ["candidate", "compare"]);
 });
 
-test("Aishell audio-first strategy can adopt lexicon candidate text above threshold", async function () {
+test("Aishell audio-first strategy can mix candidate and heard text by diff segment", async function () {
   let currentNow = 3000;
   let compareCallCount = 0;
   const pipeline = createRecommendPipeline({
@@ -248,7 +276,7 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
     },
     requestFunAsrRecognition: async function () {
       return {
-        heardText: "路况良好，主要是高速同省道，甲导航行即可。",
+        heardText: "路况良好，主要是高速佮省道，缀着导航行即可。",
         confidence: 0.93,
         usage: {},
       };
@@ -261,11 +289,18 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
         usage: {},
       };
     },
-    parseModelJsonText: function () {
+    parseModelJsonText: function (_rawText, options) {
+      if (options?.stage === "candidate") {
+        return {
+          lexiconCandidateText: "路况良好，主要是高速甲省道，甲着导航行即可。",
+          confidence: 0.91,
+          needHumanReview: false,
+        };
+      }
       return {
-        recommendedText: "路况良好，主要是高速甲省道，甲着导航行即可。",
-        decision: "use_lexicon_candidate",
-        changePoints: [],
+        recommendedText: "路况良好，主要是高速甲省道，缀着导航行即可。",
+        decision: "use_mixed_segments",
+        changePoints: ["第一个差异项采用词表候选，第二个差异项保留听音文本。"],
         confidence: 0.92,
         needHumanReview: false,
         correctionConfidence: 0.92,
@@ -273,10 +308,18 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
           {
             sourceText: "和",
             candidateText: "甲",
-            heardFragment: "同",
+            heardFragment: "佮",
             applyCandidate: true,
             confidence: 0.92,
             reason: "词表标准写法与音频接近，采用候选文本。",
+          },
+          {
+            sourceText: "跟",
+            candidateText: "甲着",
+            heardFragment: "缀着",
+            applyCandidate: false,
+            confidence: 0.95,
+            reason: "听音文本已经正确，不应回退到候选文本。",
           },
         ],
       };
@@ -286,6 +329,13 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
         recommendedText: modelJson.recommendedText,
         decision: modelJson.decision,
         changePoints: modelJson.changePoints,
+        confidence: modelJson.confidence,
+        needHumanReview: modelJson.needHumanReview,
+      };
+    },
+    normalizeCandidateResponse: function (modelJson) {
+      return {
+        lexiconCandidateText: modelJson.lexiconCandidateText,
         confidence: modelJson.confidence,
         needHumanReview: modelJson.needHumanReview,
       };
@@ -333,10 +383,11 @@ test("Aishell audio-first strategy can adopt lexicon candidate text above thresh
     }
   );
 
-  assert.equal(result.data?.recommendedText, "路况良好，主要是高速甲省道，甲着导航行即可。");
+  assert.equal(result.data?.recommendedText, "路况良好，主要是高速甲省道，缀着导航行即可。");
   assert.equal(result.data?.needHumanReview, false);
   assert.equal(result.meta?.audioFirstReference?.correctionConfidence, 0.92);
-  assert.equal(compareCallCount, 1);
+  assert.equal(result.meta?.audioFirstReference?.candidateText, "路况良好，主要是高速甲省道，甲着导航行即可。");
+  assert.equal(compareCallCount, 2);
 });
 
 test("Aishell Minnan lexicon stays byte-for-byte aligned with DataBaker reference", function () {

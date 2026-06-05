@@ -11,13 +11,14 @@
 - 仅服务 `https://mark.aishelltech.com/mytask/mark?...` 的闽南语推荐文本助手。
 - 接口独立为 `/api/aishell-tech/minnan-helper/ai/recommend*`。
 - Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；其中闽南语词表已与 `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv` 1:1 对齐，但推荐编排、缓存、日志、同步超时、取消与队列已经改成 Aishell 自己维护。
-- 当前默认配置已收口为唯一的“三文本对照”方案：`two_stage + audio_first_reference + qwen3.5-omni-flash + qwen3.5-plus`。
+- 当前默认配置已收口为唯一的“三文本对照”方案：`two_stage + audio_first_reference + 候选 qwen3.5-plus + 听音 qwen3.5-omni-flash + 差异比较 qwen3.5-plus`。
 - options 页当前已与 DataBaker 共用固定顺序的右侧 `AI 设置` 模块；`AI 连续填入并发数量` 已移动到该区域，默认 `5`，Omni 范围 `1~25`，Fun-ASR 范围 `1~50`。
 - 当前只保留 `audio_first_reference`（音频优先，文本参考）策略：
   - 以音频实际发音为准，允许同一句里混合普通话词和闽南语词。
-  - 比较阶段当前改成 `heardText + lexiconCandidateText + pageText` 三文本对照：先按 `minnan-lexicon.csv + minnan-lexicon-rules.json` 严格生成标准闽南语候选，再只重点检查与 `heardText` 的差异项。
+  - 比较阶段当前改成 `heardText + lexiconCandidateText + pageText` 三文本对照：先由候选转写模型结合 `pageText + minnan-lexicon.csv` 生成标准闽南语候选，再只重点检查与 `heardText` 的差异项。
   - `pageText` 与词表只作为参考，不再主导改写。
   - 音频里没有读出的词不补回。
+  - options 页当前可单独配置 `词表转写模型`、`词表转写 Prompt（可选）` 与 `差异比较模型`。
   - options 页新增 `词表候选校正阈值`，默认 `0.75`；当比较模型给出的 `correctionConfidence` 低于阈值时，后端会优先保留 `heardText` 并标记人工复核。
   - 后端仍会构建词表上下文给模型参考，但 `lexicon.rewriteMode` 固定为 `off`，不会再做后端强制词表改写。
 - 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
@@ -48,7 +49,7 @@
   - 推荐卡片嵌入标注表单下方。
   - `AI识别` 放在原生“保存”按钮右侧。
   - `全部AI批量识别 / 未完成的AI批量识别 / 停止批量` 放在原生工具按钮区域。
-  - 当前识别结果区会显示原始文本、按 `minnan-lexicon.csv + minnan-lexicon-rules.json` 严格生成的词表转写文本、听音文本、推荐文本，以及“听音文本 vs 词表转写文本”的差异高亮。
+  - 当前识别结果区会显示原始文本、候选转写模型生成的词表转写文本、听音文本、推荐文本，以及“听音文本 vs 词表转写文本”的差异高亮。
   - AI 诊断信息会继续显示识别策略、模型选择、校正阈值、校正置信度、AI耗时、前端并发、token、FunASR provider、后端模式、后端地址、是否发生自动回退、requestId、debugId。
   - 当前识别结果区与批量失败详情现在统一优先读取后端 `meta`，额外展示排队等待、缓存命中与阶段信息。
   - 批量状态区会显示 `前端并发 / 发送间隔 / 已发请求 / AI处理中 / AI已返回 / 待保存队列 / 已完成 / 失败数`，方便区分是前端未灌满请求窗口，还是后端模型池仍在排队。

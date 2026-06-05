@@ -69,6 +69,7 @@ test("Aishell storage defaults use the aligned Minnan standard", async function 
     assert.equal(dataBakerScript.aiQualifiedAutofillConcurrency, 5);
     assert.equal(script.aiRecommendPipelineMode, "two_stage");
     assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
+    assert.equal(script.aiRecommendCandidateModel, "qwen3.5-plus");
     assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
     assert.equal(script.aiRecommendAudioFirstReferenceCorrectionThreshold, 0.75);
     assert.equal(script.aiQualifiedAutofillConcurrency, 5);
@@ -90,6 +91,7 @@ test("Aishell storage upgrades legacy strategy values to audio-first", async fun
             aiRecommendPipelineMode: "two_stage",
             aiRecommendRecognitionStrategy: "direct_dialect",
             aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendCandidateModel: "qwen3.6-plus",
             aiRecommendCompareModel: "qwen3.5-flash",
             aiRecommendSingleModel: "qwen3.5-omni-flash",
           },
@@ -103,6 +105,7 @@ test("Aishell storage upgrades legacy strategy values to audio-first", async fun
     const script = settings.platforms.aishellTech.scripts.minnanHelper;
 
     assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
+    assert.equal(script.aiRecommendCandidateModel, "qwen3.6-plus");
     assert.equal(script.aiRecommendCompareModel, "qwen3.5-flash");
   } finally {
     harness.cleanup();
@@ -122,6 +125,7 @@ test("Aishell storage keeps customized model choices but still normalizes strate
             aiRecommendPipelineMode: "two_stage",
             aiRecommendRecognitionStrategy: "direct_dialect",
             aiRecommendListenModel: "fun-asr",
+            aiRecommendCandidateModel: "qwen3.5-flash",
             aiRecommendCompareModel: "qwen3.6-plus",
             aiRecommendSingleModel: "qwen3.5-omni-flash",
           },
@@ -135,6 +139,7 @@ test("Aishell storage keeps customized model choices but still normalizes strate
     const script = settings.platforms.aishellTech.scripts.minnanHelper;
 
     assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
+    assert.equal(script.aiRecommendCandidateModel, "qwen3.5-flash");
     assert.equal(script.aiRecommendCompareModel, "qwen3.6-plus");
   } finally {
     harness.cleanup();
@@ -155,8 +160,10 @@ test("Aishell storage keeps audio-first recognition strategy untouched", async f
             aiRecommendRecognitionStrategy: "audio_first_reference",
             aiRecommendAudioFirstReferenceCorrectionThreshold: 0.812,
             aiRecommendListenModel: "fun-asr",
+            aiRecommendCandidateModel: "qwen3.6-plus",
             aiRecommendCompareModel: "qwen3.5-plus",
             aiRecommendSingleModel: "qwen3.5-omni-flash",
+            aiRecommendCandidatePrompt: "candidate-prompt",
           },
         },
       },
@@ -168,8 +175,10 @@ test("Aishell storage keeps audio-first recognition strategy untouched", async f
     const script = settings.platforms.aishellTech.scripts.minnanHelper;
 
     assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
+    assert.equal(script.aiRecommendCandidateModel, "qwen3.6-plus");
     assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
     assert.equal(script.aiRecommendAudioFirstReferenceCorrectionThreshold, 0.812);
+    assert.equal(script.aiRecommendCandidatePrompt, "candidate-prompt");
   } finally {
     harness.cleanup();
   }

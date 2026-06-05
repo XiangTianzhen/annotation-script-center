@@ -21,10 +21,6 @@ const {
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
 const { buildRecommendCacheKey } = require("./cache");
 const {
-  buildLexiconCandidateContext,
-  LEXICON_CANDIDATE_RULE_VERSION,
-} = require("./lexicon-candidate");
-const {
   DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
   DEFAULT_FUN_ASR_MODEL,
   DEFAULT_OMNI_MODEL,
@@ -73,31 +69,6 @@ function normalizeCorrectionConfidence(value) {
   return Math.max(0, Math.min(1, Number(number.toFixed(3))));
 }
 
-function normalizeCandidatePairs(changes) {
-  const source = Array.isArray(changes) ? changes : [];
-  const seen = new Set();
-  const result = [];
-  source.forEach(function (item) {
-    const sourceText = normalizeText(item?.sourceText || item?.from);
-    const candidateText = normalizeText(item?.candidateText || item?.to);
-    const pairSource = normalizeText(item?.source) || "csv";
-    if (!sourceText || !candidateText || sourceText === candidateText) {
-      return;
-    }
-    const key = [sourceText, candidateText, pairSource].join("\u0000");
-    if (seen.has(key)) {
-      return;
-    }
-    seen.add(key);
-    result.push({
-      sourceText,
-      candidateText,
-      source: pairSource === "base" ? "base" : "csv",
-    });
-  });
-  return result;
-}
-
 function normalizeCandidateDecisions(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -126,6 +97,7 @@ function buildAudioFirstReferenceMeta(compareJson, correctionContext, correction
   return {
     candidateText: normalizeText(context.lexiconCandidateText),
     candidatePairs: Array.isArray(context.candidatePairs) ? context.candidatePairs : [],
+    differenceSegments: Array.isArray(context.differenceSegments) ? context.differenceSegments : [],
     candidateConfidence: normalizeCorrectionConfidence(context.confidence),
     candidateNeedHumanReview: context.needHumanReview === true,
     correctionThreshold: normalizeAudioFirstReferenceCorrectionThreshold(correctionThreshold),
@@ -212,7 +184,10 @@ function createComparePrompt(request, heardText, lexiconContext, correctionConte
     compareInput.candidatePairs = Array.isArray(correctionContext.candidatePairs)
       ? correctionContext.candidatePairs
       : [];
-    compareInput.candidateDiffCount = Number(correctionContext.candidateDiffCount || 0) || 0;
+    compareInput.differenceSegments = Array.isArray(correctionContext.differenceSegments)
+      ? correctionContext.differenceSegments
+      : [];
+    compareInput.candidateDiffCount = compareInput.differenceSegments.length;
     compareInput.audioFirstReferenceCorrectionThreshold =
       normalizeAudioFirstReferenceCorrectionThreshold(
         request.aiOptions?.audioFirstReferenceCorrectionThreshold
@@ -223,6 +198,7 @@ function createComparePrompt(request, heardText, lexiconContext, correctionConte
         {
           lexiconCandidateText: compareInput.lexiconCandidateText,
           candidatePairs: compareInput.candidatePairs,
+          differenceSegments: compareInput.differenceSegments,
           candidateDiffCount: compareInput.candidateDiffCount,
           audioFirstReferenceCorrectionThreshold:
             compareInput.audioFirstReferenceCorrectionThreshold,
@@ -242,7 +218,31 @@ function createComparePrompt(request, heardText, lexiconContext, correctionConte
   );
 }
 
-function createOmniSinglePrompt(request, lexiconContext) {
+function createCandidatePrompt(request, lexiconContext) {
+  const promptLines = [request.aiOptions?.candidatePrompt || ""];
+  if (lexiconContext?.text) {
+    promptLines.push("词表上下文：", lexiconContext.text);
+  }
+  promptLines.push(
+    "输入：",
+    JSON.stringify(
+      {
+        pageText: request.referenceText,
+        fileName: request.fileName,
+        duration: request.duration,
+        itemNumber: request.itemNumber,
+      },
+      null,
+      2
+    )
+  );
+  return createPromptObject(
+    "你是 Aishell 闽南语词表候选转写助手。你必须只输出 JSON，不要输出 Markdown 或额外解释。",
+    promptLines.join("\n")
+  );
+}
+
+function createOmniSinglePrompt(request, lexiconContext, correctionContext) {
   const promptLines = [
     request.aiOptions?.listenPrompt || "",
     "规则：一个请求直接完成听音、对比和推荐文本输出。",
@@ -260,6 +260,26 @@ function createOmniSinglePrompt(request, lexiconContext) {
   ];
   if (lexiconContext?.text) {
     promptLines.splice(2, 0, "词表上下文：", lexiconContext.text);
+  }
+  if (isAudioFirstReferenceStrategy(request) && correctionContext?.enabled === true) {
+    promptLines.splice(
+      2,
+      0,
+      "词表候选校正：",
+      JSON.stringify(
+        {
+          lexiconCandidateText: correctionContext.lexiconCandidateText,
+          candidatePairs: correctionContext.candidatePairs,
+          differenceSegments: correctionContext.differenceSegments,
+          audioFirstReferenceCorrectionThreshold:
+            normalizeAudioFirstReferenceCorrectionThreshold(
+              request.aiOptions?.audioFirstReferenceCorrectionThreshold
+            ),
+        },
+        null,
+        2
+      )
+    );
   }
   return createPromptObject(
     "你是 Aishell 闽南语单模型推荐助手。你必须只输出 JSON，不要输出 Markdown 或额外解释。",
@@ -290,8 +310,142 @@ function normalizeListenResponse(modelJson) {
   };
 }
 
+function normalizeCandidateResponse(modelJson, request) {
+  const fallbackText = normalizeRecommendedText(request?.referenceText || "");
+  const candidateText = normalizeRecommendedText(
+    modelJson?.lexiconCandidateText || modelJson?.candidateText || modelJson?.recommendedText || fallbackText
+  );
+  return {
+    lexiconCandidateText: candidateText || fallbackText,
+    confidence: Number(modelJson?.confidence || 0) || 0,
+    needHumanReview: modelJson?.needHumanReview === true,
+  };
+}
+
 function normalizeRecommendedText(text) {
   return normalizeToSimplifiedChinesePreservingLexicon(removeTextSpaces(String(text || "")));
+}
+
+function buildTextAlignment(leftText, rightText) {
+  const leftChars = Array.from(String(leftText || ""));
+  const rightChars = Array.from(String(rightText || ""));
+  const dp = Array.from({ length: leftChars.length + 1 }, function () {
+    return new Array(rightChars.length + 1).fill(0);
+  });
+
+  for (let leftIndex = leftChars.length - 1; leftIndex >= 0; leftIndex -= 1) {
+    for (let rightIndex = rightChars.length - 1; rightIndex >= 0; rightIndex -= 1) {
+      dp[leftIndex][rightIndex] =
+        leftChars[leftIndex] === rightChars[rightIndex]
+          ? dp[leftIndex + 1][rightIndex + 1] + 1
+          : Math.max(dp[leftIndex + 1][rightIndex], dp[leftIndex][rightIndex + 1]);
+    }
+  }
+
+  const alignment = [];
+  let leftIndex = 0;
+  let rightIndex = 0;
+  while (leftIndex < leftChars.length && rightIndex < rightChars.length) {
+    if (leftChars[leftIndex] === rightChars[rightIndex]) {
+      alignment.push({
+        leftChar: leftChars[leftIndex],
+        rightChar: rightChars[rightIndex],
+        same: true,
+      });
+      leftIndex += 1;
+      rightIndex += 1;
+      continue;
+    }
+    if (dp[leftIndex + 1][rightIndex] >= dp[leftIndex][rightIndex + 1]) {
+      alignment.push({
+        leftChar: leftChars[leftIndex],
+        rightChar: "",
+        same: false,
+      });
+      leftIndex += 1;
+      continue;
+    }
+    alignment.push({
+      leftChar: "",
+      rightChar: rightChars[rightIndex],
+      same: false,
+    });
+    rightIndex += 1;
+  }
+
+  while (leftIndex < leftChars.length) {
+    alignment.push({
+      leftChar: leftChars[leftIndex],
+      rightChar: "",
+      same: false,
+    });
+    leftIndex += 1;
+  }
+  while (rightIndex < rightChars.length) {
+    alignment.push({
+      leftChar: "",
+      rightChar: rightChars[rightIndex],
+      same: false,
+    });
+    rightIndex += 1;
+  }
+
+  return alignment;
+}
+
+function buildDifferenceSegments(leftText, rightText, leftKey, rightKey) {
+  const alignment = buildTextAlignment(leftText, rightText);
+  const segments = [];
+  let leftBuffer = "";
+  let rightBuffer = "";
+
+  function flush() {
+    const normalizedLeft = normalizeText(leftBuffer);
+    const normalizedRight = normalizeText(rightBuffer);
+    if (!normalizedLeft && !normalizedRight) {
+      leftBuffer = "";
+      rightBuffer = "";
+      return;
+    }
+    segments.push({
+      [leftKey]: normalizedLeft,
+      [rightKey]: normalizedRight,
+    });
+    leftBuffer = "";
+    rightBuffer = "";
+  }
+
+  alignment.forEach(function (entry) {
+    if (entry.same === true) {
+      flush();
+      return;
+    }
+    leftBuffer += String(entry.leftChar || "");
+    rightBuffer += String(entry.rightChar || "");
+  });
+  flush();
+
+  return segments
+    .filter(function (entry) {
+      return normalizeText(entry?.[leftKey]) || normalizeText(entry?.[rightKey]);
+    })
+    .slice(0, 20);
+}
+
+function buildCandidatePairs(pageText, candidateText) {
+  return buildDifferenceSegments(pageText, candidateText, "sourceText", "candidateText").map(
+    function (entry) {
+      return {
+        sourceText: normalizeText(entry.sourceText),
+        candidateText: normalizeText(entry.candidateText),
+        source: "model",
+      };
+    }
+  );
+}
+
+function buildHeardCandidateDifferenceSegments(heardText, candidateText) {
+  return buildDifferenceSegments(heardText, candidateText, "heardFragment", "candidateText");
 }
 
 function resolveLexiconRewriteMode(recognitionStrategy) {
@@ -334,6 +488,7 @@ function buildErrorMeta(requestId, queueMetas, timing, request, stage) {
       modelMode: normalizeText(request?.modelMode),
       recognitionStrategy: normalizeText(request?.recognitionStrategy),
       pipelineMode: normalizeText(request?.pipelineMode),
+      candidateModel: normalizeText(request?.candidateModel),
       listenModel: normalizeText(request?.listenModel),
       compareModel: normalizeText(request?.compareModel),
       singleModel: normalizeText(request?.singleModel),
@@ -396,12 +551,15 @@ function createRecommendPipeline(overrides) {
   const deps = Object.assign(
     {
       applyLexiconRewrite,
-      buildLexiconCandidateContext,
+      buildCandidatePrompt: createCandidatePrompt,
       buildComparePrompt: createComparePrompt,
       buildLexiconContext,
       buildListenPrompt: createListenPrompt,
       buildOmniSinglePrompt: createOmniSinglePrompt,
+      buildCandidatePairs,
+      buildHeardCandidateDifferenceSegments,
       enqueueTask,
+      normalizeCandidateResponse,
       normalizeCompareResponse,
       normalizeListenResponse,
       normalizeOmniSingleResponse,
@@ -437,16 +595,13 @@ function createRecommendPipeline(overrides) {
         modelMode: request.modelMode,
         recognitionStrategy: request.recognitionStrategy,
         pipelineMode,
+        candidateModel: request.candidateModel,
         listenModel: request.listenModel,
         compareModel: request.compareModel,
         singleModel: request.singleModel,
+        candidatePrompt: request.aiOptions?.candidatePrompt,
         listenPrompt: request.aiOptions?.listenPrompt,
         comparePrompt: request.aiOptions?.comparePrompt,
-        audioFirstReferenceCandidateRuleVersion:
-          normalizeRecognitionStrategy(request.recognitionStrategy, "audio_first_reference") ===
-          "audio_first_reference"
-            ? LEXICON_CANDIDATE_RULE_VERSION
-            : "",
         audioFirstReferenceCorrectionThreshold:
           request.aiOptions?.audioFirstReferenceCorrectionThreshold,
       });
@@ -482,9 +637,11 @@ function createRecommendPipeline(overrides) {
       let needHumanReview = false;
       let compareConfidence = 0;
       let listenConfidence = 0;
+      let candidateUsage = {};
       let listenUsage = {};
       let compareUsage = {};
       let audioFirstReferenceMeta = null;
+      let activeCandidateModel = normalizeText(request.candidateModel) || normalizeText(request.compareModel);
       let activeListenModel = normalizeText(request.listenModel) || DEFAULT_OMNI_MODEL;
       let activeCompareModel = normalizeText(request.compareModel);
       let activeSingleModel = normalizeText(request.singleModel) || DEFAULT_OMNI_MODEL;
@@ -497,13 +654,51 @@ function createRecommendPipeline(overrides) {
         rewriteChanges: [],
       };
 
-      if (pipelineMode === "omni_single") {
-        const lexiconContext = deps.buildLexiconContext({
-          pageText: request.referenceText,
-          heardText: "",
-          limit: 60,
+      let lexiconContext = deps.buildLexiconContext({
+        pageText: request.referenceText,
+        heardText: "",
+        limit: 60,
+      });
+      let correctionContext = null;
+      if (isAudioFirstReferenceStrategy(request)) {
+        ensureNotAborted(signal, requestId, queueMetas, timing, request, "candidate");
+        const candidatePrompt = deps.buildCandidatePrompt(request, lexiconContext);
+        const candidateStartedAt = deps.now();
+        const candidateResult = await runQueuedTask("aishell_text_compare", "candidate", function () {
+          return deps.requestCompare(providerInput, candidatePrompt, request.referenceText, {
+            model: activeCandidateModel,
+            timeoutMs: getRemainingTimeoutMs(startedAtMs, timeoutMs),
+            enableThinking: false,
+            signal,
+          });
+        }, {
+          modelName: activeCandidateModel,
         });
-        const prompt = deps.buildOmniSinglePrompt(request, lexiconContext);
+        candidateDurationMs = Math.max(0, deps.now() - candidateStartedAt);
+        timing.candidateDurationMs = candidateDurationMs;
+        const candidateJson = deps.parseModelJsonText(candidateResult.rawText, {
+          requestId,
+          stage: "candidate",
+          model: candidateResult.model,
+        });
+        const normalizedCandidate = deps.normalizeCandidateResponse(candidateJson, request);
+        const normalizedCandidateText = deps.normalizeRecommendedText(
+          normalizedCandidate.lexiconCandidateText || request.referenceText
+        );
+        candidateUsage = deps.normalizeUsage(candidateResult.usage || {});
+        correctionContext = {
+          enabled: Boolean(normalizedCandidateText),
+          lexiconCandidateText: normalizedCandidateText,
+          candidatePairs: deps.buildCandidatePairs(request.referenceText, normalizedCandidateText),
+          candidateDiffCount: 0,
+          differenceSegments: [],
+          confidence: normalizeCorrectionConfidence(normalizedCandidate.confidence),
+          needHumanReview: normalizedCandidate.needHumanReview === true,
+        };
+      }
+
+      if (pipelineMode === "omni_single") {
+        const prompt = deps.buildOmniSinglePrompt(request, lexiconContext, correctionContext);
         const stageStartedAt = deps.now();
         const omniSingleResult = await runQueuedTask("aishell_qwen_omni", "listen", function () {
           return deps.requestOmniInputAudio(providerInput, prompt, {
@@ -526,16 +721,35 @@ function createRecommendPipeline(overrides) {
         const normalizedSingle = deps.normalizeOmniSingleResponse(modelJson, {
           pageText: request.referenceText,
         });
+        heardText = normalizeText(normalizedSingle.heardText);
+        if (correctionContext) {
+          correctionContext.differenceSegments = deps.buildHeardCandidateDifferenceSegments(
+            heardText,
+            correctionContext.lexiconCandidateText
+          );
+          correctionContext.candidateDiffCount = correctionContext.differenceSegments.length;
+          audioFirstReferenceMeta = buildAudioFirstReferenceMeta(
+            modelJson,
+            correctionContext,
+            request.aiOptions?.audioFirstReferenceCorrectionThreshold
+          );
+        }
+        const resolvedSingle = isAudioFirstReferenceStrategy(request)
+          ? resolveAudioFirstReferenceCompareResult({
+              normalizedCompare: normalizedSingle,
+              heardText,
+              meta: audioFirstReferenceMeta,
+            })
+          : normalizedSingle;
         const rewriteState = deps.applyLexiconRewrite(
-          deps.normalizeRecommendedText(normalizedSingle.recommendedText),
+          deps.normalizeRecommendedText(resolvedSingle.recommendedText),
           {
             mode: lexiconRewriteMode,
           }
         );
-        heardText = normalizeText(normalizedSingle.heardText);
         decision = normalizeText(normalizedSingle.decision);
         changePoints = Array.isArray(normalizedSingle.changePoints) ? normalizedSingle.changePoints : [];
-        needHumanReview = normalizedSingle.needHumanReview === true || rewriteState.changed === true;
+        needHumanReview = resolvedSingle.needHumanReview === true || rewriteState.changed === true;
         listenConfidence = Number(normalizedSingle.confidence || 0) || 0;
         compareConfidence = listenConfidence;
         listenUsage = deps.normalizeUsage(omniSingleResult.usage || {});
@@ -575,6 +789,7 @@ function createRecommendPipeline(overrides) {
               modelMode: request.modelMode,
               recognitionStrategy: request.recognitionStrategy,
               pipelineMode,
+              candidateModel: activeCandidateModel,
               listenModel: "",
               compareModel: "",
               singleModel: activeSingleModel,
@@ -582,9 +797,14 @@ function createRecommendPipeline(overrides) {
             },
             timing: Object.assign({}, timing),
             usage: {
-              promptTokens: Number(listenUsage.promptTokens || 0) || 0,
-              completionTokens: Number(listenUsage.completionTokens || 0) || 0,
-              totalTokens: Number(listenUsage.totalTokens || 0) || 0,
+              promptTokens:
+                Number(candidateUsage.promptTokens || 0) + Number(listenUsage.promptTokens || 0),
+              completionTokens:
+                Number(candidateUsage.completionTokens || 0) +
+                Number(listenUsage.completionTokens || 0),
+              totalTokens:
+                Number(candidateUsage.totalTokens || 0) + Number(listenUsage.totalTokens || 0),
+              candidate: candidateUsage,
               listen: listenUsage,
               compare: {},
             },
@@ -601,6 +821,7 @@ function createRecommendPipeline(overrides) {
               frontConcurrencyNormalized: request.frontConcurrency ?? null,
               concurrencyModelType: normalizeText(request.concurrencyModelType),
             },
+            audioFirstReference: audioFirstReferenceMeta,
           },
         };
       }
@@ -651,56 +872,29 @@ function createRecommendPipeline(overrides) {
         listenUsage = deps.normalizeUsage(omniListenResult.usage || {});
       }
 
-      ensureNotAborted(signal, requestId, queueMetas, timing, request, "candidate");
-
-      const lexiconContext = deps.buildLexiconContext({
+      lexiconContext = deps.buildLexiconContext({
         pageText: request.referenceText,
         heardText,
         limit: 60,
       });
-      let correctionContext = null;
       if (isAudioFirstReferenceStrategy(request)) {
-        const candidateStartedAt = deps.now();
-        correctionContext = withStageMeta(
-          requestId,
-          request,
-          queueMetas,
-          Object.assign({}, timing),
-          "candidate",
-          function () {
-            return Promise.resolve(
-              deps.buildLexiconCandidateContext(request.referenceText, {
-                lexiconContext,
-              })
-            );
-          }
-        );
-        correctionContext = await correctionContext;
-        candidateDurationMs = Math.max(0, deps.now() - candidateStartedAt);
-        timing.candidateDurationMs = candidateDurationMs;
         correctionContext = Object.assign(
           {
             enabled: false,
             lexiconCandidateText: deps.normalizeRecommendedText(request.referenceText),
             candidatePairs: [],
             candidateDiffCount: 0,
+            differenceSegments: [],
             confidence: null,
             needHumanReview: false,
           },
-          correctionContext && typeof correctionContext === "object" ? correctionContext : {},
-          {
-            lexiconCandidateText: deps.normalizeRecommendedText(
-              correctionContext?.lexiconCandidateText || request.referenceText
-            ),
-            candidatePairs: normalizeCandidatePairs(correctionContext?.candidatePairs),
-          }
+          correctionContext && typeof correctionContext === "object" ? correctionContext : {}
         );
-        correctionContext.candidateDiffCount = correctionContext.candidatePairs.length;
-        correctionContext.enabled = Boolean(correctionContext.lexiconCandidateText);
-        correctionContext.confidence = normalizeCorrectionConfidence(
-          correctionContext.confidence
+        correctionContext.differenceSegments = deps.buildHeardCandidateDifferenceSegments(
+          heardText,
+          correctionContext.lexiconCandidateText
         );
-        correctionContext.needHumanReview = correctionContext.needHumanReview === true;
+        correctionContext.candidateDiffCount = correctionContext.differenceSegments.length;
       }
       ensureNotAborted(signal, requestId, queueMetas, timing, request, "compare");
       const comparePrompt = deps.buildComparePrompt(
@@ -790,26 +984,34 @@ function createRecommendPipeline(overrides) {
         meta: {
           requestId,
           stage: "complete",
-          models: {
-            modelMode: request.modelMode,
-            recognitionStrategy: request.recognitionStrategy,
-            pipelineMode,
-            listenModel: activeListenModel,
-            compareModel: activeCompareModel,
-            singleModel: "",
-            funAsrProvider: pipelineMode === "fun_asr_compare" ? "rest" : "",
-          },
-          timing: Object.assign({}, timing),
-          usage: {
-            promptTokens:
-              Number(listenUsage.promptTokens || 0) + Number(compareUsage.promptTokens || 0),
-            completionTokens:
-              Number(listenUsage.completionTokens || 0) + Number(compareUsage.completionTokens || 0),
-            totalTokens:
-              Number(listenUsage.totalTokens || 0) + Number(compareUsage.totalTokens || 0),
-            listen: listenUsage,
-            compare: compareUsage,
-          },
+            models: {
+              modelMode: request.modelMode,
+              recognitionStrategy: request.recognitionStrategy,
+              pipelineMode,
+              candidateModel: activeCandidateModel,
+              listenModel: activeListenModel,
+              compareModel: activeCompareModel,
+              singleModel: "",
+              funAsrProvider: pipelineMode === "fun_asr_compare" ? "rest" : "",
+            },
+            timing: Object.assign({}, timing),
+            usage: {
+              promptTokens:
+                Number(candidateUsage.promptTokens || 0) +
+                Number(listenUsage.promptTokens || 0) +
+                Number(compareUsage.promptTokens || 0),
+              completionTokens:
+                Number(candidateUsage.completionTokens || 0) +
+                Number(listenUsage.completionTokens || 0) +
+                Number(compareUsage.completionTokens || 0),
+              totalTokens:
+                Number(candidateUsage.totalTokens || 0) +
+                Number(listenUsage.totalTokens || 0) +
+                Number(compareUsage.totalTokens || 0),
+              candidate: candidateUsage,
+              listen: listenUsage,
+              compare: compareUsage,
+            },
           queue: buildQueueMeta(queueMetas),
           cache: {
             hit: false,

@@ -1,22 +1,23 @@
-## 2026-06-05（Aishell 词表转写收口为严格词表规则）
+## 2026-06-05（Aishell 候选转写恢复为 AI 并开放独立配置）
 
-- `希尔贝壳 / 闽南语助手` 的 `词表转写文本` 当前已从“独立文本模型生成”改成“按词表与规则层纯代码生成”：
-  - 新增 `platform-resources/aishell-tech/minnan-helper/backend/lexicon-candidate.js`
-  - 新增 `platform-resources/aishell-tech/minnan-helper/backend/reference/minnan-lexicon-rules.json`
-  - 候选转写固定先走短语规则，再走 token 规则；未命中的词保持原样
-- Aishell 后端当前不再暴露 `candidatePrompt`：
-  - `defaults / health / promptProfiles` 现在只保留 `listenPrompt / comparePrompt`
+- `希尔贝壳 / 闽南语助手` 的 `词表转写文本` 当前已从“纯代码候选转写”恢复为“独立候选转写模型生成”：
+  - 删除 `platform-resources/aishell-tech/minnan-helper/backend/lexicon-candidate.js`
+  - 删除 `platform-resources/aishell-tech/minnan-helper/backend/reference/minnan-lexicon-rules.json`
+  - 候选阶段改为先由文本模型结合 `pageText + minnan-lexicon.csv` 上下文生成 `lexiconCandidateText`
+- Aishell 后端当前重新暴露候选阶段配置：
+  - `defaults / health / promptProfiles` 现在新增 `candidateModelOptions / candidateModel / candidatePrompt`
   - compare 阶段继续使用 `heardText + lexiconCandidateText + pageText`
-  - `candidateDurationMs` 现在表示本地词表转写耗时，不再表示候选模型调用耗时
-- 候选转写当前新增两条确定性保护：
-  - `和 -> 甲`、`跟 -> 甲` 由规则层显式指定
-  - `537,参（我参汝）,和(我和你)` 这类歧义 CSV 行已通过规则层禁用自动泛化，避免把 `和` 凭感觉改成错误候选
-- 候选文本最终会统一走非词表字简体归一：
-  - `導航 / 路況 / 導` 之类普通繁体会转成 `导航 / 路况 / 导`
-  - 命中的闽南语建议字继续保留原样
+  - `candidateDurationMs` 恢复表示候选模型调用耗时
+- Aishell options / runtime 当前已补齐候选阶段独立配置：
+  - 新增 `词表转写模型`
+  - 新增 `词表转写 Prompt（可选）`
+  - 请求体会把 `candidateModel / candidatePrompt` 发往后端
+- 差异比较链路当前继续保留：
+  - `two_stage` 下按“候选转写模型 -> 听音模型 -> 差异比较模型”执行
+  - `omni_single` 下也会先生成候选文本，再由 Omni 在单次听音中判断差异项该保留哪一侧
 - 回归验证补强：
-  - 新增 `platform-resources/aishell-tech/minnan-helper/backend/lexicon-candidate.test.js`
-  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 改为覆盖“候选来自严格词表规则、compare 仅调用一次文本模型、低置信保留 heardText、高置信采用候选文本”
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js` 改为覆盖“候选阶段独立调模型、compare 聚焦 differenceSegments、低置信保留 heardText、高置信允许混合采纳候选”
+  - `extension/shared/storage.aishell-tech.test.js`、`extension/sites/aishell-tech/minnan-helper/batch-pipeline.test.js`、`extension/options/options-shared-asr-ai-panel.test.js` 同步覆盖候选模型与候选 Prompt 配置
 
 ## 2026-06-05（Aishell 三文本对照方案收口与结果展示增强）
 
@@ -27,7 +28,7 @@
   - options 页不再显示 Aishell 的 `识别策略` 下拉；`词表候选校正阈值` 继续保留
 - `希尔贝壳闽南语推荐` 当前结果卡增强：
   - 新增 `原始文本`
-  - 新增 `词表转写文本`（原始文本先按 `minnan-lexicon.csv + minnan-lexicon-rules.json` 严格生成的闽南语候选）
+  - 新增 `词表转写文本`（候选转写模型结合 `pageText + minnan-lexicon.csv` 上下文生成的闽南语候选）
   - 新增 `听音文本 vs 词表转写文本` 差异高亮展示
   - 原 `词表候选文本` 从诊断区移除，避免和主结果区重复
 - 回归验证补强：
@@ -39,10 +40,10 @@
 
 - `希尔贝壳 / 闽南语助手` 的 `audio_first_reference` 策略当前已升级为“三文本对照”：
   - `pageText`
-  - `lexiconCandidateText`：按 `minnan-lexicon.csv` 与规则层生成的标准闽南语候选文本
+  - `lexiconCandidateText`：由候选转写模型结合 `pageText` 与 `minnan-lexicon.csv` 上下文生成的标准闽南语候选文本
   - `heardText`
 - 后端 `pipeline.js` 现已新增候选校正上下文：
-  - 候选文本当前改为通过严格词表规则生成，不再依赖候选阶段模型，也不再使用本地强替换直接产出 `candidateText`
+  - 候选文本当前改为由独立候选阶段模型生成，再把 `heardText + lexiconCandidateText + pageText` 交给差异比较模型
   - 最终 `lexicon.rewriteMode` 仍固定为 `off`，不会重新开启强制词表改写
   - 当 `correctionConfidence < audioFirstReferenceCorrectionThreshold` 时，会优先保留 `heardText` 并标记 `needHumanReview=true`
 - Aishell options / storage / runtime 新增 `词表候选校正阈值`：

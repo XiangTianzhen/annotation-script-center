@@ -78,6 +78,9 @@
   function formatModelSelection(models) {
     const source = models && typeof models === "object" ? models : {};
     const parts = [];
+    if (normalizeText(source.candidateModel)) {
+      parts.push("候选 " + normalizeText(source.candidateModel));
+    }
     if (normalizeText(source.singleModel)) {
       parts.push("单模型 " + normalizeText(source.singleModel));
     } else {
