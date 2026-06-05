@@ -84,14 +84,13 @@ const DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE = [
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_OMNI_COMPARE_TEMPLATE = [
-  "你正在执行 Omni 终判阶段；本阶段可能同时承担听音和比较。",
-  "你会收到 pageText、convertedText，以及当前音频；有些场景还会额外收到 heardText 和 differenceSegments。",
-  "先按实际发音生成 heardText，再结合 pageText 和 convertedText 给出最终 recommendedText。",
-  "不要拆成两轮推理，必须在同一次回答里同时产出 heardText 和 recommendedText。",
+  "你正在执行 Omni 比较阶段。",
+  "你会收到 pageText、heardText、convertedText，以及当前音频。",
+  "你的任务是结合实际发音、heardText 和 convertedText 给出最终 recommendedText。",
   "如果某个词在音频里读的是普通话，就保留普通话简体；如果读的是闽南语，就输出对应闽南语写法；如果没有读出来，就不要补回。",
   "当 convertedText 与 heardText 发音接近、语义一致，且你对标准写法有把握时，可以采用转换文本中的写法。",
   "audioFirstReferenceCorrectionThreshold 是采纳阈值；当 correctionConfidence 低于该阈值时，应优先保留 heardText，并将 needHumanReview 设为 true。",
-  "输出 JSON 字段：heardText、recommendedText、decision、changePoints、confidence、needHumanReview、correctionConfidence、candidateDecisions。",
+  "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview、correctionConfidence、candidateDecisions。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
 
@@ -187,23 +186,8 @@ function isFunAsrListenModel(value) {
   return normalizeDataBakerListenModel(value, DEFAULT_OMNI_MODEL) === DEFAULT_FUN_ASR_MODEL;
 }
 
-function shouldMergeOmniListenCompare(listenModel, compareFamily, compareModel) {
-  if (normalizeCompareFamily(compareFamily, DEFAULT_COMPARE_FAMILY) !== "omni") {
-    return false;
-  }
-  if (isFunAsrListenModel(listenModel)) {
-    return false;
-  }
-  const normalizedListenModel = normalizeModelText(listenModel);
-  const normalizedCompareModel = normalizeModelText(compareModel || listenModel);
-  return Boolean(normalizedListenModel) && normalizedListenModel === normalizedCompareModel;
-}
-
-function deriveParallelPipelineMode(listenModel, compareFamily, compareModel) {
+function deriveParallelPipelineMode(listenModel, compareFamily) {
   const family = normalizeCompareFamily(compareFamily, DEFAULT_COMPARE_FAMILY);
-  if (shouldMergeOmniListenCompare(listenModel, family, compareModel)) {
-    return "omni_merged_listen_compare";
-  }
   if (family === "omni") {
     return isFunAsrListenModel(listenModel) ? "fun_asr_omni_compare" : "omni_omni_compare";
   }
@@ -582,8 +566,7 @@ function normalizeRecommendRequest(body) {
   const modelMode = "three_stage_parallel";
   const pipelineMode = deriveParallelPipelineMode(
     listenStage.model,
-    compareFamily,
-    compareStage.model
+    compareFamily
   );
 
   return {
@@ -755,8 +738,7 @@ function createDefaultsPayload() {
       enableThinking: false,
       pipelineMode: deriveParallelPipelineMode(
         stageDefaults.listen.model,
-        stageDefaults.compare.family,
-        stageDefaults.compare.model || stageDefaults.compare.omniModel
+        stageDefaults.compare.family
       ),
       stages: stageDefaults,
       listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),

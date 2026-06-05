@@ -161,6 +161,7 @@
         };
   const optionsWorkbenchState = globalThis.ASREdgeOptionsWorkbenchState || {};
   const sharedAsrAiPanel = globalThis.ASREdgeOptionsSharedAsrAiPanel || {};
+  const sharedShortcutPanel = globalThis.ASREdgeOptionsSharedShortcutPanel || {};
   const buildPlatformEntryDescriptor =
     typeof optionsWorkbenchState.buildPlatformEntryDescriptor === "function"
       ? optionsWorkbenchState.buildPlatformEntryDescriptor
@@ -359,6 +360,15 @@
     { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
     { key: "fillRecommendedText", label: "填入并保存当前条" },
     { key: "ignoreAiResult", label: "忽略 AI 结果" },
+  ];
+  const dataBakerCvpcShortcutActions = [
+    { key: "valid", label: "当前段设为 Valid" },
+    { key: "invalid", label: "当前段设为 Invalid" },
+    { key: "fillAllValid", label: "当前音频内未填写段落补为 Valid" },
+    { key: "preview", label: "生成当前音频画段建议" },
+    { key: "applyPreview", label: "应用当前画段建议（实验）" },
+    { key: "recommend", label: "生成当前段 AI 推荐" },
+    { key: "applyRecommend", label: "填入当前段 AI 推荐" },
   ];
   const dataBakerListenModelOptions = Array.isArray(constants.DATABAKER_AI_LISTEN_MODEL_OPTIONS)
     ? constants.DATABAKER_AI_LISTEN_MODEL_OPTIONS
@@ -698,6 +708,9 @@
   let dataBakerShortcutsDraft = {};
   let dataBakerRecordingKey = null;
   let stopDataBakerRecordingListeners = null;
+  let dataBakerCvpcShortcutsDraft = {};
+  let dataBakerCvpcRecordingKey = null;
+  let stopDataBakerCvpcRecordingListeners = null;
   let aishellTechShortcutsDraft = {};
   let aishellTechRecordingKey = null;
   let stopAishellTechRecordingListeners = null;
@@ -2732,7 +2745,7 @@
     if (compareModelHelpNode instanceof HTMLElement) {
       compareModelHelpNode.textContent =
         compareFamily === "omni"
-          ? "Omni 负责终判；若听音模型相同，后端会合并成一次请求，同时产出 heardText 和最终推荐。"
+          ? "Omni 会在比较阶段再次读取音频，并结合转换结果与听音结果输出最终判断。"
           : "Qwen 只做文本比较，基于原文、转换结果和听音结果决定是否采纳。";
     }
     setFieldVisibility("aishell-tech-ai-compare-qwen-prompt-field", compareFamily === "qwen");
@@ -2756,7 +2769,7 @@
       listenHelpNode.textContent =
         currentListenModel === "fun-asr"
           ? "Fun-ASR 只负责听音转写；转换板块会并行做词表替换，比较板块最后再汇总。"
-          : "Omni 负责听音转写；若比较方式也选 Omni 且模型相同，后端会自动并入比较请求。";
+          : "Omni 负责听音转写；比较板块是否再次听音由比较方式决定。";
     }
     const noteNode = getElement("aishell-tech-ai-listen-model-note");
     if (noteNode instanceof HTMLElement) {
@@ -2765,7 +2778,7 @@
         escapeHtml(
           currentListenModel === "fun-asr"
             ? "当前为 Fun-ASR 听音链路：先并行完成转换和听音，再由比较板块做纯文本或二次听音判断。"
-            : "当前为 Omni 听音链路：同模型时会直接合并成一次 Omni 终判；不同模型时仍保留“先听音、再 Omni 对比”。"
+            : "当前为 Omni 听音链路：听音阶段先产出 heardText；若比较方式也选 Omni，则比较阶段还会再次听音。"
         ) +
         "</span>";
     }
@@ -4054,28 +4067,17 @@
     return result;
   }
 
-  function createAbakaAiDefaultShortcutMap() {
+  function createAbakaAiEmptyShortcutMap() {
     const defaults = {};
     abakaAiTask21ShortcutActions.forEach(function (action) {
       defaults[action.key] = null;
     });
-    defaults.sameFontTrue = normalizeShortcut({ key: "1" });
-    defaults.sameFontFalse = normalizeShortcut({ key: "2" });
-    defaults.sameFontArtisticEffect = normalizeShortcut({ key: "3" });
-    defaults.imageBTextsRemovedSpecify = normalizeShortcut({ key: "4" });
-    defaults.otherChangesSpecify = normalizeShortcut({ key: "5" });
-    defaults.stashSave = normalizeShortcut({ key: "6" });
-    defaults.submitReview = normalizeShortcut({ key: "7" });
-    defaults.aiAnalyzeSameFont = normalizeShortcut({ alt: true, key: "1" });
-    defaults.aiAnalyzeImageBTextsRemoved = normalizeShortcut({ alt: true, key: "2" });
-    defaults.aiAnalyzeOtherChanges = normalizeShortcut({ alt: true, key: "3" });
-    defaults.aiAnalyzeOverall = normalizeShortcut({ alt: true, key: "4" });
     return defaults;
   }
 
   function normalizeAbakaAiShortcuts(shortcuts, fallback) {
     const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
-    const base = fallback && typeof fallback === "object" ? fallback : createAbakaAiDefaultShortcutMap();
+    const base = fallback && typeof fallback === "object" ? fallback : createAbakaAiEmptyShortcutMap();
     const result = {};
     abakaAiTask21ShortcutActions.forEach(function (action) {
       if (hasOwn(source, action.key)) {
@@ -4637,7 +4639,7 @@
           aiSingleModel: "qwen3.6-plus",
           aiEnableThinking: false,
           aiRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
-          shortcuts: createAbakaAiDefaultShortcutMap(),
+          shortcuts: createAbakaAiEmptyShortcutMap(),
       },
       defaults.aiRecommendListenModel,
       defaults,
@@ -4679,7 +4681,7 @@
     merged.aiRequestTimeoutMs = normalizeAbakaAiTimeout(merged.aiRequestTimeoutMs, DEFAULT_AI_REQUEST_TIMEOUT_MS);
     merged.shortcuts = normalizeAbakaAiShortcuts(
       merged.shortcuts,
-      createAbakaAiDefaultShortcutMap()
+      createAbakaAiEmptyShortcutMap()
     );
     return merged;
   }
@@ -4808,10 +4810,10 @@
         buildAishellTechStageParamFieldsMarkup("listen", false) +
         "</div></div>",
       '<div class="asr-ai-block"><strong>比较</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>比较方式</span><select id="aishell-tech-ai-compare-family-select"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-family-help">Qwen 只做文本比较；Omni 在同模型时会合并听音与比较，不同模型时保留二次听音。</span></label>',
+      '<label class="asr-ai-field"><span>比较方式</span><select id="aishell-tech-ai-compare-family-select"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-family-help">Qwen 只做文本比较；Omni 会在比较阶段再次听音频。</span></label>',
       '<label class="asr-ai-field"><span>比较模型</span><select id="aishell-tech-ai-compare-model-select"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-model-help"></span></label>',
       '<label class="asr-ai-field" id="aishell-tech-ai-compare-qwen-prompt-field"><span>Qwen 比较 Prompt（可选）</span><textarea id="aishell-tech-ai-compare-qwen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">用于纯文本比对，不再二次听音。</span></label>',
-      '<label class="asr-ai-field" id="aishell-tech-ai-compare-omni-prompt-field"><span>Omni 终判 Prompt（可选）</span><textarea id="aishell-tech-ai-compare-omni-prompt" maxlength="8000"></textarea><span class="asr-ai-help">同模型时会一次产出 heardText + recommendedText；不同模型时用于第二段 Omni 对比。</span></label>',
+      '<label class="asr-ai-field" id="aishell-tech-ai-compare-omni-prompt-field"><span>Omni 比较 Prompt（可选）</span><textarea id="aishell-tech-ai-compare-omni-prompt" maxlength="8000"></textarea><span class="asr-ai-help">用于比较阶段再次听音并综合判断。</span></label>',
       '</div><div class="asr-ai-grid three">' +
         buildAishellTechStageParamFieldsMarkup("compare", true) +
         "</div></div>",
@@ -5652,6 +5654,160 @@
     return parts.join(" + ");
   }
 
+  function renderSharedShortcutGrid(container, options) {
+    if (!container) {
+      return;
+    }
+    if (typeof sharedShortcutPanel.renderShortcutGrid === "function") {
+      sharedShortcutPanel.renderShortcutGrid(container, options);
+      return;
+    }
+    container.innerHTML = "";
+  }
+
+  function bindSharedShortcutButtons(grid, attributeName, handler) {
+    if (!grid || !attributeName || typeof handler !== "function") {
+      return;
+    }
+    Array.from(grid.querySelectorAll("[" + attributeName + "]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        handler(button.getAttribute(attributeName));
+      });
+    });
+  }
+
+  function renderRecordableShortcutGrid(config) {
+    const options = config && typeof config === "object" ? config : {};
+    const grid = getElement(options.gridId);
+    if (!grid) {
+      return;
+    }
+
+    renderSharedShortcutGrid(grid, {
+      mode: "recordable",
+      actions: options.actions,
+      values: options.values,
+      recordingKey: options.recordingKey,
+      formatShortcut: formatShortcut,
+      recordAttrName: options.recordAttrName,
+      clearAttrName: options.clearAttrName,
+    });
+
+    bindSharedShortcutButtons(grid, options.recordAttrName, options.onRecord);
+    bindSharedShortcutButtons(grid, options.clearAttrName, options.onClear);
+  }
+
+  function renderReadonlyShortcutGrid(config) {
+    const options = config && typeof config === "object" ? config : {};
+    const grid = getElement(options.gridId);
+    if (!grid) {
+      return;
+    }
+
+    renderSharedShortcutGrid(grid, {
+      mode: "readonly",
+      actions: options.actions,
+      values: options.values,
+      formatShortcut: formatShortcut,
+    });
+  }
+
+  function ensureDataBakerCvpcShortcutDraft() {
+    dataBakerCvpcShortcutActions.forEach(function (action) {
+      if (!hasOwn(dataBakerCvpcShortcutsDraft, action.key)) {
+        dataBakerCvpcShortcutsDraft[action.key] = null;
+      }
+    });
+  }
+
+  function renderDataBakerCvpcShortcutGrid() {
+    ensureDataBakerCvpcShortcutDraft();
+    renderRecordableShortcutGrid({
+      gridId: "data-baker-cvpc-shortcut-grid",
+      actions: dataBakerCvpcShortcutActions,
+      values: dataBakerCvpcShortcutsDraft,
+      recordingKey: dataBakerCvpcRecordingKey,
+      recordAttrName: "data-record-data-baker-cvpc-shortcut",
+      clearAttrName: "data-clear-data-baker-cvpc-shortcut",
+      onRecord: function (key) {
+        startDataBakerCvpcShortcutRecording(key);
+      },
+      onClear: function (key) {
+        dataBakerCvpcShortcutsDraft[key] = null;
+        if (dataBakerCvpcRecordingKey === key) {
+          stopDataBakerCvpcShortcutRecording("快捷键录制已取消。");
+          return;
+        }
+        setDataBakerCvpcRecordingStatus("快捷键已删除，保存后生效。");
+        renderDataBakerCvpcShortcutGrid();
+      },
+    });
+  }
+
+  function setDataBakerCvpcRecordingStatus(text) {
+    const node = getElement("data-baker-cvpc-recording-status");
+    if (!node) {
+      return;
+    }
+    const value = String(text || "").trim();
+    node.textContent = value;
+    node.classList.toggle("hidden", !value);
+  }
+
+  function stopDataBakerCvpcShortcutRecording(statusText) {
+    if (typeof stopDataBakerCvpcRecordingListeners === "function") {
+      stopDataBakerCvpcRecordingListeners();
+      stopDataBakerCvpcRecordingListeners = null;
+    }
+    dataBakerCvpcRecordingKey = null;
+    setDataBakerCvpcRecordingStatus(statusText || "");
+    renderDataBakerCvpcShortcutGrid();
+  }
+
+  function applyRecordedDataBakerCvpcShortcut(shortcut) {
+    if (!dataBakerCvpcRecordingKey || shortcut === false) {
+      return;
+    }
+    if (!shortcut) {
+      stopDataBakerCvpcShortcutRecording("已取消快捷键录制。");
+      return;
+    }
+    dataBakerCvpcShortcutsDraft[dataBakerCvpcRecordingKey] = normalizeNullableShortcut(shortcut);
+    stopDataBakerCvpcShortcutRecording("快捷键已录制，保存后生效。");
+  }
+
+  function startDataBakerCvpcShortcutRecording(actionKey) {
+    if (!actionKey) {
+      return;
+    }
+    if (typeof stopDataBakerCvpcRecordingListeners === "function") {
+      stopDataBakerCvpcRecordingListeners();
+    }
+    dataBakerCvpcRecordingKey = actionKey;
+    const action = dataBakerCvpcShortcutActions.find(function (item) {
+      return item.key === actionKey;
+    });
+    setDataBakerCvpcRecordingStatus(
+      "正在录制「" + String(action?.label || actionKey) + "」：按键盘组合，Esc 取消。"
+    );
+
+    const keydownListener = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+      applyRecordedDataBakerCvpcShortcut(shortcutFromKeyboardEvent(event));
+    };
+
+    window.addEventListener("keydown", keydownListener, true);
+    stopDataBakerCvpcRecordingListeners = function () {
+      window.removeEventListener("keydown", keydownListener, true);
+      stopDataBakerCvpcRecordingListeners = null;
+    };
+    renderDataBakerCvpcShortcutGrid();
+  }
+
   function isModifierOnlyKey(key) {
     return ["Control", "Alt", "Shift", "Meta"].indexOf(key) >= 0;
   }
@@ -5695,43 +5851,18 @@
   }
 
   function renderJudgementShortcutGrid() {
-    const grid = getElement("judgement-shortcut-grid");
-    if (!grid) {
-      return;
-    }
-
     ensureShortcutDraft();
-    grid.innerHTML = judgementShortcutActions
-      .map(function (action) {
-        const recording = judgementRecordingKey === action.key;
-        return [
-          '<div class="shortcut-row">',
-          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
-          '<span class="shortcut-value">' +
-            escapeHtml(recording ? "录制中..." : formatShortcut(judgementShortcutsDraft[action.key])) +
-            "</span>",
-          '<button type="button" class="secondary-button" data-record-judgement-shortcut="' +
-            escapeHtml(action.key) +
-            '">' +
-            (recording ? "录制中" : "录制") +
-            "</button>",
-          '<button type="button" class="ghost-button" data-clear-judgement-shortcut="' +
-            escapeHtml(action.key) +
-            '">删除</button>',
-          "</div>",
-        ].join("");
-      })
-      .join("");
-
-    Array.from(grid.querySelectorAll("[data-record-judgement-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        startJudgementShortcutRecording(button.getAttribute("data-record-judgement-shortcut"));
-      });
-    });
-
-    Array.from(grid.querySelectorAll("[data-clear-judgement-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        const key = button.getAttribute("data-clear-judgement-shortcut");
+    renderRecordableShortcutGrid({
+      gridId: "judgement-shortcut-grid",
+      actions: judgementShortcutActions,
+      values: judgementShortcutsDraft,
+      recordingKey: judgementRecordingKey,
+      recordAttrName: "data-record-judgement-shortcut",
+      clearAttrName: "data-clear-judgement-shortcut",
+      onRecord: function (key) {
+        startJudgementShortcutRecording(key);
+      },
+      onClear: function (key) {
         judgementShortcutsDraft[key] = null;
         if (judgementRecordingKey === key) {
           stopJudgementShortcutRecording("快捷键录制已取消。");
@@ -5739,7 +5870,7 @@
         }
         setJudgementRecordingStatus("快捷键已删除，保存后生效。");
         renderJudgementShortcutGrid();
-      });
+      },
     });
   }
 
@@ -5855,43 +5986,18 @@
   }
 
   function renderDataBakerShortcutGrid() {
-    const grid = getElement("data-baker-shortcut-grid");
-    if (!grid) {
-      return;
-    }
-
     ensureDataBakerShortcutDraft();
-    grid.innerHTML = dataBakerShortcutActions
-      .map(function (action) {
-        const recording = dataBakerRecordingKey === action.key;
-        return [
-          '<div class="shortcut-row">',
-          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
-          '<span class="shortcut-value">' +
-            escapeHtml(recording ? "录制中..." : formatShortcut(dataBakerShortcutsDraft[action.key])) +
-            "</span>",
-          '<button type="button" class="secondary-button" data-record-data-baker-shortcut="' +
-            escapeHtml(action.key) +
-            '">' +
-            (recording ? "录制中" : "录制") +
-            "</button>",
-          '<button type="button" class="ghost-button" data-clear-data-baker-shortcut="' +
-            escapeHtml(action.key) +
-            '">删除</button>',
-          "</div>",
-        ].join("");
-      })
-      .join("");
-
-    Array.from(grid.querySelectorAll("[data-record-data-baker-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        startDataBakerShortcutRecording(button.getAttribute("data-record-data-baker-shortcut"));
-      });
-    });
-
-    Array.from(grid.querySelectorAll("[data-clear-data-baker-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        const key = button.getAttribute("data-clear-data-baker-shortcut");
+    renderRecordableShortcutGrid({
+      gridId: "data-baker-shortcut-grid",
+      actions: dataBakerShortcutActions,
+      values: dataBakerShortcutsDraft,
+      recordingKey: dataBakerRecordingKey,
+      recordAttrName: "data-record-data-baker-shortcut",
+      clearAttrName: "data-clear-data-baker-shortcut",
+      onRecord: function (key) {
+        startDataBakerShortcutRecording(key);
+      },
+      onClear: function (key) {
         dataBakerShortcutsDraft[key] = null;
         if (dataBakerRecordingKey === key) {
           stopDataBakerShortcutRecording("快捷键录制已取消。");
@@ -5899,7 +6005,7 @@
         }
         setDataBakerRecordingStatus("快捷键已删除，保存后生效。");
         renderDataBakerShortcutGrid();
-      });
+      },
     });
   }
 
@@ -5982,43 +6088,18 @@
   }
 
   function renderAishellTechShortcutGrid() {
-    const grid = getElement("aishell-tech-shortcut-grid");
-    if (!grid) {
-      return;
-    }
-
     ensureAishellTechShortcutDraft();
-    grid.innerHTML = aishellTechShortcutActions
-      .map(function (action) {
-        const recording = aishellTechRecordingKey === action.key;
-        return [
-          '<div class="shortcut-row">',
-          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
-          '<span class="shortcut-value">' +
-            escapeHtml(recording ? "录制中..." : formatShortcut(aishellTechShortcutsDraft[action.key])) +
-            "</span>",
-          '<button type="button" class="secondary-button" data-record-aishell-tech-shortcut="' +
-            escapeHtml(action.key) +
-            '">' +
-            (recording ? "录制中" : "录制") +
-            "</button>",
-          '<button type="button" class="ghost-button" data-clear-aishell-tech-shortcut="' +
-            escapeHtml(action.key) +
-            '">删除</button>',
-          "</div>",
-        ].join("");
-      })
-      .join("");
-
-    Array.from(grid.querySelectorAll("[data-record-aishell-tech-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        startAishellTechShortcutRecording(button.getAttribute("data-record-aishell-tech-shortcut"));
-      });
-    });
-
-    Array.from(grid.querySelectorAll("[data-clear-aishell-tech-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        const key = button.getAttribute("data-clear-aishell-tech-shortcut");
+    renderRecordableShortcutGrid({
+      gridId: "aishell-tech-shortcut-grid",
+      actions: aishellTechShortcutActions,
+      values: aishellTechShortcutsDraft,
+      recordingKey: aishellTechRecordingKey,
+      recordAttrName: "data-record-aishell-tech-shortcut",
+      clearAttrName: "data-clear-aishell-tech-shortcut",
+      onRecord: function (key) {
+        startAishellTechShortcutRecording(key);
+      },
+      onClear: function (key) {
         aishellTechShortcutsDraft[key] = null;
         if (aishellTechRecordingKey === key) {
           stopAishellTechShortcutRecording("快捷键录制已取消。");
@@ -6026,7 +6107,7 @@
         }
         setAishellTechRecordingStatus("快捷键已删除，保存后生效。");
         renderAishellTechShortcutGrid();
-      });
+      },
     });
   }
 
@@ -6117,42 +6198,18 @@
   }
 
   function renderMagicDataShortcutGrid() {
-    const grid = getElement("magic-data-shortcut-grid");
-    if (!grid) {
-      return;
-    }
     ensureMagicDataShortcutDraft();
-    grid.innerHTML = magicDataShortcutActions
-      .map(function (action) {
-        const recording = magicDataRecordingKey === action.key;
-        return [
-          '<div class="shortcut-row">',
-          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
-          '<span class="shortcut-value">' +
-            escapeHtml(recording ? "录制中..." : formatShortcut(magicDataShortcutsDraft[action.key])) +
-            "</span>",
-          '<button type="button" class="secondary-button" data-record-magic-data-shortcut="' +
-            escapeHtml(action.key) +
-            '">' +
-            (recording ? "录制中" : "录制") +
-            "</button>",
-          '<button type="button" class="ghost-button" data-clear-magic-data-shortcut="' +
-            escapeHtml(action.key) +
-            '">删除</button>',
-          "</div>",
-        ].join("");
-      })
-      .join("");
-
-    Array.from(grid.querySelectorAll("[data-record-magic-data-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        startMagicDataShortcutRecording(button.getAttribute("data-record-magic-data-shortcut"));
-      });
-    });
-
-    Array.from(grid.querySelectorAll("[data-clear-magic-data-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        const key = button.getAttribute("data-clear-magic-data-shortcut");
+    renderRecordableShortcutGrid({
+      gridId: "magic-data-shortcut-grid",
+      actions: magicDataShortcutActions,
+      values: magicDataShortcutsDraft,
+      recordingKey: magicDataRecordingKey,
+      recordAttrName: "data-record-magic-data-shortcut",
+      clearAttrName: "data-clear-magic-data-shortcut",
+      onRecord: function (key) {
+        startMagicDataShortcutRecording(key);
+      },
+      onClear: function (key) {
         magicDataShortcutsDraft[key] = null;
         if (magicDataRecordingKey === key) {
           stopMagicDataShortcutRecording("快捷键录制已取消。");
@@ -6160,7 +6217,7 @@
         }
         setMagicDataRecordingStatus("快捷键已删除，保存后生效。");
         renderMagicDataShortcutGrid();
-      });
+      },
     });
   }
 
@@ -6581,7 +6638,7 @@
   }
 
   function ensureAbakaAiShortcutDraft() {
-    const defaults = createAbakaAiDefaultShortcutMap();
+    const defaults = createAbakaAiEmptyShortcutMap();
     abakaAiTask21ShortcutActions.forEach(function (action) {
       if (!hasOwn(abakaAiShortcutsDraft, action.key)) {
         abakaAiShortcutsDraft[action.key] = normalizeNullableShortcut(defaults[action.key]);
@@ -6599,43 +6656,18 @@
   }
 
   function renderAbakaAiShortcutGrid() {
-    const grid = getElement("abaka-ai-shortcut-grid");
-    if (!grid) {
-      return;
-    }
     ensureAbakaAiShortcutDraft();
-
-    grid.innerHTML = abakaAiTask21ShortcutActions
-      .map(function (action) {
-        const recording = abakaAiRecordingKey === action.key;
-        return [
-          '<div class="shortcut-row">',
-          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
-          '<span class="shortcut-value">' +
-            escapeHtml(recording ? "录制中..." : formatShortcut(abakaAiShortcutsDraft[action.key])) +
-            "</span>",
-          '<button type="button" class="secondary-button" data-record-abaka-shortcut="' +
-            escapeHtml(action.key) +
-            '">' +
-            (recording ? "录制中" : "录制") +
-            "</button>",
-          '<button type="button" class="ghost-button" data-clear-abaka-shortcut="' +
-            escapeHtml(action.key) +
-            '">删除</button>',
-          "</div>",
-        ].join("");
-      })
-      .join("");
-
-    Array.from(grid.querySelectorAll("[data-record-abaka-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        startAbakaAiShortcutRecording(button.getAttribute("data-record-abaka-shortcut"));
-      });
-    });
-
-    Array.from(grid.querySelectorAll("[data-clear-abaka-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        const key = button.getAttribute("data-clear-abaka-shortcut");
+    renderRecordableShortcutGrid({
+      gridId: "abaka-ai-shortcut-grid",
+      actions: abakaAiTask21ShortcutActions,
+      values: abakaAiShortcutsDraft,
+      recordingKey: abakaAiRecordingKey,
+      recordAttrName: "data-record-abaka-shortcut",
+      clearAttrName: "data-clear-abaka-shortcut",
+      onRecord: function (key) {
+        startAbakaAiShortcutRecording(key);
+      },
+      onClear: function (key) {
         abakaAiShortcutsDraft[key] = null;
         if (abakaAiRecordingKey === key) {
           stopAbakaAiShortcutRecording("快捷键录制已取消。");
@@ -6643,7 +6675,7 @@
         }
         setAbakaAiRecordingStatus("快捷键已删除，保存后生效。");
         renderAbakaAiShortcutGrid();
-      });
+      },
     });
   }
 
@@ -6912,10 +6944,10 @@
     }
   }
 
-  function resetAbakaAiTask21ShortcutsToDefault() {
-    abakaAiShortcutsDraft = createAbakaAiDefaultShortcutMap();
+  function clearAbakaAiTask21Shortcuts() {
+    abakaAiShortcutsDraft = createAbakaAiEmptyShortcutMap();
     stopAbakaAiShortcutRecording("");
-    setAbakaAiRecordingStatus("已恢复默认快捷键，保存后生效。");
+    setAbakaAiRecordingStatus("已清空快捷键，保存后生效。");
     renderAbakaAiShortcutGrid();
   }
 
@@ -7026,42 +7058,18 @@
   }
 
   function renderTranscriptionShortcutGrid() {
-    const grid = getElement("transcription-shortcut-grid");
-    if (!grid) {
-      return;
-    }
     ensureTranscriptionShortcutDraft();
-    grid.innerHTML = transcriptionShortcutActions
-      .map(function (action) {
-        const recording = transcriptionRecordingKey === action.key;
-        return [
-          '<div class="shortcut-row">',
-          '<span class="shortcut-label">' + escapeHtml(action.label) + "</span>",
-          '<span class="shortcut-value">' +
-            escapeHtml(recording ? "录制中..." : formatShortcut(transcriptionShortcutsDraft[action.key])) +
-            "</span>",
-          '<button type="button" class="secondary-button" data-record-transcription-shortcut="' +
-            escapeHtml(action.key) +
-            '">' +
-            (recording ? "录制中" : "录制") +
-            "</button>",
-          '<button type="button" class="ghost-button" data-clear-transcription-shortcut="' +
-            escapeHtml(action.key) +
-            '">删除</button>',
-          "</div>",
-        ].join("");
-      })
-      .join("");
-
-    Array.from(grid.querySelectorAll("[data-record-transcription-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        startTranscriptionShortcutRecording(button.getAttribute("data-record-transcription-shortcut"));
-      });
-    });
-
-    Array.from(grid.querySelectorAll("[data-clear-transcription-shortcut]")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        const key = button.getAttribute("data-clear-transcription-shortcut");
+    renderRecordableShortcutGrid({
+      gridId: "transcription-shortcut-grid",
+      actions: transcriptionShortcutActions,
+      values: transcriptionShortcutsDraft,
+      recordingKey: transcriptionRecordingKey,
+      recordAttrName: "data-record-transcription-shortcut",
+      clearAttrName: "data-clear-transcription-shortcut",
+      onRecord: function (key) {
+        startTranscriptionShortcutRecording(key);
+      },
+      onClear: function (key) {
         transcriptionShortcutsDraft[key] = null;
         if (transcriptionRecordingKey === key) {
           stopTranscriptionShortcutRecording("快捷键录制已取消。");
@@ -7069,7 +7077,7 @@
         }
         setTranscriptionRecordingStatus("快捷键已删除，保存后生效。");
         renderTranscriptionShortcutGrid();
-      });
+      },
     });
   }
 
@@ -9487,6 +9495,9 @@
     if (scriptId === dataBakerRoundOneQualityScriptId) {
       return "detail-data-baker-shortcuts-panel";
     }
+    if (scriptId === dataBakerCvpcLiuzhouScriptId) {
+      return "detail-data-baker-cvpc-shortcuts-panel";
+    }
     if (scriptId === aishellTechMinnanScriptId) {
       return "detail-aishell-tech-shortcuts-panel";
     }
@@ -9505,6 +9516,7 @@
       "detail-transcription-shortcuts-panel",
       "detail-judgement-shortcuts-panel",
       "detail-data-baker-shortcuts-panel",
+      "detail-data-baker-cvpc-shortcuts-panel",
       "detail-aishell-tech-shortcuts-panel",
       "detail-magic-data-shortcuts-panel",
       "detail-abaka-shortcuts-panel",
@@ -9806,6 +9818,7 @@
 
   function applyDataBakerCvpcForm(settings) {
     const config = getDataBakerCvpcLiuzhouConfig(settings);
+    dataBakerCvpcShortcutsDraft = clone(config.shortcuts) || {};
     const segmentPreviewNode = getElement("data-baker-cvpc-segment-preview-enabled");
     const aiRecommendNode = getElement("data-baker-cvpc-ai-recommend-enabled");
     const timeoutNode = getElement("data-baker-cvpc-ai-timeout");
@@ -9828,6 +9841,7 @@
           ? "仅允许 DOM 守卫下的显式写入；真实画段写入契约仍待补采。"
           : String(config.contractMode || "dom-guarded");
     }
+    renderDataBakerCvpcShortcutGrid();
   }
 
   function applyAishellTechForm(settings) {
@@ -10080,6 +10094,11 @@
     }
 
     const currentConfig = getDataBakerCvpcLiuzhouConfig(currentSettings || {});
+    ensureDataBakerCvpcShortcutDraft();
+    const shortcuts = {};
+    dataBakerCvpcShortcutActions.forEach(function (action) {
+      shortcuts[action.key] = normalizeNullableShortcut(dataBakerCvpcShortcutsDraft[action.key]);
+    });
     const segmentPreviewEnabled = getElement("data-baker-cvpc-segment-preview-enabled").checked;
     const aiRecommendEnabled = getElement("data-baker-cvpc-ai-recommend-enabled").checked;
     const timeoutMs = normalizeDataBakerTimeoutMs(
@@ -10109,6 +10128,7 @@
                 aiRecommendRequestTimeoutMs: timeoutMs,
                 aiRecommendModel: currentConfig.aiRecommendModel || "qwen3.5-omni-flash",
                 contractMode: "dom-guarded",
+                shortcuts: shortcuts,
               },
             },
           },
@@ -10890,7 +10910,7 @@
     const resetAbakaShortcutsButton = getElement("abaka-reset-shortcuts");
     if (resetAbakaShortcutsButton) {
       resetAbakaShortcutsButton.addEventListener("click", function () {
-        resetAbakaAiTask21ShortcutsToDefault();
+        clearAbakaAiTask21Shortcuts();
       });
     }
 

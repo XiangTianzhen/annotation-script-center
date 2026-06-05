@@ -1,4 +1,42 @@
+## 2026-06-05（全平台快捷键默认置空与组件化收口）
+
+- options 侧快捷键面板当前已统一收口到 `extension/options/options-shared-shortcut-panel.js`：
+  - Alibaba LabelX 转写
+  - Alibaba LabelX 快判
+  - DataBaker 一检
+  - DataBaker CVPC 柳州话脚本
+  - Aishell Tech 闽南语助手
+  - Magic Data 客家话助手
+  - Magic Data 闽南语助手
+  - Abaka Task21 助手
+- 默认快捷键当前统一改为空：
+  - CVPC 不再保留固定 `Alt + Shift + 1~7` 默认组合
+  - Abaka Task21 不再保留 `1~7` 与 `Alt+1~4` 默认组合
+- options 文案与交互同步调整：
+  - CVPC 快捷键区改为与其他脚本一致的可录制模板
+  - Abaka “恢复默认快捷键”改为“清空快捷键”
+- 运行时默认回退同步收口：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/shortcuts.js` 不再内置固定默认键位
+  - 只有用户在 options 中显式保存的快捷键，运行时才会响应
+- 项目规则同步更新：
+  - `AGENTS.md`
+  - 根 `README.md`
+  - `extension/README.md`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `extension/sites/abaka-ai/task-page/README.md`
+
 ## 2026-06-05（DataBaker CVPC 柳州话脚本 Beta 接入）
+
+- 跟进优化：
+  - options 侧新增 `extension/options/options-shared-shortcut-panel.js`，把脚本详情页快捷键区统一收口为共享组件。
+  - 转写、快判、标贝易采、Aishell、Magic Data、Abaka 的快捷键行渲染已改成复用共享组件，保留各自草稿和录制状态逻辑。
+  - CVPC 柳州话脚本的固定快捷键已接回共享组件只读模式，不再在 `options.html` 手写 `field-card` 列表。
+  - `AGENTS.md`、`README.md`、`extension/README.md` 已补“快捷键面板必须复用统一组件”的硬规则。
+
+- 跟进优化：
+  - CVPC 柳州话脚本的固定快捷键已从“基础设置”拆到独立“快捷键”面板，和其他脚本保持同一结构。
+  - 运行时操作按钮已从纯悬浮面板改为优先挂到 `editor/asr` 顶部 `.page-top .top-right` 工具栏区域。
+  - 悬浮面板当前只保留状态、画段建议和 AI 推荐结果展示；顶部缺失时才退回右上角浮动按钮容器。
 
 - `DataBaker CVPC / 柳州话脚本` 当前已接入 beta 平台与脚本元数据：
   - 新增 `dataBakerCvpc` 平台和 `dataBakerCvpcLiuzhouAssistant` 脚本。
@@ -30,20 +68,18 @@
 
 - `希尔贝壳 / 闽南语助手` 当前在“三板块”基础上继续优化执行策略：
   - `转换` 改为“规则优先 + 歧义时 AI 兜底”。
-  - `听音 + 比较` 在 `compareFamily=omni` 且 `listen.model === compare.model` 时会自动合并成一次 Omni 终判请求。
+  - `听音`、`比较` 保持独立请求；切到 Omni 比较时仍单独执行第三段请求。
 - 词表转换当前不再把 `minnan-lexicon.csv` 原始文本块整段塞给转换模型：
   - 后端运行时会先把 CSV 投影成结构化映射。
   - 规则替换只按 `对应华语 -> 建议用字` 做最长匹配。
   - 只有命中多候选或切分冲突时，才会把 `ruleConvertedText + ambiguousSegments` 发给转换模型兜底。
-- Aishell pipeline 当前已补齐合并模式元数据：
-  - `meta.models.pipelineMode=omni_merged_listen_compare`
-  - `meta.execution.mergedStages=["listen","compare"]`
-  - `meta.timing.omniMergedDurationMs`
-  - `meta.usage.omniMerged`
+- Aishell pipeline 当前继续按三段独立时序执行：
+  - `转换` 与 `听音` 并行
+  - `比较` 等待前两段完成后单独运行
 - options / 诊断 / 文档同步更新：
-  - 听音卡与比较卡当前会明确提示“同模型时自动合并请求”。
+  - 听音卡与比较卡当前恢复为“三段独立请求”口径。
   - 转换卡当前会明确提示“模型只在词表歧义时参与兜底”。
-  - 诊断区当前会显示 `转换 + 听音比较合并 / Omni`，并优先展示合并耗时。
+  - 诊断区当前恢复显示 `转换+听音并行 / Omni 比较`。
 
 ## 2026-06-05（Aishell 真三板块重构）
 

@@ -171,7 +171,7 @@ test("Aishell normalizeRecommendRequest maps aiStages into standalone stage conf
   assert.equal(request.aiStages?.compare?.adoptionThreshold, 0.812);
 });
 
-test("Aishell normalizeRecommendRequest derives merged omni pipeline mode for matching listen/compare models", function () {
+test("Aishell normalizeRecommendRequest keeps standalone omni compare pipeline mode", function () {
   const request = normalizeRecommendRequest({
     taskId: "task-merged",
     packageId: "package-merged",
@@ -203,10 +203,10 @@ test("Aishell normalizeRecommendRequest derives merged omni pipeline mode for ma
   assert.equal(request.listenModel, "qwen3.5-omni-flash");
   assert.equal(request.compareFamily, "omni");
   assert.equal(request.compareModel, "qwen3.5-omni-flash");
-  assert.equal(request.pipelineMode, "omni_merged_listen_compare");
+  assert.equal(request.pipelineMode, "omni_omni_compare");
 });
 
-test("Aishell convert/qwen/omni prompts reflect ambiguity fallback and merged omni semantics", function () {
+test("Aishell convert/qwen/omni prompts reflect ambiguity fallback and standalone compare semantics", function () {
   const defaults = createDefaultsPayload().defaults || {};
 
   assert.match(defaults.stages?.convert?.prompt || "", /只能在冲突片段内做选择/);
@@ -214,8 +214,8 @@ test("Aishell convert/qwen/omni prompts reflect ambiguity fallback and merged om
   assert.doesNotMatch(defaults.stages?.convert?.prompt || "", /词表原始CSV附件|词表原始 CSV 文本块附件/);
   assert.match(defaults.stages?.compare?.qwenPrompt || "", /convertedText/);
   assert.match(defaults.stages?.compare?.qwenPrompt || "", /convertPairs/);
-  assert.match(defaults.stages?.compare?.omniPrompt || "", /先按实际发音生成 heardText/);
-  assert.match(defaults.stages?.compare?.omniPrompt || "", /不要拆成两轮推理/);
+  assert.match(defaults.stages?.compare?.omniPrompt || "", /heardText/);
+  assert.doesNotMatch(defaults.stages?.compare?.omniPrompt || "", /不要拆成两轮推理/);
 });
 
 test("Aishell pipeline keeps convert rule-based when unambiguous and waits for listen before qwen compare", async function () {
@@ -449,7 +449,7 @@ test("Aishell convert stage only calls AI for ambiguous segments", async functio
   assert.deepEqual(parseStages, ["convert", "compare"]);
 });
 
-test("Aishell merges listen and compare into one omni request when models match", async function () {
+test("Aishell keeps standalone listen plus omni compare even when models match", async function () {
   let currentNow = 3000;
   let qwenCallCount = 0;
   let omniCallCount = 0;
@@ -529,7 +529,7 @@ test("Aishell merges listen and compare into one omni request when models match"
       listenModel: "qwen3.5-omni-flash",
       compareFamily: "omni",
       compareModel: "qwen3.5-omni-flash",
-      pipelineMode: "omni_merged_listen_compare",
+      pipelineMode: "omni_omni_compare",
     }),
     {
       requestId: "req-omni-merged",
@@ -539,17 +539,16 @@ test("Aishell merges listen and compare into one omni request when models match"
   );
 
   assert.equal(qwenCallCount, 0);
-  assert.equal(omniCallCount, 1);
-  assert.match(prompts[0]?.userPrompt || "", /convertedText/);
+  assert.equal(omniCallCount, 2);
+  assert.match(prompts[1]?.userPrompt || "", /convertedText/);
   assert.equal(result.data?.convertedText, "头家沿导航前进即可。");
   assert.equal(result.data?.heardText, "头家沿导航前进即可。");
   assert.equal(result.data?.recommendedText, "头家沿导航前进即可。");
-  assert.equal(result.meta?.models?.pipelineMode, "omni_merged_listen_compare");
-  assert.deepEqual(result.meta?.execution?.mergedStages, ["listen", "compare"]);
-  assert.equal(typeof result.meta?.timing?.omniMergedDurationMs, "number");
-  assert.equal(Number(result.meta?.usage?.omniMerged?.totalTokens || 0), 18);
-  assert.deepEqual(stageOrder, ["aishell_qwen_omni"]);
-  assert.deepEqual(parseStages, ["listen_compare_merged"]);
+  assert.equal(result.meta?.models?.pipelineMode, "omni_omni_compare");
+  assert.deepEqual(result.meta?.execution?.mergedStages, []);
+  assert.equal(Number(result.meta?.usage?.compare?.totalTokens || 0), 18);
+  assert.deepEqual(stageOrder, ["aishell_qwen_omni", "aishell_qwen_omni"]);
+  assert.deepEqual(parseStages, ["listen", "omni_compare"]);
 });
 
 test("Aishell still keeps standalone listen plus omni compare when models differ", async function () {

@@ -53,23 +53,18 @@
     const listen = Number(source.listenDurationMs || 0);
     const convert = Number(source.convertDurationMs || source.candidateDurationMs || 0);
     const compare = Number(source.compareDurationMs || 0);
-    const merged = Number(source.omniMergedDurationMs || 0);
-    if (total <= 0 && listen <= 0 && convert <= 0 && compare <= 0 && merged <= 0) {
+    if (total <= 0 && listen <= 0 && convert <= 0 && compare <= 0) {
       return "-";
     }
     const detailParts = [];
     if (convert > 0) {
       detailParts.push("转换 " + formatDurationMs(convert));
     }
-    if (merged > 0) {
-      detailParts.push("听音比较合并 " + formatDurationMs(merged));
-    } else {
-      if (listen > 0) {
-        detailParts.push("听音 " + formatDurationMs(listen));
-      }
-      if (compare > 0) {
-        detailParts.push("比较 " + formatDurationMs(compare));
-      }
+    if (listen > 0) {
+      detailParts.push("听音 " + formatDurationMs(listen));
+    }
+    if (compare > 0) {
+      detailParts.push("比较 " + formatDurationMs(compare));
     }
     if (total > 0 && detailParts.length > 0) {
       return formatDurationMs(total) + "（" + detailParts.join(" / ") + "）";
@@ -100,9 +95,6 @@
 
   function formatModeSummary(models) {
     const source = models && typeof models === "object" ? models : {};
-    if (normalizeText(source.pipelineMode) === "omni_merged_listen_compare") {
-      return "转换 + 听音比较合并 / Omni";
-    }
     const compareFamily = normalizeText(source.compareModelFamily).toLowerCase() === "omni"
       ? "Omni 比较"
       : normalizeText(source.compareModelFamily)
