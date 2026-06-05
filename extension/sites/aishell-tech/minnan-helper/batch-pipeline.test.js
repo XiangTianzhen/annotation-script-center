@@ -184,7 +184,7 @@ function loadAiRecommendationApi() {
   };
 }
 
-test("Aishell AI runtime sends audio-first recognition strategy to backend", async function () {
+test("Aishell AI runtime sends standalone convert/listen/compare stages to backend", async function () {
   const harness = loadAiRecommendationApi();
 
   try {
@@ -196,18 +196,30 @@ test("Aishell AI runtime sends audio-first recognition strategy to backend", asy
           aiUsageOperatorName: "tester",
         },
       },
-      modelMode: "two_stage",
-      recognitionMode: "two_stage",
-      recognitionStrategy: "audio_first_reference",
-      listenModel: "fun-asr",
-      compareModel: "qwen3.5-plus",
-      singleModel: "qwen3.5-omni-flash",
-      aiOptions: {
-        candidateModel: "qwen3.5-plus",
-        candidatePrompt: "candidate-prompt",
-        listenPrompt: "listen-prompt",
-        comparePrompt: "compare-prompt",
-        audioFirstReferenceCorrectionThreshold: 0.75,
+      aiStages: {
+        convert: {
+          model: "qwen3.5-plus",
+          prompt: "convert-prompt",
+          params: {
+            temperature: 0.2,
+          },
+        },
+        listen: {
+          model: "fun-asr",
+          prompt: "listen-prompt",
+          params: {
+            max_tokens: 256,
+          },
+        },
+        compare: {
+          family: "qwen",
+          model: "qwen3.5-plus",
+          prompt: "compare-prompt",
+          params: {
+            top_p: 0.8,
+          },
+          adoptionThreshold: 0.75,
+        },
       },
     });
     const result = await runtime.recommend({
@@ -223,13 +235,15 @@ test("Aishell AI runtime sends audio-first recognition strategy to backend", asy
       frontConcurrency: 5,
     });
 
-    assert.equal(result.echoedBody?.recognitionStrategy, "audio_first_reference");
-    assert.equal(result.echoedBody?.compareModel, "qwen3.5-plus");
-    assert.equal(result.echoedBody?.listenModel, "fun-asr");
-    assert.equal(result.echoedBody?.aiOptions?.candidateModel, "qwen3.5-plus");
-    assert.equal(result.echoedBody?.aiOptions?.candidatePrompt, "candidate-prompt");
+    assert.equal(result.echoedBody?.aiStages?.convert?.model, "qwen3.5-plus");
+    assert.equal(result.echoedBody?.aiStages?.convert?.prompt, "convert-prompt");
+    assert.equal(result.echoedBody?.aiStages?.listen?.model, "fun-asr");
+    assert.equal(result.echoedBody?.aiStages?.listen?.prompt, "listen-prompt");
+    assert.equal(result.echoedBody?.aiStages?.compare?.family, "qwen");
+    assert.equal(result.echoedBody?.aiStages?.compare?.model, "qwen3.5-plus");
+    assert.equal(result.echoedBody?.aiStages?.compare?.prompt, "compare-prompt");
     assert.equal(
-      result.echoedBody?.aiOptions?.audioFirstReferenceCorrectionThreshold,
+      result.echoedBody?.aiStages?.compare?.adoptionThreshold,
       0.75
     );
   } finally {
@@ -237,7 +251,7 @@ test("Aishell AI runtime sends audio-first recognition strategy to backend", asy
   }
 });
 
-test("Aishell AI runtime omits compare model for Omni listen but keeps Omni judgement prompt", async function () {
+test("Aishell AI runtime sends Omni compare stage separately from listen stage", async function () {
   const harness = loadAiRecommendationApi();
 
   try {
@@ -249,18 +263,26 @@ test("Aishell AI runtime omits compare model for Omni listen but keeps Omni judg
           aiUsageOperatorName: "tester",
         },
       },
-      modelMode: "two_stage",
-      recognitionMode: "two_stage",
-      recognitionStrategy: "audio_first_reference",
-      listenModel: "qwen3.5-omni-flash",
-      compareModel: "qwen3.5-plus",
-      singleModel: "qwen3.5-omni-flash",
-      aiOptions: {
-        candidateModel: "qwen3.5-plus",
-        candidatePrompt: "candidate-prompt",
-        listenPrompt: "listen-prompt",
-        comparePrompt: "omni-judge-prompt",
-        audioFirstReferenceCorrectionThreshold: 0.75,
+      aiStages: {
+        convert: {
+          model: "qwen3.5-plus",
+          prompt: "convert-prompt",
+          params: {},
+        },
+        listen: {
+          model: "qwen3.5-omni-flash",
+          prompt: "listen-prompt",
+          params: {},
+        },
+        compare: {
+          family: "omni",
+          model: "qwen3.5-omni-flash",
+          prompt: "omni-compare-prompt",
+          params: {
+            temperature: 0.1,
+          },
+          adoptionThreshold: 0.75,
+        },
       },
     });
     const result = await runtime.recommend({
@@ -275,13 +297,11 @@ test("Aishell AI runtime omits compare model for Omni listen but keeps Omni judg
       frontConcurrency: 5,
     });
 
-    assert.equal(result.echoedBody?.recognitionStrategy, "audio_first_reference");
-    assert.equal(result.echoedBody?.listenModel, "qwen3.5-omni-flash");
-    assert.equal(
-      Object.prototype.hasOwnProperty.call(result.echoedBody || {}, "compareModel"),
-      false
-    );
-    assert.equal(result.echoedBody?.aiOptions?.comparePrompt, "omni-judge-prompt");
+    assert.equal(result.echoedBody?.aiStages?.listen?.model, "qwen3.5-omni-flash");
+    assert.equal(result.echoedBody?.aiStages?.compare?.family, "omni");
+    assert.equal(result.echoedBody?.aiStages?.compare?.model, "qwen3.5-omni-flash");
+    assert.equal(result.echoedBody?.aiStages?.compare?.prompt, "omni-compare-prompt");
+    assert.equal(result.echoedBody?.aiStages?.compare?.params?.temperature, 0.1);
   } finally {
     harness.cleanup();
   }

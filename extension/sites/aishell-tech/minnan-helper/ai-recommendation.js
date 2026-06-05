@@ -51,6 +51,10 @@
     return normalizeText(value).toLowerCase() === "omni_single" ? "omni_single" : "two_stage";
   }
 
+  function normalizeCompareFamily(value) {
+    return normalizeText(value).toLowerCase() === "omni" ? "omni" : "qwen";
+  }
+
   function isFunAsrModel(value) {
     return normalizeText(value).toLowerCase() === "fun-asr";
   }
@@ -307,10 +311,93 @@
       };
     }
 
+    function normalizeStagePrompt(value) {
+      return String(value || "").replace(/\r\n/g, "\n").trim();
+    }
+
+    function normalizeStageParams(value) {
+      const source = value && typeof value === "object" ? value : {};
+      const result = {};
+      [
+        "temperature",
+        "top_p",
+        "max_tokens",
+        "max_completion_tokens",
+        "presence_penalty",
+        "frequency_penalty",
+        "seed",
+      ].forEach(function (key) {
+        if (source[key] !== undefined && source[key] !== null && source[key] !== "") {
+          result[key] = source[key];
+        }
+      });
+      if (Array.isArray(source.stop) && source.stop.length > 0) {
+        result.stop = source.stop.slice();
+      }
+      return result;
+    }
+
+    function resolveAiStages() {
+      if (config.aiStages && typeof config.aiStages === "object") {
+        const convertStage = config.aiStages.convert && typeof config.aiStages.convert === "object"
+          ? config.aiStages.convert
+          : {};
+        const listenStage = config.aiStages.listen && typeof config.aiStages.listen === "object"
+          ? config.aiStages.listen
+          : {};
+        const compareStage = config.aiStages.compare && typeof config.aiStages.compare === "object"
+          ? config.aiStages.compare
+          : {};
+        const compareFamily = normalizeCompareFamily(compareStage.family || config.compareFamily);
+        return {
+          convert: {
+            model: normalizeText(convertStage.model),
+            prompt: normalizeStagePrompt(convertStage.prompt),
+            params: normalizeStageParams(convertStage.params),
+          },
+          listen: {
+            model: normalizeText(listenStage.model),
+            prompt: normalizeStagePrompt(listenStage.prompt),
+            params: normalizeStageParams(listenStage.params),
+          },
+          compare: {
+            family: compareFamily,
+            model: normalizeText(compareStage.model),
+            prompt: normalizeStagePrompt(compareStage.prompt),
+            params: normalizeStageParams(compareStage.params),
+            adoptionThreshold: compareStage.adoptionThreshold,
+          },
+        };
+      }
+
+      const useCompareModel = shouldUseCompareModel(config);
+      return {
+        convert: {
+          model: normalizeText(config.aiOptions?.candidateModel || config.candidateModel),
+          prompt: normalizeStagePrompt(config.aiOptions?.candidatePrompt),
+          params: normalizeStageParams(config.aiOptions),
+        },
+        listen: {
+          model: normalizeText(config.listenModel),
+          prompt: normalizeStagePrompt(config.aiOptions?.listenPrompt),
+          params: normalizeStageParams(config.aiOptions),
+        },
+        compare: {
+          family: useCompareModel ? "qwen" : "omni",
+          model: normalizeText(
+            useCompareModel ? config.compareModel : config.singleModel || config.listenModel
+          ),
+          prompt: normalizeStagePrompt(config.aiOptions?.comparePrompt),
+          params: normalizeStageParams(config.aiOptions),
+          adoptionThreshold: config.aiOptions?.audioFirstReferenceCorrectionThreshold,
+        },
+      };
+    }
+
     function createRequestBody(item) {
       const source = item && typeof item === "object" ? item : {};
       const userMeta = getPlatformUserMeta(source);
-      const useCompareModel = shouldUseCompareModel(config);
+      const aiStages = resolveAiStages();
       const requestMeta = buildAiUsageRequestMeta({
         settings: config.settings,
         platformUserName: userMeta.platformUserName,
@@ -337,35 +424,26 @@
         platformUserName: requestMeta.platformUserName,
         platformUserId: requestMeta.platformUserId,
       };
-
-      if (config.recognitionMode) {
-        requestBody.recognitionMode = normalizeText(config.recognitionMode);
-      }
-      if (config.modelMode) {
-        requestBody.modelMode = normalizeText(config.modelMode);
-        requestBody.pipelineMode = normalizeText(config.modelMode);
-      } else if (config.recognitionMode) {
-        requestBody.pipelineMode = normalizeText(config.recognitionMode);
-      }
-      if (config.recognitionStrategy) {
-        requestBody.recognitionStrategy = normalizeText(config.recognitionStrategy);
-      }
-      if (config.listenModel) {
-        requestBody.listenModel = normalizeText(config.listenModel);
-      }
-      if (useCompareModel && config.compareModel) {
-        requestBody.compareModel = normalizeText(config.compareModel);
-      }
-      if (config.singleModel) {
-        requestBody.singleModel = normalizeText(config.singleModel);
-      }
       requestBody.enableThinking = false;
-      if (config.aiOptions && typeof config.aiOptions === "object") {
-        requestBody.aiOptions = Object.assign({}, config.aiOptions);
-        if (!useCompareModel) {
-          delete requestBody.aiOptions.compareModel;
-        }
-      }
+      requestBody.aiStages = {
+        convert: {
+          model: aiStages.convert.model,
+          prompt: aiStages.convert.prompt,
+          params: aiStages.convert.params,
+        },
+        listen: {
+          model: aiStages.listen.model,
+          prompt: aiStages.listen.prompt,
+          params: aiStages.listen.params,
+        },
+        compare: {
+          family: aiStages.compare.family,
+          model: aiStages.compare.model,
+          prompt: aiStages.compare.prompt,
+          params: aiStages.compare.params,
+          adoptionThreshold: aiStages.compare.adoptionThreshold,
+        },
+      };
       return requestBody;
     }
 

@@ -423,6 +423,73 @@
   )
     ? constants.AISHELL_TECH_RECOGNITION_STRATEGY_OPTIONS
     : [{ value: "audio_first_reference", label: "三文本对照（音频优先，文本参考）" }];
+  const aishellTechCompareFamilyOptions = [
+    { value: "qwen", label: "Qwen 文本比较" },
+    { value: "omni", label: "Omni 听音比较" },
+  ];
+  const aishellTechStageParamDefinitions = [
+    {
+      suffix: "Temperature",
+      apiKey: "temperature",
+      domSuffix: "temperature",
+      type: "number",
+      min: 0,
+      max: 2,
+      precision: 3,
+    },
+    {
+      suffix: "TopP",
+      apiKey: "top_p",
+      domSuffix: "top-p",
+      type: "number",
+      min: 0,
+      max: 1,
+      precision: 3,
+    },
+    {
+      suffix: "MaxTokens",
+      apiKey: "max_tokens",
+      domSuffix: "max-tokens",
+      type: "integer",
+      min: 1,
+      max: 8192,
+    },
+    {
+      suffix: "MaxCompletionTokens",
+      apiKey: "max_completion_tokens",
+      domSuffix: "max-completion-tokens",
+      type: "integer",
+      min: 1,
+      max: 8192,
+    },
+    {
+      suffix: "PresencePenalty",
+      apiKey: "presence_penalty",
+      domSuffix: "presence-penalty",
+      type: "number",
+      min: -2,
+      max: 2,
+      precision: 3,
+    },
+    {
+      suffix: "FrequencyPenalty",
+      apiKey: "frequency_penalty",
+      domSuffix: "frequency-penalty",
+      type: "number",
+      min: -2,
+      max: 2,
+      precision: 3,
+    },
+    {
+      suffix: "Seed",
+      apiKey: "seed",
+      domSuffix: "seed",
+      type: "integer",
+      min: 0,
+      max: 2147483647,
+    },
+    { suffix: "StopSequences", apiKey: "stop", domSuffix: "stop-sequences", type: "stop" },
+  ];
   const judgementAiListenModels = Array.isArray(constants.JUDGEMENT_AI_LISTEN_MODELS)
     ? constants.JUDGEMENT_AI_LISTEN_MODELS
     : ["qwen3.5-omni-flash", "qwen3-omni-flash", "qwen3.5-omni-plus"];
@@ -2183,6 +2250,212 @@
     return text === "audio_first_reference";
   }
 
+  function normalizeAishellTechCompareFamily(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "omni") {
+      return "omni";
+    }
+    if (text === "qwen") {
+      return "qwen";
+    }
+    return String(fallback || "qwen").trim().toLowerCase() === "omni" ? "omni" : "qwen";
+  }
+
+  function isAishellTechTextModel(value) {
+    const model = getDataBakerModelText(value);
+    return Boolean(model) && model !== "fun-asr" && model.indexOf("omni") < 0;
+  }
+
+  function isAishellTechOmniModel(value) {
+    return getDataBakerModelText(value).indexOf("omni") >= 0;
+  }
+
+  function buildAishellTechTextModelOptions(aiDefaults, extraValues) {
+    return buildMergedModelOptions(
+      aiDefaults?.stages?.convert?.modelOptions,
+      aiDefaults?.compareModelOptions || dataBakerCompareModelOptions,
+      extraValues
+    ).filter(function (item) {
+      return isAishellTechTextModel(item?.value || item);
+    });
+  }
+
+  function buildAishellTechOmniModelOptions(aiDefaults, extraValues) {
+    return buildMergedModelOptions(
+      aiDefaults?.stages?.compare?.omniModelOptions || aiDefaults?.stages?.compare?.modelOptions,
+      aiDefaults?.singleModelOptions || dataBakerSingleModelOptions,
+      extraValues
+    ).filter(function (item) {
+      return isAishellTechOmniModel(item?.value || item);
+    });
+  }
+
+  function getAishellTechStageDefaults(aiDefaults) {
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const stages = defaults.stages && typeof defaults.stages === "object" ? defaults.stages : {};
+    const convert = stages.convert && typeof stages.convert === "object" ? stages.convert : {};
+    const listen = stages.listen && typeof stages.listen === "object" ? stages.listen : {};
+    const compare = stages.compare && typeof stages.compare === "object" ? stages.compare : {};
+    const qwenModelOptions = buildAishellTechTextModelOptions(defaults, [
+      convert.model,
+      compare.model,
+      defaults.candidateModel,
+      defaults.compareModel,
+      "qwen3.5-plus",
+    ]);
+    const omniModelOptions = buildAishellTechOmniModelOptions(defaults, [
+      compare.model,
+      defaults.singleModel,
+      defaults.omniModel,
+      "qwen3.5-omni-flash",
+    ]);
+    const listenModelOptions = buildMergedModelOptions(
+      listen.modelOptions,
+      defaults.listenModelOptions || dataBakerListenModelOptions,
+      [listen.model, defaults.listenModel, defaults.funAsrModel, defaults.omniModel]
+    );
+    const compareFamily = normalizeAishellTechCompareFamily(
+      compare.family || defaults.compareFamily,
+      "qwen"
+    );
+    return {
+      convert: {
+        model: normalizeDataBakerCompareModel(
+          convert.model || defaults.candidateModel || defaults.compareModel,
+          "qwen3.5-plus"
+        ),
+        modelOptions: qwenModelOptions,
+        prompt: String(convert.prompt || defaults.candidatePrompt || ""),
+        temperature: convert.temperature ?? defaults.temperature ?? "",
+        top_p: convert.top_p ?? defaults.top_p ?? "",
+        max_tokens: convert.max_tokens ?? defaults.max_tokens ?? "",
+        max_completion_tokens:
+          convert.max_completion_tokens ?? defaults.max_completion_tokens ?? "",
+        presence_penalty: convert.presence_penalty ?? defaults.presence_penalty ?? "",
+        frequency_penalty: convert.frequency_penalty ?? defaults.frequency_penalty ?? "",
+        seed: convert.seed ?? defaults.seed ?? "",
+        stop: convert.stop ?? convert.stopSequences ?? defaults.stop ?? "",
+      },
+      listen: {
+        model: normalizeDataBakerListenModel(
+          listen.model || defaults.listenModel,
+          defaults.omniModel || "qwen3.5-omni-flash"
+        ),
+        modelOptions: listenModelOptions,
+        prompt: String(listen.prompt || defaults.listenPrompt || ""),
+        temperature: listen.temperature ?? defaults.temperature ?? "",
+        top_p: listen.top_p ?? defaults.top_p ?? "",
+        max_tokens: listen.max_tokens ?? defaults.max_tokens ?? "",
+        max_completion_tokens:
+          listen.max_completion_tokens ?? defaults.max_completion_tokens ?? "",
+        presence_penalty: listen.presence_penalty ?? defaults.presence_penalty ?? "",
+        frequency_penalty: listen.frequency_penalty ?? defaults.frequency_penalty ?? "",
+        seed: listen.seed ?? defaults.seed ?? "",
+        stop: listen.stop ?? listen.stopSequences ?? defaults.stop ?? "",
+      },
+      compare: {
+        family: compareFamily,
+        qwenModel: normalizeDataBakerCompareModel(
+          compareFamily === "qwen" ? compare.model || defaults.compareModel : defaults.compareModel,
+          "qwen3.5-plus"
+        ),
+        omniModel: normalizeDataBakerSingleModel(
+          compareFamily === "omni" ? compare.model || defaults.singleModel : defaults.singleModel,
+          defaults.omniModel || "qwen3.5-omni-flash"
+        ),
+        qwenModelOptions: qwenModelOptions,
+        omniModelOptions: omniModelOptions,
+        qwenPrompt: String(compare.qwenPrompt || defaults.comparePrompt || ""),
+        omniPrompt: String(compare.omniPrompt || ""),
+        adoptionThreshold:
+          normalizeOptionalNumberText(
+            compare.adoptionThreshold ?? defaults.compareAdoptionThreshold ?? 0.75,
+            0,
+            1,
+            3
+          ) || "0.75",
+        temperature: compare.temperature ?? defaults.temperature ?? "",
+        top_p: compare.top_p ?? defaults.top_p ?? "",
+        max_tokens: compare.max_tokens ?? defaults.max_tokens ?? "",
+        max_completion_tokens:
+          compare.max_completion_tokens ?? defaults.max_completion_tokens ?? "",
+        presence_penalty: compare.presence_penalty ?? defaults.presence_penalty ?? "",
+        frequency_penalty: compare.frequency_penalty ?? defaults.frequency_penalty ?? "",
+        seed: compare.seed ?? defaults.seed ?? "",
+        stop: compare.stop ?? compare.stopSequences ?? defaults.stop ?? "",
+      },
+    };
+  }
+
+  function normalizeAishellTechStageParamFields(config, prefix) {
+    const target = config && typeof config === "object" ? config : {};
+    target[prefix + "Temperature"] = normalizeOptionalNumberText(
+      target[prefix + "Temperature"],
+      0,
+      2,
+      3
+    );
+    target[prefix + "TopP"] = normalizeOptionalNumberText(target[prefix + "TopP"], 0, 1, 3);
+    target[prefix + "MaxTokens"] = normalizeOptionalIntegerText(
+      target[prefix + "MaxTokens"],
+      1,
+      8192
+    );
+    target[prefix + "MaxCompletionTokens"] = normalizeOptionalIntegerText(
+      target[prefix + "MaxCompletionTokens"],
+      1,
+      8192
+    );
+    target[prefix + "PresencePenalty"] = normalizeOptionalNumberText(
+      target[prefix + "PresencePenalty"],
+      -2,
+      2,
+      3
+    );
+    target[prefix + "FrequencyPenalty"] = normalizeOptionalNumberText(
+      target[prefix + "FrequencyPenalty"],
+      -2,
+      2,
+      3
+    );
+    target[prefix + "Seed"] = normalizeOptionalIntegerText(
+      target[prefix + "Seed"],
+      0,
+      2147483647
+    );
+    target[prefix + "StopSequences"] = normalizeStopSequencesText(target[prefix + "StopSequences"] || "");
+  }
+
+  function getAishellTechConcurrencyModelConfig(configLike) {
+    const config = configLike && typeof configLike === "object" ? configLike : {};
+    const compareFamily = normalizeAishellTechCompareFamily(
+      config.aiRecommendCompareFamily,
+      "qwen"
+    );
+    const listenModel = normalizeDataBakerListenModel(
+      config.aiRecommendListenModel,
+      "qwen3.5-omni-flash"
+    );
+    const omniModel = normalizeDataBakerSingleModel(
+      config.aiRecommendCompareModel || listenModel,
+      "qwen3.5-omni-flash"
+    );
+    if (compareFamily === "qwen" && isDataBakerFunAsrListenModel(listenModel)) {
+      return {
+        aiRecommendPipelineMode: "two_stage",
+        aiRecommendListenModel: "fun-asr",
+        aiRecommendSingleModel: "qwen3.5-omni-flash",
+        aiQualifiedAutofillConcurrency: config.aiQualifiedAutofillConcurrency,
+      };
+    }
+    return {
+      aiRecommendPipelineMode: "omni_single",
+      aiRecommendListenModel: listenModel,
+      aiRecommendSingleModel: omniModel,
+      aiQualifiedAutofillConcurrency: config.aiQualifiedAutofillConcurrency,
+    };
+  }
+
   function resolveMagicDataRecognitionStrategyFromSource(source, fallback) {
     const safeSource = source && typeof source === "object" ? source : {};
     const explicitStrategy = hasValidMagicDataRecognitionStrategy(safeSource.aiReviewRecognitionStrategy)
@@ -2356,545 +2629,297 @@
     );
   }
 
-  function getAishellTechSettingsDraftConfig(aiDefaults) {
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    const recognitionSelectNode = getElement("aishell-tech-ai-pipeline-mode-select");
-    const strategySelectNode = getElement("aishell-tech-ai-recognition-strategy-select");
-    const listenSelectNode = getElement("aishell-tech-ai-listen-model-select");
-    const candidateSelectNode = getElement("aishell-tech-ai-candidate-model-select");
-    const compareSelectNode = getElement("aishell-tech-ai-compare-model-select");
-    const singleSelectNode = getElement("aishell-tech-ai-single-model-select");
-    const correctionThresholdNode = getElement(
-      "aishell-tech-audio-first-reference-correction-threshold"
-    );
-    return {
-      aiRecommendPipelineMode:
-        recognitionSelectNode instanceof HTMLSelectElement
-          ? normalizeDataBakerRecognitionMode(recognitionSelectNode.value, "two_stage")
-          : "two_stage",
-      aiRecommendRecognitionStrategy:
-        strategySelectNode instanceof HTMLSelectElement
-          ? normalizeAishellTechRecognitionStrategy(
-              strategySelectNode.value,
-              getAishellTechRecognitionStrategyDefault(defaults)
-            )
-          : "audio_first_reference",
-      aiRecommendListenModel:
-        listenSelectNode instanceof HTMLSelectElement
-          ? normalizeDataBakerListenModel(
-              listenSelectNode.value,
-              getDataBakerListenModelDefault(defaults)
-            )
-          : getDataBakerListenModelDefault(defaults),
-      aiRecommendCandidateModel:
-        candidateSelectNode instanceof HTMLSelectElement
-          ? normalizeDataBakerCompareModel(
-              candidateSelectNode.value,
-              getAishellTechCandidateModelDefault(defaults)
-            )
-          : getAishellTechCandidateModelDefault(defaults),
-      aiRecommendCompareModel:
-        compareSelectNode instanceof HTMLSelectElement
-          ? normalizeDataBakerCompareModel(
-              compareSelectNode.value,
-              String(defaults.compareModel || "qwen3.5-plus")
-            )
-          : String(defaults.compareModel || "qwen3.5-plus"),
-      aiRecommendSingleModel:
-        singleSelectNode instanceof HTMLSelectElement
-          ? normalizeDataBakerSingleModel(
-              singleSelectNode.value,
-              getDataBakerSingleModelDefault(defaults)
-            )
-          : getDataBakerSingleModelDefault(defaults),
-      aiRecommendAudioFirstReferenceCorrectionThreshold:
-        correctionThresholdNode instanceof HTMLInputElement
-          ? normalizeOptionalNumberText(correctionThresholdNode.value, 0, 1, 3) ||
-            getAishellTechAudioFirstReferenceCorrectionThresholdDefault(defaults)
-          : getAishellTechAudioFirstReferenceCorrectionThresholdDefault(defaults),
-    };
-  }
-
-  function getAishellTechRecognitionStrategyDefault(aiDefaults) {
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    return normalizeAishellTechRecognitionStrategy(
-      defaults.recognitionStrategy || defaults.aiRecommendRecognitionStrategy || defaults.pipelineMode,
-      "audio_first_reference"
-    );
-  }
-
-  function getAishellTechAudioFirstReferenceCorrectionThresholdDefault(aiDefaults) {
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+  function getAishellTechStageParamElementId(stagePrefix, definition) {
     return (
-      normalizeOptionalNumberText(defaults.audioFirstReferenceCorrectionThreshold, 0, 1, 3) ||
-      "0.75"
+      "aishell-tech-ai-" +
+      String(stagePrefix || "").trim() +
+      "-" +
+      String(definition?.domSuffix || "").trim()
     );
   }
 
-  function getAishellTechCandidateModelDefault(aiDefaults) {
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    return normalizeDataBakerCompareModel(
-      defaults.candidateModel || defaults.compareModel,
-      "qwen3.5-plus"
-    );
-  }
-
-  function getAishellTechPromptProfile(aiDefaults, recognitionStrategy) {
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    const profiles =
-      defaults.promptProfiles && typeof defaults.promptProfiles === "object"
-        ? defaults.promptProfiles
-        : {};
-    const normalizedStrategy = normalizeAishellTechRecognitionStrategy(
-      recognitionStrategy,
-      getAishellTechRecognitionStrategyDefault(defaults)
-    );
-    const profile =
-      profiles[normalizedStrategy] && typeof profiles[normalizedStrategy] === "object"
-        ? profiles[normalizedStrategy]
-        : {};
-    return {
-      candidatePrompt: String(profile.candidatePrompt || defaults.candidatePrompt || ""),
-      listenPrompt: String(profile.listenPrompt || defaults.listenPrompt || ""),
-      comparePrompt: String(profile.comparePrompt || defaults.comparePrompt || ""),
-    };
-  }
-
-  function shouldReplaceAishellPromptValue(currentValue, aiDefaults, promptKey) {
-    const normalizedCurrent = normalizePromptText(currentValue || "");
-    if (!normalizedCurrent) {
-      return true;
-    }
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    const promptProfiles =
-      defaults.promptProfiles && typeof defaults.promptProfiles === "object"
-        ? defaults.promptProfiles
-        : {};
-    const candidates = [defaults[promptKey]];
-    Object.keys(promptProfiles).forEach(function (key) {
-      candidates.push(promptProfiles[key]?.[promptKey]);
-    });
-    return candidates.some(function (candidate) {
-      return normalizePromptText(candidate || "") === normalizedCurrent;
+  function applyAishellTechStageParamValues(stagePrefix, configPrefix, config, stageDefaults) {
+    aishellTechStageParamDefinitions.forEach(function (definition) {
+      const node = getElement(getAishellTechStageParamElementId(stagePrefix, definition));
+      if (!(node instanceof HTMLInputElement) && !(node instanceof HTMLTextAreaElement)) {
+        return;
+      }
+      node.value = String(
+        getAsrVoiceAiEffectiveText(
+          config?.[configPrefix + definition.suffix],
+          stageDefaults?.[definition.apiKey]
+        )
+      );
     });
   }
 
-  function applyAishellTechPromptProfile(recognitionStrategy, aiDefaults) {
-    const candidatePromptNode = getElement("aishell-tech-ai-candidate-prompt");
-    const listenPromptNode = getElement("aishell-tech-ai-listen-prompt");
-    const comparePromptNode = getElement("aishell-tech-ai-compare-prompt");
-    const profile = getAishellTechPromptProfile(aiDefaults, recognitionStrategy);
-    if (
-      candidatePromptNode instanceof HTMLTextAreaElement &&
-      shouldReplaceAishellPromptValue(candidatePromptNode.value, aiDefaults, "candidatePrompt")
-    ) {
-      candidatePromptNode.value = String(profile.candidatePrompt || "");
-    }
-    if (
-      listenPromptNode instanceof HTMLTextAreaElement &&
-      shouldReplaceAishellPromptValue(listenPromptNode.value, aiDefaults, "listenPrompt")
-    ) {
-      listenPromptNode.value = String(profile.listenPrompt || "");
-    }
-    if (
-      comparePromptNode instanceof HTMLTextAreaElement &&
-      shouldReplaceAishellPromptValue(comparePromptNode.value, aiDefaults, "comparePrompt")
-    ) {
-      comparePromptNode.value = String(profile.comparePrompt || "");
-    }
+  function readAishellTechStageParamDraft(target, configPrefix, stagePrefix) {
+    const draft = target && typeof target === "object" ? target : {};
+    aishellTechStageParamDefinitions.forEach(function (definition) {
+      const node = getElement(getAishellTechStageParamElementId(stagePrefix, definition));
+      const rawValue =
+        node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement ? node.value : "";
+      if (definition.type === "number") {
+        draft[configPrefix + definition.suffix] = normalizeOptionalNumberText(
+          rawValue,
+          definition.min,
+          definition.max,
+          definition.precision
+        );
+        return;
+      }
+      if (definition.type === "integer") {
+        draft[configPrefix + definition.suffix] = normalizeOptionalIntegerText(
+          rawValue,
+          definition.min,
+          definition.max
+        );
+        return;
+      }
+      draft[configPrefix + definition.suffix] = normalizeStopSequencesText(rawValue || "");
+    });
+    return draft;
   }
 
   function updateAishellTechAutofillConcurrencyField(configLike, options) {
-    updateSharedAsrAutofillConcurrencyField(aishellTechMinnanScriptId, configLike, options);
-  }
-
-  function updateAishellTechAudioFirstReferenceCorrectionThresholdField(configLike, aiDefaults) {
     const config = configLike && typeof configLike === "object" ? configLike : {};
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    const correctionThresholdNode = getElement(
-      "aishell-tech-audio-first-reference-correction-threshold"
+    updateSharedAsrAutofillConcurrencyField(
+      aishellTechMinnanScriptId,
+      Object.assign({}, config, getAishellTechConcurrencyModelConfig(config)),
+      options
     );
-    const correctionThresholdHelpNode = getElement(
-      "aishell-tech-audio-first-reference-correction-threshold-help"
-    );
-    const currentRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
-      config.aiRecommendRecognitionStrategy,
-      getAishellTechRecognitionStrategyDefault(defaults)
-    );
-    const currentRecognitionMode = normalizeDataBakerRecognitionMode(
-      config.aiRecommendPipelineMode,
-      "two_stage"
-    );
-    const defaultValue = getAishellTechAudioFirstReferenceCorrectionThresholdDefault(defaults);
-    const effectiveValue =
-      normalizeOptionalNumberText(
-        config.aiRecommendAudioFirstReferenceCorrectionThreshold,
-        0,
-        1,
-        3
-      ) || defaultValue;
-
-    setFieldVisibility(
-      "aishell-tech-audio-first-reference-correction-threshold-field",
-      currentRecognitionStrategy === "audio_first_reference"
-    );
-
-    if (correctionThresholdNode instanceof HTMLInputElement) {
-      correctionThresholdNode.min = "0";
-      correctionThresholdNode.max = "1";
-      correctionThresholdNode.step = "0.001";
-      correctionThresholdNode.placeholder = defaultValue;
-      correctionThresholdNode.value = effectiveValue;
-    }
-
-    if (correctionThresholdHelpNode instanceof HTMLElement) {
-      correctionThresholdHelpNode.textContent =
-        currentRecognitionMode === "two_stage"
-          ? "仅在“音频优先，文本参考”策略下生效；默认 0.75。高于阈值时允许采用词表候选标准写法，低于阈值时优先保留听音文本并标记人工复核。"
-          : "当前为单模型方案；该阈值会保留，但只有双模型比较阶段才会实际生效。";
-    }
   }
 
-  function applyAishellTechListenModelFields(listenModel, config, aiDefaults) {
+  function getAishellTechCompareModelDefault(aiDefaults, compareFamily) {
+    const stageDefaults = getAishellTechStageDefaults(aiDefaults);
+    return normalizeAishellTechCompareFamily(compareFamily, stageDefaults.compare.family) === "omni"
+      ? stageDefaults.compare.omniModel
+      : stageDefaults.compare.qwenModel;
+  }
+
+  function applyAishellTechCompareFamilyFields(config, aiDefaults) {
     const currentConfig = Object.assign({}, config || {});
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    const currentRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
-      currentConfig.aiRecommendRecognitionStrategy,
-      getAishellTechRecognitionStrategyDefault(defaults)
+    const stageDefaults = getAishellTechStageDefaults(aiDefaults);
+    const compareFamily = normalizeAishellTechCompareFamily(
+      currentConfig.aiRecommendCompareFamily,
+      stageDefaults.compare.family
     );
-    const currentListenModel = normalizeDataBakerListenModel(
-      listenModel || currentConfig.aiRecommendListenModel,
-      getDataBakerListenModelDefault(defaults)
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-listen-model-select",
-      buildDataBakerListenModelOptions(defaults, currentConfig),
-      currentListenModel
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-candidate-model-select",
-      buildDataBakerCompareModelOptions(defaults),
-      normalizeDataBakerCompareModel(
-        currentConfig.aiRecommendCandidateModel,
-        getAishellTechCandidateModelDefault(defaults)
-      )
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-compare-model-select",
-      buildDataBakerCompareModelOptions(defaults),
-      normalizeDataBakerCompareModel(
-        currentConfig.aiRecommendCompareModel,
-        String(defaults.compareModel || "qwen3.5-plus")
-      )
-    );
-    const listenHelpNode = getElement("aishell-tech-ai-listen-model-help");
-    if (listenHelpNode instanceof HTMLElement) {
-      listenHelpNode.textContent =
-        currentListenModel === "fun-asr"
-          ? "Fun-ASR 先按实际发音输出 heardText；比较/参考模型再结合原始文本和词表候选，只检查两者差异项。"
-          : "Omni 听音阶段按实际发音输出 heardText；比较/参考模型再结合原始文本和词表候选，允许普通话和闽南语混合保留。";
-    }
-    const compareLabelNode = getElement("aishell-tech-ai-compare-model-label");
-    if (compareLabelNode instanceof HTMLElement) {
-      compareLabelNode.textContent = "差异比较模型";
-    }
-    const noteNode = getElement("aishell-tech-ai-listen-model-note");
-    if (noteNode instanceof HTMLElement) {
-      noteNode.classList.toggle("hidden", currentListenModel !== "fun-asr");
-    }
-    setFieldVisibility("aishell-tech-ai-single-model-field", false);
-    updateAishellTechAutofillConcurrencyField(
-      Object.assign({}, currentConfig || {}, {
-        aiRecommendListenModel: currentListenModel,
-      })
-    );
-  }
-
-  function applyAishellTechSingleModelFields(singleModel, config, aiDefaults) {
-    const currentConfig = Object.assign({}, config || {});
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    const currentSingleModel = normalizeDataBakerSingleModel(
-      singleModel || currentConfig.aiRecommendSingleModel,
-      getDataBakerSingleModelDefault(defaults)
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-candidate-model-select",
-      buildDataBakerCompareModelOptions(defaults),
-      normalizeDataBakerCompareModel(
-        currentConfig.aiRecommendCandidateModel,
-        getAishellTechCandidateModelDefault(defaults)
-      )
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-single-model-select",
-      buildDataBakerSingleModelOptions(defaults, currentConfig),
-      currentSingleModel
-    );
-    setFieldVisibility("aishell-tech-ai-listen-model-field", false);
-    setFieldVisibility("aishell-tech-ai-compare-model-field", false);
-    setFieldVisibility("aishell-tech-ai-listen-model-custom-field", false);
-    setFieldVisibility("aishell-tech-ai-compare-model-custom-field", false);
-    setFieldVisibility("aishell-tech-ai-listen-model-note", false);
-    updateAishellTechAutofillConcurrencyField(
-      Object.assign({}, currentConfig || {}, {
-        aiRecommendPipelineMode: "omni_single",
-        aiRecommendSingleModel: currentSingleModel,
-      })
-    );
-  }
-
-  function applyAishellTechRecognitionModeFields(recognitionMode, config, aiDefaults) {
-    const currentRecognitionMode = normalizeDataBakerRecognitionMode(
-      recognitionMode || config?.aiRecommendPipelineMode,
-      "two_stage"
-    );
-    const currentRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
-      config?.aiRecommendRecognitionStrategy,
-      getAishellTechRecognitionStrategyDefault(aiDefaults)
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-pipeline-mode-select",
-      [
-        { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
-        { value: "omni_single", label: "单模型：Omni 单模型" },
-      ],
-      currentRecognitionMode
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-recognition-strategy-select",
-      aishellTechRecognitionStrategyOptions,
-      currentRecognitionStrategy
-    );
-    setFieldVisibility("aishell-tech-ai-recognition-strategy-field", false);
-    setFieldVisibility("aishell-tech-ai-listen-model-field", currentRecognitionMode === "two_stage");
-    setFieldVisibility("aishell-tech-ai-compare-model-field", currentRecognitionMode === "two_stage");
-    setFieldVisibility("aishell-tech-ai-single-model-field", currentRecognitionMode === "omni_single");
-    setFieldVisibility("aishell-tech-ai-listen-model-custom-field", false);
-    setFieldVisibility("aishell-tech-ai-compare-model-custom-field", false);
-    if (currentRecognitionMode === "omni_single") {
-      applyAishellTechSingleModelFields(config?.aiRecommendSingleModel, config, aiDefaults);
-      updateAishellTechAudioFirstReferenceCorrectionThresholdField(
-        Object.assign({}, config || {}, {
-          aiRecommendPipelineMode: currentRecognitionMode,
-          aiRecommendRecognitionStrategy: currentRecognitionStrategy,
-        }),
-        aiDefaults
-      );
-      return;
-    }
-    applyAishellTechListenModelFields(config?.aiRecommendListenModel, config, aiDefaults);
-    updateAishellTechAutofillConcurrencyField(
-      Object.assign({}, config || {}, {
-        aiRecommendPipelineMode: currentRecognitionMode,
-      })
-    );
-    updateAishellTechAudioFirstReferenceCorrectionThresholdField(
-      Object.assign({}, config || {}, {
-        aiRecommendPipelineMode: currentRecognitionMode,
-        aiRecommendRecognitionStrategy: currentRecognitionStrategy,
-      }),
-      aiDefaults
-    );
-  }
-
-  function updateAishellTechComparePromptFieldMode(mode) {
-    const currentMode = String(mode || "").trim().toLowerCase() === "omni" ? "omni" : "compare";
-    const labelNode = getElement("aishell-tech-ai-compare-prompt-label");
-    const helpNode = getElement("aishell-tech-ai-compare-prompt-help");
-    if (labelNode instanceof HTMLElement) {
-      labelNode.textContent =
-        currentMode === "omni" ? "Omni判断 Prompt（可选）" : "差异比较 Prompt（可选）";
-    }
-    if (helpNode instanceof HTMLElement) {
-      helpNode.textContent =
-        currentMode === "omni"
-          ? "当前为 Omni 听音链路：不再调用差异比较模型；这里的 Prompt 会作为 Omni 一边听音一边判断差异的约束。留空或恢复默认时，使用后端默认 Prompt。"
-          : "当前为 Fun-ASR 听音链路：这里的 Prompt 会作为差异比较模型的判断约束。留空或恢复默认时，使用后端默认 Prompt。";
-    }
-  }
-
-  function updateAishellTechAudioFirstReferenceCorrectionThresholdField(configLike, aiDefaults) {
-    const config = configLike && typeof configLike === "object" ? configLike : {};
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    const correctionThresholdNode = getElement(
-      "aishell-tech-audio-first-reference-correction-threshold"
-    );
-    const correctionThresholdHelpNode = getElement(
-      "aishell-tech-audio-first-reference-correction-threshold-help"
-    );
-    const currentRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
-      config.aiRecommendRecognitionStrategy,
-      getAishellTechRecognitionStrategyDefault(defaults)
-    );
-    const currentRecognitionMode = normalizeDataBakerRecognitionMode(
-      config.aiRecommendPipelineMode,
-      "two_stage"
-    );
-    const defaultValue = getAishellTechAudioFirstReferenceCorrectionThresholdDefault(defaults);
-    const effectiveValue =
-      normalizeOptionalNumberText(
-        config.aiRecommendAudioFirstReferenceCorrectionThreshold,
-        0,
-        1,
-        3
-      ) || defaultValue;
-
-    setFieldVisibility(
-      "aishell-tech-audio-first-reference-correction-threshold-field",
-      currentRecognitionStrategy === "audio_first_reference"
-    );
-
-    if (correctionThresholdNode instanceof HTMLInputElement) {
-      correctionThresholdNode.min = "0";
-      correctionThresholdNode.max = "1";
-      correctionThresholdNode.step = "0.001";
-      correctionThresholdNode.placeholder = defaultValue;
-      correctionThresholdNode.value = effectiveValue;
-    }
-
-    if (correctionThresholdHelpNode instanceof HTMLElement) {
-      correctionThresholdHelpNode.textContent =
-        currentRecognitionMode === "two_stage"
-          ? "默认 0.75。Fun-ASR 路径会在差异比较模型阶段使用该阈值；Omni 听音路径会在 Omni 一边听音一边判断差异时使用该阈值。低于阈值时优先保留 heardText，并标记人工复核。"
-          : "当前为 Omni 单模型链路；该阈值会在 Omni 一边听音一边判断差异时使用。低于阈值时优先保留 heardText，并标记人工复核。";
-    }
-  }
-
-  function applyAishellTechListenModelFields(listenModel, config, aiDefaults) {
-    const currentConfig = Object.assign({}, config || {});
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    const currentListenModel = normalizeDataBakerListenModel(
-      listenModel || currentConfig.aiRecommendListenModel,
-      getDataBakerListenModelDefault(defaults)
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-listen-model-select",
-      buildDataBakerListenModelOptions(defaults, currentConfig),
-      currentListenModel
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-candidate-model-select",
-      buildDataBakerCompareModelOptions(defaults),
-      normalizeDataBakerCompareModel(
-        currentConfig.aiRecommendCandidateModel,
-        getAishellTechCandidateModelDefault(defaults)
-      )
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-compare-model-select",
-      buildDataBakerCompareModelOptions(defaults),
-      normalizeDataBakerCompareModel(
-        currentConfig.aiRecommendCompareModel,
-        String(defaults.compareModel || "qwen3.5-plus")
-      )
-    );
-    const listenHelpNode = getElement("aishell-tech-ai-listen-model-help");
-    if (listenHelpNode instanceof HTMLElement) {
-      listenHelpNode.textContent =
-        currentListenModel === "fun-asr"
-          ? "Fun-ASR 先按实际发音输出 heardText；随后再调用差异比较模型，只判断 heardText 与词表转写文本的差异项。"
-          : "Omni 先结合候选转写文本与音频直接输出 heardText，并同步判断每个差异项是否要采用词表候选写法。";
-    }
-    const compareLabelNode = getElement("aishell-tech-ai-compare-model-label");
-    if (compareLabelNode instanceof HTMLElement) {
-      compareLabelNode.textContent = "差异比较模型";
-    }
-    const noteNode = getElement("aishell-tech-ai-listen-model-note");
-    if (noteNode instanceof HTMLElement) {
-      noteNode.classList.remove("hidden");
-      noteNode.textContent =
-        currentListenModel === "fun-asr"
-          ? "当前为 Fun-ASR 听音链路：候选转写模型会先结合原始文本与词表附件生成词表转写文本，再由差异比较模型决定哪些差异项需要采纳。"
-          : "当前为 Omni 听音链路：候选转写完成后，由 Omni 一边听音一边判断差异，不再调用差异比较模型。";
-    }
-    setFieldVisibility("aishell-tech-ai-compare-model-field", currentListenModel === "fun-asr");
-    updateAishellTechComparePromptFieldMode(
-      currentListenModel === "fun-asr" ? "compare" : "omni"
-    );
-    setFieldVisibility("aishell-tech-ai-single-model-field", false);
-    updateAishellTechAutofillConcurrencyField(
-      Object.assign({}, currentConfig || {}, {
-        aiRecommendListenModel: currentListenModel,
-      })
-    );
-  }
-
-  function applyAishellTechSingleModelFields(singleModel, config, aiDefaults) {
-    const currentConfig = Object.assign({}, config || {});
-    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
-    const currentSingleModel = normalizeDataBakerSingleModel(
-      singleModel || currentConfig.aiRecommendSingleModel,
-      getDataBakerSingleModelDefault(defaults)
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-candidate-model-select",
-      buildDataBakerCompareModelOptions(defaults),
-      normalizeDataBakerCompareModel(
-        currentConfig.aiRecommendCandidateModel,
-        getAishellTechCandidateModelDefault(defaults)
-      )
-    );
-    renderFixedModelOptions(
-      "aishell-tech-ai-single-model-select",
-      buildDataBakerSingleModelOptions(defaults, currentConfig),
-      currentSingleModel
-    );
-    updateAishellTechComparePromptFieldMode("omni");
-    setFieldVisibility("aishell-tech-ai-listen-model-field", false);
-    setFieldVisibility("aishell-tech-ai-compare-model-field", false);
-    setFieldVisibility("aishell-tech-ai-listen-model-custom-field", false);
-    setFieldVisibility("aishell-tech-ai-compare-model-custom-field", false);
-    setFieldVisibility("aishell-tech-ai-listen-model-note", true);
-    const noteNode = getElement("aishell-tech-ai-listen-model-note");
-    if (noteNode instanceof HTMLElement) {
-      noteNode.textContent =
-        "当前为 Omni 单模型链路：候选转写完成后，由 Omni 一边听音一边判断差异，不再调用差异比较模型。";
-    }
-    updateAishellTechAutofillConcurrencyField(
-      Object.assign({}, currentConfig || {}, {
-        aiRecommendPipelineMode: "omni_single",
-        aiRecommendSingleModel: currentSingleModel,
-      })
-    );
-  }
-
-  function updateAishellTechRecognitionModeFields(recognitionMode) {
-    const aiDefaults = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId).defaults || {};
-    const draftConfig = getAishellTechSettingsDraftConfig(aiDefaults);
-    draftConfig.aiRecommendPipelineMode = normalizeDataBakerRecognitionMode(
-      recognitionMode,
-      "two_stage"
-    );
-    if (draftConfig.aiRecommendPipelineMode === "omni_single") {
-      draftConfig.aiRecommendSingleModel = isDataBakerFunAsrListenModel(
-        draftConfig.aiRecommendListenModel
-      )
-        ? "qwen3.5-omni-flash"
-        : normalizeDataBakerSingleModel(
-            draftConfig.aiRecommendSingleModel,
-            getDataBakerSingleModelDefault(aiDefaults)
+    const compareModel =
+      compareFamily === "omni"
+        ? normalizeDataBakerSingleModel(
+            currentConfig.aiRecommendCompareModel,
+            stageDefaults.compare.omniModel
+          )
+        : normalizeDataBakerCompareModel(
+            currentConfig.aiRecommendCompareModel,
+            stageDefaults.compare.qwenModel
           );
+    renderFixedModelOptions(
+      "aishell-tech-ai-compare-family-select",
+      aishellTechCompareFamilyOptions,
+      compareFamily
+    );
+    renderFixedModelOptions(
+      "aishell-tech-ai-compare-model-select",
+      compareFamily === "omni"
+        ? stageDefaults.compare.omniModelOptions
+        : stageDefaults.compare.qwenModelOptions,
+      compareModel
+    );
+    const compareModelHelpNode = getElement("aishell-tech-ai-compare-model-help");
+    if (compareModelHelpNode instanceof HTMLElement) {
+      compareModelHelpNode.textContent =
+        compareFamily === "omni"
+          ? "Omni 会在比较阶段再次读取音频，并结合转换结果与听音结果输出最终判断。"
+          : "Qwen 只做文本比较，基于原文、转换结果和听音结果决定是否采纳。";
     }
-    applyAishellTechRecognitionModeFields(
-      draftConfig.aiRecommendPipelineMode,
-      draftConfig,
-      aiDefaults
+    setFieldVisibility("aishell-tech-ai-compare-qwen-prompt-field", compareFamily === "qwen");
+    setFieldVisibility("aishell-tech-ai-compare-omni-prompt-field", compareFamily === "omni");
+  }
+
+  function applyAishellTechListenModelFields(listenModel, config, aiDefaults) {
+    const currentConfig = Object.assign({}, config || {});
+    const stageDefaults = getAishellTechStageDefaults(aiDefaults);
+    const currentListenModel = normalizeDataBakerListenModel(
+      listenModel || currentConfig.aiRecommendListenModel,
+      stageDefaults.listen.model
+    );
+    renderFixedModelOptions(
+      "aishell-tech-ai-listen-model-select",
+      stageDefaults.listen.modelOptions,
+      currentListenModel
+    );
+    const listenHelpNode = getElement("aishell-tech-ai-listen-model-help");
+    if (listenHelpNode instanceof HTMLElement) {
+      listenHelpNode.textContent =
+        currentListenModel === "fun-asr"
+          ? "Fun-ASR 只负责听音转写；转换板块会并行做词表替换，比较板块最后再汇总。"
+          : "Omni 负责听音转写；比较板块是否再次听音由比较方式决定。";
+    }
+    const noteNode = getElement("aishell-tech-ai-listen-model-note");
+    if (noteNode instanceof HTMLElement) {
+      noteNode.innerHTML =
+        '<span class="asr-ai-help">' +
+        escapeHtml(
+          currentListenModel === "fun-asr"
+            ? "当前为 Fun-ASR 听音链路：先并行完成转换和听音，再由比较板块做纯文本或二次听音判断。"
+            : "当前为 Omni 听音链路：听音阶段先产出 heardText；若比较方式也选 Omni，则比较阶段还会再次听音。"
+        ) +
+        "</span>";
+    }
+    updateAishellTechAutofillConcurrencyField(
+      Object.assign({}, currentConfig, {
+        aiRecommendListenModel: currentListenModel,
+      })
     );
   }
 
-  function updateAishellTechRecognitionStrategyFields(recognitionStrategy) {
-    const aiDefaults = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId).defaults || {};
-    const draftConfig = getAishellTechSettingsDraftConfig(aiDefaults);
-    draftConfig.aiRecommendRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
-      recognitionStrategy,
-      getAishellTechRecognitionStrategyDefault(aiDefaults)
+  function applyAishellTechStageFields(config, aiDefaults) {
+    const currentConfig = Object.assign({}, config || {});
+    const stageDefaults = getAishellTechStageDefaults(aiDefaults);
+    renderFixedModelOptions(
+      "aishell-tech-ai-convert-model-select",
+      stageDefaults.convert.modelOptions,
+      normalizeDataBakerCompareModel(
+        currentConfig.aiRecommendConvertModel,
+        stageDefaults.convert.model
+      )
     );
-    applyAishellTechRecognitionModeFields(
-      draftConfig.aiRecommendPipelineMode || "two_stage",
-      draftConfig,
-      aiDefaults
+    const convertPromptNode = getElement("aishell-tech-ai-convert-prompt");
+    if (convertPromptNode instanceof HTMLTextAreaElement) {
+      convertPromptNode.value = String(
+        getAsrVoiceAiEffectiveText(
+          currentConfig.aiRecommendConvertPrompt,
+          stageDefaults.convert.prompt
+        )
+      );
+    }
+    applyAishellTechStageParamValues(
+      "convert",
+      "aiRecommendConvert",
+      currentConfig,
+      stageDefaults.convert
     );
-    applyAishellTechPromptProfile(draftConfig.aiRecommendRecognitionStrategy, aiDefaults);
+
+    applyAishellTechListenModelFields(currentConfig.aiRecommendListenModel, currentConfig, aiDefaults);
+    const listenPromptNode = getElement("aishell-tech-ai-listen-prompt");
+    if (listenPromptNode instanceof HTMLTextAreaElement) {
+      listenPromptNode.value = String(
+        getAsrVoiceAiEffectiveText(
+          currentConfig.aiRecommendListenPrompt,
+          stageDefaults.listen.prompt
+        )
+      );
+    }
+    applyAishellTechStageParamValues(
+      "listen",
+      "aiRecommendListen",
+      currentConfig,
+      stageDefaults.listen
+    );
+
+    applyAishellTechCompareFamilyFields(currentConfig, aiDefaults);
+    const compareQwenPromptNode = getElement("aishell-tech-ai-compare-qwen-prompt");
+    const compareOmniPromptNode = getElement("aishell-tech-ai-compare-omni-prompt");
+    const compareThresholdNode = getElement("aishell-tech-ai-compare-adoption-threshold");
+    if (compareQwenPromptNode instanceof HTMLTextAreaElement) {
+      compareQwenPromptNode.value = String(
+        getAsrVoiceAiEffectiveText(
+          currentConfig.aiRecommendCompareQwenPrompt,
+          stageDefaults.compare.qwenPrompt
+        )
+      );
+    }
+    if (compareOmniPromptNode instanceof HTMLTextAreaElement) {
+      compareOmniPromptNode.value = String(
+        getAsrVoiceAiEffectiveText(
+          currentConfig.aiRecommendCompareOmniPrompt,
+          stageDefaults.compare.omniPrompt
+        )
+      );
+    }
+    if (compareThresholdNode instanceof HTMLInputElement) {
+      compareThresholdNode.value = String(
+        getAsrVoiceAiEffectiveText(
+          currentConfig.aiRecommendCompareAdoptionThreshold,
+          stageDefaults.compare.adoptionThreshold
+        )
+      );
+    }
+    applyAishellTechStageParamValues(
+      "compare",
+      "aiRecommendCompare",
+      currentConfig,
+      stageDefaults.compare
+    );
+  }
+
+  function getAishellTechSettingsDraftConfig(aiDefaults) {
+    const stageDefaults = getAishellTechStageDefaults(aiDefaults);
+    const convertModelNode = getElement("aishell-tech-ai-convert-model-select");
+    const convertPromptNode = getElement("aishell-tech-ai-convert-prompt");
+    const listenModelNode = getElement("aishell-tech-ai-listen-model-select");
+    const listenPromptNode = getElement("aishell-tech-ai-listen-prompt");
+    const compareFamilyNode = getElement("aishell-tech-ai-compare-family-select");
+    const compareModelNode = getElement("aishell-tech-ai-compare-model-select");
+    const compareQwenPromptNode = getElement("aishell-tech-ai-compare-qwen-prompt");
+    const compareOmniPromptNode = getElement("aishell-tech-ai-compare-omni-prompt");
+    const compareThresholdNode = getElement("aishell-tech-ai-compare-adoption-threshold");
+    const compareFamily =
+      compareFamilyNode instanceof HTMLSelectElement
+        ? normalizeAishellTechCompareFamily(
+            compareFamilyNode.value,
+            stageDefaults.compare.family
+          )
+        : stageDefaults.compare.family;
+    const draft = {
+      aiRecommendConvertModel:
+        convertModelNode instanceof HTMLSelectElement
+          ? normalizeDataBakerCompareModel(convertModelNode.value, stageDefaults.convert.model)
+          : stageDefaults.convert.model,
+      aiRecommendConvertPrompt:
+        convertPromptNode instanceof HTMLTextAreaElement
+          ? normalizePromptText(convertPromptNode.value)
+          : "",
+      aiRecommendListenModel:
+        listenModelNode instanceof HTMLSelectElement
+          ? normalizeDataBakerListenModel(listenModelNode.value, stageDefaults.listen.model)
+          : stageDefaults.listen.model,
+      aiRecommendListenPrompt:
+        listenPromptNode instanceof HTMLTextAreaElement
+          ? normalizePromptText(listenPromptNode.value)
+          : "",
+      aiRecommendCompareFamily: compareFamily,
+      aiRecommendCompareModel:
+        compareModelNode instanceof HTMLSelectElement
+          ? compareFamily === "omni"
+            ? normalizeDataBakerSingleModel(
+                compareModelNode.value,
+                stageDefaults.compare.omniModel
+              )
+            : normalizeDataBakerCompareModel(
+                compareModelNode.value,
+                stageDefaults.compare.qwenModel
+              )
+          : getAishellTechCompareModelDefault(aiDefaults, compareFamily),
+      aiRecommendCompareQwenPrompt:
+        compareQwenPromptNode instanceof HTMLTextAreaElement
+          ? normalizePromptText(compareQwenPromptNode.value)
+          : "",
+      aiRecommendCompareOmniPrompt:
+        compareOmniPromptNode instanceof HTMLTextAreaElement
+          ? normalizePromptText(compareOmniPromptNode.value)
+          : "",
+      aiRecommendCompareAdoptionThreshold:
+        compareThresholdNode instanceof HTMLInputElement
+          ? normalizeOptionalNumberText(compareThresholdNode.value, 0, 1, 3) ||
+            stageDefaults.compare.adoptionThreshold
+          : stageDefaults.compare.adoptionThreshold,
+    };
+    readAishellTechStageParamDraft(draft, "aiRecommendConvert", "convert");
+    readAishellTechStageParamDraft(draft, "aiRecommendListen", "listen");
+    readAishellTechStageParamDraft(draft, "aiRecommendCompare", "compare");
+    return draft;
   }
 
   function updateAishellTechListenModelFields(listenModel) {
@@ -2902,27 +2927,23 @@
     const draftConfig = getAishellTechSettingsDraftConfig(aiDefaults);
     draftConfig.aiRecommendListenModel = normalizeDataBakerListenModel(
       listenModel,
-      getDataBakerListenModelDefault(aiDefaults)
+      getAishellTechStageDefaults(aiDefaults).listen.model
     );
-    applyAishellTechRecognitionModeFields(
-      draftConfig.aiRecommendPipelineMode || "two_stage",
-      draftConfig,
-      aiDefaults
-    );
+    applyAishellTechStageFields(draftConfig, aiDefaults);
   }
 
-  function updateAishellTechSingleModelFields(singleModel) {
+  function updateAishellTechCompareFamilyFields(compareFamily) {
     const aiDefaults = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId).defaults || {};
     const draftConfig = getAishellTechSettingsDraftConfig(aiDefaults);
-    draftConfig.aiRecommendSingleModel = normalizeDataBakerSingleModel(
-      singleModel,
-      getDataBakerSingleModelDefault(aiDefaults)
+    draftConfig.aiRecommendCompareFamily = normalizeAishellTechCompareFamily(
+      compareFamily,
+      getAishellTechStageDefaults(aiDefaults).compare.family
     );
-    applyAishellTechRecognitionModeFields(
-      draftConfig.aiRecommendPipelineMode || "omni_single",
-      draftConfig,
-      aiDefaults
+    draftConfig.aiRecommendCompareModel = getAishellTechCompareModelDefault(
+      aiDefaults,
+      draftConfig.aiRecommendCompareFamily
     );
+    applyAishellTechStageFields(draftConfig, aiDefaults);
   }
 
   function getMagicDataMinnanListenModelDefault(aiDefaults) {
@@ -3496,6 +3517,10 @@
     return scriptId === dataBakerRoundOneQualityScriptId;
   }
 
+  function isDataBakerCvpcScript(scriptId) {
+    return scriptId === dataBakerCvpcLiuzhouScriptId;
+  }
+
   function isMagicDataScript(scriptId) {
     return scriptId === magicDataAnnotatorScriptId || scriptId === magicDataMinnanScriptId;
   }
@@ -3685,9 +3710,52 @@
       baseDefaults.compareModel = defaultCompareModel;
     }
     if (isAishellTechScript(scriptId)) {
-      baseDefaults.candidateModel = "qwen3.5-plus";
-      baseDefaults.candidatePrompt = "";
-      baseDefaults.audioFirstReferenceCorrectionThreshold = 0.75;
+      baseDefaults.compareFamily = "qwen";
+      baseDefaults.stages = {
+        convert: {
+          model: "qwen3.5-plus",
+          modelOptions: clone(dataBakerCompareModelOptions),
+          prompt: "",
+          temperature: 0.1,
+          top_p: 0.8,
+          max_tokens: 1200,
+          max_completion_tokens: "",
+          presence_penalty: 0,
+          frequency_penalty: 0,
+          seed: "",
+          stop: "",
+        },
+        listen: {
+          model: "qwen3.5-omni-flash",
+          modelOptions: clone(dataBakerListenModelOptions),
+          prompt: baseDefaults.listenPrompt,
+          temperature: 0.1,
+          top_p: 0.8,
+          max_tokens: 1200,
+          max_completion_tokens: "",
+          presence_penalty: 0,
+          frequency_penalty: 0,
+          seed: "",
+          stop: "",
+        },
+        compare: {
+          family: "qwen",
+          model: "qwen3.5-plus",
+          qwenModelOptions: clone(dataBakerCompareModelOptions),
+          omniModelOptions: clone(dataBakerSingleModelOptions),
+          qwenPrompt: "",
+          omniPrompt: "",
+          adoptionThreshold: 0.75,
+          temperature: 0.1,
+          top_p: 0.8,
+          max_tokens: 1200,
+          max_completion_tokens: "",
+          presence_penalty: 0,
+          frequency_penalty: 0,
+          seed: "",
+          stop: "",
+        },
+      };
     }
     return {
       defaults: baseDefaults,
@@ -3705,8 +3773,29 @@
       source.supportedParams && typeof source.supportedParams === "object"
         ? source.supportedParams
         : {};
+    const normalizedDefaults = Object.assign({}, fallback.defaults, defaults, {
+      enableThinking: false,
+    });
+    if (isAishellTechScript(scriptId)) {
+      normalizedDefaults.stages = Object.assign({}, fallback.defaults.stages || {}, defaults.stages || {});
+      normalizedDefaults.stages.convert = Object.assign(
+        {},
+        fallback.defaults.stages?.convert || {},
+        defaults.stages?.convert || {}
+      );
+      normalizedDefaults.stages.listen = Object.assign(
+        {},
+        fallback.defaults.stages?.listen || {},
+        defaults.stages?.listen || {}
+      );
+      normalizedDefaults.stages.compare = Object.assign(
+        {},
+        fallback.defaults.stages?.compare || {},
+        defaults.stages?.compare || {}
+      );
+    }
     return {
-      defaults: Object.assign({}, fallback.defaults, defaults, { enableThinking: false }),
+      defaults: normalizedDefaults,
       supportedParams: Object.assign({}, fallback.supportedParams, supportedParams, {
         enable_thinking: false,
       }),
@@ -3735,13 +3824,6 @@
     }
     const request = (async function () {
       const pathCandidates = [path];
-      if (
-        scriptId === aishellTechMinnanScriptId &&
-        asrVoiceAiDefaultsPaths.dataBakerRoundOneQuality &&
-        path !== asrVoiceAiDefaultsPaths.dataBakerRoundOneQuality
-      ) {
-        pathCandidates.push(asrVoiceAiDefaultsPaths.dataBakerRoundOneQuality);
-      }
       try {
         for (const candidatePath of pathCandidates) {
           const endpoint = buildBackendUrl(candidatePath, settings || currentSettings || {});
@@ -3753,10 +3835,7 @@
             continue;
           }
           const normalized = normalizeAsrVoiceAiDefaultsPayload(payload, scriptId);
-          normalized.error =
-            candidatePath === path
-              ? ""
-              : "Aishell 默认配置暂时回退到 DataBaker defaults。";
+          normalized.error = "";
           asrVoiceAiDefaultsCache[key] = normalized;
           return normalized;
         }
@@ -3764,7 +3843,7 @@
       } catch (error) {
         const fallback = buildFallbackAsrVoiceAiDefaults(scriptId);
         fallback.error = isAishellTechScript(scriptId)
-          ? "Aishell 后端默认配置读取失败，已回退到本地 DataBaker 默认值。"
+          ? "Aishell 后端默认配置读取失败，已回退到本地三板块默认值。"
           : "后端默认配置读取失败，已使用本地默认值。";
         asrVoiceAiDefaultsCache[key] = fallback;
         return fallback;
@@ -4380,6 +4459,53 @@
     return config;
   }
 
+  function getDataBakerCvpcLiuzhouConfig(settings) {
+    const defaults =
+      constants.DEFAULT_SETTINGS?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant || {};
+    const current =
+      settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant || {};
+
+    const config = Object.assign(
+      {
+        id: dataBakerCvpcLiuzhouScriptId,
+        enabled: true,
+        segmentPreviewEnabled: true,
+        segmentPreviewEndpoint:
+          constants.DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT ||
+          "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+        aiRecommendEnabled: true,
+        aiRecommendEndpoint:
+          constants.DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT ||
+          "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+        aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+        aiRecommendModel: "qwen3.5-omni-flash",
+        contractMode: "dom-guarded",
+        shortcuts: {},
+      },
+      clone(defaults),
+      clone(current)
+    );
+
+    config.id = dataBakerCvpcLiuzhouScriptId;
+    config.enabled = config.enabled !== false;
+    config.segmentPreviewEnabled = config.segmentPreviewEnabled !== false;
+    config.aiRecommendEnabled = config.aiRecommendEnabled !== false;
+    config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
+      config.aiRecommendRequestTimeoutMs
+    );
+    config.aiRecommendModel = normalizeText(config.aiRecommendModel || "qwen3.5-omni-flash").slice(
+      0,
+      80
+    ) || "qwen3.5-omni-flash";
+    config.contractMode = normalizeText(config.contractMode || "dom-guarded") || "dom-guarded";
+    config.segmentPreviewEndpoint = normalizeText(config.segmentPreviewEndpoint);
+    config.aiRecommendEndpoint = normalizeText(config.aiRecommendEndpoint);
+    config.shortcuts = config.shortcuts && typeof config.shortcuts === "object"
+      ? clone(config.shortcuts)
+      : {};
+    return config;
+  }
+
   function getAishellTechMinnanConfig(settings) {
     const defaults =
       constants.DEFAULT_SETTINGS?.platforms?.aishellTech?.scripts?.minnanHelper || {};
@@ -4391,26 +4517,41 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
-        aiRecommendPipelineMode: "two_stage",
-        aiRecommendRecognitionStrategy: "audio_first_reference",
-        aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
         aiQualifiedAutofillConcurrency: 5,
+        aiRecommendConvertModel: "qwen3.5-plus",
+        aiRecommendConvertPrompt: "",
+        aiRecommendConvertTemperature: "",
+        aiRecommendConvertTopP: "",
+        aiRecommendConvertMaxTokens: "",
+        aiRecommendConvertMaxCompletionTokens: "",
+        aiRecommendConvertPresencePenalty: "",
+        aiRecommendConvertFrequencyPenalty: "",
+        aiRecommendConvertSeed: "",
+        aiRecommendConvertStopSequences: "",
         aiRecommendListenModel: "qwen3.5-omni-flash",
-        aiRecommendCandidateModel: "qwen3.5-plus",
-        aiRecommendCompareModel: "qwen3.5-plus",
-        aiRecommendSingleModel: "qwen3.5-omni-flash",
-        aiRecommendEnableThinking: false,
-        aiRecommendCandidatePrompt: "",
         aiRecommendListenPrompt: "",
-        aiRecommendComparePrompt: "",
-        aiRecommendTemperature: "",
-        aiRecommendTopP: "",
-        aiRecommendMaxTokens: "",
-        aiRecommendMaxCompletionTokens: "",
-        aiRecommendPresencePenalty: "",
-        aiRecommendFrequencyPenalty: "",
-        aiRecommendSeed: "",
-        aiRecommendStopSequences: "",
+        aiRecommendListenTemperature: "",
+        aiRecommendListenTopP: "",
+        aiRecommendListenMaxTokens: "",
+        aiRecommendListenMaxCompletionTokens: "",
+        aiRecommendListenPresencePenalty: "",
+        aiRecommendListenFrequencyPenalty: "",
+        aiRecommendListenSeed: "",
+        aiRecommendListenStopSequences: "",
+        aiRecommendCompareFamily: "qwen",
+        aiRecommendCompareModel: "qwen3.5-plus",
+        aiRecommendEnableThinking: false,
+        aiRecommendCompareQwenPrompt: "",
+        aiRecommendCompareOmniPrompt: "",
+        aiRecommendCompareTemperature: "",
+        aiRecommendCompareTopP: "",
+        aiRecommendCompareMaxTokens: "",
+        aiRecommendCompareMaxCompletionTokens: "",
+        aiRecommendComparePresencePenalty: "",
+        aiRecommendCompareFrequencyPenalty: "",
+        aiRecommendCompareSeed: "",
+        aiRecommendCompareStopSequences: "",
+        aiRecommendCompareAdoptionThreshold: 0.75,
         shortcuts: {},
       },
       defaults,
@@ -4420,102 +4561,58 @@
     config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
       config.aiRecommendRequestTimeoutMs
     );
-    const defaultRecognitionMode = normalizeDataBakerRecognitionMode(
-      defaults.aiRecommendPipelineMode,
-      "two_stage"
-    );
-    const defaultRecognitionStrategy = getAishellTechRecognitionStrategyDefault(defaults);
-    const defaultListenModel = normalizeDataBakerListenModel(
-      defaults.aiRecommendListenModel,
-      "qwen3.5-omni-flash"
-    );
-    const defaultSingleModel = normalizeDataBakerSingleModel(
-      defaults.aiRecommendSingleModel || defaults.aiRecommendListenModel,
-      "qwen3.5-omni-flash"
-    );
-    const rawRecognitionMode = getDataBakerModelText(config.aiRecommendPipelineMode);
-    const normalizedRecognitionMode = normalizeDataBakerRecognitionMode(
-      config.aiRecommendPipelineMode,
-      defaultRecognitionMode
-    );
-    config.aiRecommendListenModel = normalizeDataBakerListenModel(
-      config.aiRecommendListenModel,
-      rawRecognitionMode === "fun_asr_compare"
-        ? "fun-asr"
-        : normalizedRecognitionMode === "two_stage" &&
-            isDataBakerFunAsrListenModel(config.aiRecommendListenModel)
-          ? "fun-asr"
-          : defaultListenModel
-    );
-    config.aiRecommendSingleModel = normalizeDataBakerSingleModel(
-      config.aiRecommendSingleModel ||
-        (normalizedRecognitionMode === "omni_single"
-          ? isDataBakerFunAsrListenModel(config.aiRecommendListenModel)
-            ? "qwen3.5-omni-flash"
-            : config.aiRecommendListenModel
-          : ""),
-      defaultSingleModel
-    );
-    config.aiRecommendPipelineMode = normalizedRecognitionMode;
-    config.aiRecommendRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
-      config.aiRecommendRecognitionStrategy || config.recognitionStrategy || config.pipelineMode,
-      defaultRecognitionStrategy
-    );
-    config.aiRecommendAudioFirstReferenceCorrectionThreshold =
-      normalizeOptionalNumberText(
-        config.aiRecommendAudioFirstReferenceCorrectionThreshold,
-        0,
-        1,
-        3
-      ) || getAishellTechAudioFirstReferenceCorrectionThresholdDefault(defaults);
-    config.aiQualifiedAutofillConcurrency = normalizeDataBakerAutofillConcurrency(
-      config.aiQualifiedAutofillConcurrency,
-      {
-        aiRecommendPipelineMode: config.aiRecommendPipelineMode,
-        aiRecommendListenModel: config.aiRecommendListenModel,
-        aiRecommendSingleModel: config.aiRecommendSingleModel,
-      }
-    );
-    config.aiRecommendCandidateModel = normalizeDataBakerCompareModel(
-      config.aiRecommendCandidateModel,
-      getAishellTechCandidateModelDefault(defaults)
-    );
-    config.aiRecommendCompareModel = normalizeDataBakerCompareModel(
-      config.aiRecommendCompareModel,
+    config.aiRecommendConvertModel = normalizeDataBakerCompareModel(
+      config.aiRecommendConvertModel,
       "qwen3.5-plus"
     );
-    config.aiRecommendEnableThinking = config.aiRecommendEnableThinking === true;
-    config.aiRecommendCandidatePrompt = normalizePromptText(config.aiRecommendCandidatePrompt || "");
+    normalizeAishellTechStageParamFields(config, "aiRecommendConvert");
+    config.aiRecommendConvertPrompt = normalizePromptText(config.aiRecommendConvertPrompt || "");
+    config.aiRecommendListenModel = normalizeDataBakerListenModel(
+      config.aiRecommendListenModel,
+      "qwen3.5-omni-flash"
+    );
+    normalizeAishellTechStageParamFields(config, "aiRecommendListen");
     config.aiRecommendListenPrompt = normalizePromptText(config.aiRecommendListenPrompt || "");
-    config.aiRecommendComparePrompt = normalizePromptText(config.aiRecommendComparePrompt || "");
-    config.aiRecommendTemperature = normalizeOptionalNumberText(config.aiRecommendTemperature, 0, 2, 3);
-    config.aiRecommendTopP = normalizeOptionalNumberText(config.aiRecommendTopP, 0, 1, 3);
-    config.aiRecommendMaxTokens = normalizeOptionalIntegerText(config.aiRecommendMaxTokens, 1, 8192);
-    config.aiRecommendMaxCompletionTokens = normalizeOptionalIntegerText(
-      config.aiRecommendMaxCompletionTokens,
-      1,
-      8192
+    config.aiRecommendCompareFamily = normalizeAishellTechCompareFamily(
+      config.aiRecommendCompareFamily,
+      "qwen"
     );
-    config.aiRecommendPresencePenalty = normalizeOptionalNumberText(
-      config.aiRecommendPresencePenalty,
-      -2,
-      2,
-      3
+    const defaultOmniCompareModel = normalizeDataBakerSingleModel(
+      defaults.aiRecommendCompareFamily === "omni"
+        ? defaults.aiRecommendCompareModel
+        : defaults.aiRecommendListenModel,
+      "qwen3.5-omni-flash"
     );
-    config.aiRecommendFrequencyPenalty = normalizeOptionalNumberText(
-      config.aiRecommendFrequencyPenalty,
-      -2,
-      2,
-      3
+    const defaultQwenCompareModel = normalizeDataBakerCompareModel(
+      defaults.aiRecommendCompareFamily === "qwen"
+        ? defaults.aiRecommendCompareModel
+        : defaults.aiRecommendConvertModel,
+      "qwen3.5-plus"
     );
-    config.aiRecommendSeed = normalizeOptionalIntegerText(
-      config.aiRecommendSeed,
-      0,
-      2147483647
+    config.aiRecommendCompareModel =
+      config.aiRecommendCompareFamily === "omni"
+        ? normalizeDataBakerSingleModel(
+            config.aiRecommendCompareModel,
+            defaultOmniCompareModel
+          )
+        : normalizeDataBakerCompareModel(
+            config.aiRecommendCompareModel,
+            defaultQwenCompareModel
+          );
+    normalizeAishellTechStageParamFields(config, "aiRecommendCompare");
+    config.aiRecommendCompareQwenPrompt = normalizePromptText(
+      config.aiRecommendCompareQwenPrompt || ""
     );
-    config.aiRecommendStopSequences = normalizeStopSequencesText(
-      config.aiRecommendStopSequences || ""
+    config.aiRecommendCompareOmniPrompt = normalizePromptText(
+      config.aiRecommendCompareOmniPrompt || ""
     );
+    config.aiRecommendCompareAdoptionThreshold =
+      normalizeOptionalNumberText(config.aiRecommendCompareAdoptionThreshold, 0, 1, 3) || "0.75";
+    config.aiQualifiedAutofillConcurrency = normalizeDataBakerAutofillConcurrency(
+      config.aiQualifiedAutofillConcurrency,
+      getAishellTechConcurrencyModelConfig(config)
+    );
+    config.aiRecommendEnableThinking = false;
     config.shortcuts = normalizeAishellTechShortcuts(config.shortcuts);
     return config;
   }
@@ -4540,6 +4637,7 @@
           aiRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           shortcuts: createAbakaAiDefaultShortcutMap(),
       },
+      defaults.aiRecommendListenModel,
       defaults,
       current
     );
@@ -4650,6 +4748,89 @@
     ].join("");
   }
 
+  function buildAishellTechStageParamFieldsMarkup(stagePrefix, includeThresholdField) {
+    const prefix = "aishell-tech-ai-" + String(stagePrefix || "").trim();
+    return [
+      includeThresholdField
+        ? '<label class="asr-ai-field" id="aishell-tech-ai-compare-adoption-threshold-field"><span>采纳阈值</span><input id="aishell-tech-ai-compare-adoption-threshold" type="number" min="0" max="1" step="0.001" /><span class="asr-ai-help" id="aishell-tech-ai-compare-adoption-threshold-help">默认 0.75。低于阈值时优先保留听音文本，并提示人工复核。</span></label>'
+        : "",
+      '<label class="asr-ai-field"><span>temperature</span><input id="' +
+        prefix +
+        '-temperature" type="number" min="0" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>top_p</span><input id="' +
+        prefix +
+        '-top-p" type="number" min="0" max="1" step="0.05" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>max_tokens</span><input id="' +
+        prefix +
+        '-max-tokens" type="number" min="1" max="8192" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>max_completion_tokens</span><input id="' +
+        prefix +
+        '-max-completion-tokens" type="number" min="1" max="8192" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>presence_penalty</span><input id="' +
+        prefix +
+        '-presence-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>frequency_penalty</span><input id="' +
+        prefix +
+        '-frequency-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>seed</span><input id="' +
+        prefix +
+        '-seed" type="number" min="0" max="2147483647" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>stop sequences（每行一个）</span><textarea id="' +
+        prefix +
+        '-stop-sequences" maxlength="960"></textarea><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+    ].join("");
+  }
+
+  function renderAishellTechAiSettingsSection(panel, headerHtml, defaultsTipId) {
+    panel.innerHTML = [
+      '<div class="asr-ai-panel">',
+      headerHtml,
+      '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
+      '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="aishell-tech-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示当前条推荐与批量保存面板</span></label></label>',
+      renderSharedAsrAutofillConcurrencyField(aishellTechMinnanScriptId),
+      '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="aishell-tech-ai-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
+      '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="aishell-tech-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
+      "</div></div>",
+      '<div class="asr-ai-block"><strong>转换</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>转换模型</span><select id="aishell-tech-ai-convert-model-select"></select><span class="asr-ai-help">只用于根据词表把命中词替换成闽南语写法，不做整句润色。</span></label>',
+      '<label class="asr-ai-field"><span>转换 Prompt（可选）</span><textarea id="aishell-tech-ai-convert-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+      '</div><div class="asr-ai-grid three">' +
+        buildAishellTechStageParamFieldsMarkup("convert", false) +
+        "</div></div>",
+      '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>听音模型</span><select id="aishell-tech-ai-listen-model-select"></select><span class="asr-ai-help" id="aishell-tech-ai-listen-model-help"></span></label>',
+      '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="aishell-tech-ai-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+      '<div class="asr-ai-field" id="aishell-tech-ai-listen-model-note"><span class="asr-ai-help"></span></div>',
+      '</div><div class="asr-ai-grid three">' +
+        buildAishellTechStageParamFieldsMarkup("listen", false) +
+        "</div></div>",
+      '<div class="asr-ai-block"><strong>比较</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>比较方式</span><select id="aishell-tech-ai-compare-family-select"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-family-help">Qwen 只做文本比较；Omni 会在比较阶段再次听音频。</span></label>',
+      '<label class="asr-ai-field"><span>比较模型</span><select id="aishell-tech-ai-compare-model-select"></select><span class="asr-ai-help" id="aishell-tech-ai-compare-model-help"></span></label>',
+      '<label class="asr-ai-field" id="aishell-tech-ai-compare-qwen-prompt-field"><span>Qwen 比较 Prompt（可选）</span><textarea id="aishell-tech-ai-compare-qwen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">用于纯文本比对，不再二次听音。</span></label>',
+      '<label class="asr-ai-field" id="aishell-tech-ai-compare-omni-prompt-field"><span>Omni 比较 Prompt（可选）</span><textarea id="aishell-tech-ai-compare-omni-prompt" maxlength="8000"></textarea><span class="asr-ai-help">用于比较阶段再次听音并综合判断。</span></label>',
+      '</div><div class="asr-ai-grid three">' +
+        buildAishellTechStageParamFieldsMarkup("compare", true) +
+        "</div></div>",
+      "</div>",
+    ].join("");
+
+    const listenNode = getElement("aishell-tech-ai-listen-model-select");
+    const compareFamilyNode = getElement("aishell-tech-ai-compare-family-select");
+    if (listenNode instanceof HTMLSelectElement) {
+      listenNode.addEventListener("change", function (event) {
+        updateAishellTechListenModelFields(event?.target?.value);
+      });
+    }
+    if (compareFamilyNode instanceof HTMLSelectElement) {
+      compareFamilyNode.addEventListener("change", function (event) {
+        updateAishellTechCompareFamilyFields(event?.target?.value);
+      });
+    }
+    panel.classList.remove("hidden");
+  }
+
   function renderAsrVoiceAiSettingsSection(settings, scriptId) {
     const panel = getElement("detail-shared-asr-ai-panel");
     if (!panel) {
@@ -4700,14 +4881,14 @@
       return;
     }
 
-    if (
-      scriptId === dataBakerRoundOneQualityScriptId ||
-      isMagicDataScript(scriptId) ||
-      isAishellTechScript(scriptId)
-    ) {
+    if (isAishellTechScript(scriptId)) {
+      renderAishellTechAiSettingsSection(panel, headerHtml, defaultsTipId);
+      return;
+    }
+
+    if (scriptId === dataBakerRoundOneQualityScriptId || isMagicDataScript(scriptId)) {
       const panelSpec = buildSharedAsrAiPanelSpec(scriptId);
       const isDataBakerPanel = scriptId === dataBakerRoundOneQualityScriptId;
-      const isAishellPanel = isAishellTechScript(scriptId);
       const isMagicDataPanel = isMagicDataScript(scriptId);
       const useRecognitionStrategy = panelSpec.showRecognitionStrategy === true;
       const usePipelineModels = panelSpec.showPipelineMode === true;
@@ -4715,16 +4896,12 @@
         panelSpec.prefix ||
         (isDataBakerPanel
           ? "data-baker-ai"
-          : isAishellPanel
-            ? "aishell-tech-ai"
-            : "magic-data-ai");
+          : "magic-data-ai");
       const modelLabel = panelSpec.modelLabel || (usePipelineModels ? "比较模型" : "质检模型");
       const modelFieldMarkup = {
         enabled: isDataBakerPanel
           ? '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="data-baker-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示 AI 推荐工具卡</span></label></label>'
-          : isAishellPanel
-            ? '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="aishell-tech-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示当前条推荐与批量保存面板</span></label></label>'
-            : '<label class="asr-ai-field"><span>启用 AI 质检助手</span><label class="asr-ai-boolean"><input id="magic-data-enabled" type="checkbox" /><span>关闭后不显示 AI 质检建议</span></label></label>',
+          : '<label class="asr-ai-field"><span>启用 AI 质检助手</span><label class="asr-ai-boolean"><input id="magic-data-enabled" type="checkbox" /><span>关闭后不显示 AI 质检建议</span></label></label>',
         pipelineMode:
           '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +
@@ -4757,9 +4934,6 @@
           '<div class="asr-ai-field hidden" id="' +
           prefix +
           '-listen-model-note"><span class="asr-ai-help">Fun-ASR 默认通过统一后端 REST provider 调用；只有显式切换时才会走 Python fallback。候选转写模型先结合页面原文与词表上下文生成词表转写文本，再由差异比较模型判断哪些差异需要采纳。</span></div>',
-        candidateModel: isAishellPanel
-          ? '<label class="asr-ai-field" id="aishell-tech-ai-candidate-model-field"><span>词表转写模型</span><select id="aishell-tech-ai-candidate-model-select"></select><span class="asr-ai-help">先根据原始文本和词表上下文生成词表转写文本；仅 Aishell 三文本对照链路使用。</span></label>'
-          : "",
         singleModel:
           '<label class="asr-ai-field' +
           (usePipelineModels ? "" : " hidden") +
@@ -4815,16 +4989,10 @@
         '<label class="asr-ai-field hidden" id="' + prefix + '-compare-model-custom-field"><span id="' + prefix + '-compare-model-custom-label">' + modelLabel + '自定义</span><input id="' + prefix + '-compare-model-custom" type="text" class="hidden" autocomplete="off" /></label>',
         "</div></div>",
         '<div class="asr-ai-block"><strong>Prompt</strong><div class="asr-ai-grid">',
-        isAishellPanel
-          ? '<label class="asr-ai-field"><span>词表转写 Prompt（可选）</span><textarea id="aishell-tech-ai-candidate-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>'
-          : "",
         '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="' + prefix + '-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
         '<label class="asr-ai-field"><span id="' + prefix + '-compare-prompt-label">' + modelLabel + ' Prompt（可选）</span><textarea id="' + prefix + '-compare-prompt" maxlength="8000"></textarea><span class="asr-ai-help" id="' + prefix + '-compare-prompt-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
         "</div></div>",
         '<div class="asr-ai-block"><strong>生成参数</strong><div class="asr-ai-grid three">',
-        isAishellPanel
-          ? '<label class="asr-ai-field hidden" id="aishell-tech-audio-first-reference-correction-threshold-field"><span>词表候选校正阈值</span><input id="aishell-tech-audio-first-reference-correction-threshold" type="number" min="0" max="1" step="0.001" /><span class="asr-ai-help" id="aishell-tech-audio-first-reference-correction-threshold-help"></span></label>'
-          : "",
         '<label class="asr-ai-field"><span>temperature</span><input id="' + prefix + '-temperature" type="number" min="0" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
         '<label class="asr-ai-field"><span>top_p</span><input id="' + prefix + '-top-p" type="number" min="0" max="1" step="0.05" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
         '<label class="asr-ai-field"><span>max_tokens</span><input id="' + prefix + '-max-tokens" type="number" min="1" max="8192" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
@@ -4853,31 +5021,6 @@
         if (singleNode instanceof HTMLSelectElement) {
           singleNode.addEventListener("change", function (event) {
             updateDataBakerSingleModelFields(event?.target?.value);
-          });
-        }
-      } else if (isAishellPanel) {
-        const recognitionNode = getElement("aishell-tech-ai-pipeline-mode-select");
-        const strategyNode = getElement("aishell-tech-ai-recognition-strategy-select");
-        const listenNode = getElement("aishell-tech-ai-listen-model-select");
-        const singleNode = getElement("aishell-tech-ai-single-model-select");
-        if (recognitionNode instanceof HTMLSelectElement) {
-          recognitionNode.addEventListener("change", function (event) {
-            updateAishellTechRecognitionModeFields(event?.target?.value);
-          });
-        }
-        if (strategyNode instanceof HTMLSelectElement) {
-          strategyNode.addEventListener("change", function (event) {
-            updateAishellTechRecognitionStrategyFields(event?.target?.value);
-          });
-        }
-        if (listenNode instanceof HTMLSelectElement) {
-          listenNode.addEventListener("change", function (event) {
-            updateAishellTechListenModelFields(event?.target?.value);
-          });
-        }
-        if (singleNode instanceof HTMLSelectElement) {
-          singleNode.addEventListener("change", function (event) {
-            updateAishellTechSingleModelFields(event?.target?.value);
           });
         }
       } else if (isMagicDataPanel) {
@@ -4934,6 +5077,14 @@
       );
     }
 
+    if (isDataBakerCvpcScript(scriptId)) {
+      const config = getDataBakerCvpcLiuzhouConfig(settings);
+      return Boolean(
+        settings?.platforms?.dataBakerCvpc?.enabled !== false &&
+          config.enabled !== false
+      );
+    }
+
     if (isDataBakerScript(scriptId)) {
       const config = getDataBakerRoundOneConfig(settings);
       return Boolean(settings?.platforms?.dataBaker?.enabled !== false && config.enabled !== false);
@@ -4983,6 +5134,23 @@
       return isScriptEnabled(settings, scriptId)
         ? { text: "已启用", tone: "enabled" }
         : { text: "未启用", tone: "disabled" };
+    }
+
+    if (isDataBakerCvpcScript(scriptId)) {
+      const config = getDataBakerCvpcLiuzhouConfig(settings);
+      if (!isScriptEnabled(settings, scriptId)) {
+        return { text: "未启用", tone: "disabled" };
+      }
+      if (config.segmentPreviewEnabled === false && config.aiRecommendEnabled === false) {
+        return { text: "脚本已启用，建议入口已关闭", tone: "pending" };
+      }
+      if (config.segmentPreviewEnabled === false) {
+        return { text: "脚本已启用，画段建议已关闭", tone: "pending" };
+      }
+      if (config.aiRecommendEnabled === false) {
+        return { text: "脚本已启用，AI 推荐已关闭", tone: "pending" };
+      }
+      return { text: "已启用", tone: "enabled" };
     }
 
     if (isDataBakerScript(scriptId)) {
@@ -5052,6 +5220,10 @@
   function getScriptHostText(scriptId) {
     if (scriptId === lightwheelScriptId) {
       return "https://label-cloud.lightwheel.net/w/video3/index.html?access=1";
+    }
+
+    if (isDataBakerCvpcScript(scriptId)) {
+      return "https://cvpc.data-baker.com/app/editor/asr/?project_id=...&task_id=...&process_id=...";
     }
 
     if (isDataBakerScript(scriptId)) {
@@ -9451,6 +9623,10 @@
       "hidden",
       scriptId !== dataBakerRoundOneQualityScriptId
     );
+    getElement("detail-data-baker-cvpc-liuzhou-panel").classList.toggle(
+      "hidden",
+      scriptId !== dataBakerCvpcLiuzhouScriptId
+    );
     getElement("detail-aishell-tech-minnan-helper-panel").classList.toggle(
       "hidden",
       scriptId !== aishellTechMinnanScriptId
@@ -9520,6 +9696,15 @@
       setStatus(
         "data-baker-status",
         "DataBaker 导出数据会在本地下载的同时自动上传到后端；上传地址由首页顶部“后端接口地址”统一控制。"
+      );
+      return;
+    }
+
+    if (scriptId === dataBakerCvpcLiuzhouScriptId) {
+      applyDataBakerCvpcForm(settings);
+      setStatus(
+        "data-baker-cvpc-status",
+        "当前只支持建议生成 + 人工确认；不会自动保存、提交或切下一条，真实画段写入契约仍待补采。"
       );
       return;
     }
@@ -9617,6 +9802,32 @@
     renderDataBakerShortcutGrid();
   }
 
+  function applyDataBakerCvpcForm(settings) {
+    const config = getDataBakerCvpcLiuzhouConfig(settings);
+    const segmentPreviewNode = getElement("data-baker-cvpc-segment-preview-enabled");
+    const aiRecommendNode = getElement("data-baker-cvpc-ai-recommend-enabled");
+    const timeoutNode = getElement("data-baker-cvpc-ai-timeout");
+    const contractNode = getElement("data-baker-cvpc-contract-mode");
+
+    if (segmentPreviewNode) {
+      segmentPreviewNode.checked = config.segmentPreviewEnabled !== false;
+    }
+    if (aiRecommendNode) {
+      aiRecommendNode.checked = config.aiRecommendEnabled !== false;
+    }
+    if (timeoutNode) {
+      timeoutNode.value = String(
+        Number(config.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
+      );
+    }
+    if (contractNode) {
+      contractNode.textContent =
+        config.contractMode === "dom-guarded"
+          ? "仅允许 DOM 守卫下的显式写入；真实画段写入契约仍待补采。"
+          : String(config.contractMode || "dom-guarded");
+    }
+  }
+
   function applyAishellTechForm(settings) {
     const config = getAishellTechMinnanConfig(settings);
     const defaultsPayload = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId);
@@ -9628,53 +9839,10 @@
       getElement("aishell-tech-ai-timeout").value = String(
         Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
       );
-      applyAishellTechRecognitionModeFields(config.aiRecommendPipelineMode, config, aiDefaults);
+      applyAishellTechStageFields(config, aiDefaults);
       applyForcedThinkingToggle(
         "aishell-tech-ai-enable-thinking",
         "thinking 已全局固定关闭；希尔贝壳不再允许开启 Omni 思考模式。"
-      );
-      const promptProfile = getAishellTechPromptProfile(
-        aiDefaults,
-        config.aiRecommendRecognitionStrategy
-      );
-      getElement("aishell-tech-ai-candidate-prompt").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendCandidatePrompt, promptProfile.candidatePrompt)
-      );
-      getElement("aishell-tech-ai-listen-prompt").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendListenPrompt, promptProfile.listenPrompt)
-      );
-      getElement("aishell-tech-ai-compare-prompt").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendComparePrompt, promptProfile.comparePrompt)
-      );
-      getElement("aishell-tech-ai-temperature").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendTemperature, aiDefaults.temperature)
-      );
-      getElement("aishell-tech-ai-top-p").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendTopP, aiDefaults.top_p)
-      );
-      getElement("aishell-tech-ai-max-tokens").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendMaxTokens, aiDefaults.max_tokens)
-      );
-      getElement("aishell-tech-ai-max-completion-tokens").value = String(
-        getAsrVoiceAiEffectiveText(
-          config.aiRecommendMaxCompletionTokens,
-          aiDefaults.max_completion_tokens
-        )
-      );
-      getElement("aishell-tech-ai-presence-penalty").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendPresencePenalty, aiDefaults.presence_penalty)
-      );
-      getElement("aishell-tech-ai-frequency-penalty").value = String(
-        getAsrVoiceAiEffectiveText(
-          config.aiRecommendFrequencyPenalty,
-          aiDefaults.frequency_penalty
-        )
-      );
-      getElement("aishell-tech-ai-seed").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendSeed, aiDefaults.seed)
-      );
-      getElement("aishell-tech-ai-stop-sequences").value = String(
-        getAsrVoiceAiEffectiveText(config.aiRecommendStopSequences, aiDefaults.stop)
       );
       updateAishellTechAutofillConcurrencyField(config);
     }
@@ -9911,6 +10079,7 @@
 
     const currentConfig = getAishellTechMinnanConfig(currentSettings || {});
     const aiDefaults = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId).defaults || {};
+    const stageDefaults = getAishellTechStageDefaults(aiDefaults);
     const hasAiSettingsPanel = Boolean(getElement("aishell-tech-ai-timeout"));
     const timeoutInput = hasAiSettingsPanel
       ? getElement("aishell-tech-ai-timeout").value
@@ -9919,85 +10088,18 @@
       ? getElement("aishell-tech-ai-recommend-enabled").checked
       : currentConfig.aiRecommendEnabled !== false;
     const timeoutMs = normalizeDataBakerTimeoutMs(timeoutInput);
-    const recognitionMode = hasAiSettingsPanel
-      ? normalizeDataBakerRecognitionMode(
-          getElement("aishell-tech-ai-pipeline-mode-select")?.value,
-          currentConfig.aiRecommendPipelineMode || "two_stage"
-        )
-      : normalizeDataBakerRecognitionMode(currentConfig.aiRecommendPipelineMode, "two_stage");
-    const recognitionStrategy = hasAiSettingsPanel
-      ? "audio_first_reference"
-      : normalizeAishellTechRecognitionStrategy(
-          currentConfig.aiRecommendRecognitionStrategy,
-          "audio_first_reference"
-        );
-    const listenModel = hasAiSettingsPanel
-      ? normalizeDataBakerListenModel(
-          getElement("aishell-tech-ai-listen-model-select")?.value,
-          getDataBakerListenModelDefault(aiDefaults)
-        )
-      : normalizeDataBakerListenModel(
-          currentConfig.aiRecommendListenModel,
-          getDataBakerListenModelDefault(aiDefaults)
-        );
-    const compareModel = normalizeDataBakerCompareModel(
-      hasAiSettingsPanel
-        ? getElement("aishell-tech-ai-compare-model-select")?.value
-        : currentConfig.aiRecommendCompareModel,
-      String(aiDefaults.compareModel || "qwen3.5-plus")
-    );
-    const candidateModel = normalizeDataBakerCompareModel(
-      hasAiSettingsPanel
-        ? getElement("aishell-tech-ai-candidate-model-select")?.value
-        : currentConfig.aiRecommendCandidateModel,
-      getAishellTechCandidateModelDefault(aiDefaults)
-    );
-    const singleModel = hasAiSettingsPanel
-      ? normalizeDataBakerSingleModel(
-          getElement("aishell-tech-ai-single-model-select")?.value,
-          getDataBakerSingleModelDefault(aiDefaults)
-        )
-      : normalizeDataBakerSingleModel(
-          currentConfig.aiRecommendSingleModel,
-          getDataBakerSingleModelDefault(aiDefaults)
-        );
+    const draftConfig = hasAiSettingsPanel
+      ? getAishellTechSettingsDraftConfig(aiDefaults)
+      : currentConfig;
     const autofillConcurrency = normalizeDataBakerAutofillConcurrency(
       getElement("aishell-tech-qualified-autofill-concurrency")?.value,
-      {
-        aiRecommendPipelineMode: recognitionMode,
-        aiRecommendListenModel: listenModel,
-        aiRecommendSingleModel: singleModel,
-      }
+      getAishellTechConcurrencyModelConfig(draftConfig)
     );
-    updateAishellTechAutofillConcurrencyField({
-      aiRecommendPipelineMode: recognitionMode,
-      aiRecommendListenModel: listenModel,
-      aiRecommendSingleModel: singleModel,
-      aiQualifiedAutofillConcurrency: autofillConcurrency,
-    });
-    const audioFirstReferenceCorrectionThreshold = hasAiSettingsPanel
-      ? normalizeOptionalNumberText(
-          getElement("aishell-tech-audio-first-reference-correction-threshold")?.value,
-          0,
-          1,
-          3
-        ) || getAishellTechAudioFirstReferenceCorrectionThresholdDefault(aiDefaults)
-      : normalizeOptionalNumberText(
-          currentConfig.aiRecommendAudioFirstReferenceCorrectionThreshold,
-          0,
-          1,
-          3
-        ) || getAishellTechAudioFirstReferenceCorrectionThresholdDefault(aiDefaults);
-    const candidatePrompt = hasAiSettingsPanel
-      ? normalizePromptText(getElement("aishell-tech-ai-candidate-prompt").value)
-      : currentConfig.aiRecommendCandidatePrompt;
-    const listenPrompt = hasAiSettingsPanel
-      ? normalizePromptText(getElement("aishell-tech-ai-listen-prompt").value)
-      : currentConfig.aiRecommendListenPrompt;
-    const comparePrompt = hasAiSettingsPanel
-      ? normalizePromptText(getElement("aishell-tech-ai-compare-prompt").value)
-      : currentConfig.aiRecommendComparePrompt;
-    const promptProfile = getAishellTechPromptProfile(aiDefaults, recognitionStrategy);
+    updateAishellTechAutofillConcurrencyField(
+      Object.assign({}, draftConfig, {
+        aiQualifiedAutofillConcurrency: autofillConcurrency,
+      })
+    );
     const normalizeOverridePrompt = function (value, defaultValue) {
       const normalizedValue = normalizePromptText(value || "");
       const normalizedDefault = normalizePromptText(defaultValue || "");
@@ -10013,75 +10115,46 @@
       const normalizedDefault = normalizeOptionalIntegerText(defaultValue, min, max);
       return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
     };
-    const temperature = hasAiSettingsPanel
-      ? normalizeOverrideNumber(
-          getElement("aishell-tech-ai-temperature").value,
-          aiDefaults.temperature,
-          0,
-          2,
-          3
-        )
-      : currentConfig.aiRecommendTemperature;
-    const topP = hasAiSettingsPanel
-      ? normalizeOverrideNumber(
-          getElement("aishell-tech-ai-top-p").value,
-          aiDefaults.top_p,
-          0,
-          1,
-          3
-        )
-      : currentConfig.aiRecommendTopP;
-    const maxTokens = hasAiSettingsPanel
-      ? normalizeOverrideInteger(
-          getElement("aishell-tech-ai-max-tokens").value,
-          aiDefaults.max_tokens,
-          1,
-          8192
-        )
-      : currentConfig.aiRecommendMaxTokens;
-    const maxCompletionTokens = hasAiSettingsPanel
-      ? normalizeOverrideInteger(
-          getElement("aishell-tech-ai-max-completion-tokens").value,
-          aiDefaults.max_completion_tokens,
-          1,
-          8192
-        )
-      : currentConfig.aiRecommendMaxCompletionTokens;
-    const presencePenalty = hasAiSettingsPanel
-      ? normalizeOverrideNumber(
-          getElement("aishell-tech-ai-presence-penalty").value,
-          aiDefaults.presence_penalty,
-          -2,
-          2,
-          3
-        )
-      : currentConfig.aiRecommendPresencePenalty;
-    const frequencyPenalty = hasAiSettingsPanel
-      ? normalizeOverrideNumber(
-          getElement("aishell-tech-ai-frequency-penalty").value,
-          aiDefaults.frequency_penalty,
-          -2,
-          2,
-          3
-        )
-      : currentConfig.aiRecommendFrequencyPenalty;
-    const seed = hasAiSettingsPanel
-      ? normalizeOverrideInteger(
-          getElement("aishell-tech-ai-seed").value,
-          aiDefaults.seed,
-          0,
-          2147483647
-        )
-      : currentConfig.aiRecommendSeed;
-    const stopSequences = hasAiSettingsPanel
-      ? (function () {
-          const normalizedValue = normalizeStopSequencesText(
-            getElement("aishell-tech-ai-stop-sequences").value
+    const normalizeOverrideThreshold = function (value, defaultValue) {
+      const normalizedValue = normalizeOptionalNumberText(value, 0, 1, 3);
+      const normalizedDefault = normalizeOptionalNumberText(defaultValue, 0, 1, 3);
+      return normalizedValue && normalizedValue !== normalizedDefault ? Number(normalizedValue) : "";
+    };
+    const readStageOverrides = function (configPrefix, stageKey) {
+      const stageDefault = stageDefaults[stageKey] || {};
+      const overrides = {};
+      aishellTechStageParamDefinitions.forEach(function (definition) {
+        const fieldName = configPrefix + definition.suffix;
+        const defaultValue = stageDefault[definition.apiKey];
+        if (definition.type === "number") {
+          overrides[fieldName] = normalizeOverrideNumber(
+            draftConfig[fieldName],
+            defaultValue,
+            definition.min,
+            definition.max,
+            definition.precision
           );
-          const normalizedDefault = normalizeStopSequencesText(aiDefaults.stop || "");
-          return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
-        })()
-      : currentConfig.aiRecommendStopSequences;
+          return;
+        }
+        if (definition.type === "integer") {
+          overrides[fieldName] = normalizeOverrideInteger(
+            draftConfig[fieldName],
+            defaultValue,
+            definition.min,
+            definition.max
+          );
+          return;
+        }
+        const normalizedValue = normalizeStopSequencesText(draftConfig[fieldName] || "");
+        const normalizedDefault = normalizeStopSequencesText(defaultValue || "");
+        overrides[fieldName] =
+          normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+      });
+      return overrides;
+    };
+    const convertOverrides = readStageOverrides("aiRecommendConvert", "convert");
+    const listenOverrides = readStageOverrides("aiRecommendListen", "listen");
+    const compareOverrides = readStageOverrides("aiRecommendCompare", "compare");
     const enableThinking = false;
     const shortcuts = {};
 
@@ -10102,52 +10175,83 @@
                 id: aishellTechMinnanScriptId,
                 aiRecommendEnabled: aiRecommendEnabled,
                 aiRecommendRequestTimeoutMs: timeoutMs,
-                aiRecommendPipelineMode: recognitionMode,
-                aiRecommendRecognitionStrategy: recognitionStrategy,
-                aiRecommendAudioFirstReferenceCorrectionThreshold: Number(
-                  audioFirstReferenceCorrectionThreshold
+                aiRecommendConvertModel: draftConfig.aiRecommendConvertModel,
+                aiRecommendConvertPrompt: normalizeOverridePrompt(
+                  draftConfig.aiRecommendConvertPrompt,
+                  stageDefaults.convert.prompt
                 ),
-                aiRecommendListenModel:
-                  recognitionMode === "two_stage" &&
-                  listenModel !== getDataBakerListenModelDefault(aiDefaults)
-                    ? listenModel
-                    : "",
-                aiRecommendCandidateModel:
-                  candidateModel !== getAishellTechCandidateModelDefault(aiDefaults)
-                    ? candidateModel
-                    : "",
-                aiRecommendCompareModel:
-                  compareModel !== String(aiDefaults.compareModel || "").trim()
-                    ? compareModel
-                    : "",
-                aiRecommendSingleModel:
-                  recognitionMode === "omni_single" &&
-                  singleModel !== getDataBakerSingleModelDefault(aiDefaults)
-                    ? singleModel
-                    : "",
-                aiRecommendEnableThinking:
-                  enableThinking === true && aiDefaults.enableThinking !== true ? true : false,
-                aiRecommendCandidatePrompt: normalizeOverridePrompt(
-                  candidatePrompt,
-                  promptProfile.candidatePrompt
-                ),
+                aiRecommendConvertTemperature: convertOverrides.aiRecommendConvertTemperature,
+                aiRecommendConvertTopP: convertOverrides.aiRecommendConvertTopP,
+                aiRecommendConvertMaxTokens: convertOverrides.aiRecommendConvertMaxTokens,
+                aiRecommendConvertMaxCompletionTokens:
+                  convertOverrides.aiRecommendConvertMaxCompletionTokens,
+                aiRecommendConvertPresencePenalty:
+                  convertOverrides.aiRecommendConvertPresencePenalty,
+                aiRecommendConvertFrequencyPenalty:
+                  convertOverrides.aiRecommendConvertFrequencyPenalty,
+                aiRecommendConvertSeed: convertOverrides.aiRecommendConvertSeed,
+                aiRecommendConvertStopSequences:
+                  convertOverrides.aiRecommendConvertStopSequences,
+                aiRecommendListenModel: draftConfig.aiRecommendListenModel,
                 aiRecommendListenPrompt: normalizeOverridePrompt(
-                  listenPrompt,
-                  promptProfile.listenPrompt
+                  draftConfig.aiRecommendListenPrompt,
+                  stageDefaults.listen.prompt
                 ),
-                aiRecommendComparePrompt: normalizeOverridePrompt(
-                  comparePrompt,
-                  promptProfile.comparePrompt
+                aiRecommendListenTemperature: listenOverrides.aiRecommendListenTemperature,
+                aiRecommendListenTopP: listenOverrides.aiRecommendListenTopP,
+                aiRecommendListenMaxTokens: listenOverrides.aiRecommendListenMaxTokens,
+                aiRecommendListenMaxCompletionTokens:
+                  listenOverrides.aiRecommendListenMaxCompletionTokens,
+                aiRecommendListenPresencePenalty:
+                  listenOverrides.aiRecommendListenPresencePenalty,
+                aiRecommendListenFrequencyPenalty:
+                  listenOverrides.aiRecommendListenFrequencyPenalty,
+                aiRecommendListenSeed: listenOverrides.aiRecommendListenSeed,
+                aiRecommendListenStopSequences:
+                  listenOverrides.aiRecommendListenStopSequences,
+                aiRecommendCompareFamily: draftConfig.aiRecommendCompareFamily,
+                aiRecommendCompareModel: draftConfig.aiRecommendCompareModel,
+                aiRecommendCompareQwenPrompt: normalizeOverridePrompt(
+                  draftConfig.aiRecommendCompareQwenPrompt,
+                  stageDefaults.compare.qwenPrompt
                 ),
-                aiRecommendTemperature: temperature,
-                aiRecommendTopP: topP,
-                aiRecommendMaxTokens: maxTokens,
-                aiRecommendMaxCompletionTokens: maxCompletionTokens,
-                aiRecommendPresencePenalty: presencePenalty,
-                aiRecommendFrequencyPenalty: frequencyPenalty,
-                aiRecommendSeed: seed,
-                aiRecommendStopSequences: stopSequences,
+                aiRecommendCompareOmniPrompt: normalizeOverridePrompt(
+                  draftConfig.aiRecommendCompareOmniPrompt,
+                  stageDefaults.compare.omniPrompt
+                ),
+                aiRecommendCompareTemperature: compareOverrides.aiRecommendCompareTemperature,
+                aiRecommendCompareTopP: compareOverrides.aiRecommendCompareTopP,
+                aiRecommendCompareMaxTokens: compareOverrides.aiRecommendCompareMaxTokens,
+                aiRecommendCompareMaxCompletionTokens:
+                  compareOverrides.aiRecommendCompareMaxCompletionTokens,
+                aiRecommendComparePresencePenalty:
+                  compareOverrides.aiRecommendComparePresencePenalty,
+                aiRecommendCompareFrequencyPenalty:
+                  compareOverrides.aiRecommendCompareFrequencyPenalty,
+                aiRecommendCompareSeed: compareOverrides.aiRecommendCompareSeed,
+                aiRecommendCompareStopSequences:
+                  compareOverrides.aiRecommendCompareStopSequences,
+                aiRecommendCompareAdoptionThreshold: normalizeOverrideThreshold(
+                  draftConfig.aiRecommendCompareAdoptionThreshold,
+                  stageDefaults.compare.adoptionThreshold
+                ),
+                aiRecommendEnableThinking: enableThinking,
                 aiQualifiedAutofillConcurrency: autofillConcurrency,
+                aiRecommendPipelineMode: "",
+                aiRecommendRecognitionStrategy: "",
+                aiRecommendCandidateModel: "",
+                aiRecommendSingleModel: "",
+                aiRecommendCandidatePrompt: "",
+                aiRecommendComparePrompt: "",
+                aiRecommendTemperature: "",
+                aiRecommendTopP: "",
+                aiRecommendMaxTokens: "",
+                aiRecommendMaxCompletionTokens: "",
+                aiRecommendPresencePenalty: "",
+                aiRecommendFrequencyPenalty: "",
+                aiRecommendSeed: "",
+                aiRecommendStopSequences: "",
+                aiRecommendAudioFirstReferenceCorrectionThreshold: "",
                 shortcuts: shortcuts,
               },
             },

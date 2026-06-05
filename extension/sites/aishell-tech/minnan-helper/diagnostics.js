@@ -51,17 +51,17 @@
     const source = timing && typeof timing === "object" ? timing : {};
     const total = Number(source.totalDurationMs || 0);
     const listen = Number(source.listenDurationMs || 0);
-    const candidate = Number(source.candidateDurationMs || 0);
+    const convert = Number(source.convertDurationMs || source.candidateDurationMs || 0);
     const compare = Number(source.compareDurationMs || 0);
-    if (total <= 0 && listen <= 0 && candidate <= 0 && compare <= 0) {
+    if (total <= 0 && listen <= 0 && convert <= 0 && compare <= 0) {
       return "-";
     }
     const detailParts = [];
     if (listen > 0) {
       detailParts.push("听音 " + formatDurationMs(listen));
     }
-    if (candidate > 0) {
-      detailParts.push("候选转写 " + formatDurationMs(candidate));
+    if (convert > 0) {
+      detailParts.push("转换 " + formatDurationMs(convert));
     }
     if (compare > 0) {
       detailParts.push("比较 " + formatDurationMs(compare));
@@ -78,25 +78,29 @@
   function formatModelSelection(models) {
     const source = models && typeof models === "object" ? models : {};
     const parts = [];
-    if (normalizeText(source.candidateModel)) {
-      parts.push("候选 " + normalizeText(source.candidateModel));
+    if (normalizeText(source.convertModel || source.candidateModel)) {
+      parts.push("转换 " + normalizeText(source.convertModel || source.candidateModel));
     }
-    if (normalizeText(source.singleModel)) {
-      parts.push("单模型 " + normalizeText(source.singleModel));
-    } else {
-      if (normalizeText(source.listenModel)) {
-        parts.push("听音 " + normalizeText(source.listenModel));
-      }
-      if (normalizeText(source.compareModel)) {
-        parts.push("比较 " + normalizeText(source.compareModel));
-      }
+    if (normalizeText(source.listenModel)) {
+      parts.push("听音 " + normalizeText(source.listenModel));
+    }
+    if (normalizeText(source.compareModel)) {
+      const family = normalizeText(source.compareModelFamily || "qwen").toLowerCase() === "omni"
+        ? "Omni"
+        : "Qwen";
+      parts.push("比较 " + family + " " + normalizeText(source.compareModel));
     }
     return parts.length > 0 ? parts.join(" / ") : "-";
   }
 
   function formatModeSummary(models) {
     const source = models && typeof models === "object" ? models : {};
-    const parts = [normalizeText(source.modelMode), normalizeText(source.recognitionStrategy)].filter(Boolean);
+    const compareFamily = normalizeText(source.compareModelFamily).toLowerCase() === "omni"
+      ? "Omni 比较"
+      : normalizeText(source.compareModelFamily)
+        ? "Qwen 比较"
+        : "";
+    const parts = ["转换+听音并行", compareFamily].filter(Boolean);
     return parts.length > 0 ? parts.join(" / ") : "-";
   }
 
@@ -190,7 +194,7 @@
         ? meta.audioFirstReference
         : {};
     const rows = [
-      ["识别策略", formatModeSummary(models)],
+      ["执行链路", formatModeSummary(models)],
       ["模型选择", formatModelSelection(models)],
       ["AI耗时", formatTimingSummary(timing)],
       ["前端并发", formatConcurrency(debug, sourceOptions.fallbackFrontConcurrency)],
@@ -204,10 +208,10 @@
       ["requestId", normalizeText(meta.requestId || debug.requestId) || "-"],
       ["debugId", normalizeText(meta.debugId || debug.debugId) || "-"],
     ];
-    if (normalizeText(audioFirstReference.candidateText)) {
+    if (normalizeText(audioFirstReference.convertedText || audioFirstReference.candidateText)) {
       rows.splice(2, 0,
         [
-          "校正阈值",
+          "采纳阈值",
           formatOptionalConfidence(audioFirstReference.correctionThreshold),
         ],
         [

@@ -69,6 +69,25 @@
               },
             },
           },
+          dataBakerCvpc: {
+            enabled: true,
+            scripts: {
+              liuzhouAssistant: {
+                id: "dataBakerCvpcLiuzhouAssistant",
+                enabled: true,
+                segmentPreviewEnabled: true,
+                segmentPreviewEndpoint:
+                  "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+                aiRecommendEnabled: true,
+                aiRecommendEndpoint:
+                  "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+                aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+                aiRecommendModel: "qwen3.5-omni-flash",
+                contractMode: "dom-guarded",
+                shortcuts: {},
+              },
+            },
+          },
           aishellTech: {
             enabled: true,
             scripts: {
@@ -79,26 +98,41 @@
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
                 aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
-                aiRecommendPipelineMode: "two_stage",
-                aiRecommendRecognitionStrategy: "audio_first_reference",
-                aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
                 aiQualifiedAutofillConcurrency: 5,
+                aiRecommendConvertModel: "qwen3.5-plus",
+                aiRecommendConvertPrompt: "",
+                aiRecommendConvertTemperature: "",
+                aiRecommendConvertTopP: "",
+                aiRecommendConvertMaxTokens: "",
+                aiRecommendConvertMaxCompletionTokens: "",
+                aiRecommendConvertPresencePenalty: "",
+                aiRecommendConvertFrequencyPenalty: "",
+                aiRecommendConvertSeed: "",
+                aiRecommendConvertStopSequences: "",
                 aiRecommendListenModel: "qwen3.5-omni-flash",
-                aiRecommendCandidateModel: "qwen3.5-plus",
-                aiRecommendCompareModel: "qwen3.5-plus",
-                aiRecommendSingleModel: "qwen3.5-omni-flash",
-                aiRecommendEnableThinking: false,
-                aiRecommendCandidatePrompt: "",
                 aiRecommendListenPrompt: "",
-                aiRecommendComparePrompt: "",
-                aiRecommendTemperature: "",
-                aiRecommendTopP: "",
-                aiRecommendMaxTokens: "",
-                aiRecommendMaxCompletionTokens: "",
-                aiRecommendPresencePenalty: "",
-                aiRecommendFrequencyPenalty: "",
-                aiRecommendSeed: "",
-                aiRecommendStopSequences: "",
+                aiRecommendListenTemperature: "",
+                aiRecommendListenTopP: "",
+                aiRecommendListenMaxTokens: "",
+                aiRecommendListenMaxCompletionTokens: "",
+                aiRecommendListenPresencePenalty: "",
+                aiRecommendListenFrequencyPenalty: "",
+                aiRecommendListenSeed: "",
+                aiRecommendListenStopSequences: "",
+                aiRecommendCompareFamily: "qwen",
+                aiRecommendCompareModel: "qwen3.5-plus",
+                aiRecommendCompareQwenPrompt: "",
+                aiRecommendCompareOmniPrompt: "",
+                aiRecommendCompareTemperature: "",
+                aiRecommendCompareTopP: "",
+                aiRecommendCompareMaxTokens: "",
+                aiRecommendCompareMaxCompletionTokens: "",
+                aiRecommendComparePresencePenalty: "",
+                aiRecommendCompareFrequencyPenalty: "",
+                aiRecommendCompareSeed: "",
+                aiRecommendCompareStopSequences: "",
+                aiRecommendCompareAdoptionThreshold: 0.75,
+                aiRecommendEnableThinking: false,
                 shortcuts: {
                   aiRecommendCurrentItem: null,
                   autoFillQualifiedItem: null,
@@ -238,6 +272,7 @@
       DEFAULT_ASR_CONFIG: {},
       DEFAULT_JUDGEMENT_ASR_CONFIG: {},
       DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: {},
+      DEFAULT_DATA_BAKER_CVPC_PLATFORM_SETTINGS: {},
       DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS: {},
       DEFAULT_ABAKA_AI_PLATFORM_SETTINGS: {},
       SCRIPT_PROJECTS: {},
@@ -246,6 +281,8 @@
       JUDGEMENT_PROJECT_ID: "judgement",
       LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: "lightwheelViewPanel",
       DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: "dataBakerRoundOneQuality",
+      DATA_BAKER_CVPC_PLATFORM_ID: "dataBakerCvpc",
+      DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID: "dataBakerCvpcLiuzhouAssistant",
       AISHELL_TECH_PLATFORM_ID: "aishellTech",
       AISHELL_TECH_MINNAN_SCRIPT_ID: "aishellTechMinnanAssistant",
       ABAKA_AI_PLATFORM_ID: "abakaAi",
@@ -254,6 +291,14 @@
         "https://script.xiangtianzhen.store/api/data-baker/round-one-quality/ai/recommend",
       DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT:
         "http://127.0.0.1:3333/api/data-baker/round-one-quality/ai/recommend",
+      DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT:
+        "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+      DATA_BAKER_CVPC_AI_RECOMMEND_LOCAL_ENDPOINT:
+        "http://127.0.0.1:3333/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+      DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT:
+        "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+      DATA_BAKER_CVPC_SEGMENT_PREVIEW_LOCAL_ENDPOINT:
+        "http://127.0.0.1:3333/api/data-baker-cvpc/liuzhou-helper/segment/preview",
       AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT:
         "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
       AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT:
@@ -596,12 +641,16 @@
       input?.platforms?.alibabaLabelx?.scriptCenter?.projects?.judgement?.asrConfig?.statsUploadEndpoint,
       input?.platforms?.alibabaLabelx?.scriptCenter?.projects?.judgement?.asrConfig?.aiSuggestionEndpoint,
       input?.platforms?.dataBaker?.scripts?.roundOneQuality?.aiRecommendEndpoint,
+      input?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant?.aiRecommendEndpoint,
+      input?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant?.segmentPreviewEndpoint,
       input?.asr?.statsUploadEndpoint,
       input?.asr?.aiSuggestionEndpoint,
       settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.transcription?.asrConfig?.statsUploadEndpoint,
       settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.judgement?.asrConfig?.statsUploadEndpoint,
       settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.judgement?.asrConfig?.aiSuggestionEndpoint,
       settings?.platforms?.dataBaker?.scripts?.roundOneQuality?.aiRecommendEndpoint,
+      settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant?.aiRecommendEndpoint,
+      settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant?.segmentPreviewEndpoint,
     ];
 
     const inferredMode =
@@ -1213,6 +1262,30 @@
     return fallbackEndpoint;
   }
 
+  function normalizeAishellTechAiEndpoint(value, fallback) {
+    const constants = getConstants();
+    const serverEndpoint =
+      constants.AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT ||
+      "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend";
+    const localEndpoint =
+      constants.AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT ||
+      "http://127.0.0.1:3333/api/aishell-tech/minnan-helper/ai/recommend";
+    const fallbackEndpoint =
+      normalizeDataBakerAiEndpointUrl(fallback) === normalizeDataBakerAiEndpointUrl(localEndpoint)
+        ? localEndpoint
+        : serverEndpoint;
+    const normalized = normalizeDataBakerAiEndpointUrl(value);
+
+    if (normalized && normalized === normalizeDataBakerAiEndpointUrl(localEndpoint)) {
+      return localEndpoint;
+    }
+    if (normalized && normalized === normalizeDataBakerAiEndpointUrl(serverEndpoint)) {
+      return serverEndpoint;
+    }
+
+    return fallbackEndpoint;
+  }
+
   function normalizeDataBakerAiEndpointUrl(value) {
     try {
       const url = new URL(String(value || "").trim());
@@ -1223,6 +1296,11 @@
     } catch (error) {
       return "";
     }
+  }
+
+  function normalizeHttpEndpoint(value, fallback) {
+    const normalized = normalizeDataBakerAiEndpointUrl(value);
+    return normalized || normalizeDataBakerAiEndpointUrl(fallback) || "";
   }
 
   function normalizeAiRequestTimeoutValue(value, fallback) {
@@ -1794,21 +1872,24 @@
     return result;
   }
 
-  function normalizeAishellTechMinnanConfig(config, defaults) {
+  function normalizeAishellTechMinnanConfig(config, defaults, rawConfig) {
     const source = isPlainObject(config) ? config : {};
+    const rawSource = isPlainObject(rawConfig) ? rawConfig : source;
     const defaultConfig = isPlainObject(defaults) ? defaults : {};
     const result = deepMerge(defaultConfig, source);
     const constants = getConstants();
-    const defaultRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
-      defaultConfig.aiRecommendRecognitionStrategy || defaultConfig.recognitionStrategy,
-      "audio_first_reference"
+    const useThreeStageSource = hasAishellTechThreeStageMarkers(rawSource);
+    const stageSource = useThreeStageSource ? rawSource : {};
+    const defaultCompareFamily = normalizeAishellTechCompareFamily(
+      defaultConfig.aiRecommendCompareFamily,
+      "qwen"
     );
 
     result.id =
       constants.AISHELL_TECH_MINNAN_SCRIPT_ID || result.id || "aishellTechMinnanAssistant";
     result.enabled = result.enabled !== false;
     result.aiRecommendEnabled = result.aiRecommendEnabled !== false;
-    result.aiRecommendEndpoint = normalizeDataBakerAiEndpoint(
+    result.aiRecommendEndpoint = normalizeAishellTechAiEndpoint(
       result.aiRecommendEndpoint,
       defaultConfig.aiRecommendEndpoint ||
         constants.AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT ||
@@ -1818,129 +1899,199 @@
       result.aiRecommendRequestTimeoutMs,
       defaultConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
     );
-    const defaultPipelineMode = normalizeDataBakerPipelineMode(
-      defaultConfig.aiRecommendPipelineMode || "two_stage",
-      "two_stage"
-    );
     const defaultListenModel = resolveDataBakerListenModel(
       defaultConfig.aiRecommendListenModel,
-      defaultPipelineMode,
+      "two_stage",
       "qwen3.5-omni-flash",
       constants
     );
-    const defaultSingleModel = normalizeDataBakerSingleModel(
-      defaultConfig.aiRecommendSingleModel || defaultConfig.aiRecommendListenModel,
-      "qwen3.5-omni-flash",
+    result.aiRecommendConvertModel = normalizeDataBakerCompareModel(
+      stageSource.aiRecommendConvertModel,
+      defaultConfig.aiRecommendConvertModel || "qwen3.5-plus",
       constants
     );
-    const rawPipelineMode = getDataBakerModelText(result.aiRecommendPipelineMode);
-    const normalizedPipelineMode = normalizeDataBakerPipelineMode(
-      result.aiRecommendPipelineMode,
-      defaultPipelineMode
+    result.aiRecommendConvertPrompt = normalizeJudgementAiPrompt(
+      stageSource.aiRecommendConvertPrompt
     );
+    normalizeAishellTechStageParams(result, "aiRecommendConvert");
     result.aiRecommendListenModel = resolveDataBakerListenModel(
-      result.aiRecommendListenModel,
-      rawPipelineMode || (normalizedPipelineMode === "omni_single" ? "" : normalizedPipelineMode),
+      stageSource.aiRecommendListenModel,
+      "two_stage",
       defaultListenModel,
       constants
     );
-    result.aiRecommendSingleModel = normalizeDataBakerSingleModel(
-      result.aiRecommendSingleModel ||
-        (normalizedPipelineMode === "omni_single"
-          ? result.aiRecommendListenModel === "fun-asr"
-            ? "qwen3.5-omni-flash"
-            : result.aiRecommendListenModel
-          : ""),
-      defaultSingleModel,
-      constants
+    result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(
+      stageSource.aiRecommendListenPrompt
     );
-    result.aiRecommendPipelineMode = normalizedPipelineMode;
-    result.aiRecommendRecognitionStrategy = normalizeAishellTechRecognitionStrategy(
-      result.aiRecommendRecognitionStrategy || result.recognitionStrategy,
-      defaultRecognitionStrategy
+    normalizeAishellTechStageParams(result, "aiRecommendListen");
+    result.aiRecommendCompareFamily = normalizeAishellTechCompareFamily(
+      stageSource.aiRecommendCompareFamily,
+      defaultCompareFamily
     );
-    result.aiRecommendAudioFirstReferenceCorrectionThreshold =
-      normalizeAishellTechAudioFirstReferenceCorrectionThreshold(
-        result.aiRecommendAudioFirstReferenceCorrectionThreshold,
-        defaultConfig.aiRecommendAudioFirstReferenceCorrectionThreshold || 0.75
-      );
     result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
       result.aiQualifiedAutofillConcurrency,
       defaultConfig.aiQualifiedAutofillConcurrency || 5,
       {
-        aiRecommendPipelineMode: result.aiRecommendPipelineMode,
+        aiRecommendPipelineMode: "two_stage",
         aiRecommendListenModel: result.aiRecommendListenModel,
-        aiRecommendSingleModel: result.aiRecommendSingleModel,
+        aiRecommendSingleModel:
+          result.aiRecommendCompareFamily === "omni"
+            ? normalizeDataBakerSingleModel(
+                stageSource.aiRecommendCompareModel,
+                defaultConfig.aiRecommendCompareFamily === "omni"
+                  ? defaultConfig.aiRecommendCompareModel
+                  : "qwen3.5-omni-flash",
+                constants
+              )
+            : "qwen3.5-omni-flash",
       },
       constants
     );
-    result.aiRecommendCandidateModel = normalizeDataBakerCompareModel(
-      result.aiRecommendCandidateModel || result.candidateModel,
-      defaultConfig.aiRecommendCandidateModel || defaultConfig.aiRecommendCompareModel || "qwen3.5-plus",
-      constants
+    result.aiRecommendCompareModel =
+      result.aiRecommendCompareFamily === "omni"
+        ? normalizeDataBakerSingleModel(
+            stageSource.aiRecommendCompareModel,
+            defaultConfig.aiRecommendCompareFamily === "omni"
+              ? defaultConfig.aiRecommendCompareModel
+              : "qwen3.5-omni-flash",
+            constants
+          )
+        : normalizeDataBakerCompareModel(
+            stageSource.aiRecommendCompareModel,
+            defaultConfig.aiRecommendCompareFamily === "qwen"
+              ? defaultConfig.aiRecommendCompareModel
+              : "qwen3.5-plus",
+            constants
+          );
+    result.aiRecommendCompareQwenPrompt = normalizeJudgementAiPrompt(
+      stageSource.aiRecommendCompareQwenPrompt
     );
-    result.aiRecommendCompareModel = normalizeDataBakerCompareModel(
-      result.aiRecommendCompareModel || result.compareModel,
-      defaultConfig.aiRecommendCompareModel || "qwen3.5-plus",
-      constants
+    result.aiRecommendCompareOmniPrompt = normalizeJudgementAiPrompt(
+      stageSource.aiRecommendCompareOmniPrompt
     );
-    result.recognitionStrategy = result.aiRecommendRecognitionStrategy;
-    result.recognitionMode = result.aiRecommendPipelineMode;
-    result.pipelineMode = result.aiRecommendPipelineMode;
-    result.candidateModel = result.aiRecommendCandidateModel;
-    result.compareModel = result.aiRecommendCompareModel;
+    result.aiRecommendCompareAdoptionThreshold = normalizeAishellTechCompareAdoptionThreshold(
+      stageSource.aiRecommendCompareAdoptionThreshold,
+      defaultConfig.aiRecommendCompareAdoptionThreshold || 0.75
+    );
     result.aiRecommendEnableThinking = false;
-    result.aiRecommendCandidatePrompt = normalizeJudgementAiPrompt(result.aiRecommendCandidatePrompt);
-    result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);
-    result.aiRecommendComparePrompt = normalizeJudgementAiPrompt(result.aiRecommendComparePrompt);
-    result.aiRecommendTemperature = normalizeJudgementAiOptionalNumberText(
-      result.aiRecommendTemperature,
-      0,
-      2,
-      3
-    );
-    result.aiRecommendTopP = normalizeJudgementAiOptionalNumberText(
-      result.aiRecommendTopP,
-      0,
-      1,
-      3
-    );
-    result.aiRecommendMaxTokens = normalizeJudgementAiOptionalIntegerText(
-      result.aiRecommendMaxTokens,
-      1,
-      8192
-    );
-    result.aiRecommendMaxCompletionTokens = normalizeJudgementAiOptionalIntegerText(
-      result.aiRecommendMaxCompletionTokens,
-      1,
-      8192
-    );
-    result.aiRecommendPresencePenalty = normalizeJudgementAiOptionalNumberText(
-      result.aiRecommendPresencePenalty,
-      -2,
-      2,
-      3
-    );
-    result.aiRecommendFrequencyPenalty = normalizeJudgementAiOptionalNumberText(
-      result.aiRecommendFrequencyPenalty,
-      -2,
-      2,
-      3
-    );
-    result.aiRecommendSeed = normalizeJudgementAiOptionalIntegerText(
-      result.aiRecommendSeed,
-      0,
-      2147483647
-    );
-    result.aiRecommendStopSequences = normalizeJudgementAiStopSequences(
-      result.aiRecommendStopSequences
-    );
+    normalizeAishellTechStageParams(result, "aiRecommendCompare");
     result.shortcuts = normalizeAishellTechShortcuts(
       result.shortcuts,
       defaultConfig.shortcuts || {}
     );
+    delete result.aiRecommendPipelineMode;
+    delete result.aiRecommendRecognitionStrategy;
+    delete result.aiRecommendCandidateModel;
+    delete result.aiRecommendSingleModel;
+    delete result.aiRecommendCandidatePrompt;
+    delete result.aiRecommendComparePrompt;
+    delete result.aiRecommendAudioFirstReferenceCorrectionThreshold;
+    delete result.aiRecommendTemperature;
+    delete result.aiRecommendTopP;
+    delete result.aiRecommendMaxTokens;
+    delete result.aiRecommendMaxCompletionTokens;
+    delete result.aiRecommendPresencePenalty;
+    delete result.aiRecommendFrequencyPenalty;
+    delete result.aiRecommendSeed;
+    delete result.aiRecommendStopSequences;
+    delete result.recognitionStrategy;
+    delete result.recognitionMode;
+    delete result.pipelineMode;
+    delete result.candidateModel;
+    delete result.compareModel;
 
     return result;
+  }
+
+  function normalizeDataBakerCvpcLiuzhouConfig(config, defaults) {
+    const source = isPlainObject(config) ? config : {};
+    const defaultConfig = isPlainObject(defaults) ? defaults : {};
+    const constants = getConstants();
+    const result = deepMerge(defaultConfig, source);
+
+    result.id =
+      constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID ||
+      result.id ||
+      "dataBakerCvpcLiuzhouAssistant";
+    result.enabled = result.enabled !== false;
+    result.segmentPreviewEnabled = result.segmentPreviewEnabled !== false;
+    result.aiRecommendEnabled = result.aiRecommendEnabled !== false;
+    result.segmentPreviewEndpoint = normalizeHttpEndpoint(
+      result.segmentPreviewEndpoint,
+      defaultConfig.segmentPreviewEndpoint ||
+        constants.DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT
+    );
+    result.aiRecommendEndpoint = normalizeHttpEndpoint(
+      result.aiRecommendEndpoint,
+      defaultConfig.aiRecommendEndpoint ||
+        constants.DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT
+    );
+    result.aiRecommendRequestTimeoutMs = normalizeAiRequestTimeoutValue(
+      result.aiRecommendRequestTimeoutMs,
+      defaultConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
+    );
+    result.aiRecommendModel = String(
+      result.aiRecommendModel || defaultConfig.aiRecommendModel || "qwen3.5-omni-flash"
+    )
+      .trim()
+      .slice(0, 80);
+    result.contractMode =
+      String(result.contractMode || defaultConfig.contractMode || "dom-guarded").trim() ||
+      "dom-guarded";
+    result.shortcuts = isPlainObject(result.shortcuts) ? result.shortcuts : {};
+    return result;
+  }
+
+  function ensureDataBakerCvpcRoot(settings) {
+    const constants = getConstants();
+    const defaults = clone(constants.DEFAULT_SETTINGS || {});
+    const defaultPlatform =
+      defaults?.platforms?.dataBakerCvpc || constants.DEFAULT_DATA_BAKER_CVPC_PLATFORM_SETTINGS || {
+        enabled: true,
+        scripts: {
+          liuzhouAssistant: {
+            id:
+              constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID ||
+              "dataBakerCvpcLiuzhouAssistant",
+            enabled: true,
+            segmentPreviewEnabled: true,
+            segmentPreviewEndpoint:
+              constants.DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT ||
+              "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+            aiRecommendEnabled: true,
+            aiRecommendEndpoint:
+              constants.DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT ||
+              "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+            aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+            aiRecommendModel: "qwen3.5-omni-flash",
+            contractMode: "dom-guarded",
+            shortcuts: {},
+          },
+        },
+      };
+
+    if (!isPlainObject(settings.platforms)) {
+      settings.platforms = {};
+    }
+
+    settings.platforms.dataBakerCvpc = deepMerge(
+      defaultPlatform,
+      settings.platforms.dataBakerCvpc || {}
+    );
+
+    if (!isPlainObject(settings.platforms.dataBakerCvpc.scripts)) {
+      settings.platforms.dataBakerCvpc.scripts = {};
+    }
+
+    settings.platforms.dataBakerCvpc.enabled =
+      settings.platforms.dataBakerCvpc.enabled !== false;
+    settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant =
+      normalizeDataBakerCvpcLiuzhouConfig(
+        settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant,
+        defaultPlatform.scripts?.liuzhouAssistant || {}
+      );
+
+    return settings.platforms.dataBakerCvpc;
   }
 
   function ensureDataBakerRoot(settings) {
@@ -2006,9 +2157,15 @@
     return settings.platforms.dataBaker;
   }
 
-  function ensureAishellTechRoot(settings) {
+  function ensureAishellTechRoot(settings, rawInput) {
     const constants = getConstants();
     const defaults = clone(constants.DEFAULT_SETTINGS || {});
+    const rawPlatform = isPlainObject(rawInput?.platforms?.aishellTech)
+      ? rawInput.platforms.aishellTech
+      : {};
+    const rawMinnanHelperConfig = isPlainObject(rawPlatform.scripts?.minnanHelper)
+      ? rawPlatform.scripts.minnanHelper
+      : {};
     const defaultPlatform =
       defaults?.platforms?.aishellTech || constants.DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS || {
         enabled: true,
@@ -2021,26 +2178,41 @@
               constants.AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
-            aiRecommendPipelineMode: "two_stage",
-            aiRecommendRecognitionStrategy: "audio_first_reference",
-            aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
             aiQualifiedAutofillConcurrency: 5,
+            aiRecommendConvertModel: "qwen3.5-plus",
+            aiRecommendConvertPrompt: "",
+            aiRecommendConvertTemperature: "",
+            aiRecommendConvertTopP: "",
+            aiRecommendConvertMaxTokens: "",
+            aiRecommendConvertMaxCompletionTokens: "",
+            aiRecommendConvertPresencePenalty: "",
+            aiRecommendConvertFrequencyPenalty: "",
+            aiRecommendConvertSeed: "",
+            aiRecommendConvertStopSequences: "",
             aiRecommendListenModel: "qwen3.5-omni-flash",
-            aiRecommendCandidateModel: "qwen3.5-plus",
-            aiRecommendCompareModel: "qwen3.5-plus",
-            aiRecommendSingleModel: "qwen3.5-omni-flash",
-            aiRecommendEnableThinking: false,
-            aiRecommendCandidatePrompt: "",
             aiRecommendListenPrompt: "",
-            aiRecommendComparePrompt: "",
-            aiRecommendTemperature: "",
-            aiRecommendTopP: "",
-            aiRecommendMaxTokens: "",
-            aiRecommendMaxCompletionTokens: "",
-            aiRecommendPresencePenalty: "",
-            aiRecommendFrequencyPenalty: "",
-            aiRecommendSeed: "",
-            aiRecommendStopSequences: "",
+            aiRecommendListenTemperature: "",
+            aiRecommendListenTopP: "",
+            aiRecommendListenMaxTokens: "",
+            aiRecommendListenMaxCompletionTokens: "",
+            aiRecommendListenPresencePenalty: "",
+            aiRecommendListenFrequencyPenalty: "",
+            aiRecommendListenSeed: "",
+            aiRecommendListenStopSequences: "",
+            aiRecommendCompareFamily: "qwen",
+            aiRecommendCompareModel: "qwen3.5-plus",
+            aiRecommendCompareQwenPrompt: "",
+            aiRecommendCompareOmniPrompt: "",
+            aiRecommendCompareTemperature: "",
+            aiRecommendCompareTopP: "",
+            aiRecommendCompareMaxTokens: "",
+            aiRecommendCompareMaxCompletionTokens: "",
+            aiRecommendComparePresencePenalty: "",
+            aiRecommendCompareFrequencyPenalty: "",
+            aiRecommendCompareSeed: "",
+            aiRecommendCompareStopSequences: "",
+            aiRecommendCompareAdoptionThreshold: 0.75,
+            aiRecommendEnableThinking: false,
             shortcuts: {
               aiRecommendCurrentItem: null,
               autoFillQualifiedItem: null,
@@ -2059,7 +2231,7 @@
 
     settings.platforms.aishellTech = deepMerge(
       defaultPlatform,
-      settings.platforms.aishellTech || {}
+      rawPlatform
     );
 
     if (!isPlainObject(settings.platforms.aishellTech.scripts)) {
@@ -2070,7 +2242,8 @@
     settings.platforms.aishellTech.scripts.minnanHelper =
       normalizeAishellTechMinnanConfig(
         settings.platforms.aishellTech.scripts.minnanHelper,
-        defaultPlatform.scripts?.minnanHelper || {}
+        defaultPlatform.scripts?.minnanHelper || {},
+        rawMinnanHelperConfig
       );
 
     return settings.platforms.aishellTech;
@@ -2118,7 +2291,18 @@
     return "audio_first_reference";
   }
 
-  function normalizeAishellTechAudioFirstReferenceCorrectionThreshold(value, fallback) {
+  function normalizeAishellTechCompareFamily(value, fallback) {
+    const text = String(value || "").trim().toLowerCase();
+    if (text === "omni") {
+      return "omni";
+    }
+    if (text === "qwen") {
+      return "qwen";
+    }
+    return String(fallback || "qwen").trim().toLowerCase() === "omni" ? "omni" : "qwen";
+  }
+
+  function normalizeAishellTechCompareAdoptionThreshold(value, fallback) {
     const fallbackNumber = Number(fallback);
     const normalizedFallback = Number.isFinite(fallbackNumber)
       ? Math.max(0, Math.min(1, Number(fallbackNumber.toFixed(3))))
@@ -2133,6 +2317,81 @@
   function hasValidAishellTechRecognitionStrategy(value) {
     const text = String(value || "").trim().toLowerCase();
     return text === "audio_first_reference";
+  }
+
+  function hasAishellTechThreeStageMarkers(config) {
+    const source = isPlainObject(config) ? config : {};
+    return [
+      "aiRecommendConvertModel",
+      "aiRecommendConvertPrompt",
+      "aiRecommendConvertTemperature",
+      "aiRecommendConvertTopP",
+      "aiRecommendConvertMaxTokens",
+      "aiRecommendConvertMaxCompletionTokens",
+      "aiRecommendConvertPresencePenalty",
+      "aiRecommendConvertFrequencyPenalty",
+      "aiRecommendConvertSeed",
+      "aiRecommendConvertStopSequences",
+      "aiRecommendCompareFamily",
+      "aiRecommendCompareQwenPrompt",
+      "aiRecommendCompareOmniPrompt",
+      "aiRecommendCompareAdoptionThreshold",
+      "aiRecommendCompareTemperature",
+      "aiRecommendCompareTopP",
+      "aiRecommendCompareMaxTokens",
+      "aiRecommendCompareMaxCompletionTokens",
+      "aiRecommendComparePresencePenalty",
+      "aiRecommendCompareFrequencyPenalty",
+      "aiRecommendCompareSeed",
+      "aiRecommendCompareStopSequences",
+    ].some(function (key) {
+      return hasOwn(source, key);
+    });
+  }
+
+  function normalizeAishellTechStageParams(result, prefix) {
+    result[prefix + "Temperature"] = normalizeJudgementAiOptionalNumberText(
+      result[prefix + "Temperature"],
+      0,
+      2,
+      3
+    );
+    result[prefix + "TopP"] = normalizeJudgementAiOptionalNumberText(
+      result[prefix + "TopP"],
+      0,
+      1,
+      3
+    );
+    result[prefix + "MaxTokens"] = normalizeJudgementAiOptionalIntegerText(
+      result[prefix + "MaxTokens"],
+      1,
+      8192
+    );
+    result[prefix + "MaxCompletionTokens"] = normalizeJudgementAiOptionalIntegerText(
+      result[prefix + "MaxCompletionTokens"],
+      1,
+      8192
+    );
+    result[prefix + "PresencePenalty"] = normalizeJudgementAiOptionalNumberText(
+      result[prefix + "PresencePenalty"],
+      -2,
+      2,
+      3
+    );
+    result[prefix + "FrequencyPenalty"] = normalizeJudgementAiOptionalNumberText(
+      result[prefix + "FrequencyPenalty"],
+      -2,
+      2,
+      3
+    );
+    result[prefix + "Seed"] = normalizeJudgementAiOptionalIntegerText(
+      result[prefix + "Seed"],
+      0,
+      2147483647
+    );
+    result[prefix + "StopSequences"] = normalizeJudgementAiStopSequences(
+      result[prefix + "StopSequences"]
+    );
   }
 
   function resolveMagicDataModeAndStrategy(currentScript, legacyScript, defaultScript) {
@@ -3010,8 +3269,9 @@
 
     ensureScriptCenter(settings);
     ensureLightwheelRoot(settings);
+    ensureDataBakerCvpcRoot(settings);
     ensureDataBakerRoot(settings);
-    ensureAishellTechRoot(settings);
+    ensureAishellTechRoot(settings, input || {});
     ensureMagicDataRoot(settings);
     ensureAbakaAiRoot(settings);
     ensureGlobalBackendEndpointMode(settings, input || {}, defaults);
@@ -3213,6 +3473,15 @@
       nextSettings.platforms.dataBaker.scripts = clone(current.platforms.dataBaker.scripts || {});
     }
 
+    if (preservePlatformEnabled && current?.platforms?.dataBakerCvpc) {
+      nextSettings.platforms.dataBakerCvpc.enabled = Boolean(
+        current.platforms.dataBakerCvpc.enabled
+      );
+      nextSettings.platforms.dataBakerCvpc.scripts = clone(
+        current.platforms.dataBakerCvpc.scripts || {}
+      );
+    }
+
     if (preservePlatformEnabled && current?.platforms?.aishellTech) {
       nextSettings.platforms.aishellTech.enabled = Boolean(current.platforms.aishellTech.enabled);
       nextSettings.platforms.aishellTech.scripts = clone(
@@ -3328,6 +3597,26 @@
                   constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID ||
                   "dataBakerRoundOneQuality",
                 enabled: nextEnabled,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    if (scriptId === constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID) {
+      return patchSettings({
+        platforms: {
+          dataBakerCvpc: {
+            enabled: nextEnabled,
+            scripts: {
+              liuzhouAssistant: {
+                id:
+                  constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID ||
+                  "dataBakerCvpcLiuzhouAssistant",
+                enabled: nextEnabled,
+                segmentPreviewEnabled: nextEnabled,
+                aiRecommendEnabled: nextEnabled,
               },
             },
           },

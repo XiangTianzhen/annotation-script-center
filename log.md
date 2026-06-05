@@ -1,3 +1,63 @@
+## 2026-06-05（DataBaker CVPC 柳州话脚本 Beta 接入）
+
+- `DataBaker CVPC / 柳州话脚本` 当前已接入 beta 平台与脚本元数据：
+  - 新增 `dataBakerCvpc` 平台和 `dataBakerCvpcLiuzhouAssistant` 脚本。
+  - `extension/manifest.json` 已补 `https://cvpc.data-baker.com/*` host permission 与 content script 注入。
+  - 延续现有 beta 可见性体系：public 包与未解锁 beta 包都不显示该平台和脚本。
+- 扩展运行时当前新增：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/`
+  - 当前只在 `/app/editor/asr/` 生效，提供当前音频画段建议、当前段 AI 推荐、当前段实验性填入、当前段 `Valid / Invalid` 快捷入口。
+  - 固定边界：不自动保存、不自动提交、不自动切下一条、不跨当前音频自动遍历。
+- 独立后端当前新增：
+  - `GET /api/data-baker-cvpc/liuzhou-helper/segment/health`
+  - `POST /api/data-baker-cvpc/liuzhou-helper/segment/preview`
+  - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`
+  - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults`
+  - `POST /api/data-baker-cvpc/liuzhou-helper/ai/recommend`
+- 规则资产当前已入库：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-rules.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-pronunciation-reference.csv`
+- settings/options 当前已补：
+  - `extension/shared/storage.js` 新增 CVPC 平台归一与启停同步。
+  - `extension/options/options.html`、`extension/options/options.js` 新增 CVPC 柳州话详情面板与保存入口。
+- 当前仍明确保留的阻塞：
+  - 真实 `segment create/update` payload
+  - 保存链路
+  - 页面字段稳定写入契约
+  - 未检测到安全写入桥时，画段应用仍只返回提示，不直接画段
+
+## 2026-06-05（Aishell 真三板块重构）
+
+- `希尔贝壳 / 闽南语助手` 已取消旧 `模型方案 + 识别策略` 口径，前后端统一改成独立的 `转换 / 听音 / 比较` 三板块：
+  - `转换` 与 `听音` 并行执行。
+  - `比较` 必须等待前两段都完成后再运行。
+- Aishell options / storage / runtime 当前已切到新字段：
+  - `aiRecommendConvert*`
+  - `aiRecommendListen*`
+  - `aiRecommendCompareFamily`
+  - `aiRecommendCompareModel`
+  - `aiRecommendCompareQwenPrompt`
+  - `aiRecommendCompareOmniPrompt`
+  - `aiRecommendCompare*`
+- 前端当前只发 `aiStages` 请求体：
+  - `convert = { model, prompt, params }`
+  - `listen = { model, prompt, params }`
+  - `compare = { family, model, prompt, params, adoptionThreshold }`
+- Aishell backend 当前已改成三阶段独立 defaults / health：
+  - 返回 `stages.convert / listen / compare`
+  - 不再让前端依赖 `modelModeOptions / recognitionStrategyOptions / promptProfiles`
+- Aishell pipeline 当前已改成：
+  - `转换文本 convertedText`
+  - `听音文本 heardText`
+  - `推荐文本 recommendedText`
+  - Qwen 比较只做文本判断；Omni 比较会在比较阶段再次听音
+- 结果与诊断字段同步更新：
+  - 结果区主字段改为 `convertedText`
+  - `meta.models` 新增 `convertModel / listenModel / compareModelFamily / compareModel`
+  - `meta.timing` 新增 `convertDurationMs`
+  - `meta.usage` 新增 `convert`
+- Aishell 词表当前不再要求与 DataBaker `byte-for-byte` 一致；本轮对 `minnan-lexicon.csv` 做了小范围高确定性格式清理。
+
 ## 2026-06-05（Aishell 候选 Prompt 强化与 Omni/Fun-ASR 分流）
 
 - `希尔贝壳 / 闽南语助手` 的 `audio_first_reference` 当前继续保持“三文本对照”，但链路已按听音模型明确分流：

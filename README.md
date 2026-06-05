@@ -18,7 +18,8 @@
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 当前已全局固定关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
-- Aishell Tech 已完成独立闽南语助手首版接入：`/mytask/mark` 支持当前条 AI 推荐与批量串行真实保存，后端已注册 `/api/aishell-tech/minnan-helper/ai/recommend*` 独立接口；当前已收口为唯一的“三文本对照”策略：`two_stage + audio_first_reference + 候选 qwen3.5-plus + 听音 qwen3.5-omni-flash`。候选转写阶段会把相关词条和原始 CSV 文本块一并发给候选模型；听音为 Omni 时由 Omni 直接完成差异判断，不再调用差异比较模型，切换 Fun-ASR 时再启用 `qwen3.5-plus` 差异比较模型。默认链路为 `POST /jobs` + 轮询，Aishell 继续保留自己的独立队列与 `success/data/meta` 契约。
+- Aishell Tech 已完成独立闽南语助手三板块重构：`/mytask/mark` 当前使用 `转换 / 听音 / 比较` 三个独立 AI 板块，转换与听音并行执行，比较最后汇总；后端继续使用独立接口 `/api/aishell-tech/minnan-helper/ai/recommend*`、独立队列与 `success/data/meta` 契约。默认组合当前为 `转换 qwen3.5-plus + 听音 qwen3.5-omni-flash + Qwen 比较 qwen3.5-plus`；比较切到 Omni 时会在比较阶段再次听音。结果区当前展示 `转换文本`、`听音文本`、`推荐文本`，不再沿用旧“模型方案 + 识别策略”口径。
+- DataBaker CVPC 已接入 beta 专属 `柳州话脚本`：当前只在 `/app/editor/asr/` 生效，支持当前音频画段建议、当前段 AI 推荐和实验性字段填入；前后端都固定为“建议生成 + 人工确认”，不自动保存、不自动提交、不自动切下一条，真实画段写入契约仍待补采。
 
 ## v0.4.0 开发中（Options 工作台视觉重做）
 
@@ -119,7 +120,7 @@
 
 ## 当前重点平台与脚本
 
-- 平台：Alibaba LabelX、标贝易采、DataBaker CVPC（平台资料首轮初始化完成，尚未接入运行时代码）、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（闽南语助手已接入，当前业务能力仅在 `/mytask/mark` 生效）。
+- 平台：Alibaba LabelX、标贝易采、DataBaker CVPC（柳州话脚本 beta 已接入，画段写入契约仍待补采）、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（闽南语助手已接入，当前业务能力仅在 `/mytask/mark` 生效）。
 - 当前 CSV 对接字段口径：
   - LabelX 快判/转写：`有效时长(秒)_S` 与人员 `_P` 字段。
   - DataBaker 一检：`有效合格时长_S` 与 `质检人_P` 字段。
@@ -137,6 +138,8 @@
   - `platform-resources/aishell-tech/network/README.md`
   - `platform-resources/aishell-tech/page-structure/README.md`
 - DataBaker CVPC 当前目录：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
   - `platform-resources/data-baker-cvpc/README.md`
   - `platform-resources/data-baker-cvpc/network/README.md`
   - `platform-resources/data-baker-cvpc/page-structure/README.md`

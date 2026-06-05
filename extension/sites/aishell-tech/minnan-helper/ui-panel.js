@@ -481,20 +481,20 @@
       });
     }
 
-    function renderTextDiffSection(container, heardText, candidateText) {
-      const diffState = buildTextDiffState(heardText, candidateText);
+    function renderTextDiffSection(container, heardText, convertedText) {
+      const diffState = buildTextDiffState(heardText, convertedText);
       const section = document.createElement("div");
       section.className = "asc-diff-card";
 
       const title = document.createElement("div");
       title.className = "asc-diff-title";
-      title.textContent = "听音文本与词表转写差异";
+      title.textContent = "听音文本与转换文本差异";
       section.appendChild(title);
 
       if (!diffState.hasDiff) {
         const empty = document.createElement("div");
         empty.className = "asc-diff-empty";
-        empty.textContent = "听音文本与词表转写文本一致。";
+        empty.textContent = "听音文本与转换文本一致。";
         section.appendChild(empty);
         container.appendChild(section);
         return;
@@ -507,7 +507,7 @@
           diffClassName: "asc-diff-char--heard",
         },
         {
-          label: "词表转写",
+          label: "转换文本",
           parts: diffState.rightParts,
           diffClassName: "asc-diff-char--candidate",
         },
@@ -793,7 +793,13 @@
       const recommendedText = String(source.recommendedText || "");
       const referenceText = String(source.referenceText || "");
       const candidateText = String(
-        source.meta?.audioFirstReference?.candidateText || source.audioFirstReference?.candidateText || ""
+        source.convertedText ||
+          source.meta?.audioFirstReference?.convertedText ||
+          source.meta?.audioFirstReference?.candidateText ||
+          source.audioFirstReference?.convertedText ||
+          source.audioFirstReference?.candidateText ||
+          source.lexiconCandidateText ||
+          ""
       );
       const heardText = String(source.heardText || "");
       const showNoChange =
@@ -830,7 +836,7 @@
 
       renderKeyValueRows(resultNode, [
         ["原始文本", referenceText],
-        ["词表转写文本", candidateText || "-"],
+        ["转换文本", candidateText || "-"],
         ["听音文本", heardText],
         ["推荐文本", recommendedText],
       ]);

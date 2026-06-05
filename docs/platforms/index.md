@@ -31,10 +31,13 @@
 ## DataBaker CVPC
 
 - 平台资料总览：`platform-resources/data-baker-cvpc/README.md`
+- 运行时代码：`extension/sites/data-baker-cvpc/liuzhou-helper/`
+- 运行时 README：`extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+- 脚本级资料与后端：`platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
 - 网络请求采集（4 段首轮链路 + handoff）：`platform-resources/data-baker-cvpc/network/README.md`
 - 页面结构采集（4 段首轮结构）：`platform-resources/data-baker-cvpc/page-structure/README.md`
-- 当前阶段：仅完成平台资料初始化，覆盖 `#/login`、`#/home`、`#/my-job`、项目任务列表、作业列表与 `/app/editor/asr/` 首屏；尚未创建 `extension/sites/data-baker-cvpc/` 运行时代码，也未注册专属后端。
-- 安全边界：首轮只保留 `readonly` 与 `safe-ui` 资料；`领取 / 保存 / 挂起 / 提交 / 修改` 等动作仍按 `write-action` 管理，未做真实触发采集。
+- 当前阶段：柳州话脚本 `beta` 首版已接入。当前业务能力只在 `/app/editor/asr/` 生效，支持当前音频画段建议、当前段 AI 推荐、当前段实验性填入和 `Valid / Invalid` 快捷入口；前后端都只做“建议生成 + 人工确认”，不自动保存、不自动提交、不自动切下一条。
+- 当前补采状态：`annotation/meta`、模板字段和当前页 DOM 入口已纳入运行时；`segment create/update`、保存链路、稳定字段写入契约仍待真实补采，画段应用在未检测到安全写入桥时只保留建议展示。
 
 ## Magic Data ANNOTATOR
 
@@ -84,7 +87,7 @@
 - 网络请求采集（5 页 + 安全边界说明）：`platform-resources/aishell-tech/network/README.md`
 - 页面 DOM 结构采集（4 页完整 + 1 页组织管理初版占位）：`platform-resources/aishell-tech/page-structure/README.md`
 - 安全边界：以 `platform-resources/aishell-tech/README.md` 的“安全边界”章节与 `network/README.md` 的脱敏规则为准。
-- 当前阶段：独立闽南语助手已接入。当前业务能力只在 `/mytask/mark` 生效，`/mytask/index` 与 `/mytask/detail/:taskId` 仅做路由覆盖与资料复用；已注册独立接口 `/api/aishell-tech/minnan-helper/ai/recommend*`，当前默认 AI 标准已收口为唯一的“三文本对照”策略 `two_stage + audio_first_reference + 候选 qwen3.5-plus + 听音 qwen3.5-omni-flash`。候选转写模型会同时接收相关词条与原始 CSV 文本块；听音为 Omni 时由 Omni 直接完成差异判断，不再调用差异比较模型，切换 Fun-ASR 时再启用 `qwen3.5-plus` 差异比较模型。结果卡会额外展示词表转写文本与“听音文本 vs 词表转写文本”差异；默认链路为短请求建 job + HTTP 轮询结果，Aishell 继续保留自己的独立队列与 `success/data/meta` 契约；`我的团队` 页面仍只有 network 和 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
+- 当前阶段：独立闽南语助手已接入。当前业务能力只在 `/mytask/mark` 生效，`/mytask/index` 与 `/mytask/detail/:taskId` 仅做路由覆盖与资料复用；已注册独立接口 `/api/aishell-tech/minnan-helper/ai/recommend*`，当前 AI 口径已改成独立的 `转换 / 听音 / 比较` 三板块。转换与听音并行执行，比较最后汇总；默认组合为 `转换 qwen3.5-plus + 听音 qwen3.5-omni-flash + Qwen 比较 qwen3.5-plus`，切到 Omni 比较时会在比较阶段再次听音。结果卡当前展示 `转换文本` 与“听音文本 vs 转换文本”差异；默认链路为短请求建 job + HTTP 轮询结果，Aishell 继续保留自己的独立队列与 `success/data/meta` 契约；`我的团队` 页面仍只有 network 和 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
 - 当前 AI 日志状态：Aishell 当前会把 AI 调用写到 `platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`，并开放 `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`。
 
 ## 新增平台要求

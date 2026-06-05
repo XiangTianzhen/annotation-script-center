@@ -48,6 +48,14 @@
     return String(value || "").trim().toLowerCase() === "all" ? "all" : "pending";
   }
 
+  function normalizeCompareFamily(value) {
+    return String(value || "").trim().toLowerCase() === "omni" ? "omni" : "qwen";
+  }
+
+  function normalizePromptText(value) {
+    return String(value || "").replace(/\r\n/g, "\n").trim();
+  }
+
   function getBatchModeMeta(value) {
     const mode = normalizeBatchMode(value);
     if (mode === "all") {
@@ -103,85 +111,88 @@
     return result;
   }
 
-  function buildAiOptions(config) {
-    const options = {};
-    if (config.aiRecommendCandidatePrompt) {
-      options.candidatePrompt = config.aiRecommendCandidatePrompt;
-    }
-    if (config.aiRecommendListenPrompt) {
-      options.listenPrompt = config.aiRecommendListenPrompt;
-    }
-    if (config.aiRecommendComparePrompt) {
-      options.comparePrompt = config.aiRecommendComparePrompt;
-    }
-    if (config.aiRecommendCandidateModel) {
-      options.candidateModel = config.aiRecommendCandidateModel;
-    }
-    if (config.aiRecommendListenModel) {
-      options.listenModel = config.aiRecommendListenModel;
-    }
-    if (config.aiRecommendCompareModel) {
-      options.compareModel = config.aiRecommendCompareModel;
-    }
-    if (config.aiRecommendSingleModel) {
-      options.singleModel = config.aiRecommendSingleModel;
-    }
-    options.enableThinking = false;
-    const temperature = normalizeOptionalNumber(config.aiRecommendTemperature, 0, 2);
+  function buildStageParams(config, prefix) {
+    const params = {};
+    const temperature = normalizeOptionalNumber(config[prefix + "Temperature"], 0, 2);
     if (temperature !== "") {
-      options.temperature = temperature;
+      params.temperature = temperature;
     }
-    const topP = normalizeOptionalNumber(config.aiRecommendTopP, 0, 1);
+    const topP = normalizeOptionalNumber(config[prefix + "TopP"], 0, 1);
     if (topP !== "") {
-      options.top_p = topP;
+      params.top_p = topP;
     }
-    const maxTokens = normalizeOptionalInteger(config.aiRecommendMaxTokens, 1, 8192);
+    const maxTokens = normalizeOptionalInteger(config[prefix + "MaxTokens"], 1, 8192);
     if (maxTokens !== "") {
-      options.max_tokens = maxTokens;
+      params.max_tokens = maxTokens;
     }
     const maxCompletionTokens = normalizeOptionalInteger(
-      config.aiRecommendMaxCompletionTokens,
+      config[prefix + "MaxCompletionTokens"],
       1,
       8192
     );
     if (maxCompletionTokens !== "") {
-      options.max_completion_tokens = maxCompletionTokens;
+      params.max_completion_tokens = maxCompletionTokens;
     }
     const presencePenalty = normalizeOptionalNumber(
-      config.aiRecommendPresencePenalty,
+      config[prefix + "PresencePenalty"],
       -2,
       2
     );
     if (presencePenalty !== "") {
-      options.presence_penalty = presencePenalty;
+      params.presence_penalty = presencePenalty;
     }
     const frequencyPenalty = normalizeOptionalNumber(
-      config.aiRecommendFrequencyPenalty,
+      config[prefix + "FrequencyPenalty"],
       -2,
       2
     );
     if (frequencyPenalty !== "") {
-      options.frequency_penalty = frequencyPenalty;
+      params.frequency_penalty = frequencyPenalty;
     }
-    const seed = normalizeOptionalInteger(config.aiRecommendSeed, 0, 2147483647);
+    const seed = normalizeOptionalInteger(config[prefix + "Seed"], 0, 2147483647);
     if (seed !== "") {
-      options.seed = seed;
+      params.seed = seed;
     }
-    const stop = normalizeStopSequences(config.aiRecommendStopSequences);
+    const stop = normalizeStopSequences(config[prefix + "StopSequences"]);
     if (stop.length > 0) {
-      options.stop = stop;
+      params.stop = stop;
     }
-    const audioFirstReferenceCorrectionThreshold = normalizeOptionalNumber(
-      config.aiRecommendAudioFirstReferenceCorrectionThreshold,
+    return params;
+  }
+
+  function buildAiStages(config) {
+    const compareFamily = normalizeCompareFamily(config.aiRecommendCompareFamily);
+    const compareAdoptionThreshold = normalizeOptionalNumber(
+      config.aiRecommendCompareAdoptionThreshold,
       0,
       1
     );
-    if (audioFirstReferenceCorrectionThreshold !== "") {
-      options.audioFirstReferenceCorrectionThreshold = Number(
-        audioFirstReferenceCorrectionThreshold.toFixed(3)
-      );
-    }
-    return options;
+    return {
+      convert: {
+        model: normalizeText(config.aiRecommendConvertModel),
+        prompt: normalizePromptText(config.aiRecommendConvertPrompt),
+        params: buildStageParams(config, "aiRecommendConvert"),
+      },
+      listen: {
+        model: normalizeText(config.aiRecommendListenModel),
+        prompt: normalizePromptText(config.aiRecommendListenPrompt),
+        params: buildStageParams(config, "aiRecommendListen"),
+      },
+      compare: {
+        family: compareFamily,
+        model: normalizeText(config.aiRecommendCompareModel),
+        prompt: normalizePromptText(
+          compareFamily === "omni"
+            ? config.aiRecommendCompareOmniPrompt
+            : config.aiRecommendCompareQwenPrompt
+        ),
+        params: buildStageParams(config, "aiRecommendCompare"),
+        adoptionThreshold:
+          compareAdoptionThreshold !== ""
+            ? Number(compareAdoptionThreshold.toFixed(3))
+            : 0.75,
+      },
+    };
   }
 
   function isMarkPage() {
@@ -200,26 +211,41 @@
         enabled: true,
         aiRecommendEnabled: true,
         aiRecommendRequestTimeoutMs: DEFAULT_TIMEOUT_MS,
-        aiRecommendPipelineMode: "two_stage",
-        aiRecommendRecognitionStrategy: "audio_first_reference",
-        aiRecommendAudioFirstReferenceCorrectionThreshold: 0.75,
         aiQualifiedAutofillConcurrency: 5,
+        aiRecommendConvertModel: "qwen3.5-plus",
+        aiRecommendConvertPrompt: "",
+        aiRecommendConvertTemperature: "",
+        aiRecommendConvertTopP: "",
+        aiRecommendConvertMaxTokens: "",
+        aiRecommendConvertMaxCompletionTokens: "",
+        aiRecommendConvertPresencePenalty: "",
+        aiRecommendConvertFrequencyPenalty: "",
+        aiRecommendConvertSeed: "",
+        aiRecommendConvertStopSequences: "",
         aiRecommendListenModel: "qwen3.5-omni-flash",
-        aiRecommendCandidateModel: "qwen3.5-plus",
-        aiRecommendCompareModel: "qwen3.5-plus",
-        aiRecommendSingleModel: "qwen3.5-omni-flash",
-        aiRecommendEnableThinking: false,
-        aiRecommendCandidatePrompt: "",
         aiRecommendListenPrompt: "",
-        aiRecommendComparePrompt: "",
-        aiRecommendTemperature: "",
-        aiRecommendTopP: "",
-        aiRecommendMaxTokens: "",
-        aiRecommendMaxCompletionTokens: "",
-        aiRecommendPresencePenalty: "",
-        aiRecommendFrequencyPenalty: "",
-        aiRecommendSeed: "",
-        aiRecommendStopSequences: "",
+        aiRecommendListenTemperature: "",
+        aiRecommendListenTopP: "",
+        aiRecommendListenMaxTokens: "",
+        aiRecommendListenMaxCompletionTokens: "",
+        aiRecommendListenPresencePenalty: "",
+        aiRecommendListenFrequencyPenalty: "",
+        aiRecommendListenSeed: "",
+        aiRecommendListenStopSequences: "",
+        aiRecommendCompareFamily: "qwen",
+        aiRecommendCompareModel: "qwen3.5-plus",
+        aiRecommendEnableThinking: false,
+        aiRecommendCompareQwenPrompt: "",
+        aiRecommendCompareOmniPrompt: "",
+        aiRecommendCompareTemperature: "",
+        aiRecommendCompareTopP: "",
+        aiRecommendCompareMaxTokens: "",
+        aiRecommendCompareMaxCompletionTokens: "",
+        aiRecommendComparePresencePenalty: "",
+        aiRecommendCompareFrequencyPenalty: "",
+        aiRecommendCompareSeed: "",
+        aiRecommendCompareStopSequences: "",
+        aiRecommendCompareAdoptionThreshold: 0.75,
         shortcuts: {},
       },
       defaults || {}
@@ -240,24 +266,11 @@
       id: SCRIPT_ID,
       aiRecommendEndpoint: endpoint,
     });
-    merged.aiRecommendPipelineMode = normalizeRecognitionMode(
-      merged.aiRecommendPipelineMode || merged.recognitionMode
-    );
-    merged.aiRecommendRecognitionStrategy = normalizeRecognitionStrategy(
-      merged.aiRecommendRecognitionStrategy || merged.recognitionStrategy
-    );
-    const normalizedAudioFirstReferenceCorrectionThreshold = normalizeOptionalNumber(
-      merged.aiRecommendAudioFirstReferenceCorrectionThreshold,
-      0,
-      1
-    );
-    merged.aiRecommendAudioFirstReferenceCorrectionThreshold =
-      normalizedAudioFirstReferenceCorrectionThreshold !== ""
-        ? Number(normalizedAudioFirstReferenceCorrectionThreshold.toFixed(3))
+    merged.aiRecommendCompareFamily = normalizeCompareFamily(merged.aiRecommendCompareFamily);
+    merged.aiRecommendCompareAdoptionThreshold =
+      normalizeOptionalNumber(merged.aiRecommendCompareAdoptionThreshold, 0, 1) !== ""
+        ? Number(Number(merged.aiRecommendCompareAdoptionThreshold).toFixed(3))
         : 0.75;
-    merged.recognitionStrategy = merged.aiRecommendRecognitionStrategy;
-    merged.recognitionMode = merged.aiRecommendPipelineMode;
-    merged.pipelineMode = merged.aiRecommendPipelineMode;
     merged.aiQualifiedAutofillConcurrency = Math.max(
       1,
       Math.floor(Number(merged.aiQualifiedAutofillConcurrency || 5) || 5)
@@ -314,14 +327,7 @@
       endpoint: config.aiRecommendEndpoint,
       timeoutMs: config.aiRecommendRequestTimeoutMs,
       settings: config.settings || {},
-      modelMode: config.aiRecommendPipelineMode,
-      recognitionStrategy: config.aiRecommendRecognitionStrategy,
-      recognitionMode: config.aiRecommendPipelineMode,
-      listenModel: config.aiRecommendListenModel,
-      compareModel: config.aiRecommendCompareModel,
-      singleModel: config.aiRecommendSingleModel,
-      enableThinking: false,
-      aiOptions: buildAiOptions(config),
+      aiStages: buildAiStages(config),
     });
 
     const panel = uiFactory.createRuntime({

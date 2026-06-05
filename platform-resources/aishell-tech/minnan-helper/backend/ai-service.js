@@ -39,59 +39,15 @@ const COMPONENT_NAME = "asr-voice-ai";
 const LEXICON_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
 const DEFAULT_MODEL_MODE = "two_stage";
 const DEFAULT_RECOGNITION_STRATEGY = "audio_first_reference";
-const MODEL_MODE_OPTIONS = [
-  { value: "two_stage", label: "双模型：听音模型 + 比较/转换模型" },
-  { value: "omni_single", label: "单模型：Omni 单模型" },
+const DEFAULT_COMPARE_FAMILY = "qwen";
+const COMPARE_FAMILY_OPTIONS = [
+  { value: "qwen", label: "Qwen 文本比较" },
+  { value: "omni", label: "Omni 听音比较" },
 ];
-const RECOGNITION_STRATEGY_OPTIONS = [
-  {
-    value: "audio_first_reference",
-    label: "三文本对照：按实际发音输出，页面原文和词表候选只做参考",
-  },
-];
-const DEFAULT_MANDARIN_LISTEN_TEMPLATE = [
-  "你正在处理闽南语音频。",
-  "你只负责听音，不负责直接输出最终闽南语文本。",
-  "请把听到的内容转写成简体普通话表达，优先保留原句语义，不要补充解释。",
-  "如果音频里出现明显的闽南语专有用字、语气词或人名地名，可按实际发音保留，但主体输出仍以普通话转写为主。",
-  "heardText 必须使用简体中文，不允许输出繁体字。",
-  "输出 JSON 字段必须包含 heardText、confidence、needHumanReview。",
-  "只输出 JSON，不要输出 Markdown 或解释文字。",
-].join("\n");
-const DEFAULT_MANDARIN_COMPARE_TEMPLATE = [
-  "你会收到两份上下文：",
-  "1. pageText：平台预测的闽南语候选文本。",
-  "2. heardText：听音模型转写出的简体普通话文本。",
-  "你的任务是结合 pageText、heardText 和闽南语字词对照表，输出最终的闽南语推荐文本。",
-  "以实际发声语义为主，pageText 负责提供闽南语用字候选，不要机械照抄页面文本。",
-  "如果 heardText 与 pageText 语义一致，应优先选择符合闽南语词表的写法。",
-  "recommendedText 与 heardText 的普通中文统一输出简体；命中 minnan-lexicon.csv 的建议用字必须保留。",
-  "不要把方言建议用字改回普通话同义词。",
-  "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
-  "只输出 JSON，不输出额外解释。",
-].join("\n");
-const DEFAULT_DIRECT_DIALECT_LISTEN_TEMPLATE = [
-  "你正在处理闽南语音频。",
-  "你只负责直接听写出闽南语文本，不要先翻译成普通话。",
-  "听不清时请基于音频给出最可信的闽南语写法，并通过 needHumanReview 标记不确定性。",
-  "heardText 必须使用简体中文书写，不允许出现任何繁体字。",
-  "输出 JSON 字段必须包含 heardText、confidence、needHumanReview。",
-  "heardText 必须直接写闽南语文本。",
-  "只输出 JSON，不要输出 Markdown 或解释文字。",
-].join("\n");
-const DEFAULT_DIRECT_DIALECT_COMPARE_TEMPLATE = [
-  "你会收到 pageText（平台预测闽南语文本）和 heardText（听音得到的闽南语文本）。",
-  "你的任务是对比两者并输出最终闽南语推荐文本。",
-  "以实际发声为主，pageText 只作为闽南语写法参考。",
-  "如果词表中存在更合适的闽南语建议用字，可在语义一致时优先采用。",
-  "recommendedText 的普通中文统一使用简体；命中 minnan-lexicon.csv 的建议用字必须保持不变。",
-  "不要把方言建议用字改回普通话同义词。",
-  "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
-  "只输出 JSON，不输出额外解释。",
-].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE = [
   "你正在处理闽南语音频。",
-  "你只负责按实际发音输出 heardText，不要为了统一风格把整句强行改成普通话或闽南语。",
+  "你只负责按实际发音输出 heardText，不负责给出最终推荐文本。",
+  "不要为了统一风格把整句强行改成普通话或闽南语。",
   "如果音频里某个词读的是普通话，就直接保留普通话简体写法；如果读的是闽南语词或闽南语语气词，就按实际闽南语写法输出。",
   "一句话里允许同时出现普通话词和闽南语词。",
   "如果某个词没有读出来，就不要补写。",
@@ -101,27 +57,39 @@ const DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE = [
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE = [
-  "你正在生成闽南话/闽南语词表转写候选文本。你不负责听音，只负责把 pageText 转成“标准候选写法”。",
-  "你会收到 pageText、词表相关词条，以及一段词表原始 CSV 文本块附件。只能依据 pageText、句子语境和词表附件做候选转写，不要凭感觉新增词表里没有的转换。",
-  "如果某个词或短语在词表附件里没有明确候选写法，就保留 pageText 原文，不要强行转换。",
+  "你正在执行“转换”阶段：把 pageText 中命中词表的普通话词或短语改写成对应的闽南语写法。",
+  "你不负责听音，也不负责润色整句。",
+  "你会收到 pageText、词表相关词条，以及一段词表原始 CSV 文本块附件。只能依据 pageText、句子语境和词表附件做转换。",
+  "如果某个词或短语在词表附件里没有明确候选写法，就保留 pageText 原文，不要强行转换，不要自行新增词表里没有的改写。",
   "普通中文必须输出简体，不允许出现任何繁体字。",
-  "不要输出多个备选，不要解释原因。",
-  "输出 JSON 字段必须包含 lexiconCandidateText、confidence、needHumanReview。",
+  "不要输出多个备选，不要解释原因，也不要做整句风格统一。",
+  "输出 JSON 字段必须包含 convertedText、confidence、needHumanReview。",
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
 const DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE = [
-  "你会收到三份上下文：pageText（平台原始文本）、lexiconCandidateText（结合词表生成的标准闽南语候选文本）、heardText（按实际发音转写出的文本）。",
+  "你正在执行“比较”阶段。",
+  "你会收到三份上下文：pageText（平台原始文本）、convertedText（转换阶段产出的文本）、heardText（按实际发音转写出的文本）。",
   "你的任务是输出最终 recommendedText，但必须以实际发音为准；不要机械照抄 pageText，也不要把整句强行统一成闽南语。",
-  "先看 heardText，再看 lexiconCandidateText，最后只把 pageText 当作语义兜底参考。",
-  "candidatePairs 列出 pageText 与词表候选文本的改写项；differenceSegments 只列出 heardText 与 lexiconCandidateText 的差异项，请逐项判断这些差异要保留哪一侧。",
-  "允许只采纳其中一部分差异项：例如前一个差异改用词表候选、后一个差异继续保留 heardText。",
+  "先看 heardText，再看 convertedText，最后只把 pageText 当作语义兜底参考。",
+  "convertPairs 列出 pageText 与转换文本的改写项；differenceSegments 只列出 heardText 与 convertedText 的差异项，请逐项判断这些差异要保留哪一侧。",
+  "允许只采纳其中一部分差异项：例如前一个差异改用转换文本、后一个差异继续保留 heardText。",
   "如果某个词在音频里读的是普通话，就保留普通话简体；如果读的是闽南语，就输出对应闽南语写法；如果没有读出来，就不要补回。",
   "一句话里允许同时保留普通话词和闽南语词。",
-  "当 lexiconCandidateText 与 heardText 发音接近、语义一致，且你对候选标准写法有把握时，可以采用词表候选写法。",
-  "audioFirstReferenceCorrectionThreshold 是词表候选校正阈值；当 correctionConfidence 低于该阈值时，应优先保留 heardText，并将 needHumanReview 设为 true。",
+  "当 convertedText 与 heardText 发音接近、语义一致，且你对标准写法有把握时，可以采用转换文本中的写法。",
+  "audioFirstReferenceCorrectionThreshold 是采纳阈值；当 correctionConfidence 低于该阈值时，应优先保留 heardText，并将 needHumanReview 设为 true。",
   "当低于阈值但存在明显冲突时，candidateDecisions 里要明确说明原因；不要为了命中词表而强行转换。",
   "recommendedText 与 heardText 的普通中文统一输出简体；命中 minnan-lexicon.csv 的建议用字只在确认音频确实这样读，或确认候选标准化更合理时才保留。",
   "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview、correctionConfidence、candidateDecisions。",
+  "只输出 JSON，不输出额外解释。",
+].join("\n");
+const DEFAULT_AUDIO_FIRST_REFERENCE_OMNI_COMPARE_TEMPLATE = [
+  "你正在执行“比较”阶段，并且本阶段允许再次听音频。",
+  "你会收到 pageText、convertedText、heardText，以及需要重点检查的 differenceSegments。",
+  "先参考 heardText 和 convertedText，再结合当前音频做二次判断，输出最终 recommendedText。",
+  "如果某个词在音频里读的是普通话，就保留普通话简体；如果读的是闽南语，就输出对应闽南语写法；如果没有读出来，就不要补回。",
+  "当 convertedText 与 heardText 发音接近、语义一致，且你对标准写法有把握时，可以采用转换文本中的写法。",
+  "audioFirstReferenceCorrectionThreshold 是采纳阈值；当 correctionConfidence 低于该阈值时，应优先保留 heardText，并将 needHumanReview 设为 true。",
+  "输出 JSON 字段：heardText、recommendedText、decision、changePoints、confidence、needHumanReview、correctionConfidence、candidateDecisions。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
 
@@ -200,6 +168,69 @@ function normalizeModelText(value) {
   return String(value || "").replace(/[\r\n]+/g, " ").trim().slice(0, 80);
 }
 
+function normalizeCompareFamily(value, fallback) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "omni") {
+    return "omni";
+  }
+  if (text === "qwen") {
+    return "qwen";
+  }
+  return String(fallback || DEFAULT_COMPARE_FAMILY).trim().toLowerCase() === "omni"
+    ? "omni"
+    : "qwen";
+}
+
+function isFunAsrListenModel(value) {
+  return normalizeDataBakerListenModel(value, DEFAULT_OMNI_MODEL) === DEFAULT_FUN_ASR_MODEL;
+}
+
+function deriveParallelPipelineMode(listenModel, compareFamily) {
+  const family = normalizeCompareFamily(compareFamily, DEFAULT_COMPARE_FAMILY);
+  if (family === "omni") {
+    return isFunAsrListenModel(listenModel) ? "fun_asr_omni_compare" : "omni_omni_compare";
+  }
+  return isFunAsrListenModel(listenModel) ? "fun_asr_text_compare" : "omni_text_compare";
+}
+
+function normalizeStageParams(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const result = {};
+  const temperature = normalizeNumberInRange(source.temperature, 0, 2);
+  if (temperature !== null) {
+    result.temperature = temperature;
+  }
+  const topP = normalizeNumberInRange(source.top_p, 0, 1);
+  if (topP !== null) {
+    result.top_p = topP;
+  }
+  const maxTokens = normalizeIntegerInRange(source.max_tokens, 1, 8192);
+  if (maxTokens !== null) {
+    result.max_tokens = maxTokens;
+  }
+  const maxCompletionTokens = normalizeIntegerInRange(source.max_completion_tokens, 1, 8192);
+  if (maxCompletionTokens !== null) {
+    result.max_completion_tokens = maxCompletionTokens;
+  }
+  const presencePenalty = normalizeNumberInRange(source.presence_penalty, -2, 2);
+  if (presencePenalty !== null) {
+    result.presence_penalty = presencePenalty;
+  }
+  const frequencyPenalty = normalizeNumberInRange(source.frequency_penalty, -2, 2);
+  if (frequencyPenalty !== null) {
+    result.frequency_penalty = frequencyPenalty;
+  }
+  const seed = normalizeIntegerInRange(source.seed, 0, 2147483647);
+  if (seed !== null) {
+    result.seed = seed;
+  }
+  const stop = normalizeStopSequences(source.stop || source.stopSequences);
+  if (stop.length > 0) {
+    result.stop = stop;
+  }
+  return result;
+}
+
 function getStrategyPromptDefaults(recognitionStrategy) {
   const normalizedStrategy = normalizeRecognitionStrategy(
     recognitionStrategy,
@@ -207,15 +238,54 @@ function getStrategyPromptDefaults(recognitionStrategy) {
   );
   if (normalizedStrategy === "audio_first_reference") {
     return {
+      convertPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE,
+      compareQwenPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE,
+      compareOmniPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_OMNI_COMPARE_TEMPLATE,
       candidatePrompt: DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE,
       listenPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE,
       comparePrompt: DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE,
     };
   }
   return {
+    convertPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE,
     candidatePrompt: DEFAULT_AUDIO_FIRST_REFERENCE_CANDIDATE_TEMPLATE,
-    listenPrompt: DEFAULT_MANDARIN_LISTEN_TEMPLATE,
-    comparePrompt: DEFAULT_MANDARIN_COMPARE_TEMPLATE,
+    listenPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_LISTEN_TEMPLATE,
+    compareQwenPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE,
+    compareOmniPrompt: DEFAULT_AUDIO_FIRST_REFERENCE_OMNI_COMPARE_TEMPLATE,
+    comparePrompt: DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE,
+  };
+}
+
+function buildStageDefaults() {
+  const prompts = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
+  const convertModel = resolveDefaultCandidateModel();
+  const listenModel = resolveDefaultListenModel(DEFAULT_MODEL_MODE);
+  const qwenCompareModel = resolveDefaultCompareModel();
+  const omniCompareModel = resolveDefaultSingleModel();
+  return {
+    convert: {
+      model: convertModel,
+      prompt: prompts.convertPrompt,
+      modelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
+    },
+    listen: {
+      model: listenModel,
+      prompt: prompts.listenPrompt,
+      modelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
+    },
+    compare: {
+      family: DEFAULT_COMPARE_FAMILY,
+      model: qwenCompareModel,
+      prompt: prompts.compareQwenPrompt,
+      familyOptions: COMPARE_FAMILY_OPTIONS.slice(),
+      qwenModel: qwenCompareModel,
+      omniModel: omniCompareModel,
+      qwenModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
+      omniModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
+      qwenPrompt: prompts.compareQwenPrompt,
+      omniPrompt: prompts.compareOmniPrompt,
+      adoptionThreshold: DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
+    },
   };
 }
 
@@ -367,7 +437,7 @@ function normalizeRecommendRequest(body) {
     throw createHttpError(400, "referenceText 不能为空。", "invalid-reference-text");
   }
 
-  const modelMode = normalizeModelMode(
+  const legacyModelMode = normalizeModelMode(
     source.modelMode || source.aiRecommendModelMode || source.recognitionMode || source.pipelineMode,
     DEFAULT_MODEL_MODE
   );
@@ -375,23 +445,126 @@ function normalizeRecommendRequest(body) {
     source.recognitionStrategy || source.aiRecommendRecognitionStrategy || source.pipelineMode,
     DEFAULT_RECOGNITION_STRATEGY
   );
-  const aiOptions = applyStrategyPromptDefaults(
+  const legacyAiOptions = applyStrategyPromptDefaults(
     normalizeAiOptions(source.aiOptions),
     recognitionStrategy
   );
-  const candidateModel = normalizeModelText(
-    source.candidateModel || aiOptions.candidateModel || resolveDefaultCandidateModel()
+  const sharedLegacyParams = normalizeStageParams(legacyAiOptions);
+  const stageDefaults = buildStageDefaults();
+  const legacyConvertModel = normalizeDataBakerCompareModel(
+    source.candidateModel || legacyAiOptions.candidateModel || stageDefaults.convert.model,
+    stageDefaults.convert.model
   );
-  const listenModel = normalizeModelText(
-    source.listenModel || aiOptions.listenModel || resolveDefaultListenModel(modelMode)
+  const legacyListenModel = normalizeDataBakerListenModel(
+    source.listenModel || legacyAiOptions.listenModel || resolveDefaultListenModel(legacyModelMode),
+    stageDefaults.listen.model
   );
-  const compareModel = normalizeModelText(
-    source.compareModel || aiOptions.compareModel || resolveDefaultCompareModel()
+  const legacyCompareFamily = normalizeCompareFamily(
+    source.compareFamily || source.aiRecommendCompareFamily,
+    normalizeModelMode(legacyModelMode, DEFAULT_MODEL_MODE) === "omni_single" ||
+      !isFunAsrListenModel(legacyListenModel)
+      ? "omni"
+      : "qwen"
   );
-  const singleModel = normalizeModelText(
-    source.singleModel || aiOptions.singleModel || aiOptions.omniModel || resolveDefaultSingleModel()
+  const legacyCompareModel =
+    legacyCompareFamily === "omni"
+      ? normalizeDataBakerSingleModel(
+          source.singleModel ||
+            legacyAiOptions.singleModel ||
+            legacyAiOptions.omniModel ||
+            legacyListenModel ||
+            stageDefaults.compare.omniModel,
+          stageDefaults.compare.omniModel
+        )
+      : normalizeDataBakerCompareModel(
+          source.compareModel || legacyAiOptions.compareModel || stageDefaults.compare.qwenModel,
+          stageDefaults.compare.qwenModel
+        );
+  const stageSource = source.aiStages && typeof source.aiStages === "object" ? source.aiStages : {};
+  const rawConvertStage = stageSource.convert && typeof stageSource.convert === "object"
+    ? stageSource.convert
+    : {};
+  const rawListenStage = stageSource.listen && typeof stageSource.listen === "object"
+    ? stageSource.listen
+    : {};
+  const rawCompareStage = stageSource.compare && typeof stageSource.compare === "object"
+    ? stageSource.compare
+    : {};
+  const compareFamily = normalizeCompareFamily(
+    rawCompareStage.family || rawCompareStage.compareFamily || source.compareFamily,
+    legacyCompareFamily
   );
-  const pipelineMode = derivePipelineMode(modelMode, listenModel, singleModel);
+  const convertStage = {
+    model: normalizeDataBakerCompareModel(
+      rawConvertStage.model || rawConvertStage.convertModel || source.convertModel || legacyConvertModel,
+      stageDefaults.convert.model
+    ),
+    prompt:
+      normalizePromptText(
+        rawConvertStage.prompt || rawConvertStage.convertPrompt || legacyAiOptions.candidatePrompt
+      ) || stageDefaults.convert.prompt,
+    params:
+      Object.keys(rawConvertStage.params || {}).length > 0
+        ? normalizeStageParams(rawConvertStage.params)
+        : sharedLegacyParams,
+  };
+  const listenStage = {
+    model: normalizeDataBakerListenModel(
+      rawListenStage.model || rawListenStage.listenModel || source.listenModel || legacyListenModel,
+      stageDefaults.listen.model
+    ),
+    prompt:
+      normalizePromptText(
+        rawListenStage.prompt || rawListenStage.listenPrompt || legacyAiOptions.listenPrompt
+      ) || stageDefaults.listen.prompt,
+    params:
+      Object.keys(rawListenStage.params || {}).length > 0
+        ? normalizeStageParams(rawListenStage.params)
+        : sharedLegacyParams,
+  };
+  const compareStage = {
+    family: compareFamily,
+    model:
+      compareFamily === "omni"
+        ? normalizeDataBakerSingleModel(
+            rawCompareStage.model ||
+              rawCompareStage.omniModel ||
+              source.compareModel ||
+              source.singleModel ||
+              legacyCompareModel,
+            stageDefaults.compare.omniModel
+          )
+        : normalizeDataBakerCompareModel(
+            rawCompareStage.model ||
+              rawCompareStage.qwenModel ||
+              source.compareModel ||
+              legacyCompareModel,
+            stageDefaults.compare.qwenModel
+          ),
+    prompt:
+      normalizePromptText(
+        rawCompareStage.prompt ||
+          (compareFamily === "omni" ? rawCompareStage.omniPrompt : rawCompareStage.qwenPrompt) ||
+          legacyAiOptions.comparePrompt
+      ) ||
+      (compareFamily === "omni"
+        ? stageDefaults.compare.omniPrompt
+        : stageDefaults.compare.qwenPrompt),
+    params:
+      Object.keys(rawCompareStage.params || {}).length > 0
+        ? normalizeStageParams(rawCompareStage.params)
+        : sharedLegacyParams,
+    adoptionThreshold:
+      normalizeNumberInRange(
+        rawCompareStage.adoptionThreshold ??
+          rawCompareStage.audioFirstReferenceCorrectionThreshold ??
+          legacyAiOptions.audioFirstReferenceCorrectionThreshold,
+        0,
+        1
+      ) ?? stageDefaults.compare.adoptionThreshold,
+  };
+  const modelMode = "three_stage_parallel";
+  const pipelineMode = deriveParallelPipelineMode(listenStage.model, compareFamily);
 
   return {
     taskId,
@@ -427,17 +600,25 @@ function normalizeRecommendRequest(body) {
     recognitionStrategy,
     recognitionMode: modelMode,
     pipelineMode,
-    candidateModel: normalizeDataBakerCompareModel(candidateModel, resolveDefaultCandidateModel()),
-    listenModel:
-      pipelineMode === "omni_single"
-        ? normalizeDataBakerListenModel(DEFAULT_OMNI_MODEL, DEFAULT_OMNI_MODEL)
-        : pipelineMode === "fun_asr_compare"
-          ? DEFAULT_FUN_ASR_MODEL
-          : normalizeDataBakerListenModel(listenModel, DEFAULT_OMNI_MODEL),
-    compareModel: normalizeDataBakerCompareModel(compareModel, DEFAULT_COMPARE_MODEL),
-    singleModel: normalizeDataBakerSingleModel(singleModel, DEFAULT_OMNI_MODEL),
+    aiStages: {
+      convert: convertStage,
+      listen: listenStage,
+      compare: compareStage,
+    },
+    convertModel: convertStage.model,
+    compareFamily,
+    candidateModel: convertStage.model,
+    listenModel: listenStage.model,
+    compareModel: compareStage.model,
+    singleModel: compareFamily === "omni" ? compareStage.model : "",
     enableThinking: false,
-    aiOptions,
+    aiOptions: {
+      candidatePrompt: convertStage.prompt,
+      listenPrompt: listenStage.prompt,
+      comparePrompt: compareStage.prompt,
+      audioFirstReferenceCorrectionThreshold: compareStage.adoptionThreshold,
+      enable_thinking: false,
+    },
   };
 }
 
@@ -490,7 +671,7 @@ function buildRecommendErrorBody(input) {
 
 function createHealthPayload() {
   const queueGroups = getQueueGroupsHealth();
-  const defaults = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
+  const stageDefaults = buildStageDefaults();
   const runtime = buildAsyncJobRuntimeMeta();
   const modelCatalog = {
     text: listModelsByFamily("text"),
@@ -504,20 +685,17 @@ function createHealthPayload() {
     component: COMPONENT_NAME,
     status: "ready",
     timeoutMs: parseTimeoutMs(),
-    modelMode: DEFAULT_MODEL_MODE,
-    recognitionStrategy: DEFAULT_RECOGNITION_STRATEGY,
-    audioFirstReferenceCorrectionThreshold: DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
     enableThinking: false,
-    modelModeOptions: MODEL_MODE_OPTIONS.slice(),
-    recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
+    stages: stageDefaults,
     listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
     compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
     candidateModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
     singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
-    candidateModel: resolveDefaultCandidateModel(),
-    listenModel: resolveDefaultListenModel(DEFAULT_MODEL_MODE),
-    compareModel: resolveDefaultCompareModel(),
-    singleModel: resolveDefaultSingleModel(),
+    convertModel: stageDefaults.convert.model,
+    listenModel: stageDefaults.listen.model,
+    compareFamily: stageDefaults.compare.family,
+    compareModel: stageDefaults.compare.qwenModel,
+    compareAdoptionThreshold: stageDefaults.compare.adoptionThreshold,
     modelCatalog,
     queue: {
       groups: queueGroups,
@@ -530,14 +708,13 @@ function createHealthPayload() {
       backendMode: "independent-aishell-pipeline",
       timeout: "Aishell 独立超时墙当前统一为 60s，前端默认通过短请求建 job + 轮询接收结果。",
       cancellation: "客户端断开、服务端超时和手动取消会统一透传 AbortSignal。",
-      defaultListenPromptPreview: defaults.listenPrompt,
+      defaultListenPromptPreview: stageDefaults.listen.prompt,
     },
   };
 }
 
 function createDefaultsPayload() {
-  const audioFirstPrompts = getStrategyPromptDefaults("audio_first_reference");
-  const defaultPrompts = getStrategyPromptDefaults(DEFAULT_RECOGNITION_STRATEGY);
+  const stageDefaults = buildStageDefaults();
   const runtime = buildAsyncJobRuntimeMeta();
   const modelCatalog = {
     text: listModelsByFamily("text"),
@@ -551,32 +728,29 @@ function createDefaultsPayload() {
     component: COMPONENT_NAME,
     defaults: Object.assign({}, DEFAULT_REQUEST_PARAMS, {
       timeoutMs: parseTimeoutMs(),
-      modelMode: DEFAULT_MODEL_MODE,
       recognitionStrategy: DEFAULT_RECOGNITION_STRATEGY,
-      recognitionMode: DEFAULT_MODEL_MODE,
+      modelMode: "three_stage_parallel",
+      recognitionMode: "three_stage_parallel",
       enableThinking: false,
-      pipelineMode: derivePipelineMode(
-        DEFAULT_MODEL_MODE,
-        resolveDefaultListenModel(DEFAULT_MODEL_MODE),
-        resolveDefaultSingleModel()
+      pipelineMode: deriveParallelPipelineMode(
+        stageDefaults.listen.model,
+        stageDefaults.compare.family
       ),
-      modelModeOptions: MODEL_MODE_OPTIONS.slice(),
-      recognitionStrategyOptions: RECOGNITION_STRATEGY_OPTIONS.slice(),
+      stages: stageDefaults,
       listenModelOptions: DATABAKER_LISTEN_MODEL_OPTIONS.slice(),
       compareModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
       candidateModelOptions: DATABAKER_COMPARE_MODEL_OPTIONS.slice(),
       singleModelOptions: DATABAKER_SINGLE_MODEL_OPTIONS.slice(),
-      candidateModel: resolveDefaultCandidateModel(),
-      listenModel: resolveDefaultListenModel(DEFAULT_MODEL_MODE),
-      compareModel: resolveDefaultCompareModel(),
-      singleModel: resolveDefaultSingleModel(),
-      audioFirstReferenceCorrectionThreshold: DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
-      candidatePrompt: defaultPrompts.candidatePrompt,
-      listenPrompt: defaultPrompts.listenPrompt,
-      comparePrompt: defaultPrompts.comparePrompt,
-      promptProfiles: {
-        audio_first_reference: audioFirstPrompts,
-      },
+      convertModel: stageDefaults.convert.model,
+      candidateModel: stageDefaults.convert.model,
+      listenModel: stageDefaults.listen.model,
+      compareFamily: stageDefaults.compare.family,
+      compareModel: stageDefaults.compare.qwenModel,
+      singleModel: stageDefaults.compare.omniModel,
+      compareAdoptionThreshold: stageDefaults.compare.adoptionThreshold,
+      candidatePrompt: stageDefaults.convert.prompt,
+      listenPrompt: stageDefaults.listen.prompt,
+      comparePrompt: stageDefaults.compare.qwenPrompt,
       modelCatalog,
     }),
     jobs: runtime.jobs,

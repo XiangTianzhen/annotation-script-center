@@ -58,7 +58,7 @@ function loadStorageApi(initialSettings) {
   };
 }
 
-test("Aishell storage defaults use the aligned Minnan standard", async function () {
+test("Aishell storage defaults use the three-stage phase config", async function () {
   const harness = loadStorageApi({});
 
   try {
@@ -67,18 +67,38 @@ test("Aishell storage defaults use the aligned Minnan standard", async function 
     const script = settings.platforms.aishellTech.scripts.minnanHelper;
 
     assert.equal(dataBakerScript.aiQualifiedAutofillConcurrency, 5);
-    assert.equal(script.aiRecommendPipelineMode, "two_stage");
-    assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
-    assert.equal(script.aiRecommendCandidateModel, "qwen3.5-plus");
+    assert.equal(script.aiRecommendConvertModel, "qwen3.5-plus");
+    assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
+    assert.equal(script.aiRecommendCompareFamily, "qwen");
     assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
-    assert.equal(script.aiRecommendAudioFirstReferenceCorrectionThreshold, 0.75);
+    assert.equal(script.aiRecommendCompareAdoptionThreshold, 0.75);
+    assert.equal(
+      script.aiRecommendEndpoint,
+      "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend"
+    );
+    assert.equal(script.aiRecommendConvertPrompt, "");
+    assert.equal(script.aiRecommendListenPrompt, "");
+    assert.equal(script.aiRecommendCompareQwenPrompt, "");
+    assert.equal(script.aiRecommendCompareOmniPrompt, "");
     assert.equal(script.aiQualifiedAutofillConcurrency, 5);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(script, "aiRecommendPipelineMode"),
+      false
+    );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(script, "aiRecommendRecognitionStrategy"),
+      false
+    );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(script, "aiRecommendCandidateModel"),
+      false
+    );
   } finally {
     harness.cleanup();
   }
 });
 
-test("Aishell storage upgrades legacy strategy values to audio-first", async function () {
+test("Aishell storage ignores legacy AI fields and resets to new defaults", async function () {
   const harness = loadStorageApi({
     platforms: {
       aishellTech: {
@@ -94,6 +114,9 @@ test("Aishell storage upgrades legacy strategy values to audio-first", async fun
             aiRecommendCandidateModel: "qwen3.6-plus",
             aiRecommendCompareModel: "qwen3.5-flash",
             aiRecommendSingleModel: "qwen3.5-omni-flash",
+            aiRecommendCandidatePrompt: "legacy-candidate-prompt",
+            aiRecommendComparePrompt: "legacy-compare-prompt",
+            aiRecommendAudioFirstReferenceCorrectionThreshold: 0.912,
           },
         },
       },
@@ -104,81 +127,118 @@ test("Aishell storage upgrades legacy strategy values to audio-first", async fun
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.aishellTech.scripts.minnanHelper;
 
-    assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
-    assert.equal(script.aiRecommendCandidateModel, "qwen3.6-plus");
-    assert.equal(script.aiRecommendCompareModel, "qwen3.5-flash");
-  } finally {
-    harness.cleanup();
-  }
-});
-
-test("Aishell storage keeps customized model choices but still normalizes strategy to audio-first", async function () {
-  const harness = loadStorageApi({
-    platforms: {
-      aishellTech: {
-        enabled: true,
-        scripts: {
-          minnanHelper: {
-            id: "aishellTechMinnanAssistant",
-            enabled: true,
-            aiRecommendEnabled: true,
-            aiRecommendPipelineMode: "two_stage",
-            aiRecommendRecognitionStrategy: "direct_dialect",
-            aiRecommendListenModel: "fun-asr",
-            aiRecommendCandidateModel: "qwen3.5-flash",
-            aiRecommendCompareModel: "qwen3.6-plus",
-            aiRecommendSingleModel: "qwen3.5-omni-flash",
-          },
-        },
-      },
-    },
-  });
-
-  try {
-    const settings = await harness.storage.getSettings();
-    const script = settings.platforms.aishellTech.scripts.minnanHelper;
-
-    assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
-    assert.equal(script.aiRecommendCandidateModel, "qwen3.5-flash");
-    assert.equal(script.aiRecommendCompareModel, "qwen3.6-plus");
-  } finally {
-    harness.cleanup();
-  }
-});
-
-test("Aishell storage keeps audio-first recognition strategy untouched", async function () {
-  const harness = loadStorageApi({
-    platforms: {
-      aishellTech: {
-        enabled: true,
-        scripts: {
-          minnanHelper: {
-            id: "aishellTechMinnanAssistant",
-            enabled: true,
-            aiRecommendEnabled: true,
-            aiRecommendPipelineMode: "two_stage",
-            aiRecommendRecognitionStrategy: "audio_first_reference",
-            aiRecommendAudioFirstReferenceCorrectionThreshold: 0.812,
-            aiRecommendListenModel: "fun-asr",
-            aiRecommendCandidateModel: "qwen3.6-plus",
-            aiRecommendCompareModel: "qwen3.5-plus",
-            aiRecommendSingleModel: "qwen3.5-omni-flash",
-            aiRecommendCandidatePrompt: "candidate-prompt",
-          },
-        },
-      },
-    },
-  });
-
-  try {
-    const settings = await harness.storage.getSettings();
-    const script = settings.platforms.aishellTech.scripts.minnanHelper;
-
-    assert.equal(script.aiRecommendRecognitionStrategy, "audio_first_reference");
-    assert.equal(script.aiRecommendCandidateModel, "qwen3.6-plus");
+    assert.equal(script.aiRecommendConvertModel, "qwen3.5-plus");
+    assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
+    assert.equal(script.aiRecommendCompareFamily, "qwen");
     assert.equal(script.aiRecommendCompareModel, "qwen3.5-plus");
-    assert.equal(script.aiRecommendAudioFirstReferenceCorrectionThreshold, 0.812);
-    assert.equal(script.aiRecommendCandidatePrompt, "candidate-prompt");
+    assert.equal(script.aiRecommendCompareAdoptionThreshold, 0.75);
+    assert.equal(
+      script.aiRecommendEndpoint,
+      "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend"
+    );
+    assert.equal(script.aiRecommendConvertPrompt, "");
+    assert.equal(script.aiRecommendCompareQwenPrompt, "");
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(script, "aiRecommendPipelineMode"),
+      false
+    );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(script, "aiRecommendCandidateModel"),
+      false
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Aishell storage keeps new three-stage custom values untouched", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      aishellTech: {
+        enabled: true,
+        scripts: {
+          minnanHelper: {
+            id: "aishellTechMinnanAssistant",
+            enabled: true,
+            aiRecommendEnabled: true,
+            aiRecommendConvertModel: "qwen3.6-plus",
+            aiRecommendConvertPrompt: "convert-prompt",
+            aiRecommendConvertTemperature: "0.3",
+            aiRecommendListenModel: "fun-asr",
+            aiRecommendListenPrompt: "listen-prompt",
+            aiRecommendCompareFamily: "omni",
+            aiRecommendCompareModel: "qwen3.5-omni-plus",
+            aiRecommendCompareOmniPrompt: "compare-omni-prompt",
+            aiRecommendCompareAdoptionThreshold: 0.812,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.aishellTech.scripts.minnanHelper;
+
+    assert.equal(script.aiRecommendConvertModel, "qwen3.6-plus");
+    assert.equal(script.aiRecommendConvertPrompt, "convert-prompt");
+    assert.equal(script.aiRecommendConvertTemperature, "0.3");
+    assert.equal(script.aiRecommendListenModel, "fun-asr");
+    assert.equal(script.aiRecommendListenPrompt, "listen-prompt");
+    assert.equal(script.aiRecommendCompareFamily, "omni");
+    assert.equal(script.aiRecommendCompareModel, "qwen3.5-omni-plus");
+    assert.equal(script.aiRecommendCompareOmniPrompt, "compare-omni-prompt");
+    assert.equal(script.aiRecommendCompareAdoptionThreshold, 0.812);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Aishell storage drops legacy Aishell fields even when mixed with new phase fields", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      aishellTech: {
+        enabled: true,
+        scripts: {
+          minnanHelper: {
+            id: "aishellTechMinnanAssistant",
+            enabled: true,
+            aiRecommendEnabled: true,
+            aiRecommendPipelineMode: "omni_single",
+            aiRecommendRecognitionStrategy: "audio_first_reference",
+            aiRecommendCandidateModel: "qwen3.6-plus",
+            aiRecommendCompareModel: "qwen3.5-flash",
+            aiRecommendAudioFirstReferenceCorrectionThreshold: 0.222,
+            aiRecommendConvertModel: "qwen3.5-flash",
+            aiRecommendListenModel: "fun-asr",
+            aiRecommendCompareFamily: "qwen",
+            aiRecommendCompareModel: "qwen3.6-plus",
+            aiRecommendCompareAdoptionThreshold: 0.701,
+            aiRecommendCompareQwenPrompt: "compare-qwen-prompt",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.aishellTech.scripts.minnanHelper;
+
+    assert.equal(script.aiRecommendConvertModel, "qwen3.5-flash");
+    assert.equal(script.aiRecommendListenModel, "fun-asr");
+    assert.equal(script.aiRecommendCompareFamily, "qwen");
+    assert.equal(script.aiRecommendCompareModel, "qwen3.6-plus");
+    assert.equal(script.aiRecommendCompareAdoptionThreshold, 0.701);
+    assert.equal(script.aiRecommendCompareQwenPrompt, "compare-qwen-prompt");
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(script, "aiRecommendPipelineMode"),
+      false
+    );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(script, "aiRecommendCandidateModel"),
+      false
+    );
   } finally {
     harness.cleanup();
   }
@@ -208,10 +268,9 @@ test("storage keeps customized legal autofill concurrency values untouched", asy
             id: "aishellTechMinnanAssistant",
             enabled: true,
             aiRecommendEnabled: true,
-            aiRecommendPipelineMode: "two_stage",
-            aiRecommendRecognitionStrategy: "mandarin_to_dialect",
             aiRecommendListenModel: "fun-asr",
-            aiRecommendSingleModel: "qwen3.5-omni-flash",
+            aiRecommendCompareFamily: "omni",
+            aiRecommendListenModel: "fun-asr",
             aiQualifiedAutofillConcurrency: 9,
           },
         },

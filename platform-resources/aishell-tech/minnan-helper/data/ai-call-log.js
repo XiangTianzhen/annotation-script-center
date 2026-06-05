@@ -29,6 +29,7 @@ const aiCallLogger = createAiCallLogger({
   extraColumns: [
     { key: "cancelled", header: "是否取消" },
     { key: "stage", header: "阶段" },
+    { key: "convertDurationMs", header: "转换耗时毫秒" },
     { key: "listenDurationMs", header: "听音耗时毫秒" },
     { key: "compareDurationMs", header: "比较耗时毫秒" },
     { key: "queueWaitMs", header: "排队等待毫秒" },
@@ -37,12 +38,11 @@ const aiCallLogger = createAiCallLogger({
     { key: "taskId", header: "任务ID" },
     { key: "packageId", header: "分包ID" },
     { key: "taskItemId", header: "条目ID" },
-    { key: "modelMode", header: "模型方案" },
-    { key: "recognitionStrategy", header: "识别策略" },
-    { key: "pipelineMode", header: "流水线模式" },
+    { key: "pipelineMode", header: "执行链路" },
+    { key: "convertModel", header: "转换模型" },
     { key: "listenModel", header: "听音模型" },
+    { key: "compareModelFamily", header: "比较方式" },
     { key: "compareModel", header: "比较模型" },
-    { key: "singleModel", header: "单模型" },
   ],
   buildExtendedRow(context) {
     const request = context?.normalizedRequest || {};
@@ -57,6 +57,7 @@ const aiCallLogger = createAiCallLogger({
     return {
       cancelled: meta.cancelled === true ? "true" : "false",
       stage: normalizeText(context?.error?.stage || meta.stage),
+      convertDurationMs: normalizeText(timing.convertDurationMs || timing.candidateDurationMs),
       listenDurationMs: normalizeText(timing.listenDurationMs),
       compareDurationMs: normalizeText(timing.compareDurationMs),
       queueWaitMs: normalizeText(queue.totalQueueWaitMs),
@@ -65,14 +66,15 @@ const aiCallLogger = createAiCallLogger({
       taskId: normalizeText(request.taskId),
       packageId: normalizeText(request.packageId),
       taskItemId: normalizeText(request.taskItemId),
-      modelMode: normalizeText(request.modelMode || models.modelMode),
-      recognitionStrategy: normalizeText(
-        request.recognitionStrategy || models.recognitionStrategy
-      ),
       pipelineMode: normalizeText(request.pipelineMode || models.pipelineMode),
+      convertModel: normalizeText(
+        models.convertModel || request.convertModel || models.candidateModel || request.candidateModel
+      ),
       listenModel: normalizeText(models.listenModel || request.listenModel),
+      compareModelFamily: normalizeText(
+        models.compareModelFamily || request.compareFamily
+      ),
       compareModel: normalizeText(models.compareModel || request.compareModel),
-      singleModel: normalizeText(models.singleModel || request.singleModel),
     };
   },
   pickRawResponse(context) {
