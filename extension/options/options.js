@@ -4474,6 +4474,7 @@
         id: dataBakerCvpcLiuzhouScriptId,
         enabled: true,
         segmentPreviewEnabled: true,
+        blockEditingTabTips: true,
         segmentPreviewEndpoint:
           constants.DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT ||
           "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
@@ -4493,6 +4494,7 @@
     config.id = dataBakerCvpcLiuzhouScriptId;
     config.enabled = config.enabled !== false;
     config.segmentPreviewEnabled = config.segmentPreviewEnabled !== false;
+    config.blockEditingTabTips = config.blockEditingTabTips !== false;
     config.aiRecommendEnabled = config.aiRecommendEnabled !== false;
     config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
       config.aiRecommendRequestTimeoutMs
@@ -9821,6 +9823,7 @@
     dataBakerCvpcShortcutsDraft = clone(config.shortcuts) || {};
     const segmentPreviewNode = getElement("data-baker-cvpc-segment-preview-enabled");
     const aiRecommendNode = getElement("data-baker-cvpc-ai-recommend-enabled");
+    const blockEditingTabTipsNode = getElement("data-baker-cvpc-block-editing-tab-tips");
     const timeoutNode = getElement("data-baker-cvpc-ai-timeout");
     const contractNode = getElement("data-baker-cvpc-contract-mode");
 
@@ -9829,6 +9832,9 @@
     }
     if (aiRecommendNode) {
       aiRecommendNode.checked = config.aiRecommendEnabled !== false;
+    }
+    if (blockEditingTabTipsNode) {
+      blockEditingTabTipsNode.checked = config.blockEditingTabTips !== false;
     }
     if (timeoutNode) {
       timeoutNode.value = String(
@@ -10101,6 +10107,7 @@
     });
     const segmentPreviewEnabled = getElement("data-baker-cvpc-segment-preview-enabled").checked;
     const aiRecommendEnabled = getElement("data-baker-cvpc-ai-recommend-enabled").checked;
+    const blockEditingTabTips = getElement("data-baker-cvpc-block-editing-tab-tips").checked;
     const timeoutMs = normalizeDataBakerTimeoutMs(
       getElement("data-baker-cvpc-ai-timeout").value ||
         String(currentConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
@@ -10122,6 +10129,7 @@
               liuzhouAssistant: {
                 id: dataBakerCvpcLiuzhouScriptId,
                 segmentPreviewEnabled: segmentPreviewEnabled,
+                blockEditingTabTips: blockEditingTabTips,
                 segmentPreviewEndpoint: buildBackendUrl(segmentPreviewPath, currentSettings || {}),
                 aiRecommendEnabled: aiRecommendEnabled,
                 aiRecommendEndpoint: buildBackendUrl(aiRecommendPath, currentSettings || {}),

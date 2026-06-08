@@ -70,6 +70,7 @@ test("CVPC storage defaults expose beta liuzhou helper settings", async function
     assert.equal(script.enabled, true);
     assert.equal(script.segmentPreviewEnabled, true);
     assert.equal(script.aiRecommendEnabled, true);
+    assert.equal(script.blockEditingTabTips, true);
     assert.equal(
       script.segmentPreviewEndpoint,
       "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview"
@@ -103,6 +104,7 @@ test("CVPC storage normalizes invalid values and preserves local endpoints", asy
             segmentPreviewEndpoint:
               "http://127.0.0.1:3333/api/data-baker-cvpc/liuzhou-helper/segment/preview",
             aiRecommendEnabled: true,
+            blockEditingTabTips: false,
             aiRecommendEndpoint:
               "http://127.0.0.1:3333/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: "abc",
@@ -128,6 +130,7 @@ test("CVPC storage normalizes invalid values and preserves local endpoints", asy
       script.aiRecommendEndpoint,
       "http://127.0.0.1:3333/api/data-baker-cvpc/liuzhou-helper/ai/recommend"
     );
+    assert.equal(script.blockEditingTabTips, false);
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
     assert.equal(script.aiRecommendModel, "qwen3.5-omni-flash");
     assert.equal(script.contractMode, "dom-guarded");

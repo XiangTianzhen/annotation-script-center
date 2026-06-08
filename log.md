@@ -1,3 +1,25 @@
+## 2026-06-08（DataBaker CVPC 柳州话脚本屏蔽 Tab 限制提示）
+
+- `DataBaker CVPC / 柳州话脚本` 当前新增基础设置开关：
+  - `屏蔽“不能打开新的Tab页”提示`
+  - 默认开启
+  - 存储字段：`platforms.dataBakerCvpc.scripts.liuzhouAssistant.blockEditingTabTips`
+- 运行时新增 `extension/sites/data-baker-cvpc/liuzhou-helper/editing-tab-tip-guard.js`：
+  - 进入 `/app/editor/asr/` 后先扫描一次页面
+  - 再通过 `MutationObserver` 监听新增节点
+  - 只移除文案包含 `您正在编辑该作业,不能打开新的Tab页` 的提示模块
+  - 不扩大到其他 `.tips` 提示，也不改平台保存/提交/切条逻辑
+- options / storage / manifest 同步更新：
+  - `extension/options/options.html`
+  - `extension/options/options.js`
+  - `extension/shared/constants.js`
+  - `extension/shared/storage.js`
+  - `extension/manifest.json`
+- 新增验证覆盖：
+  - `extension/shared/storage.data-baker-cvpc.test.js`
+  - `extension/options/options-shortcut-panel-structure.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/editing-tab-tip-guard.test.js`
+
 ## 2026-06-05（全平台快捷键默认置空与组件化收口）
 
 - options 侧快捷键面板当前已统一收口到 `extension/options/options-shared-shortcut-panel.js`：

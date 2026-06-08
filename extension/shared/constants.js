@@ -1800,6 +1800,7 @@
           id: DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID,
           enabled: true,
           segmentPreviewEnabled: true,
+          blockEditingTabTips: true,
           segmentPreviewEndpoint: DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT,
           aiRecommendEnabled: true,
           aiRecommendEndpoint: DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT,

@@ -11,6 +11,7 @@
   const segmentFactory = globalThis.ASREdgeDataBakerCvpcLiuzhouSegmentation || null;
   const uiFactory = globalThis.ASREdgeDataBakerCvpcLiuzhouUiPanel || null;
   const shortcutFactory = globalThis.ASREdgeDataBakerCvpcLiuzhouShortcuts || null;
+  const editingTabTipGuardApi = globalThis.ASREdgeDataBakerCvpcEditingTabTipGuard || null;
   const SCRIPT_ID =
     CONSTANTS.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID || "dataBakerCvpcLiuzhouAssistant";
   const AI_PATH =
@@ -50,6 +51,8 @@
         settings?.platforms?.dataBakerCvpc?.enabled !== false && current.enabled !== false,
       segmentPreviewEnabled:
         (current.segmentPreviewEnabled ?? defaults.segmentPreviewEnabled) !== false,
+      blockEditingTabTips:
+        (current.blockEditingTabTips ?? defaults.blockEditingTabTips) !== false,
       aiRecommendEnabled:
         (current.aiRecommendEnabled ?? defaults.aiRecommendEnabled) !== false,
       timeoutMs:
@@ -73,6 +76,9 @@
     }
     if (runtime?.ui?.destroy) {
       runtime.ui.destroy();
+    }
+    if (runtime?.editingTabTipGuard?.stop) {
+      runtime.editingTabTipGuard.stop();
     }
     runtime = null;
     lastRecommendation = null;
@@ -181,6 +187,12 @@
     const segment = segmentFactory.createRuntime({
       endpoint: config.segmentPreviewEndpoint,
     });
+    const editingTabTipGuard =
+      editingTabTipGuardApi && typeof editingTabTipGuardApi.createEditingTabTipGuard === "function"
+        ? editingTabTipGuardApi.createEditingTabTipGuard({
+            enabled: config.blockEditingTabTips !== false,
+          })
+        : null;
     const ui = uiFactory.createRuntime({
       onPreview: function () {
         if (config.segmentPreviewEnabled === false) {
@@ -243,11 +255,15 @@
       dataApi,
       ai,
       segment,
+      editingTabTipGuard,
       ui,
       shortcuts,
     };
     ui.mount();
     shortcuts.bind();
+    if (editingTabTipGuard?.start) {
+      editingTabTipGuard.start();
+    }
     ui.setStatus("柳州话脚本已就绪；当前处于建议生成 + 人工确认模式。", "success");
   }
 

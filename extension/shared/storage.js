@@ -76,6 +76,7 @@
                 id: "dataBakerCvpcLiuzhouAssistant",
                 enabled: true,
                 segmentPreviewEnabled: true,
+                blockEditingTabTips: true,
                 segmentPreviewEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
                 aiRecommendEnabled: true,
@@ -1926,6 +1927,7 @@
       "dataBakerCvpcLiuzhouAssistant";
     result.enabled = result.enabled !== false;
     result.segmentPreviewEnabled = result.segmentPreviewEnabled !== false;
+    result.blockEditingTabTips = result.blockEditingTabTips !== false;
     result.aiRecommendEnabled = result.aiRecommendEnabled !== false;
     result.segmentPreviewEndpoint = normalizeHttpEndpoint(
       result.segmentPreviewEndpoint,
@@ -1966,6 +1968,7 @@
               "dataBakerCvpcLiuzhouAssistant",
             enabled: true,
             segmentPreviewEnabled: true,
+            blockEditingTabTips: true,
             segmentPreviewEndpoint:
               constants.DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",

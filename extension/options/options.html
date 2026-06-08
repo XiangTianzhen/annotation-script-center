@@ -557,6 +557,17 @@
 
             <div class="detail-grid two">
               <label class="field-card">
+                <strong>屏蔽“不能打开新的Tab页”提示</strong>
+                <span>只移除文案为“您正在编辑该作业,不能打开新的Tab页”的高层提示，不处理其他 `.tips` 提示。</span>
+                <span class="field-toggle">
+                  <input id="data-baker-cvpc-block-editing-tab-tips" type="checkbox" />
+                  在 `/app/editor/asr/` 自动屏蔽该提示模块
+                </span>
+              </label>
+            </div>
+
+            <div class="detail-grid two">
+              <label class="field-card">
                 <strong>AI 请求超时（ms）</strong>
                 <span>只影响当前段推荐接口；不改变画段建议的建议生成边界。</span>
                 <input
