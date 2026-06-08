@@ -151,7 +151,7 @@ test("liuzhou ai recommend fails closed when selectedRange is missing", async fu
   );
 });
 
-test("liuzhou ai recommend reuses uploaded clip cache for the same selectionKey before expiry", async function () {
+test("liuzhou ai recommend uploads a fresh clip for every recommendation request", async function () {
   const moduleApi = loadModule();
   const harness = installAudioHarness();
 
@@ -213,8 +213,8 @@ test("liuzhou ai recommend reuses uploaded clip cache for the same selectionKey 
       return call.url.indexOf("/ai/recommend") >= 0;
     }).length;
 
-    assert.equal(audioFetchCount, 1);
-    assert.equal(uploadCount, 1);
+    assert.equal(audioFetchCount, 2);
+    assert.equal(uploadCount, 2);
     assert.equal(recommendCount, 2);
 
     const recommendCall = harness.calls.find(function (call) {

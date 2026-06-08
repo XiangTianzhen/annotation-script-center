@@ -5,10 +5,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const CLIP_CACHE_BASE_PATH = "/api/data-baker-cvpc/liuzhou-helper/clip-cache";
-const DEFAULT_CLIP_TTL_MS = 60 * 60 * 1000;
+const DEFAULT_CLIP_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_MAX_CLIP_BYTES = 10 * 1024 * 1024;
 const DEFAULT_RUNTIME_DIR = path.join(__dirname, "..", "data", "runtime", "clip-cache");
 const ALLOWED_CONTENT_TYPES = ["audio/wav", "audio/x-wav", "audio/wave"];
+const deletionTimers = new Map();
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -102,8 +103,58 @@ function getAudioPath(runtimeDir, clipId) {
 }
 
 function removeClipFiles(runtimeDir, clipId) {
+  clearScheduledDeletion(clipId);
   fs.rmSync(getMetadataPath(runtimeDir, clipId), { force: true });
   fs.rmSync(getAudioPath(runtimeDir, clipId), { force: true });
+}
+
+function clearScheduledDeletion(clipId) {
+  const key = normalizeText(clipId);
+  const timer = deletionTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    deletionTimers.delete(key);
+  }
+}
+
+function scheduleDeletion(runtimeDir, clipId, expiresAtMs) {
+  const key = normalizeText(clipId);
+  if (!key) {
+    return;
+  }
+  clearScheduledDeletion(key);
+  const delayMs = Math.max(0, Math.round(toFiniteNumber(expiresAtMs, 0) - Date.now()));
+  const timer = setTimeout(function () {
+    deletionTimers.delete(key);
+    try {
+      fs.rmSync(getMetadataPath(runtimeDir, key), { force: true });
+      fs.rmSync(getAudioPath(runtimeDir, key), { force: true });
+    } catch (_error) {
+      return;
+    }
+  }, delayMs);
+  if (typeof timer.unref === "function") {
+    timer.unref();
+  }
+  deletionTimers.set(key, timer);
+}
+
+function scheduleExistingRuntimeDeletions(runtimeDir) {
+  const normalizedRuntimeDir = ensureRuntimeDir(runtimeDir);
+  fs.readdirSync(normalizedRuntimeDir)
+    .filter(function (fileName) {
+      return /\.json$/i.test(fileName);
+    })
+    .forEach(function (fileName) {
+      const clipId = fileName.replace(/\.json$/i, "");
+      const metadata = readMetadata(normalizedRuntimeDir, clipId);
+      const expiresAtMs = Math.round(toFiniteNumber(metadata?.expiresAtMs, 0));
+      if (!metadata || expiresAtMs <= Date.now()) {
+        removeClipFiles(normalizedRuntimeDir, clipId);
+        return;
+      }
+      scheduleDeletion(normalizedRuntimeDir, clipId, expiresAtMs);
+    });
 }
 
 function readMetadata(runtimeDir, clipId) {
@@ -178,6 +229,7 @@ function saveClip(input, options) {
 
   fs.writeFileSync(getAudioPath(runtimeDir, clipId), buffer);
   fs.writeFileSync(getMetadataPath(runtimeDir, clipId), JSON.stringify(metadata, null, 2), "utf8");
+  scheduleDeletion(runtimeDir, clipId, expiresAtMs);
 
   return {
     success: true,
@@ -237,6 +289,7 @@ function createHealthPayload(options) {
 }
 
 purgeExpiredClips();
+scheduleExistingRuntimeDeletions(DEFAULT_RUNTIME_DIR);
 
 module.exports = {
   ALLOWED_CONTENT_TYPES,
@@ -249,4 +302,5 @@ module.exports = {
   purgeExpiredClips,
   readClip,
   saveClip,
+  scheduleExistingRuntimeDeletions,
 };

@@ -22,6 +22,17 @@
   - `设为 Valid / 设为 Invalid` 当前不再作为面板按钮渲染，继续只依赖页面原生单选与既有快捷键。
   - 波形区 `.bottom-right` 当前不再承载柳州话脚本自定义按钮。
 
+## 2026-06-09（DataBaker CVPC 临时音频改为每次重传并缩短为 10 分钟 TTL）
+
+- `DataBaker CVPC / 柳州话脚本` 当前调整临时音频策略：
+  - 前端不再复用页内 clip-cache URL；每次点击 `当前段 AI 推荐` 都会重新裁剪当前段并重新上传临时音频。
+  - 后端临时音频默认保留时间从 `1` 小时改为 `10` 分钟。
+  - 上传成功后当前会记录过期时间，并在进程内注册定时删除；上传、读取和服务启动时也继续顺手清理过期文件。
+- 同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/clip-cache-service.js`
+  - 对应测试与 README 口径
+
 ## 2026-06-09（DataBaker CVPC 柳州话脚本接入两阶段 AI 设置与三结果卡）
 
 - `DataBaker CVPC / 柳州话脚本` 当前完成新一轮布局与链路收口：

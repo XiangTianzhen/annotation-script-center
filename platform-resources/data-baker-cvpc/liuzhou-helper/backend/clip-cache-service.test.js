@@ -60,7 +60,11 @@ test("clip cache upload stores wav clip and returns public url metadata", functi
       saved.clipId +
       ".wav"
   );
-  assert.equal(saved.expiresAt, new Date(1000 + clipCacheService.DEFAULT_CLIP_TTL_MS).toISOString());
+  assert.equal(
+    saved.expiresAt,
+    new Date(1000 + clipCacheService.DEFAULT_CLIP_TTL_MS).toISOString()
+  );
+  assert.equal(clipCacheService.DEFAULT_CLIP_TTL_MS, 10 * 60 * 1000);
 
   const fileRecord = clipCacheService.readClip(saved.clipId, {
     runtimeDir,

@@ -219,17 +219,6 @@
     return bytesToBase64(wavBytes);
   }
 
-  function clearExpiredClipCache(cacheMap) {
-    const nowMs = Date.now();
-    Array.from(cacheMap.entries()).forEach(function (entry) {
-      const key = entry[0];
-      const value = entry[1] && typeof entry[1] === "object" ? entry[1] : null;
-      if (!value || !Number.isFinite(value.expiresAtMs) || value.expiresAtMs <= nowMs) {
-        cacheMap.delete(key);
-      }
-    });
-  }
-
   async function uploadClip(config, context, selectedRange) {
     const uploadEndpoint = normalizeText(config.clipCacheUploadEndpoint) || DEFAULT_CLIP_CACHE_UPLOAD_PATH;
     if (isLocalOnlyEndpoint(uploadEndpoint)) {
@@ -269,19 +258,6 @@
   function createRuntime(options) {
     const config = options && typeof options === "object" ? options : {};
     const timerHost = getTimerHost();
-    const clipCache = new Map();
-
-    async function ensureClipInfo(context, selectedRange) {
-      clearExpiredClipCache(clipCache);
-      const selectionKey = normalizeText(context.selectionKey);
-      const cached = clipCache.get(selectionKey);
-      if (cached && cached.audioUrl && cached.expiresAtMs > Date.now()) {
-        return cached;
-      }
-      const uploaded = await uploadClip(config, context, selectedRange);
-      clipCache.set(selectionKey, uploaded);
-      return uploaded;
-    }
 
     async function recommend(context) {
       const source = context && typeof context === "object" ? context : {};
@@ -289,7 +265,7 @@
         throw new Error("缺少当前音频 audioUrl。");
       }
       const selectedRange = requireSelectedRange(source.selectedRange, source.selectionKey);
-      const clipInfo = await ensureClipInfo(source, selectedRange);
+      const clipInfo = await uploadClip(config, source, selectedRange);
       const endpoint = normalizeText(config.endpoint) || DEFAULT_PATH;
       const body = {
         audioUrl: clipInfo.audioUrl,
