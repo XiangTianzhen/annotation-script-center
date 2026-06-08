@@ -189,6 +189,13 @@ http://127.0.0.1:3333
 实际目录以服务器部署目录为准。\
 PM2 进程名示例：`annotation-script-center`。
 
+首次启动后端服务：
+
+```
+cd /var/www/annotation-script-center
+pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center
+```
+
 更新代码并重启：
 
 ```
@@ -209,6 +216,14 @@ pm2 restart annotation-script-center --update-env
 ```
 pm2 status
 pm2 logs annotation-script-center --lines 100
+```
+
+如需删除并重建 PM2 服务：
+
+```
+cd /var/www/annotation-script-center
+pm2 delete annotation-script-center
+pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center
 ```
 
 后端直接启动命令：

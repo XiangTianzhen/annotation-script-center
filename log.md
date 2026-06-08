@@ -1,3 +1,10 @@
+## 2026-06-09（统一后端 README 补齐 PM2 启动命令并对齐服务名）
+
+- 根 `README.md` 与 `platform-resources/backend/README.md` 当前补充了统一后端的 PM2 首次启动命令：
+  - `pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center`
+- 同步补充了“删除后重建 PM2 服务”的示例命令，避免只有 `restart` 没有 `start` 的口径缺失。
+- 文档中的统一后端 PM2 服务名当前明确收口为 `annotation-script-center`，用于和服务器实际进程名保持一致。
+
 ## 2026-06-09（DataBaker CVPC 柳州话脚本按新版三段 AI 结构收口回中间区域）
 
 - `DataBaker CVPC / 柳州话脚本` 当前基于新版三段 AI 推荐结构完成二次布局收口：

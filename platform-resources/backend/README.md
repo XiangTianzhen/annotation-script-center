@@ -18,6 +18,13 @@ node platform-resources\backend\server.js
 http://127.0.0.1:3333
 ```
 
+服务器若使用 PM2，推荐进程名统一为 `annotation-script-center`。首次启动示例：
+
+```bash
+cd /var/www/annotation-script-center
+pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center
+```
+
 启动时会自动读取统一后端环境配置文件，顺序为：
 
 1. `config/env/backend.env`
@@ -288,6 +295,14 @@ cd /var/www/annotation-script-center
 cp config/env/backend.env.example config/env/backend.env
 nano config/env/backend.env
 pm2 restart annotation-script-center --update-env
+```
+
+如果需要按 README 口径重建服务名：
+
+```bash
+cd /var/www/annotation-script-center
+pm2 delete annotation-script-center
+pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center
 ```
 
 如果接口返回 `project-data-download-auth-not-configured`，说明环境变量缺失或当前进程未读取到，需检查配置并重启后端。
