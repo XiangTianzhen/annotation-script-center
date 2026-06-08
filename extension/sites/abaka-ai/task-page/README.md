@@ -19,15 +19,17 @@
   - 快捷键仅 DOM 点击，不直接调用平台保存/提交/领取/流转接口
 - AI 默认只输出建议；仅在用户点击“填写 AI 答案”时才写入字段，不自动保存、不自动提交、不自动送审
 
-## 快捷键动作（默认）
+## 快捷键动作
 
-- `1`：`same_font=true`
-- `2`：`same_font=false`
-- `3`：`same_font=same underlying font+artistic effect`
-- `4`：`image_b_texts_removed=specify`
-- `5`：`other_changes=specify`
-- `6`：点击页面真实“暂存 / Save / Stash”按钮
-- `7`：点击页面真实“送审 / Submit / Submit Review”按钮
+- `same_font=true`
+- `same_font=false`
+- `same_font=same underlying font+artistic effect`
+- `image_b_texts_removed=specify`
+- `other_changes=specify`
+- 点击页面真实“暂存 / Save / Stash”按钮
+- 点击页面真实“送审 / Submit / Submit Review”按钮
+
+默认快捷键为空；只有用户在 options 中录制并保存后，运行时才会响应对应动作。
 
 联动开关：`autoSelectSpecifyOnSameFontTrue=true`（默认开启）同时适用于：
 
@@ -66,11 +68,11 @@
 - 按钮可用性：
   - 检测不到对应板块则置灰，提示“未检测到该板块”。
   - `same_font=false/unsure` 时后两个按钮仍可用于调试分析，但会提示正式流程可跳过。
-- AI 分析快捷键（默认）：
-  - `Alt+1`：AI 分析 `same_font`
-  - `Alt+2`：AI 分析 `image_b_texts_removed`
-  - `Alt+3`：AI 分析 `other_changes`
-  - `Alt+4`：AI 整体分析
+- AI 分析动作：
+  - AI 分析 `same_font`
+  - AI 分析 `image_b_texts_removed`
+  - AI 分析 `other_changes`
+  - AI 整体分析
 - Options 的 Task21助手详情页：
   - AI 相关设置默认隐藏
   - 连续点击标题 10 次后显示（仅当前页面会话）

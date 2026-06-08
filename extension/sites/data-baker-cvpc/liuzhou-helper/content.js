@@ -60,6 +60,10 @@
       segmentPreviewEndpoint:
         current.segmentPreviewEndpoint || endpointBuilder(SEGMENT_PATH, settings),
       aiUsageOperatorName: String(settings?.meta?.aiUsageOperatorName || "").trim(),
+      shortcuts:
+        current.shortcuts && typeof current.shortcuts === "object"
+          ? current.shortcuts
+          : {},
     };
   }
 
@@ -209,6 +213,7 @@
       },
     });
     const shortcuts = shortcutFactory.createRuntime({
+      shortcuts: config.shortcuts,
       actions: {
         preview: function () {
           void handlePreview();
@@ -254,6 +259,9 @@
       if (!isEditorPage()) {
         destroyRuntime();
         return;
+      }
+      if (runtime?.ui?.mount) {
+        runtime.ui.mount();
       }
       if (!runtime) {
         void installRuntime();

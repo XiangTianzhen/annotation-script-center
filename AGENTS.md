@@ -74,9 +74,15 @@
 
 - `extension/sites/alibaba-labelx/shared/audio-controller-core.js`：LabelX 快判/转写通用音频核心。
 - `extension/sites/alibaba-labelx/shared/submit-actions.js`：LabelX 快判/转写通用提交快捷键动作。
+- `extension/options/options-shared-shortcut-panel.js`：脚本详情页快捷键通用渲染组件。
 - 提交类动作只作为快捷键，不加入顶部工具栏。
 - 提交类动作只点击页面真实系统按钮，不直接调平台 API，不自动确认二次弹窗。
 - 快判 `400` 条 pageSize 为快判专属能力，不属于 shared audio。
+- options 侧新增或修改快捷键面板时，必须复用 `options-shared-shortcut-panel.js`；不允许再在 `options.html/options.js` 手写一套快捷键行结构。
+- 所有脚本默认快捷键统一为空；只保留用户显式保存过的键位，不允许再新增硬编码默认组合。
+- 不允许再新增固定只读快捷键模板；需要展示快捷键时统一走共享组件的可录制模板。
+- 需要“一键恢复/重置”时，统一使用“清空快捷键”语义，不再恢复旧默认键位。
+- 若快捷键渲染分支再次出现第 3 处以上重复，必须先抽共享组件，不允许继续复制 `render*ShortcutGrid()` 模板。
 
 ## 统一行为约束
 

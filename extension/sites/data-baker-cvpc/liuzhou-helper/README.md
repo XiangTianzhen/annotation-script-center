@@ -8,6 +8,7 @@
 ## 当前能力
 
 - 读取 `annotation/meta` 和当前路由上下文
+- 在 `.page-top .top-right` 工具栏追加当前音频动作按钮
 - 生成当前音频的画段建议
 - 对当前段生成：
   - `柳州话文本`
@@ -29,5 +30,10 @@
 - `data-api.js`：读取编辑器上下文与实验性 DOM 写入
 - `segmentation-controller.js`：画段建议生成与应用编排
 - `ai-recommendation.js`：当前段 AI 推荐调用
-- `ui-panel.js`：固定浮层面板
-- `shortcuts.js`：固定默认快捷键
+- `ui-panel.js`：顶部工具栏按钮 + 悬浮状态面板
+- `shortcuts.js`：当前页快捷键监听与动作分发
+
+## Options 口径
+
+- 脚本详情页的快捷键当前统一复用 `extension/options/options-shared-shortcut-panel.js`。
+- 默认快捷键为空；只有用户在 options 中录制并保存后，运行时才会响应对应动作。

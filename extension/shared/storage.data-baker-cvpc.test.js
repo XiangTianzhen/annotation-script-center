@@ -81,6 +81,7 @@ test("CVPC storage defaults expose beta liuzhou helper settings", async function
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
     assert.equal(script.aiRecommendModel, "qwen3.5-omni-flash");
     assert.equal(script.contractMode, "dom-guarded");
+    assert.deepEqual(script.shortcuts, {});
   } finally {
     harness.cleanup();
   }
@@ -156,6 +157,43 @@ test("CVPC storage setScriptEnabled toggles platform and helper flags together",
     assert.equal(script.enabled, true);
     assert.equal(script.segmentPreviewEnabled, true);
     assert.equal(script.aiRecommendEnabled, true);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage preserves explicit shortcut overrides without falling back to fixed defaults", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            shortcuts: {
+              preview: {
+                alt: true,
+                shift: true,
+                key: "4",
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.deepEqual(script.shortcuts, {
+      preview: {
+        alt: true,
+        shift: true,
+        key: "4",
+      },
+    });
+    assert.equal(script.shortcuts.valid, undefined);
+    assert.equal(script.shortcuts.invalid, undefined);
   } finally {
     harness.cleanup();
   }

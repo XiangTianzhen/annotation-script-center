@@ -1,13 +1,35 @@
 (function () {
-  const DEFAULT_SHORTCUTS = {
-    preview: { alt: true, shift: true, key: "4" },
-    applyPreview: { alt: true, shift: true, key: "5" },
-    recommend: { alt: true, shift: true, key: "6" },
-    applyRecommend: { alt: true, shift: true, key: "7" },
-    valid: { alt: true, shift: true, key: "1" },
-    invalid: { alt: true, shift: true, key: "2" },
-    fillAllValid: { alt: true, shift: true, key: "3" },
-  };
+  const DEFAULT_SHORTCUTS = {};
+
+  function normalizeShortcut(shortcut) {
+    if (!shortcut || typeof shortcut !== "object") {
+      return null;
+    }
+    const key = String(shortcut.key || "").trim();
+    if (!key) {
+      return null;
+    }
+    return {
+      ctrl: shortcut.ctrl === true,
+      alt: shortcut.alt === true,
+      shift: shortcut.shift === true,
+      meta: shortcut.meta === true,
+      key: key,
+    };
+  }
+
+  function normalizeShortcutMap(shortcuts) {
+    const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
+    const result = {};
+    Object.keys(source).forEach(function (actionKey) {
+      const shortcut = normalizeShortcut(source[actionKey]);
+      if (!shortcut) {
+        return;
+      }
+      result[actionKey] = shortcut;
+    });
+    return result;
+  }
 
   function matchesShortcut(event, shortcut) {
     const config = shortcut && typeof shortcut === "object" ? shortcut : {};
@@ -29,6 +51,7 @@
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
     const actions = deps.actions || {};
+    const shortcutMap = normalizeShortcutMap(deps.shortcuts);
     let onKeydown = null;
 
     function bind() {
@@ -36,8 +59,8 @@
         return;
       }
       onKeydown = function (event) {
-        const matchedAction = Object.keys(DEFAULT_SHORTCUTS).find(function (key) {
-          return matchesShortcut(event, DEFAULT_SHORTCUTS[key]);
+        const matchedAction = Object.keys(shortcutMap).find(function (key) {
+          return matchesShortcut(event, shortcutMap[key]);
         });
         if (!matchedAction || typeof actions[matchedAction] !== "function") {
           return;
@@ -66,6 +89,7 @@
   const api = {
     createRuntime,
     DEFAULT_SHORTCUTS,
+    normalizeShortcutMap,
   };
 
   globalThis.ASREdgeDataBakerCvpcLiuzhouShortcuts = api;

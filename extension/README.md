@@ -125,6 +125,8 @@ node scripts/sync-local-build-meta.js
     - `快捷键` 作为左侧主轨下方的独立长带
   - 右侧 `AI 设置` 不会再因为左侧基础设置更高而被强行拉伸
   - 缺少某块时其余面板向前补位；只剩一个面板时保持左半宽，不撑满整行
+  - `快捷键` 板块当前统一复用 `extension/options/options-shared-shortcut-panel.js`，所有脚本都使用同一套可录制模板
+  - 默认快捷键统一为空；只有用户在 options 中显式录制并保存后，运行时才会响应对应动作
 
 ## 当前站点脚本
 
@@ -160,9 +162,10 @@ sites/
 - `data-baker/round-one-quality/`：闽南语助手 AI 推荐文本（`roundOneCollect`）+ 任务组总表导出（`group/detail`）；导出会本地下载并自动上传到统一后端，后端可下载最新 CSV。
 - `magic-data/hakka-helper/`：Magic Data `#/asrmark` 客家话助手；结果区固定挂载在“句子列表”下方，支持模型/快捷键配置，thinking 已全局固定关闭，保持人工确认与手动保存提交。
 - `magic-data/minnan-helper/`：Magic Data `#/asrmark` 闽南语助手；与客家话助手互斥启停（同平台同一时刻仅一个助手生效），并保持独立面板与独立快捷键配置，AI 配置拆分为“模型方案（`two_stage/omni_single`）+ 识别策略（`direct_dialect/mandarin_to_dialect`）”，支持 `fun-asr` 与 Qwen Omni。
-- `abaka-ai/task-page/`：Abaka AI Task21助手；快捷键仅点击页面真实 DOM 选项/按钮（默认 `1~7`），`same_font=true` 与 `same underlying font+artistic effect` 默认联动两个 `specify`；AI 默认不自动写入，只有用户点击“填写 AI 答案”后才写入字段，不自动保存、不自动提交、不自动送审。
+- `abaka-ai/task-page/`：Abaka AI Task21助手；快捷键仅点击页面真实 DOM 选项/按钮，`same_font=true` 与 `same underlying font+artistic effect` 默认联动两个 `specify`；AI 默认不自动写入，只有用户点击“填写 AI 答案”后才写入字段，不自动保存、不自动提交、不自动送审。
 - 后端地址配置统一入口：options 首页顶部“后端接口地址”（`server` / `local`）。各脚本详情页不再提供独立后端地址、上传地址或 AI 接口地址配置。
 - ASR 类脚本（快判、转写、标贝易采、Magic Data、Aishell）统一复用 `AI 设置` 工作区：默认直接展示，仅影响当前脚本，配置独立保存；基础设置与快捷键当前已经拆成独立面板。
+- options 侧快捷键面板当前统一复用 `options-shared-shortcut-panel.js`；后续平台新增快捷键区时不得再手写单独的行模板，也不得再引入固定只读快捷键面板。
 - Task21 助手当前也按同一工作台结构处理：基础设置、AI 调试设置、快捷键各自独立成板块。
 - “ASR 语音 AI 设置”当前会直接按脚本调用后端 `defaults` 接口，展示默认模型、Prompt 与默认参数；如果读取失败则回退本地默认值。
 - Task21 助手的 AI 调试设置当前也默认常显，不再通过连续点击标题解锁。

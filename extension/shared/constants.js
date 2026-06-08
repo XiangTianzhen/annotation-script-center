@@ -21,6 +21,19 @@
     );
   }
 
+  function createEmptyShortcutMap(actions) {
+    const result = {};
+    const source = Array.isArray(actions) ? actions : [];
+    source.forEach(function (action) {
+      const key = String(action?.key || "").trim();
+      if (!key) {
+        return;
+      }
+      result[key] = null;
+    });
+    return result;
+  }
+
   const EXTENSION_NAME = "标注脚本中心";
   const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60000;
   const LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS = 60 * 1000;
@@ -1700,22 +1713,7 @@
   }
 
   function createDefaultAbakaAiPlatformSettings() {
-    const shortcuts = {};
-    ABAKA_AI_TASK21_SHORTCUT_ACTIONS.forEach(function (action) {
-      shortcuts[action.key] = null;
-    });
-    shortcuts.sameFontTrue = createShortcut("1");
-    shortcuts.sameFontFalse = createShortcut("2");
-    shortcuts.sameFontArtisticEffect = createShortcut("3");
-    shortcuts.imageBTextsRemovedSpecify = createShortcut("4");
-    shortcuts.otherChangesSpecify = createShortcut("5");
-    shortcuts.stashSave = createShortcut("6");
-    shortcuts.submitReview = createShortcut("7");
-    shortcuts.aiAnalyzeSameFont = createShortcut("1", { alt: true });
-    shortcuts.aiAnalyzeImageBTextsRemoved = createShortcut("2", { alt: true });
-    shortcuts.aiAnalyzeOtherChanges = createShortcut("3", { alt: true });
-    shortcuts.aiAnalyzeOverall = createShortcut("4", { alt: true });
-
+    const shortcuts = createEmptyShortcutMap(ABAKA_AI_TASK21_SHORTCUT_ACTIONS);
     return {
       enabled: true,
       scripts: {
@@ -1808,15 +1806,7 @@
           aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
           aiRecommendModel: "qwen3.5-omni-flash",
           contractMode: "dom-guarded",
-          shortcuts: {
-            preview: createShortcut("4", { alt: true, shift: true }),
-            applyPreview: createShortcut("5", { alt: true, shift: true }),
-            recommend: createShortcut("6", { alt: true, shift: true }),
-            applyRecommend: createShortcut("7", { alt: true, shift: true }),
-            valid: createShortcut("1", { alt: true, shift: true }),
-            invalid: createShortcut("2", { alt: true, shift: true }),
-            fillAllValid: createShortcut("3", { alt: true, shift: true }),
-          },
+          shortcuts: {},
         },
       },
     };

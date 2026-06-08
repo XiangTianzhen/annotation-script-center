@@ -1,6 +1,9 @@
 (function () {
   const ROOT_ATTR = "data-asc-cvpc-liuzhou-panel";
+  const TOOLBAR_ATTR = "data-asc-cvpc-liuzhou-toolbar";
   const STYLE_ID = "asc-cvpc-liuzhou-panel-style";
+  const TOOLBAR_SELECTOR = ".page-top .top-right";
+  const FALLBACK_TOOLBAR_HOST_ATTR = "data-asc-cvpc-liuzhou-toolbar-fallback";
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
@@ -11,7 +14,7 @@
     style.textContent = [
       "[" + ROOT_ATTR + "] {",
       "  position: fixed;",
-      "  top: 16px;",
+      "  top: 72px;",
       "  right: 16px;",
       "  width: 420px;",
       "  max-width: calc(100vw - 32px);",
@@ -31,7 +34,6 @@
       "[" + ROOT_ATTR + "] .head { display:flex; justify-content:space-between; align-items:center; gap:8px; }",
       "[" + ROOT_ATTR + "] .title { font-size:14px; font-weight:700; color:#92400e; }",
       "[" + ROOT_ATTR + "] .sub { color:#64748b; }",
-      "[" + ROOT_ATTR + "] .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }",
       "[" + ROOT_ATTR + "] button { min-height:28px; padding:0 10px; border:1px solid #d6d3d1; border-radius:8px; background:#fff; cursor:pointer; }",
       "[" + ROOT_ATTR + "] button[data-primary='true'] { background:#b45309; border-color:#b45309; color:#fff; font-weight:700; }",
       "[" + ROOT_ATTR + "] button:disabled { opacity:0.55; cursor:not-allowed; }",
@@ -45,6 +47,49 @@
       "[" + ROOT_ATTR + "] .preview-item, [" + ROOT_ATTR + "] .recommend-item { padding:8px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; }",
       "[" + ROOT_ATTR + "] .preview-item strong, [" + ROOT_ATTR + "] .recommend-item strong { display:block; color:#334155; }",
       "[" + ROOT_ATTR + "] .foot { margin-top:10px; color:#9a3412; }",
+      "[" + TOOLBAR_ATTR + "] { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }",
+      "[" + TOOLBAR_ATTR + "] button {",
+      "  min-height: 28px;",
+      "  padding: 7px 12px;",
+      "  border: 1px solid #dcdfe6;",
+      "  border-radius: 4px;",
+      "  background: #fff;",
+      "  color: #606266;",
+      "  font-size: 12px;",
+      "  line-height: 1;",
+      "  font-weight: 500;",
+      "  white-space: nowrap;",
+      "  cursor: pointer;",
+      "  transition: .1s;",
+      "}",
+      "[" + TOOLBAR_ATTR + "] button[data-primary='true'] {",
+      "  background: #e6a23c;",
+      "  border-color: #e6a23c;",
+      "  color: #fff;",
+      "}",
+      "[" + TOOLBAR_ATTR + "] button:hover {",
+      "  color: #409eff;",
+      "  border-color: #c6e2ff;",
+      "  background: #ecf5ff;",
+      "}",
+      "[" + TOOLBAR_ATTR + "] button[data-primary='true']:hover {",
+      "  color: #fff;",
+      "  border-color: #ebb563;",
+      "  background: #ebb563;",
+      "}",
+      "[" + TOOLBAR_ATTR + "] button[data-panel-toggle='true'] {",
+      "  color: #909399;",
+      "}",
+      "[" + FALLBACK_TOOLBAR_HOST_ATTR + "] {",
+      "  position: fixed;",
+      "  top: 16px;",
+      "  right: 16px;",
+      "  z-index: 2147483201;",
+      "  padding: 10px;",
+      "  border-radius: 12px;",
+      "  background: rgba(255, 255, 255, 0.96);",
+      "  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);",
+      "}",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -53,6 +98,9 @@
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = text;
+    button.className = primary
+      ? "el-button el-button--warning el-button--mini"
+      : "el-button el-button--default el-button--mini";
     if (primary) {
       button.setAttribute("data-primary", "true");
     }
@@ -62,9 +110,11 @@
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
     let root = null;
+    let toolbarRoot = null;
     let statusNode = null;
     let previewNode = null;
     let recommendationNode = null;
+    let panelToggleButton = null;
 
     function setStatus(text, tone) {
       if (!statusNode) {
@@ -131,104 +181,152 @@
       });
     }
 
-    function mount() {
-      ensureStyle();
-      if (root && root.isConnected) {
+    function ensurePanelVisibility(visible) {
+      if (!root) {
         return;
       }
-      root = document.createElement("section");
-      root.setAttribute(ROOT_ATTR, "");
+      root.classList.toggle("hidden", visible === false);
+      if (panelToggleButton) {
+        panelToggleButton.textContent = visible === false ? "显示助手" : "隐藏助手";
+      }
+    }
 
-      const head = document.createElement("div");
-      head.className = "head";
-      head.innerHTML =
-        '<div><div class="title">柳州话脚本 Beta</div><div class="sub">CVPC /app/editor/asr/ 建议流 + 人工确认</div></div>';
+    function resolveToolbarHost() {
+      const host = document.querySelector(TOOLBAR_SELECTOR);
+      if (host instanceof HTMLElement) {
+        const fallbackHost = document.querySelector("[" + FALLBACK_TOOLBAR_HOST_ATTR + "]");
+        if (fallbackHost instanceof HTMLElement) {
+          fallbackHost.remove();
+        }
+        return host;
+      }
+      let fallbackHost = document.querySelector("[" + FALLBACK_TOOLBAR_HOST_ATTR + "]");
+      if (!(fallbackHost instanceof HTMLElement)) {
+        fallbackHost = document.createElement("div");
+        fallbackHost.setAttribute(FALLBACK_TOOLBAR_HOST_ATTR, "");
+        document.body.appendChild(fallbackHost);
+      }
+      return fallbackHost;
+    }
 
-      const closeButton = createButton("隐藏", false);
-      closeButton.addEventListener("click", function () {
-        root.classList.toggle("hidden");
-      });
-      head.appendChild(closeButton);
+    function mount() {
+      ensureStyle();
+      if (!root || !root.isConnected) {
+        root = document.createElement("section");
+        root.setAttribute(ROOT_ATTR, "");
 
-      const actionRow = document.createElement("div");
-      actionRow.className = "actions";
-      const buttons = {
-        preview: createButton("生成画段建议", true),
-        applyPreview: createButton("应用当前建议（实验）", false),
-        recommend: createButton("当前段 AI 推荐", true),
-        applyRecommend: createButton("填入当前推荐", false),
-        valid: createButton("当前段设为 Valid", false),
-        invalid: createButton("当前段设为 Invalid", false),
-        fillAllValid: createButton("未填写段落补为 Valid", false),
-      };
-      Object.keys(buttons).forEach(function (key) {
-        actionRow.appendChild(buttons[key]);
-      });
+        const head = document.createElement("div");
+        head.className = "head";
+        head.innerHTML =
+          '<div><div class="title">柳州话脚本 Beta</div><div class="sub">CVPC /app/editor/asr/ 建议流 + 人工确认</div></div>';
 
-      statusNode = document.createElement("div");
-      statusNode.className = "status";
+        const closeButton = createButton("隐藏", false);
+        closeButton.addEventListener("click", function () {
+          ensurePanelVisibility(false);
+        });
+        head.appendChild(closeButton);
 
-      const previewSection = document.createElement("div");
-      previewSection.className = "section";
-      previewSection.innerHTML =
-        '<div class="section-title">画段建议</div><div class="section-note">当前只做建议生成；真实画段写入仍受页面写入契约约束。</div>';
-      previewNode = document.createElement("div");
-      previewNode.className = "preview-list";
-      previewNode.textContent = "当前还没有画段建议。";
-      previewSection.appendChild(previewNode);
+        statusNode = document.createElement("div");
+        statusNode.className = "status";
 
-      const recommendSection = document.createElement("div");
-      recommendSection.className = "section";
-      recommendSection.innerHTML =
-        '<div class="section-title">当前段 AI 推荐</div><div class="section-note">AI 只提供建议，不自动保存、不自动提交。</div>';
-      recommendationNode = document.createElement("div");
-      recommendationNode.className = "recommend-grid";
-      recommendationNode.textContent = "当前还没有 AI 推荐结果。";
-      recommendSection.appendChild(recommendationNode);
+        const previewSection = document.createElement("div");
+        previewSection.className = "section";
+        previewSection.innerHTML =
+          '<div class="section-title">画段建议</div><div class="section-note">当前只做建议生成；真实画段写入仍受页面写入契约约束。</div>';
+        previewNode = document.createElement("div");
+        previewNode.className = "preview-list";
+        previewNode.textContent = "当前还没有画段建议。";
+        previewSection.appendChild(previewNode);
 
-      const foot = document.createElement("div");
-      foot.className = "foot";
-      foot.textContent = "提示：真实 segment create/update、保存接口和稳定字段映射仍待补采；当前所有写入都必须人工复核。";
+        const recommendSection = document.createElement("div");
+        recommendSection.className = "section";
+        recommendSection.innerHTML =
+          '<div class="section-title">当前段 AI 推荐</div><div class="section-note">AI 只提供建议，不自动保存、不自动提交。</div>';
+        recommendationNode = document.createElement("div");
+        recommendationNode.className = "recommend-grid";
+        recommendationNode.textContent = "当前还没有 AI 推荐结果。";
+        recommendSection.appendChild(recommendationNode);
 
-      root.appendChild(head);
-      root.appendChild(actionRow);
-      root.appendChild(statusNode);
-      root.appendChild(previewSection);
-      root.appendChild(recommendSection);
-      root.appendChild(foot);
-      document.body.appendChild(root);
+        const foot = document.createElement("div");
+        foot.className = "foot";
+        foot.textContent = "提示：真实 segment create/update、保存接口和稳定字段映射仍待补采；当前所有写入都必须人工复核。";
 
-      buttons.preview.addEventListener("click", function () {
-        deps.onPreview && deps.onPreview();
-      });
-      buttons.applyPreview.addEventListener("click", function () {
-        deps.onApplyPreview && deps.onApplyPreview();
-      });
-      buttons.recommend.addEventListener("click", function () {
-        deps.onRecommend && deps.onRecommend();
-      });
-      buttons.applyRecommend.addEventListener("click", function () {
-        deps.onApplyRecommend && deps.onApplyRecommend();
-      });
-      buttons.valid.addEventListener("click", function () {
-        deps.onMarkValid && deps.onMarkValid();
-      });
-      buttons.invalid.addEventListener("click", function () {
-        deps.onMarkInvalid && deps.onMarkInvalid();
-      });
-      buttons.fillAllValid.addEventListener("click", function () {
-        deps.onFillAllValid && deps.onFillAllValid();
-      });
+        root.appendChild(head);
+        root.appendChild(statusNode);
+        root.appendChild(previewSection);
+        root.appendChild(recommendSection);
+        root.appendChild(foot);
+        document.body.appendChild(root);
+      }
+
+      if (!toolbarRoot || !toolbarRoot.isConnected) {
+        toolbarRoot = document.createElement("div");
+        toolbarRoot.setAttribute(TOOLBAR_ATTR, "");
+
+        const buttons = {
+          preview: createButton("生成画段建议", true),
+          applyPreview: createButton("应用当前建议", false),
+          recommend: createButton("当前段 AI 推荐", true),
+          applyRecommend: createButton("填入当前推荐", false),
+          valid: createButton("设为 Valid", false),
+          invalid: createButton("设为 Invalid", false),
+          fillAllValid: createButton("未填写补 Valid", false),
+          togglePanel: createButton("隐藏助手", false),
+        };
+        buttons.togglePanel.setAttribute("data-panel-toggle", "true");
+        panelToggleButton = buttons.togglePanel;
+        Object.keys(buttons).forEach(function (key) {
+          toolbarRoot.appendChild(buttons[key]);
+        });
+        resolveToolbarHost().appendChild(toolbarRoot);
+
+        buttons.preview.addEventListener("click", function () {
+          deps.onPreview && deps.onPreview();
+        });
+        buttons.applyPreview.addEventListener("click", function () {
+          deps.onApplyPreview && deps.onApplyPreview();
+        });
+        buttons.recommend.addEventListener("click", function () {
+          deps.onRecommend && deps.onRecommend();
+        });
+        buttons.applyRecommend.addEventListener("click", function () {
+          deps.onApplyRecommend && deps.onApplyRecommend();
+        });
+        buttons.valid.addEventListener("click", function () {
+          deps.onMarkValid && deps.onMarkValid();
+        });
+        buttons.invalid.addEventListener("click", function () {
+          deps.onMarkInvalid && deps.onMarkInvalid();
+        });
+        buttons.fillAllValid.addEventListener("click", function () {
+          deps.onFillAllValid && deps.onFillAllValid();
+        });
+        buttons.togglePanel.addEventListener("click", function () {
+          const willShow = root ? root.classList.contains("hidden") : false;
+          ensurePanelVisibility(willShow);
+        });
+      }
+
+      const toolbarHost = resolveToolbarHost();
+      if (toolbarRoot.parentNode !== toolbarHost) {
+        toolbarHost.appendChild(toolbarRoot);
+      }
+      ensurePanelVisibility(!root.classList.contains("hidden"));
     }
 
     function destroy() {
       if (root && root.parentNode) {
         root.parentNode.removeChild(root);
       }
+      if (toolbarRoot && toolbarRoot.parentNode) {
+        toolbarRoot.parentNode.removeChild(toolbarRoot);
+      }
       root = null;
+      toolbarRoot = null;
       statusNode = null;
       previewNode = null;
       recommendationNode = null;
+      panelToggleButton = null;
     }
 
     return {

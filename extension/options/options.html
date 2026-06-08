@@ -577,12 +577,6 @@
             </div>
 
             <div class="field-card">
-              <strong>固定快捷键</strong>
-              <span><code>Alt + Shift + 1/2/3</code>：当前段有效 / 无效 / 未填写补为有效。</span>
-              <span><code>Alt + Shift + 4/5/6/7</code>：画段建议 / 应用建议 / 当前段 AI 推荐 / 填入当前段建议。</span>
-            </div>
-
-            <div class="field-card">
               <strong>当前边界</strong>
               <span>当前页只处理当前音频 / 当前作业，不跨整包遍历，不自动保存，不自动提交，不自动切下一条。</span>
               <span>全局 Invalid 不做自动判定；画段应用只有在页面存在安全写入桥时才会执行。</span>
@@ -791,6 +785,17 @@
             <div id="aishell-tech-recording-status" class="shortcut-recording hidden"></div>
           </section>
 
+          <section id="detail-data-baker-cvpc-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>快捷键</strong>
+                <span>默认全部未设置。点击“录制”后按键盘组合，按 Esc 取消录制；快捷键不会在输入框聚焦时触发。</span>
+              </div>
+            </div>
+            <div id="data-baker-cvpc-shortcut-grid" class="shortcut-grid"></div>
+            <div id="data-baker-cvpc-recording-status" class="shortcut-recording hidden"></div>
+          </section>
+
           <section id="detail-magic-data-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">
             <div class="detail-section-head">
               <div>
@@ -806,13 +811,13 @@
             <div class="detail-section-head">
               <div>
                 <strong>快捷键</strong>
-                <span>默认键位：1/2/3/4/5/6/7 + Alt+1/2/3/4。点击“录制”后按键盘组合或鼠标按键，Esc 取消录制。</span>
+                <span>默认全部未设置。点击“录制”后按键盘组合或鼠标按键，Esc 取消录制。</span>
               </div>
             </div>
             <div id="abaka-ai-shortcut-grid" class="shortcut-grid"></div>
             <div id="abaka-ai-recording-status" class="shortcut-recording hidden"></div>
             <div class="field-actions">
-              <button id="abaka-reset-shortcuts" class="secondary-button" type="button">恢复默认快捷键</button>
+              <button id="abaka-reset-shortcuts" class="secondary-button" type="button">清空快捷键</button>
             </div>
           </section>
         </div>
@@ -833,6 +838,7 @@
     <script src="./options-route-state.js"></script>
     <script src="./options-workbench-state.js"></script>
     <script src="./options-shared-asr-ai-panel.js"></script>
+    <script src="./options-shared-shortcut-panel.js"></script>
     <script src="./options.js"></script>
   </body>
 </html>
