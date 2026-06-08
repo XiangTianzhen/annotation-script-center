@@ -18,6 +18,10 @@
   const SCHEDULE_UPLOAD_DELAY_MAX_MS = 300000;
   const SCHEDULE_UPLOAD_DELAY_STEP_MS = 100;
   const EXISTING_CHECK_CHUNK_SIZE = 1000;
+  const LABEL_EXISTING_CONFLICT_FIELDS = [
+    "标注员双键冲突:子任务ID命中但用户名不一致",
+    "标注员双键冲突:用户名命中但子任务ID不一致",
+  ];
   const JUDGEMENT_LABEL_MODEL = "vote";
   const TRANSCRIPTION_LABEL_MODEL = "single";
   const JUDGEMENT_TASK_SIZE = 400;
@@ -243,6 +247,36 @@
       sanitizeSubTaskId(subTaskId || ""),
       cleanText(userName || ""),
     ].join("|");
+  }
+
+  function classifyExistingStatus(role, status) {
+    if (status && status.complete === true) {
+      return "complete-skip";
+    }
+    const normalizedRole = String(role || "label").trim().toLowerCase();
+    const missingFields = Array.isArray(status?.missingFields) ? status.missingFields : [];
+    if (
+      normalizedRole === "label" &&
+      status &&
+      status.exists === true &&
+      status.complete === false &&
+      missingFields.some(function (field) {
+        return LABEL_EXISTING_CONFLICT_FIELDS.indexOf(String(field || "")) >= 0;
+      })
+    ) {
+      return "conflict-skip";
+    }
+    return "fetch-detail";
+  }
+
+  function shouldFetchDetailForExistingStatus(existingStatusAction, forceReplaceByBatchId) {
+    if (existingStatusAction === "complete-skip") {
+      return Boolean(forceReplaceByBatchId);
+    }
+    if (existingStatusAction === "conflict-skip") {
+      return false;
+    }
+    return true;
   }
 
   function createScheduleUploadDelayMs() {
@@ -1591,6 +1625,7 @@
       let skippedSubTaskCount = 0;
       let skippedDetailCount = 0;
       let skippedCompleteCount = 0;
+      let skippedConflictCount = 0;
       let incompleteFoundCount = 0;
       let discardedNoBatchCount = 0;
       let failedPayloadValidationCount = 0;
@@ -1757,11 +1792,16 @@
           entryRole === "label" ? userName || getUserNameFromRecord(entry.summary) : ""
         );
         const status = existingStatusByKey[statusKey];
-        if (status && status.complete === true) {
-          if (forceReplaceByBatchId) {
+        const existingStatusAction = classifyExistingStatus(entryRole, status);
+        if (existingStatusAction === "complete-skip") {
+          if (shouldFetchDetailForExistingStatus(existingStatusAction, forceReplaceByBatchId)) {
             return true;
           }
           skippedCompleteCount += 1;
+          return false;
+        }
+        if (existingStatusAction === "conflict-skip") {
+          skippedConflictCount += 1;
           return false;
         }
         if (status && status.exists === true && status.complete === false) {
@@ -1787,6 +1827,8 @@
           message:
             "跳过 " +
             String(skippedCompleteCount) +
+            "，冲突跳过 " +
+            String(skippedConflictCount) +
             "，待补 " +
             String(incompleteFoundCount) +
             "，废弃 " +
@@ -1870,6 +1912,8 @@
               message:
                 "跳过 " +
                 String(skippedCompleteCount) +
+                "，冲突跳过 " +
+                String(skippedConflictCount) +
                 "，待补 " +
                 String(incompleteFoundCount) +
                 "，废弃 " +
@@ -1925,6 +1969,7 @@
           payloadCount: payloads.length,
           skippedSubTaskCount: skippedSubTaskCount,
           skippedCompleteCount: forceReplaceByBatchId ? 0 : skippedCompleteCount,
+          skippedConflictCount: skippedConflictCount,
           forceReplaceByBatchId: forceReplaceByBatchId,
           forceReplaceBatchCount: replaceBatchIds.length,
           incompleteFoundCount: incompleteFoundCount,
@@ -2118,6 +2163,7 @@
         const warningCount = Number(summary.warningPayloadCount || 0);
         const incompleteFoundCount = Number(summary.incompleteFoundCount || 0);
         const skippedCompleteCount = Number(summary.skippedCompleteCount || 0);
+        const skippedConflictCount = Number(summary.skippedConflictCount || 0);
         let summaryMessage = "";
         if (isForceReplaceUpload) {
           summaryMessage =
@@ -2129,8 +2175,16 @@
             String(postResult?.data?.replacedBatchCount || summary.forceReplaceBatchCount || 0) +
             " 个分包的当前人员列，失败 " +
             String(failedCount) +
+            "，冲突跳过 " +
+            String(skippedConflictCount) +
             "。";
         } else {
+          const noUploadMessage =
+            uploadPayloadList.length === 0
+              ? skippedConflictCount > 0
+                ? "。存在冲突跳过，未上传"
+                : "。已全部完整，无需上传"
+              : "";
           summaryMessage =
             "快判统计已处理：详情 " +
             String(summary.subTaskCount || 0) +
@@ -2140,6 +2194,8 @@
             String(summary.skippedSubTaskCount || 0) +
             "，跳过完整 " +
             String(skippedCompleteCount) +
+            "，冲突跳过 " +
+            String(skippedConflictCount) +
             "，字段待补 " +
             String(incompleteFoundCount) +
             "，废弃(无分包ID) " +
@@ -2150,7 +2206,7 @@
             String(failedCount) +
             "，并发 " +
             String(summary.detailConcurrency || resolveDynamicConcurrency(summary.subTaskCount || 1)) +
-            (uploadPayloadList.length === 0 ? "。已全部完整，无需上传" : "") +
+            noUploadMessage +
             (failedCount > 0
               ? "。有数据导出失败，请再次点击导出"
               : warningCount > 0
@@ -2246,10 +2302,12 @@
   globalThis.__ASREdgeAlibabaLabelxJudgementServer = {
     createRuntime: createRuntime,
     buildPayload: buildPayload,
+    classifyExistingStatus: classifyExistingStatus,
     isAsrJudgementTaskRecord: isAsrJudgementTaskRecord,
     resolveDynamicConcurrency: resolveDynamicConcurrency,
     createScheduleUploadDelayMs: createScheduleUploadDelayMs,
     sanitizeSubTaskId: sanitizeSubTaskId,
+    shouldFetchDetailForExistingStatus: shouldFetchDetailForExistingStatus,
     CSV_COLUMNS: CSV_COLUMNS.slice(),
   };
 })();

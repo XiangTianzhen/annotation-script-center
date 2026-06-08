@@ -218,6 +218,9 @@ AI 日志与数据边界：
 - existing 对标注角色的 `complete` 判定已改为双键精确命中：
   - 只有同一槽位同时命中 `用户名 + subTaskId` 时才返回 `complete=true`。
   - 只命中一个键时返回 `complete=false`，避免前端把冲突数据误判为“已上传可跳过”。
+- 前端首页上传对 label existing 现已区分两类跳过：
+  - `完整跳过`：双键精确命中，前端记入 `skippedCompleteCount`。
+  - `冲突跳过`：单键命中冲突，前端记入 `skippedConflictCount`，不再继续上传，也不参与 force replace。
 - 这轮不新增服务端“清空统计数据”接口，清空旧数据继续由人工运维完成。
 
 共享下载相关文件职责补充：
@@ -253,6 +256,7 @@ AI 日志与数据边界：
 ## 2026-05-21 手动取消跳过上传（快判）
 
 - 首页 / 列表页手动点击“上传统计”时，仍会先调用 existing 检查；`complete=true` 的分包默认跳过，不重复拉详情。
+- single-key 双键冲突分包当前会在前端直接记为“冲突跳过”，不重拉详情、不上传，也不会触发“补传并覆盖当前人员”。
 - 只有手动首页上传结束后，且本轮 `skippedCompleteCount > 0` 时，顶部按钮旁才会出现“补传并覆盖当前人员”。
 - 点击后前端会改用 `reason=home-manual-force-replace`，重新拉取本轮范围内的全部快判详情，不再按 `complete=true` 跳过。
 - 强制上传 payload 会带上 `forceReplaceByBatchId=true`、`replaceMode="batch"` 和 `replaceBatchIds`。

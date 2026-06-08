@@ -159,3 +159,48 @@ test("LabelX existing core passes label userName into adapter", function () {
     ["evaluateCompletion", "label", "label-1", "标注员一"],
   ]);
 });
+
+test("LabelX existing core preserves adapter conflict missingFields", function () {
+  const adapter = {
+    pickRow(rows) {
+      return rows[0] || null;
+    },
+    evaluateCompletion() {
+      return {
+        complete: false,
+        missingFields: ["标注员双键冲突:子任务ID命中但用户名不一致"],
+      };
+    },
+    getMissingFieldsForAbsentBatch() {
+      return ["示例字段"];
+    },
+  };
+
+  const result = buildExistingResponseItems(
+    [
+      {
+        batchId: "batch-1",
+        role: "label",
+        subTaskId: "label-1",
+        userName: "标注员一",
+      },
+    ],
+    {
+      "row-1": {
+        "分包ID": "batch-1",
+      },
+    },
+    adapter
+  );
+
+  assert.deepEqual(result, [
+    {
+      batchId: "batch-1",
+      role: "label",
+      subTaskId: "label-1",
+      exists: true,
+      complete: false,
+      missingFields: ["标注员双键冲突:子任务ID命中但用户名不一致"],
+    },
+  ]);
+});

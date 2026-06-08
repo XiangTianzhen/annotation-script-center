@@ -1,3 +1,36 @@
+## 2026-06-08（LabelX 快判统计恢复冲突跳过）
+
+- 恢复 `Alibaba LabelX / ASR 快判统计上传` 的“冲突跳过”体验，但不回退后端双键严格写入规则：
+  - label existing 仍只有 `用户名 + subTaskId` 双键精确命中时才算 `complete=true`。
+  - 如果 existing 已识别为“同用户名不同 subTaskId”或“同 subTaskId 不同用户名”，前端当前直接记为“冲突跳过”，不再继续拉详情、上传并报后端失败。
+- 前端统计摘要当前新增 `skippedConflictCount`：
+  - 完成态文案会展示“冲突跳过 N”。
+  - 当 `payloadCount=0` 且只有冲突跳过时，不再提示“已全部完整，无需上传”，而是明确提示“存在冲突跳过，未上传”。
+- “补传并覆盖当前人员”边界保持收紧：
+  - 仍只针对 `skippedCompleteCount > 0` 的完整跳过分包显示按钮。
+  - `conflict-skip` 不参与 force replace，避免把单键冲突重新送回后端失败。
+- 新增前端纯函数回归测试：
+  - `extension/sites/alibaba-labelx/asr-judgement/asr-judgement-server.test.js`
+  - 覆盖 `complete-skip / conflict-skip / fetch-detail` 三类 existing 分流与 force replace 例外规则。
+
+## 2026-06-08（系统仪表盘补齐 AI 任务池占用并修复 job store 满载回收）
+
+- 修复“系统管理 / 仪表盘 / 模型池占用”与真实 `503` 原因脱节的问题：
+  - 之前仪表盘只展示 provider 模型池 `active/pending/999`，但 `ai-job-store-full` 实际来自共享 AI 任务池，导致页面看起来很空、请求却已经被后端拒绝。
+  - 现在仪表盘会在模型池卡片前额外展示 `AI 任务池` 卡片，并明确提示 `ai-job-store-full` 对应的是任务池满载。
+- 共享 AI job store 当前补齐容量快照字段：
+  - `capacity`
+  - `usedCount`
+  - `availableCount`
+  - `isFull`
+  - `utilizationPercent`
+- 共享 AI job store 的满载策略当前已调整：
+  - 过去只清理 `expired` job，30 分钟 TTL 内如果成功 / 失败 job 积累到上限，即使模型池并不忙，也会持续返回 `ai-job-store-full`。
+  - 现在达到上限时，会优先回收最早的终态 job（`succeeded / failed / expired`）；只有运行中和待启动任务本身已经把池打满时，才继续拒绝新任务。
+- 回归验证已补：
+  - `platform-resources/backend/ai-framework/runtime/ai-job-store.test.js`
+  - `platform-resources/backend/admin-dashboard/overview.test.js`
+
 ## 2026-06-08（LabelX 快判统计双键槽位校验修复）
 
 - 修复 `Alibaba LabelX / ASR 快判统计上传` 在历史脏数据场景下容易长出“同名重复占槽”和“existing 误判已上传”的问题：
@@ -6,7 +39,6 @@
   - 同用户名不同 `subTaskId`、或同 `subTaskId` 不同用户名，现在都会明确拒绝，不再自动并槽。
 - 前端 / 后端同步收紧：
   - `extension/sites/alibaba-labelx/asr-judgement/asr-judgement-server.js` 当前要求标注 payload 的 `roleRecord.userName` 必填。
-
   - existing 请求组装会对 label 显式透传 `userName`。
   - `platform-resources/backend/project-data-download/labelx-existing-core.js` 与快判 `data/adapter.js` 当前按双键精确命中判定标注是否已完整上传。
 - 新规则明确不兼容历史脏数据：
@@ -24,6 +56,15 @@
   - `extension/sites/magic-data/minnan-helper/ai-review-client.js` 使用同样的解包逻辑，避免双助手在同类 Job 链路上再次出现结果渲染异常。
 - 新增回归验证：
   - `extension/sites/magic-data/shared/ai-review-client.test.js` 覆盖“Job succeeded + data.success + data.data”结构，确保前端最终拿到真正的质检结果对象。
+
+## 2026-06-08（DataBaker CVPC 柳州话脚本修复 meta 401 后音频地址不显示）
+
+- 通过真实 Edge 页面排查确认：页面自身能拿到 `gAudioUrl / audio_url`，但扩展隔离世界自发 `annotation/meta` 请求会因缺少平台运行时鉴权返回 `401`，导致悬浮窗显示“读取当前音频地址失败”。
+- `page-world/audio-observer.js` 当前新增运行时 meta 快照桥：
+  - 复用页面真实 `annotation/meta` 响应，不要求扩展重新携带 Bearer 请求。
+  - 同步兼容平台响应 `code: 200`。
+  - 桥接数据只在页面运行时内存传递，不写入 storage，不写入日志。
+- `data-api.js` 当前在自身 `annotation/meta` 请求失败时，会回退使用页内桥传入的 meta，再匹配页面捕获到的当前音频签名 URL。
 
 ## 2026-06-08（DataBaker CVPC 柳州话脚本悬浮窗展示当前音频地址）
 

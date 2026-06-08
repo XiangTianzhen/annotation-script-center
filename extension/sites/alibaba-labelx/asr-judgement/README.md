@@ -198,6 +198,10 @@
 - existing 对标注角色的跳过条件已改为“双键精确命中才视为 complete”：
   - 同一个人同一个 `subTaskId` 再上传，会被正确识别为已完成并跳过。
   - 同名换了新 `subTaskId`、或同 `subTaskId` 换了名字，不会再被误判成“已完整可跳过”。
+- 首页上传当前补回“冲突跳过”体验：
+  - 如果 existing 已识别为“单键命中双键冲突”，前端会直接记为“冲突跳过”，不再继续拉详情和上传，也不再把它算进失败。
+  - `完整跳过` 只表示双键精确命中。
+  - `冲突跳过` 不参与“补传并覆盖当前人员”。
 - 标注上传 payload 中的 `roleRecord.userName` 已升级为必填；缺失用户名的标注记录会在上传前直接拒绝，不再允许写入新行。
 - 这次不新增“清空快判统计”的后端接口；清空动作属于人工运维步骤，不写成脚本能力。
 
@@ -567,6 +571,7 @@ platform-resources/alibaba-labelx/asr-judgement/
 ## 2026-05-21 快判统计取消跳过上传
 
 - 手动点击首页“上传统计”时，仍先走 existing 检查，`complete=true` 的分包默认跳过。
+- existing 命中单键冲突时，当前会记为“冲突跳过”，不会继续上传，也不会触发 force replace。
 - 如果本轮存在 `skippedCompleteCount > 0`，上传完成后会在首页顶部按钮旁显示“补传并覆盖当前人员”。
 - 点击按钮后会使用 `reason=home-manual-force-replace` 重新拉取本轮全部快判详情，并携带 `forceReplaceByBatchId=true`、`replaceMode="batch"`、`replaceBatchIds` 上传。
 - 后端仍以 `分包ID` 归并行，但 force replace 只会覆盖当前标注员槽位或当前审核列，不会删除同分包的其他标注员列。
