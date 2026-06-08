@@ -34,6 +34,130 @@
   let audioRefreshAttempts = 0;
   let lastRecommendation = null;
 
+  function normalizeText(value) {
+    return String(value || "").trim();
+  }
+
+  function normalizeOptionalNumber(value) {
+    const text = normalizeText(value);
+    if (!text) {
+      return undefined;
+    }
+    const number = Number(text);
+    return Number.isFinite(number) ? number : undefined;
+  }
+
+  function normalizeOptionalInteger(value) {
+    const text = normalizeText(value);
+    if (!text) {
+      return undefined;
+    }
+    const number = Number(text);
+    return Number.isFinite(number) ? Math.round(number) : undefined;
+  }
+
+  function normalizeStopSequences(value) {
+    const text = normalizeText(value);
+    if (!text) {
+      return undefined;
+    }
+    const items = text
+      .split(/\r?\n|,/)
+      .map(function (item) {
+        return normalizeText(item);
+      })
+      .filter(Boolean);
+    return items.length > 0 ? items : undefined;
+  }
+
+  function buildStageParams(prefix, current, defaults) {
+    const source = current && typeof current === "object" ? current : {};
+    const fallback = defaults && typeof defaults === "object" ? defaults : {};
+    const params = {};
+    [
+      [prefix + "Temperature", "temperature", normalizeOptionalNumber],
+      [prefix + "TopP", "top_p", normalizeOptionalNumber],
+      [prefix + "MaxTokens", "max_tokens", normalizeOptionalInteger],
+      [prefix + "MaxCompletionTokens", "max_completion_tokens", normalizeOptionalInteger],
+      [prefix + "PresencePenalty", "presence_penalty", normalizeOptionalNumber],
+      [prefix + "FrequencyPenalty", "frequency_penalty", normalizeOptionalNumber],
+      [prefix + "Seed", "seed", normalizeOptionalInteger],
+      [prefix + "StopSequences", "stop", normalizeStopSequences],
+    ].forEach(function (definition) {
+      const value = definition[2](source[definition[0]]);
+      if (value !== undefined) {
+        params[definition[1]] = value;
+        return;
+      }
+      const fallbackValue = definition[2](fallback[definition[1]]);
+      if (fallbackValue !== undefined) {
+        params[definition[1]] = fallbackValue;
+      }
+    });
+    return params;
+  }
+
+  function buildStageConfig(prefix, current, defaults, modelFallback) {
+    const source = current && typeof current === "object" ? current : {};
+    const fallback = defaults && typeof defaults === "object" ? defaults : {};
+    const stage = {};
+    const model = normalizeText(source[prefix + "Model"] || fallback.model || modelFallback);
+    const prompt = String(source[prefix + "Prompt"] || fallback.prompt || "");
+    const params = buildStageParams(prefix, source, fallback.params || fallback);
+    if (model) {
+      stage.model = model;
+    }
+    if (prompt) {
+      stage.prompt = prompt;
+    }
+    if (Object.keys(params).length > 0) {
+      stage.params = params;
+    }
+    return stage;
+  }
+
+  function buildAiStagesConfig(current, defaults) {
+    const source = current && typeof current === "object" ? current : {};
+    const fallback = defaults && typeof defaults === "object" ? defaults : {};
+    return {
+      listen: buildStageConfig(
+        "aiRecommendListen",
+        source,
+        fallback.listen || {},
+        fallback.listen?.model || source.aiRecommendModel || "qwen3.5-omni-plus"
+      ),
+      refine: buildStageConfig(
+        "aiRecommendRefine",
+        source,
+        fallback.refine || {},
+        fallback.refine?.model || "qwen3.5-plus"
+      ),
+    };
+  }
+
+  function resolveRecommendationFillTarget(result, targetKey) {
+    const source = result && typeof result === "object" ? result : {};
+    switch (String(targetKey || "")) {
+      case "audioDialectText":
+        return {
+          targetField: "dialect",
+          text: String(source.audioDialectText || source.dialectText || ""),
+        };
+      case "audioMandarinText":
+        return {
+          targetField: "mandarin",
+          text: String(source.audioMandarinText || source.mandarinText || ""),
+        };
+      case "refinedDialectText":
+        return {
+          targetField: "dialect",
+          text: String(source.refinedDialectText || source.dialectText || ""),
+        };
+      default:
+        return null;
+    }
+  }
+
   function isEditorPage() {
     return Boolean(dataApiFactory && typeof dataApiFactory.isEditorPage === "function"
       ? dataApiFactory.isEditorPage()
@@ -74,6 +198,18 @@
       timeoutMs:
         Number(current.aiRecommendRequestTimeoutMs || defaults.aiRecommendRequestTimeoutMs || DEFAULT_TIMEOUT_MS) ||
         DEFAULT_TIMEOUT_MS,
+      aiStages: buildAiStagesConfig(current, {
+        listen: {
+          model: defaults.aiRecommendListenModel || current.aiRecommendModel || "qwen3.5-omni-plus",
+          prompt: defaults.aiRecommendListenPrompt || "",
+          params: {},
+        },
+        refine: {
+          model: defaults.aiRecommendRefineModel || "qwen3.5-plus",
+          prompt: defaults.aiRecommendRefinePrompt || "",
+          params: {},
+        },
+      }),
       aiRecommendEndpoint:
         current.aiRecommendEndpoint || endpointBuilder(AI_PATH, settings),
       segmentPreviewEndpoint:
@@ -219,7 +355,7 @@
   }
 
   async function handleRecommend() {
-    runtime.ui.setStatus("正在为当前段生成柳州话文本和普通话顺滑...", "");
+    runtime.ui.setStatus("正在为当前段生成听音文本与柳州话修正结果...", "");
     try {
       const context = await buildCurrentContext();
       if (!context.selectedRange || !context.selectionKey) {
@@ -234,6 +370,24 @@
         "error"
       );
     }
+  }
+
+  async function handleApplyRecommendationText(targetKey) {
+    if (!lastRecommendation) {
+      runtime.ui.setStatus("请先生成当前段 AI 推荐。", "error");
+      return;
+    }
+    const target = resolveRecommendationFillTarget(lastRecommendation, targetKey);
+    if (!target || !target.text) {
+      runtime.ui.setStatus("当前结果没有可填入的文本。", "error");
+      return;
+    }
+    const result = await runtime.dataApi.fillCurrentSegmentField({
+      selectionKey: lastRecommendation.selectionKey,
+      targetField: target.targetField,
+      text: target.text,
+    });
+    runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
   }
 
   async function handleApplyRecommend() {
@@ -276,6 +430,7 @@
       clipCacheUploadEndpoint: config.clipCacheUploadEndpoint,
       timeoutMs: config.timeoutMs,
       aiUsageOperatorName: config.aiUsageOperatorName,
+      aiStages: config.aiStages,
     });
     const segment = segmentFactory.createRuntime({
       endpoint: config.segmentPreviewEndpoint,
@@ -305,8 +460,8 @@
         }
         void handleRecommend();
       },
-      onApplyRecommend: function () {
-        void handleApplyRecommend();
+      onApplyRecommendationText: function (targetKey) {
+        void handleApplyRecommendationText(targetKey);
       },
       onMarkValid: function () {
         void handleMarkValid();

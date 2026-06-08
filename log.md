@@ -1,3 +1,33 @@
+## 2026-06-09（DataBaker CVPC 柳州话脚本接入两阶段 AI 设置与三结果卡）
+
+- `DataBaker CVPC / 柳州话脚本` 当前完成新一轮布局与链路收口：
+  - 右侧 `全局标注` 卡当前作为唯一助手挂载点，固定展示状态、当前音频/当前段摘要、按需出现的画段建议、三结果 AI 推荐卡和动作按钮。
+  - 波形区 `.bottom-right` 当前只前置 `生成画段建议`、`应用当前建议`；不再把其他柳州话 AI 按钮挂到波形区。
+  - 旧的单一 `填入当前推荐` 按钮已移除，改为三张结果卡分别定向填入：
+    - `音频的柳州话文本` -> `标注文本`
+    - `音频的普通话文本` -> `普通话顺滑`
+    - `修正后的柳州话文本` -> `标注文本`
+- options 当前新增 CVPC 专属 `AI 设置` 面板：
+  - 共享右侧 `AI 设置` 区已纳入 `dataBakerCvpcLiuzhouAssistant`。
+  - 只保留 `基础设置 / 听音 / 文本修正` 三块；不提供 compare-family、采纳阈值或前端并发字段。
+  - 听音模型支持 `qwen3.5-omni-plus / qwen3.5-omni-flash / fun-asr`；文本修正模型支持 `qwen3.5-plus / qwen3.5-flash`。
+- 当前段 AI 推荐链路当前升级为 staged contract：
+  - 前端继续严格按 `.xaudio_time` 的 `开始 / 结束` 裁剪当前段，只上传 clip-cache 临时片段 URL，不退回整音频。
+  - 请求体当前发送 `aiStages.listen / aiStages.refine`。
+  - 返回体当前新增 `audioDialectText / audioMandarinText / refinedDialectText`，并继续兼容 `dialectText / mandarinText` 旧别名。
+- 后端 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 当前改为两阶段 pipeline：
+  - `listen`：默认走 Omni 听音，直接输出 `audioDialectText + audioMandarinText`
+  - `fun-asr`：先拿 `heardText`，再走一次文本桥接补足双输出，保持前端 UI 和契约不降级
+  - `refine`：结合普通话文本、词表命中片段与页面上下文，只修正柳州话文本，输出 `refinedDialectText`
+- 新增/更新验证：
+  - `extension/shared/storage.data-baker-cvpc.test.js`
+  - `extension/options/options-shared-asr-ai-panel.test.js`
+  - `extension/options/options-data-baker-cvpc-ai-ui.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+
 ## 2026-06-09（DataBaker CVPC 柳州话脚本收口右侧信息区并集中 AI 区）
 
 - `DataBaker CVPC / 柳州话脚本` 当前继续收口页面布局：

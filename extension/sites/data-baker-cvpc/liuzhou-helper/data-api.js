@@ -653,6 +653,14 @@
     return params;
   }
 
+  function isLiveSelectionStale(selectionKey, env) {
+    const liveSelection = getLiveSelectionSnapshot(env?.document || globalThis.document);
+    return (
+      normalizeText(selectionKey) &&
+      normalizeText(selectionKey) !== normalizeText(liveSelection.selectionKey)
+    );
+  }
+
   function collectFieldContext(template, env) {
     const fields = mapTemplateFieldNames(template);
     return {
@@ -887,11 +895,7 @@
 
     async function fillCurrentSegmentRecommendation(recommendation) {
       const source = recommendation && typeof recommendation === "object" ? recommendation : {};
-      const liveSelection = getLiveSelectionSnapshot(env.document);
-      if (
-        normalizeText(source.selectionKey) &&
-        normalizeText(source.selectionKey) !== normalizeText(liveSelection.selectionKey)
-      ) {
+      if (isLiveSelectionStale(source.selectionKey, env)) {
         return {
           ok: false,
           message: "当前段已切换，旧推荐已失效，请重新生成当前段 AI 推荐。",
@@ -899,11 +903,15 @@
       }
       const dialectField = findFieldTarget(["标注文本", "柳州话", "转写文本"], env);
       const mandarinField = findFieldTarget(["普通话顺滑", "普通话", "顺滑"], env);
-      const wroteDialect = source.dialectText
-        ? setTextFieldValue(dialectField, source.dialectText, env)
+      const dialectText = String(
+        source.refinedDialectText || source.dialectText || source.audioDialectText || ""
+      );
+      const mandarinText = String(source.audioMandarinText || source.mandarinText || "");
+      const wroteDialect = dialectText
+        ? setTextFieldValue(dialectField, dialectText, env)
         : false;
-      const wroteMandarin = source.mandarinText
-        ? setTextFieldValue(mandarinField, source.mandarinText, env)
+      const wroteMandarin = mandarinText
+        ? setTextFieldValue(mandarinField, mandarinText, env)
         : false;
       if (!wroteDialect && !wroteMandarin) {
         return {
@@ -915,6 +923,43 @@
       return {
         ok: true,
         message: "已尝试把当前段 AI 建议填入页面；如页面未同步，请刷新后复核。",
+      };
+    }
+
+    async function fillCurrentSegmentField(request) {
+      const source = request && typeof request === "object" ? request : {};
+      if (isLiveSelectionStale(source.selectionKey, env)) {
+        return {
+          ok: false,
+          message: "当前段已切换，旧推荐已失效，请重新生成当前段 AI 推荐。",
+        };
+      }
+      const targetField = normalizeText(source.targetField).toLowerCase();
+      const text = String(source.text || "");
+      if (!text) {
+        return {
+          ok: false,
+          message: "当前结果没有可填入的文本。",
+        };
+      }
+      const isDialectTarget = targetField === "dialect";
+      const field = findFieldTarget(
+        isDialectTarget ? ["标注文本", "柳州话", "转写文本"] : ["普通话顺滑", "普通话", "顺滑"],
+        env
+      );
+      const wrote = setTextFieldValue(field, text, env);
+      if (!wrote) {
+        return {
+          ok: false,
+          message: "未检测到稳定的当前段文本输入框；真实字段写入契约仍待补采。",
+        };
+      }
+      cachedContext = null;
+      return {
+        ok: true,
+        message: isDialectTarget
+          ? "已尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。"
+          : "已尝试把当前段建议填入普通话顺滑；如页面未同步，请刷新后复核。",
       };
     }
 
@@ -1030,6 +1075,7 @@
       isEditorPage,
       setCurrentValidity,
       fillCurrentSegmentRecommendation,
+      fillCurrentSegmentField,
       applySegmentPreview,
       fillUnresolvedSegmentsValid,
     };

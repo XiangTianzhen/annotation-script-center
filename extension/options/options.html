@@ -545,14 +545,11 @@
                 </span>
               </label>
 
-              <label class="field-card">
-                <strong>启用当前段 AI 推荐</strong>
-                <span>仅对当前段生成“柳州话文本 + 普通话顺滑”，需要人工确认后再填入。</span>
-                <span class="field-toggle">
-                  <input id="data-baker-cvpc-ai-recommend-enabled" type="checkbox" />
-                  在编辑器显示当前段 AI 推荐入口
-                </span>
-              </label>
+              <div class="field-card">
+                <strong>AI 设置说明</strong>
+                <span>当前段 AI 推荐的开关、超时、听音模型和文本修正模型已移动到右侧共享 `AI 设置` 面板。</span>
+                <span>这里继续只保留分段建议、提示屏蔽和当前边界说明。</span>
+              </div>
             </div>
 
             <div class="detail-grid two">
@@ -576,18 +573,6 @@
             </div>
 
             <div class="detail-grid two">
-              <label class="field-card">
-                <strong>AI 请求超时（ms）</strong>
-                <span>只影响当前段推荐接口；不改变画段建议的建议生成边界。</span>
-                <input
-                  id="data-baker-cvpc-ai-timeout"
-                  type="number"
-                  min="1000"
-                  max="300000"
-                  step="1000"
-                />
-              </label>
-
               <div class="field-card">
                 <strong>写入契约状态</strong>
                 <span id="data-baker-cvpc-contract-mode">

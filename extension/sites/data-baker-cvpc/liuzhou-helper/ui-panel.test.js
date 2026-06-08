@@ -255,6 +255,22 @@ function findAttrNode(root, attrName) {
   });
 }
 
+function findButtonByText(root, text) {
+  return findNode(root, function (node) {
+    return node instanceof FakeNode && node.tagName === "BUTTON" && collectText(node) === String(text || "");
+  });
+}
+
+function findRecommendItemByTitle(root, title) {
+  return findNode(root, function (node) {
+    return (
+      node instanceof FakeNode &&
+      String(node.className || "").indexOf("recommend-item") >= 0 &&
+      collectText(node).indexOf(String(title || "")) >= 0
+    );
+  });
+}
+
 function createHarness() {
   const body = new FakeNode("body");
   const head = new FakeNode("head");
@@ -398,19 +414,18 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
 
     const globalText = collectText(harness.globalPanel);
     assert.match(globalText, /是否有效（Valid or Not）/);
-    assert.doesNotMatch(globalText, /设为 Valid/);
-    assert.doesNotMatch(globalText, /设为 Invalid/);
-    assert.match(collectText(harness.nativeValidity), /未填写补 Valid/);
-    assert.match(collectText(harness.mandarinFieldBlock), /当前段 AI 推荐/);
-    assert.match(collectText(harness.mandarinFieldBlock), /填入当前推荐/);
-    assert.match(collectText(harness.mandarinFieldBlock), /生成画段建议/);
-    assert.match(collectText(harness.mandarinFieldBlock), /应用当前建议/);
-    assert.match(collectText(harness.mandarinFieldBlock), /当前画段建议/);
-    assert.match(collectText(harness.mandarinFieldBlock), /当前段 AI 推荐结果/);
+    assert.match(globalText, /当前段 AI 推荐/);
+    assert.match(globalText, /设为 Valid/);
+    assert.match(globalText, /设为 Invalid/);
+    assert.match(globalText, /未填写补 Valid/);
+    assert.match(globalText, /当前段 AI 推荐结果/);
+    assert.doesNotMatch(globalText, /填入当前推荐/);
+    assert.doesNotMatch(collectText(harness.mandarinFieldBlock), /当前段 AI 推荐/);
 
-    assert.equal(harness.bottomRight.children[0], harness.nativeSplitButton);
-    assert.equal(harness.bottomRight.children[1], harness.nativeMergeButton);
-    assert.doesNotMatch(collectText(harness.bottomRight), /生成画段建议/);
+    assert.equal(collectText(harness.bottomRight.children[0]), "生成画段建议");
+    assert.equal(collectText(harness.bottomRight.children[1]), "应用当前建议");
+    assert.equal(harness.bottomRight.children[2], harness.nativeSplitButton);
+    assert.equal(harness.bottomRight.children[3], harness.nativeMergeButton);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
@@ -450,23 +465,28 @@ test("CVPC ui panel renders current audio and selected range inside the global a
     assert.match(text, /35\.677 秒/);
     assert.match(text, /17\.112 秒/);
     assert.doesNotMatch(text, /当前画段建议/);
-    assert.doesNotMatch(text, /当前段 AI 推荐结果/);
+    assert.match(text, /当前段 AI 推荐结果/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
   }
 });
 
-test("CVPC ui panel renders preview and recommendation results inside the middle AI area", function () {
+test("CVPC ui panel renders preview and three staged recommendation cards inside the global annotation card", function () {
   const uiModule = loadUiPanelModule();
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
   globalThis.document = harness.document;
   globalThis.HTMLElement = FakeNode;
+  const applyTargets = [];
 
   try {
-    const runtime = uiModule.createRuntime({});
+    const runtime = uiModule.createRuntime({
+      onApplyRecommendationText: function (target) {
+        applyTargets.push(target);
+      },
+    });
     runtime.mount();
     runtime.renderPreview({
       items: [
@@ -480,23 +500,38 @@ test("CVPC ui panel renders preview and recommendation results inside the middle
     });
     runtime.renderRecommendation({
       success: true,
-      dialectText: "柳州话推荐",
-      mandarinText: "普通话推荐",
+      audioDialectText: "听音柳州话",
+      audioMandarinText: "听音普通话",
+      refinedDialectText: "修正柳州话",
       specialTags: ["口语化"],
       needHumanReview: false,
       notes: ["人工确认"],
     });
 
-    const middleText = collectText(harness.mandarinFieldBlock);
     const panelNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-panel");
-    const rightText = collectText(panelNode);
-    assert.match(middleText, /建议 1/);
-    assert.match(middleText, /柳州话推荐/);
-    assert.match(middleText, /普通话推荐/);
-    assert.match(middleText, /口语化/);
-    assert.match(middleText, /人工确认/);
-    assert.doesNotMatch(rightText, /柳州话推荐/);
-    assert.doesNotMatch(rightText, /建议 1/);
+    const panelText = collectText(panelNode);
+    assert.match(panelText, /建议 1/);
+    assert.match(panelText, /音频的柳州话文本/);
+    assert.match(panelText, /听音柳州话/);
+    assert.match(panelText, /音频的普通话文本/);
+    assert.match(panelText, /听音普通话/);
+    assert.match(panelText, /修正后的柳州话文本/);
+    assert.match(panelText, /修正柳州话/);
+    assert.match(panelText, /口语化/);
+    assert.match(panelText, /人工确认/);
+
+    const audioDialectCard = findRecommendItemByTitle(panelNode, "音频的柳州话文本");
+    const audioMandarinCard = findRecommendItemByTitle(panelNode, "音频的普通话文本");
+    const refinedDialectCard = findRecommendItemByTitle(panelNode, "修正后的柳州话文本");
+    findButtonByText(audioDialectCard, "填入标注文本").dispatchEvent({ type: "click" });
+    findButtonByText(audioMandarinCard, "填入普通话顺滑").dispatchEvent({ type: "click" });
+    findButtonByText(refinedDialectCard, "填入标注文本").dispatchEvent({ type: "click" });
+
+    assert.deepEqual(applyTargets, [
+      "audioDialectText",
+      "audioMandarinText",
+      "refinedDialectText",
+    ]);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

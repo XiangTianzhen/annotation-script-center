@@ -81,7 +81,11 @@ test("CVPC storage defaults expose beta liuzhou helper settings", async function
       "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend"
     );
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
-    assert.equal(script.aiRecommendModel, "qwen3.5-omni-flash");
+    assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
+    assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
+    assert.equal(script.aiRecommendListenPrompt, "");
+    assert.equal(script.aiRecommendRefinePrompt, "");
+    assert.equal(script.aiRecommendModel, undefined);
     assert.equal(script.contractMode, "dom-guarded");
     assert.deepEqual(script.shortcuts, {});
   } finally {
@@ -110,7 +114,7 @@ test("CVPC storage normalizes invalid values and preserves local endpoints", asy
             aiRecommendEndpoint:
               "http://127.0.0.1:3333/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: "abc",
-            aiRecommendModel: "  qwen3.5-omni-flash  ",
+            aiRecommendModel: "  qwen3.5-omni-plus  ",
             contractMode: "",
           },
         },
@@ -135,8 +139,70 @@ test("CVPC storage normalizes invalid values and preserves local endpoints", asy
     assert.equal(script.blockNewTabEditingTips, false);
     assert.equal(script.blockPauseStateTips, true);
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
-    assert.equal(script.aiRecommendModel, "qwen3.5-omni-flash");
+    assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-plus");
+    assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(script.contractMode, "dom-guarded");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage normalizes two-stage AI fields and legacy single model fallback", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            aiRecommendListenModel: "fun-asr",
+            aiRecommendListenPrompt: "  listen prompt  ",
+            aiRecommendListenTemperature: "9",
+            aiRecommendListenTopP: "0.9",
+            aiRecommendListenMaxTokens: "4096",
+            aiRecommendListenMaxCompletionTokens: "512",
+            aiRecommendListenPresencePenalty: "-1.2",
+            aiRecommendListenFrequencyPenalty: "2.8",
+            aiRecommendListenSeed: "123",
+            aiRecommendListenStopSequences: " END \nEND\n STOP ",
+            aiRecommendRefineModel: "invalid-model",
+            aiRecommendRefinePrompt: "  refine prompt  ",
+            aiRecommendRefineTemperature: "0.3",
+            aiRecommendRefineTopP: "0.7",
+            aiRecommendRefineMaxTokens: "2048",
+            aiRecommendRefineMaxCompletionTokens: "256",
+            aiRecommendRefinePresencePenalty: "0.2",
+            aiRecommendRefineFrequencyPenalty: "-0.6",
+            aiRecommendRefineSeed: "456",
+            aiRecommendRefineStopSequences: "DONE\nDONE\nSTOP",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.equal(script.aiRecommendListenModel, "fun-asr");
+    assert.equal(script.aiRecommendListenPrompt, "listen prompt");
+    assert.equal(script.aiRecommendListenTemperature, "2");
+    assert.equal(script.aiRecommendListenTopP, "0.9");
+    assert.equal(script.aiRecommendListenMaxTokens, "4096");
+    assert.equal(script.aiRecommendListenMaxCompletionTokens, "512");
+    assert.equal(script.aiRecommendListenPresencePenalty, "-1.2");
+    assert.equal(script.aiRecommendListenFrequencyPenalty, "2");
+    assert.equal(script.aiRecommendListenSeed, "123");
+    assert.equal(script.aiRecommendListenStopSequences, "END\nSTOP");
+    assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
+    assert.equal(script.aiRecommendRefinePrompt, "refine prompt");
+    assert.equal(script.aiRecommendRefineTemperature, "0.3");
+    assert.equal(script.aiRecommendRefineTopP, "0.7");
+    assert.equal(script.aiRecommendRefineMaxTokens, "2048");
+    assert.equal(script.aiRecommendRefineMaxCompletionTokens, "256");
+    assert.equal(script.aiRecommendRefinePresencePenalty, "0.2");
+    assert.equal(script.aiRecommendRefineFrequencyPenalty, "-0.6");
+    assert.equal(script.aiRecommendRefineSeed, "456");
+    assert.equal(script.aiRecommendRefineStopSequences, "DONE\nSTOP");
   } finally {
     harness.cleanup();
   }

@@ -44,6 +44,21 @@ test("shared AI panel spec marks Aishell as a standalone three-stage layout", fu
   ]);
 });
 
+test("shared AI panel spec marks CVPC as a standalone two-stage layout without concurrency field", function () {
+  const spec = buildSharedAsrAiPanelSpec("dataBakerCvpcLiuzhouAssistant");
+
+  assert.equal(spec.useStandaloneLayout, true);
+  assert.equal(spec.showAutofillConcurrency, false);
+  assert.equal(spec.showPipelineMode, false);
+  assert.equal(spec.showRecognitionStrategy, false);
+  assert.equal(spec.concurrencyInputId, "");
+  assert.deepEqual(spec.modelFieldOrder, [
+    "enabled",
+    "timeout",
+    "thinking",
+  ]);
+});
+
 test("shared AI panel renders the shared autofill concurrency field with the expected ids", function () {
   const html = renderSharedAsrAutofillConcurrencyField("aishellTechMinnanAssistant");
 

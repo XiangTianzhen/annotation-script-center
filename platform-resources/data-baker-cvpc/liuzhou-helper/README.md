@@ -19,17 +19,25 @@
   - `template.attrs / entry_attrs / moment_attrs`
   - 当前音频签名 URL：运行时优先从页内观察桥映射获取；页内桥会消费页面真实 `annotation/meta` 响应、顶层页面或同源 `xaudio` iframe 的真实音频请求和初始化阶段控制台打印的音频 URL。若扩展自身直连 `annotation/meta` 因平台鉴权返回失败，会回退使用页内桥传入的运行时 meta；缺失时再回退到 DOM audio、Performance 与同源 iframe audio
 - 当前页工具面板：
-  - 助手区嵌入右侧 `全局标注` 卡片，保持原生 `Valid / Invalid` 在上方；右侧当前只保留紧凑状态、当前音频/当前段摘要和提示说明
-  - `未填写补 Valid` 当前挂在 `是否有效（Valid or Not）` 单选区右侧
-  - `当前段 AI 推荐`、`填入当前推荐` 当前挂在 `普通话顺滑` 输入区下方
-  - `生成画段建议`、`应用当前建议` 当前也集中挂到 `普通话顺滑` 下方的中间 AI 区
-  - 当前画段建议结果与当前段 AI 推荐结果当前统一显示在中间 AI 区，不再放在右侧助手信息区
+  - 助手区嵌入右侧 `全局标注` 卡片，保持原生 `Valid / Invalid` 在上方；右侧当前固定展示状态、当前音频/当前段摘要、按需出现的画段建议、三结果 AI 推荐卡和动作按钮
+  - `未填写补 Valid`、`设为 Valid`、`设为 Invalid`、`当前段 AI 推荐` 当前都保留在右侧助手区
+  - 波形区 `.bottom-right` 当前只前置 `生成画段建议`、`应用当前建议` 两个分段按钮，不再挂其他柳州话 AI 按钮
+  - AI 结果区当前固定展示三张结果卡：
+    - `音频的柳州话文本` -> `填入标注文本`
+    - `音频的普通话文本` -> `填入普通话顺滑`
+    - `修正后的柳州话文本` -> `填入标注文本`
   - 当前段 AI 推荐严格按当前波形选中段工作：实时读取 `.xaudio_time` 的 `开始 / 结束`，浏览器端只裁这一段音频
   - 浏览器端会把片段转成 `16k` 单声道 WAV，上传到临时 clip-cache，后端返回 1 小时临时 URL，再把该 URL 发给现有 AI 推荐接口
   - 当前段填入建议当前兼容页面 `contenteditable .ProseMirror`
   - 当前段设为 `Valid / Invalid` 前会先检查当前单选状态，已是目标值时不重复点击
   - 当前音频内“未填写段落补为有效”当前改为读取 `annotation/annos` 后按左侧编号逐段补写，只处理未填写段，不覆盖已填 `Invalid`
   - 基础设置提供两个独立提示屏蔽开关，默认都可分别屏蔽“您正在编辑该作业,不能打开新的Tab页”“系统进入暂停状态”
+- options / AI 设置：
+  - `dataBakerCvpcLiuzhouAssistant` 当前接入共享右侧 `AI 设置` 区的独立 CVPC 布局
+  - 当前只保留 `基础设置`、`听音`、`文本修正` 三块
+  - `听音` 模型：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`、`fun-asr`
+  - `文本修正` 模型：`qwen3.5-plus`、`qwen3.5-flash`
+  - 不提供 compare-family、采纳阈值、前端并发设置
 - 独立后端接口：
   - `GET /api/data-baker-cvpc/liuzhou-helper/segment/health`
   - `POST /api/data-baker-cvpc/liuzhou-helper/segment/preview`
@@ -44,6 +52,40 @@
 
 - 柳州话规则整理稿：`platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-rules.md`
 - 柳州话发音对照表：`platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-pronunciation-reference.csv`
+
+## AI 契约
+
+- `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults`
+  - 返回 `defaults.timeoutMs`
+  - 返回 `defaults.stages.listen / refine`
+  - 返回 `supportedModels.listen / refine`
+- `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`
+  - 返回与 defaults 对齐的 staged defaults、支持模型列表与运行时资料摘要
+- `POST /api/data-baker-cvpc/liuzhou-helper/ai/recommend`
+  - 输入：
+    - `audioUrl` 必须是当前段 clip-cache 临时 URL
+    - `aiStages.listen`
+    - `aiStages.refine`
+  - 输出：
+    - `audioDialectText`
+    - `audioMandarinText`
+    - `refinedDialectText`
+    - legacy alias `dialectText = refinedDialectText`
+    - legacy alias `mandarinText = audioMandarinText`
+    - `specialTags`
+    - `needHumanReview`
+    - `notes`
+    - `timing`
+    - `models`
+
+## 两阶段后端链路
+
+- `listen`
+  - `qwen3.5-omni-plus / flash`：直接听音输出 `audioDialectText + audioMandarinText`
+  - `fun-asr`：先拿 `heardText`，再走一次文本桥接补足双输出，保持前端 UI 不降级
+- `refine`
+  - 输入 `audioDialectText`、`audioMandarinText`、词表命中片段和页面上下文
+  - 只输出 `refinedDialectText`
 
 ## 当前边界
 

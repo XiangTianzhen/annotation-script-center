@@ -2,6 +2,7 @@
 
 (function initOptionsSharedAsrAiPanel(globalObject) {
   const DATA_BAKER_SCRIPT_ID = "dataBakerRoundOneQuality";
+  const DATA_BAKER_CVPC_SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
   const AISHELL_SCRIPT_ID = "aishellTechMinnanAssistant";
   const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
   const MAGIC_DATA_MINNAN_SCRIPT_ID = "magicDataMinnanAssistant";
@@ -55,6 +56,27 @@
         modelFieldOrder: [
           "enabled",
           "autofillConcurrency",
+          "timeout",
+          "thinking",
+        ],
+      };
+    }
+
+    if (scriptId === DATA_BAKER_CVPC_SCRIPT_ID) {
+      return {
+        scriptId,
+        prefix: "data-baker-cvpc-ai",
+        useStandaloneLayout: true,
+        showPipelineMode: false,
+        showRecognitionStrategy: false,
+        showAutofillConcurrency: false,
+        enableFieldLabel: "启用 AI 推荐文本",
+        enableFieldHelp: "关闭后不显示当前段 AI 推荐结果",
+        modelLabel: "文本修正模型",
+        concurrencyInputId: "",
+        concurrencyHelpId: "",
+        modelFieldOrder: [
+          "enabled",
           "timeout",
           "thinking",
         ],

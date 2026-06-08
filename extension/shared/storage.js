@@ -77,13 +77,32 @@
                 enabled: true,
                 segmentPreviewEnabled: true,
                 blockEditingTabTips: true,
-                segmentPreviewEndpoint:
+              segmentPreviewEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
                 aiRecommendEnabled: true,
                 aiRecommendEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
                 aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
-                aiRecommendModel: "qwen3.5-omni-flash",
+                aiRecommendListenModel: "qwen3.5-omni-flash",
+                aiRecommendListenPrompt: "",
+                aiRecommendListenTemperature: "",
+                aiRecommendListenTopP: "",
+                aiRecommendListenMaxTokens: "",
+                aiRecommendListenMaxCompletionTokens: "",
+                aiRecommendListenPresencePenalty: "",
+                aiRecommendListenFrequencyPenalty: "",
+                aiRecommendListenSeed: "",
+                aiRecommendListenStopSequences: "",
+                aiRecommendRefineModel: "qwen3.5-plus",
+                aiRecommendRefinePrompt: "",
+                aiRecommendRefineTemperature: "",
+                aiRecommendRefineTopP: "",
+                aiRecommendRefineMaxTokens: "",
+                aiRecommendRefineMaxCompletionTokens: "",
+                aiRecommendRefinePresencePenalty: "",
+                aiRecommendRefineFrequencyPenalty: "",
+                aiRecommendRefineSeed: "",
+                aiRecommendRefineStopSequences: "",
                 contractMode: "dom-guarded",
                 shortcuts: {},
               },
@@ -1959,11 +1978,22 @@
       result.aiRecommendRequestTimeoutMs,
       defaultConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
     );
-    result.aiRecommendModel = String(
-      result.aiRecommendModel || defaultConfig.aiRecommendModel || "qwen3.5-omni-flash"
-    )
-      .trim()
-      .slice(0, 80);
+    result.aiRecommendListenModel = resolveDataBakerListenModel(
+      rawSource.aiRecommendListenModel || rawSource.aiRecommendModel || result.aiRecommendListenModel,
+      "two_stage",
+      defaultConfig.aiRecommendListenModel || defaultConfig.aiRecommendModel || "qwen3.5-omni-flash",
+      constants
+    );
+    result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);
+    normalizeAishellTechStageParams(result, "aiRecommendListen");
+    result.aiRecommendRefineModel = normalizeDataBakerCompareModel(
+      rawSource.aiRecommendRefineModel || result.aiRecommendRefineModel,
+      defaultConfig.aiRecommendRefineModel || "qwen3.5-plus",
+      constants
+    );
+    result.aiRecommendRefinePrompt = normalizeJudgementAiPrompt(result.aiRecommendRefinePrompt);
+    normalizeAishellTechStageParams(result, "aiRecommendRefine");
+    delete result.aiRecommendModel;
     result.contractMode =
       String(result.contractMode || defaultConfig.contractMode || "dom-guarded").trim() ||
       "dom-guarded";
@@ -2001,7 +2031,26 @@
               constants.DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
-            aiRecommendModel: "qwen3.5-omni-flash",
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendListenPrompt: "",
+            aiRecommendListenTemperature: "",
+            aiRecommendListenTopP: "",
+            aiRecommendListenMaxTokens: "",
+            aiRecommendListenMaxCompletionTokens: "",
+            aiRecommendListenPresencePenalty: "",
+            aiRecommendListenFrequencyPenalty: "",
+            aiRecommendListenSeed: "",
+            aiRecommendListenStopSequences: "",
+            aiRecommendRefineModel: "qwen3.5-plus",
+            aiRecommendRefinePrompt: "",
+            aiRecommendRefineTemperature: "",
+            aiRecommendRefineTopP: "",
+            aiRecommendRefineMaxTokens: "",
+            aiRecommendRefineMaxCompletionTokens: "",
+            aiRecommendRefinePresencePenalty: "",
+            aiRecommendRefineFrequencyPenalty: "",
+            aiRecommendRefineSeed: "",
+            aiRecommendRefineStopSequences: "",
             contractMode: "dom-guarded",
             shortcuts: {},
           },

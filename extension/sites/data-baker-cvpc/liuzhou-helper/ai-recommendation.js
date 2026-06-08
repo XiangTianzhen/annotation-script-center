@@ -18,6 +18,47 @@
     return typeof window !== "undefined" && window ? window : globalThis;
   }
 
+  function normalizeAiStageParams(params) {
+    const source = params && typeof params === "object" ? params : {};
+    const result = {};
+    Object.keys(source).forEach(function (key) {
+      const value = source[key];
+      if (value === "" || value === null || value === undefined) {
+        return;
+      }
+      result[key] = value;
+    });
+    return result;
+  }
+
+  function normalizeAiStages(aiStages) {
+    const source = aiStages && typeof aiStages === "object" ? aiStages : {};
+    const result = {};
+    ["listen", "refine"].forEach(function (stageKey) {
+      const stage = source[stageKey] && typeof source[stageKey] === "object" ? source[stageKey] : null;
+      if (!stage) {
+        return;
+      }
+      const normalizedStage = {};
+      const model = normalizeText(stage.model);
+      const prompt = String(stage.prompt || "");
+      const params = normalizeAiStageParams(stage.params);
+      if (model) {
+        normalizedStage.model = model;
+      }
+      if (prompt) {
+        normalizedStage.prompt = prompt;
+      }
+      if (Object.keys(params).length > 0) {
+        normalizedStage.params = params;
+      }
+      if (Object.keys(normalizedStage).length > 0) {
+        result[stageKey] = normalizedStage;
+      }
+    });
+    return result;
+  }
+
   function isLocalOnlyEndpoint(url) {
     const text = normalizeText(url);
     if (!text) {
@@ -262,6 +303,10 @@
         platformUserId: normalizeText(source.platformUserId),
         timeoutMs: Number(config.timeoutMs || DEFAULT_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
       };
+      const aiStages = normalizeAiStages(config.aiStages);
+      if (Object.keys(aiStages).length > 0) {
+        body.aiStages = aiStages;
+      }
       const controller = typeof AbortController === "function" ? new AbortController() : null;
       const timer = controller
         ? timerHost.setTimeout(function () {

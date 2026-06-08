@@ -1175,16 +1175,52 @@ test("CVPC data api writes recommendation into contenteditable editors", async f
   const runtime = dataApiModule.createRuntime(harness.dependencies);
   const result = await runtime.fillCurrentSegmentRecommendation({
     selectionKey: "sample-a.mp3|0|4171",
-    dialectText: "柳州话推荐",
-    mandarinText: "普通话推荐",
+    audioMandarinText: "听音普通话",
+    refinedDialectText: "修正柳州话",
   });
 
   assert.deepEqual(result, {
     ok: true,
     message: "已尝试把当前段 AI 建议填入页面；如页面未同步，请刷新后复核。",
   });
-  assert.equal(harness.dialectEditor.textContent, "柳州话推荐");
-  assert.equal(harness.mandarinEditor.textContent, "普通话推荐");
+  assert.equal(harness.dialectEditor.textContent, "修正柳州话");
+  assert.equal(harness.mandarinEditor.textContent, "听音普通话");
+});
+
+test("CVPC data api writes staged recommendation text into the requested field only", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    visibleEntryName: "sample-a.mp3",
+    selectionText: "开始：0 秒 结束：4.171 秒 截取：4.171 秒",
+    segmentStates: [{ validity: "missing", dialectText: "", mandarinText: "" }],
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const dialectResult = await runtime.fillCurrentSegmentField({
+    selectionKey: "sample-a.mp3|0|4171",
+    targetField: "dialect",
+    text: "听音柳州话",
+  });
+
+  assert.deepEqual(dialectResult, {
+    ok: true,
+    message: "已尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。",
+  });
+  assert.equal(harness.dialectEditor.textContent, "听音柳州话");
+  assert.equal(harness.mandarinEditor.textContent, "");
+
+  const mandarinResult = await runtime.fillCurrentSegmentField({
+    selectionKey: "sample-a.mp3|0|4171",
+    targetField: "mandarin",
+    text: "听音普通话",
+  });
+
+  assert.deepEqual(mandarinResult, {
+    ok: true,
+    message: "已尝试把当前段建议填入普通话顺滑；如页面未同步，请刷新后复核。",
+  });
+  assert.equal(harness.dialectEditor.textContent, "听音柳州话");
+  assert.equal(harness.mandarinEditor.textContent, "听音普通话");
 });
 
 test("CVPC data api fillAllValid only reports stats when all instance validity fields are already filled", async function () {

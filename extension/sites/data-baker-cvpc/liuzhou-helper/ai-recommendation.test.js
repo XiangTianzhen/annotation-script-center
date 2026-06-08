@@ -100,8 +100,11 @@ function installAudioHarness() {
         json: async function () {
           return {
             success: true,
-            dialectText: "柳州话。",
-            mandarinText: "普通话。",
+            audioDialectText: "听音柳州话。",
+            audioMandarinText: "听音普通话。",
+            refinedDialectText: "修正柳州话。",
+            dialectText: "修正柳州话。",
+            mandarinText: "听音普通话。",
             specialTags: [],
             needHumanReview: false,
             notes: [],
@@ -158,6 +161,23 @@ test("liuzhou ai recommend reuses uploaded clip cache for the same selectionKey 
       clipCacheUploadEndpoint:
         "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload",
       aiUsageOperatorName: "测试员",
+      aiStages: {
+        listen: {
+          model: "qwen3.5-omni-plus",
+          prompt: "listen-prompt",
+          params: {
+            temperature: 0.1,
+            top_p: 0.8,
+          },
+        },
+        refine: {
+          model: "qwen3.5-plus",
+          prompt: "refine-prompt",
+          params: {
+            max_tokens: 512,
+          },
+        },
+      },
     });
     const context = {
       audioUrl: "https://oss.example.com/sample.mp3?Signature=audio",
@@ -179,6 +199,9 @@ test("liuzhou ai recommend reuses uploaded clip cache for the same selectionKey 
 
     assert.equal(first.success, true);
     assert.equal(second.success, true);
+    assert.equal(first.audioDialectText, "听音柳州话。");
+    assert.equal(first.audioMandarinText, "听音普通话。");
+    assert.equal(first.refinedDialectText, "修正柳州话。");
 
     const audioFetchCount = harness.calls.filter(function (call) {
       return call.url.indexOf("oss.example.com/sample.mp3") >= 0;
@@ -193,6 +216,32 @@ test("liuzhou ai recommend reuses uploaded clip cache for the same selectionKey 
     assert.equal(audioFetchCount, 1);
     assert.equal(uploadCount, 1);
     assert.equal(recommendCount, 2);
+
+    const recommendCall = harness.calls.find(function (call) {
+      return call.url.indexOf("/ai/recommend") >= 0;
+    });
+    const requestBody = JSON.parse(recommendCall.body);
+    assert.equal(
+      requestBody.audioUrl,
+      "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/clip-cache/files/clip-1.wav"
+    );
+    assert.deepEqual(requestBody.aiStages, {
+      listen: {
+        model: "qwen3.5-omni-plus",
+        prompt: "listen-prompt",
+        params: {
+          temperature: 0.1,
+          top_p: 0.8,
+        },
+      },
+      refine: {
+        model: "qwen3.5-plus",
+        prompt: "refine-prompt",
+        params: {
+          max_tokens: 512,
+        },
+      },
+    });
   } finally {
     harness.restore();
   }

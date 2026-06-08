@@ -774,6 +774,7 @@
     judgement: "/api/alibaba-labelx/asr-judgement/ai/defaults",
     transcription: "/api/alibaba-labelx/asr-transcription/ai/defaults",
     dataBakerRoundOneQuality: "/api/data-baker/round-one-quality/ai/recommend/defaults",
+    dataBakerCvpcLiuzhouAssistant: "/api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults",
     magicDataAnnotatorAiReview: "/api/magic-data/hakka-helper/ai/defaults",
     magicDataMinnanAssistant: "/api/magic-data/minnan-helper/ai/defaults",
     aishellTechMinnanAssistant: "/api/aishell-tech/minnan-helper/ai/recommend/defaults",
@@ -2481,6 +2482,109 @@
     target[prefix + "StopSequences"] = normalizeStopSequencesText(target[prefix + "StopSequences"] || "");
   }
 
+  function getDataBakerCvpcStageDefaults(aiDefaults) {
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const stages = defaults.stages && typeof defaults.stages === "object" ? defaults.stages : {};
+    const listen = stages.listen && typeof stages.listen === "object" ? stages.listen : {};
+    const refine = stages.refine && typeof stages.refine === "object" ? stages.refine : {};
+    return {
+      listen: {
+        model: normalizeDataBakerListenModel(
+          listen.model || defaults.listenModel,
+          defaults.omniModel || "qwen3.5-omni-flash"
+        ),
+        modelOptions: buildMergedModelOptions(
+          listen.modelOptions,
+          defaults.listenModelOptions || dataBakerListenModelOptions,
+          [listen.model, defaults.listenModel, defaults.funAsrModel, defaults.omniModel]
+        ),
+        prompt: String(listen.prompt || defaults.listenPrompt || ""),
+        temperature: listen.temperature ?? defaults.temperature ?? "",
+        top_p: listen.top_p ?? defaults.top_p ?? "",
+        max_tokens: listen.max_tokens ?? defaults.max_tokens ?? "",
+        max_completion_tokens:
+          listen.max_completion_tokens ?? defaults.max_completion_tokens ?? "",
+        presence_penalty: listen.presence_penalty ?? defaults.presence_penalty ?? "",
+        frequency_penalty: listen.frequency_penalty ?? defaults.frequency_penalty ?? "",
+        seed: listen.seed ?? defaults.seed ?? "",
+        stop: listen.stop ?? listen.stopSequences ?? defaults.stop ?? "",
+      },
+      refine: {
+        model: normalizeDataBakerCompareModel(
+          refine.model || defaults.refineModel || defaults.compareModel,
+          "qwen3.5-plus"
+        ),
+        modelOptions: buildMergedModelOptions(
+          refine.modelOptions,
+          defaults.refineModelOptions || defaults.compareModelOptions || dataBakerCompareModelOptions,
+          [refine.model, defaults.refineModel, defaults.compareModel]
+        ),
+        prompt: String(refine.prompt || defaults.refinePrompt || defaults.comparePrompt || ""),
+        temperature: refine.temperature ?? defaults.temperature ?? "",
+        top_p: refine.top_p ?? defaults.top_p ?? "",
+        max_tokens: refine.max_tokens ?? defaults.max_tokens ?? "",
+        max_completion_tokens:
+          refine.max_completion_tokens ?? defaults.max_completion_tokens ?? "",
+        presence_penalty: refine.presence_penalty ?? defaults.presence_penalty ?? "",
+        frequency_penalty: refine.frequency_penalty ?? defaults.frequency_penalty ?? "",
+        seed: refine.seed ?? defaults.seed ?? "",
+        stop: refine.stop ?? refine.stopSequences ?? defaults.stop ?? "",
+      },
+    };
+  }
+
+  function getDataBakerCvpcStageParamElementId(stagePrefix, definition) {
+    return (
+      "data-baker-cvpc-ai-" +
+      String(stagePrefix || "").trim() +
+      "-" +
+      String(definition?.domSuffix || "").trim()
+    );
+  }
+
+  function applyDataBakerCvpcStageParamValues(stagePrefix, configPrefix, config, stageDefaults) {
+    aishellTechStageParamDefinitions.forEach(function (definition) {
+      const node = getElement(getDataBakerCvpcStageParamElementId(stagePrefix, definition));
+      if (!(node instanceof HTMLInputElement) && !(node instanceof HTMLTextAreaElement)) {
+        return;
+      }
+      node.value = String(
+        getAsrVoiceAiEffectiveText(
+          config?.[configPrefix + definition.suffix],
+          stageDefaults?.[definition.apiKey]
+        )
+      );
+    });
+  }
+
+  function readDataBakerCvpcStageParamDraft(target, configPrefix, stagePrefix) {
+    const draft = target && typeof target === "object" ? target : {};
+    aishellTechStageParamDefinitions.forEach(function (definition) {
+      const node = getElement(getDataBakerCvpcStageParamElementId(stagePrefix, definition));
+      const rawValue =
+        node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement ? node.value : "";
+      if (definition.type === "number") {
+        draft[configPrefix + definition.suffix] = normalizeOptionalNumberText(
+          rawValue,
+          definition.min,
+          definition.max,
+          definition.precision
+        );
+        return;
+      }
+      if (definition.type === "integer") {
+        draft[configPrefix + definition.suffix] = normalizeOptionalIntegerText(
+          rawValue,
+          definition.min,
+          definition.max
+        );
+        return;
+      }
+      draft[configPrefix + definition.suffix] = normalizeStopSequencesText(rawValue || "");
+    });
+    return draft;
+  }
+
   function getAishellTechConcurrencyModelConfig(configLike) {
     const config = configLike && typeof configLike === "object" ? configLike : {};
     const compareFamily = normalizeAishellTechCompareFamily(
@@ -2974,6 +3078,100 @@
     readAishellTechStageParamDraft(draft, "aiRecommendConvert", "convert");
     readAishellTechStageParamDraft(draft, "aiRecommendListen", "listen");
     readAishellTechStageParamDraft(draft, "aiRecommendCompare", "compare");
+    return draft;
+  }
+
+  function applyDataBakerCvpcListenModelFields(listenModel, aiDefaults) {
+    const stageDefaults = getDataBakerCvpcStageDefaults(aiDefaults);
+    const currentListenModel = normalizeDataBakerListenModel(
+      listenModel,
+      stageDefaults.listen.model
+    );
+    renderFixedModelOptions(
+      "data-baker-cvpc-ai-listen-model-select",
+      stageDefaults.listen.modelOptions,
+      currentListenModel
+    );
+    const listenHelpNode = getElement("data-baker-cvpc-ai-listen-model-help");
+    if (listenHelpNode instanceof HTMLElement) {
+      listenHelpNode.textContent =
+        currentListenModel === "fun-asr"
+          ? "Fun-ASR 通过兼容双输出链路产出“柳州话文本 + 普通话文本”，界面结果结构不降级。"
+          : "Qwen Omni 直接根据当前段音频输出“柳州话文本 + 普通话文本”。";
+    }
+  }
+
+  function applyDataBakerCvpcStageFields(config, aiDefaults) {
+    const currentConfig = Object.assign({}, config || {});
+    const stageDefaults = getDataBakerCvpcStageDefaults(aiDefaults);
+    applyDataBakerCvpcListenModelFields(currentConfig.aiRecommendListenModel, aiDefaults);
+    const listenPromptNode = getElement("data-baker-cvpc-ai-listen-prompt");
+    if (listenPromptNode instanceof HTMLTextAreaElement) {
+      listenPromptNode.value = String(
+        getAsrVoiceAiEffectiveText(
+          currentConfig.aiRecommendListenPrompt,
+          stageDefaults.listen.prompt
+        )
+      );
+    }
+    applyDataBakerCvpcStageParamValues(
+      "listen",
+      "aiRecommendListen",
+      currentConfig,
+      stageDefaults.listen
+    );
+
+    renderFixedModelOptions(
+      "data-baker-cvpc-ai-refine-model-select",
+      stageDefaults.refine.modelOptions,
+      normalizeDataBakerCompareModel(
+        currentConfig.aiRecommendRefineModel,
+        stageDefaults.refine.model
+      )
+    );
+    const refinePromptNode = getElement("data-baker-cvpc-ai-refine-prompt");
+    if (refinePromptNode instanceof HTMLTextAreaElement) {
+      refinePromptNode.value = String(
+        getAsrVoiceAiEffectiveText(
+          currentConfig.aiRecommendRefinePrompt,
+          stageDefaults.refine.prompt
+        )
+      );
+    }
+    applyDataBakerCvpcStageParamValues(
+      "refine",
+      "aiRecommendRefine",
+      currentConfig,
+      stageDefaults.refine
+    );
+  }
+
+  function getDataBakerCvpcSettingsDraftConfig(aiDefaults) {
+    const stageDefaults = getDataBakerCvpcStageDefaults(aiDefaults);
+    const listenModelNode = getElement("data-baker-cvpc-ai-listen-model-select");
+    const listenPromptNode = getElement("data-baker-cvpc-ai-listen-prompt");
+    const refineModelNode = getElement("data-baker-cvpc-ai-refine-model-select");
+    const refinePromptNode = getElement("data-baker-cvpc-ai-refine-prompt");
+    const draft = {
+      aiRecommendListenModel:
+        listenModelNode instanceof HTMLSelectElement
+          ? normalizeDataBakerListenModel(listenModelNode.value, stageDefaults.listen.model)
+          : stageDefaults.listen.model,
+      aiRecommendListenPrompt:
+        listenPromptNode instanceof HTMLTextAreaElement
+          ? normalizePromptText(listenPromptNode.value)
+          : "",
+      aiRecommendRefineModel:
+        refineModelNode instanceof HTMLSelectElement
+          ? normalizeDataBakerCompareModel(refineModelNode.value, stageDefaults.refine.model)
+          : stageDefaults.refine.model,
+      aiRecommendRefinePrompt:
+        refinePromptNode instanceof HTMLTextAreaElement
+          ? normalizePromptText(refinePromptNode.value)
+          : "",
+    };
+    readDataBakerCvpcStageParamDraft(draft, "aiRecommendListen", "listen");
+    readDataBakerCvpcStageParamDraft(draft, "aiRecommendRefine", "refine");
     return draft;
   }
 
@@ -3617,6 +3815,7 @@
       scriptId === judgementProjectId ||
       scriptId === transcriptionProjectId ||
       scriptId === dataBakerRoundOneQualityScriptId ||
+      scriptId === dataBakerCvpcLiuzhouScriptId ||
       isMagicDataScript(scriptId) ||
       isAishellTechScript(scriptId)
     );
@@ -3631,6 +3830,9 @@
     }
     if (scriptId === dataBakerRoundOneQualityScriptId) {
       return "data-baker-status";
+    }
+    if (scriptId === dataBakerCvpcLiuzhouScriptId) {
+      return "data-baker-cvpc-status";
     }
     if (isMagicDataScript(scriptId)) {
       return "magic-data-status";
@@ -3688,6 +3890,9 @@
     if (scriptId === dataBakerRoundOneQualityScriptId) {
       return asrVoiceAiDefaultsPaths.dataBakerRoundOneQuality;
     }
+    if (scriptId === dataBakerCvpcLiuzhouScriptId) {
+      return asrVoiceAiDefaultsPaths.dataBakerCvpcLiuzhouAssistant;
+    }
     if (scriptId === magicDataAnnotatorScriptId) {
       return asrVoiceAiDefaultsPaths.magicDataAnnotatorAiReview;
     }
@@ -3703,10 +3908,13 @@
   function buildFallbackAsrVoiceAiDefaults(scriptId) {
     const useDataBakerStyleDefaults =
       scriptId === dataBakerRoundOneQualityScriptId ||
+      scriptId === dataBakerCvpcLiuzhouScriptId ||
       isMagicDataScript(scriptId) ||
       isAishellTechScript(scriptId);
     const useDataBakerPromptDefaults =
-      scriptId === dataBakerRoundOneQualityScriptId || isAishellTechScript(scriptId);
+      scriptId === dataBakerRoundOneQualityScriptId ||
+      scriptId === dataBakerCvpcLiuzhouScriptId ||
+      isAishellTechScript(scriptId);
     const baseDefaults = {
       listenModel: "qwen3.5-omni-flash",
       listenModelOptions:
@@ -3812,6 +4020,36 @@
         },
       };
     }
+    if (scriptId === dataBakerCvpcLiuzhouScriptId) {
+      baseDefaults.stages = {
+        listen: {
+          model: "qwen3.5-omni-flash",
+          modelOptions: clone(dataBakerListenModelOptions),
+          prompt: baseDefaults.listenPrompt,
+          temperature: 0.1,
+          top_p: 0.8,
+          max_tokens: 1200,
+          max_completion_tokens: "",
+          presence_penalty: 0,
+          frequency_penalty: 0,
+          seed: "",
+          stop: "",
+        },
+        refine: {
+          model: "qwen3.5-plus",
+          modelOptions: clone(dataBakerCompareModelOptions),
+          prompt: baseDefaults.comparePrompt,
+          temperature: 0.1,
+          top_p: 0.8,
+          max_tokens: 1200,
+          max_completion_tokens: "",
+          presence_penalty: 0,
+          frequency_penalty: 0,
+          seed: "",
+          stop: "",
+        },
+      };
+    }
     return {
       defaults: baseDefaults,
       supportedParams: supportedParams,
@@ -3847,6 +4085,18 @@
         {},
         fallback.defaults.stages?.compare || {},
         defaults.stages?.compare || {}
+      );
+    } else if (isDataBakerCvpcScript(scriptId)) {
+      normalizedDefaults.stages = Object.assign({}, fallback.defaults.stages || {}, defaults.stages || {});
+      normalizedDefaults.stages.listen = Object.assign(
+        {},
+        fallback.defaults.stages?.listen || {},
+        defaults.stages?.listen || {}
+      );
+      normalizedDefaults.stages.refine = Object.assign(
+        {},
+        fallback.defaults.stages?.refine || {},
+        defaults.stages?.refine || {}
       );
     }
     return {
@@ -3899,7 +4149,9 @@
         const fallback = buildFallbackAsrVoiceAiDefaults(scriptId);
         fallback.error = isAishellTechScript(scriptId)
           ? "Aishell 后端默认配置读取失败，已回退到本地三板块默认值。"
-          : "后端默认配置读取失败，已使用本地默认值。";
+          : isDataBakerCvpcScript(scriptId)
+            ? "CVPC 柳州话后端默认配置读取失败，已回退到本地两阶段默认值。"
+            : "后端默认配置读取失败，已使用本地默认值。";
         asrVoiceAiDefaultsCache[key] = fallback;
         return fallback;
       } finally {
@@ -3934,6 +4186,10 @@
     if (scriptId === magicDataAnnotatorScriptId) {
       node.textContent =
         "已读取后端默认配置。客家话50条评测建议默认：双模型 + 直接识别客家话 + qwen3.5-omni-flash + qwen3.5-flash（thinking 当前已全局固定关闭）。";
+      return;
+    }
+    if (scriptId === dataBakerCvpcLiuzhouScriptId) {
+      node.textContent = "已读取后端默认配置。柳州话脚本当前固定为两阶段：听音 + 文本修正。";
       return;
     }
     node.textContent = "已读取后端默认配置；未单独覆盖的字段将沿用后端默认。";
@@ -4524,7 +4780,26 @@
           constants.DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT ||
           "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
-        aiRecommendModel: "qwen3.5-omni-flash",
+        aiRecommendListenModel: "qwen3.5-omni-flash",
+        aiRecommendListenPrompt: "",
+        aiRecommendListenTemperature: "",
+        aiRecommendListenTopP: "",
+        aiRecommendListenMaxTokens: "",
+        aiRecommendListenMaxCompletionTokens: "",
+        aiRecommendListenPresencePenalty: "",
+        aiRecommendListenFrequencyPenalty: "",
+        aiRecommendListenSeed: "",
+        aiRecommendListenStopSequences: "",
+        aiRecommendRefineModel: "qwen3.5-plus",
+        aiRecommendRefinePrompt: "",
+        aiRecommendRefineTemperature: "",
+        aiRecommendRefineTopP: "",
+        aiRecommendRefineMaxTokens: "",
+        aiRecommendRefineMaxCompletionTokens: "",
+        aiRecommendRefinePresencePenalty: "",
+        aiRecommendRefineFrequencyPenalty: "",
+        aiRecommendRefineSeed: "",
+        aiRecommendRefineStopSequences: "",
         contractMode: "dom-guarded",
         shortcuts: {},
       },
@@ -4548,10 +4823,19 @@
     config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
       config.aiRecommendRequestTimeoutMs
     );
-    config.aiRecommendModel = normalizeText(config.aiRecommendModel || "qwen3.5-omni-flash").slice(
-      0,
-      80
-    ) || "qwen3.5-omni-flash";
+    config.aiRecommendListenModel = normalizeDataBakerListenModel(
+      config.aiRecommendListenModel || config.aiRecommendModel,
+      "qwen3.5-omni-flash"
+    );
+    config.aiRecommendListenPrompt = normalizePromptText(config.aiRecommendListenPrompt || "");
+    normalizeAishellTechStageParamFields(config, "aiRecommendListen");
+    config.aiRecommendRefineModel = normalizeDataBakerCompareModel(
+      config.aiRecommendRefineModel,
+      "qwen3.5-plus"
+    );
+    config.aiRecommendRefinePrompt = normalizePromptText(config.aiRecommendRefinePrompt || "");
+    normalizeAishellTechStageParamFields(config, "aiRecommendRefine");
+    delete config.aiRecommendModel;
     config.contractMode = normalizeText(config.contractMode || "dom-guarded") || "dom-guarded";
     config.segmentPreviewEndpoint = normalizeText(config.segmentPreviewEndpoint);
     config.aiRecommendEndpoint = normalizeText(config.aiRecommendEndpoint);
@@ -4836,6 +5120,36 @@
     ].join("");
   }
 
+  function buildDataBakerCvpcStageParamFieldsMarkup(stagePrefix) {
+    const prefix = "data-baker-cvpc-ai-" + String(stagePrefix || "").trim();
+    return [
+      '<label class="asr-ai-field"><span>temperature</span><input id="' +
+        prefix +
+        '-temperature" type="number" min="0" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>top_p</span><input id="' +
+        prefix +
+        '-top-p" type="number" min="0" max="1" step="0.05" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>max_tokens</span><input id="' +
+        prefix +
+        '-max-tokens" type="number" min="1" max="8192" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>max_completion_tokens</span><input id="' +
+        prefix +
+        '-max-completion-tokens" type="number" min="1" max="8192" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>presence_penalty</span><input id="' +
+        prefix +
+        '-presence-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>frequency_penalty</span><input id="' +
+        prefix +
+        '-frequency-penalty" type="number" min="-2" max="2" step="0.1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>seed</span><input id="' +
+        prefix +
+        '-seed" type="number" min="0" max="2147483647" step="1" /><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+      '<label class="asr-ai-field"><span>stop sequences（每行一个）</span><textarea id="' +
+        prefix +
+        '-stop-sequences" maxlength="960"></textarea><span class="asr-ai-help">清空后使用后端默认值。</span></label>',
+    ].join("");
+  }
+
   function renderAishellTechAiSettingsSection(panel, headerHtml, defaultsTipId) {
     panel.innerHTML = [
       '<div class="asr-ai-panel">',
@@ -4883,6 +5197,47 @@
         updateAishellTechCompareFamilyFields(event?.target?.value);
       });
     }
+    panel.classList.remove("hidden");
+  }
+
+  function renderDataBakerCvpcAiSettingsSection(panel, headerHtml, defaultsTipId) {
+    panel.innerHTML = [
+      '<div class="asr-ai-panel">',
+      headerHtml,
+      '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
+      '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>启用 AI 推荐文本</span><label class="asr-ai-boolean"><input id="data-baker-cvpc-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示当前段 AI 推荐结果</span></label></label>',
+      '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="data-baker-cvpc-ai-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
+      '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="data-baker-cvpc-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
+      "</div></div>",
+      '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>听音模型</span><select id="data-baker-cvpc-ai-listen-model-select"></select><span class="asr-ai-help" id="data-baker-cvpc-ai-listen-model-help"></span></label>',
+      '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="data-baker-cvpc-ai-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+      '</div><div class="asr-ai-grid three">' +
+        buildDataBakerCvpcStageParamFieldsMarkup("listen") +
+        "</div></div>",
+      '<div class="asr-ai-block"><strong>文本修正</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>文本修正模型</span><select id="data-baker-cvpc-ai-refine-model-select"></select><span class="asr-ai-help">结合听音结果、普通话文本和字词表修正柳州话文本。</span></label>',
+      '<label class="asr-ai-field"><span>文本修正 Prompt（可选）</span><textarea id="data-baker-cvpc-ai-refine-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+      '</div><div class="asr-ai-grid three">' +
+        buildDataBakerCvpcStageParamFieldsMarkup("refine") +
+        "</div></div>",
+      "</div>",
+    ].join("");
+
+    const listenNode = getElement("data-baker-cvpc-ai-listen-model-select");
+    if (listenNode instanceof HTMLSelectElement) {
+      listenNode.addEventListener("change", function (event) {
+        const aiDefaults = getAsrVoiceAiDefaultsCached(dataBakerCvpcLiuzhouScriptId).defaults || {};
+        const draftConfig = getDataBakerCvpcSettingsDraftConfig(aiDefaults);
+        draftConfig.aiRecommendListenModel = normalizeDataBakerListenModel(
+          event?.target?.value,
+          getDataBakerCvpcStageDefaults(aiDefaults).listen.model
+        );
+        applyDataBakerCvpcStageFields(draftConfig, aiDefaults);
+      });
+    }
+
     panel.classList.remove("hidden");
   }
 
@@ -4938,6 +5293,11 @@
 
     if (isAishellTechScript(scriptId)) {
       renderAishellTechAiSettingsSection(panel, headerHtml, defaultsTipId);
+      return;
+    }
+
+    if (isDataBakerCvpcScript(scriptId)) {
+      renderDataBakerCvpcAiSettingsSection(panel, headerHtml, defaultsTipId);
       return;
     }
 
@@ -9773,6 +10133,8 @@
           applyTranscriptionForm(currentSettings || settings || {});
         } else if (scriptId === dataBakerRoundOneQualityScriptId) {
           applyDataBakerForm(currentSettings || settings || {});
+        } else if (scriptId === dataBakerCvpcLiuzhouScriptId) {
+          applyDataBakerCvpcForm(currentSettings || settings || {});
         } else if (scriptId === aishellTechMinnanScriptId) {
           applyAishellTechForm(currentSettings || settings || {});
         } else if (isMagicDataScript(scriptId)) {
@@ -9920,6 +10282,8 @@
 
   function applyDataBakerCvpcForm(settings) {
     const config = getDataBakerCvpcLiuzhouConfig(settings);
+    const defaultsPayload = getAsrVoiceAiDefaultsCached(dataBakerCvpcLiuzhouScriptId);
+    const aiDefaults = defaultsPayload.defaults || {};
     dataBakerCvpcShortcutsDraft = clone(config.shortcuts) || {};
     const segmentPreviewNode = getElement("data-baker-cvpc-segment-preview-enabled");
     const aiRecommendNode = getElement("data-baker-cvpc-ai-recommend-enabled");
@@ -9943,6 +10307,21 @@
     if (timeoutNode) {
       timeoutNode.value = String(
         Number(config.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
+      );
+    }
+    if (aiRecommendNode) {
+      aiRecommendNode.checked = config.aiRecommendEnabled !== false;
+    }
+    if (timeoutNode) {
+      timeoutNode.value = String(
+        Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
+      );
+    }
+    if (getElement("data-baker-cvpc-ai-listen-model-select")) {
+      applyDataBakerCvpcStageFields(config, aiDefaults);
+      applyForcedThinkingToggle(
+        "data-baker-cvpc-ai-enable-thinking",
+        "thinking 已全局固定关闭；柳州话脚本不允许开启 Omni 思考模式。"
       );
     }
     if (contractNode) {
@@ -10204,19 +10583,80 @@
     }
 
     const currentConfig = getDataBakerCvpcLiuzhouConfig(currentSettings || {});
+    const aiDefaults = getAsrVoiceAiDefaultsCached(dataBakerCvpcLiuzhouScriptId).defaults || {};
+    const stageDefaults = getDataBakerCvpcStageDefaults(aiDefaults);
     ensureDataBakerCvpcShortcutDraft();
     const shortcuts = {};
     dataBakerCvpcShortcutActions.forEach(function (action) {
       shortcuts[action.key] = normalizeNullableShortcut(dataBakerCvpcShortcutsDraft[action.key]);
     });
     const segmentPreviewEnabled = getElement("data-baker-cvpc-segment-preview-enabled").checked;
-    const aiRecommendEnabled = getElement("data-baker-cvpc-ai-recommend-enabled").checked;
+    const hasAiSettingsPanel = Boolean(getElement("data-baker-cvpc-ai-timeout"));
+    const aiRecommendEnabled = hasAiSettingsPanel
+      ? getElement("data-baker-cvpc-ai-recommend-enabled").checked
+      : currentConfig.aiRecommendEnabled !== false;
     const blockNewTabEditingTips = getElement("data-baker-cvpc-block-new-tab-tip").checked;
     const blockPauseStateTips = getElement("data-baker-cvpc-block-pause-state-tip").checked;
     const timeoutMs = normalizeDataBakerTimeoutMs(
-      getElement("data-baker-cvpc-ai-timeout").value ||
-        String(currentConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
+      (hasAiSettingsPanel ? getElement("data-baker-cvpc-ai-timeout").value : "") ||
+        String(
+          currentConfig.aiRecommendRequestTimeoutMs ||
+            aiDefaults.timeoutMs ||
+            DEFAULT_AI_REQUEST_TIMEOUT_MS
+        )
     );
+    const draftConfig = hasAiSettingsPanel
+      ? getDataBakerCvpcSettingsDraftConfig(aiDefaults)
+      : currentConfig;
+    const normalizeOverridePrompt = function (value, defaultValue) {
+      const normalizedValue = normalizePromptText(value || "");
+      const normalizedDefault = normalizePromptText(defaultValue || "");
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const normalizeOverrideNumber = function (value, defaultValue, min, max, precision) {
+      const normalizedValue = normalizeOptionalNumberText(value, min, max, precision);
+      const normalizedDefault = normalizeOptionalNumberText(defaultValue, min, max, precision);
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const normalizeOverrideInteger = function (value, defaultValue, min, max) {
+      const normalizedValue = normalizeOptionalIntegerText(value, min, max);
+      const normalizedDefault = normalizeOptionalIntegerText(defaultValue, min, max);
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const readStageOverrides = function (configPrefix, stageKey) {
+      const stageDefault = stageDefaults[stageKey] || {};
+      const overrides = {};
+      aishellTechStageParamDefinitions.forEach(function (definition) {
+        const fieldName = configPrefix + definition.suffix;
+        const defaultValue = stageDefault[definition.apiKey];
+        if (definition.type === "number") {
+          overrides[fieldName] = normalizeOverrideNumber(
+            draftConfig[fieldName],
+            defaultValue,
+            definition.min,
+            definition.max,
+            definition.precision
+          );
+          return;
+        }
+        if (definition.type === "integer") {
+          overrides[fieldName] = normalizeOverrideInteger(
+            draftConfig[fieldName],
+            defaultValue,
+            definition.min,
+            definition.max
+          );
+          return;
+        }
+        const normalizedValue = normalizeStopSequencesText(draftConfig[fieldName] || "");
+        const normalizedDefault = normalizeStopSequencesText(defaultValue || "");
+        overrides[fieldName] =
+          normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+      });
+      return overrides;
+    };
+    const listenOverrides = readStageOverrides("aiRecommendListen", "listen");
+    const refineOverrides = readStageOverrides("aiRecommendRefine", "refine");
     const aiRecommendPath =
       constants.DATA_BAKER_CVPC_AI_RECOMMEND_PATH ||
       "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
@@ -10240,7 +10680,36 @@
                 aiRecommendEnabled: aiRecommendEnabled,
                 aiRecommendEndpoint: buildBackendUrl(aiRecommendPath, currentSettings || {}),
                 aiRecommendRequestTimeoutMs: timeoutMs,
-                aiRecommendModel: currentConfig.aiRecommendModel || "qwen3.5-omni-flash",
+                aiRecommendListenModel: draftConfig.aiRecommendListenModel,
+                aiRecommendListenPrompt: normalizeOverridePrompt(
+                  draftConfig.aiRecommendListenPrompt,
+                  stageDefaults.listen.prompt
+                ),
+                aiRecommendListenTemperature: listenOverrides.aiRecommendListenTemperature,
+                aiRecommendListenTopP: listenOverrides.aiRecommendListenTopP,
+                aiRecommendListenMaxTokens: listenOverrides.aiRecommendListenMaxTokens,
+                aiRecommendListenMaxCompletionTokens:
+                  listenOverrides.aiRecommendListenMaxCompletionTokens,
+                aiRecommendListenPresencePenalty: listenOverrides.aiRecommendListenPresencePenalty,
+                aiRecommendListenFrequencyPenalty:
+                  listenOverrides.aiRecommendListenFrequencyPenalty,
+                aiRecommendListenSeed: listenOverrides.aiRecommendListenSeed,
+                aiRecommendListenStopSequences: listenOverrides.aiRecommendListenStopSequences,
+                aiRecommendRefineModel: draftConfig.aiRecommendRefineModel,
+                aiRecommendRefinePrompt: normalizeOverridePrompt(
+                  draftConfig.aiRecommendRefinePrompt,
+                  stageDefaults.refine.prompt
+                ),
+                aiRecommendRefineTemperature: refineOverrides.aiRecommendRefineTemperature,
+                aiRecommendRefineTopP: refineOverrides.aiRecommendRefineTopP,
+                aiRecommendRefineMaxTokens: refineOverrides.aiRecommendRefineMaxTokens,
+                aiRecommendRefineMaxCompletionTokens:
+                  refineOverrides.aiRecommendRefineMaxCompletionTokens,
+                aiRecommendRefinePresencePenalty: refineOverrides.aiRecommendRefinePresencePenalty,
+                aiRecommendRefineFrequencyPenalty:
+                  refineOverrides.aiRecommendRefineFrequencyPenalty,
+                aiRecommendRefineSeed: refineOverrides.aiRecommendRefineSeed,
+                aiRecommendRefineStopSequences: refineOverrides.aiRecommendRefineStopSequences,
                 contractMode: "dom-guarded",
                 shortcuts: shortcuts,
               },
