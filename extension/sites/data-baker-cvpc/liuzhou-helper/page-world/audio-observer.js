@@ -50,6 +50,11 @@
     return AUDIO_EXT_PATTERN.test(url.pathname);
   }
 
+  function isCvpcDataAudioPath(rawUrl, locationLike) {
+    const url = getUrl(rawUrl, locationLike);
+    return Boolean(url && /^\/?databaker\/data\//i.test(normalizePath(url.pathname)));
+  }
+
   function extractFileName(value) {
     const path = normalizePath(value).split("?")[0];
     return normalizeText(path.split("/").pop());
@@ -88,11 +93,16 @@
     const pendingAudioUrls = [];
     let installed = false;
 
+    function getMessageTarget() {
+      return windowLike.parent && windowLike.parent !== windowLike ? windowLike.parent : windowLike;
+    }
+
     function notify(mapping) {
-      if (!mapping || typeof windowLike.postMessage !== "function") {
+      const target = getMessageTarget();
+      if (!mapping || typeof target.postMessage !== "function") {
         return;
       }
-      windowLike.postMessage(
+      target.postMessage(
         {
           source: SOURCE,
           type: MESSAGE_TYPE,
@@ -103,10 +113,11 @@
     }
 
     function notifyMeta(rawUrl, meta) {
-      if (!meta || typeof meta !== "object" || typeof windowLike.postMessage !== "function") {
+      const target = getMessageTarget();
+      if (!meta || typeof meta !== "object" || typeof target.postMessage !== "function") {
         return;
       }
-      windowLike.postMessage(
+      target.postMessage(
         {
           source: SOURCE,
           type: META_MESSAGE_TYPE,
@@ -156,6 +167,20 @@
       }
       const entry = matchEntry(audioUrl);
       if (!entry) {
+        if (!isCvpcDataAudioPath(audioUrl, locationLike)) {
+          return null;
+        }
+        const url = getUrl(audioUrl, locationLike);
+        const relativePath = url ? normalizePath(url.pathname) : "";
+        const fileName = extractFileName(relativePath || audioUrl);
+        notify({
+          relativePath,
+          fileName,
+          entryId: "",
+          entryIndex: "",
+          audioUrl,
+          at: Date.now(),
+        });
         pendingAudioUrls.unshift(audioUrl);
         pendingAudioUrls.splice(MAX_ENTRIES);
         return null;

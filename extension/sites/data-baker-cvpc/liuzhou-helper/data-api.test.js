@@ -141,13 +141,13 @@ function createDataApiHarness(options) {
       HTMLTextAreaElement: FakeTextareaElement,
     },
     fetchCalls,
-    dispatchObserverMessage: function (payload, type) {
+    dispatchObserverMessage: function (payload, type, sourceWindow) {
       const listener = listeners.get("message");
       if (typeof listener !== "function") {
         throw new Error("message listener not installed");
       }
       listener({
-        source: windowObject,
+        source: sourceWindow || windowObject,
         origin: location.origin,
         data: {
           source: OBSERVER_SOURCE,
@@ -293,6 +293,57 @@ test("CVPC data api uses bridged page meta when its own meta request is unauthor
   assert.equal(
     context.audioUrl,
     "https://oss.example.com/databaker/data/17896/sample.mp3?Signature=observer"
+  );
+  assert.equal(context.audioUrlSource, "observer");
+});
+
+test("CVPC data api accepts same-origin iframe audio candidate and matches it with bridged meta", async function () {
+  const dataApiModule = loadDataApiModule();
+  const metaPayload = createMetaPayload([
+    {
+      entry_id: 249783,
+      entry_index: 1,
+      name: "sample.mp3",
+      content: "databaker/data/17896/sample.mp3",
+    },
+  ]);
+  const harness = createDataApiHarness({
+    fetchStatus: 401,
+    visibleEntryNames: ["sample.mp3"],
+    metaPayload: null,
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      meta: metaPayload,
+      query: {
+        project_id: "1453",
+        task_id: "12099",
+        process_id: "4946",
+        data_id: "17896",
+        job_id: "1520",
+      },
+      at: Date.now(),
+    },
+    META_TYPE
+  );
+  harness.dispatchObserverMessage(
+    {
+      relativePath: "databaker/data/17896/sample.mp3",
+      fileName: "sample.mp3",
+      audioUrl: "https://oss.example.com/databaker/data/17896/sample.mp3?Signature=iframe",
+      at: Date.now(),
+    },
+    OBSERVER_TYPE,
+    {}
+  );
+
+  const context = await runtime.getEditorContext({ force: true });
+
+  assert.equal(
+    context.audioUrl,
+    "https://oss.example.com/databaker/data/17896/sample.mp3?Signature=iframe"
   );
   assert.equal(context.audioUrlSource, "observer");
 });

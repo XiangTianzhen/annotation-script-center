@@ -486,7 +486,7 @@
     }
 
     function handleObserverMessage(event) {
-      if (!event || event.source !== env.window || event.origin !== env.location.origin) {
+      if (!event || event.origin !== env.location.origin) {
         return;
       }
       const data = event.data || {};

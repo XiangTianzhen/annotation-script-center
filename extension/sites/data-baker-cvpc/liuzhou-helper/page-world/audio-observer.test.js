@@ -37,6 +37,35 @@ function createWindowHarness() {
   };
 }
 
+function createIframeWindowHarness() {
+  const postedMessages = [];
+  const parent = {
+    postMessage: function (data, origin) {
+      postedMessages.push({ data, origin, target: "parent" });
+    },
+  };
+  return {
+    window: {
+      console: {
+        log: function () {},
+        info: function () {},
+        debug: function () {},
+        warn: function () {},
+      },
+      fetch: function () {
+        throw new Error("fetch should not be called in observer unit tests");
+      },
+      parent,
+      postMessage: function (data, origin) {
+        postedMessages.push({ data, origin, target: "self" });
+      },
+      top: parent,
+      XMLHttpRequest: function FakeXmlHttpRequest() {},
+    },
+    postedMessages,
+  };
+}
+
 test("CVPC audio observer maps annotation meta relative content to captured signed audio url", function () {
   const observerModule = loadObserverModule();
   const harness = createWindowHarness();
@@ -250,6 +279,34 @@ test("CVPC audio observer maps console printed audio url before meta arrives", f
 
   assert.equal(snapshot.mappings.length, 1);
   assert.match(snapshot.mappings[0].audioUrl, /Signature=pending-console/);
+});
+
+test("CVPC audio observer posts unmatched iframe audio candidate to top window", function () {
+  const observerModule = loadObserverModule();
+  const harness = createIframeWindowHarness();
+  const observer = observerModule.createObserver({
+    window: harness.window,
+    location: {
+      origin: "https://cvpc.data-baker.com",
+      href: "https://cvpc.data-baker.com/app/xaudio/label/?id=249783",
+    },
+  });
+
+  observer.observeConsoleArgs([
+    "audio_url:",
+    "https://databaker-cvpc.oss-cn-huhehaote.aliyuncs.com/databaker/data/17896/sample.mp3?Signature=iframe",
+  ]);
+
+  const mappingMessage = harness.postedMessages.find(function (item) {
+    return item.data.type === OBSERVER_TYPE;
+  });
+
+  assert.ok(mappingMessage);
+  assert.equal(mappingMessage.target, "parent");
+  assert.equal(mappingMessage.origin, "https://cvpc.data-baker.com");
+  assert.equal(mappingMessage.data.payload.fileName, "sample.mp3");
+  assert.equal(mappingMessage.data.payload.relativePath, "databaker/data/17896/sample.mp3");
+  assert.match(mappingMessage.data.payload.audioUrl, /Signature=iframe/);
 });
 
 test("CVPC audio observer installed console wrapper captures info audio url", function () {

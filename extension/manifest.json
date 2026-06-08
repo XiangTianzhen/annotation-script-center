@@ -183,7 +183,7 @@
       "js": [
         "sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.js"
       ],
-      "all_frames": false,
+      "all_frames": true,
       "run_at": "document_start",
       "world": "MAIN"
     },

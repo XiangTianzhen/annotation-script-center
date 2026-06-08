@@ -70,6 +70,13 @@
 - 新增回归验证：
   - `extension/sites/magic-data/shared/ai-review-client.test.js` 覆盖“Job succeeded + data.success + data.data”结构，确保前端最终拿到真正的质检结果对象。
 
+## 2026-06-08（DataBaker CVPC 柳州话脚本补获 iframe 音频 URL）
+
+- 通过真实 Edge 页面继续排查确认：`gAudioUrl / audio_url` 出现在同源 `/app/xaudio/label/` iframe 中，顶层页内观察器无法直接捕获该 iframe 的控制台音频 URL。
+- `extension/manifest.json` 当前把 CVPC 页内音频观察桥改为 `all_frames: true`，只扩展 `MAIN` world observer，不把完整运行时脚本扩到 iframe。
+- `page-world/audio-observer.js` 当前在未拿到 meta entries 的 iframe 中捕获到 `databaker/data/` 音频 URL 时，会把候选 URL 发给顶层页面；顶层 `data-api.js` 再结合桥接 `annotation/meta` 的当前条目做匹配。
+- 同源 frame 消息仍只接受私有 `source/type` 协议；音频 URL 只在页面运行时内存中传递，不写入 storage、文档或日志。
+
 ## 2026-06-08（DataBaker CVPC 柳州话脚本修复 meta 401 后音频地址不显示）
 
 - 通过真实 Edge 页面排查确认：页面自身能拿到 `gAudioUrl / audio_url`，但扩展隔离世界自发 `annotation/meta` 请求会因缺少平台运行时鉴权返回 `401`，导致悬浮窗显示“读取当前音频地址失败”。
