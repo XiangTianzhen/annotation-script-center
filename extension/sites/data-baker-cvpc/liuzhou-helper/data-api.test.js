@@ -7,6 +7,7 @@ const test = require("node:test");
 const modulePath = path.resolve(__dirname, "data-api.js");
 const OBSERVER_SOURCE = "ASR_EDGE_DATABAKER_CVPC_LIUZHOU_AUDIO_OBSERVER";
 const OBSERVER_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
+const META_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
 const MISSING_AUDIO_MESSAGE =
   "未拿到当前音频签名 URL，请先点击当前音频或播放一次后重试；如仍失败请刷新页面。";
 
@@ -106,11 +107,22 @@ function createDataApiHarness(options) {
   const fetchCalls = [];
   async function fetchStub(url) {
     fetchCalls.push(String(url || ""));
+    if (settings.fetchStatus) {
+      return {
+        ok: settings.fetchStatus >= 200 && settings.fetchStatus < 300,
+        json: async function () {
+          return {
+            code: settings.fetchStatus,
+            message: "failed",
+          };
+        },
+      };
+    }
     return {
       ok: true,
       json: async function () {
         return {
-          code: 0,
+          code: settings.responseCode ?? 0,
           data: metaPayload,
         };
       },
@@ -129,7 +141,7 @@ function createDataApiHarness(options) {
       HTMLTextAreaElement: FakeTextareaElement,
     },
     fetchCalls,
-    dispatchObserverMessage: function (payload) {
+    dispatchObserverMessage: function (payload, type) {
       const listener = listeners.get("message");
       if (typeof listener !== "function") {
         throw new Error("message listener not installed");
@@ -139,7 +151,7 @@ function createDataApiHarness(options) {
         origin: location.origin,
         data: {
           source: OBSERVER_SOURCE,
-          type: OBSERVER_TYPE,
+          type: type || OBSERVER_TYPE,
           payload,
         },
       });
@@ -235,6 +247,54 @@ test("CVPC data api falls back to direct meta audio url when observer cache is m
     "https://meta.example.com/databaker/data/sample-a.mp3?Signature=meta"
   );
   assert.equal(context.audioUrlSource, "meta");
+});
+
+test("CVPC data api uses bridged page meta when its own meta request is unauthorized", async function () {
+  const dataApiModule = loadDataApiModule();
+  const metaPayload = createMetaPayload([
+    {
+      entry_id: 249783,
+      entry_index: 1,
+      name: "sample.mp3",
+      content: "databaker/data/17896/sample.mp3",
+    },
+  ]);
+  const harness = createDataApiHarness({
+    fetchStatus: 401,
+    visibleEntryNames: ["sample.mp3"],
+    metaPayload: null,
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      meta: metaPayload,
+      query: {
+        project_id: "1453",
+        task_id: "12099",
+        process_id: "4946",
+        data_id: "17896",
+        job_id: "1520",
+      },
+      at: Date.now(),
+    },
+    META_TYPE
+  );
+  harness.dispatchObserverMessage({
+    relativePath: "databaker/data/17896/sample.mp3",
+    fileName: "sample.mp3",
+    audioUrl: "https://oss.example.com/databaker/data/17896/sample.mp3?Signature=observer",
+    at: Date.now(),
+  });
+
+  const context = await runtime.getEditorContext({ force: true });
+
+  assert.equal(context.selectedEntry.name, "sample.mp3");
+  assert.equal(
+    context.audioUrl,
+    "https://oss.example.com/databaker/data/17896/sample.mp3?Signature=observer"
+  );
+  assert.equal(context.audioUrlSource, "observer");
 });
 
 test("CVPC data api falls back through top-level audio, performance, and iframe audio in order", async function () {

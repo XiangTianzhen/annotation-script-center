@@ -2,6 +2,7 @@
   const META_PATH = "/httpapi/annotation/meta";
   const OBSERVER_SOURCE = "ASR_EDGE_DATABAKER_CVPC_LIUZHOU_AUDIO_OBSERVER";
   const OBSERVER_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
+  const OBSERVER_META_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
   const MISSING_AUDIO_MESSAGE =
     "未拿到当前音频签名 URL，请先点击当前音频或播放一次后重试；如仍失败请刷新页面。";
   const VALID_LABELS = ["是（Valid）", "是(Valid)", "Valid"];
@@ -128,7 +129,8 @@
     const payload = await response.json().catch(function () {
       return null;
     });
-    if (!response.ok || !payload || Number(payload.code) !== 0) {
+    const code = Number(payload?.code);
+    if (!response.ok || !payload || (code !== 0 && code !== 200)) {
       throw new Error("CVPC 读取接口失败：" + pathname);
     }
     return payload.data || {};
@@ -436,6 +438,7 @@
     const env = getEnvironment(deps);
     let cachedMeta = null;
     let cachedContext = null;
+    let bridgedMeta = null;
     const observerMappings = [];
 
     function rememberObserverMapping(mapping) {
@@ -454,15 +457,50 @@
       observerMappings.splice(30);
     }
 
+    function isBridgeQueryForCurrentPage(query) {
+      const source = query && typeof query === "object" ? query : {};
+      const current = parseEditorQuery(env.location);
+      const pairs = [
+        ["project_id", current.projectId],
+        ["task_id", current.taskId],
+        ["process_id", current.processId],
+        ["data_id", current.dataId],
+        ["job_id", current.jobId],
+      ];
+      return pairs.every(function (pair) {
+        const expected = normalizeText(pair[1]);
+        const actual = normalizeText(source[pair[0]]);
+        return !expected || !actual || actual === expected;
+      });
+    }
+
+    function rememberBridgedMeta(payload) {
+      const source = payload && typeof payload === "object" ? payload : {};
+      const meta = source.meta && typeof source.meta === "object" ? source.meta : source;
+      if (!Array.isArray(meta?.datas) || !isBridgeQueryForCurrentPage(source.query)) {
+        return;
+      }
+      bridgedMeta = meta;
+      cachedMeta = meta;
+      cachedContext = null;
+    }
+
     function handleObserverMessage(event) {
       if (!event || event.source !== env.window || event.origin !== env.location.origin) {
         return;
       }
       const data = event.data || {};
-      if (data.source !== OBSERVER_SOURCE || data.type !== OBSERVER_MESSAGE_TYPE) {
+      if (data.source !== OBSERVER_SOURCE) {
         return;
       }
-      rememberObserverMapping(data.payload);
+      if (data.type === OBSERVER_MESSAGE_TYPE) {
+        rememberObserverMapping(data.payload);
+        cachedContext = null;
+        return;
+      }
+      if (data.type === OBSERVER_META_MESSAGE_TYPE) {
+        rememberBridgedMeta(data.payload);
+      }
     }
 
     if (env.window && typeof env.window.addEventListener === "function") {
@@ -474,7 +512,17 @@
         return cachedContext;
       }
       const query = parseEditorQuery(env.location);
-      const meta = await fetchJson(META_PATH, query, env.fetch);
+      let meta = bridgedMeta;
+      if (!meta) {
+        try {
+          meta = await fetchJson(META_PATH, query, env.fetch);
+        } catch (error) {
+          if (!bridgedMeta) {
+            throw error;
+          }
+          meta = bridgedMeta;
+        }
+      }
       cachedMeta = meta;
       const selectedEntry = getSelectedEntry(meta, env.document);
       const currentAnn = getCurrentAnn(meta, selectedEntry);

@@ -6,6 +6,7 @@
   - 同用户名不同 `subTaskId`、或同 `subTaskId` 不同用户名，现在都会明确拒绝，不再自动并槽。
 - 前端 / 后端同步收紧：
   - `extension/sites/alibaba-labelx/asr-judgement/asr-judgement-server.js` 当前要求标注 payload 的 `roleRecord.userName` 必填。
+
   - existing 请求组装会对 label 显式透传 `userName`。
   - `platform-resources/backend/project-data-download/labelx-existing-core.js` 与快判 `data/adapter.js` 当前按双键精确命中判定标注是否已完整上传。
 - 新规则明确不兼容历史脏数据：

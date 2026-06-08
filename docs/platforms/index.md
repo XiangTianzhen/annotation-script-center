@@ -36,7 +36,7 @@
 - 脚本级资料与后端：`platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
 - 网络请求采集（4 段首轮链路 + handoff）：`platform-resources/data-baker-cvpc/network/README.md`
 - 页面结构采集（4 段首轮结构）：`platform-resources/data-baker-cvpc/page-structure/README.md`
-- 当前阶段：柳州话脚本 `beta` 首版已接入。当前业务能力只在 `/app/editor/asr/` 生效，支持通过页内观察桥 + 多级回退获取当前音频签名 URL；页内桥会消费页面初始化阶段打印或请求到的真实音频 URL，悬浮窗会展示当前音频地址与来源，并用于当前音频画段建议、当前段 AI 推荐、当前段实验性填入和 `Valid / Invalid` 快捷入口；基础设置里的两个提示屏蔽开关默认都开启，可分别拦截“您正在编辑该作业,不能打开新的Tab页”和“系统进入暂停状态”两类固定高层提示；前后端都只做“建议生成 + 人工确认”，不自动保存、不自动提交、不自动切下一条。
+- 当前阶段：柳州话脚本 `beta` 首版已接入。当前业务能力只在 `/app/editor/asr/` 生效，支持通过页内观察桥 + 多级回退获取当前音频签名 URL；页内桥会消费页面真实 `annotation/meta` 响应、页面初始化阶段打印或请求到的真实音频 URL，扩展自身直连 meta 失败时会回退使用桥接 meta。悬浮窗会展示当前音频地址与来源，并用于当前音频画段建议、当前段 AI 推荐、当前段实验性填入和 `Valid / Invalid` 快捷入口；基础设置里的两个提示屏蔽开关默认都开启，可分别拦截“您正在编辑该作业,不能打开新的Tab页”和“系统进入暂停状态”两类固定高层提示；前后端都只做“建议生成 + 人工确认”，不自动保存、不自动提交、不自动切下一条。
 - 当前补采状态：`annotation/meta`、模板字段和当前页 DOM 入口已纳入运行时；`segment create/update`、保存链路、稳定字段写入契约仍待真实补采，画段应用在未检测到安全写入桥时只保留建议展示。
 
 ## Magic Data ANNOTATOR

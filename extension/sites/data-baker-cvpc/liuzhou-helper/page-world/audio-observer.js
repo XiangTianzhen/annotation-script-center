@@ -1,6 +1,7 @@
 (function () {
   const SOURCE = "ASR_EDGE_DATABAKER_CVPC_LIUZHOU_AUDIO_OBSERVER";
   const MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
+  const META_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
   const META_PATH = "/httpapi/annotation/meta";
   const MAX_ENTRIES = 30;
   const AUDIO_EXT_PATTERN = /\.(mp3|wav|m4a|aac|ogg)(?:$|\?)/i;
@@ -27,6 +28,18 @@
   function isMetaUrl(rawUrl, locationLike) {
     const url = getUrl(rawUrl, locationLike);
     return Boolean(url && url.pathname === META_PATH);
+  }
+
+  function extractQuery(rawUrl, locationLike) {
+    const url = getUrl(rawUrl, locationLike);
+    const result = {};
+    if (!url) {
+      return result;
+    }
+    url.searchParams.forEach(function (value, key) {
+      result[key] = value;
+    });
+    return result;
   }
 
   function isAudioUrl(rawUrl, locationLike) {
@@ -84,6 +97,24 @@
           source: SOURCE,
           type: MESSAGE_TYPE,
           payload: mapping,
+        },
+        locationLike.origin || "*"
+      );
+    }
+
+    function notifyMeta(rawUrl, meta) {
+      if (!meta || typeof meta !== "object" || typeof windowLike.postMessage !== "function") {
+        return;
+      }
+      windowLike.postMessage(
+        {
+          source: SOURCE,
+          type: META_MESSAGE_TYPE,
+          payload: {
+            meta,
+            query: extractQuery(rawUrl, locationLike),
+            at: Date.now(),
+          },
         },
         locationLike.origin || "*"
       );
@@ -186,7 +217,10 @@
         return;
       }
       try {
-        rememberEntries(extractEntries(JSON.parse(String(responseText || "{}"))));
+        const payload = JSON.parse(String(responseText || "{}"));
+        rememberEntries(extractEntries(payload));
+        const meta = payload && typeof payload === "object" && payload.data ? payload.data : payload;
+        notifyMeta(rawUrl, meta);
       } catch (error) {
         // Ignore partial or non-JSON responses.
       }
@@ -312,6 +346,7 @@
     constants: {
       MESSAGE_TYPE,
       SOURCE,
+      META_MESSAGE_TYPE,
     },
   };
 

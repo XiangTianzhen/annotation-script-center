@@ -7,6 +7,7 @@ const test = require("node:test");
 const modulePath = path.resolve(__dirname, "audio-observer.js");
 const OBSERVER_SOURCE = "ASR_EDGE_DATABAKER_CVPC_LIUZHOU_AUDIO_OBSERVER";
 const OBSERVER_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
+const META_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
 
 function loadObserverModule() {
   delete require.cache[modulePath];
@@ -76,10 +77,59 @@ test("CVPC audio observer maps annotation meta relative content to captured sign
   );
   assert.equal(snapshot.mappings[0].fileName, "20642_20643_20642_S0_segment_000001.mp3");
   assert.match(snapshot.mappings[0].audioUrl, /OSSAccessKeyId=test/);
-  assert.equal(harness.postedMessages.length, 1);
-  assert.equal(harness.postedMessages[0].origin, "https://cvpc.data-baker.com");
-  assert.equal(harness.postedMessages[0].data.source, OBSERVER_SOURCE);
-  assert.equal(harness.postedMessages[0].data.type, OBSERVER_TYPE);
+  const mappingMessages = harness.postedMessages.filter(function (item) {
+    return item.data.type === OBSERVER_TYPE;
+  });
+  assert.equal(mappingMessages.length, 1);
+  assert.equal(mappingMessages[0].origin, "https://cvpc.data-baker.com");
+  assert.equal(mappingMessages[0].data.source, OBSERVER_SOURCE);
+  assert.equal(mappingMessages[0].data.type, OBSERVER_TYPE);
+});
+
+test("CVPC audio observer posts code 200 annotation meta snapshot to isolated world", function () {
+  const observerModule = loadObserverModule();
+  const harness = createWindowHarness();
+  const observer = observerModule.createObserver({
+    window: harness.window,
+    location: {
+      origin: "https://cvpc.data-baker.com",
+      href: "https://cvpc.data-baker.com/app/editor/asr/",
+    },
+  });
+
+  observer.observeResponse(
+    "https://cvpc.data-baker.com/httpapi/annotation/meta?project_id=1453&task_id=12099&process_id=4946&job_id=1520&data_id=17896",
+    JSON.stringify({
+      code: 200,
+      data: {
+        datas: [
+          {
+            entry_id: 249783,
+            entry_index: 1,
+            name: "sample.mp3",
+            type: "audio",
+            content: "databaker/data/17896/sample.mp3",
+          },
+        ],
+        anns: [],
+        template: {
+          attrs: [],
+          entry_attrs: [],
+          moment_attrs: [],
+        },
+      },
+    })
+  );
+
+  const metaMessage = harness.postedMessages.find(function (item) {
+    return item.data.type === META_TYPE;
+  });
+
+  assert.ok(metaMessage);
+  assert.equal(metaMessage.origin, "https://cvpc.data-baker.com");
+  assert.equal(metaMessage.data.source, OBSERVER_SOURCE);
+  assert.equal(metaMessage.data.payload.meta.datas[0].name, "sample.mp3");
+  assert.equal(metaMessage.data.payload.query.data_id, "17896");
 });
 
 test("CVPC audio observer keeps the latest signed audio url for the same relative path", function () {
@@ -119,7 +169,12 @@ test("CVPC audio observer keeps the latest signed audio url for the same relativ
 
   assert.equal(snapshot.mappings.length, 1);
   assert.match(snapshot.mappings[0].audioUrl, /Signature=new/);
-  assert.equal(harness.postedMessages.length, 2);
+  assert.equal(
+    harness.postedMessages.filter(function (item) {
+      return item.data.type === OBSERVER_TYPE;
+    }).length,
+    2
+  );
 });
 
 test("CVPC audio observer maps console printed audio url after meta is available", function () {
@@ -268,5 +323,10 @@ test("CVPC audio observer ignores unmatched or non-audio urls", function () {
   const snapshot = observer.getSnapshot();
 
   assert.equal(snapshot.mappings.length, 0);
-  assert.equal(harness.postedMessages.length, 0);
+  assert.equal(
+    harness.postedMessages.filter(function (item) {
+      return item.data.type === OBSERVER_TYPE;
+    }).length,
+    0
+  );
 });

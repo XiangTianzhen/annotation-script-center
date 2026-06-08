@@ -8,7 +8,7 @@
 ## 当前能力
 
 - 读取 `annotation/meta` 和当前路由上下文
-- 通过 `MAIN` world 页内观察桥捕获当前音频签名 URL，并在 `data-api.js` 内按观察器、`annotation/meta`、DOM audio、Performance、同源 iframe audio 逐级回退
+- 通过 `MAIN` world 页内观察桥捕获页面真实 `annotation/meta` 响应和当前音频签名 URL，并在 `data-api.js` 内按观察器、桥接 meta、直连 meta、DOM audio、Performance、同源 iframe audio 逐级回退
 - 在“柳州话脚本 Beta”悬浮窗展示当前音频地址、当前文件和 URL 来源；刷新页面后会主动读取，优先消费页面初始化阶段打印或请求到的真实签名 URL
 - 在 `.page-top .top-right` 工具栏追加当前音频动作按钮
 - 页面骨架尚未就绪时，工具栏与悬浮窗会跳过本次挂载，等待下一轮 `mount()` 再补挂，避免早期 `appendChild` 空指针
@@ -33,7 +33,7 @@
 
 ## 文件
 
-- `page-world/audio-observer.js`：页内音频观察桥，捕获 `annotation/meta`、页面音频请求和控制台打印音频 URL 的运行时映射
+- `page-world/audio-observer.js`：页内音频观察桥，捕获页面真实 `annotation/meta` 响应、页面音频请求和控制台打印音频 URL 的运行时映射
 - `content.js`：入口编排与路由检测
 - `editing-tab-tip-guard.js`：精确屏蔽固定文案的 Tab / 暂停状态提示
 - `data-api.js`：读取编辑器上下文、解析当前音频 URL 与实验性 DOM 写入
