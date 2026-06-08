@@ -20,6 +20,9 @@
   const SEGMENT_PATH =
     CONSTANTS.DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH ||
     "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
+  const CLIP_CACHE_UPLOAD_PATH =
+    CONSTANTS.DATA_BAKER_CVPC_CLIP_CACHE_UPLOAD_PATH ||
+    "/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload";
   const DEFAULT_TIMEOUT_MS = Number(CONSTANTS.DEFAULT_AI_REQUEST_TIMEOUT_MS || 60000) || 60000;
   const MISSING_AUDIO_MESSAGE =
     dataApiFactory?.MISSING_AUDIO_MESSAGE ||
@@ -75,6 +78,8 @@
         current.aiRecommendEndpoint || endpointBuilder(AI_PATH, settings),
       segmentPreviewEndpoint:
         current.segmentPreviewEndpoint || endpointBuilder(SEGMENT_PATH, settings),
+      clipCacheUploadEndpoint:
+        endpointBuilder(CLIP_CACHE_UPLOAD_PATH, settings),
       aiUsageOperatorName: String(settings?.meta?.aiUsageOperatorName || "").trim(),
       shortcuts:
         current.shortcuts && typeof current.shortcuts === "object"
@@ -104,6 +109,9 @@
 
   async function buildCurrentContext() {
     const context = await runtime.dataApi.getEditorContext({ force: true });
+    runtime.lastAudioContext = context;
+    runtime.currentSelectionKey = String(context.selectionKey || "");
+    runtime.currentSelectionEntryName = String(context.selectedEntry?.name || "");
     if (runtime?.ui?.renderAudioContext) {
       runtime.ui.renderAudioContext(context);
     }
@@ -115,6 +123,9 @@
       audioDurationMs: context.audioDurationMs,
       currentSegments: context.currentSegments,
       fieldContext: context.fieldContext,
+      selectedRange: context.selectedRange,
+      selectionKey: context.selectionKey,
+      selectedEntry: context.selectedEntry,
       editorContext: {
         query: context.query,
         audioUrlSource: context.audioUrlSource || "",
@@ -125,10 +136,6 @@
           moment_attrs: context.template?.moment_attrs || [],
         },
       },
-      startMs: context.currentSegments?.[0]?.startMs || 0,
-      endMs:
-        context.currentSegments?.[0]?.endMs ||
-        Math.max(0, Number(context.audioDurationMs) || 0),
       platformUserName: "",
     };
   }
@@ -139,6 +146,9 @@
     }
     try {
       const context = await runtime.dataApi.getEditorContext({ force: true });
+      runtime.lastAudioContext = context;
+      runtime.currentSelectionKey = String(context.selectionKey || "");
+      runtime.currentSelectionEntryName = String(context.selectedEntry?.name || "");
       runtime.ui.renderAudioContext(context);
       return Boolean(context.audioUrl);
     } catch (error) {
@@ -163,6 +173,28 @@
         scheduleAudioContextRefresh(audioRefreshAttempts < 4 ? 500 : 1500);
       }
     }, Math.max(0, Number(delayMs) || 0));
+  }
+
+  function syncLiveSelectionState() {
+    if (!runtime?.dataApi?.getLiveSelectionSnapshot) {
+      return;
+    }
+    const snapshot = runtime.dataApi.getLiveSelectionSnapshot();
+    const nextSelectionKey = String(snapshot?.selectionKey || "");
+    const nextEntryName = String(snapshot?.selectedEntryName || "");
+    const selectionChanged =
+      nextSelectionKey !== String(runtime.currentSelectionKey || "") ||
+      nextEntryName !== String(runtime.currentSelectionEntryName || "");
+    if (!selectionChanged) {
+      return;
+    }
+    runtime.currentSelectionKey = nextSelectionKey;
+    runtime.currentSelectionEntryName = nextEntryName;
+    if (lastRecommendation) {
+      lastRecommendation = null;
+      runtime.ui.renderRecommendation(null);
+    }
+    scheduleAudioContextRefresh(0);
   }
 
   async function handlePreview() {
@@ -190,6 +222,9 @@
     runtime.ui.setStatus("正在为当前段生成柳州话文本和普通话顺滑...", "");
     try {
       const context = await buildCurrentContext();
+      if (!context.selectedRange || !context.selectionKey) {
+        throw new Error("未读取到当前波形选中段的开始/结束时间，请先在左侧选中目标段后重试。");
+      }
       lastRecommendation = await runtime.ai.recommend(context);
       runtime.ui.renderRecommendation(lastRecommendation);
       runtime.ui.setStatus("当前段 AI 推荐已生成。", "success");
@@ -238,6 +273,7 @@
     const dataApi = dataApiFactory.createRuntime();
     const ai = aiFactory.createRuntime({
       endpoint: config.aiRecommendEndpoint,
+      clipCacheUploadEndpoint: config.clipCacheUploadEndpoint,
       timeoutMs: config.timeoutMs,
       aiUsageOperatorName: config.aiUsageOperatorName,
     });
@@ -316,6 +352,9 @@
       editingTabTipGuard,
       ui,
       shortcuts,
+      currentSelectionKey: "",
+      currentSelectionEntryName: "",
+      lastAudioContext: null,
     };
     ui.mount();
     shortcuts.bind();
@@ -342,6 +381,9 @@
       }
       if (runtime?.ui?.mount) {
         runtime.ui.mount();
+      }
+      if (runtime) {
+        syncLiveSelectionState();
       }
       if (!runtime) {
         void installRuntime();

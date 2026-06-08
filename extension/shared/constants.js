@@ -103,6 +103,8 @@
     "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
   const DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH =
     "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
+  const DATA_BAKER_CVPC_CLIP_CACHE_UPLOAD_PATH =
+    "/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload";
   const DATABAKER_EXPORT_UPLOAD_PATH = "/api/data-baker/round-one-quality/export/upload";
   const DATABAKER_EXPORT_DOWNLOAD_PATH = "/api/data-baker/round-one-quality/export/download";
   const JUDGEMENT_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/upload";
@@ -2110,6 +2112,7 @@
     DATA_BAKER_CVPC_SEGMENT_PREVIEW_LOCAL_ENDPOINT:
       DATA_BAKER_CVPC_SEGMENT_PREVIEW_LOCAL_ENDPOINT,
     DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH: DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH,
+    DATA_BAKER_CVPC_CLIP_CACHE_UPLOAD_PATH: DATA_BAKER_CVPC_CLIP_CACHE_UPLOAD_PATH,
     DATABAKER_EXPORT_UPLOAD_PATH: DATABAKER_EXPORT_UPLOAD_PATH,
     DATABAKER_EXPORT_DOWNLOAD_PATH: DATABAKER_EXPORT_DOWNLOAD_PATH,
     DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT: DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT,

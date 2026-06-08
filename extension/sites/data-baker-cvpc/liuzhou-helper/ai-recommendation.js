@@ -1,24 +1,260 @@
 (function () {
   const DEFAULT_TIMEOUT_MS = 60000;
   const DEFAULT_PATH = "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
+  const DEFAULT_CLIP_CACHE_UPLOAD_PATH =
+    "/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload";
+  const TARGET_SAMPLE_RATE = 16000;
 
   function normalizeText(value) {
     return String(value || "").trim();
   }
 
+  function toFiniteNumber(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  function getTimerHost() {
+    return typeof window !== "undefined" && window ? window : globalThis;
+  }
+
+  function isLocalOnlyEndpoint(url) {
+    const text = normalizeText(url);
+    if (!text) {
+      return false;
+    }
+    try {
+      const parsed = new URL(text);
+      const host = String(parsed.hostname || "").toLowerCase();
+      return host === "127.0.0.1" || host === "localhost" || host === "0.0.0.0" || host === "::1";
+    } catch (_error) {
+      return /127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\]/i.test(text);
+    }
+  }
+
+  function requireSelectedRange(selectedRange, selectionKey) {
+    const range = selectedRange && typeof selectedRange === "object" ? selectedRange : null;
+    if (
+      !normalizeText(selectionKey) ||
+      !range ||
+      !Number.isFinite(Number(range.startMs)) ||
+      !Number.isFinite(Number(range.endMs)) ||
+      Number(range.endMs) <= Number(range.startMs)
+    ) {
+      throw new Error("未读取到当前波形选中段的开始/结束时间，请先在左侧选中目标段后重试。");
+    }
+    return {
+      startMs: Math.max(0, Math.round(toFiniteNumber(range.startMs, 0))),
+      endMs: Math.max(0, Math.round(toFiniteNumber(range.endMs, 0))),
+      durationMs: Math.max(0, Math.round(toFiniteNumber(range.durationMs, Number(range.endMs) - Number(range.startMs)))),
+    };
+  }
+
+  function encodeWavBuffer(channelData, sampleRate) {
+    const pcmLength = channelData.length;
+    const buffer = new ArrayBuffer(44 + pcmLength * 2);
+    const view = new DataView(buffer);
+
+    function writeAscii(offset, value) {
+      for (let index = 0; index < value.length; index += 1) {
+        view.setUint8(offset + index, value.charCodeAt(index));
+      }
+    }
+
+    writeAscii(0, "RIFF");
+    view.setUint32(4, 36 + pcmLength * 2, true);
+    writeAscii(8, "WAVE");
+    writeAscii(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeAscii(36, "data");
+    view.setUint32(40, pcmLength * 2, true);
+
+    for (let index = 0; index < pcmLength; index += 1) {
+      const value = Math.max(-1, Math.min(1, channelData[index] || 0));
+      view.setInt16(
+        44 + index * 2,
+        value < 0 ? Math.round(value * 0x8000) : Math.round(value * 0x7fff),
+        true
+      );
+    }
+
+    return new Uint8Array(buffer);
+  }
+
+  function bytesToBase64(bytes) {
+    if (typeof Buffer !== "undefined" && typeof Buffer.from === "function") {
+      return Buffer.from(bytes).toString("base64");
+    }
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(index, index + chunkSize));
+    }
+    if (typeof btoa === "function") {
+      return btoa(binary);
+    }
+    throw new Error("当前环境不支持 base64 编码。");
+  }
+
+  async function hashText(value) {
+    const text = normalizeText(value);
+    if (!text) {
+      return "";
+    }
+    const subtle = globalThis.crypto && globalThis.crypto.subtle;
+    if (!subtle || typeof TextEncoder !== "function") {
+      return "";
+    }
+    const digest = await subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(digest))
+      .map(function (item) {
+        return item.toString(16).padStart(2, "0");
+      })
+      .join("");
+  }
+
+  async function fetchAudioBuffer(audioUrl) {
+    const response = await fetch(audioUrl);
+    if (!response.ok) {
+      throw new Error("原始音频下载失败，无法截取当前段。");
+    }
+    return response.arrayBuffer();
+  }
+
+  async function decodeAudioBuffer(arrayBuffer) {
+    const AudioContextClass =
+      globalThis.AudioContext ||
+      globalThis.webkitAudioContext ||
+      (typeof window !== "undefined" ? window.AudioContext || window.webkitAudioContext : null);
+    if (typeof AudioContextClass !== "function") {
+      throw new Error("当前浏览器不支持音频裁剪。");
+    }
+    const context = new AudioContextClass();
+    try {
+      return await context.decodeAudioData(arrayBuffer.slice(0));
+    } finally {
+      if (typeof context.close === "function") {
+        context.close().catch(function () {
+          return null;
+        });
+      }
+    }
+  }
+
+  async function renderSelectedClip(decodedBuffer, selectedRange) {
+    const OfflineAudioContextClass =
+      globalThis.OfflineAudioContext ||
+      globalThis.webkitOfflineAudioContext ||
+      (typeof window !== "undefined"
+        ? window.OfflineAudioContext || window.webkitOfflineAudioContext
+        : null);
+    if (typeof OfflineAudioContextClass !== "function") {
+      throw new Error("当前浏览器不支持离线音频裁剪。");
+    }
+    const totalDurationMs = Math.max(0, Math.round(toFiniteNumber(decodedBuffer?.duration, 0) * 1000));
+    const startMs = Math.max(0, Math.min(selectedRange.startMs, totalDurationMs));
+    const endMs = Math.max(startMs + 1, Math.min(selectedRange.endMs, totalDurationMs || selectedRange.endMs));
+    const durationSeconds = Math.max(0.001, (endMs - startMs) / 1000);
+    const frameLength = Math.max(1, Math.ceil(durationSeconds * TARGET_SAMPLE_RATE));
+    const offline = new OfflineAudioContextClass(1, frameLength, TARGET_SAMPLE_RATE);
+    const source = offline.createBufferSource();
+    source.buffer = decodedBuffer;
+    source.connect(offline.destination);
+    source.start(0, startMs / 1000, durationSeconds);
+    return offline.startRendering();
+  }
+
+  async function createClipBase64(audioUrl, selectedRange) {
+    const arrayBuffer = await fetchAudioBuffer(audioUrl);
+    const decodedBuffer = await decodeAudioBuffer(arrayBuffer);
+    const rendered = await renderSelectedClip(decodedBuffer, selectedRange);
+    const wavBytes = encodeWavBuffer(rendered.getChannelData(0), rendered.sampleRate || TARGET_SAMPLE_RATE);
+    return bytesToBase64(wavBytes);
+  }
+
+  function clearExpiredClipCache(cacheMap) {
+    const nowMs = Date.now();
+    Array.from(cacheMap.entries()).forEach(function (entry) {
+      const key = entry[0];
+      const value = entry[1] && typeof entry[1] === "object" ? entry[1] : null;
+      if (!value || !Number.isFinite(value.expiresAtMs) || value.expiresAtMs <= nowMs) {
+        cacheMap.delete(key);
+      }
+    });
+  }
+
+  async function uploadClip(config, context, selectedRange) {
+    const uploadEndpoint = normalizeText(config.clipCacheUploadEndpoint) || DEFAULT_CLIP_CACHE_UPLOAD_PATH;
+    if (isLocalOnlyEndpoint(uploadEndpoint)) {
+      throw new Error("当前段裁剪上传只支持 server 后端地址，local 127.0.0.1 不受支持。");
+    }
+    const clipBase64 = await createClipBase64(context.audioUrl, selectedRange);
+    const requestBody = {
+      clipBase64,
+      contentType: "audio/wav",
+      sourceFileName: normalizeText(context.selectedEntry?.name) || "clip.wav",
+      sourceAudioUrlHash: await hashText(context.audioUrl),
+      startMs: selectedRange.startMs,
+      endMs: selectedRange.endMs,
+    };
+    const response = await fetch(uploadEndpoint, {
+      method: "POST",
+      credentials: "omit",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+    const payload = await response.json().catch(function () {
+      return null;
+    });
+    if (!response.ok || !payload || payload.success !== true || !normalizeText(payload.audioUrl)) {
+      throw new Error(payload?.message || "当前段裁剪上传失败。");
+    }
+    return {
+      clipId: normalizeText(payload.clipId),
+      audioUrl: normalizeText(payload.audioUrl),
+      expiresAt: normalizeText(payload.expiresAt),
+      expiresAtMs: Math.max(Date.now() + 1000, Date.parse(payload.expiresAt || "") || Date.now() + 1000),
+    };
+  }
+
   function createRuntime(options) {
     const config = options && typeof options === "object" ? options : {};
+    const timerHost = getTimerHost();
+    const clipCache = new Map();
+
+    async function ensureClipInfo(context, selectedRange) {
+      clearExpiredClipCache(clipCache);
+      const selectionKey = normalizeText(context.selectionKey);
+      const cached = clipCache.get(selectionKey);
+      if (cached && cached.audioUrl && cached.expiresAtMs > Date.now()) {
+        return cached;
+      }
+      const uploaded = await uploadClip(config, context, selectedRange);
+      clipCache.set(selectionKey, uploaded);
+      return uploaded;
+    }
 
     async function recommend(context) {
       const source = context && typeof context === "object" ? context : {};
       if (!normalizeText(source.audioUrl)) {
         throw new Error("缺少当前音频 audioUrl。");
       }
+      const selectedRange = requireSelectedRange(source.selectedRange, source.selectionKey);
+      const clipInfo = await ensureClipInfo(source, selectedRange);
       const endpoint = normalizeText(config.endpoint) || DEFAULT_PATH;
       const body = {
-        audioUrl: source.audioUrl,
-        startMs: source.startMs,
-        endMs: source.endMs,
+        audioUrl: clipInfo.audioUrl,
+        startMs: selectedRange.startMs,
+        endMs: selectedRange.endMs,
+        selectionKey: normalizeText(source.selectionKey),
         fieldContext: source.fieldContext || {},
         editorContext: source.editorContext || {},
         aiUsageOperatorName: normalizeText(config.aiUsageOperatorName),
@@ -28,7 +264,7 @@
       };
       const controller = typeof AbortController === "function" ? new AbortController() : null;
       const timer = controller
-        ? window.setTimeout(function () {
+        ? timerHost.setTimeout(function () {
             controller.abort();
           }, body.timeoutMs)
         : null;
@@ -48,10 +284,14 @@
         if (!response.ok || !payload || payload.success !== true) {
           throw new Error(payload?.message || "柳州话 AI 推荐失败。");
         }
-        return payload;
+        return Object.assign({}, payload, {
+          selectionKey: body.selectionKey,
+          clipId: clipInfo.clipId,
+          clipExpiresAt: clipInfo.expiresAt,
+        });
       } finally {
         if (timer) {
-          window.clearTimeout(timer);
+          timerHost.clearTimeout(timer);
         }
       }
     }

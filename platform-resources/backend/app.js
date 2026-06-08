@@ -16,6 +16,7 @@ function createPlatformResourcesServer(options) {
         "alibaba-labelx/asr-judgement",
         "alibaba-labelx/asr-transcription",
         "data-baker/round-one-quality",
+        "data-baker-cvpc/liuzhou-helper",
         "aishell-tech/minnan-helper",
         "admin/session",
         "admin/dashboard",

@@ -42,14 +42,31 @@ class FakeNode {
     this.isConnected = false;
     this.parentNode = null;
     this.style = {};
-    this.textContent = "";
+    this._textContent = "";
     this.type = "";
   }
 
   appendChild(child) {
+    if (child.parentNode) {
+      child.parentNode.removeChild(child);
+    }
     child.parentNode = this;
     child.isConnected = true;
     this.children.push(child);
+    return child;
+  }
+
+  insertBefore(child, referenceNode) {
+    if (!referenceNode || this.children.indexOf(referenceNode) < 0) {
+      return this.appendChild(child);
+    }
+    if (child.parentNode) {
+      child.parentNode.removeChild(child);
+    }
+    const index = this.children.indexOf(referenceNode);
+    child.parentNode = this;
+    child.isConnected = true;
+    this.children.splice(index, 0, child);
     return child;
   }
 
@@ -75,23 +92,19 @@ class FakeNode {
     this.eventListeners[type] = listener;
   }
 
-  querySelector(selector) {
-    if (selector === ".audio-url-box") {
-      return findNode(this, function (node) {
-        return String(node.className || "") === "audio-url-box";
-      });
-    }
-    if (selector === ".audio-url-link") {
-      return findNode(this, function (node) {
-        return String(node.className || "") === "audio-url-link";
-      });
-    }
-    if (selector === ".audio-url-details") {
-      return findNode(this, function (node) {
-        return String(node.className || "") === "audio-url-details";
-      });
-    }
-    return null;
+  get textContent() {
+    return [
+      this._textContent || "",
+      this.children.map(function (child) {
+        return child.textContent || "";
+      }).join(" "),
+    ]
+      .join(" ")
+      .trim();
+  }
+
+  set textContent(value) {
+    this._textContent = String(value || "");
   }
 
   get innerHTML() {
@@ -100,7 +113,7 @@ class FakeNode {
 
   set innerHTML(value) {
     this._innerHTML = String(value || "");
-    this.textContent = String(value || "").replace(/<[^>]+>/g, "");
+    this._textContent = String(value || "").replace(/<[^>]+>/g, " ");
   }
 }
 
@@ -118,15 +131,36 @@ function findNode(root, predicate) {
 }
 
 function collectText(root) {
-  return [
-    root.textContent || "",
-    root.children.map(collectText).join(" "),
-  ].join(" ");
+  return root ? root.textContent : "";
 }
 
 function createHarness() {
   const body = new FakeNode("body");
   const head = new FakeNode("head");
+
+  const globalPanel = new FakeNode("div");
+  globalPanel.className = "Label_top right1";
+  const panelTitle = new FakeNode("span");
+  panelTitle.className = "label_title";
+  panelTitle.textContent = "全局标注";
+  const nativeValidity = new FakeNode("div");
+  nativeValidity.className = "label_title_border2";
+  nativeValidity.textContent = "是否有效（Valid or Not） 是（Valid） 否（Invalid）";
+  globalPanel.appendChild(panelTitle);
+  globalPanel.appendChild(nativeValidity);
+
+  const bottomRight = new FakeNode("div");
+  bottomRight.className = "bottom-right";
+  const nativeSplitButton = new FakeNode("button");
+  nativeSplitButton.textContent = "开启拆分";
+  const nativeMergeButton = new FakeNode("button");
+  nativeMergeButton.textContent = "合并段落";
+  bottomRight.appendChild(nativeSplitButton);
+  bottomRight.appendChild(nativeMergeButton);
+
+  body.appendChild(globalPanel);
+  body.appendChild(bottomRight);
+
   const document = {
     body,
     documentElement: body,
@@ -138,24 +172,30 @@ function createHarness() {
       return null;
     },
     querySelector: function (selector) {
-      if (selector === ".page-top .top-right") {
-        return null;
-      }
-      if (selector === "[data-asc-cvpc-liuzhou-toolbar-fallback]") {
-        return findNode(body, function (node) {
-          return Object.prototype.hasOwnProperty.call(
-            node.attributes,
-            "data-asc-cvpc-liuzhou-toolbar-fallback"
-          );
-        });
+      if (selector === ".bottom-right") {
+        return bottomRight;
       }
       return null;
     },
+    querySelectorAll: function (selector) {
+      if (selector === ".Label_top") {
+        return [globalPanel];
+      }
+      return [];
+    },
   };
-  return { body, document, head };
+
+  return {
+    body,
+    bottomRight,
+    document,
+    globalPanel,
+    nativeSplitButton,
+    nativeValidity,
+  };
 }
 
-test("CVPC ui panel mount tolerates document.body being unavailable before page shell is ready", function () {
+test("CVPC ui panel mount tolerates document.body being unavailable before editor hosts are ready", function () {
   const uiModule = loadUiPanelModule();
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -179,7 +219,7 @@ test("CVPC ui panel mount tolerates document.body being unavailable before page 
       runtime.mount();
     });
 
-    const text = collectText(harness.body);
+    const text = collectText(harness.globalPanel);
     assert.match(text, /柳州话脚本 Beta/);
   } finally {
     globalThis.document = previousDocument;
@@ -187,7 +227,35 @@ test("CVPC ui panel mount tolerates document.body being unavailable before page 
   }
 });
 
-test("CVPC ui panel renders current audio url and source in the floating panel", function () {
+test("CVPC ui panel mounts assistant below native global validity area and prepends segment buttons", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+
+    const globalText = collectText(harness.globalPanel);
+    assert.match(globalText, /是否有效（Valid or Not）/);
+    assert.match(globalText, /当前段 AI 推荐/);
+    assert.match(globalText, /填入当前推荐/);
+    assert.match(globalText, /未填写补 Valid/);
+
+    assert.notEqual(harness.bottomRight.children[0], harness.nativeSplitButton);
+    assert.match(collectText(harness.bottomRight.children[0]), /生成画段建议/);
+    assert.match(collectText(harness.bottomRight.children[0]), /应用当前建议/);
+    assert.equal(harness.bottomRight.children[1], harness.nativeSplitButton);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel renders current audio and selected range inside the global annotation card", function () {
   const uiModule = loadUiPanelModule();
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -204,25 +272,20 @@ test("CVPC ui panel renders current audio url and source in the floating panel",
       selectedEntry: {
         name: "sample.mp3",
       },
+      selectedRange: {
+        startMs: 18565,
+        endMs: 35677,
+        durationMs: 17112,
+      },
     });
 
-    const text = collectText(harness.body);
+    const text = collectText(harness.globalPanel);
     assert.match(text, /当前音频地址/);
     assert.match(text, /sample\.mp3/);
     assert.match(text, /observer/);
-    assert.match(text, /Signature=visible/);
-
-    const link = harness.body.querySelector(".audio-url-link");
-    const details = harness.body.querySelector(".audio-url-details");
-    assert.ok(link);
-    assert.equal(
-      link.getAttribute("href"),
-      "https://oss.example.com/databaker/data/sample.mp3?Signature=visible"
-    );
-    assert.equal(link.getAttribute("target"), "_blank");
-    assert.equal(link.textContent, "打开当前音频 URL");
-    assert.ok(details);
-    assert.equal(details.getAttribute("open"), "");
+    assert.match(text, /18\.565 秒/);
+    assert.match(text, /35\.677 秒/);
+    assert.match(text, /17\.112 秒/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

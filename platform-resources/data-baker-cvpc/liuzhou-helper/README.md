@@ -19,9 +19,10 @@
   - `template.attrs / entry_attrs / moment_attrs`
   - 当前音频签名 URL：运行时优先从页内观察桥映射获取；页内桥会消费页面真实 `annotation/meta` 响应、顶层页面或同源 `xaudio` iframe 的真实音频请求和初始化阶段控制台打印的音频 URL。若扩展自身直连 `annotation/meta` 因平台鉴权返回失败，会回退使用页内桥传入的运行时 meta；缺失时再回退到 DOM audio、Performance 与同源 iframe audio
 - 当前页工具面板：
-  - 在“柳州话脚本 Beta”悬浮窗展示当前音频文件、URL 来源和可点击音频链接；完整签名地址默认折叠，仅保留在页面运行时
-  - 生成画段建议
-  - 当前段 AI 推荐
+  - 助手区嵌入右侧 `全局标注` 卡片，保持原生 `Valid / Invalid` 在上方，助手区固定显示状态、当前音频/当前段摘要、AI 推荐结果和动作按钮
+  - `生成画段建议`、`应用当前建议` 仅前置挂到波形区 `.bottom-right`
+  - 当前段 AI 推荐严格按当前波形选中段工作：实时读取 `.xaudio_time` 的 `开始 / 结束`，浏览器端只裁这一段音频
+  - 浏览器端会把片段转成 `16k` 单声道 WAV，上传到临时 clip-cache，后端返回 1 小时临时 URL，再把该 URL 发给现有 AI 推荐接口
   - 当前段填入建议
   - 当前段设为 `Valid / Invalid`
   - 当前音频内“未填写段落补为有效”的受限入口
@@ -32,6 +33,9 @@
   - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`
   - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults`
   - `POST /api/data-baker-cvpc/liuzhou-helper/ai/recommend`
+  - `GET /api/data-baker-cvpc/liuzhou-helper/clip-cache/health`
+  - `POST /api/data-baker-cvpc/liuzhou-helper/clip-cache/upload`
+  - `GET /api/data-baker-cvpc/liuzhou-helper/clip-cache/files/:clipId.wav`
 
 ## 规则资产
 
@@ -44,6 +48,8 @@
 - `全局 Invalid` 不做自动判定。
 - 批量范围固定为“当前音频 / 当前作业”，不跨整包遍历。
 - 画段建议当前只提供“建议生成 + 人工确认”。
+- 当前段 AI 推荐如果没有读到可信的当前段 `开始 / 结束`，会直接失败，不退回整段识别。
+- 当前裁剪上传链路只保证 `server` 后端地址可用；`local / 127.0.0.1` 当前不在支持范围内。
 - 真实 `segment create/update`、保存链路和字段持久化请求当前仍未补采完成。
 
 ## 写入契约状态
@@ -81,6 +87,8 @@ platform-resources/data-baker-cvpc/liuzhou-helper/
   backend/
     index.js
     ai-routes.js
+    clip-cache-routes.js
+    clip-cache-service.js
     segment-routes.js
     ai-service.js
     segment-service.js
@@ -90,3 +98,10 @@ platform-resources/data-baker-cvpc/liuzhou-helper/
       liuzhou-rules.md
       liuzhou-pronunciation-reference.csv
 ```
+
+## 运行数据
+
+- 临时音频缓存目录：`platform-resources/data-baker-cvpc/liuzhou-helper/data/runtime/clip-cache/`
+- 文件名只使用不透明 `clipId`，不保存原始签名 URL
+- TTL 默认 `1` 小时；上传、读取和服务启动时都会顺手清理过期文件
+- 运行数据目录已加入 `.gitignore`，不提交 Git

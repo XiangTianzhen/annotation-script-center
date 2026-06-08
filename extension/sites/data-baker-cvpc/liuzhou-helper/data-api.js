@@ -195,6 +195,56 @@
     return candidates[0] || "";
   }
 
+  function parseSelectedRangeFromText(text) {
+    const source = String(text || "").replace(/\s+/g, " ").trim();
+    if (!source) {
+      return null;
+    }
+    const startMatch = source.match(/开始：\s*(\d+(?:\.\d+)?)\s*秒/i);
+    const endMatch = source.match(/结束：\s*(\d+(?:\.\d+)?)\s*秒/i);
+    if (!startMatch || !endMatch) {
+      return null;
+    }
+    const startMs = Math.max(0, Math.round(Number(startMatch[1]) * 1000));
+    const endMs = Math.max(startMs, Math.round(Number(endMatch[1]) * 1000));
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      return null;
+    }
+    return {
+      startMs,
+      endMs,
+      durationMs: Math.max(0, endMs - startMs),
+    };
+  }
+
+  function extractSelectedRange(documentLike) {
+    const doc = documentLike || globalThis.document;
+    if (!doc || typeof doc.querySelector !== "function") {
+      return null;
+    }
+    const node = doc.querySelector(".xaudio_time");
+    return parseSelectedRangeFromText(node?.textContent || node?.innerText || "");
+  }
+
+  function buildSelectionKey(entryName, selectedRange) {
+    const name = normalizeText(entryName);
+    const range = selectedRange && typeof selectedRange === "object" ? selectedRange : null;
+    if (!name || !range || !Number.isFinite(range.startMs) || !Number.isFinite(range.endMs)) {
+      return "";
+    }
+    return name + "|" + String(range.startMs) + "|" + String(range.endMs);
+  }
+
+  function getLiveSelectionSnapshot(documentLike) {
+    const entryName = extractVisibleEntryName(documentLike);
+    const selectedRange = extractSelectedRange(documentLike);
+    return {
+      selectedEntryName: entryName,
+      selectedRange,
+      selectionKey: buildSelectionKey(entryName, selectedRange),
+    };
+  }
+
   function getSelectedEntry(meta, documentLike) {
     const entries = Array.isArray(meta?.datas) ? meta.datas : [];
     const visibleName = extractVisibleEntryName(documentLike);
@@ -525,6 +575,7 @@
       }
       cachedMeta = meta;
       const selectedEntry = getSelectedEntry(meta, env.document);
+      const liveSelection = getLiveSelectionSnapshot(env.document);
       const currentAnn = getCurrentAnn(meta, selectedEntry);
       const template = meta.template && typeof meta.template === "object" ? meta.template : {};
       const audio = resolveAudioUrl(selectedEntry, env, observerMappings);
@@ -536,6 +587,11 @@
         currentAnn,
         currentSegments: extractSegmentsFromAnnData(currentAnn?.ann_data),
         fieldContext: collectFieldContext(template, env),
+        selectedRange: liveSelection.selectedRange,
+        selectionKey: buildSelectionKey(
+          selectedEntry?.name || liveSelection.selectedEntryName,
+          liveSelection.selectedRange
+        ),
         audioUrl: audio.audioUrl,
         audioUrlHintMessage: audio.audioUrl ? "" : MISSING_AUDIO_MESSAGE,
         audioUrlSource: audio.audioUrlSource,
@@ -558,6 +614,16 @@
 
     async function fillCurrentSegmentRecommendation(recommendation) {
       const source = recommendation && typeof recommendation === "object" ? recommendation : {};
+      const liveSelection = getLiveSelectionSnapshot(env.document);
+      if (
+        normalizeText(source.selectionKey) &&
+        normalizeText(source.selectionKey) !== normalizeText(liveSelection.selectionKey)
+      ) {
+        return {
+          ok: false,
+          message: "当前段已切换，旧推荐已失效，请重新生成当前段 AI 推荐。",
+        };
+      }
       const dialectField = findLabelTarget(["标注文本", "柳州话", "转写文本"], env);
       const mandarinField = findLabelTarget(["普通话顺滑", "普通话", "顺滑"], env);
       const wroteDialect = source.dialectText
@@ -594,6 +660,9 @@
 
     return {
       getEditorContext,
+      getLiveSelectionSnapshot: function () {
+        return getLiveSelectionSnapshot(env.document);
+      },
       isEditorPage,
       setCurrentValidity,
       fillCurrentSegmentRecommendation,

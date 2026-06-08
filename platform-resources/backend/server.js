@@ -73,6 +73,21 @@ server.listen(config.port, config.host, function () {
       "/api/data-baker/round-one-quality/ai/recommend"
   );
   console.info(
+    "[Platform Resources][backend] DataBaker CVPC segment preview: " +
+      baseUrl +
+      "/api/data-baker-cvpc/liuzhou-helper/segment/preview"
+  );
+  console.info(
+    "[Platform Resources][backend] DataBaker CVPC AI recommend: " +
+      baseUrl +
+      "/api/data-baker-cvpc/liuzhou-helper/ai/recommend"
+  );
+  console.info(
+    "[Platform Resources][backend] DataBaker CVPC clip cache upload: " +
+      baseUrl +
+      "/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload"
+  );
+  console.info(
     "[Platform Resources][backend] Aishell Tech AI health: " +
       baseUrl +
       "/api/aishell-tech/minnan-helper/ai/recommend/health"

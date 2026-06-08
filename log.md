@@ -1,3 +1,23 @@
+## 2026-06-08（DataBaker CVPC 柳州话脚本改为右侧卡内助手与当前段裁剪识别）
+
+- `DataBaker CVPC / 柳州话脚本` 当前完成两类页面布局调整：
+  - 取消旧悬浮助手和顶部 `.page-top .top-right` 助手工具条。
+  - 助手区改为嵌入右侧 `全局标注` 卡片，保留原生 `Valid / Invalid` 在上方；下方固定显示状态、当前音频/当前段摘要、AI 推荐结果和动作按钮。
+  - `生成画段建议`、`应用当前建议` 当前仅前置挂到波形区 `.bottom-right`，不改平台原生 `开启拆分 / 合并段落 / 波形调节 / 倍率` 控件。
+- `当前段 AI 推荐` 当前严格按当前波形选中段工作：
+  - `data-api.js` 新增 `.xaudio_time` 实时解析，输出 `selectedRange` 与 `selectionKey`。
+  - 左侧条目或波形选中段变化时，会清空旧推荐，避免把上一段结果填到新段。
+  - 如果没有读到可信的 `开始 / 结束`，前端直接阻断，不再退回整段音频或第一段。
+- 新增 clip-cache 临时音频缓存链路：
+  - 浏览器端先下载当前签名音频，只裁剪当前段，转成 `16k` 单声道 WAV，再上传后端。
+  - 后端新增 `clip-cache/health`、`clip-cache/upload`、`clip-cache/files/:clipId.wav`。
+  - 临时文件默认保留 `1` 小时，文件名仅使用不透明 `clipId`，运行目录为 `platform-resources/data-baker-cvpc/liuzhou-helper/data/runtime/clip-cache/`，已加入 `.gitignore`。
+- 新增/更新验证：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.test.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/clip-cache-service.test.js`
+
 ## 2026-06-08（系统管理项目数据下载补齐“全部”供应商选项）
 
 - 修复系统管理 `数据导出 -> 项目数据下载` 在单供应商或想直接下总表时的供应商选择缺口：

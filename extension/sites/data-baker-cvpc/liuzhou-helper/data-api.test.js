@@ -23,6 +23,12 @@ class FakeTextareaElement extends FakeElement {}
 
 function createDataApiHarness(options) {
   const settings = options && typeof options === "object" ? options : {};
+  const state = {
+    selectionText: String(settings.selectionText || ""),
+    visibleEntryNames: Array.isArray(settings.visibleEntryNames)
+      ? settings.visibleEntryNames.slice()
+      : [],
+  };
   const listeners = new Map();
   const location = {
     origin: "https://cvpc.data-baker.com",
@@ -61,7 +67,7 @@ function createDataApiHarness(options) {
   const document = {
     querySelectorAll: function (selector) {
       if (selector === "body *") {
-        return (settings.visibleEntryNames || []).map(function (name) {
+        return state.visibleEntryNames.map(function (name) {
           return { textContent: name };
         });
       }
@@ -71,6 +77,13 @@ function createDataApiHarness(options) {
       return [];
     },
     querySelector: function (selector) {
+      if (selector === ".xaudio_time") {
+        return state.selectionText
+          ? {
+              textContent: state.selectionText,
+            }
+          : null;
+      }
       if (selector === "audio") {
         return topAudio;
       }
@@ -141,6 +154,12 @@ function createDataApiHarness(options) {
       HTMLTextAreaElement: FakeTextareaElement,
     },
     fetchCalls,
+    setSelectionText: function (value) {
+      state.selectionText = String(value || "");
+    },
+    setVisibleEntryNames: function (names) {
+      state.visibleEntryNames = Array.isArray(names) ? names.slice() : [];
+    },
     dispatchObserverMessage: function (payload, type, sourceWindow) {
       const listener = listeners.get("message");
       if (typeof listener !== "function") {
@@ -222,6 +241,100 @@ test("CVPC data api prefers observer-supplied signed audio url for the current e
     "https://oss.example.com/databaker/data/sample-b.mp3?Signature=observer"
   );
   assert.equal(context.audioUrlSource, "observer");
+});
+
+test("CVPC data api exposes live selectedRange and selectionKey from xaudio_time", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createDataApiHarness({
+    visibleEntryNames: ["sample-a.mp3"],
+    selectionText:
+      "总时长：218.03 秒 总截取：106.975 秒 未截取：111.054 秒 开始：18.565 秒 结束：35.677 秒 截取：17.112 秒",
+    metaPayload: createMetaPayload([
+      {
+        entry_id: 1,
+        entry_index: 1,
+        name: "sample-a.mp3",
+        content: "databaker/data/sample-a.mp3",
+        audioUrl: "https://meta.example.com/databaker/data/sample-a.mp3?Signature=meta",
+      },
+    ]),
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const context = await runtime.getEditorContext({ force: true });
+
+  assert.deepEqual(context.selectedRange, {
+    startMs: 18565,
+    endMs: 35677,
+    durationMs: 17112,
+  });
+  assert.equal(context.selectionKey, "sample-a.mp3|18565|35677");
+});
+
+test("CVPC data api live selection snapshot changes with visible entry and xaudio_time", function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createDataApiHarness({
+    visibleEntryNames: ["sample-a.mp3"],
+    selectionText: "开始：0 秒 结束：4.171 秒 截取：4.171 秒",
+    metaPayload: createMetaPayload([
+      {
+        entry_id: 1,
+        entry_index: 1,
+        name: "sample-a.mp3",
+        content: "databaker/data/sample-a.mp3",
+      },
+    ]),
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const firstSnapshot = runtime.getLiveSelectionSnapshot();
+  assert.deepEqual(firstSnapshot.selectedRange, {
+    startMs: 0,
+    endMs: 4171,
+    durationMs: 4171,
+  });
+  assert.equal(firstSnapshot.selectionKey, "sample-a.mp3|0|4171");
+
+  harness.setVisibleEntryNames(["sample-b.mp3"]);
+  harness.setSelectionText("开始：18.565 秒 结束：35.677 秒 截取：17.112 秒");
+
+  const secondSnapshot = runtime.getLiveSelectionSnapshot();
+  assert.deepEqual(secondSnapshot.selectedRange, {
+    startMs: 18565,
+    endMs: 35677,
+    durationMs: 17112,
+  });
+  assert.equal(secondSnapshot.selectionKey, "sample-b.mp3|18565|35677");
+});
+
+test("CVPC data api rejects stale recommendation when live selectionKey has changed", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createDataApiHarness({
+    visibleEntryNames: ["sample-a.mp3"],
+    selectionText: "开始：0 秒 结束：4.171 秒 截取：4.171 秒",
+    metaPayload: createMetaPayload([
+      {
+        entry_id: 1,
+        entry_index: 1,
+        name: "sample-a.mp3",
+        content: "databaker/data/sample-a.mp3",
+      },
+    ]),
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.setSelectionText("开始：18.565 秒 结束：35.677 秒 截取：17.112 秒");
+
+  const result = await runtime.fillCurrentSegmentRecommendation({
+    selectionKey: "sample-a.mp3|0|4171",
+    dialectText: "旧结果",
+    mandarinText: "旧结果",
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "当前段已切换，旧推荐已失效，请重新生成当前段 AI 推荐。",
+  });
 });
 
 test("CVPC data api falls back to direct meta audio url when observer cache is missing", async function () {
