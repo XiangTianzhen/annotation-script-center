@@ -1,3 +1,16 @@
+## 2026-06-08（系统管理项目数据下载补齐“全部”供应商选项）
+
+- 修复系统管理 `数据导出 -> 项目数据下载` 在单供应商或想直接下总表时的供应商选择缺口：
+  - 前端当前新增 `extension/options/options-project-download-supplier.js`，统一负责供应商下拉的 `全部` 选项与校验规则。
+  - 单供应商数据集现在也会显示供应商下拉，并默认提供 `全部`，避免“只有一个供应商但无法直接下载总表”的情况。
+  - 多供应商数据集选择 `全部` 时，当前也允许直接下载总表，不再只能二选一下载某个供应商。
+- 后端 `platform-resources/backend/project-data-download/routes.js` 当前支持显式 `supplier="__all__"`：
+  - `request` 阶段把它识别为“总表下载意图”，不再误判成缺少供应商。
+  - `file` 阶段同样按总表处理，仍保持具体供应商筛选下载不变。
+- 新增回归验证：
+  - `extension/options/options-project-download-supplier.test.js`
+  - `platform-resources/backend/project-data-download/__tests__/request-auth.test.js`
+
 ## 2026-06-08（AI 配置收口与废弃 Provider 清理）
 
 - 统一 AI 配置口径：

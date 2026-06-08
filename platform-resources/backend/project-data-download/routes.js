@@ -24,6 +24,7 @@ const FILE_PATH = "/api/admin/project-data-download/file";
 const MAX_BODY_BYTES = 1024 * 1024;
 const DEFAULT_EXPIRES_IN_SECONDS = 120;
 const TRAILING_PUNCTUATION_PATTERN = /[；;。，“”"'’)\]】}》>\s]+$/u;
+const ALL_SUPPLIERS_VALUE = "__all__";
 
 function createRequestId() {
   return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
@@ -52,6 +53,14 @@ function getHeaderText(headers, key) {
     return String(value[0] || "");
   }
   return String(value || "");
+}
+
+function isAllSuppliersSelection(value) {
+  return normalizeText(value) === ALL_SUPPLIERS_VALUE;
+}
+
+function normalizeRequestedSupplier(value) {
+  return isAllSuppliersSelection(value) ? "" : normalizeText(value);
 }
 
 function getClientIp(request) {
@@ -498,13 +507,20 @@ function registerProjectDataDownloadRoutes(router, options) {
         return;
       }
 
-      if (meta.supplierRequired && !supplier) {
+      const supplierSelection = normalizeText(body?.supplier);
+      const normalizedSupplier = normalizeRequestedSupplier(body?.supplier);
+
+      if (
+        meta.supplierRequired &&
+        !normalizedSupplier &&
+        !isAllSuppliersSelection(supplierSelection)
+      ) {
         const code = "project-data-download-supplier-required";
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
             dataset: dataset.id,
-            supplier: supplier,
+            supplier: normalizedSupplier,
             operatorName: operatorName,
             status: "request_failed",
             reason: code,
@@ -520,13 +536,17 @@ function registerProjectDataDownloadRoutes(router, options) {
         return;
       }
 
-      if (supplier && meta.suppliers.length > 0 && meta.suppliers.indexOf(supplier) < 0) {
+      if (
+        normalizedSupplier &&
+        meta.suppliers.length > 0 &&
+        meta.suppliers.indexOf(normalizedSupplier) < 0
+      ) {
         const code = "project-data-download-supplier-no-data";
         auditStore.append(
           buildAuditPayload({
             requestId: requestId,
             dataset: dataset.id,
-            supplier: supplier,
+            supplier: normalizedSupplier,
             operatorName: operatorName,
             status: "request_failed",
             reason: code,
@@ -540,7 +560,7 @@ function registerProjectDataDownloadRoutes(router, options) {
         );
         sendErrorWithData(response, code, "所选供应商暂无可下载数据。", requestId, {
           dataset: dataset.id,
-          supplier: supplier,
+          supplier: normalizedSupplier,
           suppliers: meta.suppliers,
         });
         return;
@@ -549,7 +569,7 @@ function registerProjectDataDownloadRoutes(router, options) {
       const signed = createSignedToken(
         {
           dataset: dataset.id,
-          supplier: supplier,
+          supplier: supplierSelection || normalizedSupplier,
           operatorName: operatorName,
         },
         authConfig.jwtSecret,
@@ -558,7 +578,7 @@ function registerProjectDataDownloadRoutes(router, options) {
       const downloadUrl = getRequestBaseUrl(request) + FILE_PATH + "?token=" + encodeURIComponent(signed.token);
       appendProjectDownloadRuntimeLog("success", "request_success", requestId, {
         dataset: dataset.id,
-        supplier,
+        supplier: normalizedSupplier,
         operatorName,
         reason: "ok",
         message: "项目数据下载链接已生成",
@@ -569,7 +589,7 @@ function registerProjectDataDownloadRoutes(router, options) {
           requestId: requestId,
           jti: signed.payload.jti,
           dataset: dataset.id,
-          supplier: supplier,
+          supplier: normalizedSupplier,
           operatorName: operatorName,
           status: "request_success",
           reason: "ok",
@@ -710,8 +730,9 @@ function registerProjectDataDownloadRoutes(router, options) {
       return;
     }
 
-    const supplier = normalizeText(payload.supplier);
-    if (meta.supplierRequired && !supplier) {
+    const supplierSelection = normalizeText(payload.supplier);
+    const supplier = normalizeRequestedSupplier(payload.supplier);
+    if (meta.supplierRequired && !supplier && !isAllSuppliersSelection(supplierSelection)) {
       auditStore.append(
         buildAuditPayload({
           requestId: requestId,

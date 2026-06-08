@@ -402,6 +402,9 @@ DataBaker CVPC AI / 画段接口：
 - `GET /api/admin/project-data-download/file?token=...`
 - `HEAD /api/admin/project-data-download/file?token=...`
 - `request` 当前支持 body `password` 或 `Authorization: Bearer <admin-session-token>`
+- `request` 的 `supplier` 当前支持显式传 `__all__`：
+  - 单供应商或多供应商都可用，语义都是“下载总表，不按供应商过滤”。
+  - 只有真正留空且当前数据存在多个供应商时，才会返回 `project-data-download-supplier-required`。
 - 审计目录：`platform-resources/backend/project-data-download/audit-data/`（运行数据，不提交 git）
 
 AI 请求记录接口：

@@ -2,6 +2,7 @@
   const constants = globalThis.ASREdgeConstants || {};
   const storage = globalThis.ASREdgeStorage || null;
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
+  const projectDownloadSupplierHelper = globalThis.ASREdgeOptionsProjectDownloadSupplier || {};
   const platformLibrary = constants.PLATFORM_LIBRARY || {};
   const scriptLibrary = constants.SCRIPT_LIBRARY || {};
   const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
@@ -82,6 +83,45 @@
           const baseUrl = String(getBackendBaseUrlByMode(mode) || "").replace(/\/+$/, "");
           const normalizedPath = String(path || "").charAt(0) === "/" ? String(path || "") : "/" + String(path || "");
           return baseUrl + normalizedPath;
+        };
+  const buildProjectDownloadSupplierState =
+    typeof projectDownloadSupplierHelper.buildProjectDownloadSupplierState === "function"
+      ? projectDownloadSupplierHelper.buildProjectDownloadSupplierState
+      : function (dataset) {
+          const suppliers = Array.isArray(dataset?.suppliers) ? dataset.suppliers : [];
+          return {
+            supplierRequired: dataset?.supplierRequired === true,
+            showRow: suppliers.length > 0,
+            options: suppliers.length > 0
+              ? [{ value: "__all__", label: "全部" }].concat(
+                  suppliers.map(function (supplier) {
+                    const text = String(supplier || "").trim();
+                    return {
+                      value: text,
+                      label: text,
+                    };
+                  })
+                )
+              : [],
+          };
+        };
+  const isAllProjectDownloadSuppliersValue =
+    typeof projectDownloadSupplierHelper.isAllSuppliersValue === "function"
+      ? projectDownloadSupplierHelper.isAllSuppliersValue
+      : function (value) {
+          return String(value || "").trim() === "__all__";
+        };
+  const isProjectDownloadSupplierSelectionValid =
+    typeof projectDownloadSupplierHelper.isProjectDownloadSupplierSelectionValid === "function"
+      ? projectDownloadSupplierHelper.isProjectDownloadSupplierSelectionValid
+      : function (dataset, value) {
+          if (isAllProjectDownloadSuppliersValue(value)) {
+            return true;
+          }
+          if (dataset?.supplierRequired === true) {
+            return Boolean(String(value || "").trim());
+          }
+          return true;
         };
   const projectDataDownloadOptionsPath =
     constants.PROJECT_DATA_DOWNLOAD_OPTIONS_PATH || "/api/admin/project-data-download/options";
@@ -7810,21 +7850,28 @@
     }
 
     const selectedDataset = getProjectDataDownloadDatasetById(datasetSelect.value);
-    const suppliers = Array.isArray(selectedDataset?.suppliers) ? selectedDataset.suppliers : [];
-    const needSupplier = Boolean(selectedDataset?.supplierRequired);
-
+    const supplierState = buildProjectDownloadSupplierState(selectedDataset);
+    const currentValue = normalizeText(supplierSelect.value);
     supplierSelect.innerHTML = ['<option value="">请选择供应商</option>']
       .concat(
-        suppliers.map(function (supplier) {
-          const text = escapeHtml(supplier);
-          return '<option value="' + text + '">' + text + "</option>";
+        supplierState.options.map(function (option) {
+          const value = escapeHtml(option.value);
+          const label = escapeHtml(option.label);
+          return '<option value="' + value + '">' + label + "</option>";
         })
       )
       .join("");
-    supplierRow.classList.toggle("hidden", !needSupplier);
-    if (!needSupplier) {
+    supplierRow.classList.toggle("hidden", !supplierState.showRow);
+    if (!supplierState.showRow) {
       supplierSelect.value = "";
+      return;
     }
+    const hasCurrentOption = supplierState.options.some(function (option) {
+      return normalizeText(option.value) === currentValue;
+    });
+    supplierSelect.value = hasCurrentOption
+      ? currentValue
+      : supplierState.options[0]?.value || "";
   }
 
   function renderProjectDataDownloadDatasets(datasets) {
@@ -9347,7 +9394,7 @@
     }
 
     const supplier = normalizeText(supplierSelect.value);
-    if (datasetInfo.supplierRequired && !supplier) {
+    if (!isProjectDownloadSupplierSelectionValid(datasetInfo, supplier)) {
       setProjectDataDownloadStatus("该数据类型需要先选择供应商。");
       supplierSelect.focus();
       return;
@@ -9370,7 +9417,7 @@
         },
         body: JSON.stringify({
           dataset: datasetId,
-          supplier: supplier,
+          supplier: isAllProjectDownloadSuppliersValue(supplier) ? "__all__" : supplier,
           operatorName: operatorName,
           clientInfo: getDownloadClientInfo(),
         }),
