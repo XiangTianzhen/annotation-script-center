@@ -43,6 +43,7 @@ class FakeNode {
     this.parentNode = null;
     this.style = {};
     this._textContent = "";
+    this._innerHTML = "";
     this.type = "";
   }
 
@@ -88,8 +89,41 @@ class FakeNode {
     return this.attributes[name] || "";
   }
 
+  hasAttribute(name) {
+    return Object.prototype.hasOwnProperty.call(this.attributes, name);
+  }
+
   addEventListener(type, listener) {
     this.eventListeners[type] = listener;
+  }
+
+  dispatchEvent(event) {
+    const listener = this.eventListeners[String(event?.type || "")];
+    if (typeof listener === "function") {
+      listener.call(this, event);
+    }
+    return true;
+  }
+
+  querySelector(selector) {
+    return this.querySelectorAll(selector)[0] || null;
+  }
+
+  querySelectorAll(selector) {
+    return collectDescendants(this).filter(function (node) {
+      return matchesSelectorChain(node, selector);
+    });
+  }
+
+  closest(selector) {
+    let current = this;
+    while (current) {
+      if (matchesSelectorChain(current, selector)) {
+        return current;
+      }
+      current = current.parentNode;
+    }
+    return null;
   }
 
   get textContent() {
@@ -115,6 +149,87 @@ class FakeNode {
     this._innerHTML = String(value || "");
     this._textContent = String(value || "").replace(/<[^>]+>/g, " ");
   }
+}
+
+function collectDescendants(root) {
+  const result = [];
+  (function visit(node) {
+    (node.children || []).forEach(function (child) {
+      result.push(child);
+      visit(child);
+    });
+  })(root);
+  return result;
+}
+
+function matchesSimpleSelector(node, selector) {
+  const current = String(selector || "").trim();
+  if (!current) {
+    return false;
+  }
+  if (current === "*") {
+    return true;
+  }
+  if (/^[a-z]+$/i.test(current)) {
+    return node.tagName === current.toUpperCase();
+  }
+  if (/^\.[\w-]+$/.test(current)) {
+    return String(node.className || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .indexOf(current.slice(1)) >= 0;
+  }
+  if (/^\.[\w-]+\.[\w-]+$/.test(current)) {
+    return current
+      .split(".")
+      .filter(Boolean)
+      .every(function (className) {
+        return (
+          String(node.className || "")
+            .split(/\s+/)
+            .filter(Boolean)
+            .indexOf(className) >= 0
+        );
+      });
+  }
+  if (current === "[contenteditable='true']") {
+    return String(node.attributes.contenteditable || "").toLowerCase() === "true";
+  }
+  if (current === "[role='textbox']") {
+    return String(node.attributes.role || "").toLowerCase() === "textbox";
+  }
+  return false;
+}
+
+function matchesSelectorChain(node, selector) {
+  return String(selector || "")
+    .split(",")
+    .some(function (part) {
+      const segments = part
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+      if (segments.length === 0) {
+        return false;
+      }
+      let currentNode = node;
+      for (let index = segments.length - 1; index >= 0; index -= 1) {
+        if (!currentNode || !matchesSimpleSelector(currentNode, segments[index])) {
+          return false;
+        }
+        if (index > 0) {
+          currentNode = currentNode.parentNode;
+          while (currentNode && !matchesSimpleSelector(currentNode, segments[index - 1])) {
+            currentNode = currentNode.parentNode;
+          }
+          if (!currentNode) {
+            return false;
+          }
+          index -= 1;
+        }
+      }
+      return true;
+    });
 }
 
 function findNode(root, predicate) {
@@ -144,10 +259,44 @@ function createHarness() {
   panelTitle.className = "label_title";
   panelTitle.textContent = "全局标注";
   const nativeValidity = new FakeNode("div");
-  nativeValidity.className = "label_title_border2";
-  nativeValidity.textContent = "是否有效（Valid or Not） 是（Valid） 否（Invalid）";
+  nativeValidity.className = "field-block validity-block";
+  const nativeValidityLabel = new FakeNode("div");
+  nativeValidityLabel.className = "item-name";
+  nativeValidityLabel.textContent = "是否有效（Valid or Not）";
+  const nativeValidityValue = new FakeNode("div");
+  nativeValidityValue.className = "w-[100%]";
+  const nativeRadioGroup = new FakeNode("div");
+  nativeRadioGroup.className = "el-radio-group";
+  const validLabel = new FakeNode("label");
+  validLabel.className = "el-radio";
+  validLabel.textContent = "是（Valid）";
+  const invalidLabel = new FakeNode("label");
+  invalidLabel.className = "el-radio";
+  invalidLabel.textContent = "否（Invalid）";
+  nativeRadioGroup.appendChild(validLabel);
+  nativeRadioGroup.appendChild(invalidLabel);
+  nativeValidityValue.appendChild(nativeRadioGroup);
+  nativeValidity.appendChild(nativeValidityLabel);
+  nativeValidity.appendChild(nativeValidityValue);
+
+  const mandarinFieldBlock = new FakeNode("div");
+  mandarinFieldBlock.className = "field-block mandarin-block";
+  const mandarinLabel = new FakeNode("div");
+  mandarinLabel.className = "item-name";
+  mandarinLabel.textContent = "普通话顺滑";
+  const mandarinValue = new FakeNode("div");
+  mandarinValue.className = "w-[100%]";
+  const mandarinEditor = new FakeNode("div");
+  mandarinEditor.className = "tiptap ProseMirror";
+  mandarinEditor.setAttribute("contenteditable", "true");
+  mandarinEditor.setAttribute("role", "textbox");
+  mandarinValue.appendChild(mandarinEditor);
+  mandarinFieldBlock.appendChild(mandarinLabel);
+  mandarinFieldBlock.appendChild(mandarinValue);
+
   globalPanel.appendChild(panelTitle);
   globalPanel.appendChild(nativeValidity);
+  globalPanel.appendChild(mandarinFieldBlock);
 
   const bottomRight = new FakeNode("div");
   bottomRight.className = "bottom-right";
@@ -172,16 +321,16 @@ function createHarness() {
       return null;
     },
     querySelector: function (selector) {
-      if (selector === ".bottom-right") {
-        return bottomRight;
+      if (selector === "body") {
+        return body;
       }
-      return null;
+      return body.querySelector(selector);
     },
     querySelectorAll: function (selector) {
-      if (selector === ".Label_top") {
-        return [globalPanel];
+      if (selector === "body *") {
+        return collectDescendants(body);
       }
-      return [];
+      return body.querySelectorAll(selector);
     },
   };
 
@@ -190,6 +339,7 @@ function createHarness() {
     bottomRight,
     document,
     globalPanel,
+    mandarinFieldBlock,
     nativeSplitButton,
     nativeValidity,
   };
@@ -241,9 +391,11 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
 
     const globalText = collectText(harness.globalPanel);
     assert.match(globalText, /是否有效（Valid or Not）/);
-    assert.match(globalText, /当前段 AI 推荐/);
-    assert.match(globalText, /填入当前推荐/);
-    assert.match(globalText, /未填写补 Valid/);
+    assert.doesNotMatch(globalText, /设为 Valid/);
+    assert.doesNotMatch(globalText, /设为 Invalid/);
+    assert.match(collectText(harness.nativeValidity), /未填写补 Valid/);
+    assert.match(collectText(harness.mandarinFieldBlock), /当前段 AI 推荐/);
+    assert.match(collectText(harness.mandarinFieldBlock), /填入当前推荐/);
 
     assert.notEqual(harness.bottomRight.children[0], harness.nativeSplitButton);
     assert.match(collectText(harness.bottomRight.children[0]), /生成画段建议/);

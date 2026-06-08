@@ -1,3 +1,22 @@
+## 2026-06-08（DataBaker CVPC 柳州话脚本调整原生字段按钮挂载与批量补 Valid）
+
+- `DataBaker CVPC / 柳州话脚本` 当前进一步收口右侧原生表单挂载：
+  - 助手卡内不再保留冗余的 `设为 Valid`、`设为 Invalid`、`当前段 AI 推荐`、`填入当前推荐` 按钮。
+  - `未填写补 Valid` 当前改挂到 `是否有效（Valid or Not）` 单选区右侧。
+  - `当前段 AI 推荐`、`填入当前推荐` 当前改挂到 `普通话顺滑` 输入区下方。
+  - 波形区 `.bottom-right` 继续只承载 `生成画段建议`、`应用当前建议`。
+- `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 当前补齐三类写入保护：
+  - 当前段 `Valid / Invalid` 切换前先读当前单选状态；已是目标值时返回 no-op，不再重复点击，避免二次点击把已选状态取消。
+  - `填入当前推荐` 当前改为兼容页面 `contenteditable .ProseMirror`，可直接写入 `标注文本` 与 `普通话顺滑`。
+  - `未填写补 Valid` 当前改为先请求 `annotation/annos`，只统计并补写当前 `entry_index` 下缺失有效性的段；已填 `Valid / Invalid` 全部跳过。
+- 批量补写当前按左侧编号顺序执行：
+  - 先校验左侧段编号数量与 `annotation/annos` 的 `instance` 数量一致。
+  - `missing=0` 时只提示 `Valid / Invalid / 未填写` 统计，不执行点击。
+  - `missing>0` 时逐条选中目标段，再调用当前段 `Valid` 切换；段切换失败或写入失败立即停止并返回失败编号与已补写数量。
+- 新增/更新验证：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+
 ## 2026-06-08（DataBaker CVPC 柳州话脚本改为右侧卡内助手与当前段裁剪识别）
 
 - `DataBaker CVPC / 柳州话脚本` 当前完成两类页面布局调整：
