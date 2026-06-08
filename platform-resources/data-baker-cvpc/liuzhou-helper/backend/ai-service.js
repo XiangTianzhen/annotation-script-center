@@ -11,6 +11,10 @@ const {
   parseLexiconCsv,
   parseModelJsonText,
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
+const {
+  CLIP_CACHE_BASE_PATH,
+  readClip,
+} = require("./clip-cache-service");
 
 const SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
 const DEFAULT_TIMEOUT_MS = 60000;
@@ -508,7 +512,6 @@ function createRuntimeDeps(overrides) {
   const source = overrides && typeof overrides === "object" ? overrides : {};
   return {
     now: typeof source.now === "function" ? source.now : Date.now,
-    fetch: typeof source.fetch === "function" ? source.fetch : globalThis.fetch,
     parseModelJsonText:
       typeof source.parseModelJsonText === "function" ? source.parseModelJsonText : parseModelJsonText,
     normalizeUsage:
@@ -521,41 +524,49 @@ function createRuntimeDeps(overrides) {
       typeof source.requestFunAsrRecognition === "function"
         ? source.requestFunAsrRecognition
         : requestFunAsrRecognition,
+    readClip:
+      typeof source.readClip === "function"
+        ? source.readClip
+        : readClip,
   };
 }
 
-async function assertAudioUrlReachable(audioUrl, deps) {
-  const fetchImpl = deps?.fetch;
-  if (typeof fetchImpl !== "function" || !normalizeText(audioUrl)) {
-    return;
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractClipIdFromAudioUrl(audioUrl) {
+  const normalizedAudioUrl = normalizeText(audioUrl);
+  if (!normalizedAudioUrl) {
+    return "";
   }
-  let response = null;
   try {
-    response = await fetchImpl(audioUrl, {
-      method: "HEAD",
-    });
+    const parsed = new URL(normalizedAudioUrl);
+    const match = parsed.pathname.match(
+      new RegExp(escapeRegExp(CLIP_CACHE_BASE_PATH) + "/files/([a-z0-9]+)\\.wav$", "i")
+    );
+    return normalizeText(match?.[1]).toLowerCase();
   } catch (_error) {
+    return "";
+  }
+}
+
+function assertClipAudioExists(audioUrl, deps) {
+  const clipId = extractClipIdFromAudioUrl(audioUrl);
+  if (!clipId) {
     throw createHttpError(
-      409,
-      "当前段临时音频不可用，可能已过期或服务实例不一致，请重新生成当前段 AI 推荐后重试。",
-      "clip-audio-unavailable"
+      400,
+      "audioUrl 必须是当前段临时音频文件地址。",
+      "invalid-clip-audio-url"
     );
   }
-  if (!response || response.ok !== true) {
+  const clipReader = deps?.readClip;
+  const clip = typeof clipReader === "function" ? clipReader(clipId) : null;
+  if (!clip || !Buffer.isBuffer(clip.buffer) || clip.buffer.length <= 0) {
     throw createHttpError(
       409,
-      "当前段临时音频不可用，可能已过期或服务实例不一致，请重新生成当前段 AI 推荐后重试。",
+      "当前段临时音频文件不存在或已被清理，请重新生成当前段 AI 推荐后重试。",
       "clip-audio-unavailable"
-    );
-  }
-  const contentType = normalizeText(
-    typeof response.headers?.get === "function" ? response.headers.get("content-type") : ""
-  ).toLowerCase();
-  if (contentType && contentType.indexOf("audio/") !== 0) {
-    throw createHttpError(
-      409,
-      "当前段临时音频返回的不是音频内容，请重新生成当前段 AI 推荐后重试。",
-      "clip-audio-invalid-content-type"
     );
   }
 }
@@ -694,7 +705,7 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
 async function recommend(request, assetsContext, overrides) {
   const deps = createRuntimeDeps(overrides);
   const startedAt = deps.now();
-  await assertAudioUrlReachable(request.audioUrl, deps);
+  assertClipAudioExists(request.audioUrl, deps);
   const listenResult = await runListenStage(request, assetsContext || {}, deps);
   const refineResult = await runRefineStage(request, assetsContext || {}, listenResult, deps);
   const audioDialectText = normalizeAllowedPunctuation(listenResult.audioDialectText);

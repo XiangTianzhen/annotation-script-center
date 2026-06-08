@@ -33,6 +33,7 @@
     - `修正后的柳州话文本` -> `填入标注文本`
   - 当前段 AI 推荐严格按当前波形选中段工作：实时读取 `.xaudio_time` 的 `开始 / 结束`，浏览器端只裁这一段音频
   - 浏览器端会把片段转成 `16k` 单声道 WAV，每次请求都重新上传到临时 clip-cache，后端返回 10 分钟临时 URL，再把该 URL 发给现有 AI 推荐接口
+  - AI 推荐入口当前只按 `audioUrl` 解析 `clipId` 后直接检查后端本地 clip 文件是否存在；不再对公开临时 URL 做 `HEAD` / 可达性探测
   - 当前段填入建议当前兼容页面 `contenteditable .ProseMirror`
   - 当前段设为 `Valid / Invalid` 前会先检查当前单选状态，已是目标值时不重复点击
   - 当前音频内“未填写段落补为有效”当前改为读取 `annotation/annos` 后按左侧编号逐段补写，只处理未填写段，不覆盖已填 `Invalid`
@@ -155,4 +156,5 @@ platform-resources/data-baker-cvpc/liuzhou-helper/
 - 临时音频缓存目录：`platform-resources/data-baker-cvpc/liuzhou-helper/data/runtime/clip-cache/`
 - 文件名只使用不透明 `clipId`，不保存原始签名 URL
 - TTL 默认 `10` 分钟；上传后会登记过期时间并在进程内定时删除，上传、读取和服务启动时也会顺手清理过期文件
+- `ai/recommend` 当前只校验本地 `clipId` 对应文件是否存在；如果文件缺失或已清理，会直接返回显式错误，不再依赖对外 URL 可达性判断
 - 运行数据目录已加入 `.gitignore`，不提交 Git

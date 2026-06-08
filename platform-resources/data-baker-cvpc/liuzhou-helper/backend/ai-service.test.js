@@ -16,7 +16,8 @@ const {
 function createBaseRequest(overrides) {
   return Object.assign(
     {
-      audioUrl: "https://example.com/clip.wav",
+      audioUrl:
+        "https://example.com/api/data-baker-cvpc/liuzhou-helper/clip-cache/files/testclip1234567890abcd.wav",
       startMs: 0,
       endMs: 4171,
       fieldContext: {
@@ -153,13 +154,12 @@ test("liuzhou recommend runs listen plus refine stages and returns three texts",
       now: function () {
         return 1000;
       },
-      fetch: async function () {
+      readClip: function (clipId) {
+        assert.equal(clipId, "testclip1234567890abcd");
         return {
-          ok: true,
-          headers: {
-            get: function () {
-              return "audio/wav";
-            },
+          buffer: Buffer.from("RIFFmock"),
+          metadata: {
+            clipId,
           },
         };
       },
@@ -242,13 +242,12 @@ test("liuzhou recommend keeps dual audio outputs when listen model is fun-asr", 
       now: function () {
         return 1000;
       },
-      fetch: async function () {
+      readClip: function (clipId) {
+        assert.equal(clipId, "testclip1234567890abcd");
         return {
-          ok: true,
-          headers: {
-            get: function () {
-              return "audio/wav";
-            },
+          buffer: Buffer.from("RIFFmock"),
+          metadata: {
+            clipId,
           },
         };
       },
@@ -299,7 +298,7 @@ test("liuzhou recommend keeps dual audio outputs when listen model is fun-asr", 
   assert.equal(result.models?.refineModel, "qwen3.5-plus");
 });
 
-test("liuzhou recommend fails with explicit clip error when temporary audio url is unavailable", async function () {
+test("liuzhou recommend fails with explicit clip error when temporary audio file is missing", async function () {
   await assert.rejects(
     function () {
       return recommend(
@@ -309,23 +308,40 @@ test("liuzhou recommend fails with explicit clip error when temporary audio url 
           ruleText: "规则一",
         }),
         {
-          fetch: async function () {
-            return {
-              ok: false,
-              status: 404,
-              headers: {
-                get: function () {
-                  return "application/json";
-                },
-              },
-            };
+          readClip: function (clipId) {
+            assert.equal(clipId, "testclip1234567890abcd");
+            return null;
           },
         }
       );
     },
     function (error) {
       assert.equal(error.code, "clip-audio-unavailable");
-      assert.match(error.message, /临时音频不可用/);
+      assert.match(error.message, /临时音频文件不存在/);
+      return true;
+    }
+  );
+});
+
+test("liuzhou recommend rejects non clip-cache audio url before running stages", async function () {
+  await assert.rejects(
+    function () {
+      return recommend(
+        normalizeRecommendRequest(
+          createBaseRequest({
+            audioUrl: "https://example.com/audio/current.wav",
+          })
+        ),
+        buildAssetsContext({
+          lexiconCsv: "",
+          ruleText: "规则一",
+        }),
+        {}
+      );
+    },
+    function (error) {
+      assert.equal(error.code, "invalid-clip-audio-url");
+      assert.match(error.message, /audioUrl 必须是当前段临时音频文件地址/);
       return true;
     }
   );

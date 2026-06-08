@@ -1,3 +1,13 @@
+## 2026-06-09（DataBaker CVPC 柳州话脚本删除 clip URL 可达性探测）
+
+- 修复 `DataBaker CVPC / 柳州话脚本` 当前段 AI 推荐在 clip 已上传但推荐接口仍报 `clip-audio-unavailable` 的一类误判：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 当前删除了对外临时音频 URL 的 `HEAD` / 可达性探测。
+  - `ai/recommend` 当前改为只从 `audioUrl` 解析 `clipId`，再直接读取后端本地 clip-cache 文件判断是否存在。
+  - 如果 `audioUrl` 不是本脚本 clip-cache 文件地址，当前会直接返回 `invalid-clip-audio-url`；如果本地文件不存在或已被清理，则返回显式 `clip-audio-unavailable`。
+- 同步更新：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+
 ## 2026-06-09（统一后端 README 补齐 PM2 启动命令并对齐服务名）
 
 - 根 `README.md` 与 `platform-resources/backend/README.md` 当前补充了统一后端的 PM2 首次启动命令：
