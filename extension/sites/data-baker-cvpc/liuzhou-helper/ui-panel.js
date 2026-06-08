@@ -1,6 +1,8 @@
 (function () {
   const ROOT_ATTR = "data-asc-cvpc-liuzhou-panel";
-  const SEGMENT_BUTTON_ATTR = "data-asc-cvpc-liuzhou-segment-button";
+  const MIDDLE_AI_ATTR = "data-asc-cvpc-liuzhou-middle-ai";
+  const MIDDLE_AI_ACTIONS_ATTR = "data-asc-cvpc-liuzhou-middle-ai-actions";
+  const LEGACY_SEGMENT_BUTTON_ATTR = "data-asc-cvpc-liuzhou-segment-button";
   const STYLE_ID = "asc-cvpc-liuzhou-panel-style";
 
   function normalizeText(value) {
@@ -22,47 +24,67 @@
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = [
-      "[" + ROOT_ATTR + "] {",
+      "[" + ROOT_ATTR + "], [" + MIDDLE_AI_ATTR + "] {",
       "  color: #303133;",
       "  font-size: 12px;",
       "  line-height: 1.6;",
       "}",
-      "[" + ROOT_ATTR + "] * { box-sizing: border-box; }",
-      "[" + ROOT_ATTR + "] .panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ebeef5; }",
-      "[" + ROOT_ATTR + "] .head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }",
-      "[" + ROOT_ATTR + "] .title { font-size:14px; font-weight:700; color:#92400e; }",
-      "[" + ROOT_ATTR + "] .sub { margin-top:2px; color:#909399; }",
-      "[" + ROOT_ATTR + "] .status { margin-top:8px; color:#606266; white-space:pre-wrap; }",
-      "[" + ROOT_ATTR + "] .status[data-tone='error'] { color:#f56c6c; }",
-      "[" + ROOT_ATTR + "] .status[data-tone='success'] { color:#67c23a; }",
-      "[" + ROOT_ATTR + "] .section { margin-top:12px; }",
-      "[" + ROOT_ATTR + "] .section-title { font-weight:700; color:#303133; }",
-      "[" + ROOT_ATTR + "] .section-note { margin-top:4px; color:#909399; }",
-      "[" + ROOT_ATTR + "] .audio-url-box, [" + ROOT_ATTR + "] .preview-item, [" + ROOT_ATTR + "] .recommend-item, [" + ROOT_ATTR + "] .meta-box {",
-      "  margin-top:8px;",
-      "  padding:8px;",
-      "  border:1px solid #ebeef5;",
-      "  border-radius:8px;",
-      "  background:#f8fafc;",
-      "  color:#334155;",
-      "  overflow-wrap:anywhere;",
-      "  word-break:break-word;",
+      "[" + ROOT_ATTR + "] *, [" + MIDDLE_AI_ATTR + "] * { box-sizing: border-box; }",
+      "[" + ROOT_ATTR + "] {",
+      "  margin-top: 10px;",
+      "  padding-top: 10px;",
+      "  border-top: 1px solid #ebeef5;",
       "}",
-      "[" + ROOT_ATTR + "] .audio-url-box[data-empty='true'] { color:#909399; word-break:normal; }",
-      "[" + ROOT_ATTR + "] .audio-url-summary { color:#334155; word-break:normal; }",
-      "[" + ROOT_ATTR + "] .audio-url-link { display:inline-block; margin-top:6px; color:#409eff; text-decoration:none; font-weight:700; }",
-      "[" + ROOT_ATTR + "] .audio-url-link:hover { text-decoration:underline; }",
-      "[" + ROOT_ATTR + "] .audio-url-details { margin-top:8px; }",
-      "[" + ROOT_ATTR + "] .audio-url-details summary { cursor:pointer; color:#909399; user-select:none; }",
-      "[" + ROOT_ATTR + "] .audio-url-full { margin:6px 0 0; white-space:pre-wrap; font-family:ui-monospace, SFMono-Regular, Consolas, monospace; }",
-      "[" + ROOT_ATTR + "] .preview-list, [" + ROOT_ATTR + "] .recommend-grid { margin-top:8px; display:grid; gap:8px; }",
-      "[" + ROOT_ATTR + "] .preview-item strong, [" + ROOT_ATTR + "] .recommend-item strong { display:block; color:#334155; }",
-      "[" + ROOT_ATTR + "] .recommend-item-action { margin-top:8px; }",
-      "[" + ROOT_ATTR + "] .action-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }",
-      "[" + ROOT_ATTR + "] .meta-list { margin-top:8px; display:grid; gap:8px; }",
-      "[" + ROOT_ATTR + "] button, [" + SEGMENT_BUTTON_ATTR + "] {",
-      "  min-height: 28px;",
-      "  padding: 7px 12px;",
+      "[" + ROOT_ATTR + "] .panel-title, [" + MIDDLE_AI_ATTR + "] .section-title {",
+      "  font-size: 13px;",
+      "  font-weight: 600;",
+      "  color: #303133;",
+      "}",
+      "[" + ROOT_ATTR + "] .panel-subtitle, [" + MIDDLE_AI_ATTR + "] .section-note {",
+      "  margin-top: 4px;",
+      "  color: #909399;",
+      "}",
+      "[" + ROOT_ATTR + "] .status { margin-top: 8px; color: #606266; white-space: pre-wrap; }",
+      "[" + ROOT_ATTR + "] .status[data-tone='error'] { color: #f56c6c; }",
+      "[" + ROOT_ATTR + "] .status[data-tone='success'] { color: #67c23a; }",
+      "[" + ROOT_ATTR + "] .section, [" + MIDDLE_AI_ATTR + "] .section { margin-top: 12px; }",
+      "[" + ROOT_ATTR + "] .info-box, [" + MIDDLE_AI_ATTR + "] .preview-item, [" + MIDDLE_AI_ATTR + "] .recommend-item, [" + MIDDLE_AI_ATTR + "] .meta-box {",
+      "  margin-top: 8px;",
+      "  padding: 10px 12px;",
+      "  border: 1px solid #ebeef5;",
+      "  border-radius: 4px;",
+      "  background: #fff;",
+      "  color: #606266;",
+      "  overflow-wrap: anywhere;",
+      "  word-break: break-word;",
+      "}",
+      "[" + ROOT_ATTR + "] .info-box[data-empty='true'] { color: #909399; word-break: normal; }",
+      "[" + ROOT_ATTR + "] .audio-url-summary { color: #606266; word-break: normal; }",
+      "[" + ROOT_ATTR + "] .audio-url-link { display: inline-block; margin-top: 6px; color: #526aff; text-decoration: none; }",
+      "[" + ROOT_ATTR + "] .audio-url-link:hover { text-decoration: underline; }",
+      "[" + ROOT_ATTR + "] .audio-url-details { margin-top: 8px; }",
+      "[" + ROOT_ATTR + "] .audio-url-details summary { cursor: pointer; color: #909399; user-select: none; }",
+      "[" + ROOT_ATTR + "] .audio-url-full { margin: 6px 0 0; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }",
+      "[" + ROOT_ATTR + "] .panel-foot { margin-top: 10px; color: #909399; }",
+      "[" + MIDDLE_AI_ATTR + "] {",
+      "  margin-top: 12px;",
+      "  padding-top: 12px;",
+      "  border-top: 1px solid #ebeef5;",
+      "}",
+      "[" + MIDDLE_AI_ACTIONS_ATTR + "] { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .preview-list, [" + MIDDLE_AI_ATTR + "] .recommend-grid, [" + MIDDLE_AI_ATTR + "] .meta-list {",
+      "  margin-top: 8px;",
+      "  display: grid;",
+      "  gap: 8px;",
+      "}",
+      "[" + MIDDLE_AI_ATTR + "] .recommend-item strong, [" + MIDDLE_AI_ATTR + "] .preview-item strong, [" + MIDDLE_AI_ATTR + "] .meta-box strong {",
+      "  display: block;",
+      "  color: #303133;",
+      "}",
+      "[" + MIDDLE_AI_ATTR + "] .recommend-item-action { margin-top: 8px; }",
+      "[" + ROOT_ATTR + "] button, [" + MIDDLE_AI_ATTR + "] button {",
+      "  min-height: 32px;",
+      "  padding: 8px 14px;",
       "  border: 1px solid #dcdfe6;",
       "  border-radius: 4px;",
       "  background: #fff;",
@@ -74,20 +96,20 @@
       "  cursor: pointer;",
       "  transition: .1s;",
       "}",
-      "[" + ROOT_ATTR + "] button[data-primary='true'], [" + SEGMENT_BUTTON_ATTR + "][data-primary='true'] {",
-      "  background: #e6a23c;",
-      "  border-color: #e6a23c;",
+      "[" + ROOT_ATTR + "] button:hover, [" + MIDDLE_AI_ATTR + "] button:hover {",
+      "  color: #526aff;",
+      "  border-color: #c6d1ff;",
+      "  background: #f5f7ff;",
+      "}",
+      "[" + ROOT_ATTR + "] button[data-primary='true'], [" + MIDDLE_AI_ATTR + "] button[data-primary='true'] {",
+      "  background: #526aff;",
+      "  border-color: #526aff;",
       "  color: #fff;",
       "}",
-      "[" + ROOT_ATTR + "] button:hover, [" + SEGMENT_BUTTON_ATTR + "]:hover {",
-      "  color: #409eff;",
-      "  border-color: #c6e2ff;",
-      "  background: #ecf5ff;",
-      "}",
-      "[" + ROOT_ATTR + "] button[data-primary='true']:hover, [" + SEGMENT_BUTTON_ATTR + "][data-primary='true']:hover {",
+      "[" + ROOT_ATTR + "] button[data-primary='true']:hover, [" + MIDDLE_AI_ATTR + "] button[data-primary='true']:hover {",
+      "  background: #6a80ff;",
+      "  border-color: #6a80ff;",
       "  color: #fff;",
-      "  border-color: #ebb563;",
-      "  background: #ebb563;",
       "}",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
@@ -98,7 +120,7 @@
     button.type = "button";
     button.textContent = text;
     button.className = primary
-      ? "el-button el-button--warning el-button--mini"
+      ? "el-button el-button--primary el-button--mini"
       : "el-button el-button--default el-button--mini";
     if (primary) {
       button.setAttribute("data-primary", "true");
@@ -122,9 +144,76 @@
     );
   }
 
-  function resolveSegmentActionsHost() {
-    const host = document.querySelector(".bottom-right");
-    return host instanceof HTMLElement ? host : null;
+  function resolveGlobalAnnotationContentHost(annotationHost) {
+    if (!(annotationHost instanceof HTMLElement) || typeof annotationHost.querySelector !== "function") {
+      return null;
+    }
+    return (
+      annotationHost.querySelector(".label_title_border2") ||
+      annotationHost.querySelector(".label_title_border") ||
+      annotationHost.querySelector(".asr_label") ||
+      annotationHost
+    );
+  }
+
+  function findDescendantByClassToken(root, token) {
+    if (!(root instanceof HTMLElement) || typeof root.querySelectorAll !== "function") {
+      return null;
+    }
+    return (
+      Array.from(root.querySelectorAll("div, span, label"))
+        .find(function (node) {
+          return node instanceof HTMLElement && normalizeText(node.className || "").indexOf(token) >= 0;
+        }) || null
+    );
+  }
+
+  function findFieldBlock(labelMatchers) {
+    if (typeof document.querySelectorAll !== "function") {
+      return null;
+    }
+    const nodes = Array.from(
+      document.querySelectorAll(".item-name, .quest-span, .el-only-child__content, .el-form-item, .ant-form-item, label, span")
+    );
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index];
+      if (!(node instanceof HTMLElement)) {
+        continue;
+      }
+      const text = normalizeText(node.textContent || "");
+      const matched = labelMatchers.find(function (matcher) {
+        return text.indexOf(matcher) >= 0;
+      });
+      if (!matched) {
+        continue;
+      }
+      let scope = node;
+      for (let depth = 0; scope && depth < 6; depth += 1) {
+        if (
+          typeof scope.querySelector === "function" &&
+          scope.querySelector(
+            "textarea, input[type='text'], input:not([type]), [contenteditable='true'], .tiptap.ProseMirror, [role='textbox'], .el-radio-group, [role='radiogroup']"
+          )
+        ) {
+          return scope;
+        }
+        scope =
+          scope.closest?.(".el-form-item, .ant-form-item, .el-card, .ant-card, .field-block") ||
+          (scope.parentNode instanceof HTMLElement ? scope.parentNode : null);
+      }
+    }
+    return null;
+  }
+
+  function removeLegacySegmentButtons() {
+    if (typeof document.querySelectorAll !== "function") {
+      return;
+    }
+    Array.from(document.querySelectorAll("[" + LEGACY_SEGMENT_BUTTON_ATTR + "]")).forEach(function (node) {
+      if (node instanceof HTMLElement && node.parentNode) {
+        node.parentNode.removeChild(node);
+      }
+    });
   }
 
   function createRecommendationCard(title, value, buttonText, callback) {
@@ -149,15 +238,13 @@
 
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
-    let root = null;
-    let previewButton = null;
-    let applyPreviewButton = null;
-    let panelNode = null;
+    let rightRoot = null;
+    let rightPanelNode = null;
+    let middleAiRoot = null;
+    let middleActionsNode = null;
     let statusNode = null;
     let audioNode = null;
-    let previewSectionNode = null;
     let previewNode = null;
-    let recommendSectionNode = null;
     let recommendationNode = null;
     let recommendationMetaNode = null;
 
@@ -172,9 +259,6 @@
     function renderPreview(preview) {
       if (!previewNode) {
         return;
-      }
-      if (previewSectionNode && panelNode && previewSectionNode.parentNode !== panelNode) {
-        panelNode.insertBefore(previewSectionNode, recommendSectionNode || null);
       }
       previewNode.innerHTML = "";
       const items = Array.isArray(preview?.items) ? preview.items : [];
@@ -211,7 +295,6 @@
         recommendationNode.textContent = "当前还没有 AI 推荐结果。";
         return;
       }
-
       const audioDialectText = String(result.audioDialectText || result.dialectText || "");
       const audioMandarinText = String(result.audioMandarinText || result.mandarinText || "");
       const refinedDialectText = String(result.refinedDialectText || result.dialectText || "");
@@ -243,7 +326,6 @@
           })
         );
       });
-
       [
         ["特殊标签", (result.specialTags || []).join(" ") || "无"],
         ["需人工复核", result.needHumanReview === true ? "是" : "否"],
@@ -315,19 +397,16 @@
       audioNode.appendChild(details);
     }
 
-    function ensureRoot() {
-      if (root && root.isConnected) {
-        return root;
+    function ensureRightRoot() {
+      if (rightRoot && rightRoot.isConnected) {
+        return rightRoot;
       }
-      root = document.createElement("section");
-      root.setAttribute(ROOT_ATTR, "");
-      panelNode = document.createElement("div");
-      panelNode.className = "panel";
+      rightRoot = document.createElement("section");
+      rightRoot.setAttribute(ROOT_ATTR, "");
 
-      const head = document.createElement("div");
-      head.className = "head";
-      head.innerHTML =
-        '<div><div class="title">柳州话脚本 Beta</div><div class="sub">CVPC /app/editor/asr/ 建议生成 + 人工确认</div></div>';
+      rightPanelNode = document.createElement("div");
+      rightPanelNode.innerHTML =
+        '<div class="panel-title">柳州话脚本 Beta</div><div class="panel-subtitle">CVPC /app/editor/asr/ 建议生成 + 人工确认</div>';
 
       statusNode = document.createElement("div");
       statusNode.className = "status";
@@ -335,86 +414,78 @@
       const audioSection = document.createElement("div");
       audioSection.className = "section";
       audioSection.innerHTML =
-        '<div class="section-title">当前音频地址</div><div class="section-note">页面刷新后自动获取，仅在右侧助手区显示当前音频与当前段摘要。</div>';
+        '<div class="panel-title">当前音频地址</div><div class="panel-subtitle">页面刷新后自动获取，仅在右侧连续信息区显示当前音频与当前段摘要。</div>';
       audioNode = document.createElement("div");
-      audioNode.className = "audio-url-box";
+      audioNode.className = "info-box";
       audioNode.setAttribute("data-empty", "true");
       audioNode.textContent = "正在获取当前音频地址...";
       audioSection.appendChild(audioNode);
 
-      previewSectionNode = document.createElement("div");
-      previewSectionNode.className = "section";
-      previewSectionNode.innerHTML =
+      const foot = document.createElement("div");
+      foot.className = "panel-foot";
+      foot.textContent = "提示：AI 建议与画段建议已集中到中间区域；真实写入仍需人工复核。";
+
+      rightPanelNode.appendChild(statusNode);
+      rightPanelNode.appendChild(audioSection);
+      rightPanelNode.appendChild(foot);
+      rightRoot.appendChild(rightPanelNode);
+      return rightRoot;
+    }
+
+    function ensureMiddleAiRoot() {
+      if (middleAiRoot && middleAiRoot.isConnected) {
+        return middleAiRoot;
+      }
+      middleAiRoot = document.createElement("section");
+      middleAiRoot.setAttribute(MIDDLE_AI_ATTR, "");
+
+      const head = document.createElement("div");
+      head.innerHTML =
+        '<div class="section-title">柳州话脚本 AI 区</div><div class="section-note">当前段推荐、画段建议与辅助动作统一集中在这里。</div>';
+
+      middleActionsNode = document.createElement("div");
+      middleActionsNode.setAttribute(MIDDLE_AI_ACTIONS_ATTR, "");
+      [
+        ["当前段 AI 推荐", true, deps.onRecommend],
+        ["未填写补 Valid", false, deps.onFillAllValid],
+        ["生成画段建议", true, deps.onPreview],
+        ["应用当前建议", false, deps.onApplyPreview],
+      ].forEach(function (definition) {
+        const button = createButton(definition[0], definition[1]);
+        button.addEventListener("click", function () {
+          if (typeof definition[2] === "function") {
+            definition[2]();
+          }
+        });
+        middleActionsNode.appendChild(button);
+      });
+
+      const previewSection = document.createElement("div");
+      previewSection.className = "section";
+      previewSection.innerHTML =
         '<div class="section-title">当前画段建议</div><div class="section-note">只展示建议，真实画段仍需人工确认。</div>';
       previewNode = document.createElement("div");
       previewNode.className = "preview-list";
       previewNode.textContent = "当前还没有画段建议。";
-      previewSectionNode.appendChild(previewNode);
+      previewSection.appendChild(previewNode);
 
-      recommendSectionNode = document.createElement("div");
-      recommendSectionNode.className = "section";
-      recommendSectionNode.innerHTML =
+      const recommendSection = document.createElement("div");
+      recommendSection.className = "section";
+      recommendSection.innerHTML =
         '<div class="section-title">当前段 AI 推荐结果</div><div class="section-note">展示听音与文本修正两阶段结果；AI 只提供建议，不自动保存、不自动提交。</div>';
       recommendationNode = document.createElement("div");
       recommendationNode.className = "recommend-grid";
       recommendationNode.textContent = "当前还没有 AI 推荐结果。";
       recommendationMetaNode = document.createElement("div");
       recommendationMetaNode.className = "meta-list";
-      recommendSectionNode.appendChild(recommendationNode);
-      recommendSectionNode.appendChild(recommendationMetaNode);
+      recommendSection.appendChild(recommendationNode);
+      recommendSection.appendChild(recommendationMetaNode);
 
-      const actionSection = document.createElement("div");
-      actionSection.className = "section";
-      actionSection.innerHTML =
-        '<div class="section-title">助手动作</div><div class="section-note">只处理当前左侧选中段，不自动保存、不自动提交。</div>';
-      const actionRow = document.createElement("div");
-      actionRow.className = "action-row";
-      const recommendButton = createButton("当前段 AI 推荐", true);
-      const markValidButton = createButton("设为 Valid", false);
-      const markInvalidButton = createButton("设为 Invalid", false);
-      const fillAllValidButton = createButton("未填写补 Valid", false);
-      recommendButton.addEventListener("click", function () {
-        deps.onRecommend && deps.onRecommend();
-      });
-      markValidButton.addEventListener("click", function () {
-        deps.onMarkValid && deps.onMarkValid();
-      });
-      markInvalidButton.addEventListener("click", function () {
-        deps.onMarkInvalid && deps.onMarkInvalid();
-      });
-      fillAllValidButton.addEventListener("click", function () {
-        deps.onFillAllValid && deps.onFillAllValid();
-      });
-      actionRow.appendChild(recommendButton);
-      actionRow.appendChild(markValidButton);
-      actionRow.appendChild(markInvalidButton);
-      actionRow.appendChild(fillAllValidButton);
-      actionSection.appendChild(actionRow);
-
-      panelNode.appendChild(head);
-      panelNode.appendChild(statusNode);
-      panelNode.appendChild(audioSection);
-      panelNode.appendChild(recommendSectionNode);
-      panelNode.appendChild(actionSection);
-      root.appendChild(panelNode);
-      return root;
-    }
-
-    function ensureSegmentButtons() {
-      if (!previewButton || !previewButton.isConnected) {
-        previewButton = createButton("生成画段建议", true);
-        previewButton.setAttribute(SEGMENT_BUTTON_ATTR, "");
-        previewButton.addEventListener("click", function () {
-          deps.onPreview && deps.onPreview();
-        });
-      }
-      if (!applyPreviewButton || !applyPreviewButton.isConnected) {
-        applyPreviewButton = createButton("应用当前建议", false);
-        applyPreviewButton.setAttribute(SEGMENT_BUTTON_ATTR, "");
-        applyPreviewButton.addEventListener("click", function () {
-          deps.onApplyPreview && deps.onApplyPreview();
-        });
-      }
+      middleAiRoot.appendChild(head);
+      middleAiRoot.appendChild(middleActionsNode);
+      middleAiRoot.appendChild(previewSection);
+      middleAiRoot.appendChild(recommendSection);
+      return middleAiRoot;
     }
 
     function mount() {
@@ -423,52 +494,48 @@
       if (!bodyHost) {
         return false;
       }
+      removeLegacySegmentButtons();
       const annotationHost = resolveGlobalAnnotationHost();
       if (!(annotationHost instanceof HTMLElement)) {
         return false;
       }
-      ensureRoot();
-      ensureSegmentButtons();
-      if (root.parentNode !== annotationHost) {
-        annotationHost.appendChild(root);
+      const annotationContentHost = resolveGlobalAnnotationContentHost(annotationHost);
+      if (!(annotationContentHost instanceof HTMLElement)) {
+        return false;
+      }
+      ensureRightRoot();
+      if (rightRoot.parentNode !== annotationContentHost) {
+        annotationContentHost.appendChild(rightRoot);
       }
 
-      const segmentHost = resolveSegmentActionsHost();
-      if (segmentHost instanceof HTMLElement) {
-        const firstChild = Array.from(segmentHost.children || [])[0] || null;
-        if (firstChild !== previewButton) {
-          segmentHost.insertBefore(previewButton, firstChild);
-        }
-        const currentChildren = Array.from(segmentHost.children || []);
-        const secondChild = currentChildren[1] || null;
-        if (secondChild !== applyPreviewButton) {
-          segmentHost.insertBefore(applyPreviewButton, secondChild);
+      const mandarinFieldBlock = findFieldBlock(["普通话顺滑", "普通话", "顺滑"]);
+      const mandarinValueHost =
+        findDescendantByClassToken(mandarinFieldBlock, "w-[100%]") || mandarinFieldBlock;
+      if (mandarinValueHost instanceof HTMLElement) {
+        ensureMiddleAiRoot();
+        if (middleAiRoot.parentNode !== mandarinValueHost) {
+          mandarinValueHost.appendChild(middleAiRoot);
         }
       }
       return true;
     }
 
     function destroy() {
-      if (root && root.parentNode) {
-        root.parentNode.removeChild(root);
+      if (rightRoot && rightRoot.parentNode) {
+        rightRoot.parentNode.removeChild(rightRoot);
       }
-      if (previewButton && previewButton.parentNode) {
-        previewButton.parentNode.removeChild(previewButton);
+      if (middleAiRoot && middleAiRoot.parentNode) {
+        middleAiRoot.parentNode.removeChild(middleAiRoot);
       }
-      if (applyPreviewButton && applyPreviewButton.parentNode) {
-        applyPreviewButton.parentNode.removeChild(applyPreviewButton);
-      }
-      root = null;
-      previewButton = null;
-      applyPreviewButton = null;
+      rightRoot = null;
+      rightPanelNode = null;
+      middleAiRoot = null;
+      middleActionsNode = null;
       statusNode = null;
       audioNode = null;
       previewNode = null;
       recommendationNode = null;
       recommendationMetaNode = null;
-      panelNode = null;
-      previewSectionNode = null;
-      recommendSectionNode = null;
     }
 
     return {

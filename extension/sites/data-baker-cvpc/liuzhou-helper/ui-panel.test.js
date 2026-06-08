@@ -280,6 +280,10 @@ function createHarness() {
   const panelTitle = new FakeNode("span");
   panelTitle.className = "label_title";
   panelTitle.textContent = "全局标注";
+  const labelContent = new FakeNode("div");
+  labelContent.className = "label_title_border2";
+  const asrLabelWrap = new FakeNode("div");
+  asrLabelWrap.className = "asr_label";
   const nativeValidity = new FakeNode("div");
   nativeValidity.className = "field-block validity-block";
   const nativeValidityLabel = new FakeNode("div");
@@ -317,8 +321,10 @@ function createHarness() {
   mandarinFieldBlock.appendChild(mandarinValue);
 
   globalPanel.appendChild(panelTitle);
-  globalPanel.appendChild(nativeValidity);
-  globalPanel.appendChild(mandarinFieldBlock);
+  asrLabelWrap.appendChild(nativeValidity);
+  asrLabelWrap.appendChild(mandarinFieldBlock);
+  labelContent.appendChild(asrLabelWrap);
+  globalPanel.appendChild(labelContent);
 
   const bottomRight = new FakeNode("div");
   bottomRight.className = "bottom-right";
@@ -361,6 +367,7 @@ function createHarness() {
     bottomRight,
     document,
     globalPanel,
+    labelContent,
     mandarinFieldBlock,
     nativeMergeButton,
     nativeSplitButton,
@@ -412,20 +419,24 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
     const runtime = uiModule.createRuntime({});
     runtime.mount();
 
-    const globalText = collectText(harness.globalPanel);
-    assert.match(globalText, /是否有效（Valid or Not）/);
-    assert.match(globalText, /当前段 AI 推荐/);
-    assert.match(globalText, /设为 Valid/);
-    assert.match(globalText, /设为 Invalid/);
-    assert.match(globalText, /未填写补 Valid/);
-    assert.match(globalText, /当前段 AI 推荐结果/);
-    assert.doesNotMatch(globalText, /填入当前推荐/);
-    assert.doesNotMatch(collectText(harness.mandarinFieldBlock), /当前段 AI 推荐/);
+    const panelNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-panel");
+    const middleNode = findAttrNode(harness.mandarinFieldBlock, "data-asc-cvpc-liuzhou-middle-ai");
+    assert.equal(panelNode.parentNode, harness.labelContent);
+    assert.match(collectText(harness.nativeValidity), /是否有效（Valid or Not）/);
+    assert.doesNotMatch(collectText(harness.nativeValidity), /未填写补 Valid/);
+    assert.match(collectText(middleNode), /当前段 AI 推荐/);
+    assert.match(collectText(middleNode), /未填写补 Valid/);
+    assert.match(collectText(middleNode), /生成画段建议/);
+    assert.match(collectText(middleNode), /应用当前建议/);
+    assert.match(collectText(middleNode), /当前段 AI 推荐结果/);
+    assert.doesNotMatch(collectText(middleNode), /设为 Valid/);
+    assert.doesNotMatch(collectText(middleNode), /设为 Invalid/);
+    assert.doesNotMatch(collectText(panelNode), /当前段 AI 推荐结果/);
+    assert.doesNotMatch(collectText(panelNode), /建议 1/);
 
-    assert.equal(collectText(harness.bottomRight.children[0]), "生成画段建议");
-    assert.equal(collectText(harness.bottomRight.children[1]), "应用当前建议");
-    assert.equal(harness.bottomRight.children[2], harness.nativeSplitButton);
-    assert.equal(harness.bottomRight.children[3], harness.nativeMergeButton);
+    assert.equal(harness.bottomRight.children[0], harness.nativeSplitButton);
+    assert.equal(harness.bottomRight.children[1], harness.nativeMergeButton);
+    assert.doesNotMatch(collectText(harness.bottomRight), /生成画段建议/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
@@ -465,14 +476,14 @@ test("CVPC ui panel renders current audio and selected range inside the global a
     assert.match(text, /35\.677 秒/);
     assert.match(text, /17\.112 秒/);
     assert.doesNotMatch(text, /当前画段建议/);
-    assert.match(text, /当前段 AI 推荐结果/);
+    assert.doesNotMatch(text, /当前段 AI 推荐结果/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
   }
 });
 
-test("CVPC ui panel renders preview and three staged recommendation cards inside the global annotation card", function () {
+test("CVPC ui panel renders preview and three staged recommendation cards inside the middle AI area", function () {
   const uiModule = loadUiPanelModule();
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -508,21 +519,24 @@ test("CVPC ui panel renders preview and three staged recommendation cards inside
       notes: ["人工确认"],
     });
 
+    const middleNode = findAttrNode(harness.mandarinFieldBlock, "data-asc-cvpc-liuzhou-middle-ai");
     const panelNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-panel");
-    const panelText = collectText(panelNode);
-    assert.match(panelText, /建议 1/);
-    assert.match(panelText, /音频的柳州话文本/);
-    assert.match(panelText, /听音柳州话/);
-    assert.match(panelText, /音频的普通话文本/);
-    assert.match(panelText, /听音普通话/);
-    assert.match(panelText, /修正后的柳州话文本/);
-    assert.match(panelText, /修正柳州话/);
-    assert.match(panelText, /口语化/);
-    assert.match(panelText, /人工确认/);
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /建议 1/);
+    assert.match(middleText, /音频的柳州话文本/);
+    assert.match(middleText, /听音柳州话/);
+    assert.match(middleText, /音频的普通话文本/);
+    assert.match(middleText, /听音普通话/);
+    assert.match(middleText, /修正后的柳州话文本/);
+    assert.match(middleText, /修正柳州话/);
+    assert.match(middleText, /口语化/);
+    assert.match(middleText, /人工确认/);
+    assert.doesNotMatch(collectText(panelNode), /听音柳州话/);
+    assert.doesNotMatch(collectText(panelNode), /建议 1/);
 
-    const audioDialectCard = findRecommendItemByTitle(panelNode, "音频的柳州话文本");
-    const audioMandarinCard = findRecommendItemByTitle(panelNode, "音频的普通话文本");
-    const refinedDialectCard = findRecommendItemByTitle(panelNode, "修正后的柳州话文本");
+    const audioDialectCard = findRecommendItemByTitle(middleNode, "音频的柳州话文本");
+    const audioMandarinCard = findRecommendItemByTitle(middleNode, "音频的普通话文本");
+    const refinedDialectCard = findRecommendItemByTitle(middleNode, "修正后的柳州话文本");
     findButtonByText(audioDialectCard, "填入标注文本").dispatchEvent({ type: "click" });
     findButtonByText(audioMandarinCard, "填入普通话顺滑").dispatchEvent({ type: "click" });
     findButtonByText(refinedDialectCard, "填入标注文本").dispatchEvent({ type: "click" });
