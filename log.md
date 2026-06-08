@@ -1,3 +1,20 @@
+## 2026-06-08（DataBaker CVPC 柳州话脚本音频 URL 获取接通）
+
+- `DataBaker CVPC / 柳州话脚本` 当前新增页内音频观察桥：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.js`
+  - 通过 `MAIN` world 捕获 `annotation/meta` 的相对音频路径与页面真实音频请求的签名 URL 映射。
+  - 观察结果只保存在页面运行时内存，并通过私有 `window.postMessage` 协议传给隔离世界，不写入 storage，不写入日志。
+- `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 当前按以下顺序解析当前音频 URL：
+  - 页内观察器映射
+  - `annotation/meta` 里的完整 URL 字段
+  - 顶层 DOM audio
+  - Performance resource
+  - 同源 iframe audio
+- `content.js` 当前在音频 URL 缺失时会提前提示用户先点击当前音频或播放一次后重试；现有 AI 推荐和画段建议请求结构保持不变。
+- 新增回归验证：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+
 ## 2026-06-08（DataBaker CVPC 柳州话脚本快捷键兼容热修）
 
 - 修复 `DataBaker CVPC / 柳州话脚本` 中部分历史快捷键无法触发的问题：

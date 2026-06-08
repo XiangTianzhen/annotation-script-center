@@ -181,6 +181,17 @@
         "https://cvpc.data-baker.com/*"
       ],
       "js": [
+        "sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://cvpc.data-baker.com/*"
+      ],
+      "js": [
         "shared/build-meta.js",
         "shared/constants.js",
         "shared/storage.js",

@@ -21,6 +21,9 @@
     CONSTANTS.DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH ||
     "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
   const DEFAULT_TIMEOUT_MS = Number(CONSTANTS.DEFAULT_AI_REQUEST_TIMEOUT_MS || 60000) || 60000;
+  const MISSING_AUDIO_MESSAGE =
+    dataApiFactory?.MISSING_AUDIO_MESSAGE ||
+    "未拿到当前音频签名 URL，请先点击当前音频或播放一次后重试；如仍失败请刷新页面。";
 
   let runtime = null;
   let routeTimer = null;
@@ -86,6 +89,9 @@
 
   async function buildCurrentContext() {
     const context = await runtime.dataApi.getEditorContext({ force: true });
+    if (!context.audioUrl) {
+      throw new Error(context.audioUrlHintMessage || MISSING_AUDIO_MESSAGE);
+    }
     return {
       audioUrl: context.audioUrl,
       audioDurationMs: context.audioDurationMs,
@@ -93,6 +99,7 @@
       fieldContext: context.fieldContext,
       editorContext: {
         query: context.query,
+        audioUrlSource: context.audioUrlSource || "",
         selectedEntry: context.selectedEntry,
         template: {
           attrs: context.template?.attrs || [],

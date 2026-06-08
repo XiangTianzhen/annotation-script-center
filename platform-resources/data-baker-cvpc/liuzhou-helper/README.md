@@ -17,6 +17,7 @@
   - `job_id`
   - `annotation/meta`
   - `template.attrs / entry_attrs / moment_attrs`
+  - 当前音频签名 URL：运行时优先从页内观察桥映射获取，缺失时再回退到 `annotation/meta`、DOM audio、Performance 与同源 iframe audio
 - 当前页工具面板：
   - 生成画段建议
   - 当前段 AI 推荐
@@ -61,6 +62,8 @@
 extension/sites/data-baker-cvpc/liuzhou-helper/
   README.md
   content.js
+  page-world/
+    audio-observer.js
   data-api.js
   ai-recommendation.js
   segmentation-controller.js

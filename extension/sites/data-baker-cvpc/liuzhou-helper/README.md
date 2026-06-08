@@ -8,6 +8,7 @@
 ## 当前能力
 
 - 读取 `annotation/meta` 和当前路由上下文
+- 通过 `MAIN` world 页内观察桥捕获当前音频签名 URL，并在 `data-api.js` 内按观察器、`annotation/meta`、DOM audio、Performance、同源 iframe audio 逐级回退
 - 在 `.page-top .top-right` 工具栏追加当前音频动作按钮
 - 生成当前音频的画段建议
 - 对当前段生成：
@@ -28,9 +29,10 @@
 
 ## 文件
 
+- `page-world/audio-observer.js`：页内音频观察桥，捕获 `annotation/meta` 与当前音频签名 URL 的运行时映射
 - `content.js`：入口编排与路由检测
 - `editing-tab-tip-guard.js`：精确屏蔽固定文案的 Tab 限制提示
-- `data-api.js`：读取编辑器上下文与实验性 DOM 写入
+- `data-api.js`：读取编辑器上下文、解析当前音频 URL 与实验性 DOM 写入
 - `segmentation-controller.js`：画段建议生成与应用编排
 - `ai-recommendation.js`：当前段 AI 推荐调用
 - `ui-panel.js`：顶部工具栏按钮 + 悬浮状态面板
