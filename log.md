@@ -1,3 +1,22 @@
+## 2026-06-09（DataBaker CVPC 柳州话脚本收口右侧信息区并集中 AI 区）
+
+- `DataBaker CVPC / 柳州话脚本` 当前继续收口页面布局：
+  - 右侧 `柳州话脚本 Beta` 不再作为独立大块卡片展示；当前改为紧跟 `是否有效（Valid or Not）` 下方的连续紧凑信息区。
+  - 右侧当前只保留状态、当前音频摘要和提示说明，不再承载 AI 推荐结果与画段建议结果。
+  - 中间 `普通话顺滑` 下方当前升级为统一 AI 区，集中承载：
+    - `当前段 AI 推荐`
+    - `填入当前推荐`
+    - `生成画段建议`
+    - `应用当前建议`
+    - 当前画段建议结果
+    - 当前段 AI 推荐结果
+- `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js` 当前完成挂载重组：
+  - 保留 `未填写补 Valid` 在有效性单选区右侧。
+  - 移除波形区 `.bottom-right` 的柳州话 AI 按钮挂载，不再与平台原生波形控件混排。
+  - 新增中间 AI 区容器，统一承载后续 AI 动作扩展位与结果展示位。
+- 回归验证补充：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js` 当前新增中间 AI 区结果渲染覆盖，并确认波形区不再出现柳州话 AI 按钮。
+
 ## 2026-06-08（DataBaker CVPC 柳州话脚本调整原生字段按钮挂载与批量补 Valid）
 
 - `DataBaker CVPC / 柳州话脚本` 当前进一步收口右侧原生表单挂载：

@@ -4,6 +4,8 @@
   const VALIDITY_ACTIONS_ATTR = "data-asc-cvpc-liuzhou-validity-actions";
   const VALIDITY_ACTION_ROW_ATTR = "data-asc-cvpc-liuzhou-validity-row";
   const RECOMMEND_ACTIONS_ATTR = "data-asc-cvpc-liuzhou-recommend-actions";
+  const MIDDLE_AI_ATTR = "data-asc-cvpc-liuzhou-middle-ai";
+  const MIDDLE_AI_ACTIONS_ATTR = "data-asc-cvpc-liuzhou-middle-ai-actions";
   const STYLE_ID = "asc-cvpc-liuzhou-panel-style";
 
   function normalizeText(value) {
@@ -26,14 +28,12 @@
     style.id = STYLE_ID;
     style.textContent = [
       "[" + ROOT_ATTR + "] {",
-      "  margin-top: 12px;",
-      "  padding-top: 12px;",
-      "  border-top: 1px solid #ebeef5;",
       "  color: #303133;",
       "  font-size: 12px;",
       "  line-height: 1.6;",
       "}",
       "[" + ROOT_ATTR + "] * { box-sizing: border-box; }",
+      "[" + ROOT_ATTR + "] .panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ebeef5; }",
       "[" + ROOT_ATTR + "] .head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }",
       "[" + ROOT_ATTR + "] .title { font-size:14px; font-weight:700; color:#92400e; }",
       "[" + ROOT_ATTR + "] .sub { margin-top:2px; color:#909399; }",
@@ -51,10 +51,8 @@
       "[" + ROOT_ATTR + "] .audio-url-details { margin-top:8px; }",
       "[" + ROOT_ATTR + "] .audio-url-details summary { cursor:pointer; color:#909399; user-select:none; }",
       "[" + ROOT_ATTR + "] .audio-url-full { margin:6px 0 0; white-space:pre-wrap; font-family:ui-monospace, SFMono-Regular, Consolas, monospace; }",
-      "[" + ROOT_ATTR + "] .preview-list, [" + ROOT_ATTR + "] .recommend-grid { margin-top:8px; display:grid; gap:8px; }",
-      "[" + ROOT_ATTR + "] .preview-item, [" + ROOT_ATTR + "] .recommend-item { padding:8px; border:1px solid #ebeef5; border-radius:8px; background:#f8fafc; }",
-      "[" + ROOT_ATTR + "] .preview-item strong, [" + ROOT_ATTR + "] .recommend-item strong { display:block; color:#334155; }",
-      "[" + ROOT_ATTR + "] button, [" + SEGMENT_ACTIONS_ATTR + "] button {",
+      "[" + ROOT_ATTR + "] .foot { margin-top:10px; color:#9a3412; }",
+      "[" + ROOT_ATTR + "] button, [" + MIDDLE_AI_ATTR + "] button {",
       "  min-height: 28px;",
       "  padding: 7px 12px;",
       "  border: 1px solid #dcdfe6;",
@@ -68,26 +66,35 @@
       "  cursor: pointer;",
       "  transition: .1s;",
       "}",
-      "[" + ROOT_ATTR + "] button[data-primary='true'], [" + SEGMENT_ACTIONS_ATTR + "] button[data-primary='true'] {",
+      "[" + ROOT_ATTR + "] button[data-primary='true'], [" + MIDDLE_AI_ATTR + "] button[data-primary='true'] {",
       "  background: #e6a23c;",
       "  border-color: #e6a23c;",
       "  color: #fff;",
       "}",
-      "[" + ROOT_ATTR + "] button:hover, [" + SEGMENT_ACTIONS_ATTR + "] button:hover {",
+      "[" + ROOT_ATTR + "] button:hover, [" + MIDDLE_AI_ATTR + "] button:hover {",
       "  color: #409eff;",
       "  border-color: #c6e2ff;",
       "  background: #ecf5ff;",
       "}",
-      "[" + ROOT_ATTR + "] button[data-primary='true']:hover, [" + SEGMENT_ACTIONS_ATTR + "] button[data-primary='true']:hover {",
+      "[" + ROOT_ATTR + "] button[data-primary='true']:hover, [" + MIDDLE_AI_ATTR + "] button[data-primary='true']:hover {",
       "  color: #fff;",
       "  border-color: #ebb563;",
       "  background: #ebb563;",
       "}",
-      "[" + ROOT_ATTR + "] .foot { margin-top:10px; color:#9a3412; }",
-      "[" + SEGMENT_ACTIONS_ATTR + "] { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-right: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] { margin-top: 12px; padding-top: 12px; border-top: 1px solid #ebeef5; }",
+      "[" + MIDDLE_AI_ATTR + "] .ai-title { font-size:13px; font-weight:700; color:#92400e; }",
+      "[" + MIDDLE_AI_ATTR + "] .ai-sub { margin-top:2px; color:#909399; font-size:12px; }",
+      "[" + MIDDLE_AI_ATTR + "] .section { margin-top:12px; }",
+      "[" + MIDDLE_AI_ATTR + "] .section-title { font-weight:700; color:#303133; }",
+      "[" + MIDDLE_AI_ATTR + "] .section-note { margin-top:4px; color:#909399; }",
+      "[" + MIDDLE_AI_ATTR + "] .preview-list, [" + MIDDLE_AI_ATTR + "] .recommend-grid { margin-top:8px; display:grid; gap:8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .preview-item, [" + MIDDLE_AI_ATTR + "] .recommend-item { padding:8px; border:1px solid #ebeef5; border-radius:8px; background:#f8fafc; }",
+      "[" + MIDDLE_AI_ATTR + "] .preview-item strong, [" + MIDDLE_AI_ATTR + "] .recommend-item strong { display:block; color:#334155; }",
+      "[" + MIDDLE_AI_ACTIONS_ATTR + "] { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }",
+      "[" + SEGMENT_ACTIONS_ATTR + "] { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px; }",
       "[" + VALIDITY_ACTION_ROW_ATTR + "] { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }",
       "[" + VALIDITY_ACTIONS_ATTR + "] { display:flex; align-items:center; gap:8px; }",
-      "[" + RECOMMEND_ACTIONS_ATTR + "] { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }",
+      "[" + RECOMMEND_ACTIONS_ATTR + "] { display:flex; flex-wrap:wrap; gap:8px; }",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -198,6 +205,8 @@
     let segmentActionsRoot = null;
     let validityActionsRoot = null;
     let recommendActionsRoot = null;
+    let middleAiRoot = null;
+    let middleAiActionsRoot = null;
     let statusNode = null;
     let audioNode = null;
     let previewNode = null;
@@ -336,14 +345,15 @@
         return false;
       }
       const annotationHost = resolveGlobalAnnotationHost();
-      const segmentHost = resolveSegmentActionsHost();
-      if (!(annotationHost instanceof HTMLElement) || !(segmentHost instanceof HTMLElement)) {
+      if (!(annotationHost instanceof HTMLElement)) {
         return false;
       }
 
       if (!root || !root.isConnected) {
         root = document.createElement("section");
         root.setAttribute(ROOT_ATTR, "");
+        const panel = document.createElement("div");
+        panel.className = "panel";
 
         const head = document.createElement("div");
         head.className = "head";
@@ -356,41 +366,22 @@
         const audioSection = document.createElement("div");
         audioSection.className = "section";
         audioSection.innerHTML =
-          '<div class="section-title">当前音频地址</div><div class="section-note">页面刷新后自动获取，仅在本页运行时显示。</div>';
+          '<div class="section-title">当前音频地址</div><div class="section-note">页面刷新后自动获取，仅在右侧连续信息区显示。</div>';
         audioNode = document.createElement("div");
         audioNode.className = "audio-url-box";
         audioNode.setAttribute("data-empty", "true");
         audioNode.textContent = "正在获取当前音频地址...";
         audioSection.appendChild(audioNode);
 
-        const previewSection = document.createElement("div");
-        previewSection.className = "section";
-        previewSection.innerHTML =
-          '<div class="section-title">当前画段建议</div><div class="section-note">只展示建议，真实画段仍需人工确认。</div>';
-        previewNode = document.createElement("div");
-        previewNode.className = "preview-list";
-        previewNode.textContent = "当前还没有画段建议。";
-        previewSection.appendChild(previewNode);
-
-        const recommendSection = document.createElement("div");
-        recommendSection.className = "section";
-        recommendSection.innerHTML =
-          '<div class="section-title">当前段 AI 推荐</div><div class="section-note">AI 只提供建议，不自动保存、不自动提交。</div>';
-        recommendationNode = document.createElement("div");
-        recommendationNode.className = "recommend-grid";
-        recommendationNode.textContent = "当前还没有 AI 推荐结果。";
-        recommendSection.appendChild(recommendationNode);
-
         const foot = document.createElement("div");
         foot.className = "foot";
-        foot.textContent = "提示：真实 segment create/update、保存接口和稳定字段映射仍待补采；当前所有写入都必须人工复核。";
+        foot.textContent = "提示：AI 建议与画段建议已集中到中间区域；真实写入仍需人工复核。";
 
-        root.appendChild(head);
-        root.appendChild(statusNode);
-        root.appendChild(audioSection);
-        root.appendChild(previewSection);
-        root.appendChild(recommendSection);
-        root.appendChild(foot);
+        panel.appendChild(head);
+        panel.appendChild(statusNode);
+        panel.appendChild(audioSection);
+        panel.appendChild(foot);
+        root.appendChild(panel);
       }
 
       if (!segmentActionsRoot || !segmentActionsRoot.isConnected) {
@@ -433,6 +424,41 @@
         recommendActionsRoot.appendChild(applyRecommendButton);
       }
 
+      if (!middleAiRoot || !middleAiRoot.isConnected) {
+        middleAiRoot = document.createElement("section");
+        middleAiRoot.setAttribute(MIDDLE_AI_ATTR, "");
+
+        const head = document.createElement("div");
+        head.innerHTML =
+          '<div class="ai-title">柳州话脚本 AI 区</div><div class="ai-sub">当前段推荐、画段建议和后续 AI 扩展统一集中在这里。</div>';
+
+        middleAiActionsRoot = document.createElement("div");
+        middleAiActionsRoot.setAttribute(MIDDLE_AI_ACTIONS_ATTR, "");
+
+        const previewSection = document.createElement("div");
+        previewSection.className = "section";
+        previewSection.innerHTML =
+          '<div class="section-title">当前画段建议</div><div class="section-note">只展示建议，真实画段仍需人工确认。</div>';
+        previewNode = document.createElement("div");
+        previewNode.className = "preview-list";
+        previewNode.textContent = "当前还没有画段建议。";
+        previewSection.appendChild(previewNode);
+
+        const recommendSection = document.createElement("div");
+        recommendSection.className = "section";
+        recommendSection.innerHTML =
+          '<div class="section-title">当前段 AI 推荐结果</div><div class="section-note">AI 只提供建议，不自动保存、不自动提交。</div>';
+        recommendationNode = document.createElement("div");
+        recommendationNode.className = "recommend-grid";
+        recommendationNode.textContent = "当前还没有 AI 推荐结果。";
+        recommendSection.appendChild(recommendationNode);
+
+        middleAiRoot.appendChild(head);
+        middleAiRoot.appendChild(middleAiActionsRoot);
+        middleAiRoot.appendChild(previewSection);
+        middleAiRoot.appendChild(recommendSection);
+      }
+
       if (root.parentNode !== annotationHost) {
         annotationHost.appendChild(root);
       }
@@ -462,15 +488,15 @@
       const mandarinValueHost =
         findDescendantByClassToken(mandarinFieldBlock, "w-[100%]") ||
         mandarinFieldBlock;
-      if (mandarinValueHost instanceof HTMLElement && recommendActionsRoot.parentNode !== mandarinValueHost) {
-        mandarinValueHost.appendChild(recommendActionsRoot);
-      }
-      if (segmentActionsRoot.parentNode !== segmentHost) {
-        const firstChild = segmentHost.children && segmentHost.children[0] ? segmentHost.children[0] : null;
-        if (firstChild) {
-          segmentHost.insertBefore(segmentActionsRoot, firstChild);
-        } else {
-          segmentHost.appendChild(segmentActionsRoot);
+      if (mandarinValueHost instanceof HTMLElement) {
+        if (middleAiRoot.parentNode !== mandarinValueHost) {
+          mandarinValueHost.appendChild(middleAiRoot);
+        }
+        if (recommendActionsRoot.parentNode !== middleAiActionsRoot) {
+          middleAiActionsRoot.appendChild(recommendActionsRoot);
+        }
+        if (segmentActionsRoot.parentNode !== middleAiActionsRoot) {
+          middleAiActionsRoot.appendChild(segmentActionsRoot);
         }
       }
       return true;
@@ -489,10 +515,15 @@
       if (recommendActionsRoot && recommendActionsRoot.parentNode) {
         recommendActionsRoot.parentNode.removeChild(recommendActionsRoot);
       }
+      if (middleAiRoot && middleAiRoot.parentNode) {
+        middleAiRoot.parentNode.removeChild(middleAiRoot);
+      }
       root = null;
       segmentActionsRoot = null;
       validityActionsRoot = null;
       recommendActionsRoot = null;
+      middleAiRoot = null;
+      middleAiActionsRoot = null;
       statusNode = null;
       audioNode = null;
       previewNode = null;

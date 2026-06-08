@@ -19,10 +19,11 @@
   - `template.attrs / entry_attrs / moment_attrs`
   - 当前音频签名 URL：运行时优先从页内观察桥映射获取；页内桥会消费页面真实 `annotation/meta` 响应、顶层页面或同源 `xaudio` iframe 的真实音频请求和初始化阶段控制台打印的音频 URL。若扩展自身直连 `annotation/meta` 因平台鉴权返回失败，会回退使用页内桥传入的运行时 meta；缺失时再回退到 DOM audio、Performance 与同源 iframe audio
 - 当前页工具面板：
-  - 助手区嵌入右侧 `全局标注` 卡片，保持原生 `Valid / Invalid` 在上方，助手区固定显示状态、当前音频/当前段摘要、AI 推荐结果和说明
+  - 助手区嵌入右侧 `全局标注` 卡片，保持原生 `Valid / Invalid` 在上方；右侧当前只保留紧凑状态、当前音频/当前段摘要和提示说明
   - `未填写补 Valid` 当前挂在 `是否有效（Valid or Not）` 单选区右侧
   - `当前段 AI 推荐`、`填入当前推荐` 当前挂在 `普通话顺滑` 输入区下方
-  - `生成画段建议`、`应用当前建议` 继续前置挂到波形区 `.bottom-right`
+  - `生成画段建议`、`应用当前建议` 当前也集中挂到 `普通话顺滑` 下方的中间 AI 区
+  - 当前画段建议结果与当前段 AI 推荐结果当前统一显示在中间 AI 区，不再放在右侧助手信息区
   - 当前段 AI 推荐严格按当前波形选中段工作：实时读取 `.xaudio_time` 的 `开始 / 结束`，浏览器端只裁这一段音频
   - 浏览器端会把片段转成 `16k` 单声道 WAV，上传到临时 clip-cache，后端返回 1 小时临时 URL，再把该 URL 发给现有 AI 推荐接口
   - 当前段填入建议当前兼容页面 `contenteditable .ProseMirror`
