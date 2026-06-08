@@ -19,7 +19,7 @@
   - `template.attrs / entry_attrs / moment_attrs`
   - 当前音频签名 URL：运行时优先从页内观察桥映射获取；页内桥会消费页面真实 `annotation/meta` 响应、顶层页面或同源 `xaudio` iframe 的真实音频请求和初始化阶段控制台打印的音频 URL。若扩展自身直连 `annotation/meta` 因平台鉴权返回失败，会回退使用页内桥传入的运行时 meta；缺失时再回退到 DOM audio、Performance 与同源 iframe audio
 - 当前页工具面板：
-  - 在“柳州话脚本 Beta”悬浮窗展示当前音频地址、当前文件和 URL 来源，仅保留在页面运行时
+  - 在“柳州话脚本 Beta”悬浮窗展示当前音频文件、URL 来源和可点击音频链接；完整签名地址默认折叠，仅保留在页面运行时
   - 生成画段建议
   - 当前段 AI 推荐
   - 当前段填入建议

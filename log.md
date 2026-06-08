@@ -70,6 +70,13 @@
 - 新增回归验证：
   - `extension/sites/magic-data/shared/ai-review-client.test.js` 覆盖“Job succeeded + data.success + data.data”结构，确保前端最终拿到真正的质检结果对象。
 
+## 2026-06-08（DataBaker CVPC 柳州话脚本音频地址面板折叠优化）
+
+- `DataBaker CVPC / 柳州话脚本` 的悬浮窗当前优化“当前音频地址”展示：
+  - 默认只展示当前音频文件、URL 来源和“打开当前音频 URL”链接。
+  - 完整签名地址放入折叠详情，默认不展开。
+- `page-world/audio-observer.js` 当前不再包装 `console.warn`，避免平台阿里云 STS warning 的堆栈被归到扩展脚本；音频 URL 捕获继续监听 `console.log/info/debug`。
+
 ## 2026-06-08（DataBaker CVPC 柳州话脚本补获 iframe 音频 URL）
 
 - 通过真实 Edge 页面继续排查确认：`gAudioUrl / audio_url` 出现在同源 `/app/xaudio/label/` iframe 中，顶层页内观察器无法直接捕获该 iframe 的控制台音频 URL。

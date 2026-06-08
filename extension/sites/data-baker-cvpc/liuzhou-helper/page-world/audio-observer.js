@@ -322,7 +322,7 @@
       if (!consoleLike) {
         return;
       }
-      ["log", "info", "debug", "warn"].forEach(function (method) {
+      ["log", "info", "debug"].forEach(function (method) {
         if (typeof consoleLike[method] !== "function") {
           return;
         }

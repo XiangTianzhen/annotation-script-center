@@ -81,6 +81,16 @@ class FakeNode {
         return String(node.className || "") === "audio-url-box";
       });
     }
+    if (selector === ".audio-url-link") {
+      return findNode(this, function (node) {
+        return String(node.className || "") === "audio-url-link";
+      });
+    }
+    if (selector === ".audio-url-details") {
+      return findNode(this, function (node) {
+        return String(node.className || "") === "audio-url-details";
+      });
+    }
     return null;
   }
 
@@ -201,6 +211,18 @@ test("CVPC ui panel renders current audio url and source in the floating panel",
     assert.match(text, /sample\.mp3/);
     assert.match(text, /observer/);
     assert.match(text, /Signature=visible/);
+
+    const link = harness.body.querySelector(".audio-url-link");
+    const details = harness.body.querySelector(".audio-url-details");
+    assert.ok(link);
+    assert.equal(
+      link.getAttribute("href"),
+      "https://oss.example.com/databaker/data/sample.mp3?Signature=visible"
+    );
+    assert.equal(link.getAttribute("target"), "_blank");
+    assert.equal(link.textContent, "打开当前音频 URL");
+    assert.ok(details);
+    assert.equal(details.getAttribute("open"), "");
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

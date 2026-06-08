@@ -347,6 +347,23 @@ test("CVPC audio observer installed console wrapper captures info audio url", fu
   assert.match(snapshot.mappings[0].audioUrl, /Signature=info-console/);
 });
 
+test("CVPC audio observer does not wrap console warn", function () {
+  const observerModule = loadObserverModule();
+  const harness = createWindowHarness();
+  const nativeWarn = harness.window.console.warn;
+  const observer = observerModule.createObserver({
+    window: harness.window,
+    location: {
+      origin: "https://cvpc.data-baker.com",
+      href: "https://cvpc.data-baker.com/app/editor/asr/",
+    },
+  });
+
+  observer.install();
+
+  assert.equal(harness.window.console.warn, nativeWarn);
+});
+
 test("CVPC audio observer ignores unmatched or non-audio urls", function () {
   const observerModule = loadObserverModule();
   const harness = createWindowHarness();

@@ -45,6 +45,12 @@
       "[" + ROOT_ATTR + "] .section-note { color:#64748b; margin-top:4px; }",
       "[" + ROOT_ATTR + "] .audio-url-box { margin-top:8px; padding:8px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; color:#334155; overflow-wrap:anywhere; word-break:break-all; }",
       "[" + ROOT_ATTR + "] .audio-url-box[data-empty='true'] { color:#64748b; word-break:normal; }",
+      "[" + ROOT_ATTR + "] .audio-url-summary { color:#334155; word-break:normal; }",
+      "[" + ROOT_ATTR + "] .audio-url-link { display:inline-block; margin-top:6px; color:#2563eb; text-decoration:none; font-weight:700; }",
+      "[" + ROOT_ATTR + "] .audio-url-link:hover { text-decoration:underline; }",
+      "[" + ROOT_ATTR + "] .audio-url-details { margin-top:8px; }",
+      "[" + ROOT_ATTR + "] .audio-url-details summary { cursor:pointer; color:#64748b; user-select:none; }",
+      "[" + ROOT_ATTR + "] .audio-url-full { margin:6px 0 0; white-space:pre-wrap; font-family:ui-monospace, SFMono-Regular, Consolas, monospace; }",
       "[" + ROOT_ATTR + "] .preview-list, [" + ROOT_ATTR + "] .recommend-grid { margin-top:8px; display:grid; gap:8px; }",
       "[" + ROOT_ATTR + "] .preview-item, [" + ROOT_ATTR + "] .recommend-item { padding:8px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; }",
       "[" + ROOT_ATTR + "] .preview-item strong, [" + ROOT_ATTR + "] .recommend-item strong { display:block; color:#334155; }",
@@ -200,13 +206,40 @@
         return;
       }
       audioNode.setAttribute("data-empty", "false");
-      audioNode.textContent = [
+      audioNode.innerHTML = "";
+
+      const summary = document.createElement("div");
+      summary.className = "audio-url-summary";
+      summary.textContent = [
         entryName ? "文件：" + entryName : "",
         sourceText ? "来源：" + sourceText : "",
-        "地址：" + audioUrl,
       ]
         .filter(Boolean)
-        .join("\n");
+        .join("；");
+
+      const link = document.createElement("a");
+      link.className = "audio-url-link";
+      link.href = audioUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.setAttribute("href", audioUrl);
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+      link.textContent = "打开当前音频 URL";
+
+      const details = document.createElement("details");
+      details.className = "audio-url-details";
+      const detailsSummary = document.createElement("summary");
+      detailsSummary.textContent = "展开查看完整地址";
+      const fullUrl = document.createElement("pre");
+      fullUrl.className = "audio-url-full";
+      fullUrl.textContent = audioUrl;
+      details.appendChild(detailsSummary);
+      details.appendChild(fullUrl);
+
+      audioNode.appendChild(summary);
+      audioNode.appendChild(link);
+      audioNode.appendChild(details);
     }
 
     function ensurePanelVisibility(visible) {
