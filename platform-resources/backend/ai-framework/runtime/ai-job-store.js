@@ -70,6 +70,15 @@ function isTerminalStatus(status) {
   return status === "succeeded" || status === "failed" || status === "expired";
 }
 
+function getJobSortTimestamp(job) {
+  return (
+    Number(job?.updatedAt || 0) ||
+    Number(job?.finishedAt || 0) ||
+    Number(job?.createdAt || 0) ||
+    0
+  );
+}
+
 function getDefaultAiJobStoreConfig() {
   return {
     enabled: String(process.env.ASC_AI_ASYNC_JOBS_ENABLED || "1").trim() !== "0",
@@ -155,6 +164,17 @@ class AiJobStore {
     control.timeoutTimer = null;
   }
 
+  removeJob(jobId) {
+    const normalizedJobId = normalizeText(jobId);
+    if (!normalizedJobId) {
+      return false;
+    }
+    this.clearControl(normalizedJobId);
+    this.controls.delete(normalizedJobId);
+    this.debugByJobId.delete(normalizedJobId);
+    return this.jobs.delete(normalizedJobId);
+  }
+
   pruneExpired(now) {
     const currentTime = Number(now) || this.now();
     const ttlMs = this.getConfig().ttlMs;
@@ -207,18 +227,19 @@ class AiJobStore {
     }
     const candidates = Array.from(this.jobs.values())
       .filter(function (job) {
-        return job && job.status === "expired";
+        return job && isTerminalStatus(job.status);
       })
       .sort(function (left, right) {
-        return Number(left?.updatedAt || 0) - Number(right?.updatedAt || 0);
+        return getJobSortTimestamp(left) - getJobSortTimestamp(right);
       });
     while (activeSize >= config.maxSize && candidates.length > 0) {
       const oldest = candidates.shift();
       if (!oldest?.jobId) {
         continue;
       }
-      this.jobs.delete(oldest.jobId);
-      activeSize -= 1;
+      if (this.removeJob(oldest.jobId)) {
+        activeSize -= 1;
+      }
     }
     if (activeSize >= config.maxSize) {
       throw createStoreFullError();
@@ -438,18 +459,26 @@ class AiJobStore {
         expiredCount += 1;
       }
     });
+    const usedCount = pendingCount + runningCount + succeededCount + failedCount;
+    const capacity = Math.max(0, Number(config.maxSize || 0) || 0);
+    const availableCount = Math.max(0, capacity - usedCount);
     return {
       enabled: config.enabled,
       ttlMs: config.ttlMs,
       timeoutMs: config.timeoutMs,
       maxSize: config.maxSize,
       pollIntervalMs: config.pollIntervalMs,
+      capacity,
       pendingCount,
       runningCount,
       succeededCount,
       failedCount,
       expiredCount,
       activeCount: pendingCount + runningCount,
+      usedCount,
+      availableCount,
+      isFull: capacity > 0 && usedCount >= capacity,
+      utilizationPercent: capacity > 0 ? Math.round((usedCount / capacity) * 100) : 0,
     };
   }
 }

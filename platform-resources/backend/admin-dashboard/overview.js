@@ -19,10 +19,38 @@ function toPoolDisplayName(groupName) {
 
 function normalizeRuntime(runtime) {
   const source = runtime && typeof runtime === "object" ? runtime : {};
+  const jobs = source.jobs && typeof source.jobs === "object" ? source.jobs : {};
   const queue = source.queue && typeof source.queue === "object" ? source.queue : {};
   const activePools = Array.isArray(queue.activePools) ? queue.activePools : [];
+  const pendingCount = Number(jobs.pendingCount || 0) || 0;
+  const runningCount = Number(jobs.runningCount || 0) || 0;
+  const succeededCount = Number(jobs.succeededCount || 0) || 0;
+  const failedCount = Number(jobs.failedCount || 0) || 0;
+  const usedCount =
+    Number(jobs.usedCount || pendingCount + runningCount + succeededCount + failedCount) || 0;
+  const capacity =
+    Number(jobs.capacity || jobs.maxSize || 0) || 0;
+  const availableCount = Math.max(
+    0,
+    Number(jobs.availableCount || capacity - usedCount) || 0
+  );
   return {
-    jobs: source.jobs && typeof source.jobs === "object" ? source.jobs : {},
+    jobs: Object.assign({}, jobs, {
+      pendingCount,
+      runningCount,
+      succeededCount,
+      failedCount,
+      expiredCount: Math.max(0, Number(jobs.expiredCount || 0) || 0),
+      activeCount: Number(jobs.activeCount || pendingCount + runningCount) || 0,
+      usedCount,
+      capacity,
+      availableCount,
+      isFull: jobs.isFull === true || (capacity > 0 && usedCount >= capacity),
+      utilizationPercent:
+        capacity > 0
+          ? Math.round((usedCount / capacity) * 100)
+          : 0,
+    }),
     queue: {
       keyStrategy: normalizeText(queue.keyStrategy) || "concrete-model-name",
       defaultModelPool:

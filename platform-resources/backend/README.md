@@ -376,10 +376,11 @@ DataBaker CVPC AI / 画段接口：
 - `POST /api/admin/session/unlock`
 - `GET /api/admin/dashboard/overview`
 - `GET /api/admin/dashboard/overview`
-  - 当前返回模型池占用所需的 queue 快照、后端状态、数据导出摘要和 `logsSummary`
+  - 当前返回模型池占用所需的 queue 快照、共享 AI 任务池容量快照、后端状态、数据导出摘要和 `logsSummary`
   - `logsSummary` 包含最近 `24` 小时 `success / warn / error` 计数、`retentionDays=7` 和最近一条失败摘要
   - 前端 `options` 仪表盘默认每 `60` 秒自动刷新一次，并可手动刷新
   - 模型池快照当前按“总容量”语义返回：`capacity / usedCount / availableCount / isFull / utilizationPercent`
+  - 任务池快照当前同样返回：`capacity / usedCount / availableCount / isFull / utilizationPercent`
 - `GET /api/admin/dashboard/runtime-logs`
   - 返回最近运行日志，默认近 `20` 条、按时间倒序
   - 日志文件落在 `platform-resources/backend/admin-dashboard/runtime-data/runtime-YYYY-MM-DD.jsonl`
@@ -440,7 +441,9 @@ DataBaker AI 架构补充：
 - DataBaker 批量“AI连续填入合格项”默认改为短请求创建 `POST /api/data-baker/round-one-quality/ai/recommend/jobs`，再轮询 `GET /jobs/:jobId`；同步 recommend 保留为兼容 / 调试入口。
 - Omni legacy 快速路径不使用 async job、Fun-ASR REST、Python 或 SSE；它只用于先恢复 Qwen Omni 的基础速度和稳定性。
 - job health 会返回 `jobs.maxSize / jobs.timeoutMs / jobs.activeCount / jobs.pendingCount / jobs.runningCount / jobs.succeededCount / jobs.failedCount` 以及 `queue.maxSize / queue.groups.*.pendingCount / activeCount / maxConcurrent`。
+- job health 当前额外返回 `jobs.capacity / jobs.usedCount / jobs.availableCount / jobs.isFull / jobs.utilizationPercent`，用于区分“共享任务池已满”还是“具体模型池排队中”。
 - 系统仪表盘与模型池卡片当前优先展示 `总占用 = activeCount + pendingCount`：`activeCount` 表示已经开始调用上游但尚未完成，`pendingCount` 表示已接收但仍在等待发起。
+- 当共享任务池达到上限时，后端当前会优先回收最早的终态 job（`succeeded / failed / expired`），避免旧成功记录长期占满整个任务池；如果运行中和待启动任务本身已经把池打满，仍会返回 `ai-job-store-full`。
 - `loadFailureDebugJson` 前端兜底函数已恢复定义；如果当前失败项没有 debug 数据，会提示“当前失败项没有可复制的原始 JSON。”，不再抛 `ReferenceError`。
 - 如果模型输出 JSON 解析失败，可通过 `GET /api/data-baker/round-one-quality/ai/recommend/jobs/:jobId/debug` 复制脱敏后的原始模型输出排查 Prompt / schema。
 - 如果“AI连续填入合格项”看起来像串行，先区分两层：前端悬浮窗是否已经灌满请求窗口（`已发起AI请求 / 前端活跃AI请求 / AI已返回`），以及后端 `health.queue.groups.fun_asr.activeCount/maxConcurrent` 与系统仪表盘 `总占用` 是否能持续拉高；若 `activeCount` 长期为 `1` 且总占用也上不去，优先检查 `DATABAKER_AI_FUN_ASR_CONCURRENCY` 和 `DATABAKER_AI_FUN_ASR_RPM_LIMIT`。

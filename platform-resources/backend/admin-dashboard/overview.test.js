@@ -86,10 +86,39 @@ test("admin dashboard overview returns pool occupancy and runtime log summary pa
   assert.equal(overview.data.runtime.queue.activePools[0].isFull, false);
   assert.equal(overview.data.runtime.queue.activePools[0].utilizationPercent, 2);
   assert.equal(overview.data.runtime.queue.activePools[1].displayName, "qwen3.5-omni-flash");
+  assert.equal(overview.data.runtime.jobs.capacity, 0);
   assert.equal(overview.data.downloads.projectDataDatasets.length, 1);
   assert.equal(overview.data.downloads.aiCallLogDatasets.length, 1);
   assert.equal(overview.data.logsSummary.retentionDays, 7);
   assert.equal(overview.data.logsSummary.recent24Hours.warnCount, 1);
   assert.equal(overview.data.logsSummary.latestFailure.scope, "admin.project_data_download");
   assert.equal("stats" in overview.data, false);
+});
+
+test("admin dashboard overview preserves task store capacity snapshot", function () {
+  const overview = buildAdminDashboardOverview({
+    runtime: {
+      jobs: {
+        maxSize: 600,
+        pendingCount: 12,
+        runningCount: 3,
+        succeededCount: 580,
+        failedCount: 5,
+        usedCount: 600,
+        availableCount: 0,
+        isFull: true,
+        utilizationPercent: 100,
+        capacity: 600,
+      },
+      queue: {
+        activePools: [],
+      },
+    },
+  });
+
+  assert.equal(overview.data.runtime.jobs.capacity, 600);
+  assert.equal(overview.data.runtime.jobs.usedCount, 600);
+  assert.equal(overview.data.runtime.jobs.availableCount, 0);
+  assert.equal(overview.data.runtime.jobs.isFull, true);
+  assert.equal(overview.data.runtime.jobs.utilizationPercent, 100);
 });

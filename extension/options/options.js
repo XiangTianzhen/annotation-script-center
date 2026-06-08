@@ -8655,13 +8655,56 @@
     return '<div class="empty-state">' + escapeHtml(message || "暂无数据") + "</div>";
   }
 
-  function buildPoolChartMarkup(pools) {
+  function buildTaskStorePoolCardMarkup(jobs) {
+    const taskStore = jobs && typeof jobs === "object" ? jobs : {};
+    const capacity = Number(taskStore.capacity || taskStore.maxSize || 0) || 0;
+    const usedCount = Number(taskStore.usedCount || 0) || 0;
+    if (capacity <= 0 && usedCount <= 0) {
+      return "";
+    }
+    const runningCount = Number(taskStore.runningCount || taskStore.activeCount || 0) || 0;
+    const pendingCount = Number(taskStore.pendingCount || 0) || 0;
+    const succeededCount = Number(taskStore.succeededCount || 0) || 0;
+    const failedCount = Number(taskStore.failedCount || 0) || 0;
+    const availableCount = Math.max(0, Number(taskStore.availableCount || capacity - usedCount) || 0);
+    const ratio = Math.max(0, Math.min(100, Number(taskStore.utilizationPercent || 0)));
+    const isFull = taskStore.isFull === true || (capacity > 0 && usedCount >= capacity);
+    const statusText = isFull
+      ? "任务池已满"
+      : usedCount <= 0
+        ? "当前空闲"
+        : "总占用 " + String(ratio) + "%";
+    return [
+      '<article class="pool-card" data-pool-state="' + (isFull ? "full" : usedCount > 0 ? "busy" : "idle") + '">',
+      '<div class="pool-card-head">',
+      "<div><h4 class=\"pool-card-name\">AI 任务池</h4>",
+      '<p class="pool-card-note">短请求建 job 会先进入这里；如果返回 ai-job-store-full，说明任务池已满，不等于模型上游并发已满。</p></div>',
+      '<span class="pool-card-status">' + escapeHtml(statusText) + "</span>",
+      "</div>",
+      '<div class="pool-progress"><div class="pool-progress-bar" style="width:' + escapeHtml(String(ratio)) + '%"></div></div>',
+      '<div class="pool-progress-meta"><strong>' + escapeHtml(String(ratio)) + '%</strong><span>已使用 ' + escapeHtml(formatNumber(usedCount)) + ' / ' + escapeHtml(formatNumber(capacity)) + "</span></div>",
+      '<div class="pool-stat-grid">',
+      '<div class="pool-stat"><span class="pool-stat-label">总占用</span><strong>' + escapeHtml(formatNumber(usedCount)) + " 个</strong></div>",
+      '<div class="pool-stat"><span class="pool-stat-label">运行中</span><strong>' + escapeHtml(formatNumber(runningCount)) + " 个</strong></div>",
+      '<div class="pool-stat"><span class="pool-stat-label">待启动</span><strong>' + escapeHtml(formatNumber(pendingCount)) + " 个</strong></div>",
+      '<div class="pool-stat"><span class="pool-stat-label">已保留成功</span><strong>' + escapeHtml(formatNumber(succeededCount)) + " 个</strong></div>",
+      '<div class="pool-stat"><span class="pool-stat-label">已保留失败</span><strong>' + escapeHtml(formatNumber(failedCount)) + " 个</strong></div>",
+      '<div class="pool-stat"><span class="pool-stat-label">池容量</span><strong>' + escapeHtml(formatNumber(capacity)) + " 个</strong></div>",
+      '<div class="pool-stat"><span class="pool-stat-label">剩余可接收</span><strong>' + escapeHtml(formatNumber(availableCount)) + " 个</strong></div>",
+      "</div>",
+      "</article>",
+    ].join("");
+  }
+
+  function buildPoolChartMarkup(pools, jobs) {
     const rows = Array.isArray(pools) ? pools : [];
-    if (rows.length <= 0) {
+    const taskStoreCard = buildTaskStorePoolCardMarkup(jobs);
+    if (rows.length <= 0 && !taskStoreCard) {
       return buildEmptyState("当前没有活跃模型池。");
     }
     return [
       '<div class="pool-card-grid">',
+      taskStoreCard,
       rows
       .map(function (pool, index) {
         const ratio = Math.max(0, Math.min(100, Number(pool.utilizationPercent || 0)));
@@ -9012,7 +9055,8 @@
       '<div><strong>会话有效期</strong><span>' + escapeHtml(String(backend.sessionTtlSeconds || 0)) + " 秒</span></div>",
       '<div><strong>模型池策略</strong><span>' + escapeHtml(queue.keyStrategy || "concrete-model-name") + "</span></div>",
       '<div><strong>活跃模型池</strong><span>' + escapeHtml(formatNumber(queue.activePools?.length || 0)) + "</span></div>",
-      '<div><strong>任务池</strong><span>运行中 ' + escapeHtml(formatNumber(runtime.jobs?.runningCount || runtime.jobs?.activeCount || 0)) + " / 待处理 " + escapeHtml(formatNumber(runtime.jobs?.pendingCount || 0)) + "</span></div>",
+      '<div><strong>任务池</strong><span>已使用 ' + escapeHtml(formatNumber(runtime.jobs?.usedCount || 0)) + " / " + escapeHtml(formatNumber(runtime.jobs?.capacity || runtime.jobs?.maxSize || 0)) + "</span></div>",
+      '<div><strong>任务池明细</strong><span>运行中 ' + escapeHtml(formatNumber(runtime.jobs?.runningCount || runtime.jobs?.activeCount || 0)) + " / 待启动 " + escapeHtml(formatNumber(runtime.jobs?.pendingCount || 0)) + " / 已保留成功 " + escapeHtml(formatNumber(runtime.jobs?.succeededCount || 0)) + "</span></div>",
       "</div>",
     ].join("");
   }
@@ -9031,7 +9075,7 @@
       : {};
     const poolsNode = getElement("admin-overview-pools");
     if (poolsNode) {
-      poolsNode.innerHTML = buildPoolChartMarkup(queue.activePools || []);
+      poolsNode.innerHTML = buildPoolChartMarkup(queue.activePools || [], overview.runtime?.jobs || {});
     }
     const logSummaryNode = getElement("admin-overview-log-summary");
     if (logSummaryNode) {
