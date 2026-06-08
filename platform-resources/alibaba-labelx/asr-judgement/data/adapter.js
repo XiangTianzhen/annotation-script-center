@@ -4,7 +4,21 @@ function isBlank(value) {
   return String(value === undefined || value === null ? "" : value).trim() === "";
 }
 
-function pickRow(rows, role, subTaskId) {
+function normalizeValue(value) {
+  return String(value === undefined || value === null ? "" : value).trim();
+}
+
+function getLabelSlots(row) {
+  return [1, 2, 3].map(function (slot) {
+    return {
+      slot: slot,
+      subTaskId: normalizeValue(row?.["标注员" + slot + "子任务ID"] || ""),
+      userName: normalizeValue(row?.["标注员" + slot + "_P"] || ""),
+    };
+  });
+}
+
+function pickRow(rows, role, subTaskId, userName) {
   const list = Array.isArray(rows) ? rows : [];
   if (list.length === 0) {
     return null;
@@ -26,24 +40,49 @@ function pickRow(rows, role, subTaskId) {
     );
   }
 
-  if (!subTaskIdText) {
+  const userNameText = normalizeValue(userName);
+  if (!subTaskIdText && !userNameText) {
     return list[0];
   }
 
-  const slotFields = ["标注员1子任务ID", "标注员2子任务ID", "标注员3子任务ID"];
   for (let index = 0; index < list.length; index += 1) {
     const row = list[index];
-    const matched = slotFields.some(function (field) {
-      return String(row[field] || "").trim() === subTaskIdText;
+    const matched = getLabelSlots(row).some(function (slot) {
+      return slot.subTaskId === subTaskIdText && slot.userName === userNameText;
     });
     if (matched) {
       return row;
     }
   }
+
+  if (subTaskIdText) {
+    for (let index = 0; index < list.length; index += 1) {
+      const row = list[index];
+      const matched = getLabelSlots(row).some(function (slot) {
+        return slot.subTaskId === subTaskIdText;
+      });
+      if (matched) {
+        return row;
+      }
+    }
+  }
+
+  if (userNameText) {
+    for (let index = 0; index < list.length; index += 1) {
+      const row = list[index];
+      const matched = getLabelSlots(row).some(function (slot) {
+        return slot.userName === userNameText;
+      });
+      if (matched) {
+        return row;
+      }
+    }
+  }
+
   return list[0];
 }
 
-function evaluateCompletion(row, role, subTaskId) {
+function evaluateCompletion(row, role, subTaskId, userName) {
   const target = row || {};
   const missingFields = [];
   ["分包ID", "任务名称", "任务ID", "题数"].forEach(function (field) {
@@ -62,25 +101,41 @@ function evaluateCompletion(row, role, subTaskId) {
     };
   }
 
-  const slotFields = ["标注员1子任务ID", "标注员2子任务ID", "标注员3子任务ID"];
-  const targetSubTaskId = String(subTaskId || "").trim();
-  const hasAnyLabelSlot = slotFields.some(function (field) {
-    return !isBlank(target[field]);
+  const targetSubTaskId = normalizeValue(subTaskId);
+  const targetUserName = normalizeValue(userName);
+  const slots = getLabelSlots(target);
+  if (!targetSubTaskId) {
+    missingFields.push("标注员子任务ID");
+  }
+  if (!targetUserName) {
+    missingFields.push("标注员_P");
+  }
+  const exactSlot = slots.find(function (slot) {
+    return slot.subTaskId === targetSubTaskId && slot.userName === targetUserName;
   });
-  const hasExactSlot = targetSubTaskId
-    ? slotFields.some(function (field) {
-        return String(target[field] || "").trim() === targetSubTaskId;
-      })
-    : hasAnyLabelSlot;
-  const complete = hasExactSlot || hasAnyLabelSlot;
-  if (complete && missingFields.length === 0) {
+  if (exactSlot && missingFields.length === 0) {
     return {
       complete: true,
       missingFields: [],
     };
   }
-  if (!complete) {
-    missingFields.push("标注员子任务ID");
+
+  if (missingFields.length === 0) {
+    const subTaskConflict = slots.find(function (slot) {
+      return slot.subTaskId === targetSubTaskId && slot.userName !== targetUserName;
+    });
+    if (subTaskConflict) {
+      missingFields.push("标注员双键冲突:子任务ID命中但用户名不一致");
+    }
+    const userConflict = slots.find(function (slot) {
+      return slot.userName === targetUserName && slot.subTaskId !== targetSubTaskId;
+    });
+    if (userConflict) {
+      missingFields.push("标注员双键冲突:用户名命中但子任务ID不一致");
+    }
+    if (missingFields.length === 0) {
+      missingFields.push("标注员双键未命中");
+    }
   }
   return {
     complete: false,
@@ -88,8 +143,18 @@ function evaluateCompletion(row, role, subTaskId) {
   };
 }
 
-function getMissingFieldsForAbsentBatch(role) {
-  return role === "audit" ? ["审核子任务ID"] : ["标注员1子任务ID"];
+function getMissingFieldsForAbsentBatch(role, subTaskId, userName) {
+  if (role === "audit") {
+    return ["审核子任务ID"];
+  }
+  const missingFields = [];
+  if (isBlank(subTaskId)) {
+    missingFields.push("标注员子任务ID");
+  }
+  if (isBlank(userName)) {
+    missingFields.push("标注员_P");
+  }
+  return missingFields.length > 0 ? missingFields : ["标注员双键未命中"];
 }
 
 function getBatchIdFromRow(row) {

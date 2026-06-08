@@ -13,6 +13,7 @@ test("LabelX existing core groups rows by batchId and evaluates items through ad
       batchId: "batch-1",
       role: "label",
       subTaskId: "label-1",
+      userName: "标注员一",
     },
     {
       batchId: "batch-2",
@@ -24,20 +25,26 @@ test("LabelX existing core groups rows by batchId and evaluates items through ad
     "row-1": {
       "分包ID": "batch-1",
       labelId: "label-1",
+      userName: "标注员一",
       complete: "1",
     },
   };
   const adapter = {
-    pickRow(rows, role, subTaskId) {
+    pickRow(rows, role, subTaskId, userName) {
       return rows.find(function (row) {
         if (role === "audit") {
           return row.auditId === subTaskId;
         }
-        return row.labelId === subTaskId;
+        return row.labelId === subTaskId && row.userName === userName;
       }) || rows[0] || null;
     },
-    evaluateCompletion(row) {
-      const complete = String(row?.complete || "") === "1";
+    evaluateCompletion(row, role, subTaskId, userName) {
+      const complete =
+        role === "label"
+          ? String(row?.complete || "") === "1" &&
+            row?.labelId === subTaskId &&
+            row?.userName === userName
+          : String(row?.complete || "") === "1";
       return {
         complete,
         missingFields: complete ? [] : ["示例字段"],
@@ -107,5 +114,48 @@ test("LabelX existing core normalizes check role to audit", function () {
       complete: false,
       missingFields: ["审核子任务ID"],
     },
+  ]);
+});
+
+test("LabelX existing core passes label userName into adapter", function () {
+  const observed = [];
+  const adapter = {
+    pickRow(rows, role, subTaskId, userName) {
+      observed.push(["pickRow", role, subTaskId, userName]);
+      return rows[0] || null;
+    },
+    evaluateCompletion(row, role, subTaskId, userName) {
+      observed.push(["evaluateCompletion", role, subTaskId, userName]);
+      return {
+        complete: false,
+        missingFields: ["示例字段"],
+      };
+    },
+    getMissingFieldsForAbsentBatch(role, subTaskId, userName) {
+      observed.push(["getMissingFieldsForAbsentBatch", role, subTaskId, userName]);
+      return ["示例字段"];
+    },
+  };
+
+  buildExistingResponseItems(
+    [
+      {
+        batchId: "batch-1",
+        role: "label",
+        subTaskId: "label-1",
+        userName: "标注员一",
+      },
+    ],
+    {
+      "row-1": {
+        "分包ID": "batch-1",
+      },
+    },
+    adapter
+  );
+
+  assert.deepEqual(observed, [
+    ["pickRow", "label", "label-1", "标注员一"],
+    ["evaluateCompletion", "label", "label-1", "标注员一"],
   ]);
 });

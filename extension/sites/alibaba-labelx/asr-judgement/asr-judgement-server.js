@@ -236,6 +236,15 @@
     return cleanText(decoded);
   }
 
+  function buildExistingStatusKey(batchId, role, subTaskId, userName) {
+    return [
+      sanitizeBatchId(batchId || ""),
+      String(role || "label").toLowerCase(),
+      sanitizeSubTaskId(subTaskId || ""),
+      cleanText(userName || ""),
+    ].join("|");
+  }
+
   function createScheduleUploadDelayMs() {
     const maxSteps = Math.floor(SCHEDULE_UPLOAD_DELAY_MAX_MS / SCHEDULE_UPLOAD_DELAY_STEP_MS);
     const step = Math.floor(Math.random() * (maxSteps + 1));
@@ -292,11 +301,12 @@
       const responseItems = Array.isArray(body?.data?.items) ? body.data.items : [];
       responseItems.forEach(function (entry, entryIndex) {
         const requestItem = chunk[entryIndex] || {};
-        const key = [
-          sanitizeBatchId(entry?.batchId || requestItem.batchId || ""),
-          String(entry?.role || requestItem.role || "label").toLowerCase(),
-          sanitizeSubTaskId(entry?.subTaskId || requestItem.subTaskId || ""),
-        ].join("|");
+        const key = buildExistingStatusKey(
+          entry?.batchId || requestItem.batchId || "",
+          entry?.role || requestItem.role || "label",
+          entry?.subTaskId || requestItem.subTaskId || "",
+          requestItem.userName || ""
+        );
         byKey[key] = entry;
       });
       completed += chunk.length;
@@ -360,7 +370,14 @@
     }
 
     pushIfBlank(warningFields, roleRecord.subTaskId || "", "标注员子任务ID");
-    pushIfBlank(warningFields, roleRecord.userName || roleRecord.userId || "", "标注员_P");
+    const labelUserName = cleanText(roleRecord.userName || "");
+    if (!labelUserName) {
+      return {
+        ok: false,
+        rejectedReason: batchId ? "标注员_P" : "分包ID",
+        warningFields: warningFields,
+      };
+    }
     pushIfBlank(warningFields, roleRecord.receiveTime || "", "标注员领取时间");
     if (!cleanText(csvPatch["标注员1是否完成"]) && !cleanText(csvPatch["标注员2是否完成"]) && !cleanText(csvPatch["标注员3是否完成"])) {
       warningFields.push("标注员是否完成");
@@ -1697,11 +1714,13 @@
       const config = getConfig();
       const forceReplaceByBatchId = isForceReplaceReason(reason);
       const existingItems = subtasks.map(function (entry) {
+        const role = entry.pageGroup?.kind?.role || "label";
         return {
           batchId: entry.batchId,
-          role: entry.pageGroup?.kind?.role || "label",
+          role: role,
           taskName: cleanText(entry.summary?.taskName || ""),
           subTaskId: entry.subTaskId,
+          userName: role === "label" ? userName || getUserNameFromRecord(entry.summary) : "",
         };
       });
       let existingStatusByKey = {};
@@ -1730,7 +1749,13 @@
         if (existingCheckFailed) {
           return true;
         }
-        const statusKey = [entry.batchId, String(entry.pageGroup?.kind?.role || "label"), entry.subTaskId].join("|");
+        const entryRole = String(entry.pageGroup?.kind?.role || "label");
+        const statusKey = buildExistingStatusKey(
+          entry.batchId,
+          entryRole,
+          entry.subTaskId,
+          entryRole === "label" ? userName || getUserNameFromRecord(entry.summary) : ""
+        );
         const status = existingStatusByKey[statusKey];
         if (status && status.complete === true) {
           if (forceReplaceByBatchId) {

@@ -202,6 +202,24 @@ AI 日志与数据边界：
 - 防串表：检测到高置信转写数据（如 `project=...asr-transcription` 或 `labelModel=single`）会拒绝写入快判统计表，并通过 `rejectedItems` 返回原因。
 - CSV 写出时动态处理“供应商”列：单供应商数据集不输出；多供应商数据集在最后一列追加。
 
+## 2026-06-08 快判统计双键槽位校验修复
+
+- 本次修复目标是“清空旧数据后重新全量上传”的未来正确性；不兼容历史脏数据，不提供历史 CSV 自动修复或迁移。
+- 启用前需要人工备份并清空服务端现有快判统计数据，再使用新代码重新上传。
+- 标注槽位分配规则已收紧为 `用户名 + subTaskId` 双键：
+  - 两个键都相同：复用原槽位并覆盖更新该槽位字段。
+  - `subTaskId` 相同但用户名不同：拒绝上传，返回“子任务ID命中但用户名不一致”类冲突。
+  - 用户名相同但 `subTaskId` 不同：拒绝上传，返回“用户名命中但子任务ID不一致”类冲突。
+  - 三个槽位无双键命中但存在空槽位：写入第一个空槽位。
+  - 三个槽位都已占满且无双键命中：保持现有“同一供应商分包超过 3 个标注员子任务”拒绝逻辑。
+- 审核槽位规则本轮不变，仍保持原单槽位语义。
+- `POST /api/alibaba-labelx/asr-judgement/statistics/upload` 现在要求标注 payload 的 `roleRecord.userName` 必填；缺失时该条会被放入 `rejectedItems`，不再允许写入无用户名槽位。
+- `POST /api/alibaba-labelx/asr-judgement/statistics/existing` 的 label 请求项现在支持传入 `userName`；响应结构保持 `success + data.items` 不变。
+- existing 对标注角色的 `complete` 判定已改为双键精确命中：
+  - 只有同一槽位同时命中 `用户名 + subTaskId` 时才返回 `complete=true`。
+  - 只命中一个键时返回 `complete=false`，避免前端把冲突数据误判为“已上传可跳过”。
+- 这轮不新增服务端“清空统计数据”接口，清空旧数据继续由人工运维完成。
+
 共享下载相关文件职责补充：
 
 - `platform-resources/backend/project-data-download/labelx-download-core.js`：LabelX 下载文件名、响应头、供应商过滤与 `GET/HEAD /download` 共享主流程。
@@ -242,6 +260,7 @@ AI 日志与数据边界：
 - 定时上传 `reason=schedule` 仍保留默认跳过逻辑，不显示“补传并覆盖当前人员”，也不会触发当前人员局部覆盖。
 - 详情页第一版不显示 force replace 按钮，避免详情页只上传单角色后误判当前人员覆盖范围。
 - CSV 字段口径不变，`statistics-data/` 仍属于运行产物，不提交 Git。
+- 2026-06-08 起，force replace 也遵循标注双键规则：只允许同一 `用户名 + subTaskId` 覆盖原槽位；单键命中冲突不会再被 existing 错误跳过，也不会自动并槽。
 
 ## 2026-05-21 CSV 字段命名口径修复
 

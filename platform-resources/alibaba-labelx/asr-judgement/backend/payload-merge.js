@@ -181,17 +181,42 @@ function migrateLegacyRowColumns(row, csvColumns) {
   return next;
 }
 
-function findLabelSlot(row, subTaskId) {
+function findLabelSlot(row, subTaskId, userName) {
   const slots = [1, 2, 3];
+  const normalizedSubTaskId = cleanCsvValue(subTaskId || "");
+  const normalizedUserName = cleanCsvValue(userName || "");
   const existing = slots.find(function (slot) {
-    return row["标注员" + slot + "子任务ID"] === subTaskId;
+    return (
+      cleanCsvValue(row["标注员" + slot + "子任务ID"] || "") === normalizedSubTaskId &&
+      cleanCsvValue(row["标注员" + slot + "_P"] || "") === normalizedUserName
+    );
   });
   if (existing) {
     return existing;
   }
 
+  const subTaskConflict = slots.find(function (slot) {
+    return (
+      cleanCsvValue(row["标注员" + slot + "子任务ID"] || "") === normalizedSubTaskId &&
+      cleanCsvValue(row["标注员" + slot + "_P"] || "") !== normalizedUserName
+    );
+  });
+  if (subTaskConflict) {
+    throw new Error("标注员子任务ID已存在，但用户名不一致，已拒绝覆盖现有槽位。");
+  }
+
+  const userConflict = slots.find(function (slot) {
+    return (
+      cleanCsvValue(row["标注员" + slot + "_P"] || "") === normalizedUserName &&
+      cleanCsvValue(row["标注员" + slot + "子任务ID"] || "") !== normalizedSubTaskId
+    );
+  });
+  if (userConflict) {
+    throw new Error("标注员用户名已存在，但子任务ID不一致，已拒绝覆盖现有槽位。");
+  }
+
   const emptySlot = slots.find(function (slot) {
-    return !row["标注员" + slot + "子任务ID"];
+    return !cleanCsvValue(row["标注员" + slot + "子任务ID"] || "");
   });
   if (!emptySlot) {
     throw new Error("同一供应商分包超过 3 个标注员子任务，已拒绝覆盖现有槽位。");
@@ -202,6 +227,7 @@ function findLabelSlot(row, subTaskId) {
 function applyRoleRecord(row, roleRecord, payload) {
   const role = String(roleRecord?.role || "").toLowerCase();
   const subTaskId = cleanCsvValue(roleRecord?.subTaskId || "");
+  const labelUserName = cleanCsvValue(roleRecord?.userName || "");
   if (role !== "label" && role !== "audit") {
     throw new Error("payload roleRecord.role 必须为 label 或 audit。");
   }
@@ -224,10 +250,14 @@ function applyRoleRecord(row, roleRecord, payload) {
     return;
   }
 
-  const slot = findLabelSlot(row, subTaskId);
+  if (!labelUserName) {
+    throw new Error("payload roleRecord.userName 不能为空。");
+  }
+
+  const slot = findLabelSlot(row, subTaskId, labelUserName);
   row["标注员" + slot + "子任务ID"] = subTaskId;
   const labelUser = preferHealthyText(
-    cleanCsvValue(roleRecord.userName || roleRecord.userId || ""),
+    labelUserName,
     row["标注员" + slot + "_P"] || ""
   );
   if (labelUser) {

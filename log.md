@@ -1,3 +1,18 @@
+## 2026-06-08（LabelX 快判统计双键槽位校验修复）
+
+- 修复 `Alibaba LabelX / ASR 快判统计上传` 在历史脏数据场景下容易长出“同名重复占槽”和“existing 误判已上传”的问题：
+  - 标注槽位当前改成严格 `用户名 + subTaskId` 双键语义。
+  - 只有双键同时命中同一标注槽位时，才允许复用原槽位或被 existing 判成 `complete=true`。
+  - 同用户名不同 `subTaskId`、或同 `subTaskId` 不同用户名，现在都会明确拒绝，不再自动并槽。
+- 前端 / 后端同步收紧：
+  - `extension/sites/alibaba-labelx/asr-judgement/asr-judgement-server.js` 当前要求标注 payload 的 `roleRecord.userName` 必填。
+  - existing 请求组装会对 label 显式透传 `userName`。
+  - `platform-resources/backend/project-data-download/labelx-existing-core.js` 与快判 `data/adapter.js` 当前按双键精确命中判定标注是否已完整上传。
+- 新规则明确不兼容历史脏数据：
+  - 启用前需要人工备份并清空服务器现有快判统计数据。
+  - 之后再让全员重新全量上传一次。
+  - 这轮不新增后端“清空统计”接口，继续按人工运维处理。
+
 ## 2026-06-08（Magic Data 双助手修复 Job 成功态结果多包一层导致的面板误判）
 
 - 修复 `Magic Data / 客家话助手` 的“AI 质检当前条”结果渲染异常：

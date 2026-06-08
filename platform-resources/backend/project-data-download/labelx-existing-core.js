@@ -66,6 +66,7 @@ function buildExistingResponseItems(items, rowsByMergeRowId, adapter) {
     const batchId = String(item?.batchId || "").trim();
     const role = normalizeRole(item?.role || "label");
     const subTaskId = String(item?.subTaskId || "").trim();
+    const userName = String(item?.userName || "").trim();
 
     if (!batchId) {
       return {
@@ -86,12 +87,12 @@ function buildExistingResponseItems(items, rowsByMergeRowId, adapter) {
         subTaskId,
         exists: false,
         complete: false,
-        missingFields: getMissingFieldsForAbsentBatch(role, subTaskId),
+        missingFields: getMissingFieldsForAbsentBatch(role, subTaskId, userName),
       };
     }
 
-    const matchedRow = pickRow(rows, role, subTaskId) || {};
-    const check = evaluateCompletion(matchedRow, role, subTaskId) || {};
+    const matchedRow = pickRow(rows, role, subTaskId, userName) || {};
+    const check = evaluateCompletion(matchedRow, role, subTaskId, userName) || {};
     const complete = check.complete === true;
 
     return {
