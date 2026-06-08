@@ -193,9 +193,11 @@ AI prompt 输出字形规则：
 - `DATABAKER_AI_PROVIDER_RETRY_MAX`：上游 `429` 指数退避最大重试次数，默认 `3`。
 - `DATABAKER_AI_QWEN_SMOOTH_ENABLED`：默认 `0`；DataBaker Omni legacy 快速路径默认按前端并发直接请求，只有设为 `1` 时才重新启用后端平滑。
 - `DATABAKER_AI_QWEN_BURST_RETRY_MAX`：默认 `0`；`limit_burst_rate` 默认直接暴露真实错误，不自动退避重试，需要更稳时再手动改为 `3`。
-- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `60000`。仅在历史兼容 job 被显式启用时生效。
-- `DATABAKER_AI_JOB_TTL_MS`：异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
-- `DATABAKER_AI_JOB_MAX_SIZE`：异步 job 最大保留数量，默认 `600`。
+- `ASC_AI_JOB_TIMEOUT_MS`：共享 AI job 超时，默认 `60000`。仅在历史兼容 job 被显式启用时生效。
+- `ASC_AI_JOB_TTL_MS`：共享 AI job 记录保留 TTL，默认 `1800000`（30 分钟）。
+- `ASC_AI_JOB_MAX_SIZE`：共享 AI job 最大保留数量，默认 `600`。
+- `ASC_AI_JOB_POLL_INTERVAL_MS`：前端轮询 job 状态建议间隔，默认 `1000` ms。
+- `DATABAKER_AI_JOB_*`：仅保留历史兼容 fallback；生产环境优先写 `ASC_AI_JOB_*`。
 - `DATABAKER_AI_QUEUE_MAX_SIZE`：统一 provider 队列最大长度，默认 `600`。
 - `DATABAKER_AI_CACHE_TTL_MS`：推荐结果内存缓存 TTL，默认 `43200000`（12 小时）。
 - `DATABAKER_AI_LEXICON_REWRITE_MODE`：词表最终推荐文本改写模式，默认 `aggressive`；设为 `off` 时只保留 prompt 上下文。

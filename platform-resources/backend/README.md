@@ -28,6 +28,7 @@ http://127.0.0.1:3333
 6. 可选 `ASC_ENV_FILE` 指向的外部文件
 
 系统环境变量优先级最高，不会被配置文件覆盖。文件不存在时跳过；读取失败时只输出脱敏 `warn`，不输出文件内容。
+`config/env/ai.env`、`config/env/ai.local.env` 为忽略文件，真实生产内容建议只保留 `DASHSCOPE_API_KEY` 与少量非默认覆盖项。
 
 ## 官方文档核对入口
 
@@ -70,10 +71,11 @@ http://127.0.0.1:3333
 - `DATABAKER_AI_FUN_ASR_REST_BASE_URL`：可选，覆盖 Fun-ASR REST API base；留空时按 `DASHSCOPE_BASE_URL` 推导到 `/api/v1`。
 - `DATABAKER_AI_FUN_ASR_POLL_INTERVAL_MS`：Fun-ASR REST 轮询间隔，默认 `1000` ms。
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED`：历史兼容开关，默认 `0`；当前默认链路不再依赖异步 job。
-- `DATABAKER_AI_JOB_TIMEOUT_MS`：DataBaker AI 单个异步 job 超时，默认 `60000`。仅在历史兼容 job 被显式启用时生效。
-- `DATABAKER_AI_JOB_TTL_MS`：DataBaker AI 异步 job 记录保留 TTL，默认 `1800000`（30 分钟）。
-- `DATABAKER_AI_JOB_MAX_SIZE`：DataBaker AI 异步 job 内存上限，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
-- `DATABAKER_AI_JOB_POLL_INTERVAL_MS`：前端建议轮询间隔提示，默认 `1000` ms。
+- `ASC_AI_JOB_TIMEOUT_MS`：共享 AI job 超时，默认 `60000`。仅在历史兼容 job 接口被显式启用时生效。
+- `ASC_AI_JOB_TTL_MS`：共享 AI job 记录保留 TTL，默认 `1800000`（30 分钟）。
+- `ASC_AI_JOB_MAX_SIZE`：共享 AI job 内存上限，默认 `600`。达到上限时返回“后端 AI 任务队列已满，请稍后重试。”。
+- `ASC_AI_JOB_POLL_INTERVAL_MS`：前端建议轮询间隔提示，默认 `1000` ms。
+- `DATABAKER_AI_JOB_*`：仅保留历史兼容 fallback；未设置 `ASC_AI_JOB_*` 时才读取。
 - `DATABAKER_FUNASR_PYTHON_BIN`：可选，指定 Python 解释器路径；未设置时优先使用统一虚拟环境 `platform-resources/backend/.venv/`。
 - `DATABAKER_AI_QWEN_OMNI_RPM_LIMIT`：标贝易采 Qwen Omni 队列限流，默认 `45` RPM。
 - `DATABAKER_AI_FUN_ASR_RPM_LIMIT`：标贝易采 Fun-ASR 队列限流，默认 `500` RPM。
@@ -293,6 +295,7 @@ pm2 restart annotation-script-center --update-env
 安全要求：
 - 禁止把真实密码、真实 hash、JWT secret 提交到仓库。
 - 不要提交 `config/env/backend.env`、`config/env/backend.local.env`。
+- 不要提交 `config/env/ai.env`、`config/env/ai.local.env`。
 - `POST /api/admin/project-data-download/request` 与 `POST /api/admin/ai-call-log/request` 当前支持两种鉴权方式：
   - 直接在 body 里传 `password`
   - 通过 `Authorization: Bearer <admin-session-token>` 复用已登录系统管理会话

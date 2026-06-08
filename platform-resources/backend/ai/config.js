@@ -83,7 +83,11 @@ function parseTimeoutMs() {
 }
 
 function parseDataBakerJobTimeoutMs() {
-  const value = Number(process.env.DATABAKER_AI_JOB_TIMEOUT_MS || DEFAULT_JOB_TIMEOUT_MS);
+  const value = Number(
+    process.env.ASC_AI_JOB_TIMEOUT_MS ||
+      process.env.DATABAKER_AI_JOB_TIMEOUT_MS ||
+      DEFAULT_JOB_TIMEOUT_MS
+  );
   if (!Number.isFinite(value)) {
     return DEFAULT_JOB_TIMEOUT_MS;
   }
@@ -91,7 +95,9 @@ function parseDataBakerJobTimeoutMs() {
 }
 
 function parseDataBakerJobTtlMs() {
-  const value = Number(process.env.DATABAKER_AI_JOB_TTL_MS || DEFAULT_JOB_TTL_MS);
+  const value = Number(
+    process.env.ASC_AI_JOB_TTL_MS || process.env.DATABAKER_AI_JOB_TTL_MS || DEFAULT_JOB_TTL_MS
+  );
   if (!Number.isFinite(value)) {
     return DEFAULT_JOB_TTL_MS;
   }

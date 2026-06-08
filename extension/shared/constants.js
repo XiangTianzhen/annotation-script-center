@@ -746,14 +746,6 @@
     "50 条/页",
   ];
 
-  const AI_MODEL_OPTIONS = [
-    { value: "qwen3.5-flash", label: "Qwen3.5-Flash (默认)" },
-    { value: "qwen3.6-plus", label: "Qwen3.6-Plus" },
-    { value: "siliconflow/deepseek-v3.2", label: "DeepSeek-V3.2" },
-    { value: "glm-5", label: "GLM-5" },
-    { value: "kimi/kimi-k2.5", label: "Kimi-K2.5" },
-  ];
-
   const JUDGEMENT_AI_LISTEN_MODELS = [
     "qwen3.5-omni-flash",
     "qwen3-omni-flash",
@@ -2081,7 +2073,6 @@
     PLATFORM_LIBRARY: clone(PLATFORM_LIBRARY),
     MESSAGE_TYPES: MESSAGE_TYPES,
     PAGE_OPTIONS: PAGE_OPTIONS,
-    AI_MODEL_OPTIONS: AI_MODEL_OPTIONS,
     JUDGEMENT_AI_LISTEN_MODELS: clone(JUDGEMENT_AI_LISTEN_MODELS),
     JUDGEMENT_AI_COMPARE_MODELS: clone(JUDGEMENT_AI_COMPARE_MODELS),
     JUDGEMENT_AI_AVAILABLE_MODELS: clone(JUDGEMENT_AI_AVAILABLE_MODELS),

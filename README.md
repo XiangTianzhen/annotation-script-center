@@ -229,6 +229,7 @@ node platform-resources/backend/server.js
 安全说明：
 
 - 不要提交真实 `backend.env`、`ai.env`、`local.env`。
+- `config/env/ai.env`、`config/env/ai.local.env` 只保留真实密钥和少量非默认覆盖项；代码默认值才是主来源。
 - 不要提交 API Key、cookie、token、authorization、JWT secret、CRX 私钥。
 - 修改环境变量后必须执行 `pm2 restart annotation-script-center --update-env`，否则新变量可能不生效。
 
@@ -409,9 +410,8 @@ Fun-ASR 返回 `403` 时，常见原因优先排查：
 - DataBaker 批量连续填入默认改为短请求创建 job，再轮询 job 状态；同步 recommend 只保留兼容 / 调试用途。
 - `DATABAKER_AI_ASYNC_JOBS_ENABLED=0`
 - `DATABAKER_AI_FUN_ASR_ASYNC_JOBS_ENABLED=0`（历史兼容）
-- `DATABAKER_AI_JOB_TIMEOUT_MS=60000`（仅兼容 job 接口时生效）
-- `DATABAKER_AI_JOB_TTL_MS=1800000`
-- `DATABAKER_AI_JOB_MAX_SIZE=600`
+- 共享 job 配置优先写 `ASC_AI_JOB_TIMEOUT_MS / ASC_AI_JOB_TTL_MS / ASC_AI_JOB_MAX_SIZE / ASC_AI_JOB_POLL_INTERVAL_MS`；未写时回退代码默认值。
+- `DATABAKER_AI_JOB_*` 仅保留历史兼容 fallback，不再作为推荐生产配置写法。
 - `DATABAKER_AI_QUEUE_MAX_SIZE=600`
 - `DATABAKER_AI_REQUEST_STAGGER_MS=50`（前端错峰发起间隔说明；默认不低于 `50ms`）
 - 超过 1 分钟仍未返回的 AI 请求，默认认为不适合当前项目，应优化模型、Prompt、任务拆分或后端策略，而不是继续拉长超时。

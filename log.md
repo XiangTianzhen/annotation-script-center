@@ -1,3 +1,16 @@
+## 2026-06-08（AI 配置收口与废弃 Provider 清理）
+
+- 统一 AI 配置口径：
+  - `config/env/ai.env.example` 收口为最小生产模板，只保留 `DASHSCOPE_API_KEY`、可选 `DASHSCOPE_BASE_URL`，以及注释式 `ASC_AI_JOB_*` 覆盖示例。
+  - 明确 `config/env/ai.env`、`config/env/ai.local.env` 为忽略文件，真实生产内容应只保留密钥和少量非默认覆盖项。
+- 共享 job 配置推荐写法统一改为 `ASC_AI_JOB_TIMEOUT_MS / ASC_AI_JOB_TTL_MS / ASC_AI_JOB_MAX_SIZE / ASC_AI_JOB_POLL_INTERVAL_MS`：
+  - `platform-resources/backend/ai/config.js` 补齐与共享 runtime 一致的优先级，按 `ASC_* -> DATABAKER_* -> 代码默认值` 读取。
+  - `DATABAKER_AI_JOB_*` 仅保留历史兼容 fallback，不再作为模板和文档首选口径。
+- 清理废弃 provider 残留：
+  - 删除 `config/env/ai.env.example` 中不再维护的额外 provider 变量块。
+  - 删除 `extension/shared/constants.js` 中未使用的旧 `AI_MODEL_OPTIONS` 常量与导出，避免继续暴露历史模型选项。
+- 同步更新根 `README.md`、统一后端 README、标贝易采 README / backend README 与 `log.md`，统一为“代码默认值优先”的维护说明。
+
 ## 2026-06-08（LabelX 快判统计恢复冲突跳过）
 
 - 恢复 `Alibaba LabelX / ASR 快判统计上传` 的“冲突跳过”体验，但不回退后端双键严格写入规则：
@@ -3847,7 +3860,7 @@
 - 文档目录迁移：将 `docs` 下旧 `extension` 子目录文件全量迁移到 `docs` 根目录，并清理空子目录。
 - 文档引用修正：README、AGENTS、docs 与平台资料中的旧子目录引用统一改为 `docs/`。
 - 用户可见命名统一：文档中的平台名称统一为"标贝易采"，脚本名称统一为"标贝易采一检质检"；保留 `data-baker` 目录与 API 路径等历史技术标识。
-- 环境模板收敛：`config/env/ai.env.example` 仅保留 DashScope、DeepSeek、MiniMax、OpenRouter 四类配置，移除 mock 与其他 Provider 示例项。
+- 环境模板首轮收敛：`config/env/ai.env.example` 当时先收成了“DashScope + 额外 provider 示例”的过渡模板，后续再继续瘦身为最小生产版。
 - 新增 `AGENTS.md` 长期规则：执行类任务需检查并同步提升扩展版本号；默认代码或用户可见行为变化时提升 patch 版本。
 - 新增 `AGENTS.md` 长期规则：验证通过后默认按 `manifest.version` 生成 `dist/annotation-script-center-v<version>.zip`，并检查压缩包根目录结构。
 - 本轮将 `extension/manifest.json` 版本从 `0.2.9` 提升到 `0.2.10`。
@@ -3940,7 +3953,7 @@
 - 扩展前端仍不保存 API Key、access token、cookie 或完整音频 URL，标贝易采 模型密钥继续由后端通过 `config/env/ai.env` 读取。
 - manifest 版本提升到 `0.2.8`。
 - 新增统一 AI 环境配置文件 `config/env/ai.env` 自动加载能力，统一后端启动时会先加载仓库内 AI 环境配置，不再要求每次手动设置 `DASHSCOPE_API_KEY`。
-- 新增 `config/env/ai.env.example`，覆盖 DashScope、OpenRouter、MiniMax、其他模型服务和 标贝易采 AI 推荐文本配置项。
+- 新增 `config/env/ai.env.example`，覆盖 DashScope、历史额外 provider 示例、其他模型服务和 标贝易采 AI 推荐文本配置项。
 - `.gitignore` 新增真实密钥文件忽略规则：`config/env/ai.env`、`config/env/ai.local.env`、`.env`、`.env.*`，保留模板文件可提交。
 - 新增 标贝易采一检质检站点目录 `extension/sites/data-baker/round-one-quality/`，仅在 `datafactory.data-baker.com` 的 `roundOneCollect` 详情页注入"AI 推荐文本"工具卡。
 - 标贝易采 前端新增 MAIN world 网络观察脚本，只在内存中缓存 `queryCollectStatementByCondtion` 当前页响应；ISOLATED world 根据 `.sentence-list .sentence-item.active`、右侧"本句话文本" textarea 和接口记录定位当前单条。
@@ -3962,7 +3975,7 @@
   - `POST /api/alibaba-labelx/asr-judgement/ai/suggest`
   - 新增 `ai-routes.js`、`ai-client-qwen.js`、`ai-prompt.js`、`ai-response-schema.js`。
 - AI 后端默认真实调用 DashScope Qwen（`stream=true`），默认模型 `qwen3-omni-flash`；仅 `ASR_JUDGEMENT_AI_MOCK=1` 才走 mock；未配置 `DASHSCOPE_API_KEY` 时 health 返回 `missing-api-key`，suggest 返回清晰错误且服务不崩溃。
-- 新增 AI 规则资料：`platform-resources/alibaba-labelx/asr-judgement/ai/rules.ai.md`、`prompt-template.md`、`fewshot-examples.json`；并在相关 README 同步文档说明。已明确取消 MiniMax 接入，不新增 MiniMax client。
+- 新增 AI 规则资料：`platform-resources/alibaba-labelx/asr-judgement/ai/rules.ai.md`、`prompt-template.md`、`fewshot-examples.json`；并在相关 README 同步文档说明。已明确取消历史额外 provider 接入，不新增额外 client。
 - 安全约束补充：不在日志/存储/DOM 持久化完整 `audioUrl`，后端日志仅记录 requestId、hostname、itemIndex、model。
 
 - 修正 AI prompt 输入最小化：`ai-prompt.js` 仅向模型文本 prompt 提供 `asrText1/asrText2`，不再包含 `projectId/subTaskId/itemId/itemIndex`，`audioUrl` 仅作为模型音频输入字段。
