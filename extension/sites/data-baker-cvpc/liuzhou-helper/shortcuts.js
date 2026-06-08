@@ -45,7 +45,34 @@
     if (Boolean(config.meta) !== event.metaKey) {
       return false;
     }
-    return String(event.key || "").toLowerCase() === String(config.key || "").toLowerCase();
+    return getEventKeyCandidates(event).indexOf(String(config.key || "").toLowerCase()) >= 0;
+  }
+
+  function getEventKeyCandidates(event) {
+    const candidates = [];
+    const rawKey = String(event?.key || "").toLowerCase();
+    const rawCode = String(event?.code || "");
+
+    if (rawKey) {
+      candidates.push(rawKey);
+    }
+    if (rawKey === " ") {
+      candidates.push("space");
+    }
+    if (/^digit[0-9]$/i.test(rawCode)) {
+      candidates.push(rawCode.slice(-1).toLowerCase());
+    }
+    if (/^numpad[0-9]$/i.test(rawCode)) {
+      candidates.push(rawCode.slice(-1).toLowerCase());
+    }
+    if (/^key[a-z]$/i.test(rawCode)) {
+      candidates.push(rawCode.slice(-1).toLowerCase());
+    }
+    if (/^space$/i.test(rawCode)) {
+      candidates.push("space");
+    }
+
+    return Array.from(new Set(candidates));
   }
 
   function createRuntime(options) {

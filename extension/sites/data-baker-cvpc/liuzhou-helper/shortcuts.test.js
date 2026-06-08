@@ -115,3 +115,57 @@ test("CVPC shortcuts runtime only triggers configured actions", function () {
     globalThis.window = previousWindow;
   }
 });
+
+test("CVPC shortcuts runtime supports legacy shifted digit shortcuts for invalid and fillAllValid", function () {
+  const shortcutModule = loadShortcutModule();
+  const harness = createWindowHarness();
+  const previousWindow = globalThis.window;
+  let invalidTriggered = 0;
+  let fillAllValidTriggered = 0;
+
+  globalThis.window = harness.window;
+
+  try {
+    const runtime = shortcutModule.createRuntime({
+      shortcuts: {
+        invalid: {
+          alt: true,
+          shift: true,
+          key: "2",
+        },
+        fillAllValid: {
+          alt: true,
+          shift: true,
+          key: "3",
+        },
+      },
+      actions: {
+        invalid: function () {
+          invalidTriggered += 1;
+        },
+        fillAllValid: function () {
+          fillAllValidTriggered += 1;
+        },
+      },
+    });
+
+    runtime.bind();
+    harness.triggerKeydown({
+      altKey: true,
+      shiftKey: true,
+      key: "@",
+      code: "Digit2",
+    });
+    harness.triggerKeydown({
+      altKey: true,
+      shiftKey: true,
+      key: "#",
+      code: "Digit3",
+    });
+
+    assert.equal(invalidTriggered, 1);
+    assert.equal(fillAllValidTriggered, 1);
+  } finally {
+    globalThis.window = previousWindow;
+  }
+});

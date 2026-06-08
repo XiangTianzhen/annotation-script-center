@@ -1,3 +1,14 @@
+## 2026-06-08（DataBaker CVPC 柳州话脚本快捷键兼容热修）
+
+- 修复 `DataBaker CVPC / 柳州话脚本` 中部分历史快捷键无法触发的问题：
+  - 现象：按钮点击“设为 Invalid”“未填写补 Valid”可正常执行，但已保存的快捷键不触发。
+  - 根因：旧配置里存在 `Shift + 数字` 风格的快捷键，运行时只按 `event.key` 精确匹配时，会被浏览器实际抛出的符号键值打断。
+- `extension/sites/data-baker-cvpc/liuzhou-helper/shortcuts.js` 当前已补兼容：
+  - 在保留原有 `event.key` 匹配的基础上，额外按 `event.code` 推导数字键 / 主键区字母键 / Space 的候选值。
+  - 旧版 `Alt + Shift + 2/3` 这类历史组合现在可继续命中 `invalid` 与 `fillAllValid` 等动作。
+- 新增回归验证：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/shortcuts.test.js` 新增 legacy shifted digit 覆盖。
+
 ## 2026-06-08（DataBaker CVPC 柳州话脚本屏蔽 Tab 限制提示）
 
 - `DataBaker CVPC / 柳州话脚本` 当前新增基础设置开关：
