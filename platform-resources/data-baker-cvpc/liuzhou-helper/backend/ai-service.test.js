@@ -153,6 +153,16 @@ test("liuzhou recommend runs listen plus refine stages and returns three texts",
       now: function () {
         return 1000;
       },
+      fetch: async function () {
+        return {
+          ok: true,
+          headers: {
+            get: function () {
+              return "audio/wav";
+            },
+          },
+        };
+      },
       parseModelJsonText: function (rawText) {
         return JSON.parse(rawText);
       },
@@ -232,6 +242,16 @@ test("liuzhou recommend keeps dual audio outputs when listen model is fun-asr", 
       now: function () {
         return 1000;
       },
+      fetch: async function () {
+        return {
+          ok: true,
+          headers: {
+            get: function () {
+              return "audio/wav";
+            },
+          },
+        };
+      },
       parseModelJsonText: function (rawText) {
         return JSON.parse(rawText);
       },
@@ -277,6 +297,38 @@ test("liuzhou recommend keeps dual audio outputs when listen model is fun-asr", 
   assert.equal(result.refinedDialectText, "桥接修正柳州话。");
   assert.equal(result.models?.listenModel, "fun-asr");
   assert.equal(result.models?.refineModel, "qwen3.5-plus");
+});
+
+test("liuzhou recommend fails with explicit clip error when temporary audio url is unavailable", async function () {
+  await assert.rejects(
+    function () {
+      return recommend(
+        normalizeRecommendRequest(createBaseRequest()),
+        buildAssetsContext({
+          lexiconCsv: "",
+          ruleText: "规则一",
+        }),
+        {
+          fetch: async function () {
+            return {
+              ok: false,
+              status: 404,
+              headers: {
+                get: function () {
+                  return "application/json";
+                },
+              },
+            };
+          },
+        }
+      );
+    },
+    function (error) {
+      assert.equal(error.code, "clip-audio-unavailable");
+      assert.match(error.message, /临时音频不可用/);
+      return true;
+    }
+  );
 });
 
 test("liuzhou listen normalization keeps punctuation and allowed tags", function () {

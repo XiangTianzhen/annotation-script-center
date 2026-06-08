@@ -508,6 +508,7 @@ function createRuntimeDeps(overrides) {
   const source = overrides && typeof overrides === "object" ? overrides : {};
   return {
     now: typeof source.now === "function" ? source.now : Date.now,
+    fetch: typeof source.fetch === "function" ? source.fetch : globalThis.fetch,
     parseModelJsonText:
       typeof source.parseModelJsonText === "function" ? source.parseModelJsonText : parseModelJsonText,
     normalizeUsage:
@@ -521,6 +522,42 @@ function createRuntimeDeps(overrides) {
         ? source.requestFunAsrRecognition
         : requestFunAsrRecognition,
   };
+}
+
+async function assertAudioUrlReachable(audioUrl, deps) {
+  const fetchImpl = deps?.fetch;
+  if (typeof fetchImpl !== "function" || !normalizeText(audioUrl)) {
+    return;
+  }
+  let response = null;
+  try {
+    response = await fetchImpl(audioUrl, {
+      method: "HEAD",
+    });
+  } catch (_error) {
+    throw createHttpError(
+      409,
+      "当前段临时音频不可用，可能已过期或服务实例不一致，请重新生成当前段 AI 推荐后重试。",
+      "clip-audio-unavailable"
+    );
+  }
+  if (!response || response.ok !== true) {
+    throw createHttpError(
+      409,
+      "当前段临时音频不可用，可能已过期或服务实例不一致，请重新生成当前段 AI 推荐后重试。",
+      "clip-audio-unavailable"
+    );
+  }
+  const contentType = normalizeText(
+    typeof response.headers?.get === "function" ? response.headers.get("content-type") : ""
+  ).toLowerCase();
+  if (contentType && contentType.indexOf("audio/") !== 0) {
+    throw createHttpError(
+      409,
+      "当前段临时音频返回的不是音频内容，请重新生成当前段 AI 推荐后重试。",
+      "clip-audio-invalid-content-type"
+    );
+  }
 }
 
 async function runListenStage(request, assetsContext, deps) {
@@ -657,6 +694,7 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
 async function recommend(request, assetsContext, overrides) {
   const deps = createRuntimeDeps(overrides);
   const startedAt = deps.now();
+  await assertAudioUrlReachable(request.audioUrl, deps);
   const listenResult = await runListenStage(request, assetsContext || {}, deps);
   const refineResult = await runRefineStage(request, assetsContext || {}, listenResult, deps);
   const audioDialectText = normalizeAllowedPunctuation(listenResult.audioDialectText);
