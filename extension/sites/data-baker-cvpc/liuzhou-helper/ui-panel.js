@@ -43,6 +43,8 @@
       "[" + ROOT_ATTR + "] .section { margin-top:12px; padding-top:10px; border-top:1px solid #f1f5f9; }",
       "[" + ROOT_ATTR + "] .section-title { font-weight:700; color:#1f2937; }",
       "[" + ROOT_ATTR + "] .section-note { color:#64748b; margin-top:4px; }",
+      "[" + ROOT_ATTR + "] .audio-url-box { margin-top:8px; padding:8px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; color:#334155; overflow-wrap:anywhere; word-break:break-all; }",
+      "[" + ROOT_ATTR + "] .audio-url-box[data-empty='true'] { color:#64748b; word-break:normal; }",
       "[" + ROOT_ATTR + "] .preview-list, [" + ROOT_ATTR + "] .recommend-grid { margin-top:8px; display:grid; gap:8px; }",
       "[" + ROOT_ATTR + "] .preview-item, [" + ROOT_ATTR + "] .recommend-item { padding:8px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; }",
       "[" + ROOT_ATTR + "] .preview-item strong, [" + ROOT_ATTR + "] .recommend-item strong { display:block; color:#334155; }",
@@ -112,6 +114,7 @@
     let root = null;
     let toolbarRoot = null;
     let statusNode = null;
+    let audioNode = null;
     let previewNode = null;
     let recommendationNode = null;
     let panelToggleButton = null;
@@ -181,6 +184,31 @@
       });
     }
 
+    function renderAudioContext(context) {
+      if (!audioNode) {
+        return;
+      }
+      const source = context && typeof context === "object" ? context : {};
+      const audioUrl = String(source.audioUrl || "").trim();
+      const entryName = String(source.selectedEntry?.name || "").trim();
+      const sourceText = String(source.audioUrlSource || "").trim();
+      if (!audioUrl) {
+        audioNode.setAttribute("data-empty", "true");
+        audioNode.textContent =
+          source.audioUrlHintMessage ||
+          "暂未获取到当前音频地址，页面初始化完成后会自动刷新。";
+        return;
+      }
+      audioNode.setAttribute("data-empty", "false");
+      audioNode.textContent = [
+        entryName ? "文件：" + entryName : "",
+        sourceText ? "来源：" + sourceText : "",
+        "地址：" + audioUrl,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
     function ensurePanelVisibility(visible) {
       if (!root) {
         return;
@@ -229,6 +257,16 @@
         statusNode = document.createElement("div");
         statusNode.className = "status";
 
+        const audioSection = document.createElement("div");
+        audioSection.className = "section";
+        audioSection.innerHTML =
+          '<div class="section-title">当前音频地址</div><div class="section-note">页面刷新后自动获取，仅在本页运行时显示。</div>';
+        audioNode = document.createElement("div");
+        audioNode.className = "audio-url-box";
+        audioNode.setAttribute("data-empty", "true");
+        audioNode.textContent = "正在获取当前音频地址...";
+        audioSection.appendChild(audioNode);
+
         const previewSection = document.createElement("div");
         previewSection.className = "section";
         previewSection.innerHTML =
@@ -253,6 +291,7 @@
 
         root.appendChild(head);
         root.appendChild(statusNode);
+        root.appendChild(audioSection);
         root.appendChild(previewSection);
         root.appendChild(recommendSection);
         root.appendChild(foot);
@@ -324,6 +363,7 @@
       root = null;
       toolbarRoot = null;
       statusNode = null;
+      audioNode = null;
       previewNode = null;
       recommendationNode = null;
       panelToggleButton = null;
@@ -332,6 +372,7 @@
     return {
       mount,
       destroy,
+      renderAudioContext,
       setStatus,
       renderPreview,
       renderRecommendation,

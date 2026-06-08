@@ -18,6 +18,12 @@ function createWindowHarness() {
   const postedMessages = [];
   return {
     window: {
+      console: {
+        log: function () {},
+        info: function () {},
+        debug: function () {},
+        warn: function () {},
+      },
       fetch: function () {
         throw new Error("fetch should not be called in observer unit tests");
       },
@@ -114,6 +120,119 @@ test("CVPC audio observer keeps the latest signed audio url for the same relativ
   assert.equal(snapshot.mappings.length, 1);
   assert.match(snapshot.mappings[0].audioUrl, /Signature=new/);
   assert.equal(harness.postedMessages.length, 2);
+});
+
+test("CVPC audio observer maps console printed audio url after meta is available", function () {
+  const observerModule = loadObserverModule();
+  const harness = createWindowHarness();
+  const observer = observerModule.createObserver({
+    window: harness.window,
+    location: {
+      origin: "https://cvpc.data-baker.com",
+      href: "https://cvpc.data-baker.com/app/editor/asr/",
+    },
+  });
+
+  observer.observeResponse(
+    "https://cvpc.data-baker.com/httpapi/annotation/meta?project_id=1&task_id=2",
+    JSON.stringify({
+      code: 0,
+      data: {
+        datas: [
+          {
+            entry_id: 1,
+            name: "sample.mp3",
+            content: "databaker/data/sample.mp3",
+          },
+        ],
+      },
+    })
+  );
+  observer.observeConsoleArgs([
+    "==========> gAudioUrl :",
+    "https://databaker-cvpc.oss-cn-huhehaote.aliyuncs.com/databaker/data/sample.mp3?Signature=console",
+  ]);
+
+  const snapshot = observer.getSnapshot();
+
+  assert.equal(snapshot.mappings.length, 1);
+  assert.match(snapshot.mappings[0].audioUrl, /Signature=console/);
+  assert.equal(snapshot.mappings[0].fileName, "sample.mp3");
+});
+
+test("CVPC audio observer maps console printed audio url before meta arrives", function () {
+  const observerModule = loadObserverModule();
+  const harness = createWindowHarness();
+  const observer = observerModule.createObserver({
+    window: harness.window,
+    location: {
+      origin: "https://cvpc.data-baker.com",
+      href: "https://cvpc.data-baker.com/app/editor/asr/",
+    },
+  });
+
+  observer.observeConsoleArgs([
+    "audio_url:",
+    "https://databaker-cvpc.oss-cn-huhehaote.aliyuncs.com/databaker/data/sample.mp3?Signature=pending-console",
+  ]);
+  observer.observeResponse(
+    "https://cvpc.data-baker.com/httpapi/annotation/meta?project_id=1&task_id=2",
+    JSON.stringify({
+      code: 0,
+      data: {
+        datas: [
+          {
+            entry_id: 1,
+            name: "sample.mp3",
+            content: "databaker/data/sample.mp3",
+          },
+        ],
+      },
+    })
+  );
+
+  const snapshot = observer.getSnapshot();
+
+  assert.equal(snapshot.mappings.length, 1);
+  assert.match(snapshot.mappings[0].audioUrl, /Signature=pending-console/);
+});
+
+test("CVPC audio observer installed console wrapper captures info audio url", function () {
+  const observerModule = loadObserverModule();
+  const harness = createWindowHarness();
+  const observer = observerModule.createObserver({
+    window: harness.window,
+    location: {
+      origin: "https://cvpc.data-baker.com",
+      href: "https://cvpc.data-baker.com/app/editor/asr/",
+    },
+  });
+
+  observer.observeResponse(
+    "https://cvpc.data-baker.com/httpapi/annotation/meta?project_id=1&task_id=2",
+    JSON.stringify({
+      code: 0,
+      data: {
+        datas: [
+          {
+            entry_id: 1,
+            name: "sample.mp3",
+            content: "databaker/data/sample.mp3",
+          },
+        ],
+      },
+    })
+  );
+  observer.install();
+  harness.window.console.info(
+    "audio_url:",
+    "https://databaker-cvpc.oss-cn-huhehaote.aliyuncs.com/databaker/data/sample.mp3?Signature=info-console"
+  );
+
+  const snapshot = observer.getSnapshot();
+
+  assert.equal(snapshot.mappings.length, 1);
+  assert.match(snapshot.mappings[0].audioUrl, /Signature=info-console/);
 });
 
 test("CVPC audio observer ignores unmatched or non-audio urls", function () {

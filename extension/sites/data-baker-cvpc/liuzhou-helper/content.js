@@ -27,6 +27,8 @@
 
   let runtime = null;
   let routeTimer = null;
+  let audioRefreshTimer = null;
+  let audioRefreshAttempts = 0;
   let lastRecommendation = null;
 
   function isEditorPage() {
@@ -82,6 +84,11 @@
   }
 
   function destroyRuntime() {
+    if (audioRefreshTimer) {
+      window.clearTimeout(audioRefreshTimer);
+      audioRefreshTimer = null;
+    }
+    audioRefreshAttempts = 0;
     if (runtime?.shortcuts?.destroy) {
       runtime.shortcuts.destroy();
     }
@@ -97,6 +104,9 @@
 
   async function buildCurrentContext() {
     const context = await runtime.dataApi.getEditorContext({ force: true });
+    if (runtime?.ui?.renderAudioContext) {
+      runtime.ui.renderAudioContext(context);
+    }
     if (!context.audioUrl) {
       throw new Error(context.audioUrlHintMessage || MISSING_AUDIO_MESSAGE);
     }
@@ -121,6 +131,38 @@
         Math.max(0, Number(context.audioDurationMs) || 0),
       platformUserName: "",
     };
+  }
+
+  async function refreshAudioContextStatus() {
+    if (!runtime?.dataApi || !runtime?.ui?.renderAudioContext) {
+      return false;
+    }
+    try {
+      const context = await runtime.dataApi.getEditorContext({ force: true });
+      runtime.ui.renderAudioContext(context);
+      return Boolean(context.audioUrl);
+    } catch (error) {
+      runtime.ui.renderAudioContext({
+        audioUrl: "",
+        audioUrlHintMessage:
+          "读取当前音频地址失败：" + (error && error.message ? error.message : String(error)),
+      });
+      return false;
+    }
+  }
+
+  function scheduleAudioContextRefresh(delayMs) {
+    if (audioRefreshTimer) {
+      window.clearTimeout(audioRefreshTimer);
+    }
+    audioRefreshTimer = window.setTimeout(async function () {
+      audioRefreshTimer = null;
+      audioRefreshAttempts += 1;
+      const ok = await refreshAudioContextStatus();
+      if (!ok && audioRefreshAttempts < 12 && runtime) {
+        scheduleAudioContextRefresh(audioRefreshAttempts < 4 ? 500 : 1500);
+      }
+    }, Math.max(0, Number(delayMs) || 0));
   }
 
   async function handlePreview() {
@@ -281,6 +323,12 @@
       editingTabTipGuard.start();
     }
     ui.setStatus("柳州话脚本已就绪；当前处于建议生成 + 人工确认模式。", "success");
+    runtime.ui.renderAudioContext({
+      audioUrl: "",
+      audioUrlHintMessage: "正在获取当前音频地址...",
+    });
+    audioRefreshAttempts = 0;
+    scheduleAudioContextRefresh(0);
   }
 
   function startRouteWatcher() {

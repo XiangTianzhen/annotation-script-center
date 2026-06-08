@@ -4,6 +4,7 @@
   const META_PATH = "/httpapi/annotation/meta";
   const MAX_ENTRIES = 30;
   const AUDIO_EXT_PATTERN = /\.(mp3|wav|m4a|aac|ogg)(?:$|\?)/i;
+  const AUDIO_URL_PATTERN = /https?:\/\/[^\s"'<>]+?\.(?:mp3|wav|m4a|aac|ogg)(?:\?[^\s"'<>]*)?/gi;
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -71,6 +72,7 @@
     const locationLike = deps.location || windowLike.location || globalThis.location || {};
     const entries = [];
     const mappings = new Map();
+    const pendingAudioUrls = [];
     let installed = false;
 
     function notify(mapping) {
@@ -93,6 +95,9 @@
         entries.unshift(entry);
       });
       entries.splice(MAX_ENTRIES);
+      pendingAudioUrls.slice().forEach(function (url) {
+        rememberAudioUrl(url);
+      });
     }
 
     function matchEntry(rawAudioUrl) {
@@ -120,6 +125,8 @@
       }
       const entry = matchEntry(audioUrl);
       if (!entry) {
+        pendingAudioUrls.unshift(audioUrl);
+        pendingAudioUrls.splice(MAX_ENTRIES);
         return null;
       }
       const key = entry.relativePath || entry.fileName;
@@ -134,6 +141,44 @@
       mappings.set(key, mapping);
       notify(mapping);
       return mapping;
+    }
+
+    function collectAudioUrlsFromValue(value, results, depth) {
+      if (depth > 3 || results.length >= MAX_ENTRIES) {
+        return;
+      }
+      if (typeof value === "string") {
+        const matches = value.match(AUDIO_URL_PATTERN) || [];
+        matches.forEach(function (item) {
+          if (results.indexOf(item) < 0) {
+            results.push(item);
+          }
+        });
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach(function (item) {
+          collectAudioUrlsFromValue(item, results, depth + 1);
+        });
+        return;
+      }
+      if (value && typeof value === "object") {
+        Object.keys(value)
+          .slice(0, MAX_ENTRIES)
+          .forEach(function (key) {
+            collectAudioUrlsFromValue(value[key], results, depth + 1);
+          });
+      }
+    }
+
+    function observeConsoleArgs(args) {
+      const urls = [];
+      Array.from(args || []).forEach(function (item) {
+        collectAudioUrlsFromValue(item, urls, 0);
+      });
+      urls.forEach(function (url) {
+        observeAudioUrl(url);
+      });
     }
 
     function observeResponse(rawUrl, responseText) {
@@ -213,6 +258,27 @@
       };
     }
 
+    function installConsoleObserver() {
+      const consoleLike = windowLike.console;
+      if (!consoleLike) {
+        return;
+      }
+      ["log", "info", "debug", "warn"].forEach(function (method) {
+        if (typeof consoleLike[method] !== "function") {
+          return;
+        }
+        const nativeMethod = consoleLike[method];
+        consoleLike[method] = function () {
+          try {
+            observeConsoleArgs(arguments);
+          } catch (error) {
+            // Keep platform console behavior unchanged.
+          }
+          return nativeMethod.apply(this, arguments);
+        };
+      });
+    }
+
     function install() {
       if (installed) {
         return;
@@ -220,6 +286,7 @@
       installed = true;
       installFetchObserver();
       installXhrObserver();
+      installConsoleObserver();
     }
 
     function getSnapshot() {
@@ -235,6 +302,7 @@
       getSnapshot,
       install,
       observeAudioUrl,
+      observeConsoleArgs,
       observeResponse,
     };
   }
