@@ -25,6 +25,10 @@
 - 闽南语助手 options 不提供并发数配置（DataBaker 并发配置保持独立）。
 - 2026-05-26 保存链路热修后，模型方案/识别策略/听音模型/比较模型/单模型按当前脚本显式保存；`recognition_convert` legacy 字段仅作兼容映射，不再覆盖用户显式选择。
 - 2026-05-26 options 面板口径调整：移除 `AI 质检模式` 字段，闽南语助手统一按 `模型方案 + 识别策略` 运行；`direct_dialect` 与 `mandarin_to_dialect` 保存后刷新保持不回滚。
+- 2026-06-08 Job 结果解包热修：
+  - `review-current/jobs/:jobId` 成功态的 `data` 当前承载的是整块成功响应体，而不是直接的质检结果对象。
+  - 前端 client 当前已优先解包 `data.data`，避免新版面板读取 `reviewConclusion/summary` 时落空。
+  - 该兼容与客家话助手保持一致，避免双助手在 Job 轮询链路上再次出现同类结果渲染异常。
 
 ## 三项质检口径
 

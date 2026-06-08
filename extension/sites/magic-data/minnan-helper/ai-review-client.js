@@ -215,7 +215,7 @@ function mapErrorMessage(code, message, summary, statusCode) {
             throw error;
           },
           mapSuccess: function (jobBody) {
-            return jobBody?.data;
+            return jobBody?.data?.data || jobBody?.data;
           },
         });
         json = {

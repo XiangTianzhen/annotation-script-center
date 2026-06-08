@@ -1,3 +1,14 @@
+## 2026-06-08（Magic Data 双助手修复 Job 成功态结果多包一层导致的面板误判）
+
+- 修复 `Magic Data / 客家话助手` 的“AI 质检当前条”结果渲染异常：
+  - 现象：后端已返回 `reviewConclusion=pass` 与有效 `summary`，但右侧结果区仍显示“无法判断 / 摘要 -”。
+  - 根因：`review-current/jobs/:jobId` 成功态返回的 `data` 是整块成功响应体，前端 Job client 直接把这层对象传给面板，导致面板读取 `reviewConclusion/overall.summary` 时命中空值。
+  - 修复：`extension/sites/magic-data/shared/ai-review-client.js` 在 Job 轮询成功分支优先解包 `jobBody.data.data`，没有第二层时再回退 `jobBody.data`。
+- 同步兼容 `Magic Data / 闽南语助手`：
+  - `extension/sites/magic-data/minnan-helper/ai-review-client.js` 使用同样的解包逻辑，避免双助手在同类 Job 链路上再次出现结果渲染异常。
+- 新增回归验证：
+  - `extension/sites/magic-data/shared/ai-review-client.test.js` 覆盖“Job succeeded + data.success + data.data”结构，确保前端最终拿到真正的质检结果对象。
+
 ## 2026-06-08（DataBaker CVPC 柳州话脚本悬浮窗展示当前音频地址）
 
 - `DataBaker CVPC / 柳州话脚本` 的“柳州话脚本 Beta”悬浮窗当前新增“当前音频地址”区域：
