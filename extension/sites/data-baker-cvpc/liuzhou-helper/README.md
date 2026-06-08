@@ -11,6 +11,7 @@
 - 通过 `MAIN` world 页内观察桥捕获当前音频签名 URL，并在 `data-api.js` 内按观察器、`annotation/meta`、DOM audio、Performance、同源 iframe audio 逐级回退
 - 在“柳州话脚本 Beta”悬浮窗展示当前音频地址、当前文件和 URL 来源；刷新页面后会主动读取，优先消费页面初始化阶段打印或请求到的真实签名 URL
 - 在 `.page-top .top-right` 工具栏追加当前音频动作按钮
+- 页面骨架尚未就绪时，工具栏与悬浮窗会跳过本次挂载，等待下一轮 `mount()` 再补挂，避免早期 `appendChild` 空指针
 - 生成当前音频的画段建议
 - 对当前段生成：
   - `柳州话文本`

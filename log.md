@@ -8,6 +8,21 @@
   - 如果音频 URL 先于 `annotation/meta` 出现，会暂存在页面内存，待 meta 到达后再建立当前条目映射。
 - `content.js` 当前在悬浮窗挂载后会主动刷新当前音频上下文，页面刷新后无需先播放一次即可优先显示已捕获到的音频 URL；如果仍未拿到，会在面板里显示可执行提示。
 
+## 2026-06-08（DataBaker CVPC 柳州话脚本修复早期挂载空指针）
+
+- 修复 `DataBaker CVPC / 柳州话脚本` 在编辑页骨架尚未准备好时偶发的前端报错：
+  - 报错：`Cannot read properties of null (reading 'appendChild')`
+  - 位置：`extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+- 根因：
+  - content script 较早执行时，`document.body` 或顶部工具栏宿主可能仍未就绪
+  - `ui-panel.js` 直接对空宿主执行 `appendChild(...)`，导致挂载阶段抛错
+- 修复方式：
+  - `mount()` 在 `body` 未就绪时直接跳过本轮挂载并返回
+  - 工具栏 fallback 宿主在 `body` 缺失时不再强行创建
+  - 等后续轮询再次执行 `mount()` 时再完成正常挂载
+- 新增回归验证：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js` 覆盖 `document.body` 未就绪场景
+
 ## 2026-06-08（DataBaker CVPC 柳州话脚本提示屏蔽拆成双开关）
 
 - `DataBaker CVPC / 柳州话脚本` 的提示屏蔽能力当前从单开关拆成两个独立基础设置，且默认都开启：

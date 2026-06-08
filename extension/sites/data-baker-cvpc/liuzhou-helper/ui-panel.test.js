@@ -145,6 +145,38 @@ function createHarness() {
   return { body, document, head };
 }
 
+test("CVPC ui panel mount tolerates document.body being unavailable before page shell is ready", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    harness.document.body = null;
+    harness.document.documentElement = harness.head;
+
+    const runtime = uiModule.createRuntime({});
+    assert.doesNotThrow(function () {
+      runtime.mount();
+    });
+
+    harness.document.body = harness.body;
+    harness.document.documentElement = harness.body;
+
+    assert.doesNotThrow(function () {
+      runtime.mount();
+    });
+
+    const text = collectText(harness.body);
+    assert.match(text, /柳州话脚本 Beta/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("CVPC ui panel renders current audio url and source in the floating panel", function () {
   const uiModule = loadUiPanelModule();
   const harness = createHarness();

@@ -219,6 +219,10 @@
       }
     }
 
+    function getBodyHost() {
+      return document.body instanceof HTMLElement ? document.body : null;
+    }
+
     function resolveToolbarHost() {
       const host = document.querySelector(TOOLBAR_SELECTOR);
       if (host instanceof HTMLElement) {
@@ -230,15 +234,23 @@
       }
       let fallbackHost = document.querySelector("[" + FALLBACK_TOOLBAR_HOST_ATTR + "]");
       if (!(fallbackHost instanceof HTMLElement)) {
+        const bodyHost = getBodyHost();
+        if (!bodyHost) {
+          return null;
+        }
         fallbackHost = document.createElement("div");
         fallbackHost.setAttribute(FALLBACK_TOOLBAR_HOST_ATTR, "");
-        document.body.appendChild(fallbackHost);
+        bodyHost.appendChild(fallbackHost);
       }
       return fallbackHost;
     }
 
     function mount() {
       ensureStyle();
+      const bodyHost = getBodyHost();
+      if (!bodyHost) {
+        return false;
+      }
       if (!root || !root.isConnected) {
         root = document.createElement("section");
         root.setAttribute(ROOT_ATTR, "");
@@ -295,7 +307,7 @@
         root.appendChild(previewSection);
         root.appendChild(recommendSection);
         root.appendChild(foot);
-        document.body.appendChild(root);
+        bodyHost.appendChild(root);
       }
 
       if (!toolbarRoot || !toolbarRoot.isConnected) {
@@ -317,7 +329,10 @@
         Object.keys(buttons).forEach(function (key) {
           toolbarRoot.appendChild(buttons[key]);
         });
-        resolveToolbarHost().appendChild(toolbarRoot);
+        const initialToolbarHost = resolveToolbarHost();
+        if (initialToolbarHost) {
+          initialToolbarHost.appendChild(toolbarRoot);
+        }
 
         buttons.preview.addEventListener("click", function () {
           deps.onPreview && deps.onPreview();
@@ -347,10 +362,11 @@
       }
 
       const toolbarHost = resolveToolbarHost();
-      if (toolbarRoot.parentNode !== toolbarHost) {
+      if (toolbarHost && toolbarRoot.parentNode !== toolbarHost) {
         toolbarHost.appendChild(toolbarRoot);
       }
       ensurePanelVisibility(!root.classList.contains("hidden"));
+      return true;
     }
 
     function destroy() {
