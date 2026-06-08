@@ -1,3 +1,14 @@
+## 2026-06-08（DataBaker CVPC 柳州话脚本补充暂停状态提示屏蔽）
+
+- `DataBaker CVPC / 柳州话脚本` 的既有基础设置开关 `屏蔽“不能打开新的Tab页”提示` 当前已扩大到同时屏蔽两类固定高层提示：
+  - `您正在编辑该作业,不能打开新的Tab页`
+  - `系统进入暂停状态`
+- `extension/sites/data-baker-cvpc/liuzhou-helper/editing-tab-tip-guard.js` 当前继续保持精确文案匹配：
+  - 仍只观察 `/app/editor/asr/` 页面内新增的 `.tips` 节点
+  - 不扩大到其他提示、不改按钮逻辑、不碰平台保存/提交/切条链路
+- 回归验证补充：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/editing-tab-tip-guard.test.js` 新增暂停状态弹窗覆盖
+
 ## 2026-06-08（DataBaker CVPC 柳州话脚本音频 URL 获取接通）
 
 - `DataBaker CVPC / 柳州话脚本` 当前新增页内音频观察桥：

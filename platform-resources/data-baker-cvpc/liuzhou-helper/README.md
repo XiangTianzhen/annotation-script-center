@@ -24,6 +24,7 @@
   - 当前段填入建议
   - 当前段设为 `Valid / Invalid`
   - 当前音频内“未填写段落补为有效”的受限入口
+  - 基础设置开关可屏蔽两类固定高层提示：“您正在编辑该作业,不能打开新的Tab页”“系统进入暂停状态”
 - 独立后端接口：
   - `GET /api/data-baker-cvpc/liuzhou-helper/segment/health`
   - `POST /api/data-baker-cvpc/liuzhou-helper/segment/preview`

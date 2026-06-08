@@ -1,5 +1,8 @@
 (function () {
-  const BLOCKED_TEXT = "您正在编辑该作业,不能打开新的Tab页";
+  const BLOCKED_TEXTS = [
+    "您正在编辑该作业,不能打开新的Tab页",
+    "系统进入暂停状态",
+  ];
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, "");
@@ -9,7 +12,10 @@
     if (!node || typeof node !== "object") {
       return false;
     }
-    return normalizeText(node.textContent).indexOf(BLOCKED_TEXT) >= 0;
+    const text = normalizeText(node.textContent);
+    return BLOCKED_TEXTS.some(function (blockedText) {
+      return text.indexOf(blockedText) >= 0;
+    });
   }
 
   function collectTipsNodes(root) {
@@ -108,7 +114,7 @@
   }
 
   const api = {
-    BLOCKED_TEXT,
+    BLOCKED_TEXTS,
     createEditingTabTipGuard,
     isBlockedEditingTabTipNode,
     removeBlockedTipsFromRoot,

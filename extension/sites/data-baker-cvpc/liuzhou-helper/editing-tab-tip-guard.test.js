@@ -100,6 +100,21 @@ test("guard removes matching editing-tab tips during initial scan when enabled",
   assert.equal(blockedTip.removed, true);
 });
 
+test("guard removes matching paused-state tips during initial scan when enabled", function () {
+  const harness = createHarness();
+  const blockedTip = createTipsNode("系统进入暂停状态");
+  harness.body.appendChild(blockedTip);
+
+  const guard = guardApi.createEditingTabTipGuard({
+    document: harness.document,
+    MutationObserver: FakeMutationObserver,
+  });
+
+  guard.start();
+
+  assert.equal(blockedTip.removed, true);
+});
+
 test("guard keeps matching editing-tab tips when disabled", function () {
   const harness = createHarness();
   const blockedTip = createTipsNode("您正在编辑该作业,不能打开新的Tab页");
@@ -119,7 +134,8 @@ test("guard keeps matching editing-tab tips when disabled", function () {
 test("guard ignores non-matching tips and removes matching tips from mutations", function () {
   const harness = createHarness();
   const safeTip = createTipsNode("普通提示：请先保存页面");
-  const blockedTip = createTipsNode("您正在编辑该作业,不能打开新的Tab页");
+  const blockedTabTip = createTipsNode("您正在编辑该作业,不能打开新的Tab页");
+  const blockedPauseTip = createTipsNode("系统进入暂停状态");
   harness.body.appendChild(safeTip);
 
   const guard = guardApi.createEditingTabTipGuard({
@@ -130,10 +146,11 @@ test("guard ignores non-matching tips and removes matching tips from mutations",
   guard.start();
   guard.observer.emit([
     {
-      addedNodes: [blockedTip],
+      addedNodes: [blockedTabTip, blockedPauseTip],
     },
   ]);
 
   assert.equal(safeTip.removed, false);
-  assert.equal(blockedTip.removed, true);
+  assert.equal(blockedTabTip.removed, true);
+  assert.equal(blockedPauseTip.removed, true);
 });
