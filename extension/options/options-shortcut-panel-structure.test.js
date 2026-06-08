@@ -11,8 +11,10 @@ test("options html loads the shared shortcut panel script and exposes a dedicate
   assert.match(html, /options-shared-shortcut-panel\.js/);
   assert.match(html, /id="data-baker-cvpc-shortcut-grid"/);
   assert.match(html, /id="data-baker-cvpc-recording-status"/);
-  assert.match(html, /id="data-baker-cvpc-block-editing-tab-tips"/);
+  assert.match(html, /id="data-baker-cvpc-block-new-tab-tip"/);
+  assert.match(html, /id="data-baker-cvpc-block-pause-state-tip"/);
   assert.match(html, /屏蔽“不能打开新的Tab页”提示|屏蔽'不能打开新的Tab页'提示|屏蔽.*不能打开新的Tab页.*提示/);
+  assert.match(html, /屏蔽“系统进入暂停状态”提示|屏蔽'系统进入暂停状态'提示|屏蔽.*系统进入暂停状态.*提示/);
   assert.match(html, /默认全部未设置/);
   assert.doesNotMatch(html, /固定快捷键/);
 });

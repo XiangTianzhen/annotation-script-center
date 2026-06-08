@@ -4474,7 +4474,8 @@
         id: dataBakerCvpcLiuzhouScriptId,
         enabled: true,
         segmentPreviewEnabled: true,
-        blockEditingTabTips: true,
+        blockNewTabEditingTips: true,
+        blockPauseStateTips: true,
         segmentPreviewEndpoint:
           constants.DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT ||
           "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
@@ -4494,7 +4495,15 @@
     config.id = dataBakerCvpcLiuzhouScriptId;
     config.enabled = config.enabled !== false;
     config.segmentPreviewEnabled = config.segmentPreviewEnabled !== false;
-    config.blockEditingTabTips = config.blockEditingTabTips !== false;
+    config.blockNewTabEditingTips =
+      config.blockNewTabEditingTips !== undefined
+        ? config.blockNewTabEditingTips !== false
+        : config.blockEditingTabTips !== false;
+    config.blockPauseStateTips =
+      config.blockPauseStateTips !== undefined
+        ? config.blockPauseStateTips !== false
+        : config.blockEditingTabTips !== false;
+    delete config.blockEditingTabTips;
     config.aiRecommendEnabled = config.aiRecommendEnabled !== false;
     config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
       config.aiRecommendRequestTimeoutMs
@@ -9823,7 +9832,8 @@
     dataBakerCvpcShortcutsDraft = clone(config.shortcuts) || {};
     const segmentPreviewNode = getElement("data-baker-cvpc-segment-preview-enabled");
     const aiRecommendNode = getElement("data-baker-cvpc-ai-recommend-enabled");
-    const blockEditingTabTipsNode = getElement("data-baker-cvpc-block-editing-tab-tips");
+    const blockNewTabTipNode = getElement("data-baker-cvpc-block-new-tab-tip");
+    const blockPauseStateTipNode = getElement("data-baker-cvpc-block-pause-state-tip");
     const timeoutNode = getElement("data-baker-cvpc-ai-timeout");
     const contractNode = getElement("data-baker-cvpc-contract-mode");
 
@@ -9833,8 +9843,11 @@
     if (aiRecommendNode) {
       aiRecommendNode.checked = config.aiRecommendEnabled !== false;
     }
-    if (blockEditingTabTipsNode) {
-      blockEditingTabTipsNode.checked = config.blockEditingTabTips !== false;
+    if (blockNewTabTipNode) {
+      blockNewTabTipNode.checked = config.blockNewTabEditingTips !== false;
+    }
+    if (blockPauseStateTipNode) {
+      blockPauseStateTipNode.checked = config.blockPauseStateTips !== false;
     }
     if (timeoutNode) {
       timeoutNode.value = String(
@@ -10107,7 +10120,8 @@
     });
     const segmentPreviewEnabled = getElement("data-baker-cvpc-segment-preview-enabled").checked;
     const aiRecommendEnabled = getElement("data-baker-cvpc-ai-recommend-enabled").checked;
-    const blockEditingTabTips = getElement("data-baker-cvpc-block-editing-tab-tips").checked;
+    const blockNewTabEditingTips = getElement("data-baker-cvpc-block-new-tab-tip").checked;
+    const blockPauseStateTips = getElement("data-baker-cvpc-block-pause-state-tip").checked;
     const timeoutMs = normalizeDataBakerTimeoutMs(
       getElement("data-baker-cvpc-ai-timeout").value ||
         String(currentConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
@@ -10129,7 +10143,8 @@
               liuzhouAssistant: {
                 id: dataBakerCvpcLiuzhouScriptId,
                 segmentPreviewEnabled: segmentPreviewEnabled,
-                blockEditingTabTips: blockEditingTabTips,
+                blockNewTabEditingTips: blockNewTabEditingTips,
+                blockPauseStateTips: blockPauseStateTips,
                 segmentPreviewEndpoint: buildBackendUrl(segmentPreviewPath, currentSettings || {}),
                 aiRecommendEnabled: aiRecommendEnabled,
                 aiRecommendEndpoint: buildBackendUrl(aiRecommendPath, currentSettings || {}),

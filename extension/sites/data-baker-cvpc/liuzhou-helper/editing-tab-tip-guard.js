@@ -1,19 +1,34 @@
 (function () {
-  const BLOCKED_TEXTS = [
-    "您正在编辑该作业,不能打开新的Tab页",
-    "系统进入暂停状态",
-  ];
+  const BLOCKED_TEXTS = {
+    newTab: "您正在编辑该作业,不能打开新的Tab页",
+    pauseState: "系统进入暂停状态",
+  };
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, "");
   }
 
-  function isBlockedEditingTabTipNode(node) {
+  function getEnabledBlockedTexts(options) {
+    const source = options && typeof options === "object" ? options : {};
+    if (source.enabled === false) {
+      return [];
+    }
+    const blockedTexts = [];
+    if (source.blockNewTabEditingTips !== false) {
+      blockedTexts.push(BLOCKED_TEXTS.newTab);
+    }
+    if (source.blockPauseStateTips !== false) {
+      blockedTexts.push(BLOCKED_TEXTS.pauseState);
+    }
+    return blockedTexts;
+  }
+
+  function isBlockedEditingTabTipNode(node, blockedTexts) {
     if (!node || typeof node !== "object") {
       return false;
     }
     const text = normalizeText(node.textContent);
-    return BLOCKED_TEXTS.some(function (blockedText) {
+    return (blockedTexts || []).some(function (blockedText) {
       return text.indexOf(blockedText) >= 0;
     });
   }
@@ -29,15 +44,15 @@
     }
   }
 
-  function removeBlockedTipsFromRoot(root) {
+  function removeBlockedTipsFromRoot(root, blockedTexts) {
     const targets = [];
 
-    if (isBlockedEditingTabTipNode(root)) {
+    if (isBlockedEditingTabTipNode(root, blockedTexts)) {
       targets.push(root);
     }
 
     collectTipsNodes(root).forEach(function (node) {
-      if (targets.indexOf(node) < 0 && isBlockedEditingTabTipNode(node)) {
+      if (targets.indexOf(node) < 0 && isBlockedEditingTabTipNode(node, blockedTexts)) {
         targets.push(node);
       }
     });
@@ -56,7 +71,8 @@
     const doc = deps.document || globalThis.document || null;
     const MutationObserverCtor =
       deps.MutationObserver || globalThis.MutationObserver || null;
-    const enabled = deps.enabled !== false;
+    const blockedTexts = getEnabledBlockedTexts(deps);
+    const enabled = blockedTexts.length > 0;
     let observer = null;
 
     function scan() {
@@ -64,7 +80,7 @@
         return 0;
       }
       const root = doc.body || doc.documentElement || doc;
-      return removeBlockedTipsFromRoot(root);
+      return removeBlockedTipsFromRoot(root, blockedTexts);
     }
 
     function start() {
@@ -85,7 +101,7 @@
             ? mutation.addedNodes
             : Array.from(mutation?.addedNodes || []);
           addedNodes.forEach(function (node) {
-            removeBlockedTipsFromRoot(node);
+            removeBlockedTipsFromRoot(node, blockedTexts);
           });
         });
       });
@@ -117,6 +133,7 @@
     BLOCKED_TEXTS,
     createEditingTabTipGuard,
     isBlockedEditingTabTipNode,
+    getEnabledBlockedTexts,
     removeBlockedTipsFromRoot,
   };
 

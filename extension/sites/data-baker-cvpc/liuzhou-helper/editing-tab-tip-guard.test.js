@@ -115,7 +115,7 @@ test("guard removes matching paused-state tips during initial scan when enabled"
   assert.equal(blockedTip.removed, true);
 });
 
-test("guard keeps matching editing-tab tips when disabled", function () {
+test("guard keeps matching editing-tab tips when that toggle is disabled", function () {
   const harness = createHarness();
   const blockedTip = createTipsNode("您正在编辑该作业,不能打开新的Tab页");
   harness.body.appendChild(blockedTip);
@@ -123,7 +123,7 @@ test("guard keeps matching editing-tab tips when disabled", function () {
   const guard = guardApi.createEditingTabTipGuard({
     document: harness.document,
     MutationObserver: FakeMutationObserver,
-    enabled: false,
+    blockNewTabEditingTips: false,
   });
 
   guard.start();
@@ -131,7 +131,23 @@ test("guard keeps matching editing-tab tips when disabled", function () {
   assert.equal(blockedTip.removed, false);
 });
 
-test("guard ignores non-matching tips and removes matching tips from mutations", function () {
+test("guard keeps paused-state tips when that toggle is disabled", function () {
+  const harness = createHarness();
+  const blockedTip = createTipsNode("系统进入暂停状态");
+  harness.body.appendChild(blockedTip);
+
+  const guard = guardApi.createEditingTabTipGuard({
+    document: harness.document,
+    MutationObserver: FakeMutationObserver,
+    blockPauseStateTips: false,
+  });
+
+  guard.start();
+
+  assert.equal(blockedTip.removed, false);
+});
+
+test("guard ignores non-matching tips and removes only enabled matching tips from mutations", function () {
   const harness = createHarness();
   const safeTip = createTipsNode("普通提示：请先保存页面");
   const blockedTabTip = createTipsNode("您正在编辑该作业,不能打开新的Tab页");
@@ -141,6 +157,7 @@ test("guard ignores non-matching tips and removes matching tips from mutations",
   const guard = guardApi.createEditingTabTipGuard({
     document: harness.document,
     MutationObserver: FakeMutationObserver,
+    blockPauseStateTips: false,
   });
 
   guard.start();
@@ -152,5 +169,5 @@ test("guard ignores non-matching tips and removes matching tips from mutations",
 
   assert.equal(safeTip.removed, false);
   assert.equal(blockedTabTip.removed, true);
-  assert.equal(blockedPauseTip.removed, true);
+  assert.equal(blockedPauseTip.removed, false);
 });

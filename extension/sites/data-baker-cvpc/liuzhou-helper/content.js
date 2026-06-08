@@ -54,8 +54,16 @@
         settings?.platforms?.dataBakerCvpc?.enabled !== false && current.enabled !== false,
       segmentPreviewEnabled:
         (current.segmentPreviewEnabled ?? defaults.segmentPreviewEnabled) !== false,
-      blockEditingTabTips:
-        (current.blockEditingTabTips ?? defaults.blockEditingTabTips) !== false,
+      blockNewTabEditingTips:
+        (current.blockNewTabEditingTips ??
+          current.blockEditingTabTips ??
+          defaults.blockNewTabEditingTips ??
+          defaults.blockEditingTabTips) !== false,
+      blockPauseStateTips:
+        (current.blockPauseStateTips ??
+          current.blockEditingTabTips ??
+          defaults.blockPauseStateTips ??
+          defaults.blockEditingTabTips) !== false,
       aiRecommendEnabled:
         (current.aiRecommendEnabled ?? defaults.aiRecommendEnabled) !== false,
       timeoutMs:
@@ -197,7 +205,8 @@
     const editingTabTipGuard =
       editingTabTipGuardApi && typeof editingTabTipGuardApi.createEditingTabTipGuard === "function"
         ? editingTabTipGuardApi.createEditingTabTipGuard({
-            enabled: config.blockEditingTabTips !== false,
+            blockNewTabEditingTips: config.blockNewTabEditingTips !== false,
+            blockPauseStateTips: config.blockPauseStateTips !== false,
           })
         : null;
     const ui = uiFactory.createRuntime({

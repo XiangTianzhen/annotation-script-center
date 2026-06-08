@@ -1,3 +1,16 @@
+## 2026-06-08（DataBaker CVPC 柳州话脚本提示屏蔽拆成双开关）
+
+- `DataBaker CVPC / 柳州话脚本` 的提示屏蔽能力当前从单开关拆成两个独立基础设置，且默认都开启：
+  - `屏蔽“不能打开新的Tab页”提示`
+  - `屏蔽“系统进入暂停状态”提示`
+- 存储字段当前改为：
+  - `blockNewTabEditingTips`
+  - `blockPauseStateTips`
+- 向后兼容：
+  - 旧配置里的 `blockEditingTabTips` 会自动迁移成两个新字段同值
+  - 老用户如果之前关闭过旧单开关，升级后两个新开关会一起保持关闭
+- `editing-tab-tip-guard.js` 当前按开关分别决定是否拦截对应固定文案，不扩大到其他 `.tips` 提示。
+
 ## 2026-06-08（DataBaker CVPC 柳州话脚本补充暂停状态提示屏蔽）
 
 - `DataBaker CVPC / 柳州话脚本` 的既有基础设置开关 `屏蔽“不能打开新的Tab页”提示` 当前已扩大到同时屏蔽两类固定高层提示：

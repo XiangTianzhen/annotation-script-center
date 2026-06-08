@@ -1915,11 +1915,13 @@
     return result;
   }
 
-  function normalizeDataBakerCvpcLiuzhouConfig(config, defaults) {
+  function normalizeDataBakerCvpcLiuzhouConfig(config, defaults, rawConfig) {
     const source = isPlainObject(config) ? config : {};
+    const rawSource = isPlainObject(rawConfig) ? rawConfig : source;
     const defaultConfig = isPlainObject(defaults) ? defaults : {};
     const constants = getConstants();
     const result = deepMerge(defaultConfig, source);
+    const legacyBlockEditingTabTips = rawSource.blockEditingTabTips;
 
     result.id =
       constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID ||
@@ -1927,7 +1929,21 @@
       "dataBakerCvpcLiuzhouAssistant";
     result.enabled = result.enabled !== false;
     result.segmentPreviewEnabled = result.segmentPreviewEnabled !== false;
-    result.blockEditingTabTips = result.blockEditingTabTips !== false;
+    result.blockNewTabEditingTips =
+      rawSource.blockNewTabEditingTips !== undefined
+        ? rawSource.blockNewTabEditingTips !== false
+        : legacyBlockEditingTabTips !== undefined
+          ? legacyBlockEditingTabTips !== false
+          : result.blockNewTabEditingTips !== false;
+    result.blockPauseStateTips =
+      rawSource.blockPauseStateTips !== undefined
+        ? rawSource.blockPauseStateTips !== false
+        : legacyBlockEditingTabTips !== undefined
+          ? legacyBlockEditingTabTips !== false
+          : result.blockPauseStateTips !== false;
+    delete result.blockEditingTabTips;
+    delete result.blockEditingTabTipsEnabled;
+    delete result.blockPauseTips;
     result.aiRecommendEnabled = result.aiRecommendEnabled !== false;
     result.segmentPreviewEndpoint = normalizeHttpEndpoint(
       result.segmentPreviewEndpoint,
@@ -1955,9 +1971,16 @@
     return result;
   }
 
-  function ensureDataBakerCvpcRoot(settings) {
+  function ensureDataBakerCvpcRoot(settings, input) {
     const constants = getConstants();
     const defaults = clone(constants.DEFAULT_SETTINGS || {});
+    const rawPlatform = isPlainObject(input?.platforms?.dataBakerCvpc)
+      ? input.platforms.dataBakerCvpc
+      : {};
+    const rawScripts = isPlainObject(rawPlatform.scripts) ? rawPlatform.scripts : {};
+    const rawLiuzhouAssistant = isPlainObject(rawScripts.liuzhouAssistant)
+      ? clone(rawScripts.liuzhouAssistant)
+      : {};
     const defaultPlatform =
       defaults?.platforms?.dataBakerCvpc || constants.DEFAULT_DATA_BAKER_CVPC_PLATFORM_SETTINGS || {
         enabled: true,
@@ -1968,7 +1991,8 @@
               "dataBakerCvpcLiuzhouAssistant",
             enabled: true,
             segmentPreviewEnabled: true,
-            blockEditingTabTips: true,
+            blockNewTabEditingTips: true,
+            blockPauseStateTips: true,
             segmentPreviewEndpoint:
               constants.DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT ||
               "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
@@ -2002,7 +2026,8 @@
     settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant =
       normalizeDataBakerCvpcLiuzhouConfig(
         settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant,
-        defaultPlatform.scripts?.liuzhouAssistant || {}
+        defaultPlatform.scripts?.liuzhouAssistant || {},
+        rawLiuzhouAssistant
       );
 
     return settings.platforms.dataBakerCvpc;
@@ -3171,7 +3196,7 @@
 
     ensureScriptCenter(settings);
     ensureLightwheelRoot(settings);
-    ensureDataBakerCvpcRoot(settings);
+    ensureDataBakerCvpcRoot(settings, input || {});
     ensureDataBakerRoot(settings);
     ensureAishellTechRoot(settings, input || {});
     ensureMagicDataRoot(settings);
