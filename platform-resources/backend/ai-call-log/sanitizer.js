@@ -4,6 +4,8 @@ const DEFAULT_TEXT_LIMIT = 500;
 const DEFAULT_JSON_LIMIT = 4000;
 const SENSITIVE_KEY_PATTERN =
   /(access[_-]?token|refresh[_-]?token|authorization|cookie|token|signature|api[_-]?key|secret|password|credential)/i;
+const USAGE_TOKEN_KEY_PATTERN =
+  /^(promptTokens|completionTokens|totalTokens|inputTokens|outputTokens|prompt_tokens|completion_tokens|total_tokens|input_tokens|output_tokens|prompt_tokens_details|completion_tokens_details)$/i;
 
 function normalizeText(value, maxLength) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
@@ -70,7 +72,11 @@ function sanitizeJsonValue(value, depth) {
   Object.keys(value)
     .slice(0, 120)
     .forEach(function mapKey(key) {
-      if (SENSITIVE_KEY_PATTERN.test(String(key || ""))) {
+      const normalizedKey = String(key || "");
+      if (
+        SENSITIVE_KEY_PATTERN.test(normalizedKey) &&
+        !USAGE_TOKEN_KEY_PATTERN.test(normalizedKey)
+      ) {
         result[key] = "<redacted>";
         return;
       }
@@ -126,27 +132,79 @@ function pickTokenValue(usage, keys) {
 }
 
 function pickUsageCells(usage) {
-  const promptTokens = pickTokenValue(usage, [
-    "promptTokens",
-    "prompt_tokens",
-    "inputTokens",
-    "input_tokens",
-  ]);
-  const completionTokens = pickTokenValue(usage, [
-    "completionTokens",
-    "completion_tokens",
-    "outputTokens",
-    "output_tokens",
-  ]);
-  const totalTokens =
-    promptTokens || completionTokens
-      ? ""
-      : pickTokenValue(usage, ["totalTokens", "total_tokens"]);
+  const totals = collectUsageTotals(usage);
+  const promptTokens = normalizeOptionalNumber(totals.promptTokens);
+  const completionTokens = normalizeOptionalNumber(totals.completionTokens);
+  const totalTokens = normalizeOptionalNumber(
+    promptTokens || completionTokens ? totals.promptTokens + totals.completionTokens : totals.totalTokens
+  );
 
   return {
     promptTokens,
     completionTokens,
     totalTokens,
+  };
+}
+
+function collectUsageTotals(usage) {
+  const source = usage && typeof usage === "object" ? usage : null;
+  if (!source) {
+    return {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      found: false,
+    };
+  }
+
+  const ownPromptTokens = Number(
+    pickTokenValue(source, ["promptTokens", "prompt_tokens", "inputTokens", "input_tokens"]) || 0
+  );
+  const ownCompletionTokens = Number(
+    pickTokenValue(source, [
+      "completionTokens",
+      "completion_tokens",
+      "outputTokens",
+      "output_tokens",
+    ]) || 0
+  );
+  const ownTotalTokens = Number(pickTokenValue(source, ["totalTokens", "total_tokens"]) || 0);
+
+  const childKeys = Object.keys(source).filter(function filterChildKey(key) {
+    const value = source[key];
+    return value && typeof value === "object";
+  });
+  const childTotals = childKeys.map(function mapChild(key) {
+    return collectUsageTotals(source[key]);
+  });
+  const hasChildTotals = childTotals.some(function someChild(child) {
+    return child.found;
+  });
+
+  if (hasChildTotals) {
+    return childTotals.reduce(
+      function reduceChild(result, child) {
+        result.promptTokens += child.promptTokens;
+        result.completionTokens += child.completionTokens;
+        result.totalTokens += child.totalTokens;
+        result.found = result.found || child.found;
+        return result;
+      },
+      {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        found: false,
+      }
+    );
+  }
+
+  return {
+    promptTokens: ownPromptTokens,
+    completionTokens: ownCompletionTokens,
+    totalTokens:
+      ownPromptTokens || ownCompletionTokens ? ownPromptTokens + ownCompletionTokens : ownTotalTokens,
+    found: Boolean(ownPromptTokens || ownCompletionTokens || ownTotalTokens),
   };
 }
 

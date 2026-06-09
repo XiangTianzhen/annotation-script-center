@@ -17,6 +17,38 @@
 - 运行时当前移除 Aishell 旧的“本机失败后自动回退服务器”逻辑；所有脚本请求改为只走当前模式对应根地址，失败时直接报当前模式失败。
 - `extension/manifest.json` 当前放宽 `host_permissions` 到通用 `http://*/*` 与 `https://*/*`，用于支持任意 IP / 域名作为运行时可配置后端。
 
+## 2026-06-09（业务词表切换为 JSON 主词表协作模式）
+
+- 项目级规则当前新增“业务词表治理规则”：
+  - 当前纳入统一治理的 5 份业务词表主格式固定为 `JSON`
+  - `CSV / XLSX` 只保留为参考源、原始来源或导入来源
+  - 处理“字词表 / 词表 / lexicon”任务时，默认先输出交给外部 AI 的词表处理 Prompt
+  - Codex 默认只负责词表 schema、校验、代码接入、测试与文档同步，不直接维护词条内容
+- 新增统一文档：`docs/workflow/lexicon-json-workflow.md`
+  - 固定了词表 JSON 顶层字段、entry 字段、清洗约束和 Prompt 模板
+- 新增统一校验器：`platform-resources/backend/business-lexicon.js`
+  - 负责业务词表 JSON 的读取、字段校验、归一化和错误状态输出
+- 运行时代码当前已接入 JSON 主词表路径：
+  - `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.json`
+  - `platform-resources/aishell-tech/minnan-helper/backend/reference/minnan-lexicon.json`
+  - `platform-resources/magic-data/hakka-helper/backend/lexicon/hakka-lexicon.json`
+  - `platform-resources/magic-data/minnan-helper/backend/lexicon/minnan-lexicon.json`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-lexicon.json`
+- 当前切换策略：
+  - JSON 缺失或非法时，运行时明确返回 `missing / invalid / parse_error` 之类状态
+  - 不再静默把参考源 CSV 当作业务主读取源
+  - 参考源 CSV 仍保留给人工整理、导入和外部 AI 处理
+- 本轮同步更新：
+  - `AGENTS.md`
+  - `README.md`
+  - `docs/README.md`
+  - `docs/platforms/index.md`
+  - 各平台词表相关 README 口径
+- 本轮验证：
+  - 新增 `platform-resources/backend/business-lexicon.test.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js`
+
 ## 2026-06-09（后端下载中心支持 ASC_DOWNLOAD_BASE_URL）
 
 - 统一后端 `admin-download-center` 与 `admin-dashboard` 当前新增 `ASC_DOWNLOAD_BASE_URL` 支持：

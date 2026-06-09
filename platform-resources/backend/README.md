@@ -199,7 +199,7 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 统一规则：
 
 - 前端必须携带 `aiUsageOperatorName`；未填写时前端与后端都会拦截。
-- token 只按 `promptTokens / completionTokens` 作为主统计口径；只有两者都缺失时才回退 `totalTokens`。
+- token 只按 `promptTokens / completionTokens` 作为主统计口径；只有两者都缺失时才回退 `totalTokens`。若业务结果是多阶段 usage（如 `listen / refine`），导出 CSV 会先按阶段汇总再写入 `输入Token / 输出Token / 总Token`。
 - 默认保留脱敏后的原始成功 / 失败 JSON，不再把大块业务结果拆成公共列。
 - options 当前统一改为“公开脚本中心 + 公开脚本下载中心 + 受保护系统管理”结构；AI 请求记录导出已迁入系统管理的“数据导出”页签。
 
@@ -232,6 +232,7 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 - `POST /api/admin/ai-call-log/request`
 - `GET /api/admin/ai-call-log/file?token=...`
 - `HEAD /api/admin/ai-call-log/file?token=...`
+- `GET /api/admin/ai-call-log/options` 默认不返回 beta 数据集；只有前端显式带 `includeBeta=1` 时才包含 beta 脚本的导出项
 - 说明：`options` 当前返回脚本类型 `id/label`，并补充 `hasData/fileCount/dateFrom/dateTo`，供系统管理页直接显示空态和可导出范围。
 - 日期范围：前端可选填写 `dateFrom/dateTo`；留空时导出该脚本当前全部 AI 请求记录。
 - 审计目录：`platform-resources/backend/audit-data/ai-call-log-download/`（运行数据，不提交 git）

@@ -123,11 +123,22 @@ test("ai call log request accepts admin bearer token without password", async fu
 });
 
 test("ai call log options include CVPC liuzhou helper dataset", function () {
-  const datasets = listAiCallLogDatasets({});
+  const datasets = listAiCallLogDatasets({
+    includeBetaDatasets: true,
+  });
   const target = datasets.find(function (item) {
     return item.id === "data-baker-cvpc-liuzhou-helper-ai";
   });
 
   assert.ok(target);
   assert.equal(target.label, "DataBaker CVPC 柳州话助手 AI 调用记录");
+});
+
+test("ai call log options hide beta CVPC dataset by default", function () {
+  const datasets = listAiCallLogDatasets({});
+  const target = datasets.find(function (item) {
+    return item.id === "data-baker-cvpc-liuzhou-helper-ai";
+  });
+
+  assert.equal(target, undefined);
 });

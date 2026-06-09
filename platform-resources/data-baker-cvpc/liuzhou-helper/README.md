@@ -60,7 +60,8 @@
 ## 规则资产
 
 - 柳州话规则整理稿：`platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-rules.md`
-- 柳州话发音对照表：`platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-pronunciation-reference.csv`
+- 柳州话业务词表运行时主文件：`platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-lexicon.json`
+- 柳州话发音对照表参考源：`platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-pronunciation-reference.csv`
 
 ## AI 契约
 
@@ -95,7 +96,7 @@
 - `listen`
   - `qwen3.5-omni-plus / flash`：直接听音输出原始 `audioDialectText`
 - `refine`
-  - 先按词表 `柳州字转写用字 -> 释义` 做最长匹配，生成普通话草稿
+  - 先按业务词表 JSON 的 `display/normalized -> mandarin` 做最长匹配，生成普通话草稿
   - 输入 `audioDialectText`、普通话草稿、词表命中片段和页面上下文
   - 同时输出 `refinedDialectText + refinedMandarinText`
 
@@ -103,11 +104,14 @@
 
 - 当前 AI 调用已接入共享 CSV 记录链路，日志目录为 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/logs/`
 - 系统管理 `AI 请求记录` 当前新增数据集：`DataBaker CVPC 柳州话助手 AI 调用记录`
+- 导出 CSV 当前会把 `listen + refine` 两阶段 usage 汇总到表头 `输入Token / 输出Token / 总Token`，便于直接估算模型成本
 - 每条调用默认补齐：
   - `AI 调用使用人`
   - `platformUserName = data.name`
   - `platformUserId = data.user_id`
   - `projectId / taskId / processId / dataId / jobId / fileName / entryIndex / selectionKey / segmentStartMs / segmentEndMs / listenModel / refineModel`
+- 当前原始返回 JSON 会继续脱敏鉴权类 token / cookie / 签名信息，但 usage 里的 token 数量不再被打成 `<redacted>`
+- 该数据集当前按 beta 可见性收口：未解锁 beta 时，系统管理里的 `AI 请求记录` 不显示这项；解锁 beta 后才会请求并显示
 
 ## 当前边界
 
@@ -160,6 +164,7 @@ platform-resources/data-baker-cvpc/liuzhou-helper/
   ai/
     adapter.js
     assets/
+      liuzhou-lexicon.json
       liuzhou-rules.md
       liuzhou-pronunciation-reference.csv
 ```

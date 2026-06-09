@@ -531,7 +531,7 @@
     "听音阶段已经完成音频转写；你现在只负责比较 heardText 与页面候选文本，输出最终推荐文本。",
     "以实际发声为主，不因词表存在就无依据改写。",
     "recommendedText 的普通中文统一使用简体；pageText/heardText 中的普通繁体字应转换为简体。",
-    "但命中 minnan-lexicon.csv 的建议用字必须保持不变，不参与普通简繁转换。",
+    "但命中闽南业务词表 JSON 的建议用字必须保持不变，不参与普通简繁转换。",
     "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
     "只输出 JSON，不输出额外解释。",
   ].join("\n");

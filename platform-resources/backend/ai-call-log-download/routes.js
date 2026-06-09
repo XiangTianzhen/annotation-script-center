@@ -120,6 +120,7 @@ function createDatasetRegistry(config) {
       id: "data-baker-cvpc-liuzhou-helper-ai",
       label: "DataBaker CVPC 柳州话助手 AI 调用记录",
       defaultFileName: "data-baker-cvpc-liuzhou-helper-ai-calls.csv",
+      visibility: "beta",
       getLogger: function () {
         return dataBakerCvpcLiuzhouLogger;
       },
@@ -173,6 +174,18 @@ function createDatasetRegistry(config) {
       },
     },
   ];
+}
+
+function shouldIncludeBetaDatasets(config) {
+  const source = config && typeof config === "object" ? config : {};
+  return source.includeBetaDatasets === true;
+}
+
+function filterDatasetsByVisibility(datasets, config) {
+  const includeBeta = shouldIncludeBetaDatasets(config);
+  return (Array.isArray(datasets) ? datasets : []).filter(function (item) {
+    return item?.visibility !== "beta" || includeBeta;
+  });
 }
 
 function getDatasetById(datasets, datasetId) {
@@ -232,7 +245,14 @@ function buildAiCallLogDatasetOption(dataset) {
 }
 
 function listAiCallLogDatasets(config) {
-  return createDatasetRegistry(config).map(buildAiCallLogDatasetOption);
+  return filterDatasetsByVisibility(createDatasetRegistry(config), config).map(
+    buildAiCallLogDatasetOption
+  );
+}
+
+function parseIncludeBetaDatasets(value) {
+  const text = normalizeText(value).toLowerCase();
+  return text === "1" || text === "true" || text === "yes";
 }
 
 function toStatusCodeForCode(code) {
@@ -420,8 +440,10 @@ function registerAiCallLogDownloadRoutes(router, options) {
   });
   auditStore.ensureDataDir();
 
-  router.get(OPTIONS_PATH, function ({ response }) {
-    const result = datasets.map(buildAiCallLogDatasetOption);
+  router.get(OPTIONS_PATH, function ({ response, query }) {
+    const result = filterDatasetsByVisibility(datasets, {
+      includeBetaDatasets: parseIncludeBetaDatasets(query?.includeBeta),
+    }).map(buildAiCallLogDatasetOption);
     sendJson(response, 200, {
       success: true,
       data: result,
