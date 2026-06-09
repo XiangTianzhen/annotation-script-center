@@ -1,3 +1,26 @@
+## 2026-06-09（DataBaker CVPC 柳州话脚本接入 AI 日志与双文本收口）
+
+- `DataBaker CVPC / 柳州话脚本` 当前完成一轮最小收口：
+  - 页内观察桥 `page-world/audio-observer.js` 当前新增 `GET /httpapi/user/meta` 监听，只转发脱敏后的 `name / user_id`；`data-api.js` 会优先消费桥接快照，未命中时再同源直连 `user/meta`，并把 `platformUserName / platformUserId / platformUserMetaSource` 注入编辑器上下文。
+  - 前端 `ai-recommendation.js` 当前对齐共享 `ai-usage-meta` 语义：请求前必须校验 options 首页 `AI 调用使用人`，并把 `aiUsageOperatorName / platformUserName / platformUserId` 一起发给现有 `POST /api/data-baker-cvpc/liuzhou-helper/ai/recommend`。
+  - `ui-panel.js` 当前改为只在字段区显示两张最终结果卡：
+    - `修正后的柳州话文本` -> `填入标注文本`
+    - `整理后的普通话文本` -> `填入普通话顺滑`
+  - 原始听音结果当前统一移入默认折叠的 `当前段 AI 附加信息`，标题固定为 `音频听出的柳州话文本`；`特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 保持不变。
+- 后端 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 当前保留 `listen / refine` 两阶段命名，但语义改为：
+  - `listen` 只输出原始 `audioDialectText`
+  - `refine` 先基于 `liuzhou-pronunciation-reference.csv` 的 `柳州字转写用字 -> 释义` 做最长匹配普通话草稿，再一次性输出 `refinedDialectText + refinedMandarinText`
+  - 成功响应当前新增 `refinedMandarinText`；`mandarinText` 指向它；`audioMandarinText` 临时回填为 `refinedMandarinText` 兼容旧调用点
+- 当前 AI 调用已接入共享 CSV 记录与系统管理导出：
+  - 新增 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-call-log.js`
+  - `platform-resources/backend/ai-call-log-download/routes.js` 当前新增数据集 `data-baker-cvpc-liuzhou-helper-ai`
+  - 导出列新增 `projectId / taskId / processId / dataId / jobId / fileName / entryIndex / selectionKey / segmentStartMs / segmentEndMs / listenModel / refineModel`
+- 同步更新：
+  - `README.md`
+  - `docs/platforms/index.md`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+
 ## 2026-06-09（DataBaker CVPC 柳州话脚本二次界面优化）
 
 - `DataBaker CVPC / 柳州话脚本` 当前继续优化表单区层级与视觉：

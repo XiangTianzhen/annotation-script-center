@@ -18,6 +18,7 @@ const {
 } = require("../project-data-download/jwt");
 
 const { aiCallLogger: dataBakerLogger } = require("../../data-baker/round-one-quality/backend/ai-call-log");
+const { aiCallLogger: dataBakerCvpcLiuzhouLogger } = require("../../data-baker-cvpc/liuzhou-helper/backend/ai-call-log");
 const { aiCallLogger: aishellLogger } = require("../../aishell-tech/minnan-helper/data/ai-call-log");
 const { aiCallLogger: magicDataHakkaLogger } = require("../../magic-data/hakka-helper/backend/ai-call-log");
 const { aiCallLogger: magicDataMinnanLogger } = require("../../magic-data/minnan-helper/backend/ai-call-log");
@@ -113,6 +114,14 @@ function createDatasetRegistry(config) {
       defaultFileName: "data-baker-round-one-quality-ai-calls.csv",
       getLogger: function () {
         return dataBakerLogger;
+      },
+    },
+    {
+      id: "data-baker-cvpc-liuzhou-helper-ai",
+      label: "DataBaker CVPC 柳州话助手 AI 调用记录",
+      defaultFileName: "data-baker-cvpc-liuzhou-helper-ai-calls.csv",
+      getLogger: function () {
+        return dataBakerCvpcLiuzhouLogger;
       },
     },
     {

@@ -3,6 +3,7 @@
   const MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
   const META_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
   const META_PATH = "/httpapi/annotation/meta";
+  const USER_META_PATH = "/httpapi/user/meta";
   const MAX_ENTRIES = 30;
   const AUDIO_EXT_PATTERN = /\.(mp3|wav|m4a|aac|ogg)(?:$|\?)/i;
   const AUDIO_URL_PATTERN = /https?:\/\/[^\s"'<>]+?\.(?:mp3|wav|m4a|aac|ogg)(?:\?[^\s"'<>]*)?/gi;
@@ -25,9 +26,18 @@
     }
   }
 
-  function isMetaUrl(rawUrl, locationLike) {
+  function getMetaUrlType(rawUrl, locationLike) {
     const url = getUrl(rawUrl, locationLike);
-    return Boolean(url && url.pathname === META_PATH);
+    if (!url) {
+      return "";
+    }
+    if (url.pathname === META_PATH) {
+      return "annotation";
+    }
+    if (url.pathname === USER_META_PATH) {
+      return "user";
+    }
+    return "";
   }
 
   function extractQuery(rawUrl, locationLike) {
@@ -82,6 +92,22 @@
       .filter(function (item) {
         return item.relativePath || item.fileName;
       });
+  }
+
+  function sanitizeUserMeta(payload) {
+    const source = payload && typeof payload === "object" ? payload : {};
+    const data = source.data && typeof source.data === "object" ? source.data : source;
+    const result = {};
+    if (Object.prototype.hasOwnProperty.call(data, "name")) {
+      result.name = normalizeText(data.name);
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "user_id")) {
+      const userId = String(data.user_id || "").trim();
+      if (userId) {
+        result.user_id = data.user_id;
+      }
+    }
+    return result;
   }
 
   function createObserver(options) {
@@ -238,13 +264,18 @@
     }
 
     function observeResponse(rawUrl, responseText) {
-      if (!isMetaUrl(rawUrl, locationLike)) {
+      const metaType = getMetaUrlType(rawUrl, locationLike);
+      if (!metaType) {
         return;
       }
       try {
         const payload = JSON.parse(String(responseText || "{}"));
-        rememberEntries(extractEntries(payload));
-        const meta = payload && typeof payload === "object" && payload.data ? payload.data : payload;
+        let meta = payload && typeof payload === "object" && payload.data ? payload.data : payload;
+        if (metaType === "annotation") {
+          rememberEntries(extractEntries(payload));
+        } else if (metaType === "user") {
+          meta = sanitizeUserMeta(payload);
+        }
         notifyMeta(rawUrl, meta);
       } catch (error) {
         // Ignore partial or non-JSON responses.
@@ -271,7 +302,7 @@
               : "";
         observeAudioUrl(rawUrl);
         return nativeFetch.apply(this, args).then(function (response) {
-          if (!isMetaUrl(rawUrl, locationLike)) {
+          if (!getMetaUrlType(rawUrl, locationLike)) {
             return response;
           }
           try {
@@ -308,7 +339,7 @@
       NativeXhr.prototype.send = function () {
         const xhr = this;
         const rawUrl = xhr.__ascCvpcLiuzhouAudioUrl || "";
-        if (isMetaUrl(rawUrl, locationLike) && typeof xhr.addEventListener === "function") {
+        if (getMetaUrlType(rawUrl, locationLike) && typeof xhr.addEventListener === "function") {
           xhr.addEventListener("load", function () {
             observeResponse(rawUrl, xhr.responseText);
           });

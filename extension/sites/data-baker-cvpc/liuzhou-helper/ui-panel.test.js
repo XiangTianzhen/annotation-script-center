@@ -549,7 +549,7 @@ test("CVPC ui panel hides field recommendation areas when no AI result is availa
   }
 });
 
-test("CVPC ui panel renders preview and three staged recommendation cards inside the middle AI area", function () {
+test("CVPC ui panel renders preview, keeps heard dialect text in additional info, and shows only two final cards in fields", function () {
   const uiModule = loadUiPanelModule();
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -578,8 +578,9 @@ test("CVPC ui panel renders preview and three staged recommendation cards inside
     runtime.renderRecommendation({
       success: true,
       audioDialectText: "听音柳州话",
-      audioMandarinText: "听音普通话",
       refinedDialectText: "修正柳州话",
+      refinedMandarinText: "整理普通话",
+      audioMandarinText: "整理普通话",
       specialTags: ["口语化"],
       needHumanReview: false,
       notes: ["人工确认"],
@@ -599,20 +600,22 @@ test("CVPC ui panel renders preview and three staged recommendation cards inside
     assert.match(middleText, /建议 1/);
     assert.match(middleText, /口语化/);
     assert.match(middleText, /人工确认/);
+    assert.match(middleText, /音频听出的柳州话文本/);
+    assert.match(middleText, /听音柳州话/);
     assert.match(middleText, /AI 返回原始内容/);
     assert.match(middleText, /"listenModel": "qwen3\.5-omni-flash"/);
     assert.doesNotMatch(middleText, /音频的柳州话文本/);
-    assert.doesNotMatch(middleText, /音频的普通话文本/);
     assert.doesNotMatch(middleText, /修正后的柳州话文本/);
+    assert.doesNotMatch(middleText, /整理后的普通话文本/);
     assert.doesNotMatch(collectText(panelNode), /听音柳州话/);
     assert.doesNotMatch(collectText(panelNode), /建议 1/);
-    assert.match(dialectText, /音频的柳州话文本/);
-    assert.match(dialectText, /听音柳州话/);
     assert.match(dialectText, /修正后的柳州话文本/);
     assert.match(dialectText, /修正柳州话/);
-    assert.match(mandarinText, /音频的普通话文本/);
-    assert.match(mandarinText, /听音普通话/);
-    const dialectCard = findRecommendItemByTitle(harness.dialectFieldBlock, "音频的柳州话文本");
+    assert.match(mandarinText, /整理后的普通话文本/);
+    assert.match(mandarinText, /整理普通话/);
+    assert.doesNotMatch(dialectText, /音频的柳州话文本/);
+    assert.doesNotMatch(mandarinText, /音频的普通话文本/);
+    const dialectCard = findRecommendItemByTitle(harness.dialectFieldBlock, "修正后的柳州话文本");
     const textWrap = findNodeByClass(dialectCard, "recommend-item-body");
     const actionWrap = findNodeByClass(dialectCard, "recommend-item-action");
     assert.ok(textWrap);
@@ -621,17 +624,14 @@ test("CVPC ui panel renders preview and three staged recommendation cards inside
     assert.ok(metaDetails);
     assert.equal(metaDetails.hasAttribute("open"), false);
 
-    const audioDialectCard = findRecommendItemByTitle(harness.dialectFieldBlock, "音频的柳州话文本");
-    const audioMandarinCard = findRecommendItemByTitle(harness.mandarinFieldBlock, "音频的普通话文本");
     const refinedDialectCard = findRecommendItemByTitle(harness.dialectFieldBlock, "修正后的柳州话文本");
-    findButtonByText(audioDialectCard, "填入标注文本").dispatchEvent({ type: "click" });
-    findButtonByText(audioMandarinCard, "填入普通话顺滑").dispatchEvent({ type: "click" });
+    const refinedMandarinCard = findRecommendItemByTitle(harness.mandarinFieldBlock, "整理后的普通话文本");
     findButtonByText(refinedDialectCard, "填入标注文本").dispatchEvent({ type: "click" });
+    findButtonByText(refinedMandarinCard, "填入普通话顺滑").dispatchEvent({ type: "click" });
 
     assert.deepEqual(applyTargets, [
-      "audioDialectText",
-      "audioMandarinText",
       "refinedDialectText",
+      "refinedMandarinText",
     ]);
   } finally {
     globalThis.document = previousDocument;

@@ -2,6 +2,41 @@
   const DEFAULT_TIMEOUT_MS = 60000;
   const DEFAULT_PATH = "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
   const TARGET_SAMPLE_RATE = 16000;
+  const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
+  const buildAiUsageRequestMeta =
+    typeof aiUsageMeta.buildAiUsageRequestMeta === "function"
+      ? aiUsageMeta.buildAiUsageRequestMeta
+      : function (input) {
+          const source = input && typeof input === "object" ? input : {};
+          return {
+            aiUsageOperatorName: normalizeText(
+              source.settings?.meta?.aiUsageOperatorName || source.aiUsageOperatorName
+            ).slice(0, 40),
+            platformUserName: normalizeText(source.platformUserName).slice(0, 80),
+            platformUserId: normalizeText(source.platformUserId).slice(0, 120),
+          };
+        };
+  const appendAiUsageRequestMeta =
+    typeof aiUsageMeta.appendAiUsageRequestMeta === "function"
+      ? aiUsageMeta.appendAiUsageRequestMeta
+      : function (payload, requestMeta) {
+          return Object.assign({}, payload || {}, {
+            aiUsageOperatorName: normalizeText(requestMeta?.aiUsageOperatorName).slice(0, 40),
+            platformUserName: normalizeText(requestMeta?.platformUserName).slice(0, 80),
+            platformUserId: normalizeText(requestMeta?.platformUserId).slice(0, 120),
+          });
+        };
+  const assertAiUsageOperatorConfigured =
+    typeof aiUsageMeta.assertAiUsageOperatorConfigured === "function"
+      ? aiUsageMeta.assertAiUsageOperatorConfigured
+      : function (requestMeta) {
+          if (!normalizeText(requestMeta?.aiUsageOperatorName)) {
+            const error = new Error("请先在 options 首页填写 AI 调用使用人。");
+            error.code = "missing-ai-usage-operator-name";
+            throw error;
+          }
+          return requestMeta;
+        };
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -203,18 +238,27 @@
       const selectedRange = requireSelectedRange(source.selectedRange, source.selectionKey);
       const audioDataUrl = await createAudioDataUrl(source.audioUrl, selectedRange);
       const endpoint = normalizeText(config.endpoint) || DEFAULT_PATH;
-      const body = {
+      const requestMeta = assertAiUsageOperatorConfigured(
+        buildAiUsageRequestMeta({
+          settings: config.settings || {
+            meta: {
+              aiUsageOperatorName: config.aiUsageOperatorName,
+            },
+          },
+          aiUsageOperatorName: config.aiUsageOperatorName,
+          platformUserName: source.platformUserName,
+          platformUserId: source.platformUserId,
+        })
+      );
+      const body = appendAiUsageRequestMeta({
         audioDataUrl: audioDataUrl,
         startMs: selectedRange.startMs,
         endMs: selectedRange.endMs,
         selectionKey: normalizeText(source.selectionKey),
         fieldContext: source.fieldContext || {},
         editorContext: source.editorContext || {},
-        aiUsageOperatorName: normalizeText(config.aiUsageOperatorName),
-        platformUserName: normalizeText(source.platformUserName),
-        platformUserId: normalizeText(source.platformUserId),
         timeoutMs: Number(config.timeoutMs || DEFAULT_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
-      };
+      }, requestMeta);
       const aiStages = normalizeAiStages(config.aiStages);
       if (Object.keys(aiStages).length > 0) {
         body.aiStages = aiStages;

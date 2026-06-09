@@ -172,6 +172,8 @@ test("liuzhou ai recommend sends current segment audio as base64 data url", asyn
       selectedEntry: {
         name: "sample.mp3",
       },
+      platformUserName: "柳州标注员",
+      platformUserId: "9527",
       fieldContext: {},
       editorContext: {},
     };
@@ -205,6 +207,9 @@ test("liuzhou ai recommend sends current segment audio as base64 data url", asyn
     const requestBody = JSON.parse(recommendCall.body);
     assert.match(requestBody.audioDataUrl, /^data:audio\/wav;base64,/);
     assert.equal(requestBody.audioUrl, undefined);
+    assert.equal(requestBody.aiUsageOperatorName, "测试员");
+    assert.equal(requestBody.platformUserName, "柳州标注员");
+    assert.equal(requestBody.platformUserId, "9527");
     assert.deepEqual(requestBody.aiStages, {
       listen: {
         model: "qwen3.5-omni-plus",

@@ -8,7 +8,8 @@
 ## 当前能力
 
 - 读取 `annotation/meta` 和当前路由上下文
-- 通过 `MAIN` world 页内观察桥捕获页面真实 `annotation/meta` 响应和当前音频签名 URL；观察桥会进入同源 `xaudio` iframe，并在 `data-api.js` 内按观察器、桥接 meta、直连 meta、DOM audio、Performance、同源 iframe audio 逐级回退
+- 通过 `MAIN` world 页内观察桥捕获页面真实 `annotation/meta`、`user/meta` 响应和当前音频签名 URL；观察桥会进入同源 `xaudio` iframe，并在 `data-api.js` 内按观察器、桥接 meta、直连 meta、DOM audio、Performance、同源 iframe audio 逐级回退
+- `user/meta` 当前只保留最小用户快照 `name / user_id`，用于补齐平台账号信息并透传到 AI 调用日志
 - 把助手区嵌入右侧 `全局标注` 卡片：原生 `Valid / Invalid` 保持在上方；右侧当前只保留状态、当前音频/当前段摘要和提示说明，并优先插入 `全局标注` 内部的 `.label_title_border2` 内容流；摘要当前改为逐行显示 `文件 / 来源 / 当前第 N 段 / 当前段时间`
 - `是否有效（Valid or Not）` 下方当前作为独立同级 AI 工作区，优先挂到承载字段块的 `div[data-v-fd55b986]` 内，并与各个 `padding-left: 10px` 字段块保持同级；集中承载：
   - `当前段 AI 推荐`
@@ -17,27 +18,27 @@
   - `应用当前建议`
   - 当前画段建议结果
 - AI 结果当前按字段归位，而不是留在统一结果区：
-  - `音频的柳州话文本`、`修正后的柳州话文本` 直接展示在 `标注文本` 字段块内
-  - `音频的普通话文本` 直接展示在 `普通话顺滑` 字段块内
-  - `特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
+  - `修正后的柳州话文本` 直接展示在 `标注文本` 字段块内
+  - `整理后的普通话文本` 直接展示在 `普通话顺滑` 字段块内
+  - `音频听出的柳州话文本` 与 `特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
 - 字段结果卡在没有 AI 结果时不显示任何占位文案；有结果时改成“文本左侧、按钮右侧”的紧凑头部布局，并进一步强化蓝色卡片样式
 - `当前段 AI 附加信息` 当前改为默认折叠，点击后再展开查看 `特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
 - AI 区里的 `未填写补 Valid / 应用当前建议` 当前改成橙色实底 background 按钮，避免白底低对比看不清
 - 页面骨架尚未就绪时，右侧卡片和底部分段按钮都会跳过本次挂载，等待下一轮 `mount()` 再补挂，避免早期 `appendChild` 空指针
 - 生成当前音频的画段建议
 - 对当前波形选中段执行两阶段识别：
-  - `听音` 阶段输出 `音频的柳州话文本`、`音频的普通话文本`
-  - `文本修正` 阶段输出 `修正后的柳州话文本`
-- 字段内结果卡当前为三张独立卡片，并分别提供定向填入：
-  - `音频的柳州话文本` -> `填入标注文本`
-  - `音频的普通话文本` -> `填入普通话顺滑`
+  - `听音` 阶段只输出原始 `音频听出的柳州话文本`
+  - `文本修正` 阶段基于词表优先草稿一次性输出 `修正后的柳州话文本` 与 `整理后的普通话文本`
+- 字段内结果卡当前为两张独立卡片，并分别提供定向填入：
   - `修正后的柳州话文本` -> `填入标注文本`
+  - `整理后的普通话文本` -> `填入普通话顺滑`
 - 当前段 `Valid / Invalid` 快捷切换
 - 当前段 `Valid / Invalid` 在点击前会先检查当前单选状态；已是目标值时不再重复点击
 - `未填写补 Valid` 会先读取当前 `entry_index` 的 `annotation/annos`，只补当前音频里未填写有效性的段；已填 `Valid / Invalid` 一律跳过
 - 当前段 AI 推荐会实时解析 `.xaudio_time` 中的 `开始 / 结束`，只裁剪当前选中段音频；浏览器端转成 `16k` 单声道 WAV 后直接拼成 `audioDataUrl`，再发送给两阶段 AI 推荐接口
 - 当前段每次都会重新裁剪并重新生成当前段 Base64 音频，不再经过“本地文件转公网 URL”链路
-- 当前段文本字段写入已兼容当前页 `contenteditable .ProseMirror` 编辑器，三张结果卡会按目标字段分别写入 `标注文本` 或 `普通话顺滑`
+- 当前段文本字段写入已兼容当前页 `contenteditable .ProseMirror` 编辑器，两张结果卡会按目标字段分别写入 `标注文本` 或 `普通话顺滑`
+- 当前段 AI 推荐请求前会校验 options 首页 `AI 调用使用人`；请求体会同时带上 `aiUsageOperatorName / platformUserName / platformUserId`
 - options 页当前新增 CVPC 专属 `AI 设置` 面板：
   - `基础设置`
   - `听音`
@@ -62,10 +63,10 @@
 - `page-world/audio-observer.js`：页内音频观察桥，捕获页面真实 `annotation/meta` 响应、页面/同源 iframe 音频请求和 `console.log/info/debug` 打印音频 URL 的运行时映射；不包装 `console.warn`
 - `content.js`：入口编排与路由检测
 - `editing-tab-tip-guard.js`：精确屏蔽固定文案的 Tab / 暂停状态提示
-- `data-api.js`：读取编辑器上下文、解析当前音频 URL、当前波形选中段、`annotation/annos` 统计与实验性 DOM 写入
+- `data-api.js`：读取编辑器上下文、解析当前音频 URL、桥接或直连 `user/meta`、当前波形选中段、`annotation/annos` 统计与实验性 DOM 写入
 - `segmentation-controller.js`：画段建议生成与应用编排
-- `ai-recommendation.js`：当前段 AI 推荐调用，负责浏览器端裁剪当前段、生成 Base64 `audioDataUrl`，并把 `aiStages.listen / refine` 一起发送给后端
-- `ui-panel.js`：右侧 `全局标注` 卡内紧凑信息区 + `是否有效（Valid or Not）` 下方独立 AI 工作区挂载；右侧只保留状态与逐行音频摘要，字段内承载三结果 AI 推荐卡，独立 AI 区承载动作按钮、画段建议与默认折叠的附加信息，并统一收口为系统蓝主调样式
+- `ai-recommendation.js`：当前段 AI 推荐调用，负责浏览器端裁剪当前段、生成 Base64 `audioDataUrl`，并把 `aiUsageOperatorName / platformUserName / platformUserId` 与 `aiStages.listen / refine` 一起发送给后端
+- `ui-panel.js`：右侧 `全局标注` 卡内紧凑信息区 + `是否有效（Valid or Not）` 下方独立 AI 工作区挂载；右侧只保留状态与逐行音频摘要，字段内承载两张最终结果卡，独立 AI 区承载动作按钮、画段建议与默认折叠的附加信息，并统一收口为系统蓝主调样式
 - `shortcuts.js`：当前页快捷键监听与动作分发
 
 ## Options 口径

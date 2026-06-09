@@ -7,7 +7,6 @@ const {
 const {
   ensureChineseSentencePunctuation,
   normalizeUsage,
-  parseLexiconCsv,
   parseModelJsonText,
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
 
@@ -40,16 +39,17 @@ const SUPPORTED_SPECIAL_TAGS = [
 const DEFAULT_LISTEN_PROMPT = [
   "请严格以音频为主，输出当前段的听音结果。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
-  "JSON 字段固定为：audioDialectText, audioMandarinText, specialTags, needHumanReview, notes。",
-  "audioDialectText 写音频里的柳州话文本；audioMandarinText 写对应普通话文本。",
+  "JSON 字段固定为：audioDialectText, specialTags, needHumanReview, notes。",
+  "audioDialectText 只写音频里的柳州话文本，不要在这一阶段输出普通话文本。",
   "不要先套词表推断，词表只能作为参考提示；听不清必须保守，并把 needHumanReview 设为 true。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
 ].join("\n");
 const DEFAULT_REFINE_PROMPT = [
-  "请修正柳州话文本，但仍以听音结果为主。",
+  "请同时收口柳州话文本和普通话文本，但仍以听音结果与词表草稿为主。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
-  "JSON 字段固定为：refinedDialectText, needHumanReview, notes。",
-  "你会收到听音柳州话文本、普通话文本和词表命中片段，只修正柳州话文本，不重写普通话文本。",
+  "JSON 字段固定为：refinedDialectText, refinedMandarinText, needHumanReview, notes。",
+  "你会收到原始听音柳州话、词表优先生成的普通话草稿、页面字段上下文和词表命中片段。",
+  "只做标点、断句、明显错字和顺滑修正，不做自由改写，不要偏离词表含义。",
   "若拿不准或需要保留歧义，必须把 needHumanReview 设为 true。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
 ].join("\n");
@@ -144,23 +144,46 @@ function normalizeNotes(value) {
   );
 }
 
+function parseCsvLine(text) {
+  const source = String(text || "");
+  const result = [];
+  let current = "";
+  let inQuotes = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source.charAt(index);
+    if (char === '"') {
+      if (inQuotes && source.charAt(index + 1) === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === "," && !inQuotes) {
+      result.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  result.push(current);
+  return result;
+}
+
 function normalizeListenStageOutput(value) {
   const source = value && typeof value === "object" ? value : {};
   const audioDialectText = normalizeAllowedPunctuation(
     source.audioDialectText || source.dialectText || source.heardText || source.text || source.transcript || ""
   );
-  const audioMandarinText = normalizeAllowedPunctuation(
-    source.audioMandarinText || source.mandarinText || source.translationText || source.plainMandarinText || ""
-  );
   const specialTags = normalizeSpecialTags(source.specialTags).concat(
-    extractSupportedTagsFromText(audioDialectText),
-    extractSupportedTagsFromText(audioMandarinText)
+    extractSupportedTagsFromText(audioDialectText)
   );
   return {
     audioDialectText,
-    audioMandarinText,
+    audioMandarinText: "",
     specialTags: normalizeSpecialTags(specialTags),
-    needHumanReview: source.needHumanReview === true || !audioDialectText || !audioMandarinText,
+    needHumanReview: source.needHumanReview === true || !audioDialectText,
     notes: normalizeNotes(source.notes),
   };
 }
@@ -170,9 +193,18 @@ function normalizeRefineStageOutput(value) {
   const refinedDialectText = normalizeAllowedPunctuation(
     source.refinedDialectText || source.dialectText || source.recommendedDialectText || source.recommendedText || ""
   );
+  const refinedMandarinText = normalizeAllowedPunctuation(
+    source.refinedMandarinText ||
+      source.mandarinText ||
+      source.recommendedMandarinText ||
+      source.translationText ||
+      source.plainMandarinText ||
+      ""
+  );
   return {
     refinedDialectText,
-    needHumanReview: source.needHumanReview === true || !refinedDialectText,
+    refinedMandarinText,
+    needHumanReview: source.needHumanReview === true || !refinedDialectText || !refinedMandarinText,
     notes: normalizeNotes(source.notes),
   };
 }
@@ -284,6 +316,7 @@ function normalizeRecommendRequest(body) {
     startMs,
     endMs,
     durationMs: Math.max(0, endMs - startMs),
+    selectionKey: normalizeText(source.selectionKey),
     fieldContext:
       source.fieldContext && typeof source.fieldContext === "object" ? source.fieldContext : {},
     editorContext:
@@ -306,11 +339,40 @@ function normalizeRecommendRequest(body) {
 }
 
 function buildLexiconRows(text) {
-  try {
-    return parseLexiconCsv(String(text || ""));
-  } catch (_error) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map(function (line) {
+      return String(line || "").replace(/\r/g, "");
+    })
+    .filter(function (line) {
+      return normalizeText(line);
+    });
+  if (lines.length < 2) {
     return [];
   }
+  const headers = parseCsvLine(lines[0]).map(function (header, index) {
+    const textValue = index === 0 ? String(header || "").replace(/^\uFEFF/, "") : header;
+    return normalizeText(textValue);
+  });
+  return lines
+    .slice(1)
+    .map(function (line) {
+      const cells = parseCsvLine(line);
+      const row = {};
+      headers.forEach(function (header, index) {
+        if (header) {
+          row[header] = normalizeText(cells[index]);
+        }
+      });
+      return row;
+    })
+    .filter(function (row) {
+      return (
+        normalizeText(row?.["柳州话读音"]) ||
+        normalizeText(row?.["柳州字转写用字"]) ||
+        normalizeText(row?.["释义"])
+      );
+    });
 }
 
 function buildAssetsContext(assets) {
@@ -355,6 +417,45 @@ function buildRelevantLexiconContext(assetsContext, hintTexts) {
     });
 }
 
+function buildMandarinDraftFromLexicon(assetsContext, dialectText) {
+  const sourceText = normalizeAllowedPunctuation(dialectText);
+  const rows = Array.isArray(assetsContext?.lexiconRows) ? assetsContext.lexiconRows : [];
+  if (!sourceText || rows.length <= 0) {
+    return sourceText;
+  }
+  const dictionary = rows
+    .map(function (row) {
+      return {
+        dialectWord: normalizeText(row?.["柳州字转写用字"]),
+        meaning: normalizeText(row?.["释义"]),
+      };
+    })
+    .filter(function (row) {
+      return row.dialectWord && row.meaning;
+    })
+    .sort(function (left, right) {
+      return right.dialectWord.length - left.dialectWord.length;
+    });
+  if (dictionary.length <= 0) {
+    return sourceText;
+  }
+  const segments = [];
+  let cursor = 0;
+  while (cursor < sourceText.length) {
+    const matched = dictionary.find(function (row) {
+      return sourceText.slice(cursor, cursor + row.dialectWord.length) === row.dialectWord;
+    });
+    if (matched) {
+      segments.push(matched.meaning);
+      cursor += matched.dialectWord.length;
+      continue;
+    }
+    segments.push(sourceText.charAt(cursor));
+    cursor += 1;
+  }
+  return normalizeAllowedPunctuation(segments.join("") || sourceText);
+}
+
 function buildRulesExcerpt(assetsContext) {
   return String(assetsContext?.rulesText || "")
     .split(/\r?\n/)
@@ -395,9 +496,13 @@ function buildListenPrompt(request, assetsContext) {
 }
 
 function buildRefinePrompt(request, assetsContext, listenResult) {
+  const mandarinDraft = normalizeAllowedPunctuation(
+    listenResult.mandarinDraft ||
+      buildMandarinDraftFromLexicon(assetsContext, listenResult.audioDialectText)
+  );
   const lexiconContext = buildRelevantLexiconContext(assetsContext, [
     listenResult.audioDialectText,
-    listenResult.audioMandarinText,
+    mandarinDraft,
     request.fieldContext?.dialectText,
     request.fieldContext?.mandarinText,
     request.editorContext?.selectedEntry?.name,
@@ -418,14 +523,14 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
             durationMs: request.durationMs,
           },
           audioDialectText: listenResult.audioDialectText,
-          audioMandarinText: listenResult.audioMandarinText,
+          mandarinDraft: mandarinDraft,
           fieldContext: request.fieldContext,
           selectedEntry: request.editorContext?.selectedEntry || null,
         },
         null,
         2
       ),
-      "请只修正柳州话文本，并输出 refinedDialectText。",
+      "请同时输出 refinedDialectText 与 refinedMandarinText。",
     ].join("\n"),
   };
 }
@@ -519,7 +624,7 @@ async function runListenStage(request, assetsContext, deps) {
   const normalized = normalizeListenStageOutput(parsed);
   return {
     audioDialectText: normalized.audioDialectText,
-    audioMandarinText: normalized.audioMandarinText,
+    audioMandarinText: "",
     specialTags: normalized.specialTags,
     needHumanReview: normalized.needHumanReview,
     notes: normalized.notes,
@@ -537,10 +642,15 @@ async function runListenStage(request, assetsContext, deps) {
 
 async function runRefineStage(request, assetsContext, listenResult, deps) {
   const stageStartedAt = deps.now();
+  const mandarinDraft = normalizeAllowedPunctuation(
+    listenResult.mandarinDraft ||
+      buildMandarinDraftFromLexicon(assetsContext, listenResult.audioDialectText)
+  );
   const result = await deps.requestTextCompareJson(
     {
       pageText: request.fieldContext?.dialectText || "",
       heardText: listenResult.audioDialectText,
+      mandarinDraft: mandarinDraft,
       aiOptions: request.aiStages.refine.params,
     },
     buildRefinePrompt(request, assetsContext, listenResult),
@@ -555,9 +665,17 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
     stage: "refine",
   });
   const normalized = normalizeRefineStageOutput(parsed);
+  const refinedDialectText = normalizeAllowedPunctuation(
+    normalized.refinedDialectText || listenResult.audioDialectText
+  );
+  const refinedMandarinText = normalizeAllowedPunctuation(
+    normalized.refinedMandarinText || mandarinDraft
+  );
   return {
-    refinedDialectText: normalized.refinedDialectText || listenResult.audioDialectText,
-    needHumanReview: normalized.needHumanReview,
+    refinedDialectText,
+    refinedMandarinText,
+    needHumanReview:
+      normalized.needHumanReview === true || !refinedDialectText || !refinedMandarinText,
     notes: normalized.notes,
     timing: {
       refineMs: Math.max(0, deps.now() - stageStartedAt),
@@ -575,25 +693,32 @@ async function recommend(request, assetsContext, overrides) {
   const deps = createRuntimeDeps(overrides);
   const startedAt = deps.now();
   const listenResult = await runListenStage(request, assetsContext || {}, deps);
+  listenResult.mandarinDraft = buildMandarinDraftFromLexicon(
+    assetsContext || {},
+    listenResult.audioDialectText
+  );
   const refineResult = await runRefineStage(request, assetsContext || {}, listenResult, deps);
   const audioDialectText = normalizeAllowedPunctuation(listenResult.audioDialectText);
-  const audioMandarinText = normalizeAllowedPunctuation(listenResult.audioMandarinText);
   const refinedDialectText = normalizeAllowedPunctuation(
     refineResult.refinedDialectText || listenResult.audioDialectText
   );
+  const refinedMandarinText = normalizeAllowedPunctuation(
+    refineResult.refinedMandarinText || listenResult.mandarinDraft
+  );
   return {
     audioDialectText,
-    audioMandarinText,
+    audioMandarinText: refinedMandarinText,
     refinedDialectText,
+    refinedMandarinText,
     dialectText: refinedDialectText,
-    mandarinText: audioMandarinText,
+    mandarinText: refinedMandarinText,
     specialTags: normalizeSpecialTags(listenResult.specialTags),
     needHumanReview:
       listenResult.needHumanReview === true ||
       refineResult.needHumanReview === true ||
       !audioDialectText ||
-      !audioMandarinText ||
-      !refinedDialectText,
+      !refinedDialectText ||
+      !refinedMandarinText,
     notes: normalizeNotes([].concat(listenResult.notes || [], refineResult.notes || [])),
     timing: Object.assign({}, listenResult.timing || {}, refineResult.timing || {}, {
       totalMs: Math.max(0, deps.now() - startedAt),
@@ -613,10 +738,11 @@ function buildRecommendSuccessBody(context) {
     success: true,
     requestId: normalizeText(source.requestId || source.normalizedRequest?.requestId),
     audioDialectText: normalizeText(result.audioDialectText),
-    audioMandarinText: normalizeText(result.audioMandarinText),
+    audioMandarinText: normalizeText(result.audioMandarinText || result.refinedMandarinText || result.mandarinText),
     refinedDialectText: normalizeText(result.refinedDialectText || result.dialectText),
+    refinedMandarinText: normalizeText(result.refinedMandarinText || result.mandarinText || result.audioMandarinText),
     dialectText: normalizeText(result.refinedDialectText || result.dialectText),
-    mandarinText: normalizeText(result.audioMandarinText || result.mandarinText),
+    mandarinText: normalizeText(result.refinedMandarinText || result.mandarinText || result.audioMandarinText),
     specialTags: normalizeList(result.specialTags, 8),
     needHumanReview: result.needHumanReview === true,
     notes: normalizeNotes(result.notes),
@@ -645,6 +771,7 @@ module.exports = {
   SUPPORTED_REFINE_MODELS,
   SUPPORTED_SPECIAL_TAGS,
   __testOnly: {
+    buildMandarinDraftFromLexicon,
     normalizeAllowedPunctuation,
     normalizeListenStageOutput,
     normalizeRefineStageOutput,

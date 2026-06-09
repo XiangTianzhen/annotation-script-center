@@ -118,8 +118,9 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
     requestId: "req-1",
     data: {
       audioDialectText: "听音柳州话。",
-      audioMandarinText: "听音普通话。",
       refinedDialectText: "修正柳州话。",
+      refinedMandarinText: "整理普通话。",
+      audioMandarinText: "整理普通话。",
       specialTags: ["#um", "<SPK/>"],
       needHumanReview: true,
       notes: [" 第一条 "],
@@ -137,10 +138,11 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
     success: true,
     requestId: "req-1",
     audioDialectText: "听音柳州话。",
-    audioMandarinText: "听音普通话。",
+    audioMandarinText: "整理普通话。",
     refinedDialectText: "修正柳州话。",
+    refinedMandarinText: "整理普通话。",
     dialectText: "修正柳州话。",
-    mandarinText: "听音普通话。",
+    mandarinText: "整理普通话。",
     specialTags: ["#um", "<SPK/>"],
     needHumanReview: true,
     notes: ["第一条"],
@@ -154,9 +156,16 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
   });
 });
 
-test("liuzhou recommend runs listen plus refine stages and returns three texts", async function () {
+test("liuzhou recommend runs listen plus refine stages and returns heard dialect plus two final texts", async function () {
   const result = await recommend(
-    normalizeRecommendRequest(createBaseRequest()),
+    normalizeRecommendRequest(
+      createBaseRequest({
+        fieldContext: {
+          dialectText: "原页面柳州话",
+          mandarinText: "原页面普通话",
+        },
+      })
+    ),
     buildAssetsContext({
       lexiconCsv: "柳州话读音,柳州字转写用字,释义\nlau1,柳,柳树",
       ruleText: "规则一",
@@ -174,8 +183,7 @@ test("liuzhou recommend runs listen plus refine stages and returns three texts",
         assert.equal(input.audioUrl, "");
         return {
           rawText: JSON.stringify({
-            audioDialectText: "听音柳州话",
-            audioMandarinText: "听音普通话",
+            audioDialectText: "柳",
             specialTags: ["#um"],
             needHumanReview: false,
             notes: ["听音备注"],
@@ -190,11 +198,13 @@ test("liuzhou recommend runs listen plus refine stages and returns three texts",
         };
       },
       requestTextCompareJson: async function (_input, prompt, options) {
-        assert.match(prompt.userPrompt || "", /听音柳州话/);
+        assert.match(prompt.userPrompt || "", /"audioDialectText": "柳。"/);
+        assert.match(prompt.userPrompt || "", /柳树/);
         assert.equal(options?.stage, "refine");
         return {
           rawText: JSON.stringify({
             refinedDialectText: "修正柳州话",
+            refinedMandarinText: "整理普通话",
             needHumanReview: false,
             notes: ["修正备注"],
           }),
@@ -210,9 +220,10 @@ test("liuzhou recommend runs listen plus refine stages and returns three texts",
     }
   );
 
-  assert.equal(result.audioDialectText, "听音柳州话。");
-  assert.equal(result.audioMandarinText, "听音普通话。");
+  assert.equal(result.audioDialectText, "柳。");
+  assert.equal(result.audioMandarinText, "整理普通话。");
   assert.equal(result.refinedDialectText, "修正柳州话。");
+  assert.equal(result.refinedMandarinText, "整理普通话。");
   assert.deepEqual(result.specialTags, ["#um"]);
   assert.deepEqual(result.notes, ["听音备注", "修正备注"]);
   assert.equal(result.models?.listenModel, "qwen3.5-omni-flash");
@@ -231,7 +242,6 @@ test("liuzhou recommend accepts current-segment base64 audio without legacy clip
         return {
           rawText: JSON.stringify({
             audioDialectText: "听音柳州话",
-            audioMandarinText: "听音普通话",
           }),
           model: "qwen3.5-omni-flash",
           usage: {},
@@ -241,6 +251,7 @@ test("liuzhou recommend accepts current-segment base64 audio without legacy clip
         return {
           rawText: JSON.stringify({
             refinedDialectText: "修正柳州话",
+            refinedMandarinText: "整理普通话",
           }),
           model: "qwen3.5-plus",
           usage: {},
@@ -250,8 +261,9 @@ test("liuzhou recommend accepts current-segment base64 audio without legacy clip
   );
 
   assert.equal(result.audioDialectText, "听音柳州话。");
-  assert.equal(result.audioMandarinText, "听音普通话。");
+  assert.equal(result.audioMandarinText, "整理普通话。");
   assert.equal(result.refinedDialectText, "修正柳州话。");
+  assert.equal(result.refinedMandarinText, "整理普通话。");
 });
 
 test("liuzhou recommend keeps whole-audio url compatibility for omni listen stage", async function () {
@@ -279,7 +291,6 @@ test("liuzhou recommend keeps whole-audio url compatibility for omni listen stag
         return {
           rawText: JSON.stringify({
             audioDialectText: "整音频柳州话",
-            audioMandarinText: "整音频普通话",
             specialTags: [],
             needHumanReview: false,
             notes: ["听音备注"],
@@ -292,6 +303,7 @@ test("liuzhou recommend keeps whole-audio url compatibility for omni listen stag
         return {
           rawText: JSON.stringify({
             refinedDialectText: "整音频修正柳州话",
+            refinedMandarinText: "整音频整理普通话",
             needHumanReview: false,
             notes: ["修正备注"],
           }),
@@ -303,22 +315,22 @@ test("liuzhou recommend keeps whole-audio url compatibility for omni listen stag
   );
 
   assert.equal(result.audioDialectText, "整音频柳州话。");
-  assert.equal(result.audioMandarinText, "整音频普通话。");
+  assert.equal(result.audioMandarinText, "整音频整理普通话。");
   assert.equal(result.refinedDialectText, "整音频修正柳州话。");
+  assert.equal(result.refinedMandarinText, "整音频整理普通话。");
   assert.equal(result.models?.listenModel, "qwen3.5-omni-flash");
   assert.equal(result.models?.refineModel, "qwen3.5-plus");
 });
 
-test("liuzhou listen normalization keeps punctuation and allowed tags", function () {
+test("liuzhou listen normalization keeps punctuation and allowed tags without fabricating mandarin text", function () {
   const output = __testOnly.normalizeListenStageOutput({
     audioDialectText: "《挨卵》啊?",
-    audioMandarinText: "这个；要顺一下!",
     specialTags: ["#um", "<Bad/>", "<SPK/>"],
     notes: ["  第一条  ", "", "第二条"],
   });
 
   assert.equal(output.audioDialectText, "挨卵啊？");
-  assert.equal(output.audioMandarinText, "这个，要顺一下！");
+  assert.equal(output.audioMandarinText, "");
   assert.deepEqual(output.specialTags, ["#um", "<SPK/>"]);
   assert.deepEqual(output.notes, ["第一条", "第二条"]);
 });

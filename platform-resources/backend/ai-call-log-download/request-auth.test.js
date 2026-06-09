@@ -11,6 +11,7 @@ const {
 } = require("../admin-auth");
 const {
   REQUEST_PATH,
+  listAiCallLogDatasets,
   registerAiCallLogDownloadRoutes,
 } = require("./routes");
 
@@ -119,4 +120,14 @@ test("ai call log request accepts admin bearer token without password", async fu
   assert.equal(response.statusCode, 200);
   assert.equal(body.success, true);
   assert.ok(body.data.downloadUrl);
+});
+
+test("ai call log options include CVPC liuzhou helper dataset", function () {
+  const datasets = listAiCallLogDatasets({});
+  const target = datasets.find(function (item) {
+    return item.id === "data-baker-cvpc-liuzhou-helper-ai";
+  });
+
+  assert.ok(target);
+  assert.equal(target.label, "DataBaker CVPC 柳州话助手 AI 调用记录");
 });

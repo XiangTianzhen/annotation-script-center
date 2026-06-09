@@ -400,9 +400,33 @@ function createDataApiHarness(options) {
   };
 
   const metaPayload = settings.metaPayload;
+  const userMetaPayload = settings.userMetaPayload || null;
   const fetchCalls = [];
   async function fetchStub(url) {
-    fetchCalls.push(String(url || ""));
+    const requestUrl = String(url || "");
+    fetchCalls.push(requestUrl);
+    if (requestUrl.indexOf("/httpapi/user/meta") >= 0) {
+      if (settings.userMetaFetchStatus) {
+        return {
+          ok: settings.userMetaFetchStatus >= 200 && settings.userMetaFetchStatus < 300,
+          json: async function () {
+            return {
+              code: settings.userMetaFetchStatus,
+              message: "failed",
+            };
+          },
+        };
+      }
+      return {
+        ok: true,
+        json: async function () {
+          return {
+            code: settings.userMetaResponseCode ?? 0,
+            data: userMetaPayload,
+          };
+        },
+      };
+    }
     if (settings.fetchStatus) {
       return {
         ok: settings.fetchStatus >= 200 && settings.fetchStatus < 300,
@@ -459,6 +483,16 @@ function createDataApiHarness(options) {
       });
     },
   };
+}
+
+function createUserMetaPayload(overrides) {
+  return Object.assign(
+    {
+      user_id: 9527,
+      name: "柳州标注员",
+    },
+    overrides || {}
+  );
 }
 
 function createMetaPayload(entries) {
@@ -975,6 +1009,85 @@ test("CVPC data api uses bridged page meta when its own meta request is unauthor
     "https://oss.example.com/databaker/data/17896/sample.mp3?Signature=observer"
   );
   assert.equal(context.audioUrlSource, "observer");
+});
+
+test("CVPC data api exposes bridged user meta on editor context", async function () {
+  const dataApiModule = loadDataApiModule();
+  const metaPayload = createMetaPayload([
+    {
+      entry_id: 249783,
+      entry_index: 1,
+      name: "sample.mp3",
+      content: "databaker/data/17896/sample.mp3",
+    },
+  ]);
+  const harness = createDataApiHarness({
+    fetchStatus: 401,
+    visibleEntryNames: ["sample.mp3"],
+    metaPayload: null,
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      meta: metaPayload,
+      query: {
+        project_id: "1453",
+        task_id: "12099",
+        process_id: "4946",
+        data_id: "17896",
+        job_id: "1520",
+      },
+      at: Date.now(),
+    },
+    META_TYPE
+  );
+  harness.dispatchObserverMessage(
+    {
+      meta: {
+        user_id: 9527,
+        name: "柳州标注员",
+      },
+      query: {},
+      at: Date.now(),
+    },
+    META_TYPE
+  );
+
+  const context = await runtime.getEditorContext({ force: true });
+
+  assert.equal(context.platformUserName, "柳州标注员");
+  assert.equal(context.platformUserId, "9527");
+  assert.equal(context.platformUserMetaSource, "observer-user-meta");
+});
+
+test("CVPC data api falls back to direct user meta request when bridged user meta is missing", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createDataApiHarness({
+    visibleEntryNames: ["sample-a.mp3"],
+    metaPayload: createMetaPayload([
+      {
+        entry_id: 1,
+        entry_index: 1,
+        name: "sample-a.mp3",
+        content: "databaker/data/sample-a.mp3",
+        audioUrl: "https://meta.example.com/databaker/data/sample-a.mp3?Signature=meta",
+      },
+    ]),
+    userMetaPayload: createUserMetaPayload(),
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const context = await runtime.getEditorContext({ force: true });
+
+  assert.equal(context.platformUserName, "柳州标注员");
+  assert.equal(context.platformUserId, "9527");
+  assert.equal(context.platformUserMetaSource, "direct-user-meta");
+  assert.ok(
+    harness.fetchCalls.some(function (requestUrl) {
+      return requestUrl.indexOf("/httpapi/user/meta") >= 0;
+    })
+  );
 });
 
 test("CVPC data api accepts same-origin iframe audio candidate and matches it with bridged meta", async function () {

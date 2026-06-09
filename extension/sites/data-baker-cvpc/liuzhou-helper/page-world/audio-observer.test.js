@@ -161,6 +161,40 @@ test("CVPC audio observer posts code 200 annotation meta snapshot to isolated wo
   assert.equal(metaMessage.data.payload.query.data_id, "17896");
 });
 
+test("CVPC audio observer posts user meta snapshot with only safe user fields", function () {
+  const observerModule = loadObserverModule();
+  const harness = createWindowHarness();
+  const observer = observerModule.createObserver({
+    window: harness.window,
+    location: {
+      origin: "https://cvpc.data-baker.com",
+      href: "https://cvpc.data-baker.com/app/editor/asr/",
+    },
+  });
+
+  observer.observeResponse(
+    "https://cvpc.data-baker.com/httpapi/user/meta",
+    JSON.stringify({
+      code: 0,
+      data: {
+        user_id: 9527,
+        name: "柳州标注员",
+        token: "should-not-be-forwarded",
+        default_group_id: 1134,
+      },
+    })
+  );
+
+  const metaMessage = harness.postedMessages.find(function (item) {
+    return item.data.type === META_TYPE;
+  });
+
+  assert.ok(metaMessage);
+  assert.equal(metaMessage.data.payload.meta.user_id, 9527);
+  assert.equal(metaMessage.data.payload.meta.name, "柳州标注员");
+  assert.deepEqual(Object.keys(metaMessage.data.payload.meta).sort(), ["name", "user_id"]);
+});
+
 test("CVPC audio observer keeps the latest signed audio url for the same relative path", function () {
   const observerModule = loadObserverModule();
   const harness = createWindowHarness();

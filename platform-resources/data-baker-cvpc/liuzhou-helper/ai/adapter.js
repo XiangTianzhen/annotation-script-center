@@ -1,6 +1,7 @@
 "use strict";
 
 const aiService = require("../backend/ai-service");
+const { aiCallLogger } = require("../backend/ai-call-log");
 
 function normalizeInput(body) {
   return {
@@ -27,6 +28,7 @@ module.exports = {
   platform: "data-baker-cvpc",
   scriptId: aiService.SCRIPT_ID,
   routeKey: "recommend",
+  aiCallLogger,
   baseDir: __dirname,
   assets: {
     ruleText: {

@@ -150,6 +150,13 @@
           targetField: "dialect",
           text: String(source.refinedDialectText || source.dialectText || ""),
         };
+      case "refinedMandarinText":
+        return {
+          targetField: "mandarin",
+          text: String(
+            source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
+          ),
+        };
       default:
         return null;
     }
@@ -267,7 +274,8 @@
           moment_attrs: context.template?.moment_attrs || [],
         },
       },
-      platformUserName: "",
+      platformUserName: context.platformUserName || "",
+      platformUserId: context.platformUserId || "",
     };
   }
 
@@ -423,6 +431,7 @@
     const ai = aiFactory.createRuntime({
       endpoint: config.aiRecommendEndpoint,
       timeoutMs: config.timeoutMs,
+      settings: config.settings,
       aiUsageOperatorName: config.aiUsageOperatorName,
       aiStages: config.aiStages,
     });

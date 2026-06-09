@@ -1,5 +1,6 @@
 (function () {
   const META_PATH = "/httpapi/annotation/meta";
+  const USER_META_PATH = "/httpapi/user/meta";
   const ANNOS_PATH = "/httpapi/annotation/annos";
   const OBSERVER_SOURCE = "ASR_EDGE_DATABAKER_CVPC_LIUZHOU_AUDIO_OBSERVER";
   const OBSERVER_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
@@ -117,6 +118,19 @@
       );
     });
     return result;
+  }
+
+  function normalizeUserMeta(value) {
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      platformUserName: normalizeText(source.name),
+      platformUserId: normalizeText(source.user_id),
+    };
+  }
+
+  function hasUserMeta(value) {
+    const meta = normalizeUserMeta(value);
+    return Boolean(meta.platformUserName || meta.platformUserId);
   }
 
   async function fetchJson(pathname, query, fetchImpl) {
@@ -779,6 +793,8 @@
     let cachedMeta = null;
     let cachedContext = null;
     let bridgedMeta = null;
+    let bridgedUserMeta = null;
+    let cachedUserMeta = null;
     const observerMappings = [];
 
     function rememberObserverMapping(mapping) {
@@ -817,6 +833,17 @@
     function rememberBridgedMeta(payload) {
       const source = payload && typeof payload === "object" ? payload : {};
       const meta = source.meta && typeof source.meta === "object" ? source.meta : source;
+      if (hasUserMeta(meta)) {
+        bridgedUserMeta = normalizeUserMeta(meta);
+        cachedUserMeta = Object.assign(
+          {
+            platformUserMetaSource: "observer-user-meta",
+          },
+          bridgedUserMeta
+        );
+        cachedContext = null;
+        return;
+      }
       if (!Array.isArray(meta?.datas) || !isBridgeQueryForCurrentPage(source.query)) {
         return;
       }
@@ -847,6 +874,38 @@
       env.window.addEventListener("message", handleObserverMessage);
     }
 
+    async function loadPlatformUserMeta() {
+      if (cachedUserMeta) {
+        return cachedUserMeta;
+      }
+      if (bridgedUserMeta) {
+        cachedUserMeta = Object.assign(
+          {
+            platformUserMetaSource: "observer-user-meta",
+          },
+          bridgedUserMeta
+        );
+        return cachedUserMeta;
+      }
+      try {
+        const directMeta = normalizeUserMeta(await fetchJson(USER_META_PATH, null, env.fetch));
+        cachedUserMeta = Object.assign(
+          {
+            platformUserMetaSource:
+              directMeta.platformUserName || directMeta.platformUserId ? "direct-user-meta" : "",
+          },
+          directMeta
+        );
+      } catch (_error) {
+        cachedUserMeta = {
+          platformUserName: "",
+          platformUserId: "",
+          platformUserMetaSource: "",
+        };
+      }
+      return cachedUserMeta;
+    }
+
     async function loadContext(force) {
       if (!force && cachedContext) {
         return cachedContext;
@@ -869,6 +928,7 @@
       const currentAnn = getCurrentAnn(meta, selectedEntry);
       const template = meta.template && typeof meta.template === "object" ? meta.template : {};
       const audio = resolveAudioUrl(selectedEntry, env, observerMappings);
+      const userMeta = await loadPlatformUserMeta();
       cachedContext = {
         query,
         meta,
@@ -887,6 +947,9 @@
         audioUrlHintMessage: audio.audioUrl ? "" : MISSING_AUDIO_MESSAGE,
         audioUrlSource: audio.audioUrlSource,
         audioDurationMs: extractAudioDurationMs(currentAnn, selectedEntry),
+        platformUserName: userMeta.platformUserName,
+        platformUserId: userMeta.platformUserId,
+        platformUserMetaSource: userMeta.platformUserMetaSource,
       };
       return cachedContext;
     }
@@ -927,7 +990,9 @@
       const dialectText = String(
         source.refinedDialectText || source.dialectText || source.audioDialectText || ""
       );
-      const mandarinText = String(source.audioMandarinText || source.mandarinText || "");
+      const mandarinText = String(
+        source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
+      );
       const wroteDialect = dialectText
         ? setTextFieldValue(dialectField, dialectText, env)
         : false;

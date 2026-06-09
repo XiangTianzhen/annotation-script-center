@@ -384,6 +384,7 @@
         return;
       }
       [
+        ["音频听出的柳州话文本", result?.audioDialectText || result?.dialectText || ""],
         ["特殊标签", (result?.specialTags || []).join(" ") || "无"],
         ["需人工复核", result?.needHumanReview === true ? "是" : "否"],
         ["备注", (result?.notes || []).join("；") || "无"],
@@ -415,30 +416,24 @@
         renderRecommendationMeta(null);
         return;
       }
-      const audioDialectText = String(result.audioDialectText || result.dialectText || "");
-      const audioMandarinText = String(result.audioMandarinText || result.mandarinText || "");
       const refinedDialectText = String(result.refinedDialectText || result.dialectText || "");
+      const refinedMandarinText = String(
+        result.refinedMandarinText || result.mandarinText || result.audioMandarinText || ""
+      );
       [
-        {
-          host: dialectRecommendationNode,
-          title: "音频的柳州话文本",
-          value: audioDialectText,
-          buttonText: "填入标注文本",
-          applyKey: "audioDialectText",
-        },
-        {
-          host: mandarinRecommendationNode,
-          title: "音频的普通话文本",
-          value: audioMandarinText,
-          buttonText: "填入普通话顺滑",
-          applyKey: "audioMandarinText",
-        },
         {
           host: dialectRecommendationNode,
           title: "修正后的柳州话文本",
           value: refinedDialectText,
           buttonText: "填入标注文本",
           applyKey: "refinedDialectText",
+        },
+        {
+          host: mandarinRecommendationNode,
+          title: "整理后的普通话文本",
+          value: refinedMandarinText,
+          buttonText: "填入普通话顺滑",
+          applyKey: "refinedMandarinText",
         },
       ].forEach(function (item) {
         item.host.appendChild(
@@ -609,7 +604,7 @@
       const recommendSection = document.createElement("div");
       recommendSection.className = "section";
       recommendSection.innerHTML =
-        '<div class="section-title">当前段 AI 附加信息</div><div class="section-note">特殊标签、人工复核、备注和原始返回内容保留在独立 AI 区，默认折叠，避免占用真实输入字段。</div>';
+        '<div class="section-title">当前段 AI 附加信息</div><div class="section-note">音频听出的柳州话文本、特殊标签、人工复核、备注和原始返回内容保留在独立 AI 区，默认折叠，避免占用真实输入字段。</div>';
       const metaDetails = document.createElement("details");
       metaDetails.className = "meta-details";
       const metaSummary = document.createElement("summary");
