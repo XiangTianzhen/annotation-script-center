@@ -12,5 +12,8 @@ test("beta unlock uses brand image click target and keeps page hint hidden", fun
   assert.match(html, /id="workspace-brand-icon"/);
   assert.match(html, /shared\/build-meta\.local\.js/);
   assert.match(script, /getElement\("workspace-brand-icon"\)/);
+  assert.match(script, /function reloadOptionsPage\(\)/);
+  assert.match(script, /betaUnlockedAt: new Date\(\)\.toISOString\(\),[\s\S]*reloadOptionsPage\(\);/);
+  assert.match(script, /betaUnlockedAt: null,[\s\S]*reloadOptionsPage\(\);/);
   assert.doesNotMatch(script, /连续点击左上角品牌区 7 次后可输入 beta 口令/);
 });
