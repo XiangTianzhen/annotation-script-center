@@ -458,6 +458,15 @@ p {
   gap: 8px;
 }
 
+.home-endpoint-config-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .field-card input[type="text"],
 .field-card input[type="number"],
 .field-card select {

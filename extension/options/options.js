@@ -1108,6 +1108,7 @@
     const backendBaseUrls = getBackendBaseUrlsFromSettings(settings || {});
     return {
       backendEndpointMode: getBackendModeFromSettings(settings || {}),
+      backendConfigExpanded: false,
       backendBaseUrls: {
         server: normalizeBackendBaseUrl(backendBaseUrls.server, defaultBackendBaseUrls.server),
         local: normalizeBackendBaseUrl(backendBaseUrls.local, defaultBackendBaseUrls.local),
@@ -8154,6 +8155,8 @@
     const serverUrlInput = getElement("home-endpoint-server-url");
     const localUrlInput = getElement("home-endpoint-local-url");
     const betaUrlInput = getElement("home-endpoint-beta-url");
+    const expandToggleButton = getElement("home-endpoint-expand-toggle");
+    const configPanel = getElement("home-endpoint-config-panel");
     if (!(serverButton instanceof HTMLButtonElement) || !(localButton instanceof HTMLButtonElement)) {
       return;
     }
@@ -8162,6 +8165,7 @@
     const savedMode = getBackendModeFromSettings(settings || {});
     const mode = draft.backendEndpointMode;
     const statusNode = getElement("home-endpoint-status");
+    const configExpanded = draft.backendConfigExpanded === true;
     const isLocal = mode === backendModeLocal;
     const isBeta = mode === backendModeBeta;
     const betaUnlocked = canUseBetaFeatures(settings || {});
@@ -8201,6 +8205,13 @@
     const toggleNode = getElement("home-endpoint-toggle");
     if (toggleNode) {
       toggleNode.classList.remove("hidden");
+    }
+    if (expandToggleButton instanceof HTMLButtonElement) {
+      expandToggleButton.textContent = configExpanded ? "折叠根地址配置" : "展开根地址配置";
+      expandToggleButton.setAttribute("aria-expanded", String(configExpanded));
+    }
+    if (configPanel) {
+      configPanel.classList.toggle("hidden", !configExpanded);
     }
 
     if (statusNode) {
@@ -11716,6 +11727,14 @@
       homeEndpointBetaUrl.addEventListener("input", function () {
         const draft = getAdminBackendDraft();
         draft.backendBaseUrls.beta = homeEndpointBetaUrl.value;
+        renderHomeBackendEndpoint(currentSettings || {});
+      });
+    }
+    const homeEndpointExpandToggle = getElement("home-endpoint-expand-toggle");
+    if (homeEndpointExpandToggle instanceof HTMLButtonElement) {
+      homeEndpointExpandToggle.addEventListener("click", function () {
+        const draft = getAdminBackendDraft();
+        draft.backendConfigExpanded = draft.backendConfigExpanded !== true;
         renderHomeBackendEndpoint(currentSettings || {});
       });
     }

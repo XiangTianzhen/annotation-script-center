@@ -12,9 +12,12 @@ test("options backend panel exposes three root url inputs and generic mode label
   assert.match(html, /id="home-endpoint-server-url"/);
   assert.match(html, /id="home-endpoint-local-url"/);
   assert.match(html, /id="home-endpoint-beta-url"/);
-  assert.match(html, />server</);
-  assert.match(html, />local</);
-  assert.match(html, />beta</);
+  assert.match(html, />服务器</);
+  assert.match(html, />本机</);
+  assert.match(html, />Beta</);
+  assert.match(html, /id="home-endpoint-expand-toggle"/);
+  assert.match(html, /id="home-endpoint-config-panel"/);
   assert.match(script, /backendBaseUrls/);
   assert.match(script, /buildDownloadUrl/);
+  assert.match(script, /backendConfigExpanded/);
 });
