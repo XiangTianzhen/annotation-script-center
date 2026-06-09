@@ -164,7 +164,7 @@ platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon
 platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv
 ```
 
-业务词表既作为 Qwen prompt 上下文，也会默认以 `aggressive` 模式对最终推荐文本做强替换，用于帮助模型在“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“他/伊”等场景中选择更合适的字形。强替换只影响推荐文本展示，不会触发自动提交、自动保存或批量识别；如需关闭，可设置 `DATABAKER_AI_LEXICON_REWRITE_MODE=off`。词表缺失时后端仍可运行，但推荐文本效果会下降；如果 `minnan-lexicon.json` 缺失但本地 `minnan-lexicon.csv` 仍在，当前只警告“没有字词对应表”，不会把 CSV 重新当成业务主读取源。后续更新词条内容时，应先整理 JSON 主词表；CSV 只作参考源保留。
+业务词表既作为 Qwen prompt 上下文，也会默认以 `aggressive` 模式对最终推荐文本做强替换，用于帮助模型在“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“他/伊”等场景中选择更合适的字形。强替换只影响推荐文本展示，不会触发自动提交、自动保存或批量识别；如需关闭，可设置 `DATABAKER_AI_LEXICON_REWRITE_MODE=off`。词表缺失时后端仍可运行，但推荐文本效果会下降；如果 `minnan-lexicon.json` 缺失但本地 `minnan-lexicon.csv` 仍在，页面会在右下角弹出一次“没有字词对应表”提示，停留约 1 秒后自动消失，同时继续按无词表模式运行，不会把 CSV 重新当成业务主读取源。后续更新词条内容时，应先整理 JSON 主词表；CSV 只作参考源保留。
 
 AI prompt 输出字形规则：
 

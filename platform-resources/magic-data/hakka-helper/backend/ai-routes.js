@@ -234,6 +234,7 @@ function buildHealthResponse() {
       status: lexiconState.status,
       source: lexiconState.source,
       rowCount: Array.isArray(lexiconState.rows) ? lexiconState.rows.length : 0,
+      warningMessage: String(lexiconState.warningMessage || "").trim(),
     },
     evaluation: {
       sampleCount: 50,

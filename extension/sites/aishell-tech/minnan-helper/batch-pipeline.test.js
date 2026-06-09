@@ -306,3 +306,59 @@ test("Aishell AI runtime sends Omni compare stage separately from listen stage",
     harness.cleanup();
   }
 });
+
+test("Aishell AI runtime probes health once and shows lexicon warning toast", async function () {
+  const harness = loadAiRecommendationApi();
+  const originalToast = globalThis.ASREdgeLexiconToast;
+  const fetchCalls = [];
+  const toastCalls = [];
+
+  globalThis.ASREdgeLexiconToast = {
+    show: function (message, tone, durationMs) {
+      toastCalls.push({ message, tone, durationMs });
+      return true;
+    },
+  };
+
+  try {
+    const runtime = harness.api.createRuntime({
+      endpoint: "https://example.com/api/aishell-tech/minnan-helper/ai/recommend",
+      timeoutMs: 60000,
+      fetchImpl: async function (url) {
+        fetchCalls.push(String(url || ""));
+        return {
+          ok: true,
+          status: 200,
+          json: async function () {
+            return {
+              success: true,
+              lexicon: {
+                status: "reference_only",
+                warningMessage: "没有字词对应表",
+              },
+            };
+          },
+        };
+      },
+    });
+
+    const first = await runtime.notifyLexiconWarning();
+    const second = await runtime.notifyLexiconWarning();
+
+    assert.equal(first, true);
+    assert.equal(second, false);
+    assert.deepEqual(fetchCalls, [
+      "https://example.com/api/aishell-tech/minnan-helper/ai/recommend/health",
+    ]);
+    assert.deepEqual(toastCalls, [
+      {
+        message: "没有字词对应表",
+        tone: "warn",
+        durationMs: 1000,
+      },
+    ]);
+  } finally {
+    globalThis.ASREdgeLexiconToast = originalToast;
+    harness.cleanup();
+  }
+});

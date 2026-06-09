@@ -229,6 +229,52 @@
   function createRuntime(options) {
     const config = options && typeof options === "object" ? options : {};
     const timerHost = getTimerHost();
+    let lexiconWarningChecked = false;
+
+    function buildHealthEndpoint(endpoint) {
+      const text = normalizeText(endpoint);
+      if (!text) {
+        return "";
+      }
+      return /\/health$/i.test(text) ? text : text.replace(/\/+$/, "") + "/health";
+    }
+
+    function readLexiconWarning(body) {
+      const source = body && typeof body === "object" ? body : {};
+      const reference = source.reference && typeof source.reference === "object" ? source.reference : {};
+      if (normalizeText(reference.lexiconStatus) !== "reference_only") {
+        return "";
+      }
+      return normalizeText(reference.lexiconWarning);
+    }
+
+    async function notifyLexiconWarning() {
+      if (lexiconWarningChecked) {
+        return false;
+      }
+      lexiconWarningChecked = true;
+      const endpoint = normalizeText(config.endpoint) || DEFAULT_PATH;
+      const healthEndpoint = buildHealthEndpoint(endpoint);
+      if (!healthEndpoint) {
+        return false;
+      }
+      try {
+        const response = await fetch(healthEndpoint, {
+          method: "GET",
+          credentials: "omit",
+        });
+        const payload = await response.json().catch(function () {
+          return null;
+        });
+        const warningMessage = readLexiconWarning(payload);
+        if (!warningMessage) {
+          return false;
+        }
+        return globalThis.ASREdgeLexiconToast?.show?.(warningMessage, "warn", 1000) === true;
+      } catch (_error) {
+        return false;
+      }
+    }
 
     async function recommend(context) {
       const source = context && typeof context === "object" ? context : {};
@@ -296,6 +342,7 @@
     }
 
     return {
+      notifyLexiconWarning,
       recommend,
     };
   }

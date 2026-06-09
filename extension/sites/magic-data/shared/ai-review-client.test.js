@@ -43,6 +43,7 @@ function loadClientRuntime(options) {
       },
     },
     ASREdgeAiJobClient: config.jobClient,
+    ASREdgeLexiconToast: config.toast,
     globalThis: null,
   };
   runtimeContext.globalThis = runtimeContext;
@@ -206,4 +207,45 @@ test("reviewCurrent maps fetch cancellation to user-aborted when external signal
   });
 }, {
   timeout: 2000,
+});
+
+test("notifyLexiconWarning reads health payload and only shows once", async function () {
+  const fetchCalls = [];
+  const toastCalls = [];
+  const client = loadClientRuntime({
+    fetch: async function (url) {
+      fetchCalls.push(String(url || ""));
+      return {
+        ok: true,
+        json: async function () {
+          return {
+            success: true,
+            lexicon: {
+              status: "reference_only",
+              warningMessage: "没有字词对应表",
+            },
+          };
+        },
+      };
+    },
+    toast: {
+      show: function (message, tone, durationMs) {
+        toastCalls.push({ message, tone, durationMs });
+        return true;
+      },
+    },
+  });
+  const first = await client.notifyLexiconWarning();
+  const second = await client.notifyLexiconWarning();
+  assert.equal(first, true);
+  assert.equal(second, false);
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(fetchCalls[0].endsWith("/health"), true);
+  assert.deepEqual(toastCalls, [
+    {
+      message: "没有字词对应表",
+      tone: "warn",
+      durationMs: 1000,
+    },
+  ]);
 });

@@ -119,6 +119,52 @@
     };
   }
 
+  function buildHealthEndpoint(endpoint) {
+    const text = String(endpoint || "").trim();
+    if (!text) {
+      return "";
+    }
+    return /\/health$/i.test(text) ? text : text.replace(/\/+$/, "") + "/health";
+  }
+
+  function readLexiconWarning(body) {
+    const source = body && typeof body === "object" ? body : {};
+    const lexicon = source.lexicon && typeof source.lexicon === "object" ? source.lexicon : {};
+    if (String(lexicon.status || "").trim() !== "reference_only") {
+      return "";
+    }
+    return String(lexicon.warningMessage || lexicon.message || "").trim();
+  }
+
+  let lexiconWarningChecked = false;
+
+  async function notifyLexiconWarning() {
+    if (lexiconWarningChecked) {
+      return false;
+    }
+    lexiconWarningChecked = true;
+    const backend = await resolveBackendConfig();
+    const healthEndpoint = buildHealthEndpoint(backend.endpoint);
+    if (!healthEndpoint) {
+      return false;
+    }
+    try {
+      const response = await fetch(healthEndpoint, {
+        method: "GET",
+      });
+      const body = await response.json().catch(function () {
+        return null;
+      });
+      const warningMessage = readLexiconWarning(body);
+      if (!warningMessage) {
+        return false;
+      }
+      return globalThis.ASREdgeLexiconToast?.show?.(warningMessage, "warn", 1000) === true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
   function resolvePlatformUserId() {
     const detector = globalThis.__ASREdgeMagicDataAnnotatorPageDetector || {};
     if (typeof detector.parseHashParams !== "function") {
@@ -301,6 +347,7 @@
   globalThis.__ASREdgeMagicDataAnnotatorAiReviewClient = {
     API_PATH,
     getClientVersion,
+    notifyLexiconWarning,
     resolveBackendConfig,
     reviewCurrent,
   };

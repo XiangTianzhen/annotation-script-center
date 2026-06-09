@@ -643,6 +643,7 @@
       ensureMounted();
       mountTimer = window.setInterval(ensureMounted, 1200);
       panel.setStatus("闽南语助手已就绪。", "success");
+      void aiClient.notifyLexiconWarning?.();
     }
 
     function stop() {

@@ -1814,6 +1814,7 @@
       dataApi.start();
       if (config.aiRecommendEnabled !== false) {
         ensurePanelMounted();
+        void ai.notifyLexiconWarning?.();
       }
       if (config.autoPageSizeEnabled !== false) {
         pageSize?.start?.();

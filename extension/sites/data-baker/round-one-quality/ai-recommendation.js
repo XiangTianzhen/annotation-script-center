@@ -144,12 +144,56 @@
 
   function createRuntime(options) {
     const config = options && typeof options === "object" ? options : {};
+    let lexiconWarningChecked = false;
 
     function getEndpoint() {
       try {
         return new URL(String(config.endpoint || DEFAULT_ENDPOINT)).toString();
       } catch (error) {
         return DEFAULT_ENDPOINT;
+      }
+    }
+
+    function buildHealthEndpoint(endpoint) {
+      const text = String(endpoint || "").trim();
+      if (!text) {
+        return "";
+      }
+      return /\/health$/i.test(text) ? text : text.replace(/\/+$/, "") + "/health";
+    }
+
+    function readLexiconWarning(body) {
+      const source = body && typeof body === "object" ? body : {};
+      const lexicon = source.lexicon && typeof source.lexicon === "object" ? source.lexicon : {};
+      if (String(lexicon.status || "").trim() !== "reference_only") {
+        return "";
+      }
+      return String(lexicon.warningMessage || lexicon.message || "").trim();
+    }
+
+    async function notifyLexiconWarning() {
+      if (lexiconWarningChecked) {
+        return false;
+      }
+      lexiconWarningChecked = true;
+      const healthEndpoint = buildHealthEndpoint(getEndpoint());
+      if (!healthEndpoint || typeof fetch !== "function") {
+        return false;
+      }
+      try {
+        const response = await fetch(healthEndpoint, {
+          method: "GET",
+        });
+        const body = await response.json().catch(function () {
+          return null;
+        });
+        const warningMessage = readLexiconWarning(body);
+        if (!warningMessage) {
+          return false;
+        }
+        return globalThis.ASREdgeLexiconToast?.show?.(warningMessage, "warn", 1000) === true;
+      } catch (_error) {
+        return false;
       }
     }
 
@@ -349,6 +393,7 @@
 
     return {
       getRawAiDebug,
+      notifyLexiconWarning,
       recommend,
       defaultRequestStaggerMs: DEFAULT_REQUEST_STAGGER_MS,
     };

@@ -1831,6 +1831,7 @@ function createHealthPayload() {
       status: lexiconState.status || "unknown",
       source: lexiconState.source || "",
       rowCount: Array.isArray(lexiconState.rows) ? lexiconState.rows.length : 0,
+      warningMessage: String(lexiconState.warningMessage || "").trim(),
     },
     callLogDir: getLogDir(),
     notes: {

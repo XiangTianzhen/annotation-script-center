@@ -284,6 +284,7 @@
         : typeof fetch === "function"
           ? fetch.bind(globalThis)
           : null;
+    let lexiconWarningChecked = false;
 
     function getEndpoint() {
       try {
@@ -565,6 +566,31 @@
       }
     }
 
+    function readLexiconWarning(healthCheck) {
+      const body = healthCheck?.body && typeof healthCheck.body === "object" ? healthCheck.body : {};
+      const lexicon = body.lexicon && typeof body.lexicon === "object" ? body.lexicon : {};
+      if (normalizeText(lexicon.status) !== "reference_only") {
+        return "";
+      }
+      return normalizeText(lexicon.warningMessage || lexicon.message);
+    }
+
+    async function notifyLexiconWarning() {
+      if (lexiconWarningChecked) {
+        return false;
+      }
+      lexiconWarningChecked = true;
+      const healthCheck = await probeHealthEndpoint(getEndpoint(), DEFAULT_TIMEOUT_MS);
+      if (healthCheck?.ok !== true) {
+        return false;
+      }
+      const warningMessage = readLexiconWarning(healthCheck);
+      if (!warningMessage) {
+        return false;
+      }
+      return globalThis.ASREdgeLexiconToast?.show?.(warningMessage, "warn", 1000) === true;
+    }
+
     async function recommend(item) {
       const source = item && typeof item === "object" ? item : {};
       if (!source.taskId) {
@@ -630,6 +656,7 @@
     }
 
     return {
+      notifyLexiconWarning,
       recommend,
     };
   }

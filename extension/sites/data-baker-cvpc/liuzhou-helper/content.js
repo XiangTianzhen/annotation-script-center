@@ -534,6 +534,7 @@
       editingTabTipGuard.start();
     }
     ui.setStatus("柳州话脚本已就绪；当前处于建议生成 + 人工确认模式。", "success");
+    void ai.notifyLexiconWarning?.();
     runtime.ui.renderAudioContext({
       audioUrl: "",
       audioUrlHintMessage: "正在获取当前音频地址...",

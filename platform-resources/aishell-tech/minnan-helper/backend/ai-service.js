@@ -391,7 +391,8 @@ function buildLexiconState() {
     sourcePath: normalizeText(state?.filePath) || LEXICON_JSON_PATH,
     referenceSourcePath: LEXICON_REFERENCE_CSV_PATH,
     rowCount: Number(state?.rowCount || 0) || 0,
-    message: normalizeText(state?.errorMessage).slice(0, 160),
+    message: normalizeText(state?.warningMessage || state?.errorMessage).slice(0, 160),
+    warningMessage: normalizeText(state?.warningMessage).slice(0, 160),
   };
 }
 

@@ -484,6 +484,7 @@
       if (shortcutsRuntime) {
         await shortcutsRuntime.start();
       }
+      void aiClient.notifyLexiconWarning?.();
       refresh();
       ensurePanelMountedWithRetry();
       observer = new MutationObserver(function (mutations) {

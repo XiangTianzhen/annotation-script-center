@@ -231,3 +231,57 @@ test("liuzhou ai recommend sends current segment audio as base64 data url", asyn
     harness.restore();
   }
 });
+
+test("liuzhou ai runtime shows lexicon warning from health payload once", async function () {
+  const moduleApi = loadModule();
+  const originalFetch = globalThis.fetch;
+  const originalToast = globalThis.ASREdgeLexiconToast;
+  const calls = [];
+
+  globalThis.fetch = async function (url) {
+    calls.push(String(url || ""));
+    return {
+      ok: true,
+      json: async function () {
+        return {
+          success: true,
+          reference: {
+            lexiconStatus: "reference_only",
+            lexiconWarning: "没有字词对应表",
+          },
+        };
+      },
+    };
+  };
+  globalThis.ASREdgeLexiconToast = {
+    show: function (message, tone, durationMs) {
+      calls.push(["toast", message, tone, durationMs].join(":"));
+      return true;
+    },
+  };
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+    });
+    const first = await runtime.notifyLexiconWarning();
+    const second = await runtime.notifyLexiconWarning();
+
+    assert.equal(first, true);
+    assert.equal(second, false);
+    assert.equal(
+      calls.filter(function (item) {
+        return String(item).indexOf("/health") >= 0;
+      }).length,
+      1
+    );
+    assert.ok(
+      calls.some(function (item) {
+        return String(item).indexOf("toast:没有字词对应表:warn:1000") >= 0;
+      })
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.ASREdgeLexiconToast = originalToast;
+  }
+});

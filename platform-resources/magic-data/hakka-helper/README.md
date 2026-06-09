@@ -15,7 +15,7 @@
 - `backend/lexicon/hakka-lexicon.csv`：客家话词表参考源。
 - `backend/lexicon/客家话-正字表.xlsx`：词表原始来源文件（可选）。
 - `backend/tools/convert-hakka-lexicon.js`：词表转换脚本。
-- 运行时缺少 `hakka-lexicon.json` 但本地 `hakka-lexicon.csv` 仍存在时，当前只警告“没有字词对应表”，复核链路继续按无词表模式返回，不回退成 CSV 主读取。
+- 运行时缺少 `hakka-lexicon.json` 但本地 `hakka-lexicon.csv` 仍存在时，页面会在右下角弹出一次“没有字词对应表”提示，停留约 1 秒后自动消失；复核链路继续按无词表模式返回，不回退成 CSV 主读取。
 - `network/.gitkeep`：当前无助手专属 Network 差异；共用结构见平台根目录 `network/`。
 - `page-structure/.gitkeep`：当前无助手专属页面结构差异；共用结构见平台根目录 `page-structure/`。
 
