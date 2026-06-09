@@ -110,6 +110,15 @@
     return result;
   }
 
+  function shouldInstallConsoleObserver(windowLike, locationLike) {
+    const href = String(locationLike?.href || "").toLowerCase();
+    const isIframeWindow = Boolean(windowLike?.parent && windowLike.parent !== windowLike);
+    if (!isIframeWindow) {
+      return false;
+    }
+    return href.indexOf("/app/xaudio/") >= 0;
+  }
+
   function createObserver(options) {
     const deps = options && typeof options === "object" ? options : {};
     const windowLike = deps.window || globalThis.window || globalThis;
@@ -376,7 +385,9 @@
       installed = true;
       installFetchObserver();
       installXhrObserver();
-      installConsoleObserver();
+      if (shouldInstallConsoleObserver(windowLike, locationLike)) {
+        installConsoleObserver();
+      }
     }
 
     function getSnapshot() {

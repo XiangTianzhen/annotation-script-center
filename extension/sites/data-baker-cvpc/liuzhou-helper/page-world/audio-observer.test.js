@@ -343,9 +343,12 @@ test("CVPC audio observer posts unmatched iframe audio candidate to top window",
   assert.match(mappingMessage.data.payload.audioUrl, /Signature=iframe/);
 });
 
-test("CVPC audio observer installed console wrapper captures info audio url", function () {
+test("CVPC audio observer does not wrap top window console methods on editor page", function () {
   const observerModule = loadObserverModule();
   const harness = createWindowHarness();
+  const nativeInfo = harness.window.console.info;
+  const nativeLog = harness.window.console.log;
+  const nativeDebug = harness.window.console.debug;
   const observer = observerModule.createObserver({
     window: harness.window,
     location: {
@@ -354,31 +357,37 @@ test("CVPC audio observer installed console wrapper captures info audio url", fu
     },
   });
 
-  observer.observeResponse(
-    "https://cvpc.data-baker.com/httpapi/annotation/meta?project_id=1&task_id=2",
-    JSON.stringify({
-      code: 0,
-      data: {
-        datas: [
-          {
-            entry_id: 1,
-            name: "sample.mp3",
-            content: "databaker/data/sample.mp3",
-          },
-        ],
-      },
-    })
-  );
+  observer.install();
+
+  assert.equal(harness.window.console.info, nativeInfo);
+  assert.equal(harness.window.console.log, nativeLog);
+  assert.equal(harness.window.console.debug, nativeDebug);
+});
+
+test("CVPC audio observer installed console wrapper captures info audio url inside xaudio iframe", function () {
+  const observerModule = loadObserverModule();
+  const harness = createIframeWindowHarness();
+  const observer = observerModule.createObserver({
+    window: harness.window,
+    location: {
+      origin: "https://cvpc.data-baker.com",
+      href: "https://cvpc.data-baker.com/app/xaudio/label/?id=249783",
+    },
+  });
+
   observer.install();
   harness.window.console.info(
     "audio_url:",
     "https://databaker-cvpc.oss-cn-huhehaote.aliyuncs.com/databaker/data/sample.mp3?Signature=info-console"
   );
 
-  const snapshot = observer.getSnapshot();
+  const mappingMessage = harness.postedMessages.find(function (item) {
+    return item.data.type === OBSERVER_TYPE;
+  });
 
-  assert.equal(snapshot.mappings.length, 1);
-  assert.match(snapshot.mappings[0].audioUrl, /Signature=info-console/);
+  assert.ok(mappingMessage);
+  assert.equal(mappingMessage.target, "parent");
+  assert.match(mappingMessage.data.payload.audioUrl, /Signature=info-console/);
 });
 
 test("CVPC audio observer does not wrap console warn", function () {

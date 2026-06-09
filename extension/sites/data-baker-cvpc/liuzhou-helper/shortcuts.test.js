@@ -169,3 +169,53 @@ test("CVPC shortcuts runtime supports legacy shifted digit shortcuts for invalid
     globalThis.window = previousWindow;
   }
 });
+
+test("CVPC shortcuts runtime supports dedicated fill actions for dialect and mandarin fields", function () {
+  const shortcutModule = loadShortcutModule();
+  const harness = createWindowHarness();
+  const previousWindow = globalThis.window;
+  let applyDialectTextTriggered = 0;
+  let applyMandarinTextTriggered = 0;
+
+  globalThis.window = harness.window;
+
+  try {
+    const runtime = shortcutModule.createRuntime({
+      shortcuts: {
+        applyDialectText: {
+          alt: true,
+          key: "d",
+        },
+        applyMandarinText: {
+          alt: true,
+          key: "m",
+        },
+      },
+      actions: {
+        applyDialectText: function () {
+          applyDialectTextTriggered += 1;
+        },
+        applyMandarinText: function () {
+          applyMandarinTextTriggered += 1;
+        },
+      },
+    });
+
+    runtime.bind();
+    harness.triggerKeydown({
+      altKey: true,
+      key: "d",
+      code: "KeyD",
+    });
+    harness.triggerKeydown({
+      altKey: true,
+      key: "m",
+      code: "KeyM",
+    });
+
+    assert.equal(applyDialectTextTriggered, 1);
+    assert.equal(applyMandarinTextTriggered, 1);
+  } finally {
+    globalThis.window = previousWindow;
+  }
+});

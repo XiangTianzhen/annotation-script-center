@@ -402,6 +402,14 @@
     runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
   }
 
+  async function handleApplyDialectText() {
+    await handleApplyRecommendationText("refinedDialectText");
+  }
+
+  async function handleApplyMandarinText() {
+    await handleApplyRecommendationText("refinedMandarinText");
+  }
+
   async function handleMarkValid() {
     const result = await runtime.dataApi.setCurrentValidity(true);
     runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
@@ -487,6 +495,12 @@
         },
         recommend: function () {
           void handleRecommend();
+        },
+        applyDialectText: function () {
+          void handleApplyDialectText();
+        },
+        applyMandarinText: function () {
+          void handleApplyMandarinText();
         },
         applyRecommend: function () {
           void handleApplyRecommend();

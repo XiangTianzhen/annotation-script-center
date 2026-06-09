@@ -1,3 +1,19 @@
+## 2026-06-09（DataBaker CVPC 柳州话脚本补充字段填入快捷键并收紧控制台观察）
+
+- `DataBaker CVPC / 柳州话脚本` 当前补两个可录制快捷键动作，默认键位仍为空：
+  - `填入标注文本`
+  - `填入普通话顺滑`
+- 运行时 `content.js` 当前把这两个动作分别收口到：
+  - `refinedDialectText -> 标注文本`
+  - `refinedMandarinText -> 普通话顺滑`
+- `page-world/audio-observer.js` 当前收紧 console 观察边界：
+  - 顶层 `/app/editor/asr/` 不再包装 `console.log/info/debug`
+  - 同源 `xaudio` iframe 仍保留 console 音频 URL 捕获
+  - 这样可以避免页面自身诸如“上传已取消”“请输入 5 处理中...”之类普通日志把扩展脚本堆栈带出来
+- 同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+
 ## 2026-06-09（DataBaker CVPC 柳州话脚本接入 AI 日志与双文本收口）
 
 - `DataBaker CVPC / 柳州话脚本` 当前完成一轮最小收口：

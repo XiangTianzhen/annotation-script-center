@@ -295,3 +295,46 @@ test("CVPC storage preserves explicit shortcut overrides without falling back to
     harness.cleanup();
   }
 });
+
+test("CVPC storage preserves newly added field fill shortcuts as sparse overrides", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            shortcuts: {
+              applyDialectText: {
+                alt: true,
+                key: "d",
+              },
+              applyMandarinText: {
+                alt: true,
+                key: "m",
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.deepEqual(script.shortcuts, {
+      applyDialectText: {
+        alt: true,
+        key: "d",
+      },
+      applyMandarinText: {
+        alt: true,
+        key: "m",
+      },
+    });
+    assert.equal(script.shortcuts.recommend, undefined);
+    assert.equal(script.shortcuts.applyRecommend, undefined);
+  } finally {
+    harness.cleanup();
+  }
+});

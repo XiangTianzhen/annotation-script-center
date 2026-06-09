@@ -32,6 +32,7 @@
 - 字段内结果卡当前为两张独立卡片，并分别提供定向填入：
   - `修正后的柳州话文本` -> `填入标注文本`
   - `整理后的普通话文本` -> `填入普通话顺滑`
+  - 两个定向填入动作当前都支持在 options 页单独录制快捷键，默认仍为空
 - 当前段 `Valid / Invalid` 快捷切换
 - 当前段 `Valid / Invalid` 在点击前会先检查当前单选状态；已是目标值时不再重复点击
 - `未填写补 Valid` 会先读取当前 `entry_index` 的 `annotation/annos`，只补当前音频里未填写有效性的段；已填 `Valid / Invalid` 一律跳过
@@ -60,7 +61,7 @@
 
 ## 文件
 
-- `page-world/audio-observer.js`：页内音频观察桥，捕获页面真实 `annotation/meta` 响应、页面/同源 iframe 音频请求和 `console.log/info/debug` 打印音频 URL 的运行时映射；不包装 `console.warn`
+- `page-world/audio-observer.js`：页内音频观察桥，捕获页面真实 `annotation/meta` 响应、页面/同源 iframe 音频请求，并仅在同源 `xaudio` iframe 内观察 `console.log/info/debug` 打印的音频 URL；顶层编辑页不再包装 `console.*`，避免把平台自身日志堆栈挂到扩展脚本上；仍不包装 `console.warn`
 - `content.js`：入口编排与路由检测
 - `editing-tab-tip-guard.js`：精确屏蔽固定文案的 Tab / 暂停状态提示
 - `data-api.js`：读取编辑器上下文、解析当前音频 URL、桥接或直连 `user/meta`、当前波形选中段、`annotation/annos` 统计与实验性 DOM 写入
