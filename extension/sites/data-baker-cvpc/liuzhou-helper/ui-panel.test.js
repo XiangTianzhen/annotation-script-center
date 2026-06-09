@@ -271,6 +271,18 @@ function findRecommendItemByTitle(root, title) {
   });
 }
 
+function findNodeByClass(root, className) {
+  return findNode(root, function (node) {
+    return (
+      node instanceof FakeNode &&
+      String(node.className || "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .indexOf(String(className || "")) >= 0
+    );
+  });
+}
+
 function createHarness() {
   const body = new FakeNode("body");
   const head = new FakeNode("head");
@@ -284,7 +296,10 @@ function createHarness() {
   labelContent.className = "label_title_border2";
   const asrLabelWrap = new FakeNode("div");
   asrLabelWrap.className = "asr_label";
+  const fieldGroup = new FakeNode("div");
+  fieldGroup.setAttribute("data-v-fd55b986", "");
   const nativeValidity = new FakeNode("div");
+  nativeValidity.setAttribute("style", "padding-left: 10px;");
   nativeValidity.className = "field-block validity-block";
   const nativeValidityLabel = new FakeNode("div");
   nativeValidityLabel.className = "item-name";
@@ -306,6 +321,7 @@ function createHarness() {
   nativeValidity.appendChild(nativeValidityValue);
 
   const dialectFieldBlock = new FakeNode("div");
+  dialectFieldBlock.setAttribute("style", "padding-left: 10px;");
   dialectFieldBlock.className = "field-block dialect-block";
   const dialectLabel = new FakeNode("div");
   dialectLabel.className = "item-name";
@@ -321,6 +337,7 @@ function createHarness() {
   dialectFieldBlock.appendChild(dialectValue);
 
   const mandarinFieldBlock = new FakeNode("div");
+  mandarinFieldBlock.setAttribute("style", "padding-left: 10px;");
   mandarinFieldBlock.className = "field-block mandarin-block";
   const mandarinLabel = new FakeNode("div");
   mandarinLabel.className = "item-name";
@@ -336,9 +353,10 @@ function createHarness() {
   mandarinFieldBlock.appendChild(mandarinValue);
 
   globalPanel.appendChild(panelTitle);
-  asrLabelWrap.appendChild(nativeValidity);
-  asrLabelWrap.appendChild(dialectFieldBlock);
-  asrLabelWrap.appendChild(mandarinFieldBlock);
+  fieldGroup.appendChild(nativeValidity);
+  fieldGroup.appendChild(dialectFieldBlock);
+  fieldGroup.appendChild(mandarinFieldBlock);
+  asrLabelWrap.appendChild(fieldGroup);
   labelContent.appendChild(asrLabelWrap);
   globalPanel.appendChild(labelContent);
 
@@ -383,6 +401,7 @@ function createHarness() {
     dialectFieldBlock,
     bottomRight,
     document,
+    fieldGroup,
     globalPanel,
     labelContent,
     mandarinFieldBlock,
@@ -449,9 +468,10 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
     assert.match(collectText(middleNode), /特殊标签/);
     assert.doesNotMatch(collectText(middleNode), /设为 Valid/);
     assert.doesNotMatch(collectText(middleNode), /设为 Invalid/);
-    assert.equal(middleNode.parentNode, harness.labelContent.children[0]);
-    assert.equal(harness.labelContent.children[0].children[1], middleNode);
+    assert.equal(middleNode.parentNode, harness.fieldGroup);
+    assert.equal(harness.fieldGroup.children[1], middleNode);
     assert.notEqual(middleNode.parentNode, harness.mandarinFieldBlock);
+    assert.notEqual(middleNode.parentNode, harness.dialectFieldBlock);
     assert.doesNotMatch(collectText(panelNode), /当前段 AI 推荐结果/);
     assert.doesNotMatch(collectText(panelNode), /建议 1/);
 
@@ -490,16 +510,39 @@ test("CVPC ui panel renders current audio and selected range inside the global a
     });
 
     const panelNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-panel");
-    const text = collectText(panelNode);
-    assert.match(text, /当前音频地址/);
+    const summary = findNodeByClass(panelNode, "audio-url-summary");
+    const text = collectText(summary);
+    assert.match(collectText(panelNode), /当前音频地址/);
+    assert.match(text, /文件/);
     assert.match(text, /sample\.mp3/);
+    assert.match(text, /来源/);
     assert.match(text, /observer/);
     assert.match(text, /当前第 3 段/);
-    assert.match(text, /18\.565 秒/);
-    assert.match(text, /35\.677 秒/);
-    assert.match(text, /17\.112 秒/);
-    assert.doesNotMatch(text, /当前画段建议/);
-    assert.doesNotMatch(text, /当前段 AI 推荐结果/);
+    assert.match(text, /当前段：\s*开始 18\.565 秒/);
+    assert.match(text, /结束 35\.677 秒/);
+    assert.match(text, /截取 17\.112 秒/);
+    assert.doesNotMatch(text, /；/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel hides field recommendation areas when no AI result is available", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderRecommendation(null);
+
+    assert.doesNotMatch(collectText(harness.dialectFieldBlock), /当前还没有柳州话 AI 推荐结果/);
+    assert.doesNotMatch(collectText(harness.mandarinFieldBlock), /当前还没有普通话 AI 推荐结果/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
@@ -561,6 +604,11 @@ test("CVPC ui panel renders preview and three staged recommendation cards inside
     assert.match(dialectText, /修正柳州话/);
     assert.match(mandarinText, /音频的普通话文本/);
     assert.match(mandarinText, /听音普通话/);
+    const dialectCard = findRecommendItemByTitle(harness.dialectFieldBlock, "音频的柳州话文本");
+    const textWrap = findNodeByClass(dialectCard, "recommend-item-body");
+    const actionWrap = findNodeByClass(dialectCard, "recommend-item-action");
+    assert.ok(textWrap);
+    assert.ok(actionWrap);
 
     const audioDialectCard = findRecommendItemByTitle(harness.dialectFieldBlock, "音频的柳州话文本");
     const audioMandarinCard = findRecommendItemByTitle(harness.mandarinFieldBlock, "音频的普通话文本");

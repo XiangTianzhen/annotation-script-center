@@ -59,9 +59,14 @@
       "  overflow-wrap: anywhere;",
       "  word-break: break-word;",
       "}",
+      "[" + ROOT_ATTR + "] { --asc-primary: #4f7cff; --asc-primary-strong: #3f6df2; --asc-primary-soft: #eef4ff; --asc-primary-border: #cddcff; --asc-muted: #7b88a1; }",
       "[" + ROOT_ATTR + "] .info-box[data-empty='true'] { color: #909399; word-break: normal; }",
-      "[" + ROOT_ATTR + "] .audio-url-summary { color: #606266; word-break: normal; }",
-      "[" + ROOT_ATTR + "] .audio-url-link { display: inline-block; margin-top: 6px; color: #526aff; text-decoration: none; }",
+      "[" + ROOT_ATTR + "] .audio-url-summary { display: grid; gap: 6px; color: #606266; word-break: normal; }",
+      "[" + ROOT_ATTR + "] .audio-url-line { display: flex; align-items: flex-start; gap: 8px; }",
+      "[" + ROOT_ATTR + "] .audio-url-label { min-width: 58px; color: var(--asc-primary-strong); font-weight: 600; }",
+      "[" + ROOT_ATTR + "] .audio-url-value { color: #4a5670; }",
+      "[" + ROOT_ATTR + "] .audio-url-value.is-emphasis { color: var(--asc-primary-strong); font-weight: 600; }",
+      "[" + ROOT_ATTR + "] .audio-url-link { display: inline-block; margin-top: 6px; color: var(--asc-primary); text-decoration: none; font-weight: 600; }",
       "[" + ROOT_ATTR + "] .audio-url-link:hover { text-decoration: underline; }",
       "[" + ROOT_ATTR + "] .audio-url-details { margin-top: 8px; }",
       "[" + ROOT_ATTR + "] .audio-url-details summary { cursor: pointer; color: #909399; user-select: none; }",
@@ -69,8 +74,11 @@
       "[" + ROOT_ATTR + "] .panel-foot { margin-top: 10px; color: #909399; }",
       "[" + MIDDLE_AI_ATTR + "] {",
       "  margin-top: 12px;",
-      "  padding-top: 12px;",
-      "  border-top: 1px solid #ebeef5;",
+      "  padding: 14px 16px;",
+      "  border: 1px solid var(--asc-primary-border);",
+      "  border-radius: 10px;",
+      "  background: linear-gradient(180deg, #f9fbff 0%, #f4f8ff 100%);",
+      "  box-shadow: 0 6px 18px rgba(79, 124, 255, 0.08);",
       "}",
       "[" + MIDDLE_AI_ACTIONS_ATTR + "] { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }",
       "[" + MIDDLE_AI_ATTR + "] .preview-list, [" + MIDDLE_AI_ATTR + "] .meta-list, [" + FIELD_RECOMMEND_ATTR + "] {",
@@ -80,9 +88,13 @@
       "}",
       "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item strong, [" + MIDDLE_AI_ATTR + "] .preview-item strong, [" + MIDDLE_AI_ATTR + "] .meta-box strong {",
       "  display: block;",
-      "  color: #303133;",
+      "  color: var(--asc-primary-strong);",
       "}",
-      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-action { margin-top: 8px; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item { border-color: var(--asc-primary-border); background: var(--asc-primary-soft); }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-content { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-body { flex: 1 1 auto; min-width: 0; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-text { margin-top: 4px; color: #42506a; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-action { flex: 0 0 auto; margin-top: 0; display: flex; align-items: flex-start; justify-content: flex-end; }",
       "[" + FIELD_RECOMMEND_ATTR + "] { margin-top: 8px; }",
       "[" + ROOT_ATTR + "] button, [" + MIDDLE_AI_ATTR + "] button {",
       "  min-height: 32px;",
@@ -99,20 +111,24 @@
       "  transition: .1s;",
       "}",
       "[" + ROOT_ATTR + "] button:hover, [" + MIDDLE_AI_ATTR + "] button:hover {",
-      "  color: #526aff;",
-      "  border-color: #c6d1ff;",
-      "  background: #f5f7ff;",
+      "  color: var(--asc-primary-strong);",
+      "  border-color: var(--asc-primary-border);",
+      "  background: #f3f7ff;",
       "}",
       "[" + ROOT_ATTR + "] button[data-primary='true'], [" + MIDDLE_AI_ATTR + "] button[data-primary='true'] {",
-      "  background: #526aff;",
-      "  border-color: #526aff;",
+      "  background: var(--asc-primary);",
+      "  border-color: var(--asc-primary);",
       "  color: #fff;",
+      "  box-shadow: 0 6px 14px rgba(79, 124, 255, 0.22);",
       "}",
       "[" + ROOT_ATTR + "] button[data-primary='true']:hover, [" + MIDDLE_AI_ATTR + "] button[data-primary='true']:hover {",
-      "  background: #6a80ff;",
-      "  border-color: #6a80ff;",
+      "  background: var(--asc-primary-strong);",
+      "  border-color: var(--asc-primary-strong);",
       "  color: #fff;",
       "}",
+      "[" + MIDDLE_AI_ATTR + "] .section-title, [" + ROOT_ATTR + "] .panel-title { color: var(--asc-primary-strong); }",
+      "[" + MIDDLE_AI_ATTR + "] .section-note, [" + ROOT_ATTR + "] .panel-subtitle { color: var(--asc-muted); }",
+      "[" + MIDDLE_AI_ATTR + "] .meta-box, [" + MIDDLE_AI_ATTR + "] .preview-item { border-color: var(--asc-primary-border); background: #ffffff; }",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -211,6 +227,17 @@
     return findDescendantByClassToken(fieldBlock, "w-[100%]") || fieldBlock;
   }
 
+  function resolveFieldGroupHost(fieldBlock) {
+    let scope = fieldBlock instanceof HTMLElement ? fieldBlock : null;
+    for (let depth = 0; scope && depth < 6; depth += 1) {
+      if (typeof scope.hasAttribute === "function" && scope.hasAttribute("data-v-fd55b986")) {
+        return scope;
+      }
+      scope = scope.parentNode instanceof HTMLElement ? scope.parentNode : null;
+    }
+    return fieldBlock?.parentNode instanceof HTMLElement ? fieldBlock.parentNode : null;
+  }
+
   function insertAfter(parentNode, targetNode, childNode) {
     if (!(parentNode instanceof HTMLElement) || !(childNode instanceof HTMLElement)) {
       return;
@@ -243,20 +270,27 @@
   function createRecommendationCard(title, value, buttonText, callback) {
     const box = document.createElement("div");
     box.className = "recommend-item";
+    const content = document.createElement("div");
+    content.className = "recommend-item-content";
+    const body = document.createElement("div");
+    body.className = "recommend-item-body";
     const titleNode = document.createElement("strong");
     titleNode.textContent = String(title || "");
     const valueNode = document.createElement("div");
+    valueNode.className = "recommend-item-text";
     valueNode.textContent = String(value || "");
-    box.appendChild(titleNode);
-    box.appendChild(valueNode);
+    body.appendChild(titleNode);
+    body.appendChild(valueNode);
+    content.appendChild(body);
     if (normalizeText(value) && normalizeText(buttonText) && typeof callback === "function") {
       const actionRow = document.createElement("div");
       actionRow.className = "recommend-item-action";
       const button = createButton(buttonText, false);
       button.addEventListener("click", callback);
       actionRow.appendChild(button);
-      box.appendChild(actionRow);
+      content.appendChild(actionRow);
     }
+    box.appendChild(content);
     return box;
   }
 
@@ -315,6 +349,9 @@
         return;
       }
       recommendationMetaNode.innerHTML = "";
+      if (!result || result.success !== true) {
+        return;
+      }
       [
         ["特殊标签", (result?.specialTags || []).join(" ") || "无"],
         ["需人工复核", result?.needHumanReview === true ? "是" : "否"],
@@ -334,8 +371,6 @@
       dialectRecommendationNode.innerHTML = "";
       mandarinRecommendationNode.innerHTML = "";
       if (!result || result.success !== true) {
-        dialectRecommendationNode.textContent = "当前还没有柳州话 AI 推荐结果。";
-        mandarinRecommendationNode.textContent = "当前还没有普通话 AI 推荐结果。";
         renderRecommendationMeta(null);
         return;
       }
@@ -397,22 +432,44 @@
 
       const summary = document.createElement("div");
       summary.className = "audio-url-summary";
-      summary.textContent = [
-        entryName ? "文件：" + entryName : "",
-        sourceText ? "来源：" + sourceText : "",
-        Number(source.currentSegmentNumber) > 0 ? "当前第 " + String(Number(source.currentSegmentNumber)) + " 段" : "",
-        selectedRange
-          ? "当前段：开始 " +
-            formatSecondsFromMs(selectedRange.startMs) +
-            " 秒；结束 " +
-            formatSecondsFromMs(selectedRange.endMs) +
-            " 秒；截取 " +
-            formatSecondsFromMs(selectedRange.durationMs) +
-            " 秒"
-          : "",
+      [
+        ["文件", entryName, true],
+        ["来源", sourceText, false],
+        [
+          Number(source.currentSegmentNumber) > 0 ? "段落" : "",
+          Number(source.currentSegmentNumber) > 0 ? "当前第 " + String(Number(source.currentSegmentNumber)) + " 段" : "",
+          true,
+        ],
+        [
+          "当前段",
+          selectedRange
+            ? "开始 " +
+              formatSecondsFromMs(selectedRange.startMs) +
+              " 秒，结束 " +
+              formatSecondsFromMs(selectedRange.endMs) +
+              " 秒，截取 " +
+              formatSecondsFromMs(selectedRange.durationMs) +
+              " 秒"
+            : "",
+          false,
+        ],
       ]
-        .filter(Boolean)
-        .join("；");
+        .filter(function (item) {
+          return normalizeText(item[0]) && normalizeText(item[1]);
+        })
+        .forEach(function (item) {
+          const line = document.createElement("div");
+          line.className = "audio-url-line";
+          const labelNode = document.createElement("span");
+          labelNode.className = "audio-url-label";
+          labelNode.textContent = String(item[0]) + "：";
+          const valueNode = document.createElement("span");
+          valueNode.className = item[2] ? "audio-url-value is-emphasis" : "audio-url-value";
+          valueNode.textContent = String(item[1] || "");
+          line.appendChild(labelNode);
+          line.appendChild(valueNode);
+          summary.appendChild(line);
+        });
 
       const link = document.createElement("a");
       link.className = "audio-url-link";
@@ -524,7 +581,7 @@
       return middleAiRoot;
     }
 
-    function ensureFieldRecommendationRoot(fieldBlock, emptyText) {
+    function ensureFieldRecommendationRoot(fieldBlock, _emptyText) {
       const valueHost = resolveFieldValueHost(fieldBlock);
       if (!(valueHost instanceof HTMLElement)) {
         return null;
@@ -537,7 +594,6 @@
       }
       const root = document.createElement("div");
       root.setAttribute(FIELD_RECOMMEND_ATTR, "");
-      root.textContent = String(emptyText || "");
       valueHost.appendChild(root);
       return root;
     }
@@ -577,8 +633,7 @@
           "当前还没有普通话 AI 推荐结果。"
         );
       }
-      const formRoot =
-        validityFieldBlock?.parentNode instanceof HTMLElement ? validityFieldBlock.parentNode : null;
+      const formRoot = resolveFieldGroupHost(validityFieldBlock);
       if (formRoot instanceof HTMLElement) {
         ensureMiddleAiRoot();
         if (middleAiRoot.parentNode !== formRoot) {
