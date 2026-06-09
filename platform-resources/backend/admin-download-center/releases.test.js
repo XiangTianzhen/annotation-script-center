@@ -4,8 +4,11 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
+  buildDefaultLatestJsonUrl,
+  FALLBACK_DOWNLOAD_BASE_URL,
   loadAdminDownloadCenterReleases,
   parseDirectoryIndex,
+  resolveDownloadBaseUrl,
 } = require("./releases");
 
 test("parseDirectoryIndex merges crx and zip files by version", function () {
@@ -89,4 +92,16 @@ test("loadAdminDownloadCenterReleases falls back to latest when directory fetch 
   assert.match(result.source.fallbackReason, /network disabled/);
   assert.equal(result.items.length, 1);
   assert.equal(result.items[0].version, "0.4.0");
+});
+
+test("resolveDownloadBaseUrl prefers explicit option and normalizes trailing slash", function () {
+  assert.equal(
+    resolveDownloadBaseUrl({ downloadBaseUrl: "http://47.109.197.170/downloads" }),
+    "http://47.109.197.170/downloads/"
+  );
+  assert.equal(
+    buildDefaultLatestJsonUrl("http://47.109.197.170/downloads/"),
+    "http://47.109.197.170/downloads/annotation-script-center-crx-latest.json"
+  );
+  assert.equal(resolveDownloadBaseUrl({}), FALLBACK_DOWNLOAD_BASE_URL);
 });

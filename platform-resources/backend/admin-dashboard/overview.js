@@ -6,10 +6,27 @@ const { listAiCallLogDatasets } = require("../ai-call-log-download/routes");
 const { listProjectDataDownloadDatasets } = require("../project-data-download/routes");
 const { summarizeRuntimeLogs } = require("../runtime-log-store");
 
-const SCRIPT_DOWNLOAD_CENTER_URL = "https://script.xiangtianzhen.store/downloads/";
+const FALLBACK_SCRIPT_DOWNLOAD_CENTER_URL = "https://script.xiangtianzhen.store/downloads/";
 
 function normalizeText(value) {
   return String(value || "").trim();
+}
+
+function normalizeBaseUrl(value) {
+  const text = normalizeText(value);
+  if (!text) {
+    return "";
+  }
+  return text.endsWith("/") ? text : `${text}/`;
+}
+
+function resolveScriptDownloadCenterUrl(options) {
+  const config = options && typeof options === "object" ? options : {};
+  return (
+    normalizeBaseUrl(config.scriptCenterUrl) ||
+    normalizeBaseUrl(process.env.ASC_DOWNLOAD_BASE_URL) ||
+    FALLBACK_SCRIPT_DOWNLOAD_CENTER_URL
+  );
 }
 
 function toPoolDisplayName(groupName) {
@@ -123,6 +140,8 @@ function normalizeLogsSummary(input) {
 
 function buildAdminDashboardOverview(input) {
   const source = input && typeof input === "object" ? input : {};
+  const sourceDownloads =
+    source.downloads && typeof source.downloads === "object" ? source.downloads : {};
   return {
     success: true,
     data: {
@@ -139,11 +158,14 @@ function buildAdminDashboardOverview(input) {
       runtime: normalizeRuntime(source.runtime),
       downloads: Object.assign(
         {
-          scriptCenterUrl: SCRIPT_DOWNLOAD_CENTER_URL,
           projectDataDatasets: [],
           aiCallLogDatasets: [],
         },
-        source.downloads && typeof source.downloads === "object" ? source.downloads : {}
+        sourceDownloads,
+        {
+          scriptCenterUrl:
+            normalizeBaseUrl(sourceDownloads.scriptCenterUrl) || FALLBACK_SCRIPT_DOWNLOAD_CENTER_URL,
+        }
       ),
       logsSummary: normalizeLogsSummary(source.logsSummary),
     },
@@ -152,6 +174,7 @@ function buildAdminDashboardOverview(input) {
 
 function createLiveAdminDashboardOverview(options) {
   const config = options && typeof options === "object" ? options : {};
+  const scriptCenterUrl = resolveScriptDownloadCenterUrl(config);
   return buildAdminDashboardOverview({
     now: new Date().toISOString(),
     adminAuthConfigured: isAdminAuthConfigured(getAdminAuthConfig()),
@@ -160,7 +183,7 @@ function createLiveAdminDashboardOverview(options) {
       includeQueueSnapshots: true,
     }),
     downloads: {
-      scriptCenterUrl: SCRIPT_DOWNLOAD_CENTER_URL,
+      scriptCenterUrl,
       projectDataDatasets: listProjectDataDownloadDatasets(config.projectDataDownload || {}),
       aiCallLogDatasets: listAiCallLogDatasets(config.aiCallLogDownload || {}),
     },
@@ -171,4 +194,5 @@ function createLiveAdminDashboardOverview(options) {
 module.exports = {
   buildAdminDashboardOverview,
   createLiveAdminDashboardOverview,
+  resolveScriptDownloadCenterUrl,
 };

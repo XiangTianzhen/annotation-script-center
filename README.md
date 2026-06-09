@@ -507,6 +507,8 @@ node scripts/package-crx-release.js --notes "CRX enterprise release"
 
 说明：ZIP 是当前过渡分发产物，不替代未来企业自动更新；企业托管自动安装仍属于未完成模块，详见 `docs/unfinished/crx-enterprise-managed-install.md`。
 
+后端下载中心与系统管理总览当前支持通过环境变量 `ASC_DOWNLOAD_BASE_URL` 覆盖默认下载根地址；未设置时仍默认使用 `https://script.xiangtianzhen.store/downloads/`。当服务器直接通过 IP 对外提供下载目录时，可将其设置为例如 `http://47.109.197.170/downloads/`。
+
 ## 文档入口
 
 - `AGENTS.md`：长期协作规则

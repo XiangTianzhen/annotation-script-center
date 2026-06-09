@@ -412,6 +412,7 @@ DataBaker CVPC AI / 画段接口：
   - 面向 `options` 公开“脚本下载中心”页，返回结构化扩展版本列表
   - 先读取远端 `annotation-script-center-crx-latest.json` 获取最新版
   - 再解析远端 `/downloads/` 目录页中的历史 `annotation-script-center-v*.crx/.zip`
+  - 可通过 `ASC_DOWNLOAD_BASE_URL` 覆盖默认下载根地址，适用于 IP 部署或非主域名部署
   - 合并后按版本倒序返回：`latestVersion`、`items[].version/crxUrl/zipUrl/createdAt/isLatest`
   - 若目录页抓取或解析失败，至少回退返回 latest json 对应的最新版一项，并在 `source.usedFallback` / `source.fallbackReason` 中标记
   - 当前为公开可读接口，不要求管理员会话

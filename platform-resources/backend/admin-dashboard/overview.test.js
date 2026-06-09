@@ -5,6 +5,7 @@ const test = require("node:test");
 
 const {
   buildAdminDashboardOverview,
+  resolveScriptDownloadCenterUrl,
 } = require("./overview");
 
 test("admin dashboard overview returns pool occupancy and runtime log summary payload", function () {
@@ -121,4 +122,17 @@ test("admin dashboard overview preserves task store capacity snapshot", function
   assert.equal(overview.data.runtime.jobs.availableCount, 0);
   assert.equal(overview.data.runtime.jobs.isFull, true);
   assert.equal(overview.data.runtime.jobs.utilizationPercent, 100);
+});
+
+test("admin dashboard overview normalizes scriptCenterUrl", function () {
+  assert.equal(
+    resolveScriptDownloadCenterUrl({ scriptCenterUrl: "http://47.109.197.170/downloads" }),
+    "http://47.109.197.170/downloads/"
+  );
+  const overview = buildAdminDashboardOverview({
+    downloads: {
+      scriptCenterUrl: "http://47.109.197.170/downloads",
+    },
+  });
+  assert.equal(overview.data.downloads.scriptCenterUrl, "http://47.109.197.170/downloads/");
 });

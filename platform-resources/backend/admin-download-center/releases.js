@@ -1,16 +1,32 @@
 "use strict";
 
 const APP_NAME = "annotation-script-center";
-const DOWNLOAD_BASE_URL = "https://script.xiangtianzhen.store/downloads/";
-const DEFAULT_LATEST_JSON_URL = new URL(
-  `${APP_NAME}-crx-latest.json`,
-  DOWNLOAD_BASE_URL
-).toString();
-const DEFAULT_DIRECTORY_INDEX_URL = DOWNLOAD_BASE_URL;
+const FALLBACK_DOWNLOAD_BASE_URL = "https://script.xiangtianzhen.store/downloads/";
 const VERSION_FILE_PATTERN = /^annotation-script-center-v([0-9A-Za-z.-]+)\.(crx|zip)$/i;
 
 function normalizeText(value) {
   return String(value || "").trim();
+}
+
+function normalizeBaseUrl(value) {
+  const text = normalizeText(value);
+  if (!text) {
+    return "";
+  }
+  return text.endsWith("/") ? text : `${text}/`;
+}
+
+function resolveDownloadBaseUrl(options) {
+  const config = options && typeof options === "object" ? options : {};
+  return (
+    normalizeBaseUrl(config.downloadBaseUrl) ||
+    normalizeBaseUrl(process.env.ASC_DOWNLOAD_BASE_URL) ||
+    FALLBACK_DOWNLOAD_BASE_URL
+  );
+}
+
+function buildDefaultLatestJsonUrl(downloadBaseUrl) {
+  return new URL(`${APP_NAME}-crx-latest.json`, downloadBaseUrl).toString();
 }
 
 function normalizeIsoText(value) {
@@ -107,7 +123,7 @@ function buildLatestReleaseItem(payload) {
 
 function parseDirectoryIndex(htmlText, baseUrl) {
   const html = String(htmlText || "");
-  const normalizedBase = normalizeText(baseUrl) || DEFAULT_DIRECTORY_INDEX_URL;
+  const normalizedBase = normalizeBaseUrl(baseUrl) || FALLBACK_DOWNLOAD_BASE_URL;
   const items = [];
   const pattern = /href\s*=\s*"([^"]+)"/gi;
   let matched;
@@ -173,8 +189,9 @@ async function loadAdminDownloadCenterReleases(options) {
     throw new Error("当前运行环境不支持 fetch。");
   }
 
-  const latestJsonUrl = normalizeText(config.latestJsonUrl) || DEFAULT_LATEST_JSON_URL;
-  const directoryIndexUrl = normalizeText(config.directoryIndexUrl) || DEFAULT_DIRECTORY_INDEX_URL;
+  const downloadBaseUrl = resolveDownloadBaseUrl(config);
+  const latestJsonUrl = normalizeText(config.latestJsonUrl) || buildDefaultLatestJsonUrl(downloadBaseUrl);
+  const directoryIndexUrl = normalizeBaseUrl(config.directoryIndexUrl) || downloadBaseUrl;
   const latestPayload = await fetchJson(fetchImpl, latestJsonUrl);
   const latestItem = buildLatestReleaseItem(latestPayload);
   if (!latestItem || !latestItem.crxUrl) {
@@ -206,11 +223,12 @@ async function loadAdminDownloadCenterReleases(options) {
 }
 
 module.exports = {
-  DEFAULT_DIRECTORY_INDEX_URL,
-  DEFAULT_LATEST_JSON_URL,
+  FALLBACK_DOWNLOAD_BASE_URL,
   buildLatestReleaseItem,
+  buildDefaultLatestJsonUrl,
   compareVersionsDescending,
   loadAdminDownloadCenterReleases,
   mergeReleaseItems,
   parseDirectoryIndex,
+  resolveDownloadBaseUrl,
 };

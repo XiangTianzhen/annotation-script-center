@@ -1,3 +1,10 @@
+## 2026-06-09（后端下载中心支持 ASC_DOWNLOAD_BASE_URL）
+
+- 统一后端 `admin-download-center` 与 `admin-dashboard` 当前新增 `ASC_DOWNLOAD_BASE_URL` 支持：
+  - `GET /api/admin/download-center/releases` 现在会优先按该环境变量推导 `crx-latest.json` 与 `/downloads/` 目录地址。
+  - 系统管理总览中的 `downloads.scriptCenterUrl` 也改为优先回显该环境变量。
+- 该能力用于“同一份代码、多套下载入口”场景，例如直接用服务器 IP 暴露 `/downloads/` 时，不再需要把后端返回的下载 URL 固定写死到主域名。
+
 ## 2026-06-09（DataBaker CVPC 柳州话脚本补充字段填入快捷键并收紧控制台观察）
 
 - `DataBaker CVPC / 柳州话脚本` 当前补两个可录制快捷键动作，默认键位仍为空：
