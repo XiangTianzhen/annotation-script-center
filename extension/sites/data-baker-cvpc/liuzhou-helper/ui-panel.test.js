@@ -583,6 +583,12 @@ test("CVPC ui panel renders preview and three staged recommendation cards inside
       specialTags: ["口语化"],
       needHumanReview: false,
       notes: ["人工确认"],
+      timing: {
+        totalMs: 1234,
+      },
+      models: {
+        listenModel: "qwen3.5-omni-flash",
+      },
     });
 
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
@@ -593,6 +599,8 @@ test("CVPC ui panel renders preview and three staged recommendation cards inside
     assert.match(middleText, /建议 1/);
     assert.match(middleText, /口语化/);
     assert.match(middleText, /人工确认/);
+    assert.match(middleText, /AI 返回原始内容/);
+    assert.match(middleText, /"listenModel": "qwen3\.5-omni-flash"/);
     assert.doesNotMatch(middleText, /音频的柳州话文本/);
     assert.doesNotMatch(middleText, /音频的普通话文本/);
     assert.doesNotMatch(middleText, /修正后的柳州话文本/);
@@ -609,6 +617,9 @@ test("CVPC ui panel renders preview and three staged recommendation cards inside
     const actionWrap = findNodeByClass(dialectCard, "recommend-item-action");
     assert.ok(textWrap);
     assert.ok(actionWrap);
+    const metaDetails = findNodeByClass(middleNode, "meta-details");
+    assert.ok(metaDetails);
+    assert.equal(metaDetails.hasAttribute("open"), false);
 
     const audioDialectCard = findRecommendItemByTitle(harness.dialectFieldBlock, "音频的柳州话文本");
     const audioMandarinCard = findRecommendItemByTitle(harness.mandarinFieldBlock, "音频的普通话文本");

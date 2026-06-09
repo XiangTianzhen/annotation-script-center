@@ -18,6 +18,14 @@
       .replace(/(\.\d*?)0+$/, "$1");
   }
 
+  function stringifyJsonSafely(value) {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch (error) {
+      return String(value || "");
+    }
+  }
+
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
       return;
@@ -60,6 +68,7 @@
       "  word-break: break-word;",
       "}",
       "[" + ROOT_ATTR + "] { --asc-primary: #4f7cff; --asc-primary-strong: #3f6df2; --asc-primary-soft: #eef4ff; --asc-primary-border: #cddcff; --asc-muted: #7b88a1; }",
+      "[" + ROOT_ATTR + "] { --asc-accent: #f59f45; --asc-accent-soft: #fff4e8; --asc-accent-border: #f7c58b; }",
       "[" + ROOT_ATTR + "] .info-box[data-empty='true'] { color: #909399; word-break: normal; }",
       "[" + ROOT_ATTR + "] .audio-url-summary { display: grid; gap: 6px; color: #606266; word-break: normal; }",
       "[" + ROOT_ATTR + "] .audio-url-line { display: flex; align-items: flex-start; gap: 8px; }",
@@ -81,6 +90,17 @@
       "  box-shadow: 0 6px 18px rgba(79, 124, 255, 0.08);",
       "}",
       "[" + MIDDLE_AI_ACTIONS_ATTR + "] { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }",
+      "[" + MIDDLE_AI_ACTIONS_ATTR + "] button[data-accent='true'] {",
+      "  color: #b96816;",
+      "  border-color: var(--asc-accent-border);",
+      "  background: var(--asc-accent-soft);",
+      "  box-shadow: 0 4px 12px rgba(245, 159, 69, 0.16);",
+      "}",
+      "[" + MIDDLE_AI_ACTIONS_ATTR + "] button[data-accent='true']:hover {",
+      "  color: #9f5510;",
+      "  border-color: #f0b36d;",
+      "  background: #ffedd9;",
+      "}",
       "[" + MIDDLE_AI_ATTR + "] .preview-list, [" + MIDDLE_AI_ATTR + "] .meta-list, [" + FIELD_RECOMMEND_ATTR + "] {",
       "  margin-top: 8px;",
       "  display: grid;",
@@ -90,11 +110,14 @@
       "  display: block;",
       "  color: var(--asc-primary-strong);",
       "}",
-      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item { border-color: var(--asc-primary-border); background: var(--asc-primary-soft); }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item { border-color: var(--asc-primary-border); background: linear-gradient(180deg, #f9fbff 0%, #eef4ff 100%); border-radius: 10px; box-shadow: 0 6px 16px rgba(79, 124, 255, 0.08); }",
       "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-content { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }",
       "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-body { flex: 1 1 auto; min-width: 0; }",
-      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-text { margin-top: 4px; color: #42506a; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-body strong { font-size: 13px; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-text { margin-top: 6px; color: #42506a; font-size: 13px; line-height: 1.7; }",
       "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-action { flex: 0 0 auto; margin-top: 0; display: flex; align-items: flex-start; justify-content: flex-end; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-action button { border-color: var(--asc-primary-border); background: #fff; color: var(--asc-primary-strong); font-weight: 600; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-action button:hover { background: #edf3ff; border-color: var(--asc-primary); color: var(--asc-primary); }",
       "[" + FIELD_RECOMMEND_ATTR + "] { margin-top: 8px; }",
       "[" + ROOT_ATTR + "] button, [" + MIDDLE_AI_ATTR + "] button {",
       "  min-height: 32px;",
@@ -129,11 +152,16 @@
       "[" + MIDDLE_AI_ATTR + "] .section-title, [" + ROOT_ATTR + "] .panel-title { color: var(--asc-primary-strong); }",
       "[" + MIDDLE_AI_ATTR + "] .section-note, [" + ROOT_ATTR + "] .panel-subtitle { color: var(--asc-muted); }",
       "[" + MIDDLE_AI_ATTR + "] .meta-box, [" + MIDDLE_AI_ATTR + "] .preview-item { border-color: var(--asc-primary-border); background: #ffffff; }",
+      "[" + MIDDLE_AI_ATTR + "] .meta-details { margin-top: 8px; border: 1px solid var(--asc-primary-border); border-radius: 10px; background: #fff; overflow: hidden; }",
+      "[" + MIDDLE_AI_ATTR + "] .meta-details summary { cursor: pointer; list-style: none; padding: 10px 12px; color: var(--asc-primary-strong); font-weight: 600; background: #f6f9ff; user-select: none; }",
+      "[" + MIDDLE_AI_ATTR + "] .meta-details summary::-webkit-details-marker { display: none; }",
+      "[" + MIDDLE_AI_ATTR + "] .meta-details-content { padding: 4px 12px 12px; }",
+      "[" + MIDDLE_AI_ATTR + "] .meta-box pre { margin: 6px 0 0; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: #42506a; }",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
 
-  function createButton(text, primary) {
+  function createButton(text, primary, variant) {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = text;
@@ -142,6 +170,9 @@
       : "el-button el-button--default el-button--mini";
     if (primary) {
       button.setAttribute("data-primary", "true");
+    }
+    if (variant) {
+      button.setAttribute("data-" + String(variant), "true");
     }
     return button;
   }
@@ -356,10 +387,20 @@
         ["特殊标签", (result?.specialTags || []).join(" ") || "无"],
         ["需人工复核", result?.needHumanReview === true ? "是" : "否"],
         ["备注", (result?.notes || []).join("；") || "无"],
+        ["AI 返回原始内容", stringifyJsonSafely(result)],
       ].forEach(function (item) {
         const box = document.createElement("div");
         box.className = "meta-box";
-        box.innerHTML = "<strong>" + item[0] + "</strong><div>" + String(item[1] || "") + "</div>";
+        if (item[0] === "AI 返回原始内容") {
+          const title = document.createElement("strong");
+          title.textContent = item[0];
+          const rawNode = document.createElement("pre");
+          rawNode.textContent = String(item[1] || "");
+          box.appendChild(title);
+          box.appendChild(rawNode);
+        } else {
+          box.innerHTML = "<strong>" + item[0] + "</strong><div>" + String(item[1] || "") + "</div>";
+        }
         recommendationMetaNode.appendChild(box);
       });
     }
@@ -542,15 +583,15 @@
       middleActionsNode = document.createElement("div");
       middleActionsNode.setAttribute(MIDDLE_AI_ACTIONS_ATTR, "");
       [
-        ["当前段 AI 推荐", true, deps.onRecommend],
-        ["未填写补 Valid", false, deps.onFillAllValid],
-        ["生成画段建议", true, deps.onPreview],
-        ["应用当前建议", false, deps.onApplyPreview],
+        ["当前段 AI 推荐", true, "", deps.onRecommend],
+        ["未填写补 Valid", false, "accent", deps.onFillAllValid],
+        ["生成画段建议", true, "", deps.onPreview],
+        ["应用当前建议", false, "accent", deps.onApplyPreview],
       ].forEach(function (definition) {
-        const button = createButton(definition[0], definition[1]);
+        const button = createButton(definition[0], definition[1], definition[2]);
         button.addEventListener("click", function () {
-          if (typeof definition[2] === "function") {
-            definition[2]();
+          if (typeof definition[3] === "function") {
+            definition[3]();
           }
         });
         middleActionsNode.appendChild(button);
@@ -568,10 +609,19 @@
       const recommendSection = document.createElement("div");
       recommendSection.className = "section";
       recommendSection.innerHTML =
-        '<div class="section-title">当前段 AI 附加信息</div><div class="section-note">特殊标签、人工复核和备注保留在独立 AI 区，避免占用真实输入字段。</div>';
+        '<div class="section-title">当前段 AI 附加信息</div><div class="section-note">特殊标签、人工复核、备注和原始返回内容保留在独立 AI 区，默认折叠，避免占用真实输入字段。</div>';
+      const metaDetails = document.createElement("details");
+      metaDetails.className = "meta-details";
+      const metaSummary = document.createElement("summary");
+      metaSummary.textContent = "点击展开附加信息";
+      const metaContent = document.createElement("div");
+      metaContent.className = "meta-details-content";
       recommendationMetaNode = document.createElement("div");
       recommendationMetaNode.className = "meta-list";
-      recommendSection.appendChild(recommendationMetaNode);
+      metaContent.appendChild(recommendationMetaNode);
+      metaDetails.appendChild(metaSummary);
+      metaDetails.appendChild(metaContent);
+      recommendSection.appendChild(metaDetails);
       renderRecommendationMeta(null);
 
       middleAiRoot.appendChild(head);
