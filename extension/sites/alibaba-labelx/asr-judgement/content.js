@@ -18,6 +18,7 @@
   const shortcutModule = globalThis.__ASREdgeAlibabaLabelxJudgementShortcuts || null;
   const toolbarModule = globalThis.__ASREdgeAlibabaLabelxJudgementToolbar || null;
   const messageTypes = constants.MESSAGE_TYPES || {};
+  const defaultBackendBaseUrls = constants.DEFAULT_BACKEND_BASE_URLS || {};
   const judgementStatsUploadMessageType =
     messageTypes.JUDGEMENT_STATS_UPLOAD || "ASR_EDGE_JUDGEMENT_STATS_UPLOAD";
   const storageKey = constants.STORAGE_KEY || "asrEdgeSettings";
@@ -144,7 +145,8 @@
       autoAdvanceAfterChoice: false,
       statsUploadEnabled: true,
       statsUploadEndpoint:
-        "https://script.xiangtianzhen.store/api/alibaba-labelx/asr-judgement/statistics/upload",
+        String(defaultBackendBaseUrls.server || "").replace(/\/+$/, "") +
+        "/api/alibaba-labelx/asr-judgement/statistics/upload",
       statsScheduleUrl: "",
       statsUploadTimes: ["10:00", "16:00"],
       statsUploadJitterMinutes: 10,
@@ -152,7 +154,9 @@
       statsAutoUploadOnSchedule: true,
       statsUploadRequestTimeoutMs: 20000,
       aiSuggestionEnabled: true,
-      aiSuggestionEndpoint: "http://127.0.0.1:3333/api/alibaba-labelx/asr-judgement/ai/suggest",
+      aiSuggestionEndpoint:
+        String(defaultBackendBaseUrls.server || "").replace(/\/+$/, "") +
+        "/api/alibaba-labelx/asr-judgement/ai/suggest",
       aiSuggestionRequestTimeoutMs: 60000,
       aiSuggestionListenModel: "qwen3.5-omni-flash",
       aiSuggestionCompareModel: "qwen3.5-plus",

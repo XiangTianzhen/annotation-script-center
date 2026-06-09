@@ -386,10 +386,17 @@
     const endpoint = normalizeEndpoint(
       typeof CONSTANTS.buildBackendUrl === "function"
         ? CONSTANTS.buildBackendUrl(DATABAKER_AI_RECOMMEND_PATH, backendMode)
-        : (backendMode === BACKEND_MODE_LOCAL
-            ? "http://127.0.0.1:3333"
-            : "https://script.xiangtianzhen.store") + DATABAKER_AI_RECOMMEND_PATH,
-      "https://script.xiangtianzhen.store" + DATABAKER_AI_RECOMMEND_PATH
+        : String(
+            (
+              backendMode === BACKEND_MODE_LOCAL
+                ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.local
+                : backendMode === (CONSTANTS.BACKEND_ENDPOINT_MODE_BETA || "beta")
+                  ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.beta
+                  : CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server
+            ) || ""
+          ).replace(/\/+$/, "") + DATABAKER_AI_RECOMMEND_PATH,
+      String(CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server || "").replace(/\/+$/, "") +
+        DATABAKER_AI_RECOMMEND_PATH
     );
     const timeoutMs = normalizeTimeout(script.aiRecommendRequestTimeoutMs);
     const recognitionMode = normalizePipelineMode(script.aiRecommendPipelineMode);

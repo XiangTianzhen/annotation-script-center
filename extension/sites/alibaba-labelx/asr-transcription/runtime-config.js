@@ -313,9 +313,15 @@
     const endpoint =
       typeof constants.buildBackendUrl === "function"
         ? constants.buildBackendUrl(STATS_UPLOAD_PATH, endpointMode)
-        : (endpointMode === BACKEND_MODE_LOCAL
-            ? "http://127.0.0.1:3333"
-            : "https://script.xiangtianzhen.store") + STATS_UPLOAD_PATH;
+        : String(
+            (
+              endpointMode === BACKEND_MODE_LOCAL
+                ? constants.DEFAULT_BACKEND_BASE_URLS?.local
+                : endpointMode === (constants.BACKEND_ENDPOINT_MODE_BETA || "beta")
+                  ? constants.DEFAULT_BACKEND_BASE_URLS?.beta
+                  : constants.DEFAULT_BACKEND_BASE_URLS?.server
+            ) || ""
+          ).replace(/\/+$/, "") + STATS_UPLOAD_PATH;
 
     return {
       statsUploadEnabled: true,

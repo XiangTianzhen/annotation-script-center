@@ -179,7 +179,7 @@
     const endpointBuilder = typeof CONSTANTS.buildBackendUrl === "function"
       ? CONSTANTS.buildBackendUrl
       : function (path) {
-          return "https://script.xiangtianzhen.store" + path;
+          return String(CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server || "").replace(/\/+$/, "") + path;
         };
     return {
       settings,

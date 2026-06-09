@@ -58,7 +58,15 @@
     if (typeof constants.buildBackendUrl === "function") {
       return constants.buildBackendUrl(ANALYZE_PATH, settingsOrMode || {});
     }
-    return "http://127.0.0.1:3333" + ANALYZE_PATH;
+    const defaultBackendBaseUrls = constants.DEFAULT_BACKEND_BASE_URLS || {};
+    const mode = typeof settingsOrMode === "string" ? String(settingsOrMode).trim().toLowerCase() : "";
+    const baseUrl =
+      mode === (constants.BACKEND_ENDPOINT_MODE_LOCAL || "local")
+        ? defaultBackendBaseUrls.local
+        : mode === (constants.BACKEND_ENDPOINT_MODE_BETA || "beta")
+          ? defaultBackendBaseUrls.beta
+          : defaultBackendBaseUrls.server;
+    return String(baseUrl || "").replace(/\/+$/, "") + ANALYZE_PATH;
   }
 
   function normalizeModelName(value, fallback) {

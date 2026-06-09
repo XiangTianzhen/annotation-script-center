@@ -261,7 +261,8 @@
     const endpoint =
       typeof CONSTANTS.buildBackendUrl === "function"
         ? CONSTANTS.buildBackendUrl(RECOMMEND_PATH, settings)
-        : "https://script.xiangtianzhen.store" + RECOMMEND_PATH;
+        : String(CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server || "").replace(/\/+$/, "") +
+          RECOMMEND_PATH;
     const merged = Object.assign({}, defaults, scriptConfig, {
       id: SCRIPT_ID,
       aiRecommendEndpoint: endpoint,

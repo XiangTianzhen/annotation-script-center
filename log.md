@@ -1,9 +1,41 @@
+## 2026-06-09（系统管理统一切换三套后端地址）
+
+- 扩展前端当前把运行时后端地址统一收口到 `settings.meta.backendBaseUrls`：
+  - `server`
+  - `local`
+  - `beta`
+- 系统管理 `后端设置` 当前改为三套根地址输入 + 当前模式切换：
+  - `server/local` 始终显示
+  - `beta` 地址与模式继续受 beta 解锁控制
+  - 保存后当前页摘要、管理页请求与公开下载中心入口都会立即跟随当前模式刷新
+- 共享常量与存储层当前新增统一 resolver：
+  - `getBackendBaseUrlsFromSettings`
+  - `getBackendBaseUrlByMode`
+  - `getBackendBaseUrlFromSettings`
+  - `buildBackendUrl`
+  - `buildDownloadUrl`
+- 运行时当前移除 Aishell 旧的“本机失败后自动回退服务器”逻辑；所有脚本请求改为只走当前模式对应根地址，失败时直接报当前模式失败。
+- `extension/manifest.json` 当前放宽 `host_permissions` 到通用 `http://*/*` 与 `https://*/*`，用于支持任意 IP / 域名作为运行时可配置后端。
+
 ## 2026-06-09（后端下载中心支持 ASC_DOWNLOAD_BASE_URL）
 
 - 统一后端 `admin-download-center` 与 `admin-dashboard` 当前新增 `ASC_DOWNLOAD_BASE_URL` 支持：
   - `GET /api/admin/download-center/releases` 现在会优先按该环境变量推导 `crx-latest.json` 与 `/downloads/` 目录地址。
   - 系统管理总览中的 `downloads.scriptCenterUrl` 也改为优先回显该环境变量。
 - 该能力用于“同一份代码、多套下载入口”场景，例如直接用服务器 IP 暴露 `/downloads/` 时，不再需要把后端返回的下载 URL 固定写死到主域名。
+
+## 2026-06-09（AI 请求记录补 token 汇总并隐藏未解锁 beta 数据集）
+
+- `AI 请求记录` 导出链路当前补两项收口：
+  - 共享日志脱敏层现在保留 usage 中的 `promptTokens / completionTokens / totalTokens` 等计费字段，不再把它们误判成敏感 token 打成 `<redacted>`
+  - 共享 CSV 导出列现在支持聚合多阶段 usage；像 `DataBaker CVPC / 柳州话脚本` 的 `listen + refine` 两阶段 token 会自动汇总到 `输入Token / 输出Token / 总Token`
+- `AI 请求记录脚本类型` 当前增加 beta 可见性过滤：
+  - `DataBaker CVPC 柳州话助手 AI 调用记录` 标记为 beta 数据集
+  - `GET /api/admin/ai-call-log/options` 默认不返回该项
+  - 只有 options 前端在 beta 已解锁状态下显式携带 `includeBeta=1` 时，系统管理里才会显示该数据集
+- 同步更新：
+  - `platform-resources/backend/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
 
 ## 2026-06-09（DataBaker CVPC 柳州话脚本补充字段填入快捷键并收紧控制台观察）
 

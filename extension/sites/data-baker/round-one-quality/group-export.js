@@ -188,9 +188,14 @@
       }
     }
     const mode = getBackendMode(settings || {});
-    const baseUrl = mode === BACKEND_MODE_LOCAL ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store";
+    const baseUrl =
+      mode === BACKEND_MODE_LOCAL
+        ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.local
+        : mode === (CONSTANTS.BACKEND_ENDPOINT_MODE_BETA || "beta")
+          ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.beta
+          : CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server;
     const normalizedPath = String(path || "").startsWith("/") ? String(path || "") : "/" + String(path || "");
-    return baseUrl + normalizedPath;
+    return String(baseUrl || "").replace(/\/+$/, "") + normalizedPath;
   }
 
   function buildDataBakerExportUploadUrl(settings) {

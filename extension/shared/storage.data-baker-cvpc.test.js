@@ -65,6 +65,11 @@ test("CVPC storage defaults expose beta liuzhou helper settings", async function
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
 
+    assert.deepEqual(settings.meta.backendBaseUrls, {
+      server: "https://script.xiangtianzhen.store",
+      local: "http://127.0.0.1:3333",
+      beta: "",
+    });
     assert.equal(settings.platforms.dataBakerCvpc.enabled, true);
     assert.equal(script.id, "dataBakerCvpcLiuzhouAssistant");
     assert.equal(script.enabled, true);
@@ -127,6 +132,11 @@ test("CVPC storage normalizes invalid values and preserves local endpoints", asy
     const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
 
     assert.equal(settings.meta.backendEndpointMode, "local");
+    assert.deepEqual(settings.meta.backendBaseUrls, {
+      server: "https://script.xiangtianzhen.store",
+      local: "http://127.0.0.1:3333",
+      beta: "",
+    });
     assert.equal(script.segmentPreviewEnabled, false);
     assert.equal(
       script.segmentPreviewEndpoint,

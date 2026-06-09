@@ -6,11 +6,13 @@
   const constants = globalThis.ASREdgeConstants || {};
   const storage = globalThis.ASREdgeStorage || null;
   const DEFAULT_ENDPOINT =
-    "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend";
+    String(constants.DEFAULT_BACKEND_BASE_URLS?.server || "").replace(/\/+$/, "") +
+    "/api/aishell-tech/minnan-helper/ai/recommend";
   const RECOMMEND_PATH =
     constants.AISHELL_TECH_AI_RECOMMEND_PATH || "/api/aishell-tech/minnan-helper/ai/recommend";
   const BACKEND_MODE_SERVER = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const BACKEND_MODE_LOCAL = constants.BACKEND_ENDPOINT_MODE_LOCAL || "local";
+  const BACKEND_MODE_BETA = constants.BACKEND_ENDPOINT_MODE_BETA || "beta";
   const DEFAULT_TIMEOUT_MS = 60000;
   const jobClient = globalThis.ASREdgeAiJobClient || null;
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
@@ -102,7 +104,11 @@
   function getBackendModeFromSettings(settings, endpoint) {
     if (typeof constants.getBackendEndpointModeFromSettings === "function") {
       const resolved = normalizeText(constants.getBackendEndpointModeFromSettings(settings || {}));
-      if (resolved === BACKEND_MODE_LOCAL || resolved === BACKEND_MODE_SERVER) {
+      if (
+        resolved === BACKEND_MODE_LOCAL ||
+        resolved === BACKEND_MODE_SERVER ||
+        resolved === BACKEND_MODE_BETA
+      ) {
         return resolved;
       }
     }
@@ -117,6 +123,9 @@
     if (rawMode === BACKEND_MODE_SERVER) {
       return BACKEND_MODE_SERVER;
     }
+    if (rawMode === BACKEND_MODE_BETA) {
+      return BACKEND_MODE_BETA;
+    }
     return inferBackendModeFromEndpoint(endpoint, BACKEND_MODE_SERVER);
   }
 
@@ -129,9 +138,11 @@
     }
     const baseUrl =
       mode === BACKEND_MODE_LOCAL
-        ? "http://127.0.0.1:3333"
-        : "https://script.xiangtianzhen.store";
-    return baseUrl + String(path || "");
+        ? constants.DEFAULT_BACKEND_BASE_URLS?.local
+        : mode === BACKEND_MODE_BETA
+          ? constants.DEFAULT_BACKEND_BASE_URLS?.beta
+          : constants.DEFAULT_BACKEND_BASE_URLS?.server;
+    return String(baseUrl || "").replace(/\/+$/, "") + String(path || "");
   }
 
   function getOnlineState() {
@@ -280,16 +291,6 @@
       } catch (_error) {
         return DEFAULT_ENDPOINT;
       }
-    }
-
-    function getFallbackEndpoint(primaryEndpoint, primaryMode) {
-      if (primaryMode !== BACKEND_MODE_LOCAL) {
-        return "";
-      }
-      const fallback = buildBackendUrl(RECOMMEND_PATH, BACKEND_MODE_SERVER);
-      return normalizeText(fallback) && normalizeText(fallback) !== normalizeText(primaryEndpoint)
-        ? fallback
-        : "";
     }
 
     function buildHealthEndpoint(endpoint) {
@@ -585,7 +586,6 @@
       const requestBody = createRequestBody(source);
       const endpoint = getEndpoint();
       const backendMode = getBackendModeFromSettings(config.settings || {}, endpoint);
-      const fallbackEndpoint = getFallbackEndpoint(endpoint, backendMode);
 
       try {
         const result = await sendRequest(endpoint, requestBody, timeoutMs);
@@ -610,65 +610,15 @@
           );
         }
         if (error instanceof TypeError) {
-          if (fallbackEndpoint) {
-            try {
-              const fallbackResult = await sendRequest(fallbackEndpoint, requestBody, timeoutMs);
-              return attachClientDebug(fallbackResult, {
-                backendMode: BACKEND_MODE_SERVER,
-                endpoint: fallbackEndpoint,
-                fallbackUsed: true,
-                primaryBackendMode: backendMode,
-                primaryEndpoint: endpoint,
-              });
-            } catch (fallbackError) {
-              if (fallbackError?.name === "AbortError") {
-                throw createClientError("AI 推荐接口请求超时。", { code: "timeout" });
-              }
-              if (isExtensionContextInvalidatedError(fallbackError)) {
-                throw createDetailedClientError(
-                  "扩展上下文已失效，请刷新当前业务页面后重试。",
-                  "extension-context-invalidated",
-                  createNetworkErrorMeta({
-                    backendMode: BACKEND_MODE_SERVER,
-                    endpoint: fallbackEndpoint,
-                    fallbackEndpoint: fallbackEndpoint,
-                    fallbackAttempted: true,
-                    error: fallbackError,
-                  })
-                );
-              }
-              if (!(fallbackError instanceof TypeError)) {
-                throw fallbackError;
-              }
-              const healthCheck = await probeHealthEndpoint(fallbackEndpoint, timeoutMs);
-              throw createDetailedClientError(
-                healthCheck.ok === true
-                  ? "本机后端连接失败，回退服务器时服务器 health 可达，但 AI recommend 请求仍在网络层被中断。请检查服务器 Nginx、PM2 和后端日志。"
-                  : "本机后端连接失败，且回退服务器接口也失败。请检查本机服务是否启动，或在 options 首页把后端接口地址切回服务器。",
-                "network-disconnected",
-                Object.assign(createNetworkErrorMeta({
-                  backendMode: backendMode,
-                  endpoint: endpoint,
-                  fallbackEndpoint: fallbackEndpoint,
-                  fallbackAttempted: true,
-                  error,
-                }), {
-                  healthCheck: healthCheck,
-                })
-              );
-            }
-          }
           const healthCheck = await probeHealthEndpoint(endpoint, timeoutMs);
           throw createDetailedClientError(
             healthCheck.ok === true
-              ? "服务器 health 可达，但 AI recommend 请求在网络层被中断。请检查 Nginx 反向代理、PM2 进程状态和后端日志。"
+              ? "当前模式后端 health 可达，但 AI recommend 请求在网络层被中断。请检查当前环境的 Nginx、PM2 和后端日志。"
               : "后端连接中断，请稍后重试。",
             "network-disconnected",
             Object.assign(createNetworkErrorMeta({
               backendMode: backendMode,
               endpoint: endpoint,
-              fallbackEndpoint: fallbackEndpoint,
-              fallbackAttempted: false,
               error,
             }), {
               healthCheck: healthCheck,

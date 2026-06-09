@@ -41,7 +41,7 @@
   const DATABAKER_AI_REQUEST_STAGGER_MS = 50;
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 21;
+  const SCHEMA_VERSION = 22;
   const RELEASE_CHANNEL_PUBLIC = "public";
   const RELEASE_CHANNEL_BETA = "beta";
   const RELEASE_VISIBILITY_PUBLIC = "public";
@@ -73,11 +73,20 @@
     }
     return fallback === RELEASE_CHANNEL_BETA ? RELEASE_CHANNEL_BETA : RELEASE_CHANNEL_PUBLIC;
   }
-  function normalizeBetaBackendBaseUrl(value) {
+  function normalizeBackendBaseUrl(value, fallback) {
     const text = String(value || "")
       .trim()
       .replace(/\/+$/, "");
-    return /^https?:\/\//i.test(text) ? text : "";
+    if (/^https?:\/\//i.test(text)) {
+      return text;
+    }
+    const fallbackText = String(fallback || "")
+      .trim()
+      .replace(/\/+$/, "");
+    return /^https?:\/\//i.test(fallbackText) ? fallbackText : "";
+  }
+  function normalizeBetaBackendBaseUrl(value) {
+    return normalizeBackendBaseUrl(value, "");
   }
   const RELEASE_CHANNEL = normalizeReleaseChannel(
     BUILD_META.releaseChannel,
@@ -90,14 +99,13 @@
     .toLowerCase();
   const BETA_FEATURES_VISIBLE_BY_DEFAULT =
     RELEASE_CHANNEL === RELEASE_CHANNEL_BETA && BUILD_META.betaFeaturesVisibleByDefault === true;
-  const DEFAULT_BETA_BACKEND_BASE_URL = normalizeBetaBackendBaseUrl(
-    BUILD_META.betaBackendBaseUrl
-  );
-  const BACKEND_ENDPOINTS = {
-    server: "https://script.xiangtianzhen.store",
-    local: "http://127.0.0.1:3333",
+  const DEFAULT_BETA_BACKEND_BASE_URL = normalizeBackendBaseUrl(BUILD_META.betaBackendBaseUrl);
+  const DEFAULT_BACKEND_BASE_URLS = Object.freeze({
+    server: normalizeBackendBaseUrl("https://script.xiangtianzhen.store"),
+    local: normalizeBackendBaseUrl("http://127.0.0.1:3333"),
     beta: DEFAULT_BETA_BACKEND_BASE_URL,
-  };
+  });
+  const BACKEND_ENDPOINTS = DEFAULT_BACKEND_BASE_URLS;
   const DATABAKER_AI_RECOMMEND_PATH = "/api/data-baker/round-one-quality/ai/recommend";
   const DATA_BAKER_CVPC_AI_RECOMMEND_PATH =
     "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
@@ -611,7 +619,7 @@
     if (DEFAULT_BETA_BACKEND_BASE_URL && text.indexOf(DEFAULT_BETA_BACKEND_BASE_URL.toLowerCase()) >= 0) {
       return BACKEND_ENDPOINT_MODE_BETA;
     }
-    if (text.indexOf("script.xiangtianzhen.store") >= 0 || text.indexOf("http://") >= 0 || text.indexOf("https://") >= 0) {
+    if (text.indexOf("http://") === 0 || text.indexOf("https://") === 0) {
       return BACKEND_ENDPOINT_MODE_SERVER;
     }
     return fallbackMode;
@@ -624,11 +632,29 @@
     );
   }
 
-  function getBetaBackendBaseUrlFromSettings(settings) {
-    return (
-      normalizeBetaBackendBaseUrl(settings?.meta?.betaBackendBaseUrl) ||
-      DEFAULT_BETA_BACKEND_BASE_URL
+  function getBackendBaseUrlsFromSettings(settings) {
+    const meta = settings?.meta && typeof settings.meta === "object" ? settings.meta : {};
+    const storedBaseUrls =
+      meta.backendBaseUrls && typeof meta.backendBaseUrls === "object" ? meta.backendBaseUrls : {};
+    const betaBaseUrl = normalizeBackendBaseUrl(
+      storedBaseUrls.beta,
+      normalizeBackendBaseUrl(meta.betaBackendBaseUrl, DEFAULT_BACKEND_BASE_URLS.beta)
     );
+    return {
+      server: normalizeBackendBaseUrl(
+        storedBaseUrls.server,
+        DEFAULT_BACKEND_BASE_URLS.server
+      ),
+      local: normalizeBackendBaseUrl(
+        storedBaseUrls.local,
+        DEFAULT_BACKEND_BASE_URLS.local
+      ),
+      beta: betaBaseUrl,
+    };
+  }
+
+  function getBetaBackendBaseUrlFromSettings(settings) {
+    return getBackendBaseUrlsFromSettings(settings).beta;
   }
 
   function canUseBetaBackendMode(settings) {
@@ -649,12 +675,13 @@
 
   function getBackendBaseUrlByMode(mode, settings) {
     const normalizedMode = normalizeBackendEndpointMode(mode, BACKEND_ENDPOINT_MODE_SERVER);
+    const backendBaseUrls = getBackendBaseUrlsFromSettings(settings || {});
     if (normalizedMode === BACKEND_ENDPOINT_MODE_BETA) {
-      return getBetaBackendBaseUrlFromSettings(settings || {});
+      return backendBaseUrls.beta;
     }
     return normalizedMode === BACKEND_ENDPOINT_MODE_LOCAL
-      ? BACKEND_ENDPOINTS.local
-      : BACKEND_ENDPOINTS.server;
+      ? backendBaseUrls.local
+      : backendBaseUrls.server;
   }
 
   function getBackendBaseUrlFromSettings(settings) {
@@ -676,6 +703,24 @@
     const baseUrl = getBackendBaseUrlByMode(mode, settingsOrMode || {}).replace(/\/+$/, "");
     const normalizedPath = text.charAt(0) === "/" ? text : "/" + text;
     return baseUrl + normalizedPath;
+  }
+
+  function buildDownloadUrl(path, settingsOrMode) {
+    const text = String(path || "").trim();
+    if (/^https?:\/\//i.test(text)) {
+      return text;
+    }
+    const mode =
+      typeof settingsOrMode === "string"
+        ? settingsOrMode
+        : getBackendEndpointModeFromSettings(settingsOrMode || {});
+    const baseUrl = getBackendBaseUrlByMode(mode, settingsOrMode || {}).replace(/\/+$/, "");
+    const suffix = text
+      ? text.charAt(0) === "/"
+        ? text
+        : "/" + text
+      : "/";
+    return baseUrl + "/downloads" + suffix;
   }
 
   const TARGET_PLATFORM = {
@@ -1947,9 +1992,10 @@
     meta: {
       schemaVersion: SCHEMA_VERSION,
       backendEndpointMode: BACKEND_ENDPOINT_MODE_SERVER,
+      backendBaseUrls: clone(DEFAULT_BACKEND_BASE_URLS),
       betaUnlocked: false,
       betaUnlockedAt: null,
-      betaBackendBaseUrl: "",
+      betaBackendBaseUrl: DEFAULT_BACKEND_BASE_URLS.beta,
       aiUsageOperatorName: "",
       aiCallLogDownloadOperatorName: "",
       publicCenterPlatformOrder: [],
@@ -2080,6 +2126,7 @@
     BETA_UNLOCK_PASSWORD_SHA256: BETA_UNLOCK_PASSWORD_SHA256,
     BETA_FEATURES_VISIBLE_BY_DEFAULT: BETA_FEATURES_VISIBLE_BY_DEFAULT,
     DEFAULT_BETA_BACKEND_BASE_URL: DEFAULT_BETA_BACKEND_BASE_URL,
+    DEFAULT_BACKEND_BASE_URLS: clone(DEFAULT_BACKEND_BASE_URLS),
     STORAGE_KEY: "asrEdgeSettings",
     PRESENCE_BADGE_ID: "asr-edge-presence-host",
     TARGET_PLATFORM: TARGET_PLATFORM,
@@ -2163,16 +2210,19 @@
     AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT: AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT,
     AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT: AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT,
     normalizeBackendEndpointMode: normalizeBackendEndpointMode,
+    normalizeBackendBaseUrl: normalizeBackendBaseUrl,
     normalizeReleaseChannel: normalizeReleaseChannel,
     normalizeBetaBackendBaseUrl: normalizeBetaBackendBaseUrl,
     inferBackendEndpointModeFromEndpoint: inferBackendEndpointModeFromEndpoint,
     canUseBetaFeatures: canUseBetaFeatures,
     canUseBetaBackendMode: canUseBetaBackendMode,
     getBackendEndpointModeFromSettings: getBackendEndpointModeFromSettings,
+    getBackendBaseUrlsFromSettings: getBackendBaseUrlsFromSettings,
     getBackendBaseUrlByMode: getBackendBaseUrlByMode,
     getBetaBackendBaseUrlFromSettings: getBetaBackendBaseUrlFromSettings,
     getBackendBaseUrlFromSettings: getBackendBaseUrlFromSettings,
     buildBackendUrl: buildBackendUrl,
+    buildDownloadUrl: buildDownloadUrl,
     TRANSCRIPTION_STATS_SERVER_ENDPOINT: TRANSCRIPTION_STATS_SERVER_ENDPOINT,
     TRANSCRIPTION_STATS_LOCAL_ENDPOINT: TRANSCRIPTION_STATS_LOCAL_ENDPOINT,
     DATABAKER_PAGE_SIZE_OPTIONS: clone(DATABAKER_PAGE_SIZE_OPTIONS),

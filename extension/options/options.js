@@ -49,6 +49,25 @@
           const text = String(value || "").trim().replace(/\/+$/, "");
           return /^https?:\/\//i.test(text) ? text : "";
         };
+  const normalizeBackendBaseUrl =
+    typeof constants.normalizeBackendBaseUrl === "function"
+      ? constants.normalizeBackendBaseUrl
+      : function (value, fallback) {
+          const text = String(value || "").trim().replace(/\/+$/, "");
+          if (/^https?:\/\//i.test(text)) {
+            return text;
+          }
+          const fallbackText = String(fallback || "").trim().replace(/\/+$/, "");
+          return /^https?:\/\//i.test(fallbackText) ? fallbackText : "";
+        };
+  const defaultBackendBaseUrls = Object.assign(
+    {
+      server: "https://script.xiangtianzhen.store",
+      local: "http://127.0.0.1:3333",
+      beta: normalizeBetaBackendBaseUrl(constants.DEFAULT_BETA_BACKEND_BASE_URL || ""),
+    },
+    constants.DEFAULT_BACKEND_BASE_URLS || {}
+  );
   const defaultBetaUnlockPasswordSha256 = String(
     constants.BETA_UNLOCK_PASSWORD_SHA256 || ""
   )
@@ -67,10 +86,51 @@
   const getBackendBaseUrlByMode =
     typeof constants.getBackendBaseUrlByMode === "function"
       ? constants.getBackendBaseUrlByMode
-      : function (mode) {
-          return String(mode || "").trim().toLowerCase() === backendModeLocal
-            ? "http://127.0.0.1:3333"
-            : "https://script.xiangtianzhen.store";
+      : function (mode, settings) {
+          const backendBaseUrls =
+            typeof constants.getBackendBaseUrlsFromSettings === "function"
+              ? constants.getBackendBaseUrlsFromSettings(settings || {})
+              : {
+                  server: normalizeBackendBaseUrl(
+                    settings?.meta?.backendBaseUrls?.server,
+                    defaultBackendBaseUrls.server
+                  ),
+                  local: normalizeBackendBaseUrl(
+                    settings?.meta?.backendBaseUrls?.local,
+                    defaultBackendBaseUrls.local
+                  ),
+                  beta: normalizeBackendBaseUrl(
+                    settings?.meta?.backendBaseUrls?.beta || settings?.meta?.betaBackendBaseUrl,
+                    defaultBackendBaseUrls.beta
+                  ),
+                };
+          const normalizedMode = String(mode || "").trim().toLowerCase();
+          if (normalizedMode === backendModeLocal) {
+            return backendBaseUrls.local;
+          }
+          if (normalizedMode === backendModeBeta) {
+            return backendBaseUrls.beta;
+          }
+          return backendBaseUrls.server;
+        };
+  const getBackendBaseUrlsFromSettings =
+    typeof constants.getBackendBaseUrlsFromSettings === "function"
+      ? constants.getBackendBaseUrlsFromSettings
+      : function (settings) {
+          return {
+            server: normalizeBackendBaseUrl(
+              settings?.meta?.backendBaseUrls?.server,
+              defaultBackendBaseUrls.server
+            ),
+            local: normalizeBackendBaseUrl(
+              settings?.meta?.backendBaseUrls?.local,
+              defaultBackendBaseUrls.local
+            ),
+            beta: normalizeBackendBaseUrl(
+              settings?.meta?.backendBaseUrls?.beta || settings?.meta?.betaBackendBaseUrl,
+              defaultBackendBaseUrls.beta
+            ),
+          };
         };
   const buildBackendUrl =
     typeof constants.buildBackendUrl === "function"
@@ -80,9 +140,21 @@
             typeof settingsOrMode === "string"
               ? settingsOrMode
               : getBackendModeFromSettings(settingsOrMode || {});
-          const baseUrl = String(getBackendBaseUrlByMode(mode) || "").replace(/\/+$/, "");
+          const baseUrl = String(getBackendBaseUrlByMode(mode, settingsOrMode || {}) || "").replace(/\/+$/, "");
           const normalizedPath = String(path || "").charAt(0) === "/" ? String(path || "") : "/" + String(path || "");
           return baseUrl + normalizedPath;
+        };
+  const buildDownloadUrl =
+    typeof constants.buildDownloadUrl === "function"
+      ? constants.buildDownloadUrl
+      : function (path, settingsOrMode) {
+          const mode =
+            typeof settingsOrMode === "string"
+              ? settingsOrMode
+              : getBackendModeFromSettings(settingsOrMode || {});
+          const baseUrl = String(getBackendBaseUrlByMode(mode, settingsOrMode || {}) || "").replace(/\/+$/, "");
+          const normalizedPath = String(path || "/").charAt(0) === "/" ? String(path || "/") : "/" + String(path || "/");
+          return baseUrl + "/downloads" + normalizedPath;
         };
   const buildProjectDownloadSupplierState =
     typeof projectDownloadSupplierHelper.buildProjectDownloadSupplierState === "function"
@@ -135,7 +207,6 @@
   const adminDashboardOverviewPath = "/api/admin/dashboard/overview";
   const adminDashboardRuntimeLogsPath = "/api/admin/dashboard/runtime-logs";
   const adminDownloadCenterReleasesPath = "/api/admin/download-center/releases";
-  const scriptDownloadCenterUrl = "https://script.xiangtianzhen.store/downloads/";
   const optionsRouteState = globalThis.ASREdgeOptionsRouteState || {};
   const parseOptionsRoute =
     typeof optionsRouteState.parseOptionsRoute === "function"
@@ -978,12 +1049,7 @@
       versionCompactNode.textContent = "v" + version;
     }
     if (backendModeNode) {
-      backendModeNode.textContent =
-        backendMode === backendModeLocal
-          ? "本机"
-          : backendMode === backendModeBeta
-            ? "Beta"
-            : "服务器";
+      backendModeNode.textContent = getBackendModeLabel(backendMode);
     }
     if (aiUsageOperatorNode) {
       const operatorName = getAiUsageOperatorName(settings || {});
@@ -1039,11 +1105,14 @@
   }
 
   function createAdminBackendDraft(settings) {
+    const backendBaseUrls = getBackendBaseUrlsFromSettings(settings || {});
     return {
       backendEndpointMode: getBackendModeFromSettings(settings || {}),
-      betaBackendBaseUrl: normalizeBetaBackendBaseUrl(
-        settings?.meta?.betaBackendBaseUrl || constants.DEFAULT_BETA_BACKEND_BASE_URL || ""
-      ),
+      backendBaseUrls: {
+        server: normalizeBackendBaseUrl(backendBaseUrls.server, defaultBackendBaseUrls.server),
+        local: normalizeBackendBaseUrl(backendBaseUrls.local, defaultBackendBaseUrls.local),
+        beta: normalizeBackendBaseUrl(backendBaseUrls.beta, defaultBackendBaseUrls.beta),
+      },
       aiUsageOperatorName: getAiUsageOperatorName(settings || {}),
     };
   }
@@ -1070,25 +1139,65 @@
     const draft = getAdminBackendDraft();
     return (
       draft.backendEndpointMode !== saved.backendEndpointMode ||
-      normalizeBetaBackendBaseUrl(draft.betaBackendBaseUrl) !==
-        normalizeBetaBackendBaseUrl(saved.betaBackendBaseUrl) ||
+      normalizeBackendBaseUrl(
+        draft.backendBaseUrls?.server,
+        defaultBackendBaseUrls.server
+      ) !== normalizeBackendBaseUrl(saved.backendBaseUrls?.server, defaultBackendBaseUrls.server) ||
+      normalizeBackendBaseUrl(
+        draft.backendBaseUrls?.local,
+        defaultBackendBaseUrls.local
+      ) !== normalizeBackendBaseUrl(saved.backendBaseUrls?.local, defaultBackendBaseUrls.local) ||
+      normalizeBackendBaseUrl(
+        draft.backendBaseUrls?.beta,
+        defaultBackendBaseUrls.beta
+      ) !== normalizeBackendBaseUrl(saved.backendBaseUrls?.beta, defaultBackendBaseUrls.beta) ||
       normalizeAiUsageOperatorName(draft.aiUsageOperatorName) !==
         normalizeAiUsageOperatorName(saved.aiUsageOperatorName)
     );
   }
 
-  function buildBackendModeDisplayText(mode) {
+  function getBackendModeLabel(mode) {
     const normalizedMode = String(mode || "").trim().toLowerCase();
     if (normalizedMode === backendModeLocal) {
-      return "本机（127.0.0.1:3333）";
+      return "local";
     }
     if (normalizedMode === backendModeBeta) {
-      const betaUrl = normalizeBetaBackendBaseUrl(
-        getAdminBackendDraft()?.betaBackendBaseUrl || constants.DEFAULT_BETA_BACKEND_BASE_URL || ""
-      );
-      return betaUrl ? "Beta（" + betaUrl + "）" : "Beta（未配置地址）";
+      return "beta";
     }
-    return "服务器（script.xiangtianzhen.store）";
+    return "server";
+  }
+
+  function getBackendBaseUrlsForDisplay(source) {
+    if (source && typeof source === "object" && source.backendBaseUrls) {
+      return {
+        server: normalizeBackendBaseUrl(
+          source.backendBaseUrls.server,
+          defaultBackendBaseUrls.server
+        ),
+        local: normalizeBackendBaseUrl(
+          source.backendBaseUrls.local,
+          defaultBackendBaseUrls.local
+        ),
+        beta: normalizeBackendBaseUrl(
+          source.backendBaseUrls.beta,
+          defaultBackendBaseUrls.beta
+        ),
+      };
+    }
+    return getBackendBaseUrlsFromSettings(source || currentSettings || {});
+  }
+
+  function buildBackendModeDisplayText(mode, source) {
+    const normalizedMode = String(mode || "").trim().toLowerCase();
+    const backendBaseUrls = getBackendBaseUrlsForDisplay(source);
+    const label = getBackendModeLabel(normalizedMode);
+    const rootUrl =
+      normalizedMode === backendModeLocal
+        ? backendBaseUrls.local
+        : normalizedMode === backendModeBeta
+          ? backendBaseUrls.beta
+          : backendBaseUrls.server;
+    return rootUrl ? label + "（" + rootUrl + "）" : label + "（未配置根地址）";
   }
 
   function applyForcedThinkingToggle(inputId, message) {
@@ -1129,8 +1238,12 @@
     navigateToDownloads();
   }
 
+  function getCurrentDownloadCenterUrl(settings) {
+    return buildDownloadUrl("/", settings || currentSettings || {});
+  }
+
   function openExternalScriptDownloadCenter() {
-    openExternalUrl(scriptDownloadCenterUrl);
+    openExternalUrl(getCurrentDownloadCenterUrl(currentSettings || {}));
   }
 
   function buildPlatformDisplayHost(platform) {
@@ -3765,9 +3878,8 @@
   }
 
   function formatBackendModeLabel(settings) {
-    return getBackendModeFromSettings(settings) === backendModeLocal
-      ? "本机（127.0.0.1:3333）"
-      : "服务器（script.xiangtianzhen.store）";
+    const currentMode = getBackendModeFromSettings(settings || {});
+    return buildBackendModeDisplayText(currentMode, settings || {});
   }
 
   function isLabelxScript(scriptId) {
@@ -4801,11 +4913,13 @@
         blockPauseStateTips: true,
         segmentPreviewEndpoint:
           constants.DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT ||
-          "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+          String(defaultBackendBaseUrls.server || "").replace(/\/+$/, "") +
+            "/api/data-baker-cvpc/liuzhou-helper/segment/preview",
         aiRecommendEnabled: true,
         aiRecommendEndpoint:
           constants.DATA_BAKER_CVPC_AI_RECOMMEND_SERVER_ENDPOINT ||
-          "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+          String(defaultBackendBaseUrls.server || "").replace(/\/+$/, "") +
+            "/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendListenPrompt: "",
@@ -8037,6 +8151,8 @@
     const serverButton = getElement("home-endpoint-server");
     const localButton = getElement("home-endpoint-local");
     const betaButton = getElement("home-endpoint-beta");
+    const serverUrlInput = getElement("home-endpoint-server-url");
+    const localUrlInput = getElement("home-endpoint-local-url");
     const betaUrlInput = getElement("home-endpoint-beta-url");
     if (!(serverButton instanceof HTMLButtonElement) || !(localButton instanceof HTMLButtonElement)) {
       return;
@@ -8059,11 +8175,28 @@
       betaButton.classList.toggle("active", isBeta);
       betaButton.setAttribute("aria-pressed", String(isBeta));
     }
+    if (serverUrlInput instanceof HTMLInputElement) {
+      serverUrlInput.value = normalizeBackendBaseUrl(
+        draft.backendBaseUrls?.server,
+        defaultBackendBaseUrls.server
+      );
+    }
+    if (localUrlInput instanceof HTMLInputElement) {
+      localUrlInput.value = normalizeBackendBaseUrl(
+        draft.backendBaseUrls?.local,
+        defaultBackendBaseUrls.local
+      );
+    }
     if (betaUrlInput instanceof HTMLInputElement) {
       betaUrlInput.classList.toggle("hidden", !betaUnlocked);
-      betaUrlInput.value = normalizeBetaBackendBaseUrl(
-        draft.betaBackendBaseUrl || constants.DEFAULT_BETA_BACKEND_BASE_URL || ""
+      betaUrlInput.value = normalizeBackendBaseUrl(
+        draft.backendBaseUrls?.beta,
+        defaultBackendBaseUrls.beta
       );
+    }
+    const betaUrlRow = getElement("home-endpoint-beta-row");
+    if (betaUrlRow) {
+      betaUrlRow.classList.toggle("hidden", !betaUnlocked);
     }
     const toggleNode = getElement("home-endpoint-toggle");
     if (toggleNode) {
@@ -8073,9 +8206,9 @@
     if (statusNode) {
       statusNode.textContent = isAdminBackendDraftDirty(settings || {})
         ? "当前草稿：" +
-          buildBackendModeDisplayText(mode) +
+          buildBackendModeDisplayText(mode, draft) +
           "；尚未保存到本地缓存。"
-        : "当前生效：" + buildBackendModeDisplayText(savedMode);
+        : "当前生效：" + buildBackendModeDisplayText(savedMode, settings || {});
     }
   }
 
@@ -8139,17 +8272,39 @@
         : rawMode === backendModeBeta
           ? backendModeBeta
           : backendModeServer;
-    const normalizedBetaBackendBaseUrl = normalizeBetaBackendBaseUrl(draft.betaBackendBaseUrl);
-    if (normalizedMode === backendModeBeta && !normalizedBetaBackendBaseUrl) {
-      setStatus("home-endpoint-status", "请先填写有效的 Beta 服务器地址。");
+    const normalizedBackendBaseUrls = {
+      server: normalizeBackendBaseUrl(
+        draft.backendBaseUrls?.server,
+        defaultBackendBaseUrls.server
+      ),
+      local: normalizeBackendBaseUrl(
+        draft.backendBaseUrls?.local,
+        defaultBackendBaseUrls.local
+      ),
+      beta: normalizeBackendBaseUrl(
+        draft.backendBaseUrls?.beta,
+        defaultBackendBaseUrls.beta
+      ),
+    };
+    if (!normalizedBackendBaseUrls.server || !normalizedBackendBaseUrls.local) {
+      setStatus("home-endpoint-status", "请先填写合法的 server 和 local 根地址。");
       return false;
     }
-    setStatus("home-endpoint-status", "正在保存后端地址...");
+    if (canUseBetaFeatures(currentSettings || {}) && !normalizedBackendBaseUrls.beta) {
+      setStatus("home-endpoint-status", "请先填写合法的 beta 根地址。");
+      return false;
+    }
+    if (normalizedMode === backendModeBeta && !normalizedBackendBaseUrls.beta) {
+      setStatus("home-endpoint-status", "请先填写有效的 beta 根地址。");
+      return false;
+    }
+    setStatus("home-endpoint-status", "正在保存后端根地址...");
     try {
       currentSettings = await storage.patchSettings({
         meta: {
           backendEndpointMode: normalizedMode,
-          betaBackendBaseUrl: normalizedBetaBackendBaseUrl,
+          backendBaseUrls: normalizedBackendBaseUrls,
+          betaBackendBaseUrl: normalizedBackendBaseUrls.beta,
         },
       });
       resetAdminBackendDraft(currentSettings);
@@ -8162,7 +8317,7 @@
         void loadProjectDataDownloadOptions();
         void loadAiCallLogOptions();
       }
-      setStatus("home-endpoint-status", "后端地址已保存到本地缓存。");
+      setStatus("home-endpoint-status", "后端根地址已保存到本地缓存。");
       return true;
     } catch (error) {
       setStatus(
@@ -8539,9 +8694,12 @@
       return;
     }
     setAiCallLogStatus("正在加载 AI 请求记录脚本类型...");
-    const url = buildBackendUrl(aiCallLogDownloadOptionsPath, currentSettings || {});
+    const urlObject = new URL(buildBackendUrl(aiCallLogDownloadOptionsPath, currentSettings || {}));
+    if (canUseBetaFeatures(currentSettings || {})) {
+      urlObject.searchParams.set("includeBeta", "1");
+    }
     try {
-      const response = await fetch(url, {
+      const response = await fetch(urlObject.toString(), {
         method: "GET",
         cache: "no-store",
       });
@@ -9031,8 +9189,8 @@
       '<div id="admin-overview-status" class="status-text"></div>',
       "</section>",
       '<section id="admin-tab-backend" class="admin-tab-panel hidden">',
-      '<div class="admin-panel-head"><div><h3>后端设置</h3><p>主内容区只保留后端接口地址；AI 调用使用人和全局摘要统一放在左侧侧栏中管理。</p></div></div>',
-      '<section class="admin-surface-card"><div class="admin-card-head"><strong>后端接口地址</strong><span>切换服务器 / 本机后，点击按钮才写入本地缓存</span></div><div id="admin-backend-card-slot"></div></section>',
+      '<div class="admin-panel-head"><div><h3>后端设置</h3><p>这里统一维护 server / local / beta 三套后端根地址；AI 调用使用人和全局摘要统一放在左侧侧栏中管理。</p></div></div>',
+      '<section class="admin-surface-card"><div class="admin-card-head"><strong>后端根地址</strong><span>保存后所有运行时 API 与下载入口都会跟随当前模式切换</span></div><div id="admin-backend-card-slot"></div></section>',
       "</section>",
       '<section id="admin-tab-exports" class="admin-tab-panel hidden">',
       '<div class="admin-panel-head"><div><h3>数据导出</h3><p>这里只保留项目数据下载和 AI 请求记录导出；扩展版本下载已移到公开脚本下载中心。</p></div></div>',
@@ -9334,7 +9492,7 @@
           '">下载 ZIP</button>'
         : "",
       '<button type="button" class="ghost-button" data-release-download-url="' +
-        escapeHtml(normalizeText(source?.directoryIndexUrl) || scriptDownloadCenterUrl) +
+        escapeHtml(normalizeText(source?.directoryIndexUrl) || getCurrentDownloadCenterUrl(currentSettings || {})) +
         '">查看外部目录</button>',
       "</div>",
     ].join("");
@@ -9475,12 +9633,12 @@
     const draftOperatorName = normalizeAiUsageOperatorName(draft.aiUsageOperatorName) || "未设置";
     node.innerHTML = [
       '<div class="admin-runtime-list">',
-      '<div><strong>当前生效后端</strong><span>' + escapeHtml(buildBackendModeDisplayText(getBackendModeFromSettings(currentSettings || {}))) + "</span></div>",
+      '<div><strong>当前生效后端</strong><span>' + escapeHtml(buildBackendModeDisplayText(getBackendModeFromSettings(currentSettings || {}), currentSettings || {})) + "</span></div>",
       '<div><strong>AI 调用使用人</strong><span>' + escapeHtml(savedOperatorName) + "</span></div>",
       '<div><strong>草稿状态</strong><span>' + escapeHtml(draftDirty ? "有未保存改动" : "与当前缓存一致") + "</span></div>",
       draftDirty
         ? '<div><strong>草稿预览</strong><span>' +
-          escapeHtml(buildBackendModeDisplayText(draft.backendEndpointMode)) +
+          escapeHtml(buildBackendModeDisplayText(draft.backendEndpointMode, draft)) +
           " / " +
           escapeHtml(draftOperatorName) +
           "</span></div>"
@@ -9541,7 +9699,7 @@
       const currentMode = getBackendModeFromSettings(currentSettings || {});
       endpointNode.textContent =
         "当前后端入口：" +
-        (currentMode === backendModeLocal ? "本机（127.0.0.1:3333）" : "服务器（script.xiangtianzhen.store）");
+        buildBackendModeDisplayText(currentMode, currentSettings || {});
     }
     renderAdminBackendSummary(overview);
     renderAdminDownloadSummary(overview);
@@ -11537,11 +11695,27 @@
         void setHomeBackendEndpoint("beta");
       });
     }
+    const homeEndpointServerUrl = getElement("home-endpoint-server-url");
+    if (homeEndpointServerUrl instanceof HTMLInputElement) {
+      homeEndpointServerUrl.addEventListener("input", function () {
+        const draft = getAdminBackendDraft();
+        draft.backendBaseUrls.server = homeEndpointServerUrl.value;
+        renderHomeBackendEndpoint(currentSettings || {});
+      });
+    }
+    const homeEndpointLocalUrl = getElement("home-endpoint-local-url");
+    if (homeEndpointLocalUrl instanceof HTMLInputElement) {
+      homeEndpointLocalUrl.addEventListener("input", function () {
+        const draft = getAdminBackendDraft();
+        draft.backendBaseUrls.local = homeEndpointLocalUrl.value;
+        renderHomeBackendEndpoint(currentSettings || {});
+      });
+    }
     const homeEndpointBetaUrl = getElement("home-endpoint-beta-url");
     if (homeEndpointBetaUrl instanceof HTMLInputElement) {
       homeEndpointBetaUrl.addEventListener("input", function () {
         const draft = getAdminBackendDraft();
-        draft.betaBackendBaseUrl = homeEndpointBetaUrl.value;
+        draft.backendBaseUrls.beta = homeEndpointBetaUrl.value;
         renderHomeBackendEndpoint(currentSettings || {});
       });
     }

@@ -9,6 +9,8 @@
     "tabs"
   ],
   "host_permissions": [
+    "http://*/*",
+    "https://*/*",
     "https://labelx.alibaba-inc.com/*",
     "https://label-cloud.lightwheel.net/*",
     "https://script.xiangtianzhen.store/*",

@@ -107,6 +107,10 @@ test("beta build keeps beta platform hidden until unlock", function () {
     constants.buildBackendUrl("/api/example", unlockedSettings),
     "https://beta.example.test/api/example"
   );
+  assert.equal(
+    constants.buildDownloadUrl("/annotation-script-center-crx-latest.json", unlockedSettings),
+    "https://beta.example.test/downloads/annotation-script-center-crx-latest.json"
+  );
 });
 
 test("beta build hides disabled beta script from effective runtime access", function () {
@@ -150,5 +154,36 @@ test("beta build hides disabled beta script from effective runtime access", func
   assert.equal(
     constants.isScriptRuntimeAccessible("dataBakerCvpcLiuzhouAssistant", settings),
     false
+  );
+});
+
+test("backend base urls prefer new settings.meta.backendBaseUrls and keep beta legacy fallback", function () {
+  const constants = loadConstantsWithBuildMeta({
+    releaseChannel: "beta",
+    betaFeaturesVisibleByDefault: true,
+    betaUnlockPasswordSha256: "abc",
+    betaBackendBaseUrl: "https://beta.build-meta.test",
+  });
+  const settings = {
+    meta: {
+      backendEndpointMode: "local",
+      backendBaseUrls: {
+        server: "https://server.custom.test/",
+        local: "http://127.0.0.1:9333/",
+        beta: "",
+      },
+      betaBackendBaseUrl: "https://beta.legacy.test/",
+      betaUnlocked: true,
+    },
+  };
+
+  assert.deepEqual(constants.getBackendBaseUrlsFromSettings(settings), {
+    server: "https://server.custom.test",
+    local: "http://127.0.0.1:9333",
+    beta: "https://beta.legacy.test",
+  });
+  assert.equal(
+    constants.buildBackendUrl("/api/example", settings),
+    "http://127.0.0.1:9333/api/example"
   );
 });

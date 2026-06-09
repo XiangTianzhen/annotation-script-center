@@ -9,10 +9,12 @@
   const CONSTANTS = globalThis.ASREdgeConstants || {};
   const BACKEND_MODE_SERVER = CONSTANTS.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
+  const BACKEND_MODE_BETA = CONSTANTS.BACKEND_ENDPOINT_MODE_BETA || "beta";
   const DEFAULT_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
   const DEFAULT_EXISTING_PATH = "/api/alibaba-labelx/asr-transcription/statistics/existing";
   const DEFAULT_SERVER_UPLOAD_ENDPOINT =
-    "https://script.xiangtianzhen.store" + DEFAULT_UPLOAD_PATH;
+    String(CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server || "").replace(/\/+$/, "") +
+    DEFAULT_UPLOAD_PATH;
   const DEFAULT_UPLOAD_TIMES = ["10:00", "16:00"];
   const DEFAULT_UPLOAD_JITTER_MINUTES = 0;
   const SCHEDULE_UPLOAD_DELAY_MAX_MS = 300000;
@@ -187,7 +189,12 @@
 
   function resolveUploadEndpoint(config) {
     const modeText = String(config?.backendEndpointMode || "").trim().toLowerCase();
-    const endpointMode = modeText === BACKEND_MODE_LOCAL ? BACKEND_MODE_LOCAL : BACKEND_MODE_SERVER;
+    const endpointMode =
+      modeText === BACKEND_MODE_LOCAL
+        ? BACKEND_MODE_LOCAL
+        : modeText === BACKEND_MODE_BETA
+          ? BACKEND_MODE_BETA
+          : BACKEND_MODE_SERVER;
     if (typeof CONSTANTS.buildBackendUrl === "function") {
       const byMode = normalizeEndpoint(CONSTANTS.buildBackendUrl(DEFAULT_UPLOAD_PATH, endpointMode));
       if (byMode) {
@@ -201,20 +208,35 @@
       }
     }
 
-    const baseUrl = endpointMode === BACKEND_MODE_LOCAL ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store";
+    const baseUrl =
+      endpointMode === BACKEND_MODE_LOCAL
+        ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.local
+        : endpointMode === BACKEND_MODE_BETA
+          ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.beta
+          : CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server;
     return trimSlash(baseUrl) + DEFAULT_UPLOAD_PATH;
   }
 
   function resolveExistingEndpoint(config) {
     const modeText = String(config?.backendEndpointMode || "").trim().toLowerCase();
-    const endpointMode = modeText === BACKEND_MODE_LOCAL ? BACKEND_MODE_LOCAL : BACKEND_MODE_SERVER;
+    const endpointMode =
+      modeText === BACKEND_MODE_LOCAL
+        ? BACKEND_MODE_LOCAL
+        : modeText === BACKEND_MODE_BETA
+          ? BACKEND_MODE_BETA
+          : BACKEND_MODE_SERVER;
     if (typeof CONSTANTS.buildBackendUrl === "function") {
       const byMode = normalizeEndpoint(CONSTANTS.buildBackendUrl(DEFAULT_EXISTING_PATH, endpointMode));
       if (byMode) {
         return byMode;
       }
     }
-    const baseUrl = endpointMode === BACKEND_MODE_LOCAL ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store";
+    const baseUrl =
+      endpointMode === BACKEND_MODE_LOCAL
+        ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.local
+        : endpointMode === BACKEND_MODE_BETA
+          ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.beta
+          : CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server;
     return trimSlash(baseUrl) + DEFAULT_EXISTING_PATH;
   }
 

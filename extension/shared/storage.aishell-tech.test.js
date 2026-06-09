@@ -76,6 +76,11 @@ test("Aishell storage defaults use the three-stage phase config", async function
       script.aiRecommendEndpoint,
       "https://script.xiangtianzhen.store/api/aishell-tech/minnan-helper/ai/recommend"
     );
+    assert.deepEqual(settings.meta.backendBaseUrls, {
+      server: "https://script.xiangtianzhen.store",
+      local: "http://127.0.0.1:3333",
+      beta: "",
+    });
     assert.equal(script.aiRecommendConvertPrompt, "");
     assert.equal(script.aiRecommendListenPrompt, "");
     assert.equal(script.aiRecommendCompareQwenPrompt, "");
@@ -93,6 +98,29 @@ test("Aishell storage defaults use the three-stage phase config", async function
       Object.prototype.hasOwnProperty.call(script, "aiRecommendCandidateModel"),
       false
     );
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Aishell storage migrates legacy betaBackendBaseUrl into backendBaseUrls", async function () {
+  const harness = loadStorageApi({
+    meta: {
+      backendEndpointMode: "beta",
+      betaBackendBaseUrl: "https://beta.legacy.test/",
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+
+    assert.equal(settings.meta.backendEndpointMode, "beta");
+    assert.deepEqual(settings.meta.backendBaseUrls, {
+      server: "https://script.xiangtianzhen.store",
+      local: "http://127.0.0.1:3333",
+      beta: "https://beta.legacy.test",
+    });
+    assert.equal(settings.meta.betaBackendBaseUrl, "https://beta.legacy.test");
   } finally {
     harness.cleanup();
   }

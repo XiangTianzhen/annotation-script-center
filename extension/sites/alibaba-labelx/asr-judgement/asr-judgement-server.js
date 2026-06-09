@@ -3,6 +3,7 @@
   const CONSTANTS = globalThis.ASREdgeConstants || {};
   const BACKEND_MODE_SERVER = CONSTANTS.BACKEND_ENDPOINT_MODE_SERVER || "server";
   const BACKEND_MODE_LOCAL = CONSTANTS.BACKEND_ENDPOINT_MODE_LOCAL || "local";
+  const BACKEND_MODE_BETA = CONSTANTS.BACKEND_ENDPOINT_MODE_BETA || "beta";
   const DEFAULT_PAGE_SIZE = 400;
   const DEFAULT_HOME_PAGE_SIZE = 100;
   const DEFAULT_EXPORT_CONCURRENCY = 5;
@@ -12,7 +13,8 @@
   const DEFAULT_UPLOAD_PATH = "/api/alibaba-labelx/asr-judgement/statistics/upload";
   const DEFAULT_EXISTING_PATH = "/api/alibaba-labelx/asr-judgement/statistics/existing";
   const DEFAULT_SERVER_UPLOAD_ENDPOINT =
-    "https://script.xiangtianzhen.store" + DEFAULT_UPLOAD_PATH;
+    String(CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server || "").replace(/\/+$/, "") +
+    DEFAULT_UPLOAD_PATH;
   const DEFAULT_UPLOAD_TIMES = ["10:00", "16:00"];
   const DEFAULT_UPLOAD_JITTER_MINUTES = 0;
   const SCHEDULE_UPLOAD_DELAY_MAX_MS = 300000;
@@ -213,7 +215,12 @@
       }
     }
 
-    const baseUrl = endpointMode === BACKEND_MODE_LOCAL ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store";
+    const baseUrl =
+      endpointMode === BACKEND_MODE_LOCAL
+        ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.local
+        : endpointMode === BACKEND_MODE_BETA
+          ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.beta
+          : CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server;
     return trimSlash(baseUrl) + DEFAULT_UPLOAD_PATH;
   }
 
@@ -226,7 +233,12 @@
         return byMode;
       }
     }
-    const baseUrl = endpointMode === BACKEND_MODE_LOCAL ? "http://127.0.0.1:3333" : "https://script.xiangtianzhen.store";
+    const baseUrl =
+      endpointMode === BACKEND_MODE_LOCAL
+        ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.local
+        : endpointMode === BACKEND_MODE_BETA
+          ? CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.beta
+          : CONSTANTS.DEFAULT_BACKEND_BASE_URLS?.server;
     return trimSlash(baseUrl) + DEFAULT_EXISTING_PATH;
   }
 

@@ -191,8 +191,13 @@
         },
         cache: {},
         meta: {
-          schemaVersion: 21,
+          schemaVersion: 22,
           backendEndpointMode: "server",
+          backendBaseUrls: {
+            server: "https://script.xiangtianzhen.store",
+            local: "http://127.0.0.1:3333",
+            beta: "",
+          },
           betaUnlocked: false,
           betaUnlockedAt: null,
           betaBackendBaseUrl: "",
@@ -240,6 +245,13 @@
         "http://127.0.0.1:3333/api/alibaba-labelx/asr-transcription/statistics/upload",
       BACKEND_ENDPOINT_MODE_SERVER: "server",
       BACKEND_ENDPOINT_MODE_LOCAL: "local",
+      BACKEND_ENDPOINT_MODE_BETA: "beta",
+      DEFAULT_BETA_BACKEND_BASE_URL: "",
+      DEFAULT_BACKEND_BASE_URLS: {
+        server: "https://script.xiangtianzhen.store",
+        local: "http://127.0.0.1:3333",
+        beta: "",
+      },
       DATABAKER_PAGE_SIZE_OPTIONS: ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"],
         DATABAKER_AI_PIPELINE_MODE_OPTIONS: [
           { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
@@ -553,6 +565,92 @@
     return "";
   }
 
+  function normalizeBackendBaseUrl(value, fallback) {
+    const constants = getConstants();
+    if (typeof constants.normalizeBackendBaseUrl === "function") {
+      return constants.normalizeBackendBaseUrl(value, fallback);
+    }
+    const text = String(value || "").trim().replace(/\/+$/, "");
+    if (/^https?:\/\//i.test(text)) {
+      return text;
+    }
+    const fallbackText = String(fallback || "").trim().replace(/\/+$/, "");
+    return /^https?:\/\//i.test(fallbackText) ? fallbackText : "";
+  }
+
+  function getBackendBaseUrlsFromSettingsLocal(settings, defaults) {
+    const constants = getConstants();
+    const defaultBaseUrls =
+      defaults?.meta?.backendBaseUrls ||
+      constants.DEFAULT_BACKEND_BASE_URLS || {
+        server: "https://script.xiangtianzhen.store",
+        local: "http://127.0.0.1:3333",
+        beta: String(constants.DEFAULT_BETA_BACKEND_BASE_URL || "").trim(),
+      };
+    const storedBaseUrls =
+      settings?.meta?.backendBaseUrls && typeof settings.meta.backendBaseUrls === "object"
+        ? settings.meta.backendBaseUrls
+        : {};
+    const legacyBetaBaseUrl =
+      settings?.meta && Object.prototype.hasOwnProperty.call(settings.meta, "betaBackendBaseUrl")
+        ? settings.meta.betaBackendBaseUrl
+        : defaults?.meta?.betaBackendBaseUrl;
+    return {
+      server: normalizeBackendBaseUrl(
+        storedBaseUrls.server,
+        defaultBaseUrls.server
+      ),
+      local: normalizeBackendBaseUrl(
+        storedBaseUrls.local,
+        defaultBaseUrls.local
+      ),
+      beta: normalizeBackendBaseUrl(
+        storedBaseUrls.beta,
+        normalizeBackendBaseUrl(legacyBetaBaseUrl, defaultBaseUrls.beta)
+      ),
+    };
+  }
+
+  function ensureGlobalBackendBaseUrls(settings, input, defaults) {
+    settings.meta = deepMerge(defaults?.meta || {}, settings.meta || {});
+    settings.meta.backendBaseUrls = getBackendBaseUrlsFromSettingsLocal(
+      {
+        meta: Object.assign({}, settings.meta || {}, {
+          backendBaseUrls:
+            input?.meta?.backendBaseUrls && typeof input.meta.backendBaseUrls === "object"
+              ? input.meta.backendBaseUrls
+              : settings.meta.backendBaseUrls,
+          betaBackendBaseUrl:
+            input?.meta && Object.prototype.hasOwnProperty.call(input.meta, "betaBackendBaseUrl")
+              ? input.meta.betaBackendBaseUrl
+              : settings.meta.betaBackendBaseUrl,
+        }),
+      },
+      defaults
+    );
+    settings.meta.betaBackendBaseUrl = settings.meta.backendBaseUrls.beta;
+  }
+
+  function buildBackendUrlFromSettingsLocal(path, settings) {
+    const constants = getConstants();
+    if (typeof constants.buildBackendUrl === "function") {
+      return constants.buildBackendUrl(path, settings || {});
+    }
+    const normalizedPath = String(path || "").charAt(0) === "/" ? String(path || "") : "/" + String(path || "");
+    const mode = normalizeBackendEndpointMode(
+      settings?.meta?.backendEndpointMode,
+      settings?.meta?.backendBaseUrls?.beta ? "beta" : "server"
+    );
+    const baseUrls = getBackendBaseUrlsFromSettingsLocal(settings || {}, { meta: {} });
+    const baseUrl =
+      mode === (constants.BACKEND_ENDPOINT_MODE_BETA || "beta")
+        ? baseUrls.beta
+        : mode === (constants.BACKEND_ENDPOINT_MODE_LOCAL || "local")
+          ? baseUrls.local
+          : baseUrls.server;
+    return String(baseUrl || "").replace(/\/+$/, "") + normalizedPath;
+  }
+
   function ensureGlobalBackendEndpointMode(settings, input, defaults) {
     const constants = getConstants();
     const defaultMode = normalizeBackendEndpointMode(
@@ -592,7 +690,7 @@
       candidates
         .map(inferBackendModeFromEndpoint)
         .find(function (mode) {
-          return mode === "local" || mode === "server";
+          return mode === "local" || mode === "server" || mode === "beta";
         }) || defaultMode;
     settings.meta.backendEndpointMode = normalizeBackendEndpointMode(inferredMode, defaultMode);
   }
@@ -3267,6 +3365,84 @@
     settings.meta = deepMerge(defaults.meta || {}, settings.meta || {});
   }
 
+  function syncGlobalBackendDerivedEndpoints(settings) {
+    const constants = getConstants();
+    const transcriptionProjectId = constants.TRANSCRIPTION_PROJECT_ID || "transcription";
+    const judgementProjectId = constants.JUDGEMENT_PROJECT_ID || "judgement";
+    const activeProjectId =
+      settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId || transcriptionProjectId;
+    const transcriptionConfig =
+      settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[transcriptionProjectId]?.asrConfig;
+    const judgementConfig =
+      settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[judgementProjectId]?.asrConfig;
+    const dataBakerScript = settings?.platforms?.dataBaker?.scripts?.roundOneQuality;
+    const cvpcScript = settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant;
+    const aishellScript = settings?.platforms?.aishellTech?.scripts?.minnanHelper;
+
+    if (transcriptionConfig && typeof transcriptionConfig === "object") {
+      transcriptionConfig.statsUploadEndpoint = buildBackendUrlFromSettingsLocal(
+        constants.TRANSCRIPTION_STATS_UPLOAD_PATH ||
+          "/api/alibaba-labelx/asr-transcription/statistics/upload",
+        settings
+      );
+    }
+    if (judgementConfig && typeof judgementConfig === "object") {
+      judgementConfig.statsUploadEndpoint = buildBackendUrlFromSettingsLocal(
+        constants.JUDGEMENT_STATS_UPLOAD_PATH ||
+          "/api/alibaba-labelx/asr-judgement/statistics/upload",
+        settings
+      );
+      judgementConfig.aiSuggestionEndpoint = buildBackendUrlFromSettingsLocal(
+        constants.JUDGEMENT_AI_SUGGEST_PATH ||
+          "/api/alibaba-labelx/asr-judgement/ai/suggest",
+        settings
+      );
+    }
+    if (settings.asr && typeof settings.asr === "object") {
+      settings.asr.statsUploadEndpoint = buildBackendUrlFromSettingsLocal(
+        activeProjectId === judgementProjectId
+          ? constants.JUDGEMENT_STATS_UPLOAD_PATH ||
+              "/api/alibaba-labelx/asr-judgement/statistics/upload"
+          : constants.TRANSCRIPTION_STATS_UPLOAD_PATH ||
+              "/api/alibaba-labelx/asr-transcription/statistics/upload",
+        settings
+      );
+      if (activeProjectId === judgementProjectId) {
+        settings.asr.aiSuggestionEndpoint = buildBackendUrlFromSettingsLocal(
+          constants.JUDGEMENT_AI_SUGGEST_PATH ||
+            "/api/alibaba-labelx/asr-judgement/ai/suggest",
+          settings
+        );
+      }
+    }
+    if (dataBakerScript && typeof dataBakerScript === "object") {
+      dataBakerScript.aiRecommendEndpoint = buildBackendUrlFromSettingsLocal(
+        constants.DATABAKER_AI_RECOMMEND_PATH ||
+          "/api/data-baker/round-one-quality/ai/recommend",
+        settings
+      );
+    }
+    if (cvpcScript && typeof cvpcScript === "object") {
+      cvpcScript.segmentPreviewEndpoint = buildBackendUrlFromSettingsLocal(
+        constants.DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH ||
+          "/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+        settings
+      );
+      cvpcScript.aiRecommendEndpoint = buildBackendUrlFromSettingsLocal(
+        constants.DATA_BAKER_CVPC_AI_RECOMMEND_PATH ||
+          "/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+        settings
+      );
+    }
+    if (aishellScript && typeof aishellScript === "object") {
+      aishellScript.aiRecommendEndpoint = buildBackendUrlFromSettingsLocal(
+        constants.AISHELL_TECH_AI_RECOMMEND_PATH ||
+          "/api/aishell-tech/minnan-helper/ai/recommend",
+        settings
+      );
+    }
+  }
+
   function normalizeSettings(input) {
     const constants = getConstants();
     const defaults = clone(constants.DEFAULT_SETTINGS || {});
@@ -3281,6 +3457,7 @@
     ensureMagicDataRoot(settings);
     ensureAbakaAiRoot(settings);
     ensureGlobalBackendEndpointMode(settings, input || {}, defaults);
+    ensureGlobalBackendBaseUrls(settings, input || {}, defaults);
 
     const activeProjectId =
       settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId ||
@@ -3391,13 +3568,12 @@
       typeof settings.meta.betaUnlockedAt === "string" && settings.meta.betaUnlockedAt.trim()
         ? settings.meta.betaUnlockedAt.trim()
         : null;
-    settings.meta.betaBackendBaseUrl =
-      typeof settings.meta.betaBackendBaseUrl === "string"
-        ? settings.meta.betaBackendBaseUrl.trim().replace(/\/+$/, "")
-        : "";
+    settings.meta.backendBaseUrls = getBackendBaseUrlsFromSettingsLocal(settings, defaults);
+    settings.meta.betaBackendBaseUrl = settings.meta.backendBaseUrls.beta;
     settings.meta.publicCenterPlatformOrder = normalizeStringList(
       settings.meta.publicCenterPlatformOrder
     );
+    syncGlobalBackendDerivedEndpoints(settings);
     settings.meta.schemaVersion = constants.SCHEMA_VERSION || 7;
     return settings;
   }
