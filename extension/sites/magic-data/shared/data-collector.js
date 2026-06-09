@@ -1,8 +1,12 @@
 (function () {
   const MAIN_SOURCE = "ASC_MAGIC_DATA_MAIN";
   const MAIN_DETAIL_TYPE = "ASC_MAGIC_DATA_ANNOTATE_DETAIL_RESPONSE";
+  const MAIN_HEADER_TYPE = "ASC_MAGIC_DATA_ANNOTATE_HEADER_RESPONSE";
   const API_DETAIL_PATH_PREFIX = "/api/management-service/annotateTask/annotateDetailInfo/";
+  const API_HEADER_PATH_PREFIX = "/api/management-service/annotateTask/annotateHeaderInfo/";
   const DETAIL_FETCH_RETRY_INTERVAL_MS = 1500;
+  const HEADER_FETCH_RETRY_INTERVAL_MS = 1500;
+  const READY_WAIT_INTERVAL_MS = 120;
   const GENDER_OPTIONS = ["男", "女"];
   const AGE_OPTIONS = ["0-5", "6-12", "13-18", "19-25", "26-36", "37-50", "51-65", "65以上"];
   const GENDER_OPTION_SET = new Set(GENDER_OPTIONS);
@@ -13,6 +17,9 @@
   const detailCacheByTaskItemId = new Map();
   const detailFetchInflightByTaskItemId = new Map();
   const detailFetchAtByTaskItemId = new Map();
+  const headerCacheByTaskItemId = new Map();
+  const headerFetchInflightByTaskItemId = new Map();
+  const headerFetchAtByTaskItemId = new Map();
   let focusSentinel = null;
 
   function normalizeText(value) {
@@ -438,11 +445,38 @@
     };
   }
 
+  function normalizeHeaderEntry(input) {
+    const source = input && typeof input === "object" ? input : {};
+    return {
+      at: Number(source.at) || Date.now(),
+      taskItemId: normalizeText(source.taskItemId),
+      code: toNumberOrNull(source.code),
+      message: normalizeText(source.message),
+      projectName: normalizeText(source.projectName),
+      batchNo: normalizeText(source.batchNo),
+      packageId: normalizeText(source.packageId),
+      annotateMode: normalizeText(source.annotateMode),
+      pending: source.pending === true,
+      isSubmit: source.isSubmit === true,
+      processNodeId: normalizeText(source.processNodeId),
+      teamId: normalizeText(source.teamId),
+      projectId: normalizeText(source.projectId),
+      rawData: source.rawData && typeof source.rawData === "object" ? source.rawData : {},
+    };
+  }
+
   function rememberDetailEntry(entry) {
     if (!entry || !entry.taskItemId) {
       return;
     }
     detailCacheByTaskItemId.set(entry.taskItemId, normalizeDetailEntry(entry));
+  }
+
+  function rememberHeaderEntry(entry) {
+    if (!entry || !entry.taskItemId) {
+      return;
+    }
+    headerCacheByTaskItemId.set(entry.taskItemId, normalizeHeaderEntry(entry));
   }
 
   function parseDetailResponsePayload(payload, fallbackTaskItemId) {
@@ -511,6 +545,34 @@
     };
   }
 
+  async function requestAnnotateHeader(taskItemId) {
+    const response = await fetch(
+      location.origin + API_HEADER_PATH_PREFIX + encodeURIComponent(taskItemId),
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json;charset=UTF-8",
+          Accept: "application/json, text/plain, */*",
+          "md-language": "zh",
+        },
+        body: JSON.stringify({
+          taskItemId: taskItemId,
+        }),
+      }
+    );
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      payload = null;
+    }
+    return {
+      response: response,
+      payload: payload,
+    };
+  }
+
   async function fetchAnnotateDetail(taskItemId) {
     const normalizedTaskItemId = normalizeText(taskItemId);
     if (!normalizedTaskItemId) {
@@ -551,12 +613,65 @@
     return requestPromise;
   }
 
+  async function fetchAnnotateHeader(taskItemId) {
+    const normalizedTaskItemId = normalizeText(taskItemId);
+    if (!normalizedTaskItemId) {
+      return null;
+    }
+
+    const lastFetchAt = Number(headerFetchAtByTaskItemId.get(normalizedTaskItemId) || 0);
+    if (Date.now() - lastFetchAt < HEADER_FETCH_RETRY_INTERVAL_MS) {
+      return headerCacheByTaskItemId.get(normalizedTaskItemId) || null;
+    }
+    headerFetchAtByTaskItemId.set(normalizedTaskItemId, Date.now());
+
+    const inflight = headerFetchInflightByTaskItemId.get(normalizedTaskItemId);
+    if (inflight) {
+      return inflight;
+    }
+
+    const requestPromise = requestAnnotateHeader(normalizedTaskItemId)
+      .then(function (result) {
+        if (!result.response.ok || !result.payload || result.payload.code !== 0 || !result.payload.data) {
+          return null;
+        }
+        const entry = normalizeHeaderEntry(Object.assign({}, result.payload.data, {
+          at: Date.now(),
+          taskItemId: normalizedTaskItemId,
+          code: result.payload.code,
+          message: result.payload.message,
+        }));
+        if (!entry.taskItemId) {
+          return null;
+        }
+        rememberHeaderEntry(entry);
+        return entry;
+      })
+      .catch(function () {
+        return null;
+      })
+      .finally(function () {
+        headerFetchInflightByTaskItemId.delete(normalizedTaskItemId);
+      });
+
+    headerFetchInflightByTaskItemId.set(normalizedTaskItemId, requestPromise);
+    return requestPromise;
+  }
+
   function getCachedDetail(taskItemId) {
     const normalizedTaskItemId = normalizeText(taskItemId);
     if (!normalizedTaskItemId) {
       return null;
     }
     return detailCacheByTaskItemId.get(normalizedTaskItemId) || null;
+  }
+
+  function getCachedHeader(taskItemId) {
+    const normalizedTaskItemId = normalizeText(taskItemId);
+    if (!normalizedTaskItemId) {
+      return null;
+    }
+    return headerCacheByTaskItemId.get(normalizedTaskItemId) || null;
   }
 
   function parseSpeakerFromDetail(detail, fallbackSpeaker) {
@@ -733,10 +848,26 @@
     return snapshot;
   }
 
+  function mergeSnapshotWithHeader(domSnapshot, header) {
+    const snapshot = Object.assign({}, domSnapshot || {});
+    if (!header) {
+      return snapshot;
+    }
+    snapshot.taskItemId = normalizeText(header.taskItemId || snapshot.taskItemId);
+    snapshot.projectName = normalizeText(header.projectName || snapshot.projectName);
+    snapshot.batchNo = normalizeText(header.batchNo || snapshot.batchNo);
+    snapshot.packageId = normalizeText(header.packageId || snapshot.packageId);
+    snapshot.annotateMode = normalizeText(header.annotateMode || snapshot.annotateMode);
+    snapshot.headerReady = header.code === 0;
+    return snapshot;
+  }
+
   function collectCurrentItem() {
     const domSnapshot = collectDomSnapshot();
     const detail = getCachedDetail(domSnapshot.taskItemId);
-    return mergeSnapshotWithDetail(domSnapshot, detail);
+    const withDetail = mergeSnapshotWithDetail(domSnapshot, detail);
+    const header = getCachedHeader(withDetail.taskItemId || domSnapshot.taskItemId);
+    return mergeSnapshotWithHeader(withDetail, header);
   }
 
   async function refreshCurrentItem(options) {
@@ -755,7 +886,9 @@
       return domSnapshot;
     }
     const detail = await fetchAnnotateDetail(taskItemId);
-    return mergeSnapshotWithDetail(domSnapshot, detail);
+    const withDetail = mergeSnapshotWithDetail(domSnapshot, detail);
+    const header = await fetchAnnotateHeader(taskItemId);
+    return mergeSnapshotWithHeader(withDetail, header);
   }
 
   function fillDialectLine(text) {
@@ -801,7 +934,7 @@
       });
   }
 
-  function clickOperationButton(text) {
+  function findOperationButton(text) {
     const targetText = normalizeCompactText(text);
     const candidates = findVisibleButtonsByExactText(text).filter(function (node) {
       const currentText = normalizeCompactText(node.textContent || "");
@@ -812,11 +945,32 @@
         return currentText === normalizeCompactText(rejectText);
       });
     });
-    const button = candidates[0] || null;
+    return candidates[0] || null;
+  }
+
+  function isOperationButtonEnabled(text) {
+    const button = findOperationButton(text);
+    if (!(button instanceof HTMLElement)) {
+      return false;
+    }
+    if (button.hasAttribute("disabled") || button.getAttribute("aria-disabled") === "true") {
+      return false;
+    }
+    return !button.classList.contains("is-disabled");
+  }
+
+  function clickOperationButton(text) {
+    const button = findOperationButton(text);
     if (!button) {
       return {
         ok: false,
         message: "未找到“" + text + "”按钮。",
+      };
+    }
+    if (!isOperationButtonEnabled(text)) {
+      return {
+        ok: false,
+        message: "“" + text + "”按钮当前不可点击。",
       };
     }
     button.click();
@@ -877,19 +1031,105 @@
     };
   }
 
+  function waitForTimeout(ms, signal) {
+    return new Promise(function (resolve, reject) {
+      const timer = window.setTimeout(function () {
+        cleanup();
+        resolve();
+      }, Math.max(0, Number(ms) || 0));
+
+      function onAbort() {
+        cleanup();
+        const error = new Error("已停止自动流程。");
+        error.code = "user-aborted";
+        reject(error);
+      }
+
+      function cleanup() {
+        window.clearTimeout(timer);
+        if (signal && typeof signal.removeEventListener === "function") {
+          signal.removeEventListener("abort", onAbort);
+        }
+      }
+
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+      if (signal && typeof signal.addEventListener === "function") {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+    });
+  }
+
+  async function waitForAsrmarkReady(options) {
+    const config = options && typeof options === "object" ? options : {};
+    const expectedTaskItemId = normalizeText(config.taskItemId);
+    const signal = config.signal || null;
+    const timeoutMs = Math.max(1000, Number(config.timeoutMs) || 15000);
+    const deadlineAt = Date.now() + timeoutMs;
+
+    while (Date.now() < deadlineAt) {
+      if (signal?.aborted) {
+        const abortedError = new Error("已停止自动流程。");
+        abortedError.code = "user-aborted";
+        throw abortedError;
+      }
+
+      const snapshot = collectCurrentItem();
+      const currentTaskItemId = normalizeText(snapshot.taskItemId);
+      const headerTaskItemId = expectedTaskItemId || currentTaskItemId;
+      const header = getCachedHeader(headerTaskItemId);
+      const taskMatches = !expectedTaskItemId || currentTaskItemId === expectedTaskItemId;
+      const headerReady = header?.code === 0;
+      const textReady = Boolean(snapshot.fields?.dialectAvailable && snapshot.fields?.mandarinAvailable);
+      const submitReady = isOperationButtonEnabled("提交");
+
+      if (
+        normalizeText(snapshot.pageType) === "asrmark" &&
+        currentTaskItemId &&
+        taskMatches &&
+        headerReady &&
+        textReady &&
+        submitReady
+      ) {
+        return mergeSnapshotWithHeader(snapshot, header);
+      }
+
+      if (headerTaskItemId) {
+        void fetchAnnotateHeader(headerTaskItemId);
+      }
+      await waitForTimeout(READY_WAIT_INTERVAL_MS, signal);
+    }
+
+    const timeoutError = new Error("等待页面加载完成超时。");
+    timeoutError.code = "wait-ready-timeout";
+    throw timeoutError;
+  }
+
   function handleMainWorldMessage(event) {
     if (event.source !== window || event.origin !== location.origin) {
       return;
     }
     const data = event.data || {};
-    if (data.source !== MAIN_SOURCE || data.type !== MAIN_DETAIL_TYPE) {
+    if (data.source !== MAIN_SOURCE) {
       return;
     }
-    const entry = normalizeDetailEntry(data.payload || {});
-    if (!entry.taskItemId) {
+    if (data.type === MAIN_DETAIL_TYPE) {
+      const entry = normalizeDetailEntry(data.payload || {});
+      if (!entry.taskItemId) {
+        return;
+      }
+      rememberDetailEntry(entry);
       return;
     }
-    rememberDetailEntry(entry);
+    if (data.type === MAIN_HEADER_TYPE) {
+      const headerEntry = normalizeHeaderEntry(data.payload || {});
+      if (!headerEntry.taskItemId) {
+        return;
+      }
+      rememberHeaderEntry(headerEntry);
+    }
   }
 
   window.addEventListener("message", handleMainWorldMessage);
@@ -900,9 +1140,14 @@
     fillDialectLine,
     fillMandarinLine,
     getCachedDetail,
+    getCachedHeader,
+    findOperationButton,
+    isOperationButtonEnabled,
     normalizeText,
+    refreshAnnotateHeader: fetchAnnotateHeader,
     refreshCurrentItem,
     restoreShortcutFocusAfterAction,
     selectSpeakerValue,
+    waitForAsrmarkReady,
   };
 })();

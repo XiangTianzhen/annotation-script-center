@@ -17,9 +17,12 @@ function loadClientRuntime(options) {
     AbortController,
     setTimeout,
     clearTimeout,
-    fetch: async function () {
-      throw new Error("fetch should not be called in this test");
-    },
+    fetch:
+      typeof config.fetch === "function"
+        ? config.fetch
+        : async function () {
+            throw new Error("fetch should not be called in this test");
+          },
     chrome: {
       runtime: {
         id: "test-extension",
@@ -96,4 +99,111 @@ test("reviewCurrent unwraps succeeded job payload to the normalized review resul
   assert.equal(result.data.shouldReview, false);
   assert.equal(result.data.recommendations.summary, "所有字段检查通过。");
   assert.deepEqual(result.data, expectedData);
+});
+
+test("reviewCurrent maps job cancellation to user-aborted when external signal is aborted", async function () {
+  const controller = new AbortController();
+  const client = loadClientRuntime({
+    jobClient: {
+      async runJobLifecycle(input) {
+        assert.equal(input.signal, controller.signal);
+        return new Promise(function (_resolve, reject) {
+          if (input.signal.aborted) {
+            const error = new Error("Aborted");
+            error.name = "AbortError";
+            reject(error);
+            return;
+          }
+          input.signal.addEventListener(
+            "abort",
+            function () {
+              const error = new Error("Aborted");
+              error.name = "AbortError";
+              reject(error);
+            },
+            { once: true }
+          );
+        });
+      },
+    },
+  });
+
+  const pending = client.reviewCurrent(
+    {
+      taskItemId: "170384861",
+      audioUrl: "https://example.com/audio.wav",
+      clientVersion: "0.4.0-test",
+    },
+    {
+      timeoutMs: 5000,
+      signal: controller.signal,
+      settings: {
+        meta: {
+          aiUsageOperatorName: "tester",
+        },
+      },
+    }
+  );
+
+  setTimeout(function () {
+    controller.abort();
+  }, 10);
+
+  await assert.rejects(pending, function (error) {
+    assert.equal(error?.code, "user-aborted");
+    return true;
+  });
+});
+
+test("reviewCurrent maps fetch cancellation to user-aborted when external signal is aborted", async function () {
+  const controller = new AbortController();
+  let sawSignal = false;
+  const client = loadClientRuntime({
+    fetch: function (_url, requestInit) {
+      sawSignal = Boolean(requestInit?.signal && typeof requestInit.signal.addEventListener === "function");
+      return new Promise(function (_resolve, reject) {
+        if (requestInit?.signal?.aborted) {
+          const error = new Error("Aborted");
+          error.name = "AbortError";
+          reject(error);
+          return;
+        }
+        requestInit?.signal?.addEventListener(
+          "abort",
+          function () {
+            const error = new Error("Aborted");
+            error.name = "AbortError";
+            reject(error);
+          },
+          { once: true }
+        );
+      });
+    },
+  });
+
+  const pending = client.reviewCurrent(
+    {
+      taskItemId: "170384861",
+      audioUrl: "https://example.com/audio.wav",
+      clientVersion: "0.4.0-test",
+    },
+    {
+      timeoutMs: 5000,
+      signal: controller.signal,
+      settings: {
+        meta: {
+          aiUsageOperatorName: "tester",
+        },
+      },
+    }
+  );
+
+  controller.abort();
+
+  await assert.rejects(pending, function (error) {
+    assert.equal(error?.code, "user-aborted");
+    return true;
+  });
+}, {
+  timeout: 2000,
 });

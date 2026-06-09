@@ -1,7 +1,9 @@
 (function () {
   const SOURCE = "ASC_MAGIC_DATA_MAIN";
   const DETAIL_TYPE = "ASC_MAGIC_DATA_ANNOTATE_DETAIL_RESPONSE";
+  const HEADER_TYPE = "ASC_MAGIC_DATA_ANNOTATE_HEADER_RESPONSE";
   const DETAIL_PATH_PREFIX = "/api/management-service/annotateTask/annotateDetailInfo/";
+  const HEADER_PATH_PREFIX = "/api/management-service/annotateTask/annotateHeaderInfo/";
   const CACHE_LIMIT = 20;
 
   if (window.__ASREdgeMagicDataNetworkObserverInstalled) {
@@ -10,6 +12,7 @@
   window.__ASREdgeMagicDataNetworkObserverInstalled = true;
 
   const cache = [];
+  const headerCache = [];
 
   function safeToObject(value) {
     return value && typeof value === "object" ? value : {};
@@ -24,20 +27,29 @@
     return Number.isFinite(number) ? number : null;
   }
 
-  function resolveTarget(rawUrl) {
+  function resolveObservedTarget(rawUrl) {
     try {
       const url = new URL(String(rawUrl || ""), location.href);
       if (url.hostname !== location.hostname) {
         return null;
       }
-      if (url.pathname.indexOf(DETAIL_PATH_PREFIX) !== 0) {
-        return null;
+      if (url.pathname.indexOf(DETAIL_PATH_PREFIX) === 0) {
+        return {
+          kind: "detail",
+          type: DETAIL_TYPE,
+          url: url,
+          taskItemIdFromPath: toText(decodeURIComponent(url.pathname.slice(DETAIL_PATH_PREFIX.length))),
+        };
       }
-      const taskItemIdFromPath = decodeURIComponent(url.pathname.slice(DETAIL_PATH_PREFIX.length));
-      return {
-        url: url,
-        taskItemIdFromPath: toText(taskItemIdFromPath),
-      };
+      if (url.pathname.indexOf(HEADER_PATH_PREFIX) === 0) {
+        return {
+          kind: "header",
+          type: HEADER_TYPE,
+          url: url,
+          taskItemIdFromPath: toText(decodeURIComponent(url.pathname.slice(HEADER_PATH_PREFIX.length))),
+        };
+      }
+      return null;
     } catch (error) {
       return null;
     }
@@ -97,12 +109,41 @@
     };
   }
 
-  function notify(entry) {
+  function sanitizeHeaderPayload(rawPayload, target) {
+    const payload = safeToObject(rawPayload);
+    const data = safeToObject(payload.data);
+    const taskItemId =
+      toText(payload.taskItemId) ||
+      toText(data.taskItemId) ||
+      toText(target?.taskItemIdFromPath);
+
+    return {
+      at: Date.now(),
+      taskItemId: taskItemId,
+      code: toNumberOrNull(payload.code),
+      message: toText(payload.message),
+      projectName: toText(data.projectName),
+      batchNo: toText(data.batchNo),
+      packageId: toText(data.packageId),
+      annotateMode: toText(data.annotateMode),
+      pending: data.pending === true,
+      isSubmit: data.isSubmit === true,
+      processNodeId: toText(data.processNodeId),
+      teamId: toText(data.teamId),
+      projectId: toText(data.projectId),
+      rawData: {
+        expirationTime: toNumberOrNull(data.expirationTime),
+        saveSuccessTime: toNumberOrNull(data.saveSuccessTime),
+      },
+    };
+  }
+
+  function notify(type, entry) {
     try {
       window.postMessage(
         {
           source: SOURCE,
-          type: DETAIL_TYPE,
+          type: type,
           payload: entry,
         },
         location.origin
@@ -119,21 +160,39 @@
       latest: cache[0] || null,
       entries: cache,
     };
-    notify(entry);
+    notify(DETAIL_TYPE, entry);
+  }
+
+  function rememberHeader(entry) {
+    headerCache.unshift(entry);
+    headerCache.splice(CACHE_LIMIT);
+    window.__ASREdgeMagicDataAnnotateHeaderCache = {
+      latest: headerCache[0] || null,
+      entries: headerCache,
+    };
+    notify(HEADER_TYPE, entry);
   }
 
   function observeResponse(rawUrl, responseText) {
-    const target = resolveTarget(rawUrl);
+    const target = resolveObservedTarget(rawUrl);
     if (!target) {
       return;
     }
     try {
       const payload = JSON.parse(String(responseText || "{}"));
-      const entry = sanitizePayload(payload, target);
-      if (!entry.taskItemId) {
+      if (target.kind === "detail") {
+        const entry = sanitizePayload(payload, target);
+        if (!entry.taskItemId) {
+          return;
+        }
+        remember(entry);
         return;
       }
-      remember(entry);
+      const headerEntry = sanitizeHeaderPayload(payload, target);
+      if (!headerEntry.taskItemId) {
+        return;
+      }
+      rememberHeader(headerEntry);
     } catch (error) {
       // ignore non-json body
     }
@@ -149,7 +208,7 @@
           : args[0] && typeof args[0].url === "string"
             ? args[0].url
             : "";
-      const target = resolveTarget(rawUrl);
+      const target = resolveObservedTarget(rawUrl);
       return nativeFetch.apply(this, args).then(function (response) {
         if (!target) {
           return response;
@@ -183,7 +242,7 @@
     NativeXhr.prototype.send = function () {
       const xhr = this;
       const rawUrl = xhr.__ascMagicDataRequestUrl || "";
-      if (resolveTarget(rawUrl)) {
+      if (resolveObservedTarget(rawUrl)) {
         xhr.addEventListener("load", function () {
           observeResponse(rawUrl, xhr.responseText);
         });

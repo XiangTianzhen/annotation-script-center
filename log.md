@@ -4716,3 +4716,24 @@
 - Aishell 这轮重点修复的是“高并发下同步 recommend 长连接被浏览器 / Nginx / 代理层中断”的根因：
   - 前端批量逻辑保留原有结果消费顺序控制。
   - 底层 AI 请求改为短请求建任务 + 轮询，避免单个同步 `POST` 长时间挂起。
+## 2026-06-09（Magic Data 客家话助手：全自动链路与 hover 闪烁修复）
+
+- 修复 `填入本行` hover 闪烁：
+  - `extension/sites/magic-data/hakka-helper/assistant-panel.js` 把行内建议与说话人建议改成幂等更新，复用既有文本/按钮节点，不再在 hover 或页面轻微重绘时反复 `remove + recreate`。
+- 新增客家话助手 `#/asrmark` 当前页临时“全自动”开关：
+  - `extension/sites/magic-data/hakka-helper/content.js` 新增页内可中断状态机，固定执行 `等待加载 -> AI识别 -> 填入 -> 提交 -> 等待下一条`。
+  - 仅在 `#/asrmark` 显示；默认关闭；刷新后不保留；任一步失败立即停机；手动关闭时会立刻中断未完成步骤。
+  - 自动提交仍只点击页面真实 `提交` 按钮，不直调平台提交 API。
+- 补充页面 ready 判定与 header 观测：
+  - `extension/sites/magic-data/shared/page-world/network-observer.js` 新增 `annotateHeaderInfo/{taskItemId}` 只读监听与 header cache 桥接。
+  - `extension/sites/magic-data/shared/data-collector.js` 新增 header cache、`refreshAnnotateHeader()`、`waitForAsrmarkReady()`、提交按钮可点击判断。
+- 补齐可中断接口：
+  - `extension/shared/ai-job-client.js` 新增外部 `signal` 支持，create/poll/delay 均可响应用户停止。
+  - `extension/sites/magic-data/shared/ai-review-client.js` 新增 `options.signal` 透传，并把手动停止统一归一成 `user-aborted`。
+- 2026-06-09 补充热修（客家话助手全自动 no-op 填入与快捷键控制）：
+  - 修复 `AI 四项都正确` 时全自动误判为“失败停机”的问题：`assistant-panel.js` 当前把“无需填入”归一为成功态，自动链路会继续直接点击真实 `提交` 按钮。
+  - 客家话助手全自动入口改为可录制快捷键 `开启/关闭全自动`，不再在右侧面板渲染单独按钮。
+  - `extension/options/options.js` 与 `extension/sites/magic-data/hakka-helper/shortcuts-runtime.js` 已同步补齐该快捷键动作定义。
+- 新增测试：
+  - `extension/shared/ai-job-client.test.js`
+  - `extension/sites/magic-data/shared/ai-review-client.test.js` 追加 job/fetch 两条取消用例。

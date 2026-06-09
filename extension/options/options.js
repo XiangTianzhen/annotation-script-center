@@ -737,6 +737,7 @@
   const magicDataShortcutActions = [
     { key: "reviewCurrent", label: "AI 质检当前条" },
     { key: "fillAllAiSuggestions", label: "全部填入AI推荐" },
+    { key: "toggleAutoRun", label: "开启/关闭全自动" },
     { key: "copySummary", label: "复制 AI 质检摘要" },
     { key: "showRawAiOutput", label: "显示 AI 原始输出" },
     { key: "toggleSpeakerDetail", label: "展开/收起说话人属性详情" },
@@ -948,6 +949,12 @@
       .join("");
   }
 
+  function reloadOptionsPage() {
+    if (globalThis.location && typeof globalThis.location.reload === "function") {
+      globalThis.location.reload();
+    }
+  }
+
   async function handleBetaUnlockAttempt() {
     if (!isBetaBuild()) {
       return;
@@ -975,8 +982,7 @@
         betaUnlockedAt: new Date().toISOString(),
       },
     });
-    resetAdminBackendDraft(currentSettings);
-    await renderCurrentView();
+    reloadOptionsPage();
   }
 
   async function exitBetaMode() {
@@ -993,8 +999,7 @@
     currentSettings = await storage.patchSettings({
       meta: nextMeta,
     });
-    resetAdminBackendDraft(currentSettings);
-    await renderCurrentView();
+    reloadOptionsPage();
   }
 
   function registerBetaUnlockTap() {

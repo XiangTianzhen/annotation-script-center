@@ -46,6 +46,7 @@
 - v0.3.6 收尾：双助手同平台互斥、AI 面板改为“模型方案 + 识别策略”、客家话审核页 `#/asrmarkCheck` 可用、识别策略保存回滚已修复。
 - 客家话助手：`extension/sites/magic-data/hakka-helper/README.md`
 - 客家话助手补充：审核页 `#/asrmarkCheck` 已接入 AI 质检；文本可编辑时支持行内 `填入本行` 与文本项 `全部填入AI推荐`（不自动保存/提交）。
+- 客家话助手补充（2026-06-09）：`#/asrmark` 已新增当前页临时“全自动”模式，固定执行 `等待加载 -> AI识别 -> 填入 -> 提交 -> 等待下一条`；默认关闭，通过可录制快捷键 `开启/关闭全自动` 控制，AI 四项都正确时会直接继续提交；失败即停、手动关闭立即停止，`#/asrmarkCheck` 不参与自动提交。
 - 客家话助手默认配置（2026-05-25 评测落地）：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 当前已全局固定关闭
 - 客家话助手前端（2026-05-26）：已切换到与闽南语一致的新面板体系（行内建议、说话人建议、全部填入、原始输出、独立折叠）
 - 客家话助手后端（2026-05-26）：`review-current` 输出结构已对齐闽南语（`speakerCheck/dialectTextCheck/mandarinTextCheck/overall`），legacy `annotator` API 保持兼容

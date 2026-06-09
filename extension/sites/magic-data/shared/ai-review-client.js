@@ -128,14 +128,20 @@
     return String(params.userId || "").replace(/\s+/g, " ").trim().slice(0, 120);
   }
 
-function mapErrorMessage(code, message, summary, statusCode) {
-  const mappedCode = String(code || "").trim();
-  if (mappedCode === "request-error" && Number(statusCode) === 404) {
-    return "Magic Data AI 后端接口不存在，请确认启动的是功能分支 worktree 的后端：C:\\Projects\\annotation-script-center-magic-data-ai-review。请执行：cd C:\\Projects\\annotation-script-center-magic-data-ai-review && node platform-resources\\backend\\server.js";
+  function createUserAbortedError() {
+    const error = new Error("已停止自动流程。");
+    error.code = "user-aborted";
+    return error;
   }
-  if (mappedCode === "missing-api-key") {
-    return "后端未读取到 DASHSCOPE_API_KEY，请检查 config/env/ai.env 或环境变量。";
-  }
+
+  function mapErrorMessage(code, message, summary, statusCode) {
+    const mappedCode = String(code || "").trim();
+    if (mappedCode === "request-error" && Number(statusCode) === 404) {
+      return "Magic Data AI 后端接口不存在，请确认启动的是功能分支 worktree 的后端：C:\\Projects\\annotation-script-center-magic-data-ai-review。请执行：cd C:\\Projects\\annotation-script-center-magic-data-ai-review && node platform-resources\\backend\\server.js";
+    }
+    if (mappedCode === "missing-api-key") {
+      return "后端未读取到 DASHSCOPE_API_KEY，请检查 config/env/ai.env 或环境变量。";
+    }
     if (mappedCode === "empty-provider-response") {
       return "Qwen 未返回有效文本，可能是音频 URL 过期或模型无法访问该音频，请刷新页面后重试。";
     }
@@ -154,12 +160,15 @@ function mapErrorMessage(code, message, summary, statusCode) {
     const config = options && typeof options === "object" ? options : {};
     const backend = await resolveBackendConfig();
     const timeoutMs = Math.max(1000, Number(config.timeoutMs) || DEFAULT_TIMEOUT_MS);
-    const controller = typeof AbortController === "function" ? new AbortController() : null;
-    const timer = controller
-      ? setTimeout(function () {
-          controller.abort();
-        }, timeoutMs)
-      : null;
+    const externalSignal = config.signal || null;
+    const controller = !externalSignal && typeof AbortController === "function" ? new AbortController() : null;
+    let timedOut = false;
+    const timer = setTimeout(function () {
+      timedOut = true;
+      if (controller) {
+        controller.abort();
+      }
+    }, timeoutMs);
 
     const requestMeta = assertAiUsageOperatorConfigured(
       buildAiUsageRequestMeta({
@@ -180,6 +189,7 @@ function mapErrorMessage(code, message, summary, statusCode) {
           body: requestBody,
           timeoutMs: timeoutMs,
           fetchImpl: fetch.bind(globalThis),
+          signal: externalSignal || undefined,
           pollIntervalMs: Math.max(200, Number(config.jobPollIntervalMs) || 800),
           buildApiError: function (responseBody, requestStatusCode) {
             const body = responseBody && typeof responseBody === "object" ? responseBody : {};
@@ -222,14 +232,26 @@ function mapErrorMessage(code, message, summary, statusCode) {
           data: jobResult.data,
         };
       } else {
-        const response = await fetch(backend.endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller ? controller.signal : undefined,
-        });
+        if (externalSignal?.aborted) {
+          throw createUserAbortedError();
+        }
+        const response = await Promise.race([
+          fetch(backend.endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+            signal: externalSignal || (controller ? controller.signal : undefined),
+          }),
+          new Promise(function (_resolve, reject) {
+            setTimeout(function () {
+              if (timedOut) {
+                reject(new Error("AI 后端请求超时，请稍后重试。"));
+              }
+            }, timeoutMs);
+          }),
+        ]);
         const responseText = await response.text();
         try {
           json = JSON.parse(responseText || "{}");
@@ -257,6 +279,9 @@ function mapErrorMessage(code, message, summary, statusCode) {
         data: json.data,
       };
     } catch (error) {
+      if (externalSignal?.aborted) {
+        throw createUserAbortedError();
+      }
       if (error?.name === "AbortError") {
         throw new Error("AI 后端请求超时，请稍后重试。");
       }

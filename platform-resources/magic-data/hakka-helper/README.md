@@ -69,6 +69,12 @@
 - 2026-05-27 繁体字热修：
   - 当前改为通过 `backend/ai-prompts.js` 约束所有普通中文字段输出简体，禁止输出普通繁体字。
   - 命中客家话词表统一用字时保留词表写法；未命中词表时不再依赖本地后端结果二次繁转简。
+- 2026-06-09 前端自动链路补充：
+  - `page-world/network-observer.js` 已同时桥接 `annotateDetailInfo` 与 `annotateHeaderInfo`；
+  - `data-collector.js` 新增 header cache、`waitForAsrmarkReady()` 与提交按钮可点击判定；
+  - `content.js` 新增页内可中断自动状态机，仅在 `#/asrmark` 启用，默认关闭，失败立即停机；
+  - 自动模式当前改为通过可录制快捷键 `开启/关闭全自动` 控制，不再依赖面板按钮；
+  - AI 四项都正确时按“无需填入”继续直接提交，不再误判为失败停机。
 
 ## 2026-05-26 后端输出结构对齐
 

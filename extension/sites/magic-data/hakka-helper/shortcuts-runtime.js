@@ -3,6 +3,7 @@
   const ACTION_DEFINITIONS = [
     { key: "reviewCurrent", label: "AI 质检当前条" },
     { key: "fillAllAiSuggestions", label: "全部填入AI推荐" },
+    { key: "toggleAutoRun", label: "开启/关闭全自动" },
     { key: "copySummary", label: "复制 AI 质检摘要" },
     { key: "showRawAiOutput", label: "显示 AI 原始输出" },
     { key: "toggleSpeakerDetail", label: "展开/收起说话人属性详情" },

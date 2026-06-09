@@ -54,6 +54,36 @@
     return button;
   }
 
+  function resolveFillAllSuggestionsOutcome(appliedCount, results) {
+    const normalizedAppliedCount = Number.isFinite(Number(appliedCount)) ? Number(appliedCount) : 0;
+    const normalizedResults = Array.isArray(results) ? results : [];
+    if (normalizedAppliedCount > 0) {
+      return {
+        ok: true,
+        noChanges: false,
+        appliedCount: normalizedAppliedCount,
+        message: "已填入 AI 推荐，未保存、未提交，请人工确认。",
+      };
+    }
+    const fallback = normalizedResults.find(function (item) {
+      return item && item.ok !== true && item.message;
+    });
+    if (fallback?.message) {
+      return {
+        ok: false,
+        noChanges: false,
+        appliedCount: 0,
+        message: fallback.message,
+      };
+    }
+    return {
+      ok: true,
+      noChanges: true,
+      appliedCount: 0,
+      message: "无需填入，保持当前内容。",
+    };
+  }
+
   function getDynamicMaxPanelHeight() {
     const viewportHeight = Number(window.innerHeight || 0);
     const computed = Math.floor(viewportHeight - 320);
@@ -283,6 +313,12 @@
     let dragState = null;
     let viewportResizeBound = false;
     let runtimeSettings = Object.assign({}, runtimeSettingsDefault);
+    let autoRunState = {
+      enabled: false,
+      status: "idle",
+      statusText: "关闭",
+      pageSupported: true,
+    };
     const foldStateByTask = new Map();
 
     const buttons = {
@@ -293,6 +329,7 @@
       showRawOutput: null,
       resetHeight: null,
     };
+    let autoStatusNode = null;
 
     function applyPanelHeight(nextHeight) {
       currentPanelHeight = clampPanelHeight(nextHeight);
@@ -381,6 +418,14 @@
       }
     }
 
+    function refreshAutoRunControls() {
+      if (autoStatusNode) {
+        autoStatusNode.textContent = "全自动：" + normalizeText(autoRunState.statusText || "关闭");
+        autoStatusNode.style.display =
+          autoRunState.pageSupported !== false && !isCheckPageSnapshot() ? "" : "none";
+      }
+    }
+
     function getSnapshotTaskKey(snapshot) {
       const source = snapshot && typeof snapshot === "object" ? snapshot : latestSnapshot;
       return normalizeText(source?.taskItemId || source?.samplingRecordId || "");
@@ -455,6 +500,7 @@
       if (buttons.resetHeight) {
         buttons.resetHeight.disabled = loading;
       }
+      refreshAutoRunControls();
     }
 
     function setLoading(nextValue) {
@@ -658,15 +704,22 @@
     function createInlineDiffNode(originalText, suggestedText) {
       const node = document.createElement("span");
       node.className = "asc-md-hakka-inline-text";
+      updateInlineDiffNode(node, originalText, suggestedText);
+      return node;
+    }
+
+    function updateInlineDiffNode(node, originalText, suggestedText) {
+      if (!(node instanceof HTMLElement)) {
+        return;
+      }
       const original = normalizeText(originalText || "");
       const suggested = normalizeText(suggestedText || "");
       const parts = buildTextDiffParts(original, suggested);
       if (!parts || parts.length <= 0) {
         node.textContent = suggested;
-        return node;
+        return;
       }
       renderDiffParts(node, parts);
-      return node;
     }
 
     function createDetailDiffNode(originalText, suggestedText) {
@@ -987,31 +1040,38 @@
         wrapper.appendChild(text);
       }
       const suggestedValue = normalizeText(checkData?.suggestedValue || "");
+      wrapper.__ascSuggestedValue = suggestedValue;
       text.textContent = buildSpeakerSuggestionText(checkData);
-      const oldActions = wrapper.querySelector(".asc-md-hakka-speaker-actions");
-      if (oldActions) {
-        oldActions.remove();
-      }
       const canFill = !isCheckPageSnapshot() && checkData?.isCorrect !== true && validateFn(suggestedValue);
+      let actions = wrapper.querySelector(".asc-md-hakka-speaker-actions");
+      let fillBtn = actions?.querySelector("button");
       if (canFill) {
-        const actions = document.createElement("div");
-        actions.className = "asc-md-hakka-speaker-actions";
-        const fillBtn = createButton("填入" + labelText, "el-button--primary is-plain");
-        fillBtn.addEventListener("mousedown", function (event) {
-          event.preventDefault();
-        });
-        fillBtn.addEventListener("click", function () {
-          let result = null;
-          if (typeof options.selectSpeakerValue === "function") {
-            result = options.selectSpeakerValue(suggestedValue);
-          }
-          if (!result || result.ok !== true) {
-            result = clickSpeakerOptionInItem(formItem, suggestedValue);
-          }
-          setMessage(result?.message || "已填入建议值。");
-        });
-        actions.appendChild(fillBtn);
-        wrapper.appendChild(actions);
+        if (!(actions instanceof HTMLElement)) {
+          actions = document.createElement("div");
+          actions.className = "asc-md-hakka-speaker-actions";
+          wrapper.appendChild(actions);
+        }
+        if (!(fillBtn instanceof HTMLButtonElement)) {
+          fillBtn = createButton("填入" + labelText, "el-button--primary is-plain");
+          fillBtn.addEventListener("mousedown", function (event) {
+            event.preventDefault();
+          });
+          fillBtn.addEventListener("click", function () {
+            const nextSuggestedValue = normalizeText(wrapper.__ascSuggestedValue || "");
+            let result = null;
+            if (typeof options.selectSpeakerValue === "function") {
+              result = options.selectSpeakerValue(nextSuggestedValue);
+            }
+            if (!result || result.ok !== true) {
+              result = clickSpeakerOptionInItem(formItem, nextSuggestedValue);
+            }
+            setMessage(result?.message || "已填入建议值。");
+          });
+          actions.appendChild(fillBtn);
+        }
+        actions.style.display = "";
+      } else if (actions) {
+        actions.style.display = "none";
       }
     }
 
@@ -1095,25 +1155,28 @@
         if (checkData?.isCorrect === true || suggestionText === "待复核") {
           textNode.textContent = suggestionText;
         } else {
-          const diffNode = createInlineDiffNode(getOriginalTextByType(type, checkData), suggestionText);
-          textNode.replaceWith(diffNode);
+          updateInlineDiffNode(textNode, getOriginalTextByType(type, checkData), suggestionText);
         }
       }
-      const oldButton = row.querySelector("button");
-      if (oldButton) {
-        oldButton.remove();
-      }
+      block.__ascSuggestedValue = normalizeText(checkData?.suggestedValue || "");
       const editor = type === "dialect" ? findRowEditorByIndex(0) : findRowEditorByIndex(1);
+      let fillBtn = row.querySelector("button");
       if (editor && shouldShowTextFillButton(checkData)) {
-        const fillBtn = createButton("填入本行", "el-button--primary is-plain");
-        fillBtn.addEventListener("mousedown", function (event) {
-          event.preventDefault();
-        });
-        fillBtn.addEventListener("click", function () {
-          const result = fillInlineEditor(editor, checkData?.suggestedValue || "");
-          setMessage(result.message);
-        });
-        row.appendChild(fillBtn);
+        if (!(fillBtn instanceof HTMLButtonElement)) {
+          fillBtn = createButton("填入本行", "el-button--primary is-plain");
+          fillBtn.addEventListener("mousedown", function (event) {
+            event.preventDefault();
+          });
+          fillBtn.addEventListener("click", function () {
+            const nextEditor = type === "dialect" ? findRowEditorByIndex(0) : findRowEditorByIndex(1);
+            const result = fillInlineEditor(nextEditor, block.__ascSuggestedValue || "");
+            setMessage(result.message);
+          });
+          row.appendChild(fillBtn);
+        }
+        fillBtn.style.display = "";
+      } else if (fillBtn) {
+        fillBtn.style.display = "none";
       }
     }
 
@@ -1327,7 +1390,8 @@
       return snapshot;
     }
 
-    async function triggerReview() {
+    async function triggerReview(config) {
+      const actionConfig = config && typeof config === "object" ? config : {};
       if (typeof options.reviewCurrent !== "function") {
         const message = "AI 客户端未就绪。";
         setMessage(message);
@@ -1496,6 +1560,7 @@
           })(),
         }, {
           timeoutMs: Number(runtimeSettings.aiReviewRequestTimeoutMs || 60000) || 60000,
+          signal: actionConfig.signal || null,
         });
         renderResult(response.data);
         renderSummary(snapshot, response.backend);
@@ -1613,17 +1678,9 @@
         results.push(result);
       }
 
-      if (appliedCount <= 0) {
-        const fallback = results.find(function (item) {
-          return item && item.ok !== true && item.message;
-        });
-        const message = fallback?.message || "无需要填入的修改。";
-        setMessage(message);
-        return { ok: false, message: message };
-      }
-      const message = "已填入 AI 推荐，未保存、未提交，请人工确认。";
-      setMessage(message);
-      return { ok: true, message: message };
+      const outcome = resolveFillAllSuggestionsOutcome(appliedCount, results);
+      setMessage(outcome.message);
+      return outcome;
     }
 
     async function triggerRefreshCollection() {
@@ -1752,6 +1809,10 @@
       messageNode.textContent = "就绪。";
       bodyScrollNode.appendChild(messageNode);
 
+      autoStatusNode = document.createElement("div");
+      autoStatusNode.className = "md-message";
+      bodyScrollNode.appendChild(autoStatusNode);
+
       const resultBlock = document.createElement("div");
       resultBlock.className = "md-block";
       const resultTitle = document.createElement("div");
@@ -1802,6 +1863,7 @@
         window.removeEventListener("resize", handleViewportResize);
         viewportResizeBound = false;
       }
+      autoStatusNode = null;
       messageNode = null;
       resultNode = null;
       latestResult = null;
@@ -1843,6 +1905,11 @@
       refreshButtons();
     }
 
+    function setAutoRunState(nextState) {
+      autoRunState = Object.assign({}, autoRunState, nextState || {});
+      refreshAutoRunControls();
+    }
+
     function showAsrmarkCheckNotice() {
       ensureMounted();
       if (hasEditableTextRows()) {
@@ -1858,6 +1925,7 @@
       ensureMounted: ensureMounted,
       refreshPageSnapshot: refreshPageSnapshot,
       remove: remove,
+      setAutoRunState: setAutoRunState,
       setMessage: setMessage,
       setRuntimeSettings: setRuntimeSettings,
       showAsrmarkCheckNotice: showAsrmarkCheckNotice,
@@ -1881,8 +1949,15 @@
     };
   }
 
-  globalThis.__ASREdgeMagicDataHakkaInlinePanel = {
+  const exportedApi = {
     createRuntime: createRuntime,
   };
+  exportedApi.__test__ = {
+    resolveFillAllSuggestionsOutcome: resolveFillAllSuggestionsOutcome,
+  };
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = exportedApi;
+  }
+  globalThis.__ASREdgeMagicDataHakkaInlinePanel = exportedApi;
 })();
 

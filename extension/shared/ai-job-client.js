@@ -15,9 +15,40 @@
     return error;
   }
 
-  function delay(ms) {
-    return new Promise(function (resolve) {
-      globalThis.setTimeout(resolve, Math.max(0, Number(ms) || 0));
+  function createUserAbortedError(phase) {
+    return createError("已停止自动流程。", {
+      code: "user-aborted",
+      phase: normalizeText(phase) || "request",
+    });
+  }
+
+  function delay(ms, signal, phase) {
+    return new Promise(function (resolve, reject) {
+      const timeout = globalThis.setTimeout(function () {
+        cleanup();
+        resolve();
+      }, Math.max(0, Number(ms) || 0));
+
+      function onAbort() {
+        cleanup();
+        reject(createUserAbortedError(phase));
+      }
+
+      function cleanup() {
+        globalThis.clearTimeout(timeout);
+        if (signal && typeof signal.removeEventListener === "function") {
+          signal.removeEventListener("abort", onAbort);
+        }
+      }
+
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+
+      if (signal && typeof signal.addEventListener === "function") {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
     });
   }
 
@@ -56,26 +87,41 @@
     }
 
     const timeoutMs = Math.max(1000, Number(config.timeoutMs) || 10000);
+    const externalSignal = config.signal || null;
     const controller = typeof AbortController === "function" ? new AbortController() : null;
-    const timer = controller
-      ? globalThis.setTimeout(function () {
-          controller.abort();
-        }, timeoutMs)
-      : null;
+    let timedOut = false;
+    const timer = globalThis.setTimeout(function () {
+      timedOut = true;
+      if (controller) {
+        controller.abort();
+      }
+    }, timeoutMs);
 
     try {
-      const response = await fetchImpl(config.url, Object.assign(
-        {
-          method: config.method || "GET",
-          signal: controller ? controller.signal : undefined,
-        },
-        config.requestInit || {},
-        config.body !== undefined
-          ? {
-              body: typeof config.body === "string" ? config.body : JSON.stringify(config.body),
+      const response = await Promise.race([
+        fetchImpl(config.url, Object.assign(
+          {
+            method: config.method || "GET",
+            signal: externalSignal || (controller ? controller.signal : undefined),
+          },
+          config.requestInit || {},
+          config.body !== undefined
+            ? {
+                body: typeof config.body === "string" ? config.body : JSON.stringify(config.body),
+              }
+            : null
+        )),
+        new Promise(function (_resolve, reject) {
+          globalThis.setTimeout(function () {
+            if (timedOut) {
+              reject(createError("AI 任务请求超时。", {
+                code: "timeout",
+                phase: normalizeText(config.phase) || "request",
+              }));
             }
-          : null
-      ));
+          }, timeoutMs);
+        }),
+      ]);
       const responseText = await response.text();
       let body = null;
       try {
@@ -89,9 +135,7 @@
         responseText,
       };
     } finally {
-      if (timer) {
-        globalThis.clearTimeout(timer);
-      }
+      globalThis.clearTimeout(timer);
     }
   }
 
@@ -133,6 +177,7 @@
 
   async function runJobLifecycle(options) {
     const config = options && typeof options === "object" ? options : {};
+    const externalSignal = config.signal || null;
     const endpoint = buildEndpoint(config.endpoint);
     const timeoutMs = Math.max(1000, Number(config.timeoutMs) || 60000);
     const pollIntervalMs = Math.max(100, Number(config.pollIntervalMs) || 800);
@@ -172,6 +217,9 @@
           };
 
     async function requestPhase(url, method, body, phase) {
+      if (externalSignal?.aborted) {
+        throw createUserAbortedError(phase);
+      }
       const remainingMs = deadlineAt - Date.now();
       if (remainingMs <= 0) {
         throw createTimeoutError(phase);
@@ -183,9 +231,14 @@
           method,
           body,
           timeoutMs: Math.min(remainingMs, perRequestTimeoutMs),
+          signal: externalSignal,
+          phase: phase,
           requestInit: config.requestInit,
         });
       } catch (error) {
+        if (externalSignal?.aborted) {
+          throw createUserAbortedError(phase);
+        }
         if (error?.name === "AbortError") {
           throw createTimeoutError(phase);
         }
@@ -212,6 +265,9 @@
 
     let jobBody = createResponse.body;
     while (true) {
+      if (externalSignal?.aborted) {
+        throw createUserAbortedError("poll");
+      }
       if (isTerminalSuccess(jobBody)) {
         return {
           job: jobBody,
@@ -226,7 +282,7 @@
       if (remainingMs <= 0) {
         throw createTimeoutError("poll");
       }
-      await delay(Math.min(pollIntervalMs, remainingMs));
+      await delay(Math.min(pollIntervalMs, remainingMs), externalSignal, "poll");
       const statusResponse = await requestPhase(
         buildJobDetailEndpoint(endpoint, jobBody.jobId),
         "GET",
@@ -276,6 +332,7 @@
     defaultBuildTerminalError,
     defaultCreateTimeoutError,
     delay,
+    createUserAbortedError,
     getJobDebug,
     normalizeText,
     requestJson,

@@ -8,6 +8,8 @@
   const INLINE_SUGGESTION_SELECTOR = "[data-asc-magic-data-hakka-inline-suggestion]";
   const SPEAKER_SUGGESTION_SELECTOR = "[data-asc-magic-data-hakka-speaker-suggestion]";
   const RAW_MODAL_SELECTOR = "[data-asc-magic-data-hakka-raw-modal]";
+  const AUTO_READY_TIMEOUT_MS = 15000;
+  const AUTO_NEXT_TIMEOUT_MS = 20000;
   const DEFAULT_SETTINGS = {
     enabled: true,
     aiReviewEnabled: true,
@@ -246,6 +248,7 @@
       return null;
     }
 
+    let autoRunner = null;
     const panel = panelFactory.createRuntime({
       collectCurrentItem: collector.collectCurrentItem,
       fillDialectLine: collector.fillDialectLine,
@@ -254,6 +257,12 @@
       refreshCurrentItem: collector.refreshCurrentItem,
       reviewCurrent: aiClient.reviewCurrent,
       selectSpeakerValue: collector.selectSpeakerValue,
+      startAutoRun: function () {
+        autoRunner?.start();
+      },
+      stopAutoRun: function () {
+        autoRunner?.stop("stopped", "已停止。");
+      },
     });
 
     const shortcutsRuntime = shortcutsFactory?.createRuntime
@@ -264,6 +273,190 @@
 
     let lastTaskKey = "";
     let lastRouteKey = "";
+
+    function createAutoRunner() {
+      const state = {
+        enabled: false,
+        status: "idle",
+        statusText: "关闭",
+        runId: 0,
+        controller: null,
+      };
+
+      function syncState(extra) {
+        Object.assign(state, extra || {});
+        panel.setAutoRunState({
+          enabled: state.enabled,
+          status: state.status,
+          statusText: state.statusText,
+          pageSupported: detector.getPageType() === "asrmark",
+        });
+      }
+
+      function createAbortError() {
+        const error = new Error("已停止自动流程。");
+        error.code = "user-aborted";
+        return error;
+      }
+
+      function ensureActive(runId) {
+        if (state.enabled !== true || state.runId !== runId || state.controller?.signal?.aborted) {
+          throw createAbortError();
+        }
+      }
+
+      async function waitForNextReady(currentTaskItemId, runId) {
+        const signal = state.controller?.signal || null;
+        const deadlineAt = Date.now() + AUTO_NEXT_TIMEOUT_MS;
+        while (Date.now() < deadlineAt) {
+          ensureActive(runId);
+          const routeTaskItemId = normalizeText(detector.parseHashParams?.().taskItemId || "");
+          if (routeTaskItemId && routeTaskItemId !== currentTaskItemId) {
+            return collector.waitForAsrmarkReady({
+              taskItemId: routeTaskItemId,
+              signal: signal,
+              timeoutMs: AUTO_READY_TIMEOUT_MS,
+            });
+          }
+          await new Promise(function (resolve, reject) {
+            let onAbort = null;
+            const timer = window.setTimeout(function () {
+              if (signal && onAbort) {
+                signal.removeEventListener("abort", onAbort);
+              }
+              resolve();
+            }, 120);
+            if (signal && typeof signal.addEventListener === "function") {
+              onAbort = function () {
+                window.clearTimeout(timer);
+                signal.removeEventListener("abort", onAbort);
+                reject(createAbortError());
+              };
+              signal.addEventListener("abort", onAbort, { once: true });
+            }
+          });
+        }
+        const error = new Error("等待下一条任务加载超时。");
+        error.code = "wait-next-timeout";
+        throw error;
+      }
+
+      async function runLoop(runId) {
+        const signal = state.controller?.signal || null;
+        while (true) {
+          ensureActive(runId);
+          syncState({ status: "waiting_ready", statusText: "等待加载" });
+          const routeTaskItemId = normalizeText(detector.parseHashParams?.().taskItemId || "");
+          const readySnapshot = await collector.waitForAsrmarkReady({
+            taskItemId: routeTaskItemId,
+            signal: signal,
+            timeoutMs: AUTO_READY_TIMEOUT_MS,
+          });
+          ensureActive(runId);
+          panel.refreshPageSnapshot(readySnapshot, null, runtimeSettings);
+
+          syncState({ status: "reviewing", statusText: "AI处理中" });
+          const reviewResult = await panel.triggerReview({ signal: signal });
+          ensureActive(runId);
+          if (!reviewResult?.ok) {
+            throw new Error(reviewResult?.message || "AI 质检失败。");
+          }
+
+          syncState({ status: "filling", statusText: "正在填入" });
+          const fillResult = panel.triggerFillAllSuggestions();
+          ensureActive(runId);
+          if (!fillResult?.ok) {
+            throw new Error(fillResult?.message || "填入失败。");
+          }
+
+          syncState({ status: "submitting", statusText: "正在提交" });
+          const submitResult = collector.clickOperationButton("提交");
+          ensureActive(runId);
+          if (!submitResult?.ok) {
+            throw new Error(submitResult?.message || "提交失败。");
+          }
+
+          syncState({ status: "waiting_next", statusText: "等待下一条" });
+          const nextSnapshot = await waitForNextReady(normalizeText(readySnapshot.taskItemId), runId);
+          ensureActive(runId);
+          panel.refreshPageSnapshot(nextSnapshot, null, runtimeSettings);
+        }
+      }
+
+      function start() {
+        if (detector.getPageType() !== "asrmark") {
+          syncState({
+            enabled: false,
+            status: "idle",
+            statusText: "仅标注单条页支持",
+          });
+          return;
+        }
+        if (state.enabled) {
+          return;
+        }
+        state.runId += 1;
+        state.controller = typeof AbortController === "function" ? new AbortController() : null;
+        syncState({
+          enabled: true,
+          status: "waiting_ready",
+          statusText: "等待加载",
+        });
+        const currentRunId = state.runId;
+        void runLoop(currentRunId).catch(function (error) {
+          if (error?.code === "user-aborted") {
+            if (state.runId === currentRunId) {
+              syncState({
+                enabled: false,
+                status: "stopped",
+                statusText: "已停止",
+              });
+            }
+            return;
+          }
+          if (state.runId === currentRunId) {
+            syncState({
+              enabled: false,
+              status: "error",
+              statusText: "失败停机",
+            });
+            panel.setMessage(error?.message || "全自动执行失败。");
+          }
+        });
+      }
+
+      function stop(nextStatus, nextText) {
+        state.runId += 1;
+        if (state.controller) {
+          state.controller.abort();
+        }
+        state.controller = null;
+        syncState({
+          enabled: false,
+          status: nextStatus || "stopped",
+          statusText: nextText || "已停止",
+        });
+      }
+
+      function isEnabled() {
+        return state.enabled === true;
+      }
+
+      function syncPageSupport(pageType) {
+        panel.setAutoRunState({
+          pageSupported: pageType === "asrmark",
+        });
+      }
+
+      return {
+        isEnabled: isEnabled,
+        start: start,
+        stop: stop,
+        syncPageSupport: syncPageSupport,
+      };
+    }
+
+    autoRunner = createAutoRunner();
 
     function isInsideOwnUi(node) {
       if (!(node instanceof Node)) {
@@ -363,6 +556,14 @@
         resetPanelHeight: function () {
           return runActionResult(panel.triggerResetPanelHeight());
         },
+        toggleAutoRun: function () {
+          if (autoRunner?.isEnabled()) {
+            autoRunner.stop("stopped", "已停止");
+            return Promise.resolve();
+          }
+          autoRunner?.start();
+          return Promise.resolve();
+        },
         showRawAiOutput: function () {
           return runActionResult(panel.triggerShowRawOutput());
         },
@@ -400,6 +601,7 @@
         return;
       }
       const pageType = detector.getPageType();
+      autoRunner?.syncPageSupport(pageType);
       if (pageType !== lastRouteLog) {
         lastRouteLog = pageType;
         safeInfo("[MagicData][Hakka] route detected: " + pageType);
@@ -455,6 +657,9 @@
             });
         }
         return;
+      }
+      if (pageType !== "asrmark") {
+        autoRunner?.stop("stopped", "仅标注单条页支持");
       }
       lastTaskKey = "";
       lastRouteKey = "";
@@ -522,6 +727,7 @@
       if (shortcutsRuntime) {
         shortcutsRuntime.stop();
       }
+      autoRunner?.stop("stopped", "已停止");
       panel.remove();
     }
 

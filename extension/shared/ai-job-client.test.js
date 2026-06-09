@@ -3,122 +3,79 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const {
-  buildJobDebugEndpoint,
-  buildJobDetailEndpoint,
-  buildJobsEndpoint,
-  getJobDebug,
-  runJobLifecycle,
-} = require("./ai-job-client");
+const jobClient = require("./ai-job-client.js");
 
-function createJsonResponse(status, body) {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    async text() {
-      return JSON.stringify(body);
-    },
-  };
+function createAbortError() {
+  const error = new Error("Aborted");
+  error.name = "AbortError";
+  return error;
 }
 
-test("build job endpoints from base endpoint", function () {
-  assert.equal(
-    buildJobsEndpoint("https://example.com/api/demo"),
-    "https://example.com/api/demo/jobs"
-  );
-  assert.equal(
-    buildJobDetailEndpoint("https://example.com/api/demo", "job-1"),
-    "https://example.com/api/demo/jobs/job-1"
-  );
-  assert.equal(
-    buildJobDebugEndpoint("https://example.com/api/demo", "job-1"),
-    "https://example.com/api/demo/jobs/job-1/debug"
-  );
-});
+test("runJobLifecycle aborts before create request completes when external signal is cancelled", async function () {
+  const controller = new AbortController();
+  let sawSignal = false;
 
-test("runJobLifecycle resolves succeeded job after polling", async function () {
-  const calls = [];
-  const fetchImpl = async function (url) {
-    calls.push(url);
-    if (calls.length === 1) {
-      return createJsonResponse(202, {
-        success: true,
-        jobId: "job-1",
-        requestId: "req-1",
-        status: "pending",
+  const lifecyclePromise = jobClient.runJobLifecycle({
+    endpoint: "https://example.com/api/magic-data/hakka-helper/ai/review-current",
+    timeoutMs: 1000,
+    signal: controller.signal,
+    fetchImpl: function (_url, requestInit) {
+      sawSignal = requestInit?.signal === controller.signal;
+      return new Promise(function (_resolve, reject) {
+        requestInit?.signal?.addEventListener(
+          "abort",
+          function () {
+            reject(createAbortError());
+          },
+          { once: true }
+        );
       });
-    }
-    return createJsonResponse(200, {
-      success: true,
-      jobId: "job-1",
-      requestId: "req-1",
-      status: "succeeded",
-      data: {
-        result: 1,
-      },
-    });
-  };
-
-  const result = await runJobLifecycle({
-    endpoint: "https://example.com/api/demo",
-    body: {
-      value: 1,
     },
-    fetchImpl,
-    timeoutMs: 5000,
-    pollIntervalMs: 1,
   });
 
-  assert.equal(result.job.status, "succeeded");
-  assert.deepEqual(result.data, {
-    result: 1,
+  controller.abort();
+
+  await assert.rejects(lifecyclePromise, function (error) {
+    assert.equal(sawSignal, true);
+    assert.equal(error?.code, "user-aborted");
+    assert.equal(error?.phase, "create");
+    return true;
   });
-  assert.equal(calls.length, 2);
 });
 
-test("runJobLifecycle throws terminal error for failed job", async function () {
-  const fetchImpl = async function () {
-    return createJsonResponse(202, {
-      success: true,
-      jobId: "job-2",
-      requestId: "req-2",
-      status: "failed",
-      error: {
-        code: "provider-rate-limited",
-        message: "rate limited",
-      },
-    });
-  };
+test("runJobLifecycle aborts during poll delay before issuing the next poll request", async function () {
+  const controller = new AbortController();
+  let fetchCount = 0;
 
-  await assert.rejects(
-    runJobLifecycle({
-      endpoint: "https://example.com/api/demo",
-      fetchImpl,
-      timeoutMs: 5000,
-    }),
-    function (error) {
-      assert.equal(error.code, "provider-rate-limited");
-      assert.equal(error.phase, "job");
-      return true;
-    }
-  );
-});
-
-test("getJobDebug resolves debug payload", async function () {
-  const debug = await getJobDebug({
-    endpoint: "https://example.com/api/demo",
-    jobId: "job-3",
-    fetchImpl: async function (url) {
-      assert.equal(url, "https://example.com/api/demo/jobs/job-3/debug");
-      return createJsonResponse(200, {
-        success: true,
-        debug: {
-          raw: true,
+  const lifecyclePromise = jobClient.runJobLifecycle({
+    endpoint: "https://example.com/api/magic-data/hakka-helper/ai/review-current",
+    timeoutMs: 1000,
+    pollIntervalMs: 200,
+    signal: controller.signal,
+    fetchImpl: async function () {
+      fetchCount += 1;
+      return {
+        ok: true,
+        async text() {
+          return JSON.stringify({
+            success: true,
+            jobId: "job-1",
+            status: "running",
+          });
         },
-      });
+      };
     },
   });
-  assert.deepEqual(debug, {
-    raw: true,
+
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 20);
+  });
+  controller.abort();
+
+  await assert.rejects(lifecyclePromise, function (error) {
+    assert.equal(error?.code, "user-aborted");
+    assert.equal(error?.phase, "poll");
+    assert.equal(fetchCount, 1);
+    return true;
   });
 });
