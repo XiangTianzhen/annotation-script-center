@@ -79,7 +79,7 @@
   - `platform-resources/magic-data/hakka-helper/backend/lexicon/hakka-lexicon.json`
   - `platform-resources/magic-data/minnan-helper/backend/lexicon/minnan-lexicon.json`
   - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-lexicon.json`
-- 处理“字词表 / 词表 / lexicon”类任务时，默认先输出一段交给外部 AI 的词表处理 Prompt；除非用户明确推翻该规则，不直接新增或修改词条内容。
+- 处理“字词表 / 词表 / lexicon”类任务时，默认先输出一段针对当前单独词表的网页端 AI 处理 Prompt；由用户逐份上传或粘贴词表内容并自行维护 JSON；除非用户明确推翻该规则，不直接新增或修改词条内容。
 - Codex 可以改：
   - 词表 JSON schema / 校验器
   - 运行时代码接入
@@ -88,6 +88,9 @@
 - Codex 默认不改：
   - 词表 JSON 里的具体词条内容
   - 用户自行维护的推荐释义、别名、备注
+- 运行时缺少词表 JSON 时：
+  - 若本地仍存在对应参考 CSV，则只警告“没有字词对应表”，业务继续按无词表模式返回
+  - 若本地连参考 CSV 也不存在，则不额外警告，直接按无词表模式返回
 - 词表 JSON 结构与协作流程以 `docs/workflow/lexicon-json-workflow.md` 为准。
 
 ## shared 模块规则（项目级）

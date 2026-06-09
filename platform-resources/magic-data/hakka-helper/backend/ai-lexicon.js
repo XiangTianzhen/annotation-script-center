@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const {
-  loadBusinessLexiconJson,
+  loadBusinessLexiconSource,
   normalizeText: normalizeBusinessLexiconText,
 } = require("../../../backend/business-lexicon");
 
@@ -161,14 +161,26 @@ function getLexiconState() {
   if (cachedState) {
     return cachedState;
   }
-  if (!fs.existsSync(HAKKA_JSON_PATH)) {
+  const loaded = loadBusinessLexiconSource(HAKKA_JSON_PATH, {
+    referencePaths: [HAKKA_CSV_PATH],
+    warningMessage: "没有字词对应表",
+  });
+  if (loaded.status === "reference_only") {
     if (!warnedMissing) {
       warnedMissing = true;
-      console.warn("[MagicData][hakka][ai] 客家话词表 JSON 缺失，复核将降级为无词表模式。", {
-        xlsxExists: fs.existsSync(HAKKA_XLSX_PATH),
-        referenceCsvExists: fs.existsSync(HAKKA_CSV_PATH),
+      console.warn("[MagicData][hakka][ai] 没有字词对应表，检测到本地参考 CSV，复核将按无词表模式继续。", {
+        referenceCsvExists: true,
       });
     }
+    cachedState = {
+      enabled: false,
+      status: "reference_only",
+      rows: [],
+      source: "json",
+    };
+    return cachedState;
+  }
+  if (loaded.status === "missing") {
     cachedState = {
       enabled: false,
       status: "missing",
@@ -177,8 +189,6 @@ function getLexiconState() {
     };
     return cachedState;
   }
-
-  const loaded = loadBusinessLexiconJson(HAKKA_JSON_PATH);
   if (!loaded.enabled || loaded.status !== "ready") {
     if (!warnedError) {
       warnedError = true;

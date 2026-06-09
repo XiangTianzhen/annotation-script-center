@@ -10,7 +10,7 @@
 
 - 仅服务 `https://mark.aishelltech.com/mytask/mark?...` 的闽南语推荐文本助手。
 - 接口独立为 `/api/aishell-tech/minnan-helper/ai/recommend*`。
-- Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；但 Aishell 现在维护自己的闽南语转换词表副本，运行时主文件固定为 `minnan-lexicon.json`，参考源继续保留 `minnan-lexicon.csv`，可做小范围高确定性修正，不再要求与 DataBaker `byte-for-byte` 完全一致。
+- Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；但 Aishell 现在维护自己的闽南语转换词表副本，运行时主文件固定为 `minnan-lexicon.json`，参考源继续保留 `minnan-lexicon.csv`，可做小范围高确定性修正，不再要求与 DataBaker `byte-for-byte` 完全一致；如果 JSON 缺失但本地 CSV 仍在，当前只警告“没有字词对应表”，不会回退成 CSV 主读取。
 - 当前默认配置已收口为独立的 `转换 / 听音 / 比较` 三板块：`转换 qwen3.5-plus + 听音 qwen3.5-omni-flash + Qwen 比较 qwen3.5-plus`。
 - `转换` 当前改为“规则优先 + 歧义时 AI 兜底”：运行时主读 `minnan-lexicon.json`，参考源 `minnan-lexicon.csv` 仅保留给人工整理和外部 AI 处理；默认仍按 `对应华语 -> 建议用字` 做最长匹配替换，只有命中多候选或切分冲突时才调用转换模型。
 - options 页当前已与 DataBaker 共用固定顺序的右侧 `AI 设置` 模块；`AI 连续填入并发数量` 已移动到该区域，默认 `5`，Omni 范围 `1~25`，Fun-ASR 范围 `1~50`。

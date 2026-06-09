@@ -55,6 +55,7 @@ test("liuzhou defaults and health expose staged listen/refine defaults", functio
   const healthPayload = createHealthPayload({
     rulesText: "规则一",
     lexiconRows: [{}],
+    lexiconStatus: "ready",
   });
 
   assert.equal(defaultsPayload.defaults?.timeoutMs, 60000);
@@ -67,6 +68,7 @@ test("liuzhou defaults and health expose staged listen/refine defaults", functio
   assert.equal(healthPayload.defaults?.stages?.listen?.model, "qwen3.5-omni-flash");
   assert.equal(healthPayload.defaults?.stages?.refine?.model, "qwen3.5-plus");
   assert.equal(healthPayload.reference?.lexiconRowCount, 1);
+  assert.equal(healthPayload.reference?.lexiconWarning, "");
 });
 
 test("liuzhou buildAssetsContext accepts json lexicon assets", function () {
@@ -102,6 +104,17 @@ test("liuzhou buildAssetsContext accepts json lexicon assets", function () {
     notes: ["用于被动含义"],
     tags: ["function_word"],
   });
+});
+
+test("liuzhou buildAssetsContext degrades to reference_only when only local csv remains", function () {
+  const assetsContext = buildAssetsContext({
+    lexiconReferenceCsv: "词,义\n挨,被\n",
+    ruleText: "规则一",
+  });
+
+  assert.equal(assetsContext.lexiconStatus, "reference_only");
+  assert.equal(assetsContext.lexiconWarning, "没有字词对应表");
+  assert.deepEqual(assetsContext.lexiconRows, []);
 });
 
 test("liuzhou normalizeRecommendRequest maps aiStages into standalone listen/refine config", function () {

@@ -36,6 +36,11 @@ module.exports = {
     },
     lexiconJson: {
       jsonPath: "assets/liuzhou-lexicon.json",
+      optional: true,
+    },
+    lexiconReferenceCsv: {
+      path: "assets/liuzhou-pronunciation-reference.csv",
+      optional: true,
     },
   },
   normalizeInput,

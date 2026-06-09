@@ -11,6 +11,13 @@ function resolveAssetPath(baseDir, relativePath) {
   return path.resolve(baseDir || process.cwd(), String(relativePath || ""));
 }
 
+function readOptionalUtf8File(filePath, optional) {
+  if (optional === true && !fs.existsSync(filePath)) {
+    return null;
+  }
+  return fs.readFileSync(filePath, "utf8");
+}
+
 function loadAssetValue(baseDir, descriptor) {
   if (descriptor == null) {
     return null;
@@ -29,11 +36,17 @@ function loadAssetValue(baseDir, descriptor) {
   }
 
   if (descriptor.path) {
-    return fs.readFileSync(resolveAssetPath(baseDir, descriptor.path), "utf8");
+    return readOptionalUtf8File(resolveAssetPath(baseDir, descriptor.path), descriptor.optional === true);
   }
 
   if (descriptor.jsonPath) {
-    const jsonText = fs.readFileSync(resolveAssetPath(baseDir, descriptor.jsonPath), "utf8");
+    const jsonText = readOptionalUtf8File(
+      resolveAssetPath(baseDir, descriptor.jsonPath),
+      descriptor.optional === true
+    );
+    if (jsonText === null) {
+      return null;
+    }
     return JSON.parse(jsonText);
   }
 

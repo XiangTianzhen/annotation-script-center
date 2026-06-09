@@ -7,6 +7,8 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  findFirstExistingReferenceFile,
+  loadBusinessLexiconSource,
   loadBusinessLexiconJson,
   validateBusinessLexiconDocument,
 } = require("./business-lexicon");
@@ -109,3 +111,41 @@ test("loadBusinessLexiconJson reports invalid schema errors with stable status",
   assert.match(state.errorMessage || "", /aliases/i);
 });
 
+test("findFirstExistingReferenceFile returns the first local reference source", function () {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "asc-business-lexicon-ref-"));
+  const csvPath = path.join(tempDir, "reference.csv");
+  fs.writeFileSync(csvPath, "词,义\n", "utf8");
+
+  assert.equal(
+    findFirstExistingReferenceFile([
+      path.join(tempDir, "missing.csv"),
+      csvPath,
+    ]),
+    csvPath
+  );
+});
+
+test("loadBusinessLexiconSource degrades to reference_only only when local csv exists", function () {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "asc-business-lexicon-source-"));
+  const csvPath = path.join(tempDir, "reference.csv");
+  fs.writeFileSync(csvPath, "词,义\n", "utf8");
+  const missingJsonPath = path.join(tempDir, "missing.json");
+
+  const referenceOnlyState = loadBusinessLexiconSource(missingJsonPath, {
+    referencePaths: [csvPath],
+    warningMessage: "没有字词对应表",
+  });
+  const missingState = loadBusinessLexiconSource(missingJsonPath, {
+    referencePaths: [path.join(tempDir, "missing-reference.csv")],
+    warningMessage: "没有字词对应表",
+  });
+
+  assert.equal(referenceOnlyState.enabled, false);
+  assert.equal(referenceOnlyState.status, "reference_only");
+  assert.equal(referenceOnlyState.referenceExists, true);
+  assert.equal(referenceOnlyState.referenceFilePath, csvPath);
+  assert.equal(referenceOnlyState.warningMessage, "没有字词对应表");
+  assert.equal(missingState.status, "missing");
+  assert.equal(missingState.referenceExists, false);
+  assert.equal(missingState.warningMessage, "");
+});

@@ -57,7 +57,7 @@ const {
 const { rememberAiDebug } = require("./ai-debug-store");
 const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
 const {
-  loadBusinessLexiconJson,
+  loadBusinessLexiconSource,
   normalizeText: normalizeBusinessLexiconText,
 } = require("../../../backend/business-lexicon");
 
@@ -1342,18 +1342,41 @@ function getLexiconState() {
   if (lexiconCache) {
     return lexiconCache;
   }
-  if (!fs.existsSync(MINNAN_LEXICON_JSON_PATH)) {
+  const loaded = loadBusinessLexiconSource(MINNAN_LEXICON_JSON_PATH, {
+    referencePaths: [MINNAN_LEXICON_REFERENCE_CSV_PATH],
+    warningMessage: "没有字词对应表",
+  });
+  if (loaded.status === "reference_only") {
     if (!warnedMissing) {
       warnedMissing = true;
-      console.warn("[DataBaker][round-one-quality][ai] 闽南业务词表 JSON 不存在，已跳过词表上下文。", {
+      console.warn("[DataBaker][round-one-quality][ai] 没有字词对应表，检测到本地参考 CSV，已按无词表模式继续返回。", {
         fileName: path.basename(MINNAN_LEXICON_JSON_PATH),
-        referenceFileName: path.basename(MINNAN_LEXICON_REFERENCE_CSV_PATH),
+        referenceFileName: path.basename(loaded.referenceFilePath || MINNAN_LEXICON_REFERENCE_CSV_PATH),
       });
     }
-    lexiconCache = { exists: false, status: "missing", source: "json", rows: [] };
+    lexiconCache = {
+      exists: false,
+      status: "reference_only",
+      source: "json",
+      rows: [],
+      warningMessage: loaded.warningMessage,
+      referenceExists: true,
+      referenceFilePath: loaded.referenceFilePath,
+    };
     return lexiconCache;
   }
-  const loaded = loadBusinessLexiconJson(MINNAN_LEXICON_JSON_PATH);
+  if (loaded.status === "missing") {
+    lexiconCache = {
+      exists: false,
+      status: "missing",
+      source: "json",
+      rows: [],
+      warningMessage: "",
+      referenceExists: false,
+      referenceFilePath: "",
+    };
+    return lexiconCache;
+  }
   if (!loaded.enabled || loaded.status !== "ready") {
     if (!warnedReadFailure) {
       warnedReadFailure = true;
@@ -1368,6 +1391,9 @@ function getLexiconState() {
       status: loaded.status || "error",
       source: "json",
       rows: [],
+      warningMessage: "",
+      referenceExists: Boolean(loaded.referenceExists),
+      referenceFilePath: loaded.referenceFilePath || "",
     };
     return lexiconCache;
   }
@@ -1376,6 +1402,9 @@ function getLexiconState() {
     status: "ready",
     source: "json",
     rows: loaded.entries.map(mapLexiconEntryFromBusinessJson).filter(Boolean),
+    warningMessage: "",
+    referenceExists: Boolean(loaded.referenceExists),
+    referenceFilePath: loaded.referenceFilePath || "",
   };
   return lexiconCache;
 }
@@ -1923,6 +1952,7 @@ function createHealthPayload() {
   const jobStoreConfig = getAiJobStoreConfig();
   const jobSnapshot = getAiJobStoreSnapshot();
   const runtime = buildAsyncJobRuntimeMeta();
+  const lexiconState = getLexiconState();
   const modelCatalog = {
     text: listModelsByFamily("text"),
     omni: listModelsByFamily("omni"),
@@ -1969,6 +1999,15 @@ function createHealthPayload() {
       mode: jobStoreConfig.enabled === true ? "async-job-default" : "disabled",
     }),
     runtime,
+    lexicon: {
+      enabled: lexiconState.exists === true,
+      status: String(lexiconState.status || "missing"),
+      source: "json",
+      sourceFile: path.basename(MINNAN_LEXICON_JSON_PATH),
+      referenceSourceFile: path.basename(MINNAN_LEXICON_REFERENCE_CSV_PATH),
+      rowCount: Array.isArray(lexiconState.rows) ? lexiconState.rows.length : 0,
+      warningMessage: String(lexiconState.warningMessage || ""),
+    },
     notes: {
       defaultResultMode: "async-job-default",
       asyncJobsDefaultEnabled: jobStoreConfig.enabled === true,

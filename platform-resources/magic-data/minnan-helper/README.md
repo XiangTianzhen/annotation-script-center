@@ -13,6 +13,7 @@
 - `backend/lexicon/minnan-lexicon.json`：闽南语业务词表运行时主文件。
 - `backend/lexicon/minnan-lexicon.csv`：闽南语词表参考源。
 - `backend/tools/convert-hakka-lexicon.js`：闽南语词表转换脚本（文件名保留兼容，输入输出已是闽南语词表）。
+- 运行时缺少 `minnan-lexicon.json` 但本地 `minnan-lexicon.csv` 仍存在时，当前只警告“没有字词对应表”，复核链路继续按无词表模式返回，不回退成 CSV 主读取。
 - `network/.gitkeep`：当前无助手专属 Network 差异；共用结构见平台根目录 `network/`。
 - `page-structure/.gitkeep`：当前无助手专属页面结构差异；共用结构见平台根目录 `page-structure/`。
 

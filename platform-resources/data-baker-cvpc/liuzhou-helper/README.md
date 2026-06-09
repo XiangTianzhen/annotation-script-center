@@ -62,6 +62,7 @@
 - 柳州话规则整理稿：`platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-rules.md`
 - 柳州话业务词表运行时主文件：`platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-lexicon.json`
 - 柳州话发音对照表参考源：`platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-pronunciation-reference.csv`
+- 如果 `liuzhou-lexicon.json` 暂时缺失但本地 `liuzhou-pronunciation-reference.csv` 仍存在，当前只警告“没有字词对应表”，AI 推荐继续按无词表模式正常返回，不会把 CSV 重新当成运行时主词表。
 
 ## AI 契约
 

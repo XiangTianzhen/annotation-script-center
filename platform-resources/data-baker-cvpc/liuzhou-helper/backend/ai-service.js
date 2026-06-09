@@ -54,6 +54,7 @@ const DEFAULT_REFINE_PROMPT = [
   "若拿不准或需要保留歧义，必须把 needHumanReview 设为 true。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
 ].join("\n");
+let warnedLexiconReferenceOnly = false;
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -366,19 +367,33 @@ function buildAssetsContext(assets) {
   const source = assets && typeof assets === "object" ? assets : {};
   let lexiconRows = [];
   let lexiconStatus = "missing";
+  let lexiconWarning = "";
+  const hasReferenceCsv = normalizeText(source.lexiconReferenceCsv).length > 0;
   try {
     if (source.lexiconJson) {
       lexiconRows = buildLexiconRows(source.lexiconJson);
       lexiconStatus = "ready";
+    } else if (hasReferenceCsv) {
+      lexiconStatus = "reference_only";
+      lexiconWarning = "没有字词对应表";
     }
   } catch (_error) {
     lexiconRows = [];
     lexiconStatus = "invalid";
   }
+  if (lexiconStatus === "reference_only") {
+    if (!warnedLexiconReferenceOnly) {
+      warnedLexiconReferenceOnly = true;
+      console.warn("[DataBaker][cvpc][liuzhou][ai] 没有字词对应表，检测到本地参考 CSV，已按无词表模式继续返回。", {
+        referenceFileName: "liuzhou-pronunciation-reference.csv",
+      });
+    }
+  }
   return {
     rulesText: String(source.ruleText || "").trim(),
     lexiconRows,
     lexiconStatus,
+    lexiconWarning,
   };
 }
 
@@ -551,6 +566,7 @@ function createHealthPayload(assetsContext) {
     reference: {
       lexiconRowCount: rows.length,
       lexiconStatus: normalizeText(assetsContext?.lexiconStatus || "missing"),
+      lexiconWarning: normalizeText(assetsContext?.lexiconWarning || ""),
       lexiconSource: "liuzhou-lexicon.json",
       lexiconReferenceSource: "liuzhou-pronunciation-reference.csv",
       rulesSource: "liuzhou-rules.md",

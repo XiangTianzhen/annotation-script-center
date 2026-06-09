@@ -2,7 +2,7 @@
 
 const path = require("node:path");
 const {
-  loadBusinessLexiconJson,
+  loadBusinessLexiconSource,
   normalizeText: normalizeBusinessLexiconText,
 } = require("../../../backend/business-lexicon");
 
@@ -10,6 +10,8 @@ const LEXICON_JSON_PATH = path.join(__dirname, "reference", "minnan-lexicon.json
 const LEXICON_REFERENCE_CSV_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
 
 let cachedLexiconState = null;
+let warnedReferenceOnly = false;
+let warnedReadFailure = false;
 
 function normalizeText(value) {
   return String(value || "")
@@ -132,12 +134,30 @@ function getLexiconState() {
   if (cachedLexiconState && cachedLexiconState.filePath === lexiconJsonPath) {
     return cachedLexiconState;
   }
-  const loaded = loadBusinessLexiconJson(lexiconJsonPath);
+  const loaded = loadBusinessLexiconSource(lexiconJsonPath, {
+    referencePaths: [LEXICON_REFERENCE_CSV_PATH],
+    warningMessage: "没有字词对应表",
+  });
+  if (loaded.status === "reference_only" && !warnedReferenceOnly) {
+    warnedReferenceOnly = true;
+    console.warn("[Aishell][minnan-helper][ai] 没有字词对应表，检测到本地参考 CSV，已按无词表模式继续返回。", {
+      fileName: path.basename(lexiconJsonPath),
+      referenceFileName: path.basename(loaded.referenceFilePath || LEXICON_REFERENCE_CSV_PATH),
+    });
+  }
+  if (!loaded.enabled && loaded.status !== "missing" && loaded.status !== "reference_only" && !warnedReadFailure) {
+    warnedReadFailure = true;
+    console.warn("[Aishell][minnan-helper][ai] 闽南语词表 JSON 读取失败，已按无词表模式继续返回。", {
+      fileName: path.basename(lexiconJsonPath),
+      status: loaded.status,
+      message: loaded.errorMessage || "",
+    });
+  }
   cachedLexiconState = buildLexiconState(
     parseStructuredLexiconRows(loaded.entries),
     loaded.status,
     "json",
-    loaded.errorMessage,
+    loaded.warningMessage || loaded.errorMessage,
     lexiconJsonPath
   );
   return cachedLexiconState;

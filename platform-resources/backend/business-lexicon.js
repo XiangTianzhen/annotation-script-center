@@ -161,7 +161,39 @@ function loadBusinessLexiconJson(filePath) {
   }
 }
 
+function findFirstExistingReferenceFile(referencePaths) {
+  const source = Array.isArray(referencePaths) ? referencePaths : [referencePaths];
+  for (let index = 0; index < source.length; index += 1) {
+    const candidatePath = normalizeText(source[index]);
+    if (candidatePath && fs.existsSync(candidatePath)) {
+      return candidatePath;
+    }
+  }
+  return "";
+}
+
+function loadBusinessLexiconSource(filePath, options) {
+  const source = options && typeof options === "object" ? options : {};
+  const referenceFilePath = findFirstExistingReferenceFile(source.referencePaths || []);
+  const loaded = loadBusinessLexiconJson(filePath);
+  if (loaded.status === "missing" && referenceFilePath) {
+    return Object.assign({}, loaded, {
+      status: "reference_only",
+      referenceExists: true,
+      referenceFilePath,
+      warningMessage: normalizeText(source.warningMessage || "没有字词对应表"),
+    });
+  }
+  return Object.assign({}, loaded, {
+    referenceExists: Boolean(referenceFilePath),
+    referenceFilePath,
+    warningMessage: "",
+  });
+}
+
 module.exports = {
+  findFirstExistingReferenceFile,
+  loadBusinessLexiconSource,
   loadBusinessLexiconJson,
   normalizeText,
   validateBusinessLexiconDocument,
