@@ -34,8 +34,8 @@ module.exports = {
     ruleText: {
       path: "assets/liuzhou-rules.md",
     },
-    lexiconCsv: {
-      path: "assets/liuzhou-pronunciation-reference.csv",
+    lexiconJson: {
+      jsonPath: "assets/liuzhou-lexicon.json",
     },
   },
   normalizeInput,

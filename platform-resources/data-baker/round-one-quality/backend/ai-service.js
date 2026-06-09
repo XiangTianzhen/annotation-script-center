@@ -56,13 +56,17 @@ const {
 } = require("./ai-job-store");
 const { rememberAiDebug } = require("./ai-debug-store");
 const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
+const {
+  loadBusinessLexiconJson,
+  normalizeText: normalizeBusinessLexiconText,
+} = require("../../../backend/business-lexicon");
 
 const RULE_VERSION = "data-baker-round-one-quality-ai-v11-direct-recommend-60s";
 const DEFAULT_OMNI_SINGLE_TEMPLATE = [
   "你要一次完成：听音、对比页面候选文本、输出最终推荐文本。",
   "页面候选文本只作为参考，实际发声优先。",
   "输出 JSON 字段必须包含 recommendedText、heardText、decision、changePoints、confidence、needHumanReview。",
-  "recommendedText 与 heardText 的普通中文统一输出简体；命中 minnan-lexicon.csv 的建议用字必须保留。",
+  "recommendedText 与 heardText 的普通中文统一输出简体；命中闽南业务词表 JSON 的建议用字必须保留。",
   "不要把方言建议用字改回普通话同义词。",
   "只输出 JSON，不要输出 Markdown 或解释文字。",
 ].join("\n");
@@ -77,7 +81,7 @@ const DEFAULT_COMPARE_TEMPLATE = [
   "听音阶段已经完成音频转写；你现在只负责比较 heardText 与页面候选文本，输出最终推荐文本。",
   "以实际发声为主，不因词表存在就无依据改写。",
   "recommendedText 的普通中文统一使用简体；pageText/heardText 中的普通繁体字应转换为简体。",
-  "但命中 minnan-lexicon.csv 的建议用字必须保持不变，不参与普通简繁转换。",
+  "但命中闽南业务词表 JSON 的建议用字必须保持不变，不参与普通简繁转换。",
   "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
@@ -92,7 +96,8 @@ const TOKEN_PRICE_CNY_PER_1K = {
 const DEFAULT_LOG_DIR = path.join(__dirname, "logs");
 const JSONL_FILE_NAME = "recommend-calls.jsonl";
 const CSV_FILE_NAME = "recommend-calls.csv";
-const MINNAN_LEXICON_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
+const MINNAN_LEXICON_JSON_PATH = path.join(__dirname, "reference", "minnan-lexicon.json");
+const MINNAN_LEXICON_REFERENCE_CSV_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
 const DEFAULT_CONTEXT_LIMIT = 40;
 const RECOGNITION_MODE_OPTIONS = [
   { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
@@ -1322,36 +1327,56 @@ function parseLexiconCsv(text) {
     .filter(Boolean);
 }
 
+function mapLexiconEntryFromBusinessJson(entry) {
+  const source = entry && typeof entry === "object" ? entry : {};
+  const id = normalizeBusinessLexiconText(source.id);
+  const suggested = normalizeBusinessLexiconText(source.display || source.normalized);
+  const mandarin = normalizeBusinessLexiconText(source.mandarin);
+  if (!splitTerms(suggested).length || !splitTerms(mandarin).length) {
+    return null;
+  }
+  return { id, suggested, mandarin };
+}
+
 function getLexiconState() {
   if (lexiconCache) {
     return lexiconCache;
   }
-  if (!fs.existsSync(MINNAN_LEXICON_PATH)) {
+  if (!fs.existsSync(MINNAN_LEXICON_JSON_PATH)) {
     if (!warnedMissing) {
       warnedMissing = true;
-      console.warn("[DataBaker][round-one-quality][ai] 闽南方言词表不存在，已跳过词表上下文。", {
-        fileName: path.basename(MINNAN_LEXICON_PATH),
+      console.warn("[DataBaker][round-one-quality][ai] 闽南业务词表 JSON 不存在，已跳过词表上下文。", {
+        fileName: path.basename(MINNAN_LEXICON_JSON_PATH),
+        referenceFileName: path.basename(MINNAN_LEXICON_REFERENCE_CSV_PATH),
       });
     }
-    lexiconCache = { exists: false, rows: [] };
+    lexiconCache = { exists: false, status: "missing", source: "json", rows: [] };
     return lexiconCache;
   }
-  try {
-    const text = fs.readFileSync(MINNAN_LEXICON_PATH, "utf8");
-    lexiconCache = {
-      exists: true,
-      rows: parseLexiconCsv(text),
-    };
-  } catch (error) {
+  const loaded = loadBusinessLexiconJson(MINNAN_LEXICON_JSON_PATH);
+  if (!loaded.enabled || loaded.status !== "ready") {
     if (!warnedReadFailure) {
       warnedReadFailure = true;
-      console.warn("[DataBaker][round-one-quality][ai] 闽南方言词表读取失败，已跳过词表上下文。", {
-        fileName: path.basename(MINNAN_LEXICON_PATH),
-        message: error && error.message ? error.message : String(error),
+      console.warn("[DataBaker][round-one-quality][ai] 闽南业务词表 JSON 读取失败，已跳过词表上下文。", {
+        fileName: path.basename(MINNAN_LEXICON_JSON_PATH),
+        status: loaded.status,
+        message: loaded.errorMessage || "",
       });
     }
-    lexiconCache = { exists: false, rows: [] };
+    lexiconCache = {
+      exists: false,
+      status: loaded.status || "error",
+      source: "json",
+      rows: [],
+    };
+    return lexiconCache;
   }
+  lexiconCache = {
+    exists: true,
+    status: "ready",
+    source: "json",
+    rows: loaded.entries.map(mapLexiconEntryFromBusinessJson).filter(Boolean),
+  };
   return lexiconCache;
 }
 
@@ -1401,7 +1426,7 @@ function getSuggestedTermForFrom(suggested, from) {
 
 function addRewriteRule(rules, seen, mandarin, suggested, source) {
   splitTerms(mandarin).forEach(function (from) {
-    if (!from || (source === "csv" && from.length < 2)) {
+    if (!from || (source === "json" && from.length < 2)) {
       return;
     }
     const to = getSuggestedTermForFrom(suggested, from);
@@ -1430,7 +1455,7 @@ function buildRewriteRules() {
     addRewriteRule(rules, seen, entry.mandarin, entry.suggested, "base");
   });
   state.rows.forEach(function (entry) {
-    addRewriteRule(rules, seen, entry.mandarin, entry.suggested, "csv");
+    addRewriteRule(rules, seen, entry.mandarin, entry.suggested, "json");
   });
   return rules.sort(function (left, right) {
     return right.from.length - left.from.length;
@@ -1545,7 +1570,7 @@ function buildLexiconContext(options) {
       id: entry.id,
       mandarin: entry.mandarin,
       suggested: entry.suggested,
-      source: "csv",
+      source: "json",
     });
   });
 
@@ -2824,7 +2849,8 @@ module.exports = {
   DEFAULT_COMPARE_TEMPLATE,
   DEFAULT_OMNI_LISTEN_TEMPLATE,
   DEFAULT_OMNI_SINGLE_TEMPLATE,
-  MINNAN_LEXICON_PATH,
+  MINNAN_LEXICON_JSON_PATH,
+  MINNAN_LEXICON_REFERENCE_CSV_PATH,
   RULE_VERSION,
   SUPPORTED_PIPELINE_MODES,
   __testOnly: {

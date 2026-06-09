@@ -88,12 +88,14 @@ round-one-quality/
     ai-routes.js
     ai-service.js
     reference/
+      minnan-lexicon.json
       minnan-lexicon.csv
 ```
 
 - `page-structure/README.md`：页面 DOM 结构、稳定选择器和当前可编辑文本框判断。
 - `network/README.md`：列表接口路径、请求参数、响应字段和缓存策略。
-- `backend/reference/minnan-lexicon.csv`：闽南方言字词表参考资料，用于 标贝易采 AI 推荐文本后端 prompt 上下文。
+- `backend/reference/minnan-lexicon.json`：闽南方言业务词表运行时主文件。
+- `backend/reference/minnan-lexicon.csv`：闽南方言字词表参考源，保留给人工整理、导入和外部 AI 处理使用，不再作为运行时主读取源。
 - `ai/`：DataBaker 接入统一 `platform-resources/backend/ai-framework/` 的项目 adapter 与未来 prompt/schema/lexicon 资产目录。
 - `data/`：DataBaker 脚本级数据逻辑目录。当前已开始收口 `adapter.js`、`field-mappings.js`、`scripts/csv.js`、`scripts/merge.js`、`scripts/download.js`、`scripts/upload.js`、`scripts/persist.js`、`scripts/fetch.js`，并补了 `assets/mappings` 与 `assets/samples`；真实导出运行数据仍在 `backend/export-data/`。
 - `backend/`：标贝易采 AI 推荐文本业务编排目录。当前业务层以 `ai-routes.js + ai-call-log.js + ai-service.js + ai-legacy-omni-service.js + ai-client-qwen-legacy.js` 组成；公共 AI provider、限流队列、缓存与 Python 辅助脚本统一收敛到 `platform-resources/backend/ai/`。`ai-routes.js` 的 recommend 入口已改为通过 `ai-framework` route factory 驱动，但对外仍保留旧接口响应结构。`ai-service.js` 继续负责 Fun-ASR REST 和当前通用链路，Omni legacy 快速路径独立收口在 `ai-legacy-omni-service.js`。
@@ -150,24 +152,30 @@ node platform-resources\backend\server.js
 
 ## 闽南方言词表
 
-后端已接入闽南方言字词表 CSV：
+后端当前已接入闽南方言业务词表 JSON：
+
+```text
+platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.json
+```
+
+参考源继续保留：
 
 ```text
 platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv
 ```
 
-词表既作为 Qwen prompt 上下文，也会默认以 `aggressive` 模式对最终推荐文本做强替换，用于帮助模型在“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“他/伊”等场景中选择更合适的字形。强替换只影响推荐文本展示，不会触发自动提交、自动保存或批量识别；如需关闭，可设置 `DATABAKER_AI_LEXICON_REWRITE_MODE=off`。词表缺失时后端仍可运行，但推荐文本效果会下降。后续更新词表时直接替换该 CSV 文件即可。
+业务词表既作为 Qwen prompt 上下文，也会默认以 `aggressive` 模式对最终推荐文本做强替换，用于帮助模型在“的/诶”“很/真”“喜欢/欢喜”“这位/即个”“他/伊”等场景中选择更合适的字形。强替换只影响推荐文本展示，不会触发自动提交、自动保存或批量识别；如需关闭，可设置 `DATABAKER_AI_LEXICON_REWRITE_MODE=off`。词表缺失时后端仍可运行，但推荐文本效果会下降。后续更新词条内容时，应先整理 JSON 主词表；CSV 只作参考源保留。
 
 AI prompt 输出字形规则：
 
 - 普通中文输出统一为简体中文（包含 `heardText` 与 `recommendedText`）。
 - 若输入文本包含普通繁体字，推荐文本需转换为普通简体。
-- `minnan-lexicon.csv` 命中的建议用字属于保留项，不参与普通简繁转换。
+- `minnan-lexicon.json` 命中的建议用字属于保留项，不参与普通简繁转换。
 - 词表命中优先于普通简繁转换，避免把方言建议用字改成普通话同义写法。
 
 后端也会在模型输出后对 `heardText` 与 `recommendedText` 做普通繁体转简体归一化（`pageText` 原始文本不改）；归一化前会先保护词表建议用字，保证 `阮/汝/伊/囡仔/诶` 等方言建议用字不被覆盖。
 
-词表括号内容全部按拼音 / 批注处理，不参与建议用字或对应华语，例如 `家（gei、dao）、厝（cuo）` 只会清洗出 `家`、`厝`。拉丁字母、拼音音调字母、数字注音和残留连接符也不会参与替换。CSV 单字映射默认跳过强替换，避免误伤 `家庭` 这类复合词；基础高频单字仍由后端 `BASE_ENTRIES` 显式维护，例如 `他 -> 伊`、`的 -> 诶`、`很 -> 真`、`吃 -> 食`。如果出现异常替换，优先检查 `minnan-lexicon.csv` 中是否含有括号批注或单字映射。
+词表括号内容全部按拼音 / 批注处理，不参与建议用字或对应华语，例如 `家（gei、dao）、厝（cuo）` 只会清洗出 `家`、`厝`。拉丁字母、拼音音调字母、数字注音和残留连接符也不会参与替换。单字映射默认跳过强替换，避免误伤 `家庭` 这类复合词；基础高频单字仍由后端 `BASE_ENTRIES` 显式维护，例如 `他 -> 伊`、`的 -> 诶`、`很 -> 真`、`吃 -> 食`。如果出现异常替换，优先检查 `minnan-lexicon.json` 与参考源 `minnan-lexicon.csv` 的词条整理是否一致。
 
 后端会对 AI 听音文本和最终 AI 推荐文本删除普通空格、全角空格、Tab 和换行，推荐卡展示、复制、填入和调用日志都使用清理后的文本；页面候选文本原文不做去空格处理。
 

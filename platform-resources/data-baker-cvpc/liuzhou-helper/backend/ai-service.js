@@ -9,6 +9,7 @@ const {
   normalizeUsage,
   parseModelJsonText,
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
+const { validateBusinessLexiconDocument } = require("../../../backend/business-lexicon");
 
 const SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
 const DEFAULT_TIMEOUT_MS = 60000;
@@ -338,49 +339,46 @@ function normalizeRecommendRequest(body) {
   };
 }
 
-function buildLexiconRows(text) {
-  const lines = String(text || "")
-    .split(/\r?\n/)
-    .map(function (line) {
-      return String(line || "").replace(/\r/g, "");
-    })
-    .filter(function (line) {
-      return normalizeText(line);
-    });
-  if (lines.length < 2) {
+function buildLexiconRows(document) {
+  const normalizedDocument = validateBusinessLexiconDocument(document || {});
+  const entries = Array.isArray(normalizedDocument.entries) ? normalizedDocument.entries : [];
+  if (entries.length <= 0) {
     return [];
   }
-  const headers = parseCsvLine(lines[0]).map(function (header, index) {
-    const textValue = index === 0 ? String(header || "").replace(/^\uFEFF/, "") : header;
-    return normalizeText(textValue);
-  });
-  return lines
-    .slice(1)
-    .map(function (line) {
-      const cells = parseCsvLine(line);
-      const row = {};
-      headers.forEach(function (header, index) {
-        if (header) {
-          row[header] = normalizeText(cells[index]);
-        }
-      });
-      return row;
+  return entries
+    .map(function (entry) {
+      return {
+        id: normalizeText(entry.id),
+        normalized: normalizeText(entry.normalized),
+        display: normalizeText(entry.display),
+        mandarin: normalizeText(entry.mandarin),
+        aliases: normalizeList(entry.aliases || [], 20),
+        notes: normalizeList(entry.notes || [], 20),
+        tags: normalizeList(entry.tags || [], 20),
+      };
     })
     .filter(function (row) {
-      return (
-        normalizeText(row?.["柳州话读音"]) ||
-        normalizeText(row?.["柳州字转写用字"]) ||
-        normalizeText(row?.["释义"])
-      );
+      return row.normalized && row.display && row.mandarin;
     });
 }
 
 function buildAssetsContext(assets) {
   const source = assets && typeof assets === "object" ? assets : {};
-  const lexiconRows = buildLexiconRows(source.lexiconCsv);
+  let lexiconRows = [];
+  let lexiconStatus = "missing";
+  try {
+    if (source.lexiconJson) {
+      lexiconRows = buildLexiconRows(source.lexiconJson);
+      lexiconStatus = "ready";
+    }
+  } catch (_error) {
+    lexiconRows = [];
+    lexiconStatus = "invalid";
+  }
   return {
     rulesText: String(source.ruleText || "").trim(),
     lexiconRows,
+    lexiconStatus,
   };
 }
 
@@ -391,29 +389,30 @@ function buildRelevantLexiconContext(assetsContext, hintTexts) {
     .filter(Boolean)
     .join(" ");
   const matches = rows.filter(function (row) {
-    const reading = normalizeText(row?.["柳州话读音"]);
-    const dialectWord = normalizeText(row?.["柳州字转写用字"]);
-    const meaning = normalizeText(row?.["释义"]);
+    const dialectWord = normalizeText(row?.display || row?.normalized);
+    const meaning = normalizeText(row?.mandarin);
     if (!hintText) {
       return false;
     }
     return (
       (dialectWord && hintText.indexOf(dialectWord) >= 0) ||
-      (meaning && hintText.indexOf(meaning) >= 0) ||
-      (reading && hintText.indexOf(reading) >= 0)
+      (meaning && hintText.indexOf(meaning) >= 0)
     );
   });
   const shortlist = (matches.length > 0 ? matches : rows).slice(0, 24);
   return shortlist
     .map(function (row) {
       return {
-        reading: normalizeText(row?.["柳州话读音"]),
-        dialectWord: normalizeText(row?.["柳州字转写用字"]),
-        meaning: normalizeText(row?.["释义"]),
+        id: normalizeText(row?.id),
+        dialectWord: normalizeText(row?.display || row?.normalized),
+        meaning: normalizeText(row?.mandarin),
+        aliases: normalizeList(row?.aliases || [], 20),
+        notes: normalizeList(row?.notes || [], 20),
+        tags: normalizeList(row?.tags || [], 20),
       };
     })
     .filter(function (row) {
-      return row.reading || row.dialectWord || row.meaning;
+      return row.dialectWord || row.meaning;
     });
 }
 
@@ -426,8 +425,8 @@ function buildMandarinDraftFromLexicon(assetsContext, dialectText) {
   const dictionary = rows
     .map(function (row) {
       return {
-        dialectWord: normalizeText(row?.["柳州字转写用字"]),
-        meaning: normalizeText(row?.["释义"]),
+        dialectWord: normalizeText(row?.display || row?.normalized),
+        meaning: normalizeText(row?.mandarin),
       };
     })
     .filter(function (row) {
@@ -551,7 +550,9 @@ function createHealthPayload(assetsContext) {
     },
     reference: {
       lexiconRowCount: rows.length,
-      lexiconSource: "liuzhou-pronunciation-reference.csv",
+      lexiconStatus: normalizeText(assetsContext?.lexiconStatus || "missing"),
+      lexiconSource: "liuzhou-lexicon.json",
+      lexiconReferenceSource: "liuzhou-pronunciation-reference.csv",
       rulesSource: "liuzhou-rules.md",
     },
     contract: {

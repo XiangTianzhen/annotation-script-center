@@ -33,7 +33,8 @@
 
 ## 词表
 
-- `./lexicon/minnan-lexicon.csv`
+- `./lexicon/minnan-lexicon.json`
+- `./lexicon/minnan-lexicon.csv`（参考源）
 - 可用 `tools/convert-hakka-lexicon.js`（兼容脚本名，输出已改为闽南语词表路径）转换自定义表格。
 
 ## 配置（优先级：MINNAN 前缀 > 旧通用前缀）

@@ -1,13 +1,13 @@
 "use strict";
 
-const fs = require("node:fs");
 const path = require("node:path");
-
 const {
-  parseLexiconCsv,
-} = require("../../../data-baker/round-one-quality/backend/ai-service");
+  loadBusinessLexiconJson,
+  normalizeText: normalizeBusinessLexiconText,
+} = require("../../../backend/business-lexicon");
 
-const LEXICON_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
+const LEXICON_JSON_PATH = path.join(__dirname, "reference", "minnan-lexicon.json");
+const LEXICON_REFERENCE_CSV_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
 
 let cachedLexiconState = null;
 
@@ -53,14 +53,30 @@ function uniqueTerms(values) {
   return result;
 }
 
-function parseStructuredLexiconRows(text) {
-  return parseLexiconCsv(text)
-    .map(function (row) {
-      const id = normalizeText(row?.id);
-      const suggested = normalizeText(row?.suggested);
-      const mandarin = normalizeText(row?.mandarin);
-      const suggestedVariants = uniqueTerms(splitLexiconTerms(suggested));
+function resolveLexiconJsonPath() {
+  return normalizeBusinessLexiconText(process.env.ASC_AISHELL_MINNAN_LEXICON_JSON_PATH) || LEXICON_JSON_PATH;
+}
+
+function parseStructuredLexiconRows(entries) {
+  return (Array.isArray(entries) ? entries : [])
+    .map(function (entry) {
+      const id = normalizeBusinessLexiconText(entry?.id);
+      const suggested = normalizeBusinessLexiconText(entry?.display || entry?.normalized);
+      const mandarin = normalizeBusinessLexiconText(entry?.mandarin);
+      const matchTerms = uniqueTerms(
+        [entry?.normalized, entry?.display]
+          .concat(Array.isArray(entry?.aliases) ? entry.aliases : [])
+          .map(splitLexiconTerms)
+          .flat()
+      );
+      const suggestedVariants = uniqueTerms(
+        [suggested]
+          .concat(Array.isArray(entry?.aliases) ? entry.aliases : [])
+          .map(splitLexiconTerms)
+          .flat()
+      );
       const mandarinVariants = uniqueTerms(splitLexiconTerms(mandarin));
+      const inputVariants = uniqueTerms(matchTerms.concat(mandarinVariants));
       if (!suggestedVariants.length || !mandarinVariants.length) {
         return null;
       }
@@ -70,21 +86,26 @@ function parseStructuredLexiconRows(text) {
         mandarin,
         rawRow: {
           id,
-          suggested,
+          normalized: normalizeBusinessLexiconText(entry?.normalized),
+          display: normalizeBusinessLexiconText(entry?.display),
           mandarin,
+          aliases: uniqueTerms(Array.isArray(entry?.aliases) ? entry.aliases : []),
+          notes: uniqueTerms(Array.isArray(entry?.notes) ? entry.notes : []),
+          tags: uniqueTerms(Array.isArray(entry?.tags) ? entry.tags : []),
         },
         suggestedVariants,
         mandarinVariants,
+        inputVariants,
       };
     })
     .filter(Boolean);
 }
 
-function buildLexiconState(rows) {
+function buildLexiconState(rows, status, source, errorMessage, filePath) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const indexByMandarin = new Map();
   safeRows.forEach(function (row) {
-    row.mandarinVariants.forEach(function (variant) {
+    row.inputVariants.forEach(function (variant) {
       const list = indexByMandarin.get(variant) || [];
       list.push(row);
       indexByMandarin.set(variant, list);
@@ -96,6 +117,10 @@ function buildLexiconState(rows) {
   return {
     exists: safeRows.length > 0,
     rowCount: safeRows.length,
+    status: normalizeText(status) || (safeRows.length > 0 ? "ready" : "missing"),
+    source: normalizeText(source) || "json",
+    errorMessage: normalizeText(errorMessage),
+    filePath: normalizeText(filePath),
     rows: safeRows,
     indexByMandarin,
     mandarinVariants,
@@ -103,15 +128,18 @@ function buildLexiconState(rows) {
 }
 
 function getLexiconState() {
-  if (cachedLexiconState) {
+  const lexiconJsonPath = resolveLexiconJsonPath();
+  if (cachedLexiconState && cachedLexiconState.filePath === lexiconJsonPath) {
     return cachedLexiconState;
   }
-  try {
-    const text = fs.readFileSync(LEXICON_PATH, "utf8");
-    cachedLexiconState = buildLexiconState(parseStructuredLexiconRows(text));
-  } catch (_error) {
-    cachedLexiconState = buildLexiconState([]);
-  }
+  const loaded = loadBusinessLexiconJson(lexiconJsonPath);
+  cachedLexiconState = buildLexiconState(
+    parseStructuredLexiconRows(loaded.entries),
+    loaded.status,
+    "json",
+    loaded.errorMessage,
+    lexiconJsonPath
+  );
   return cachedLexiconState;
 }
 
@@ -322,8 +350,10 @@ function composeResolvedConvertText(plan, resolvedSegments) {
 }
 
 module.exports = {
-  LEXICON_PATH,
+  LEXICON_JSON_PATH,
+  LEXICON_REFERENCE_CSV_PATH,
   buildRuleFirstConvertPlan,
   composeResolvedConvertText,
   getLexiconState,
+  resolveLexiconJsonPath,
 };

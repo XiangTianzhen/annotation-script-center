@@ -1,8 +1,5 @@
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
-
 const {
   DEFAULT_AUDIO_FIRST_REFERENCE_CORRECTION_THRESHOLD,
   DEFAULT_COMPARE_MODEL,
@@ -31,12 +28,13 @@ const {
 const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
 const {
   getLexiconState,
+  LEXICON_JSON_PATH,
+  LEXICON_REFERENCE_CSV_PATH,
 } = require("./lexicon");
 
 const SERVICE_NAME = "aishell-tech-minnan-helper-ai-recommend";
 const SCRIPT_ID = "aishellTechMinnanAssistant";
 const COMPONENT_NAME = "asr-voice-ai";
-const LEXICON_PATH = path.join(__dirname, "reference", "minnan-lexicon.csv");
 const DEFAULT_MODEL_MODE = "two_stage";
 const DEFAULT_RECOGNITION_STRATEGY = "audio_first_reference";
 const DEFAULT_COMPARE_FAMILY = "qwen";
@@ -79,7 +77,7 @@ const DEFAULT_AUDIO_FIRST_REFERENCE_COMPARE_TEMPLATE = [
   "当 convertedText 与 heardText 发音接近、语义一致，且你对标准写法有把握时，可以采用转换文本中的写法。",
   "audioFirstReferenceCorrectionThreshold 是采纳阈值；当 correctionConfidence 低于该阈值时，应优先保留 heardText，并将 needHumanReview 设为 true。",
   "当低于阈值但存在明显冲突时，candidateDecisions 里要明确说明原因；不要为了命中词表而强行转换。",
-  "recommendedText 与 heardText 的普通中文统一输出简体；命中 minnan-lexicon.csv 的建议用字只在确认音频确实这样读，或确认候选标准化更合理时才保留。",
+  "recommendedText 与 heardText 的普通中文统一输出简体；命中闽南业务词表 JSON 的建议用字只在确认音频确实这样读，或确认候选标准化更合理时才保留。",
   "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview、correctionConfidence、candidateDecisions。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
@@ -383,31 +381,18 @@ function applyStrategyPromptDefaults(aiOptions, recognitionStrategy) {
 }
 
 function buildLexiconState() {
-  if (!fs.existsSync(LEXICON_PATH)) {
-    return {
-      enabled: false,
-      status: "missing",
-      source: path.basename(LEXICON_PATH),
-      rowCount: 0,
-    };
-  }
-  try {
-    const state = getLexiconState();
-    return {
-      enabled: Number(state?.rowCount || 0) > 0,
-      status: Number(state?.rowCount || 0) > 0 ? "ready" : "empty",
-      source: path.basename(LEXICON_PATH),
-      rowCount: Number(state?.rowCount || 0) || 0,
-    };
-  } catch (error) {
-    return {
-      enabled: false,
-      status: "read-failed",
-      source: path.basename(LEXICON_PATH),
-      rowCount: 0,
-      message: normalizeText(error?.message).slice(0, 160),
-    };
-  }
+  const state = getLexiconState();
+  return {
+    enabled: Number(state?.rowCount || 0) > 0 && normalizeText(state?.status) === "ready",
+    status: normalizeText(state?.status) || "missing",
+    source: "json",
+    sourceFile: "minnan-lexicon.json",
+    referenceSourceFile: "minnan-lexicon.csv",
+    sourcePath: normalizeText(state?.filePath) || LEXICON_JSON_PATH,
+    referenceSourcePath: LEXICON_REFERENCE_CSV_PATH,
+    rowCount: Number(state?.rowCount || 0) || 0,
+    message: normalizeText(state?.errorMessage).slice(0, 160),
+  };
 }
 
 function normalizeRecommendRequest(body) {
@@ -770,7 +755,8 @@ function createDefaultsPayload() {
 
 module.exports = {
   COMPONENT_NAME,
-  LEXICON_PATH,
+  LEXICON_JSON_PATH,
+  LEXICON_REFERENCE_CSV_PATH,
   SCRIPT_ID,
   SERVICE_NAME,
   buildRecommendErrorBody,

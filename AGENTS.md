@@ -70,6 +70,26 @@
 - 需要保留空目录时使用 `.gitkeep`。
 - 资料目录禁止写入 token、cookie、authorization、完整签名 URL、真实敏感文本。
 
+### 业务词表治理规则
+
+- 当前纳入统一治理的业务词表主格式固定为 `JSON`；`CSV / XLSX` 只保留为参考源、原始来源或导入来源，不再作为业务运行时主读取源。
+- 当前统一治理范围仅指以下 5 份业务词表：
+  - `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.json`
+  - `platform-resources/aishell-tech/minnan-helper/backend/reference/minnan-lexicon.json`
+  - `platform-resources/magic-data/hakka-helper/backend/lexicon/hakka-lexicon.json`
+  - `platform-resources/magic-data/minnan-helper/backend/lexicon/minnan-lexicon.json`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-lexicon.json`
+- 处理“字词表 / 词表 / lexicon”类任务时，默认先输出一段交给外部 AI 的词表处理 Prompt；除非用户明确推翻该规则，不直接新增或修改词条内容。
+- Codex 可以改：
+  - 词表 JSON schema / 校验器
+  - 运行时代码接入
+  - 文档与测试
+  - 参考源到 JSON 的处理 Prompt
+- Codex 默认不改：
+  - 词表 JSON 里的具体词条内容
+  - 用户自行维护的推荐释义、别名、备注
+- 词表 JSON 结构与协作流程以 `docs/workflow/lexicon-json-workflow.md` 为准。
+
 ## shared 模块规则（项目级）
 
 - `extension/sites/alibaba-labelx/shared/audio-controller-core.js`：LabelX 快判/转写通用音频核心。

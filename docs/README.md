@@ -25,6 +25,7 @@
 - `docs/superpowers/specs/2026-06-04-beta-build-and-hidden-unlock-design.md`：正式包 / beta 包与隐藏解锁设计
 - `docs/platforms/index.md`：平台与脚本文档索引
 - `docs/workflow/codex-prompt-style.md`：Codex Prompt 输出格式规范
+- `docs/workflow/lexicon-json-workflow.md`：业务词表 JSON 工作流与 Prompt 模板
 - `docs/workflow/manual-flow-acceptance-checklist.md`：人工验收清单
 - `docs/external-docs/aliyun-bailian.md`：阿里云百炼官方文档索引
 - `docs/rules/project-collaboration-rules.md`：项目级协作规则（Prompt 下载文件、资料补充提醒、重复代码复用、CSS/SCSS、中文 commit、patch 小版本）

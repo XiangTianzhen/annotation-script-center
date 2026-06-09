@@ -10,7 +10,8 @@
 - `backend/index.js`：闽南语助手后端注册入口。
 - `backend/ai-routes.js`：闽南语助手 AI 路由注册；`review-current` 已改为通过统一 `ai-framework` route factory 驱动，但外部响应结构保持兼容。
 - `backend/ai-*.js`：闽南语助手 AI 能力实现（模型调用、Prompt、词表、日志、成本估算）。
-- `backend/lexicon/minnan-lexicon.csv`：闽南语词表（后端运行时读取）。
+- `backend/lexicon/minnan-lexicon.json`：闽南语业务词表运行时主文件。
+- `backend/lexicon/minnan-lexicon.csv`：闽南语词表参考源。
 - `backend/tools/convert-hakka-lexicon.js`：闽南语词表转换脚本（文件名保留兼容，输入输出已是闽南语词表）。
 - `network/.gitkeep`：当前无助手专属 Network 差异；共用结构见平台根目录 `network/`。
 - `page-structure/.gitkeep`：当前无助手专属页面结构差异；共用结构见平台根目录 `page-structure/`。
@@ -77,7 +78,8 @@
 
 ## 词表与环境变量
 
-- 闽南语词表：`backend/lexicon/minnan-lexicon.csv`（不依赖 DataBaker 运行时路径）。
+- 闽南语业务词表：`backend/lexicon/minnan-lexicon.json`（不依赖 DataBaker 运行时路径）。
+- 闽南语参考源：`backend/lexicon/minnan-lexicon.csv`。
 - 环境变量优先级：`MAGIC_DATA_MINNAN_AI_*` > `MAGIC_DATA_AI_*`。
 - `DASHSCOPE_API_KEY` / `DASHSCOPE_BASE_URL` 仍是统一 provider 配置。
 

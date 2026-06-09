@@ -69,6 +69,41 @@ test("liuzhou defaults and health expose staged listen/refine defaults", functio
   assert.equal(healthPayload.reference?.lexiconRowCount, 1);
 });
 
+test("liuzhou buildAssetsContext accepts json lexicon assets", function () {
+  const assetsContext = buildAssetsContext({
+    lexiconJson: {
+      schemaVersion: "1",
+      language: "liuzhou_dialect",
+      mode: "rule_lexicon",
+      sourceFiles: ["assets/liuzhou-pronunciation-reference.csv"],
+      updatedAt: "2026-06-09T00:00:00.000Z",
+      entries: [
+        {
+          id: "lz-001",
+          normalized: "挨",
+          display: "挨",
+          mandarin: "被",
+          aliases: [],
+          notes: ["用于被动含义"],
+          tags: ["function_word"],
+        },
+      ],
+    },
+    ruleText: "规则一",
+  });
+
+  assert.equal(assetsContext.lexiconRows.length, 1);
+  assert.deepEqual(assetsContext.lexiconRows[0], {
+    id: "lz-001",
+    normalized: "挨",
+    display: "挨",
+    mandarin: "被",
+    aliases: [],
+    notes: ["用于被动含义"],
+    tags: ["function_word"],
+  });
+});
+
 test("liuzhou normalizeRecommendRequest maps aiStages into standalone listen/refine config", function () {
   const request = normalizeRecommendRequest({
     audioDataUrl: "data:audio/wav;base64,UklGRg==",
@@ -167,7 +202,24 @@ test("liuzhou recommend runs listen plus refine stages and returns heard dialect
       })
     ),
     buildAssetsContext({
-      lexiconCsv: "柳州话读音,柳州字转写用字,释义\nlau1,柳,柳树",
+      lexiconJson: {
+        schemaVersion: "1",
+        language: "liuzhou_dialect",
+        mode: "rule_lexicon",
+        sourceFiles: ["assets/liuzhou-pronunciation-reference.csv"],
+        updatedAt: "2026-06-09T00:00:00.000Z",
+        entries: [
+          {
+            id: "lz-001",
+            normalized: "柳",
+            display: "柳",
+            mandarin: "柳树",
+            aliases: [],
+            notes: [],
+            tags: [],
+          },
+        ],
+      },
       ruleText: "规则一",
     }),
     {
@@ -234,7 +286,14 @@ test("liuzhou recommend accepts current-segment base64 audio without legacy clip
   const result = await recommend(
     normalizeRecommendRequest(createBaseRequest()),
     buildAssetsContext({
-      lexiconCsv: "",
+      lexiconJson: {
+        schemaVersion: "1",
+        language: "liuzhou_dialect",
+        mode: "rule_lexicon",
+        sourceFiles: [],
+        updatedAt: "2026-06-09T00:00:00.000Z",
+        entries: [],
+      },
       ruleText: "规则一",
     }),
     {
@@ -275,7 +334,24 @@ test("liuzhou recommend keeps whole-audio url compatibility for omni listen stag
       })
     ),
     buildAssetsContext({
-      lexiconCsv: "柳州话读音,柳州字转写用字,释义\nlau1,柳,柳树",
+      lexiconJson: {
+        schemaVersion: "1",
+        language: "liuzhou_dialect",
+        mode: "rule_lexicon",
+        sourceFiles: ["assets/liuzhou-pronunciation-reference.csv"],
+        updatedAt: "2026-06-09T00:00:00.000Z",
+        entries: [
+          {
+            id: "lz-001",
+            normalized: "柳",
+            display: "柳",
+            mandarin: "柳树",
+            aliases: [],
+            notes: [],
+            tags: [],
+          },
+        ],
+      },
       ruleText: "规则一",
     }),
     {

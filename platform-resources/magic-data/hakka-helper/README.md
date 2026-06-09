@@ -11,7 +11,8 @@
 - `backend/ai-routes.js`：客家话助手 AI 路由；`review-current` 已改为通过统一 `ai-framework` route factory 驱动，同时保留旧 `annotator` 兼容 API。
 - `backend/ai-review-request.js`：客家话助手请求归一 helper，供 adapter 与旧业务层共用。
 - `backend/ai-*.js`：客家话助手 AI 能力实现（模型调用、Prompt、词表、日志、成本估算）。
-- `backend/lexicon/hakka-lexicon.csv`：客家话词表（后端运行时读取）。
+- `backend/lexicon/hakka-lexicon.json`：客家话业务词表运行时主文件。
+- `backend/lexicon/hakka-lexicon.csv`：客家话词表参考源。
 - `backend/lexicon/客家话-正字表.xlsx`：词表原始来源文件（可选）。
 - `backend/tools/convert-hakka-lexicon.js`：词表转换脚本。
 - `network/.gitkeep`：当前无助手专属 Network 差异；共用结构见平台根目录 `network/`。

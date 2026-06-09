@@ -3,11 +3,12 @@
 ## 文件约定
 
 - Excel 原始文件：`客家话-正字表.xlsx`
-- 后端读取 CSV：`hakka-lexicon.csv`
+- 后端运行时主读 JSON：`hakka-lexicon.json`
+- 参考源 CSV：`hakka-lexicon.csv`
 
 ## 说明
 
-- 后端实际读取 `hakka-lexicon.csv`。
+- 后端实际读取 `hakka-lexicon.json`。
 - 第一版是“词表提示模式”，不做强替换。
 - 如果没有词表文件，后端仍可运行，接口返回 `lexicon.status=missing`。
 

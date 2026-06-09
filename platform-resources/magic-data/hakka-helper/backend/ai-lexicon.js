@@ -2,8 +2,13 @@
 
 const fs = require("fs");
 const path = require("path");
+const {
+  loadBusinessLexiconJson,
+  normalizeText: normalizeBusinessLexiconText,
+} = require("../../../backend/business-lexicon");
 
 const HAKKA_XLSX_PATH = path.join(__dirname, "lexicon", "客家话-正字表.xlsx");
+const HAKKA_JSON_PATH = path.join(__dirname, "lexicon", "hakka-lexicon.json");
 const HAKKA_CSV_PATH = path.join(__dirname, "lexicon", "hakka-lexicon.csv");
 const DEFAULT_LIMIT = 30;
 
@@ -129,48 +134,73 @@ function parseLexiconCsv(text) {
     .filter(Boolean);
 }
 
+function mapBusinessLexiconEntries(entries) {
+  return (Array.isArray(entries) ? entries : [])
+    .map(function (entry) {
+      const id = normalizeBusinessLexiconText(entry?.id);
+      const unifiedText = normalizeBusinessLexiconText(entry?.display || entry?.normalized);
+      const mandarinText = normalizeBusinessLexiconText(entry?.mandarin);
+      const aliases = Array.isArray(entry?.aliases) ? entry.aliases.map(normalizeText) : [];
+      if (!unifiedText && !mandarinText) {
+        return null;
+      }
+      return {
+        serial: id,
+        phonetic: "",
+        unified: unifiedText,
+        acceptable: uniqueTerms(aliases).join("、"),
+        dictionaryRef: "",
+        mandarin: mandarinText,
+        priority: 9999,
+      };
+    })
+    .filter(Boolean);
+}
+
 function getLexiconState() {
   if (cachedState) {
     return cachedState;
   }
-  if (!fs.existsSync(HAKKA_CSV_PATH)) {
+  if (!fs.existsSync(HAKKA_JSON_PATH)) {
     if (!warnedMissing) {
       warnedMissing = true;
-      console.warn("[MagicData][hakka][ai] 客家话词表 CSV 缺失，复核将降级为无词表模式。", {
+      console.warn("[MagicData][hakka][ai] 客家话词表 JSON 缺失，复核将降级为无词表模式。", {
         xlsxExists: fs.existsSync(HAKKA_XLSX_PATH),
+        referenceCsvExists: fs.existsSync(HAKKA_CSV_PATH),
       });
     }
     cachedState = {
       enabled: false,
       status: "missing",
       rows: [],
-      source: fs.existsSync(HAKKA_XLSX_PATH) ? "xlsx-only" : "none",
+      source: "json",
     };
     return cachedState;
   }
 
-  try {
-    const text = fs.readFileSync(HAKKA_CSV_PATH, "utf8");
-    cachedState = {
-      enabled: true,
-      status: "ready",
-      rows: parseLexiconCsv(text),
-      source: "csv",
-    };
-  } catch (error) {
+  const loaded = loadBusinessLexiconJson(HAKKA_JSON_PATH);
+  if (!loaded.enabled || loaded.status !== "ready") {
     if (!warnedError) {
       warnedError = true;
-      console.warn("[MagicData][hakka][ai] 客家话词表 CSV 读取失败，复核将降级为无词表模式。", {
-        message: error && error.message ? error.message : String(error),
+      console.warn("[MagicData][hakka][ai] 客家话词表 JSON 读取失败，复核将降级为无词表模式。", {
+        message: loaded.errorMessage || "",
+        status: loaded.status,
       });
     }
     cachedState = {
       enabled: false,
-      status: "error",
+      status: loaded.status || "error",
       rows: [],
-      source: "csv",
+      source: "json",
     };
+    return cachedState;
   }
+  cachedState = {
+    enabled: true,
+    status: "ready",
+    rows: mapBusinessLexiconEntries(loaded.entries),
+    source: "json",
+  };
   return cachedState;
 }
 
@@ -269,6 +299,7 @@ function buildLexiconContext(input) {
 
 module.exports = {
   HAKKA_CSV_PATH,
+  HAKKA_JSON_PATH,
   HAKKA_XLSX_PATH,
   buildLexiconContext,
   getLexiconState,

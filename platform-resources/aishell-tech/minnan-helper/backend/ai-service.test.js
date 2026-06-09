@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
@@ -17,6 +18,34 @@ const {
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
 
 const aishellLexiconPath = path.join(__dirname, "reference", "minnan-lexicon.csv");
+
+function createTempLexiconJsonFromCsv() {
+  const rows = parseLexiconCsv(fs.readFileSync(aishellLexiconPath, "utf8"));
+  const document = {
+    schemaVersion: "1",
+    language: "minnan",
+    mode: "rule_lexicon",
+    sourceFiles: ["reference/minnan-lexicon.csv"],
+    updatedAt: "2026-06-09T00:00:00.000Z",
+    entries: rows.map(function (row, index) {
+      return {
+        id: row.id || "aishell-mn-" + String(index + 1).padStart(4, "0"),
+        normalized: row.suggested,
+        display: row.suggested,
+        mandarin: row.mandarin,
+        aliases: [],
+        notes: [],
+        tags: ["aishell-test-fixture"],
+      };
+    }),
+  };
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "asc-aishell-lexicon-"));
+  const jsonPath = path.join(tempDir, "minnan-lexicon.json");
+  fs.writeFileSync(jsonPath, JSON.stringify(document, null, 2), "utf8");
+  return jsonPath;
+}
+
+process.env.ASC_AISHELL_MINNAN_LEXICON_JSON_PATH = createTempLexiconJsonFromCsv();
 
 function createDeferred() {
   let resolve = null;

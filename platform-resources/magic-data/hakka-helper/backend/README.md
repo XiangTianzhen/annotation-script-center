@@ -34,7 +34,8 @@
 
 ## 词表
 
-- `./lexicon/hakka-lexicon.csv`
+- `./lexicon/hakka-lexicon.json`
+- `./lexicon/hakka-lexicon.csv`（参考源）
 
 ## 配置（优先级：HAKKA 前缀 > 旧通用前缀）
 
