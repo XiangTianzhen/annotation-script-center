@@ -1,3 +1,20 @@
+## 2026-06-09（DataBaker CVPC 柳州话脚本当前段识别改为 Base64 Data URL）
+
+- `DataBaker CVPC / 柳州话脚本` 当前段识别链路当前完成收口：
+  - 前端 `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js` 不再把当前段裁剪结果上传 `clip-cache`，而是直接把 `16k` 单声道 WAV 拼成 `audioDataUrl` 发给 `ai/recommend`。
+  - 后端 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 当前同时兼容 `audioDataUrl` 与 `audioUrl` 两种输入：当前段优先走 Base64，整音频场景继续保留公网 URL。
+  - `platform-resources/backend/ai/providers/qwen-openai-compatible.js` 当前对 Omni `input_audio.data` 同时支持 Data URL 和传统 URL，并补齐 Data URL 的音频格式推断。
+- 当前边界同步收紧：
+  - 当前段 Base64 裁剪链路只支持 `qwen3.5-omni-plus / qwen3.5-omni-flash`。
+  - 若当前段听音模型切到 `fun-asr`，前后端都会直接 fail closed，不再静默退回整音频或旧 clip-cache URL。
+  - `ai/recommend` 路由请求体上限当前提升到 `15MB`，避免较长当前段的 Base64 请求体被默认 `3MB` 限制拦截。
+- 同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.test.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+
 ## 2026-06-09（DataBaker CVPC 柳州话脚本删除 clip URL 可达性探测）
 
 - 修复 `DataBaker CVPC / 柳州话脚本` 当前段 AI 推荐在 clip 已上传但推荐接口仍报 `clip-audio-unavailable` 的一类误判：

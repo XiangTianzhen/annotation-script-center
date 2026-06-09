@@ -1,8 +1,6 @@
 (function () {
   const DEFAULT_TIMEOUT_MS = 60000;
   const DEFAULT_PATH = "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
-  const DEFAULT_CLIP_CACHE_UPLOAD_PATH =
-    "/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload";
   const TARGET_SAMPLE_RATE = 16000;
 
   function normalizeText(value) {
@@ -143,23 +141,6 @@
     throw new Error("当前环境不支持 base64 编码。");
   }
 
-  async function hashText(value) {
-    const text = normalizeText(value);
-    if (!text) {
-      return "";
-    }
-    const subtle = globalThis.crypto && globalThis.crypto.subtle;
-    if (!subtle || typeof TextEncoder !== "function") {
-      return "";
-    }
-    const digest = await subtle.digest("SHA-256", new TextEncoder().encode(text));
-    return Array.from(new Uint8Array(digest))
-      .map(function (item) {
-        return item.toString(16).padStart(2, "0");
-      })
-      .join("");
-  }
-
   async function fetchAudioBuffer(audioUrl) {
     const response = await fetch(audioUrl);
     if (!response.ok) {
@@ -219,40 +200,13 @@
     return bytesToBase64(wavBytes);
   }
 
-  async function uploadClip(config, context, selectedRange) {
-    const uploadEndpoint = normalizeText(config.clipCacheUploadEndpoint) || DEFAULT_CLIP_CACHE_UPLOAD_PATH;
-    if (isLocalOnlyEndpoint(uploadEndpoint)) {
-      throw new Error("当前段裁剪上传只支持 server 后端地址，local 127.0.0.1 不受支持。");
-    }
-    const clipBase64 = await createClipBase64(context.audioUrl, selectedRange);
-    const requestBody = {
-      clipBase64,
-      contentType: "audio/wav",
-      sourceFileName: normalizeText(context.selectedEntry?.name) || "clip.wav",
-      sourceAudioUrlHash: await hashText(context.audioUrl),
-      startMs: selectedRange.startMs,
-      endMs: selectedRange.endMs,
-    };
-    const response = await fetch(uploadEndpoint, {
-      method: "POST",
-      credentials: "omit",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-    const payload = await response.json().catch(function () {
-      return null;
-    });
-    if (!response.ok || !payload || payload.success !== true || !normalizeText(payload.audioUrl)) {
-      throw new Error(payload?.message || "当前段裁剪上传失败。");
-    }
-    return {
-      clipId: normalizeText(payload.clipId),
-      audioUrl: normalizeText(payload.audioUrl),
-      expiresAt: normalizeText(payload.expiresAt),
-      expiresAtMs: Math.max(Date.now() + 1000, Date.parse(payload.expiresAt || "") || Date.now() + 1000),
-    };
+  async function createAudioDataUrl(audioUrl, selectedRange) {
+    const clipBase64 = await createClipBase64(audioUrl, selectedRange);
+    return "data:audio/wav;base64," + clipBase64;
+  }
+
+  function getListenModel(config) {
+    return normalizeText(config?.aiStages?.listen?.model).toLowerCase();
   }
 
   function createRuntime(options) {
@@ -264,11 +218,17 @@
       if (!normalizeText(source.audioUrl)) {
         throw new Error("缺少当前音频 audioUrl。");
       }
+      if (isLocalOnlyEndpoint(normalizeText(config.endpoint) || DEFAULT_PATH)) {
+        throw new Error("当前段 Base64 推荐当前只支持 server 后端地址，local 127.0.0.1 不受支持。");
+      }
       const selectedRange = requireSelectedRange(source.selectedRange, source.selectionKey);
-      const clipInfo = await uploadClip(config, source, selectedRange);
+      if (getListenModel(config) === "fun-asr") {
+        throw new Error("当前段 Base64 裁剪链路暂不支持 fun-asr，请切换听音模型为 qwen3.5-omni-plus 或 qwen3.5-omni-flash。");
+      }
+      const audioDataUrl = await createAudioDataUrl(source.audioUrl, selectedRange);
       const endpoint = normalizeText(config.endpoint) || DEFAULT_PATH;
       const body = {
-        audioUrl: clipInfo.audioUrl,
+        audioDataUrl: audioDataUrl,
         startMs: selectedRange.startMs,
         endMs: selectedRange.endMs,
         selectionKey: normalizeText(source.selectionKey),
@@ -307,8 +267,6 @@
         }
         return Object.assign({}, payload, {
           selectionKey: body.selectionKey,
-          clipId: clipInfo.clipId,
-          clipExpiresAt: clipInfo.expiresAt,
         });
       } finally {
         if (timer) {

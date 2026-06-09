@@ -9,6 +9,7 @@ const adapter = require("../ai/adapter");
 const aiService = require("./ai-service");
 
 const AI_BASE_PATH = "/api/data-baker-cvpc/liuzhou-helper/ai/recommend";
+const AI_RECOMMEND_MAX_BODY_BYTES = 15 * 1024 * 1024;
 
 function createAssetContext() {
   return aiService.buildAssetsContext(
@@ -30,6 +31,7 @@ function registerAiRoutes(router) {
   router.post(
     AI_BASE_PATH,
     createAiRoute(adapter, {
+      maxBodyBytes: AI_RECOMMEND_MAX_BODY_BYTES,
       createSuccessBody: function (context) {
         return aiService.buildRecommendSuccessBody({
           requestId: context.normalizedRequest?.requestId,

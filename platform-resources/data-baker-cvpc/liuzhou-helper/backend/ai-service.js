@@ -11,10 +11,6 @@ const {
   parseLexiconCsv,
   parseModelJsonText,
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
-const {
-  CLIP_CACHE_BASE_PATH,
-  readClip,
-} = require("./clip-cache-service");
 
 const SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
 const DEFAULT_TIMEOUT_MS = 60000;
@@ -258,8 +254,9 @@ function normalizeStageConfig(rawStage, fallbackModel, fallbackPrompt, supported
 function normalizeRecommendRequest(body) {
   const source = body && typeof body === "object" ? body : {};
   const audioUrl = normalizeText(source.audioUrl);
-  if (!audioUrl) {
-    throw createHttpError(400, "缺少 audioUrl。", "missing-audio-url");
+  const audioDataUrl = normalizeText(source.audioDataUrl);
+  if (!audioUrl && !audioDataUrl) {
+    throw createHttpError(400, "缺少 audioUrl 或 audioDataUrl。", "missing-audio-input");
   }
 
   const startMs = Math.max(0, Math.round(toFiniteNumber(source.startMs, source.segment?.startMs || 0)));
@@ -284,6 +281,7 @@ function normalizeRecommendRequest(body) {
 
   return {
     audioUrl,
+    audioDataUrl,
     startMs,
     endMs,
     durationMs: Math.max(0, endMs - startMs),
@@ -524,49 +522,15 @@ function createRuntimeDeps(overrides) {
       typeof source.requestFunAsrRecognition === "function"
         ? source.requestFunAsrRecognition
         : requestFunAsrRecognition,
-    readClip:
-      typeof source.readClip === "function"
-        ? source.readClip
-        : readClip,
   };
 }
 
-function escapeRegExp(value) {
-  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function extractClipIdFromAudioUrl(audioUrl) {
-  const normalizedAudioUrl = normalizeText(audioUrl);
-  if (!normalizedAudioUrl) {
-    return "";
-  }
-  try {
-    const parsed = new URL(normalizedAudioUrl);
-    const match = parsed.pathname.match(
-      new RegExp(escapeRegExp(CLIP_CACHE_BASE_PATH) + "/files/([a-z0-9]+)\\.wav$", "i")
-    );
-    return normalizeText(match?.[1]).toLowerCase();
-  } catch (_error) {
-    return "";
-  }
-}
-
-function assertClipAudioExists(audioUrl, deps) {
-  const clipId = extractClipIdFromAudioUrl(audioUrl);
-  if (!clipId) {
+function assertSupportedListenInput(request) {
+  if (request.listenModel === "fun-asr" && request.audioDataUrl && !request.audioUrl) {
     throw createHttpError(
       400,
-      "audioUrl 必须是当前段临时音频文件地址。",
-      "invalid-clip-audio-url"
-    );
-  }
-  const clipReader = deps?.readClip;
-  const clip = typeof clipReader === "function" ? clipReader(clipId) : null;
-  if (!clip || !Buffer.isBuffer(clip.buffer) || clip.buffer.length <= 0) {
-    throw createHttpError(
-      409,
-      "当前段临时音频文件不存在或已被清理，请重新生成当前段 AI 推荐后重试。",
-      "clip-audio-unavailable"
+      "当前段 Base64 裁剪链路暂不支持 fun-asr，请切换听音模型为 qwen3.5-omni-plus 或 qwen3.5-omni-flash。",
+      "unsupported-audio-data-url-for-fun-asr"
     );
   }
 }
@@ -635,6 +599,7 @@ async function runListenStage(request, assetsContext, deps) {
   const result = await deps.requestOmniInputAudio(
     {
       audioUrl: request.audioUrl,
+      audioDataUrl: request.audioDataUrl,
       aiOptions: request.aiStages.listen.params,
     },
     buildListenPrompt(request, assetsContext),
@@ -705,7 +670,7 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
 async function recommend(request, assetsContext, overrides) {
   const deps = createRuntimeDeps(overrides);
   const startedAt = deps.now();
-  assertClipAudioExists(request.audioUrl, deps);
+  assertSupportedListenInput(request);
   const listenResult = await runListenStage(request, assetsContext || {}, deps);
   const refineResult = await runRefineStage(request, assetsContext || {}, listenResult, deps);
   const audioDialectText = normalizeAllowedPunctuation(listenResult.audioDialectText);

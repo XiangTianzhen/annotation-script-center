@@ -56,11 +56,23 @@ function isEnableThinkingUnsupportedError(error) {
 }
 
 function inferAudioFormat(audioUrl) {
+  const normalized = String(audioUrl || "").trim();
+  const dataUrlMatch = normalized.match(/^data:audio\/([a-z0-9.+-]+);base64,/i);
+  if (dataUrlMatch) {
+    const mimeSubtype = String(dataUrlMatch[1] || "").toLowerCase();
+    if (mimeSubtype === "x-wav" || mimeSubtype === "wave") {
+      return "wav";
+    }
+    if (mimeSubtype === "mpeg") {
+      return "mp3";
+    }
+    return mimeSubtype || "wav";
+  }
   let pathname = "";
   try {
-    pathname = new URL(String(audioUrl || "")).pathname || "";
+    pathname = new URL(normalized).pathname || "";
   } catch (error) {
-    pathname = String(audioUrl || "").split("?")[0] || "";
+    pathname = normalized.split("?")[0] || "";
   }
   const matched = String(pathname || "").toLowerCase().match(/\.([a-z0-9]+)$/);
   const ext = matched ? matched[1] : "";
@@ -690,6 +702,7 @@ async function requestOmniInputAudio(input, prompt, options) {
   const config = getQwenProviderConfig();
   const model = String(options?.model || config.omniModel || DEFAULT_OMNI_MODEL).trim() || DEFAULT_OMNI_MODEL;
   const mockResponseMode = String(input?.aiOptions?.mockResponseMode || "").trim().toLowerCase();
+  const audioInputData = String(input?.audioDataUrl || input?.audioUrl || "");
     if (config.mockEnabled) {
       if (mockResponseMode === "provider-http-error") {
       const error = createProviderHttpError(502, "mock qwen provider http error", "Qwen 接口请求失败（HTTP 502）。");
@@ -776,8 +789,8 @@ async function requestOmniInputAudio(input, prompt, options) {
           {
             type: "input_audio",
             input_audio: {
-              data: String(input?.audioUrl || ""),
-              format: inferAudioFormat(input?.audioUrl || ""),
+              data: audioInputData,
+              format: inferAudioFormat(audioInputData),
             },
           },
           {

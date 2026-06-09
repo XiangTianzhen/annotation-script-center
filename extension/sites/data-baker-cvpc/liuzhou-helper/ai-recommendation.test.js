@@ -151,7 +151,34 @@ test("liuzhou ai recommend fails closed when selectedRange is missing", async fu
   );
 });
 
-test("liuzhou ai recommend uploads a fresh clip for every recommendation request", async function () {
+test("liuzhou ai recommend fails closed when current segment uses fun-asr listen model", async function () {
+  const moduleApi = loadModule();
+  const runtime = moduleApi.createRuntime({
+    endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+    aiStages: {
+      listen: {
+        model: "fun-asr",
+      },
+    },
+  });
+
+  await assert.rejects(
+    function () {
+      return runtime.recommend({
+        audioUrl: "https://oss.example.com/sample.mp3?Signature=audio",
+        selectionKey: "sample.mp3|0|4171",
+        selectedRange: {
+          startMs: 0,
+          endMs: 4171,
+          durationMs: 4171,
+        },
+      });
+    },
+    /fun-asr/
+  );
+});
+
+test("liuzhou ai recommend sends current segment audio as base64 data url", async function () {
   const moduleApi = loadModule();
   const harness = installAudioHarness();
 
@@ -206,25 +233,19 @@ test("liuzhou ai recommend uploads a fresh clip for every recommendation request
     const audioFetchCount = harness.calls.filter(function (call) {
       return call.url.indexOf("oss.example.com/sample.mp3") >= 0;
     }).length;
-    const uploadCount = harness.calls.filter(function (call) {
-      return call.url.indexOf("/clip-cache/upload") >= 0;
-    }).length;
     const recommendCount = harness.calls.filter(function (call) {
       return call.url.indexOf("/ai/recommend") >= 0;
     }).length;
 
     assert.equal(audioFetchCount, 2);
-    assert.equal(uploadCount, 2);
     assert.equal(recommendCount, 2);
 
     const recommendCall = harness.calls.find(function (call) {
       return call.url.indexOf("/ai/recommend") >= 0;
     });
     const requestBody = JSON.parse(recommendCall.body);
-    assert.equal(
-      requestBody.audioUrl,
-      "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/clip-cache/files/clip-1.wav"
-    );
+    assert.match(requestBody.audioDataUrl, /^data:audio\/wav;base64,/);
+    assert.equal(requestBody.audioUrl, undefined);
     assert.deepEqual(requestBody.aiStages, {
       listen: {
         model: "qwen3.5-omni-plus",

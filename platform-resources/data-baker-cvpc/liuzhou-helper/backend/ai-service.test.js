@@ -16,8 +16,7 @@ const {
 function createBaseRequest(overrides) {
   return Object.assign(
     {
-      audioUrl:
-        "https://example.com/api/data-baker-cvpc/liuzhou-helper/clip-cache/files/testclip1234567890abcd.wav",
+      audioDataUrl: "data:audio/wav;base64,UklGRg==",
       startMs: 0,
       endMs: 4171,
       fieldContext: {
@@ -72,7 +71,7 @@ test("liuzhou defaults and health expose staged listen/refine defaults", functio
 
 test("liuzhou normalizeRecommendRequest maps aiStages into standalone listen/refine config", function () {
   const request = normalizeRecommendRequest({
-    audioUrl: "https://example.com/current.wav",
+    audioDataUrl: "data:audio/wav;base64,UklGRg==",
     startMs: 18565,
     endMs: 35677,
     aiRecommendModel: "qwen3.5-omni-plus",
@@ -96,10 +95,22 @@ test("liuzhou normalizeRecommendRequest maps aiStages into standalone listen/ref
 
   assert.equal(request.listenModel, "fun-asr");
   assert.equal(request.refineModel, "qwen3.5-flash");
+  assert.equal(request.audioDataUrl, "data:audio/wav;base64,UklGRg==");
   assert.equal(request.aiStages?.listen?.prompt, "listen override");
   assert.equal(request.aiStages?.listen?.params?.top_p, 0.9);
   assert.equal(request.aiStages?.refine?.prompt, "refine override");
   assert.equal(request.aiStages?.refine?.params?.max_tokens, 256);
+});
+
+test("liuzhou normalizeRecommendRequest keeps whole-audio url path available", function () {
+  const request = normalizeRecommendRequest({
+    audioUrl: "https://example.com/current.wav",
+    startMs: 0,
+    endMs: 1000,
+  });
+
+  assert.equal(request.audioUrl, "https://example.com/current.wav");
+  assert.equal(request.audioDataUrl, "");
 });
 
 test("liuzhou success body keeps three texts plus compatibility aliases", function () {
@@ -154,20 +165,13 @@ test("liuzhou recommend runs listen plus refine stages and returns three texts",
       now: function () {
         return 1000;
       },
-      readClip: function (clipId) {
-        assert.equal(clipId, "testclip1234567890abcd");
-        return {
-          buffer: Buffer.from("RIFFmock"),
-          metadata: {
-            clipId,
-          },
-        };
-      },
       parseModelJsonText: function (rawText) {
         return JSON.parse(rawText);
       },
-      requestOmniInputAudio: async function (_input, prompt, options) {
+      requestOmniInputAudio: async function (input, prompt, options) {
         assert.equal(typeof prompt.systemPrompt, "string");
+        assert.equal(input.audioDataUrl, "data:audio/wav;base64,UklGRg==");
+        assert.equal(input.audioUrl, "");
         return {
           rawText: JSON.stringify({
             audioDialectText: "听音柳州话",
@@ -215,11 +219,13 @@ test("liuzhou recommend runs listen plus refine stages and returns three texts",
   assert.equal(result.models?.refineModel, "qwen3.5-plus");
 });
 
-test("liuzhou recommend keeps dual audio outputs when listen model is fun-asr", async function () {
+test("liuzhou recommend keeps dual audio outputs when listen model is fun-asr for whole-audio url", async function () {
   const stageCalls = [];
   const result = await recommend(
     normalizeRecommendRequest(
       createBaseRequest({
+        audioDataUrl: "",
+        audioUrl: "https://example.com/current.wav",
         aiStages: {
           listen: {
             model: "fun-asr",
@@ -241,15 +247,6 @@ test("liuzhou recommend keeps dual audio outputs when listen model is fun-asr", 
     {
       now: function () {
         return 1000;
-      },
-      readClip: function (clipId) {
-        assert.equal(clipId, "testclip1234567890abcd");
-        return {
-          buffer: Buffer.from("RIFFmock"),
-          metadata: {
-            clipId,
-          },
-        };
       },
       parseModelJsonText: function (rawText) {
         return JSON.parse(rawText);
@@ -298,38 +295,59 @@ test("liuzhou recommend keeps dual audio outputs when listen model is fun-asr", 
   assert.equal(result.models?.refineModel, "qwen3.5-plus");
 });
 
-test("liuzhou recommend fails with explicit clip error when temporary audio file is missing", async function () {
-  await assert.rejects(
-    function () {
-      return recommend(
-        normalizeRecommendRequest(createBaseRequest()),
-        buildAssetsContext({
-          lexiconCsv: "",
-          ruleText: "规则一",
-        }),
-        {
-          readClip: function (clipId) {
-            assert.equal(clipId, "testclip1234567890abcd");
-            return null;
-          },
-        }
-      );
-    },
-    function (error) {
-      assert.equal(error.code, "clip-audio-unavailable");
-      assert.match(error.message, /临时音频文件不存在/);
-      return true;
+test("liuzhou recommend no longer depends on clip-cache validation for current-segment base64 audio", async function () {
+  const result = await recommend(
+    normalizeRecommendRequest(createBaseRequest()),
+    buildAssetsContext({
+      lexiconCsv: "",
+      ruleText: "规则一",
+    }),
+    {
+      requestOmniInputAudio: async function () {
+        return {
+          rawText: JSON.stringify({
+            audioDialectText: "听音柳州话",
+            audioMandarinText: "听音普通话",
+          }),
+          model: "qwen3.5-omni-flash",
+          usage: {},
+        };
+      },
+      requestTextCompareJson: async function () {
+        return {
+          rawText: JSON.stringify({
+            refinedDialectText: "修正柳州话",
+          }),
+          model: "qwen3.5-plus",
+          usage: {},
+        };
+      },
     }
   );
+
+  assert.equal(result.audioDialectText, "听音柳州话。");
+  assert.equal(result.audioMandarinText, "听音普通话。");
+  assert.equal(result.refinedDialectText, "修正柳州话。");
 });
 
-test("liuzhou recommend rejects non clip-cache audio url before running stages", async function () {
+test("liuzhou recommend rejects fun-asr when only current-segment base64 audio is provided", async function () {
   await assert.rejects(
     function () {
       return recommend(
         normalizeRecommendRequest(
           createBaseRequest({
-            audioUrl: "https://example.com/audio/current.wav",
+            aiStages: {
+              listen: {
+                model: "fun-asr",
+                prompt: "listen prompt",
+                params: {},
+              },
+              refine: {
+                model: "qwen3.5-plus",
+                prompt: "refine prompt",
+                params: {},
+              },
+            },
           })
         ),
         buildAssetsContext({
@@ -340,8 +358,8 @@ test("liuzhou recommend rejects non clip-cache audio url before running stages",
       );
     },
     function (error) {
-      assert.equal(error.code, "invalid-clip-audio-url");
-      assert.match(error.message, /audioUrl 必须是当前段临时音频文件地址/);
+      assert.equal(error.code, "unsupported-audio-data-url-for-fun-asr");
+      assert.match(error.message, /fun-asr/);
       return true;
     }
   );

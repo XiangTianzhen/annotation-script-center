@@ -29,8 +29,9 @@
 - 当前段 `Valid / Invalid` 快捷切换
 - 当前段 `Valid / Invalid` 在点击前会先检查当前单选状态；已是目标值时不再重复点击
 - `未填写补 Valid` 会先读取当前 `entry_index` 的 `annotation/annos`，只补当前音频里未填写有效性的段；已填 `Valid / Invalid` 一律跳过
-- 当前段 AI 推荐会实时解析 `.xaudio_time` 中的 `开始 / 结束`，只裁剪当前选中段音频；浏览器端转成 `16k` 单声道 WAV 后上传临时缓存，再把该临时 URL 发送给两阶段 AI 推荐接口
-- 当前不再复用页内 clip URL；每次点击 `当前段 AI 推荐` 都会重新裁剪当前段并重新上传临时音频
+- 当前段 AI 推荐会实时解析 `.xaudio_time` 中的 `开始 / 结束`，只裁剪当前选中段音频；浏览器端转成 `16k` 单声道 WAV 后直接拼成 `audioDataUrl`，再发送给两阶段 AI 推荐接口
+- 当前段不再复用页内 clip URL，也不再上传临时 clip-cache；每次点击 `当前段 AI 推荐` 都会重新裁剪并重新生成当前段 Base64 音频
+- 当前段 Base64 裁剪链路只支持 `qwen3.5-omni-plus / qwen3.5-omni-flash`；若听音模型切到 `fun-asr`，运行时会直接阻断并提示切回 Omni
 - 当前段文本字段写入已兼容当前页 `contenteditable .ProseMirror` 编辑器，三张结果卡会按目标字段分别写入 `标注文本` 或 `普通话顺滑`
 - options 页当前新增 CVPC 专属 `AI 设置` 面板：
   - `基础设置`
@@ -49,7 +50,7 @@
 - 不跨当前音频自动遍历
 - 画段创建 / 更新仍是实验性入口；未检测到安全写入桥时只保留建议展示
 - 如果未读到可信的当前段 `开始 / 结束` 时间，“当前段 AI 推荐”会直接阻断，不会静默退回整段音频或第一段
-- 当前段裁剪上传只保证 `server` 后端地址可用；`local / 127.0.0.1` 当前不在支持范围内
+- 当前段 Base64 推荐只保证 `server` 后端地址可用；`local / 127.0.0.1` 当前不在支持范围内
 - 两个提示屏蔽开关都默认开启，但只精确匹配上述固定文案，不会扩大到其他 `.tips` 提示
 
 ## 文件
@@ -59,7 +60,7 @@
 - `editing-tab-tip-guard.js`：精确屏蔽固定文案的 Tab / 暂停状态提示
 - `data-api.js`：读取编辑器上下文、解析当前音频 URL、当前波形选中段、`annotation/annos` 统计与实验性 DOM 写入
 - `segmentation-controller.js`：画段建议生成与应用编排
-- `ai-recommendation.js`：当前段 AI 推荐调用，负责浏览器端裁剪当前段、上传 clip-cache 临时音频，并把 `aiStages.listen / refine` 一起发送给后端
+- `ai-recommendation.js`：当前段 AI 推荐调用，负责浏览器端裁剪当前段、生成 Base64 `audioDataUrl`，并把 `aiStages.listen / refine` 一起发送给后端
 - `ui-panel.js`：右侧 `全局标注` 卡内紧凑信息区 + 中间 `普通话顺滑` 下方统一 AI 工作区挂载；右侧只保留状态与音频摘要，中间承载画段建议和三结果 AI 推荐卡
 - `shortcuts.js`：当前页快捷键监听与动作分发
 
