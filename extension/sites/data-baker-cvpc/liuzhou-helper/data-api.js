@@ -239,9 +239,11 @@
   function getLiveSelectionSnapshot(documentLike) {
     const entryName = extractVisibleEntryName(documentLike);
     const selectedRange = extractSelectedRange(documentLike);
+    const currentSegmentNumber = extractCurrentSegmentNumber(documentLike);
     return {
       selectedEntryName: entryName,
       selectedRange,
+      currentSegmentNumber,
       selectionKey: buildSelectionKey(entryName, selectedRange),
     };
   }
@@ -589,6 +591,24 @@
       });
   }
 
+  function extractCurrentSegmentNumber(documentLike) {
+    const doc = documentLike || globalThis.document;
+    if (!doc || typeof doc.querySelectorAll !== "function") {
+      return 0;
+    }
+    const nodes = Array.from(
+      doc.querySelectorAll(".list-content .segment-content, .list-content .grey-seg, .segment-content, .grey-seg")
+    );
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index];
+      const number = Number(normalizeText(node?.textContent || ""));
+      if (number > 0 && isSegmentSelected(node)) {
+        return number;
+      }
+    }
+    return 0;
+  }
+
   function isSegmentSelected(node) {
     const current = node && typeof node === "object" ? node : null;
     if (!current) {
@@ -858,6 +878,7 @@
         currentSegments: extractSegmentsFromAnnData(currentAnn?.ann_data),
         fieldContext: collectFieldContext(template, env),
         selectedRange: liveSelection.selectedRange,
+        currentSegmentNumber: Number(liveSelection.currentSegmentNumber || 0) || 0,
         selectionKey: buildSelectionKey(
           selectedEntry?.name || liveSelection.selectedEntryName,
           liveSelection.selectedRange

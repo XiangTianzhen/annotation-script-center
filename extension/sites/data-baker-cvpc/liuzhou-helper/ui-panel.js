@@ -2,6 +2,7 @@
   const ROOT_ATTR = "data-asc-cvpc-liuzhou-panel";
   const MIDDLE_AI_ATTR = "data-asc-cvpc-liuzhou-middle-ai";
   const MIDDLE_AI_ACTIONS_ATTR = "data-asc-cvpc-liuzhou-middle-ai-actions";
+  const FIELD_RECOMMEND_ATTR = "data-asc-cvpc-liuzhou-field-recommend";
   const LEGACY_SEGMENT_BUTTON_ATTR = "data-asc-cvpc-liuzhou-segment-button";
   const STYLE_ID = "asc-cvpc-liuzhou-panel-style";
 
@@ -48,7 +49,7 @@
       "[" + ROOT_ATTR + "] .status[data-tone='error'] { color: #f56c6c; }",
       "[" + ROOT_ATTR + "] .status[data-tone='success'] { color: #67c23a; }",
       "[" + ROOT_ATTR + "] .section, [" + MIDDLE_AI_ATTR + "] .section { margin-top: 12px; }",
-      "[" + ROOT_ATTR + "] .info-box, [" + MIDDLE_AI_ATTR + "] .preview-item, [" + MIDDLE_AI_ATTR + "] .recommend-item, [" + MIDDLE_AI_ATTR + "] .meta-box {",
+      "[" + ROOT_ATTR + "] .info-box, [" + MIDDLE_AI_ATTR + "] .preview-item, [" + MIDDLE_AI_ATTR + "] .meta-box, [" + FIELD_RECOMMEND_ATTR + "] .recommend-item {",
       "  margin-top: 8px;",
       "  padding: 10px 12px;",
       "  border: 1px solid #ebeef5;",
@@ -72,16 +73,17 @@
       "  border-top: 1px solid #ebeef5;",
       "}",
       "[" + MIDDLE_AI_ACTIONS_ATTR + "] { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }",
-      "[" + MIDDLE_AI_ATTR + "] .preview-list, [" + MIDDLE_AI_ATTR + "] .recommend-grid, [" + MIDDLE_AI_ATTR + "] .meta-list {",
+      "[" + MIDDLE_AI_ATTR + "] .preview-list, [" + MIDDLE_AI_ATTR + "] .meta-list, [" + FIELD_RECOMMEND_ATTR + "] {",
       "  margin-top: 8px;",
       "  display: grid;",
       "  gap: 8px;",
       "}",
-      "[" + MIDDLE_AI_ATTR + "] .recommend-item strong, [" + MIDDLE_AI_ATTR + "] .preview-item strong, [" + MIDDLE_AI_ATTR + "] .meta-box strong {",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item strong, [" + MIDDLE_AI_ATTR + "] .preview-item strong, [" + MIDDLE_AI_ATTR + "] .meta-box strong {",
       "  display: block;",
       "  color: #303133;",
       "}",
-      "[" + MIDDLE_AI_ATTR + "] .recommend-item-action { margin-top: 8px; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-action { margin-top: 8px; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] { margin-top: 8px; }",
       "[" + ROOT_ATTR + "] button, [" + MIDDLE_AI_ATTR + "] button {",
       "  min-height: 32px;",
       "  padding: 8px 14px;",
@@ -205,6 +207,28 @@
     return null;
   }
 
+  function resolveFieldValueHost(fieldBlock) {
+    return findDescendantByClassToken(fieldBlock, "w-[100%]") || fieldBlock;
+  }
+
+  function insertAfter(parentNode, targetNode, childNode) {
+    if (!(parentNode instanceof HTMLElement) || !(childNode instanceof HTMLElement)) {
+      return;
+    }
+    if (!(targetNode instanceof HTMLElement) || targetNode.parentNode !== parentNode) {
+      parentNode.appendChild(childNode);
+      return;
+    }
+    const siblings = Array.from(parentNode.children || []);
+    const targetIndex = siblings.indexOf(targetNode);
+    const referenceNode = targetIndex >= 0 ? siblings[targetIndex + 1] || null : null;
+    if (referenceNode) {
+      parentNode.insertBefore(childNode, referenceNode);
+      return;
+    }
+    parentNode.appendChild(childNode);
+  }
+
   function removeLegacySegmentButtons() {
     if (typeof document.querySelectorAll !== "function") {
       return;
@@ -245,8 +269,9 @@
     let statusNode = null;
     let audioNode = null;
     let previewNode = null;
-    let recommendationNode = null;
     let recommendationMetaNode = null;
+    let dialectRecommendationNode = null;
+    let mandarinRecommendationNode = null;
 
     function setStatus(text, tone) {
       if (!statusNode) {
@@ -285,14 +310,33 @@
       }
     }
 
-    function renderRecommendation(result) {
-      if (!recommendationNode || !recommendationMetaNode) {
+    function renderRecommendationMeta(result) {
+      if (!recommendationMetaNode) {
         return;
       }
-      recommendationNode.innerHTML = "";
       recommendationMetaNode.innerHTML = "";
+      [
+        ["特殊标签", (result?.specialTags || []).join(" ") || "无"],
+        ["需人工复核", result?.needHumanReview === true ? "是" : "否"],
+        ["备注", (result?.notes || []).join("；") || "无"],
+      ].forEach(function (item) {
+        const box = document.createElement("div");
+        box.className = "meta-box";
+        box.innerHTML = "<strong>" + item[0] + "</strong><div>" + String(item[1] || "") + "</div>";
+        recommendationMetaNode.appendChild(box);
+      });
+    }
+
+    function renderRecommendation(result) {
+      if (!dialectRecommendationNode || !mandarinRecommendationNode || !recommendationMetaNode) {
+        return;
+      }
+      dialectRecommendationNode.innerHTML = "";
+      mandarinRecommendationNode.innerHTML = "";
       if (!result || result.success !== true) {
-        recommendationNode.textContent = "当前还没有 AI 推荐结果。";
+        dialectRecommendationNode.textContent = "当前还没有柳州话 AI 推荐结果。";
+        mandarinRecommendationNode.textContent = "当前还没有普通话 AI 推荐结果。";
+        renderRecommendationMeta(null);
         return;
       }
       const audioDialectText = String(result.audioDialectText || result.dialectText || "");
@@ -300,25 +344,28 @@
       const refinedDialectText = String(result.refinedDialectText || result.dialectText || "");
       [
         {
+          host: dialectRecommendationNode,
           title: "音频的柳州话文本",
           value: audioDialectText,
           buttonText: "填入标注文本",
           applyKey: "audioDialectText",
         },
         {
+          host: mandarinRecommendationNode,
           title: "音频的普通话文本",
           value: audioMandarinText,
           buttonText: "填入普通话顺滑",
           applyKey: "audioMandarinText",
         },
         {
+          host: dialectRecommendationNode,
           title: "修正后的柳州话文本",
           value: refinedDialectText,
           buttonText: "填入标注文本",
           applyKey: "refinedDialectText",
         },
       ].forEach(function (item) {
-        recommendationNode.appendChild(
+        item.host.appendChild(
           createRecommendationCard(item.title, item.value, item.buttonText, function () {
             if (typeof deps.onApplyRecommendationText === "function") {
               deps.onApplyRecommendationText(item.applyKey);
@@ -326,16 +373,7 @@
           })
         );
       });
-      [
-        ["特殊标签", (result.specialTags || []).join(" ") || "无"],
-        ["需人工复核", result.needHumanReview === true ? "是" : "否"],
-        ["备注", (result.notes || []).join("；") || "无"],
-      ].forEach(function (item) {
-        const box = document.createElement("div");
-        box.className = "meta-box";
-        box.innerHTML = "<strong>" + item[0] + "</strong><div>" + String(item[1] || "") + "</div>";
-        recommendationMetaNode.appendChild(box);
-      });
+      renderRecommendationMeta(result);
     }
 
     function renderAudioContext(context) {
@@ -362,6 +400,7 @@
       summary.textContent = [
         entryName ? "文件：" + entryName : "",
         sourceText ? "来源：" + sourceText : "",
+        Number(source.currentSegmentNumber) > 0 ? "当前第 " + String(Number(source.currentSegmentNumber)) + " 段" : "",
         selectedRange
           ? "当前段：开始 " +
             formatSecondsFromMs(selectedRange.startMs) +
@@ -472,20 +511,35 @@
       const recommendSection = document.createElement("div");
       recommendSection.className = "section";
       recommendSection.innerHTML =
-        '<div class="section-title">当前段 AI 推荐结果</div><div class="section-note">展示听音与文本修正两阶段结果；AI 只提供建议，不自动保存、不自动提交。</div>';
-      recommendationNode = document.createElement("div");
-      recommendationNode.className = "recommend-grid";
-      recommendationNode.textContent = "当前还没有 AI 推荐结果。";
+        '<div class="section-title">当前段 AI 附加信息</div><div class="section-note">特殊标签、人工复核和备注保留在独立 AI 区，避免占用真实输入字段。</div>';
       recommendationMetaNode = document.createElement("div");
       recommendationMetaNode.className = "meta-list";
-      recommendSection.appendChild(recommendationNode);
       recommendSection.appendChild(recommendationMetaNode);
+      renderRecommendationMeta(null);
 
       middleAiRoot.appendChild(head);
       middleAiRoot.appendChild(middleActionsNode);
       middleAiRoot.appendChild(previewSection);
       middleAiRoot.appendChild(recommendSection);
       return middleAiRoot;
+    }
+
+    function ensureFieldRecommendationRoot(fieldBlock, emptyText) {
+      const valueHost = resolveFieldValueHost(fieldBlock);
+      if (!(valueHost instanceof HTMLElement)) {
+        return null;
+      }
+      const existing = Array.from(valueHost.children || []).find(function (node) {
+        return node instanceof HTMLElement && node.hasAttribute(FIELD_RECOMMEND_ATTR);
+      });
+      if (existing) {
+        return existing;
+      }
+      const root = document.createElement("div");
+      root.setAttribute(FIELD_RECOMMEND_ATTR, "");
+      root.textContent = String(emptyText || "");
+      valueHost.appendChild(root);
+      return root;
     }
 
     function mount() {
@@ -508,13 +562,27 @@
         annotationContentHost.appendChild(rightRoot);
       }
 
+      const validityFieldBlock = findFieldBlock(["是否有效（Valid or Not）", "是否有效"]);
+      const dialectFieldBlock = findFieldBlock(["标注文本", "柳州话", "转写文本"]);
       const mandarinFieldBlock = findFieldBlock(["普通话顺滑", "普通话", "顺滑"]);
-      const mandarinValueHost =
-        findDescendantByClassToken(mandarinFieldBlock, "w-[100%]") || mandarinFieldBlock;
-      if (mandarinValueHost instanceof HTMLElement) {
+      if (dialectFieldBlock instanceof HTMLElement) {
+        dialectRecommendationNode = ensureFieldRecommendationRoot(
+          dialectFieldBlock,
+          "当前还没有柳州话 AI 推荐结果。"
+        );
+      }
+      if (mandarinFieldBlock instanceof HTMLElement) {
+        mandarinRecommendationNode = ensureFieldRecommendationRoot(
+          mandarinFieldBlock,
+          "当前还没有普通话 AI 推荐结果。"
+        );
+      }
+      const formRoot =
+        validityFieldBlock?.parentNode instanceof HTMLElement ? validityFieldBlock.parentNode : null;
+      if (formRoot instanceof HTMLElement) {
         ensureMiddleAiRoot();
-        if (middleAiRoot.parentNode !== mandarinValueHost) {
-          mandarinValueHost.appendChild(middleAiRoot);
+        if (middleAiRoot.parentNode !== formRoot) {
+          insertAfter(formRoot, validityFieldBlock, middleAiRoot);
         }
       }
       return true;
@@ -527,6 +595,11 @@
       if (middleAiRoot && middleAiRoot.parentNode) {
         middleAiRoot.parentNode.removeChild(middleAiRoot);
       }
+      [dialectRecommendationNode, mandarinRecommendationNode].forEach(function (node) {
+        if (node && node.parentNode) {
+          node.parentNode.removeChild(node);
+        }
+      });
       rightRoot = null;
       rightPanelNode = null;
       middleAiRoot = null;
@@ -534,8 +607,9 @@
       statusNode = null;
       audioNode = null;
       previewNode = null;
-      recommendationNode = null;
       recommendationMetaNode = null;
+      dialectRecommendationNode = null;
+      mandarinRecommendationNode = null;
     }
 
     return {

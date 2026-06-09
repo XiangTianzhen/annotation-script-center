@@ -1187,6 +1187,24 @@ test("CVPC data api writes recommendation into contenteditable editors", async f
   assert.equal(harness.mandarinEditor.textContent, "听音普通话");
 });
 
+test("CVPC data api exposes current selected segment number in editor context", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    visibleEntryName: "sample-a.mp3",
+    currentSegmentIndex: 2,
+    segmentStates: [
+      { validity: "missing", dialectText: "", mandarinText: "" },
+      { validity: "missing", dialectText: "", mandarinText: "" },
+      { validity: "missing", dialectText: "", mandarinText: "" },
+    ],
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const context = await runtime.getEditorContext({ force: true });
+
+  assert.equal(context.currentSegmentNumber, 3);
+});
+
 test("CVPC data api writes staged recommendation text into the requested field only", async function () {
   const dataApiModule = loadDataApiModule();
   const harness = createInteractiveDataApiHarness({

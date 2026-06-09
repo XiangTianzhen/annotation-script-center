@@ -305,6 +305,21 @@ function createHarness() {
   nativeValidity.appendChild(nativeValidityLabel);
   nativeValidity.appendChild(nativeValidityValue);
 
+  const dialectFieldBlock = new FakeNode("div");
+  dialectFieldBlock.className = "field-block dialect-block";
+  const dialectLabel = new FakeNode("div");
+  dialectLabel.className = "item-name";
+  dialectLabel.textContent = "标注文本";
+  const dialectValue = new FakeNode("div");
+  dialectValue.className = "w-[100%]";
+  const dialectEditor = new FakeNode("div");
+  dialectEditor.className = "tiptap ProseMirror";
+  dialectEditor.setAttribute("contenteditable", "true");
+  dialectEditor.setAttribute("role", "textbox");
+  dialectValue.appendChild(dialectEditor);
+  dialectFieldBlock.appendChild(dialectLabel);
+  dialectFieldBlock.appendChild(dialectValue);
+
   const mandarinFieldBlock = new FakeNode("div");
   mandarinFieldBlock.className = "field-block mandarin-block";
   const mandarinLabel = new FakeNode("div");
@@ -322,6 +337,7 @@ function createHarness() {
 
   globalPanel.appendChild(panelTitle);
   asrLabelWrap.appendChild(nativeValidity);
+  asrLabelWrap.appendChild(dialectFieldBlock);
   asrLabelWrap.appendChild(mandarinFieldBlock);
   labelContent.appendChild(asrLabelWrap);
   globalPanel.appendChild(labelContent);
@@ -364,6 +380,7 @@ function createHarness() {
 
   return {
     body,
+    dialectFieldBlock,
     bottomRight,
     document,
     globalPanel,
@@ -420,7 +437,7 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
     runtime.mount();
 
     const panelNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-panel");
-    const middleNode = findAttrNode(harness.mandarinFieldBlock, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     assert.equal(panelNode.parentNode, harness.labelContent);
     assert.match(collectText(harness.nativeValidity), /是否有效（Valid or Not）/);
     assert.doesNotMatch(collectText(harness.nativeValidity), /未填写补 Valid/);
@@ -428,9 +445,13 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
     assert.match(collectText(middleNode), /未填写补 Valid/);
     assert.match(collectText(middleNode), /生成画段建议/);
     assert.match(collectText(middleNode), /应用当前建议/);
-    assert.match(collectText(middleNode), /当前段 AI 推荐结果/);
+    assert.match(collectText(middleNode), /当前画段建议/);
+    assert.match(collectText(middleNode), /特殊标签/);
     assert.doesNotMatch(collectText(middleNode), /设为 Valid/);
     assert.doesNotMatch(collectText(middleNode), /设为 Invalid/);
+    assert.equal(middleNode.parentNode, harness.labelContent.children[0]);
+    assert.equal(harness.labelContent.children[0].children[1], middleNode);
+    assert.notEqual(middleNode.parentNode, harness.mandarinFieldBlock);
     assert.doesNotMatch(collectText(panelNode), /当前段 AI 推荐结果/);
     assert.doesNotMatch(collectText(panelNode), /建议 1/);
 
@@ -457,6 +478,7 @@ test("CVPC ui panel renders current audio and selected range inside the global a
     runtime.renderAudioContext({
       audioUrl: "https://oss.example.com/databaker/data/sample.mp3?Signature=visible",
       audioUrlSource: "observer",
+      currentSegmentNumber: 3,
       selectedEntry: {
         name: "sample.mp3",
       },
@@ -472,6 +494,7 @@ test("CVPC ui panel renders current audio and selected range inside the global a
     assert.match(text, /当前音频地址/);
     assert.match(text, /sample\.mp3/);
     assert.match(text, /observer/);
+    assert.match(text, /当前第 3 段/);
     assert.match(text, /18\.565 秒/);
     assert.match(text, /35\.677 秒/);
     assert.match(text, /17\.112 秒/);
@@ -519,24 +542,29 @@ test("CVPC ui panel renders preview and three staged recommendation cards inside
       notes: ["人工确认"],
     });
 
-    const middleNode = findAttrNode(harness.mandarinFieldBlock, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     const panelNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-panel");
+    const dialectText = collectText(harness.dialectFieldBlock);
+    const mandarinText = collectText(harness.mandarinFieldBlock);
     const middleText = collectText(middleNode);
     assert.match(middleText, /建议 1/);
-    assert.match(middleText, /音频的柳州话文本/);
-    assert.match(middleText, /听音柳州话/);
-    assert.match(middleText, /音频的普通话文本/);
-    assert.match(middleText, /听音普通话/);
-    assert.match(middleText, /修正后的柳州话文本/);
-    assert.match(middleText, /修正柳州话/);
     assert.match(middleText, /口语化/);
     assert.match(middleText, /人工确认/);
+    assert.doesNotMatch(middleText, /音频的柳州话文本/);
+    assert.doesNotMatch(middleText, /音频的普通话文本/);
+    assert.doesNotMatch(middleText, /修正后的柳州话文本/);
     assert.doesNotMatch(collectText(panelNode), /听音柳州话/);
     assert.doesNotMatch(collectText(panelNode), /建议 1/);
+    assert.match(dialectText, /音频的柳州话文本/);
+    assert.match(dialectText, /听音柳州话/);
+    assert.match(dialectText, /修正后的柳州话文本/);
+    assert.match(dialectText, /修正柳州话/);
+    assert.match(mandarinText, /音频的普通话文本/);
+    assert.match(mandarinText, /听音普通话/);
 
-    const audioDialectCard = findRecommendItemByTitle(middleNode, "音频的柳州话文本");
-    const audioMandarinCard = findRecommendItemByTitle(middleNode, "音频的普通话文本");
-    const refinedDialectCard = findRecommendItemByTitle(middleNode, "修正后的柳州话文本");
+    const audioDialectCard = findRecommendItemByTitle(harness.dialectFieldBlock, "音频的柳州话文本");
+    const audioMandarinCard = findRecommendItemByTitle(harness.mandarinFieldBlock, "音频的普通话文本");
+    const refinedDialectCard = findRecommendItemByTitle(harness.dialectFieldBlock, "修正后的柳州话文本");
     findButtonByText(audioDialectCard, "填入标注文本").dispatchEvent({ type: "click" });
     findButtonByText(audioMandarinCard, "填入普通话顺滑").dispatchEvent({ type: "click" });
     findButtonByText(refinedDialectCard, "填入标注文本").dispatchEvent({ type: "click" });

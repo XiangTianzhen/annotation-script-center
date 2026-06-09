@@ -1,3 +1,14 @@
+## 2026-06-09（DataBaker CVPC 柳州话脚本界面重排到字段内结果卡）
+
+- `DataBaker CVPC / 柳州话脚本` 当前进一步收口页面结构：
+  - 右侧 `全局标注` 连续信息区继续只保留状态和音频摘要，但摘要文案新增“当前第 N 段”。
+  - `是否有效（Valid or Not）` 下方当前改为独立同级 `AI 区`，集中承载 `当前段 AI 推荐 / 未填写补 Valid / 生成画段建议 / 应用当前建议`、画段建议结果以及 `特殊标签 / 需人工复核 / 备注`。
+  - 三张 AI 结果卡不再挂在统一结果区，当前改为按字段归位：
+    - `音频的柳州话文本`、`修正后的柳州话文本` 回到 `标注文本` 字段块内
+    - `音频的普通话文本` 回到 `普通话顺滑` 字段块内
+- `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 当前新增稳定的 `currentSegmentNumber` 上下文字段，优先按左侧已选段编号推导当前段号，供右侧摘要区直接消费。
+- `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js` 当前同步重排挂载层级与字段内结果卡渲染逻辑，并补对应单测。
+
 ## 2026-06-09（DataBaker CVPC 柳州话脚本移除 Fun-ASR 与 Clip-Cache）
 
 - `DataBaker CVPC / 柳州话脚本` 当前段识别链路当前统一收口为 `audioDataUrl`：
