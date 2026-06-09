@@ -549,7 +549,7 @@ test("CVPC ui panel hides field recommendation areas when no AI result is availa
   }
 });
 
-test("CVPC ui panel renders preview, keeps heard dialect text in additional info, and shows only two final cards in fields", function () {
+test("CVPC ui panel renders split preview summary by changes, keeps heard dialect text in additional info, and shows only two final cards in fields", function () {
   const uiModule = loadUiPanelModule();
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -566,14 +566,31 @@ test("CVPC ui panel renders preview, keeps heard dialect text in additional info
     });
     runtime.mount();
     runtime.renderPreview({
-      items: [
+      changes: [
         {
-          startMs: 0,
-          endMs: 4171,
-          reason: "静音过长",
-          needsHumanReview: true,
+          sourceSegmentNumber: 4,
+          originalStartMs: 95999,
+          originalEndMs: 127250,
+          reason: "silence>=400ms",
+          suggestedSegments: [
+            {
+              startMs: 95999,
+              endMs: 110100,
+            },
+            {
+              startMs: 111800,
+              endMs: 127250,
+            },
+          ],
         },
       ],
+      meta: {
+        rules: {
+          silenceThresholdDbfs: -40,
+          minSilenceMs: 400,
+          contextPaddingMs: 100,
+        },
+      },
     });
     runtime.renderRecommendation({
       success: true,
@@ -609,7 +626,12 @@ test("CVPC ui panel renders preview, keeps heard dialect text in additional info
     const dialectText = collectText(harness.dialectFieldBlock);
     const mandarinText = collectText(harness.mandarinFieldBlock);
     const middleText = collectText(middleNode);
-    assert.match(middleText, /建议 1/);
+    assert.match(middleText, /静音 >= 0\.4s，阈值 -40 dBFS，前后补偿 0\.1s/);
+    assert.match(middleText, /原第 4 段/);
+    assert.match(middleText, /原时间：95\.999 秒 - 127\.25 秒/);
+    assert.match(middleText, /将拆为 2 段/);
+    assert.match(middleText, /子段 1：95\.999 秒 - 110\.1 秒/);
+    assert.match(middleText, /子段 2：111\.8 秒 - 127\.25 秒/);
     assert.match(middleText, /口语化/);
     assert.match(middleText, /人工确认/);
     assert.match(middleText, /音频听出的柳州话文本/);
@@ -651,6 +673,36 @@ test("CVPC ui panel renders preview, keeps heard dialect text in additional info
       "refinedDialectText",
       "refinedMandarinText",
     ]);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel renders empty split-preview state when no silence hit is found", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderPreview({
+      changes: [],
+      meta: {
+        rules: {
+          silenceThresholdDbfs: -38,
+        },
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /静音 >= 0\.4s，阈值 -38 dBFS，前后补偿 0\.1s/);
+    assert.match(middleText, /当前音频没有命中可拆分静音，保持现有段不变/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

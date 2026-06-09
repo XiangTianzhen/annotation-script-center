@@ -1,6 +1,8 @@
 (function () {
   const DEFAULT_PATH = "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
-  const SILENCE_DB_THRESHOLD = -27;
+  const DEFAULT_SILENCE_THRESHOLD_DBFS = -40;
+  const MIN_SILENCE_MS = 400;
+  const CONTEXT_PADDING_MS = 100;
   const WINDOW_MS = 30;
 
   function normalizeText(value) {
@@ -14,7 +16,7 @@
     return 20 * Math.log10(value);
   }
 
-  async function analyzeSilenceRanges(audioUrl) {
+  async function analyzeSilenceRanges(audioUrl, silenceThresholdDbfs) {
     if (!normalizeText(audioUrl)) {
       return [];
     }
@@ -45,14 +47,14 @@
         const db = rmsToDb(rms);
         const frameStartMs = Math.round((offset / sampleRate) * 1000);
         const frameEndMs = Math.round((end / sampleRate) * 1000);
-        if (db < SILENCE_DB_THRESHOLD) {
+        if (db < silenceThresholdDbfs) {
           if (currentStart === null) {
             currentStart = frameStartMs;
           }
         } else if (currentStart !== null) {
           ranges.push({
             startMs: currentStart,
-            endMs: frameEndMs,
+            endMs: frameStartMs,
           });
           currentStart = null;
         }
@@ -80,10 +82,13 @@
     async function preview(context) {
       const source = context && typeof context === "object" ? context : {};
       const endpoint = normalizeText(config.endpoint) || DEFAULT_PATH;
+      const silenceThresholdDbfs = Number.isFinite(Number(config.silenceThresholdDbfs))
+        ? Math.round(Number(config.silenceThresholdDbfs))
+        : DEFAULT_SILENCE_THRESHOLD_DBFS;
       let silentRanges = [];
       let analysisError = "";
       try {
-        silentRanges = await analyzeSilenceRanges(source.audioUrl);
+        silentRanges = await analyzeSilenceRanges(source.audioUrl, silenceThresholdDbfs);
       } catch (error) {
         analysisError = error && error.message ? error.message : String(error);
       }
@@ -99,6 +104,12 @@
           editorContext: source.editorContext || {},
           existingSegments: source.currentSegments || [],
           silentRanges: silentRanges,
+          rules: {
+            silenceThresholdDbfs: silenceThresholdDbfs,
+            minSilenceMs: MIN_SILENCE_MS,
+            contextPaddingMs: CONTEXT_PADDING_MS,
+          },
+          segmentScope: "existing-segments-incremental",
         }),
       });
       const payload = await response.json().catch(function () {
@@ -108,9 +119,19 @@
         throw new Error(payload?.message || "画段建议生成失败。");
       }
       lastPreview = {
-        items: Array.isArray(payload.data) ? payload.data : [],
+        proposedSegments: Array.isArray(payload?.data?.proposedSegments)
+          ? payload.data.proposedSegments
+          : [],
+        changes: Array.isArray(payload?.data?.changes) ? payload.data.changes : [],
         meta: payload.meta || {},
         analysisError: analysisError,
+        selectionKey: normalizeText(source.selectionKey),
+        selectedEntryName: normalizeText(source.selectedEntry?.name || source.editorContext?.selectedEntry?.name),
+        sourceSegments: Array.isArray(source.currentSegments)
+          ? source.currentSegments.map(function (item) {
+              return Object.assign({}, item);
+            })
+          : [],
       };
       return lastPreview;
     }
@@ -119,9 +140,14 @@
       return lastPreview;
     }
 
+    function clearPreview() {
+      lastPreview = null;
+    }
+
     return {
       preview,
       getLastPreview,
+      clearPreview,
     };
   }
 

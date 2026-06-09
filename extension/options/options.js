@@ -4339,6 +4339,19 @@
     return normalizeAiRequestTimeoutMs(value, DEFAULT_AI_REQUEST_TIMEOUT_MS);
   }
 
+  function normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : -40;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    const rounded = Math.round(numeric);
+    if (rounded < -80 || rounded > -5) {
+      return fallbackNumber;
+    }
+    return rounded;
+  }
+
   function normalizeDataBakerPipelineMode(value, fallback) {
     return normalizeDataBakerRecognitionMode(value, fallback);
   }
@@ -4915,6 +4928,7 @@
         id: dataBakerCvpcLiuzhouScriptId,
         enabled: true,
         segmentPreviewEnabled: true,
+        segmentSilenceThresholdDbfs: -40,
         blockNewTabEditingTips: true,
         blockPauseStateTips: true,
         segmentPreviewEndpoint:
@@ -4957,6 +4971,10 @@
     config.id = dataBakerCvpcLiuzhouScriptId;
     config.enabled = config.enabled !== false;
     config.segmentPreviewEnabled = config.segmentPreviewEnabled !== false;
+    config.segmentSilenceThresholdDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(
+      config.segmentSilenceThresholdDbfs,
+      defaults.segmentSilenceThresholdDbfs
+    );
     config.blockNewTabEditingTips =
       config.blockNewTabEditingTips !== undefined
         ? config.blockNewTabEditingTips !== false
@@ -10499,6 +10517,9 @@
     const aiRecommendNode = getElement("data-baker-cvpc-ai-recommend-enabled");
     const blockNewTabTipNode = getElement("data-baker-cvpc-block-new-tab-tip");
     const blockPauseStateTipNode = getElement("data-baker-cvpc-block-pause-state-tip");
+    const segmentSilenceThresholdNode = getElement(
+      "data-baker-cvpc-segment-silence-threshold-dbfs"
+    );
     const timeoutNode = getElement("data-baker-cvpc-ai-timeout");
     const contractNode = getElement("data-baker-cvpc-contract-mode");
 
@@ -10513,6 +10534,9 @@
     }
     if (blockPauseStateTipNode) {
       blockPauseStateTipNode.checked = config.blockPauseStateTips !== false;
+    }
+    if (segmentSilenceThresholdNode) {
+      segmentSilenceThresholdNode.value = String(config.segmentSilenceThresholdDbfs);
     }
     if (timeoutNode) {
       timeoutNode.value = String(
@@ -10807,6 +10831,10 @@
       : currentConfig.aiRecommendEnabled !== false;
     const blockNewTabEditingTips = getElement("data-baker-cvpc-block-new-tab-tip").checked;
     const blockPauseStateTips = getElement("data-baker-cvpc-block-pause-state-tip").checked;
+    const segmentSilenceThresholdDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(
+      getElement("data-baker-cvpc-segment-silence-threshold-dbfs")?.value,
+      currentConfig.segmentSilenceThresholdDbfs
+    );
     const timeoutMs = normalizeDataBakerTimeoutMs(
       (hasAiSettingsPanel ? getElement("data-baker-cvpc-ai-timeout").value : "") ||
         String(
@@ -10884,6 +10912,7 @@
               liuzhouAssistant: {
                 id: dataBakerCvpcLiuzhouScriptId,
                 segmentPreviewEnabled: segmentPreviewEnabled,
+                segmentSilenceThresholdDbfs: segmentSilenceThresholdDbfs,
                 blockNewTabEditingTips: blockNewTabEditingTips,
                 blockPauseStateTips: blockPauseStateTips,
                 segmentPreviewEndpoint: buildBackendUrl(segmentPreviewPath, currentSettings || {}),

@@ -425,6 +425,16 @@
     return box;
   }
 
+  function buildPreviewRuleSummary(preview) {
+    const rules = preview?.meta?.rules && typeof preview.meta.rules === "object"
+      ? preview.meta.rules
+      : {};
+    const threshold = Number.isFinite(Number(rules.silenceThresholdDbfs))
+      ? Math.round(Number(rules.silenceThresholdDbfs))
+      : -40;
+    return "静音 >= 0.4s，阈值 " + String(threshold) + " dBFS，前后补偿 0.1s";
+  }
+
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
     let rightRoot = null;
@@ -451,20 +461,53 @@
         return;
       }
       previewNode.innerHTML = "";
-      const items = Array.isArray(preview?.items) ? preview.items : [];
-      if (items.length === 0) {
+      if (!preview || typeof preview !== "object") {
         previewNode.textContent = "当前还没有画段建议。";
         return;
       }
-      items.forEach(function (item, index) {
+      const summary = document.createElement("div");
+      summary.className = "preview-item";
+      summary.innerHTML = "<strong>规则摘要</strong><div>" + buildPreviewRuleSummary(preview) + "</div>";
+      previewNode.appendChild(summary);
+
+      const changes = Array.isArray(preview?.changes) ? preview.changes : [];
+      if (changes.length === 0) {
+        const emptyBox = document.createElement("div");
+        emptyBox.className = "preview-item";
+        emptyBox.innerHTML = "<strong>当前结果</strong><div>当前音频没有命中可拆分静音，保持现有段不变</div>";
+        previewNode.appendChild(emptyBox);
+      }
+      changes.forEach(function (item) {
         const box = document.createElement("div");
         box.className = "preview-item";
-        box.innerHTML = [
-          "<strong>建议 " + String(index + 1) + "</strong>",
-          "<div>" + formatSecondsFromMs(item.startMs) + " 秒 - " + formatSecondsFromMs(item.endMs) + " 秒</div>",
-          "<div>原因：" + String(item.reason || "") + "</div>",
-          "<div>需人工复核：" + (item.needsHumanReview === true ? "是" : "否") + "</div>",
-        ].join("");
+        const suggestedSegments = Array.isArray(item?.suggestedSegments) ? item.suggestedSegments : [];
+        const lines = [
+          "<strong>原第 " +
+            String(Number(item?.sourceSegmentNumber || 0) || "-") +
+            " 段</strong>",
+          "<div>原时间：" +
+            formatSecondsFromMs(item?.originalStartMs) +
+            " 秒 - " +
+            formatSecondsFromMs(item?.originalEndMs) +
+            " 秒</div>",
+          "<div>将拆为 " + String(suggestedSegments.length) + " 段</div>",
+        ];
+        suggestedSegments.forEach(function (segment, index) {
+          lines.push(
+            "<div>子段 " +
+              String(index + 1) +
+              "：" +
+              formatSecondsFromMs(segment?.startMs) +
+              " 秒 - " +
+              formatSecondsFromMs(segment?.endMs) +
+              " 秒</div>"
+          );
+        });
+        lines.push("<div>规则：" + buildPreviewRuleSummary(preview) + "</div>");
+        if (normalizeText(item?.reason)) {
+          lines.push("<div>原因：" + String(item.reason) + "</div>");
+        }
+        box.innerHTML = lines.join("");
         previewNode.appendChild(box);
       });
       if (preview.analysisError) {
@@ -656,7 +699,7 @@
 
       const foot = document.createElement("div");
       foot.className = "panel-foot";
-      foot.textContent = "提示：AI 建议与画段建议已集中到中间区域；真实写入仍需人工复核。";
+      foot.textContent = "提示：AI 建议与画段建议已集中到中间区域；应用后仍需人工复核并手动保存。";
 
       rightPanelNode.appendChild(statusNode);
       rightPanelNode.appendChild(audioSection);
@@ -696,7 +739,7 @@
       const previewSection = document.createElement("div");
       previewSection.className = "section";
       previewSection.innerHTML =
-        '<div class="section-title">当前画段建议</div><div class="section-note">只展示建议，真实画段仍需人工确认。</div>';
+        '<div class="section-title">当前画段建议</div><div class="section-note">建议只会画到页面当前波形状态；应用后仍需你手动点击平台保存。</div>';
       previewNode = document.createElement("div");
       previewNode.className = "preview-list";
       previewNode.textContent = "当前还没有画段建议。";

@@ -86,6 +86,7 @@ test("CVPC storage defaults expose beta liuzhou helper settings", async function
       "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend"
     );
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
+    assert.equal(script.segmentSilenceThresholdDbfs, -40);
     assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(script.aiRecommendListenPrompt, "");
@@ -119,6 +120,7 @@ test("CVPC storage normalizes invalid values and preserves local endpoints", asy
             aiRecommendEndpoint:
               "http://127.0.0.1:3333/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: "abc",
+            segmentSilenceThresholdDbfs: "-120",
             aiRecommendModel: "  qwen3.5-omni-plus  ",
             contractMode: "",
           },
@@ -149,6 +151,7 @@ test("CVPC storage normalizes invalid values and preserves local endpoints", asy
     assert.equal(script.blockNewTabEditingTips, false);
     assert.equal(script.blockPauseStateTips, true);
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
+    assert.equal(script.segmentSilenceThresholdDbfs, -40);
     assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-plus");
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(script.contractMode, "dom-guarded");
@@ -213,6 +216,29 @@ test("CVPC storage normalizes two-stage AI fields and legacy single model fallba
     assert.equal(script.aiRecommendRefineFrequencyPenalty, "-0.6");
     assert.equal(script.aiRecommendRefineSeed, "456");
     assert.equal(script.aiRecommendRefineStopSequences, "DONE\nSTOP");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage keeps valid segment silence threshold dbfs overrides", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            segmentSilenceThresholdDbfs: "-35",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.equal(script.segmentSilenceThresholdDbfs, -35);
   } finally {
     harness.cleanup();
   }

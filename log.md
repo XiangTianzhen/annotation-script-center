@@ -1,3 +1,29 @@
+## 2026-06-10（DataBaker CVPC 柳州话脚本补齐画段建议新规则与页面内应用）
+
+- `DataBaker CVPC / 柳州话脚本` 当前完成两项收口：
+  - `生成画段建议` 改成“浏览器端静音检测 + 后端增量补切预览”：
+    - 前端固定按 `30ms` 窗口做 RMS -> dBFS
+    - 连续 `0.4s` 低于阈值视为静音
+    - 默认阈值 `-40 dBFS`，并新增 options `基础设置 -> 静音阈值（dBFS）`
+    - 后端只对“现有段内部命中的静音”生成 `changes + proposedSegments`，固定前后补 `0.1s`
+  - `应用当前建议` 当前已能进入同源 `xaudio` iframe，按 live region / handle / 原生 `开启拆分` 交互把建议段画回当前波形状态
+- 当前应用边界：
+  - 只写页面当前波形状态
+  - 不直连 `save_increment`
+  - 不自动点击平台 `保存`
+  - 应用完成后仍需人工复核并手动保存
+- 当前预览失效保护同步补齐：
+  - 当前音频切换
+  - 当前段选择变化
+  - 再次生成新建议
+  - live region 数量或边界与旧 preview 不再一致
+- 同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/backend/README.md`
+  - `README.md`
+  - `docs/platforms/index.md`
+
 ## 2026-06-09（系统管理统一切换三套后端地址）
 
 - 扩展前端当前把运行时后端地址统一收口到 `settings.meta.backendBaseUrls`：

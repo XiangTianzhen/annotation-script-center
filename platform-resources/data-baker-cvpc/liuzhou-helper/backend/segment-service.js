@@ -1,9 +1,9 @@
 "use strict";
 
-const SILENCE_DB_THRESHOLD = -27;
-const SILENCE_KEEP_MS = 150;
-const SILENCE_SKIP_MS = 400;
-const SILENCE_FORCE_SPLIT_MS = 1500;
+const DEFAULT_SILENCE_THRESHOLD_DBFS = -40;
+const DEFAULT_MIN_SILENCE_MS = 400;
+const DEFAULT_CONTEXT_PADDING_MS = 100;
+const DEFAULT_SEGMENT_SCOPE = "existing-segments-incremental";
 const MIN_SEGMENT_MS = 100;
 
 function normalizeText(value) {
@@ -26,6 +26,21 @@ function createHttpError(statusCode, message, code) {
   return error;
 }
 
+function normalizeDbfsThreshold(value, fallback) {
+  const fallbackNumber = Number.isFinite(Number(fallback))
+    ? Math.round(Number(fallback))
+    : DEFAULT_SILENCE_THRESHOLD_DBFS;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallbackNumber;
+  }
+  const rounded = Math.round(numeric);
+  if (rounded < -80 || rounded > -5) {
+    return fallbackNumber;
+  }
+  return rounded;
+}
+
 function normalizeRangeItem(item) {
   const source = item && typeof item === "object" ? item : {};
   const startMs = Math.max(0, Math.round(toFiniteNumber(source.startMs, source.start || 0)));
@@ -34,8 +49,6 @@ function normalizeRangeItem(item) {
     startMs,
     endMs,
     durationMs: Math.max(0, endMs - startMs),
-    safeToSplit: source.safeToSplit === true,
-    forceSplit: source.forceSplit === true,
     reason: normalizeText(source.reason),
   };
 }
@@ -76,12 +89,21 @@ function normalizeExistingSegment(item, index) {
     )
   );
   return {
+    uniqueId: normalizeText(source.uniqueId || source.unique_id || source.id),
+    sourceSegmentNumber: Math.max(
+      1,
+      Math.round(
+        toFiniteNumber(
+          source.sourceSegmentNumber,
+          source.segmentNumber || source.index || source.order || index + 1
+        )
+      )
+    ),
     startMs,
     endMs,
     kind: normalizeText(source.kind) || "speech",
     reason: normalizeText(source.reason) || "existing-segment",
     needsHumanReview: source.needsHumanReview !== false,
-    sourceIndex: index,
   };
 }
 
@@ -94,6 +116,27 @@ function normalizeExistingSegments(value) {
     .sort(function (left, right) {
       return left.startMs - right.startMs;
     });
+}
+
+function normalizeRules(source) {
+  const input = source && typeof source === "object" ? source : {};
+  return {
+    silenceThresholdDbfs: normalizeDbfsThreshold(
+      input.silenceThresholdDbfs,
+      DEFAULT_SILENCE_THRESHOLD_DBFS
+    ),
+    minSilenceMs: Math.max(
+      DEFAULT_MIN_SILENCE_MS,
+      Math.round(toFiniteNumber(input.minSilenceMs, DEFAULT_MIN_SILENCE_MS))
+    ),
+    contextPaddingMs: Math.max(
+      0,
+      Math.round(toFiniteNumber(input.contextPaddingMs, DEFAULT_CONTEXT_PADDING_MS))
+    ),
+    segmentScope:
+      normalizeText(input.segmentScope || input.scope || DEFAULT_SEGMENT_SCOPE) ||
+      DEFAULT_SEGMENT_SCOPE,
+  };
 }
 
 function normalizeSegmentPreviewRequest(body) {
@@ -123,103 +166,231 @@ function normalizeSegmentPreviewRequest(body) {
         source.editorContext?.existingSegments ||
         []
     ),
+    rules: normalizeRules(source.rules),
+    segmentScope:
+      normalizeText(source.segmentScope || source.scope || source.rules?.segmentScope) ||
+      DEFAULT_SEGMENT_SCOPE,
   };
 }
 
-function pushSegment(result, startMs, endMs, reason) {
-  const normalizedStart = Math.max(0, Math.round(startMs));
-  const normalizedEnd = Math.max(normalizedStart, Math.round(endMs));
-  if (normalizedEnd - normalizedStart < MIN_SEGMENT_MS) {
-    return;
-  }
-  result.push({
-    startMs: normalizedStart,
-    endMs: normalizedEnd,
-    kind: "speech",
-    reason: normalizeText(reason) || "silence-rule-preview",
-    needsHumanReview: true,
-  });
-}
-
-function mergeTinyTailSegments(segments) {
-  const source = Array.isArray(segments) ? segments.slice() : [];
+function mergeIntersectingRanges(ranges) {
+  const source = Array.isArray(ranges) ? ranges.slice() : [];
   if (source.length <= 1) {
     return source;
   }
-  const result = [];
-  source.forEach(function (segment) {
-    const current = Object.assign({}, segment);
+  const result = [Object.assign({}, source[0])];
+  for (let index = 1; index < source.length; index += 1) {
+    const current = source[index];
     const previous = result[result.length - 1];
-    if (previous && current.endMs - current.startMs < MIN_SEGMENT_MS * 2) {
-      previous.endMs = current.endMs;
-      previous.reason = previous.reason + "+merge-short-tail";
-      previous.needsHumanReview = true;
-      return;
+    if (current.startMs <= previous.endMs) {
+      previous.endMs = Math.max(previous.endMs, current.endMs);
+      previous.durationMs = Math.max(0, previous.endMs - previous.startMs);
+      previous.reason = previous.reason || current.reason;
+      continue;
     }
-    result.push(current);
-  });
+    result.push(Object.assign({}, current));
+  }
   return result;
 }
 
-function buildPreviewSegments(request) {
+function buildFallbackSegments(request) {
   if (request.existingSegments.length > 0) {
-    return request.existingSegments.map(function (segment) {
-      return Object.assign({}, segment, {
-        reason: segment.reason || "existing-segment",
-      });
-    });
+    return request.existingSegments.slice();
   }
-
-  const durationMs = Math.max(0, request.audioDurationMs);
-  if (durationMs <= 0) {
+  if (request.audioDurationMs <= 0) {
     return [];
   }
+  return [
+    {
+      uniqueId: "",
+      sourceSegmentNumber: 1,
+      startMs: 0,
+      endMs: request.audioDurationMs,
+      kind: "speech",
+      reason: "full-audio-fallback",
+      needsHumanReview: true,
+    },
+  ];
+}
 
-  const segments = [];
-  let cursorStart = 0;
-  request.silentRanges.forEach(function (range) {
-    if (range.durationMs < SILENCE_SKIP_MS) {
-      return;
+function buildInternalSilences(segment, silentRanges, rules) {
+  const intersections = silentRanges
+    .map(function (range) {
+      const startMs = Math.max(segment.startMs, range.startMs);
+      const endMs = Math.min(segment.endMs, range.endMs);
+      return {
+        startMs,
+        endMs,
+        durationMs: Math.max(0, endMs - startMs),
+      };
+    })
+    .filter(function (range) {
+      return (
+        range.durationMs >= rules.minSilenceMs &&
+        range.startMs > segment.startMs &&
+        range.endMs < segment.endMs
+      );
+    })
+    .sort(function (left, right) {
+      return left.startMs - right.startMs;
+    });
+  return mergeIntersectingRanges(intersections);
+}
+
+function buildSpeechRanges(segment, silences) {
+  const result = [];
+  let cursorStart = segment.startMs;
+  silences.forEach(function (silence) {
+    if (silence.startMs - cursorStart >= MIN_SEGMENT_MS) {
+      result.push({
+        startMs: cursorStart,
+        endMs: silence.startMs,
+      });
     }
-
-    const mustSplit = range.durationMs > SILENCE_FORCE_SPLIT_MS;
-    const shouldSplit = mustSplit || range.safeToSplit === true || range.forceSplit === true;
-    if (!shouldSplit) {
-      return;
-    }
-
-    const segmentEnd = clamp(range.startMs + SILENCE_KEEP_MS, cursorStart + MIN_SEGMENT_MS, durationMs);
-    pushSegment(
-      segments,
-      cursorStart,
-      segmentEnd,
-      mustSplit ? "silence-over-1.5s" : "silence-0.4s-1.5s-safe-split"
-    );
-    cursorStart = clamp(range.endMs - SILENCE_KEEP_MS, segmentEnd, durationMs);
+    cursorStart = Math.max(cursorStart, silence.endMs);
   });
+  if (segment.endMs - cursorStart >= MIN_SEGMENT_MS) {
+    result.push({
+      startMs: cursorStart,
+      endMs: segment.endMs,
+    });
+  }
+  return result;
+}
 
-  pushSegment(
-    segments,
-    cursorStart,
-    durationMs,
-    segments.length > 0 ? "tail-after-silence" : "full-audio-fallback"
-  );
-  return mergeTinyTailSegments(segments);
+function padSpeechRanges(segment, speechRanges, rules) {
+  const padded = speechRanges
+    .map(function (range) {
+      return {
+        startMs: clamp(range.startMs - rules.contextPaddingMs, segment.startMs, segment.endMs),
+        endMs: clamp(range.endMs + rules.contextPaddingMs, segment.startMs, segment.endMs),
+      };
+    })
+    .filter(function (range) {
+      return range.endMs > range.startMs;
+    });
+
+  for (let index = 1; index < padded.length; index += 1) {
+    const previous = padded[index - 1];
+    const current = padded[index];
+    if (previous.endMs <= current.startMs) {
+      continue;
+    }
+    const midpoint = Math.round((previous.endMs + current.startMs) / 2);
+    previous.endMs = midpoint;
+    current.startMs = midpoint;
+  }
+
+  return padded.filter(function (range) {
+    return range.endMs - range.startMs >= MIN_SEGMENT_MS;
+  });
+}
+
+function buildSegmentChange(segment, silentRanges, rules) {
+  const internalSilences = buildInternalSilences(segment, silentRanges, rules);
+  if (internalSilences.length === 0) {
+    return {
+      proposedSegments: [
+        {
+          sourceUniqueId: segment.uniqueId,
+          sourceSegmentNumber: segment.sourceSegmentNumber,
+          originalStartMs: segment.startMs,
+          originalEndMs: segment.endMs,
+          startMs: segment.startMs,
+          endMs: segment.endMs,
+          kind: segment.kind,
+          needsHumanReview: segment.needsHumanReview !== false,
+          reason: segment.reason || "existing-segment",
+        },
+      ],
+      change: null,
+    };
+  }
+
+  const speechRanges = buildSpeechRanges(segment, internalSilences);
+  const suggestedSegments = padSpeechRanges(segment, speechRanges, rules);
+  if (suggestedSegments.length <= 1) {
+    return {
+      proposedSegments: [
+        {
+          sourceUniqueId: segment.uniqueId,
+          sourceSegmentNumber: segment.sourceSegmentNumber,
+          originalStartMs: segment.startMs,
+          originalEndMs: segment.endMs,
+          startMs: segment.startMs,
+          endMs: segment.endMs,
+          kind: segment.kind,
+          needsHumanReview: true,
+          reason: segment.reason || "existing-segment",
+        },
+      ],
+      change: null,
+    };
+  }
+
+  return {
+    proposedSegments: suggestedSegments.map(function (range) {
+      return {
+        sourceUniqueId: segment.uniqueId,
+        sourceSegmentNumber: segment.sourceSegmentNumber,
+        originalStartMs: segment.startMs,
+        originalEndMs: segment.endMs,
+        startMs: range.startMs,
+        endMs: range.endMs,
+        kind: segment.kind,
+        needsHumanReview: true,
+        reason: "silence>=400ms",
+      };
+    }),
+    change: {
+      sourceUniqueId: segment.uniqueId,
+      sourceSegmentNumber: segment.sourceSegmentNumber,
+      originalStartMs: segment.startMs,
+      originalEndMs: segment.endMs,
+      reason: "silence>=400ms",
+      suggestedSegments: suggestedSegments.map(function (range) {
+        return {
+          startMs: range.startMs,
+          endMs: range.endMs,
+        };
+      }),
+    },
+  };
 }
 
 function buildSegmentPreview(input) {
   const request = normalizeSegmentPreviewRequest(input);
+  const effectiveSegments = buildFallbackSegments(request);
+  const changes = [];
+  const proposedSegments = [];
+
+  effectiveSegments.forEach(function (segment) {
+    const result = buildSegmentChange(segment, request.silentRanges, request.rules);
+    proposedSegments.push.apply(proposedSegments, result.proposedSegments);
+    if (result.change) {
+      changes.push(result.change);
+    }
+  });
+
+  proposedSegments.sort(function (left, right) {
+    return left.startMs - right.startMs;
+  });
+
   return {
     success: true,
-    data: buildPreviewSegments(request),
+    data: {
+      proposedSegments,
+      changes,
+    },
     meta: {
-      source:
-        request.existingSegments.length > 0 ? "existing-segments-normalized" : "silence-rules-preview",
-      silenceDbThreshold: SILENCE_DB_THRESHOLD,
-      noSplitBelowMs: SILENCE_SKIP_MS,
-      forceSplitAboveMs: SILENCE_FORCE_SPLIT_MS,
-      keepContextMs: SILENCE_KEEP_MS,
-      contractMode: "suggestion-only",
+      source: "existing-segments-incremental",
+      rules: {
+        silenceThresholdDbfs: request.rules.silenceThresholdDbfs,
+        minSilenceMs: request.rules.minSilenceMs,
+        contextPaddingMs: request.rules.contextPaddingMs,
+        segmentScope: request.segmentScope || request.rules.segmentScope || DEFAULT_SEGMENT_SCOPE,
+      },
+      contractMode: "dom-guarded-manual-save",
     },
   };
 }
@@ -229,26 +400,24 @@ function createSegmentHealthPayload() {
     success: true,
     route: "data-baker-cvpc/liuzhou-helper/segment/preview",
     rules: {
-      silenceDbThreshold: SILENCE_DB_THRESHOLD,
-      noSplitBelowMs: SILENCE_SKIP_MS,
-      conditionalSplitMinMs: SILENCE_SKIP_MS,
-      conditionalSplitMaxMs: SILENCE_FORCE_SPLIT_MS,
-      forceSplitAboveMs: SILENCE_FORCE_SPLIT_MS,
-      keepContextMs: SILENCE_KEEP_MS,
+      silenceThresholdDbfs: DEFAULT_SILENCE_THRESHOLD_DBFS,
+      minSilenceMs: DEFAULT_MIN_SILENCE_MS,
+      contextPaddingMs: DEFAULT_CONTEXT_PADDING_MS,
+      segmentScope: DEFAULT_SEGMENT_SCOPE,
       minSegmentMs: MIN_SEGMENT_MS,
     },
     contract: {
-      mode: "suggestion-only",
-      writeContractCaptured: false,
+      mode: "dom-guarded-manual-save",
+      writeContractCaptured: "page-dom-only",
     },
   };
 }
 
 module.exports = {
-  SILENCE_DB_THRESHOLD,
-  SILENCE_KEEP_MS,
-  SILENCE_SKIP_MS,
-  SILENCE_FORCE_SPLIT_MS,
+  DEFAULT_CONTEXT_PADDING_MS,
+  DEFAULT_MIN_SILENCE_MS,
+  DEFAULT_SEGMENT_SCOPE,
+  DEFAULT_SILENCE_THRESHOLD_DBFS,
   MIN_SEGMENT_MS,
   buildSegmentPreview,
   createHttpError,

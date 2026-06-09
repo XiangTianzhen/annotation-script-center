@@ -1532,6 +1532,19 @@
     return normalizedFallback;
   }
 
+  function normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : -40;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    const rounded = Math.round(numeric);
+    if (rounded < -80 || rounded > -5) {
+      return fallbackNumber;
+    }
+    return rounded;
+  }
+
   function resolveDataBakerListenModel(value, pipelineMode, fallback, constants) {
     const normalizedValue = getDataBakerModelText(value);
     if (normalizedValue) {
@@ -2077,6 +2090,10 @@
       "dataBakerCvpcLiuzhouAssistant";
     result.enabled = result.enabled !== false;
     result.segmentPreviewEnabled = result.segmentPreviewEnabled !== false;
+    result.segmentSilenceThresholdDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(
+      rawSource.segmentSilenceThresholdDbfs,
+      defaultConfig.segmentSilenceThresholdDbfs
+    );
     result.blockNewTabEditingTips =
       rawSource.blockNewTabEditingTips !== undefined
         ? rawSource.blockNewTabEditingTips !== false
@@ -2149,6 +2166,7 @@
               "dataBakerCvpcLiuzhouAssistant",
             enabled: true,
             segmentPreviewEnabled: true,
+            segmentSilenceThresholdDbfs: -40,
             blockNewTabEditingTips: true,
             blockPauseStateTips: true,
             segmentPreviewEndpoint:

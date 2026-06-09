@@ -218,6 +218,12 @@
         current.aiRecommendEndpoint || endpointBuilder(AI_PATH, settings),
       segmentPreviewEndpoint:
         current.segmentPreviewEndpoint || endpointBuilder(SEGMENT_PATH, settings),
+      segmentSilenceThresholdDbfs:
+        Number.isFinite(Number(current.segmentSilenceThresholdDbfs))
+          ? Math.round(Number(current.segmentSilenceThresholdDbfs))
+          : Number.isFinite(Number(defaults.segmentSilenceThresholdDbfs))
+            ? Math.round(Number(defaults.segmentSilenceThresholdDbfs))
+            : -40,
       aiUsageOperatorName: String(settings?.meta?.aiUsageOperatorName || "").trim(),
       shortcuts:
         current.shortcuts && typeof current.shortcuts === "object"
@@ -333,6 +339,10 @@
       lastRecommendation = null;
       runtime.ui.renderRecommendation(null);
     }
+    if (runtime?.segment?.clearPreview) {
+      runtime.segment.clearPreview();
+      runtime.ui.renderPreview(null);
+    }
     scheduleAudioContextRefresh(0);
   }
 
@@ -342,7 +352,7 @@
       const context = await buildCurrentContext();
       const preview = await runtime.segment.preview(context);
       runtime.ui.renderPreview(preview);
-      runtime.ui.setStatus("画段建议已生成；当前仍需人工确认后再画段。", "success");
+      runtime.ui.setStatus("画段建议已生成，请先复核后再应用到页面。", "success");
     } catch (error) {
       runtime.ui.setStatus(
         "生成画段建议失败：" + (error && error.message ? error.message : String(error)),
@@ -354,7 +364,15 @@
   async function handleApplyPreview() {
     const preview = runtime.segment.getLastPreview();
     const result = await runtime.dataApi.applySegmentPreview(preview);
-    runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
+    if (result.ok) {
+      if (runtime?.segment?.clearPreview) {
+        runtime.segment.clearPreview();
+        runtime.ui.renderPreview(null);
+      }
+      runtime.ui.setStatus("已画到页面，待你手动保存", "success");
+      return;
+    }
+    runtime.ui.setStatus(result.message, "error");
   }
 
   async function handleRecommend() {
@@ -445,6 +463,7 @@
     });
     const segment = segmentFactory.createRuntime({
       endpoint: config.segmentPreviewEndpoint,
+      silenceThresholdDbfs: config.segmentSilenceThresholdDbfs,
     });
     const editingTabTipGuard =
       editingTabTipGuardApi && typeof editingTabTipGuardApi.createEditingTabTipGuard === "function"

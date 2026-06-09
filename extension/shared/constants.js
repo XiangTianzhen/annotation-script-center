@@ -1837,6 +1837,7 @@
           id: DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID,
           enabled: true,
           segmentPreviewEnabled: true,
+          segmentSilenceThresholdDbfs: -40,
           blockNewTabEditingTips: true,
           blockPauseStateTips: true,
           segmentPreviewEndpoint: DATA_BAKER_CVPC_SEGMENT_PREVIEW_SERVER_ENDPOINT,

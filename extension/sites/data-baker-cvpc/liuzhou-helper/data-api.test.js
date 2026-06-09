@@ -35,6 +35,14 @@ class RichFakeElement {
     this.type = settings.type || "";
     this.value = settings.value || "";
     this.checked = settings.checked === true;
+    this.clientWidth = Number(settings.clientWidth || 0) || 0;
+    this.clientHeight = Number(settings.clientHeight || 0) || 0;
+    this.scrollWidth = Number(settings.scrollWidth || this.clientWidth || 0) || 0;
+    this.scrollHeight = Number(settings.scrollHeight || this.clientHeight || 0) || 0;
+    this.boundingRect =
+      settings.boundingRect && typeof settings.boundingRect === "object"
+        ? Object.assign({ left: 0, top: 0, width: 0, height: 0 }, settings.boundingRect)
+        : null;
     this.eventListeners = {};
     this.clickCount = 0;
     this.focusCount = 0;
@@ -103,6 +111,14 @@ class RichFakeElement {
     return this.attributes[String(name || "")] || "";
   }
 
+  hasAttribute(name) {
+    return Object.prototype.hasOwnProperty.call(this.attributes, String(name || ""));
+  }
+
+  removeAttribute(name) {
+    delete this.attributes[String(name || "")];
+  }
+
   addEventListener(type, listener) {
     const key = String(type || "");
     if (!this.eventListeners[key]) {
@@ -113,6 +129,20 @@ class RichFakeElement {
 
   dispatchEvent(event) {
     const type = String(event?.type || "");
+    if (event && !event.target) {
+      try {
+        event.target = this;
+      } catch (_error) {
+        // Ignore read-only target on native Event objects in Node.
+      }
+    }
+    if (event) {
+      try {
+        event.currentTarget = this;
+      } catch (_error) {
+        // Ignore read-only currentTarget on native Event objects in Node.
+      }
+    }
     (this.eventListeners[type] || []).forEach(function (listener) {
       listener.call(this, event);
     }, this);
@@ -194,6 +224,23 @@ class RichFakeElement {
       this.onTextContentChange(this._textContent);
     }
   }
+
+  getBoundingClientRect() {
+    const rect = this.boundingRect || {
+      left: 0,
+      top: 0,
+      width: Number(this.clientWidth || 0) || 0,
+      height: Number(this.clientHeight || 0) || 0,
+    };
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      right: rect.left + rect.width,
+      bottom: rect.top + rect.height,
+    };
+  }
 }
 
 class RichFakeInputElement extends RichFakeElement {
@@ -236,8 +283,33 @@ function matchesSimpleSelector(node, selector) {
   if (current === "body") {
     return node.tagName === "BODY";
   }
+  if (/^#[\w-]+$/.test(current)) {
+    return String(node.getAttribute?.("id") || "") === current.slice(1);
+  }
+  if (/^[a-z][\w-]*#[\w-]+$/i.test(current)) {
+    const parts = current.split("#");
+    return (
+      node.tagName === parts[0].toUpperCase() &&
+      String(node.getAttribute?.("id") || "") === parts[1]
+    );
+  }
   if (/^[a-z]+$/i.test(current)) {
     return node.tagName === current.toUpperCase();
+  }
+  if (/^[a-z][\w-]*(\.[\w-]+)+$/i.test(current)) {
+    const parts = current.split(".");
+    const tagName = parts.shift();
+    return (
+      node.tagName === String(tagName || "").toUpperCase() &&
+      parts.every(function (className) {
+        return (
+          String(node.className || "")
+            .split(/\s+/)
+            .filter(Boolean)
+            .indexOf(className) >= 0
+        );
+      })
+    );
   }
   if (current === "input[type='text']") {
     return node.tagName === "INPUT" && String(node.type || "").toLowerCase() === "text";
@@ -427,6 +499,19 @@ function createDataApiHarness(options) {
         },
       };
     }
+    if (requestUrl.indexOf("/httpapi/annotation/annos") >= 0) {
+      return {
+        ok: true,
+        json: async function () {
+          return {
+            code: 200,
+            data:
+              settings.annosPayload ||
+              buildAnnosPayloadFromMetaPayload(metaPayload),
+          };
+        },
+      };
+    }
     if (settings.fetchStatus) {
       return {
         ok: settings.fetchStatus >= 200 && settings.fetchStatus < 300,
@@ -519,6 +604,43 @@ function createMetaPayload(entries) {
       moment_attrs: [],
     },
   };
+}
+
+function buildAnnosPayloadFromMetaPayload(metaPayload) {
+  const meta = metaPayload && typeof metaPayload === "object" ? metaPayload : {};
+  const entry = Array.isArray(meta.datas) ? meta.datas[0] || null : null;
+  const ann = Array.isArray(meta.anns) ? meta.anns[0] || null : null;
+  const moments = Array.isArray(ann?.ann_data?.moments) ? ann.ann_data.moments : [];
+  const result = [];
+  if (entry || ann) {
+    result.push({
+      entry_index: entry?.entry_index || ann?.entry_index || 1,
+      entry_id: entry?.entry_id || ann?.entry_id || 1,
+      unique_id: "entry-scope",
+      ann_scope: "entry",
+      ann_data: {
+        attrs: [],
+      },
+      status: "valid",
+    });
+  }
+  moments.forEach(function (moment, index) {
+    const startMs = Number(moment?.startMs || 0) || 0;
+    const endMs = Number(moment?.endMs || startMs) || startMs;
+    result.push({
+      entry_index: entry?.entry_index || ann?.entry_index || 1,
+      entry_id: entry?.entry_id || ann?.entry_id || 1,
+      unique_id: "segment-" + String(index + 1),
+      ann_scope: "instance",
+      start_second: startMs / 1000,
+      end_second: endMs / 1000,
+      ann_data: {
+        attrs: [],
+      },
+      status: "valid",
+    });
+  });
+  return result;
 }
 
 function createInteractiveDataApiHarness(options) {
@@ -803,6 +925,542 @@ function buildAnnosPayloadFromSegments(segmentStates) {
     });
   });
   return result;
+}
+
+function formatRegionTitle(startMs, endMs) {
+  function formatPart(value) {
+    const totalMs = Math.max(0, Number(value || 0) || 0);
+    const minutes = Math.floor(totalMs / 60000);
+    const seconds = ((totalMs % 60000) / 1000).toFixed(3).padStart(6, "0");
+    return String(minutes) + ":" + seconds;
+  }
+  return formatPart(startMs) + "-" + formatPart(endMs);
+}
+
+function buildExactSegmentRows(segments) {
+  const source = Array.isArray(segments) ? segments : [];
+  const result = [
+    {
+      entry_index: 1,
+      entry_id: 1,
+      unique_id: "entry-scope",
+      ann_scope: "entry",
+      ann_data: {
+        attrs: [],
+      },
+      status: "valid",
+    },
+  ];
+  source.forEach(function (segment, index) {
+    result.push({
+      entry_index: 1,
+      entry_id: 1,
+      unique_id: String(segment.uniqueId || "region-" + String(index + 1)),
+      ann_scope: "instance",
+      start_second: Number(segment.startMs || 0) / 1000,
+      end_second: Number(segment.endMs || 0) / 1000,
+      ann_data: {
+        attrs: [],
+      },
+      status: "valid",
+    });
+  });
+  return result;
+}
+
+function createSegmentApplyHarness(options) {
+  const settings = options && typeof options === "object" ? options : {};
+  const visibleEntryName = String(settings.visibleEntryName || "sample-a.mp3");
+  const selectionText = String(
+    settings.selectionText || "开始：0 秒 结束：4.171 秒 截取：4.171 秒"
+  );
+  const audioDurationMs = Number(settings.audioDurationMs || 10000) || 10000;
+  const waveformWidth = Number(settings.waveformWidth || 1000) || 1000;
+  const regionDefs = Array.isArray(settings.regions)
+    ? settings.regions.map(function (segment, index) {
+        return {
+          uniqueId: String(segment.uniqueId || "region-" + String(index + 1)),
+          startMs: Number(segment.startMs || 0) || 0,
+          endMs: Number(segment.endMs || 0) || 0,
+          segmentNumber: Number(segment.segmentNumber || index + 1) || index + 1,
+        };
+      })
+    : [
+        {
+          uniqueId: "region-1",
+          startMs: 0,
+          endMs: 3000,
+          segmentNumber: 1,
+        },
+      ];
+
+  function msToPx(value) {
+    return Math.round((Math.max(0, Number(value || 0) || 0) / audioDurationMs) * waveformWidth);
+  }
+
+  function pxToMs(value) {
+    return Math.round((Math.max(0, Number(value || 0) || 0) / waveformWidth) * audioDurationMs);
+  }
+
+  const body = new RichFakeElement("body");
+  const head = new RichFakeElement("head");
+  const visibleEntryNode = new RichFakeElement("div", { textContent: visibleEntryName });
+  const xaudioTimeNode = new RichFakeElement("div", {
+    className: "xaudio_time",
+    textContent: selectionText,
+  });
+  const splitButton = new RichFakeElement("button", {
+    textContent: "开启拆分",
+  });
+  const iframeBox = new RichFakeElement("div", {
+    attributes: { id: "iframeBox" },
+  });
+  const iframeNode = new RichFakeElement("iframe", {
+    attributes: { id: "myIframe" },
+  });
+
+  body.appendChild(visibleEntryNode);
+  body.appendChild(xaudioTimeNode);
+  body.appendChild(splitButton);
+  body.appendChild(iframeBox);
+  iframeBox.appendChild(iframeNode);
+
+  const iframeBody = new RichFakeElement("body");
+  const iframeHead = new RichFakeElement("head");
+  const waveWaveform = new RichFakeElement("div", {
+    attributes: { id: "wave-waveform" },
+    clientWidth: waveformWidth,
+    scrollWidth: waveformWidth,
+    boundingRect: {
+      left: 20,
+      top: 0,
+      width: waveformWidth,
+      height: 201,
+    },
+  });
+  const rectWrapper = new RichFakeElement("rectwrapper", {
+    clientWidth: waveformWidth,
+    scrollWidth: waveformWidth,
+    boundingRect: {
+      left: 20,
+      top: 0,
+      width: waveformWidth,
+      height: 201,
+    },
+  });
+  const markpoints = new RichFakeElement("markpoints", {
+    clientWidth: waveformWidth,
+    scrollWidth: waveformWidth,
+    boundingRect: {
+      left: 20,
+      top: 0,
+      width: waveformWidth,
+      height: 201,
+    },
+  });
+  waveWaveform.appendChild(rectWrapper);
+  rectWrapper.appendChild(markpoints);
+  iframeBody.appendChild(waveWaveform);
+
+  const iframeDocumentListeners = {};
+  const iframeDocument = {
+    body: iframeBody,
+    head: iframeHead,
+    documentElement: iframeBody,
+    addEventListener: function (type, listener) {
+      iframeDocumentListeners[String(type || "")] = listener;
+    },
+    removeEventListener: function (type, listener) {
+      if (iframeDocumentListeners[String(type || "")] === listener) {
+        delete iframeDocumentListeners[String(type || "")];
+      }
+    },
+    dispatchEvent: function (event) {
+      const listener = iframeDocumentListeners[String(event?.type || "")];
+      if (typeof listener === "function") {
+        listener.call(iframeDocument, event);
+      }
+      return true;
+    },
+    querySelectorAll: function (selector) {
+      if (selector === "body *") {
+        return collectDescendants(iframeBody);
+      }
+      return iframeBody.querySelectorAll(selector);
+    },
+    querySelector: function (selector) {
+      if (selector === "body") {
+        return iframeBody;
+      }
+      return iframeBody.querySelector(selector);
+    },
+    createElement: function (tagName) {
+      return new RichFakeElement(tagName);
+    },
+  };
+  iframeNode.contentDocument = iframeDocument;
+
+  const regionStates = [];
+  let splitMode = false;
+  let dragState = null;
+
+  function updateRegionNode(regionState) {
+    const leftPx = msToPx(regionState.startMs);
+    const rightPx = msToPx(regionState.endMs);
+    const widthPx = Math.max(1, rightPx - leftPx);
+    regionState.node.setAttribute(
+      "style",
+      [
+        "position: absolute",
+        "left: " + String(leftPx) + "px",
+        "width: " + String(widthPx) + "px",
+        "height: 201px",
+        "top: 0px",
+      ].join("; ")
+    );
+    regionState.node.style = {
+      left: String(leftPx) + "px",
+      width: String(widthPx) + "px",
+      height: "201px",
+      top: "0px",
+    };
+    regionState.node.boundingRect = {
+      left: 20 + leftPx,
+      top: 0,
+      width: widthPx,
+      height: 201,
+    };
+    regionState.node.setAttribute("title", formatRegionTitle(regionState.startMs, regionState.endMs));
+    regionState.startHandle.boundingRect = {
+      left: 20 + leftPx,
+      top: 0,
+      width: 3,
+      height: 201,
+    };
+    regionState.endHandle.boundingRect = {
+      left: 20 + leftPx + widthPx - 3,
+      top: 0,
+      width: 3,
+      height: 201,
+    };
+  }
+
+  function createWaveRegion(definition, index) {
+    const regionNode = new RichFakeElement("region", {
+      className: "waveform-region",
+      attributes: {
+        "data-id": String(definition.uniqueId),
+      },
+    });
+    const closeButton = new RichFakeElement("button");
+    const labelNode = new RichFakeElement("div", {
+      textContent: String(definition.segmentNumber || index + 1),
+    });
+    const hiddenLabelNode = new RichFakeElement("div", {
+      textContent: "",
+    });
+    const startHandle = new RichFakeElement("handle", {
+      className: "waveform-handle waveform-handle-start",
+    });
+    const endHandle = new RichFakeElement("handle", {
+      className: "waveform-handle waveform-handle-end",
+    });
+    const regionState = {
+      uniqueId: String(definition.uniqueId),
+      segmentNumber: Number(definition.segmentNumber || index + 1) || index + 1,
+      startMs: Number(definition.startMs || 0) || 0,
+      endMs: Number(definition.endMs || 0) || 0,
+      node: regionNode,
+      labelNode,
+      startHandle,
+      endHandle,
+    };
+    startHandle.addEventListener("pointerdown", function (event) {
+      dragState = {
+        kind: "resize",
+        edge: "start",
+        regionState,
+        clientX: Number(event?.clientX || 0) || 0,
+      };
+    });
+    startHandle.addEventListener("mousedown", function (event) {
+      dragState = {
+        kind: "resize",
+        edge: "start",
+        regionState,
+        clientX: Number(event?.clientX || 0) || 0,
+      };
+    });
+    endHandle.addEventListener("pointerdown", function (event) {
+      dragState = {
+        kind: "resize",
+        edge: "end",
+        regionState,
+        clientX: Number(event?.clientX || 0) || 0,
+      };
+    });
+    endHandle.addEventListener("mousedown", function (event) {
+      dragState = {
+        kind: "resize",
+        edge: "end",
+        regionState,
+        clientX: Number(event?.clientX || 0) || 0,
+      };
+    });
+    regionNode.appendChild(closeButton);
+    regionNode.appendChild(labelNode);
+    regionNode.appendChild(hiddenLabelNode);
+    regionNode.appendChild(startHandle);
+    regionNode.appendChild(endHandle);
+    rectWrapper.appendChild(regionNode);
+    regionStates.push(regionState);
+    updateRegionNode(regionState);
+    return regionState;
+  }
+
+  function normalizeRegionNumbers() {
+    regionStates
+      .slice()
+      .sort(function (left, right) {
+        return left.startMs - right.startMs;
+      })
+      .forEach(function (regionState, index) {
+        regionState.segmentNumber = index + 1;
+        regionState.labelNode.textContent = String(index + 1);
+      });
+  }
+
+  function finalizeResize(clientX) {
+    if (!dragState || dragState.kind !== "resize") {
+      return;
+    }
+    const positionPx = Math.max(
+      0,
+      Math.min(waveformWidth, Math.round((Number(clientX || 0) || 0) - 20))
+    );
+    const nextMs = pxToMs(positionPx);
+    if (dragState.edge === "start") {
+      dragState.regionState.startMs = Math.min(nextMs, dragState.regionState.endMs - 50);
+    } else {
+      dragState.regionState.endMs = Math.max(nextMs, dragState.regionState.startMs + 50);
+    }
+    updateRegionNode(dragState.regionState);
+    normalizeRegionNumbers();
+    dragState = null;
+  }
+
+  function finalizeCreate(clientX) {
+    if (!dragState || dragState.kind !== "create") {
+      return;
+    }
+    const startPx = Math.max(
+      0,
+      Math.min(waveformWidth, Math.round((Number(dragState.startClientX || 0) || 0) - 20))
+    );
+    const endPx = Math.max(
+      0,
+      Math.min(waveformWidth, Math.round((Number(clientX || 0) || 0) - 20))
+    );
+    const leftPx = Math.min(startPx, endPx);
+    const rightPx = Math.max(startPx, endPx);
+    if (rightPx - leftPx >= 1) {
+      createWaveRegion(
+        {
+          uniqueId: "generated-" + String(regionStates.length + 1),
+          startMs: pxToMs(leftPx),
+          endMs: pxToMs(rightPx),
+          segmentNumber: regionStates.length + 1,
+        },
+        regionStates.length
+      );
+      normalizeRegionNumbers();
+    }
+    dragState = null;
+  }
+
+  function attachWaveInteraction(node) {
+    ["pointerup", "mouseup"].forEach(function (type) {
+      node.addEventListener(type, function (event) {
+        if (!dragState) {
+          return;
+        }
+        if (dragState.kind === "resize") {
+          finalizeResize(event?.clientX);
+          return;
+        }
+        finalizeCreate(event?.clientX);
+      });
+    });
+    ["pointerdown", "mousedown"].forEach(function (type) {
+      node.addEventListener(type, function (event) {
+        if (!splitMode) {
+          return;
+        }
+        dragState = {
+          kind: "create",
+          startClientX: Number(event?.clientX || 0) || 0,
+        };
+      });
+    });
+  }
+
+  attachWaveInteraction(markpoints);
+  attachWaveInteraction(rectWrapper);
+
+  regionDefs.forEach(createWaveRegion);
+  normalizeRegionNumbers();
+
+  splitButton.onClick = function () {
+    splitMode = true;
+  };
+
+  const topDocument = {
+    body,
+    head,
+    documentElement: body,
+    querySelectorAll: function (selector) {
+      if (selector === "body *") {
+        return collectDescendants(body);
+      }
+      return body.querySelectorAll(selector);
+    },
+    querySelector: function (selector) {
+      if (selector === "body") {
+        return body;
+      }
+      return body.querySelector(selector);
+    },
+    createElement: function (tagName) {
+      return new RichFakeElement(tagName);
+    },
+  };
+
+  const metaPayload =
+    settings.metaPayload ||
+    {
+      datas: [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: visibleEntryName,
+          content: "databaker/data/" + visibleEntryName,
+        },
+      ],
+      anns: [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          ann_data: {
+            moments: regionDefs.map(function (segment) {
+              return {
+                startMs: segment.startMs,
+                endMs: segment.endMs,
+              };
+            }),
+          },
+          audio_duration: audioDurationMs / 1000,
+        },
+      ],
+      template: {
+        attrs: [],
+        entry_attrs: [],
+        moment_attrs: [],
+      },
+    };
+  const annosPayload = settings.annosPayload || buildExactSegmentRows(regionDefs);
+  const fetchCalls = [];
+
+  async function fetchStub(url) {
+    const requestUrl = String(url || "");
+    fetchCalls.push(requestUrl);
+    if (requestUrl.indexOf("/httpapi/annotation/annos") >= 0) {
+      return {
+        ok: true,
+        json: async function () {
+          return {
+            code: 200,
+            data: annosPayload,
+          };
+        },
+      };
+    }
+    if (requestUrl.indexOf("/httpapi/annotation/meta") >= 0) {
+      return {
+        ok: true,
+        json: async function () {
+          return {
+            code: 0,
+            data: metaPayload,
+          };
+        },
+      };
+    }
+    if (requestUrl.indexOf("/httpapi/user/meta") >= 0) {
+      return {
+        ok: true,
+        json: async function () {
+          return {
+            code: 0,
+            data: {
+              user_id: 9527,
+              name: "柳州标注员",
+            },
+          };
+        },
+      };
+    }
+    throw new Error("unexpected fetch: " + requestUrl);
+  }
+
+  return {
+    dependencies: {
+      window: {
+        addEventListener: function () {},
+        removeEventListener: function () {},
+      },
+      document: topDocument,
+      location: {
+        origin: "https://cvpc.data-baker.com",
+        hostname: "cvpc.data-baker.com",
+        pathname: "/app/editor/asr/",
+        search:
+          "?project_id=1453&task_id=12099&process_id=4946&data_id=17896&job_id=1520&terminal=group@1134",
+      },
+      performance: {
+        getEntriesByType: function () {
+          return [];
+        },
+      },
+      fetch: fetchStub,
+      HTMLElement: RichFakeElement,
+      HTMLInputElement: RichFakeInputElement,
+      HTMLTextAreaElement: RichFakeTextareaElement,
+    },
+    fetchCalls,
+    iframeDocument,
+    markpoints,
+    splitButton,
+    regionStates,
+    setSelectionText: function (value) {
+      xaudioTimeNode.textContent = String(value || "");
+    },
+    getLiveRegions: function () {
+      return regionStates
+        .slice()
+        .sort(function (left, right) {
+          return left.startMs - right.startMs;
+        })
+        .map(function (regionState) {
+          return {
+            uniqueId: regionState.uniqueId,
+            startMs: regionState.startMs,
+            endMs: regionState.endMs,
+            segmentNumber: regionState.segmentNumber,
+            title: regionState.node.getAttribute("title"),
+          };
+        });
+    },
+  };
 }
 
 test("CVPC data api prefers observer-supplied signed audio url for the current entry", async function () {
@@ -1352,6 +2010,236 @@ test("CVPC data api writes staged recommendation text into the requested field o
   });
   assert.equal(harness.dialectEditor.textContent, "听音柳州话");
   assert.equal(harness.mandarinEditor.textContent, "听音普通话");
+});
+
+test("CVPC data api applies preview into live waveform regions without calling save_increment", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    audioDurationMs: 10000,
+    waveformWidth: 1000,
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 3000,
+        segmentNumber: 1,
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 3000,
+        endMs: 6000,
+        segmentNumber: 2,
+      },
+    ],
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.applySegmentPreview({
+    selectionKey: "sample-a.mp3|0|4171",
+    selectedEntryName: "sample-a.mp3",
+    sourceSegments: [
+      {
+        uniqueId: "region-1",
+        sourceSegmentNumber: 1,
+        startMs: 0,
+        endMs: 3000,
+      },
+      {
+        uniqueId: "region-2",
+        sourceSegmentNumber: 2,
+        startMs: 3000,
+        endMs: 6000,
+      },
+    ],
+    changes: [
+      {
+        sourceUniqueId: "region-1",
+        sourceSegmentNumber: 1,
+        originalStartMs: 0,
+        originalEndMs: 3000,
+        reason: "silence>=400ms",
+        suggestedSegments: [
+          {
+            startMs: 0,
+            endMs: 1200,
+          },
+          {
+            startMs: 1600,
+            endMs: 3000,
+          },
+        ],
+      },
+    ],
+    proposedSegments: [
+      {
+        startMs: 0,
+        endMs: 1200,
+      },
+      {
+        startMs: 1600,
+        endMs: 3000,
+      },
+      {
+        startMs: 3000,
+        endMs: 6000,
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "建议已画到页面，请人工复核后点击平台保存。",
+  });
+  assert.equal(harness.splitButton.clickCount, 1);
+  assert.equal(
+    harness.fetchCalls.some(function (requestUrl) {
+      return requestUrl.indexOf("/httpapi/annotation/save_increment") >= 0;
+    }),
+    false
+  );
+  assert.deepEqual(harness.getLiveRegions(), [
+    {
+      uniqueId: "region-1",
+      startMs: 0,
+      endMs: 1200,
+      segmentNumber: 1,
+      title: "0:00.000-0:01.200",
+    },
+    {
+      uniqueId: "generated-3",
+      startMs: 1600,
+      endMs: 3000,
+      segmentNumber: 2,
+      title: "0:01.600-0:03.000",
+    },
+    {
+      uniqueId: "region-2",
+      startMs: 3000,
+      endMs: 6000,
+      segmentNumber: 3,
+      title: "0:03.000-0:06.000",
+    },
+  ]);
+});
+
+test("CVPC data api rejects stale segment preview when current selection has changed", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.setSelectionText("开始：1 秒 结束：4.171 秒 截取：3.171 秒");
+  const result = await runtime.applySegmentPreview({
+    selectionKey: "sample-a.mp3|0|4171",
+    selectedEntryName: "sample-a.mp3",
+    sourceSegments: [
+      {
+        uniqueId: "region-1",
+        sourceSegmentNumber: 1,
+        startMs: 0,
+        endMs: 3000,
+      },
+    ],
+    changes: [
+      {
+        sourceUniqueId: "region-1",
+        sourceSegmentNumber: 1,
+        originalStartMs: 0,
+        originalEndMs: 3000,
+        reason: "silence>=400ms",
+        suggestedSegments: [
+          {
+            startMs: 0,
+            endMs: 1200,
+          },
+          {
+            startMs: 1600,
+            endMs: 3000,
+          },
+        ],
+      },
+    ],
+    proposedSegments: [
+      {
+        startMs: 0,
+        endMs: 1200,
+      },
+      {
+        startMs: 1600,
+        endMs: 3000,
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "当前音频或段选择已变化，旧画段建议已失效，请重新生成。",
+  });
+});
+
+test("CVPC data api fails closed when live waveform no longer matches the preview snapshot", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 2800,
+        segmentNumber: 1,
+      },
+    ],
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.applySegmentPreview({
+    selectionKey: "sample-a.mp3|0|4171",
+    selectedEntryName: "sample-a.mp3",
+    sourceSegments: [
+      {
+        uniqueId: "region-1",
+        sourceSegmentNumber: 1,
+        startMs: 0,
+        endMs: 3000,
+      },
+    ],
+    changes: [
+      {
+        sourceUniqueId: "region-1",
+        sourceSegmentNumber: 1,
+        originalStartMs: 0,
+        originalEndMs: 3000,
+        reason: "silence>=400ms",
+        suggestedSegments: [
+          {
+            startMs: 0,
+            endMs: 1200,
+          },
+          {
+            startMs: 1600,
+            endMs: 3000,
+          },
+        ],
+      },
+    ],
+    proposedSegments: [
+      {
+        startMs: 0,
+        endMs: 1200,
+      },
+      {
+        startMs: 1600,
+        endMs: 3000,
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "当前页面分段状态已变化，旧画段建议已失效，请重新生成。",
+  });
 });
 
 test("CVPC data api fillAllValid only reports stats when all instance validity fields are already filled", async function () {

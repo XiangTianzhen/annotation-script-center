@@ -578,6 +578,18 @@
 
             <div class="detail-grid two">
               <label class="field-card">
+                <strong>静音阈值（dBFS）</strong>
+                <span>连续 0.4 秒低于该阈值视为静音；前后自动补 0.1 秒。</span>
+                <input
+                  id="data-baker-cvpc-segment-silence-threshold-dbfs"
+                  type="number"
+                  min="-80"
+                  max="-5"
+                  step="1"
+                />
+              </label>
+
+              <label class="field-card">
                 <strong>屏蔽“不能打开新的Tab页”提示</strong>
                 <span>只移除文案为“您正在编辑该作业,不能打开新的Tab页”的高层提示，不处理其他 `.tips` 提示。</span>
                 <span class="field-toggle">

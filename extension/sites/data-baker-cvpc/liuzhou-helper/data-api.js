@@ -9,6 +9,13 @@
     "未拿到当前音频签名 URL，请先点击当前音频或播放一次后重试；如仍失败请刷新页面。";
   const VALID_LABELS = ["是（Valid）", "是(Valid)", "Valid"];
   const INVALID_LABELS = ["否（Invalid）", "否(Invalid)", "Invalid"];
+  const APPLY_TOLERANCE_MS = 80;
+  const PREVIEW_STALE_MESSAGE = "当前音频或段选择已变化，旧画段建议已失效，请重新生成。";
+  const PREVIEW_LIVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，旧画段建议已失效，请重新生成。";
+  const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的画段建议，请先生成画段建议。";
+  const PREVIEW_NOTHING_TO_APPLY_MESSAGE = "当前音频没有需要应用的拆分建议。";
+  const PREVIEW_UNSAFE_MESSAGE = "未检测到稳定的波形画段区域或拆分控件，请人工处理当前建议。";
+  const PREVIEW_APPLY_SUCCESS_MESSAGE = "建议已画到页面，请人工复核后点击平台保存。";
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -323,6 +330,19 @@
     );
     return {
       index,
+      uniqueId: normalizeText(source.uniqueId || source.unique_id || source.id),
+      sourceSegmentNumber: Math.max(
+        1,
+        Math.round(
+          Number(
+            source.sourceSegmentNumber ??
+              source.segmentNumber ??
+              source.order ??
+              source.index ??
+              index + 1
+          ) || index + 1
+        )
+      ),
       startMs,
       endMs,
       raw: source,
@@ -341,6 +361,40 @@
       }
     }
     return [];
+  }
+
+  function normalizeBoundaryToMs(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return NaN;
+    }
+    return Math.abs(number) > 1000 ? Math.round(number) : Math.round(number * 1000);
+  }
+
+  function extractSegmentsFromAnnos(annos) {
+    return (Array.isArray(annos) ? annos : [])
+      .filter(function (row) {
+        return normalizeText(row?.ann_scope) === "instance";
+      })
+      .map(function (row, index) {
+        const startMs = normalizeBoundaryToMs(
+          row?.start_second ?? row?.startSecond ?? row?.start_ms ?? row?.startMs
+        );
+        const endMs = normalizeBoundaryToMs(
+          row?.end_second ?? row?.endSecond ?? row?.end_ms ?? row?.endMs
+        );
+        return {
+          index,
+          uniqueId: normalizeText(row?.unique_id || row?.uniqueId || row?.id),
+          sourceSegmentNumber: index + 1,
+          startMs,
+          endMs,
+          raw: row,
+        };
+      })
+      .filter(function (item) {
+        return Number.isFinite(item.startMs) && Number.isFinite(item.endMs) && item.endMs > item.startMs;
+      });
   }
 
   function mapTemplateFieldNames(template) {
@@ -665,17 +719,15 @@
     return false;
   }
 
-  function buildAnnosQuery(context) {
-    const current = context && typeof context === "object" ? context : {};
+  function buildAnnosQueryFromParts(query, selectedEntry) {
     const params = new URLSearchParams();
-    const query = current.query || {};
     const pairs = [
       ["project_id", query.projectId],
       ["task_id", query.taskId],
       ["process_id", query.processId],
       ["data_id", query.dataId],
       ["job_id", query.jobId],
-      ["entry_index", current.selectedEntry?.entry_index],
+      ["entry_index", selectedEntry?.entry_index],
       ["terminal", query.terminal],
     ];
     pairs.forEach(function (pair) {
@@ -685,6 +737,11 @@
       }
     });
     return params;
+  }
+
+  function buildAnnosQuery(context) {
+    const current = context && typeof context === "object" ? context : {};
+    return buildAnnosQueryFromParts(current.query || {}, current.selectedEntry);
   }
 
   function isLiveSelectionStale(selectionKey, env) {
@@ -786,6 +843,398 @@
       audioUrl: "",
       audioUrlSource: "",
     };
+  }
+
+  function parseTimeTokenToMs(value) {
+    const text = normalizeText(value);
+    if (!text) {
+      return NaN;
+    }
+    const parts = text.split(":");
+    if (parts.length === 1) {
+      const secondsOnly = Number(parts[0]);
+      return Number.isFinite(secondsOnly) ? Math.round(secondsOnly * 1000) : NaN;
+    }
+    const seconds = Number(parts.pop());
+    const minutes = Number(parts.pop() || 0);
+    const hours = Number(parts.pop() || 0);
+    if (!Number.isFinite(seconds) || !Number.isFinite(minutes) || !Number.isFinite(hours)) {
+      return NaN;
+    }
+    return Math.round(((hours * 60 + minutes) * 60 + seconds) * 1000);
+  }
+
+  function parseRegionTitleRange(title) {
+    const text = normalizeText(title);
+    if (!text || text.indexOf("-") < 0) {
+      return null;
+    }
+    const parts = text.split("-");
+    if (parts.length !== 2) {
+      return null;
+    }
+    const startMs = parseTimeTokenToMs(parts[0]);
+    const endMs = parseTimeTokenToMs(parts[1]);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      return null;
+    }
+    return {
+      startMs,
+      endMs,
+    };
+  }
+
+  function parseStylePxValue(value) {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : NaN;
+    }
+    const text = String(value || "");
+    const matched = text.match(/-?\d+(?:\.\d+)?/);
+    return matched ? Number(matched[0]) : NaN;
+  }
+
+  function readNodeStyleValue(node, key) {
+    const propertyName = String(key || "");
+    if (!node) {
+      return "";
+    }
+    const objectStyle = node.style;
+    if (objectStyle && typeof objectStyle === "object" && objectStyle[propertyName] !== undefined) {
+      return objectStyle[propertyName];
+    }
+    const styleText = String(node.getAttribute?.("style") || objectStyle || "");
+    const matched = styleText.match(
+      new RegExp(propertyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*:\\s*([^;]+)", "i")
+    );
+    return matched ? matched[1] : "";
+  }
+
+  function readNodePixelValue(node, key) {
+    return parseStylePxValue(readNodeStyleValue(node, key));
+  }
+
+  function readNodeWidth(node) {
+    const candidates = [
+      Number(node?.scrollWidth),
+      Number(node?.clientWidth),
+      Number(node?.offsetWidth),
+      Number(node?.getBoundingClientRect?.().width),
+      parseStylePxValue(readNodeStyleValue(node, "width")),
+    ];
+    for (let index = 0; index < candidates.length; index += 1) {
+      if (Number.isFinite(candidates[index]) && candidates[index] > 0) {
+        return candidates[index];
+      }
+    }
+    return 0;
+  }
+
+  function readNodeLeft(node) {
+    const rectLeft = Number(node?.getBoundingClientRect?.().left);
+    if (Number.isFinite(rectLeft)) {
+      return rectLeft;
+    }
+    const styleLeft = readNodePixelValue(node, "left");
+    return Number.isFinite(styleLeft) ? styleLeft : 0;
+  }
+
+  function getXaudioDocument(env) {
+    const doc = env?.document || globalThis.document;
+    if (!doc || typeof doc.querySelector !== "function") {
+      return null;
+    }
+    const iframe = doc.querySelector("#iframeBox iframe#myIframe, #iframeBox iframe");
+    try {
+      return iframe?.contentDocument || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function findSplitActionButton(env) {
+    const doc = env?.document || globalThis.document;
+    if (!doc || typeof doc.querySelectorAll !== "function") {
+      return null;
+    }
+    return (
+      Array.from(doc.querySelectorAll("button, span, div"))
+        .find(function (node) {
+          return normalizeText(node?.textContent || "") === "开启拆分";
+        }) || null
+    );
+  }
+
+  function buildWaveformInfo(iframeDocument, liveRegions, audioDurationMs) {
+    const doc = iframeDocument;
+    if (!doc || typeof doc.querySelector !== "function") {
+      return null;
+    }
+    const container =
+      doc.querySelector("#wave-waveform") ||
+      doc.querySelector("rectwrapper") ||
+      doc.querySelector("markpoints") ||
+      null;
+    const scrollContainer = doc.querySelector("rectwrapper") || container;
+    const drawLayer = doc.querySelector("markpoints") || scrollContainer || container;
+    const regionRight = (Array.isArray(liveRegions) ? liveRegions : []).reduce(function (maxValue, region) {
+      return Math.max(maxValue, Number(region?.rightPx || 0) || 0);
+    }, 0);
+    const contentWidth = Math.max(
+      readNodeWidth(drawLayer),
+      readNodeWidth(scrollContainer),
+      readNodeWidth(container),
+      regionRight
+    );
+    const contentLeft =
+      readNodeLeft(drawLayer) ||
+      readNodeLeft(scrollContainer) ||
+      readNodeLeft(container) ||
+      0;
+    const effectiveDurationMs = Math.max(
+      0,
+      Number(audioDurationMs || 0) || 0,
+      (Array.isArray(liveRegions) ? liveRegions : []).reduce(function (maxValue, region) {
+        return Math.max(maxValue, Number(region?.endMs || 0) || 0);
+      }, 0)
+    );
+    if (!drawLayer || contentWidth <= 0 || effectiveDurationMs <= 0) {
+      return null;
+    }
+    return {
+      container,
+      scrollContainer,
+      drawLayer,
+      contentWidth,
+      contentLeft,
+      audioDurationMs: effectiveDurationMs,
+    };
+  }
+
+  function extractRegionNumber(regionNode) {
+    if (!regionNode || typeof regionNode.querySelectorAll !== "function") {
+      return 0;
+    }
+    const labelNode = Array.from(regionNode.querySelectorAll("div")).find(function (node) {
+      return /^\d+$/.test(normalizeText(node?.textContent || ""));
+    });
+    return Number(normalizeText(labelNode?.textContent || "")) || 0;
+  }
+
+  function readLiveWaveformRegions(iframeDocument, audioDurationMs) {
+    const doc = iframeDocument;
+    if (!doc || typeof doc.querySelectorAll !== "function") {
+      return [];
+    }
+    const regionNodes = Array.from(doc.querySelectorAll("region.waveform-region, .waveform-region"));
+    const preliminary = regionNodes.map(function (node, index) {
+      const titleRange = parseRegionTitleRange(node.getAttribute?.("title") || "");
+      const leftPx = readNodePixelValue(node, "left");
+      const widthPx = readNodePixelValue(node, "width");
+      return {
+        index,
+        node,
+        dataId: normalizeText(node.getAttribute?.("data-id") || node.getAttribute?.("id")),
+        titleRange,
+        leftPx,
+        widthPx,
+        rightPx:
+          (Number.isFinite(leftPx) ? leftPx : 0) +
+          Math.max(0, Number.isFinite(widthPx) ? widthPx : 0),
+        segmentNumber: extractRegionNumber(node) || index + 1,
+        startHandle:
+          node.querySelector?.("handle.waveform-handle-start, .waveform-handle-start") || null,
+        endHandle:
+          node.querySelector?.("handle.waveform-handle-end, .waveform-handle-end") || null,
+      };
+    });
+    const waveformInfo = buildWaveformInfo(doc, preliminary, audioDurationMs);
+    return preliminary
+      .map(function (item) {
+        const pixelRange =
+          waveformInfo &&
+          Number.isFinite(item.leftPx) &&
+          Number.isFinite(item.widthPx) &&
+          item.widthPx > 0
+            ? {
+                startMs: Math.round((item.leftPx / waveformInfo.contentWidth) * waveformInfo.audioDurationMs),
+                endMs: Math.round(
+                  ((item.leftPx + item.widthPx) / waveformInfo.contentWidth) * waveformInfo.audioDurationMs
+                ),
+              }
+            : null;
+        let startMs = NaN;
+        let endMs = NaN;
+        if (pixelRange && item.titleRange) {
+          const delta =
+            Math.abs(pixelRange.startMs - item.titleRange.startMs) +
+            Math.abs(pixelRange.endMs - item.titleRange.endMs);
+          startMs = delta <= 4000 ? pixelRange.startMs : item.titleRange.startMs;
+          endMs = delta <= 4000 ? pixelRange.endMs : item.titleRange.endMs;
+        } else if (pixelRange) {
+          startMs = pixelRange.startMs;
+          endMs = pixelRange.endMs;
+        } else if (item.titleRange) {
+          startMs = item.titleRange.startMs;
+          endMs = item.titleRange.endMs;
+        }
+        return {
+          index: item.index,
+          node: item.node,
+          dataId: item.dataId,
+          segmentNumber: item.segmentNumber,
+          startHandle: item.startHandle,
+          endHandle: item.endHandle,
+          startMs,
+          endMs,
+          leftPx: item.leftPx,
+          widthPx: item.widthPx,
+          rightPx: item.rightPx,
+        };
+      })
+      .filter(function (item) {
+        return Number.isFinite(item.startMs) && Number.isFinite(item.endMs) && item.endMs > item.startMs;
+      })
+      .sort(function (left, right) {
+        return left.startMs - right.startMs;
+      });
+  }
+
+  function hasApproxRangeMatch(left, right, toleranceMs) {
+    const tolerance = Math.max(0, Number(toleranceMs || 0) || 0);
+    return (
+      Math.abs(Number(left?.startMs || 0) - Number(right?.startMs || 0)) <= tolerance &&
+      Math.abs(Number(left?.endMs || 0) - Number(right?.endMs || 0)) <= tolerance
+    );
+  }
+
+  function getPreviewSourceSegments(preview) {
+    const source = preview && typeof preview === "object" ? preview : {};
+    const segments = Array.isArray(source.sourceSegments)
+      ? source.sourceSegments
+      : Array.isArray(source.currentSegments)
+        ? source.currentSegments
+        : [];
+    return segments.map(function (item, index) {
+      return normalizeSegmentItem(item, index);
+    });
+  }
+
+  function isPreviewApplicableToLive(preview, liveRegions) {
+    const sourceSegments = getPreviewSourceSegments(preview);
+    if (sourceSegments.length === 0) {
+      return Array.isArray(liveRegions) && liveRegions.length > 0;
+    }
+    if (!Array.isArray(liveRegions) || liveRegions.length !== sourceSegments.length) {
+      return false;
+    }
+    return sourceSegments.every(function (segment, index) {
+      const liveRegion = liveRegions[index];
+      if (!liveRegion) {
+        return false;
+      }
+      if (segment.uniqueId && liveRegion.dataId) {
+        return (
+          segment.uniqueId === liveRegion.dataId &&
+          hasApproxRangeMatch(segment, liveRegion, APPLY_TOLERANCE_MS)
+        );
+      }
+      if (
+        Number(segment.sourceSegmentNumber) > 0 &&
+        Number(liveRegion.segmentNumber) > 0 &&
+        segment.sourceSegmentNumber !== liveRegion.segmentNumber
+      ) {
+        return false;
+      }
+      return hasApproxRangeMatch(segment, liveRegion, APPLY_TOLERANCE_MS);
+    });
+  }
+
+  function matchLiveRegionForChange(liveRegions, change, usedIndexes) {
+    const source = change && typeof change === "object" ? change : {};
+    const used = usedIndexes instanceof Set ? usedIndexes : new Set();
+    const candidates = (Array.isArray(liveRegions) ? liveRegions : []).filter(function (region) {
+      return !used.has(region.index);
+    });
+    if (normalizeText(source.sourceUniqueId)) {
+      const matchedById = candidates.find(function (region) {
+        return region.dataId === normalizeText(source.sourceUniqueId);
+      });
+      if (matchedById) {
+        return matchedById;
+      }
+    }
+    if (Number(source.sourceSegmentNumber) > 0) {
+      const matchedByNumber = candidates.find(function (region) {
+        return Number(region.segmentNumber) === Number(source.sourceSegmentNumber);
+      });
+      if (matchedByNumber) {
+        return matchedByNumber;
+      }
+    }
+    return candidates.find(function (region) {
+      return hasApproxRangeMatch(
+        region,
+        {
+          startMs: source.originalStartMs,
+          endMs: source.originalEndMs,
+        },
+        APPLY_TOLERANCE_MS
+      );
+    }) || null;
+  }
+
+  function buildTargetClientX(targetMs, waveformInfo) {
+    const ms = Math.max(0, Math.min(waveformInfo.audioDurationMs, Number(targetMs || 0) || 0));
+    return waveformInfo.contentLeft + (ms / waveformInfo.audioDurationMs) * waveformInfo.contentWidth;
+  }
+
+  function createPointerLikeEvent(type, clientX, clientY, view) {
+    const eventInit = {
+      bubbles: true,
+      cancelable: true,
+      clientX,
+      clientY,
+      button: 0,
+      buttons: /up$/i.test(type) ? 0 : 1,
+      pointerId: 1,
+      pointerType: "mouse",
+      view,
+    };
+    try {
+      if (/^pointer/i.test(type) && typeof view?.PointerEvent === "function") {
+        return new view.PointerEvent(type, eventInit);
+      }
+      if (typeof view?.MouseEvent === "function") {
+        return new view.MouseEvent(type, eventInit);
+      }
+    } catch (_error) {
+      return null;
+    }
+    return Object.assign({ type }, eventInit);
+  }
+
+  function dispatchPointerSequence(target, moveTarget, startX, endX, env) {
+    const primaryTarget = target || moveTarget;
+    const secondaryTarget = moveTarget || target;
+    if (!primaryTarget || typeof primaryTarget.dispatchEvent !== "function") {
+      return false;
+    }
+    const view = env?.window || globalThis.window || globalThis;
+    const clientY = 80;
+    [
+      [primaryTarget, "pointerdown", startX],
+      [primaryTarget, "mousedown", startX],
+      [secondaryTarget, "pointermove", endX],
+      [secondaryTarget, "mousemove", endX],
+      [secondaryTarget, "pointerup", endX],
+      [secondaryTarget, "mouseup", endX],
+    ].forEach(function (step) {
+      const event = createPointerLikeEvent(step[1], step[2], clientY, view);
+      if (event && step[0] && typeof step[0].dispatchEvent === "function") {
+        step[0].dispatchEvent(event);
+      }
+    });
+    return true;
   }
 
   function createRuntime(deps) {
@@ -926,6 +1375,20 @@
       const selectedEntry = getSelectedEntry(meta, env.document);
       const liveSelection = getLiveSelectionSnapshot(env.document);
       const currentAnn = getCurrentAnn(meta, selectedEntry);
+      let currentSegments = [];
+      try {
+        const annos = await fetchJson(
+          ANNOS_PATH,
+          buildAnnosQueryFromParts(query, selectedEntry),
+          env.fetch
+        );
+        currentSegments = extractSegmentsFromAnnos(annos);
+      } catch (_error) {
+        currentSegments = [];
+      }
+      if (currentSegments.length === 0) {
+        currentSegments = extractSegmentsFromAnnData(currentAnn?.ann_data);
+      }
       const template = meta.template && typeof meta.template === "object" ? meta.template : {};
       const audio = resolveAudioUrl(selectedEntry, env, observerMappings);
       const userMeta = await loadPlatformUserMeta();
@@ -935,7 +1398,7 @@
         template,
         selectedEntry,
         currentAnn,
-        currentSegments: extractSegmentsFromAnnData(currentAnn?.ann_data),
+        currentSegments: currentSegments,
         fieldContext: collectFieldContext(template, env),
         selectedRange: liveSelection.selectedRange,
         currentSegmentNumber: Number(liveSelection.currentSegmentNumber || 0) || 0,
@@ -1049,10 +1512,224 @@
       };
     }
 
-    async function applySegmentPreview(_preview) {
+    async function applySegmentPreview(preview) {
+      const source = preview && typeof preview === "object" ? preview : null;
+      if (!source) {
+        return {
+          ok: false,
+          message: PREVIEW_EMPTY_MESSAGE,
+        };
+      }
+      const changes = (Array.isArray(source.changes) ? source.changes : [])
+        .slice()
+        .sort(function (left, right) {
+          return (
+            Number(left?.originalStartMs || 0) - Number(right?.originalStartMs || 0) ||
+            Number(left?.sourceSegmentNumber || 0) - Number(right?.sourceSegmentNumber || 0)
+          );
+        });
+      if (changes.length === 0) {
+        return {
+          ok: false,
+          message: PREVIEW_NOTHING_TO_APPLY_MESSAGE,
+        };
+      }
+      if (normalizeText(source.selectionKey) && isLiveSelectionStale(source.selectionKey, env)) {
+        return {
+          ok: false,
+          message: PREVIEW_STALE_MESSAGE,
+        };
+      }
+      const context = await getEditorContext({ force: true });
+      if (
+        normalizeText(source.selectedEntryName) &&
+        normalizeText(source.selectedEntryName) !== normalizeText(context.selectedEntry?.name)
+      ) {
+        return {
+          ok: false,
+          message: PREVIEW_STALE_MESSAGE,
+        };
+      }
+      const iframeDocument = getXaudioDocument(env);
+      if (!iframeDocument) {
+        return {
+          ok: false,
+          message: PREVIEW_UNSAFE_MESSAGE,
+        };
+      }
+      let liveRegions = readLiveWaveformRegions(iframeDocument, context.audioDurationMs);
+      if (liveRegions.length === 0 || !isPreviewApplicableToLive(source, liveRegions)) {
+        return {
+          ok: false,
+          message: PREVIEW_LIVE_MISMATCH_MESSAGE,
+        };
+      }
+      const splitButton = findSplitActionButton(env);
+      const usedOriginalIndexes = new Set();
+
+      function normalizePreviewTargetSegments(value) {
+        return (Array.isArray(value) ? value : [])
+          .map(function (item, index) {
+            const normalized = normalizeSegmentItem(item, index);
+            return {
+              startMs: normalized.startMs,
+              endMs: normalized.endMs,
+            };
+          })
+          .filter(function (item) {
+            return item.endMs > item.startMs;
+          });
+      }
+
+      for (let changeIndex = 0; changeIndex < changes.length; changeIndex += 1) {
+        const change = changes[changeIndex];
+        const targets = normalizePreviewTargetSegments(change?.suggestedSegments);
+        if (targets.length === 0) {
+          continue;
+        }
+        liveRegions = readLiveWaveformRegions(iframeDocument, context.audioDurationMs);
+        const waveformInfo = buildWaveformInfo(iframeDocument, liveRegions, context.audioDurationMs);
+        if (!waveformInfo) {
+          return {
+            ok: false,
+            message: PREVIEW_UNSAFE_MESSAGE,
+          };
+        }
+        const originalRegion = matchLiveRegionForChange(liveRegions, change, usedOriginalIndexes);
+        if (
+          !originalRegion ||
+          !originalRegion.startHandle ||
+          !originalRegion.endHandle ||
+          typeof originalRegion.startHandle.dispatchEvent !== "function" ||
+          typeof originalRegion.endHandle.dispatchEvent !== "function"
+        ) {
+          return {
+            ok: false,
+            message: PREVIEW_LIVE_MISMATCH_MESSAGE,
+          };
+        }
+        usedOriginalIndexes.add(originalRegion.index);
+
+        if (
+          !dispatchPointerSequence(
+            originalRegion.startHandle,
+            waveformInfo.drawLayer,
+            buildTargetClientX(originalRegion.startMs, waveformInfo),
+            buildTargetClientX(targets[0].startMs, waveformInfo),
+            env
+          )
+        ) {
+          return {
+            ok: false,
+            message: PREVIEW_UNSAFE_MESSAGE,
+          };
+        }
+        await wait(10);
+
+        liveRegions = readLiveWaveformRegions(iframeDocument, context.audioDurationMs);
+        const resizedAfterStart = matchLiveRegionForChange(liveRegions, change, new Set());
+        if (
+          !resizedAfterStart ||
+          !dispatchPointerSequence(
+            resizedAfterStart.endHandle,
+            waveformInfo.drawLayer,
+            buildTargetClientX(resizedAfterStart.endMs, waveformInfo),
+            buildTargetClientX(targets[0].endMs, waveformInfo),
+            env
+          )
+        ) {
+          return {
+            ok: false,
+            message: PREVIEW_UNSAFE_MESSAGE,
+          };
+        }
+        await wait(10);
+
+        liveRegions = readLiveWaveformRegions(iframeDocument, context.audioDurationMs);
+        const adjustedRegion = matchLiveRegionForChange(liveRegions, change, new Set());
+        if (!adjustedRegion || !hasApproxRangeMatch(adjustedRegion, targets[0], APPLY_TOLERANCE_MS)) {
+          return {
+            ok: false,
+            message: PREVIEW_LIVE_MISMATCH_MESSAGE,
+          };
+        }
+
+        if (targets.length > 1) {
+          if (!splitButton || typeof splitButton.click !== "function") {
+            return {
+              ok: false,
+              message: PREVIEW_UNSAFE_MESSAGE,
+            };
+          }
+          splitButton.click();
+        }
+
+        for (let targetIndex = 1; targetIndex < targets.length; targetIndex += 1) {
+          const target = targets[targetIndex];
+          liveRegions = readLiveWaveformRegions(iframeDocument, context.audioDurationMs);
+          const currentWaveformInfo = buildWaveformInfo(
+            iframeDocument,
+            liveRegions,
+            context.audioDurationMs
+          );
+          if (!currentWaveformInfo) {
+            return {
+              ok: false,
+              message: PREVIEW_UNSAFE_MESSAGE,
+            };
+          }
+          const knownKeys = new Set(
+            liveRegions.map(function (region) {
+              return normalizeText(region.dataId) || "i:" + String(region.index);
+            })
+          );
+          if (
+            !dispatchPointerSequence(
+              currentWaveformInfo.drawLayer,
+              currentWaveformInfo.drawLayer,
+              buildTargetClientX(target.startMs, currentWaveformInfo),
+              buildTargetClientX(target.endMs, currentWaveformInfo),
+              env
+            )
+          ) {
+            return {
+              ok: false,
+              message: PREVIEW_UNSAFE_MESSAGE,
+            };
+          }
+          await wait(10);
+          liveRegions = readLiveWaveformRegions(iframeDocument, context.audioDurationMs);
+          const createdRegion = liveRegions.find(function (region) {
+            const key = normalizeText(region.dataId) || "i:" + String(region.index);
+            return !knownKeys.has(key) && hasApproxRangeMatch(region, target, APPLY_TOLERANCE_MS);
+          });
+          if (!createdRegion) {
+            return {
+              ok: false,
+              message: PREVIEW_LIVE_MISMATCH_MESSAGE,
+            };
+          }
+        }
+      }
+
+      const expectedFinalSegments = normalizePreviewTargetSegments(source.proposedSegments);
+      const finalLiveRegions = readLiveWaveformRegions(iframeDocument, context.audioDurationMs);
+      if (
+        expectedFinalSegments.length > 0 &&
+        (finalLiveRegions.length !== expectedFinalSegments.length ||
+          !expectedFinalSegments.every(function (segment, index) {
+            return hasApproxRangeMatch(segment, finalLiveRegions[index], APPLY_TOLERANCE_MS);
+          }))
+      ) {
+        return {
+          ok: false,
+          message: PREVIEW_LIVE_MISMATCH_MESSAGE,
+        };
+      }
+      cachedContext = null;
       return {
-        ok: false,
-        message: "当前环境未检测到安全的画段写入桥；建议已生成，但仍需人工按建议画段。",
+        ok: true,
+        message: PREVIEW_APPLY_SUCCESS_MESSAGE,
       };
     }
 
