@@ -9,14 +9,16 @@
   function ensureRoot() {
     let host = document.getElementById(ROOT_ID);
     if (!host) {
-      host = document.createElement("div");
+      host = document.createElement("dialog");
       host.id = ROOT_ID;
-      host.style.position = "fixed";
-      host.style.right = "16px";
-      host.style.bottom = "16px";
-      host.style.zIndex = "2147483647";
+      host.setAttribute("aria-hidden", "true");
+      host.style.padding = "0";
+      host.style.margin = "0";
+      host.style.border = "0";
+      host.style.background = "transparent";
       host.style.pointerEvents = "none";
-      document.documentElement.appendChild(host);
+      host.style.overflow = "visible";
+      (document.body || document.documentElement).appendChild(host);
     }
 
     const shadow = host.shadowRoot || host.attachShadow({ mode: "open" });
@@ -24,6 +26,9 @@
       const style = document.createElement("style");
       style.id = STYLE_ID;
       style.textContent =
+        ":host{padding:0;margin:0;border:0;background:transparent;pointer-events:none}" +
+        ":host::backdrop{background:transparent}" +
+        ".wrap{position:fixed;right:16px;bottom:16px;z-index:2147483647;pointer-events:none}" +
         ".toast{min-width:180px;max-width:360px;padding:10px 12px;border-radius:10px;" +
         "font-size:12px;line-height:1.45;font-family:Segoe UI,PingFang SC,Microsoft YaHei,sans-serif;" +
         "box-shadow:0 10px 24px rgba(15,23,42,.22);color:#0f172a;background:#e2e8f0;opacity:0;" +
@@ -36,13 +41,32 @@
       shadow.appendChild(style);
     }
 
-    let toast = shadow.querySelector(".toast");
+    let wrap = shadow.querySelector(".wrap");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.className = "wrap";
+      shadow.appendChild(wrap);
+    }
+
+    let toast = wrap.querySelector(".toast");
     if (!toast) {
       toast = document.createElement("div");
       toast.className = "toast";
-      shadow.appendChild(toast);
+      wrap.appendChild(toast);
     }
-    return toast;
+
+    if (typeof host.show === "function" && host.open !== true) {
+      try {
+        host.show();
+      } catch (_error) {
+        // Ignore duplicate-open or unsupported cases and fall back to normal rendering.
+      }
+    }
+
+    return {
+      host: host,
+      toast: toast,
+    };
   }
 
   function show(message, tone, durationMs) {
@@ -57,7 +81,9 @@
     lastMessage = text;
     lastAt = now;
 
-    const toast = ensureRoot();
+    const rendered = ensureRoot();
+    const host = rendered.host;
+    const toast = rendered.toast;
     toast.className = "toast " + String(tone || "warn").trim();
     toast.textContent = text;
     void toast.offsetWidth;
@@ -69,6 +95,13 @@
     }
     hideTimer = setTimeout(function () {
       toast.classList.remove("show");
+      if (typeof host.close === "function" && host.open === true) {
+        try {
+          host.close();
+        } catch (_error) {
+          // Ignore close failures for browsers that keep dialog state inconsistent.
+        }
+      }
     }, Number(durationMs) > 0 ? Number(durationMs) : DEFAULT_DURATION_MS);
     return true;
   }
