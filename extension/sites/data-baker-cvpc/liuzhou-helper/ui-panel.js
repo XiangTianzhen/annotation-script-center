@@ -583,9 +583,9 @@
       middleActionsNode = document.createElement("div");
       middleActionsNode.setAttribute(MIDDLE_AI_ACTIONS_ATTR, "");
       [
-        ["当前段 AI 推荐", true, "", deps.onRecommend],
+        ["当前段 AI 推荐", false, "accent", deps.onRecommend],
         ["未填写补 Valid", false, "accent", deps.onFillAllValid],
-        ["生成画段建议", true, "", deps.onPreview],
+        ["生成画段建议", false, "accent", deps.onPreview],
         ["应用当前建议", false, "accent", deps.onApplyPreview],
       ].forEach(function (definition) {
         const button = createButton(definition[0], definition[1], definition[2]);
