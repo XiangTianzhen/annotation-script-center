@@ -32,6 +32,7 @@
     - `整理后的普通话文本` -> `填入普通话顺滑`
   - 两个定向填入动作当前都可在 options 页单独录制快捷键，默认不预置键位
   - `音频听出的柳州话文本 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
+  - `当前段 AI 附加信息` 当前会额外展示 `listen / refine` 的输入 / 输出 / 总 token 汇总，便于页面内直接查看成本
   - 两张结果卡在无结果时不显示占位文案；有结果时改成“文本左、按钮右”的紧凑布局，并统一使用系统蓝主调强化样式
   - `当前段 AI 附加信息` 默认折叠，点击后再展开查看附加信息和完整原始返回 JSON
   - `未填写补 Valid / 应用当前建议` 当前改成橙色实底 background 按钮，避免白底低对比
@@ -113,6 +114,7 @@
   - `projectId / taskId / processId / dataId / jobId / fileName / entryIndex / selectionKey / segmentStartMs / segmentEndMs / listenModel / refineModel`
 - 当前原始返回 JSON 会继续脱敏鉴权类 token / cookie / 签名信息，但 usage 里的 token 数量不再被打成 `<redacted>`
 - 该数据集当前按 beta 可见性收口：未解锁 beta 时，系统管理里的 `AI 请求记录` 不显示这项；解锁 beta 后才会请求并显示
+- 系统管理 `AI 请求记录` 的开始 / 结束日期当前默认留空；留空表示导出该脚本当前可见的全部日期范围
 
 ## 当前边界
 

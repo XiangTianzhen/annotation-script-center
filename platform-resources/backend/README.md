@@ -234,7 +234,7 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 - `HEAD /api/admin/ai-call-log/file?token=...`
 - `GET /api/admin/ai-call-log/options` 默认不返回 beta 数据集；只有前端显式带 `includeBeta=1` 时才包含 beta 脚本的导出项
 - 说明：`options` 当前返回脚本类型 `id/label`，并补充 `hasData/fileCount/dateFrom/dateTo`，供系统管理页直接显示空态和可导出范围。
-- 日期范围：前端可选填写 `dateFrom/dateTo`；留空时导出该脚本当前全部 AI 请求记录。
+- 日期范围：前端可选填写 `dateFrom/dateTo`；默认留空，留空时导出该脚本当前全部 AI 请求记录。
 - 审计目录：`platform-resources/backend/audit-data/ai-call-log-download/`（运行数据，不提交 git）
 
 ## 项目数据下载密码配置教程

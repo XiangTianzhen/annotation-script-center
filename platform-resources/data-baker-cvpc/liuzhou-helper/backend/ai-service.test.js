@@ -179,6 +179,18 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
         listenModel: "qwen3.5-omni-flash",
         refineModel: "qwen3.5-plus",
       },
+      usage: {
+        listen: {
+          promptTokens: 10,
+          completionTokens: 6,
+          totalTokens: 16,
+        },
+        refine: {
+          promptTokens: 4,
+          completionTokens: 3,
+          totalTokens: 7,
+        },
+      },
     },
   });
 
@@ -200,6 +212,18 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
     models: {
       listenModel: "qwen3.5-omni-flash",
       refineModel: "qwen3.5-plus",
+    },
+    usage: {
+      listen: {
+        promptTokens: 10,
+        completionTokens: 6,
+        totalTokens: 16,
+      },
+      refine: {
+        promptTokens: 4,
+        completionTokens: 3,
+        totalTokens: 7,
+      },
     },
   });
 });

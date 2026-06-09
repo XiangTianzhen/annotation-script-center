@@ -765,6 +765,7 @@ function buildRecommendSuccessBody(context) {
     notes: normalizeNotes(result.notes),
     timing: result.timing && typeof result.timing === "object" ? result.timing : {},
     models: result.models && typeof result.models === "object" ? result.models : {},
+    usage: result.usage && typeof result.usage === "object" ? result.usage : {},
   };
 }
 

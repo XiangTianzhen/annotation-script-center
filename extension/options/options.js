@@ -8537,6 +8537,14 @@
     return null;
   }
 
+  function isAiCallLogDatasetVisible(datasetInfo, settings) {
+    const source = datasetInfo && typeof datasetInfo === "object" ? datasetInfo : {};
+    if (normalizeText(source.visibility).toLowerCase() === "beta") {
+      return canUseBetaFeatures(settings || {}) === true;
+    }
+    return true;
+  }
+
   function setAiCallLogStatus(text) {
     setStatus("ai-call-log-status", text);
   }
@@ -8611,6 +8619,7 @@
     if (fileCount > 0) {
       parts.push("日志文件数：" + String(fileCount));
     }
+    parts.push("日期留空时默认导出全部范围。");
     return parts.length > 0 ? parts.join("；") : "当前脚本可导出 AI 请求记录。";
   }
 
@@ -8651,18 +8660,16 @@
     }
 
     if (
-      !normalizeDateText(dateFromInput.value) ||
-      (dateFrom && dateFromInput.value < dateFrom) ||
-      (dateTo && dateFromInput.value > dateTo)
+      normalizeDateText(dateFromInput.value) &&
+      ((dateFrom && dateFromInput.value < dateFrom) || (dateTo && dateFromInput.value > dateTo))
     ) {
-      dateFromInput.value = dateFrom;
+      dateFromInput.value = "";
     }
     if (
-      !normalizeDateText(dateToInput.value) ||
-      (dateFrom && dateToInput.value < dateFrom) ||
-      (dateTo && dateToInput.value > dateTo)
+      normalizeDateText(dateToInput.value) &&
+      ((dateFrom && dateToInput.value < dateFrom) || (dateTo && dateToInput.value > dateTo))
     ) {
-      dateToInput.value = dateTo;
+      dateToInput.value = "";
     }
     if (exportButton instanceof HTMLButtonElement) {
       exportButton.disabled = false;
@@ -8678,7 +8685,9 @@
       return;
     }
     const previousValue = normalizeText(datasetSelect.value);
-    aiCallLogDownloadDatasets = Array.isArray(datasets) ? clone(datasets) : [];
+    aiCallLogDownloadDatasets = (Array.isArray(datasets) ? clone(datasets) : []).filter(function (item) {
+      return isAiCallLogDatasetVisible(item, currentSettings || {});
+    });
     datasetSelect.innerHTML = ['<option value="">请选择脚本类型</option>']
       .concat(
         aiCallLogDownloadDatasets.map(function (item) {

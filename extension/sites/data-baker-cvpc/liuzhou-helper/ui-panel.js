@@ -26,6 +26,106 @@
     }
   }
 
+  function readUsageNumber(source, keys) {
+    const input = source && typeof source === "object" ? source : {};
+    for (let index = 0; index < keys.length; index += 1) {
+      const value = Number(input[keys[index]]);
+      if (Number.isFinite(value)) {
+        return value;
+      }
+    }
+    return 0;
+  }
+
+  function collectUsageTotals(usage) {
+    const source = usage && typeof usage === "object" ? usage : null;
+    if (!source) {
+      return {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        found: false,
+      };
+    }
+    const ownPromptTokens = readUsageNumber(source, [
+      "promptTokens",
+      "prompt_tokens",
+      "inputTokens",
+      "input_tokens",
+    ]);
+    const ownCompletionTokens = readUsageNumber(source, [
+      "completionTokens",
+      "completion_tokens",
+      "outputTokens",
+      "output_tokens",
+    ]);
+    const ownTotalTokens = readUsageNumber(source, ["totalTokens", "total_tokens"]);
+    const childKeys = Object.keys(source).filter(function (key) {
+      return source[key] && typeof source[key] === "object";
+    });
+    const childTotals = childKeys.map(function (key) {
+      return collectUsageTotals(source[key]);
+    });
+    const hasChildTotals = childTotals.some(function (item) {
+      return item.found;
+    });
+    if (hasChildTotals) {
+      return childTotals.reduce(
+        function (result, item) {
+          result.promptTokens += item.promptTokens;
+          result.completionTokens += item.completionTokens;
+          result.totalTokens += item.totalTokens;
+          result.found = result.found || item.found;
+          return result;
+        },
+        {
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          found: false,
+        }
+      );
+    }
+    return {
+      promptTokens: ownPromptTokens,
+      completionTokens: ownCompletionTokens,
+      totalTokens:
+        ownPromptTokens || ownCompletionTokens ? ownPromptTokens + ownCompletionTokens : ownTotalTokens,
+      found: Boolean(ownPromptTokens || ownCompletionTokens || ownTotalTokens),
+    };
+  }
+
+  function formatUsageSummary(usage) {
+    const totals = collectUsageTotals(usage);
+    if (!totals.found) {
+      return "无";
+    }
+    const lines = [
+      "总输入 " +
+        String(totals.promptTokens) +
+        "，总输出 " +
+        String(totals.completionTokens) +
+        "，总计 " +
+        String(totals.totalTokens),
+    ];
+    Object.keys(usage || {}).forEach(function (stageKey) {
+      const stageTotals = collectUsageTotals(usage[stageKey]);
+      if (!stageTotals.found) {
+        return;
+      }
+      lines.push(
+        String(stageKey) +
+          "：输入 " +
+          String(stageTotals.promptTokens) +
+          "，输出 " +
+          String(stageTotals.completionTokens) +
+          "，总计 " +
+          String(stageTotals.totalTokens)
+      );
+    });
+    return lines.join("\n");
+  }
+
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
       return;
@@ -385,6 +485,7 @@
       }
       [
         ["音频听出的柳州话文本", result?.audioDialectText || result?.dialectText || ""],
+        ["Token 用量", formatUsageSummary(result?.usage || {})],
         ["特殊标签", (result?.specialTags || []).join(" ") || "无"],
         ["需人工复核", result?.needHumanReview === true ? "是" : "否"],
         ["备注", (result?.notes || []).join("；") || "无"],

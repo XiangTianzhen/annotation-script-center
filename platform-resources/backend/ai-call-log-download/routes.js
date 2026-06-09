@@ -237,6 +237,7 @@ function buildAiCallLogDatasetOption(dataset) {
   return {
     id: dataset.id,
     label: dataset.label,
+    visibility: normalizeText(dataset.visibility),
     hasData: meta.hasData,
     fileCount: meta.fileCount,
     dateFrom: meta.dateFrom,

@@ -60,6 +60,18 @@
   - 系统管理总览中的 `downloads.scriptCenterUrl` 也改为优先回显该环境变量。
 - 该能力用于“同一份代码、多套下载入口”场景，例如直接用服务器 IP 暴露 `/downloads/` 时，不再需要把后端返回的下载 URL 固定写死到主域名。
 
+## 2026-06-09（AI 请求记录 beta 双重隐藏、日期留空导出全部、附加信息展示 token）
+
+- `AI 请求记录` 当前再补三项收口：
+  - options 前端现在会再次按数据集 `visibility=beta` 做本地过滤；即使后端误返回 beta 数据集，未解锁 beta 的前端也不会渲染出来
+  - 开始 / 结束日期默认改为留空，不再自动回填最小/最大日期；留空就表示导出该脚本当前全部日期范围
+  - `DataBaker CVPC / 柳州话脚本` 的 `当前段 AI 附加信息` 当前新增 token 展示，包含总输入 / 总输出 / 总 token，以及 `listen / refine` 分阶段 token
+- `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 当前补齐成功响应里的 `usage`，让前端附加信息可直接读取
+- 同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/backend/README.md`
+
 ## 2026-06-09（AI 请求记录补 token 汇总并隐藏未解锁 beta 数据集）
 
 - `AI 请求记录` 导出链路当前补两项收口：

@@ -581,6 +581,18 @@ test("CVPC ui panel renders preview, keeps heard dialect text in additional info
       refinedDialectText: "修正柳州话",
       refinedMandarinText: "整理普通话",
       audioMandarinText: "整理普通话",
+      usage: {
+        listen: {
+          promptTokens: 10,
+          completionTokens: 6,
+          totalTokens: 16,
+        },
+        refine: {
+          promptTokens: 4,
+          completionTokens: 3,
+          totalTokens: 7,
+        },
+      },
       specialTags: ["口语化"],
       needHumanReview: false,
       notes: ["人工确认"],
@@ -603,6 +615,12 @@ test("CVPC ui panel renders preview, keeps heard dialect text in additional info
     assert.match(middleText, /音频听出的柳州话文本/);
     assert.match(middleText, /听音柳州话/);
     assert.match(middleText, /AI 返回原始内容/);
+    assert.match(middleText, /Token 用量/);
+    assert.match(middleText, /总输入 14/);
+    assert.match(middleText, /总输出 9/);
+    assert.match(middleText, /总计 23/);
+    assert.match(middleText, /listen：输入 10，输出 6，总计 16/);
+    assert.match(middleText, /refine：输入 4，输出 3，总计 7/);
     assert.match(middleText, /"listenModel": "qwen3\.5-omni-flash"/);
     assert.doesNotMatch(middleText, /音频的柳州话文本/);
     assert.doesNotMatch(middleText, /修正后的柳州话文本/);
