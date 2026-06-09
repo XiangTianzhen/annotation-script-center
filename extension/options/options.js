@@ -421,6 +421,14 @@
         { value: "qwen3-omni-flash-2025-12-01", label: "qwen3-omni-flash-2025-12-01" },
         { value: "qwen3-omni-flash-2025-09-15", label: "qwen3-omni-flash-2025-09-15" },
       ];
+  const dataBakerCvpcListenModelOptions = Array.isArray(
+    constants.DATA_BAKER_CVPC_AI_LISTEN_MODEL_OPTIONS
+  )
+    ? constants.DATA_BAKER_CVPC_AI_LISTEN_MODEL_OPTIONS
+    : [
+        { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
+        { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+      ];
   const dataBakerSingleModelOptions = Array.isArray(constants.DATABAKER_AI_SINGLE_MODEL_OPTIONS)
     ? constants.DATABAKER_AI_SINGLE_MODEL_OPTIONS
     : [
@@ -2489,14 +2497,14 @@
     const refine = stages.refine && typeof stages.refine === "object" ? stages.refine : {};
     return {
       listen: {
-        model: normalizeDataBakerListenModel(
+        model: normalizeDataBakerCvpcListenModel(
           listen.model || defaults.listenModel,
           defaults.omniModel || "qwen3.5-omni-flash"
         ),
         modelOptions: buildMergedModelOptions(
           listen.modelOptions,
-          defaults.listenModelOptions || dataBakerListenModelOptions,
-          [listen.model, defaults.listenModel, defaults.funAsrModel, defaults.omniModel]
+          defaults.listenModelOptions || dataBakerCvpcListenModelOptions,
+          [listen.model, defaults.listenModel, defaults.omniModel]
         ),
         prompt: String(listen.prompt || defaults.listenPrompt || ""),
         temperature: listen.temperature ?? defaults.temperature ?? "",
@@ -3083,7 +3091,7 @@
 
   function applyDataBakerCvpcListenModelFields(listenModel, aiDefaults) {
     const stageDefaults = getDataBakerCvpcStageDefaults(aiDefaults);
-    const currentListenModel = normalizeDataBakerListenModel(
+    const currentListenModel = normalizeDataBakerCvpcListenModel(
       listenModel,
       stageDefaults.listen.model
     );
@@ -3095,9 +3103,7 @@
     const listenHelpNode = getElement("data-baker-cvpc-ai-listen-model-help");
     if (listenHelpNode instanceof HTMLElement) {
       listenHelpNode.textContent =
-        currentListenModel === "fun-asr"
-          ? "Fun-ASR 通过兼容双输出链路产出“柳州话文本 + 普通话文本”，界面结果结构不降级。"
-          : "Qwen Omni 直接根据当前段音频输出“柳州话文本 + 普通话文本”。";
+        "Qwen Omni 直接根据当前段音频输出“柳州话文本 + 普通话文本”。";
     }
   }
 
@@ -3155,7 +3161,7 @@
     const draft = {
       aiRecommendListenModel:
         listenModelNode instanceof HTMLSelectElement
-          ? normalizeDataBakerListenModel(listenModelNode.value, stageDefaults.listen.model)
+          ? normalizeDataBakerCvpcListenModel(listenModelNode.value, stageDefaults.listen.model)
           : stageDefaults.listen.model,
       aiRecommendListenPrompt:
         listenPromptNode instanceof HTMLTextAreaElement
@@ -4021,10 +4027,11 @@
       };
     }
     if (scriptId === dataBakerCvpcLiuzhouScriptId) {
+      baseDefaults.listenModelOptions = clone(dataBakerCvpcListenModelOptions);
       baseDefaults.stages = {
         listen: {
           model: "qwen3.5-omni-flash",
-          modelOptions: clone(dataBakerListenModelOptions),
+          modelOptions: clone(dataBakerCvpcListenModelOptions),
           prompt: baseDefaults.listenPrompt,
           temperature: 0.1,
           top_p: 0.8,
@@ -4232,6 +4239,24 @@
 
   function normalizeDataBakerListenModel(value, fallback) {
     const allowed = dataBakerListenModelOptions
+      .map(function (item) {
+        return getDataBakerModelText(item && typeof item === "object" ? item.value : item);
+      })
+      .filter(Boolean);
+    const normalizedFallback =
+      getDataBakerModelText(fallback || "qwen3.5-omni-flash") || "qwen3.5-omni-flash";
+    const normalizedValue = getDataBakerModelText(value);
+    if (allowed.indexOf(normalizedValue) >= 0) {
+      return normalizedValue;
+    }
+    if (allowed.indexOf(normalizedFallback) >= 0) {
+      return normalizedFallback;
+    }
+    return allowed[0] || normalizedFallback;
+  }
+
+  function normalizeDataBakerCvpcListenModel(value, fallback) {
+    const allowed = dataBakerCvpcListenModelOptions
       .map(function (item) {
         return getDataBakerModelText(item && typeof item === "object" ? item.value : item);
       })
@@ -5230,7 +5255,7 @@
       listenNode.addEventListener("change", function (event) {
         const aiDefaults = getAsrVoiceAiDefaultsCached(dataBakerCvpcLiuzhouScriptId).defaults || {};
         const draftConfig = getDataBakerCvpcSettingsDraftConfig(aiDefaults);
-        draftConfig.aiRecommendListenModel = normalizeDataBakerListenModel(
+        draftConfig.aiRecommendListenModel = normalizeDataBakerCvpcListenModel(
           event?.target?.value,
           getDataBakerCvpcStageDefaults(aiDefaults).listen.model
         );

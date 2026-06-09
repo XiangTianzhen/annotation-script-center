@@ -183,7 +183,7 @@ test("CVPC storage normalizes two-stage AI fields and legacy single model fallba
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
 
-    assert.equal(script.aiRecommendListenModel, "fun-asr");
+    assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendListenPrompt, "listen prompt");
     assert.equal(script.aiRecommendListenTemperature, "2");
     assert.equal(script.aiRecommendListenTopP, "0.9");

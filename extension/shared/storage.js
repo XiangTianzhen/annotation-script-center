@@ -245,11 +245,15 @@
           { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
           { value: "omni_single", label: "单模型：Omni 单模型" },
         ],
-        DATABAKER_AI_LISTEN_MODEL_OPTIONS: [
-          { value: "fun-asr", label: "fun-asr" },
-          { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
-          { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
-        ],
+      DATABAKER_AI_LISTEN_MODEL_OPTIONS: [
+        { value: "fun-asr", label: "fun-asr" },
+        { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
+        { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+      ],
+      DATA_BAKER_CVPC_AI_LISTEN_MODEL_OPTIONS: [
+        { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
+        { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
+      ],
         DATABAKER_AI_SINGLE_MODEL_OPTIONS: [
           { value: "qwen3.5-omni-plus", label: "qwen3.5-omni-plus" },
           { value: "qwen3.5-omni-flash", label: "qwen3.5-omni-flash" },
@@ -1371,6 +1375,20 @@
     ];
   }
 
+  function getDataBakerCvpcListenModelOptions(constants) {
+    const values = Array.isArray(constants?.DATA_BAKER_CVPC_AI_LISTEN_MODEL_OPTIONS)
+      ? constants.DATA_BAKER_CVPC_AI_LISTEN_MODEL_OPTIONS
+          .map(function (item) {
+            return getDataBakerModelText(item && typeof item === "object" ? item.value : item);
+          })
+          .filter(Boolean)
+      : [];
+    if (values.length > 0) {
+      return values;
+    }
+    return ["qwen3.5-omni-plus", "qwen3.5-omni-flash"];
+  }
+
   function deriveDataBakerPipelineModeFromListenModel(listenModel) {
     return getDataBakerModelText(listenModel) === "fun-asr"
       ? "fun_asr_compare"
@@ -1398,6 +1416,19 @@
         : "qwen3.5-omni-flash";
     const normalizedValue = getDataBakerModelText(value);
     if (singleOptions.indexOf(normalizedValue) >= 0) {
+      return normalizedValue;
+    }
+    return normalizedFallback;
+  }
+
+  function normalizeDataBakerCvpcListenModel(value, fallback, constants) {
+    const listenOptions = getDataBakerCvpcListenModelOptions(constants);
+    const normalizedFallback =
+      listenOptions.indexOf(getDataBakerModelText(fallback || "")) >= 0
+        ? getDataBakerModelText(fallback || "")
+        : "qwen3.5-omni-flash";
+    const normalizedValue = getDataBakerModelText(value);
+    if (listenOptions.indexOf(normalizedValue) >= 0) {
       return normalizedValue;
     }
     return normalizedFallback;
@@ -1978,9 +2009,8 @@
       result.aiRecommendRequestTimeoutMs,
       defaultConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
     );
-    result.aiRecommendListenModel = resolveDataBakerListenModel(
+    result.aiRecommendListenModel = normalizeDataBakerCvpcListenModel(
       rawSource.aiRecommendListenModel || rawSource.aiRecommendModel || result.aiRecommendListenModel,
-      "two_stage",
       defaultConfig.aiRecommendListenModel || defaultConfig.aiRecommendModel || "qwen3.5-omni-flash",
       constants
     );

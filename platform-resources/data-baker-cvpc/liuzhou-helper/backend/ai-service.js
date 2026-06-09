@@ -4,7 +4,6 @@ const {
   requestOmniInputAudio,
   requestTextCompareJson,
 } = require("../../../backend/ai/providers/qwen-openai-compatible");
-const { requestFunAsrRecognition } = require("../../../backend/ai/providers/funasr");
 const {
   ensureChineseSentencePunctuation,
   normalizeUsage,
@@ -16,7 +15,7 @@ const SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
 const DEFAULT_TIMEOUT_MS = 60000;
 const DEFAULT_LISTEN_MODEL = "qwen3.5-omni-flash";
 const DEFAULT_REFINE_MODEL = "qwen3.5-plus";
-const SUPPORTED_LISTEN_MODELS = ["qwen3.5-omni-plus", "qwen3.5-omni-flash", "fun-asr"];
+const SUPPORTED_LISTEN_MODELS = ["qwen3.5-omni-plus", "qwen3.5-omni-flash"];
 const SUPPORTED_REFINE_MODELS = ["qwen3.5-plus", "qwen3.5-flash"];
 const DEFAULT_STAGE_PARAMS = {
   temperature: 0.1,
@@ -395,28 +394,6 @@ function buildListenPrompt(request, assetsContext) {
   };
 }
 
-function buildFunAsrListenBridgePrompt(request, assetsContext, heardText) {
-  const lexiconContext = buildRelevantLexiconContext(assetsContext, [
-    heardText,
-    request.fieldContext?.dialectText,
-    request.fieldContext?.mandarinText,
-    request.editorContext?.selectedEntry?.name,
-  ]);
-  return {
-    systemPrompt: String(request.aiStages?.listen?.prompt || DEFAULT_LISTEN_PROMPT),
-    userPrompt: [
-      "你收到的是当前段音频经 Fun-ASR 得到的初始听写，请在不脱离听音结果的前提下补齐双输出。",
-      "Fun-ASR 初始听写：",
-      heardText || "",
-      "项目规则摘要：",
-      buildRulesExcerpt(assetsContext),
-      "词表参考（只作辅助，不可先验覆盖听音）：",
-      JSON.stringify(lexiconContext, null, 2),
-      "请输出 audioDialectText 和 audioMandarinText 两份文本。",
-    ].join("\n"),
-  };
-}
-
 function buildRefinePrompt(request, assetsContext, listenResult) {
   const lexiconContext = buildRelevantLexiconContext(assetsContext, [
     listenResult.audioDialectText,
@@ -518,84 +495,11 @@ function createRuntimeDeps(overrides) {
       typeof source.requestOmniInputAudio === "function" ? source.requestOmniInputAudio : requestOmniInputAudio,
     requestTextCompareJson:
       typeof source.requestTextCompareJson === "function" ? source.requestTextCompareJson : requestTextCompareJson,
-    requestFunAsrRecognition:
-      typeof source.requestFunAsrRecognition === "function"
-        ? source.requestFunAsrRecognition
-        : requestFunAsrRecognition,
   };
-}
-
-function assertSupportedListenInput(request) {
-  if (request.listenModel === "fun-asr" && request.audioDataUrl && !request.audioUrl) {
-    throw createHttpError(
-      400,
-      "当前段 Base64 裁剪链路暂不支持 fun-asr，请切换听音模型为 qwen3.5-omni-plus 或 qwen3.5-omni-flash。",
-      "unsupported-audio-data-url-for-fun-asr"
-    );
-  }
 }
 
 async function runListenStage(request, assetsContext, deps) {
   const stageStartedAt = deps.now();
-  if (request.listenModel === "fun-asr") {
-    const audioStartedAt = deps.now();
-    const funAsrResult = await deps.requestFunAsrRecognition(
-      {
-        audioUrl: request.audioUrl,
-      },
-      {
-        model: request.listenModel,
-        timeoutMs: request.timeoutMs,
-      }
-    );
-    const audioFinishedAt = deps.now();
-    const heardText = normalizeAllowedPunctuation(funAsrResult?.heardText || "");
-    const bridgeStartedAt = deps.now();
-    const bridgeResult = await deps.requestTextCompareJson(
-      {
-        pageText: request.fieldContext?.dialectText || "",
-        heardText,
-        aiOptions: request.aiStages.listen.params,
-      },
-      buildFunAsrListenBridgePrompt(request, assetsContext, heardText),
-      {
-        model: request.refineModel,
-        timeoutMs: request.timeoutMs,
-        stage: "listen_text_bridge",
-      }
-    );
-    const bridgeFinishedAt = deps.now();
-    const bridgeJson = deps.parseModelJsonText(bridgeResult.rawText || "", {
-      requestId: request.requestId || "liuzhou-cvpc",
-      stage: "listen_text_bridge",
-    });
-    const normalized = normalizeListenStageOutput(
-      Object.assign({}, bridgeJson, {
-        audioDialectText: bridgeJson?.audioDialectText || heardText,
-      })
-    );
-    return {
-      audioDialectText: normalized.audioDialectText || heardText,
-      audioMandarinText: normalized.audioMandarinText,
-      specialTags: normalized.specialTags,
-      needHumanReview: normalized.needHumanReview,
-      notes: normalized.notes,
-      timing: {
-        listenAudioMs: Math.max(0, audioFinishedAt - audioStartedAt),
-        listenBridgeMs: Math.max(0, bridgeFinishedAt - bridgeStartedAt),
-        listenMs: Math.max(0, deps.now() - stageStartedAt),
-      },
-      models: {
-        listenModel: request.listenModel,
-        listenCompatModel: normalizeText(bridgeResult.model) || request.refineModel,
-      },
-      usage: {
-        listen: deps.normalizeUsage(funAsrResult?.usage),
-        listenBridge: deps.normalizeUsage(bridgeResult?.usage),
-      },
-    };
-  }
-
   const result = await deps.requestOmniInputAudio(
     {
       audioUrl: request.audioUrl,
@@ -670,7 +574,6 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
 async function recommend(request, assetsContext, overrides) {
   const deps = createRuntimeDeps(overrides);
   const startedAt = deps.now();
-  assertSupportedListenInput(request);
   const listenResult = await runListenStage(request, assetsContext || {}, deps);
   const refineResult = await runRefineStage(request, assetsContext || {}, listenResult, deps);
   const audioDialectText = normalizeAllowedPunctuation(listenResult.audioDialectText);

@@ -32,8 +32,7 @@
     - `音频的普通话文本` -> `填入普通话顺滑`
     - `修正后的柳州话文本` -> `填入标注文本`
   - 当前段 AI 推荐严格按当前波形选中段工作：实时读取 `.xaudio_time` 的 `开始 / 结束`，浏览器端只裁这一段音频
-  - 浏览器端会把当前段片段转成 `16k` 单声道 WAV，并直接拼成 `audioDataUrl` 发给现有 AI 推荐接口；不再依赖 clip-cache 临时 URL
-  - 当前段 Base64 裁剪链路当前只支持 `qwen3.5-omni-plus / qwen3.5-omni-flash`；若听音模型切到 `fun-asr`，前后端都会 fail closed
+  - 浏览器端会把当前段片段转成 `16k` 单声道 WAV，并直接拼成 `audioDataUrl` 发给现有 AI 推荐接口；不再经过“本地文件转公网 URL”链路
   - 如果后续涉及整音频识别，仍继续使用页面真实公网 `audioUrl`
   - 当前段填入建议当前兼容页面 `contenteditable .ProseMirror`
   - 当前段设为 `Valid / Invalid` 前会先检查当前单选状态，已是目标值时不重复点击
@@ -42,7 +41,7 @@
 - options / AI 设置：
   - `dataBakerCvpcLiuzhouAssistant` 当前接入共享右侧 `AI 设置` 区的独立 CVPC 布局
   - 当前只保留 `基础设置`、`听音`、`文本修正` 三块
-  - `听音` 模型：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`、`fun-asr`
+  - `听音` 模型：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
   - `文本修正` 模型：`qwen3.5-plus`、`qwen3.5-flash`
   - 不提供 compare-family、采纳阈值、前端并发设置
 - 独立后端接口：
@@ -51,9 +50,6 @@
   - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`
   - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults`
   - `POST /api/data-baker-cvpc/liuzhou-helper/ai/recommend`
-  - `GET /api/data-baker-cvpc/liuzhou-helper/clip-cache/health`（legacy / 当前段默认链路不再使用）
-  - `POST /api/data-baker-cvpc/liuzhou-helper/clip-cache/upload`（legacy / 当前段默认链路不再使用）
-  - `GET /api/data-baker-cvpc/liuzhou-helper/clip-cache/files/:clipId.wav`（legacy / 当前段默认链路不再使用）
 
 ## 规则资产
 
@@ -90,7 +86,6 @@
 
 - `listen`
   - `qwen3.5-omni-plus / flash`：直接听音输出 `audioDialectText + audioMandarinText`
-  - `fun-asr`：先拿 `heardText`，再走一次文本桥接补足双输出，保持前端 UI 不降级
 - `refine`
   - 输入 `audioDialectText`、`audioMandarinText`、词表命中片段和页面上下文
   - 只输出 `refinedDialectText`
@@ -102,7 +97,6 @@
 - 批量范围固定为“当前音频 / 当前作业”，不跨整包遍历。
 - 画段建议当前只提供“建议生成 + 人工确认”。
 - 当前段 AI 推荐如果没有读到可信的当前段 `开始 / 结束`，会直接失败，不退回整段识别。
-- 当前段 Base64 推荐链路只保证 `server` 后端地址可用；`local / 127.0.0.1` 当前不在支持范围内。
 - 真实 `segment create/update`、保存链路和字段持久化请求当前仍未补采完成。
 
 ## 写入契约状态
@@ -141,8 +135,6 @@ platform-resources/data-baker-cvpc/liuzhou-helper/
   backend/
     index.js
     ai-routes.js
-    clip-cache-routes.js
-    clip-cache-service.js
     segment-routes.js
     ai-service.js
     segment-service.js
@@ -152,11 +144,3 @@ platform-resources/data-baker-cvpc/liuzhou-helper/
       liuzhou-rules.md
       liuzhou-pronunciation-reference.csv
 ```
-
-## 运行数据
-
-- 临时音频缓存目录：`platform-resources/data-baker-cvpc/liuzhou-helper/data/runtime/clip-cache/`
-- 文件名只使用不透明 `clipId`，不保存原始签名 URL
-- TTL 默认 `10` 分钟；上传后会登记过期时间并在进程内定时删除，上传、读取和服务启动时也会顺手清理过期文件
-- 当前段默认 Base64 推荐链路已不再依赖该目录；clip-cache 仅保留 legacy/调试能力
-- 运行数据目录已加入 `.gitignore`，不提交 Git

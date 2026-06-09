@@ -80,20 +80,6 @@ function installAudioHarness() {
       method: String(options?.method || "GET").toUpperCase(),
       body: options?.body || "",
     });
-    if (String(url).indexOf("/clip-cache/upload") >= 0) {
-      return {
-        ok: true,
-        json: async function () {
-          return {
-            success: true,
-            clipId: "clip-1",
-            audioUrl:
-              "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/clip-cache/files/clip-1.wav",
-            expiresAt: "2099-01-01T00:00:00.000Z",
-          };
-        },
-      };
-    }
     if (String(url).indexOf("/ai/recommend") >= 0) {
       return {
         ok: true,
@@ -136,8 +122,6 @@ test("liuzhou ai recommend fails closed when selectedRange is missing", async fu
   const moduleApi = loadModule();
   const runtime = moduleApi.createRuntime({
     endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
-    clipCacheUploadEndpoint:
-      "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload",
   });
 
   await assert.rejects(
@@ -151,33 +135,6 @@ test("liuzhou ai recommend fails closed when selectedRange is missing", async fu
   );
 });
 
-test("liuzhou ai recommend fails closed when current segment uses fun-asr listen model", async function () {
-  const moduleApi = loadModule();
-  const runtime = moduleApi.createRuntime({
-    endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
-    aiStages: {
-      listen: {
-        model: "fun-asr",
-      },
-    },
-  });
-
-  await assert.rejects(
-    function () {
-      return runtime.recommend({
-        audioUrl: "https://oss.example.com/sample.mp3?Signature=audio",
-        selectionKey: "sample.mp3|0|4171",
-        selectedRange: {
-          startMs: 0,
-          endMs: 4171,
-          durationMs: 4171,
-        },
-      });
-    },
-    /fun-asr/
-  );
-});
-
 test("liuzhou ai recommend sends current segment audio as base64 data url", async function () {
   const moduleApi = loadModule();
   const harness = installAudioHarness();
@@ -185,8 +142,6 @@ test("liuzhou ai recommend sends current segment audio as base64 data url", asyn
   try {
     const runtime = moduleApi.createRuntime({
       endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
-      clipCacheUploadEndpoint:
-        "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload",
       aiUsageOperatorName: "测试员",
       aiStages: {
         listen: {
@@ -236,9 +191,13 @@ test("liuzhou ai recommend sends current segment audio as base64 data url", asyn
     const recommendCount = harness.calls.filter(function (call) {
       return call.url.indexOf("/ai/recommend") >= 0;
     }).length;
+    const clipCacheCount = harness.calls.filter(function (call) {
+      return call.url.indexOf("/clip-cache/") >= 0;
+    }).length;
 
     assert.equal(audioFetchCount, 2);
     assert.equal(recommendCount, 2);
+    assert.equal(clipCacheCount, 0);
 
     const recommendCall = harness.calls.find(function (call) {
       return call.url.indexOf("/ai/recommend") >= 0;

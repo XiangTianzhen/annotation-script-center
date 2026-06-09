@@ -1,18 +1,18 @@
-## 2026-06-09（DataBaker CVPC 柳州话脚本当前段识别改为 Base64 Data URL）
+## 2026-06-09（DataBaker CVPC 柳州话脚本移除 Fun-ASR 与 Clip-Cache）
 
-- `DataBaker CVPC / 柳州话脚本` 当前段识别链路当前完成收口：
-  - 前端 `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js` 不再把当前段裁剪结果上传 `clip-cache`，而是直接把 `16k` 单声道 WAV 拼成 `audioDataUrl` 发给 `ai/recommend`。
-  - 后端 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 当前同时兼容 `audioDataUrl` 与 `audioUrl` 两种输入：当前段优先走 Base64，整音频场景继续保留公网 URL。
-  - `platform-resources/backend/ai/providers/qwen-openai-compatible.js` 当前对 Omni `input_audio.data` 同时支持 Data URL 和传统 URL，并补齐 Data URL 的音频格式推断。
-- 当前边界同步收紧：
-  - 当前段 Base64 裁剪链路只支持 `qwen3.5-omni-plus / qwen3.5-omni-flash`。
-  - 若当前段听音模型切到 `fun-asr`，前后端都会直接 fail closed，不再静默退回整音频或旧 clip-cache URL。
-  - `ai/recommend` 路由请求体上限当前提升到 `15MB`，避免较长当前段的 Base64 请求体被默认 `3MB` 限制拦截。
+- `DataBaker CVPC / 柳州话脚本` 当前段识别链路当前统一收口为 `audioDataUrl`：
+  - 前端 `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js` 每次点击 `当前段 AI 推荐` 都会重新裁剪当前段，生成 `16k` 单声道 WAV，并直接把 Base64 `audioDataUrl` 发给 `ai/recommend`。
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js` 与共享常量当前删除了 `clip-cache/upload` 的运行时配置和遗留引用。
+  - 后端 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 继续兼容 `audioDataUrl` 与 `audioUrl` 两种输入，但柳州话当前段默认只走 Base64；整音频场景才保留公网 `audioUrl` 兼容。
+- CVPC 柳州话当前移除的旧链路：
+  - 听音模型当前只保留 `qwen3.5-omni-plus / qwen3.5-omni-flash`，不再提供 `fun-asr`。
+  - CVPC 专用 `clip-cache` 路由、服务、测试与 README 口径当前全部删除，不再保留 legacy / 调试入口。
+  - options 页、共享存储归一和后端 defaults/health 当前都已同步移除 `fun-asr`。
 - 同步更新：
+  - `extension/options/options.js`
+  - `extension/shared/storage.js`
   - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.test.js`
   - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
-  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
-  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
   - `docs/platforms/index.md`
 
 ## 2026-06-09（DataBaker CVPC 柳州话脚本删除 clip URL 可达性探测）

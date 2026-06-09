@@ -20,9 +20,6 @@
   const SEGMENT_PATH =
     CONSTANTS.DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH ||
     "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
-  const CLIP_CACHE_UPLOAD_PATH =
-    CONSTANTS.DATA_BAKER_CVPC_CLIP_CACHE_UPLOAD_PATH ||
-    "/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload";
   const DEFAULT_TIMEOUT_MS = Number(CONSTANTS.DEFAULT_AI_REQUEST_TIMEOUT_MS || 60000) || 60000;
   const MISSING_AUDIO_MESSAGE =
     dataApiFactory?.MISSING_AUDIO_MESSAGE ||
@@ -214,8 +211,6 @@
         current.aiRecommendEndpoint || endpointBuilder(AI_PATH, settings),
       segmentPreviewEndpoint:
         current.segmentPreviewEndpoint || endpointBuilder(SEGMENT_PATH, settings),
-      clipCacheUploadEndpoint:
-        endpointBuilder(CLIP_CACHE_UPLOAD_PATH, settings),
       aiUsageOperatorName: String(settings?.meta?.aiUsageOperatorName || "").trim(),
       shortcuts:
         current.shortcuts && typeof current.shortcuts === "object"
@@ -427,7 +422,6 @@
     const dataApi = dataApiFactory.createRuntime();
     const ai = aiFactory.createRuntime({
       endpoint: config.aiRecommendEndpoint,
-      clipCacheUploadEndpoint: config.clipCacheUploadEndpoint,
       timeoutMs: config.timeoutMs,
       aiUsageOperatorName: config.aiUsageOperatorName,
       aiStages: config.aiStages,

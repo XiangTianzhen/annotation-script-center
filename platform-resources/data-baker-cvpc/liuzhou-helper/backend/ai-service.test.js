@@ -61,7 +61,7 @@ test("liuzhou defaults and health expose staged listen/refine defaults", functio
   assert.equal(defaultsPayload.defaults?.stages?.listen?.model, "qwen3.5-omni-flash");
   assert.equal(defaultsPayload.defaults?.stages?.refine?.model, "qwen3.5-plus");
   assert.deepEqual(defaultsPayload.supportedModels, {
-    listen: ["qwen3.5-omni-plus", "qwen3.5-omni-flash", "fun-asr"],
+    listen: ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
     refine: ["qwen3.5-plus", "qwen3.5-flash"],
   });
   assert.equal(healthPayload.defaults?.stages?.listen?.model, "qwen3.5-omni-flash");
@@ -77,7 +77,7 @@ test("liuzhou normalizeRecommendRequest maps aiStages into standalone listen/ref
     aiRecommendModel: "qwen3.5-omni-plus",
     aiStages: {
       listen: {
-        model: "fun-asr",
+        model: "qwen3.5-omni-plus",
         prompt: "listen override",
         params: {
           top_p: 0.9,
@@ -93,7 +93,7 @@ test("liuzhou normalizeRecommendRequest maps aiStages into standalone listen/ref
     },
   });
 
-  assert.equal(request.listenModel, "fun-asr");
+  assert.equal(request.listenModel, "qwen3.5-omni-plus");
   assert.equal(request.refineModel, "qwen3.5-flash");
   assert.equal(request.audioDataUrl, "data:audio/wav;base64,UklGRg==");
   assert.equal(request.aiStages?.listen?.prompt, "listen override");
@@ -219,83 +219,7 @@ test("liuzhou recommend runs listen plus refine stages and returns three texts",
   assert.equal(result.models?.refineModel, "qwen3.5-plus");
 });
 
-test("liuzhou recommend keeps dual audio outputs when listen model is fun-asr for whole-audio url", async function () {
-  const stageCalls = [];
-  const result = await recommend(
-    normalizeRecommendRequest(
-      createBaseRequest({
-        audioDataUrl: "",
-        audioUrl: "https://example.com/current.wav",
-        aiStages: {
-          listen: {
-            model: "fun-asr",
-            prompt: "listen prompt",
-            params: {},
-          },
-          refine: {
-            model: "qwen3.5-plus",
-            prompt: "refine prompt",
-            params: {},
-          },
-        },
-      })
-    ),
-    buildAssetsContext({
-      lexiconCsv: "柳州话读音,柳州字转写用字,释义\nlau1,柳,柳树",
-      ruleText: "规则一",
-    }),
-    {
-      now: function () {
-        return 1000;
-      },
-      parseModelJsonText: function (rawText) {
-        return JSON.parse(rawText);
-      },
-      requestFunAsrRecognition: async function () {
-        return {
-          heardText: "FUN 听音结果",
-          model: "fun-asr",
-          usage: {},
-        };
-      },
-      requestTextCompareJson: async function (_input, prompt, options) {
-        stageCalls.push(String(options?.stage || ""));
-        if (options?.stage === "listen_text_bridge") {
-          assert.match(prompt.userPrompt || "", /FUN 听音结果/);
-          return {
-            rawText: JSON.stringify({
-              audioDialectText: "桥接柳州话",
-              audioMandarinText: "桥接普通话",
-              specialTags: [],
-              needHumanReview: false,
-              notes: ["桥接备注"],
-            }),
-            model: "qwen3.5-plus",
-            usage: {},
-          };
-        }
-        return {
-          rawText: JSON.stringify({
-            refinedDialectText: "桥接修正柳州话",
-            needHumanReview: false,
-            notes: ["修正备注"],
-          }),
-          model: "qwen3.5-plus",
-          usage: {},
-        };
-      },
-    }
-  );
-
-  assert.deepEqual(stageCalls, ["listen_text_bridge", "refine"]);
-  assert.equal(result.audioDialectText, "桥接柳州话。");
-  assert.equal(result.audioMandarinText, "桥接普通话。");
-  assert.equal(result.refinedDialectText, "桥接修正柳州话。");
-  assert.equal(result.models?.listenModel, "fun-asr");
-  assert.equal(result.models?.refineModel, "qwen3.5-plus");
-});
-
-test("liuzhou recommend no longer depends on clip-cache validation for current-segment base64 audio", async function () {
+test("liuzhou recommend accepts current-segment base64 audio without legacy clip preprocessing", async function () {
   const result = await recommend(
     normalizeRecommendRequest(createBaseRequest()),
     buildAssetsContext({
@@ -330,39 +254,59 @@ test("liuzhou recommend no longer depends on clip-cache validation for current-s
   assert.equal(result.refinedDialectText, "修正柳州话。");
 });
 
-test("liuzhou recommend rejects fun-asr when only current-segment base64 audio is provided", async function () {
-  await assert.rejects(
-    function () {
-      return recommend(
-        normalizeRecommendRequest(
-          createBaseRequest({
-            aiStages: {
-              listen: {
-                model: "fun-asr",
-                prompt: "listen prompt",
-                params: {},
-              },
-              refine: {
-                model: "qwen3.5-plus",
-                prompt: "refine prompt",
-                params: {},
-              },
-            },
-          })
-        ),
-        buildAssetsContext({
-          lexiconCsv: "",
-          ruleText: "规则一",
-        }),
-        {}
-      );
-    },
-    function (error) {
-      assert.equal(error.code, "unsupported-audio-data-url-for-fun-asr");
-      assert.match(error.message, /fun-asr/);
-      return true;
+test("liuzhou recommend keeps whole-audio url compatibility for omni listen stage", async function () {
+  const result = await recommend(
+    normalizeRecommendRequest(
+      createBaseRequest({
+        audioDataUrl: "",
+        audioUrl: "https://example.com/current.wav",
+      })
+    ),
+    buildAssetsContext({
+      lexiconCsv: "柳州话读音,柳州字转写用字,释义\nlau1,柳,柳树",
+      ruleText: "规则一",
+    }),
+    {
+      now: function () {
+        return 1000;
+      },
+      parseModelJsonText: function (rawText) {
+        return JSON.parse(rawText);
+      },
+      requestOmniInputAudio: async function (input, _prompt, options) {
+        assert.equal(input.audioUrl, "https://example.com/current.wav");
+        assert.equal(input.audioDataUrl, "");
+        return {
+          rawText: JSON.stringify({
+            audioDialectText: "整音频柳州话",
+            audioMandarinText: "整音频普通话",
+            specialTags: [],
+            needHumanReview: false,
+            notes: ["听音备注"],
+          }),
+          model: String(options?.model || "qwen3.5-omni-flash"),
+          usage: {},
+        };
+      },
+      requestTextCompareJson: async function () {
+        return {
+          rawText: JSON.stringify({
+            refinedDialectText: "整音频修正柳州话",
+            needHumanReview: false,
+            notes: ["修正备注"],
+          }),
+          model: "qwen3.5-plus",
+          usage: {},
+        };
+      },
     }
   );
+
+  assert.equal(result.audioDialectText, "整音频柳州话。");
+  assert.equal(result.audioMandarinText, "整音频普通话。");
+  assert.equal(result.refinedDialectText, "整音频修正柳州话。");
+  assert.equal(result.models?.listenModel, "qwen3.5-omni-flash");
+  assert.equal(result.models?.refineModel, "qwen3.5-plus");
 });
 
 test("liuzhou listen normalization keeps punctuation and allowed tags", function () {

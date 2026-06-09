@@ -57,20 +57,6 @@
     return result;
   }
 
-  function isLocalOnlyEndpoint(url) {
-    const text = normalizeText(url);
-    if (!text) {
-      return false;
-    }
-    try {
-      const parsed = new URL(text);
-      const host = String(parsed.hostname || "").toLowerCase();
-      return host === "127.0.0.1" || host === "localhost" || host === "0.0.0.0" || host === "::1";
-    } catch (_error) {
-      return /127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\]/i.test(text);
-    }
-  }
-
   function requireSelectedRange(selectedRange, selectionKey) {
     const range = selectedRange && typeof selectedRange === "object" ? selectedRange : null;
     if (
@@ -205,10 +191,6 @@
     return "data:audio/wav;base64," + clipBase64;
   }
 
-  function getListenModel(config) {
-    return normalizeText(config?.aiStages?.listen?.model).toLowerCase();
-  }
-
   function createRuntime(options) {
     const config = options && typeof options === "object" ? options : {};
     const timerHost = getTimerHost();
@@ -218,13 +200,7 @@
       if (!normalizeText(source.audioUrl)) {
         throw new Error("缺少当前音频 audioUrl。");
       }
-      if (isLocalOnlyEndpoint(normalizeText(config.endpoint) || DEFAULT_PATH)) {
-        throw new Error("当前段 Base64 推荐当前只支持 server 后端地址，local 127.0.0.1 不受支持。");
-      }
       const selectedRange = requireSelectedRange(source.selectedRange, source.selectionKey);
-      if (getListenModel(config) === "fun-asr") {
-        throw new Error("当前段 Base64 裁剪链路暂不支持 fun-asr，请切换听音模型为 qwen3.5-omni-plus 或 qwen3.5-omni-flash。");
-      }
       const audioDataUrl = await createAudioDataUrl(source.audioUrl, selectedRange);
       const endpoint = normalizeText(config.endpoint) || DEFAULT_PATH;
       const body = {
