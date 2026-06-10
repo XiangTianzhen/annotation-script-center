@@ -20,14 +20,17 @@ function installHarness(options) {
   const originalWebkitAudioContext = globalThis.webkitAudioContext;
 
   const requests = [];
-  const samples = settings.samples || new Float32Array(600).fill(0.01);
+  const channels = Array.isArray(settings.channels) && settings.channels.length > 0
+    ? settings.channels
+    : [settings.samples || new Float32Array(600).fill(0.01)];
 
   class FakeAudioContext {
     async decodeAudioData() {
       return {
         sampleRate: settings.sampleRate || 1000,
-        getChannelData: function () {
-          return samples;
+        numberOfChannels: channels.length,
+        getChannelData: function (index) {
+          return channels[index] || channels[0];
         },
       };
     }
@@ -193,6 +196,56 @@ test("CVPC segmentation controller exposes selected threshold unit in preview me
     assert.equal(preview.meta.rules.silenceThresholdDbfs, -27);
     assert.equal(preview.meta.rules.silenceThresholdUnit, "ratio");
     assert.equal(preview.meta.rules.silenceThresholdValue, 4.47);
+    assert.deepEqual(preview.analysisMeta, {
+      frameCount: 24,
+      rawSilentRangeCount: 1,
+      silentRangeCount: 1,
+      windowMs: 30,
+      smoothingFrameRadius: 1,
+      maxSpeechBridgeMs: 180,
+      channelCount: 1,
+      audioDurationMs: 720,
+      thresholdDbfs: -27,
+    });
+  } finally {
+    harness.restore();
+  }
+});
+
+test("CVPC segmentation controller keeps one silence range when short speech blips appear inside near-silence", async function () {
+  const moduleApi = loadModule();
+  const low = 10 ** (-46 / 20);
+  const high = 10 ** (-18 / 20);
+  const samples = new Float32Array(900);
+  samples.fill(high, 0, 120);
+  samples.fill(low, 120, 690);
+  samples.fill(high, 360, 420);
+  samples.fill(high, 690);
+  const harness = installHarness({ samples });
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+      silenceThresholdDbfs: -27,
+    });
+
+    const preview = await runtime.preview({
+      audioUrl: "https://oss.example.com/sample.mp3?Signature=audio",
+      audioDurationMs: 18000,
+      currentSegments: [],
+    });
+
+    const request = harness.requests.find(function (item) {
+      return item.url.indexOf("/segment/preview") >= 0;
+    });
+    const body = JSON.parse(request.body);
+    assert.equal(body.silentRanges.length, 1);
+    assert.deepEqual(body.silentRanges[0], {
+      startMs: 120,
+      endMs: 690,
+    });
+    assert.equal(preview.analysisMeta.rawSilentRangeCount, 2);
+    assert.equal(preview.analysisMeta.silentRangeCount, 1);
   } finally {
     harness.restore();
   }

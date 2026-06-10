@@ -461,6 +461,34 @@
     return "静音 >= 0.4s，阈值 " + String(thresholdDbfs) + " dB，前后补偿 0.1s";
   }
 
+  function buildPreviewAnalysisNote(preview) {
+    const analysisMeta =
+      preview?.analysisMeta && typeof preview.analysisMeta === "object" ? preview.analysisMeta : {};
+    const silentRangeCount = Math.max(
+      0,
+      Math.round(Number(analysisMeta.silentRangeCount || 0)) || 0
+    );
+    const rawSilentRangeCount = Math.max(
+      0,
+      Math.round(Number(analysisMeta.rawSilentRangeCount || 0)) || 0
+    );
+    const frameCount = Math.max(0, Math.round(Number(analysisMeta.frameCount || 0)) || 0);
+    if (frameCount <= 0) {
+      return "";
+    }
+    if (silentRangeCount <= 0) {
+      return "本地静音检测未找到满足条件的连续静音；已自动平滑并合并 <=0.18 秒的短尖峰打断。";
+    }
+    const parts = [
+      "本地静音检测已找到 " + String(silentRangeCount) + " 段满足条件的候选静音",
+    ];
+    if (rawSilentRangeCount > silentRangeCount) {
+      parts.push("已自动合并短尖峰打断");
+    }
+    parts.push("当前没有命中现有段内部或拆分后仍不足 2 段");
+    return parts.join("；") + "。";
+  }
+
   function createRuntime(options) {
     const deps = options && typeof options === "object" ? options : {};
     let rightRoot = null;
@@ -502,6 +530,13 @@
         emptyBox.className = "preview-item";
         emptyBox.innerHTML = "<strong>当前结果</strong><div>当前音频没有命中可拆分静音，保持现有段不变</div>";
         previewNode.appendChild(emptyBox);
+        const analysisNote = buildPreviewAnalysisNote(preview);
+        if (analysisNote) {
+          const note = document.createElement("div");
+          note.className = "section-note";
+          note.textContent = analysisNote;
+          previewNode.appendChild(note);
+        }
       }
       changes.forEach(function (item) {
         const box = document.createElement("div");

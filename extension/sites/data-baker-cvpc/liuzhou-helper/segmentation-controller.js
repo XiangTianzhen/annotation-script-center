@@ -5,6 +5,8 @@
   const MIN_SILENCE_MS = 400;
   const CONTEXT_PADDING_MS = 100;
   const WINDOW_MS = 30;
+  const SMOOTHING_FRAME_RADIUS = 1;
+  const MAX_SPEECH_BRIDGE_MS = 180;
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -36,13 +38,215 @@
     return Math.round(Number(dbfs) || DEFAULT_SILENCE_THRESHOLD_DBFS);
   }
 
+  function getAudioChannels(buffer) {
+    const channelCount = Math.max(1, Math.round(Number(buffer?.numberOfChannels || 1)) || 1);
+    const channels = [];
+    for (let index = 0; index < channelCount; index += 1) {
+      try {
+        const channel = buffer.getChannelData(index);
+        if (channel && Number(channel.length) > 0) {
+          channels.push(channel);
+        }
+      } catch (_error) {
+        if (index === 0) {
+          throw _error;
+        }
+      }
+    }
+    if (channels.length > 0) {
+      return channels;
+    }
+    return [buffer.getChannelData(0)];
+  }
+
+  function smoothFrameEnergy(frameEnergies, radius) {
+    const source = Array.isArray(frameEnergies) ? frameEnergies : [];
+    const smoothingRadius = Math.max(0, Math.round(Number(radius || 0)) || 0);
+    if (source.length === 0 || smoothingRadius <= 0) {
+      return source.slice();
+    }
+    return source.map(function (_value, index) {
+      let total = 0;
+      let count = 0;
+      const start = Math.max(0, index - smoothingRadius);
+      const end = Math.min(source.length - 1, index + smoothingRadius);
+      for (let frameIndex = start; frameIndex <= end; frameIndex += 1) {
+        total += Number(source[frameIndex] || 0);
+        count += 1;
+      }
+      return count > 0 ? total / count : 0;
+    });
+  }
+
+  function finalizeSilentRange(frames, startIndex, endExclusiveIndex) {
+    const source = Array.isArray(frames) ? frames : [];
+    const normalizedStart = Math.max(0, Math.round(Number(startIndex || 0)) || 0);
+    const normalizedEnd = Math.max(
+      normalizedStart,
+      Math.round(Number(endExclusiveIndex || 0)) || 0
+    );
+    if (source.length === 0 || normalizedEnd <= normalizedStart || normalizedStart >= source.length) {
+      return null;
+    }
+    const lastFrame = source[Math.min(source.length - 1, normalizedEnd - 1)];
+    const nextFrame = normalizedEnd < source.length ? source[normalizedEnd] : null;
+    const startFrame = source[normalizedStart];
+    const endMs = nextFrame ? nextFrame.startMs : lastFrame?.endMs;
+    if (!startFrame || !Number.isFinite(endMs) || endMs <= startFrame.startMs) {
+      return null;
+    }
+    return {
+      startMs: startFrame.startMs,
+      endMs: endMs,
+      startIndex: normalizedStart,
+      endExclusiveIndex: normalizedEnd,
+    };
+  }
+
+  function stripSilentRangeIndexes(range) {
+    return {
+      startMs: range.startMs,
+      endMs: range.endMs,
+    };
+  }
+
+  function expandSilentRangeToRawFrames(range, frames, silenceThresholdDbfs) {
+    const source = Array.isArray(frames) ? frames : [];
+    const current = range && typeof range === "object" ? range : null;
+    if (!current || source.length === 0) {
+      return null;
+    }
+    let startIndex = Math.max(0, Math.round(Number(current.startIndex || 0)) || 0);
+    let endExclusiveIndex = Math.max(
+      startIndex,
+      Math.round(Number(current.endExclusiveIndex || 0)) || 0
+    );
+    while (
+      startIndex > 0 &&
+      Number(source[startIndex - 1]?.rawDbfs || 0) < silenceThresholdDbfs
+    ) {
+      startIndex -= 1;
+    }
+    while (
+      endExclusiveIndex < source.length &&
+      Number(source[endExclusiveIndex]?.rawDbfs || 0) < silenceThresholdDbfs
+    ) {
+      endExclusiveIndex += 1;
+    }
+    return finalizeSilentRange(source, startIndex, endExclusiveIndex);
+  }
+
+  function collectSilentRanges(frames, silenceThresholdDbfs) {
+    const source = Array.isArray(frames) ? frames : [];
+    const silentRanges = [];
+    const rawSilentRanges = [];
+    let currentStartIndex = null;
+    let bridgeStartIndex = null;
+    let rawStartIndex = null;
+
+    source.forEach(function (frame, index) {
+      const isSilentFrame = Number(frame?.dbfs || 0) < silenceThresholdDbfs;
+      if (isSilentFrame) {
+        if (rawStartIndex === null) {
+          rawStartIndex = index;
+        }
+        if (currentStartIndex === null) {
+          currentStartIndex = index;
+        }
+        bridgeStartIndex = null;
+        return;
+      }
+
+      if (rawStartIndex !== null) {
+        const rawRange = finalizeSilentRange(source, rawStartIndex, index);
+        if (rawRange) {
+          rawSilentRanges.push(rawRange);
+        }
+        rawStartIndex = null;
+      }
+
+      if (currentStartIndex === null) {
+        return;
+      }
+      if (bridgeStartIndex === null) {
+        bridgeStartIndex = index;
+        return;
+      }
+      const bridgeDurationMs = source[index].endMs - source[bridgeStartIndex].startMs;
+      if (bridgeDurationMs <= MAX_SPEECH_BRIDGE_MS) {
+        return;
+      }
+      const silentRange = finalizeSilentRange(source, currentStartIndex, bridgeStartIndex);
+      if (silentRange) {
+        silentRanges.push(silentRange);
+      }
+      currentStartIndex = null;
+      bridgeStartIndex = null;
+    });
+
+    if (rawStartIndex !== null) {
+      const rawRange = finalizeSilentRange(source, rawStartIndex, source.length);
+      if (rawRange) {
+        rawSilentRanges.push(rawRange);
+      }
+    }
+    if (currentStartIndex !== null) {
+      const silentRange = finalizeSilentRange(
+        source,
+        currentStartIndex,
+        bridgeStartIndex === null ? source.length : bridgeStartIndex
+      );
+      if (silentRange) {
+        silentRanges.push(silentRange);
+      }
+    }
+
+    return {
+      silentRanges: silentRanges
+        .map(function (range) {
+          return expandSilentRangeToRawFrames(range, source, silenceThresholdDbfs);
+        })
+        .filter(function (range) {
+          return range && range.endMs - range.startMs >= MIN_SILENCE_MS;
+        })
+        .map(stripSilentRangeIndexes),
+      rawSilentRanges: rawSilentRanges
+        .filter(function (range) {
+          return range.endMs > range.startMs;
+        })
+        .map(stripSilentRangeIndexes),
+    };
+  }
+
   async function analyzeSilenceRanges(audioUrl, silenceThresholdDbfs) {
     if (!normalizeText(audioUrl)) {
-      return [];
+      return {
+        silentRanges: [],
+        analysisMeta: {
+          frameCount: 0,
+          rawSilentRangeCount: 0,
+          silentRangeCount: 0,
+          windowMs: WINDOW_MS,
+          smoothingFrameRadius: SMOOTHING_FRAME_RADIUS,
+          maxSpeechBridgeMs: MAX_SPEECH_BRIDGE_MS,
+          channelCount: 0,
+        },
+      };
     }
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (typeof AudioContextClass !== "function") {
-      return [];
+      return {
+        silentRanges: [],
+        analysisMeta: {
+          frameCount: 0,
+          rawSilentRangeCount: 0,
+          silentRangeCount: 0,
+          windowMs: WINDOW_MS,
+          smoothingFrameRadius: SMOOTHING_FRAME_RADIUS,
+          maxSpeechBridgeMs: MAX_SPEECH_BRIDGE_MS,
+          channelCount: 0,
+        },
+      };
     }
     const response = await fetch(audioUrl);
     if (!response.ok) {
@@ -52,40 +256,59 @@
     const audioContext = new AudioContextClass();
     try {
       const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-      const channel = buffer.getChannelData(0);
+      const channels = getAudioChannels(buffer);
       const sampleRate = buffer.sampleRate || 16000;
       const frameSize = Math.max(1, Math.round((sampleRate * WINDOW_MS) / 1000));
-      const ranges = [];
-      let currentStart = null;
-      for (let offset = 0; offset < channel.length; offset += frameSize) {
+      const totalSamples = Math.max(
+        0,
+        channels.reduce(function (max, channel) {
+          return Math.max(max, Number(channel?.length || 0) || 0);
+        }, 0)
+      );
+      const frameEnergies = [];
+      const frames = [];
+      for (let offset = 0; offset < totalSamples; offset += frameSize) {
         let energy = 0;
-        const end = Math.min(channel.length, offset + frameSize);
-        for (let index = offset; index < end; index += 1) {
-          energy += channel[index] * channel[index];
-        }
-        const rms = Math.sqrt(energy / Math.max(1, end - offset));
-        const db = rmsToDb(rms);
-        const frameStartMs = Math.round((offset / sampleRate) * 1000);
-        const frameEndMs = Math.round((end / sampleRate) * 1000);
-        if (db < silenceThresholdDbfs) {
-          if (currentStart === null) {
-            currentStart = frameStartMs;
+        let sampleCount = 0;
+        const end = Math.min(totalSamples, offset + frameSize);
+        for (let channelIndex = 0; channelIndex < channels.length; channelIndex += 1) {
+          const channel = channels[channelIndex];
+          const channelEnd = Math.min(end, Number(channel?.length || 0) || 0);
+          for (let index = offset; index < channelEnd; index += 1) {
+            energy += channel[index] * channel[index];
+            sampleCount += 1;
           }
-        } else if (currentStart !== null) {
-          ranges.push({
-            startMs: currentStart,
-            endMs: frameStartMs,
-          });
-          currentStart = null;
         }
-      }
-      if (currentStart !== null) {
-        ranges.push({
-          startMs: currentStart,
-          endMs: Math.round((channel.length / sampleRate) * 1000),
+        frameEnergies.push(sampleCount > 0 ? energy / sampleCount : 0);
+        frames.push({
+          startMs: Math.round((offset / sampleRate) * 1000),
+          endMs: Math.round((end / sampleRate) * 1000),
+          rawDbfs: rmsToDb(Math.sqrt(sampleCount > 0 ? energy / sampleCount : 0)),
+          dbfs: 0,
         });
       }
-      return ranges;
+      const smoothedFrameEnergies = smoothFrameEnergy(frameEnergies, SMOOTHING_FRAME_RADIUS);
+      smoothedFrameEnergies.forEach(function (value, index) {
+        if (!frames[index]) {
+          return;
+        }
+        frames[index].dbfs = rmsToDb(Math.sqrt(Math.max(0, Number(value) || 0)));
+      });
+      const detection = collectSilentRanges(frames, silenceThresholdDbfs);
+      return {
+        silentRanges: detection.silentRanges,
+        analysisMeta: {
+          frameCount: frames.length,
+          rawSilentRangeCount: detection.rawSilentRanges.length,
+          silentRangeCount: detection.silentRanges.length,
+          windowMs: WINDOW_MS,
+          smoothingFrameRadius: SMOOTHING_FRAME_RADIUS,
+          maxSpeechBridgeMs: MAX_SPEECH_BRIDGE_MS,
+          channelCount: channels.length,
+          audioDurationMs: Math.round((totalSamples / sampleRate) * 1000),
+          thresholdDbfs: silenceThresholdDbfs,
+        },
+      };
     } finally {
       if (typeof audioContext.close === "function") {
         audioContext.close().catch(function () {
@@ -107,9 +330,15 @@
         : DEFAULT_SILENCE_THRESHOLD_DBFS;
       const silenceThresholdUnit = normalizeThresholdUnit(config.silenceThresholdUnit);
       let silentRanges = [];
+      let analysisMeta = null;
       let analysisError = "";
       try {
-        silentRanges = await analyzeSilenceRanges(source.audioUrl, silenceThresholdDbfs);
+        const analysisResult = await analyzeSilenceRanges(source.audioUrl, silenceThresholdDbfs);
+        silentRanges = Array.isArray(analysisResult?.silentRanges) ? analysisResult.silentRanges : [];
+        analysisMeta =
+          analysisResult?.analysisMeta && typeof analysisResult.analysisMeta === "object"
+            ? Object.assign({}, analysisResult.analysisMeta)
+            : null;
       } catch (error) {
         analysisError = error && error.message ? error.message : String(error);
       }
@@ -155,6 +384,7 @@
         changes: Array.isArray(payload?.data?.changes) ? payload.data.changes : [],
         meta: meta,
         analysisError: analysisError,
+        analysisMeta: analysisMeta,
         selectionKey: normalizeText(source.selectionKey),
         selectedEntryName: normalizeText(source.selectedEntry?.name || source.editorContext?.selectedEntry?.name),
         sourceSegments: Array.isArray(source.currentSegments)

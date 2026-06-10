@@ -692,6 +692,11 @@ test("CVPC ui panel renders empty split-preview state when no silence hit is fou
     runtime.mount();
     runtime.renderPreview({
       changes: [],
+      analysisMeta: {
+        frameCount: 80,
+        rawSilentRangeCount: 0,
+        silentRangeCount: 0,
+      },
       meta: {
         rules: {
           silenceThresholdDbfs: -38,
@@ -703,6 +708,43 @@ test("CVPC ui panel renders empty split-preview state when no silence hit is fou
     const middleText = collectText(middleNode);
     assert.match(middleText, /静音 >= 0\.4s，阈值 -38 dB，前后补偿 0\.1s/);
     assert.match(middleText, /当前音频没有命中可拆分静音，保持现有段不变/);
+    assert.match(middleText, /本地静音检测未找到满足条件的连续静音/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel explains when local silence candidates exist but still do not produce a split", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderPreview({
+      changes: [],
+      analysisMeta: {
+        frameCount: 120,
+        rawSilentRangeCount: 3,
+        silentRangeCount: 1,
+      },
+      meta: {
+        rules: {
+          silenceThresholdDbfs: -27,
+        },
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /本地静音检测已找到 1 段满足条件的候选静音/);
+    assert.match(middleText, /已自动合并短尖峰打断/);
+    assert.match(middleText, /当前没有命中现有段内部或拆分后仍不足 2 段/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

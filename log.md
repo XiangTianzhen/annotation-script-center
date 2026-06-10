@@ -1,3 +1,28 @@
+## 2026-06-10（DataBaker CVPC 柳州话画段本地静音检测抗噪增强）
+
+- `DataBaker CVPC / 柳州话脚本` 当前优化了浏览器端 `生成画段建议` 的本地静音检测：
+  - 仍保持 `30ms` 窗口、`静音 >=0.4s`、默认 `-27 dB`
+  - 静音分析当前改为多声道能量汇总，不再只看单声道
+  - 新增轻量平滑，并自动桥接 `<=0.18s` 的短尖峰打断，避免近静音被瞬态噪声切碎
+  - 静音候选边界当前会回补原始静音帧，避免平滑后把刚好 `0.4s` 的静音缩没
+- 画段建议空状态当前补充了本地诊断提示：
+  - 本地未检出满足条件的连续静音
+  - 已检出候选静音，但未命中现有段内部或拆分后仍不足 2 段
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/segmentation-controller.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/segmentation-controller.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `README.md`
+  - `docs/platforms/index.md`
+- 本轮验证：
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/segmentation-controller.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/segmentation-controller.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+
 ## 2026-06-10（DataBaker CVPC 柳州话 listen Prompt 精简为纯听音）
 
 - `DataBaker CVPC / 柳州话脚本` 当前把 `当前段 AI 推荐` 的 `listen` 阶段收口为纯听音：
