@@ -140,6 +140,70 @@ test("liuzhou ai recommend fails closed when selectedRange is missing", async fu
   );
 });
 
+test("liuzhou ai recommend attaches failure payload to thrown error for UI fallback rendering", async function () {
+  const moduleApi = loadModule();
+  const harness = installAudioHarness();
+
+  globalThis.fetch = async function (url, options) {
+    harness.calls.push({
+      url: String(url || ""),
+      method: String(options?.method || "GET").toUpperCase(),
+      body: options?.body || "",
+    });
+    if (String(url).indexOf("/ai/recommend") >= 0) {
+      return {
+        ok: false,
+        json: async function () {
+          return {
+            success: false,
+            message: "模型输出 JSON 解析失败，可查看原始 AI 返回。",
+            debugRawJson: {
+              rawResponseText: "{\"foo\":\"bar\"}",
+            },
+          };
+        },
+      };
+    }
+    return {
+      ok: true,
+      arrayBuffer: async function () {
+        return new Uint8Array([1, 2, 3, 4]).buffer;
+      },
+    };
+  };
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+      aiUsageOperatorName: "测试员",
+    });
+
+    await assert.rejects(
+      function () {
+        return runtime.recommend({
+          audioUrl: "https://oss.example.com/sample.mp3?Signature=audio",
+          selectionKey: "sample.mp3|18565|35677",
+          selectedRange: {
+            startMs: 18565,
+            endMs: 35677,
+            durationMs: 17112,
+          },
+          platformUserName: "柳州标注员",
+          platformUserId: "9527",
+        });
+      },
+      function (error) {
+        assert.match(String(error.message || ""), /JSON 解析失败/);
+        assert.equal(error.payload?.success, false);
+        assert.equal(error.payload?.debugRawJson?.rawResponseText, "{\"foo\":\"bar\"}");
+        return true;
+      }
+    );
+  } finally {
+    harness.restore();
+  }
+});
+
 test("liuzhou ai recommend sends current segment audio as base64 data url", async function () {
   const moduleApi = loadModule();
   const harness = installAudioHarness();

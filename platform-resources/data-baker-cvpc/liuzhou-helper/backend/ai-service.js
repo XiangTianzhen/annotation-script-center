@@ -146,6 +146,13 @@ function normalizeNotes(value) {
   );
 }
 
+function normalizeErrorDebugObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value;
+}
+
 function parseCsvLine(text) {
   const source = String(text || "");
   const result = [];
@@ -763,12 +770,48 @@ function buildRecommendSuccessBody(context) {
 function buildRecommendErrorBody(context) {
   const source = context && typeof context === "object" ? context : {};
   const error = source.error || {};
-  return {
+  const body = {
     success: false,
     requestId: normalizeText(source.requestId || error.requestId),
     code: normalizeText(error.code),
     message: normalizeText(error.safeMessage || error.message || "柳州话 AI 推荐失败。"),
   };
+  const rawResponse = normalizeErrorDebugObject(error.debugRawAiResponse || error.rawResponse);
+  const debugRawJson = normalizeErrorDebugObject(error.debugRawJson);
+  const usage = normalizeErrorDebugObject(error.usage);
+  const models = normalizeErrorDebugObject(error.models);
+  const timing = normalizeErrorDebugObject(error.timing);
+  const specialTags = normalizeSpecialTags(error.specialTags);
+  const notes = normalizeNotes(error.notes);
+  const audioDialectText = normalizeText(error.audioDialectText || error.dialectText);
+  if (rawResponse) {
+    body.rawResponse = rawResponse;
+  }
+  if (debugRawJson) {
+    body.debugRawJson = debugRawJson;
+  }
+  if (usage) {
+    body.usage = usage;
+  }
+  if (models) {
+    body.models = models;
+  }
+  if (timing) {
+    body.timing = timing;
+  }
+  if (specialTags.length > 0) {
+    body.specialTags = specialTags;
+  }
+  if (error.needHumanReview === true || error.needHumanReview === false) {
+    body.needHumanReview = error.needHumanReview === true;
+  }
+  if (notes.length > 0) {
+    body.notes = notes;
+  }
+  if (audioDialectText) {
+    body.audioDialectText = audioDialectText;
+  }
+  return body;
 }
 
 module.exports = {

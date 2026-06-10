@@ -6,6 +6,7 @@ const test = require("node:test");
 const {
   __testOnly,
   buildAssetsContext,
+  buildRecommendErrorBody,
   buildRecommendSuccessBody,
   createDefaultsPayload,
   createHealthPayload,
@@ -615,4 +616,63 @@ test("liuzhou listen normalization keeps punctuation and allowed tags without fa
   assert.equal(output.audioMandarinText, "");
   assert.deepEqual(output.specialTags, ["#um", "<SPK/>"]);
   assert.deepEqual(output.notes, ["第一条", "第二条"]);
+});
+
+test("liuzhou buildRecommendErrorBody exposes sanitized debug fields for frontend additional info", function () {
+  const body = buildRecommendErrorBody({
+    requestId: "request-1",
+    error: {
+      code: "model-json-parse-failed",
+      safeMessage: "模型输出 JSON 解析失败，可查看原始 AI 返回。",
+      debugRawJson: {
+        rawResponseText: "{\"audioDialectText\":\"示例\"}",
+        authorization: "<redacted>",
+      },
+      debugRawAiResponse: {
+        rawText: "{\"audioDialectText\":\"示例\"}",
+        signedAudioUrl: "<redacted>",
+      },
+      usage: {
+        total_tokens: 12,
+      },
+      models: {
+        listenModel: "qwen3.5-omni-flash",
+      },
+      timing: {
+        totalMs: 3210,
+      },
+      specialTags: ["#um"],
+      needHumanReview: true,
+      notes: ["保守处理"],
+      audioDialectText: "原始柳州话",
+    },
+  });
+
+  assert.deepEqual(body, {
+    success: false,
+    requestId: "request-1",
+    code: "model-json-parse-failed",
+    message: "模型输出 JSON 解析失败，可查看原始 AI 返回。",
+    rawResponse: {
+      rawText: "{\"audioDialectText\":\"示例\"}",
+      signedAudioUrl: "<redacted>",
+    },
+    debugRawJson: {
+      rawResponseText: "{\"audioDialectText\":\"示例\"}",
+      authorization: "<redacted>",
+    },
+    usage: {
+      total_tokens: 12,
+    },
+    models: {
+      listenModel: "qwen3.5-omni-flash",
+    },
+    timing: {
+      totalMs: 3210,
+    },
+    specialTags: ["#um"],
+    needHumanReview: true,
+    notes: ["保守处理"],
+    audioDialectText: "原始柳州话",
+  });
 });

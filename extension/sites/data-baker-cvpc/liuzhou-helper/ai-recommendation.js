@@ -381,7 +381,17 @@
           return null;
         });
         if (!response.ok || !payload || payload.success !== true) {
-          throw new Error(payload?.message || "柳州话 AI 推荐失败。");
+          const error = new Error(payload?.message || "柳州话 AI 推荐失败。");
+          if (payload && typeof payload === "object") {
+            error.payload = payload;
+            if (payload.requestId) {
+              error.requestId = payload.requestId;
+            }
+            if (payload.code) {
+              error.code = payload.code;
+            }
+          }
+          throw error;
         }
         return Object.assign({}, payload, {
           selectionKey: body.selectionKey,
