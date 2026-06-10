@@ -7,6 +7,7 @@
   - `AI信息` 当前默认折叠但始终保留；内部固定顺序改为 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
   - 原 `Token 用量` 当前改成两条固定阶段信息：`听音识别`、`文本修正`，每条只显示 `模型 / 输入 / 输出`，不再展示 `总输入 / 总输出 / 总计`
   - 当前段识别成功、旧结果失效、分段建议生成/失败等状态提示当前同步切到新的“识别 / 分段建议”口径
+  - `AI 返回原始内容` 当前补回成功态回退：没有专用 `debug/raw` 字段时，会直接展示当前结果对象的安全 JSON，避免区块标题存在但内容为空
 - 本轮同步更新：
   - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
   - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`

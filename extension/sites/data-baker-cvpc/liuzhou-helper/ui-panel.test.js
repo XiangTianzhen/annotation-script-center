@@ -727,6 +727,8 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.match(middleText, /输出：6/);
     assert.match(middleText, /输入：4/);
     assert.match(middleText, /输出：3/);
+    assert.match(middleText, /"audioDialectText": "听音柳州话"/);
+    assert.match(middleText, /"timing":/);
     assert.doesNotMatch(middleText, /总输入/);
     assert.doesNotMatch(middleText, /总输出/);
     assert.doesNotMatch(middleText, /总计/);

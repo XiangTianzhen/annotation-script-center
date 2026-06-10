@@ -810,7 +810,7 @@
         source.debugRawJson ||
         source.rawResponse ||
         source.debugRawAiResponse ||
-        null;
+        (result && typeof result === "object" ? result : null);
       const rawText = rawSource ? stringifyJsonSafely(rawSource) : "";
       [
         buildAiStageSummary(source, "listen", "听音识别", "listenModel"),
