@@ -2,6 +2,9 @@
   const DEFAULT_PATH = "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
   const DEFAULT_SILENCE_THRESHOLD_DBFS = -27;
   const DEFAULT_SILENCE_THRESHOLD_UNIT = "db";
+  const DEFAULT_SEGMENT_SCOPE = "existing-segments-incremental";
+  const WHOLE_AUDIO_REBUILD_SCOPE = "whole-audio-rebuild-preview";
+  const PREVIEW_MODE_WHOLE_AUDIO_FALLBACK = "whole-audio-fallback";
   const MIN_SILENCE_MS = 400;
   const CONTEXT_PADDING_MS = 100;
   const WINDOW_MS = 30;
@@ -36,6 +39,69 @@
       return Math.max(1, Math.round(32768 * Math.pow(10, dbfs / 20)));
     }
     return Math.round(Number(dbfs) || DEFAULT_SILENCE_THRESHOLD_DBFS);
+  }
+
+  function buildPreviewRequestBody(source, silentRanges, silenceThresholdDbfs, segmentScope) {
+    return {
+      audioUrl: source.audioUrl,
+      audioDurationMs: source.audioDurationMs,
+      editorContext: source.editorContext || {},
+      existingSegments: source.currentSegments || [],
+      silentRanges: silentRanges,
+      rules: {
+        silenceThresholdDbfs: silenceThresholdDbfs,
+        minSilenceMs: MIN_SILENCE_MS,
+        contextPaddingMs: CONTEXT_PADDING_MS,
+      },
+      segmentScope: normalizeText(segmentScope) || DEFAULT_SEGMENT_SCOPE,
+    };
+  }
+
+  async function requestPreview(endpoint, payload) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      credentials: "omit",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const responsePayload = await response.json().catch(function () {
+      return null;
+    });
+    if (!response.ok || !responsePayload || responsePayload.success !== true) {
+      throw new Error(responsePayload?.message || "画段建议生成失败。");
+    }
+    return responsePayload;
+  }
+
+  function finalizePreviewPayload(payload, context) {
+    const source = context && typeof context === "object" ? context : {};
+    const responsePayload = payload && typeof payload === "object" ? payload : {};
+    return {
+      proposedSegments: Array.isArray(responsePayload?.data?.proposedSegments)
+        ? responsePayload.data.proposedSegments
+        : [],
+      changes: Array.isArray(responsePayload?.data?.changes) ? responsePayload.data.changes : [],
+      meta:
+        responsePayload?.meta && typeof responsePayload.meta === "object"
+          ? Object.assign({}, responsePayload.meta)
+          : {},
+      analysisError: normalizeText(source.analysisError),
+      analysisMeta:
+        source.analysisMeta && typeof source.analysisMeta === "object"
+          ? Object.assign({}, source.analysisMeta)
+          : null,
+      selectionKey: normalizeText(source.selectionKey),
+      selectedEntryName: normalizeText(
+        source.selectedEntry?.name || source.editorContext?.selectedEntry?.name
+      ),
+      sourceSegments: Array.isArray(source.currentSegments)
+        ? source.currentSegments.map(function (item) {
+            return Object.assign({}, item);
+          })
+        : [],
+    };
   }
 
   function getAudioChannels(buffer) {
@@ -342,31 +408,36 @@
       } catch (error) {
         analysisError = error && error.message ? error.message : String(error);
       }
-      const response = await fetch(endpoint, {
-        method: "POST",
-        credentials: "omit",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          audioUrl: source.audioUrl,
-          audioDurationMs: source.audioDurationMs,
-          editorContext: source.editorContext || {},
-          existingSegments: source.currentSegments || [],
-          silentRanges: silentRanges,
-          rules: {
-            silenceThresholdDbfs: silenceThresholdDbfs,
-            minSilenceMs: MIN_SILENCE_MS,
-            contextPaddingMs: CONTEXT_PADDING_MS,
-          },
-          segmentScope: "existing-segments-incremental",
-        }),
-      });
-      const payload = await response.json().catch(function () {
-        return null;
-      });
-      if (!response.ok || !payload || payload.success !== true) {
-        throw new Error(payload?.message || "画段建议生成失败。");
+      const incrementalRequestBody = buildPreviewRequestBody(
+        source,
+        silentRanges,
+        silenceThresholdDbfs,
+        DEFAULT_SEGMENT_SCOPE
+      );
+      const incrementalPayload = await requestPreview(endpoint, incrementalRequestBody);
+      const shouldTriggerWholeAudioFallback =
+        Array.isArray(source.currentSegments) &&
+        source.currentSegments.length > 0 &&
+        Array.isArray(incrementalPayload?.data?.changes) &&
+        incrementalPayload.data.changes.length === 0 &&
+        Number(analysisMeta?.silentRangeCount || 0) > 0;
+      let payload = incrementalPayload;
+      if (shouldTriggerWholeAudioFallback) {
+        const fallbackPayload = await requestPreview(
+          endpoint,
+          buildPreviewRequestBody(
+            source,
+            silentRanges,
+            silenceThresholdDbfs,
+            WHOLE_AUDIO_REBUILD_SCOPE
+          )
+        );
+        payload = Object.assign({}, fallbackPayload, {
+          meta: Object.assign({}, fallbackPayload?.meta || {}, {
+            fallbackTriggered: true,
+            incrementalEmptyReason: normalizeText(incrementalPayload?.meta?.emptyReason),
+          }),
+        });
       }
       const meta = payload.meta && typeof payload.meta === "object" ? Object.assign({}, payload.meta) : {};
       const rules = meta.rules && typeof meta.rules === "object" ? Object.assign({}, meta.rules) : {};
@@ -377,22 +448,22 @@
         silenceThresholdUnit
       );
       meta.rules = rules;
-      lastPreview = {
-        proposedSegments: Array.isArray(payload?.data?.proposedSegments)
-          ? payload.data.proposedSegments
-          : [],
-        changes: Array.isArray(payload?.data?.changes) ? payload.data.changes : [],
-        meta: meta,
-        analysisError: analysisError,
-        analysisMeta: analysisMeta,
-        selectionKey: normalizeText(source.selectionKey),
-        selectedEntryName: normalizeText(source.selectedEntry?.name || source.editorContext?.selectedEntry?.name),
-        sourceSegments: Array.isArray(source.currentSegments)
-          ? source.currentSegments.map(function (item) {
-              return Object.assign({}, item);
-            })
-          : [],
-      };
+      lastPreview = finalizePreviewPayload(
+        {
+          data: payload.data,
+          meta: meta,
+        },
+        Object.assign({}, source, {
+          analysisError: analysisError,
+          analysisMeta: analysisMeta,
+        })
+      );
+      if (
+        normalizeText(lastPreview?.meta?.previewMode) === PREVIEW_MODE_WHOLE_AUDIO_FALLBACK &&
+        lastPreview?.meta
+      ) {
+        lastPreview.meta.applyAllowed = false;
+      }
       return lastPreview;
     }
 

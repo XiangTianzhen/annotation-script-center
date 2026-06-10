@@ -461,7 +461,11 @@
     return "静音 >= 0.4s，阈值 " + String(thresholdDbfs) + " dB，前后补偿 0.1s";
   }
 
-  function buildPreviewAnalysisNote(preview) {
+  function isWholeAudioFallbackPreview(preview) {
+    return String(preview?.meta?.previewMode || "") === "whole-audio-fallback";
+  }
+
+  function buildPreviewDetectionSummary(preview) {
     const analysisMeta =
       preview?.analysisMeta && typeof preview.analysisMeta === "object" ? preview.analysisMeta : {};
     const silentRangeCount = Math.max(
@@ -474,9 +478,38 @@
     );
     const frameCount = Math.max(0, Math.round(Number(analysisMeta.frameCount || 0)) || 0);
     if (frameCount <= 0) {
+      return "本地静音检测摘要暂不可用";
+    }
+    const parts = [
+      "本地静音检测命中 " + String(silentRangeCount) + " 段候选静音",
+    ];
+    if (rawSilentRangeCount > silentRangeCount) {
+      parts.push(
+        "原始候选 " +
+          String(rawSilentRangeCount) +
+          " 段，已自动合并短尖峰打断"
+      );
+    }
+    return parts.join("；");
+  }
+
+  function buildPreviewAnalysisNote(preview) {
+    const analysisMeta =
+      preview?.analysisMeta && typeof preview.analysisMeta === "object" ? preview.analysisMeta : {};
+    const silentRangeCount = Math.max(
+      0,
+      Math.round(Number(analysisMeta.silentRangeCount || 0)) || 0
+    );
+    const rawSilentRangeCount = Math.max(
+      0,
+      Math.round(Number(analysisMeta.rawSilentRangeCount || 0)) || 0
+    );
+    const frameCount = Math.max(0, Math.round(Number(analysisMeta.frameCount || 0)) || 0);
+    const emptyReason = String(preview?.meta?.emptyReason || "");
+    if (frameCount <= 0) {
       return "";
     }
-    if (silentRangeCount <= 0) {
+    if (silentRangeCount <= 0 || emptyReason === "no-silence") {
       return "本地静音检测未找到满足条件的连续静音；已自动平滑并合并 <=0.18 秒的短尖峰打断。";
     }
     const parts = [
@@ -485,7 +518,11 @@
     if (rawSilentRangeCount > silentRangeCount) {
       parts.push("已自动合并短尖峰打断");
     }
-    parts.push("当前没有命中现有段内部或拆分后仍不足 2 段");
+    if (emptyReason === "insufficient-split") {
+      parts.push("命中了静音，但拆分后仍不足 2 段");
+    } else {
+      parts.push("当前没有命中现有段内部");
+    }
     return parts.join("；") + "。";
   }
 
@@ -523,6 +560,64 @@
       summary.className = "preview-item";
       summary.innerHTML = "<strong>规则摘要</strong><div>" + buildPreviewRuleSummary(preview) + "</div>";
       previewNode.appendChild(summary);
+
+      if (isWholeAudioFallbackPreview(preview)) {
+        const sourceSegments = Array.isArray(preview?.sourceSegments) ? preview.sourceSegments : [];
+        const proposedSegments = Array.isArray(preview?.proposedSegments) ? preview.proposedSegments : [];
+
+        const banner = document.createElement("div");
+        banner.className = "preview-item";
+        banner.innerHTML =
+          "<strong>整条音频重切预览</strong><div>当前增量补切未命中，以下为整条音频重切预览</div>";
+        previewNode.appendChild(banner);
+
+        const readonlyBox = document.createElement("div");
+        readonlyBox.className = "preview-item";
+        readonlyBox.innerHTML =
+          "<strong>应用限制</strong><div>该结果仅供预览，暂不支持一键应用</div>";
+        previewNode.appendChild(readonlyBox);
+
+        const metaBox = document.createElement("div");
+        metaBox.className = "preview-item";
+        metaBox.innerHTML =
+          "<strong>当前结果</strong><div>原现有段数：" +
+          String(sourceSegments.length) +
+          " 段</div><div>fallback 建议段数：" +
+          String(proposedSegments.length) +
+          " 段</div><div>" +
+          buildPreviewDetectionSummary(preview) +
+          "</div>";
+        previewNode.appendChild(metaBox);
+
+        if (proposedSegments.length === 0) {
+          const emptyBox = document.createElement("div");
+          emptyBox.className = "preview-item";
+          emptyBox.innerHTML = "<strong>建议段</strong><div>当前还没有可展示的整条音频重切建议。</div>";
+          previewNode.appendChild(emptyBox);
+        }
+
+        proposedSegments.forEach(function (segment, index) {
+          const box = document.createElement("div");
+          box.className = "preview-item";
+          box.innerHTML =
+            "<strong>建议段 " +
+            String(index + 1) +
+            "</strong><div>" +
+            formatSecondsFromMs(segment?.startMs) +
+            " 秒 - " +
+            formatSecondsFromMs(segment?.endMs) +
+            " 秒</div>";
+          previewNode.appendChild(box);
+        });
+
+        if (preview.analysisError) {
+          const note = document.createElement("div");
+          note.className = "section-note";
+          note.textContent = "静音分析降级：" + preview.analysisError;
+          previewNode.appendChild(note);
+        }
+        return;
+      }
 
       const changes = Array.isArray(preview?.changes) ? preview.changes : [];
       if (changes.length === 0) {

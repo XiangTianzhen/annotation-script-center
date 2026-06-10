@@ -14,6 +14,8 @@
   const PREVIEW_LIVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，旧画段建议已失效，请重新生成。";
   const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的画段建议，请先生成画段建议。";
   const PREVIEW_NOTHING_TO_APPLY_MESSAGE = "当前音频没有需要应用的拆分建议。";
+  const PREVIEW_READONLY_MESSAGE =
+    "整条音频重切预览暂不支持自动应用，请人工参考或改走 Python 试算。";
   const PREVIEW_UNSAFE_MESSAGE = "未检测到稳定的波形画段区域或拆分控件，请人工处理当前建议。";
   const PREVIEW_APPLY_SUCCESS_MESSAGE = "建议已画到页面，请人工复核后点击平台保存。";
 
@@ -1518,6 +1520,15 @@
         return {
           ok: false,
           message: PREVIEW_EMPTY_MESSAGE,
+        };
+      }
+      if (
+        source?.meta?.applyAllowed === false ||
+        normalizeText(source?.meta?.previewMode) === "whole-audio-fallback"
+      ) {
+        return {
+          ok: false,
+          message: PREVIEW_READONLY_MESSAGE,
         };
       }
       const changes = (Array.isArray(source.changes) ? source.changes : [])

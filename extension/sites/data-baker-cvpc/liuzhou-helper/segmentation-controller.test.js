@@ -23,6 +23,18 @@ function installHarness(options) {
   const channels = Array.isArray(settings.channels) && settings.channels.length > 0
     ? settings.channels
     : [settings.samples || new Float32Array(600).fill(0.01)];
+  const previewResponses = Array.isArray(settings.previewResponses)
+    ? settings.previewResponses.slice()
+    : [
+        {
+          success: true,
+          data: {
+            proposedSegments: [],
+            changes: [],
+          },
+          meta: {},
+        },
+      ];
 
   class FakeAudioContext {
     async decodeAudioData() {
@@ -53,17 +65,13 @@ function installHarness(options) {
       body: options?.body || "",
     });
     if (String(url || "").indexOf("/segment/preview") >= 0) {
+      const nextPreviewResponse = previewResponses.length > 1
+        ? previewResponses.shift()
+        : previewResponses[0];
       return {
         ok: true,
         json: async function () {
-          return {
-            success: true,
-            data: {
-              proposedSegments: [],
-              changes: [],
-            },
-            meta: {},
-          };
+          return nextPreviewResponse;
         },
       };
     }
@@ -165,6 +173,122 @@ test("CVPC segmentation controller changes silence detection result when thresho
     assert.equal(previewBodies.length, 2);
     assert.equal(previewBodies[0].silentRanges.length, 1);
     assert.equal(previewBodies[1].silentRanges.length, 0);
+  } finally {
+    harness.restore();
+  }
+});
+
+test("CVPC segmentation controller retries with whole-audio rebuild preview when incremental preview stays empty", async function () {
+  const moduleApi = loadModule();
+  const low = 10 ** (-45 / 20);
+  const high = 10 ** (-20 / 20);
+  const samples = new Float32Array(720);
+  samples.fill(high, 0, 120);
+  samples.fill(low, 120, 570);
+  samples.fill(high, 570);
+  const harness = installHarness({
+    samples,
+    previewResponses: [
+      {
+        success: true,
+        data: {
+          proposedSegments: [{ startMs: 0, endMs: 4171 }],
+          changes: [],
+        },
+        meta: {
+          previewMode: "incremental",
+          applyAllowed: false,
+          emptyReason: "no-internal-hit",
+        },
+      },
+      {
+        success: true,
+        data: {
+          proposedSegments: [
+            { startMs: 0, endMs: 4171 },
+            { startMs: 17554, endMs: 35221 },
+          ],
+          changes: [
+            {
+              sourceSegmentNumber: 1,
+              originalStartMs: 0,
+              originalEndMs: 40000,
+              suggestedSegments: [
+                { startMs: 0, endMs: 4171 },
+                { startMs: 17554, endMs: 35221 },
+              ],
+            },
+          ],
+        },
+        meta: {
+          previewMode: "whole-audio-fallback",
+          applyAllowed: false,
+          emptyReason: "",
+        },
+      },
+    ],
+  });
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+      silenceThresholdDbfs: -27,
+    });
+
+    const preview = await runtime.preview({
+      audioUrl: "https://oss.example.com/sample.mp3?Signature=audio",
+      audioDurationMs: 18000,
+      currentSegments: [
+        { uniqueId: "segment-1", sourceSegmentNumber: 1, startMs: 0, endMs: 4171 },
+        { uniqueId: "segment-2", sourceSegmentNumber: 2, startMs: 17554, endMs: 35221 },
+      ],
+    });
+
+    const previewBodies = harness.requests
+      .filter(function (item) {
+        return item.url.indexOf("/segment/preview") >= 0;
+      })
+      .map(function (item) {
+        return JSON.parse(item.body);
+      });
+
+    assert.equal(previewBodies.length, 2);
+    assert.equal(previewBodies[0].segmentScope, "existing-segments-incremental");
+    assert.equal(previewBodies[1].segmentScope, "whole-audio-rebuild-preview");
+    assert.equal(preview.meta.previewMode, "whole-audio-fallback");
+    assert.equal(preview.meta.applyAllowed, false);
+    assert.equal(preview.meta.fallbackTriggered, true);
+    assert.equal(preview.meta.incrementalEmptyReason, "no-internal-hit");
+  } finally {
+    harness.restore();
+  }
+});
+
+test("CVPC segmentation controller does not retry with whole-audio rebuild preview when no silence was detected", async function () {
+  const moduleApi = loadModule();
+  const high = 10 ** (-20 / 20);
+  const samples = new Float32Array(600).fill(high);
+  const harness = installHarness({ samples });
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+      silenceThresholdDbfs: -27,
+    });
+
+    const preview = await runtime.preview({
+      audioUrl: "https://oss.example.com/sample.mp3?Signature=audio",
+      audioDurationMs: 18000,
+      currentSegments: [
+        { uniqueId: "segment-1", sourceSegmentNumber: 1, startMs: 0, endMs: 4171 },
+      ],
+    });
+
+    const previewBodies = harness.requests.filter(function (item) {
+      return item.url.indexOf("/segment/preview") >= 0;
+    });
+    assert.equal(previewBodies.length, 1);
+    assert.equal(preview.analysisMeta.silentRangeCount, 0);
   } finally {
     harness.restore();
   }

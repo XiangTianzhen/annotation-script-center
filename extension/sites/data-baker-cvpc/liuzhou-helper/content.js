@@ -363,7 +363,14 @@
       const context = await buildCurrentContext();
       const preview = await runtime.segment.preview(context);
       runtime.ui.renderPreview(preview);
-      runtime.ui.setStatus("画段建议已生成，请先复核后再应用到页面。", "success");
+      if (String(preview?.meta?.previewMode || "") === "whole-audio-fallback") {
+        runtime.ui.setStatus(
+          "当前增量补切未命中，已生成整条音频重切预览；当前仅供人工参考。",
+          "success"
+        );
+      } else {
+        runtime.ui.setStatus("画段建议已生成，请先复核后再应用到页面。", "success");
+      }
     } catch (error) {
       runtime.ui.setStatus(
         "生成画段建议失败：" + (error && error.message ? error.message : String(error)),

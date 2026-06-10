@@ -1,3 +1,36 @@
+## 2026-06-10（DataBaker CVPC 柳州话画段空结果本地兜底预览）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把画段预览链路补成“两段式本地兜底”：
+  - 先按原规则请求 `existing-segments-incremental`
+  - 如果本地静音检测已命中候选静音、但增量补切仍为空，再自动追加 `whole-audio-rebuild-preview`
+  - 第二次结果当前只作为整条音频重切预览，不直接参与页面自动画段
+- `segment/preview` 当前补齐两种 scope 与更明确的返回 meta：
+  - `segmentScope = existing-segments-incremental | whole-audio-rebuild-preview`
+  - `meta.previewMode = incremental | whole-audio-fallback`
+  - `meta.applyAllowed`
+  - `meta.emptyReason = no-silence | no-internal-hit | insufficient-split`
+- 前端 AI 区当前新增 fallback 专属展示：
+  - 固定提示“当前增量补切未命中，以下为整条音频重切预览”
+  - 固定提示“该结果仅供预览，暂不支持一键应用”
+  - 同时展示原现有段数量、fallback 建议段数量与本地静音检测摘要
+- `应用当前建议` 当前新增只读保护：
+  - 任何 `applyAllowed=false` 的预览都会直接拒绝应用
+  - 整条音频 fallback 预览不会误触发整页波形重画
+- 本轮同步更新：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/segment-service.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/segment-service.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/segmentation-controller.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/segmentation-controller.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `README.md`
+  - `docs/platforms/index.md`
+
 ## 2026-06-10（DataBaker CVPC 柳州话画段本地静音检测抗噪增强）
 
 - `DataBaker CVPC / 柳州话脚本` 当前优化了浏览器端 `生成画段建议` 的本地静音检测：

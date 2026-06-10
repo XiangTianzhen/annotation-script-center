@@ -4,7 +4,10 @@ const DEFAULT_SILENCE_THRESHOLD_DBFS = -27;
 const DEFAULT_MIN_SILENCE_MS = 400;
 const DEFAULT_CONTEXT_PADDING_MS = 100;
 const DEFAULT_SEGMENT_SCOPE = "existing-segments-incremental";
+const WHOLE_AUDIO_REBUILD_SCOPE = "whole-audio-rebuild-preview";
 const MIN_SEGMENT_MS = 100;
+const PREVIEW_MODE_INCREMENTAL = "incremental";
+const PREVIEW_MODE_WHOLE_AUDIO_FALLBACK = "whole-audio-fallback";
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -39,6 +42,14 @@ function normalizeDbfsThreshold(value, fallback) {
     return fallbackNumber;
   }
   return rounded;
+}
+
+function normalizeSegmentScope(value) {
+  const normalized = normalizeText(value);
+  if (normalized === WHOLE_AUDIO_REBUILD_SCOPE) {
+    return WHOLE_AUDIO_REBUILD_SCOPE;
+  }
+  return DEFAULT_SEGMENT_SCOPE;
 }
 
 function normalizeRangeItem(item) {
@@ -133,9 +144,9 @@ function normalizeRules(source) {
       0,
       Math.round(toFiniteNumber(input.contextPaddingMs, DEFAULT_CONTEXT_PADDING_MS))
     ),
-    segmentScope:
-      normalizeText(input.segmentScope || input.scope || DEFAULT_SEGMENT_SCOPE) ||
-      DEFAULT_SEGMENT_SCOPE,
+    segmentScope: normalizeSegmentScope(
+      input.segmentScope || input.scope || DEFAULT_SEGMENT_SCOPE
+    ),
   };
 }
 
@@ -167,9 +178,9 @@ function normalizeSegmentPreviewRequest(body) {
         []
     ),
     rules: normalizeRules(source.rules),
-    segmentScope:
-      normalizeText(source.segmentScope || source.scope || source.rules?.segmentScope) ||
-      DEFAULT_SEGMENT_SCOPE,
+    segmentScope: normalizeSegmentScope(
+      source.segmentScope || source.scope || source.rules?.segmentScope
+    ),
   };
 }
 
@@ -197,7 +208,8 @@ function buildFallbackSegments(request) {
   if (request.existingSegments.length > 0) {
     return request.existingSegments.slice();
   }
-  if (request.audioDurationMs <= 0) {
+  const audioDurationMs = resolveAudioDurationMs(request);
+  if (audioDurationMs <= 0) {
     return [];
   }
   return [
@@ -205,12 +217,58 @@ function buildFallbackSegments(request) {
       uniqueId: "",
       sourceSegmentNumber: 1,
       startMs: 0,
-      endMs: request.audioDurationMs,
+      endMs: audioDurationMs,
       kind: "speech",
       reason: "full-audio-fallback",
       needsHumanReview: true,
     },
   ];
+}
+
+function resolveAudioDurationMs(request) {
+  const existingEndMs = (Array.isArray(request?.existingSegments) ? request.existingSegments : []).reduce(
+    function (max, item) {
+      return Math.max(max, Math.round(Number(item?.endMs || 0)) || 0);
+    },
+    0
+  );
+  const silentEndMs = (Array.isArray(request?.silentRanges) ? request.silentRanges : []).reduce(
+    function (max, item) {
+      return Math.max(max, Math.round(Number(item?.endMs || 0)) || 0);
+    },
+    0
+  );
+  return Math.max(
+    0,
+    Math.round(Number(request?.audioDurationMs || 0)) || 0,
+    existingEndMs,
+    silentEndMs
+  );
+}
+
+function buildWholeAudioRebuildSegments(request) {
+  const audioDurationMs = resolveAudioDurationMs(request);
+  if (audioDurationMs <= 0) {
+    return [];
+  }
+  return [
+    {
+      uniqueId: "",
+      sourceSegmentNumber: 1,
+      startMs: 0,
+      endMs: audioDurationMs,
+      kind: "speech",
+      reason: "whole-audio-fallback-source",
+      needsHumanReview: true,
+    },
+  ];
+}
+
+function buildEffectiveSegments(request) {
+  if (request.segmentScope === WHOLE_AUDIO_REBUILD_SCOPE) {
+    return buildWholeAudioRebuildSegments(request);
+  }
+  return buildFallbackSegments(request);
 }
 
 function buildInternalSilences(segment, silentRanges, rules) {
@@ -304,6 +362,8 @@ function buildSegmentChange(segment, silentRanges, rules) {
         },
       ],
       change: null,
+      matchedInternalSilence: false,
+      splitSuppressed: false,
     };
   }
 
@@ -325,6 +385,8 @@ function buildSegmentChange(segment, silentRanges, rules) {
         },
       ],
       change: null,
+      matchedInternalSilence: true,
+      splitSuppressed: true,
     };
   }
 
@@ -355,14 +417,42 @@ function buildSegmentChange(segment, silentRanges, rules) {
         };
       }),
     },
+    matchedInternalSilence: true,
+    splitSuppressed: false,
   };
+}
+
+function resolvePreviewMode(segmentScope) {
+  return segmentScope === WHOLE_AUDIO_REBUILD_SCOPE
+    ? PREVIEW_MODE_WHOLE_AUDIO_FALLBACK
+    : PREVIEW_MODE_INCREMENTAL;
+}
+
+function resolveEmptyReason(request, summary) {
+  const stats = summary && typeof summary === "object" ? summary : {};
+  const changeCount = Math.max(0, Math.round(Number(stats.changeCount || 0)) || 0);
+  if (changeCount > 0) {
+    return "";
+  }
+  if ((Array.isArray(request?.silentRanges) ? request.silentRanges : []).length === 0) {
+    return "no-silence";
+  }
+  if (stats.matchedInternalSilence !== true) {
+    return "no-internal-hit";
+  }
+  if (stats.splitSuppressed === true) {
+    return "insufficient-split";
+  }
+  return "no-internal-hit";
 }
 
 function buildSegmentPreview(input) {
   const request = normalizeSegmentPreviewRequest(input);
-  const effectiveSegments = buildFallbackSegments(request);
+  const effectiveSegments = buildEffectiveSegments(request);
   const changes = [];
   const proposedSegments = [];
+  let matchedInternalSilence = false;
+  let splitSuppressed = false;
 
   effectiveSegments.forEach(function (segment) {
     const result = buildSegmentChange(segment, request.silentRanges, request.rules);
@@ -370,10 +460,19 @@ function buildSegmentPreview(input) {
     if (result.change) {
       changes.push(result.change);
     }
+    matchedInternalSilence = matchedInternalSilence || result.matchedInternalSilence === true;
+    splitSuppressed = splitSuppressed || result.splitSuppressed === true;
   });
 
   proposedSegments.sort(function (left, right) {
     return left.startMs - right.startMs;
+  });
+
+  const previewMode = resolvePreviewMode(request.segmentScope);
+  const emptyReason = resolveEmptyReason(request, {
+    changeCount: changes.length,
+    matchedInternalSilence,
+    splitSuppressed,
   });
 
   return {
@@ -383,7 +482,10 @@ function buildSegmentPreview(input) {
       changes,
     },
     meta: {
-      source: "existing-segments-incremental",
+      source: request.segmentScope || DEFAULT_SEGMENT_SCOPE,
+      previewMode: previewMode,
+      applyAllowed: previewMode === PREVIEW_MODE_INCREMENTAL && changes.length > 0,
+      emptyReason: emptyReason,
       rules: {
         silenceThresholdDbfs: request.rules.silenceThresholdDbfs,
         minSilenceMs: request.rules.minSilenceMs,
@@ -406,6 +508,11 @@ function createSegmentHealthPayload() {
       segmentScope: DEFAULT_SEGMENT_SCOPE,
       minSegmentMs: MIN_SEGMENT_MS,
     },
+    supportedScopes: {
+      default: DEFAULT_SEGMENT_SCOPE,
+      values: [DEFAULT_SEGMENT_SCOPE, WHOLE_AUDIO_REBUILD_SCOPE],
+      previewOnly: [WHOLE_AUDIO_REBUILD_SCOPE],
+    },
     contract: {
       mode: "dom-guarded-manual-save",
       writeContractCaptured: "page-dom-only",
@@ -419,6 +526,9 @@ module.exports = {
   DEFAULT_SEGMENT_SCOPE,
   DEFAULT_SILENCE_THRESHOLD_DBFS,
   MIN_SEGMENT_MS,
+  PREVIEW_MODE_INCREMENTAL,
+  PREVIEW_MODE_WHOLE_AUDIO_FALLBACK,
+  WHOLE_AUDIO_REBUILD_SCOPE,
   buildSegmentPreview,
   createHttpError,
   createSegmentHealthPayload,

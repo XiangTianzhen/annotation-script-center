@@ -42,7 +42,9 @@
     - 连续 `0.4s` 低于阈值即记为静音
     - 阈值当前开放 `静音阈值`，默认 `-27 dB`，并允许按 `% / Val` 显示和输入
     - 后端固定按“前后补 `0.1s`、仅拆现有段内部命中的静音”生成 `changes + proposedSegments`
-    - 前端空预览当前会额外提示“本地未检出静音”或“已检出候选静音但未命中现有段内部”
+    - 如果本地已检出候选静音、但增量补切 `changes=[]`，前端会自动追加一次 `whole-audio-rebuild-preview` 请求，返回整条音频重切预览
+    - fallback 预览当前只展示建议段，不允许直接 `应用当前建议`
+    - 前端空预览当前会额外提示“本地未检出静音”“未命中现有段内部”或“命中了静音但拆分后仍不足 2 段”
   - `应用当前建议` 当前会进入同源 `xaudio` iframe，复用页面原生 region / handle / `开启拆分` 交互把建议段画回当前波形；应用后只改页面当前状态，不自动保存
   - 当前段 AI 推荐严格按当前波形选中段工作：实时读取 `.xaudio_time` 的 `开始 / 结束`，浏览器端只裁这一段音频
   - 浏览器端会把当前段片段转成 `16k` 单声道 WAV，并直接拼成 `audioDataUrl` 发给现有 AI 推荐接口；不再经过“本地文件转公网 URL”链路
@@ -105,6 +107,26 @@
     - `timing`
     - `models`
 
+## 画段契约
+
+- `GET /api/data-baker-cvpc/liuzhou-helper/segment/health`
+  - 返回默认静音规则
+  - 返回 `supportedScopes.default = existing-segments-incremental`
+  - 返回 `supportedScopes.values = [existing-segments-incremental, whole-audio-rebuild-preview]`
+  - 返回 `supportedScopes.previewOnly = [whole-audio-rebuild-preview]`
+- `POST /api/data-baker-cvpc/liuzhou-helper/segment/preview`
+  - 输入：
+    - `segmentScope = existing-segments-incremental | whole-audio-rebuild-preview`
+    - `rules.silenceThresholdDbfs`
+    - 固定规则 `rules.minSilenceMs = 400`、`rules.contextPaddingMs = 100`
+  - 输出：
+    - `data.proposedSegments`
+    - `data.changes`
+    - `meta.previewMode = incremental | whole-audio-fallback`
+    - `meta.applyAllowed`
+    - `meta.emptyReason = no-silence | no-internal-hit | insufficient-split`
+  - `whole-audio-rebuild-preview` 当前仅用于“本地已检出静音、但增量补切为空”时的整条音频 fallback 预览，不直接参与页面自动画段
+
 ## 两阶段后端链路
 
 - `listen`
@@ -136,6 +158,7 @@
 - `全局 Invalid` 不做自动判定。
 - 批量范围固定为“当前音频 / 当前作业”，不跨整包遍历。
 - 画段建议当前支持“建议生成 -> 画回当前页面 -> 人工手动保存”。
+- 整条音频 fallback 预览当前只读，不支持一键应用。
 - 当前不会直连 `save_increment`，也不会自动点击平台 `保存`。
 - 当前段 AI 推荐如果没有读到可信的当前段 `开始 / 结束`，会直接失败，不退回整段识别。
 - 当前仍不补采或直连平台保存接口；保存链路继续以用户手动点击平台按钮为准。

@@ -2123,6 +2123,43 @@ test("CVPC data api applies preview into live waveform regions without calling s
   ]);
 });
 
+test("CVPC data api refuses to apply whole-audio fallback preview", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.applySegmentPreview({
+    selectionKey: "sample-a.mp3|0|4171",
+    selectedEntryName: "sample-a.mp3",
+    meta: {
+      previewMode: "whole-audio-fallback",
+      applyAllowed: false,
+    },
+    changes: [
+      {
+        sourceSegmentNumber: 1,
+        originalStartMs: 0,
+        originalEndMs: 6000,
+        suggestedSegments: [
+          { startMs: 0, endMs: 1200 },
+          { startMs: 1600, endMs: 3000 },
+        ],
+      },
+    ],
+    proposedSegments: [
+      { startMs: 0, endMs: 1200 },
+      { startMs: 1600, endMs: 3000 },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "整条音频重切预览暂不支持自动应用，请人工参考或改走 Python 试算。",
+  });
+});
+
 test("CVPC data api rejects stale segment preview when current selection has changed", async function () {
   const dataApiModule = loadDataApiModule();
   const harness = createSegmentApplyHarness({

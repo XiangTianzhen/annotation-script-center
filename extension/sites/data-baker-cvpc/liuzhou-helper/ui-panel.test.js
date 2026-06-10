@@ -744,7 +744,99 @@ test("CVPC ui panel explains when local silence candidates exist but still do no
     const middleText = collectText(middleNode);
     assert.match(middleText, /本地静音检测已找到 1 段满足条件的候选静音/);
     assert.match(middleText, /已自动合并短尖峰打断/);
-    assert.match(middleText, /当前没有命中现有段内部或拆分后仍不足 2 段/);
+    assert.match(middleText, /当前没有命中现有段内部/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel explains insufficient split when silence hits but still cannot form two child segments", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderPreview({
+      changes: [],
+      analysisMeta: {
+        frameCount: 120,
+        rawSilentRangeCount: 2,
+        silentRangeCount: 2,
+      },
+      meta: {
+        emptyReason: "insufficient-split",
+        rules: {
+          silenceThresholdDbfs: -27,
+        },
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /本地静音检测已找到 2 段满足条件的候选静音/);
+    assert.match(middleText, /命中了静音，但拆分后仍不足 2 段/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel renders whole-audio fallback preview as read-only summary", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderPreview({
+      sourceSegments: [
+        { startMs: 0, endMs: 4171 },
+        { startMs: 18565, endMs: 35677 },
+        { startMs: 60304, endMs: 82112 },
+        { startMs: 98775, endMs: 129980 },
+        { startMs: 140112, endMs: 179543 },
+        { startMs: 198104, endMs: 213031 },
+      ],
+      proposedSegments: [
+        { startMs: 0, endMs: 4171 },
+        { startMs: 18565, endMs: 35677 },
+      ],
+      analysisMeta: {
+        frameCount: 120,
+        rawSilentRangeCount: 30,
+        silentRangeCount: 26,
+      },
+      meta: {
+        previewMode: "whole-audio-fallback",
+        applyAllowed: false,
+        rules: {
+          silenceThresholdDbfs: -27,
+        },
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /当前增量补切未命中，以下为整条音频重切预览/);
+    assert.match(middleText, /该结果仅供预览，暂不支持一键应用/);
+    assert.match(middleText, /原现有段数：6 段/);
+    assert.match(middleText, /fallback 建议段数：2 段/);
+    assert.match(middleText, /本地静音检测命中 26 段候选静音/);
+    assert.match(middleText, /原始候选 30 段，已自动合并短尖峰打断/);
+    assert.match(middleText, /建议段 1/);
+    assert.match(middleText, /0 秒 - 4\.171 秒/);
+    assert.match(middleText, /建议段 2/);
+    assert.match(middleText, /18\.565 秒 - 35\.677 秒/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
