@@ -860,8 +860,12 @@
       "normalized": "娃仔",
       "display": "娃仔",
       "mandarin": "小孩",
-      "aliases": [],
-      "notes": [],
+      "aliases": [
+        "娃崽"
+      ],
+      "notes": [
+        "多指男孩儿"
+      ],
       "tags": [],
       "attributes": {
         "pronunciation": "wǎ zài",
@@ -2910,23 +2914,6 @@
       "mandarin": "扁担",
       "aliases": [],
       "notes": [],
-      "tags": [],
-      "attributes": {
-        "sourceSection": "extra_vocabulary",
-        "priority": "supplemental"
-      }
-    },
-    {
-      "id": "lz-207",
-      "normalized": "娃崽",
-      "display": "娃崽",
-      "mandarin": "小孩子",
-      "aliases": [
-        "娃仔"
-      ],
-      "notes": [
-        "多指男孩儿"
-      ],
       "tags": [],
       "attributes": {
         "sourceSection": "extra_vocabulary",
