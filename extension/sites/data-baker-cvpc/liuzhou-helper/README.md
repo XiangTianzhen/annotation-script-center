@@ -85,7 +85,7 @@
 - `page-world/audio-observer.js`：页内音频观察桥，捕获页面真实 `annotation/meta`、`user/meta`、`annotation/*` 最小鉴权头、页面/同源 iframe 音频请求，并仅在同源 `xaudio` iframe 内观察 `console.log/info/debug` 打印的音频 URL；顶层编辑页不再包装 `console.*`，避免把平台自身日志堆栈挂到扩展脚本上；仍不包装 `console.warn`
 - `content.js`：入口编排与路由检测
 - `editing-tab-tip-guard.js`：精确屏蔽固定文案的 Tab / 暂停状态提示
-- `data-api.js`：读取编辑器上下文、解析当前音频 URL、桥接或直连 `user/meta`、消费页内鉴权快照、读取最新 `annotation/annos`、构造 `save_increment` 直写请求，并在增量预览直写失败时回退同源 `xaudio` DOM 交互
+- `data-api.js`：读取编辑器上下文、解析当前音频 URL、桥接或直连 `user/meta`、消费页内鉴权快照、读取最新 `annotation/annos`、构造 `save_increment` 直写请求，并在增量预览直写失败时回退同源 `xaudio` DOM 交互；内部会绑定浏览器原生 `fetch`，避免 `Window.fetch` 的 `Illegal invocation`
 - `segmentation-controller.js`：后端画段预览请求与本地 preview 缓存编排
 - `ai-recommendation.js`：当前段 AI 推荐调用，负责浏览器端裁剪当前段、生成 Base64 `audioDataUrl`，并把 `aiUsageOperatorName / platformUserName / platformUserId` 与 `aiStages.listen / refine` 一起发送给后端
 - `ui-panel.js`：右侧 `全局标注` 卡内紧凑信息区 + `是否有效（Valid or Not）` 下方独立 AI 工作区挂载；右侧只保留状态与逐行音频摘要，字段内承载两张最终结果卡，独立 AI 区承载动作按钮、画段建议与默认折叠的附加信息，并统一收口为系统蓝主调样式

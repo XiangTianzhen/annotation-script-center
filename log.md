@@ -5,6 +5,12 @@
   - `data-api.js` 当前会先带桥接鉴权头重新读取最新 `annotation/annos`
   - 然后按 preview 构造 `POST /httpapi/annotation/save_increment` 所需的 `update / insert / web_snapshot`
   - 直写成功后，本次建议已直接进入平台保存链路，无需再点平台 `保存`
+- 本轮 hotfix 再补一处浏览器兼容：
+  - `data-api.js` 当前会先把运行时 `fetch` 绑定回页面 `window` 上下文
+  - 修复点击 `应用当前建议` 时偶发的 `Failed to execute 'fetch' on 'Window': Illegal invocation`
+  - 当前你在 Network 里看到的两次 `GET /httpapi/annotation/annos` 属于预期：
+    - 第 1 次用于刷新当前编辑器上下文与现有段
+    - 第 2 次用于在真正发送 `save_increment` 前读取最新分段数据并构造保存体
 - 回退策略当前收紧为：
   - 只有增量补切 preview 在直写失败时，才回退同源 `xaudio` DOM 画段
   - 整音频预览当前不会在直写失败后冒险重画整页波形，继续 fail closed

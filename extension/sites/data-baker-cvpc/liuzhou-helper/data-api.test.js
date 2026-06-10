@@ -2357,6 +2357,156 @@ test("CVPC data api applies whole-audio preview through save_increment when auth
   ]);
 });
 
+test("CVPC data api binds window.fetch before save_increment direct apply", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    audioDurationMs: 6000,
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 3000,
+        segmentNumber: 1,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      {
+        template: {
+          attrs: [],
+          entry_attrs: [
+            {
+              unique_id: "entry-validity",
+              name: "是否有效（Valid or Not）",
+              input_type: "radio",
+            },
+          ],
+          moment_attrs: [
+            {
+              unique_id: "moment-validity",
+              name: "是否有效（Valid or Not）",
+              input_type: "radio",
+            },
+          ],
+        },
+      }
+    ),
+    annosPayload: [
+      {
+        entry_index: 1,
+        entry_id: 1,
+        unique_id: "entry-scope",
+        ann_scope: "entry",
+        ann_data: {
+          attrs: [
+            {
+              unique_id: "entry-validity",
+              name: "是否有效（Valid or Not）",
+              values: [{ unique_id: "entry-valid", name: "是（Valid）" }],
+              input_type: "radio",
+            },
+          ],
+          attr_version: "v1",
+        },
+        audio_duration: 6,
+        section_duration: 3,
+        source: "manual",
+        status: "valid",
+        version: "",
+      },
+      {
+        entry_index: 1,
+        entry_id: 1,
+        unique_id: "region-1",
+        ann_scope: "instance",
+        start_second: 0,
+        end_second: 3,
+        ann_data: {
+          attrs: [
+            {
+              unique_id: "moment-validity",
+              name: "是否有效（Valid or Not）",
+              values: [{ unique_id: "valid-id", name: "是（Valid）" }],
+              input_type: "radio",
+            },
+          ],
+          attr_version: "v2",
+        },
+        source: "manual",
+        status: "valid",
+        track_id: "-1",
+        shape: "section",
+        camera_name: "camA",
+        asr_is_done: 1,
+      },
+    ],
+  });
+
+  const originalFetch = harness.dependencies.fetch;
+  const originalWindow = harness.dependencies.window;
+  const windowLike = {
+    addEventListener: originalWindow.addEventListener,
+    removeEventListener: originalWindow.removeEventListener,
+  };
+  windowLike.fetch = async function (url, init) {
+    if (this !== undefined && this !== windowLike) {
+      throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+    }
+    return originalFetch(url, init);
+  };
+
+  const runtime = dataApiModule.createRuntime(
+    Object.assign({}, harness.dependencies, {
+      window: windowLike,
+      fetch: windowLike.fetch,
+    })
+  );
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer test-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  const result = await runtime.applySegmentPreview({
+    selectionKey: "sample-a.mp3|0|4171",
+    selectedEntryName: "sample-a.mp3",
+    meta: {
+      previewMode: "whole-audio-fallback",
+      applyAllowed: false,
+    },
+    changes: [
+      {
+        sourceSegmentNumber: 1,
+        originalStartMs: 0,
+        originalEndMs: 3000,
+        suggestedSegments: [{ startMs: 0, endMs: 1200 }],
+      },
+    ],
+    proposedSegments: [{ startMs: 0, endMs: 1200 }],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    appliedBy: "request",
+    message: "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。",
+  });
+});
+
 test("CVPC data api rejects stale segment preview when current selection has changed", async function () {
   const dataApiModule = loadDataApiModule();
   const harness = createSegmentApplyHarness({

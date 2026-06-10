@@ -74,17 +74,32 @@
     return false;
   }
 
+  function bindFetch(fetchImpl, owner) {
+    if (typeof fetchImpl !== "function") {
+      return fetchImpl;
+    }
+    const receiver = owner || globalThis.window || globalThis;
+    if (typeof fetchImpl.bind === "function") {
+      return fetchImpl.bind(receiver);
+    }
+    return function () {
+      return fetchImpl.apply(receiver, arguments);
+    };
+  }
+
   function getEnvironment(deps) {
     const source = deps && typeof deps === "object" ? deps : {};
+    const windowLike = source.window || globalThis.window || globalThis;
+    const fetchImpl = source.fetch || windowLike.fetch || globalThis.fetch;
     return {
       document: source.document || globalThis.document,
-      fetch: source.fetch || globalThis.fetch,
+      fetch: bindFetch(fetchImpl, windowLike),
       HTMLElement: source.HTMLElement || globalThis.HTMLElement,
       HTMLInputElement: source.HTMLInputElement || globalThis.HTMLInputElement,
       HTMLTextAreaElement: source.HTMLTextAreaElement || globalThis.HTMLTextAreaElement,
       location: source.location || globalThis.location || {},
       performance: source.performance || globalThis.performance,
-      window: source.window || globalThis.window || globalThis,
+      window: windowLike,
     };
   }
 
