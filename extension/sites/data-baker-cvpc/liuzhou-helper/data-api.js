@@ -22,6 +22,10 @@
     "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。";
   const PREVIEW_UNSAFE_MESSAGE = "未检测到稳定的波形画段区域或拆分控件，请人工处理当前建议。";
   const PREVIEW_APPLY_SUCCESS_MESSAGE = "建议已画到页面，请人工复核后点击平台保存。";
+  const BATCH_SAVE_AUTH_MISSING_MESSAGE = "未获取到平台保存请求的访问凭据，已停止批量写回。";
+  const BATCH_SAVE_STALE_MESSAGE = "当前音频或条目已变化，已停止批量写回，请刷新后重试。";
+  const BATCH_SAVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，已停止批量写回，请刷新后重试。";
+  const BATCH_SAVE_EMPTY_MESSAGE = "当前没有可写回的批量识别结果。";
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -831,6 +835,198 @@
       delete: plan.deleteRows,
       web_snapshot: JSON.stringify(webSnapshot),
     };
+  }
+
+  function findMomentAttrDescriptor(template, rowAttrs, labelMatchers) {
+    const matchers = Array.isArray(labelMatchers) ? labelMatchers.map(normalizeText).filter(Boolean) : [];
+    if (matchers.length === 0) {
+      return null;
+    }
+    const definitions = normalizeTemplateAttrDefinitions(template?.moment_attrs, rowAttrs);
+    return (
+      definitions.find(function (definition) {
+        const name = normalizeText(definition.name);
+        return matchers.some(function (matcher) {
+          return name.indexOf(matcher) >= 0;
+        });
+      }) || null
+    );
+  }
+
+  function findRowAttrByUniqueId(rowAttrs, uniqueId) {
+    const targetId = normalizeText(uniqueId);
+    return (Array.isArray(rowAttrs) ? rowAttrs : []).find(function (attr) {
+      return normalizeText(attr?.unique_id || attr?.id) === targetId;
+    }) || null;
+  }
+
+  function decodeStructuredTextValue(value) {
+    const text = String(value || "");
+    if (!text) {
+      return "";
+    }
+    try {
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) {
+        return text;
+      }
+      const joined = parsed
+        .map(function (item) {
+          if (item && typeof item === "object" && Object.prototype.hasOwnProperty.call(item, "content")) {
+            return String(item.content || "");
+          }
+          return "";
+        })
+        .join("");
+      return joined || text;
+    } catch (_error) {
+      return text;
+    }
+  }
+
+  function buildDialectStructuredValue(text) {
+    return JSON.stringify([
+      {
+        type: "text",
+        content: String(text || ""),
+      },
+    ]);
+  }
+
+  function extractBatchSegmentTexts(row, template) {
+    const currentRow = row && typeof row === "object" ? row : {};
+    const annData = currentRow.ann_data && typeof currentRow.ann_data === "object" ? currentRow.ann_data : {};
+    const rowAttrs = Array.isArray(annData.attrs) ? annData.attrs : [];
+    const dialectDescriptor = findMomentAttrDescriptor(template, rowAttrs, ["标注文本", "柳州话", "转写文本"]);
+    const mandarinDescriptor = findMomentAttrDescriptor(template, rowAttrs, ["普通话顺滑", "普通话", "顺滑"]);
+    const dialectAttr = dialectDescriptor ? findRowAttrByUniqueId(rowAttrs, dialectDescriptor.uniqueId) : null;
+    const mandarinAttr = mandarinDescriptor ? findRowAttrByUniqueId(rowAttrs, mandarinDescriptor.uniqueId) : null;
+    return {
+      dialectDescriptor,
+      mandarinDescriptor,
+      dialectText: decodeStructuredTextValue(readFirstAttrValue(dialectAttr)),
+      mandarinText: String(readFirstAttrValue(mandarinAttr) || ""),
+    };
+  }
+
+  function ensureTextAttr(rowAttrs, descriptor, value) {
+    const attrs = Array.isArray(rowAttrs) ? rowAttrs : [];
+    const currentDescriptor = descriptor && typeof descriptor === "object" ? descriptor : null;
+    if (!currentDescriptor || !normalizeText(currentDescriptor.uniqueId)) {
+      throw new Error("未找到当前段文本字段定义。");
+    }
+    let attr = findRowAttrByUniqueId(attrs, currentDescriptor.uniqueId);
+    if (!attr) {
+      attr = {
+        unique_id: currentDescriptor.uniqueId,
+        name: currentDescriptor.name,
+        input_type: "text",
+        values: [String(value || "")],
+      };
+      attrs.push(attr);
+      return attrs;
+    }
+    attr.name = normalizeText(attr.name || currentDescriptor.name);
+    attr.input_type = normalizeText(attr.input_type || "text") || "text";
+    attr.values = [String(value || "")];
+    if (Object.prototype.hasOwnProperty.call(attr, "value")) {
+      delete attr.value;
+    }
+    return attrs;
+  }
+
+  function buildUpdatedBatchTextRow(row, template, result) {
+    const sourceRow = clonePlainData(row) || {};
+    const annData = sourceRow.ann_data && typeof sourceRow.ann_data === "object" ? sourceRow.ann_data : {};
+    const rowAttrs = Array.isArray(annData.attrs) ? annData.attrs.map(clonePlainData) : [];
+    const textMeta = extractBatchSegmentTexts(sourceRow, template);
+    if (!textMeta.dialectDescriptor || !textMeta.mandarinDescriptor) {
+      throw new Error("未找到当前段文本字段定义。");
+    }
+    ensureTextAttr(rowAttrs, textMeta.dialectDescriptor, buildDialectStructuredValue(result.dialectText || ""));
+    ensureTextAttr(rowAttrs, textMeta.mandarinDescriptor, String(result.mandarinText || ""));
+    sourceRow.ann_data = Object.assign({}, annData, {
+      attrs: rowAttrs,
+      attr_version: normalizeText(annData.attr_version) || "v1",
+    });
+    sourceRow.is_update_position = Number(sourceRow.is_update_position || 0) || 0;
+    sourceRow.is_update_labelattr = 1;
+    return sourceRow;
+  }
+
+  function normalizeBatchResultItem(item) {
+    const source = item && typeof item === "object" ? item : {};
+    return {
+      uniqueId: normalizeText(source.uniqueId || source.unique_id),
+      segmentNumber: Math.max(0, Math.round(Number(source.segmentNumber || 0)) || 0),
+      selectionKey: normalizeText(source.selectionKey),
+      dialectText: String(
+        source.dialectText || source.refinedDialectText || source.audioDialectText || source.dialect || ""
+      ),
+      mandarinText: String(
+        source.mandarinText ||
+          source.refinedMandarinText ||
+          source.audioMandarinText ||
+          source.mandarin ||
+          ""
+      ),
+    };
+  }
+
+  function parseBatchSelectionSpec(selectionSpec, totalSegments) {
+    const total = Math.max(0, Math.round(Number(totalSegments || 0)) || 0);
+    if (total <= 0) {
+      throw new Error("当前音频没有可批量处理的段落。");
+    }
+    const text = String(selectionSpec || "").trim();
+    if (!text) {
+      return Array.from({ length: total }, function (_item, index) {
+        return index + 1;
+      });
+    }
+    const numbers = new Set();
+    const tokens = text
+      .split(",")
+      .map(function (item) {
+        return String(item || "").trim();
+      })
+      .filter(Boolean);
+    if (tokens.length === 0) {
+      throw new Error("批量范围不能为空。");
+    }
+    tokens.forEach(function (token) {
+      const rangeMatch = token.match(/^(\d+)\s*[-~]\s*(\d+)$/);
+      if (rangeMatch) {
+        const start = Math.round(Number(rangeMatch[1]) || 0);
+        const end = Math.round(Number(rangeMatch[2]) || 0);
+        if (start <= 0 || end <= 0 || end < start) {
+          throw new Error("批量范围格式无效：" + token);
+        }
+        for (let current = start; current <= end; current += 1) {
+          if (current > total) {
+            throw new Error("批量范围超出当前音频段数：" + token);
+          }
+          numbers.add(current);
+        }
+        return;
+      }
+      if (/^\d+$/.test(token)) {
+        const value = Math.round(Number(token) || 0);
+        if (value <= 0 || value > total) {
+          throw new Error("批量范围超出当前音频段数：" + token);
+        }
+        numbers.add(value);
+        return;
+      }
+      throw new Error("批量范围格式无效：" + token);
+    });
+    const result = Array.from(numbers).sort(function (left, right) {
+      return left - right;
+    });
+    if (result.length <= 0) {
+      throw new Error("当前没有命中任何可批量处理的段落。");
+    }
+    return result;
   }
 
   function mapTemplateFieldNames(template) {
@@ -1899,6 +2095,196 @@
       return loadContext(force);
     }
 
+    async function fetchLatestAnnosForContext(context) {
+      const requestHeaders = buildPlatformRequestHeaders(context?.platformRequestAuth, context);
+      const hasScopedHeaders =
+        normalizeText(requestHeaders.authorization) ||
+        normalizeText(requestHeaders["baker-terminal"]);
+      return fetchJson(ANNOS_PATH, buildAnnosQuery(context), env.fetch, {
+        headers: hasScopedHeaders ? requestHeaders : undefined,
+      });
+    }
+
+    async function getBatchSegments(selectionSpec) {
+      const context = await getEditorContext({ force: true });
+      if (!normalizeText(context?.selectedEntry?.name)) {
+        throw new Error("未读取到当前音频条目，请刷新页面后重试。");
+      }
+      const annos = await fetchLatestAnnosForContext(context);
+      const rows = getInstanceRowsFromAnnos(annos);
+      if (rows.length <= 0) {
+        throw new Error("当前音频没有可批量处理的段落。");
+      }
+      const selectedNumbers = parseBatchSelectionSpec(selectionSpec, rows.length);
+      const normalizedSelectionSpec = selectedNumbers.join(",");
+      return {
+        selectedEntryName: normalizeText(context.selectedEntry?.name),
+        totalSegments: rows.length,
+        selectionSpec: String(selectionSpec || ""),
+        normalizedSelectionSpec: normalizedSelectionSpec,
+        allSegmentUniqueIds: rows.map(function (row) {
+          return normalizeText(row?.unique_id || row?.uniqueId || row?.id);
+        }),
+        segments: selectedNumbers.map(function (segmentNumber) {
+          const row = rows[segmentNumber - 1];
+          const startMs = normalizeBoundaryToMs(row?.start_second);
+          const endMs = normalizeBoundaryToMs(row?.end_second);
+          const textMeta = extractBatchSegmentTexts(row, context.template || {});
+          return {
+            segmentNumber: segmentNumber,
+            uniqueId: normalizeText(row?.unique_id || row?.uniqueId || row?.id),
+            startMs: startMs,
+            endMs: endMs,
+            durationMs: Math.max(0, endMs - startMs),
+            dialectText: textMeta.dialectText,
+            mandarinText: textMeta.mandarinText,
+            selectionKey: buildSelectionKey(context.selectedEntry?.name, {
+              startMs: startMs,
+              endMs: endMs,
+            }),
+          };
+        }),
+      };
+    }
+
+    async function applyBatchTextRecommendations(request) {
+      const source = request && typeof request === "object" ? request : {};
+      const normalizedResults = (Array.isArray(source.results) ? source.results : [])
+        .map(normalizeBatchResultItem)
+        .filter(function (item) {
+          return item.uniqueId && (item.dialectText || item.mandarinText);
+        });
+      if (normalizedResults.length <= 0) {
+        return {
+          ok: false,
+          message: BATCH_SAVE_EMPTY_MESSAGE,
+        };
+      }
+      const context = await getEditorContext({ force: true });
+      if (
+        normalizeText(source.selectedEntryName) &&
+        normalizeText(source.selectedEntryName) !== normalizeText(context.selectedEntry?.name)
+      ) {
+        return {
+          ok: false,
+          message: BATCH_SAVE_STALE_MESSAGE,
+        };
+      }
+      if (!normalizeText(context?.platformRequestAuth?.authorization)) {
+        return {
+          ok: false,
+          message: BATCH_SAVE_AUTH_MISSING_MESSAGE,
+        };
+      }
+      let annos = [];
+      try {
+        annos = await fetchLatestAnnosForContext(context);
+      } catch (_error) {
+        return {
+          ok: false,
+          message: BATCH_SAVE_MISMATCH_MESSAGE,
+        };
+      }
+      const entryRow = getEntryRowFromAnnos(annos, context);
+      const currentRows = getInstanceRowsFromAnnos(annos);
+      const expectedSegmentCount = Math.max(0, Math.round(Number(source.expectedSegmentCount || 0)) || 0);
+      if (expectedSegmentCount > 0 && currentRows.length !== expectedSegmentCount) {
+        return {
+          ok: false,
+          message: BATCH_SAVE_MISMATCH_MESSAGE,
+        };
+      }
+      const expectedUniqueIds = Array.isArray(source.expectedUniqueIds)
+        ? source.expectedUniqueIds.map(normalizeText).filter(Boolean)
+        : [];
+      if (
+        expectedUniqueIds.length > 0 &&
+        (expectedUniqueIds.length !== currentRows.length ||
+          currentRows.some(function (row, index) {
+            return normalizeText(row?.unique_id || row?.uniqueId || row?.id) !== expectedUniqueIds[index];
+          }))
+      ) {
+        return {
+          ok: false,
+          message: BATCH_SAVE_MISMATCH_MESSAGE,
+        };
+      }
+      const resultMap = new Map();
+      normalizedResults.forEach(function (item) {
+        resultMap.set(item.uniqueId, item);
+      });
+      const updatedRows = [];
+      let failedAlignment = false;
+      const snapshotRows = currentRows.map(function (row, index) {
+        const uniqueId = normalizeText(row?.unique_id || row?.uniqueId || row?.id);
+        const resultItem = resultMap.get(uniqueId);
+        if (!resultItem) {
+          return buildSnapshotInstanceRow(row, context.template || {});
+        }
+        if (resultItem.segmentNumber > 0 && resultItem.segmentNumber !== index + 1) {
+          failedAlignment = true;
+          return buildSnapshotInstanceRow(row, context.template || {});
+        }
+        let updatedRow;
+        try {
+          updatedRow = buildUpdatedBatchTextRow(row, context.template || {}, resultItem);
+        } catch (_error) {
+          failedAlignment = true;
+          return buildSnapshotInstanceRow(row, context.template || {});
+        }
+        updatedRows.push(updatedRow);
+        return buildSnapshotInstanceRow(updatedRow, context.template || {});
+      });
+      if (failedAlignment || updatedRows.length !== normalizedResults.length) {
+        return {
+          ok: false,
+          message: BATCH_SAVE_MISMATCH_MESSAGE,
+        };
+      }
+      const requestHeaders = buildPlatformRequestHeaders(context?.platformRequestAuth, context, {
+        "content-type": "application/json;charset=UTF-8",
+      });
+      const body = {
+        project_id: String(context?.query?.projectId || ""),
+        task_id: String(context?.query?.taskId || ""),
+        process_id: String(context?.query?.processId || ""),
+        job_id: String(context?.query?.jobId || ""),
+        data_id: String(context?.query?.dataId || ""),
+        insert: [],
+        update: updatedRows,
+        delete: [],
+        web_snapshot: JSON.stringify(
+          snapshotRows.concat([buildSnapshotEntryRow(entryRow, context.template || {})])
+        ),
+      };
+      const response = await env.fetch(SAVE_INCREMENT_PATH, {
+        credentials: "include",
+        method: "POST",
+        headers: requestHeaders,
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(function () {
+        return null;
+      });
+      const code = Number(payload?.code);
+      if (!response.ok || !payload || (code !== 0 && code !== 200)) {
+        return {
+          ok: false,
+          message: normalizeText(payload?.msg || payload?.message) || "平台保存接口返回失败。",
+        };
+      }
+      cachedContext = null;
+      cachedMeta = null;
+      return {
+        ok: true,
+        savedCount: updatedRows.length,
+        message:
+          "已通过平台保存接口写回 " +
+          String(updatedRows.length) +
+          " 段批量识别结果，页面即将刷新。",
+      };
+    }
+
     async function setCurrentValidity(valid) {
       const currentState = getCurrentValidityState(env);
       const targetState = valid ? "valid" : "invalid";
@@ -2381,10 +2767,12 @@
 
     return {
       getEditorContext,
+      getBatchSegments,
       getLiveSelectionSnapshot: function () {
         return getLiveSelectionSnapshot(env.document);
       },
       isEditorPage,
+      applyBatchTextRecommendations,
       setCurrentValidity,
       fillCurrentSegmentRecommendation,
       fillCurrentSegmentField,

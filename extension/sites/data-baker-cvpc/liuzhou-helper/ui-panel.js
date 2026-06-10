@@ -190,6 +190,16 @@
       "  box-shadow: 0 6px 18px rgba(79, 124, 255, 0.08);",
       "}",
       "[" + MIDDLE_AI_ACTIONS_ATTR + "] { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-controls { margin-top: 8px; display: grid; gap: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-input-row { display: grid; gap: 6px; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-input-row input { min-height: 34px; padding: 8px 10px; border: 1px solid var(--asc-primary-border); border-radius: 8px; background: #fff; color: #42506a; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-help { color: var(--asc-muted); }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-action-row { display: flex; flex-wrap: wrap; gap: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-state-list { margin-top: 8px; display: grid; gap: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-state-item { padding: 10px 12px; border: 1px solid var(--asc-primary-border); border-radius: 8px; background: #fff; color: #42506a; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-state-item strong { color: var(--asc-primary-strong); }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-failure-list { margin: 0; padding-left: 18px; color: #b42318; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-failure-list li { margin-top: 4px; }",
       "[" + MIDDLE_AI_ACTIONS_ATTR + "] button[data-accent='true'] {",
       "  color: #fff;",
       "  border-color: #f29a38;",
@@ -560,6 +570,8 @@
     let recommendationMetaNode = null;
     let dialectRecommendationNode = null;
     let mandarinRecommendationNode = null;
+    let batchSelectionInputNode = null;
+    let batchStateNode = null;
 
     function setStatus(text, tone) {
       if (!statusNode) {
@@ -775,6 +787,60 @@
       renderRecommendationMeta(result);
     }
 
+    function renderBatchState(snapshot) {
+      if (!batchStateNode) {
+        return;
+      }
+      const source = snapshot && typeof snapshot === "object" ? snapshot : null;
+      batchStateNode.innerHTML = "";
+      if (!source) {
+        batchStateNode.textContent = "当前没有批量任务。";
+        return;
+      }
+
+      const summary = document.createElement("div");
+      summary.className = "batch-state-item";
+      const summaryLines = [
+        "<strong>批量识别状态</strong>",
+        "<div>阶段：" + String(source.phaseText || "-") + "</div>",
+        "<div>范围：" + String(source.selectionSpec || "全部段") + "</div>",
+        "<div>总数：" + String(Number(source.totalCount || 0)) + "</div>",
+        "<div>已发起：" + String(Number(source.launchedCount || 0)) + "</div>",
+        "<div>进行中：" + String(Number(source.activeAiCount || 0)) + "</div>",
+        "<div>已成功：" + String(Number(source.succeededCount || 0)) + "</div>",
+        "<div>已失败：" + String(Number(source.failedCount || 0)) + "</div>",
+        "<div>当前段：" +
+          (Number(source.currentSegmentNumber || 0) > 0
+            ? "第 " + String(Number(source.currentSegmentNumber)) + " 段"
+            : "-") +
+          "</div>",
+      ];
+      summary.innerHTML = summaryLines.join("");
+      batchStateNode.appendChild(summary);
+
+      const failures = Array.isArray(source.failures) ? source.failures : [];
+      if (failures.length > 0) {
+        const failureBox = document.createElement("div");
+        failureBox.className = "batch-state-item";
+        const title = document.createElement("strong");
+        title.textContent = "失败清单";
+        const list = document.createElement("ul");
+        list.className = "batch-failure-list";
+        failures.forEach(function (item) {
+          const line = document.createElement("li");
+          line.textContent =
+            "第 " +
+            String(Number(item?.segmentNumber || 0) || "-") +
+            " 段： " +
+            String(item?.message || "失败");
+          list.appendChild(line);
+        });
+        failureBox.appendChild(title);
+        failureBox.appendChild(list);
+        batchStateNode.appendChild(failureBox);
+      }
+    }
+
     function renderAudioContext(context) {
       if (!audioNode) {
         return;
@@ -920,6 +986,51 @@
         middleActionsNode.appendChild(button);
       });
 
+      const batchSection = document.createElement("div");
+      batchSection.className = "section";
+      batchSection.innerHTML =
+        '<div class="section-title">批量识别并自动填入</div><div class="section-note">仅作用于当前音频；留空表示当前音频全部段，支持 2-4、2,3,5、2-4,7。</div>';
+
+      const batchControls = document.createElement("div");
+      batchControls.className = "batch-controls";
+
+      const batchInputRow = document.createElement("div");
+      batchInputRow.className = "batch-input-row";
+      batchSelectionInputNode = document.createElement("input");
+      batchSelectionInputNode.type = "text";
+      batchSelectionInputNode.setAttribute("placeholder", "留空=当前音频全部段；例如 2-4,7");
+      const batchHelp = document.createElement("div");
+      batchHelp.className = "batch-help";
+      batchHelp.textContent = "留空表示当前音频全部段；只处理当前 entry，不会自动提交或切下一条。";
+      batchInputRow.appendChild(batchSelectionInputNode);
+      batchInputRow.appendChild(batchHelp);
+
+      const batchActionRow = document.createElement("div");
+      batchActionRow.className = "batch-action-row";
+      const batchStartButton = createButton("批量识别并填入", true);
+      batchStartButton.addEventListener("click", function () {
+        if (typeof deps.onBatchRecommend === "function") {
+          deps.onBatchRecommend(String(batchSelectionInputNode?.value || ""));
+        }
+      });
+      const batchStopButton = createButton("停止批量", false);
+      batchStopButton.addEventListener("click", function () {
+        if (typeof deps.onBatchStop === "function") {
+          deps.onBatchStop();
+        }
+      });
+      batchActionRow.appendChild(batchStartButton);
+      batchActionRow.appendChild(batchStopButton);
+
+      batchStateNode = document.createElement("div");
+      batchStateNode.className = "batch-state-list";
+      batchStateNode.textContent = "当前没有批量任务。";
+
+      batchControls.appendChild(batchInputRow);
+      batchControls.appendChild(batchActionRow);
+      batchControls.appendChild(batchStateNode);
+      batchSection.appendChild(batchControls);
+
       const previewSection = document.createElement("div");
       previewSection.className = "section";
       previewSection.innerHTML =
@@ -949,6 +1060,7 @@
 
       middleAiRoot.appendChild(head);
       middleAiRoot.appendChild(middleActionsNode);
+      middleAiRoot.appendChild(batchSection);
       middleAiRoot.appendChild(previewSection);
       middleAiRoot.appendChild(recommendSection);
       return middleAiRoot;
@@ -1038,12 +1150,15 @@
       recommendationMetaNode = null;
       dialectRecommendationNode = null;
       mandarinRecommendationNode = null;
+      batchSelectionInputNode = null;
+      batchStateNode = null;
     }
 
     return {
       mount,
       destroy,
       renderAudioContext,
+      renderBatchState,
       setStatus,
       renderPreview,
       renderRecommendation,

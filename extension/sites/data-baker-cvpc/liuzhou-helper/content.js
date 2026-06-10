@@ -1,8 +1,10 @@
 (function () {
-  if (globalThis.__ASREdgeDataBakerCvpcLiuzhouInstalled === true) {
+  if (globalThis.ASREdgeDataBakerCvpcLiuzhouContent) {
+    if (typeof module !== "undefined" && module.exports) {
+      module.exports = globalThis.ASREdgeDataBakerCvpcLiuzhouContent;
+    }
     return;
   }
-  globalThis.__ASREdgeDataBakerCvpcLiuzhouInstalled = true;
 
   const CONSTANTS = globalThis.ASREdgeConstants || {};
   const STORAGE = globalThis.ASREdgeStorage || null;
@@ -11,6 +13,7 @@
   const segmentFactory = globalThis.ASREdgeDataBakerCvpcLiuzhouSegmentation || null;
   const uiFactory = globalThis.ASREdgeDataBakerCvpcLiuzhouUiPanel || null;
   const shortcutFactory = globalThis.ASREdgeDataBakerCvpcLiuzhouShortcuts || null;
+  const concurrentRequestStreamFactory = globalThis.ASREdgeConcurrentAiRequestStream || null;
   const editingTabTipGuardApi = globalThis.ASREdgeDataBakerCvpcEditingTabTipGuard || null;
   const SCRIPT_ID =
     CONSTANTS.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID || "dataBakerCvpcLiuzhouAssistant";
@@ -30,6 +33,7 @@
   let audioRefreshTimer = null;
   let audioRefreshAttempts = 0;
   let lastRecommendation = null;
+  let activeBatchController = null;
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -169,6 +173,253 @@
     }
   }
 
+  function resolveBatchRecommendationTexts(result) {
+    const source = result && typeof result === "object" ? result : {};
+    return {
+      dialectText: String(
+        source.refinedDialectText || source.dialectText || source.audioDialectText || ""
+      ),
+      mandarinText: String(
+        source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
+      ),
+    };
+  }
+
+  function createBatchRecommendController(options) {
+    const deps = options && typeof options === "object" ? options : {};
+    const dataApi = deps.dataApi || null;
+    const ai = deps.ai || null;
+    const ui = deps.ui || null;
+    const streamFactory = deps.concurrentRequestStreamFactory || null;
+    const reloadPage = typeof deps.reloadPage === "function" ? deps.reloadPage : function () {};
+    const concurrency = 5;
+    const requestStaggerMs = 50;
+    let activeRun = null;
+
+    function renderBatchState(run, phaseText, running) {
+      if (!ui?.renderBatchState || !run?.requestStream?.getSnapshot) {
+        return;
+      }
+      const snapshot = run.requestStream.getSnapshot();
+      ui.renderBatchState({
+        running: running !== false,
+        phaseText: phaseText,
+        selectionSpec: run.selectionSpecDisplay || "全部段",
+        totalCount: run.totalCount,
+        launchedCount: snapshot.launchedCount,
+        activeAiCount: snapshot.activeAiCount,
+        succeededCount: snapshot.succeededCount,
+        failedCount: snapshot.failedCount,
+        currentSegmentNumber: run.currentSegmentNumber,
+        failures: run.failures.slice(),
+      });
+    }
+
+    function buildBatchTaskContext(task, lockedContext) {
+      return Object.assign({}, task, {
+        audioUrl: lockedContext.audioUrl,
+        fieldContext: lockedContext.fieldContext,
+        editorContext: {
+          query: lockedContext.query,
+          audioUrlSource: lockedContext.audioUrlSource || "",
+          selectedEntry: lockedContext.selectedEntry,
+          template: lockedContext.editorContext?.template || lockedContext.template || {},
+        },
+        platformUserName: lockedContext.platformUserName || "",
+        platformUserId: lockedContext.platformUserId || "",
+      });
+    }
+
+    async function start(selectionSpec) {
+      if (activeRun) {
+        const busyMessage = "当前已有正在运行的批量识别，请先等待完成或点击停止批量。";
+        ui?.setStatus?.(busyMessage, "error");
+        return {
+          ok: false,
+          message: busyMessage,
+        };
+      }
+      if (
+        !dataApi?.getEditorContext ||
+        !dataApi?.getBatchSegments ||
+        !dataApi?.applyBatchTextRecommendations ||
+        !ai?.createSharedAudioSource ||
+        !ai?.recommendForSegment ||
+        !streamFactory?.createConcurrentAiRequestStream
+      ) {
+        throw new Error("当前脚本缺少批量识别运行时依赖。");
+      }
+
+      let run = null;
+      try {
+        ui?.setStatus?.("正在准备当前音频的批量识别...", "");
+        const lockedContext = await dataApi.getEditorContext({ force: true });
+        if (!normalizeText(lockedContext?.audioUrl)) {
+          throw new Error(lockedContext?.audioUrlHintMessage || MISSING_AUDIO_MESSAGE);
+        }
+        const batchPlan = await dataApi.getBatchSegments(selectionSpec);
+        if (!Array.isArray(batchPlan?.segments) || batchPlan.segments.length <= 0) {
+          throw new Error("当前没有命中可批量处理的段落。");
+        }
+        const sharedAudioSource = ai.createSharedAudioSource(lockedContext.audioUrl);
+        run = {
+          lockedContext: lockedContext,
+          lockedEntryName: normalizeText(batchPlan.selectedEntryName || lockedContext.selectedEntry?.name),
+          lockedAudioUrl: normalizeText(lockedContext.audioUrl),
+          selectionSpecDisplay: normalizeText(selectionSpec) || "全部段",
+          totalCount: batchPlan.segments.length,
+          expectedSegmentCount: Number(batchPlan.totalSegments || 0) || 0,
+          expectedUniqueIds: Array.isArray(batchPlan.allSegmentUniqueIds)
+            ? batchPlan.allSegmentUniqueIds.slice()
+            : [],
+          currentSegmentNumber: 0,
+          failures: [],
+          successes: [],
+          stopRequested: false,
+          requestStream: null,
+        };
+        run.requestStream = streamFactory.createConcurrentAiRequestStream({
+          tasks: batchPlan.segments,
+          concurrency: concurrency,
+          staggerMs: requestStaggerMs,
+          onStateChange: function () {
+            if (!activeRun) {
+              return;
+            }
+            renderBatchState(run, run.stopRequested ? "批量识别停止中" : "批量识别进行中", true);
+          },
+          runTask: function (task) {
+            run.currentSegmentNumber = Number(task?.segmentNumber || 0) || 0;
+            return ai.recommendForSegment(buildBatchTaskContext(task, lockedContext), sharedAudioSource);
+          },
+        });
+        activeRun = run;
+        renderBatchState(run, "批量识别进行中", true);
+
+        while (true) {
+          const entry = await run.requestStream.nextResult();
+          if (!entry) {
+            break;
+          }
+          const task = entry.task && typeof entry.task === "object" ? entry.task : {};
+          run.currentSegmentNumber = Number(task.segmentNumber || 0) || run.currentSegmentNumber;
+          if (entry.ok === true) {
+            const texts = resolveBatchRecommendationTexts(entry.value);
+            run.successes.push({
+              uniqueId: normalizeText(task.uniqueId || task.unique_id),
+              segmentNumber: Number(task.segmentNumber || 0) || 0,
+              selectionKey: normalizeText(task.selectionKey),
+              dialectText: texts.dialectText,
+              mandarinText: texts.mandarinText,
+            });
+          } else {
+            run.failures.push({
+              segmentNumber: Number(task.segmentNumber || 0) || 0,
+              message: entry.error?.message || String(entry.error),
+            });
+          }
+          renderBatchState(
+            run,
+            entry.ok === true ? "批量识别返回中" : "批量识别存在失败",
+            true
+          );
+        }
+
+        await run.requestStream.whenProducersDone;
+
+        if (run.successes.length <= 0) {
+          const emptyMessage = run.stopRequested
+            ? "本轮批量识别已停止，未产生可写回结果。"
+            : "本轮批量识别未产生可写回结果。";
+          renderBatchState(run, run.stopRequested ? "批量识别已停止" : "批量识别已完成", false);
+          ui?.setStatus?.(emptyMessage, run.failures.length > 0 || run.stopRequested ? "warning" : "error");
+          return {
+            ok: false,
+            message: emptyMessage,
+          };
+        }
+
+        const latestContext = await dataApi.getEditorContext({ force: true });
+        if (
+          normalizeText(latestContext?.selectedEntry?.name) !== run.lockedEntryName ||
+          normalizeText(latestContext?.audioUrl) !== run.lockedAudioUrl
+        ) {
+          const staleMessage = "当前音频或条目已变化，已停止批量写回，请刷新后重试。";
+          renderBatchState(run, "批量写回已取消", false);
+          ui?.setStatus?.(staleMessage, "error");
+          return {
+            ok: false,
+            message: staleMessage,
+          };
+        }
+
+        renderBatchState(run, "批量写回中", true);
+        const saveResult = await dataApi.applyBatchTextRecommendations({
+          selectedEntryName: run.lockedEntryName,
+          expectedSegmentCount: run.expectedSegmentCount,
+          expectedUniqueIds: run.expectedUniqueIds,
+          results: run.successes,
+        });
+        renderBatchState(run, saveResult.ok ? "批量写回完成" : "批量写回失败", false);
+        ui?.setStatus?.(saveResult.message, saveResult.ok ? "success" : "error");
+        if (saveResult.ok) {
+          reloadPage();
+        }
+        return saveResult;
+      } catch (error) {
+        const message = error && error.message ? error.message : String(error);
+        if (run) {
+          renderBatchState(run, "批量识别失败", false);
+        }
+        ui?.setStatus?.("批量识别失败：" + message, "error");
+        return {
+          ok: false,
+          message: "批量识别失败：" + message,
+        };
+      } finally {
+        activeRun = null;
+      }
+    }
+
+    function stop() {
+      if (!activeRun) {
+        const idleMessage = "当前没有正在运行的批量识别。";
+        ui?.setStatus?.(idleMessage, "warning");
+        return {
+          ok: false,
+          message: idleMessage,
+        };
+      }
+      activeRun.stopRequested = true;
+      if (activeRun.requestStream?.cancelPending) {
+        activeRun.requestStream.cancelPending("批量识别已手动停止。");
+      }
+      renderBatchState(activeRun, "批量识别停止中", true);
+      const message = "已请求停止，将在当前已发起段完成后结束本轮批量识别。";
+      ui?.setStatus?.(message, "warning");
+      return {
+        ok: true,
+        message: message,
+      };
+    }
+
+    function dispose() {
+      if (activeRun?.requestStream?.cancelPending) {
+        activeRun.requestStream.cancelPending("批量识别上下文已销毁。");
+      }
+      activeRun = null;
+    }
+
+    return {
+      start,
+      stop,
+      dispose,
+      hasActiveRun: function () {
+        return Boolean(activeRun);
+      },
+    };
+  }
+
   function isEditorPage() {
     return Boolean(dataApiFactory && typeof dataApiFactory.isEditorPage === "function"
       ? dataApiFactory.isEditorPage()
@@ -249,6 +500,9 @@
       audioRefreshTimer = null;
     }
     audioRefreshAttempts = 0;
+    if (runtime?.batchController?.dispose) {
+      runtime.batchController.dispose();
+    }
     if (runtime?.shortcuts?.destroy) {
       runtime.shortcuts.destroy();
     }
@@ -259,6 +513,7 @@
       runtime.editingTabTipGuard.stop();
     }
     runtime = null;
+    activeBatchController = null;
     lastRecommendation = null;
   }
 
@@ -520,6 +775,16 @@
         }
         void handleRecommend();
       },
+      onBatchRecommend: function (selectionSpec) {
+        if (config.aiRecommendEnabled === false) {
+          ui.setStatus("当前已关闭 AI 推荐功能。", "error");
+          return;
+        }
+        void activeBatchController?.start(selectionSpec);
+      },
+      onBatchStop: function () {
+        activeBatchController?.stop();
+      },
       onApplyRecommendationText: function (targetKey) {
         void handleApplyRecommendationText(targetKey);
       },
@@ -565,10 +830,24 @@
         },
       },
     });
+    const batchController = createBatchRecommendController({
+      dataApi: dataApi,
+      ai: ai,
+      ui: ui,
+      concurrentRequestStreamFactory: concurrentRequestStreamFactory,
+      reloadPage: function () {
+        try {
+          globalThis.location.reload();
+        } catch (_error) {
+          // Ignore reload failures and leave the success message visible.
+        }
+      },
+    });
     runtime = {
       config,
       dataApi,
       ai,
+      batchController,
       segment,
       editingTabTipGuard,
       ui,
@@ -577,6 +856,7 @@
       currentSelectionEntryName: "",
       lastAudioContext: null,
     };
+    activeBatchController = batchController;
     ui.mount();
     shortcuts.bind();
     if (editingTabTipGuard?.start) {
@@ -613,6 +893,28 @@
     }, 1200);
   }
 
-  void installRuntime();
-  startRouteWatcher();
+  const api = {
+    createBatchRecommendController: createBatchRecommendController,
+    __testOnly: {
+      createBatchRecommendController: createBatchRecommendController,
+      resolveBatchRecommendationTexts: resolveBatchRecommendationTexts,
+    },
+  };
+
+  globalThis.ASREdgeDataBakerCvpcLiuzhouContent = api;
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    window &&
+    typeof document !== "undefined" &&
+    globalThis.__ASREdgeDataBakerCvpcLiuzhouInstalled !== true
+  ) {
+    globalThis.__ASREdgeDataBakerCvpcLiuzhouInstalled = true;
+    void installRuntime();
+    startRouteWatcher();
+  }
 })();

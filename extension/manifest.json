@@ -199,6 +199,7 @@
         "shared/constants.js",
         "shared/storage.js",
         "shared/lexicon-toast.js",
+        "shared/concurrent-ai-request-stream.js",
         "sites/data-baker-cvpc/liuzhou-helper/editing-tab-tip-guard.js",
         "sites/data-baker-cvpc/liuzhou-helper/data-api.js",
         "sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js",

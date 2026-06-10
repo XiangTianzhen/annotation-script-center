@@ -229,6 +229,53 @@
     return "data:audio/wav;base64," + clipBase64;
   }
 
+  function normalizeSelectedRange(source) {
+    if (source && typeof source === "object" && source.selectedRange && typeof source.selectedRange === "object") {
+      return requireSelectedRange(source.selectedRange, source.selectionKey);
+    }
+    return requireSelectedRange(
+      {
+        startMs: source?.startMs,
+        endMs: source?.endMs,
+        durationMs: source?.durationMs,
+      },
+      source?.selectionKey || "batch-segment"
+    );
+  }
+
+  function createSharedAudioSource(audioUrl) {
+    const normalizedAudioUrl = normalizeText(audioUrl);
+    if (!normalizedAudioUrl) {
+      throw new Error("缺少当前音频 audioUrl。");
+    }
+    let audioBufferPromise = null;
+    let decodedBufferPromise = null;
+    return {
+      audioUrl: normalizedAudioUrl,
+      getAudioBuffer: function () {
+        if (!audioBufferPromise) {
+          audioBufferPromise = fetchAudioBuffer(normalizedAudioUrl);
+        }
+        return audioBufferPromise;
+      },
+      getDecodedBuffer: function () {
+        if (!decodedBufferPromise) {
+          decodedBufferPromise = this.getAudioBuffer().then(function (arrayBuffer) {
+            return decodeAudioBuffer(arrayBuffer);
+          });
+        }
+        return decodedBufferPromise;
+      },
+    };
+  }
+
+  async function createAudioDataUrlFromSharedSource(sharedAudioSource, selectedRange) {
+    const decodedBuffer = await sharedAudioSource.getDecodedBuffer();
+    const rendered = await renderSelectedClip(decodedBuffer, selectedRange);
+    const wavBytes = encodeWavBuffer(rendered.getChannelData(0), rendered.sampleRate || TARGET_SAMPLE_RATE);
+    return "data:audio/wav;base64," + bytesToBase64(wavBytes);
+  }
+
   function createRuntime(options) {
     const config = options && typeof options === "object" ? options : {};
     const timerHost = getTimerHost();
@@ -279,14 +326,7 @@
       }
     }
 
-    async function recommend(context) {
-      const source = context && typeof context === "object" ? context : {};
-      if (!normalizeText(source.audioUrl)) {
-        throw new Error("缺少当前音频 audioUrl。");
-      }
-      const selectedRange = requireSelectedRange(source.selectedRange, source.selectionKey);
-      const audioDataUrl = await createAudioDataUrl(source.audioUrl, selectedRange);
-      const endpoint = normalizeText(config.endpoint) || DEFAULT_PATH;
+    function buildRecommendBody(source, selectedRange, audioDataUrl) {
       const requestMeta = assertAiUsageOperatorConfigured(
         buildAiUsageRequestMeta({
           settings: config.settings || {
@@ -299,19 +339,28 @@
           platformUserId: source.platformUserId,
         })
       );
-      const body = appendAiUsageRequestMeta({
-        audioDataUrl: audioDataUrl,
-        startMs: selectedRange.startMs,
-        endMs: selectedRange.endMs,
-        selectionKey: normalizeText(source.selectionKey),
-        fieldContext: source.fieldContext || {},
-        editorContext: source.editorContext || {},
-        timeoutMs: Number(config.timeoutMs || DEFAULT_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
-      }, requestMeta);
+      const body = appendAiUsageRequestMeta(
+        {
+          audioDataUrl: audioDataUrl,
+          startMs: selectedRange.startMs,
+          endMs: selectedRange.endMs,
+          selectionKey: normalizeText(source.selectionKey),
+          fieldContext: source.fieldContext || {},
+          editorContext: source.editorContext || {},
+          timeoutMs: Number(config.timeoutMs || DEFAULT_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
+        },
+        requestMeta
+      );
       const aiStages = normalizeAiStages(config.aiStages);
       if (Object.keys(aiStages).length > 0) {
         body.aiStages = aiStages;
       }
+      return body;
+    }
+
+    async function postRecommendation(source, selectedRange, audioDataUrl) {
+      const endpoint = normalizeText(config.endpoint) || DEFAULT_PATH;
+      const body = buildRecommendBody(source, selectedRange, audioDataUrl);
       const controller = typeof AbortController === "function" ? new AbortController() : null;
       const timer = controller
         ? timerHost.setTimeout(function () {
@@ -336,6 +385,8 @@
         }
         return Object.assign({}, payload, {
           selectionKey: body.selectionKey,
+          segmentNumber: Number(source.segmentNumber || 0) || undefined,
+          uniqueId: normalizeText(source.uniqueId || source.unique_id),
         });
       } finally {
         if (timer) {
@@ -344,9 +395,35 @@
       }
     }
 
+    async function recommendForSegment(context, sharedAudioSource) {
+      const source = context && typeof context === "object" ? context : {};
+      if (!normalizeText(source.audioUrl)) {
+        throw new Error("缺少当前音频 audioUrl。");
+      }
+      const selectedRange = normalizeSelectedRange(source);
+      const sharedSource =
+        sharedAudioSource && typeof sharedAudioSource.getDecodedBuffer === "function"
+          ? sharedAudioSource
+          : createSharedAudioSource(source.audioUrl);
+      const audioDataUrl = await createAudioDataUrlFromSharedSource(sharedSource, selectedRange);
+      return postRecommendation(source, selectedRange, audioDataUrl);
+    }
+
+    async function recommend(context) {
+      const source = context && typeof context === "object" ? context : {};
+      if (!normalizeText(source.audioUrl)) {
+        throw new Error("缺少当前音频 audioUrl。");
+      }
+      const selectedRange = normalizeSelectedRange(source);
+      const audioDataUrl = await createAudioDataUrl(source.audioUrl, selectedRange);
+      return postRecommendation(source, selectedRange, audioDataUrl);
+    }
+
     return {
+      createSharedAudioSource,
       notifyLexiconWarning,
       recommend,
+      recommendForSegment,
     };
   }
 

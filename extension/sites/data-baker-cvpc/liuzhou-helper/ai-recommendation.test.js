@@ -20,6 +20,7 @@ function installAudioHarness() {
   const originalWebkitOfflineAudioContext = globalThis.webkitOfflineAudioContext;
 
   const calls = [];
+  let decodeCount = 0;
   const fakeWindow = {
     setTimeout: function () {
       return 1;
@@ -29,6 +30,7 @@ function installAudioHarness() {
 
   class FakeAudioContext {
     async decodeAudioData() {
+      decodeCount += 1;
       return {
         duration: 12,
         sampleRate: 48000,
@@ -108,6 +110,9 @@ function installAudioHarness() {
 
   return {
     calls,
+    getDecodeCount: function () {
+      return decodeCount;
+    },
     restore: function () {
       globalThis.fetch = originalFetch;
       globalThis.window = originalWindow;
@@ -285,5 +290,69 @@ test("liuzhou ai runtime shows lexicon warning from health payload once", async 
   } finally {
     globalThis.fetch = originalFetch;
     globalThis.ASREdgeLexiconToast = originalToast;
+  }
+});
+
+test("liuzhou ai recommendForSegment reuses shared audio source across batch segments", async function () {
+  const moduleApi = loadModule();
+  const harness = installAudioHarness();
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+      aiUsageOperatorName: "测试员",
+    });
+    const sharedAudioSource = runtime.createSharedAudioSource(
+      "https://oss.example.com/sample.mp3?Signature=batch"
+    );
+
+    const first = await runtime.recommendForSegment(
+      {
+        audioUrl: "https://oss.example.com/sample.mp3?Signature=batch",
+        selectionKey: "sample.mp3|0|1200",
+        startMs: 0,
+        endMs: 1200,
+        durationMs: 1200,
+        segmentNumber: 1,
+        uniqueId: "segment-1",
+        platformUserName: "柳州标注员",
+        platformUserId: "9527",
+      },
+      sharedAudioSource
+    );
+    const second = await runtime.recommendForSegment(
+      {
+        audioUrl: "https://oss.example.com/sample.mp3?Signature=batch",
+        selectionKey: "sample.mp3|1800|3200",
+        startMs: 1800,
+        endMs: 3200,
+        durationMs: 1400,
+        segmentNumber: 2,
+        uniqueId: "segment-2",
+        platformUserName: "柳州标注员",
+        platformUserId: "9527",
+      },
+      sharedAudioSource
+    );
+
+    assert.equal(first.selectionKey, "sample.mp3|0|1200");
+    assert.equal(first.segmentNumber, 1);
+    assert.equal(first.uniqueId, "segment-1");
+    assert.equal(second.selectionKey, "sample.mp3|1800|3200");
+    assert.equal(second.segmentNumber, 2);
+    assert.equal(second.uniqueId, "segment-2");
+
+    const audioFetchCount = harness.calls.filter(function (call) {
+      return call.url.indexOf("oss.example.com/sample.mp3") >= 0;
+    }).length;
+    const recommendCount = harness.calls.filter(function (call) {
+      return call.url.indexOf("/ai/recommend") >= 0;
+    }).length;
+
+    assert.equal(audioFetchCount, 1);
+    assert.equal(harness.getDecodeCount(), 1);
+    assert.equal(recommendCount, 2);
+  } finally {
+    harness.restore();
   }
 });

@@ -972,6 +972,105 @@ function buildExactSegmentRows(segments) {
   return result;
 }
 
+function createBatchMomentTemplate() {
+  return {
+    attrs: [],
+    entry_attrs: [
+      {
+        unique_id: "entry-validity",
+        name: "是否有效（Valid or Not）",
+        input_type: "radio",
+      },
+    ],
+    moment_attrs: [
+      {
+        unique_id: "moment-validity",
+        name: "是否有效（Valid or Not）",
+        input_type: "radio",
+      },
+      {
+        unique_id: "moment-dialect",
+        name: "标注文本",
+        input_type: "text",
+      },
+      {
+        unique_id: "moment-mandarin",
+        name: "普通话顺滑",
+        input_type: "text",
+      },
+    ],
+  };
+}
+
+function createBatchTextAnnosPayload(segments) {
+  const source = Array.isArray(segments) ? segments : [];
+  const result = [
+    {
+      entry_index: 1,
+      entry_id: 1,
+      unique_id: "entry-scope",
+      ann_scope: "entry",
+      ann_data: {
+        attrs: [
+          {
+            unique_id: "entry-validity",
+            name: "是否有效（Valid or Not）",
+            values: [{ unique_id: "entry-valid", name: "是（Valid）" }],
+            input_type: "radio",
+          },
+        ],
+        attr_version: "v1",
+      },
+      source: "manual",
+      status: "valid",
+    },
+  ];
+  source.forEach(function (segment, index) {
+    const dialectText = String(segment.dialectText || "");
+    const mandarinText = String(segment.mandarinText || "");
+    result.push({
+      entry_index: 1,
+      entry_id: 1,
+      unique_id: String(segment.uniqueId || "region-" + String(index + 1)),
+      ann_scope: "instance",
+      start_second: Number(segment.startMs || 0) / 1000,
+      end_second: Number(segment.endMs || 0) / 1000,
+      ann_data: {
+        attrs: [
+          {
+            unique_id: "moment-validity",
+            name: "是否有效（Valid or Not）",
+            values: [{ unique_id: "valid-id", name: "是（Valid）" }],
+            input_type: "radio",
+          },
+          {
+            unique_id: "moment-dialect",
+            name: "标注文本",
+            values: ['[{"type":"text","content":"' + dialectText + '"}]'],
+            input_type: "text",
+          },
+          {
+            unique_id: "moment-mandarin",
+            name: "普通话顺滑",
+            values: [mandarinText],
+            input_type: "text",
+          },
+        ],
+        attr_version: "v2",
+      },
+      source: "manual",
+      status: "valid",
+      track_id: "-1",
+      shape: "section",
+      camera_name: "cam" + String(index + 1),
+      asr_is_done: 1,
+      is_update_position: 0,
+      is_update_labelattr: 0,
+    });
+  });
+  return result;
+}
+
 function createSegmentApplyHarness(options) {
   const settings = options && typeof options === "object" ? options : {};
   const visibleEntryName = String(settings.visibleEntryName || "sample-a.mp3");
@@ -2711,4 +2810,241 @@ test("CVPC data api fillAllValid stops when the target segment does not switch s
   });
   assert.equal(harness.segmentStates[0].validity, "valid");
   assert.equal(harness.segmentStates[1].validity, "missing");
+});
+
+test("CVPC data api getBatchSegments parses range selections and keeps stable segment metadata", async function () {
+  const dataApiModule = loadDataApiModule();
+  const template = createBatchMomentTemplate();
+  const harness = createDataApiHarness({
+    visibleEntryNames: ["sample-a.mp3"],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      { template: template }
+    ),
+    annosPayload: createBatchTextAnnosPayload([
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 900,
+        dialectText: "第一段柳州话",
+        mandarinText: "第一段普通话",
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 1000,
+        endMs: 2200,
+        dialectText: "第二段柳州话",
+        mandarinText: "第二段普通话",
+      },
+      {
+        uniqueId: "region-3",
+        startMs: 2500,
+        endMs: 3800,
+        dialectText: "第三段柳州话",
+        mandarinText: "第三段普通话",
+      },
+    ]),
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.getBatchSegments("2-3,2");
+
+  assert.equal(result.totalSegments, 3);
+  assert.equal(result.normalizedSelectionSpec, "2,3");
+  assert.deepEqual(
+    result.segments.map(function (segment) {
+      return segment.segmentNumber;
+    }),
+    [2, 3]
+  );
+  assert.equal(result.segments[0].uniqueId, "region-2");
+  assert.equal(result.segments[0].dialectText, "第二段柳州话");
+  assert.equal(result.segments[0].mandarinText, "第二段普通话");
+  assert.equal(result.segments[0].selectionKey, "sample-a.mp3|1000|2200");
+  assert.equal(result.segments[1].uniqueId, "region-3");
+});
+
+test("CVPC data api applyBatchTextRecommendations only updates successful segments through save_increment", async function () {
+  const dataApiModule = loadDataApiModule();
+  const template = createBatchMomentTemplate();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 1200,
+        segmentNumber: 1,
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 1500,
+        endMs: 2600,
+        segmentNumber: 2,
+      },
+      {
+        uniqueId: "region-3",
+        startMs: 3000,
+        endMs: 4200,
+        segmentNumber: 3,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      { template: template }
+    ),
+    annosPayload: createBatchTextAnnosPayload([
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 1200,
+        dialectText: "原始1",
+        mandarinText: "普通1",
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 1500,
+        endMs: 2600,
+        dialectText: "原始2",
+        mandarinText: "普通2",
+      },
+      {
+        uniqueId: "region-3",
+        startMs: 3000,
+        endMs: 4200,
+        dialectText: "原始3",
+        mandarinText: "普通3",
+      },
+    ]),
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer batch-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  const result = await runtime.applyBatchTextRecommendations({
+    selectedEntryName: "sample-a.mp3",
+    expectedSegmentCount: 3,
+    results: [
+      {
+        uniqueId: "region-2",
+        segmentNumber: 2,
+        selectionKey: "sample-a.mp3|1500|2600",
+        dialectText: "批量柳州话",
+        mandarinText: "批量普通话",
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    savedCount: 1,
+    message: "已通过平台保存接口写回 1 段批量识别结果，页面即将刷新。",
+  });
+  const saveRequest = harness.fetchRequests.find(function (request) {
+    return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+  });
+  assert.ok(saveRequest);
+  assert.equal(saveRequest.init.headers.authorization, "Bearer batch-token");
+  const body = JSON.parse(saveRequest.init.body);
+  assert.equal(body.insert.length, 0);
+  assert.equal(body.delete.length, 0);
+  assert.equal(body.update.length, 1);
+  assert.equal(body.update[0].unique_id, "region-2");
+  const snapshot = JSON.parse(body.web_snapshot);
+  assert.equal(snapshot.length, 4);
+  const updatedSnapshotRow = snapshot.find(function (row) {
+    return row.unique_id === "region-2";
+  });
+  assert.deepEqual(updatedSnapshotRow.ann_data.attrs, [
+    { unique_id: "moment-validity", value: "valid-id" },
+    { unique_id: "moment-dialect", value: '[{"type":"text","content":"批量柳州话"}]' },
+    { unique_id: "moment-mandarin", value: "批量普通话" },
+  ]);
+});
+
+test("CVPC data api applyBatchTextRecommendations fails closed when auth snapshot is missing", async function () {
+  const dataApiModule = loadDataApiModule();
+  const template = createBatchMomentTemplate();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 1200,
+        segmentNumber: 1,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      { template: template }
+    ),
+    annosPayload: createBatchTextAnnosPayload([
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 1200,
+        dialectText: "原始1",
+        mandarinText: "普通1",
+      },
+    ]),
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.applyBatchTextRecommendations({
+    selectedEntryName: "sample-a.mp3",
+    expectedSegmentCount: 1,
+    results: [
+      {
+        uniqueId: "region-1",
+        segmentNumber: 1,
+        selectionKey: "sample-a.mp3|0|1200",
+        dialectText: "批量柳州话",
+        mandarinText: "批量普通话",
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "未获取到平台保存请求的访问凭据，已停止批量写回。",
+  });
+  assert.equal(
+    harness.fetchRequests.some(function (request) {
+      return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+    }),
+    false
+  );
 });

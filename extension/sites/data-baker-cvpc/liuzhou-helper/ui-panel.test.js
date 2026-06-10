@@ -921,3 +921,75 @@ test("CVPC ui panel renders ratio threshold summary", function () {
     globalThis.HTMLElement = previousHTMLElement;
   }
 });
+
+test("CVPC ui panel mounts batch controls and renders batch progress details", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  const batchSelections = [];
+  const stopSignals = [];
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({
+      onBatchRecommend: function (selectionSpec) {
+        batchSelections.push(selectionSpec);
+      },
+      onBatchStop: function () {
+        stopSignals.push("stop");
+      },
+    });
+    runtime.mount();
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const inputNode = findNode(middleNode, function (node) {
+      return node instanceof FakeNode && node.tagName === "INPUT";
+    });
+    assert.ok(inputNode);
+    assert.match(collectText(middleNode), /批量识别并填入/);
+    assert.match(collectText(middleNode), /停止批量/);
+    assert.match(collectText(middleNode), /留空表示当前音频全部段/);
+
+    inputNode.value = "2-4,7";
+    findButtonByText(middleNode, "批量识别并填入").dispatchEvent({ type: "click" });
+    findButtonByText(middleNode, "停止批量").dispatchEvent({ type: "click" });
+
+    assert.deepEqual(batchSelections, ["2-4,7"]);
+    assert.deepEqual(stopSignals, ["stop"]);
+
+    runtime.renderBatchState({
+      running: true,
+      phaseText: "批量识别进行中",
+      selectionSpec: "2-4,7",
+      totalCount: 4,
+      launchedCount: 3,
+      activeAiCount: 2,
+      succeededCount: 1,
+      failedCount: 1,
+      currentSegmentNumber: 4,
+      failures: [
+        {
+          segmentNumber: 7,
+          message: "请求失败",
+        },
+      ],
+    });
+
+    const batchText = collectText(middleNode);
+    assert.match(batchText, /批量识别状态/);
+    assert.match(batchText, /范围：2-4,7/);
+    assert.match(batchText, /总数：4/);
+    assert.match(batchText, /已发起：3/);
+    assert.match(batchText, /进行中：2/);
+    assert.match(batchText, /已成功：1/);
+    assert.match(batchText, /已失败：1/);
+    assert.match(batchText, /当前段：第 4 段/);
+    assert.match(batchText, /失败清单/);
+    assert.match(batchText, /第 7 段：\s*请求失败/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});

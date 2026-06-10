@@ -1,3 +1,46 @@
+## 2026-06-10（DataBaker CVPC 柳州话批量识别并自动填入 v1）
+
+- `DataBaker CVPC / 柳州话脚本` 当前新增“批量识别并自动填入”主链路：
+  - 入口挂到中间 AI 区，范围输入留空表示当前音频全部段
+  - 固定支持 `2-4`、`2,3,5`、`2-4,7`，同时兼容 `~` 闭区间
+  - 启动时锁定当前 `entry + audioUrl + annotation/annos` 快照，只处理当前音频
+  - 前端固定并发 `5`、固定错峰 `50ms`，允许 AI 结果乱序返回
+  - `停止批量` 只阻止新请求继续发起，已在途请求允许收尾
+- 保存链路当前同步补齐文本版 `save_increment` 写回：
+  - `data-api.js` 当前新增 `getBatchSegments()` 和 `applyBatchTextRecommendations()`
+  - 保存前会再次抓取最新 `annotation/annos`
+  - 只更新成功段的 `标注文本 / 普通话顺滑`
+  - `insert / delete` 固定为空，`web_snapshot` 仍带全量 instance rows + entry row
+  - 任意 `entry` 变化、段数变化、`unique_id` 对不上或缺少鉴权快照都会 fail closed
+- 音频裁剪链路当前补成批量友好模式：
+  - `ai-recommendation.js` 当前新增共享音频源与显式段接口
+  - 同一音频批量过程中只下载 / 解码一次，再按各段 `startMs / endMs` 裁剪 WAV
+- 中间 AI 区当前新增批量 UI：
+  - 范围输入框
+  - `批量识别并填入`
+  - `停止批量`
+  - `总数 / 已发起 / 进行中 / 已成功 / 已失败 / 当前段 / 失败清单`
+- 本轮同步更新：
+  - `extension/manifest.json`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+- 本轮验证：
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.test.js extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js extension/shared/concurrent-ai-request-stream.test.js`
+
 ## 2026-06-10（DataBaker CVPC 柳州话“应用当前建议”优先直写平台保存接口）
 
 - `DataBaker CVPC / 柳州话脚本` 当前把 `应用当前建议` 收口为“请求直写优先，增量 DOM 回退兜底”：
