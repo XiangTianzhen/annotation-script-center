@@ -1,0 +1,4236 @@
+{
+  "schemaVersion": "1",
+  "language": "柳州话",
+  "mode": "rule_lexicon",
+  "sourceFiles": [
+    "柳州话项目工作表.xlsx#发音对照表"
+  ],
+  "updatedAt": "2024-05-24T00:00:00Z",
+  "entries": [
+    {
+      "id": "lz-001",
+      "normalized": "挨",
+      "display": "挨",
+      "mandarin": "被",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "ǎi",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-002",
+      "normalized": "挨卵",
+      "display": "挨卵",
+      "mandarin": "摊上事",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "ǎi luàn",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-003",
+      "normalized": "挨啰",
+      "display": "挨啰",
+      "mandarin": "被骗",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "ǎi luò",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-004",
+      "normalized": "啵",
+      "display": "啵",
+      "mandarin": "啊",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "bō",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "mandarinVariants": [
+          "哦"
+        ]
+      }
+    },
+    {
+      "id": "lz-005",
+      "normalized": "搏底",
+      "display": "搏底",
+      "mandarin": "使劲",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "bǒ dì",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "mandarinVariants": [
+          "往死里"
+        ]
+      }
+    },
+    {
+      "id": "lz-006",
+      "normalized": "(看)到",
+      "display": "(看)到",
+      "mandarin": "(看)着",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "dào",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "usageContext": "看"
+      }
+    },
+    {
+      "id": "lz-007",
+      "normalized": "(等)到",
+      "display": "(等)到",
+      "mandarin": "(等)着",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "dào",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "usageContext": "等"
+      }
+    },
+    {
+      "id": "lz-008",
+      "normalized": "的",
+      "display": "的",
+      "mandarin": "的",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "dē",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-009",
+      "normalized": "得",
+      "display": "得",
+      "mandarin": "得",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "dě",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-010",
+      "normalized": "滴",
+      "display": "滴",
+      "mandarin": "的",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "dī",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "mandarinVariants": [
+          "地"
+        ]
+      }
+    },
+    {
+      "id": "lz-011",
+      "normalized": "蔸",
+      "display": "蔸",
+      "mandarin": "颗",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "dōu",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-012",
+      "normalized": "发惹",
+      "display": "发惹",
+      "mandarin": "生气",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "fā yiǎ",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-013",
+      "normalized": "啯",
+      "display": "啯",
+      "mandarin": "啊",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "guǒ",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-014",
+      "normalized": "个",
+      "display": "个",
+      "mandarin": "个",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "guó",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "pronunciationVariants": [
+          "gé"
+        ]
+      }
+    },
+    {
+      "id": "lz-016",
+      "normalized": "哏",
+      "display": "哏",
+      "mandarin": "这么多",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "gèn",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-017",
+      "normalized": "哏子",
+      "display": "哏子",
+      "mandarin": "这样",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "gén zì",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-018",
+      "normalized": "介样",
+      "display": "介样",
+      "mandarin": "这样",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "jié yàng",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-019",
+      "normalized": "紧",
+      "display": "紧",
+      "mandarin": "总是",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "jèn",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "mandarinVariants": [
+          "老是"
+        ]
+      }
+    },
+    {
+      "id": "lz-020",
+      "normalized": "克",
+      "display": "克",
+      "mandarin": "去",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "ké",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-021",
+      "normalized": "可以",
+      "display": "可以",
+      "mandarin": "可以",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "kè",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-022",
+      "normalized": "阔以",
+      "display": "阔以",
+      "mandarin": "可以",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "kuò yì",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-023",
+      "normalized": "克哪凯",
+      "display": "克哪凯",
+      "mandarin": "去哪里",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "ké nà kài",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-024",
+      "normalized": "咧",
+      "display": "咧",
+      "mandarin": "咧",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "liě",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-025",
+      "normalized": "卵仔",
+      "display": "卵仔",
+      "mandarin": "小孩",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "luàn zài",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-026",
+      "normalized": "络",
+      "display": "络",
+      "mandarin": "一坨",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "luò",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "mandarinVariants": [
+          "坨"
+        ]
+      }
+    },
+    {
+      "id": "lz-027",
+      "normalized": "啰洗",
+      "display": "啰洗",
+      "mandarin": "诓骗",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "luò xì",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-028",
+      "normalized": "㸊",
+      "display": "㸊",
+      "mandarin": "烫",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "lái",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-029",
+      "normalized": "捞搅",
+      "display": "捞搅",
+      "mandarin": "搅拌",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "lāo jiǎo",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-030",
+      "normalized": "里头",
+      "display": "里头",
+      "mandarin": "里面",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "lì tǒu",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "mandarinVariants": [
+          "里"
+        ]
+      }
+    },
+    {
+      "id": "lz-031",
+      "normalized": "癞",
+      "display": "癞",
+      "mandarin": "差",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "lāi",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-032",
+      "normalized": "咯",
+      "display": "咯",
+      "mandarin": "吗",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "lō",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "mandarinVariants": [
+          "嘛"
+        ]
+      }
+    },
+    {
+      "id": "lz-033",
+      "normalized": "陆十",
+      "display": "陆十",
+      "mandarin": "六十",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "lu shi",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-034",
+      "normalized": "咩",
+      "display": "咩",
+      "mandarin": "吗",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "miē、miè",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-035",
+      "normalized": "马上",
+      "display": "马上",
+      "mandarin": "马上",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "màng",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "mandarinVariants": [
+          "立刻"
+        ]
+      }
+    },
+    {
+      "id": "lz-036",
+      "normalized": "没",
+      "display": "没",
+      "mandarin": "不",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "méi",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-037",
+      "normalized": "米狗",
+      "display": "米狗",
+      "mandarin": "死了",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "mì gòu",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-038",
+      "normalized": "喵",
+      "display": "喵",
+      "mandarin": "猫",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "miao",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-039",
+      "normalized": "吗喽",
+      "display": "吗喽",
+      "mandarin": "猴子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "mā lōu",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-040",
+      "normalized": "袅袅滴",
+      "display": "袅袅滴",
+      "mandarin": "黏黏的",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "niāo niāo dī",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-041",
+      "normalized": "惹火",
+      "display": "惹火",
+      "mandarin": "生气",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "niǎ huò",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-042",
+      "normalized": "哪个",
+      "display": "哪个",
+      "mandarin": "哪个",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "nà guó",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-043",
+      "normalized": "那个",
+      "display": "那个",
+      "mandarin": "那个",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "ná guó",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-044",
+      "normalized": "恁子",
+      "display": "恁子",
+      "mandarin": "怎么",
+      "aliases": [
+        "嫩子"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "nèn zì",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-045",
+      "normalized": "那种",
+      "display": "那种",
+      "mandarin": "那种",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "nòng",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-046",
+      "normalized": "哝",
+      "display": "哝",
+      "mandarin": "叫",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "nōng",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "mandarinVariants": [
+          "催促"
+        ]
+      }
+    },
+    {
+      "id": "lz-047",
+      "normalized": "㶶",
+      "display": "㶶",
+      "mandarin": "烧焦",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "nōng",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-048",
+      "normalized": "莴苣笋",
+      "display": "莴苣笋",
+      "mandarin": "莴苣笋",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "ō jī sùn",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-049",
+      "normalized": "恶",
+      "display": "恶",
+      "mandarin": "凶",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "ǒ；ó",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-050",
+      "normalized": "什嘛",
+      "display": "什嘛",
+      "mandarin": "什么",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "shèn mà",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-051",
+      "normalized": "什么",
+      "display": "什么",
+      "mandarin": "什么",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "shèn mè",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-052",
+      "normalized": "是",
+      "display": "是",
+      "mandarin": "是",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "shí",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-053",
+      "normalized": "烧甲",
+      "display": "烧甲",
+      "mandarin": "蟑螂",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "shāo jiǎ",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-054",
+      "normalized": "勺",
+      "display": "勺",
+      "mandarin": "吃",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "shǎo",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-055",
+      "normalized": "拖孩",
+      "display": "拖孩",
+      "mandarin": "拖鞋",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "tuō hǎi",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-056",
+      "normalized": "我草",
+      "display": "我草",
+      "mandarin": "我草",
+      "aliases": [
+        "我操"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "wò cáo",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-057",
+      "normalized": "孩",
+      "display": "孩",
+      "mandarin": "鞋",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "hǎi",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-058",
+      "normalized": "我叼",
+      "display": "我叼",
+      "mandarin": "我操",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "wò diào",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-059",
+      "normalized": "我靠",
+      "display": "我靠",
+      "mandarin": "我的天",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "wò káo",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-060",
+      "normalized": "娃仔",
+      "display": "娃仔",
+      "mandarin": "小孩",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "wǎ zài",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-061",
+      "normalized": "(打游戏)洗",
+      "display": "(打游戏)洗",
+      "mandarin": "(打游戏)菜",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "xì",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "usageContext": "打游戏"
+      }
+    },
+    {
+      "id": "lz-062",
+      "normalized": "系嘛",
+      "display": "系嘛",
+      "mandarin": "什么",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "xì mà",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-063",
+      "normalized": "系",
+      "display": "系",
+      "mandarin": "是",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "xí",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-064",
+      "normalized": "总",
+      "display": "总",
+      "mandarin": "老是",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "zòng",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-065",
+      "normalized": "揍什嘛",
+      "display": "揍什嘛",
+      "mandarin": "做什么",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "zóu shèn mà",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-066",
+      "normalized": "酱子",
+      "display": "酱子",
+      "mandarin": "这样",
+      "aliases": [
+        "酱紫"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "jiàng zǐ",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-067",
+      "normalized": "旁海",
+      "display": "旁海",
+      "mandarin": "螃蟹",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "pǎng hái",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-068",
+      "normalized": "银",
+      "display": "银",
+      "mandarin": "人",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "yín",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-069",
+      "normalized": "莽",
+      "display": "莽",
+      "mandarin": "马上",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "mǎng",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary",
+        "mandarinVariants": [
+          "立刻"
+        ]
+      }
+    },
+    {
+      "id": "lz-070",
+      "normalized": "虚",
+      "display": "虚",
+      "mandarin": "书",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "xū",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-071",
+      "normalized": "如",
+      "display": "如",
+      "mandarin": "肉",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "rǔ",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-072",
+      "normalized": "奇",
+      "display": "奇",
+      "mandarin": "吃",
+      "aliases": [
+        "七"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "qǐ",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-073",
+      "normalized": "吃",
+      "display": "吃",
+      "mandarin": "吃",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "pronunciation": "chǐ",
+        "sourceSection": "main_pronunciation_table",
+        "priority": "primary"
+      }
+    },
+    {
+      "id": "lz-074",
+      "normalized": "口盅",
+      "display": "口盅",
+      "mandarin": "茶杯",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-075",
+      "normalized": "山猫",
+      "display": "山猫",
+      "mandarin": "兔子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-076",
+      "normalized": "飞鼠",
+      "display": "飞鼠",
+      "mandarin": "蝙蝠",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-077",
+      "normalized": "马甲",
+      "display": "马甲",
+      "mandarin": "背心",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-078",
+      "normalized": "马仔",
+      "display": "马仔",
+      "mandarin": "幼马",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "小马"
+        ]
+      }
+    },
+    {
+      "id": "lz-080",
+      "normalized": "马蹄",
+      "display": "马蹄",
+      "mandarin": "荸荠",
+      "aliases": [],
+      "notes": [
+        "因其地下块茎形似马蹄，故名"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-081",
+      "normalized": "马卵古",
+      "display": "马卵古",
+      "mandarin": "鹅卵石",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-082",
+      "normalized": "天星",
+      "display": "天星",
+      "mandarin": "星星",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "星"
+        ]
+      }
+    },
+    {
+      "id": "lz-083",
+      "normalized": "牛仔",
+      "display": "牛仔",
+      "mandarin": "小牛",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-084",
+      "normalized": "手梗",
+      "display": "手梗",
+      "mandarin": "胳膊",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-085",
+      "normalized": "毛蒜",
+      "display": "毛蒜",
+      "mandarin": "大蒜头",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-086",
+      "normalized": "毛秀才",
+      "display": "毛秀才",
+      "mandarin": "西红柿",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-087",
+      "normalized": "长尾巴",
+      "display": "长尾巴",
+      "mandarin": "过生日",
+      "aliases": [],
+      "notes": [
+        "小孩、年轻人过生日"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-088",
+      "normalized": "火砖",
+      "display": "火砖",
+      "mandarin": "砖头",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-089",
+      "normalized": "火烛",
+      "display": "火烛",
+      "mandarin": "着火",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-090",
+      "normalized": "水鱼",
+      "display": "水鱼",
+      "mandarin": "鳖",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "甲鱼"
+        ]
+      }
+    },
+    {
+      "id": "lz-091",
+      "normalized": "龙须菜",
+      "display": "龙须菜",
+      "mandarin": "豌豆苗",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-092",
+      "normalized": "电头发",
+      "display": "电头发",
+      "mandarin": "烫发",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-093",
+      "normalized": "田基",
+      "display": "田基",
+      "mandarin": "田埂",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-094",
+      "normalized": "头牲",
+      "display": "头牲",
+      "mandarin": "畜牲",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-095",
+      "normalized": "亘",
+      "display": "亘",
+      "mandarin": "整个",
+      "aliases": [
+        "亙"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "完整的"
+        ]
+      }
+    },
+    {
+      "id": "lz-096",
+      "normalized": "芋蒙",
+      "display": "芋蒙",
+      "mandarin": "芋艿茎",
+      "aliases": [
+        "芋檬"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-097",
+      "normalized": "老历",
+      "display": "老历",
+      "mandarin": "农历",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "阴历"
+        ]
+      }
+    },
+    {
+      "id": "lz-098",
+      "normalized": "老公",
+      "display": "老公",
+      "mandarin": "丈夫",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-099",
+      "normalized": "老华",
+      "display": "老华",
+      "mandarin": "本家",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-100",
+      "normalized": "老行",
+      "display": "老行",
+      "mandarin": "内行",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "老练"
+        ]
+      }
+    },
+    {
+      "id": "lz-101",
+      "normalized": "老解",
+      "display": "老解",
+      "mandarin": "当兵的",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-102",
+      "normalized": "老弟嫂",
+      "display": "老弟嫂",
+      "mandarin": "弟媳妇",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "弟妹"
+        ]
+      }
+    },
+    {
+      "id": "lz-103",
+      "normalized": "灰面",
+      "display": "灰面",
+      "mandarin": "面粉",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-104",
+      "normalized": "百叶肚",
+      "display": "百叶肚",
+      "mandarin": "牛羊的重瓣胃",
+      "aliases": [],
+      "notes": [
+        "做食品时叫百叶或牛百叶"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-105",
+      "normalized": "死摸",
+      "display": "死摸",
+      "mandarin": "很慢",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-106",
+      "normalized": "夹",
+      "display": "夹",
+      "mandarin": "涩",
+      "aliases": [
+        "夾",
+        "裌",
+        "袷"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-107",
+      "normalized": "扣针",
+      "display": "扣针",
+      "mandarin": "别针",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-108",
+      "normalized": "扣襻",
+      "display": "扣襻",
+      "mandarin": "纽扣",
+      "aliases": [
+        "扣袢"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "纽襻儿"
+        ]
+      }
+    },
+    {
+      "id": "lz-109",
+      "normalized": "当面骨",
+      "display": "当面骨",
+      "mandarin": "胫面骨",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-110",
+      "normalized": "光头",
+      "display": "光头",
+      "mandarin": "秃子",
+      "aliases": [],
+      "notes": [
+        "头发脱光的人"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-111",
+      "normalized": "吊颈",
+      "display": "吊颈",
+      "mandarin": "上吊",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-112",
+      "normalized": "竹篙",
+      "display": "竹篙",
+      "mandarin": "竹竿",
+      "aliases": [],
+      "notes": [
+        "泛指竹竿"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-113",
+      "normalized": "丢久",
+      "display": "丢久",
+      "mandarin": "隔了很久",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "很久"
+        ]
+      }
+    },
+    {
+      "id": "lz-114",
+      "normalized": "丢过边",
+      "display": "丢过边",
+      "mandarin": "丢在一旁",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-115",
+      "normalized": "伙猫",
+      "display": "伙猫",
+      "mandarin": "厨师",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "炊事员"
+        ]
+      }
+    },
+    {
+      "id": "lz-116",
+      "normalized": "后生家",
+      "display": "后生家",
+      "mandarin": "小伙子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "青年男子"
+        ]
+      }
+    },
+    {
+      "id": "lz-117",
+      "normalized": "后脑壳",
+      "display": "后脑壳",
+      "mandarin": "头后面突出的部分",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-118",
+      "normalized": "色子",
+      "display": "色子",
+      "mandarin": "重孙",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-119",
+      "normalized": "衣车",
+      "display": "衣车",
+      "mandarin": "缝纫机",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-120",
+      "normalized": "冲沟",
+      "display": "冲沟",
+      "mandarin": "山沟",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-121",
+      "normalized": "羊仔",
+      "display": "羊仔",
+      "mandarin": "羊羔",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "小羊"
+        ]
+      }
+    },
+    {
+      "id": "lz-122",
+      "normalized": "羊癫疯",
+      "display": "羊癫疯",
+      "mandarin": "癫痫",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-123",
+      "normalized": "米糊",
+      "display": "米糊",
+      "mandarin": "代乳品",
+      "aliases": [],
+      "notes": [
+        "用米粉和糖等制成"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-124",
+      "normalized": "讲嘴",
+      "display": "讲嘴",
+      "mandarin": "聊天",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-125",
+      "normalized": "农伯",
+      "display": "农伯",
+      "mandarin": "农民",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-126",
+      "normalized": "那凯",
+      "display": "那凯",
+      "mandarin": "那里",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "那儿"
+        ]
+      }
+    },
+    {
+      "id": "lz-127",
+      "normalized": "那点",
+      "display": "那点",
+      "mandarin": "什么",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-128",
+      "normalized": "寿枋",
+      "display": "寿枋",
+      "mandarin": "寿材",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-129",
+      "normalized": "豆角",
+      "display": "豆角",
+      "mandarin": "豇豆",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "长豇豆"
+        ]
+      }
+    },
+    {
+      "id": "lz-130",
+      "normalized": "芙蓉蛋",
+      "display": "芙蓉蛋",
+      "mandarin": "蒸蛋羹儿",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-131",
+      "normalized": "苍蝇屎",
+      "display": "苍蝇屎",
+      "mandarin": "痣",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-132",
+      "normalized": "扶倒",
+      "display": "扶倒",
+      "mandarin": "扶着",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-133",
+      "normalized": "扯起",
+      "display": "扯起",
+      "mandarin": "拔起",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-134",
+      "normalized": "扯淡",
+      "display": "扯淡",
+      "mandarin": "闲谈",
+      "aliases": [
+        "扯谈"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "聊天"
+        ]
+      }
+    },
+    {
+      "id": "lz-135",
+      "normalized": "扯筋",
+      "display": "扯筋",
+      "mandarin": "抽风",
+      "aliases": [],
+      "notes": [
+        "病"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-136",
+      "normalized": "扯齁",
+      "display": "扯齁",
+      "mandarin": "哮喘病",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-137",
+      "normalized": "折了",
+      "display": "折了",
+      "mandarin": "丢了",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-138",
+      "normalized": "抛子",
+      "display": "抛子",
+      "mandarin": "抓子儿",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-139",
+      "normalized": "把",
+      "display": "把",
+      "mandarin": "给",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "送",
+          "交"
+        ]
+      }
+    },
+    {
+      "id": "lz-140",
+      "normalized": "听闻",
+      "display": "听闻",
+      "mandarin": "听到",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "听见"
+        ]
+      }
+    },
+    {
+      "id": "lz-141",
+      "normalized": "帐帘",
+      "display": "帐帘",
+      "mandarin": "帐檐",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-142",
+      "normalized": "伯妈",
+      "display": "伯妈",
+      "mandarin": "伯母",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-143",
+      "normalized": "谷本",
+      "display": "谷本",
+      "mandarin": "稻种",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-144",
+      "normalized": "条",
+      "display": "条",
+      "mandarin": "道",
+      "aliases": [
+        "條"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-145",
+      "normalized": "这凯",
+      "display": "这凯",
+      "mandarin": "这里",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "这儿"
+        ]
+      }
+    },
+    {
+      "id": "lz-146",
+      "normalized": "这块",
+      "display": "这块",
+      "mandarin": "这儿",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "这里"
+        ]
+      }
+    },
+    {
+      "id": "lz-147",
+      "normalized": "灶台",
+      "display": "灶台",
+      "mandarin": "锅台",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-148",
+      "normalized": "灶门口",
+      "display": "灶门口",
+      "mandarin": "厨房",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-149",
+      "normalized": "沙虫",
+      "display": "沙虫",
+      "mandarin": "孑孓",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-150",
+      "normalized": "没乖",
+      "display": "没乖",
+      "mandarin": "调皮",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-151",
+      "normalized": "没喜欢",
+      "display": "没喜欢",
+      "mandarin": "讨厌",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-152",
+      "normalized": "补疤",
+      "display": "补疤",
+      "mandarin": "补丁",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-153",
+      "normalized": "鸡仔",
+      "display": "鸡仔",
+      "mandarin": "小鸡",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-154",
+      "normalized": "纸鹞",
+      "display": "纸鹞",
+      "mandarin": "风筝",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-155",
+      "normalized": "板车",
+      "display": "板车",
+      "mandarin": "独轮车",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-156",
+      "normalized": "苞谷",
+      "display": "苞谷",
+      "mandarin": "玉米",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-157",
+      "normalized": "茅司",
+      "display": "茅司",
+      "mandarin": "厕所",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-158",
+      "normalized": "抽桶",
+      "display": "抽桶",
+      "mandarin": "抽屉",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-159",
+      "normalized": "拐子",
+      "display": "拐子",
+      "mandarin": "胳膊肘",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-160",
+      "normalized": "抵",
+      "display": "抵",
+      "mandarin": "禁",
+      "aliases": [
+        "牴",
+        "觝"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "耐",
+          "挨"
+        ]
+      }
+    },
+    {
+      "id": "lz-161",
+      "normalized": "抵得",
+      "display": "抵得",
+      "mandarin": "受得了",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "值得"
+        ]
+      }
+    },
+    {
+      "id": "lz-162",
+      "normalized": "𫼝",
+      "display": "𫼝",
+      "mandarin": "提",
+      "aliases": [
+        "搊"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "拿",
+          "搬"
+        ]
+      }
+    },
+    {
+      "id": "lz-163",
+      "normalized": "转生",
+      "display": "转生",
+      "mandarin": "复生",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-164",
+      "normalized": "㓥猪",
+      "display": "㓥猪",
+      "mandarin": "杀猪",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-165",
+      "normalized": "岭",
+      "display": "岭",
+      "mandarin": "坡",
+      "aliases": [
+        "嶺"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "山坡"
+        ]
+      }
+    },
+    {
+      "id": "lz-166",
+      "normalized": "岳父老",
+      "display": "岳父老",
+      "mandarin": "岳父",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-167",
+      "normalized": "岳母娘",
+      "display": "岳母娘",
+      "mandarin": "岳母",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-168",
+      "normalized": "狗仔",
+      "display": "狗仔",
+      "mandarin": "小狗",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-169",
+      "normalized": "狗牯",
+      "display": "狗牯",
+      "mandarin": "公狗",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-170",
+      "normalized": "狗爪旁",
+      "display": "狗爪旁",
+      "mandarin": "反犬旁",
+      "aliases": [],
+      "notes": [
+        "汉字偏旁犭"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-171",
+      "normalized": "夜饭",
+      "display": "夜饭",
+      "mandarin": "晚饭",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-172",
+      "normalized": "夜夜",
+      "display": "夜夜",
+      "mandarin": "每天晚上",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-173",
+      "normalized": "变天",
+      "display": "变天",
+      "mandarin": "阴天",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-174",
+      "normalized": "怕丑",
+      "display": "怕丑",
+      "mandarin": "害羞",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "害臊",
+          "怕难为情"
+        ]
+      }
+    },
+    {
+      "id": "lz-175",
+      "normalized": "注该",
+      "display": "注该",
+      "mandarin": "活该",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-176",
+      "normalized": "泥巴",
+      "display": "泥巴",
+      "mandarin": "泥",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-177",
+      "normalized": "波罗盖",
+      "display": "波罗盖",
+      "mandarin": "膝盖",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-178",
+      "normalized": "毒心",
+      "display": "毒心",
+      "mandarin": "狠心",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "心肠狠毒"
+        ]
+      }
+    },
+    {
+      "id": "lz-179",
+      "normalized": "项鸡",
+      "display": "项鸡",
+      "mandarin": "母鸡",
+      "aliases": [],
+      "notes": [
+        "未生蛋的"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-180",
+      "normalized": "标",
+      "display": "标",
+      "mandarin": "窜",
+      "aliases": [
+        "標"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "疾冲"
+        ]
+      }
+    },
+    {
+      "id": "lz-181",
+      "normalized": "树桠",
+      "display": "树桠",
+      "mandarin": "树枝",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "树杈"
+        ]
+      }
+    },
+    {
+      "id": "lz-182",
+      "normalized": "封山",
+      "display": "封山",
+      "mandarin": "山墙",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-183",
+      "normalized": "南蛇",
+      "display": "南蛇",
+      "mandarin": "蟒蛇",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-184",
+      "normalized": "茭笋",
+      "display": "茭笋",
+      "mandarin": "茭白",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-185",
+      "normalized": "砖刀",
+      "display": "砖刀",
+      "mandarin": "瓦刀",
+      "aliases": [],
+      "notes": [
+        "瓦匠用来砌墙、砍砖的工具"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-186",
+      "normalized": "面种",
+      "display": "面种",
+      "mandarin": "面酵子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-187",
+      "normalized": "面糊涂",
+      "display": "面糊涂",
+      "mandarin": "面疙瘩汤",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-188",
+      "normalized": "哈仔",
+      "display": "哈仔",
+      "mandarin": "傻瓜",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-189",
+      "normalized": "哝哝刮刮",
+      "display": "哝哝刮刮",
+      "mandarin": "低声地自言自语",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-190",
+      "normalized": "哝哝嚼嚼",
+      "display": "哝哝嚼嚼",
+      "mandarin": "低声地自言自语",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-191",
+      "normalized": "哪凯",
+      "display": "哪凯",
+      "mandarin": "哪里",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-192",
+      "normalized": "哪样",
+      "display": "哪样",
+      "mandarin": "怎么",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "怎样"
+        ]
+      }
+    },
+    {
+      "id": "lz-193",
+      "normalized": "虾公",
+      "display": "虾公",
+      "mandarin": "虾",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-194",
+      "normalized": "蚂拐",
+      "display": "蚂拐",
+      "mandarin": "青蛙",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-195",
+      "normalized": "星子",
+      "display": "星子",
+      "mandarin": "星星",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-196",
+      "normalized": "拜瞌睡",
+      "display": "拜瞌睡",
+      "mandarin": "打盹",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-197",
+      "normalized": "钢线",
+      "display": "钢线",
+      "mandarin": "车辐",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-198",
+      "normalized": "香信",
+      "display": "香信",
+      "mandarin": "香菇",
+      "aliases": [],
+      "notes": [
+        "较大，质量次于冬菇"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-199",
+      "normalized": "鬼风",
+      "display": "鬼风",
+      "mandarin": "旋风",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-200",
+      "normalized": "独仔",
+      "display": "独仔",
+      "mandarin": "独生子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-201",
+      "normalized": "洗身",
+      "display": "洗身",
+      "mandarin": "洗澡",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-202",
+      "normalized": "洗凉",
+      "display": "洗凉",
+      "mandarin": "洗澡",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-203",
+      "normalized": "活圪瘩",
+      "display": "活圪瘩",
+      "mandarin": "活结",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "活扣"
+        ]
+      }
+    },
+    {
+      "id": "lz-204",
+      "normalized": "将",
+      "display": "将",
+      "mandarin": "刚",
+      "aliases": [
+        "將"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "恰好"
+        ]
+      }
+    },
+    {
+      "id": "lz-205",
+      "normalized": "送人情",
+      "display": "送人情",
+      "mandarin": "送礼",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-206",
+      "normalized": "扁挑",
+      "display": "扁挑",
+      "mandarin": "扁担",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-207",
+      "normalized": "娃崽",
+      "display": "娃崽",
+      "mandarin": "小孩子",
+      "aliases": [
+        "娃仔"
+      ],
+      "notes": [
+        "多指男孩儿"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-208",
+      "normalized": "耗子",
+      "display": "耗子",
+      "mandarin": "老鼠",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-209",
+      "normalized": "蚕叶",
+      "display": "蚕叶",
+      "mandarin": "桑叶",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-210",
+      "normalized": "莲藕",
+      "display": "莲藕",
+      "mandarin": "藕",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-211",
+      "normalized": "莫老约",
+      "display": "莫老约",
+      "mandarin": "约会",
+      "aliases": [],
+      "notes": [
+        "新词，“莫”是词头"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-212",
+      "normalized": "赶圩",
+      "display": "赶圩",
+      "mandarin": "赶集",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-213",
+      "normalized": "起",
+      "display": "起",
+      "mandarin": "建造",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "盖"
+        ]
+      }
+    },
+    {
+      "id": "lz-214",
+      "normalized": "起仔",
+      "display": "起仔",
+      "mandarin": "小偷",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-215",
+      "normalized": "捞",
+      "display": "捞",
+      "mandarin": "拌",
+      "aliases": [
+        "撈"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "搅拌"
+        ]
+      }
+    },
+    {
+      "id": "lz-217",
+      "normalized": "挨水泡",
+      "display": "挨水泡",
+      "mandarin": "涝",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "水淹"
+        ]
+      }
+    },
+    {
+      "id": "lz-218",
+      "normalized": "鸭虫",
+      "display": "鸭虫",
+      "mandarin": "蚯蚓",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-219",
+      "normalized": "鸭仔",
+      "display": "鸭仔",
+      "mandarin": "小鸭",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-220",
+      "normalized": "笕",
+      "display": "笕",
+      "mandarin": "引水用的长竹管或木槽",
+      "aliases": [
+        "筧"
+      ],
+      "notes": [
+        "安在檐下或田间"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-221",
+      "normalized": "臭丸",
+      "display": "臭丸",
+      "mandarin": "樟脑丸",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-222",
+      "normalized": "臭艾",
+      "display": "臭艾",
+      "mandarin": "艾",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "艾蒿"
+        ]
+      }
+    },
+    {
+      "id": "lz-223",
+      "normalized": "烧烟",
+      "display": "烧烟",
+      "mandarin": "抽烟",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "吸烟"
+        ]
+      }
+    },
+    {
+      "id": "lz-224",
+      "normalized": "浪",
+      "display": "浪",
+      "mandarin": "洗涮",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "清洗"
+        ]
+      }
+    },
+    {
+      "id": "lz-225",
+      "normalized": "𬇰",
+      "display": "𬇰",
+      "mandarin": "泉眼",
+      "aliases": [
+        "㵍"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-226",
+      "normalized": "粉凳",
+      "display": "粉凳",
+      "mandarin": "矮小的凳子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-227",
+      "normalized": "谈朋友",
+      "display": "谈朋友",
+      "mandarin": "谈恋爱",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-228",
+      "normalized": "&仔",
+      "display": "&仔",
+      "mandarin": "小儿子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-229",
+      "normalized": "菢鸡仔",
+      "display": "菢鸡仔",
+      "mandarin": "孵小鸡",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-230",
+      "normalized": "雪条",
+      "display": "雪条",
+      "mandarin": "冰棍儿",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-231",
+      "normalized": "雪梨",
+      "display": "雪梨",
+      "mandarin": "梨子",
+      "aliases": [],
+      "notes": [
+        "也指长把梨或鸭梨"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-232",
+      "normalized": "眯",
+      "display": "眯",
+      "mandarin": "闭上嘴、眼等",
+      "aliases": [
+        "瞇"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-233",
+      "normalized": "眼皮盖",
+      "display": "眼皮盖",
+      "mandarin": "眼皮",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-234",
+      "normalized": "野猫",
+      "display": "野猫",
+      "mandarin": "兔子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "野兔"
+        ]
+      }
+    },
+    {
+      "id": "lz-235",
+      "normalized": "崩嘴",
+      "display": "崩嘴",
+      "mandarin": "豁嘴",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-236",
+      "normalized": "笡",
+      "display": "笡",
+      "mandarin": "斜",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "歪"
+        ]
+      }
+    },
+    {
+      "id": "lz-237",
+      "normalized": "猪红",
+      "display": "猪红",
+      "mandarin": "猪血",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-238",
+      "normalized": "猪郎公",
+      "display": "猪郎公",
+      "mandarin": "专供配种的公猪",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-239",
+      "normalized": "脚鱼",
+      "display": "脚鱼",
+      "mandarin": "鳖",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "甲鱼"
+        ]
+      }
+    },
+    {
+      "id": "lz-240",
+      "normalized": "脚眼珠",
+      "display": "脚眼珠",
+      "mandarin": "踝骨",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-241",
+      "normalized": "毫子",
+      "display": "毫子",
+      "mandarin": "硬币",
+      "aliases": [],
+      "notes": [
+        "银质的辅币，小额的"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-242",
+      "normalized": "廊檐",
+      "display": "廊檐",
+      "mandarin": "屋檐",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-243",
+      "normalized": "惯势",
+      "display": "惯势",
+      "mandarin": "娇惯",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "助长坏习惯",
+          "放任"
+        ]
+      }
+    },
+    {
+      "id": "lz-244",
+      "normalized": "淋",
+      "display": "淋",
+      "mandarin": "给庄稼上肥",
+      "aliases": [],
+      "notes": [
+        "用水浇灌花、草等"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-245",
+      "normalized": "淋肥",
+      "display": "淋肥",
+      "mandarin": "施肥",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-246",
+      "normalized": "绹",
+      "display": "绹",
+      "mandarin": "用绳索拴、捆",
+      "aliases": [
+        "綯"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-247",
+      "normalized": "绹倒",
+      "display": "绹倒",
+      "mandarin": "拴着",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-248",
+      "normalized": "朝朝",
+      "display": "朝朝",
+      "mandarin": "每天早晨",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-249",
+      "normalized": "葫子瓜",
+      "display": "葫子瓜",
+      "mandarin": "瓠子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-250",
+      "normalized": "硬是狠",
+      "display": "硬是狠",
+      "mandarin": "真行",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-251",
+      "normalized": "搭个信",
+      "display": "搭个信",
+      "mandarin": "带个信",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-252",
+      "normalized": "喊码",
+      "display": "喊码",
+      "mandarin": "猜拳",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-253",
+      "normalized": "跑老生",
+      "display": "跑老生",
+      "mandarin": "做生意",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-254",
+      "normalized": "跛手",
+      "display": "跛手",
+      "mandarin": "一只手",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-255",
+      "normalized": "黑灯",
+      "display": "黑灯",
+      "mandarin": "熄灯",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-256",
+      "normalized": "锅头",
+      "display": "锅头",
+      "mandarin": "灶",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "炉灶",
+          "锅台"
+        ]
+      }
+    },
+    {
+      "id": "lz-257",
+      "normalized": "锅墨烟",
+      "display": "锅墨烟",
+      "mandarin": "锅底黑灰",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-258",
+      "normalized": "畲地",
+      "display": "畲地",
+      "mandarin": "田地",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-259",
+      "normalized": "痛过刀",
+      "display": "痛过刀",
+      "mandarin": "比刀割还痛",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-260",
+      "normalized": "慌",
+      "display": "慌",
+      "mandarin": "怕",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "害怕"
+        ]
+      }
+    },
+    {
+      "id": "lz-261",
+      "normalized": "道士佬",
+      "display": "道士佬",
+      "mandarin": "道士",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-262",
+      "normalized": "谢顶",
+      "display": "谢顶",
+      "mandarin": "秃顶",
+      "aliases": [],
+      "notes": [
+        "头顶头发脱落"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-263",
+      "normalized": "塘基",
+      "display": "塘基",
+      "mandarin": "池塘边的路",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-264",
+      "normalized": "椿芽",
+      "display": "椿芽",
+      "mandarin": "香椿树的幼芽",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-265",
+      "normalized": "赖茶",
+      "display": "赖茶",
+      "mandarin": "滚烫的热茶",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-266",
+      "normalized": "蒜子",
+      "display": "蒜子",
+      "mandarin": "蒜瓣",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-267",
+      "normalized": "蓬",
+      "display": "蓬",
+      "mandarin": "丛",
+      "aliases": [],
+      "notes": [
+        "密集的草木"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-268",
+      "normalized": "蒙",
+      "display": "蒙",
+      "mandarin": "粉甜可口",
+      "aliases": [
+        "濛",
+        "矇",
+        "懞"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-269",
+      "normalized": "蒙倒",
+      "display": "蒙倒",
+      "mandarin": "捂住",
+      "aliases": [],
+      "notes": [
+        "捂住眼睛；掩住"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-270",
+      "normalized": "零粉",
+      "display": "零粉",
+      "mandarin": "芡粉",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-271",
+      "normalized": "零鸡蛋",
+      "display": "零鸡蛋",
+      "mandarin": "零分",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-272",
+      "normalized": "嘟嘴",
+      "display": "嘟嘴",
+      "mandarin": "噘嘴",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-273",
+      "normalized": "瞄",
+      "display": "瞄",
+      "mandarin": "看",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "瞧"
+        ]
+      }
+    },
+    {
+      "id": "lz-274",
+      "normalized": "跳胶",
+      "display": "跳胶",
+      "mandarin": "跳皮筋儿",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-275",
+      "normalized": "𪢮",
+      "display": "𪢮",
+      "mandarin": "圆",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-276",
+      "normalized": "𪢮个",
+      "display": "𪢮个",
+      "mandarin": "圆的",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "完整的"
+        ]
+      }
+    },
+    {
+      "id": "lz-277",
+      "normalized": "筷条",
+      "display": "筷条",
+      "mandarin": "筷子",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-278",
+      "normalized": "舅娘",
+      "display": "舅娘",
+      "mandarin": "舅母",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-279",
+      "normalized": "煲药",
+      "display": "煲药",
+      "mandarin": "煎药",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-280",
+      "normalized": "腮巴",
+      "display": "腮巴",
+      "mandarin": "腮",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-281",
+      "normalized": "鲇拐",
+      "display": "鲇拐",
+      "mandarin": "鲇鱼",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-282",
+      "normalized": "蔸",
+      "display": "蔸",
+      "mandarin": "棵",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-283",
+      "normalized": "颗子",
+      "display": "颗子",
+      "mandarin": "人身上的小肉疙瘩",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-284",
+      "normalized": "算盘子",
+      "display": "算盘子",
+      "mandarin": "喉结",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-285",
+      "normalized": "寡公",
+      "display": "寡公",
+      "mandarin": "单身汉",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-286",
+      "normalized": "褛",
+      "display": "褛",
+      "mandarin": "棉袄",
+      "aliases": [
+        "褸"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-287",
+      "normalized": "撞到",
+      "display": "撞到",
+      "mandarin": "遇见",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "碰见"
+        ]
+      }
+    },
+    {
+      "id": "lz-288",
+      "normalized": "暴",
+      "display": "暴",
+      "mandarin": "萌发",
+      "aliases": [],
+      "notes": [
+        "露出新芽"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-289",
+      "normalized": "潲",
+      "display": "潲",
+      "mandarin": "用泔水、米糠、野菜等煮成的饲料",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-290",
+      "normalized": "嘴巴",
+      "display": "嘴巴",
+      "mandarin": "嘴",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-291",
+      "normalized": "赞鸡",
+      "display": "赞鸡",
+      "mandarin": "母鸡",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-292",
+      "normalized": "螺丝批",
+      "display": "螺丝批",
+      "mandarin": "改锥",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-293",
+      "normalized": "𫔌",
+      "display": "𫔌",
+      "mandarin": "阉",
+      "aliases": [
+        "鏾"
+      ],
+      "notes": [
+        "阉鸡"
+      ],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-294",
+      "normalized": "鳅鱼",
+      "display": "鳅鱼",
+      "mandarin": "泥鳅",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-295",
+      "normalized": "𬋍菜",
+      "display": "𬋍菜",
+      "mandarin": "热菜",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-296",
+      "normalized": "𬋍水",
+      "display": "𬋍水",
+      "mandarin": "热水",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-297",
+      "normalized": "嚣",
+      "display": "嚣",
+      "mandarin": "放肆",
+      "aliases": [
+        "囂"
+      ],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental",
+        "mandarinVariants": [
+          "器张"
+        ]
+      }
+    },
+    {
+      "id": "lz-298",
+      "normalized": "镯头",
+      "display": "镯头",
+      "mandarin": "手镯",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-299",
+      "normalized": "ong菜",
+      "display": "ong菜",
+      "mandarin": "空心菜",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-300",
+      "normalized": "国有",
+      "display": "国有",
+      "mandarin": "各有",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    },
+    {
+      "id": "lz-301",
+      "normalized": "夜闹",
+      "display": "夜闹",
+      "mandarin": "热闹",
+      "aliases": [],
+      "notes": [],
+      "tags": [],
+      "attributes": {
+        "sourceSection": "extra_vocabulary",
+        "priority": "supplemental"
+      }
+    }
+  ]
+}

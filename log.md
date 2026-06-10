@@ -4850,3 +4850,19 @@
 - 新增测试：
   - `extension/shared/ai-job-client.test.js`
   - `extension/sites/magic-data/shared/ai-review-client.test.js` 追加 job/fetch 两条取消用例。
+
+## 2026-06-10（DataBaker CVPC 柳州话主词表正式落地）
+
+- 新增运行时主词表文件：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-lexicon.json`
+- 本轮接入基于用户确认后的完成版柳州话词表，当前可直接作为 DataBaker CVPC 柳州话脚本的运行时主词表使用。
+- 词表结构已对齐统一业务词表 JSON 契约：
+  - 顶层固定为 `schemaVersion / language / mode / sourceFiles / updatedAt / entries`
+  - 每条 entry 显式补齐 `id / normalized / display / mandarin / aliases / notes / tags / attributes`
+- 为收口重复内容，本轮额外做了 3 处最小内容修正：
+  - 删除补充区与主表重复的 `lz-079（吗喽 -> 猴子）`
+  - 删除补充区与主表重复的 `lz-216（挨 -> 被）`
+  - 合并 `lz-014 / lz-015` 的不同读音，保留单条 `个 -> 个`，并在 `attributes` 中记录 `pronunciation=guó`、`pronunciationVariants=[gé]`
+- 柳州话词表维护口径同步收口为：
+  - 当前运行时只维护一份 `柳州话 -> 普通话` 主词表
+  - 若后续需要 `普通话 -> 柳州话` 反查，应优先由代码从该主词表派生，不再人工并行维护第二份平行词表
