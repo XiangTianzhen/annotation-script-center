@@ -53,7 +53,8 @@
   - 分段建议当前改成“前端只传 URL + 阈值，后端直接整音频分析”：
     - 前端请求体当前主链路只发送 `audioUrl` 与 `rules.silenceThresholdDbfs/minSilenceMs/contextPaddingMs`
     - 后端会直接下载 mp3，并通过 Python `miniaudio` 解码
-    - 后端固定按 `30ms` 窗口、轻量平滑、`<=0.18s` 短尖峰桥接、连续 `0.4s` 静音、前后补 `0.1s` 生成整条音频 `proposedSegments`
+    - 后端固定按 `30ms` 窗口、轻量平滑、`<=0.18s` 短尖峰桥接、连续 `0.4s` 静音和可配置前后补偿生成整条音频 `proposedSegments`
+    - 前后补偿时长当前开放到 options `基础设置 -> 前后补偿时长`，默认 `0.2s`，可调范围 `0 ~ 1.5s`
     - 当前返回结果固定是后端整音频重切预览；前端不会按它自动重画整页波形
     - 前端空预览当前会额外提示“后端未检出静音”或“命中了静音但拆分后仍不足 2 段”
   - `应用分段建议` 当前优先走平台保存接口：
@@ -139,7 +140,8 @@
   - 输入：
     - 当前主链路只要求 `audioUrl`
     - `rules.silenceThresholdDbfs`
-    - 固定规则 `rules.minSilenceMs = 400`、`rules.contextPaddingMs = 100`
+    - 固定规则 `rules.minSilenceMs = 400`
+    - `rules.contextPaddingMs` 默认 `200`，由 options `前后补偿时长` 按 `0 ~ 1.5s` 映射到毫秒后传入
     - 如需兼容旧增量链路，仍可选传 `existingSegments[] / silentRanges[] / segmentScope`
   - 输出：
     - `data.proposedSegments`

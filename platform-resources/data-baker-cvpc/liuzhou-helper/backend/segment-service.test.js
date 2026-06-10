@@ -72,9 +72,9 @@ test("segment preview uses backend audio analyzer when the request only provides
       return [item.startMs, item.endMs];
     }),
     [
-      [0, 1300],
-      [1700, 3100],
-      [3500, 6000],
+      [0, 1400],
+      [1600, 3200],
+      [3400, 6000],
     ]
   );
 });
@@ -174,8 +174,8 @@ test("segment preview splits an existing segment when an internal silence lasts 
       originalEndMs: 7000,
       reason: "silence>=400ms",
       suggestedSegments: [
-        { startMs: 4000, endMs: 5100 },
-        { startMs: 5400, endMs: 7000 },
+        { startMs: 4000, endMs: 5200 },
+        { startMs: 5300, endMs: 7000 },
       ],
     },
   ]);
@@ -237,9 +237,9 @@ test("segment preview supports explicit whole-audio rebuild mode as preview-only
       return [item.startMs, item.endMs];
     }),
     [
-      [0, 1300],
-      [1700, 3100],
-      [3500, 6000],
+      [0, 1400],
+      [1600, 3200],
+      [3400, 6000],
     ]
   );
 });
@@ -251,7 +251,7 @@ test("segment health exposes backend analysis defaults for CVPC preview", functi
   assert.deepEqual(payload.rules, {
     silenceThresholdDbfs: -27,
     minSilenceMs: 400,
-    contextPaddingMs: 100,
+    contextPaddingMs: 200,
     segmentScope: "existing-segments-incremental",
     minSegmentMs: 100,
     analysisWindowMs: 30,

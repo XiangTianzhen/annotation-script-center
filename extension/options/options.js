@@ -4386,6 +4386,19 @@
     return normalizedFallback;
   }
 
+  function normalizeDataBakerCvpcSegmentContextPaddingMs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 200;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    const rounded = Math.round(numeric);
+    if (rounded < 0 || rounded > 1500) {
+      return fallbackNumber;
+    }
+    return rounded;
+  }
+
   function convertDataBakerCvpcSegmentThresholdDbfsToDisplayValue(dbfs, unit) {
     const normalizedUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(unit, "db");
     const normalizedDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(dbfs, -27);
@@ -5108,6 +5121,7 @@
         enabled: true,
         segmentPreviewEnabled: true,
         segmentPreviewAutoApplyEnabled: true,
+        segmentContextPaddingMs: 200,
         segmentSilenceThresholdDbfs: -27,
         segmentSilenceThresholdUnit: "db",
         blockNewTabEditingTips: true,
@@ -5155,6 +5169,10 @@
     config.segmentPreviewEnabled = config.segmentPreviewEnabled !== false;
     config.segmentPreviewAutoApplyEnabled =
       config.segmentPreviewAutoApplyEnabled === false ? false : true;
+    config.segmentContextPaddingMs = normalizeDataBakerCvpcSegmentContextPaddingMs(
+      config.segmentContextPaddingMs,
+      defaults.segmentContextPaddingMs
+    );
     config.segmentSilenceThresholdDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(
       config.segmentSilenceThresholdDbfs,
       defaults.segmentSilenceThresholdDbfs
@@ -10717,6 +10735,9 @@
     const segmentSilenceThresholdNode = getElement(
       "data-baker-cvpc-segment-silence-threshold-dbfs"
     );
+    const segmentContextPaddingNode = getElement(
+      "data-baker-cvpc-segment-context-padding-ms"
+    );
     const timeoutNode = getElement("data-baker-cvpc-ai-timeout");
     const contractNode = getElement("data-baker-cvpc-contract-mode");
 
@@ -10742,6 +10763,11 @@
       applyDataBakerCvpcSegmentThresholdFieldState(
         config.segmentSilenceThresholdDbfs,
         config.segmentSilenceThresholdUnit
+      );
+    }
+    if (segmentContextPaddingNode instanceof HTMLInputElement) {
+      segmentContextPaddingNode.value = String(
+        Number((config.segmentContextPaddingMs / 1000).toFixed(1))
       );
     }
     if (timeoutNode) {
@@ -11052,6 +11078,10 @@
       ),
       currentConfig.segmentSilenceThresholdDbfs
     );
+    const segmentContextPaddingMs = normalizeDataBakerCvpcSegmentContextPaddingMs(
+      Math.round(Number(getElement("data-baker-cvpc-segment-context-padding-ms")?.value || 0) * 1000),
+      currentConfig.segmentContextPaddingMs
+    );
     const timeoutMs = normalizeDataBakerTimeoutMs(
       (hasAiSettingsPanel ? getElement("data-baker-cvpc-ai-timeout").value : "") ||
         String(
@@ -11130,6 +11160,7 @@
                 id: dataBakerCvpcLiuzhouScriptId,
                 segmentPreviewEnabled: segmentPreviewEnabled,
                 segmentPreviewAutoApplyEnabled: segmentPreviewAutoApplyEnabled,
+                segmentContextPaddingMs: segmentContextPaddingMs,
                 segmentSilenceThresholdDbfs: segmentSilenceThresholdDbfs,
                 segmentSilenceThresholdUnit: segmentSilenceThresholdUnit,
                 blockNewTabEditingTips: blockNewTabEditingTips,

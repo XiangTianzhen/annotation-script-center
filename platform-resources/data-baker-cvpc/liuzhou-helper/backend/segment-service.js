@@ -4,7 +4,7 @@ const segmentAudioPython = require("./segment-audio-python");
 
 const DEFAULT_SILENCE_THRESHOLD_DBFS = -27;
 const DEFAULT_MIN_SILENCE_MS = 400;
-const DEFAULT_CONTEXT_PADDING_MS = 100;
+const DEFAULT_CONTEXT_PADDING_MS = 200;
 const DEFAULT_SEGMENT_SCOPE = "existing-segments-incremental";
 const WHOLE_AUDIO_REBUILD_SCOPE = "whole-audio-rebuild-preview";
 const MIN_SEGMENT_MS = 100;
@@ -147,7 +147,10 @@ function normalizeRules(source, segmentScope) {
     ),
     contextPaddingMs: Math.max(
       0,
-      Math.round(toFiniteNumber(input.contextPaddingMs, DEFAULT_CONTEXT_PADDING_MS))
+      Math.min(
+        1500,
+        Math.round(toFiniteNumber(input.contextPaddingMs, DEFAULT_CONTEXT_PADDING_MS))
+      )
     ),
     segmentScope: normalizeSegmentScope(
       segmentScope || input.segmentScope || input.scope || DEFAULT_SEGMENT_SCOPE

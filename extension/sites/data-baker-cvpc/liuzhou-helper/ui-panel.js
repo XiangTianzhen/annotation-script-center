@@ -527,13 +527,19 @@
         : thresholdUnit === "value"
           ? Math.max(1, Math.round(32768 * Math.pow(10, thresholdDbfs / 20)))
           : thresholdDbfs;
+    const contextPaddingMs = Number.isFinite(Number(rules.contextPaddingMs))
+      ? Math.max(0, Math.round(Number(rules.contextPaddingMs)))
+      : 200;
+    const paddingSecondsText = String(Number((contextPaddingMs / 1000).toFixed(1)));
     if (thresholdUnit === "ratio") {
       return (
         "静音 >= 0.4s，阈值 " +
         String(Number(thresholdValue.toFixed(2))) +
         "%，约 " +
         String(thresholdDbfs) +
-        " dB，前后补偿 0.1s"
+        " dB，前后补偿 " +
+        paddingSecondsText +
+        "s"
       );
     }
     if (thresholdUnit === "value") {
@@ -542,10 +548,18 @@
         String(Math.round(thresholdValue)) +
         " Val，约 " +
         String(thresholdDbfs) +
-        " dB，前后补偿 0.1s"
+        " dB，前后补偿 " +
+        paddingSecondsText +
+        "s"
       );
     }
-    return "静音 >= 0.4s，阈值 " + String(thresholdDbfs) + " dB，前后补偿 0.1s";
+    return (
+      "静音 >= 0.4s，阈值 " +
+      String(thresholdDbfs) +
+      " dB，前后补偿 " +
+      paddingSecondsText +
+      "s"
+    );
   }
 
   function isWholeAudioFallbackPreview(preview) {

@@ -77,6 +77,7 @@
                 enabled: true,
                 segmentPreviewEnabled: true,
                 segmentPreviewAutoApplyEnabled: true,
+                segmentContextPaddingMs: 200,
                 segmentSilenceThresholdDbfs: -27,
                 segmentSilenceThresholdUnit: "db",
                 blockEditingTabTips: true,
@@ -1568,6 +1569,19 @@
     return normalizedFallback;
   }
 
+  function normalizeDataBakerCvpcSegmentContextPaddingMs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 200;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    const rounded = Math.round(numeric);
+    if (rounded < 0 || rounded > 1500) {
+      return fallbackNumber;
+    }
+    return rounded;
+  }
+
   function resolveDataBakerListenModel(value, pipelineMode, fallback, constants) {
     const normalizedValue = getDataBakerModelText(value);
     if (normalizedValue) {
@@ -2119,6 +2133,10 @@
         : rawSource.segmentPreviewAutoApplyEnabled === false
           ? false
           : defaultConfig.segmentPreviewAutoApplyEnabled !== false;
+    result.segmentContextPaddingMs = normalizeDataBakerCvpcSegmentContextPaddingMs(
+      rawSource.segmentContextPaddingMs,
+      defaultConfig.segmentContextPaddingMs
+    );
     result.segmentSilenceThresholdDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(
       rawSource.segmentSilenceThresholdDbfs,
       defaultConfig.segmentSilenceThresholdDbfs
@@ -2202,6 +2220,7 @@
             enabled: true,
             segmentPreviewEnabled: true,
             segmentPreviewAutoApplyEnabled: true,
+            segmentContextPaddingMs: 200,
             segmentSilenceThresholdDbfs: -27,
             segmentSilenceThresholdUnit: "db",
             blockNewTabEditingTips: true,

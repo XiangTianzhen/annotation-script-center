@@ -49,7 +49,7 @@ function installHarness(options) {
   };
 }
 
-test("CVPC segmentation controller only forwards audio url and fixed silence rules to preview endpoint", async function () {
+test("CVPC segmentation controller only forwards audio url and configured silence rules to preview endpoint", async function () {
   const moduleApi = loadModule();
   const harness = installHarness({
     previewResponse: {
@@ -80,6 +80,7 @@ test("CVPC segmentation controller only forwards audio url and fixed silence rul
     const runtime = moduleApi.createRuntime({
       endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/segment/preview",
       silenceThresholdDbfs: -27,
+      contextPaddingMs: 200,
     });
 
     const preview = await runtime.preview({
@@ -98,7 +99,7 @@ test("CVPC segmentation controller only forwards audio url and fixed silence rul
     assert.deepEqual(body.rules, {
       silenceThresholdDbfs: -27,
       minSilenceMs: 400,
-      contextPaddingMs: 100,
+      contextPaddingMs: 200,
     });
     assert.equal(Object.prototype.hasOwnProperty.call(body, "silentRanges"), false);
     assert.equal(Object.prototype.hasOwnProperty.call(body, "existingSegments"), false);
@@ -153,6 +154,7 @@ test("CVPC segmentation controller exposes selected threshold unit in preview me
       endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/segment/preview",
       silenceThresholdDbfs: -27,
       silenceThresholdUnit: "ratio",
+      contextPaddingMs: 200,
     });
 
     const preview = await runtime.preview({
@@ -162,6 +164,7 @@ test("CVPC segmentation controller exposes selected threshold unit in preview me
     assert.equal(preview.meta.rules.silenceThresholdDbfs, -27);
     assert.equal(preview.meta.rules.silenceThresholdUnit, "ratio");
     assert.equal(preview.meta.rules.silenceThresholdValue, 4.47);
+    assert.equal(preview.meta.rules.contextPaddingMs, 200);
     assert.equal(preview.analysisMeta.decoder, "miniaudio");
   } finally {
     harness.restore();

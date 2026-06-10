@@ -75,6 +75,7 @@ test("CVPC storage defaults expose beta liuzhou helper settings", async function
     assert.equal(script.enabled, true);
     assert.equal(script.segmentPreviewEnabled, true);
     assert.equal(script.segmentPreviewAutoApplyEnabled, true);
+    assert.equal(script.segmentContextPaddingMs, 200);
     assert.equal(script.aiRecommendEnabled, true);
     assert.equal(script.blockNewTabEditingTips, true);
     assert.equal(script.blockPauseStateTips, true);
@@ -313,6 +314,52 @@ test("CVPC storage keeps explicit auto-apply override for segment preview", asyn
     const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
 
     assert.equal(script.segmentPreviewAutoApplyEnabled, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage keeps valid segment context padding overrides", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            segmentContextPaddingMs: 350,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.equal(script.segmentContextPaddingMs, 350);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage normalizes invalid segment context padding back to default 200ms", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            segmentContextPaddingMs: 2000,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.equal(script.segmentContextPaddingMs, 200);
   } finally {
     harness.cleanup();
   }

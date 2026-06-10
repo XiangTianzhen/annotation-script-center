@@ -575,6 +575,12 @@
           : Number.isFinite(Number(defaults.segmentSilenceThresholdDbfs))
             ? Math.round(Number(defaults.segmentSilenceThresholdDbfs))
             : -27,
+      segmentContextPaddingMs:
+        Number.isFinite(Number(current.segmentContextPaddingMs))
+          ? Math.max(0, Math.min(1500, Math.round(Number(current.segmentContextPaddingMs))))
+          : Number.isFinite(Number(defaults.segmentContextPaddingMs))
+            ? Math.max(0, Math.min(1500, Math.round(Number(defaults.segmentContextPaddingMs))))
+            : 200,
       segmentSilenceThresholdUnit:
         String(current.segmentSilenceThresholdUnit || defaults.segmentSilenceThresholdUnit || "db")
           .trim()
@@ -866,6 +872,7 @@
       endpoint: config.segmentPreviewEndpoint,
       silenceThresholdDbfs: config.segmentSilenceThresholdDbfs,
       silenceThresholdUnit: config.segmentSilenceThresholdUnit,
+      contextPaddingMs: config.segmentContextPaddingMs,
     });
     const editingTabTipGuard =
       editingTabTipGuardApi && typeof editingTabTipGuardApi.createEditingTabTipGuard === "function"

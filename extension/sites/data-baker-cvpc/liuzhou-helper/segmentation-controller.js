@@ -3,7 +3,7 @@
   const DEFAULT_SILENCE_THRESHOLD_DBFS = -27;
   const DEFAULT_SILENCE_THRESHOLD_UNIT = "db";
   const MIN_SILENCE_MS = 400;
-  const CONTEXT_PADDING_MS = 100;
+  const DEFAULT_CONTEXT_PADDING_MS = 200;
   const PREVIEW_MODE_WHOLE_AUDIO_FALLBACK = "whole-audio-fallback";
 
   function normalizeText(value) {
@@ -29,13 +29,21 @@
     return Math.round(Number(dbfs) || DEFAULT_SILENCE_THRESHOLD_DBFS);
   }
 
-  function buildPreviewRequestBody(source, silenceThresholdDbfs) {
+  function normalizeContextPaddingMs(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return DEFAULT_CONTEXT_PADDING_MS;
+    }
+    return Math.max(0, Math.min(1500, Math.round(numeric)));
+  }
+
+  function buildPreviewRequestBody(source, silenceThresholdDbfs, contextPaddingMs) {
     return {
       audioUrl: source.audioUrl,
       rules: {
         silenceThresholdDbfs: silenceThresholdDbfs,
         minSilenceMs: MIN_SILENCE_MS,
-        contextPaddingMs: CONTEXT_PADDING_MS,
+        contextPaddingMs: contextPaddingMs,
       },
     };
   }
@@ -101,9 +109,10 @@
         ? Math.round(Number(config.silenceThresholdDbfs))
         : DEFAULT_SILENCE_THRESHOLD_DBFS;
       const silenceThresholdUnit = normalizeThresholdUnit(config.silenceThresholdUnit);
+      const contextPaddingMs = normalizeContextPaddingMs(config.contextPaddingMs);
       const payload = await requestPreview(
         endpoint,
-        buildPreviewRequestBody(source, silenceThresholdDbfs)
+        buildPreviewRequestBody(source, silenceThresholdDbfs, contextPaddingMs)
       );
       const meta = payload.meta && typeof payload.meta === "object" ? Object.assign({}, payload.meta) : {};
       const rules = meta.rules && typeof meta.rules === "object" ? Object.assign({}, meta.rules) : {};
@@ -113,6 +122,7 @@
         silenceThresholdDbfs,
         silenceThresholdUnit
       );
+      rules.contextPaddingMs = contextPaddingMs;
       meta.rules = rules;
       lastPreview = finalizePreviewPayload(
         {

@@ -1,3 +1,37 @@
+## 2026-06-10（DataBaker CVPC 柳州话分段前后补偿改为可配置）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把分段建议里的“前后补偿”从固定 `0.1s` 改成可配置项：
+  - 默认值改为 `0.2s`
+  - 可调范围 `0 ~ 1.5s`
+  - options `基础设置` 当前新增 `前后补偿时长`
+  - 前端请求会把该值按 `rules.contextPaddingMs` 传给后端
+  - 后端分段规则、`segment/health` 默认值和 UI 规则摘要当前同步跟随该配置
+- 本轮同步更新：
+  - `extension/shared/constants.js`
+  - `extension/shared/storage.js`
+  - `extension/shared/storage.data-baker-cvpc.test.js`
+  - `extension/options/options.html`
+  - `extension/options/options.js`
+  - `extension/options/options-data-baker-cvpc-ai-ui.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/segmentation-controller.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/segmentation-controller.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/segment-service.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/segment-service.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --test extension/shared/storage.data-baker-cvpc.test.js`
+  - `node --test extension/options/options-data-baker-cvpc-ai-ui.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/segmentation-controller.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --test platform-resources/data-baker-cvpc/liuzhou-helper/backend/segment-service.test.js`
+
 ## 2026-06-10（DataBaker CVPC 柳州话 unique_id重复 修复、自动应用开关与右侧顺序调整）
 
 - `DataBaker CVPC / 柳州话脚本` 当前继续优化中间 AI 区文案与信息展示：
