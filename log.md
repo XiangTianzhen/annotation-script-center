@@ -1,3 +1,33 @@
+## 2026-06-10（DataBaker CVPC 柳州话 unique_id重复 修复、自动应用开关与右侧顺序调整）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把 `应用当前建议` 的直写保存链路再收口一轮：
+  - 新插入段 `unique_id` 当前改为 `crypto.getRandomValues + timestamp` 生成
+  - 直写前会对本次 `insert/update` 与 `web_snapshot` 各自做去重预检
+  - 如果本地构造出的保存体里出现重复 `unique_id`，会直接停止自动应用并保留建议
+  - 如果平台仍返回 `unique_id重复`，当前不会回退 DOM 画段，会保留 preview 供人工处理
+- 中间 `AI 区` 当前新增页内开关 `生成后自动应用当前建议`，默认开启：
+  - 只有用户手动点击 `生成画段建议` 后才会触发
+  - 自动应用成功后沿用现有刷新逻辑
+  - 自动应用失败时会保留当前 preview，不自动刷新
+- 右侧挂载顺序当前再补一层稳定化：
+  - 当 `柳州话脚本 Beta` 与 `AI 区` 所在字段分组都落在右侧 `.label_title_border2` 内时，当前固定把 `Beta` 卡排在 `AI 区` 上方
+- 本轮落盘范围：
+  - 配置与设置：`extension/shared/constants.js`、`extension/shared/storage.js`、`extension/options/options.html`、`extension/options/options.js`
+  - 补充校验：`extension/shared/storage.data-baker-cvpc.test.js`、`extension/options/options-data-baker-cvpc-ai-ui.test.js`、`extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - 文档同步：`extension/sites/data-baker-cvpc/liuzhou-helper/README.md`、`platform-resources/data-baker-cvpc/liuzhou-helper/README.md`、`docs/platforms/index.md`、`README.md`、`log.md`
+- 本轮验证：
+  - `node --check extension/shared/constants.js`
+  - `node --check extension/shared/storage.js`
+  - `node --check extension/options/options.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `node --test extension/shared/storage.data-baker-cvpc.test.js`
+  - `node --test extension/options/options-data-baker-cvpc-ai-ui.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+
 ## 2026-06-10（DataBaker CVPC 柳州话附加信息区失败态保留）
 
 - `DataBaker CVPC / 柳州话脚本` 当前修复 `当前段 AI 附加信息` 在推荐失败时整段被清空的问题：

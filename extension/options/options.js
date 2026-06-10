@@ -5107,6 +5107,7 @@
         id: dataBakerCvpcLiuzhouScriptId,
         enabled: true,
         segmentPreviewEnabled: true,
+        segmentPreviewAutoApplyEnabled: true,
         segmentSilenceThresholdDbfs: -27,
         segmentSilenceThresholdUnit: "db",
         blockNewTabEditingTips: true,
@@ -5152,6 +5153,8 @@
     config.id = dataBakerCvpcLiuzhouScriptId;
     config.enabled = config.enabled !== false;
     config.segmentPreviewEnabled = config.segmentPreviewEnabled !== false;
+    config.segmentPreviewAutoApplyEnabled =
+      config.segmentPreviewAutoApplyEnabled === false ? false : true;
     config.segmentSilenceThresholdDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(
       config.segmentSilenceThresholdDbfs,
       defaults.segmentSilenceThresholdDbfs
@@ -10702,6 +10705,9 @@
     const aiDefaults = defaultsPayload.defaults || {};
     dataBakerCvpcShortcutsDraft = clone(config.shortcuts) || {};
     const segmentPreviewNode = getElement("data-baker-cvpc-segment-preview-enabled");
+    const segmentPreviewAutoApplyNode = getElement(
+      "data-baker-cvpc-segment-preview-auto-apply-enabled"
+    );
     const aiRecommendNode = getElement("data-baker-cvpc-ai-recommend-enabled");
     const blockNewTabTipNode = getElement("data-baker-cvpc-block-new-tab-tip");
     const blockPauseStateTipNode = getElement("data-baker-cvpc-block-pause-state-tip");
@@ -10716,6 +10722,9 @@
 
     if (segmentPreviewNode) {
       segmentPreviewNode.checked = config.segmentPreviewEnabled !== false;
+    }
+    if (segmentPreviewAutoApplyNode) {
+      segmentPreviewAutoApplyNode.checked = config.segmentPreviewAutoApplyEnabled !== false;
     }
     if (aiRecommendNode) {
       aiRecommendNode.checked = config.aiRecommendEnabled !== false;
@@ -11022,6 +11031,9 @@
       shortcuts[action.key] = normalizeNullableShortcut(dataBakerCvpcShortcutsDraft[action.key]);
     });
     const segmentPreviewEnabled = getElement("data-baker-cvpc-segment-preview-enabled").checked;
+    const segmentPreviewAutoApplyEnabled = getElement(
+      "data-baker-cvpc-segment-preview-auto-apply-enabled"
+    ).checked;
     const hasAiSettingsPanel = Boolean(getElement("data-baker-cvpc-ai-timeout"));
     const aiRecommendEnabled = hasAiSettingsPanel
       ? getElement("data-baker-cvpc-ai-recommend-enabled").checked
@@ -11117,6 +11129,7 @@
               liuzhouAssistant: {
                 id: dataBakerCvpcLiuzhouScriptId,
                 segmentPreviewEnabled: segmentPreviewEnabled,
+                segmentPreviewAutoApplyEnabled: segmentPreviewAutoApplyEnabled,
                 segmentSilenceThresholdDbfs: segmentSilenceThresholdDbfs,
                 segmentSilenceThresholdUnit: segmentSilenceThresholdUnit,
                 blockNewTabEditingTips: blockNewTabEditingTips,

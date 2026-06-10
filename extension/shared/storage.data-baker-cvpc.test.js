@@ -74,6 +74,7 @@ test("CVPC storage defaults expose beta liuzhou helper settings", async function
     assert.equal(script.id, "dataBakerCvpcLiuzhouAssistant");
     assert.equal(script.enabled, true);
     assert.equal(script.segmentPreviewEnabled, true);
+    assert.equal(script.segmentPreviewAutoApplyEnabled, true);
     assert.equal(script.aiRecommendEnabled, true);
     assert.equal(script.blockNewTabEditingTips, true);
     assert.equal(script.blockPauseStateTips, true);
@@ -289,6 +290,52 @@ test("CVPC storage falls back to db when silence threshold unit is invalid", asy
     const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
 
     assert.equal(script.segmentSilenceThresholdUnit, "db");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage keeps explicit auto-apply override for segment preview", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            segmentPreviewAutoApplyEnabled: false,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.equal(script.segmentPreviewAutoApplyEnabled, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage normalizes invalid auto-apply values back to default true", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            segmentPreviewAutoApplyEnabled: 0,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.equal(script.segmentPreviewAutoApplyEnabled, true);
   } finally {
     harness.cleanup();
   }

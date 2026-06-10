@@ -22,12 +22,14 @@
   - 当前音频签名 URL：运行时优先从页内观察桥映射获取；页内桥会消费页面真实 `annotation/meta`、`user/meta` 响应，以及顶层页面或同源 `xaudio` iframe 的真实音频请求和初始化阶段控制台打印的音频 URL。若扩展自身直连 `annotation/meta` 因平台鉴权返回失败，会回退使用页内桥传入的运行时 meta；`user/meta` 桥接未命中时再同源直连 `GET /httpapi/user/meta`；音频地址缺失时继续回退到 DOM audio、Performance 与同源 iframe audio
 - 当前页工具面板：
   - 助手区嵌入右侧 `全局标注` 卡片，保持原生 `Valid / Invalid` 在上方；右侧当前只保留状态、当前音频/当前段摘要和提示说明，并优先插入 `全局标注` 的 `.label_title_border2` 内容流；摘要当前改为逐行显示 `文件 / 来源 / 当前第 N 段 / 当前段时间`
+  - 当右侧 `.label_title_border2` 同时容纳 `柳州话脚本 Beta` 与中间 `AI 区` 所在字段分组时，当前会把 `Beta` 卡稳定排到 `AI 区` 上方
   - `是否有效（Valid or Not）` 下方当前作为独立同级 AI 工作区，优先挂到承载字段块的 `div[data-v-fd55b986]` 内，并与各个 `padding-left: 10px` 字段块保持同级；集中承载：
     - `当前段 AI 推荐`
     - `未填写补 Valid`
     - `生成画段建议`
     - `应用当前建议`
     - 当前画段建议结果
+  - 中间 AI 区当前新增页内开关 `生成后自动应用当前建议`，默认开启；只有用户手动点击 `生成画段建议` 后才会触发，自动应用失败时会保留当前 preview，不自动刷新页面
   - 字段内结果区当前固定展示两张最终结果卡：
     - `修正后的柳州话文本` -> `填入标注文本`
     - `整理后的普通话文本` -> `填入普通话顺滑`
@@ -60,7 +62,10 @@
     - 先消费页内观察桥缓存的最小鉴权头
     - 再重新读取最新 `annotation/annos`
     - 按当前 preview 构造 `POST /httpapi/annotation/save_increment` 的 `update / insert / web_snapshot`
+    - 新插入段 `unique_id` 当前改为 `crypto.getRandomValues + timestamp` 生成；直写前会对本次 `insert/update` 与 `web_snapshot` 各自做去重预检
+    - 如果本地构造出的保存体里出现重复 `unique_id`，会直接停止自动应用并保留建议，提示重新生成或人工处理
     - 直写成功后，本次建议已直接进入平台保存链路，无需再点平台 `保存`
+    - 如果平台仍返回 `unique_id重复`，当前不会回退 DOM 画段，会保留 preview 供人工处理
     - 如果缺少鉴权快照或直写失败，且当前 preview 仍是增量补切结果，则回退进入同源 `xaudio` iframe，复用页面原生 region / handle / `开启拆分` 交互把建议段画回当前波形；这时仍需人工点击平台 `保存`
     - 当前整音频预览不会回退 DOM 重画；直写失败时保持 fail closed
   - 当前段 AI 推荐严格按当前波形选中段工作：实时读取 `.xaudio_time` 的 `开始 / 结束`，浏览器端只裁这一段音频

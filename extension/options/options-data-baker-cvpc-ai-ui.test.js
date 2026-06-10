@@ -16,7 +16,9 @@ test("CVPC options source uses standalone listen/refine AI cards", function () {
   assert.match(script, /data-baker-cvpc-ai-refine-prompt/);
   assert.match(script, /data-baker-cvpc-segment-silence-threshold-dbfs/);
   assert.match(script, /data-baker-cvpc-segment-silence-threshold-unit/);
+  assert.match(script, /data-baker-cvpc-segment-preview-auto-apply-enabled/);
   assert.match(html, /静音阈值/);
+  assert.match(html, /生成后自动应用当前建议/);
   assert.match(html, /默认按 dB；也可切换成平台常见的 % \/ Val/);
   assert.match(script, /文本修正/);
   assert.doesNotMatch(script, /data-baker-cvpc-ai-compare-family-select/);

@@ -76,6 +76,7 @@
                 id: "dataBakerCvpcLiuzhouAssistant",
                 enabled: true,
                 segmentPreviewEnabled: true,
+                segmentPreviewAutoApplyEnabled: true,
                 segmentSilenceThresholdDbfs: -27,
                 segmentSilenceThresholdUnit: "db",
                 blockEditingTabTips: true,
@@ -2112,6 +2113,12 @@
       "dataBakerCvpcLiuzhouAssistant";
     result.enabled = result.enabled !== false;
     result.segmentPreviewEnabled = result.segmentPreviewEnabled !== false;
+    result.segmentPreviewAutoApplyEnabled =
+      rawSource.segmentPreviewAutoApplyEnabled === true
+        ? true
+        : rawSource.segmentPreviewAutoApplyEnabled === false
+          ? false
+          : defaultConfig.segmentPreviewAutoApplyEnabled !== false;
     result.segmentSilenceThresholdDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(
       rawSource.segmentSilenceThresholdDbfs,
       defaultConfig.segmentSilenceThresholdDbfs
@@ -2194,6 +2201,7 @@
               "dataBakerCvpcLiuzhouAssistant",
             enabled: true,
             segmentPreviewEnabled: true,
+            segmentPreviewAutoApplyEnabled: true,
             segmentSilenceThresholdDbfs: -27,
             segmentSilenceThresholdUnit: "db",
             blockNewTabEditingTips: true,

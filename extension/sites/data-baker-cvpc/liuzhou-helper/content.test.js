@@ -274,3 +274,202 @@ test("CVPC batch controller aborts save when current entry changes before write-
   });
   assert.equal(saveCalled, false);
 });
+
+test("CVPC content failure helper forwards recommendation payload to ui renderRecommendation", function () {
+  const contentModule = loadContentModule();
+  const rendered = [];
+  const statuses = [];
+
+  contentModule.__testOnly.handleRecommendationFailure(
+    {
+      ui: {
+        renderRecommendation: function (payload) {
+          rendered.push(payload);
+        },
+        setStatus: function (message, tone) {
+          statuses.push([message, tone]);
+        },
+      },
+    },
+    {
+      message: "模型输出 JSON 解析失败，可查看原始 AI 返回。",
+      payload: {
+        success: false,
+        debugRawJson: {
+          rawResponseText: "{\"foo\":\"bar\"}",
+        },
+      },
+    }
+  );
+
+  assert.deepEqual(rendered, [
+    {
+      success: false,
+      debugRawJson: {
+        rawResponseText: "{\"foo\":\"bar\"}",
+      },
+    },
+  ]);
+  assert.deepEqual(statuses, [["当前段 AI 推荐失败：模型输出 JSON 解析失败，可查看原始 AI 返回。", "error"]]);
+});
+
+test("CVPC content auto-apply helper skips apply when preview auto-apply is disabled", async function () {
+  const contentModule = loadContentModule();
+  let applyCalled = false;
+  const statuses = [];
+
+  const result = await contentModule.__testOnly.maybeAutoApplyPreview(
+    {
+      config: {
+        segmentPreviewAutoApplyEnabled: false,
+      },
+      dataApi: {
+        applySegmentPreview: async function () {
+          applyCalled = true;
+          return {
+            ok: true,
+            message: "should not run",
+          };
+        },
+      },
+      ui: {
+        setStatus: function (message, tone) {
+          statuses.push([message, tone]);
+        },
+        renderPreview: function () {},
+      },
+      segment: {
+        clearPreview: function () {},
+      },
+      reloadPage: function () {
+        throw new Error("reload should not happen");
+      },
+    },
+    {
+      proposedSegments: [{ startMs: 0, endMs: 1200 }],
+    }
+  );
+
+  assert.deepEqual(result, {
+    attempted: false,
+    ok: false,
+    reason: "disabled",
+  });
+  assert.equal(applyCalled, false);
+  assert.deepEqual(statuses, []);
+});
+
+test("CVPC content auto-apply helper applies preview, clears preview, and reloads once on success", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  const previews = [];
+  let clearCount = 0;
+  let reloadCount = 0;
+
+  const result = await contentModule.__testOnly.maybeAutoApplyPreview(
+    {
+      config: {
+        segmentPreviewAutoApplyEnabled: true,
+      },
+      dataApi: {
+        applySegmentPreview: async function () {
+          return {
+            ok: true,
+            message: "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。",
+          };
+        },
+      },
+      ui: {
+        setStatus: function (message, tone) {
+          statuses.push([message, tone]);
+        },
+        renderPreview: function (value) {
+          previews.push(value);
+        },
+      },
+      segment: {
+        clearPreview: function () {
+          clearCount += 1;
+        },
+      },
+      reloadPage: function () {
+        reloadCount += 1;
+      },
+    },
+    {
+      proposedSegments: [{ startMs: 0, endMs: 1200 }],
+    }
+  );
+
+  assert.deepEqual(result, {
+    attempted: true,
+    ok: true,
+    result: {
+      ok: true,
+      message: "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。",
+    },
+  });
+  assert.equal(clearCount, 1);
+  assert.deepEqual(previews, [null]);
+  assert.deepEqual(statuses, [["已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。", "success"]]);
+  assert.equal(reloadCount, 1);
+});
+
+test("CVPC content auto-apply helper keeps preview and skips reload when apply fails", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  const previews = [];
+  let clearCount = 0;
+  let reloadCount = 0;
+
+  const result = await contentModule.__testOnly.maybeAutoApplyPreview(
+    {
+      config: {
+        segmentPreviewAutoApplyEnabled: true,
+      },
+      dataApi: {
+        applySegmentPreview: async function () {
+          return {
+            ok: false,
+            message: "当前建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
+          };
+        },
+      },
+      ui: {
+        setStatus: function (message, tone) {
+          statuses.push([message, tone]);
+        },
+        renderPreview: function (value) {
+          previews.push(value);
+        },
+      },
+      segment: {
+        clearPreview: function () {
+          clearCount += 1;
+        },
+      },
+      reloadPage: function () {
+        reloadCount += 1;
+      },
+    },
+    {
+      proposedSegments: [{ startMs: 0, endMs: 1200 }],
+    }
+  );
+
+  assert.deepEqual(result, {
+    attempted: true,
+    ok: false,
+    result: {
+      ok: false,
+      message: "当前建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
+    },
+  });
+  assert.equal(clearCount, 0);
+  assert.deepEqual(previews, []);
+  assert.deepEqual(statuses, [[
+    "画段建议已生成，但自动应用失败：当前建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
+    "error",
+  ]]);
+  assert.equal(reloadCount, 0);
+});
