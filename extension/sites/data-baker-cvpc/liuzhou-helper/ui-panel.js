@@ -429,10 +429,36 @@
     const rules = preview?.meta?.rules && typeof preview.meta.rules === "object"
       ? preview.meta.rules
       : {};
-    const threshold = Number.isFinite(Number(rules.silenceThresholdDbfs))
+    const thresholdDbfs = Number.isFinite(Number(rules.silenceThresholdDbfs))
       ? Math.round(Number(rules.silenceThresholdDbfs))
-      : -40;
-    return "静音 >= 0.4s，阈值 " + String(threshold) + " dBFS，前后补偿 0.1s";
+      : -27;
+    const thresholdUnit = String(rules.silenceThresholdUnit || "db").trim().toLowerCase();
+    const thresholdValue = Number.isFinite(Number(rules.silenceThresholdValue))
+      ? Number(rules.silenceThresholdValue)
+      : thresholdUnit === "ratio"
+        ? Number((100 * Math.pow(10, thresholdDbfs / 20)).toFixed(2))
+        : thresholdUnit === "value"
+          ? Math.max(1, Math.round(32768 * Math.pow(10, thresholdDbfs / 20)))
+          : thresholdDbfs;
+    if (thresholdUnit === "ratio") {
+      return (
+        "静音 >= 0.4s，阈值 " +
+        String(Number(thresholdValue.toFixed(2))) +
+        "%，约 " +
+        String(thresholdDbfs) +
+        " dB，前后补偿 0.1s"
+      );
+    }
+    if (thresholdUnit === "value") {
+      return (
+        "静音 >= 0.4s，阈值 " +
+        String(Math.round(thresholdValue)) +
+        " Val，约 " +
+        String(thresholdDbfs) +
+        " dB，前后补偿 0.1s"
+      );
+    }
+    return "静音 >= 0.4s，阈值 " + String(thresholdDbfs) + " dB，前后补偿 0.1s";
   }
 
   function createRuntime(options) {

@@ -1,6 +1,7 @@
 (function () {
   const DEFAULT_PATH = "/api/data-baker-cvpc/liuzhou-helper/segment/preview";
-  const DEFAULT_SILENCE_THRESHOLD_DBFS = -40;
+  const DEFAULT_SILENCE_THRESHOLD_DBFS = -27;
+  const DEFAULT_SILENCE_THRESHOLD_UNIT = "db";
   const MIN_SILENCE_MS = 400;
   const CONTEXT_PADDING_MS = 100;
   const WINDOW_MS = 30;
@@ -14,6 +15,25 @@
       return -100;
     }
     return 20 * Math.log10(value);
+  }
+
+  function normalizeThresholdUnit(value) {
+    const normalized = normalizeText(value).toLowerCase();
+    if (normalized === "ratio" || normalized === "value") {
+      return normalized;
+    }
+    return DEFAULT_SILENCE_THRESHOLD_UNIT;
+  }
+
+  function convertDbToThresholdDisplayValue(dbfs, unit) {
+    const normalizedUnit = normalizeThresholdUnit(unit);
+    if (normalizedUnit === "ratio") {
+      return Number((100 * Math.pow(10, dbfs / 20)).toFixed(2));
+    }
+    if (normalizedUnit === "value") {
+      return Math.max(1, Math.round(32768 * Math.pow(10, dbfs / 20)));
+    }
+    return Math.round(Number(dbfs) || DEFAULT_SILENCE_THRESHOLD_DBFS);
   }
 
   async function analyzeSilenceRanges(audioUrl, silenceThresholdDbfs) {
@@ -85,6 +105,7 @@
       const silenceThresholdDbfs = Number.isFinite(Number(config.silenceThresholdDbfs))
         ? Math.round(Number(config.silenceThresholdDbfs))
         : DEFAULT_SILENCE_THRESHOLD_DBFS;
+      const silenceThresholdUnit = normalizeThresholdUnit(config.silenceThresholdUnit);
       let silentRanges = [];
       let analysisError = "";
       try {
@@ -118,12 +139,21 @@
       if (!response.ok || !payload || payload.success !== true) {
         throw new Error(payload?.message || "画段建议生成失败。");
       }
+      const meta = payload.meta && typeof payload.meta === "object" ? Object.assign({}, payload.meta) : {};
+      const rules = meta.rules && typeof meta.rules === "object" ? Object.assign({}, meta.rules) : {};
+      rules.silenceThresholdDbfs = silenceThresholdDbfs;
+      rules.silenceThresholdUnit = silenceThresholdUnit;
+      rules.silenceThresholdValue = convertDbToThresholdDisplayValue(
+        silenceThresholdDbfs,
+        silenceThresholdUnit
+      );
+      meta.rules = rules;
       lastPreview = {
         proposedSegments: Array.isArray(payload?.data?.proposedSegments)
           ? payload.data.proposedSegments
           : [],
         changes: Array.isArray(payload?.data?.changes) ? payload.data.changes : [],
-        meta: payload.meta || {},
+        meta: meta,
         analysisError: analysisError,
         selectionKey: normalizeText(source.selectionKey),
         selectedEntryName: normalizeText(source.selectedEntry?.name || source.editorContext?.selectedEntry?.name),

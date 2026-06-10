@@ -12,13 +12,19 @@ test("CVPC options source uses standalone listen/refine AI cards", function () {
   assert.match(script, /data-baker-cvpc-ai-listen-model-select/);
   assert.match(script, /data-baker-cvpc-ai-refine-model-select/);
   assert.match(script, /data-baker-cvpc-ai-listen-prompt/);
+  assert.match(script, /data-baker-cvpc-ai-listen-include-lexicon-reference/);
   assert.match(script, /data-baker-cvpc-ai-refine-prompt/);
   assert.match(script, /data-baker-cvpc-segment-silence-threshold-dbfs/);
-  assert.match(html, /静音阈值（dBFS）/);
-  assert.match(html, /连续 0\.4 秒低于该阈值视为静音；前后自动补 0\.1 秒/);
+  assert.match(script, /data-baker-cvpc-segment-silence-threshold-unit/);
+  assert.match(html, /静音阈值/);
+  assert.match(html, /默认按 dB；也可切换成平台常见的 % \/ Val/);
   assert.match(script, /文本修正/);
   assert.doesNotMatch(script, /data-baker-cvpc-ai-compare-family-select/);
   assert.doesNotMatch(script, /data-baker-cvpc-qualified-autofill-concurrency/);
+  assert.match(script, /附带词表参考（听音辅助）/);
+  assert.match(script, /默认关闭。关闭后 listen 只按当前段音频听写；开启后才附带词表参考片段。/);
+  assert.match(script, /4\.47% 约等于 -27 dB/);
+  assert.match(script, /1464 Val 约等于 -27 dB/);
 });
 
 test("CVPC options source keeps listen model options on omni only", function () {

@@ -43,7 +43,7 @@ test("segment preview keeps existing segments unchanged when no qualifying silen
       { startMs: 3200, endMs: 3550 },
     ],
     rules: {
-      silenceThresholdDbfs: -40,
+      silenceThresholdDbfs: -27,
     },
     segmentScope: "existing-segments-incremental",
   });
@@ -64,7 +64,7 @@ test("segment preview keeps existing segments unchanged when no qualifying silen
     ]
   );
   assert.deepEqual(payload.meta.rules, {
-    silenceThresholdDbfs: -40,
+    silenceThresholdDbfs: -27,
     minSilenceMs: 400,
     contextPaddingMs: 100,
     segmentScope: "existing-segments-incremental",
@@ -79,7 +79,7 @@ test("segment preview splits an existing segment when an internal silence lasts 
     existingSegments: [createSegment()],
     silentRanges: [{ startMs: 5000, endMs: 5500 }],
     rules: {
-      silenceThresholdDbfs: -40,
+      silenceThresholdDbfs: -27,
     },
     segmentScope: "existing-segments-incremental",
   });
@@ -120,7 +120,7 @@ test("segment preview does not split when silence is shorter than 400ms", functi
     existingSegments: [createSegment()],
     silentRanges: [{ startMs: 5000, endMs: 5399 }],
     rules: {
-      silenceThresholdDbfs: -40,
+      silenceThresholdDbfs: -27,
     },
     segmentScope: "existing-segments-incremental",
   });
@@ -149,7 +149,7 @@ test("segment preview produces multiple child segments for multiple qualifying s
       { startMs: 3200, endMs: 3800 },
     ],
     rules: {
-      silenceThresholdDbfs: -40,
+      silenceThresholdDbfs: -27,
     },
     segmentScope: "existing-segments-incremental",
   });
@@ -175,7 +175,7 @@ test("segment health exposes the new CVPC preview defaults", function () {
 
   assert.equal(payload.success, true);
   assert.deepEqual(payload.rules, {
-    silenceThresholdDbfs: -40,
+    silenceThresholdDbfs: -27,
     minSilenceMs: 400,
     contextPaddingMs: 100,
     segmentScope: "existing-segments-incremental",

@@ -96,7 +96,7 @@ test("CVPC segmentation controller forwards threshold and fixed rules to preview
   try {
     const runtime = moduleApi.createRuntime({
       endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/segment/preview",
-      silenceThresholdDbfs: -40,
+      silenceThresholdDbfs: -27,
     });
 
     await runtime.preview({
@@ -112,7 +112,7 @@ test("CVPC segmentation controller forwards threshold and fixed rules to preview
     });
     const body = JSON.parse(request.body);
     assert.deepEqual(body.rules, {
-      silenceThresholdDbfs: -40,
+      silenceThresholdDbfs: -27,
       minSilenceMs: 400,
       contextPaddingMs: 100,
     });
@@ -133,7 +133,7 @@ test("CVPC segmentation controller changes silence detection result when thresho
   try {
     const permissiveRuntime = moduleApi.createRuntime({
       endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/segment/preview",
-      silenceThresholdDbfs: -40,
+      silenceThresholdDbfs: -27,
     });
     await permissiveRuntime.preview({
       audioUrl: "https://oss.example.com/sample.mp3?Signature=audio",
@@ -162,6 +162,37 @@ test("CVPC segmentation controller changes silence detection result when thresho
     assert.equal(previewBodies.length, 2);
     assert.equal(previewBodies[0].silentRanges.length, 1);
     assert.equal(previewBodies[1].silentRanges.length, 0);
+  } finally {
+    harness.restore();
+  }
+});
+
+test("CVPC segmentation controller exposes selected threshold unit in preview meta", async function () {
+  const moduleApi = loadModule();
+  const low = 10 ** (-35 / 20);
+  const high = 10 ** (-20 / 20);
+  const samples = new Float32Array(720);
+  samples.fill(high, 0, 120);
+  samples.fill(low, 120, 570);
+  samples.fill(high, 570);
+  const harness = installHarness({ samples });
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+      silenceThresholdDbfs: -27,
+      silenceThresholdUnit: "ratio",
+    });
+
+    const preview = await runtime.preview({
+      audioUrl: "https://oss.example.com/sample.mp3?Signature=audio",
+      audioDurationMs: 18000,
+      currentSegments: [],
+    });
+
+    assert.equal(preview.meta.rules.silenceThresholdDbfs, -27);
+    assert.equal(preview.meta.rules.silenceThresholdUnit, "ratio");
+    assert.equal(preview.meta.rules.silenceThresholdValue, 4.47);
   } finally {
     harness.restore();
   }

@@ -76,8 +76,10 @@
                 id: "dataBakerCvpcLiuzhouAssistant",
                 enabled: true,
                 segmentPreviewEnabled: true,
+                segmentSilenceThresholdDbfs: -27,
+                segmentSilenceThresholdUnit: "db",
                 blockEditingTabTips: true,
-              segmentPreviewEndpoint:
+                segmentPreviewEndpoint:
                   "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/segment/preview",
                 aiRecommendEnabled: true,
                 aiRecommendEndpoint:
@@ -85,6 +87,7 @@
                 aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
                 aiRecommendListenModel: "qwen3.5-omni-flash",
                 aiRecommendListenPrompt: "",
+                aiRecommendListenIncludeLexiconReference: false,
                 aiRecommendListenTemperature: "",
                 aiRecommendListenTopP: "",
                 aiRecommendListenMaxTokens: "",
@@ -1533,7 +1536,7 @@
   }
 
   function normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(value, fallback) {
-    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : -40;
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : -27;
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) {
       return fallbackNumber;
@@ -1543,6 +1546,25 @@
       return fallbackNumber;
     }
     return rounded;
+  }
+
+  function normalizeDataBakerCvpcSegmentSilenceThresholdUnit(value, fallback) {
+    const toUnitText = function (input) {
+      return String(input || "").trim().toLowerCase();
+    };
+    const normalizedFallback =
+      toUnitText(fallback) === "ratio" || toUnitText(fallback) === "value"
+        ? toUnitText(fallback)
+        : "db";
+    const normalizedValue = toUnitText(value);
+    if (
+      normalizedValue === "db" ||
+      normalizedValue === "ratio" ||
+      normalizedValue === "value"
+    ) {
+      return normalizedValue;
+    }
+    return normalizedFallback;
   }
 
   function resolveDataBakerListenModel(value, pipelineMode, fallback, constants) {
@@ -2094,6 +2116,10 @@
       rawSource.segmentSilenceThresholdDbfs,
       defaultConfig.segmentSilenceThresholdDbfs
     );
+    result.segmentSilenceThresholdUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(
+      rawSource.segmentSilenceThresholdUnit,
+      defaultConfig.segmentSilenceThresholdUnit
+    );
     result.blockNewTabEditingTips =
       rawSource.blockNewTabEditingTips !== undefined
         ? rawSource.blockNewTabEditingTips !== false
@@ -2130,6 +2156,8 @@
       constants
     );
     result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);
+    result.aiRecommendListenIncludeLexiconReference =
+      rawSource.aiRecommendListenIncludeLexiconReference === true;
     normalizeAishellTechStageParams(result, "aiRecommendListen");
     result.aiRecommendRefineModel = normalizeDataBakerCompareModel(
       rawSource.aiRecommendRefineModel || result.aiRecommendRefineModel,
@@ -2166,7 +2194,8 @@
               "dataBakerCvpcLiuzhouAssistant",
             enabled: true,
             segmentPreviewEnabled: true,
-            segmentSilenceThresholdDbfs: -40,
+            segmentSilenceThresholdDbfs: -27,
+            segmentSilenceThresholdUnit: "db",
             blockNewTabEditingTips: true,
             blockPauseStateTips: true,
             segmentPreviewEndpoint:
@@ -2179,6 +2208,7 @@
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
             aiRecommendListenModel: "qwen3.5-omni-flash",
             aiRecommendListenPrompt: "",
+            aiRecommendListenIncludeLexiconReference: false,
             aiRecommendListenTemperature: "",
             aiRecommendListenTopP: "",
             aiRecommendListenMaxTokens: "",

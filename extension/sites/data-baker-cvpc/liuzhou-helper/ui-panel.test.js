@@ -586,7 +586,7 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
       ],
       meta: {
         rules: {
-          silenceThresholdDbfs: -40,
+          silenceThresholdDbfs: -27,
           minSilenceMs: 400,
           contextPaddingMs: 100,
         },
@@ -626,7 +626,7 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     const dialectText = collectText(harness.dialectFieldBlock);
     const mandarinText = collectText(harness.mandarinFieldBlock);
     const middleText = collectText(middleNode);
-    assert.match(middleText, /静音 >= 0\.4s，阈值 -40 dBFS，前后补偿 0\.1s/);
+    assert.match(middleText, /静音 >= 0\.4s，阈值 -27 dB，前后补偿 0\.1s/);
     assert.match(middleText, /原第 4 段/);
     assert.match(middleText, /原时间：95\.999 秒 - 127\.25 秒/);
     assert.match(middleText, /将拆为 2 段/);
@@ -701,8 +701,39 @@ test("CVPC ui panel renders empty split-preview state when no silence hit is fou
 
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     const middleText = collectText(middleNode);
-    assert.match(middleText, /静音 >= 0\.4s，阈值 -38 dBFS，前后补偿 0\.1s/);
+    assert.match(middleText, /静音 >= 0\.4s，阈值 -38 dB，前后补偿 0\.1s/);
     assert.match(middleText, /当前音频没有命中可拆分静音，保持现有段不变/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel renders ratio threshold summary", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderPreview({
+      changes: [],
+      meta: {
+        rules: {
+          silenceThresholdDbfs: -27,
+          silenceThresholdUnit: "ratio",
+          silenceThresholdValue: 4.47,
+        },
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /静音 >= 0\.4s，阈值 4\.47%，约 -27 dB，前后补偿 0\.1s/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

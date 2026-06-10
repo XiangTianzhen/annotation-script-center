@@ -86,10 +86,12 @@ test("CVPC storage defaults expose beta liuzhou helper settings", async function
       "https://script.xiangtianzhen.store/api/data-baker-cvpc/liuzhou-helper/ai/recommend"
     );
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
-    assert.equal(script.segmentSilenceThresholdDbfs, -40);
+    assert.equal(script.segmentSilenceThresholdDbfs, -27);
+    assert.equal(script.segmentSilenceThresholdUnit, "db");
     assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(script.aiRecommendListenPrompt, "");
+    assert.equal(script.aiRecommendListenIncludeLexiconReference, false);
     assert.equal(script.aiRecommendRefinePrompt, "");
     assert.equal(script.aiRecommendModel, undefined);
     assert.equal(script.contractMode, "dom-guarded");
@@ -151,7 +153,7 @@ test("CVPC storage normalizes invalid values and preserves local endpoints", asy
     assert.equal(script.blockNewTabEditingTips, false);
     assert.equal(script.blockPauseStateTips, true);
     assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
-    assert.equal(script.segmentSilenceThresholdDbfs, -40);
+    assert.equal(script.segmentSilenceThresholdDbfs, -27);
     assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-plus");
     assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(script.contractMode, "dom-guarded");
@@ -168,6 +170,7 @@ test("CVPC storage normalizes two-stage AI fields and legacy single model fallba
           liuzhouAssistant: {
             aiRecommendListenModel: "fun-asr",
             aiRecommendListenPrompt: "  listen prompt  ",
+            aiRecommendListenIncludeLexiconReference: true,
             aiRecommendListenTemperature: "9",
             aiRecommendListenTopP: "0.9",
             aiRecommendListenMaxTokens: "4096",
@@ -198,6 +201,7 @@ test("CVPC storage normalizes two-stage AI fields and legacy single model fallba
 
     assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
     assert.equal(script.aiRecommendListenPrompt, "listen prompt");
+    assert.equal(script.aiRecommendListenIncludeLexiconReference, true);
     assert.equal(script.aiRecommendListenTemperature, "2");
     assert.equal(script.aiRecommendListenTopP, "0.9");
     assert.equal(script.aiRecommendListenMaxTokens, "4096");
@@ -239,6 +243,52 @@ test("CVPC storage keeps valid segment silence threshold dbfs overrides", async 
     const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
 
     assert.equal(script.segmentSilenceThresholdDbfs, -35);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage normalizes silence threshold unit overrides", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            segmentSilenceThresholdUnit: "ratio",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.equal(script.segmentSilenceThresholdUnit, "ratio");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage falls back to db when silence threshold unit is invalid", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            segmentSilenceThresholdUnit: "invalid",
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.equal(script.segmentSilenceThresholdUnit, "db");
   } finally {
     harness.cleanup();
   }

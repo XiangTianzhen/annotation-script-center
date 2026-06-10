@@ -1,10 +1,39 @@
+## 2026-06-10（DataBaker CVPC 柳州话 listen Prompt 精简为纯听音）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把 `当前段 AI 推荐` 的 `listen` 阶段收口为纯听音：
+  - 后端默认 prompt 当前只要求输出 `audioDialectText / specialTags / needHumanReview / notes`
+  - 默认不再注入 `项目规则摘要`
+  - 默认不再注入 `segment.startMs / endMs / durationMs`
+  - 默认不再注入页面字段上下文和 `selectedEntry`
+- 当前新增持久配置 `aiRecommendListenIncludeLexiconReference`：
+  - options `AI 设置 -> 听音` 新增 `附带词表参考（听音辅助）`
+  - 默认值固定为 `false`
+  - 只有显式开启后，`listen` 请求才会附带词表参考片段
+- API 契约同步更新：
+  - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults`
+  - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`
+  - `POST /api/data-baker-cvpc/liuzhou-helper/ai/recommend`
+  - 当前都已纳入 `defaults.stages.listen.includeLexiconReference` / `aiStages.listen.includeLexiconReference`
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `extension/options/options.js`
+  - `extension/shared/constants.js`
+  - `extension/shared/storage.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+- 本轮验证：
+  - `node --test platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.test.js`
+  - `node --test extension/shared/storage.data-baker-cvpc.test.js`
+  - `node --test extension/options/options-data-baker-cvpc-ai-ui.test.js`
+
 ## 2026-06-10（DataBaker CVPC 柳州话脚本补齐画段建议新规则与页面内应用）
 
 - `DataBaker CVPC / 柳州话脚本` 当前完成两项收口：
   - `生成画段建议` 改成“浏览器端静音检测 + 后端增量补切预览”：
-    - 前端固定按 `30ms` 窗口做 RMS -> dBFS
+    - 前端固定按 `30ms` 窗口做 RMS -> dB
     - 连续 `0.4s` 低于阈值视为静音
-    - 默认阈值 `-40 dBFS`，并新增 options `基础设置 -> 静音阈值（dBFS）`
+    - 默认阈值改为 `-27 dB`，并新增 options `基础设置 -> 静音阈值`；默认单位 `dB`，同时支持 `% / Val` 换算显示与保存
     - 后端只对“现有段内部命中的静音”生成 `changes + proposedSegments`，固定前后补 `0.1s`
   - `应用当前建议` 当前已能进入同源 `xaudio` iframe，按 live region / handle / 原生 `开启拆分` 交互把建议段画回当前波形状态
 - 当前应用边界：

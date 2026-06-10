@@ -39,12 +39,13 @@
   - 画段建议当前改成“前端静音检测 + 后端增量补切预览”：
     - 前端固定按 `30ms` 窗口分析静音
     - 连续 `0.4s` 低于阈值即记为静音
-    - 阈值当前只开放 `静音阈值（dBFS）`，默认 `-40`
+    - 阈值当前开放 `静音阈值`，默认 `-27 dB`，并允许按 `% / Val` 显示和输入
     - 后端固定按“前后补 `0.1s`、仅拆现有段内部命中的静音”生成 `changes + proposedSegments`
   - `应用当前建议` 当前会进入同源 `xaudio` iframe，复用页面原生 region / handle / `开启拆分` 交互把建议段画回当前波形；应用后只改页面当前状态，不自动保存
   - 当前段 AI 推荐严格按当前波形选中段工作：实时读取 `.xaudio_time` 的 `开始 / 结束`，浏览器端只裁这一段音频
   - 浏览器端会把当前段片段转成 `16k` 单声道 WAV，并直接拼成 `audioDataUrl` 发给现有 AI 推荐接口；不再经过“本地文件转公网 URL”链路
   - 如果后续涉及整音频识别，仍继续使用页面真实公网 `audioUrl`
+  - `listen` 当前固定回到“纯听音”职责：默认不再注入规则摘要、段时间、页面字段上下文或选中条目信息
   - 请求前会校验 options 首页 `AI 调用使用人`；请求体默认补齐 `aiUsageOperatorName / platformUserName / platformUserId`
   - 当前段填入建议当前兼容页面 `contenteditable .ProseMirror`
   - 当前段设为 `Valid / Invalid` 前会先检查当前单选状态，已是目标值时不重复点击
@@ -55,6 +56,7 @@
   - `dataBakerCvpcLiuzhouAssistant` 当前接入共享右侧 `AI 设置` 区的独立 CVPC 布局
   - 当前只保留 `基础设置`、`听音`、`文本修正` 三块
   - `听音` 模型：`qwen3.5-omni-plus`、`qwen3.5-omni-flash`
+  - `听音` 当前新增持久开关 `附带词表参考（听音辅助）`，默认 `false`
   - `文本修正` 模型：`qwen3.5-plus`、`qwen3.5-flash`
   - 不提供 compare-family、采纳阈值、前端并发设置
 - 独立后端接口：
@@ -76,6 +78,7 @@
 - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults`
   - 返回 `defaults.timeoutMs`
   - 返回 `defaults.stages.listen / refine`
+  - `defaults.stages.listen.includeLexiconReference` 默认返回 `false`
   - 返回 `supportedModels.listen / refine`
 - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`
   - 返回与 defaults 对齐的 staged defaults、支持模型列表与运行时资料摘要
@@ -85,6 +88,7 @@
     - 整音频识别继续发送 `audioUrl`
     - 默认补齐 `platformUserName / platformUserId`
     - `aiStages.listen`
+    - `aiStages.listen.includeLexiconReference?: boolean`
     - `aiStages.refine`
   - 输出：
     - `audioDialectText`
@@ -103,6 +107,8 @@
 
 - `listen`
   - `qwen3.5-omni-plus / flash`：直接听音输出原始 `audioDialectText`
+  - 默认只根据当前段音频输出，不输出普通话，不做文本修正
+  - 仅在 `aiStages.listen.includeLexiconReference=true` 时附带词表参考片段
 - `refine`
   - 先按业务词表 JSON 的 `display/normalized -> mandarin` 做最长匹配，生成普通话草稿
   - 输入 `audioDialectText`、普通话草稿、词表命中片段和页面上下文

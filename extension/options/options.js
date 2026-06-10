@@ -2628,6 +2628,7 @@
           [listen.model, defaults.listenModel, defaults.omniModel]
         ),
         prompt: String(listen.prompt || defaults.listenPrompt || ""),
+        includeLexiconReference: listen.includeLexiconReference === true,
         temperature: listen.temperature ?? defaults.temperature ?? "",
         top_p: listen.top_p ?? defaults.top_p ?? "",
         max_tokens: listen.max_tokens ?? defaults.max_tokens ?? "",
@@ -3224,7 +3225,7 @@
     const listenHelpNode = getElement("data-baker-cvpc-ai-listen-model-help");
     if (listenHelpNode instanceof HTMLElement) {
       listenHelpNode.textContent =
-        "Qwen Omni 直接根据当前段音频输出“柳州话文本 + 普通话文本”。";
+        "Qwen Omni 只根据当前段音频输出原始柳州话听音文本。";
     }
   }
 
@@ -3233,6 +3234,9 @@
     const stageDefaults = getDataBakerCvpcStageDefaults(aiDefaults);
     applyDataBakerCvpcListenModelFields(currentConfig.aiRecommendListenModel, aiDefaults);
     const listenPromptNode = getElement("data-baker-cvpc-ai-listen-prompt");
+    const listenIncludeLexiconReferenceNode = getElement(
+      "data-baker-cvpc-ai-listen-include-lexicon-reference"
+    );
     if (listenPromptNode instanceof HTMLTextAreaElement) {
       listenPromptNode.value = String(
         getAsrVoiceAiEffectiveText(
@@ -3240,6 +3244,12 @@
           stageDefaults.listen.prompt
         )
       );
+    }
+    if (listenIncludeLexiconReferenceNode instanceof HTMLInputElement) {
+      listenIncludeLexiconReferenceNode.checked =
+        currentConfig.aiRecommendListenIncludeLexiconReference !== undefined
+          ? currentConfig.aiRecommendListenIncludeLexiconReference === true
+          : stageDefaults.listen.includeLexiconReference === true;
     }
     applyDataBakerCvpcStageParamValues(
       "listen",
@@ -3277,6 +3287,9 @@
     const stageDefaults = getDataBakerCvpcStageDefaults(aiDefaults);
     const listenModelNode = getElement("data-baker-cvpc-ai-listen-model-select");
     const listenPromptNode = getElement("data-baker-cvpc-ai-listen-prompt");
+    const listenIncludeLexiconReferenceNode = getElement(
+      "data-baker-cvpc-ai-listen-include-lexicon-reference"
+    );
     const refineModelNode = getElement("data-baker-cvpc-ai-refine-model-select");
     const refinePromptNode = getElement("data-baker-cvpc-ai-refine-prompt");
     const draft = {
@@ -3288,6 +3301,10 @@
         listenPromptNode instanceof HTMLTextAreaElement
           ? normalizePromptText(listenPromptNode.value)
           : "",
+      aiRecommendListenIncludeLexiconReference:
+        listenIncludeLexiconReferenceNode instanceof HTMLInputElement
+          ? listenIncludeLexiconReferenceNode.checked === true
+          : stageDefaults.listen.includeLexiconReference === true,
       aiRecommendRefineModel:
         refineModelNode instanceof HTMLSelectElement
           ? normalizeDataBakerCompareModel(refineModelNode.value, stageDefaults.refine.model)
@@ -4340,7 +4357,7 @@
   }
 
   function normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(value, fallback) {
-    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : -40;
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : -27;
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) {
       return fallbackNumber;
@@ -4350,6 +4367,168 @@
       return fallbackNumber;
     }
     return rounded;
+  }
+
+  function normalizeDataBakerCvpcSegmentSilenceThresholdUnit(value, fallback) {
+    const normalizedFallback =
+      normalizeText(fallback || "").toLowerCase() === "ratio" ||
+      normalizeText(fallback || "").toLowerCase() === "value"
+        ? normalizeText(fallback || "").toLowerCase()
+        : "db";
+    const normalizedValue = normalizeText(value || "").toLowerCase();
+    if (
+      normalizedValue === "db" ||
+      normalizedValue === "ratio" ||
+      normalizedValue === "value"
+    ) {
+      return normalizedValue;
+    }
+    return normalizedFallback;
+  }
+
+  function convertDataBakerCvpcSegmentThresholdDbfsToDisplayValue(dbfs, unit) {
+    const normalizedUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(unit, "db");
+    const normalizedDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(dbfs, -27);
+    if (normalizedUnit === "ratio") {
+      return Number((100 * Math.pow(10, normalizedDbfs / 20)).toFixed(2));
+    }
+    if (normalizedUnit === "value") {
+      return Math.max(1, Math.round(32768 * Math.pow(10, normalizedDbfs / 20)));
+    }
+    return normalizedDbfs;
+  }
+
+  function convertDataBakerCvpcSegmentThresholdDisplayValueToDbfs(value, unit, fallbackDbfs) {
+    const normalizedUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(unit, "db");
+    const normalizedFallback = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(
+      fallbackDbfs,
+      -27
+    );
+    if (normalizedUnit === "db") {
+      return normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(value, normalizedFallback);
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return normalizedFallback;
+    }
+    const dbfs =
+      normalizedUnit === "ratio"
+        ? 20 * Math.log10(numeric / 100)
+        : 20 * Math.log10(numeric / 32768);
+    return normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(dbfs, normalizedFallback);
+  }
+
+  function getDataBakerCvpcSegmentThresholdInputProfile(unit) {
+    const normalizedUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(unit, "db");
+    if (normalizedUnit === "ratio") {
+      return {
+        min: "0.01",
+        max: "100",
+        step: "0.01",
+      };
+    }
+    if (normalizedUnit === "value") {
+      return {
+        min: "1",
+        max: "32768",
+        step: "1",
+      };
+    }
+    return {
+      min: "-80",
+      max: "-5",
+      step: "1",
+    };
+  }
+
+  function formatDataBakerCvpcSegmentThresholdDisplayValue(value, unit) {
+    const normalizedUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(unit, "db");
+    if (normalizedUnit === "ratio") {
+      return String(Number(Number(value).toFixed(2)));
+    }
+    if (normalizedUnit === "value") {
+      return String(Math.round(Number(value)));
+    }
+    return String(Math.round(Number(value)));
+  }
+
+  function buildDataBakerCvpcSegmentThresholdHelpText(unit, currentDisplayValue, currentDbfs) {
+    const normalizedUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(unit, "db");
+    const normalizedDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(currentDbfs, -27);
+    if (normalizedUnit === "ratio") {
+      return (
+        "当前按 % 输入；例如 4.47% 约等于 -27 dB，当前值约等于 " +
+        String(normalizedDbfs) +
+        " dB。保存时统一换算成内部 dB 阈值。"
+      );
+    }
+    if (normalizedUnit === "value") {
+      return (
+        "当前按 Val 输入；例如 1464 Val 约等于 -27 dB，当前值 " +
+        String(Math.round(Number(currentDisplayValue) || 0)) +
+        " Val 约等于 " +
+        String(normalizedDbfs) +
+        " dB。保存时统一换算成内部 dB 阈值。"
+      );
+    }
+    return "当前按 dB 输入；保存时统一换算成内部 dB 阈值。";
+  }
+
+  function applyDataBakerCvpcSegmentThresholdFieldState(dbfs, unit) {
+    const unitNode = getElement("data-baker-cvpc-segment-silence-threshold-unit");
+    const valueNode = getElement("data-baker-cvpc-segment-silence-threshold-dbfs");
+    const helpNode = getElement("data-baker-cvpc-segment-silence-threshold-help");
+    if (!(valueNode instanceof HTMLInputElement)) {
+      return;
+    }
+    const normalizedUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(unit, "db");
+    const normalizedDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(dbfs, -27);
+    const profile = getDataBakerCvpcSegmentThresholdInputProfile(normalizedUnit);
+    const displayValue = convertDataBakerCvpcSegmentThresholdDbfsToDisplayValue(
+      normalizedDbfs,
+      normalizedUnit
+    );
+    if (unitNode instanceof HTMLSelectElement) {
+      unitNode.value = normalizedUnit;
+      unitNode.setAttribute("data-prev-unit", normalizedUnit);
+    }
+    valueNode.min = profile.min;
+    valueNode.max = profile.max;
+    valueNode.step = profile.step;
+    valueNode.value = formatDataBakerCvpcSegmentThresholdDisplayValue(displayValue, normalizedUnit);
+    valueNode.setAttribute("data-fallback-dbfs", String(normalizedDbfs));
+    if (helpNode instanceof HTMLElement) {
+      helpNode.textContent = buildDataBakerCvpcSegmentThresholdHelpText(
+        normalizedUnit,
+        displayValue,
+        normalizedDbfs
+      );
+    }
+  }
+
+  function refreshDataBakerCvpcSegmentThresholdHelpFromForm() {
+    const unitNode = getElement("data-baker-cvpc-segment-silence-threshold-unit");
+    const valueNode = getElement("data-baker-cvpc-segment-silence-threshold-dbfs");
+    const helpNode = getElement("data-baker-cvpc-segment-silence-threshold-help");
+    if (
+      !(unitNode instanceof HTMLSelectElement) ||
+      !(valueNode instanceof HTMLInputElement) ||
+      !(helpNode instanceof HTMLElement)
+    ) {
+      return;
+    }
+    const normalizedUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(unitNode.value, "db");
+    const fallbackDbfs = valueNode.getAttribute("data-fallback-dbfs");
+    const currentDbfs = convertDataBakerCvpcSegmentThresholdDisplayValueToDbfs(
+      valueNode.value,
+      normalizedUnit,
+      fallbackDbfs
+    );
+    helpNode.textContent = buildDataBakerCvpcSegmentThresholdHelpText(
+      normalizedUnit,
+      valueNode.value,
+      currentDbfs
+    );
   }
 
   function normalizeDataBakerPipelineMode(value, fallback) {
@@ -4928,7 +5107,8 @@
         id: dataBakerCvpcLiuzhouScriptId,
         enabled: true,
         segmentPreviewEnabled: true,
-        segmentSilenceThresholdDbfs: -40,
+        segmentSilenceThresholdDbfs: -27,
+        segmentSilenceThresholdUnit: "db",
         blockNewTabEditingTips: true,
         blockPauseStateTips: true,
         segmentPreviewEndpoint:
@@ -4943,6 +5123,7 @@
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
         aiRecommendListenModel: "qwen3.5-omni-flash",
         aiRecommendListenPrompt: "",
+        aiRecommendListenIncludeLexiconReference: false,
         aiRecommendListenTemperature: "",
         aiRecommendListenTopP: "",
         aiRecommendListenMaxTokens: "",
@@ -4975,6 +5156,10 @@
       config.segmentSilenceThresholdDbfs,
       defaults.segmentSilenceThresholdDbfs
     );
+    config.segmentSilenceThresholdUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(
+      config.segmentSilenceThresholdUnit,
+      defaults.segmentSilenceThresholdUnit
+    );
     config.blockNewTabEditingTips =
       config.blockNewTabEditingTips !== undefined
         ? config.blockNewTabEditingTips !== false
@@ -4993,6 +5178,8 @@
       "qwen3.5-omni-flash"
     );
     config.aiRecommendListenPrompt = normalizePromptText(config.aiRecommendListenPrompt || "");
+    config.aiRecommendListenIncludeLexiconReference =
+      config.aiRecommendListenIncludeLexiconReference === true;
     normalizeAishellTechStageParamFields(config, "aiRecommendListen");
     config.aiRecommendRefineModel = normalizeDataBakerCompareModel(
       config.aiRecommendRefineModel,
@@ -5378,6 +5565,7 @@
       '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid two">',
       '<label class="asr-ai-field"><span>听音模型</span><select id="data-baker-cvpc-ai-listen-model-select"></select><span class="asr-ai-help" id="data-baker-cvpc-ai-listen-model-help"></span></label>',
       '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="data-baker-cvpc-ai-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+      '<label class="asr-ai-field"><span>附带词表参考（听音辅助）</span><label class="asr-ai-boolean"><input id="data-baker-cvpc-ai-listen-include-lexicon-reference" type="checkbox" /><span>默认关闭。关闭后 listen 只按当前段音频听写；开启后才附带词表参考片段。</span></label></label>',
       '</div><div class="asr-ai-grid three">' +
         buildDataBakerCvpcStageParamFieldsMarkup("listen") +
         "</div></div>",
@@ -10517,6 +10705,9 @@
     const aiRecommendNode = getElement("data-baker-cvpc-ai-recommend-enabled");
     const blockNewTabTipNode = getElement("data-baker-cvpc-block-new-tab-tip");
     const blockPauseStateTipNode = getElement("data-baker-cvpc-block-pause-state-tip");
+    const segmentSilenceThresholdUnitNode = getElement(
+      "data-baker-cvpc-segment-silence-threshold-unit"
+    );
     const segmentSilenceThresholdNode = getElement(
       "data-baker-cvpc-segment-silence-threshold-dbfs"
     );
@@ -10535,8 +10726,14 @@
     if (blockPauseStateTipNode) {
       blockPauseStateTipNode.checked = config.blockPauseStateTips !== false;
     }
-    if (segmentSilenceThresholdNode) {
-      segmentSilenceThresholdNode.value = String(config.segmentSilenceThresholdDbfs);
+    if (
+      segmentSilenceThresholdUnitNode instanceof HTMLSelectElement ||
+      segmentSilenceThresholdNode instanceof HTMLInputElement
+    ) {
+      applyDataBakerCvpcSegmentThresholdFieldState(
+        config.segmentSilenceThresholdDbfs,
+        config.segmentSilenceThresholdUnit
+      );
     }
     if (timeoutNode) {
       timeoutNode.value = String(
@@ -10831,8 +11028,16 @@
       : currentConfig.aiRecommendEnabled !== false;
     const blockNewTabEditingTips = getElement("data-baker-cvpc-block-new-tab-tip").checked;
     const blockPauseStateTips = getElement("data-baker-cvpc-block-pause-state-tip").checked;
+    const segmentSilenceThresholdUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(
+      getElement("data-baker-cvpc-segment-silence-threshold-unit")?.value,
+      currentConfig.segmentSilenceThresholdUnit
+    );
     const segmentSilenceThresholdDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(
-      getElement("data-baker-cvpc-segment-silence-threshold-dbfs")?.value,
+      convertDataBakerCvpcSegmentThresholdDisplayValueToDbfs(
+        getElement("data-baker-cvpc-segment-silence-threshold-dbfs")?.value,
+        segmentSilenceThresholdUnit,
+        currentConfig.segmentSilenceThresholdDbfs
+      ),
       currentConfig.segmentSilenceThresholdDbfs
     );
     const timeoutMs = normalizeDataBakerTimeoutMs(
@@ -10913,6 +11118,7 @@
                 id: dataBakerCvpcLiuzhouScriptId,
                 segmentPreviewEnabled: segmentPreviewEnabled,
                 segmentSilenceThresholdDbfs: segmentSilenceThresholdDbfs,
+                segmentSilenceThresholdUnit: segmentSilenceThresholdUnit,
                 blockNewTabEditingTips: blockNewTabEditingTips,
                 blockPauseStateTips: blockPauseStateTips,
                 segmentPreviewEndpoint: buildBackendUrl(segmentPreviewPath, currentSettings || {}),
@@ -10924,6 +11130,8 @@
                   draftConfig.aiRecommendListenPrompt,
                   stageDefaults.listen.prompt
                 ),
+                aiRecommendListenIncludeLexiconReference:
+                  draftConfig.aiRecommendListenIncludeLexiconReference === true,
                 aiRecommendListenTemperature: listenOverrides.aiRecommendListenTemperature,
                 aiRecommendListenTopP: listenOverrides.aiRecommendListenTopP,
                 aiRecommendListenMaxTokens: listenOverrides.aiRecommendListenMaxTokens,
@@ -11708,6 +11916,38 @@
     if (saveDataBakerCvpcSettingsButton) {
       saveDataBakerCvpcSettingsButton.addEventListener("click", function () {
         void saveDataBakerCvpcSettings();
+      });
+    }
+    const dataBakerCvpcSegmentThresholdUnitNode = getElement(
+      "data-baker-cvpc-segment-silence-threshold-unit"
+    );
+    const dataBakerCvpcSegmentThresholdValueNode = getElement(
+      "data-baker-cvpc-segment-silence-threshold-dbfs"
+    );
+    if (
+      dataBakerCvpcSegmentThresholdUnitNode instanceof HTMLSelectElement &&
+      dataBakerCvpcSegmentThresholdValueNode instanceof HTMLInputElement
+    ) {
+      dataBakerCvpcSegmentThresholdUnitNode.addEventListener("change", function () {
+        const previousUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(
+          dataBakerCvpcSegmentThresholdUnitNode.getAttribute("data-prev-unit"),
+          "db"
+        );
+        const nextUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(
+          dataBakerCvpcSegmentThresholdUnitNode.value,
+          "db"
+        );
+        const fallbackDbfs =
+          dataBakerCvpcSegmentThresholdValueNode.getAttribute("data-fallback-dbfs");
+        const currentDbfs = convertDataBakerCvpcSegmentThresholdDisplayValueToDbfs(
+          dataBakerCvpcSegmentThresholdValueNode.value,
+          previousUnit,
+          fallbackDbfs
+        );
+        applyDataBakerCvpcSegmentThresholdFieldState(currentDbfs, nextUnit);
+      });
+      dataBakerCvpcSegmentThresholdValueNode.addEventListener("input", function () {
+        refreshDataBakerCvpcSegmentThresholdHelpFromForm();
       });
     }
 

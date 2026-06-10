@@ -100,12 +100,19 @@
     const stage = {};
     const model = normalizeText(source[prefix + "Model"] || fallback.model || modelFallback);
     const prompt = String(source[prefix + "Prompt"] || fallback.prompt || "");
+    const includeLexiconReference =
+      source[prefix + "IncludeLexiconReference"] !== undefined
+        ? source[prefix + "IncludeLexiconReference"] === true
+        : fallback.includeLexiconReference === true;
     const params = buildStageParams(prefix, source, fallback.params || fallback);
     if (model) {
       stage.model = model;
     }
     if (prompt) {
       stage.prompt = prompt;
+    }
+    if (prefix === "aiRecommendListen") {
+      stage.includeLexiconReference = includeLexiconReference;
     }
     if (Object.keys(params).length > 0) {
       stage.params = params;
@@ -223,7 +230,11 @@
           ? Math.round(Number(current.segmentSilenceThresholdDbfs))
           : Number.isFinite(Number(defaults.segmentSilenceThresholdDbfs))
             ? Math.round(Number(defaults.segmentSilenceThresholdDbfs))
-            : -40,
+            : -27,
+      segmentSilenceThresholdUnit:
+        String(current.segmentSilenceThresholdUnit || defaults.segmentSilenceThresholdUnit || "db")
+          .trim()
+          .toLowerCase() || "db",
       aiUsageOperatorName: String(settings?.meta?.aiUsageOperatorName || "").trim(),
       shortcuts:
         current.shortcuts && typeof current.shortcuts === "object"
@@ -464,6 +475,7 @@
     const segment = segmentFactory.createRuntime({
       endpoint: config.segmentPreviewEndpoint,
       silenceThresholdDbfs: config.segmentSilenceThresholdDbfs,
+      silenceThresholdUnit: config.segmentSilenceThresholdUnit,
     });
     const editingTabTipGuard =
       editingTabTipGuardApi && typeof editingTabTipGuardApi.createEditingTabTipGuard === "function"

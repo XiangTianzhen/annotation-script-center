@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_SILENCE_THRESHOLD_DBFS = -40;
+const DEFAULT_SILENCE_THRESHOLD_DBFS = -27;
 const DEFAULT_MIN_SILENCE_MS = 400;
 const DEFAULT_CONTEXT_PADDING_MS = 100;
 const DEFAULT_SEGMENT_SCOPE = "existing-segments-incremental";

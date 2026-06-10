@@ -578,15 +578,29 @@
 
             <div class="detail-grid two">
               <label class="field-card">
-                <strong>静音阈值（dBFS）</strong>
-                <span>连续 0.4 秒低于该阈值视为静音；前后自动补 0.1 秒。</span>
-                <input
-                  id="data-baker-cvpc-segment-silence-threshold-dbfs"
-                  type="number"
-                  min="-80"
-                  max="-5"
-                  step="1"
-                />
+                <strong>静音阈值</strong>
+                <span>默认按 dB；也可切换成平台常见的 % / Val。连续 0.4 秒低于该阈值视为静音；前后自动补 0.1 秒。</span>
+                <label class="project-download-row">
+                  <span>单位</span>
+                  <select id="data-baker-cvpc-segment-silence-threshold-unit">
+                    <option value="db">dB</option>
+                    <option value="ratio">%</option>
+                    <option value="value">Val</option>
+                  </select>
+                </label>
+                <label class="project-download-row">
+                  <span>阈值</span>
+                  <input
+                    id="data-baker-cvpc-segment-silence-threshold-dbfs"
+                    type="number"
+                    min="-80"
+                    max="-5"
+                    step="1"
+                  />
+                </label>
+                <span id="data-baker-cvpc-segment-silence-threshold-help">
+                  当前按 dB 输入；保存时统一换算成内部 dB 阈值。
+                </span>
               </label>
 
               <label class="field-card">
