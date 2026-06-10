@@ -148,6 +148,11 @@ test("CVPC batch controller stops launching new AI requests after stop and saves
   for (let index = 0; index < 5; index += 1) {
     deferreds[index].resolve({
       refinedDialectText: "柳州话" + String(index + 1),
+      refinedDialectTokens: [
+        { type: "text", content: "柳州话" },
+        { type: "tag", content: "#eh" },
+        { type: "text", content: String(index + 1) },
+      ],
       refinedMandarinText: "普通话" + String(index + 1),
     });
   }
@@ -162,6 +167,11 @@ test("CVPC batch controller stops launching new AI requests after stop and saves
   assert.equal(savedPayloads[0].results.length, 5);
   assert.equal(savedPayloads[0].results[0].uniqueId, "region-1");
   assert.equal(savedPayloads[0].results[4].uniqueId, "region-5");
+  assert.deepEqual(savedPayloads[0].results[0].dialectTokens, [
+    { type: "text", content: "柳州话" },
+    { type: "tag", content: "#eh" },
+    { type: "text", content: "1" },
+  ]);
   assert.equal(reloadCount, 1);
   assert.equal(contextReadCount, 1);
 });
@@ -322,6 +332,56 @@ test("CVPC content exposes updated recognition and segment copy", function () {
     previewBusy: "正在生成当前音频分段建议...",
     previewReady: "分段建议已生成，请先复核后再应用到页面。",
     previewFailedPrefix: "生成分段建议失败：",
+  });
+});
+
+test("CVPC content resolveRecommendationFillTarget keeps dialect tokens for field fill", function () {
+  const contentModule = loadContentModule();
+
+  const target = contentModule.__testOnly.resolveRecommendationFillTarget(
+    {
+      refinedDialectText: "都七十岁了#eh，明日古稀了。",
+      refinedDialectTokens: [
+        { type: "text", content: "都七十岁了" },
+        { type: "tag", content: "#eh" },
+        { type: "text", content: "，明日古稀了。" },
+      ],
+    },
+    "refinedDialectText"
+  );
+
+  assert.deepEqual(target, {
+    targetField: "dialect",
+    text: "都七十岁了#eh，明日古稀了。",
+    tokens: [
+      { type: "text", content: "都七十岁了" },
+      { type: "tag", content: "#eh" },
+      { type: "text", content: "，明日古稀了。" },
+    ],
+  });
+});
+
+test("CVPC content resolveBatchRecommendationTexts returns dialect tokens for batch save", function () {
+  const contentModule = loadContentModule();
+
+  const result = contentModule.__testOnly.resolveBatchRecommendationTexts({
+    refinedDialectText: "修正#ah柳州话。",
+    refinedDialectTokens: [
+      { type: "text", content: "修正" },
+      { type: "tag", content: "#ah" },
+      { type: "text", content: "柳州话。" },
+    ],
+    refinedMandarinText: "整理普通话。",
+  });
+
+  assert.deepEqual(result, {
+    dialectText: "修正#ah柳州话。",
+    dialectTokens: [
+      { type: "text", content: "修正" },
+      { type: "tag", content: "#ah" },
+      { type: "text", content: "柳州话。" },
+    ],
+    mandarinText: "整理普通话。",
   });
 });
 

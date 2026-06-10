@@ -42,6 +42,16 @@
   const BATCH_SAVE_STALE_MESSAGE = "当前音频或条目已变化，已停止批量写回，请刷新后重试。";
   const BATCH_SAVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，已停止批量写回，请刷新后重试。";
   const BATCH_SAVE_EMPTY_MESSAGE = "当前没有可写回的批量识别结果。";
+  const DIALECT_TAG_MAP = {
+    "#um": "#um",
+    "#hmm": "#hmm",
+    "#ah": "#ah",
+    "#eh": "#eh",
+    "<spk/>": "<SPK/>",
+    "<nps/>": "<NPS/>",
+  };
+  const DIALECT_TAG_MATCHER = /#(?:um|hmm|ah|eh)|<(?:SPK\/|NPS\/)>/gi;
+  let dialectTagSerial = 0;
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -1039,13 +1049,211 @@
     }
   }
 
-  function buildDialectStructuredValue(text) {
-    return JSON.stringify([
-      {
+  function normalizeDialectTag(value) {
+    const text = normalizeText(value);
+    return DIALECT_TAG_MAP[text] || DIALECT_TAG_MAP[text.toLowerCase()] || "";
+  }
+
+  function pushDialectTextToken(target, content) {
+    const text = String(content || "");
+    if (!text) {
+      return;
+    }
+    const list = Array.isArray(target) ? target : [];
+    const previous = list[list.length - 1];
+    if (previous && previous.type === "text") {
+      previous.content = String(previous.content || "") + text;
+      return;
+    }
+    list.push({
+      type: "text",
+      content: text,
+    });
+  }
+
+  function normalizeDialectTokenItem(item) {
+    if (!item || typeof item !== "object") {
+      return null;
+    }
+    const type = normalizeText(item.type).toLowerCase();
+    const content = String(item.content || "");
+    const normalizedTag = normalizeDialectTag(content);
+    if ((type === "tag" || type === "single") && normalizedTag) {
+      return {
+        type: "tag",
+        content: normalizedTag,
+      };
+    }
+    if (type === "text") {
+      return {
         type: "text",
-        content: String(text || ""),
-      },
-    ]);
+        content: content,
+      };
+    }
+    if (normalizedTag) {
+      return {
+        type: "tag",
+        content: normalizedTag,
+      };
+    }
+    if (content) {
+      return {
+        type: "text",
+        content: content,
+      };
+    }
+    return null;
+  }
+
+  function compactDialectTokens(tokens) {
+    const result = [];
+    (Array.isArray(tokens) ? tokens : []).forEach(function (item) {
+      const normalized = normalizeDialectTokenItem(item);
+      if (!normalized) {
+        return;
+      }
+      if (normalized.type === "tag") {
+        result.push(normalized);
+        return;
+      }
+      pushDialectTextToken(result, normalized.content);
+    });
+    return result;
+  }
+
+  function joinDialectTokens(tokens) {
+    return compactDialectTokens(tokens)
+      .map(function (item) {
+        return String(item.content || "");
+      })
+      .join("");
+  }
+
+  function parseDialectTokensFromInlineText(text) {
+    const source = String(text || "");
+    if (!source) {
+      return [];
+    }
+    const result = [];
+    let cursor = 0;
+    let matched;
+    DIALECT_TAG_MATCHER.lastIndex = 0;
+    while ((matched = DIALECT_TAG_MATCHER.exec(source))) {
+      if (matched.index > cursor) {
+        pushDialectTextToken(result, source.slice(cursor, matched.index));
+      }
+      result.push({
+        type: "tag",
+        content: normalizeDialectTag(matched[0]),
+      });
+      cursor = matched.index + matched[0].length;
+    }
+    if (cursor < source.length) {
+      pushDialectTextToken(result, source.slice(cursor));
+    }
+    return compactDialectTokens(result);
+  }
+
+  function normalizeDialectTokensInput(tokens, fallbackText) {
+    const normalized = compactDialectTokens(tokens);
+    if (normalized.length > 0) {
+      return normalized;
+    }
+    return parseDialectTokensFromInlineText(fallbackText);
+  }
+
+  function nextDialectTagId() {
+    dialectTagSerial += 1;
+    return "asc-lz-tag-" + String(Date.now()) + "-" + String(dialectTagSerial);
+  }
+
+  function buildDialectStructuredItems(value) {
+    const tokens = Array.isArray(value)
+      ? normalizeDialectTokensInput(value, "")
+      : normalizeDialectTokensInput([], value);
+    if (tokens.length <= 0) {
+      return [
+        {
+          type: "text",
+          content: String(Array.isArray(value) ? "" : value || ""),
+        },
+      ];
+    }
+    return tokens.map(function (token) {
+      if (token.type === "tag") {
+        return {
+          type: "single",
+          id: nextDialectTagId(),
+          content: token.content,
+        };
+      }
+      return {
+        type: "text",
+        content: String(token.content || ""),
+      };
+    });
+  }
+
+  function buildDialectStructuredValue(value) {
+    return JSON.stringify(buildDialectStructuredItems(value));
+  }
+
+  function buildDialectEditorHtml(value) {
+    const items =
+      Array.isArray(value) &&
+      value.every(function (item) {
+        const type = normalizeText(item?.type).toLowerCase();
+        return type === "text" || type === "single";
+      })
+        ? value
+        : buildDialectStructuredItems(value);
+    const contentHtml = items
+      .map(function (item) {
+        if (String(item.type || "") !== "single") {
+          return escapeHtml(item.content);
+        }
+        const tagId = escapeHtml(item.id || nextDialectTagId());
+        const tagLabel = escapeHtml(item.content);
+        return (
+          '<span data-tag-id="' +
+          tagId +
+          '" data-tag-label="' +
+          tagLabel +
+          '" data-type="single" class="tiptap-tag biaoqian_tag single-tag tiptap-tag biaoqian_tag tag-uuid-' +
+          tagId +
+          ' tag-uuid-' +
+          tagId +
+          '" contenteditable="false" style="background-color: rgb(254, 240, 215); color: white;">' +
+          '<span class="tag-display" style="pointer-events: none;">' +
+          tagLabel +
+          '</span><span class="tag-close biaoqian_tag_x" data-tag-close="true">×</span></span>'
+        );
+      })
+      .join("");
+    if (!contentHtml) {
+      return '<p><br class="ProseMirror-trailingBreak"></p>';
+    }
+    return (
+      "<p>" +
+      contentHtml +
+      '<img class="ProseMirror-separator" alt=""><br class="ProseMirror-trailingBreak"></p>'
+    );
+  }
+
+  function findStructuredTextareaHost(field, env) {
+    if (!isElementNode(field, env)) {
+      return null;
+    }
+    if (normalizeText(field.className || "").split(/\s+/).indexOf("textarea_class") >= 0) {
+      return field;
+    }
+    if (typeof field.closest === "function") {
+      const matched = field.closest(".textarea_class");
+      if (isElementNode(matched, env)) {
+        return matched;
+      }
+    }
+    return isElementNode(field.parentNode, env) ? field.parentNode : null;
   }
 
   function extractBatchSegmentTexts(row, template) {
@@ -1150,7 +1358,15 @@
     if (!dialectDescriptor || !mandarinDescriptor) {
       throw new Error("未找到当前段文本字段定义。");
     }
-    ensureTextAttr(rowAttrs, dialectDescriptor, buildDialectStructuredValue(result.dialectText || ""));
+    ensureTextAttr(
+      rowAttrs,
+      dialectDescriptor,
+      buildDialectStructuredValue(
+        Array.isArray(result.dialectTokens) && result.dialectTokens.length > 0
+          ? result.dialectTokens
+          : result.dialectText || ""
+      )
+    );
     ensureTextAttr(rowAttrs, mandarinDescriptor, String(result.mandarinText || ""));
     sourceRow.ann_data = Object.assign({}, annData, {
       attrs: rowAttrs,
@@ -1163,13 +1379,23 @@
 
   function normalizeBatchResultItem(item) {
     const source = item && typeof item === "object" ? item : {};
+    const fallbackDialectTokens = normalizeDialectTokensInput(
+      source.dialectTokens || source.refinedDialectTokens || source.audioDialectTokens,
+      ""
+    );
+    const dialectText = String(
+      source.dialectText ||
+        source.refinedDialectText ||
+        source.audioDialectText ||
+        source.dialect ||
+        joinDialectTokens(fallbackDialectTokens)
+    );
     return {
       uniqueId: normalizeText(source.uniqueId || source.unique_id),
       segmentNumber: Math.max(0, Math.round(Number(source.segmentNumber || 0)) || 0),
       selectionKey: normalizeText(source.selectionKey),
-      dialectText: String(
-        source.dialectText || source.refinedDialectText || source.audioDialectText || source.dialect || ""
-      ),
+      dialectText: dialectText,
+      dialectTokens: normalizeDialectTokensInput(fallbackDialectTokens, dialectText),
       mandarinText: String(
         source.mandarinText ||
           source.refinedMandarinText ||
@@ -1433,6 +1659,11 @@
       return String(field.value || "");
     }
     if (isContentEditableNode(field, env)) {
+      const structuredHost = findStructuredTextareaHost(field, env);
+      const modelValue = normalizeText(structuredHost?.getAttribute?.("modelvalue"));
+      if (modelValue) {
+        return decodeStructuredTextValue(modelValue);
+      }
       return normalizeText(field.textContent || field.innerText || "");
     }
     return "";
@@ -1451,6 +1682,30 @@
         ? "<p>" + escapeHtml(nextValue) + "</p>"
         : '<p><br class="ProseMirror-trailingBreak"></p>';
     }
+    field.dispatchEvent(createBubbledEvent("input"));
+    field.dispatchEvent(createBubbledEvent("change"));
+    field.blur();
+    return true;
+  }
+
+  function setStructuredTagFieldValue(field, value, env) {
+    if (!isTextInputNode(field, env) && !isContentEditableNode(field, env)) {
+      return false;
+    }
+    const tokens = Array.isArray(value)
+      ? normalizeDialectTokensInput(value, "")
+      : normalizeDialectTokensInput([], value);
+    const plainText = Array.isArray(value) ? joinDialectTokens(tokens) : String(value || "");
+    if (isTextInputNode(field, env)) {
+      return setTextFieldValue(field, plainText, env);
+    }
+    const structuredItems = buildDialectStructuredItems(tokens.length > 0 ? tokens : plainText);
+    const structuredHost = findStructuredTextareaHost(field, env);
+    if (structuredHost && typeof structuredHost.setAttribute === "function") {
+      structuredHost.setAttribute("modelvalue", JSON.stringify(structuredItems));
+    }
+    field.focus();
+    field.innerHTML = buildDialectEditorHtml(structuredItems);
     field.dispatchEvent(createBubbledEvent("input"));
     field.dispatchEvent(createBubbledEvent("change"));
     field.blur();
@@ -2457,7 +2712,7 @@
       const normalizedResults = (Array.isArray(source.results) ? source.results : [])
         .map(normalizeBatchResultItem)
         .filter(function (item) {
-          return item.uniqueId && (item.dialectText || item.mandarinText);
+          return item.uniqueId && (item.dialectText || item.mandarinText || item.dialectTokens.length > 0);
         });
       if (normalizedResults.length <= 0) {
         return {
@@ -2615,11 +2870,19 @@
       const dialectText = String(
         source.refinedDialectText || source.dialectText || source.audioDialectText || ""
       );
+      const dialectTokens = normalizeDialectTokensInput(
+        source.refinedDialectTokens || source.audioDialectTokens,
+        dialectText
+      );
       const mandarinText = String(
         source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
       );
-      const wroteDialect = dialectText
-        ? setTextFieldValue(dialectField, dialectText, env)
+      const wroteDialect = dialectText || dialectTokens.length > 0
+        ? setStructuredTagFieldValue(
+            dialectField,
+            dialectTokens.length > 0 ? dialectTokens : dialectText,
+            env
+          )
         : false;
       const wroteMandarin = mandarinText
         ? setTextFieldValue(mandarinField, mandarinText, env)
@@ -2646,7 +2909,8 @@
         };
       }
       const targetField = normalizeText(source.targetField).toLowerCase();
-      const text = String(source.text || "");
+      const tokens = normalizeDialectTokensInput(source.tokens, source.text || "");
+      const text = String(source.text || joinDialectTokens(tokens));
       if (!text) {
         return {
           ok: false,
@@ -2658,7 +2922,9 @@
         isDialectTarget ? ["标注文本", "柳州话", "转写文本"] : ["普通话顺滑", "普通话", "顺滑"],
         env
       );
-      const wrote = setTextFieldValue(field, text, env);
+      const wrote = isDialectTarget
+        ? setStructuredTagFieldValue(field, tokens.length > 0 ? tokens : text, env)
+        : setTextFieldValue(field, text, env);
       if (!wrote) {
         return {
           ok: false,

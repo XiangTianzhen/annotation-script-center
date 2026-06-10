@@ -159,6 +159,7 @@
         return {
           targetField: "dialect",
           text: String(source.audioDialectText || source.dialectText || ""),
+          tokens: Array.isArray(source.audioDialectTokens) ? source.audioDialectTokens.slice() : [],
         };
       case "audioMandarinText":
         return {
@@ -169,6 +170,7 @@
         return {
           targetField: "dialect",
           text: String(source.refinedDialectText || source.dialectText || ""),
+          tokens: Array.isArray(source.refinedDialectTokens) ? source.refinedDialectTokens.slice() : [],
         };
       case "refinedMandarinText":
         return {
@@ -188,6 +190,11 @@
       dialectText: String(
         source.refinedDialectText || source.dialectText || source.audioDialectText || ""
       ),
+      dialectTokens: Array.isArray(source.refinedDialectTokens)
+        ? source.refinedDialectTokens.slice()
+        : Array.isArray(source.audioDialectTokens)
+        ? source.audioDialectTokens.slice()
+        : [],
       mandarinText: String(
         source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
       ),
@@ -397,6 +404,7 @@
               segmentNumber: Number(task.segmentNumber || 0) || 0,
               selectionKey: normalizeText(task.selectionKey),
               dialectText: texts.dialectText,
+              dialectTokens: texts.dialectTokens,
               mandarinText: texts.mandarinText,
             });
           } else {
@@ -814,6 +822,7 @@
       selectionKey: lastRecommendation.selectionKey,
       targetField: target.targetField,
       text: target.text,
+      tokens: target.tokens,
     });
     runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
   }
@@ -1075,6 +1084,7 @@
         previewFailedPrefix: UI_COPY.previewFailedPrefix,
       },
       createBatchRecommendController: createBatchRecommendController,
+      resolveRecommendationFillTarget: resolveRecommendationFillTarget,
       resolveBatchRecommendationTexts: resolveBatchRecommendationTexts,
       buildRecommendationFailurePayload: buildRecommendationFailurePayload,
       handleRecommendationFailure: handleRecommendationFailure,

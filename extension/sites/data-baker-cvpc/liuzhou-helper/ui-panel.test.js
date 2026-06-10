@@ -674,8 +674,18 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     });
     runtime.renderRecommendation({
       success: true,
-      audioDialectText: "听音柳州话",
-      refinedDialectText: "修正柳州话",
+      audioDialectText: "听音#eh柳州话",
+      audioDialectTokens: [
+        { type: "text", content: "听音" },
+        { type: "tag", content: "#eh" },
+        { type: "text", content: "柳州话" },
+      ],
+      refinedDialectText: "修正#ah柳州话",
+      refinedDialectTokens: [
+        { type: "text", content: "修正" },
+        { type: "tag", content: "#ah" },
+        { type: "text", content: "柳州话" },
+      ],
       refinedMandarinText: "整理普通话",
       audioMandarinText: "整理普通话",
       usage: {
@@ -716,7 +726,9 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.match(middleText, /口语化/);
     assert.match(middleText, /人工确认/);
     assert.match(middleText, /音频听出的柳州话文本/);
-    assert.match(middleText, /听音柳州话/);
+    assert.match(middleText, /听音/);
+    assert.match(middleText, /#eh/);
+    assert.match(middleText, /柳州话/);
     assert.match(middleText, /AI 返回原始内容/);
     assert.match(middleText, /AI信息/);
     assert.match(middleText, /听音识别/);
@@ -727,7 +739,7 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.match(middleText, /输出：6/);
     assert.match(middleText, /输入：4/);
     assert.match(middleText, /输出：3/);
-    assert.match(middleText, /"audioDialectText": "听音柳州话"/);
+    assert.match(middleText, /"audioDialectText": "听音#eh柳州话"/);
     assert.match(middleText, /"timing":/);
     assert.doesNotMatch(middleText, /总输入/);
     assert.doesNotMatch(middleText, /总输出/);
@@ -735,10 +747,12 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.doesNotMatch(middleText, /音频的柳州话文本/);
     assert.doesNotMatch(middleText, /修正后的柳州话文本/);
     assert.doesNotMatch(middleText, /整理后的普通话文本/);
-    assert.doesNotMatch(collectText(panelNode), /听音柳州话/);
+    assert.doesNotMatch(collectText(panelNode), /听音#eh柳州话/);
     assert.doesNotMatch(collectText(panelNode), /建议 1/);
     assert.match(dialectText, /修正后的柳州话文本/);
-    assert.match(dialectText, /修正柳州话/);
+    assert.match(dialectText, /修正/);
+    assert.match(dialectText, /#ah/);
+    assert.match(dialectText, /柳州话/);
     assert.match(mandarinText, /整理后的普通话文本/);
     assert.match(mandarinText, /整理普通话/);
     assert.doesNotMatch(dialectText, /音频的柳州话文本/);
@@ -748,6 +762,8 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     const actionWrap = findNodeByClass(dialectCard, "recommend-item-action");
     assert.ok(textWrap);
     assert.ok(actionWrap);
+    assert.equal(dialectCard.querySelectorAll(".asc-tag-chip").length, 1);
+    assert.equal(middleNode.querySelectorAll(".asc-tag-chip").length >= 2, true);
     const metaDetails = findNodeByClass(middleNode, "meta-details");
     assert.ok(metaDetails);
     assert.equal(metaDetails.hasAttribute("open"), false);

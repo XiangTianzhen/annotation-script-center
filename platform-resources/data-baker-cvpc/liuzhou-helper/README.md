@@ -28,6 +28,10 @@
   - 字段内结果区当前固定展示两张最终结果卡：
     - `修正后的柳州话文本` -> `填入标注文本`
     - `整理后的普通话文本` -> `填入普通话顺滑`
+    - `标注文本` 当前作为唯一带标签字段，只联动 6 个有效标签：`#um / #hmm / #ah / #eh / <SPK/> / <NPS/>`
+    - `普通话顺滑` 当前始终保持纯文本，不写任何标签
+    - 柳州话字段当前直接写平台 tiptap 结构：文本片段用 `{type:"text"}`，标签片段用 `{type:"single",id,content}`
+    - 当前段定向填入、整卡填入和批量 `save_increment` 写回都会直接生成该结构，不再依赖页面“标签常用语”按钮回放
   - 两个定向填入动作当前都可在 options 页单独录制快捷键，默认不预置键位
   - 中间 AI 区当前新增 `批量识别并自动填入`（v1）：
     - 默认显示 `全部 + 段号选择框`
@@ -43,11 +47,12 @@
     - 目标段缺少文本 attr 时，当前会复用同音频其他段或模板里的 `标注文本 / 普通话顺滑` 字段定义补齐后再写回
     - 如果当前音频所有段都还没填过这两个文本字段，当前会回退使用脚本已知的文本字段 `unique_id` 兜底写回
     - Network 里旧版若看到多条相同 `GET /httpapi/annotation/annos`，它们属于分段状态读取，不是多次 `save_increment`
-  - `音频听出的柳州话文本 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
+  - `音频听出的柳州话文本 / 柳州话修正参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
   - `AI信息` 当前默认折叠但始终保留结构，点击 `展开查看 AI 信息` 后再展开查看附加信息和完整原始返回 JSON；即使模型输出 JSON 解析失败，这个区块也会保留
-  - `AI信息` 当前固定顺序展示 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
+  - `AI信息` 当前固定顺序展示 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
   - `AI 返回原始内容` 当前优先展示后端返回的 `debug/raw` 字段；成功态若没有单独返回 raw/debug，则回退展示当前结果对象的安全 JSON
   - `AI信息` 的两段阶段信息当前只显示 `模型 / 输入 / 输出`，不再展示 `总输入 / 总输出 / 总计`
+  - 后端返回 `audioDialectTokens / refinedDialectTokens` 时，`AI信息` 与字段结果卡当前会优先按 chip 渲染柳州话标签；token 缺失时再回退旧字符串展示
   - 两张结果卡在无结果时不显示占位文案；有结果时改成“文本左、按钮右”的紧凑布局，并统一使用系统蓝主调强化样式
   - `未填写补 Valid / 应用分段建议` 当前改成橙色实底 background 按钮，避免白底低对比
   - 分段建议当前改成“前端只传 URL + 阈值，后端直接整音频分析”：
@@ -72,7 +77,7 @@
   - 如果后续涉及整音频识别，仍继续使用页面真实公网 `audioUrl`
   - `listen` 当前固定回到“纯听音”职责：默认不再注入规则摘要、段时间、页面字段上下文或选中条目信息
   - 请求前会校验 options 首页 `AI 调用使用人`；请求体默认补齐 `aiUsageOperatorName / platformUserName / platformUserId`
-  - 当前段填入建议当前兼容页面 `contenteditable .ProseMirror`
+  - 当前段填入建议当前兼容页面 `contenteditable .ProseMirror`；柳州话字段读取时优先解析外层 `.textarea_class[modelvalue]`，避免把标签关闭按钮 `×` 误当正文
   - 当前段设为 `Valid / Invalid` 前会先检查当前单选状态，已是目标值时不重复点击
   - 当前音频内“未填写段落补为有效”当前改为读取 `annotation/annos` 后按左侧编号逐段补写，只处理未填写段，不覆盖已填 `Invalid`
   - 基础设置提供两个独立提示屏蔽开关，默认都可分别屏蔽“您正在编辑该作业,不能打开新的Tab页”“系统进入暂停状态”
@@ -118,9 +123,11 @@
     - `aiStages.refine`
   - 输出：
     - `audioDialectText`
+    - `audioDialectTokens`
     - `refinedMandarinText`
     - `audioMandarinText`
     - `refinedDialectText`
+    - `refinedDialectTokens`
     - legacy alias `dialectText = refinedDialectText`
     - legacy alias `mandarinText = refinedMandarinText`
     - `specialTags`
@@ -128,6 +135,11 @@
     - `notes`
     - `timing`
     - `models`
+  - 标签归一化：
+    - 当前只支持 6 个有效标签：`#um / #hmm / #ah / #eh / <SPK/> / <NPS/>`
+    - `标注文本` 标签前后若同时出现标点，会归一化为只保留标签后的标点
+    - `普通话顺滑` 禁止带标签；若模型输出了标签，后端会自动移除
+    - 若移除了非法标签、修正了重复标点或清掉了普通话标签，响应会补 `notes`，并把 `needHumanReview` 置为 `true`
 
 ## 画段契约
 

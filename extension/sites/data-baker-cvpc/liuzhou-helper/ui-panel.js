@@ -288,6 +288,9 @@
       "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-body { flex: 1 1 auto; min-width: 0; }",
       "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-body strong { font-size: 13px; }",
       "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-text { margin-top: 6px; color: #42506a; font-size: 13px; line-height: 1.7; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .asc-token-flow, [" + MIDDLE_AI_ATTR + "] .asc-token-flow { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .asc-token-text, [" + MIDDLE_AI_ATTR + "] .asc-token-text { color: #42506a; white-space: pre-wrap; }",
+      "[" + FIELD_RECOMMEND_ATTR + "] .asc-tag-chip, [" + MIDDLE_AI_ATTR + "] .asc-tag-chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; background: #fee8c8; color: #9a5b00; font-weight: 600; line-height: 1.4; }",
       "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-action { flex: 0 0 auto; margin-top: 0; display: flex; align-items: flex-start; justify-content: flex-end; }",
       "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-action button { border-color: var(--asc-primary-border); background: #fff; color: var(--asc-primary-strong); font-weight: 600; }",
       "[" + FIELD_RECOMMEND_ATTR + "] .recommend-item-action button:hover { background: #edf3ff; border-color: var(--asc-primary); color: var(--asc-primary); }",
@@ -485,7 +488,50 @@
     });
   }
 
-  function createRecommendationCard(title, value, buttonText, callback) {
+  function normalizeTokenItems(tokens) {
+    return (Array.isArray(tokens) ? tokens : [])
+      .map(function (item) {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        const type = normalizeText(item.type).toLowerCase();
+        if (type !== "tag" && type !== "text") {
+          return null;
+        }
+        return {
+          type: type,
+          content: String(item.content || ""),
+        };
+      })
+      .filter(function (item) {
+        return item && String(item.content || "");
+      });
+  }
+
+  function appendTokenDisplay(host, tokens, fallbackText) {
+    const target = host instanceof HTMLElement ? host : null;
+    if (!target) {
+      return;
+    }
+    const normalizedTokens = normalizeTokenItems(tokens);
+    if (normalizedTokens.length <= 0) {
+      target.textContent = String(fallbackText || "");
+      return;
+    }
+    clearNodeChildren(target);
+    const flow = document.createElement("div");
+    flow.className = "asc-token-flow";
+    normalizedTokens.forEach(function (item) {
+      const node = document.createElement("span");
+      node.className = item.type === "tag" ? "asc-tag-chip" : "asc-token-text";
+      node.textContent = String(item.content || "");
+      flow.appendChild(node);
+    });
+    target.appendChild(flow);
+  }
+
+  function createRecommendationCard(title, value, buttonText, callback, options) {
+    const settings = options && typeof options === "object" ? options : {};
     const box = document.createElement("div");
     box.className = "recommend-item";
     const content = document.createElement("div");
@@ -496,7 +542,7 @@
     titleNode.textContent = String(title || "");
     const valueNode = document.createElement("div");
     valueNode.className = "recommend-item-text";
-    valueNode.textContent = String(value || "");
+    appendTokenDisplay(valueNode, settings.tokens, value);
     body.appendChild(titleNode);
     body.appendChild(valueNode);
     content.appendChild(body);
@@ -848,23 +894,49 @@
         recommendationMetaNode.appendChild(box);
       });
       [
-        ["音频听出的柳州话文本", source.audioDialectText || source.dialectText || ""],
-        ["特殊标签", formatMetaValue(source.specialTags, " ")],
-        ["需人工复核", source.needHumanReview === true ? "是" : source.needHumanReview === false ? "否" : ""],
-        ["备注", formatMetaValue(source.notes, "；")],
-        ["AI 返回原始内容", rawText],
+        {
+          title: "音频听出的柳州话文本",
+          value: source.audioDialectText || source.dialectText || "",
+          tokens: source.audioDialectTokens,
+        },
+        {
+          title: "柳州话修正参考",
+          value: source.refinedDialectText || source.dialectText || "",
+          tokens: source.refinedDialectTokens,
+        },
+        {
+          title: "特殊标签",
+          value: formatMetaValue(source.specialTags, " "),
+        },
+        {
+          title: "需人工复核",
+          value: source.needHumanReview === true ? "是" : source.needHumanReview === false ? "否" : "",
+        },
+        {
+          title: "备注",
+          value: formatMetaValue(source.notes, "；"),
+        },
+        {
+          title: "AI 返回原始内容",
+          value: rawText,
+        },
       ].forEach(function (item) {
         const box = document.createElement("div");
         box.className = "meta-box";
-        if (item[0] === "AI 返回原始内容") {
+        if (item.title === "AI 返回原始内容") {
           const title = document.createElement("strong");
-          title.textContent = item[0];
+          title.textContent = item.title;
           const rawNode = document.createElement("pre");
-          rawNode.textContent = String(item[1] || "");
+          rawNode.textContent = String(item.value || "");
           box.appendChild(title);
           box.appendChild(rawNode);
         } else {
-          box.innerHTML = "<strong>" + item[0] + "</strong><div>" + String(item[1] || "") + "</div>";
+          const title = document.createElement("strong");
+          title.textContent = item.title;
+          const valueNode = document.createElement("div");
+          appendTokenDisplay(valueNode, item.tokens, item.value);
+          box.appendChild(title);
+          box.appendChild(valueNode);
         }
         recommendationMetaNode.appendChild(box);
       });
@@ -889,6 +961,7 @@
           host: dialectRecommendationNode,
           title: "修正后的柳州话文本",
           value: refinedDialectText,
+          tokens: result.refinedDialectTokens,
           buttonText: "填入标注文本",
           applyKey: "refinedDialectText",
         },
@@ -905,6 +978,8 @@
             if (typeof deps.onApplyRecommendationText === "function") {
               deps.onApplyRecommendationText(item.applyKey);
             }
+          }, {
+            tokens: item.tokens,
           })
         );
       });

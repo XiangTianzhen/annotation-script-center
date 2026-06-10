@@ -34,15 +34,28 @@ const SUPPORTED_SPECIAL_TAGS = [
   "#eh",
   "<SPK/>",
   "<NPS/>",
-  "<Unintelligible>",
-  "<Meaningless>",
 ];
+const SUPPORTED_SPECIAL_TAG_MAP = {
+  "#um": "#um",
+  "#hmm": "#hmm",
+  "#ah": "#ah",
+  "#eh": "#eh",
+  "<spk/>": "<SPK/>",
+  "<nps/>": "<NPS/>",
+};
+const INLINE_TAG_MATCHER = /#[a-zA-Z][a-zA-Z0-9_-]*|<[^>\r\n]+>/g;
+const INLINE_TAG_PLACEHOLDER_PREFIX = "ASCTAGTOKEN";
+const TAG_ADJACENT_PUNCTUATION_PATTERN = /[，。？！；]+$/;
+const TAG_LEADING_PUNCTUATION_PATTERN = /^[，。？！；]+/;
 const DEFAULT_LISTEN_PROMPT = [
   "请严格只根据当前段音频输出原始柳州话听音结果。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
   "JSON 字段固定为：audioDialectText, specialTags, needHumanReview, notes。",
   "audioDialectText 只写音频里的柳州话文本，不要输出普通话，不要做修正，不要自由推断。",
   "听不清必须保守，并把 needHumanReview 设为 true。",
+  "有效标签只允许：#um、#hmm、#ah、#eh、<SPK/>、<NPS/>。",
+  "标签直接内联写在柳州话文本里，例如：都七十岁了#eh，明日古稀了。",
+  "如果标签前后同时出现标点，只保留标签后的标点，不要输出“，#eh，”这种双侧标点。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
 ].join("\n");
 const DEFAULT_REFINE_PROMPT = [
@@ -52,6 +65,9 @@ const DEFAULT_REFINE_PROMPT = [
   "你会收到原始听音柳州话、词表优先生成的普通话草稿、页面字段上下文和词表命中片段。",
   "只做标点、断句、明显错字和顺滑修正，不做自由改写，不要偏离词表含义。",
   "若拿不准或需要保留歧义，必须把 needHumanReview 设为 true。",
+  "refinedDialectText 里的有效标签只允许：#um、#hmm、#ah、#eh、<SPK/>、<NPS/>。",
+  "refinedMandarinText 必须是纯文本，禁止输出任何标签。",
+  "如果标签前后同时出现标点，只保留标签后的标点，不要输出“，#eh，”这种双侧标点。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
 ].join("\n");
 let warnedLexiconReferenceOnly = false;
@@ -115,7 +131,7 @@ function normalizeAllowedPunctuation(text) {
 
 function normalizeSpecialTag(tag) {
   const text = normalizeText(tag);
-  return SUPPORTED_SPECIAL_TAGS.indexOf(text) >= 0 ? text : "";
+  return SUPPORTED_SPECIAL_TAG_MAP[text] || SUPPORTED_SPECIAL_TAG_MAP[text.toLowerCase()] || "";
 }
 
 function normalizeSpecialTags(value) {
@@ -135,6 +151,213 @@ function extractSupportedTagsFromText(text) {
   return SUPPORTED_SPECIAL_TAGS.filter(function (tag) {
     return value.indexOf(tag) >= 0;
   });
+}
+
+function collectSpecialTagsFromTokens(tokens) {
+  const result = [];
+  (Array.isArray(tokens) ? tokens : []).forEach(function (token) {
+    const tag = token && token.type === "tag" ? normalizeSpecialTag(token.content) : "";
+    if (!tag || result.indexOf(tag) >= 0) {
+      return;
+    }
+    result.push(tag);
+  });
+  return result;
+}
+
+function joinInlineTagTokens(tokens) {
+  return (Array.isArray(tokens) ? tokens : [])
+    .map(function (token) {
+      if (!token || typeof token !== "object") {
+        return "";
+      }
+      return String(token.content || "");
+    })
+    .join("");
+}
+
+function pushTextToken(target, content) {
+  const text = String(content || "");
+  if (!text) {
+    return;
+  }
+  const list = Array.isArray(target) ? target : [];
+  const previous = list[list.length - 1];
+  if (previous && previous.type === "text") {
+    previous.content = String(previous.content || "") + text;
+    return;
+  }
+  list.push({
+    type: "text",
+    content: text,
+  });
+}
+
+function pushTagToken(target, content) {
+  const tag = normalizeSpecialTag(content);
+  if (!tag) {
+    return;
+  }
+  const list = Array.isArray(target) ? target : [];
+  list.push({
+    type: "tag",
+    content: tag,
+  });
+}
+
+function compactInlineTagTokens(tokens) {
+  const result = [];
+  (Array.isArray(tokens) ? tokens : []).forEach(function (token) {
+    if (!token || typeof token !== "object") {
+      return;
+    }
+    if (token.type === "tag") {
+      pushTagToken(result, token.content);
+      return;
+    }
+    pushTextToken(result, token.content);
+  });
+  return result.filter(function (token) {
+    return normalizeText(token.content) || token.type === "tag" || String(token.content || "").length > 0;
+  });
+}
+
+function tokenizeInlineTagText(text, placeholders) {
+  const source = String(text || "");
+  const tagPlaceholders = Array.isArray(placeholders) ? placeholders : [];
+  if (!source) {
+    return [];
+  }
+  const placeholderMap = new Map(
+    tagPlaceholders.map(function (item) {
+      return [String(item.placeholder || ""), normalizeSpecialTag(item.tag)];
+    })
+  );
+  const placeholderPattern = new RegExp(INLINE_TAG_PLACEHOLDER_PREFIX + "\\d+__", "g");
+  const result = [];
+  let cursor = 0;
+  let matched;
+  while ((matched = placeholderPattern.exec(source))) {
+    if (matched.index > cursor) {
+      pushTextToken(result, source.slice(cursor, matched.index));
+    }
+    pushTagToken(result, placeholderMap.get(matched[0]));
+    cursor = matched.index + matched[0].length;
+  }
+  if (cursor < source.length) {
+    pushTextToken(result, source.slice(cursor));
+  }
+  return compactInlineTagTokens(result);
+}
+
+function normalizeTagAdjacentPunctuation(tokens) {
+  const source = compactInlineTagTokens(tokens);
+  let changed = false;
+  for (let index = 1; index < source.length - 1; index += 1) {
+    const current = source[index];
+    if (!current || current.type !== "tag") {
+      continue;
+    }
+    const previous = source[index - 1];
+    const next = source[index + 1];
+    if (!previous || previous.type !== "text" || !next || next.type !== "text") {
+      continue;
+    }
+    const previousText = String(previous.content || "");
+    const nextText = String(next.content || "");
+    if (!TAG_ADJACENT_PUNCTUATION_PATTERN.test(previousText) || !TAG_LEADING_PUNCTUATION_PATTERN.test(nextText)) {
+      continue;
+    }
+    const trimmedPrevious = previousText.replace(TAG_ADJACENT_PUNCTUATION_PATTERN, "");
+    if (trimmedPrevious !== previousText) {
+      previous.content = trimmedPrevious;
+      changed = true;
+    }
+  }
+  return {
+    changed,
+    tokens: compactInlineTagTokens(source),
+  };
+}
+
+function normalizeInlineTaggedDialectText(text, extraTags) {
+  const unsupportedTags = [];
+  const placeholders = [];
+  const placeholderText = String(text || "").replace(INLINE_TAG_MATCHER, function (match) {
+    const normalizedTag = normalizeSpecialTag(match);
+    if (!normalizedTag) {
+      unsupportedTags.push(normalizeText(match) || String(match || ""));
+      return "";
+    }
+    const placeholder = INLINE_TAG_PLACEHOLDER_PREFIX + String(placeholders.length) + "__";
+    placeholders.push({
+      placeholder,
+      tag: normalizedTag,
+    });
+    return placeholder;
+  });
+  const normalizedText = normalizeAllowedPunctuation(placeholderText);
+  const tokenized = tokenizeInlineTagText(normalizedText, placeholders);
+  const punctuationResult = normalizeTagAdjacentPunctuation(tokenized);
+  const tokens = punctuationResult.tokens;
+  const specialTags = normalizeSpecialTags(
+    collectSpecialTagsFromTokens(tokens).concat(normalizeSpecialTags(extraTags))
+  );
+  return {
+    text: joinInlineTagTokens(tokens),
+    tokens,
+    specialTags,
+    removedUnsupportedTags: unsupportedTags,
+    fixedAdjacentPunctuation: punctuationResult.changed,
+  };
+}
+
+function normalizeMandarinPlainText(text) {
+  const removedTags = [];
+  const withoutTags = String(text || "").replace(INLINE_TAG_MATCHER, function (match) {
+    const normalizedTag = normalizeSpecialTag(match);
+    if (normalizedTag) {
+      removedTags.push(normalizedTag);
+    }
+    return "";
+  });
+  return {
+    text: normalizeAllowedPunctuation(withoutTags),
+    removedTags,
+  };
+}
+
+function appendRequiredNotes(baseNotes, additions) {
+  return normalizeNotes([].concat(baseNotes || [], additions || []));
+}
+
+function buildTagNormalizationNotes(result, options) {
+  const source = result && typeof result === "object" ? result : {};
+  const currentOptions = options && typeof options === "object" ? options : {};
+  const notes = [];
+  if (Array.isArray(source.removedUnsupportedTags) && source.removedUnsupportedTags.length > 0) {
+    notes.push(
+      "已移除不支持的标签：" +
+        normalizeList(source.removedUnsupportedTags, 8).join("、")
+    );
+  }
+  if (source.fixedAdjacentPunctuation) {
+    notes.push("已修正标签前后重复标点，仅保留标签后的标点。");
+  }
+  if (Array.isArray(currentOptions.removedMandarinTags) && currentOptions.removedMandarinTags.length > 0) {
+    notes.push("普通话顺滑中检测到标签，已自动移除。");
+  }
+  return notes;
+}
+
+function appendPromptRequirements(prompt, requiredLines) {
+  const lines = [String(prompt || "").trim()]
+    .concat(Array.isArray(requiredLines) ? requiredLines : [])
+    .map(function (item) {
+      return String(item || "").trim();
+    })
+    .filter(Boolean);
+  return lines.join("\n");
 }
 
 function normalizeNotes(value) {
@@ -182,27 +405,35 @@ function parseCsvLine(text) {
 
 function normalizeListenStageOutput(value) {
   const source = value && typeof value === "object" ? value : {};
-  const audioDialectText = normalizeAllowedPunctuation(
-    source.audioDialectText || source.dialectText || source.heardText || source.text || source.transcript || ""
+  const normalizedDialect = normalizeInlineTaggedDialectText(
+    source.audioDialectText || source.dialectText || source.heardText || source.text || source.transcript || "",
+    source.specialTags
   );
-  const specialTags = normalizeSpecialTags(source.specialTags).concat(
-    extractSupportedTagsFromText(audioDialectText)
+  const notes = appendRequiredNotes(
+    source.notes,
+    buildTagNormalizationNotes(normalizedDialect)
   );
   return {
-    audioDialectText,
+    audioDialectText: normalizedDialect.text,
+    audioDialectTokens: normalizedDialect.tokens,
     audioMandarinText: "",
-    specialTags: normalizeSpecialTags(specialTags),
-    needHumanReview: source.needHumanReview === true || !audioDialectText,
-    notes: normalizeNotes(source.notes),
+    specialTags: normalizedDialect.specialTags,
+    needHumanReview:
+      source.needHumanReview === true ||
+      !normalizedDialect.text ||
+      normalizedDialect.removedUnsupportedTags.length > 0 ||
+      normalizedDialect.fixedAdjacentPunctuation === true,
+    notes: notes,
   };
 }
 
 function normalizeRefineStageOutput(value) {
   const source = value && typeof value === "object" ? value : {};
-  const refinedDialectText = normalizeAllowedPunctuation(
-    source.refinedDialectText || source.dialectText || source.recommendedDialectText || source.recommendedText || ""
+  const normalizedDialect = normalizeInlineTaggedDialectText(
+    source.refinedDialectText || source.dialectText || source.recommendedDialectText || source.recommendedText || "",
+    source.specialTags
   );
-  const refinedMandarinText = normalizeAllowedPunctuation(
+  const normalizedMandarin = normalizeMandarinPlainText(
     source.refinedMandarinText ||
       source.mandarinText ||
       source.recommendedMandarinText ||
@@ -210,11 +441,25 @@ function normalizeRefineStageOutput(value) {
       source.plainMandarinText ||
       ""
   );
+  const notes = appendRequiredNotes(
+    source.notes,
+    buildTagNormalizationNotes(normalizedDialect, {
+      removedMandarinTags: normalizedMandarin.removedTags,
+    })
+  );
   return {
-    refinedDialectText,
-    refinedMandarinText,
-    needHumanReview: source.needHumanReview === true || !refinedDialectText || !refinedMandarinText,
-    notes: normalizeNotes(source.notes),
+    refinedDialectText: normalizedDialect.text,
+    refinedDialectTokens: normalizedDialect.tokens,
+    refinedMandarinText: normalizedMandarin.text,
+    specialTags: normalizedDialect.specialTags,
+    needHumanReview:
+      source.needHumanReview === true ||
+      !normalizedDialect.text ||
+      !normalizedMandarin.text ||
+      normalizedDialect.removedUnsupportedTags.length > 0 ||
+      normalizedDialect.fixedAdjacentPunctuation === true ||
+      normalizedMandarin.removedTags.length > 0,
+    notes: notes,
   };
 }
 
@@ -502,7 +747,13 @@ function buildListenPrompt(request, assetsContext) {
   }
   promptLines.push("请仅根据当前段音频输出 JSON。");
   return {
-    systemPrompt: String(request.aiStages?.listen?.prompt || DEFAULT_LISTEN_PROMPT),
+    systemPrompt: appendPromptRequirements(
+      request.aiStages?.listen?.prompt || DEFAULT_LISTEN_PROMPT,
+      [
+        "有效标签只允许：#um、#hmm、#ah、#eh、<SPK/>、<NPS/>。",
+        "如果标签前后同时出现标点，只保留标签后的标点。",
+      ]
+    ),
     userPrompt: promptLines.join("\n"),
   };
 }
@@ -520,7 +771,14 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
     request.editorContext?.selectedEntry?.name,
   ]);
   return {
-    systemPrompt: String(request.aiStages?.refine?.prompt || DEFAULT_REFINE_PROMPT),
+    systemPrompt: appendPromptRequirements(
+      request.aiStages?.refine?.prompt || DEFAULT_REFINE_PROMPT,
+      [
+        "refinedDialectText 有效标签只允许：#um、#hmm、#ah、#eh、<SPK/>、<NPS/>。",
+        "refinedMandarinText 必须是纯文本，禁止输出标签。",
+        "如果标签前后同时出现标点，只保留标签后的标点。",
+      ]
+    ),
     userPrompt: [
       "项目规则摘要：",
       buildRulesExcerpt(assetsContext),
@@ -639,6 +897,7 @@ async function runListenStage(request, assetsContext, deps) {
   const normalized = normalizeListenStageOutput(parsed);
   return {
     audioDialectText: normalized.audioDialectText,
+    audioDialectTokens: normalized.audioDialectTokens,
     audioMandarinText: "",
     specialTags: normalized.specialTags,
     needHumanReview: normalized.needHumanReview,
@@ -688,7 +947,9 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
   );
   return {
     refinedDialectText,
+    refinedDialectTokens: normalized.refinedDialectTokens,
     refinedMandarinText,
+    specialTags: normalized.specialTags,
     needHumanReview:
       normalized.needHumanReview === true || !refinedDialectText || !refinedMandarinText,
     notes: normalized.notes,
@@ -722,12 +983,20 @@ async function recommend(request, assetsContext, overrides) {
   );
   return {
     audioDialectText,
+    audioDialectTokens: Array.isArray(listenResult.audioDialectTokens)
+      ? listenResult.audioDialectTokens.slice()
+      : [],
     audioMandarinText: refinedMandarinText,
     refinedDialectText,
+    refinedDialectTokens: Array.isArray(refineResult.refinedDialectTokens)
+      ? refineResult.refinedDialectTokens.slice()
+      : [],
     refinedMandarinText,
     dialectText: refinedDialectText,
     mandarinText: refinedMandarinText,
-    specialTags: normalizeSpecialTags(listenResult.specialTags),
+    specialTags: normalizeSpecialTags(
+      [].concat(refineResult.specialTags || [], listenResult.specialTags || [])
+    ),
     needHumanReview:
       listenResult.needHumanReview === true ||
       refineResult.needHumanReview === true ||
@@ -753,8 +1022,10 @@ function buildRecommendSuccessBody(context) {
     success: true,
     requestId: normalizeText(source.requestId || source.normalizedRequest?.requestId),
     audioDialectText: normalizeText(result.audioDialectText),
+    audioDialectTokens: Array.isArray(result.audioDialectTokens) ? result.audioDialectTokens.slice() : [],
     audioMandarinText: normalizeText(result.audioMandarinText || result.refinedMandarinText || result.mandarinText),
     refinedDialectText: normalizeText(result.refinedDialectText || result.dialectText),
+    refinedDialectTokens: Array.isArray(result.refinedDialectTokens) ? result.refinedDialectTokens.slice() : [],
     refinedMandarinText: normalizeText(result.refinedMandarinText || result.mandarinText || result.audioMandarinText),
     dialectText: normalizeText(result.refinedDialectText || result.dialectText),
     mandarinText: normalizeText(result.refinedMandarinText || result.mandarinText || result.audioMandarinText),
@@ -784,6 +1055,7 @@ function buildRecommendErrorBody(context) {
   const specialTags = normalizeSpecialTags(error.specialTags);
   const notes = normalizeNotes(error.notes);
   const audioDialectText = normalizeText(error.audioDialectText || error.dialectText);
+  const audioDialectTokens = Array.isArray(error.audioDialectTokens) ? error.audioDialectTokens.slice() : [];
   if (rawResponse) {
     body.rawResponse = rawResponse;
   }
@@ -811,6 +1083,9 @@ function buildRecommendErrorBody(context) {
   if (audioDialectText) {
     body.audioDialectText = audioDialectText;
   }
+  if (audioDialectTokens.length > 0) {
+    body.audioDialectTokens = audioDialectTokens;
+  }
   return body;
 }
 
@@ -824,7 +1099,9 @@ module.exports = {
   SUPPORTED_SPECIAL_TAGS,
   __testOnly: {
     buildMandarinDraftFromLexicon,
+    collectSpecialTagsFromTokens,
     normalizeAllowedPunctuation,
+    normalizeInlineTaggedDialectText,
     normalizeListenStageOutput,
     normalizeRefineStageOutput,
     normalizeSpecialTags,

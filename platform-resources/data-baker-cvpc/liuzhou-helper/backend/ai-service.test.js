@@ -336,7 +336,17 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
     requestId: "req-1",
     data: {
       audioDialectText: "听音柳州话。",
+      audioDialectTokens: [
+        { type: "text", content: "听音" },
+        { type: "tag", content: "#eh" },
+        { type: "text", content: "柳州话。" },
+      ],
       refinedDialectText: "修正柳州话。",
+      refinedDialectTokens: [
+        { type: "text", content: "修正" },
+        { type: "tag", content: "<SPK/>" },
+        { type: "text", content: "柳州话。" },
+      ],
       refinedMandarinText: "整理普通话。",
       audioMandarinText: "整理普通话。",
       specialTags: ["#um", "<SPK/>"],
@@ -368,8 +378,18 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
     success: true,
     requestId: "req-1",
     audioDialectText: "听音柳州话。",
+    audioDialectTokens: [
+      { type: "text", content: "听音" },
+      { type: "tag", content: "#eh" },
+      { type: "text", content: "柳州话。" },
+    ],
     audioMandarinText: "整理普通话。",
     refinedDialectText: "修正柳州话。",
+    refinedDialectTokens: [
+      { type: "text", content: "修正" },
+      { type: "tag", content: "<SPK/>" },
+      { type: "text", content: "柳州话。" },
+    ],
     refinedMandarinText: "整理普通话。",
     dialectText: "修正柳州话。",
     mandarinText: "整理普通话。",
@@ -438,12 +458,13 @@ test("liuzhou recommend runs listen plus refine stages and returns heard dialect
       },
       requestOmniInputAudio: async function (input, prompt, options) {
         assert.equal(typeof prompt.systemPrompt, "string");
+        assert.match(prompt.systemPrompt || "", /#um/);
+        assert.match(prompt.systemPrompt || "", /<SPK\/>/);
         assert.equal(input.audioDataUrl, "data:audio/wav;base64,UklGRg==");
         assert.equal(input.audioUrl, "");
         return {
           rawText: JSON.stringify({
-            audioDialectText: "柳",
-            specialTags: ["#um"],
+            audioDialectText: "柳#um",
             needHumanReview: false,
             notes: ["听音备注"],
           }),
@@ -457,12 +478,12 @@ test("liuzhou recommend runs listen plus refine stages and returns heard dialect
         };
       },
       requestTextCompareJson: async function (_input, prompt, options) {
-        assert.match(prompt.userPrompt || "", /"audioDialectText": "柳。"/);
+        assert.match(prompt.userPrompt || "", /"audioDialectText": "柳#um。"/);
         assert.match(prompt.userPrompt || "", /柳树/);
         assert.equal(options?.stage, "refine");
         return {
           rawText: JSON.stringify({
-            refinedDialectText: "修正柳州话",
+            refinedDialectText: "修正#ah柳州话",
             refinedMandarinText: "整理普通话",
             needHumanReview: false,
             notes: ["修正备注"],
@@ -479,11 +500,21 @@ test("liuzhou recommend runs listen plus refine stages and returns heard dialect
     }
   );
 
-  assert.equal(result.audioDialectText, "柳。");
+  assert.equal(result.audioDialectText, "柳#um。");
   assert.equal(result.audioMandarinText, "整理普通话。");
-  assert.equal(result.refinedDialectText, "修正柳州话。");
+  assert.equal(result.refinedDialectText, "修正#ah柳州话。");
   assert.equal(result.refinedMandarinText, "整理普通话。");
-  assert.deepEqual(result.specialTags, ["#um"]);
+  assert.deepEqual(result.audioDialectTokens, [
+    { type: "text", content: "柳" },
+    { type: "tag", content: "#um" },
+    { type: "text", content: "。" },
+  ]);
+  assert.deepEqual(result.refinedDialectTokens, [
+    { type: "text", content: "修正" },
+    { type: "tag", content: "#ah" },
+    { type: "text", content: "柳州话。" },
+  ]);
+  assert.deepEqual(result.specialTags, ["#ah", "#um"]);
   assert.deepEqual(result.notes, ["听音备注", "修正备注"]);
   assert.equal(result.models?.listenModel, "qwen3.5-omni-flash");
   assert.equal(result.models?.refineModel, "qwen3.5-plus");
@@ -507,7 +538,7 @@ test("liuzhou recommend accepts current-segment base64 audio without legacy clip
       requestOmniInputAudio: async function () {
         return {
           rawText: JSON.stringify({
-            audioDialectText: "听音柳州话",
+            audioDialectText: "听音#eh柳州话",
           }),
           model: "qwen3.5-omni-flash",
           usage: {},
@@ -516,7 +547,7 @@ test("liuzhou recommend accepts current-segment base64 audio without legacy clip
       requestTextCompareJson: async function () {
         return {
           rawText: JSON.stringify({
-            refinedDialectText: "修正柳州话",
+            refinedDialectText: "修正#eh柳州话",
             refinedMandarinText: "整理普通话",
           }),
           model: "qwen3.5-plus",
@@ -526,9 +557,9 @@ test("liuzhou recommend accepts current-segment base64 audio without legacy clip
     }
   );
 
-  assert.equal(result.audioDialectText, "听音柳州话。");
+  assert.equal(result.audioDialectText, "听音#eh柳州话。");
   assert.equal(result.audioMandarinText, "整理普通话。");
-  assert.equal(result.refinedDialectText, "修正柳州话。");
+  assert.equal(result.refinedDialectText, "修正#eh柳州话。");
   assert.equal(result.refinedMandarinText, "整理普通话。");
 });
 
@@ -607,15 +638,52 @@ test("liuzhou recommend keeps whole-audio url compatibility for omni listen stag
 
 test("liuzhou listen normalization keeps punctuation and allowed tags without fabricating mandarin text", function () {
   const output = __testOnly.normalizeListenStageOutput({
-    audioDialectText: "《挨卵》啊?",
+    audioDialectText: "《挨卵》#um啊?",
     specialTags: ["#um", "<Bad/>", "<SPK/>"],
     notes: ["  第一条  ", "", "第二条"],
   });
 
-  assert.equal(output.audioDialectText, "挨卵啊？");
+  assert.equal(output.audioDialectText, "挨卵#um啊？");
   assert.equal(output.audioMandarinText, "");
+  assert.deepEqual(output.audioDialectTokens, [
+    { type: "text", content: "挨卵" },
+    { type: "tag", content: "#um" },
+    { type: "text", content: "啊？" },
+  ]);
   assert.deepEqual(output.specialTags, ["#um", "<SPK/>"]);
   assert.deepEqual(output.notes, ["第一条", "第二条"]);
+});
+
+test("liuzhou listen normalization removes unsupported tags and flags manual review", function () {
+  const output = __testOnly.normalizeListenStageOutput({
+    audioDialectText: "走路<Bad/>望望",
+    specialTags: [],
+    notes: [],
+  });
+
+  assert.equal(output.audioDialectText, "走路望望。");
+  assert.deepEqual(output.audioDialectTokens, [
+    { type: "text", content: "走路望望。" },
+  ]);
+  assert.equal(output.needHumanReview, true);
+  assert.match(output.notes.join(" "), /不支持/);
+});
+
+test("liuzhou listen normalization removes duplicated punctuation around tags", function () {
+  const output = __testOnly.normalizeListenStageOutput({
+    audioDialectText: "都七十岁了，#eh，明日古稀了",
+    specialTags: [],
+    notes: [],
+  });
+
+  assert.equal(output.audioDialectText, "都七十岁了#eh，明日古稀了。");
+  assert.deepEqual(output.audioDialectTokens, [
+    { type: "text", content: "都七十岁了" },
+    { type: "tag", content: "#eh" },
+    { type: "text", content: "，明日古稀了。" },
+  ]);
+  assert.equal(output.needHumanReview, true);
+  assert.match(output.notes.join(" "), /重复标点/);
 });
 
 test("liuzhou buildRecommendErrorBody exposes sanitized debug fields for frontend additional info", function () {
@@ -645,6 +713,11 @@ test("liuzhou buildRecommendErrorBody exposes sanitized debug fields for fronten
       needHumanReview: true,
       notes: ["保守处理"],
       audioDialectText: "原始柳州话",
+      audioDialectTokens: [
+        { type: "text", content: "原始" },
+        { type: "tag", content: "#hmm" },
+        { type: "text", content: "柳州话" },
+      ],
     },
   });
 
@@ -674,5 +747,10 @@ test("liuzhou buildRecommendErrorBody exposes sanitized debug fields for fronten
     needHumanReview: true,
     notes: ["保守处理"],
     audioDialectText: "原始柳州话",
+    audioDialectTokens: [
+      { type: "text", content: "原始" },
+      { type: "tag", content: "#hmm" },
+      { type: "text", content: "柳州话" },
+    ],
   });
 });

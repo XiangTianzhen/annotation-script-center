@@ -1,3 +1,41 @@
+## 2026-06-10（DataBaker CVPC 柳州话标签联动与结构化写回）
+
+- `DataBaker CVPC / 柳州话脚本` 当前完成一轮标签联动收口：
+  - 后端 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 当前把模型输出从“可读内联标签字符串”统一归一化为结构化 token，并继续保留兼容字符串字段
+  - 当前只联动 6 个有效标签：`#um / #hmm / #ah / #eh / <SPK/> / <NPS/>`
+  - `标注文本` 当前作为唯一带标签字段；`普通话顺滑` 始终保持纯文本，不写任何标签
+  - `ai/recommend` 成功响应当前新增 `audioDialectTokens / refinedDialectTokens`；失败响应在已有听音结果时也会补 `audioDialectTokens`
+  - 若识别结果里出现非法标签，或命中 `标点 + 标签 + 标点`，后端当前会自动归一化并补 `notes`，同时把 `needHumanReview` 置为 `true`
+- 前端 `extension/sites/data-baker-cvpc/liuzhou-helper/` 当前同步改为结构化标签写入：
+  - `data-api.js` 当前读取柳州话字段时优先解析 `.textarea_class[modelvalue]`，避免把标签关闭按钮 `×` 误读进正文
+  - 当前段填入、字段卡定向填入和批量 `save_increment` 写回，当前统一生成平台 `text/single` 混合数组
+  - `AI信息` 与字段结果卡当前优先按 chip 渲染 `audioDialectTokens / refinedDialectTokens`
+  - 批量成功段缓存当前会同步携带 `dialectTokens`，不再只传纯字符串
+- 本轮同步更新：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-rules.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --test platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+
 ## 2026-06-10（DataBaker CVPC 柳州话分段前后补偿改为可配置）
 
 - `DataBaker CVPC / 柳州话脚本` 当前把分段建议里的“前后补偿”从固定 `0.1s` 改成可配置项：
