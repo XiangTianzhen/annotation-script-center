@@ -72,6 +72,7 @@
     - 对不上时回退按锁定时的 `selectionKey(start/end)` 近似对齐
     - 不再要求 latest `annotation/annos` 的全量 `unique_id` 列表与启动快照完全一致
     - 如果目标段本身还没有 `标注文本 / 普通话顺滑` attr，会复用同音频其他段或模板里的文本字段定义补齐后再写回
+    - 如果当前音频所有段都还没填过这两个文本字段，当前会回退使用脚本已知的文本字段 `unique_id` 兜底写回
   - Network 里旧版若看到多条相同 `GET /httpapi/annotation/annos`，它们属于批量阶段的状态读取，不是多次 `save_increment`；当前批量链路已收口重复上下文刷新
 - 当前段 `Valid / Invalid` 快捷切换
 - 当前段 `Valid / Invalid` 在点击前会先检查当前单选状态；已是目标值时不再重复点击

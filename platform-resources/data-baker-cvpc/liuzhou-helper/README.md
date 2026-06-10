@@ -41,6 +41,7 @@
     - 写回前当前只校验 live `selectedEntryName`，并在识别当前文件名时避开左侧 `音频列表` 内的 `.mp3` 文本，减少“当前页面分段状态已变化”误报
     - 最终写回当前按成功段逐段对齐 latest rows：优先对齐 `uniqueId`，对不上时回退按锁定的 `selectionKey(start/end)` 近似匹配；不再要求 latest `annotation/annos` 全量 `unique_id` 列表完全一致
     - 目标段缺少文本 attr 时，当前会复用同音频其他段或模板里的 `标注文本 / 普通话顺滑` 字段定义补齐后再写回
+    - 如果当前音频所有段都还没填过这两个文本字段，当前会回退使用脚本已知的文本字段 `unique_id` 兜底写回
     - Network 里旧版若看到多条相同 `GET /httpapi/annotation/annos`，它们属于分段状态读取，不是多次 `save_increment`
   - `音频听出的柳州话文本 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
   - `AI信息` 当前默认折叠但始终保留结构，点击 `展开查看 AI 信息` 后再展开查看附加信息和完整原始返回 JSON；即使模型输出 JSON 解析失败，这个区块也会保留

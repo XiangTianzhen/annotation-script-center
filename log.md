@@ -5122,6 +5122,9 @@
 - 修复 `批量识别并自动填入` 在部分空白文本段上误报“当前页面分段状态已变化，已停止批量写回，请刷新后重试。”：
   - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 当前在批量写回前，会先从同音频其他段或模板里复用 `标注文本 / 普通话顺滑` 字段定义；目标段本身缺少 text attr 时不再直接 fail closed。
   - 保持原有安全边界：仍然只按成功段更新，仍然优先按 `uniqueId`、失败时回退按 `selectionKey(start/end)` 对齐 latest rows。
+- 2026-06-10 补充小修：
+  - 针对 `annotation/annos` 所有 instance 行都只有 `是否有效（Valid or Not）`、完全没有 `标注文本 / 普通话顺滑` attr 的场景，批量写回当前新增脚本级 fallback descriptor。
+  - 当页面模板和同音频所有段都拿不到文本字段定义时，会回退使用该脚本已知的两条文本字段 `unique_id` 继续构造 `save_increment`，避免再次误报“当前页面分段状态已变化”。
 - 批量入口 UI 当前从“文本范围输入”改为“全部 + 段号选择框”：
   - 默认全选当前音频全部段。
   - 支持点击单段和拖动连续选择。

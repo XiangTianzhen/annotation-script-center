@@ -12,6 +12,18 @@
   const VALID_LABELS = ["是（Valid）", "是(Valid)", "Valid"];
   const INVALID_LABELS = ["否（Invalid）", "否(Invalid)", "Invalid"];
   const APPLY_TOLERANCE_MS = 80;
+  const FALLBACK_BATCH_TEXT_ATTR_DEFINITIONS = {
+    dialectDescriptor: {
+      uniqueId: "e274c2ef-0cf1-4ffd-89a9-b5ed1956f1b0",
+      name: "标注文本",
+      inputType: "text",
+    },
+    mandarinDescriptor: {
+      uniqueId: "aa56b471-439c-40c8-a312-ffed964d20ad",
+      name: "普通话顺滑",
+      inputType: "text",
+    },
+  };
   const PREVIEW_STALE_MESSAGE = "当前音频或段选择已变化，旧分段建议已失效，请重新生成。";
   const PREVIEW_LIVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，旧分段建议已失效，请重新生成。";
   const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的分段建议，请先生成分段建议。";
@@ -1086,6 +1098,13 @@
       if (dialectDescriptor && mandarinDescriptor) {
         break;
       }
+    }
+
+    if (!dialectDescriptor) {
+      dialectDescriptor = Object.assign({}, FALLBACK_BATCH_TEXT_ATTR_DEFINITIONS.dialectDescriptor);
+    }
+    if (!mandarinDescriptor) {
+      mandarinDescriptor = Object.assign({}, FALLBACK_BATCH_TEXT_ATTR_DEFINITIONS.mandarinDescriptor);
     }
 
     return {

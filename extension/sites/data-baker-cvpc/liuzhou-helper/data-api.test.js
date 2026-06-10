@@ -3592,6 +3592,173 @@ test("CVPC data api applyBatchTextRecommendations reuses text attr descriptors f
   ]);
 });
 
+test("CVPC data api applyBatchTextRecommendations falls back to known text attrs when every segment is blank", async function () {
+  const dataApiModule = loadDataApiModule();
+  const template = {
+    attrs: [],
+    entry_attrs: [],
+    moment_attrs: [],
+  };
+  const annosPayload = [
+    {
+      entry_index: 1,
+      entry_id: 1,
+      unique_id: "region-1",
+      ann_scope: "instance",
+      start_second: 9.18322163714696,
+      end_second: 10.000498643689165,
+      ann_data: {
+        attrs: [
+          {
+            unique_id: "3f6ceb6b-b1ab-4cdb-aaea-f6910c41e70b",
+            name: "是否有效（Valid or Not）",
+            values: [{ unique_id: "7afb0829-9777-490a-8ce0-3b03de021ff3", name: "是（Valid）" }],
+            input_type: "radio",
+          },
+        ],
+        attr_version: "v1",
+      },
+      source: "manual",
+      status: "valid",
+      track_id: "-1",
+      shape: "section",
+      camera_name: "cam1",
+      asr_is_done: 1,
+      is_update_position: 0,
+      is_update_labelattr: 1,
+    },
+    {
+      entry_index: 1,
+      entry_id: 1,
+      unique_id: "region-2",
+      ann_scope: "instance",
+      start_second: 10.52058401148875,
+      end_second: 12.957555449178235,
+      ann_data: {
+        attrs: [
+          {
+            unique_id: "3f6ceb6b-b1ab-4cdb-aaea-f6910c41e70b",
+            name: "是否有效（Valid or Not）",
+            values: [{ unique_id: "7afb0829-9777-490a-8ce0-3b03de021ff3", name: "是（Valid）" }],
+            input_type: "radio",
+          },
+        ],
+        attr_version: "v1",
+      },
+      source: "manual",
+      status: "valid",
+      track_id: "-1",
+      shape: "section",
+      camera_name: "cam2",
+      asr_is_done: 1,
+      is_update_position: 0,
+      is_update_labelattr: 1,
+    },
+    {
+      entry_index: 1,
+      entry_id: 1,
+      unique_id: "entry-scope",
+      ann_scope: "entry",
+      ann_data: {
+        attrs: [],
+        attr_version: "v1",
+      },
+      source: "manual",
+      status: "valid",
+    },
+  ];
+
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 9183,
+        endMs: 10000,
+        segmentNumber: 1,
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 10521,
+        endMs: 12958,
+        segmentNumber: 2,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      { template: template }
+    ),
+    annosPayload: annosPayload,
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer batch-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  const result = await runtime.applyBatchTextRecommendations({
+    selectedEntryName: "sample-a.mp3",
+    expectedSegmentCount: 2,
+    results: [
+      {
+        uniqueId: "region-1",
+        segmentNumber: 1,
+        selectionKey: "sample-a.mp3|9183|10000",
+        dialectText: "走路望望。",
+        mandarinText: "走路看看。",
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    savedCount: 1,
+    message: "已通过平台保存接口写回 1 段批量识别结果，页面即将刷新。",
+  });
+  const saveRequest = harness.fetchRequests.find(function (request) {
+    return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+  });
+  assert.ok(saveRequest);
+  const body = JSON.parse(saveRequest.init.body);
+  assert.equal(body.update[0].unique_id, "region-1");
+  assert.deepEqual(body.update[0].ann_data.attrs, [
+    {
+      unique_id: "3f6ceb6b-b1ab-4cdb-aaea-f6910c41e70b",
+      name: "是否有效（Valid or Not）",
+      values: [{ unique_id: "7afb0829-9777-490a-8ce0-3b03de021ff3", name: "是（Valid）" }],
+      input_type: "radio",
+    },
+    {
+      unique_id: "e274c2ef-0cf1-4ffd-89a9-b5ed1956f1b0",
+      name: "标注文本",
+      input_type: "text",
+      values: ['[{"type":"text","content":"走路望望。"}]'],
+    },
+    {
+      unique_id: "aa56b471-439c-40c8-a312-ffed964d20ad",
+      name: "普通话顺滑",
+      input_type: "text",
+      values: ["走路看看。"],
+    },
+  ]);
+});
+
 test("CVPC data api applyBatchTextRecommendations fails closed when auth snapshot is missing", async function () {
   const dataApiModule = loadDataApiModule();
   const template = createBatchMomentTemplate();
