@@ -2,8 +2,11 @@
   const SOURCE = "ASR_EDGE_DATABAKER_CVPC_LIUZHOU_AUDIO_OBSERVER";
   const MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
   const META_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
+  const AUTH_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_REQUEST_AUTH";
   const META_PATH = "/httpapi/annotation/meta";
   const USER_META_PATH = "/httpapi/user/meta";
+  const ANNOTATION_PATH_PREFIX = "/httpapi/annotation/";
+  const AUTH_HEADER_NAMES = ["authorization", "baker-terminal", "baker-lang"];
   const MAX_ENTRIES = 30;
   const AUDIO_EXT_PATTERN = /\.(mp3|wav|m4a|aac|ogg)(?:$|\?)/i;
   const AUDIO_URL_PATTERN = /https?:\/\/[^\s"'<>]+?\.(?:mp3|wav|m4a|aac|ogg)(?:\?[^\s"'<>]*)?/gi;
@@ -52,6 +55,53 @@
     return result;
   }
 
+  function readHeaderEntries(source) {
+    const result = [];
+    if (!source) {
+      return result;
+    }
+    if (typeof source.forEach === "function") {
+      try {
+        source.forEach(function (value, key) {
+          result.push([key, value]);
+        });
+        return result;
+      } catch (_error) {
+        // Ignore unsupported Headers-like objects.
+      }
+    }
+    if (Array.isArray(source)) {
+      source.forEach(function (pair) {
+        if (Array.isArray(pair) && pair.length >= 2) {
+          result.push([pair[0], pair[1]]);
+        }
+      });
+      return result;
+    }
+    if (source && typeof source === "object") {
+      Object.keys(source).forEach(function (key) {
+        result.push([key, source[key]]);
+      });
+    }
+    return result;
+  }
+
+  function sanitizeRequestHeaders(source) {
+    const result = {};
+    readHeaderEntries(source).forEach(function (entry) {
+      const key = normalizeText(entry[0]).toLowerCase();
+      if (AUTH_HEADER_NAMES.indexOf(key) < 0) {
+        return;
+      }
+      const value = normalizeText(entry[1]);
+      if (!value) {
+        return;
+      }
+      result[key] = value;
+    });
+    return result;
+  }
+
   function isAudioUrl(rawUrl, locationLike) {
     const url = getUrl(rawUrl, locationLike);
     if (!url) {
@@ -63,6 +113,11 @@
   function isCvpcDataAudioPath(rawUrl, locationLike) {
     const url = getUrl(rawUrl, locationLike);
     return Boolean(url && /^\/?databaker\/data\//i.test(normalizePath(url.pathname)));
+  }
+
+  function isAnnotationApiUrl(rawUrl, locationLike) {
+    const url = getUrl(rawUrl, locationLike);
+    return Boolean(url && url.pathname.indexOf(ANNOTATION_PATH_PREFIX) === 0);
   }
 
   function extractFileName(value) {
@@ -159,6 +214,27 @@
           payload: {
             meta,
             query: extractQuery(rawUrl, locationLike),
+            at: Date.now(),
+          },
+        },
+        locationLike.origin || "*"
+      );
+    }
+
+    function notifyRequestAuth(rawUrl, headers) {
+      const target = getMessageTarget();
+      const sanitizedHeaders = sanitizeRequestHeaders(headers);
+      if (!Object.keys(sanitizedHeaders).length || typeof target.postMessage !== "function") {
+        return;
+      }
+      target.postMessage(
+        {
+          source: SOURCE,
+          type: AUTH_MESSAGE_TYPE,
+          payload: {
+            path: getUrl(rawUrl, locationLike)?.pathname || "",
+            query: extractQuery(rawUrl, locationLike),
+            headers: sanitizedHeaders,
             at: Date.now(),
           },
         },
@@ -295,6 +371,13 @@
       return rememberAudioUrl(rawUrl);
     }
 
+    function observeRequestAuth(rawUrl, headers) {
+      if (!isAnnotationApiUrl(rawUrl, locationLike)) {
+        return;
+      }
+      notifyRequestAuth(rawUrl, headers);
+    }
+
     function installFetchObserver() {
       const nativeFetch = windowLike.fetch;
       if (typeof nativeFetch !== "function") {
@@ -303,6 +386,7 @@
       windowLike.fetch = function () {
         const args = Array.from(arguments);
         const input = args[0];
+        const init = args[1];
         const rawUrl =
           typeof input === "string"
             ? input
@@ -310,6 +394,7 @@
               ? input.url
               : "";
         observeAudioUrl(rawUrl);
+        observeRequestAuth(rawUrl, Object.assign({}, sanitizeRequestHeaders(input?.headers), sanitizeRequestHeaders(init?.headers)));
         return nativeFetch.apply(this, args).then(function (response) {
           if (!getMetaUrlType(rawUrl, locationLike)) {
             return response;
@@ -337,17 +422,31 @@
       }
       const nativeOpen = NativeXhr.prototype.open;
       const nativeSend = NativeXhr.prototype.send;
-      if (typeof nativeOpen !== "function" || typeof nativeSend !== "function") {
+      const nativeSetRequestHeader = NativeXhr.prototype.setRequestHeader;
+      if (
+        typeof nativeOpen !== "function" ||
+        typeof nativeSend !== "function" ||
+        typeof nativeSetRequestHeader !== "function"
+      ) {
         return;
       }
       NativeXhr.prototype.open = function (method, url) {
         this.__ascCvpcLiuzhouAudioUrl = String(url || "");
+        this.__ascCvpcLiuzhouHeaders = {};
         observeAudioUrl(this.__ascCvpcLiuzhouAudioUrl);
         return nativeOpen.apply(this, arguments);
+      };
+      NativeXhr.prototype.setRequestHeader = function (name, value) {
+        if (!this.__ascCvpcLiuzhouHeaders || typeof this.__ascCvpcLiuzhouHeaders !== "object") {
+          this.__ascCvpcLiuzhouHeaders = {};
+        }
+        this.__ascCvpcLiuzhouHeaders[String(name || "")] = value;
+        return nativeSetRequestHeader.apply(this, arguments);
       };
       NativeXhr.prototype.send = function () {
         const xhr = this;
         const rawUrl = xhr.__ascCvpcLiuzhouAudioUrl || "";
+        observeRequestAuth(rawUrl, xhr.__ascCvpcLiuzhouHeaders);
         if (getMetaUrlType(rawUrl, locationLike) && typeof xhr.addEventListener === "function") {
           xhr.addEventListener("load", function () {
             observeResponse(rawUrl, xhr.responseText);
@@ -404,6 +503,7 @@
       install,
       observeAudioUrl,
       observeConsoleArgs,
+      observeRequestAuth,
       observeResponse,
     };
   }
@@ -414,6 +514,7 @@
       MESSAGE_TYPE,
       SOURCE,
       META_MESSAGE_TYPE,
+      AUTH_MESSAGE_TYPE,
     },
   };
 

@@ -17,6 +17,7 @@
   - `job_id`
   - `annotation/meta`
   - `user/meta` 最小用户快照：`name / user_id`
+  - `annotation/*` 请求最小鉴权头：`authorization / baker-terminal / baker-lang`
   - `template.attrs / entry_attrs / moment_attrs`
   - 当前音频签名 URL：运行时优先从页内观察桥映射获取；页内桥会消费页面真实 `annotation/meta`、`user/meta` 响应，以及顶层页面或同源 `xaudio` iframe 的真实音频请求和初始化阶段控制台打印的音频 URL。若扩展自身直连 `annotation/meta` 因平台鉴权返回失败，会回退使用页内桥传入的运行时 meta；`user/meta` 桥接未命中时再同源直连 `GET /httpapi/user/meta`；音频地址缺失时继续回退到 DOM audio、Performance 与同源 iframe audio
 - 当前页工具面板：
@@ -40,9 +41,15 @@
     - 前端请求体当前主链路只发送 `audioUrl` 与 `rules.silenceThresholdDbfs/minSilenceMs/contextPaddingMs`
     - 后端会直接下载 mp3，并通过 Python `miniaudio` 解码
     - 后端固定按 `30ms` 窗口、轻量平滑、`<=0.18s` 短尖峰桥接、连续 `0.4s` 静音、前后补 `0.1s` 生成整条音频 `proposedSegments`
-    - 当前返回结果固定是 preview-only 的整音频重切预览，不允许直接 `应用当前建议`
+    - 当前返回结果固定是后端整音频重切预览；前端不会按它自动重画整页波形
     - 前端空预览当前会额外提示“后端未检出静音”或“命中了静音但拆分后仍不足 2 段”
-  - `应用当前建议` 当前会进入同源 `xaudio` iframe，复用页面原生 region / handle / `开启拆分` 交互把建议段画回当前波形；应用后只改页面当前状态，不自动保存
+  - `应用当前建议` 当前优先走平台保存接口：
+    - 先消费页内观察桥缓存的最小鉴权头
+    - 再重新读取最新 `annotation/annos`
+    - 按当前 preview 构造 `POST /httpapi/annotation/save_increment` 的 `update / insert / web_snapshot`
+    - 直写成功后，本次建议已直接进入平台保存链路，无需再点平台 `保存`
+    - 如果缺少鉴权快照或直写失败，且当前 preview 仍是增量补切结果，则回退进入同源 `xaudio` iframe，复用页面原生 region / handle / `开启拆分` 交互把建议段画回当前波形；这时仍需人工点击平台 `保存`
+    - 当前整音频预览不会回退 DOM 重画；直写失败时保持 fail closed
   - 当前段 AI 推荐严格按当前波形选中段工作：实时读取 `.xaudio_time` 的 `开始 / 结束`，浏览器端只裁这一段音频
   - 浏览器端会把当前段片段转成 `16k` 单声道 WAV，并直接拼成 `audioDataUrl` 发给现有 AI 推荐接口；不再经过“本地文件转公网 URL”链路
   - 如果后续涉及整音频识别，仍继续使用页面真实公网 `audioUrl`
@@ -126,7 +133,7 @@
     - `meta.emptyReason = no-silence | no-internal-hit | insufficient-split`
     - `meta.analysisSource = backend-python-audio-url`
     - `meta.analysisMeta`
-  - 当前前端主链路默认走后端整音频预览；`whole-audio-rebuild-preview` 与“无现有段请求”的自动整音频模式都不会直接参与页面自动画段
+  - 当前前端主链路默认走后端整音频预览；`whole-audio-rebuild-preview` 与“无现有段请求”的自动整音频模式都不会直接参与页面 DOM 自动画段，但用户点击 `应用当前建议` 时仍会先尝试直写平台 `save_increment`
 
 ## 两阶段后端链路
 
@@ -158,24 +165,26 @@
 - AI 建议只作辅助，不自动保存、不自动提交、不自动切下一条。
 - `全局 Invalid` 不做自动判定。
 - 批量范围固定为“当前音频 / 当前作业”，不跨整包遍历。
-- 画段建议当前支持“建议生成 -> 页面内预览 -> 人工手动保存”。
-- 当前后端整音频预览只读，不支持一键应用。
-- 当前不会直连 `save_increment`，也不会自动点击平台 `保存`。
+- 画段建议当前支持“建议生成 -> 优先直写平台保存接口 -> 增量场景 DOM 回退兜底”。
+- 当前后端整音频预览不会自动重画整页波形；直写失败时保持 fail closed。
+- 当前不会在缺少页面真实鉴权快照时伪造 `save_increment`，也不会自动点击平台 `保存`。
 - 当前段 AI 推荐如果没有读到可信的当前段 `开始 / 结束`，会直接失败，不退回整段识别。
-- 当前仍不补采或直连平台保存接口；保存链路继续以用户手动点击平台按钮为准。
+- 只有用户主动点击 `应用当前建议` 时，运行时才会尝试直连平台保存接口；未触发时不自动保存。
 
 ## 写入契约状态
 
 - 已补齐：
   - `annotation/meta` 模板字段读取
+  - `annotation/*` 最小鉴权头观察桥
+  - `save_increment` 最小请求体构造与发送
   - 当前页 `Valid / Invalid` DOM 选择入口
   - 当前页 `annotation/annos` 段级统计读取
   - 当前页文本输入框 / `contenteditable .ProseMirror` 的实验性就地填入适配层
   - 同源 `xaudio` iframe 内 live region 读取、handle 调整和原生拆分交互
 - 仍待真实补采：
-  - 保存接口
-  - 当前段与页面字段的稳定写入契约
-  - `attrs / entry_attrs / moment_attrs` 的完整写入映射
+  - 更多模板变体下 `attrs / entry_attrs / moment_attrs` 的完整写入映射
+  - 删除段与复杂重排场景的保存契约
+  - 整页波形重画的安全回退契约
 
 ## 运行时目录
 

@@ -787,7 +787,7 @@ test("CVPC ui panel explains insufficient split when silence hits but still cann
   }
 });
 
-test("CVPC ui panel renders whole-audio fallback preview as read-only summary", function () {
+test("CVPC ui panel renders whole-audio fallback preview with direct-save summary", function () {
   const uiModule = loadUiPanelModule();
   const harness = createHarness();
   const previousDocument = globalThis.document;
@@ -829,7 +829,7 @@ test("CVPC ui panel renders whole-audio fallback preview as read-only summary", 
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     const middleText = collectText(middleNode);
     assert.match(middleText, /后端已直接生成整条音频重切预览/);
-    assert.match(middleText, /该结果仅供预览，暂不支持一键应用/);
+    assert.match(middleText, /点击“应用当前建议”会先尝试直写平台保存接口/);
     assert.match(middleText, /原现有段数：6 段/);
     assert.match(middleText, /fallback 建议段数：2 段/);
     assert.match(middleText, /后端静音检测命中 26 段候选静音/);
@@ -878,6 +878,10 @@ test("CVPC ui panel renders backend whole-audio preview without source segment c
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     const middleText = collectText(middleNode);
     assert.match(middleText, /后端整音频重切预览/);
+    assert.match(
+      middleText,
+      /点击“应用当前建议”会先尝试直写平台保存接口；当前整音频预览直写失败时不会回退页面内画段/
+    );
     assert.match(middleText, /当前模式：后端整音频分段/);
     assert.match(middleText, /建议段数：2 段/);
     assert.match(middleText, /静音 >= 0\.4s，阈值 -40 dB，前后补偿 0\.1s/);

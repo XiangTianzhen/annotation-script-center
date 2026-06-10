@@ -8,6 +8,7 @@ const modulePath = path.resolve(__dirname, "data-api.js");
 const OBSERVER_SOURCE = "ASR_EDGE_DATABAKER_CVPC_LIUZHOU_AUDIO_OBSERVER";
 const OBSERVER_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
 const META_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
+const AUTH_TYPE = "DATABAKER_CVPC_LIUZHOU_REQUEST_AUTH";
 const MISSING_AUDIO_MESSAGE =
   "未拿到当前音频签名 URL，请先点击当前音频或播放一次后重试；如仍失败请刷新页面。";
 
@@ -580,7 +581,8 @@ function createUserMetaPayload(overrides) {
   );
 }
 
-function createMetaPayload(entries) {
+function createMetaPayload(entries, options) {
+  const settings = options && typeof options === "object" ? options : {};
   return {
     datas: entries,
     anns: [
@@ -598,11 +600,13 @@ function createMetaPayload(entries) {
         audio_duration: 5.2,
       },
     ],
-    template: {
-      attrs: [],
-      entry_attrs: [],
-      moment_attrs: [],
-    },
+    template:
+      settings.template ||
+      {
+        attrs: [],
+        entry_attrs: [],
+        moment_attrs: [],
+      },
   };
 }
 
@@ -1369,10 +1373,16 @@ function createSegmentApplyHarness(options) {
     };
   const annosPayload = settings.annosPayload || buildExactSegmentRows(regionDefs);
   const fetchCalls = [];
+  const fetchRequests = [];
+  const listeners = new Map();
 
-  async function fetchStub(url) {
+  async function fetchStub(url, init) {
     const requestUrl = String(url || "");
     fetchCalls.push(requestUrl);
+    fetchRequests.push({
+      url: requestUrl,
+      init: init && typeof init === "object" ? init : {},
+    });
     if (requestUrl.indexOf("/httpapi/annotation/annos") >= 0) {
       return {
         ok: true,
@@ -1409,14 +1419,35 @@ function createSegmentApplyHarness(options) {
         },
       };
     }
+    if (requestUrl.indexOf("/httpapi/annotation/save_increment") >= 0) {
+      const statusCode = Number(settings.saveIncrementStatus ?? 200) || 200;
+      return {
+        ok: statusCode >= 200 && statusCode < 300,
+        json: async function () {
+          return settings.saveIncrementPayload || {
+            code: statusCode,
+            data: {
+              status: statusCode >= 200 && statusCode < 300 ? "ok" : "failed",
+            },
+            msg: statusCode >= 200 && statusCode < 300 ? "" : "failed",
+          };
+        },
+      };
+    }
     throw new Error("unexpected fetch: " + requestUrl);
   }
 
   return {
     dependencies: {
       window: {
-        addEventListener: function () {},
-        removeEventListener: function () {},
+        addEventListener: function (type, listener) {
+          listeners.set(type, listener);
+        },
+        removeEventListener: function (type, listener) {
+          if (listeners.get(type) === listener) {
+            listeners.delete(type);
+          }
+        },
       },
       document: topDocument,
       location: {
@@ -1437,6 +1468,7 @@ function createSegmentApplyHarness(options) {
       HTMLTextAreaElement: RichFakeTextareaElement,
     },
     fetchCalls,
+    fetchRequests,
     iframeDocument,
     markpoints,
     splitButton,
@@ -1459,6 +1491,21 @@ function createSegmentApplyHarness(options) {
             title: regionState.node.getAttribute("title"),
           };
         });
+    },
+    dispatchObserverMessage: function (payload, type) {
+      const listener = listeners.get("message");
+      if (typeof listener !== "function") {
+        throw new Error("message listener not installed");
+      }
+      listener({
+        source: {},
+        origin: "https://cvpc.data-baker.com",
+        data: {
+          source: OBSERVER_SOURCE,
+          type: type || OBSERVER_TYPE,
+          payload,
+        },
+      });
     },
   };
 }
@@ -2012,7 +2059,7 @@ test("CVPC data api writes staged recommendation text into the requested field o
   assert.equal(harness.mandarinEditor.textContent, "听音普通话");
 });
 
-test("CVPC data api applies preview into live waveform regions without calling save_increment", async function () {
+test("CVPC data api falls back to live waveform apply when save_increment auth snapshot is missing", async function () {
   const dataApiModule = loadDataApiModule();
   const harness = createSegmentApplyHarness({
     visibleEntryName: "sample-a.mp3",
@@ -2089,6 +2136,7 @@ test("CVPC data api applies preview into live waveform regions without calling s
 
   assert.deepEqual(result, {
     ok: true,
+    appliedBy: "dom",
     message: "建议已画到页面，请人工复核后点击平台保存。",
   });
   assert.equal(harness.splitButton.clickCount, 1);
@@ -2123,13 +2171,128 @@ test("CVPC data api applies preview into live waveform regions without calling s
   ]);
 });
 
-test("CVPC data api refuses to apply whole-audio fallback preview", async function () {
+test("CVPC data api applies whole-audio preview through save_increment when auth snapshot is available", async function () {
   const dataApiModule = loadDataApiModule();
   const harness = createSegmentApplyHarness({
     visibleEntryName: "sample-a.mp3",
+    audioDurationMs: 6000,
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 3000,
+        segmentNumber: 1,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      {
+        template: {
+          attrs: [],
+          entry_attrs: [
+            {
+              unique_id: "entry-validity",
+              name: "是否有效（Valid or Not）",
+              input_type: "radio",
+            },
+          ],
+          moment_attrs: [
+            {
+              unique_id: "moment-validity",
+              name: "是否有效（Valid or Not）",
+              input_type: "radio",
+            },
+            {
+              unique_id: "moment-dialect",
+              name: "标注文本",
+              input_type: "text",
+            },
+            {
+              unique_id: "moment-mandarin",
+              name: "普通话顺滑",
+              input_type: "text",
+            },
+          ],
+        },
+      }
+    ),
+    annosPayload: [
+      {
+        entry_index: 1,
+        entry_id: 1,
+        unique_id: "entry-scope",
+        ann_scope: "entry",
+        ann_data: {
+          attrs: [
+            {
+              unique_id: "entry-validity",
+              name: "是否有效（Valid or Not）",
+              values: [{ unique_id: "entry-valid", name: "是（Valid）" }],
+              input_type: "radio",
+            },
+          ],
+          attr_version: "v1",
+        },
+        audio_duration: 6,
+        section_duration: 3,
+        source: "manual",
+        status: "valid",
+        version: "",
+      },
+      {
+        entry_index: 1,
+        entry_id: 1,
+        unique_id: "region-1",
+        ann_scope: "instance",
+        start_second: 0,
+        end_second: 3,
+        ann_data: {
+          attrs: [
+            {
+              unique_id: "moment-validity",
+              name: "是否有效（Valid or Not）",
+              values: [{ unique_id: "valid-id", name: "是（Valid）" }],
+              input_type: "radio",
+            },
+            {
+              unique_id: "moment-dialect",
+              name: "标注文本",
+              values: ['[{"type":"text","content":"原文本"}]'],
+              input_type: "text",
+            },
+          ],
+          attr_version: "v2",
+        },
+        source: "manual",
+        status: "valid",
+        track_id: "-1",
+        shape: "section",
+        camera_name: "camA",
+        asr_is_done: 1,
+      },
+    ],
   });
 
   const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer test-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
   const result = await runtime.applySegmentPreview({
     selectionKey: "sample-a.mp3|0|4171",
     selectedEntryName: "sample-a.mp3",
@@ -2155,9 +2318,43 @@ test("CVPC data api refuses to apply whole-audio fallback preview", async functi
   });
 
   assert.deepEqual(result, {
-    ok: false,
-    message: "当前整条音频预览暂不支持自动应用，请人工参考后手动画段。",
+    ok: true,
+    appliedBy: "request",
+    message: "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。",
   });
+  assert.equal(harness.splitButton.clickCount, 0);
+  const saveRequest = harness.fetchRequests.find(function (request) {
+    return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+  });
+  assert.ok(saveRequest);
+  assert.equal(saveRequest.init.headers.authorization, "Bearer test-token");
+  assert.equal(saveRequest.init.headers["baker-terminal"], "group@1134");
+  const body = JSON.parse(saveRequest.init.body);
+  assert.equal(body.insert.length, 1);
+  assert.equal(body.update.length, 2);
+  assert.equal(body.delete.length, 0);
+  assert.equal(body.project_id, "1453");
+  assert.equal(body.task_id, "12099");
+  assert.equal(body.process_id, "4946");
+  assert.equal(body.job_id, "1520");
+  assert.equal(body.data_id, "17896");
+  assert.equal(body.update[0].unique_id, "region-1");
+  assert.equal(body.update[0].start_second, 0);
+  assert.equal(body.update[0].end_second, 1.2);
+  assert.equal(body.insert[0].start_second, 1.6);
+  assert.equal(body.insert[0].end_second, 3);
+  const snapshot = JSON.parse(body.web_snapshot);
+  assert.equal(snapshot.length, 3);
+  assert.deepEqual(snapshot[0].ann_data.attrs, [
+    { unique_id: "moment-validity", value: "valid-id" },
+    { unique_id: "moment-dialect", value: '[{"type":"text","content":"原文本"}]' },
+    { unique_id: "moment-mandarin", value: "" },
+  ]);
+  assert.deepEqual(snapshot[1].ann_data.attrs, [
+    { unique_id: "moment-validity", value: "valid-id" },
+    { unique_id: "moment-dialect", value: "" },
+    { unique_id: "moment-mandarin", value: "" },
+  ]);
 });
 
 test("CVPC data api rejects stale segment preview when current selection has changed", async function () {

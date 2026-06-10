@@ -2,9 +2,11 @@
   const META_PATH = "/httpapi/annotation/meta";
   const USER_META_PATH = "/httpapi/user/meta";
   const ANNOS_PATH = "/httpapi/annotation/annos";
+  const SAVE_INCREMENT_PATH = "/httpapi/annotation/save_increment";
   const OBSERVER_SOURCE = "ASR_EDGE_DATABAKER_CVPC_LIUZHOU_AUDIO_OBSERVER";
   const OBSERVER_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
   const OBSERVER_META_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
+  const OBSERVER_AUTH_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_REQUEST_AUTH";
   const MISSING_AUDIO_MESSAGE =
     "未拿到当前音频签名 URL，请先点击当前音频或播放一次后重试；如仍失败请刷新页面。";
   const VALID_LABELS = ["是（Valid）", "是(Valid)", "Valid"];
@@ -14,8 +16,10 @@
   const PREVIEW_LIVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，旧画段建议已失效，请重新生成。";
   const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的画段建议，请先生成画段建议。";
   const PREVIEW_NOTHING_TO_APPLY_MESSAGE = "当前音频没有需要应用的拆分建议。";
-  const PREVIEW_READONLY_MESSAGE =
-    "当前整条音频预览暂不支持自动应用，请人工参考后手动画段。";
+  const PREVIEW_DIRECT_SAVE_AUTH_MISSING_MESSAGE =
+    "未获取到平台保存请求的访问凭据，暂时无法直写保存接口。";
+  const PREVIEW_DIRECT_SAVE_SUCCESS_MESSAGE =
+    "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。";
   const PREVIEW_UNSAFE_MESSAGE = "未检测到稳定的波形画段区域或拆分控件，请人工处理当前建议。";
   const PREVIEW_APPLY_SUCCESS_MESSAGE = "建议已画到页面，请人工复核后点击平台保存。";
 
@@ -142,12 +146,14 @@
     return Boolean(meta.platformUserName || meta.platformUserId);
   }
 
-  async function fetchJson(pathname, query, fetchImpl) {
+  async function fetchJson(pathname, query, fetchImpl, requestOptions) {
     const params = query instanceof URLSearchParams ? query : buildMetaQuery(query);
     const url = pathname + (String(params || "").trim() ? "?" + String(params) : "");
     const request = fetchImpl || globalThis.fetch;
+    const options = requestOptions && typeof requestOptions === "object" ? requestOptions : {};
     const response = await request(url, {
       credentials: "include",
+      headers: options.headers,
       method: "GET",
     });
     const payload = await response.json().catch(function () {
@@ -397,6 +403,419 @@
       .filter(function (item) {
         return Number.isFinite(item.startMs) && Number.isFinite(item.endMs) && item.endMs > item.startMs;
       });
+  }
+
+  function clonePlainData(value) {
+    if (value === null || value === undefined) {
+      return value;
+    }
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function toSecondsFromMs(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return null;
+    }
+    return number / 1000;
+  }
+
+  function readFirstAttrValue(attr) {
+    const source = attr && typeof attr === "object" ? attr : {};
+    if (Object.prototype.hasOwnProperty.call(source, "value")) {
+      return source.value;
+    }
+    const values = Array.isArray(source.values) ? source.values : [];
+    if (values.length === 0) {
+      return undefined;
+    }
+    const firstValue = values[0];
+    if (firstValue && typeof firstValue === "object") {
+      if (Object.prototype.hasOwnProperty.call(firstValue, "unique_id")) {
+        return firstValue.unique_id;
+      }
+      if (Object.prototype.hasOwnProperty.call(firstValue, "value")) {
+        return firstValue.value;
+      }
+      if (Object.prototype.hasOwnProperty.call(firstValue, "name")) {
+        return firstValue.name;
+      }
+      return "";
+    }
+    return firstValue;
+  }
+
+  function normalizeTemplateAttrDefinitions(templateAttrs, rowAttrs) {
+    const seen = new Set();
+    const result = [];
+    function appendAttr(attr) {
+      const source = attr && typeof attr === "object" ? attr : {};
+      const uniqueId = normalizeText(source.unique_id || source.id);
+      if (!uniqueId || seen.has(uniqueId)) {
+        return;
+      }
+      seen.add(uniqueId);
+      result.push({
+        uniqueId,
+        name: normalizeText(source.name),
+        inputType: normalizeText(source.input_type || source.inputType).toLowerCase(),
+      });
+    }
+    (Array.isArray(templateAttrs) ? templateAttrs : []).forEach(appendAttr);
+    (Array.isArray(rowAttrs) ? rowAttrs : []).forEach(appendAttr);
+    return result;
+  }
+
+  function buildSnapshotAttrs(templateAttrs, rowAttrs) {
+    const definitions = normalizeTemplateAttrDefinitions(templateAttrs, rowAttrs);
+    const rowMap = new Map();
+    (Array.isArray(rowAttrs) ? rowAttrs : []).forEach(function (attr) {
+      const uniqueId = normalizeText(attr?.unique_id || attr?.id);
+      if (!uniqueId) {
+        return;
+      }
+      rowMap.set(uniqueId, readFirstAttrValue(attr));
+    });
+    return definitions.map(function (definition) {
+      const attr = {
+        unique_id: definition.uniqueId,
+      };
+      if (rowMap.has(definition.uniqueId)) {
+        const rawValue = rowMap.get(definition.uniqueId);
+        if (rawValue !== undefined && rawValue !== null && String(rawValue) !== "") {
+          attr.value = String(rawValue);
+          return attr;
+        }
+      }
+      if (definition.inputType === "text") {
+        attr.value = "";
+      }
+      return attr;
+    });
+  }
+
+  function isTextAttr(attr) {
+    const source = attr && typeof attr === "object" ? attr : {};
+    return normalizeText(source.input_type || source.inputType).toLowerCase() === "text";
+  }
+
+  function stripTextAttrs(attrs) {
+    return (Array.isArray(attrs) ? attrs : []).filter(function (attr) {
+      return !isTextAttr(attr);
+    });
+  }
+
+  function buildPlatformRequestHeaders(authSnapshot, context, extraHeaders) {
+    const source = authSnapshot && typeof authSnapshot === "object" ? authSnapshot : {};
+    const extras = extraHeaders && typeof extraHeaders === "object" ? extraHeaders : {};
+    const headers = Object.assign(
+      {
+        accept: "application/json, text/plain, */*",
+      },
+      extras
+    );
+    const authorization = normalizeText(source.authorization);
+    const bakerTerminal = normalizeText(source.bakerTerminal || context?.query?.terminal);
+    const bakerLang = normalizeText(source.bakerLang) || "zh";
+    if (authorization) {
+      headers.authorization = authorization;
+    }
+    if (bakerTerminal) {
+      headers["baker-terminal"] = bakerTerminal;
+    }
+    if (bakerLang) {
+      headers["baker-lang"] = bakerLang;
+    }
+    return headers;
+  }
+
+  function buildSnapshotEntryRow(entryRow, template) {
+    const source = entryRow && typeof entryRow === "object" ? entryRow : {};
+    const entryAttrs = Array.isArray(template?.entry_attrs) ? template.entry_attrs : [];
+    const annData = source.ann_data && typeof source.ann_data === "object" ? source.ann_data : {};
+    const result = {
+      unique_id: normalizeText(source.unique_id || source.uniqueId || source.id),
+      entry_index: source.entry_index,
+      entry_id: source.entry_id,
+      ann_data: {
+        attrs: buildSnapshotAttrs(entryAttrs, annData.attrs),
+        attr_version: normalizeText(annData.attr_version) || "v1",
+      },
+    };
+    const traceId = normalizeText(source.trace_id || source.traceId);
+    if (traceId) {
+      result.trace_id = traceId;
+    }
+    return result;
+  }
+
+  function buildSnapshotInstanceRow(row, template) {
+    const source = row && typeof row === "object" ? row : {};
+    const annData = source.ann_data && typeof source.ann_data === "object" ? source.ann_data : {};
+    return {
+      unique_id: normalizeText(source.unique_id || source.uniqueId || source.id),
+      start_second: source.start_second,
+      end_second: source.end_second,
+      ann_data: {
+        attrs: buildSnapshotAttrs(template?.moment_attrs, annData.attrs),
+        attr_version: normalizeText(annData.attr_version) || "v1",
+      },
+    };
+  }
+
+  function buildEntrySaveRow(entryRow, proposedSegments) {
+    const source = clonePlainData(entryRow) || {};
+    const totalDurationSeconds = (Array.isArray(proposedSegments) ? proposedSegments : []).reduce(function (
+      total,
+      segment
+    ) {
+      return total + Math.max(0, Number(segment?.end_second || 0) - Number(segment?.start_second || 0));
+    }, 0);
+    source.section_duration = totalDurationSeconds;
+    source.is_update_position = 0;
+    source.is_update_labelattr = 0;
+    return source;
+  }
+
+  function buildUpdatedInstanceRow(row, segment) {
+    const source = clonePlainData(row) || {};
+    source.start_second = segment.start_second;
+    source.end_second = segment.end_second;
+    source.is_update_position =
+      Math.abs(Number(row?.start_second || 0) - Number(segment.start_second || 0)) > 0.000001 ||
+      Math.abs(Number(row?.end_second || 0) - Number(segment.end_second || 0)) > 0.000001
+        ? 1
+        : Number(row?.is_update_position || 0) || 0;
+    source.is_update_labelattr = Number(row?.is_update_labelattr || 0) || 0;
+    return source;
+  }
+
+  function createGeneratedUniqueId() {
+    const block = function (size) {
+      return Math.random().toString(16).slice(2, 2 + size).padEnd(size, "0");
+    };
+    return [
+      block(8),
+      block(4),
+      block(4),
+      block(4),
+      block(12),
+    ].join("-") + "-" + String(Date.now());
+  }
+
+  function createGeneratedCameraName() {
+    return Math.random().toString(36).slice(2, 10).padEnd(8, "0");
+  }
+
+  function buildInsertedInstanceRow(sourceRow, context, segment) {
+    const prototypeRow = clonePlainData(sourceRow) || {};
+    const annData = prototypeRow.ann_data && typeof prototypeRow.ann_data === "object"
+      ? prototypeRow.ann_data
+      : {};
+    return {
+      ann_data: Object.assign({}, annData, {
+        attrs: stripTextAttrs(annData.attrs),
+      }),
+      asr_is_done: prototypeRow.asr_is_done ?? 1,
+      end_second: segment.end_second,
+      shape: normalizeText(prototypeRow.shape) || "section",
+      start_second: segment.start_second,
+      unique_id: createGeneratedUniqueId(),
+      track_id: normalizeText(prototypeRow.track_id) || "-1",
+      camera_name: normalizeText(prototypeRow.camera_name) || createGeneratedCameraName(),
+      entry_id: prototypeRow.entry_id ?? context?.selectedEntry?.entry_id ?? context?.currentAnn?.entry_id ?? null,
+      entry_index:
+        prototypeRow.entry_index ?? context?.selectedEntry?.entry_index ?? context?.currentAnn?.entry_index ?? 1,
+      ann_scope: "instance",
+      source: normalizeText(prototypeRow.source) || "manual",
+    };
+  }
+
+  function getEntryRowFromAnnos(annos, context) {
+    const entryRow = (Array.isArray(annos) ? annos : []).find(function (row) {
+      return normalizeText(row?.ann_scope) === "entry";
+    });
+    if (entryRow) {
+      return entryRow;
+    }
+    const currentAnn = context?.currentAnn && typeof context.currentAnn === "object" ? context.currentAnn : {};
+    return {
+      entry_index: context?.selectedEntry?.entry_index ?? currentAnn.entry_index ?? 1,
+      entry_id: context?.selectedEntry?.entry_id ?? currentAnn.entry_id ?? 0,
+      unique_id: normalizeText(currentAnn.unique_id || currentAnn.uniqueId),
+      ann_scope: "entry",
+      ann_data: clonePlainData(currentAnn.ann_data) || { attrs: [] },
+      source: normalizeText(currentAnn.source) || "manual",
+      status: normalizeText(currentAnn.status) || "valid",
+      version: normalizeText(currentAnn.version),
+      track_id: currentAnn.track_id ?? null,
+      shape: currentAnn.shape ?? null,
+      camera_name: currentAnn.camera_name ?? null,
+      audio_duration: currentAnn.audio_duration ?? toSecondsFromMs(context?.audioDurationMs),
+      section_duration: 0,
+      entry_status: currentAnn.entry_status ?? null,
+      entry_done: currentAnn.entry_done ?? null,
+      start_second: null,
+      end_second: null,
+      asr_is_done: null,
+      is_update_position: 0,
+      is_update_labelattr: 0,
+    };
+  }
+
+  function getInstanceRowsFromAnnos(annos) {
+    return (Array.isArray(annos) ? annos : [])
+      .filter(function (row) {
+        return normalizeText(row?.ann_scope) === "instance";
+      })
+      .map(function (row) {
+        return Object.assign({}, row, {
+          start_second: Number(row?.start_second ?? 0) || 0,
+          end_second: Number(row?.end_second ?? row?.start_second ?? 0) || 0,
+        });
+      })
+      .sort(function (left, right) {
+        return (
+          Number(left?.start_second || 0) - Number(right?.start_second || 0) ||
+          Number(left?.end_second || 0) - Number(right?.end_second || 0)
+        );
+      });
+  }
+
+  function buildSavePlan(currentRows, proposedSegments, context) {
+    const rows = Array.isArray(currentRows) ? currentRows : [];
+    const segments = (Array.isArray(proposedSegments) ? proposedSegments : [])
+      .map(function (segment, index) {
+        const normalized = normalizeSegmentItem(segment, index);
+        return {
+          startMs: normalized.startMs,
+          endMs: normalized.endMs,
+          start_second: toSecondsFromMs(normalized.startMs),
+          end_second: toSecondsFromMs(normalized.endMs),
+        };
+      })
+      .filter(function (segment) {
+        return Number.isFinite(segment.start_second) && Number.isFinite(segment.end_second) && segment.end_second > segment.start_second;
+      })
+      .sort(function (left, right) {
+        return left.startMs - right.startMs;
+      });
+    const matchesByRow = rows.map(function () {
+      return [];
+    });
+    const insertsBeforeRow = rows.map(function () {
+      return [];
+    });
+    const insertsAfterAll = [];
+
+    segments.forEach(function (segment, segmentIndex) {
+      let bestRowIndex = -1;
+      let bestOverlapMs = 0;
+      rows.forEach(function (row, rowIndex) {
+        const rowStartMs = normalizeBoundaryToMs(row?.start_second);
+        const rowEndMs = normalizeBoundaryToMs(row?.end_second);
+        if (!Number.isFinite(rowStartMs) || !Number.isFinite(rowEndMs) || rowEndMs <= rowStartMs) {
+          return;
+        }
+        const overlapMs = Math.max(0, Math.min(rowEndMs, segment.endMs) - Math.max(rowStartMs, segment.startMs));
+        if (overlapMs > bestOverlapMs) {
+          bestOverlapMs = overlapMs;
+          bestRowIndex = rowIndex;
+        }
+      });
+      if (bestRowIndex >= 0 && bestOverlapMs > 0) {
+        matchesByRow[bestRowIndex].push(Object.assign({ index: segmentIndex }, segment));
+        return;
+      }
+      const insertionIndex = rows.findIndex(function (row) {
+        return normalizeBoundaryToMs(row?.start_second) > segment.startMs;
+      });
+      if (insertionIndex >= 0) {
+        insertsBeforeRow[insertionIndex].push(Object.assign({ index: segmentIndex }, segment));
+        return;
+      }
+      insertsAfterAll.push(Object.assign({ index: segmentIndex }, segment));
+    });
+
+    const updateRows = [];
+    const insertRows = [];
+    const deleteRows = [];
+    const finalRows = [];
+
+    function emitInsertedSegment(segment, sourceRow) {
+      const insertedRow = buildInsertedInstanceRow(sourceRow, context, segment);
+      insertRows.push(insertedRow);
+      finalRows.push(insertedRow);
+    }
+
+    rows.forEach(function (row, rowIndex) {
+      insertsBeforeRow[rowIndex]
+        .sort(function (left, right) {
+          return left.startMs - right.startMs;
+        })
+        .forEach(function (segment) {
+          emitInsertedSegment(segment, row);
+        });
+
+      const matchedSegments = matchesByRow[rowIndex]
+        .slice()
+        .sort(function (left, right) {
+          return left.startMs - right.startMs;
+        });
+      if (matchedSegments.length === 0) {
+        deleteRows.push(clonePlainData(row));
+        return;
+      }
+      const updatedRow = buildUpdatedInstanceRow(row, matchedSegments[0]);
+      updateRows.push(updatedRow);
+      finalRows.push(updatedRow);
+      matchedSegments.slice(1).forEach(function (segment) {
+        emitInsertedSegment(segment, row);
+      });
+    });
+
+    insertsAfterAll
+      .slice()
+      .sort(function (left, right) {
+        return left.startMs - right.startMs;
+      })
+      .forEach(function (segment) {
+        emitInsertedSegment(segment, rows[rows.length - 1] || null);
+      });
+
+    return {
+      updateRows,
+      insertRows,
+      deleteRows,
+      finalRows,
+    };
+  }
+
+  function buildSaveIncrementBody(context, annos, preview) {
+    const source = preview && typeof preview === "object" ? preview : {};
+    const proposedSegments = Array.isArray(source.proposedSegments) ? source.proposedSegments : [];
+    if (proposedSegments.length === 0) {
+      return null;
+    }
+    const entryRow = getEntryRowFromAnnos(annos, context);
+    const currentRows = getInstanceRowsFromAnnos(annos);
+    const plan = buildSavePlan(currentRows, proposedSegments, context);
+    const updatedEntryRow = buildEntrySaveRow(entryRow, plan.finalRows);
+    const webSnapshot = plan.finalRows.map(function (row) {
+      return buildSnapshotInstanceRow(row, context?.template || {});
+    });
+    webSnapshot.push(buildSnapshotEntryRow(updatedEntryRow, context?.template || {}));
+    return {
+      project_id: String(context?.query?.projectId || ""),
+      task_id: String(context?.query?.taskId || ""),
+      process_id: String(context?.query?.processId || ""),
+      job_id: String(context?.query?.jobId || ""),
+      data_id: String(context?.query?.dataId || ""),
+      insert: plan.insertRows,
+      update: plan.updateRows.concat([updatedEntryRow]),
+      delete: plan.deleteRows,
+      web_snapshot: JSON.stringify(webSnapshot),
+    };
   }
 
   function mapTemplateFieldNames(template) {
@@ -1245,6 +1664,7 @@
     let cachedContext = null;
     let bridgedMeta = null;
     let bridgedUserMeta = null;
+    let bridgedAuth = null;
     let cachedUserMeta = null;
     const observerMappings = [];
 
@@ -1303,6 +1723,25 @@
       cachedContext = null;
     }
 
+    function rememberBridgedAuth(payload) {
+      const source = payload && typeof payload === "object" ? payload : {};
+      const headers = source.headers && typeof source.headers === "object" ? source.headers : {};
+      const authorization = normalizeText(headers.authorization);
+      const bakerTerminal = normalizeText(headers["baker-terminal"]);
+      const bakerLang = normalizeText(headers["baker-lang"]);
+      if (!authorization && !bakerTerminal && !bakerLang) {
+        return;
+      }
+      bridgedAuth = {
+        authorization,
+        bakerTerminal,
+        bakerLang,
+        at: Number(source.at || 0) || Date.now(),
+        path: normalizeText(source.path),
+      };
+      cachedContext = null;
+    }
+
     function handleObserverMessage(event) {
       if (!event || event.origin !== env.location.origin) {
         return;
@@ -1318,6 +1757,10 @@
       }
       if (data.type === OBSERVER_META_MESSAGE_TYPE) {
         rememberBridgedMeta(data.payload);
+        return;
+      }
+      if (data.type === OBSERVER_AUTH_MESSAGE_TYPE) {
+        rememberBridgedAuth(data.payload);
       }
     }
 
@@ -1378,11 +1821,21 @@
       const liveSelection = getLiveSelectionSnapshot(env.document);
       const currentAnn = getCurrentAnn(meta, selectedEntry);
       let currentSegments = [];
+      const platformRequestHeaders = buildPlatformRequestHeaders(bridgedAuth, {
+        query,
+      });
       try {
         const annos = await fetchJson(
           ANNOS_PATH,
           buildAnnosQueryFromParts(query, selectedEntry),
-          env.fetch
+          env.fetch,
+          {
+            headers:
+              normalizeText(platformRequestHeaders.authorization) ||
+              normalizeText(platformRequestHeaders["baker-terminal"])
+                ? platformRequestHeaders
+                : undefined,
+          }
         );
         currentSegments = extractSegmentsFromAnnos(annos);
       } catch (_error) {
@@ -1415,6 +1868,13 @@
         platformUserName: userMeta.platformUserName,
         platformUserId: userMeta.platformUserId,
         platformUserMetaSource: userMeta.platformUserMetaSource,
+        platformRequestAuth: bridgedAuth
+          ? {
+              authorization: bridgedAuth.authorization,
+              bakerTerminal: bridgedAuth.bakerTerminal,
+              bakerLang: bridgedAuth.bakerLang,
+            }
+          : null,
       };
       return cachedContext;
     }
@@ -1514,53 +1974,53 @@
       };
     }
 
-    async function applySegmentPreview(preview) {
-      const source = preview && typeof preview === "object" ? preview : null;
-      if (!source) {
-        return {
-          ok: false,
-          message: PREVIEW_EMPTY_MESSAGE,
-        };
+    async function applySegmentPreviewByRequest(source, context) {
+      const requestHeaders = buildPlatformRequestHeaders(context?.platformRequestAuth, context, {
+        "content-type": "application/json;charset=UTF-8",
+      });
+      if (!normalizeText(requestHeaders.authorization)) {
+        throw new Error(PREVIEW_DIRECT_SAVE_AUTH_MISSING_MESSAGE);
       }
-      if (
-        source?.meta?.applyAllowed === false ||
-        normalizeText(source?.meta?.previewMode) === "whole-audio-fallback"
-      ) {
-        return {
-          ok: false,
-          message: PREVIEW_READONLY_MESSAGE,
-        };
-      }
-      const changes = (Array.isArray(source.changes) ? source.changes : [])
-        .slice()
-        .sort(function (left, right) {
-          return (
-            Number(left?.originalStartMs || 0) - Number(right?.originalStartMs || 0) ||
-            Number(left?.sourceSegmentNumber || 0) - Number(right?.sourceSegmentNumber || 0)
-          );
+      let annos = [];
+      try {
+        annos = await fetchJson(ANNOS_PATH, buildAnnosQuery(context), env.fetch, {
+          headers: buildPlatformRequestHeaders(context?.platformRequestAuth, context),
         });
-      if (changes.length === 0) {
+      } catch (_error) {
+        throw new Error("未能读取当前页面的分段数据，无法构造平台保存请求。");
+      }
+      const body = buildSaveIncrementBody(context, annos, source);
+      if (!body) {
         return {
           ok: false,
           message: PREVIEW_NOTHING_TO_APPLY_MESSAGE,
         };
       }
-      if (normalizeText(source.selectionKey) && isLiveSelectionStale(source.selectionKey, env)) {
-        return {
-          ok: false,
-          message: PREVIEW_STALE_MESSAGE,
-        };
+      const response = await env.fetch(SAVE_INCREMENT_PATH, {
+        credentials: "include",
+        method: "POST",
+        headers: requestHeaders,
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(function () {
+        return null;
+      });
+      const code = Number(payload?.code);
+      if (!response.ok || !payload || (code !== 0 && code !== 200)) {
+        throw new Error(
+          normalizeText(payload?.msg || payload?.message) || "平台保存接口返回失败。"
+        );
       }
-      const context = await getEditorContext({ force: true });
-      if (
-        normalizeText(source.selectedEntryName) &&
-        normalizeText(source.selectedEntryName) !== normalizeText(context.selectedEntry?.name)
-      ) {
-        return {
-          ok: false,
-          message: PREVIEW_STALE_MESSAGE,
-        };
-      }
+      cachedContext = null;
+      cachedMeta = null;
+      return {
+        ok: true,
+        appliedBy: "request",
+        message: PREVIEW_DIRECT_SAVE_SUCCESS_MESSAGE,
+      };
+    }
+
+    async function applySegmentPreviewByDom(source, context, changes) {
       const iframeDocument = getXaudioDocument(env);
       if (!iframeDocument) {
         return {
@@ -1740,7 +2200,70 @@
       cachedContext = null;
       return {
         ok: true,
+        appliedBy: "dom",
         message: PREVIEW_APPLY_SUCCESS_MESSAGE,
+      };
+    }
+
+    async function applySegmentPreview(preview) {
+      const source = preview && typeof preview === "object" ? preview : null;
+      if (!source) {
+        return {
+          ok: false,
+          message: PREVIEW_EMPTY_MESSAGE,
+        };
+      }
+      const proposedSegments = Array.isArray(source.proposedSegments) ? source.proposedSegments : [];
+      if (proposedSegments.length === 0) {
+        return {
+          ok: false,
+          message: PREVIEW_NOTHING_TO_APPLY_MESSAGE,
+        };
+      }
+      const changes = (Array.isArray(source.changes) ? source.changes : [])
+        .slice()
+        .sort(function (left, right) {
+          return (
+            Number(left?.originalStartMs || 0) - Number(right?.originalStartMs || 0) ||
+            Number(left?.sourceSegmentNumber || 0) - Number(right?.sourceSegmentNumber || 0)
+          );
+        });
+      if (normalizeText(source.selectionKey) && isLiveSelectionStale(source.selectionKey, env)) {
+        return {
+          ok: false,
+          message: PREVIEW_STALE_MESSAGE,
+        };
+      }
+      const context = await getEditorContext({ force: true });
+      if (
+        normalizeText(source.selectedEntryName) &&
+        normalizeText(source.selectedEntryName) !== normalizeText(context.selectedEntry?.name)
+      ) {
+        return {
+          ok: false,
+          message: PREVIEW_STALE_MESSAGE,
+        };
+      }
+      let requestError = null;
+      try {
+        return await applySegmentPreviewByRequest(source, context);
+      } catch (error) {
+        requestError = error;
+      }
+      const canFallbackToDom =
+        normalizeText(source?.meta?.previewMode) !== "whole-audio-fallback" &&
+        source?.meta?.applyAllowed !== false &&
+        changes.length > 0;
+      if (canFallbackToDom) {
+        const domResult = await applySegmentPreviewByDom(source, context, changes);
+        return domResult;
+      }
+      return {
+        ok: false,
+        message:
+          requestError && requestError.message
+            ? requestError.message
+            : PREVIEW_UNSAFE_MESSAGE,
       };
     }
 

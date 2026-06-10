@@ -365,10 +365,10 @@
       runtime.ui.renderPreview(preview);
       if (String(preview?.meta?.previewMode || "") === "whole-audio-fallback") {
         if (String(preview?.meta?.analysisSource || "") === "backend-python-audio-url") {
-          runtime.ui.setStatus("后端整音频画段预览已生成；当前仅供人工参考。", "success");
+          runtime.ui.setStatus("后端整音频画段预览已生成，可直接应用当前建议。", "success");
         } else {
           runtime.ui.setStatus(
-            "当前增量补切未命中，已生成整条音频重切预览；当前仅供人工参考。",
+            "当前增量补切未命中，已生成整条音频重切预览，可直接应用当前建议。",
             "success"
           );
         }
@@ -391,7 +391,7 @@
         runtime.segment.clearPreview();
         runtime.ui.renderPreview(null);
       }
-      runtime.ui.setStatus("已画到页面，待你手动保存", "success");
+      runtime.ui.setStatus(result.message, "success");
       return;
     }
     runtime.ui.setStatus(result.message, "error");

@@ -1,3 +1,38 @@
+## 2026-06-10（DataBaker CVPC 柳州话“应用当前建议”优先直写平台保存接口）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把 `应用当前建议` 收口为“请求直写优先，增量 DOM 回退兜底”：
+  - `page-world/audio-observer.js` 当前新增 `annotation/*` 最小鉴权头桥接，只保留 `authorization / baker-terminal / baker-lang`
+  - `data-api.js` 当前会先带桥接鉴权头重新读取最新 `annotation/annos`
+  - 然后按 preview 构造 `POST /httpapi/annotation/save_increment` 所需的 `update / insert / web_snapshot`
+  - 直写成功后，本次建议已直接进入平台保存链路，无需再点平台 `保存`
+- 回退策略当前收紧为：
+  - 只有增量补切 preview 在直写失败时，才回退同源 `xaudio` DOM 画段
+  - 整音频预览当前不会在直写失败后冒险重画整页波形，继续 fail closed
+- UI 与文档口径同步更新：
+  - 当前状态文案改为按实际应用结果提示“已通过平台保存接口应用当前建议”或保留 DOM 应用后的人工保存提示
+  - 整音频预览说明当前明确为“先尝试直写保存接口，失败不回退页面内画段”
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/backend/README.md`
+  - `README.md`
+  - `docs/platforms/index.md`
+- 本轮验证：
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+
 ## 2026-06-10（DataBaker CVPC 柳州话画段切换为后端 Python 整音频预览）
 
 - `DataBaker CVPC / 柳州话脚本` 当前把 `生成画段建议` 主链路从“前端本地静音检测”切到“后端直接整音频分析”：

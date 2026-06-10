@@ -8,6 +8,7 @@ const modulePath = path.resolve(__dirname, "audio-observer.js");
 const OBSERVER_SOURCE = "ASR_EDGE_DATABAKER_CVPC_LIUZHOU_AUDIO_OBSERVER";
 const OBSERVER_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
 const META_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
+const AUTH_TYPE = "DATABAKER_CVPC_LIUZHOU_REQUEST_AUTH";
 
 function loadObserverModule() {
   delete require.cache[modulePath];
@@ -193,6 +194,43 @@ test("CVPC audio observer posts user meta snapshot with only safe user fields", 
   assert.equal(metaMessage.data.payload.meta.user_id, 9527);
   assert.equal(metaMessage.data.payload.meta.name, "柳州标注员");
   assert.deepEqual(Object.keys(metaMessage.data.payload.meta).sort(), ["name", "user_id"]);
+});
+
+test("CVPC audio observer posts sanitized request auth snapshot for annotation api", function () {
+  const observerModule = loadObserverModule();
+  const harness = createWindowHarness();
+  const observer = observerModule.createObserver({
+    window: harness.window,
+    location: {
+      origin: "https://cvpc.data-baker.com",
+      href: "https://cvpc.data-baker.com/app/editor/asr/",
+    },
+  });
+
+  observer.observeRequestAuth(
+    "https://cvpc.data-baker.com/httpapi/annotation/annos?project_id=1453&task_id=12099",
+    {
+      Authorization: "Bearer test-token",
+      "Baker-Terminal": "group@1134",
+      "Baker-Lang": "zh",
+      "X-Ignored": "should-not-pass",
+    }
+  );
+
+  const authMessage = harness.postedMessages.find(function (item) {
+    return item.data.type === AUTH_TYPE;
+  });
+
+  assert.ok(authMessage);
+  assert.equal(authMessage.origin, "https://cvpc.data-baker.com");
+  assert.equal(authMessage.data.source, OBSERVER_SOURCE);
+  assert.deepEqual(authMessage.data.payload.headers, {
+    authorization: "Bearer test-token",
+    "baker-terminal": "group@1134",
+    "baker-lang": "zh",
+  });
+  assert.equal(authMessage.data.payload.path, "/httpapi/annotation/annos");
+  assert.equal(authMessage.data.payload.query.project_id, "1453");
 });
 
 test("CVPC audio observer keeps the latest signed audio url for the same relative path", function () {

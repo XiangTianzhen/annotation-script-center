@@ -8,7 +8,7 @@
 ## 当前能力
 
 - 读取 `annotation/meta` 和当前路由上下文
-- 通过 `MAIN` world 页内观察桥捕获页面真实 `annotation/meta`、`user/meta` 响应和当前音频签名 URL；观察桥会进入同源 `xaudio` iframe，并在 `data-api.js` 内按观察器、桥接 meta、直连 meta、DOM audio、Performance、同源 iframe audio 逐级回退
+- 通过 `MAIN` world 页内观察桥捕获页面真实 `annotation/meta`、`user/meta` 响应、`annotation/*` 请求最小鉴权头和当前音频签名 URL；观察桥会进入同源 `xaudio` iframe，并在 `data-api.js` 内按观察器、桥接 meta、直连 meta、DOM audio、Performance、同源 iframe audio 逐级回退
 - `user/meta` 当前只保留最小用户快照 `name / user_id`，用于补齐平台账号信息并透传到 AI 调用日志
 - 把助手区嵌入右侧 `全局标注` 卡片：原生 `Valid / Invalid` 保持在上方；右侧当前只保留状态、当前音频/当前段摘要和提示说明，并优先插入 `全局标注` 内部的 `.label_title_border2` 内容流；摘要当前改为逐行显示 `文件 / 来源 / 当前第 N 段 / 当前段时间`
 - `是否有效（Valid or Not）` 下方当前作为独立同级 AI 工作区，优先挂到承载字段块的 `div[data-v-fd55b986]` 内，并与各个 `padding-left: 10px` 字段块保持同级；集中承载：
@@ -33,12 +33,16 @@
   - 阈值当前开放到 options `基础设置 -> 静音阈值`，默认单位 `dB`，也可切换 `% / Val`
   - 当前页面显示的是“后端整音频重切预览”，不再依赖浏览器本地 `AudioContext` 解码
   - 当预览结果为空时，AI 区会补充说明“后端未检出静音”或“命中了静音但拆分后仍不足 2 段”
-- `应用当前建议` 当前已接入同源 `xaudio` iframe DOM 交互：
-  - 先按 live region 匹配受影响原段
-  - 把原段改成第一个建议子段
-  - 再点击原生 `开启拆分`，把剩余建议子段画回当前波形
-  - 应用完成后只更新页面当前波形状态，不自动点平台 `保存`
-  - 当前后端整音频预览属于 `applyAllowed=false` 只读预览，运行时会直接拒绝自动应用
+- `应用当前建议` 当前改成“平台保存接口优先，增量 DOM 回退兜底”：
+  - 页内观察桥会额外缓存页面真实 `annotation/*` 请求里的最小鉴权头：`authorization / baker-terminal / baker-lang`
+  - 运行时会先带这些头重新读取当前页 `annotation/annos`
+  - 然后按 preview 构造 `POST /httpapi/annotation/save_increment` 所需的 `update / insert / web_snapshot`
+  - 如果 `save_increment` 直写成功，当前建议会直接进入平台保存链路，无需再点平台 `保存`
+  - 如果缺少鉴权快照或直写失败，且当前是增量预览，才会回退同源 `xaudio` iframe DOM 交互：
+    - 先按 live region 匹配受影响原段
+    - 把原段改成第一个建议子段
+    - 再点击原生 `开启拆分`，把剩余建议子段画回当前波形
+  - 当前后端整音频预览虽然仍带 `applyAllowed=false`，但点击 `应用当前建议` 时仍会先尝试直写 `save_increment`；该标记当前只表示“不允许自动回退 DOM 重画整页波形”
 - 对当前波形选中段执行两阶段识别：
   - `听音` 阶段只输出原始 `音频听出的柳州话文本`，默认按纯听音执行，不注入规则摘要、段时间或页面字段上下文
   - `文本修正` 阶段基于词表优先草稿一次性输出 `修正后的柳州话文本` 与 `整理后的普通话文本`
@@ -66,22 +70,22 @@
 
 ## 当前边界
 
-- 不自动保存
+- 不自动保存（只有用户主动点击 `应用当前建议` 时，才会尝试直写平台保存接口）
 - 不自动提交
 - 不自动切下一条
 - 不跨当前音频自动遍历
-- 画段应用当前只写页面当前波形状态；应用后仍需人工点击平台 `保存`
-- 当前后端整音频预览只读，不支持一键应用；如需自动落段，后续再单独补整页波形重画契约
-- 当前不会直连 `save_increment`，也不会绕过页面原生 `开启拆分 / 保存` 流程
+- 若直写 `save_increment` 成功，则当前建议已直接进入平台保存链路；若回退 DOM 画段，则仍需人工点击平台 `保存`
+- 当前后端整音频预览默认仍不回退 DOM 重画整页波形；直写失败时会 fail closed 交给人工处理
+- 当前不会在缺少页面真实鉴权快照时伪造 `save_increment` 请求
 - 如果未读到可信的当前段 `开始 / 结束` 时间，“当前段 AI 推荐”会直接阻断，不会静默退回整段音频或第一段
 - 两个提示屏蔽开关都默认开启，但只精确匹配上述固定文案，不会扩大到其他 `.tips` 提示
 
 ## 文件
 
-- `page-world/audio-observer.js`：页内音频观察桥，捕获页面真实 `annotation/meta` 响应、页面/同源 iframe 音频请求，并仅在同源 `xaudio` iframe 内观察 `console.log/info/debug` 打印的音频 URL；顶层编辑页不再包装 `console.*`，避免把平台自身日志堆栈挂到扩展脚本上；仍不包装 `console.warn`
+- `page-world/audio-observer.js`：页内音频观察桥，捕获页面真实 `annotation/meta`、`user/meta`、`annotation/*` 最小鉴权头、页面/同源 iframe 音频请求，并仅在同源 `xaudio` iframe 内观察 `console.log/info/debug` 打印的音频 URL；顶层编辑页不再包装 `console.*`，避免把平台自身日志堆栈挂到扩展脚本上；仍不包装 `console.warn`
 - `content.js`：入口编排与路由检测
 - `editing-tab-tip-guard.js`：精确屏蔽固定文案的 Tab / 暂停状态提示
-- `data-api.js`：读取编辑器上下文、解析当前音频 URL、桥接或直连 `user/meta`、当前波形选中段、`annotation/annos` 精确段信息，并通过同源 `xaudio` DOM 交互把建议段画回页面
+- `data-api.js`：读取编辑器上下文、解析当前音频 URL、桥接或直连 `user/meta`、消费页内鉴权快照、读取最新 `annotation/annos`、构造 `save_increment` 直写请求，并在增量预览直写失败时回退同源 `xaudio` DOM 交互
 - `segmentation-controller.js`：后端画段预览请求与本地 preview 缓存编排
 - `ai-recommendation.js`：当前段 AI 推荐调用，负责浏览器端裁剪当前段、生成 Base64 `audioDataUrl`，并把 `aiUsageOperatorName / platformUserName / platformUserId` 与 `aiStages.listen / refine` 一起发送给后端
 - `ui-panel.js`：右侧 `全局标注` 卡内紧凑信息区 + `是否有效（Valid or Not）` 下方独立 AI 工作区挂载；右侧只保留状态与逐行音频摘要，字段内承载两张最终结果卡，独立 AI 区承载动作按钮、画段建议与默认折叠的附加信息，并统一收口为系统蓝主调样式

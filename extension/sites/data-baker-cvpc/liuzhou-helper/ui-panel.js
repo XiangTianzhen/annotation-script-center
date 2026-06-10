@@ -600,7 +600,7 @@
         const readonlyBox = document.createElement("div");
         readonlyBox.className = "preview-item";
         readonlyBox.innerHTML =
-          "<strong>应用限制</strong><div>该结果仅供预览，暂不支持一键应用</div>";
+          "<strong>应用方式</strong><div>点击“应用当前建议”会先尝试直写平台保存接口；当前整音频预览直写失败时不会回退页面内画段</div>";
         previewNode.appendChild(readonlyBox);
 
         const metaBox = document.createElement("div");
