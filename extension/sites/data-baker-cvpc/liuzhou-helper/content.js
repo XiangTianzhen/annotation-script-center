@@ -27,6 +27,15 @@
   const MISSING_AUDIO_MESSAGE =
     dataApiFactory?.MISSING_AUDIO_MESSAGE ||
     "未拿到当前音频签名 URL，请先点击当前音频或播放一次后重试；如仍失败请刷新页面。";
+  const UI_COPY = {
+    recommendReady: "当前段识别结果已生成。",
+    recommendRequired: "请先完成当前段识别。",
+    previewBusy: "正在生成当前音频分段建议...",
+    previewReady: "分段建议已生成，请先复核后再应用到页面。",
+    previewFailedPrefix: "生成分段建议失败：",
+    previewAutoApplyFailedPrefix: "分段建议已生成，但自动应用失败：",
+    previewFeatureDisabled: "当前已关闭分段建议功能。",
+  };
 
   let runtime = null;
   let routeTimer = null;
@@ -251,7 +260,7 @@
       };
     }
     currentRuntime.ui?.setStatus?.(
-      "画段建议已生成，但自动应用失败：" + String(result?.message || "未知错误"),
+      UI_COPY.previewAutoApplyFailedPrefix + String(result?.message || "未知错误"),
       "error"
     );
     return {
@@ -641,10 +650,32 @@
     }
     try {
       const context = await runtime.dataApi.getEditorContext({ force: true });
+      const previousBatchEntryName = String(runtime.batchSelectionEntryName || "");
+      const nextBatchEntryName = String(context.selectedEntry?.name || "");
       runtime.lastAudioContext = context;
       runtime.currentSelectionKey = String(context.selectionKey || "");
       runtime.currentSelectionEntryName = String(context.selectedEntry?.name || "");
       runtime.ui.renderAudioContext(context);
+      if (runtime?.ui?.renderBatchSelection && runtime?.dataApi?.getBatchSegments) {
+        try {
+          const batchPlan = await runtime.dataApi.getBatchSegments("", context);
+          runtime.ui.renderBatchSelection({
+            totalSegments: Number(batchPlan?.totalSegments || 0) || 0,
+            resetSelection:
+              runtime.batchSelectionInitialized !== true ||
+              previousBatchEntryName !== nextBatchEntryName,
+          });
+          runtime.batchSelectionInitialized = true;
+          runtime.batchSelectionEntryName = nextBatchEntryName;
+        } catch (_error) {
+          runtime.ui.renderBatchSelection({
+            totalSegments: 0,
+            resetSelection: true,
+          });
+          runtime.batchSelectionInitialized = false;
+          runtime.batchSelectionEntryName = nextBatchEntryName;
+        }
+      }
       return Boolean(context.audioUrl);
     } catch (error) {
       runtime.ui.renderAudioContext({
@@ -652,6 +683,13 @@
         audioUrlHintMessage:
           "读取当前音频地址失败：" + (error && error.message ? error.message : String(error)),
       });
+      runtime?.ui?.renderBatchSelection?.({
+        totalSegments: 0,
+        resetSelection: true,
+      });
+      if (runtime) {
+        runtime.batchSelectionInitialized = false;
+      }
       return false;
     }
   }
@@ -697,7 +735,7 @@
   }
 
   async function handlePreview() {
-    runtime.ui.setStatus("正在生成当前音频画段建议...", "");
+    runtime.ui.setStatus(UI_COPY.previewBusy, "");
     try {
       const context = await buildCurrentContext();
       const preview = await runtime.segment.preview(context);
@@ -708,19 +746,19 @@
       }
       if (String(preview?.meta?.previewMode || "") === "whole-audio-fallback") {
         if (String(preview?.meta?.analysisSource || "") === "backend-python-audio-url") {
-          runtime.ui.setStatus("后端整音频画段预览已生成，可直接应用当前建议。", "success");
+          runtime.ui.setStatus("后端整音频分段预览已生成，可直接应用分段建议。", "success");
         } else {
           runtime.ui.setStatus(
-            "当前增量补切未命中，已生成整条音频重切预览，可直接应用当前建议。",
+            "当前增量补切未命中，已生成整条音频重切预览，可直接应用分段建议。",
             "success"
           );
         }
       } else {
-        runtime.ui.setStatus("画段建议已生成，请先复核后再应用到页面。", "success");
+        runtime.ui.setStatus(UI_COPY.previewReady, "success");
       }
     } catch (error) {
       runtime.ui.setStatus(
-        "生成画段建议失败：" + (error && error.message ? error.message : String(error)),
+        UI_COPY.previewFailedPrefix + (error && error.message ? error.message : String(error)),
         "error"
       );
     }
@@ -750,7 +788,7 @@
       }
       lastRecommendation = await runtime.ai.recommend(context);
       runtime.ui.renderRecommendation(lastRecommendation);
-      runtime.ui.setStatus("当前段 AI 推荐已生成。", "success");
+      runtime.ui.setStatus(UI_COPY.recommendReady, "success");
     } catch (error) {
       handleRecommendationFailure(runtime, error);
     }
@@ -758,7 +796,7 @@
 
   async function handleApplyRecommendationText(targetKey) {
     if (!lastRecommendation) {
-      runtime.ui.setStatus("请先生成当前段 AI 推荐。", "error");
+      runtime.ui.setStatus(UI_COPY.recommendRequired, "error");
       return;
     }
     const target = resolveRecommendationFillTarget(lastRecommendation, targetKey);
@@ -776,7 +814,7 @@
 
   async function handleApplyRecommend() {
     if (!lastRecommendation) {
-      runtime.ui.setStatus("请先生成当前段 AI 推荐。", "error");
+      runtime.ui.setStatus(UI_COPY.recommendRequired, "error");
       return;
     }
     const result = await runtime.dataApi.fillCurrentSegmentRecommendation(lastRecommendation);
@@ -840,7 +878,7 @@
       segmentPreviewAutoApplyEnabled: config.segmentPreviewAutoApplyEnabled !== false,
       onPreview: function () {
         if (config.segmentPreviewEnabled === false) {
-          ui.setStatus("当前已关闭画段建议功能。", "error");
+          ui.setStatus(UI_COPY.previewFeatureDisabled, "error");
           return;
         }
         void handlePreview();
@@ -967,6 +1005,8 @@
       currentSelectionKey: "",
       currentSelectionEntryName: "",
       lastAudioContext: null,
+      batchSelectionInitialized: false,
+      batchSelectionEntryName: "",
       reloadPage: function () {
         try {
           globalThis.location.reload();
@@ -1020,6 +1060,13 @@
   const api = {
     createBatchRecommendController: createBatchRecommendController,
     __testOnly: {
+      copy: {
+        recommendReady: UI_COPY.recommendReady,
+        recommendRequired: UI_COPY.recommendRequired,
+        previewBusy: UI_COPY.previewBusy,
+        previewReady: UI_COPY.previewReady,
+        previewFailedPrefix: UI_COPY.previewFailedPrefix,
+      },
       createBatchRecommendController: createBatchRecommendController,
       resolveBatchRecommendationTexts: resolveBatchRecommendationTexts,
       buildRecommendationFailurePayload: buildRecommendationFailurePayload,

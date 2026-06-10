@@ -26,6 +26,51 @@
     }
   }
 
+  function normalizeBatchSelectionNumbers(totalSegments, selectedNumbers) {
+    const total = Math.max(0, Math.round(Number(totalSegments || 0)) || 0);
+    if (total <= 0) {
+      return [];
+    }
+    const unique = new Set();
+    (Array.isArray(selectedNumbers) ? selectedNumbers : []).forEach(function (value) {
+      const number = Math.max(0, Math.round(Number(value || 0)) || 0);
+      if (number <= 0 || number > total) {
+        return;
+      }
+      unique.add(number);
+    });
+    return Array.from(unique).sort(function (left, right) {
+      return left - right;
+    });
+  }
+
+  function buildBatchSelectionSpec(totalSegments, selectedNumbers) {
+    const total = Math.max(0, Math.round(Number(totalSegments || 0)) || 0);
+    const normalized = normalizeBatchSelectionNumbers(total, selectedNumbers);
+    if (total <= 0 || normalized.length <= 0 || normalized.length >= total) {
+      return "";
+    }
+    const tokens = [];
+    let rangeStart = normalized[0];
+    let previous = normalized[0];
+    for (let index = 1; index <= normalized.length; index += 1) {
+      const current = normalized[index];
+      if (current === previous + 1) {
+        previous = current;
+        continue;
+      }
+      tokens.push(rangeStart === previous ? String(rangeStart) : String(rangeStart) + "-" + String(previous));
+      rangeStart = current;
+      previous = current;
+    }
+    return tokens.join(",");
+  }
+
+  function formatBatchSelectionSummary(totalSegments, selectedNumbers) {
+    const spec = buildBatchSelectionSpec(totalSegments, selectedNumbers);
+    return spec || "全部段";
+  }
+
   function readUsageNumber(source, keys) {
     const input = source && typeof source === "object" ? source : {};
     for (let index = 0; index < keys.length; index += 1) {
@@ -95,35 +140,36 @@
     };
   }
 
-  function formatUsageSummary(usage) {
-    const totals = collectUsageTotals(usage);
-    if (!totals.found) {
-      return "无";
+  function buildAiStageSummary(source, stageKey, title, modelKey) {
+    const usageSource = source && typeof source === "object" ? source.usage : null;
+    const modelsSource = source && typeof source === "object" ? source.models : null;
+    const totals = collectUsageTotals(usageSource?.[stageKey]);
+    return {
+      title: title,
+      model: normalizeText(modelsSource?.[modelKey]),
+      promptTokens: totals.found ? String(totals.promptTokens) : "",
+      completionTokens: totals.found ? String(totals.completionTokens) : "",
+    };
+  }
+
+  function clearNodeChildren(node) {
+    if (!(node instanceof HTMLElement)) {
+      return;
     }
-    const lines = [
-      "总输入 " +
-        String(totals.promptTokens) +
-        "，总输出 " +
-        String(totals.completionTokens) +
-        "，总计 " +
-        String(totals.totalTokens),
-    ];
-    Object.keys(usage || {}).forEach(function (stageKey) {
-      const stageTotals = collectUsageTotals(usage[stageKey]);
-      if (!stageTotals.found) {
-        return;
-      }
-      lines.push(
-        String(stageKey) +
-          "：输入 " +
-          String(stageTotals.promptTokens) +
-          "，输出 " +
-          String(stageTotals.completionTokens) +
-          "，总计 " +
-          String(stageTotals.totalTokens)
-      );
-    });
-    return lines.join("\n");
+    while (node.children && node.children.length > 0) {
+      node.removeChild(node.children[0]);
+    }
+    node.textContent = "";
+    if (typeof node.innerHTML === "string") {
+      node.innerHTML = "";
+    }
+  }
+
+  function formatMetaValue(value, joiner) {
+    if (Array.isArray(value)) {
+      return value.join(joiner || " ");
+    }
+    return String(value || "");
   }
 
   function ensureStyle() {
@@ -189,10 +235,15 @@
       "  background: linear-gradient(180deg, #f9fbff 0%, #f4f8ff 100%);",
       "  box-shadow: 0 6px 18px rgba(79, 124, 255, 0.08);",
       "}",
-      "[" + MIDDLE_AI_ACTIONS_ATTR + "] { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }",
+      "[" + MIDDLE_AI_ACTIONS_ATTR + "], [" + MIDDLE_AI_ATTR + "] .section-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }",
       "[" + MIDDLE_AI_ATTR + "] .batch-controls { margin-top: 8px; display: grid; gap: 8px; }",
-      "[" + MIDDLE_AI_ATTR + "] .batch-input-row { display: grid; gap: 6px; }",
-      "[" + MIDDLE_AI_ATTR + "] .batch-input-row input { min-height: 34px; padding: 8px 10px; border: 1px solid var(--asc-primary-border); border-radius: 8px; background: #fff; color: #42506a; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-selector { display: grid; gap: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-selector-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-selector-summary { color: var(--asc-primary-strong); font-weight: 600; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-selector-grid { display: flex; flex-wrap: wrap; gap: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-selector-grid button { min-width: 44px; justify-content: center; }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-selector-grid button[data-selected='true'] { background: var(--asc-primary-soft); border-color: var(--asc-primary); color: var(--asc-primary-strong); box-shadow: inset 0 0 0 1px rgba(79, 124, 255, 0.12); }",
+      "[" + MIDDLE_AI_ATTR + "] .batch-selector-grid button[data-batch-all='true'] { min-width: 56px; font-weight: 600; }",
       "[" + MIDDLE_AI_ATTR + "] .batch-help { color: var(--asc-muted); }",
       "[" + MIDDLE_AI_ATTR + "] .batch-action-row { display: flex; flex-wrap: wrap; gap: 8px; }",
       "[" + MIDDLE_AI_ATTR + "] .batch-state-list { margin-top: 8px; display: grid; gap: 8px; }",
@@ -204,6 +255,8 @@
         MIDDLE_AI_ACTIONS_ATTR +
         "] button[data-accent='true'], [" +
         MIDDLE_AI_ATTR +
+        "] .section-actions button[data-accent='true'], [" +
+        MIDDLE_AI_ATTR +
         "] .batch-action-row button[data-accent='true'] {",
       "  color: #fff;",
       "  border-color: #f29a38;",
@@ -213,6 +266,8 @@
       "[" +
         MIDDLE_AI_ACTIONS_ATTR +
         "] button[data-accent='true']:hover, [" +
+        MIDDLE_AI_ATTR +
+        "] .section-actions button[data-accent='true']:hover, [" +
         MIDDLE_AI_ATTR +
         "] .batch-action-row button[data-accent='true']:hover {",
       "  color: #fff;",
@@ -270,6 +325,7 @@
       "[" + MIDDLE_AI_ATTR + "] .section-title, [" + ROOT_ATTR + "] .panel-title { color: var(--asc-primary-strong); }",
       "[" + MIDDLE_AI_ATTR + "] .section-note, [" + ROOT_ATTR + "] .panel-subtitle { color: var(--asc-muted); }",
       "[" + MIDDLE_AI_ATTR + "] .meta-box, [" + MIDDLE_AI_ATTR + "] .preview-item { border-color: var(--asc-primary-border); background: #ffffff; }",
+      "[" + MIDDLE_AI_ATTR + "] .meta-box .meta-line { margin-top: 4px; color: #42506a; }",
       "[" + MIDDLE_AI_ATTR + "] .meta-details { margin-top: 8px; border: 1px solid var(--asc-primary-border); border-radius: 10px; background: #fff; overflow: hidden; }",
       "[" + MIDDLE_AI_ATTR + "] .meta-details summary { cursor: pointer; list-style: none; padding: 10px 12px; color: var(--asc-primary-strong); font-weight: 600; background: #f6f9ff; user-select: none; }",
       "[" + MIDDLE_AI_ATTR + "] .meta-details summary::-webkit-details-marker { display: none; }",
@@ -591,9 +647,17 @@
     let recommendationMetaNode = null;
     let dialectRecommendationNode = null;
     let mandarinRecommendationNode = null;
-    let batchSelectionInputNode = null;
+    let batchSelectionSummaryNode = null;
+    let batchSelectionGridNode = null;
     let batchStateNode = null;
     let autoApplyToggleNode = null;
+    let batchSelectionState = {
+      totalSegments: 0,
+      selectedNumbers: [],
+      dragging: false,
+      dragNextSelected: true,
+    };
+    let batchSelectionPointerCleanup = null;
 
     function setStatus(text, tone) {
       if (!statusNode) {
@@ -607,9 +671,9 @@
       if (!previewNode) {
         return;
       }
-      previewNode.innerHTML = "";
+      clearNodeChildren(previewNode);
       if (!preview || typeof preview !== "object") {
-        previewNode.textContent = "当前还没有画段建议。";
+        previewNode.textContent = "当前还没有分段建议。";
         return;
       }
       const summary = document.createElement("div");
@@ -634,7 +698,7 @@
         const readonlyBox = document.createElement("div");
         readonlyBox.className = "preview-item";
         readonlyBox.innerHTML =
-          "<strong>应用方式</strong><div>点击“应用当前建议”会先尝试直写平台保存接口；当前整音频预览直写失败时不会回退页面内画段</div>";
+          "<strong>应用方式</strong><div>点击“应用分段建议”会先尝试直写平台保存接口；当前整音频预览直写失败时不会回退页面内分段</div>";
         previewNode.appendChild(readonlyBox);
 
         const metaBox = document.createElement("div");
@@ -740,20 +804,41 @@
       if (!recommendationMetaNode) {
         return;
       }
-      recommendationMetaNode.innerHTML = "";
+      clearNodeChildren(recommendationMetaNode);
       const source = result && typeof result === "object" ? result : {};
       const rawSource =
         source.debugRawJson ||
         source.rawResponse ||
         source.debugRawAiResponse ||
-        (result && typeof result === "object" ? result : null);
+        null;
+      const rawText = rawSource ? stringifyJsonSafely(rawSource) : "";
+      [
+        buildAiStageSummary(source, "listen", "听音识别", "listenModel"),
+        buildAiStageSummary(source, "refine", "文本修正", "refineModel"),
+      ].forEach(function (stageItem) {
+        const box = document.createElement("div");
+        box.className = "meta-box";
+        box.innerHTML =
+          "<strong>" +
+          stageItem.title +
+          "</strong>" +
+          '<div class="meta-line">模型：' +
+          stageItem.model +
+          "</div>" +
+          '<div class="meta-line">输入：' +
+          stageItem.promptTokens +
+          "</div>" +
+          '<div class="meta-line">输出：' +
+          stageItem.completionTokens +
+          "</div>";
+        recommendationMetaNode.appendChild(box);
+      });
       [
         ["音频听出的柳州话文本", source.audioDialectText || source.dialectText || ""],
-        ["Token 用量", formatUsageSummary(source.usage || {})],
-        ["特殊标签", Array.isArray(source.specialTags) ? source.specialTags.join(" ") : ""],
+        ["特殊标签", formatMetaValue(source.specialTags, " ")],
         ["需人工复核", source.needHumanReview === true ? "是" : source.needHumanReview === false ? "否" : ""],
-        ["备注", Array.isArray(source.notes) ? source.notes.join("；") : ""],
-        ["AI 返回原始内容", stringifyJsonSafely(rawSource)],
+        ["备注", formatMetaValue(source.notes, "；")],
+        ["AI 返回原始内容", rawText],
       ].forEach(function (item) {
         const box = document.createElement("div");
         box.className = "meta-box";
@@ -864,6 +949,127 @@
         failureBox.appendChild(list);
         batchStateNode.appendChild(failureBox);
       }
+    }
+
+    function stopBatchSelectionDrag() {
+      batchSelectionState.dragging = false;
+    }
+
+    function getCurrentBatchSelectedNumbers() {
+      return normalizeBatchSelectionNumbers(
+        batchSelectionState.totalSegments,
+        batchSelectionState.selectedNumbers
+      );
+    }
+
+    function applyBatchSelectionNumbers(selectedNumbers) {
+      const total = Math.max(0, Math.round(Number(batchSelectionState.totalSegments || 0)) || 0);
+      batchSelectionState.selectedNumbers = normalizeBatchSelectionNumbers(total, selectedNumbers);
+      if (total > 0 && batchSelectionState.selectedNumbers.length <= 0) {
+        batchSelectionState.selectedNumbers = Array.from({ length: total }, function (_item, index) {
+          return index + 1;
+        });
+      }
+      const current = getCurrentBatchSelectedNumbers();
+      const selectedSet = new Set(current);
+      const isAllSelected = total > 0 && current.length >= total;
+      if (batchSelectionSummaryNode) {
+        batchSelectionSummaryNode.textContent = "当前选择：" + formatBatchSelectionSummary(total, current);
+      }
+      if (batchSelectionGridNode) {
+        Array.from(batchSelectionGridNode.children || []).forEach(function (node) {
+          if (!(node instanceof HTMLElement) || typeof node.getAttribute !== "function") {
+            return;
+          }
+          if (node.getAttribute("data-batch-all") === "true") {
+            node.setAttribute("data-selected", isAllSelected ? "true" : "false");
+            return;
+          }
+          const segmentNumber = Math.max(0, Math.round(Number(node.getAttribute("data-segment-number") || 0)) || 0);
+          node.setAttribute("data-selected", selectedSet.has(segmentNumber) ? "true" : "false");
+        });
+      }
+    }
+
+    function updateBatchSelectionValue(segmentNumber, selected) {
+      const total = Math.max(0, Math.round(Number(batchSelectionState.totalSegments || 0)) || 0);
+      if (segmentNumber <= 0 || segmentNumber > total) {
+        return;
+      }
+      const next = new Set(getCurrentBatchSelectedNumbers());
+      if (selected) {
+        next.add(segmentNumber);
+      } else {
+        next.delete(segmentNumber);
+      }
+      applyBatchSelectionNumbers(Array.from(next));
+    }
+
+    function bindBatchSegmentButton(button, segmentNumber) {
+      button.addEventListener("mousedown", function () {
+        const selectedSet = new Set(getCurrentBatchSelectedNumbers());
+        const nextSelected = selectedSet.has(segmentNumber) !== true;
+        batchSelectionState.dragging = true;
+        batchSelectionState.dragNextSelected = nextSelected;
+        updateBatchSelectionValue(segmentNumber, nextSelected);
+      });
+      button.addEventListener("mouseenter", function () {
+        if (!batchSelectionState.dragging) {
+          return;
+        }
+        updateBatchSelectionValue(segmentNumber, batchSelectionState.dragNextSelected === true);
+      });
+    }
+
+    function renderBatchSelection(options) {
+      const source = options && typeof options === "object" ? options : {};
+      const total = Math.max(0, Math.round(Number(source.totalSegments || 0)) || 0);
+      batchSelectionState.totalSegments = total;
+      if (total <= 0) {
+        if (batchSelectionSummaryNode) {
+          batchSelectionSummaryNode.textContent = "当前选择：暂无可选段";
+        }
+        if (batchSelectionGridNode) {
+          batchSelectionGridNode.innerHTML = "";
+        }
+        batchSelectionState.selectedNumbers = [];
+        return;
+      }
+
+      if (batchSelectionGridNode) {
+        batchSelectionGridNode.innerHTML = "";
+        const allButton = createButton("全部", false);
+        allButton.setAttribute("data-batch-all", "true");
+        allButton.addEventListener("click", function () {
+          applyBatchSelectionNumbers(
+            Array.from({ length: total }, function (_item, index) {
+              return index + 1;
+            })
+          );
+        });
+        batchSelectionGridNode.appendChild(allButton);
+        for (let index = 1; index <= total; index += 1) {
+          const button = createButton(String(index), false);
+          button.setAttribute("data-segment-number", String(index));
+          bindBatchSegmentButton(button, index);
+          batchSelectionGridNode.appendChild(button);
+        }
+      }
+
+      const preferredSelected =
+        source.resetSelection === true || batchSelectionState.selectedNumbers.length <= 0
+          ? Array.from({ length: total }, function (_item, index) {
+              return index + 1;
+            })
+          : getCurrentBatchSelectedNumbers();
+      applyBatchSelectionNumbers(preferredSelected);
+    }
+
+    function getBatchSelectionSpec() {
+      return buildBatchSelectionSpec(
+        batchSelectionState.totalSegments,
+        batchSelectionState.selectedNumbers
+      );
     }
 
     function renderAudioContext(context) {
@@ -980,7 +1186,7 @@
 
       const foot = document.createElement("div");
       foot.className = "panel-foot";
-      foot.textContent = "提示：AI 建议与画段建议已集中到中间区域；应用后仍需人工复核并手动保存。";
+      foot.textContent = "提示：AI 识别与分段建议已集中到中间区域；应用后仍需人工复核并手动保存。";
 
       rightPanelNode.appendChild(statusNode);
       rightPanelNode.appendChild(audioSection);
@@ -998,7 +1204,33 @@
 
       const head = document.createElement("div");
       head.innerHTML =
-        '<div class="section-title">柳州话脚本 AI 区</div><div class="section-note">当前段推荐、画段建议与辅助动作统一集中在这里。</div>';
+        '<div class="section-title">柳州话 AI 识别助手</div><div class="section-note">当前段识别、批量识别、分段建议和 AI 信息集中展示在这里。</div>';
+
+      const currentSection = document.createElement("div");
+      currentSection.className = "section";
+      currentSection.innerHTML =
+        '<div class="section-title">当前段识别</div><div class="section-note">用于当前选中段的识别、文本建议应用和有效性补填。</div>';
+
+      const currentActionsNode = document.createElement("div");
+      currentActionsNode.setAttribute(MIDDLE_AI_ACTIONS_ATTR, "");
+      [
+        ["当前段识别", false, "accent", deps.onRecommend],
+        ["未填写补 Valid", false, "accent", deps.onFillAllValid],
+      ].forEach(function (definition) {
+        const button = createButton(definition[0], definition[1], definition[2]);
+        button.addEventListener("click", function () {
+          if (typeof definition[3] === "function") {
+            definition[3]();
+          }
+        });
+        currentActionsNode.appendChild(button);
+      });
+      currentSection.appendChild(currentActionsNode);
+
+      const previewSection = document.createElement("div");
+      previewSection.className = "section";
+      previewSection.innerHTML =
+        '<div class="section-title">分段建议</div><div class="section-note">建议只会作用于当前音频的分段状态；应用后仍需你手动点击平台保存。</div>';
 
       const toggleRow = document.createElement("label");
       toggleRow.className = "inline-toggle";
@@ -1011,17 +1243,15 @@
         }
       });
       const toggleText = document.createElement("span");
-      toggleText.textContent = "生成后自动应用当前建议";
+      toggleText.textContent = "生成后自动应用分段建议";
       toggleRow.appendChild(autoApplyToggleNode);
       toggleRow.appendChild(toggleText);
 
       middleActionsNode = document.createElement("div");
-      middleActionsNode.setAttribute(MIDDLE_AI_ACTIONS_ATTR, "");
+      middleActionsNode.className = "section-actions";
       [
-        ["当前段 AI 推荐", false, "accent", deps.onRecommend],
-        ["未填写补 Valid", false, "accent", deps.onFillAllValid],
-        ["生成画段建议", false, "accent", deps.onPreview],
-        ["应用当前建议", false, "accent", deps.onApplyPreview],
+        ["生成分段建议", false, "accent", deps.onPreview],
+        ["应用分段建议", false, "accent", deps.onApplyPreview],
       ].forEach(function (definition) {
         const button = createButton(definition[0], definition[1], definition[2]);
         button.addEventListener("click", function () {
@@ -1031,32 +1261,40 @@
         });
         middleActionsNode.appendChild(button);
       });
+      previewSection.appendChild(toggleRow);
+      previewSection.appendChild(middleActionsNode);
 
       const batchSection = document.createElement("div");
       batchSection.className = "section";
       batchSection.innerHTML =
-        '<div class="section-title">批量识别并自动填入</div><div class="section-note">仅作用于当前音频；留空表示当前音频全部段，支持 2-4、2,3,5、2-4,7。</div>';
+        '<div class="section-title">批量识别</div><div class="section-note">仅作用于当前音频；默认全选，可点击段号或拖动连续选择。</div>';
 
       const batchControls = document.createElement("div");
       batchControls.className = "batch-controls";
 
-      const batchInputRow = document.createElement("div");
-      batchInputRow.className = "batch-input-row";
-      batchSelectionInputNode = document.createElement("input");
-      batchSelectionInputNode.type = "text";
-      batchSelectionInputNode.setAttribute("placeholder", "留空=当前音频全部段；例如 2-4,7");
+      const batchSelector = document.createElement("div");
+      batchSelector.className = "batch-selector";
+      const batchSelectorHead = document.createElement("div");
+      batchSelectorHead.className = "batch-selector-head";
+      batchSelectionSummaryNode = document.createElement("div");
+      batchSelectionSummaryNode.className = "batch-selector-summary";
+      batchSelectionSummaryNode.textContent = "当前选择：正在读取段落...";
+      batchSelectorHead.appendChild(batchSelectionSummaryNode);
+      batchSelectionGridNode = document.createElement("div");
+      batchSelectionGridNode.className = "batch-selector-grid";
       const batchHelp = document.createElement("div");
       batchHelp.className = "batch-help";
-      batchHelp.textContent = "留空表示当前音频全部段；只处理当前 entry，不会自动提交或切下一条。";
-      batchInputRow.appendChild(batchSelectionInputNode);
-      batchInputRow.appendChild(batchHelp);
+      batchHelp.textContent = "默认处理当前音频全部段；只处理当前 entry，不会自动提交或切下一条。";
+      batchSelector.appendChild(batchSelectorHead);
+      batchSelector.appendChild(batchSelectionGridNode);
+      batchSelector.appendChild(batchHelp);
 
       const batchActionRow = document.createElement("div");
       batchActionRow.className = "batch-action-row";
       const batchStartButton = createButton("批量识别并填入", false, "accent");
       batchStartButton.addEventListener("click", function () {
         if (typeof deps.onBatchRecommend === "function") {
-          deps.onBatchRecommend(String(batchSelectionInputNode?.value || ""));
+          deps.onBatchRecommend(getBatchSelectionSpec());
         }
       });
       const batchStopButton = createButton("停止批量", false);
@@ -1072,28 +1310,24 @@
       batchStateNode.className = "batch-state-list";
       batchStateNode.textContent = "当前没有批量任务。";
 
-      batchControls.appendChild(batchInputRow);
+      batchControls.appendChild(batchSelector);
       batchControls.appendChild(batchActionRow);
       batchControls.appendChild(batchStateNode);
       batchSection.appendChild(batchControls);
 
-      const previewSection = document.createElement("div");
-      previewSection.className = "section";
-      previewSection.innerHTML =
-        '<div class="section-title">当前画段建议</div><div class="section-note">建议只会画到页面当前波形状态；应用后仍需你手动点击平台保存。</div>';
       previewNode = document.createElement("div");
       previewNode.className = "preview-list";
-      previewNode.textContent = "当前还没有画段建议。";
+      previewNode.textContent = "当前还没有分段建议。";
       previewSection.appendChild(previewNode);
 
       const recommendSection = document.createElement("div");
       recommendSection.className = "section";
       recommendSection.innerHTML =
-        '<div class="section-title">当前段 AI 附加信息</div><div class="section-note">音频听出的柳州话文本、特殊标签、人工复核、备注和原始返回内容保留在独立 AI 区，默认折叠，避免占用真实输入字段。</div>';
+        '<div class="section-title">AI信息</div><div class="section-note">展示听音识别、文本修正、听音文本和原始返回内容，默认折叠，不占用真实输入字段。</div>';
       const metaDetails = document.createElement("details");
       metaDetails.className = "meta-details";
       const metaSummary = document.createElement("summary");
-      metaSummary.textContent = "点击展开附加信息";
+      metaSummary.textContent = "展开查看 AI 信息";
       const metaContent = document.createElement("div");
       metaContent.className = "meta-details-content";
       recommendationMetaNode = document.createElement("div");
@@ -1105,11 +1339,24 @@
       renderRecommendationMeta(null);
 
       middleAiRoot.appendChild(head);
-      middleAiRoot.appendChild(toggleRow);
-      middleAiRoot.appendChild(middleActionsNode);
+      middleAiRoot.appendChild(currentSection);
       middleAiRoot.appendChild(batchSection);
       middleAiRoot.appendChild(previewSection);
       middleAiRoot.appendChild(recommendSection);
+      if (!batchSelectionPointerCleanup) {
+        const releaseHandler = function () {
+          stopBatchSelectionDrag();
+        };
+        const windowLike = globalThis.window || null;
+        if (windowLike && typeof windowLike.addEventListener === "function") {
+          windowLike.addEventListener("mouseup", releaseHandler);
+          windowLike.addEventListener("blur", releaseHandler);
+          batchSelectionPointerCleanup = function () {
+            windowLike.removeEventListener?.("mouseup", releaseHandler);
+            windowLike.removeEventListener?.("blur", releaseHandler);
+          };
+        }
+      }
       return middleAiRoot;
     }
 
@@ -1203,9 +1450,20 @@
       recommendationMetaNode = null;
       dialectRecommendationNode = null;
       mandarinRecommendationNode = null;
-      batchSelectionInputNode = null;
+      batchSelectionSummaryNode = null;
+      batchSelectionGridNode = null;
       batchStateNode = null;
       autoApplyToggleNode = null;
+      batchSelectionState = {
+        totalSegments: 0,
+        selectedNumbers: [],
+        dragging: false,
+        dragNextSelected: true,
+      };
+      if (typeof batchSelectionPointerCleanup === "function") {
+        batchSelectionPointerCleanup();
+      }
+      batchSelectionPointerCleanup = null;
     }
 
     return {
@@ -1213,6 +1471,7 @@
       destroy,
       renderAudioContext,
       renderBatchState,
+      renderBatchSelection,
       setStatus,
       renderPreview,
       renderRecommendation,

@@ -1,5 +1,25 @@
 ## 2026-06-10（DataBaker CVPC 柳州话 unique_id重复 修复、自动应用开关与右侧顺序调整）
 
+- `DataBaker CVPC / 柳州话脚本` 当前继续优化中间 AI 区文案与信息展示：
+  - 中间主区标题当前改为 `柳州话 AI 识别助手`
+  - 固定按 `当前段识别 / 批量识别 / 分段建议 / AI信息` 4 个分区展示
+  - `当前段 AI 推荐 / 生成画段建议 / 应用当前建议 / 当前段 AI 附加信息` 等旧口径当前统一收口到 `当前段识别 / 生成分段建议 / 应用分段建议 / AI信息`
+  - `AI信息` 当前默认折叠但始终保留；内部固定顺序改为 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
+  - 原 `Token 用量` 当前改成两条固定阶段信息：`听音识别`、`文本修正`，每条只显示 `模型 / 输入 / 输出`，不再展示 `总输入 / 总输出 / 总计`
+  - 当前段识别成功、旧结果失效、分段建议生成/失败等状态提示当前同步切到新的“识别 / 分段建议”口径
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+
 - `DataBaker CVPC / 柳州话脚本` 当前把 `应用当前建议` 的直写保存链路再收口一轮：
   - 新插入段 `unique_id` 当前改为 `crypto.getRandomValues + timestamp` 生成
   - 直写前会对本次 `insert/update` 与 `web_snapshot` 各自做去重预检
@@ -5095,3 +5115,18 @@
 - 2026-06-10 补充小修：
   - 将补充区的 `娃崽 -> 小孩子` 并回主表 `娃仔 -> 小孩`
   - 当前以 `娃仔` 作为主词条，`娃崽` 改为 `娃仔` 的别写，不再单独保留 `小孩子` 映射
+
+## 2026-06-10（DataBaker CVPC 柳州话批量识别热修二）
+
+- 修复 `批量识别并自动填入` 在部分空白文本段上误报“当前页面分段状态已变化，已停止批量写回，请刷新后重试。”：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 当前在批量写回前，会先从同音频其他段或模板里复用 `标注文本 / 普通话顺滑` 字段定义；目标段本身缺少 text attr 时不再直接 fail closed。
+  - 保持原有安全边界：仍然只按成功段更新，仍然优先按 `uniqueId`、失败时回退按 `selectionKey(start/end)` 对齐 latest rows。
+- 批量入口 UI 当前从“文本范围输入”改为“全部 + 段号选择框”：
+  - 默认全选当前音频全部段。
+  - 支持点击单段和拖动连续选择。
+  - `批量识别并填入` 继续复用 `当前段 AI 推荐` 同款橙色样式。
+- `content.js` 当前会在读取当前音频上下文后同步刷新批量可选段；切音频时重置为全选，同音频切段时保留已选范围。
+- 本轮定向验证：
+  - `node --test --test-name-pattern "applyBatchTextRecommendations" extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `node --test --test-name-pattern "batch" extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --test --test-name-pattern "CVPC batch controller" extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`

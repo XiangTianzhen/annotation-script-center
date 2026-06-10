@@ -12,20 +12,20 @@
   const VALID_LABELS = ["是（Valid）", "是(Valid)", "Valid"];
   const INVALID_LABELS = ["否（Invalid）", "否(Invalid)", "Invalid"];
   const APPLY_TOLERANCE_MS = 80;
-  const PREVIEW_STALE_MESSAGE = "当前音频或段选择已变化，旧画段建议已失效，请重新生成。";
-  const PREVIEW_LIVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，旧画段建议已失效，请重新生成。";
-  const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的画段建议，请先生成画段建议。";
+  const PREVIEW_STALE_MESSAGE = "当前音频或段选择已变化，旧分段建议已失效，请重新生成。";
+  const PREVIEW_LIVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，旧分段建议已失效，请重新生成。";
+  const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的分段建议，请先生成分段建议。";
   const PREVIEW_NOTHING_TO_APPLY_MESSAGE = "当前音频没有需要应用的拆分建议。";
   const PREVIEW_DIRECT_SAVE_AUTH_MISSING_MESSAGE =
     "未获取到平台保存请求的访问凭据，暂时无法直写保存接口。";
   const PREVIEW_DIRECT_SAVE_SUCCESS_MESSAGE =
-    "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。";
+    "已通过平台保存接口应用分段建议，请刷新页面复核；本次无需再点平台保存。";
   const PREVIEW_DUPLICATE_UNIQUE_ID_MESSAGE =
-    "当前建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。";
+    "当前分段建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。";
   const PREVIEW_DIRECT_SAVE_DUPLICATE_UNIQUE_ID_MESSAGE =
-    "平台保存接口返回 unique_id重复；建议已保留，请重新生成或人工处理。";
-  const PREVIEW_UNSAFE_MESSAGE = "未检测到稳定的波形画段区域或拆分控件，请人工处理当前建议。";
-  const PREVIEW_APPLY_SUCCESS_MESSAGE = "建议已画到页面，请人工复核后点击平台保存。";
+    "平台保存接口返回 unique_id重复；分段建议已保留，请重新生成或人工处理。";
+  const PREVIEW_UNSAFE_MESSAGE = "未检测到稳定的波形分段区域或拆分控件，请人工处理当前分段建议。";
+  const PREVIEW_APPLY_SUCCESS_MESSAGE = "分段建议已写到页面，请人工复核后点击平台保存。";
   const BATCH_SAVE_AUTH_MISSING_MESSAGE = "未获取到平台保存请求的访问凭据，已停止批量写回。";
   const BATCH_SAVE_STALE_MESSAGE = "当前音频或条目已变化，已停止批量写回，请刷新后重试。";
   const BATCH_SAVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，已停止批量写回，请刷新后重试。";
@@ -1052,6 +1052,48 @@
     };
   }
 
+  function resolveBatchTextDescriptors(template, rows, preferredRow) {
+    const rowQueue = [];
+    if (preferredRow && typeof preferredRow === "object") {
+      rowQueue.push(preferredRow);
+    }
+    (Array.isArray(rows) ? rows : []).forEach(function (row) {
+      if (!row || row === preferredRow) {
+        return;
+      }
+      rowQueue.push(row);
+    });
+
+    let dialectDescriptor = findMomentAttrDescriptor(template, [], ["标注文本", "柳州话", "转写文本"]);
+    let mandarinDescriptor = findMomentAttrDescriptor(template, [], ["普通话顺滑", "普通话", "顺滑"]);
+    if (dialectDescriptor && mandarinDescriptor) {
+      return {
+        dialectDescriptor,
+        mandarinDescriptor,
+      };
+    }
+
+    for (let index = 0; index < rowQueue.length; index += 1) {
+      const currentRow = rowQueue[index] && typeof rowQueue[index] === "object" ? rowQueue[index] : {};
+      const annData = currentRow.ann_data && typeof currentRow.ann_data === "object" ? currentRow.ann_data : {};
+      const rowAttrs = Array.isArray(annData.attrs) ? annData.attrs : [];
+      if (!dialectDescriptor) {
+        dialectDescriptor = findMomentAttrDescriptor(template, rowAttrs, ["标注文本", "柳州话", "转写文本"]);
+      }
+      if (!mandarinDescriptor) {
+        mandarinDescriptor = findMomentAttrDescriptor(template, rowAttrs, ["普通话顺滑", "普通话", "顺滑"]);
+      }
+      if (dialectDescriptor && mandarinDescriptor) {
+        break;
+      }
+    }
+
+    return {
+      dialectDescriptor,
+      mandarinDescriptor,
+    };
+  }
+
   function ensureTextAttr(rowAttrs, descriptor, value) {
     const attrs = Array.isArray(rowAttrs) ? rowAttrs : [];
     const currentDescriptor = descriptor && typeof descriptor === "object" ? descriptor : null;
@@ -1078,16 +1120,19 @@
     return attrs;
   }
 
-  function buildUpdatedBatchTextRow(row, template, result) {
+  function buildUpdatedBatchTextRow(row, template, result, descriptorHints) {
     const sourceRow = clonePlainData(row) || {};
     const annData = sourceRow.ann_data && typeof sourceRow.ann_data === "object" ? sourceRow.ann_data : {};
     const rowAttrs = Array.isArray(annData.attrs) ? annData.attrs.map(clonePlainData) : [];
     const textMeta = extractBatchSegmentTexts(sourceRow, template);
-    if (!textMeta.dialectDescriptor || !textMeta.mandarinDescriptor) {
+    const descriptorSource = descriptorHints && typeof descriptorHints === "object" ? descriptorHints : {};
+    const dialectDescriptor = textMeta.dialectDescriptor || descriptorSource.dialectDescriptor || null;
+    const mandarinDescriptor = textMeta.mandarinDescriptor || descriptorSource.mandarinDescriptor || null;
+    if (!dialectDescriptor || !mandarinDescriptor) {
       throw new Error("未找到当前段文本字段定义。");
     }
-    ensureTextAttr(rowAttrs, textMeta.dialectDescriptor, buildDialectStructuredValue(result.dialectText || ""));
-    ensureTextAttr(rowAttrs, textMeta.mandarinDescriptor, String(result.mandarinText || ""));
+    ensureTextAttr(rowAttrs, dialectDescriptor, buildDialectStructuredValue(result.dialectText || ""));
+    ensureTextAttr(rowAttrs, mandarinDescriptor, String(result.mandarinText || ""));
     sourceRow.ann_data = Object.assign({}, annData, {
       attrs: rowAttrs,
       attr_version: normalizeText(annData.attr_version) || "v1",
@@ -2431,6 +2476,7 @@
       }
       const entryRow = getEntryRowFromAnnos(annos, context);
       const currentRows = getInstanceRowsFromAnnos(annos);
+      const descriptorHints = resolveBatchTextDescriptors(context.template || {}, currentRows);
       const resultMap = new Map();
       const usedIndexes = new Set();
       let failedAlignment = false;
@@ -2456,7 +2502,12 @@
         }
         let updatedRow;
         try {
-          updatedRow = buildUpdatedBatchTextRow(row, context.template || {}, resultItem);
+          updatedRow = buildUpdatedBatchTextRow(
+            row,
+            context.template || {},
+            resultItem,
+            descriptorHints
+          );
         } catch (_error) {
           failedAlignment = true;
           return buildSnapshotInstanceRow(row, context.template || {});
@@ -2537,7 +2588,7 @@
       if (isLiveSelectionStale(source.selectionKey, env)) {
         return {
           ok: false,
-          message: "当前段已切换，旧推荐已失效，请重新生成当前段 AI 推荐。",
+          message: "当前段已切换，旧识别结果已失效，请重新执行当前段识别。",
         };
       }
       const dialectField = findFieldTarget(["标注文本", "柳州话", "转写文本"], env);
@@ -2572,7 +2623,7 @@
       if (isLiveSelectionStale(source.selectionKey, env)) {
         return {
           ok: false,
-          message: "当前段已切换，旧推荐已失效，请重新生成当前段 AI 推荐。",
+          message: "当前段已切换，旧识别结果已失效，请重新执行当前段识别。",
         };
       }
       const targetField = normalizeText(source.targetField).toLowerCase();

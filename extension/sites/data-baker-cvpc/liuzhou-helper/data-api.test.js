@@ -1861,7 +1861,7 @@ test("CVPC data api rejects stale recommendation when live selectionKey has chan
 
   assert.deepEqual(result, {
     ok: false,
-    message: "当前段已切换，旧推荐已失效，请重新生成当前段 AI 推荐。",
+    message: "当前段已切换，旧识别结果已失效，请重新执行当前段识别。",
   });
 });
 
@@ -2359,7 +2359,7 @@ test("CVPC data api falls back to live waveform apply when save_increment auth s
   assert.deepEqual(result, {
     ok: true,
     appliedBy: "dom",
-    message: "建议已画到页面，请人工复核后点击平台保存。",
+    message: "分段建议已写到页面，请人工复核后点击平台保存。",
   });
   assert.equal(harness.splitButton.clickCount, 1);
   assert.equal(
@@ -2542,7 +2542,7 @@ test("CVPC data api applies whole-audio preview through save_increment when auth
   assert.deepEqual(result, {
     ok: true,
     appliedBy: "request",
-    message: "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。",
+    message: "已通过平台保存接口应用分段建议，请刷新页面复核；本次无需再点平台保存。",
   });
   assert.equal(harness.splitButton.clickCount, 0);
   const saveRequest = harness.fetchRequests.find(function (request) {
@@ -2675,7 +2675,7 @@ test("CVPC data api whole-audio entry-only save body keeps generated unique_id v
     assert.deepEqual(result, {
       ok: true,
       appliedBy: "request",
-      message: "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。",
+      message: "已通过平台保存接口应用分段建议，请刷新页面复核；本次无需再点平台保存。",
     });
     const saveRequest = harness.fetchRequests.find(function (request) {
       return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
@@ -2783,7 +2783,7 @@ test("CVPC data api rejects duplicate unique_id payload before sending save_incr
 
   assert.deepEqual(result, {
     ok: false,
-    message: "当前建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
+    message: "当前分段建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
   });
   assert.equal(
     harness.fetchRequests.some(function (request) {
@@ -2831,7 +2831,7 @@ test("CVPC data api surfaces platform unique_id duplication failures without DOM
 
   assert.deepEqual(result, {
     ok: false,
-    message: "平台保存接口返回 unique_id重复；建议已保留，请重新生成或人工处理。",
+    message: "平台保存接口返回 unique_id重复；分段建议已保留，请重新生成或人工处理。",
   });
 });
 
@@ -2981,7 +2981,7 @@ test("CVPC data api binds window.fetch before save_increment direct apply", asyn
   assert.deepEqual(result, {
     ok: true,
     appliedBy: "request",
-    message: "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。",
+    message: "已通过平台保存接口应用分段建议，请刷新页面复核；本次无需再点平台保存。",
   });
 });
 
@@ -3037,7 +3037,7 @@ test("CVPC data api rejects stale segment preview when current selection has cha
 
   assert.deepEqual(result, {
     ok: false,
-    message: "当前音频或段选择已变化，旧画段建议已失效，请重新生成。",
+    message: "当前音频或段选择已变化，旧分段建议已失效，请重新生成。",
   });
 });
 
@@ -3100,7 +3100,7 @@ test("CVPC data api fails closed when live waveform no longer matches the previe
 
   assert.deepEqual(result, {
     ok: false,
-    message: "当前页面分段状态已变化，旧画段建议已失效，请重新生成。",
+    message: "当前页面分段状态已变化，旧分段建议已失效，请重新生成。",
   });
 });
 
@@ -3467,6 +3467,129 @@ test("CVPC data api applyBatchTextRecommendations still saves when latest rows k
   assert.ok(saveRequest);
   const body = JSON.parse(saveRequest.init.body);
   assert.equal(body.update[0].unique_id, "latest-2");
+});
+
+test("CVPC data api applyBatchTextRecommendations reuses text attr descriptors from sibling rows", async function () {
+  const dataApiModule = loadDataApiModule();
+  const template = {
+    attrs: [],
+    entry_attrs: [],
+    moment_attrs: [],
+  };
+  const annosPayload = createBatchTextAnnosPayload([
+    {
+      uniqueId: "region-1",
+      startMs: 0,
+      endMs: 1200,
+      dialectText: "原始1",
+      mandarinText: "普通1",
+    },
+    {
+      uniqueId: "region-2",
+      startMs: 1500,
+      endMs: 2600,
+      dialectText: "",
+      mandarinText: "",
+    },
+  ]);
+  annosPayload[2].ann_data.attrs = [
+    {
+      unique_id: "moment-validity",
+      name: "是否有效（Valid or Not）",
+      values: [{ unique_id: "valid-id", name: "是（Valid）" }],
+      input_type: "radio",
+    },
+  ];
+
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 1200,
+        segmentNumber: 1,
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 1500,
+        endMs: 2600,
+        segmentNumber: 2,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      { template: template }
+    ),
+    annosPayload: annosPayload,
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer batch-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  const result = await runtime.applyBatchTextRecommendations({
+    selectedEntryName: "sample-a.mp3",
+    expectedSegmentCount: 2,
+    results: [
+      {
+        uniqueId: "region-2",
+        segmentNumber: 2,
+        selectionKey: "sample-a.mp3|1500|2600",
+        dialectText: "补写柳州话",
+        mandarinText: "补写普通话",
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    savedCount: 1,
+    message: "已通过平台保存接口写回 1 段批量识别结果，页面即将刷新。",
+  });
+  const saveRequest = harness.fetchRequests.find(function (request) {
+    return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+  });
+  assert.ok(saveRequest);
+  const body = JSON.parse(saveRequest.init.body);
+  assert.equal(body.update[0].unique_id, "region-2");
+  assert.deepEqual(body.update[0].ann_data.attrs, [
+    {
+      unique_id: "moment-validity",
+      name: "是否有效（Valid or Not）",
+      values: [{ unique_id: "valid-id", name: "是（Valid）" }],
+      input_type: "radio",
+    },
+    {
+      unique_id: "moment-dialect",
+      name: "标注文本",
+      input_type: "text",
+      values: ['[{"type":"text","content":"补写柳州话"}]'],
+    },
+    {
+      unique_id: "moment-mandarin",
+      name: "普通话顺滑",
+      input_type: "text",
+      values: ["补写普通话"],
+    },
+  ]);
 });
 
 test("CVPC data api applyBatchTextRecommendations fails closed when auth snapshot is missing", async function () {

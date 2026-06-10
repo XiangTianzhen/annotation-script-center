@@ -461,12 +461,14 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
     assert.equal(harness.labelContent.children[0], panelNode);
     assert.match(collectText(harness.nativeValidity), /是否有效（Valid or Not）/);
     assert.doesNotMatch(collectText(harness.nativeValidity), /未填写补 Valid/);
-    assert.match(collectText(middleNode), /当前段 AI 推荐/);
+    assert.match(collectText(middleNode), /柳州话 AI 识别助手/);
+    assert.match(collectText(middleNode), /当前段识别/);
     assert.match(collectText(middleNode), /未填写补 Valid/);
-    assert.match(collectText(middleNode), /生成画段建议/);
-    assert.match(collectText(middleNode), /应用当前建议/);
-    assert.match(collectText(middleNode), /生成后自动应用当前建议/);
-    assert.match(collectText(middleNode), /当前画段建议/);
+    assert.match(collectText(middleNode), /生成分段建议/);
+    assert.match(collectText(middleNode), /应用分段建议/);
+    assert.match(collectText(middleNode), /生成后自动应用分段建议/);
+    assert.match(collectText(middleNode), /分段建议/);
+    assert.match(collectText(middleNode), /AI信息/);
     assert.match(collectText(middleNode), /特殊标签/);
     assert.doesNotMatch(collectText(middleNode), /设为 Valid/);
     assert.doesNotMatch(collectText(middleNode), /设为 Invalid/);
@@ -484,7 +486,7 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
 
     assert.equal(harness.bottomRight.children[0], harness.nativeSplitButton);
     assert.equal(harness.bottomRight.children[1], harness.nativeMergeButton);
-    assert.doesNotMatch(collectText(harness.bottomRight), /生成画段建议/);
+    assert.doesNotMatch(collectText(harness.bottomRight), /生成分段建议/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
@@ -580,7 +582,7 @@ test("CVPC ui panel keeps additional info visible for failed recommendations wit
 
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     const middleText = collectText(middleNode);
-    assert.match(middleText, /当前段 AI 附加信息/);
+    assert.match(middleText, /AI信息/);
     assert.match(middleText, /AI 返回原始内容/);
     assert.match(middleText, /rawResponseText/);
     assert.match(middleText, /原始返回/);
@@ -615,7 +617,8 @@ test("CVPC ui panel keeps empty additional info rows when recommendation fields 
     assert.ok(metaDetails);
     assert.ok(metaBoxes.length >= 6);
     assert.match(middleText, /音频听出的柳州话文本/);
-    assert.match(middleText, /Token 用量/);
+    assert.match(middleText, /听音识别/);
+    assert.match(middleText, /文本修正/);
     assert.match(middleText, /特殊标签/);
     assert.match(middleText, /需人工复核/);
     assert.match(middleText, /备注/);
@@ -695,6 +698,7 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
       },
       models: {
         listenModel: "qwen3.5-omni-flash",
+        refineModel: "qwen3.5-plus",
       },
     });
 
@@ -714,13 +718,18 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.match(middleText, /音频听出的柳州话文本/);
     assert.match(middleText, /听音柳州话/);
     assert.match(middleText, /AI 返回原始内容/);
-    assert.match(middleText, /Token 用量/);
-    assert.match(middleText, /总输入 14/);
-    assert.match(middleText, /总输出 9/);
-    assert.match(middleText, /总计 23/);
-    assert.match(middleText, /listen：输入 10，输出 6，总计 16/);
-    assert.match(middleText, /refine：输入 4，输出 3，总计 7/);
-    assert.match(middleText, /"listenModel": "qwen3\.5-omni-flash"/);
+    assert.match(middleText, /AI信息/);
+    assert.match(middleText, /听音识别/);
+    assert.match(middleText, /文本修正/);
+    assert.match(middleText, /模型：qwen3\.5-omni-flash/);
+    assert.match(middleText, /模型：qwen3\.5-plus/);
+    assert.match(middleText, /输入：10/);
+    assert.match(middleText, /输出：6/);
+    assert.match(middleText, /输入：4/);
+    assert.match(middleText, /输出：3/);
+    assert.doesNotMatch(middleText, /总输入/);
+    assert.doesNotMatch(middleText, /总输出/);
+    assert.doesNotMatch(middleText, /总计/);
     assert.doesNotMatch(middleText, /音频的柳州话文本/);
     assert.doesNotMatch(middleText, /修正后的柳州话文本/);
     assert.doesNotMatch(middleText, /整理后的普通话文本/);
@@ -783,6 +792,7 @@ test("CVPC ui panel renders empty split-preview state when no silence hit is fou
 
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     const middleText = collectText(middleNode);
+    assert.match(middleText, /分段建议/);
     assert.match(middleText, /静音 >= 0\.4s，阈值 -38 dB，前后补偿 0\.1s/);
     assert.match(middleText, /当前音频没有命中可拆分静音，保持现有段不变/);
     assert.match(middleText, /本地静音检测未找到满足条件的连续静音/);
@@ -906,7 +916,7 @@ test("CVPC ui panel renders whole-audio fallback preview with direct-save summar
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     const middleText = collectText(middleNode);
     assert.match(middleText, /后端已直接生成整条音频重切预览/);
-    assert.match(middleText, /点击“应用当前建议”会先尝试直写平台保存接口/);
+    assert.match(middleText, /点击“应用分段建议”会先尝试直写平台保存接口/);
     assert.match(middleText, /原现有段数：6 段/);
     assert.match(middleText, /fallback 建议段数：2 段/);
     assert.match(middleText, /后端静音检测命中 26 段候选静音/);
@@ -957,7 +967,7 @@ test("CVPC ui panel renders backend whole-audio preview without source segment c
     assert.match(middleText, /后端整音频重切预览/);
     assert.match(
       middleText,
-      /点击“应用当前建议”会先尝试直写平台保存接口；当前整音频预览直写失败时不会回退页面内画段/
+      /点击“应用分段建议”会先尝试直写平台保存接口；当前整音频预览直写失败时不会回退页面内分段/
     );
     assert.match(middleText, /当前模式：后端整音频分段/);
     assert.match(middleText, /建议段数：2 段/);
@@ -1019,21 +1029,26 @@ test("CVPC ui panel mounts batch controls and renders batch progress details", f
       },
     });
     runtime.mount();
+    runtime.renderBatchSelection({
+      totalSegments: 7,
+      resetSelection: true,
+    });
 
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
-    const inputNode = findNode(middleNode, function (node) {
-      return node instanceof FakeNode && node.tagName === "INPUT" && node.type === "text";
-    });
-    assert.ok(inputNode);
     assert.match(collectText(middleNode), /批量识别并填入/);
     assert.match(collectText(middleNode), /停止批量/);
-    assert.match(collectText(middleNode), /留空表示当前音频全部段/);
+    assert.match(collectText(middleNode), /默认处理当前音频全部段/);
+    assert.match(collectText(middleNode), /当前选择：全部段/);
+    assert.ok(findButtonByText(middleNode, "全部"));
+    assert.ok(findButtonByText(middleNode, "7"));
 
     const batchStartButton = findButtonByText(middleNode, "批量识别并填入");
     assert.equal(batchStartButton.getAttribute("data-accent"), "true");
     assert.equal(batchStartButton.hasAttribute("data-primary"), false);
 
-    inputNode.value = "2-4,7";
+    findButtonByText(middleNode, "1").dispatchEvent({ type: "mousedown" });
+    findButtonByText(middleNode, "5").dispatchEvent({ type: "mousedown" });
+    findButtonByText(middleNode, "6").dispatchEvent({ type: "mousedown" });
     batchStartButton.dispatchEvent({ type: "click" });
     findButtonByText(middleNode, "停止批量").dispatchEvent({ type: "click" });
 
@@ -1071,6 +1086,41 @@ test("CVPC ui panel mounts batch controls and renders batch progress details", f
     assert.match(batchText, /当前段：第 4 段/);
     assert.match(batchText, /失败清单/);
     assert.match(batchText, /第 7 段：\s*请求失败/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel batch selector supports drag selection updates", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  const batchSelections = [];
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({
+      onBatchRecommend: function (selectionSpec) {
+        batchSelections.push(selectionSpec);
+      },
+    });
+    runtime.mount();
+    runtime.renderBatchSelection({
+      totalSegments: 5,
+      resetSelection: true,
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    findButtonByText(middleNode, "2").dispatchEvent({ type: "mousedown" });
+    findButtonByText(middleNode, "3").dispatchEvent({ type: "mouseenter" });
+    findButtonByText(middleNode, "4").dispatchEvent({ type: "mouseenter" });
+    findButtonByText(middleNode, "批量识别并填入").dispatchEvent({ type: "click" });
+
+    assert.deepEqual(batchSelections, ["1,5"]);
+    assert.match(collectText(middleNode), /当前选择：1,5/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

@@ -313,6 +313,18 @@ test("CVPC content failure helper forwards recommendation payload to ui renderRe
   assert.deepEqual(statuses, [["当前段 AI 推荐失败：模型输出 JSON 解析失败，可查看原始 AI 返回。", "error"]]);
 });
 
+test("CVPC content exposes updated recognition and segment copy", function () {
+  const contentModule = loadContentModule();
+
+  assert.deepEqual(contentModule.__testOnly.copy, {
+    recommendReady: "当前段识别结果已生成。",
+    recommendRequired: "请先完成当前段识别。",
+    previewBusy: "正在生成当前音频分段建议...",
+    previewReady: "分段建议已生成，请先复核后再应用到页面。",
+    previewFailedPrefix: "生成分段建议失败：",
+  });
+});
+
 test("CVPC content auto-apply helper skips apply when preview auto-apply is disabled", async function () {
   const contentModule = loadContentModule();
   let applyCalled = false;
@@ -375,7 +387,7 @@ test("CVPC content auto-apply helper applies preview, clears preview, and reload
         applySegmentPreview: async function () {
           return {
             ok: true,
-            message: "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。",
+            message: "已通过平台保存接口应用分段建议，请刷新页面复核；本次无需再点平台保存。",
           };
         },
       },
@@ -406,12 +418,12 @@ test("CVPC content auto-apply helper applies preview, clears preview, and reload
     ok: true,
     result: {
       ok: true,
-      message: "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。",
+      message: "已通过平台保存接口应用分段建议，请刷新页面复核；本次无需再点平台保存。",
     },
   });
   assert.equal(clearCount, 1);
   assert.deepEqual(previews, [null]);
-  assert.deepEqual(statuses, [["已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。", "success"]]);
+  assert.deepEqual(statuses, [["已通过平台保存接口应用分段建议，请刷新页面复核；本次无需再点平台保存。", "success"]]);
   assert.equal(reloadCount, 1);
 });
 
@@ -431,7 +443,7 @@ test("CVPC content auto-apply helper keeps preview and skips reload when apply f
         applySegmentPreview: async function () {
           return {
             ok: false,
-            message: "当前建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
+            message: "当前分段建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
           };
         },
       },
@@ -462,13 +474,13 @@ test("CVPC content auto-apply helper keeps preview and skips reload when apply f
     ok: false,
     result: {
       ok: false,
-      message: "当前建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
+      message: "当前分段建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
     },
   });
   assert.equal(clearCount, 0);
   assert.deepEqual(previews, []);
   assert.deepEqual(statuses, [[
-    "画段建议已生成，但自动应用失败：当前建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
+    "分段建议已生成，但自动应用失败：当前分段建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
     "error",
   ]]);
   assert.equal(reloadCount, 0);
