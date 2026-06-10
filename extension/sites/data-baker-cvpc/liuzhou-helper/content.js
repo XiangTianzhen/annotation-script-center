@@ -392,6 +392,13 @@
         runtime.ui.renderPreview(null);
       }
       runtime.ui.setStatus(result.message, "success");
+      setTimeout(function () {
+        try {
+          globalThis.location.reload();
+        } catch (_error) {
+          // Ignore reload failures and leave the success message visible.
+        }
+      }, 300);
       return;
     }
     runtime.ui.setStatus(result.message, "error");
