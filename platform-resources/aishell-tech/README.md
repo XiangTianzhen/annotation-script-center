@@ -79,7 +79,7 @@
 实现边界：
 
 - Aishell 保持独立路由、独立脚本 ID、独立词表目录。
-- Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；其中闽南语转换词表、三板块默认模型与比较方式继续由 Aishell 自己维护，可与 DataBaker 小幅独立调整。
+- Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；其中闽南语转换词表当前与 DataBaker 同步使用同一份内容，但继续保留 Aishell 自己的副本路径，后续如有平台差异再独立调整；三板块默认模型与比较方式仍由 Aishell 自己维护。
 - 转换阶段当前改为“规则优先 + 歧义时 AI 兜底”：运行时主读 `minnan-lexicon.json`，参考源 `minnan-lexicon.csv` 仅保留给人工整理和外部 AI 处理；默认仍按 `对应华语 -> 建议用字` 做最长匹配替换，只有命中多候选或切分冲突时才调用转换模型。
 - Aishell 的 Omni 音频调用已拆到 `platform-resources/aishell-tech/minnan-helper/backend/dashscope-omni-client.js`，直接按 DashScope compatible-mode 请求体构造并固定 `enable_thinking=false`。
 - 底层只复用公共 provider HTTP 工具，不再复用 DataBaker recommend orchestration。

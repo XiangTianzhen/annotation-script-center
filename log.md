@@ -5132,6 +5132,15 @@
   - `extension/shared/ai-job-client.test.js`
   - `extension/sites/magic-data/shared/ai-review-client.test.js` 追加 job/fetch 两条取消用例。
 
+## 2026-06-10（闽南语主词表同步落地到 DataBaker 与 Aishell）
+
+- 新增运行时主词表文件：
+  - `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.json`
+  - `platform-resources/aishell-tech/minnan-helper/backend/reference/minnan-lexicon.json`
+- 本轮按用户确认后的完成版闽南语 JSON，同步写入 DataBaker 与 Aishell 两个运行时主词表路径。
+- 当前两边先共用同一份词表内容，便于统一维护；同时继续保留各自独立 JSON 路径，后续如有平台差异再分别演进。
+- 本轮只做运行时主词表落地与文档口径同步，不改参考源 `CSV/XLSX` 路径，不改具体词条内容。
+
 ## 2026-06-10（DataBaker CVPC 柳州话主词表正式落地）
 
 - 新增运行时主词表文件：

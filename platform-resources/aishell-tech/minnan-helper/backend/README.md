@@ -46,6 +46,7 @@
     - `compareFamily=omni`：复用 Omni 队列做独立的第三段音频比较请求。
 - `compareAdoptionThreshold` 默认 `0.75`；当 `correctionConfidence` 低于阈值时，后端会优先保留 `heardText`，并把 `needHumanReview` 置为 `true`。
 - 后处理 `lexicon.rewriteMode` 固定为 `off`，不会再做强制词表改写。
+- 当前仓库口径补充：Aishell 与 DataBaker 闽南语运行时主词表现已同步落为同一份内容，但仍分别保留各自 JSON 路径，便于后续按平台独立演进。
 
 ## 返回契约
 
