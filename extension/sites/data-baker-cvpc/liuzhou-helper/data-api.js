@@ -20,6 +20,10 @@
     "未获取到平台保存请求的访问凭据，暂时无法直写保存接口。";
   const PREVIEW_DIRECT_SAVE_SUCCESS_MESSAGE =
     "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。";
+  const PREVIEW_DUPLICATE_UNIQUE_ID_MESSAGE =
+    "当前建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。";
+  const PREVIEW_DIRECT_SAVE_DUPLICATE_UNIQUE_ID_MESSAGE =
+    "平台保存接口返回 unique_id重复；建议已保留，请重新生成或人工处理。";
   const PREVIEW_UNSAFE_MESSAGE = "未检测到稳定的波形画段区域或拆分控件，请人工处理当前建议。";
   const PREVIEW_APPLY_SUCCESS_MESSAGE = "建议已画到页面，请人工复核后点击平台保存。";
   const BATCH_SAVE_AUTH_MISSING_MESSAGE = "未获取到平台保存请求的访问凭据，已停止批量写回。";
@@ -649,23 +653,58 @@
   }
 
   function createGeneratedUniqueId() {
-    const block = function (size) {
-      return Math.random().toString(16).slice(2, 2 + size).padEnd(size, "0");
-    };
-    return [
-      block(8),
-      block(4),
-      block(4),
-      block(4),
-      block(12),
-    ].join("-") + "-" + String(Date.now());
+    return createGeneratedUniqueIdWithSet(new Set());
+  }
+
+  function createGeneratedUniqueIdWithSet(reservedUniqueIds) {
+    const reserved = reservedUniqueIds instanceof Set ? reservedUniqueIds : new Set();
+    const cryptoApi =
+      globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function"
+        ? globalThis.crypto
+        : null;
+
+    function buildCandidate() {
+      const bytes = new Uint8Array(16);
+      if (cryptoApi) {
+        cryptoApi.getRandomValues(bytes);
+      } else {
+        for (let index = 0; index < bytes.length; index += 1) {
+          bytes[index] = Math.floor(Math.random() * 256);
+        }
+      }
+      const hex = Array.from(bytes, function (value) {
+        return value.toString(16).padStart(2, "0");
+      }).join("");
+      return (
+        hex.slice(0, 8) +
+        "-" +
+        hex.slice(8, 12) +
+        "-" +
+        hex.slice(12, 16) +
+        "-" +
+        hex.slice(16, 20) +
+        "-" +
+        hex.slice(20, 32) +
+        "-" +
+        String(Date.now())
+      );
+    }
+
+    for (let attempt = 0; attempt < 64; attempt += 1) {
+      const nextUniqueId = buildCandidate();
+      if (!reserved.has(nextUniqueId)) {
+        reserved.add(nextUniqueId);
+        return nextUniqueId;
+      }
+    }
+    throw new Error(PREVIEW_DUPLICATE_UNIQUE_ID_MESSAGE);
   }
 
   function createGeneratedCameraName() {
     return Math.random().toString(36).slice(2, 10).padEnd(8, "0");
   }
 
-  function buildInsertedInstanceRow(sourceRow, context, segment) {
+  function buildInsertedInstanceRow(sourceRow, context, segment, reservedUniqueIds) {
     const prototypeRow = clonePlainData(sourceRow) || {};
     const annData = prototypeRow.ann_data && typeof prototypeRow.ann_data === "object"
       ? prototypeRow.ann_data
@@ -678,7 +717,7 @@
       end_second: segment.end_second,
       shape: normalizeText(prototypeRow.shape) || "section",
       start_second: segment.start_second,
-      unique_id: createGeneratedUniqueId(),
+      unique_id: createGeneratedUniqueIdWithSet(reservedUniqueIds),
       track_id: normalizeText(prototypeRow.track_id) || "-1",
       camera_name: normalizeText(prototypeRow.camera_name) || createGeneratedCameraName(),
       entry_id: prototypeRow.entry_id ?? context?.selectedEntry?.entry_id ?? context?.currentAnn?.entry_id ?? null,
@@ -740,8 +779,9 @@
       });
   }
 
-  function buildSavePlan(currentRows, proposedSegments, context) {
+  function buildSavePlan(currentRows, proposedSegments, context, reservedUniqueIds) {
     const rows = Array.isArray(currentRows) ? currentRows : [];
+    const reserved = reservedUniqueIds instanceof Set ? new Set(reservedUniqueIds) : new Set();
     const segments = (Array.isArray(proposedSegments) ? proposedSegments : [])
       .map(function (segment, index) {
         const normalized = normalizeSegmentItem(segment, index);
@@ -801,7 +841,7 @@
     const finalRows = [];
 
     function emitInsertedSegment(segment, sourceRow) {
-      const insertedRow = buildInsertedInstanceRow(sourceRow, context, segment);
+      const insertedRow = buildInsertedInstanceRow(sourceRow, context, segment, reserved);
       insertRows.push(insertedRow);
       finalRows.push(insertedRow);
     }
@@ -849,6 +889,61 @@
     };
   }
 
+  function collectReservedUniqueIds(rows) {
+    const result = new Set();
+    (Array.isArray(rows) ? rows : []).forEach(function (row) {
+      const uniqueId = normalizeText(row?.unique_id || row?.uniqueId || row?.id);
+      if (uniqueId) {
+        result.add(uniqueId);
+      }
+    });
+    return result;
+  }
+
+  function isDuplicateUniqueIdMessage(message) {
+    return normalizeText(message).replace(/\s+/g, "").indexOf("unique_id重复") >= 0;
+  }
+
+  function findDuplicateUniqueIdInSavePayload(body) {
+    const payload = body && typeof body === "object" ? body : {};
+    const operationSeen = new Set();
+    const snapshotSeen = new Set();
+
+    function visitRows(rows, seenSet) {
+      const source = Array.isArray(rows) ? rows : [];
+      for (let index = 0; index < source.length; index += 1) {
+        const uniqueId = normalizeText(source[index]?.unique_id || source[index]?.uniqueId || source[index]?.id);
+        if (!uniqueId) {
+          continue;
+        }
+        if (seenSet.has(uniqueId)) {
+          return uniqueId;
+        }
+        seenSet.add(uniqueId);
+      }
+      return "";
+    }
+
+    const duplicated =
+      visitRows(payload.insert, operationSeen) ||
+      visitRows(payload.update, operationSeen) ||
+      visitRows(payload.delete, operationSeen);
+    if (duplicated) {
+      return duplicated;
+    }
+    let webSnapshotRows = [];
+    if (typeof payload.web_snapshot === "string") {
+      try {
+        webSnapshotRows = JSON.parse(payload.web_snapshot);
+      } catch (_error) {
+        webSnapshotRows = [];
+      }
+    } else if (Array.isArray(payload.web_snapshot)) {
+      webSnapshotRows = payload.web_snapshot;
+    }
+    return visitRows(webSnapshotRows, snapshotSeen);
+  }
+
   function buildSaveIncrementBody(context, annos, preview) {
     const source = preview && typeof preview === "object" ? preview : {};
     const proposedSegments = Array.isArray(source.proposedSegments) ? source.proposedSegments : [];
@@ -857,13 +952,18 @@
     }
     const entryRow = getEntryRowFromAnnos(annos, context);
     const currentRows = getInstanceRowsFromAnnos(annos);
-    const plan = buildSavePlan(currentRows, proposedSegments, context);
+    const plan = buildSavePlan(
+      currentRows,
+      proposedSegments,
+      context,
+      collectReservedUniqueIds(annos)
+    );
     const updatedEntryRow = buildEntrySaveRow(entryRow, plan.finalRows);
     const webSnapshot = plan.finalRows.map(function (row) {
       return buildSnapshotInstanceRow(row, context?.template || {});
     });
     webSnapshot.push(buildSnapshotEntryRow(updatedEntryRow, context?.template || {}));
-    return {
+    const body = {
       project_id: String(context?.query?.projectId || ""),
       task_id: String(context?.query?.taskId || ""),
       process_id: String(context?.query?.processId || ""),
@@ -874,6 +974,10 @@
       delete: plan.deleteRows,
       web_snapshot: JSON.stringify(webSnapshot),
     };
+    if (findDuplicateUniqueIdInSavePayload(body)) {
+      throw new Error(PREVIEW_DUPLICATE_UNIQUE_ID_MESSAGE);
+    }
+    return body;
   }
 
   function findMomentAttrDescriptor(template, rowAttrs, labelMatchers) {
@@ -1010,6 +1114,101 @@
           ""
       ),
     };
+  }
+
+  function parseBatchSelectionKey(selectionKey) {
+    const text = normalizeText(selectionKey);
+    if (!text) {
+      return null;
+    }
+    const parts = text.split("|");
+    if (parts.length < 3) {
+      return null;
+    }
+    const startMs = Math.round(Number(parts[parts.length - 2]) || 0);
+    const endMs = Math.round(Number(parts[parts.length - 1]) || 0);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      return null;
+    }
+    return {
+      entryName: normalizeText(parts.slice(0, -2).join("|")),
+      startMs: startMs,
+      endMs: endMs,
+    };
+  }
+
+  function buildBatchRowRange(row) {
+    const startMs = normalizeBoundaryToMs(row?.start_second);
+    const endMs = normalizeBoundaryToMs(row?.end_second);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      return null;
+    }
+    return {
+      startMs: startMs,
+      endMs: endMs,
+    };
+  }
+
+  function matchBatchResultToRow(resultItem, rows, selectedEntryName, usedIndexes) {
+    const source = resultItem && typeof resultItem === "object" ? resultItem : {};
+    const candidates = (Array.isArray(rows) ? rows : [])
+      .map(function (row, index) {
+        return {
+          index: index,
+          row: row,
+          uniqueId: normalizeText(row?.unique_id || row?.uniqueId || row?.id),
+          range: buildBatchRowRange(row),
+        };
+      })
+      .filter(function (candidate) {
+        return !usedIndexes?.has(candidate.index);
+      });
+    if (candidates.length <= 0) {
+      return null;
+    }
+
+    const targetUniqueId = normalizeText(source.uniqueId);
+    if (targetUniqueId) {
+      const matchedById = candidates.find(function (candidate) {
+        return candidate.uniqueId === targetUniqueId;
+      });
+      if (matchedById) {
+        return matchedById;
+      }
+    }
+
+    const targetRange = parseBatchSelectionKey(source.selectionKey);
+    if (targetRange) {
+      const matchedByKey = candidates.find(function (candidate) {
+        return candidate.range && hasApproxRangeMatch(candidate.range, targetRange, APPLY_TOLERANCE_MS);
+      });
+      if (matchedByKey) {
+        return matchedByKey;
+      }
+    }
+
+    const targetSegmentNumber = Math.max(0, Math.round(Number(source.segmentNumber || 0)) || 0);
+    if (targetSegmentNumber > 0 && targetSegmentNumber <= candidates.length) {
+      const matchedByNumber = candidates.find(function (candidate) {
+        if (candidate.index !== targetSegmentNumber - 1) {
+          return false;
+        }
+        if (!targetRange || !candidate.range) {
+          return true;
+        }
+        return hasApproxRangeMatch(candidate.range, targetRange, APPLY_TOLERANCE_MS);
+      });
+      if (matchedByNumber) {
+        return matchedByNumber;
+      }
+    }
+
+    const targetEntryName = normalizeText(selectedEntryName);
+    if (targetEntryName && normalizeText(targetRange?.entryName) && normalizeText(targetRange?.entryName) !== targetEntryName) {
+      return null;
+    }
+
+    return null;
   }
 
   function parseBatchSelectionSpec(selectionSpec, totalSegments) {
@@ -2232,42 +2431,27 @@
       }
       const entryRow = getEntryRowFromAnnos(annos, context);
       const currentRows = getInstanceRowsFromAnnos(annos);
-      const expectedSegmentCount = Math.max(0, Math.round(Number(source.expectedSegmentCount || 0)) || 0);
-      if (expectedSegmentCount > 0 && currentRows.length !== expectedSegmentCount) {
-        return {
-          ok: false,
-          message: BATCH_SAVE_MISMATCH_MESSAGE,
-        };
-      }
-      const expectedUniqueIds = Array.isArray(source.expectedUniqueIds)
-        ? source.expectedUniqueIds.map(normalizeText).filter(Boolean)
-        : [];
-      if (
-        expectedUniqueIds.length > 0 &&
-        (expectedUniqueIds.length !== currentRows.length ||
-          currentRows.some(function (row, index) {
-            return normalizeText(row?.unique_id || row?.uniqueId || row?.id) !== expectedUniqueIds[index];
-          }))
-      ) {
-        return {
-          ok: false,
-          message: BATCH_SAVE_MISMATCH_MESSAGE,
-        };
-      }
       const resultMap = new Map();
+      const usedIndexes = new Set();
+      let failedAlignment = false;
       normalizedResults.forEach(function (item) {
-        resultMap.set(item.uniqueId, item);
+        const matched = matchBatchResultToRow(
+          item,
+          currentRows,
+          context.selectedEntry?.name,
+          usedIndexes
+        );
+        if (!matched) {
+          failedAlignment = true;
+          return;
+        }
+        usedIndexes.add(matched.index);
+        resultMap.set(matched.index, item);
       });
       const updatedRows = [];
-      let failedAlignment = false;
       const snapshotRows = currentRows.map(function (row, index) {
-        const uniqueId = normalizeText(row?.unique_id || row?.uniqueId || row?.id);
-        const resultItem = resultMap.get(uniqueId);
+        const resultItem = resultMap.get(index);
         if (!resultItem) {
-          return buildSnapshotInstanceRow(row, context.template || {});
-        }
-        if (resultItem.segmentNumber > 0 && resultItem.segmentNumber !== index + 1) {
-          failedAlignment = true;
           return buildSnapshotInstanceRow(row, context.template || {});
         }
         let updatedRow;
@@ -2453,6 +2637,9 @@
       });
       const code = Number(payload?.code);
       if (!response.ok || !payload || (code !== 0 && code !== 200)) {
+        if (isDuplicateUniqueIdMessage(payload?.msg || payload?.message)) {
+          throw new Error(PREVIEW_DIRECT_SAVE_DUPLICATE_UNIQUE_ID_MESSAGE);
+        }
         throw new Error(
           normalizeText(payload?.msg || payload?.message) || "平台保存接口返回失败。"
         );
@@ -2695,6 +2882,16 @@
         return await applySegmentPreviewByRequest(source, context);
       } catch (error) {
         requestError = error;
+      }
+      if (
+        requestError &&
+        (requestError.message === PREVIEW_DUPLICATE_UNIQUE_ID_MESSAGE ||
+          requestError.message === PREVIEW_DIRECT_SAVE_DUPLICATE_UNIQUE_ID_MESSAGE)
+      ) {
+        return {
+          ok: false,
+          message: requestError.message,
+        };
       }
       const canFallbackToDom =
         normalizeText(source?.meta?.previewMode) !== "whole-audio-fallback" &&

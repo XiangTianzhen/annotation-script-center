@@ -2579,6 +2579,262 @@ test("CVPC data api applies whole-audio preview through save_increment when auth
   ]);
 });
 
+test("CVPC data api whole-audio entry-only save body keeps generated unique_id values unique and avoids existing annos ids", async function () {
+  const originalCryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  const originalDateNow = Date.now;
+  const repeatedBytes = Uint8Array.from([
+    0xde, 0xad, 0xbe, 0xef, 0x50, 0x75, 0x18, 0x90, 0xad, 0xae, 0x9f, 0xbe, 0xc9, 0x33, 0xf3, 0x33,
+  ]);
+  let fakeNow = 1781023383787;
+  Object.defineProperty(globalThis, "crypto", {
+    configurable: true,
+    value: {
+      getRandomValues: function (target) {
+        target.set(repeatedBytes.slice(0, target.length));
+        return target;
+      },
+    },
+  });
+  Date.now = function () {
+    const nextValue = fakeNow;
+    fakeNow += 1;
+    return nextValue;
+  };
+
+  try {
+    const existingEntryUniqueId = "deadbeef-5075-1890-adae-9fbec933f333-1781023383787";
+    const dataApiModule = loadDataApiModule();
+    const harness = createSegmentApplyHarness({
+      visibleEntryName: "sample-a.mp3",
+      audioDurationMs: 6000,
+      regions: [],
+      metaPayload: createMetaPayload(
+        [
+          {
+            entry_id: 1,
+            entry_index: 1,
+            name: "sample-a.mp3",
+            content: "databaker/data/sample-a.mp3",
+          },
+        ],
+        {
+          template: {
+            attrs: [],
+            entry_attrs: [],
+            moment_attrs: [],
+          },
+        }
+      ),
+      annosPayload: [
+        {
+          entry_index: 1,
+          entry_id: 1,
+          unique_id: existingEntryUniqueId,
+          ann_scope: "entry",
+          ann_data: {
+            attrs: [],
+            attr_version: "v1",
+          },
+          audio_duration: 6,
+          section_duration: 0,
+          source: "manual",
+          status: "valid",
+          version: "",
+        },
+      ],
+    });
+
+    const runtime = dataApiModule.createRuntime(harness.dependencies);
+    harness.dispatchObserverMessage(
+      {
+        headers: {
+          authorization: "Bearer test-token",
+          "baker-terminal": "group@1134",
+          "baker-lang": "zh",
+        },
+        path: "/httpapi/annotation/annos",
+        at: Date.now(),
+      },
+      AUTH_TYPE
+    );
+
+    const result = await runtime.applySegmentPreview({
+      selectionKey: "sample-a.mp3|0|4171",
+      selectedEntryName: "sample-a.mp3",
+      meta: {
+        previewMode: "whole-audio-fallback",
+        applyAllowed: false,
+      },
+      proposedSegments: [
+        { startMs: 0, endMs: 1200 },
+        { startMs: 1600, endMs: 3000 },
+        { startMs: 3400, endMs: 6000 },
+      ],
+    });
+
+    assert.deepEqual(result, {
+      ok: true,
+      appliedBy: "request",
+      message: "已通过平台保存接口应用当前建议，请刷新页面复核；本次无需再点平台保存。",
+    });
+    const saveRequest = harness.fetchRequests.find(function (request) {
+      return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+    });
+    assert.ok(saveRequest);
+    const body = JSON.parse(saveRequest.init.body);
+    assert.equal(body.update.length, 1);
+    assert.equal(body.insert.length, 3);
+    assert.equal(body.delete.length, 0);
+    const insertedUniqueIds = body.insert.map(function (row) {
+      return row.unique_id;
+    });
+    assert.equal(new Set(insertedUniqueIds).size, 3);
+    assert.equal(insertedUniqueIds.some(function (value) {
+      return value === existingEntryUniqueId;
+    }), false);
+    const snapshotIds = JSON.parse(body.web_snapshot).map(function (row) {
+      return row.unique_id;
+    });
+    assert.equal(snapshotIds.length, 4);
+    assert.equal(new Set(snapshotIds).size, 4);
+  } finally {
+    Date.now = originalDateNow;
+    if (originalCryptoDescriptor) {
+      Object.defineProperty(globalThis, "crypto", originalCryptoDescriptor);
+    } else {
+      delete globalThis.crypto;
+    }
+  }
+});
+
+test("CVPC data api rejects duplicate unique_id payload before sending save_increment", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    audioDurationMs: 3000,
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 3000,
+        segmentNumber: 1,
+      },
+    ],
+    annosPayload: [
+      {
+        entry_index: 1,
+        entry_id: 1,
+        unique_id: "region-1",
+        ann_scope: "entry",
+        ann_data: {
+          attrs: [],
+          attr_version: "v1",
+        },
+        audio_duration: 3,
+        section_duration: 3,
+        source: "manual",
+        status: "valid",
+        version: "",
+      },
+      {
+        entry_index: 1,
+        entry_id: 1,
+        unique_id: "region-1",
+        ann_scope: "instance",
+        start_second: 0,
+        end_second: 3,
+        ann_data: {
+          attrs: [],
+          attr_version: "v1",
+        },
+        source: "manual",
+        status: "valid",
+        track_id: "-1",
+        shape: "section",
+        camera_name: "camA",
+        asr_is_done: 1,
+      },
+    ],
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer test-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  const result = await runtime.applySegmentPreview({
+    selectionKey: "sample-a.mp3|0|4171",
+    selectedEntryName: "sample-a.mp3",
+    meta: {
+      previewMode: "whole-audio-fallback",
+      applyAllowed: false,
+    },
+    proposedSegments: [{ startMs: 0, endMs: 1200 }],
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "当前建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。",
+  });
+  assert.equal(
+    harness.fetchRequests.some(function (request) {
+      return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+    }),
+    false
+  );
+});
+
+test("CVPC data api surfaces platform unique_id duplication failures without DOM fallback", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    audioDurationMs: 3000,
+    saveIncrementStatus: 400,
+    saveIncrementPayload: {
+      code: 400,
+      msg: "unique_id重复",
+    },
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer test-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  const result = await runtime.applySegmentPreview({
+    selectionKey: "sample-a.mp3|0|4171",
+    selectedEntryName: "sample-a.mp3",
+    meta: {
+      previewMode: "whole-audio-fallback",
+      applyAllowed: false,
+    },
+    proposedSegments: [{ startMs: 0, endMs: 1200 }],
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "平台保存接口返回 unique_id重复；建议已保留，请重新生成或人工处理。",
+  });
+});
+
 test("CVPC data api binds window.fetch before save_increment direct apply", async function () {
   const dataApiModule = loadDataApiModule();
   const harness = createSegmentApplyHarness({
@@ -3108,6 +3364,109 @@ test("CVPC data api applyBatchTextRecommendations only updates successful segmen
     { unique_id: "moment-dialect", value: '[{"type":"text","content":"批量柳州话"}]' },
     { unique_id: "moment-mandarin", value: "批量普通话" },
   ]);
+});
+
+test("CVPC data api applyBatchTextRecommendations still saves when latest rows keep ranges but unique ids differ", async function () {
+  const dataApiModule = loadDataApiModule();
+  const template = createBatchMomentTemplate();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    regions: [
+      {
+        uniqueId: "latest-1",
+        startMs: 0,
+        endMs: 1200,
+        segmentNumber: 1,
+      },
+      {
+        uniqueId: "latest-2",
+        startMs: 1500,
+        endMs: 2600,
+        segmentNumber: 2,
+      },
+      {
+        uniqueId: "latest-3",
+        startMs: 3000,
+        endMs: 4200,
+        segmentNumber: 3,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      { template: template }
+    ),
+    annosPayload: createBatchTextAnnosPayload([
+      {
+        uniqueId: "latest-1",
+        startMs: 0,
+        endMs: 1200,
+        dialectText: "原始1",
+        mandarinText: "普通1",
+      },
+      {
+        uniqueId: "latest-2",
+        startMs: 1500,
+        endMs: 2600,
+        dialectText: "原始2",
+        mandarinText: "普通2",
+      },
+      {
+        uniqueId: "latest-3",
+        startMs: 3000,
+        endMs: 4200,
+        dialectText: "原始3",
+        mandarinText: "普通3",
+      },
+    ]),
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer batch-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  const result = await runtime.applyBatchTextRecommendations({
+    selectedEntryName: "sample-a.mp3",
+    expectedSegmentCount: 3,
+    expectedUniqueIds: ["old-1", "old-2", "old-3"],
+    results: [
+      {
+        uniqueId: "old-2",
+        segmentNumber: 2,
+        selectionKey: "sample-a.mp3|1500|2600",
+        dialectText: "批量柳州话",
+        mandarinText: "批量普通话",
+      },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    savedCount: 1,
+    message: "已通过平台保存接口写回 1 段批量识别结果，页面即将刷新。",
+  });
+  const saveRequest = harness.fetchRequests.find(function (request) {
+    return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+  });
+  assert.ok(saveRequest);
+  const body = JSON.parse(saveRequest.init.body);
+  assert.equal(body.update[0].unique_id, "latest-2");
 });
 
 test("CVPC data api applyBatchTextRecommendations fails closed when auth snapshot is missing", async function () {

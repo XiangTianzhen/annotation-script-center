@@ -22,8 +22,9 @@
   - `整理后的普通话文本` 直接展示在 `普通话顺滑` 字段块内
   - `音频听出的柳州话文本` 与 `特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
 - 字段结果卡在没有 AI 结果时不显示任何占位文案；有结果时改成“文本左侧、按钮右侧”的紧凑头部布局，并进一步强化蓝色卡片样式
-- `当前段 AI 附加信息` 当前改为默认折叠，点击后再展开查看 `特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
+- `当前段 AI 附加信息` 当前默认折叠但始终保留结构；点击后可展开查看 `特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`，即使推荐失败也不会整段消失
 - `当前段 AI 附加信息` 当前额外显示 token 汇总：总输入 / 总输出 / 总 token，以及 `listen / refine` 分阶段 token
+- `当前段 AI 附加信息` 当前固定渲染 `音频听出的柳州话文本 / Token 用量 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`；缺失字段保持空白，不再整项隐藏
 - AI 区里的 `未填写补 Valid / 应用当前建议` 当前改成橙色实底 background 按钮，避免白底低对比看不清
 - 页面骨架尚未就绪时，右侧卡片和底部分段按钮都会跳过本次挂载，等待下一轮 `mount()` 再补挂，避免早期 `appendChild` 空指针
 - 生成当前音频的画段建议：
@@ -57,9 +58,14 @@
   - 启动时会锁定当前 `entry + audioUrl + annotation/annos` 快照，只处理当前音频
   - 批量开始按钮当前复用 `当前段 AI 推荐` 同款橙色 accent 样式，和单段入口保持一致
   - 前端固定并发 `5`、固定错峰 `50ms`，允许 AI 结果乱序返回
+  - `批量识别状态` 当前会直接显示固定并发数，便于页面内核对实际运行参数
   - 整批结束后只把成功段一次性构造成文本版 `save_increment` 写回平台；保存成功后自动刷新当前页一次
   - `停止批量` 只阻止新请求继续发起，已在途请求会自然收尾；最终仍只保存成功段
   - 写回前当前只校验 live `selectedEntryName` 是否仍等于启动时锁定的 entry，并且会在识别当前文件名时避开左侧 `音频列表` 内的 `.mp3` 文本，减少“当前页面分段状态已变化”误报
+  - 最终文本写回当前改成“成功段逐段对齐 latest rows”：
+    - 优先按成功段 `uniqueId`
+    - 对不上时回退按锁定时的 `selectionKey(start/end)` 近似对齐
+    - 不再要求 latest `annotation/annos` 的全量 `unique_id` 列表与启动快照完全一致
   - Network 里旧版若看到多条相同 `GET /httpapi/annotation/annos`，它们属于批量阶段的状态读取，不是多次 `save_increment`；当前批量链路已收口重复上下文刷新
 - 当前段 `Valid / Invalid` 快捷切换
 - 当前段 `Valid / Invalid` 在点击前会先检查当前单选状态；已是目标值时不再重复点击
@@ -108,7 +114,7 @@
 - `data-api.js`：读取编辑器上下文、解析当前音频 URL、桥接或直连 `user/meta`、消费页内鉴权快照、读取最新 `annotation/annos`、构造 `save_increment` 直写请求，并在增量预览直写失败时回退同源 `xaudio` DOM 交互；内部会绑定浏览器原生 `fetch`，避免 `Window.fetch` 的 `Illegal invocation`
 - `segmentation-controller.js`：后端画段预览请求与本地 preview 缓存编排
 - `ai-recommendation.js`：当前段 AI 推荐调用，负责浏览器端裁剪当前段、生成 Base64 `audioDataUrl`，并把 `aiUsageOperatorName / platformUserName / platformUserId` 与 `aiStages.listen / refine` 一起发送给后端
-- `ui-panel.js`：右侧 `全局标注` 卡内紧凑信息区 + `是否有效（Valid or Not）` 下方独立 AI 工作区挂载；右侧只保留状态与逐行音频摘要，字段内承载两张最终结果卡，独立 AI 区承载动作按钮、画段建议与默认折叠的附加信息，并统一收口为系统蓝主调样式
+- `ui-panel.js`：右侧 `全局标注` 卡内紧凑信息区 + `是否有效（Valid or Not）` 下方独立 AI 工作区挂载；右侧只保留状态与逐行音频摘要，字段内承载两张最终结果卡，独立 AI 区承载动作按钮、画段建议与默认折叠但始终保留的附加信息，并统一收口为系统蓝主调样式
 - `shortcuts.js`：当前页快捷键监听与动作分发
 
 ## Options 口径

@@ -1,3 +1,58 @@
+## 2026-06-10（DataBaker CVPC 柳州话附加信息区失败态保留）
+
+- `DataBaker CVPC / 柳州话脚本` 当前修复 `当前段 AI 附加信息` 在推荐失败时整段被清空的问题：
+  - 附加信息区当前默认折叠但始终保留结构
+  - 固定展示 `音频听出的柳州话文本 / Token 用量 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
+  - 字段缺失时保持空白，不再因为某项缺值把整段附加信息清空
+- 同步 `ai/recommend` 失败响应体：
+  - 当前补齐 `rawResponse / debugRawJson / usage / models / timing / specialTags / needHumanReview / notes / audioDialectText`
+  - 前端在出现“模型输出 JSON 解析失败，可查看原始 AI 返回”时，当前可直接在附加信息区查看脱敏后的原始返回
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+
+## 2026-06-10（DataBaker CVPC 柳州话批量写回误判二次 hotfix）
+
+- `DataBaker CVPC / 柳州话脚本` 当前继续收口批量写回误判：
+  - `批量识别状态` 当前直接显示固定并发 `5`
+  - 最终文本写回前，不再要求 latest `annotation/annos` 的全量 `unique_id` 列表与启动快照完全一致
+  - 当前改为只对“本次成功段”做 latest rows 对齐：
+    - 优先按成功段 `uniqueId`
+    - 对不上时回退按锁定的 `selectionKey(start/end)` 近似匹配
+  - 只要本次成功段都能稳定对齐 latest rows，就允许继续构造 `save_increment`
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - 说明：本轮针对性回归已覆盖批量写回与状态区；`ui-panel.test.js`、`content.test.js` 仍有与本次改动无关的既有失败项，未在本轮一并处理
+
 ## 2026-06-10（DataBaker CVPC 柳州话批量写回误判与按钮样式 hotfix）
 
 - `DataBaker CVPC / 柳州话脚本` 当前补一轮批量 v1 热修：

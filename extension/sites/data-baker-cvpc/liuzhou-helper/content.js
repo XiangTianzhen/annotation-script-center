@@ -185,6 +185,82 @@
     };
   }
 
+  function buildRecommendationFailurePayload(error) {
+    if (error?.payload && typeof error.payload === "object") {
+      return error.payload;
+    }
+    return {
+      success: false,
+      message: error && error.message ? String(error.message) : String(error || "柳州话 AI 推荐失败。"),
+    };
+  }
+
+  function handleRecommendationFailure(runtimeContext, error) {
+    const payload = buildRecommendationFailurePayload(error);
+    runtimeContext?.ui?.renderRecommendation?.(payload);
+    runtimeContext?.ui?.setStatus?.(
+      "当前段 AI 推荐失败：" + (error && error.message ? error.message : String(error)),
+      "error"
+    );
+    return payload;
+  }
+
+  function scheduleRuntimeReload(runtimeContext) {
+    if (typeof runtimeContext?.scheduleReload === "function") {
+      runtimeContext.scheduleReload();
+      return;
+    }
+    if (typeof runtimeContext?.reloadPage === "function") {
+      runtimeContext.reloadPage();
+      return;
+    }
+    try {
+      globalThis.location.reload();
+    } catch (_error) {
+      // Ignore reload failures in stale page or test contexts.
+    }
+  }
+
+  async function maybeAutoApplyPreview(runtimeContext, preview) {
+    const currentRuntime = runtimeContext && typeof runtimeContext === "object" ? runtimeContext : null;
+    const proposedSegments = Array.isArray(preview?.proposedSegments) ? preview.proposedSegments : [];
+    if (currentRuntime?.config?.segmentPreviewAutoApplyEnabled !== true) {
+      return {
+        attempted: false,
+        ok: false,
+        reason: "disabled",
+      };
+    }
+    if (!currentRuntime?.dataApi?.applySegmentPreview || proposedSegments.length <= 0) {
+      return {
+        attempted: false,
+        ok: false,
+        reason: "empty",
+      };
+    }
+    const result = await currentRuntime.dataApi.applySegmentPreview(preview);
+    if (result?.ok) {
+      currentRuntime.segment?.clearPreview?.();
+      currentRuntime.ui?.renderPreview?.(null);
+      currentRuntime.ui?.setStatus?.(result.message, "success");
+      scheduleRuntimeReload(currentRuntime);
+      return {
+        attempted: true,
+        ok: true,
+        result: result,
+      };
+    }
+    currentRuntime.ui?.setStatus?.(
+      "画段建议已生成，但自动应用失败：" + String(result?.message || "未知错误"),
+      "error"
+    );
+    return {
+      attempted: true,
+      ok: false,
+      result: result,
+    };
+  }
+
   function createBatchRecommendController(options) {
     const deps = options && typeof options === "object" ? options : {};
     const dataApi = deps.dataApi || null;
@@ -205,6 +281,7 @@
         running: running !== false,
         phaseText: phaseText,
         selectionSpec: run.selectionSpecDisplay || "全部段",
+        concurrency: run.concurrency,
         totalCount: run.totalCount,
         launchedCount: snapshot.launchedCount,
         activeAiCount: snapshot.activeAiCount,
@@ -272,6 +349,7 @@
           expectedUniqueIds: Array.isArray(batchPlan.allSegmentUniqueIds)
             ? batchPlan.allSegmentUniqueIds.slice()
             : [],
+          concurrency: concurrency,
           currentSegmentNumber: 0,
           failures: [],
           successes: [],
@@ -455,6 +533,12 @@
           current.blockEditingTabTips ??
           defaults.blockPauseStateTips ??
           defaults.blockEditingTabTips) !== false,
+      segmentPreviewAutoApplyEnabled:
+        current.segmentPreviewAutoApplyEnabled === true
+          ? true
+          : current.segmentPreviewAutoApplyEnabled === false
+            ? false
+            : defaults.segmentPreviewAutoApplyEnabled !== false,
       aiRecommendEnabled:
         (current.aiRecommendEnabled ?? defaults.aiRecommendEnabled) !== false,
       timeoutMs:
@@ -618,6 +702,10 @@
       const context = await buildCurrentContext();
       const preview = await runtime.segment.preview(context);
       runtime.ui.renderPreview(preview);
+      const autoApplyResult = await maybeAutoApplyPreview(runtime, preview);
+      if (autoApplyResult.attempted) {
+        return;
+      }
       if (String(preview?.meta?.previewMode || "") === "whole-audio-fallback") {
         if (String(preview?.meta?.analysisSource || "") === "backend-python-audio-url") {
           runtime.ui.setStatus("后端整音频画段预览已生成，可直接应用当前建议。", "success");
@@ -647,13 +735,7 @@
         runtime.ui.renderPreview(null);
       }
       runtime.ui.setStatus(result.message, "success");
-      setTimeout(function () {
-        try {
-          globalThis.location.reload();
-        } catch (_error) {
-          // Ignore reload failures and leave the success message visible.
-        }
-      }, 300);
+      scheduleRuntimeReload(runtime);
       return;
     }
     runtime.ui.setStatus(result.message, "error");
@@ -670,10 +752,7 @@
       runtime.ui.renderRecommendation(lastRecommendation);
       runtime.ui.setStatus("当前段 AI 推荐已生成。", "success");
     } catch (error) {
-      runtime.ui.setStatus(
-        "当前段 AI 推荐失败：" + (error && error.message ? error.message : String(error)),
-        "error"
-      );
+      handleRecommendationFailure(runtime, error);
     }
   }
 
@@ -758,12 +837,49 @@
           })
         : null;
     const ui = uiFactory.createRuntime({
+      segmentPreviewAutoApplyEnabled: config.segmentPreviewAutoApplyEnabled !== false,
       onPreview: function () {
         if (config.segmentPreviewEnabled === false) {
           ui.setStatus("当前已关闭画段建议功能。", "error");
           return;
         }
         void handlePreview();
+      },
+      onToggleSegmentPreviewAutoApply: function (nextEnabled) {
+        void (async function () {
+          const previousEnabled = runtime?.config?.segmentPreviewAutoApplyEnabled !== false;
+          const normalizedEnabled = nextEnabled === true;
+          if (!STORAGE || typeof STORAGE.patchSettings !== "function") {
+            ui.setSegmentPreviewAutoApplyEnabled(previousEnabled);
+            ui.setStatus("当前扩展版本不支持保存自动应用开关。", "error");
+            return;
+          }
+          try {
+            const nextSettings = await STORAGE.patchSettings({
+              platforms: {
+                dataBakerCvpc: {
+                  scripts: {
+                    liuzhouAssistant: {
+                      id: SCRIPT_ID,
+                      segmentPreviewAutoApplyEnabled: normalizedEnabled,
+                    },
+                  },
+                },
+              },
+            });
+            if (runtime?.config) {
+              runtime.config.segmentPreviewAutoApplyEnabled = normalizedEnabled;
+              runtime.config.settings = nextSettings;
+            }
+            ui.setSegmentPreviewAutoApplyEnabled(normalizedEnabled);
+          } catch (error) {
+            ui.setSegmentPreviewAutoApplyEnabled(previousEnabled);
+            ui.setStatus(
+              "保存自动应用开关失败：" + (error && error.message ? error.message : String(error)),
+              "error"
+            );
+          }
+        })();
       },
       onApplyPreview: function () {
         void handleApplyPreview();
@@ -836,11 +952,7 @@
       ui: ui,
       concurrentRequestStreamFactory: concurrentRequestStreamFactory,
       reloadPage: function () {
-        try {
-          globalThis.location.reload();
-        } catch (_error) {
-          // Ignore reload failures and leave the success message visible.
-        }
+        scheduleRuntimeReload(runtime);
       },
     });
     runtime = {
@@ -855,6 +967,18 @@
       currentSelectionKey: "",
       currentSelectionEntryName: "",
       lastAudioContext: null,
+      reloadPage: function () {
+        try {
+          globalThis.location.reload();
+        } catch (_error) {
+          // Ignore reload failures and leave the success message visible.
+        }
+      },
+      scheduleReload: function () {
+        setTimeout(function () {
+          runtime?.reloadPage?.();
+        }, 300);
+      },
     };
     activeBatchController = batchController;
     ui.mount();
@@ -898,6 +1022,9 @@
     __testOnly: {
       createBatchRecommendController: createBatchRecommendController,
       resolveBatchRecommendationTexts: resolveBatchRecommendationTexts,
+      buildRecommendationFailurePayload: buildRecommendationFailurePayload,
+      handleRecommendationFailure: handleRecommendationFailure,
+      maybeAutoApplyPreview: maybeAutoApplyPreview,
     },
   };
 

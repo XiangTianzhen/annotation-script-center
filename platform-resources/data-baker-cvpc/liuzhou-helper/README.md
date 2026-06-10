@@ -38,14 +38,17 @@
     - 启动时锁定当前 `entry + audioUrl + annotation/annos` 快照，只处理当前音频
     - 批量开始按钮当前复用 `当前段 AI 推荐` 同款橙色 accent 样式
     - 前端固定并发 `5`、固定错峰 `50ms`，允许 AI 结果乱序返回
+    - `批量识别状态` 当前会直接显示固定并发数
     - 整批结束后只把成功段构造成文本版 `save_increment` 写回平台；保存成功后自动刷新当前页一次
     - `停止批量` 只阻止新请求继续发起，已在途请求允许收尾；最终仍只保存成功段
     - 写回前当前只校验 live `selectedEntryName`，并在识别当前文件名时避开左侧 `音频列表` 内的 `.mp3` 文本，减少“当前页面分段状态已变化”误报
+    - 最终写回当前按成功段逐段对齐 latest rows：优先对齐 `uniqueId`，对不上时回退按锁定的 `selectionKey(start/end)` 近似匹配；不再要求 latest `annotation/annos` 全量 `unique_id` 列表完全一致
     - Network 里旧版若看到多条相同 `GET /httpapi/annotation/annos`，它们属于分段状态读取，不是多次 `save_increment`
   - `音频听出的柳州话文本 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
   - `当前段 AI 附加信息` 当前会额外展示 `listen / refine` 的输入 / 输出 / 总 token 汇总，便于页面内直接查看成本
+  - `当前段 AI 附加信息` 当前固定保留 `音频听出的柳州话文本 / Token 用量 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 这 6 项结构；字段缺失时保持空白
   - 两张结果卡在无结果时不显示占位文案；有结果时改成“文本左、按钮右”的紧凑布局，并统一使用系统蓝主调强化样式
-  - `当前段 AI 附加信息` 默认折叠，点击后再展开查看附加信息和完整原始返回 JSON
+  - `当前段 AI 附加信息` 默认折叠，点击后再展开查看附加信息和完整原始返回 JSON；即使模型输出 JSON 解析失败，这个区块也会保留
   - `未填写补 Valid / 应用当前建议` 当前改成橙色实底 background 按钮，避免白底低对比
   - 画段建议当前改成“前端只传 URL + 阈值，后端直接整音频分析”：
     - 前端请求体当前主链路只发送 `audioUrl` 与 `rules.silenceThresholdDbfs/minSilenceMs/contextPaddingMs`

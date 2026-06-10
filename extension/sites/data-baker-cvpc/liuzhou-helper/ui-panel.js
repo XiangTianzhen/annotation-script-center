@@ -275,6 +275,8 @@
       "[" + MIDDLE_AI_ATTR + "] .meta-details summary::-webkit-details-marker { display: none; }",
       "[" + MIDDLE_AI_ATTR + "] .meta-details-content { padding: 4px 12px 12px; }",
       "[" + MIDDLE_AI_ATTR + "] .meta-box pre { margin: 6px 0 0; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: #42506a; }",
+      "[" + MIDDLE_AI_ATTR + "] .inline-toggle { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--asc-primary-strong); font-size: 13px; }",
+      "[" + MIDDLE_AI_ATTR + "] .inline-toggle input { margin: 0; }",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -403,6 +405,17 @@
       return;
     }
     parentNode.appendChild(childNode);
+  }
+
+  function resolveHostBranch(hostNode, node) {
+    let current = node instanceof HTMLElement ? node : null;
+    while (current && current.parentNode instanceof HTMLElement) {
+      if (current.parentNode === hostNode) {
+        return current;
+      }
+      current = current.parentNode;
+    }
+    return null;
   }
 
   function removeLegacySegmentButtons() {
@@ -580,6 +593,7 @@
     let mandarinRecommendationNode = null;
     let batchSelectionInputNode = null;
     let batchStateNode = null;
+    let autoApplyToggleNode = null;
 
     function setStatus(text, tone) {
       if (!statusNode) {
@@ -727,16 +741,19 @@
         return;
       }
       recommendationMetaNode.innerHTML = "";
-      if (!result || result.success !== true) {
-        return;
-      }
+      const source = result && typeof result === "object" ? result : {};
+      const rawSource =
+        source.debugRawJson ||
+        source.rawResponse ||
+        source.debugRawAiResponse ||
+        (result && typeof result === "object" ? result : null);
       [
-        ["音频听出的柳州话文本", result?.audioDialectText || result?.dialectText || ""],
-        ["Token 用量", formatUsageSummary(result?.usage || {})],
-        ["特殊标签", (result?.specialTags || []).join(" ") || "无"],
-        ["需人工复核", result?.needHumanReview === true ? "是" : "否"],
-        ["备注", (result?.notes || []).join("；") || "无"],
-        ["AI 返回原始内容", stringifyJsonSafely(result)],
+        ["音频听出的柳州话文本", source.audioDialectText || source.dialectText || ""],
+        ["Token 用量", formatUsageSummary(source.usage || {})],
+        ["特殊标签", Array.isArray(source.specialTags) ? source.specialTags.join(" ") : ""],
+        ["需人工复核", source.needHumanReview === true ? "是" : source.needHumanReview === false ? "否" : ""],
+        ["备注", Array.isArray(source.notes) ? source.notes.join("；") : ""],
+        ["AI 返回原始内容", stringifyJsonSafely(rawSource)],
       ].forEach(function (item) {
         const box = document.createElement("div");
         box.className = "meta-box";
@@ -760,8 +777,8 @@
       }
       dialectRecommendationNode.innerHTML = "";
       mandarinRecommendationNode.innerHTML = "";
+      renderRecommendationMeta(result);
       if (!result || result.success !== true) {
-        renderRecommendationMeta(null);
         return;
       }
       const refinedDialectText = String(result.refinedDialectText || result.dialectText || "");
@@ -792,7 +809,6 @@
           })
         );
       });
-      renderRecommendationMeta(result);
     }
 
     function renderBatchState(snapshot) {
@@ -812,6 +828,7 @@
         "<strong>批量识别状态</strong>",
         "<div>阶段：" + String(source.phaseText || "-") + "</div>",
         "<div>范围：" + String(source.selectionSpec || "全部段") + "</div>",
+        "<div>并发：" + String(Number(source.concurrency || 0) || "-") + "</div>",
         "<div>总数：" + String(Number(source.totalCount || 0)) + "</div>",
         "<div>已发起：" + String(Number(source.launchedCount || 0)) + "</div>",
         "<div>进行中：" + String(Number(source.activeAiCount || 0)) + "</div>",
@@ -931,6 +948,12 @@
       audioNode.appendChild(details);
     }
 
+    function setSegmentPreviewAutoApplyEnabled(enabled) {
+      if (autoApplyToggleNode) {
+        autoApplyToggleNode.checked = enabled !== false;
+      }
+    }
+
     function ensureRightRoot() {
       if (rightRoot && rightRoot.isConnected) {
         return rightRoot;
@@ -976,6 +999,21 @@
       const head = document.createElement("div");
       head.innerHTML =
         '<div class="section-title">柳州话脚本 AI 区</div><div class="section-note">当前段推荐、画段建议与辅助动作统一集中在这里。</div>';
+
+      const toggleRow = document.createElement("label");
+      toggleRow.className = "inline-toggle";
+      autoApplyToggleNode = document.createElement("input");
+      autoApplyToggleNode.type = "checkbox";
+      autoApplyToggleNode.checked = deps.segmentPreviewAutoApplyEnabled !== false;
+      autoApplyToggleNode.addEventListener("change", function () {
+        if (typeof deps.onToggleSegmentPreviewAutoApply === "function") {
+          deps.onToggleSegmentPreviewAutoApply(autoApplyToggleNode.checked === true);
+        }
+      });
+      const toggleText = document.createElement("span");
+      toggleText.textContent = "生成后自动应用当前建议";
+      toggleRow.appendChild(autoApplyToggleNode);
+      toggleRow.appendChild(toggleText);
 
       middleActionsNode = document.createElement("div");
       middleActionsNode.setAttribute(MIDDLE_AI_ACTIONS_ATTR, "");
@@ -1067,6 +1105,7 @@
       renderRecommendationMeta(null);
 
       middleAiRoot.appendChild(head);
+      middleAiRoot.appendChild(toggleRow);
       middleAiRoot.appendChild(middleActionsNode);
       middleAiRoot.appendChild(batchSection);
       middleAiRoot.appendChild(previewSection);
@@ -1133,6 +1172,12 @@
           insertAfter(formRoot, validityFieldBlock, middleAiRoot);
         }
       }
+      const middleBranch =
+        resolveHostBranch(annotationContentHost, middleAiRoot) ||
+        resolveHostBranch(annotationContentHost, formRoot);
+      if (middleBranch && rightRoot.parentNode === annotationContentHost && rightRoot !== middleBranch) {
+        annotationContentHost.insertBefore(rightRoot, middleBranch);
+      }
       return true;
     }
 
@@ -1160,6 +1205,7 @@
       mandarinRecommendationNode = null;
       batchSelectionInputNode = null;
       batchStateNode = null;
+      autoApplyToggleNode = null;
     }
 
     return {
@@ -1170,6 +1216,7 @@
       setStatus,
       renderPreview,
       renderRecommendation,
+      setSegmentPreviewAutoApplyEnabled,
     };
   }
 

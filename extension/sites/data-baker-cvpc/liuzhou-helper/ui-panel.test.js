@@ -458,18 +458,25 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
     const panelNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-panel");
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     assert.equal(panelNode.parentNode, harness.labelContent);
+    assert.equal(harness.labelContent.children[0], panelNode);
     assert.match(collectText(harness.nativeValidity), /是否有效（Valid or Not）/);
     assert.doesNotMatch(collectText(harness.nativeValidity), /未填写补 Valid/);
     assert.match(collectText(middleNode), /当前段 AI 推荐/);
     assert.match(collectText(middleNode), /未填写补 Valid/);
     assert.match(collectText(middleNode), /生成画段建议/);
     assert.match(collectText(middleNode), /应用当前建议/);
+    assert.match(collectText(middleNode), /生成后自动应用当前建议/);
     assert.match(collectText(middleNode), /当前画段建议/);
     assert.match(collectText(middleNode), /特殊标签/);
     assert.doesNotMatch(collectText(middleNode), /设为 Valid/);
     assert.doesNotMatch(collectText(middleNode), /设为 Invalid/);
     assert.equal(middleNode.parentNode, harness.fieldGroup);
     assert.equal(harness.fieldGroup.children[1], middleNode);
+    const autoApplyCheckbox = findNode(middleNode, function (node) {
+      return node instanceof FakeNode && node.tagName === "INPUT" && node.type === "checkbox";
+    });
+    assert.ok(autoApplyCheckbox);
+    assert.equal(autoApplyCheckbox.checked, true);
     assert.notEqual(middleNode.parentNode, harness.mandarinFieldBlock);
     assert.notEqual(middleNode.parentNode, harness.dialectFieldBlock);
     assert.doesNotMatch(collectText(panelNode), /当前段 AI 推荐结果/);
@@ -543,6 +550,76 @@ test("CVPC ui panel hides field recommendation areas when no AI result is availa
 
     assert.doesNotMatch(collectText(harness.dialectFieldBlock), /当前还没有柳州话 AI 推荐结果/);
     assert.doesNotMatch(collectText(harness.mandarinFieldBlock), /当前还没有普通话 AI 推荐结果/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel keeps additional info visible for failed recommendations with raw debug payload", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderRecommendation({
+      success: false,
+      message: "模型输出 JSON 解析失败，可查看原始 AI 返回。",
+      debugRawJson: {
+        rawResponseText: "{\"audioDialectText\":\"原始返回\"}",
+      },
+      rawResponse: {
+        rawText: "{\"audioDialectText\":\"原始返回\"}",
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /当前段 AI 附加信息/);
+    assert.match(middleText, /AI 返回原始内容/);
+    assert.match(middleText, /rawResponseText/);
+    assert.match(middleText, /原始返回/);
+    assert.doesNotMatch(collectText(harness.dialectFieldBlock), /修正后的柳州话文本/);
+    assert.doesNotMatch(collectText(harness.mandarinFieldBlock), /整理后的普通话文本/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel keeps empty additional info rows when recommendation fields are missing", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderRecommendation({
+      success: false,
+      message: "仅返回错误消息",
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const metaDetails = findNodeByClass(middleNode, "meta-details");
+    const metaBoxes = metaDetails ? metaDetails.querySelectorAll(".meta-box") : [];
+    const middleText = collectText(middleNode);
+    assert.ok(metaDetails);
+    assert.ok(metaBoxes.length >= 6);
+    assert.match(middleText, /音频听出的柳州话文本/);
+    assert.match(middleText, /Token 用量/);
+    assert.match(middleText, /特殊标签/);
+    assert.match(middleText, /需人工复核/);
+    assert.match(middleText, /备注/);
+    assert.match(middleText, /AI 返回原始内容/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
@@ -945,7 +1022,7 @@ test("CVPC ui panel mounts batch controls and renders batch progress details", f
 
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     const inputNode = findNode(middleNode, function (node) {
-      return node instanceof FakeNode && node.tagName === "INPUT";
+      return node instanceof FakeNode && node.tagName === "INPUT" && node.type === "text";
     });
     assert.ok(inputNode);
     assert.match(collectText(middleNode), /批量识别并填入/);
@@ -967,6 +1044,7 @@ test("CVPC ui panel mounts batch controls and renders batch progress details", f
       running: true,
       phaseText: "批量识别进行中",
       selectionSpec: "2-4,7",
+      concurrency: 5,
       totalCount: 4,
       launchedCount: 3,
       activeAiCount: 2,
@@ -984,6 +1062,7 @@ test("CVPC ui panel mounts batch controls and renders batch progress details", f
     const batchText = collectText(middleNode);
     assert.match(batchText, /批量识别状态/);
     assert.match(batchText, /范围：2-4,7/);
+    assert.match(batchText, /并发：5/);
     assert.match(batchText, /总数：4/);
     assert.match(batchText, /已发起：3/);
     assert.match(batchText, /进行中：2/);
