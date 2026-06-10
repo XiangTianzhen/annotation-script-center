@@ -1,3 +1,23 @@
+## 2026-06-10（DataBaker CVPC 柳州话画段切换为后端 Python 整音频预览）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把 `生成画段建议` 主链路从“前端本地静音检测”切到“后端直接整音频分析”：
+  - 前端请求体当前只发送 `audioUrl` 与静音阈值规则
+  - `segment/preview` 当前在后端直接下载 mp3，并调用 Python `miniaudio` 解码
+  - 后端固定按 `30ms` 窗口、轻量平滑、`<=0.18s` 短尖峰桥接、`静音 >= 0.4s`、前后补 `0.1s` 生成整条音频 `proposedSegments`
+- 前端 `segmentation-controller` 当前移除了本地 `AudioContext` 静音分析：
+  - 不再上传 `silentRanges`
+  - 不再依赖浏览器本地音频解码能力
+  - preview 当前会直接回显后端返回的 `analysisMeta`
+- UI 当前同步切换到后端口径：
+  - 整音频预览标题改为“后端整音频重切预览”
+  - 诊断文案改为“后端静音检测”
+  - 无 sourceSegments 时，会直接显示“当前模式：后端整音频分段”
+- `应用当前建议` 当前继续 fail closed：
+  - 后端整音频预览固定 `applyAllowed=false`
+  - 当前不自动重画整页波形，只供人工参考
+- 共享 Python 依赖当前补充：
+  - `platform-resources/backend/ai/python/requirements.txt` 新增 `miniaudio`
+
 ## 2026-06-10（DataBaker CVPC 柳州话画段空结果本地兜底预览）
 
 - `DataBaker CVPC / 柳州话脚本` 当前把画段预览链路补成“两段式本地兜底”：
@@ -4866,3 +4886,6 @@
 - 柳州话词表维护口径同步收口为：
   - 当前运行时只维护一份 `柳州话 -> 普通话` 主词表
   - 若后续需要 `普通话 -> 柳州话` 反查，应优先由代码从该主词表派生，不再人工并行维护第二份平行词表
+- 2026-06-10 补充小修：
+  - 将补充区的 `娃崽 -> 小孩子` 并回主表 `娃仔 -> 小孩`
+  - 当前以 `娃仔` 作为主词条，`娃崽` 改为 `娃仔` 的别写，不再单独保留 `小孩子` 映射

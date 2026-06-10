@@ -26,7 +26,7 @@ function registerSegmentRoutes(router) {
   router.post(SEGMENT_BASE_PATH + "/preview", async function (context) {
     try {
       const body = await parseJsonBody(context.request);
-      const payload = segmentService.buildSegmentPreview(body);
+      const payload = await segmentService.buildSegmentPreview(body);
       sendJson(context.response, 200, payload);
     } catch (error) {
       const statusCode = Math.max(400, Number(error && error.statusCode) || 500);

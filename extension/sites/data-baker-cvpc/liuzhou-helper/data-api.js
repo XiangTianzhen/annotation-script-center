@@ -15,7 +15,7 @@
   const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的画段建议，请先生成画段建议。";
   const PREVIEW_NOTHING_TO_APPLY_MESSAGE = "当前音频没有需要应用的拆分建议。";
   const PREVIEW_READONLY_MESSAGE =
-    "整条音频重切预览暂不支持自动应用，请人工参考或改走 Python 试算。";
+    "当前整条音频预览暂不支持自动应用，请人工参考后手动画段。";
   const PREVIEW_UNSAFE_MESSAGE = "未检测到稳定的波形画段区域或拆分控件，请人工处理当前建议。";
   const PREVIEW_APPLY_SUCCESS_MESSAGE = "建议已画到页面，请人工复核后点击平台保存。";
 

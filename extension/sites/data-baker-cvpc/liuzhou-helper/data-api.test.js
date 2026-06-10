@@ -2156,7 +2156,7 @@ test("CVPC data api refuses to apply whole-audio fallback preview", async functi
 
   assert.deepEqual(result, {
     ok: false,
-    message: "整条音频重切预览暂不支持自动应用，请人工参考或改走 Python 试算。",
+    message: "当前整条音频预览暂不支持自动应用，请人工参考后手动画段。",
   });
 });
 

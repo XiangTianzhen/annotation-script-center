@@ -346,7 +346,7 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 - `alibaba-labelx/asr-transcription`：转写统计上传、定时配置、健康检查、供应商列表与总表 CSV 下载（CSV 列与快判不同，按转写统计格式输出），以及当前题 AI 推荐 `suggest-current/health` 接口。当前下载 / suppliers / existing 已开始复用 `project-data-download/` 下的 LabelX 共享 core，外部 path 保持不变。
 - `data-baker/round-one-quality`：一检质检 AI 推荐文本 `health/defaults/recommend`、历史兼容 jobs，以及导出 CSV `health/config/upload/download/list` 接口；当前前端先选“识别模式”，`two_stage` 显示“听音模型 + 比较模型”，`omni_single` 只显示“AI 模型”。后端再派发到 Fun-ASR REST 当前链路，或 `qwen3.5-omni-flash / qwen3.5-omni-plus` 的 Omni legacy 快速路径；导出原始记录脱敏后单独保存为 `latest-raw.json`，不再写入 CSV 列。`export/download` 当前已开始复用 `project-data-download/csv-file-download-core.js`，外部 path 保持不变；upload 字段归一、CSV helper、merge helper、latest/history/events 持久化 helper、history 读取 helper、字段映射、下载 helper 和脱敏样例继续往 `platform-resources/data-baker/round-one-quality/data/` 收口。
 - `data-baker/round-one-quality` 的 `supportedPipelineModes` 仅保留给后端兼容与排查使用，不再作为前端主配置来源；前端主配置为 `listenModelOptions` 与 `compareModelOptions`。
-- `data-baker-cvpc/liuzhou-helper`：DataBaker CVPC 柳州话脚本独立接口；当前开放 `segment/health`、`segment/preview`、`ai/recommend/health`、`ai/recommend/defaults`、`ai/recommend`、`clip-cache/health`、`clip-cache/upload`、`clip-cache/files/:clipId.wav`。当前段 AI 推荐主链路已改为“浏览器裁剪当前波形选中段 -> 直接拼成 Base64 `audioDataUrl` -> 调用 recommend”；`clip-cache/*` 仅保留历史兼容与调试接口。画段建议链路当前改成“浏览器端静音检测 -> `segment/preview` 增量补切预览 -> 同源 `xaudio` DOM 应用到页面当前波形状态”。固定边界仍是：不自动保存、不自动提交、不自动切下一条；画段应用后仍由用户人工点击平台 `保存`。
+- `data-baker-cvpc/liuzhou-helper`：DataBaker CVPC 柳州话脚本独立接口；当前开放 `segment/health`、`segment/preview`、`ai/recommend/health`、`ai/recommend/defaults`、`ai/recommend`、`clip-cache/health`、`clip-cache/upload`、`clip-cache/files/:clipId.wav`。当前段 AI 推荐主链路已改为“浏览器裁剪当前波形选中段 -> 直接拼成 Base64 `audioDataUrl` -> 调用 recommend”；`clip-cache/*` 仅保留历史兼容与调试接口。画段建议链路当前改成“前端只传 `audioUrl + 阈值` -> 后端 Python `miniaudio` 直接解码 mp3 并生成整音频预览 -> 页面仅展示 preview-only 建议”。固定边界仍是：不自动保存、不自动提交、不自动切下一条；画段应用后仍由用户人工点击平台 `保存`。
 - DataBaker `fun-asr` 链路默认通过 `platform-resources/backend/ai/providers/funasr-rest.js` 走 Node REST 异步任务提交 / 轮询；仅显式切到 `provider=python` 或 `fallback=python` 时才会调用 `platform-resources/backend/ai/python/funasr_client.py`。
 - 如曾命中过旧乱码结果，修复后需要重启 `node platform-resources/backend/server.js`，清空旧内存缓存；默认 REST 链路不经过 Python 子进程，仅显式切 Python 时才受 Python stdout 编码影响。
 - `magic-data/hakka-helper`：Magic Data 客家话助手 AI 复核接口（保留 `annotator` 兼容路径）。
@@ -386,11 +386,12 @@ Aishell Tech AI 接口：
 
 DataBaker CVPC AI / 画段接口：
 - `GET /api/data-baker-cvpc/liuzhou-helper/segment/health`
-  - 当前返回默认静音规则：`silenceThresholdDbfs=-40`、`minSilenceMs=400`、`contextPaddingMs=100`、`segmentScope=existing-segments-incremental`
+  - 当前返回默认静音规则：`silenceThresholdDbfs=-27`、`minSilenceMs=400`、`contextPaddingMs=100`、`segmentScope=existing-segments-incremental`
   - 当前返回 `contract.writeContractCaptured=page-dom-only`
 - `POST /api/data-baker-cvpc/liuzhou-helper/segment/preview`
-  - 输入当前支持：`silentRanges[]`、`existingSegments[]`、`rules.silenceThresholdDbfs/minSilenceMs/contextPaddingMs`、`segmentScope`
-  - 输出当前返回：`data.proposedSegments[]`、`data.changes[]`、`meta.rules`、`meta.contractMode=dom-guarded-manual-save`
+  - 输入当前主链路：`audioUrl`、`rules.silenceThresholdDbfs/minSilenceMs/contextPaddingMs`
+  - 兼容旧链路仍支持：`silentRanges[]`、`existingSegments[]`、`segmentScope`
+  - 输出当前返回：`data.proposedSegments[]`、`data.changes[]`、`meta.rules`、`meta.analysisSource=backend-python-audio-url`、`meta.analysisMeta`、`meta.contractMode=dom-guarded-manual-save`
 - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`
 - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults`
 - `POST /api/data-baker-cvpc/liuzhou-helper/ai/recommend`
@@ -495,7 +496,7 @@ DataBaker AI 架构补充：
 - Fun-ASR Python 文件与依赖文件已移动到：
   - `platform-resources/backend/ai/python/funasr_client.py`
   - `platform-resources/backend/ai/python/requirements.txt`
-- `platform-resources/backend/ai/python/requirements.txt` 现包含 `opencc-python-reimplemented`，用于 Fun-ASR 源头繁转简。
+- `platform-resources/backend/ai/python/requirements.txt` 现包含 `opencc-python-reimplemented` 与 `miniaudio`；前者用于 Fun-ASR 源头繁转简，后者用于 DataBaker CVPC 后端整音频画段预览时直接解码 mp3。
 - Fun-ASR 默认 provider 已改为 `platform-resources/backend/ai/providers/funasr-rest.js`。
 - `platform-resources/backend/ai/providers/funasr.js` 负责统一选择 `rest/python` provider；默认 `rest`，仅在显式配置 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时使用 Python 路径。
 - `platform-resources/backend/ai-framework/` 当前已落第一版骨架，但尚未替换现有项目路由；项目迁移顺序以 `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md` 为准。

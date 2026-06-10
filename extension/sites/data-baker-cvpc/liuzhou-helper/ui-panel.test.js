@@ -819,6 +819,7 @@ test("CVPC ui panel renders whole-audio fallback preview as read-only summary", 
       meta: {
         previewMode: "whole-audio-fallback",
         applyAllowed: false,
+        analysisSource: "backend-python-audio-url",
         rules: {
           silenceThresholdDbfs: -27,
         },
@@ -827,16 +828,59 @@ test("CVPC ui panel renders whole-audio fallback preview as read-only summary", 
 
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     const middleText = collectText(middleNode);
-    assert.match(middleText, /当前增量补切未命中，以下为整条音频重切预览/);
+    assert.match(middleText, /后端已直接生成整条音频重切预览/);
     assert.match(middleText, /该结果仅供预览，暂不支持一键应用/);
     assert.match(middleText, /原现有段数：6 段/);
     assert.match(middleText, /fallback 建议段数：2 段/);
-    assert.match(middleText, /本地静音检测命中 26 段候选静音/);
+    assert.match(middleText, /后端静音检测命中 26 段候选静音/);
     assert.match(middleText, /原始候选 30 段，已自动合并短尖峰打断/);
     assert.match(middleText, /建议段 1/);
     assert.match(middleText, /0 秒 - 4\.171 秒/);
     assert.match(middleText, /建议段 2/);
     assert.match(middleText, /18\.565 秒 - 35\.677 秒/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel renders backend whole-audio preview without source segment count", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderPreview({
+      proposedSegments: [
+        { startMs: 0, endMs: 4171 },
+        { startMs: 17554, endMs: 35221 },
+      ],
+      analysisMeta: {
+        frameCount: 120,
+        rawSilentRangeCount: 30,
+        silentRangeCount: 26,
+      },
+      meta: {
+        previewMode: "whole-audio-fallback",
+        applyAllowed: false,
+        analysisSource: "backend-python-audio-url",
+        rules: {
+          silenceThresholdDbfs: -40,
+        },
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /后端整音频重切预览/);
+    assert.match(middleText, /当前模式：后端整音频分段/);
+    assert.match(middleText, /建议段数：2 段/);
+    assert.match(middleText, /静音 >= 0\.4s，阈值 -40 dB，前后补偿 0\.1s/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

@@ -477,11 +477,15 @@
       Math.round(Number(analysisMeta.rawSilentRangeCount || 0)) || 0
     );
     const frameCount = Math.max(0, Math.round(Number(analysisMeta.frameCount || 0)) || 0);
+    const detectionLabel =
+      String(preview?.meta?.analysisSource || "") === "backend-python-audio-url"
+        ? "后端静音检测"
+        : "本地静音检测";
     if (frameCount <= 0) {
-      return "本地静音检测摘要暂不可用";
+      return detectionLabel + "摘要暂不可用";
     }
     const parts = [
-      "本地静音检测命中 " + String(silentRangeCount) + " 段候选静音",
+      detectionLabel + "命中 " + String(silentRangeCount) + " 段候选静音",
     ];
     if (rawSilentRangeCount > silentRangeCount) {
       parts.push(
@@ -493,9 +497,27 @@
     return parts.join("；");
   }
 
+  function buildWholeAudioPreviewTitle(preview) {
+    if (String(preview?.meta?.analysisSource || "") === "backend-python-audio-url") {
+      return "后端整音频重切预览";
+    }
+    return "整条音频重切预览";
+  }
+
+  function buildWholeAudioPreviewLead(preview) {
+    if (String(preview?.meta?.analysisSource || "") === "backend-python-audio-url") {
+      return "后端已直接生成整条音频重切预览";
+    }
+    return "当前增量补切未命中，以下为整条音频重切预览";
+  }
+
   function buildPreviewAnalysisNote(preview) {
     const analysisMeta =
       preview?.analysisMeta && typeof preview.analysisMeta === "object" ? preview.analysisMeta : {};
+    const detectionLabel =
+      String(preview?.meta?.analysisSource || "") === "backend-python-audio-url"
+        ? "后端静音检测"
+        : "本地静音检测";
     const silentRangeCount = Math.max(
       0,
       Math.round(Number(analysisMeta.silentRangeCount || 0)) || 0
@@ -510,10 +532,10 @@
       return "";
     }
     if (silentRangeCount <= 0 || emptyReason === "no-silence") {
-      return "本地静音检测未找到满足条件的连续静音；已自动平滑并合并 <=0.18 秒的短尖峰打断。";
+      return detectionLabel + "未找到满足条件的连续静音；已自动平滑并合并 <=0.18 秒的短尖峰打断。";
     }
     const parts = [
-      "本地静音检测已找到 " + String(silentRangeCount) + " 段满足条件的候选静音",
+      detectionLabel + "已找到 " + String(silentRangeCount) + " 段满足条件的候选静音",
     ];
     if (rawSilentRangeCount > silentRangeCount) {
       parts.push("已自动合并短尖峰打断");
@@ -568,7 +590,11 @@
         const banner = document.createElement("div");
         banner.className = "preview-item";
         banner.innerHTML =
-          "<strong>整条音频重切预览</strong><div>当前增量补切未命中，以下为整条音频重切预览</div>";
+          "<strong>" +
+          buildWholeAudioPreviewTitle(preview) +
+          "</strong><div>" +
+          buildWholeAudioPreviewLead(preview) +
+          "</div>";
         previewNode.appendChild(banner);
 
         const readonlyBox = document.createElement("div");
@@ -579,14 +605,16 @@
 
         const metaBox = document.createElement("div");
         metaBox.className = "preview-item";
-        metaBox.innerHTML =
-          "<strong>当前结果</strong><div>原现有段数：" +
-          String(sourceSegments.length) +
-          " 段</div><div>fallback 建议段数：" +
-          String(proposedSegments.length) +
-          " 段</div><div>" +
-          buildPreviewDetectionSummary(preview) +
-          "</div>";
+        const metaLines = ['<strong>当前结果</strong>'];
+        if (sourceSegments.length > 0) {
+          metaLines.push("<div>原现有段数：" + String(sourceSegments.length) + " 段</div>");
+          metaLines.push("<div>fallback 建议段数：" + String(proposedSegments.length) + " 段</div>");
+        } else {
+          metaLines.push("<div>当前模式：后端整音频分段</div>");
+          metaLines.push("<div>建议段数：" + String(proposedSegments.length) + " 段</div>");
+        }
+        metaLines.push("<div>" + buildPreviewDetectionSummary(preview) + "</div>");
+        metaBox.innerHTML = metaLines.join("");
         previewNode.appendChild(metaBox);
 
         if (proposedSegments.length === 0) {

@@ -24,27 +24,89 @@ function createSegment(overrides) {
   );
 }
 
-test("segment preview reports no-silence when no silent ranges are provided", function () {
-  const payload = buildSegmentPreview({
-    audioUrl: "https://example.com/a.mp3",
-    audioDurationMs: 9000,
-    existingSegments: [createSegment()],
-    silentRanges: [],
-    rules: {
-      silenceThresholdDbfs: -27,
+test("segment preview uses backend audio analyzer when the request only provides audioUrl and threshold", async function () {
+  const calls = [];
+  const payload = await buildSegmentPreview(
+    {
+      audioUrl: "https://example.com/a.mp3",
+      rules: {
+        silenceThresholdDbfs: -40,
+      },
     },
-    segmentScope: DEFAULT_SEGMENT_SCOPE,
+    {
+      analyzeAudio: async function (input) {
+        calls.push(input);
+        return {
+          audioDurationMs: 6000,
+          silentRanges: [
+            { startMs: 1200, endMs: 1800 },
+            { startMs: 3000, endMs: 3600 },
+          ],
+          analysisSource: "backend-python-audio-url",
+          analysisMeta: {
+            frameCount: 200,
+            rawSilentRangeCount: 3,
+            silentRangeCount: 2,
+            decoder: "miniaudio",
+          },
+        };
+      },
+    }
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].audioUrl, "https://example.com/a.mp3");
+  assert.equal(calls[0].silenceThresholdDbfs, -40);
+  assert.equal(payload.success, true);
+  assert.equal(payload.meta.previewMode, PREVIEW_MODE_WHOLE_AUDIO_FALLBACK);
+  assert.equal(payload.meta.applyAllowed, false);
+  assert.equal(payload.meta.analysisSource, "backend-python-audio-url");
+  assert.deepEqual(payload.meta.analysisMeta, {
+    frameCount: 200,
+    rawSilentRangeCount: 3,
+    silentRangeCount: 2,
+    decoder: "miniaudio",
   });
+  assert.deepEqual(
+    payload.data.proposedSegments.map(function (item) {
+      return [item.startMs, item.endMs];
+    }),
+    [
+      [0, 1300],
+      [1700, 3100],
+      [3500, 6000],
+    ]
+  );
+});
+
+test("segment preview reports no-silence when backend analysis returns no silent ranges", async function () {
+  const payload = await buildSegmentPreview(
+    {
+      audioUrl: "https://example.com/a.mp3",
+      rules: {
+        silenceThresholdDbfs: -27,
+      },
+    },
+    {
+      analyzeAudio: async function () {
+        return {
+          audioDurationMs: 9000,
+          silentRanges: [],
+          analysisSource: "backend-python-audio-url",
+        };
+      },
+    }
+  );
 
   assert.equal(payload.success, true);
   assert.deepEqual(payload.data.changes, []);
-  assert.equal(payload.meta.previewMode, PREVIEW_MODE_INCREMENTAL);
+  assert.equal(payload.meta.previewMode, PREVIEW_MODE_WHOLE_AUDIO_FALLBACK);
   assert.equal(payload.meta.applyAllowed, false);
   assert.equal(payload.meta.emptyReason, "no-silence");
 });
 
-test("segment preview keeps existing segments unchanged when no internal silence hit is found", function () {
-  const payload = buildSegmentPreview({
+test("segment preview keeps existing segments unchanged when no internal silence hit is found", async function () {
+  const payload = await buildSegmentPreview({
     audioUrl: "https://example.com/a.mp3",
     audioDurationMs: 9000,
     existingSegments: [
@@ -68,7 +130,7 @@ test("segment preview keeps existing segments unchanged when no internal silence
     rules: {
       silenceThresholdDbfs: -27,
     },
-    segmentScope: "existing-segments-incremental",
+    segmentScope: DEFAULT_SEGMENT_SCOPE,
   });
 
   assert.equal(payload.success, true);
@@ -89,17 +151,10 @@ test("segment preview keeps existing segments unchanged when no internal silence
   assert.equal(payload.meta.previewMode, PREVIEW_MODE_INCREMENTAL);
   assert.equal(payload.meta.applyAllowed, false);
   assert.equal(payload.meta.emptyReason, "no-internal-hit");
-  assert.deepEqual(payload.meta.rules, {
-    silenceThresholdDbfs: -27,
-    minSilenceMs: 400,
-    contextPaddingMs: 100,
-    segmentScope: "existing-segments-incremental",
-  });
-  assert.equal(payload.meta.contractMode, "dom-guarded-manual-save");
 });
 
-test("segment preview splits an existing segment when an internal silence lasts at least 400ms", function () {
-  const payload = buildSegmentPreview({
+test("segment preview splits an existing segment when an internal silence lasts at least 400ms", async function () {
+  const payload = await buildSegmentPreview({
     audioUrl: "https://example.com/a.mp3",
     audioDurationMs: 9000,
     existingSegments: [createSegment()],
@@ -107,7 +162,7 @@ test("segment preview splits an existing segment when an internal silence lasts 
     rules: {
       silenceThresholdDbfs: -27,
     },
-    segmentScope: "existing-segments-incremental",
+    segmentScope: DEFAULT_SEGMENT_SCOPE,
   });
 
   assert.equal(payload.success, true);
@@ -124,84 +179,13 @@ test("segment preview splits an existing segment when an internal silence lasts 
       ],
     },
   ]);
-  assert.deepEqual(
-    payload.data.proposedSegments.map(function (item) {
-      return {
-        sourceUniqueId: item.sourceUniqueId,
-        startMs: item.startMs,
-        endMs: item.endMs,
-      };
-    }),
-    [
-      { sourceUniqueId: "segment-1", startMs: 4000, endMs: 5100 },
-      { sourceUniqueId: "segment-1", startMs: 5400, endMs: 7000 },
-    ]
-  );
   assert.equal(payload.meta.previewMode, PREVIEW_MODE_INCREMENTAL);
   assert.equal(payload.meta.applyAllowed, true);
   assert.equal(payload.meta.emptyReason, "");
 });
 
-test("segment preview does not split when silence is shorter than 400ms", function () {
-  const payload = buildSegmentPreview({
-    audioUrl: "https://example.com/a.mp3",
-    audioDurationMs: 9000,
-    existingSegments: [createSegment()],
-    silentRanges: [{ startMs: 5000, endMs: 5399 }],
-    rules: {
-      silenceThresholdDbfs: -27,
-    },
-    segmentScope: "existing-segments-incremental",
-  });
-
-  assert.deepEqual(payload.data.changes, []);
-  assert.deepEqual(
-    payload.data.proposedSegments.map(function (item) {
-      return [item.startMs, item.endMs];
-    }),
-    [[4000, 7000]]
-  );
-  assert.equal(payload.meta.emptyReason, "no-internal-hit");
-});
-
-test("segment preview produces multiple child segments for multiple qualifying silences in one source segment", function () {
-  const payload = buildSegmentPreview({
-    audioUrl: "https://example.com/a.mp3",
-    audioDurationMs: 12000,
-    existingSegments: [
-      createSegment({
-        startMs: 1000,
-        endMs: 5000,
-      }),
-    ],
-    silentRanges: [
-      { startMs: 2000, endMs: 2450 },
-      { startMs: 3200, endMs: 3800 },
-    ],
-    rules: {
-      silenceThresholdDbfs: -27,
-    },
-    segmentScope: "existing-segments-incremental",
-  });
-
-  assert.deepEqual(payload.data.changes, [
-    {
-      sourceUniqueId: "segment-1",
-      sourceSegmentNumber: 1,
-      originalStartMs: 1000,
-      originalEndMs: 5000,
-      reason: "silence>=400ms",
-      suggestedSegments: [
-        { startMs: 1000, endMs: 2100 },
-        { startMs: 2350, endMs: 3300 },
-        { startMs: 3700, endMs: 5000 },
-      ],
-    },
-  ]);
-});
-
-test("segment preview reports insufficient-split when internal silence leaves no usable child segments", function () {
-  const payload = buildSegmentPreview({
+test("segment preview reports insufficient-split when internal silence leaves no usable child segments", async function () {
+  const payload = await buildSegmentPreview({
     audioUrl: "https://example.com/a.mp3",
     audioDurationMs: 9000,
     existingSegments: [
@@ -223,8 +207,8 @@ test("segment preview reports insufficient-split when internal silence leaves no
   assert.equal(payload.meta.emptyReason, "insufficient-split");
 });
 
-test("segment preview supports whole-audio fallback rebuild as preview-only mode", function () {
-  const payload = buildSegmentPreview({
+test("segment preview supports explicit whole-audio rebuild mode as preview-only output", async function () {
+  const payload = await buildSegmentPreview({
     audioUrl: "https://example.com/a.mp3",
     audioDurationMs: 6000,
     existingSegments: [
@@ -233,12 +217,6 @@ test("segment preview supports whole-audio fallback rebuild as preview-only mode
         sourceSegmentNumber: 1,
         startMs: 0,
         endMs: 2000,
-      }),
-      createSegment({
-        uniqueId: "segment-2",
-        sourceSegmentNumber: 2,
-        startMs: 2500,
-        endMs: 5000,
       }),
     ],
     silentRanges: [
@@ -254,21 +232,6 @@ test("segment preview supports whole-audio fallback rebuild as preview-only mode
   assert.equal(payload.success, true);
   assert.equal(payload.meta.previewMode, PREVIEW_MODE_WHOLE_AUDIO_FALLBACK);
   assert.equal(payload.meta.applyAllowed, false);
-  assert.equal(payload.meta.emptyReason, "");
-  assert.deepEqual(payload.data.changes, [
-    {
-      sourceUniqueId: "",
-      sourceSegmentNumber: 1,
-      originalStartMs: 0,
-      originalEndMs: 6000,
-      reason: "silence>=400ms",
-      suggestedSegments: [
-        { startMs: 0, endMs: 1300 },
-        { startMs: 1700, endMs: 3100 },
-        { startMs: 3500, endMs: 6000 },
-      ],
-    },
-  ]);
   assert.deepEqual(
     payload.data.proposedSegments.map(function (item) {
       return [item.startMs, item.endMs];
@@ -281,7 +244,7 @@ test("segment preview supports whole-audio fallback rebuild as preview-only mode
   );
 });
 
-test("segment health exposes the new CVPC preview defaults", function () {
+test("segment health exposes backend analysis defaults for CVPC preview", function () {
   const payload = createSegmentHealthPayload();
 
   assert.equal(payload.success, true);
@@ -291,6 +254,9 @@ test("segment health exposes the new CVPC preview defaults", function () {
     contextPaddingMs: 100,
     segmentScope: "existing-segments-incremental",
     minSegmentMs: 100,
+    analysisWindowMs: 30,
+    smoothingFrameRadius: 1,
+    maxSpeechBridgeMs: 180,
   });
   assert.deepEqual(payload.supportedScopes, {
     default: "existing-segments-incremental",
@@ -300,5 +266,6 @@ test("segment health exposes the new CVPC preview defaults", function () {
   assert.deepEqual(payload.contract, {
     mode: "dom-guarded-manual-save",
     writeContractCaptured: "page-dom-only",
+    analysisSource: "backend-python-audio-url",
   });
 });

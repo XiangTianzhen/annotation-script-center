@@ -36,15 +36,12 @@
   - 两张结果卡在无结果时不显示占位文案；有结果时改成“文本左、按钮右”的紧凑布局，并统一使用系统蓝主调强化样式
   - `当前段 AI 附加信息` 默认折叠，点击后再展开查看附加信息和完整原始返回 JSON
   - `未填写补 Valid / 应用当前建议` 当前改成橙色实底 background 按钮，避免白底低对比
-  - 画段建议当前改成“前端静音检测 + 后端增量补切预览”：
-    - 前端固定按 `30ms` 窗口分析静音
-    - 浏览器端静音检测当前会做多声道能量汇总、轻量平滑，并自动桥接 `<=0.18s` 的短尖峰打断
-    - 连续 `0.4s` 低于阈值即记为静音
-    - 阈值当前开放 `静音阈值`，默认 `-27 dB`，并允许按 `% / Val` 显示和输入
-    - 后端固定按“前后补 `0.1s`、仅拆现有段内部命中的静音”生成 `changes + proposedSegments`
-    - 如果本地已检出候选静音、但增量补切 `changes=[]`，前端会自动追加一次 `whole-audio-rebuild-preview` 请求，返回整条音频重切预览
-    - fallback 预览当前只展示建议段，不允许直接 `应用当前建议`
-    - 前端空预览当前会额外提示“本地未检出静音”“未命中现有段内部”或“命中了静音但拆分后仍不足 2 段”
+  - 画段建议当前改成“前端只传 URL + 阈值，后端直接整音频分析”：
+    - 前端请求体当前主链路只发送 `audioUrl` 与 `rules.silenceThresholdDbfs/minSilenceMs/contextPaddingMs`
+    - 后端会直接下载 mp3，并通过 Python `miniaudio` 解码
+    - 后端固定按 `30ms` 窗口、轻量平滑、`<=0.18s` 短尖峰桥接、连续 `0.4s` 静音、前后补 `0.1s` 生成整条音频 `proposedSegments`
+    - 当前返回结果固定是 preview-only 的整音频重切预览，不允许直接 `应用当前建议`
+    - 前端空预览当前会额外提示“后端未检出静音”或“命中了静音但拆分后仍不足 2 段”
   - `应用当前建议` 当前会进入同源 `xaudio` iframe，复用页面原生 region / handle / `开启拆分` 交互把建议段画回当前波形；应用后只改页面当前状态，不自动保存
   - 当前段 AI 推荐严格按当前波形选中段工作：实时读取 `.xaudio_time` 的 `开始 / 结束`，浏览器端只裁这一段音频
   - 浏览器端会把当前段片段转成 `16k` 单声道 WAV，并直接拼成 `audioDataUrl` 发给现有 AI 推荐接口；不再经过“本地文件转公网 URL”链路
@@ -117,16 +114,19 @@
   - 返回 `supportedScopes.previewOnly = [whole-audio-rebuild-preview]`
 - `POST /api/data-baker-cvpc/liuzhou-helper/segment/preview`
   - 输入：
-    - `segmentScope = existing-segments-incremental | whole-audio-rebuild-preview`
+    - 当前主链路只要求 `audioUrl`
     - `rules.silenceThresholdDbfs`
     - 固定规则 `rules.minSilenceMs = 400`、`rules.contextPaddingMs = 100`
+    - 如需兼容旧增量链路，仍可选传 `existingSegments[] / silentRanges[] / segmentScope`
   - 输出：
     - `data.proposedSegments`
     - `data.changes`
     - `meta.previewMode = incremental | whole-audio-fallback`
     - `meta.applyAllowed`
     - `meta.emptyReason = no-silence | no-internal-hit | insufficient-split`
-  - `whole-audio-rebuild-preview` 当前仅用于“本地已检出静音、但增量补切为空”时的整条音频 fallback 预览，不直接参与页面自动画段
+    - `meta.analysisSource = backend-python-audio-url`
+    - `meta.analysisMeta`
+  - 当前前端主链路默认走后端整音频预览；`whole-audio-rebuild-preview` 与“无现有段请求”的自动整音频模式都不会直接参与页面自动画段
 
 ## 两阶段后端链路
 
@@ -158,8 +158,8 @@
 - AI 建议只作辅助，不自动保存、不自动提交、不自动切下一条。
 - `全局 Invalid` 不做自动判定。
 - 批量范围固定为“当前音频 / 当前作业”，不跨整包遍历。
-- 画段建议当前支持“建议生成 -> 画回当前页面 -> 人工手动保存”。
-- 整条音频 fallback 预览当前只读，不支持一键应用。
+- 画段建议当前支持“建议生成 -> 页面内预览 -> 人工手动保存”。
+- 当前后端整音频预览只读，不支持一键应用。
 - 当前不会直连 `save_increment`，也不会自动点击平台 `保存`。
 - 当前段 AI 推荐如果没有读到可信的当前段 `开始 / 结束`，会直接失败，不退回整段识别。
 - 当前仍不补采或直连平台保存接口；保存链路继续以用户手动点击平台按钮为准。
@@ -202,7 +202,10 @@ platform-resources/data-baker-cvpc/liuzhou-helper/
     ai-routes.js
     segment-routes.js
     ai-service.js
+    segment-audio-python.js
     segment-service.js
+    python/
+      segment_audio_client.py
   ai/
     adapter.js
     assets/

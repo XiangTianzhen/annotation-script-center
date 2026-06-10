@@ -1,5 +1,7 @@
 "use strict";
 
+const segmentAudioPython = require("./segment-audio-python");
+
 const DEFAULT_SILENCE_THRESHOLD_DBFS = -27;
 const DEFAULT_MIN_SILENCE_MS = 400;
 const DEFAULT_CONTEXT_PADDING_MS = 100;
@@ -8,6 +10,9 @@ const WHOLE_AUDIO_REBUILD_SCOPE = "whole-audio-rebuild-preview";
 const MIN_SEGMENT_MS = 100;
 const PREVIEW_MODE_INCREMENTAL = "incremental";
 const PREVIEW_MODE_WHOLE_AUDIO_FALLBACK = "whole-audio-fallback";
+const ANALYSIS_WINDOW_MS = 30;
+const ANALYSIS_SMOOTHING_FRAME_RADIUS = 1;
+const ANALYSIS_MAX_SPEECH_BRIDGE_MS = 180;
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -129,7 +134,7 @@ function normalizeExistingSegments(value) {
     });
 }
 
-function normalizeRules(source) {
+function normalizeRules(source, segmentScope) {
   const input = source && typeof source === "object" ? source : {};
   return {
     silenceThresholdDbfs: normalizeDbfsThreshold(
@@ -145,7 +150,7 @@ function normalizeRules(source) {
       Math.round(toFiniteNumber(input.contextPaddingMs, DEFAULT_CONTEXT_PADDING_MS))
     ),
     segmentScope: normalizeSegmentScope(
-      input.segmentScope || input.scope || DEFAULT_SEGMENT_SCOPE
+      segmentScope || input.segmentScope || input.scope || DEFAULT_SEGMENT_SCOPE
     ),
   };
 }
@@ -164,6 +169,18 @@ function normalizeSegmentPreviewRequest(body) {
       "missing-audio-context"
     );
   }
+  const existingSegments = normalizeExistingSegments(
+    source.existingSegments ||
+      source.currentSegments ||
+      source.editorContext?.existingSegments ||
+      []
+  );
+  const segmentScope = normalizeSegmentScope(
+    source.segmentScope ||
+      source.scope ||
+      source.rules?.segmentScope ||
+      (existingSegments.length > 0 ? DEFAULT_SEGMENT_SCOPE : WHOLE_AUDIO_REBUILD_SCOPE)
+  );
   return {
     audioUrl,
     audioDurationMs,
@@ -171,16 +188,9 @@ function normalizeSegmentPreviewRequest(body) {
       ? source.editorContext
       : {},
     silentRanges: normalizeSilentRanges(source.silentRanges),
-    existingSegments: normalizeExistingSegments(
-      source.existingSegments ||
-        source.currentSegments ||
-        source.editorContext?.existingSegments ||
-        []
-    ),
-    rules: normalizeRules(source.rules),
-    segmentScope: normalizeSegmentScope(
-      source.segmentScope || source.scope || source.rules?.segmentScope
-    ),
+    existingSegments: existingSegments,
+    rules: normalizeRules(source.rules, segmentScope),
+    segmentScope: segmentScope,
   };
 }
 
@@ -269,6 +279,46 @@ function buildEffectiveSegments(request) {
     return buildWholeAudioRebuildSegments(request);
   }
   return buildFallbackSegments(request);
+}
+
+function getAudioAnalyzer(options) {
+  if (options && typeof options.analyzeAudio === "function") {
+    return options.analyzeAudio;
+  }
+  return segmentAudioPython.analyzeAudioSegments;
+}
+
+async function resolveSilentRangesFromBackend(request, options) {
+  if (request.silentRanges.length > 0 || !request.audioUrl) {
+    return {
+      silentRanges: request.silentRanges,
+      audioDurationMs: request.audioDurationMs,
+      analysisMeta: null,
+      analysisSource: request.silentRanges.length > 0 ? "request-body" : "",
+    };
+  }
+  const analyzer = getAudioAnalyzer(options);
+  const analysisResult = await analyzer({
+    audioUrl: request.audioUrl,
+    silenceThresholdDbfs: request.rules.silenceThresholdDbfs,
+    minSilenceMs: request.rules.minSilenceMs,
+    windowMs: ANALYSIS_WINDOW_MS,
+    smoothingFrameRadius: ANALYSIS_SMOOTHING_FRAME_RADIUS,
+    maxSpeechBridgeMs: ANALYSIS_MAX_SPEECH_BRIDGE_MS,
+    requestId: request.editorContext?.requestId || "",
+  });
+  return {
+    silentRanges: normalizeSilentRanges(analysisResult?.silentRanges),
+    audioDurationMs: Math.max(
+      request.audioDurationMs,
+      Math.round(Number(analysisResult?.audioDurationMs || 0)) || 0
+    ),
+    analysisMeta:
+      analysisResult?.analysisMeta && typeof analysisResult.analysisMeta === "object"
+        ? analysisResult.analysisMeta
+        : null,
+    analysisSource: normalizeText(analysisResult?.analysisSource) || "backend-python-audio-url",
+  };
 }
 
 function buildInternalSilences(segment, silentRanges, rules) {
@@ -422,8 +472,8 @@ function buildSegmentChange(segment, silentRanges, rules) {
   };
 }
 
-function resolvePreviewMode(segmentScope) {
-  return segmentScope === WHOLE_AUDIO_REBUILD_SCOPE
+function resolvePreviewMode(request) {
+  return request.segmentScope === WHOLE_AUDIO_REBUILD_SCOPE || request.existingSegments.length <= 0
     ? PREVIEW_MODE_WHOLE_AUDIO_FALLBACK
     : PREVIEW_MODE_INCREMENTAL;
 }
@@ -446,16 +496,21 @@ function resolveEmptyReason(request, summary) {
   return "no-internal-hit";
 }
 
-function buildSegmentPreview(input) {
+async function buildSegmentPreview(input, options) {
   const request = normalizeSegmentPreviewRequest(input);
-  const effectiveSegments = buildEffectiveSegments(request);
+  const resolvedAnalysis = await resolveSilentRangesFromBackend(request, options);
+  const resolvedRequest = Object.assign({}, request, {
+    audioDurationMs: resolvedAnalysis.audioDurationMs,
+    silentRanges: resolvedAnalysis.silentRanges,
+  });
+  const effectiveSegments = buildEffectiveSegments(resolvedRequest);
   const changes = [];
   const proposedSegments = [];
   let matchedInternalSilence = false;
   let splitSuppressed = false;
 
   effectiveSegments.forEach(function (segment) {
-    const result = buildSegmentChange(segment, request.silentRanges, request.rules);
+    const result = buildSegmentChange(segment, resolvedRequest.silentRanges, resolvedRequest.rules);
     proposedSegments.push.apply(proposedSegments, result.proposedSegments);
     if (result.change) {
       changes.push(result.change);
@@ -468,8 +523,8 @@ function buildSegmentPreview(input) {
     return left.startMs - right.startMs;
   });
 
-  const previewMode = resolvePreviewMode(request.segmentScope);
-  const emptyReason = resolveEmptyReason(request, {
+  const previewMode = resolvePreviewMode(resolvedRequest);
+  const emptyReason = resolveEmptyReason(resolvedRequest, {
     changeCount: changes.length,
     matchedInternalSilence,
     splitSuppressed,
@@ -482,15 +537,23 @@ function buildSegmentPreview(input) {
       changes,
     },
     meta: {
-      source: request.segmentScope || DEFAULT_SEGMENT_SCOPE,
+      source: resolvedRequest.segmentScope || DEFAULT_SEGMENT_SCOPE,
       previewMode: previewMode,
-      applyAllowed: previewMode === PREVIEW_MODE_INCREMENTAL && changes.length > 0,
+      applyAllowed:
+        previewMode === PREVIEW_MODE_INCREMENTAL &&
+        resolvedRequest.existingSegments.length > 0 &&
+        changes.length > 0,
       emptyReason: emptyReason,
+      analysisSource: resolvedAnalysis.analysisSource,
+      analysisMeta: resolvedAnalysis.analysisMeta,
       rules: {
-        silenceThresholdDbfs: request.rules.silenceThresholdDbfs,
-        minSilenceMs: request.rules.minSilenceMs,
-        contextPaddingMs: request.rules.contextPaddingMs,
-        segmentScope: request.segmentScope || request.rules.segmentScope || DEFAULT_SEGMENT_SCOPE,
+        silenceThresholdDbfs: resolvedRequest.rules.silenceThresholdDbfs,
+        minSilenceMs: resolvedRequest.rules.minSilenceMs,
+        contextPaddingMs: resolvedRequest.rules.contextPaddingMs,
+        segmentScope:
+          resolvedRequest.segmentScope ||
+          resolvedRequest.rules.segmentScope ||
+          DEFAULT_SEGMENT_SCOPE,
       },
       contractMode: "dom-guarded-manual-save",
     },
@@ -507,6 +570,9 @@ function createSegmentHealthPayload() {
       contextPaddingMs: DEFAULT_CONTEXT_PADDING_MS,
       segmentScope: DEFAULT_SEGMENT_SCOPE,
       minSegmentMs: MIN_SEGMENT_MS,
+      analysisWindowMs: ANALYSIS_WINDOW_MS,
+      smoothingFrameRadius: ANALYSIS_SMOOTHING_FRAME_RADIUS,
+      maxSpeechBridgeMs: ANALYSIS_MAX_SPEECH_BRIDGE_MS,
     },
     supportedScopes: {
       default: DEFAULT_SEGMENT_SCOPE,
@@ -516,6 +582,7 @@ function createSegmentHealthPayload() {
     contract: {
       mode: "dom-guarded-manual-save",
       writeContractCaptured: "page-dom-only",
+      analysisSource: "backend-python-audio-url",
     },
   };
 }

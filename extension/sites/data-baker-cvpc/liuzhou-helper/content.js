@@ -364,10 +364,14 @@
       const preview = await runtime.segment.preview(context);
       runtime.ui.renderPreview(preview);
       if (String(preview?.meta?.previewMode || "") === "whole-audio-fallback") {
-        runtime.ui.setStatus(
-          "当前增量补切未命中，已生成整条音频重切预览；当前仅供人工参考。",
-          "success"
-        );
+        if (String(preview?.meta?.analysisSource || "") === "backend-python-audio-url") {
+          runtime.ui.setStatus("后端整音频画段预览已生成；当前仅供人工参考。", "success");
+        } else {
+          runtime.ui.setStatus(
+            "当前增量补切未命中，已生成整条音频重切预览；当前仅供人工参考。",
+            "success"
+          );
+        }
       } else {
         runtime.ui.setStatus("画段建议已生成，请先复核后再应用到页面。", "success");
       }
