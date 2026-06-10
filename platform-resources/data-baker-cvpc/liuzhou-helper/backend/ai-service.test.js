@@ -60,12 +60,14 @@ test("liuzhou defaults and health expose staged listen/refine defaults", functio
 
   assert.equal(defaultsPayload.defaults?.timeoutMs, 60000);
   assert.equal(defaultsPayload.defaults?.stages?.listen?.model, "qwen3.5-omni-flash");
+  assert.equal(defaultsPayload.defaults?.stages?.listen?.includeLexiconReference, false);
   assert.equal(defaultsPayload.defaults?.stages?.refine?.model, "qwen3.5-plus");
   assert.deepEqual(defaultsPayload.supportedModels, {
     listen: ["qwen3.5-omni-plus", "qwen3.5-omni-flash"],
     refine: ["qwen3.5-plus", "qwen3.5-flash"],
   });
   assert.equal(healthPayload.defaults?.stages?.listen?.model, "qwen3.5-omni-flash");
+  assert.equal(healthPayload.defaults?.stages?.listen?.includeLexiconReference, false);
   assert.equal(healthPayload.defaults?.stages?.refine?.model, "qwen3.5-plus");
   assert.equal(healthPayload.reference?.lexiconRowCount, 1);
   assert.equal(healthPayload.reference?.lexiconWarning, "");
@@ -127,6 +129,7 @@ test("liuzhou normalizeRecommendRequest maps aiStages into standalone listen/ref
       listen: {
         model: "qwen3.5-omni-plus",
         prompt: "listen override",
+        includeLexiconReference: true,
         params: {
           top_p: 0.9,
         },
@@ -145,9 +148,175 @@ test("liuzhou normalizeRecommendRequest maps aiStages into standalone listen/ref
   assert.equal(request.refineModel, "qwen3.5-flash");
   assert.equal(request.audioDataUrl, "data:audio/wav;base64,UklGRg==");
   assert.equal(request.aiStages?.listen?.prompt, "listen override");
+  assert.equal(request.aiStages?.listen?.includeLexiconReference, true);
   assert.equal(request.aiStages?.listen?.params?.top_p, 0.9);
   assert.equal(request.aiStages?.refine?.prompt, "refine override");
   assert.equal(request.aiStages?.refine?.params?.max_tokens, 256);
+});
+
+test("liuzhou listen prompt omits rules and editor context when lexicon reference is disabled", async function () {
+  let capturedPrompt = null;
+  await recommend(
+    normalizeRecommendRequest(
+      createBaseRequest({
+        aiStages: {
+          listen: {
+            model: "qwen3.5-omni-flash",
+            prompt: "listen prompt",
+            includeLexiconReference: false,
+            params: {},
+          },
+          refine: {
+            model: "qwen3.5-plus",
+            prompt: "refine prompt",
+            params: {},
+          },
+        },
+      })
+    ),
+    buildAssetsContext({
+      lexiconJson: {
+        schemaVersion: "1",
+        language: "liuzhou_dialect",
+        mode: "rule_lexicon",
+        sourceFiles: ["assets/liuzhou-pronunciation-reference.csv"],
+        updatedAt: "2026-06-09T00:00:00.000Z",
+        entries: [
+          {
+            id: "lz-001",
+            normalized: "柳",
+            display: "柳",
+            mandarin: "柳树",
+            aliases: [],
+            notes: [],
+            tags: [],
+          },
+        ],
+      },
+      ruleText: "规则一",
+    }),
+    {
+      requestOmniInputAudio: async function (_input, prompt) {
+        capturedPrompt = prompt;
+        return {
+          rawText: JSON.stringify({
+            audioDialectText: "柳",
+            specialTags: [],
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-omni-flash",
+          usage: {},
+          durationMs: 100,
+        };
+      },
+      requestTextCompareJson: async function () {
+        return {
+          rawText: JSON.stringify({
+            refinedDialectText: "修正柳州话",
+            refinedMandarinText: "整理普通话",
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-plus",
+          usage: {},
+          durationMs: 50,
+        };
+      },
+    }
+  );
+
+  assert.equal(typeof capturedPrompt?.userPrompt, "string");
+  assert.doesNotMatch(capturedPrompt.userPrompt, /项目规则摘要/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /词表参考/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /fieldContext/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /selectedEntry/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /startMs/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /endMs/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /durationMs/);
+});
+
+test("liuzhou listen prompt only restores lexicon reference when enabled", async function () {
+  let capturedPrompt = null;
+  await recommend(
+    normalizeRecommendRequest(
+      createBaseRequest({
+        aiStages: {
+          listen: {
+            model: "qwen3.5-omni-flash",
+            prompt: "listen prompt",
+            includeLexiconReference: true,
+            params: {},
+          },
+          refine: {
+            model: "qwen3.5-plus",
+            prompt: "refine prompt",
+            params: {},
+          },
+        },
+      })
+    ),
+    buildAssetsContext({
+      lexiconJson: {
+        schemaVersion: "1",
+        language: "liuzhou_dialect",
+        mode: "rule_lexicon",
+        sourceFiles: ["assets/liuzhou-pronunciation-reference.csv"],
+        updatedAt: "2026-06-09T00:00:00.000Z",
+        entries: [
+          {
+            id: "lz-001",
+            normalized: "柳",
+            display: "柳",
+            mandarin: "柳树",
+            aliases: [],
+            notes: [],
+            tags: [],
+          },
+        ],
+      },
+      ruleText: "规则一",
+    }),
+    {
+      requestOmniInputAudio: async function (_input, prompt) {
+        capturedPrompt = prompt;
+        return {
+          rawText: JSON.stringify({
+            audioDialectText: "柳",
+            specialTags: [],
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-omni-flash",
+          usage: {},
+          durationMs: 100,
+        };
+      },
+      requestTextCompareJson: async function () {
+        return {
+          rawText: JSON.stringify({
+            refinedDialectText: "修正柳州话",
+            refinedMandarinText: "整理普通话",
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-plus",
+          usage: {},
+          durationMs: 50,
+        };
+      },
+    }
+  );
+
+  assert.equal(typeof capturedPrompt?.userPrompt, "string");
+  assert.match(capturedPrompt.userPrompt, /词表参考/);
+  assert.match(capturedPrompt.userPrompt, /柳树/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /项目规则摘要/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /fieldContext/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /selectedEntry/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /startMs/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /endMs/);
+  assert.doesNotMatch(capturedPrompt.userPrompt, /durationMs/);
 });
 
 test("liuzhou normalizeRecommendRequest keeps whole-audio url path available", function () {

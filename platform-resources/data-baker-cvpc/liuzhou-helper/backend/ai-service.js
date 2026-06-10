@@ -38,11 +38,11 @@ const SUPPORTED_SPECIAL_TAGS = [
   "<Meaningless>",
 ];
 const DEFAULT_LISTEN_PROMPT = [
-  "请严格以音频为主，输出当前段的听音结果。",
+  "请严格只根据当前段音频输出原始柳州话听音结果。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
   "JSON 字段固定为：audioDialectText, specialTags, needHumanReview, notes。",
-  "audioDialectText 只写音频里的柳州话文本，不要在这一阶段输出普通话文本。",
-  "不要先套词表推断，词表只能作为参考提示；听不清必须保守，并把 needHumanReview 设为 true。",
+  "audioDialectText 只写音频里的柳州话文本，不要输出普通话，不要做修正，不要自由推断。",
+  "听不清必须保守，并把 needHumanReview 设为 true。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
 ].join("\n");
 const DEFAULT_REFINE_PROMPT = [
@@ -217,6 +217,7 @@ function buildStageDefaults() {
       {
         model: DEFAULT_LISTEN_MODEL,
         prompt: DEFAULT_LISTEN_PROMPT,
+        includeLexiconReference: false,
         modelOptions: SUPPORTED_LISTEN_MODELS.slice(),
       },
       DEFAULT_STAGE_PARAMS
@@ -274,7 +275,7 @@ function normalizeStageParams(params) {
 function normalizeStageConfig(rawStage, fallbackModel, fallbackPrompt, supportedModels) {
   const source = rawStage && typeof rawStage === "object" ? rawStage : {};
   const requestedModel = normalizeText(source.model || fallbackModel);
-  return {
+  const result = {
     model:
       supportedModels.indexOf(requestedModel) >= 0
         ? requestedModel
@@ -282,6 +283,10 @@ function normalizeStageConfig(rawStage, fallbackModel, fallbackPrompt, supported
     prompt: String(source.prompt || fallbackPrompt || ""),
     params: normalizeStageParams(source.params),
   };
+  if (source.includeLexiconReference === true || source.includeLexiconReference === false) {
+    result.includeLexiconReference = source.includeLexiconReference === true;
+  }
+  return result;
 }
 
 function normalizeRecommendRequest(body) {
@@ -478,34 +483,20 @@ function buildRulesExcerpt(assetsContext) {
 }
 
 function buildListenPrompt(request, assetsContext) {
-  const lexiconContext = buildRelevantLexiconContext(assetsContext, [
-    request.fieldContext?.dialectText,
-    request.fieldContext?.mandarinText,
-    request.editorContext?.selectedEntry?.name,
-  ]);
+  const promptLines = [];
+  if (request.aiStages?.listen?.includeLexiconReference === true) {
+    const lexiconContext = buildRelevantLexiconContext(assetsContext, [
+      request.fieldContext?.dialectText,
+      request.fieldContext?.mandarinText,
+      request.editorContext?.selectedEntry?.name,
+    ]);
+    promptLines.push("词表参考（只作辅助，不可压过听音）：");
+    promptLines.push(JSON.stringify(lexiconContext, null, 2));
+  }
+  promptLines.push("请仅根据当前段音频输出 JSON。");
   return {
     systemPrompt: String(request.aiStages?.listen?.prompt || DEFAULT_LISTEN_PROMPT),
-    userPrompt: [
-      "项目规则摘要：",
-      buildRulesExcerpt(assetsContext),
-      "词表参考（只作辅助，不可压过听音）：",
-      JSON.stringify(lexiconContext, null, 2),
-      "当前上下文：",
-      JSON.stringify(
-        {
-          segment: {
-            startMs: request.startMs,
-            endMs: request.endMs,
-            durationMs: request.durationMs,
-          },
-          fieldContext: request.fieldContext,
-          selectedEntry: request.editorContext?.selectedEntry || null,
-        },
-        null,
-        2
-      ),
-      "请仅根据音频输出 JSON。",
-    ].join("\n"),
+    userPrompt: promptLines.join("\n"),
   };
 }
 

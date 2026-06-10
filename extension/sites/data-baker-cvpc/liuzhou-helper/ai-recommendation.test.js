@@ -147,6 +147,7 @@ test("liuzhou ai recommend sends current segment audio as base64 data url", asyn
         listen: {
           model: "qwen3.5-omni-plus",
           prompt: "listen-prompt",
+          includeLexiconReference: true,
           params: {
             temperature: 0.1,
             top_p: 0.8,
@@ -214,6 +215,7 @@ test("liuzhou ai recommend sends current segment audio as base64 data url", asyn
       listen: {
         model: "qwen3.5-omni-plus",
         prompt: "listen-prompt",
+        includeLexiconReference: true,
         params: {
           temperature: 0.1,
           top_p: 0.8,

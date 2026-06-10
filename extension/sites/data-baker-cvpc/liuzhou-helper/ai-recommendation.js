@@ -82,6 +82,9 @@
       if (prompt) {
         normalizedStage.prompt = prompt;
       }
+      if (stage.includeLexiconReference === true || stage.includeLexiconReference === false) {
+        normalizedStage.includeLexiconReference = stage.includeLexiconReference === true;
+      }
       if (Object.keys(params).length > 0) {
         normalizedStage.params = params;
       }
