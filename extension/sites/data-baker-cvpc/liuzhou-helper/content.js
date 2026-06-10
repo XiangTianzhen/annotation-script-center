@@ -257,7 +257,7 @@
         if (!normalizeText(lockedContext?.audioUrl)) {
           throw new Error(lockedContext?.audioUrlHintMessage || MISSING_AUDIO_MESSAGE);
         }
-        const batchPlan = await dataApi.getBatchSegments(selectionSpec);
+        const batchPlan = await dataApi.getBatchSegments(selectionSpec, lockedContext);
         if (!Array.isArray(batchPlan?.segments) || batchPlan.segments.length <= 0) {
           throw new Error("当前没有命中可批量处理的段落。");
         }
@@ -339,10 +339,10 @@
           };
         }
 
-        const latestContext = await dataApi.getEditorContext({ force: true });
+        const liveSelection = dataApi.getLiveSelectionSnapshot?.() || null;
         if (
-          normalizeText(latestContext?.selectedEntry?.name) !== run.lockedEntryName ||
-          normalizeText(latestContext?.audioUrl) !== run.lockedAudioUrl
+          normalizeText(liveSelection?.selectedEntryName) &&
+          normalizeText(liveSelection?.selectedEntryName) !== run.lockedEntryName
         ) {
           const staleMessage = "当前音频或条目已变化，已停止批量写回，请刷新后重试。";
           renderBatchState(run, "批量写回已取消", false);
@@ -359,7 +359,7 @@
           expectedSegmentCount: run.expectedSegmentCount,
           expectedUniqueIds: run.expectedUniqueIds,
           results: run.successes,
-        });
+        }, run.lockedContext);
         renderBatchState(run, saveResult.ok ? "批量写回完成" : "批量写回失败", false);
         ui?.setStatus?.(saveResult.message, saveResult.ok ? "success" : "error");
         if (saveResult.ok) {

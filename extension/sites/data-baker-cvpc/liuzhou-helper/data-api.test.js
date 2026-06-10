@@ -1712,6 +1712,129 @@ test("CVPC data api live selection snapshot changes with visible entry and xaudi
   assert.equal(secondSnapshot.selectionKey, "sample-b.mp3|18565|35677");
 });
 
+test("CVPC data api prefers the current header entry over left audio list items", async function () {
+  const dataApiModule = loadDataApiModule();
+  const metaPayload = createMetaPayload([
+    {
+      entry_id: 1,
+      entry_index: 1,
+      name: "sample-a.mp3",
+      content: "databaker/data/sample-a.mp3",
+    },
+    {
+      entry_id: 2,
+      entry_index: 2,
+      name: "sample-b.mp3",
+      content: "databaker/data/sample-b.mp3",
+    },
+  ]);
+  const body = new RichFakeElement("body");
+  const audioListHost = new RichFakeElement("div", { className: "audio-list-host" });
+  const audioListSearchWrap = new RichFakeElement("div");
+  const audioListSearchInput = new RichFakeInputElement({
+    attributes: {
+      placeholder: "请输入音频名称",
+    },
+  });
+  const audioListItem = new RichFakeElement("div", {
+    textContent: "sample-b.mp3",
+  });
+  const currentEntryNode = new RichFakeElement("div", {
+    textContent: "sample-a.mp3",
+  });
+  audioListSearchWrap.appendChild(audioListSearchInput);
+  audioListSearchWrap.appendChild(audioListItem);
+  audioListHost.appendChild(audioListSearchWrap);
+  body.appendChild(audioListHost);
+  body.appendChild(currentEntryNode);
+
+  const fetchCalls = [];
+  const runtime = dataApiModule.createRuntime({
+    window: {
+      addEventListener: function () {},
+      removeEventListener: function () {},
+    },
+    document: {
+      querySelectorAll: function (selector) {
+        if (selector === "body *") {
+          return collectDescendants(body);
+        }
+        if (selector === ".el-form-item, .ant-form-item, label, div") {
+          return [];
+        }
+        return [];
+      },
+      querySelector: function (selector) {
+        if (selector === 'input[placeholder="请输入音频名称"]') {
+          return audioListSearchInput;
+        }
+        return null;
+      },
+    },
+    location: {
+      origin: "https://cvpc.data-baker.com",
+      hostname: "cvpc.data-baker.com",
+      pathname: "/app/editor/asr/",
+      search:
+        "?project_id=1453&task_id=12099&process_id=4946&data_id=17896&job_id=1520&terminal=group@1134",
+      href:
+        "https://cvpc.data-baker.com/app/editor/asr/?project_id=1453&task_id=12099&process_id=4946&data_id=17896&job_id=1520&terminal=group@1134",
+    },
+    performance: {
+      getEntriesByType: function () {
+        return [];
+      },
+    },
+    fetch: async function (url) {
+      const requestUrl = String(url || "");
+      fetchCalls.push(requestUrl);
+      if (requestUrl.indexOf("/httpapi/annotation/annos") >= 0) {
+        return {
+          ok: true,
+          json: async function () {
+            return {
+              code: 200,
+              data: buildAnnosPayloadFromMetaPayload(metaPayload),
+            };
+          },
+        };
+      }
+      if (requestUrl.indexOf("/httpapi/user/meta") >= 0) {
+        return {
+          ok: true,
+          json: async function () {
+            return {
+              code: 0,
+              data: null,
+            };
+          },
+        };
+      }
+      return {
+        ok: true,
+        json: async function () {
+          return {
+            code: 0,
+            data: metaPayload,
+          };
+        },
+      };
+    },
+    HTMLElement: FakeElement,
+    HTMLInputElement: FakeInputElement,
+    HTMLTextAreaElement: FakeTextareaElement,
+  });
+
+  const context = await runtime.getEditorContext({ force: true });
+
+  assert.equal(context.selectedEntry.name, "sample-a.mp3");
+  assert.ok(
+    fetchCalls.some(function (requestUrl) {
+      return requestUrl.indexOf("/httpapi/annotation/annos") >= 0;
+    })
+  );
+});
+
 test("CVPC data api rejects stale recommendation when live selectionKey has changed", async function () {
   const dataApiModule = loadDataApiModule();
   const harness = createDataApiHarness({

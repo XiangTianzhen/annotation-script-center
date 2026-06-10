@@ -234,14 +234,53 @@
     if (!doc || typeof doc.querySelectorAll !== "function") {
       return "";
     }
+    function isDescendantOf(node, parentNode) {
+      let current = node;
+      while (current) {
+        if (current === parentNode) {
+          return true;
+        }
+        current = current.parentNode || null;
+      }
+      return false;
+    }
+
+    function isInsideAudioList(node, hostNode) {
+      if (!node || !hostNode) {
+        return false;
+      }
+      return isDescendantOf(node, hostNode) || isDescendantOf(hostNode, node);
+    }
+
+    function resolveAudioListHost() {
+      if (typeof doc.querySelector === "function") {
+        const searchInput = doc.querySelector('input[placeholder="请输入音频名称"]');
+        if (searchInput) {
+          return searchInput.parentNode || null;
+        }
+      }
+      const nodes = Array.from(doc.querySelectorAll("body *"));
+      const titleNode = nodes.find(function (node) {
+        return normalizeText(node.textContent || "") === "音频列表";
+      });
+      return titleNode ? titleNode.parentNode || null : null;
+    }
+
+    const audioListHost = resolveAudioListHost();
     const candidates = Array.from(doc.querySelectorAll("body *"))
       .map(function (node) {
-        return normalizeText(node.textContent || "");
+        return {
+          node: node,
+          text: normalizeText(node.textContent || ""),
+        };
       })
-      .filter(function (text) {
-        return /\.mp3$/i.test(text);
+      .filter(function (item) {
+        return /\.mp3$/i.test(item.text);
       });
-    return candidates[0] || "";
+    const preferred = candidates.find(function (item) {
+      return !audioListHost || !isInsideAudioList(item.node, audioListHost);
+    });
+    return preferred?.text || candidates[0]?.text || "";
   }
 
   function parseSelectedRangeFromText(text) {
@@ -2105,8 +2144,11 @@
       });
     }
 
-    async function getBatchSegments(selectionSpec) {
-      const context = await getEditorContext({ force: true });
+    async function getBatchSegments(selectionSpec, contextOverride) {
+      const context =
+        contextOverride && typeof contextOverride === "object"
+          ? contextOverride
+          : await getEditorContext({ force: true });
       if (!normalizeText(context?.selectedEntry?.name)) {
         throw new Error("未读取到当前音频条目，请刷新页面后重试。");
       }
@@ -2147,7 +2189,7 @@
       };
     }
 
-    async function applyBatchTextRecommendations(request) {
+    async function applyBatchTextRecommendations(request, contextOverride) {
       const source = request && typeof request === "object" ? request : {};
       const normalizedResults = (Array.isArray(source.results) ? source.results : [])
         .map(normalizeBatchResultItem)
@@ -2160,7 +2202,10 @@
           message: BATCH_SAVE_EMPTY_MESSAGE,
         };
       }
-      const context = await getEditorContext({ force: true });
+      const context =
+        contextOverride && typeof contextOverride === "object"
+          ? contextOverride
+          : await getEditorContext({ force: true });
       if (
         normalizeText(source.selectedEntryName) &&
         normalizeText(source.selectedEntryName) !== normalizeText(context.selectedEntry?.name)

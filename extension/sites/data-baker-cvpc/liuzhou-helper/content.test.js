@@ -92,6 +92,7 @@ test("CVPC batch controller stops launching new AI requests after stop and saves
   const started = [];
   const savedPayloads = [];
   let reloadCount = 0;
+  let contextReadCount = 0;
   const lockedContext = createLockedContext();
 
   const controller = contentModule.createBatchRecommendController({
@@ -105,6 +106,7 @@ test("CVPC batch controller stops launching new AI requests after stop and saves
     },
     dataApi: {
       getEditorContext: async function () {
+        contextReadCount += 1;
         return lockedContext;
       },
       getBatchSegments: async function () {
@@ -161,6 +163,7 @@ test("CVPC batch controller stops launching new AI requests after stop and saves
   assert.equal(savedPayloads[0].results[0].uniqueId, "region-1");
   assert.equal(savedPayloads[0].results[4].uniqueId, "region-5");
   assert.equal(reloadCount, 1);
+  assert.equal(contextReadCount, 1);
 });
 
 test("CVPC batch controller reloads exactly once after a successful full batch save", async function () {
@@ -219,7 +222,6 @@ test("CVPC batch controller reloads exactly once after a successful full batch s
 
 test("CVPC batch controller aborts save when current entry changes before write-back", async function () {
   const contentModule = loadContentModule();
-  let contextReadCount = 0;
   let saveCalled = false;
 
   const controller = contentModule.createBatchRecommendController({
@@ -233,16 +235,12 @@ test("CVPC batch controller aborts save when current entry changes before write-
     },
     dataApi: {
       getEditorContext: async function () {
-        contextReadCount += 1;
-        if (contextReadCount === 1) {
-          return createLockedContext();
-        }
-        return createLockedContext({
-          selectedEntry: {
-            name: "sample-b.mp3",
-          },
-          audioUrl: "https://oss.example.com/sample-b.mp3?Signature=batch",
-        });
+        return createLockedContext();
+      },
+      getLiveSelectionSnapshot: function () {
+        return {
+          selectedEntryName: "sample-b.mp3",
+        };
       },
       getBatchSegments: async function () {
         return createBatchPlan(1);

@@ -1,3 +1,37 @@
+## 2026-06-10（DataBaker CVPC 柳州话批量写回误判与按钮样式 hotfix）
+
+- `DataBaker CVPC / 柳州话脚本` 当前补一轮批量 v1 热修：
+  - `批量识别并填入` 按钮当前复用 `当前段 AI 推荐` 同款橙色 accent 样式
+  - 批量写回前不再重复重抓整套编辑器上下文；当前只校验 live `selectedEntryName`
+  - 当前文件名识别会避开左侧 `音频列表` 内的 `.mp3` 文本，减少误判到列表项后触发“当前页面分段状态已变化”
+- Network 口径同步澄清：
+  - 旧版批量过程中看到的多条相同 `GET /httpapi/annotation/annos` 属于状态读取，不是多次 `save_increment`
+  - 根因是旧版多次调用 `getEditorContext()`，而该方法内部本身也会读取一次最新 `annotation/annos`
+  - 当前批量链路已改为复用启动时锁定的 context，只保留必要的最新 `annotation/annos` 校验
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `node --test extension/shared/concurrent-ai-request-stream.test.js`
+
 ## 2026-06-10（DataBaker CVPC 柳州话批量识别并自动填入 v1）
 
 - `DataBaker CVPC / 柳州话脚本` 当前新增“批量识别并自动填入”主链路：

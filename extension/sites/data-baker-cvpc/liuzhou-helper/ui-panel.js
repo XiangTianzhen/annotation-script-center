@@ -200,13 +200,21 @@
       "[" + MIDDLE_AI_ATTR + "] .batch-state-item strong { color: var(--asc-primary-strong); }",
       "[" + MIDDLE_AI_ATTR + "] .batch-failure-list { margin: 0; padding-left: 18px; color: #b42318; }",
       "[" + MIDDLE_AI_ATTR + "] .batch-failure-list li { margin-top: 4px; }",
-      "[" + MIDDLE_AI_ACTIONS_ATTR + "] button[data-accent='true'] {",
+      "[" +
+        MIDDLE_AI_ACTIONS_ATTR +
+        "] button[data-accent='true'], [" +
+        MIDDLE_AI_ATTR +
+        "] .batch-action-row button[data-accent='true'] {",
       "  color: #fff;",
       "  border-color: #f29a38;",
       "  background: linear-gradient(180deg, #ffb357 0%, #f59f45 100%);",
       "  box-shadow: 0 6px 14px rgba(245, 159, 69, 0.26);",
       "}",
-      "[" + MIDDLE_AI_ACTIONS_ATTR + "] button[data-accent='true']:hover {",
+      "[" +
+        MIDDLE_AI_ACTIONS_ATTR +
+        "] button[data-accent='true']:hover, [" +
+        MIDDLE_AI_ATTR +
+        "] .batch-action-row button[data-accent='true']:hover {",
       "  color: #fff;",
       "  border-color: #e68a24;",
       "  background: linear-gradient(180deg, #ffac45 0%, #ee922f 100%);",
@@ -1007,7 +1015,7 @@
 
       const batchActionRow = document.createElement("div");
       batchActionRow.className = "batch-action-row";
-      const batchStartButton = createButton("批量识别并填入", true);
+      const batchStartButton = createButton("批量识别并填入", false, "accent");
       batchStartButton.addEventListener("click", function () {
         if (typeof deps.onBatchRecommend === "function") {
           deps.onBatchRecommend(String(batchSelectionInputNode?.value || ""));

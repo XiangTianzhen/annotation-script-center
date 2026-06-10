@@ -952,8 +952,12 @@ test("CVPC ui panel mounts batch controls and renders batch progress details", f
     assert.match(collectText(middleNode), /停止批量/);
     assert.match(collectText(middleNode), /留空表示当前音频全部段/);
 
+    const batchStartButton = findButtonByText(middleNode, "批量识别并填入");
+    assert.equal(batchStartButton.getAttribute("data-accent"), "true");
+    assert.equal(batchStartButton.hasAttribute("data-primary"), false);
+
     inputNode.value = "2-4,7";
-    findButtonByText(middleNode, "批量识别并填入").dispatchEvent({ type: "click" });
+    batchStartButton.dispatchEvent({ type: "click" });
     findButtonByText(middleNode, "停止批量").dispatchEvent({ type: "click" });
 
     assert.deepEqual(batchSelections, ["2-4,7"]);
