@@ -9,6 +9,10 @@ const OBSERVER_SOURCE = "ASR_EDGE_DATABAKER_CVPC_LIUZHOU_AUDIO_OBSERVER";
 const OBSERVER_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
 const META_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
 const AUTH_TYPE = "DATABAKER_CVPC_LIUZHOU_REQUEST_AUTH";
+const STRUCTURED_FIELD_WRITE_REQUEST_TYPE =
+  "DATABAKER_CVPC_LIUZHOU_WRITE_STRUCTURED_FIELD_REQUEST";
+const STRUCTURED_FIELD_WRITE_RESPONSE_TYPE =
+  "DATABAKER_CVPC_LIUZHOU_WRITE_STRUCTURED_FIELD_RESPONSE";
 const MISSING_AUDIO_MESSAGE =
   "未拿到当前音频签名 URL，请先点击当前音频或播放一次后重试；如仍失败请刷新页面。";
 
@@ -858,6 +862,8 @@ function createInteractiveDataApiHarness(options) {
   refreshSegmentView();
 
   const fetchCalls = [];
+  const windowMessageListeners = [];
+  const postedWindowMessages = [];
   async function fetchStub(url) {
     const requestUrl = String(url || "");
     fetchCalls.push(requestUrl);
@@ -918,12 +924,32 @@ function createInteractiveDataApiHarness(options) {
     },
   };
 
+  const windowObject = {
+    addEventListener: function (type, listener) {
+      if (String(type || "") !== "message" || typeof listener !== "function") {
+        return;
+      }
+      if (windowMessageListeners.indexOf(listener) < 0) {
+        windowMessageListeners.push(listener);
+      }
+    },
+    removeEventListener: function (type, listener) {
+      if (String(type || "") !== "message") {
+        return;
+      }
+      const index = windowMessageListeners.indexOf(listener);
+      if (index >= 0) {
+        windowMessageListeners.splice(index, 1);
+      }
+    },
+    postMessage: function (data, origin) {
+      postedWindowMessages.push({ data, origin });
+    },
+  };
+
   return {
     dependencies: {
-      window: {
-        addEventListener: function () {},
-        removeEventListener: function () {},
-      },
+      window: windowObject,
       document,
       location: {
         origin: "https://cvpc.data-baker.com",
@@ -951,6 +977,17 @@ function createInteractiveDataApiHarness(options) {
     dialectTextareaHost,
     dialectEditor,
     mandarinEditor,
+    postedWindowMessages,
+    dispatchWindowMessage: function (data, origin) {
+      windowMessageListeners.slice().forEach(function (listener) {
+        listener({
+          type: "message",
+          data: data,
+          origin: origin || "https://cvpc.data-baker.com",
+          source: windowObject,
+        });
+      });
+    },
     getCurrentSegmentIndex: function () {
       return currentSegmentIndex;
     },
@@ -2362,7 +2399,7 @@ test("CVPC data api applies Meaningless invalid preset for standalone particle r
 
   assert.deepEqual(result, {
     ok: true,
-    message: "已将当前段设为 Invalid，并写入 <Meaningless> 标签；如页面未同步，请刷新后复核。",
+    message: "已自动切换为 Invalid，并写入 <Meaningless> 标签；如页面未同步，请刷新后复核。",
   });
   assert.equal(harness.segmentStates[0].validity, "invalid");
   assert.equal(harness.mandarinEditor.textContent, "");
@@ -2426,6 +2463,121 @@ test("CVPC data api writes staged recommendation text into the requested field o
   assert.equal(harness.mandarinEditor.textContent, "听音普通话");
 });
 
+test("CVPC data api auto-corrects current validity to Valid before filling tagged dialect text", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    visibleEntryName: "sample-a.mp3",
+    selectionText: "开始：0 秒 结束：4.171 秒 截取：4.171 秒",
+    segmentStates: [{ validity: "invalid", dialectText: "", mandarinText: "" }],
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.fillCurrentSegmentField({
+    selectionKey: "sample-a.mp3|0|4171",
+    targetField: "dialect",
+    text: "都七十岁了#eh，明日古稀了。",
+    tokens: [
+      { type: "text", content: "都七十岁了" },
+      { type: "tag", content: "#eh" },
+      { type: "text", content: "，明日古稀了。" },
+    ],
+    recommendationValidityAutoCorrectEnabled: true,
+  });
+
+  assert.equal(result.ok, true);
+  assert.match(result.message, /已自动切换为 Valid/);
+  assert.match(result.message, /填入标注文本/);
+  assert.equal(harness.segmentStates[0].validity, "valid");
+});
+
+test("CVPC data api auto-corrects current validity from dialect reference before filling mandarin text", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    visibleEntryName: "sample-a.mp3",
+    selectionText: "开始：0 秒 结束：4.171 秒 截取：4.171 秒",
+    segmentStates: [{ validity: "invalid", dialectText: "", mandarinText: "" }],
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.fillCurrentSegmentField({
+    selectionKey: "sample-a.mp3|0|4171",
+    targetField: "mandarin",
+    text: "诶，身材又好呢。",
+    validityReferenceText: "#eh，身材又好哩。",
+    validityReferenceTokens: [
+      { type: "tag", content: "#eh" },
+      { type: "text", content: "，身材又好哩。" },
+    ],
+    recommendationValidityAutoCorrectEnabled: true,
+  });
+
+  assert.equal(result.ok, true);
+  assert.match(result.message, /已自动切换为 Valid/);
+  assert.match(result.message, /填入普通话顺滑/);
+  assert.equal(harness.segmentStates[0].validity, "valid");
+  assert.equal(harness.mandarinEditor.textContent, "诶，身材又好呢。");
+});
+
+test("CVPC data api cancels current write when validity correction confirm is rejected", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    visibleEntryName: "sample-a.mp3",
+    selectionText: "开始：0 秒 结束：4.171 秒 截取：4.171 秒",
+    segmentStates: [{ validity: "invalid", dialectText: "旧文本", mandarinText: "" }],
+  });
+  let confirmCount = 0;
+  harness.dependencies.window.confirm = function () {
+    confirmCount += 1;
+    return false;
+  };
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.fillCurrentSegmentField({
+    selectionKey: "sample-a.mp3|0|4171",
+    targetField: "dialect",
+    text: "都七十岁了#eh，明日古稀了。",
+    tokens: [
+      { type: "text", content: "都七十岁了" },
+      { type: "tag", content: "#eh" },
+      { type: "text", content: "，明日古稀了。" },
+    ],
+    recommendationValidityAutoCorrectEnabled: false,
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /已取消本次写入/);
+  assert.equal(confirmCount, 1);
+  assert.equal(harness.segmentStates[0].validity, "invalid");
+  assert.equal(harness.dialectEditor.textContent, "旧文本");
+});
+
+test("CVPC data api rejects current recommendation writes when valid and invalid tags conflict", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    visibleEntryName: "sample-a.mp3",
+    selectionText: "开始：0 秒 结束：4.171 秒 截取：4.171 秒",
+    segmentStates: [{ validity: "missing", dialectText: "", mandarinText: "" }],
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.fillCurrentSegmentRecommendation({
+    selectionKey: "sample-a.mp3|0|4171",
+    refinedDialectText: "#um<Meaningless>",
+    refinedDialectTokens: [
+      { type: "tag", content: "#um" },
+      { type: "tag", content: "<Meaningless>" },
+    ],
+    refinedMandarinText: "嗯。",
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "标签内容冲突，AI 结果有问题，已停止写入。",
+  });
+  assert.equal(harness.segmentStates[0].validity, "missing");
+  assert.equal(harness.dialectEditor.textContent, "");
+});
+
 test("CVPC data api reads dialect field text from modelvalue without tag close noise", async function () {
   const dataApiModule = loadDataApiModule();
   const harness = createInteractiveDataApiHarness({
@@ -2474,7 +2626,7 @@ test("CVPC data api writes structured dialect tags into current segment field", 
 
   assert.deepEqual(result, {
     ok: true,
-    message: "已尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。",
+    message: "已自动切换为 Valid，并尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。",
   });
   const structured = JSON.parse(harness.dialectTextareaHost.getAttribute("modelvalue"));
   assert.equal(structured.length, 3);
@@ -2508,7 +2660,7 @@ test("CVPC data api trims tag-adjacent spaces when writing structured dialect ta
 
   assert.deepEqual(result, {
     ok: true,
-    message: "已尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。",
+    message: "已自动切换为 Valid，并尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。",
   });
   const structured = JSON.parse(harness.dialectTextareaHost.getAttribute("modelvalue"));
   assert.deepEqual(structured[0], { type: "text", content: "他请探亲假你又，" });
@@ -2550,7 +2702,7 @@ test("CVPC data api restores structured dialect chips after editor rerender clea
 
   assert.deepEqual(result, {
     ok: true,
-    message: "已尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。",
+    message: "已自动切换为 Valid，并尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。",
   });
   await new Promise(function (resolve) {
     setTimeout(resolve, 120);
@@ -2562,6 +2714,80 @@ test("CVPC data api restores structured dialect chips after editor rerender clea
     harness.dialectEditor.innerHTML,
     /^<p><br class="ProseMirror-trailingBreak"><\/p>$/
   );
+});
+
+test("CVPC data api requests MAIN-world structured field write before DOM resync", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    visibleEntryName: "sample-a.mp3",
+    selectionText: "开始：0 秒 结束：4.171 秒 截取：4.171 秒",
+    segmentStates: [
+      {
+        validity: "missing",
+        dialectText: "旧文本",
+        dialectEditorText: "旧文本",
+        dialectModelValue: buildStructuredDialectValue("旧文本"),
+        mandarinText: "",
+      },
+    ],
+  });
+  harness.dialectTextareaHost.setAttribute("id", "textarea-test-1");
+  let rerenderScheduled = false;
+  harness.dependencies.window.postMessage = function (data, origin) {
+    harness.postedWindowMessages.push({ data, origin });
+    if (!data || data.type !== STRUCTURED_FIELD_WRITE_REQUEST_TYPE) {
+      return;
+    }
+    harness.segmentStates[0].dialectModelValue = data.payload.serializedModelValue;
+    setTimeout(function () {
+      harness.dispatchWindowMessage({
+        source: OBSERVER_SOURCE,
+        type: STRUCTURED_FIELD_WRITE_RESPONSE_TYPE,
+        requestId: data.requestId,
+        payload: {
+          ok: true,
+          appliedBy: "setupState.modelvalue",
+          message: "",
+        },
+      });
+    }, 0);
+  };
+  harness.dialectEditor.addEventListener("input", function () {
+    if (rerenderScheduled) {
+      return;
+    }
+    rerenderScheduled = true;
+    setTimeout(function () {
+      harness.dialectTextareaHost.setAttribute(
+        "modelvalue",
+        harness.segmentStates[0].dialectModelValue
+      );
+      harness.dialectEditor.innerHTML = '<p><br class="ProseMirror-trailingBreak"></p>';
+    }, 5);
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.fillCurrentSegmentField({
+    selectionKey: "sample-a.mp3|0|4171",
+    targetField: "dialect",
+    text: "都七十岁了#eh，明日古稀了。",
+    tokens: [
+      { type: "text", content: "都七十岁了" },
+      { type: "tag", content: "#eh" },
+      { type: "text", content: "，明日古稀了。" },
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(harness.postedWindowMessages.length > 0, true);
+  assert.equal(harness.postedWindowMessages[0].data.type, STRUCTURED_FIELD_WRITE_REQUEST_TYPE);
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 120);
+  });
+  const structured = JSON.parse(harness.dialectTextareaHost.getAttribute("modelvalue"));
+  assert.equal(structured.length, 3);
+  assert.equal(structured[1].content, "#eh");
+  assert.match(harness.dialectEditor.innerHTML, /data-tag-id=/);
 });
 
 test("CVPC data api falls back to live waveform apply when save_increment auth snapshot is missing", async function () {
@@ -3858,6 +4084,112 @@ test("CVPC data api applyBatchTextRecommendations writes Meaningless invalid pre
     },
     { unique_id: "moment-mandarin", value: "" },
   ]);
+});
+
+test("CVPC data api applyBatchTextRecommendations skips conflict-tag segments and still saves the rest", async function () {
+  const dataApiModule = loadDataApiModule();
+  const template = createBatchMomentTemplate();
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 1200,
+        segmentNumber: 1,
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 1500,
+        endMs: 2600,
+        segmentNumber: 2,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      { template: template }
+    ),
+    annosPayload: createBatchTextAnnosPayload([
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 1200,
+        dialectText: "原始1",
+        mandarinText: "普通1",
+        validity: "valid",
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 1500,
+        endMs: 2600,
+        dialectText: "原始2",
+        mandarinText: "普通2",
+        validity: "valid",
+      },
+    ]),
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer batch-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  const result = await runtime.applyBatchTextRecommendations({
+    selectedEntryName: "sample-a.mp3",
+    expectedSegmentCount: 2,
+    results: [
+      {
+        uniqueId: "region-1",
+        segmentNumber: 1,
+        selectionKey: "sample-a.mp3|0|1200",
+        dialectText: "#um<Meaningless>",
+        dialectTokens: [
+          { type: "tag", content: "#um" },
+          { type: "tag", content: "<Meaningless>" },
+        ],
+        mandarinText: "嗯。",
+      },
+      {
+        uniqueId: "region-2",
+        segmentNumber: 2,
+        selectionKey: "sample-a.mp3|1500|2600",
+        dialectText: "都七十岁了#eh，明日古稀了。",
+        dialectTokens: [
+          { type: "text", content: "都七十岁了" },
+          { type: "tag", content: "#eh" },
+          { type: "text", content: "，明日古稀了。" },
+        ],
+        mandarinText: "诶，明日古稀了。",
+      },
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.savedCount, 1);
+  assert.match(result.message, /跳过 1 段标签内容冲突结果/);
+  const saveRequest = harness.fetchRequests.find(function (request) {
+    return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+  });
+  assert.ok(saveRequest);
+  const body = JSON.parse(saveRequest.init.body);
+  assert.equal(body.update.length, 1);
+  assert.equal(body.update[0].unique_id, "region-2");
 });
 
 test("CVPC data api applyBatchTextRecommendations still saves when latest rows keep ranges but unique ids differ", async function () {

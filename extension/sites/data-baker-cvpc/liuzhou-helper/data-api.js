@@ -7,6 +7,10 @@
   const OBSERVER_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
   const OBSERVER_META_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
   const OBSERVER_AUTH_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_REQUEST_AUTH";
+  const STRUCTURED_FIELD_WRITE_REQUEST_TYPE =
+    "DATABAKER_CVPC_LIUZHOU_WRITE_STRUCTURED_FIELD_REQUEST";
+  const STRUCTURED_FIELD_WRITE_RESPONSE_TYPE =
+    "DATABAKER_CVPC_LIUZHOU_WRITE_STRUCTURED_FIELD_RESPONSE";
   const MISSING_AUDIO_MESSAGE =
     "未拿到当前音频签名 URL，请先点击当前音频或播放一次后重试；如仍失败请刷新页面。";
   const VALID_LABELS = ["是（Valid）", "是(Valid)", "Valid"];
@@ -42,6 +46,8 @@
   const BATCH_SAVE_STALE_MESSAGE = "当前音频或条目已变化，已停止批量写回，请刷新后重试。";
   const BATCH_SAVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，已停止批量写回，请刷新后重试。";
   const BATCH_SAVE_EMPTY_MESSAGE = "当前没有可写回的批量识别结果。";
+  const BATCH_SAVE_CONFLICT_ONLY_MESSAGE = "批量结果存在标签内容冲突，未写回任何段。";
+  const CURRENT_RECOMMENDATION_CONFLICT_MESSAGE = "标签内容冲突，AI 结果有问题，已停止写入。";
   const DIALECT_TAG_MAP = {
     "#um": "#um",
     "#hmm": "#hmm",
@@ -54,10 +60,26 @@
     "<silence>": "<Silence>",
   };
   const DIALECT_TAG_MATCHER = /#(?:um|hmm|ah|eh)|<(?:SPK\/|NPS\/|Unintelligible|Meaningless|Silence)>/gi;
+  const VALID_DIALECT_TAG_SET = {
+    "#um": true,
+    "#hmm": true,
+    "#ah": true,
+    "#eh": true,
+    "<SPK/>": true,
+    "<NPS/>": true,
+  };
+  const INVALID_DIALECT_TAG_SET = {
+    "<Unintelligible>": true,
+    "<Meaningless>": true,
+    "<Silence>": true,
+  };
   const TAG_ADJACENT_TRAILING_SPACE_PATTERN = /[\t \u00a0]+$/;
   const TAG_ADJACENT_LEADING_SPACE_PATTERN = /^[\t \u00a0]+/;
   const STRUCTURED_TAG_FIELD_RESYNC_DELAYS_MS = [0, 30, 90];
+  const STRUCTURED_FIELD_WRITE_BRIDGE_TIMEOUT_MS = 250;
+  const NON_SEMANTIC_TAG_TEXT_PATTERN = /^[\s\u00a0,.;:!?，。！？；：、'"“”‘’\-—()（）[\]【】{}《》<>…]*$/;
   let dialectTagSerial = 0;
+  let structuredFieldWriteBridgeSerial = 0;
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -1230,6 +1252,75 @@
     return parseDialectTokensFromInlineText(fallbackText);
   }
 
+  function hasSemanticDialectText(value) {
+    const text = String(value || "");
+    if (!text) {
+      return false;
+    }
+    return !NON_SEMANTIC_TAG_TEXT_PATTERN.test(text);
+  }
+
+  function analyzeDialectRecommendationValidity(text, tokens, explicitValidity) {
+    const normalizedTokens = normalizeDialectTokensInput(tokens, text || "");
+    const normalizedExplicitValidity = normalizeValidityState(explicitValidity);
+    let hasValidTag = false;
+    let hasInvalidTag = false;
+    let hasSemanticText = false;
+
+    normalizedTokens.forEach(function (item) {
+      if (!item || typeof item !== "object") {
+        return;
+      }
+      if (item.type === "tag") {
+        if (VALID_DIALECT_TAG_SET[item.content] === true) {
+          hasValidTag = true;
+          return;
+        }
+        if (INVALID_DIALECT_TAG_SET[item.content] === true) {
+          hasInvalidTag = true;
+        }
+        return;
+      }
+      if (item.type === "text" && hasSemanticDialectText(item.content)) {
+        hasSemanticText = true;
+      }
+    });
+
+    let inferredValidity = "";
+    let conflict = false;
+
+    if (hasValidTag && hasInvalidTag) {
+      conflict = true;
+    } else if (hasInvalidTag && hasSemanticText) {
+      conflict = true;
+    } else if (hasValidTag) {
+      inferredValidity = "valid";
+    } else if (hasInvalidTag) {
+      inferredValidity = "invalid";
+    }
+
+    if (
+      !conflict &&
+      normalizedExplicitValidity &&
+      inferredValidity &&
+      normalizedExplicitValidity !== inferredValidity
+    ) {
+      conflict = true;
+    }
+
+    return {
+      normalizedTokens: normalizedTokens,
+      explicitValidity: normalizedExplicitValidity,
+      inferredValidity: inferredValidity,
+      requiredValidity:
+        conflict ? "conflict" : normalizedExplicitValidity || inferredValidity || "none",
+      hasConflict: conflict,
+      hasValidTag: hasValidTag,
+      hasInvalidTag: hasInvalidTag,
+      hasSemanticText: hasSemanticText,
+    };
+  }
+
   function nextDialectTagId() {
     dialectTagSerial += 1;
     return "asc-lz-tag-" + String(Date.now()) + "-" + String(dialectTagSerial);
@@ -1428,6 +1519,113 @@
     return "";
   }
 
+  function formatValidityStateLabel(state) {
+    return normalizeValidityState(state) === "invalid" ? "Invalid" : "Valid";
+  }
+
+  function buildValidityConfirmMessage(state) {
+    const label = formatValidityStateLabel(state);
+    return "当前推荐需要把“是否有效（Valid or Not）”切换为 " + label + "，是否继续写入？";
+  }
+
+  function buildValidityCancelMessage(state) {
+    const label = formatValidityStateLabel(state);
+    return "当前推荐需要切换为 " + label + "；你已取消本次写入。";
+  }
+
+  async function ensureCurrentSegmentValidityForWrite(analysis, options, env) {
+    const result =
+      analysis && typeof analysis === "object"
+        ? analysis
+        : {
+            requiredValidity: "none",
+            hasConflict: false,
+          };
+    if (result.hasConflict || result.requiredValidity === "conflict") {
+      return {
+        ok: false,
+        message: CURRENT_RECOMMENDATION_CONFLICT_MESSAGE,
+        changed: false,
+        requiredValidity: "conflict",
+      };
+    }
+    const requiredValidity = normalizeValidityState(result.requiredValidity);
+    if (!requiredValidity) {
+      return {
+        ok: true,
+        changed: false,
+        requiredValidity: "",
+      };
+    }
+    const currentState = getCurrentValidityState(env);
+    if (currentState === requiredValidity) {
+      return {
+        ok: true,
+        changed: false,
+        requiredValidity: requiredValidity,
+      };
+    }
+    const writeOptions = options && typeof options === "object" ? options : {};
+    const setValidity = typeof writeOptions.setValidity === "function" ? writeOptions.setValidity : null;
+    const autoCorrectEnabled = writeOptions.autoCorrectEnabled !== false;
+    if (!autoCorrectEnabled) {
+      const confirmed =
+        typeof env?.window?.confirm === "function"
+          ? env.window.confirm(buildValidityConfirmMessage(requiredValidity))
+          : false;
+      if (!confirmed) {
+        return {
+          ok: false,
+          message: buildValidityCancelMessage(requiredValidity),
+          changed: false,
+          requiredValidity: requiredValidity,
+          cancelled: true,
+        };
+      }
+    }
+    if (!setValidity) {
+      return {
+        ok: false,
+        message: "未找到当前段有效性切换能力。",
+        changed: false,
+        requiredValidity: requiredValidity,
+      };
+    }
+    const validityResult = await setValidity(requiredValidity === "valid");
+    if (!validityResult?.ok) {
+      return {
+        ok: false,
+        message: validityResult?.message || "未能切换当前段有效性。",
+        changed: false,
+        requiredValidity: requiredValidity,
+      };
+    }
+    return {
+      ok: true,
+      changed: validityResult.skipped !== true,
+      requiredValidity: requiredValidity,
+    };
+  }
+
+  function decorateCurrentSegmentWriteMessage(message, validityResult) {
+    const baseMessage = String(message || "");
+    if (!validityResult?.changed || !normalizeValidityState(validityResult.requiredValidity)) {
+      return baseMessage;
+    }
+    const label = formatValidityStateLabel(validityResult.requiredValidity);
+    if (baseMessage.indexOf("已将当前段设为 Invalid，并写入 <Meaningless> 标签") === 0) {
+      return (
+        "已自动切换为 " +
+        label +
+        "，并写入 <Meaningless> 标签；如页面未同步，请刷新后复核。"
+      );
+    }
+    if (baseMessage.indexOf("已尝试把") === 0) {
+      return "已自动切换为 " + label + "，并尝试把" + baseMessage.slice("已尝试把".length);
+    }
+    return "已自动切换为 " + label + "，" + baseMessage;
+  }
+
   function buildValidityOptionValue(value, state) {
     const currentState = normalizeValidityState(state);
     const source = value && typeof value === "object" ? clonePlainData(value) : null;
@@ -1604,13 +1802,22 @@
         source.dialect ||
         joinDialectTokens(fallbackDialectTokens)
     );
+    const validityAnalysis = analyzeDialectRecommendationValidity(
+      dialectText,
+      fallbackDialectTokens,
+      source.validity || source.targetValidity || source.validityState
+    );
     return {
       uniqueId: normalizeText(source.uniqueId || source.unique_id),
       segmentNumber: Math.max(0, Math.round(Number(source.segmentNumber || 0)) || 0),
       selectionKey: normalizeText(source.selectionKey),
       dialectText: dialectText,
-      dialectTokens: normalizeDialectTokensInput(fallbackDialectTokens, dialectText),
-      validity: normalizeValidityState(source.validity || source.targetValidity || source.validityState),
+      dialectTokens: validityAnalysis.normalizedTokens,
+      validity:
+        validityAnalysis.hasConflict === true
+          ? "conflict"
+          : normalizeValidityState(validityAnalysis.requiredValidity),
+      validityAnalysis: validityAnalysis,
       mandarinText: String(
         source.mandarinText ||
           source.refinedMandarinText ||
@@ -1903,7 +2110,96 @@
     return true;
   }
 
-  function setStructuredTagFieldValue(field, value, env) {
+  function nextStructuredFieldWriteBridgeRequestId() {
+    structuredFieldWriteBridgeSerial += 1;
+    return "asc-cvpc-liuzhou-structured-write-" + String(Date.now()) + "-" + String(structuredFieldWriteBridgeSerial);
+  }
+
+  function requestStructuredFieldWriteBridge(structuredHost, structuredItems, env) {
+    const hostId = normalizeText(
+      structuredHost?.id ||
+        (typeof structuredHost?.getAttribute === "function" ? structuredHost.getAttribute("id") : "")
+    );
+    if (
+      !hostId ||
+      !env?.window ||
+      typeof env.window.postMessage !== "function" ||
+      typeof env.window.addEventListener !== "function" ||
+      typeof env.window.removeEventListener !== "function"
+    ) {
+      return Promise.resolve({
+        ok: false,
+        appliedBy: "",
+        message: "bridge-unavailable",
+      });
+    }
+    const requestId = nextStructuredFieldWriteBridgeRequestId();
+    const serializedModelValue = JSON.stringify(structuredItems);
+    const payload = {
+      textareaHostId: hostId,
+      oldSerializedModelValue: String(structuredHost?.getAttribute?.("modelvalue") || ""),
+      serializedModelValue: serializedModelValue,
+      structuredItems: clonePlainData(structuredItems) || [],
+      editorHtml: buildDialectEditorHtml(structuredItems),
+    };
+    return new Promise(function (resolve) {
+      let settled = false;
+      let timer = null;
+      const cleanup = function () {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        env.window.removeEventListener("message", handleMessage);
+      };
+      const settle = function (result) {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        resolve(result);
+      };
+      const handleMessage = function (event) {
+        const data = event?.data;
+        if (
+          !data ||
+          data.source !== OBSERVER_SOURCE ||
+          data.type !== STRUCTURED_FIELD_WRITE_RESPONSE_TYPE ||
+          data.requestId !== requestId
+        ) {
+          return;
+        }
+        const responsePayload =
+          data.payload && typeof data.payload === "object" ? data.payload : {};
+        settle({
+          ok: responsePayload.ok === true,
+          appliedBy: normalizeText(responsePayload.appliedBy),
+          message: normalizeText(responsePayload.message),
+        });
+      };
+
+      timer = setTimeout(function () {
+        settle({
+          ok: false,
+          appliedBy: "",
+          message: "bridge-timeout",
+        });
+      }, STRUCTURED_FIELD_WRITE_BRIDGE_TIMEOUT_MS);
+      env.window.addEventListener("message", handleMessage);
+      env.window.postMessage(
+        {
+          source: OBSERVER_SOURCE,
+          type: STRUCTURED_FIELD_WRITE_REQUEST_TYPE,
+          requestId: requestId,
+          payload: payload,
+        },
+        env?.location?.origin || "*"
+      );
+    });
+  }
+
+  async function setStructuredTagFieldValue(field, value, env) {
     if (!isTextInputNode(field, env) && !isContentEditableNode(field, env)) {
       return false;
     }
@@ -1916,6 +2212,7 @@
     }
     const structuredItems = buildDialectStructuredItems(tokens.length > 0 ? tokens : plainText);
     const structuredHost = findStructuredTextareaHost(field, env);
+    await requestStructuredFieldWriteBridge(structuredHost, structuredItems, env);
     if (structuredHost && typeof structuredHost.setAttribute === "function") {
       structuredHost.setAttribute("modelvalue", JSON.stringify(structuredItems));
     }
@@ -2989,15 +3286,21 @@
 
     async function applyBatchTextRecommendations(request, contextOverride) {
       const source = request && typeof request === "object" ? request : {};
-      const normalizedResults = (Array.isArray(source.results) ? source.results : [])
+      const normalizedResultItems = (Array.isArray(source.results) ? source.results : [])
         .map(normalizeBatchResultItem)
         .filter(function (item) {
           return item.uniqueId && (item.dialectText || item.mandarinText || item.dialectTokens.length > 0);
         });
+      const conflictResults = normalizedResultItems.filter(function (item) {
+        return item.validityAnalysis?.hasConflict === true || item.validity === "conflict";
+      });
+      const normalizedResults = normalizedResultItems.filter(function (item) {
+        return item.validityAnalysis?.hasConflict !== true && item.validity !== "conflict";
+      });
       if (normalizedResults.length <= 0) {
         return {
           ok: false,
-          message: BATCH_SAVE_EMPTY_MESSAGE,
+          message: conflictResults.length > 0 ? BATCH_SAVE_CONFLICT_ONLY_MESSAGE : BATCH_SAVE_EMPTY_MESSAGE,
         };
       }
       const context =
@@ -3112,10 +3415,21 @@
       return {
         ok: true,
         savedCount: updatedRows.length,
-        message:
-          "已通过平台保存接口写回 " +
-          String(updatedRows.length) +
-          " 段批量识别结果，页面即将刷新。",
+        message: (function () {
+          const prefix =
+            "已通过平台保存接口写回 " +
+            String(updatedRows.length) +
+            " 段批量识别结果";
+          if (conflictResults.length > 0) {
+            return (
+              prefix +
+              "，已跳过 " +
+              String(conflictResults.length) +
+              " 段标签内容冲突结果，页面即将刷新。"
+            );
+          }
+          return prefix + "，页面即将刷新。";
+        })(),
       };
     }
 
@@ -3156,17 +3470,33 @@
           source.audioDialectText ||
           ""
       );
-      const dialectTokens = normalizeDialectTokensInput(
+      const validityAnalysis = analyzeDialectRecommendationValidity(
+        dialectText,
         applyPreset?.dialectTokens || source.refinedDialectTokens || source.audioDialectTokens,
-        dialectText
+        presetValidity
       );
+      const dialectTokens = validityAnalysis.normalizedTokens;
       const mandarinText = String(
         applyPreset
           ? applyPreset.mandarinText || ""
           : source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
       );
+      const validityResult = await ensureCurrentSegmentValidityForWrite(
+        validityAnalysis,
+        {
+          autoCorrectEnabled: source.recommendationValidityAutoCorrectEnabled !== false,
+          setValidity: setCurrentValidity,
+        },
+        env
+      );
+      if (!validityResult.ok) {
+        return {
+          ok: false,
+          message: validityResult.message,
+        };
+      }
       const wroteDialect = dialectText || dialectTokens.length > 0
-        ? setStructuredTagFieldValue(
+        ? await setStructuredTagFieldValue(
             dialectField,
             dialectTokens.length > 0 ? dialectTokens : dialectText,
             env
@@ -3176,31 +3506,28 @@
         applyPreset || mandarinText
           ? setTextFieldValue(mandarinField, mandarinText, env)
           : false;
-      const validityResult = presetValidity
-        ? await setCurrentValidity(presetValidity === "valid")
-        : null;
       if (!wroteDialect && !wroteMandarin) {
         return {
           ok: false,
           message: "未检测到稳定的当前段文本输入框；真实字段写入契约仍待补采。",
         };
       }
-      if (validityResult && !validityResult.ok) {
-        return {
-          ok: false,
-          message: validityResult.message,
-        };
-      }
       cachedContext = null;
       if (applyPreset && presetValidity === "invalid") {
         return {
           ok: true,
-          message: "已将当前段设为 Invalid，并写入 <Meaningless> 标签；如页面未同步，请刷新后复核。",
+          message: decorateCurrentSegmentWriteMessage(
+            "已将当前段设为 Invalid，并写入 <Meaningless> 标签；如页面未同步，请刷新后复核。",
+            validityResult
+          ),
         };
       }
       return {
         ok: true,
-        message: "已尝试把当前段 AI 建议填入页面；如页面未同步，请刷新后复核。",
+        message: decorateCurrentSegmentWriteMessage(
+          "已尝试把当前段 AI 建议填入页面；如页面未同步，请刷新后复核。",
+          validityResult
+        ),
       };
     }
 
@@ -3222,12 +3549,37 @@
         };
       }
       const isDialectTarget = targetField === "dialect";
+      const validityAnalysis = isDialectTarget
+        ? analyzeDialectRecommendationValidity(
+            text,
+            tokens,
+            source.validity || source.targetValidity || source.validityState
+          )
+        : analyzeDialectRecommendationValidity(
+            source.validityReferenceText || "",
+            source.validityReferenceTokens,
+            source.validity || source.targetValidity || source.validityState
+          );
+      const validityResult = await ensureCurrentSegmentValidityForWrite(
+        validityAnalysis,
+        {
+          autoCorrectEnabled: source.recommendationValidityAutoCorrectEnabled !== false,
+          setValidity: setCurrentValidity,
+        },
+        env
+      );
+      if (!validityResult.ok) {
+        return {
+          ok: false,
+          message: validityResult.message,
+        };
+      }
       const field = findFieldTarget(
         isDialectTarget ? ["标注文本", "柳州话", "转写文本"] : ["普通话顺滑", "普通话", "顺滑"],
         env
       );
       const wrote = isDialectTarget
-        ? setStructuredTagFieldValue(field, tokens.length > 0 ? tokens : text, env)
+        ? await setStructuredTagFieldValue(field, tokens.length > 0 ? tokens : text, env)
         : setTextFieldValue(field, text, env);
       if (!wrote) {
         return {
@@ -3238,9 +3590,12 @@
       cachedContext = null;
       return {
         ok: true,
-        message: isDialectTarget
-          ? "已尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。"
-          : "已尝试把当前段建议填入普通话顺滑；如页面未同步，请刷新后复核。",
+        message: decorateCurrentSegmentWriteMessage(
+          isDialectTarget
+            ? "已尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。"
+            : "已尝试把当前段建议填入普通话顺滑；如页面未同步，请刷新后复核。",
+          validityResult
+        ),
       };
     }
 

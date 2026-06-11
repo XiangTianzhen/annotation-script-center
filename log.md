@@ -1,3 +1,82 @@
+## 2026-06-11（DataBaker CVPC 柳州话标签有效性联动与结构化标签写入稳定化）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把标签有效性判断正式收口到统一写入层：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 当前会先根据柳州话 token/text 推断 `requiredValidity = valid | invalid | conflict | none`
+  - `填入标注文本 / 填入普通话顺滑 / 整卡填入 / 当前段识别自动填入 / 批量写回` 当前全部复用同一套规则
+  - 若推荐同时出现有效标签与无效标签，或无效标签与语义正文并存，会直接判为 `conflict`：当前段停止写入，批量跳过坏段并继续保存其它成功段
+- 当前段交互写入当前新增 `标签与有效性不一致时直接修正` 开关：
+  - `extension/shared/constants.js`、`extension/shared/storage.js`、`extension/options/options.js`、`extension/options/options.html` 当前补齐默认值与 Options UI，默认 `true`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js` 当前在编辑页 `当前段识别` 区新增同名页内持久化 checkbox
+  - 开启时会直接切换 `Valid / Invalid` 并继续写入；关闭后改为 `window.confirm`，点“否”则整次当前段写入取消
+- 结构化标签写入当前从“纯 DOM 持续补写”升级为“页面组件状态优先，DOM 自愈兜底”：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.js` 当前新增 `MAIN world` 结构化字段写入桥
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 当前在写带标签 `标注文本` 时，会优先同步页面内部 `modelvalue` 相关状态槽，再由可视 chip 自愈兜底
+  - 目标是修复 `<Meaningless>`、`#eh`、`<SPK/>文本<SPK/>` 这类结构化内容写入后一秒被 Vue / tiptap 下一轮渲染回滚的问题
+- 本轮同步更新：
+  - `extension/shared/constants.js`
+  - `extension/shared/storage.js`
+  - `extension/shared/storage.data-baker-cvpc.test.js`
+  - `extension/options/options.html`
+  - `extension/options/options.js`
+  - `extension/options/options-data-baker-cvpc-ai-ui.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --test extension/shared/storage.data-baker-cvpc.test.js`
+  - `node --test extension/options/options-data-baker-cvpc-ai-ui.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+
+## 2026-06-11（Aishell Tech 越南语助手调用与 options 默认值 hotfix）
+
+- 修复 `platform-resources/aishell-tech/vietnamese-helper/backend/pipeline.js` 对统一 provider queue 返回值的误读：
+  - 之前把 `enqueueTask()` 的 `{ value, queueMeta }` 当成模型结果本身使用，导致 `recognize` 成功响应被误判为空文本
+  - 现在已正确解包队列结果，并把 `queueWaitMs / retryCount` 回写到返回 `meta`
+- 修复 `platform-resources/aishell-tech/vietnamese-helper/backend/errors.js` 对 plain object 错误的降级：
+  - 现在会保留 `message / code / statusCode / providerStatus`
+  - 不再把结构化错误显示成 `[object Object]`
+- 修复 `extension/options/options.js` 里越南语助手本地 fallback 默认值结构：
+  - `/api/aishell-tech/vietnamese-helper/ai/recommend/defaults` 失败时，options 当前会回退到完整的单阶段本地默认值
+  - 默认模型、默认 Prompt 和共享高级参数不再丢失或显示为空
+- 本轮同步更新：
+  - `platform-resources/aishell-tech/vietnamese-helper/backend/pipeline.js`
+  - `platform-resources/aishell-tech/vietnamese-helper/backend/errors.js`
+  - `platform-resources/aishell-tech/vietnamese-helper/backend/ai-service.test.js`
+  - `platform-resources/aishell-tech/vietnamese-helper/backend/errors.test.js`
+  - `extension/options/options.js`
+  - `extension/options/options-aishell-tech-ui.test.js`
+  - `extension/sites/aishell-tech/vietnamese-helper/README.md`
+  - `platform-resources/aishell-tech/vietnamese-helper/README.md`
+  - `platform-resources/aishell-tech/vietnamese-helper/backend/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check extension/options/options.js`
+  - `node --check platform-resources/aishell-tech/vietnamese-helper/backend/pipeline.js`
+  - `node --check platform-resources/aishell-tech/vietnamese-helper/backend/errors.js`
+  - `node --check platform-resources/aishell-tech/vietnamese-helper/backend/ai-service.test.js`
+  - `node --check platform-resources/aishell-tech/vietnamese-helper/backend/errors.test.js`
+  - `node --check extension/options/options-aishell-tech-ui.test.js`
+  - `node --test platform-resources/aishell-tech/vietnamese-helper/backend/ai-service.test.js`
+  - `node --test platform-resources/aishell-tech/vietnamese-helper/backend/errors.test.js`
+  - `node --test extension/options/options-aishell-tech-ui.test.js`
+  - `node --test extension/shared/storage.aishell-tech.test.js`
+  - `node --test extension/sites/aishell-tech/vietnamese-helper/batch-pipeline.test.js`
+
 ## 2026-06-11（Aishell Tech 越南语助手正式接入）
 
 - 新增 `Aishell Tech / 越南语助手` 正式版脚本，脚本 ID：`aishellTechVietnameseAssistant`。

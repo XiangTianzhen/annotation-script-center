@@ -278,6 +278,60 @@ test("CVPC audio observer keeps the latest signed audio url for the same relativ
   );
 });
 
+test("CVPC audio observer applies structured field writes through matching component state slot", function () {
+  const observerModule = loadObserverModule();
+  const oldSerializedModelValue = JSON.stringify([{ type: "text", content: "旧文本" }]);
+  const nextStructuredItems = [{ type: "single", id: "tag-1", content: "<Meaningless>" }];
+  const nextSerializedModelValue = JSON.stringify(nextStructuredItems);
+  const wrapper = {
+    parentNode: null,
+  };
+  const textareaHost = {
+    id: "textarea-test-1",
+    parentNode: wrapper,
+    attributes: {
+      modelvalue: oldSerializedModelValue,
+    },
+    getAttribute: function (name) {
+      return this.attributes[String(name || "")] || "";
+    },
+    setAttribute: function (name, value) {
+      this.attributes[String(name || "")] = String(value || "");
+    },
+  };
+  const component = {
+    setupState: {
+      modelvalue: oldSerializedModelValue,
+    },
+    data: {},
+    ctx: {},
+    proxy: {},
+  };
+  textareaHost.__vueParentComponent = component;
+
+  const result = observerModule.applyStructuredFieldWriteRequest({
+    document: {
+      getElementById: function (id) {
+        return id === "textarea-test-1" ? textareaHost : null;
+      },
+    },
+    request: {
+      textareaHostId: "textarea-test-1",
+      oldSerializedModelValue: oldSerializedModelValue,
+      serializedModelValue: nextSerializedModelValue,
+      structuredItems: nextStructuredItems,
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    appliedBy: "setupState.modelvalue",
+    message: "",
+  });
+  assert.equal(textareaHost.getAttribute("modelvalue"), nextSerializedModelValue);
+  assert.equal(component.setupState.modelvalue, nextSerializedModelValue);
+});
+
 test("CVPC audio observer maps console printed audio url after meta is available", function () {
   const observerModule = loadObserverModule();
   const harness = createWindowHarness();

@@ -587,6 +587,15 @@
                 </span>
               </label>
 
+              <label class="field-card">
+                <strong>标签与有效性不一致时直接修正</strong>
+                <span>默认开启。当前段写入 AI 推荐时，如果标签要求的 Valid / Invalid 与页面当前选择不一致，会先自动切换再写入。</span>
+                <span class="field-toggle">
+                  <input id="data-baker-cvpc-recommendation-validity-auto-correct-enabled" type="checkbox" />
+                  写入前自动修正 Valid / Invalid
+                </span>
+              </label>
+
               <div class="field-card">
                 <strong>AI 设置说明</strong>
                 <span>当前段 AI 推荐的开关、超时、听音模型和文本修正模型已移动到右侧共享 `AI 设置` 面板。</span>

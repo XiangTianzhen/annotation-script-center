@@ -1887,6 +1887,7 @@
           segmentPreviewEnabled: true,
           segmentPreviewAutoApplyEnabled: true,
           aiRecommendAutoFillEnabled: true,
+          recommendationValidityAutoCorrectEnabled: true,
           segmentContextPaddingMs: 200,
           segmentSilenceThresholdDbfs: -27,
           segmentSilenceThresholdUnit: "db",

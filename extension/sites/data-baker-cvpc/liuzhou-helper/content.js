@@ -530,6 +530,8 @@
     const result = await currentRuntime.dataApi.fillCurrentSegmentRecommendation(
       Object.assign({}, recommendation, {
         applyPreset: buildRecommendationApplyPreset(recommendation),
+        recommendationValidityAutoCorrectEnabled:
+          currentRuntime?.config?.recommendationValidityAutoCorrectEnabled !== false,
       })
     );
     if (result?.ok) {
@@ -840,6 +842,12 @@
           : current.aiRecommendAutoFillEnabled === false
             ? false
             : defaults.aiRecommendAutoFillEnabled !== false,
+      recommendationValidityAutoCorrectEnabled:
+        current.recommendationValidityAutoCorrectEnabled === true
+          ? true
+          : current.recommendationValidityAutoCorrectEnabled === false
+            ? false
+            : defaults.recommendationValidityAutoCorrectEnabled !== false,
       aiRecommendEnabled:
         (current.aiRecommendEnabled ?? defaults.aiRecommendEnabled) !== false,
       timeoutMs:
@@ -1106,6 +1114,8 @@
       const result = await runtime.dataApi.fillCurrentSegmentRecommendation(
         Object.assign({}, lastRecommendation, {
           applyPreset: applyPreset,
+          recommendationValidityAutoCorrectEnabled:
+            runtime?.config?.recommendationValidityAutoCorrectEnabled !== false,
         })
       );
       runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
@@ -1121,6 +1131,15 @@
       targetField: target.targetField,
       text: target.text,
       tokens: target.tokens,
+      validityReferenceText:
+        lastRecommendation.refinedDialectText ||
+        lastRecommendation.dialectText ||
+        lastRecommendation.audioDialectText ||
+        "",
+      validityReferenceTokens:
+        lastRecommendation.refinedDialectTokens || lastRecommendation.audioDialectTokens || [],
+      recommendationValidityAutoCorrectEnabled:
+        runtime?.config?.recommendationValidityAutoCorrectEnabled !== false,
     });
     runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
   }
@@ -1133,6 +1152,8 @@
     const result = await runtime.dataApi.fillCurrentSegmentRecommendation(
       Object.assign({}, lastRecommendation, {
         applyPreset: buildRecommendationApplyPreset(lastRecommendation),
+        recommendationValidityAutoCorrectEnabled:
+          runtime?.config?.recommendationValidityAutoCorrectEnabled !== false,
       })
     );
     runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
@@ -1195,6 +1216,8 @@
     const ui = uiFactory.createRuntime({
       segmentPreviewAutoApplyEnabled: config.segmentPreviewAutoApplyEnabled !== false,
       aiRecommendAutoFillEnabled: config.aiRecommendAutoFillEnabled !== false,
+      recommendationValidityAutoCorrectEnabled:
+        config.recommendationValidityAutoCorrectEnabled !== false,
       onPreview: function () {
         if (config.segmentPreviewEnabled === false) {
           ui.setStatus(UI_COPY.previewFeatureDisabled, "error");
@@ -1269,6 +1292,43 @@
             ui.setAiRecommendAutoFillEnabled(previousEnabled);
             ui.setStatus(
               "保存自动填入开关失败：" + (error && error.message ? error.message : String(error)),
+              "error"
+            );
+          }
+        })();
+      },
+      onToggleRecommendationValidityAutoCorrect: function (nextEnabled) {
+        void (async function () {
+          const previousEnabled =
+            runtime?.config?.recommendationValidityAutoCorrectEnabled !== false;
+          const normalizedEnabled = nextEnabled === true;
+          if (!STORAGE || typeof STORAGE.patchSettings !== "function") {
+            ui.setRecommendationValidityAutoCorrectEnabled(previousEnabled);
+            ui.setStatus("当前扩展版本不支持保存有效性联动开关。", "error");
+            return;
+          }
+          try {
+            const nextSettings = await STORAGE.patchSettings({
+              platforms: {
+                dataBakerCvpc: {
+                  scripts: {
+                    liuzhouAssistant: {
+                      id: SCRIPT_ID,
+                      recommendationValidityAutoCorrectEnabled: normalizedEnabled,
+                    },
+                  },
+                },
+              },
+            });
+            if (runtime?.config) {
+              runtime.config.recommendationValidityAutoCorrectEnabled = normalizedEnabled;
+              runtime.config.settings = nextSettings;
+            }
+            ui.setRecommendationValidityAutoCorrectEnabled(normalizedEnabled);
+          } catch (error) {
+            ui.setRecommendationValidityAutoCorrectEnabled(previousEnabled);
+            ui.setStatus(
+              "保存有效性联动开关失败：" + (error && error.message ? error.message : String(error)),
               "error"
             );
           }

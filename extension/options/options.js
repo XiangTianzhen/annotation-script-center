@@ -4169,7 +4169,12 @@
           stop: "",
         },
       };
-      return baseDefaults;
+      return {
+        defaults: baseDefaults,
+        supportedParams: supportedParams,
+        loadedFromBackend: false,
+        error: "",
+      };
     }
     if (isAishellTechScript(scriptId)) {
       baseDefaults.compareFamily = "qwen";
@@ -5216,6 +5221,7 @@
         segmentPreviewEnabled: true,
         segmentPreviewAutoApplyEnabled: true,
         aiRecommendAutoFillEnabled: true,
+        recommendationValidityAutoCorrectEnabled: true,
         segmentContextPaddingMs: 200,
         segmentSilenceThresholdDbfs: -27,
         segmentSilenceThresholdUnit: "db",
@@ -5266,6 +5272,8 @@
       config.segmentPreviewAutoApplyEnabled === false ? false : true;
     config.aiRecommendAutoFillEnabled =
       config.aiRecommendAutoFillEnabled === false ? false : true;
+    config.recommendationValidityAutoCorrectEnabled =
+      config.recommendationValidityAutoCorrectEnabled === false ? false : true;
     config.segmentContextPaddingMs = normalizeDataBakerCvpcSegmentContextPaddingMs(
       config.segmentContextPaddingMs,
       defaults.segmentContextPaddingMs
@@ -10930,6 +10938,9 @@
     const aiRecommendAutoFillNode = getElement(
       "data-baker-cvpc-ai-recommend-auto-fill-enabled"
     );
+    const recommendationValidityAutoCorrectNode = getElement(
+      "data-baker-cvpc-recommendation-validity-auto-correct-enabled"
+    );
     const aiRecommendNode = getElement("data-baker-cvpc-ai-recommend-enabled");
     const blockNewTabTipNode = getElement("data-baker-cvpc-block-new-tab-tip");
     const blockPauseStateTipNode = getElement("data-baker-cvpc-block-pause-state-tip");
@@ -10953,6 +10964,10 @@
     }
     if (aiRecommendAutoFillNode) {
       aiRecommendAutoFillNode.checked = config.aiRecommendAutoFillEnabled !== false;
+    }
+    if (recommendationValidityAutoCorrectNode) {
+      recommendationValidityAutoCorrectNode.checked =
+        config.recommendationValidityAutoCorrectEnabled !== false;
     }
     if (aiRecommendNode) {
       aiRecommendNode.checked = config.aiRecommendEnabled !== false;
@@ -11329,6 +11344,9 @@
     const aiRecommendAutoFillEnabled = getElement(
       "data-baker-cvpc-ai-recommend-auto-fill-enabled"
     ).checked;
+    const recommendationValidityAutoCorrectEnabled = getElement(
+      "data-baker-cvpc-recommendation-validity-auto-correct-enabled"
+    ).checked;
     const hasAiSettingsPanel = Boolean(getElement("data-baker-cvpc-ai-timeout"));
     const aiRecommendEnabled = hasAiSettingsPanel
       ? getElement("data-baker-cvpc-ai-recommend-enabled").checked
@@ -11430,6 +11448,8 @@
                 segmentPreviewEnabled: segmentPreviewEnabled,
                 segmentPreviewAutoApplyEnabled: segmentPreviewAutoApplyEnabled,
                 aiRecommendAutoFillEnabled: aiRecommendAutoFillEnabled,
+                recommendationValidityAutoCorrectEnabled:
+                  recommendationValidityAutoCorrectEnabled,
                 segmentContextPaddingMs: segmentContextPaddingMs,
                 segmentSilenceThresholdDbfs: segmentSilenceThresholdDbfs,
                 segmentSilenceThresholdUnit: segmentSilenceThresholdUnit,

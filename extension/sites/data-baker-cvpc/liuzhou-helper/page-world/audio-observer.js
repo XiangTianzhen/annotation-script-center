@@ -3,6 +3,10 @@
   const MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_AUDIO_MAPPING";
   const META_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_META_SNAPSHOT";
   const AUTH_MESSAGE_TYPE = "DATABAKER_CVPC_LIUZHOU_REQUEST_AUTH";
+  const STRUCTURED_FIELD_WRITE_REQUEST_TYPE =
+    "DATABAKER_CVPC_LIUZHOU_WRITE_STRUCTURED_FIELD_REQUEST";
+  const STRUCTURED_FIELD_WRITE_RESPONSE_TYPE =
+    "DATABAKER_CVPC_LIUZHOU_WRITE_STRUCTURED_FIELD_RESPONSE";
   const META_PATH = "/httpapi/annotation/meta";
   const USER_META_PATH = "/httpapi/user/meta";
   const ANNOTATION_PATH_PREFIX = "/httpapi/annotation/";
@@ -172,6 +176,236 @@
       return false;
     }
     return href.indexOf("/app/xaudio/") >= 0;
+  }
+
+  function isObjectLike(value) {
+    return Boolean(value) && typeof value === "object";
+  }
+
+  function getRequestDocument(options) {
+    return options?.document || globalThis.document || null;
+  }
+
+  function findTextareaHostById(documentLike, hostId) {
+    const text = normalizeText(hostId);
+    if (!text || !documentLike) {
+      return null;
+    }
+    if (typeof documentLike.getElementById === "function") {
+      const matched = documentLike.getElementById(text);
+      if (matched) {
+        return matched;
+      }
+    }
+    if (typeof documentLike.querySelector === "function") {
+      return documentLike.querySelector("#" + text.replace(/"/g, '\\"'));
+    }
+    return null;
+  }
+
+  function getStructuredStateComparableValue(value) {
+    if (typeof value === "string") {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      try {
+        return JSON.stringify(value);
+      } catch (_error) {
+        return "";
+      }
+    }
+    return "";
+  }
+
+  function buildNextStructuredStateValue(currentValue, request) {
+    const serializedModelValue = String(request?.serializedModelValue || "");
+    const structuredItems = Array.isArray(request?.structuredItems) ? request.structuredItems : [];
+    if (Array.isArray(currentValue)) {
+      return JSON.parse(JSON.stringify(structuredItems));
+    }
+    return serializedModelValue;
+  }
+
+  function findMatchingStateSlot(target, oldSerializedModelValue, prefix, visited, depth) {
+    if (!isObjectLike(target) || depth > 3) {
+      return null;
+    }
+    const seen = visited instanceof Set ? visited : new Set();
+    if (seen.has(target)) {
+      return null;
+    }
+    seen.add(target);
+    const keys = Object.keys(target);
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      let currentValue;
+      try {
+        currentValue = target[key];
+      } catch (_error) {
+        continue;
+      }
+      const path = prefix ? prefix + "." + key : key;
+      if (getStructuredStateComparableValue(currentValue) === oldSerializedModelValue) {
+        return {
+          parent: target,
+          key: key,
+          path: path,
+          currentValue: currentValue,
+        };
+      }
+      if (isObjectLike(currentValue) && !Array.isArray(currentValue)) {
+        const nested = findMatchingStateSlot(
+          currentValue,
+          oldSerializedModelValue,
+          path,
+          seen,
+          depth + 1
+        );
+        if (nested) {
+          return nested;
+        }
+      }
+    }
+    return null;
+  }
+
+  function pushUniqueComponent(list, seen, candidate) {
+    if (!isObjectLike(candidate) || seen.has(candidate)) {
+      return;
+    }
+    seen.add(candidate);
+    list.push(candidate);
+  }
+
+  function collectVueComponentCandidates(textareaHost) {
+    const result = [];
+    const seen = new Set();
+    let current = textareaHost;
+    let depth = 0;
+    while (current && depth < 8) {
+      pushUniqueComponent(result, seen, current.__vueParentComponent);
+      pushUniqueComponent(result, seen, current.__vue__);
+      pushUniqueComponent(result, seen, current.__vnode?.component);
+      pushUniqueComponent(result, seen, current.__vue_app__?._instance);
+      current = current.parentNode || current.parentElement || null;
+      depth += 1;
+    }
+    return result;
+  }
+
+  function applyStructuredFieldWriteRequest(options) {
+    const request = options?.request && typeof options.request === "object" ? options.request : {};
+    const textareaHostId = normalizeText(request.textareaHostId);
+    const documentLike = getRequestDocument(options);
+    if (!textareaHostId || !documentLike) {
+      return {
+        ok: false,
+        appliedBy: "",
+        message: "未找到结构化标签字段宿主。",
+      };
+    }
+    const textareaHost = findTextareaHostById(documentLike, textareaHostId);
+    if (!textareaHost) {
+      return {
+        ok: false,
+        appliedBy: "",
+        message: "未找到结构化标签字段宿主。",
+      };
+    }
+    const oldSerializedModelValue = String(
+      request.oldSerializedModelValue ||
+        (typeof textareaHost.getAttribute === "function"
+          ? textareaHost.getAttribute("modelvalue")
+          : "")
+    );
+    const serializedModelValue = String(
+      request.serializedModelValue ||
+        (Array.isArray(request.structuredItems) ? JSON.stringify(request.structuredItems) : "")
+    );
+    const componentCandidates = collectVueComponentCandidates(textareaHost);
+    const slotNames = ["setupState", "data", "ctx", "proxy"];
+    for (let index = 0; index < componentCandidates.length; index += 1) {
+      const component = componentCandidates[index];
+      for (let slotIndex = 0; slotIndex < slotNames.length; slotIndex += 1) {
+        const slotName = slotNames[slotIndex];
+        const slotValue = component && component[slotName];
+        const matched = findMatchingStateSlot(
+          slotValue,
+          oldSerializedModelValue,
+          "",
+          new Set(),
+          0
+        );
+        if (!matched) {
+          continue;
+        }
+        try {
+          matched.parent[matched.key] = buildNextStructuredStateValue(matched.currentValue, request);
+        } catch (_error) {
+          continue;
+        }
+        if (typeof textareaHost.setAttribute === "function") {
+          textareaHost.setAttribute("modelvalue", serializedModelValue);
+        }
+        if (request.editorHtml && typeof textareaHost.querySelector === "function") {
+          const editor = textareaHost.querySelector(".tiptap.ProseMirror, [role='textbox']");
+          if (editor) {
+            try {
+              editor.innerHTML = String(request.editorHtml);
+            } catch (_error) {
+              // Ignore editor sync failures; isolated world DOM write will still run.
+            }
+          }
+        }
+        return {
+          ok: true,
+          appliedBy: slotName + "." + matched.path,
+          message: "",
+        };
+      }
+    }
+    return {
+      ok: false,
+      appliedBy: "",
+      message: "未命中页面组件状态槽。",
+    };
+  }
+
+  function installStructuredFieldWriteBridge(windowLike, locationLike) {
+    if (!windowLike || typeof windowLike.addEventListener !== "function") {
+      return;
+    }
+    const flag = "__ASREdgeDataBakerCvpcLiuzhouStructuredFieldWriteBridgeInstalled";
+    if (windowLike[flag]) {
+      return;
+    }
+    windowLike[flag] = true;
+    windowLike.addEventListener("message", function (event) {
+      const data = event?.data;
+      if (
+        !data ||
+        data.source !== SOURCE ||
+        data.type !== STRUCTURED_FIELD_WRITE_REQUEST_TYPE ||
+        !data.requestId
+      ) {
+        return;
+      }
+      const result = applyStructuredFieldWriteRequest({
+        document: windowLike.document || globalThis.document,
+        request: data.payload,
+      });
+      if (typeof windowLike.postMessage === "function") {
+        windowLike.postMessage(
+          {
+            source: SOURCE,
+            type: STRUCTURED_FIELD_WRITE_RESPONSE_TYPE,
+            requestId: data.requestId,
+            payload: result,
+          },
+          locationLike?.origin || "*"
+        );
+      }
+    });
   }
 
   function createObserver(options) {
@@ -509,12 +743,15 @@
   }
 
   const api = {
+    applyStructuredFieldWriteRequest,
     createObserver,
     constants: {
       MESSAGE_TYPE,
       SOURCE,
       META_MESSAGE_TYPE,
       AUTH_MESSAGE_TYPE,
+      STRUCTURED_FIELD_WRITE_REQUEST_TYPE,
+      STRUCTURED_FIELD_WRITE_RESPONSE_TYPE,
     },
   };
 
@@ -528,6 +765,7 @@
     const flag = "__ASREdgeDataBakerCvpcLiuzhouAudioObserverInstalled";
     if (!window[flag]) {
       window[flag] = true;
+      installStructuredFieldWriteBridge(window, window.location);
       createObserver({ window, location: window.location }).install();
     }
   }

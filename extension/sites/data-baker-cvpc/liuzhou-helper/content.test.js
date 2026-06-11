@@ -786,6 +786,39 @@ test("CVPC content auto-fill helper keeps recommendation visible when fill fails
   ]]);
 });
 
+test("CVPC content auto-fill helper forwards recommendation validity auto-correct setting", async function () {
+  const contentModule = loadContentModule();
+  const calls = [];
+
+  await contentModule.__testOnly.maybeAutoFillRecommendation(
+    {
+      config: {
+        aiRecommendAutoFillEnabled: true,
+        recommendationValidityAutoCorrectEnabled: false,
+      },
+      dataApi: {
+        fillCurrentSegmentRecommendation: async function (payload) {
+          calls.push(payload);
+          return {
+            ok: true,
+            message: "已尝试把当前段 AI 建议填入页面；如页面未同步，请刷新后复核。",
+          };
+        },
+      },
+      ui: {
+        setStatus: function () {},
+      },
+    },
+    {
+      refinedDialectText: "修正文本",
+      refinedMandarinText: "普通话文本",
+    }
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].recommendationValidityAutoCorrectEnabled, false);
+});
+
 test("CVPC content common label helper forwards exact label text to data api", async function () {
   const contentModule = loadContentModule();
   const calls = [];

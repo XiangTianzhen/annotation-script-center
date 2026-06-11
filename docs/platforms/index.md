@@ -46,6 +46,7 @@
 - 2026-06-11 标签联动补强：后端当前新增高置信文本归一化，独立 `呃 / 诶 / 欸 -> #eh`、独立 `啊 -> #ah`、独立 `嗯 -> #um`、重复笑声 `呵呵 / 哈哈 / 嘿嘿 / 嘻嘻` 一类主说话人非语义声音 -> `<SPK/>`；`#hmm` 与 `<NPS/>` 仍只接受模型显式输出。`普通话顺滑` 当前会保留与口语词标签对应的纯文本语气词，但不会保留 `<SPK/> / <NPS/>` 或笑声文本；当前段带标签填入后还会按 `modelvalue` 自动恢复被 tiptap 下一次重绘临时清空的可视 chip。
 - 2026-06-11 AI 价格估算与原始返回复制：`AI信息` 当前新增 `复制原始返回`，复制文本固定前缀为 `AI返回原始内容为：`；两阶段信息当前只显示 `预估人民币`，并额外显示 `总预估人民币`。价格统一读取共享配置 `config/pricing/aliyun-bailian-model-pricing.json`，当前只覆盖 `qwen3.5-omni-plus / qwen3.5-omni-flash / qwen3.5-plus / qwen3.5-flash` 4 个模型，其余模型显示 `没有数据源`；AI 请求记录导出继续保留汇总 token 列，并新增中文表头的 `听音/文本修正` 分阶段 token 与人民币列，不再导出重复单价字段。
 - 2026-06-11 单独语气词展示收口：命中 `#um / #hmm / #ah / #eh` 的单独语气词 `<Meaningless>` 预设后，字段结果卡与 `AI信息` 的 `柳州话修正参考 / 普通话顺滑参考` 当前同步显示最终应用结果；原始 `#um / 嗯。` 只保留在 `AI 返回原始内容`。
+- 2026-06-11 标签有效性联动与结构化写入稳定化：当前段 `填入标注文本 / 填入普通话顺滑 / 整卡填入 / 识别后自动填入` 写入前，都会先按柳州话推荐标签联动 `Valid / Invalid`；新增默认开启的 `标签与有效性不一致时直接修正` 开关，支持 Options 和编辑页即时关闭。若同一条推荐同时出现有效标签与无效标签，或无效标签与语义正文并存，会直接判为冲突：当前段停止写入，批量跳过冲突段继续保存。带标签结构化写入当前优先走 `MAIN world` 组件状态桥接，再由 DOM 自愈兜底，修复 `<Meaningless>` / `#eh` 一类 chip 被页面下一轮渲染回滚的问题。
 - 当前补采状态：`annotation/meta`、`annotation/annos`、模板字段、页面真实 `annotation/*` 最小鉴权头和当前页 DOM 入口已纳入运行时；画段应用当前会优先直连平台 `save_increment`，仅在增量补切直写失败时回退同源 `xaudio` DOM 交互，不自动触发提交流转。
 
 ## Magic Data ANNOTATOR
@@ -104,6 +105,7 @@
 - 当前阶段：Aishell 已接入同平台双脚本互斥运行态。当前业务能力只在 `/mytask/mark` 生效，`/mytask/index` 与 `/mytask/detail/:taskId` 仅做路由覆盖与资料复用。
 - 闽南语助手：继续保留独立的 `转换 / 听音 / 比较` 三板块、词表链路和独立后端接口 `/api/aishell-tech/minnan-helper/ai/recommend*`。
 - 越南语助手：新增独立脚本 `aishellTechVietnameseAssistant`，固定按单阶段 Omni 转写运行，接口为 `/api/aishell-tech/vietnamese-helper/ai/recommend*`；不接词表、不做转换/比较双阶段，结果区只展示 `原始文本` 与 `识别文本`。
+- 2026-06-11 hotfix：越南语助手后端当前已修复统一队列结果解包；`recognize` 成功结果不再被误判为空。若 `/defaults` 暂时不可达，options 当前也会回退到本地完整单阶段默认值，并保留真实错误 message / status，不再显示 `[object Object]`。
 - 当前 AI 日志状态：
   - `platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`
   - `platform-resources/aishell-tech/vietnamese-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`

@@ -882,6 +882,7 @@
     let batchStateNode = null;
     let autoApplyToggleNode = null;
     let aiRecommendAutoFillToggleNode = null;
+    let recommendationValidityAutoCorrectToggleNode = null;
     let batchSelectionState = {
       totalSegments: 0,
       selectedNumbers: [],
@@ -1480,6 +1481,12 @@
       }
     }
 
+    function setRecommendationValidityAutoCorrectEnabled(enabled) {
+      if (recommendationValidityAutoCorrectToggleNode) {
+        recommendationValidityAutoCorrectToggleNode.checked = enabled !== false;
+      }
+    }
+
     function ensureRightRoot() {
       if (rightRoot && rightRoot.isConnected) {
         return rightRoot;
@@ -1557,6 +1564,25 @@
       currentToggleRow.appendChild(aiRecommendAutoFillToggleNode);
       currentToggleRow.appendChild(currentToggleText);
       currentSection.appendChild(currentToggleRow);
+
+      const validityToggleRow = document.createElement("label");
+      validityToggleRow.className = "inline-toggle";
+      recommendationValidityAutoCorrectToggleNode = document.createElement("input");
+      recommendationValidityAutoCorrectToggleNode.type = "checkbox";
+      recommendationValidityAutoCorrectToggleNode.checked =
+        deps.recommendationValidityAutoCorrectEnabled !== false;
+      recommendationValidityAutoCorrectToggleNode.addEventListener("change", function () {
+        if (typeof deps.onToggleRecommendationValidityAutoCorrect === "function") {
+          deps.onToggleRecommendationValidityAutoCorrect(
+            recommendationValidityAutoCorrectToggleNode.checked === true
+          );
+        }
+      });
+      const validityToggleText = document.createElement("span");
+      validityToggleText.textContent = "标签与有效性不一致时直接修正";
+      validityToggleRow.appendChild(recommendationValidityAutoCorrectToggleNode);
+      validityToggleRow.appendChild(validityToggleText);
+      currentSection.appendChild(validityToggleRow);
 
       const currentActionsNode = document.createElement("div");
       currentActionsNode.setAttribute(MIDDLE_AI_ACTIONS_ATTR, "");
@@ -1826,6 +1852,7 @@
       renderRecommendation,
       setSegmentPreviewAutoApplyEnabled,
       setAiRecommendAutoFillEnabled,
+      setRecommendationValidityAutoCorrectEnabled,
     };
   }
 

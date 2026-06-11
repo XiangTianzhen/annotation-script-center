@@ -560,6 +560,50 @@ test("CVPC ui panel triggers recommendation auto-fill toggle callback and expose
   }
 });
 
+test("CVPC ui panel triggers recommendation validity auto-correct toggle callback and exposes setter", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  const toggleCalls = [];
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({
+      recommendationValidityAutoCorrectEnabled: true,
+      onToggleRecommendationValidityAutoCorrect: function (enabled) {
+        toggleCalls.push(enabled);
+      },
+    });
+    runtime.mount();
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const toggleRow = findNode(middleNode, function (node) {
+      return (
+        node instanceof FakeNode &&
+        node.tagName === "LABEL" &&
+        collectText(node).indexOf("标签与有效性不一致时直接修正") >= 0
+      );
+    });
+    const checkbox = findNode(toggleRow, function (node) {
+      return node instanceof FakeNode && node.tagName === "INPUT" && node.type === "checkbox";
+    });
+    assert.ok(checkbox);
+    assert.equal(checkbox.checked, true);
+
+    checkbox.checked = false;
+    checkbox.dispatchEvent({ type: "change" });
+    assert.deepEqual(toggleCalls, [false]);
+
+    runtime.setRecommendationValidityAutoCorrectEnabled(true);
+    assert.equal(checkbox.checked, true);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("CVPC ui panel renders a refresh action next to status when requested", function () {
   const uiModule = loadUiPanelModule();
   const harness = createHarness();
