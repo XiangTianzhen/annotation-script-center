@@ -24,6 +24,7 @@
 - AI 日志数据集 ID：`aishell-tech-vietnamese-helper-ai`
 - 运行时日志目录：`platform-resources/aishell-tech/vietnamese-helper/data/runtime/`
 - 当前后端 `/defaults` 读取失败时，options 会回退到本地完整单阶段默认值，不再把越南语页渲染成“只有空字段”的半残状态。
+- 当前前端结果卡与 AI 调用日志都会展示费用估算；单阶段统一按 `识别预估人民币 / 总预估人民币` 口径输出。
 
 ## 安全边界
 

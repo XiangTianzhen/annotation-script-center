@@ -133,6 +133,10 @@ test("Aishell Vietnamese pipeline returns single-stage recognize result", async 
           prompt_tokens: 12,
           completion_tokens: 8,
           total_tokens: 20,
+          prompt_tokens_details: {
+            text_tokens: 2,
+            audio_tokens: 10,
+          },
         },
       };
     },
@@ -166,6 +170,9 @@ test("Aishell Vietnamese pipeline returns single-stage recognize result", async 
   assert.equal(result.meta?.usage?.promptTokens, 12);
   assert.equal(result.meta?.usage?.completionTokens, 8);
   assert.equal(result.meta?.usage?.totalTokens, 20);
+  assert.equal(result.meta?.usage?.raw?.prompt_tokens_details?.audio_tokens, 10);
+  assert.equal(result.meta?.cost?.recognize?.pricingStatus, "estimated");
+  assert.equal(result.meta?.cost?.totalEstimatedCostCny, 0.000291);
   assert.equal(result.meta?.queue?.totalQueueWaitMs, 18);
   assert.deepEqual(result.meta?.queue?.groups, ["aishell_qwen_omni"]);
   assert.equal(result.meta?.retryCount, 1);

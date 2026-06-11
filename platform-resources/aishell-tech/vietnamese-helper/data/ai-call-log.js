@@ -12,6 +12,7 @@ const stageLogSupport = createStageLogSupport({
       key: "recognize",
       label: "识别",
       modelKeys: ["recognizeModel", "singleModel"],
+      useTotalUsage: true,
     },
   ],
 });

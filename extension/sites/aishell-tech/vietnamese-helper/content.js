@@ -306,8 +306,13 @@
         }
         panel.updateCurrentItemKey(item.key);
         const result = await aiClient.recommend(item);
-        panel.renderResult(result);
-        panel.setStatus("当前条识别完成。", "success");
+        const renderMeta = panel.renderResult(result) || {};
+        panel.setStatus(
+          renderMeta.matchesReferenceText === true
+            ? "当前条识别完成，与源文本一致，无需处理。"
+            : "当前条识别完成。",
+          "success"
+        );
       } catch (error) {
         panel.setStatus(error?.message || String(error), "error", error?.rawResponse || null);
       } finally {

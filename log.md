@@ -59,6 +59,36 @@
   - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/page-world/audio-observer.test.js`
   - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
 
+## 2026-06-11（Aishell Tech 越南语助手一致文本跳过填入与费用展示）
+
+- `extension/sites/aishell-tech/vietnamese-helper/ui-panel.js` 当前新增“一致文本跳过填入”逻辑：
+  - 当 `识别文本` 与 `原始文本` 按越南语标点/空格规范化后完全一致时，不再显示 `填入并保存当前条`
+  - 当前结果区改为直接提示 `与源文本一致，无需处理`
+- `extension/sites/aishell-tech/vietnamese-helper/content.js` 当前会按面板回传的 `matchesReferenceText` 状态更新成功提示，不再一律显示普通完成文案
+- 越南语单阶段费用链路当前补齐到“结果卡 + AI 调用记录”：
+  - `platform-resources/aishell-tech/vietnamese-helper/backend/pipeline.js` 当前保留 Omni `raw usage` 明细，并回写 `meta.cost`
+  - `extension/sites/aishell-tech/vietnamese-helper/ai-recommendation.js` 当前把后端 `cost` 透传到前端结果
+  - `extension/sites/aishell-tech/vietnamese-helper/diagnostics.js` 当前新增 `预估人民币`
+  - `platform-resources/aishell-tech/vietnamese-helper/data/ai-call-log.js` 当前把单阶段日志按 `识别预估人民币 / 总预估人民币` 导出
+- 本轮同步更新：
+  - `extension/sites/aishell-tech/vietnamese-helper/content.js`
+  - `extension/sites/aishell-tech/vietnamese-helper/ai-recommendation.js`
+  - `extension/sites/aishell-tech/vietnamese-helper/diagnostics.js`
+  - `extension/sites/aishell-tech/vietnamese-helper/ui-panel.js`
+  - `extension/sites/aishell-tech/vietnamese-helper/diagnostics.test.js`
+  - `extension/sites/aishell-tech/vietnamese-helper/ui-panel.test.js`
+  - `platform-resources/aishell-tech/vietnamese-helper/backend/pipeline.js`
+  - `platform-resources/aishell-tech/vietnamese-helper/backend/ai-service.test.js`
+  - `platform-resources/aishell-tech/vietnamese-helper/data/ai-call-log.js`
+  - `platform-resources/aishell-tech/vietnamese-helper/data/ai-call-log.test.js`
+  - `extension/sites/aishell-tech/vietnamese-helper/README.md`
+  - `platform-resources/aishell-tech/vietnamese-helper/README.md`
+  - `platform-resources/aishell-tech/vietnamese-helper/backend/README.md`
+  - `platform-resources/aishell-tech/vietnamese-helper/data/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+
 ## 2026-06-11（Aishell Tech 越南语助手调用与 options 默认值 hotfix）
 
 - 修复 `platform-resources/aishell-tech/vietnamese-helper/backend/pipeline.js` 对统一 provider queue 返回值的误读：

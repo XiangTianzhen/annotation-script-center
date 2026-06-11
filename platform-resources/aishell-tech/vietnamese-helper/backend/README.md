@@ -37,6 +37,9 @@
   - `data.recommendedText`
   - `data.referenceText`
   - `meta`
+- `meta` 当前会同时返回：
+  - `usage.promptTokens / completionTokens / totalTokens`
+  - `cost.recognize / cost.totalEstimatedCostCny`
 - 失败响应固定：
   - `success=false`
   - `error.code / error.message / error.stage / error.retryable`
@@ -47,6 +50,7 @@
 
 - 当前独立队列组只使用 `aishell_qwen_omni`。
 - 同步 `recommend` 当前会正确解包统一 provider queue 返回的 `{ value, queueMeta }`，识别成功结果不会再被误判为空文本。
+- Omni usage 当前会保留 `raw prompt_tokens_details / completion_tokens_details`，用于单阶段费用估算与 CSV 导出。
 - 默认继续走 `POST /jobs` + 轮询 `GET /jobs/:jobId`。
 - 日志只记录单阶段 `recognize` 的 token、耗时、模型与人民币估算。
 

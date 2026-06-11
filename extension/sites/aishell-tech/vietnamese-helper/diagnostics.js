@@ -118,6 +118,36 @@
     return String(Number(numeric.toFixed(3)));
   }
 
+  function formatEstimatedCostCny(value) {
+    if (value === null || value === undefined || value === "") {
+      return "";
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return "";
+    }
+    return String(numeric.toFixed(6)).replace(/0+$/, "").replace(/\.$/, "") + " 元";
+  }
+
+  function formatEstimatedCostSummary(cost, usage) {
+    const costSource = cost && typeof cost === "object" ? cost : {};
+    const usageSource = usage && typeof usage === "object" ? usage : {};
+    const totalFormatted = formatEstimatedCostCny(costSource.totalEstimatedCostCny);
+    if (totalFormatted) {
+      return totalFormatted;
+    }
+    const stageFormatted = formatEstimatedCostCny(
+      costSource.recognize?.estimatedCostCny ?? usageSource.estimatedCostCny
+    );
+    if (stageFormatted) {
+      return stageFormatted;
+    }
+    if (normalizeText(costSource.recognize?.reason) === "没有数据源") {
+      return "没有数据源";
+    }
+    return normalizeText(costSource.note || costSource.recognize?.reason) || "-";
+  }
+
   function formatQueueWaitSummary(queue) {
     const source = queue && typeof queue === "object" ? queue : {};
     const totalQueueWaitMs = Number(source.totalQueueWaitMs || 0);
@@ -139,6 +169,7 @@
       : {
           models: source.models && typeof source.models === "object" ? source.models : {},
           usage: source.usage && typeof source.usage === "object" ? source.usage : {},
+          cost: source.cost && typeof source.cost === "object" ? source.cost : {},
           timing: source.timing && typeof source.timing === "object" ? source.timing : {},
           queue: {},
           cache: {},
@@ -156,6 +187,7 @@
     const meta = pickDiagnosticsMeta(source);
     const models = meta.models && typeof meta.models === "object" ? meta.models : {};
     const usage = meta.usage && typeof meta.usage === "object" ? meta.usage : {};
+    const cost = meta.cost && typeof meta.cost === "object" ? meta.cost : {};
     const timing = meta.timing && typeof meta.timing === "object" ? meta.timing : {};
     const queue = meta.queue && typeof meta.queue === "object" ? meta.queue : {};
     const cache = meta.cache && typeof meta.cache === "object" ? meta.cache : {};
@@ -166,6 +198,7 @@
       ["AI耗时", formatTimingSummary(timing)],
       ["前端并发", formatConcurrency(debug, sourceOptions.fallbackFrontConcurrency)],
       ["Token", formatTokenSummary(usage)],
+      ["预估人民币", formatEstimatedCostSummary(cost, usage)],
       ["排队等待", formatQueueWaitSummary(queue)],
       ["缓存命中", formatCacheSummary(cache)],
       ["后端模式", normalizeText(debug.clientBackendMode) || "-"],

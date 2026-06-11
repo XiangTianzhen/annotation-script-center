@@ -172,6 +172,7 @@
     let toggleBtnNode = null;
     let recommendTextDisplay = null;
     let fillRecommendBtn = null;
+    let resultHintNode = null;
     let errorJsonNode = null;
     let currentBusyState = {
       single: false,
@@ -236,6 +237,18 @@
       return currentResult;
     }
 
+    function isSameAsReferenceText(result) {
+      const source = result && typeof result === "object" ? result : {};
+      const recommendedText = normalizeCompareText(source.recommendedText);
+      const referenceText = normalizeCompareText(source.referenceText);
+      return Boolean(recommendedText) && Boolean(referenceText) && recommendedText === referenceText;
+    }
+
+    function canFillCurrentResult(result) {
+      const source = result && typeof result === "object" ? result : {};
+      return Boolean(String(source.recommendedText || "")) && !isSameAsReferenceText(source);
+    }
+
     function copyCurrentRecommendedText() {
       const result = requireCurrentResult();
       return copyText(result.recommendedText || "").then(function () {
@@ -246,6 +259,9 @@
 
     function fillCurrentRecommendedText() {
       const result = requireCurrentResult();
+      if (!canFillCurrentResult(result)) {
+        return Promise.reject(new Error("识别文本与源文本一致，无需填入。"));
+      }
       if (typeof deps.fillAndSaveCurrent !== "function") {
         return Promise.reject(new Error("当前运行时没有填入并保存能力。"));
       }
@@ -329,6 +345,13 @@
       });
       recommendContent.appendChild(fillRecommendBtn);
 
+      resultHintNode = document.createElement("div");
+      resultHintNode.className = "asc-result-label";
+      resultHintNode.style.display = "none";
+      resultHintNode.style.color = "#047857";
+      resultHintNode.textContent = "与源文本一致，无需处理。";
+      recommendContent.appendChild(resultHintNode);
+
       recommendRow.appendChild(recommendContent);
       resultsSection.appendChild(recommendRow);
 
@@ -410,6 +433,10 @@
       }
       if (fillRecommendBtn) {
         fillRecommendBtn.disabled = true;
+        fillRecommendBtn.style.display = "";
+      }
+      if (resultHintNode) {
+        resultHintNode.style.display = "none";
       }
     }
 
@@ -478,8 +505,7 @@
         fillRecommendBtn.disabled =
           nextState.single === true ||
           nextState.batch === true ||
-          !currentResult ||
-          !String(currentResult.recommendedText || "");
+          !canFillCurrentResult(currentResult);
       }
     }
 
@@ -650,6 +676,7 @@
 
       const recommendedText = String(source.recommendedText || "");
       const referenceText = String(source.referenceText || "");
+      const matchesReferenceText = isSameAsReferenceText(source);
       if (recommendTextDisplay) {
         recommendTextDisplay.textContent = recommendedText || "暂无识别结果";
         recommendTextDisplay.style.backgroundColor = "#f0fdf4";
@@ -659,7 +686,11 @@
         recommendTextDisplay.style.fontWeight = "700";
       }
       if (fillRecommendBtn) {
-        fillRecommendBtn.disabled = !recommendedText;
+        fillRecommendBtn.disabled = !canFillCurrentResult(source);
+        fillRecommendBtn.style.display = matchesReferenceText ? "none" : "";
+      }
+      if (resultHintNode) {
+        resultHintNode.style.display = matchesReferenceText ? "" : "none";
       }
 
       resultNode = document.createElement("div");
@@ -682,6 +713,9 @@
       }
 
       advancedSectionNode.appendChild(resultNode);
+      return {
+        matchesReferenceText: matchesReferenceText,
+      };
     }
 
     function updateBatch(snapshot) {
@@ -838,6 +872,7 @@
       toggleBtnNode = null;
       recommendTextDisplay = null;
       fillRecommendBtn = null;
+      resultHintNode = null;
       errorJsonNode = null;
     }
 

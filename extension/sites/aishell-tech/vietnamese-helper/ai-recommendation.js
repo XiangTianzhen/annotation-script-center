@@ -164,6 +164,7 @@
       models: source.models || responseMeta.models || {},
       timing: source.timing || responseMeta.timing || {},
       usage: source.usage || responseMeta.usage || {},
+      cost: source.cost || responseMeta.cost || {},
       debug: Object.assign({}, debug, {
         requestId: normalizeText(responseMeta.requestId) || normalizeText(debug.requestId),
         debugId: normalizeText(responseMeta.debugId) || normalizeText(debug.debugId),

@@ -99,6 +99,7 @@ function normalizeUsage(usage) {
     promptTokens,
     completionTokens,
     totalTokens: totalTokens || promptTokens + completionTokens,
+    raw: source,
   };
 }
 
@@ -107,21 +108,22 @@ function buildUsageMeta(model, usage) {
   const cost = estimateProjectCost({
     recognize: {
       modelId: normalizeText(model),
-      usage: {
-        inputTokens: normalizedUsage.promptTokens,
-        outputTokens: normalizedUsage.completionTokens,
-        totalTokens: normalizedUsage.totalTokens,
-      },
+      usage: normalizedUsage,
+      outputMode: "text",
     },
   });
   return {
-    promptTokens: normalizedUsage.promptTokens,
-    completionTokens: normalizedUsage.completionTokens,
-    totalTokens: normalizedUsage.totalTokens,
-    estimatedCostCny:
-      Number.isFinite(Number(cost?.totalEstimatedCostCny)) && Number(cost.totalEstimatedCostCny) > 0
-        ? Number(Number(cost.totalEstimatedCostCny).toFixed(6))
-        : "",
+    usage: {
+      promptTokens: normalizedUsage.promptTokens,
+      completionTokens: normalizedUsage.completionTokens,
+      totalTokens: normalizedUsage.totalTokens,
+      raw: normalizedUsage.raw,
+      estimatedCostCny:
+        Number.isFinite(Number(cost?.totalEstimatedCostCny)) && Number(cost.totalEstimatedCostCny) > 0
+          ? Number(Number(cost.totalEstimatedCostCny).toFixed(6))
+          : "",
+    },
+    cost,
   };
 }
 
@@ -182,7 +184,7 @@ function createRecommendPipeline(overrides) {
         });
       }
 
-      const usage = buildUsageMeta(normalizedRequest.singleModel, recognizeResult.usage);
+      const usageMeta = buildUsageMeta(normalizedRequest.singleModel, recognizeResult.usage);
       return {
         recommendedText,
         referenceText: normalizedRequest.referenceText,
@@ -198,7 +200,8 @@ function createRecommendPipeline(overrides) {
             totalDurationMs: Date.now() - startedAtMs,
             recognizeDurationMs,
           },
-          usage,
+          usage: usageMeta.usage,
+          cost: usageMeta.cost,
           queue: {
             totalQueueWaitMs: queueMeta.queueWaitMs,
             groups: [queueMeta.groupName || "aishell_qwen_omni"],

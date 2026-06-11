@@ -107,6 +107,7 @@
 - 闽南语助手：继续保留独立的 `转换 / 听音 / 比较` 三板块、词表链路和独立后端接口 `/api/aishell-tech/minnan-helper/ai/recommend*`。
 - 越南语助手：新增独立脚本 `aishellTechVietnameseAssistant`，固定按单阶段 Omni 转写运行，接口为 `/api/aishell-tech/vietnamese-helper/ai/recommend*`；不接词表、不做转换/比较双阶段，结果区只展示 `原始文本` 与 `识别文本`。
 - 2026-06-11 hotfix：越南语助手后端当前已修复统一队列结果解包；`recognize` 成功结果不再被误判为空。若 `/defaults` 暂时不可达，options 当前也会回退到本地完整单阶段默认值，并保留真实错误 message / status，不再显示 `[object Object]`。
+- 2026-06-11 补充优化：当 `识别文本` 与 `原始文本` 规范化后完全一致时，前端不再显示 `填入并保存当前条`，改为直接提示“与源文本一致，无需处理”；`当前识别结果` 与 AI 调用日志当前都补齐了人民币估算。
 - 当前 AI 日志状态：
   - `platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`
   - `platform-resources/aishell-tech/vietnamese-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`
