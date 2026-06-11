@@ -711,6 +711,39 @@
             <div id="aishell-tech-status" class="status-text"></div>
           </section>
 
+          <section id="detail-aishell-tech-vietnamese-helper-panel" class="detail-panel detail-panel-base hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>基础设置</strong>
+                <span>控制希尔贝壳批量保存节奏和当前分包处理边界。</span>
+              </div>
+            </div>
+            <div class="field-card">
+              <strong>希尔贝壳越南语助手</strong>
+              <span>当前仅在 `https://mark.aishelltech.com/mytask/mark?...` 生效。</span>
+              <span>当前条支持 AI 识别、复制、填入并保存；批量模式支持并发预取 AI 结果，再按条目标识串行回填并调用平台原生保存接口。</span>
+            </div>
+
+            <div class="field-card">
+              <strong>批量保存策略（固定）</strong>
+              <span>只处理当前分包，从当前选中条开始；可按入口选择“全部AI批量识别”或“未完成的AI批量识别”。</span>
+              <span>AI 请求可并发预取，但页面填入与保存严格串行；每条保存后等待页面切到下一条再继续。</span>
+            </div>
+
+            <div class="field-card">
+              <strong>平台边界</strong>
+              <span>仅在用户点击单条或批量入口后执行保存，不自动提交任务，不跨分包，不触发 `.check-area`。</span>
+              <span>后端地址仍由首页顶部“后端接口地址”统一控制；当前页不单独配置接口地址。</span>
+            </div>
+
+            <div class="field-actions">
+              <button id="save-aishell-tech-vietnamese-settings" class="primary-button" type="button">
+                保存希尔贝壳设置
+              </button>
+            </div>
+            <div id="aishell-tech-vietnamese-status" class="status-text"></div>
+          </section>
+
           <section id="detail-magic-data-annotator-panel" class="detail-panel detail-panel-base hidden">
             <div class="detail-section-head">
               <div>

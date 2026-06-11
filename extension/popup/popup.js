@@ -21,6 +21,8 @@
   const aishellTechHost = (constants.AISHELL_TECH_PLATFORM || {}).host || "mark.aishelltech.com";
   const aishellTechMinnanScriptId =
     constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
+  const aishellTechVietnameseScriptId =
+    constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
   const abakaAiHost = (constants.ABAKA_AI_PLATFORM || {}).host || "abao.fortidyndns.com";
   const abakaAiScriptId =
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
@@ -382,73 +384,75 @@
 
     if (url.hostname === aishellTechHost) {
       const pathname = String(url.pathname || "").toLowerCase();
-      const platformEnabled = settings?.platforms?.aishellTech?.enabled !== false;
-      const scriptConfig = settings?.platforms?.aishellTech?.scripts?.minnanHelper || {};
-      const scriptEnabled = scriptConfig.enabled !== false;
-      const aiRecommendEnabled = scriptConfig.aiRecommendEnabled !== false;
-      const enabled = platformEnabled && scriptEnabled;
-      const aiReady = enabled && aiRecommendEnabled;
+      const aishellState = getAishellTechActiveScriptState(settings);
+      const enabled = aishellState.enabled;
+      const aiReady = aishellState.aiReady;
+      const activeScriptId = aishellState.activeScriptId || aishellTechMinnanScriptId;
+      const activeLabel = aishellState.scriptLabel;
 
       if (pathname === "/mytask/mark") {
         return {
-          scriptId: aishellTechMinnanScriptId,
+          scriptId: activeScriptId,
           platformId: "aishellTech",
           platformLabel: "希尔贝壳",
           url: url,
-          platformEnabled: platformEnabled,
-          scriptEnabled: scriptEnabled,
-          statusText: !enabled ? "未启用" : aiRecommendEnabled ? "已支持" : "AI 推荐已关闭",
-          statusTone: !enabled ? "disabled" : aiRecommendEnabled ? "success" : "pending",
+          platformEnabled: aishellState.platformEnabled,
+          scriptEnabled: enabled,
+          statusText: !enabled ? "未启用" : aiReady ? "已支持" : "AI 推荐已关闭",
+          statusTone: !enabled ? "disabled" : aiReady ? "success" : "pending",
           title: "当前页面命中希尔贝壳数据标注页",
           description: aiReady
-            ? "当前页可使用闽南语助手：支持当前条 AI 推荐、复制、填入，以及当前分包内从当前选中条开始的批量串行保存。"
-            : "当前页已命中希尔贝壳数据标注页，但平台脚本未启用或 AI 推荐面板已关闭。",
+            ? "当前页可使用“" + activeLabel + "”：支持当前条 AI 推荐、复制、填入，以及当前分包内从当前选中条开始的批量串行保存。"
+            : "当前页已命中希尔贝壳数据标注页，但平台脚本未启用、未选择生效脚本，或 AI 推荐面板已关闭。",
         };
       }
 
       if (pathname.indexOf("/mytask/detail/") === 0) {
         return {
-          scriptId: aishellTechMinnanScriptId,
+          scriptId: activeScriptId,
           platformId: "aishellTech",
           platformLabel: "希尔贝壳",
           url: url,
-          platformEnabled: platformEnabled,
-          scriptEnabled: scriptEnabled,
+          platformEnabled: aishellState.platformEnabled,
+          scriptEnabled: enabled,
           statusText: enabled ? "待进入数据标注页" : "未启用",
           statusTone: enabled ? "pending" : "disabled",
           title: "当前页面属于希尔贝壳任务详情页",
           description:
-            "点击分包“查看”进入 /mytask/mark 后，才会触发闽南语助手运行时。",
+            "点击分包“查看”进入 /mytask/mark 后，才会触发“" + activeLabel + "”运行时。",
         };
       }
 
       if (pathname === "/mytask/index") {
         return {
-          scriptId: aishellTechMinnanScriptId,
+          scriptId: activeScriptId,
           platformId: "aishellTech",
           platformLabel: "希尔贝壳",
           url: url,
-          platformEnabled: platformEnabled,
-          scriptEnabled: scriptEnabled,
+          platformEnabled: aishellState.platformEnabled,
+          scriptEnabled: enabled,
           statusText: enabled ? "待进入任务详情/标注页" : "未启用",
           statusTone: enabled ? "pending" : "disabled",
           title: "当前页面属于希尔贝壳我的任务页",
           description:
-            "当前脚本只在任务详情页和数据标注页做路由覆盖，实际业务能力只在 /mytask/mark 生效。",
+            "当前脚本只在任务详情页和数据标注页做路由覆盖，实际业务能力只在 /mytask/mark 生效；当前生效脚本为“" + activeLabel + "”。",
         };
       }
 
       return {
-        scriptId: aishellTechMinnanScriptId,
+        scriptId: activeScriptId,
         platformId: "aishellTech",
         platformLabel: "希尔贝壳",
         url: url,
-        platformEnabled: platformEnabled,
-        scriptEnabled: scriptEnabled,
+        platformEnabled: aishellState.platformEnabled,
+        scriptEnabled: enabled,
         statusText: enabled ? "待进入业务页" : "未启用",
         statusTone: enabled ? "pending" : "disabled",
         title: "当前页面属于希尔贝壳",
-        description: "当前脚本主要围绕 /mytask/mark 工作；其余页面只做路由覆盖与资料复用。",
+        description:
+          "当前脚本主要围绕 /mytask/mark 工作；其余页面只做路由覆盖与资料复用。当前生效脚本为“" +
+          activeLabel +
+          "”。",
       };
     }
 
@@ -571,6 +575,42 @@
     }
 
     return context;
+  }
+
+  function getAishellTechActiveScriptState(settings) {
+    const platformEnabled = settings?.platforms?.aishellTech?.enabled !== false;
+    const activeScriptId = String(settings?.platforms?.aishellTech?.activeScriptId || "").trim();
+    const minnanConfig = settings?.platforms?.aishellTech?.scripts?.minnanHelper || {};
+    const vietnameseConfig = settings?.platforms?.aishellTech?.scripts?.vietnameseHelper || {};
+    const minnanEnabled =
+      minnanConfig.enabled !== false && minnanConfig.aiRecommendEnabled !== false;
+    const vietnameseEnabled =
+      vietnameseConfig.enabled !== false && vietnameseConfig.aiRecommendEnabled !== false;
+    const resolvedScriptId =
+      activeScriptId === aishellTechMinnanScriptId && minnanEnabled
+        ? aishellTechMinnanScriptId
+        : activeScriptId === aishellTechVietnameseScriptId && vietnameseEnabled
+          ? aishellTechVietnameseScriptId
+          : minnanEnabled && !vietnameseEnabled
+            ? aishellTechMinnanScriptId
+            : vietnameseEnabled && !minnanEnabled
+              ? aishellTechVietnameseScriptId
+              : minnanEnabled
+                ? aishellTechMinnanScriptId
+                : "";
+    const activeScript = resolvedScriptId ? scriptLibrary[resolvedScriptId] || {} : {};
+    return {
+      platformEnabled: platformEnabled,
+      activeScriptId: resolvedScriptId,
+      scriptLabel: resolvedScriptId
+        ? String(activeScript.label || activeScript.shortLabel || resolvedScriptId)
+        : "无",
+      enabled: platformEnabled && Boolean(resolvedScriptId),
+      aiReady:
+        platformEnabled &&
+        Boolean(resolvedScriptId) &&
+        (resolvedScriptId === aishellTechVietnameseScriptId ? vietnameseEnabled : minnanEnabled),
+    };
   }
 
   function renderContext(context) {

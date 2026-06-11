@@ -1,3 +1,56 @@
+## 2026-06-11（Aishell Tech 越南语助手正式接入）
+
+- 新增 `Aishell Tech / 越南语助手` 正式版脚本，脚本 ID：`aishellTechVietnameseAssistant`。
+- Aishell 平台当前从“单脚本硬编码”扩成“同平台双脚本互斥”：
+  - 新增 `platforms.aishellTech.activeScriptId`
+  - 新增 `platforms.aishellTech.scripts.vietnameseHelper`
+  - options / popup / storage / manifest / constants 当前都已按双脚本口径接入
+- 前端运行时当前已收口为越南语单阶段 Omni：
+  - 新增 `extension/sites/aishell-tech/vietnamese-helper/`
+  - 只保留 `识别文本` 结果区，不再展示 `转换文本 / 听音文本 / 差异高亮`
+  - 批量入口保留 `全部AI批量识别 / 未完成的AI批量识别 / 停止批量`
+  - 文本规范改为越南语空格与标点规则，不再走中文去空格链路
+- 后端当前新增 `platform-resources/aishell-tech/vietnamese-helper/backend/`：
+  - 接口：`health / defaults / recommend / jobs / jobs/:jobId / jobs/:jobId/debug / logs/summary`
+  - 只接受单阶段 `recognize`
+  - 默认模型 `qwen3.5-omni-flash`
+  - 不接词表，不再保留 `convert / listen / compare`
+- AI 日志与统一后端当前已同步接入：
+  - 新增脚本级日志定义 `platform-resources/aishell-tech/vietnamese-helper/data/ai-call-log.js`
+  - 新增导出数据集 ID：`aishell-tech-vietnamese-helper-ai`
+  - `platform-resources/backend/registry.js` 与 `platform-resources/backend/ai-call-log-download/routes.js` 已注册
+- 文档当前已同步更新：
+  - `extension/sites/aishell-tech/vietnamese-helper/README.md`
+  - `platform-resources/aishell-tech/vietnamese-helper/README.md`
+  - `platform-resources/aishell-tech/vietnamese-helper/backend/README.md`
+  - `platform-resources/aishell-tech/vietnamese-helper/data/README.md`
+  - `platform-resources/aishell-tech/README.md`
+  - `platform-resources/README.md`
+  - `platform-resources/backend/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check extension/shared/constants.js`
+  - `node --check extension/shared/storage.js`
+  - `node --check extension/options/options.js`
+  - `node --check extension/popup/popup.js`
+  - `node --check extension/sites/aishell-tech/vietnamese-helper/data-api.js`
+  - `node --check extension/sites/aishell-tech/vietnamese-helper/ai-recommendation.js`
+  - `node --check extension/sites/aishell-tech/vietnamese-helper/content.js`
+  - `node --check extension/sites/aishell-tech/vietnamese-helper/diagnostics.js`
+  - `node --check extension/sites/aishell-tech/vietnamese-helper/shortcuts.js`
+  - `node --check extension/sites/aishell-tech/vietnamese-helper/ui-panel.js`
+  - `node --check platform-resources/aishell-tech/vietnamese-helper/backend/ai-service.js`
+  - `node --check platform-resources/aishell-tech/vietnamese-helper/backend/ai-routes.js`
+  - `node --check platform-resources/aishell-tech/vietnamese-helper/backend/pipeline.js`
+  - `node --check platform-resources/backend/registry.js`
+  - `node --check platform-resources/backend/ai-call-log-download/routes.js`
+  - `node --test extension/shared/storage.aishell-tech.test.js`
+  - `node --test extension/sites/aishell-tech/vietnamese-helper/data-api.test.js`
+  - `node --test extension/sites/aishell-tech/vietnamese-helper/batch-pipeline.test.js`
+  - `node --test platform-resources/aishell-tech/vietnamese-helper/backend/ai-service.test.js`
+
 ## 2026-06-11（全仓 AI 服务统一 AI 消耗记录与人民币估算）
 
 - 当前把“中文 CSV 表头 + 分阶段 token + 预估人民币 + 统一 `cost` 对象”从 `DataBaker CVPC / 柳州话脚本` 扩展到全仓已接入 AI 服务：

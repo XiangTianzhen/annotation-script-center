@@ -18,7 +18,7 @@
 - Magic Data 双助手（客家话/闽南语）已完成同平台互斥、AI 面板统一（模型方案 + 识别策略）、审核页支持与 options 保存稳定性修复。
 - 客家话助手默认配置已按评测结论落地：`two_stage + direct_dialect + qwen3.5-omni-flash + qwen3.5-flash`，thinking 当前已全局固定关闭。
 - 客家话助手当前改为优先依赖 AI prompt 约束：普通中文必须输出简体，命中客家话词表统一用字时再保留对应写法；不再依赖本地后端结果二次繁转简。
-- Aishell Tech 已完成独立闽南语助手三板块第二轮优化：`/mytask/mark` 当前使用 `转换 / 听音 / 比较` 三个独立 AI 板块；转换改为“规则优先 + 歧义时 AI 兜底”，默认直接按 `minnan-lexicon.csv` 的 `对应华语 -> 建议用字` 做最长匹配替换。默认组合当前为 `转换 qwen3.5-plus + 听音 qwen3.5-omni-flash + Qwen 比较 qwen3.5-plus`；比较切到 Omni 时，仍保持独立的第三段 Omni 比较请求。结果区当前展示 `转换文本`、`听音文本`、`推荐文本`，不再沿用旧“模型方案 + 识别策略”口径。
+- Aishell Tech 当前已进入同平台双脚本互斥正式态：`闽南语助手` 继续保留 `转换 / 听音 / 比较` 三板块；新增 `越南语助手` 改为单阶段 Omni 转写，默认 `qwen3.5-omni-flash`，不接词表、不做转换/比较双阶段。`/mytask/mark` 当前会按 `platforms.aishellTech.activeScriptId` 只启用一个脚本。
 - DataBaker CVPC 已接入 beta 专属 `柳州话脚本`：当前只在 `/app/editor/asr/` 生效，已通过页内观察桥 + 多级回退获取当前音频签名 URL、`GET /httpapi/user/meta` 最小用户快照，以及页面真实 `annotation/*` 请求里的最小鉴权头。助手区当前嵌入右侧 `全局标注` 卡片并收口为连续紧凑信息区，优先插入 `.label_title_border2` 内容流，右侧只保留状态与当前音频摘要。中间 `普通话顺滑` 下方当前改为 `柳州话 AI 识别助手`，固定按 `当前段识别 / 批量识别 / 分段建议 / AI信息` 4 个分区展示；字段区只保留 `修正后的柳州话文本 / 整理后的普通话文本` 两张最终结果卡。`AI信息` 当前默认折叠但始终保留，失败态也不会消失；内部固定顺序展示 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 近音候选参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`，两段 AI 信息当前显示 `模型 / 输入 / 输出 / 预估人民币`，不再展示总 token 汇总或分项单价。当前中间 AI 区已新增 v1 `批量识别并自动填入`，并补上页内开关 `生成后自动应用分段建议`，默认开启；只有用户手动点击 `生成分段建议` 后才会触发自动应用，失败时保留 preview 不自动刷新。批量入口当前默认显示 `全部 + 段号选择框`，默认全选当前音频全部段，支持点击单段与拖动连续选择；前端固定并发 `5`、错峰 `50ms`，允许 AI 结果乱序返回；整批结束后只把成功段一次性构造成文本版 `save_increment` 写回平台，成功后刷新当前页一次。当前段 AI 推荐严格按页面 `.xaudio_time` 的 `开始 / 结束` 裁剪当前选中段音频，浏览器端直接转成 Base64 `audioDataUrl` 后调用现有 staged AI recommend；分段建议当前改成“前端只传 `audioUrl + 阈值 + 前后补偿`，后端 Python 直接整音频分段预览”，默认按“静音 `>=0.4s`、阈值 `-27 dB`、支持切换 `% / Val`、前后补偿默认 `0.2s` 且可调 `0 ~ 1.5s`”生成建议，并通过 `miniaudio` 解码 mp3；点击 `应用分段建议` 时会优先按最新 `annotation/annos` 构造并直写平台 `save_increment`，新增 `crypto.getRandomValues + timestamp` 的 `unique_id` 生成与保存体去重预检；如果本地或平台侧仍出现 `unique_id重复`，当前会保留 preview 并停止 DOM 回退。当前 AI 调用已接入系统管理 `AI 请求记录` 导出，并额外记录 `AI 调用使用人`、平台用户 `data.name / data.user_id` 与作业基础信息。固定边界仍是：不自动提交、不自动切下一条；批量能力也只作用于当前音频 / 当前作业，只有用户主动点击批量入口或 `应用分段建议` 时才会尝试平台保存链路。
 - DataBaker CVPC 柳州话批量 hotfix（2026-06-10）：批量开始按钮当前复用 `当前段 AI 推荐` 同款橙色样式；写回前只校验 live `selectedEntryName`，并在识别当前文件名时避开左侧 `音频列表` 中的 `.mp3` 文本，减少“当前页面分段状态已变化”误报。旧版 Network 里看到的多条相同 `GET /httpapi/annotation/annos` 属于状态读取，不是多次 `save_increment` 保存。
 - DataBaker CVPC 柳州话批量热修补充（2026-06-10）：`批量识别状态` 当前直接显示固定并发 `5`；最终文本写回当前按成功段逐段对齐 latest rows，优先对齐 `uniqueId`，对不上时回退按锁定的 `selectionKey(start/end)` 近似匹配，不再要求 latest `annotation/annos` 全量 `unique_id` 列表与启动快照完全一致；目标段缺少文本 attr 时会复用同音频其他段或模板字段定义补齐后再写回；当当前音频所有段都为空白时，会回退使用脚本已知的文本字段 `unique_id` 兜底写回。
@@ -94,7 +94,7 @@
   - 缺失某个板块时其余板块按顺序前移；只剩 1 个板块时保持左半宽，不撑满整行
   - `快捷键` 板块当前统一复用 options 共享组件；所有脚本都走同一套可录制模板
 - 当前所有脚本的默认快捷键统一为空；只有用户在 options 中显式保存后，运行时才会响应对应键位
-- DataBaker 与 Aishell 两个闽南语助手当前已共用固定顺序的右侧 `AI 设置` 模块；`AI 连续填入并发数量` 统一放在该区域，默认值统一为 `5`。
+- DataBaker 与 Aishell 当前已共用固定顺序的右侧 `AI 设置` 模块；Aishell 平台当前支持 `闽南语助手 / 越南语助手` 双脚本互斥，`AI 连续填入并发数量` 统一放在该区域，默认值统一为 `5`。
 - ASR / AI 相关设置当前默认直接展示，不再保留“连续点击标题 10 次才显示”的旧解锁交互。
 - 系统管理密码当前复用项目数据下载密码环境变量：
   - `ASC_PROJECT_DATA_DOWNLOAD_PASSWORD_SHA256`
@@ -142,7 +142,7 @@
 
 ## 当前重点平台与脚本
 
-- 平台：Alibaba LabelX、标贝易采、DataBaker CVPC（柳州话脚本 beta 已接入，当前音频签名 URL、`user/meta` 最小用户快照和 `annotation/*` 最小鉴权头都通过页内观察桥 + 多级回退获取；右侧已收口为 `全局标注` 内 `.label_title_border2` 的紧凑信息区，中间 `普通话顺滑` 下方当前改为 `柳州话 AI 识别助手`，固定展示 `当前段识别 / 批量识别 / 分段建议 / AI信息` 四块内容；`AI信息` 默认折叠但失败态也保留，阶段信息只显示 `模型 / 输入 / 输出`；当前段 AI 推荐走 Base64 `audioDataUrl` staged 链路，并已接入系统管理 `AI 请求记录` 导出；分段建议当前改成“前端只传 `audioUrl + 阈值`，后端 Python 直接生成整音频建议段”，点击 `应用分段建议` 时优先直写平台 `save_increment`，仅增量补切直写失败时回退页面内 DOM 分段）、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（闽南语助手已接入，当前业务能力仅在 `/mytask/mark` 生效）。
+- 平台：Alibaba LabelX、标贝易采、DataBaker CVPC（柳州话脚本 beta 已接入，当前音频签名 URL、`user/meta` 最小用户快照和 `annotation/*` 最小鉴权头都通过页内观察桥 + 多级回退获取；右侧已收口为 `全局标注` 内 `.label_title_border2` 的紧凑信息区，中间 `普通话顺滑` 下方当前改为 `柳州话 AI 识别助手`，固定展示 `当前段识别 / 批量识别 / 分段建议 / AI信息` 四块内容；`AI信息` 默认折叠但失败态也保留，阶段信息只显示 `模型 / 输入 / 输出`；当前段 AI 推荐走 Base64 `audioDataUrl` staged 链路，并已接入系统管理 `AI 请求记录` 导出；分段建议当前改成“前端只传 `audioUrl + 阈值`，后端 Python 直接生成整音频建议段”，点击 `应用分段建议` 时优先直写平台 `save_increment`，仅增量补切直写失败时回退页面内 DOM 分段）、Magic Data ANNOTATOR、Abaka AI（Task21助手：快捷键、AI 辅助填写、Prompt 规则、列表页统计入口）、Aishell Tech（闽南语助手 + 越南语助手已接入，当前业务能力仅在 `/mytask/mark` 生效）。
 - 当前 CSV 对接字段口径：
   - LabelX 快判/转写：`有效时长(秒)_S` 与人员 `_P` 字段。
   - DataBaker 一检：`有效合格时长_S` 与 `质检人_P` 字段。
@@ -155,7 +155,9 @@
   - `extension/sites/abaka-ai/task-page/`（Task21助手 + 页面结构/Network 脱敏采集）
 - Aishell Tech 当前目录：
   - `extension/sites/aishell-tech/minnan-helper/README.md`
+  - `extension/sites/aishell-tech/vietnamese-helper/README.md`
   - `platform-resources/aishell-tech/minnan-helper/README.md`
+  - `platform-resources/aishell-tech/vietnamese-helper/README.md`
   - `platform-resources/aishell-tech/README.md`
   - `platform-resources/aishell-tech/network/README.md`
   - `platform-resources/aishell-tech/page-structure/README.md`

@@ -20,6 +20,9 @@ const {
 const { aiCallLogger: dataBakerLogger } = require("../../data-baker/round-one-quality/backend/ai-call-log");
 const { aiCallLogger: dataBakerCvpcLiuzhouLogger } = require("../../data-baker-cvpc/liuzhou-helper/backend/ai-call-log");
 const { aiCallLogger: aishellLogger } = require("../../aishell-tech/minnan-helper/data/ai-call-log");
+const {
+  aiCallLogger: aishellVietnameseLogger,
+} = require("../../aishell-tech/vietnamese-helper/data/ai-call-log");
 const { aiCallLogger: magicDataHakkaLogger } = require("../../magic-data/hakka-helper/backend/ai-call-log");
 const { aiCallLogger: magicDataMinnanLogger } = require("../../magic-data/minnan-helper/backend/ai-call-log");
 const { aiCallLogger: asrJudgementLogger } = require("../../alibaba-labelx/asr-judgement/backend/ai-call-log");
@@ -131,6 +134,14 @@ function createDatasetRegistry(config) {
       defaultFileName: "aishell-tech-minnan-helper-ai-calls.csv",
       getLogger: function () {
         return aishellLogger;
+      },
+    },
+    {
+      id: "aishell-tech-vietnamese-helper-ai",
+      label: "Aishell Tech 越南语助手 AI 调用记录",
+      defaultFileName: "aishell-tech-vietnamese-helper-ai-calls.csv",
+      getLogger: function () {
+        return aishellVietnameseLogger;
       },
     },
     {

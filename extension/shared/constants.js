@@ -41,7 +41,7 @@
   const DATABAKER_AI_REQUEST_STAGGER_MS = 50;
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 22;
+  const SCHEMA_VERSION = 23;
   const RELEASE_CHANNEL_PUBLIC = "public";
   const RELEASE_CHANNEL_BETA = "beta";
   const RELEASE_VISIBILITY_PUBLIC = "public";
@@ -62,6 +62,7 @@
   const MAGIC_DATA_MINNAN_SCRIPT_ID = "magicDataMinnanAssistant";
   const ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID = "abakaAiTaskPageCapture";
   const AISHELL_TECH_MINNAN_SCRIPT_ID = "aishellTechMinnanAssistant";
+  const AISHELL_TECH_VIETNAMESE_SCRIPT_ID = "aishellTechVietnameseAssistant";
   const BACKEND_ENDPOINT_MODE_SERVER = "server";
   const BACKEND_ENDPOINT_MODE_LOCAL = "local";
   const BACKEND_ENDPOINT_MODE_BETA = "beta";
@@ -119,6 +120,8 @@
   const TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH =
     "/api/alibaba-labelx/asr-transcription/ai/suggest-current";
   const AISHELL_TECH_AI_RECOMMEND_PATH = "/api/aishell-tech/minnan-helper/ai/recommend";
+  const AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_PATH =
+    "/api/aishell-tech/vietnamese-helper/ai/recommend";
   const TRANSCRIPTION_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
   const TRANSCRIPTION_STATS_DOWNLOAD_PATH =
     "/api/alibaba-labelx/asr-transcription/statistics/download";
@@ -168,6 +171,10 @@
     BACKEND_ENDPOINTS.server + AISHELL_TECH_AI_RECOMMEND_PATH;
   const AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT =
     BACKEND_ENDPOINTS.local + AISHELL_TECH_AI_RECOMMEND_PATH;
+  const AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_SERVER_ENDPOINT =
+    BACKEND_ENDPOINTS.server + AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_PATH;
+  const AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_LOCAL_ENDPOINT =
+    BACKEND_ENDPOINTS.local + AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_PATH;
   const DATABAKER_PAGE_SIZE_OPTIONS = ["5条/页", "10条/页", "20条/页", "50条/页", "100条/页"];
   const DATABAKER_AI_PIPELINE_MODE_OPTIONS = [
     { value: "two_stage", label: "双模型：听音模型 + 比较模型" },
@@ -312,6 +319,13 @@
     { key: "autoFillQualifiedItem", label: "批量识别并保存" },
     { key: "copyAiHeardText", label: "复制 AI 听音文本" },
     { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
+    { key: "fillRecommendedText", label: "填入并保存当前条" },
+    { key: "ignoreAiResult", label: "忽略 AI 结果" },
+  ];
+  const AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS = [
+    { key: "aiRecommendCurrentItem", label: "AI 识别当前条" },
+    { key: "autoFillQualifiedItem", label: "批量识别并保存" },
+    { key: "copyRecommendedText", label: "复制识别文本" },
     { key: "fillRecommendedText", label: "填入并保存当前条" },
     { key: "ignoreAiResult", label: "忽略 AI 结果" },
   ];
@@ -1252,8 +1266,8 @@
       label: "希尔贝壳",
       host: AISHELL_TECH_PLATFORM.host,
       matches: clone(AISHELL_TECH_PLATFORM.matches),
-      runtimeBridge: "aishell-tech-minnan-helper",
-      description: "希尔贝壳标注页闽南语助手平台。",
+      runtimeBridge: "aishell-tech-assistants",
+      description: "希尔贝壳标注页语言助手平台（闽南语/越南语）。",
     },
   };
 
@@ -1381,6 +1395,21 @@
       capabilityScope: "ai-recommend-text-with-real-save",
       statusLabel: "闽南语助手",
       detailView: "aishell-tech-minnan-helper",
+      host: AISHELL_TECH_PLATFORM.host,
+      matchUrl:
+        "https://mark.aishelltech.com/mytask/mark?taskId=...&packageId=...",
+    },
+    aishellTechVietnameseAssistant: {
+      id: AISHELL_TECH_VIETNAMESE_SCRIPT_ID,
+      platformId: AISHELL_TECH_PLATFORM_ID,
+      label: "越南语助手",
+      shortLabel: "越南语助手",
+      description: "希尔贝壳 /mytask/mark 越南语单模型识别与批量串行保存助手。",
+      note:
+        "批量模式只处理当前分包；AI 请求并发预取，页面保存严格串行；不自动提交任务。",
+      capabilityScope: "ai-recommend-text-with-real-save",
+      statusLabel: "越南语助手",
+      detailView: "aishell-tech-vietnamese-helper",
       host: AISHELL_TECH_PLATFORM.host,
       matchUrl:
         "https://mark.aishelltech.com/mytask/mark?taskId=...&packageId=...",
@@ -1774,13 +1803,12 @@
   }
 
   function createDefaultAishellTechPlatformSettings() {
-    const shortcuts = {};
-    AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS.forEach(function (action) {
-      shortcuts[action.key] = null;
-    });
+    const minnanShortcuts = createEmptyShortcutMap(AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS);
+    const vietnameseShortcuts = createEmptyShortcutMap(AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS);
 
     return {
       enabled: true,
+      activeScriptId: AISHELL_TECH_MINNAN_SCRIPT_ID,
       scripts: {
         minnanHelper: {
           id: AISHELL_TECH_MINNAN_SCRIPT_ID,
@@ -1823,7 +1851,27 @@
           aiRecommendCompareStopSequences: "",
           aiRecommendCompareAdoptionThreshold: 0.75,
           aiRecommendEnableThinking: false,
-          shortcuts: shortcuts,
+          shortcuts: minnanShortcuts,
+        },
+        vietnameseHelper: {
+          id: AISHELL_TECH_VIETNAMESE_SCRIPT_ID,
+          enabled: false,
+          aiRecommendEnabled: false,
+          aiRecommendEndpoint: AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_SERVER_ENDPOINT,
+          aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+          aiQualifiedAutofillConcurrency: 5,
+          aiRecommendSingleModel: "qwen3.5-omni-flash",
+          aiRecommendSinglePrompt: "",
+          aiRecommendTemperature: "",
+          aiRecommendTopP: "",
+          aiRecommendMaxTokens: "",
+          aiRecommendMaxCompletionTokens: "",
+          aiRecommendPresencePenalty: "",
+          aiRecommendFrequencyPenalty: "",
+          aiRecommendSeed: "",
+          aiRecommendStopSequences: "",
+          aiRecommendEnableThinking: false,
+          shortcuts: vietnameseShortcuts,
         },
       },
     };
@@ -2086,9 +2134,15 @@
     }
 
     if (script.platformId === AISHELL_TECH_PLATFORM_ID) {
+      const activeScriptId = String(settings?.platforms?.aishellTech?.activeScriptId || "").trim();
+      const scriptKey =
+        scriptId === AISHELL_TECH_VIETNAMESE_SCRIPT_ID ? "vietnameseHelper" : "minnanHelper";
+      const scriptSettings = settings?.platforms?.aishellTech?.scripts?.[scriptKey] || {};
       return Boolean(
         settings?.platforms?.aishellTech?.enabled !== false &&
-          settings?.platforms?.aishellTech?.scripts?.minnanHelper?.enabled !== false
+          scriptSettings.enabled !== false &&
+          scriptSettings.aiRecommendEnabled !== false &&
+          (!activeScriptId || activeScriptId === scriptId)
       );
     }
 
@@ -2122,7 +2176,7 @@
     STAGE_DESCRIPTION:
       "脚本中心统一管理多平台脚本，options 页负责启停与必要配置，运行时功能由各脚本独立维护。",
     CAPABILITY_SCOPE:
-      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏与统计导出、语音判别音频能力、Lightwheel 脚本占位管理、DataBaker 与 Aishell 闽南语助手 AI 推荐文本。",
+      "当前支持多平台脚本中心、LabelX 语音转写轻量工具栏与统计导出、语音判别音频能力、Lightwheel 脚本占位管理、DataBaker 与 Aishell 语言助手 AI 推荐文本。",
     SCHEMA_VERSION: SCHEMA_VERSION,
     RELEASE_CHANNEL_PUBLIC: RELEASE_CHANNEL_PUBLIC,
     RELEASE_CHANNEL_BETA: RELEASE_CHANNEL_BETA,
@@ -2169,6 +2223,7 @@
     MAGIC_DATA_MINNAN_SCRIPT_ID: MAGIC_DATA_MINNAN_SCRIPT_ID,
     ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
     AISHELL_TECH_MINNAN_SCRIPT_ID: AISHELL_TECH_MINNAN_SCRIPT_ID,
+    AISHELL_TECH_VIETNAMESE_SCRIPT_ID: AISHELL_TECH_VIETNAMESE_SCRIPT_ID,
     DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT: DATABAKER_AI_RECOMMEND_SERVER_ENDPOINT,
     DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT: DATABAKER_AI_RECOMMEND_LOCAL_ENDPOINT,
     DATABAKER_AI_RECOMMEND_PATH: DATABAKER_AI_RECOMMEND_PATH,
@@ -2193,6 +2248,7 @@
     JUDGEMENT_AI_SUGGEST_PATH: JUDGEMENT_AI_SUGGEST_PATH,
     TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH: TRANSCRIPTION_AI_SUGGEST_CURRENT_PATH,
     AISHELL_TECH_AI_RECOMMEND_PATH: AISHELL_TECH_AI_RECOMMEND_PATH,
+    AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_PATH: AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_PATH,
     TRANSCRIPTION_STATS_UPLOAD_PATH: TRANSCRIPTION_STATS_UPLOAD_PATH,
     TRANSCRIPTION_STATS_DOWNLOAD_PATH: TRANSCRIPTION_STATS_DOWNLOAD_PATH,
     PROJECT_DATA_DOWNLOAD_OPTIONS_PATH: PROJECT_DATA_DOWNLOAD_OPTIONS_PATH,
@@ -2215,6 +2271,10 @@
       TRANSCRIPTION_AI_SUGGEST_CURRENT_LOCAL_ENDPOINT,
     AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT: AISHELL_TECH_AI_RECOMMEND_SERVER_ENDPOINT,
     AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT: AISHELL_TECH_AI_RECOMMEND_LOCAL_ENDPOINT,
+    AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_SERVER_ENDPOINT:
+      AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_SERVER_ENDPOINT,
+    AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_LOCAL_ENDPOINT:
+      AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_LOCAL_ENDPOINT,
     normalizeBackendEndpointMode: normalizeBackendEndpointMode,
     normalizeBackendBaseUrl: normalizeBackendBaseUrl,
     normalizeReleaseChannel: normalizeReleaseChannel,
@@ -2250,6 +2310,7 @@
       normalizeDataBakerAiQualifiedAutofillConcurrency,
     DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
     AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS: clone(AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS),
+    AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS: clone(AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_SHORTCUT_ACTIONS: clone(ABAKA_AI_TASK21_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_AI_ANALYSIS_MODES: clone(ABAKA_AI_TASK21_AI_ANALYSIS_MODES),
     ABAKA_AI_TASK21_VISION_MODEL_OPTIONS: clone(ABAKA_AI_TASK21_VISION_MODEL_OPTIONS),

@@ -173,6 +173,7 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 - `GET /api/magic-data/hakka-helper/ai/defaults`
 - `GET /api/magic-data/minnan-helper/ai/defaults`
 - `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults`
+- `GET /api/aishell-tech/vietnamese-helper/ai/recommend/defaults`
 
 统一返回字段包含：`success`、`scriptId`、`defaults`、`supportedParams`、`notes`。其中 `response_format` 对前端固定为不开放（`supportedParams.response_format=false`），结构化输出由后端控制。
 
@@ -214,6 +215,7 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 
 - `GET /api/data-baker/round-one-quality/ai/recommend/logs/summary`
 - `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
+- `GET /api/aishell-tech/vietnamese-helper/ai/recommend/logs/summary`
 - `GET /api/magic-data/hakka-helper/ai/review-current/logs/summary`
 - `GET /api/magic-data/annotator/ai/review-current/logs/summary`
 - `GET /api/magic-data/minnan-helper/ai/review-current/logs/summary`
@@ -359,6 +361,7 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 - `magic-data/hakka-helper`：Magic Data 客家话助手 AI 复核接口（保留 `annotator` 兼容路径）。
 - `magic-data/minnan-helper`：Magic Data 闽南语助手 AI 复核接口；支持 `two_stage + fun-asr`、`two_stage + Qwen Omni`、`omni_single + Qwen Omni` 三种链路。
 - `aishell-tech/minnan-helper`：Aishell Tech 闽南语助手 AI 推荐接口；当前条推荐与批量串行真实保存共用同一 recommend 业务入口，默认由 `POST /jobs` + `GET /jobs/:jobId` 承接前端结果链路，并继续保留同步 recommend 路由作为兼容 / 调试入口。
+- `aishell-tech/vietnamese-helper`：Aishell Tech 越南语助手 AI 推荐接口；固定为单阶段 Omni 转写，同样走 `POST /jobs` + `GET /jobs/:jobId`，并保留同步 recommend 路由作为兼容 / 调试入口。
 - `abaka-ai/task21`：Abaka Task21 AI 分析接口，包含 `health/defaults/analyze`；列表页统计入口已在前端显示，但统计后端接口与独立统计 runtime 仍待补齐。
 - `admin/session`：系统管理登录接口，负责签发短期管理员会话 token。
 - `admin/dashboard`：系统管理仪表盘聚合接口，当前负责汇总模型池占用、后端状态、数据导出快捷信息、日志统计概况与最近运行日志。
@@ -390,6 +393,12 @@ Aishell Tech AI 接口：
 - `GET /api/aishell-tech/minnan-helper/ai/recommend/health`
 - `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults`
 - `POST /api/aishell-tech/minnan-helper/ai/recommend`
+- `GET /api/aishell-tech/vietnamese-helper/ai/recommend/health`
+- `GET /api/aishell-tech/vietnamese-helper/ai/recommend/defaults`
+- `POST /api/aishell-tech/vietnamese-helper/ai/recommend`
+- `POST /api/aishell-tech/vietnamese-helper/ai/recommend/jobs`
+- `GET /api/aishell-tech/vietnamese-helper/ai/recommend/jobs/:jobId`
+- `GET /api/aishell-tech/vietnamese-helper/ai/recommend/jobs/:jobId/debug`
 
 DataBaker CVPC AI / 画段接口：
 - `GET /api/data-baker-cvpc/liuzhou-helper/segment/health`
@@ -472,6 +481,7 @@ ASR 转写职责边界：
   - DataBaker CVPC 柳州话 clip-cache 上传：`/api/data-baker-cvpc/liuzhou-helper/clip-cache/upload`
   - DataBaker CVPC 画段建议：`/api/data-baker-cvpc/liuzhou-helper/segment/preview`
   - Aishell Tech AI 推荐：`/api/aishell-tech/minnan-helper/ai/recommend`
+  - Aishell Tech 越南语 AI 推荐：`/api/aishell-tech/vietnamese-helper/ai/recommend`
   - 标贝易采导出上传：`/api/data-baker/round-one-quality/export/upload`
   - 标贝易采导出下载：`/api/data-baker/round-one-quality/export/download`
 
@@ -643,6 +653,7 @@ DataBaker AI 架构补充：
 
 - 2026-05-28 起，已接入 AI 的脚本默认统一走“短请求创建 job + 轮询状态”链路：
   - Aishell Minnan `recommend`
+  - Aishell Vietnamese `recommend`
   - DataBaker round-one-quality `recommend`
   - Magic Data hakka/minnan `review-current`
   - LabelX asr-judgement `suggest`

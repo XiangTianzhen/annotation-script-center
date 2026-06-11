@@ -104,15 +104,17 @@
 ### Aishell Tech
 
 - 目录：`platform-resources/aishell-tech/`
-- 当前阶段：独立闽南语助手已接入运行时代码与专属后端；平台公共资料和脚本资料继续并行维护。
+- 当前阶段：闽南语助手与越南语助手都已接入运行时代码与专属后端；平台公共资料和脚本资料继续并行维护。
 - 平台资料：
   - `README.md`
   - `network/README.md`
   - `page-structure/README.md`
 - 脚本级 AI 日志：
   - `platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`
+  - `platform-resources/aishell-tech/vietnamese-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`
 - 统计接口：
   - `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
+  - `GET /api/aishell-tech/vietnamese-helper/ai/recommend/logs/summary`
 
 ### DataBaker CVPC
 
@@ -134,13 +136,14 @@
 
 - AI 框架设计：`docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`
 - AI 框架迁移计划：`docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`
-- Aishell Tech 当前已进入独立闽南语助手运行态，但仍保持与其余平台不同的脚本级日志目录：`data/runtime/`。
+- Aishell Tech 当前已进入双脚本运行态，但仍保持与其余平台不同的脚本级日志目录：`data/runtime/`。
 
 ## 当前 AI 调用日志覆盖范围
 
 - DataBaker：`/api/data-baker/round-one-quality/ai/recommend/logs/summary`
 - DataBaker CVPC：`/api/data-baker-cvpc/liuzhou-helper/ai/recommend/logs/summary`
-- Aishell Tech：`/api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
+- Aishell Tech 闽南语：`/api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
+- Aishell Tech 越南语：`/api/aishell-tech/vietnamese-helper/ai/recommend/logs/summary`
 - Magic Data 客家话：`/api/magic-data/hakka-helper/ai/review-current/logs/summary`
 - Magic Data 客家话 legacy：`/api/magic-data/annotator/ai/review-current/logs/summary`
 - Magic Data 闽南语：`/api/magic-data/minnan-helper/ai/review-current/logs/summary`

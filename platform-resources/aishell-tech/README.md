@@ -39,10 +39,12 @@
 
 ## 当前阶段
 
-**独立脚本已接入**（2026-05-28）。已完成：
+**独立脚本已接入**。当前已完成：
 
-- `extension/sites/aishell-tech/minnan-helper/` 运行时代码。
-- `platform-resources/aishell-tech/minnan-helper/backend/` 独立 AI recommend 路由。
+- `extension/sites/aishell-tech/minnan-helper/` 闽南语助手运行时代码。
+- `extension/sites/aishell-tech/vietnamese-helper/` 越南语助手运行时代码。
+- `platform-resources/aishell-tech/minnan-helper/backend/` 闽南语助手独立 AI recommend 路由。
+- `platform-resources/aishell-tech/vietnamese-helper/backend/` 越南语助手独立 AI recommend 路由。
 - `/mytask/index`、`/mytask/detail/:taskId`、`/mytask/mark` 的路由覆盖与资料复用。
 
 当前业务能力只在 `/mytask/mark` 生效；`我的团队` 页面仍只有 network 与 page-structure 初版占位，质检/验收角色视图与多个对话框仍待补采。
@@ -67,23 +69,32 @@
 
 ### 当前专属后端
 
-当前已接入独立后端接口：
+当前已接入两套独立后端接口：
 
-- `GET /api/aishell-tech/minnan-helper/ai/recommend/health`
-- `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults`
-- `POST /api/aishell-tech/minnan-helper/ai/recommend`
-- `POST /api/aishell-tech/minnan-helper/ai/recommend/jobs`
-- `GET /api/aishell-tech/minnan-helper/ai/recommend/jobs/:jobId`
-- `GET /api/aishell-tech/minnan-helper/ai/recommend/jobs/:jobId/debug`
+- 闽南语助手：
+  - `GET /api/aishell-tech/minnan-helper/ai/recommend/health`
+  - `GET /api/aishell-tech/minnan-helper/ai/recommend/defaults`
+  - `POST /api/aishell-tech/minnan-helper/ai/recommend`
+  - `POST /api/aishell-tech/minnan-helper/ai/recommend/jobs`
+  - `GET /api/aishell-tech/minnan-helper/ai/recommend/jobs/:jobId`
+  - `GET /api/aishell-tech/minnan-helper/ai/recommend/jobs/:jobId/debug`
+- 越南语助手：
+  - `GET /api/aishell-tech/vietnamese-helper/ai/recommend/health`
+  - `GET /api/aishell-tech/vietnamese-helper/ai/recommend/defaults`
+  - `POST /api/aishell-tech/vietnamese-helper/ai/recommend`
+  - `POST /api/aishell-tech/vietnamese-helper/ai/recommend/jobs`
+  - `GET /api/aishell-tech/vietnamese-helper/ai/recommend/jobs/:jobId`
+  - `GET /api/aishell-tech/vietnamese-helper/ai/recommend/jobs/:jobId/debug`
 
 实现边界：
 
-- Aishell 保持独立路由、独立脚本 ID、独立词表目录。
-- Prompt、模型白名单与默认模型仍参考现有 DataBaker 口径；其中闽南语转换词表当前与 DataBaker 同步使用同一份内容，但继续保留 Aishell 自己的副本路径，后续如有平台差异再独立调整；三板块默认模型与比较方式仍由 Aishell 自己维护。
-- 转换阶段当前改为“规则优先 + 歧义时 AI 兜底”：运行时主读 `minnan-lexicon.json`，参考源 `minnan-lexicon.csv` 仅保留给人工整理和外部 AI 处理；默认仍按 `对应华语 -> 建议用字` 做最长匹配替换，只有命中多候选或切分冲突时才调用转换模型。
-- Aishell 的 Omni 音频调用已拆到 `platform-resources/aishell-tech/minnan-helper/backend/dashscope-omni-client.js`，直接按 DashScope compatible-mode 请求体构造并固定 `enable_thinking=false`。
+- Aishell 保持独立路由、独立脚本 ID；当前平台侧已从“单脚本硬编码”扩成“同平台双脚本互斥”，由 `platforms.aishellTech.activeScriptId` 控制生效脚本。
+- 闽南语助手继续保留自己的三阶段链路与词表资料目录。
+- 越南语助手固定为“单阶段 Omni 直接转写”，不接词表、不做转换/比较双阶段。
+- Aishell 的 Omni 音频调用继续复用各脚本各自的 `dashscope-omni-client.js`，统一固定 `enable_thinking=false`。
 - 底层只复用公共 provider HTTP 工具，不再复用 DataBaker recommend orchestration。
-- 当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
+- 闽南语助手当前独立队列组固定为 `aishell_qwen_omni / aishell_fun_asr / aishell_text_compare`。
+- 越南语助手当前只使用 `aishell_qwen_omni`。
 - 当前环境变量默认优先读取 `AISHELL_AI_*`；第一阶段仍允许只读回退旧的 `DATABAKER_AI_*`。
 - 当前默认链路为 `POST /jobs` + 轮询 `GET /jobs/:jobId`；同步 `POST /recommend` 只保留兼容 / 调试用途，不引入 SSE 或 WebSocket；当前同步总超时统一为 `60000ms`。
 - 当前仓库所有 AI 链路都已统一固定关闭 thinking；Aishell 不再开放 thinking 作为有效配置项。
@@ -92,9 +103,10 @@
 ### 当前运行时能力
 
 - 仅在 `https://mark.aishelltech.com/mytask/mark?...` 注入业务面板。
-- 当前 AI 配置固定为独立的 `转换 / 听音 / 比较` 三板块；`Qwen` 比较继续走文本汇总，`Omni` 比较固定作为独立的第三段音频比较请求。
-- 当前条支持 AI 推荐、复制听音文本、复制推荐文本、填入当前条。
-- 批量模式只处理当前分包，从当前选中条开始，跳过已完成条目。
+- 闽南语助手当前 AI 配置固定为独立的 `转换 / 听音 / 比较` 三板块。
+- 越南语助手当前 AI 配置固定为单阶段 Omni；结果区只展示 `原始文本` 与 `识别文本`。
+- 当前条支持 AI 识别、复制识别文本、填入当前条；越南语助手不再暴露听音文本复制与差异高亮。
+- 批量模式保留 `全部AI批量识别` 与 `未完成的AI批量识别` 两种入口。
 - AI 请求按前端并发预取；页面填入与保存严格串行，每条都点击页面真实“保存”按钮并等待选中项切换后再继续。
 
 ### 当前不阻塞首阶段、但后续要补的资料

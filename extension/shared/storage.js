@@ -1325,6 +1325,30 @@
     return fallbackEndpoint;
   }
 
+  function normalizeAishellTechVietnameseAiEndpoint(value, fallback) {
+    const constants = getConstants();
+    const serverEndpoint =
+      constants.AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_SERVER_ENDPOINT ||
+      "https://script.xiangtianzhen.store/api/aishell-tech/vietnamese-helper/ai/recommend";
+    const localEndpoint =
+      constants.AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_LOCAL_ENDPOINT ||
+      "http://127.0.0.1:3333/api/aishell-tech/vietnamese-helper/ai/recommend";
+    const fallbackEndpoint =
+      normalizeDataBakerAiEndpointUrl(fallback) === normalizeDataBakerAiEndpointUrl(localEndpoint)
+        ? localEndpoint
+        : serverEndpoint;
+    const normalized = normalizeDataBakerAiEndpointUrl(value);
+
+    if (normalized && normalized === normalizeDataBakerAiEndpointUrl(localEndpoint)) {
+      return localEndpoint;
+    }
+    if (normalized && normalized === normalizeDataBakerAiEndpointUrl(serverEndpoint)) {
+      return serverEndpoint;
+    }
+
+    return fallbackEndpoint;
+  }
+
   function normalizeDataBakerAiEndpointUrl(value) {
     try {
       const url = new URL(String(value || "").trim());
@@ -2114,6 +2138,125 @@
     return result;
   }
 
+  function normalizeAishellTechVietnameseConfig(config, defaults) {
+    const source = isPlainObject(config) ? config : {};
+    const defaultConfig = isPlainObject(defaults) ? defaults : {};
+    const result = deepMerge(defaultConfig, source);
+    const constants = getConstants();
+
+    result.id =
+      constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID ||
+      result.id ||
+      "aishellTechVietnameseAssistant";
+    result.enabled = result.enabled === true;
+    result.aiRecommendEnabled = result.aiRecommendEnabled === true;
+    result.aiRecommendEndpoint = normalizeAishellTechVietnameseAiEndpoint(
+      result.aiRecommendEndpoint,
+      defaultConfig.aiRecommendEndpoint ||
+        constants.AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_SERVER_ENDPOINT ||
+        "https://script.xiangtianzhen.store/api/aishell-tech/vietnamese-helper/ai/recommend"
+    );
+    result.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeout(
+      result.aiRecommendRequestTimeoutMs,
+      defaultConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
+    );
+    result.aiRecommendSingleModel = normalizeDataBakerOmniModel(
+      result.aiRecommendSingleModel,
+      defaultConfig.aiRecommendSingleModel || "qwen3.5-omni-flash",
+      constants
+    );
+    result.aiRecommendSinglePrompt = normalizeJudgementAiPrompt(
+      result.aiRecommendSinglePrompt
+    );
+    result.aiQualifiedAutofillConcurrency = normalizeDataBakerConcurrency(
+      result.aiQualifiedAutofillConcurrency,
+      defaultConfig.aiQualifiedAutofillConcurrency || 5,
+      {
+        aiRecommendPipelineMode: "omni_single",
+        aiRecommendSingleModel: result.aiRecommendSingleModel,
+      },
+      constants
+    );
+    result.aiRecommendEnableThinking = false;
+    normalizeAishellTechStageParams(result, "aiRecommend");
+    result.shortcuts = normalizeAishellTechVietnameseShortcuts(
+      result.shortcuts,
+      defaultConfig.shortcuts || {}
+    );
+
+    delete result.aiRecommendPipelineMode;
+    delete result.aiRecommendRecognitionStrategy;
+    delete result.aiRecommendCandidateModel;
+    delete result.aiRecommendCandidatePrompt;
+    delete result.aiRecommendComparePrompt;
+    delete result.aiRecommendAudioFirstReferenceCorrectionThreshold;
+    delete result.aiRecommendConvertModel;
+    delete result.aiRecommendConvertPrompt;
+    delete result.aiRecommendConvertTemperature;
+    delete result.aiRecommendConvertTopP;
+    delete result.aiRecommendConvertMaxTokens;
+    delete result.aiRecommendConvertMaxCompletionTokens;
+    delete result.aiRecommendConvertPresencePenalty;
+    delete result.aiRecommendConvertFrequencyPenalty;
+    delete result.aiRecommendConvertSeed;
+    delete result.aiRecommendConvertStopSequences;
+    delete result.aiRecommendListenModel;
+    delete result.aiRecommendListenPrompt;
+    delete result.aiRecommendListenTemperature;
+    delete result.aiRecommendListenTopP;
+    delete result.aiRecommendListenMaxTokens;
+    delete result.aiRecommendListenMaxCompletionTokens;
+    delete result.aiRecommendListenPresencePenalty;
+    delete result.aiRecommendListenFrequencyPenalty;
+    delete result.aiRecommendListenSeed;
+    delete result.aiRecommendListenStopSequences;
+    delete result.aiRecommendCompareFamily;
+    delete result.aiRecommendCompareModel;
+    delete result.aiRecommendCompareQwenPrompt;
+    delete result.aiRecommendCompareOmniPrompt;
+    delete result.aiRecommendCompareTemperature;
+    delete result.aiRecommendCompareTopP;
+    delete result.aiRecommendCompareMaxTokens;
+    delete result.aiRecommendCompareMaxCompletionTokens;
+    delete result.aiRecommendComparePresencePenalty;
+    delete result.aiRecommendCompareFrequencyPenalty;
+    delete result.aiRecommendCompareSeed;
+    delete result.aiRecommendCompareStopSequences;
+    delete result.aiRecommendCompareAdoptionThreshold;
+    delete result.recognitionStrategy;
+    delete result.recognitionMode;
+    delete result.pipelineMode;
+    delete result.candidateModel;
+    delete result.compareModel;
+
+    return result;
+  }
+
+  function normalizeAishellTechVietnameseShortcuts(value, fallback) {
+    const constants = getConstants();
+    const actions = Array.isArray(constants.AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS)
+      ? constants.AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS
+      : [
+          { key: "aiRecommendCurrentItem" },
+          { key: "autoFillQualifiedItem" },
+          { key: "copyRecommendedText" },
+          { key: "fillRecommendedText" },
+          { key: "ignoreAiResult" },
+        ];
+    const source = isPlainObject(value) ? value : {};
+    const fallbackSource = isPlainObject(fallback) ? fallback : {};
+    const result = {};
+
+    actions.forEach(function (action) {
+      const key = action.key;
+      result[key] = hasOwn(source, key)
+        ? normalizeNullableShortcut(source[key], fallbackSource[key] || null)
+        : normalizeNullableShortcut(fallbackSource[key] || null, null);
+    });
+
+    return result;
+  }
+
   function normalizeDataBakerCvpcLiuzhouConfig(config, defaults, rawConfig) {
     const source = isPlainObject(config) ? config : {};
     const rawSource = isPlainObject(rawConfig) ? rawConfig : source;
@@ -2365,9 +2508,13 @@
     const rawMinnanHelperConfig = isPlainObject(rawPlatform.scripts?.minnanHelper)
       ? rawPlatform.scripts.minnanHelper
       : {};
+    const rawVietnameseHelperConfig = isPlainObject(rawPlatform.scripts?.vietnameseHelper)
+      ? rawPlatform.scripts.vietnameseHelper
+      : {};
     const defaultPlatform =
       defaults?.platforms?.aishellTech || constants.DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS || {
         enabled: true,
+        activeScriptId: constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant",
         scripts: {
           minnanHelper: {
             id: constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant",
@@ -2421,8 +2568,40 @@
               ignoreAiResult: null,
             },
           },
+          vietnameseHelper: {
+            id:
+              constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant",
+            enabled: false,
+            aiRecommendEnabled: false,
+            aiRecommendEndpoint:
+              constants.AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_SERVER_ENDPOINT ||
+              "https://script.xiangtianzhen.store/api/aishell-tech/vietnamese-helper/ai/recommend",
+            aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+            aiQualifiedAutofillConcurrency: 5,
+            aiRecommendSingleModel: "qwen3.5-omni-flash",
+            aiRecommendSinglePrompt: "",
+            aiRecommendTemperature: "",
+            aiRecommendTopP: "",
+            aiRecommendMaxTokens: "",
+            aiRecommendMaxCompletionTokens: "",
+            aiRecommendPresencePenalty: "",
+            aiRecommendFrequencyPenalty: "",
+            aiRecommendSeed: "",
+            aiRecommendStopSequences: "",
+            aiRecommendEnableThinking: false,
+            shortcuts: {
+              aiRecommendCurrentItem: null,
+              autoFillQualifiedItem: null,
+              copyRecommendedText: null,
+              fillRecommendedText: null,
+              ignoreAiResult: null,
+            },
+          },
         },
       };
+    const minnanId = constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
+    const vietnameseId =
+      constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
 
     if (!isPlainObject(settings.platforms)) {
       settings.platforms = {};
@@ -2444,8 +2623,73 @@
         defaultPlatform.scripts?.minnanHelper || {},
         rawMinnanHelperConfig
       );
+    settings.platforms.aishellTech.scripts.vietnameseHelper =
+      normalizeAishellTechVietnameseConfig(
+        settings.platforms.aishellTech.scripts.vietnameseHelper,
+        defaultPlatform.scripts?.vietnameseHelper || {},
+        rawVietnameseHelperConfig
+      );
+
+    let minnanEnabled =
+      settings.platforms.aishellTech.scripts.minnanHelper.enabled !== false &&
+      settings.platforms.aishellTech.scripts.minnanHelper.aiRecommendEnabled !== false;
+    let vietnameseEnabled =
+      settings.platforms.aishellTech.scripts.vietnameseHelper.enabled !== false &&
+      settings.platforms.aishellTech.scripts.vietnameseHelper.aiRecommendEnabled !== false;
+    let activeScriptId = normalizeAishellTechActiveScriptId(
+      settings.platforms.aishellTech.activeScriptId
+    );
+
+    if (activeScriptId === minnanId && !minnanEnabled) {
+      activeScriptId = "";
+    } else if (activeScriptId === vietnameseId && !vietnameseEnabled) {
+      activeScriptId = "";
+    }
+
+    if (!activeScriptId) {
+      if (minnanEnabled && !vietnameseEnabled) {
+        activeScriptId = minnanId;
+      } else if (!minnanEnabled && vietnameseEnabled) {
+        activeScriptId = vietnameseId;
+      } else if (minnanEnabled && vietnameseEnabled) {
+        activeScriptId = normalizeAishellTechActiveScriptId(defaultPlatform.activeScriptId);
+        if (!activeScriptId) {
+          activeScriptId = minnanId;
+        }
+      }
+    }
+
+    if (activeScriptId === minnanId) {
+      minnanEnabled = true;
+      vietnameseEnabled = false;
+    } else if (activeScriptId === vietnameseId) {
+      minnanEnabled = false;
+      vietnameseEnabled = true;
+    } else if (minnanEnabled && vietnameseEnabled) {
+      activeScriptId = minnanId;
+      minnanEnabled = true;
+      vietnameseEnabled = false;
+    }
+
+    settings.platforms.aishellTech.scripts.minnanHelper.enabled = minnanEnabled;
+    settings.platforms.aishellTech.scripts.minnanHelper.aiRecommendEnabled = minnanEnabled;
+    settings.platforms.aishellTech.scripts.vietnameseHelper.enabled = vietnameseEnabled;
+    settings.platforms.aishellTech.scripts.vietnameseHelper.aiRecommendEnabled = vietnameseEnabled;
+    settings.platforms.aishellTech.activeScriptId = activeScriptId || "";
 
     return settings.platforms.aishellTech;
+  }
+
+  function normalizeAishellTechActiveScriptId(value) {
+    const constants = getConstants();
+    const minnanId = constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
+    const vietnameseId =
+      constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
+    const text = String(value || "").trim();
+    if (text === minnanId || text === vietnameseId) {
+      return text;
+    }
+    return "";
   }
 
   function normalizeMagicDataActiveScriptId(value) {
@@ -3460,7 +3704,8 @@
       settings?.platforms?.alibabaLabelx?.scriptCenter?.projects?.[judgementProjectId]?.asrConfig;
     const dataBakerScript = settings?.platforms?.dataBaker?.scripts?.roundOneQuality;
     const cvpcScript = settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant;
-    const aishellScript = settings?.platforms?.aishellTech?.scripts?.minnanHelper;
+    const aishellMinnanScript = settings?.platforms?.aishellTech?.scripts?.minnanHelper;
+    const aishellVietnameseScript = settings?.platforms?.aishellTech?.scripts?.vietnameseHelper;
 
     if (transcriptionConfig && typeof transcriptionConfig === "object") {
       transcriptionConfig.statsUploadEndpoint = buildBackendUrlFromSettingsLocal(
@@ -3517,10 +3762,17 @@
         settings
       );
     }
-    if (aishellScript && typeof aishellScript === "object") {
-      aishellScript.aiRecommendEndpoint = buildBackendUrlFromSettingsLocal(
+    if (aishellMinnanScript && typeof aishellMinnanScript === "object") {
+      aishellMinnanScript.aiRecommendEndpoint = buildBackendUrlFromSettingsLocal(
         constants.AISHELL_TECH_AI_RECOMMEND_PATH ||
           "/api/aishell-tech/minnan-helper/ai/recommend",
+        settings
+      );
+    }
+    if (aishellVietnameseScript && typeof aishellVietnameseScript === "object") {
+      aishellVietnameseScript.aiRecommendEndpoint = buildBackendUrlFromSettingsLocal(
+        constants.AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_PATH ||
+          "/api/aishell-tech/vietnamese-helper/ai/recommend",
         settings
       );
     }
@@ -3889,19 +4141,49 @@
       });
     }
 
-    if (scriptId === constants.AISHELL_TECH_MINNAN_SCRIPT_ID) {
+    if (
+      scriptId === constants.AISHELL_TECH_MINNAN_SCRIPT_ID ||
+      scriptId === constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID
+    ) {
+      const minnanId = constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
+      const vietnameseId =
+        constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
+      const isVietnamese = scriptId === vietnameseId;
+      const scriptPatch = nextEnabled
+        ? {
+            minnanHelper: {
+              id: minnanId,
+              enabled: !isVietnamese,
+              aiRecommendEnabled: !isVietnamese,
+            },
+            vietnameseHelper: {
+              id: vietnameseId,
+              enabled: isVietnamese,
+              aiRecommendEnabled: isVietnamese,
+            },
+          }
+        : isVietnamese
+          ? {
+              vietnameseHelper: {
+                id: vietnameseId,
+                enabled: false,
+                aiRecommendEnabled: false,
+              },
+            }
+          : {
+              minnanHelper: {
+                id: minnanId,
+                enabled: false,
+                aiRecommendEnabled: false,
+              },
+            };
+
       return patchSettings({
         platforms: {
           aishellTech: {
-            enabled: nextEnabled,
-            scripts: {
-              minnanHelper: {
-                id:
-                  constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant",
-                enabled: nextEnabled,
-                aiRecommendEnabled: nextEnabled,
-              },
-            },
+            enabled: true,
+            activeScriptId: nextEnabled ? scriptId : "",
+            scripts: scriptPatch,
           },
         },
       });

@@ -18,6 +18,8 @@
     constants.MAGIC_DATA_MINNAN_SCRIPT_ID || "magicDataMinnanAssistant";
   const aishellTechMinnanScriptId =
     constants.AISHELL_TECH_MINNAN_SCRIPT_ID || "aishellTechMinnanAssistant";
+  const aishellTechVietnameseScriptId =
+    constants.AISHELL_TECH_VIETNAMESE_SCRIPT_ID || "aishellTechVietnameseAssistant";
   const abakaAiTaskPageCaptureScriptId =
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
   const backendModeServer = constants.BACKEND_ENDPOINT_MODE_SERVER || "server";
@@ -464,7 +466,7 @@
     { key: "taskPartialReject", label: "任务判定：部分驳回" },
     { key: "taskFullReject", label: "任务判定：全部驳回" },
   ];
-  const aishellTechShortcutActions = constants.AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS || [
+  const aishellTechMinnanShortcutActions = constants.AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS || [
     { key: "aiRecommendCurrentItem", label: "AI 推荐当前条" },
     { key: "autoFillQualifiedItem", label: "批量识别并保存" },
     { key: "copyAiHeardText", label: "复制 AI 听音文本" },
@@ -472,6 +474,14 @@
     { key: "fillRecommendedText", label: "填入并保存当前条" },
     { key: "ignoreAiResult", label: "忽略 AI 结果" },
   ];
+  const aishellTechVietnameseShortcutActions =
+    constants.AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS || [
+      { key: "aiRecommendCurrentItem", label: "AI 识别当前条" },
+      { key: "autoFillQualifiedItem", label: "批量识别并保存" },
+      { key: "copyRecommendedText", label: "复制识别文本" },
+      { key: "fillRecommendedText", label: "填入并保存当前条" },
+      { key: "ignoreAiResult", label: "忽略 AI 结果" },
+    ];
   const dataBakerCvpcShortcutActions = [
     { key: "valid", label: "当前段设为 Valid" },
     { key: "invalid", label: "当前段设为 Invalid" },
@@ -869,6 +879,7 @@
     magicDataAnnotatorAiReview: "/api/magic-data/hakka-helper/ai/defaults",
     magicDataMinnanAssistant: "/api/magic-data/minnan-helper/ai/defaults",
     aishellTechMinnanAssistant: "/api/aishell-tech/minnan-helper/ai/recommend/defaults",
+    aishellTechVietnameseAssistant: "/api/aishell-tech/vietnamese-helper/ai/recommend/defaults",
   };
   let projectDataDownloadDatasets = [];
   let aiCallLogDownloadDatasets = [];
@@ -2981,8 +2992,12 @@
 
   function updateAishellTechAutofillConcurrencyField(configLike, options) {
     const config = configLike && typeof configLike === "object" ? configLike : {};
+    const targetScriptId =
+      String(options?.scriptId || "").trim() === aishellTechVietnameseScriptId
+        ? aishellTechVietnameseScriptId
+        : aishellTechMinnanScriptId;
     updateSharedAsrAutofillConcurrencyField(
-      aishellTechMinnanScriptId,
+      targetScriptId,
       Object.assign({}, config, getAishellTechConcurrencyModelConfig(config)),
       options
     );
@@ -3951,7 +3966,7 @@
   }
 
   function isExclusivePlatform(platformId) {
-    return platformId === "magicData";
+    return platformId === "magicData" || platformId === "aishellTech";
   }
 
   function isAbakaAiScript(scriptId) {
@@ -3959,7 +3974,14 @@
   }
 
   function isAishellTechScript(scriptId) {
-    return scriptId === aishellTechMinnanScriptId;
+    return (
+      scriptId === aishellTechMinnanScriptId ||
+      scriptId === aishellTechVietnameseScriptId
+    );
+  }
+
+  function isAishellTechVietnameseScript(scriptId) {
+    return scriptId === aishellTechVietnameseScriptId;
   }
 
   function supportsAsrVoiceAiSettings(scriptId) {
@@ -3990,7 +4012,9 @@
       return "magic-data-status";
     }
     if (isAishellTechScript(scriptId)) {
-      return "aishell-tech-status";
+      return isAishellTechVietnameseScript(scriptId)
+        ? "aishell-tech-vietnamese-status"
+        : "aishell-tech-status";
     }
     return "detail-status";
   }
@@ -4053,6 +4077,9 @@
     }
     if (scriptId === aishellTechMinnanScriptId) {
       return asrVoiceAiDefaultsPaths.aishellTechMinnanAssistant;
+    }
+    if (scriptId === aishellTechVietnameseScriptId) {
+      return asrVoiceAiDefaultsPaths.aishellTechVietnameseAssistant;
     }
     return "";
   }
@@ -4123,6 +4150,26 @@
         scriptId === magicDataAnnotatorScriptId ? "qwen3.5-flash" : "qwen3.5-plus";
       baseDefaults.reviewModel = defaultCompareModel;
       baseDefaults.compareModel = defaultCompareModel;
+    }
+    if (scriptId === aishellTechVietnameseScriptId) {
+      baseDefaults.pipelineMode = "omni_single";
+      baseDefaults.singlePrompt = "";
+      baseDefaults.stages = {
+        recognize: {
+          model: "qwen3.5-omni-flash",
+          modelOptions: clone(dataBakerSingleModelOptions),
+          prompt: "",
+          temperature: 0.1,
+          top_p: 0.8,
+          max_tokens: 1200,
+          max_completion_tokens: "",
+          presence_penalty: 0,
+          frequency_penalty: 0,
+          seed: "",
+          stop: "",
+        },
+      };
+      return baseDefaults;
     }
     if (isAishellTechScript(scriptId)) {
       baseDefaults.compareFamily = "qwen";
@@ -4222,7 +4269,14 @@
     const normalizedDefaults = Object.assign({}, fallback.defaults, defaults, {
       enableThinking: false,
     });
-    if (isAishellTechScript(scriptId)) {
+    if (isAishellTechVietnameseScript(scriptId)) {
+      normalizedDefaults.stages = Object.assign({}, fallback.defaults.stages || {}, defaults.stages || {});
+      normalizedDefaults.stages.recognize = Object.assign(
+        {},
+        fallback.defaults.stages?.recognize || {},
+        defaults.stages?.recognize || {}
+      );
+    } else if (isAishellTechScript(scriptId)) {
       normalizedDefaults.stages = Object.assign({}, fallback.defaults.stages || {}, defaults.stages || {});
       normalizedDefaults.stages.convert = Object.assign(
         {},
@@ -4300,8 +4354,10 @@
         throw new Error("defaults-fetch-failed");
       } catch (error) {
         const fallback = buildFallbackAsrVoiceAiDefaults(scriptId);
-        fallback.error = isAishellTechScript(scriptId)
-          ? "Aishell 后端默认配置读取失败，已回退到本地三板块默认值。"
+        fallback.error = isAishellTechVietnameseScript(scriptId)
+          ? "Aishell 越南语后端默认配置读取失败，已回退到本地单阶段默认值。"
+          : isAishellTechScript(scriptId)
+            ? "Aishell 后端默认配置读取失败，已回退到本地三板块默认值。"
           : isDataBakerCvpcScript(scriptId)
             ? "CVPC 柳州话后端默认配置读取失败，已回退到本地两阶段默认值。"
             : "后端默认配置读取失败，已使用本地默认值。";
@@ -4684,10 +4740,16 @@
     return result;
   }
 
-  function normalizeAishellTechShortcuts(shortcuts) {
+  function getAishellTechShortcutActions(scriptId) {
+    return isAishellTechVietnameseScript(scriptId)
+      ? aishellTechVietnameseShortcutActions
+      : aishellTechMinnanShortcutActions;
+  }
+
+  function normalizeAishellTechShortcuts(shortcuts, scriptId) {
     const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
     const result = {};
-    aishellTechShortcutActions.forEach(function (action) {
+    getAishellTechShortcutActions(scriptId).forEach(function (action) {
       result[action.key] = hasOwn(source, action.key)
         ? normalizeNullableShortcut(source[action.key])
         : null;
@@ -4995,6 +5057,29 @@
       return candidate;
     }
     return "";
+  }
+
+  function getAishellTechActiveScriptId(settings) {
+    const candidate = String(settings?.platforms?.aishellTech?.activeScriptId || "").trim();
+    if (
+      candidate === aishellTechMinnanScriptId ||
+      candidate === aishellTechVietnameseScriptId
+    ) {
+      return candidate;
+    }
+    const minnanConfig = settings?.platforms?.aishellTech?.scripts?.minnanHelper || {};
+    const vietnameseConfig = settings?.platforms?.aishellTech?.scripts?.vietnameseHelper || {};
+    const minnanEnabled =
+      minnanConfig.enabled !== false && minnanConfig.aiRecommendEnabled !== false;
+    const vietnameseEnabled =
+      vietnameseConfig.enabled !== false && vietnameseConfig.aiRecommendEnabled !== false;
+    if (minnanEnabled && !vietnameseEnabled) {
+      return aishellTechMinnanScriptId;
+    }
+    if (!minnanEnabled && vietnameseEnabled) {
+      return aishellTechVietnameseScriptId;
+    }
+    return minnanEnabled ? aishellTechMinnanScriptId : "";
   }
 
   function getDataBakerRoundOneConfig(settings) {
@@ -5337,8 +5422,68 @@
       getAishellTechConcurrencyModelConfig(config)
     );
     config.aiRecommendEnableThinking = false;
-    config.shortcuts = normalizeAishellTechShortcuts(config.shortcuts);
+    config.shortcuts = normalizeAishellTechShortcuts(
+      config.shortcuts,
+      aishellTechMinnanScriptId
+    );
     return config;
+  }
+
+  function getAishellTechVietnameseConfig(settings) {
+    const defaults =
+      constants.DEFAULT_SETTINGS?.platforms?.aishellTech?.scripts?.vietnameseHelper || {};
+    const current = settings?.platforms?.aishellTech?.scripts?.vietnameseHelper || {};
+    const config = Object.assign(
+      {
+        id: aishellTechVietnameseScriptId,
+        enabled: false,
+        aiRecommendEnabled: false,
+        aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+        aiQualifiedAutofillConcurrency: 5,
+        aiRecommendSingleModel: "qwen3.5-omni-flash",
+        aiRecommendSinglePrompt: "",
+        aiRecommendTemperature: "",
+        aiRecommendTopP: "",
+        aiRecommendMaxTokens: "",
+        aiRecommendMaxCompletionTokens: "",
+        aiRecommendPresencePenalty: "",
+        aiRecommendFrequencyPenalty: "",
+        aiRecommendSeed: "",
+        aiRecommendStopSequences: "",
+        shortcuts: {},
+      },
+      defaults,
+      current
+    );
+
+    config.aiRecommendRequestTimeoutMs = normalizeDataBakerTimeoutMs(
+      config.aiRecommendRequestTimeoutMs
+    );
+    config.aiRecommendSingleModel = normalizeDataBakerSingleModel(
+      config.aiRecommendSingleModel,
+      "qwen3.5-omni-flash"
+    );
+    config.aiRecommendSinglePrompt = normalizePromptText(config.aiRecommendSinglePrompt || "");
+    normalizeAishellTechStageParamFields(config, "aiRecommend");
+    config.aiQualifiedAutofillConcurrency = normalizeDataBakerAutofillConcurrency(
+      config.aiQualifiedAutofillConcurrency,
+      {
+        aiRecommendPipelineMode: "omni_single",
+        aiRecommendSingleModel: config.aiRecommendSingleModel,
+      }
+    );
+    config.aiRecommendEnableThinking = false;
+    config.shortcuts = normalizeAishellTechShortcuts(
+      config.shortcuts,
+      aishellTechVietnameseScriptId
+    );
+    return config;
+  }
+
+  function getAishellTechConfig(settings, scriptId) {
+    return isAishellTechVietnameseScript(scriptId)
+      ? getAishellTechVietnameseConfig(settings)
+      : getAishellTechMinnanConfig(settings);
   }
 
   function getAbakaAiTaskPageConfig(settings) {
@@ -5585,6 +5730,28 @@
     panel.classList.remove("hidden");
   }
 
+  function renderAishellTechVietnameseAiSettingsSection(panel, headerHtml, defaultsTipId) {
+    panel.innerHTML = [
+      '<div class="asr-ai-panel">',
+      headerHtml,
+      '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
+      '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>启用 AI 识别文本</span><label class="asr-ai-boolean"><input id="aishell-tech-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示当前条识别与批量保存面板</span></label></label>',
+      renderSharedAsrAutofillConcurrencyField(aishellTechVietnameseScriptId),
+      '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="aishell-tech-ai-timeout" type="number" min="1000" max="300000" step="1000" /></label>',
+      '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="aishell-tech-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
+      "</div></div>",
+      '<div class="asr-ai-block"><strong>单阶段 Omni 识别</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>识别模型</span><select id="aishell-tech-ai-single-model-select"></select><span class="asr-ai-help">默认 `qwen3.5-omni-flash`，可在 Omni 模型列表中切换。</span></label>',
+      '<label class="asr-ai-field"><span>识别 Prompt（可选）</span><textarea id="aishell-tech-ai-single-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+      '</div><div class="asr-ai-grid three">' +
+        buildAishellTechStageParamFieldsMarkup("single", false) +
+        "</div></div>",
+      "</div>",
+    ].join("");
+    panel.classList.remove("hidden");
+  }
+
   function renderDataBakerCvpcAiSettingsSection(panel, headerHtml, defaultsTipId) {
     panel.innerHTML = [
       '<div class="asr-ai-panel">',
@@ -5678,7 +5845,11 @@
     }
 
     if (isAishellTechScript(scriptId)) {
-      renderAishellTechAiSettingsSection(panel, headerHtml, defaultsTipId);
+      if (isAishellTechVietnameseScript(scriptId)) {
+        renderAishellTechVietnameseAiSettingsSection(panel, headerHtml, defaultsTipId);
+      } else {
+        renderAishellTechAiSettingsSection(panel, headerHtml, defaultsTipId);
+      }
       return;
     }
 
@@ -5892,10 +6063,12 @@
     }
 
     if (isAishellTechScript(scriptId)) {
-      const config = getAishellTechMinnanConfig(settings);
+      const config = getAishellTechConfig(settings, scriptId);
+      const activeScriptId = getAishellTechActiveScriptId(settings);
       return Boolean(
         settings?.platforms?.aishellTech?.enabled !== false &&
-          config.enabled !== false
+          config.enabled !== false &&
+          (!activeScriptId || activeScriptId === scriptId)
       );
     }
 
@@ -5965,8 +6138,18 @@
     }
 
     if (isAishellTechScript(scriptId)) {
-      const config = getAishellTechMinnanConfig(settings);
+      const config = getAishellTechConfig(settings, scriptId);
+      const activeScriptId = getAishellTechActiveScriptId(settings);
       if (!isScriptEnabled(settings, scriptId)) {
+        if (activeScriptId && activeScriptId !== scriptId) {
+          const activeScript = scriptLibrary[activeScriptId] || {};
+          return {
+            text:
+              "同平台当前为 " +
+              String(activeScript.shortLabel || activeScript.label || activeScriptId),
+            tone: "pending",
+          };
+        }
         return { text: "未启用", tone: "disabled" };
       }
       return config.aiRecommendEnabled === false
@@ -6877,7 +7060,7 @@
   }
 
   function ensureAishellTechShortcutDraft() {
-    aishellTechShortcutActions.forEach(function (action) {
+    getAishellTechShortcutActions(getCurrentDetailScriptId()).forEach(function (action) {
       if (!hasOwn(aishellTechShortcutsDraft, action.key)) {
         aishellTechShortcutsDraft[action.key] = null;
       }
@@ -6888,7 +7071,7 @@
     ensureAishellTechShortcutDraft();
     renderRecordableShortcutGrid({
       gridId: "aishell-tech-shortcut-grid",
-      actions: aishellTechShortcutActions,
+      actions: getAishellTechShortcutActions(getCurrentDetailScriptId()),
       values: aishellTechShortcutsDraft,
       recordingKey: aishellTechRecordingKey,
       recordAttrName: "data-record-aishell-tech-shortcut",
@@ -6952,7 +7135,7 @@
     }
 
     aishellTechRecordingKey = actionKey;
-    const action = aishellTechShortcutActions.find(function (item) {
+    const action = getAishellTechShortcutActions(getCurrentDetailScriptId()).find(function (item) {
       return item.key === actionKey;
     });
 
@@ -10409,7 +10592,7 @@
     if (scriptId === dataBakerCvpcLiuzhouScriptId) {
       return "detail-data-baker-cvpc-shortcuts-panel";
     }
-    if (scriptId === aishellTechMinnanScriptId) {
+    if (isAishellTechScript(scriptId)) {
       return "detail-aishell-tech-shortcuts-panel";
     }
     if (isMagicDataScript(scriptId)) {
@@ -10556,6 +10739,10 @@
       "hidden",
       scriptId !== aishellTechMinnanScriptId
     );
+    getElement("detail-aishell-tech-vietnamese-helper-panel").classList.toggle(
+      "hidden",
+      scriptId !== aishellTechVietnameseScriptId
+    );
     getElement("detail-magic-data-annotator-panel").classList.toggle("hidden", !isMagicDataScript(scriptId));
     getElement("detail-abaka-ai-task-page-panel").classList.toggle(
       "hidden",
@@ -10584,8 +10771,8 @@
           applyDataBakerForm(currentSettings || settings || {});
         } else if (scriptId === dataBakerCvpcLiuzhouScriptId) {
           applyDataBakerCvpcForm(currentSettings || settings || {});
-        } else if (scriptId === aishellTechMinnanScriptId) {
-          applyAishellTechForm(currentSettings || settings || {});
+        } else if (isAishellTechScript(scriptId)) {
+          applyAishellTechForm(currentSettings || settings || {}, scriptId);
         } else if (isMagicDataScript(scriptId)) {
           applyMagicDataSettingsForm(currentSettings || settings || {}, scriptId);
         }
@@ -10636,11 +10823,13 @@
       return;
     }
 
-    if (scriptId === aishellTechMinnanScriptId) {
-      applyAishellTechForm(settings);
+    if (isAishellTechScript(scriptId)) {
+      applyAishellTechForm(settings, scriptId);
       setStatus(
-        "aishell-tech-status",
-        "希尔贝壳批量模式只处理当前分包、从当前选中条开始、跳过已完成条目；每条会先对齐到目标条，再调用平台原生保存接口，不自动提交任务。"
+        getAsrVoiceAiStatusTargetId(scriptId),
+        isAishellTechVietnameseScript(scriptId)
+          ? "希尔贝壳越南语助手使用单阶段 Omni 识别；批量模式只处理当前分包，并保持 AI 并发请求 + 页面串行保存，不自动提交任务。"
+          : "希尔贝壳批量模式只处理当前分包、从当前选中条开始、跳过已完成条目；每条会先对齐到目标条，再调用平台原生保存接口，不自动提交任务。"
       );
       return;
     }
@@ -10817,7 +11006,7 @@
     renderDataBakerCvpcShortcutGrid();
   }
 
-  function applyAishellTechForm(settings) {
+  function applyAishellTechMinnanForm(settings) {
     const config = getAishellTechMinnanConfig(settings);
     const defaultsPayload = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId);
     const aiDefaults = defaultsPayload.defaults || {};
@@ -10837,6 +11026,65 @@
     }
     stopAishellTechShortcutRecording("");
     renderAishellTechShortcutGrid();
+  }
+
+  function applyAishellTechVietnameseForm(settings) {
+    const config = getAishellTechVietnameseConfig(settings);
+    const defaultsPayload = getAsrVoiceAiDefaultsCached(aishellTechVietnameseScriptId);
+    const aiDefaults = defaultsPayload.defaults || {};
+    aishellTechShortcutsDraft = clone(config.shortcuts) || {};
+    if (getElement("aishell-tech-ai-recommend-enabled")) {
+      getElement("aishell-tech-ai-recommend-enabled").checked =
+        config.aiRecommendEnabled !== false;
+      getElement("aishell-tech-ai-timeout").value = String(
+        Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
+      );
+      renderFixedModelOptions(
+        "aishell-tech-ai-single-model-select",
+        buildAishellTechOmniModelOptions(aiDefaults, [config.aiRecommendSingleModel]),
+        normalizeDataBakerSingleModel(
+          config.aiRecommendSingleModel,
+          String(aiDefaults.singleModel || "qwen3.5-omni-flash")
+        )
+      );
+      getElement("aishell-tech-ai-single-prompt").value = String(
+        getAsrVoiceAiEffectiveText(config.aiRecommendSinglePrompt, aiDefaults.singlePrompt)
+      );
+      applyAishellTechStageParamValues("single", "aiRecommend", config, {
+        temperature: aiDefaults.temperature,
+        top_p: aiDefaults.top_p,
+        max_tokens: aiDefaults.max_tokens,
+        max_completion_tokens: aiDefaults.max_completion_tokens,
+        presence_penalty: aiDefaults.presence_penalty,
+        frequency_penalty: aiDefaults.frequency_penalty,
+        seed: aiDefaults.seed,
+        stop: aiDefaults.stop,
+      });
+      applyForcedThinkingToggle(
+        "aishell-tech-ai-enable-thinking",
+        "thinking 已全局固定关闭；希尔贝壳不再允许开启 Omni 思考模式。"
+      );
+      updateAishellTechAutofillConcurrencyField(
+        {
+          aiRecommendPipelineMode: "omni_single",
+          aiRecommendSingleModel: config.aiRecommendSingleModel,
+          aiQualifiedAutofillConcurrency: config.aiQualifiedAutofillConcurrency,
+        },
+        {
+          scriptId: aishellTechVietnameseScriptId,
+        }
+      );
+    }
+    stopAishellTechShortcutRecording("");
+    renderAishellTechShortcutGrid();
+  }
+
+  function applyAishellTechForm(settings, scriptId) {
+    if (isAishellTechVietnameseScript(scriptId)) {
+      applyAishellTechVietnameseForm(settings);
+      return;
+    }
+    applyAishellTechMinnanForm(settings);
   }
 
   async function saveDataBakerSettings() {
@@ -11245,7 +11493,7 @@
     }
   }
 
-  async function saveAishellTechSettings() {
+  async function saveAishellTechMinnanSettings() {
     if (!storage || typeof storage.patchSettings !== "function") {
       setStatus("aishell-tech-status", "当前扩展版本不支持保存希尔贝壳设置。");
       return false;
@@ -11333,7 +11581,7 @@
     const shortcuts = {};
 
     ensureAishellTechShortcutDraft();
-    aishellTechShortcutActions.forEach(function (action) {
+    getAishellTechShortcutActions(aishellTechMinnanScriptId).forEach(function (action) {
       shortcuts[action.key] = normalizeNullableShortcut(aishellTechShortcutsDraft[action.key]);
     });
 
@@ -11432,7 +11680,7 @@
           },
         },
       });
-      applyAishellTechForm(currentSettings);
+      applyAishellTechMinnanForm(currentSettings);
       setStatus(
         "aishell-tech-status",
         "希尔贝壳设置已保存；已打开的标注页请刷新或等待自动同步。"
@@ -11445,6 +11693,164 @@
       );
       return false;
     }
+  }
+
+  async function saveAishellTechVietnameseSettings() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      setStatus("aishell-tech-vietnamese-status", "当前扩展版本不支持保存希尔贝壳设置。");
+      return false;
+    }
+
+    const currentConfig = getAishellTechVietnameseConfig(currentSettings || {});
+    const aiDefaults = getAsrVoiceAiDefaultsCached(aishellTechVietnameseScriptId).defaults || {};
+    const hasAiSettingsPanel = Boolean(getElement("aishell-tech-ai-timeout"));
+    const timeoutInput = hasAiSettingsPanel
+      ? getElement("aishell-tech-ai-timeout").value
+      : String(currentConfig.aiRecommendRequestTimeoutMs);
+    const aiRecommendEnabled = hasAiSettingsPanel
+      ? getElement("aishell-tech-ai-recommend-enabled").checked
+      : currentConfig.aiRecommendEnabled !== false;
+    const timeoutMs = normalizeDataBakerTimeoutMs(timeoutInput);
+    const singleModel = hasAiSettingsPanel
+      ? normalizeDataBakerSingleModel(
+          getElement("aishell-tech-ai-single-model-select")?.value,
+          String(aiDefaults.singleModel || "qwen3.5-omni-flash")
+        )
+      : currentConfig.aiRecommendSingleModel;
+    const promptDraft = hasAiSettingsPanel
+      ? normalizePromptText(getElement("aishell-tech-ai-single-prompt")?.value || "")
+      : currentConfig.aiRecommendSinglePrompt;
+    const autofillConcurrency = normalizeDataBakerAutofillConcurrency(
+      getElement("aishell-tech-qualified-autofill-concurrency")?.value,
+      {
+        aiRecommendPipelineMode: "omni_single",
+        aiRecommendSingleModel: singleModel,
+      }
+    );
+    updateAishellTechAutofillConcurrencyField(
+      {
+        aiRecommendPipelineMode: "omni_single",
+        aiRecommendSingleModel: singleModel,
+        aiQualifiedAutofillConcurrency: autofillConcurrency,
+      },
+      {
+        scriptId: aishellTechVietnameseScriptId,
+      }
+    );
+    const normalizeOverridePrompt = function (value, defaultValue) {
+      const normalizedValue = normalizePromptText(value || "");
+      const normalizedDefault = normalizePromptText(defaultValue || "");
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const readStageOverrides = function () {
+      const overrides = {};
+      aishellTechStageParamDefinitions.forEach(function (definition) {
+        const fieldName = "aiRecommend" + definition.suffix;
+        const defaultValue = aiDefaults[definition.apiKey];
+        if (definition.type === "number") {
+          const normalizedValue = normalizeOptionalNumberText(
+            getElement("aishell-tech-ai-single-" + definition.domSuffix)?.value,
+            definition.min,
+            definition.max,
+            definition.precision
+          );
+          const normalizedDefault = normalizeOptionalNumberText(
+            defaultValue,
+            definition.min,
+            definition.max,
+            definition.precision
+          );
+          overrides[fieldName] =
+            normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+          return;
+        }
+        if (definition.type === "integer") {
+          const normalizedValue = normalizeOptionalIntegerText(
+            getElement("aishell-tech-ai-single-" + definition.domSuffix)?.value,
+            definition.min,
+            definition.max
+          );
+          const normalizedDefault = normalizeOptionalIntegerText(
+            defaultValue,
+            definition.min,
+            definition.max
+          );
+          overrides[fieldName] =
+            normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+          return;
+        }
+        const normalizedValue = normalizeStopSequencesText(
+          getElement("aishell-tech-ai-single-" + definition.domSuffix)?.value || ""
+        );
+        const normalizedDefault = normalizeStopSequencesText(defaultValue || "");
+        overrides[fieldName] =
+          normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+      });
+      return overrides;
+    };
+    const stageOverrides = readStageOverrides();
+    const shortcuts = {};
+    ensureAishellTechShortcutDraft();
+    getAishellTechShortcutActions(aishellTechVietnameseScriptId).forEach(function (action) {
+      shortcuts[action.key] = normalizeNullableShortcut(aishellTechShortcutsDraft[action.key]);
+    });
+
+    setStatus("aishell-tech-vietnamese-status", "正在保存希尔贝壳设置...");
+
+    try {
+      currentSettings = await storage.patchSettings({
+        platforms: {
+          aishellTech: {
+            enabled: true,
+            activeScriptId: aishellTechVietnameseScriptId,
+            scripts: {
+              vietnameseHelper: {
+                id: aishellTechVietnameseScriptId,
+                aiRecommendEnabled: aiRecommendEnabled,
+                aiRecommendRequestTimeoutMs: timeoutMs,
+                aiRecommendSingleModel: singleModel,
+                aiRecommendSinglePrompt: normalizeOverridePrompt(
+                  promptDraft,
+                  aiDefaults.singlePrompt
+                ),
+                aiRecommendTemperature: stageOverrides.aiRecommendTemperature,
+                aiRecommendTopP: stageOverrides.aiRecommendTopP,
+                aiRecommendMaxTokens: stageOverrides.aiRecommendMaxTokens,
+                aiRecommendMaxCompletionTokens:
+                  stageOverrides.aiRecommendMaxCompletionTokens,
+                aiRecommendPresencePenalty:
+                  stageOverrides.aiRecommendPresencePenalty,
+                aiRecommendFrequencyPenalty:
+                  stageOverrides.aiRecommendFrequencyPenalty,
+                aiRecommendSeed: stageOverrides.aiRecommendSeed,
+                aiRecommendStopSequences: stageOverrides.aiRecommendStopSequences,
+                aiRecommendEnableThinking: false,
+                aiQualifiedAutofillConcurrency: autofillConcurrency,
+                shortcuts: shortcuts,
+              },
+            },
+          },
+        },
+      });
+      applyAishellTechVietnameseForm(currentSettings);
+      setStatus(
+        "aishell-tech-vietnamese-status",
+        "希尔贝壳设置已保存；已打开的标注页请刷新或等待自动同步。"
+      );
+      return true;
+    } catch (error) {
+      setStatus(
+        "aishell-tech-vietnamese-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+      return false;
+    }
+  }
+
+  async function saveAishellTechSettings(scriptId) {
+    return isAishellTechVietnameseScript(scriptId || getCurrentDetailScriptId())
+      ? saveAishellTechVietnameseSettings()
+      : saveAishellTechMinnanSettings();
   }
 
   function setStatus(targetId, text) {
@@ -12020,7 +12426,16 @@
     const saveAishellSettingsButton = getElement("save-aishell-tech-settings");
     if (saveAishellSettingsButton) {
       saveAishellSettingsButton.addEventListener("click", function () {
-        void saveAishellTechSettings();
+        void saveAishellTechSettings(getCurrentDetailScriptId());
+      });
+    }
+
+    const saveAishellVietnameseSettingsButton = getElement(
+      "save-aishell-tech-vietnamese-settings"
+    );
+    if (saveAishellVietnameseSettingsButton) {
+      saveAishellVietnameseSettingsButton.addEventListener("click", function () {
+        void saveAishellTechSettings(getCurrentDetailScriptId());
       });
     }
 

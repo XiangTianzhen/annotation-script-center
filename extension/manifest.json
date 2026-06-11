@@ -274,6 +274,30 @@
       "all_frames": false,
       "run_at": "document_start",
       "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "https://mark.aishelltech.com/*"
+      ],
+      "js": [
+        "shared/build-meta.js",
+        "shared/constants.js",
+        "shared/storage.js",
+        "shared/ai-error-display.js",
+        "shared/concurrent-ai-request-stream.js",
+        "shared/ai-job-client.js",
+        "shared/lexicon-toast.js",
+        "sites/aishell-tech/vietnamese-helper/data-api.js",
+        "sites/aishell-tech/vietnamese-helper/ai-recommendation.js",
+        "sites/aishell-tech/vietnamese-helper/batch-window.js",
+        "sites/aishell-tech/vietnamese-helper/diagnostics.js",
+        "sites/aishell-tech/vietnamese-helper/ui-panel.js",
+        "sites/aishell-tech/vietnamese-helper/shortcuts.js",
+        "sites/aishell-tech/vietnamese-helper/content.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "ISOLATED"
     }
   ],
   "web_accessible_resources": [

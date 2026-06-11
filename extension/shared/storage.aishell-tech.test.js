@@ -315,3 +315,76 @@ test("storage keeps customized legal autofill concurrency values untouched", asy
     harness.cleanup();
   }
 });
+
+test("Aishell storage defaults expose active script and Vietnamese helper config", async function () {
+  const harness = loadStorageApi({});
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const platform = settings.platforms.aishellTech;
+    const minnanScript = platform.scripts.minnanHelper;
+    const vietnameseScript = platform.scripts.vietnameseHelper;
+
+    assert.equal(platform.activeScriptId, "aishellTechMinnanAssistant");
+    assert.equal(minnanScript.enabled, true);
+    assert.equal(minnanScript.aiRecommendEnabled, true);
+    assert.equal(vietnameseScript.id, "aishellTechVietnameseAssistant");
+    assert.equal(vietnameseScript.enabled, false);
+    assert.equal(vietnameseScript.aiRecommendEnabled, false);
+    assert.equal(vietnameseScript.aiRecommendSingleModel, "qwen3.5-omni-flash");
+    assert.equal(vietnameseScript.aiRecommendSinglePrompt, "");
+    assert.equal(vietnameseScript.aiRecommendEndpoint, "https://script.xiangtianzhen.store/api/aishell-tech/vietnamese-helper/ai/recommend");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Aishell storage enables Vietnamese helper as the active mutually exclusive script", async function () {
+  const harness = loadStorageApi({});
+
+  try {
+    let settings = await harness.storage.setScriptEnabled("aishellTechVietnameseAssistant", true);
+    assert.equal(settings.platforms.aishellTech.activeScriptId, "aishellTechVietnameseAssistant");
+    assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.enabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.aiRecommendEnabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.enabled, true);
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.aiRecommendEnabled, true);
+
+    settings = await harness.storage.setScriptEnabled("aishellTechMinnanAssistant", true);
+    assert.equal(settings.platforms.aishellTech.activeScriptId, "aishellTechMinnanAssistant");
+    assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.enabled, true);
+    assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.aiRecommendEnabled, true);
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.enabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.aiRecommendEnabled, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("Aishell storage migrates legacy single-script config to Minnan activeScriptId", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      aishellTech: {
+        enabled: true,
+        scripts: {
+          minnanHelper: {
+            id: "aishellTechMinnanAssistant",
+            enabled: true,
+            aiRecommendEnabled: true,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    assert.equal(settings.platforms.aishellTech.activeScriptId, "aishellTechMinnanAssistant");
+    assert.equal(settings.platforms.aishellTech.scripts.minnanHelper.enabled, true);
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.id, "aishellTechVietnameseAssistant");
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.enabled, false);
+    assert.equal(settings.platforms.aishellTech.scripts.vietnameseHelper.aiRecommendEnabled, false);
+  } finally {
+    harness.cleanup();
+  }
+});
