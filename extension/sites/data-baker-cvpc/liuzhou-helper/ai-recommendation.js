@@ -57,6 +57,12 @@
     return "连接 AI 后端失败，请检查 options 首页后端接口地址、后端服务状态或当前网络后重试。 " + suffix;
   }
 
+  function buildAudioFetchFailureMessage(rawMessage) {
+    const detail = normalizeText(rawMessage);
+    const suffix = detail ? "原始错误：" + detail : "原始错误：未知。";
+    return "当前音频访问失败，可能是页面 session 已过期或当前网络不可用；请刷新页面后重试。 " + suffix;
+  }
+
   function createFetchFailureError(rawError) {
     const detail = rawError && rawError.message ? rawError.message : String(rawError || "Failed to fetch");
     const message = buildFetchFailureMessage(detail);
@@ -65,6 +71,22 @@
     error.payload = {
       success: false,
       code: "ai-backend-fetch-failed",
+      message: message,
+      rawResponse: {
+        fetchError: detail,
+      },
+    };
+    return error;
+  }
+
+  function createAudioFetchFailureError(rawError) {
+    const detail = rawError && rawError.message ? rawError.message : String(rawError || "Failed to fetch");
+    const message = buildAudioFetchFailureMessage(detail);
+    const error = new Error(message);
+    error.code = "audio-source-fetch-failed";
+    error.payload = {
+      success: false,
+      code: "audio-source-fetch-failed",
       message: message,
       rawResponse: {
         fetchError: detail,
@@ -188,7 +210,12 @@
   }
 
   async function fetchAudioBuffer(audioUrl) {
-    const response = await fetch(audioUrl);
+    let response;
+    try {
+      response = await fetch(audioUrl);
+    } catch (fetchError) {
+      throw createAudioFetchFailureError(fetchError);
+    }
     if (!response.ok) {
       throw new Error("当前音频访问已失效，通常是页面 session 已过期；请刷新页面后重试。");
     }

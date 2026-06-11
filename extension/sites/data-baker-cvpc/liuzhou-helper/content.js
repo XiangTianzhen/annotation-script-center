@@ -228,6 +228,7 @@
     return (
       message.indexOf("原始音频下载失败") >= 0 ||
       message.indexOf("当前音频访问已失效") >= 0 ||
+      message.indexOf("当前音频访问失败") >= 0 ||
       message.indexOf("session 已过期") >= 0 ||
       message.indexOf("session已过期") >= 0
     );

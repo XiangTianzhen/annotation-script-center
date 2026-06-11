@@ -48,15 +48,26 @@
     };
   }
 
+  function buildPreviewFetchFailureMessage(rawMessage) {
+    const detail = normalizeText(rawMessage);
+    const suffix = detail ? "原始错误：" + detail : "原始错误：未知。";
+    return "连接分段建议后端失败，请检查 options 首页后端接口地址、后端服务状态或当前网络后重试。 " + suffix;
+  }
+
   async function requestPreview(endpoint, payload) {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      credentials: "omit",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    let response;
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        credentials: "omit",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (fetchError) {
+      throw new Error(buildPreviewFetchFailureMessage(fetchError && fetchError.message ? fetchError.message : fetchError));
+    }
     const responsePayload = await response.json().catch(function () {
       return null;
     });

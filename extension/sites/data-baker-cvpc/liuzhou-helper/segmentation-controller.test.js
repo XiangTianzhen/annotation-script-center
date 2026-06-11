@@ -202,3 +202,27 @@ test("CVPC segmentation controller surfaces backend preview failure", async func
     globalThis.fetch = originalFetch;
   }
 });
+
+test("CVPC segmentation controller wraps transport fetch failures into actionable message", async function () {
+  const moduleApi = loadModule();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function () {
+    throw new TypeError("Failed to fetch");
+  };
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/segment/preview",
+      silenceThresholdDbfs: -40,
+    });
+
+    await assert.rejects(
+      runtime.preview({
+        audioUrl: "https://oss.example.com/sample.mp3?Signature=expired",
+      }),
+      /连接分段建议后端失败/
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

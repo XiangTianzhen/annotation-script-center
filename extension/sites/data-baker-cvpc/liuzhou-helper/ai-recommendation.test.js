@@ -259,6 +259,62 @@ test("liuzhou ai recommend wraps fetch transport failures into actionable backen
   }
 });
 
+test("liuzhou ai recommend wraps source audio fetch transport failures into actionable message", async function () {
+  const moduleApi = loadModule();
+  const harness = installAudioHarness();
+
+  globalThis.fetch = async function (url, options) {
+    harness.calls.push({
+      url: String(url || ""),
+      method: String(options?.method || "GET").toUpperCase(),
+      body: options?.body || "",
+    });
+    if (String(url).indexOf("oss.example.com/sample.mp3") >= 0) {
+      throw new TypeError("Failed to fetch");
+    }
+    return {
+      ok: true,
+      json: async function () {
+        return {
+          success: true,
+        };
+      },
+    };
+  };
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/data-baker-cvpc/liuzhou-helper/ai/recommend",
+      aiUsageOperatorName: "测试员",
+    });
+
+    await assert.rejects(
+      function () {
+        return runtime.recommend({
+          audioUrl: "https://oss.example.com/sample.mp3?Signature=audio",
+          selectionKey: "sample.mp3|18565|35677",
+          selectedRange: {
+            startMs: 18565,
+            endMs: 35677,
+            durationMs: 17112,
+          },
+          platformUserName: "柳州标注员",
+          platformUserId: "9527",
+        });
+      },
+      function (error) {
+        assert.equal(error.code, "audio-source-fetch-failed");
+        assert.match(String(error.message || ""), /当前音频访问失败/);
+        assert.match(String(error.message || ""), /刷新页面后重试/);
+        assert.equal(error.payload?.rawResponse?.fetchError, "Failed to fetch");
+        return true;
+      }
+    );
+  } finally {
+    harness.restore();
+  }
+});
+
 test("liuzhou ai recommend sends current segment audio as base64 data url", async function () {
   const moduleApi = loadModule();
   const harness = installAudioHarness();
