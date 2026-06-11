@@ -105,6 +105,10 @@ test("liuzhou buildAssetsContext accepts json lexicon assets", function () {
           aliases: [],
           notes: ["用于被动含义"],
           tags: ["function_word"],
+          attributes: {
+            pronunciation: "ǎi",
+            usageContext: "被动含义",
+          },
         },
       ],
     },
@@ -120,7 +124,61 @@ test("liuzhou buildAssetsContext accepts json lexicon assets", function () {
     aliases: [],
     notes: ["用于被动含义"],
     tags: ["function_word"],
+    attributes: {
+      pronunciation: "ǎi",
+      usageContext: "被动含义",
+    },
   });
+});
+
+test("liuzhou buildAssetsContext keeps lexicon attributes and parses reference csv as prompt-only rows", function () {
+  const assetsContext = buildAssetsContext({
+    lexiconJson: {
+      schemaVersion: "1",
+      language: "liuzhou_dialect",
+      mode: "rule_lexicon",
+      sourceFiles: ["assets/liuzhou-pronunciation-reference.csv"],
+      updatedAt: "2026-06-09T00:00:00.000Z",
+      entries: [
+        {
+          id: "lz-001",
+          normalized: "闹隆",
+          display: "闹隆",
+          mandarin: "热闹兴旺",
+          aliases: ["闹拢"],
+          notes: ["常见口语"],
+          tags: ["commerce"],
+          attributes: {
+            pronunciation: "nao long",
+          },
+        },
+      ],
+    },
+    lexiconReferenceCsv: [
+      "柳州话读音,柳州字转写用字,释义",
+      "nao long,闹隆,生意火爆；热闹",
+      ",青辣椒,青辣椒",
+    ].join("\n"),
+    ruleText: "规则一",
+  });
+
+  assert.equal(assetsContext.lexiconRows[0].attributes?.pronunciation, "nao long");
+  assert.deepEqual(assetsContext.referenceRows, [
+    {
+      pronunciation: "nao long",
+      dialectWord: "闹隆",
+      meaning: "生意火爆；热闹",
+      aliases: [],
+      source: "liuzhou-pronunciation-reference.csv",
+    },
+    {
+      pronunciation: "",
+      dialectWord: "青辣椒",
+      meaning: "青辣椒",
+      aliases: [],
+      source: "liuzhou-pronunciation-reference.csv",
+    },
+  ]);
 });
 
 test("liuzhou buildAssetsContext degrades to reference_only when only local csv remains", function () {
@@ -363,6 +421,18 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
       ],
       refinedMandarinText: "整理普通话。",
       audioMandarinText: "整理普通话。",
+      candidateAlternatives: [
+        {
+          dialectText: "听音柳州话。",
+          mandarinText: "听音普通话。",
+          reason: "原始听音",
+        },
+        {
+          dialectText: "近音柳州话。",
+          mandarinText: "近音普通话。",
+          reason: "近音候选",
+        },
+      ],
       specialTags: ["#um", "<SPK/>"],
       needHumanReview: true,
       notes: [" 第一条 "],
@@ -407,6 +477,20 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
     refinedMandarinText: "整理普通话。",
     dialectText: "修正柳州话。",
     mandarinText: "整理普通话。",
+    candidateAlternatives: [
+      {
+        dialectText: "听音柳州话。",
+        dialectTokens: [{ type: "text", content: "听音柳州话。" }],
+        mandarinText: "听音普通话。",
+        reason: "原始听音",
+      },
+      {
+        dialectText: "近音柳州话。",
+        dialectTokens: [{ type: "text", content: "近音柳州话。" }],
+        mandarinText: "近音普通话。",
+        reason: "近音候选",
+      },
+    ],
     specialTags: ["#um", "<SPK/>"],
     needHumanReview: true,
     notes: ["第一条"],
@@ -458,6 +542,33 @@ test("liuzhou recommend runs listen plus refine stages and returns heard dialect
             aliases: [],
             notes: [],
             tags: [],
+            attributes: {
+              pronunciation: "liu",
+            },
+          },
+          {
+            id: "lz-002",
+            normalized: "扭",
+            display: "扭",
+            mandarin: "扭动",
+            aliases: [],
+            notes: [],
+            tags: [],
+            attributes: {
+              pronunciation: "niu",
+            },
+          },
+          {
+            id: "lz-003",
+            normalized: "柳州",
+            display: "柳州",
+            mandarin: "柳州",
+            aliases: [],
+            notes: [],
+            tags: [],
+            attributes: {
+              pronunciation: "liu zhou",
+            },
           },
         ],
       },
@@ -474,11 +585,13 @@ test("liuzhou recommend runs listen plus refine stages and returns heard dialect
         assert.equal(typeof prompt.systemPrompt, "string");
         assert.match(prompt.systemPrompt || "", /#um/);
         assert.match(prompt.systemPrompt || "", /<SPK\/>/);
+        assert.match(prompt.systemPrompt || "", /candidatePhrases/);
         assert.equal(input.audioDataUrl, "data:audio/wav;base64,UklGRg==");
         assert.equal(input.audioUrl, "");
         return {
           rawText: JSON.stringify({
             audioDialectText: "柳#um",
+            candidatePhrases: ["扭#um", "柳州#um"],
             needHumanReview: false,
             notes: ["听音备注"],
           }),
@@ -493,12 +606,26 @@ test("liuzhou recommend runs listen plus refine stages and returns heard dialect
       },
       requestTextCompareJson: async function (_input, prompt, options) {
         assert.match(prompt.userPrompt || "", /"audioDialectText": "柳#um。"/);
+        assert.match(prompt.userPrompt || "", /"candidatePhrases": \[/);
+        assert.match(prompt.userPrompt || "", /扭#um。/);
         assert.match(prompt.userPrompt || "", /柳树/);
         assert.equal(options?.stage, "refine");
         return {
           rawText: JSON.stringify({
             refinedDialectText: "修正#ah柳州话",
             refinedMandarinText: "整理普通话",
+            candidateAlternatives: [
+              {
+                dialectText: "柳#um",
+                mandarinText: "柳树",
+                reason: "原始听音",
+              },
+              {
+                dialectText: "扭#um",
+                mandarinText: "扭动",
+                reason: "近音候选",
+              },
+            ],
             needHumanReview: false,
             notes: ["修正备注"],
           }),
@@ -515,9 +642,9 @@ test("liuzhou recommend runs listen plus refine stages and returns heard dialect
   );
 
   assert.equal(result.audioDialectText, "柳#um。");
-  assert.equal(result.audioMandarinText, "整理普通话。");
+  assert.equal(result.audioMandarinText, "啊整理普通话。");
   assert.equal(result.refinedDialectText, "修正#ah柳州话。");
-  assert.equal(result.refinedMandarinText, "整理普通话。");
+  assert.equal(result.refinedMandarinText, "啊整理普通话。");
   assert.deepEqual(result.audioDialectTokens, [
     { type: "text", content: "柳" },
     { type: "tag", content: "#um" },
@@ -529,9 +656,42 @@ test("liuzhou recommend runs listen plus refine stages and returns heard dialect
     { type: "text", content: "柳州话。" },
   ]);
   assert.deepEqual(result.specialTags, ["#ah", "#um"]);
+  assert.deepEqual(result.candidateAlternatives, [
+    {
+      dialectText: "柳#um。",
+      dialectTokens: [
+        { type: "text", content: "柳" },
+        { type: "tag", content: "#um" },
+        { type: "text", content: "。" },
+      ],
+      mandarinText: "柳树。",
+      reason: "原始听音",
+    },
+    {
+      dialectText: "扭#um。",
+      dialectTokens: [
+        { type: "text", content: "扭" },
+        { type: "tag", content: "#um" },
+        { type: "text", content: "。" },
+      ],
+      mandarinText: "扭动。",
+      reason: "近音候选",
+    },
+    {
+      dialectText: "柳州#um。",
+      dialectTokens: [
+        { type: "text", content: "柳州" },
+        { type: "tag", content: "#um" },
+        { type: "text", content: "。" },
+      ],
+      mandarinText: "柳州。",
+      reason: "听音近音候选",
+    },
+  ]);
   assert.deepEqual(result.notes, ["听音备注", "修正备注"]);
   assert.equal(result.models?.listenModel, "qwen3.5-omni-flash");
   assert.equal(result.models?.refineModel, "qwen3.5-plus");
+  assert.equal(result.needHumanReview, true);
 });
 
 test("liuzhou recommend accepts current-segment base64 audio without legacy clip preprocessing", async function () {
@@ -572,9 +732,9 @@ test("liuzhou recommend accepts current-segment base64 audio without legacy clip
   );
 
   assert.equal(result.audioDialectText, "听音#eh柳州话。");
-  assert.equal(result.audioMandarinText, "整理普通话。");
+  assert.equal(result.audioMandarinText, "诶整理普通话。");
   assert.equal(result.refinedDialectText, "修正#eh柳州话。");
-  assert.equal(result.refinedMandarinText, "整理普通话。");
+  assert.equal(result.refinedMandarinText, "诶整理普通话。");
 });
 
 test("liuzhou recommend keeps whole-audio url compatibility for omni listen stage", async function () {
@@ -648,6 +808,125 @@ test("liuzhou recommend keeps whole-audio url compatibility for omni listen stag
   assert.equal(result.refinedMandarinText, "整音频整理普通话。");
   assert.equal(result.models?.listenModel, "qwen3.5-omni-flash");
   assert.equal(result.models?.refineModel, "qwen3.5-plus");
+});
+
+test("liuzhou recommend infers eh tag from hesitation and restores mandarin particle", async function () {
+  const result = await recommend(
+    normalizeRecommendRequest(createBaseRequest()),
+    buildAssetsContext({
+      lexiconJson: {
+        schemaVersion: "1",
+        language: "liuzhou_dialect",
+        mode: "rule_lexicon",
+        sourceFiles: [],
+        updatedAt: "2026-06-09T00:00:00.000Z",
+        entries: [],
+      },
+      ruleText: "规则一",
+    }),
+    {
+      requestOmniInputAudio: async function () {
+        return {
+          rawText: JSON.stringify({
+            audioDialectText: "呃，身材又好哩。",
+            specialTags: [],
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-omni-plus",
+          usage: {},
+        };
+      },
+      requestTextCompareJson: async function () {
+        return {
+          rawText: JSON.stringify({
+            refinedDialectText: "#eh，身材又好哩。",
+            refinedMandarinText: "身材又好呢。",
+            specialTags: [],
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-plus",
+          usage: {},
+        };
+      },
+    }
+  );
+
+  assert.equal(result.audioDialectText, "#eh，身材又好哩。");
+  assert.deepEqual(result.audioDialectTokens, [
+    { type: "tag", content: "#eh" },
+    { type: "text", content: "，身材又好哩。" },
+  ]);
+  assert.equal(result.audioMandarinText, "诶，身材又好呢。");
+  assert.equal(result.refinedDialectText, "#eh，身材又好哩。");
+  assert.deepEqual(result.refinedDialectTokens, [
+    { type: "tag", content: "#eh" },
+    { type: "text", content: "，身材又好哩。" },
+  ]);
+  assert.equal(result.refinedMandarinText, "诶，身材又好呢。");
+  assert.deepEqual(result.specialTags, ["#eh"]);
+});
+
+test("liuzhou recommend converts repeated laughter into spk tags", async function () {
+  const result = await recommend(
+    normalizeRecommendRequest(createBaseRequest()),
+    buildAssetsContext({
+      lexiconJson: {
+        schemaVersion: "1",
+        language: "liuzhou_dialect",
+        mode: "rule_lexicon",
+        sourceFiles: [],
+        updatedAt: "2026-06-09T00:00:00.000Z",
+        entries: [],
+      },
+      ruleText: "规则一",
+    }),
+    {
+      requestOmniInputAudio: async function () {
+        return {
+          rawText: JSON.stringify({
+            audioDialectText: "呵呵呵呵，你没够机会你，呵呵呵。",
+            specialTags: [],
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-omni-plus",
+          usage: {},
+        };
+      },
+      requestTextCompareJson: async function () {
+        return {
+          rawText: JSON.stringify({
+            refinedDialectText: "呵呵呵呵，你没够机会你，呵呵呵。",
+            refinedMandarinText: "你不够机会。",
+            specialTags: [],
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-plus",
+          usage: {},
+        };
+      },
+    }
+  );
+
+  assert.equal(result.audioDialectText, "<SPK/>你没够机会你<SPK/>。");
+  assert.deepEqual(result.audioDialectTokens, [
+    { type: "tag", content: "<SPK/>" },
+    { type: "text", content: "你没够机会你" },
+    { type: "tag", content: "<SPK/>" },
+    { type: "text", content: "。" },
+  ]);
+  assert.equal(result.refinedDialectText, "<SPK/>你没够机会你<SPK/>。");
+  assert.deepEqual(result.refinedDialectTokens, [
+    { type: "tag", content: "<SPK/>" },
+    { type: "text", content: "你没够机会你" },
+    { type: "tag", content: "<SPK/>" },
+    { type: "text", content: "。" },
+  ]);
+  assert.equal(result.refinedMandarinText, "你不够机会。");
+  assert.deepEqual(result.specialTags, ["<SPK/>"]);
 });
 
 test("liuzhou listen normalization keeps punctuation and allowed tags without fabricating mandarin text", function () {

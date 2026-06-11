@@ -332,6 +332,11 @@
       "[" + MIDDLE_AI_ATTR + "] .section-note, [" + ROOT_ATTR + "] .panel-subtitle { color: var(--asc-muted); }",
       "[" + MIDDLE_AI_ATTR + "] .meta-box, [" + MIDDLE_AI_ATTR + "] .preview-item { border-color: var(--asc-primary-border); background: #ffffff; }",
       "[" + MIDDLE_AI_ATTR + "] .meta-box .meta-line { margin-top: 4px; color: #42506a; }",
+      "[" + MIDDLE_AI_ATTR + "] .candidate-list { display: flex; flex-direction: column; gap: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .candidate-item { padding-top: 6px; border-top: 1px dashed #e4e9f2; }",
+      "[" + MIDDLE_AI_ATTR + "] .candidate-item:first-child { padding-top: 0; border-top: 0; }",
+      "[" + MIDDLE_AI_ATTR + "] .candidate-label { font-weight: 600; color: var(--asc-primary-strong); }",
+      "[" + MIDDLE_AI_ATTR + "] .candidate-meta { margin-top: 4px; color: #42506a; }",
       "[" + MIDDLE_AI_ATTR + "] .meta-details { margin-top: 8px; border: 1px solid var(--asc-primary-border); border-radius: 10px; background: #fff; overflow: hidden; }",
       "[" + MIDDLE_AI_ATTR + "] .meta-details summary { cursor: pointer; list-style: none; padding: 10px 12px; color: var(--asc-primary-strong); font-weight: 600; background: #f6f9ff; user-select: none; }",
       "[" + MIDDLE_AI_ATTR + "] .meta-details summary::-webkit-details-marker { display: none; }",
@@ -531,6 +536,51 @@
       flow.appendChild(node);
     });
     target.appendChild(flow);
+  }
+
+  function appendCandidateAlternativesDisplay(host, alternatives) {
+    const target = host instanceof HTMLElement ? host : null;
+    const items = Array.isArray(alternatives) ? alternatives : [];
+    if (!target) {
+      return;
+    }
+    clearNodeChildren(target);
+    if (items.length <= 0) {
+      return;
+    }
+    const list = document.createElement("div");
+    list.className = "candidate-list";
+    items.forEach(function (item, index) {
+      const source = item && typeof item === "object" ? item : {};
+      const row = document.createElement("div");
+      row.className = "candidate-item";
+
+      const label = document.createElement("div");
+      label.className = "candidate-label";
+      label.textContent = "候选 " + String(index + 1);
+      row.appendChild(label);
+
+      const dialectNode = document.createElement("div");
+      appendTokenDisplay(dialectNode, source.dialectTokens, source.dialectText || "");
+      row.appendChild(dialectNode);
+
+      if (normalizeText(source.mandarinText)) {
+        const mandarinNode = document.createElement("div");
+        mandarinNode.className = "candidate-meta";
+        mandarinNode.textContent = "普通话：" + String(source.mandarinText || "");
+        row.appendChild(mandarinNode);
+      }
+
+      if (normalizeText(source.reason)) {
+        const reasonNode = document.createElement("div");
+        reasonNode.className = "candidate-meta";
+        reasonNode.textContent = "说明：" + String(source.reason || "");
+        row.appendChild(reasonNode);
+      }
+
+      list.appendChild(row);
+    });
+    target.appendChild(list);
   }
 
   function createRecommendationCard(title, value, buttonText, callback, options) {
@@ -917,6 +967,14 @@
           tokens: source.refinedDialectTokens,
         },
         {
+          title: "普通话顺滑参考",
+          value: source.refinedMandarinText || source.mandarinText || source.audioMandarinText || "",
+        },
+        {
+          title: "近音候选参考",
+          alternatives: Array.isArray(source.candidateAlternatives) ? source.candidateAlternatives : [],
+        },
+        {
           title: "特殊标签",
           value: formatMetaValue(source.specialTags, " "),
         },
@@ -933,6 +991,9 @@
           value: rawText,
         },
       ].forEach(function (item) {
+        if (item.title === "近音候选参考" && (!item.alternatives || item.alternatives.length <= 0)) {
+          return;
+        }
         const box = document.createElement("div");
         box.className = "meta-box";
         if (item.title === "AI 返回原始内容") {
@@ -942,6 +1003,13 @@
           rawNode.textContent = String(item.value || "");
           box.appendChild(title);
           box.appendChild(rawNode);
+        } else if (item.title === "近音候选参考") {
+          const title = document.createElement("strong");
+          title.textContent = item.title;
+          const valueNode = document.createElement("div");
+          appendCandidateAlternativesDisplay(valueNode, item.alternatives);
+          box.appendChild(title);
+          box.appendChild(valueNode);
         } else {
           const title = document.createElement("strong");
           title.textContent = item.title;
@@ -952,22 +1020,6 @@
         }
         recommendationMetaNode.appendChild(box);
       });
-      const mandarinReferenceBox = document.createElement("div");
-      mandarinReferenceBox.className = "meta-box";
-      const mandarinReferenceTitle = document.createElement("strong");
-      mandarinReferenceTitle.textContent = "普通话顺滑参考";
-      const mandarinReferenceValue = document.createElement("div");
-      appendTokenDisplay(
-        mandarinReferenceValue,
-        null,
-        source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
-      );
-      mandarinReferenceBox.appendChild(mandarinReferenceTitle);
-      mandarinReferenceBox.appendChild(mandarinReferenceValue);
-      recommendationMetaNode.insertBefore(
-        mandarinReferenceBox,
-        recommendationMetaNode.children[4] || null
-      );
     }
 
     function renderRecommendation(result) {

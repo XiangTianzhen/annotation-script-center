@@ -47,13 +47,26 @@ const INLINE_TAG_MATCHER = /#[a-zA-Z][a-zA-Z0-9_-]*|<[^>\r\n]+>/g;
 const INLINE_TAG_PLACEHOLDER_PREFIX = "ASCTAGTOKEN";
 const TAG_ADJACENT_PUNCTUATION_PATTERN = /[，。？！；]+$/;
 const TAG_LEADING_PUNCTUATION_PATTERN = /^[，。？！；]+/;
+const NOISE_BOUNDARY_PUNCTUATION_TRAILING_PATTERN = /[，；]+$/;
+const NOISE_BOUNDARY_PUNCTUATION_LEADING_PATTERN = /^[，；]+/;
+const REPEATED_LAUGHTER_MATCHER = /(呵{2,}|哈{2,}|嘿{2,}|嘻{2,})/g;
+const DIALECT_TAG_INFERENCE_MATCHER = /(呵{2,}|哈{2,}|嘿{2,}|嘻{2,}|呃|诶|欸|啊|嗯)/g;
+const MANDARIN_PARTICLE_MAP = {
+  "#eh": "诶",
+  "#ah": "啊",
+  "#um": "嗯",
+  "#hmm": "嗯",
+};
 const DEFAULT_LISTEN_PROMPT = [
   "请严格只根据当前段音频输出原始柳州话听音结果。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
-  "JSON 字段固定为：audioDialectText, specialTags, needHumanReview, notes。",
+  "JSON 字段固定为：audioDialectText, candidatePhrases, specialTags, needHumanReview, notes。",
   "audioDialectText 只写音频里的柳州话文本，不要输出普通话，不要做修正，不要自由推断。",
+  "candidatePhrases 用于记录近音但不完全确定的柳州话候选，最多 3 个，按可能性排序；不要重复 audioDialectText。",
   "听不清必须保守，并把 needHumanReview 设为 true。",
   "有效标签只允许：#um、#hmm、#ah、#eh、<SPK/>、<NPS/>。",
+  "独立口语词“呃/诶/欸”优先写为 #eh，“啊”优先写为 #ah，“嗯”优先写为 #um。",
+  "主说话人的笑声或明显非语义人声优先写为 <SPK/>。",
   "标签直接内联写在柳州话文本里，例如：都七十岁了#eh，明日古稀了。",
   "如果标签前后同时出现标点，只保留标签后的标点，不要输出“，#eh，”这种双侧标点。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
@@ -61,12 +74,15 @@ const DEFAULT_LISTEN_PROMPT = [
 const DEFAULT_REFINE_PROMPT = [
   "请同时收口柳州话文本和普通话文本，但仍以听音结果与词表草稿为主。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
-  "JSON 字段固定为：refinedDialectText, refinedMandarinText, needHumanReview, notes。",
-  "你会收到原始听音柳州话、词表优先生成的普通话草稿、页面字段上下文和词表命中片段。",
+  "JSON 字段固定为：refinedDialectText, refinedMandarinText, candidateAlternatives, needHumanReview, notes。",
+  "你会收到原始听音柳州话、听音近音候选、词表优先生成的普通话草稿、页面字段上下文和词表命中片段。",
   "只做标点、断句、明显错字和顺滑修正，不做自由改写，不要偏离词表含义。",
+  "candidateAlternatives 最多输出 3 个，用于人工复核；每个元素固定包含 dialectText, mandarinText, reason。",
   "若拿不准或需要保留歧义，必须把 needHumanReview 设为 true。",
   "refinedDialectText 里的有效标签只允许：#um、#hmm、#ah、#eh、<SPK/>、<NPS/>。",
   "refinedMandarinText 必须是纯文本，禁止输出任何标签。",
+  "如果 refinedDialectText 保留了口语词标签，refinedMandarinText 必须保留对应纯文本语气词。",
+  "笑声或明显非语义噪音在 refinedMandarinText 里必须删除，不写标签，不写“呵呵呵”等字面笑声。",
   "如果标签前后同时出现标点，只保留标签后的标点，不要输出“，#eh，”这种双侧标点。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
 ].join("\n");
@@ -167,6 +183,49 @@ function collectSpecialTagsFromTokens(tokens) {
   return result;
 }
 
+function isNoiseTag(tag) {
+  const normalized = normalizeSpecialTag(tag);
+  return normalized === "<SPK/>" || normalized === "<NPS/>";
+}
+
+function isChineseWordCharacter(char) {
+  return /[\u3400-\u9fffA-Za-z0-9]/.test(String(char || ""));
+}
+
+function isInferenceBoundaryCharacter(char) {
+  const value = String(char || "");
+  return !value || /[\s，。？！；,.!?;:"'“”‘’()（）[\]{}<>]/.test(value);
+}
+
+function isStandaloneInferenceMatch(text, index, length) {
+  const source = String(text || "");
+  const start = Math.max(0, Number(index || 0) || 0);
+  const matchLength = Math.max(0, Number(length || 0) || 0);
+  const previousChar = start > 0 ? source.charAt(start - 1) : "";
+  const nextChar = source.charAt(start + matchLength);
+  return (
+    !isChineseWordCharacter(previousChar) &&
+    (isInferenceBoundaryCharacter(nextChar) || !nextChar)
+  );
+}
+
+function inferSpecialTagFromLiteral(text) {
+  const source = String(text || "");
+  if (/^(呵{2,}|哈{2,}|嘿{2,}|嘻{2,})$/.test(source)) {
+    return "<SPK/>";
+  }
+  if (/^(呃|诶|欸)$/.test(source)) {
+    return "#eh";
+  }
+  if (source === "啊") {
+    return "#ah";
+  }
+  if (source === "嗯") {
+    return "#um";
+  }
+  return "";
+}
+
 function joinInlineTagTokens(tokens) {
   return (Array.isArray(tokens) ? tokens : [])
     .map(function (token) {
@@ -195,7 +254,7 @@ function pushTextToken(target, content) {
   });
 }
 
-function pushTagToken(target, content) {
+function pushTagToken(target, content, inferred) {
   const tag = normalizeSpecialTag(content);
   if (!tag) {
     return;
@@ -204,7 +263,26 @@ function pushTagToken(target, content) {
   list.push({
     type: "tag",
     content: tag,
+    inferred: inferred === true,
   });
+}
+
+function stripTokenMetadata(tokens) {
+  return (Array.isArray(tokens) ? tokens : [])
+    .map(function (token) {
+      if (!token || typeof token !== "object") {
+        return null;
+      }
+      const type = normalizeText(token.type).toLowerCase();
+      if (type !== "text" && type !== "tag") {
+        return null;
+      }
+      return {
+        type: type,
+        content: String(token.content || ""),
+      };
+    })
+    .filter(Boolean);
 }
 
 function compactInlineTagTokens(tokens) {
@@ -214,7 +292,7 @@ function compactInlineTagTokens(tokens) {
       return;
     }
     if (token.type === "tag") {
-      pushTagToken(result, token.content);
+      pushTagToken(result, token.content, token.inferred === true);
       return;
     }
     pushTextToken(result, token.content);
@@ -222,6 +300,42 @@ function compactInlineTagTokens(tokens) {
   return result.filter(function (token) {
     return normalizeText(token.content) || token.type === "tag" || String(token.content || "").length > 0;
   });
+}
+
+function inferSupportedTagsFromText(text) {
+  const source = String(text || "");
+  if (!source) {
+    return [];
+  }
+  const result = [];
+  let cursor = 0;
+  let matched;
+  DIALECT_TAG_INFERENCE_MATCHER.lastIndex = 0;
+  while ((matched = DIALECT_TAG_INFERENCE_MATCHER.exec(source))) {
+    const literal = String(matched[0] || "");
+    const index = matched.index;
+    const inferredTag = inferSpecialTagFromLiteral(literal);
+    const isNoise = isNoiseTag(inferredTag);
+    if (!inferredTag || (!isNoise && !isStandaloneInferenceMatch(source, index, literal.length))) {
+      continue;
+    }
+    if (index > cursor) {
+      pushTextToken(result, source.slice(cursor, index));
+    }
+    pushTagToken(result, inferredTag, true);
+    cursor = index + literal.length;
+    if (isNoise) {
+      const rest = source.slice(cursor);
+      const leadingNoisePunctuation = rest.match(NOISE_BOUNDARY_PUNCTUATION_LEADING_PATTERN);
+      if (leadingNoisePunctuation) {
+        cursor += leadingNoisePunctuation[0].length;
+      }
+    }
+  }
+  if (cursor < source.length) {
+    pushTextToken(result, source.slice(cursor));
+  }
+  return compactInlineTagTokens(result);
 }
 
 function tokenizeInlineTagText(text, placeholders) {
@@ -243,7 +357,7 @@ function tokenizeInlineTagText(text, placeholders) {
     if (matched.index > cursor) {
       pushTextToken(result, source.slice(cursor, matched.index));
     }
-    pushTagToken(result, placeholderMap.get(matched[0]));
+    pushTagToken(result, placeholderMap.get(matched[0]), false);
     cursor = matched.index + matched[0].length;
   }
   if (cursor < source.length) {
@@ -282,6 +396,39 @@ function normalizeTagAdjacentPunctuation(tokens) {
   };
 }
 
+function normalizeNoiseTagBoundaries(tokens) {
+  const source = compactInlineTagTokens(tokens);
+  let changed = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const current = source[index];
+    if (!current || current.type !== "tag" || !isNoiseTag(current.content)) {
+      continue;
+    }
+    const previous = source[index - 1];
+    const next = source[index + 1];
+    if (previous && previous.type === "text") {
+      const previousText = String(previous.content || "");
+      const trimmedPrevious = previousText.replace(NOISE_BOUNDARY_PUNCTUATION_TRAILING_PATTERN, "");
+      if (trimmedPrevious !== previousText) {
+        previous.content = trimmedPrevious;
+        changed = true;
+      }
+    }
+    if (next && next.type === "text") {
+      const nextText = String(next.content || "");
+      const trimmedNext = nextText.replace(NOISE_BOUNDARY_PUNCTUATION_LEADING_PATTERN, "");
+      if (trimmedNext !== nextText) {
+        next.content = trimmedNext;
+        changed = true;
+      }
+    }
+  }
+  return {
+    changed,
+    tokens: compactInlineTagTokens(source),
+  };
+}
+
 function normalizeInlineTaggedDialectText(text, extraTags) {
   const unsupportedTags = [];
   const placeholders = [];
@@ -300,8 +447,26 @@ function normalizeInlineTaggedDialectText(text, extraTags) {
   });
   const normalizedText = normalizeAllowedPunctuation(placeholderText);
   const tokenized = tokenizeInlineTagText(normalizedText, placeholders);
-  const punctuationResult = normalizeTagAdjacentPunctuation(tokenized);
-  const tokens = punctuationResult.tokens;
+  const inferredTokens = compactInlineTagTokens(
+    tokenized.flatMap(function (token, index, list) {
+      if (!token || token.type !== "text") {
+        return [token];
+      }
+      const previous = list[index - 1];
+      const next = list[index + 1];
+      if (
+        (previous && previous.type === "tag" && previous.inferred !== true) ||
+        (next && next.type === "tag" && next.inferred !== true)
+      ) {
+        return [token];
+      }
+      return inferSupportedTagsFromText(token.content);
+    })
+  );
+  const punctuationResult = normalizeTagAdjacentPunctuation(inferredTokens);
+  const noiseBoundaryResult = normalizeNoiseTagBoundaries(punctuationResult.tokens);
+  const secondPunctuationResult = normalizeTagAdjacentPunctuation(noiseBoundaryResult.tokens);
+  const tokens = secondPunctuationResult.tokens;
   const specialTags = normalizeSpecialTags(
     collectSpecialTagsFromTokens(tokens).concat(normalizeSpecialTags(extraTags))
   );
@@ -310,7 +475,10 @@ function normalizeInlineTaggedDialectText(text, extraTags) {
     tokens,
     specialTags,
     removedUnsupportedTags: unsupportedTags,
-    fixedAdjacentPunctuation: punctuationResult.changed,
+    fixedAdjacentPunctuation:
+      punctuationResult.changed === true ||
+      noiseBoundaryResult.changed === true ||
+      secondPunctuationResult.changed === true,
   };
 }
 
@@ -323,8 +491,13 @@ function normalizeMandarinPlainText(text) {
     }
     return "";
   });
+  const withoutLaughter = withoutTags
+    .replace(REPEATED_LAUGHTER_MATCHER, "")
+    .replace(/^[，；]+/g, "")
+    .replace(/[，；]+([。？！])/g, "$1")
+    .replace(/([。？！])[，；]+/g, "$1");
   return {
-    text: normalizeAllowedPunctuation(withoutTags),
+    text: normalizeAllowedPunctuation(withoutLaughter),
     removedTags,
   };
 }
@@ -405,6 +578,178 @@ function parseCsvLine(text) {
   return result;
 }
 
+function normalizeAttributesMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const result = {};
+  Object.keys(value).forEach(function (key) {
+    const normalizedKey = normalizeText(key);
+    if (!normalizedKey) {
+      return;
+    }
+    const currentValue = value[key];
+    if (Array.isArray(currentValue)) {
+      const normalizedList = normalizeList(currentValue, 20);
+      if (normalizedList.length > 0) {
+        result[normalizedKey] = normalizedList;
+      }
+      return;
+    }
+    const normalizedValue = normalizeText(currentValue);
+    if (normalizedValue) {
+      result[normalizedKey] = normalizedValue;
+    }
+  });
+  return result;
+}
+
+function buildReferenceRowsFromCsv(csvText) {
+  const lines = String(csvText || "")
+    .split(/\r?\n/)
+    .map(function (line) {
+      return String(line || "");
+    })
+    .filter(function (line) {
+      return normalizeText(line).length > 0;
+    });
+  if (lines.length <= 1) {
+    return [];
+  }
+  return lines
+    .slice(1)
+    .map(function (line) {
+      const columns = parseCsvLine(line);
+      return {
+        pronunciation: normalizeText(columns[0]),
+        dialectWord: normalizeText(columns[1]),
+        meaning: normalizeText(columns[2]),
+        aliases: [],
+        source: "liuzhou-pronunciation-reference.csv",
+      };
+    })
+    .filter(function (row) {
+      return row.dialectWord && row.meaning;
+    });
+}
+
+function normalizeCandidatePhrases(value, currentText) {
+  const current = normalizeText(currentText);
+  const seen = new Set();
+  return (Array.isArray(value) ? value : [value])
+    .map(function (item) {
+      return normalizeInlineTaggedDialectText(item || "", []).text;
+    })
+    .filter(function (text) {
+      const normalized = normalizeText(text);
+      if (!normalized || normalized === current || seen.has(normalized)) {
+        return false;
+      }
+      seen.add(normalized);
+      return true;
+    })
+    .slice(0, 3);
+}
+
+function normalizeCandidateAlternatives(value, fallbackReason) {
+  const seen = new Set();
+  return (Array.isArray(value) ? value : [value])
+    .map(function (item) {
+      const source =
+        item && typeof item === "object"
+          ? item
+          : {
+              dialectText: item,
+            };
+      const normalizedDialect = normalizeInlineTaggedDialectText(
+        source.dialectText || source.text || source.candidateText || "",
+        source.specialTags
+      );
+      const normalizedMandarin = normalizeMandarinPlainText(
+        source.mandarinText || source.meaning || source.translationText || ""
+      );
+      const reason = normalizeLineText(source.reason || fallbackReason || "");
+      return {
+        dialectText: normalizedDialect.text,
+        dialectTokens: stripTokenMetadata(normalizedDialect.tokens),
+        mandarinText: normalizedMandarin.text,
+        reason,
+      };
+    })
+    .filter(function (item) {
+      const key = normalizeText(item.dialectText);
+      if (!key || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3);
+}
+
+function mergeCandidateAlternatives(refineCandidates, listenResult, assetsContext, finalDialectText, finalMandarinText) {
+  const finalDialect = normalizeText(finalDialectText);
+  const seen = new Set([finalDialect]);
+  const result = [];
+
+  function appendCandidate(candidate) {
+    const source = candidate && typeof candidate === "object" ? candidate : {};
+    const dialectText = normalizeText(source.dialectText);
+    if (!dialectText || seen.has(dialectText) || result.length >= 3) {
+      return;
+    }
+    seen.add(dialectText);
+    result.push({
+      dialectText: source.dialectText,
+      dialectTokens: Array.isArray(source.dialectTokens) ? source.dialectTokens.slice() : [],
+      mandarinText: source.mandarinText,
+      reason: normalizeLineText(source.reason || ""),
+    });
+  }
+
+  normalizeCandidateAlternatives(refineCandidates).forEach(appendCandidate);
+
+  if (listenResult && normalizeText(listenResult.audioDialectText) !== finalDialect) {
+    appendCandidate(
+      normalizeCandidateAlternatives(
+        [
+          {
+            dialectText: listenResult.audioDialectText,
+            mandarinText: normalizeMandarinPlainText(
+              buildMandarinDraftForDialect(
+                assetsContext,
+                listenResult.audioDialectText,
+                listenResult.audioDialectTokens
+              )
+            ).text,
+            reason: "原始听音",
+          },
+        ],
+        "原始听音"
+      )[0]
+    );
+  }
+
+  (Array.isArray(listenResult?.candidatePhrases) ? listenResult.candidatePhrases : []).forEach(function (text) {
+    appendCandidate(
+      normalizeCandidateAlternatives(
+        [
+          {
+            dialectText: text,
+            mandarinText: normalizeMandarinPlainText(
+              buildMandarinDraftForDialect(assetsContext, text, [])
+            ).text,
+            reason: "听音近音候选",
+          },
+        ],
+        "听音近音候选"
+      )[0]
+    );
+  });
+
+  return result;
+}
+
 function normalizeListenStageOutput(value) {
   const source = value && typeof value === "object" ? value : {};
   const normalizedDialect = normalizeInlineTaggedDialectText(
@@ -417,7 +762,8 @@ function normalizeListenStageOutput(value) {
   );
   return {
     audioDialectText: normalizedDialect.text,
-    audioDialectTokens: normalizedDialect.tokens,
+    audioDialectTokens: stripTokenMetadata(normalizedDialect.tokens),
+    candidatePhrases: normalizeCandidatePhrases(source.candidatePhrases, normalizedDialect.text),
     audioMandarinText: "",
     specialTags: normalizedDialect.specialTags,
     needHumanReview:
@@ -443,6 +789,10 @@ function normalizeRefineStageOutput(value) {
       source.plainMandarinText ||
       ""
   );
+  const restoredMandarinText = restoreMandarinParticlesFromDialectTokens(
+    normalizedMandarin.text,
+    normalizedDialect.tokens
+  );
   const notes = appendRequiredNotes(
     source.notes,
     buildTagNormalizationNotes(normalizedDialect, {
@@ -451,13 +801,14 @@ function normalizeRefineStageOutput(value) {
   );
   return {
     refinedDialectText: normalizedDialect.text,
-    refinedDialectTokens: normalizedDialect.tokens,
-    refinedMandarinText: normalizedMandarin.text,
+    refinedDialectTokens: stripTokenMetadata(normalizedDialect.tokens),
+    refinedMandarinText: restoredMandarinText,
+    candidateAlternatives: normalizeCandidateAlternatives(source.candidateAlternatives),
     specialTags: normalizedDialect.specialTags,
     needHumanReview:
       source.needHumanReview === true ||
       !normalizedDialect.text ||
-      !normalizedMandarin.text ||
+      !restoredMandarinText ||
       normalizedDialect.removedUnsupportedTags.length > 0 ||
       normalizedDialect.fixedAdjacentPunctuation === true ||
       normalizedMandarin.removedTags.length > 0,
@@ -615,6 +966,7 @@ function buildLexiconRows(document) {
         aliases: normalizeList(entry.aliases || [], 20),
         notes: normalizeList(entry.notes || [], 20),
         tags: normalizeList(entry.tags || [], 20),
+        attributes: normalizeAttributesMap(entry.attributes),
       };
     })
     .filter(function (row) {
@@ -625,12 +977,16 @@ function buildLexiconRows(document) {
 function buildAssetsContext(assets) {
   const source = assets && typeof assets === "object" ? assets : {};
   let lexiconRows = [];
+  let referenceRows = [];
   let lexiconStatus = "missing";
   let lexiconWarning = "";
   const hasReferenceCsv = normalizeText(source.lexiconReferenceCsv).length > 0;
   try {
     if (source.lexiconJson) {
       lexiconRows = buildLexiconRows(source.lexiconJson);
+      if (hasReferenceCsv) {
+        referenceRows = buildReferenceRowsFromCsv(source.lexiconReferenceCsv);
+      }
       lexiconStatus = "ready";
     } else if (hasReferenceCsv) {
       lexiconStatus = "reference_only";
@@ -651,38 +1007,75 @@ function buildAssetsContext(assets) {
   return {
     rulesText: String(source.ruleText || "").trim(),
     lexiconRows,
+    referenceRows,
     lexiconStatus,
     lexiconWarning,
   };
 }
 
 function buildRelevantLexiconContext(assetsContext, hintTexts) {
-  const rows = Array.isArray(assetsContext?.lexiconRows) ? assetsContext.lexiconRows : [];
+  const lexiconRows = Array.isArray(assetsContext?.lexiconRows) ? assetsContext.lexiconRows : [];
+  const referenceRows = Array.isArray(assetsContext?.referenceRows) ? assetsContext.referenceRows : [];
   const hintText = (Array.isArray(hintTexts) ? hintTexts : [])
     .map(normalizeText)
     .filter(Boolean)
     .join(" ");
-  const matches = rows.filter(function (row) {
-    const dialectWord = normalizeText(row?.display || row?.normalized);
-    const meaning = normalizeText(row?.mandarin);
+  const combinedRows = lexiconRows
+    .map(function (row) {
+      return Object.assign({}, row, {
+        dialectWord: normalizeText(row?.display || row?.normalized),
+        meaning: normalizeText(row?.mandarin),
+        pronunciation: normalizeText(row?.attributes?.pronunciation),
+        mandarinVariants: normalizeList(row?.attributes?.mandarinVariants || [], 20),
+        usageContext: normalizeText(row?.attributes?.usageContext),
+        source: "liuzhou-lexicon.json",
+      });
+    })
+    .concat(
+      referenceRows.map(function (row, index) {
+        return {
+          id: normalizeText(row?.id) || "reference-" + String(index + 1),
+          dialectWord: normalizeText(row?.dialectWord),
+          meaning: normalizeText(row?.meaning),
+          aliases: normalizeList(row?.aliases || [], 20),
+          notes: [],
+          tags: [],
+          pronunciation: normalizeText(row?.pronunciation),
+          mandarinVariants: [],
+          usageContext: "",
+          source: normalizeText(row?.source || "liuzhou-pronunciation-reference.csv"),
+        };
+      })
+    );
+  const matches = combinedRows.filter(function (row) {
+    const dialectWord = normalizeText(row?.dialectWord);
+    const meaning = normalizeText(row?.meaning);
+    const aliases = normalizeList(row?.aliases || [], 20);
     if (!hintText) {
       return false;
     }
     return (
       (dialectWord && hintText.indexOf(dialectWord) >= 0) ||
-      (meaning && hintText.indexOf(meaning) >= 0)
+      (meaning && hintText.indexOf(meaning) >= 0) ||
+      aliases.some(function (alias) {
+        return hintText.indexOf(alias) >= 0;
+      })
     );
   });
-  const shortlist = (matches.length > 0 ? matches : rows).slice(0, 24);
+  const shortlist = (matches.length > 0 ? matches : combinedRows).slice(0, 24);
   return shortlist
     .map(function (row) {
       return {
         id: normalizeText(row?.id),
-        dialectWord: normalizeText(row?.display || row?.normalized),
-        meaning: normalizeText(row?.mandarin),
+        dialectWord: normalizeText(row?.dialectWord || row?.display || row?.normalized),
+        meaning: normalizeText(row?.meaning || row?.mandarin),
         aliases: normalizeList(row?.aliases || [], 20),
         notes: normalizeList(row?.notes || [], 20),
         tags: normalizeList(row?.tags || [], 20),
+        pronunciation: normalizeText(row?.pronunciation),
+        mandarinVariants: normalizeList(row?.mandarinVariants || [], 20),
+        usageContext: normalizeText(row?.usageContext),
+        source: normalizeText(row?.source),
       };
     })
     .filter(function (row) {
@@ -729,6 +1122,121 @@ function buildMandarinDraftFromLexicon(assetsContext, dialectText) {
   return normalizeAllowedPunctuation(segments.join("") || sourceText);
 }
 
+function buildPlainDialectTextFromTokens(tokens, fallbackText) {
+  const sourceTokens = Array.isArray(tokens) ? tokens : [];
+  if (sourceTokens.length <= 0) {
+    return normalizeAllowedPunctuation(fallbackText);
+  }
+  return normalizeAllowedPunctuation(
+    sourceTokens
+      .map(function (token) {
+        if (!token || typeof token !== "object") {
+          return "";
+        }
+        if (token.type !== "tag") {
+          return String(token.content || "");
+        }
+        const normalizedTag = normalizeSpecialTag(token.content);
+        if (!normalizedTag) {
+          return "";
+        }
+        return MANDARIN_PARTICLE_MAP[normalizedTag] || "";
+      })
+      .join("")
+  );
+}
+
+function buildMandarinDraftForDialect(assetsContext, dialectText, dialectTokens) {
+  return buildMandarinDraftFromLexicon(
+    assetsContext,
+    buildPlainDialectTextFromTokens(dialectTokens, dialectText)
+  );
+}
+
+function buildMandarinParticleGuidesFromDialectTokens(tokens) {
+  const source = Array.isArray(tokens) ? tokens : [];
+  return source
+    .map(function (token, index) {
+      if (!token || token.type !== "tag") {
+        return null;
+      }
+      const normalizedTag = normalizeSpecialTag(token.content);
+      const particle = MANDARIN_PARTICLE_MAP[normalizedTag];
+      if (!particle) {
+        return null;
+      }
+      const previous = source[index - 1];
+      const next = source[index + 1];
+      const previousText = previous && previous.type === "text" ? String(previous.content || "") : "";
+      const nextText = next && next.type === "text" ? String(next.content || "") : "";
+      const previousAnchor = previousText.replace(TAG_ADJACENT_PUNCTUATION_PATTERN, "");
+      const nextLeadingPunctuation = (nextText.match(TAG_LEADING_PUNCTUATION_PATTERN) || [""])[0];
+      return {
+        particle,
+        previousAnchorTail: previousAnchor.slice(-12),
+        nextLeadingPunctuation,
+      };
+    })
+    .filter(Boolean);
+}
+
+function replaceFirstLiteral(text, searchValue, replacement) {
+  const source = String(text || "");
+  const target = String(searchValue || "");
+  if (!target) {
+    return source;
+  }
+  const index = source.indexOf(target);
+  if (index < 0) {
+    return source;
+  }
+  return source.slice(0, index) + String(replacement || "") + source.slice(index + target.length);
+}
+
+function restoreMandarinParticlesFromDialectTokens(text, dialectTokens) {
+  const guides = buildMandarinParticleGuidesFromDialectTokens(dialectTokens);
+  let result = normalizeAllowedPunctuation(text);
+  guides.forEach(function (guide) {
+    const particle = guide.particle;
+    const previousAnchorTail = String(guide.previousAnchorTail || "");
+    const nextLeadingPunctuation = String(guide.nextLeadingPunctuation || "");
+    if (!previousAnchorTail) {
+      const expectedPrefix = particle + nextLeadingPunctuation;
+      if (result.startsWith(expectedPrefix) || result.startsWith(particle)) {
+        return;
+      }
+      if (nextLeadingPunctuation && result.startsWith(nextLeadingPunctuation)) {
+        result = particle + result;
+        return;
+      }
+      result = expectedPrefix + result;
+      return;
+    }
+    if (result.indexOf(previousAnchorTail + particle) >= 0) {
+      return;
+    }
+    if (
+      nextLeadingPunctuation &&
+      result.indexOf(previousAnchorTail + nextLeadingPunctuation) >= 0
+    ) {
+      result = replaceFirstLiteral(
+        result,
+        previousAnchorTail + nextLeadingPunctuation,
+        previousAnchorTail + particle + nextLeadingPunctuation
+      );
+      return;
+    }
+    if (result.indexOf(previousAnchorTail) >= 0) {
+      result = replaceFirstLiteral(result, previousAnchorTail, previousAnchorTail + particle);
+      return;
+    }
+    if (!result.startsWith(particle)) {
+      result = particle + nextLeadingPunctuation + result;
+    }
+  });
+  return normalizeAllowedPunctuation(result);
+}
+
 function attachStageExecutionMeta(error, stageName, requestModel, result, deps, stageStartedAt) {
   if (!error || typeof error !== "object") {
     return error;
@@ -769,12 +1277,17 @@ function buildListenFailureFallback(rawModelText, assetsContext, options) {
     specialTags: source.specialTags,
     notes: source.notes,
   });
-  const mandarinDraft = buildMandarinDraftFromLexicon(assetsContext, normalized.audioDialectText);
+  const mandarinDraft = buildMandarinDraftForDialect(
+    assetsContext,
+    normalized.audioDialectText,
+    normalized.audioDialectTokens
+  );
   return {
     audioDialectText: normalized.audioDialectText,
     audioDialectTokens: Array.isArray(normalized.audioDialectTokens)
       ? normalized.audioDialectTokens.slice()
       : [],
+    candidateAlternatives: [],
     audioMandarinText: mandarinDraft,
     refinedDialectText: normalized.audioDialectText,
     refinedDialectTokens: Array.isArray(normalized.audioDialectTokens)
@@ -802,11 +1315,12 @@ function buildRefineFailureFallback(listenResult, assetsContext, options) {
     : [];
   const mandarinDraft = normalizeAllowedPunctuation(
     listenResult?.mandarinDraft ||
-      buildMandarinDraftFromLexicon(assetsContext, heardDialectText)
+      buildMandarinDraftForDialect(assetsContext, heardDialectText, heardDialectTokens)
   );
   return {
     audioDialectText: heardDialectText,
     audioDialectTokens: heardDialectTokens,
+    candidateAlternatives: mergeCandidateAlternatives([], listenResult, assetsContext, heardDialectText, mandarinDraft),
     audioMandarinText: mandarinDraft,
     refinedDialectText: heardDialectText,
     refinedDialectTokens: heardDialectTokens.slice(),
@@ -851,7 +1365,10 @@ function buildListenPrompt(request, assetsContext) {
     systemPrompt: appendPromptRequirements(
       request.aiStages?.listen?.prompt || DEFAULT_LISTEN_PROMPT,
       [
+        "candidatePhrases 最多 3 个；若无明显近音歧义则返回空数组。",
         "有效标签只允许：#um、#hmm、#ah、#eh、<SPK/>、<NPS/>。",
+        "独立口语词“呃/诶/欸”优先写为 #eh，“啊”优先写为 #ah，“嗯”优先写为 #um。",
+        "主说话人的笑声或明显非语义人声优先写为 <SPK/>。",
         "如果标签前后同时出现标点，只保留标签后的标点。",
       ]
     ),
@@ -862,10 +1379,15 @@ function buildListenPrompt(request, assetsContext) {
 function buildRefinePrompt(request, assetsContext, listenResult) {
   const mandarinDraft = normalizeAllowedPunctuation(
     listenResult.mandarinDraft ||
-      buildMandarinDraftFromLexicon(assetsContext, listenResult.audioDialectText)
+      buildMandarinDraftForDialect(
+        assetsContext,
+        listenResult.audioDialectText,
+        listenResult.audioDialectTokens
+      )
   );
   const lexiconContext = buildRelevantLexiconContext(assetsContext, [
     listenResult.audioDialectText,
+    [].concat(listenResult.candidatePhrases || []).join(" "),
     mandarinDraft,
     request.fieldContext?.dialectText,
     request.fieldContext?.mandarinText,
@@ -877,6 +1399,8 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
       [
         "refinedDialectText 有效标签只允许：#um、#hmm、#ah、#eh、<SPK/>、<NPS/>。",
         "refinedMandarinText 必须是纯文本，禁止输出标签。",
+        "如果 refinedDialectText 保留了口语词标签，refinedMandarinText 必须保留对应纯文本语气词。",
+        "笑声或明显非语义噪音在 refinedMandarinText 里必须删除，不写标签，也不写“呵呵呵”等字面笑声。",
         "如果标签前后同时出现标点，只保留标签后的标点。",
       ]
     ),
@@ -894,6 +1418,9 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
             durationMs: request.durationMs,
           },
           audioDialectText: listenResult.audioDialectText,
+          candidatePhrases: Array.isArray(listenResult.candidatePhrases)
+            ? listenResult.candidatePhrases.slice()
+            : [],
           mandarinDraft: mandarinDraft,
           fieldContext: request.fieldContext,
           selectedEntry: request.editorContext?.selectedEntry || null,
@@ -901,7 +1428,7 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
         null,
         2
       ),
-      "请同时输出 refinedDialectText 与 refinedMandarinText。",
+      "请同时输出 refinedDialectText、refinedMandarinText 和 candidateAlternatives。",
     ].join("\n"),
   };
 }
@@ -1005,6 +1532,7 @@ async function runListenStage(request, assetsContext, deps) {
   return {
     audioDialectText: normalized.audioDialectText,
     audioDialectTokens: normalized.audioDialectTokens,
+    candidatePhrases: Array.isArray(normalized.candidatePhrases) ? normalized.candidatePhrases.slice() : [],
     audioMandarinText: "",
     specialTags: normalized.specialTags,
     needHumanReview: normalized.needHumanReview,
@@ -1025,7 +1553,11 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
   const stageStartedAt = deps.now();
   const mandarinDraft = normalizeAllowedPunctuation(
     listenResult.mandarinDraft ||
-      buildMandarinDraftFromLexicon(assetsContext, listenResult.audioDialectText)
+      buildMandarinDraftForDialect(
+        assetsContext,
+        listenResult.audioDialectText,
+        listenResult.audioDialectTokens
+      )
   );
   const result = await deps.requestTextCompareJson(
     {
@@ -1058,13 +1590,24 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
   const refinedMandarinText = normalizeAllowedPunctuation(
     normalized.refinedMandarinText || mandarinDraft
   );
+  const candidateAlternatives = mergeCandidateAlternatives(
+    normalized.candidateAlternatives,
+    listenResult,
+    assetsContext,
+    refinedDialectText,
+    refinedMandarinText
+  );
   return {
     refinedDialectText,
     refinedDialectTokens: normalized.refinedDialectTokens,
     refinedMandarinText,
+    candidateAlternatives,
     specialTags: normalized.specialTags,
     needHumanReview:
-      normalized.needHumanReview === true || !refinedDialectText || !refinedMandarinText,
+      normalized.needHumanReview === true ||
+      candidateAlternatives.length > 0 ||
+      !refinedDialectText ||
+      !refinedMandarinText,
     notes: normalized.notes,
     timing: {
       refineMs: Math.max(0, deps.now() - stageStartedAt),
@@ -1085,9 +1628,10 @@ async function recommend(request, assetsContext, overrides) {
   let listenResult = null;
   try {
     listenResult = await runListenStage(request, normalizedAssetsContext, deps);
-    listenResult.mandarinDraft = buildMandarinDraftFromLexicon(
+    listenResult.mandarinDraft = buildMandarinDraftForDialect(
       normalizedAssetsContext,
-      listenResult.audioDialectText
+      listenResult.audioDialectText,
+      listenResult.audioDialectTokens
     );
     const refineResult = await runRefineStage(
       request,
@@ -1115,12 +1659,17 @@ async function recommend(request, assetsContext, overrides) {
       refinedMandarinText,
       dialectText: refinedDialectText,
       mandarinText: refinedMandarinText,
+      candidateAlternatives: Array.isArray(refineResult.candidateAlternatives)
+        ? refineResult.candidateAlternatives.slice()
+        : [],
       specialTags: normalizeSpecialTags(
         [].concat(refineResult.specialTags || [], listenResult.specialTags || [])
       ),
       needHumanReview:
         listenResult.needHumanReview === true ||
         refineResult.needHumanReview === true ||
+        (Array.isArray(refineResult.candidateAlternatives) &&
+          refineResult.candidateAlternatives.length > 0) ||
         !audioDialectText ||
         !refinedDialectText ||
         !refinedMandarinText,
@@ -1183,6 +1732,7 @@ function buildRecommendSuccessBody(context) {
     refinedMandarinText: normalizeText(result.refinedMandarinText || result.mandarinText || result.audioMandarinText),
     dialectText: normalizeText(result.refinedDialectText || result.dialectText),
     mandarinText: normalizeText(result.refinedMandarinText || result.mandarinText || result.audioMandarinText),
+    candidateAlternatives: normalizeCandidateAlternatives(result.candidateAlternatives),
     specialTags: normalizeList(result.specialTags, 8),
     needHumanReview: result.needHumanReview === true,
     notes: normalizeNotes(result.notes),
@@ -1228,6 +1778,7 @@ function buildRecommendErrorBody(context) {
   const mandarinText = normalizeText(
     error.mandarinText || refinedMandarinText || audioMandarinText
   );
+  const candidateAlternatives = normalizeCandidateAlternatives(error.candidateAlternatives);
   if (rawResponse) {
     body.rawResponse = rawResponse;
   }
@@ -1251,6 +1802,9 @@ function buildRecommendErrorBody(context) {
   }
   if (notes.length > 0) {
     body.notes = notes;
+  }
+  if (candidateAlternatives.length > 0) {
+    body.candidateAlternatives = candidateAlternatives;
   }
   body.audioDialectText = audioDialectText;
   body.audioDialectTokens = audioDialectTokens;

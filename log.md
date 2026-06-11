@@ -1,3 +1,24 @@
+## 2026-06-11（DataBaker CVPC 柳州话标签联动补强：语气词保留、笑声归一化、标签填入可视自愈）
+
+- `DataBaker CVPC / 柳州话脚本` 当前补齐一轮标签联动缺口：
+  - 后端 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 当前新增高置信文本归一化：独立 `呃 / 诶 / 欸 -> #eh`、独立 `啊 -> #ah`、独立 `嗯 -> #um`、重复笑声 `呵呵 / 哈哈 / 嘿嘿 / 嘻嘻` 一类主说话人非语义声音 -> `<SPK/>`
+  - `#hmm` 与 `<NPS/>` 当前继续只接受模型显式输出，不从纯文本自动猜测
+  - `普通话顺滑` 当前会保留与 `#eh / #ah / #um / #hmm` 对应的纯文本语气词，但不会保留 `<SPK/> / <NPS/>` 或笑声文本
+- 当前段标签填入链路当前补上一层可视自愈：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 继续以 `.textarea_class[modelvalue]` 为真源
+  - 当前段把带标签结果填入 `标注文本` 后，会在有限次数短延时内复核 `.ProseMirror` 可视 DOM；若页面下一次 tiptap 重绘把 chip 临时清空，会按 `modelvalue` 自动恢复显示
+- 本轮同步更新：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-rules.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+
 ## 2026-06-11（DataBaker CVPC 柳州话 AI 信息乱码与 fetch 失败提示修复）
 
 - `DataBaker CVPC / 柳州话脚本` 当前修复 `AI信息` 内一处标题乱码：

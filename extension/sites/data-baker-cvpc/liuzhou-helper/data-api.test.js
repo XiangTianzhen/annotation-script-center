@@ -2444,6 +2444,52 @@ test("CVPC data api writes structured dialect tags into current segment field", 
   assert.match(harness.dialectEditor.innerHTML, /data-tag-id=/);
 });
 
+test("CVPC data api restores structured dialect chips after editor rerender clears the visible content", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    visibleEntryName: "sample-a.mp3",
+    selectionText: "开始：0 秒 结束：4.171 秒 截取：4.171 秒",
+    segmentStates: [{ validity: "missing", dialectText: "", mandarinText: "" }],
+  });
+  let scheduledClear = false;
+  harness.dialectEditor.addEventListener("input", function () {
+    if (scheduledClear) {
+      return;
+    }
+    scheduledClear = true;
+    setTimeout(function () {
+      harness.dialectEditor.innerHTML = '<p><br class="ProseMirror-trailingBreak"></p>';
+    }, 5);
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.fillCurrentSegmentField({
+    selectionKey: "sample-a.mp3|0|4171",
+    targetField: "dialect",
+    text: "都七十岁了#eh，明日古稀了。",
+    tokens: [
+      { type: "text", content: "都七十岁了" },
+      { type: "tag", content: "#eh" },
+      { type: "text", content: "，明日古稀了。" },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。",
+  });
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 120);
+  });
+  const structured = JSON.parse(harness.dialectTextareaHost.getAttribute("modelvalue"));
+  assert.equal(structured.length, 3);
+  assert.match(harness.dialectEditor.innerHTML, /data-tag-id=/);
+  assert.doesNotMatch(
+    harness.dialectEditor.innerHTML,
+    /^<p><br class="ProseMirror-trailingBreak"><\/p>$/
+  );
+});
+
 test("CVPC data api falls back to live waveform apply when save_increment auth snapshot is missing", async function () {
   const dataApiModule = loadDataApiModule();
   const harness = createSegmentApplyHarness({

@@ -738,6 +738,18 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
           totalTokens: 7,
         },
       },
+      candidateAlternatives: [
+        {
+          dialectText: "听音#eh柳州话",
+          mandarinText: "听音普通话",
+          reason: "原始听音",
+        },
+        {
+          dialectText: "近音柳州话",
+          mandarinText: "近音普通话",
+          reason: "近音候选",
+        },
+      ],
       specialTags: ["口语化"],
       needHumanReview: false,
       notes: ["人工确认"],
@@ -771,6 +783,12 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.match(middleText, /AI信息/);
     assert.match(middleText, /听音识别/);
     assert.match(middleText, /文本修正/);
+    assert.match(middleText, /近音候选参考/);
+    assert.match(middleText, /听音#eh柳州话/);
+    assert.match(middleText, /听音普通话/);
+    assert.match(middleText, /原始听音/);
+    assert.match(middleText, /近音柳州话/);
+    assert.match(middleText, /近音普通话/);
     assert.match(middleText, /模型：qwen3\.5-omni-flash/);
     assert.match(middleText, /模型：qwen3\.5-plus/);
     assert.match(middleText, /输入：10/);
@@ -787,6 +805,9 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.doesNotMatch(middleText, /整理后的普通话文本/);
     assert.doesNotMatch(collectText(panelNode), /听音#eh柳州话/);
     assert.doesNotMatch(collectText(panelNode), /建议 1/);
+    assert.doesNotMatch(dialectText, /近音普通话/);
+    assert.doesNotMatch(dialectText, /原始听音/);
+    assert.doesNotMatch(mandarinText, /近音普通话/);
     assert.match(dialectText, /修正后的柳州话文本/);
     assert.match(dialectText, /修正/);
     assert.match(dialectText, /#ah/);

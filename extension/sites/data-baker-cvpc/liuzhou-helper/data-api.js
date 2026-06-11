@@ -51,6 +51,7 @@
     "<nps/>": "<NPS/>",
   };
   const DIALECT_TAG_MATCHER = /#(?:um|hmm|ah|eh)|<(?:SPK\/|NPS\/)>/gi;
+  const STRUCTURED_TAG_FIELD_RESYNC_DELAYS_MS = [0, 30, 90];
   let dialectTagSerial = 0;
 
   function normalizeText(value) {
@@ -1049,6 +1050,46 @@
     }
   }
 
+  function parseStructuredTextItems(value) {
+    const text = String(value || "");
+    if (!text) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed
+        .map(function (item) {
+          const source = item && typeof item === "object" ? item : {};
+          const type = normalizeText(source.type).toLowerCase();
+          const content = String(source.content || "");
+          if (type === "single") {
+            const normalizedTag = normalizeDialectTag(content);
+            if (!normalizedTag) {
+              return null;
+            }
+            return {
+              type: "single",
+              id: normalizeText(source.id) || nextDialectTagId(),
+              content: normalizedTag,
+            };
+          }
+          if (type === "text") {
+            return {
+              type: "text",
+              content: content,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+    } catch (_error) {
+      return [];
+    }
+  }
+
   function normalizeDialectTag(value) {
     const text = normalizeText(value);
     return DIALECT_TAG_MAP[text] || DIALECT_TAG_MAP[text.toLowerCase()] || "";
@@ -1254,6 +1295,57 @@
       }
     }
     return isElementNode(field.parentNode, env) ? field.parentNode : null;
+  }
+
+  function hasStructuredTagItems(items) {
+    return (Array.isArray(items) ? items : []).some(function (item) {
+      return normalizeText(item?.type).toLowerCase() === "single";
+    });
+  }
+
+  function isStructuredEditorViewMissingTags(field, structuredItems) {
+    if (!hasStructuredTagItems(structuredItems)) {
+      return false;
+    }
+    const html = String(field?.innerHTML || "");
+    const plainText = normalizeText(field?.textContent || field?.innerText || "");
+    if (!html) {
+      return true;
+    }
+    if (html.indexOf("data-tag-id=") >= 0) {
+      return false;
+    }
+    return !plainText || html === '<p><br class="ProseMirror-trailingBreak"></p>';
+  }
+
+  function renderStructuredTagEditor(field, structuredItems) {
+    if (!field) {
+      return;
+    }
+    field.innerHTML = buildDialectEditorHtml(structuredItems);
+  }
+
+  function scheduleStructuredTagFieldResync(field, structuredHost, structuredItems, env) {
+    if (
+      !isContentEditableNode(field, env) ||
+      !isElementNode(structuredHost, env) ||
+      !hasStructuredTagItems(structuredItems)
+    ) {
+      return;
+    }
+    STRUCTURED_TAG_FIELD_RESYNC_DELAYS_MS.forEach(function (delayMs) {
+      setTimeout(function () {
+        if (!isContentEditableNode(field, env) || !isElementNode(structuredHost, env)) {
+          return;
+        }
+        const currentItems = parseStructuredTextItems(structuredHost.getAttribute("modelvalue"));
+        const nextItems = currentItems.length > 0 ? currentItems : structuredItems;
+        if (!isStructuredEditorViewMissingTags(field, nextItems)) {
+          return;
+        }
+        renderStructuredTagEditor(field, nextItems);
+      }, delayMs);
+    });
   }
 
   function extractBatchSegmentTexts(row, template) {
@@ -1705,10 +1797,11 @@
       structuredHost.setAttribute("modelvalue", JSON.stringify(structuredItems));
     }
     field.focus();
-    field.innerHTML = buildDialectEditorHtml(structuredItems);
+    renderStructuredTagEditor(field, structuredItems);
     field.dispatchEvent(createBubbledEvent("input"));
     field.dispatchEvent(createBubbledEvent("change"));
     field.blur();
+    scheduleStructuredTagFieldResync(field, structuredHost, structuredItems, env);
     return true;
   }
 

@@ -41,6 +41,7 @@
 - 2026-06-10 hotfix 补充：`批量识别状态` 当前直接显示固定并发 `5`；最终文本写回按成功段逐段对齐 latest rows，优先对齐 `uniqueId`，对不上时回退按锁定的 `selectionKey(start/end)` 近似匹配，不再要求 latest `annotation/annos` 全量 `unique_id` 列表完全一致；目标段缺少文本 attr 时会复用同音频其他段或模板字段定义补齐后再写回；如果当前音频所有段都空白，则回退使用脚本已知的文本字段 `unique_id` 兜底写回。
 - 2026-06-10 标签联动：`标注文本` 当前作为唯一带标签字段，只联动 `#um / #hmm / #ah / #eh / <SPK/> / <NPS/>` 6 个有效标签；后端 `ai/recommend` 成功响应新增 `audioDialectTokens / refinedDialectTokens`，当前段填入、字段结果卡、AI 信息和批量 `save_increment` 写回统一改成结构化 `text/single` 序列，`普通话顺滑` 继续保持纯文本。
 - 2026-06-11 失败态兜底与标签快捷键：`AI信息` 当前顺序补齐为 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`；当 `listen/refine` 命中 `模型输出 JSON 解析失败` 且原始返回仍有可读文本时，失败体会保守补齐柳州话/普通话参考并强制人工复核。options 当前额外开放 9 个页面标签按钮快捷键：`<SPK/> / <NPS/> / #um / #hmm / #ah / #eh / <Unintelligible> / <Meaningless> / <Silence>`，实现方式为真实点击页面 `common_label_show` 按钮，disabled 时不绕过平台限制。
+- 2026-06-11 标签联动补强：后端当前新增高置信文本归一化，独立 `呃 / 诶 / 欸 -> #eh`、独立 `啊 -> #ah`、独立 `嗯 -> #um`、重复笑声 `呵呵 / 哈哈 / 嘿嘿 / 嘻嘻` 一类主说话人非语义声音 -> `<SPK/>`；`#hmm` 与 `<NPS/>` 仍只接受模型显式输出。`普通话顺滑` 当前会保留与口语词标签对应的纯文本语气词，但不会保留 `<SPK/> / <NPS/>` 或笑声文本；当前段带标签填入后还会按 `modelvalue` 自动恢复被 tiptap 下一次重绘临时清空的可视 chip。
 - 当前补采状态：`annotation/meta`、`annotation/annos`、模板字段、页面真实 `annotation/*` 最小鉴权头和当前页 DOM 入口已纳入运行时；画段应用当前会优先直连平台 `save_increment`，仅在增量补切直写失败时回退同源 `xaudio` DOM 交互，不自动触发提交流转。
 
 ## Magic Data ANNOTATOR
