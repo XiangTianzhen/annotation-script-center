@@ -37,6 +37,79 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 系统环境变量优先级最高，不会被配置文件覆盖。文件不存在时跳过；读取失败时只输出脱敏 `warn`，不输出文件内容。
 `config/env/ai.env`、`config/env/ai.local.env` 为忽略文件，真实生产内容建议只保留 `DASHSCOPE_API_KEY` 与少量非默认覆盖项。
 
+## 服务器部署与更新
+
+### 首次部署
+
+Linux / PM2 示例：
+
+```bash
+cd /var/www
+git clone <your-repo-url> annotation-script-center
+cd /var/www/annotation-script-center
+cp config/env/backend.env.example config/env/backend.env
+cp config/env/ai.env.example config/env/ai.env
+pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center
+```
+
+Windows 示例：
+
+```powershell
+Set-Location C:\Projects
+git clone <your-repo-url> annotation-script-center
+Set-Location C:\Projects\annotation-script-center
+Copy-Item config\env\backend.env.example config\env\backend.env
+Copy-Item config\env\ai.env.example config\env\ai.env
+node platform-resources\backend\server.js
+```
+
+首次部署后至少检查：
+
+- `pm2 status` 或当前终端输出中确认进程已监听
+- `http://127.0.0.1:3333/` 可返回根 JSON
+- 关键脚本 health/defaults 接口可以访问
+
+### 日常更新
+
+当前仓库没有根级 `package.json`；服务器更新通常不是 `npm install`，而是“拉代码 + 复核 env + 重启进程 + 检查接口”。
+
+Linux / PM2 推荐流程：
+
+```bash
+cd /var/www/annotation-script-center
+git pull --ff-only origin main
+pm2 restart annotation-script-center --update-env
+curl http://127.0.0.1:3333/
+pm2 logs annotation-script-center --lines 100
+```
+
+Windows / PM2 推荐流程：
+
+```powershell
+Set-Location C:\Projects\annotation-script-center
+git pull --ff-only origin main
+pm2 restart annotation-script-center --update-env
+Invoke-WebRequest http://127.0.0.1:3333/ | Select-Object -ExpandProperty Content
+pm2 logs annotation-script-center --lines 100
+```
+
+更新时必须注意：
+
+- 不要直接覆盖服务器本地的 `config/env/backend.env`、`config/env/ai.env`、`config/secrets/*`。
+- 如果仓库里的 `.example` 或 README 更新了环境变量说明，只手动把新增项合并到服务器私有配置。
+- 如果这次只改后端代码，通常不需要重新生成或替换 `dist/` 静态包。
+- 如果这次只替换扩展下载包，通常不需要重启 Node 后端。
+
+### 更新后检查清单
+
+1. `pm2 status` 中 `annotation-script-center` 为 `online`
+2. `pm2 logs annotation-script-center --lines 100` 中没有连续启动报错
+3. `GET /` 根接口返回 `success=true`
+4. 至少抽查一个脚本 health 接口，例如：
+   - `/api/aishell-tech/minnan-helper/ai/recommend/health`
+   - `/api/data-baker/round-one-quality/ai/recommend/health`
+5. 若本轮涉及下载中心或 CRX 分发，再额外检查静态文件 URL 是否可访问
+
 ## 官方文档核对入口
 
 - 阿里云百炼官方文档索引：`docs/external-docs-aliyun-bailian.md`

@@ -118,6 +118,60 @@ cp config/env/backend.env.example config/env/backend.env
 pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center
 ```
 
+### 服务器日常更新
+
+当前仓库没有根级 `package.json`，所以服务器更新通常不是 `npm install`，而是：
+
+1. 进入服务器项目目录。
+2. 拉取最新代码。
+3. 检查是否需要手动合并 `config/env/*.env` 或 `config/secrets/*` 的本地私有配置。
+4. 重启 PM2 进程。
+5. 检查根接口和运行日志。
+
+Linux / PM2 示例：
+
+```bash
+cd /var/www/annotation-script-center
+git pull --ff-only origin main
+pm2 restart annotation-script-center --update-env
+curl http://127.0.0.1:3333/
+pm2 logs annotation-script-center --lines 100
+```
+
+Windows / PM2 示例：
+
+```powershell
+Set-Location C:\Projects\annotation-script-center
+git pull --ff-only origin main
+pm2 restart annotation-script-center --update-env
+Invoke-WebRequest http://127.0.0.1:3333/ | Select-Object -ExpandProperty Content
+pm2 logs annotation-script-center --lines 100
+```
+
+更新时注意：
+
+- 不要直接覆盖服务器上的 `config/env/backend.env`、`config/env/ai.env`、`config/secrets/*` 私有内容。
+- 如果这次只改后端代码，通常不需要重新打包 CRX。
+- 如果这次只更新扩展下载包，不需要重启后端进程。
+
+### 扩展发布产物更新
+
+当你本地重新执行：
+
+```powershell
+node scripts/package-crx-release.js
+```
+
+需要把 `dist/` 下本次生成的产物上传到下载服务器或 `downloadBaseUrl` 对应目录。当前默认关注：
+
+- `annotation-script-center-v<version>.crx`
+- `annotation-script-center-v<version>.zip`
+- `annotation-script-center-update.xml`
+- `annotation-script-center-crx-latest.json`
+- `annotation-script-center-beta.zip`
+
+如果只是替换这些静态下载文件，而后端 Node 服务代码没变，通常不需要执行 `pm2 restart`。
+
 ### 企业托管安装
 
 - 当前状态与阻塞：[`docs/unfinished-crx-enterprise-managed-install.md`](docs/unfinished-crx-enterprise-managed-install.md)

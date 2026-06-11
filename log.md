@@ -1,3 +1,15 @@
+## 2026-06-12（README 补充服务器更新部署说明）
+- 补充根 `README.md` 的服务器部署入口：
+  - 新增“服务器日常更新”
+  - 新增“扩展发布产物更新”
+  - 明确区分“后端代码更新”和“静态下载包更新”
+- 补充 `platform-resources/backend/README.md` 的详细部署流程：
+  - 首次部署
+  - 日常更新
+  - 更新后检查清单
+- 当前口径明确：
+  - 本仓库服务器更新默认不是 `npm install`，而是 `git pull + env 复核 + pm2 restart + 接口检查`
+  - 只替换 `dist/` 静态下载产物时，通常不需要重启后端
 ## 2026-06-12（config 扁平化与平台参考文档标准化）
 - 本轮把两份单文件配置直接收口到 `config/` 根级：
   - `config/package-crx-release.json`
