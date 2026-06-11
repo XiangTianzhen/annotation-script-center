@@ -9,6 +9,11 @@
     (typeof module !== "undefined" && module.exports
       ? require("../../../shared/lexicon-display.js")
       : {});
+  const aiCostDisplay =
+    globalThis.ASREdgeAiCostDisplay ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/ai-cost-display.js")
+      : {});
   const buildAiErrorDisplay =
     typeof errorDisplay.buildAiErrorDisplay === "function"
       ? errorDisplay.buildAiErrorDisplay
@@ -28,6 +33,12 @@
       ? lexiconDisplay.formatLexiconStatusAndMode
       : function () {
           return "";
+        };
+  const buildCostRows =
+    typeof aiCostDisplay.buildCostRows === "function"
+      ? aiCostDisplay.buildCostRows
+      : function () {
+          return [];
         };
 
   function normalizeText(value) {
@@ -174,11 +185,20 @@
 
   function pickDiagnosticsMeta(result) {
     const source = result && typeof result === "object" ? result : {};
-    return source.meta && typeof source.meta === "object"
-      ? source.meta
-      : {
+    if (source.meta && typeof source.meta === "object") {
+      return Object.assign({}, source.meta, {
+        cost:
+          source.meta.cost && typeof source.meta.cost === "object"
+            ? source.meta.cost
+            : source.cost && typeof source.cost === "object"
+              ? source.cost
+              : {},
+      });
+    }
+    return {
           models: source.models && typeof source.models === "object" ? source.models : {},
           usage: source.usage && typeof source.usage === "object" ? source.usage : {},
+          cost: source.cost && typeof source.cost === "object" ? source.cost : {},
           timing: source.timing && typeof source.timing === "object" ? source.timing : {},
           queue: {},
           cache: {},
@@ -196,6 +216,7 @@
     const meta = pickDiagnosticsMeta(source);
     const models = meta.models && typeof meta.models === "object" ? meta.models : {};
     const usage = meta.usage && typeof meta.usage === "object" ? meta.usage : {};
+    const cost = meta.cost && typeof meta.cost === "object" ? meta.cost : {};
     const timing = meta.timing && typeof meta.timing === "object" ? meta.timing : {};
     const queue = meta.queue && typeof meta.queue === "object" ? meta.queue : {};
     const cache = meta.cache && typeof meta.cache === "object" ? meta.cache : {};
@@ -211,6 +232,26 @@
       ["AI耗时", formatTimingSummary(timing)],
       ["前端并发", formatConcurrency(debug, sourceOptions.fallbackFrontConcurrency)],
       ["Token", formatTokenSummary(usage)],
+    ].concat(
+      buildCostRows({
+        cost: cost,
+        stageDefinitions: [
+          {
+            key: "convert",
+            label: "转换预估人民币",
+          },
+          {
+            key: "listen",
+            label: "听音预估人民币",
+          },
+          {
+            key: "compare",
+            label: "比较预估人民币",
+          },
+        ],
+        totalLabel: "总预估人民币",
+      }),
+      [
       ["FunASR", normalizeText(models.funAsrProvider) || "-"],
       ["排队等待", formatQueueWaitSummary(queue)],
       ["缓存命中", formatCacheSummary(cache)],
@@ -219,7 +260,8 @@
       ["自动回退", debug.clientFallbackUsed === true ? "是" : "否"],
       ["requestId", normalizeText(meta.requestId || debug.requestId) || "-"],
       ["debugId", normalizeText(meta.debugId || debug.debugId) || "-"],
-    ];
+      ]
+    );
     const lexiconSummary = formatLexiconStatusAndMode(lexicon, {
       scriptType: "default",
     });

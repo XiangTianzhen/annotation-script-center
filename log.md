@@ -1,3 +1,30 @@
+## 2026-06-11（更多前端面板补齐人民币估算展示）
+
+- 当前把统一 `cost` 的前端展示从既有 `DataBaker CVPC / Aishell 越南语` 扩展到更多运行时面板：
+  - `extension/shared/ai-cost-display.js` 当前作为前端共享金额格式化与 `没有数据源` 解析入口，统一提供单阶段/多阶段人民币行生成
+  - `Magic Data` shared core 与 `hakka-helper/minnan-helper` 实际面板当前都把总结论摘要区改为 `模型 / 耗时 / 人民币`
+  - `DataBaker round-one` 结果卡当前新增 `听音预估人民币 / 对比预估人民币 / 总预估人民币`，`omni_single` 只显示 `预估人民币`
+  - `Aishell 闽南语助手` 当前补齐 `cost` 透传，诊断区新增 `转换 / 听音 / 比较 / 总` 四行人民币估算
+  - `Alibaba LabelX` 快判结果卡当前新增 `听音 / 比较 / 总` 人民币估算，转写结果卡新增单行 `预估人民币`
+- 规则同步：
+  - `AGENTS.md`
+  - `docs/rules/project-collaboration-rules.md`
+  - 当前明确要求：只要前端已有 AI 结果信息区且结果已带统一 `cost`，默认补人民币估算展示；单阶段显示一行 `预估人民币`，多阶段显示阶段预估与 `总预估人民币`
+- 验证：
+  - `node --check extension/shared/ai-cost-display.js`
+  - `node --check extension/sites/magic-data/shared/assistant-panel-core.js`
+  - `node --check extension/sites/magic-data/minnan-helper/assistant-panel.js`
+  - `node --check extension/sites/magic-data/hakka-helper/assistant-panel.js`
+  - `node --check extension/sites/data-baker/round-one-quality/ui-panel.js`
+  - `node --check extension/sites/aishell-tech/minnan-helper/ai-recommendation.js`
+  - `node --check extension/sites/aishell-tech/minnan-helper/diagnostics.js`
+  - `node --check extension/sites/alibaba-labelx/asr-judgement/judgement-ai-suggestion.js`
+  - `node --check extension/sites/alibaba-labelx/asr-transcription/ai-suggestion-panel.js`
+  - `node --test extension/shared/ai-cost-display.test.js`
+  - `node --test extension/sites/magic-data/shared/assistant-panel-core.test.js`
+  - `node --test extension/sites/data-baker/round-one-quality/ui-panel.test.js`
+  - `node --test extension/sites/aishell-tech/minnan-helper/diagnostics.test.js`
+
 ## 2026-06-11（DataBaker CVPC 柳州话带标签填入清空问题补修）
 
 - `DataBaker CVPC / 柳州话脚本` 当前补修一处会让原生标签回放提前失败的空结构化值判断：

@@ -1,6 +1,7 @@
 (function () {
   const ROOT_ATTR = "data-asr-edge-transcription-ai-suggestion";
   const STYLE_ID = "asr-edge-transcription-ai-suggestion-style";
+  const aiCostDisplay = globalThis.ASREdgeAiCostDisplay || {};
   const DECISION_LABELS = {
     candidate_a: "A 更优",
     candidate_b: "B 更优",
@@ -8,6 +9,12 @@
     uncertain: "不确定",
     invalid_audio: "音频无效",
   };
+  const buildCostRows =
+    typeof aiCostDisplay.buildCostRows === "function"
+      ? aiCostDisplay.buildCostRows
+      : function () {
+          return [];
+        };
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
@@ -285,13 +292,26 @@
       const confidence = Number(result?.confidence);
       const confidenceText = Number.isFinite(confidence) ? (confidence * 100).toFixed(1) + "%" : "-";
 
-      [
+      const detailRows = [
         createRow("推荐文本", result?.recommendedText || "-"),
         createRow("判断", decisionText),
         createRow("置信度", confidenceText),
         createRow("简短原因", result?.reasonSummary || statusState.message || "-"),
         createRow("风险提示", riskText),
-      ].forEach(function (rowNodes) {
+      ];
+      buildCostRows({
+        cost: result?.cost,
+        stageDefinitions: [
+          {
+            key: "recommend",
+            label: "预估人民币",
+            fallbackToTotal: true,
+          },
+        ],
+      }).forEach(function (row) {
+        detailRows.push(createRow(row[0], row[1]));
+      });
+      detailRows.forEach(function (rowNodes) {
         grid.appendChild(rowNodes[0]);
         grid.appendChild(rowNodes[1]);
       });

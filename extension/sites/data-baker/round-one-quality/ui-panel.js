@@ -7,11 +7,22 @@
     (typeof module !== "undefined" && module.exports
       ? require("../../../shared/lexicon-display.js")
       : {});
+  const aiCostDisplay =
+    globalThis.ASREdgeAiCostDisplay ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/ai-cost-display.js")
+      : {});
   const formatLexiconStatusAndMode =
     typeof lexiconDisplay.formatLexiconStatusAndMode === "function"
       ? lexiconDisplay.formatLexiconStatusAndMode
       : function () {
           return "";
+        };
+  const buildCostRows =
+    typeof aiCostDisplay.buildCostRows === "function"
+      ? aiCostDisplay.buildCostRows
+      : function () {
+          return [];
         };
   let mountedLogPrinted = false;
   let fallbackLogPrinted = false;
@@ -55,6 +66,7 @@
     const model = source.model && typeof source.model === "object" ? source.model : {};
     const lexicon = source.lexicon && typeof source.lexicon === "object" ? source.lexicon : {};
     const timing = source.timing && typeof source.timing === "object" ? source.timing : null;
+    const cost = source.cost && typeof source.cost === "object" ? source.cost : {};
     const rewriteChanges = Array.isArray(lexicon.rewriteChanges) ? lexicon.rewriteChanges : [];
     const rows = [
       ["页面候选文本", source.pageText || ""],
@@ -92,6 +104,34 @@
           formatDurationSeconds(timing.totalDurationMs),
       ]);
     }
+    rows.push.apply(
+      rows,
+      source.pipelineMode === "omni_single"
+        ? buildCostRows({
+            cost: cost,
+            stageDefinitions: [
+              {
+                key: "single",
+                label: "预估人民币",
+                fallbackToTotal: true,
+              },
+            ],
+          })
+        : buildCostRows({
+            cost: cost,
+            stageDefinitions: [
+              {
+                key: "listen",
+                label: "听音预估人民币",
+              },
+              {
+                key: "compare",
+                label: "对比预估人民币",
+              },
+            ],
+            totalLabel: "总预估人民币",
+          })
+    );
     rows.push(["决策", source.decision || ""]);
     if (source.runtime && typeof source.runtime === "object") {
       const runtime = source.runtime;

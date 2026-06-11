@@ -3,7 +3,7 @@
 本目录用于索引各平台、各脚本的长期规则。项目指令和 AGENTS.md 不直接堆放平台细节；需要处理具体平台时，先读对应 README 和 `platform-resources` 资料。
 
 - 当前统一查看入口：options 首页隐藏高级区已同时提供“项目数据下载”和“AI 请求记录”两个导出面板；AI 请求记录走 `platform-resources/backend/ai-call-log-download/` 聚合接口，导出时可选填写日期范围。
-- 当前统一 AI 消耗口径：所有已接入 AI 服务默认返回统一 `cost` 对象，价格统一读取 `config/pricing/aliyun-bailian-model-pricing.json`；AI 请求记录 CSV 统一使用中文表头，并按单阶段或多阶段拆列记录 token 与人民币估算。缺少价格配置的模型仍可继续调用，但页面只显示 `没有数据源`，CSV 金额列保持空白。
+- 当前统一 AI 消耗口径：所有已接入 AI 服务默认返回统一 `cost` 对象，价格统一读取 `config/pricing/aliyun-bailian-model-pricing.json`；AI 请求记录 CSV 统一使用中文表头，并按单阶段或多阶段拆列记录 token 与人民币估算。前端结果区默认同步展示人民币估算：单阶段显示 `预估人民币`，多阶段显示阶段预估与 `总预估人民币`。缺少价格配置的模型仍可继续调用，但页面只显示 `没有数据源`，CSV 金额列保持空白。
 
 ## Alibaba LabelX
 
@@ -16,6 +16,7 @@
 - LabelX shared：`extension/sites/alibaba-labelx/shared/`
 - 当前后端状态：转写与快判的 `download / suppliers / existing` 已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core；外部接口路径保持不变。
 - 当前 AI 日志状态：转写与快判都已默认写脚本级 AI 调用 CSV，并分别开放 `logs/summary` 统计接口。
+- 当前前端展示状态：快判结果卡当前显示 `听音预估人民币 / 比较预估人民币 / 总预估人民币`；转写结果卡当前显示单行 `预估人民币`。
 
 ## 标贝易采
 
@@ -27,6 +28,7 @@
 - 公共 AI provider 基座：`platform-resources/backend/ai/`
 - 当前后端状态：AI recommend 已接入统一 `ai-framework`；`export/download` 已开始复用 `platform-resources/backend/project-data-download/` 下的通用 CSV 文件下载 core，外部接口路径保持不变；下载相关脚本、upload 字段归一、CSV helper、merge helper、latest/history/events 持久化 helper、history 读取 helper、字段映射和脱敏样例已开始收口到 `platform-resources/data-baker/round-one-quality/data/`。
 - 当前 AI 日志状态：DataBaker recommend 当前已默认写脚本级 AI 调用 CSV，并开放 `logs/summary` 统计接口。
+- 当前前端展示状态：结果卡当前会按链路显示人民币估算；`omni_single` 只显示 `预估人民币`，双阶段显示 `听音预估人民币 / 对比预估人民币 / 总预估人民币`。
 - 如需 Python 辅助脚本，统一复用 `platform-resources/backend/.venv`，Fun-ASR Python 文件位于 `platform-resources/backend/ai/python/`，不单独启动 Python 服务
 
 ## DataBaker CVPC
@@ -70,6 +72,7 @@
 - 客家话助手资料：`platform-resources/magic-data/hakka-helper/README.md`
 - 闽南语助手资料：`platform-resources/magic-data/minnan-helper/README.md`
 - 当前 AI 日志状态：客家话与闽南语助手都已默认写脚本级 AI 调用 CSV，并开放 `logs/summary` 统计接口；客家话 legacy `annotator` 路径也复用同一份统计。
+- 当前前端展示状态：双助手总结论摘要区当前拆为 `模型 / 耗时 / 人民币`；`omni_single` 只显示 `预估人民币`，双阶段显示 `听音预估人民币 / 复核预估人民币 / 总预估人民币`。
 
 ## Abaka AI
 
@@ -108,6 +111,7 @@
 - 越南语助手：新增独立脚本 `aishellTechVietnameseAssistant`，固定按单阶段 Omni 转写运行，接口为 `/api/aishell-tech/vietnamese-helper/ai/recommend*`；不接词表、不做转换/比较双阶段，结果区只展示 `原始文本` 与 `识别文本`。
 - 2026-06-11 hotfix：越南语助手后端当前已修复统一队列结果解包；`recognize` 成功结果不再被误判为空。若 `/defaults` 暂时不可达，options 当前也会回退到本地完整单阶段默认值，并保留真实错误 message / status，不再显示 `[object Object]`。
 - 2026-06-11 补充优化：当 `识别文本` 与 `原始文本` 规范化后完全一致时，前端不再显示 `填入并保存当前条`，改为直接提示“与源文本一致，无需处理”；`当前识别结果` 与 AI 调用日志当前都补齐了人民币估算。
+- 2026-06-11 闽南语助手补充：诊断区当前已接入统一 `cost`，会显示 `转换预估人民币 / 听音预估人民币 / 比较预估人民币 / 总预估人民币`；缺少价格源时统一显示 `没有数据源`。
 - 当前 AI 日志状态：
   - `platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`
   - `platform-resources/aishell-tech/vietnamese-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`

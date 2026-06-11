@@ -180,11 +180,23 @@
     const responseDebug =
       responseMeta.debug && typeof responseMeta.debug === "object" ? responseMeta.debug : {};
     const debug = source.debug && typeof source.debug === "object" ? source.debug : {};
+    const cost =
+      source.cost && typeof source.cost === "object"
+        ? source.cost
+        : responseMeta.cost && typeof responseMeta.cost === "object"
+          ? responseMeta.cost
+          : {};
     return Object.assign({}, source, {
-      meta: responseMeta,
+      meta: Object.assign({}, responseMeta, {
+        cost:
+          responseMeta.cost && typeof responseMeta.cost === "object"
+            ? responseMeta.cost
+            : cost,
+      }),
       models: source.models || responseMeta.models || {},
       timing: source.timing || responseMeta.timing || {},
       usage: source.usage || responseMeta.usage || {},
+      cost: cost,
       debug: Object.assign({}, debug, {
         requestId: normalizeText(responseMeta.requestId) || normalizeText(debug.requestId),
         debugId: normalizeText(responseMeta.debugId) || normalizeText(debug.debugId),

@@ -37,6 +37,7 @@
     choiceUnsure: "不确定或差不多",
     choiceOtherDialect: "其他方言或语种",
   };
+  const aiCostDisplay = globalThis.ASREdgeAiCostDisplay || {};
   const aiUsageMeta = globalThis.ASREdgeAiUsageMeta || {};
   const storage = globalThis.ASREdgeStorage || {};
   const jobClient = globalThis.ASREdgeAiJobClient || null;
@@ -71,6 +72,12 @@
             throw error;
           }
           return requestMeta;
+        };
+  const buildCostRows =
+    typeof aiCostDisplay.buildCostRows === "function"
+      ? aiCostDisplay.buildCostRows
+      : function () {
+          return [];
         };
   const ASR_TITLE_ALLOW_LIST = [
     "两个asr文本",
@@ -857,7 +864,7 @@
 
     const grid = document.createElement("div");
     grid.className = "asr-edge-ai-grid";
-    [
+    const detailRows = [
       createDetailRow("建议答案", result.answerText),
       createDetailRow("置信度", (result.confidence * 100).toFixed(1) + "%"),
       createDetailRow("风险等级", result.riskLevel || "unknown"),
@@ -879,7 +886,24 @@
           String(result.totalDurationMs) +
           "ms"
       ),
-    ].forEach(function (nodes) {
+    ];
+    buildCostRows({
+      cost: result.cost,
+      stageDefinitions: [
+        {
+          key: "listen",
+          label: "听音预估人民币",
+        },
+        {
+          key: "compare",
+          label: "比较预估人民币",
+        },
+      ],
+      totalLabel: "总预估人民币",
+    }).forEach(function (row) {
+      detailRows.push(createDetailRow(row[0], row[1]));
+    });
+    detailRows.forEach(function (nodes) {
       grid.appendChild(nodes[0]);
       grid.appendChild(nodes[1]);
     });
@@ -1557,6 +1581,7 @@
       const models = suggestion.models && typeof suggestion.models === "object" ? suggestion.models : {};
       const timing = suggestion.timing && typeof suggestion.timing === "object" ? suggestion.timing : {};
       const listen = suggestion.listen && typeof suggestion.listen === "object" ? suggestion.listen : {};
+      const cost = suggestion.cost && typeof suggestion.cost === "object" ? suggestion.cost : {};
       const cardData = {
         answerText: String(
           suggestion.answerText || CHOICE_LABELS[choiceActionKey] || suggestion.answer || "未知"
@@ -1580,6 +1605,7 @@
         listenDurationMs: Number(timing.listenDurationMs || 0),
         compareDurationMs: Number(timing.compareDurationMs || 0),
         totalDurationMs: Number(timing.totalDurationMs || 0),
+        cost: cost,
         contextIncluded: resultContextIncluded,
         webSearchStatusText: getWebSearchStatusText(suggestion.webSearch),
         webSearchHint: String(suggestion?.evidence?.webSearchHint || "").trim(),

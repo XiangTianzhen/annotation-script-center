@@ -14,11 +14,22 @@
     (typeof module !== "undefined" && module.exports
       ? require("../../../shared/lexicon-display.js")
       : {});
+  const aiCostDisplay =
+    globalThis.ASREdgeAiCostDisplay ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/ai-cost-display.js")
+      : {});
   const formatLexiconStatusAndMode =
     typeof lexiconDisplay.formatLexiconStatusAndMode === "function"
       ? lexiconDisplay.formatLexiconStatusAndMode
       : function () {
           return "";
+        };
+  const buildCostRows =
+    typeof aiCostDisplay.buildCostRows === "function"
+      ? aiCostDisplay.buildCostRows
+      : function () {
+          return [];
         };
 
   function normalizeText(value) {
@@ -65,6 +76,88 @@
     return button;
   }
 
+  function isSingleStageResult(source) {
+    const models = source?.models && typeof source.models === "object" ? source.models : {};
+    const modelMode = normalizeText(models.modelMode || models.recognitionMode || source?.recognitionMode).toLowerCase();
+    return (
+      modelMode === "omni_single" ||
+      (normalizeText(models.singleModel) &&
+        !normalizeText(models.reviewModel) &&
+        !normalizeText(models.compareModel))
+    );
+  }
+
+  function formatModelSummary(source) {
+    const models = source?.models && typeof source.models === "object" ? source.models : {};
+    if (isSingleStageResult(source)) {
+      return normalizeText(models.singleModel || models.listenModel) || "-";
+    }
+    return (
+      "听音 " +
+      (normalizeText(models.listenModel) || "-") +
+      " / 复核 " +
+      (normalizeText(models.reviewModel || models.compareModel) || "-")
+    );
+  }
+
+  function formatTimingDetail(source) {
+    const timing = source?.timing && typeof source.timing === "object" ? source.timing : {};
+    const totalDurationMs = Number(timing.totalDurationMs || 0);
+    const listenDurationMs = Number(timing.listenDurationMs || 0);
+    const reviewDurationMs = Number(timing.reviewDurationMs || timing.compareDurationMs || 0);
+    if (totalDurationMs <= 0 && listenDurationMs <= 0 && reviewDurationMs <= 0) {
+      return "-";
+    }
+    if (isSingleStageResult(source)) {
+      return (
+        "识别 " +
+        String(listenDurationMs || totalDurationMs || 0) +
+        "ms / 总计 " +
+        String(totalDurationMs || listenDurationMs || 0) +
+        "ms"
+      );
+    }
+    return (
+      "听音 " +
+      String(listenDurationMs || 0) +
+      "ms / 复核 " +
+      String(reviewDurationMs || 0) +
+      "ms / 总计 " +
+      String(totalDurationMs || 0) +
+      "ms"
+    );
+  }
+
+  function buildCostSummaryRows(source) {
+    const cost = source?.cost && typeof source.cost === "object" ? source.cost : {};
+    if (isSingleStageResult(source)) {
+      return buildCostRows({
+        cost: cost,
+        stageDefinitions: [
+          {
+            key: "single",
+            label: "预估人民币",
+            fallbackToTotal: true,
+          },
+        ],
+      });
+    }
+    return buildCostRows({
+      cost: cost,
+      stageDefinitions: [
+        {
+          key: "listen",
+          label: "听音预估人民币",
+        },
+        {
+          key: "compare",
+          label: "复核预估人民币",
+        },
+      ],
+      totalLabel: "总预估人民币",
+    });
+  }
+
   function resolveFillAllSuggestionsOutcome(appliedCount, results) {
     const normalizedAppliedCount = Number.isFinite(Number(appliedCount)) ? Number(appliedCount) : 0;
     const normalizedResults = Array.isArray(results) ? results : [];
@@ -98,7 +191,6 @@
   function buildOverallRows(data) {
     const source = data && typeof data === "object" ? data : {};
     const overall = source.overall && typeof source.overall === "object" ? source.overall : {};
-    const timing = source.timing && typeof source.timing === "object" ? source.timing : {};
     const rows = [
       [
         "结论",
@@ -116,18 +208,11 @@
       rows.push(["词表状态与模式", lexiconSummary]);
     }
     rows.push(
-      ["requestId", normalizeText(source.requestId || "-")],
-      [
-        "模型与耗时",
-        "listen=" +
-          String(source?.models?.listenModel || "-") +
-          " / review=" +
-          String(source?.models?.reviewModel || source?.models?.compareModel || "-") +
-          " / total=" +
-          String(timing.totalDurationMs || 0) +
-          "ms",
-      ]
+      ["模型", formatModelSummary(source)],
+      ["耗时", formatTimingDetail(source)]
     );
+    rows.push.apply(rows, buildCostSummaryRows(source));
+    rows.push(["requestId", normalizeText(source.requestId || "-")]);
     return rows;
   }
 
