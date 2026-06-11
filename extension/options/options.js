@@ -482,6 +482,15 @@
     { key: "applyDialectText", label: "填入标注文本" },
     { key: "applyMandarinText", label: "填入普通话顺滑" },
     { key: "applyRecommend", label: "填入当前段 AI 推荐" },
+    { key: "labelSpk", label: "<SPK/>" },
+    { key: "labelNps", label: "<NPS/>" },
+    { key: "labelUm", label: "#um" },
+    { key: "labelHmm", label: "#hmm" },
+    { key: "labelAh", label: "#ah" },
+    { key: "labelEh", label: "#eh" },
+    { key: "labelUnintelligible", label: "<Unintelligible>" },
+    { key: "labelMeaningless", label: "<Meaningless>" },
+    { key: "labelSilence", label: "<Silence>" },
   ];
   const dataBakerListenModelOptions = Array.isArray(constants.DATABAKER_AI_LISTEN_MODEL_OPTIONS)
     ? constants.DATABAKER_AI_LISTEN_MODEL_OPTIONS

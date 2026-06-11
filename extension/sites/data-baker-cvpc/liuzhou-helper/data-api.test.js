@@ -649,6 +649,24 @@ function buildAnnosPayloadFromMetaPayload(metaPayload) {
 
 function createInteractiveDataApiHarness(options) {
   const settings = options && typeof options === "object" ? options : {};
+  const defaultCommonLabels = [
+    "<SPK/>",
+    "<NPS/>",
+    "#um",
+    "#hmm",
+    "#ah",
+    "#eh",
+    "<Unintelligible>",
+    "<Meaningless>",
+    "<Silence>",
+  ];
+  const disabledCommonLabels = new Set(
+    Array.isArray(settings.disabledCommonLabels)
+      ? settings.disabledCommonLabels.map(function (item) {
+          return String(item || "");
+        })
+      : []
+  );
   const segmentStates = Array.isArray(settings.segmentStates)
     ? settings.segmentStates.map(function (segment) {
         return {
@@ -737,10 +755,51 @@ function createInteractiveDataApiHarness(options) {
   formRoot.appendChild(dialectBlock);
   formRoot.appendChild(mandarinBlock);
 
+  const commonLabelRoot = new RichFakeElement("div", { className: "block_label" });
+  const commonLabelButtons = {};
+
+  function appendCommonLabelGroup(labelTexts) {
+    const group = new RichFakeElement("div", { className: "common_label" });
+    (Array.isArray(labelTexts) ? labelTexts : []).forEach(function (labelText) {
+      const text = String(labelText || "");
+      const disabled = disabledCommonLabels.has(text);
+      const button = new RichFakeElement("button", {
+        className: disabled
+          ? "el-button el-button--small is-disabled common_label_show"
+          : "el-button el-button--small common_label_show",
+      });
+      button.disabled = disabled;
+      button.setAttribute("aria-disabled", disabled ? "true" : "false");
+      if (disabled) {
+        button.setAttribute("disabled", "disabled");
+      }
+      const span = new RichFakeElement("span", { textContent: text });
+      button.appendChild(span);
+      group.appendChild(button);
+      commonLabelButtons[text] = button;
+    });
+    commonLabelRoot.appendChild(group);
+  }
+
+  const commonLabels = Array.isArray(settings.commonLabels)
+    ? settings.commonLabels.slice()
+    : defaultCommonLabels.slice();
+  appendCommonLabelGroup(
+    commonLabels.filter(function (labelText) {
+      return ["<SPK/>", "<NPS/>", "#um", "#hmm", "#ah", "#eh"].indexOf(labelText) >= 0;
+    })
+  );
+  appendCommonLabelGroup(
+    commonLabels.filter(function (labelText) {
+      return ["<Unintelligible>", "<Meaningless>", "<Silence>"].indexOf(labelText) >= 0;
+    })
+  );
+
   body.appendChild(visibleEntryNode);
   body.appendChild(xaudioTimeNode);
   body.appendChild(listContent);
   body.appendChild(formRoot);
+  body.appendChild(commonLabelRoot);
 
   const segmentNodes = segmentStates.map(function (_segment, index) {
     const itemWrap = new RichFakeElement("div");
@@ -886,6 +945,7 @@ function createInteractiveDataApiHarness(options) {
     fetchCalls,
     segmentNodes,
     segmentStates,
+    commonLabelButtons,
     validLabel,
     invalidLabel,
     dialectTextareaHost,
@@ -4018,4 +4078,53 @@ test("CVPC data api applyBatchTextRecommendations fails closed when auth snapsho
     }),
     false
   );
+});
+
+test("CVPC data api applyCommonLabel clicks enabled common label button by exact text", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    commonLabels: ["<SPK/>", "#um"],
+  });
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+
+  const result = await runtime.applyCommonLabel("<SPK/>");
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已点击标签按钮：<SPK/>。",
+  });
+  assert.equal(harness.commonLabelButtons["<SPK/>"].clickCount, 1);
+  assert.equal(harness.commonLabelButtons["#um"].clickCount, 0);
+});
+
+test("CVPC data api applyCommonLabel fails when matched button is disabled", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    commonLabels: ["<Silence>"],
+    disabledCommonLabels: ["<Silence>"],
+  });
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+
+  const result = await runtime.applyCommonLabel("<Silence>");
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "当前标签按钮不可用：<Silence>。",
+  });
+  assert.equal(harness.commonLabelButtons["<Silence>"].clickCount, 0);
+});
+
+test("CVPC data api applyCommonLabel fails when target label button is missing", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    commonLabels: ["<SPK/>"],
+  });
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+
+  const result = await runtime.applyCommonLabel("<Meaningless>");
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "未找到标签按钮：<Meaningless>。",
+  });
 });

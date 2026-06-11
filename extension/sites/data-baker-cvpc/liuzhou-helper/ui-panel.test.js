@@ -1144,3 +1144,82 @@ test("CVPC ui panel batch selector supports drag selection updates", function ()
     globalThis.HTMLElement = previousHTMLElement;
   }
 });
+
+test("CVPC ui panel shows fallback dialect and mandarin references inside AI info for failed recommendations", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderRecommendation({
+      success: false,
+      refinedDialectText: "fallback dialect",
+      refinedMandarinText: "fallback mandarin",
+      debugRawJson: {
+        rawResponseText: "{\"audioDialectText\":\"raw fallback\"}",
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /fallback dialect/);
+    assert.match(middleText, /fallback mandarin/);
+    assert.match(middleText, /raw fallback/);
+    assert.doesNotMatch(collectText(harness.dialectFieldBlock), /修正后的柳州话文本/);
+    assert.doesNotMatch(collectText(harness.mandarinFieldBlock), /整理后的普通话文本/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel keeps smooth mandarin reference visible inside AI info for successful recommendations", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderRecommendation({
+      success: true,
+      audioDialectText: "heard dialect",
+      refinedDialectText: "refined dialect",
+      refinedMandarinText: "smooth mandarin",
+      models: {
+        listenModel: "qwen3.5-omni-flash",
+        refineModel: "qwen3.5-plus",
+      },
+      usage: {
+        listen: {
+          promptTokens: 1,
+          completionTokens: 2,
+          totalTokens: 3,
+        },
+        refine: {
+          promptTokens: 4,
+          completionTokens: 5,
+          totalTokens: 9,
+        },
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /smooth mandarin/);
+    assert.match(middleText, /refined dialect/);
+    assert.match(middleText, /模型：qwen3\.5-omni-flash/);
+    assert.match(middleText, /模型：qwen3\.5-plus/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});

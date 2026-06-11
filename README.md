@@ -23,6 +23,7 @@
 - DataBaker CVPC 柳州话批量 hotfix（2026-06-10）：批量开始按钮当前复用 `当前段 AI 推荐` 同款橙色样式；写回前只校验 live `selectedEntryName`，并在识别当前文件名时避开左侧 `音频列表` 中的 `.mp3` 文本，减少“当前页面分段状态已变化”误报。旧版 Network 里看到的多条相同 `GET /httpapi/annotation/annos` 属于状态读取，不是多次 `save_increment` 保存。
 - DataBaker CVPC 柳州话批量热修补充（2026-06-10）：`批量识别状态` 当前直接显示固定并发 `5`；最终文本写回当前按成功段逐段对齐 latest rows，优先对齐 `uniqueId`，对不上时回退按锁定的 `selectionKey(start/end)` 近似匹配，不再要求 latest `annotation/annos` 全量 `unique_id` 列表与启动快照完全一致；目标段缺少文本 attr 时会复用同音频其他段或模板字段定义补齐后再写回；当当前音频所有段都为空白时，会回退使用脚本已知的文本字段 `unique_id` 兜底写回。
 - DataBaker CVPC 柳州话标签联动（2026-06-10）：`标注文本` 当前作为唯一带标签字段，只联动 `#um / #hmm / #ah / #eh / <SPK/> / <NPS/>` 6 个有效标签；后端 `ai/recommend` 成功响应新增 `audioDialectTokens / refinedDialectTokens`，当前段填入、AI 信息、字段结果卡和批量 `save_increment` 写回统一改成结构化 `text/single` 序列，`普通话顺滑` 继续保持纯文本。
+- DataBaker CVPC 柳州话失败态兜底与标签快捷键（2026-06-11）：`AI信息` 当前补齐 `普通话顺滑参考`，固定顺序更新为 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`；当 `listen/refine` 任一阶段命中 `模型输出 JSON 解析失败` 且原始返回仍有可读文本时，失败体会保守补齐柳州话/普通话参考并强制人工复核。options 当前额外开放 9 个页面标签按钮快捷键：`<SPK/> / <NPS/> / #um / #hmm / #ah / #eh / <Unintelligible> / <Meaningless> / <Silence>`，实现方式为真实点击页面按钮，disabled 时不绕过平台限制。
 - DataBaker CVPC 柳州话脚本当前已补两个基础页面辅助开关，默认都开启，可分别屏蔽编辑页里固定文案“您正在编辑该作业,不能打开新的Tab页”和“系统进入暂停状态”的高层提示，仅精确命中这两类文案，不扩大到其他 `.tips` 提示。
 
 ## v0.4.0 开发中（Options 工作台视觉重做）

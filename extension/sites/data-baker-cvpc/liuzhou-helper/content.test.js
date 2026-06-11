@@ -545,3 +545,52 @@ test("CVPC content auto-apply helper keeps preview and skips reload when apply f
   ]]);
   assert.equal(reloadCount, 0);
 });
+
+test("CVPC content common label helper forwards exact label text to data api", async function () {
+  const contentModule = loadContentModule();
+  const calls = [];
+  const statuses = [];
+
+  const result = await contentModule.__testOnly.handleApplyCommonLabel(
+    {
+      dataApi: {
+        applyCommonLabel: async function (labelText) {
+          calls.push(labelText);
+          return {
+            ok: true,
+            message: "已点击标签按钮：" + labelText + "。",
+          };
+        },
+      },
+      ui: {
+        setStatus: function (message, tone) {
+          statuses.push([message, tone]);
+        },
+      },
+    },
+    "<SPK/>"
+  );
+
+  assert.deepEqual(calls, ["<SPK/>"]);
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已点击标签按钮：<SPK/>。",
+  });
+  assert.deepEqual(statuses, [["已点击标签按钮：<SPK/>。", "success"]]);
+});
+
+test("CVPC content exposes common label shortcut mapping", function () {
+  const contentModule = loadContentModule();
+
+  assert.deepEqual(contentModule.__testOnly.commonLabelActions, {
+    labelSpk: "<SPK/>",
+    labelNps: "<NPS/>",
+    labelUm: "#um",
+    labelHmm: "#hmm",
+    labelAh: "#ah",
+    labelEh: "#eh",
+    labelUnintelligible: "<Unintelligible>",
+    labelMeaningless: "<Meaningless>",
+    labelSilence: "<Silence>",
+  });
+});

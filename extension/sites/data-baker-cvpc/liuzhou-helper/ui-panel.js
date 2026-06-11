@@ -940,6 +940,22 @@
         }
         recommendationMetaNode.appendChild(box);
       });
+      const mandarinReferenceBox = document.createElement("div");
+      mandarinReferenceBox.className = "meta-box";
+      const mandarinReferenceTitle = document.createElement("strong");
+      mandarinReferenceTitle.textContent = "鏅€氳瘽椤烘粦鍙傝€?";
+      const mandarinReferenceValue = document.createElement("div");
+      appendTokenDisplay(
+        mandarinReferenceValue,
+        null,
+        source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
+      );
+      mandarinReferenceBox.appendChild(mandarinReferenceTitle);
+      mandarinReferenceBox.appendChild(mandarinReferenceValue);
+      recommendationMetaNode.insertBefore(
+        mandarinReferenceBox,
+        recommendationMetaNode.children[4] || null
+      );
     }
 
     function renderRecommendation(result) {

@@ -70,6 +70,8 @@ const DEFAULT_REFINE_PROMPT = [
   "如果标签前后同时出现标点，只保留标签后的标点，不要输出“，#eh，”这种双侧标点。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
 ].join("\n");
+const RECOMMEND_FAILURE_FALLBACK_NOTE =
+  "模型结构化输出失败，以下柳州话/普通话为保守兜底参考，请人工复核。";
 let warnedLexiconReferenceOnly = false;
 
 function normalizeText(value) {
@@ -727,6 +729,105 @@ function buildMandarinDraftFromLexicon(assetsContext, dialectText) {
   return normalizeAllowedPunctuation(segments.join("") || sourceText);
 }
 
+function attachStageExecutionMeta(error, stageName, requestModel, result, deps, stageStartedAt) {
+  if (!error || typeof error !== "object") {
+    return error;
+  }
+  const stage = normalizeText(stageName) === "refine" ? "refine" : "listen";
+  const usageKey = stage;
+  const modelKey = stage === "refine" ? "refineModel" : "listenModel";
+  const timingKey = stage === "refine" ? "refineMs" : "listenMs";
+  const usage = deps.normalizeUsage(result?.usage);
+  error.usage = Object.assign({}, error.usage || {}, {
+    [usageKey]: usage,
+  });
+  error.models = Object.assign({}, error.models || {}, {
+    [modelKey]: normalizeText(result?.model) || normalizeText(requestModel),
+  });
+  error.timing = Object.assign({}, error.timing || {}, {
+    [timingKey]: Math.max(0, deps.now() - stageStartedAt),
+  });
+  if (!error.rawResponse && result && typeof result === "object") {
+    error.rawResponse = {
+      rawText: String(result.rawText || ""),
+      model: normalizeText(result.model) || normalizeText(requestModel),
+      usage: usage,
+      durationMs: Math.max(0, Math.round(toFiniteNumber(result.durationMs, 0))),
+    };
+  }
+  return error;
+}
+
+function buildListenFailureFallback(rawModelText, assetsContext, options) {
+  const rawText = normalizeText(rawModelText);
+  if (!rawText) {
+    return null;
+  }
+  const source = options && typeof options === "object" ? options : {};
+  const normalized = normalizeListenStageOutput({
+    audioDialectText: rawText,
+    specialTags: source.specialTags,
+    notes: source.notes,
+  });
+  const mandarinDraft = buildMandarinDraftFromLexicon(assetsContext, normalized.audioDialectText);
+  return {
+    audioDialectText: normalized.audioDialectText,
+    audioDialectTokens: Array.isArray(normalized.audioDialectTokens)
+      ? normalized.audioDialectTokens.slice()
+      : [],
+    audioMandarinText: mandarinDraft,
+    refinedDialectText: normalized.audioDialectText,
+    refinedDialectTokens: Array.isArray(normalized.audioDialectTokens)
+      ? normalized.audioDialectTokens.slice()
+      : [],
+    refinedMandarinText: mandarinDraft,
+    dialectText: normalized.audioDialectText,
+    mandarinText: mandarinDraft,
+    specialTags: normalizeSpecialTags(
+      [].concat(source.specialTags || [], normalized.specialTags || [])
+    ),
+    needHumanReview: true,
+    notes: appendRequiredNotes(
+      [].concat(source.notes || [], normalized.notes || []),
+      [RECOMMEND_FAILURE_FALLBACK_NOTE]
+    ),
+  };
+}
+
+function buildRefineFailureFallback(listenResult, assetsContext, options) {
+  const source = options && typeof options === "object" ? options : {};
+  const heardDialectText = normalizeAllowedPunctuation(listenResult?.audioDialectText || "");
+  const heardDialectTokens = Array.isArray(listenResult?.audioDialectTokens)
+    ? listenResult.audioDialectTokens.slice()
+    : [];
+  const mandarinDraft = normalizeAllowedPunctuation(
+    listenResult?.mandarinDraft ||
+      buildMandarinDraftFromLexicon(assetsContext, heardDialectText)
+  );
+  return {
+    audioDialectText: heardDialectText,
+    audioDialectTokens: heardDialectTokens,
+    audioMandarinText: mandarinDraft,
+    refinedDialectText: heardDialectText,
+    refinedDialectTokens: heardDialectTokens.slice(),
+    refinedMandarinText: mandarinDraft,
+    dialectText: heardDialectText,
+    mandarinText: mandarinDraft,
+    specialTags: normalizeSpecialTags(
+      [].concat(
+        source.specialTags || [],
+        listenResult?.specialTags || [],
+        collectSpecialTagsFromTokens(heardDialectTokens)
+      )
+    ),
+    needHumanReview: true,
+    notes: appendRequiredNotes(
+      [].concat(listenResult?.notes || [], source.notes || []),
+      [RECOMMEND_FAILURE_FALLBACK_NOTE]
+    ),
+  };
+}
+
 function buildRulesExcerpt(assetsContext) {
   return String(assetsContext?.rulesText || "")
     .split(/\r?\n/)
@@ -890,10 +991,16 @@ async function runListenStage(request, assetsContext, deps) {
       timeoutMs: request.timeoutMs,
     }
   );
-  const parsed = deps.parseModelJsonText(result.rawText || "", {
-    requestId: request.requestId || "liuzhou-cvpc",
-    stage: "listen",
-  });
+  let parsed;
+  try {
+    parsed = deps.parseModelJsonText(result.rawText || "", {
+      requestId: request.requestId || "liuzhou-cvpc",
+      stage: "listen",
+    });
+  } catch (error) {
+    attachStageExecutionMeta(error, "listen", request.listenModel, result, deps, stageStartedAt);
+    throw error;
+  }
   const normalized = normalizeListenStageOutput(parsed);
   return {
     audioDialectText: normalized.audioDialectText,
@@ -934,10 +1041,16 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
       stage: "refine",
     }
   );
-  const parsed = deps.parseModelJsonText(result.rawText || "", {
-    requestId: request.requestId || "liuzhou-cvpc",
-    stage: "refine",
-  });
+  let parsed;
+  try {
+    parsed = deps.parseModelJsonText(result.rawText || "", {
+      requestId: request.requestId || "liuzhou-cvpc",
+      stage: "refine",
+    });
+  } catch (error) {
+    attachStageExecutionMeta(error, "refine", request.refineModel, result, deps, stageStartedAt);
+    throw error;
+  }
   const normalized = normalizeRefineStageOutput(parsed);
   const refinedDialectText = normalizeAllowedPunctuation(
     normalized.refinedDialectText || listenResult.audioDialectText
@@ -968,48 +1081,89 @@ async function runRefineStage(request, assetsContext, listenResult, deps) {
 async function recommend(request, assetsContext, overrides) {
   const deps = createRuntimeDeps(overrides);
   const startedAt = deps.now();
-  const listenResult = await runListenStage(request, assetsContext || {}, deps);
-  listenResult.mandarinDraft = buildMandarinDraftFromLexicon(
-    assetsContext || {},
-    listenResult.audioDialectText
-  );
-  const refineResult = await runRefineStage(request, assetsContext || {}, listenResult, deps);
-  const audioDialectText = normalizeAllowedPunctuation(listenResult.audioDialectText);
-  const refinedDialectText = normalizeAllowedPunctuation(
-    refineResult.refinedDialectText || listenResult.audioDialectText
-  );
-  const refinedMandarinText = normalizeAllowedPunctuation(
-    refineResult.refinedMandarinText || listenResult.mandarinDraft
-  );
-  return {
-    audioDialectText,
-    audioDialectTokens: Array.isArray(listenResult.audioDialectTokens)
-      ? listenResult.audioDialectTokens.slice()
-      : [],
-    audioMandarinText: refinedMandarinText,
-    refinedDialectText,
-    refinedDialectTokens: Array.isArray(refineResult.refinedDialectTokens)
-      ? refineResult.refinedDialectTokens.slice()
-      : [],
-    refinedMandarinText,
-    dialectText: refinedDialectText,
-    mandarinText: refinedMandarinText,
-    specialTags: normalizeSpecialTags(
-      [].concat(refineResult.specialTags || [], listenResult.specialTags || [])
-    ),
-    needHumanReview:
-      listenResult.needHumanReview === true ||
-      refineResult.needHumanReview === true ||
-      !audioDialectText ||
-      !refinedDialectText ||
-      !refinedMandarinText,
-    notes: normalizeNotes([].concat(listenResult.notes || [], refineResult.notes || [])),
-    timing: Object.assign({}, listenResult.timing || {}, refineResult.timing || {}, {
+  const normalizedAssetsContext = assetsContext || {};
+  let listenResult = null;
+  try {
+    listenResult = await runListenStage(request, normalizedAssetsContext, deps);
+    listenResult.mandarinDraft = buildMandarinDraftFromLexicon(
+      normalizedAssetsContext,
+      listenResult.audioDialectText
+    );
+    const refineResult = await runRefineStage(
+      request,
+      normalizedAssetsContext,
+      listenResult,
+      deps
+    );
+    const audioDialectText = normalizeAllowedPunctuation(listenResult.audioDialectText);
+    const refinedDialectText = normalizeAllowedPunctuation(
+      refineResult.refinedDialectText || listenResult.audioDialectText
+    );
+    const refinedMandarinText = normalizeAllowedPunctuation(
+      refineResult.refinedMandarinText || listenResult.mandarinDraft
+    );
+    return {
+      audioDialectText,
+      audioDialectTokens: Array.isArray(listenResult.audioDialectTokens)
+        ? listenResult.audioDialectTokens.slice()
+        : [],
+      audioMandarinText: refinedMandarinText,
+      refinedDialectText,
+      refinedDialectTokens: Array.isArray(refineResult.refinedDialectTokens)
+        ? refineResult.refinedDialectTokens.slice()
+        : [],
+      refinedMandarinText,
+      dialectText: refinedDialectText,
+      mandarinText: refinedMandarinText,
+      specialTags: normalizeSpecialTags(
+        [].concat(refineResult.specialTags || [], listenResult.specialTags || [])
+      ),
+      needHumanReview:
+        listenResult.needHumanReview === true ||
+        refineResult.needHumanReview === true ||
+        !audioDialectText ||
+        !refinedDialectText ||
+        !refinedMandarinText,
+      notes: normalizeNotes([].concat(listenResult.notes || [], refineResult.notes || [])),
+      timing: Object.assign({}, listenResult.timing || {}, refineResult.timing || {}, {
+        totalMs: Math.max(0, deps.now() - startedAt),
+      }),
+      models: Object.assign({}, listenResult.models || {}, refineResult.models || {}),
+      usage: Object.assign({}, listenResult.usage || {}, refineResult.usage || {}),
+    };
+  } catch (error) {
+    const currentError =
+      error && typeof error === "object"
+        ? error
+        : new Error(String(error || "柳州话 AI 推荐失败。"));
+    if (listenResult) {
+      currentError.models = Object.assign({}, listenResult.models || {}, currentError.models || {});
+      currentError.usage = Object.assign({}, listenResult.usage || {}, currentError.usage || {});
+      currentError.timing = Object.assign({}, listenResult.timing || {}, currentError.timing || {});
+    }
+    if (currentError.code === "model-json-parse-failed") {
+      const fallback = listenResult
+        ? buildRefineFailureFallback(listenResult, normalizedAssetsContext, {
+            specialTags: currentError.specialTags,
+            notes: currentError.notes,
+          })
+        : buildListenFailureFallback(
+            currentError.rawModelText || currentError.debugRawJson?.rawModelText,
+            normalizedAssetsContext,
+            {
+              specialTags: currentError.specialTags,
+              notes: currentError.notes,
+            }
+          );
+      if (fallback) {
+        Object.assign(currentError, fallback);
+      }
+    }
+    currentError.timing = Object.assign({}, currentError.timing || {}, {
       totalMs: Math.max(0, deps.now() - startedAt),
-    }),
-    models: Object.assign({}, listenResult.models || {}, refineResult.models || {}),
-    usage: Object.assign({}, listenResult.usage || {}, refineResult.usage || {}),
-  };
+    });
+    throw currentError;
+  }
 }
 
 function buildRecommendSuccessBody(context) {
@@ -1054,8 +1208,26 @@ function buildRecommendErrorBody(context) {
   const timing = normalizeErrorDebugObject(error.timing);
   const specialTags = normalizeSpecialTags(error.specialTags);
   const notes = normalizeNotes(error.notes);
-  const audioDialectText = normalizeText(error.audioDialectText || error.dialectText);
+  const audioDialectText = normalizeText(
+    error.audioDialectText || error.dialectText || error.refinedDialectText
+  );
   const audioDialectTokens = Array.isArray(error.audioDialectTokens) ? error.audioDialectTokens.slice() : [];
+  const audioMandarinText = normalizeText(
+    error.audioMandarinText || error.refinedMandarinText || error.mandarinText
+  );
+  const refinedDialectText = normalizeText(
+    error.refinedDialectText || error.dialectText || audioDialectText
+  );
+  const refinedDialectTokens = Array.isArray(error.refinedDialectTokens)
+    ? error.refinedDialectTokens.slice()
+    : audioDialectTokens.slice();
+  const refinedMandarinText = normalizeText(
+    error.refinedMandarinText || error.mandarinText || error.audioMandarinText
+  );
+  const dialectText = normalizeText(error.dialectText || refinedDialectText || audioDialectText);
+  const mandarinText = normalizeText(
+    error.mandarinText || refinedMandarinText || audioMandarinText
+  );
   if (rawResponse) {
     body.rawResponse = rawResponse;
   }
@@ -1080,12 +1252,14 @@ function buildRecommendErrorBody(context) {
   if (notes.length > 0) {
     body.notes = notes;
   }
-  if (audioDialectText) {
-    body.audioDialectText = audioDialectText;
-  }
-  if (audioDialectTokens.length > 0) {
-    body.audioDialectTokens = audioDialectTokens;
-  }
+  body.audioDialectText = audioDialectText;
+  body.audioDialectTokens = audioDialectTokens;
+  body.audioMandarinText = audioMandarinText;
+  body.refinedDialectText = refinedDialectText;
+  body.refinedDialectTokens = refinedDialectTokens;
+  body.refinedMandarinText = refinedMandarinText;
+  body.dialectText = dialectText;
+  body.mandarinText = mandarinText;
   return body;
 }
 

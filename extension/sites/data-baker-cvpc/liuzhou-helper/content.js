@@ -37,6 +37,18 @@
     previewFeatureDisabled: "当前已关闭分段建议功能。",
   };
 
+  const COMMON_LABEL_ACTIONS = {
+    labelSpk: "<SPK/>",
+    labelNps: "<NPS/>",
+    labelUm: "#um",
+    labelHmm: "#hmm",
+    labelAh: "#ah",
+    labelEh: "#eh",
+    labelUnintelligible: "<Unintelligible>",
+    labelMeaningless: "<Meaningless>",
+    labelSilence: "<Silence>",
+  };
+
   let runtime = null;
   let routeTimer = null;
   let audioRefreshTimer = null;
@@ -219,6 +231,29 @@
       "error"
     );
     return payload;
+  }
+
+  async function handleApplyCommonLabel(runtimeContext, labelText) {
+    const targetLabel = normalizeText(labelText);
+    if (!targetLabel) {
+      return {
+        ok: false,
+        message: "未找到标签按钮。",
+      };
+    }
+    const result = await runtimeContext?.dataApi?.applyCommonLabel?.(targetLabel);
+    const normalizedResult =
+      result && typeof result === "object"
+        ? result
+        : {
+            ok: false,
+            message: "未找到标签按钮：" + targetLabel + "。",
+          };
+    runtimeContext?.ui?.setStatus?.(
+      normalizedResult.message,
+      normalizedResult.ok ? "success" : "error"
+    );
+    return normalizedResult;
   }
 
   function scheduleRuntimeReload(runtimeContext) {
@@ -998,6 +1033,33 @@
         fillAllValid: function () {
           void handleFillAllValid();
         },
+        labelSpk: function () {
+          void handleApplyCommonLabel(runtime, COMMON_LABEL_ACTIONS.labelSpk);
+        },
+        labelNps: function () {
+          void handleApplyCommonLabel(runtime, COMMON_LABEL_ACTIONS.labelNps);
+        },
+        labelUm: function () {
+          void handleApplyCommonLabel(runtime, COMMON_LABEL_ACTIONS.labelUm);
+        },
+        labelHmm: function () {
+          void handleApplyCommonLabel(runtime, COMMON_LABEL_ACTIONS.labelHmm);
+        },
+        labelAh: function () {
+          void handleApplyCommonLabel(runtime, COMMON_LABEL_ACTIONS.labelAh);
+        },
+        labelEh: function () {
+          void handleApplyCommonLabel(runtime, COMMON_LABEL_ACTIONS.labelEh);
+        },
+        labelUnintelligible: function () {
+          void handleApplyCommonLabel(runtime, COMMON_LABEL_ACTIONS.labelUnintelligible);
+        },
+        labelMeaningless: function () {
+          void handleApplyCommonLabel(runtime, COMMON_LABEL_ACTIONS.labelMeaningless);
+        },
+        labelSilence: function () {
+          void handleApplyCommonLabel(runtime, COMMON_LABEL_ACTIONS.labelSilence);
+        },
       },
     });
     const batchController = createBatchRecommendController({
@@ -1087,6 +1149,8 @@
       resolveRecommendationFillTarget: resolveRecommendationFillTarget,
       resolveBatchRecommendationTexts: resolveBatchRecommendationTexts,
       buildRecommendationFailurePayload: buildRecommendationFailurePayload,
+      commonLabelActions: Object.assign({}, COMMON_LABEL_ACTIONS),
+      handleApplyCommonLabel: handleApplyCommonLabel,
       handleRecommendationFailure: handleRecommendationFailure,
       maybeAutoApplyPreview: maybeAutoApplyPreview,
     },

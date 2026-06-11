@@ -1731,6 +1731,70 @@
     return true;
   }
 
+  function isDisabledElement(node) {
+    if (!node) {
+      return true;
+    }
+    if (node.disabled === true) {
+      return true;
+    }
+    if (typeof node.getAttribute === "function") {
+      const ariaDisabled = normalizeText(node.getAttribute("aria-disabled")).toLowerCase();
+      if (ariaDisabled === "true") {
+        return true;
+      }
+      if (node.hasAttribute("disabled")) {
+        return true;
+      }
+    }
+    return normalizeText(node.className || "").indexOf("is-disabled") >= 0;
+  }
+
+  function findCommonLabelButton(labelText, env) {
+    const targetText = normalizeText(labelText);
+    const root = env?.document || globalThis.document;
+    if (!targetText || !root || typeof root.querySelectorAll !== "function") {
+      return null;
+    }
+    const buttons = Array.from(root.querySelectorAll(".common_label_show"));
+    return buttons.find(function (node) {
+      return (
+        normalizeText(node?.textContent || "") === targetText &&
+        typeof node?.closest === "function" &&
+        node.closest(".block_label") &&
+        node.closest(".common_label")
+      );
+    }) || null;
+  }
+
+  function applyCommonLabel(labelText, env) {
+    if (!isEditorPage(env?.location)) {
+      return {
+        ok: false,
+        message: "当前不在编辑页。",
+      };
+    }
+    const targetText = normalizeText(labelText);
+    const button = findCommonLabelButton(targetText, env);
+    if (!isElementNode(button, env)) {
+      return {
+        ok: false,
+        message: "未找到标签按钮：" + targetText + "。",
+      };
+    }
+    if (isDisabledElement(button)) {
+      return {
+        ok: false,
+        message: "当前标签按钮不可用：" + targetText + "。",
+      };
+    }
+    button.click();
+    return {
+      ok: true,
+      message: "已点击标签按钮：" + targetText + "。",
+    };
+  }
+
   function getCurrentValidityState(env) {
     const scope = findFieldBlock(["是否有效（Valid or Not）", "是否有效"], env);
     if (!isElementNode(scope, env) || typeof scope.querySelectorAll !== "function") {
@@ -3352,6 +3416,9 @@
       isEditorPage,
       applyBatchTextRecommendations,
       setCurrentValidity,
+      applyCommonLabel: function (labelText) {
+        return applyCommonLabel(labelText, env);
+      },
       fillCurrentSegmentRecommendation,
       fillCurrentSegmentField,
       applySegmentPreview,

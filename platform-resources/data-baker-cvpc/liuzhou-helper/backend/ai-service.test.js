@@ -51,6 +51,20 @@ function createBaseRequest(overrides) {
   );
 }
 
+function createLexiconAssetsContext(entries) {
+  return buildAssetsContext({
+    lexiconJson: {
+      schemaVersion: "1",
+      language: "liuzhou_dialect",
+      mode: "rule_lexicon",
+      sourceFiles: ["assets/liuzhou-pronunciation-reference.csv"],
+      updatedAt: "2026-06-09T00:00:00.000Z",
+      entries: Array.isArray(entries) ? entries : [],
+    },
+    ruleText: "规则一",
+  });
+}
+
 test("liuzhou defaults and health expose staged listen/refine defaults", function () {
   const defaultsPayload = createDefaultsPayload();
   const healthPayload = createHealthPayload({
@@ -752,5 +766,156 @@ test("liuzhou buildRecommendErrorBody exposes sanitized debug fields for fronten
       { type: "tag", content: "#hmm" },
       { type: "text", content: "柳州话" },
     ],
+    audioMandarinText: "",
+    refinedDialectText: "原始柳州话",
+    refinedDialectTokens: [
+      { type: "text", content: "原始" },
+      { type: "tag", content: "#hmm" },
+      { type: "text", content: "柳州话" },
+    ],
+    refinedMandarinText: "",
+    dialectText: "原始柳州话",
+    mandarinText: "",
   });
+});
+
+test("liuzhou recommend keeps fallback dialect and mandarin texts when listen stage JSON parse fails", async function () {
+  await assert.rejects(
+    async function () {
+      await recommend(
+        normalizeRecommendRequest(createBaseRequest()),
+        createLexiconAssetsContext([
+          {
+            id: "lz-001",
+            normalized: "娃仔",
+            display: "娃仔",
+            mandarin: "小孩",
+            aliases: [],
+            notes: [],
+            tags: [],
+          },
+        ]),
+        {
+          requestOmniInputAudio: async function () {
+            return {
+              rawText: "娃仔",
+              model: "qwen3.5-omni-flash",
+              usage: {
+                prompt_tokens: 15,
+                completion_tokens: 8,
+                total_tokens: 23,
+              },
+              durationMs: 320,
+            };
+          },
+          requestTextCompareJson: async function () {
+            throw new Error("refine should not run after listen parse failure");
+          },
+        }
+      );
+    },
+    function (error) {
+      const body = buildRecommendErrorBody({
+        requestId: "listen-fallback",
+        error: error,
+      });
+
+      assert.equal(body.code, "model-json-parse-failed");
+      assert.equal(body.audioDialectText, "娃仔。");
+      assert.equal(body.audioMandarinText, "小孩。");
+      assert.equal(body.refinedDialectText, "娃仔。");
+      assert.equal(body.refinedMandarinText, "小孩。");
+      assert.equal(body.dialectText, "娃仔。");
+      assert.equal(body.mandarinText, "小孩。");
+      assert.deepEqual(body.audioDialectTokens, [{ type: "text", content: "娃仔。" }]);
+      assert.deepEqual(body.refinedDialectTokens, [{ type: "text", content: "娃仔。" }]);
+      assert.equal(body.needHumanReview, true);
+      assert.match(body.notes.join(" "), /保守兜底/);
+      assert.equal(body.models?.listenModel, "qwen3.5-omni-flash");
+      assert.equal(body.usage?.listen?.totalTokens, 23);
+      assert.equal(body.timing?.listenMs >= 0, true);
+      assert.equal(body.debugRawJson?.rawModelText, "娃仔");
+      assert.equal(body.rawResponse?.rawText, "娃仔");
+      assert.doesNotMatch(JSON.stringify(body), /authorization/i);
+      return true;
+    }
+  );
+});
+
+test("liuzhou recommend keeps listen fallback texts when refine stage JSON parse fails", async function () {
+  await assert.rejects(
+    async function () {
+      await recommend(
+        normalizeRecommendRequest(createBaseRequest()),
+        createLexiconAssetsContext([
+          {
+            id: "lz-001",
+            normalized: "娃仔",
+            display: "娃仔",
+            mandarin: "小孩",
+            aliases: [],
+            notes: [],
+            tags: [],
+          },
+        ]),
+        {
+          requestOmniInputAudio: async function () {
+            return {
+              rawText: JSON.stringify({
+                audioDialectText: "娃仔",
+                needHumanReview: false,
+                notes: ["听音成功"],
+              }),
+              model: "qwen3.5-omni-flash",
+              usage: {
+                prompt_tokens: 12,
+                completion_tokens: 5,
+                total_tokens: 17,
+              },
+              durationMs: 280,
+            };
+          },
+          requestTextCompareJson: async function () {
+            return {
+              rawText: "普通自由文本，不是 JSON",
+              model: "qwen3.5-plus",
+              usage: {
+                prompt_tokens: 22,
+                completion_tokens: 9,
+                total_tokens: 31,
+              },
+              durationMs: 410,
+            };
+          },
+        }
+      );
+    },
+    function (error) {
+      const body = buildRecommendErrorBody({
+        requestId: "refine-fallback",
+        error: error,
+      });
+
+      assert.equal(body.code, "model-json-parse-failed");
+      assert.equal(body.audioDialectText, "娃仔。");
+      assert.equal(body.audioMandarinText, "小孩。");
+      assert.equal(body.refinedDialectText, "娃仔。");
+      assert.equal(body.refinedMandarinText, "小孩。");
+      assert.equal(body.dialectText, "娃仔。");
+      assert.equal(body.mandarinText, "小孩。");
+      assert.deepEqual(body.audioDialectTokens, [{ type: "text", content: "娃仔。" }]);
+      assert.deepEqual(body.refinedDialectTokens, [{ type: "text", content: "娃仔。" }]);
+      assert.equal(body.needHumanReview, true);
+      assert.match(body.notes.join(" "), /听音成功/);
+      assert.match(body.notes.join(" "), /保守兜底/);
+      assert.equal(body.models?.listenModel, "qwen3.5-omni-flash");
+      assert.equal(body.models?.refineModel, "qwen3.5-plus");
+      assert.equal(body.usage?.listen?.totalTokens, 17);
+      assert.equal(body.usage?.refine?.totalTokens, 31);
+      assert.equal(body.debugRawJson?.rawModelText, "普通自由文本，不是 JSON");
+      assert.equal(body.rawResponse?.rawText, "普通自由文本，不是 JSON");
+      assert.doesNotMatch(JSON.stringify(body), /Signature=/);
+      return true;
+    }
+  );
 });

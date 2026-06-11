@@ -1,3 +1,41 @@
+## 2026-06-11（DataBaker CVPC 柳州话失败态兜底文本与标签快捷键）
+
+- `DataBaker CVPC / 柳州话脚本` 当前补齐一轮失败态可复制兜底：
+  - 后端 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 在 `listen/refine` 命中 `模型输出 JSON 解析失败` 时，若原始返回仍有可读文本，会保守补齐 `audioMandarinText / refinedDialectText / refinedDialectTokens / refinedMandarinText / dialectText / mandarinText`
+  - `AI信息` 固定顺序当前补齐 `普通话顺滑参考`，失败态仍不伪装成成功，但会保留可直接复制的柳州话/普通话参考，并强制 `needHumanReview=true`
+  - `buildRecommendErrorBody()` 当前统一透出脱敏后的 `rawResponse / debugRawJson / usage / models / timing` 与兜底文本字段，前端失败态可直接展示
+- `DataBaker CVPC / 柳州话脚本` 当前额外补上 9 个页面标签按钮快捷键：
+  - `extension/options/options.js` 当前为 `dataBakerCvpcShortcutActions` 新增 `labelSpk / labelNps / labelUm / labelHmm / labelAh / labelEh / labelUnintelligible / labelMeaningless / labelSilence`
+  - `content.js` 新增公共标签动作映射，`data-api.js` 新增 `applyCommonLabel()`；动作实现统一为真实点击页面 `common_label_show` 按钮
+  - disabled 标签按钮当前直接失败，不绕过平台限制，也不直接向文本字段硬写标签
+- 本轮同步更新：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/shortcuts.test.js`
+  - `extension/options/options.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --check extension/options/options.js`
+  - `node --test platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/shortcuts.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+
 ## 2026-06-10（DataBaker CVPC 柳州话标签联动与结构化写回）
 
 - `DataBaker CVPC / 柳州话脚本` 当前完成一轮标签联动收口：

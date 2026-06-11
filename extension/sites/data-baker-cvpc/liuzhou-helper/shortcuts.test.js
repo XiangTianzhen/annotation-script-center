@@ -219,3 +219,55 @@ test("CVPC shortcuts runtime supports dedicated fill actions for dialect and man
     globalThis.window = previousWindow;
   }
 });
+
+test("CVPC shortcuts runtime supports common label actions with recorded shortcuts", function () {
+  const shortcutModule = loadShortcutModule();
+  const harness = createWindowHarness();
+  const previousWindow = globalThis.window;
+  let labelSpkTriggered = 0;
+  let labelSilenceTriggered = 0;
+
+  globalThis.window = harness.window;
+
+  try {
+    const runtime = shortcutModule.createRuntime({
+      shortcuts: {
+        labelSpk: {
+          alt: true,
+          key: "s",
+        },
+        labelSilence: {
+          alt: true,
+          shift: true,
+          key: "l",
+        },
+      },
+      actions: {
+        labelSpk: function () {
+          labelSpkTriggered += 1;
+        },
+        labelSilence: function () {
+          labelSilenceTriggered += 1;
+        },
+      },
+    });
+
+    runtime.bind();
+    harness.triggerKeydown({
+      altKey: true,
+      key: "s",
+      code: "KeyS",
+    });
+    harness.triggerKeydown({
+      altKey: true,
+      shiftKey: true,
+      key: "L",
+      code: "KeyL",
+    });
+
+    assert.equal(labelSpkTriggered, 1);
+    assert.equal(labelSilenceTriggered, 1);
+  } finally {
+    globalThis.window = previousWindow;
+  }
+});
