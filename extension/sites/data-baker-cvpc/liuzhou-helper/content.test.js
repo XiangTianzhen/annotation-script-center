@@ -323,6 +323,38 @@ test("CVPC content failure helper forwards recommendation payload to ui renderRe
   assert.deepEqual(statuses, [["当前段 AI 推荐失败：模型输出 JSON 解析失败，可查看原始 AI 返回。", "error"]]);
 });
 
+test("CVPC content failure helper adds a reload action for expired audio session errors", function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  let reloadCount = 0;
+
+  contentModule.__testOnly.handleRecommendationFailure(
+    {
+      scheduleReload: function () {
+        reloadCount += 1;
+      },
+      ui: {
+        renderRecommendation: function () {},
+        setStatus: function () {
+          statuses.push(Array.from(arguments));
+        },
+      },
+    },
+    {
+      message: "当前音频访问已失效，通常是页面 session 已过期；请刷新页面后重试。",
+    }
+  );
+
+  assert.equal(statuses.length, 1);
+  assert.deepEqual(statuses[0].slice(0, 2), [
+    "当前段 AI 推荐失败：当前音频访问已失效，通常是页面 session 已过期；请刷新页面后重试。",
+    "error",
+  ]);
+  assert.equal(statuses[0][2].action.label, "刷新页面");
+  statuses[0][2].action.onClick();
+  assert.equal(reloadCount, 1);
+});
+
 test("CVPC content exposes updated recognition and segment copy", function () {
   const contentModule = loadContentModule();
 

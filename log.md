@@ -1,3 +1,24 @@
+## 2026-06-11（DataBaker CVPC 柳州话音频 session 过期提示与刷新按钮）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把“原始音频下载失败，无法截取当前段”这类前端提示收口为更贴近实际原因的文案：
+  - `ai-recommendation.js` 在当前音频签名地址返回非 `2xx` 时，统一提示 `当前音频访问已失效，通常是页面 session 已过期；请刷新页面后重试。`
+  - `content.js` 当前会识别这类失败，并在右侧状态区附带 `刷新页面` 动作
+  - `ui-panel.js` 的状态区当前支持同一行渲染可选操作按钮，用户可直接点击刷新当前编辑页，重新获取带 session 的音频访问地址
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+
 ## 2026-06-11（DataBaker CVPC 柳州话失败态兜底文本与标签快捷键）
 
 - `DataBaker CVPC / 柳州话脚本` 当前补齐一轮失败态可复制兜底：

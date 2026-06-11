@@ -168,7 +168,7 @@
   async function fetchAudioBuffer(audioUrl) {
     const response = await fetch(audioUrl);
     if (!response.ok) {
-      throw new Error("原始音频下载失败，无法截取当前段。");
+      throw new Error("当前音频访问已失效，通常是页面 session 已过期；请刷新页面后重试。");
     }
     return response.arrayBuffer();
   }

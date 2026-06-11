@@ -493,6 +493,44 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
   }
 });
 
+test("CVPC ui panel renders a refresh action next to status when requested", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  let clicked = 0;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.setStatus("当前段 AI 推荐失败：当前音频访问已失效，通常是页面 session 已过期；请刷新页面后重试。", "error", {
+      action: {
+        label: "刷新页面",
+        onClick: function () {
+          clicked += 1;
+        },
+      },
+    });
+
+    const panelNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-panel");
+    const refreshButton = findButtonByText(panelNode, "刷新页面");
+    assert.ok(refreshButton);
+    assert.equal(refreshButton.style.display, "inline-flex");
+    assert.match(collectText(panelNode), /当前音频访问已失效/);
+
+    refreshButton.dispatchEvent({ type: "click" });
+    assert.equal(clicked, 1);
+
+    runtime.setStatus("普通提示", "");
+    assert.equal(refreshButton.style.display, "none");
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
 test("CVPC ui panel renders current audio and selected range inside the global annotation card", function () {
   const uiModule = loadUiPanelModule();
   const harness = createHarness();

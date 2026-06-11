@@ -199,9 +199,12 @@
       "  margin-top: 4px;",
       "  color: #909399;",
       "}",
-      "[" + ROOT_ATTR + "] .status { margin-top: 8px; color: #606266; white-space: pre-wrap; }",
+      "[" + ROOT_ATTR + "] .status-row { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }",
+      "[" + ROOT_ATTR + "] .status { margin-top: 0; flex: 1 1 180px; min-width: 0; color: #606266; white-space: pre-wrap; }",
       "[" + ROOT_ATTR + "] .status[data-tone='error'] { color: #f56c6c; }",
       "[" + ROOT_ATTR + "] .status[data-tone='success'] { color: #67c23a; }",
+      "[" + ROOT_ATTR + "] .status-action { padding: 4px 10px; border: 1px solid var(--asc-primary-border); border-radius: 999px; background: #fff; color: var(--asc-primary-strong); font-size: 12px; line-height: 1.5; cursor: pointer; }",
+      "[" + ROOT_ATTR + "] .status-action:hover { border-color: var(--asc-primary); color: var(--asc-primary); }",
       "[" + ROOT_ATTR + "] .section, [" + MIDDLE_AI_ATTR + "] .section { margin-top: 12px; }",
       "[" + ROOT_ATTR + "] .info-box, [" + MIDDLE_AI_ATTR + "] .preview-item, [" + MIDDLE_AI_ATTR + "] .meta-box, [" + FIELD_RECOMMEND_ATTR + "] .recommend-item {",
       "  margin-top: 8px;",
@@ -702,6 +705,7 @@
     let middleAiRoot = null;
     let middleActionsNode = null;
     let statusNode = null;
+    let statusActionNode = null;
     let audioNode = null;
     let previewNode = null;
     let recommendationMetaNode = null;
@@ -719,12 +723,20 @@
     };
     let batchSelectionPointerCleanup = null;
 
-    function setStatus(text, tone) {
+    function setStatus(text, tone, options) {
       if (!statusNode) {
         return;
       }
       statusNode.textContent = String(text || "");
       statusNode.setAttribute("data-tone", tone || "");
+      if (!statusActionNode) {
+        return;
+      }
+      const action = options?.action && typeof options.action === "object" ? options.action : null;
+      const hasAction = Boolean(action?.label) && typeof action?.onClick === "function";
+      statusActionNode.textContent = hasAction ? String(action.label) : "";
+      statusActionNode.style.display = hasAction ? "inline-flex" : "none";
+      statusActionNode.addEventListener("click", hasAction ? action.onClick : function () {});
     }
 
     function renderPreview(preview) {
@@ -1276,8 +1288,19 @@
       rightPanelNode.innerHTML =
         '<div class="panel-title">柳州话脚本 Beta</div><div class="panel-subtitle">CVPC /app/editor/asr/ 建议生成 + 人工确认</div>';
 
+      const statusRowNode = document.createElement("div");
+      statusRowNode.className = "status-row";
+
       statusNode = document.createElement("div");
       statusNode.className = "status";
+
+      statusActionNode = document.createElement("button");
+      statusActionNode.type = "button";
+      statusActionNode.className = "status-action";
+      statusActionNode.style.display = "none";
+
+      statusRowNode.appendChild(statusNode);
+      statusRowNode.appendChild(statusActionNode);
 
       const audioSection = document.createElement("div");
       audioSection.className = "section";
@@ -1293,7 +1316,7 @@
       foot.className = "panel-foot";
       foot.textContent = "提示：AI 识别与分段建议已集中到中间区域；应用后仍需人工复核并手动保存。";
 
-      rightPanelNode.appendChild(statusNode);
+      rightPanelNode.appendChild(statusRowNode);
       rightPanelNode.appendChild(audioSection);
       rightPanelNode.appendChild(foot);
       rightRoot.appendChild(rightPanelNode);
@@ -1550,6 +1573,7 @@
       middleAiRoot = null;
       middleActionsNode = null;
       statusNode = null;
+      statusActionNode = null;
       audioNode = null;
       previewNode = null;
       recommendationMetaNode = null;

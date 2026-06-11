@@ -223,12 +223,33 @@
     };
   }
 
+  function shouldSuggestReloadForRecommendationError(error) {
+    const message = normalizeText(error && error.message ? error.message : error);
+    return (
+      message.indexOf("原始音频下载失败") >= 0 ||
+      message.indexOf("当前音频访问已失效") >= 0 ||
+      message.indexOf("session 已过期") >= 0 ||
+      message.indexOf("session已过期") >= 0
+    );
+  }
+
   function handleRecommendationFailure(runtimeContext, error) {
     const payload = buildRecommendationFailurePayload(error);
+    const message = error && error.message ? error.message : String(error);
     runtimeContext?.ui?.renderRecommendation?.(payload);
     runtimeContext?.ui?.setStatus?.(
-      "当前段 AI 推荐失败：" + (error && error.message ? error.message : String(error)),
-      "error"
+      "当前段 AI 推荐失败：" + message,
+      "error",
+      shouldSuggestReloadForRecommendationError(error)
+        ? {
+            action: {
+              label: "刷新页面",
+              onClick: function () {
+                scheduleRuntimeReload(runtimeContext);
+              },
+            },
+          }
+        : undefined
     );
     return payload;
   }
