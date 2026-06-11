@@ -438,6 +438,34 @@ test("CVPC content builds a Meaningless invalid preset for standalone particle r
   });
 });
 
+test("CVPC content builds a display payload that keeps raw AI output but shows the Meaningless preset", function () {
+  const contentModule = loadContentModule();
+  const rawRecommendation = {
+    success: true,
+    refinedDialectText: "#um。",
+    refinedDialectTokens: [
+      { type: "tag", content: "#um" },
+      { type: "text", content: "。" },
+    ],
+    refinedMandarinText: "嗯。",
+  };
+
+  const displayPayload = contentModule.__testOnly.buildRecommendationDisplayPayload(rawRecommendation);
+
+  assert.equal(displayPayload.rawDisplaySource, rawRecommendation);
+  assert.equal(displayPayload.refinedDialectText, "#um。");
+  assert.equal(displayPayload.refinedMandarinText, "嗯。");
+  assert.deepEqual(displayPayload.applyPreset, {
+    validity: "invalid",
+    dialectText: "<Meaningless>",
+    dialectTokens: [{ type: "tag", content: "<Meaningless>" }],
+    mandarinText: "",
+  });
+  assert.equal(displayPayload.displayDialectText, "<Meaningless>");
+  assert.deepEqual(displayPayload.displayDialectTokens, [{ type: "tag", content: "<Meaningless>" }]);
+  assert.equal(displayPayload.displayMandarinText, "");
+});
+
 test("CVPC content resolveBatchRecommendationTexts converts standalone particle into Meaningless invalid payload", function () {
   const contentModule = loadContentModule();
 

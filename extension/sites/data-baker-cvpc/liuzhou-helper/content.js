@@ -330,6 +330,37 @@
     };
   }
 
+  function buildRecommendationDisplayPayload(result) {
+    const source = result && typeof result === "object" ? result : {};
+    const applyPreset = buildRecommendationApplyPreset(source);
+    if (!applyPreset) {
+      return Object.assign({}, source, {
+        rawDisplaySource: source,
+      });
+    }
+    return Object.assign({}, source, {
+      applyPreset: applyPreset,
+      displayDialectText: String(
+        applyPreset.dialectText ||
+          source.refinedDialectText ||
+          source.dialectText ||
+          source.audioDialectText ||
+          ""
+      ),
+      displayDialectTokens: Array.isArray(applyPreset.dialectTokens)
+        ? applyPreset.dialectTokens.slice()
+        : getRecommendationDialectTokens(source),
+      displayMandarinText: String(
+        applyPreset.mandarinText ??
+          source.refinedMandarinText ??
+          source.mandarinText ??
+          source.audioMandarinText ??
+          ""
+      ),
+      rawDisplaySource: source,
+    });
+  }
+
   function resolveBatchRecommendationTexts(result) {
     const source = result && typeof result === "object" ? result : {};
     const applyPreset = buildRecommendationApplyPreset(source);
@@ -1054,7 +1085,7 @@
         throw new Error("未读取到当前波形选中段的开始/结束时间，请先在左侧选中目标段后重试。");
       }
       lastRecommendation = await runtime.ai.recommend(context);
-      runtime.ui.renderRecommendation(lastRecommendation);
+      runtime.ui.renderRecommendation(buildRecommendationDisplayPayload(lastRecommendation));
       const autoFillResult = await maybeAutoFillRecommendation(runtime, lastRecommendation);
       if (autoFillResult.attempted) {
         return;
@@ -1420,6 +1451,7 @@
       },
       createBatchRecommendController: createBatchRecommendController,
       buildRecommendationApplyPreset: buildRecommendationApplyPreset,
+      buildRecommendationDisplayPayload: buildRecommendationDisplayPayload,
       resolveRecommendationFillTarget: resolveRecommendationFillTarget,
       resolveBatchRecommendationTexts: resolveBatchRecommendationTexts,
       buildRecommendationFailurePayload: buildRecommendationFailurePayload,

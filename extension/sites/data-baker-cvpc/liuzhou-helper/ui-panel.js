@@ -584,6 +584,54 @@
       });
   }
 
+  function resolveApplyPreset(result) {
+    const source = result && typeof result === "object" ? result : {};
+    return source.applyPreset && typeof source.applyPreset === "object" ? source.applyPreset : null;
+  }
+
+  function resolveDisplayedDialectText(result) {
+    const source = result && typeof result === "object" ? result : {};
+    const applyPreset = resolveApplyPreset(source);
+    if (source.displayDialectText !== undefined) {
+      return String(source.displayDialectText || "");
+    }
+    if (applyPreset && applyPreset.dialectText !== undefined) {
+      return String(applyPreset.dialectText || "");
+    }
+    return String(source.refinedDialectText || source.dialectText || source.audioDialectText || "");
+  }
+
+  function resolveDisplayedDialectTokens(result) {
+    const source = result && typeof result === "object" ? result : {};
+    const applyPreset = resolveApplyPreset(source);
+    if (Array.isArray(source.displayDialectTokens)) {
+      return normalizeTokenItems(source.displayDialectTokens);
+    }
+    if (Array.isArray(applyPreset?.dialectTokens)) {
+      return normalizeTokenItems(applyPreset.dialectTokens);
+    }
+    return normalizeTokenItems(source.refinedDialectTokens);
+  }
+
+  function resolveDisplayedMandarinText(result) {
+    const source = result && typeof result === "object" ? result : {};
+    const applyPreset = resolveApplyPreset(source);
+    if (source.displayMandarinText !== undefined) {
+      return String(source.displayMandarinText || "");
+    }
+    if (applyPreset && applyPreset.mandarinText !== undefined) {
+      return String(applyPreset.mandarinText || "");
+    }
+    return String(source.refinedMandarinText || source.mandarinText || source.audioMandarinText || "");
+  }
+
+  function resolveRawDisplaySource(result) {
+    const source = result && typeof result === "object" ? result : {};
+    return source.rawDisplaySource && typeof source.rawDisplaySource === "object"
+      ? source.rawDisplaySource
+      : source;
+  }
+
   function appendTokenDisplay(host, tokens, fallbackText) {
     const target = host instanceof HTMLElement ? host : null;
     if (!target) {
@@ -997,11 +1045,15 @@
       }
       clearNodeChildren(recommendationMetaNode);
       const source = result && typeof result === "object" ? result : {};
+      const rawDisplaySource = resolveRawDisplaySource(source);
       const rawSource =
         source.debugRawJson ||
         source.rawResponse ||
         source.debugRawAiResponse ||
-        (result && typeof result === "object" ? result : null);
+        rawDisplaySource?.debugRawJson ||
+        rawDisplaySource?.rawResponse ||
+        rawDisplaySource?.debugRawAiResponse ||
+        rawDisplaySource;
       const rawText = rawSource ? stringifyJsonSafely(rawSource) : "";
       [
         buildAiStageSummary(source, "listen", "听音识别", "listenModel"),
@@ -1046,12 +1098,12 @@
         },
         {
           title: "柳州话修正参考",
-          value: source.refinedDialectText || source.dialectText || "",
-          tokens: source.refinedDialectTokens,
+          value: resolveDisplayedDialectText(source),
+          tokens: resolveDisplayedDialectTokens(source),
         },
         {
           title: "普通话顺滑参考",
-          value: source.refinedMandarinText || source.mandarinText || source.audioMandarinText || "",
+          value: resolveDisplayedMandarinText(source),
         },
         {
           title: "近音候选参考",
@@ -1126,16 +1178,15 @@
       if (!result || result.success !== true) {
         return;
       }
-      const refinedDialectText = String(result.refinedDialectText || result.dialectText || "");
-      const refinedMandarinText = String(
-        result.refinedMandarinText || result.mandarinText || result.audioMandarinText || ""
-      );
+      const refinedDialectText = resolveDisplayedDialectText(result);
+      const refinedDialectTokens = resolveDisplayedDialectTokens(result);
+      const refinedMandarinText = resolveDisplayedMandarinText(result);
       [
         {
           host: dialectRecommendationNode,
           title: "修正后的柳州话文本",
           value: refinedDialectText,
-          tokens: result.refinedDialectTokens,
+          tokens: refinedDialectTokens,
           buttonText: "填入标注文本",
           applyKey: "refinedDialectText",
         },

@@ -293,6 +293,19 @@ function findNodeByClass(root, className) {
   });
 }
 
+function findMetaBoxByTitle(root, title) {
+  return findNode(root, function (node) {
+    return (
+      node instanceof FakeNode &&
+      String(node.className || "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .indexOf("meta-box") >= 0 &&
+      collectText(node).indexOf(String(title || "")) >= 0
+    );
+  });
+}
+
 function createHarness() {
   const body = new FakeNode("body");
   const head = new FakeNode("head");
@@ -715,6 +728,61 @@ test("CVPC ui panel keeps empty additional info rows when recommendation fields 
     assert.match(middleText, /需人工复核/);
     assert.match(middleText, /备注/);
     assert.match(middleText, /AI 返回原始内容/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel renders Meaningless preset in final cards and keeps raw AI payload in raw output", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderRecommendation({
+      success: true,
+      refinedDialectText: "#um。",
+      refinedDialectTokens: [
+        { type: "tag", content: "#um" },
+        { type: "text", content: "。" },
+      ],
+      refinedMandarinText: "嗯。",
+      applyPreset: {
+        validity: "invalid",
+        dialectText: "<Meaningless>",
+        dialectTokens: [{ type: "tag", content: "<Meaningless>" }],
+        mandarinText: "",
+      },
+      rawDisplaySource: {
+        success: true,
+        refinedDialectText: "#um。",
+        refinedMandarinText: "嗯。",
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const dialectText = collectText(harness.dialectFieldBlock);
+    const mandarinText = collectText(harness.mandarinFieldBlock);
+    const dialectMetaBox = findMetaBoxByTitle(middleNode, "柳州话修正参考");
+    const mandarinMetaBox = findMetaBoxByTitle(middleNode, "普通话顺滑参考");
+
+    assert.match(dialectText, /修正后的柳州话文本/);
+    assert.match(dialectText, /<Meaningless>/);
+    assert.doesNotMatch(dialectText, /#um/);
+    assert.match(mandarinText, /整理后的普通话文本/);
+    assert.doesNotMatch(mandarinText, /嗯。/);
+    assert.doesNotMatch(mandarinText, /填入普通话顺滑/);
+    assert.match(collectText(dialectMetaBox), /<Meaningless>/);
+    assert.doesNotMatch(collectText(dialectMetaBox), /#um/);
+    assert.ok(mandarinMetaBox);
+    assert.doesNotMatch(collectText(mandarinMetaBox), /嗯。/);
+    assert.match(collectText(middleNode), /"refinedMandarinText": "嗯。"/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

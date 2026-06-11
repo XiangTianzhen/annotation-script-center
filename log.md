@@ -1,3 +1,20 @@
+## 2026-06-11（DataBaker CVPC 柳州话单独语气词结果卡展示与 AI 参考收口）
+
+- `DataBaker CVPC / 柳州话脚本` 当前补齐“应用层已落 `<Meaningless>`，但结果卡仍显示原始 `#um / 嗯。`”的展示缺口：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js` 当前在当前段识别成功后，会为展示层附带 `applyPreset + rawDisplaySource`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js` 当前优先用最终应用预设渲染 `修正后的柳州话文本`、`整理后的普通话文本`，以及 `AI信息` 里的 `柳州话修正参考 / 普通话顺滑参考`
+  - 命中单独语气词 `<Meaningless>` 预设时，蓝色结果卡与 AI 参考区不再继续显示原始 `#um / 嗯。`；原始内容继续只保留在 `AI 返回原始内容`
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+
 ## 2026-06-11（DataBaker CVPC 柳州话中文 CSV 表头与 AI 消耗记录收口）
 
 - `DataBaker CVPC / 柳州话脚本` 当前继续保留原始返回复制与人民币估算，但收口显示与导出口径：
