@@ -438,6 +438,26 @@ test("CVPC content builds a Meaningless invalid preset for standalone particle r
   });
 });
 
+test("CVPC content builds a Meaningless invalid preset for standalone single-tag noise recommendations", function () {
+  const contentModule = loadContentModule();
+
+  const preset = contentModule.__testOnly.buildRecommendationApplyPreset({
+    refinedDialectText: "<SPK/>。",
+    refinedDialectTokens: [
+      { type: "tag", content: "<SPK/>" },
+      { type: "text", content: "。" },
+    ],
+    refinedMandarinText: "。",
+  });
+
+  assert.deepEqual(preset, {
+    validity: "invalid",
+    dialectText: "<Meaningless>",
+    dialectTokens: [{ type: "tag", content: "<Meaningless>" }],
+    mandarinText: "",
+  });
+});
+
 test("CVPC content builds a display payload that keeps raw AI output but shows the Meaningless preset", function () {
   const contentModule = loadContentModule();
   const rawRecommendation = {

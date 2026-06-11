@@ -48,7 +48,6 @@
     labelMeaningless: "<Meaningless>",
     labelSilence: "<Silence>",
   };
-  const ORAL_PARTICLE_TAGS = new Set(["#um", "#hmm", "#ah", "#eh"]);
   const RECOMMENDATION_INLINE_TAG_MATCHER = /#(?:um|hmm|ah|eh)|<(?:SPK\/|NPS\/|Meaningless|Unintelligible|Silence)>/gi;
 
   let runtime = null;
@@ -289,14 +288,17 @@
     if (tokens.length <= 0) {
       return false;
     }
-    let sawOralParticle = false;
+    let tagCount = 0;
     for (let index = 0; index < tokens.length; index += 1) {
       const token = tokens[index];
       if (token.type === "tag") {
-        if (!ORAL_PARTICLE_TAGS.has(String(token.content || ""))) {
+        if (!String(token.content || "")) {
           return false;
         }
-        sawOralParticle = true;
+        tagCount += 1;
+        if (tagCount > 1) {
+          return false;
+        }
         continue;
       }
       const stripped = String(token.content || "").replace(/[\s，。？！；,.!?;:]/g, "");
@@ -304,7 +306,7 @@
         return false;
       }
     }
-    return sawOralParticle;
+    return tagCount === 1;
   }
 
   function buildRecommendationApplyPreset(result) {
