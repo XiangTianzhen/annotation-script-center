@@ -88,9 +88,30 @@ function pickResultMeta(context) {
     resultMeta,
     errorMeta,
     finalMeta,
-    usage: pickEnvelopeValue(finalMeta.usage, execution.usage, result.usage),
-    timing: pickEnvelopeValue(finalMeta.timing, execution.timing, result.timing),
-    models: pickEnvelopeValue(finalMeta.models, execution.models, result.models),
+    usage: pickEnvelopeValue(
+      finalMeta.usage,
+      execution.usage,
+      result.usage,
+      execution.projectResult?.usage,
+      execution.postProcessedResult?.usage,
+      execution.pipelineResult?.usage
+    ),
+    timing: pickEnvelopeValue(
+      finalMeta.timing,
+      execution.timing,
+      result.timing,
+      execution.projectResult?.timing,
+      execution.postProcessedResult?.timing,
+      execution.pipelineResult?.timing
+    ),
+    models: pickEnvelopeValue(
+      finalMeta.models,
+      execution.models,
+      result.models,
+      execution.projectResult?.models,
+      execution.postProcessedResult?.models,
+      execution.pipelineResult?.models
+    ),
   };
 }
 

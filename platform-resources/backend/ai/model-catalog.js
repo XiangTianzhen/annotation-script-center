@@ -4,8 +4,7 @@ const MODEL_MARKET_URL =
   "https://bailian.console.aliyun.com/cn-beijing?tab=model#/model-market/all";
 const OPENAI_COMPATIBLE_API_DOC_URL =
   "https://bailian.console.aliyun.com/cn-beijing?tab=api#/api/?type=model&url=3016807";
-const MODEL_PRICING_DOC_URL =
-  "https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148";
+const MODEL_PRICING_DOC_URL = "https://help.aliyun.com/zh/model-studio/model-pricing";
 const QWEN_TEXT_DOC_URL =
   "https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2841718";
 const QWEN_OMNI_DOC_URL =
@@ -14,6 +13,7 @@ const FUN_ASR_DOC_URL =
   "https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2880903";
 const RECORDING_FILE_API_DOC_URL =
   "https://help.aliyun.com/zh/model-studio/recording-file-recognition-api-details";
+const MODEL_PRICING_CONFIG_PATH = "config/pricing/aliyun-bailian-model-pricing.json";
 
 const MODEL_ENTRIES = [
   {
@@ -34,6 +34,7 @@ const MODEL_ENTRIES = [
     },
     pricing: {
       pricingUrl: MODEL_PRICING_DOC_URL,
+      pricingConfigPath: MODEL_PRICING_CONFIG_PATH,
     },
     recommendedUsage: "质量优先文本比较/转换。",
   },
@@ -55,6 +56,7 @@ const MODEL_ENTRIES = [
     },
     pricing: {
       pricingUrl: MODEL_PRICING_DOC_URL,
+      pricingConfigPath: MODEL_PRICING_CONFIG_PATH,
     },
     recommendedUsage: "稳妥文本比较/转换，兼顾质量与成本。",
   },
@@ -76,6 +78,7 @@ const MODEL_ENTRIES = [
     },
     pricing: {
       pricingUrl: MODEL_PRICING_DOC_URL,
+      pricingConfigPath: MODEL_PRICING_CONFIG_PATH,
     },
     recommendedUsage: "更快的文本比较/转换。",
   },
@@ -97,6 +100,7 @@ const MODEL_ENTRIES = [
     },
     pricing: {
       pricingUrl: MODEL_PRICING_DOC_URL,
+      pricingConfigPath: MODEL_PRICING_CONFIG_PATH,
     },
     recommendedUsage: "速度优先文本比较/转换默认候选。",
   },
@@ -118,6 +122,7 @@ const MODEL_ENTRIES = [
     },
     pricing: {
       pricingUrl: MODEL_PRICING_DOC_URL,
+      pricingConfigPath: MODEL_PRICING_CONFIG_PATH,
     },
     recommendedUsage: "质量优先音频理解/听音。",
   },
@@ -139,6 +144,7 @@ const MODEL_ENTRIES = [
     },
     pricing: {
       pricingUrl: MODEL_PRICING_DOC_URL,
+      pricingConfigPath: MODEL_PRICING_CONFIG_PATH,
     },
     recommendedUsage: "速度优先音频理解/听音默认候选。",
   },
@@ -160,6 +166,7 @@ const MODEL_ENTRIES = [
     },
     pricing: {
       pricingUrl: MODEL_PRICING_DOC_URL,
+      pricingConfigPath: MODEL_PRICING_CONFIG_PATH,
     },
     recommendedUsage: "速度优先录音文件识别默认候选。",
   },
@@ -238,6 +245,7 @@ function buildModelOptionsByFamily(family) {
       categoryDocUrl: entry.docs.categoryDocUrl,
       apiDocUrl: entry.docs.apiDocUrl,
       pricingUrl: entry.pricing.pricingUrl,
+      pricingConfigPath: entry.pricing.pricingConfigPath,
       marketUrl: entry.docs.marketUrl,
       recommendedUsage: entry.recommendedUsage,
     };
@@ -246,6 +254,7 @@ function buildModelOptionsByFamily(family) {
 
 module.exports = {
   MODEL_MARKET_URL,
+  MODEL_PRICING_CONFIG_PATH,
   MODEL_PRICING_DOC_URL,
   OPENAI_COMPATIBLE_API_DOC_URL,
   QWEN_TEXT_DOC_URL,

@@ -59,8 +59,11 @@
   - `AI信息` 当前默认折叠但始终保留结构，点击 `展开查看 AI 信息` 后再展开查看附加信息和完整原始返回 JSON；即使模型输出 JSON 解析失败，这个区块也会保留
   - `AI信息` 当前固定顺序展示 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 近音候选参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
   - `AI 返回原始内容` 当前优先展示后端返回的 `debug/raw` 字段；成功态若没有单独返回 raw/debug，则回退展示当前结果对象的安全 JSON
+  - `AI 返回原始内容` 当前新增 `复制原始返回` 按钮；复制内容固定前缀为 `AI返回原始内容为：`
   - 若 Qwen 返回 `providerCode=data_inspection_failed`，当前会把原先笼统的 `Qwen SSE 返回错误` 收口成 `Qwen 输出触发内容风控（内容审查拦截）`，避免误判成普通网络或 SSE 故障
-  - `AI信息` 的两段阶段信息当前只显示 `模型 / 输入 / 输出`，不再展示 `总输入 / 总输出 / 总计`
+  - `AI信息` 的两段阶段信息当前显示 `模型 / 输入 / 输出 / 输入单价 / 输出单价 / 预估人民币`，并额外显示 `总预估人民币`
+  - 人民币估算当前统一读取 `config/pricing/aliyun-bailian-model-pricing.json`，价格口径固定为 `中国内地 / 华北2（北京）`
+  - 当前只录入 `qwen3.5-omni-plus / qwen3.5-omni-flash / qwen3.5-plus / qwen3.5-flash` 4 个模型价格；其余模型统一返回 `没有数据源`
   - 当模型结构化 JSON 解析失败但原始返回仍有可读文本时，后端当前会保守兜底出 `柳州话修正参考 / 普通话顺滑参考`，并强制 `needHumanReview=true`，便于直接复制后人工确认
   - 听音阶段当前会额外返回最多 `3` 条近音候选；文本修正阶段会结合页面上下文、JSON 主词表和参考 CSV 的释义/读音做保守纠正。若仍有歧义，`AI信息` 会追加 `近音候选参考`，并强制 `needHumanReview=true`
   - 后端返回 `audioDialectTokens / refinedDialectTokens` 时，`AI信息` 与字段结果卡当前会优先按 chip 渲染柳州话标签；token 缺失时再回退旧字符串展示
@@ -122,8 +125,9 @@
   - 返回 `defaults.stages.listen / refine`
   - `defaults.stages.listen.includeLexiconReference` 默认返回 `false`
   - 返回 `supportedModels.listen / refine`
+  - 返回 `pricing.currency / region / sourceUrl / modelListUrl / verifiedAt`
 - `GET /api/data-baker-cvpc/liuzhou-helper/ai/recommend/health`
-  - 返回与 defaults 对齐的 staged defaults、支持模型列表与运行时资料摘要
+  - 返回与 defaults 对齐的 staged defaults、支持模型列表、运行时资料摘要与当前脚本支持模型的价格可用性摘要
 - `POST /api/data-baker-cvpc/liuzhou-helper/ai/recommend`
   - 输入：
     - 当前段识别优先发送 `audioDataUrl`
@@ -147,6 +151,7 @@
     - `notes`
     - `timing`
     - `models`
+    - `cost.listen / cost.refine / cost.totalEstimatedCostCny / cost.currency / cost.pricingSourceUrl / cost.pricingRegion / cost.modelListUrl / cost.note`
   - 失败态补充：
     - 当 `listen/refine` 任一阶段命中 `模型输出 JSON 解析失败` 且原始返回仍有可读文本时，失败体当前会保守补齐 `audioMandarinText / refinedDialectText / refinedDialectTokens / refinedMandarinText / dialectText / mandarinText`
     - `rawResponse / debugRawJson` 继续只返回脱敏后的原始调试内容，不返回 token、cookie 或签名 URL 明文
@@ -203,7 +208,16 @@
 
 - 当前 AI 调用已接入共享 CSV 记录链路，日志目录为 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/logs/`
 - 系统管理 `AI 请求记录` 当前新增数据集：`DataBaker CVPC 柳州话助手 AI 调用记录`
-- 导出 CSV 当前会把 `listen + refine` 两阶段 usage 汇总到表头 `输入Token / 输出Token / 总Token`，便于直接估算模型成本
+- 导出 CSV 当前继续保留汇总列 `输入Token / 输出Token / 总Token`
+- 导出 CSV 当前新增分阶段列：
+  - `listenPromptTokens / listenCompletionTokens / listenTotalTokens`
+  - `refinePromptTokens / refineCompletionTokens / refineTotalTokens`
+  - `listenEstimatedCostCny / refineEstimatedCostCny / totalEstimatedCostCny`
+  - `listenPricingStatus / refinePricingStatus`
+  - `listenInputPrice / listenOutputPrice / refineInputPrice / refineOutputPrice`
+- 价格来源当前固定记录为：
+  - `https://help.aliyun.com/zh/model-studio/model-pricing`
+  - `https://bailian.console.aliyun.com/cn-beijing?tab=model#/model-market/all`
 - 每条调用默认补齐：
   - `AI 调用使用人`
   - `platformUserName = data.name`

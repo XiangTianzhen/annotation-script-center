@@ -86,6 +86,11 @@ test("liuzhou defaults and health expose staged listen/refine defaults", functio
   assert.equal(healthPayload.defaults?.stages?.refine?.model, "qwen3.5-plus");
   assert.equal(healthPayload.reference?.lexiconRowCount, 1);
   assert.equal(healthPayload.reference?.lexiconWarning, "");
+  assert.equal(defaultsPayload.pricing?.currency, "CNY");
+  assert.equal(defaultsPayload.pricing?.region, "中国内地 / 华北2（北京）");
+  assert.equal(defaultsPayload.pricing?.sourceUrl, "https://help.aliyun.com/zh/model-studio/model-pricing");
+  assert.equal(healthPayload.pricing?.supportedModelAvailability?.listen?.["qwen3.5-omni-flash"], true);
+  assert.equal(healthPayload.pricing?.supportedModelAvailability?.refine?.["qwen3.5-plus"], true);
 });
 
 test("liuzhou buildAssetsContext accepts json lexicon assets", function () {
@@ -455,6 +460,32 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
           totalTokens: 7,
         },
       },
+      cost: {
+        listen: {
+          pricingStatus: "estimated",
+          hasPriceData: true,
+          hasUsageDetail: true,
+          reason: "",
+          inputPriceLabel: "文本/图片/视频 2.2 元/百万Token；音频 18 元/百万Token",
+          outputPriceLabel: "文本 13.3 元/百万Token",
+          estimatedCostCny: 0.008935,
+        },
+        refine: {
+          pricingStatus: "estimated",
+          hasPriceData: true,
+          hasUsageDetail: true,
+          reason: "",
+          inputPriceLabel: "0<Token≤128K：0.8 元/百万Token",
+          outputPriceLabel: "0<Token≤128K：4.8 元/百万Token",
+          estimatedCostCny: 0.000017,
+        },
+        totalEstimatedCostCny: 0.008952,
+        currency: "CNY",
+        pricingSourceUrl: "https://help.aliyun.com/zh/model-studio/model-pricing",
+        pricingRegion: "中国内地 / 华北2（北京）",
+        modelListUrl: "https://bailian.console.aliyun.com/cn-beijing?tab=model#/model-market/all",
+        note: "价格按官方公开文档估算，仅覆盖当前已配置模型。",
+      },
     },
   });
 
@@ -513,7 +544,169 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
         totalTokens: 7,
       },
     },
+    cost: {
+      listen: {
+        pricingStatus: "estimated",
+        hasPriceData: true,
+        hasUsageDetail: true,
+        reason: "",
+        inputPriceLabel: "文本/图片/视频 2.2 元/百万Token；音频 18 元/百万Token",
+        outputPriceLabel: "文本 13.3 元/百万Token",
+        estimatedCostCny: 0.008935,
+      },
+      refine: {
+        pricingStatus: "estimated",
+        hasPriceData: true,
+        hasUsageDetail: true,
+        reason: "",
+        inputPriceLabel: "0<Token≤128K：0.8 元/百万Token",
+        outputPriceLabel: "0<Token≤128K：4.8 元/百万Token",
+        estimatedCostCny: 0.000017,
+      },
+      totalEstimatedCostCny: 0.008952,
+      currency: "CNY",
+      pricingSourceUrl: "https://help.aliyun.com/zh/model-studio/model-pricing",
+      pricingRegion: "中国内地 / 华北2（北京）",
+      modelListUrl: "https://bailian.console.aliyun.com/cn-beijing?tab=model#/model-market/all",
+      note: "价格按官方公开文档估算，仅覆盖当前已配置模型。",
+    },
   });
+});
+
+test("liuzhou recommend calculates staged cost for qwen3.5-omni-plus and qwen3.5-plus", async function () {
+  const result = await recommend(
+    normalizeRecommendRequest(createBaseRequest({
+      aiStages: {
+        listen: {
+          model: "qwen3.5-omni-plus",
+          prompt: "listen prompt",
+          params: {},
+        },
+        refine: {
+          model: "qwen3.5-plus",
+          prompt: "refine prompt",
+          params: {},
+        },
+      },
+    })),
+    createLexiconAssetsContext([]),
+    {
+      requestOmniInputAudio: async function () {
+        return {
+          rawText: JSON.stringify({
+            audioDialectText: "听音柳州话",
+            candidatePhrases: [],
+            specialTags: [],
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-omni-plus",
+          usage: {
+            prompt_tokens: 466,
+            completion_tokens: 53,
+            total_tokens: 519,
+            prompt_tokens_details: {
+              text_tokens: 10,
+              audio_tokens: 456,
+            },
+          },
+          durationMs: 120,
+        };
+      },
+      requestTextCompareJson: async function () {
+        return {
+          rawText: JSON.stringify({
+            refinedDialectText: "修正柳州话",
+            refinedMandarinText: "整理普通话",
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-plus",
+          usage: {
+            prompt_tokens: 3216,
+            completion_tokens: 114,
+            total_tokens: 3330,
+          },
+          durationMs: 80,
+        };
+      },
+    }
+  );
+
+  assert.equal(result.cost.listen.pricingStatus, "estimated");
+  assert.equal(result.cost.listen.estimatedCostCny, 0.026358);
+  assert.equal(result.cost.refine.pricingStatus, "estimated");
+  assert.equal(result.cost.refine.estimatedCostCny, 0.00312);
+  assert.equal(result.cost.totalEstimatedCostCny, 0.029478);
+});
+
+test("liuzhou recommend calculates staged cost for qwen3.5-omni-flash and qwen3.5-flash high tier", async function () {
+  const result = await recommend(
+    normalizeRecommendRequest(createBaseRequest({
+      aiStages: {
+        listen: {
+          model: "qwen3.5-omni-flash",
+          prompt: "listen prompt",
+          params: {},
+        },
+        refine: {
+          model: "qwen3.5-flash",
+          prompt: "refine prompt",
+          params: {},
+        },
+      },
+    })),
+    createLexiconAssetsContext([]),
+    {
+      requestOmniInputAudio: async function () {
+        return {
+          rawText: JSON.stringify({
+            audioDialectText: "听音柳州话",
+            candidatePhrases: [],
+            specialTags: [],
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-omni-flash",
+          usage: {
+            prompt_tokens: 466,
+            completion_tokens: 53,
+            total_tokens: 519,
+            prompt_tokens_details: {
+              text_tokens: 10,
+              audio_tokens: 456,
+            },
+          },
+          durationMs: 100,
+        };
+      },
+      requestTextCompareJson: async function () {
+        return {
+          rawText: JSON.stringify({
+            refinedDialectText: "修正柳州话",
+            refinedMandarinText: "整理普通话",
+            needHumanReview: false,
+            notes: [],
+          }),
+          model: "qwen3.5-flash",
+          usage: {
+            prompt_tokens: 300000,
+            completion_tokens: 114,
+            total_tokens: 300114,
+          },
+          durationMs: 70,
+        };
+      },
+    }
+  );
+
+  assert.equal(result.cost.listen.pricingStatus, "estimated");
+  assert.equal(result.cost.listen.estimatedCostCny, 0.008935);
+  assert.equal(result.cost.refine.pricingStatus, "estimated");
+  assert.equal(result.cost.refine.inputPriceLabel, "256K<Token≤1M：1.2 元/百万Token");
+  assert.equal(result.cost.refine.outputPriceLabel, "256K<Token≤1M：12 元/百万Token");
+  assert.equal(result.cost.refine.estimatedCostCny, 0.361368);
+  assert.equal(result.cost.totalEstimatedCostCny, 0.370303);
 });
 
 test("liuzhou recommend runs listen plus refine stages and returns heard dialect plus two final texts", async function () {
@@ -1002,6 +1195,19 @@ test("liuzhou buildRecommendErrorBody exposes sanitized debug fields for fronten
       timing: {
         totalMs: 3210,
       },
+      cost: {
+        listen: {
+          pricingStatus: "estimated",
+          estimatedCostCny: 0.008935,
+          inputPriceLabel: "文本/图片/视频 2.2 元/百万Token；音频 18 元/百万Token",
+          outputPriceLabel: "文本 13.3 元/百万Token",
+        },
+        totalEstimatedCostCny: 0.008935,
+        currency: "CNY",
+        pricingSourceUrl: "https://help.aliyun.com/zh/model-studio/model-pricing",
+        pricingRegion: "中国内地 / 华北2（北京）",
+        note: "仅汇总可估算阶段。",
+      },
       specialTags: ["#um"],
       needHumanReview: true,
       notes: ["保守处理"],
@@ -1036,6 +1242,19 @@ test("liuzhou buildRecommendErrorBody exposes sanitized debug fields for fronten
     timing: {
       totalMs: 3210,
     },
+    cost: {
+      listen: {
+        pricingStatus: "estimated",
+        estimatedCostCny: 0.008935,
+        inputPriceLabel: "文本/图片/视频 2.2 元/百万Token；音频 18 元/百万Token",
+        outputPriceLabel: "文本 13.3 元/百万Token",
+      },
+      totalEstimatedCostCny: 0.008935,
+      currency: "CNY",
+      pricingSourceUrl: "https://help.aliyun.com/zh/model-studio/model-pricing",
+      pricingRegion: "中国内地 / 华北2（北京）",
+      note: "仅汇总可估算阶段。",
+    },
     specialTags: ["#um"],
     needHumanReview: true,
     notes: ["保守处理"],
@@ -1056,6 +1275,67 @@ test("liuzhou buildRecommendErrorBody exposes sanitized debug fields for fronten
     dialectText: "原始柳州话",
     mandarinText: "",
   });
+});
+
+test("liuzhou recommend keeps partial listen cost when refine stage fails", async function () {
+  await assert.rejects(
+    async function () {
+      await recommend(
+        normalizeRecommendRequest(createBaseRequest({
+          aiStages: {
+            listen: {
+              model: "qwen3.5-omni-flash",
+              prompt: "listen prompt",
+              params: {},
+            },
+            refine: {
+              model: "qwen3.5-plus",
+              prompt: "refine prompt",
+              params: {},
+            },
+          },
+        })),
+        createLexiconAssetsContext([]),
+        {
+          requestOmniInputAudio: async function () {
+            return {
+              rawText: JSON.stringify({
+                audioDialectText: "听音柳州话",
+                candidatePhrases: [],
+                specialTags: [],
+                needHumanReview: false,
+                notes: [],
+              }),
+              model: "qwen3.5-omni-flash",
+              usage: {
+                prompt_tokens: 466,
+                completion_tokens: 53,
+                total_tokens: 519,
+                prompt_tokens_details: {
+                  text_tokens: 10,
+                  audio_tokens: 456,
+                },
+              },
+              durationMs: 120,
+            };
+          },
+          requestTextCompareJson: async function () {
+            const error = new Error("refine failed");
+            error.code = "refine-stage-failed";
+            throw error;
+          },
+        }
+      );
+    },
+    function (error) {
+      assert.equal(error.code, "refine-stage-failed");
+      assert.equal(error.cost.listen.pricingStatus, "estimated");
+      assert.equal(error.cost.listen.estimatedCostCny, 0.008935);
+      assert.equal(error.cost.totalEstimatedCostCny, 0.008935);
+      assert.match(error.cost.note, /仅汇总可估算阶段/);
+      return true;
+    }
+  );
 });
 
 test("liuzhou buildRecommendErrorBody maps qwen data inspection failures to readable risk-control message", function () {

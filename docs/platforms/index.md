@@ -43,6 +43,7 @@
 - 2026-06-11 失败态兜底与标签快捷键：`AI信息` 当前顺序补齐为 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`；当 `listen/refine` 命中 `模型输出 JSON 解析失败` 且原始返回仍有可读文本时，失败体会保守补齐柳州话/普通话参考并强制人工复核。options 当前额外开放 9 个页面标签按钮快捷键：`<SPK/> / <NPS/> / #um / #hmm / #ah / #eh / <Unintelligible> / <Meaningless> / <Silence>`，实现方式为真实点击页面 `common_label_show` 按钮，disabled 时不绕过平台限制。
 - 2026-06-11 近音纠错与语义修正：`listen` 当前会额外返回最多 `3` 条近音候选，`refine` 会结合页面上下文、JSON 主词表和参考 CSV 的读音/释义做保守纠正；若仍有歧义，响应会新增 `candidateAlternatives`，`AI信息` 会展示 `近音候选参考`，并强制人工复核。
 - 2026-06-11 标签联动补强：后端当前新增高置信文本归一化，独立 `呃 / 诶 / 欸 -> #eh`、独立 `啊 -> #ah`、独立 `嗯 -> #um`、重复笑声 `呵呵 / 哈哈 / 嘿嘿 / 嘻嘻` 一类主说话人非语义声音 -> `<SPK/>`；`#hmm` 与 `<NPS/>` 仍只接受模型显式输出。`普通话顺滑` 当前会保留与口语词标签对应的纯文本语气词，但不会保留 `<SPK/> / <NPS/>` 或笑声文本；当前段带标签填入后还会按 `modelvalue` 自动恢复被 tiptap 下一次重绘临时清空的可视 chip。
+- 2026-06-11 AI 价格估算与原始返回复制：`AI信息` 当前新增 `复制原始返回`，复制文本固定前缀为 `AI返回原始内容为：`；两阶段信息新增 `输入单价 / 输出单价 / 预估人民币` 与 `总预估人民币`。价格统一读取共享配置 `config/pricing/aliyun-bailian-model-pricing.json`，当前只覆盖 `qwen3.5-omni-plus / qwen3.5-omni-flash / qwen3.5-plus / qwen3.5-flash` 4 个模型，其余模型显示 `没有数据源`；AI 请求记录导出继续保留汇总 token 列，并新增 `listen/refine` 分阶段 token 与人民币列。
 - 当前补采状态：`annotation/meta`、`annotation/annos`、模板字段、页面真实 `annotation/*` 最小鉴权头和当前页 DOM 入口已纳入运行时；画段应用当前会优先直连平台 `save_increment`，仅在增量补切直写失败时回退同源 `xaudio` DOM 交互，不自动触发提交流转。
 
 ## Magic Data ANNOTATOR

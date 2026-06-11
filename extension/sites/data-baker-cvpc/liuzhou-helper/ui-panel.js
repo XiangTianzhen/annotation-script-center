@@ -26,6 +26,35 @@
     }
   }
 
+  function copyText(text) {
+    const value = String(text || "");
+    if (!value) {
+      return Promise.reject(new Error("没有可复制的文本。"));
+    }
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      return navigator.clipboard.writeText(value);
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "readonly");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    (document.body || document.documentElement).appendChild(textarea);
+    if (typeof textarea.select === "function") {
+      textarea.select();
+    }
+    const copied = typeof document.execCommand === "function" ? document.execCommand("copy") : false;
+    if (typeof textarea.remove === "function") {
+      textarea.remove();
+    } else if (textarea.parentNode) {
+      textarea.parentNode.removeChild(textarea);
+    }
+    if (!copied) {
+      return Promise.reject(new Error("浏览器未允许复制。"));
+    }
+    return Promise.resolve();
+  }
+
   function normalizeBatchSelectionNumbers(totalSegments, selectedNumbers) {
     const total = Math.max(0, Math.round(Number(totalSegments || 0)) || 0);
     if (total <= 0) {
@@ -140,15 +169,61 @@
     };
   }
 
+  function formatEstimatedCostCny(value) {
+    if (value === null || value === undefined || value === "") {
+      return "";
+    }
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return "";
+    }
+    return String(number.toFixed(6)).replace(/0+$/, "").replace(/\.$/, "") + " 元";
+  }
+
+  function resolveStagePriceLabel(stageCost, key) {
+    const label = normalizeText(stageCost?.[key]);
+    if (label) {
+      return label;
+    }
+    return normalizeText(stageCost?.reason) === "没有数据源" ? "没有数据源" : "";
+  }
+
+  function resolveStageEstimatedCostLabel(stageCost) {
+    const formatted = formatEstimatedCostCny(stageCost?.estimatedCostCny);
+    if (formatted) {
+      return formatted;
+    }
+    return normalizeText(stageCost?.reason);
+  }
+
+  function resolveTotalEstimatedCostLabel(cost) {
+    const formatted = formatEstimatedCostCny(cost?.totalEstimatedCostCny);
+    if (formatted) {
+      return formatted;
+    }
+    if (
+      normalizeText(cost?.listen?.reason) === "没有数据源" ||
+      normalizeText(cost?.refine?.reason) === "没有数据源"
+    ) {
+      return "没有数据源";
+    }
+    return normalizeText(cost?.note);
+  }
+
   function buildAiStageSummary(source, stageKey, title, modelKey) {
     const usageSource = source && typeof source === "object" ? source.usage : null;
     const modelsSource = source && typeof source === "object" ? source.models : null;
+    const costSource = source && typeof source === "object" ? source.cost : null;
     const totals = collectUsageTotals(usageSource?.[stageKey]);
+    const stageCost = costSource && typeof costSource[stageKey] === "object" ? costSource[stageKey] : null;
     return {
       title: title,
       model: normalizeText(modelsSource?.[modelKey]),
       promptTokens: totals.found ? String(totals.promptTokens) : "",
       completionTokens: totals.found ? String(totals.completionTokens) : "",
+      inputPriceLabel: resolveStagePriceLabel(stageCost, "inputPriceLabel"),
+      outputPriceLabel: resolveStagePriceLabel(stageCost, "outputPriceLabel"),
+      estimatedCostLabel: resolveStageEstimatedCostLabel(stageCost),
     };
   }
 
@@ -230,6 +305,9 @@
       "[" + ROOT_ATTR + "] .audio-url-details summary { cursor: pointer; color: #909399; user-select: none; }",
       "[" + ROOT_ATTR + "] .audio-url-full { margin: 6px 0 0; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }",
       "[" + ROOT_ATTR + "] .panel-foot { margin-top: 10px; color: #909399; }",
+      "[" + MIDDLE_AI_ATTR + "] .meta-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }",
+      "[" + MIDDLE_AI_ATTR + "] .meta-action { padding: 4px 10px; border: 1px solid #cddcff; border-radius: 999px; background: #fff; color: #3f6df2; font-size: 12px; line-height: 1.5; cursor: pointer; }",
+      "[" + MIDDLE_AI_ATTR + "] .meta-line { margin-top: 4px; white-space: pre-wrap; }",
       "[" + MIDDLE_AI_ATTR + "] {",
       "  margin-top: 12px;",
       "  padding: 14px 16px;",
@@ -940,21 +1018,37 @@
       ].forEach(function (stageItem) {
         const box = document.createElement("div");
         box.className = "meta-box";
-        box.innerHTML =
-          "<strong>" +
-          stageItem.title +
-          "</strong>" +
-          '<div class="meta-line">模型：' +
-          stageItem.model +
-          "</div>" +
-          '<div class="meta-line">输入：' +
-          stageItem.promptTokens +
-          "</div>" +
-          '<div class="meta-line">输出：' +
-          stageItem.completionTokens +
-          "</div>";
+        const title = document.createElement("strong");
+        title.textContent = stageItem.title;
+        box.appendChild(title);
+        [
+          "模型：" + stageItem.model,
+          "输入：" + stageItem.promptTokens,
+          "输出：" + stageItem.completionTokens,
+          "输入单价：" + stageItem.inputPriceLabel,
+          "输出单价：" + stageItem.outputPriceLabel,
+          "预估人民币：" + stageItem.estimatedCostLabel,
+        ].forEach(function (lineText) {
+          const line = document.createElement("div");
+          line.className = "meta-line";
+          line.textContent = lineText;
+          box.appendChild(line);
+        });
         recommendationMetaNode.appendChild(box);
       });
+      const totalEstimatedCostLabel = resolveTotalEstimatedCostLabel(source.cost);
+      if (totalEstimatedCostLabel) {
+        const totalBox = document.createElement("div");
+        totalBox.className = "meta-box";
+        const title = document.createElement("strong");
+        title.textContent = "费用汇总";
+        const line = document.createElement("div");
+        line.className = "meta-line";
+        line.textContent = "总预估人民币：" + totalEstimatedCostLabel;
+        totalBox.appendChild(title);
+        totalBox.appendChild(line);
+        recommendationMetaNode.appendChild(totalBox);
+      }
       [
         {
           title: "音频听出的柳州话文本",
@@ -997,11 +1091,22 @@
         const box = document.createElement("div");
         box.className = "meta-box";
         if (item.title === "AI 返回原始内容") {
+          const head = document.createElement("div");
+          head.className = "meta-head";
           const title = document.createElement("strong");
           title.textContent = item.title;
+          const copyButton = document.createElement("button");
+          copyButton.type = "button";
+          copyButton.className = "meta-action";
+          copyButton.textContent = "复制原始返回";
+          copyButton.addEventListener("click", function () {
+            copyText("AI返回原始内容为：" + String(item.value || "")).catch(function () {});
+          });
           const rawNode = document.createElement("pre");
           rawNode.textContent = String(item.value || "");
-          box.appendChild(title);
+          head.appendChild(title);
+          head.appendChild(copyButton);
+          box.appendChild(head);
           box.appendChild(rawNode);
         } else if (item.title === "近音候选参考") {
           const title = document.createElement("strong");

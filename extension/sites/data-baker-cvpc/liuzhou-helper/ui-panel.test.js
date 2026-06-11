@@ -81,6 +81,12 @@ class FakeNode {
     return child;
   }
 
+  remove() {
+    if (this.parentNode) {
+      this.parentNode.removeChild(this);
+    }
+  }
+
   setAttribute(name, value) {
     this.attributes[name] = String(value);
   }
@@ -148,6 +154,10 @@ class FakeNode {
   set innerHTML(value) {
     this._innerHTML = String(value || "");
     this._textContent = String(value || "").replace(/<[^>]+>/g, " ");
+  }
+
+  select() {
+    return undefined;
   }
 }
 
@@ -393,6 +403,9 @@ function createHarness() {
         return collectDescendants(body);
       }
       return body.querySelectorAll(selector);
+    },
+    execCommand: function () {
+      return true;
     },
   };
 
@@ -760,6 +773,21 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
         listenModel: "qwen3.5-omni-flash",
         refineModel: "qwen3.5-plus",
       },
+      cost: {
+        listen: {
+          pricingStatus: "estimated",
+          inputPriceLabel: "文本/图片/视频 2.2 元/百万Token；音频 18 元/百万Token",
+          outputPriceLabel: "文本 13.3 元/百万Token",
+          estimatedCostCny: 0.008935,
+        },
+        refine: {
+          pricingStatus: "estimated",
+          inputPriceLabel: "0<Token≤128K：0.8 元/百万Token",
+          outputPriceLabel: "0<Token≤128K：4.8 元/百万Token",
+          estimatedCostCny: 0.000017,
+        },
+        totalEstimatedCostCny: 0.008952,
+      },
     });
 
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
@@ -795,6 +823,13 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.match(middleText, /输出：6/);
     assert.match(middleText, /输入：4/);
     assert.match(middleText, /输出：3/);
+    assert.match(middleText, /输入单价：文本\/图片\/视频 2\.2 元\/百万Token；音频 18 元\/百万Token/);
+    assert.match(middleText, /输出单价：文本 13\.3 元\/百万Token/);
+    assert.match(middleText, /预估人民币：0\.008935 元/);
+    assert.match(middleText, /输入单价：0<Token≤128K：0\.8 元\/百万Token/);
+    assert.match(middleText, /输出单价：0<Token≤128K：4\.8 元\/百万Token/);
+    assert.match(middleText, /预估人民币：0\.000017 元/);
+    assert.match(middleText, /总预估人民币：0\.008952 元/);
     assert.match(middleText, /"audioDialectText": "听音#eh柳州话"/);
     assert.match(middleText, /"timing":/);
     assert.doesNotMatch(middleText, /总输入/);
@@ -836,6 +871,150 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
       "refinedDialectText",
       "refinedMandarinText",
     ]);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel copies AI raw response with required prefix", async function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  let copiedText = "";
+  harness.document.execCommand = function (command) {
+    if (command !== "copy") {
+      return false;
+    }
+    const textarea = harness.body.querySelector("textarea");
+    copiedText = String(textarea?.value || "");
+    return true;
+  };
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderRecommendation({
+      success: true,
+      refinedDialectText: "修正柳州话",
+      refinedMandarinText: "整理普通话",
+      debugRawJson: {
+        audioDialectText: "原始听音",
+        note: "raw note",
+      },
+      usage: {
+        listen: {
+          promptTokens: 1,
+          completionTokens: 1,
+        },
+        refine: {
+          promptTokens: 1,
+          completionTokens: 1,
+        },
+      },
+      models: {
+        listenModel: "qwen3.5-omni-flash",
+        refineModel: "qwen3.5-plus",
+      },
+      cost: {
+        listen: {
+          inputPriceLabel: "文本/图片/视频 2.2 元/百万Token；音频 18 元/百万Token",
+          outputPriceLabel: "文本 13.3 元/百万Token",
+          estimatedCostCny: 0.000001,
+          pricingStatus: "estimated",
+        },
+        refine: {
+          inputPriceLabel: "0<Token≤128K：0.8 元/百万Token",
+          outputPriceLabel: "0<Token≤128K：4.8 元/百万Token",
+          estimatedCostCny: 0.000001,
+          pricingStatus: "estimated",
+        },
+        totalEstimatedCostCny: 0.000002,
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const copyButton = findButtonByText(middleNode, "复制原始返回");
+    assert.ok(copyButton);
+
+    copyButton.dispatchEvent({ type: "click" });
+    await Promise.resolve();
+
+    assert.equal(
+      copiedText,
+      "AI返回原始内容为：" +
+        JSON.stringify(
+          {
+            audioDialectText: "原始听音",
+            note: "raw note",
+          },
+          null,
+          2
+        )
+    );
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel shows 没有数据源 when pricing config is unavailable", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderRecommendation({
+      success: true,
+      refinedDialectText: "修正柳州话",
+      refinedMandarinText: "整理普通话",
+      usage: {
+        listen: {
+          promptTokens: 10,
+          completionTokens: 6,
+        },
+        refine: {
+          promptTokens: 4,
+          completionTokens: 3,
+        },
+      },
+      models: {
+        listenModel: "qwen-max",
+        refineModel: "qwen-plus",
+      },
+      cost: {
+        listen: {
+          pricingStatus: "missing_source",
+          reason: "没有数据源",
+          inputPriceLabel: "",
+          outputPriceLabel: "",
+          estimatedCostCny: null,
+        },
+        refine: {
+          pricingStatus: "missing_source",
+          reason: "没有数据源",
+          inputPriceLabel: "",
+          outputPriceLabel: "",
+          estimatedCostCny: null,
+        },
+        totalEstimatedCostCny: null,
+      },
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const middleText = collectText(middleNode);
+    assert.match(middleText, /输入单价：没有数据源/);
+    assert.match(middleText, /输出单价：没有数据源/);
+    assert.match(middleText, /预估人民币：没有数据源/);
+    assert.match(middleText, /总预估人民币：没有数据源/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

@@ -1,3 +1,46 @@
+## 2026-06-11（DataBaker CVPC 柳州话原始返回复制、人民币估算与分阶段 Token 日志）
+
+- `DataBaker CVPC / 柳州话脚本` 当前补齐 3 项收口：
+  - 前端 `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js` 当前为 `AI 返回原始内容` 增加 `复制原始返回` 按钮；复制文本固定前缀为 `AI返回原始内容为：`
+  - `AI信息` 当前在 `听音识别 / 文本修正` 两阶段新增 `输入单价 / 输出单价 / 预估人民币`，并额外展示 `总预估人民币`
+  - 后端当前为 `listen / refine` 两阶段补齐独立成本估算，并在失败态保留可用阶段成本
+- 共享价格配置当前正式落地：
+  - 新增 `config/pricing/aliyun-bailian-model-pricing.json`
+  - 新增 `platform-resources/backend/ai/model-pricing.js`
+  - 当前价格口径固定为 `中国内地 / 华北2（北京）`
+  - 当前只录入 `qwen3.5-omni-plus / qwen3.5-omni-flash / qwen3.5-plus / qwen3.5-flash` 4 个模型；其余模型统一返回 `没有数据源`
+  - 价格来源当前固定记录为：
+    - `https://help.aliyun.com/zh/model-studio/model-pricing`
+    - `https://bailian.console.aliyun.com/cn-beijing?tab=model#/model-market/all`
+- `DataBaker CVPC / 柳州话脚本` 的 AI 请求记录当前继续保留汇总列 `输入Token / 输出Token / 总Token`，并新增：
+  - `listenPromptTokens / listenCompletionTokens / listenTotalTokens`
+  - `refinePromptTokens / refineCompletionTokens / refineTotalTokens`
+  - `listenEstimatedCostCny / refineEstimatedCostCny / totalEstimatedCostCny`
+  - `listenPricingStatus / refinePricingStatus`
+  - `listenInputPrice / listenOutputPrice / refineInputPrice / refineOutputPrice`
+- 本轮同步更新：
+  - `config/pricing/aliyun-bailian-model-pricing.json`
+  - `platform-resources/backend/ai/model-pricing.js`
+  - `platform-resources/backend/ai/model-pricing.test.js`
+  - `platform-resources/backend/ai/model-catalog.js`
+  - `platform-resources/backend/ai-call-log/index.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-call-log.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-call-log.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/shared/constants.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+- 本轮验证：
+  - `node --test platform-resources/backend/ai/model-pricing.test.js`
+  - `node --test platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `node --test platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-call-log.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+
 ## 2026-06-11（DataBaker CVPC 柳州话单独语气词 Invalid/Meaningless 预设与标签空格修复）
 
 - `DataBaker CVPC / 柳州话脚本` 当前补上一层“单独语气词落 Invalid”应用预设：

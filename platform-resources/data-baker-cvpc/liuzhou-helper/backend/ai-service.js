@@ -10,6 +10,10 @@ const {
   parseModelJsonText,
 } = require("../../../data-baker/round-one-quality/backend/ai-service");
 const { validateBusinessLexiconDocument } = require("../../../backend/business-lexicon");
+const {
+  buildPricingAvailabilitySummary,
+  estimateProjectCost,
+} = require("../../../backend/ai/model-pricing");
 
 const SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
 const DEFAULT_TIMEOUT_MS = 60000;
@@ -92,6 +96,12 @@ const DEFAULT_REFINE_PROMPT = [
 const RECOMMEND_FAILURE_FALLBACK_NOTE =
   "模型结构化输出失败，以下柳州话/普通话为保守兜底参考，请人工复核。";
 let warnedLexiconReferenceOnly = false;
+const PRICING_SUMMARY = Object.freeze(
+  buildPricingAvailabilitySummary({
+    listen: SUPPORTED_LISTEN_MODELS,
+    refine: SUPPORTED_REFINE_MODELS,
+  })
+);
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -552,6 +562,22 @@ function normalizeErrorDebugObject(value) {
     return null;
   }
   return value;
+}
+
+function buildRecommendCost(models, usage) {
+  const normalizedModels = models && typeof models === "object" ? models : {};
+  const normalizedUsage = usage && typeof usage === "object" ? usage : {};
+  return estimateProjectCost({
+    listen: {
+      modelId: normalizedModels.listenModel,
+      usage: normalizedUsage.listen,
+      outputMode: "text",
+    },
+    refine: {
+      modelId: normalizedModels.refineModel,
+      usage: normalizedUsage.refine,
+    },
+  });
 }
 
 function parseCsvLine(text) {
@@ -1463,6 +1489,7 @@ function createHealthPayload(assetsContext) {
       fillMode: "manual-confirm",
       stages: ["listen", "refine"],
     },
+    pricing: Object.assign({}, PRICING_SUMMARY),
   };
 }
 
@@ -1489,6 +1516,7 @@ function createDefaultsPayload() {
       stop: true,
       enable_thinking: false,
     },
+    pricing: Object.assign({}, PRICING_SUMMARY),
   };
 }
 
@@ -1649,6 +1677,8 @@ async function recommend(request, assetsContext, overrides) {
     const refinedMandarinText = normalizeAllowedPunctuation(
       refineResult.refinedMandarinText || listenResult.mandarinDraft
     );
+    const models = Object.assign({}, listenResult.models || {}, refineResult.models || {});
+    const usage = Object.assign({}, listenResult.usage || {}, refineResult.usage || {});
     return {
       audioDialectText,
       audioDialectTokens: Array.isArray(listenResult.audioDialectTokens)
@@ -1680,8 +1710,9 @@ async function recommend(request, assetsContext, overrides) {
       timing: Object.assign({}, listenResult.timing || {}, refineResult.timing || {}, {
         totalMs: Math.max(0, deps.now() - startedAt),
       }),
-      models: Object.assign({}, listenResult.models || {}, refineResult.models || {}),
-      usage: Object.assign({}, listenResult.usage || {}, refineResult.usage || {}),
+      models,
+      usage,
+      cost: buildRecommendCost(models, usage),
     };
   } catch (error) {
     const currentError =
@@ -1693,6 +1724,7 @@ async function recommend(request, assetsContext, overrides) {
       currentError.usage = Object.assign({}, listenResult.usage || {}, currentError.usage || {});
       currentError.timing = Object.assign({}, listenResult.timing || {}, currentError.timing || {});
     }
+    currentError.cost = buildRecommendCost(currentError.models, currentError.usage);
     if (currentError.code === "model-json-parse-failed") {
       const fallback = listenResult
         ? buildRefineFailureFallback(listenResult, normalizedAssetsContext, {
@@ -1724,7 +1756,7 @@ function buildRecommendSuccessBody(context) {
     source.data && typeof source.data === "object"
       ? source.data
       : source.execution?.projectResult || {};
-  return {
+  const body = {
     success: true,
     requestId: normalizeText(source.requestId || source.normalizedRequest?.requestId),
     audioDialectText: normalizeText(result.audioDialectText),
@@ -1743,6 +1775,10 @@ function buildRecommendSuccessBody(context) {
     models: result.models && typeof result.models === "object" ? result.models : {},
     usage: result.usage && typeof result.usage === "object" ? result.usage : {},
   };
+  if (result.cost && typeof result.cost === "object") {
+    body.cost = result.cost;
+  }
+  return body;
 }
 
 function resolveRecommendErrorMessage(error) {
@@ -1783,6 +1819,7 @@ function buildRecommendErrorBody(context) {
   const usage = normalizeErrorDebugObject(error.usage);
   const models = normalizeErrorDebugObject(error.models);
   const timing = normalizeErrorDebugObject(error.timing);
+  const cost = normalizeErrorDebugObject(error.cost);
   const specialTags = normalizeSpecialTags(error.specialTags);
   const notes = normalizeNotes(error.notes);
   const audioDialectText = normalizeText(
@@ -1820,6 +1857,9 @@ function buildRecommendErrorBody(context) {
   }
   if (timing) {
     body.timing = timing;
+  }
+  if (cost) {
+    body.cost = cost;
   }
   if (specialTags.length > 0) {
     body.specialTags = specialTags;

@@ -189,7 +189,7 @@
   ];
   const BAILIAN_MODEL_DOC_URLS = {
     pricing:
-      "https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=2987148",
+      "https://help.aliyun.com/zh/model-studio/model-pricing",
     api:
       "https://bailian.console.aliyun.com/cn-beijing?tab=api#/api/?type=model&url=3016807",
     text:
