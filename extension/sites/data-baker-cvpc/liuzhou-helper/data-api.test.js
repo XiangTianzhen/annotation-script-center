@@ -761,6 +761,17 @@ function createInteractiveDataApiHarness(options) {
 
   const commonLabelRoot = new RichFakeElement("div", { className: "block_label" });
   const commonLabelButtons = {};
+  const nativeTagReplayEnabled = settings.enableNativeTagReplay === true;
+  let activeEditable = null;
+
+  function updateDialectEditorFromStructuredItems(items) {
+    const nextItems = Array.isArray(items) ? items : [];
+    const nextModelValue = JSON.stringify(nextItems);
+    dialectTextareaHost.setAttribute("modelvalue", nextModelValue);
+    dialectEditor.innerHTML = buildStructuredDialectEditorHtml(nextItems);
+    segmentStates[currentSegmentIndex].dialectModelValue = nextModelValue;
+    segmentStates[currentSegmentIndex].dialectText = decodeStructuredDialectValue(nextModelValue);
+  }
 
   function appendCommonLabelGroup(labelTexts) {
     const group = new RichFakeElement("div", { className: "common_label" });
@@ -779,6 +790,20 @@ function createInteractiveDataApiHarness(options) {
       }
       const span = new RichFakeElement("span", { textContent: text });
       button.appendChild(span);
+      if (nativeTagReplayEnabled) {
+        button.onClick = function () {
+          if (activeEditable !== dialectEditor) {
+            return;
+          }
+          const items = parseStructuredDialectItems(dialectTextareaHost.getAttribute("modelvalue"));
+          items.push({
+            type: "single",
+            id: "native-tag-" + String(items.length + 1),
+            content: text,
+          });
+          updateDialectEditorFromStructuredItems(items);
+        };
+      }
       group.appendChild(button);
       commonLabelButtons[text] = button;
     });
@@ -861,6 +886,19 @@ function createInteractiveDataApiHarness(options) {
 
   refreshSegmentView();
 
+  if (nativeTagReplayEnabled) {
+    const originalDialectFocus = dialectEditor.focus.bind(dialectEditor);
+    dialectEditor.focus = function () {
+      activeEditable = dialectEditor;
+      return originalDialectFocus();
+    };
+    const originalMandarinFocus = mandarinEditor.focus.bind(mandarinEditor);
+    mandarinEditor.focus = function () {
+      activeEditable = mandarinEditor;
+      return originalMandarinFocus();
+    };
+  }
+
   const fetchCalls = [];
   const windowMessageListeners = [];
   const postedWindowMessages = [];
@@ -923,6 +961,29 @@ function createInteractiveDataApiHarness(options) {
       return new RichFakeElement(tagName);
     },
   };
+  const execCommandCalls = [];
+  if (nativeTagReplayEnabled) {
+    document.execCommand = function (command, _showUi, value) {
+      const action = String(command || "");
+      execCommandCalls.push({
+        command: action,
+        value: value,
+      });
+      if (activeEditable !== dialectEditor) {
+        return false;
+      }
+      if (action === "insertText") {
+        const items = parseStructuredDialectItems(dialectTextareaHost.getAttribute("modelvalue"));
+        appendTextItemToStructuredDialectItems(items, value);
+        updateDialectEditorFromStructuredItems(items);
+        return true;
+      }
+      if (action === "selectAll" || action === "delete") {
+        return true;
+      }
+      return false;
+    };
+  }
 
   const windowObject = {
     addEventListener: function (type, listener) {
@@ -977,6 +1038,7 @@ function createInteractiveDataApiHarness(options) {
     dialectTextareaHost,
     dialectEditor,
     mandarinEditor,
+    execCommandCalls,
     postedWindowMessages,
     dispatchWindowMessage: function (data, origin) {
       windowMessageListeners.slice().forEach(function (listener) {
@@ -1069,6 +1131,75 @@ function decodeStructuredDialectValue(value) {
   } catch (_error) {
     return text;
   }
+}
+
+function parseStructuredDialectItems(value) {
+  const text = String(value || "");
+  if (!text) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function appendTextItemToStructuredDialectItems(items, content) {
+  const nextText = String(content || "");
+  if (!nextText) {
+    return;
+  }
+  const list = Array.isArray(items) ? items : [];
+  const previous = list[list.length - 1];
+  if (previous && previous.type === "text") {
+    previous.content = String(previous.content || "") + nextText;
+    return;
+  }
+  list.push({
+    type: "text",
+    content: nextText,
+  });
+}
+
+function escapeStructuredHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildStructuredDialectEditorHtml(items) {
+  const source = Array.isArray(items) ? items : [];
+  const html = source
+    .map(function (item, index) {
+      if (!item || typeof item !== "object") {
+        return "";
+      }
+      if (String(item.type || "").toLowerCase() === "single") {
+        const tagId = String(item.id || "tag-" + String(index + 1));
+        const content = String(item.content || "");
+        return (
+          '<span data-tag-id="' +
+          tagId +
+          '" data-tag-label="' +
+          escapeStructuredHtml(content) +
+          '" data-type="single" class="tiptap-tag biaoqian_tag single-tag" contenteditable="false">' +
+          '<span class="tag-display">' +
+          escapeStructuredHtml(content) +
+          '</span><span class="tag-close biaoqian_tag_x" data-tag-close="true">×</span></span>'
+        );
+      }
+      return escapeStructuredHtml(String(item.content || ""));
+    })
+    .join("");
+  if (!html) {
+    return '<p><br class="ProseMirror-trailingBreak"></p>';
+  }
+  return "<p>" + html + '<img class="ProseMirror-separator" alt=""><br class="ProseMirror-trailingBreak"></p>';
 }
 
 function formatRegionTitle(startMs, endMs) {
@@ -2602,6 +2733,45 @@ test("CVPC data api reads dialect field text from modelvalue without tag close n
 
   assert.equal(context.fieldContext.dialectText, "都七十岁了#eh，明日古稀了。");
   assert.doesNotMatch(context.fieldContext.dialectText, /×/);
+});
+
+test("CVPC data api replays tagged dialect fill through native editor text insertion and page label buttons when available", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    visibleEntryName: "sample-a.mp3",
+    selectionText: "开始：0 秒 结束：4.171 秒 截取：4.171 秒",
+    segmentStates: [{ validity: "missing", dialectText: "", mandarinText: "" }],
+    enableNativeTagReplay: true,
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const result = await runtime.fillCurrentSegmentField({
+    selectionKey: "sample-a.mp3|0|4171",
+    targetField: "dialect",
+    text: "都七十岁了#eh，明日古稀了。",
+    tokens: [
+      { type: "text", content: "都七十岁了" },
+      { type: "tag", content: "#eh" },
+      { type: "text", content: "，明日古稀了。" },
+    ],
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已自动切换为 Valid，并尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。",
+  });
+  assert.equal(harness.execCommandCalls.some(function (call) {
+    return call.command === "insertText" && call.value === "都七十岁了";
+  }), true);
+  assert.equal(harness.commonLabelButtons["#eh"].clickCount, 1);
+  assert.equal(harness.postedWindowMessages.length, 0);
+  const structured = JSON.parse(harness.dialectTextareaHost.getAttribute("modelvalue"));
+  assert.equal(structured.length, 3);
+  assert.deepEqual(structured[0], { type: "text", content: "都七十岁了" });
+  assert.equal(structured[1].type, "single");
+  assert.equal(structured[1].content, "#eh");
+  assert.deepEqual(structured[2], { type: "text", content: "，明日古稀了。" });
+  assert.match(harness.dialectEditor.innerHTML, /data-tag-id=/);
 });
 
 test("CVPC data api writes structured dialect tags into current segment field", async function () {

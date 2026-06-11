@@ -1,3 +1,22 @@
+## 2026-06-11（DataBaker CVPC 柳州话带标签当前段填入改为优先原生按钮回放）
+
+- `DataBaker CVPC / 柳州话脚本` 当前对“点击 `填入标注文本` 后，带标签内容下一秒被页面回滚”的场景追加最后一层兜底：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 当前在检测到当前段 `标注文本` 需要写带标签内容，且页面可用原生标签按钮时，会优先走“编辑器内顺序插入文本 + 页面原生标签按钮回放”
+  - 只有页面不支持这条原生回放路径时，才继续回退到既有 `MAIN world` 结构化状态桥 + DOM 自愈方案
+  - 目标是尽量贴近人工操作，降低 `<Meaningless>`、`#eh`、`<SPK/>` 一类 chip 被 Vue / tiptap 下一轮渲染回滚的概率
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+
 ## 2026-06-11（DataBaker CVPC 柳州话标签有效性联动与结构化标签写入稳定化）
 
 - `DataBaker CVPC / 柳州话脚本` 当前把标签有效性判断正式收口到统一写入层：

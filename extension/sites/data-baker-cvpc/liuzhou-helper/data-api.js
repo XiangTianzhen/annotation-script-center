@@ -1443,6 +1443,143 @@
     field.innerHTML = buildDialectEditorHtml(structuredItems);
   }
 
+  function getStructuredTagLabels(structuredItems) {
+    return (Array.isArray(structuredItems) ? structuredItems : [])
+      .map(function (item) {
+        if (normalizeText(item?.type).toLowerCase() !== "single") {
+          return "";
+        }
+        return normalizeDialectTag(item?.content);
+      })
+      .filter(Boolean);
+  }
+
+  function placeContentEditableCaretAtEnd(field, env) {
+    if (!isContentEditableNode(field, env)) {
+      return false;
+    }
+    const doc = env?.document || globalThis.document;
+    const win = env?.window || globalThis.window;
+    const selection =
+      (win && typeof win.getSelection === "function" ? win.getSelection() : null) ||
+      (typeof globalThis.getSelection === "function" ? globalThis.getSelection() : null);
+    if (!selection || !doc || typeof doc.createRange !== "function") {
+      field.focus();
+      return false;
+    }
+    try {
+      const range = doc.createRange();
+      range.selectNodeContents(field);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      field.focus();
+      return true;
+    } catch (_error) {
+      field.focus();
+      return false;
+    }
+  }
+
+  function appendPlainTextToStructuredEditorFallback(field, text) {
+    const currentHtml = String(field?.innerHTML || "");
+    const escapedText = escapeHtml(text);
+    if (!currentHtml || currentHtml === '<p><br class="ProseMirror-trailingBreak"></p>') {
+      field.innerHTML = buildDialectEditorHtml([
+        {
+          type: "text",
+          content: text,
+        },
+      ]);
+      return true;
+    }
+    if (currentHtml.indexOf('<img class="ProseMirror-separator" alt=""><br class="ProseMirror-trailingBreak">') >= 0) {
+      field.innerHTML = currentHtml.replace(
+        '<img class="ProseMirror-separator" alt=""><br class="ProseMirror-trailingBreak">',
+        escapedText + '<img class="ProseMirror-separator" alt=""><br class="ProseMirror-trailingBreak">'
+      );
+      return true;
+    }
+    if (currentHtml.indexOf("</p>") >= 0) {
+      field.innerHTML = currentHtml.replace(/<\/p>\s*$/, escapedText + "</p>");
+      return true;
+    }
+    field.innerHTML = currentHtml + escapedText;
+    return true;
+  }
+
+  function appendTextToContentEditableEnd(field, text, env) {
+    const nextText = String(text || "");
+    if (!nextText) {
+      return true;
+    }
+    if (!isContentEditableNode(field, env)) {
+      return false;
+    }
+    placeContentEditableCaretAtEnd(field, env);
+    const doc = env?.document || globalThis.document;
+    if (doc && typeof doc.execCommand === "function") {
+      try {
+        const inserted = doc.execCommand("insertText", false, nextText);
+        if (inserted !== false) {
+          field.dispatchEvent(createBubbledEvent("input"));
+          return true;
+        }
+      } catch (_error) {
+        // Fall through to DOM append fallback.
+      }
+    }
+    appendPlainTextToStructuredEditorFallback(field, nextText);
+    field.dispatchEvent(createBubbledEvent("input"));
+    return true;
+  }
+
+  function canReplayStructuredTagFieldNatively(structuredItems, env) {
+    const doc = env?.document || globalThis.document;
+    if (!doc || typeof doc.execCommand !== "function") {
+      return false;
+    }
+    const labels = getStructuredTagLabels(structuredItems);
+    if (labels.length === 0) {
+      return false;
+    }
+    return labels.every(function (labelText) {
+      const button = findCommonLabelButton(labelText, env);
+      return isElementNode(button, env) && !isDisabledElement(button);
+    });
+  }
+
+  async function replayStructuredTagFieldValueNatively(field, structuredItems, env) {
+    if (!isContentEditableNode(field, env) || !canReplayStructuredTagFieldNatively(structuredItems, env)) {
+      return false;
+    }
+    field.focus();
+    field.innerHTML = '<p><br class="ProseMirror-trailingBreak"></p>';
+    field.dispatchEvent(createBubbledEvent("input"));
+    for (let index = 0; index < structuredItems.length; index += 1) {
+      const item = structuredItems[index];
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      const type = normalizeText(item.type).toLowerCase();
+      if (type === "text") {
+        if (!appendTextToContentEditableEnd(field, item.content, env)) {
+          return false;
+        }
+      } else if (type === "single") {
+        placeContentEditableCaretAtEnd(field, env);
+        const applyResult = applyCommonLabel(item.content, env);
+        if (!applyResult.ok) {
+          return false;
+        }
+      }
+      await Promise.resolve();
+    }
+    field.dispatchEvent(createBubbledEvent("change"));
+    field.blur();
+    return true;
+  }
+
   function scheduleStructuredTagFieldResync(field, structuredHost, structuredItems, env) {
     if (
       !isContentEditableNode(field, env) ||
@@ -2211,6 +2348,16 @@
       return setTextFieldValue(field, plainText, env);
     }
     const structuredItems = buildDialectStructuredItems(tokens.length > 0 ? tokens : plainText);
+    if (hasStructuredTagItems(structuredItems)) {
+      const nativeReplayApplied = await replayStructuredTagFieldValueNatively(
+        field,
+        structuredItems,
+        env
+      );
+      if (nativeReplayApplied) {
+        return true;
+      }
+    }
     const structuredHost = findStructuredTextareaHost(field, env);
     await requestStructuredFieldWriteBridge(structuredHost, structuredItems, env);
     if (structuredHost && typeof structuredHost.setAttribute === "function") {
