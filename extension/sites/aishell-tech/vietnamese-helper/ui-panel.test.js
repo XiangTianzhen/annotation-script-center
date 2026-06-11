@@ -5,6 +5,37 @@ const path = require("node:path");
 const test = require("node:test");
 
 const modulePath = path.resolve(__dirname, "ui-panel.js");
+const panelModule = require("./ui-panel.js");
+
+test("Aishell Vietnamese batch rows include aggregated token and estimated RMB rows", function () {
+  const helper = panelModule.__test__?.buildBatchRows;
+  assert.equal(typeof helper, "function");
+
+  const rows = helper({
+    phaseText: "全部AI批量识别已完成",
+    total: 3,
+    completed: 3,
+    failed: 0,
+    currentText: "条目-3",
+    batchResultCount: 3,
+    batchHasUsageData: true,
+    batchPromptTokens: 3216,
+    batchCompletionTokens: 114,
+    batchTotalTokens: 3330,
+    batchHasPriceData: true,
+    batchEstimatedCostCny: 0.002345,
+  });
+
+  assert.deepEqual(
+    rows.slice(-4),
+    [
+      ["批量输入Token", "3216"],
+      ["批量输出Token", "114"],
+      ["批量总Token", "3330"],
+      ["批量预估人民币", "0.002345 元"],
+    ]
+  );
+});
 
 class FakeClassList {
   constructor(node) {

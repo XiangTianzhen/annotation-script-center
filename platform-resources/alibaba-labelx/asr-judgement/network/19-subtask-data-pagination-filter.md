@@ -1,17 +1,30 @@
 # GET /api/v1/label/center/subTask/{subTaskId}/data 分页与筛选
 
-## 请求目的
+## 请求标识 / 目的
 
 该记录补充详情页分页大小切换和筛选操作对 `data`、`summary`、`board` 请求的影响。
 
-## 触发操作
+## 页面入口 / 触发动作
 
 - 在详情页页码选择器中把 `10 条/页` 切换为 `20 条/页`。
 - 打开 `筛选` 面板，将任务状态从 `全部` 改为 `已完成` 并点击 `确定`。
 - 再点击 `重置` 和 `确定`，恢复为 `全部`。
 - 在当前页必填题均已填写后，点击分页页码 `2`。
 
-## 每页条数请求记录
+切换每页条数、筛选和重置筛选后，均观察到同步刷新：
+
+- `GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/summary`
+- `GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/board?filterPassedVote=false&filter=<URL_ENCODED_FILTER>...`
+
+`summary` 不带筛选 query；`board` 的 `filter` 与 `data` 请求一致。
+
+真实翻页后同样观察到同步刷新：
+
+- `GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/summary?_=<REDACTED_TIMESTAMP>`
+- `GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/board?filterPassedVote=false&filter=<URL_ENCODED_FILTER>&_=<REDACTED_TIMESTAMP>`
+- 当前页音频资源随后按新页 `dataList[].data.raw_audio_path` 发起多条 `206 Partial Content` media 请求。
+
+## 请求摘要
 
 - Method：`GET`
 - URL：`/api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/data`
@@ -32,8 +45,6 @@
 ```
 
 - Status：`200`
-
-## 筛选请求记录
 
 - Method：`GET`
 - URL：`/api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/data`
@@ -55,8 +66,6 @@
 
 - Status：`200`
 
-## 重置筛选请求记录
-
 ```json
 {
   "page": "1",
@@ -70,8 +79,6 @@
   "_": "<REDACTED_TIMESTAMP>"
 }
 ```
-
-## 真实翻页请求记录
 
 - Method：`GET`
 - URL：`/api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/data`
@@ -94,7 +101,11 @@
 - Status：`200`
 - 页面结果：分页激活项从 `1` 切换到 `2`，当前页渲染 20 条题卡；未出现必填校验提示。
 
-## 脱敏响应示例
+## 请求体摘要
+
+- 当前记录未见独立 request body；以路径参数或 query 为主。
+
+## 响应摘要
 
 响应主体结构与 `03-subtask-data.md` 相同，差异是 `dataList` 的数量和内容随 `pageSize` / `filter` 变化：
 
@@ -122,24 +133,9 @@
   },
   "success": true
 }
-```
+- 其余重复细节已省略；如需补充，只保留当前有效结论。
 
-## 同步触发的请求
-
-切换每页条数、筛选和重置筛选后，均观察到同步刷新：
-
-- `GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/summary`
-- `GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/board?filterPassedVote=false&filter=<URL_ENCODED_FILTER>...`
-
-`summary` 不带筛选 query；`board` 的 `filter` 与 `data` 请求一致。
-
-真实翻页后同样观察到同步刷新：
-
-- `GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/summary?_=<REDACTED_TIMESTAMP>`
-- `GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/board?filterPassedVote=false&filter=<URL_ENCODED_FILTER>&_=<REDACTED_TIMESTAMP>`
-- 当前页音频资源随后按新页 `dataList[].data.raw_audio_path` 发起多条 `206 Partial Content` media 请求。
-
-## 字段推断
+## 关键字段
 
 - 页码组件的每页条数直接映射到 `pageSize`。
 - 点击页码直接映射到 `page`，本次页码 `2` 对应 `page=2`。
@@ -150,7 +146,7 @@
 - `filter.questions` 用于“回答区数据”筛选，本次保持空数组。
 - `questionsQueryConditions` 对应筛选条件关系 `AND` / `OR`。
 
-## Content Script 建议
+## 前端接入建议
 
 - 被动解析当前页数据时，应把 `page`、`pageSize`、`filter` 一并保存到运行态上下文。
 - 不要假设当前页永远是 10 条；页面可选择 1、2、3、4、5、10、20、30、40、50 条/页。
@@ -159,7 +155,7 @@
 - URL 中 `filter` 是 JSON 字符串再 URL encode，解析时需要 `decodeURIComponent` 后 `JSON.parse`。
 - 翻页前页面会做必填校验；如当前页未完成，可能不会发出 `page=2` 请求，只显示前端提示。
 
-## 未确认项
+## 风险 / 未确认项
 
 - 任务状态 `未完成` 的 `dataStatus` 枚举值未采集。
 - 新增“回答区数据”筛选条件后的 `filter.questions` 结构未采集；用户确认实际使用中基本不会使用该筛选，因此不再主动采集。

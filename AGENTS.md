@@ -1,239 +1,401 @@
-# 标注脚本中心维护说明（精简版）
+# 标注脚本中心项目规则
 
-## 项目定位
+## 1. 项目事实
 
 - 仓库目录：`C:\Projects\annotation-script-center`
-- 当前阶段：Chrome / Chromium MV3 单源码扩展 + 多平台脚本增强阶段。
 - 运行时代码主目录：`extension/`
 - 平台资料与后端主目录：`platform-resources/`
 - 统一后端入口：`platform-resources/backend/server.js`
-- 当前扩展版本以 `extension/manifest.json` 为准。
+- 当前扩展版本以 `extension/manifest.json` 为准
+- GitHub 主仓库：`git@github.com:XiangTianzhen/annotation-script-center.git`
+- Gitee 镜像：`git@gitee.com:XiangTianzhen/annotation-script-center.git`
 
-## 平台细节读取规则
+## 2. 文档职责与必读顺序
 
-- AGENTS.md 只保留项目级规则，不承载具体平台长口径。
-- 处理具体平台前，必须先读：`docs/platforms/index.md`，再读对应脚本 README、`platform-resources` 资料与相关代码。
-- Abaka AI Task21 当前为“Task21助手”完成态；具体规则以 `extension/sites/abaka-ai/task-page/README.md`、`platform-resources/abaka-ai/task21/README.md`、`platform-resources/abaka-ai/task21/backend/ai/prompt.md` 为准。
-- Aishell Tech 当前为“正式接入准备态”；核心标注链路资料已齐，尚无 `extension/sites/aishell-tech/` 运行时代码与专属后端注册。具体规则以 `platform-resources/aishell-tech/README.md`、`platform-resources/aishell-tech/network/README.md`、`platform-resources/aishell-tech/page-structure/README.md` 为准。
-- 处理 `platform-resources/backend/` 或各平台 AI 后端迁移前，必须先读：
-  - `docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`
-  - `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`
-- 新增平台或脚本时，必须同步更新：
-  - `extension/sites/<platform>/<script>/README.md`
-  - `platform-resources/<platform>/<script>/README.md` 或资料目录
-  - `docs/platforms/index.md`
-  - `log.md`
-- 仅平台资料初始化、尚未接入扩展运行时代码的平台（如 Aishell Tech）不要伪造 `extension/sites/<platform>/` 目录；先同步 `platform-resources/<platform>/README.md`、`docs/platforms/index.md`、根 `README.md` 与 `log.md`，待真正接入脚本后再补运行时 README。
+### 2.1 文档职责
 
-## 协作与 Git 规则
+- `AGENTS.md`
+  - 当前仓库最高优先级规则
+  - 只写项目级长期规则
+  - 不堆平台细节、不堆版本流水
+- `README.md`
+  - 项目首页导航
+  - 只写项目定位、目录入口、启动入口、文档入口
+- `docs/README.md`
+  - `docs/` 导航页
+  - 说明当前保留的少量文档各自记录什么
+- `docs/platforms-index.md`
+  - 平台与脚本入口索引
+  - 处理具体平台前先读
+- `docs/external-docs-aliyun-bailian.md`
+  - 百炼官方文档入口与查阅规则
+- `docs/unfinished-crx-enterprise-managed-install.md`
+  - 当前未完成模块与现实阻塞
+- `extension/README.md`
+  - 扩展当前运行时契约、目录说明、加载方式
+- `platform-resources/README.md`
+  - 平台资料目录契约、平台入口、统一后端边界
+- `platform-resources/backend/README.md`
+  - 统一后端当前契约、接口与运行说明
+- `log.md`
+  - 历史改动唯一总账
+
+### 2.2 文档写法规则
+
+- 详细 README 只写当前能力、当前边界、当前目录、当前接口。
+- 不在 README 里继续堆日期、热修说明、版本流水、阶段复盘。
+- 历史过程、阶段收尾、迁移记录统一写入 `log.md`。
+- 平台细则继续写在各平台 README；项目级统一规则写在 `AGENTS.md`。
+- `docs/` 只保留少量长期入口文件，不再按多层子目录继续扩张。
+
+### 2.3 开始处理前必须先读
+
+1. `AGENTS.md`
+2. `README.md`
+3. 平台相关任务先读 `docs/platforms-index.md`
+4. 与任务直接相关的：
+   - `extension/README.md`
+   - `platform-resources/README.md`
+   - `extension/sites/<platform>/<script>/README.md`
+   - `platform-resources/<platform>/README.md`
+   - `platform-resources/<platform>/<script>/README.md`
+   - 相关源码、配置、接口与数据文件
+5. 若涉及百炼 / DashScope / Qwen / thinking / 结构化输出 / Qwen-Omni / Web Search / 调用地区 / 限流，额外先读 `docs/external-docs-aliyun-bailian.md`
+6. 若涉及 CRX 企业托管自动安装阻塞，额外先读 `docs/unfinished-crx-enterprise-managed-install.md`
+
+## 3. Git 与执行规则
 
 - 默认在 `main` 单工作区执行。
 - 默认不创建分支、不创建 worktree、不创建 PR。
-- 执行前必须检查：目录正确、分支为 `main`、工作区无无关改动。
+- 修改前后都必须检查 `git status`。
 - 若 Prompt 含 `ASC_ABORT_IF_DIRTY` 且发现无关改动，必须停止并报告。
-- 执行类任务验证通过后默认 `git add`、`git commit`、`git push origin main`。
-- 只读任务或验证失败不得提交。
+- 若工作区已有无关改动：
+  - 不得覆盖、回退或混入无关修改
+  - 只能最小范围改动当前任务相关文件
+  - 无法安全隔离时必须先报告
+- 只读任务不得改文件、不得提交。
+- 验证失败不得提交、不得 push。
+- 执行类任务在验证通过后，默认按项目规则提交到 `origin main`；若当前工作区存在无法安全隔离的无关改动，则不得强行提交。
 
-## 任务暗号
+### 3.1 任务暗号
 
-- `ASC_READONLY`：只读审计，不改文件。
-- `ASC_MAIN_TASK`：在 `main` 执行并提交。
-- `ASC_MAIN_HOTFIX`：在 `main` 小修并提交。
-- `ASC_RELEASE`：发布流程（版本、CRX、tag）。
-- `ASC_BRANCH_TASK`：仅用户明确要求分支时使用。
+- `ASC_READONLY`：只读审计，不改文件
+- `ASC_MAIN_TASK`：在 `main` 执行任务
+- `ASC_MAIN_HOTFIX`：在 `main` 小修
+- `ASC_RELEASE`：发布流程（版本、CRX、tag）
+- `ASC_BRANCH_TASK`：仅用户明确要求分支时使用
 
-## 目录边界（项目级）
+### 3.2 commit 规范
 
-- `extension/sites/`：平台脚本运行时代码。
-- `platform-resources/`：平台资料、网络结构、后端实现。
-- `platform-resources/backend/`：统一后端入口与路由注册。
-- `docs/`：长期文档与索引，不再把文档散落在根层。
+- commit message 必须使用中文。
+- 允许保留英文范围标识，但描述必须是中文。
+- 推荐格式：
+  - `修复(data-baker): 修复 AI 工具卡挂载失败`
+  - `优化(aishell): 调整结果卡人民币展示`
+  - `新增(backend): 增加 Fun-ASR REST 调用`
+  - `文档(readme): 收口项目导航`
+  - `发布: v0.4.0`
+- 禁止使用纯英文、`update`、`fix bug`、`修改` 等含糊提交说明。
 
-### 平台资料目录长期规则
+## 4. 目录边界
 
-- `platform-resources/<platform>/` 的平台资料根目录优先使用：
+- `extension/`
+  - 浏览器扩展运行时代码
+  - 前端只负责采集、展示、调用接口、触发下载和真实 DOM 交互
+- `platform-resources/`
+  - 平台资料、页面结构、Network 资料、脚本后端实现
+- `platform-resources/backend/`
+  - 统一后端入口、路由注册、公共 AI / 下载 / 管理能力
+- `docs/`
+  - 扁平化的长期索引、外部文档入口、未完成事项
+- `scripts/`
+  - 构建、打包、同步、本地工具脚本
+- `config/`
+  - 配置模板、发布配置、价格配置、本地私有配置说明
+
+### 4.1 平台资料目录规则
+
+- `platform-resources/<platform>/` 默认优先使用：
   - `README.md`
   - `backend/`
   - `network/`
   - `page-structure/`
   - `<script-id>/`
-- 平台共用后端、共用 loader、共用规则、共用词表优先放 `platform-resources/<platform>/backend/`。
-- 平台共用页面结构优先放 `platform-resources/<platform>/page-structure/`。
-- 平台共用 Network 资料优先放 `platform-resources/<platform>/network/`。
-- 单脚本资料目录默认使用：
+- 平台共用后端优先放平台根级 `backend/`。
+- 平台共用页面结构优先放平台根级 `page-structure/`。
+- 平台共用 Network 资料优先放平台根级 `network/`。
+- 单脚本目录默认优先使用：
   - `README.md`
   - `backend/`
   - `network/`
   - `page-structure/`
-- 只有脚本专属后端、脚本专属词表、脚本专属页面/Network 差异才放脚本目录。
-- README 不重复抄写默认目录模板，只说明实际存在文件的职责、接口、边界与差异。
+- 仅脚本专属差异放脚本目录。
+- README 只维护实际职责、接口、边界和差异，不重复抄默认目录模板。
 - 需要保留空目录时使用 `.gitkeep`。
-- 资料目录禁止写入 token、cookie、authorization、完整签名 URL、真实敏感文本。
+- 未实际接入扩展运行时代码前，不伪造 `extension/sites/<platform>/` 目录。
 
-### 业务词表治理规则
+### 4.2 配置目录规则
 
-- 当前纳入统一治理的业务词表主格式固定为 `JSON`；`CSV / XLSX` 只保留为参考源、原始来源或导入来源，不再作为业务运行时主读取源。
+- `config/package-crx-release.json`
+  - 可提交的默认 CRX 打包配置
+- `config/aliyun-bailian-model-pricing.json`
+  - 可提交的模型价格配置
+- `config/env/`
+  - 运行时环境变量文件
+- `config/secrets/`
+  - 本地私有密钥与覆盖配置
+- 不再新增 `config/release/`、`config/pricing/` 这类单文件子目录。
+- 新增非敏感单文件配置时，优先直接放在 `config/` 根级。
+
+### 4.3 平台参考文档模板规则
+
+- `platform-resources/**/network/` 与 `platform-resources/**/page-structure/` 只保留当前有效的稳定参考文档。
+- 过程型文件不得继续留在主参考目录：
+  - `pending-capture.md`
+  - `next-session-handoff.md`
+  - `playwright/devtools/readonly/retest` 一类复测或会话交接记录
+- 过程历史统一写入 `log.md`；当前边界写入对应 README 或稳定参考页。
+- 空占位目录只保留 `.gitkeep`，不额外补无意义 README。
+- 目录内存在多份稳定参考页时，`README.md` 必须作为索引页。
+- 目录内只有单份稳定参考时，允许直接用该单页承载参考，不强行拆分。
+- Network 索引 README 固定章节：
+  - `目录定位`
+  - `适用范围 / 当前覆盖`
+  - `文件列表`
+  - `阅读顺序`
+  - `通用约定`
+  - `当前边界 / 待补项`
+- Network 单页参考固定章节：
+  - `请求标识 / 目的`
+  - `页面入口 / 触发动作`
+  - `请求摘要`
+  - `请求体摘要`
+  - `响应摘要`
+  - `关键字段`
+  - `前端接入建议`
+  - `风险 / 未确认项`
+- Page-structure 索引 README 固定章节：
+  - `目录定位`
+  - `适用范围 / 当前覆盖`
+  - `文件列表`
+  - `阅读顺序`
+  - `通用约定`
+  - `当前边界 / 待补项`
+- Page-structure 单页参考固定章节：
+  - `页面标识 / 路由 / 前置条件`
+  - `页面总览`
+  - `DOM 树 / 区域结构`
+  - `稳定选择器表`
+  - `动态区域 / 重渲染风险`
+  - `可挂载点建议`
+  - `页面区域与接口映射`
+  - `写操作边界 / 未确认项`
+- 参考文档只写当前有效结论，不写日期型流水或重复的会话过程。
+- 章节命名、字段顺序、脱敏口径必须保持统一，便于 AI 和人快速扫读。
+
+## 5. 统一行为规则
+
+### 5.1 AI 与自动化边界
+
+- AI 建议默认只作辅助。
+- 默认禁止自动保存、自动提交、自动领取、自动送审、自动审核、自动判定流转。
+- 只有当前 Prompt 明确授权时，才允许自动提交类动作。
+- 批量能力默认只作用于当前页、当前任务或当前音频，不跨页。
+- 批量能力必须提供停止机制与失败统计。
+- 不得绕过平台原生 `disabled` / `readonly` 限制。
+- 提交类动作默认只点击页面真实按钮，不直接调平台提交 API，除非该脚本 README 已明确允许且当前 Prompt 明确要求。
+
+### 5.2 平台互斥与统一入口
+
+- 同一平台存在多个脚本时，默认互斥启用。
+- 启用某脚本时必须自动关闭同平台其他脚本。
+- 关闭当前脚本时不自动启用其他脚本。
+- 如需并行启用，必须由当前 Prompt 明确授权。
+- 各脚本详情页不得新增独立后端地址；后端地址统一走 options 首页入口。
+- Magic Data 双助手（客家话 / 闽南语）同平台互斥启用。
+
+### 5.3 shared 模块规则
+
+- `extension/sites/alibaba-labelx/shared/audio-controller-core.js`
+  - LabelX 快判 / 转写通用音频核心
+- `extension/sites/alibaba-labelx/shared/submit-actions.js`
+  - LabelX 快判 / 转写通用提交快捷键动作
+- `extension/options/options-shared-shortcut-panel.js`
+  - 脚本详情页快捷键通用渲染组件
+- 提交类动作只作为快捷键，不加入顶部工具栏。
+- options 新增或修改快捷键面板时必须复用共享组件。
+- 所有脚本默认快捷键统一为空。
+- 只保留用户显式保存过的键位。
+- 不再新增硬编码默认组合。
+- “重置”统一使用“清空快捷键”语义，不恢复旧默认键位。
+
+## 6. AI 消耗、日志与超时规则
+
+- AI 调用 CSV 导出表头统一使用中文。
+- 后续新增或改动 AI 调用记录时，默认记录：
+  - `输入Token`
+  - `输出Token`
+  - `总Token`
+- 有人民币估算时同时记录金额列。
+- 多阶段 AI 调用默认拆分阶段 token 与阶段人民币列。
+- CSV 不再记录 `pricingStatus / inputPrice / outputPrice` 这类重复文本字段。
+- 后续新增或改动 AI 服务返回结构时，默认补齐统一 `cost` 对象。
+- 价格统一读取 `config/aliyun-bailian-model-pricing.json`。
+- 只要前端已有 AI 结果信息区，且结果已带统一 `cost`，默认补人民币估算展示：
+  - 单阶段显示一行 `预估人民币`
+  - 多阶段显示各阶段 `预估人民币` 与 `总预估人民币`
+- 只要前端已有 AI 批量状态区，且批量结果已带统一 `usage/cost`，默认补：
+  - `批量输入Token`
+  - `批量输出Token`
+  - `批量总Token`
+  - `批量预估人民币`
+- 批量消耗口径固定为“已返回 AI 结果的调用消耗”。
+- 缺少价格数据时：
+  - 页面可显示 `没有数据源`
+  - CSV 金额列保持空白，不写文本状态
+- 日志必须脱敏，不输出敏感字段全文。
+- TTS 自动清除默认时间统一为 `60000ms`。
+- AI / 模型请求默认超时时间统一为 `60000ms`。
+- 本项目默认不使用异步 job / SSE / WebSocket 接收 AI 结果，除非当前 Prompt 明确要求。
+- 若单次 AI / 模型请求超过 `60000ms` 仍无法返回，优先优化模型、Prompt、任务拆分或后端策略，而不是继续拉长超时。
+
+## 7. 业务词表治理规则
+
+- 当前纳入统一治理的业务词表主格式固定为 `JSON`。
+- `CSV / XLSX` 只保留为参考源、原始来源或导入来源。
 - 当前统一治理范围仅指以下 5 份业务词表：
   - `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.json`
   - `platform-resources/aishell-tech/minnan-helper/backend/reference/minnan-lexicon.json`
   - `platform-resources/magic-data/hakka-helper/backend/lexicon/hakka-lexicon.json`
   - `platform-resources/magic-data/minnan-helper/backend/lexicon/minnan-lexicon.json`
   - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-lexicon.json`
-- 处理“字词表 / 词表 / lexicon”类任务时，默认先输出一段针对当前单独词表的网页端 AI 处理 Prompt；由用户逐份上传或粘贴词表内容并自行维护 JSON；除非用户明确推翻该规则，不直接新增或修改词条内容。
-- Codex 可以改：
-  - 词表 JSON schema / 校验器
+- JSON 顶层字段固定为：
+  - `schemaVersion`
+  - `language`
+  - `mode`
+  - `sourceFiles`
+  - `updatedAt`
+  - `entries`
+- 每个 `entry` 固定字段为：
+  - `id`
+  - `normalized`
+  - `display`
+  - `mandarin`
+  - `aliases`
+  - `notes`
+  - `tags`
+  - `attributes`
+- 处理“字词表 / 词表 / lexicon”任务时，默认流程为：
+  1. 先确认当前只处理哪一份词表
+  2. 先输出一段交给网页端 AI 的单词表处理 Prompt
+  3. 用户自行上传或粘贴这一份词表内容
+  4. 用户自行维护整理后的 JSON
+  5. Codex 只做结构校验、代码接入、测试和文档同步
+- Codex 默认可改：
+  - JSON schema / 校验器
   - 运行时代码接入
-  - 文档与测试
+  - 文档
+  - 测试
   - 参考源到 JSON 的处理 Prompt
 - Codex 默认不改：
-  - 词表 JSON 里的具体词条内容
-  - 用户自行维护的推荐释义、别名、备注
-- 运行时缺少词表 JSON 时：
-  - 若本地仍存在对应参考 CSV，则只警告“没有字词对应表”，业务继续按无词表模式返回
-  - 若本地连参考 CSV 也不存在，则不额外警告，直接按无词表模式返回
-- 词表 JSON 结构与协作流程以 `docs/workflow/lexicon-json-workflow.md` 为准。
+  - 词表 JSON 中的具体词条内容
+  - 用户自行维护的释义、别名、备注
+- 运行时降级规则：
+  - JSON 主词表存在且合法：正常读取 JSON
+  - JSON 缺失但参考 CSV 仍在：业务按无词表模式继续，允许给出一次“没有字词对应表”提示
+  - JSON 与参考 CSV 都不存在：直接按无词表模式继续，不额外报错
 
-## shared 模块规则（项目级）
+## 8. Prompt、资料补充与文档同步
 
-- `extension/sites/alibaba-labelx/shared/audio-controller-core.js`：LabelX 快判/转写通用音频核心。
-- `extension/sites/alibaba-labelx/shared/submit-actions.js`：LabelX 快判/转写通用提交快捷键动作。
-- `extension/options/options-shared-shortcut-panel.js`：脚本详情页快捷键通用渲染组件。
-- 提交类动作只作为快捷键，不加入顶部工具栏。
-- 提交类动作只点击页面真实系统按钮，不直接调平台 API，不自动确认二次弹窗。
-- 快判 `400` 条 pageSize 为快判专属能力，不属于 shared audio。
-- options 侧新增或修改快捷键面板时，必须复用 `options-shared-shortcut-panel.js`；不允许再在 `options.html/options.js` 手写一套快捷键行结构。
-- 所有脚本默认快捷键统一为空；只保留用户显式保存过的键位，不允许再新增硬编码默认组合。
-- 不允许再新增固定只读快捷键模板；需要展示快捷键时统一走共享组件的可录制模板。
-- 需要“一键恢复/重置”时，统一使用“清空快捷键”语义，不再恢复旧默认键位。
-- 若快捷键渲染分支再次出现第 3 处以上重复，必须先抽共享组件，不允许继续复制 `render*ShortcutGrid()` 模板。
+### 8.1 Prompt 输出规则
 
-## 统一行为约束
+- 网页端输出 Codex Prompt 时，默认生成 `.md` 文件供下载。
+- 仅当用户明确要求“直接贴出 Prompt”时，才直接在消息中输出。
+- Prompt 内不嵌套复杂 Markdown 三反引号代码块。
+- 命令、JSON、env、示例响应统一用普通缩进文本表示。
+- 推荐命名：`codex-prompt-<task-slug>.md`。
+- Prompt 最小结构默认包含：
+  - 推荐模型
+  - 推理强度
+  - 任务暗号
+  - 当前目录
+  - 当前分支
+  - 文件白名单
+  - 验证命令
+  - 是否提交
+  - commit message
+  - 最终输出要求
 
-- 各脚本详情页不得新增独立后端地址；后端地址统一走 options 首页入口。
-- 同一平台存在多个脚本时，默认互斥启用：同一时刻只允许一个脚本生效；启用某脚本时必须自动关闭同平台其他脚本。若需并行启用，必须由当前 Prompt 明确授权。
-- Magic Data 为同平台互斥助手平台：`magicDataAnnotatorAiReview`（客家话助手）与 `magicDataMinnanAssistant`（闽南语助手）同一时刻只允许启用一个。
-- Magic Data AI 面板统一按“模型方案 + 识别策略”控制；`识别转换` 属于识别策略，不再作为模型方案或独立“AI 质检模式”。
-- Magic Data 审核页 `#/asrmarkCheck` 已纳入客家话助手支持范围；AI 仅作辅助，不自动保存/提交/审核/流转。
-- Magic Data 默认不提供前端并发配置；上游限流与排队保护由后端 provider queue 等机制处理。
-- AI 建议/推荐仅作辅助，不自动保存、不自动提交、不自动领取、不自动流转。
-- 前端不得保存 API Key、cookie、token、完整签名 URL、完整音频 URL。
-- 日志必须脱敏，不输出敏感字段全文。
-- AI 调用 CSV 导出表头统一使用中文；公共列与脚本扩展列都不得再混用英文表头。
-- 后续新增或改动 AI 调用记录时，默认记录 `输入Token / 输出Token / 总Token`；有人民币估算时同时记录估算值。
-- 多阶段 AI 调用默认拆分阶段 token 与阶段人民币列；CSV 不再记录 `pricingStatus / inputPrice / outputPrice` 这类重复文本字段。
-- 后续新增或改动 AI 服务返回结构时，默认补齐统一 `cost` 对象；价格统一读取 `config/pricing/aliyun-bailian-model-pricing.json`，缺少价格数据时返回空金额并保留 `没有数据源` 语义。
-- 单阶段 AI 调用默认记录总 token，并可按“当前调用阶段 + 总预估人民币”扩展；多阶段 AI 调用默认按阶段记录 token 与阶段预估人民币。
-- 只要前端已有 AI 结果信息区，且结果已带统一 `cost`，默认补人民币估算展示：单阶段显示一行 `预估人民币`，多阶段显示各阶段 `预估人民币` + `总预估人民币`。
-- 缺少价格数据时，页面可显示 `没有数据源`；CSV 金额列保持空白，不写文本状态。
-- TTS 自动清除默认时间统一为 `60000ms`。
-- AI / 模型请求默认超时时间统一为 `60000ms`。
-- 本项目默认不使用异步 job / SSE / WebSocket 接收 AI 结果；AI 辅助请求默认直接通过 HTTP 返回结果。
-- 批量 AI 请求允许前端错峰发起；后端继续使用 provider queue / RPM 限流保护上游。
-- 如果单次 AI / 模型请求超过 `60000ms` 仍不能返回，默认认为该链路不适合当前项目，应优先优化模型、Prompt、任务拆分或后端策略，而不是继续拉长超时。
-- 只有当前 Prompt 明确要求时，才允许新增异步 job 接收 AI 结果。
-- 非 AI 模型类的上传、下载、统计与普通后端接口超时不受该规则影响，按业务需要单独设置。
+### 8.2 资料补充提醒
 
-## 自动化与发布安全（项目级）
-
-- 用户触发规则：AI 建议默认只作辅助；仅在用户明确点击按钮或触发快捷键后，才允许执行“填入页面输入框”类辅助动作。
-- 默认禁止自动状态流转：不得自动保存、自动提交、自动领取、自动送审、自动审核、自动判定流转；若确需自动提交类动作，必须在当前 Prompt 明确授权。
-- 批量/连续能力约束：必须明确作用范围，默认只处理当前页、不跨页；必须提供停止机制与失败统计/失败提示；不得点击 checkbox（除非当前 Prompt 明确授权）。
-- 平台安全约束：不得绕过平台原生 disabled/只读限制；不得硬编码 token/cookie/access_token/authorization。
-- 发布前验收：执行 `ASC_RELEASE` 前必须确认已完成真实浏览器验收；发布失败不得 commit/tag/push。
-- 发布要求：`ASC_RELEASE` 必须提升 patch 版本，生成 CRX 三件套并完成 main 与 tag 推送。
-
-## Prompt 输出格式（摘要）
-
-- 网页端输出 Codex Prompt 时，默认生成 `.md` 文件供下载，不再默认在聊天消息中直接贴完整 Prompt。
-- 仅当用户明确要求“直接贴出 Prompt”时，才在聊天消息中直接输出。
-- 即使直接贴出，Prompt 内也不得嵌套复杂 Markdown 三反引号代码块。
-- 命令、JSON、env 示例统一用普通缩进文本。
-- 完整规范见：`docs/workflow/codex-prompt-style.md`。
-
-## 资料补充提醒规则
-
-- 网页端准备输出 Prompt 前，如任务依赖额外资料，应先提醒用户上传，并明确需要上传哪些内容以及如何脱敏。
 - 页面 UI / DOM 问题：优先提醒上传页面截图、Elements 截图、关键 HTML 片段。
-- Network / 接口问题：优先提醒上传请求 URL、请求参数、响应体、状态码；cookie、token、authorization、签名参数必须脱敏。
-- Console / 扩展报错：优先提醒上传完整错误堆栈、报错截图、触发步骤。
+- Network / 接口问题：优先提醒上传请求 URL、请求参数、响应体、状态码。
+- Console / 扩展报错：优先提醒上传完整错误堆栈和触发步骤。
 - AI / 模型问题：优先提醒上传脱敏后的原始 AI 返回 JSON、debug JSON、后端日志、模型配置截图。
 - 数据导入 / CSV / JSON 问题：优先提醒上传脱敏样例文件、字段说明、期望输出。
 - 音频 / TTS / ASR 问题：优先提醒上传音频样例、识别结果、页面文本、朗读要求。
-- 不要过度打断：信息已经足够时直接生成 Prompt；资料缺失但可低风险推进时，先说明假设再继续。
+- cookie、token、authorization、签名参数、完整资源 URL 必须先脱敏。
 
-## 代码质量规则
+### 8.3 文档同步
 
-- 同一模块中大部分重复逻辑超过 2 次时，必须优先抽取复用。
-- 避免大段复制粘贴；优先提炼为函数、工具模块、配置表或组件。
-- DOM 构建重复超过 2 次时，优先抽取 `createRow`、`createButton`、`createSection` 等复用函数。
+- 有效改动必须同步更新对应 README 与 `log.md`。
+- 新增平台或脚本时，必须同步更新：
+  - `extension/sites/<platform>/<script>/README.md`
+  - `platform-resources/<platform>/<script>/README.md` 或资料目录
+  - `docs/platforms-index.md`
+  - `log.md`
+- 仅平台资料初始化、尚未接入运行时代码的平台，不伪造运行时代码目录。
+- 不得把关键规则只留在对话输出里。
 
-## CSS / UI 规则
-
-- 新增样式或重构样式时，优先做 CSS 变量化。
-- 当前模块有 SCSS 构建链时，优先使用 SCSS 与嵌套结构。
-- 当前模块没有 SCSS 构建链时，不强行引入 SCSS，继续使用 CSS 变量和模块化 class。
-- 避免同一模块内重复堆叠近似 class 与大段样式拷贝。
-
-## Git commit 规范
-
-- commit message 必须使用中文；允许保留英文范围标识，但描述必须是中文。
-- 推荐格式：
-  - `修复(data-baker): 修复 AI 工具卡挂载失败`
-  - `优化(data-baker): 调整 Omni 并发显示`
-  - `新增(backend): 增加 Fun-ASR REST 调用`
-  - `文档(workflow): 更新 Codex Prompt 输出规则`
-  - `发布: v0.3.6`
-- 禁止使用纯英文、`update`、`fix bug`、`修改` 等含糊提交说明。
-
-## 版本规则
-
-- 默认保持当前 `extension/manifest.json` 版本不变，除非用户明确要求“完成当前版本 / 准备打包 / 准备发布 / 提升版本号”。
-- 当前阶段版本固定为 `0.4.0`；在用户明确说明“这是 `0.4.0` 的最终版本并开始打包/发布”之前，不得自动提升到 `0.4.1`。
-- `0.4.0` 完成打包/发布后，后续新的开发 / 修复 / 优化对话再进入 `0.4.1` 周期。
-- 正式发布仍使用 `ASC_RELEASE` 流程。
-- 纯文档同步、只读审计或用户明确要求不动版本号的任务，不强制为了规则同步而追补版本。
-
-## 外部文档查阅规则（百炼）
-
-- 涉及百炼 / DashScope / Qwen 模型 / thinking / 结构化输出 / Qwen-Omni / Web Search / 调用地区 / 限流时，先读：`docs/external-docs/aliyun-bailian.md`。
-- 官方文档不可访问时，必须明确说明，不能伪造结论。
-- 模型名必须使用官方模型列表名称。
-
-## docs 结构规则
-
-- `docs/README.md`：文档导航。
-- `docs/platforms/`：平台与脚本文档索引。
-- `docs/architecture/`：架构与边界。
-- `docs/workflow/`：协作流程、Prompt、验收。
-- `docs/external-docs/`：外部官方文档索引。
-- `docs/rules/`：当前有效规则。
-- `docs/archive/`：历史方案。
-- `docs/unfinished/`：未完成模块。
-
-## AI 测试文件规则
-
-- AI / 模型相关 `*.test.js` 默认视为临时验证文件；当前任务如需用它们做校验，验证完成后应删除，不作为长期仓库资产保留，除非当前 Prompt 明确保留。
-
-## 验证与发布
+## 9. 验证与测试文件治理
 
 - 修改 JS 后运行 `node --check <file>`。
-- 修改 `manifest.json` 后检查 JSON 可解析且脚本路径存在。
-- 正式发布产物以 CRX 三件套为准：`annotation-script-center-v<version>.crx`、`annotation-script-center-update.xml`、`annotation-script-center-crx-latest.json`。
-- ZIP 仅作为历史过渡分发兼容项，不作为正式发布验收必选项。
-- 发布阶段使用 CRX 三件套（3.0 起）：
+- 修改 `manifest.json` 后必须确认：
+  - JSON 可解析
+  - manifest 引用脚本路径都存在
+- 只运行仓库中真实存在的验证命令。
+- 不得伪造验证结果。
+
+### 9.1 测试文件治理
+
+- AI / 模型 / 日志 / 队列链路相关 `*.test.js` 默认视为临时验证资产。
+- 当前任务若只是用它们做一次性校验，验证完成后可删除，除非用户明确要求保留。
+- `options`、`storage`、`ui-panel`、`content`、`data-api`、`shortcuts` 这类核心回归测试默认保留。
+- 删除测试文件前，先确认不属于当前长期回归基线。
+
+## 10. 版本与发布规则
+
+- 默认保持当前 `extension/manifest.json` 版本不变。
+- 只有用户明确要求“完成当前版本 / 准备打包 / 准备发布 / 提升版本号”时，才调整版本号。
+- 当前阶段版本固定为 `0.4.0`。
+- 在用户明确说明“这是 `0.4.0` 的最终版本并开始打包 / 发布”之前，不自动提升到 `0.4.1`。
+- `ASC_RELEASE` 前必须先完成真实浏览器验收。
+- 发布失败不得 commit / tag / push。
+- 正式发布产物以 CRX 三件套为准：
   - `annotation-script-center-v<version>.crx`
   - `annotation-script-center-update.xml`
   - `annotation-script-center-crx-latest.json`
+- ZIP 仅作为过渡分发兼容项，不作为正式发布验收必选项。
 
-## 文档同步要求
+## 11. 安全与脱敏
 
-- 有效改动必须同步更新对应 README 与 `log.md`。
-- 不得把关键规则只写在对话输出里。
+- 不提交 API Key、token、cookie、authorization、access token、JWT secret、CRX 私钥。
+- 不提交真实客户数据、员工敏感信息、合同内容、未脱敏截图、完整签名 URL、完整音频 URL。
+- 前端不得保存 API Key、cookie、token、完整签名 URL、完整音频 URL。
+- 若用户贴出敏感信息，不写入代码、文档、日志或测试文件。
+- 日志和错误信息中只保留必要摘要，例如：
+  - `requestId`
+  - `hostname`
+  - `status code`
+  - `model`
+  - `duration`
+  - 错误摘要
 
-## 禁止事项（项目级）
+## 12. 禁止事项
 
 - 不伪造验证结果。
-- 不提交密钥、token、cookie、私钥、敏感数据。
-- 未经要求不做大重构。
-- 业务代码、后端代码与文档任务边界必须严格区分。
-
+- 不未经授权做大重构。
+- 不删除已有业务逻辑，除非任务明确要求。
+- 不随意引入新依赖；如必须引入，先说明原因、替代方案与影响。
+- 不把后端逻辑写进前端目录。
+- 不把平台细节长文重新塞回 `AGENTS.md` 或根 `README.md`。

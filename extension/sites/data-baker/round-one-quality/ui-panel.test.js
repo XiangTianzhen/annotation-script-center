@@ -133,3 +133,31 @@ test("DataBaker rows show no-source label when pricing is unavailable", function
 
   assert.deepEqual(totalRow, ["总预估人民币", "没有数据源"]);
 });
+
+test("DataBaker batch floating rows include aggregated token and estimated RMB rows", function () {
+  const helper = panelModule.__test__?.buildBatchFloatingRows;
+  assert.equal(typeof helper, "function");
+
+  const rows = helper({
+    phase: "completed",
+    batchResultCount: 2,
+    batchHasUsageData: true,
+    batchPromptTokens: 20,
+    batchCompletionTokens: 7,
+    batchTotalTokens: 27,
+    batchHasPriceData: true,
+    batchEstimatedCostCny: 0.001555,
+  });
+
+  assert.deepEqual(
+    rows.slice(-4).map(function (item) {
+      return [item.label, item.value];
+    }),
+    [
+      ["批量输入Token", "20"],
+      ["批量输出Token", "7"],
+      ["批量总Token", "27"],
+      ["批量预估人民币", "0.001555 元"],
+    ]
+  );
+});

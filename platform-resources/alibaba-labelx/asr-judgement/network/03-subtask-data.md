@@ -1,6 +1,6 @@
 # GET /api/v1/label/center/subTask/{subTaskId}/data
 
-## 请求目的
+## 请求标识 / 目的
 
 这是当前已采集到的核心数据源。该请求返回当前分页样本、模板结构、音频 URL 字段、ASR 文本字段、已有标注结果和部分样本状态。
 
@@ -9,7 +9,7 @@
 - 未完成标注详情页。
 - 已完成只读详情页，例如 URL 带 `disableEdit=true` 与 `isFinished=true`。
 
-## 触发操作
+## 页面入口 / 触发动作
 
 - 打开详情页。
 - 刷新详情页。
@@ -17,8 +17,6 @@
 - 切换每页条数。
 - 使用筛选面板筛选任务状态。
 - 保存答案后再次请求时会回显已保存 `result.markResult`。
-
-## 页面 URL 来源
 
 标注详情页的规范化路由形态：
 
@@ -34,7 +32,7 @@
 
 注意：实际复制出来的 URL 或 Network 记录中，`subTaskId` 后可能夹带编码后的换行或空格，例如 `%0A`、`%20`。扩展解析 URL 参数时必须先 `decodeURIComponent` 再 `trim()`，构造接口或匹配请求时不要把这些空白字符当作真实 ID 的一部分。
 
-## 请求记录
+## 请求摘要
 
 - Method：`GET`
 - URL：`/api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/data`
@@ -47,32 +45,11 @@
 - Request Body：无。
 - Status：`200`
 
-## 脱敏请求示例
+## 请求体摘要
 
-```http
-GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/data?page=1&pageSize=10&filterPassedVote=false&filter=<URL_ENCODED_FILTER>&_=<REDACTED_TIMESTAMP>
-Accept: */*
-Cookie: <REDACTED>
-```
+- 当前记录未见独立 request body；以路径参数或 query 为主。
 
-如果被动监听到 path 中 ID 后带编码空白，应按以下形态归一化：
-
-```text
-/api/v1/label/center/subTask/<REDACTED_SUBTASK_ID><ENCODED_WHITESPACE>/data
-=> /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/data
-```
-
-解码后的 `filter` 示例：
-
-```json
-{
-  "questions": [],
-  "dataStatus": "ALL",
-  "questionsQueryConditions": "AND"
-}
-```
-
-## 脱敏响应示例
+## 响应摘要
 
 ```json
 {
@@ -100,82 +77,7 @@ Cookie: <REDACTED>
             "label": "哪个ASR更优",
             "title": "单选",
             "fieldId": "<REDACTED_FIELD_ID_CHOICE>",
-            "required": true,
-            "componentName": "DtRadio"
-          },
-          {
-            "type": "Answer",
-            "label": "特殊情况标注",
-            "title": "填空",
-            "fieldId": "<REDACTED_FIELD_ID_REMARK>",
-            "saveType": "auto",
-            "componentName": "DtInput"
-          }
-        ],
-        "contentList": [
-          {
-            "type": "Content",
-            "title": "音频",
-            "fieldName": "raw_audio_path",
-            "componentName": "DtAudioBase"
-          },
-          {
-            "type": "Content",
-            "label": "两个ASR文本",
-            "fieldName": "online_rec",
-            "componentName": "DtText"
-          },
-          {
-            "type": "Content",
-            "label": "wav_id",
-            "fieldName": "wav_id",
-            "componentName": "DtText"
-          }
-        ]
-      }
-    },
-    "templateConfig": "<SAME_SHAPE_AS_TEMPLATE_WITH_QUESTIONS>",
-    "dataList": [
-      {
-        "dataId": "<REDACTED_DATA_ID>",
-        "batchId": "<REDACTED_BATCH_ID>",
-        "data": {
-          "wav_id": "<REDACTED_WAV_ID>",
-          "duration": 3.36,
-          "is_anti_cheating": false,
-          "diff_wer": 0.1111111111,
-          "better_asr_gt": "",
-          "raw_audio_path": "<REDACTED_SIGNED_AUDIO_URL>",
-          "language": "",
-          "online_rec": "asr_text1: <REDACTED_ASR_TEXT_1>\nasr_text2: <REDACTED_ASR_TEXT_2>",
-          "source": "",
-          "dataset_num": "<REDACTED_BATCH_FIELD>"
-        },
-        "componentsResult": null,
-        "result": {
-          "markResult": [
-            {
-              "title": "哪个ASR更优",
-              "value": ["<REDACTED_SELECTED_OPTION>"]
-            },
-            null
-          ]
-        },
-        "labelDate": "<REDACTED_TIMESTAMP>",
-        "operator": null,
-        "userId": "<REDACTED_USER_ID>",
-        "status": 1,
-        "hasMistake": false,
-        "voteResultList": null,
-        "passVote": null,
-        "type": 0
-      }
-    ]
-  },
-  "traceId": "<REDACTED_TRACE_ID>",
-  "success": true
-}
-```
+- 其余重复细节已省略；如需补充，只保留当前有效结论。
 
 ## 关键字段
 
@@ -195,8 +97,6 @@ Cookie: <REDACTED>
 | `data.status` | 子任务状态 | 未完成和已完成详情页可能不同 |
 | `data.gmtCommit` | 子任务提交时间 | 已完成只读详情页通常有值 |
 
-## 字段推断
-
 - `template` 与 `templateConfig` 均包含模板信息，`templateConfig` 额外包含 `questions`。
 - `answerList` 的顺序应与 `result.markResult` 的顺序对应。
 - `online_rec` 当前以 `asr_text1:` 和 `asr_text2:` 作为文本分隔线索，但解析时应容忍大小写、空格、换行和转义字符差异。
@@ -204,7 +104,7 @@ Cookie: <REDACTED>
 - `raw_audio_path` 的 query 是临时访问签名，不能持久化。
 - 已完成只读详情页仍会刷新该接口，只是页面 URL 会多出 `disableEdit=true`、`isFinished=true`，并且子任务状态/提交时间字段可能体现已完成状态。
 
-## Content Script 建议
+## 前端接入建议
 
 - 首选监听该接口响应并生成当前页样本缓存。
 - 不要保存完整 `online_rec` 到日志；只在页面运行态使用。
@@ -214,7 +114,7 @@ Cookie: <REDACTED>
 - 从页面 URL 读取 `subTaskId` 时必须做 `decodeURIComponent(...).trim()`。
 - 被动匹配 Network URL 时，允许 `subTaskId` 后存在 `%20` 或 `%0A` 这类编码空白，但内部缓存 key 只能使用修剪后的数字 ID。
 
-## 未确认项
+## 风险 / 未确认项
 
 - 翻页时是否仍使用同一接口，仅变更 `page`。
 - 筛选 `questions` 时返回结构是否变化。

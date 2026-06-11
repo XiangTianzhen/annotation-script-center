@@ -1,41 +1,33 @@
 # 08 敏感写操作接口清单（仅识别，未触发）
 
-## 说明
+## 请求标识 / 目的
 
-- 以下接口来自前端 bundle 只读检索。
-- 本轮采集中未主动触发。
-- 任何后续调用都必须由用户明确确认。
+- 当前文件记录该请求或该组请求的稳定参考结论。
 
-## 标注侧高风险接口
+## 页面入口 / 触发动作
 
-- `/api/management-service/annotateTask/save`
-- `/api/management-service/annotateTask/submit`
-- `/api/management-service/annotateTask/pending`
-- `/api/management-service/annotateTask/upOrDown`
-- `/api/management-service/annotateTask/goBack`
-- `/api/management-service/annotateTask/deleteElement`
-- `/api/management-service/annotateTask/saveElement`
-- `/api/management-service/annotateTask/submitElement`
+- 当前文件未补充额外入口说明；默认按对应页面自然加载或用户显式操作触发。
 
-## 抽检/审核侧高风险接口
+## 请求摘要
 
-- `/api/management-service/sampling/save`
-- `/api/management-service/sampling/submit`
-- `/api/management-service/sampling/deleteElement`
-- `/api/management-service/checkMark/save`
-- `/api/management-service/checkMark/wholeQua/...`
-- `/api/management-service/checkMark/wholeBack`
+- 当前文件未补充更细的请求摘要。
 
-## 元素级写操作接口
+## 请求体摘要
 
-- `/api/management-service/taskElement/annoSubmit`
-- `/api/management-service/taskElement/checkSubmit`
-- `/api/management-service/taskElement/save`
-- `/api/management-service/taskElement/saveCheck`
-- `/api/management-service/taskElement/del`
-- `/api/management-service/taskElement/cleanResult`
+- 当前记录未见独立 request body；以路径参数或 query 为主。
 
-## 动作边界
+## 响应摘要
 
-- 默认：禁止自动触发。
-- 仅在“用户当前轮明确授权 + 可回滚策略明确 + 日志脱敏”后可进入人工触发验证。
+- 当前文件未补充独立响应结构。
+
+## 关键字段
+
+- 当前重点继续以路径、query、响应字段名和脱敏占位为主。
+
+## 前端接入建议
+
+- 接入时优先复用当前页已有稳定锚点，只做只读监听或最小范围辅助。
+
+## 风险 / 未确认项
+
+- 文档只保留当前有效结论；新增缺口统一回写稳定参考页或 `log.md`。

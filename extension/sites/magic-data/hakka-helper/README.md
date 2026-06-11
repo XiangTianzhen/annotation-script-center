@@ -26,23 +26,18 @@
   - 识别策略：`direct_dialect` / `mandarin_to_dialect`
 - 为兼容历史配置，仍保留 legacy `aiReviewRecognitionMode`（含 `recognition_convert`）映射。
 - 快捷键动作已与闽南语助手统一到同一动作集合，并补充 `开启/关闭全自动` 专属动作；支持 `全部填入AI推荐`、`显示 AI 原始输出`、详情折叠切换等动作键。
-- 2026-05-25 客家话评测默认配置已落地：
-  - `two_stage + direct_dialect`
+- - `two_stage + direct_dialect`
   - 听音：`qwen3.5-omni-flash`
   - 比较：`qwen3.5-flash`
 - `enable_thinking=false`
-- 2026-05-26 Options 保存链路热修：
-  - 客家话助手与闽南语助手统一走 Magic Data pipeline 字段联动（模型方案/识别策略/听音模型/比较模型/单模型）。
+- - 客家话助手与闽南语助手统一走 Magic Data pipeline 字段联动（模型方案/识别策略/听音模型/比较模型/单模型）。
   - 保存时同时写入新字段与 legacy 字段（`aiReview*` + `listenModel/reviewModel`），并显式持久化模型选择值，避免刷新后回退显示。
   - `storage` legacy 迁移逻辑改为“显式字段优先”，`recognition_convert` 不再覆盖用户已选择的 `aiReviewModelMode`，避免保存后被强制回写为单模型。
-- 2026-05-26 面板热修：
-  - options 中移除 `AI 质检模式` 选择，客家话助手仅使用 `模型方案 + 识别策略`。
+- - options 中移除 `AI 质检模式` 选择，客家话助手仅使用 `模型方案 + 识别策略`。
   - 审核页（`#/asrmarkCheck`）文本可编辑时，行内建议支持 `填入本行`；`全部填入AI推荐` 在审核页仅填文本项，不填说话人，不自动保存/提交。
-- 2026-05-27 简体化热修：
-  - 改为通过 AI prompt 约束普通中文输出简体，结果区与行内建议不再依赖本地后端二次繁转简。
+- - 改为通过 AI prompt 约束普通中文输出简体，结果区与行内建议不再依赖本地后端二次繁转简。
   - 命中客家话词表 `语料统一用字` 时继续保留对应写法。
-- 2026-06-08 Job 结果解包热修：
-  - `review-current/jobs/:jobId` 成功态当前返回 `data.success + data.data` 双层结构。
+- - `review-current/jobs/:jobId` 成功态当前返回 `data.success + data.data` 双层结构。
   - 前端 client 当前已在 Job 轮询分支优先解包到真正的质检结果对象，避免新版面板把外层成功响应误当成结果。
   - 该热修用于修复“AI 质检当前条”完成后右侧结果区误显示“无法判断 / 摘要 -”的问题。
 
@@ -67,7 +62,7 @@
   - 文本可编辑时显示行内 `填入本行` 与文本项 `全部填入AI推荐`；文本不可编辑时自动隐藏填入动作。
   - 结果按 `pageType + taskItemId + samplingRecordId` 维度保持，不因页面轻微刷新自动清空。
 
-## 2026-05-26 后端对齐说明
+## 后端对齐说明
 
 - 客家话助手前端新版面板依赖后端返回完整结构化字段：
   - `speakerCheck`

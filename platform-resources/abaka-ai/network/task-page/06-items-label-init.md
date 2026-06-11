@@ -1,20 +1,20 @@
 # POST /api/v2/item/get-item-info 等标注页初始化
 
-## 请求目的
+## 请求标识 / 目的
 
 进入 `/items` 标注页时加载当前条基础信息、历史、权限、标签、资源和右侧列表。
 
-## 触发操作
+## 页面入口 / 触发动作
 
 - 点击 Data 页 `Claim Label` 成功后自动进入 `/items`。
 - 点击 Data 页选中条目的 `Label: N`。
 - 直接打开 Task21 标注页 URL。
 
-## 操作前页面状态
-
 本轮实测从 Data 页点击 `Claim Label` 后进入标注页，页面先显示 `The current item is loading and is inoperable`，随后显示 same_font 主标注区。
 
-## 请求记录
+可见 `same_font`、资源图片、右侧条目列表、`Save / Drop / Skip / Submit`、锁定状态和计时器。
+
+## 请求摘要
 
 - Method：`POST`
 - URL：
@@ -34,9 +34,9 @@
 - Request Header 摘要：敏感字段已脱敏。
 - Query keys：无。
 
-## 脱敏请求体摘要
+## 请求体摘要
 
-    {
+{
       "taskId": "{taskId}",
       "itemId": "{itemId}",
       "nodeId": "{nodeId}",
@@ -44,9 +44,9 @@
       "pageSize": "number"
     }
 
-## 脱敏响应示例
+## 响应摘要
 
-    {
+{
       "code": 0,
       "data": {
         "_id": "{itemId}",
@@ -72,25 +72,17 @@
           ]
         }
       }
-    }
+- 其余重复细节已省略；如需补充，只保留当前有效结论。
 
-## 后续请求链路
-
-初始化完成后用户操作 `Save`、`Drop`、`Skip`、`Submit` 会触发状态变更或前端校验。
-
-## 页面反馈
-
-可见 `same_font`、资源图片、右侧条目列表、`Save / Drop / Skip / Submit`、锁定状态和计时器。
-
-## 字段推断
+## 关键字段
 
 - `processStatus.label`、`processStatus.check` 可用于判断当前条流转状态。
 - `permission[].status` 显示当前用户对该节点的工作状态。
 
-## Content Script 建议
+## 前端接入建议
 
 从初始化响应中只提取结构化状态和 same_font 相关字段，不保存客户原始文本、图片 URL 或完整响应。
 
-## 未确认项
+## 风险 / 未确认项
 
 - 初始化失败、权限不足、锁定冲突响应待补。

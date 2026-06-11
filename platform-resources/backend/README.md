@@ -39,20 +39,20 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 
 ## 官方文档核对入口
 
-- 阿里云百炼官方文档索引：`docs/external-docs/aliyun-bailian.md`
+- 阿里云百炼官方文档索引：`docs/external-docs-aliyun-bailian.md`
 - 涉及模型名、`enable_thinking`、结构化输出、Qwen-Omni、Web Search、限流、调用地区时，必须先核对该索引中的官方文档。
 - 如果官方文档在本地无法访问，必须在输出中明确说明“未能联网核对官方文档”，不得伪造结论。
 
 ## AI 消耗统一口径
 
-- 所有已接入 AI 服务默认返回统一 `cost` 对象，价格统一读取 `config/pricing/aliyun-bailian-model-pricing.json`。
+- 所有已接入 AI 服务默认返回统一 `cost` 对象，价格统一读取 `config/aliyun-bailian-model-pricing.json`。
 - AI 请求记录 CSV 公共列与脚本扩展列统一使用中文表头。
 - 单阶段 AI 调用默认记录总 token，并可补当前调用阶段人民币估算；多阶段 AI 调用默认拆分阶段 token 与阶段预估人民币。
 - 缺少价格配置的模型仍允许继续调用；页面可显示 `没有数据源`，CSV 金额列保持空白，不写状态文本。
 
 可用环境变量：
 
-- 2026-05-28 起，仓库内所有 `*_ENABLE_THINKING` 变量只保留历史兼容读取；实际请求统一固定 `enable_thinking=false`，不再通过前端配置或环境变量开启 thinking。
+- 仓库内所有 `*_ENABLE_THINKING` 变量只保留历史兼容读取；实际请求统一固定 `enable_thinking=false`，不再通过前端配置或环境变量开启 thinking。
 
 - `PLATFORM_RESOURCES_SERVER_HOST`：统一后端监听地址，默认 `127.0.0.1`。
 - `PLATFORM_RESOURCES_SERVER_PORT`：统一后端监听端口，默认 `3333`。
@@ -516,7 +516,7 @@ DataBaker AI 架构补充：
 - `platform-resources/backend/ai/python/requirements.txt` 现包含 `opencc-python-reimplemented` 与 `miniaudio`；前者用于 Fun-ASR 源头繁转简，后者用于 DataBaker CVPC 后端整音频画段预览时直接解码 mp3。
 - Fun-ASR 默认 provider 已改为 `platform-resources/backend/ai/providers/funasr-rest.js`。
 - `platform-resources/backend/ai/providers/funasr.js` 负责统一选择 `rest/python` provider；默认 `rest`，仅在显式配置 `DATABAKER_AI_FUN_ASR_PROVIDER=python` 或 `DATABAKER_AI_FUN_ASR_PROVIDER_FALLBACK=python` 时使用 Python 路径。
-- `platform-resources/backend/ai-framework/` 当前已落第一版骨架，但尚未替换现有项目路由；项目迁移顺序以 `docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md` 为准。
+- `platform-resources/backend/ai-framework/` 当前只保留公共层与兼容层；继续调整时以现有代码、对应平台 README 和实际路由注册为准。
 - DataBaker 业务目录当前只保留 `ai-routes.js + ai-service.js` 作为业务层；闽南词表参考资料位于 `platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv`。
 - `DATABAKER_FUNASR_PYTHON_BIN` 留空时，统一后端默认优先查找 `platform-resources/backend/.venv` 下的 Python。
 - 默认 REST provider 不需要单独启动 Python；Python 只在显式切到 `provider=python` 或 fallback 时作为 Node 统一后端内部辅助进程运行。
@@ -525,9 +525,7 @@ DataBaker AI 架构补充：
 - 这里不重复完整部署命令，避免误解为需要单独部署 Python 服务。
 - Fun-ASR 若返回繁体或繁简混合字形，后端会在 Python 输出阶段和 DataBaker 业务组装阶段各做一次繁转简；命中闽南词表建议用字时继续保留原建议字形。
 
-## 0.2.11 统计总表修正规则
-
-- 当前保持 `0.2.11` 修正增强，不升级 `0.2.12`。
+## 统计总表规则
 - LabelX 转写与快判统计主存储恢复为根级总表：`statistics-data/statistics-merged.csv`。
 - CSV 导出供应商列采用动态策略：
   - 单供应商数据集：不输出“供应商”列。
@@ -557,7 +555,7 @@ DataBaker AI 架构补充：
 
 ## 后端参数变更流程
 
-1. 先核对 `docs/external-docs/aliyun-bailian.md` 对应官方文档。
+1. 先核对 `docs/external-docs-aliyun-bailian.md` 对应官方文档。
 2. 更新后端参数白名单与归一化逻辑。
 3. 更新对应 `defaults` 接口返回字段。
 4. 同步更新 options 的 `supportedParams` 展示逻辑。
@@ -566,9 +564,7 @@ DataBaker AI 架构补充：
 
 
 
-## 0.2.11 中文乱码修正（CSV 健康值合并）
-
-- 当前版本保持 `0.2.11`，本轮不升级 `0.2.12`。
+## 中文乱码修正（CSV 健康值合并）
 - 统计 CSV 写入统一为 **UTF-8 with BOM**，提升 Excel 直接打开时的中文兼容性。
 - CSV 写出前会清理关键字段（任务名称、标注员/审核员、供应商）的前后空白、BOM、零宽字符。
 - 若旧 CSV 中存在 `�`（U+FFFD）损坏值，合并时优先采用新 payload 的健康值覆盖旧损坏值。
@@ -579,9 +575,7 @@ DataBaker AI 架构补充：
 - 转写与快判后端都使用同一套“中文清洗 + 健康值优先”策略。
 - 日志与错误信息继续脱敏，不记录 cookie、token、authorization、完整音频 URL。
 
-## 0.2.11 导出完整性与断点跳过增强
-
-- 当前版本保持 `0.2.11`，本轮不升级 `0.2.12`。
+## 导出完整性与断点跳过增强
 - 统计以 `分包ID` 作为关键定位点：分包ID 为空的数据直接废弃，不写入 CSV、不上传。
 - 后端新增 existing 检查接口（转写/快判）：
   - `POST /api/alibaba-labelx/asr-transcription/statistics/existing`
@@ -601,7 +595,7 @@ DataBaker AI 架构补充：
 - CSV 继续使用 UTF-8 with BOM，单供应商不输出“供应商”列，多供应商在最后一列输出“供应商”。
 - 全流程继续脱敏：不记录 cookie、token、authorization、完整音频 URL。
 
-## 2026-05-10 0.2.11 失败判定修正
+## 失败判定规则
 - LabelX 统计按标注/审核分角色逐步合并：另一角色字段为空属于正常情况，不再判失败。
 - 只有 `分包ID` 为空时才直接废弃（discardedNoBatchId），不写 CSV、不上传。
 - `任务名称/任务ID/人员/领取时间/提交时间/有效时长` 为空默认记为 warning/incomplete，不阻断上传。
@@ -612,7 +606,7 @@ DataBaker AI 架构补充：
 - 并发规则保持 `Math.floor(total / 5)`，最小 `1`，最大 `999`；定时上传保持 `10:00/16:00`，上传前随机延迟 `0~300s`（`100ms` 步进）。
 
 
-## 2026-05-10 0.2.11 complete/跳过修正
+## complete / 跳过规则
 - `existing` 接口中 `exists=true` 不等于 `complete=true`；只有满足最低完整条件才可跳过。
 - 转写 `complete` 最低要求：`分包ID + 任务名称 + 任务ID + 题数 + 当前 role 对应子任务ID`。
 - 快判 `complete` 最低要求：`分包ID + 任务名称 + 任务ID + 题数 + 当前 role 对应子任务ID（label 为任一标注员槽位ID）`。
@@ -621,23 +615,21 @@ DataBaker AI 架构补充：
 - 无待上传数据（`payloads.length=0`）时不调用 `/statistics/upload`，提示“已全部完整，无需上传”。
 - 上传进度板块宽度已增大（`min-width:560px`、`max-width:780px`、允许换行），四位数成功/失败数量可见。
 - 主存储仍为根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
-- 版本保持 `0.2.11`。
-
-## 2026-05-10 0.2.11 待补任务名称与进度样式补充
+## 待补任务名称与进度样式
 
 - `existing` 返回 `exists=true` 时仍必须以 `complete` 判定是否跳过；`complete=false` 继续补齐，不算失败。
 - 转写任务名称补齐支持 `detail/summary/taskMap` 多源回退；`detail` 空值不得覆盖健康任务名称。
 - 转写后端合并优先复用同 `分包ID + role + subTaskId` 的已有行，避免“旧空任务名称行”和“新补齐行”并存。
 - 无待上传 payload 时前端不调用 upload，仅提示“已全部完整，无需上传”。
 - 共享进度组件改为水平居中，完成态与进行中保持同一紧凑卡片布局。
-## 2026-05-21 LabelX force replace 上传说明
+## LabelX force replace 上传说明
 
 - 统一后端继续复用原有 LabelX 统计上传地址，不新增独立 force replace 路由。
 - 当前仅 Alibaba LabelX ASR 快判与 ASR 转写支持手动 `forceReplaceByBatchId` 上传语义。
 - force replace 请求体会带 `replaceMode="batch"` 和 `replaceBatchIds`；后端继续以 `分包ID` 归并行，但只局部覆盖当前角色 / 当前人员槽位，不再删整分包旧行。
 - 定时上传 `reason=schedule` 不应传 `forceReplaceByBatchId`，统一保持默认 existing 跳过逻辑。
 
-## 2026-05-21 统计 CSV 字段命名补充
+## 统计 CSV 字段命名补充
 
 - LabelX 与 DataBaker 的 CSV 写出统一改为新口径字段，不再输出旧字段重复列。
 - LabelX 旧字段 `有效时长` / `有效时长(秒)` 与旧人员列会在合并阶段迁移到 `_S` / `_P` 字段。
@@ -651,7 +643,7 @@ DataBaker AI 架构补充：
 
 ## 统一 AI jobs 与模型池
 
-- 2026-05-28 起，已接入 AI 的脚本默认统一走“短请求创建 job + 轮询状态”链路：
+- 已接入 AI 的脚本默认统一走“短请求创建 job + 轮询状态”链路：
   - Aishell Minnan `recommend`
   - Aishell Vietnamese `recommend`
   - DataBaker round-one-quality `recommend`
@@ -665,5 +657,3 @@ DataBaker AI 架构补充：
   - 系统仪表盘优先展示 `总占用 usedCount = activeCount + pendingCount`，并拆成 `正在调用上游 / 等待发起` 两部分。
   - 单个模型池默认总容量为 `999`（即 `usedCount` 上限）；达到 `999` 后返回“后端池已满，请稍后重试。”
   - 两阶段链路中的听音模型和比较 / 推理模型分别按各自真实模型名进入独立池。
-
-

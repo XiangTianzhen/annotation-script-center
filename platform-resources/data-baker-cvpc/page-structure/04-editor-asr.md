@@ -1,9 +1,9 @@
 # 04 编辑器 `/app/editor/asr/`
 
+## 页面标识 / 路由 / 前置条件
+
 - `routeKey`: `editor-asr`
 - `riskLevel`: `readonly`
-
-## 路由模式
 
 - 路径：`/app/editor/asr/`
 - 关键 Query：
@@ -18,12 +18,28 @@
   - `next_job_status`
   - `terminal`
 
-## 前置条件
-
 - 已通过作业列表进入具体作业
 - 当前作业已经分配给当前终端上下文
 
-## DOM 树
+- 顶部上下文与工序信息：`annotation/process_list`
+- 音频列表：`annotation/meta.data.datas[]`
+- 已有标注状态：`annotation/meta.data.anns[]`
+- 模板、常用语、字符检查：`annotation/meta.data.template`
+- 平台级显示设置：`platform_setting/view`
+- 批注/记录区：`annotation/postil_list`
+- 非持久化校验：`annotation/check_script`
+
+## 页面总览
+
+- 顶部上下文与工序信息：`annotation/process_list`
+- 音频列表：`annotation/meta.data.datas[]`
+- 已有标注状态：`annotation/meta.data.anns[]`
+- 模板、常用语、字符检查：`annotation/meta.data.template`
+- 平台级显示设置：`platform_setting/view`
+- 批注/记录区：`annotation/postil_list`
+- 非持久化校验：`annotation/check_script`
+
+## DOM 树 / 区域结构
 
 ```text
 body
@@ -74,14 +90,12 @@ body
 | 常用语按钮 | `button:has-text("<SPK/>")` 等 | `medium` | 会改写内容，谨慎 |
 | 第三方下载面板 | `#aix-drop-panel` | `avoid` | 非平台原生 |
 
-## 动态区域
+## 动态区域 / 重渲染风险
 
 - 音频列表当前选中项
 - 标注模板字段与常用语按钮
 - 波形 iframe 内容
 - 提交前后的校验提示
-
-## 重渲染风险
 
 - 顶部按钮区与列表区都会在切条时重绘
 - 避免依赖：
@@ -109,7 +123,7 @@ body
 - 批注/记录区：`annotation/postil_list`
 - 非持久化校验：`annotation/check_script`
 
-## 写操作边界
+## 写操作边界 / 未确认项
 
 - 顶部：
   - `保存`

@@ -1,46 +1,12 @@
 # 07 审核单条页（asrmarkCheck）网络摘要
 
-## 页面
+## 请求标识 / 目的
+
+- 当前文件记录该请求或该组请求的稳定参考结论。
+
+## 页面入口 / 触发动作
 
 - URL 示例：`https://work.magicdatatech.com/#/asrmarkCheck?formType=1&id=...`
-
-## 请求 1：抽检预览列表
-
-- method：`GET`
-- hostname：`work.magicdatatech.com`
-- pathname：`/api/management-service/sampling/asrPreview/{samplingRecordId}`
-- query keys：无
-- payload 字段：无
-- response 顶层字段：`code,data,message`
-- data 常见字段：`seq,speakerInfo,content,preContent,sampRecordId,taskBranchId,taskItemId,startTime,endTime`
-- 用途推断：加载本次抽检记录下的句子预览列表
-- 是否敏感操作：否（读）
-- 自动化边界：可观察（文本仅脱敏引用）
-
-## 请求 2：审核页标注配置
-
-- method：`GET`
-- hostname：`work.magicdatatech.com`
-- pathname：`/api/management-service/sampling/getLabelConf`
-- query keys：`sampRecordId`
-- response 顶层字段：`code,data,message,messageDetail`
-- 用途推断：加载审核规则与字段约束
-- 是否敏感操作：否（读）
-- 自动化边界：可观察
-
-## 请求 3：当前审核条目详情
-
-- method：`GET`
-- hostname：`work.magicdatatech.com`
-- pathname：`/api/management-service/sampling/taskInfo/{samplingRecordId}`
-- response 顶层字段：`code,data,message,messageDetail`
-- data 常见字段（脱敏结构）：
-  - `samplingRecordId,taskBranchId,taskItemId,data.path,data.mark_info,data.statistics,allTaskBranchList,currentPkgItemList,isSubmit,...`
-- 用途推断：加载当前审核条目完整数据
-- 是否敏感操作：否（读）
-- 自动化边界：可观察
-
-## 请求 4：审核页面项目信息
 
 - method：`GET`
 - hostname：`work.magicdatatech.com`
@@ -51,18 +17,7 @@
 - 是否敏感操作：否（读）
 - 自动化边界：可观察
 
-## 请求 5：批次用户配置
-
-- method：`GET`
-- hostname：`work.magicdatatech.com`
-- pathname：`/api/management-service/mtBatchUserCfg/{batchId}`
-- response 顶层字段：`code,data,message,messageDetail`
-- data 常见字段：`batchId,value`
-- 用途推断：加载批次级审核配置
-- 是否敏感操作：否（读）
-- 自动化边界：可观察
-
-## 请求 6：历史提交人
+## 请求摘要
 
 - method：`GET`
 - hostname：`work.magicdatatech.com`
@@ -73,16 +28,28 @@
 - 是否敏感操作：否（读，含个人信息字段，文档只保留字段名）
 - 自动化边界：可观察
 
-## 请求 7：音频资源
+## 请求体摘要
 
-- method：`GET`（media）
-- hostname：`magicdatacloud.oss-cn-beijing.aliyuncs.com`
-- pathname 模式：`/from_cloud/.../audio/*.wav`
-- query keys：`Expires,OSSAccessKeyId,Signature`
-- 用途推断：播放审核条目音频
-- 是否敏感操作：否（读），但 URL 敏感
-- 自动化边界：可观察；禁止保存完整 URL
+- 当前记录未见独立 request body；以路径参数或 query 为主。
 
-## 备注
+## 响应摘要
 
-- 本页可能触发审核保存/提交/通过/驳回相关接口，本轮未触发。
+- response 顶层字段：`code,data,message`
+- response 顶层字段：`code,data,message,messageDetail`
+- response 顶层字段：`code,data,message,messageDetail`
+  - `samplingRecordId,taskBranchId,taskItemId,data.path,data.mark_info,data.statistics,allTaskBranchList,currentPkgItemList,isSubmit,...`
+- response 顶层字段：`code,data,message,messageDetail`
+- response 顶层字段：`code,data,message,messageDetail`
+- response 顶层字段：`code,data,message`
+
+## 关键字段
+
+- 当前重点继续以路径、query、响应字段名和脱敏占位为主。
+
+## 前端接入建议
+
+- 接入时优先复用当前页已有稳定锚点，只做只读监听或最小范围辅助。
+
+## 风险 / 未确认项
+
+- 文档只保留当前有效结论；新增缺口统一回写稳定参考页或 `log.md`。

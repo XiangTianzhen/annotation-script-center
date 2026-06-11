@@ -424,10 +424,7 @@ Fun-ASR `403` 的常见原因：
 
 后续如启用裁剪，需要下载完整音频、按有效起止时间裁剪、转 16k 单声道 wav、base64 传给 Qwen；裁剪失败必须 fallback 到完整 `audioUrl`，且全过程不得记录完整音频 URL。
 
-
-
-
-## 2026-05-21 latest.csv 表头兼容迁移
+## latest.csv 表头兼容迁移
 
 - DataBaker 后端合并 `latest.csv` 时会把旧表头兼容迁移到新口径：`质检人 -> 质检人_P`，`有效时长` / `有效合格时长` -> `有效合格时长_S`。
 - 下一次上传或合并后，写出的 `latest.csv` 只保留新字段，不再同时输出旧字段重复列。
@@ -440,6 +437,3 @@ Fun-ASR `403` 的常见原因：
 - 批量请求会附带 `batchRunId`、`batchItemIndex`、`batchProcessKey`、`clientRequestId`。
 - 后端新增内存级 in-flight 去重：仅当 `batchRunId + batchProcessKey` 同时存在时启用，避免旧 content runtime 或重复点击导致同一题重复打上游模型。
 - health 返回 `dedupe.activeCount/joinedCount/completedCount/failedCount/maxSize/ttlMs`，排查重复请求时优先看悬浮窗的“唯一任务数/重复跳过”和 health 的 `dedupe.joinedCount`。
-
-
-

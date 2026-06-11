@@ -9,7 +9,7 @@ const {
 } = require("./build-meta-local");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
-const RELEASE_CONFIG_PATH = path.join(REPO_ROOT, "config", "release", "package-crx-release.json");
+const RELEASE_CONFIG_PATH = path.join(REPO_ROOT, "config", "package-crx-release.json");
 const RELEASE_LOCAL_CONFIG_PATH = path.join(
   REPO_ROOT,
   "config",

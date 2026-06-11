@@ -75,7 +75,7 @@
 - 入口不会自动领取标注、不会自动保存、不会自动提交、不会自动送审
 - 若后续补齐统计 runtime，应优先复用该顶部入口，不要再隐藏到快捷键或 AI 浮窗内
 
-## AI 调用日志与统计（2026-05-28）
+## AI 调用日志与统计
 
 - Task21 AI analyze 当前已默认记录成功 / 失败调用。
 - 日志文件：
@@ -93,7 +93,7 @@
 
 ## 当前能力与后续候选
 
-- AI 后端桥接迁移状态（2026-05-28）：
+- AI 后端桥接状态：
   - `POST /api/abaka-ai/task21/ai/analyze` 已改为通过 `platform-resources/backend/ai-framework/` route factory 驱动。
   - `platform-resources/abaka-ai/task21/ai/adapter.js` 负责请求映射、旧响应结构兼容和脚本级结果暴露。
   - `platform-resources/abaka-ai/task21/backend/ai-analyze-request.js` 负责 Task21 analyze 请求归一，与 adapter 共用。

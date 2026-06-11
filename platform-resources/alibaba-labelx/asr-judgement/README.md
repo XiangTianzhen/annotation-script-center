@@ -19,7 +19,7 @@ extension/sites/alibaba-labelx/asr-judgement/
 - `backend/`：快判统计上传本地 Node 调试服务；上传、合并与 CSV 写入仍在本目录，下载 / suppliers / existing 已开始复用统一 LabelX 下载 core。
 - `unfinished.md`：未完成能力、风险点和后续验证条件。
 
-## AI framework 桥接状态（2026-05-28）
+## AI framework 桥接状态
 
 - `POST /api/alibaba-labelx/asr-judgement/ai/suggest` 已改为通过 `platform-resources/backend/ai-framework/` route factory 驱动。
 - `platform-resources/alibaba-labelx/asr-judgement/ai/adapter.js` 负责：
@@ -30,7 +30,7 @@ extension/sites/alibaba-labelx/asr-judgement/
 - `GET /api/alibaba-labelx/asr-judgement/ai/health` 与 `GET /api/alibaba-labelx/asr-judgement/ai/defaults` 当前保持原有返回语义，本轮先做桥接式迁移。
 - 统计上传、existing 检查、suppliers、download 与 CSV 落盘链路本轮不动，仍保留在 `backend/`。
 
-## 下载链路共享 core 状态（2026-05-28）
+## 下载链路共享 core 状态
 
 - `GET/HEAD /api/alibaba-labelx/asr-judgement/statistics/download`
 - `GET /api/alibaba-labelx/asr-judgement/statistics/suppliers`
@@ -38,7 +38,7 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 以上 3 条链路已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core。
 - 当前快判脚本级差异已收口到 `platform-resources/alibaba-labelx/asr-judgement/data/adapter.js`。
 
-## AI 调用日志与统计（2026-05-28）
+## AI 调用日志与统计
 
 - 快判 AI 建议当前已默认记录成功 / 失败调用。
 - 日志文件：
@@ -56,7 +56,6 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 快判网络采集 `01` 到 `23`，以及待采集项和大页数负载测试片段。
 - 快判 AI 半自动建议接口：`/api/alibaba-labelx/asr-judgement/ai/health`、`/api/alibaba-labelx/asr-judgement/ai/suggest`。
 - AI 第一版模型固定走 `qwen3-omni-flash`（后续预留 `qwen3.5-omni-plus`）。
-- 当前扩展版本：`0.2.6`。
 - AI 文本 prompt 仅包含 `asrText1/asrText2`；`projectId/subTaskId/itemId/itemIndex/audioUrl` 不进入模型文本上下文。
 - `audioUrl` 仅用于模型音频输入字段。
 
@@ -66,9 +65,9 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 如果运行时代码仍引用旧路径，应同步更新对应 README，避免资料入口分裂。
 - `extension/sites/alibaba-labelx/asr-judgement/page-structure/` 不再保存快判页面结构；页面结构和网络采集内容统一维护在本目录。
 
-## 0.2.11 当前统计口径（快判）
+## 当前统计口径（快判）
 
-- 当前版本保持 `0.2.11`，本轮为小修正，不升级 `0.2.12`。
+- 本轮为小修正，不升级 `0.2.12`。
 - 统计主存储保持根级总表：`statistics-data/statistics-merged.csv`。
 - 不再主动创建 `statistics-data/suppliers/`；若本地已存在，属于旧方案残留，可忽略或手动清理。
 - CSV 供应商列动态策略：
@@ -86,9 +85,8 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 快判并发规则：`Math.floor(total/5)`，最小 `1`，最大 `999`（并发显示值需与实际一致）。
 - 快判上传已接入共享进度组件 `extension/shared/progress-indicator.js`，显示阶段、完成/总数、百分比、并发、成功/失败。
 
-## 0.2.11 中文乱码修正（CSV 健康值合并）
+## 中文乱码修正（CSV 健康值合并）
 
-- 当前版本保持 `0.2.11`，本轮不升级 `0.2.12`。
 - 统计 CSV 写入统一为 **UTF-8 with BOM**，提升 Excel 直接打开时的中文兼容性。
 - CSV 写出前会清理关键字段（任务名称、标注员/审核员、供应商）的前后空白、BOM、零宽字符。
 - 若旧 CSV 中存在 `�`（U+FFFD）损坏值，合并时优先采用新 payload 的健康值覆盖旧损坏值。
@@ -99,9 +97,8 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 转写与快判后端都使用同一套“中文清洗 + 健康值优先”策略。
 - 日志与错误信息继续脱敏，不记录 cookie、token、authorization、完整音频 URL。
 
-## 0.2.11 导出完整性与断点跳过增强
+## 导出完整性与断点跳过增强
 
-- 当前版本保持 `0.2.11`，本轮不升级 `0.2.12`。
 - 统计以 `分包ID` 作为关键定位点：分包ID 为空的数据直接废弃，不写入 CSV、不上传。
 - 后端新增 existing 检查接口（转写/快判）：
   - `POST /api/alibaba-labelx/asr-transcription/statistics/existing`
@@ -121,7 +118,7 @@ extension/sites/alibaba-labelx/asr-judgement/
 - CSV 继续使用 UTF-8 with BOM，单供应商不输出“供应商”列，多供应商在最后一列输出“供应商”。
 - 全流程继续脱敏：不记录 cookie、token、authorization、完整音频 URL。
 
-## 2026-05-10 0.2.11 失败判定修正
+## 失败判定修正
 - LabelX 统计按标注/审核分角色逐步合并：另一角色字段为空属于正常情况，不再判失败。
 - 只有 `分包ID` 为空时才直接废弃（discardedNoBatchId），不写 CSV、不上传。
 - `任务名称/任务ID/人员/领取时间/提交时间/有效时长` 为空默认记为 warning/incomplete，不阻断上传。
@@ -131,8 +128,7 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 统计主存储继续为根级 `statistics-data/statistics-merged.csv`，不主动创建 `statistics-data/suppliers/`。
 - 并发规则保持 `Math.floor(total / 5)`，最小 `1`，最大 `999`；定时上传保持 `10:00/16:00`，上传前随机延迟 `0~300s`（`100ms` 步进）。
 
-
-## 2026-05-10 0.2.11 complete/跳过修正
+## complete/跳过修正
 - `existing` 接口中 `exists=true` 不等于 `complete=true`；只有满足最低完整条件才可跳过。
 - 转写 `complete` 最低要求：`分包ID + 任务名称 + 任务ID + 题数 + 当前 role 对应子任务ID`。
 - 快判 `complete` 最低要求：`分包ID + 任务名称 + 任务ID + 题数 + 当前 role 对应子任务ID（label 为任一标注员槽位ID）`。
@@ -141,9 +137,8 @@ extension/sites/alibaba-labelx/asr-judgement/
 - 无待上传数据（`payloads.length=0`）时不调用 `/statistics/upload`，提示“已全部完整，无需上传”。
 - 上传进度板块宽度已增大（`min-width:560px`、`max-width:780px`、允许换行），四位数成功/失败数量可见。
 - 主存储仍为根级 `statistics-data/statistics-merged.csv`，不主动生成 `statistics-data/suppliers/`。
-- 版本保持 `0.2.11`。
 
-## 2026-05-10 0.2.11 existing/进度同步说明
+## existing/进度同步说明
 
 - 快判保持 `exists=true` 与 `complete=true` 分离判定，`complete=false` 必须继续补齐。
 - 快判进度样式同步共享组件：水平居中、完成态紧凑、四位数统计可见。

@@ -32,7 +32,7 @@
   - `direct_dialect`：直接识别方言文本
   - `mandarin_to_dialect`：先识别普通话，再结合闽南词表转换闽南语
 - 兼容旧字段：`aiReviewRecognitionMode=recognition_convert` 会映射为 `two_stage + mandarin_to_dialect`。
-- 2026-05-26：配置保存链路修复后，`aiReviewModelMode/aiReviewRecognitionStrategy` 为显式优先；legacy `recognition_convert` 仅用于无显式字段的迁移兜底，不再反向覆盖用户选择。
+- 配置保存链路修复后，`aiReviewModelMode/aiReviewRecognitionStrategy` 为显式优先；legacy `recognition_convert` 仅用于无显式字段的迁移兜底，不再反向覆盖用户选择。
 - options 已移除 `AI 质检模式` 展示，闽南语助手统一按 `modelMode + recognitionStrategy` 配置和保存。
 - 输出结构以“三项预测质检”为主：
   - `speakerCheck`（性别/年龄）

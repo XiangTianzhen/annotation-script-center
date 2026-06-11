@@ -1,60 +1,94 @@
 # platform-resources 总览
 
-## 目录定位
+`platform-resources/` 用于维护各平台资料、脚本后端实现和统一后端入口。
 
-`platform-resources/` 用于维护各平台资料与平台后端实现。
+## 文档入口
 
-- 统一后端入口：`platform-resources/backend/server.js`
-- 统一路由注册：`platform-resources/backend/registry.js`
-- 本目录不存放扩展运行时代码；扩展运行时代码在 `extension/`。
-- 当前 AI 消耗标准统一由共享价格配置 `config/pricing/aliyun-bailian-model-pricing.json` 驱动：已接入 AI 服务默认返回统一 `cost` 对象，AI 请求记录 CSV 一律使用中文表头，并按单阶段或多阶段拆列记录 token 与人民币估算。
+- 项目规则：`AGENTS.md`
+- 项目导航：`README.md`
+- 扩展源码说明：`extension/README.md`
+- 统一后端说明：`platform-resources/backend/README.md`
+- 平台与脚本索引：`docs/platforms-index.md`
+- 百炼官方文档入口：`docs/external-docs-aliyun-bailian.md`
 
-## 平台资料目录规则
+## 目录边界
 
-除根级统一后端 `platform-resources/backend/` 外，其余平台目录统一按以下结构收口：
+- `platform-resources/backend/`
+  - 统一后端入口、路由注册、公共 AI / 下载 / 管理能力
+- `platform-resources/<platform>/`
+  - 平台总览、共用资料、共用后端、脚本资料
+- 平台目录默认优先使用：
+  - `README.md`
+  - `backend/`
+  - `network/`
+  - `page-structure/`
+  - `<script-id>/`
+- 单脚本目录默认优先使用：
+  - `README.md`
+  - `backend/`
+  - `network/`
+  - `page-structure/`
 
-- `platform-resources/<platform>/README.md`
-- `platform-resources/<platform>/backend/`
-- `platform-resources/<platform>/network/`
-- `platform-resources/<platform>/page-structure/`
-- `platform-resources/<platform>/<script-id>/`
+## 参考文档规则
 
-脚本目录默认结构：
+- `network/` 与 `page-structure/` 只保留稳定参考文档，不保留过程型会话记录。
+- 目录里存在多份稳定参考页时，`README.md` 只做索引；目录里只有单份稳定参考时，允许直接由该单页承载。
+- 空占位目录继续只保留 `.gitkeep`，不为了形式补 README。
+- 过程型文件不再写进主参考目录：
+  - `pending-capture.md`
+  - `next-session-handoff.md`
+  - `playwright/devtools/readonly/retest` 一类复测记录
+- 历史过程统一写入 `log.md`；当前边界写回对应 README 或稳定参考页。
 
-- `README.md`
-- `backend/`
-- `network/`
-- `page-structure/`
+### 索引 README 模板
 
-仅做平台资料初始化、尚未接入运行时代码的平台可临时例外：
+- 固定章节：
+  - `目录定位`
+  - `适用范围 / 当前覆盖`
+  - `文件列表`
+  - `阅读顺序`
+  - `通用约定`
+  - `当前边界 / 待补项`
 
-- `platform-resources/<platform>/README.md`
-- `platform-resources/<platform>/network/`
-- `platform-resources/<platform>/page-structure/`
+### Network 单页模板
 
-约束：
+- 固定章节：
+  - `请求标识 / 目的`
+  - `页面入口 / 触发动作`
+  - `请求摘要`
+  - `请求体摘要`
+  - `响应摘要`
+  - `关键字段`
+  - `前端接入建议`
+  - `风险 / 未确认项`
 
-- 平台共用后端能力优先放平台根级 `backend/`。
-- 平台共用页面结构优先放平台根级 `page-structure/`。
-- 平台共用 Network 资料优先放平台根级 `network/`。
-- 仅脚本专属后端、词表、页面差异放脚本目录。
-- 未实际接入运行时代码前，不提前伪造 `backend/` 或 `<script-id>/` 目录。
-- 空目录使用 `.gitkeep`。
-- 不写入 token、cookie、authorization、完整签名 URL、真实敏感文本。
+### Page-structure 单页模板
 
-## 当前平台
+- 固定章节：
+  - `页面标识 / 路由 / 前置条件`
+  - `页面总览`
+  - `DOM 树 / 区域结构`
+  - `稳定选择器表`
+  - `动态区域 / 重渲染风险`
+  - `可挂载点建议`
+  - `页面区域与接口映射`
+  - `写操作边界 / 未确认项`
+
+### 通用写法
+
+- 只写当前有效结论，不写日期型历史流水。
+- 章节顺序和字段命名保持固定，方便 AI 和人工快速扫读。
+- 必须明确稳定锚点、禁止依赖项、脱敏规则和未确认边界。
+
+## 当前平台入口
 
 ### Alibaba LabelX
 
 - 目录：`platform-resources/alibaba-labelx/`
-- 平台共用：
+- 平台共用资料：
   - `backend/`
   - `network/README.md`
   - `page-structure/README.md`
-- 当前共享后端收口：
-  - 转写与快判的 `download / suppliers / existing` 已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core。
-  - 脚本级差异分别收口在各自 `data/adapter.js`。
-  - 转写与快判 AI 调用当前都已默认记录脚本级 CSV，并分别开放 `logs/summary` 统计接口；AI 消耗当前统一按共享价格配置返回 `cost` 并导出中文表头 CSV。
 - 脚本：
   - `asr-judgement/`
   - `asr-transcription/`
@@ -62,102 +96,71 @@
 ### DataBaker
 
 - 目录：`platform-resources/data-baker/`
-- 平台共用（当前为预留目录）：
+- 平台共用资料：
   - `backend/`
   - `network/`
   - `page-structure/`
-- 当前共享后端收口：
-  - `export/download` 已开始复用 `platform-resources/backend/project-data-download/` 下的通用 CSV 文件下载 core。
-  - 脚本级差异收口在 `round-one-quality/data/adapter.js`。
-  - DataBaker 导出字段映射、upload 字段归一、CSV helper、merge helper、latest/history/events 持久化 helper、history 读取 helper、下载 helper 和脱敏样例已开始收口到 `round-one-quality/data/field-mappings.js`、`data/scripts/`、`data/assets/`。
-  - DataBaker AI recommend 当前已默认记录脚本级 CSV，并开放 `logs/summary` 统计接口；AI 消耗当前统一按共享价格配置返回 `cost` 并导出中文表头 CSV。
 - 脚本：
   - `round-one-quality/`
-- 闽南语词表：`platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv`
+
+### DataBaker CVPC
+
+- 目录：`platform-resources/data-baker-cvpc/`
+- 平台共用资料：
+  - `network/`
+  - `page-structure/`
+- 脚本：
+  - `liuzhou-helper/`
 
 ### Magic Data
 
 - 目录：`platform-resources/magic-data/`
-- 平台共用：
+- 平台共用资料：
   - `backend/`
   - `network/`
   - `page-structure/`
 - 脚本：
   - `hakka-helper/`
   - `minnan-helper/`
-- 旧接口兼容：`/api/magic-data/annotator/ai/*`（转发到客家话助手链路）
-- 两个 AI 助手当前都已默认记录脚本级 CSV，并开放 `logs/summary` 统计接口。
 
 ### Abaka AI
 
 - 目录：`platform-resources/abaka-ai/`
-- 平台共用：
+- 平台共用资料：
   - `backend/`
-  - `network/`（含 `platform.md` 与 `task-page/` 公共请求）
-  - `page-structure/`（含 `platform.md`、`actions.md`、`i18n.md`）
+  - `network/`
+  - `page-structure/`
 - 脚本：
   - `task-page/`
   - `task17/`
   - `task21/`
-- `task21/` 当前已默认记录 AI analyze 调用 CSV，并开放 `logs/summary` 统计接口。
 
 ### Aishell Tech
 
 - 目录：`platform-resources/aishell-tech/`
-- 当前阶段：闽南语助手与越南语助手都已接入运行时代码与专属后端；平台公共资料和脚本资料继续并行维护。
-- 平台资料：
-  - `README.md`
+- 平台共用资料：
   - `network/README.md`
   - `page-structure/README.md`
-- 脚本级 AI 日志：
-  - `platform-resources/aishell-tech/minnan-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`
-  - `platform-resources/aishell-tech/vietnamese-helper/data/runtime/ai-calls-YYYY-MM-DD.csv`
-- 统计接口：
-  - `GET /api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
-  - `GET /api/aishell-tech/vietnamese-helper/ai/recommend/logs/summary`
+- 脚本：
+  - `minnan-helper/`
+  - `vietnamese-helper/`
 
-### DataBaker CVPC
+## 统一后端边界
 
-- 目录：`platform-resources/data-baker-cvpc/`
-- 当前脚本：
-  - `liuzhou-helper/`
-- 当前状态：
-  - `beta` 首版已接入扩展运行时与独立后端。
-  - 规则资产位于 `liuzhou-helper/ai/assets/`。
-  - 当前只支持“建议生成 + 人工确认”；真实画段写入契约仍待补采。
-
-## 后端接口边界
-
-- 根级 `platform-resources/backend/` 是统一后端基础设施目录，不按平台模板重排。
-- 平台实现通过 `platform-resources/backend/registry.js` 注册。
 - 不新增独立后端服务；所有接口由统一后端进程承载。
+- 平台实现通过 `platform-resources/backend/registry.js` 注册。
+- 公共 AI 能力、公共下载能力、管理接口优先收口到 `platform-resources/backend/`。
+- 平台特有逻辑优先放在对应平台或脚本目录，再通过 registry 接入统一后端。
 
-## 当前迁移文档
+## AI 与日志当前口径
 
-- AI 框架设计：`docs/architecture/2026-05-28-platform-resources-ai-framework-design.md`
-- AI 框架迁移计划：`docs/architecture/2026-05-28-platform-resources-ai-framework-migration-plan.md`
-- Aishell Tech 当前已进入双脚本运行态，但仍保持与其余平台不同的脚本级日志目录：`data/runtime/`。
+- 共享价格配置：`config/aliyun-bailian-model-pricing.json`
+- 已接入 AI 服务的脚本默认返回统一 `cost` 对象。
+- AI 请求记录 CSV 默认使用中文表头。
+- 详细接口、日志目录与脚本差异继续查看对应平台 / 脚本 README。
 
-## 当前 AI 调用日志覆盖范围
+## 说明
 
-- DataBaker：`/api/data-baker/round-one-quality/ai/recommend/logs/summary`
-- DataBaker CVPC：`/api/data-baker-cvpc/liuzhou-helper/ai/recommend/logs/summary`
-- Aishell Tech 闽南语：`/api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
-- Aishell Tech 越南语：`/api/aishell-tech/vietnamese-helper/ai/recommend/logs/summary`
-- Magic Data 客家话：`/api/magic-data/hakka-helper/ai/review-current/logs/summary`
-- Magic Data 客家话 legacy：`/api/magic-data/annotator/ai/review-current/logs/summary`
-- Magic Data 闽南语：`/api/magic-data/minnan-helper/ai/review-current/logs/summary`
-- LabelX 快判：`/api/alibaba-labelx/asr-judgement/ai/suggest/logs/summary`
-- LabelX 转写：`/api/alibaba-labelx/asr-transcription/ai/suggest-current/logs/summary`
-- Abaka Task21：`/api/abaka-ai/task21/ai/analyze/logs/summary`
-- 统一查看入口：options 首页隐藏高级区当前已补齐“AI 请求记录”面板，后端聚合接口为：
-  - `GET /api/admin/ai-call-log/options`
-  - `POST /api/admin/ai-call-log/request`
-  - `GET /api/admin/ai-call-log/file?token=...`
-  - 当前 `options` 只返回脚本类型，不提前暴露日志存在性与日期范围；日期筛选在导出请求阶段处理。
-
-## 安全边界
-
-- AI 仅作辅助，不自动保存、不自动提交、不自动领取、不自动审核、不自动流转。
-- 日志与文档必须脱敏，不记录敏感凭据和完整签名资源 URL。
-- 运行数据目录（如 `statistics-data/`、`export-data/`、`logs/`）仅用于本地/服务器运行，不提交敏感内容。
+- 本 README 只保留目录契约和入口。
+- 各平台当前能力、接口、页面差异、后端细则统一下钻到对应 README。
+- 历史过程、迁移记录、热修流水统一查看 `log.md`。

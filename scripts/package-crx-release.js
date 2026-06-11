@@ -26,7 +26,7 @@ const UPDATE_XML_FILENAME = `${APP_NAME}-update.xml`;
 const DEFAULT_UPDATE_XML_URL = `${DEFAULT_DOWNLOAD_BASE_URL}${UPDATE_XML_FILENAME}`;
 const CRX_LATEST_FILENAME = `${APP_NAME}-crx-latest.json`;
 const DEFAULT_MIN_AGENT_VERSION = "0.1.0";
-const RELEASE_CONFIG_PATH = path.join(REPO_ROOT, "config", "release", "package-crx-release.json");
+const RELEASE_CONFIG_PATH = path.join(REPO_ROOT, "config", "package-crx-release.json");
 const RELEASE_LOCAL_CONFIG_PATH = path.join(
   REPO_ROOT,
   "config",

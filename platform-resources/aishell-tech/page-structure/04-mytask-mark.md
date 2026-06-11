@@ -1,80 +1,20 @@
 # 04-数据标注 DOM 结构
 
+## 页面标识 / 路由 / 前置条件
+
 - 路由：`/mytask/mark?taskId=<taskId>&packageId=<packageId>`
 - 主容器：`.mark-container`
 - 框架：Vue 2 + Element UI + Wavesurfer.js (canvas)
 
-## 整体布局
+## 页面总览
 
-```
-.mark-container
-└── .el-card
-    └── el-row (flex)
-        ├── el-col (左 30%)             ← 文件列表
-        └── el-col (右 70%)             ← 主工作区
-            ├── .fileName-line           ← 文件名行
-            ├── timeline + waveform      ← 音频播放器
-            ├── .mark-area               ← 标注表单
-            └── .check-area (display:none) ← 质检表单
-```
+- 当前页主要记录稳定区域、可见文案和角色边界。
 
-## 左侧：文件列表
+## DOM 树 / 区域结构
 
-- 容器：`.list` → `.el-card`
-- 头部：
-  - 返回按钮：`i.el-icon-back` + `a.el-link`（"返回"）
-  - 进度：`<span> N / 86 </span>`（已完成数 / 总数）
-- 列表项状态类：
-  - `list-item`：未选中普通状态
-  - `list-item-selected`：当前选中
-  - `list-item-finshed`：已完成标注（保存后自动标）
-- 条目按钮：`button.el-button--text.el-button--small` → `<span>` 内文字格式 `序号: ...文件名截断.wav`
-- 翻页按钮：
-  - 上一条：`button` 含 `.i-icon-left` + "上一条"
-  - 下一条：`button` 含 `.i-icon-right` + "下一条"
+- 当前文件未补充完整 DOM 树；后续仅记录稳定区域结构。
 
-### 保存后行为
-
-保存 `SaveShortMark` 成功后 → 条目自动加上 `list-item-finshed` 类 → 自动跳到下一个条目。
-
-## 右侧上部：文件名行
-
-- 容器：`.fileName-line`
-- 序号 + 文件名 `<span>`
-- 操作按钮（右侧）：
-  - `button.el-button--text` "删除音频标点"
-  - `button.el-button--text` "查看历史标注记录"（弹窗 `.el-dialog__title`="标注历史记录"）
-
-## 右侧中部：音频播放器
-
-- 容器：`.line.el-row`
-- 时间轴：`#timeline` → `<canvas>`
-- 波形图：`#waveform` → `<wave>` → `<canvas>`
-- 播放按钮：`button.el-button--primary`（播放时为 `.i-icon-play` + "播放"，播放中为 `.i-icon-pause-one` + "暂停"）
-- 控制栏 `.controls-bar`：
-  - 引擎：`.backend-select`（自动/WebAudio/MediaElement）
-  - 倍速：`.speed-select`（0.25x~8x）
-  - 缩放：`.zoom-select`（1x~5x）
-  - 音量：`.volume-slider`（el-slider 0~1）
-
-## 右侧下部：标注表单
-
-- 容器：`.mark-area`
-- 有效音频按钮：`button.el-button--success` "有效音频"
-- 表单 `form.el-form`：
-  - 标注时长：`label`="标注时长"（`-` 或已有时长）
-  - 原始文本：`label`="原始文本"（平台参考文本）
-  - **文本输入**：`input.el-input__inner[type="text"]`（`is-required`）
-  - **保存按钮**：`button.el-button--primary` 含文字"保存"
-
-## 右侧下部（隐藏）：质检表单
-
-- 容器：`.check-area[style*="display: none"]`（默认隐藏，仅质检员可见）
-- 标题：`h3` "待质检"
-- 质检意见：`textarea.el-textarea__inner`
-- 保存按钮：`button.el-button--primary` "保存"
-
-## 关键选择器速查
+## 稳定选择器表
 
 | 目标 | 选择器 |
 |------|--------|
@@ -93,11 +33,18 @@
 | 质检意见 | `.check-area textarea.el-textarea__inner` |
 | 文件名 | `.fileName-line span`（第一个） |
 
-## 数据同步原则
+## 动态区域 / 重渲染风险
 
-填入文本时必须触发原生事件：
-```javascript
-el.value = text;
-el.dispatchEvent(new Event('input', { bubbles: true }));
-el.dispatchEvent(new Event('change', { bubbles: true }));
-```
+- 当前页存在状态切换和局部重绘风险；避免依赖瞬时 class 和顺序定位。
+
+## 可挂载点建议
+
+- 如需挂载扩展 UI，优先选择宿主页面外层安全区域，不覆盖原生写操作控件。
+
+## 页面区域与接口映射
+
+- 当前文件未补充更细的接口映射；新增时只记录稳定区域与请求族对应关系。
+
+## 写操作边界 / 未确认项
+
+- 写操作默认维持人工确认边界；未确认链路不得按文案直接推断。

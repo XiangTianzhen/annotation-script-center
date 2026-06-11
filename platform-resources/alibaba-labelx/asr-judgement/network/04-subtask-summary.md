@@ -1,15 +1,15 @@
 # GET /api/v1/label/center/subTask/{subTaskId}/summary
 
-## 请求目的
+## 请求标识 / 目的
 
 该请求返回当前子任务的简要统计信息。
 
-## 触发操作
+## 页面入口 / 触发动作
 
 - 打开详情页。
 - 刷新详情页。
 
-## 请求记录
+## 请求摘要
 
 - Method：`GET`
 - URL：`/api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/summary`
@@ -18,14 +18,11 @@
 - Request Body：无。
 - Status：`200`
 
-## 脱敏请求示例
+## 请求体摘要
 
-```http
-GET /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/summary?_=<REDACTED_TIMESTAMP>
-Cookie: <REDACTED>
-```
+- 当前记录未见独立 request body；以路径参数或 query 为主。
 
-## 脱敏响应示例
+## 响应摘要
 
 ```json
 {
@@ -42,17 +39,17 @@ Cookie: <REDACTED>
 }
 ```
 
-## 字段推断
+## 关键字段
 
 - `data.id` 是当前子任务 ID。
 - `total` 是当前子任务样本总数。
 - `mistakeCount` 是异常或错误样本计数。
 
-## Content Script 建议
+## 前端接入建议
 
 - 可作为辅助进度信息来源。
 - 核心样本详情仍应来自 `03-subtask-data.md` 记录的 `data` 接口。
 
-## 未确认项
+## 风险 / 未确认项
 
 - 提交任务后 `summary` 是否更新 `gmtCommit` 或其他字段未采集。

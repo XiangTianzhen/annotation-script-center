@@ -1,47 +1,43 @@
-# Abaka AI Task21 专项网络采集索引
-
+# Abaka AI / Task21 Network参考索引
 ## 目录定位
 
-本目录只维护 Task21 `same_font` 专项请求。Task 页面公共请求已上移到 `../../network/`，避免 Task17 / Task21 重复维护同一套 Data 页和状态流转文档。
+- 目录：`platform-resources/abaka-ai/task21/network`
+- 类型：Network 稳定参考索引。
+- 本目录只保留当前有效结论，不再承载会话交接、复测流水或历史过程文档。
 
-## 当前阶段
+## 适用范围 / 当前覆盖
 
-本目录记录通过 Google Chrome DevTools MCP 采集到的 Task21 专项标签保存结构。当前已覆盖：
-
-- `same_font` 单选保存。
-- `image_b_texts_removed` 派生字段保存。
-- `other_changes` 枚举保存。
-- `other_changes` textarea 自由文本暂存保存。
-- AI 调试分析后端调用（统一后端路由）。
-
-## 来源页面
-
-- Task21 标注页：`/items?version=latest&taskId={taskId}&itemId={itemId}&nodeId={nodeId}`
+- 当前保留 5 份稳定参考页。
+- 当前目录聚焦接口入口、请求摘要、响应结构、接入建议和风险边界。
+- 过程型记录已移出主参考目录；如需追加历史过程，统一写入 `log.md`。
 
 ## 文件列表
 
-| 文件 | 请求 / 行为 | 说明 |
-| --- | --- | --- |
-| `05-items-view-init.md` | `/api/v2/item/get-item-info`（viewMode） | Task21 查看页图片/文本/位置脱敏结构 |
-| `06-items-label-init.md` | `/api/v2/item/get-item-info`（label） | Task21 标注页图片/文本/位置脱敏结构与采集策略 |
-| `08-label-save-labels.md` | `/api/v2/label/save-labels` | same_font 和派生字段保存 |
-| `../backend/ai/README.md` | `/api/abaka-ai/task21/ai/*` | Task21 AI 分析调试接口 |
-| `../../network/README.md` | 公共网络入口 | Data 页、领取、查看、状态流转、语言、资源 |
+| 文件 | 说明 |
+| --- | --- |
+| `05-items-view-init.md` | POST /api/v2/item/get-item-info（Task21 查看页脱敏结构） |
+| `06-items-label-init.md` | POST /api/v2/item/get-item-info（Task21 标注页脱敏结构） |
+| `08-label-save-labels.md` | POST /api/v2/label/save-labels |
+| `11-submit-review.md` | Task21 送审按钮链路（快捷键 7） |
+| `task21.md` | Abaka AI Task21 专项网络请求概览（脱敏） |
 
-## 脱敏规则
+## 阅读顺序
 
-- 不记录完整 cookie、token、authorization、session、password、secret、signature。
-- 不记录完整图片、音频、文件、对象存储 URL 或 base64 data URL。
-- 不记录测试账号、人员姓名、客户原始文本内容。
-- 所有真实 ID 统一写成 `{taskId}`、`{itemId}`、`{nodeId}`、`{roleId}`、`{selectId}` 或 `<REDACTED_*>`。
-- 保存请求里如果包含标签内容，只保留字段名、枚举值和结构。
+- 先读本索引，再按文件名顺序下钻到对应单页参考。
+1. `05-items-view-init.md`
+2. `06-items-label-init.md`
+3. `08-label-save-labels.md`
+4. `11-submit-review.md`
+5. `task21.md`
 
-## Content Script 总体建议
+## 通用约定
 
-- 默认只被动监听 XHR/fetch。
-- 不主动调用保存、提交、领取、放弃、跳过、送审、恢复接口。
-- 状态变更必须人工确认。
-- AI 建议只辅助展示，不自动保存或提交。
-- 对 `save-labels` 只记录脱敏结构和结果，不记录完整 payload。
-- AI 面板前端只请求统一后端 `/api/abaka-ai/task21/ai/analyze`，不直接请求 Abaka 平台保存/提交接口。
+- 只记录当前有效结论，不写日期型历史流水。
+- 路径、字段名、选择器、按钮文案都按脱敏后的稳定锚点记录。
+- 单页参考固定使用 `请求标识 / 目的 -> 页面入口 / 触发动作 -> 请求摘要 -> 请求体摘要 -> 响应摘要 -> 关键字段 -> 前端接入建议 -> 风险 / 未确认项` 顺序。
+- 不记录 token、cookie、authorization、完整签名 URL、真实敏感文本。
 
+## 当前边界 / 待补项
+
+- 新增缺口时，先补稳定参考结论，再同步更新对应平台 README 或 `log.md`。
+- 如果目录当前没有专属差异，保持空目录或由父级 README 说明，不额外制造占位文档。

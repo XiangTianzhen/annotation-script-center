@@ -1,20 +1,20 @@
 # POST /api/v2/label/save-labels 暂存 / Save
 
-## 请求目的
+## 请求标识 / 目的
 
 记录 Task21 标注页 `Save` 按钮。实测 `Save` 复用 `/api/v2/label/save-labels`。
 
-## 触发操作
+## 页面入口 / 触发动作
 
 选择 same_font 和派生字段后点击底部 `Save`。
-
-## 操作前页面状态
 
 - same_font 已选择 `true`。
 - `image_b_texts_removed` 已选择 `true`。
 - `other_changes` 已选择 `unsure`。
 
-## 请求记录
+页面出现 `Staging` 提示。
+
+## 请求摘要
 
 - Method：`POST`
 - URL：`/api/v2/label/save-labels`
@@ -23,9 +23,9 @@
 - Request Header 摘要：敏感字段已脱敏。
 - Query keys：无。
 
-## 脱敏请求体摘要
+## 请求体摘要
 
-    {
+{
       "nodeId": "{nodeId}",
       "itemId": "{itemId}",
       "taskId": "{taskId}",
@@ -43,16 +43,11 @@
           {
             "label": "Annotation Area_same_font_true_other_changes",
             "value": "unsure"
-          }
-        ],
-        "update": [],
-        "delete": []
-      }
-    }
+- 其余重复细节已省略；如需补充，只保留当前有效结论。
 
-## 脱敏响应示例
+## 响应摘要
 
-    {
+{
       "code": 0,
       "data": {
         "insertData": [
@@ -69,23 +64,15 @@
       }
     }
 
-## 后续请求链路
-
-未观察到强制刷新标签列表；页面停留当前条。
-
-## 页面反馈
-
-页面出现 `Staging` 提示。
-
-## 字段推断
+## 关键字段
 
 `Save` 是暂存按钮，底层与标签保存接口一致。
 
-## Content Script 建议
+## 前端接入建议
 
 后续扩展不要主动调用。若提供快捷键，只能触发页面原生按钮并要求人工确认。
 
-## 未确认项
+## 风险 / 未确认项
 
 - 暂存失败响应待补。
 - 中文按钮文案和 Toast 待补。

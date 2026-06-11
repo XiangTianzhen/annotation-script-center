@@ -1,5 +1,7 @@
 # 01-首页 网络请求
 
+## 请求标识 / 目的
+
 - 页面路由：`/index`
 - 前端框架：Vue 2 + Element UI
 - 访问方式：登录后默认跳转
@@ -12,24 +14,21 @@
 | 1 | POST | `/api/account/info` | 当前用户信息与角色（同其他页） |
 | 2 | **GET** | `/api/Statistics/GetIndexStatistics` | **首页专属** 统计总览 |
 | 3 | GET | `/api/task/myMarkList?page=1&size=15` | 我的任务列表第一页（同任务列表页） |
+- 其余重复细节已省略；如需补充，只保留当前有效结论。
 
----
+## 页面入口 / 触发动作
 
-## 请求 1：当前用户信息
+- 当前文件未补充额外入口说明；默认按对应页面自然加载或用户显式操作触发。
 
-POST `https://markapi.aishelltech.com/api/account/info`
+## 请求摘要
 
-与 `02-mytask-index` 中的请求 1 完全一致，不重复记录。
+- 当前文件未补充更细的请求摘要。
 
----
+## 请求体摘要
 
-## 请求 2：首页统计总览（首页专属）
+- 当前记录未见独立 request body；以路径参数或 query 为主。
 
-- **方法**：GET
-- **URL**：`https://markapi.aishelltech.com/api/Statistics/GetIndexStatistics`
-- **无请求参数**
-
-### 响应结构
+## 响应摘要
 
 ```json
 {
@@ -57,21 +56,9 @@ POST `https://markapi.aishelltech.com/api/account/info`
       ],
       "users": [                       // 标注员排行榜
         {
-          "MarkUserName": "AS001-4",   // 标注员名（采集员为 null）
-          "markcount": "10173",        // 标注数（采集员为 "0"）
-          "collectcount": "0",         // 采集数（标注员为 "0"）
-          "CheckUserName": null,       // 质检员名（仅质检员行有值）
-          "checkcount": null           // 质检数（仅质检员行有值）
-        }
-      ],
-      "citys": []                      // 城市维度（当前为空）
-    },
-    "isSucceed": true
-  }
-}
-```
+- 其余重复细节已省略；如需补充，只保留当前有效结论。
 
-### 字段说明
+## 关键字段
 
 - `total`：用户维度的全局聚合统计，部分字段使用字符串类型
 - `latest30days`：按日期分组的近 30 天标注量趋势，`passcount`/`failcount` 当前为 null
@@ -80,8 +67,10 @@ POST `https://markapi.aishelltech.com/api/account/info`
 
 ---
 
-## 请求 3：我的任务列表
+## 前端接入建议
 
-GET `https://markapi.aishelltech.com/api/task/myMarkList?page=1&size=15`
+- 接入时优先复用当前页已有稳定锚点，只做只读监听或最小范围辅助。
 
-与 `02-mytask-index` 中的请求 2 完全一致，字段结构见该文档。
+## 风险 / 未确认项
+
+- 文档只保留当前有效结论；新增缺口统一回写稳定参考页或 `log.md`。

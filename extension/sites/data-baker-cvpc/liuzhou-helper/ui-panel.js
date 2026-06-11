@@ -10,11 +10,22 @@
     (typeof module !== "undefined" && module.exports
       ? require("../../../shared/lexicon-display.js")
       : {});
+  const aiBatchSummary =
+    globalThis.ASREdgeAiBatchSummary ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/ai-batch-summary.js")
+      : {});
   const formatLexiconStatusAndMode =
     typeof lexiconDisplay.formatLexiconStatusAndMode === "function"
       ? lexiconDisplay.formatLexiconStatusAndMode
       : function () {
           return "";
+        };
+  const buildBatchSummaryRows =
+    typeof aiBatchSummary.buildBatchSummaryRows === "function"
+      ? aiBatchSummary.buildBatchSummaryRows
+      : function () {
+          return [];
         };
 
   function normalizeText(value) {
@@ -1260,7 +1271,11 @@
             ? "第 " + String(Number(source.currentSegmentNumber)) + " 段"
             : "-") +
           "</div>",
-      ];
+      ].concat(
+        buildBatchSummaryRows(source).map(function (item) {
+          return "<div>" + String(item[0]) + "：" + String(item[1]) + "</div>";
+        })
+      );
       summary.innerHTML = summaryLines.join("");
       batchStateNode.appendChild(summary);
 

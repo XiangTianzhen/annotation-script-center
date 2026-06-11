@@ -1,12 +1,24 @@
 # 04-任务详情 网络请求
 
+## 请求标识 / 目的
+
 - 页面路由：`/mytask/detail/<taskId>`
 - 访问方式：我的任务列表 → 点击任务名称
 
-## 请求 1：任务详情
+## 页面入口 / 触发动作
 
-- **方法**：GET
-- **URL**：`https://markapi.aishelltech.com/api/task/detail/<taskId>`
+- 当前文件未补充额外入口说明；默认按对应页面自然加载或用户显式操作触发。
+
+## 请求摘要
+
+- 当前文件未补充更细的请求摘要。
+
+## 请求体摘要
+
+- 当前记录未见独立 request body；以路径参数或 query 为主。
+
+## 响应摘要
+
 - **响应关键字段**：
   - `data.result.id`：任务 ID
   - `data.result.taskName`：任务名称
@@ -20,21 +32,16 @@
   - `data.result.assignedTeamName`：分配团队
   - `data.result.acceptTime`：接收时间
   - `data.isSucceed`：是否成功
-
-## 请求 2：分包列表
-
-- **方法**：GET
-- **URL**：`https://markapi.aishelltech.com/api/task/packageList?taskId=<taskId>&page=1&size=20`
-- **分页参数**：`page` + `size`（同列表页分页格式）
 - **响应关键字段**：
-  - `data.result.totalCount`：总分包数
-  - `data.result.items[].id`：分包 ID（`packageId`，跳转数据标注页用）
-  - `data.result.items[].totalItemsCount`：总条目数（如 86）
-  - `data.result.items[].markItemsCount`：已标注条目数
-  - `data.result.items[].packageStatusType`：分包状态（1=进行中）
-  - `data.result.items[].packageCheckStatus`：质检状态（0=未质检）
-  - `data.result.items[].markUserName`：标注人员
 
-## 跳转数据标注页
+## 关键字段
 
-URL 格式：`/mytask/mark?taskId=<taskId>&packageId=<packageId>`
+- 当前重点继续以路径、query、响应字段名和脱敏占位为主。
+
+## 前端接入建议
+
+- 接入时优先复用当前页已有稳定锚点，只做只读监听或最小范围辅助。
+
+## 风险 / 未确认项
+
+- 文档只保留当前有效结论；新增缺口统一回写稳定参考页或 `log.md`。

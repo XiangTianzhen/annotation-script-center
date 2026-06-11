@@ -111,7 +111,7 @@ round-one-quality/
   - Omni：默认 `5`，范围 `1~25`
   - Fun-ASR：默认 `5`，范围 `1~50`
 - 前端和后端都会对超范围值做归一；这里的“前端并发”表示浏览器同时维持多少个在途 AI 请求窗口，AI 一旦返回就会补发下一条，不是“等保存完成后才补位”的节流器。DataBaker Qwen Omni 当前默认按前端并发直接请求，后端不再对 Omni legacy 上游做平滑排队；Fun-ASR REST 不在本次调整范围。
-- 运行中顶部悬浮窗会显示：`前端并发`、`已发起AI请求`、`前端活跃AI请求`、`AI已返回`、`待填队列`，用于判断是前端没发起并发，还是后端 Fun-ASR / compare 阶段在排队。
+- 运行中顶部悬浮窗会显示：`前端并发`、`已发起AI请求`、`前端活跃AI请求`、`AI已返回`、`待填队列`，以及实时累计的 `批量输入Token / 批量输出Token / 批量总Token / 批量预估人民币`，用于区分是前端没发起并发、后端排队，还是本轮 AI 消耗已经累积到什么程度。
 - 悬浮窗中的 `前端并发` 会显示实际归一后的值；若当前是 `two_stage + fun-asr`，请求体还会附带 `frontConcurrency / batchConcurrency / concurrencyModelType` 诊断字段，便于后端排查。
 - 配置快捷键，默认全部未设置。支持动作：AI 推荐文本、复制 AI 听音文本、复制 AI 推荐文本、填入推荐文本、忽略 AI 推荐结果、句子判定合格 / 不合格、任务判定通过 / 部分驳回 / 全部驳回。
 - 普通输入不会被快捷键拦截；如果焦点停留在“本句话文本”输入框，只有按下已配置快捷键时才会自动 blur 输入框并执行动作。
@@ -309,29 +309,27 @@ platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon
   - 调用参数错误
   临时恢复使用时，优先切换到 `qwen3.5-omni-plus` 或 `qwen3.5-omni-flash`。
 
-
-
-## 2026-05-21 导出 CSV 字段命名修复
+## 导出 CSV 字段命名修复
 
 - DataBaker 分组导出的人员字段改为 `质检人_P`。
 - 参与有效合格时长统计的字段改为 `有效合格时长_S`。
 - `采集人`、`有效总时长`、`有效不合格时长` 保持原口径，不追加 `_P` / `_S`。
 - `_S` 表示参与时长统计 / 结算的字段，`_P` 表示人员字段。
 
-## 2026-05-21 批量连续填入 tasks 作用域热修
+## 批量连续填入 tasks 作用域热修
 
 - 修复 `AI并发分析并连续填入合格项` 中 `tasks is not defined` 的前端运行时错误。
 - 根因是批量悬浮窗摘要函数在 `tasks` 作用域外直接读取 `tasks.length`；现在改为只使用 `plannedSendCount / totalCount` 等安全摘要字段。
 - 批量流程仍保持：短请求创建 jobs、`50ms` 错峰；前端并发按模型动态归一，Omni 默认 `15` / `1~25`，Fun-ASR 默认 `25` / `1~50`。
 - 扩展重载后需要刷新 DataBaker 业务页面，再重新测试，避免旧 content script 仍驻留。
 
-## 2026-05-21 Omni legacy 快速路径热修
+## Omni legacy 快速路径热修
 
 - 修复 `loadFailureDebugJson is not defined`：失败列表继续保留原始调试入口，没有 debug 数据时会提示“当前失败项没有可查看的原始 AI 返回。”。
 - `qwen3.5-omni-flash` / `qwen3.5-omni-plus` 默认走 Omni legacy 快速路径，参考提交 `9677e4cea98de222b70f89c9e0af1d89971dc471`。
 - Omni legacy 快速路径的目标是先恢复基础速度和稳定性；`fun-asr` 仍走当前 Node REST provider，不受该路径影响。
 
-## 2026-05-21 批量失败原始 AI 返回可观测性
+## 批量失败原始 AI 返回可观测性
 
 - DataBaker 批量失败列表新增“查看原始AI返回”按钮，点击后会弹出脱敏后的 debug JSON 文本悬浮窗，并提供复制按钮。
 - 同步 `POST /api/data-baker/round-one-quality/ai/recommend` 失败时，如果属于 `qwen-empty-response`、`model-json-parse-failed`、`provider-http-error` 等可观测错误，会返回 `hasRawAiDebug=true` 和 `debugId`。
@@ -339,7 +337,7 @@ platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon
 - debug 内容不包含完整音频 URL、签名 URL、cookie、token、authorization、API Key；超长原始响应会截断。
 - 当前前端默认走 `POST /ai/recommend/jobs`、`50ms` 错峰；前端并发按模型动态归一，同步 recommend 只保留兼容回退。
 
-## 2026-05-21 Qwen burst rate SSE 误报热修
+## Qwen burst rate SSE 误报热修
 
 - `qwen3.5-omni-flash / qwen3.5-omni-plus` 的 Omni legacy 快速路径现在会识别 SSE `data: {"error": ...}`，尤其是 `limit_burst_rate`。
 - `limit_burst_rate` 表示 Qwen 请求增长过快的上游突发限流，不属于真实空响应，也不是 JSON 解析失败。
@@ -354,4 +352,3 @@ platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon
 - 前端同一批次会先按 `processKey` 去重，重复任务只保留第一条，并在悬浮窗显示“唯一任务数 / 重复跳过”。
 - 页面级全局锁 `window.__ASC_DATABAKER_ROUND_ONE_BATCH_LOCK__` 会阻止旧 content script、多 runtime 或双击按钮在 5 分钟内重复启动第二批任务。
 - 扩展重载后需要刷新 DataBaker 业务页面再测试，否则旧 content script 仍可能保留。
-

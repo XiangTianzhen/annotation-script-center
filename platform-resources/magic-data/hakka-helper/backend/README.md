@@ -47,7 +47,7 @@
 - `MAGIC_DATA_HAKKA_AI_MOCK`（fallback: `MAGIC_DATA_AI_MOCK`）
 - `MAGIC_DATA_HAKKA_AI_CALL_LOG_DIR`（fallback: `MAGIC_DATA_AI_CALL_LOG_DIR`）
 
-## 默认配置（2026-05-25 评测落地）
+## 默认配置
 
 - `modelMode`: `two_stage`
 - `recognitionStrategy`: `direct_dialect`

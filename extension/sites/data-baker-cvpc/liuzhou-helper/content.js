@@ -15,6 +15,30 @@
   const shortcutFactory = globalThis.ASREdgeDataBakerCvpcLiuzhouShortcuts || null;
   const concurrentRequestStreamFactory = globalThis.ASREdgeConcurrentAiRequestStream || null;
   const editingTabTipGuardApi = globalThis.ASREdgeDataBakerCvpcEditingTabTipGuard || null;
+  const aiBatchSummary =
+    globalThis.ASREdgeAiBatchSummary ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/ai-batch-summary.js")
+      : {});
+  const createBatchSummaryAccumulator =
+    typeof aiBatchSummary.createBatchSummaryAccumulator === "function"
+      ? aiBatchSummary.createBatchSummaryAccumulator
+      : function () {
+          return {
+            addResult: function () {},
+            getSnapshot: function () {
+              return {
+                batchResultCount: 0,
+                batchPromptTokens: null,
+                batchCompletionTokens: null,
+                batchTotalTokens: null,
+                batchEstimatedCostCny: null,
+                batchHasUsageData: false,
+                batchHasPriceData: false,
+              };
+            },
+          };
+        };
   const SCRIPT_ID =
     CONSTANTS.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID || "dataBakerCvpcLiuzhouAssistant";
   const AI_PATH =
@@ -574,7 +598,7 @@
         return;
       }
       const snapshot = run.requestStream.getSnapshot();
-      ui.renderBatchState({
+      ui.renderBatchState(Object.assign({
         running: running !== false,
         phaseText: phaseText,
         selectionSpec: run.selectionSpecDisplay || "全部段",
@@ -586,7 +610,7 @@
         failedCount: snapshot.failedCount,
         currentSegmentNumber: run.currentSegmentNumber,
         failures: run.failures.slice(),
-      });
+      }, run.batchSummaryAccumulator?.getSnapshot?.() || {}));
     }
 
     function buildBatchTaskContext(task, lockedContext) {
@@ -650,6 +674,7 @@
           currentSegmentNumber: 0,
           failures: [],
           successes: [],
+          batchSummaryAccumulator: createBatchSummaryAccumulator(),
           stopRequested: false,
           requestStream: null,
         };
@@ -679,6 +704,7 @@
           const task = entry.task && typeof entry.task === "object" ? entry.task : {};
           run.currentSegmentNumber = Number(task.segmentNumber || 0) || run.currentSegmentNumber;
           if (entry.ok === true) {
+            run.batchSummaryAccumulator.addResult(entry.value);
             const texts = resolveBatchRecommendationTexts(entry.value);
             run.successes.push({
               uniqueId: normalizeText(task.uniqueId || task.unique_id),

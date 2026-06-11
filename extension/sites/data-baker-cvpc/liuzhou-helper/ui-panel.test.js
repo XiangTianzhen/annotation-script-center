@@ -1471,6 +1471,13 @@ test("CVPC ui panel mounts batch controls and renders batch progress details", f
       activeAiCount: 2,
       succeededCount: 1,
       failedCount: 1,
+      batchResultCount: 1,
+      batchHasUsageData: true,
+      batchPromptTokens: 14,
+      batchCompletionTokens: 9,
+      batchTotalTokens: 23,
+      batchHasPriceData: true,
+      batchEstimatedCostCny: 0.008952,
       currentSegmentNumber: 4,
       failures: [
         {
@@ -1489,9 +1496,52 @@ test("CVPC ui panel mounts batch controls and renders batch progress details", f
     assert.match(batchText, /进行中：2/);
     assert.match(batchText, /已成功：1/);
     assert.match(batchText, /已失败：1/);
+    assert.match(batchText, /批量输入Token：14/);
+    assert.match(batchText, /批量输出Token：9/);
+    assert.match(batchText, /批量总Token：23/);
+    assert.match(batchText, /批量预估人民币：0.008952 元/);
     assert.match(batchText, /当前段：第 4 段/);
     assert.match(batchText, /失败清单/);
     assert.match(batchText, /第 7 段：\s*请求失败/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel batch state shows no-source label when batch price data is missing", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({});
+    runtime.mount();
+    runtime.renderBatchState({
+      running: false,
+      phaseText: "批量识别已完成",
+      selectionSpec: "全部段",
+      concurrency: 5,
+      totalCount: 1,
+      launchedCount: 1,
+      activeAiCount: 0,
+      succeededCount: 1,
+      failedCount: 0,
+      batchResultCount: 1,
+      batchHasUsageData: true,
+      batchPromptTokens: 10,
+      batchCompletionTokens: 6,
+      batchTotalTokens: 16,
+      batchHasPriceData: false,
+      batchEstimatedCostCny: null,
+      failures: [],
+    });
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    assert.match(collectText(middleNode), /批量预估人民币：没有数据源/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

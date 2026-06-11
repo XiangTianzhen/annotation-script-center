@@ -91,6 +91,7 @@ test("CVPC batch controller stops launching new AI requests after stop and saves
   const deferreds = Array.from({ length: 20 }, createDeferred);
   const started = [];
   const savedPayloads = [];
+  const batchSnapshots = [];
   let reloadCount = 0;
   let contextReadCount = 0;
   const lockedContext = createLockedContext();
@@ -101,7 +102,9 @@ test("CVPC batch controller stops launching new AI requests after stop and saves
       reloadCount += 1;
     },
     ui: {
-      renderBatchState: function () {},
+      renderBatchState: function (snapshot) {
+        batchSnapshots.push(snapshot);
+      },
       setStatus: function () {},
     },
     dataApi: {
@@ -154,6 +157,27 @@ test("CVPC batch controller stops launching new AI requests after stop and saves
         { type: "text", content: String(index + 1) },
       ],
       refinedMandarinText: "普通话" + String(index + 1),
+      usage: {
+        listen: {
+          promptTokens: 10,
+          completionTokens: 6,
+          totalTokens: 16,
+        },
+        refine: {
+          promptTokens: 4,
+          completionTokens: 3,
+          totalTokens: 7,
+        },
+      },
+      cost: {
+        listen: {
+          estimatedCostCny: 0.008935,
+        },
+        refine: {
+          estimatedCostCny: 0.000017,
+        },
+        totalEstimatedCostCny: 0.008952,
+      },
     });
   }
 
@@ -172,6 +196,15 @@ test("CVPC batch controller stops launching new AI requests after stop and saves
     { type: "tag", content: "#eh" },
     { type: "text", content: "1" },
   ]);
+  const finalSnapshot = batchSnapshots[batchSnapshots.length - 1];
+  assert.equal(finalSnapshot.phaseText, "批量写回完成");
+  assert.equal(finalSnapshot.batchResultCount, 5);
+  assert.equal(finalSnapshot.batchPromptTokens, 70);
+  assert.equal(finalSnapshot.batchCompletionTokens, 45);
+  assert.equal(finalSnapshot.batchTotalTokens, 115);
+  assert.equal(finalSnapshot.batchEstimatedCostCny, 0.04476);
+  assert.equal(finalSnapshot.batchHasUsageData, true);
+  assert.equal(finalSnapshot.batchHasPriceData, true);
   assert.equal(reloadCount, 1);
   assert.equal(contextReadCount, 1);
 });

@@ -28,22 +28,22 @@
 
 ## 推荐阅读顺序
 
-1. `network/01-login-and-boot.md`
-2. `page-structure/01-login-and-shell.md`
-3. `network/02-post-login-shell-home.md`
-4. `page-structure/02-post-login-home.md`
-5. `network/03-home-to-editor-route.md`
-6. `page-structure/03-home-to-editor-route.md`
-7. `network/04-editor-asr-init.md`
-8. `page-structure/04-editor-asr.md`
-9. `network/pending-capture.md`
-10. `page-structure/pending-capture.md`
+1. `network/README.md`
+2. `page-structure/README.md`
+3. `network/01-login-and-boot.md`
+4. `page-structure/01-login-and-shell.md`
+5. `network/02-post-login-shell-home.md`
+6. `page-structure/02-post-login-home.md`
+7. `network/03-home-to-editor-route.md`
+8. `page-structure/03-home-to-editor-route.md`
+9. `network/04-editor-asr-init.md`
+10. `page-structure/04-editor-asr.md`
 
 ## 当前覆盖状态
 
-- `network/`：已记录 4 段核心链路，覆盖登录启动、登录后壳层、首页到编辑器导航、编辑器初始化
-- `page-structure/`：已记录 4 段页面结构，覆盖登录路由重定向、首页壳层、列表导航链、编辑器壳层
-- `pending-capture`：明确列出未触发或未补采的写操作、角色视图和弹窗差异
+- `network/`：当前由索引 README + 4 份稳定参考页组成，覆盖登录启动、登录后壳层、首页到编辑器导航、编辑器初始化
+- `page-structure/`：当前由索引 README + 4 份稳定参考页组成，覆盖登录路由重定向、首页壳层、列表导航链、编辑器壳层
+- 过程型补采记录已移出主参考目录；后续只把当前有效结论回写到稳定参考页或 `log.md`
 - `liuzhou-helper/`：已补脚本级规则资产、独立后端接口和扩展运行时 README；当前右侧只保留嵌入 `全局标注` 卡片的紧凑状态区，并优先插入 `.label_title_border2` 内容流；中间 `普通话顺滑` 下方统一承载画段建议和三结果 AI 推荐卡；当前段 AI 推荐改为“浏览器裁剪当前段 -> Base64 `audioDataUrl` -> staged AI recommend”
 
 ## 首轮边界

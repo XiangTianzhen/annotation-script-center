@@ -28,6 +28,30 @@
   const MOUNT_RETRY_DELAY_MS = 300;
   const MAX_MOUNT_RETRY_COUNT = 4;
   const concurrentRequestStreamFactory = globalThis.ASREdgeConcurrentAiRequestStream || null;
+  const aiBatchSummary =
+    globalThis.ASREdgeAiBatchSummary ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/ai-batch-summary.js")
+      : {});
+  const createBatchSummaryAccumulator =
+    typeof aiBatchSummary.createBatchSummaryAccumulator === "function"
+      ? aiBatchSummary.createBatchSummaryAccumulator
+      : function () {
+          return {
+            addResult: function () {},
+            getSnapshot: function () {
+              return {
+                batchResultCount: 0,
+                batchPromptTokens: null,
+                batchCompletionTokens: null,
+                batchTotalTokens: null,
+                batchEstimatedCostCny: null,
+                batchHasUsageData: false,
+                batchHasPriceData: false,
+              };
+            },
+          };
+        };
   const DATABAKER_LISTEN_MODEL_OPTIONS = Array.isArray(CONSTANTS.DATABAKER_AI_LISTEN_MODEL_OPTIONS)
     ? CONSTANTS.DATABAKER_AI_LISTEN_MODEL_OPTIONS
         .map(function (item) {
@@ -1043,6 +1067,7 @@
       let fillSuccessCount = 0;
       let fillFailCount = 0;
       let fillSkipCount = 0;
+      const batchSummaryAccumulator = createBatchSummaryAccumulator();
 
       function updateProgressStatus(currentDisplayName) {
         if (!requestStream) {
@@ -1073,6 +1098,7 @@
           currentDisplayName: String(currentDisplayName || ""),
           failures: currentBatchFailures.slice(),
           retryableFailuresCount: currentRetryableFillFailures.length,
+          ...batchSummaryAccumulator.getSnapshot(),
         });
       }
 
@@ -1197,6 +1223,7 @@
               result: null,
             });
           } else {
+            batchSummaryAccumulator.addResult(result.recommendation);
             fillStartedCount += 1;
             updateProgressStatus(String(result?.displayName || ""));
             const fillOutcome = await fillOneAnalyzedResult(
@@ -1263,6 +1290,7 @@
         failures: currentBatchFailures.slice(),
         retryableFailuresCount: currentRetryableFillFailures.length,
         stopped: batchQualifiedAutofillCancelRequested === true,
+        ...batchSummaryAccumulator.getSnapshot(),
       };
     }
 

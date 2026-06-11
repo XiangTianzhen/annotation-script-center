@@ -1,46 +1,34 @@
 # Abaka AI Task17 网络差异
 
-## 目录定位
+## 请求标识 / 目的
 
 本文只记录 Task17 相对公共 Task 页面网络的差异。公共列表、查看、状态 Tab、资源和动作接口见 `../../network/README.md`。
 
-## 已确认差异
+## 页面入口 / 触发动作
 
-### 领取审核空池
+- 当前文件未补充额外入口说明；默认按对应页面自然加载或用户显式操作触发。
 
-- 触发页面：Task17 内审 Data 页。
-- 触发按钮：`领取审核 / Claim Review`。
+## 请求摘要
+
 - Method：`POST`
 - Path：`/api/v2/item/receive-item`
-- Request shape：
 
-    {
-      "taskId": "{task17Id}",
-      "nodeId": "{reviewNodeId}",
-      "search": {
-        "type": "AND",
-        "units": []
-      }
-    }
+## 请求体摘要
+
+- 当前记录未见独立 request body；以路径参数或 query 为主。
+
+## 响应摘要
 
 - Response shape：
 
-    {
-      "code": 1000000,
-      "message": "领取条目失败，无条目可领"
-    }
+## 关键字段
 
-页面未跳转 `/items`；随后出现验证组件，本轮未继续操作。
+- 当前重点继续以路径、query、响应字段名和脱敏占位为主。
 
-## 复用公共接口
+## 前端接入建议
 
-- Data 页列表：`../network/task-page/03-data-page-item-list.md`
-- 查看页初始化：`../network/task-page/05-items-view-init.md`
-- 领取审核接口结构：`../network/task-page/15-claim-review.md`
-- 资源加载：`../network/task-page/17-resource-files.md`
+- 接入时优先复用当前页已有稳定锚点，只做只读监听或最小范围辅助。
 
-## 待补
+## 风险 / 未确认项
 
-- Task17 标注 / 审核详情页字段结构只做公共对比，暂不作为功能目标。
-- Task17 审核通过、驳回、提交类接口未采集，当前边界下不主动测试。
-
+- 文档只保留当前有效结论；新增缺口统一回写稳定参考页或 `log.md`。

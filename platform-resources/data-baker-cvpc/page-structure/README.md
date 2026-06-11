@@ -1,45 +1,41 @@
-# DataBaker CVPC 页面结构索引
+# DataBaker CVPC 页面结构参考索引
+## 目录定位
 
-## 目录用途
+- 目录：`platform-resources/data-baker-cvpc/page-structure`
+- 类型：页面结构 稳定参考索引。
+- 本目录只保留当前有效结论，不再承载会话交接、复测流水或历史过程文档。
 
-本目录记录 `cvpc.data-baker.com` 首轮页面 DOM 结构，重点是稳定路由、稳定锚点、应避免依赖的动态 class，以及页面区域与接口数据的映射关系。
+## 适用范围 / 当前覆盖
+
+- 当前保留 4 份稳定参考页。
+- 当前目录聚焦路由识别、DOM 锚点、稳定选择器、挂载建议和写操作边界。
+- 过程型记录已移出主参考目录；如需追加历史过程，统一写入 `log.md`。
 
 ## 文件列表
 
-| 编号 | 文件 | 页面/范围 |
-|------|------|-----------|
-| 01 | `01-login-and-shell.md` | `#/login` 路由行为 + `app/web` 壳层 |
-| 02 | `02-post-login-home.md` | `#/home` 首页 |
-| 03 | `03-home-to-editor-route.md` | `#/my-job` 到 job 列表 |
-| 04 | `04-editor-asr.md` | `/app/editor/asr/` |
-| - | `pending-capture.md` | 待补采项 |
+| 文件 | 说明 |
+| --- | --- |
+| `01-login-and-shell.md` | 01 登录路由与壳层 |
+| `02-post-login-home.md` | 02 登录后首页 |
+| `03-home-to-editor-route.md` | 03 首页到编辑器的页面链 |
+| `04-editor-asr.md` | 04 编辑器 `/app/editor/asr/` |
 
 ## 阅读顺序
 
+- 先读本索引，再按文件名顺序下钻到对应单页参考。
 1. `01-login-and-shell.md`
 2. `02-post-login-home.md`
 3. `03-home-to-editor-route.md`
 4. `04-editor-asr.md`
 
-## 壳层划分
+## 通用约定
 
-- `app/web`：
-  - 统一壳层
-  - 顶部导航 + 左侧菜单 + 主内容区
-  - Ant Design 组件明显，`css-*` 哈希类不稳定
-- `app/editor/asr`：
-  - 独立编辑器
-  - 顶部动作条 + 波形区 + 音频列表 + 标注区
-  - Element UI 组件明显，`el-button--*` 只能做辅助选择器
+- 只记录当前有效结论，不写日期型历史流水。
+- 路径、字段名、选择器、按钮文案都按脱敏后的稳定锚点记录。
+- 单页参考固定使用 `页面标识 / 路由 / 前置条件 -> 页面总览 -> DOM 树 / 区域结构 -> 稳定选择器表 -> 动态区域 / 重渲染风险 -> 可挂载点建议 -> 页面区域与接口映射 -> 写操作边界 / 未确认项` 顺序。
+- 不记录 token、cookie、authorization、完整签名 URL、真实敏感文本。
 
-## 统一约定
+## 当前边界 / 待补项
 
-- `routeKey`：页面稳定标识
-- `riskLevel`：`readonly`、`safe-ui`、`write-action`
-- `selectorConfidence`：`high`、`medium`、`avoid`
-
-## 本轮边界
-
-- 仅记录标注员链路下的真实可见结构
-- 不把 `AIX智能下载器` 之类浏览器侧叠加层当作平台正式结构
-- 不把带随机前缀的菜单 ID、哈希 class、表格行序号当作稳定锚点
+- 新增缺口时，先补稳定参考结论，再同步更新对应平台 README 或 `log.md`。
+- 如果目录当前没有专属差异，保持空目录或由父级 README 说明，不额外制造占位文档。

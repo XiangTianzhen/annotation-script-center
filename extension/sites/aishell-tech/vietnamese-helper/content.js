@@ -13,6 +13,30 @@
     CONSTANTS.AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_PATH ||
     "/api/aishell-tech/vietnamese-helper/ai/recommend";
   const concurrentRequestStreamFactory = globalThis.ASREdgeConcurrentAiRequestStream || null;
+  const aiBatchSummary =
+    globalThis.ASREdgeAiBatchSummary ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/ai-batch-summary.js")
+      : {});
+  const createBatchSummaryAccumulator =
+    typeof aiBatchSummary.createBatchSummaryAccumulator === "function"
+      ? aiBatchSummary.createBatchSummaryAccumulator
+      : function () {
+          return {
+            addResult: function () {},
+            getSnapshot: function () {
+              return {
+                batchResultCount: 0,
+                batchPromptTokens: null,
+                batchCompletionTokens: null,
+                batchTotalTokens: null,
+                batchEstimatedCostCny: null,
+                batchHasUsageData: false,
+                batchHasPriceData: false,
+              };
+            },
+          };
+        };
 
   let activeRuntime = null;
   let currentUrl = location.href;
@@ -362,6 +386,7 @@
           Number(config.aiQualifiedAutofillConcurrency || 5) || 5
         );
         const failures = [];
+        const batchSummaryAccumulator = createBatchSummaryAccumulator();
         let consumedCount = 0;
         let currentPhaseText = batchMeta.label + "开始";
         let currentDisplayText = tasks[0].displayName || "";
@@ -403,6 +428,7 @@
             activeAiCount: snapshot.activeAiCount,
             completedAiCount: snapshot.completedAiCount,
             bufferedCount: snapshot.bufferedCount,
+            ...batchSummaryAccumulator.getSnapshot(),
           });
         }
 
@@ -485,6 +511,7 @@
             );
             updateBatchSnapshot(batchMeta.label + "当前条失败", task.displayName, true);
           } else {
+            batchSummaryAccumulator.addResult(entry.value);
             let switchResult = null;
             let saveResult = null;
             let failureStage = "select_task";

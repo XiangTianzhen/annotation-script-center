@@ -1,38 +1,39 @@
 # 06 审核任务详情页（checkdata/taskDetail）网络摘要
 
-## 页面
+## 请求标识 / 目的
+
+- 当前文件记录该请求或该组请求的稳定参考结论。
+
+## 页面入口 / 触发动作
 
 - URL 示例：`https://work.magicdatatech.com/#/checkdata/taskDetail?...`
 
-## 请求 1：任务详情上下文
+## 请求摘要
 
 - method：`POST`
-- hostname：`work.magicdatatech.com`
 - pathname：`/api/management-service/userTaskDetail/detail`
 - query keys：无
-- payload 字段名：`batchId,processNodeId,projectId,teamId,userId`
-- response 顶层字段：`code,data,message`
-- data 常见字段：`projectId,projectType,batchId,processNodeId,teamId,userId,nodeName,extend`
-- 用途推断：加载审核任务头部信息
-- 是否敏感操作：否（读）
-- 自动化边界：可观察
-
-## 请求 2：抽检记录分页
-
 - method：`POST`
-- hostname：`work.magicdatatech.com`
 - pathname：`/api/management-service/sampling/samplingRecordPage`
 - query keys：无
-- payload 字段名：`batchId,code,pageNum,pageSize,projectId,status,teamId,userId,processDefineNodeId`
+
+## 请求体摘要
+
+- 当前记录未见独立 request body；以路径参数或 query 为主。
+
+## 响应摘要
+
+- response 顶层字段：`code,data,message`
 - response 顶层字段：`code,data,message,messageDetail`
-- data 常见字段：`total,pageSize,pages,pageNum,list`
-- list 常见字段：`id,code,condition,itemCount,checkCount,status,statusName,startTime,...`
-- 用途推断：加载待审核/审核中记录列表
-- ID 字段：`projectId,batchId,teamId,userId,processDefineNodeId`
-- 是否敏感操作：否（读）
-- 自动化边界：可观察
 
-## 备注
+## 关键字段
 
-- 进入单条审核页按钮可能触发路由跳转，不直接写状态。
-- 审核提交类请求在单条页识别，详见 `07-asrmark-check.md` 与 `08-sensitive-operations.md`。
+- 当前重点继续以路径、query、响应字段名和脱敏占位为主。
+
+## 前端接入建议
+
+- 接入时优先复用当前页已有稳定锚点，只做只读监听或最小范围辅助。
+
+## 风险 / 未确认项
+
+- 文档只保留当前有效结论；新增缺口统一回写稳定参考页或 `log.md`。

@@ -13,7 +13,7 @@ const FUN_ASR_DOC_URL =
   "https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2880903";
 const RECORDING_FILE_API_DOC_URL =
   "https://help.aliyun.com/zh/model-studio/recording-file-recognition-api-details";
-const MODEL_PRICING_CONFIG_PATH = "config/pricing/aliyun-bailian-model-pricing.json";
+const MODEL_PRICING_CONFIG_PATH = "config/aliyun-bailian-model-pricing.json";
 
 const MODEL_ENTRIES = [
   {

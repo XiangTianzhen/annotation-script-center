@@ -1,37 +1,43 @@
-# Aishell Tech 网络采集索引
-
+# Aishell Tech Network参考索引
 ## 目录定位
 
-本目录是 Aishell Tech 数据处理工作平台网络请求资料的主维护位置。
+- 目录：`platform-resources/aishell-tech/network`
+- 类型：Network 稳定参考索引。
+- 本目录只保留当前有效结论，不再承载会话交接、复测流水或历史过程文档。
 
-## 当前阶段覆盖
+## 适用范围 / 当前覆盖
 
-- 首页初始化请求（3 API，含 Anlytics/GetIndexStatistics 统计总览）
-- 我的任务列表请求（3 API，含响应结构）
-- 任务详情页请求（2 API：detail + packageList）
-- 数据标注页请求（8 API：含 SaveShortMark 实测 payload + 响应）
-- 写操作接口清单与安全边界
-- 我的团队请求（3 API）
+- 当前保留 5 份稳定参考页。
+- 当前目录聚焦接口入口、请求摘要、响应结构、接入建议和风险边界。
+- 过程型记录已移出主参考目录；如需追加历史过程，统一写入 `log.md`。
 
 ## 文件列表
 
-| 编号 | 文件 | 页面/内容 | 状态 |
-|------|------|-----------|------|
-| 01 | `01-index.md` | 首页 `/index` | 完成 |
-| 02 | `02-mytask-index.md` | 我的任务列表 `/mytask/index` | 完成 |
-| 03 | `03-mytask-detail.md` | 任务详情 `/mytask/detail/:taskId` | 完成 |
-| 04 | `04-mytask-mark.md` | 数据标注 `/mytask/mark` | 完成（含 SaveShortMark 实测） |
-| 05 | `05-organization.md` | 我的团队 `/organization/myteam` | 完成 |
-| - | `pending-capture.md` | 待补采项清单 | 持续更新 |
+| 文件 | 说明 |
+| --- | --- |
+| `01-index.md` | 01-首页 网络请求 |
+| `02-mytask-index.md` | 02-我的任务列表 网络请求 |
+| `03-mytask-detail.md` | 04-任务详情 网络请求 |
+| `04-mytask-mark.md` | 04-数据标注 网络请求 |
+| `05-organization.md` | 05-我的团队 网络请求 |
 
-## 脱敏规则
+## 阅读顺序
 
-- 不记录 token/cookie/authorization/session。
-- 不记录完整签名音频 URL（OSS `Signature` 参数已截断）。
-- 不记录真实员工个人信息与客户敏感全文。
-- 请求/响应示例只保留字段结构和脱敏样例。
+- 先读本索引，再按文件名顺序下钻到对应单页参考。
+1. `01-index.md`
+2. `02-mytask-index.md`
+3. `03-mytask-detail.md`
+4. `04-mytask-mark.md`
+5. `05-organization.md`
 
-## 说明
+## 通用约定
 
-- 原 `06-sensitive-operations.md` 已移除；相关敏感写操作边界统一收口到 `platform-resources/aishell-tech/README.md` 的“安全边界”章节。
-- 当前这 5 个编号文档已足够支撑首阶段运行时代码围绕“我的任务 → 任务详情 → 数据标注”开工；后续补采重点转到角色视图、弹窗和长标注 / 质检 / 验收写操作。
+- 只记录当前有效结论，不写日期型历史流水。
+- 路径、字段名、选择器、按钮文案都按脱敏后的稳定锚点记录。
+- 单页参考固定使用 `请求标识 / 目的 -> 页面入口 / 触发动作 -> 请求摘要 -> 请求体摘要 -> 响应摘要 -> 关键字段 -> 前端接入建议 -> 风险 / 未确认项` 顺序。
+- 不记录 token、cookie、authorization、完整签名 URL、真实敏感文本。
+
+## 当前边界 / 待补项
+
+- 新增缺口时，先补稳定参考结论，再同步更新对应平台 README 或 `log.md`。
+- 如果目录当前没有专属差异，保持空目录或由父级 README 说明，不额外制造占位文档。

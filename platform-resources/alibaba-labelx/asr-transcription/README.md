@@ -1,22 +1,21 @@
 # Alibaba LabelX ASR 转写资料
 
-## 当前状态（2026-05-09）
+## 当前状态
 
-- 当前已进入 `0.2.11` 功能升级阶段。
+- 当前以轻量工具栏版、统一总表统计链路和人工确认式 AI 推荐为准。
 - `extension/sites/alibaba-labelx/asr-transcription/` 已切换为轻量工具栏版。
 - 旧版独立大表单、页面 overlay 设置面板已移除。
 - options 已恢复转写轻量设置面板与当前功能快捷键配置（不包含统计上传开关）。
 - 运行时只保留当前题与当前音频基础动作，新增“当前题 AI 推荐（人工确认填入）”，不包含保存/提交/自动化闭环。
 - 工具栏已改为页面内注入：优先 `.mark-toolbox`，找不到时回退到首条题卡前，不再默认顶部固定悬浮。
 - 新增“转写统计导出”链路：复用快判上传架构口径，独立后端目录与独立 CSV 列；统计上传与定时上传运行时强制启用。
-- 当前版本保持 `0.2.11`，本轮为 0.2.11 修正增强，不升级 `0.2.12`。
-- AI 后端桥接迁移状态（2026-05-28）：
+- AI 后端桥接状态：
   - `POST /api/alibaba-labelx/asr-transcription/ai/suggest-current` 已改为通过 `platform-resources/backend/ai-framework/` route factory 驱动。
   - `platform-resources/alibaba-labelx/asr-transcription/ai/adapter.js` 负责请求映射与旧响应结构兼容。
   - `platform-resources/alibaba-labelx/asr-transcription/backend/ai-suggest-request.js` 负责 AI 请求归一，与 adapter 共用。
   - 统计上传、CSV 合并、下载与 suppliers 相关逻辑仍保留在 `backend/`，本轮不动。
   - `GET /api/alibaba-labelx/asr-transcription/ai/suggest-current/health` 与 `GET /api/alibaba-labelx/asr-transcription/ai/defaults` 当前仍保留旧实现。
-- 下载链路共享 core 状态（2026-05-28）：
+- 下载链路共享 core 状态：
   - `GET/HEAD /api/alibaba-labelx/asr-transcription/statistics/download`
   - `GET /api/alibaba-labelx/asr-transcription/statistics/suppliers`
   - `POST /api/alibaba-labelx/asr-transcription/statistics/existing`
@@ -123,10 +122,9 @@
 - 已明确 `subTaskId` 可能包含换行和空格编码，接口构造前必须先清洗。
 - 已明确页面请求常见 `pageSize=10`，扩展统计上传策略改为 `pageSize=5000 + 按 recordCount 分页补齐`。
 - 已新增转写页面结构文档：`page-structure/README.md`。
-- 2026-05-09 已补充审核首页和审核详情页采集：`missionType=check`、`type=check`、`subTaskType=check`、有效性切换、转写文本自动保存、提交任务和自动领取链路。
+- `missionType=check`、`type=check`、`subTaskType=check`、有效性切换、转写文本自动保存、提交任务和自动领取链路。
 - 已确认当前接口没有独立供应商字段；后续统计只能优先从 `taskName` / `name` 前缀推断，例如 `棋燊`、`希尔贝壳`。
 
 ## 后续约束
 
 - 若未来要恢复已删旧能力，必须走“新需求 -> 新设计 -> 新实现 -> 新验收”，不能直接恢复旧文件或旧架构。
-

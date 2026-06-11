@@ -1,6 +1,6 @@
 # POST /api/v1/label/center/subTask/{subTaskId}/commit
 
-## 请求目的
+## 请求标识 / 目的
 
 该请求由详情页顶部“提交任务”按钮触发，用于提交当前子任务包。提交成功后当前包不可返回继续测试。
 
@@ -14,11 +14,11 @@
 
 另一次未完成包中点击 `提交任务` 时，前端必填校验先阻断，没有发出本接口。见 `20-submit-client-validation.md`。
 
-## 触发操作
+## 页面入口 / 触发动作
 
 - 点击详情页顶部按钮：`提交任务`。
 
-## 请求记录
+## 请求摘要
 
 - Method：`POST`
 - URL：`/api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/commit`
@@ -37,20 +37,11 @@
 - Status：`200`
 - Response Body：成功响应，业务 `code=0`，`data=true`，`success=true`。
 
-## 脱敏请求示例
+## 请求体摘要
 
-```http
-POST /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/commit
-Content-Type: application/json
-labelsessionid: <REDACTED_LABEL_SESSION_ID>
-Cookie: <REDACTED>
+- 当前记录未见独立 request body；以路径参数或 query 为主。
 
-{
-  "subTaskId": "<REDACTED_SUBTASK_ID>"
-}
-```
-
-## 脱敏响应示例
+## 响应摘要
 
 ```json
 {
@@ -66,31 +57,21 @@ Cookie: <REDACTED>
 }
 ```
 
-## 后续请求链路
-
-提交请求返回 `200` 后，因为自动领取处于开启状态，页面立即继续触发：
-
-1. `POST /api/v1/label/center/<REDACTED_TASK_ID>/label/fetch`
-2. 返回标注首页：`/corpora/labeling/labelingTask?projectId=<REDACTED_PROJECT_ID>`
-3. 首页加载“我的任务”和“可领取的任务”列表接口。
-
-2026-04-25 二次采集中，`commit` 本身提交成功；后续自动领取因为任务池没有可领取数据，`label/fetch` 返回业务空池响应 `code=500`、`message="暂无待标注数据"`，因此没有进入新详情页，最终返回标注首页。
-
-## 字段推断
+## 关键字段
 
 - URL path 中的 `subTaskId` 与 body 中 `subTaskId` 一致。
 - `labelsessionid` 是详情页会话相关请求头，不能记录真实值。
 - 请求体只包含当前子任务 ID，未观察到提交当前页答案列表或 dataId 列表。
 - 状态码 `200` 且响应 `code=0`、`data=true`、`success=true` 表示当前子任务提交成功。
 
-## Content Script 建议
+## 前端接入建议
 
 - 扩展不应主动调用该接口。
 - 如果需要识别用户提交行为，可被动监听该 URL。
 - 被动监听时只记录 `method`、endpoint、status、是否触发后续 `label/fetch`、最终 URL，不记录真实 session/header/cookie。
 - 由于提交后不可回退，调试逻辑不要自动点击“提交任务”。
 
-## 未确认项
+## 风险 / 未确认项
 
 - 自动领取关闭时，提交成功后的跳转行为是否相同未采集。
 - 服务端提交失败、网络失败的响应结构未采集。

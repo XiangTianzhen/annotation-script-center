@@ -1,6 +1,10 @@
 # Abaka AI Task21 动作与状态变更边界
 
-## 动作分级
+## 页面标识 / 路由 / 前置条件
+
+- 当前文件已按统一模板整理；优先使用稳定路由、query 和页面前置条件识别。
+
+## 页面总览
 
 | 等级 | 含义 | 后续脚本策略 |
 | --- | --- | --- |
@@ -11,33 +15,15 @@
 | `danger-confirm` | 保存、提交、领取、流转、放弃、跳过、恢复等高风险动作 | 必须二次确认，不得静默执行 |
 | `forbidden-auto` | 跨页全选、批量流转、删除、越权或跨项目动作 | 禁止自动执行 |
 
-## 已测试动作
+## DOM 树 / 区域结构
 
-| 动作 | 页面 | 等级 | 请求文档 | 观测接口 / 结果 | 是否可恢复 | 后续限制 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 查看页打开 | `/items?viewMode=true` | `safe-read` | `network/task-page/05-items-view-init.md` | 查看权限、条目信息、标注数据、右侧条目列表等只读请求 | 不涉及 | 可作为结构读取入口 |
-| 单选条目 | `/task-v2/data-item` | `ui-local` | `network/task-page/04-data-page-selection-frame-count.md` | 触发 `/api/v2/item/get-frame-count`，按钮变为 `Label: 1` | 不涉及 | 不自动跨页全选 |
-| 多选条目 | `/task-v2/data-item` | `ui-local` | `network/task-page/04-data-page-selection-frame-count.md` | `itemIds` 数组长度随选择数量变化，按钮变为 `Label: 2` | 不涉及 | 不自动跨页全选 |
-| 跨页全选 | `/task-v2/data-item` | `ui-local` / `forbidden-auto` | `network/task-page/04-data-page-selection-frame-count.md` | 触发列表刷新和 `/api/v2/item/get-frame-count`，按钮变为 `标注：4条` | 不涉及 | 禁止自动触发跨页和批量状态变更 |
-| 领取标注 | `/task-v2/data-item` | `state-change-test` / `danger-confirm` | `network/task-page/14-claim-label.md` | `/api/v2/item/receive-item` 成功后进入标注 `/items` | 未测试释放 | 不自动领取 |
-| 领取审核 | `/task-v2/data-item?role={reviewRoleId}` | `state-change-test` / `danger-confirm` | `network/task-page/15-claim-review.md` | `/api/v2/item/receive-item` 成功后进入内审 `/items` | 未测试释放 | 不自动领取 |
-| same_font + 派生字段暂存 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `task21/network/08-label-save-labels.md`、`network/task-page/12-stash-save.md` | 点击 `Save` 触发 `/api/v2/label/save-labels`，页面提示 `Staging` | 标签可继续编辑 | 正式脚本不得自动写入标签 |
-| other_changes 文本暂存 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `task21/network/08-label-save-labels.md` | textarea 文本进入 `save-labels.data.create[].value`，页面提示 `暂存成功` | 标签可继续编辑 | 不记录真实文本，不自动保存 |
-| 放弃条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/09-abandon-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/abandon-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量放弃 |
-| 跳过条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/10-skip-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/skip-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量跳过 |
-| 送审 / 提交 | `/items` 标注页 | `danger-confirm` | `network/task-page/11-submit-review.md` | same_font 为空时前端校验阻断；填写后可触发成功提交 | 视场景而定 | 必须人工确认 |
-| 送审成功 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/23-label-submit-success.md` | `save-labels -> submit-item`，成功后 Data 页显示 `Labeled / Pending Review` | 送审后进入审核流，不按恢复处理 | 必须人工确认，不自动送审 |
-| Task21 快捷键选项选择 | `/items` 标注页 | `state-change-user-triggered` | `task21/page-structure/README.md`、`task21/network/08-label-save-labels.md` | 用户按 `1~5` 触发 `same_font` 与派生字段 DOM 点击；页面可能自行触发保存 | 取决于页面行为 | 扩展不直接调用保存/提交接口 |
-| Task21 快捷键暂存 | `/items` 标注页 | `state-change-user-triggered` | `task21/network/08-label-save-labels.md`、`task21/network/common/06-label-submit-success.md` | 用户按 `6` 仅点击页面真实“暂存 / Save / Stash”按钮，页面可能自行触发保存 | 取决于页面行为 | 扩展不直接调用保存接口，`viewMode=true` 不执行 |
-| Task21 快捷键送审 | `/items` 标注页 | `danger-confirm` / `state-change-user-triggered` | `task21/network/11-submit-review.md`、`task21/network/common/06-label-submit-success.md` | 用户按 `7` 仅点击页面真实“送审 / Submit / Submit Review”按钮 | 取决于平台流转 | 不自动确认弹窗；疑似标注内审环境阻止执行；扩展不直接调用提交接口 |
-| Task21 AI 单板块分析 | `/items` 标注页 | `safe-read` | `task21/backend/ai/README.md` | 调用统一后端 `/api/abaka-ai/task21/ai/analyze` 获取建议 | 不涉及 | 只返回建议，不自动写入/保存/提交 |
-| Task21 AI 整体分析 | `/items` 标注页 | `safe-read` | `task21/backend/ai/README.md` | 按 same_font -> 派生字段流程输出结构化建议 | 不涉及 | false/unsure 时后两项按流程 not_applicable |
-| Task21 AI 快捷键触发分析 | `/items` 标注页 | `safe-read` | `task21/backend/ai/README.md` | `Alt+1/2/3/4` 等价于点击字段标题右侧 AI 按钮 | 不涉及 | 仅触发分析请求，不自动写入、不自动保存 |
-| Skipped 列表 | `/task-v2/data-item?dm=skipped` | `safe-read` | `network/task-page/19-skipped-list.md` | `/api/v2/item/get-task-item-skip-list` | 不涉及 | 可只读识别 |
-| Dropped 列表 | `/task-v2/data-item?dm=abandoned` | `safe-read` | `network/task-page/20-dropped-list.md` | `/api/v2/item/get-task-item-abandon-list` | 不涉及 | 可只读识别 |
-| 资源加载 | `/items` | `safe-read` | `network/task-page/17-resource-files.md` | 加载 assets、captcha、`.webp` 对象存储图片 | 不涉及 | 不记录完整 URL |
+- 当前文件未补充完整 DOM 树；后续仅记录稳定区域结构。
 
-## 未完整测试动作
+## 稳定选择器表
+
+- 优先使用 route、标题文案、稳定输入框和原生按钮文本，不依赖 hash class。
+
+## 动态区域 / 重渲染风险
 
 | 动作 | 当前状态 | 风险 | 待补内容 |
 | --- | --- | --- | --- |
@@ -46,7 +32,24 @@
 | 内审 Reject / Label / Pass | 禁止采集 | 改变审核流转状态 | 当前边界下不得点击；除非用户未来另行授权 |
 | Label Tab 专属请求 | 待补 | 只读风险低 | `Label` Tab 是否有独立列表 endpoint |
 
-## 操作按钮边界
+## 可挂载点建议
+
+- 如需挂载扩展 UI，优先选择宿主页面外层安全区域，不覆盖原生写操作控件。
+
+## 页面区域与接口映射
+
+| 单选条目 | `/task-v2/data-item` | `ui-local` | `network/task-page/04-data-page-selection-frame-count.md` | 触发 `/api/v2/item/get-frame-count`，按钮变为 `Label: 1` | 不涉及 | 不自动跨页全选 |
+| 跨页全选 | `/task-v2/data-item` | `ui-local` / `forbidden-auto` | `network/task-page/04-data-page-selection-frame-count.md` | 触发列表刷新和 `/api/v2/item/get-frame-count`，按钮变为 `标注：4条` | 不涉及 | 禁止自动触发跨页和批量状态变更 |
+| 领取标注 | `/task-v2/data-item` | `state-change-test` / `danger-confirm` | `network/task-page/14-claim-label.md` | `/api/v2/item/receive-item` 成功后进入标注 `/items` | 未测试释放 | 不自动领取 |
+| 领取审核 | `/task-v2/data-item?role={reviewRoleId}` | `state-change-test` / `danger-confirm` | `network/task-page/15-claim-review.md` | `/api/v2/item/receive-item` 成功后进入内审 `/items` | 未测试释放 | 不自动领取 |
+| same_font + 派生字段暂存 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `task21/network/08-label-save-labels.md`、`network/task-page/12-stash-save.md` | 点击 `Save` 触发 `/api/v2/label/save-labels`，页面提示 `Staging` | 标签可继续编辑 | 正式脚本不得自动写入标签 |
+| 放弃条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/09-abandon-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/abandon-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量放弃 |
+| 跳过条目 | `/items` 标注页 | `state-change-test` / `danger-confirm` | `network/task-page/10-skip-item.md` | 空变更 `save-labels` 后调用 `/api/v2/item/skip-item`，再自动 `receive-item` 下一条 | 本轮未看到恢复按钮 | 必须人工确认，不做批量跳过 |
+| Task21 AI 单板块分析 | `/items` 标注页 | `safe-read` | `task21/backend/ai/README.md` | 调用统一后端 `/api/abaka-ai/task21/ai/analyze` 获取建议 | 不涉及 | 只返回建议，不自动写入/保存/提交 |
+| Skipped 列表 | `/task-v2/data-item?dm=skipped` | `safe-read` | `network/task-page/19-skipped-list.md` | `/api/v2/item/get-task-item-skip-list` | 不涉及 | 可只读识别 |
+| Dropped 列表 | `/task-v2/data-item?dm=abandoned` | `safe-read` | `network/task-page/20-dropped-list.md` | `/api/v2/item/get-task-item-abandon-list` | 不涉及 | 可只读识别 |
+
+## 写操作边界 / 未确认项
 
 | 按钮 | 中文文案 | English 文案 | 页面 | 是否危险 | 是否已测试 | Network 用途 | 后续脚本建议 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -68,8 +71,6 @@
 | 全选 / 多选 | 选择框 | checkbox | 数据条目页 | 可能 | 部分 | 帧数统计或列表状态 | 禁止跨页批量自动操作 |
 | 领取审核空池 | 领取审核 | Claim Review | Task17 内审 Data 页 | 可能 | 是 | `task17/network/README.md`、`network/task-page/15-claim-review.md` | 只记录失败结构，不继续操作验证组件 |
 
-## 后续脚本规则
-
 - 读取类能力可以自动化，但只保存脱敏结构和当前页面状态。
 - 状态变更类动作必须由用户人工点击或通过二次确认层触发。
 - Task21 快捷键对 `specify` 必须采用幂等 ensure 规则：已选中时保持不变，不重复点击导致取消。
@@ -83,5 +84,3 @@
 - 同一动作在简体中文和 English 下都要有定位兜底，不得只依赖中文文案。
 - 未采集到接口的动作必须保持“待补”，不得按按钮文案推断接口路径。
 - `Label / 标注` 在 Task21 Data 页是角色区域，不作为状态 Tab 专属 endpoint 处理。
-
-

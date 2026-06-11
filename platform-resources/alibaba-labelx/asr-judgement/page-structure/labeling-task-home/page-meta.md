@@ -1,5 +1,7 @@
 # 页面元信息
 
+## 页面标识 / 路由 / 前置条件
+
 - 页面名称：智能标注
 - 页面类型：LabelX 标注首页 / 标注任务列表页
 - 页面 URL 样例：`https://labelx.alibaba-inc.com/corpora/labeling/labelingTask?projectId=<REDACTED_PROJECT_ID>`
@@ -12,35 +14,15 @@
   - radios：0
   - textareas：0
 
-## 顶层结构
+## 页面总览
 
-- 应用根：
-  - `#root`
-- 主内容：
-  - `main#mainContentWrapper`
-- 首页容器：
-  - `.label-center-container`
-- 左侧菜单：
-  - `.left-menu-container`
-  - `.side-menu`
+- 当前页主要记录稳定区域、可见文案和角色边界。
 
-## 主区域结构
+## DOM 树 / 区域结构
 
-- 我的任务标题：
-  - `.label-center-task-header`
-  - 文本为 `我的任务`
-- 我的任务列表：
-  - `.my-task-list`
-  - `.my-task-list-tabs`
-  - `.my-task-list .ant-v5-table-wrapper`
-- 可领取任务标题：
-  - `.label-center-task-header`
-  - 文本为 `可领取的任务`
-- 可领取任务列表：
-  - `.all-task-list-container`
-  - `.all-task-list-container .ant-v5-table-wrapper`
+- 当前文件未补充完整 DOM 树；后续仅记录稳定区域结构。
 
-## 推荐选择器
+## 稳定选择器表
 
 - 任务名称过滤框：
   - `.label-center-filter input[placeholder="请输入任务名称"]`
@@ -62,60 +44,23 @@
 - 分页：
   - `.label-center-pagination`
 
-## 渲染与加载特征
+## 动态区域 / 重渲染风险
 
-- 渲染框架特征：
-  - `#root` 下存在 React root 痕迹
-  - 未发现 Vue `data-v-app`
-  - 未发现 iframe
-  - 未发现 shadow root
-- 首屏是否异步加载：是
-- 本次观察到的关键接口：
-  - `GET /api/v1/label/center/subTasks?type=label&keyword=&appId=<REDACTED_PROJECT_ID>&finished=false&page=1&pageSize=5...`
+- 当前页存在状态切换和局部重绘风险；避免依赖瞬时 class 和顺序定位。
+
+## 可挂载点建议
+
+- 如需挂载扩展 UI，优先选择宿主页面外层安全区域，不覆盖原生写操作控件。
+
+## 页面区域与接口映射
+
+- `GET /api/v1/label/center/subTasks?type=label&keyword=&appId=<REDACTED_PROJECT_ID>&finished=false&page=1&pageSize=5...`
   - `GET /api/v1/label/center/subTasks?type=label&keyword=&appId=<REDACTED_PROJECT_ID>&finished=true&page=1&pageSize=5...`
   - `GET /api/v1/label/center/tasks?subTaskType=label&keyword=&appId=<REDACTED_PROJECT_ID>&page=1&pageSize=5...`
   - `GET /api/v1/label/center/tasks/process?subTaskType=label&taskIds=...`
   - `POST /api/v1/label/center/<REDACTED_TASK_ID>/label/fetch`
   - `POST /api/v1/label/center/subTask/<REDACTED_SUBTASK_ID>/release`
 
-## 动态节点与不稳定因素
+## 写操作边界 / 未确认项
 
-- 刷新后会变化：
-  - `projectId`
-  - 任务名称
-  - 任务 ID
-  - 子任务 ID
-  - 分包 ID
-  - 任务状态
-  - 领取时间
-  - 表格分页状态
-- 不建议依赖：
-  - `css-19lwvue`
-  - `css-var-`
-  - `rc-tabs-*`
-  - `rc_unique_*`
-  - `data-menu-id`
-  - `data-aplus-*`
-  - `data-spm-*`
-  - `aria-describedby`
-- 可辅助但不应唯一依赖：
-  - Ant Design class，如 `.ant-v5-table-wrapper`、`.ant-v5-tabs`、`.ant-v5-pagination`
-
-## 后续扩展脚本开发建议
-
-- 首页识别应优先使用路径 `/corpora/labeling/labelingTask`，并确认 `.label-center-container` 存在。
-- 如果后续脚本要从首页跳转详情页，不要自动点击 `标注`，应先做用户确认或只生成候选动作。
-- 自动领取、释放任务属于业务动作，不应在结构采集或默认脚本初始化阶段触发。
-- 顶部头像下拉中存在 `退出登录`，脚本不要主动点击。
-- 首页工具栏若需要挂载，候选位置：
-  - `.label-center-container` 顶部
-  - `.my-task-list` 前
-  - `.all-task-list-container` 前
-- 当前快判运行时没有首页自动化逻辑；首页相关能力后续应单独建模块，并同步更新快判 README 和根目录 `log.md`。
-
-## 采集备注
-
-- 当前采集日期：2026-04-23
-- 采集方式：Google Chrome + `chrome_devtools` MCP + 用户保存的 Console JSON
-- 页面是否包含脱敏处理：是
-- 是否需要登录态：是
+- 写操作默认维持人工确认边界；未确认链路不得按文案直接推断。

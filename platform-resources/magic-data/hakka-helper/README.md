@@ -52,31 +52,28 @@
 
 - AI 仅做辅助建议，不自动保存、不自动提交、不自动领取、不自动审核、不自动流转。
 
-## 前端联动口径（2026-05-26）
+## 前端联动口径
 
 - 客家话助手前端已切换到与闽南语助手一致的新面板体系（行内建议、说话人建议、原始输出、全部填入、独立折叠）。
 - 旧 `shared/assistant-panel-core.js` 与 `hakka-helper/ui-panel.js` 仅作 legacy 兼容，不再作为客家话主链路入口。
 - 运行时接口仍使用客家话路径 `/api/magic-data/hakka-helper/ai/review-current`，并保留 legacy `/api/magic-data/annotator/ai/review-current` 兼容。
-- 2026-05-26 Options 保存链路修复后，客家话助手的 `识别策略` 与 `比较模型` 会通过前端显式写入配置（`aiReviewRecognitionStrategy`、`aiReviewCompareModel` 与 legacy `reviewModel` 同步），刷新后保持一致。
+- Options 保存链路修复后，客家话助手的 `识别策略` 与 `比较模型` 会通过前端显式写入配置（`aiReviewRecognitionStrategy`、`aiReviewCompareModel` 与 legacy `reviewModel` 同步），刷新后保持一致。
 - `storage` 归一逻辑已调整为显式字段优先：当用户明确保存 `aiReviewModelMode` 时，不再被 legacy `recognition_convert` 推断覆盖为 `omni_single`。
 - options 中不再展示 `AI 质检模式`；客家话助手只按 `modelMode + recognitionStrategy` 运行（legacy `reviewMode` 仅兼容保留，不作为主逻辑）。
-- 2026-05-26 审核页支持热修：
-  - 客家话助手支持 `#/asrmarkCheck` 审核页采集与 AI 质检。
+- 客家话助手支持 `#/asrmarkCheck` 审核页采集与 AI 质检。
   - 不再显示“审核页暂未接入填入”提示。
   - 审核页默认只做质检与风险提示，不自动改写平台文本，不自动保存/提交。
   - 结果稳定性按 `pageType + taskItemId + samplingRecordId` 保持，避免轻微刷新后自动清空。
   - 文本可编辑时支持行内 `填入本行`；审核页 `全部填入AI推荐` 仅填文本项，不自动保存/提交，也不自动点击合格/不合格。
-- 2026-05-27 繁体字热修：
-  - 当前改为通过 `backend/ai-prompts.js` 约束所有普通中文字段输出简体，禁止输出普通繁体字。
+- 当前改为通过 `backend/ai-prompts.js` 约束所有普通中文字段输出简体，禁止输出普通繁体字。
   - 命中客家话词表统一用字时保留词表写法；未命中词表时不再依赖本地后端结果二次繁转简。
-- 2026-06-09 前端自动链路补充：
-  - `page-world/network-observer.js` 已同时桥接 `annotateDetailInfo` 与 `annotateHeaderInfo`；
+- `page-world/network-observer.js` 已同时桥接 `annotateDetailInfo` 与 `annotateHeaderInfo`；
   - `data-collector.js` 新增 header cache、`waitForAsrmarkReady()` 与提交按钮可点击判定；
   - `content.js` 新增页内可中断自动状态机，仅在 `#/asrmark` 启用，默认关闭，失败立即停机；
   - 自动模式当前改为通过可录制快捷键 `开启/关闭全自动` 控制，不再依赖面板按钮；
   - AI 四项都正确时按“无需填入”继续直接提交，不再误判为失败停机。
 
-## 2026-05-26 后端输出结构对齐
+## 后端输出结构对齐
 
 - 客家话后端已按闽南语后端口径补齐结构化输出，核心字段包含：
   - `speakerCheck.gender/ageRange`
@@ -88,7 +85,7 @@
 - 当模型未返回完整结构时，后端会按平台文本和听音结果做兜底，避免前端全部显示为空。
 - `rawAiDebug/rawModelText/rawJson` 返回前会做脱敏，不输出 token/cookie/完整签名 URL。
 
-## 2026-05-25 客家话模型评测结论（50条样本）
+## 客家话模型评测结论（50条样本）
 
 - 样本规模：50 条
 - 总音频时长：398.932 秒

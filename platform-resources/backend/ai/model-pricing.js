@@ -4,7 +4,7 @@ const path = require("path");
 
 const PRICING_CONFIG_PATH = path.resolve(
   __dirname,
-  "../../../config/pricing/aliyun-bailian-model-pricing.json"
+  "../../../config/aliyun-bailian-model-pricing.json"
 );
 const PRICING_CONFIG = require(PRICING_CONFIG_PATH);
 

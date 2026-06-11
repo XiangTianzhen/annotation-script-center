@@ -324,7 +324,7 @@ platform-resources/backend/ai/python/requirements.txt
 
 ## 批量请求诊断字段
 
-- 批量连续填入会在悬浮窗展示 `batchRunId`、总合格数、唯一任务数、重复跳过、已发起请求、活跃请求、AI 已返回、待填队列。
+- 批量连续填入会在悬浮窗展示 `batchRunId`、总合格数、唯一任务数、重复跳过、已发起请求、活跃请求、AI 已返回、待填队列，以及实时累计的 `批量输入Token / 批量输出Token / 批量总Token / 批量预估人民币`。
 - 如果看到 `launchedCount` 大于 `uniqueTaskCount`，才需要优先怀疑前端重复发送；否则应先区分是后端排队等待还是连接中断。
 - 后端排队等待不等于队列已满；若后续接入队列 health，应结合 `pendingCount/maxSize` 判断是否真正满载。
 

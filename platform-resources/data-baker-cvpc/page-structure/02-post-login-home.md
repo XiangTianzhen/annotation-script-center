@@ -1,14 +1,24 @@
 # 02 登录后首页
 
+## 页面标识 / 路由 / 前置条件
+
 - `routeKey`: `home-shell`
 - `riskLevel`: `readonly`
-
-## 路由模式
 
 - 路由：`#/home`
 - 前置条件：有效登录态
 
-## DOM 树
+- 左侧菜单：`user/meta.data.menus[]`
+- 组织芯片：`user/meta.default_*` + `user_center/info.data.structures[]`
+- 欢迎页主区：当前没有额外业务接口回填
+
+## 页面总览
+
+- 左侧菜单：`user/meta.data.menus[]`
+- 组织芯片：`user/meta.default_*` + `user_center/info.data.structures[]`
+- 欢迎页主区：当前没有额外业务接口回填
+
+## DOM 树 / 区域结构
 
 ```text
 #root
@@ -38,13 +48,11 @@
 | 消息空表弹窗 | `.ant-modal >> text=暂无数据` | `medium` | 只在弹窗可见时成立 |
 | `#aix-drop-panel` | `#aix-drop-panel` | `avoid` | 第三方叠加层 |
 
-## 动态区域
+## 动态区域 / 重渲染风险
 
 - `消息` 可能拉起弹窗表格
 - 左侧菜单激活项会切换
 - 组织标签与账户信息跟会话关联
-
-## 重渲染风险
 
 - 避免依赖哈希类：
   - `.css-wjhehw`
@@ -65,7 +73,6 @@
 - 组织芯片：`user/meta.default_*` + `user_center/info.data.structures[]`
 - 欢迎页主区：当前没有额外业务接口回填
 
-## 结构结论
+## 写操作边界 / 未确认项
 
-- `#/home` 更像空壳 landing，不是核心数据页
-- 后续脚本真正的稳定起点应当是 `我的作业`
+- 写操作默认维持人工确认边界；未确认链路不得按文案直接推断。

@@ -1,54 +1,51 @@
-# Magic Data 网络采集索引
-
+# Magic Data Network参考索引
 ## 目录定位
 
-本目录是 Magic Data ANNOTATOR 网络请求资料的主维护位置。后续新增或修正网络采集资料时，应优先更新本目录。
+- 目录：`platform-resources/magic-data/network`
+- 类型：Network 稳定参考索引。
+- 本目录只保留当前有效结论，不再承载会话交接、复测流水或历史过程文档。
 
-## 当前阶段覆盖
+## 适用范围 / 当前覆盖
 
-- 首页初始化请求
-- 标注任务列表请求
-- 标注任务详情请求
-- 标注单条页配置/详情/头部请求
-- 审核任务列表请求
-- 审核任务详情与抽检记录分页请求
-- 审核单条页预览/详情/配置请求
-- 音频 media 请求（仅脱敏模式）
-- 敏感写操作接口清单（来源：bundle 只读识别，未触发）
+- 当前保留 9 份稳定参考页。
+- 当前目录聚焦接口入口、请求摘要、响应结构、接入建议和风险边界。
+- 过程型记录已移出主参考目录；如需追加历史过程，统一写入 `log.md`。
 
 ## 文件列表
 
-- `01-welcome.md`
-- `02-mark-list.md`
-- `03-mark-details.md`
-- `04-asrmark.md`
-- `05-check-task.md`
-- `06-check-task-detail.md`
-- `07-asrmark-check.md`
-- `08-sensitive-operations.md`
-- `09-safety-boundary-rules.md`
-- `pending-capture.md`
+| 文件 | 说明 |
+| --- | --- |
+| `01-welcome.md` | 01 首页（welcome）网络摘要 |
+| `02-mark-list.md` | 02 标注任务页（mark/list）网络摘要 |
+| `03-mark-details.md` | 03 标注任务详情页（mark/details）网络摘要 |
+| `04-asrmark.md` | 04 标注单条页（asrmark）网络摘要 |
+| `05-check-task.md` | 05 审核任务页（checkTask）网络摘要 |
+| `06-check-task-detail.md` | 06 审核任务详情页（checkdata/taskDetail）网络摘要 |
+| `07-asrmark-check.md` | 07 审核单条页（asrmarkCheck）网络摘要 |
+| `08-sensitive-operations.md` | 08 敏感写操作接口清单（仅识别，未触发） |
+| `09-safety-boundary-rules.md` | Magic Data ANNOTATOR 安全边界 |
 
-## 脱敏规则
+## 阅读顺序
 
-- 不记录 token/cookie/authorization/session。
-- 不记录完整签名音频 URL。
-- 不记录真实员工个人信息与客户敏感全文。
-- 请求/响应示例只保留字段结构和脱敏样例。
+- 先读本索引，再按文件名顺序下钻到对应单页参考。
+1. `01-welcome.md`
+2. `02-mark-list.md`
+3. `03-mark-details.md`
+4. `04-asrmark.md`
+5. `05-check-task.md`
+6. `06-check-task-detail.md`
+7. `07-asrmark-check.md`
+8. `08-sensitive-operations.md`
+9. `09-safety-boundary-rules.md`
 
-## annotateDetailInfo 结构补充（2026-05-23）
+## 通用约定
 
-- `POST /api/management-service/annotateTask/annotateDetailInfo/{taskItemId}` 返回结构需按嵌套读取：
-  - `payload.data.taskItemId`
-  - `payload.data.data.path`
-  - `payload.data.data.data[0].mark_info`
-  - `payload.data.data.base_speak`
-  - `payload.data.data.length_time`
-  - `payload.data.data.sentence_valid_time`
-- 说话人映射规则：优先用 `mark_info[].speak_people -> base_speak[].speak_id` 解析性别和年龄。
+- 只记录当前有效结论，不写日期型历史流水。
+- 路径、字段名、选择器、按钮文案都按脱敏后的稳定锚点记录。
+- 单页参考固定使用 `请求标识 / 目的 -> 页面入口 / 触发动作 -> 请求摘要 -> 请求体摘要 -> 响应摘要 -> 关键字段 -> 前端接入建议 -> 风险 / 未确认项` 顺序。
+- 不记录 token、cookie、authorization、完整签名 URL、真实敏感文本。
 
-## asrmarkCheck 审核页补充（2026-05-26）
+## 当前边界 / 待补项
 
-- 审核页路由参数主键通常为 `id`，前端解析后映射为 `samplingRecordId`。
-- 审核页 AI 质检请求允许 `taskItemId` 为空，但应带 `samplingRecordId` 与 `pageType=asrmarkCheck`。
-- 审核页默认不自动改写平台文本，仅提供质检结论与风险提示；不自动保存、不自动提交。
+- 新增缺口时，先补稳定参考结论，再同步更新对应平台 README 或 `log.md`。
+- 如果目录当前没有专属差异，保持空目录或由父级 README 说明，不额外制造占位文档。

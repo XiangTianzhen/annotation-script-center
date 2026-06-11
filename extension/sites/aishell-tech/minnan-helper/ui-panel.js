@@ -7,6 +7,11 @@
   const ROOT_ATTR = "data-asr-edge-aishell-tech-panel";
   const STYLE_ID = "asr-edge-aishell-tech-panel-style";
   const errorDisplay = globalThis.ASREdgeAiErrorDisplay || {};
+  const aiBatchSummary =
+    globalThis.ASREdgeAiBatchSummary ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/ai-batch-summary.js")
+      : {});
   const buildAiErrorDisplay =
     typeof errorDisplay.buildAiErrorDisplay === "function"
       ? errorDisplay.buildAiErrorDisplay
@@ -18,6 +23,43 @@
               source.rawResponse && typeof source.rawResponse === "object" ? source.rawResponse : {},
           };
         };
+  const buildBatchSummaryRows =
+    typeof aiBatchSummary.buildBatchSummaryRows === "function"
+      ? aiBatchSummary.buildBatchSummaryRows
+      : function () {
+          return [];
+        };
+
+  function buildBatchRows(snapshot) {
+    const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+    const rows = [
+      ["阶段", source.phaseText || "-"],
+      ["总数", Number(source.total || 0)],
+      ["已完成", Number(source.completed || 0)],
+      ["失败", Number(source.failed || 0)],
+      ["当前条", source.currentText || "-"],
+    ];
+
+    if (source.frontConcurrency !== undefined) {
+      rows.push(["前端并发", Number(source.frontConcurrency || 0)]);
+    }
+    if (source.requestStaggerMs !== undefined) {
+      rows.push(["发送间隔", String(Number(source.requestStaggerMs || 0)) + "ms"]);
+    }
+    if (source.launchedCount !== undefined) {
+      rows.push(["已发请求", Number(source.launchedCount || 0)]);
+    }
+    if (source.activeAiCount !== undefined) {
+      rows.push(["AI处理中", Number(source.activeAiCount || 0)]);
+    }
+    if (source.completedAiCount !== undefined) {
+      rows.push(["AI已返回", Number(source.completedAiCount || 0)]);
+    }
+    if (source.bufferedCount !== undefined) {
+      rows.push(["待保存队列", Number(source.bufferedCount || 0)]);
+    }
+    return rows.concat(buildBatchSummaryRows(source));
+  }
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) {
@@ -866,34 +908,7 @@
       title.textContent = "批量识别状态";
       batchNode.appendChild(title);
 
-      const batchRows = [
-        ["阶段", source.phaseText || "-"],
-        ["总数", Number(source.total || 0)],
-        ["已完成", Number(source.completed || 0)],
-        ["失败", Number(source.failed || 0)],
-        ["当前条", source.currentText || "-"],
-      ];
-
-      if (source.frontConcurrency !== undefined) {
-        batchRows.push(["前端并发", Number(source.frontConcurrency || 0)]);
-      }
-      if (source.requestStaggerMs !== undefined) {
-        batchRows.push(["发送间隔", String(Number(source.requestStaggerMs || 0)) + "ms"]);
-      }
-      if (source.launchedCount !== undefined) {
-        batchRows.push(["已发请求", Number(source.launchedCount || 0)]);
-      }
-      if (source.activeAiCount !== undefined) {
-        batchRows.push(["AI处理中", Number(source.activeAiCount || 0)]);
-      }
-      if (source.completedAiCount !== undefined) {
-        batchRows.push(["AI已返回", Number(source.completedAiCount || 0)]);
-      }
-      if (source.bufferedCount !== undefined) {
-        batchRows.push(["待保存队列", Number(source.bufferedCount || 0)]);
-      }
-
-      renderKeyValueRows(batchNode, batchRows);
+      renderKeyValueRows(batchNode, buildBatchRows(source));
 
       if (Array.isArray(source.failures) && source.failures.length > 0) {
         const failureTitle = document.createElement("div");
@@ -1025,7 +1040,17 @@
     };
   }
 
-  globalThis.__ASREdgeAishellTechMinnanUiPanel = {
+  const api = {
     createRuntime,
   };
+
+  api.__test__ = {
+    buildBatchRows,
+  };
+
+  globalThis.__ASREdgeAishellTechMinnanUiPanel = api;
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
 })();

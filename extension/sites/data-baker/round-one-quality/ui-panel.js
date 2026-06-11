@@ -12,6 +12,11 @@
     (typeof module !== "undefined" && module.exports
       ? require("../../../shared/ai-cost-display.js")
       : {});
+  const aiBatchSummary =
+    globalThis.ASREdgeAiBatchSummary ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/ai-batch-summary.js")
+      : {});
   const formatLexiconStatusAndMode =
     typeof lexiconDisplay.formatLexiconStatusAndMode === "function"
       ? lexiconDisplay.formatLexiconStatusAndMode
@@ -21,6 +26,12 @@
   const buildCostRows =
     typeof aiCostDisplay.buildCostRows === "function"
       ? aiCostDisplay.buildCostRows
+      : function () {
+          return [];
+        };
+  const buildBatchSummaryRows =
+    typeof aiBatchSummary.buildBatchSummaryRows === "function"
+      ? aiBatchSummary.buildBatchSummaryRows
       : function () {
           return [];
         };
@@ -158,6 +169,85 @@
     }
     rows.push(["requestId", source.requestId || ""]);
     return rows;
+  }
+
+  function phaseToText(phase) {
+    const text = String(phase || "").toLowerCase();
+    if (text === "fetching") {
+      return "获取列表";
+    }
+    if (text === "analysis") {
+      return "AI排队/并发分析";
+    }
+    if (text === "fill") {
+      return "填入中";
+    }
+    if (text === "retry") {
+      return "重试填入";
+    }
+    if (text === "stopped") {
+      return "已停止";
+    }
+    if (text === "completed") {
+      return "已完成";
+    }
+    return "空闲";
+  }
+
+  function formatElapsedMs(value) {
+    const totalMs = Number(value);
+    if (!Number.isFinite(totalMs) || totalMs < 0) {
+      return "-";
+    }
+    const totalSeconds = Math.floor(totalMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return (
+        String(hours) +
+        ":" +
+        String(minutes).padStart(2, "0") +
+        ":" +
+        String(seconds).padStart(2, "0")
+      );
+    }
+    return String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+  }
+
+  function buildBatchFloatingRows(state) {
+    const source = state && typeof state === "object" ? state : {};
+    const duplicateSkippedCount = Number(source.duplicateSkippedCount) || 0;
+    return [
+      { label: "阶段", value: phaseToText(String(source.phase || "idle")) },
+      { label: "批次ID", value: String(source.batchRunId || "").trim().slice(-8) || "-" },
+      { label: "执行耗时", value: formatElapsedMs(source.elapsedMs) },
+      { label: "当前AI链路", value: String(source.aiPipelineDisplayName || "-") },
+      { label: "当前AI模型", value: String(source.aiModelDisplayName || "-") },
+      { label: "并发规则", value: String(source.concurrencyRuleText || "按当前配置归一") },
+      { label: "前端并发", value: Number(source.frontConcurrency) || 0 },
+      { label: "发送间隔(ms)", value: Number(source.requestStaggerMs) || 0 },
+      { label: "总合格数", value: Number(source.totalCount) || 0 },
+      { label: "唯一任务数", value: Number(source.uniqueTaskCount) || 0 },
+      { label: "重复跳过", value: duplicateSkippedCount },
+      { label: "已发起AI请求", value: Number(source.launchedCount) || 0 },
+      { label: "前端活跃AI请求", value: Number(source.activeAiCount) || 0 },
+      { label: "AI已返回", value: Number(source.completedAiCount) || 0 },
+      { label: "AI成功", value: Number(source.analysisSuccessCount) || 0 },
+      { label: "AI失败", value: Number(source.analysisFailCount) || 0 },
+      { label: "待填队列", value: Number(source.queueCount) || 0 },
+      { label: "正在填入序号", value: Number(source.fillStartedCount) || 0 },
+      { label: "填入成功", value: Number(source.fillSuccessCount) || 0 },
+      { label: "填入失败", value: Number(source.fillFailCount) || 0 },
+      { label: "跳过", value: Number(source.fillSkipCount) || 0 },
+    ].concat(
+      buildBatchSummaryRows(source).map(function (item) {
+        return {
+          label: item[0],
+          value: item[1],
+        };
+      })
+    );
   }
 
   function ensureStyle() {
@@ -585,29 +675,6 @@
       batchFloatingRetryButton = null;
     }
 
-    function phaseToText(phase) {
-      const text = String(phase || "").toLowerCase();
-      if (text === "fetching") {
-        return "获取列表";
-      }
-      if (text === "analysis") {
-        return "AI排队/并发分析";
-      }
-      if (text === "fill") {
-        return "填入中";
-      }
-      if (text === "retry") {
-        return "重试填入";
-      }
-      if (text === "stopped") {
-        return "已停止";
-      }
-      if (text === "completed") {
-        return "已完成";
-      }
-      return "空闲";
-    }
-
     function createFloatingRow(label, value) {
       const labelNode = document.createElement("div");
       labelNode.className = "asr-edge-db-batch-floating-label";
@@ -615,27 +682,6 @@
       const valueNode = document.createElement("div");
       valueNode.textContent = String(value ?? "-");
       return { labelNode, valueNode };
-    }
-
-    function formatElapsedMs(value) {
-      const totalMs = Number(value);
-      if (!Number.isFinite(totalMs) || totalMs < 0) {
-        return "-";
-      }
-      const totalSeconds = Math.floor(totalMs / 1000);
-      const hours = Math.floor(totalSeconds / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      const seconds = totalSeconds % 60;
-      if (hours > 0) {
-        return (
-          String(hours) +
-          ":" +
-          String(minutes).padStart(2, "0") +
-          ":" +
-          String(seconds).padStart(2, "0")
-        );
-      }
-      return String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
     }
 
     function ensureBatchFloatingPanel() {
@@ -783,33 +829,10 @@
       const state = progress && typeof progress === "object" ? progress : {};
       const phase = String(state.phase || "idle");
       panel.setAttribute("data-phase", phase);
-
-      const shortBatchRunId = String(state.batchRunId || "").trim();
-      const batchRunIdText = shortBatchRunId ? shortBatchRunId.slice(-8) : "-";
       const duplicateSkippedCount = Number(state.duplicateSkippedCount) || 0;
-      const rows = [
-        createFloatingRow("阶段", phaseToText(phase)),
-        createFloatingRow("批次ID", batchRunIdText),
-        createFloatingRow("执行耗时", formatElapsedMs(state.elapsedMs)),
-        createFloatingRow("当前AI链路", String(state.aiPipelineDisplayName || "-")),
-        createFloatingRow("当前AI模型", String(state.aiModelDisplayName || "-")),
-        createFloatingRow("并发规则", String(state.concurrencyRuleText || "按当前配置归一")),
-        createFloatingRow("前端并发", Number(state.frontConcurrency) || 0),
-        createFloatingRow("发送间隔(ms)", Number(state.requestStaggerMs) || 0),
-        createFloatingRow("总合格数", Number(state.totalCount) || 0),
-        createFloatingRow("唯一任务数", Number(state.uniqueTaskCount) || 0),
-        createFloatingRow("重复跳过", duplicateSkippedCount),
-        createFloatingRow("已发起AI请求", Number(state.launchedCount) || 0),
-        createFloatingRow("前端活跃AI请求", Number(state.activeAiCount) || 0),
-        createFloatingRow("AI已返回", Number(state.completedAiCount) || 0),
-        createFloatingRow("AI成功", Number(state.analysisSuccessCount) || 0),
-        createFloatingRow("AI失败", Number(state.analysisFailCount) || 0),
-        createFloatingRow("待填队列", Number(state.queueCount) || 0),
-        createFloatingRow("正在填入序号", Number(state.fillStartedCount) || 0),
-        createFloatingRow("填入成功", Number(state.fillSuccessCount) || 0),
-        createFloatingRow("填入失败", Number(state.fillFailCount) || 0),
-        createFloatingRow("跳过", Number(state.fillSkipCount) || 0),
-      ];
+      const rows = buildBatchFloatingRows(state).map(function (item) {
+        return createFloatingRow(item.label, item.value);
+      });
       batchFloatingGrid.textContent = "";
       rows.forEach(function (row) {
         batchFloatingGrid.appendChild(row.labelNode);
@@ -1469,6 +1492,7 @@
 
   api.__test__ = {
     buildResultRows,
+    buildBatchFloatingRows,
   };
 
   globalThis.__ASREdgeDataBakerRoundOneUiPanel = api;

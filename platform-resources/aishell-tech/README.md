@@ -34,8 +34,8 @@
 
 | 目录 | 内容 | 状态 |
 |------|------|------|
-| `network/` | 5 个编号文档 + pending-capture + README | 完成 |
-| `page-structure/` | 5 个编号文档 + pending-capture + README | 核心链路完成；`05-organization` 已有初版占位，详细 DOM 仍待补 |
+| `network/` | 索引 README + 5 个稳定参考页 | 完成 |
+| `page-structure/` | 索引 README + 5 个稳定参考页 | 核心链路完成；`05-organization` 仍是边界摘要，详细 DOM 仍待补 |
 
 ## 当前阶段
 
