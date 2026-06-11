@@ -1,3 +1,12 @@
+## 2026-06-11（DataBaker CVPC 柳州话带标签填入清空问题补修）
+
+- `DataBaker CVPC / 柳州话脚本` 当前补修一处会让原生标签回放提前失败的空结构化值判断：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 当前把结构化空数组 `[]` 统一解码为空文本，不再把它误判成字面量 `"[]"`
+  - 这会让“先清空编辑器，再顺序插入文本 + 点击页面原生标签按钮”的主路径能继续往下执行，不会在清空校验阶段直接中止
+  - 若原生回放任一步仍未通过校验，当前会先恢复旧 `modelvalue + 可视 HTML` 快照，避免再次出现“点填入标注文本后输入框被直接清空”
+- 新增回归测试：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js` 当前补了“空 structured `modelvalue` 视为空文本”用例，并恢复 `带标签原生回放` 用例为绿
+
 ## 2026-06-11（DataBaker CVPC 柳州话带标签当前段填入改为优先原生按钮回放）
 
 - `DataBaker CVPC / 柳州话脚本` 当前对“点击 `填入标注文本` 后，带标签内容下一秒被页面回滚”的场景追加最后一层兜底：

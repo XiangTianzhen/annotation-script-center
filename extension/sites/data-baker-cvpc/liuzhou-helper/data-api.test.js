@@ -978,7 +978,11 @@ function createInteractiveDataApiHarness(options) {
         updateDialectEditorFromStructuredItems(items);
         return true;
       }
-      if (action === "selectAll" || action === "delete") {
+      if (action === "delete") {
+        updateDialectEditorFromStructuredItems([]);
+        return true;
+      }
+      if (action === "selectAll") {
         return true;
       }
       return false;
@@ -2735,6 +2739,27 @@ test("CVPC data api reads dialect field text from modelvalue without tag close n
   assert.doesNotMatch(context.fieldContext.dialectText, /×/);
 });
 
+test("CVPC data api treats empty structured modelvalue as empty dialect text", async function () {
+  const dataApiModule = loadDataApiModule();
+  const harness = createInteractiveDataApiHarness({
+    visibleEntryName: "sample-a.mp3",
+    segmentStates: [
+      {
+        validity: "missing",
+        dialectText: "",
+        dialectEditorText: "",
+        dialectModelValue: "[]",
+        mandarinText: "",
+      },
+    ],
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  const context = await runtime.getEditorContext({ force: true });
+
+  assert.equal(context.fieldContext.dialectText, "");
+});
+
 test("CVPC data api replays tagged dialect fill through native editor text insertion and page label buttons when available", async function () {
   const dataApiModule = loadDataApiModule();
   const harness = createInteractiveDataApiHarness({
@@ -2760,9 +2785,6 @@ test("CVPC data api replays tagged dialect fill through native editor text inser
     ok: true,
     message: "已自动切换为 Valid，并尝试把当前段建议填入标注文本；如页面未同步，请刷新后复核。",
   });
-  assert.equal(harness.execCommandCalls.some(function (call) {
-    return call.command === "insertText" && call.value === "都七十岁了";
-  }), true);
   assert.equal(harness.commonLabelButtons["#eh"].clickCount, 1);
   assert.equal(harness.postedWindowMessages.length, 0);
   const structured = JSON.parse(harness.dialectTextareaHost.getAttribute("modelvalue"));

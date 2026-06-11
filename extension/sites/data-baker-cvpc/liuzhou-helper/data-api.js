@@ -1071,7 +1071,7 @@
           return "";
         })
         .join("");
-      return joined || text;
+      return joined;
     } catch (_error) {
       return text;
     }
@@ -1534,6 +1534,150 @@
     return true;
   }
 
+  function captureStructuredFieldSnapshot(field, structuredHost) {
+    return {
+      innerHTML: String(field?.innerHTML || ""),
+      modelvalue:
+        typeof structuredHost?.getAttribute === "function"
+          ? String(structuredHost.getAttribute("modelvalue") || "")
+          : "",
+    };
+  }
+
+  function restoreStructuredFieldSnapshot(field, structuredHost, snapshot) {
+    const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+    if (structuredHost && typeof structuredHost.setAttribute === "function") {
+      structuredHost.setAttribute("modelvalue", String(source.modelvalue || ""));
+    }
+    if (field) {
+      field.innerHTML = String(source.innerHTML || "");
+    }
+  }
+
+  function selectAllContentEditable(field, env) {
+    if (!isContentEditableNode(field, env)) {
+      return false;
+    }
+    const doc = env?.document || globalThis.document;
+    const win = env?.window || globalThis.window;
+    const selection =
+      (win && typeof win.getSelection === "function" ? win.getSelection() : null) ||
+      (typeof globalThis.getSelection === "function" ? globalThis.getSelection() : null);
+    if (!selection || !doc || typeof doc.createRange !== "function") {
+      field.focus();
+      return false;
+    }
+    try {
+      const range = doc.createRange();
+      range.selectNodeContents(field);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      field.focus();
+      return true;
+    } catch (_error) {
+      field.focus();
+      return false;
+    }
+  }
+
+  function getStructuredReplayExpectedText(structuredItems) {
+    return normalizeText(
+      (Array.isArray(structuredItems) ? structuredItems : [])
+        .map(function (item) {
+          return String(item?.content || "");
+        })
+        .join("")
+        .replace(/×/g, " ")
+    );
+  }
+
+  function getStructuredReplayActualText(field, structuredHost) {
+    const modelValue =
+      typeof structuredHost?.getAttribute === "function"
+        ? String(structuredHost.getAttribute("modelvalue") || "")
+        : "";
+    const structuredText = decodeStructuredTextValue(modelValue);
+    if (structuredText) {
+      return normalizeText(structuredText.replace(/×/g, " "));
+    }
+    return normalizeText(String(field?.textContent || field?.innerText || "").replace(/×/g, " "));
+  }
+
+  function getStructuredReplayTagCount(field, structuredHost) {
+    const modelValue =
+      typeof structuredHost?.getAttribute === "function"
+        ? String(structuredHost.getAttribute("modelvalue") || "")
+        : "";
+    const parsedItems = parseStructuredTextItems(modelValue);
+    if (parsedItems.length > 0) {
+      return parsedItems.filter(function (item) {
+        return normalizeText(item?.type).toLowerCase() === "single";
+      }).length;
+    }
+    if (field && typeof field.querySelectorAll === "function") {
+      return field.querySelectorAll("[data-tag-id]").length;
+    }
+    return 0;
+  }
+
+  function matchesStructuredReplayState(field, structuredHost, structuredItems) {
+    const expectedTagCount = getStructuredTagLabels(structuredItems).length;
+    const actualTagCount = getStructuredReplayTagCount(field, structuredHost);
+    if (expectedTagCount > 0 && actualTagCount < expectedTagCount) {
+      return false;
+    }
+    const expectedText = getStructuredReplayExpectedText(structuredItems);
+    const actualText = getStructuredReplayActualText(field, structuredHost);
+    if (!expectedText) {
+      return actualTagCount === 0 && !actualText;
+    }
+    return (
+      actualText === expectedText ||
+      actualText.replace(/\s+/g, "") === expectedText.replace(/\s+/g, "")
+    );
+  }
+
+  function waitForStructuredReplayState(field, structuredHost, structuredItems) {
+    return new Promise(function (resolve) {
+      const delays = [0, 20, 60, 120];
+      let index = 0;
+      const check = function () {
+        if (matchesStructuredReplayState(field, structuredHost, structuredItems)) {
+          resolve(true);
+          return;
+        }
+        if (index >= delays.length) {
+          resolve(false);
+          return;
+        }
+        const delayMs = delays[index];
+        index += 1;
+        setTimeout(check, delayMs);
+      };
+      check();
+    });
+  }
+
+  function clearContentEditableForNativeReplay(field, structuredHost, env) {
+    if (!isContentEditableNode(field, env)) {
+      return false;
+    }
+    field.focus();
+    const doc = env?.document || globalThis.document;
+    selectAllContentEditable(field, env);
+    if (doc && typeof doc.execCommand === "function") {
+      try {
+        const deleted = doc.execCommand("delete", false, null);
+        if (deleted !== false) {
+          field.dispatchEvent(createBubbledEvent("input"));
+        }
+      } catch (_error) {
+        // Ignore and verify below.
+      }
+    }
+    return matchesStructuredReplayState(field, structuredHost, []);
+  }
+
   function canReplayStructuredTagFieldNatively(structuredItems, env) {
     const doc = env?.document || globalThis.document;
     if (!doc || typeof doc.execCommand !== "function") {
@@ -1553,9 +1697,14 @@
     if (!isContentEditableNode(field, env) || !canReplayStructuredTagFieldNatively(structuredItems, env)) {
       return false;
     }
+    const structuredHost = findStructuredTextareaHost(field, env);
+    const previousSnapshot = captureStructuredFieldSnapshot(field, structuredHost);
     field.focus();
-    field.innerHTML = '<p><br class="ProseMirror-trailingBreak"></p>';
-    field.dispatchEvent(createBubbledEvent("input"));
+    if (!clearContentEditableForNativeReplay(field, structuredHost, env)) {
+      restoreStructuredFieldSnapshot(field, structuredHost, previousSnapshot);
+      return false;
+    }
+    const replayedItems = [];
     for (let index = 0; index < structuredItems.length; index += 1) {
       const item = structuredItems[index];
       if (!item || typeof item !== "object") {
@@ -1564,19 +1713,36 @@
       const type = normalizeText(item.type).toLowerCase();
       if (type === "text") {
         if (!appendTextToContentEditableEnd(field, item.content, env)) {
+          restoreStructuredFieldSnapshot(field, structuredHost, previousSnapshot);
           return false;
         }
+        replayedItems.push({
+          type: "text",
+          content: String(item.content || ""),
+        });
       } else if (type === "single") {
         placeContentEditableCaretAtEnd(field, env);
         const applyResult = applyCommonLabel(item.content, env);
         if (!applyResult.ok) {
+          restoreStructuredFieldSnapshot(field, structuredHost, previousSnapshot);
           return false;
         }
+        replayedItems.push({
+          type: "single",
+          content: normalizeDialectTag(item.content),
+        });
       }
-      await Promise.resolve();
+      if (!(await waitForStructuredReplayState(field, structuredHost, replayedItems))) {
+        restoreStructuredFieldSnapshot(field, structuredHost, previousSnapshot);
+        return false;
+      }
     }
     field.dispatchEvent(createBubbledEvent("change"));
     field.blur();
+    if (!(await waitForStructuredReplayState(field, structuredHost, structuredItems))) {
+      restoreStructuredFieldSnapshot(field, structuredHost, previousSnapshot);
+      return false;
+    }
     return true;
   }
 
