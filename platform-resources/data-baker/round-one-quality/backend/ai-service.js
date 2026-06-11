@@ -26,6 +26,9 @@ const {
   listModelsByFamily,
 } = require("../../../backend/ai/model-dispatcher");
 const {
+  estimateProjectCost,
+} = require("../../../backend/ai/model-pricing");
+const {
   getClientConfig,
   requestCompare,
   requestOmniInputAudio,
@@ -85,14 +88,8 @@ const DEFAULT_COMPARE_TEMPLATE = [
   "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
   "只输出 JSON，不输出额外解释。",
 ].join("\n");
-const ESTIMATE_NOTE = "按当前 qwen3.5-omni-flash + qwen3.5-plus 测试估算，可后续按百炼账单调整。";
+const ESTIMATE_NOTE = "价格按共享百炼官方文档配置估算，仅覆盖当前已配置模型。";
 const EFFECTIVE_REVENUE_CNY_PER_HOUR = 350;
-const TOKEN_PRICE_CNY_PER_1K = {
-  listenPrompt: 0.018,
-  listenCompletion: 0.0133,
-  comparePrompt: 0.0008,
-  compareCompletion: 0.002,
-};
 const DEFAULT_LOG_DIR = path.join(__dirname, "logs");
 const JSONL_FILE_NAME = "recommend-calls.jsonl";
 const CSV_FILE_NAME = "recommend-calls.csv";
@@ -980,6 +977,7 @@ function buildRecommendResponse(parts) {
   );
   const listenUsage = normalizeUsage(parts?.listenUsage);
   const compareUsage = normalizeUsage(parts?.compareUsage);
+  const singleUsage = normalizeUsage(parts?.singleUsage);
   const listenConfidence = parts?.listenConfidence;
   const compareConfidence = parts?.compareConfidence;
   return {
@@ -1004,17 +1002,21 @@ function buildRecommendResponse(parts) {
     model: {
       listen: String(parts?.listenModel || ""),
       compare: String(parts?.compareModel || ""),
+      single: String(parts?.singleModel || ""),
     },
     usage: {
       listen: listenUsage,
       compare: compareUsage,
-      totalTokens: listenUsage.totalTokens + compareUsage.totalTokens,
+      single: singleUsage,
+      totalTokens: listenUsage.totalTokens + compareUsage.totalTokens + singleUsage.totalTokens,
     },
     cost:
       parts?.cost || {
         estimatedCostCny: 0,
+        totalEstimatedCostCny: 0,
         effectiveRevenueCny: 0,
         grossProfitCny: 0,
+        note: ESTIMATE_NOTE,
       },
     requestId: String(parts?.requestId || ""),
   };
@@ -1029,41 +1031,43 @@ function roundMoney(value) {
   return Number(safeNumber(value).toFixed(6));
 }
 
-function estimateTokenCost(usage, promptPrice, completionPrice) {
-  const source = usage && typeof usage === "object" ? usage : {};
-  const promptTokens = safeNumber(source.promptTokens || source.prompt_tokens);
-  const completionTokens = safeNumber(source.completionTokens || source.completion_tokens);
-  return (promptTokens / 1000) * promptPrice + (completionTokens / 1000) * completionPrice;
-}
-
 function estimateCost(input) {
   const effectiveTime = safeNumber(input?.effectiveTime);
   const listenUsage = input?.listenUsage && typeof input.listenUsage === "object" ? input.listenUsage : {};
   const compareUsage = input?.compareUsage && typeof input.compareUsage === "object" ? input.compareUsage : {};
+  const singleUsage = input?.singleUsage && typeof input.singleUsage === "object" ? input.singleUsage : {};
   const effectiveRevenueCny = (effectiveTime / 3600) * EFFECTIVE_REVENUE_CNY_PER_HOUR;
-  const listenCost = estimateTokenCost(
-    listenUsage,
-    TOKEN_PRICE_CNY_PER_1K.listenPrompt,
-    TOKEN_PRICE_CNY_PER_1K.listenCompletion
-  );
-  const compareCost = estimateTokenCost(
-    compareUsage,
-    TOKEN_PRICE_CNY_PER_1K.comparePrompt,
-    TOKEN_PRICE_CNY_PER_1K.compareCompletion
-  );
-  const estimatedCostCny = listenCost + compareCost;
-  const totalTokens = safeNumber(listenUsage.totalTokens) + safeNumber(compareUsage.totalTokens);
-  const note =
-    totalTokens > 0
-      ? ESTIMATE_NOTE
-      : ESTIMATE_NOTE + " 模型 usage 未返回或未解析，成本可能低估。";
+  const estimatedCost = estimateProjectCost({
+    listen: {
+      modelId: input?.listenModel,
+      usage: listenUsage,
+      outputMode: "text",
+    },
+    compare: {
+      modelId: input?.compareModel,
+      usage: compareUsage,
+      outputMode: "text",
+    },
+    single: {
+      modelId: input?.singleModel,
+      usage: singleUsage,
+      outputMode: "text",
+    },
+  });
+  const totalEstimatedCostCny = safeNumber(estimatedCost.totalEstimatedCostCny);
+  const hasUsage =
+    safeNumber(listenUsage.totalTokens) > 0 ||
+    safeNumber(compareUsage.totalTokens) > 0 ||
+    safeNumber(singleUsage.totalTokens) > 0;
 
-  return {
-    estimatedCostCny: roundMoney(estimatedCostCny),
+  return Object.assign({}, estimatedCost, {
+    estimatedCostCny: estimatedCost.totalEstimatedCostCny,
     effectiveRevenueCny: roundMoney(effectiveRevenueCny),
-    grossProfitCny: roundMoney(effectiveRevenueCny - estimatedCostCny),
-    note,
-  };
+    grossProfitCny: roundMoney(effectiveRevenueCny - totalEstimatedCostCny),
+    note: hasUsage
+      ? estimatedCost.note || ESTIMATE_NOTE
+      : ESTIMATE_NOTE + " 模型 usage 未返回或未解析，成本可能低估。",
+  });
 }
 
 function getLogDir() {
@@ -2491,14 +2495,18 @@ async function recommend(body, requestIdHint, runtimeOptions) {
           invalidReasons: normalizedSingle.heardText ? [] : ["missing-heard-text"],
         },
         compare: normalizedSingle,
-        listenModel: omniSingleResult.model,
+        listenModel: "",
         compareModel: "",
-        listenUsage: normalizeUsage(omniSingleResult.usage),
+        singleModel: omniSingleResult.model,
+        listenUsage: {},
         compareUsage: {},
+        singleUsage: normalizeUsage(omniSingleResult.usage),
         cost: estimateCost({
           effectiveTime: recommendRequest.effectiveTime,
-          listenUsage: normalizeUsage(omniSingleResult.usage),
+          singleModel: omniSingleResult.model,
+          listenUsage: {},
           compareUsage: {},
+          singleUsage: normalizeUsage(omniSingleResult.usage),
         }),
         listenConfidence: normalizedSingle.confidence,
         compareConfidence: normalizedSingle.confidence,
@@ -2657,6 +2665,8 @@ async function recommend(body, requestIdHint, runtimeOptions) {
         compareUsage: normalizeUsage(compareResult.usage),
         cost: estimateCost({
           effectiveTime: recommendRequest.effectiveTime,
+          listenModel: funAsrResult.model,
+          compareModel: compareResult.model,
           listenUsage: {},
           compareUsage: normalizeUsage(compareResult.usage),
         }),
@@ -2781,6 +2791,8 @@ async function recommend(body, requestIdHint, runtimeOptions) {
         compareUsage: normalizeUsage(compareResult.usage),
         cost: estimateCost({
           effectiveTime: recommendRequest.effectiveTime,
+          listenModel: omniListenResult.model,
+          compareModel: compareResult.model,
           listenUsage: normalizeUsage(omniListenResult.usage),
           compareUsage: normalizeUsage(compareResult.usage),
         }),

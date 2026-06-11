@@ -5,6 +5,7 @@ const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log")
 const { createAiRoute } = require("../../../backend/ai-framework");
 const { createAiJobRouteHandlers } = require("../../../backend/ai-framework/core/create-ai-job-routes");
 const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
+const { estimateProjectCost } = require("../../../backend/ai/model-pricing");
 const {
   buildModelQueueKey,
   enqueueProviderTask,
@@ -275,6 +276,18 @@ async function suggestRequest(body, requestId) {
       },
       ruleVersion: normalizedRequest.ruleVersion || DEFAULT_RULE_VERSION,
       mock: Boolean(config.mockEnabled || listenResult.mock || compareResult.mock),
+    });
+    responseData.cost = estimateProjectCost({
+      listen: {
+        modelId: listenResult.model || normalizedRequest.listenModel || DEFAULT_LISTEN_MODEL,
+        usage: listenResult.usage || {},
+        outputMode: "text",
+      },
+      compare: {
+        modelId: compareResult.model || normalizedRequest.compareModel || DEFAULT_COMPARE_MODEL,
+        usage: compareResult.usage || {},
+        outputMode: "text",
+      },
     });
 
     console.info("[ASR Judgement][ai] suggest success", {

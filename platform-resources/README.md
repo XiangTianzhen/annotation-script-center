@@ -7,6 +7,7 @@
 - 统一后端入口：`platform-resources/backend/server.js`
 - 统一路由注册：`platform-resources/backend/registry.js`
 - 本目录不存放扩展运行时代码；扩展运行时代码在 `extension/`。
+- 当前 AI 消耗标准统一由共享价格配置 `config/pricing/aliyun-bailian-model-pricing.json` 驱动：已接入 AI 服务默认返回统一 `cost` 对象，AI 请求记录 CSV 一律使用中文表头，并按单阶段或多阶段拆列记录 token 与人民币估算。
 
 ## 平台资料目录规则
 
@@ -53,7 +54,7 @@
 - 当前共享后端收口：
   - 转写与快判的 `download / suppliers / existing` 已开始复用 `platform-resources/backend/project-data-download/` 下的 LabelX 共享下载 core。
   - 脚本级差异分别收口在各自 `data/adapter.js`。
-  - 转写与快判 AI 调用当前都已默认记录脚本级 CSV，并分别开放 `logs/summary` 统计接口。
+  - 转写与快判 AI 调用当前都已默认记录脚本级 CSV，并分别开放 `logs/summary` 统计接口；AI 消耗当前统一按共享价格配置返回 `cost` 并导出中文表头 CSV。
 - 脚本：
   - `asr-judgement/`
   - `asr-transcription/`
@@ -69,7 +70,7 @@
   - `export/download` 已开始复用 `platform-resources/backend/project-data-download/` 下的通用 CSV 文件下载 core。
   - 脚本级差异收口在 `round-one-quality/data/adapter.js`。
   - DataBaker 导出字段映射、upload 字段归一、CSV helper、merge helper、latest/history/events 持久化 helper、history 读取 helper、下载 helper 和脱敏样例已开始收口到 `round-one-quality/data/field-mappings.js`、`data/scripts/`、`data/assets/`。
-  - DataBaker AI recommend 当前已默认记录脚本级 CSV，并开放 `logs/summary` 统计接口。
+  - DataBaker AI recommend 当前已默认记录脚本级 CSV，并开放 `logs/summary` 统计接口；AI 消耗当前统一按共享价格配置返回 `cost` 并导出中文表头 CSV。
 - 脚本：
   - `round-one-quality/`
 - 闽南语词表：`platform-resources/data-baker/round-one-quality/backend/reference/minnan-lexicon.csv`
@@ -138,7 +139,7 @@
 ## 当前 AI 调用日志覆盖范围
 
 - DataBaker：`/api/data-baker/round-one-quality/ai/recommend/logs/summary`
-- DataBaker CVPC：当前未写脚本级 AI 调用日志 CSV，也未开放 `logs/summary`
+- DataBaker CVPC：`/api/data-baker-cvpc/liuzhou-helper/ai/recommend/logs/summary`
 - Aishell Tech：`/api/aishell-tech/minnan-helper/ai/recommend/logs/summary`
 - Magic Data 客家话：`/api/magic-data/hakka-helper/ai/review-current/logs/summary`
 - Magic Data 客家话 legacy：`/api/magic-data/annotator/ai/review-current/logs/summary`

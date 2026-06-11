@@ -3,9 +3,24 @@
 const path = require("path");
 
 const { createAiCallLogger } = require("../../../backend/ai-call-log");
+const { createStageLogSupport } = require("../../../backend/ai-call-log/stage-log-support");
 const { SCRIPT_ID } = require("./ai-service");
 
 const DEFAULT_LOG_DIR = path.join(__dirname, "logs");
+const stageLogSupport = createStageLogSupport({
+  stages: [
+    {
+      key: "listen",
+      label: "听音",
+      modelKeys: ["listenModel"],
+    },
+    {
+      key: "refine",
+      label: "文本修正",
+      modelKeys: ["refineModel"],
+    },
+  ],
+});
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -16,14 +31,6 @@ function normalizeNumber(value) {
   return Number.isFinite(number) ? String(Math.round(number)) : "";
 }
 
-function normalizeCostNumber(value) {
-  if (value === null || value === undefined || value === "") {
-    return "";
-  }
-  const number = Number(value);
-  return Number.isFinite(number) ? number.toFixed(6) : "";
-}
-
 function pickProjectResult(context) {
   return (
     context?.execution?.projectResult ||
@@ -31,35 +38,6 @@ function pickProjectResult(context) {
     context?.execution?.pipelineResult ||
     {}
   );
-}
-
-function pickStageUsage(usage, stageKey) {
-  const source = usage && typeof usage === "object" ? usage[stageKey] : null;
-  if (!source || typeof source !== "object") {
-    return {
-      promptTokens: "",
-      completionTokens: "",
-      totalTokens: "",
-    };
-  }
-  const promptTokens = Number(
-    source.promptTokens ?? source.prompt_tokens ?? source.inputTokens ?? source.input_tokens ?? 0
-  );
-  const completionTokens = Number(
-    source.completionTokens ?? source.completion_tokens ?? source.outputTokens ?? source.output_tokens ?? 0
-  );
-  const totalTokens = Number(source.totalTokens ?? source.total_tokens ?? promptTokens + completionTokens ?? 0);
-  return {
-    promptTokens: Number.isFinite(promptTokens) && promptTokens > 0 ? String(Math.round(promptTokens)) : "",
-    completionTokens:
-      Number.isFinite(completionTokens) && completionTokens >= 0 ? String(Math.round(completionTokens)) : "",
-    totalTokens: Number.isFinite(totalTokens) && totalTokens > 0 ? String(Math.round(totalTokens)) : "",
-  };
-}
-
-function pickStageCost(cost, stageKey) {
-  const source = cost && typeof cost === "object" ? cost[stageKey] : null;
-  return source && typeof source === "object" ? source : {};
 }
 
 function getLogDir() {
@@ -84,15 +62,7 @@ const aiCallLogger = createAiCallLogger({
     { key: "segmentEndMs", header: "片段结束毫秒" },
     { key: "listenModel", header: "听音模型" },
     { key: "refineModel", header: "文本修正模型" },
-    { key: "listenPromptTokens", header: "听音输入Token" },
-    { key: "listenCompletionTokens", header: "听音输出Token" },
-    { key: "listenTotalTokens", header: "听音总Token" },
-    { key: "refinePromptTokens", header: "文本修正输入Token" },
-    { key: "refineCompletionTokens", header: "文本修正输出Token" },
-    { key: "refineTotalTokens", header: "文本修正总Token" },
-    { key: "listenEstimatedCostCny", header: "听音预估人民币" },
-    { key: "refineEstimatedCostCny", header: "文本修正预估人民币" },
-    { key: "totalEstimatedCostCny", header: "总预估人民币" },
+    ...stageLogSupport.extraColumns,
   ],
   buildExtendedRow(context) {
     const input = context?.normalizedRequest?.input || {};
@@ -100,12 +70,6 @@ const aiCallLogger = createAiCallLogger({
     const selectedEntry = input?.editorContext?.selectedEntry || {};
     const projectResult = pickProjectResult(context);
     const models = projectResult?.models || context?.execution?.models || {};
-    const usage = projectResult?.usage || context?.error?.usage || context?.result?.usage || {};
-    const cost = projectResult?.cost || context?.error?.cost || context?.result?.cost || {};
-    const listenUsage = pickStageUsage(usage, "listen");
-    const refineUsage = pickStageUsage(usage, "refine");
-    const listenCost = pickStageCost(cost, "listen");
-    const refineCost = pickStageCost(cost, "refine");
     return {
       projectId: normalizeText(query.projectId),
       taskId: normalizeText(query.taskId),
@@ -119,15 +83,7 @@ const aiCallLogger = createAiCallLogger({
       segmentEndMs: normalizeNumber(input.endMs),
       listenModel: normalizeText(models.listenModel || input.listenModel),
       refineModel: normalizeText(models.refineModel || input.refineModel),
-      listenPromptTokens: listenUsage.promptTokens,
-      listenCompletionTokens: listenUsage.completionTokens,
-      listenTotalTokens: listenUsage.totalTokens,
-      refinePromptTokens: refineUsage.promptTokens,
-      refineCompletionTokens: refineUsage.completionTokens,
-      refineTotalTokens: refineUsage.totalTokens,
-      listenEstimatedCostCny: normalizeCostNumber(listenCost.estimatedCostCny),
-      refineEstimatedCostCny: normalizeCostNumber(refineCost.estimatedCostCny),
-      totalEstimatedCostCny: normalizeCostNumber(cost.totalEstimatedCostCny),
+      ...stageLogSupport.buildRow(context),
     };
   },
 });

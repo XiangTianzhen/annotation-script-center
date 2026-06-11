@@ -1,3 +1,22 @@
+## 2026-06-11（全仓 AI 服务统一 AI 消耗记录与人民币估算）
+
+- 当前把“中文 CSV 表头 + 分阶段 token + 预估人民币 + 统一 `cost` 对象”从 `DataBaker CVPC / 柳州话脚本` 扩展到全仓已接入 AI 服务：
+  - 新增共享日志阶段助手 `platform-resources/backend/ai-call-log/stage-log-support.js`
+  - `execute-project-pipeline` 当前会透传顶层 `cost`，供 framework 日志与后续前端复用
+  - `DataBaker round-one / Aishell Minnan / Magic Data hakka-minnan / LabelX judgement-transcription / Abaka Task21` 当前都已接入统一人民币估算
+- AI 请求记录当前统一口径：
+  - CSV 公共列与脚本扩展列统一中文表头
+  - 单阶段默认记录总 token，并补“当前调用阶段 / 总预估人民币”
+  - 多阶段默认拆分阶段 token 与阶段预估人民币
+  - 缺少价格配置时，页面继续显示 `没有数据源`，CSV 金额列保持空白
+- 项目级长期规则当前同步写入：
+  - `AGENTS.md`
+  - `docs/rules/project-collaboration-rules.md`
+  - `README.md`
+  - `docs/platforms/index.md`
+  - `platform-resources/README.md`
+  - `platform-resources/backend/README.md`
+
 ## 2026-06-11（DataBaker CVPC 柳州话单独语气词结果卡展示与 AI 参考收口）
 
 - `DataBaker CVPC / 柳州话脚本` 当前补齐“应用层已落 `<Meaningless>`，但结果卡仍显示原始 `#um / 嗯。`”的展示缺口：

@@ -3,8 +3,28 @@
 const path = require("path");
 
 const { createAiCallLogger } = require("../../../backend/ai-call-log");
+const { createStageLogSupport } = require("../../../backend/ai-call-log/stage-log-support");
 
 const DEFAULT_LOG_DIR = path.join(__dirname, "runtime");
+const stageLogSupport = createStageLogSupport({
+  stages: [
+    {
+      key: "convert",
+      label: "转换",
+      modelKeys: ["convertModel", "candidateModel"],
+    },
+    {
+      key: "listen",
+      label: "听音",
+      modelKeys: ["listenModel"],
+    },
+    {
+      key: "compare",
+      label: "比较",
+      modelKeys: ["compareModel"],
+    },
+  ],
+});
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -43,6 +63,7 @@ const aiCallLogger = createAiCallLogger({
     { key: "listenModel", header: "听音模型" },
     { key: "compareModelFamily", header: "比较方式" },
     { key: "compareModel", header: "比较模型" },
+    ...stageLogSupport.extraColumns,
   ],
   buildExtendedRow(context) {
     const request = context?.normalizedRequest || {};
@@ -75,6 +96,7 @@ const aiCallLogger = createAiCallLogger({
         models.compareModelFamily || request.compareFamily
       ),
       compareModel: normalizeText(models.compareModel || request.compareModel),
+      ...stageLogSupport.buildRow(context),
     };
   },
   pickRawResponse(context) {

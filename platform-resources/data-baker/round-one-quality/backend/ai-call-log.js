@@ -3,8 +3,28 @@
 const path = require("path");
 
 const { createAiCallLogger } = require("../../../backend/ai-call-log");
+const { createStageLogSupport } = require("../../../backend/ai-call-log/stage-log-support");
 
 const DEFAULT_LOG_DIR = path.join(__dirname, "logs");
+const stageLogSupport = createStageLogSupport({
+  stages: [
+    {
+      key: "listen",
+      label: "听音",
+      modelKeys: ["listenModel"],
+    },
+    {
+      key: "compare",
+      label: "比较",
+      modelKeys: ["compareModel"],
+    },
+    {
+      key: "single",
+      label: "单模型",
+      modelKeys: ["singleModel"],
+    },
+  ],
+});
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -50,11 +70,21 @@ function buildCombinedUsage(usage) {
   }, 0);
   const totalTokens =
     normalizeNumber(source.totalTokens || source.total_tokens) || promptTokens + completionTokens;
-  return {
+  const result = {
     promptTokens,
     completionTokens,
     totalTokens,
   };
+  if (isPlainObject(source.listen)) {
+    result.listen = source.listen;
+  }
+  if (isPlainObject(source.compare)) {
+    result.compare = source.compare;
+  }
+  if (isPlainObject(source.single)) {
+    result.single = source.single;
+  }
+  return result;
 }
 
 function buildModels(record) {
@@ -92,6 +122,7 @@ function buildError(record) {
       usage: buildCombinedUsage(source.response && source.response.usage),
       timing,
       models,
+      cost: isPlainObject(source.response?.cost) ? source.response.cost : {},
     },
   };
 }
@@ -118,6 +149,7 @@ function toLoggerContext(record) {
               usage: buildCombinedUsage(response.usage),
               timing,
               models,
+              cost: isPlainObject(response.cost) ? response.cost : {},
             },
             data: response,
           },
@@ -142,6 +174,7 @@ const aiCallLogger = createAiCallLogger({
     { key: "listenModel", header: "听音模型" },
     { key: "compareModel", header: "比较模型" },
     { key: "singleModel", header: "单模型" },
+    ...stageLogSupport.extraColumns,
   ],
   buildExtendedRow(context) {
     const request = context?.request || {};
@@ -157,6 +190,7 @@ const aiCallLogger = createAiCallLogger({
       listenModel: models.listenModel,
       compareModel: models.compareModel,
       singleModel: models.singleModel,
+      ...stageLogSupport.buildRow(context),
     };
   },
   pickRawResponse(context) {

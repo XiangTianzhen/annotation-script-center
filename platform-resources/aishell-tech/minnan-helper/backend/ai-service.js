@@ -620,6 +620,7 @@ function buildMeta(meta, requestId) {
     execution: source.execution && typeof source.execution === "object" ? source.execution : {},
     timing: source.timing && typeof source.timing === "object" ? source.timing : {},
     usage: source.usage && typeof source.usage === "object" ? source.usage : {},
+    cost: source.cost && typeof source.cost === "object" ? source.cost : {},
     queue: source.queue && typeof source.queue === "object" ? source.queue : {},
     cache: source.cache && typeof source.cache === "object" ? source.cache : {},
     debugId: normalizeText(source.debugId),

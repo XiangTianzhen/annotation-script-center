@@ -4,6 +4,9 @@ const {
   requestCompare,
 } = require("../../../backend/ai/providers/qwen-openai-compatible");
 const {
+  estimateProjectCost,
+} = require("../../../backend/ai/model-pricing");
+const {
   requestOmniInputAudio,
 } = require("./dashscope-omni-client");
 const {
@@ -1086,6 +1089,23 @@ function createRecommendPipeline(overrides) {
         rewriteChanges: Array.isArray(rewriteState.changes) ? rewriteState.changes : [],
       };
       timing.totalDurationMs = Math.max(0, deps.now() - startedAtMs);
+      const cost = estimateProjectCost({
+        convert: {
+          modelId: activeConvertModel,
+          usage: convertUsage,
+          outputMode: "text",
+        },
+        listen: {
+          modelId: activeListenModel,
+          usage: listenUsage,
+          outputMode: "text",
+        },
+        compare: {
+          modelId: activeCompareModel,
+          usage: compareUsage,
+          outputMode: "text",
+        },
+      });
 
       return {
         cacheEntry: {
@@ -1143,6 +1163,7 @@ function createRecommendPipeline(overrides) {
             listen: listenUsage,
             compare: compareUsage,
           },
+          cost,
           queue: buildQueueMeta(queueMetas),
           cache: {
             hit: false,

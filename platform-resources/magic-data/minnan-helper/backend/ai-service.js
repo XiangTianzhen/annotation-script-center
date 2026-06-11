@@ -10,6 +10,7 @@ const {
   createJobTimeoutError,
   normalizeAbortError,
 } = require("../../../backend/ai/errors");
+const { estimateProjectCost } = require("../../../backend/ai/model-pricing");
 const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
 const {
   buildModelQueueKey,
@@ -1681,9 +1682,27 @@ async function reviewCurrent(body, requestId) {
         funAsrModel: normalizedRequest.listenModel === "fun-asr" ? profileConfig.funAsrModel : "",
       },
       usage: {
-        listen: listenUsage,
-        compare: compareUsage,
+        listen: normalizedRequest.recognitionMode === "omni_single" ? {} : listenUsage,
+        compare: normalizedRequest.recognitionMode === "omni_single" ? {} : compareUsage,
+        single: normalizedRequest.recognitionMode === "omni_single" ? listenUsage : {},
       },
+      cost: estimateProjectCost({
+        listen: {
+          modelId: normalizedRequest.recognitionMode === "omni_single" ? "" : listenModelRuntime || "",
+          usage: normalizedRequest.recognitionMode === "omni_single" ? {} : listenUsage,
+          outputMode: "text",
+        },
+        compare: {
+          modelId: normalizedRequest.recognitionMode === "omni_single" ? "" : compareModelRuntime || "",
+          usage: normalizedRequest.recognitionMode === "omni_single" ? {} : compareUsage,
+          outputMode: "text",
+        },
+        single: {
+          modelId: singleModelRuntime || "",
+          usage: normalizedRequest.recognitionMode === "omni_single" ? listenUsage : {},
+          outputMode: "text",
+        },
+      }),
       queue: {
         listen: queueMetaListen || {},
         compare: queueMetaCompare || {},

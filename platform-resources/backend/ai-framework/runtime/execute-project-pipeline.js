@@ -82,6 +82,7 @@ async function executeProjectPipeline(input) {
     projectResult: isPlainObject(projectResult) ? projectResult : null,
     models: pickEnvelopeValue(postProcessedResult, "models"),
     usage: pickEnvelopeValue(postProcessedResult, "usage"),
+    cost: pickEnvelopeValue(postProcessedResult, "cost"),
     timing: pickEnvelopeValue(postProcessedResult, "timing"),
     cache: pickEnvelopeValue(postProcessedResult, "cache"),
     debug: pickEnvelopeValue(postProcessedResult, "debug"),

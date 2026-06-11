@@ -5,6 +5,7 @@ const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log")
 const { createAiRoute } = require("../../../backend/ai-framework");
 const { createAiJobRouteHandlers } = require("../../../backend/ai-framework/core/create-ai-job-routes");
 const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
+const { estimateProjectCost } = require("../../../backend/ai/model-pricing");
 const {
   buildModelQueueKey,
   enqueueProviderTask,
@@ -346,6 +347,18 @@ async function reviewCurrent(body, requestId) {
     const listenUsage = normalizeUsage(listenResult.usage);
     const compareUsage = normalizeUsage(compareResult.usage);
     const totalDurationMs = Date.now() - startedAtMs;
+    const cost = estimateProjectCost({
+      listen: {
+        modelId: listenResult.model || listenModel || DEFAULT_LISTEN_MODEL,
+        usage: listenUsage,
+        outputMode: "text",
+      },
+      compare: {
+        modelId: compareResult.model || reviewModel || DEFAULT_COMPARE_MODEL,
+        usage: compareUsage,
+        outputMode: "text",
+      },
+    });
 
     const showHeardText = reviewRequest.showHeardText !== false;
     const heardDialectText = showHeardText ? listen.heardDialectText : "";
@@ -450,6 +463,7 @@ async function reviewCurrent(body, requestId) {
         listen: listenUsage,
         compare: compareUsage,
       },
+      cost,
       thinking: {
         requested: reviewRequest.enableThinking === true,
         listen: {

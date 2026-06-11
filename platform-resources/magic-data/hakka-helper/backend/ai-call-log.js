@@ -5,9 +5,29 @@ const path = require("path");
 const {
   createAiCallLogger,
 } = require("../../../backend/ai-call-log");
+const { createStageLogSupport } = require("../../../backend/ai-call-log/stage-log-support");
 const { SCRIPT_ID } = require("./ai-review-request");
 
 const DEFAULT_LOG_DIR = path.join(__dirname, "logs");
+const stageLogSupport = createStageLogSupport({
+  stages: [
+    {
+      key: "listen",
+      label: "听音",
+      modelKeys: ["listenModel"],
+    },
+    {
+      key: "compare",
+      label: "文本修正",
+      modelKeys: ["compareModel", "reviewModel"],
+    },
+    {
+      key: "single",
+      label: "单模型",
+      modelKeys: ["singleModel"],
+    },
+  ],
+});
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -46,6 +66,7 @@ const aiCallLogger = createAiCallLogger({
     { key: "listenModel", header: "听音模型" },
     { key: "compareModel", header: "比较模型" },
     { key: "singleModel", header: "单模型" },
+    ...stageLogSupport.extraColumns,
   ],
   buildExtendedRow(context) {
     const normalizedRequest = context?.normalizedRequest || {};
@@ -66,6 +87,7 @@ const aiCallLogger = createAiCallLogger({
       listenModel: normalizeText(models.listenModel || projectOptions.listenModel),
       compareModel: normalizeText(models.compareModel || projectOptions.compareModel),
       singleModel: normalizeText(models.singleModel || projectOptions.singleModel),
+      ...stageLogSupport.buildRow(context),
     };
   },
 });

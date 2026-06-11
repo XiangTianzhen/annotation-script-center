@@ -3,6 +3,7 @@
 本目录用于索引各平台、各脚本的长期规则。项目指令和 AGENTS.md 不直接堆放平台细节；需要处理具体平台时，先读对应 README 和 `platform-resources` 资料。
 
 - 当前统一查看入口：options 首页隐藏高级区已同时提供“项目数据下载”和“AI 请求记录”两个导出面板；AI 请求记录走 `platform-resources/backend/ai-call-log-download/` 聚合接口，导出时可选填写日期范围。
+- 当前统一 AI 消耗口径：所有已接入 AI 服务默认返回统一 `cost` 对象，价格统一读取 `config/pricing/aliyun-bailian-model-pricing.json`；AI 请求记录 CSV 统一使用中文表头，并按单阶段或多阶段拆列记录 token 与人民币估算。缺少价格配置的模型仍可继续调用，但页面只显示 `没有数据源`，CSV 金额列保持空白。
 
 ## Alibaba LabelX
 

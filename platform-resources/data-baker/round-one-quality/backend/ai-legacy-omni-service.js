@@ -619,6 +619,8 @@ async function recommendLegacyOmni(body, requestIdHint, runtimeOptions) {
       compareUsage,
       cost: estimateCost({
         effectiveTime: recommendRequest.effectiveTime,
+        listenModel: listenResult.model,
+        compareModel: compareResult.model,
         listenUsage,
         compareUsage,
       }),

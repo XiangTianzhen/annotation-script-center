@@ -5,6 +5,7 @@ const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log")
 const { createAiRoute } = require("../../../backend/ai-framework");
 const { createAiJobRouteHandlers } = require("../../../backend/ai-framework/core/create-ai-job-routes");
 const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
+const { estimateProjectCost } = require("../../../backend/ai/model-pricing");
 const {
   buildModelQueueKey,
   enqueueProviderTask,
@@ -223,6 +224,12 @@ async function suggestCurrentRequest(body, requestId) {
     }
 
     const durationMs = Date.now() - startedAtMs;
+    const normalizedUsage = normalizeUsage(modelResult.usage);
+    const activeModel =
+      String(modelResult.model || "").trim() ||
+      (modelResult.usedCompareModel === true
+        ? selectedModels.compareModel
+        : selectedModels.listenModel);
     const responseData = {
       requestId,
       decision: normalized.decision,
@@ -234,12 +241,23 @@ async function suggestCurrentRequest(body, requestId) {
       models: {
         listenModel: selectedModels.listenModel,
         compareModel: selectedModels.compareModel,
+        activeModel: activeModel,
       },
-      usage: normalizeUsage(modelResult.usage),
+      usage: Object.assign({}, normalizedUsage, {
+        recommend: normalizedUsage,
+      }),
+      mode: modelResult.mode || "",
       mock: modelResult.mock === true,
       timing: {
         durationMs,
       },
+      cost: estimateProjectCost({
+        recommend: {
+          modelId: activeModel,
+          usage: modelResult.usage || {},
+          outputMode: "text",
+        },
+      }),
       thinking: {
         requested: suggestRequest.enableThinking === true,
         enableThinking: modelResult.enableThinking === true,

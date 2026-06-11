@@ -43,6 +43,13 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 - 涉及模型名、`enable_thinking`、结构化输出、Qwen-Omni、Web Search、限流、调用地区时，必须先核对该索引中的官方文档。
 - 如果官方文档在本地无法访问，必须在输出中明确说明“未能联网核对官方文档”，不得伪造结论。
 
+## AI 消耗统一口径
+
+- 所有已接入 AI 服务默认返回统一 `cost` 对象，价格统一读取 `config/pricing/aliyun-bailian-model-pricing.json`。
+- AI 请求记录 CSV 公共列与脚本扩展列统一使用中文表头。
+- 单阶段 AI 调用默认记录总 token，并可补当前调用阶段人民币估算；多阶段 AI 调用默认拆分阶段 token 与阶段预估人民币。
+- 缺少价格配置的模型仍允许继续调用；页面可显示 `没有数据源`，CSV 金额列保持空白，不写状态文本。
+
 可用环境变量：
 
 - 2026-05-28 起，仓库内所有 `*_ENABLE_THINKING` 变量只保留历史兼容读取；实际请求统一固定 `enable_thinking=false`，不再通过前端配置或环境变量开启 thinking。

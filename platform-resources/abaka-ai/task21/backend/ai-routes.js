@@ -2,6 +2,7 @@
 
 const { sendJson } = require("../../../backend/response");
 const { buildAiCallLogSummaryPayload } = require("../../../backend/ai-call-log");
+const { estimateProjectCost } = require("../../../backend/ai/model-pricing");
 const { createAiRoute } = require("../../../backend/ai-framework");
 const { createAiJobRouteHandlers } = require("../../../backend/ai-framework/core/create-ai-job-routes");
 const { buildAsyncJobRuntimeMeta } = require("../../../backend/ai-framework/runtime/ai-runtime-meta");
@@ -650,6 +651,30 @@ async function analyzeRequest(body, requestId) {
     }
 
     const normalizedResult = normalizeResultSchema(normalizedRequest.target, parsedResult);
+    const rawStages =
+      aiResponse.stages && typeof aiResponse.stages === "object" ? aiResponse.stages : {};
+    const cost = estimateProjectCost({
+      vision: {
+        modelId: String(aiResponse.selectedModels?.visionModel || runtimeOptions.visionModel || ""),
+        usage: rawStages.vision?.usage || {},
+        outputMode: "text",
+      },
+      ocr: {
+        modelId: String(aiResponse.selectedModels?.ocrModel || runtimeOptions.ocrModel || ""),
+        usage: rawStages.ocr?.usage || {},
+        outputMode: "text",
+      },
+      reasoning: {
+        modelId: String(aiResponse.selectedModels?.reasoningModel || runtimeOptions.reasoningModel || ""),
+        usage: rawStages.reasoning?.usage || {},
+        outputMode: "text",
+      },
+      single: {
+        modelId: String(aiResponse.selectedModels?.singleModel || runtimeOptions.singleModel || ""),
+        usage: rawStages.single?.usage || {},
+        outputMode: "text",
+      },
+    });
     const totalUsage = aiResponse.usage
       ? normalizeUsage(aiResponse.usage, { source: "provider" })
       : normalizeUsage(
@@ -685,6 +710,7 @@ async function analyzeRequest(body, requestId) {
       elapsedMs: Date.now() - startedAt,
       result: normalizedResult,
       usage,
+      cost,
       stages,
       imageStats: sanitizeImageStats(normalizedRequest.images),
       visualObservations:
