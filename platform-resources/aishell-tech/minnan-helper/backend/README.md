@@ -68,6 +68,8 @@
   - `debugId`
   - `retryCount`
   - `cancelled`
+  - `lexicon`
+    - `status / source / sourceFile / referenceSourceFile / rowCount / warningMessage / rewriteMode`
   - `audioFirstReference`
     - `convertedText`
     - `convertPairs`

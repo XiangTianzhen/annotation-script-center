@@ -251,6 +251,13 @@ function buildHealthResponse() {
   };
 }
 
+function buildReviewLexiconMeta(baseLexicon, rewriteMode) {
+  const source = baseLexicon && typeof baseLexicon === "object" ? baseLexicon : {};
+  return Object.assign({}, source, {
+    rewriteMode: sanitizeModelName(rewriteMode) || "off",
+  });
+}
+
 async function reviewCurrent(body, requestId) {
   const startedAtMs = Date.now();
   requestId = normalizeText(requestId) || createRequestId();
@@ -447,12 +454,15 @@ async function reviewCurrent(body, requestId) {
         ),
         summary: normalizedSummary,
       },
-      lexicon: {
-        enabled: lexiconContext.enabled,
-        status: lexiconContext.status,
-        matchedCount: lexiconContext.matchedCount,
-        matches: lexiconContext.matches,
-      },
+      lexicon: buildReviewLexiconMeta(
+        {
+          enabled: lexiconContext.enabled,
+          status: lexiconContext.status,
+          matchedCount: lexiconContext.matchedCount,
+          matches: lexiconContext.matches,
+        },
+        profileConfig.lexiconRewriteMode
+      ),
       models: {
         listenModel: listenResult.model || listenModel || DEFAULT_LISTEN_MODEL,
         reviewModel: compareResult.model || reviewModel || DEFAULT_COMPARE_MODEL,
@@ -744,4 +754,7 @@ module.exports = {
   normalizeReviewRequest,
   reviewCurrent,
   registerAiRoutes,
+  __test__: {
+    buildReviewLexiconMeta,
+  },
 };

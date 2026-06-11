@@ -1,5 +1,7 @@
 "use strict";
 
+const path = require("path");
+
 const {
   requestOmniInputAudio,
   requestTextCompareJson,
@@ -1679,6 +1681,7 @@ async function recommend(request, assetsContext, overrides) {
     );
     const models = Object.assign({}, listenResult.models || {}, refineResult.models || {});
     const usage = Object.assign({}, listenResult.usage || {}, refineResult.usage || {});
+    const lexicon = buildRecommendLexiconMeta(normalizedAssetsContext, request);
     return {
       audioDialectText,
       audioDialectTokens: Array.isArray(listenResult.audioDialectTokens)
@@ -1713,6 +1716,7 @@ async function recommend(request, assetsContext, overrides) {
       models,
       usage,
       cost: buildRecommendCost(models, usage),
+      lexicon,
     };
   } catch (error) {
     const currentError =
@@ -1750,6 +1754,20 @@ async function recommend(request, assetsContext, overrides) {
   }
 }
 
+function buildRecommendLexiconMeta(assetsContext, normalizedRequest) {
+  const source = assetsContext && typeof assetsContext === "object" ? assetsContext : {};
+  const request = normalizedRequest && typeof normalizedRequest === "object" ? normalizedRequest : {};
+  return {
+    status: normalizeText(source.lexiconStatus || "missing") || "missing",
+    source: "json",
+    sourceFile: path.basename("liuzhou-lexicon.json"),
+    referenceSourceFile: path.basename("liuzhou-pronunciation-reference.csv"),
+    rowCount: Array.isArray(source.lexiconRows) ? source.lexiconRows.length : 0,
+    warningMessage: normalizeText(source.lexiconWarning || ""),
+    listenReferenceEnabled: request.aiStages?.listen?.includeLexiconReference === true,
+  };
+}
+
 function buildRecommendSuccessBody(context) {
   const source = context && typeof context === "object" ? context : {};
   const result =
@@ -1774,6 +1792,20 @@ function buildRecommendSuccessBody(context) {
     timing: result.timing && typeof result.timing === "object" ? result.timing : {},
     models: result.models && typeof result.models === "object" ? result.models : {},
     usage: result.usage && typeof result.usage === "object" ? result.usage : {},
+    lexicon:
+      result.lexicon && typeof result.lexicon === "object"
+        ? {
+            status: normalizeText(result.lexicon.status || "missing") || "missing",
+            source: normalizeText(result.lexicon.source || "json") || "json",
+            sourceFile: normalizeText(result.lexicon.sourceFile || "liuzhou-lexicon.json"),
+            referenceSourceFile: normalizeText(
+              result.lexicon.referenceSourceFile || "liuzhou-pronunciation-reference.csv"
+            ),
+            rowCount: Number(result.lexicon.rowCount || 0) || 0,
+            warningMessage: normalizeText(result.lexicon.warningMessage || ""),
+            listenReferenceEnabled: result.lexicon.listenReferenceEnabled === true,
+          }
+        : buildRecommendLexiconMeta(source.assetsContext, source.normalizedRequest),
   };
   if (result.cost && typeof result.cost === "object") {
     body.cost = result.cost;

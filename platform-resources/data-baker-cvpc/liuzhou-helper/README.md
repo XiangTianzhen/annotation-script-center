@@ -65,7 +65,8 @@
     - Network 里旧版若看到多条相同 `GET /httpapi/annotation/annos`，它们属于分段状态读取，不是多次 `save_increment`
   - `音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 近音候选参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
   - `AI信息` 当前默认折叠但始终保留结构，点击 `展开查看 AI 信息` 后再展开查看附加信息和完整原始返回 JSON；即使模型输出 JSON 解析失败，这个区块也会保留
-  - `AI信息` 当前固定顺序展示 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 近音候选参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
+  - `AI信息` 当前固定顺序展示 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 近音候选参考 / 特殊标签 / 需人工复核 / 备注 / 词表状态与模式 / AI 返回原始内容`
+  - `词表状态与模式` 当前固定显示 `主词表状态 / 听音参考 开启|关闭 / 文本修正固定携带`；听音参考只跟随 `aiStages.listen.includeLexiconReference`。
   - `AI 返回原始内容` 当前优先展示后端返回的 `debug/raw` 字段；成功态若没有单独返回 raw/debug，则回退展示当前结果对象的安全 JSON
   - `AI 返回原始内容` 当前新增 `复制原始返回` 按钮；复制内容固定前缀为 `AI返回原始内容为：`
   - 若 Qwen 返回 `providerCode=data_inspection_failed`，当前会把原先笼统的 `Qwen SSE 返回错误` 收口成 `Qwen 输出触发内容风控（内容审查拦截）`，避免误判成普通网络或 SSE 故障
@@ -159,6 +160,7 @@
     - `specialTags`
     - `needHumanReview`
     - `notes`
+    - `lexicon.status / source / sourceFile / referenceSourceFile / rowCount / warningMessage / listenReferenceEnabled`
     - `timing`
     - `models`
     - `cost.listen / cost.refine / cost.totalEstimatedCostCny / cost.currency / cost.pricingSourceUrl / cost.pricingRegion / cost.modelListUrl / cost.note`

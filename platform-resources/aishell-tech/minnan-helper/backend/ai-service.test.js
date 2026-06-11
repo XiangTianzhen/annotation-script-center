@@ -7,6 +7,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  buildRecommendSuccessBody,
   createDefaultsPayload,
   createHealthPayload,
   normalizeRecommendRequest,
@@ -677,4 +678,34 @@ test("Aishell Minnan lexicon remains parseable and keeps key high-confidence ent
   assert.equal(rows.length > 0, true);
   assert.match(aishellLexicon, /阮、（咱）lan/);
   assert.match(aishellLexicon, /逐个、逐家/);
+});
+
+test("Aishell success body meta includes lexicon state and rewrite mode", function () {
+  const body = buildRecommendSuccessBody({
+    requestId: "req-lexicon-1",
+    data: {
+      recommendedText: "阮欲去。",
+    },
+    meta: {
+      lexicon: {
+        status: "ready",
+        source: "json",
+        sourceFile: "minnan-lexicon.json",
+        referenceSourceFile: "minnan-lexicon.csv",
+        rowCount: 12,
+        warningMessage: "",
+        rewriteMode: "off",
+      },
+    },
+  });
+
+  assert.deepEqual(body.meta?.lexicon, {
+    status: "ready",
+    source: "json",
+    sourceFile: "minnan-lexicon.json",
+    referenceSourceFile: "minnan-lexicon.csv",
+    rowCount: 12,
+    warningMessage: "",
+    rewriteMode: "off",
+  });
 });

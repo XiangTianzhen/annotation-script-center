@@ -396,6 +396,23 @@ function buildLexiconState() {
   };
 }
 
+function buildRecommendLexiconMeta(metaLexicon, dataLexicon) {
+  const metaSource = metaLexicon && typeof metaLexicon === "object" ? metaLexicon : {};
+  const dataSource = dataLexicon && typeof dataLexicon === "object" ? dataLexicon : {};
+  const fallback = buildLexiconState();
+  return {
+    status: normalizeText(metaSource.status || fallback.status) || "missing",
+    source: normalizeText(metaSource.source || fallback.source) || "json",
+    sourceFile: normalizeText(metaSource.sourceFile || fallback.sourceFile),
+    referenceSourceFile: normalizeText(
+      metaSource.referenceSourceFile || fallback.referenceSourceFile
+    ),
+    rowCount: Number(metaSource.rowCount || fallback.rowCount || 0) || 0,
+    warningMessage: normalizeText(metaSource.warningMessage || fallback.warningMessage).slice(0, 160),
+    rewriteMode: normalizeText(metaSource.rewriteMode || dataSource.rewriteMode || "off") || "off",
+  };
+}
+
 function normalizeRecommendRequest(body) {
   const source = body && typeof body === "object" ? body : {};
   const taskId = normalizeText(source.taskId);
@@ -613,6 +630,7 @@ function normalizeRecommendRequest(body) {
 
 function buildMeta(meta, requestId) {
   const source = meta && typeof meta === "object" ? meta : {};
+  const lexicon = buildRecommendLexiconMeta(source.lexicon, null);
   return {
     requestId: normalizeText(source.requestId || requestId),
     stage: normalizeText(source.stage || "complete"),
@@ -627,6 +645,7 @@ function buildMeta(meta, requestId) {
     retryCount: Number(source.retryCount || 0) || 0,
     cancelled: source.cancelled === true,
     debug: source.debug && typeof source.debug === "object" ? source.debug : {},
+    lexicon: lexicon,
     audioFirstReference:
       source.audioFirstReference && typeof source.audioFirstReference === "object"
         ? source.audioFirstReference
@@ -636,10 +655,15 @@ function buildMeta(meta, requestId) {
 
 function buildRecommendSuccessBody(input) {
   const source = input && typeof input === "object" ? input : {};
+  const metaSource = source.meta && typeof source.meta === "object" ? source.meta : {};
+  const dataSource = source.data && typeof source.data === "object" ? source.data : {};
+  const nextMeta = Object.assign({}, metaSource, {
+    lexicon: buildRecommendLexiconMeta(metaSource.lexicon, dataSource.lexicon),
+  });
   return {
     success: true,
-    data: source.data && typeof source.data === "object" ? source.data : null,
-    meta: buildMeta(source.meta, source.requestId),
+    data: dataSource,
+    meta: buildMeta(nextMeta, source.requestId),
   };
 }
 

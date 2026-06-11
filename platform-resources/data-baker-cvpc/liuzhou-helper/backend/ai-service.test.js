@@ -570,6 +570,15 @@ test("liuzhou success body keeps three texts plus compatibility aliases", functi
       modelListUrl: "https://bailian.console.aliyun.com/cn-beijing?tab=model#/model-market/all",
       note: "价格按官方公开文档估算，仅覆盖当前已配置模型。",
     },
+    lexicon: {
+      status: "missing",
+      source: "json",
+      sourceFile: "liuzhou-lexicon.json",
+      referenceSourceFile: "liuzhou-pronunciation-reference.csv",
+      rowCount: 0,
+      warningMessage: "",
+      listenReferenceEnabled: false,
+    },
   });
 });
 
@@ -1502,4 +1511,41 @@ test("liuzhou recommend keeps listen fallback texts when refine stage JSON parse
       return true;
     }
   );
+});
+
+test("liuzhou buildRecommendSuccessBody includes lexicon state and listen reference switch", function () {
+  const body = buildRecommendSuccessBody({
+    requestId: "req-lexicon-1",
+    normalizedRequest: {
+      aiStages: {
+        listen: {
+          includeLexiconReference: true,
+        },
+      },
+    },
+    data: {
+      audioDialectText: "听音柳州话。",
+      refinedDialectText: "修正柳州话。",
+      refinedMandarinText: "整理普通话。",
+      lexicon: {
+        status: "ready",
+        source: "json",
+        sourceFile: "liuzhou-lexicon.json",
+        referenceSourceFile: "liuzhou-pronunciation-reference.csv",
+        rowCount: 3,
+        warningMessage: "",
+        listenReferenceEnabled: true,
+      },
+    },
+  });
+
+  assert.deepEqual(body.lexicon, {
+    status: "ready",
+    source: "json",
+    sourceFile: "liuzhou-lexicon.json",
+    referenceSourceFile: "liuzhou-pronunciation-reference.csv",
+    rowCount: 3,
+    warningMessage: "",
+    listenReferenceEnabled: true,
+  });
 });

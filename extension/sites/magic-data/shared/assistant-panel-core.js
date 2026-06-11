@@ -6,6 +6,17 @@
   const DEFAULT_PANEL_HEIGHT = 420;
   const MIN_PANEL_HEIGHT = 260;
   const RESIZE_BODY_CLASS = "asc-magic-data-review-resizing";
+  const lexiconDisplay =
+    globalThis.ASREdgeLexiconDisplay ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/lexicon-display.js")
+      : {});
+  const formatLexiconStatusAndMode =
+    typeof lexiconDisplay.formatLexiconStatusAndMode === "function"
+      ? lexiconDisplay.formatLexiconStatusAndMode
+      : function () {
+          return "";
+        };
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -35,6 +46,75 @@
       return null;
     }
     return (seconds / 3600) * INCOME_PER_EFFECTIVE_HOUR;
+  }
+
+  function joinIssues(value) {
+    if (!Array.isArray(value)) {
+      return "-";
+    }
+    return value.length > 0 ? value.join("；") : "-";
+  }
+
+  function formatReviewConclusionLabel(result) {
+    const text = String(result?.reviewConclusion || result?.verdict || "").trim();
+    if (text === "pass") {
+      return "通过";
+    }
+    if (text === "need_review" || text === "mostly_same" || text === "different") {
+      return "建议复核";
+    }
+    if (text === "risky" || text === "invalid_audio") {
+      return "明显风险";
+    }
+    return "无法判断";
+  }
+
+  function buildResultRows(data, runtimeSettings) {
+    const source = data && typeof data === "object" ? data : {};
+    const settings = runtimeSettings && typeof runtimeSettings === "object" ? runtimeSettings : {};
+    const audioCheck = source.audioCheck && typeof source.audioCheck === "object" ? source.audioCheck : {};
+    const textRuleCheck =
+      source.textRuleCheck && typeof source.textRuleCheck === "object" ? source.textRuleCheck : {};
+    const timing = source.timing && typeof source.timing === "object" ? source.timing : {};
+    const showHeardText = settings.showHeardText !== false;
+    const rows = [
+      ["总结论", formatReviewConclusionLabel(source)],
+      ["shouldReview", String(Boolean(source.shouldReview))],
+      ["方言行规则检查", joinIssues(textRuleCheck.dialectIssues)],
+      ["普通话翻译检查", joinIssues(textRuleCheck.mandarinIssues)],
+      ["翻译一致性检查", joinIssues(textRuleCheck.translationConsistencyIssues)],
+      ["正字表检查", joinIssues(textRuleCheck.lexiconIssues)],
+      ["音频有效性检查", joinIssues(audioCheck.riskFlags)],
+      ["性别年龄辅助判断", [audioCheck.genderGuess || "-", audioCheck.ageRangeGuess || "-"].join(" / ")],
+      [
+        "AI 辅助听音（客家话，仅供参考）",
+        showHeardText ? audioCheck.heardDialectText || source?.listen?.heardDialectText || "-" : "已关闭显示",
+      ],
+      [
+        "AI 辅助听音（普通话理解，仅供参考）",
+        showHeardText ? audioCheck.heardMandarinMeaning || source?.listen?.heardMandarinMeaning || "-" : "已关闭显示",
+      ],
+    ];
+    const lexiconSummary = formatLexiconStatusAndMode(source.lexicon, {
+      scriptType: "default",
+    });
+    if (lexiconSummary) {
+      rows.push(["词表状态与模式", lexiconSummary]);
+    }
+    rows.push(
+      ["requestId", source.requestId || "-"],
+      [
+        "模型与耗时",
+        "listen=" +
+          String(source?.models?.listenModel || "-") +
+          " / review=" +
+          String(source?.models?.reviewModel || source?.models?.compareModel || "-") +
+          " / total=" +
+          String(timing.totalDurationMs || 0) +
+          "ms",
+      ]
+    );
+    return rows;
   }
 
   function copyText(text) {
@@ -382,17 +462,7 @@
     }
 
     function resolveReviewConclusion(result) {
-      const text = String(result?.reviewConclusion || result?.verdict || "").trim();
-      if (text === "pass") {
-        return "通过";
-      }
-      if (text === "need_review" || text === "mostly_same" || text === "different") {
-        return "建议复核";
-      }
-      if (text === "risky" || text === "invalid_audio") {
-        return "明显风险";
-      }
-      return "无法判断";
+      return formatReviewConclusionLabel(result);
     }
 
     function getDialectFillText() {
@@ -489,13 +559,6 @@
       });
     }
 
-    function joinIssues(value) {
-      if (!Array.isArray(value)) {
-        return "-";
-      }
-      return value.length > 0 ? value.join("；") : "-";
-    }
-
     function renderResult(data) {
       latestResult = data || null;
       if (!resultNode) {
@@ -510,25 +573,7 @@
         refreshButtons();
         return;
       }
-
-      const audioCheck = data.audioCheck || {};
-      const textRuleCheck = data.textRuleCheck || {};
-      const timing = data.timing || {};
-      const showHeardText = runtimeSettings.showHeardText !== false;
-      const rows = [
-        ["总结论", resolveReviewConclusion(data)],
-        ["shouldReview", String(Boolean(data.shouldReview))],
-        ["方言行规则检查", joinIssues(textRuleCheck.dialectIssues)],
-        ["普通话翻译检查", joinIssues(textRuleCheck.mandarinIssues)],
-        ["翻译一致性检查", joinIssues(textRuleCheck.translationConsistencyIssues)],
-        ["正字表检查", joinIssues(textRuleCheck.lexiconIssues)],
-        ["音频有效性检查", joinIssues(audioCheck.riskFlags)],
-        ["性别年龄辅助判断", [audioCheck.genderGuess || "-", audioCheck.ageRangeGuess || "-"].join(" / ")],
-        ["AI 辅助听音（客家话，仅供参考）", showHeardText ? (audioCheck.heardDialectText || data?.listen?.heardDialectText || "-") : "已关闭显示"],
-        ["AI 辅助听音（普通话理解，仅供参考）", showHeardText ? (audioCheck.heardMandarinMeaning || data?.listen?.heardMandarinMeaning || "-") : "已关闭显示"],
-        ["requestId", data.requestId || "-"],
-        ["模型与耗时", "listen=" + String(data?.models?.listenModel || "-") + " / review=" + String(data?.models?.reviewModel || data?.models?.compareModel || "-") + " / total=" + String(timing.totalDurationMs || 0) + "ms"],
-      ];
+      const rows = buildResultRows(data, runtimeSettings);
 
       const grid = document.createElement("div");
       grid.className = "md-inline-grid";
@@ -1004,7 +1049,14 @@
     };
   }
 
-  globalThis.__ASREdgeMagicDataAnnotatorInlinePanel = {
+  const api = {
     createRuntime: createRuntime,
   };
+  api.__test__ = {
+    buildResultRows,
+  };
+  globalThis.__ASREdgeMagicDataAnnotatorInlinePanel = api;
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
 })();

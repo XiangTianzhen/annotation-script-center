@@ -5719,3 +5719,32 @@
   - `node --test --test-name-pattern "applyBatchTextRecommendations" extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
   - `node --test --test-name-pattern "batch" extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
   - `node --test --test-name-pattern "CVPC batch controller" extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+
+## 2026-06-11（五个平台词表状态展示收口）
+
+- 新增共享前端 helper：`extension/shared/lexicon-display.js`
+  - 统一把后端词表状态格式化为中文 `词表状态与模式`
+  - 默认平台显示：`主词表状态 / 固定携带 / 改写模式`
+  - 柳州话显示：`主词表状态 / 听音参考 开启|关闭 / 文本修正固定携带`
+- 前端展示同步补齐到 5 个脚本：
+  - DataBaker 闽南语结果卡新增 `词表状态与模式`
+  - Aishell 闽南语 AI 诊断区新增 `词表状态与模式`
+  - Magic Data 客家话、闽南语总结论区新增 `词表状态与模式`
+  - DataBaker CVPC 柳州话 `AI信息` 新增 `词表状态与模式`
+- 后端响应口径补齐：
+  - DataBaker 闽南语 `lexicon` 成功体新增 `status / source / sourceFile / referenceSourceFile / rowCount / warningMessage`
+  - Aishell 闽南语成功体 `meta.lexicon` 新增 `status / source / sourceFile / referenceSourceFile / rowCount / warningMessage / rewriteMode`
+  - Magic Data 客家话成功体 `lexicon` 新增 `rewriteMode`
+  - DataBaker CVPC 柳州话成功体新增 `lexicon.status / source / sourceFile / referenceSourceFile / rowCount / warningMessage / listenReferenceEnabled`
+- 本轮定向验证：
+  - `node --test extension/shared/lexicon-display.test.js`
+  - `node --test extension/sites/aishell-tech/minnan-helper/diagnostics.test.js`
+  - `node --test extension/sites/data-baker/round-one-quality/ui-panel.test.js`
+  - `node --test extension/sites/magic-data/shared/assistant-panel-core.test.js`
+  - `node --test extension/sites/magic-data/hakka-helper/assistant-panel.test.js`
+  - `node --test extension/sites/magic-data/minnan-helper/assistant-panel.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --test platform-resources/data-baker/round-one-quality/backend/ai-service.test.js`
+  - `node --test platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js`
+  - `node --test platform-resources/magic-data/hakka-helper/backend/ai-routes.test.js`
+  - `node --test platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`

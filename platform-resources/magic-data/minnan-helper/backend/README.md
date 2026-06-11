@@ -13,6 +13,7 @@
 - 对外成功 / 失败响应结构保持原兼容形态：
   - 成功：`success + data + cache + backend`
   - 失败：`success + requestId + code + message + scriptId (+ summary)`
+- 成功体 `data.lexicon` 当前继续返回 `enabled / status / matchedCount / matches / rewriteMode`；前端顶部摘要区直接用这组字段展示 `词表状态与模式`。
 - `health/defaults` 当前已补齐公共 jobs / runtime 元信息：默认链路为 `POST /jobs` + 轮询 `GET /jobs/:jobId`，并附带共享模型池默认策略。
 
 ## AI 调用日志与统计

@@ -5,6 +5,17 @@
   const FIELD_RECOMMEND_ATTR = "data-asc-cvpc-liuzhou-field-recommend";
   const LEGACY_SEGMENT_BUTTON_ATTR = "data-asc-cvpc-liuzhou-segment-button";
   const STYLE_ID = "asc-cvpc-liuzhou-panel-style";
+  const lexiconDisplay =
+    globalThis.ASREdgeLexiconDisplay ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/lexicon-display.js")
+      : {});
+  const formatLexiconStatusAndMode =
+    typeof lexiconDisplay.formatLexiconStatusAndMode === "function"
+      ? lexiconDisplay.formatLexiconStatusAndMode
+      : function () {
+          return "";
+        };
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -1056,6 +1067,9 @@
         rawDisplaySource?.debugRawAiResponse ||
         rawDisplaySource;
       const rawText = rawSource ? stringifyJsonSafely(rawSource) : "";
+      const lexiconSummary = formatLexiconStatusAndMode(source.lexicon, {
+        scriptType: "liuzhou",
+      });
       [
         buildAiStageSummary(source, "listen", "听音识别", "listenModel"),
         buildAiStageSummary(source, "refine", "文本修正", "refineModel"),
@@ -1123,11 +1137,18 @@
           value: formatMetaValue(source.notes, "；"),
         },
         {
+          title: "词表状态与模式",
+          value: lexiconSummary,
+        },
+        {
           title: "AI 返回原始内容",
           value: rawText,
         },
       ].forEach(function (item) {
         if (item.title === "近音候选参考" && (!item.alternatives || item.alternatives.length <= 0)) {
+          return;
+        }
+        if (item.title === "词表状态与模式" && !item.value) {
           return;
         }
         const box = document.createElement("div");

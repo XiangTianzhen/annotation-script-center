@@ -34,6 +34,12 @@
 - `HEAD /api/data-baker/round-one-quality/export/download`
 - `GET /api/data-baker/round-one-quality/export/list`
 
+`POST /api/data-baker/round-one-quality/ai/recommend` 成功体里的 `lexicon` 当前固定补齐：
+
+- `enabled`
+- `status / source / sourceFile / referenceSourceFile / rowCount / warningMessage`
+- `rewriteMode / matchedCount / rewriteChanged / rewriteChanges`
+
 ## 文件职责
 
 - `../ai/adapter.js`：DataBaker 接入统一 `ai-framework` 的项目 adapter，先负责输入归一和旧 recommend 响应兼容。

@@ -32,3 +32,31 @@ test("resolveFillAllSuggestionsOutcome keeps real fill failures as errors", func
     message: "第一行填入失败。",
   });
 });
+
+test("buildOverallRows includes lexicon status and mode", function () {
+  const helper = panelModule.__test__?.buildOverallRows;
+  assert.equal(typeof helper, "function");
+
+  const rows = helper({
+    reviewConclusion: "pass",
+    lexicon: {
+      status: "ready",
+      rewriteMode: "aggressive",
+    },
+    models: {
+      listenModel: "qwen3.5-omni-flash",
+      reviewModel: "qwen3.5-plus",
+    },
+    timing: {
+      totalDurationMs: 1600,
+    },
+  });
+  const row = rows.find(function (item) {
+    return item[0] === "词表状态与模式";
+  });
+
+  assert.deepEqual(row, [
+    "词表状态与模式",
+    "主词表已加载 / 固定携带 / 改写模式 aggressive",
+  ]);
+});

@@ -4,6 +4,11 @@
   }
   globalThis.__ASREdgeAishellTechMinnanDiagnosticsInstalled = true;
   const errorDisplay = globalThis.ASREdgeAiErrorDisplay || {};
+  const lexiconDisplay =
+    globalThis.ASREdgeLexiconDisplay ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/lexicon-display.js")
+      : {});
   const buildAiErrorDisplay =
     typeof errorDisplay.buildAiErrorDisplay === "function"
       ? errorDisplay.buildAiErrorDisplay
@@ -17,6 +22,12 @@
             rawJson:
               source.rawResponse && typeof source.rawResponse === "object" ? source.rawResponse : {},
           };
+        };
+  const formatLexiconStatusAndMode =
+    typeof lexiconDisplay.formatLexiconStatusAndMode === "function"
+      ? lexiconDisplay.formatLexiconStatusAndMode
+      : function () {
+          return "";
         };
 
   function normalizeText(value) {
@@ -189,6 +200,7 @@
     const queue = meta.queue && typeof meta.queue === "object" ? meta.queue : {};
     const cache = meta.cache && typeof meta.cache === "object" ? meta.cache : {};
     const debug = meta.debug && typeof meta.debug === "object" ? meta.debug : {};
+    const lexicon = meta.lexicon && typeof meta.lexicon === "object" ? meta.lexicon : null;
     const audioFirstReference =
       meta.audioFirstReference && typeof meta.audioFirstReference === "object"
         ? meta.audioFirstReference
@@ -208,6 +220,12 @@
       ["requestId", normalizeText(meta.requestId || debug.requestId) || "-"],
       ["debugId", normalizeText(meta.debugId || debug.debugId) || "-"],
     ];
+    const lexiconSummary = formatLexiconStatusAndMode(lexicon, {
+      scriptType: "default",
+    });
+    if (lexiconSummary) {
+      rows.splice(rows.length - 2, 0, ["词表状态与模式", lexiconSummary]);
+    }
     if (normalizeText(audioFirstReference.convertedText || audioFirstReference.candidateText)) {
       rows.splice(2, 0,
         [

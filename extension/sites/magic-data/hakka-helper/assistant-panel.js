@@ -9,6 +9,17 @@
   const DEFAULT_PANEL_HEIGHT = 420;
   const MIN_PANEL_HEIGHT = 260;
   const RESIZE_BODY_CLASS = "asc-magic-data-hakka-review-resizing";
+  const lexiconDisplay =
+    globalThis.ASREdgeLexiconDisplay ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/lexicon-display.js")
+      : {});
+  const formatLexiconStatusAndMode =
+    typeof lexiconDisplay.formatLexiconStatusAndMode === "function"
+      ? lexiconDisplay.formatLexiconStatusAndMode
+      : function () {
+          return "";
+        };
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -82,6 +93,56 @@
       appliedCount: 0,
       message: "无需填入，保持当前内容。",
     };
+  }
+
+  function buildOverallRows(data) {
+    const source = data && typeof data === "object" ? data : {};
+    const overall = source.overall && typeof source.overall === "object" ? source.overall : {};
+    const timing = source.timing && typeof source.timing === "object" ? source.timing : {};
+    const rows = [
+      [
+        "结论",
+        formatReviewConclusionLabel({
+          reviewConclusion: overall.reviewConclusion || source.reviewConclusion,
+        }),
+      ],
+      ["需人工复核", String(overall.shouldReview === true || source.shouldReview === true)],
+      ["摘要", normalizeText(overall.summary || source?.recommendations?.summary || "-")],
+    ];
+    const lexiconSummary = formatLexiconStatusAndMode(source.lexicon, {
+      scriptType: "default",
+    });
+    if (lexiconSummary) {
+      rows.push(["词表状态与模式", lexiconSummary]);
+    }
+    rows.push(
+      ["requestId", normalizeText(source.requestId || "-")],
+      [
+        "模型与耗时",
+        "listen=" +
+          String(source?.models?.listenModel || "-") +
+          " / review=" +
+          String(source?.models?.reviewModel || source?.models?.compareModel || "-") +
+          " / total=" +
+          String(timing.totalDurationMs || 0) +
+          "ms",
+      ]
+    );
+    return rows;
+  }
+
+  function formatReviewConclusionLabel(result) {
+    const text = String(result?.reviewConclusion || result?.verdict || "").trim();
+    if (text === "pass") {
+      return "通过";
+    }
+    if (text === "need_review" || text === "mostly_same" || text === "different") {
+      return "建议复核";
+    }
+    if (text === "risky" || text === "invalid_audio") {
+      return "明显风险";
+    }
+    return "无法判断";
   }
 
   function getDynamicMaxPanelHeight() {
@@ -509,17 +570,7 @@
     }
 
     function resolveReviewConclusion(result) {
-      const text = String(result?.reviewConclusion || result?.verdict || "").trim();
-      if (text === "pass") {
-        return "通过";
-      }
-      if (text === "need_review" || text === "mostly_same" || text === "different") {
-        return "建议复核";
-      }
-      if (text === "risky" || text === "invalid_audio") {
-        return "明显风险";
-      }
-      return "无法判断";
+      return formatReviewConclusionLabel(result);
     }
 
     function getDialectFillText() {
@@ -1283,26 +1334,16 @@
         return;
       }
 
-      const timing = data.timing || {};
       const speakerCheck = data.speakerCheck || {};
       const genderCheck = speakerCheck.gender || {};
       const ageRangeCheck = speakerCheck.ageRange || {};
       const dialectCheck = data.dialectTextCheck || {};
       const mandarinCheck = data.mandarinTextCheck || {};
-      const overall = data.overall || {};
 
       const overallBlock = document.createElement("div");
       overallBlock.className = "md-block";
       overallBlock.innerHTML = '<div class="md-check-title">总结论</div>';
-      overallBlock.appendChild(
-        createCheckGrid([
-          ["结论", resolveReviewConclusion({ reviewConclusion: overall.reviewConclusion || data.reviewConclusion })],
-          ["需人工复核", String(overall.shouldReview === true || data.shouldReview === true)],
-          ["摘要", normalizeText(overall.summary || data?.recommendations?.summary || "-")],
-          ["requestId", normalizeText(data.requestId || "-")],
-          ["模型与耗时", "listen=" + String(data?.models?.listenModel || "-") + " / review=" + String(data?.models?.reviewModel || data?.models?.compareModel || "-") + " / total=" + String(timing.totalDurationMs || 0) + "ms"],
-        ])
-      );
+      overallBlock.appendChild(createCheckGrid(buildOverallRows(data)));
       resultNode.appendChild(overallBlock);
       resultNode.appendChild(
         createFoldSection("说话人属性", [
@@ -1954,6 +1995,7 @@
   };
   exportedApi.__test__ = {
     resolveFillAllSuggestionsOutcome: resolveFillAllSuggestionsOutcome,
+    buildOverallRows: buildOverallRows,
   };
   if (typeof module !== "undefined" && module.exports) {
     module.exports = exportedApi;

@@ -38,6 +38,7 @@
   - 普通话文本（第二行）
 - 基础信息不再新增左侧独立大卡片，避免空白占位；说话人建议直接插入平台原生“说话人属性”表单项。
 - 右侧 AI 面板保留总结论与三项质检结果，不承载左侧大摘要框。
+- `总结论` 顶部摘要区当前新增 `词表状态与模式`，固定显示 `主词表状态 / 固定携带 / 改写模式`，用于同步后端当前词表加载状态与 `rewriteMode`。
 - 说话人属性采集优先读取 `annotateDetailInfo` 响应中的 `base_speak + mark_info[].speak_people`，DOM fallback 仅读取已选 radio（`.el-radio.is-checked` / `aria-checked=true`）。
 - 不再通过文本包含“男/女/年龄段”推断当前选中值，避免误取。
 

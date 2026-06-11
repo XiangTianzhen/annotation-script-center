@@ -2,6 +2,17 @@
   const ROOT_ATTR = "data-asr-edge-databaker-ai-panel";
   const STYLE_ID = "asr-edge-databaker-ai-panel-style";
   const TOP_BUTTON_ATTR = "data-asr-edge-databaker-qualified-autofill-button";
+  const lexiconDisplay =
+    globalThis.ASREdgeLexiconDisplay ||
+    (typeof module !== "undefined" && module.exports
+      ? require("../../../shared/lexicon-display.js")
+      : {});
+  const formatLexiconStatusAndMode =
+    typeof lexiconDisplay.formatLexiconStatusAndMode === "function"
+      ? lexiconDisplay.formatLexiconStatusAndMode
+      : function () {
+          return "";
+        };
   let mountedLogPrinted = false;
   let fallbackLogPrinted = false;
   let panelMountedLogPrinted = false;
@@ -37,6 +48,76 @@
 
   function removeTextSpaces(text) {
     return String(text || "").replace(/[\s\u3000]+/g, "");
+  }
+
+  function buildResultRows(data) {
+    const source = data && typeof data === "object" ? data : {};
+    const model = source.model && typeof source.model === "object" ? source.model : {};
+    const lexicon = source.lexicon && typeof source.lexicon === "object" ? source.lexicon : {};
+    const timing = source.timing && typeof source.timing === "object" ? source.timing : null;
+    const rewriteChanges = Array.isArray(lexicon.rewriteChanges) ? lexicon.rewriteChanges : [];
+    const rows = [
+      ["页面候选文本", source.pageText || ""],
+      ["AI 听音文本", source.heardText || ""],
+      ["AI 推荐文本", source.recommendedText || ""],
+      ["相对页面变更", source.isChanged ? "是" : "否"],
+      [
+        "置信度",
+        "听音 " +
+          (Number(source.listenConfidence || 0) * 100).toFixed(1) +
+          "% / 对比 " +
+          (Number(source.compareConfidence || 0) * 100).toFixed(1) +
+          "%",
+      ],
+      [
+        "模型",
+        source.pipelineMode === "omni_single" || !String(model.compare || "").trim()
+          ? String(model.listen || "qwen3.5-omni-flash")
+          : String(model.listen || "fun-asr") + " + " + String(model.compare || "qwen3.5-plus"),
+      ],
+    ];
+    if (source.pipelineMode === "fun_asr_compare") {
+      rows.push(["模式", "Fun-ASR + 比较模型"]);
+    } else if (source.pipelineMode === "omni_single") {
+      rows.push(["模式", "Omni 单模型"]);
+    }
+    if (timing) {
+      rows.push([
+        "耗时",
+        "听音 " +
+          formatDurationSeconds(timing.listenDurationMs) +
+          " / 对比 " +
+          formatDurationSeconds(timing.compareDurationMs) +
+          " / 总计 " +
+          formatDurationSeconds(timing.totalDurationMs),
+      ]);
+    }
+    rows.push(["决策", source.decision || ""]);
+    if (source.runtime && typeof source.runtime === "object") {
+      const runtime = source.runtime;
+      const queue = runtime.queue && typeof runtime.queue === "object" ? runtime.queue : {};
+      const cache = runtime.cache && typeof runtime.cache === "object" ? runtime.cache : {};
+      rows.push([
+        "运行时",
+        (cache.hit === true ? "命中缓存" : "实时分析") +
+          " / 排队等待 " +
+          formatDurationSeconds(queue.totalQueueWaitMs || 0) +
+          " / 重试 " +
+          String(Number(queue.totalRetryCount) || 0) +
+          " 次",
+      ]);
+    }
+    const lexiconSummary = formatLexiconStatusAndMode(lexicon, {
+      scriptType: "default",
+    });
+    if (lexiconSummary) {
+      rows.push(["词表状态与模式", lexiconSummary]);
+    }
+    if (lexicon.rewriteChanged === true) {
+      rows.push(["词表替换", "已替换 " + String(rewriteChanges.length || 0) + " 处"]);
+    }
+    rows.push(["requestId", source.requestId || ""]);
+    return rows;
   }
 
   function ensureStyle() {
@@ -849,72 +930,16 @@
         removeTextSpaces(data.recommendedText || "")
       );
       currentResult = data || null;
-      const model = data.model || {};
       const lexicon = data.lexicon && typeof data.lexicon === "object" ? data.lexicon : {};
-      const timing = data.timing && typeof data.timing === "object" ? data.timing : null;
       const rewriteChanges = Array.isArray(lexicon.rewriteChanges) ? lexicon.rewriteChanges : [];
       const resultWrap = document.createElement("div");
       resultWrap.className = "asr-edge-db-result";
 
       const grid = document.createElement("div");
       grid.className = "asr-edge-db-grid";
-      createRow(grid, "页面候选文本", data.pageText || "");
-      createRow(grid, "AI 听音文本", data.heardText || "");
-      createRow(grid, "AI 推荐文本", data.recommendedText || "");
-      createRow(grid, "相对页面变更", data.isChanged ? "是" : "否");
-      createRow(
-        grid,
-        "置信度",
-        "听音 " +
-          (Number(data.listenConfidence || 0) * 100).toFixed(1) +
-          "% / 对比 " +
-          (Number(data.compareConfidence || 0) * 100).toFixed(1) +
-          "%"
-      );
-      createRow(
-        grid,
-        "模型",
-        data.pipelineMode === "omni_single" || !String(model.compare || "").trim()
-          ? String(model.listen || "qwen3.5-omni-flash")
-          : String(model.listen || "fun-asr") + " + " + String(model.compare || "qwen3.5-plus")
-      );
-      if (data.pipelineMode === "fun_asr_compare") {
-        createRow(grid, "模式", "Fun-ASR + 比较模型");
-      } else if (data.pipelineMode === "omni_single") {
-        createRow(grid, "模式", "Omni 单模型");
-      }
-      if (timing) {
-        createRow(
-          grid,
-          "耗时",
-          "听音 " +
-            formatDurationSeconds(timing.listenDurationMs) +
-            " / 对比 " +
-            formatDurationSeconds(timing.compareDurationMs) +
-            " / 总计 " +
-            formatDurationSeconds(timing.totalDurationMs)
-        );
-      }
-      createRow(grid, "决策", data.decision || "");
-      if (data.runtime && typeof data.runtime === "object") {
-        const runtime = data.runtime;
-        const queue = runtime.queue && typeof runtime.queue === "object" ? runtime.queue : {};
-        const cache = runtime.cache && typeof runtime.cache === "object" ? runtime.cache : {};
-        createRow(
-          grid,
-          "运行时",
-          (cache.hit === true ? "命中缓存" : "实时分析") +
-            " / 排队等待 " +
-            formatDurationSeconds(queue.totalQueueWaitMs || 0) +
-            " / 重试 " +
-            String(Number(queue.totalRetryCount) || 0) +
-            " 次"
-        );
-      }
-      if (lexicon.rewriteChanged === true) {
-        createRow(grid, "词表替换", "已替换 " + String(rewriteChanges.length || 0) + " 处");
-      }
-      createRow(grid, "requestId", data.requestId || "");
+      buildResultRows(data).forEach(function (row) {
+        createRow(grid, row[0], row[1]);
+      });
       resultWrap.appendChild(grid);
 
       if (lexicon.rewriteChanged === true && rewriteChanges.length > 0) {
@@ -1395,10 +1420,20 @@
     };
   }
 
-  globalThis.__ASREdgeDataBakerRoundOneUiPanel = {
+  const api = {
     createRuntime,
     ensureChineseSentencePunctuation,
     removeTextSpaces,
     normalizeText,
   };
+
+  api.__test__ = {
+    buildResultRows,
+  };
+
+  globalThis.__ASREdgeDataBakerRoundOneUiPanel = api;
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
 })();

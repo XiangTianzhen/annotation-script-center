@@ -1417,6 +1417,28 @@ function loadMinnanLexicon() {
   return getLexiconState().rows.slice();
 }
 
+function buildLexiconResultMeta(lexiconState, runtimeLexicon) {
+  const source = lexiconState && typeof lexiconState === "object" ? lexiconState : {};
+  const runtime = runtimeLexicon && typeof runtimeLexicon === "object" ? runtimeLexicon : {};
+  const rows = Array.isArray(source.rows) ? source.rows : [];
+  const rowCount = Number(source.rowCount);
+  return {
+    enabled: runtime.enabled === true,
+    status: String(source.status || "missing"),
+    source: String(source.source || "json"),
+    sourceFile: path.basename(source.filePath || MINNAN_LEXICON_JSON_PATH),
+    referenceSourceFile: path.basename(
+      source.referenceFilePath || MINNAN_LEXICON_REFERENCE_CSV_PATH
+    ),
+    rowCount: Number.isFinite(rowCount) ? rowCount : rows.length,
+    warningMessage: String(source.warningMessage || ""),
+    rewriteMode: String(runtime.rewriteMode || "off"),
+    matchedCount: Number(runtime.matchedCount || 0),
+    rewriteChanged: runtime.rewriteChanged === true,
+    rewriteChanges: Array.isArray(runtime.rewriteChanges) ? runtime.rewriteChanges : [],
+  };
+}
+
 function normalizeLimit(value) {
   const number = Number(value || DEFAULT_CONTEXT_LIMIT);
   if (!Number.isFinite(number)) {
@@ -2511,13 +2533,13 @@ async function recommend(body, requestIdHint, runtimeOptions) {
         listenConfidence: normalizedSingle.confidence,
         compareConfidence: normalizedSingle.confidence,
       });
-      responseData.lexicon = {
+      responseData.lexicon = buildLexiconResultMeta(getLexiconState(), {
         enabled: Boolean(lexiconContext.enabled || rewriteState.rewriteMode !== "off"),
         rewriteMode: rewriteState.rewriteMode,
         matchedCount: Number(lexiconContext.matchedCount || 0),
         rewriteChanged: rewriteState.rewriteResult.changed === true,
         rewriteChanges: rewriteState.rewriteResult.changes,
-      };
+      });
       responseData.timing = {
         listenDurationMs,
         compareDurationMs: 0,
@@ -2673,13 +2695,13 @@ async function recommend(body, requestIdHint, runtimeOptions) {
         listenConfidence: listenData.confidence,
         compareConfidence: normalizedCompare.confidence,
       });
-      responseData.lexicon = {
+      responseData.lexicon = buildLexiconResultMeta(getLexiconState(), {
         enabled: Boolean(compareLexiconContext.enabled || rewriteState.rewriteMode !== "off"),
         rewriteMode: rewriteState.rewriteMode,
         matchedCount: Number(compareLexiconContext.matchedCount || 0),
         rewriteChanged: rewriteState.rewriteResult.changed === true,
         rewriteChanges: rewriteState.rewriteResult.changes,
-      };
+      });
       responseData.timing = {
         listenDurationMs,
         compareDurationMs,
@@ -2799,13 +2821,13 @@ async function recommend(body, requestIdHint, runtimeOptions) {
         listenConfidence: normalizedListen.confidence,
         compareConfidence: normalizedCompare.confidence,
       });
-      responseData.lexicon = {
+      responseData.lexicon = buildLexiconResultMeta(getLexiconState(), {
         enabled: Boolean(compareLexiconContext.enabled || rewriteState.rewriteMode !== "off"),
         rewriteMode: rewriteState.rewriteMode,
         matchedCount: Number(compareLexiconContext.matchedCount || 0),
         rewriteChanged: rewriteState.rewriteResult.changed === true,
         rewriteChanges: rewriteState.rewriteResult.changes,
-      };
+      });
       responseData.timing = {
         listenDurationMs,
         compareDurationMs,
@@ -2904,6 +2926,7 @@ module.exports = {
   MINNAN_LEXICON_REFERENCE_CSV_PATH,
   RULE_VERSION,
   SUPPORTED_PIPELINE_MODES,
+  buildLexiconResultMeta,
   __testOnly: {
     cleanLexiconTerm,
     splitTerms,

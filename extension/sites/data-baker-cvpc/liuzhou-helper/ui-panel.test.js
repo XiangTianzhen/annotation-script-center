@@ -915,13 +915,22 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
           mandarinText: "近音普通话",
           reason: "近音候选",
         },
-      ],
-      specialTags: ["口语化"],
-      needHumanReview: false,
-      notes: ["人工确认"],
-      timing: {
-        totalMs: 1234,
-      },
+        ],
+        specialTags: ["口语化"],
+        needHumanReview: false,
+        notes: ["人工确认"],
+        lexicon: {
+          status: "ready",
+          source: "json",
+          sourceFile: "liuzhou-lexicon.json",
+          referenceSourceFile: "liuzhou-pronunciation-reference.csv",
+          rowCount: 8,
+          warningMessage: "",
+          listenReferenceEnabled: true,
+        },
+        timing: {
+          totalMs: 1234,
+        },
       models: {
         listenModel: "qwen3.5-omni-flash",
         refineModel: "qwen3.5-plus",
@@ -968,6 +977,8 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.match(middleText, /近音普通话/);
     assert.match(middleText, /模型：qwen3\.5-omni-flash/);
     assert.match(middleText, /模型：qwen3\.5-plus/);
+    assert.match(middleText, /词表状态与模式/);
+    assert.match(middleText, /主词表已加载 \/ 听音参考 开启 \/ 文本修正固定携带/);
     assert.match(middleText, /输入：10/);
     assert.match(middleText, /输出：6/);
     assert.match(middleText, /输入：4/);
