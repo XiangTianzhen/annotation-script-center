@@ -3114,7 +3114,8 @@ test("CVPC data api surfaces platform unique_id duplication failures without DOM
 
   assert.deepEqual(result, {
     ok: false,
-    message: "平台保存接口返回 unique_id重复；分段建议已保留，请重新生成或人工处理。",
+    message:
+      "平台保存接口返回 unique_id重复；这通常表示平台当前分段状态与本次直写保存体冲突，分段建议已保留，请刷新页面后重新生成或人工处理。",
   });
 });
 

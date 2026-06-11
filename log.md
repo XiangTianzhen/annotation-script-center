@@ -359,6 +359,21 @@
   - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
   - `node --test platform-resources/data-baker-cvpc/liuzhou-helper/backend/segment-service.test.js`
 
+## 2026-06-11（DataBaker CVPC 柳州话 unique_id 冲突提示改写）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把平台 `save_increment` 返回 `unique_id重复` 时的提示改得更准确：
+  - 旧文案只说“分段建议已保留”，容易被误解成“空音频”或“没有识别到内容”
+  - 新文案明确提示这通常表示“平台当前分段状态与本次直写保存体冲突”，并建议先刷新页面，再重新生成分段建议或人工处理
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+
 ## 2026-06-10（DataBaker CVPC 柳州话 unique_id重复 修复、自动应用开关与右侧顺序调整）
 
 - `DataBaker CVPC / 柳州话脚本` 当前继续优化中间 AI 区文案与信息展示：

@@ -35,7 +35,7 @@
   const PREVIEW_DUPLICATE_UNIQUE_ID_MESSAGE =
     "当前分段建议生成了重复 unique_id，已停止自动应用，请重新生成或人工处理。";
   const PREVIEW_DIRECT_SAVE_DUPLICATE_UNIQUE_ID_MESSAGE =
-    "平台保存接口返回 unique_id重复；分段建议已保留，请重新生成或人工处理。";
+    "平台保存接口返回 unique_id重复；这通常表示平台当前分段状态与本次直写保存体冲突，分段建议已保留，请刷新页面后重新生成或人工处理。";
   const PREVIEW_UNSAFE_MESSAGE = "未检测到稳定的波形分段区域或拆分控件，请人工处理当前分段建议。";
   const PREVIEW_APPLY_SUCCESS_MESSAGE = "分段建议已写到页面，请人工复核后点击平台保存。";
   const BATCH_SAVE_AUTH_MISSING_MESSAGE = "未获取到平台保存请求的访问凭据，已停止批量写回。";

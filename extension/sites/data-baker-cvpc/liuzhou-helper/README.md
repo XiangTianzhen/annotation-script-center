@@ -54,7 +54,7 @@
   - 新插入段 `unique_id` 当前改为 `crypto.getRandomValues + timestamp` 生成；直写前会对本次 `insert/update` 与 `web_snapshot` 各自做去重预检
   - 如果本地构造出的保存体里出现重复 `unique_id`，会直接停止自动应用并保留建议，提示重新生成或人工处理
   - 如果 `save_increment` 直写成功，当前建议会直接进入平台保存链路，无需再点平台 `保存`
-  - 如果平台仍返回 `unique_id重复`，当前不会回退 DOM 画段，会保留 preview 供人工处理
+  - 如果平台仍返回 `unique_id重复`，当前不会回退 DOM 画段；文案会明确提示这是“平台当前分段状态与本次直写保存体冲突”，并保留 preview 供刷新后重生或人工处理
   - 如果缺少鉴权快照或直写失败，且当前是增量预览，才会回退同源 `xaudio` iframe DOM 交互：
     - 先按 live region 匹配受影响原段
     - 把原段改成第一个建议子段
