@@ -48,6 +48,8 @@
     labelMeaningless: "<Meaningless>",
     labelSilence: "<Silence>",
   };
+  const ORAL_PARTICLE_TAGS = new Set(["#um", "#hmm", "#ah", "#eh"]);
+  const RECOMMENDATION_INLINE_TAG_MATCHER = /#(?:um|hmm|ah|eh)|<(?:SPK\/|NPS\/|Meaningless|Unintelligible|Silence)>/gi;
 
   let runtime = null;
   let routeTimer = null;
@@ -166,6 +168,7 @@
 
   function resolveRecommendationFillTarget(result, targetKey) {
     const source = result && typeof result === "object" ? result : {};
+    const applyPreset = buildRecommendationApplyPreset(source);
     switch (String(targetKey || "")) {
       case "audioDialectText":
         return {
@@ -181,14 +184,22 @@
       case "refinedDialectText":
         return {
           targetField: "dialect",
-          text: String(source.refinedDialectText || source.dialectText || ""),
-          tokens: Array.isArray(source.refinedDialectTokens) ? source.refinedDialectTokens.slice() : [],
+          text: String(applyPreset?.dialectText || source.refinedDialectText || source.dialectText || ""),
+          tokens: Array.isArray(applyPreset?.dialectTokens)
+            ? applyPreset.dialectTokens.slice()
+            : Array.isArray(source.refinedDialectTokens)
+            ? source.refinedDialectTokens.slice()
+            : [],
         };
       case "refinedMandarinText":
         return {
           targetField: "mandarin",
           text: String(
-            source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
+            applyPreset?.mandarinText ??
+              source.refinedMandarinText ??
+              source.mandarinText ??
+              source.audioMandarinText ??
+              ""
           ),
         };
       default:
@@ -196,20 +207,155 @@
     }
   }
 
+  function normalizeRecommendationTokenItems(tokens) {
+    const result = [];
+    (Array.isArray(tokens) ? tokens : []).forEach(function (item) {
+      if (!item || typeof item !== "object") {
+        return;
+      }
+      const type = normalizeText(item.type).toLowerCase();
+      const content = String(item.content || "");
+      if (!content) {
+        return;
+      }
+      if (type === "tag") {
+        result.push({
+          type: "tag",
+          content: content,
+        });
+        return;
+      }
+      if (type === "text") {
+        const previous = result[result.length - 1];
+        if (previous && previous.type === "text") {
+          previous.content += content;
+          return;
+        }
+        result.push({
+          type: "text",
+          content: content,
+        });
+      }
+    });
+    return result;
+  }
+
+  function parseRecommendationTokensFromText(text) {
+    const source = String(text || "");
+    if (!source) {
+      return [];
+    }
+    const result = [];
+    let cursor = 0;
+    let matched;
+    RECOMMENDATION_INLINE_TAG_MATCHER.lastIndex = 0;
+    while ((matched = RECOMMENDATION_INLINE_TAG_MATCHER.exec(source))) {
+      if (matched.index > cursor) {
+        result.push({
+          type: "text",
+          content: source.slice(cursor, matched.index),
+        });
+      }
+      result.push({
+        type: "tag",
+        content: String(matched[0] || ""),
+      });
+      cursor = matched.index + matched[0].length;
+    }
+    if (cursor < source.length) {
+      result.push({
+        type: "text",
+        content: source.slice(cursor),
+      });
+    }
+    return normalizeRecommendationTokenItems(result);
+  }
+
+  function getRecommendationDialectTokens(result) {
+    const source = result && typeof result === "object" ? result : {};
+    const explicit = normalizeRecommendationTokenItems(
+      source.refinedDialectTokens || source.audioDialectTokens
+    );
+    if (explicit.length > 0) {
+      return explicit;
+    }
+    return parseRecommendationTokensFromText(
+      source.refinedDialectText || source.dialectText || source.audioDialectText || ""
+    );
+  }
+
+  function isStandaloneParticleRecommendation(result) {
+    const tokens = getRecommendationDialectTokens(result);
+    if (tokens.length <= 0) {
+      return false;
+    }
+    let sawOralParticle = false;
+    for (let index = 0; index < tokens.length; index += 1) {
+      const token = tokens[index];
+      if (token.type === "tag") {
+        if (!ORAL_PARTICLE_TAGS.has(String(token.content || ""))) {
+          return false;
+        }
+        sawOralParticle = true;
+        continue;
+      }
+      const stripped = String(token.content || "").replace(/[\s，。？！；,.!?;:]/g, "");
+      if (stripped) {
+        return false;
+      }
+    }
+    return sawOralParticle;
+  }
+
+  function buildRecommendationApplyPreset(result) {
+    const source = result && typeof result === "object" ? result : {};
+    if (source.applyPreset && typeof source.applyPreset === "object") {
+      return {
+        validity: normalizeText(source.applyPreset.validity).toLowerCase(),
+        dialectText: String(source.applyPreset.dialectText || ""),
+        dialectTokens: Array.isArray(source.applyPreset.dialectTokens)
+          ? source.applyPreset.dialectTokens.slice()
+          : [],
+        mandarinText: String(source.applyPreset.mandarinText || ""),
+      };
+    }
+    if (!isStandaloneParticleRecommendation(source)) {
+      return null;
+    }
+    return {
+      validity: "invalid",
+      dialectText: "<Meaningless>",
+      dialectTokens: [{ type: "tag", content: "<Meaningless>" }],
+      mandarinText: "",
+    };
+  }
+
   function resolveBatchRecommendationTexts(result) {
     const source = result && typeof result === "object" ? result : {};
+    const applyPreset = buildRecommendationApplyPreset(source);
     return {
       dialectText: String(
-        source.refinedDialectText || source.dialectText || source.audioDialectText || ""
+        applyPreset?.dialectText ||
+          source.refinedDialectText ||
+          source.dialectText ||
+          source.audioDialectText ||
+          ""
       ),
-      dialectTokens: Array.isArray(source.refinedDialectTokens)
+      dialectTokens: Array.isArray(applyPreset?.dialectTokens)
+        ? applyPreset.dialectTokens.slice()
+        : Array.isArray(source.refinedDialectTokens)
         ? source.refinedDialectTokens.slice()
         : Array.isArray(source.audioDialectTokens)
         ? source.audioDialectTokens.slice()
         : [],
       mandarinText: String(
-        source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
+        applyPreset?.mandarinText ??
+          source.refinedMandarinText ??
+          source.mandarinText ??
+          source.audioMandarinText ??
+          ""
       ),
+      validity: normalizeText(applyPreset?.validity).toLowerCase(),
     };
   }
 
@@ -463,6 +609,7 @@
               dialectText: texts.dialectText,
               dialectTokens: texts.dialectTokens,
               mandarinText: texts.mandarinText,
+              validity: texts.validity,
             });
           } else {
             run.failures.push({
@@ -870,6 +1017,16 @@
       runtime.ui.setStatus(UI_COPY.recommendRequired, "error");
       return;
     }
+    const applyPreset = buildRecommendationApplyPreset(lastRecommendation);
+    if (applyPreset) {
+      const result = await runtime.dataApi.fillCurrentSegmentRecommendation(
+        Object.assign({}, lastRecommendation, {
+          applyPreset: applyPreset,
+        })
+      );
+      runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
+      return;
+    }
     const target = resolveRecommendationFillTarget(lastRecommendation, targetKey);
     if (!target || !target.text) {
       runtime.ui.setStatus("当前结果没有可填入的文本。", "error");
@@ -889,7 +1046,11 @@
       runtime.ui.setStatus(UI_COPY.recommendRequired, "error");
       return;
     }
-    const result = await runtime.dataApi.fillCurrentSegmentRecommendation(lastRecommendation);
+    const result = await runtime.dataApi.fillCurrentSegmentRecommendation(
+      Object.assign({}, lastRecommendation, {
+        applyPreset: buildRecommendationApplyPreset(lastRecommendation),
+      })
+    );
     runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
   }
 
@@ -1168,6 +1329,7 @@
         previewFailedPrefix: UI_COPY.previewFailedPrefix,
       },
       createBatchRecommendController: createBatchRecommendController,
+      buildRecommendationApplyPreset: buildRecommendationApplyPreset,
       resolveRecommendationFillTarget: resolveRecommendationFillTarget,
       resolveBatchRecommendationTexts: resolveBatchRecommendationTexts,
       buildRecommendationFailurePayload: buildRecommendationFailurePayload,

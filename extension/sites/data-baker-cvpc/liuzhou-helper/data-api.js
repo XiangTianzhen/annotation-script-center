@@ -49,8 +49,13 @@
     "#eh": "#eh",
     "<spk/>": "<SPK/>",
     "<nps/>": "<NPS/>",
+    "<unintelligible>": "<Unintelligible>",
+    "<meaningless>": "<Meaningless>",
+    "<silence>": "<Silence>",
   };
-  const DIALECT_TAG_MATCHER = /#(?:um|hmm|ah|eh)|<(?:SPK\/|NPS\/)>/gi;
+  const DIALECT_TAG_MATCHER = /#(?:um|hmm|ah|eh)|<(?:SPK\/|NPS\/|Unintelligible|Meaningless|Silence)>/gi;
+  const TAG_ADJACENT_TRAILING_SPACE_PATTERN = /[\t \u00a0]+$/;
+  const TAG_ADJACENT_LEADING_SPACE_PATTERN = /^[\t \u00a0]+/;
   const STRUCTURED_TAG_FIELD_RESYNC_DELAYS_MS = [0, 30, 90];
   let dialectTagSerial = 0;
 
@@ -1159,7 +1164,29 @@
       }
       pushDialectTextToken(result, normalized.content);
     });
-    return result;
+    for (let index = 0; index < result.length; index += 1) {
+      const current = result[index];
+      if (!current || current.type !== "tag") {
+        continue;
+      }
+      const previous = result[index - 1];
+      const next = result[index + 1];
+      if (previous && previous.type === "text") {
+        previous.content = String(previous.content || "").replace(
+          TAG_ADJACENT_TRAILING_SPACE_PATTERN,
+          ""
+        );
+      }
+      if (next && next.type === "text") {
+        next.content = String(next.content || "").replace(
+          TAG_ADJACENT_LEADING_SPACE_PATTERN,
+          ""
+        );
+      }
+    }
+    return result.filter(function (item) {
+      return item.type === "tag" || String(item.content || "").length > 0;
+    });
   }
 
   function joinDialectTokens(tokens) {
@@ -1364,6 +1391,54 @@
     };
   }
 
+  function normalizeValidityState(value) {
+    const text = normalizeText(value).toLowerCase();
+    if (text === "valid") {
+      return "valid";
+    }
+    if (text === "invalid") {
+      return "invalid";
+    }
+    return "";
+  }
+
+  function findValidityAttr(rowAttrs) {
+    return (
+      (Array.isArray(rowAttrs) ? rowAttrs : []).find(function (attr) {
+        return normalizeText(attr?.name).indexOf("是否有效") >= 0;
+      }) || null
+    );
+  }
+
+  function readValidityStateFromAttr(attr) {
+    const values = Array.isArray(attr?.values) ? attr.values : [];
+    const valueText = normalizeText(
+      values
+        .map(function (item) {
+          return item?.name || item?.value || item?.unique_id || "";
+        })
+        .join(" ")
+    );
+    if (VALID_LABELS.some(function (text) { return valueText.indexOf(text) >= 0; })) {
+      return "valid";
+    }
+    if (INVALID_LABELS.some(function (text) { return valueText.indexOf(text) >= 0; })) {
+      return "invalid";
+    }
+    return "";
+  }
+
+  function buildValidityOptionValue(value, state) {
+    const currentState = normalizeValidityState(state);
+    const source = value && typeof value === "object" ? clonePlainData(value) : null;
+    if (source) {
+      return source;
+    }
+    return {
+      name: currentState === "invalid" ? INVALID_LABELS[0] : VALID_LABELS[0],
+    };
+  }
+
   function resolveBatchTextDescriptors(template, rows, preferredRow) {
     const rowQueue = [];
     if (preferredRow && typeof preferredRow === "object") {
@@ -1378,12 +1453,9 @@
 
     let dialectDescriptor = findMomentAttrDescriptor(template, [], ["标注文本", "柳州话", "转写文本"]);
     let mandarinDescriptor = findMomentAttrDescriptor(template, [], ["普通话顺滑", "普通话", "顺滑"]);
-    if (dialectDescriptor && mandarinDescriptor) {
-      return {
-        dialectDescriptor,
-        mandarinDescriptor,
-      };
-    }
+    let validityDescriptor = findMomentAttrDescriptor(template, [], ["是否有效"]);
+    let validOptionValue = null;
+    let invalidOptionValue = null;
 
     for (let index = 0; index < rowQueue.length; index += 1) {
       const currentRow = rowQueue[index] && typeof rowQueue[index] === "object" ? rowQueue[index] : {};
@@ -1395,7 +1467,19 @@
       if (!mandarinDescriptor) {
         mandarinDescriptor = findMomentAttrDescriptor(template, rowAttrs, ["普通话顺滑", "普通话", "顺滑"]);
       }
-      if (dialectDescriptor && mandarinDescriptor) {
+      if (!validityDescriptor) {
+        validityDescriptor = findMomentAttrDescriptor(template, rowAttrs, ["是否有效"]);
+      }
+      const validityAttr = findValidityAttr(rowAttrs);
+      const validityState = readValidityStateFromAttr(validityAttr);
+      const firstValue = Array.isArray(validityAttr?.values) ? validityAttr.values[0] : null;
+      if (validityState === "valid" && !validOptionValue) {
+        validOptionValue = buildValidityOptionValue(firstValue, "valid");
+      }
+      if (validityState === "invalid" && !invalidOptionValue) {
+        invalidOptionValue = buildValidityOptionValue(firstValue, "invalid");
+      }
+      if (dialectDescriptor && mandarinDescriptor && validityDescriptor && validOptionValue && invalidOptionValue) {
         break;
       }
     }
@@ -1410,6 +1494,9 @@
     return {
       dialectDescriptor,
       mandarinDescriptor,
+      validityDescriptor,
+      validOptionValue,
+      invalidOptionValue,
     };
   }
 
@@ -1439,6 +1526,37 @@
     return attrs;
   }
 
+  function ensureValidityAttr(rowAttrs, descriptor, state, optionHints) {
+    const attrs = Array.isArray(rowAttrs) ? rowAttrs : [];
+    const currentDescriptor = descriptor && typeof descriptor === "object" ? descriptor : null;
+    const normalizedState = normalizeValidityState(state);
+    if (!currentDescriptor || !normalizeText(currentDescriptor.uniqueId) || !normalizedState) {
+      return attrs;
+    }
+    let attr = findRowAttrByUniqueId(attrs, currentDescriptor.uniqueId);
+    if (!attr) {
+      attr = {
+        unique_id: currentDescriptor.uniqueId,
+        name: currentDescriptor.name,
+        input_type: "radio",
+        values: [],
+      };
+      attrs.push(attr);
+    }
+    const hintSource = optionHints && typeof optionHints === "object" ? optionHints : {};
+    const optionValue = buildValidityOptionValue(
+      normalizedState === "invalid" ? hintSource.invalidOptionValue : hintSource.validOptionValue,
+      normalizedState
+    );
+    attr.name = normalizeText(attr.name || currentDescriptor.name);
+    attr.input_type = normalizeText(attr.input_type || "radio") || "radio";
+    attr.values = [optionValue];
+    if (Object.prototype.hasOwnProperty.call(attr, "value")) {
+      delete attr.value;
+    }
+    return attrs;
+  }
+
   function buildUpdatedBatchTextRow(row, template, result, descriptorHints) {
     const sourceRow = clonePlainData(row) || {};
     const annData = sourceRow.ann_data && typeof sourceRow.ann_data === "object" ? sourceRow.ann_data : {};
@@ -1447,6 +1565,7 @@
     const descriptorSource = descriptorHints && typeof descriptorHints === "object" ? descriptorHints : {};
     const dialectDescriptor = textMeta.dialectDescriptor || descriptorSource.dialectDescriptor || null;
     const mandarinDescriptor = textMeta.mandarinDescriptor || descriptorSource.mandarinDescriptor || null;
+    const validityDescriptor = descriptorSource.validityDescriptor || null;
     if (!dialectDescriptor || !mandarinDescriptor) {
       throw new Error("未找到当前段文本字段定义。");
     }
@@ -1460,6 +1579,9 @@
       )
     );
     ensureTextAttr(rowAttrs, mandarinDescriptor, String(result.mandarinText || ""));
+    if (normalizeValidityState(result.validity)) {
+      ensureValidityAttr(rowAttrs, validityDescriptor, result.validity, descriptorSource);
+    }
     sourceRow.ann_data = Object.assign({}, annData, {
       attrs: rowAttrs,
       attr_version: normalizeText(annData.attr_version) || "v1",
@@ -1488,6 +1610,7 @@
       selectionKey: normalizeText(source.selectionKey),
       dialectText: dialectText,
       dialectTokens: normalizeDialectTokensInput(fallbackDialectTokens, dialectText),
+      validity: normalizeValidityState(source.validity || source.targetValidity || source.validityState),
       mandarinText: String(
         source.mandarinText ||
           source.refinedMandarinText ||
@@ -3022,17 +3145,25 @@
           message: "当前段已切换，旧识别结果已失效，请重新执行当前段识别。",
         };
       }
+      const applyPreset = source.applyPreset && typeof source.applyPreset === "object" ? source.applyPreset : null;
+      const presetValidity = normalizeValidityState(applyPreset?.validity);
       const dialectField = findFieldTarget(["标注文本", "柳州话", "转写文本"], env);
       const mandarinField = findFieldTarget(["普通话顺滑", "普通话", "顺滑"], env);
       const dialectText = String(
-        source.refinedDialectText || source.dialectText || source.audioDialectText || ""
+        applyPreset?.dialectText ||
+          source.refinedDialectText ||
+          source.dialectText ||
+          source.audioDialectText ||
+          ""
       );
       const dialectTokens = normalizeDialectTokensInput(
-        source.refinedDialectTokens || source.audioDialectTokens,
+        applyPreset?.dialectTokens || source.refinedDialectTokens || source.audioDialectTokens,
         dialectText
       );
       const mandarinText = String(
-        source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
+        applyPreset
+          ? applyPreset.mandarinText || ""
+          : source.refinedMandarinText || source.mandarinText || source.audioMandarinText || ""
       );
       const wroteDialect = dialectText || dialectTokens.length > 0
         ? setStructuredTagFieldValue(
@@ -3041,16 +3172,32 @@
             env
           )
         : false;
-      const wroteMandarin = mandarinText
-        ? setTextFieldValue(mandarinField, mandarinText, env)
-        : false;
+      const wroteMandarin =
+        applyPreset || mandarinText
+          ? setTextFieldValue(mandarinField, mandarinText, env)
+          : false;
+      const validityResult = presetValidity
+        ? await setCurrentValidity(presetValidity === "valid")
+        : null;
       if (!wroteDialect && !wroteMandarin) {
         return {
           ok: false,
           message: "未检测到稳定的当前段文本输入框；真实字段写入契约仍待补采。",
         };
       }
+      if (validityResult && !validityResult.ok) {
+        return {
+          ok: false,
+          message: validityResult.message,
+        };
+      }
       cachedContext = null;
+      if (applyPreset && presetValidity === "invalid") {
+        return {
+          ok: true,
+          message: "已将当前段设为 Invalid，并写入 <Meaningless> 标签；如页面未同步，请刷新后复核。",
+        };
+      }
       return {
         ok: true,
         message: "已尝试把当前段 AI 建议填入页面；如页面未同步，请刷新后复核。",

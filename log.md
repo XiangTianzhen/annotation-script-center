@@ -1,3 +1,27 @@
+## 2026-06-11（DataBaker CVPC 柳州话单独语气词 Invalid/Meaningless 预设与标签空格修复）
+
+- `DataBaker CVPC / 柳州话脚本` 当前补上一层“单独语气词落 Invalid”应用预设：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js` 当前会识别“最终建议只剩 `#um / #hmm / #ah / #eh` 这类单独语气词标签与标点”的结果
+  - 用户点击当前段定向填入、整卡填入，或批量写回命中这类结果时，运行时会统一改写为 `Invalid + <Meaningless> + 空普通话顺滑`
+  - 该预设不会改 AI 原始返回 JSON，只在页面应用层把 `标注文本` 写成结构化 `<Meaningless>`、把 `普通话顺滑` 清空，并同步切到 `Invalid`
+- `DataBaker CVPC / 柳州话脚本` 当前补齐标签相邻空格裁剪：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js` 当前在结构化标签写入前会裁掉标签前后的多余半角空格
+  - 目标是避免 `#ah 他又...` 这类 chip 后残留空白正文，保持页面展示与 `modelvalue` 一致
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+
 ## 2026-06-11（DataBaker CVPC 柳州话近音纠错与语义修正）
 
 - `DataBaker CVPC / 柳州话脚本` 当前补齐“听音近音候选 + 文本语义修正”链路：

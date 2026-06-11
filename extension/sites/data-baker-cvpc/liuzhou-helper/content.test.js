@@ -414,6 +414,47 @@ test("CVPC content resolveBatchRecommendationTexts returns dialect tokens for ba
       { type: "text", content: "柳州话。" },
     ],
     mandarinText: "整理普通话。",
+    validity: "",
+  });
+});
+
+test("CVPC content builds a Meaningless invalid preset for standalone particle recommendations", function () {
+  const contentModule = loadContentModule();
+
+  const preset = contentModule.__testOnly.buildRecommendationApplyPreset({
+    refinedDialectText: "#hmm。",
+    refinedDialectTokens: [
+      { type: "tag", content: "#hmm" },
+      { type: "text", content: "。" },
+    ],
+    refinedMandarinText: "嗯。",
+  });
+
+  assert.deepEqual(preset, {
+    validity: "invalid",
+    dialectText: "<Meaningless>",
+    dialectTokens: [{ type: "tag", content: "<Meaningless>" }],
+    mandarinText: "",
+  });
+});
+
+test("CVPC content resolveBatchRecommendationTexts converts standalone particle into Meaningless invalid payload", function () {
+  const contentModule = loadContentModule();
+
+  const result = contentModule.__testOnly.resolveBatchRecommendationTexts({
+    refinedDialectText: "#ah。",
+    refinedDialectTokens: [
+      { type: "tag", content: "#ah" },
+      { type: "text", content: "。" },
+    ],
+    refinedMandarinText: "啊。",
+  });
+
+  assert.deepEqual(result, {
+    dialectText: "<Meaningless>",
+    dialectTokens: [{ type: "tag", content: "<Meaningless>" }],
+    mandarinText: "",
+    validity: "invalid",
   });
 });
 
