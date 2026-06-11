@@ -9,6 +9,44 @@ function normalizeText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function normalizeQueueMeta(queueMeta) {
+  const source = queueMeta && typeof queueMeta === "object" ? queueMeta : {};
+  return {
+    groupName: normalizeText(source.groupName),
+    queueWaitMs: Math.max(0, Number(source.queueWaitMs) || 0),
+    retryCount: Math.max(0, Number(source.retryCount) || 0),
+    durationMs: Math.max(0, Number(source.durationMs) || 0),
+    activeCount: Math.max(0, Number(source.activeCount) || 0),
+    maxConcurrent: Math.max(0, Number(source.maxConcurrent) || 0),
+  };
+}
+
+function unwrapQueuedTaskResult(result, fallbackGroupName) {
+  if (result && typeof result === "object" && Object.prototype.hasOwnProperty.call(result, "value")) {
+    return {
+      value: result.value,
+      queueMeta: normalizeQueueMeta(result.queueMeta || {
+        groupName: fallbackGroupName,
+      }),
+    };
+  }
+  return {
+    value: result,
+    queueMeta: normalizeQueueMeta(
+      result && typeof result === "object"
+        ? Object.assign(
+            {
+              groupName: fallbackGroupName,
+            },
+            result.queueMeta || {}
+          )
+        : {
+            groupName: fallbackGroupName,
+          }
+    ),
+  };
+}
+
 function normalizeVietnameseTranscriptionText(text) {
   const value = String(text || "").replace(/[\s\u3000]+/g, " ").trim();
   if (!value) {
@@ -104,10 +142,9 @@ function createRecommendPipeline(overrides) {
     const signal = context.signal || null;
     const startedAtMs = Number(context.startedAtMs) || Date.now();
     const recognizeStartedAt = Date.now();
-    let retryCount = 0;
 
     try {
-      const recognizeResult = await deps.enqueueTask(
+      const queuedRecognizeResult = await deps.enqueueTask(
         "aishell_qwen_omni",
         function () {
           return deps.requestOmniInputAudio(
@@ -127,11 +164,12 @@ function createRecommendPipeline(overrides) {
         {
           modelName: normalizedRequest.singleModel,
           signal,
-          onRetry: function () {
-            retryCount += 1;
-          },
         }
       );
+      const recognizeEntry = unwrapQueuedTaskResult(queuedRecognizeResult, "aishell_qwen_omni");
+      const recognizeResult =
+        recognizeEntry.value && typeof recognizeEntry.value === "object" ? recognizeEntry.value : {};
+      const queueMeta = recognizeEntry.queueMeta;
       const recognizeDurationMs = Date.now() - recognizeStartedAt;
       const recommendedText = normalizeVietnameseTranscriptionText(recognizeResult.rawText);
       if (!recommendedText) {
@@ -162,14 +200,14 @@ function createRecommendPipeline(overrides) {
           },
           usage,
           queue: {
-            totalQueueWaitMs: 0,
-            groups: ["aishell_qwen_omni"],
+            totalQueueWaitMs: queueMeta.queueWaitMs,
+            groups: [queueMeta.groupName || "aishell_qwen_omni"],
           },
           cache: {
             hit: false,
             sourceRequestId: "",
           },
-          retryCount,
+          retryCount: queueMeta.retryCount,
           cancelled: false,
         },
       };

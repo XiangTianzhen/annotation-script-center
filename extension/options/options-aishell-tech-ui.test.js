@@ -16,3 +16,17 @@ test("Aishell options source uses standalone convert/listen/compare cards", func
   assert.match(script, /Qwen 文本比较/);
   assert.match(script, /Omni 听音比较/);
 });
+
+test("Aishell Vietnamese fallback defaults keep wrapped single-stage config", function () {
+  const script = fs.readFileSync(path.resolve(__dirname, "options.js"), "utf8");
+  const start = script.indexOf("if (scriptId === aishellTechVietnameseScriptId) {");
+  const end = script.indexOf("    if (isAishellTechScript(scriptId)) {", start);
+  const block = start >= 0 && end > start ? script.slice(start, end) : "";
+
+  assert.ok(block);
+  assert.match(block, /baseDefaults\.pipelineMode = "omni_single"/);
+  assert.match(block, /baseDefaults\.singlePrompt = aishellTechVietnameseDefaultSinglePrompt/);
+  assert.match(block, /recognize:/);
+  assert.match(block, /prompt: aishellTechVietnameseDefaultSinglePrompt/);
+  assert.match(block, /return \{\s*defaults: baseDefaults,\s*supportedParams: supportedParams,\s*loadedFromBackend: false,\s*error: "",\s*\}/s);
+});

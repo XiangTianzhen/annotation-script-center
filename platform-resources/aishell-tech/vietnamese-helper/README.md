@@ -23,6 +23,7 @@
 - 接口根路径：`/api/aishell-tech/vietnamese-helper/ai/recommend`
 - AI 日志数据集 ID：`aishell-tech-vietnamese-helper-ai`
 - 运行时日志目录：`platform-resources/aishell-tech/vietnamese-helper/data/runtime/`
+- 当前后端 `/defaults` 读取失败时，options 会回退到本地完整单阶段默认值，不再把越南语页渲染成“只有空字段”的半残状态。
 
 ## 安全边界
 

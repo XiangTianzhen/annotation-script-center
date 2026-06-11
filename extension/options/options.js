@@ -554,6 +554,14 @@
     "输出 JSON 字段：recommendedText、decision、changePoints、confidence、needHumanReview。",
     "只输出 JSON，不输出额外解释。",
   ].join("\n");
+  const aishellTechVietnameseDefaultSinglePrompt = [
+    "你正在处理越南语音频转写。",
+    "只输出最终越南语转写文本，不要输出 JSON、Markdown、解释、前缀或引号。",
+    "保留越南语重音字符和正常单词空格。",
+    "按越南语书写习惯处理标点与空格：去掉标点前多余空格，标点后保持单个空格。",
+    "不要翻译成中文，不要改写成其他语言，不要补充词表写法。",
+    "如果句末缺少终止标点，请补英文句号。",
+  ].join("\n");
   const magicDataHelperModelModeOptions = Array.isArray(
     constants.MAGIC_DATA_HELPER_MODEL_MODE_OPTIONS
   )
@@ -4153,12 +4161,12 @@
     }
     if (scriptId === aishellTechVietnameseScriptId) {
       baseDefaults.pipelineMode = "omni_single";
-      baseDefaults.singlePrompt = "";
+      baseDefaults.singlePrompt = aishellTechVietnameseDefaultSinglePrompt;
       baseDefaults.stages = {
         recognize: {
           model: "qwen3.5-omni-flash",
           modelOptions: clone(dataBakerSingleModelOptions),
-          prompt: "",
+          prompt: aishellTechVietnameseDefaultSinglePrompt,
           temperature: 0.1,
           top_p: 0.8,
           max_tokens: 1200,

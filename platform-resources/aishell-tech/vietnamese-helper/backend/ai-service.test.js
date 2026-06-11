@@ -113,8 +113,18 @@ test("Aishell Vietnamese text normalization keeps spaces and fixes punctuation",
 
 test("Aishell Vietnamese pipeline returns single-stage recognize result", async function () {
   const pipeline = createRecommendPipeline({
-    enqueueTask: async function (_groupName, task) {
-      return task();
+    enqueueTask: async function (groupName, task) {
+      return {
+        value: await task(),
+        queueMeta: {
+          groupName,
+          queueWaitMs: 18,
+          retryCount: 1,
+          durationMs: 30,
+          activeCount: 1,
+          maxConcurrent: 4,
+        },
+      };
     },
     requestOmniInputAudio: async function () {
       return {
@@ -156,4 +166,7 @@ test("Aishell Vietnamese pipeline returns single-stage recognize result", async 
   assert.equal(result.meta?.usage?.promptTokens, 12);
   assert.equal(result.meta?.usage?.completionTokens, 8);
   assert.equal(result.meta?.usage?.totalTokens, 20);
+  assert.equal(result.meta?.queue?.totalQueueWaitMs, 18);
+  assert.deepEqual(result.meta?.queue?.groups, ["aishell_qwen_omni"]);
+  assert.equal(result.meta?.retryCount, 1);
 });
