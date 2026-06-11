@@ -75,6 +75,7 @@ test("CVPC storage defaults expose beta liuzhou helper settings", async function
     assert.equal(script.enabled, true);
     assert.equal(script.segmentPreviewEnabled, true);
     assert.equal(script.segmentPreviewAutoApplyEnabled, true);
+    assert.equal(script.aiRecommendAutoFillEnabled, true);
     assert.equal(script.segmentContextPaddingMs, 200);
     assert.equal(script.aiRecommendEnabled, true);
     assert.equal(script.blockNewTabEditingTips, true);
@@ -319,6 +320,29 @@ test("CVPC storage keeps explicit auto-apply override for segment preview", asyn
   }
 });
 
+test("CVPC storage keeps explicit auto-fill override for AI recommendation", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            aiRecommendAutoFillEnabled: false,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.equal(script.aiRecommendAutoFillEnabled, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("CVPC storage keeps valid segment context padding overrides", async function () {
   const harness = loadStorageApi({
     platforms: {
@@ -383,6 +407,29 @@ test("CVPC storage normalizes invalid auto-apply values back to default true", a
     const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
 
     assert.equal(script.segmentPreviewAutoApplyEnabled, true);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("CVPC storage normalizes invalid auto-fill values back to default true", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      dataBakerCvpc: {
+        scripts: {
+          liuzhouAssistant: {
+            aiRecommendAutoFillEnabled: 0,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.dataBakerCvpc.scripts.liuzhouAssistant;
+
+    assert.equal(script.aiRecommendAutoFillEnabled, true);
   } finally {
     harness.cleanup();
   }

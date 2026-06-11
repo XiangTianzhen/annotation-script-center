@@ -843,6 +843,7 @@
     let batchSelectionGridNode = null;
     let batchStateNode = null;
     let autoApplyToggleNode = null;
+    let aiRecommendAutoFillToggleNode = null;
     let batchSelectionState = {
       totalSegments: 0,
       selectedNumbers: [],
@@ -1434,6 +1435,12 @@
       }
     }
 
+    function setAiRecommendAutoFillEnabled(enabled) {
+      if (aiRecommendAutoFillToggleNode) {
+        aiRecommendAutoFillToggleNode.checked = enabled !== false;
+      }
+    }
+
     function ensureRightRoot() {
       if (rightRoot && rightRoot.isConnected) {
         return rightRoot;
@@ -1495,6 +1502,22 @@
       currentSection.className = "section";
       currentSection.innerHTML =
         '<div class="section-title">当前段识别</div><div class="section-note">用于当前选中段的识别、文本建议应用和有效性补填。</div>';
+
+      const currentToggleRow = document.createElement("label");
+      currentToggleRow.className = "inline-toggle";
+      aiRecommendAutoFillToggleNode = document.createElement("input");
+      aiRecommendAutoFillToggleNode.type = "checkbox";
+      aiRecommendAutoFillToggleNode.checked = deps.aiRecommendAutoFillEnabled !== false;
+      aiRecommendAutoFillToggleNode.addEventListener("change", function () {
+        if (typeof deps.onToggleAiRecommendAutoFill === "function") {
+          deps.onToggleAiRecommendAutoFill(aiRecommendAutoFillToggleNode.checked === true);
+        }
+      });
+      const currentToggleText = document.createElement("span");
+      currentToggleText.textContent = "识别完成后自动填入";
+      currentToggleRow.appendChild(aiRecommendAutoFillToggleNode);
+      currentToggleRow.appendChild(currentToggleText);
+      currentSection.appendChild(currentToggleRow);
 
       const currentActionsNode = document.createElement("div");
       currentActionsNode.setAttribute(MIDDLE_AI_ACTIONS_ATTR, "");
@@ -1740,6 +1763,7 @@
       batchSelectionGridNode = null;
       batchStateNode = null;
       autoApplyToggleNode = null;
+      aiRecommendAutoFillToggleNode = null;
       batchSelectionState = {
         totalSegments: 0,
         selectedNumbers: [],
@@ -1762,6 +1786,7 @@
       renderPreview,
       renderRecommendation,
       setSegmentPreviewAutoApplyEnabled,
+      setAiRecommendAutoFillEnabled,
     };
   }
 

@@ -5130,6 +5130,7 @@
         enabled: true,
         segmentPreviewEnabled: true,
         segmentPreviewAutoApplyEnabled: true,
+        aiRecommendAutoFillEnabled: true,
         segmentContextPaddingMs: 200,
         segmentSilenceThresholdDbfs: -27,
         segmentSilenceThresholdUnit: "db",
@@ -5178,6 +5179,8 @@
     config.segmentPreviewEnabled = config.segmentPreviewEnabled !== false;
     config.segmentPreviewAutoApplyEnabled =
       config.segmentPreviewAutoApplyEnabled === false ? false : true;
+    config.aiRecommendAutoFillEnabled =
+      config.aiRecommendAutoFillEnabled === false ? false : true;
     config.segmentContextPaddingMs = normalizeDataBakerCvpcSegmentContextPaddingMs(
       config.segmentContextPaddingMs,
       defaults.segmentContextPaddingMs
@@ -10735,6 +10738,9 @@
     const segmentPreviewAutoApplyNode = getElement(
       "data-baker-cvpc-segment-preview-auto-apply-enabled"
     );
+    const aiRecommendAutoFillNode = getElement(
+      "data-baker-cvpc-ai-recommend-auto-fill-enabled"
+    );
     const aiRecommendNode = getElement("data-baker-cvpc-ai-recommend-enabled");
     const blockNewTabTipNode = getElement("data-baker-cvpc-block-new-tab-tip");
     const blockPauseStateTipNode = getElement("data-baker-cvpc-block-pause-state-tip");
@@ -10755,6 +10761,9 @@
     }
     if (segmentPreviewAutoApplyNode) {
       segmentPreviewAutoApplyNode.checked = config.segmentPreviewAutoApplyEnabled !== false;
+    }
+    if (aiRecommendAutoFillNode) {
+      aiRecommendAutoFillNode.checked = config.aiRecommendAutoFillEnabled !== false;
     }
     if (aiRecommendNode) {
       aiRecommendNode.checked = config.aiRecommendEnabled !== false;
@@ -11069,6 +11078,9 @@
     const segmentPreviewAutoApplyEnabled = getElement(
       "data-baker-cvpc-segment-preview-auto-apply-enabled"
     ).checked;
+    const aiRecommendAutoFillEnabled = getElement(
+      "data-baker-cvpc-ai-recommend-auto-fill-enabled"
+    ).checked;
     const hasAiSettingsPanel = Boolean(getElement("data-baker-cvpc-ai-timeout"));
     const aiRecommendEnabled = hasAiSettingsPanel
       ? getElement("data-baker-cvpc-ai-recommend-enabled").checked
@@ -11169,6 +11181,7 @@
                 id: dataBakerCvpcLiuzhouScriptId,
                 segmentPreviewEnabled: segmentPreviewEnabled,
                 segmentPreviewAutoApplyEnabled: segmentPreviewAutoApplyEnabled,
+                aiRecommendAutoFillEnabled: aiRecommendAutoFillEnabled,
                 segmentContextPaddingMs: segmentContextPaddingMs,
                 segmentSilenceThresholdDbfs: segmentSilenceThresholdDbfs,
                 segmentSilenceThresholdUnit: segmentSilenceThresholdUnit,

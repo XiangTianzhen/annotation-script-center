@@ -476,6 +476,7 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
     assert.doesNotMatch(collectText(harness.nativeValidity), /未填写补 Valid/);
     assert.match(collectText(middleNode), /柳州话 AI 识别助手/);
     assert.match(collectText(middleNode), /当前段识别/);
+    assert.match(collectText(middleNode), /识别完成后自动填入/);
     assert.match(collectText(middleNode), /未填写补 Valid/);
     assert.match(collectText(middleNode), /生成分段建议/);
     assert.match(collectText(middleNode), /应用分段建议/);
@@ -500,6 +501,46 @@ test("CVPC ui panel mounts assistant below native global validity area and prepe
     assert.equal(harness.bottomRight.children[0], harness.nativeSplitButton);
     assert.equal(harness.bottomRight.children[1], harness.nativeMergeButton);
     assert.doesNotMatch(collectText(harness.bottomRight), /生成分段建议/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("CVPC ui panel triggers recommendation auto-fill toggle callback and exposes setter", function () {
+  const uiModule = loadUiPanelModule();
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  const toggleCalls = [];
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const runtime = uiModule.createRuntime({
+      aiRecommendAutoFillEnabled: true,
+      onToggleAiRecommendAutoFill: function (enabled) {
+        toggleCalls.push(enabled);
+      },
+    });
+    runtime.mount();
+
+    const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
+    const toggleRow = findNode(middleNode, function (node) {
+      return node instanceof FakeNode && collectText(node).indexOf("识别完成后自动填入") >= 0;
+    });
+    const checkbox = findNode(toggleRow, function (node) {
+      return node instanceof FakeNode && node.tagName === "INPUT" && node.type === "checkbox";
+    });
+    assert.ok(checkbox);
+    assert.equal(checkbox.checked, true);
+
+    checkbox.checked = false;
+    checkbox.dispatchEvent({ type: "change" });
+    assert.deepEqual(toggleCalls, [false]);
+
+    runtime.setAiRecommendAutoFillEnabled(true);
+    assert.equal(checkbox.checked, true);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

@@ -1,3 +1,39 @@
+## 2026-06-11（DataBaker CVPC 柳州话识别后自动填入与单独语气词自动落 Meaningless）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把“单独语气词转 `<Meaningless>`”从手动填入链路扩展到当前段识别自动应用链路：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js` 当前在当前段识别成功后，默认立即复用现有整卡填入能力
+  - 若最终结果只剩 `#um / #hmm / #ah / #eh` 与标点，自动填入会直接走 `Invalid + <Meaningless> + 空普通话顺滑` 预设
+  - 自动填入失败时，识别结果仍保留在字段结果卡和 `AI信息` 中，用户可继续手动填入
+- `DataBaker CVPC / 柳州话脚本` 当前新增 `识别完成后自动填入` 开关：
+  - `extension/shared/constants.js`、`extension/shared/storage.js`、`extension/options/options.js` 当前补齐 `aiRecommendAutoFillEnabled` 默认值与归一化，默认开启
+  - `extension/options/options.html` 在 CVPC 基础设置区新增默认开关
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js` 在编辑页 `当前段识别` 区新增页内持久化 checkbox，可即时切换
+- 本轮同步更新：
+  - `extension/shared/constants.js`
+  - `extension/shared/storage.js`
+  - `extension/shared/storage.data-baker-cvpc.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/options/options.html`
+  - `extension/options/options.js`
+  - `extension/options/options-data-baker-cvpc-ai-ui.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check extension/shared/constants.js`
+  - `node --check extension/shared/storage.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --check extension/options/options.js`
+  - `node --test extension/shared/storage.data-baker-cvpc.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `node --test extension/options/options-data-baker-cvpc-ai-ui.test.js`
+
 ## 2026-06-11（DataBaker CVPC 柳州话原始返回复制、人民币估算与分阶段 Token 日志）
 
 - `DataBaker CVPC / 柳州话脚本` 当前补齐 3 项收口：

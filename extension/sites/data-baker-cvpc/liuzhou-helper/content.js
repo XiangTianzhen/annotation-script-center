@@ -480,6 +480,49 @@
     };
   }
 
+  async function maybeAutoFillRecommendation(runtimeContext, recommendation) {
+    const currentRuntime = runtimeContext && typeof runtimeContext === "object" ? runtimeContext : null;
+    if (currentRuntime?.config?.aiRecommendAutoFillEnabled !== true) {
+      return {
+        attempted: false,
+        ok: false,
+        reason: "disabled",
+      };
+    }
+    if (!currentRuntime?.dataApi?.fillCurrentSegmentRecommendation || !recommendation) {
+      return {
+        attempted: false,
+        ok: false,
+        reason: "missing-deps",
+      };
+    }
+    const result = await currentRuntime.dataApi.fillCurrentSegmentRecommendation(
+      Object.assign({}, recommendation, {
+        applyPreset: buildRecommendationApplyPreset(recommendation),
+      })
+    );
+    if (result?.ok) {
+      currentRuntime.ui?.setStatus?.(
+        "当前段识别结果已生成，" + String(result.message || "并已自动填入页面。"),
+        "success"
+      );
+      return {
+        attempted: true,
+        ok: true,
+        result: result,
+      };
+    }
+    currentRuntime.ui?.setStatus?.(
+      "当前段识别结果已生成，但自动填入失败：" + String(result?.message || "未知错误"),
+      "error"
+    );
+    return {
+      attempted: true,
+      ok: false,
+      result: result,
+    };
+  }
+
   function createBatchRecommendController(options) {
     const deps = options && typeof options === "object" ? options : {};
     const dataApi = deps.dataApi || null;
@@ -760,6 +803,12 @@
           : current.segmentPreviewAutoApplyEnabled === false
             ? false
             : defaults.segmentPreviewAutoApplyEnabled !== false,
+      aiRecommendAutoFillEnabled:
+        current.aiRecommendAutoFillEnabled === true
+          ? true
+          : current.aiRecommendAutoFillEnabled === false
+            ? false
+            : defaults.aiRecommendAutoFillEnabled !== false,
       aiRecommendEnabled:
         (current.aiRecommendEnabled ?? defaults.aiRecommendEnabled) !== false,
       timeoutMs:
@@ -1006,6 +1055,10 @@
       }
       lastRecommendation = await runtime.ai.recommend(context);
       runtime.ui.renderRecommendation(lastRecommendation);
+      const autoFillResult = await maybeAutoFillRecommendation(runtime, lastRecommendation);
+      if (autoFillResult.attempted) {
+        return;
+      }
       runtime.ui.setStatus(UI_COPY.recommendReady, "success");
     } catch (error) {
       handleRecommendationFailure(runtime, error);
@@ -1110,6 +1163,7 @@
         : null;
     const ui = uiFactory.createRuntime({
       segmentPreviewAutoApplyEnabled: config.segmentPreviewAutoApplyEnabled !== false,
+      aiRecommendAutoFillEnabled: config.aiRecommendAutoFillEnabled !== false,
       onPreview: function () {
         if (config.segmentPreviewEnabled === false) {
           ui.setStatus(UI_COPY.previewFeatureDisabled, "error");
@@ -1148,6 +1202,42 @@
             ui.setSegmentPreviewAutoApplyEnabled(previousEnabled);
             ui.setStatus(
               "保存自动应用开关失败：" + (error && error.message ? error.message : String(error)),
+              "error"
+            );
+          }
+        })();
+      },
+      onToggleAiRecommendAutoFill: function (nextEnabled) {
+        void (async function () {
+          const previousEnabled = runtime?.config?.aiRecommendAutoFillEnabled !== false;
+          const normalizedEnabled = nextEnabled === true;
+          if (!STORAGE || typeof STORAGE.patchSettings !== "function") {
+            ui.setAiRecommendAutoFillEnabled(previousEnabled);
+            ui.setStatus("当前扩展版本不支持保存自动填入开关。", "error");
+            return;
+          }
+          try {
+            const nextSettings = await STORAGE.patchSettings({
+              platforms: {
+                dataBakerCvpc: {
+                  scripts: {
+                    liuzhouAssistant: {
+                      id: SCRIPT_ID,
+                      aiRecommendAutoFillEnabled: normalizedEnabled,
+                    },
+                  },
+                },
+              },
+            });
+            if (runtime?.config) {
+              runtime.config.aiRecommendAutoFillEnabled = normalizedEnabled;
+              runtime.config.settings = nextSettings;
+            }
+            ui.setAiRecommendAutoFillEnabled(normalizedEnabled);
+          } catch (error) {
+            ui.setAiRecommendAutoFillEnabled(previousEnabled);
+            ui.setStatus(
+              "保存自动填入开关失败：" + (error && error.message ? error.message : String(error)),
               "error"
             );
           }
@@ -1337,6 +1427,7 @@
       handleApplyCommonLabel: handleApplyCommonLabel,
       handleRecommendationFailure: handleRecommendationFailure,
       maybeAutoApplyPreview: maybeAutoApplyPreview,
+      maybeAutoFillRecommendation: maybeAutoFillRecommendation,
     },
   };
 

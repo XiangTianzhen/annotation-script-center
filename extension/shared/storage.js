@@ -77,6 +77,7 @@
                 enabled: true,
                 segmentPreviewEnabled: true,
                 segmentPreviewAutoApplyEnabled: true,
+                aiRecommendAutoFillEnabled: true,
                 segmentContextPaddingMs: 200,
                 segmentSilenceThresholdDbfs: -27,
                 segmentSilenceThresholdUnit: "db",
@@ -2133,6 +2134,12 @@
         : rawSource.segmentPreviewAutoApplyEnabled === false
           ? false
           : defaultConfig.segmentPreviewAutoApplyEnabled !== false;
+    result.aiRecommendAutoFillEnabled =
+      rawSource.aiRecommendAutoFillEnabled === true
+        ? true
+        : rawSource.aiRecommendAutoFillEnabled === false
+          ? false
+          : defaultConfig.aiRecommendAutoFillEnabled !== false;
     result.segmentContextPaddingMs = normalizeDataBakerCvpcSegmentContextPaddingMs(
       rawSource.segmentContextPaddingMs,
       defaultConfig.segmentContextPaddingMs
@@ -2220,6 +2227,7 @@
             enabled: true,
             segmentPreviewEnabled: true,
             segmentPreviewAutoApplyEnabled: true,
+            aiRecommendAutoFillEnabled: true,
             segmentContextPaddingMs: 200,
             segmentSilenceThresholdDbfs: -27,
             segmentSilenceThresholdUnit: "db",

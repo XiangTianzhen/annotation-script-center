@@ -619,6 +619,145 @@ test("CVPC content auto-apply helper keeps preview and skips reload when apply f
   assert.equal(reloadCount, 0);
 });
 
+test("CVPC content auto-fill helper skips recommendation fill when auto-fill is disabled", async function () {
+  const contentModule = loadContentModule();
+  let fillCalled = false;
+  const statuses = [];
+
+  const result = await contentModule.__testOnly.maybeAutoFillRecommendation(
+    {
+      config: {
+        aiRecommendAutoFillEnabled: false,
+      },
+      dataApi: {
+        fillCurrentSegmentRecommendation: async function () {
+          fillCalled = true;
+          return {
+            ok: true,
+            message: "should not run",
+          };
+        },
+      },
+      ui: {
+        setStatus: function (message, tone) {
+          statuses.push([message, tone]);
+        },
+      },
+    },
+    {
+      refinedDialectText: "修正文本",
+      refinedMandarinText: "普通话文本",
+    }
+  );
+
+  assert.deepEqual(result, {
+    attempted: false,
+    ok: false,
+    reason: "disabled",
+  });
+  assert.equal(fillCalled, false);
+  assert.deepEqual(statuses, []);
+});
+
+test("CVPC content auto-fill helper auto-applies standalone particle recommendations as Meaningless preset", async function () {
+  const contentModule = loadContentModule();
+  const calls = [];
+  const statuses = [];
+
+  const result = await contentModule.__testOnly.maybeAutoFillRecommendation(
+    {
+      config: {
+        aiRecommendAutoFillEnabled: true,
+      },
+      dataApi: {
+        fillCurrentSegmentRecommendation: async function (payload) {
+          calls.push(payload);
+          return {
+            ok: true,
+            message: "已将当前段设为 Invalid，并写入 <Meaningless> 标签；如页面未同步，请刷新后复核。",
+          };
+        },
+      },
+      ui: {
+        setStatus: function (message, tone) {
+          statuses.push([message, tone]);
+        },
+      },
+    },
+    {
+      refinedDialectText: "#um。",
+      refinedDialectTokens: [
+        { type: "tag", content: "#um" },
+        { type: "text", content: "。" },
+      ],
+      refinedMandarinText: "嗯。",
+    }
+  );
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].applyPreset, {
+    validity: "invalid",
+    dialectText: "<Meaningless>",
+    dialectTokens: [{ type: "tag", content: "<Meaningless>" }],
+    mandarinText: "",
+  });
+  assert.deepEqual(result, {
+    attempted: true,
+    ok: true,
+    result: {
+      ok: true,
+      message: "已将当前段设为 Invalid，并写入 <Meaningless> 标签；如页面未同步，请刷新后复核。",
+    },
+  });
+  assert.deepEqual(statuses, [[
+    "当前段识别结果已生成，已将当前段设为 Invalid，并写入 <Meaningless> 标签；如页面未同步，请刷新后复核。",
+    "success",
+  ]]);
+});
+
+test("CVPC content auto-fill helper keeps recommendation visible when fill fails", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+
+  const result = await contentModule.__testOnly.maybeAutoFillRecommendation(
+    {
+      config: {
+        aiRecommendAutoFillEnabled: true,
+      },
+      dataApi: {
+        fillCurrentSegmentRecommendation: async function () {
+          return {
+            ok: false,
+            message: "未检测到稳定的当前段文本输入框；真实字段写入契约仍待补采。",
+          };
+        },
+      },
+      ui: {
+        setStatus: function (message, tone) {
+          statuses.push([message, tone]);
+        },
+      },
+    },
+    {
+      refinedDialectText: "修正文本",
+      refinedMandarinText: "普通话文本",
+    }
+  );
+
+  assert.deepEqual(result, {
+    attempted: true,
+    ok: false,
+    result: {
+      ok: false,
+      message: "未检测到稳定的当前段文本输入框；真实字段写入契约仍待补采。",
+    },
+  });
+  assert.deepEqual(statuses, [[
+    "当前段识别结果已生成，但自动填入失败：未检测到稳定的当前段文本输入框；真实字段写入契约仍待补采。",
+    "error",
+  ]]);
+});
+
 test("CVPC content common label helper forwards exact label text to data api", async function () {
   const contentModule = loadContentModule();
   const calls = [];
