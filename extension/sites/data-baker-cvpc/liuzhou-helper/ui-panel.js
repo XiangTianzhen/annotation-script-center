@@ -955,7 +955,7 @@
       const mandarinReferenceBox = document.createElement("div");
       mandarinReferenceBox.className = "meta-box";
       const mandarinReferenceTitle = document.createElement("strong");
-      mandarinReferenceTitle.textContent = "鏅€氳瘽椤烘粦鍙傝€?";
+      mandarinReferenceTitle.textContent = "普通话顺滑参考";
       const mandarinReferenceValue = document.createElement("div");
       appendTokenDisplay(
         mandarinReferenceValue,

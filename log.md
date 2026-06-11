@@ -1,3 +1,21 @@
+## 2026-06-11（DataBaker CVPC 柳州话 AI 信息乱码与 fetch 失败提示修复）
+
+- `DataBaker CVPC / 柳州话脚本` 当前修复 `AI信息` 内一处标题乱码：
+  - `ui-panel.js` 中误写成乱码字符串的 `普通话顺滑参考` 已恢复为正常中文
+- `DataBaker CVPC / 柳州话脚本` 当前把浏览器原始 `Failed to fetch` 收口为更可执行的 AI 后端提示：
+  - `ai-recommendation.js` 在 `POST /ai/recommend` 尚未拿到任何 HTTP 响应、浏览器 `fetch()` 就直接失败时，会统一抛出 `连接 AI 后端失败，请检查 options 首页后端接口地址、后端服务状态或当前网络后重试`
+  - 同时保留 `rawResponse.fetchError` 供 `AI信息 -> AI 返回原始内容` 继续查看底层浏览器错误
+- 本轮同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `node --check extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.js`
+  - `node --test extension/sites/data-baker-cvpc/liuzhou-helper/ai-recommendation.test.js`
+
 ## 2026-06-11（DataBaker CVPC 柳州话音频 session 过期提示与刷新按钮）
 
 - `DataBaker CVPC / 柳州话脚本` 当前把“原始音频下载失败，无法截取当前段”这类前端提示收口为更贴近实际原因的文案：

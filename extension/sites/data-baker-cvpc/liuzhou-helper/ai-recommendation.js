@@ -51,6 +51,28 @@
     return typeof window !== "undefined" && window ? window : globalThis;
   }
 
+  function buildFetchFailureMessage(rawMessage) {
+    const detail = normalizeText(rawMessage);
+    const suffix = detail ? "原始错误：" + detail : "原始错误：未知。";
+    return "连接 AI 后端失败，请检查 options 首页后端接口地址、后端服务状态或当前网络后重试。 " + suffix;
+  }
+
+  function createFetchFailureError(rawError) {
+    const detail = rawError && rawError.message ? rawError.message : String(rawError || "Failed to fetch");
+    const message = buildFetchFailureMessage(detail);
+    const error = new Error(message);
+    error.code = "ai-backend-fetch-failed";
+    error.payload = {
+      success: false,
+      code: "ai-backend-fetch-failed",
+      message: message,
+      rawResponse: {
+        fetchError: detail,
+      },
+    };
+    return error;
+  }
+
   function normalizeAiStageParams(params) {
     const source = params && typeof params === "object" ? params : {};
     const result = {};
@@ -368,15 +390,20 @@
           }, body.timeoutMs)
         : null;
       try {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          credentials: "omit",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(body),
-          signal: controller ? controller.signal : undefined,
-        });
+        let response;
+        try {
+          response = await fetch(endpoint, {
+            method: "POST",
+            credentials: "omit",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+            signal: controller ? controller.signal : undefined,
+          });
+        } catch (fetchError) {
+          throw createFetchFailureError(fetchError);
+        }
         const payload = await response.json().catch(function () {
           return null;
         });
