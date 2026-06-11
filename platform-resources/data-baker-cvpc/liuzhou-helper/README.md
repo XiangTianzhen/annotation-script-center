@@ -53,12 +53,13 @@
     - 目标段缺少文本 attr 时，当前会复用同音频其他段或模板里的 `标注文本 / 普通话顺滑` 字段定义补齐后再写回
     - 如果当前音频所有段都还没填过这两个文本字段，当前会回退使用脚本已知的文本字段 `unique_id` 兜底写回
     - Network 里旧版若看到多条相同 `GET /httpapi/annotation/annos`，它们属于分段状态读取，不是多次 `save_increment`
-  - `音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
+  - `音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 近音候选参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容` 继续留在独立 AI 区底部
   - `AI信息` 当前默认折叠但始终保留结构，点击 `展开查看 AI 信息` 后再展开查看附加信息和完整原始返回 JSON；即使模型输出 JSON 解析失败，这个区块也会保留
-  - `AI信息` 当前固定顺序展示 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
+  - `AI信息` 当前固定顺序展示 `听音识别 / 文本修正 / 音频听出的柳州话文本 / 柳州话修正参考 / 普通话顺滑参考 / 近音候选参考 / 特殊标签 / 需人工复核 / 备注 / AI 返回原始内容`
   - `AI 返回原始内容` 当前优先展示后端返回的 `debug/raw` 字段；成功态若没有单独返回 raw/debug，则回退展示当前结果对象的安全 JSON
   - `AI信息` 的两段阶段信息当前只显示 `模型 / 输入 / 输出`，不再展示 `总输入 / 总输出 / 总计`
   - 当模型结构化 JSON 解析失败但原始返回仍有可读文本时，后端当前会保守兜底出 `柳州话修正参考 / 普通话顺滑参考`，并强制 `needHumanReview=true`，便于直接复制后人工确认
+  - 听音阶段当前会额外返回最多 `3` 条近音候选；文本修正阶段会结合页面上下文、JSON 主词表和参考 CSV 的释义/读音做保守纠正。若仍有歧义，`AI信息` 会追加 `近音候选参考`，并强制 `needHumanReview=true`
   - 后端返回 `audioDialectTokens / refinedDialectTokens` 时，`AI信息` 与字段结果卡当前会优先按 chip 渲染柳州话标签；token 缺失时再回退旧字符串展示
   - 两张结果卡在无结果时不显示占位文案；有结果时改成“文本左、按钮右”的紧凑布局，并统一使用系统蓝主调强化样式
   - `未填写补 Valid / 应用分段建议` 当前改成橙色实底 background 按钮，避免白底低对比
@@ -135,6 +136,7 @@
     - `audioMandarinText`
     - `refinedDialectText`
     - `refinedDialectTokens`
+    - `candidateAlternatives`
     - legacy alias `dialectText = refinedDialectText`
     - legacy alias `mandarinText = refinedMandarinText`
     - `specialTags`
@@ -145,6 +147,10 @@
   - 失败态补充：
     - 当 `listen/refine` 任一阶段命中 `模型输出 JSON 解析失败` 且原始返回仍有可读文本时，失败体当前会保守补齐 `audioMandarinText / refinedDialectText / refinedDialectTokens / refinedMandarinText / dialectText / mandarinText`
     - `rawResponse / debugRawJson` 继续只返回脱敏后的原始调试内容，不返回 token、cookie 或签名 URL 明文
+  - 近音纠错：
+    - `listen` 当前除 `audioDialectText` 外，还会额外返回最多 `3` 条 `candidatePhrases`
+    - `refine` 当前会结合页面上下文、JSON 主词表和参考 CSV 的 prompt-only 词条，输出最终 `refinedDialectText / refinedMandarinText`
+    - 若近音歧义仍未消除，响应会返回 `candidateAlternatives`，并强制 `needHumanReview=true`
   - 标签归一化：
     - 当前只支持 6 个有效标签：`#um / #hmm / #ah / #eh / <SPK/> / <NPS/>`
     - 当前会保守推断高置信口语词 / 笑声：`呃 / 诶 / 欸 -> #eh`、`啊 -> #ah`、`嗯 -> #um`、重复笑声 -> `<SPK/>`

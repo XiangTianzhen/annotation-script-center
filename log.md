@@ -1,3 +1,24 @@
+## 2026-06-11（DataBaker CVPC 柳州话近音纠错与语义修正）
+
+- `DataBaker CVPC / 柳州话脚本` 当前补齐“听音近音候选 + 文本语义修正”链路：
+  - 后端 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 当前把两阶段契约扩成 `listen -> candidatePhrases`、`refine -> candidateAlternatives`
+  - `listen` 当前除原始柳州话听音外，还会返回最多 `3` 条近音候选，供下一阶段结合句意判断
+  - `refine` 当前会结合页面上下文、JSON 主词表和参考 CSV 的 prompt-only 释义/读音做保守纠正；若仍有歧义，返回 `candidateAlternatives` 并强制 `needHumanReview=true`
+- 前端 `AI信息` 当前补齐 `近音候选参考`：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js` 当前在独立 AI 区展示 `近音候选参考`，但字段结果卡仍只保留两张最终结果卡，不额外增加多候选填入按钮
+  - `普通话顺滑` 仍只显示最终整理结果；近音备选统一留在 AI 信息区供人工判断
+- 本轮同步更新：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/ai/assets/liuzhou-rules.md`
+  - `docs/platforms/index.md`
+  - `README.md`
+  - `log.md`
+
 ## 2026-06-11（DataBaker CVPC 柳州话标签联动补强：语气词保留、笑声归一化、标签填入可视自愈）
 
 - `DataBaker CVPC / 柳州话脚本` 当前补齐一轮标签联动缺口：
