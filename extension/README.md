@@ -4,11 +4,12 @@
 
 ## 文档入口
 
-- 项目规则：`AGENTS.md`
-- 项目导航：`README.md`
-- 平台与脚本索引：`docs/platforms-index.md`
-- 百炼官方文档入口：`docs/external-docs-aliyun-bailian.md`
-- docs 导航：`docs/README.md`
+- 项目规则：[`../AGENTS.md`](../AGENTS.md)
+- 项目导航：[`../README.md`](../README.md)
+- 平台与脚本索引：[`../docs/platforms-index.md`](../docs/platforms-index.md)
+- 百炼官方文档入口：[`../docs/external-docs-aliyun-bailian.md`](../docs/external-docs-aliyun-bailian.md)
+- docs 导航：[`../docs/README.md`](../docs/README.md)
+- 配置说明：[`../config/README.md`](../config/README.md)
 
 ## 本地加载
 

@@ -16,6 +16,12 @@
 
 - Edge：`edge://extensions/` -> 开启开发人员模式 -> 加载 `C:\Projects\annotation-script-center\extension`
 - Chrome：`chrome://extensions/` -> 开启开发者模式 -> 加载 `C:\Projects\annotation-script-center\extension`
+- 详细说明：[`extension/README.md`](extension/README.md)
+- 如果需要本地 beta 入口元信息，同步一次：
+
+```powershell
+node scripts/sync-local-build-meta.js
+```
 
 ### 本地启动后端
 
@@ -31,30 +37,116 @@ node platform-resources/backend/server.js
 http://127.0.0.1:3333
 ```
 
+- 环境变量、PM2、下载鉴权和后端接口边界：[`platform-resources/backend/README.md`](platform-resources/backend/README.md)
+
+## 安装与前置
+
+- 当前仓库没有根级 `package.json`；不是 `npm install / npm run` 型项目。
+- 本地最少需要：
+  - Node.js
+  - Chrome 或 Edge
+  - Windows 开发环境
+- 如果要做服务器部署，建议额外准备：
+  - PM2
+  - `config/env/backend.env` 与 `config/env/ai.env`
+- 如果要做正式 CRX 打包，额外需要：
+  - `config/secrets/annotation-script-center.pem`
+  - `config/package-crx-release.json`
+  - 如生成 beta 包，还需要 `config/secrets/package-crx-release.local.json` 中的本地私有覆盖
+
+## 打包与发布
+
+### 本地同步 beta build meta
+
+```powershell
+node scripts/sync-local-build-meta.js
+```
+
+- 说明文档：[`config/README.md`](config/README.md)
+
+### 生成发布包
+
+在仓库根目录运行：
+
+```powershell
+node scripts/package-crx-release.js
+```
+
+- 默认同时生成 `public + beta`
+- 只生成 public：
+
+```powershell
+node scripts/package-crx-release.js --channel public
+```
+
+- 只生成 beta：
+
+```powershell
+node scripts/package-crx-release.js --channel beta
+```
+
+默认产物位置：
+
+- `dist/annotation-script-center-v<version>.crx`
+- `dist/annotation-script-center-v<version>.zip`
+- `dist/annotation-script-center-update.xml`
+- `dist/annotation-script-center-crx-latest.json`
+- `dist/annotation-script-center-beta.zip`
+
+更多配置说明见：[`config/README.md`](config/README.md)
+
+## 部署入口
+
+### 后端部署
+
+- Windows / Linux 环境变量示例、PM2 启动、管理员下载鉴权：
+  - [`platform-resources/backend/README.md`](platform-resources/backend/README.md)
+- 后端配置目录说明：
+  - [`config/README.md`](config/README.md)
+
+最小部署命令示例：
+
+```powershell
+copy config\env\backend.env.example config\env\backend.env
+node platform-resources\backend\server.js
+```
+
+Linux / PM2 示例：
+
+```bash
+cp config/env/backend.env.example config/env/backend.env
+pm2 start platform-resources/backend/server.js --name annotation-script-center --cwd /var/www/annotation-script-center
+```
+
+### 企业托管安装
+
+- 当前状态与阻塞：[`docs/unfinished-crx-enterprise-managed-install.md`](docs/unfinished-crx-enterprise-managed-install.md)
+
 ## 目录导航
 
-- `AGENTS.md`
+- [`AGENTS.md`](AGENTS.md)
   - 项目级规则、Git 规范、验证要求、安全边界
-- `extension/`
+- [`extension/`](extension/)
   - 扩展运行时代码
-- `platform-resources/`
+- [`platform-resources/`](platform-resources/)
   - 平台资料、Network 资料、页面结构、脚本后端
-- `docs/`
+- [`docs/`](docs/)
   - 平台索引、外部文档入口、未完成事项
-- `log.md`
+- [`log.md`](log.md)
   - 历史改动记录
 
 ## 文档入口
 
-- 项目规则：`AGENTS.md`
-- 扩展源码说明：`extension/README.md`
-- 平台资料总览：`platform-resources/README.md`
-- 统一后端说明：`platform-resources/backend/README.md`
-- docs 导航：`docs/README.md`
-- 平台与脚本索引：`docs/platforms-index.md`
-- 百炼官方文档入口：`docs/external-docs-aliyun-bailian.md`
-- 未完成模块说明：`docs/unfinished-crx-enterprise-managed-install.md`
-- 历史变更记录：`log.md`
+- 项目规则：[`AGENTS.md`](AGENTS.md)
+- 扩展源码说明：[`extension/README.md`](extension/README.md)
+- 平台资料总览：[`platform-resources/README.md`](platform-resources/README.md)
+- 统一后端说明：[`platform-resources/backend/README.md`](platform-resources/backend/README.md)
+- 配置说明：[`config/README.md`](config/README.md)
+- docs 导航：[`docs/README.md`](docs/README.md)
+- 平台与脚本索引：[`docs/platforms-index.md`](docs/platforms-index.md)
+- 百炼官方文档入口：[`docs/external-docs-aliyun-bailian.md`](docs/external-docs-aliyun-bailian.md)
+- 未完成模块说明：[`docs/unfinished-crx-enterprise-managed-install.md`](docs/unfinished-crx-enterprise-managed-install.md)
+- 历史变更记录：[`log.md`](log.md)
 
 ## 说明
 

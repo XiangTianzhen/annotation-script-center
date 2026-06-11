@@ -4,12 +4,20 @@
 
 ## 文档入口
 
-- 项目规则：`AGENTS.md`
-- 项目导航：`README.md`
-- 扩展源码说明：`extension/README.md`
-- 统一后端说明：`platform-resources/backend/README.md`
-- 平台与脚本索引：`docs/platforms-index.md`
-- 百炼官方文档入口：`docs/external-docs-aliyun-bailian.md`
+- 项目规则：[`../AGENTS.md`](../AGENTS.md)
+- 项目导航：[`../README.md`](../README.md)
+- 扩展源码说明：[`../extension/README.md`](../extension/README.md)
+- 统一后端说明：[`backend/README.md`](backend/README.md)
+- 平台与脚本索引：[`../docs/platforms-index.md`](../docs/platforms-index.md)
+- 百炼官方文档入口：[`../docs/external-docs-aliyun-bailian.md`](../docs/external-docs-aliyun-bailian.md)
+- 配置说明：[`../config/README.md`](../config/README.md)
+
+## 安装 / 部署入口
+
+- 本地加载扩展、打包、发布入口：[`../README.md`](../README.md)
+- 后端部署、PM2、环境变量入口：[`backend/README.md`](backend/README.md)
+- CRX 打包配置：[`../config/README.md`](../config/README.md)
+- 企业托管自动安装现状：[`../docs/unfinished-crx-enterprise-managed-install.md`](../docs/unfinished-crx-enterprise-managed-install.md)
 
 ## 目录边界
 
