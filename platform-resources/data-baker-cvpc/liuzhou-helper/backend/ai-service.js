@@ -1745,6 +1745,30 @@ function buildRecommendSuccessBody(context) {
   };
 }
 
+function resolveRecommendErrorMessage(error) {
+  const source = error && typeof error === "object" ? error : {};
+  const providerCode = normalizeText(
+    source.providerCode ||
+      source.debugRawAiResponse?.providerCode ||
+      source.rawResponse?.providerCode ||
+      source.debugRawJson?.providerCode
+  ).toLowerCase();
+  const providerMessage = normalizeText(
+    source.debugRawAiResponse?.error?.message ||
+      source.rawResponse?.error?.message ||
+      source.summary ||
+      source.message
+  ).toLowerCase();
+  if (
+    providerCode === "data_inspection_failed" ||
+    providerMessage.indexOf("datainspectionfailed") >= 0 ||
+    providerMessage.indexOf("inappropriate content") >= 0
+  ) {
+    return "Qwen 输出触发内容风控（内容审查拦截），请人工复核或重试。";
+  }
+  return normalizeText(source.safeMessage || source.message || "柳州话 AI 推荐失败。");
+}
+
 function buildRecommendErrorBody(context) {
   const source = context && typeof context === "object" ? context : {};
   const error = source.error || {};
@@ -1752,7 +1776,7 @@ function buildRecommendErrorBody(context) {
     success: false,
     requestId: normalizeText(source.requestId || error.requestId),
     code: normalizeText(error.code),
-    message: normalizeText(error.safeMessage || error.message || "柳州话 AI 推荐失败。"),
+    message: resolveRecommendErrorMessage(error),
   };
   const rawResponse = normalizeErrorDebugObject(error.debugRawAiResponse || error.rawResponse);
   const debugRawJson = normalizeErrorDebugObject(error.debugRawJson);

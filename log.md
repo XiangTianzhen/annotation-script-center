@@ -64,6 +64,21 @@
   - `README.md`
   - `log.md`
 
+## 2026-06-11（DataBaker CVPC 柳州话 Qwen 风控错误提示收口）
+
+- `DataBaker CVPC / 柳州话脚本` 当前把 `providerCode=data_inspection_failed` 这类 Qwen 输出审查错误收口成更明确的用户提示：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js` 当前会把原先笼统的 `Qwen SSE 返回错误。` 翻译为 `Qwen 输出触发内容风控（内容审查拦截），请人工复核或重试。`
+  - 这样右侧状态、批量失败清单和前端失败态都会直接说明是内容风控，不再误判成普通网络或 SSE 故障
+- 本轮同步更新：
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `log.md`
+- 本轮验证：
+  - `node --check platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `node --test platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+
 ## 2026-06-11（DataBaker CVPC 柳州话 AI 信息乱码与 fetch 失败提示修复）
 
 - `DataBaker CVPC / 柳州话脚本` 当前修复 `AI信息` 内一处标题乱码：

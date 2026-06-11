@@ -1058,6 +1058,31 @@ test("liuzhou buildRecommendErrorBody exposes sanitized debug fields for fronten
   });
 });
 
+test("liuzhou buildRecommendErrorBody maps qwen data inspection failures to readable risk-control message", function () {
+  const body = buildRecommendErrorBody({
+    requestId: "request-risk-1",
+    error: {
+      code: "provider-http-error",
+      message: "Qwen SSE 返回错误。",
+      debugRawAiResponse: {
+        provider: "qwen",
+        providerCode: "data_inspection_failed",
+        providerStatus: 429,
+        error: {
+          code: "data_inspection_failed",
+          message: "<400> InternalError.Algo.DataInspectionFailed: Output data may contain inappropriate content.",
+        },
+      },
+    },
+  });
+
+  assert.equal(body.success, false);
+  assert.equal(body.requestId, "request-risk-1");
+  assert.equal(body.code, "provider-http-error");
+  assert.equal(body.message, "Qwen 输出触发内容风控（内容审查拦截），请人工复核或重试。");
+  assert.equal(body.rawResponse.providerCode, "data_inspection_failed");
+});
+
 test("liuzhou recommend keeps fallback dialect and mandarin texts when listen stage JSON parse fails", async function () {
   await assert.rejects(
     async function () {
