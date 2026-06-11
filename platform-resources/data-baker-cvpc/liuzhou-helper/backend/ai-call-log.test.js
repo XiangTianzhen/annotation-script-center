@@ -68,15 +68,9 @@ function createLogContext() {
         },
         cost: {
           listen: {
-            pricingStatus: "estimated",
-            inputPriceLabel: "文本/图片/视频 2.2 元/百万Token；音频 18 元/百万Token",
-            outputPriceLabel: "文本 13.3 元/百万Token",
             estimatedCostCny: 0.008935,
           },
           refine: {
-            pricingStatus: "estimated",
-            inputPriceLabel: "0<Token≤128K：0.8 元/百万Token",
-            outputPriceLabel: "0<Token≤128K：4.8 元/百万Token",
             estimatedCostCny: 0.00312,
           },
           totalEstimatedCostCny: 0.012055,
@@ -86,32 +80,42 @@ function createLogContext() {
   };
 }
 
-test("liuzhou ai-call-log schema includes staged token and pricing columns", function () {
+test("liuzhou ai-call-log schema uses Chinese headers and keeps staged token plus cost columns", function () {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "liuzhou-ai-log-schema-"));
   const { aiCallLogger } = loadAiCallLogModule(tempDir);
-  const keys = aiCallLogger.schema.map(function (column) {
-    return column.key;
-  });
+  const schemaMap = new Map(
+    aiCallLogger.schema.map(function (column) {
+      return [column.key, column.header];
+    })
+  );
 
-  [
-    "listenPromptTokens",
-    "listenCompletionTokens",
-    "listenTotalTokens",
-    "refinePromptTokens",
-    "refineCompletionTokens",
-    "refineTotalTokens",
-    "listenEstimatedCostCny",
-    "refineEstimatedCostCny",
-    "totalEstimatedCostCny",
-    "listenPricingStatus",
-    "refinePricingStatus",
-    "listenInputPrice",
-    "listenOutputPrice",
-    "refineInputPrice",
-    "refineOutputPrice",
-  ].forEach(function (key) {
-    assert.equal(keys.includes(key), true, key);
-  });
+  assert.equal(schemaMap.get("projectId"), "项目ID");
+  assert.equal(schemaMap.get("taskId"), "任务ID");
+  assert.equal(schemaMap.get("processId"), "流程ID");
+  assert.equal(schemaMap.get("dataId"), "数据ID");
+  assert.equal(schemaMap.get("jobId"), "作业ID");
+  assert.equal(schemaMap.get("fileName"), "文件名");
+  assert.equal(schemaMap.get("entryIndex"), "条目序号");
+  assert.equal(schemaMap.get("selectionKey"), "选段键");
+  assert.equal(schemaMap.get("segmentStartMs"), "片段开始毫秒");
+  assert.equal(schemaMap.get("segmentEndMs"), "片段结束毫秒");
+  assert.equal(schemaMap.get("listenModel"), "听音模型");
+  assert.equal(schemaMap.get("refineModel"), "文本修正模型");
+  assert.equal(schemaMap.get("listenPromptTokens"), "听音输入Token");
+  assert.equal(schemaMap.get("listenCompletionTokens"), "听音输出Token");
+  assert.equal(schemaMap.get("listenTotalTokens"), "听音总Token");
+  assert.equal(schemaMap.get("refinePromptTokens"), "文本修正输入Token");
+  assert.equal(schemaMap.get("refineCompletionTokens"), "文本修正输出Token");
+  assert.equal(schemaMap.get("refineTotalTokens"), "文本修正总Token");
+  assert.equal(schemaMap.get("listenEstimatedCostCny"), "听音预估人民币");
+  assert.equal(schemaMap.get("refineEstimatedCostCny"), "文本修正预估人民币");
+  assert.equal(schemaMap.get("totalEstimatedCostCny"), "总预估人民币");
+  assert.equal(schemaMap.has("listenPricingStatus"), false);
+  assert.equal(schemaMap.has("refinePricingStatus"), false);
+  assert.equal(schemaMap.has("listenInputPrice"), false);
+  assert.equal(schemaMap.has("listenOutputPrice"), false);
+  assert.equal(schemaMap.has("refineInputPrice"), false);
+  assert.equal(schemaMap.has("refineOutputPrice"), false);
 });
 
 test("liuzhou ai-call-log writes staged token and cost columns while keeping total token columns", function () {
@@ -141,10 +145,41 @@ test("liuzhou ai-call-log writes staged token and cost columns while keeping tot
   assert.equal(row.listenEstimatedCostCny, "0.008935");
   assert.equal(row.refineEstimatedCostCny, "0.003120");
   assert.equal(row.totalEstimatedCostCny, "0.012055");
-  assert.equal(row.listenPricingStatus, "estimated");
-  assert.equal(row.refinePricingStatus, "estimated");
-  assert.equal(row.listenInputPrice, "文本/图片/视频 2.2 元/百万Token；音频 18 元/百万Token");
-  assert.equal(row.listenOutputPrice, "文本 13.3 元/百万Token");
-  assert.equal(row.refineInputPrice, "0<Token≤128K：0.8 元/百万Token");
-  assert.equal(row.refineOutputPrice, "0<Token≤128K：4.8 元/百万Token");
+  assert.equal(Object.prototype.hasOwnProperty.call(row, "listenPricingStatus"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(row, "refinePricingStatus"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(row, "listenInputPrice"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(row, "listenOutputPrice"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(row, "refineInputPrice"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(row, "refineOutputPrice"), false);
+});
+
+test("liuzhou ai-call-log leaves cost cells empty when pricing data is unavailable", function () {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "liuzhou-ai-log-missing-cost-"));
+  const { aiCallLogger, appendAiCallLog } = loadAiCallLogModule(tempDir);
+  const context = createLogContext();
+  context.execution.projectResult.cost = {
+    listen: {
+      pricingStatus: "missing_source",
+      reason: "没有数据源",
+      estimatedCostCny: null,
+    },
+    refine: {
+      pricingStatus: "missing_source",
+      reason: "没有数据源",
+      estimatedCostCny: null,
+    },
+    totalEstimatedCostCny: null,
+  };
+
+  appendAiCallLog(context);
+
+  const csvFiles = fs.readdirSync(tempDir).filter(function (fileName) {
+    return /\.csv$/i.test(fileName);
+  });
+  const rows = readCsvObjects(path.join(tempDir, csvFiles[0]), aiCallLogger.schema);
+  const row = rows[0];
+
+  assert.equal(row.listenEstimatedCostCny, "");
+  assert.equal(row.refineEstimatedCostCny, "");
+  assert.equal(row.totalEstimatedCostCny, "");
 });

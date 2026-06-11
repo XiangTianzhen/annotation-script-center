@@ -17,6 +17,9 @@ function normalizeNumber(value) {
 }
 
 function normalizeCostNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
   const number = Number(value);
   return Number.isFinite(number) ? number.toFixed(6) : "";
 }
@@ -69,33 +72,27 @@ const aiCallLogger = createAiCallLogger({
   platformId: "dataBakerCvpc",
   scriptId: SCRIPT_ID,
   extraColumns: [
-    { key: "projectId", header: "projectId" },
-    { key: "taskId", header: "taskId" },
-    { key: "processId", header: "processId" },
-    { key: "dataId", header: "dataId" },
-    { key: "jobId", header: "jobId" },
-    { key: "fileName", header: "fileName" },
-    { key: "entryIndex", header: "entryIndex" },
-    { key: "selectionKey", header: "selectionKey" },
-    { key: "segmentStartMs", header: "segmentStartMs" },
-    { key: "segmentEndMs", header: "segmentEndMs" },
-    { key: "listenModel", header: "listenModel" },
-    { key: "refineModel", header: "refineModel" },
-    { key: "listenPromptTokens", header: "listenPromptTokens" },
-    { key: "listenCompletionTokens", header: "listenCompletionTokens" },
-    { key: "listenTotalTokens", header: "listenTotalTokens" },
-    { key: "refinePromptTokens", header: "refinePromptTokens" },
-    { key: "refineCompletionTokens", header: "refineCompletionTokens" },
-    { key: "refineTotalTokens", header: "refineTotalTokens" },
-    { key: "listenEstimatedCostCny", header: "listenEstimatedCostCny" },
-    { key: "refineEstimatedCostCny", header: "refineEstimatedCostCny" },
-    { key: "totalEstimatedCostCny", header: "totalEstimatedCostCny" },
-    { key: "listenPricingStatus", header: "listenPricingStatus" },
-    { key: "refinePricingStatus", header: "refinePricingStatus" },
-    { key: "listenInputPrice", header: "listenInputPrice" },
-    { key: "listenOutputPrice", header: "listenOutputPrice" },
-    { key: "refineInputPrice", header: "refineInputPrice" },
-    { key: "refineOutputPrice", header: "refineOutputPrice" },
+    { key: "projectId", header: "项目ID" },
+    { key: "taskId", header: "任务ID" },
+    { key: "processId", header: "流程ID" },
+    { key: "dataId", header: "数据ID" },
+    { key: "jobId", header: "作业ID" },
+    { key: "fileName", header: "文件名" },
+    { key: "entryIndex", header: "条目序号" },
+    { key: "selectionKey", header: "选段键" },
+    { key: "segmentStartMs", header: "片段开始毫秒" },
+    { key: "segmentEndMs", header: "片段结束毫秒" },
+    { key: "listenModel", header: "听音模型" },
+    { key: "refineModel", header: "文本修正模型" },
+    { key: "listenPromptTokens", header: "听音输入Token" },
+    { key: "listenCompletionTokens", header: "听音输出Token" },
+    { key: "listenTotalTokens", header: "听音总Token" },
+    { key: "refinePromptTokens", header: "文本修正输入Token" },
+    { key: "refineCompletionTokens", header: "文本修正输出Token" },
+    { key: "refineTotalTokens", header: "文本修正总Token" },
+    { key: "listenEstimatedCostCny", header: "听音预估人民币" },
+    { key: "refineEstimatedCostCny", header: "文本修正预估人民币" },
+    { key: "totalEstimatedCostCny", header: "总预估人民币" },
   ],
   buildExtendedRow(context) {
     const input = context?.normalizedRequest?.input || {};
@@ -131,12 +128,6 @@ const aiCallLogger = createAiCallLogger({
       listenEstimatedCostCny: normalizeCostNumber(listenCost.estimatedCostCny),
       refineEstimatedCostCny: normalizeCostNumber(refineCost.estimatedCostCny),
       totalEstimatedCostCny: normalizeCostNumber(cost.totalEstimatedCostCny),
-      listenPricingStatus: normalizeText(listenCost.pricingStatus),
-      refinePricingStatus: normalizeText(refineCost.pricingStatus),
-      listenInputPrice: normalizeText(listenCost.inputPriceLabel),
-      listenOutputPrice: normalizeText(listenCost.outputPriceLabel),
-      refineInputPrice: normalizeText(refineCost.inputPriceLabel),
-      refineOutputPrice: normalizeText(refineCost.outputPriceLabel),
     };
   },
 });

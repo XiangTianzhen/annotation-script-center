@@ -180,14 +180,6 @@
     return String(number.toFixed(6)).replace(/0+$/, "").replace(/\.$/, "") + " 元";
   }
 
-  function resolveStagePriceLabel(stageCost, key) {
-    const label = normalizeText(stageCost?.[key]);
-    if (label) {
-      return label;
-    }
-    return normalizeText(stageCost?.reason) === "没有数据源" ? "没有数据源" : "";
-  }
-
   function resolveStageEstimatedCostLabel(stageCost) {
     const formatted = formatEstimatedCostCny(stageCost?.estimatedCostCny);
     if (formatted) {
@@ -221,8 +213,6 @@
       model: normalizeText(modelsSource?.[modelKey]),
       promptTokens: totals.found ? String(totals.promptTokens) : "",
       completionTokens: totals.found ? String(totals.completionTokens) : "",
-      inputPriceLabel: resolveStagePriceLabel(stageCost, "inputPriceLabel"),
-      outputPriceLabel: resolveStagePriceLabel(stageCost, "outputPriceLabel"),
       estimatedCostLabel: resolveStageEstimatedCostLabel(stageCost),
     };
   }
@@ -1026,8 +1016,6 @@
           "模型：" + stageItem.model,
           "输入：" + stageItem.promptTokens,
           "输出：" + stageItem.completionTokens,
-          "输入单价：" + stageItem.inputPriceLabel,
-          "输出单价：" + stageItem.outputPriceLabel,
           "预估人民币：" + stageItem.estimatedCostLabel,
         ].forEach(function (lineText) {
           const line = document.createElement("div");

@@ -817,14 +817,10 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
       cost: {
         listen: {
           pricingStatus: "estimated",
-          inputPriceLabel: "文本/图片/视频 2.2 元/百万Token；音频 18 元/百万Token",
-          outputPriceLabel: "文本 13.3 元/百万Token",
           estimatedCostCny: 0.008935,
         },
         refine: {
           pricingStatus: "estimated",
-          inputPriceLabel: "0<Token≤128K：0.8 元/百万Token",
-          outputPriceLabel: "0<Token≤128K：4.8 元/百万Token",
           estimatedCostCny: 0.000017,
         },
         totalEstimatedCostCny: 0.008952,
@@ -864,13 +860,11 @@ test("CVPC ui panel renders split preview summary by changes, keeps heard dialec
     assert.match(middleText, /输出：6/);
     assert.match(middleText, /输入：4/);
     assert.match(middleText, /输出：3/);
-    assert.match(middleText, /输入单价：文本\/图片\/视频 2\.2 元\/百万Token；音频 18 元\/百万Token/);
-    assert.match(middleText, /输出单价：文本 13\.3 元\/百万Token/);
     assert.match(middleText, /预估人民币：0\.008935 元/);
-    assert.match(middleText, /输入单价：0<Token≤128K：0\.8 元\/百万Token/);
-    assert.match(middleText, /输出单价：0<Token≤128K：4\.8 元\/百万Token/);
     assert.match(middleText, /预估人民币：0\.000017 元/);
     assert.match(middleText, /总预估人民币：0\.008952 元/);
+    assert.doesNotMatch(middleText, /输入单价：/);
+    assert.doesNotMatch(middleText, /输出单价：/);
     assert.match(middleText, /"audioDialectText": "听音#eh柳州话"/);
     assert.match(middleText, /"timing":/);
     assert.doesNotMatch(middleText, /总输入/);
@@ -962,14 +956,10 @@ test("CVPC ui panel copies AI raw response with required prefix", async function
       },
       cost: {
         listen: {
-          inputPriceLabel: "文本/图片/视频 2.2 元/百万Token；音频 18 元/百万Token",
-          outputPriceLabel: "文本 13.3 元/百万Token",
           estimatedCostCny: 0.000001,
           pricingStatus: "estimated",
         },
         refine: {
-          inputPriceLabel: "0<Token≤128K：0.8 元/百万Token",
-          outputPriceLabel: "0<Token≤128K：4.8 元/百万Token",
           estimatedCostCny: 0.000001,
           pricingStatus: "estimated",
         },
@@ -1035,15 +1025,11 @@ test("CVPC ui panel shows 没有数据源 when pricing config is unavailable", f
         listen: {
           pricingStatus: "missing_source",
           reason: "没有数据源",
-          inputPriceLabel: "",
-          outputPriceLabel: "",
           estimatedCostCny: null,
         },
         refine: {
           pricingStatus: "missing_source",
           reason: "没有数据源",
-          inputPriceLabel: "",
-          outputPriceLabel: "",
           estimatedCostCny: null,
         },
         totalEstimatedCostCny: null,
@@ -1052,10 +1038,10 @@ test("CVPC ui panel shows 没有数据源 when pricing config is unavailable", f
 
     const middleNode = findAttrNode(harness.globalPanel, "data-asc-cvpc-liuzhou-middle-ai");
     const middleText = collectText(middleNode);
-    assert.match(middleText, /输入单价：没有数据源/);
-    assert.match(middleText, /输出单价：没有数据源/);
     assert.match(middleText, /预估人民币：没有数据源/);
     assert.match(middleText, /总预估人民币：没有数据源/);
+    assert.doesNotMatch(middleText, /输入单价：/);
+    assert.doesNotMatch(middleText, /输出单价：/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

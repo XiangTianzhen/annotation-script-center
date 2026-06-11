@@ -63,7 +63,7 @@
   - `AI 返回原始内容` 当前优先展示后端返回的 `debug/raw` 字段；成功态若没有单独返回 raw/debug，则回退展示当前结果对象的安全 JSON
   - `AI 返回原始内容` 当前新增 `复制原始返回` 按钮；复制内容固定前缀为 `AI返回原始内容为：`
   - 若 Qwen 返回 `providerCode=data_inspection_failed`，当前会把原先笼统的 `Qwen SSE 返回错误` 收口成 `Qwen 输出触发内容风控（内容审查拦截）`，避免误判成普通网络或 SSE 故障
-  - `AI信息` 的两段阶段信息当前显示 `模型 / 输入 / 输出 / 输入单价 / 输出单价 / 预估人民币`，并额外显示 `总预估人民币`
+  - `AI信息` 的两段阶段信息当前显示 `模型 / 输入 / 输出 / 预估人民币`，并额外显示 `总预估人民币`
   - 人民币估算当前统一读取 `config/pricing/aliyun-bailian-model-pricing.json`，价格口径固定为 `中国内地 / 华北2（北京）`
   - 当前只录入 `qwen3.5-omni-plus / qwen3.5-omni-flash / qwen3.5-plus / qwen3.5-flash` 4 个模型价格；其余模型统一返回 `没有数据源`
   - 当模型结构化 JSON 解析失败但原始返回仍有可读文本时，后端当前会保守兜底出 `柳州话修正参考 / 普通话顺滑参考`，并强制 `needHumanReview=true`，便于直接复制后人工确认
@@ -212,12 +212,14 @@
 - 当前 AI 调用已接入共享 CSV 记录链路，日志目录为 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/logs/`
 - 系统管理 `AI 请求记录` 当前新增数据集：`DataBaker CVPC 柳州话助手 AI 调用记录`
 - 导出 CSV 当前继续保留汇总列 `输入Token / 输出Token / 总Token`
+- 导出 CSV 当前扩展列表头统一使用中文
 - 导出 CSV 当前新增分阶段列：
-  - `listenPromptTokens / listenCompletionTokens / listenTotalTokens`
-  - `refinePromptTokens / refineCompletionTokens / refineTotalTokens`
-  - `listenEstimatedCostCny / refineEstimatedCostCny / totalEstimatedCostCny`
-  - `listenPricingStatus / refinePricingStatus`
-  - `listenInputPrice / listenOutputPrice / refineInputPrice / refineOutputPrice`
+  - `听音输入Token / 听音输出Token / 听音总Token`
+  - `文本修正输入Token / 文本修正输出Token / 文本修正总Token`
+  - `听音预估人民币 / 文本修正预估人民币 / 总预估人民币`
+- 后续新增或改动的 AI 调用记录默认记录 `输入Token / 输出Token / 总Token`；有人民币估算时同时记录金额列
+- 多阶段 AI 调用默认拆分阶段 token 与阶段人民币列；CSV 不再记录 `pricingStatus / inputPrice / outputPrice` 这类重复文本字段
+- 缺少价格数据时，页面可显示 `没有数据源`；CSV 金额列保持空白，不写文本状态
 - 价格来源当前固定记录为：
   - `https://help.aliyun.com/zh/model-studio/model-pricing`
   - `https://bailian.console.aliyun.com/cn-beijing?tab=model#/model-market/all`

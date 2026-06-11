@@ -1,3 +1,32 @@
+## 2026-06-11（DataBaker CVPC 柳州话中文 CSV 表头与 AI 消耗记录收口）
+
+- `DataBaker CVPC / 柳州话脚本` 当前继续保留原始返回复制与人民币估算，但收口显示与导出口径：
+  - 前端 `AI信息` 两阶段当前只显示 `模型 / 输入 / 输出 / 预估人民币`
+  - 前端不再显示 `输入单价 / 输出单价`
+  - `费用汇总` 继续保留 `总预估人民币`
+- `DataBaker CVPC / 柳州话脚本` 的 AI 请求记录当前改成中文扩展表头：
+  - 保留汇总列 `输入Token / 输出Token / 总Token`
+  - 保留阶段列 `听音输入Token / 听音输出Token / 听音总Token / 文本修正输入Token / 文本修正输出Token / 文本修正总Token`
+  - 保留金额列 `听音预估人民币 / 文本修正预估人民币 / 总预估人民币`
+  - 删除重复列 `listenPricingStatus / refinePricingStatus / listenInputPrice / listenOutputPrice / refineInputPrice / refineOutputPrice`
+  - 缺少价格数据时，CSV 金额列当前保持空白，不再写 `没有数据源`
+- 项目级规则当前补齐到 `AGENTS.md` 与 `docs/rules/project-collaboration-rules.md`：
+  - 后续 AI 调用 CSV 表头统一使用中文
+  - 后续新增或改动的 AI 调用记录默认记录 token 消耗；有人民币估算时同时记录金额列
+  - 多阶段 AI 调用默认拆分阶段 token 与阶段人民币列，不再导出重复单价/状态文本字段
+- 本轮同步更新：
+  - `AGENTS.md`
+  - `docs/rules/project-collaboration-rules.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-call-log.js`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-call-log.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/ui-panel.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+  - `README.md`
+  - `docs/platforms/index.md`
+  - `log.md`
+
 ## 2026-06-11（DataBaker CVPC 柳州话识别后自动填入与单独语气词自动落 Meaningless）
 
 - `DataBaker CVPC / 柳州话脚本` 当前把“单独语气词转 `<Meaningless>`”从手动填入链路扩展到当前段识别自动应用链路：
