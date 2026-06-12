@@ -1,3 +1,18 @@
+## 2026-06-12（优化柳州话最终文本标准写法与普通话顺滑）
+- 调整 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
+  - `文本修正` 阶段新增“只改最终答案层”的后处理边界，不改 `audioDialectText / candidateAlternatives`
+  - 新增柳州话最终标准写法归一化，首批固定收口：
+    - `去 -> 克`
+    - `哩 -> 滴`
+    - `更要紧 -> 哏要紧`
+    - `更子 -> 哏子`
+  - 新增普通话顺滑保守去结巴：
+    - `这个这个 -> 这个`
+    - `辣辣辣辣的 -> 辣的`
+    - 保留 `吃得，吃得` 这类未明确应删除的重复
+- 新增后端定向测试：`platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
+- 同步补齐 `platform-resources/data-baker-cvpc/liuzhou-helper/README.md` 与 `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+
 ## 2026-06-12（文档收口与日志乱码修复）
 - 收口 `README.md`、`extension/README.md`、`config/README.md` 与 `platform-resources/backend/README.md` 的文档职责
 - 将项目数据下载密码与 JWT Secret 配置教程迁移到 `config/README.md`

@@ -63,6 +63,29 @@ const MANDARIN_PARTICLE_MAP = {
   "#um": "嗯",
   "#hmm": "嗯",
 };
+const FINAL_DIALECT_STANDARD_FORM_RULES = [
+  {
+    pattern: /更要紧/g,
+    replacement: "哏要紧",
+  },
+  {
+    pattern: /更子/g,
+    replacement: "哏子",
+  },
+  {
+    pattern: /去找/g,
+    replacement: "克找",
+  },
+  {
+    pattern: /哩/g,
+    replacement: "滴",
+  },
+  {
+    pattern: /去(?=[啊呀啦咯啵嘛呢呗哇喔哦诶欸哈，。？！；]|$)/g,
+    replacement: "克",
+  },
+];
+const MANDARIN_STUTTER_PHRASES = ["这个", "那个"];
 const DEFAULT_LISTEN_PROMPT = [
   "请严格只根据当前段音频输出原始柳州话听音结果。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
@@ -88,10 +111,13 @@ const DEFAULT_REFINE_PROMPT = [
   "词表没有直接命中时，可以参考上下文句意和近音候选，把明显更合理的柳州话词语或普通话译法修正出来；拿不准时保留到 candidateAlternatives。",
   "candidateAlternatives 最多输出 3 个，用于人工复核；每个元素固定包含 dialectText, mandarinText, reason。",
   "若拿不准或需要保留歧义，必须把 needHumanReview 设为 true。",
+  "refinedDialectText 最终标准写法优先使用：克、滴、哏；例如 去->克、哩->滴、更子->哏子、更要紧->哏要紧。",
   "refinedDialectText 里的有效标签只允许：#um、#hmm、#ah、#eh、<SPK/>、<NPS/>。",
   "refinedMandarinText 必须是纯文本，禁止输出任何标签。",
   "如果 refinedDialectText 保留了口语词标签，refinedMandarinText 必须保留对应纯文本语气词。",
   "笑声或明显非语义噪音在 refinedMandarinText 里必须删除，不写标签，不写“呵呵呵”等字面笑声。",
+  "refinedMandarinText 需要删除结巴、拉长重复、口误类非必要内容，只保留顺滑普通话表达。",
+  "例如：这个这个->这个，辣辣辣辣的->辣的；但不要删除像“吃得，吃得”这类仍可能有语义或节奏作用的重复。",
   "如果标签前后同时出现标点，只保留标签后的标点，不要输出“，#eh，”这种双侧标点。",
   "只允许使用中文句末标点：，。？！；不允许使用《》。",
 ].join("\n");
@@ -517,6 +543,66 @@ function normalizeMandarinPlainText(text) {
   };
 }
 
+function applyFinalDialectStandardFormRules(text) {
+  return FINAL_DIALECT_STANDARD_FORM_RULES.reduce(function (current, rule) {
+    return String(current || "").replace(rule.pattern, rule.replacement);
+  }, String(text || ""));
+}
+
+function normalizeFinalDialectStandardForms(tokens, fallbackText) {
+  const sourceTokens = compactInlineTagTokens(
+    Array.isArray(tokens) && tokens.length > 0
+      ? tokens
+      : [
+          {
+            type: "text",
+            content: String(fallbackText || ""),
+          },
+        ]
+  );
+  let changed = false;
+  const normalizedTokens = sourceTokens.map(function (token) {
+    if (!token || token.type !== "text") {
+      return token;
+    }
+    const original = String(token.content || "");
+    const content = applyFinalDialectStandardFormRules(original);
+    if (content !== original) {
+      changed = true;
+    }
+    return {
+      type: "text",
+      content: content,
+    };
+  });
+  const compacted = compactInlineTagTokens(normalizedTokens);
+  return {
+    text: joinInlineTagTokens(compacted),
+    tokens: stripTokenMetadata(compacted),
+    changed,
+  };
+}
+
+function smoothMandarinDisfluencies(text) {
+  let result = normalizeAllowedPunctuation(text);
+  const original = result;
+  if (!result) {
+    return {
+      text: "",
+      changed: false,
+    };
+  }
+  MANDARIN_STUTTER_PHRASES.forEach(function (phrase) {
+    result = result.replace(new RegExp("(" + phrase + "){2,}", "g"), phrase);
+  });
+  result = result.replace(/([\u3400-\u9fff])\1{2,}(的|地|得)/g, "$1$2");
+  result = normalizeAllowedPunctuation(result);
+  return {
+    text: result,
+    changed: result !== original,
+  };
+}
+
 function appendRequiredNotes(baseNotes, additions) {
   return normalizeNotes([].concat(baseNotes || [], additions || []));
 }
@@ -820,9 +906,14 @@ function normalizeRefineStageOutput(value) {
       source.plainMandarinText ||
       ""
   );
+  const finalDialect = normalizeFinalDialectStandardForms(
+    normalizedDialect.tokens,
+    normalizedDialect.text
+  );
+  const smoothedMandarin = smoothMandarinDisfluencies(normalizedMandarin.text);
   const restoredMandarinText = restoreMandarinParticlesFromDialectTokens(
-    normalizedMandarin.text,
-    normalizedDialect.tokens
+    smoothedMandarin.text,
+    finalDialect.tokens
   );
   const notes = appendRequiredNotes(
     source.notes,
@@ -831,14 +922,16 @@ function normalizeRefineStageOutput(value) {
     })
   );
   return {
-    refinedDialectText: normalizedDialect.text,
-    refinedDialectTokens: stripTokenMetadata(normalizedDialect.tokens),
+    refinedDialectText: finalDialect.text,
+    refinedDialectTokens: finalDialect.tokens,
     refinedMandarinText: restoredMandarinText,
     candidateAlternatives: normalizeCandidateAlternatives(source.candidateAlternatives),
-    specialTags: normalizedDialect.specialTags,
+    specialTags: normalizeSpecialTags(
+      collectSpecialTagsFromTokens(finalDialect.tokens).concat(normalizedDialect.specialTags)
+    ),
     needHumanReview:
       source.needHumanReview === true ||
-      !normalizedDialect.text ||
+      !finalDialect.text ||
       !restoredMandarinText ||
       normalizedDialect.removedUnsupportedTags.length > 0 ||
       normalizedDialect.fixedAdjacentPunctuation === true ||
@@ -1927,11 +2020,13 @@ module.exports = {
   __testOnly: {
     buildMandarinDraftFromLexicon,
     collectSpecialTagsFromTokens,
+    normalizeFinalDialectStandardForms,
     normalizeAllowedPunctuation,
     normalizeInlineTaggedDialectText,
     normalizeListenStageOutput,
     normalizeRefineStageOutput,
     normalizeSpecialTags,
+    smoothMandarinDisfluencies,
   },
   buildAssetsContext,
   buildRecommendErrorBody,

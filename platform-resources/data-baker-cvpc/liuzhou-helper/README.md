@@ -170,6 +170,18 @@
   - 近音纠错：
     - `listen` 当前除 `audioDialectText` 外，还会额外返回最多 `3` 条 `candidatePhrases`
     - `refine` 当前会结合页面上下文、JSON 主词表和参考 CSV 的 prompt-only 词条，输出最终 `refinedDialectText / refinedMandarinText`
+    - `refine` 当前会在模型输出后额外做一层确定性收口，但只作用于最终答案层：
+      - `audioDialectText / audioDialectTokens / candidateAlternatives` 保持原始听音参考
+      - 只对 `refinedDialectText / refinedDialectTokens / refinedMandarinText` 应用标准写法与普通话顺滑规则
+    - 最终柳州话答案当前固定收口以下高频标准写法：
+      - `去 -> 克`
+      - `哩 -> 滴`
+      - `更要紧 -> 哏要紧`
+      - `更子 -> 哏子`
+    - 最终普通话答案当前会保守删除高置信结巴和拉长重复：
+      - `这个这个 -> 这个`
+      - `辣辣辣辣的 -> 辣的`
+      - 像 `吃得，吃得` 这类可能仍承载语义或节奏的重复当前默认保留
     - 若近音歧义仍未消除，响应会返回 `candidateAlternatives`，并强制 `needHumanReview=true`
   - 标签归一化：
     - 当前只支持 6 个有效标签：`#um / #hmm / #ah / #eh / <SPK/> / <NPS/>`
