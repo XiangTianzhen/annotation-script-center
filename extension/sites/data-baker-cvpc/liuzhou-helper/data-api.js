@@ -47,6 +47,7 @@
   const BATCH_SAVE_MISMATCH_MESSAGE = "当前页面分段状态已变化，已停止批量写回，请刷新后重试。";
   const BATCH_SAVE_EMPTY_MESSAGE = "当前没有可写回的批量识别结果。";
   const BATCH_SAVE_CONFLICT_ONLY_MESSAGE = "批量结果存在标签内容冲突，未写回任何段。";
+  const FILL_VALID_AUTH_MISSING_MESSAGE = "未获取到平台保存请求的访问凭据，已停止补写。";
   const CURRENT_RECOMMENDATION_CONFLICT_MESSAGE = "标签内容冲突，AI 结果有问题，已停止写入。";
   const DIALECT_TAG_MAP = {
     "#um": "#um",
@@ -1822,6 +1823,30 @@
     return "";
   }
 
+  function readLeadingValidityStateFromRowAttrs(rowAttrs) {
+    const attrs = Array.isArray(rowAttrs) ? rowAttrs : [];
+    const firstAttr = attrs[0] || null;
+    if (normalizeText(firstAttr?.name).indexOf("是否有效") < 0) {
+      return "";
+    }
+    return readValidityStateFromAttr(firstAttr);
+  }
+
+  function readTrailingValidityStateFromRowAttrs(rowAttrs) {
+    const attrs = Array.isArray(rowAttrs) ? rowAttrs.slice(1) : [];
+    for (let index = 0; index < attrs.length; index += 1) {
+      const attr = attrs[index];
+      if (normalizeText(attr?.name).indexOf("是否有效") < 0) {
+        continue;
+      }
+      const state = readValidityStateFromAttr(attr);
+      if (state) {
+        return state;
+      }
+    }
+    return "";
+  }
+
   function formatValidityStateLabel(state) {
     return normalizeValidityState(state) === "invalid" ? "Invalid" : "Valid";
   }
@@ -2034,7 +2059,10 @@
     if (!currentDescriptor || !normalizeText(currentDescriptor.uniqueId) || !normalizedState) {
       return attrs;
     }
-    let attr = findRowAttrByUniqueId(attrs, currentDescriptor.uniqueId);
+    const attrIndex = attrs.findIndex(function (item) {
+      return normalizeText(item?.unique_id || item?.id) === normalizeText(currentDescriptor.uniqueId);
+    });
+    let attr = attrIndex >= 0 ? attrs[attrIndex] : null;
     if (!attr) {
       attr = {
         unique_id: currentDescriptor.uniqueId,
@@ -2042,7 +2070,10 @@
         input_type: "radio",
         values: [],
       };
-      attrs.push(attr);
+      attrs.unshift(attr);
+    } else if (attrIndex > 0) {
+      attrs.splice(attrIndex, 1);
+      attrs.unshift(attr);
     }
     const hintSource = optionHints && typeof optionHints === "object" ? optionHints : {};
     const optionValue = buildValidityOptionValue(
@@ -2056,6 +2087,26 @@
       delete attr.value;
     }
     return attrs;
+  }
+
+  function buildUpdatedValidityRow(row, template, descriptorHints) {
+    const sourceRow = clonePlainData(row) || {};
+    const annData = sourceRow.ann_data && typeof sourceRow.ann_data === "object" ? sourceRow.ann_data : {};
+    const rowAttrs = Array.isArray(annData.attrs) ? annData.attrs.map(clonePlainData) : [];
+    const descriptorSource = descriptorHints && typeof descriptorHints === "object" ? descriptorHints : {};
+    const validityDescriptor =
+      findMomentAttrDescriptor(template, rowAttrs, ["是否有效"]) || descriptorSource.validityDescriptor || null;
+    if (!validityDescriptor || !normalizeText(validityDescriptor.uniqueId)) {
+      throw new Error("未找到当前段有效性字段定义。");
+    }
+    ensureValidityAttr(rowAttrs, validityDescriptor, "valid", descriptorSource);
+    sourceRow.ann_data = Object.assign({}, annData, {
+      attrs: rowAttrs,
+      attr_version: normalizeText(annData.attr_version) || "v1",
+    });
+    sourceRow.is_update_position = Number(sourceRow.is_update_position || 0) || 0;
+    sourceRow.is_update_labelattr = 1;
+    return sourceRow;
   }
 
   function buildUpdatedBatchTextRow(row, template, result, descriptorHints) {
@@ -2653,21 +2704,12 @@
     });
     const items = instanceRows.map(function (row, index) {
       const attrs = Array.isArray(row?.ann_data?.attrs) ? row.ann_data.attrs : [];
-      const validityAttr = attrs.find(function (attr) {
-        return normalizeText(attr?.name).indexOf("是否有效") >= 0;
-      }) || null;
-      const values = Array.isArray(validityAttr?.values) ? validityAttr.values : [];
-      const valueText = normalizeText(
-        values
-          .map(function (item) {
-            return item?.name || "";
-          })
-          .join(" ")
-      );
       let state = "missing";
-      if (VALID_LABELS.some(function (text) { return valueText.indexOf(text) >= 0; })) {
-        state = "valid";
-      } else if (INVALID_LABELS.some(function (text) { return valueText.indexOf(text) >= 0; })) {
+      const leadingState = readLeadingValidityStateFromRowAttrs(attrs);
+      const trailingState = readTrailingValidityStateFromRowAttrs(attrs);
+      if (leadingState) {
+        state = leadingState;
+      } else if (trailingState === "invalid") {
         state = "invalid";
       }
       return {
@@ -2707,6 +2749,31 @@
       " 段，未填写 " +
       String(Number(source.missing || 0)) +
       " 段"
+    );
+  }
+
+  function formatFillValidFailureMessage(message, stats) {
+    const prefix = String(message || "平台保存接口返回失败。");
+    return (
+      prefix +
+      (/[。！？!?]$/.test(prefix) ? "" : "。") +
+      formatValidityStats(stats) +
+      "。"
+    );
+  }
+
+  function formatFillValidSuccessMessage(stats, filledCount) {
+    const source = stats && typeof stats === "object" ? stats : {};
+    return (
+      "当前音频共 " +
+      String(Number(source.total || 0)) +
+      " 段：已填 Valid " +
+      String(Number(source.valid || 0)) +
+      " 段，已填 Invalid " +
+      String(Number(source.invalid || 0)) +
+      " 段，补写 " +
+      String(Math.max(0, Number(filledCount || 0) || 0)) +
+      " 段。"
     );
   }
 
@@ -3707,6 +3774,15 @@
           snapshotRows.concat([buildSnapshotEntryRow(entryRow, context.template || {})])
         ),
       };
+      if (findDuplicateUniqueIdInSavePayload(body)) {
+        return {
+          ok: false,
+          message: formatFillValidFailureMessage(PREVIEW_DUPLICATE_UNIQUE_ID_MESSAGE, summary.stats),
+          filledCount: 0,
+          stats: summary.stats,
+          processedIndexes: [],
+        };
+      }
       const response = await env.fetch(SAVE_INCREMENT_PATH, {
         credentials: "include",
         method: "POST",
@@ -4220,25 +4296,12 @@
 
     async function fillUnresolvedSegmentsValid() {
       const context = await getEditorContext({ force: true });
-      const annos = await fetchJson(ANNOS_PATH, buildAnnosQuery(context), env.fetch);
+      const annos = await fetchLatestAnnosForContext(context);
       const summary = summarizeInstanceValidity(annos);
       if (summary.stats.total <= 0) {
         return {
           ok: false,
           message: "未读取到当前音频的段级标注数据，已停止补写。",
-          filledCount: 0,
-          stats: summary.stats,
-          processedIndexes: [],
-        };
-      }
-      const segmentNodes = readSegmentListNodes(env);
-      if (segmentNodes.length < summary.stats.total) {
-        return {
-          ok: false,
-          message:
-            "左侧段落编号与 annotation/annos 数量不一致，已停止补写。 " +
-            formatValidityStats(summary.stats) +
-            "。",
           filledCount: 0,
           stats: summary.stats,
           processedIndexes: [],
@@ -4250,66 +4313,91 @@
           message: formatValidityStats(summary.stats) + "；无需补写。",
           filledCount: 0,
           stats: summary.stats,
+          processedIndexes: [],
         };
       }
-      const processedIndexes = [];
-      let filledCount = 0;
-      for (let index = 0; index < summary.missingIndexes.length; index += 1) {
-        const targetIndex = summary.missingIndexes[index];
-        const switched = await focusSegmentIndex(targetIndex, env);
-        if (!switched) {
-          return {
-            ok: false,
-            message:
-              "第 " +
-              String(targetIndex) +
-              " 段切换失败，已补写 " +
-              String(filledCount) +
-              " 段。" +
-              formatValidityStats(summary.stats) +
-              "。",
-            filledCount,
-            failedIndex: targetIndex,
-            stats: summary.stats,
-            processedIndexes,
-          };
-        }
-        const result = await setCurrentValidity(true);
-        if (!result.ok) {
-          return {
-            ok: false,
-            message:
-              "第 " +
-              String(targetIndex) +
-              " 段设为 Valid 失败，已补写 " +
-              String(filledCount) +
-              " 段。" +
-              formatValidityStats(summary.stats) +
-              "。",
-            filledCount,
-            failedIndex: targetIndex,
-            stats: summary.stats,
-            processedIndexes,
-          };
-        }
-        processedIndexes.push(targetIndex);
-        if (result.skipped !== true) {
-          filledCount += 1;
-        }
+      if (!normalizeText(context?.platformRequestAuth?.authorization)) {
+        return {
+          ok: false,
+          message: formatFillValidFailureMessage(FILL_VALID_AUTH_MISSING_MESSAGE, summary.stats),
+          filledCount: 0,
+          stats: summary.stats,
+          processedIndexes: [],
+        };
       }
+      const entryRow = getEntryRowFromAnnos(annos, context);
+      const currentRows = getInstanceRowsFromAnnos(annos);
+      const descriptorHints = resolveBatchTextDescriptors(context.template || {}, currentRows);
+      const processedIndexes = [];
+      const updatedRows = [];
+      let snapshotRows = [];
+      try {
+        snapshotRows = currentRows.map(function (row, index) {
+          const item = summary.items[index];
+          if (!item || item.state !== "missing") {
+            return buildSnapshotInstanceRow(row, context.template || {});
+          }
+          const updatedRow = buildUpdatedValidityRow(row, context.template || {}, descriptorHints);
+          updatedRows.push(updatedRow);
+          processedIndexes.push(index + 1);
+          return buildSnapshotInstanceRow(updatedRow, context.template || {});
+        });
+      } catch (error) {
+        return {
+          ok: false,
+          message: formatFillValidFailureMessage(
+            error && error.message ? error.message : "平台保存接口返回失败。",
+            summary.stats
+          ),
+          filledCount: 0,
+          stats: summary.stats,
+          processedIndexes: [],
+        };
+      }
+      const requestHeaders = buildPlatformRequestHeaders(context?.platformRequestAuth, context, {
+        "content-type": "application/json;charset=UTF-8",
+      });
+      const body = {
+        project_id: String(context?.query?.projectId || ""),
+        task_id: String(context?.query?.taskId || ""),
+        process_id: String(context?.query?.processId || ""),
+        job_id: String(context?.query?.jobId || ""),
+        data_id: String(context?.query?.dataId || ""),
+        insert: [],
+        update: updatedRows,
+        delete: [],
+        web_snapshot: JSON.stringify(
+          snapshotRows.concat([buildSnapshotEntryRow(entryRow, context.template || {})])
+        ),
+      };
+      const response = await env.fetch(SAVE_INCREMENT_PATH, {
+        credentials: "include",
+        method: "POST",
+        headers: requestHeaders,
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(function () {
+        return null;
+      });
+      const code = Number(payload?.code);
+      if (!response.ok || !payload || (code !== 0 && code !== 200)) {
+        return {
+          ok: false,
+          message: formatFillValidFailureMessage(
+            normalizeText(payload?.msg || payload?.message) || "平台保存接口返回失败。",
+            summary.stats
+          ),
+          filledCount: 0,
+          stats: summary.stats,
+          processedIndexes: [],
+        };
+      }
+      cachedContext = null;
+      cachedMeta = null;
       return {
         ok: true,
-        message:
-          "当前音频共 " +
-          String(summary.stats.total) +
-          " 段：已填 Valid " +
-          String(summary.stats.valid) +
-          " 段，已填 Invalid " +
-          String(summary.stats.invalid) +
-          " 段，补写 " +
-          String(filledCount) +
-          " 段。",
-        filledCount,
+        message: formatFillValidSuccessMessage(summary.stats, updatedRows.length),
+        filledCount: updatedRows.length,
         stats: summary.stats,
         processedIndexes,
       };

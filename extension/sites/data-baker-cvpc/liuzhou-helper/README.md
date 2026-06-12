@@ -120,7 +120,7 @@
   - Network 里旧版若看到多条相同 `GET /httpapi/annotation/annos`，它们属于批量阶段的状态读取，不是多次 `save_increment`；当前批量链路已收口重复上下文刷新
 - 当前段 `Valid / Invalid` 快捷切换
 - 当前段 `Valid / Invalid` 在点击前会先检查当前单选状态；已是目标值时不再重复点击
-- `未填写补 Valid` 会先读取当前 `entry_index` 的 `annotation/annos`，只补当前音频里未填写有效性的段；已填 `Valid / Invalid` 一律跳过
+- `未填写补 Valid` 当前会先读取当前 `entry_index` 的最新 `annotation/annos`，再一次性构造 `save_increment`：只补当前音频里未填写有效性的段为 `是（Valid）`，已填 `Valid / Invalid` 一律跳过；缺失判定当前按平台实际结构执行，只有段级 `ann_data.attrs[0]` 命中 `是否有效（Valid or Not）` 且能解析出 `是 / 否` 才视为已填写，后置 `Valid` 会按未填重写到首位，后置 `Invalid` 不覆盖；保存体里会把 `是否有效（Valid or Not）` 固定放在段级 `ann_data.attrs[0]`，保存成功后自动刷新当前页一次，缺少鉴权快照或平台保存失败时直接报错，不回退旧 DOM 逐段点击链路
 - 当前段 AI 推荐会实时解析 `.xaudio_time` 中的 `开始 / 结束`，只裁剪当前选中段音频；浏览器端转成 `16k` 单声道 WAV 后直接拼成 `audioDataUrl`，再发送给两阶段 AI 推荐接口
 - 当前段每次都会重新裁剪并重新生成当前段 Base64 音频，不再经过“本地文件转公网 URL”链路
 - 当前段文本字段写入已兼容当前页 `contenteditable .ProseMirror` 编辑器；柳州话字段读取时优先解析外层 `.textarea_class[modelvalue]`，避免把标签关闭按钮 `×` 误当正文；两张结果卡会按目标字段分别写入 `标注文本` 或 `普通话顺滑`
@@ -147,6 +147,7 @@
 - 若直写 `save_increment` 成功，则当前分段建议已直接进入平台保存链路；若回退 DOM 分段，则仍需人工点击平台 `保存`
 - 当前后端整音频预览默认仍不回退 DOM 重画整页波形；直写失败时会 fail closed 交给人工处理
 - 当前不会在缺少页面真实鉴权快照时伪造 `save_increment` 请求
+- `未填写补 Valid` 同样只作用于当前音频 / 当前 entry；它只补未填写段为 `Valid`，不覆盖已填 `Invalid`，并按平台当前约束把 `是否有效` 固定写在段级 attrs 首位；判定时优先以 `attrs[0]` 为准；保存失败时保持 fail closed
 - 如果未读到可信的当前段 `开始 / 结束` 时间，“当前段 AI 推荐”会直接阻断，不会静默退回整段音频或第一段
 - 两个提示屏蔽开关都默认开启，但只精确匹配上述固定文案，不会扩大到其他 `.tips` 提示
 
@@ -162,9 +163,9 @@
 ## 文件
 
 - `page-world/audio-observer.js`：页内音频观察桥，捕获页面真实 `annotation/meta`、`user/meta`、`annotation/*` 最小鉴权头、页面/同源 iframe 音频请求，并仅在同源 `xaudio` iframe 内观察 `console.log/info/debug` 打印的音频 URL；顶层编辑页不再包装 `console.*`，避免把平台自身日志堆栈挂到扩展脚本上；仍不包装 `console.warn`
-- `content.js`：入口编排与路由检测
+- `content.js`：入口编排、路由检测，以及 `未填写补 Valid` / 批量写回 / 分段直写成功后的刷新编排
 - `editing-tab-tip-guard.js`：精确屏蔽固定文案的 Tab / 暂停状态提示
-- `data-api.js`：读取编辑器上下文、解析当前音频 URL、桥接或直连 `user/meta`、消费页内鉴权快照、读取最新 `annotation/annos`、构造 `save_increment` 直写请求，并在增量预览直写失败时回退同源 `xaudio` DOM 交互；内部会绑定浏览器原生 `fetch`，避免 `Window.fetch` 的 `Illegal invocation`
+- `data-api.js`：读取编辑器上下文、解析当前音频 URL、桥接或直连 `user/meta`、消费页内鉴权快照、读取最新 `annotation/annos`、构造 `save_increment` 直写请求；当前同时承载批量文本写回、`未填写补 Valid` 直写和增量预览直写，并在增量预览直写失败时回退同源 `xaudio` DOM 交互；内部会绑定浏览器原生 `fetch`，避免 `Window.fetch` 的 `Illegal invocation`
 - `segmentation-controller.js`：后端画段预览请求与本地 preview 缓存编排
 - `ai-recommendation.js`：当前段 AI 推荐调用，负责浏览器端裁剪当前段、生成 Base64 `audioDataUrl`，并把 `aiUsageOperatorName / platformUserName / platformUserId` 与 `aiStages.listen / refine` 一起发送给后端
 - `ui-panel.js`：右侧 `全局标注` 卡内紧凑信息区 + `是否有效（Valid or Not）` 下方独立 AI 工作区挂载；右侧只保留状态与逐行音频摘要，字段内承载两张最终结果卡，独立 AI 区承载 `当前段识别 / 批量识别 / 分段建议 / AI信息` 四块内容，并统一收口为系统蓝主调样式

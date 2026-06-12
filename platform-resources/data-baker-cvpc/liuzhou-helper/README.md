@@ -102,7 +102,7 @@
   - 请求前会校验 options 首页 `AI 调用使用人`；请求体默认补齐 `aiUsageOperatorName / platformUserName / platformUserId`
   - 当前段填入建议当前兼容页面 `contenteditable .ProseMirror`；柳州话字段读取时优先解析外层 `.textarea_class[modelvalue]`，避免把标签关闭按钮 `×` 误当正文
   - 当前段设为 `Valid / Invalid` 前会先检查当前单选状态，已是目标值时不重复点击
-  - 当前音频内“未填写段落补为有效”当前改为读取 `annotation/annos` 后按左侧编号逐段补写，只处理未填写段，不覆盖已填 `Invalid`
+  - 当前音频内“未填写段落补为有效”当前改为读取最新 `annotation/annos` 后一次性构造 `save_increment`：只处理未填写段，补为 `是（Valid）`，不覆盖已填 `Invalid`；缺失判定当前按平台实际结构执行，只有段级 `ann_data.attrs[0]` 命中 `是否有效（Valid or Not）` 且能解析出 `是 / 否` 才视为已填写，后置 `Valid` 会按未填重写到首位，后置 `Invalid` 不覆盖；保存体里会把段级 `是否有效（Valid or Not）` 固定写在 `ann_data.attrs[0]`，保存成功后自动刷新当前页一次，缺少鉴权快照或平台保存失败时直接报错，不回退旧 DOM 逐段点击链路
   - 基础设置提供两个独立提示屏蔽开关，默认都可分别屏蔽“您正在编辑该作业,不能打开新的Tab页”“系统进入暂停状态”
   - 页内观察桥当前只在同源 `xaudio` iframe 内包装 `console.log/info/debug` 捕获初始化音频 URL；顶层编辑页不再包装 `console.*`，避免把平台普通提示日志误挂到扩展堆栈
 - options / AI 设置：
@@ -262,6 +262,7 @@
 - 画段建议当前支持“建议生成 -> 优先直写平台保存接口 -> 增量场景 DOM 回退兜底”。
 - 当前后端整音频预览不会自动重画整页波形；直写失败时保持 fail closed。
 - 当前不会在缺少页面真实鉴权快照时伪造 `save_increment`，也不会自动点击平台 `保存`。
+- `未填写补 Valid` 同样只作用于当前音频 / 当前 entry；只补未填写段为 `Valid`，不覆盖已填 `Invalid`，保存失败时保持 fail closed。
 - 当前段 AI 推荐如果没有读到可信的当前段 `开始 / 结束`，会直接失败，不退回整段识别。
 - 只有用户主动点击 `应用分段建议` 时，运行时才会尝试直连平台保存接口；未触发时不自动保存。
 
@@ -281,6 +282,7 @@
   - `annotation/*` 最小鉴权头观察桥
   - `save_increment` 最小请求体构造与发送
   - 当前页 `Valid / Invalid` DOM 选择入口
+  - 当前音频“未填写补 Valid” 的 `save_increment` 直写补写
   - 当前页 `annotation/annos` 段级统计读取
   - 当前页文本输入框 / `contenteditable .ProseMirror` 的实验性就地填入适配层
   - 同源 `xaudio` iframe 内 live region 读取、handle 调整和原生拆分交互

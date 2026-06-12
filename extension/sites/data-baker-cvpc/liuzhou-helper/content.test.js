@@ -740,6 +740,117 @@ test("CVPC content auto-fill helper skips recommendation fill when auto-fill is 
   assert.deepEqual(statuses, []);
 });
 
+test("CVPC content fillAllValid helper reloads once after save_increment补写成功", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  let reloadCount = 0;
+
+  const result = await contentModule.__testOnly.handleFillAllValidAction({
+    dataApi: {
+      fillUnresolvedSegmentsValid: async function () {
+        return {
+          ok: true,
+          message: "当前音频共 4 段：已填 Valid 1 段，已填 Invalid 1 段，补写 2 段。",
+          filledCount: 2,
+        };
+      },
+    },
+    ui: {
+      setStatus: function (message, tone) {
+        statuses.push([message, tone]);
+      },
+    },
+    reloadPage: function () {
+      reloadCount += 1;
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "当前音频共 4 段：已填 Valid 1 段，已填 Invalid 1 段，补写 2 段。",
+    filledCount: 2,
+  });
+  assert.deepEqual(statuses, [[
+    "当前音频共 4 段：已填 Valid 1 段，已填 Invalid 1 段，补写 2 段。",
+    "success",
+  ]]);
+  assert.equal(reloadCount, 1);
+});
+
+test("CVPC content fillAllValid helper skips reload when nothing was filled", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  let reloadCount = 0;
+
+  const result = await contentModule.__testOnly.handleFillAllValidAction({
+    dataApi: {
+      fillUnresolvedSegmentsValid: async function () {
+        return {
+          ok: true,
+          message: "当前音频共 3 段：已填 Valid 2 段，已填 Invalid 1 段，未填写 0 段；无需补写。",
+          filledCount: 0,
+        };
+      },
+    },
+    ui: {
+      setStatus: function (message, tone) {
+        statuses.push([message, tone]);
+      },
+    },
+    reloadPage: function () {
+      reloadCount += 1;
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "当前音频共 3 段：已填 Valid 2 段，已填 Invalid 1 段，未填写 0 段；无需补写。",
+    filledCount: 0,
+  });
+  assert.deepEqual(statuses, [[
+    "当前音频共 3 段：已填 Valid 2 段，已填 Invalid 1 段，未填写 0 段；无需补写。",
+    "success",
+  ]]);
+  assert.equal(reloadCount, 0);
+});
+
+test("CVPC content fillAllValid helper skips reload when补写失败", async function () {
+  const contentModule = loadContentModule();
+  const statuses = [];
+  let reloadCount = 0;
+
+  const result = await contentModule.__testOnly.handleFillAllValidAction({
+    dataApi: {
+      fillUnresolvedSegmentsValid: async function () {
+        return {
+          ok: false,
+          message: "未获取到平台保存请求的访问凭据，已停止补写。当前音频共 3 段：已填 Valid 1 段，已填 Invalid 0 段，未填写 2 段。",
+          filledCount: 0,
+        };
+      },
+    },
+    ui: {
+      setStatus: function (message, tone) {
+        statuses.push([message, tone]);
+      },
+    },
+    reloadPage: function () {
+      reloadCount += 1;
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "未获取到平台保存请求的访问凭据，已停止补写。当前音频共 3 段：已填 Valid 1 段，已填 Invalid 0 段，未填写 2 段。",
+    filledCount: 0,
+  });
+  assert.deepEqual(statuses, [[
+    "未获取到平台保存请求的访问凭据，已停止补写。当前音频共 3 段：已填 Valid 1 段，已填 Invalid 0 段，未填写 2 段。",
+    "error",
+  ]]);
+  assert.equal(reloadCount, 0);
+});
+
 test("CVPC content auto-fill helper auto-applies standalone particle recommendations as Meaningless preset", async function () {
   const contentModule = loadContentModule();
   const calls = [];

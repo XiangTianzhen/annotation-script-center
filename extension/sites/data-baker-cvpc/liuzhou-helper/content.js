@@ -1205,9 +1205,29 @@
     runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
   }
 
+  async function handleFillAllValidAction(runtimeContext) {
+    const currentRuntime = runtimeContext && typeof runtimeContext === "object" ? runtimeContext : null;
+    const result = await currentRuntime?.dataApi?.fillUnresolvedSegmentsValid?.();
+    const normalizedResult =
+      result && typeof result === "object"
+        ? result
+        : {
+            ok: false,
+            message: "当前脚本缺少“未填写补 Valid”运行时能力。",
+            filledCount: 0,
+          };
+    currentRuntime?.ui?.setStatus?.(
+      normalizedResult.message,
+      normalizedResult.ok ? "success" : "error"
+    );
+    if (normalizedResult.ok && Number(normalizedResult.filledCount || 0) > 0) {
+      scheduleRuntimeReload(currentRuntime);
+    }
+    return normalizedResult;
+  }
+
   async function handleFillAllValid() {
-    const result = await runtime.dataApi.fillUnresolvedSegmentsValid();
-    runtime.ui.setStatus(result.message, result.ok ? "success" : "error");
+    await handleFillAllValidAction(runtime);
   }
 
   async function installRuntime() {
@@ -1546,6 +1566,7 @@
       commonLabelActions: Object.assign({}, COMMON_LABEL_ACTIONS),
       handleApplyCommonLabel: handleApplyCommonLabel,
       handleRecommendationFailure: handleRecommendationFailure,
+      handleFillAllValidAction: handleFillAllValidAction,
       maybeAutoApplyPreview: maybeAutoApplyPreview,
       maybeAutoFillRecommendation: maybeAutoFillRecommendation,
     },

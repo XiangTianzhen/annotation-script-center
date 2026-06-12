@@ -1,3 +1,21 @@
+## 2026-06-12（优化 data-baker-cvpc 未填写补 Valid 为平台直写）
+- 调整 `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
+  - `fillUnresolvedSegmentsValid()` 从旧的“按左侧段号逐段切换并点击 Valid”改为一次性构造 `save_increment`
+  - 当前只补当前音频里未填写有效性的段为 `是（Valid）`
+  - 已填 `Valid / Invalid` 保持不变，不再覆盖已填 `Invalid`
+  - 补写或复用段级有效性字段时，当前会把 `是否有效（Valid or Not）` 规范到 `ann_data.attrs[0]`，避免平台把它识别成后置字段
+  - 当前“是否已填写”的判定也同步收紧为优先检查段级 `ann_data.attrs[0]`；后置 `Valid` 会按未填补写修正到首位，后置 `Invalid` 继续保留为 `Invalid`
+  - 缺少鉴权快照或平台保存失败时直接报错，保持 fail closed，不回退旧 DOM 补写链路
+- 调整 `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
+  - `未填写补 Valid` 成功且 `filledCount > 0` 时自动刷新当前页一次
+  - 无需补写或补写失败时不刷新
+- 新增 / 更新测试：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.test.js`
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/content.test.js`
+- 同步更新：
+  - `extension/sites/data-baker-cvpc/liuzhou-helper/README.md`
+  - `platform-resources/data-baker-cvpc/liuzhou-helper/README.md`
+
 ## 2026-06-12（优化柳州话最终文本标准写法与普通话顺滑）
 - 调整 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.js`
   - `文本修正` 阶段新增“只改最终答案层”的后处理边界，不改 `audioDialectText / candidateAlternatives`
