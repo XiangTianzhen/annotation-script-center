@@ -4,7 +4,7 @@
 
 ## 项目定位
 
-- 仓库目录：`C:\Projects\annotation-script-center`
+- GitHub 仓库：[XiangTianzhen/annotation-script-center](https://github.com/XiangTianzhen/annotation-script-center)
 - 运行时代码：`extension/`
 - 平台资料与脚本后端：`platform-resources/`
 - 统一后端入口：`platform-resources/backend/server.js`
@@ -14,9 +14,9 @@
 
 ### 本地加载扩展
 
-- Edge：`edge://extensions/` -> 开启开发人员模式 -> 加载 `C:\Projects\annotation-script-center\extension`
-- Chrome：`chrome://extensions/` -> 开启开发者模式 -> 加载 `C:\Projects\annotation-script-center\extension`
-- 详细说明：[`extension/README.md`](extension/README.md)
+- Edge：`edge://extensions/` -> 开启开发人员模式 -> 加载 `annotation-script-center/extension`
+- Chrome：`chrome://extensions/` -> 开启开发者模式 -> 加载 `annotation-script-center/extension`
+- 详细运行时说明：[`extension/README.md`](extension/README.md)
 - 如果需要本地 beta 入口元信息，同步一次：
 
 ```powershell
@@ -37,7 +37,7 @@ node platform-resources/backend/server.js
 http://127.0.0.1:3333
 ```
 
-- 环境变量、PM2、下载鉴权和后端接口边界：[`platform-resources/backend/README.md`](platform-resources/backend/README.md)
+- 环境变量、PM2、统一后端边界：[`platform-resources/backend/README.md`](platform-resources/backend/README.md)
 
 ## 安装与前置
 
@@ -45,10 +45,11 @@ http://127.0.0.1:3333
 - 本地最少需要：
   - Node.js
   - Chrome 或 Edge
-  - Windows 开发环境
+  - 可运行扩展开发模式的桌面环境
 - 如果要做服务器部署，建议额外准备：
   - PM2
-  - `config/env/backend.env` 与 `config/env/ai.env`
+  - `config/env/backend.env`
+  - `config/env/ai.env`
 - 如果要做正式 CRX 打包，额外需要：
   - `config/secrets/annotation-script-center.pem`
   - `config/package-crx-release.json`
@@ -61,8 +62,6 @@ http://127.0.0.1:3333
 ```powershell
 node scripts/sync-local-build-meta.js
 ```
-
-- 说明文档：[`config/README.md`](config/README.md)
 
 ### 生成发布包
 
@@ -93,21 +92,23 @@ node scripts/package-crx-release.js --channel beta
 - `dist/annotation-script-center-crx-latest.json`
 - `dist/annotation-script-center-beta.zip`
 
+生成后需要把 `dist/` 下本次产物上传到 `downloadBaseUrl` 对应目录。如果本次只是替换这些静态下载文件，而后端 Node 服务代码没变，通常不需要重启后端。
+
 更多配置说明见：[`config/README.md`](config/README.md)
 
 ## 部署入口
 
 ### 后端部署
 
-- Windows / Linux 环境变量示例、PM2 启动、管理员下载鉴权：
+- Windows / Linux 环境变量示例、PM2 启动、统一后端边界：
   - [`platform-resources/backend/README.md`](platform-resources/backend/README.md)
-- 后端配置目录说明：
+- 发布配置、运行环境文件和下载密码配置：
   - [`config/README.md`](config/README.md)
 
 最小部署命令示例：
 
 ```powershell
-copy config\env\backend.env.example config\env\backend.env
+Copy-Item config\env\backend.env.example config\env\backend.env
 node platform-resources\backend\server.js
 ```
 
@@ -126,7 +127,6 @@ pm2 start platform-resources/backend/server.js --name annotation-script-center -
 2. 拉取最新代码。
 3. 检查是否需要手动合并 `config/env/*.env` 或 `config/secrets/*` 的本地私有配置。
 4. 重启 PM2 进程。
-5. 检查根接口和运行日志。
 
 Linux / PM2 示例：
 
@@ -134,43 +134,21 @@ Linux / PM2 示例：
 cd /var/www/annotation-script-center
 git pull --ff-only origin main
 pm2 restart annotation-script-center --update-env
-curl http://127.0.0.1:3333/
-pm2 logs annotation-script-center --lines 100
 ```
 
 Windows / PM2 示例：
 
 ```powershell
-Set-Location C:\Projects\annotation-script-center
+Set-Location <你的项目目录>\annotation-script-center
 git pull --ff-only origin main
 pm2 restart annotation-script-center --update-env
-Invoke-WebRequest http://127.0.0.1:3333/ | Select-Object -ExpandProperty Content
-pm2 logs annotation-script-center --lines 100
 ```
 
 更新时注意：
 
 - 不要直接覆盖服务器上的 `config/env/backend.env`、`config/env/ai.env`、`config/secrets/*` 私有内容。
 - 如果这次只改后端代码，通常不需要重新打包 CRX。
-- 如果这次只更新扩展下载包，不需要重启后端进程。
-
-### 扩展发布产物更新
-
-当你本地重新执行：
-
-```powershell
-node scripts/package-crx-release.js
-```
-
-需要把 `dist/` 下本次生成的产物上传到下载服务器或 `downloadBaseUrl` 对应目录。当前默认关注：
-
-- `annotation-script-center-v<version>.crx`
-- `annotation-script-center-v<version>.zip`
-- `annotation-script-center-update.xml`
-- `annotation-script-center-crx-latest.json`
-- `annotation-script-center-beta.zip`
-
-如果只是替换这些静态下载文件，而后端 Node 服务代码没变，通常不需要执行 `pm2 restart`。
+- 如果这次只更新扩展下载包，通常不需要重启后端进程。
 
 ### 企业托管安装
 

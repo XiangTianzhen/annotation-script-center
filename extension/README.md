@@ -2,19 +2,10 @@
 
 本目录是 Chrome / Chromium MV3 扩展源码根目录，`manifest.json` 位于本目录下。
 
-## 文档入口
-
-- 项目规则：[`../AGENTS.md`](../AGENTS.md)
-- 项目导航：[`../README.md`](../README.md)
-- 平台与脚本索引：[`../docs/platforms-index.md`](../docs/platforms-index.md)
-- 百炼官方文档入口：[`../docs/external-docs-aliyun-bailian.md`](../docs/external-docs-aliyun-bailian.md)
-- docs 导航：[`../docs/README.md`](../docs/README.md)
-- 配置说明：[`../config/README.md`](../config/README.md)
-
 ## 本地加载
 
-- Edge：打开 `edge://extensions/`，开启开发人员模式，选择 `C:\Projects\annotation-script-center\extension`
-- Chrome：打开 `chrome://extensions/`，开启开发者模式，选择 `C:\Projects\annotation-script-center\extension`
+- Edge：打开 `edge://extensions/`，开启开发人员模式，选择 `annotation-script-center/extension`
+- Chrome：打开 `chrome://extensions/`，开启开发者模式，选择 `annotation-script-center/extension`
 - 若本地直加载需要同步 build meta，在仓库根目录运行：
 
 ```powershell
