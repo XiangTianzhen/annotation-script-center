@@ -4326,22 +4326,41 @@
         };
       }
       const entryRow = getEntryRowFromAnnos(annos, context);
-      const currentRows = getInstanceRowsFromAnnos(annos);
-      const descriptorHints = resolveBatchTextDescriptors(context.template || {}, currentRows);
+      const instanceRows = summary.items.map(function (item) {
+        return item.row;
+      });
+      const descriptorHints = resolveBatchTextDescriptors(context.template || {}, instanceRows);
       const processedIndexes = [];
       const updatedRows = [];
       let snapshotRows = [];
       try {
-        snapshotRows = currentRows.map(function (row, index) {
-          const item = summary.items[index];
-          if (!item || item.state !== "missing") {
-            return buildSnapshotInstanceRow(row, context.template || {});
+        let instanceIndex = 0;
+        let sawEntryRow = false;
+        snapshotRows = (Array.isArray(annos) ? annos : []).reduce(function (result, row) {
+          const scope = normalizeText(row?.ann_scope);
+          if (scope === "instance") {
+            const item = summary.items[instanceIndex] || null;
+            const segmentNumber = instanceIndex + 1;
+            instanceIndex += 1;
+            if (!item || item.state !== "missing") {
+              result.push(buildSnapshotInstanceRow(row, context.template || {}));
+              return result;
+            }
+            const updatedRow = buildUpdatedValidityRow(item.row || row, context.template || {}, descriptorHints);
+            updatedRows.push(updatedRow);
+            processedIndexes.push(segmentNumber);
+            result.push(buildSnapshotInstanceRow(updatedRow, context.template || {}));
+            return result;
           }
-          const updatedRow = buildUpdatedValidityRow(row, context.template || {}, descriptorHints);
-          updatedRows.push(updatedRow);
-          processedIndexes.push(index + 1);
-          return buildSnapshotInstanceRow(updatedRow, context.template || {});
-        });
+          if (scope === "entry") {
+            sawEntryRow = true;
+            result.push(buildSnapshotEntryRow(row, context.template || {}));
+          }
+          return result;
+        }, []);
+        if (!sawEntryRow) {
+          snapshotRows.push(buildSnapshotEntryRow(entryRow, context.template || {}));
+        }
       } catch (error) {
         return {
           ok: false,
@@ -4366,9 +4385,7 @@
         insert: [],
         update: updatedRows,
         delete: [],
-        web_snapshot: JSON.stringify(
-          snapshotRows.concat([buildSnapshotEntryRow(entryRow, context.template || {})])
-        ),
+        web_snapshot: JSON.stringify(snapshotRows),
       };
       const response = await env.fetch(SAVE_INCREMENT_PATH, {
         credentials: "include",

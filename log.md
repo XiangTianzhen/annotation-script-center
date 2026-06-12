@@ -5,6 +5,7 @@
   - 已填 `Valid / Invalid` 保持不变，不再覆盖已填 `Invalid`
   - 补写或复用段级有效性字段时，当前会把 `是否有效（Valid or Not）` 规范到 `ann_data.attrs[0]`，避免平台把它识别成后置字段
   - 当前“是否已填写”的判定也同步收紧为优先检查段级 `ann_data.attrs[0]`；后置 `Valid` 会按未填补写修正到首位，后置 `Invalid` 继续保留为 `Invalid`
+  - `fillUnresolvedSegmentsValid()` 当前改为直接按 `annotation/annos` 原始 `data[]` 顺序构造 `update/web_snapshot`，不再把原始响应缺失索引套到按时间排序后的实例行上，避免 entry 后追加的早时段行补错
   - 缺少鉴权快照或平台保存失败时直接报错，保持 fail closed，不回退旧 DOM 补写链路
 - 调整 `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
   - `未填写补 Valid` 成功且 `filledCount > 0` 时自动刷新当前页一次

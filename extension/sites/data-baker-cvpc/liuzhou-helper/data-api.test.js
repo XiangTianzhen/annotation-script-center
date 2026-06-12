@@ -4003,6 +4003,135 @@ test("CVPC data api fillAllValid writes missing validity attrs through save_incr
   ]);
 });
 
+test("CVPC data api fillAllValid matches missing rows by raw annos order when entry row splits the response", async function () {
+  const dataApiModule = loadDataApiModule();
+  const template = createBatchMomentTemplate();
+  const annosPayload = createBatchTextAnnosPayload([
+    {
+      uniqueId: "region-1",
+      startMs: 20000,
+      endMs: 21000,
+      dialectText: "原始缺失一",
+      mandarinText: "普通一",
+      validity: "valid",
+    },
+    {
+      uniqueId: "region-2",
+      startMs: 30000,
+      endMs: 31000,
+      dialectText: "原始已填二",
+      mandarinText: "普通二",
+      validity: "valid",
+    },
+    {
+      uniqueId: "region-3",
+      startMs: 40000,
+      endMs: 41000,
+      dialectText: "原始缺失三",
+      mandarinText: "普通三",
+      validity: "valid",
+    },
+    {
+      uniqueId: "region-4",
+      startMs: 500,
+      endMs: 1200,
+      dialectText: "后置早段四",
+      mandarinText: "普通四",
+      validity: "valid",
+    },
+  ]);
+  annosPayload[1].ann_data.attrs = annosPayload[1].ann_data.attrs.filter(function (attr) {
+    return attr.name !== "是否有效（Valid or Not）";
+  });
+  annosPayload[3].ann_data.attrs = annosPayload[3].ann_data.attrs.filter(function (attr) {
+    return attr.name !== "是否有效（Valid or Not）";
+  });
+  const entryRow = annosPayload.shift();
+  annosPayload.splice(3, 0, entryRow);
+
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 20000,
+        endMs: 21000,
+        segmentNumber: 1,
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 30000,
+        endMs: 31000,
+        segmentNumber: 2,
+      },
+      {
+        uniqueId: "region-3",
+        startMs: 40000,
+        endMs: 41000,
+        segmentNumber: 3,
+      },
+      {
+        uniqueId: "region-4",
+        startMs: 500,
+        endMs: 1200,
+        segmentNumber: 4,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      { template: template }
+    ),
+    annosPayload: annosPayload,
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer fill-valid-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  const result = await runtime.fillUnresolvedSegmentsValid();
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "当前音频共 4 段：已填 Valid 2 段，已填 Invalid 0 段，补写 2 段。",
+    filledCount: 2,
+    stats: {
+      total: 4,
+      valid: 2,
+      invalid: 0,
+      missing: 2,
+    },
+    processedIndexes: [1, 3],
+  });
+  const saveRequest = harness.fetchRequests.find(function (request) {
+    return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+  });
+  assert.ok(saveRequest);
+  const body = JSON.parse(saveRequest.init.body);
+  assert.deepEqual(
+    body.update.map(function (row) {
+      return row.unique_id;
+    }),
+    ["region-1", "region-3"]
+  );
+});
+
 test("CVPC data api fillAllValid fails closed when auth snapshot is missing", async function () {
   const dataApiModule = loadDataApiModule();
   const template = createBatchMomentTemplate();
