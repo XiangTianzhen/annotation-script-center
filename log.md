@@ -1,3 +1,11 @@
+## 2026-06-12（修复客家话助手 `profileConfig is not defined`）
+- 修复 `platform-resources/magic-data/hakka-helper/backend/ai-routes.js`
+  - `review-current` 响应组装阶段错误引用了当前作用域不存在的 `profileConfig.lexiconRewriteMode`
+  - 已改为使用当前函数内实际存在的 `config.lexiconRewriteMode`
+- 影响范围
+  - 客家话助手右侧 AI 结果区原先会因后端抛 `ReferenceError` 而显示 `internal-error: profileConfig is not defined`
+  - 修复后该错误不再由这处变量名回归触发
+
 ## 2026-06-12（README 补充服务器更新部署说明）
 - 补充根 `README.md` 的服务器部署入口：
   - 新增“服务器日常更新”
@@ -4534,4 +4542,3 @@
   - `node --test platform-resources/aishell-tech/minnan-helper/backend/ai-service.test.js`
   - `node --test platform-resources/magic-data/hakka-helper/backend/ai-routes.test.js`
   - `node --test platform-resources/data-baker-cvpc/liuzhou-helper/backend/ai-service.test.js`
-

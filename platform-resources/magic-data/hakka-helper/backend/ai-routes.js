@@ -461,7 +461,7 @@ async function reviewCurrent(body, requestId) {
           matchedCount: lexiconContext.matchedCount,
           matches: lexiconContext.matches,
         },
-        profileConfig.lexiconRewriteMode
+        config.lexiconRewriteMode
       ),
       models: {
         listenModel: listenResult.model || listenModel || DEFAULT_LISTEN_MODEL,
