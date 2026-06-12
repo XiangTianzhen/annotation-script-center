@@ -120,7 +120,7 @@
   - Network 里旧版若看到多条相同 `GET /httpapi/annotation/annos`，它们属于批量阶段的状态读取，不是多次 `save_increment`；当前批量链路已收口重复上下文刷新
 - 当前段 `Valid / Invalid` 快捷切换
 - 当前段 `Valid / Invalid` 在点击前会先检查当前单选状态；已是目标值时不再重复点击
-- `未填写补 Valid` 当前会先按当前地址栏参数读取对应的最新 `annotation/annos`，再按接口原始 `data[]` 顺序逐条检查并一次性构造 `save_increment`：只补当前音频里未填写有效性的段为 `是（Valid）`，已填 `Valid / Invalid` 一律跳过；缺失判定当前按平台实际结构执行，只有段级 `ann_data.attrs[0]` 命中 `是否有效（Valid or Not）` 且能解析出 `是 / 否` 才视为已填写，后置 `Valid` 会按未填重写到首位，后置 `Invalid` 不覆盖；保存体里会把 `是否有效（Valid or Not）` 固定放在段级 `ann_data.attrs[0]`，并保持 `web_snapshot` 跟随原始响应顺序，避免 entry 后追加的早时段行被排序打乱；保存成功后自动刷新当前页一次，缺少鉴权快照或平台保存失败时直接报错，不回退旧 DOM 逐段点击链路
+- `未填写补 Valid` 当前会先按当前地址栏参数读取对应的最新 `annotation/annos`，再按接口原始 `data[]` 顺序逐条检查并一次性构造 `save_increment`：只补当前音频里未填写有效性的段为 `是（Valid）`，已填 `Valid / Invalid` 一律跳过；缺失判定当前按平台实际结构执行，只有段级 `ann_data.attrs[0]` 命中 `是否有效（Valid or Not）` 且能解析出 `是 / 否` 才视为已填写，后置 `Valid` 会按未填重写到首位，后置 `Invalid` 不覆盖；补写 `Valid` 时会优先复用模板里的 radio 选项 `unique_id`，模板缺失时再回退使用当前 CVPC 已知的 `Valid` 选项 id，避免写出只有 `name` 没有 option `unique_id` 的假“已填”；保存体里会把 `是否有效（Valid or Not）` 固定放在段级 `ann_data.attrs[0]`，并保持 `web_snapshot` 跟随原始响应顺序，避免 entry 后追加的早时段行被排序打乱；保存成功后自动刷新当前页一次，缺少鉴权快照或平台保存失败时直接报错，不回退旧 DOM 逐段点击链路
 - 当前段 AI 推荐会实时解析 `.xaudio_time` 中的 `开始 / 结束`，只裁剪当前选中段音频；浏览器端转成 `16k` 单声道 WAV 后直接拼成 `audioDataUrl`，再发送给两阶段 AI 推荐接口
 - 当前段每次都会重新裁剪并重新生成当前段 Base64 音频，不再经过“本地文件转公网 URL”链路
 - 当前段文本字段写入已兼容当前页 `contenteditable .ProseMirror` 编辑器；柳州话字段读取时优先解析外层 `.textarea_class[modelvalue]`，避免把标签关闭按钮 `×` 误当正文；两张结果卡会按目标字段分别写入 `标注文本` 或 `普通话顺滑`

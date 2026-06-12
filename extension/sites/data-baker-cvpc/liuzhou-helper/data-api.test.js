@@ -4132,6 +4132,248 @@ test("CVPC data api fillAllValid matches missing rows by raw annos order when en
   );
 });
 
+test("CVPC data api fillAllValid uses template validity option ids when no valid rows exist yet", async function () {
+  const dataApiModule = loadDataApiModule();
+  const template = {
+    attrs: [],
+    entry_attrs: [
+      {
+        unique_id: "entry-validity",
+        name: "是否有效（Valid or Not）",
+        input_type: "radio",
+        options: [
+          { unique_id: "entry-valid-id", name: "是（Valid）" },
+          { unique_id: "entry-invalid-id", name: "否（Invalid）" },
+        ],
+      },
+    ],
+    moment_attrs: [
+      {
+        unique_id: "moment-validity",
+        name: "是否有效（Valid or Not）",
+        input_type: "radio",
+        options: [
+          { unique_id: "valid-id", name: "是（Valid）" },
+          { unique_id: "invalid-id", name: "否（Invalid）" },
+        ],
+      },
+      {
+        unique_id: "moment-dialect",
+        name: "标注文本",
+        input_type: "text",
+      },
+      {
+        unique_id: "moment-mandarin",
+        name: "普通话顺滑",
+        input_type: "text",
+      },
+    ],
+  };
+  const annosPayload = createBatchTextAnnosPayload([
+    {
+      uniqueId: "region-1",
+      startMs: 0,
+      endMs: 1200,
+      dialectText: "缺失段一",
+      mandarinText: "普通一",
+      validity: "valid",
+    },
+    {
+      uniqueId: "region-2",
+      startMs: 1500,
+      endMs: 2600,
+      dialectText: "无意义",
+      mandarinText: "",
+      validity: "invalid",
+    },
+    {
+      uniqueId: "region-3",
+      startMs: 3000,
+      endMs: 4200,
+      dialectText: "缺失段三",
+      mandarinText: "普通三",
+      validity: "valid",
+    },
+  ]);
+  annosPayload[1].ann_data.attrs = annosPayload[1].ann_data.attrs.filter(function (attr) {
+    return attr.name !== "是否有效（Valid or Not）";
+  });
+  annosPayload[3].ann_data.attrs = annosPayload[3].ann_data.attrs.filter(function (attr) {
+    return attr.name !== "是否有效（Valid or Not）";
+  });
+
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 1200,
+        segmentNumber: 1,
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 1500,
+        endMs: 2600,
+        segmentNumber: 2,
+      },
+      {
+        uniqueId: "region-3",
+        startMs: 3000,
+        endMs: 4200,
+        segmentNumber: 3,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      { template: template }
+    ),
+    annosPayload: annosPayload,
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer fill-valid-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  await runtime.fillUnresolvedSegmentsValid();
+
+  const saveRequest = harness.fetchRequests.find(function (request) {
+    return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+  });
+  assert.ok(saveRequest);
+  const body = JSON.parse(saveRequest.init.body);
+  assert.deepEqual(
+    body.update.map(function (row) {
+      return row.ann_data.attrs[0].values[0];
+    }),
+    [
+      { unique_id: "valid-id", name: "是（Valid）" },
+      { unique_id: "valid-id", name: "是（Valid）" },
+    ]
+  );
+});
+
+test("CVPC data api fillAllValid falls back to known CVPC validity option ids when template options are absent", async function () {
+  const dataApiModule = loadDataApiModule();
+  const template = createBatchMomentTemplate();
+  const annosPayload = createBatchTextAnnosPayload([
+    {
+      uniqueId: "region-1",
+      startMs: 0,
+      endMs: 1200,
+      dialectText: "缺失段一",
+      mandarinText: "普通一",
+      validity: "valid",
+    },
+    {
+      uniqueId: "region-2",
+      startMs: 1500,
+      endMs: 2600,
+      dialectText: "无意义",
+      mandarinText: "",
+      validity: "invalid",
+    },
+    {
+      uniqueId: "region-3",
+      startMs: 3000,
+      endMs: 4200,
+      dialectText: "缺失段三",
+      mandarinText: "普通三",
+      validity: "valid",
+    },
+  ]);
+  annosPayload[1].ann_data.attrs = annosPayload[1].ann_data.attrs.filter(function (attr) {
+    return attr.name !== "是否有效（Valid or Not）";
+  });
+  annosPayload[3].ann_data.attrs = annosPayload[3].ann_data.attrs.filter(function (attr) {
+    return attr.name !== "是否有效（Valid or Not）";
+  });
+
+  const harness = createSegmentApplyHarness({
+    visibleEntryName: "sample-a.mp3",
+    regions: [
+      {
+        uniqueId: "region-1",
+        startMs: 0,
+        endMs: 1200,
+        segmentNumber: 1,
+      },
+      {
+        uniqueId: "region-2",
+        startMs: 1500,
+        endMs: 2600,
+        segmentNumber: 2,
+      },
+      {
+        uniqueId: "region-3",
+        startMs: 3000,
+        endMs: 4200,
+        segmentNumber: 3,
+      },
+    ],
+    metaPayload: createMetaPayload(
+      [
+        {
+          entry_id: 1,
+          entry_index: 1,
+          name: "sample-a.mp3",
+          content: "databaker/data/sample-a.mp3",
+        },
+      ],
+      { template: template }
+    ),
+    annosPayload: annosPayload,
+  });
+
+  const runtime = dataApiModule.createRuntime(harness.dependencies);
+  harness.dispatchObserverMessage(
+    {
+      headers: {
+        authorization: "Bearer fill-valid-token",
+        "baker-terminal": "group@1134",
+        "baker-lang": "zh",
+      },
+      path: "/httpapi/annotation/annos",
+      at: Date.now(),
+    },
+    AUTH_TYPE
+  );
+
+  await runtime.fillUnresolvedSegmentsValid();
+
+  const saveRequest = harness.fetchRequests.find(function (request) {
+    return request.url.indexOf("/httpapi/annotation/save_increment") >= 0;
+  });
+  assert.ok(saveRequest);
+  const body = JSON.parse(saveRequest.init.body);
+  assert.deepEqual(
+    body.update.map(function (row) {
+      return row.ann_data.attrs[0].values[0];
+    }),
+    [
+      { unique_id: "7afb0829-9777-490a-8ce0-3b03de021ff3", name: "是（Valid）" },
+      { unique_id: "7afb0829-9777-490a-8ce0-3b03de021ff3", name: "是（Valid）" },
+    ]
+  );
+});
+
 test("CVPC data api fillAllValid fails closed when auth snapshot is missing", async function () {
   const dataApiModule = loadDataApiModule();
   const template = createBatchMomentTemplate();

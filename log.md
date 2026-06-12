@@ -1,3 +1,19 @@
+## 2026-06-12（统一 Magic Data 原始输出按钮空状态交互）
+- 调整 `extension/sites/magic-data/hakka-helper/assistant-panel.js`
+  - `显示 AI 原始输出` 按钮改为仅在加载中禁用
+  - 当前条尚无 AI 返回时不再置灰，点击后统一提示“暂无 AI 原始输出”
+- 调整 `extension/sites/magic-data/minnan-helper/assistant-panel.js`
+  - 与客家话助手统一原始输出按钮空状态交互
+  - 保持无结果可点击，避免和柳州话助手交互口径不一致
+- 新增 / 更新测试：
+  - `extension/sites/magic-data/hakka-helper/assistant-panel.test.js`
+  - `extension/sites/magic-data/minnan-helper/assistant-panel.test.js`
+- 同步更新：
+  - `extension/sites/magic-data/README.md`
+  - `extension/sites/magic-data/hakka-helper/README.md`
+  - `extension/sites/magic-data/minnan-helper/README.md`
+  - `platform-resources/magic-data/README.md`
+
 ## 2026-06-12（优化 data-baker-cvpc 未填写补 Valid 为平台直写）
 - 调整 `extension/sites/data-baker-cvpc/liuzhou-helper/data-api.js`
   - `fillUnresolvedSegmentsValid()` 从旧的“按左侧段号逐段切换并点击 Valid”改为一次性构造 `save_increment`
@@ -6,6 +22,7 @@
   - 补写或复用段级有效性字段时，当前会把 `是否有效（Valid or Not）` 规范到 `ann_data.attrs[0]`，避免平台把它识别成后置字段
   - 当前“是否已填写”的判定也同步收紧为优先检查段级 `ann_data.attrs[0]`；后置 `Valid` 会按未填补写修正到首位，后置 `Invalid` 继续保留为 `Invalid`
   - `fillUnresolvedSegmentsValid()` 当前改为直接按 `annotation/annos` 原始 `data[]` 顺序构造 `update/web_snapshot`，不再把原始响应缺失索引套到按时间排序后的实例行上，避免 entry 后追加的早时段行补错
+  - 当前补写 `Valid` 时会优先复用模板 radio 选项里的 `unique_id`，模板缺失时回退使用 CVPC 已知 `Valid` 选项 id，避免写出只有 `name` 没有 option `unique_id` 的“已填”假状态
   - 缺少鉴权快照或平台保存失败时直接报错，保持 fail closed，不回退旧 DOM 补写链路
 - 调整 `extension/sites/data-baker-cvpc/liuzhou-helper/content.js`
   - `未填写补 Valid` 成功且 `filledCount > 0` 时自动刷新当前页一次

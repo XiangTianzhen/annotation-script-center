@@ -102,7 +102,7 @@
   - 请求前会校验 options 首页 `AI 调用使用人`；请求体默认补齐 `aiUsageOperatorName / platformUserName / platformUserId`
   - 当前段填入建议当前兼容页面 `contenteditable .ProseMirror`；柳州话字段读取时优先解析外层 `.textarea_class[modelvalue]`，避免把标签关闭按钮 `×` 误当正文
   - 当前段设为 `Valid / Invalid` 前会先检查当前单选状态，已是目标值时不重复点击
-  - 当前音频内“未填写段落补为有效”当前改为按当前地址栏参数读取对应的最新 `annotation/annos`，再按接口原始 `data[]` 顺序一次性构造 `save_increment`：只处理未填写段，补为 `是（Valid）`，不覆盖已填 `Invalid`；缺失判定当前按平台实际结构执行，只有段级 `ann_data.attrs[0]` 命中 `是否有效（Valid or Not）` 且能解析出 `是 / 否` 才视为已填写，后置 `Valid` 会按未填重写到首位，后置 `Invalid` 不覆盖；保存体里会把段级 `是否有效（Valid or Not）` 固定写在 `ann_data.attrs[0]`，并保持 `web_snapshot` 跟随原始响应顺序，避免 entry 后追加的早时段行被排序打乱；保存成功后自动刷新当前页一次，缺少鉴权快照或平台保存失败时直接报错，不回退旧 DOM 逐段点击链路
+  - 当前音频内“未填写段落补为有效”当前改为按当前地址栏参数读取对应的最新 `annotation/annos`，再按接口原始 `data[]` 顺序一次性构造 `save_increment`：只处理未填写段，补为 `是（Valid）`，不覆盖已填 `Invalid`；缺失判定当前按平台实际结构执行，只有段级 `ann_data.attrs[0]` 命中 `是否有效（Valid or Not）` 且能解析出 `是 / 否` 才视为已填写，后置 `Valid` 会按未填重写到首位，后置 `Invalid` 不覆盖；补写 `Valid` 时会优先复用模板里的 radio 选项 `unique_id`，模板缺失时再回退使用当前 CVPC 已知的 `Valid` 选项 id，避免写出只有 `name` 没有 option `unique_id` 的假“已填”；保存体里会把段级 `是否有效（Valid or Not）` 固定写在 `ann_data.attrs[0]`，并保持 `web_snapshot` 跟随原始响应顺序，避免 entry 后追加的早时段行被排序打乱；保存成功后自动刷新当前页一次，缺少鉴权快照或平台保存失败时直接报错，不回退旧 DOM 逐段点击链路
   - 基础设置提供两个独立提示屏蔽开关，默认都可分别屏蔽“您正在编辑该作业,不能打开新的Tab页”“系统进入暂停状态”
   - 页内观察桥当前只在同源 `xaudio` iframe 内包装 `console.log/info/debug` 捕获初始化音频 URL；顶层编辑页不再包装 `console.*`，避免把平台普通提示日志误挂到扩展堆栈
 - options / AI 设置：

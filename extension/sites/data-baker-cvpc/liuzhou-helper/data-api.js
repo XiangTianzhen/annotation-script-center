@@ -15,6 +15,16 @@
     "未拿到当前音频签名 URL，请先点击当前音频或播放一次后重试；如仍失败请刷新页面。";
   const VALID_LABELS = ["是（Valid）", "是(Valid)", "Valid"];
   const INVALID_LABELS = ["否（Invalid）", "否(Invalid)", "Invalid"];
+  const KNOWN_VALIDITY_OPTION_VALUES = {
+    valid: {
+      unique_id: "7afb0829-9777-490a-8ce0-3b03de021ff3",
+      name: "是（Valid）",
+    },
+    invalid: {
+      unique_id: "9b79544a-a0ff-486e-9106-6d6c14f500b7",
+      name: "否（Invalid）",
+    },
+  };
   const APPLY_TOLERANCE_MS = 80;
   const FALLBACK_BATCH_TEXT_ATTR_DEFINITIONS = {
     dialectDescriptor: {
@@ -1954,15 +1964,100 @@
     return "已自动切换为 " + label + "，" + baseMessage;
   }
 
+  function getKnownValidityOptionValue(state) {
+    const currentState = normalizeValidityState(state);
+    if (!currentState) {
+      return null;
+    }
+    const source = KNOWN_VALIDITY_OPTION_VALUES[currentState];
+    return source ? clonePlainData(source) : null;
+  }
+
+  function inferValidityStateFromOptionValue(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const text = normalizeText(source.name || source.value || source.unique_id || source.id).toLowerCase();
+    if (!text) {
+      return "";
+    }
+    if (VALID_LABELS.some(function (item) { return text.indexOf(String(item).toLowerCase()) >= 0; })) {
+      return "valid";
+    }
+    if (INVALID_LABELS.some(function (item) { return text.indexOf(String(item).toLowerCase()) >= 0; })) {
+      return "invalid";
+    }
+    return "";
+  }
+
   function buildValidityOptionValue(value, state) {
     const currentState = normalizeValidityState(state);
     const source = value && typeof value === "object" ? clonePlainData(value) : null;
+    const fallback = getKnownValidityOptionValue(currentState);
     if (source) {
+      if (!normalizeText(source.name) && fallback?.name) {
+        source.name = fallback.name;
+      }
+      if (!normalizeText(source.unique_id || source.id) && fallback?.unique_id) {
+        source.unique_id = fallback.unique_id;
+      }
       return source;
+    }
+    if (fallback) {
+      return fallback;
     }
     return {
       name: currentState === "invalid" ? INVALID_LABELS[0] : VALID_LABELS[0],
     };
+  }
+
+  function collectAttrOptionCandidates(attrDefinition) {
+    const source = attrDefinition && typeof attrDefinition === "object" ? attrDefinition : {};
+    const nestedInput = source.input_extra && typeof source.input_extra === "object" ? source.input_extra : {};
+    const nestedExtra = source.extra && typeof source.extra === "object" ? source.extra : {};
+    const groups = [
+      source.options,
+      source.values,
+      source.children,
+      source.choices,
+      source.items,
+      source.option_values,
+      source.enum_values,
+      source.enums,
+      nestedInput.options,
+      nestedExtra.options,
+    ];
+    return groups.reduce(function (result, group) {
+      if (Array.isArray(group)) {
+        group.forEach(function (item) {
+          result.push(item);
+        });
+      }
+      return result;
+    }, []);
+  }
+
+  function resolveValidityOptionValueFromTemplate(template, descriptor, state) {
+    const currentState = normalizeValidityState(state);
+    if (!currentState) {
+      return null;
+    }
+    const descriptorUniqueId = normalizeText(descriptor?.uniqueId || descriptor?.unique_id || descriptor?.id);
+    const templateAttrs = Array.isArray(template?.moment_attrs) ? template.moment_attrs : [];
+    const validityDefinition =
+      templateAttrs.find(function (attr) {
+        const attrUniqueId = normalizeText(attr?.unique_id || attr?.id);
+        if (descriptorUniqueId && attrUniqueId === descriptorUniqueId) {
+          return true;
+        }
+        return normalizeText(attr?.name).indexOf("是否有效") >= 0;
+      }) || null;
+    const candidates = collectAttrOptionCandidates(validityDefinition);
+    for (let index = 0; index < candidates.length; index += 1) {
+      const optionValue = buildValidityOptionValue(candidates[index], currentState);
+      if (inferValidityStateFromOptionValue(optionValue) === currentState) {
+        return optionValue;
+      }
+    }
+    return null;
   }
 
   function resolveBatchTextDescriptors(template, rows, preferredRow) {
@@ -1980,8 +2075,8 @@
     let dialectDescriptor = findMomentAttrDescriptor(template, [], ["标注文本", "柳州话", "转写文本"]);
     let mandarinDescriptor = findMomentAttrDescriptor(template, [], ["普通话顺滑", "普通话", "顺滑"]);
     let validityDescriptor = findMomentAttrDescriptor(template, [], ["是否有效"]);
-    let validOptionValue = null;
-    let invalidOptionValue = null;
+    let validOptionValue = resolveValidityOptionValueFromTemplate(template, validityDescriptor, "valid");
+    let invalidOptionValue = resolveValidityOptionValueFromTemplate(template, validityDescriptor, "invalid");
 
     for (let index = 0; index < rowQueue.length; index += 1) {
       const currentRow = rowQueue[index] && typeof rowQueue[index] === "object" ? rowQueue[index] : {};
@@ -1995,6 +2090,12 @@
       }
       if (!validityDescriptor) {
         validityDescriptor = findMomentAttrDescriptor(template, rowAttrs, ["是否有效"]);
+        if (!validOptionValue) {
+          validOptionValue = resolveValidityOptionValueFromTemplate(template, validityDescriptor, "valid");
+        }
+        if (!invalidOptionValue) {
+          invalidOptionValue = resolveValidityOptionValueFromTemplate(template, validityDescriptor, "invalid");
+        }
       }
       const validityAttr = findValidityAttr(rowAttrs);
       const validityState = readValidityStateFromAttr(validityAttr);
@@ -2015,6 +2116,12 @@
     }
     if (!mandarinDescriptor) {
       mandarinDescriptor = Object.assign({}, FALLBACK_BATCH_TEXT_ATTR_DEFINITIONS.mandarinDescriptor);
+    }
+    if (!validOptionValue) {
+      validOptionValue = getKnownValidityOptionValue("valid");
+    }
+    if (!invalidOptionValue) {
+      invalidOptionValue = getKnownValidityOptionValue("invalid");
     }
 
     return {
