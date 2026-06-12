@@ -32,3 +32,10 @@ test("buildOverallRows includes lexicon status and mode", function () {
     "主词表缺失 / 固定携带 / 改写模式 off",
   ]);
 });
+
+test("show raw output button stays enabled without result", function () {
+  const helper = panelModule.__test__?.shouldDisableShowRawOutput;
+  assert.equal(typeof helper, "function");
+
+  assert.equal(helper(false, false), false);
+});

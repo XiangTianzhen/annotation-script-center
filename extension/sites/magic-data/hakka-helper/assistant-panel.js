@@ -612,6 +612,10 @@
       return Boolean(findRowEditorByIndex(0) || findRowEditorByIndex(1));
     }
 
+    function shouldDisableShowRawOutput(isLoading) {
+      return isLoading === true;
+    }
+
     function refreshButtons() {
       const hasResult = Boolean(latestResult);
       if (buttons.review) {
@@ -625,7 +629,7 @@
         buttons.copySummary.disabled = loading || !hasResult;
       }
       if (buttons.showRawOutput) {
-        buttons.showRawOutput.disabled = loading || !hasResult;
+        buttons.showRawOutput.disabled = shouldDisableShowRawOutput(loading);
       }
       if (buttons.fillAll) {
         const canFillAll = (function () {
@@ -2081,6 +2085,9 @@
   exportedApi.__test__ = {
     resolveFillAllSuggestionsOutcome: resolveFillAllSuggestionsOutcome,
     buildOverallRows: buildOverallRows,
+    shouldDisableShowRawOutput: function (isLoading) {
+      return isLoading === true;
+    },
   };
   if (typeof module !== "undefined" && module.exports) {
     module.exports = exportedApi;

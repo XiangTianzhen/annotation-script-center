@@ -64,6 +64,7 @@
 - 新增“显示 AI 原始输出”按钮，弹窗展示：
   - 后端返回的脱敏 raw 调试信息（如 `rawAiDebug/rawModelText/rawJson`）。
   - 当前面板使用的归一化结果（`normalizedResult`）。
+- 按钮保持可点击；当前条尚无 AI 返回时不再置灰，点击后只提示“暂无 AI 原始输出”。
 - 弹窗提供复制按钮；内容会做脱敏处理，不显示完整签名 URL、token、cookie、authorization。
 
 ## 右侧折叠稳定性
