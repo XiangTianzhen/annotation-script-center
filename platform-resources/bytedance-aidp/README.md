@@ -5,7 +5,7 @@
 - 平台标识：`bytedance-aidp`
 - 平台入口：`https://aidp.bytedance.com/management/task-v2?page=1`
 - 当前脚本资料：`suzhou-helper`
-- 当前状态：`beta` 平台资料初始化阶段；当前只完成资料目录与文档骨架，尚未接入扩展运行时代码、统一后端或 `extension/sites/`
+- 当前状态：`beta` 平台资料 + 最小运行时接入阶段；当前已接入 `extension/sites/bytedance-aidp/suzhou-helper/` 的基础显隐运行时，但仍未接统一后端或写链路
 - 首轮依据：
   - 用户提供的列表首页 URL
   - 用户提供的 `mark-v3` 详情页 URL
@@ -41,13 +41,11 @@
 
 - `network/`：当前由索引 README + 1 份稳定参考页组成，覆盖列表首页路由、分页 query 和详情跳转 URL 组装口径
 - `page-structure/`：当前由索引 README + 1 份稳定参考页组成，覆盖列表页的语义分区、初版稳定锚点和挂载边界
-- `suzhou-helper/`：当前只补脚本级资料，不创建运行时代码目录，不预设脚本注册或后端接口
+- `suzhou-helper/`：当前已补脚本级资料，并落地 `mark-v3` 详情页最小运行时；范围只到“平台 AI 板块显隐开关”
 - 当前尚未完成 Edge 专窗下的真实页面补采；所有未能安全确认的 DOM / 请求细节统一留在对应文档的 `风险 / 未确认项`
 
 ## 首轮边界
 
-- 不补扩展注入代码
-- 不补 `manifest.json`
 - 不补统一后端 registry、路由或 AI 接口
 - 不补保存、提交、领取、批量流转等写操作契约
 - 不记录完整请求包、真实账号信息、完整签名资源地址或登录态明文

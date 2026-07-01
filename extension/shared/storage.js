@@ -115,6 +115,17 @@
               },
             },
           },
+          bytedanceAidp: {
+            enabled: true,
+            scripts: {
+              suzhouHelper: {
+                id: "bytedanceAidpSuzhouHelper",
+                enabled: true,
+                platformAiEnabled: true,
+                contractMode: "dom-guarded",
+              },
+            },
+          },
           aishellTech: {
             enabled: true,
             scripts: {
@@ -198,7 +209,7 @@
         },
         cache: {},
         meta: {
-          schemaVersion: 22,
+          schemaVersion: 24,
           backendEndpointMode: "server",
           backendBaseUrls: {
             server: "https://script.xiangtianzhen.store",
@@ -216,6 +227,7 @@
       DEFAULT_JUDGEMENT_ASR_CONFIG: {},
       DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: {},
       DEFAULT_DATA_BAKER_CVPC_PLATFORM_SETTINGS: {},
+      DEFAULT_BYTEDANCE_AIDP_PLATFORM_SETTINGS: {},
       DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS: {},
       DEFAULT_ABAKA_AI_PLATFORM_SETTINGS: {},
       SCRIPT_PROJECTS: {},
@@ -226,6 +238,8 @@
       DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: "dataBakerRoundOneQuality",
       DATA_BAKER_CVPC_PLATFORM_ID: "dataBakerCvpc",
       DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID: "dataBakerCvpcLiuzhouAssistant",
+      BYTEDANCE_AIDP_PLATFORM_ID: "bytedanceAidp",
+      BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID: "bytedanceAidpSuzhouHelper",
       AISHELL_TECH_PLATFORM_ID: "aishellTech",
       AISHELL_TECH_MINNAN_SCRIPT_ID: "aishellTechMinnanAssistant",
       ABAKA_AI_PLATFORM_ID: "abakaAi",
@@ -2356,6 +2370,76 @@
     return result;
   }
 
+  function normalizeBytedanceAidpSuzhouConfig(config, defaults) {
+    const source = isPlainObject(config) ? config : {};
+    const defaultConfig = isPlainObject(defaults) ? defaults : {};
+    const constants = getConstants();
+    const result = deepMerge(defaultConfig, source);
+
+    result.id =
+      constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID ||
+      result.id ||
+      "bytedanceAidpSuzhouHelper";
+    result.enabled = result.enabled !== false;
+    result.platformAiEnabled =
+      source.platformAiEnabled !== undefined
+        ? source.platformAiEnabled !== false
+        : defaultConfig.platformAiEnabled !== false;
+    result.contractMode =
+      String(result.contractMode || defaultConfig.contractMode || "dom-guarded").trim() ||
+      "dom-guarded";
+    return result;
+  }
+
+  function ensureBytedanceAidpRoot(settings, input) {
+    const constants = getConstants();
+    const defaults = clone(constants.DEFAULT_SETTINGS || {});
+    const rawPlatform = isPlainObject(input?.platforms?.bytedanceAidp)
+      ? input.platforms.bytedanceAidp
+      : {};
+    const rawScripts = isPlainObject(rawPlatform.scripts) ? rawPlatform.scripts : {};
+    const rawSuzhouHelper = isPlainObject(rawScripts.suzhouHelper)
+      ? clone(rawScripts.suzhouHelper)
+      : {};
+    const defaultPlatform =
+      defaults?.platforms?.bytedanceAidp ||
+      constants.DEFAULT_BYTEDANCE_AIDP_PLATFORM_SETTINGS || {
+        enabled: true,
+        scripts: {
+          suzhouHelper: {
+            id: constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper",
+            enabled: true,
+            platformAiEnabled: true,
+            contractMode: "dom-guarded",
+          },
+        },
+      };
+
+    if (!isPlainObject(settings.platforms)) {
+      settings.platforms = {};
+    }
+
+    settings.platforms.bytedanceAidp = deepMerge(
+      defaultPlatform,
+      settings.platforms.bytedanceAidp || {}
+    );
+
+    if (!isPlainObject(settings.platforms.bytedanceAidp.scripts)) {
+      settings.platforms.bytedanceAidp.scripts = {};
+    }
+
+    settings.platforms.bytedanceAidp.enabled =
+      settings.platforms.bytedanceAidp.enabled !== false;
+    settings.platforms.bytedanceAidp.scripts.suzhouHelper =
+      normalizeBytedanceAidpSuzhouConfig(
+        settings.platforms.bytedanceAidp.scripts.suzhouHelper,
+        defaultPlatform.scripts?.suzhouHelper || {},
+        rawSuzhouHelper
+      );
+
+    return settings.platforms.bytedanceAidp;
+  }
+
   function ensureDataBakerCvpcRoot(settings, input) {
     const constants = getConstants();
     const defaults = clone(constants.DEFAULT_SETTINGS || {});
@@ -3795,6 +3879,7 @@
     ensureScriptCenter(settings);
     ensureLightwheelRoot(settings);
     ensureDataBakerCvpcRoot(settings, input || {});
+    ensureBytedanceAidpRoot(settings, input || {});
     ensureDataBakerRoot(settings);
     ensureAishellTechRoot(settings, input || {});
     ensureMagicDataRoot(settings);
@@ -4142,6 +4227,28 @@
                 enabled: nextEnabled,
                 segmentPreviewEnabled: nextEnabled,
                 aiRecommendEnabled: nextEnabled,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    if (scriptId === constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID) {
+      const currentSettings = await getSettings();
+      const currentConfig =
+        currentSettings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+      return patchSettings({
+        platforms: {
+          bytedanceAidp: {
+            enabled: nextEnabled,
+            scripts: {
+              suzhouHelper: {
+                id:
+                  constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID ||
+                  "bytedanceAidpSuzhouHelper",
+                enabled: nextEnabled,
+                platformAiEnabled: currentConfig.platformAiEnabled !== false,
               },
             },
           },

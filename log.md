@@ -1,3 +1,34 @@
+## 2026-07-01（接入 ByteDance AIDP 苏州话最小运行时）
+- 新增 `extension/sites/bytedance-aidp/suzhou-helper/`
+  - 新建 `content.js`
+  - 新建 `README.md`
+- 更新 `extension/manifest.json`
+  - 注册 `https://aidp.bytedance.com/*` 内容脚本
+- 更新 `extension/shared/constants.js`
+  - 注册 beta 平台 `bytedanceAidp`
+  - 注册 beta 脚本 `bytedanceAidpSuzhouHelper`
+  - 增加默认平台设置与运行时可达性判断
+- 更新 `extension/shared/storage.js`
+  - 增加 `platforms.bytedanceAidp.scripts.suzhouHelper` 默认设置
+  - 接入脚本启停保存
+  - 持久化基础开关 `platformAiEnabled`
+- 更新 `extension/options/options.html`
+  - 新增 ByteDance AIDP 苏州话脚本基础设置面板
+- 更新 `extension/options/options.js`
+  - 新增 `开关平台AI功能` 的读取、回填、保存与状态展示
+- 更新 `extension/popup/popup.js`
+  - 新增 ByteDance AIDP 路由识别与脚本状态说明
+- 新增 / 更新测试：
+  - `extension/shared/constants.release.test.js`
+  - `extension/shared/storage.bytedance-aidp.test.js`
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+- 同步更新：
+  - `extension/README.md`
+  - `docs/platforms-index.md`
+  - `platform-resources/bytedance-aidp/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+
 ## 2026-07-01（补细 ByteDance AIDP 苏州话详情页结构）
 - 更新 `platform-resources/bytedance-aidp/suzhou-helper/README.md`
   - 补充计划中的基础设置项 `开关平台AI功能`

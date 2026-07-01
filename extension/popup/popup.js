@@ -13,6 +13,10 @@
     (constants.DATA_BAKER_CVPC_PLATFORM || {}).host || "cvpc.data-baker.com";
   const dataBakerCvpcLiuzhouScriptId =
     constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID || "dataBakerCvpcLiuzhouAssistant";
+  const bytedanceAidpHost =
+    (constants.BYTEDANCE_AIDP_PLATFORM || {}).host || "aidp.bytedance.com";
+  const bytedanceAidpSuzhouScriptId =
+    constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
   const magicDataHost = "work.magicdatatech.com";
   const magicDataHakkaScriptId =
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
@@ -380,6 +384,74 @@
         title: "当前页面属于 DataBaker CVPC",
         description: "进入 /app/editor/asr/ 后，才会触发柳州话脚本 beta 运行时。",
       };
+    }
+
+    if (url.hostname === bytedanceAidpHost) {
+      const scriptVisible =
+        typeof constants.isScriptVisible === "function"
+          ? constants.isScriptVisible(bytedanceAidpSuzhouScriptId, settings || {})
+          : true;
+      const scriptRuntimeAccessible =
+        typeof constants.isScriptRuntimeAccessible === "function"
+          ? constants.isScriptRuntimeAccessible(bytedanceAidpSuzhouScriptId, settings || {})
+          : true;
+      if (!scriptVisible) {
+        return {
+          scriptId: null,
+          platformId: null,
+          url: url,
+          statusText: "未触发",
+          statusTone: "pending",
+          title: "当前页面未命中已启用脚本",
+          description: "当前 beta 平台或脚本尚未解锁。",
+        };
+      }
+      const pathname = String(url.pathname || "").toLowerCase();
+      const isDetailPage = /^\/management\/task-v2\/[^/]+\/mark-v3\/[^/]+\/?$/.test(pathname);
+      const platformEnabled = settings?.platforms?.bytedanceAidp?.enabled !== false;
+      const scriptConfig = settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+      const scriptEnabled = scriptConfig.enabled !== false;
+      const platformAiEnabled = scriptConfig.platformAiEnabled !== false;
+      const enabled = platformEnabled && scriptEnabled && scriptRuntimeAccessible;
+
+      if (isDetailPage) {
+        return {
+          scriptId: bytedanceAidpSuzhouScriptId,
+          platformId: "bytedanceAidp",
+          platformLabel: "ByteDance AIDP",
+          url: url,
+          platformEnabled: platformEnabled,
+          scriptEnabled: scriptEnabled,
+          statusText: !enabled
+            ? "未启用"
+            : platformAiEnabled
+              ? "已支持 Beta"
+              : "已支持 Beta（平台 AI 已关闭）",
+          statusTone: !enabled ? "disabled" : platformAiEnabled ? "success" : "pending",
+          title: "当前页面命中 ByteDance AIDP mark-v3 详情页",
+          description: enabled
+            ? platformAiEnabled
+              ? "当前页会按设置保留平台原生 AI 板块；关闭后会隐藏 AI 洞察与猫形浮动入口，不改任务列表、波形区、保留/丢弃和分段表格。"
+              : "当前页会隐藏平台原生 AI 洞察与猫形浮动入口；不调用 AI、不自动保存、不自动提交。"
+            : "当前 URL 已命中 mark-v3 详情页，但平台脚本未启用或尚未解锁 beta。",
+        };
+      }
+
+      if (pathname.indexOf("/management/task-v2") === 0) {
+        return {
+          scriptId: bytedanceAidpSuzhouScriptId,
+          platformId: "bytedanceAidp",
+          platformLabel: "ByteDance AIDP",
+          url: url,
+          platformEnabled: platformEnabled,
+          scriptEnabled: scriptEnabled,
+          statusText: enabled ? "待进入详情页" : "未启用",
+          statusTone: enabled ? "pending" : "disabled",
+          title: "当前页面属于 ByteDance AIDP 任务页",
+          description:
+            "进入 /management/task-v2/{taskId}/mark-v3/{index} 后，才会触发苏州话脚本 beta 运行时。",
+        };
+      }
     }
 
     if (url.hostname === aishellTechHost) {

@@ -67,6 +67,8 @@ sites/
     round-one-quality/
   data-baker-cvpc/
     liuzhou-helper/
+  bytedance-aidp/
+    suzhou-helper/
   magic-data/
     shared/
     hakka-helper/
@@ -86,6 +88,8 @@ sites/
   - 标贝易采闽南语助手
 - `data-baker-cvpc/liuzhou-helper/`
   - CVPC 柳州话助手
+- `bytedance-aidp/suzhou-helper/`
+  - ByteDance AIDP 苏州话脚本
 - `magic-data/hakka-helper/`
   - Magic Data 客家话助手
 - `magic-data/minnan-helper/`

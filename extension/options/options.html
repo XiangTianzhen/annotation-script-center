@@ -687,6 +687,53 @@
             <div id="data-baker-cvpc-status" class="status-text"></div>
           </section>
 
+          <section id="detail-bytedance-aidp-suzhou-panel" class="detail-panel detail-panel-base hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>基础设置</strong>
+                <span>当前先只控制平台原生 AI 板块显隐，不接 AI 请求、不改标注表格、不触发保存提交。</span>
+              </div>
+            </div>
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>开关平台AI功能</strong>
+                <span>关闭后隐藏平台原生 AI 洞察面板和猫形浮动入口，不影响任务列表、波形区、保留/丢弃和分段表格。</span>
+                <span class="field-toggle">
+                  <input id="bytedance-aidp-platform-ai-enabled" type="checkbox" />
+                  在 `mark-v3` 详情页显示平台 AI 原生板块
+                </span>
+              </label>
+
+              <div class="field-card">
+                <strong>当前隐藏目标</strong>
+                <span>当前只处理 `.insight-container-Hn0Gna` 与 `.trigger-wrapper-RlG7Dx` 两类平台 AI 板块。</span>
+                <span>页面重渲染后会继续按当前开关补做显隐，不处理其他未确认模块。</span>
+              </div>
+            </div>
+
+            <div class="detail-grid two">
+              <div class="field-card">
+                <strong>写入契约状态</strong>
+                <span id="bytedance-aidp-contract-mode">
+                  仅允许 DOM 显隐控制；不写入平台字段，不触发保存、提交或 AI 请求。
+                </span>
+              </div>
+            </div>
+
+            <div class="field-card">
+              <strong>当前边界</strong>
+              <span>当前不新增快捷键、不新增右侧 AI 面板、不调用统一后端。</span>
+              <span>详情页的核心标注区仍完全保持平台原样，只做平台 AI 板块的可逆隐藏。</span>
+            </div>
+
+            <div class="field-actions">
+              <button id="save-bytedance-aidp-settings" class="primary-button" type="button">
+                保存 ByteDance AIDP 设置
+              </button>
+            </div>
+            <div id="bytedance-aidp-status" class="status-text"></div>
+          </section>
+
           <section id="detail-aishell-tech-minnan-helper-panel" class="detail-panel detail-panel-base hidden">
             <div class="detail-section-head">
               <div>

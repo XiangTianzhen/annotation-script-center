@@ -73,6 +73,8 @@
 ## ByteDance AIDP
 
 - 平台资料总览：`platform-resources/bytedance-aidp/README.md`
+- 运行时代码：`extension/sites/bytedance-aidp/suzhou-helper/`
+- 运行时 README：`extension/sites/bytedance-aidp/suzhou-helper/README.md`
 - 苏州话脚本资料：`platform-resources/bytedance-aidp/suzhou-helper/README.md`
 - 平台共用资料：
   - `platform-resources/bytedance-aidp/network/README.md`

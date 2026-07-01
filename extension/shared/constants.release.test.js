@@ -82,6 +82,14 @@ test("beta build keeps beta platform hidden until unlock", function () {
           },
         },
       },
+      bytedanceAidp: {
+        enabled: true,
+        scripts: {
+          suzhouHelper: {
+            enabled: true,
+          },
+        },
+      },
     },
   };
 
@@ -93,6 +101,11 @@ test("beta build keeps beta platform hidden until unlock", function () {
     constants.isScriptVisible("dataBakerCvpcLiuzhouAssistant", lockedSettings),
     false
   );
+  assert.equal(constants.isPlatformVisible("bytedanceAidp", lockedSettings), false);
+  assert.equal(
+    constants.isScriptVisible("bytedanceAidpSuzhouHelper", lockedSettings),
+    false
+  );
 
   assert.equal(constants.canUseBetaFeatures(unlockedSettings), true);
   assert.equal(constants.isPlatformVisible("lightwheel", unlockedSettings), true);
@@ -100,6 +113,11 @@ test("beta build keeps beta platform hidden until unlock", function () {
   assert.equal(constants.isPlatformVisible("dataBakerCvpc", unlockedSettings), true);
   assert.equal(
     constants.isScriptVisible("dataBakerCvpcLiuzhouAssistant", unlockedSettings),
+    true
+  );
+  assert.equal(constants.isPlatformVisible("bytedanceAidp", unlockedSettings), true);
+  assert.equal(
+    constants.isScriptVisible("bytedanceAidpSuzhouHelper", unlockedSettings),
     true
   );
   assert.equal(constants.getBackendEndpointModeFromSettings(unlockedSettings), "beta");
@@ -143,6 +161,14 @@ test("beta build hides disabled beta script from effective runtime access", func
           },
         },
       },
+      bytedanceAidp: {
+        enabled: false,
+        scripts: {
+          suzhouHelper: {
+            enabled: false,
+          },
+        },
+      },
     },
   };
 
@@ -153,6 +179,12 @@ test("beta build hides disabled beta script from effective runtime access", func
   assert.equal(constants.isScriptVisible("dataBakerCvpcLiuzhouAssistant", settings), true);
   assert.equal(
     constants.isScriptRuntimeAccessible("dataBakerCvpcLiuzhouAssistant", settings),
+    false
+  );
+  assert.equal(constants.isPlatformVisible("bytedanceAidp", settings), true);
+  assert.equal(constants.isScriptVisible("bytedanceAidpSuzhouHelper", settings), true);
+  assert.equal(
+    constants.isScriptRuntimeAccessible("bytedanceAidpSuzhouHelper", settings),
     false
   );
 });

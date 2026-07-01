@@ -41,7 +41,7 @@
   const DATABAKER_AI_REQUEST_STAGGER_MS = 50;
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 23;
+  const SCHEMA_VERSION = 24;
   const RELEASE_CHANNEL_PUBLIC = "public";
   const RELEASE_CHANNEL_BETA = "beta";
   const RELEASE_VISIBILITY_PUBLIC = "public";
@@ -50,6 +50,7 @@
   const LIGHTWHEEL_PLATFORM_ID = "lightwheel";
   const DATA_BAKER_PLATFORM_ID = "dataBaker";
   const DATA_BAKER_CVPC_PLATFORM_ID = "dataBakerCvpc";
+  const BYTEDANCE_AIDP_PLATFORM_ID = "bytedanceAidp";
   const MAGIC_DATA_PLATFORM_ID = "magicData";
   const ABAKA_AI_PLATFORM_ID = "abakaAi";
   const AISHELL_TECH_PLATFORM_ID = "aishellTech";
@@ -58,6 +59,7 @@
   const LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID = "lightwheelViewPanel";
   const DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID = "dataBakerRoundOneQuality";
   const DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
+  const BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID = "bytedanceAidpSuzhouHelper";
   const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
   const MAGIC_DATA_MINNAN_SCRIPT_ID = "magicDataMinnanAssistant";
   const ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID = "abakaAiTaskPageCapture";
@@ -769,6 +771,15 @@
     matches: ["https://cvpc.data-baker.com/*"],
   };
 
+  const BYTEDANCE_AIDP_PLATFORM = {
+    id: "bytedance-aidp",
+    label: "ByteDance AIDP",
+    host: "aidp.bytedance.com",
+    displayHost: "aidp.bytedance.com/management/task-v2",
+    entryUrl: "https://aidp.bytedance.com/management/task-v2?page=1",
+    matches: ["https://aidp.bytedance.com/*"],
+  };
+
   const MAGIC_DATA_PLATFORM = {
     id: "magic-data",
     label: "Magic Data ANNOTATOR",
@@ -1243,6 +1254,17 @@
       runtimeBridge: "data-baker-cvpc-liuzhou-helper",
       description: "CVPC 语音编辑器柳州话脚本 beta 平台。",
     },
+    bytedanceAidp: {
+      id: BYTEDANCE_AIDP_PLATFORM_ID,
+      label: "ByteDance AIDP",
+      host: BYTEDANCE_AIDP_PLATFORM.host,
+      displayHost: BYTEDANCE_AIDP_PLATFORM.displayHost,
+      entryUrl: BYTEDANCE_AIDP_PLATFORM.entryUrl,
+      matches: clone(BYTEDANCE_AIDP_PLATFORM.matches),
+      visibility: RELEASE_VISIBILITY_BETA,
+      runtimeBridge: "bytedance-aidp-suzhou-helper",
+      description: "ByteDance AIDP 苏州话详情页平台 AI 板块控制 beta 平台。",
+    },
     magicData: {
       id: MAGIC_DATA_PLATFORM_ID,
       label: "Magic Data ANNOTATOR",
@@ -1342,6 +1364,23 @@
       host: DATA_BAKER_CVPC_PLATFORM.host,
       matchUrl:
         "https://cvpc.data-baker.com/app/editor/asr/?project_id=...&task_id=...&process_id=...",
+    },
+    bytedanceAidpSuzhouHelper: {
+      id: BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID,
+      platformId: BYTEDANCE_AIDP_PLATFORM_ID,
+      visibility: RELEASE_VISIBILITY_BETA,
+      label: "苏州话脚本",
+      shortLabel: "苏州话脚本",
+      description:
+        "AIDP mark-v3 详情页基础开关：控制平台原生 AI 洞察面板与浮动入口显隐。",
+      note:
+        "当前只隐藏平台原生 AI 板块，不接 AI 请求、不自动保存、不自动提交，也不改动任务列表、波形区、保留/丢弃和分段表格。",
+      capabilityScope: "hide-native-platform-ai-beta",
+      statusLabel: "苏州话脚本 Beta",
+      detailView: "bytedance-aidp-suzhou-helper",
+      host: BYTEDANCE_AIDP_PLATFORM.host,
+      matchUrl:
+        "https://aidp.bytedance.com/management/task-v2/{taskId}/mark-v3/{index}?from_pathname=...&fs=...&templateID=...&templateType=...",
     },
     magicDataAnnotatorAiReview: {
       id: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
@@ -1925,6 +1964,20 @@
     };
   }
 
+  function createDefaultBytedanceAidpPlatformSettings() {
+    return {
+      enabled: true,
+      scripts: {
+        suzhouHelper: {
+          id: BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID,
+          enabled: true,
+          platformAiEnabled: true,
+          contractMode: "dom-guarded",
+        },
+      },
+    };
+  }
+
   const DEFAULT_SETTINGS = {
     stage: STAGE_ID,
     scriptCenter: {
@@ -1994,6 +2047,7 @@
       lightwheel: createDefaultLightwheelPlatformSettings(),
       dataBaker: createDefaultDataBakerPlatformSettings(),
       dataBakerCvpc: createDefaultDataBakerCvpcPlatformSettings(),
+      bytedanceAidp: createDefaultBytedanceAidpPlatformSettings(),
       magicData: {
         enabled: true,
         activeScriptId: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
@@ -2134,6 +2188,13 @@
       );
     }
 
+    if (script.platformId === BYTEDANCE_AIDP_PLATFORM_ID) {
+      return Boolean(
+        settings?.platforms?.bytedanceAidp?.enabled !== false &&
+          settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper?.enabled !== false
+      );
+    }
+
     if (script.platformId === AISHELL_TECH_PLATFORM_ID) {
       const activeScriptId = String(settings?.platforms?.aishellTech?.activeScriptId || "").trim();
       const scriptKey =
@@ -2194,6 +2255,7 @@
     LIGHTWHEEL_PLATFORM: LIGHTWHEEL_PLATFORM,
     DATA_BAKER_PLATFORM: DATA_BAKER_PLATFORM,
     DATA_BAKER_CVPC_PLATFORM: DATA_BAKER_CVPC_PLATFORM,
+    BYTEDANCE_AIDP_PLATFORM: BYTEDANCE_AIDP_PLATFORM,
     MAGIC_DATA_PLATFORM: MAGIC_DATA_PLATFORM,
     ABAKA_AI_PLATFORM: ABAKA_AI_PLATFORM,
     AISHELL_TECH_PLATFORM: AISHELL_TECH_PLATFORM,
@@ -2214,12 +2276,14 @@
     LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID: LIGHTWHEEL_VIEW_PANEL_SCRIPT_ID,
     DATA_BAKER_PLATFORM_ID: DATA_BAKER_PLATFORM_ID,
     DATA_BAKER_CVPC_PLATFORM_ID: DATA_BAKER_CVPC_PLATFORM_ID,
+    BYTEDANCE_AIDP_PLATFORM_ID: BYTEDANCE_AIDP_PLATFORM_ID,
     MAGIC_DATA_PLATFORM_ID: MAGIC_DATA_PLATFORM_ID,
     ABAKA_AI_PLATFORM_ID: ABAKA_AI_PLATFORM_ID,
     AISHELL_TECH_PLATFORM_ID: AISHELL_TECH_PLATFORM_ID,
     DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID: DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID,
     DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID:
       DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID,
+    BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID: BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID,
     MAGIC_DATA_ANNOTATOR_SCRIPT_ID: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
     MAGIC_DATA_MINNAN_SCRIPT_ID: MAGIC_DATA_MINNAN_SCRIPT_ID,
     ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
@@ -2342,6 +2406,7 @@
     DEFAULT_LIGHTWHEEL_PLATFORM_SETTINGS: createDefaultLightwheelPlatformSettings(),
     DEFAULT_DATA_BAKER_PLATFORM_SETTINGS: createDefaultDataBakerPlatformSettings(),
     DEFAULT_DATA_BAKER_CVPC_PLATFORM_SETTINGS: createDefaultDataBakerCvpcPlatformSettings(),
+    DEFAULT_BYTEDANCE_AIDP_PLATFORM_SETTINGS: createDefaultBytedanceAidpPlatformSettings(),
     DEFAULT_ABAKA_AI_PLATFORM_SETTINGS: createDefaultAbakaAiPlatformSettings(),
     DEFAULT_AISHELL_TECH_PLATFORM_SETTINGS: createDefaultAishellTechPlatformSettings(),
     DEFAULT_SETTINGS: clone(DEFAULT_SETTINGS),

@@ -12,6 +12,8 @@
     constants.DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID || "dataBakerRoundOneQuality";
   const dataBakerCvpcLiuzhouScriptId =
     constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID || "dataBakerCvpcLiuzhouAssistant";
+  const bytedanceAidpSuzhouScriptId =
+    constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
   const magicDataAnnotatorScriptId =
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
   const magicDataMinnanScriptId =
@@ -3949,6 +3951,10 @@
     return scriptId === dataBakerCvpcLiuzhouScriptId;
   }
 
+  function isBytedanceAidpScript(scriptId) {
+    return scriptId === bytedanceAidpSuzhouScriptId;
+  }
+
   function isMagicDataScript(scriptId) {
     return scriptId === magicDataAnnotatorScriptId || scriptId === magicDataMinnanScriptId;
   }
@@ -5331,6 +5337,30 @@
     return config;
   }
 
+  function getBytedanceAidpSuzhouConfig(settings) {
+    const defaults =
+      constants.DEFAULT_SETTINGS?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+    const current =
+      settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+
+    const config = Object.assign(
+      {
+        id: bytedanceAidpSuzhouScriptId,
+        enabled: true,
+        platformAiEnabled: true,
+        contractMode: "dom-guarded",
+      },
+      clone(defaults),
+      clone(current)
+    );
+
+    config.id = bytedanceAidpSuzhouScriptId;
+    config.enabled = config.enabled !== false;
+    config.platformAiEnabled = config.platformAiEnabled !== false;
+    config.contractMode = normalizeText(config.contractMode || "dom-guarded") || "dom-guarded";
+    return config;
+  }
+
   function getAishellTechMinnanConfig(settings) {
     const defaults =
       constants.DEFAULT_SETTINGS?.platforms?.aishellTech?.scripts?.minnanHelper || {};
@@ -6073,6 +6103,14 @@
       );
     }
 
+    if (isBytedanceAidpScript(scriptId)) {
+      const config = getBytedanceAidpSuzhouConfig(settings);
+      return Boolean(
+        settings?.platforms?.bytedanceAidp?.enabled !== false &&
+          config.enabled !== false
+      );
+    }
+
     if (isDataBakerScript(scriptId)) {
       const config = getDataBakerRoundOneConfig(settings);
       return Boolean(settings?.platforms?.dataBaker?.enabled !== false && config.enabled !== false);
@@ -6141,6 +6179,16 @@
         return { text: "脚本已启用，AI 推荐已关闭", tone: "pending" };
       }
       return { text: "已启用", tone: "enabled" };
+    }
+
+    if (isBytedanceAidpScript(scriptId)) {
+      const config = getBytedanceAidpSuzhouConfig(settings);
+      if (!isScriptEnabled(settings, scriptId)) {
+        return { text: "未启用", tone: "disabled" };
+      }
+      return config.platformAiEnabled === false
+        ? { text: "脚本已启用，平台 AI 已关闭", tone: "pending" }
+        : { text: "已启用", tone: "enabled" };
     }
 
     if (isDataBakerScript(scriptId)) {
@@ -10751,6 +10799,10 @@
       "hidden",
       scriptId !== dataBakerCvpcLiuzhouScriptId
     );
+    getElement("detail-bytedance-aidp-suzhou-panel").classList.toggle(
+      "hidden",
+      scriptId !== bytedanceAidpSuzhouScriptId
+    );
     getElement("detail-aishell-tech-minnan-helper-panel").classList.toggle(
       "hidden",
       scriptId !== aishellTechMinnanScriptId
@@ -10787,6 +10839,8 @@
           applyDataBakerForm(currentSettings || settings || {});
         } else if (scriptId === dataBakerCvpcLiuzhouScriptId) {
           applyDataBakerCvpcForm(currentSettings || settings || {});
+        } else if (scriptId === bytedanceAidpSuzhouScriptId) {
+          applyBytedanceAidpForm(currentSettings || settings || {});
         } else if (isAishellTechScript(scriptId)) {
           applyAishellTechForm(currentSettings || settings || {}, scriptId);
         } else if (isMagicDataScript(scriptId)) {
@@ -10835,6 +10889,15 @@
       setStatus(
         "data-baker-cvpc-status",
         "当前只支持建议生成 + 人工确认；不会自动保存、提交或切下一条，真实画段写入契约仍待补采。"
+      );
+      return;
+    }
+
+    if (scriptId === bytedanceAidpSuzhouScriptId) {
+      applyBytedanceAidpForm(settings);
+      setStatus(
+        "bytedance-aidp-status",
+        "当前只提供“开关平台AI功能”基础开关：关闭后隐藏平台原生 AI 洞察面板与猫形浮动入口，不处理 AI 请求、保存、提交或分段表格写入。"
       );
       return;
     }
@@ -11027,6 +11090,22 @@
           : String(config.contractMode || "dom-guarded");
     }
     renderDataBakerCvpcShortcutGrid();
+  }
+
+  function applyBytedanceAidpForm(settings) {
+    const config = getBytedanceAidpSuzhouConfig(settings);
+    const platformAiNode = getElement("bytedance-aidp-platform-ai-enabled");
+    const contractNode = getElement("bytedance-aidp-contract-mode");
+
+    if (platformAiNode) {
+      platformAiNode.checked = config.platformAiEnabled !== false;
+    }
+    if (contractNode) {
+      contractNode.textContent =
+        config.contractMode === "dom-guarded"
+          ? "仅允许 DOM 显隐控制；不写入平台字段，不触发保存、提交或 AI 请求。"
+          : String(config.contractMode || "dom-guarded");
+    }
   }
 
   function applyAishellTechMinnanForm(settings) {
@@ -11515,6 +11594,44 @@
     } catch (error) {
       setStatus(
         "data-baker-cvpc-status",
+        "保存失败：" + (error && error.message ? error.message : String(error))
+      );
+      return false;
+    }
+  }
+
+  async function saveBytedanceAidpSettings() {
+    if (!storage || typeof storage.patchSettings !== "function") {
+      setStatus("bytedance-aidp-status", "当前扩展版本不支持保存 ByteDance AIDP 设置。");
+      return false;
+    }
+
+    setStatus("bytedance-aidp-status", "正在保存 ByteDance AIDP 设置...");
+
+    try {
+      currentSettings = await storage.patchSettings({
+        platforms: {
+          bytedanceAidp: {
+            scripts: {
+              suzhouHelper: {
+                id: bytedanceAidpSuzhouScriptId,
+                platformAiEnabled:
+                  getElement("bytedance-aidp-platform-ai-enabled").checked,
+                contractMode: "dom-guarded",
+              },
+            },
+          },
+        },
+      });
+      applyBytedanceAidpForm(currentSettings);
+      setStatus(
+        "bytedance-aidp-status",
+        "ByteDance AIDP 设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。"
+      );
+      return true;
+    } catch (error) {
+      setStatus(
+        "bytedance-aidp-status",
         "保存失败：" + (error && error.message ? error.message : String(error))
       );
       return false;
@@ -12416,6 +12533,12 @@
     if (saveDataBakerCvpcSettingsButton) {
       saveDataBakerCvpcSettingsButton.addEventListener("click", function () {
         void saveDataBakerCvpcSettings();
+      });
+    }
+    const saveBytedanceAidpSettingsButton = getElement("save-bytedance-aidp-settings");
+    if (saveBytedanceAidpSettingsButton) {
+      saveBytedanceAidpSettingsButton.addEventListener("click", function () {
+        void saveBytedanceAidpSettings();
       });
     }
     const dataBakerCvpcSegmentThresholdUnitNode = getElement(

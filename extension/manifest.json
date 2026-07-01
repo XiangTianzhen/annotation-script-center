@@ -259,6 +259,20 @@
     },
     {
       "matches": [
+        "https://aidp.bytedance.com/*"
+      ],
+      "js": [
+        "shared/build-meta.js",
+        "shared/constants.js",
+        "shared/storage.js",
+        "sites/bytedance-aidp/suzhou-helper/content.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
         "https://mark.aishelltech.com/*"
       ],
       "js": [
