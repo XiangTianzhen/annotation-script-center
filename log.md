@@ -1,3 +1,17 @@
+## 2026-07-01（补细 ByteDance AIDP 苏州话详情页结构）
+- 更新 `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+  - 补充计划中的基础设置项 `开关平台AI功能`
+  - 明确两个可隐藏平台 AI 板块：
+    - `.trigger-wrapper-RlG7Dx`
+    - `.insight-container-Hn0Gna`
+  - 补充详情页四类关键工作区块：左侧任务列表、波形区、`是否保留` 单选区、分段表格区
+- 更新 `platform-resources/bytedance-aidp/suzhou-helper/page-structure/README.md`
+  - 收口当前覆盖面为“关键工作区块 + 可隐藏平台 AI 板块”
+- 更新 `platform-resources/bytedance-aidp/suzhou-helper/page-structure/01-mark-v3-detail.md`
+  - 将详情页从泛化骨架补细为可执行的页面分区说明
+  - 同步记录截图中确认的顶部动作区、任务列表区、波形区、`是否保留` 单选区和分段表格区
+  - 明确后续 `开关平台AI功能` 只应隐藏平台 AI 板块，不应影响核心标注工作区
+
 ## 2026-07-01（初始化 ByteDance AIDP 苏州话平台资料）
 - 新增平台资料目录：
   - `platform-resources/bytedance-aidp/`
