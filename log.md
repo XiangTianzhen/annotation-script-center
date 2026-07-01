@@ -1,3 +1,35 @@
+## 2026-07-01（接入客家话运行时主词表并收口最终建议正字）
+- 新增运行时主词表：
+  - `platform-resources/magic-data/hakka-helper/backend/lexicon/hakka-lexicon.json`
+  - 由用户上传的多段客家话 JSON 物化拼接为运行时主文件
+  - 继续复用 `platform-resources/backend/business-lexicon.js` 做 schema 校验
+- 调整 `platform-resources/magic-data/hakka-helper/backend/ai-lexicon.js`
+  - 客家话词表状态补齐 `entries + rows` 运行时缓存
+  - 新增只作用于最终建议文本的 `exact` 正字归一化
+  - 正字归一化优先使用词表精确命中，其次使用少量高频兜底映射
+  - 新增普通话按词表转客家话 helper，供 `mandarin_to_dialect` 识别转换链路复用
+- 调整 `platform-resources/magic-data/hakka-helper/backend/ai-routes.js`
+  - `mandarin_to_dialect` 当前真正接入“普通话识别 -> 词表转客家话 -> 三项质检”
+  - 最终客家话建议文本只对以下字段做正字归一化：
+    - `dialectTextCheck.suggestedValue`
+    - `recommendations.dialectText`
+    - `recognitionConvert.convertedDialectText`
+  - `audioCheck.heardDialectText` 继续保留听音证据原文，不参与正字归一化
+  - `data.lexicon.rewriteMode` 默认收口为 `exact`
+- 调整 `platform-resources/magic-data/hakka-helper/backend/ai-client-qwen.js`
+  - `LEXICON_REWRITE_MODE` 默认值改为 `exact`
+  - `PIPELINE_MODE` 保留原始识别策略语义，避免 `recognition_convert` 被错误收口回 `two_stage`
+- 调整 `platform-resources/magic-data/hakka-helper/backend/ai-response-schema.js`
+  - 听音归一结果补齐 `recognizedMandarinText`
+- 新增 / 更新测试：
+  - `platform-resources/magic-data/hakka-helper/backend/ai-lexicon.test.js`
+  - `platform-resources/magic-data/hakka-helper/backend/ai-routes.test.js`
+- 同步更新：
+  - `extension/sites/magic-data/hakka-helper/README.md`
+  - `platform-resources/magic-data/hakka-helper/README.md`
+  - `platform-resources/magic-data/hakka-helper/backend/README.md`
+  - `platform-resources/magic-data/hakka-helper/backend/lexicon/README.md`
+
 ## 2026-07-01（接入 ByteDance AIDP 苏州话最小运行时）
 - 新增 `extension/sites/bytedance-aidp/suzhou-helper/`
   - 新建 `content.js`

@@ -37,6 +37,8 @@
   - 审核页（`#/asrmarkCheck`）文本可编辑时，行内建议支持 `填入本行`；`全部填入AI推荐` 在审核页仅填文本项，不填说话人，不自动保存/提交。
 - - 改为通过 AI prompt 约束普通中文输出简体，结果区与行内建议不再依赖本地后端二次繁转简。
   - 命中客家话词表 `语料统一用字` 时继续保留对应写法。
+- - `mandarin_to_dialect` 当前已真实接入“先普通话识别，再按词表转客家话”的后端链路。
+  - 前端会继续收到兼容原结构的 `recognitionConvert`，其中 `convertedDialectText` 已是后端最终正字归一化后的客家话建议文本。
 - - `review-current/jobs/:jobId` 成功态当前返回 `data.success + data.data` 双层结构。
   - 前端 client 当前已在 Job 轮询分支优先解包到真正的质检结果对象，避免新版面板把外层成功响应误当成结果。
   - 该热修用于修复“AI 质检当前条”完成后右侧结果区误显示“无法判断 / 摘要 -”的问题。
@@ -73,7 +75,12 @@
   - `recommendations`
   - `audioCheck`
 - 客家话后端已按闽南语后端结构补齐上述字段，并保留 legacy `listen/comparison/verdict` 兼容字段。
-- 前端直接展示后端返回的 AI 文本；简繁控制由模型 prompt 负责，不再在本地链路做额外繁简兜底。
+- 前端直接展示后端返回的 AI 文本；普通中文简体约束继续由模型 prompt 负责。
+- 客家话最终建议文本当前会由后端做 `exact` 正字归一化，只影响：
+  - `dialectTextCheck.suggestedValue`
+  - `recommendations.dialectText`
+  - `recognitionConvert.convertedDialectText`
+- `audioCheck.heardDialectText` 继续保留听音证据原文，不参与正字归一化。
 
 ## 行为边界
 

@@ -15,6 +15,7 @@
 - `backend/lexicon/hakka-lexicon.csv`：客家话词表参考源。
 - `backend/lexicon/客家话-正字表.xlsx`：词表原始来源文件（可选）。
 - `backend/tools/convert-hakka-lexicon.js`：词表转换脚本。
+- `backend/lexicon/hakka-lexicon.json` 当前已作为运行时主词表接入，继续复用统一 `business-lexicon` schema 校验。
 - 运行时缺少 `hakka-lexicon.json` 但本地 `hakka-lexicon.csv` 仍存在时，页面会在右下角弹出一次“没有字词对应表”提示，停留约 1 秒后自动消失；复核链路继续按无词表模式返回，不回退成 CSV 主读取。
 - `network/.gitkeep`：当前无助手专属 Network 差异；共用结构见平台根目录 `network/`。
 - `page-structure/.gitkeep`：当前无助手专属页面结构差异；共用结构见平台根目录 `page-structure/`。
@@ -67,6 +68,11 @@
   - 文本可编辑时支持行内 `填入本行`；审核页 `全部填入AI推荐` 仅填文本项，不自动保存/提交，也不自动点击合格/不合格。
 - 当前改为通过 `backend/ai-prompts.js` 约束所有普通中文字段输出简体，禁止输出普通繁体字。
   - 命中客家话词表统一用字时保留词表写法；未命中词表时不再依赖本地后端结果二次繁转简。
+- 客家话后端当前新增“最终建议文本 exact 正字归一化”：
+  - 只作用于 `dialectTextCheck.suggestedValue`、`recommendations.dialectText`、`recognitionConvert.convertedDialectText`
+  - `audioCheck.heardDialectText` 保持听音证据原样，不参与归一化
+  - 归一化来源优先使用 `hakka-lexicon.json` 精确命中规则，代码内仅保留少量高频错字兜底
+- `mandarin_to_dialect` 当前已真实走“普通话识别 -> 按词表转客家话 -> 三项质检”的后端链路，不再只是前端配置项。
 - `page-world/network-observer.js` 已同时桥接 `annotateDetailInfo` 与 `annotateHeaderInfo`；
   - `data-collector.js` 新增 header cache、`waitForAsrmarkReady()` 与提交按钮可点击判定；
   - `content.js` 新增页内可中断自动状态机，仅在 `#/asrmark` 启用，默认关闭，失败立即停机；
@@ -84,6 +90,7 @@
   - `audioCheck.heardDialectText/heardMandarinMeaning`
 - 当模型未返回完整结构时，后端会按平台文本和听音结果做兜底，避免前端全部显示为空。
 - `rawAiDebug/rawModelText/rawJson` 返回前会做脱敏，不输出 token/cookie/完整签名 URL。
+- `data.lexicon.rewriteMode` 当前默认返回 `exact`，用于前端展示当前正字归一化模式。
 
 ## 客家话模型评测结论（50条样本）
 

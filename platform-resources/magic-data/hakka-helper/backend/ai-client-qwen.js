@@ -219,8 +219,12 @@ function getClientConfig() {
   const baseUrl = trimSlash(process.env.DASHSCOPE_BASE_URL || DEFAULT_BASE_URL);
   const listenModel = sanitizeModelName(readProfileEnv("LISTEN_MODEL", ""), DEFAULT_LISTEN_MODEL);
   const compareModel = sanitizeModelName(readProfileEnv("COMPARE_MODEL", ""), DEFAULT_COMPARE_MODEL);
-  const pipelineMode = String(readProfileEnv("PIPELINE_MODE", "two_stage") || "two_stage").trim();
-  const lexiconRewriteMode = String(readProfileEnv("LEXICON_REWRITE_MODE", "off") || "off").trim();
+  const pipelineMode = String(readProfileEnv("PIPELINE_MODE", "two_stage") || "two_stage")
+    .trim()
+    .toLowerCase();
+  const lexiconRewriteMode = String(readProfileEnv("LEXICON_REWRITE_MODE", "exact") || "exact")
+    .trim()
+    .toLowerCase();
   const allowClientModelOverride = parseBooleanProfileEnv("ALLOW_CLIENT_MODEL_OVERRIDE", true);
   const enableThinkingDefault = parseEnableThinkingDefault();
   return {
@@ -231,8 +235,8 @@ function getClientConfig() {
     timeoutMs: parseTimeoutMs(),
     mockEnabled: isMockEnabled(),
     hasApiKey: Boolean(apiKey),
-    pipelineMode: pipelineMode === "listen_only" ? "listen_only" : "two_stage",
-    lexiconRewriteMode: lexiconRewriteMode || "off",
+    pipelineMode: pipelineMode || "two_stage",
+    lexiconRewriteMode: lexiconRewriteMode || "exact",
     allowClientModelOverride,
     enableThinkingDefault,
   };

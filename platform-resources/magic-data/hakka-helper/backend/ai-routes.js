@@ -23,7 +23,12 @@ const {
 } = require("./ai-client-qwen");
 const { getLogDir } = require("./ai-call-log");
 const { estimateIncome } = require("./ai-cost");
-const { buildLexiconContext, getLexiconState } = require("./ai-lexicon");
+const {
+  buildLexiconContext,
+  convertMandarinToDialectByLexicon,
+  getLexiconState,
+  normalizeFinalSuggestionText,
+} = require("./ai-lexicon");
 const {
   SCRIPT_ID,
   deriveLegacyRecognitionMode,
@@ -34,6 +39,8 @@ const {
 const {
   buildComparePrompt,
   buildListenPrompt,
+  buildRecognitionConvertComparePrompt,
+  buildRecognitionConvertListenPrompt,
   DEFAULT_COMPARE_TEMPLATE,
   DEFAULT_LISTEN_TEMPLATE,
   RULE_VERSION,
@@ -254,7 +261,54 @@ function buildHealthResponse() {
 function buildReviewLexiconMeta(baseLexicon, rewriteMode) {
   const source = baseLexicon && typeof baseLexicon === "object" ? baseLexicon : {};
   return Object.assign({}, source, {
-    rewriteMode: sanitizeModelName(rewriteMode) || "off",
+    rewriteMode: sanitizeModelName(rewriteMode) || "exact",
+  });
+}
+
+function applyFinalDialectNormalizationToResponseData(responseData, options) {
+  const source = responseData && typeof responseData === "object" ? responseData : {};
+  const rewriteMode = sanitizeModelName(options?.rewriteMode, "exact") || "exact";
+  const dialectTextCheck =
+    source.dialectTextCheck && typeof source.dialectTextCheck === "object"
+      ? Object.assign({}, source.dialectTextCheck)
+      : source.dialectTextCheck;
+  const recommendations =
+    source.recommendations && typeof source.recommendations === "object"
+      ? Object.assign({}, source.recommendations)
+      : source.recommendations;
+  const recognitionConvert =
+    source.recognitionConvert && typeof source.recognitionConvert === "object"
+      ? Object.assign({}, source.recognitionConvert)
+      : source.recognitionConvert;
+
+  if (dialectTextCheck && typeof dialectTextCheck === "object") {
+    dialectTextCheck.suggestedValue = normalizeFinalSuggestionText(
+      dialectTextCheck.suggestedValue,
+      { mode: rewriteMode }
+    );
+  }
+  if (recommendations && typeof recommendations === "object") {
+    recommendations.dialectText = normalizeFinalSuggestionText(recommendations.dialectText, {
+      mode: rewriteMode,
+    });
+  }
+  if (
+    recognitionConvert &&
+    typeof recognitionConvert === "object" &&
+    normalizeText(recognitionConvert.recognitionStrategy) === "mandarin_to_dialect"
+  ) {
+    recognitionConvert.convertedDialectText = normalizeFinalSuggestionText(
+      recognitionConvert.convertedDialectText,
+      {
+        mode: rewriteMode,
+      }
+    );
+  }
+
+  return Object.assign({}, source, {
+    dialectTextCheck,
+    recommendations,
+    recognitionConvert,
   });
 }
 
@@ -286,13 +340,18 @@ async function reviewCurrent(body, requestId) {
       config.compareModel || DEFAULT_COMPARE_MODEL,
       config
     );
+    const isRecognitionConvert =
+      reviewRequest.recognitionStrategy === "mandarin_to_dialect" ||
+      reviewRequest.recognitionMode === "recognition_convert";
 
     const beforeListenLexicon = buildLexiconContext({
       platformDialectText: reviewRequest.platformDialectText,
       platformMandarinText: reviewRequest.platformMandarinText,
       heardDialectText: "",
     });
-    const listenPrompt = buildListenPrompt(reviewRequest, beforeListenLexicon);
+    const listenPrompt = isRecognitionConvert
+      ? buildRecognitionConvertListenPrompt(reviewRequest, beforeListenLexicon)
+      : buildListenPrompt(reviewRequest, beforeListenLexicon);
 
     const listenStartedAt = Date.now();
     const listenResult = await runQueuedModelTask(listenModel, function () {
@@ -307,23 +366,59 @@ async function reviewCurrent(body, requestId) {
 
     const listenJson = parseModelJsonText(listenResult.rawText, requestId);
     const listen = normalizeListenResponse(listenJson);
+    const recognizedMandarinText = isRecognitionConvert
+      ? normalizeText(listen.recognizedMandarinText || listen.heardMandarinMeaning || "")
+      : "";
 
     const lexiconContext = buildLexiconContext({
       platformDialectText: reviewRequest.platformDialectText,
       platformMandarinText: reviewRequest.platformMandarinText,
-      heardDialectText: listen.heardDialectText,
+      heardDialectText: isRecognitionConvert ? recognizedMandarinText : listen.heardDialectText,
     });
+    const conversionContext = isRecognitionConvert
+      ? convertMandarinToDialectByLexicon(recognizedMandarinText, {
+          platformDialectText: reviewRequest.platformDialectText,
+          lexiconState: getLexiconState(),
+          rewriteMode: config.lexiconRewriteMode,
+        })
+      : null;
 
-    const comparePrompt = buildComparePrompt(reviewRequest, listen, lexiconContext);
+    const comparePrompt = isRecognitionConvert
+      ? buildRecognitionConvertComparePrompt(reviewRequest, {
+          recognizedMandarinText,
+          convertedDialectText: conversionContext?.convertedDialectText || "",
+          listenEvidence: {
+            heardDialectText: listen.heardDialectText,
+            heardMandarinMeaning: recognizedMandarinText || listen.heardMandarinMeaning,
+            isValidAudio: listen.isValidAudio,
+            validityDecision: listen.validityDecision,
+            riskFlags: listen.riskFlags,
+            genderGuess: listen.genderGuess,
+            ageRangeGuess: listen.ageRangeGuess,
+            confidence: listen.confidence,
+          },
+          lexiconMatches: conversionContext?.lexiconMatches || [],
+          lexiconContext,
+        })
+      : buildComparePrompt(reviewRequest, listen, lexiconContext);
     const compareStartedAt = Date.now();
     const compareResult = await runQueuedModelTask(reviewModel, function () {
       return requestCompare(
-        {
-          platformDialectText: reviewRequest.platformDialectText,
-          platformMandarinText: reviewRequest.platformMandarinText,
-          heardDialectText: listen.heardDialectText,
-          heardMandarinMeaning: listen.heardMandarinMeaning,
-        },
+        isRecognitionConvert
+          ? {
+              platformDialectText: reviewRequest.platformDialectText,
+              platformMandarinText: reviewRequest.platformMandarinText,
+              heardDialectText: listen.heardDialectText,
+              heardMandarinMeaning: recognizedMandarinText || listen.heardMandarinMeaning,
+              recognizedMandarinText,
+              convertedDialectText: conversionContext?.convertedDialectText || "",
+            }
+          : {
+              platformDialectText: reviewRequest.platformDialectText,
+              platformMandarinText: reviewRequest.platformMandarinText,
+              heardDialectText: listen.heardDialectText,
+              heardMandarinMeaning: listen.heardMandarinMeaning,
+            },
         comparePrompt,
         {
           timeoutMs: config.timeoutMs,
@@ -339,7 +434,13 @@ async function reviewCurrent(body, requestId) {
     const normalizedResult =
       reviewRequest.modelMode === "omni_single"
         ? normalizeOmniSingleComparison(compareJson, reviewRequest)
-        : normalizeRuleFirstComparison(compareJson, reviewRequest, listen);
+        : normalizeRuleFirstComparison(
+            compareJson,
+            reviewRequest,
+            Object.assign({}, listen, {
+              heardMandarinMeaning: recognizedMandarinText || listen.heardMandarinMeaning,
+            })
+          );
 
     if (!listen.isValidAudio) {
       normalizedResult.reviewConclusion = "risky";
@@ -369,34 +470,43 @@ async function reviewCurrent(body, requestId) {
 
     const showHeardText = reviewRequest.showHeardText !== false;
     const heardDialectText = showHeardText ? listen.heardDialectText : "";
-    const heardMandarinMeaning = showHeardText ? listen.heardMandarinMeaning : "";
+    const heardMandarinMeaning = showHeardText
+      ? isRecognitionConvert
+        ? recognizedMandarinText || listen.heardMandarinMeaning
+        : listen.heardMandarinMeaning
+      : "";
 
     const speakerCheck = normalizedResult?.speakerCheck || {};
     const dialectTextCheck = normalizedResult?.dialectTextCheck || {};
     const mandarinTextCheck = normalizedResult?.mandarinTextCheck || {};
     const overall = normalizedResult?.overall || {};
     const recognitionConvertMeta =
-      reviewRequest.recognitionStrategy === "mandarin_to_dialect" ||
-      reviewRequest.recognitionMode === "recognition_convert"
+      isRecognitionConvert
         ? {
             recognizedMandarinText: normalizeText(
-              compareJson?.recognizedMandarinText || listen?.heardMandarinMeaning || ""
+              compareJson?.recognizedMandarinText ||
+                recognizedMandarinText ||
+                listen?.heardMandarinMeaning ||
+                ""
             ),
             convertedDialectText: normalizeText(
               compareJson?.convertedDialectText ||
                 normalizedResult?.recommendations?.dialectText ||
+                conversionContext?.convertedDialectText ||
                 ""
             ),
-            lexiconMatches: Array.isArray(compareJson?.lexiconMatches) ? compareJson.lexiconMatches : [],
+            lexiconMatches: Array.isArray(compareJson?.lexiconMatches)
+              ? compareJson.lexiconMatches
+              : conversionContext?.lexiconMatches || [],
             conversionWarnings: Array.isArray(compareJson?.conversionWarnings)
               ? compareJson.conversionWarnings
-              : [],
+              : conversionContext?.conversionWarnings || [],
           }
         : null;
     const normalizedSummary = normalizeText(
       overall.summary || normalizedResult?.recommendations?.summary || ""
     );
-    const responseData = {
+    const responseData = applyFinalDialectNormalizationToResponseData({
       requestId,
       service: SERVICE_NAME,
       scriptId: SCRIPT_ID,
@@ -501,7 +611,7 @@ async function reviewCurrent(body, requestId) {
         recognitionMode: reviewRequest.recognitionMode,
         derivedPipelineMode:
           reviewRequest.modelMode === "omni_single" ? "omni_single" : "qwen_omni_compare",
-        recognizedMandarinText: recognitionConvertMeta?.recognizedMandarinText || "",
+        recognizedMandarinText: recognitionConvertMeta?.recognizedMandarinText || recognizedMandarinText || "",
         convertedDialectText: recognitionConvertMeta?.convertedDialectText || "",
         lexiconMatches: recognitionConvertMeta?.lexiconMatches || [],
         conversionWarnings: recognitionConvertMeta?.conversionWarnings || [],
@@ -541,7 +651,9 @@ async function reviewCurrent(body, requestId) {
         lexiconIssues: normalizedResult.legacyComparison.lexiconIssues,
         ruleIssues: normalizedResult.legacyComparison.ruleIssues,
       },
-    };
+    }, {
+      rewriteMode: config.lexiconRewriteMode,
+    });
 
     return {
       data: responseData,
@@ -755,6 +867,7 @@ module.exports = {
   reviewCurrent,
   registerAiRoutes,
   __test__: {
+    applyFinalDialectNormalizationToResponseData,
     buildReviewLexiconMeta,
   },
 };

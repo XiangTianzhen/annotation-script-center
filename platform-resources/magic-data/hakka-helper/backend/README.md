@@ -21,6 +21,11 @@
   - 成功：`success + data`
   - 失败：`success + requestId + code + message (+ summary)`
 - 成功体 `data.lexicon` 当前继续返回 `enabled / status / matchedCount / matches`，并新增 `rewriteMode`，用于前端统一展示 `词表状态与模式`。
+- `data.lexicon.rewriteMode` 当前默认返回 `exact`。
+- `mandarin_to_dialect` 当前已真正接入识别转换链路：
+  - 听音阶段先输出普通话识别文本
+  - 比较阶段会携带词表转换出的客家话候选
+  - 响应中 `recognitionConvert.convertedDialectText` 为最终正字归一化后的客家话建议
 - `health/defaults` 当前已补齐公共 jobs / runtime 元信息：默认链路为 `POST /jobs` + 轮询 `GET /jobs/:jobId`，并附带共享模型池默认策略。
 
 ## AI 调用日志与统计
@@ -37,6 +42,12 @@
 
 - `./lexicon/hakka-lexicon.json`
 - `./lexicon/hakka-lexicon.csv`（参考源）
+- `hakka-lexicon.json` 为运行时主词表，继续复用 `platform-resources/backend/business-lexicon.js` 校验。
+- 客家话最终建议文本当前只对以下字段做 `exact` 正字归一化：
+  - `dialectTextCheck.suggestedValue`
+  - `recommendations.dialectText`
+  - `recognitionConvert.convertedDialectText`（仅 `mandarin_to_dialect`）
+- `audioCheck.heardDialectText` 保持听音证据原样，不参与正字归一化。
 
 ## 配置（优先级：HAKKA 前缀 > 旧通用前缀）
 
@@ -46,6 +57,7 @@
 - `MAGIC_DATA_HAKKA_AI_ENABLE_THINKING`（fallback: `MAGIC_DATA_AI_ENABLE_THINKING`）
 - `MAGIC_DATA_HAKKA_AI_MOCK`（fallback: `MAGIC_DATA_AI_MOCK`）
 - `MAGIC_DATA_HAKKA_AI_CALL_LOG_DIR`（fallback: `MAGIC_DATA_AI_CALL_LOG_DIR`）
+- `MAGIC_DATA_HAKKA_AI_LEXICON_REWRITE_MODE`（fallback: `MAGIC_DATA_AI_LEXICON_REWRITE_MODE`，默认 `exact`）
 
 ## 默认配置
 

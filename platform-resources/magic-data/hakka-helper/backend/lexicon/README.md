@@ -9,8 +9,13 @@
 ## 说明
 
 - 后端实际读取 `hakka-lexicon.json`。
-- 第一版是“词表提示模式”，不做强替换。
+- `hakka-lexicon.json` 继续复用统一业务词表 JSON schema：
+  - 顶层字段：`schemaVersion / language / mode / sourceFiles / updatedAt / entries`
+  - 单条字段：`id / normalized / display / mandarin / aliases / notes / tags / attributes`
+- 当前除词表上下文提示外，后端还会把它用于“最终客家话建议文本”的 `exact` 正字归一化。
+- 词条内容默认由用户维护；Codex 本轮只做结构接入、校验、测试和运行时读取，不改词条语义。
 - 如果没有词表文件，后端仍可运行，接口返回 `lexicon.status=missing`。
+- 如果只有 `hakka-lexicon.csv`，当前仍只把 CSV 视为参考源，不回退成 CSV 主读取。
 
 ## 转换方式
 

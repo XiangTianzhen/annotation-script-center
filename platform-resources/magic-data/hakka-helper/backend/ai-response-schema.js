@@ -163,11 +163,17 @@ function normalizePredictionCheck(source, fallback) {
 function normalizeListenResponse(modelJson) {
   const source = modelJson && typeof modelJson === "object" ? modelJson : {};
   const isValidAudio = source.isValidAudio !== false;
+  const recognizedMandarinText = normalizeText(
+    source.recognizedMandarinText ||
+      source.heardMandarinMeaning ||
+      source.mandarinMeaning ||
+      source.meaning ||
+      ""
+  );
   return {
     heardDialectText: normalizeText(source.heardDialectText || source.heardText || source.text || ""),
-    heardMandarinMeaning: normalizeText(
-      source.heardMandarinMeaning || source.mandarinMeaning || source.meaning || ""
-    ),
+    heardMandarinMeaning: recognizedMandarinText,
+    recognizedMandarinText: recognizedMandarinText,
     isValidAudio,
     validityDecision: normalizeValidityDecision(source.validityDecision, isValidAudio),
     invalidReasons: normalizeStringArray(source.invalidReasons, 20),
