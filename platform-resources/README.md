@@ -143,6 +143,15 @@
   - `task17/`
   - `task21/`
 
+### ByteDance AIDP
+
+- 目录：`platform-resources/bytedance-aidp/`
+- 平台共用资料：
+  - `network/README.md`
+  - `page-structure/README.md`
+- 脚本：
+  - `suzhou-helper/`
+
 ### Aishell Tech
 
 - 目录：`platform-resources/aishell-tech/`

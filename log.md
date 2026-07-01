@@ -1,3 +1,21 @@
+## 2026-07-01（初始化 ByteDance AIDP 苏州话平台资料）
+- 新增平台资料目录：
+  - `platform-resources/bytedance-aidp/`
+  - `platform-resources/bytedance-aidp/network/`
+  - `platform-resources/bytedance-aidp/page-structure/`
+- 新增脚本资料目录：
+  - `platform-resources/bytedance-aidp/suzhou-helper/`
+  - `platform-resources/bytedance-aidp/suzhou-helper/network/`
+  - `platform-resources/bytedance-aidp/suzhou-helper/page-structure/`
+- 当前首轮只完成：
+  - 列表首页 `/management/task-v2?page=1` 的公共资料骨架
+  - `mark-v3` 详情页的苏州话脚本资料骨架
+  - 平台与脚本入口同步到 `platform-resources/README.md`、`docs/platforms-index.md`
+- 当前仍保持边界：
+  - 不创建 `extension/sites/bytedance-aidp/`
+  - 不补保存、提交、领取、批量流转写链路
+  - 未能安全确认的请求与 DOM 细节统一留在 `风险 / 未确认项`
+
 ## 2026-07-01（superpowers 过程文档目录收口）
 - 将 `docs/superpowers/` 下现有 `plans/`、`specs/` 文档迁移到仓库根目录 `.superpowers/`
 - 同步更新 `AGENTS.md`，明确后续这类过程文档统一放 `.superpowers/`，不放 `docs/`

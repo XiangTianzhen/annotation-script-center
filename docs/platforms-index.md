@@ -70,6 +70,14 @@
   - `platform-resources/abaka-ai/network/README.md`
   - `platform-resources/abaka-ai/page-structure/README.md`
 
+## ByteDance AIDP
+
+- 平台资料总览：`platform-resources/bytedance-aidp/README.md`
+- 苏州话脚本资料：`platform-resources/bytedance-aidp/suzhou-helper/README.md`
+- 平台共用资料：
+  - `platform-resources/bytedance-aidp/network/README.md`
+  - `platform-resources/bytedance-aidp/page-structure/README.md`
+
 ## Aishell Tech
 
 - 平台资料总览：`platform-resources/aishell-tech/README.md`
