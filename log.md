@@ -1,3 +1,7 @@
+## 2026-07-01（superpowers 过程文档目录收口）
+- 将 `docs/superpowers/` 下现有 `plans/`、`specs/` 文档迁移到仓库根目录 `.superpowers/`
+- 同步更新 `AGENTS.md`，明确后续这类过程文档统一放 `.superpowers/`，不放 `docs/`
+
 ## 2026-06-12（统一 Magic Data 原始输出按钮空状态交互）
 - 调整 `extension/sites/magic-data/hakka-helper/assistant-panel.js`
   - `显示 AI 原始输出` 按钮改为仅在加载中禁用
