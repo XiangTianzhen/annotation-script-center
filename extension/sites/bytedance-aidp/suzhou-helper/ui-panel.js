@@ -44,6 +44,8 @@
       "[" + ROOT_ATTR + "] .status[data-tone='success'] { color: #1d7a36; }",
       "[" + ROOT_ATTR + "] .section { margin-top: 12px; }",
       "[" + ROOT_ATTR + "] .section-title { font-weight: 600; color: #26418b; }",
+      "[" + ROOT_ATTR + "] .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
+      "[" + ROOT_ATTR + "] .section-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .summary-card, [" + ROOT_ATTR + "] .preview-card {",
       "  margin-top: 8px;",
       "  padding: 10px 12px;",
@@ -128,7 +130,30 @@
     let rootNode = null;
     let statusNode = null;
     let summaryNode = null;
+    let summaryCollapseButtonNode = null;
+    let summaryVisibilityButtonNode = null;
     let previewNode = null;
+    let currentAudioCollapsed = true;
+    let currentAudioHidden = false;
+    let cachedAudioContext = null;
+
+    function syncCurrentAudioSectionState() {
+      if (!summaryNode) {
+        return;
+      }
+      summaryNode.style.display = currentAudioHidden || currentAudioCollapsed ? "none" : "";
+      if (summaryCollapseButtonNode) {
+        summaryCollapseButtonNode.style.display = currentAudioHidden ? "none" : "";
+        summaryCollapseButtonNode.textContent = currentAudioCollapsed
+          ? "展开当前音频"
+          : "折叠当前音频";
+      }
+      if (summaryVisibilityButtonNode) {
+        summaryVisibilityButtonNode.textContent = currentAudioHidden
+          ? "显示当前音频"
+          : "隐藏当前音频";
+      }
+    }
 
     function ensureRoot() {
       if (rootNode && rootNode.isConnected) {
@@ -147,12 +172,37 @@
 
       const summarySection = document.createElement("div");
       summarySection.className = "section";
-      summarySection.innerHTML = '<div class="section-title">当前音频</div>';
+      const summaryHead = document.createElement("div");
+      summaryHead.className = "section-head";
+      const summaryTitle = document.createElement("div");
+      summaryTitle.className = "section-title";
+      summaryTitle.textContent = "当前音频";
+      summaryHead.appendChild(summaryTitle);
+      const summaryActions = document.createElement("div");
+      summaryActions.className = "section-actions";
+      summaryCollapseButtonNode = createButton("展开当前音频", false, function () {
+        currentAudioCollapsed = !currentAudioCollapsed;
+        syncCurrentAudioSectionState();
+      });
+      summaryVisibilityButtonNode = createButton("隐藏当前音频", false, function () {
+        if (currentAudioHidden) {
+          currentAudioHidden = false;
+          currentAudioCollapsed = false;
+        } else {
+          currentAudioHidden = true;
+        }
+        syncCurrentAudioSectionState();
+      });
+      summaryActions.appendChild(summaryCollapseButtonNode);
+      summaryActions.appendChild(summaryVisibilityButtonNode);
+      summaryHead.appendChild(summaryActions);
+      summarySection.appendChild(summaryHead);
       summaryNode = document.createElement("div");
       summaryNode.className = "summary-card";
       summaryNode.textContent = "等待页面返回当前条目与分段上下文...";
       summarySection.appendChild(summaryNode);
       rootNode.appendChild(summarySection);
+      syncCurrentAudioSectionState();
 
       const actionSection = document.createElement("div");
       actionSection.className = "section";
@@ -212,9 +262,11 @@
         return;
       }
       const source = context && typeof context === "object" ? context : {};
+      cachedAudioContext = source;
       const audioUrl = normalizeText(source.audioUrl);
       if (!audioUrl) {
         summaryNode.textContent = "当前还没拿到音频地址；请等页面初始化完成，或刷新当前详情页后重试。";
+        syncCurrentAudioSectionState();
         return;
       }
       summaryNode.innerHTML = "";
@@ -254,6 +306,7 @@
         grid.appendChild(unsafeNode);
       }
       summaryNode.appendChild(grid);
+      syncCurrentAudioSectionState();
     }
 
     function renderPreview(preview) {

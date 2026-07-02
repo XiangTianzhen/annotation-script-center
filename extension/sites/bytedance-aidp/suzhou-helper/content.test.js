@@ -617,6 +617,101 @@ test("ByteDance AIDP content applies playback rate and fixed zoom to wave contro
   assert.equal(zoomInput.value, "2");
 });
 
+test("ByteDance AIDP content applies fixed zoom by clicking platform zoom-in button until target is reached", async function () {
+  const contentModule = loadContentModule();
+  let zoomInClicks = 0;
+  const zoomInput = new FakeElement({
+    tagName: "input",
+    attributes: {
+      role: "spinbutton",
+      "aria-valuenow": "1",
+    },
+    value: "1",
+  });
+  const zoomInButton = new FakeElement({
+    className: "zoom-in-button",
+  });
+  zoomInButton.addEventListener("click", function () {
+    zoomInClicks += 1;
+    const nextValue = String(Number(zoomInput.getAttribute("aria-valuenow")) + 1);
+    zoomInput.setAttribute("aria-valuenow", nextValue);
+    zoomInput.value = nextValue;
+  });
+  const zoomOutButton = new FakeElement({
+    className: "zoom-out-button",
+  });
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      children: [
+        new FakeElement({
+          className: "btns-operation",
+          children: [
+            new FakeElement({
+              className: "zoom-control-group",
+              children: [zoomOutButton, zoomInput, zoomInButton],
+            }),
+          ],
+        }),
+      ],
+    }),
+  ]);
+
+  const result = await contentModule.__testOnly.syncWaveZoomControl(root, 3);
+
+  assert.equal(result.confirmed, true);
+  assert.equal(zoomInClicks, 2);
+  assert.equal(zoomInput.getAttribute("aria-valuenow"), "3");
+});
+
+test("ByteDance AIDP content reads wave zoom from aria-valuenow before input value and clicks zoom-out until target is reached", async function () {
+  const contentModule = loadContentModule();
+  let zoomOutClicks = 0;
+  const zoomInput = new FakeElement({
+    tagName: "input",
+    attributes: {
+      role: "spinbutton",
+      "aria-valuenow": "4",
+    },
+    value: "9",
+  });
+  const zoomOutButton = new FakeElement({
+    className: "zoom-out-button",
+  });
+  zoomOutButton.addEventListener("click", function () {
+    zoomOutClicks += 1;
+    const nextValue = String(Number(zoomInput.getAttribute("aria-valuenow")) - 1);
+    zoomInput.setAttribute("aria-valuenow", nextValue);
+    zoomInput.value = nextValue;
+  });
+  const zoomInButton = new FakeElement({
+    className: "zoom-in-button",
+  });
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      children: [
+        new FakeElement({
+          className: "btns-operation",
+          children: [
+            new FakeElement({
+              className: "zoom-control-group",
+              children: [zoomOutButton, zoomInput, zoomInButton],
+            }),
+          ],
+        }),
+      ],
+    }),
+  ]);
+
+  const result = await contentModule.__testOnly.syncWaveZoomControl(root, 2);
+
+  assert.equal(result.confirmed, true);
+  assert.equal(zoomOutClicks, 2);
+  assert.equal(zoomInput.getAttribute("aria-valuenow"), "2");
+  assert.equal(zoomInput.value, "2");
+});
+
 test("ByteDance AIDP content injects clear-segments button into play toolbar", function () {
   const contentModule = loadContentModule();
   let clicked = 0;

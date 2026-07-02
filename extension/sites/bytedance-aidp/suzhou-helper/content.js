@@ -52,6 +52,7 @@
   let routeTimer = null;
   let domSyncTimer = null;
   let helperSyncTimer = null;
+  let waveZoomSyncToken = 0;
   let storageListenerBound = false;
   let helperRuntime = null;
 
@@ -384,6 +385,16 @@
     dispatchControlEvent(node, "change");
     dispatchControlEvent(node, "blur");
     return true;
+  }
+
+  function waitFor(delayMs) {
+    const timeout = Math.max(0, Number(delayMs) || 0);
+    if (timeout <= 0 || typeof setTimeout !== "function") {
+      return Promise.resolve();
+    }
+    return new Promise(function (resolve) {
+      setTimeout(resolve, timeout);
+    });
   }
 
   function invokeClick(node) {
@@ -746,6 +757,155 @@
     );
   }
 
+  function getWaveZoomValue(node) {
+    if (!node) {
+      return null;
+    }
+    const ariaValue = Number(node.getAttribute?.("aria-valuenow"));
+    if (Number.isFinite(ariaValue)) {
+      const normalizedAriaValue = normalizeFixedWaveZoom(ariaValue, NaN);
+      if (Number.isFinite(normalizedAriaValue) && normalizedAriaValue === ariaValue) {
+        return normalizedAriaValue;
+      }
+    }
+    const inputValue = Number(node.value);
+    if (!Number.isFinite(inputValue)) {
+      return null;
+    }
+    const normalizedInputValue = normalizeFixedWaveZoom(inputValue, NaN);
+    return Number.isFinite(normalizedInputValue) && normalizedInputValue === inputValue
+      ? normalizedInputValue
+      : null;
+  }
+
+  function nodeOrDescendantClassIncludes(node, fragment) {
+    const target = normalizeText(fragment).toLowerCase();
+    if (!node || !target) {
+      return false;
+    }
+    if (getClassName(node).toLowerCase().includes(target)) {
+      return true;
+    }
+    return collectDescendantElements(node).some(function (child) {
+      return getClassName(child).toLowerCase().includes(target);
+    });
+  }
+
+  function findWaveZoomButtons(root) {
+    const workbench = findWaveWorkbench(root);
+    if (!workbench) {
+      return {
+        zoomOutButton: null,
+        zoomInButton: null,
+      };
+    }
+    const nodes = collectDescendantElements(workbench);
+    function findButton(fragment) {
+      return (
+        nodes.find(function (node) {
+          return getClassName(node).toLowerCase().includes(fragment);
+        }) ||
+        nodes.find(function (node) {
+          return (
+            nodeOrDescendantClassIncludes(node, fragment) &&
+            !collectDescendantElements(node).some(function (child) {
+              return getClassName(child).toLowerCase().includes(fragment);
+            })
+          );
+        }) ||
+        null
+      );
+    }
+    return {
+      zoomOutButton: findButton("zoom-out"),
+      zoomInButton: findButton("zoom-in"),
+    };
+  }
+
+  async function syncWaveZoomControl(root, targetZoom, options) {
+    const source = options && typeof options === "object" ? options : {};
+    const maxSteps = Number.isFinite(Number(source.maxSteps)) ? Number(source.maxSteps) : 12;
+    const stepDelayMs = Number.isFinite(Number(source.stepDelayMs))
+      ? Number(source.stepDelayMs)
+      : 16;
+    const requestToken = source.requestToken;
+    const zoomNode = findWaveZoomControl(root);
+    const normalizedTarget = normalizeFixedWaveZoom(targetZoom, DEFAULT_FIXED_WAVE_ZOOM);
+    if (!zoomNode) {
+      return {
+        changed: false,
+        confirmed: false,
+        attempts: 0,
+        reason: "missing-control",
+      };
+    }
+    let currentValue = getWaveZoomValue(zoomNode);
+    if (currentValue === normalizedTarget) {
+      return {
+        changed: false,
+        confirmed: true,
+        attempts: 0,
+        reason: "already-matched",
+      };
+    }
+    const controls = findWaveZoomButtons(root);
+    const directionButton =
+      currentValue !== null && currentValue > normalizedTarget
+        ? controls.zoomOutButton
+        : controls.zoomInButton;
+    if (!directionButton) {
+      const changed = setControlValue(zoomNode, normalizedTarget);
+      return {
+        changed: changed,
+        confirmed: false,
+        attempts: 0,
+        reason: changed ? "fallback-write-only" : "fallback-no-change",
+      };
+    }
+    let attempts = 0;
+    while (attempts < maxSteps) {
+      if (
+        requestToken !== undefined &&
+        requestToken !== null &&
+        requestToken !== waveZoomSyncToken
+      ) {
+        return {
+          changed: attempts > 0,
+          confirmed: false,
+          attempts: attempts,
+          reason: "superseded",
+        };
+      }
+      currentValue = getWaveZoomValue(zoomNode);
+      if (currentValue === normalizedTarget) {
+        return {
+          changed: attempts > 0,
+          confirmed: true,
+          attempts: attempts,
+          reason: "reached-target",
+        };
+      }
+      invokeClick(directionButton);
+      attempts += 1;
+      await waitFor(stepDelayMs);
+    }
+    return {
+      changed: attempts > 0,
+      confirmed: getWaveZoomValue(zoomNode) === normalizedTarget,
+      attempts: attempts,
+      reason: "max-steps-reached",
+    };
+  }
+
+  function scheduleWaveZoomSync(root, targetZoom) {
+    const requestToken = waveZoomSyncToken + 1;
+    waveZoomSyncToken = requestToken;
+    void syncWaveZoomControl(root, targetZoom, {
+      requestToken: requestToken,
+    });
+    return requestToken;
+  }
+
   function applyWaveToolSettings(root, config) {
     const source = config && typeof config === "object" ? config : {};
     let changed = false;
@@ -764,10 +924,15 @@
       }
     }
     if (zoomNode) {
-      changed = setControlValue(
-        zoomNode,
-        normalizeFixedWaveZoom(source.fixedWaveZoom, DEFAULT_FIXED_WAVE_ZOOM)
-      ) || changed;
+      const normalizedTargetZoom = normalizeFixedWaveZoom(
+        source.fixedWaveZoom,
+        DEFAULT_FIXED_WAVE_ZOOM
+      );
+      const currentWaveZoomValue = getWaveZoomValue(zoomNode);
+      if (currentWaveZoomValue !== normalizedTargetZoom) {
+        scheduleWaveZoomSync(root, normalizedTargetZoom);
+        changed = true;
+      }
     }
     return changed;
   }
@@ -1284,6 +1449,7 @@
       getFloatingAssistantScore: getFloatingAssistantScore,
       resolveHelperConfig: resolveHelperConfig,
       applyWaveToolSettings: applyWaveToolSettings,
+      syncWaveZoomControl: syncWaveZoomControl,
       ensureClearSegmentsButton: ensureClearSegmentsButton,
     },
   };
