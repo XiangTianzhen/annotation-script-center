@@ -291,3 +291,42 @@ test("AIDP suzhou ui panel keeps current-audio section collapsed by default and 
     globalThis.HTMLElement = previousHTMLElement;
   }
 });
+
+test("AIDP suzhou ui panel exposes auto-apply toggle and keeps it in sync", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  const toggledValues = [];
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({
+      segmentPreviewAutoApplyEnabled: true,
+      onToggleSegmentPreviewAutoApply(nextEnabled) {
+        toggledValues.push(nextEnabled);
+      },
+    });
+    assert.equal(runtime.mount(), true);
+
+    const panelRoot = harness.waveAnchor.nextSibling;
+    const autoApplyCheckbox = findNode(panelRoot, function (node) {
+      return node.tagName === "INPUT" && node.type === "checkbox";
+    });
+
+    assert.ok(autoApplyCheckbox);
+    assert.equal(autoApplyCheckbox.checked, true);
+    assert.match(panelRoot.textContent, /生成后立即应用当前建议/);
+
+    autoApplyCheckbox.checked = false;
+    autoApplyCheckbox.eventListeners.change();
+    assert.deepEqual(toggledValues, [false]);
+
+    runtime.setSegmentPreviewAutoApplyEnabled(true);
+    assert.equal(autoApplyCheckbox.checked, true);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});

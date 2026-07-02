@@ -321,10 +321,13 @@ test("AIDP data api applies preview through SubmitTempItemAnswer with rebuilt re
   assert.match(answer.data.regions[0].id, /^region_/);
   assert.equal(answer.data.regions[0].start, 1.307);
   assert.equal(answer.data.regions[0].end, 2.023);
+  assert.equal(answer.data.regions[0].ms, "目标方言");
   assert.equal(answer.data.regions[1].start, 2.3);
   assert.equal(answer.data.regions[1].end, 3.024);
+  assert.equal(answer.data.regions[1].ms, "目标方言");
   assert.equal(answer.data.valid_duration, 1.44);
   assert.equal(answer.dataMap.regions.length, 2);
+  assert.equal(answer.dataMap.regions[0].ms, "目标方言");
 });
 
 test("AIDP data api stops auto-apply when current rows already contain text or language values", async function () {
@@ -342,6 +345,45 @@ test("AIDP data api stops auto-apply when current rows already contain text or l
         unsafeReason: "当前分段表里已有文本或语音种类，自动应用可能覆盖现有标注。",
       };
     },
+  });
+  const result = await harness.runtime.applySegmentPreview({
+    proposedSegments: [
+      {
+        sourceSegmentNumber: 1,
+        startMs: 1307,
+        endMs: 2023,
+      },
+    ],
+    sourceSegments: [
+      {
+        regionId: "region_a",
+        segmentNumber: 1,
+        startMs: 1307,
+        endMs: 3024,
+      },
+    ],
+    selectionKey: "7656690377962016562",
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "当前分段表里已有文本或语音种类，自动应用可能覆盖现有标注。",
+  });
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api keeps fail-closed behavior when current structured regions already contain language values", async function () {
+  const harness = createRuntimeHarness({
+    submitRegions: [
+      {
+        no: 1,
+        id: "region_a",
+        start: 1.307281,
+        end: 3.023912,
+        disabled: false,
+        ms: "普通话",
+      },
+    ],
   });
   const result = await harness.runtime.applySegmentPreview({
     proposedSegments: [
@@ -424,4 +466,122 @@ test("AIDP data api clears current regions through SubmitTempItemAnswer after co
   assert.equal(answer.data.discard, "保留");
   assert.equal(answer.data.duration, 22.0125);
   assert.equal(answer.data.valid_duration, 0);
+});
+
+test("AIDP data api fills only empty region languages through SubmitTempItemAnswer", async function () {
+  const harness = createRuntimeHarness({
+    submitRegions: [
+      {
+        no: 1,
+        id: "region_a",
+        start: 1.263,
+        end: 2.401,
+        disabled: false,
+        ms: "普通话",
+      },
+      {
+        no: 2,
+        id: "region_b",
+        start: 3.261,
+        end: 4.951,
+        disabled: false,
+        ms: "",
+      },
+      {
+        no: 3,
+        id: "region_c",
+        start: 5.673,
+        end: 7.224,
+        disabled: false,
+      },
+      {
+        no: 4,
+        id: "region_d",
+        start: 8.438,
+        end: 9.114,
+        disabled: false,
+        ms: "目标方言",
+      },
+    ],
+  });
+
+  const result = await harness.runtime.fillEmptyRegionLanguages();
+  const request = harness.fetchCalls[0];
+  const body = JSON.parse(request.body);
+  const answer = JSON.parse(body.AuditAnswers[0].Content);
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已通过平台暂存接口填充空语言种类，请刷新页面复核。",
+    filledCount: 2,
+  });
+  assert.equal(answer.data.regions[0].ms, "普通话");
+  assert.equal(answer.data.regions[1].ms, "目标方言");
+  assert.equal(answer.data.regions[2].ms, "目标方言");
+  assert.equal(answer.data.regions[3].ms, "目标方言");
+  assert.equal(answer.dataMap.regions[1].ms, "目标方言");
+  assert.equal(answer.dataMap.regions[2].ms, "目标方言");
+});
+
+test("AIDP data api skips language fill when current regions already all have values", async function () {
+  const harness = createRuntimeHarness({
+    submitRegions: [
+      {
+        no: 1,
+        id: "region_a",
+        start: 1.263,
+        end: 2.401,
+        disabled: false,
+        ms: "普通话",
+      },
+      {
+        no: 2,
+        id: "region_b",
+        start: 3.261,
+        end: 4.951,
+        disabled: false,
+        ms: "目标方言",
+      },
+    ],
+  });
+
+  const result = await harness.runtime.fillEmptyRegionLanguages();
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "当前没有空的语言种类需要填充。",
+    filledCount: 0,
+  });
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api still clears current regions when table already contains text or language values", async function () {
+  const harness = createRuntimeHarness({
+    readCurrentTableState: function () {
+      return {
+        rows: [
+          {
+            segmentNumber: 1,
+            text: "已有文本",
+            language: "目标方言",
+          },
+        ],
+        hasUnsafeData: true,
+        unsafeReason: "当前分段表里已有文本或语音种类，自动应用可能覆盖现有标注。",
+      };
+    },
+  });
+
+  const result = await harness.runtime.clearCurrentSegments();
+  const request = harness.fetchCalls[0];
+  const body = JSON.parse(request.body);
+  const answer = JSON.parse(body.AuditAnswers[0].Content);
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已通过平台暂存接口应用分段建议，请刷新页面复核。",
+  });
+  assert.equal(answer.data.regions.length, 0);
+  assert.equal(answer.dataMap.regions.length, 0);
+  assert.equal(answer.data.discard, "保留");
 });

@@ -41,7 +41,7 @@
   const DATABAKER_AI_REQUEST_STAGGER_MS = 50;
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 26;
+  const SCHEMA_VERSION = 28;
   const RELEASE_CHANNEL_PUBLIC = "public";
   const RELEASE_CHANNEL_BETA = "beta";
   const RELEASE_VISIBILITY_PUBLIC = "public";
@@ -323,6 +323,15 @@
     { key: "copyRecommendedText", label: "复制 AI 推荐文本" },
     { key: "fillRecommendedText", label: "填入并保存当前条" },
     { key: "ignoreAiResult", label: "忽略 AI 结果" },
+  ];
+  const BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS = [
+    { key: "togglePlayPause", label: "播放/暂停切换" },
+    { key: "playSelection", label: "区间播放" },
+    { key: "jumpToFirstFrame", label: "回到首帧" },
+    { key: "deleteCurrentSelection", label: "删除当前选区" },
+    { key: "clearSegments", label: "清空画段" },
+    { key: "previewSegments", label: "生成分段建议" },
+    { key: "applyPreviewSegments", label: "应用分段建议" },
   ];
   const AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS = [
     { key: "aiRecommendCurrentItem", label: "AI 识别当前条" },
@@ -1372,10 +1381,10 @@
       label: "苏州话脚本",
       shortLabel: "苏州话脚本",
       description:
-        "AIDP mark-v3 详情页基础开关：控制平台原生 AI 洞察面板与浮动入口显隐。",
+        "AIDP mark-v3 详情页苏州话辅助：平台 AI 显隐、分段建议、快捷键与语言种类补齐。",
       note:
-        "当前只隐藏平台原生 AI 板块，不接 AI 请求、不自动保存、不自动提交，也不改动任务列表、波形区、保留/丢弃和分段表格。",
-      capabilityScope: "hide-native-platform-ai-beta",
+        "当前支持分段建议生成与平台暂存写回，可选生成后立即应用；不自动提交、不自动切题，应用建议时默认带“目标方言”，手动画段可手动填充空语言种类。",
+      capabilityScope: "aidp-segmentation-and-shortcuts-beta",
       statusLabel: "苏州话脚本 Beta",
       detailView: "bytedance-aidp-suzhou-helper",
       host: BYTEDANCE_AIDP_PLATFORM.host,
@@ -1965,6 +1974,7 @@
   }
 
   function createDefaultBytedanceAidpPlatformSettings() {
+    const shortcuts = createEmptyShortcutMap(BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS);
     return {
       enabled: true,
       scripts: {
@@ -1975,9 +1985,11 @@
           segmentContextPaddingMs: 300,
           segmentSilenceThresholdDbfs: -31,
           mergeContiguousSuggestedSegmentsEnabled: true,
+          segmentPreviewAutoApplyEnabled: true,
           defaultPlaybackRate: 1,
           fixedWaveZoom: 2,
           contractMode: "dom-guarded",
+          shortcuts: shortcuts,
         },
       },
     };
@@ -2380,6 +2392,7 @@
       normalizeDataBakerAiQualifiedAutofillConcurrency,
     DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
     AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS: clone(AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS),
+    BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS: clone(BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS),
     AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS: clone(AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_SHORTCUT_ACTIONS: clone(ABAKA_AI_TASK21_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_AI_ANALYSIS_MODES: clone(ABAKA_AI_TASK21_AI_ANALYSIS_MODES),

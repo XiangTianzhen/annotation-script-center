@@ -691,7 +691,7 @@
             <div class="detail-section-head">
               <div>
                 <strong>基础设置</strong>
-                <span>当前先只控制平台原生 AI 板块显隐，不接 AI 请求、不改标注表格、不触发保存提交。</span>
+                <span>当前支持平台 AI 显隐、分段建议写回、快捷键和应用时语言补齐；不自动提交、不自动切题。</span>
               </div>
             </div>
             <div class="detail-grid two">
@@ -708,6 +708,26 @@
                 <strong>当前隐藏目标</strong>
                 <span>当前只处理 `.insight-container-Hn0Gna` 与 `.trigger-wrapper-RlG7Dx` 两类平台 AI 板块。</span>
                 <span>页面重渲染后会继续按当前开关补做显隐，不处理其他未确认模块。</span>
+              </div>
+            </div>
+
+            <div class="detail-grid two">
+              <label class="field-card">
+                <strong>生成后自动应用</strong>
+                <span>默认开启。仅在你手动点击“生成分段建议”后，立即把当前建议写回平台暂存答案。</span>
+                <span class="field-toggle">
+                  <input
+                    id="bytedance-aidp-segment-preview-auto-apply-enabled"
+                    type="checkbox"
+                  />
+                  生成后自动应用当前建议
+                </span>
+              </label>
+
+              <div class="field-card">
+                <strong>语言种类补齐</strong>
+                <span>只在应用分段建议写回时默认带上“目标方言”，不会在页面里持续自动改你的空行。</span>
+                <span>手动画段后的空语言种类，请使用工具栏里的“填充语言种类”按钮按需补齐。</span>
               </div>
             </div>
 
@@ -797,8 +817,8 @@
 
             <div class="field-card">
               <strong>当前边界</strong>
-              <span>当前不新增快捷键、不新增右侧 AI 面板、不调用统一后端。</span>
-              <span>详情页的核心标注区仍完全保持平台原样，只做平台 AI 板块的可逆隐藏。</span>
+              <span>快捷键只绑定详情页安全动作；按钮缺失或 disabled 时不会绕过平台限制。</span>
+              <span>详情页仍不自动提交、不自动切题；只调用现有暂存写回链路，不新增平台提交接口。</span>
             </div>
 
             <div class="field-actions">
@@ -1046,6 +1066,17 @@
             </div>
             <div id="data-baker-cvpc-shortcut-grid" class="shortcut-grid"></div>
             <div id="data-baker-cvpc-recording-status" class="shortcut-recording hidden"></div>
+          </section>
+
+          <section id="detail-bytedance-aidp-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">
+            <div class="detail-section-head">
+              <div>
+                <strong>快捷键</strong>
+                <span>默认全部未设置；录制时按 Esc 取消，输入框聚焦时不会触发。</span>
+              </div>
+            </div>
+            <div id="bytedance-aidp-shortcut-grid" class="shortcut-grid"></div>
+            <div id="bytedance-aidp-recording-status" class="shortcut-recording hidden"></div>
           </section>
 
           <section id="detail-magic-data-shortcuts-panel" class="detail-panel detail-shortcut-panel hidden">

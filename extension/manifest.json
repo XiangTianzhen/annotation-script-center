@@ -279,6 +279,7 @@
         "sites/bytedance-aidp/suzhou-helper/data-api.js",
         "sites/bytedance-aidp/suzhou-helper/segmentation-controller.js",
         "sites/bytedance-aidp/suzhou-helper/ui-panel.js",
+        "sites/bytedance-aidp/suzhou-helper/shortcuts.js",
         "sites/bytedance-aidp/suzhou-helper/content.js"
       ],
       "all_frames": false,

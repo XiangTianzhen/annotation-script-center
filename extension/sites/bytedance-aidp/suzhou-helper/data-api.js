@@ -3,6 +3,8 @@
   const RECEIVE_TYPE = "BYTEDANCE_AIDP_SUZHOU_RECEIVE_SNAPSHOT";
   const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUZHOU_SUBMIT_SNAPSHOT";
   const APPLY_SUCCESS_MESSAGE = "已通过平台暂存接口应用分段建议，请刷新页面复核。";
+  const FILL_LANGUAGE_SUCCESS_MESSAGE = "已通过平台暂存接口填充空语言种类，请刷新页面复核。";
+  const FILL_LANGUAGE_EMPTY_MESSAGE = "当前没有空的语言种类需要填充。";
   const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的分段建议。";
   const PREVIEW_STALE_MESSAGE = "当前页面分段状态已变化，旧分段建议已失效，请重新生成。";
   const UNSAFE_TABLE_MESSAGE = "当前分段表里已有文本或语音种类，自动应用可能覆盖现有标注。";
@@ -454,6 +456,7 @@
         start: msToSeconds(item.startMs),
         end: msToSeconds(item.endMs),
         disabled: false,
+        ms: "目标方言",
       };
     });
   }
@@ -496,6 +499,77 @@
     nextAnswer.data.valid_duration = validDurationSeconds;
     nextAnswer.dataMap.valid_duration = validDurationSeconds;
     return nextAnswer;
+  }
+
+  function fillEmptyLanguageValuesInRegions(regions, targetLanguage) {
+    const source = Array.isArray(regions) ? regions : [];
+    const nextRegions = source.map(function (item) {
+      if (!item || typeof item !== "object") {
+        return item;
+      }
+      const nextItem = clone(item) || {};
+      const currentLanguage = normalizeText(nextItem.ms);
+      if (!currentLanguage || currentLanguage === "请选择") {
+        nextItem.ms = targetLanguage;
+      }
+      return nextItem;
+    });
+    const filledCount = nextRegions.reduce(function (count, item, index) {
+      const previous = source[index] && typeof source[index] === "object" ? source[index] : {};
+      const previousLanguage = normalizeText(previous.ms);
+      const nextLanguage =
+        item && typeof item === "object" ? normalizeText(item.ms) : "";
+      return (!previousLanguage || previousLanguage === "请选择") &&
+        nextLanguage === targetLanguage
+        ? count + 1
+        : count;
+    }, 0);
+    return {
+      regions: nextRegions,
+      filledCount: filledCount,
+    };
+  }
+
+  function updateTempAnswerWithFilledLanguages(answer, context, targetLanguage) {
+    const nextAnswer = clone(answer && typeof answer === "object" ? answer : {}) || {};
+    if (!nextAnswer.data || typeof nextAnswer.data !== "object") {
+      nextAnswer.data = {};
+    }
+    if (!nextAnswer.dataMap || typeof nextAnswer.dataMap !== "object") {
+      nextAnswer.dataMap = {};
+    }
+    nextAnswer.templateID = normalizeText(nextAnswer.templateID || context.templateID);
+    nextAnswer.itemID = normalizeText(nextAnswer.itemID || context.itemId);
+    nextAnswer.isAbandoned = nextAnswer.isAbandoned === true;
+
+    const baseDataRegions = Array.isArray(nextAnswer.data.regions) ? nextAnswer.data.regions : [];
+    const baseDataMapRegions = Array.isArray(nextAnswer.dataMap.regions)
+      ? nextAnswer.dataMap.regions
+      : [];
+    const primarySource = baseDataRegions.length > 0 ? baseDataRegions : baseDataMapRegions;
+    const primaryResult = fillEmptyLanguageValuesInRegions(primarySource, targetLanguage);
+    const dataResult =
+      baseDataRegions.length > 0
+        ? fillEmptyLanguageValuesInRegions(baseDataRegions, targetLanguage)
+        : {
+            regions: clone(primaryResult.regions),
+            filledCount: primaryResult.filledCount,
+          };
+    const dataMapResult =
+      baseDataMapRegions.length > 0
+        ? fillEmptyLanguageValuesInRegions(baseDataMapRegions, targetLanguage)
+        : {
+            regions: clone(primaryResult.regions),
+            filledCount: primaryResult.filledCount,
+          };
+
+    nextAnswer.data.regions = dataResult.regions;
+    nextAnswer.dataMap.regions = dataMapResult.regions;
+
+    return {
+      nextAnswer: nextAnswer,
+      filledCount: primaryResult.filledCount,
+    };
   }
 
   function buildSubmitRequestBody(submitSnapshot, context, nextAnswer) {
@@ -624,6 +698,12 @@
           message: PREVIEW_STALE_MESSAGE,
         };
       }
+      if (context.unsafeReason) {
+        return {
+          ok: false,
+          message: context.unsafeReason,
+        };
+      }
       const previewSignature = buildRegionSignature(
         normalizePreviewSourceSegments(source.sourceSegments)
       );
@@ -631,12 +711,6 @@
         return {
           ok: false,
           message: PREVIEW_STALE_MESSAGE,
-        };
-      }
-      if (context.unsafeReason) {
-        return {
-          ok: false,
-          message: context.unsafeReason,
         };
       }
       if (!normalizeText(submitSnapshot?.url)) {
@@ -667,12 +741,6 @@
           message: DETAIL_CONTEXT_MISSING_MESSAGE,
         };
       }
-      if (context.unsafeReason) {
-        return {
-          ok: false,
-          message: context.unsafeReason,
-        };
-      }
       if (!normalizeText(submitSnapshot?.url)) {
         return {
           ok: false,
@@ -692,6 +760,55 @@
       return result;
     }
 
+    async function fillEmptyRegionLanguages() {
+      const context = await getCurrentContext();
+      if (!context.itemId || !context.tempAnswer || Object.keys(context.tempAnswer).length <= 0) {
+        return {
+          ok: false,
+          message: DETAIL_CONTEXT_MISSING_MESSAGE,
+          filledCount: 0,
+        };
+      }
+      if (!normalizeText(submitSnapshot?.url)) {
+        return {
+          ok: false,
+          message: SUBMIT_AUTH_MISSING_MESSAGE,
+          filledCount: 0,
+        };
+      }
+      const fillResult = updateTempAnswerWithFilledLanguages(
+        context.tempAnswer,
+        context,
+        "目标方言"
+      );
+      if (fillResult.filledCount <= 0) {
+        return {
+          ok: false,
+          message: FILL_LANGUAGE_EMPTY_MESSAGE,
+          filledCount: 0,
+        };
+      }
+      const requestBody = buildSubmitRequestBody(submitSnapshot, context, fillResult.nextAnswer);
+      const result = await postSubmit(fetchImpl, submitSnapshot, requestBody);
+      if (result.ok) {
+        submitSnapshot = parseSubmitSnapshot({
+          url: submitSnapshot.url,
+          headers: submitSnapshot.headers,
+          body: requestBody,
+        });
+        return {
+          ok: true,
+          message: FILL_LANGUAGE_SUCCESS_MESSAGE,
+          filledCount: fillResult.filledCount,
+        };
+      }
+      return {
+        ok: false,
+        message: result.message,
+        filledCount: 0,
+      };
+    }
+
     function destroy() {
       if (windowLike && typeof windowLike.removeEventListener === "function") {
         windowLike.removeEventListener("message", handleObserverMessage);
@@ -702,6 +819,7 @@
       getCurrentContext,
       applySegmentPreview,
       clearCurrentSegments,
+      fillEmptyRegionLanguages,
       destroy,
     };
   }

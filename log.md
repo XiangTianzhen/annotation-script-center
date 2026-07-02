@@ -1,3 +1,104 @@
+## 2026-07-03（切换 ByteDance AIDP 填充语言种类为暂存直写）
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/data-api.js`
+  - 新增 `fillEmptyRegionLanguages`，复用已捕获的 `SubmitTempItemAnswer` 契约直写当前题空 `regions[*].ms`
+  - 只补空值或 `请选择` 为 `目标方言`，保留已有非空语言不变
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - `填充语言种类` 按钮优先改走请求写回链路
+  - 写回成功后自动刷新当前详情页复核
+- 更新测试：
+  - `extension/sites/bytedance-aidp/suzhou-helper/data-api.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+- 更新文档：
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+
+## 2026-07-03（修复 ByteDance AIDP 填充语言种类批量卡住）
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - 将 `填充语言种类` 的 `目标方言` 选项匹配范围收口到当前下拉框自己的弹层
+  - 避免旧弹层残留节点导致第二个及后续空行误报“没有找到唯一选项”
+  - 当当前弹层里找不到唯一 `目标方言` 时，自动收起当前下拉，避免页面卡在展开态
+- 更新测试：
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+  - 增加“多行连续填充时按当前弹层匹配”与“失败时自动收起下拉”的回归用例
+- 更新文档：
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+
+## 2026-07-02（放宽 ByteDance AIDP 清空画段条件）
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/data-api.js`
+  - `clearCurrentSegments` 不再受“已有文本或语音种类”的 fail-closed 限制
+  - `清空画段` 现在会直接清空当前题全部 `regions`
+- 更新测试：
+  - `extension/sites/bytedance-aidp/suzhou-helper/data-api.test.js`
+  - 增加“已有文本 / 语音种类时仍允许清空画段”的回归用例
+- 更新文档：
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+
+## 2026-07-02（收口 ByteDance AIDP 默认 Space 与语言种类填充）
+- 更新 `extension/shared/constants.js`
+  - 提升 schema 版本到 `28`
+  - 取消 AIDP `播放/暂停切换` 的默认 `Space` 快捷键
+- 更新 `extension/shared/storage.js`
+  - 增加 AIDP 历史默认快捷键迁移：仅当 `togglePlayPause=Space` 且其余快捷键都未配置时，自动清空旧默认态
+  - 保留存在其他自定义痕迹的 AIDP 快捷键配置，不误清用户明显改过的组合
+- 更新 `extension/options/options.html`
+  - AIDP 快捷键说明改为默认全部未设置
+  - AIDP 语言种类说明改为只在应用分段建议写回时自动带 `目标方言`
+  - 增加“使用工具栏里的 `填充语言种类` 按钮补空值”提示
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - 移除页面初始化、切题和重渲染后的持续空语言种类自动补扫
+  - 新增工具栏 `填充语言种类` 按钮
+  - `填充语言种类` 只处理当前题当前页里空值或 `请选择` 的语言种类，不覆盖已有非空语言
+- 更新文档：
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+- 更新测试：
+  - `extension/shared/storage.bytedance-aidp.test.js`
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+
+## 2026-07-02（完善 ByteDance AIDP 苏州话快捷键、自动应用与默认语言）
+- 更新 `extension/shared/constants.js`
+  - 提升 schema 版本到 `27`
+  - 新增 `BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS`
+  - 为 AIDP 苏州话默认设置补齐 `segmentPreviewAutoApplyEnabled=true`
+  - 为 AIDP 快捷键默认值补齐 `togglePlayPause=Space`
+- 更新 `extension/shared/storage.js`
+  - 增加 AIDP `segmentPreviewAutoApplyEnabled` 与 `shortcuts` 归一化
+  - 新增 AIDP 快捷键迁移与缺省补种逻辑
+  - `setScriptEnabled` 保留 AIDP 自动应用与快捷键配置
+- 更新 `extension/options/options.html`
+  - AIDP 基础设置区新增 `生成后自动应用当前建议`
+  - AIDP 新增详情页快捷键面板
+- 更新 `extension/options/options.js`
+  - 增加 AIDP 快捷键动作表、录制态、读写与保存逻辑
+  - AIDP 面板回填新增自动应用开关和快捷键网格
+  - AIDP 详情页快捷键面板纳入通用展示切换
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/data-api.js`
+  - 新写回的 `regions[*]` 默认补 `ms: "目标方言"`
+  - 对已有非空文本 / 语音种类的 fail-closed 校验提前到预览签名比较之前
+- 新增 `extension/sites/bytedance-aidp/suzhou-helper/shortcuts.js`
+  - AIDP 详情页快捷键绑定与输入态忽略运行时
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.js`
+  - 面板新增 `生成后立即应用当前建议` 页内开关
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - 新增 AIDP 快捷键动作映射
+  - 支持生成建议后立即自动应用
+  - 新增空语言种类兜底补 `目标方言`
+  - 将刷新逻辑收口为可复用 reload helper
+- 更新 `extension/manifest.json`
+  - 为 AIDP 注入 `shortcuts.js`
+- 新增 / 更新测试：
+  - `extension/shared/storage.bytedance-aidp.test.js`
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/data-api.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+- 更新文档：
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+
 ## 2026-07-02（修复客家话助手结果面板误读外层成功包装）
 - 更新 `extension/sites/magic-data/hakka-helper/assistant-panel.js`
   - 新增面板侧 `success/data` 成功响应解包 helper

@@ -46,6 +46,7 @@
       "[" + ROOT_ATTR + "] .section-title { font-weight: 600; color: #26418b; }",
       "[" + ROOT_ATTR + "] .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .section-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }",
+      "[" + ROOT_ATTR + "] .inline-toggle { margin-top: 8px; display: inline-flex; align-items: center; gap: 8px; color: #4f5d78; }",
       "[" + ROOT_ATTR + "] .summary-card, [" + ROOT_ATTR + "] .preview-card {",
       "  margin-top: 8px;",
       "  padding: 10px 12px;",
@@ -132,6 +133,7 @@
     let summaryNode = null;
     let summaryCollapseButtonNode = null;
     let previewNode = null;
+    let autoApplyToggleNode = null;
     let currentAudioCollapsed = true;
 
     function syncCurrentAudioSectionState() {
@@ -189,6 +191,21 @@
       actionSection.className = "section";
       actionSection.innerHTML =
         '<div class="section-title">分段建议</div><div class="panel-note">先生成建议，再决定是否应用到当前暂存答案。</div>';
+      const autoApplyToggleRow = document.createElement("label");
+      autoApplyToggleRow.className = "inline-toggle";
+      autoApplyToggleNode = document.createElement("input");
+      autoApplyToggleNode.type = "checkbox";
+      autoApplyToggleNode.checked = deps.segmentPreviewAutoApplyEnabled !== false;
+      autoApplyToggleNode.addEventListener("change", function () {
+        if (typeof deps.onToggleSegmentPreviewAutoApply === "function") {
+          deps.onToggleSegmentPreviewAutoApply(autoApplyToggleNode.checked === true);
+        }
+      });
+      const autoApplyToggleText = document.createElement("span");
+      autoApplyToggleText.textContent = "生成后立即应用当前建议";
+      autoApplyToggleRow.appendChild(autoApplyToggleNode);
+      autoApplyToggleRow.appendChild(autoApplyToggleText);
+      actionSection.appendChild(autoApplyToggleRow);
       const actionRow = document.createElement("div");
       actionRow.className = "action-row";
       actionRow.appendChild(
@@ -322,6 +339,13 @@
       });
     }
 
+    function setSegmentPreviewAutoApplyEnabled(enabled) {
+      if (!autoApplyToggleNode) {
+        return;
+      }
+      autoApplyToggleNode.checked = enabled !== false;
+    }
+
     function destroy() {
       if (rootNode && rootNode.parentNode) {
         rootNode.parentNode.removeChild(rootNode);
@@ -338,6 +362,7 @@
       setStatus,
       renderAudioContext,
       renderPreview,
+      setSegmentPreviewAutoApplyEnabled,
     };
   }
 

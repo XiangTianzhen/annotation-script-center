@@ -11,6 +11,7 @@
   const dataApiFactory = globalThis.ASREdgeBytedanceAidpSuzhouDataApi || null;
   const segmentFactory = globalThis.ASREdgeBytedanceAidpSuzhouSegmentation || null;
   const uiFactory = globalThis.ASREdgeBytedanceAidpSuzhouUiPanel || null;
+  const shortcutFactory = globalThis.ASREdgeBytedanceAidpSuzhouShortcuts || null;
   const SCRIPT_ID =
     CONSTANTS.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
   const SEGMENT_PREVIEW_PATH = "/api/bytedance-aidp/suzhou-helper/segment/preview";
@@ -21,7 +22,9 @@
   const DEFAULT_PLAYBACK_RATE = 1;
   const DEFAULT_FIXED_WAVE_ZOOM = 2;
   const DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED = true;
+  const DEFAULT_SEGMENT_PREVIEW_AUTO_APPLY_ENABLED = true;
   const CLEAR_SEGMENTS_BUTTON_ATTR = "data-asc-clear-segments-button";
+  const FILL_LANGUAGE_KIND_BUTTON_ATTR = "data-asc-fill-language-kind-button";
   const HIDDEN_ATTR = "data-asc-platform-ai-hidden";
   const EXACT_PLATFORM_AI_SELECTORS = {
     insight: ".insight-container-Hn0Gna",
@@ -123,6 +126,60 @@
     return rounded;
   }
 
+  function getShortcutActionDefinitions() {
+    return Array.isArray(CONSTANTS.BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS)
+      ? CONSTANTS.BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS
+      : [
+          { key: "togglePlayPause" },
+          { key: "playSelection" },
+          { key: "jumpToFirstFrame" },
+          { key: "deleteCurrentSelection" },
+          { key: "clearSegments" },
+          { key: "previewSegments" },
+          { key: "applyPreviewSegments" },
+        ];
+  }
+
+  function normalizeShortcutValue(shortcut, fallback) {
+    if (shortcut === null) {
+      return null;
+    }
+    const source = shortcut && typeof shortcut === "object" ? shortcut : fallback || null;
+    if (!source || typeof source !== "object") {
+      return null;
+    }
+    const key = normalizeText(source.key);
+    const button =
+      typeof source.button === "number" && Number.isFinite(source.button)
+        ? Number(source.button)
+        : null;
+    if (!key && button === null) {
+      return null;
+    }
+    return {
+      ctrl: source.ctrl === true,
+      alt: source.alt === true,
+      shift: source.shift === true,
+      meta: source.meta === true,
+      key: key,
+      button: button,
+    };
+  }
+
+  function normalizeShortcutMap(shortcuts, fallback) {
+    const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
+    const fallbackSource = fallback && typeof fallback === "object" ? fallback : {};
+    const result = {};
+    getShortcutActionDefinitions().forEach(function (action) {
+      const key = action.key;
+      result[key] =
+        Object.prototype.hasOwnProperty.call(source, key)
+          ? normalizeShortcutValue(source[key], fallbackSource[key] || null)
+          : normalizeShortcutValue(fallbackSource[key] || null, null);
+    });
+    return result;
+  }
+
   function formatControlValue(value) {
     return String(Number(value))
       .replace(/\.0$/, "")
@@ -176,9 +233,11 @@
         segmentSilenceThresholdDbfs: DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS,
         mergeContiguousSuggestedSegmentsEnabled:
           DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED,
+        segmentPreviewAutoApplyEnabled: DEFAULT_SEGMENT_PREVIEW_AUTO_APPLY_ENABLED,
         defaultPlaybackRate: DEFAULT_PLAYBACK_RATE,
         fixedWaveZoom: DEFAULT_FIXED_WAVE_ZOOM,
         contractMode: "dom-guarded",
+        shortcuts: {},
       }
     );
   }
@@ -200,6 +259,10 @@
         current.mergeContiguousSuggestedSegmentsEnabled === false
           ? false
           : defaults.mergeContiguousSuggestedSegmentsEnabled !== false,
+      segmentPreviewAutoApplyEnabled:
+        current.segmentPreviewAutoApplyEnabled === false
+          ? false
+          : defaults.segmentPreviewAutoApplyEnabled !== false,
       defaultPlaybackRate: normalizePlaybackRate(
         current.defaultPlaybackRate,
         defaults.defaultPlaybackRate
@@ -208,6 +271,7 @@
         current.fixedWaveZoom,
         defaults.fixedWaveZoom
       ),
+      shortcuts: normalizeShortcutMap(current.shortcuts, defaults.shortcuts),
     };
   }
 
@@ -1261,14 +1325,14 @@
     return safeQuerySelectorAll(workbench, ".btns-play")[0] || null;
   }
 
-  function ensureClearSegmentsButton(root, onClick) {
+  function ensureToolbarActionButton(root, attrName, label, onClick) {
     const toolbar = findPlayToolbarRoot(root);
     if (!toolbar || typeof toolbar.querySelector === "undefined") {
       return false;
     }
     const existing =
       typeof toolbar.querySelector === "function"
-        ? toolbar.querySelector("[" + CLEAR_SEGMENTS_BUTTON_ATTR + "='true']")
+        ? toolbar.querySelector("[" + attrName + "='true']")
         : null;
     if (existing) {
       return false;
@@ -1279,8 +1343,8 @@
     }
     const button = documentLike.createElement("button");
     button.type = "button";
-    button.setAttribute(CLEAR_SEGMENTS_BUTTON_ATTR, "true");
-    button.textContent = "清空画段";
+    button.setAttribute(attrName, "true");
+    button.textContent = label;
     button.style.marginLeft = "8px";
     button.style.padding = "0 8px";
     button.style.height = "24px";
@@ -1297,6 +1361,351 @@
     });
     toolbar.appendChild(button);
     return true;
+  }
+
+  function ensureClearSegmentsButton(root, onClick) {
+    return ensureToolbarActionButton(root, CLEAR_SEGMENTS_BUTTON_ATTR, "清空画段", onClick);
+  }
+
+  function ensureFillLanguageKindsButton(root, onClick) {
+    return ensureToolbarActionButton(
+      root,
+      FILL_LANGUAGE_KIND_BUTTON_ATTR,
+      "填充语言种类",
+      onClick
+    );
+  }
+
+  function scheduleRuntimeReload(runtimeContext) {
+    if (typeof setTimeout !== "function") {
+      return;
+    }
+    setTimeout(function () {
+      try {
+        globalThis.location.reload();
+      } catch (_error) {
+        runtimeContext?.ui?.setStatus?.("操作已成功，请手动刷新页面复核。", "success");
+      }
+    }, 350);
+  }
+
+  function getToolbarActionNodes(root) {
+    const toolbar = findPlayToolbarRoot(root);
+    if (!toolbar) {
+      return [];
+    }
+    return Array.from(toolbar.children || []).filter(function (node) {
+      return node && node.nodeType === 1;
+    });
+  }
+
+  function isToolbarActionDisabled(node) {
+    if (!node) {
+      return true;
+    }
+    if (node.disabled === true || normalizeText(node.getAttribute?.("disabled")) === "true") {
+      return true;
+    }
+    return getClassName(node).indexOf("disabled-EAukvU") >= 0;
+  }
+
+  function findToolbarActionNode(root, fallbackIndex) {
+    const nodes = getToolbarActionNodes(root);
+    const candidate =
+      Number.isInteger(fallbackIndex) && fallbackIndex >= 0 ? nodes[fallbackIndex] || null : null;
+    return candidate && !isToolbarActionDisabled(candidate) ? candidate : null;
+  }
+
+  function triggerToolbarAction(root, fallbackIndex) {
+    const node = findToolbarActionNode(root, fallbackIndex);
+    if (!node) {
+      return false;
+    }
+    return invokeClick(node);
+  }
+
+  function triggerPlayPauseAction(root) {
+    return triggerToolbarAction(root, 1);
+  }
+
+  function triggerPlaySelectionAction(root) {
+    return triggerToolbarAction(root, 2);
+  }
+
+  function triggerJumpToFirstFrameAction(root) {
+    return triggerToolbarAction(root, 4);
+  }
+
+  function triggerDeleteCurrentSelectionAction(root) {
+    return triggerToolbarAction(root, 5);
+  }
+
+  async function maybeAutoApplyPreview(runtimeContext, preview) {
+    const config = runtimeContext?.config || {};
+    const proposedSegments = Array.isArray(preview?.proposedSegments) ? preview.proposedSegments : [];
+    if (config.segmentPreviewAutoApplyEnabled === false) {
+      return {
+        attempted: false,
+        ok: false,
+        reason: "disabled",
+      };
+    }
+    if (proposedSegments.length <= 0) {
+      return {
+        attempted: false,
+        ok: false,
+        reason: "empty",
+      };
+    }
+    const result = await runtimeContext.dataApi.applySegmentPreview(preview);
+    if (!result.ok) {
+      runtimeContext.ui?.setStatus?.(
+        "分段建议已生成，但自动应用失败：" + normalizeText(result.message || "未知错误"),
+        "error"
+      );
+      return {
+        attempted: true,
+        ok: false,
+        result: result,
+      };
+    }
+    runtimeContext.preview = null;
+    runtimeContext.segment?.clearPreview?.();
+    runtimeContext.ui?.renderPreview?.(null);
+    runtimeContext.ui?.setStatus?.(result.message, "success");
+    if (typeof runtimeContext.scheduleReload === "function") {
+      runtimeContext.scheduleReload();
+    } else {
+      scheduleRuntimeReload(runtimeContext);
+    }
+    return {
+      attempted: true,
+      ok: true,
+      result: result,
+    };
+  }
+
+  function createShortcutActions(deps) {
+    const source = deps && typeof deps === "object" ? deps : {};
+    return {
+      togglePlayPause: function () {
+        return source.onTogglePlayPause?.();
+      },
+      playSelection: function () {
+        return source.onPlaySelection?.();
+      },
+      jumpToFirstFrame: function () {
+        return source.onJumpToFirstFrame?.();
+      },
+      deleteCurrentSelection: function () {
+        return source.onDeleteCurrentSelection?.();
+      },
+      clearSegments: function () {
+        return source.onClearSegments?.();
+      },
+      previewSegments: function () {
+        return source.onPreviewSegments?.();
+      },
+      applyPreviewSegments: function () {
+        return source.onApplyPreviewSegments?.();
+      },
+    };
+  }
+
+  function getComboboxDisplayText(node) {
+    if (!node) {
+      return "";
+    }
+    const valueNode =
+      (typeof node.querySelector === "function" &&
+        (node.querySelector(".arco-select-view-value") ||
+          node.querySelector(".arco-select-view-input"))) ||
+      null;
+    const text = normalizeText(valueNode?.textContent || valueNode?.value || node.getAttribute?.("title"));
+    return text || getNodeText(node);
+  }
+
+  function findSegmentTableRoot(root) {
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const tables = Array.from(searchRoots[index].querySelectorAll?.("table, div") || []);
+      const matched = tables.find(function (node) {
+        const text = getNodeText(node);
+        return text.includes("语言种类") && text.includes("转写文本") && text.includes("区间");
+      });
+      if (matched) {
+        return matched;
+      }
+    }
+    return null;
+  }
+
+  function findEmptyLanguageKindComboboxes(root) {
+    const tableRoot = findSegmentTableRoot(root);
+    if (!tableRoot || typeof tableRoot.querySelectorAll !== "function") {
+      return [];
+    }
+    return Array.from(tableRoot.querySelectorAll("[role='combobox']")).filter(function (node) {
+      const className = getClassName(node);
+      const displayText = getComboboxDisplayText(node);
+      if (!className.includes("arco-select")) {
+        return false;
+      }
+      return !displayText || displayText === "请选择";
+    });
+  }
+
+  function findNodeByAttribute(root, name, value) {
+    const attrName = normalizeText(name);
+    const attrValue = normalizeText(value);
+    if (!root || !attrName || !attrValue) {
+      return null;
+    }
+    return (
+      collectDescendantElements(root).find(function (node) {
+        return normalizeText(node.getAttribute?.(attrName)) === attrValue;
+      }) || null
+    );
+  }
+
+  function isNodeHidden(node) {
+    let current = node;
+    while (current && current.nodeType === 1) {
+      if (current.hidden === true) {
+        return true;
+      }
+      const hiddenAttr = normalizeText(current.getAttribute?.("hidden")).toLowerCase();
+      if (hiddenAttr === "true" || hiddenAttr === "hidden") {
+        return true;
+      }
+      const ariaHidden = normalizeText(current.getAttribute?.("aria-hidden")).toLowerCase();
+      if (ariaHidden === "true") {
+        return true;
+      }
+      const className = getClassName(current).toLowerCase();
+      if (className.includes("hidden")) {
+        return true;
+      }
+      const displayValue =
+        typeof current.style?.getPropertyValue === "function"
+          ? normalizeText(current.style.getPropertyValue("display")).toLowerCase()
+          : "";
+      if (displayValue === "none") {
+        return true;
+      }
+      current = current.parentElement;
+    }
+    return false;
+  }
+
+  function collectDialectOptions(root, label) {
+    const targetLabel = normalizeText(label);
+    if (!root || !targetLabel) {
+      return [];
+    }
+    return collectDescendantElements(root).filter(function (node) {
+      const role = normalizeText(node.getAttribute?.("role")).toLowerCase();
+      const className = getClassName(node);
+      if (
+        role !== "option" &&
+        !className.includes("arco-select-option") &&
+        !className.includes("arco-select-option-content")
+      ) {
+        return false;
+      }
+      if (getNodeText(node) !== targetLabel) {
+        return false;
+      }
+      return !isNodeHidden(node);
+    });
+  }
+
+  function findComboboxPopup(root, combobox) {
+    const popupId = normalizeText(combobox?.getAttribute?.("aria-controls"));
+    if (!popupId) {
+      return null;
+    }
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const popupNode = findNodeByAttribute(searchRoots[index], "id", popupId);
+      if (popupNode) {
+        return popupNode;
+      }
+    }
+    return null;
+  }
+
+  function findDialectOption(root, label, combobox) {
+    const scopedPopup = findComboboxPopup(root, combobox);
+    if (scopedPopup) {
+      const scopedMatches = collectDialectOptions(scopedPopup, label);
+      if (scopedMatches.length === 1) {
+        return scopedMatches[0];
+      }
+      if (scopedMatches.length > 1) {
+        return null;
+      }
+    }
+
+    const targetLabel = normalizeText(label);
+    const searchRoots = getSearchRoots(root);
+    const matches = [];
+    searchRoots.forEach(function (searchRoot) {
+      collectDialectOptions(searchRoot, targetLabel).forEach(function (node) {
+        matches.push(node);
+      });
+    });
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function collapseCombobox(node) {
+    if (!node) {
+      return;
+    }
+    focusControl(node);
+    dispatchKeyboardEvent(node, "keydown", "Escape");
+    dispatchKeyboardEvent(node, "keyup", "Escape");
+    dispatchControlEvent(node, "blur");
+    if (normalizeText(node.getAttribute?.("aria-expanded")).toLowerCase() === "true") {
+      invokeClick(node);
+    }
+  }
+
+  async function fillEmptyLanguageKinds(root) {
+    const comboboxes = findEmptyLanguageKindComboboxes(root);
+    if (comboboxes.length <= 0) {
+      return {
+        ok: true,
+        filledCount: 0,
+      };
+    }
+    let filledCount = 0;
+    for (let index = 0; index < comboboxes.length; index += 1) {
+      const node = comboboxes[index];
+      const displayText = getComboboxDisplayText(node);
+      if (displayText && displayText !== "请选择") {
+        continue;
+      }
+      invokeClick(node);
+      await waitFor(30);
+      const option = findDialectOption(root, "目标方言", node);
+      if (!option) {
+        collapseCombobox(node);
+        await waitFor(10);
+        return {
+          ok: false,
+          filledCount: filledCount,
+          reason: "missing-target-option",
+        };
+      }
+      invokeClick(option);
+      filledCount += 1;
+      await waitFor(30);
+    }
+    return {
+      ok: true,
+      filledCount: filledCount,
+    };
   }
 
   function findHiddenPlatformAiTargets(root) {
@@ -1347,6 +1756,9 @@
     if (helperRuntime?.ui?.destroy) {
       helperRuntime.ui.destroy();
     }
+    if (helperRuntime?.shortcuts?.destroy) {
+      helperRuntime.shortcuts.destroy();
+    }
     if (helperRuntime?.dataApi?.destroy) {
       helperRuntime.dataApi.destroy();
     }
@@ -1377,6 +1789,9 @@
         ensureClearSegmentsButton(document, function () {
           void handleClearSegmentsAction();
         });
+        ensureFillLanguageKindsButton(document, function () {
+          void handleFillLanguageKindsAction();
+        });
         const context = await helperRuntime.dataApi.getCurrentContext();
         helperRuntime.playbackScopeKey =
           normalizeText(context?.selectionKey) ||
@@ -1400,6 +1815,44 @@
     }, Math.max(0, Math.round(Number(delayMs || 0) || 0)));
   }
 
+  async function handleSegmentPreviewAutoApplyToggle(nextEnabled) {
+    if (!helperRuntime) {
+      return;
+    }
+    const previousEnabled = helperRuntime.config?.segmentPreviewAutoApplyEnabled !== false;
+    helperRuntime.config = Object.assign({}, helperRuntime.config || {}, {
+      segmentPreviewAutoApplyEnabled: nextEnabled !== false,
+    });
+    if (!STORAGE || typeof STORAGE.patchSettings !== "function") {
+      return;
+    }
+    try {
+      const settings = await STORAGE.patchSettings({
+        platforms: {
+          bytedanceAidp: {
+            scripts: {
+              suzhouHelper: {
+                id: SCRIPT_ID,
+                segmentPreviewAutoApplyEnabled: nextEnabled !== false,
+              },
+            },
+          },
+        },
+      });
+      runtimePolicy = resolveRuntimePolicy(settings);
+      ensureHelperRuntime(settings);
+    } catch (error) {
+      helperRuntime.config = Object.assign({}, helperRuntime.config || {}, {
+        segmentPreviewAutoApplyEnabled: previousEnabled,
+      });
+      helperRuntime.ui?.setSegmentPreviewAutoApplyEnabled?.(previousEnabled);
+      helperRuntime.ui?.setStatus?.(
+        "保存自动应用开关失败：" + (error && error.message ? error.message : String(error)),
+        "error"
+      );
+    }
+  }
+
   async function handlePreviewAction() {
     if (!helperRuntime) {
       return;
@@ -1421,6 +1874,10 @@
       helperRuntime.ui.renderPreview(preview);
       if (!Array.isArray(preview?.proposedSegments) || preview.proposedSegments.length <= 0) {
         helperRuntime.ui.setStatus("当前没有生成可应用的分段建议。", "error");
+        return;
+      }
+      const autoApplyResult = await maybeAutoApplyPreview(helperRuntime, preview);
+      if (autoApplyResult.attempted) {
         return;
       }
       if (normalizeText(preview?.meta?.previewMode) === "whole-audio-fallback") {
@@ -1454,15 +1911,7 @@
     helperRuntime.preview = null;
     helperRuntime.segment?.clearPreview?.();
     helperRuntime.ui.renderPreview(null);
-    if (typeof setTimeout === "function") {
-      setTimeout(function () {
-        try {
-          globalThis.location.reload();
-        } catch (_error) {
-          // Ignore reload failures and keep the success state visible.
-        }
-      }, 350);
-    }
+    scheduleRuntimeReload(helperRuntime);
   }
 
   async function handleClearSegmentsAction() {
@@ -1489,15 +1938,34 @@
     helperRuntime.preview = null;
     helperRuntime.segment?.clearPreview?.();
     helperRuntime.ui.renderPreview(null);
-    if (typeof setTimeout === "function") {
-      setTimeout(function () {
-        try {
-          globalThis.location.reload();
-        } catch (_error) {
-          // Ignore reload failures and keep the success state visible.
-        }
-      }, 350);
+    scheduleRuntimeReload(helperRuntime);
+  }
+
+  async function handleFillLanguageKindsAction() {
+    if (!helperRuntime || typeof document === "undefined") {
+      return;
     }
+    helperRuntime.ui?.mount?.();
+    helperRuntime.ui?.setStatus?.("正在为当前题补齐空语言种类...", "");
+    const result =
+      typeof helperRuntime.dataApi?.fillEmptyRegionLanguages === "function"
+        ? await helperRuntime.dataApi.fillEmptyRegionLanguages()
+        : await fillEmptyLanguageKinds(document);
+    if (!result.ok) {
+      const statusType =
+        result.filledCount <= 0 &&
+        normalizeText(result.message) === "当前没有空的语言种类需要填充。"
+          ? "success"
+          : "error";
+      helperRuntime.ui?.setStatus?.(result.message, statusType);
+      return;
+    }
+    if (result.filledCount <= 0) {
+      helperRuntime.ui?.setStatus?.(result.message, "success");
+      return;
+    }
+    helperRuntime.ui?.setStatus?.(result.message, "success");
+    scheduleRuntimeReload(helperRuntime);
   }
 
   function ensureHelperRuntime(settings) {
@@ -1516,6 +1984,9 @@
     });
     if (helperRuntime && helperRuntime.configSignature === configSignature) {
       helperRuntime.ui.mount();
+      helperRuntime.ui.setSegmentPreviewAutoApplyEnabled?.(
+        helperConfig.segmentPreviewAutoApplyEnabled
+      );
       applyWaveToolSettings(
         document,
         Object.assign({}, helperConfig, {
@@ -1524,6 +1995,9 @@
       );
       ensureClearSegmentsButton(document, function () {
         void handleClearSegmentsAction();
+      });
+      ensureFillLanguageKindsButton(document, function () {
+        void handleFillLanguageKindsAction();
       });
       scheduleHelperContextRefresh(0);
       return;
@@ -1538,6 +2012,10 @@
         helperConfig.mergeContiguousSuggestedSegmentsEnabled,
     });
     const ui = uiFactory.createRuntime({
+      segmentPreviewAutoApplyEnabled: helperConfig.segmentPreviewAutoApplyEnabled,
+      onToggleSegmentPreviewAutoApply: function (nextEnabled) {
+        void handleSegmentPreviewAutoApplyToggle(nextEnabled);
+      },
       onPreview: function () {
         void handlePreviewAction();
       },
@@ -1548,17 +2026,51 @@
         void handleClearSegmentsAction();
       },
     });
+    const shortcuts =
+      shortcutFactory && typeof shortcutFactory.createRuntime === "function"
+        ? shortcutFactory.createRuntime({
+            shortcuts: helperConfig.shortcuts,
+            actions: createShortcutActions({
+              onTogglePlayPause: function () {
+                return triggerPlayPauseAction(document);
+              },
+              onPlaySelection: function () {
+                return triggerPlaySelectionAction(document);
+              },
+              onJumpToFirstFrame: function () {
+                return triggerJumpToFirstFrameAction(document);
+              },
+              onDeleteCurrentSelection: function () {
+                return triggerDeleteCurrentSelectionAction(document);
+              },
+              onClearSegments: function () {
+                return handleClearSegmentsAction();
+              },
+              onPreviewSegments: function () {
+                return handlePreviewAction();
+              },
+              onApplyPreviewSegments: function () {
+                return handleApplyPreviewAction();
+              },
+            }),
+          })
+        : null;
     helperRuntime = {
       dataApi: dataApi,
       segment: segment,
       ui: ui,
+      shortcuts: shortcuts,
       preview: null,
       endpoint: endpoint,
       config: helperConfig,
       configSignature: configSignature,
       playbackScopeKey: getCurrentPlaybackScopeKey(),
+      scheduleReload: function () {
+        scheduleRuntimeReload(helperRuntime);
+      },
     };
     ui.mount();
+    shortcuts?.bind?.();
     applyWaveToolSettings(
       document,
       Object.assign({}, helperConfig, {
@@ -1567,6 +2079,9 @@
     );
     ensureClearSegmentsButton(document, function () {
       void handleClearSegmentsAction();
+    });
+    ensureFillLanguageKindsButton(document, function () {
+      void handleFillLanguageKindsAction();
     });
     ui.setStatus("苏州话脚本已就绪；当前支持分段建议与平台暂存直写。", "success");
     scheduleHelperContextRefresh(0);
@@ -1586,6 +2101,9 @@
         );
         ensureClearSegmentsButton(document, function () {
           void handleClearSegmentsAction();
+        });
+        ensureFillLanguageKindsButton(document, function () {
+          void handleFillLanguageKindsAction();
         });
       }
       if (runtimePolicy.shouldHidePlatformAi) {
@@ -1621,6 +2139,9 @@
         );
         ensureClearSegmentsButton(document, function () {
           void handleClearSegmentsAction();
+        });
+        ensureFillLanguageKindsButton(document, function () {
+          void handleFillLanguageKindsAction();
         });
       }
       if (runtimePolicy.shouldHidePlatformAi) {
@@ -1764,6 +2285,10 @@
       syncWaveZoomControl: syncWaveZoomControl,
       getPlaybackComboboxLabel: getPlaybackComboboxLabel,
       ensureClearSegmentsButton: ensureClearSegmentsButton,
+      ensureFillLanguageKindsButton: ensureFillLanguageKindsButton,
+      maybeAutoApplyPreview: maybeAutoApplyPreview,
+      createShortcutActions: createShortcutActions,
+      fillEmptyLanguageKinds: fillEmptyLanguageKinds,
     },
   };
 

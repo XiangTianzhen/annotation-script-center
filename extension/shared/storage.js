@@ -2213,6 +2213,58 @@
     return result;
   }
 
+  function normalizeBytedanceAidpShortcuts(value, fallback) {
+    const constants = getConstants();
+    const actions = Array.isArray(constants.BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS)
+      ? constants.BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS
+      : [
+          { key: "togglePlayPause" },
+          { key: "playSelection" },
+          { key: "jumpToFirstFrame" },
+          { key: "deleteCurrentSelection" },
+          { key: "clearSegments" },
+          { key: "previewSegments" },
+          { key: "applyPreviewSegments" },
+        ];
+    const source = isPlainObject(value) ? value : {};
+    const fallbackSource = isPlainObject(fallback) ? fallback : {};
+    const result = {};
+
+    actions.forEach(function (action) {
+      const key = action.key;
+      result[key] = hasOwn(source, key)
+        ? normalizeNullableShortcut(source[key], fallbackSource[key] || null)
+        : normalizeNullableShortcut(fallbackSource[key] || null, null);
+    });
+
+    return result;
+  }
+
+  function isLegacyBytedanceAidpDefaultShortcutState(value) {
+    if (!isPlainObject(value)) {
+      return false;
+    }
+    const normalized = normalizeBytedanceAidpShortcuts(value, {});
+    const toggleShortcut = normalized.togglePlayPause;
+    if (
+      !toggleShortcut ||
+      toggleShortcut.ctrl !== false ||
+      toggleShortcut.alt !== false ||
+      toggleShortcut.shift !== false ||
+      toggleShortcut.meta !== false ||
+      toggleShortcut.key !== "Space" ||
+      toggleShortcut.button !== null
+    ) {
+      return false;
+    }
+    return Object.keys(normalized).every(function (key) {
+      if (key === "togglePlayPause") {
+        return true;
+      }
+      return normalized[key] === null;
+    });
+  }
+
   function normalizeAishellTechVietnameseConfig(config, defaults) {
     const source = isPlainObject(config) ? config : {};
     const defaultConfig = isPlainObject(defaults) ? defaults : {};
@@ -2458,6 +2510,10 @@
       rawSource.mergeContiguousSuggestedSegmentsEnabled === false
         ? false
         : defaultConfig.mergeContiguousSuggestedSegmentsEnabled !== false;
+    result.segmentPreviewAutoApplyEnabled =
+      rawSource.segmentPreviewAutoApplyEnabled === false
+        ? false
+        : defaultConfig.segmentPreviewAutoApplyEnabled !== false;
     result.defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
       rawSource.defaultPlaybackRate,
       defaultConfig.defaultPlaybackRate
@@ -2469,6 +2525,10 @@
     result.contractMode =
       String(result.contractMode || defaultConfig.contractMode || "dom-guarded").trim() ||
       "dom-guarded";
+    result.shortcuts = normalizeBytedanceAidpShortcuts(
+      rawSource.shortcuts,
+      defaultConfig.shortcuts
+    );
     return result;
   }
 
@@ -2495,9 +2555,11 @@
             segmentContextPaddingMs: 300,
             segmentSilenceThresholdDbfs: -31,
             mergeContiguousSuggestedSegmentsEnabled: true,
+            segmentPreviewAutoApplyEnabled: true,
             defaultPlaybackRate: 1,
             fixedWaveZoom: 2,
             contractMode: "dom-guarded",
+            shortcuts: {},
           },
         },
       };
@@ -2541,6 +2603,26 @@
             !hasOwn(migratedRawSuzhouHelper, "mergeContiguousSuggestedSegmentsEnabled")
           ) {
             migratedRawSuzhouHelper.mergeContiguousSuggestedSegmentsEnabled = true;
+          }
+          if (
+            currentSchemaVersion < 27 &&
+            !hasOwn(migratedRawSuzhouHelper, "segmentPreviewAutoApplyEnabled")
+          ) {
+            migratedRawSuzhouHelper.segmentPreviewAutoApplyEnabled = true;
+          }
+          if (
+            currentSchemaVersion < 28 &&
+            isLegacyBytedanceAidpDefaultShortcutState(migratedRawSuzhouHelper.shortcuts)
+          ) {
+            migratedRawSuzhouHelper.shortcuts = Object.assign(
+              {},
+              isPlainObject(migratedRawSuzhouHelper.shortcuts)
+                ? migratedRawSuzhouHelper.shortcuts
+                : {},
+              {
+                togglePlayPause: null,
+              }
+            );
           }
           return migratedRawSuzhouHelper;
         })()
@@ -4369,8 +4451,11 @@
                 segmentSilenceThresholdDbfs: currentConfig.segmentSilenceThresholdDbfs,
                 mergeContiguousSuggestedSegmentsEnabled:
                   currentConfig.mergeContiguousSuggestedSegmentsEnabled !== false,
+                segmentPreviewAutoApplyEnabled:
+                  currentConfig.segmentPreviewAutoApplyEnabled !== false,
                 defaultPlaybackRate: currentConfig.defaultPlaybackRate,
                 fixedWaveZoom: currentConfig.fixedWaveZoom,
+                shortcuts: currentConfig.shortcuts,
               },
             },
           },

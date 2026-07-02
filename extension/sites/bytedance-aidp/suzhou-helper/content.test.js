@@ -5,12 +5,19 @@ const path = require("node:path");
 const test = require("node:test");
 
 const contentModulePath = path.resolve(__dirname, "content.js");
+const shortcutsModulePath = path.resolve(__dirname, "shortcuts.js");
 
 function loadContentModule() {
   delete require.cache[contentModulePath];
   delete globalThis.ASREdgeBytedanceAidpSuzhouContent;
   delete globalThis.__ASREdgeBytedanceAidpSuzhouInstalled;
   return require(contentModulePath);
+}
+
+function loadShortcutsModule() {
+  delete require.cache[shortcutsModulePath];
+  delete globalThis.ASREdgeBytedanceAidpSuzhouShortcuts;
+  return require(shortcutsModulePath);
 }
 
 function createFakeStyle(initialState, initialPriority) {
@@ -914,4 +921,520 @@ test("ByteDance AIDP content injects clear-segments button into play toolbar", f
   assert.equal(button.getAttribute("data-asc-clear-segments-button"), "true");
   button.click();
   assert.equal(clicked, 1);
+});
+
+test("ByteDance AIDP content injects fill-language-kind button next to clear button", function () {
+  const contentModule = loadContentModule();
+  let filled = 0;
+  const playToolbar = new FakeElement({
+    className: "btns-play",
+    children: [new FakeElement({ tagName: "svg" })],
+  });
+  const waveRoot = createFakeDocument([
+    new FakeElement({
+      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      children: [
+        new FakeElement({
+          className: "wave-toolbar",
+          children: [playToolbar],
+        }),
+      ],
+    }),
+  ]);
+
+  contentModule.__testOnly.ensureClearSegmentsButton(waveRoot, function () {});
+  const inserted = contentModule.__testOnly.ensureFillLanguageKindsButton(
+    waveRoot,
+    function () {
+      filled += 1;
+    }
+  );
+  const clearButton = playToolbar.children[playToolbar.children.length - 2];
+  const fillButton = playToolbar.children[playToolbar.children.length - 1];
+
+  assert.equal(inserted, true);
+  assert.equal(clearButton.getAttribute("data-asc-clear-segments-button"), "true");
+  assert.equal(fillButton.getAttribute("data-asc-fill-language-kind-button"), "true");
+  assert.equal(fillButton.textContent, "填充语言种类");
+  fillButton.click();
+  assert.equal(filled, 1);
+});
+
+test("ByteDance AIDP content fills only empty language-kind comboboxes with target dialect", async function () {
+  const contentModule = loadContentModule();
+  const emptyValue = new FakeElement({
+    className: "arco-select-view-value",
+    text: "请选择",
+  });
+  const emptyCombobox = new FakeElement({
+    className: "arco-select arco-select-single",
+    attributes: {
+      role: "combobox",
+    },
+    children: [emptyValue],
+  });
+  const existingValue = new FakeElement({
+    className: "arco-select-view-value",
+    text: "普通话",
+  });
+  const existingCombobox = new FakeElement({
+    className: "arco-select arco-select-single",
+    attributes: {
+      role: "combobox",
+    },
+    children: [existingValue],
+  });
+  const tableRoot = new FakeElement({
+    className: "segment-table",
+    children: [
+      new FakeElement({ tagName: "span", text: "区间" }),
+      new FakeElement({ tagName: "span", text: "转写文本" }),
+      new FakeElement({ tagName: "span", text: "语言种类" }),
+      emptyCombobox,
+      existingCombobox,
+    ],
+  });
+  const option = new FakeElement({
+    className: "arco-select-option",
+    attributes: {
+      role: "option",
+    },
+    text: "目标方言",
+  });
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "page-root",
+      children: [tableRoot, option],
+    }),
+  ]);
+
+  option.addEventListener("click", function () {
+    emptyValue.textContent = "目标方言";
+  });
+
+  const result = await contentModule.__testOnly.fillEmptyLanguageKinds(root);
+
+  assert.deepEqual(result, {
+    ok: true,
+    filledCount: 1,
+  });
+  assert.equal(emptyValue.textContent, "目标方言");
+  assert.equal(existingValue.textContent, "普通话");
+});
+
+test("ByteDance AIDP content scopes target dialect lookup to the active combobox popup", async function () {
+  const contentModule = loadContentModule();
+  const emptyValueOne = new FakeElement({
+    className: "arco-select-view-value",
+    text: "请选择",
+  });
+  const emptyValueTwo = new FakeElement({
+    className: "arco-select-view-value",
+    text: "请选择",
+  });
+  const comboboxOne = new FakeElement({
+    className: "arco-select arco-select-single",
+    attributes: {
+      role: "combobox",
+      "aria-controls": "popup-one",
+      "aria-expanded": "false",
+    },
+    children: [emptyValueOne],
+  });
+  const comboboxTwo = new FakeElement({
+    className: "arco-select arco-select-single",
+    attributes: {
+      role: "combobox",
+      "aria-controls": "popup-two",
+      "aria-expanded": "false",
+    },
+    children: [emptyValueTwo],
+  });
+  const popupOne = new FakeElement({
+    className: "arco-select-popup",
+    attributes: {
+      id: "popup-one",
+      "aria-hidden": "false",
+    },
+    children: [
+      new FakeElement({
+        className: "arco-select-option",
+        attributes: {
+          role: "option",
+        },
+        text: "目标方言",
+      }),
+    ],
+  });
+  const popupTwo = new FakeElement({
+    className: "arco-select-popup",
+    attributes: {
+      id: "popup-two",
+      "aria-hidden": "true",
+    },
+    children: [
+      new FakeElement({
+        className: "arco-select-option",
+        attributes: {
+          role: "option",
+        },
+        text: "目标方言",
+      }),
+    ],
+  });
+  const tableRoot = new FakeElement({
+    className: "segment-table",
+    children: [
+      new FakeElement({ tagName: "span", text: "区间" }),
+      new FakeElement({ tagName: "span", text: "转写文本" }),
+      new FakeElement({ tagName: "span", text: "语言种类" }),
+      comboboxOne,
+      comboboxTwo,
+    ],
+  });
+  const pageRoot = new FakeElement({
+    className: "page-root",
+    children: [tableRoot, popupOne],
+  });
+  const root = createFakeDocument([pageRoot]);
+  const optionOne = popupOne.children[0];
+  const optionTwo = popupTwo.children[0];
+
+  comboboxOne.addEventListener("click", function () {
+    comboboxOne.setAttribute("aria-expanded", "true");
+    popupOne.setAttribute("aria-hidden", "false");
+  });
+  optionOne.addEventListener("click", function () {
+    emptyValueOne.textContent = "目标方言";
+    comboboxOne.setAttribute("aria-expanded", "false");
+    popupOne.setAttribute("aria-hidden", "true");
+  });
+  comboboxTwo.addEventListener("click", function () {
+    comboboxTwo.setAttribute("aria-expanded", "true");
+    popupTwo.setAttribute("aria-hidden", "false");
+    if (!pageRoot.children.includes(popupTwo)) {
+      pageRoot.appendChild(popupTwo);
+    }
+  });
+  optionTwo.addEventListener("click", function () {
+    emptyValueTwo.textContent = "目标方言";
+    comboboxTwo.setAttribute("aria-expanded", "false");
+    popupTwo.setAttribute("aria-hidden", "true");
+  });
+
+  const result = await contentModule.__testOnly.fillEmptyLanguageKinds(root);
+
+  assert.deepEqual(result, {
+    ok: true,
+    filledCount: 2,
+  });
+  assert.equal(emptyValueOne.textContent, "目标方言");
+  assert.equal(emptyValueTwo.textContent, "目标方言");
+  assert.equal(comboboxTwo.getAttribute("aria-expanded"), "false");
+});
+
+test("ByteDance AIDP content fill-language-kind action fails closed when target dialect option is ambiguous", async function () {
+  const contentModule = loadContentModule();
+  const emptyValue = new FakeElement({
+    className: "arco-select-view-value",
+    text: "请选择",
+  });
+  const emptyCombobox = new FakeElement({
+    className: "arco-select arco-select-single",
+    attributes: {
+      role: "combobox",
+      "aria-expanded": "false",
+    },
+    children: [emptyValue],
+  });
+  const tableRoot = new FakeElement({
+    className: "segment-table",
+    children: [
+      new FakeElement({ tagName: "span", text: "区间" }),
+      new FakeElement({ tagName: "span", text: "转写文本" }),
+      new FakeElement({ tagName: "span", text: "语言种类" }),
+      emptyCombobox,
+    ],
+  });
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "page-root",
+      children: [
+        tableRoot,
+        new FakeElement({
+          className: "arco-select-option",
+          attributes: {
+            role: "option",
+          },
+          text: "目标方言",
+        }),
+        new FakeElement({
+          className: "arco-select-option",
+          attributes: {
+            role: "option",
+          },
+          text: "目标方言",
+        }),
+      ],
+    }),
+  ]);
+
+  emptyCombobox.addEventListener("click", function () {
+    emptyCombobox.setAttribute("aria-expanded", "true");
+  });
+  emptyCombobox.addEventListener("keydown", function (event) {
+    if (String(event?.key || "") === "Escape") {
+      emptyCombobox.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  const result = await contentModule.__testOnly.fillEmptyLanguageKinds(root);
+
+  assert.deepEqual(result, {
+    ok: false,
+    filledCount: 0,
+    reason: "missing-target-option",
+  });
+  assert.equal(emptyValue.textContent, "请选择");
+  assert.equal(emptyCombobox.getAttribute("aria-expanded"), "false");
+  assert.equal("syncEmptyLanguageKinds" in contentModule.__testOnly, false);
+});
+
+test("ByteDance AIDP content auto-applies generated preview when enabled", async function () {
+  const contentModule = loadContentModule();
+  let cleared = 0;
+  let renderedPreview = 0;
+  let reloadCount = 0;
+  const statusMessages = [];
+  const autoApplyResult = await contentModule.__testOnly.maybeAutoApplyPreview(
+    {
+      config: {
+        segmentPreviewAutoApplyEnabled: true,
+      },
+      dataApi: {
+        applySegmentPreview: async function () {
+          return {
+            ok: true,
+            message: "已通过平台暂存接口应用分段建议，请刷新页面复核。",
+          };
+        },
+      },
+      segment: {
+        clearPreview: function () {
+          cleared += 1;
+        },
+      },
+      ui: {
+        renderPreview: function (value) {
+          if (value === null) {
+            renderedPreview += 1;
+          }
+        },
+        setStatus: function (message) {
+          statusMessages.push(String(message || ""));
+        },
+      },
+      scheduleReload: function () {
+        reloadCount += 1;
+      },
+    },
+    {
+      proposedSegments: [{ startMs: 1000, endMs: 2000 }],
+    }
+  );
+
+  assert.deepEqual(autoApplyResult, {
+    attempted: true,
+    ok: true,
+    result: {
+      ok: true,
+      message: "已通过平台暂存接口应用分段建议，请刷新页面复核。",
+    },
+  });
+  assert.equal(cleared, 1);
+  assert.equal(renderedPreview, 1);
+  assert.equal(reloadCount, 1);
+  assert.equal(statusMessages[0], "已通过平台暂存接口应用分段建议，请刷新页面复核。");
+});
+
+test("ByteDance AIDP content keeps preview when auto-apply is disabled", async function () {
+  const contentModule = loadContentModule();
+  const autoApplyResult = await contentModule.__testOnly.maybeAutoApplyPreview(
+    {
+      config: {
+        segmentPreviewAutoApplyEnabled: false,
+      },
+      dataApi: {
+        applySegmentPreview: async function () {
+          throw new Error("should not run");
+        },
+      },
+    },
+    {
+      proposedSegments: [{ startMs: 1000, endMs: 2000 }],
+    }
+  );
+
+  assert.deepEqual(autoApplyResult, {
+    attempted: false,
+    ok: false,
+    reason: "disabled",
+  });
+});
+
+test("ByteDance AIDP content exposes exactly the expected shortcut action handlers", async function () {
+  const contentModule = loadContentModule();
+  const calls = [];
+  const actions = contentModule.__testOnly.createShortcutActions({
+    onTogglePlayPause: function () {
+      calls.push("togglePlayPause");
+      return true;
+    },
+    onPlaySelection: function () {
+      calls.push("playSelection");
+      return true;
+    },
+    onJumpToFirstFrame: function () {
+      calls.push("jumpToFirstFrame");
+      return true;
+    },
+    onDeleteCurrentSelection: function () {
+      calls.push("deleteCurrentSelection");
+      return true;
+    },
+    onClearSegments: function () {
+      calls.push("clearSegments");
+      return Promise.resolve();
+    },
+    onPreviewSegments: function () {
+      calls.push("previewSegments");
+      return Promise.resolve();
+    },
+    onApplyPreviewSegments: function () {
+      calls.push("applyPreviewSegments");
+      return Promise.resolve();
+    },
+  });
+
+  assert.deepEqual(Object.keys(actions).sort(), [
+    "applyPreviewSegments",
+    "clearSegments",
+    "deleteCurrentSelection",
+    "jumpToFirstFrame",
+    "playSelection",
+    "previewSegments",
+    "togglePlayPause",
+  ]);
+
+  await actions.togglePlayPause();
+  await actions.playSelection();
+  await actions.jumpToFirstFrame();
+  await actions.deleteCurrentSelection();
+  await actions.clearSegments();
+  await actions.previewSegments();
+  await actions.applyPreviewSegments();
+
+  assert.deepEqual(calls, [
+    "togglePlayPause",
+    "playSelection",
+    "jumpToFirstFrame",
+    "deleteCurrentSelection",
+    "clearSegments",
+    "previewSegments",
+    "applyPreviewSegments",
+  ]);
+});
+
+test("ByteDance AIDP shortcuts runtime ignores editable targets and triggers Space play-pause toggle", function () {
+  const shortcutsModule = loadShortcutsModule();
+  const windowListeners = new Map();
+  const fakeWindow = {
+    addEventListener(type, listener) {
+      windowListeners.set(String(type || ""), listener);
+    },
+    removeEventListener(type) {
+      windowListeners.delete(String(type || ""));
+    },
+  };
+  const activeInput = {
+    tagName: "INPUT",
+    isContentEditable: false,
+    closest() {
+      return null;
+    },
+  };
+  const activeBody = {
+    tagName: "DIV",
+    isContentEditable: false,
+    closest() {
+      return null;
+    },
+  };
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  let triggered = 0;
+  globalThis.window = fakeWindow;
+  globalThis.document = {
+    activeElement: activeInput,
+  };
+
+  try {
+    const runtime = shortcutsModule.createRuntime({
+      shortcuts: {
+        togglePlayPause: {
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+          key: "Space",
+          button: null,
+        },
+      },
+      actions: {
+        togglePlayPause() {
+          triggered += 1;
+        },
+      },
+    });
+    runtime.bind();
+    const listener = windowListeners.get("keydown");
+    assert.ok(listener);
+
+    let prevented = 0;
+    listener({
+      key: " ",
+      code: "Space",
+      ctrlKey: false,
+      altKey: false,
+      shiftKey: false,
+      metaKey: false,
+      target: activeInput,
+      preventDefault() {
+        prevented += 1;
+      },
+      stopPropagation() {},
+    });
+    assert.equal(triggered, 0);
+    assert.equal(prevented, 0);
+
+    globalThis.document.activeElement = activeBody;
+    listener({
+      key: " ",
+      code: "Space",
+      ctrlKey: false,
+      altKey: false,
+      shiftKey: false,
+      metaKey: false,
+      target: activeBody,
+      preventDefault() {
+        prevented += 1;
+      },
+      stopPropagation() {},
+    });
+    assert.equal(triggered, 1);
+    assert.equal(prevented, 1);
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+  }
 });

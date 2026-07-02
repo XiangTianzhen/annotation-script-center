@@ -506,6 +506,16 @@
     { key: "labelMeaningless", label: "<Meaningless>" },
     { key: "labelSilence", label: "<Silence>" },
   ];
+  const bytedanceAidpShortcutActions =
+    constants.BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS || [
+      { key: "togglePlayPause", label: "播放/暂停切换" },
+      { key: "playSelection", label: "区间播放" },
+      { key: "jumpToFirstFrame", label: "回到首帧" },
+      { key: "deleteCurrentSelection", label: "删除当前选区" },
+      { key: "clearSegments", label: "清空画段" },
+      { key: "previewSegments", label: "生成分段建议" },
+      { key: "applyPreviewSegments", label: "应用分段建议" },
+    ];
   const dataBakerListenModelOptions = Array.isArray(constants.DATABAKER_AI_LISTEN_MODEL_OPTIONS)
     ? constants.DATABAKER_AI_LISTEN_MODEL_OPTIONS
     : [
@@ -864,6 +874,9 @@
   let dataBakerCvpcShortcutsDraft = {};
   let dataBakerCvpcRecordingKey = null;
   let stopDataBakerCvpcRecordingListeners = null;
+  let bytedanceAidpShortcutsDraft = {};
+  let bytedanceAidpRecordingKey = null;
+  let stopBytedanceAidpRecordingListeners = null;
   let aishellTechShortcutsDraft = {};
   let aishellTechRecordingKey = null;
   let stopAishellTechRecordingListeners = null;
@@ -4813,6 +4826,20 @@
     return result;
   }
 
+  function normalizeBytedanceAidpShortcuts(shortcuts, fallback) {
+    const source = shortcuts && typeof shortcuts === "object" ? shortcuts : {};
+    const base = fallback && typeof fallback === "object" ? fallback : {};
+    const result = {};
+    bytedanceAidpShortcutActions.forEach(function (action) {
+      if (hasOwn(source, action.key)) {
+        result[action.key] = normalizeNullableShortcut(source[action.key]);
+        return;
+      }
+      result[action.key] = normalizeNullableShortcut(base[action.key]);
+    });
+    return result;
+  }
+
   function getAishellTechShortcutActions(scriptId) {
     return isAishellTechVietnameseScript(scriptId)
       ? aishellTechVietnameseShortcutActions
@@ -5405,9 +5432,11 @@
         segmentContextPaddingMs: 300,
         segmentSilenceThresholdDbfs: -31,
         mergeContiguousSuggestedSegmentsEnabled: true,
+        segmentPreviewAutoApplyEnabled: true,
         defaultPlaybackRate: 1,
         fixedWaveZoom: 2,
         contractMode: "dom-guarded",
+        shortcuts: {},
       },
       clone(defaults),
       clone(current)
@@ -5426,6 +5455,8 @@
     );
     config.mergeContiguousSuggestedSegmentsEnabled =
       config.mergeContiguousSuggestedSegmentsEnabled === false ? false : true;
+    config.segmentPreviewAutoApplyEnabled =
+      config.segmentPreviewAutoApplyEnabled === false ? false : true;
     config.defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
       config.defaultPlaybackRate,
       defaults.defaultPlaybackRate
@@ -5435,6 +5466,7 @@
       defaults.fixedWaveZoom
     );
     config.contractMode = normalizeText(config.contractMode || "dom-guarded") || "dom-guarded";
+    config.shortcuts = normalizeBytedanceAidpShortcuts(config.shortcuts, defaults.shortcuts);
     return config;
   }
 
@@ -6927,6 +6959,102 @@
       stopDataBakerCvpcRecordingListeners = null;
     };
     renderDataBakerCvpcShortcutGrid();
+  }
+
+  function ensureBytedanceAidpShortcutDraft() {
+    bytedanceAidpShortcutActions.forEach(function (action) {
+      if (!hasOwn(bytedanceAidpShortcutsDraft, action.key)) {
+        bytedanceAidpShortcutsDraft[action.key] = null;
+      }
+    });
+  }
+
+  function renderBytedanceAidpShortcutGrid() {
+    ensureBytedanceAidpShortcutDraft();
+    renderRecordableShortcutGrid({
+      gridId: "bytedance-aidp-shortcut-grid",
+      actions: bytedanceAidpShortcutActions,
+      values: bytedanceAidpShortcutsDraft,
+      recordingKey: bytedanceAidpRecordingKey,
+      recordAttrName: "data-record-bytedance-aidp-shortcut",
+      clearAttrName: "data-clear-bytedance-aidp-shortcut",
+      onRecord: function (key) {
+        startBytedanceAidpShortcutRecording(key);
+      },
+      onClear: function (key) {
+        bytedanceAidpShortcutsDraft[key] = null;
+        if (bytedanceAidpRecordingKey === key) {
+          stopBytedanceAidpShortcutRecording("快捷键录制已取消。");
+          return;
+        }
+        setBytedanceAidpRecordingStatus("快捷键已删除，保存后生效。");
+        renderBytedanceAidpShortcutGrid();
+      },
+    });
+  }
+
+  function setBytedanceAidpRecordingStatus(text) {
+    const node = getElement("bytedance-aidp-recording-status");
+    if (!node) {
+      return;
+    }
+    const value = String(text || "").trim();
+    node.textContent = value;
+    node.classList.toggle("hidden", !value);
+  }
+
+  function stopBytedanceAidpShortcutRecording(statusText) {
+    if (typeof stopBytedanceAidpRecordingListeners === "function") {
+      stopBytedanceAidpRecordingListeners();
+      stopBytedanceAidpRecordingListeners = null;
+    }
+    bytedanceAidpRecordingKey = null;
+    setBytedanceAidpRecordingStatus(statusText || "");
+    renderBytedanceAidpShortcutGrid();
+  }
+
+  function applyRecordedBytedanceAidpShortcut(shortcut) {
+    if (!bytedanceAidpRecordingKey || shortcut === false) {
+      return;
+    }
+    if (!shortcut) {
+      stopBytedanceAidpShortcutRecording("已取消快捷键录制。");
+      return;
+    }
+    bytedanceAidpShortcutsDraft[bytedanceAidpRecordingKey] = normalizeNullableShortcut(shortcut);
+    stopBytedanceAidpShortcutRecording("快捷键已录制，保存后生效。");
+  }
+
+  function startBytedanceAidpShortcutRecording(actionKey) {
+    if (!actionKey) {
+      return;
+    }
+    if (typeof stopBytedanceAidpRecordingListeners === "function") {
+      stopBytedanceAidpRecordingListeners();
+    }
+    bytedanceAidpRecordingKey = actionKey;
+    const action = bytedanceAidpShortcutActions.find(function (item) {
+      return item.key === actionKey;
+    });
+    setBytedanceAidpRecordingStatus(
+      "正在录制「" + String(action?.label || actionKey) + "」：按键盘组合，Esc 取消。"
+    );
+
+    const keydownListener = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+      applyRecordedBytedanceAidpShortcut(shortcutFromKeyboardEvent(event));
+    };
+
+    window.addEventListener("keydown", keydownListener, true);
+    stopBytedanceAidpRecordingListeners = function () {
+      window.removeEventListener("keydown", keydownListener, true);
+      stopBytedanceAidpRecordingListeners = null;
+    };
+    renderBytedanceAidpShortcutGrid();
   }
 
   function isModifierOnlyKey(key) {
@@ -10733,6 +10861,9 @@
     if (scriptId === dataBakerCvpcLiuzhouScriptId) {
       return "detail-data-baker-cvpc-shortcuts-panel";
     }
+    if (scriptId === bytedanceAidpSuzhouScriptId) {
+      return "detail-bytedance-aidp-shortcuts-panel";
+    }
     if (isAishellTechScript(scriptId)) {
       return "detail-aishell-tech-shortcuts-panel";
     }
@@ -10752,6 +10883,7 @@
       "detail-judgement-shortcuts-panel",
       "detail-data-baker-shortcuts-panel",
       "detail-data-baker-cvpc-shortcuts-panel",
+      "detail-bytedance-aidp-shortcuts-panel",
       "detail-aishell-tech-shortcuts-panel",
       "detail-magic-data-shortcuts-panel",
       "detail-abaka-shortcuts-panel",
@@ -11171,7 +11303,11 @@
 
   function applyBytedanceAidpForm(settings) {
     const config = getBytedanceAidpSuzhouConfig(settings);
+    bytedanceAidpShortcutsDraft = clone(config.shortcuts) || {};
     const platformAiNode = getElement("bytedance-aidp-platform-ai-enabled");
+    const segmentPreviewAutoApplyNode = getElement(
+      "bytedance-aidp-segment-preview-auto-apply-enabled"
+    );
     const segmentContextPaddingNode = getElement("bytedance-aidp-segment-context-padding-seconds");
     const segmentSilenceThresholdNode = getElement(
       "bytedance-aidp-segment-silence-threshold-dbfs"
@@ -11185,6 +11321,9 @@
 
     if (platformAiNode) {
       platformAiNode.checked = config.platformAiEnabled === false;
+    }
+    if (segmentPreviewAutoApplyNode instanceof HTMLInputElement) {
+      segmentPreviewAutoApplyNode.checked = config.segmentPreviewAutoApplyEnabled !== false;
     }
     if (segmentContextPaddingNode instanceof HTMLInputElement) {
       segmentContextPaddingNode.value = String(
@@ -11226,9 +11365,11 @@
     if (contractNode) {
       contractNode.textContent =
         config.contractMode === "dom-guarded"
-          ? "仅允许 DOM 显隐、波形控件回填和显式分段建议写回；不触发提交或下一题。"
+          ? "仅允许 DOM 显隐、波形控件回填、快捷键触发页面真实按钮和显式分段建议写回；不触发提交或下一题。"
           : String(config.contractMode || "dom-guarded");
     }
+    stopBytedanceAidpShortcutRecording("");
+    renderBytedanceAidpShortcutGrid();
   }
 
   function applyAishellTechMinnanForm(settings) {
@@ -11730,6 +11871,11 @@
     }
 
     const currentConfig = getBytedanceAidpSuzhouConfig(currentSettings || {});
+    ensureBytedanceAidpShortcutDraft();
+    const shortcuts = {};
+    bytedanceAidpShortcutActions.forEach(function (action) {
+      shortcuts[action.key] = normalizeNullableShortcut(bytedanceAidpShortcutsDraft[action.key]);
+    });
     const segmentContextPaddingMs = normalizeBytedanceAidpSegmentContextPaddingMs(
       Number(getElement("bytedance-aidp-segment-context-padding-seconds")?.value || 0) * 1000,
       currentConfig.segmentContextPaddingMs
@@ -11740,6 +11886,8 @@
     );
     const mergeContiguousSuggestedSegmentsEnabled =
       getElement("bytedance-aidp-merge-contiguous-suggested-segments-enabled")?.checked !== false;
+    const segmentPreviewAutoApplyEnabled =
+      getElement("bytedance-aidp-segment-preview-auto-apply-enabled")?.checked !== false;
     const defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
       getElement("bytedance-aidp-default-playback-rate")?.value,
       currentConfig.defaultPlaybackRate
@@ -11764,9 +11912,11 @@
                 segmentSilenceThresholdDbfs: segmentSilenceThresholdDbfs,
                 mergeContiguousSuggestedSegmentsEnabled:
                   mergeContiguousSuggestedSegmentsEnabled,
+                segmentPreviewAutoApplyEnabled: segmentPreviewAutoApplyEnabled,
                 defaultPlaybackRate: defaultPlaybackRate,
                 fixedWaveZoom: fixedWaveZoom,
                 contractMode: "dom-guarded",
+                shortcuts: shortcuts,
               },
             },
           },
