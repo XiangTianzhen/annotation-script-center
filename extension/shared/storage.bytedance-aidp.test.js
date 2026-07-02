@@ -69,7 +69,40 @@ test("ByteDance AIDP storage defaults expose beta suzhou helper settings", async
     assert.equal(script.id, "bytedanceAidpSuzhouHelper");
     assert.equal(script.enabled, true);
     assert.equal(script.platformAiEnabled, false);
+    assert.equal(script.segmentContextPaddingMs, 500);
+    assert.equal(script.defaultPlaybackRate, 1);
+    assert.equal(script.fixedWaveZoom, 2);
     assert.equal(script.contractMode, "dom-guarded");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ByteDance AIDP storage clamps suzhou helper segment padding playback rate and wave zoom", async function () {
+  const harness = loadStorageApi({
+    platforms: {
+      bytedanceAidp: {
+        enabled: true,
+        scripts: {
+          suzhouHelper: {
+            enabled: true,
+            platformAiEnabled: false,
+            segmentContextPaddingMs: 999,
+            defaultPlaybackRate: -1,
+            fixedWaveZoom: 99,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.bytedanceAidp.scripts.suzhouHelper;
+
+    assert.equal(script.segmentContextPaddingMs, 500);
+    assert.equal(script.defaultPlaybackRate, 1);
+    assert.equal(script.fixedWaveZoom, 2);
   } finally {
     harness.cleanup();
   }

@@ -711,6 +711,44 @@
               </div>
             </div>
 
+            <div class="detail-grid three">
+              <label class="field-card">
+                <strong>前后静音时长</strong>
+                <span>用于画段建议的前后静音补偿。默认 `0.5s`，可配置范围 `0.3s ~ 0.5s`。</span>
+                <input
+                  id="bytedance-aidp-segment-context-padding-seconds"
+                  type="number"
+                  min="0.3"
+                  max="0.5"
+                  step="0.1"
+                />
+              </label>
+
+              <label class="field-card">
+                <strong>默认播放倍数</strong>
+                <span>详情页进入和波形区重渲染后，自动回填到平台播放速度控件。</span>
+                <input
+                  id="bytedance-aidp-default-playback-rate"
+                  type="number"
+                  min="0.5"
+                  max="3"
+                  step="0.1"
+                />
+              </label>
+
+              <label class="field-card">
+                <strong>固定缩放倍数</strong>
+                <span>详情页进入和波形区重渲染后，自动回填到平台缩放输入框，默认 `2`。</span>
+                <input
+                  id="bytedance-aidp-fixed-wave-zoom"
+                  type="number"
+                  min="1"
+                  max="8"
+                  step="0.1"
+                />
+              </label>
+            </div>
+
             <div class="detail-grid two">
               <div class="field-card">
                 <strong>写入契约状态</strong>

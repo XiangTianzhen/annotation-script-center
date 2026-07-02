@@ -77,7 +77,7 @@ test("AIDP segmentation controller forwards audio, duration, existing segments, 
     const runtime = moduleApi.createRuntime({
       endpoint: "https://script.example.com/api/bytedance-aidp/suzhou-helper/segment/preview",
       silenceThresholdDbfs: -31,
-      contextPaddingMs: 180,
+      contextPaddingMs: 400,
     });
 
     const context = {
@@ -117,7 +117,7 @@ test("AIDP segmentation controller forwards audio, duration, existing segments, 
     assert.deepEqual(body.rules, {
       silenceThresholdDbfs: -31,
       minSilenceMs: 400,
-      contextPaddingMs: 180,
+      contextPaddingMs: 400,
     });
     assert.equal(preview.meta.previewMode, "incremental");
     assert.equal(preview.selectionKey, "7656690377962016562");
@@ -155,5 +155,35 @@ test("AIDP segmentation controller surfaces backend preview errors", async funct
     );
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("AIDP segmentation controller defaults context padding to 500ms", async function () {
+  const moduleApi = loadModule();
+  const harness = installFetchHarness({
+    success: true,
+    data: {
+      proposedSegments: [],
+      changes: [],
+    },
+    meta: {},
+  });
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/bytedance-aidp/suzhou-helper/segment/preview",
+    });
+
+    await runtime.preview({
+      audioUrl: "https://audio.example.com/sample.mp3?signature=masked",
+      audioDurationMs: 22013,
+      currentSegments: [],
+    });
+
+    const body = JSON.parse(harness.requests[0].body);
+
+    assert.equal(body.rules.contextPaddingMs, 500);
+  } finally {
+    harness.restore();
   }
 });

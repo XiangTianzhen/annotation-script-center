@@ -3,7 +3,7 @@
   const DEFAULT_SILENCE_THRESHOLD_DBFS = -27;
   const DEFAULT_SILENCE_THRESHOLD_UNIT = "db";
   const MIN_SILENCE_MS = 400;
-  const DEFAULT_CONTEXT_PADDING_MS = 200;
+  const DEFAULT_CONTEXT_PADDING_MS = 500;
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -33,7 +33,7 @@
     if (!Number.isFinite(numeric)) {
       return DEFAULT_CONTEXT_PADDING_MS;
     }
-    return Math.max(0, Math.min(1500, Math.round(numeric)));
+    return Math.max(300, Math.min(500, Math.round(numeric)));
   }
 
   function normalizeExistingSegments(value) {

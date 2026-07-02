@@ -15,7 +15,9 @@
     CONSTANTS.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
   const SEGMENT_PREVIEW_PATH = "/api/bytedance-aidp/suzhou-helper/segment/preview";
   const DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS = -27;
-  const DEFAULT_SEGMENT_CONTEXT_PADDING_MS = 200;
+  const DEFAULT_SEGMENT_CONTEXT_PADDING_MS = 500;
+  const DEFAULT_PLAYBACK_RATE = 1;
+  const DEFAULT_FIXED_WAVE_ZOOM = 2;
   const HIDDEN_ATTR = "data-asc-platform-ai-hidden";
   const EXACT_PLATFORM_AI_SELECTORS = {
     insight: ".insight-container-Hn0Gna",
@@ -54,6 +56,43 @@
     return String(value || "").trim();
   }
 
+  function normalizeSegmentContextPaddingMs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 500;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    const rounded = Math.round(numeric);
+    if (rounded < 300 || rounded > 500) {
+      return fallbackNumber;
+    }
+    return rounded;
+  }
+
+  function normalizePlaybackRate(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 1;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0.5 || numeric > 3) {
+      return fallbackNumber;
+    }
+    return Number(numeric.toFixed(2));
+  }
+
+  function normalizeFixedWaveZoom(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 2;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 1 || numeric > 8) {
+      return fallbackNumber;
+    }
+    return Number(numeric.toFixed(1));
+  }
+
+  function formatControlValue(value) {
+    return String(Number(value))
+      .replace(/\.0$/, "")
+      .replace(/(\.\d*?)0+$/, "$1");
+  }
+
   function isDetailPagePathname(pathname) {
     const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
     return /^\/management\/task-v2\/[^/]+\/mark-v3\/[^/]+$/i.test(text);
@@ -87,9 +126,32 @@
         id: SCRIPT_ID,
         enabled: true,
         platformAiEnabled: false,
+        segmentContextPaddingMs: DEFAULT_SEGMENT_CONTEXT_PADDING_MS,
+        defaultPlaybackRate: DEFAULT_PLAYBACK_RATE,
+        fixedWaveZoom: DEFAULT_FIXED_WAVE_ZOOM,
         contractMode: "dom-guarded",
       }
     );
+  }
+
+  function resolveHelperConfig(settings) {
+    const source = settings && typeof settings === "object" ? settings : {};
+    const defaults = getDefaultScriptConfig();
+    const current = source?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+    return {
+      segmentContextPaddingMs: normalizeSegmentContextPaddingMs(
+        current.segmentContextPaddingMs,
+        defaults.segmentContextPaddingMs
+      ),
+      defaultPlaybackRate: normalizePlaybackRate(
+        current.defaultPlaybackRate,
+        defaults.defaultPlaybackRate
+      ),
+      fixedWaveZoom: normalizeFixedWaveZoom(
+        current.fixedWaveZoom,
+        defaults.fixedWaveZoom
+      ),
+    };
   }
 
   function resolveSegmentPreviewEndpoint(settings) {
@@ -277,6 +339,36 @@
 
   function getNodeText(node) {
     return normalizeText(node?.textContent || node?.innerText || "");
+  }
+
+  function dispatchControlEvent(node, type) {
+    if (!node || typeof node.dispatchEvent !== "function") {
+      return;
+    }
+    try {
+      if (typeof Event === "function") {
+        node.dispatchEvent(new Event(type, { bubbles: true }));
+        return;
+      }
+    } catch (_error) {
+      // Fall through to plain event object.
+    }
+    node.dispatchEvent({ type: type, bubbles: true });
+  }
+
+  function setControlValue(node, nextValue) {
+    if (!node || nextValue === undefined || nextValue === null) {
+      return false;
+    }
+    const text = formatControlValue(nextValue);
+    if (String(node.value || "") === text) {
+      return false;
+    }
+    node.value = text;
+    dispatchControlEvent(node, "input");
+    dispatchControlEvent(node, "change");
+    dispatchControlEvent(node, "blur");
+    return true;
   }
 
   function getStylePropertyValue(node, propertyName) {
@@ -574,6 +666,69 @@
     return results;
   }
 
+  function findWaveWorkbench(root) {
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const searchRoot = searchRoots[index];
+      const exact = safeQuerySelectorAll(searchRoot, ".neeko-wavesurfer-warper.neeko-wavesurfer")[0];
+      if (exact) {
+        return exact.parentElement || exact;
+      }
+      const semantic = collectDescendantElements(searchRoot).find(function (node) {
+        const text = getNodeText(node);
+        return text.includes("播放速度") && text.includes("总时长");
+      });
+      if (semantic) {
+        return semantic;
+      }
+    }
+    return null;
+  }
+
+  function findPlaybackRateControl(root) {
+    const workbench = findWaveWorkbench(root);
+    if (!workbench) {
+      return null;
+    }
+    return (
+      safeQuerySelectorAll(workbench, "select").find(function (node) {
+        return node && "value" in node;
+      }) || null
+    );
+  }
+
+  function findWaveZoomControl(root) {
+    const workbench = findWaveWorkbench(root);
+    if (!workbench) {
+      return null;
+    }
+    return (
+      safeQuerySelectorAll(workbench, "[role='spinbutton']").find(function (node) {
+        return node && "value" in node;
+      }) || null
+    );
+  }
+
+  function applyWaveToolSettings(root, config) {
+    const source = config && typeof config === "object" ? config : {};
+    let changed = false;
+    const playbackNode = findPlaybackRateControl(root);
+    const zoomNode = findWaveZoomControl(root);
+    if (playbackNode) {
+      changed = setControlValue(
+        playbackNode,
+        normalizePlaybackRate(source.defaultPlaybackRate, DEFAULT_PLAYBACK_RATE)
+      ) || changed;
+    }
+    if (zoomNode) {
+      changed = setControlValue(
+        zoomNode,
+        normalizeFixedWaveZoom(source.fixedWaveZoom, DEFAULT_FIXED_WAVE_ZOOM)
+      ) || changed;
+    }
+    return changed;
+  }
+
   function findHiddenPlatformAiTargets(root) {
     if (!root) {
       return [];
@@ -628,6 +783,7 @@
       }
       try {
         helperRuntime.ui.mount();
+        applyWaveToolSettings(document, helperRuntime.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS));
         const context = await helperRuntime.dataApi.getCurrentContext();
         helperRuntime.ui.renderAudioContext(context);
         if (!normalizeText(context?.audioUrl)) {
@@ -715,8 +871,14 @@
       return;
     }
     const endpoint = resolveSegmentPreviewEndpoint(settings);
-    if (helperRuntime && helperRuntime.endpoint === endpoint) {
+    const helperConfig = resolveHelperConfig(settings);
+    const configSignature = JSON.stringify({
+      endpoint: endpoint,
+      helperConfig: helperConfig,
+    });
+    if (helperRuntime && helperRuntime.configSignature === configSignature) {
       helperRuntime.ui.mount();
+      applyWaveToolSettings(document, helperConfig);
       scheduleHelperContextRefresh(0);
       return;
     }
@@ -725,7 +887,7 @@
     const segment = segmentFactory.createRuntime({
       endpoint: endpoint,
       silenceThresholdDbfs: DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS,
-      contextPaddingMs: DEFAULT_SEGMENT_CONTEXT_PADDING_MS,
+      contextPaddingMs: helperConfig.segmentContextPaddingMs,
     });
     const ui = uiFactory.createRuntime({
       onPreview: function () {
@@ -741,8 +903,11 @@
       ui: ui,
       preview: null,
       endpoint: endpoint,
+      config: helperConfig,
+      configSignature: configSignature,
     };
     ui.mount();
+    applyWaveToolSettings(document, helperConfig);
     ui.setStatus("苏州话脚本已就绪；当前支持分段建议与平台暂存直写。", "success");
     scheduleHelperContextRefresh(0);
   }
@@ -752,6 +917,9 @@
     runtimePolicy = resolveRuntimePolicy(settings);
     if (typeof document !== "undefined") {
       syncPlatformAiVisibility(document, runtimePolicy.shouldHidePlatformAi);
+      if (runtimePolicy.runtimeAccessible) {
+        applyWaveToolSettings(document, resolveHelperConfig(settings));
+      }
       if (runtimePolicy.shouldHidePlatformAi) {
         ensureMutationObserver();
       } else {
@@ -772,6 +940,12 @@
         return;
       }
       syncPlatformAiVisibility(document, runtimePolicy.shouldHidePlatformAi);
+      if (runtimePolicy.runtimeAccessible) {
+        applyWaveToolSettings(
+          document,
+          helperRuntime?.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS || {})
+        );
+      }
       if (runtimePolicy.shouldHidePlatformAi) {
         ensureMutationObserver();
       }
@@ -907,6 +1081,8 @@
       normalizeFloatingTarget: normalizeFloatingTarget,
       getInsightCandidateScore: getInsightCandidateScore,
       getFloatingAssistantScore: getFloatingAssistantScore,
+      resolveHelperConfig: resolveHelperConfig,
+      applyWaveToolSettings: applyWaveToolSettings,
     },
   };
 

@@ -108,6 +108,7 @@ class FakeElement {
     this.style = createFakeStyle(source.style || {});
     this._attrs = new Map();
     this._ownText = String(source.text || "");
+    this.value = source.value !== undefined ? String(source.value) : "";
     this._rect = Object.assign(
       {
         top: 0,
@@ -130,6 +131,11 @@ class FakeElement {
     (source.children || []).forEach((child) => {
       this.appendChild(child);
     });
+  }
+
+  dispatchEvent(event) {
+    this._lastEvent = event;
+    return true;
   }
 
   appendChild(child) {
@@ -489,4 +495,68 @@ test("ByteDance AIDP content only matches mark-v3 detail routes", function () {
     contentModule.__testOnly.isDetailPagePathname("/management/task-v2"),
     false
   );
+});
+
+test("ByteDance AIDP content resolves helper config with custom padding playback rate and wave zoom", function () {
+  const contentModule = loadContentModule();
+  const config = contentModule.__testOnly.resolveHelperConfig({
+    platforms: {
+      bytedanceAidp: {
+        scripts: {
+          suzhouHelper: {
+            segmentContextPaddingMs: 400,
+            defaultPlaybackRate: 1.25,
+            fixedWaveZoom: 2.5,
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(config.segmentContextPaddingMs, 400);
+  assert.equal(config.defaultPlaybackRate, 1.25);
+  assert.equal(config.fixedWaveZoom, 2.5);
+});
+
+test("ByteDance AIDP content applies playback rate and fixed zoom to wave controls", function () {
+  const contentModule = loadContentModule();
+  const playbackSelect = new FakeElement({
+    tagName: "select",
+    value: "1.0",
+    children: [
+      new FakeElement({ tagName: "option", value: "1.0", text: "1.0倍速" }),
+      new FakeElement({ tagName: "option", value: "1.5", text: "1.5倍速" }),
+    ],
+  });
+  const zoomInput = new FakeElement({
+    tagName: "input",
+    attributes: {
+      role: "spinbutton",
+    },
+    value: "1",
+  });
+  const waveRoot = new FakeElement({
+    className: "neeko-wavesurfer-warper neeko-wavesurfer",
+    children: [
+      new FakeElement({
+        className: "wave-toolbar",
+        children: [
+          new FakeElement({ tagName: "span", text: "播放速度" }),
+          playbackSelect,
+          new FakeElement({ tagName: "span", text: "总时长" }),
+          zoomInput,
+        ],
+      }),
+    ],
+  });
+  const root = createFakeDocument([waveRoot]);
+
+  const changed = contentModule.__testOnly.applyWaveToolSettings(root, {
+    defaultPlaybackRate: 1.5,
+    fixedWaveZoom: 2,
+  });
+
+  assert.equal(changed, true);
+  assert.equal(playbackSelect.value, "1.5");
+  assert.equal(zoomInput.value, "2");
 });

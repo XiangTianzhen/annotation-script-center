@@ -4483,6 +4483,37 @@
     return rounded;
   }
 
+  function normalizeBytedanceAidpSegmentContextPaddingMs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 500;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    const rounded = Math.round(numeric);
+    if (rounded < 300 || rounded > 500) {
+      return fallbackNumber;
+    }
+    return rounded;
+  }
+
+  function normalizeBytedanceAidpPlaybackRate(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 1;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0.5 || numeric > 3) {
+      return fallbackNumber;
+    }
+    return Number(numeric.toFixed(2));
+  }
+
+  function normalizeBytedanceAidpFixedWaveZoom(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 2;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 1 || numeric > 8) {
+      return fallbackNumber;
+    }
+    return Number(numeric.toFixed(1));
+  }
+
   function convertDataBakerCvpcSegmentThresholdDbfsToDisplayValue(dbfs, unit) {
     const normalizedUnit = normalizeDataBakerCvpcSegmentSilenceThresholdUnit(unit, "db");
     const normalizedDbfs = normalizeDataBakerCvpcSegmentSilenceThresholdDbfs(dbfs, -27);
@@ -5348,6 +5379,9 @@
         id: bytedanceAidpSuzhouScriptId,
         enabled: true,
         platformAiEnabled: false,
+        segmentContextPaddingMs: 500,
+        defaultPlaybackRate: 1,
+        fixedWaveZoom: 2,
         contractMode: "dom-guarded",
       },
       clone(defaults),
@@ -5357,6 +5391,18 @@
     config.id = bytedanceAidpSuzhouScriptId;
     config.enabled = config.enabled !== false;
     config.platformAiEnabled = config.platformAiEnabled !== false;
+    config.segmentContextPaddingMs = normalizeBytedanceAidpSegmentContextPaddingMs(
+      config.segmentContextPaddingMs,
+      defaults.segmentContextPaddingMs
+    );
+    config.defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
+      config.defaultPlaybackRate,
+      defaults.defaultPlaybackRate
+    );
+    config.fixedWaveZoom = normalizeBytedanceAidpFixedWaveZoom(
+      config.fixedWaveZoom,
+      defaults.fixedWaveZoom
+    );
     config.contractMode = normalizeText(config.contractMode || "dom-guarded") || "dom-guarded";
     return config;
   }
@@ -11095,15 +11141,29 @@
   function applyBytedanceAidpForm(settings) {
     const config = getBytedanceAidpSuzhouConfig(settings);
     const platformAiNode = getElement("bytedance-aidp-platform-ai-enabled");
+    const segmentContextPaddingNode = getElement("bytedance-aidp-segment-context-padding-seconds");
+    const defaultPlaybackRateNode = getElement("bytedance-aidp-default-playback-rate");
+    const fixedWaveZoomNode = getElement("bytedance-aidp-fixed-wave-zoom");
     const contractNode = getElement("bytedance-aidp-contract-mode");
 
     if (platformAiNode) {
       platformAiNode.checked = config.platformAiEnabled === false;
     }
+    if (segmentContextPaddingNode instanceof HTMLInputElement) {
+      segmentContextPaddingNode.value = String(
+        Number((config.segmentContextPaddingMs / 1000).toFixed(1))
+      );
+    }
+    if (defaultPlaybackRateNode instanceof HTMLInputElement) {
+      defaultPlaybackRateNode.value = String(config.defaultPlaybackRate);
+    }
+    if (fixedWaveZoomNode instanceof HTMLInputElement) {
+      fixedWaveZoomNode.value = String(config.fixedWaveZoom);
+    }
     if (contractNode) {
       contractNode.textContent =
         config.contractMode === "dom-guarded"
-          ? "仅允许 DOM 显隐控制；不写入平台字段，不触发保存、提交或 AI 请求。"
+          ? "仅允许 DOM 显隐、波形控件回填和显式分段建议写回；不触发提交或下一题。"
           : String(config.contractMode || "dom-guarded");
     }
   }
@@ -11606,6 +11666,20 @@
       return false;
     }
 
+    const currentConfig = getBytedanceAidpSuzhouConfig(currentSettings || {});
+    const segmentContextPaddingMs = normalizeBytedanceAidpSegmentContextPaddingMs(
+      Number(getElement("bytedance-aidp-segment-context-padding-seconds")?.value || 0) * 1000,
+      currentConfig.segmentContextPaddingMs
+    );
+    const defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
+      getElement("bytedance-aidp-default-playback-rate")?.value,
+      currentConfig.defaultPlaybackRate
+    );
+    const fixedWaveZoom = normalizeBytedanceAidpFixedWaveZoom(
+      getElement("bytedance-aidp-fixed-wave-zoom")?.value,
+      currentConfig.fixedWaveZoom
+    );
+
     setStatus("bytedance-aidp-status", "正在保存 ByteDance AIDP 设置...");
 
     try {
@@ -11617,6 +11691,9 @@
                 id: bytedanceAidpSuzhouScriptId,
                 platformAiEnabled:
                   !getElement("bytedance-aidp-platform-ai-enabled").checked,
+                segmentContextPaddingMs: segmentContextPaddingMs,
+                defaultPlaybackRate: defaultPlaybackRate,
+                fixedWaveZoom: fixedWaveZoom,
                 contractMode: "dom-guarded",
               },
             },

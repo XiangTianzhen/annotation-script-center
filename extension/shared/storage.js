@@ -122,6 +122,9 @@
                 id: "bytedanceAidpSuzhouHelper",
                 enabled: true,
                 platformAiEnabled: false,
+                segmentContextPaddingMs: 500,
+                defaultPlaybackRate: 1,
+                fixedWaveZoom: 2,
                 contractMode: "dom-guarded",
               },
             },
@@ -1622,6 +1625,37 @@
     return rounded;
   }
 
+  function normalizeBytedanceAidpSegmentContextPaddingMs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 500;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    const rounded = Math.round(numeric);
+    if (rounded < 300 || rounded > 500) {
+      return fallbackNumber;
+    }
+    return rounded;
+  }
+
+  function normalizeBytedanceAidpPlaybackRate(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 1;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0.5 || numeric > 3) {
+      return fallbackNumber;
+    }
+    return Number(numeric.toFixed(2));
+  }
+
+  function normalizeBytedanceAidpFixedWaveZoom(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 2;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 1 || numeric > 8) {
+      return fallbackNumber;
+    }
+    return Number(numeric.toFixed(1));
+  }
+
   function resolveDataBakerListenModel(value, pipelineMode, fallback, constants) {
     const normalizedValue = getDataBakerModelText(value);
     if (normalizedValue) {
@@ -2385,6 +2419,18 @@
       source.platformAiEnabled !== undefined
         ? source.platformAiEnabled !== false
         : defaultConfig.platformAiEnabled !== false;
+    result.segmentContextPaddingMs = normalizeBytedanceAidpSegmentContextPaddingMs(
+      source.segmentContextPaddingMs,
+      defaultConfig.segmentContextPaddingMs
+    );
+    result.defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
+      source.defaultPlaybackRate,
+      defaultConfig.defaultPlaybackRate
+    );
+    result.fixedWaveZoom = normalizeBytedanceAidpFixedWaveZoom(
+      source.fixedWaveZoom,
+      defaultConfig.fixedWaveZoom
+    );
     result.contractMode =
       String(result.contractMode || defaultConfig.contractMode || "dom-guarded").trim() ||
       "dom-guarded";
@@ -2411,6 +2457,9 @@
             id: constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper",
             enabled: true,
             platformAiEnabled: false,
+            segmentContextPaddingMs: 500,
+            defaultPlaybackRate: 1,
+            fixedWaveZoom: 2,
             contractMode: "dom-guarded",
           },
         },
@@ -4257,6 +4306,9 @@
                   "bytedanceAidpSuzhouHelper",
                 enabled: nextEnabled,
                 platformAiEnabled: currentConfig.platformAiEnabled !== false,
+                segmentContextPaddingMs: currentConfig.segmentContextPaddingMs,
+                defaultPlaybackRate: currentConfig.defaultPlaybackRate,
+                fixedWaveZoom: currentConfig.fixedWaveZoom,
               },
             },
           },
