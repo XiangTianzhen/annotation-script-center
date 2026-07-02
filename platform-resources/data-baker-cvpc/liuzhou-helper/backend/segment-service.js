@@ -18,6 +18,7 @@ const ANALYSIS_MAX_SPEECH_BRIDGE_MS = 180;
 const VISIBLE_LONG_SILENCE_MIN_MS = 500;
 const VISIBLE_LONG_SILENCE_CORE_MIN_MS = 200;
 const VISIBLE_LONG_SILENCE_CORE_MAX_MS = 320;
+const DEFAULT_CONTIGUOUS_MERGE_TOLERANCE_MS = 10;
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -73,6 +74,17 @@ function normalizeBuildOptions(options) {
     defaultSilenceThresholdDbfs: normalizeDbfsThreshold(
       source.defaultSilenceThresholdDbfs,
       DEFAULT_SILENCE_THRESHOLD_DBFS
+    ),
+    mergeContiguousSuggestedSegmentsEnabled:
+      source.mergeContiguousSuggestedSegmentsEnabled === false ? false : true,
+    contiguousMergeToleranceMs: Math.max(
+      0,
+      Math.min(
+        50,
+        Math.round(
+          toFiniteNumber(source.contiguousMergeToleranceMs, DEFAULT_CONTIGUOUS_MERGE_TOLERANCE_MS)
+        )
+      )
     ),
   };
 }
@@ -208,14 +220,69 @@ function normalizeSegmentPreviewRequest(body, options) {
   return {
     audioUrl,
     audioDurationMs,
-    editorContext: source.editorContext && typeof source.editorContext === "object"
-      ? source.editorContext
-      : {},
+    editorContext:
+      source.editorContext && typeof source.editorContext === "object"
+        ? source.editorContext
+        : {},
     silentRanges: normalizeSilentRanges(source.silentRanges),
     existingSegments: existingSegments,
     rules: normalizeRules(source.rules, segmentScope, options),
     segmentScope: segmentScope,
   };
+}
+
+function resolveMergeContiguousSuggestedSegmentsEnabled(request, options) {
+  if (request?.editorContext?.mergeContiguousSuggestedSegmentsEnabled === false) {
+    return false;
+  }
+  const buildOptions = normalizeBuildOptions(options);
+  return buildOptions.mergeContiguousSuggestedSegmentsEnabled !== false;
+}
+
+function rangesEquivalentToSourceSegment(ranges, segment, toleranceMs) {
+  const sourceRanges = Array.isArray(ranges) ? ranges : [];
+  if (sourceRanges.length !== 1 || !segment) {
+    return false;
+  }
+  const range = sourceRanges[0];
+  const tolerance = Math.max(0, Math.round(Number(toleranceMs || 0)) || 0);
+  return (
+    Math.abs(Math.round(Number(range.startMs || 0)) - Math.round(Number(segment.startMs || 0))) <=
+      tolerance &&
+    Math.abs(Math.round(Number(range.endMs || 0)) - Math.round(Number(segment.endMs || 0))) <=
+      tolerance
+  );
+}
+
+function mergeContiguousSuggestedRanges(ranges, toleranceMs) {
+  const sourceRanges = (Array.isArray(ranges) ? ranges : [])
+    .map(function (item) {
+      return {
+        startMs: Math.max(0, Math.round(Number(item?.startMs || 0) || 0)),
+        endMs: Math.max(0, Math.round(Number(item?.endMs || 0) || 0)),
+      };
+    })
+    .filter(function (item) {
+      return item.endMs > item.startMs;
+    })
+    .sort(function (left, right) {
+      return left.startMs - right.startMs;
+    });
+  if (sourceRanges.length <= 1) {
+    return sourceRanges;
+  }
+  const maxGapMs = Math.max(0, Math.round(Number(toleranceMs || 0)) || 0);
+  const merged = [Object.assign({}, sourceRanges[0])];
+  for (let index = 1; index < sourceRanges.length; index += 1) {
+    const current = sourceRanges[index];
+    const previous = merged[merged.length - 1];
+    if (Math.abs(current.startMs - previous.endMs) <= maxGapMs) {
+      previous.endMs = Math.max(previous.endMs, current.endMs);
+      continue;
+    }
+    merged.push(Object.assign({}, current));
+  }
+  return merged;
 }
 
 function mergeIntersectingRanges(ranges) {
@@ -453,6 +520,7 @@ function padSpeechRanges(segment, speechRanges, silences, rules, options) {
 }
 
 function buildSegmentChange(segment, silentRanges, rules, options) {
+  const buildOptions = normalizeBuildOptions(options);
   const internalSilences = buildInternalSilences(segment, silentRanges, rules);
   if (internalSilences.length === 0) {
     return {
@@ -481,9 +549,26 @@ function buildSegmentChange(segment, silentRanges, rules, options) {
     speechRanges,
     internalSilences,
     rules,
-    options
+    buildOptions
   );
-  if (suggestedSegments.length <= 1) {
+  const normalizedSuggestedSegments =
+    resolveMergeContiguousSuggestedSegmentsEnabled(
+      {
+        editorContext: options?.editorContext,
+      },
+      buildOptions
+    ) !== false
+      ? mergeContiguousSuggestedRanges(
+          suggestedSegments,
+          buildOptions.contiguousMergeToleranceMs
+        )
+      : suggestedSegments;
+  if (normalizedSuggestedSegments.length <= 1) {
+    const mergedBackToSource = rangesEquivalentToSourceSegment(
+      normalizedSuggestedSegments,
+      segment,
+      buildOptions.contiguousMergeToleranceMs
+    );
     return {
       proposedSegments: [
         {
@@ -500,12 +585,13 @@ function buildSegmentChange(segment, silentRanges, rules, options) {
       ],
       change: null,
       matchedInternalSilence: true,
-      splitSuppressed: true,
+      splitSuppressed: mergedBackToSource !== true,
+      mergedBackToSource: mergedBackToSource,
     };
   }
 
   return {
-    proposedSegments: suggestedSegments.map(function (range) {
+    proposedSegments: normalizedSuggestedSegments.map(function (range) {
       return {
         sourceUniqueId: segment.uniqueId,
         sourceSegmentNumber: segment.sourceSegmentNumber,
@@ -524,7 +610,7 @@ function buildSegmentChange(segment, silentRanges, rules, options) {
       originalStartMs: segment.startMs,
       originalEndMs: segment.endMs,
       reason: "silence>=400ms",
-      suggestedSegments: suggestedSegments.map(function (range) {
+      suggestedSegments: normalizedSuggestedSegments.map(function (range) {
         return {
           startMs: range.startMs,
           endMs: range.endMs,
@@ -533,6 +619,7 @@ function buildSegmentChange(segment, silentRanges, rules, options) {
     },
     matchedInternalSilence: true,
     splitSuppressed: false,
+    mergedBackToSource: false,
   };
 }
 
@@ -554,6 +641,9 @@ function resolveEmptyReason(request, summary) {
   if (stats.matchedInternalSilence !== true) {
     return "no-internal-hit";
   }
+  if (stats.mergedBackToSource === true) {
+    return "contiguous-merged";
+  }
   if (stats.splitSuppressed === true) {
     return "insufficient-split";
   }
@@ -563,6 +653,13 @@ function resolveEmptyReason(request, summary) {
 async function buildSegmentPreview(input, options) {
   const buildOptions = normalizeBuildOptions(options);
   const request = normalizeSegmentPreviewRequest(input, buildOptions);
+  const effectiveBuildOptions = Object.assign({}, buildOptions, {
+    editorContext: request.editorContext,
+    mergeContiguousSuggestedSegmentsEnabled: resolveMergeContiguousSuggestedSegmentsEnabled(
+      request,
+      buildOptions
+    ),
+  });
   const resolvedAnalysis = await resolveSilentRangesFromBackend(request, options);
   const resolvedRequest = Object.assign({}, request, {
     audioDurationMs: resolvedAnalysis.audioDurationMs,
@@ -573,13 +670,14 @@ async function buildSegmentPreview(input, options) {
   const proposedSegments = [];
   let matchedInternalSilence = false;
   let splitSuppressed = false;
+  let mergedBackToSource = false;
 
   effectiveSegments.forEach(function (segment) {
     const result = buildSegmentChange(
       segment,
       resolvedRequest.silentRanges,
       resolvedRequest.rules,
-      buildOptions
+      effectiveBuildOptions
     );
     proposedSegments.push.apply(proposedSegments, result.proposedSegments);
     if (result.change) {
@@ -587,6 +685,7 @@ async function buildSegmentPreview(input, options) {
     }
     matchedInternalSilence = matchedInternalSilence || result.matchedInternalSilence === true;
     splitSuppressed = splitSuppressed || result.splitSuppressed === true;
+    mergedBackToSource = mergedBackToSource || result.mergedBackToSource === true;
   });
 
   proposedSegments.sort(function (left, right) {
@@ -598,6 +697,7 @@ async function buildSegmentPreview(input, options) {
     changeCount: changes.length,
     matchedInternalSilence,
     splitSuppressed,
+    mergedBackToSource,
   });
 
   return {
@@ -624,6 +724,8 @@ async function buildSegmentPreview(input, options) {
           resolvedRequest.segmentScope ||
           resolvedRequest.rules.segmentScope ||
           DEFAULT_SEGMENT_SCOPE,
+        mergeContiguousSuggestedSegmentsEnabled:
+          effectiveBuildOptions.mergeContiguousSuggestedSegmentsEnabled !== false,
       },
       contractMode: "dom-guarded-manual-save",
     },
@@ -644,6 +746,7 @@ function createSegmentHealthPayload(options) {
       analysisWindowMs: ANALYSIS_WINDOW_MS,
       smoothingFrameRadius: ANALYSIS_SMOOTHING_FRAME_RADIUS,
       maxSpeechBridgeMs: ANALYSIS_MAX_SPEECH_BRIDGE_MS,
+      contiguousMergeToleranceMs: DEFAULT_CONTIGUOUS_MERGE_TOLERANCE_MS,
     },
     supportedScopes: {
       default: DEFAULT_SEGMENT_SCOPE,

@@ -220,6 +220,124 @@ test("segment preview visible-long-silence profile preserves a silence core inst
   assert.equal(payload.meta.applyAllowed, true);
 });
 
+test("segment preview merges contiguous suggested segments back to the source segment by default", async function () {
+  const payload = await buildSegmentPreview({
+    audioUrl: "https://example.com/a.mp3",
+    audioDurationMs: 9000,
+    existingSegments: [createSegment()],
+    silentRanges: [{ startMs: 5000, endMs: 5408 }],
+    rules: {
+      silenceThresholdDbfs: -31,
+      contextPaddingMs: 200,
+    },
+    segmentScope: DEFAULT_SEGMENT_SCOPE,
+  });
+
+  assert.deepEqual(payload.data.changes, []);
+  assert.deepEqual(
+    payload.data.proposedSegments.map(function (item) {
+      return [item.startMs, item.endMs];
+    }),
+    [[4000, 7000]]
+  );
+  assert.equal(payload.meta.applyAllowed, false);
+  assert.equal(payload.meta.emptyReason, "contiguous-merged");
+  assert.equal(payload.meta.rules.mergeContiguousSuggestedSegmentsEnabled, true);
+});
+
+test("segment preview keeps current pure split behavior when contiguous merge is disabled", async function () {
+  const payload = await buildSegmentPreview({
+    audioUrl: "https://example.com/a.mp3",
+    audioDurationMs: 9000,
+    existingSegments: [createSegment()],
+    silentRanges: [{ startMs: 5000, endMs: 5408 }],
+    rules: {
+      silenceThresholdDbfs: -31,
+      contextPaddingMs: 200,
+    },
+    editorContext: {
+      mergeContiguousSuggestedSegmentsEnabled: false,
+    },
+    segmentScope: DEFAULT_SEGMENT_SCOPE,
+  });
+
+  assert.deepEqual(payload.data.changes, [
+    {
+      sourceUniqueId: "segment-1",
+      sourceSegmentNumber: 1,
+      originalStartMs: 4000,
+      originalEndMs: 7000,
+      reason: "silence>=400ms",
+      suggestedSegments: [
+        { startMs: 4000, endMs: 5200 },
+        { startMs: 5208, endMs: 7000 },
+      ],
+    },
+  ]);
+  assert.equal(payload.meta.applyAllowed, true);
+  assert.equal(payload.meta.rules.mergeContiguousSuggestedSegmentsEnabled, false);
+});
+
+test("segment preview merges chain-contiguous suggestions from the same source segment into one run", async function () {
+  const payload = await buildSegmentPreview({
+    audioUrl: "https://example.com/a.mp3",
+    audioDurationMs: 5000,
+    existingSegments: [
+      createSegment({
+        startMs: 0,
+        endMs: 4000,
+      }),
+    ],
+    silentRanges: [
+      { startMs: 1000, endMs: 1408 },
+      { startMs: 2500, endMs: 2908 },
+    ],
+    rules: {
+      silenceThresholdDbfs: -31,
+      contextPaddingMs: 200,
+    },
+    segmentScope: DEFAULT_SEGMENT_SCOPE,
+  });
+
+  assert.deepEqual(payload.data.changes, []);
+  assert.deepEqual(
+    payload.data.proposedSegments.map(function (item) {
+      return [item.startMs, item.endMs];
+    }),
+    [[0, 4000]]
+  );
+  assert.equal(payload.meta.emptyReason, "contiguous-merged");
+});
+
+test("segment preview does not merge suggestions when the visible gap is larger than tolerance", async function () {
+  const payload = await buildSegmentPreview({
+    audioUrl: "https://example.com/a.mp3",
+    audioDurationMs: 9000,
+    existingSegments: [createSegment()],
+    silentRanges: [{ startMs: 5000, endMs: 5420 }],
+    rules: {
+      silenceThresholdDbfs: -31,
+      contextPaddingMs: 200,
+    },
+    segmentScope: DEFAULT_SEGMENT_SCOPE,
+  });
+
+  assert.deepEqual(payload.data.changes, [
+    {
+      sourceUniqueId: "segment-1",
+      sourceSegmentNumber: 1,
+      originalStartMs: 4000,
+      originalEndMs: 7000,
+      reason: "silence>=400ms",
+      suggestedSegments: [
+        { startMs: 4000, endMs: 5200 },
+        { startMs: 5220, endMs: 7000 },
+      ],
+    },
+  ]);
+  assert.equal(payload.meta.applyAllowed, true);
+});
+
 test("segment preview reports insufficient-split when internal silence leaves no usable child segments", async function () {
   const payload = await buildSegmentPreview({
     audioUrl: "https://example.com/a.mp3",
@@ -293,6 +411,7 @@ test("segment health exposes backend analysis defaults for CVPC preview", functi
     analysisWindowMs: 30,
     smoothingFrameRadius: 1,
     maxSpeechBridgeMs: 180,
+    contiguousMergeToleranceMs: 10,
   });
   assert.deepEqual(payload.supportedScopes, {
     default: "existing-segments-incremental",

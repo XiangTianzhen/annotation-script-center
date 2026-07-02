@@ -119,6 +119,9 @@ test("AIDP segmentation controller forwards audio, duration, existing segments, 
       minSilenceMs: 400,
       contextPaddingMs: 400,
     });
+    assert.deepEqual(body.editorContext, {
+      mergeContiguousSuggestedSegmentsEnabled: true,
+    });
     assert.equal(preview.meta.previewMode, "incremental");
     assert.equal(preview.selectionKey, "7656690377962016562");
     assert.deepEqual(preview.sourceSegments, context.currentSegments);
@@ -158,7 +161,7 @@ test("AIDP segmentation controller surfaces backend preview errors", async funct
   }
 });
 
-test("AIDP segmentation controller defaults context padding to 500ms and silence threshold to -31 dBFS", async function () {
+test("AIDP segmentation controller defaults context padding to 300ms and silence threshold to -31 dBFS", async function () {
   const moduleApi = loadModule();
   const harness = installFetchHarness({
     success: true,
@@ -183,7 +186,43 @@ test("AIDP segmentation controller defaults context padding to 500ms and silence
     const body = JSON.parse(harness.requests[0].body);
 
     assert.equal(body.rules.silenceThresholdDbfs, -31);
-    assert.equal(body.rules.contextPaddingMs, 500);
+    assert.equal(body.rules.contextPaddingMs, 300);
+    assert.equal(body.editorContext.mergeContiguousSuggestedSegmentsEnabled, true);
+  } finally {
+    harness.restore();
+  }
+});
+
+test("AIDP segmentation controller forwards configured silence threshold zero padding and merge toggle", async function () {
+  const moduleApi = loadModule();
+  const harness = installFetchHarness({
+    success: true,
+    data: {
+      proposedSegments: [],
+      changes: [],
+    },
+    meta: {},
+  });
+
+  try {
+    const runtime = moduleApi.createRuntime({
+      endpoint: "https://script.example.com/api/bytedance-aidp/suzhou-helper/segment/preview",
+      silenceThresholdDbfs: -37,
+      contextPaddingMs: 0,
+      mergeContiguousSuggestedSegmentsEnabled: false,
+    });
+
+    await runtime.preview({
+      audioUrl: "https://audio.example.com/sample.mp3?signature=masked",
+      audioDurationMs: 22013,
+      currentSegments: [],
+    });
+
+    const body = JSON.parse(harness.requests[0].body);
+
+    assert.equal(body.rules.silenceThresholdDbfs, -37);
+    assert.equal(body.rules.contextPaddingMs, 0);
+    assert.equal(body.editorContext.mergeContiguousSuggestedSegmentsEnabled, false);
   } finally {
     harness.restore();
   }

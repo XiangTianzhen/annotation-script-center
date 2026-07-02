@@ -125,7 +125,9 @@
                 id: "bytedanceAidpSuzhouHelper",
                 enabled: true,
                 platformAiEnabled: false,
-                segmentContextPaddingMs: 500,
+                segmentContextPaddingMs: 300,
+                segmentSilenceThresholdDbfs: -31,
+                mergeContiguousSuggestedSegmentsEnabled: true,
                 defaultPlaybackRate: 1,
                 fixedWaveZoom: 2,
                 contractMode: "dom-guarded",
@@ -215,7 +217,7 @@
         },
         cache: {},
         meta: {
-          schemaVersion: 25,
+          schemaVersion: 26,
           backendEndpointMode: "server",
           backendBaseUrls: {
             server: "https://script.xiangtianzhen.store",
@@ -1629,13 +1631,26 @@
   }
 
   function normalizeBytedanceAidpSegmentContextPaddingMs(value, fallback) {
-    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 500;
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 300;
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) {
       return fallbackNumber;
     }
     const rounded = Math.round(numeric);
-    if (rounded < 300 || rounded > 500) {
+    if (rounded < 0 || rounded > 500) {
+      return fallbackNumber;
+    }
+    return rounded;
+  }
+
+  function normalizeBytedanceAidpSegmentSilenceThresholdDbfs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : -31;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    const rounded = Math.round(numeric);
+    if (rounded < -80 || rounded > -5) {
       return fallbackNumber;
     }
     return rounded;
@@ -2415,8 +2430,9 @@
     return result;
   }
 
-  function normalizeBytedanceAidpSuzhouConfig(config, defaults) {
+  function normalizeBytedanceAidpSuzhouConfig(config, defaults, rawConfig) {
     const source = isPlainObject(config) ? config : {};
+    const rawSource = isPlainObject(rawConfig) ? rawConfig : source;
     const defaultConfig = isPlainObject(defaults) ? defaults : {};
     const constants = getConstants();
     const result = deepMerge(defaultConfig, source);
@@ -2431,15 +2447,23 @@
         ? source.platformAiEnabled !== false
         : defaultConfig.platformAiEnabled !== false;
     result.segmentContextPaddingMs = normalizeBytedanceAidpSegmentContextPaddingMs(
-      source.segmentContextPaddingMs,
+      rawSource.segmentContextPaddingMs,
       defaultConfig.segmentContextPaddingMs
     );
+    result.segmentSilenceThresholdDbfs = normalizeBytedanceAidpSegmentSilenceThresholdDbfs(
+      rawSource.segmentSilenceThresholdDbfs,
+      defaultConfig.segmentSilenceThresholdDbfs
+    );
+    result.mergeContiguousSuggestedSegmentsEnabled =
+      rawSource.mergeContiguousSuggestedSegmentsEnabled === false
+        ? false
+        : defaultConfig.mergeContiguousSuggestedSegmentsEnabled !== false;
     result.defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
-      source.defaultPlaybackRate,
+      rawSource.defaultPlaybackRate,
       defaultConfig.defaultPlaybackRate
     );
     result.fixedWaveZoom = normalizeBytedanceAidpFixedWaveZoom(
-      source.fixedWaveZoom,
+      rawSource.fixedWaveZoom,
       defaultConfig.fixedWaveZoom
     );
     result.contractMode =
@@ -2468,7 +2492,9 @@
             id: constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper",
             enabled: true,
             platformAiEnabled: false,
-            segmentContextPaddingMs: 500,
+            segmentContextPaddingMs: 300,
+            segmentSilenceThresholdDbfs: -31,
+            mergeContiguousSuggestedSegmentsEnabled: true,
             defaultPlaybackRate: 1,
             fixedWaveZoom: 2,
             contractMode: "dom-guarded",
@@ -2495,7 +2521,29 @@
       normalizeBytedanceAidpSuzhouConfig(
         settings.platforms.bytedanceAidp.scripts.suzhouHelper,
         defaultPlatform.scripts?.suzhouHelper || {},
-        rawSuzhouHelper
+        (function () {
+          const migratedRawSuzhouHelper = clone(rawSuzhouHelper);
+          if (
+            currentSchemaVersion < 26 &&
+            (!hasOwn(migratedRawSuzhouHelper, "segmentContextPaddingMs") ||
+              Math.round(Number(migratedRawSuzhouHelper.segmentContextPaddingMs) || 0) === 500)
+          ) {
+            migratedRawSuzhouHelper.segmentContextPaddingMs = 300;
+          }
+          if (
+            currentSchemaVersion < 26 &&
+            !hasOwn(migratedRawSuzhouHelper, "segmentSilenceThresholdDbfs")
+          ) {
+            migratedRawSuzhouHelper.segmentSilenceThresholdDbfs = -31;
+          }
+          if (
+            currentSchemaVersion < 26 &&
+            !hasOwn(migratedRawSuzhouHelper, "mergeContiguousSuggestedSegmentsEnabled")
+          ) {
+            migratedRawSuzhouHelper.mergeContiguousSuggestedSegmentsEnabled = true;
+          }
+          return migratedRawSuzhouHelper;
+        })()
       );
 
     // Legacy beta builds seeded this toggle as visible-by-default. Migrate old
@@ -4318,6 +4366,9 @@
                 enabled: nextEnabled,
                 platformAiEnabled: currentConfig.platformAiEnabled !== false,
                 segmentContextPaddingMs: currentConfig.segmentContextPaddingMs,
+                segmentSilenceThresholdDbfs: currentConfig.segmentSilenceThresholdDbfs,
+                mergeContiguousSuggestedSegmentsEnabled:
+                  currentConfig.mergeContiguousSuggestedSegmentsEnabled !== false,
                 defaultPlaybackRate: currentConfig.defaultPlaybackRate,
                 fixedWaveZoom: currentConfig.fixedWaveZoom,
               },

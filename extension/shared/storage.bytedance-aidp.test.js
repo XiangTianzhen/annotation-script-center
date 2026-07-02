@@ -69,7 +69,9 @@ test("ByteDance AIDP storage defaults expose beta suzhou helper settings", async
     assert.equal(script.id, "bytedanceAidpSuzhouHelper");
     assert.equal(script.enabled, true);
     assert.equal(script.platformAiEnabled, false);
-    assert.equal(script.segmentContextPaddingMs, 500);
+    assert.equal(script.segmentContextPaddingMs, 300);
+    assert.equal(script.segmentSilenceThresholdDbfs, -31);
+    assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, true);
     assert.equal(script.defaultPlaybackRate, 1);
     assert.equal(script.fixedWaveZoom, 2);
     assert.equal(script.contractMode, "dom-guarded");
@@ -78,7 +80,7 @@ test("ByteDance AIDP storage defaults expose beta suzhou helper settings", async
   }
 });
 
-test("ByteDance AIDP storage clamps suzhou helper segment padding playback rate and wave zoom", async function () {
+test("ByteDance AIDP storage clamps suzhou helper segment padding threshold playback rate and wave zoom", async function () {
   const harness = loadStorageApi({
     platforms: {
       bytedanceAidp: {
@@ -88,6 +90,8 @@ test("ByteDance AIDP storage clamps suzhou helper segment padding playback rate 
             enabled: true,
             platformAiEnabled: false,
             segmentContextPaddingMs: 999,
+            segmentSilenceThresholdDbfs: -100,
+            mergeContiguousSuggestedSegmentsEnabled: false,
             defaultPlaybackRate: 1.1,
             fixedWaveZoom: 2.5,
           },
@@ -100,7 +104,9 @@ test("ByteDance AIDP storage clamps suzhou helper segment padding playback rate 
     const settings = await harness.storage.getSettings();
     const script = settings.platforms.bytedanceAidp.scripts.suzhouHelper;
 
-    assert.equal(script.segmentContextPaddingMs, 500);
+    assert.equal(script.segmentContextPaddingMs, 300);
+    assert.equal(script.segmentSilenceThresholdDbfs, -31);
+    assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, false);
     assert.equal(script.defaultPlaybackRate, 1);
     assert.equal(script.fixedWaveZoom, 2);
   } finally {
@@ -137,6 +143,37 @@ test("ByteDance AIDP storage migrates legacy visible-by-default config to hidden
   }
 });
 
+test("ByteDance AIDP storage migrates legacy padding default and seeds new segmentation fields", async function () {
+  const harness = loadStorageApi({
+    meta: {
+      schemaVersion: 25,
+    },
+    platforms: {
+      bytedanceAidp: {
+        enabled: true,
+        scripts: {
+          suzhouHelper: {
+            enabled: true,
+            segmentContextPaddingMs: 500,
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const settings = await harness.storage.getSettings();
+    const script = settings.platforms.bytedanceAidp.scripts.suzhouHelper;
+
+    assert.equal(settings.meta.schemaVersion, harness.constants.SCHEMA_VERSION);
+    assert.equal(script.segmentContextPaddingMs, 300);
+    assert.equal(script.segmentSilenceThresholdDbfs, -31);
+    assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, true);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("ByteDance AIDP setScriptEnabled keeps platform AI preference while toggling runtime", async function () {
   const harness = loadStorageApi({
     platforms: {
@@ -159,6 +196,9 @@ test("ByteDance AIDP setScriptEnabled keeps platform AI preference while togglin
     assert.equal(settings.platforms.bytedanceAidp.enabled, false);
     assert.equal(script.enabled, false);
     assert.equal(script.platformAiEnabled, false);
+    assert.equal(script.segmentContextPaddingMs, 300);
+    assert.equal(script.segmentSilenceThresholdDbfs, -31);
+    assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, true);
 
     settings = await harness.storage.setScriptEnabled("bytedanceAidpSuzhouHelper", true);
     script = settings.platforms.bytedanceAidp.scripts.suzhouHelper;
@@ -166,6 +206,9 @@ test("ByteDance AIDP setScriptEnabled keeps platform AI preference while togglin
     assert.equal(settings.platforms.bytedanceAidp.enabled, true);
     assert.equal(script.enabled, true);
     assert.equal(script.platformAiEnabled, false);
+    assert.equal(script.segmentContextPaddingMs, 300);
+    assert.equal(script.segmentSilenceThresholdDbfs, -31);
+    assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, true);
   } finally {
     harness.cleanup();
   }

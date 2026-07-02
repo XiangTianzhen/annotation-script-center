@@ -41,7 +41,7 @@
   const DATABAKER_AI_REQUEST_STAGGER_MS = 50;
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 25;
+  const SCHEMA_VERSION = 26;
   const RELEASE_CHANNEL_PUBLIC = "public";
   const RELEASE_CHANNEL_BETA = "beta";
   const RELEASE_VISIBILITY_PUBLIC = "public";
@@ -1972,7 +1972,9 @@
           id: BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID,
           enabled: true,
           platformAiEnabled: false,
-          segmentContextPaddingMs: 500,
+          segmentContextPaddingMs: 300,
+          segmentSilenceThresholdDbfs: -31,
+          mergeContiguousSuggestedSegmentsEnabled: true,
           defaultPlaybackRate: 1,
           fixedWaveZoom: 2,
           contractMode: "dom-guarded",

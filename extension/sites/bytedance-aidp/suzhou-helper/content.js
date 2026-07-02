@@ -17,9 +17,10 @@
   const PLAYBACK_RATE_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
   const FIXED_WAVE_ZOOM_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   const DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS = -31;
-  const DEFAULT_SEGMENT_CONTEXT_PADDING_MS = 500;
+  const DEFAULT_SEGMENT_CONTEXT_PADDING_MS = 300;
   const DEFAULT_PLAYBACK_RATE = 1;
   const DEFAULT_FIXED_WAVE_ZOOM = 2;
+  const DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED = true;
   const CLEAR_SEGMENTS_BUTTON_ATTR = "data-asc-clear-segments-button";
   const HIDDEN_ATTR = "data-asc-platform-ai-hidden";
   const EXACT_PLATFORM_AI_SELECTORS = {
@@ -71,13 +72,26 @@
   }
 
   function normalizeSegmentContextPaddingMs(value, fallback) {
-    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 500;
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 300;
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) {
       return fallbackNumber;
     }
     const rounded = Math.round(numeric);
-    if (rounded < 300 || rounded > 500) {
+    if (rounded < 0 || rounded > 500) {
+      return fallbackNumber;
+    }
+    return rounded;
+  }
+
+  function normalizeSegmentSilenceThresholdDbfs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : -31;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    const rounded = Math.round(numeric);
+    if (rounded < -80 || rounded > -5) {
       return fallbackNumber;
     }
     return rounded;
@@ -159,6 +173,9 @@
         enabled: true,
         platformAiEnabled: false,
         segmentContextPaddingMs: DEFAULT_SEGMENT_CONTEXT_PADDING_MS,
+        segmentSilenceThresholdDbfs: DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS,
+        mergeContiguousSuggestedSegmentsEnabled:
+          DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED,
         defaultPlaybackRate: DEFAULT_PLAYBACK_RATE,
         fixedWaveZoom: DEFAULT_FIXED_WAVE_ZOOM,
         contractMode: "dom-guarded",
@@ -175,6 +192,14 @@
         current.segmentContextPaddingMs,
         defaults.segmentContextPaddingMs
       ),
+      segmentSilenceThresholdDbfs: normalizeSegmentSilenceThresholdDbfs(
+        current.segmentSilenceThresholdDbfs,
+        defaults.segmentSilenceThresholdDbfs
+      ),
+      mergeContiguousSuggestedSegmentsEnabled:
+        current.mergeContiguousSuggestedSegmentsEnabled === false
+          ? false
+          : defaults.mergeContiguousSuggestedSegmentsEnabled !== false,
       defaultPlaybackRate: normalizePlaybackRate(
         current.defaultPlaybackRate,
         defaults.defaultPlaybackRate
@@ -1507,8 +1532,10 @@
     const dataApi = dataApiFactory.createRuntime();
     const segment = segmentFactory.createRuntime({
       endpoint: endpoint,
-      silenceThresholdDbfs: DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS,
+      silenceThresholdDbfs: helperConfig.segmentSilenceThresholdDbfs,
       contextPaddingMs: helperConfig.segmentContextPaddingMs,
+      mergeContiguousSuggestedSegmentsEnabled:
+        helperConfig.mergeContiguousSuggestedSegmentsEnabled,
     });
     const ui = uiFactory.createRuntime({
       onPreview: function () {

@@ -28,7 +28,10 @@
   - CVPC：`/api/data-baker-cvpc/liuzhou-helper/segment/*`
   - AIDP：`/api/bytedance-aidp/suzhou-helper/segment/*`
   - AIDP 默认静音阈值：`-31 dBFS`
-  - AIDP 额外启用“明显长静音保留静音核心”的内部后处理，用于避免 `0.5s` 前后补偿把可视静音区完全吞回语音段里
+  - AIDP 前后静音补偿默认 `300ms`，允许 `0 ~ 500ms`
+  - AIDP 额外启用“明显长静音保留静音核心”的内部后处理，用于避免前后补偿把可视静音区完全吞回语音段里
+  - AIDP 默认开启“连续相接自动合并”，会把同一原始段内首尾实际相接或只差 `10ms` 内显示误差的建议段并回一段
+- 当前预览请求除 `rules.silenceThresholdDbfs / rules.contextPaddingMs` 外，还允许通过 `editorContext.mergeContiguousSuggestedSegmentsEnabled` 关闭连续并段；该字段只用于脚本级内部行为，不改变对外接口路径
 
 ## 当前边界
 

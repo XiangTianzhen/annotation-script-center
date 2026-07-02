@@ -3,7 +3,8 @@
   const DEFAULT_SILENCE_THRESHOLD_DBFS = -31;
   const DEFAULT_SILENCE_THRESHOLD_UNIT = "db";
   const MIN_SILENCE_MS = 400;
-  const DEFAULT_CONTEXT_PADDING_MS = 500;
+  const DEFAULT_CONTEXT_PADDING_MS = 300;
+  const DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED = true;
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -33,7 +34,15 @@
     if (!Number.isFinite(numeric)) {
       return DEFAULT_CONTEXT_PADDING_MS;
     }
-    return Math.max(300, Math.min(500, Math.round(numeric)));
+    return Math.max(0, Math.min(500, Math.round(numeric)));
+  }
+
+  function normalizeSilenceThresholdDbfs(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return DEFAULT_SILENCE_THRESHOLD_DBFS;
+    }
+    return Math.max(-80, Math.min(-5, Math.round(numeric)));
   }
 
   function normalizeExistingSegments(value) {
@@ -57,7 +66,12 @@
       });
   }
 
-  function buildPreviewRequestBody(source, silenceThresholdDbfs, contextPaddingMs) {
+  function buildPreviewRequestBody(
+    source,
+    silenceThresholdDbfs,
+    contextPaddingMs,
+    mergeContiguousSuggestedSegmentsEnabled
+  ) {
     const current = source && typeof source === "object" ? source : {};
     const existingSegments = normalizeExistingSegments(
       current.currentSegments || current.existingSegments
@@ -72,6 +86,10 @@
         silenceThresholdDbfs: silenceThresholdDbfs,
         minSilenceMs: MIN_SILENCE_MS,
         contextPaddingMs: contextPaddingMs,
+      },
+      editorContext: {
+        mergeContiguousSuggestedSegmentsEnabled:
+          mergeContiguousSuggestedSegmentsEnabled !== false,
       },
     };
   }
@@ -145,15 +163,22 @@
 
     async function preview(context) {
       const endpoint = normalizeText(config.endpoint) || DEFAULT_PATH;
-      const silenceThresholdDbfs = Number.isFinite(Number(config.silenceThresholdDbfs))
-        ? Math.round(Number(config.silenceThresholdDbfs))
-        : DEFAULT_SILENCE_THRESHOLD_DBFS;
+      const silenceThresholdDbfs = normalizeSilenceThresholdDbfs(config.silenceThresholdDbfs);
       const silenceThresholdUnit = normalizeThresholdUnit(config.silenceThresholdUnit);
       const contextPaddingMs = normalizeContextPaddingMs(config.contextPaddingMs);
+      const mergeContiguousSuggestedSegmentsEnabled =
+        config.mergeContiguousSuggestedSegmentsEnabled === false
+          ? false
+          : DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED;
       const payload = await requestPreview(
         fetchImpl,
         endpoint,
-        buildPreviewRequestBody(context, silenceThresholdDbfs, contextPaddingMs)
+        buildPreviewRequestBody(
+          context,
+          silenceThresholdDbfs,
+          contextPaddingMs,
+          mergeContiguousSuggestedSegmentsEnabled
+        )
       );
       lastPreview = finalizePreviewPayload(
         payload,

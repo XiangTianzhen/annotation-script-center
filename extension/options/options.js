@@ -4486,13 +4486,26 @@
   }
 
   function normalizeBytedanceAidpSegmentContextPaddingMs(value, fallback) {
-    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 500;
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : 300;
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) {
       return fallbackNumber;
     }
     const rounded = Math.round(numeric);
-    if (rounded < 300 || rounded > 500) {
+    if (rounded < 0 || rounded > 500) {
+      return fallbackNumber;
+    }
+    return rounded;
+  }
+
+  function normalizeBytedanceAidpSegmentSilenceThresholdDbfs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : -31;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    const rounded = Math.round(numeric);
+    if (rounded < -80 || rounded > -5) {
       return fallbackNumber;
     }
     return rounded;
@@ -5389,7 +5402,9 @@
         id: bytedanceAidpSuzhouScriptId,
         enabled: true,
         platformAiEnabled: false,
-        segmentContextPaddingMs: 500,
+        segmentContextPaddingMs: 300,
+        segmentSilenceThresholdDbfs: -31,
+        mergeContiguousSuggestedSegmentsEnabled: true,
         defaultPlaybackRate: 1,
         fixedWaveZoom: 2,
         contractMode: "dom-guarded",
@@ -5405,6 +5420,12 @@
       config.segmentContextPaddingMs,
       defaults.segmentContextPaddingMs
     );
+    config.segmentSilenceThresholdDbfs = normalizeBytedanceAidpSegmentSilenceThresholdDbfs(
+      config.segmentSilenceThresholdDbfs,
+      defaults.segmentSilenceThresholdDbfs
+    );
+    config.mergeContiguousSuggestedSegmentsEnabled =
+      config.mergeContiguousSuggestedSegmentsEnabled === false ? false : true;
     config.defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
       config.defaultPlaybackRate,
       defaults.defaultPlaybackRate
@@ -11152,6 +11173,12 @@
     const config = getBytedanceAidpSuzhouConfig(settings);
     const platformAiNode = getElement("bytedance-aidp-platform-ai-enabled");
     const segmentContextPaddingNode = getElement("bytedance-aidp-segment-context-padding-seconds");
+    const segmentSilenceThresholdNode = getElement(
+      "bytedance-aidp-segment-silence-threshold-dbfs"
+    );
+    const mergeContiguousSegmentsNode = getElement(
+      "bytedance-aidp-merge-contiguous-suggested-segments-enabled"
+    );
     const defaultPlaybackRateNode = getElement("bytedance-aidp-default-playback-rate");
     const fixedWaveZoomNode = getElement("bytedance-aidp-fixed-wave-zoom");
     const contractNode = getElement("bytedance-aidp-contract-mode");
@@ -11163,6 +11190,13 @@
       segmentContextPaddingNode.value = String(
         Number((config.segmentContextPaddingMs / 1000).toFixed(1))
       );
+    }
+    if (segmentSilenceThresholdNode instanceof HTMLInputElement) {
+      segmentSilenceThresholdNode.value = String(config.segmentSilenceThresholdDbfs);
+    }
+    if (mergeContiguousSegmentsNode instanceof HTMLInputElement) {
+      mergeContiguousSegmentsNode.checked =
+        config.mergeContiguousSuggestedSegmentsEnabled !== false;
     }
     if (defaultPlaybackRateNode instanceof HTMLSelectElement) {
       renderFixedModelOptions(
@@ -11700,6 +11734,12 @@
       Number(getElement("bytedance-aidp-segment-context-padding-seconds")?.value || 0) * 1000,
       currentConfig.segmentContextPaddingMs
     );
+    const segmentSilenceThresholdDbfs = normalizeBytedanceAidpSegmentSilenceThresholdDbfs(
+      getElement("bytedance-aidp-segment-silence-threshold-dbfs")?.value,
+      currentConfig.segmentSilenceThresholdDbfs
+    );
+    const mergeContiguousSuggestedSegmentsEnabled =
+      getElement("bytedance-aidp-merge-contiguous-suggested-segments-enabled")?.checked !== false;
     const defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
       getElement("bytedance-aidp-default-playback-rate")?.value,
       currentConfig.defaultPlaybackRate
@@ -11721,6 +11761,9 @@
                 platformAiEnabled:
                   !getElement("bytedance-aidp-platform-ai-enabled").checked,
                 segmentContextPaddingMs: segmentContextPaddingMs,
+                segmentSilenceThresholdDbfs: segmentSilenceThresholdDbfs,
+                mergeContiguousSuggestedSegmentsEnabled:
+                  mergeContiguousSuggestedSegmentsEnabled,
                 defaultPlaybackRate: defaultPlaybackRate,
                 fixedWaveZoom: fixedWaveZoom,
                 contractMode: "dom-guarded",
