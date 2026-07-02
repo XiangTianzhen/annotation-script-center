@@ -53,6 +53,10 @@
   let domSyncTimer = null;
   let helperSyncTimer = null;
   let waveZoomSyncToken = 0;
+  let waveZoomAutoSyncState = {
+    target: null,
+    status: "idle",
+  };
   let storageListenerBound = false;
   let helperRuntime = null;
 
@@ -902,6 +906,10 @@
     waveZoomSyncToken = requestToken;
     void syncWaveZoomControl(root, targetZoom, {
       requestToken: requestToken,
+    }).then(function (_result) {
+      if (requestToken === waveZoomSyncToken && waveZoomAutoSyncState.target === targetZoom) {
+        waveZoomAutoSyncState.status = "completed";
+      }
     });
     return requestToken;
   }
@@ -928,8 +936,15 @@
         source.fixedWaveZoom,
         DEFAULT_FIXED_WAVE_ZOOM
       );
+      if (waveZoomAutoSyncState.target !== normalizedTargetZoom) {
+        waveZoomAutoSyncState.target = normalizedTargetZoom;
+        waveZoomAutoSyncState.status = "idle";
+      }
       const currentWaveZoomValue = getWaveZoomValue(zoomNode);
-      if (currentWaveZoomValue !== normalizedTargetZoom) {
+      if (currentWaveZoomValue === normalizedTargetZoom) {
+        waveZoomAutoSyncState.status = "completed";
+      } else if (waveZoomAutoSyncState.status === "idle") {
+        waveZoomAutoSyncState.status = "pending";
         scheduleWaveZoomSync(root, normalizedTargetZoom);
         changed = true;
       }
@@ -1076,6 +1091,11 @@
 
   function destroyHelperRuntime() {
     clearHelperSyncTimer();
+    waveZoomSyncToken = 0;
+    waveZoomAutoSyncState = {
+      target: null,
+      status: "idle",
+    };
     if (helperRuntime?.ui?.destroy) {
       helperRuntime.ui.destroy();
     }

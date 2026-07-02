@@ -222,7 +222,7 @@ function findNode(root, predicate) {
   return collectDescendants(root).find(predicate) || null;
 }
 
-test("AIDP suzhou ui panel keeps current-audio section collapsed by default and supports hide/show", function () {
+test("AIDP suzhou ui panel keeps current-audio section collapsed by default and supports single expand-collapse toggle", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -240,16 +240,18 @@ test("AIDP suzhou ui panel keeps current-audio section collapsed by default and 
     const collapseButton = findNode(panelRoot, function (node) {
       return node.tagName === "BUTTON" && node.textContent.includes("展开当前音频");
     });
-    const hideButton = findNode(panelRoot, function (node) {
-      return node.tagName === "BUTTON" && node.textContent.includes("隐藏当前音频");
+    const allButtons = collectDescendants(panelRoot).filter(function (node) {
+      return node.tagName === "BUTTON";
     });
     const summaryCard = findNode(panelRoot, function (node) {
       return String(node.className || "").split(/\s+/).includes("summary-card");
     });
 
     assert.ok(collapseButton);
-    assert.ok(hideButton);
     assert.ok(summaryCard);
+    assert.equal(allButtons.filter(function (node) {
+      return /当前音频/.test(node.textContent);
+    }).length, 1);
     assert.equal(summaryCard.style.display, "none");
 
     runtime.renderAudioContext({
@@ -262,13 +264,14 @@ test("AIDP suzhou ui panel keeps current-audio section collapsed by default and 
 
     collapseButton.click();
     assert.notEqual(summaryCard.style.display, "none");
+    assert.match(collapseButton.textContent, /折叠当前音频/);
     assert.match(summaryCard.textContent, /7656690377962016562/);
     assert.match(summaryCard.textContent, /7628929157338042146/);
     assert.match(summaryCard.textContent, /https:\/\/example\.test\/audio\.m4a/);
 
-    hideButton.click();
+    collapseButton.click();
     assert.equal(summaryCard.style.display, "none");
-    assert.match(hideButton.textContent, /显示当前音频/);
+    assert.match(collapseButton.textContent, /展开当前音频/);
 
     runtime.renderAudioContext({
       entryId: "44696080",
@@ -278,7 +281,7 @@ test("AIDP suzhou ui panel keeps current-audio section collapsed by default and 
       audioUrl: "https://example.test/updated.m4a",
     });
 
-    hideButton.click();
+    collapseButton.click();
     assert.notEqual(summaryCard.style.display, "none");
     assert.match(summaryCard.textContent, /44696080/);
     assert.match(summaryCard.textContent, /template-updated/);

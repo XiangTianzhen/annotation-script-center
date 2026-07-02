@@ -712,6 +712,71 @@ test("ByteDance AIDP content reads wave zoom from aria-valuenow before input val
   assert.equal(zoomInput.value, "2");
 });
 
+test("ByteDance AIDP content only auto-syncs fixed zoom once per page for the same target", async function () {
+  const contentModule = loadContentModule();
+  let zoomInClicks = 0;
+  const zoomInput = new FakeElement({
+    tagName: "input",
+    attributes: {
+      role: "spinbutton",
+      "aria-valuenow": "1",
+    },
+    value: "1",
+  });
+  const zoomOutButton = new FakeElement({
+    className: "zoom-out-button",
+  });
+  const zoomInButton = new FakeElement({
+    className: "zoom-in-button",
+  });
+  zoomInButton.addEventListener("click", function () {
+    zoomInClicks += 1;
+    const nextValue = String(Number(zoomInput.getAttribute("aria-valuenow")) + 1);
+    zoomInput.setAttribute("aria-valuenow", nextValue);
+    zoomInput.value = nextValue;
+  });
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      children: [
+        new FakeElement({
+          className: "btns-operation",
+          children: [
+            new FakeElement({
+              className: "zoom-control-group",
+              children: [zoomOutButton, zoomInput, zoomInButton],
+            }),
+          ],
+        }),
+      ],
+    }),
+  ]);
+
+  const firstChanged = contentModule.__testOnly.applyWaveToolSettings(root, {
+    defaultPlaybackRate: 1,
+    fixedWaveZoom: 3,
+  });
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 80);
+  });
+
+  zoomInput.setAttribute("aria-valuenow", "1.5");
+  zoomInput.value = "1.5";
+  const clickCountAfterFirstSync = zoomInClicks;
+
+  const secondChanged = contentModule.__testOnly.applyWaveToolSettings(root, {
+    defaultPlaybackRate: 1,
+    fixedWaveZoom: 3,
+  });
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 50);
+  });
+
+  assert.equal(firstChanged, true);
+  assert.equal(secondChanged, false);
+  assert.equal(zoomInClicks, clickCountAfterFirstSync);
+});
+
 test("ByteDance AIDP content injects clear-segments button into play toolbar", function () {
   const contentModule = loadContentModule();
   let clicked = 0;

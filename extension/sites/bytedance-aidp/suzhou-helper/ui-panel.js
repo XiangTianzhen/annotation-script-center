@@ -131,27 +131,18 @@
     let statusNode = null;
     let summaryNode = null;
     let summaryCollapseButtonNode = null;
-    let summaryVisibilityButtonNode = null;
     let previewNode = null;
     let currentAudioCollapsed = true;
-    let currentAudioHidden = false;
-    let cachedAudioContext = null;
 
     function syncCurrentAudioSectionState() {
       if (!summaryNode) {
         return;
       }
-      summaryNode.style.display = currentAudioHidden || currentAudioCollapsed ? "none" : "";
+      summaryNode.style.display = currentAudioCollapsed ? "none" : "";
       if (summaryCollapseButtonNode) {
-        summaryCollapseButtonNode.style.display = currentAudioHidden ? "none" : "";
         summaryCollapseButtonNode.textContent = currentAudioCollapsed
           ? "展开当前音频"
           : "折叠当前音频";
-      }
-      if (summaryVisibilityButtonNode) {
-        summaryVisibilityButtonNode.textContent = currentAudioHidden
-          ? "显示当前音频"
-          : "隐藏当前音频";
       }
     }
 
@@ -184,17 +175,7 @@
         currentAudioCollapsed = !currentAudioCollapsed;
         syncCurrentAudioSectionState();
       });
-      summaryVisibilityButtonNode = createButton("隐藏当前音频", false, function () {
-        if (currentAudioHidden) {
-          currentAudioHidden = false;
-          currentAudioCollapsed = false;
-        } else {
-          currentAudioHidden = true;
-        }
-        syncCurrentAudioSectionState();
-      });
       summaryActions.appendChild(summaryCollapseButtonNode);
-      summaryActions.appendChild(summaryVisibilityButtonNode);
       summaryHead.appendChild(summaryActions);
       summarySection.appendChild(summaryHead);
       summaryNode = document.createElement("div");
@@ -262,7 +243,6 @@
         return;
       }
       const source = context && typeof context === "object" ? context : {};
-      cachedAudioContext = source;
       const audioUrl = normalizeText(source.audioUrl);
       if (!audioUrl) {
         summaryNode.textContent = "当前还没拿到音频地址；请等页面初始化完成，或刷新当前详情页后重试。";
