@@ -14,6 +14,8 @@
     constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID || "dataBakerCvpcLiuzhouAssistant";
   const bytedanceAidpSuzhouScriptId =
     constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
+  const bytedanceAidpPlaybackRatePresets = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+  const bytedanceAidpFixedWaveZoomPresets = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   const magicDataAnnotatorScriptId =
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
   const magicDataMinnanScriptId =
@@ -4499,19 +4501,27 @@
   function normalizeBytedanceAidpPlaybackRate(value, fallback) {
     const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 1;
     const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric < 0.5 || numeric > 3) {
+    if (!Number.isFinite(numeric)) {
       return fallbackNumber;
     }
-    return Number(numeric.toFixed(2));
+    const rounded = Number(numeric.toFixed(2));
+    if (bytedanceAidpPlaybackRatePresets.indexOf(rounded) < 0) {
+      return fallbackNumber;
+    }
+    return rounded;
   }
 
   function normalizeBytedanceAidpFixedWaveZoom(value, fallback) {
     const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 2;
     const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric < 1 || numeric > 8) {
+    if (!Number.isFinite(numeric)) {
       return fallbackNumber;
     }
-    return Number(numeric.toFixed(1));
+    const rounded = Math.round(numeric);
+    if (rounded !== numeric || bytedanceAidpFixedWaveZoomPresets.indexOf(rounded) < 0) {
+      return fallbackNumber;
+    }
+    return rounded;
   }
 
   function convertDataBakerCvpcSegmentThresholdDbfsToDisplayValue(dbfs, unit) {
@@ -11154,11 +11164,30 @@
         Number((config.segmentContextPaddingMs / 1000).toFixed(1))
       );
     }
-    if (defaultPlaybackRateNode instanceof HTMLInputElement) {
-      defaultPlaybackRateNode.value = String(config.defaultPlaybackRate);
+    if (defaultPlaybackRateNode instanceof HTMLSelectElement) {
+      renderFixedModelOptions(
+        "bytedance-aidp-default-playback-rate",
+        bytedanceAidpPlaybackRatePresets.map(function (value) {
+          const label = Number(value).toFixed(2) + "倍速";
+          return {
+            value: String(value),
+            label: label,
+          };
+        }),
+        String(config.defaultPlaybackRate)
+      );
     }
-    if (fixedWaveZoomNode instanceof HTMLInputElement) {
-      fixedWaveZoomNode.value = String(config.fixedWaveZoom);
+    if (fixedWaveZoomNode instanceof HTMLSelectElement) {
+      renderFixedModelOptions(
+        "bytedance-aidp-fixed-wave-zoom",
+        bytedanceAidpFixedWaveZoomPresets.map(function (value) {
+          return {
+            value: String(value),
+            label: String(value),
+          };
+        }),
+        String(config.fixedWaveZoom)
+      );
     }
     if (contractNode) {
       contractNode.textContent =

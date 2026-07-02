@@ -122,6 +122,7 @@ class FakeElement {
     );
     this.children = [];
     this.parentElement = null;
+    this._listeners = new Map();
     if (this.className) {
       this._attrs.set("class", this.className);
     }
@@ -135,11 +136,27 @@ class FakeElement {
 
   dispatchEvent(event) {
     this._lastEvent = event;
+    const listener = this._listeners.get(String(event?.type || ""));
+    if (typeof listener === "function") {
+      listener.call(this, event);
+    }
     return true;
+  }
+
+  addEventListener(type, listener) {
+    this._listeners.set(String(type || ""), listener);
+  }
+
+  click() {
+    const listener = this._listeners.get("click");
+    if (typeof listener === "function") {
+      listener.call(this, { type: "click", bubbles: true });
+    }
   }
 
   appendChild(child) {
     child.parentElement = this;
+    child.ownerDocument = this.ownerDocument || (this.tagName === "DOCUMENT" ? this : null);
     this.children.push(child);
     return child;
   }
@@ -232,10 +249,23 @@ class FakeElement {
 }
 
 function createFakeDocument(children) {
-  return new FakeElement({
+  const documentNode = new FakeElement({
     tagName: "document",
     children: Array.isArray(children) ? children : [],
   });
+  documentNode.ownerDocument = documentNode;
+  (function assignOwner(node) {
+    node.ownerDocument = documentNode;
+    node.children.forEach(assignOwner);
+  })(documentNode);
+  documentNode.createElement = function (tagName) {
+    const element = new FakeElement({
+      tagName: tagName,
+    });
+    element.ownerDocument = documentNode;
+    return element;
+  };
+  return documentNode;
 }
 
 function createFakeIframe(contentChildren) {
@@ -515,17 +545,42 @@ test("ByteDance AIDP content resolves helper config with custom padding playback
 
   assert.equal(config.segmentContextPaddingMs, 400);
   assert.equal(config.defaultPlaybackRate, 1.25);
-  assert.equal(config.fixedWaveZoom, 2.5);
+  assert.equal(config.fixedWaveZoom, 2);
 });
 
 test("ByteDance AIDP content applies playback rate and fixed zoom to wave controls", function () {
   const contentModule = loadContentModule();
+  let clickedLabel = "";
+  const playbackOption = new FakeElement({
+    className: "arco-select-option",
+    text: "1.50倍速",
+  });
+  playbackOption.addEventListener("click", function () {
+    clickedLabel = "1.50倍速";
+  });
   const playbackSelect = new FakeElement({
-    tagName: "select",
-    value: "1.0",
+    className: "arco-select arco-select-single arco-select-size-default",
+    attributes: {
+      role: "combobox",
+      "aria-haspopup": "listbox",
+      "aria-expanded": "false",
+    },
     children: [
-      new FakeElement({ tagName: "option", value: "1.0", text: "1.0倍速" }),
-      new FakeElement({ tagName: "option", value: "1.5", text: "1.5倍速" }),
+      new FakeElement({
+        className: "arco-select-view",
+        children: [
+          new FakeElement({
+            tagName: "input",
+            className: "arco-select-view-input arco-select-hidden",
+            value: "1.00倍速",
+          }),
+          new FakeElement({
+            tagName: "span",
+            className: "arco-select-view-value",
+            text: "1.00倍速",
+          }),
+        ],
+      }),
     ],
   });
   const zoomInput = new FakeElement({
@@ -545,6 +600,7 @@ test("ByteDance AIDP content applies playback rate and fixed zoom to wave contro
           playbackSelect,
           new FakeElement({ tagName: "span", text: "总时长" }),
           zoomInput,
+          playbackOption,
         ],
       }),
     ],
@@ -557,6 +613,36 @@ test("ByteDance AIDP content applies playback rate and fixed zoom to wave contro
   });
 
   assert.equal(changed, true);
-  assert.equal(playbackSelect.value, "1.5");
+  assert.equal(clickedLabel, "1.50倍速");
   assert.equal(zoomInput.value, "2");
+});
+
+test("ByteDance AIDP content injects clear-segments button into play toolbar", function () {
+  const contentModule = loadContentModule();
+  let clicked = 0;
+  const playToolbar = new FakeElement({
+    className: "btns-play",
+    children: [new FakeElement({ tagName: "svg" })],
+  });
+  const waveRoot = createFakeDocument([
+    new FakeElement({
+      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      children: [
+        new FakeElement({
+          className: "wave-toolbar",
+          children: [playToolbar],
+        }),
+      ],
+    }),
+  ]);
+
+  const inserted = contentModule.__testOnly.ensureClearSegmentsButton(waveRoot, function () {
+    clicked += 1;
+  });
+  const button = playToolbar.children[playToolbar.children.length - 1];
+
+  assert.equal(inserted, true);
+  assert.equal(button.getAttribute("data-asc-clear-segments-button"), "true");
+  button.click();
+  assert.equal(clicked, 1);
 });

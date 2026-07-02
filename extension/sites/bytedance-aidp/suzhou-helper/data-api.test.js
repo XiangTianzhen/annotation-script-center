@@ -406,3 +406,22 @@ test("AIDP data api treats changed live segments as stale preview", async functi
   });
   assert.equal(harness.fetchCalls.length, 0);
 });
+
+test("AIDP data api clears current regions through SubmitTempItemAnswer after confirmation path", async function () {
+  const harness = createRuntimeHarness();
+
+  const result = await harness.runtime.clearCurrentSegments();
+  const request = harness.fetchCalls[0];
+  const body = JSON.parse(request.body);
+  const answer = JSON.parse(body.AuditAnswers[0].Content);
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已通过平台暂存接口应用分段建议，请刷新页面复核。",
+  });
+  assert.equal(answer.data.regions.length, 0);
+  assert.equal(answer.dataMap.regions.length, 0);
+  assert.equal(answer.data.discard, "保留");
+  assert.equal(answer.data.duration, 22.0125);
+  assert.equal(answer.data.valid_duration, 0);
+});

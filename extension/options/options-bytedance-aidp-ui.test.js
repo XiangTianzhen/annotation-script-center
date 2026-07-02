@@ -14,6 +14,17 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(html, /id="bytedance-aidp-segment-context-padding-seconds"/);
   assert.match(html, /id="bytedance-aidp-default-playback-rate"/);
   assert.match(html, /id="bytedance-aidp-fixed-wave-zoom"/);
+  assert.match(html, /<select\s+id="bytedance-aidp-default-playback-rate"/);
+  assert.match(html, /<option value="1">1\.00倍速<\/option>/);
+  assert.match(html, /<option value="2">2<\/option>/);
+  assert.doesNotMatch(
+    html,
+    /<input[^>]*id="bytedance-aidp-default-playback-rate"[^>]*type="number"/
+  );
+  assert.doesNotMatch(
+    html,
+    /<input[^>]*id="bytedance-aidp-fixed-wave-zoom"[^>]*type="number"/
+  );
   assert.match(html, /id="save-bytedance-aidp-settings"/);
   assert.match(html, /隐藏平台AI功能/);
   assert.match(html, /前后静音时长/);
@@ -28,6 +39,14 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /segmentContextPaddingMs/);
   assert.match(script, /defaultPlaybackRate/);
   assert.match(script, /fixedWaveZoom/);
+  assert.match(
+    script,
+    /renderFixedModelOptions\(\s*"bytedance-aidp-default-playback-rate"/
+  );
+  assert.match(
+    script,
+    /renderFixedModelOptions\(\s*"bytedance-aidp-fixed-wave-zoom"/
+  );
   assert.match(script, /platformAiNode\.checked = config\.platformAiEnabled === false;/);
   assert.match(
     script,

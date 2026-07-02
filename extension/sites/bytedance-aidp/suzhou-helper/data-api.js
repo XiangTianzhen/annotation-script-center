@@ -659,6 +659,39 @@
       return result;
     }
 
+    async function clearCurrentSegments() {
+      const context = await getCurrentContext();
+      if (!context.itemId || !context.tempAnswer || Object.keys(context.tempAnswer).length <= 0) {
+        return {
+          ok: false,
+          message: DETAIL_CONTEXT_MISSING_MESSAGE,
+        };
+      }
+      if (context.unsafeReason) {
+        return {
+          ok: false,
+          message: context.unsafeReason,
+        };
+      }
+      if (!normalizeText(submitSnapshot?.url)) {
+        return {
+          ok: false,
+          message: SUBMIT_AUTH_MISSING_MESSAGE,
+        };
+      }
+      const nextAnswer = updateTempAnswerWithRegions(context.tempAnswer, [], context);
+      const requestBody = buildSubmitRequestBody(submitSnapshot, context, nextAnswer);
+      const result = await postSubmit(fetchImpl, submitSnapshot, requestBody);
+      if (result.ok) {
+        submitSnapshot = parseSubmitSnapshot({
+          url: submitSnapshot.url,
+          headers: submitSnapshot.headers,
+          body: requestBody,
+        });
+      }
+      return result;
+    }
+
     function destroy() {
       if (windowLike && typeof windowLike.removeEventListener === "function") {
         windowLike.removeEventListener("message", handleObserverMessage);
@@ -668,6 +701,7 @@
     return {
       getCurrentContext,
       applySegmentPreview,
+      clearCurrentSegments,
       destroy,
     };
   }

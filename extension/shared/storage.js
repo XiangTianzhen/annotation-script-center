@@ -3,6 +3,9 @@
  */
 
 (function () {
+  const BYTEDANCE_AIDP_PLAYBACK_RATE_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+  const BYTEDANCE_AIDP_FIXED_WAVE_ZOOM_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
   function getConstants() {
     return globalThis.ASREdgeConstants || {
       STORAGE_KEY: "asrEdgeSettings",
@@ -1641,19 +1644,27 @@
   function normalizeBytedanceAidpPlaybackRate(value, fallback) {
     const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 1;
     const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric < 0.5 || numeric > 3) {
+    if (!Number.isFinite(numeric)) {
       return fallbackNumber;
     }
-    return Number(numeric.toFixed(2));
+    const rounded = Number(numeric.toFixed(2));
+    if (BYTEDANCE_AIDP_PLAYBACK_RATE_PRESETS.indexOf(rounded) < 0) {
+      return fallbackNumber;
+    }
+    return rounded;
   }
 
   function normalizeBytedanceAidpFixedWaveZoom(value, fallback) {
     const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 2;
     const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric < 1 || numeric > 8) {
+    if (!Number.isFinite(numeric)) {
       return fallbackNumber;
     }
-    return Number(numeric.toFixed(1));
+    const rounded = Math.round(numeric);
+    if (rounded !== numeric || BYTEDANCE_AIDP_FIXED_WAVE_ZOOM_PRESETS.indexOf(rounded) < 0) {
+      return fallbackNumber;
+    }
+    return rounded;
   }
 
   function resolveDataBakerListenModel(value, pipelineMode, fallback, constants) {

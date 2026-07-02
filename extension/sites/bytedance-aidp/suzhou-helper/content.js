@@ -14,10 +14,13 @@
   const SCRIPT_ID =
     CONSTANTS.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
   const SEGMENT_PREVIEW_PATH = "/api/bytedance-aidp/suzhou-helper/segment/preview";
+  const PLAYBACK_RATE_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+  const FIXED_WAVE_ZOOM_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   const DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS = -27;
   const DEFAULT_SEGMENT_CONTEXT_PADDING_MS = 500;
   const DEFAULT_PLAYBACK_RATE = 1;
   const DEFAULT_FIXED_WAVE_ZOOM = 2;
+  const CLEAR_SEGMENTS_BUTTON_ATTR = "data-asc-clear-segments-button";
   const HIDDEN_ATTR = "data-asc-platform-ai-hidden";
   const EXACT_PLATFORM_AI_SELECTORS = {
     insight: ".insight-container-Hn0Gna",
@@ -72,25 +75,37 @@
   function normalizePlaybackRate(value, fallback) {
     const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 1;
     const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric < 0.5 || numeric > 3) {
+    if (!Number.isFinite(numeric)) {
       return fallbackNumber;
     }
-    return Number(numeric.toFixed(2));
+    const rounded = Number(numeric.toFixed(2));
+    if (PLAYBACK_RATE_PRESETS.indexOf(rounded) < 0) {
+      return fallbackNumber;
+    }
+    return rounded;
   }
 
   function normalizeFixedWaveZoom(value, fallback) {
     const fallbackNumber = Number.isFinite(Number(fallback)) ? Number(fallback) : 2;
     const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric < 1 || numeric > 8) {
+    if (!Number.isFinite(numeric)) {
       return fallbackNumber;
     }
-    return Number(numeric.toFixed(1));
+    const rounded = Math.round(numeric);
+    if (rounded !== numeric || FIXED_WAVE_ZOOM_PRESETS.indexOf(rounded) < 0) {
+      return fallbackNumber;
+    }
+    return rounded;
   }
 
   function formatControlValue(value) {
     return String(Number(value))
       .replace(/\.0$/, "")
       .replace(/(\.\d*?)0+$/, "$1");
+  }
+
+  function formatPlaybackRateLabel(value) {
+    return Number(value).toFixed(2) + "倍速";
   }
 
   function isDetailPagePathname(pathname) {
@@ -368,6 +383,18 @@
     dispatchControlEvent(node, "input");
     dispatchControlEvent(node, "change");
     dispatchControlEvent(node, "blur");
+    return true;
+  }
+
+  function invokeClick(node) {
+    if (!node) {
+      return false;
+    }
+    if (typeof node.click === "function") {
+      node.click();
+      return true;
+    }
+    dispatchControlEvent(node, "click");
     return true;
   }
 
@@ -674,6 +701,16 @@
       if (exact) {
         return exact.parentElement || exact;
       }
+      const classFallback = collectDescendantElements(searchRoot).find(function (node) {
+        const className = getClassName(node);
+        return (
+          className.includes("neeko-wavesurfer-warper") &&
+          className.includes("neeko-wavesurfer")
+        );
+      });
+      if (classFallback) {
+        return classFallback.parentElement || classFallback;
+      }
       const semantic = collectDescendantElements(searchRoot).find(function (node) {
         const text = getNodeText(node);
         return text.includes("播放速度") && text.includes("总时长");
@@ -691,8 +728,8 @@
       return null;
     }
     return (
-      safeQuerySelectorAll(workbench, "select").find(function (node) {
-        return node && "value" in node;
+      safeQuerySelectorAll(workbench, "[role='combobox'], select").find(function (node) {
+        return node && ("value" in node || normalizeText(node.getAttribute?.("role")) === "combobox");
       }) || null
     );
   }
@@ -715,10 +752,16 @@
     const playbackNode = findPlaybackRateControl(root);
     const zoomNode = findWaveZoomControl(root);
     if (playbackNode) {
-      changed = setControlValue(
-        playbackNode,
-        normalizePlaybackRate(source.defaultPlaybackRate, DEFAULT_PLAYBACK_RATE)
-      ) || changed;
+      const targetPlaybackRate = normalizePlaybackRate(
+        source.defaultPlaybackRate,
+        DEFAULT_PLAYBACK_RATE
+      );
+      if (normalizeText(playbackNode.getAttribute?.("role")) === "combobox") {
+        changed =
+          selectPlaybackRateComboboxOption(root, playbackNode, targetPlaybackRate) || changed;
+      } else {
+        changed = setControlValue(playbackNode, targetPlaybackRate) || changed;
+      }
     }
     if (zoomNode) {
       changed = setControlValue(
@@ -727,6 +770,111 @@
       ) || changed;
     }
     return changed;
+  }
+
+  function getPlaybackComboboxLabel(node) {
+    if (!node) {
+      return "";
+    }
+    const viewValueNode =
+      typeof node.querySelector === "function"
+        ? node.querySelector(".arco-select-view-value")
+        : null;
+    const inputNode =
+      typeof node.querySelector === "function"
+        ? node.querySelector(".arco-select-view-input")
+        : null;
+    return (
+      normalizeText(viewValueNode?.textContent) ||
+      normalizeText(inputNode?.value) ||
+      normalizeText(node.getAttribute?.("title")) ||
+      normalizeText(node.textContent)
+    );
+  }
+
+  function findPlaybackRateOption(root, label) {
+    const targetLabel = normalizeText(label);
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const nodes = collectDescendantElements(searchRoots[index]);
+      const matched = nodes.find(function (node) {
+        const className = getClassName(node);
+        return (
+          (className.includes("arco-select-option") ||
+            normalizeText(node.getAttribute?.("role")) === "option") &&
+          getNodeText(node) === targetLabel
+        );
+      });
+      if (matched) {
+        return matched;
+      }
+    }
+    return null;
+  }
+
+  function selectPlaybackRateComboboxOption(root, node, playbackRate) {
+    const targetLabel = formatPlaybackRateLabel(playbackRate);
+    if (getPlaybackComboboxLabel(node) === targetLabel) {
+      return false;
+    }
+    const optionBeforeOpen = findPlaybackRateOption(root, targetLabel);
+    if (optionBeforeOpen) {
+      invokeClick(optionBeforeOpen);
+      return true;
+    }
+    invokeClick(node);
+    const optionAfterOpen = findPlaybackRateOption(root, targetLabel);
+    if (!optionAfterOpen) {
+      return false;
+    }
+    invokeClick(optionAfterOpen);
+    return true;
+  }
+
+  function findPlayToolbarRoot(root) {
+    const workbench = findWaveWorkbench(root);
+    if (!workbench) {
+      return null;
+    }
+    return safeQuerySelectorAll(workbench, ".btns-play")[0] || null;
+  }
+
+  function ensureClearSegmentsButton(root, onClick) {
+    const toolbar = findPlayToolbarRoot(root);
+    if (!toolbar || typeof toolbar.querySelector === "undefined") {
+      return false;
+    }
+    const existing =
+      typeof toolbar.querySelector === "function"
+        ? toolbar.querySelector("[" + CLEAR_SEGMENTS_BUTTON_ATTR + "='true']")
+        : null;
+    if (existing) {
+      return false;
+    }
+    const documentLike = toolbar.ownerDocument || globalThis.document;
+    if (!documentLike || typeof documentLike.createElement !== "function") {
+      return false;
+    }
+    const button = documentLike.createElement("button");
+    button.type = "button";
+    button.setAttribute(CLEAR_SEGMENTS_BUTTON_ATTR, "true");
+    button.textContent = "清空画段";
+    button.style.marginLeft = "8px";
+    button.style.padding = "0 8px";
+    button.style.height = "24px";
+    button.style.border = "1px solid #d7dce5";
+    button.style.borderRadius = "6px";
+    button.style.background = "#fff";
+    button.style.color = "#39424e";
+    button.style.cursor = "pointer";
+    button.style.fontSize = "12px";
+    button.addEventListener("click", function () {
+      if (typeof onClick === "function") {
+        onClick();
+      }
+    });
+    toolbar.appendChild(button);
+    return true;
   }
 
   function findHiddenPlatformAiTargets(root) {
@@ -784,6 +932,9 @@
       try {
         helperRuntime.ui.mount();
         applyWaveToolSettings(document, helperRuntime.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS));
+        ensureClearSegmentsButton(document, function () {
+          void handleClearSegmentsAction();
+        });
         const context = await helperRuntime.dataApi.getCurrentContext();
         helperRuntime.ui.renderAudioContext(context);
         if (!normalizeText(context?.audioUrl)) {
@@ -862,6 +1013,41 @@
     }
   }
 
+  async function handleClearSegmentsAction() {
+    if (!helperRuntime) {
+      return;
+    }
+    let confirmed = true;
+    try {
+      if (typeof globalThis.confirm === "function") {
+        confirmed = globalThis.confirm("确认清空当前题的所有画段内容吗？此操作会写入平台暂存。");
+      }
+    } catch (_error) {
+      confirmed = true;
+    }
+    if (!confirmed) {
+      return;
+    }
+    const result = await helperRuntime.dataApi.clearCurrentSegments();
+    helperRuntime.ui.setStatus(result.message, result.ok ? "success" : "error");
+    if (!result.ok) {
+      scheduleHelperContextRefresh(0);
+      return;
+    }
+    helperRuntime.preview = null;
+    helperRuntime.segment?.clearPreview?.();
+    helperRuntime.ui.renderPreview(null);
+    if (typeof setTimeout === "function") {
+      setTimeout(function () {
+        try {
+          globalThis.location.reload();
+        } catch (_error) {
+          // Ignore reload failures and keep the success state visible.
+        }
+      }, 350);
+    }
+  }
+
   function ensureHelperRuntime(settings) {
     if (!runtimePolicy.runtimeAccessible || !isDetailPage()) {
       destroyHelperRuntime();
@@ -879,6 +1065,9 @@
     if (helperRuntime && helperRuntime.configSignature === configSignature) {
       helperRuntime.ui.mount();
       applyWaveToolSettings(document, helperConfig);
+      ensureClearSegmentsButton(document, function () {
+        void handleClearSegmentsAction();
+      });
       scheduleHelperContextRefresh(0);
       return;
     }
@@ -896,6 +1085,9 @@
       onApplyPreview: function () {
         void handleApplyPreviewAction();
       },
+      onClearSegments: function () {
+        void handleClearSegmentsAction();
+      },
     });
     helperRuntime = {
       dataApi: dataApi,
@@ -908,6 +1100,9 @@
     };
     ui.mount();
     applyWaveToolSettings(document, helperConfig);
+    ensureClearSegmentsButton(document, function () {
+      void handleClearSegmentsAction();
+    });
     ui.setStatus("苏州话脚本已就绪；当前支持分段建议与平台暂存直写。", "success");
     scheduleHelperContextRefresh(0);
   }
@@ -919,6 +1114,9 @@
       syncPlatformAiVisibility(document, runtimePolicy.shouldHidePlatformAi);
       if (runtimePolicy.runtimeAccessible) {
         applyWaveToolSettings(document, resolveHelperConfig(settings));
+        ensureClearSegmentsButton(document, function () {
+          void handleClearSegmentsAction();
+        });
       }
       if (runtimePolicy.shouldHidePlatformAi) {
         ensureMutationObserver();
@@ -945,6 +1143,9 @@
           document,
           helperRuntime?.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS || {})
         );
+        ensureClearSegmentsButton(document, function () {
+          void handleClearSegmentsAction();
+        });
       }
       if (runtimePolicy.shouldHidePlatformAi) {
         ensureMutationObserver();
@@ -1083,6 +1284,7 @@
       getFloatingAssistantScore: getFloatingAssistantScore,
       resolveHelperConfig: resolveHelperConfig,
       applyWaveToolSettings: applyWaveToolSettings,
+      ensureClearSegmentsButton: ensureClearSegmentsButton,
     },
   };
 
