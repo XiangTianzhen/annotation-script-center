@@ -67,3 +67,32 @@ test("show raw output button stays enabled without result", function () {
 
   assert.equal(helper(false, false), false);
 });
+
+test("unwrapResultEnvelope unwraps nested success data payload", function () {
+  const helper = panelModule.__test__?.unwrapResultEnvelope;
+  assert.equal(typeof helper, "function");
+
+  const result = helper({
+    success: true,
+    data: {
+      success: true,
+      data: {
+        requestId: "req-1",
+        reviewConclusion: "need_review",
+        shouldReview: true,
+        models: {
+          listenModel: "qwen3.5-omni-flash",
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(result, {
+    requestId: "req-1",
+    reviewConclusion: "need_review",
+    shouldReview: true,
+    models: {
+      listenModel: "qwen3.5-omni-flash",
+    },
+  });
+});

@@ -36,6 +36,20 @@
     return String(value || "").replace(/\s+/g, " ").trim();
   }
 
+  function isPlainObject(value) {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function unwrapResultEnvelope(value) {
+    let current = isPlainObject(value) ? value : null;
+    let depth = 0;
+    while (current && depth < 5 && current.success === true && isPlainObject(current.data)) {
+      current = current.data;
+      depth += 1;
+    }
+    return current;
+  }
+
   function toNumber(value) {
     const numericValue = Number(value);
     return Number.isFinite(numericValue) ? numericValue : null;
@@ -1407,12 +1421,12 @@
     }
 
     function renderResult(data) {
-      latestResult = data || null;
+      latestResult = unwrapResultEnvelope(data);
       if (!resultNode) {
         return;
       }
       resultNode.innerHTML = "";
-      if (!data) {
+      if (!latestResult) {
         clearInlineSuggestionBlocks();
         clearSpeakerSuggestionBlocks();
         const emptyNode = document.createElement("div");
@@ -1423,16 +1437,16 @@
         return;
       }
 
-      const speakerCheck = data.speakerCheck || {};
+      const speakerCheck = latestResult.speakerCheck || {};
       const genderCheck = speakerCheck.gender || {};
       const ageRangeCheck = speakerCheck.ageRange || {};
-      const dialectCheck = data.dialectTextCheck || {};
-      const mandarinCheck = data.mandarinTextCheck || {};
+      const dialectCheck = latestResult.dialectTextCheck || {};
+      const mandarinCheck = latestResult.mandarinTextCheck || {};
 
       const overallBlock = document.createElement("div");
       overallBlock.className = "md-block";
       overallBlock.innerHTML = '<div class="md-check-title">总结论</div>';
-      overallBlock.appendChild(createCheckGrid(buildOverallRows(data)));
+      overallBlock.appendChild(createCheckGrid(buildOverallRows(latestResult)));
       resultNode.appendChild(overallBlock);
       resultNode.appendChild(
         createFoldSection("说话人属性", [
@@ -2085,6 +2099,7 @@
   exportedApi.__test__ = {
     resolveFillAllSuggestionsOutcome: resolveFillAllSuggestionsOutcome,
     buildOverallRows: buildOverallRows,
+    unwrapResultEnvelope: unwrapResultEnvelope,
     shouldDisableShowRawOutput: function (isLoading) {
       return isLoading === true;
     },

@@ -1,3 +1,13 @@
+## 2026-07-02（修复客家话助手结果面板误读外层成功包装）
+- 更新 `extension/sites/magic-data/hakka-helper/assistant-panel.js`
+  - 新增面板侧 `success/data` 成功响应解包 helper
+  - `renderResult` 改为优先使用解包后的真实质检结果对象渲染
+  - 修复 AI 原始输出里 `normalizedResult.data` 已有正确结果，但右侧结果区仍显示 `无法判断 / 摘要 - / total=0ms` 的问题
+- 更新 `extension/sites/magic-data/hakka-helper/assistant-panel.test.js`
+  - 新增双层 `success/data` 包装解包回归测试
+- 更新文档：
+  - `extension/sites/magic-data/hakka-helper/README.md`
+
 ## 2026-07-01（接入客家话运行时主词表并收口最终建议正字）
 - 新增运行时主词表：
   - `platform-resources/magic-data/hakka-helper/backend/lexicon/hakka-lexicon.json`

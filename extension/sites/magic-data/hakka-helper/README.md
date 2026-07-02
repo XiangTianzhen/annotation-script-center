@@ -41,6 +41,7 @@
   - 前端会继续收到兼容原结构的 `recognitionConvert`，其中 `convertedDialectText` 已是后端最终正字归一化后的客家话建议文本。
 - - `review-current/jobs/:jobId` 成功态当前返回 `data.success + data.data` 双层结构。
   - 前端 client 当前已在 Job 轮询分支优先解包到真正的质检结果对象，避免新版面板把外层成功响应误当成结果。
+  - 新版面板渲染前也会再次兜底解包 `success/data` 包装层，避免线上返回被外层空 `requestId/models/timing` 覆盖后，右侧结果区误显示“无法判断 / 摘要 -”。
   - 该热修用于修复“AI 质检当前条”完成后右侧结果区误显示“无法判断 / 摘要 -”的问题。
 
 ## 前端交互（新版）
