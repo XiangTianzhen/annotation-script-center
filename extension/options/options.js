@@ -5347,7 +5347,7 @@
       {
         id: bytedanceAidpSuzhouScriptId,
         enabled: true,
-        platformAiEnabled: true,
+        platformAiEnabled: false,
         contractMode: "dom-guarded",
       },
       clone(defaults),
@@ -6187,7 +6187,7 @@
         return { text: "未启用", tone: "disabled" };
       }
       return config.platformAiEnabled === false
-        ? { text: "脚本已启用，平台 AI 已关闭", tone: "pending" }
+        ? { text: "脚本已启用，平台 AI 已隐藏", tone: "pending" }
         : { text: "已启用", tone: "enabled" };
     }
 
@@ -10897,7 +10897,7 @@
       applyBytedanceAidpForm(settings);
       setStatus(
         "bytedance-aidp-status",
-        "当前只提供“开关平台AI功能”基础开关：关闭后隐藏平台原生 AI 洞察面板与猫形浮动入口，不处理 AI 请求、保存、提交或分段表格写入。"
+        "当前只提供“隐藏平台AI功能”基础开关：默认勾选后隐藏平台原生 AI 洞察面板与猫形浮动入口，取消勾选后才显示；不处理 AI 请求、保存、提交或分段表格写入。"
       );
       return;
     }
@@ -11098,7 +11098,7 @@
     const contractNode = getElement("bytedance-aidp-contract-mode");
 
     if (platformAiNode) {
-      platformAiNode.checked = config.platformAiEnabled !== false;
+      platformAiNode.checked = config.platformAiEnabled === false;
     }
     if (contractNode) {
       contractNode.textContent =
@@ -11616,7 +11616,7 @@
               suzhouHelper: {
                 id: bytedanceAidpSuzhouScriptId,
                 platformAiEnabled:
-                  getElement("bytedance-aidp-platform-ai-enabled").checked,
+                  !getElement("bytedance-aidp-platform-ai-enabled").checked,
                 contractMode: "dom-guarded",
               },
             },

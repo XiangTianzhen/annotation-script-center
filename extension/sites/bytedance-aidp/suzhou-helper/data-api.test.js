@@ -1,0 +1,408 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const test = require("node:test");
+
+const modulePath = path.resolve(__dirname, "data-api.js");
+const OBSERVER_SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_SUZHOU_OBSERVER";
+const RECEIVE_TYPE = "BYTEDANCE_AIDP_SUZHOU_RECEIVE_SNAPSHOT";
+const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUZHOU_SUBMIT_SNAPSHOT";
+
+function loadModule() {
+  delete require.cache[modulePath];
+  delete globalThis.ASREdgeBytedanceAidpSuzhouDataApi;
+  return require(modulePath);
+}
+
+function createFakeWindow() {
+  const listeners = new Map();
+  return {
+    addEventListener: function (type, listener) {
+      listeners.set(String(type || ""), listener);
+    },
+    removeEventListener: function (type, listener) {
+      const key = String(type || "");
+      if (listeners.get(key) === listener) {
+        listeners.delete(key);
+      }
+    },
+    emitMessage: function (data, origin) {
+      const listener = listeners.get("message");
+      if (!listener) {
+        throw new Error("message listener not installed");
+      }
+      listener({
+        origin: origin || "https://aidp.bytedance.com",
+        data,
+      });
+    },
+  };
+}
+
+function createBaseReceivePayload(regionOverrides) {
+  const regions = Array.isArray(regionOverrides)
+    ? regionOverrides
+    : [
+        {
+          no: 1,
+          id: "region_a",
+          start: 1.307281,
+          end: 3.023912,
+          disabled: false,
+        },
+      ];
+  return {
+    Items: [
+      {
+        Item: {
+          ItemID: "7656690377962016562",
+          Content: JSON.stringify({
+            id: "44696080",
+            audio: "https://audio.example.com/sample.mp3?signature=masked",
+            uttid: "44696080",
+          }),
+        },
+        TempAnswer: {
+          Content: JSON.stringify({
+            item: {
+              id: "44696080",
+            },
+            templateID: "7628929157338042146",
+            type: "neeko",
+            data: {
+              regions: regions,
+              discard: "保留",
+              duration: 22.0125,
+              valid_duration: 1.716631,
+            },
+            dataMap: {
+              regions: regions,
+              discard: "保留",
+              duration: 22.0125,
+              valid_duration: 1.716631,
+            },
+            itemID: "7656690377962016562",
+            isAbandoned: false,
+          }),
+        },
+      },
+    ],
+  };
+}
+
+function createBaseSubmitPayload() {
+  return {
+    url: "https://aidp.bytedance.com/api/dispatch/SubmitTempItemAnswer?msToken=masked&a_bogus=masked",
+    headers: {
+      accept: "application/json, text/plain, */*",
+      "content-type": "application/json",
+      "x-secsdk-csrf-token": "csrf-token",
+    },
+    body: {
+      AuditAnswers: [
+        {
+          ItemID: "7656690377962016562",
+          Content: JSON.stringify({
+            item: {
+              id: "44696080",
+            },
+            templateID: "7628929157338042146",
+            type: "neeko",
+            data: {
+              regions: [
+                {
+                  no: 1,
+                  id: "region_a",
+                  start: 1.307281,
+                  end: 3.023912,
+                  disabled: false,
+                },
+              ],
+              discard: "保留",
+              duration: 22.0125,
+              valid_duration: 1.716631,
+            },
+            dataMap: {
+              regions: [
+                {
+                  no: 1,
+                  id: "region_a",
+                  start: 1.307281,
+                  end: 3.023912,
+                  disabled: false,
+                },
+              ],
+              discard: "保留",
+              duration: 22.0125,
+              valid_duration: 1.716631,
+            },
+            itemID: "7656690377962016562",
+            isAbandoned: false,
+          }),
+          ControlData: JSON.stringify({
+            Discard: false,
+            extraAnswer: [],
+          }),
+        },
+      ],
+      NodeID: "1",
+      StagingTime: "604800",
+      TaskID: "7632228385175129882",
+    },
+  };
+}
+
+function createSubmitPayloadWithRegions(regionOverrides) {
+  const payload = createBaseSubmitPayload();
+  const regions = Array.isArray(regionOverrides)
+    ? regionOverrides
+    : JSON.parse(payload.body.AuditAnswers[0].Content).data.regions;
+  const nextContent = JSON.parse(payload.body.AuditAnswers[0].Content);
+  nextContent.data.regions = regions;
+  nextContent.dataMap.regions = regions;
+  payload.body.AuditAnswers[0].Content = JSON.stringify(nextContent);
+  return payload;
+}
+
+function emitReceive(windowLike, payload) {
+  windowLike.emitMessage(
+    {
+      source: OBSERVER_SOURCE,
+      type: RECEIVE_TYPE,
+      payload: {
+        url: "https://aidp.bytedance.com/api/dispatch/Receive",
+        response: payload,
+      },
+    },
+    "https://aidp.bytedance.com"
+  );
+}
+
+function emitSubmit(windowLike, payload) {
+  windowLike.emitMessage(
+    {
+      source: OBSERVER_SOURCE,
+      type: SUBMIT_TYPE,
+      payload: payload,
+    },
+    "https://aidp.bytedance.com"
+  );
+}
+
+function createRuntimeHarness(options) {
+  const settings = options && typeof options === "object" ? options : {};
+  const moduleApi = loadModule();
+  const windowLike = createFakeWindow();
+  const fetchCalls = [];
+  const runtime = moduleApi.createRuntime({
+    window: windowLike,
+    location: {
+      origin: "https://aidp.bytedance.com",
+      href:
+        "https://aidp.bytedance.com/management/task-v2/7632228385175129882/mark-v3/1?from_pathname=%2Ftask-v2%3Fpage%3D1",
+      pathname: "/management/task-v2/7632228385175129882/mark-v3/1",
+      search: "?from_pathname=%2Ftask-v2%3Fpage%3D1",
+    },
+    fetch: async function (url, requestOptions) {
+      fetchCalls.push({
+        url: String(url || ""),
+        method: String(requestOptions?.method || "GET").toUpperCase(),
+        headers: Object.assign({}, requestOptions?.headers || {}),
+        body: String(requestOptions?.body || ""),
+      });
+      return {
+        ok: true,
+        json: async function () {
+          return {
+            BaseResp: {
+              StatusCode: 0,
+              StatusMessage: "",
+            },
+          };
+        },
+      };
+    },
+    readCurrentTableState:
+      settings.readCurrentTableState ||
+      function () {
+        return {
+          rows: [
+            {
+              segmentNumber: 1,
+              text: "",
+              language: "",
+            },
+          ],
+          hasUnsafeData: false,
+          unsafeReason: "",
+        };
+      },
+  });
+
+  emitReceive(windowLike, createBaseReceivePayload(settings.receiveRegions));
+  emitSubmit(
+    windowLike,
+    settings.submitPayload || createSubmitPayloadWithRegions(settings.submitRegions)
+  );
+
+  return {
+    runtime,
+    windowLike,
+    fetchCalls,
+  };
+}
+
+test("AIDP data api builds current context from observer receive snapshot", async function () {
+  const harness = createRuntimeHarness();
+  const context = await harness.runtime.getCurrentContext();
+
+  assert.equal(context.taskId, "7632228385175129882");
+  assert.equal(context.itemId, "7656690377962016562");
+  assert.equal(context.entryId, "44696080");
+  assert.equal(
+    context.audioUrl,
+    "https://audio.example.com/sample.mp3?signature=masked"
+  );
+  assert.equal(context.audioDurationMs, 22013);
+  assert.equal(context.currentSegments.length, 1);
+  assert.equal(context.currentSegments[0].startMs, 1307);
+  assert.equal(context.currentSegments[0].endMs, 3024);
+  assert.equal(context.selectionKey, "7656690377962016562");
+});
+
+test("AIDP data api applies preview through SubmitTempItemAnswer with rebuilt regions", async function () {
+  const harness = createRuntimeHarness();
+  const preview = {
+    proposedSegments: [
+      {
+        sourceSegmentNumber: 1,
+        startMs: 1307,
+        endMs: 2023,
+      },
+      {
+        sourceSegmentNumber: 1,
+        startMs: 2300,
+        endMs: 3024,
+      },
+    ],
+    sourceSegments: [
+      {
+        regionId: "region_a",
+        segmentNumber: 1,
+        startMs: 1307,
+        endMs: 3024,
+      },
+    ],
+    selectionKey: "7656690377962016562",
+  };
+
+  const result = await harness.runtime.applySegmentPreview(preview);
+  const request = harness.fetchCalls[0];
+  const body = JSON.parse(request.body);
+  const answer = JSON.parse(body.AuditAnswers[0].Content);
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已通过平台暂存接口应用分段建议，请刷新页面复核。",
+  });
+  assert.equal(
+    request.url,
+    "https://aidp.bytedance.com/api/dispatch/SubmitTempItemAnswer?msToken=masked&a_bogus=masked"
+  );
+  assert.equal(request.headers["x-secsdk-csrf-token"], "csrf-token");
+  assert.equal(body.NodeID, "1");
+  assert.equal(body.StagingTime, "604800");
+  assert.equal(body.TaskID, "7632228385175129882");
+  assert.equal(answer.data.duration, 22.0125);
+  assert.equal(answer.data.discard, "保留");
+  assert.equal(answer.data.regions.length, 2);
+  assert.equal(answer.data.regions[0].no, 1);
+  assert.match(answer.data.regions[0].id, /^region_/);
+  assert.equal(answer.data.regions[0].start, 1.307);
+  assert.equal(answer.data.regions[0].end, 2.023);
+  assert.equal(answer.data.regions[1].start, 2.3);
+  assert.equal(answer.data.regions[1].end, 3.024);
+  assert.equal(answer.data.valid_duration, 1.44);
+  assert.equal(answer.dataMap.regions.length, 2);
+});
+
+test("AIDP data api stops auto-apply when current rows already contain text or language values", async function () {
+  const harness = createRuntimeHarness({
+    readCurrentTableState: function () {
+      return {
+        rows: [
+          {
+            segmentNumber: 1,
+            text: "已有转写",
+            language: "",
+          },
+        ],
+        hasUnsafeData: true,
+        unsafeReason: "当前分段表里已有文本或语音种类，自动应用可能覆盖现有标注。",
+      };
+    },
+  });
+  const result = await harness.runtime.applySegmentPreview({
+    proposedSegments: [
+      {
+        sourceSegmentNumber: 1,
+        startMs: 1307,
+        endMs: 2023,
+      },
+    ],
+    sourceSegments: [
+      {
+        regionId: "region_a",
+        segmentNumber: 1,
+        startMs: 1307,
+        endMs: 3024,
+      },
+    ],
+    selectionKey: "7656690377962016562",
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "当前分段表里已有文本或语音种类，自动应用可能覆盖现有标注。",
+  });
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api treats changed live segments as stale preview", async function () {
+  const harness = createRuntimeHarness({
+    submitRegions: [
+      {
+        no: 1,
+        id: "region_new",
+        start: 1.5,
+        end: 3.1,
+        disabled: false,
+      },
+    ],
+  });
+  const result = await harness.runtime.applySegmentPreview({
+    proposedSegments: [
+      {
+        sourceSegmentNumber: 1,
+        startMs: 1307,
+        endMs: 2023,
+      },
+    ],
+    sourceSegments: [
+      {
+        regionId: "region_a",
+        segmentNumber: 1,
+        startMs: 1307,
+        endMs: 3024,
+      },
+    ],
+    selectionKey: "7656690377962016562",
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "当前页面分段状态已变化，旧分段建议已失效，请重新生成。",
+  });
+  assert.equal(harness.fetchCalls.length, 0);
+});

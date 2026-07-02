@@ -8,6 +8,64 @@
 - 更新文档：
   - `extension/sites/magic-data/hakka-helper/README.md`
 
+## 2026-07-02（接入 ByteDance AIDP 苏州话分段建议与暂存直写）
+- 新增 `extension/sites/bytedance-aidp/suzhou-helper/page-world/network-observer.js`
+  - 捕获 `Receive` 当前条读取快照
+  - 捕获 `SubmitTempItemAnswer` 暂存请求 URL、CSRF 头和基础请求体
+- 新增 `extension/sites/bytedance-aidp/suzhou-helper/data-api.js`
+  - 解析当前条目、音频地址、临时答案和当前分段状态
+  - 校验预览源分段是否已过期
+  - 发现已有文本或语音种类时 fail closed 停止自动应用
+  - 通过 `SubmitTempItemAnswer` 把建议分段写回平台暂存答案
+- 新增 `extension/sites/bytedance-aidp/suzhou-helper/segmentation-controller.js`
+  - 对接统一后端 `/api/bytedance-aidp/suzhou-helper/segment/preview`
+  - 发送当前音频 URL、时长和现有分段，生成增量分段建议
+- 新增 `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.js`
+  - 在波形区下方挂载精简 `苏州话脚本 Beta` 面板
+  - 展示当前音频摘要、分段建议按钮和建议结果
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - 保留原有平台 AI 板块显隐能力
+  - 新增分段建议面板协调、上下文刷新和应用成功后的页面刷新
+- 更新 `extension/manifest.json`
+  - 为 AIDP 增加 MAIN world 网络观察器
+  - 为 AIDP 注入 `data-api / segmentation-controller / ui-panel`
+- 新增统一后端路由：
+  - `platform-resources/bytedance-aidp/suzhou-helper/backend/index.js`
+  - `platform-resources/bytedance-aidp/suzhou-helper/backend/segment-routes.js`
+- 更新 `platform-resources/backend/registry.js`
+  - 注册 AIDP 苏州话分段预览后端
+- 新增 / 更新测试：
+  - `extension/sites/bytedance-aidp/suzhou-helper/segmentation-controller.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/data-api.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+- 更新文档：
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/backend/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/network/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/network/01-mark-v3-detail-init.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/network/02-mark-v3-receive-current-item.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/network/03-mark-v3-submit-temp-answer.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/page-structure/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/page-structure/01-mark-v3-detail.md`
+
+## 2026-07-02（修复 ByteDance AIDP 苏州话平台 AI 显隐漂移）
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - 保留 `mark-v3` 路由识别和基础设置口径不变
+  - 将平台 AI 目标拆成 `AI 洞察` 卡片与右下角浮动入口两类
+  - 平台 AI 显隐从“两个固定 class”升级为“已采样选择器 + 语义 / 外层兜底”
+  - 新增 `AI 洞察 / 统计周期 / 前往数据看板 / 立即生成` 文本锚点回退
+  - 新增右下角小型固定浮层候选识别与外层归一化
+  - 新增同域 iframe 文档下钻扫描，补齐“顶层壳页命中但工作区实际在 iframe”场景
+  - 修复节点已被标记隐藏后，平台重写 `display` 无法再次压回 `none` 的问题
+  - 将 DOM 观察器升级为同时监听 `childList + subtree + attributes`
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+  - 新增语义卡片回退、右下角浮层归一化、类名漂移浮层识别、同域 iframe 扫描、重写 `display` 后再隐藏等回归用例
+- 更新文档：
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/page-structure/01-mark-v3-detail.md`
+
 ## 2026-07-01（接入客家话运行时主词表并收口最终建议正字）
 - 新增运行时主词表：
   - `platform-resources/magic-data/hakka-helper/backend/lexicon/hakka-lexicon.json`
@@ -740,6 +798,12 @@
 - 过滤快判统计转写数据
 - 优化快判统计首页采集
 - 调整快判首页统计上传
+
+## 2026-07-02
+- 调整 ByteDance AIDP 苏州话脚本为默认隐藏平台 AI 板块
+- 迁移旧版默认显示配置到默认隐藏
+- 更新 AIDP options 文案与回归测试
+- 调整 ByteDance AIDP 基础开关语义为“勾选即隐藏，取消勾选即显示”
 
 ## 2026-04-25（历史记录重建摘要）
 - 拆分快判统计本地服务

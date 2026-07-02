@@ -262,9 +262,23 @@
         "https://aidp.bytedance.com/*"
       ],
       "js": [
+        "sites/bytedance-aidp/suzhou-helper/page-world/network-observer.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://aidp.bytedance.com/*"
+      ],
+      "js": [
         "shared/build-meta.js",
         "shared/constants.js",
         "shared/storage.js",
+        "sites/bytedance-aidp/suzhou-helper/data-api.js",
+        "sites/bytedance-aidp/suzhou-helper/segmentation-controller.js",
+        "sites/bytedance-aidp/suzhou-helper/ui-panel.js",
         "sites/bytedance-aidp/suzhou-helper/content.js"
       ],
       "all_frames": false,

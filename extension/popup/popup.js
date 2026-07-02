@@ -426,13 +426,13 @@
             ? "未启用"
             : platformAiEnabled
               ? "已支持 Beta"
-              : "已支持 Beta（平台 AI 已关闭）",
+              : "已支持 Beta（平台 AI 已隐藏）",
           statusTone: !enabled ? "disabled" : platformAiEnabled ? "success" : "pending",
           title: "当前页面命中 ByteDance AIDP mark-v3 详情页",
           description: enabled
             ? platformAiEnabled
-              ? "当前页会按设置保留平台原生 AI 板块；关闭后会隐藏 AI 洞察与猫形浮动入口，不改任务列表、波形区、保留/丢弃和分段表格。"
-              : "当前页会隐藏平台原生 AI 洞察与猫形浮动入口；不调用 AI、不自动保存、不自动提交。"
+              ? "当前页会按设置显示平台原生 AI 板块；勾选“隐藏平台AI功能”后会隐藏 AI 洞察与猫形浮动入口，不改任务列表、波形区、保留/丢弃和分段表格。"
+              : "当前页会按设置隐藏平台原生 AI 洞察与猫形浮动入口；取消勾选“隐藏平台AI功能”后会恢复显示，不调用 AI、不自动保存、不自动提交。"
             : "当前 URL 已命中 mark-v3 详情页，但平台脚本未启用或尚未解锁 beta。",
         };
       }

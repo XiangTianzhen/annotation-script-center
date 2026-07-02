@@ -8,26 +8,47 @@
 
   const CONSTANTS = globalThis.ASREdgeConstants || {};
   const STORAGE = globalThis.ASREdgeStorage || null;
+  const dataApiFactory = globalThis.ASREdgeBytedanceAidpSuzhouDataApi || null;
+  const segmentFactory = globalThis.ASREdgeBytedanceAidpSuzhouSegmentation || null;
+  const uiFactory = globalThis.ASREdgeBytedanceAidpSuzhouUiPanel || null;
   const SCRIPT_ID =
     CONSTANTS.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
+  const SEGMENT_PREVIEW_PATH = "/api/bytedance-aidp/suzhou-helper/segment/preview";
+  const DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS = -27;
+  const DEFAULT_SEGMENT_CONTEXT_PADDING_MS = 200;
   const HIDDEN_ATTR = "data-asc-platform-ai-hidden";
-  const PLATFORM_AI_SELECTORS = [
-    ".trigger-wrapper-RlG7Dx",
-    ".insight-container-Hn0Gna",
+  const EXACT_PLATFORM_AI_SELECTORS = {
+    insight: ".insight-container-Hn0Gna",
+    trigger: ".trigger-wrapper-RlG7Dx",
+  };
+  const INSIGHT_TEXT_ANCHORS = [
+    "AI 洞察",
+    "统计周期",
+    "前往数据看板",
+    "立即生成",
+  ];
+  const FLOATING_HINT_PATTERN = /(trigger|assistant|avatar|chat|robot|float)/i;
+  const OBSERVED_ATTRIBUTE_NAMES = [
+    "class",
+    "style",
+    "hidden",
+    "aria-hidden",
   ];
 
   let runtimeActive = false;
   let runtimePolicy = {
     runtimeAccessible: false,
     enabled: true,
-    platformAiEnabled: true,
+    platformAiEnabled: false,
     shouldHidePlatformAi: false,
     contractMode: "dom-guarded",
   };
   let mutationObserver = null;
   let routeTimer = null;
   let domSyncTimer = null;
+  let helperSyncTimer = null;
   let storageListenerBound = false;
+  let helperRuntime = null;
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -49,6 +70,8 @@
   function isHideableNode(node) {
     return Boolean(
       node &&
+        node.nodeType === 1 &&
+        String(node.tagName || "").toUpperCase() !== "DOCUMENT" &&
         typeof node.setAttribute === "function" &&
         typeof node.getAttribute === "function" &&
         typeof node.removeAttribute === "function" &&
@@ -63,10 +86,17 @@
       CONSTANTS.DEFAULT_SETTINGS?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {
         id: SCRIPT_ID,
         enabled: true,
-        platformAiEnabled: true,
+        platformAiEnabled: false,
         contractMode: "dom-guarded",
       }
     );
+  }
+
+  function resolveSegmentPreviewEndpoint(settings) {
+    if (typeof CONSTANTS.buildBackendUrl === "function") {
+      return CONSTANTS.buildBackendUrl(SEGMENT_PREVIEW_PATH, settings || {});
+    }
+    return "http://127.0.0.1:3333" + SEGMENT_PREVIEW_PATH;
   }
 
   function resolveRuntimePolicy(settings) {
@@ -96,21 +126,37 @@
   }
 
   function hidePlatformAiNode(node) {
-    if (!isHideableNode(node) || node.getAttribute(HIDDEN_ATTR) === "true") {
+    if (!isHideableNode(node)) {
       return false;
     }
 
-    node.__ascPrevDisplayValue =
+    const alreadyHidden = node.getAttribute(HIDDEN_ATTR) === "true";
+    if (!alreadyHidden) {
+      node.__ascPrevDisplayValue =
+        typeof node.style.getPropertyValue === "function"
+          ? String(node.style.getPropertyValue("display") || "")
+          : "";
+      node.__ascPrevDisplayPriority =
+        typeof node.style.getPropertyPriority === "function"
+          ? String(node.style.getPropertyPriority("display") || "")
+          : "";
+      node.setAttribute(HIDDEN_ATTR, "true");
+    }
+
+    const currentDisplayValue =
       typeof node.style.getPropertyValue === "function"
         ? String(node.style.getPropertyValue("display") || "")
         : "";
-    node.__ascPrevDisplayPriority =
+    const currentDisplayPriority =
       typeof node.style.getPropertyPriority === "function"
         ? String(node.style.getPropertyPriority("display") || "")
         : "";
-    node.setAttribute(HIDDEN_ATTR, "true");
     node.style.setProperty("display", "none", "important");
-    return true;
+    return (
+      alreadyHidden !== true ||
+      currentDisplayValue !== "none" ||
+      currentDisplayPriority !== "important"
+    );
   }
 
   function restorePlatformAiNode(node) {
@@ -148,31 +194,391 @@
     return changed;
   }
 
+  function getChildElements(node) {
+    if (!node) {
+      return [];
+    }
+    if (node.children && typeof node.children.length === "number") {
+      return Array.from(node.children).filter(function (child) {
+        return child && child.nodeType === 1;
+      });
+    }
+    if (node.childNodes && typeof node.childNodes.length === "number") {
+      return Array.from(node.childNodes).filter(function (child) {
+        return child && child.nodeType === 1;
+      });
+    }
+    return [];
+  }
+
+  function collectDescendantElements(root) {
+    const results = [];
+    (function visit(node) {
+      getChildElements(node).forEach(function (child) {
+        results.push(child);
+        visit(child);
+      });
+    })(root);
+    return results;
+  }
+
+  function safeQuerySelectorAll(root, selector) {
+    if (!root || typeof root.querySelectorAll !== "function") {
+      return [];
+    }
+    try {
+      return Array.from(root.querySelectorAll(selector));
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function safeGetIframeDocument(iframeNode) {
+    if (!iframeNode) {
+      return null;
+    }
+    try {
+      const iframeDocument = iframeNode.contentDocument || iframeNode.contentWindow?.document || null;
+      return iframeDocument && typeof iframeDocument.querySelectorAll === "function"
+        ? iframeDocument
+        : null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function getSearchRoots(root) {
+    const queue = [];
+    const seen = new Set();
+    const results = [];
+
+    function enqueue(candidate) {
+      if (!candidate || seen.has(candidate) || typeof candidate.querySelectorAll !== "function") {
+        return;
+      }
+      seen.add(candidate);
+      queue.push(candidate);
+      results.push(candidate);
+    }
+
+    enqueue(root);
+    while (queue.length > 0) {
+      const current = queue.shift();
+      safeQuerySelectorAll(current, "iframe").forEach(function (iframeNode) {
+        enqueue(safeGetIframeDocument(iframeNode));
+      });
+    }
+    return results;
+  }
+
+  function getClassName(node) {
+    return String(node?.className || node?.getAttribute?.("class") || "");
+  }
+
+  function getNodeText(node) {
+    return normalizeText(node?.textContent || node?.innerText || "");
+  }
+
+  function getStylePropertyValue(node, propertyName) {
+    if (!node) {
+      return "";
+    }
+    const name = String(propertyName || "");
+    if (node.style && typeof node.style.getPropertyValue === "function") {
+      const inlineValue = String(node.style.getPropertyValue(name) || "");
+      if (inlineValue) {
+        return inlineValue;
+      }
+    }
+    if (
+      typeof globalThis.getComputedStyle === "function" &&
+      node.nodeType === 1 &&
+      String(node.tagName || "").toUpperCase() !== "DOCUMENT"
+    ) {
+      try {
+        const computedStyle = globalThis.getComputedStyle(node);
+        if (computedStyle && typeof computedStyle.getPropertyValue === "function") {
+          return String(computedStyle.getPropertyValue(name) || "");
+        }
+      } catch (_error) {
+        // Ignore computed-style failures and keep falling back to inline values.
+      }
+    }
+    return "";
+  }
+
+  function parsePixelValue(value) {
+    const text = normalizeText(value).toLowerCase();
+    if (!text || text === "auto") {
+      return null;
+    }
+    const numeric = Number.parseFloat(text.replace(/px$/i, ""));
+    return Number.isFinite(numeric) ? numeric : null;
+  }
+
+  function getNodeRect(node) {
+    if (node && typeof node.getBoundingClientRect === "function") {
+      try {
+        return node.getBoundingClientRect();
+      } catch (_error) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function getNodeDimension(node, rect, propertyName) {
+    const rectValue = rect && Number.isFinite(rect[propertyName]) ? Number(rect[propertyName]) : 0;
+    if (rectValue > 0) {
+      return rectValue;
+    }
+    const styleValue = parsePixelValue(getStylePropertyValue(node, propertyName));
+    return styleValue !== null ? styleValue : 0;
+  }
+
+  function hasAnchorText(text, anchor) {
+    return Boolean(text && anchor && text.includes(anchor));
+  }
+
+  function getInsightCandidateScore(node) {
+    if (!isHideableNode(node)) {
+      return -1;
+    }
+    const text = getNodeText(node);
+    const className = getClassName(node).toLowerCase();
+    let score = 0;
+    if (hasAnchorText(text, "AI 洞察")) {
+      score += 2;
+    }
+    if (hasAnchorText(text, "统计周期")) {
+      score += 1;
+    }
+    if (hasAnchorText(text, "前往数据看板")) {
+      score += 1;
+    }
+    if (hasAnchorText(text, "立即生成")) {
+      score += 1;
+    }
+    if (className.includes("insight-container")) {
+      score += 3;
+    } else if (className.includes("insight")) {
+      score += 2;
+    }
+    if (className.includes("analysis")) {
+      score += 1;
+    }
+    const childCount = getChildElements(node).length;
+    if (childCount >= 2 && childCount <= 10) {
+      score += 1;
+    }
+    return score;
+  }
+
+  function normalizeInsightTarget(node, boundaryRoot) {
+    let current = node;
+    let bestNode = null;
+    let bestScore = -1;
+    let depth = 0;
+    while (current && current !== boundaryRoot && depth < 8) {
+      const score = getInsightCandidateScore(current);
+      if (score > bestScore) {
+        bestScore = score;
+        bestNode = current;
+      }
+      current = current.parentElement || null;
+      depth += 1;
+    }
+    return bestScore >= 4 ? bestNode : null;
+  }
+
+  function pushUniqueNode(results, seen, node) {
+    if (!node || seen.has(node)) {
+      return;
+    }
+    seen.add(node);
+    results.push(node);
+  }
+
+  function isAncestorNode(ancestor, node) {
+    let current = node?.parentElement || null;
+    while (current) {
+      if (current === ancestor) {
+        return true;
+      }
+      current = current.parentElement || null;
+    }
+    return false;
+  }
+
+  function removeBroadAncestorTargets(nodes) {
+    return (Array.isArray(nodes) ? nodes : []).filter(function (node) {
+      return !nodes.some(function (otherNode) {
+        return otherNode !== node && isAncestorNode(node, otherNode);
+      });
+    });
+  }
+
+  function findInsightTargets(root) {
+    const seen = new Set();
+    const results = [];
+    const searchRoots = getSearchRoots(root);
+
+    searchRoots.forEach(function (searchRoot) {
+      safeQuerySelectorAll(searchRoot, EXACT_PLATFORM_AI_SELECTORS.insight).forEach(function (node) {
+        pushUniqueNode(results, seen, normalizeInsightTarget(node, searchRoot) || node);
+      });
+    });
+    if (results.length > 0) {
+      return results;
+    }
+
+    searchRoots.forEach(function (searchRoot) {
+      collectDescendantElements(searchRoot).forEach(function (node) {
+        if (!hasAnchorText(getNodeText(node), "AI 洞察")) {
+          return;
+        }
+        const normalizedNode = normalizeInsightTarget(node, searchRoot);
+        if (normalizedNode) {
+          pushUniqueNode(results, seen, normalizedNode);
+        }
+      });
+    });
+    return removeBroadAncestorTargets(results);
+  }
+
+  function hasMediaDescendant(node) {
+    if (!node || typeof node.querySelector === "function") {
+      return Boolean(node?.querySelector?.("img,svg,canvas"));
+    }
+    return collectDescendantElements(node).some(function (child) {
+      const tagName = String(child.tagName || "").toLowerCase();
+      return tagName === "img" || tagName === "svg" || tagName === "canvas";
+    });
+  }
+
+  function getFloatingAssistantScore(node) {
+    if (!isHideableNode(node)) {
+      return -1;
+    }
+    const position = normalizeText(getStylePropertyValue(node, "position")).toLowerCase();
+    if (position !== "fixed" && position !== "absolute") {
+      return -1;
+    }
+
+    const rect = getNodeRect(node);
+    const width = getNodeDimension(node, rect, "width");
+    const height = getNodeDimension(node, rect, "height");
+    if (width <= 0 || height <= 0 || width > 220 || height > 220) {
+      return -1;
+    }
+
+    let score = position === "fixed" ? 4 : 2;
+    const bottom = parsePixelValue(getStylePropertyValue(node, "bottom"));
+    const right = parsePixelValue(getStylePropertyValue(node, "right"));
+    if (bottom !== null) {
+      score += 1;
+      if (bottom <= 120) {
+        score += 1;
+      }
+    }
+    if (right !== null) {
+      score += 1;
+      if (right <= 120) {
+        score += 1;
+      }
+    }
+
+    const className = getClassName(node);
+    if (FLOATING_HINT_PATTERN.test(className)) {
+      score += 2;
+    }
+    const text = getNodeText(node);
+    if (!text || text.length <= 16) {
+      score += 1;
+    }
+    if (hasMediaDescendant(node)) {
+      score += 1;
+    }
+    if (getChildElements(node).length <= 6) {
+      score += 1;
+    }
+    return score;
+  }
+
+  function normalizeFloatingTarget(node, boundaryRoot) {
+    let bestNode = isHideableNode(node) ? node : null;
+    let bestScore = bestNode ? getFloatingAssistantScore(bestNode) : -1;
+    let current = node;
+    let depth = 0;
+    while (current && current !== boundaryRoot && depth < 6) {
+      const parent = current.parentElement || null;
+      if (!parent || parent === boundaryRoot) {
+        break;
+      }
+      const parentScore = getFloatingAssistantScore(parent);
+      if (parentScore >= bestScore && parentScore >= 4) {
+        bestNode = parent;
+        bestScore = parentScore;
+      }
+      current = parent;
+      depth += 1;
+    }
+    return bestScore >= 4 ? bestNode : null;
+  }
+
+  function findFloatingAssistantTargets(root) {
+    const seen = new Set();
+    const results = [];
+    const searchRoots = getSearchRoots(root);
+
+    searchRoots.forEach(function (searchRoot) {
+      safeQuerySelectorAll(searchRoot, EXACT_PLATFORM_AI_SELECTORS.trigger).forEach(function (node) {
+        pushUniqueNode(results, seen, normalizeFloatingTarget(node, searchRoot) || node);
+      });
+    });
+    if (results.length > 0) {
+      return results;
+    }
+
+    let bestNode = null;
+    let bestScore = -1;
+    searchRoots.forEach(function (searchRoot) {
+      collectDescendantElements(searchRoot).forEach(function (node) {
+        const normalizedNode = normalizeFloatingTarget(node, searchRoot);
+        if (!normalizedNode) {
+          return;
+        }
+        const score = getFloatingAssistantScore(normalizedNode);
+        if (score > bestScore) {
+          bestNode = normalizedNode;
+          bestScore = score;
+        }
+      });
+    });
+    return bestNode && bestScore >= 7 ? [bestNode] : [];
+  }
+
   function findPlatformAiTargets(root) {
-    const scope = root && typeof root.querySelectorAll === "function" ? root : null;
-    if (!scope) {
+    if (!root) {
       return [];
     }
 
     const seen = new Set();
     const results = [];
-    PLATFORM_AI_SELECTORS.forEach(function (selector) {
-      Array.from(scope.querySelectorAll(selector)).forEach(function (node) {
-        if (!seen.has(node) && isHideableNode(node)) {
-          seen.add(node);
-          results.push(node);
-        }
-      });
+    findInsightTargets(root).forEach(function (node) {
+      pushUniqueNode(results, seen, node);
+    });
+    findFloatingAssistantTargets(root).forEach(function (node) {
+      pushUniqueNode(results, seen, node);
     });
     return results;
   }
 
   function findHiddenPlatformAiTargets(root) {
-    const scope = root && typeof root.querySelectorAll === "function" ? root : null;
-    if (!scope) {
+    if (!root) {
       return [];
     }
-    return Array.from(scope.querySelectorAll("[" + HIDDEN_ATTR + "='true']")).filter(isHideableNode);
+    return safeQuerySelectorAll(root, "[" + HIDDEN_ATTR + "='true']").filter(isHideableNode);
   }
 
   function syncPlatformAiVisibility(root, shouldHide) {
@@ -193,8 +599,157 @@
     return CONSTANTS.DEFAULT_SETTINGS || {};
   }
 
+  function clearHelperSyncTimer() {
+    if (helperSyncTimer && typeof clearTimeout === "function") {
+      clearTimeout(helperSyncTimer);
+    }
+    helperSyncTimer = null;
+  }
+
+  function destroyHelperRuntime() {
+    clearHelperSyncTimer();
+    if (helperRuntime?.ui?.destroy) {
+      helperRuntime.ui.destroy();
+    }
+    if (helperRuntime?.dataApi?.destroy) {
+      helperRuntime.dataApi.destroy();
+    }
+    helperRuntime = null;
+  }
+
+  function scheduleHelperContextRefresh(delayMs) {
+    if (!helperRuntime || helperSyncTimer || typeof setTimeout !== "function") {
+      return;
+    }
+    helperSyncTimer = setTimeout(async function () {
+      helperSyncTimer = null;
+      if (!runtimeActive || !helperRuntime) {
+        return;
+      }
+      try {
+        helperRuntime.ui.mount();
+        const context = await helperRuntime.dataApi.getCurrentContext();
+        helperRuntime.ui.renderAudioContext(context);
+        if (!normalizeText(context?.audioUrl)) {
+          helperRuntime.ui.setStatus("正在等待页面返回当前音频与分段上下文...", "");
+        }
+      } catch (_error) {
+        if (helperRuntime) {
+          helperRuntime.ui.setStatus("正在等待页面返回当前音频与分段上下文...", "");
+        }
+      }
+    }, Math.max(0, Math.round(Number(delayMs || 0) || 0)));
+  }
+
+  async function handlePreviewAction() {
+    if (!helperRuntime) {
+      return;
+    }
+    helperRuntime.ui.mount();
+    helperRuntime.ui.setStatus("正在生成当前音频分段建议...", "");
+    try {
+      const context = await helperRuntime.dataApi.getCurrentContext();
+      helperRuntime.ui.renderAudioContext(context);
+      if (!normalizeText(context?.audioUrl)) {
+        helperRuntime.ui.setStatus(
+          "当前还没拿到音频地址，请等待页面初始化完成，或刷新当前详情页后重试。",
+          "error"
+        );
+        return;
+      }
+      const preview = await helperRuntime.segment.preview(context);
+      helperRuntime.preview = preview;
+      helperRuntime.ui.renderPreview(preview);
+      if (!Array.isArray(preview?.proposedSegments) || preview.proposedSegments.length <= 0) {
+        helperRuntime.ui.setStatus("当前没有生成可应用的分段建议。", "error");
+        return;
+      }
+      if (normalizeText(preview?.meta?.previewMode) === "whole-audio-fallback") {
+        helperRuntime.ui.setStatus("已生成整条音频分段预览，可直接应用到当前暂存答案。", "success");
+        return;
+      }
+      helperRuntime.ui.setStatus("分段建议已生成，请先复核后再应用。", "success");
+    } catch (error) {
+      helperRuntime.ui.setStatus(
+        "生成分段建议失败：" + (error && error.message ? error.message : String(error)),
+        "error"
+      );
+    }
+  }
+
+  async function handleApplyPreviewAction() {
+    if (!helperRuntime) {
+      return;
+    }
+    const preview =
+      helperRuntime.preview ||
+      (typeof helperRuntime.segment?.getLastPreview === "function"
+        ? helperRuntime.segment.getLastPreview()
+        : null);
+    const result = await helperRuntime.dataApi.applySegmentPreview(preview);
+    helperRuntime.ui.setStatus(result.message, result.ok ? "success" : "error");
+    if (!result.ok) {
+      scheduleHelperContextRefresh(0);
+      return;
+    }
+    helperRuntime.preview = null;
+    helperRuntime.segment?.clearPreview?.();
+    helperRuntime.ui.renderPreview(null);
+    if (typeof setTimeout === "function") {
+      setTimeout(function () {
+        try {
+          globalThis.location.reload();
+        } catch (_error) {
+          // Ignore reload failures and keep the success state visible.
+        }
+      }, 350);
+    }
+  }
+
+  function ensureHelperRuntime(settings) {
+    if (!runtimePolicy.runtimeAccessible || !isDetailPage()) {
+      destroyHelperRuntime();
+      return;
+    }
+    if (!dataApiFactory || !segmentFactory || !uiFactory) {
+      return;
+    }
+    const endpoint = resolveSegmentPreviewEndpoint(settings);
+    if (helperRuntime && helperRuntime.endpoint === endpoint) {
+      helperRuntime.ui.mount();
+      scheduleHelperContextRefresh(0);
+      return;
+    }
+    destroyHelperRuntime();
+    const dataApi = dataApiFactory.createRuntime();
+    const segment = segmentFactory.createRuntime({
+      endpoint: endpoint,
+      silenceThresholdDbfs: DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS,
+      contextPaddingMs: DEFAULT_SEGMENT_CONTEXT_PADDING_MS,
+    });
+    const ui = uiFactory.createRuntime({
+      onPreview: function () {
+        void handlePreviewAction();
+      },
+      onApplyPreview: function () {
+        void handleApplyPreviewAction();
+      },
+    });
+    helperRuntime = {
+      dataApi: dataApi,
+      segment: segment,
+      ui: ui,
+      preview: null,
+      endpoint: endpoint,
+    };
+    ui.mount();
+    ui.setStatus("苏州话脚本已就绪；当前支持分段建议与平台暂存直写。", "success");
+    scheduleHelperContextRefresh(0);
+  }
+
   async function refreshRuntimePolicy() {
-    runtimePolicy = resolveRuntimePolicy(await loadSettings());
+    const settings = await loadSettings();
+    runtimePolicy = resolveRuntimePolicy(settings);
     if (typeof document !== "undefined") {
       syncPlatformAiVisibility(document, runtimePolicy.shouldHidePlatformAi);
       if (runtimePolicy.shouldHidePlatformAi) {
@@ -203,6 +758,7 @@
         disconnectMutationObserver();
       }
     }
+    ensureHelperRuntime(settings);
     return runtimePolicy;
   }
 
@@ -235,9 +791,11 @@
     mutationObserver = new MutationObserver(function () {
       scheduleDomSync();
     });
-    mutationObserver.observe(document.body, {
+    mutationObserver.observe(document.documentElement || document.body, {
       childList: true,
       subtree: true,
+      attributes: true,
+      attributeFilter: OBSERVED_ATTRIBUTE_NAMES,
     });
   }
 
@@ -291,6 +849,7 @@
   function destroyRuntime() {
     runtimeActive = false;
     disconnectMutationObserver();
+    destroyHelperRuntime();
     unbindStorageListener();
     if (typeof document !== "undefined") {
       syncPlatformAiVisibility(document, false);
@@ -325,6 +884,12 @@
         return;
       }
       scheduleDomSync();
+      if (helperRuntime) {
+        helperRuntime.ui.mount();
+        scheduleHelperContextRefresh(0);
+      } else if (runtimePolicy.runtimeAccessible && dataApiFactory && segmentFactory && uiFactory) {
+        void refreshRuntimePolicy();
+      }
       if (runtimePolicy.shouldHidePlatformAi) {
         ensureMutationObserver();
       }
@@ -338,6 +903,10 @@
       findPlatformAiTargets: findPlatformAiTargets,
       syncPlatformAiVisibility: syncPlatformAiVisibility,
       isDetailPagePathname: isDetailPagePathname,
+      normalizeInsightTarget: normalizeInsightTarget,
+      normalizeFloatingTarget: normalizeFloatingTarget,
+      getInsightCandidateScore: getInsightCandidateScore,
+      getFloatingAssistantScore: getFloatingAssistantScore,
     },
   };
 

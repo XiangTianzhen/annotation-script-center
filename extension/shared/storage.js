@@ -121,7 +121,7 @@
               suzhouHelper: {
                 id: "bytedanceAidpSuzhouHelper",
                 enabled: true,
-                platformAiEnabled: true,
+                platformAiEnabled: false,
                 contractMode: "dom-guarded",
               },
             },
@@ -209,7 +209,7 @@
         },
         cache: {},
         meta: {
-          schemaVersion: 24,
+          schemaVersion: 25,
           backendEndpointMode: "server",
           backendBaseUrls: {
             server: "https://script.xiangtianzhen.store",
@@ -2394,6 +2394,7 @@
   function ensureBytedanceAidpRoot(settings, input) {
     const constants = getConstants();
     const defaults = clone(constants.DEFAULT_SETTINGS || {});
+    const currentSchemaVersion = Number(input?.meta?.schemaVersion || 0);
     const rawPlatform = isPlainObject(input?.platforms?.bytedanceAidp)
       ? input.platforms.bytedanceAidp
       : {};
@@ -2409,7 +2410,7 @@
           suzhouHelper: {
             id: constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper",
             enabled: true,
-            platformAiEnabled: true,
+            platformAiEnabled: false,
             contractMode: "dom-guarded",
           },
         },
@@ -2436,6 +2437,13 @@
         defaultPlatform.scripts?.suzhouHelper || {},
         rawSuzhouHelper
       );
+
+    // Legacy beta builds seeded this toggle as visible-by-default. Migrate old
+    // settings to the new hide-by-default behavior once, while allowing newer
+    // explicit user choices to persist under the bumped schema version.
+    if (currentSchemaVersion < 25) {
+      settings.platforms.bytedanceAidp.scripts.suzhouHelper.platformAiEnabled = false;
+    }
 
     return settings.platforms.bytedanceAidp;
   }

@@ -7,17 +7,23 @@
 - 目标页：
   - `https://aidp.bytedance.com/management/task-v2/{taskId}/mark-v3/{index}?from_pathname=...&fs=...&templateID=...&templateType=...`
 - 当前阶段：`beta`
-- 当前状态：已创建 `extension/sites/bytedance-aidp/suzhou-helper/` 最小运行时代码，并已注册脚本启停入口；当前只落地基础设置 `开关平台AI功能`
+- 当前状态：已创建 `extension/sites/bytedance-aidp/suzhou-helper/` 运行时代码，并已接入详情页最小分段建议闭环：
+  - 基础设置 `隐藏平台AI功能`
+  - `Receive` 当前条读取
+  - `SubmitTempItemAnswer` 暂存直写
+  - 统一后端分段预览
 
 ## 当前资料覆盖
 
 - `mark-v3` 详情页路由与 query 上下文
-- 详情页初始化请求的首轮只读边界
+- `mark-v3` 当前条读取与暂存写回契约
 - 详情页语义分区、关键工作区块、可隐藏平台 AI 板块、挂载建议与动态重渲染风险
 - `mark-v3` 详情页的最小运行时闭环：
   - 脚本中心基础设置
   - 详情页路由识别
   - 平台原生 AI 板块显隐
+  - 分段建议面板挂载
+  - 平台暂存答案分段写回
 - 后续脚本接线前的写操作警戒线
 
 ## 资料文件
@@ -27,13 +33,20 @@
 | `README.md` | 苏州话脚本入口、资料导航和接线边界 |
 | `network/README.md` | `mark-v3` 详情页专项 Network 索引 |
 | `network/01-mark-v3-detail-init.md` | `mark-v3` 详情页初始化与只读请求边界 |
+| `network/02-mark-v3-receive-current-item.md` | 当前条读取与临时答案读取契约 |
+| `network/03-mark-v3-submit-temp-answer.md` | 平台暂存写回契约 |
 | `page-structure/README.md` | `mark-v3` 详情页结构索引 |
 | `page-structure/01-mark-v3-detail.md` | `mark-v3` 详情页语义分区、初版锚点和挂载边界 |
+| `backend/README.md` | 苏州话脚本分段预览后端入口 |
 
 运行时代码入口：
 
 - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
 - `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+- `extension/sites/bytedance-aidp/suzhou-helper/data-api.js`
+- `extension/sites/bytedance-aidp/suzhou-helper/segmentation-controller.js`
+- `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.js`
+- `extension/sites/bytedance-aidp/suzhou-helper/page-world/network-observer.js`
 
 公共资料入口：
 
@@ -46,25 +59,29 @@
 
 | 页面 | URL 模式 | 说明 |
 | --- | --- | --- |
-| 苏州话详情页 | `/management/task-v2/{taskId}/mark-v3/{index}?from_pathname={path}&fs={value}&templateID={templateId}&templateType={templateType}` | 当前仅确认 `mark-v3` 路由结构和回列表上下文参数 |
+| 苏州话详情页 | `/management/task-v2/{taskId}/mark-v3/{index}?from_pathname={path}&fs={value}&templateID={templateId}&templateType={templateType}` | 当前已确认读取链路、暂存写回链路与波形区挂载点 |
 
 ## 当前运行时边界
 
-- 当前只实现一个基础设置项：
-  - `开关平台AI功能`
-  - 关闭时隐藏平台原生 AI 板块，不影响任务列表、波形区、保留/丢弃和分段表格
+- 当前运行时只实现一个基础设置项：
+  - `隐藏平台AI功能`
+  - 默认勾选并隐藏平台原生 AI 板块，取消勾选后才显示；不影响任务列表、波形区、保留/丢弃和分段表格
 - 当前运行时只包含：
   - `mark-v3` 详情页路由识别
-  - `.trigger-wrapper-RlG7Dx`
-  - `.insight-container-Hn0Gna`
-  - 页面重渲染后的补隐藏
-- 当前仍不创建脚本级后端目录或统一后端注册
-- 当前仍不预设脚本级快捷键、AI 面板或保存链路
-- 后续若继续接线，优先先补：
-  - 详情页真实 DOM 锚点
-  - 字段结构
-  - 媒体区域结构
-  - 只读初始化请求
+  - `Receive` 当前条上下文与临时答案读取
+  - `SubmitTempItemAnswer` 暂存请求快照捕获
+  - 波形区下方精简面板挂载
+  - 统一后端分段预览调用
+  - 当前页临时答案里的 `regions` 直写
+  - 已采样选择器 `.trigger-wrapper-RlG7Dx`
+  - 已采样选择器 `.insight-container-Hn0Gna`
+  - `AI 洞察 / 统计周期 / 前往数据看板 / 立即生成` 文本锚点兜底
+  - 右下角小型固定浮层候选识别
+  - 同域 iframe 文档下钻扫描
+  - 页面重渲染和同节点 `class/style` 改写后的补隐藏
+- 当前已创建脚本级后端目录并注册统一后端预览入口：
+  - `platform-resources/bytedance-aidp/suzhou-helper/backend/`
+- 当前仍不预设脚本级快捷键、识别类 AI 面板或保存以外的批量链路
 
 ## 已记录的详情页关键区块
 
@@ -91,18 +108,20 @@
 ## 已记录的可隐藏平台 AI 板块
 
 - 浮动触发器：
-  - 目标块：`.trigger-wrapper-RlG7Dx`
-  - 当前表现：页面右下侧附近的猫形触发入口
+  - 已采样目标：`.trigger-wrapper-RlG7Dx`
+  - 当前表现：页面右下侧附近的平台 AI 浮动入口；真实外层可能不再等同于最初猫形触发器内层
 - `AI 洞察` 面板：
-  - 目标块：`.insight-container-Hn0Gna`
-  - 当前表现：带 `AI 洞察 / 统计周期 / 前往数据看板` 的平台原生洞察区
+  - 已采样目标：`.insight-container-Hn0Gna`
+  - 当前表现：带 `AI 洞察 / 统计周期 / 前往数据看板` 的平台原生洞察区；运行时会优先命中该根节点，不足时回退到语义锚点
 - 当前口径：
   - 这两个块默认按“平台 AI 功能”归类
-  - 后续若实现 `开关平台AI功能`，优先只隐藏这两类平台 AI 板块，不改动核心标注工作区
+  - 后续若实现 `隐藏平台AI功能`，优先只隐藏这两类平台 AI 板块，不改动核心标注工作区
 
 ## 当前边界
 
-- AI、保存、提交、领取、批量流转均不在本轮范围
+- 识别类 AI、提交、领取、批量流转均不在本轮范围
+- 当前写回只覆盖 `TempAnswer.Content` 里的分段数组，不改 `提交 / 下一题 / 重置`
+- 当前若发现分段表已有文本或语音种类，或当前分段状态已变化，会停止自动应用，避免覆盖现有标注
 - 不确认任何字段名、按钮文案或接口路径，除非后续在独立 Edge 窗口里完成补采
 - 所有写动作默认保持人工确认边界
 
