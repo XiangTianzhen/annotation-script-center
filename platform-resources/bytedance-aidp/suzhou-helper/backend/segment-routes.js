@@ -8,6 +8,7 @@ const {
 const segmentService = require("../../../data-baker-cvpc/liuzhou-helper/backend/segment-service");
 
 const SEGMENT_BASE_PATH = "/api/bytedance-aidp/suzhou-helper/segment";
+const AIDP_DEFAULT_SILENCE_THRESHOLD_DBFS = -31;
 
 async function parseJsonBody(request) {
   const rawBody = await readRequestBody(request, 1024 * 1024);
@@ -20,15 +21,21 @@ async function parseJsonBody(request) {
 
 function registerSegmentRoutes(router) {
   router.get(SEGMENT_BASE_PATH + "/health", function (context) {
-    const payload = segmentService.createSegmentHealthPayload();
-    payload.route = "bytedance-aidp/suzhou-helper/segment/preview";
+    const payload = segmentService.createSegmentHealthPayload({
+      route: "bytedance-aidp/suzhou-helper/segment/preview",
+      defaultSilenceThresholdDbfs: AIDP_DEFAULT_SILENCE_THRESHOLD_DBFS,
+      segmentationProfile: "visible-long-silence",
+    });
     sendJson(context.response, 200, payload);
   });
 
   router.post(SEGMENT_BASE_PATH + "/preview", async function (context) {
     try {
       const body = await parseJsonBody(context.request);
-      const payload = await segmentService.buildSegmentPreview(body);
+      const payload = await segmentService.buildSegmentPreview(body, {
+        defaultSilenceThresholdDbfs: AIDP_DEFAULT_SILENCE_THRESHOLD_DBFS,
+        segmentationProfile: "visible-long-silence",
+      });
       sendJson(context.response, 200, payload);
     } catch (error) {
       const statusCode = Math.max(400, Number(error && error.statusCode) || 500);

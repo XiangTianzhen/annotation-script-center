@@ -184,6 +184,42 @@ test("segment preview splits an existing segment when an internal silence lasts 
   assert.equal(payload.meta.emptyReason, "");
 });
 
+test("segment preview visible-long-silence profile preserves a silence core instead of swallowing an obvious long silence", async function () {
+  const payload = await buildSegmentPreview(
+    {
+      audioUrl: "https://example.com/a.mp3",
+      audioDurationMs: 9000,
+      existingSegments: [createSegment()],
+      silentRanges: [{ startMs: 5000, endMs: 5800 }],
+      rules: {
+        silenceThresholdDbfs: -31,
+        contextPaddingMs: 500,
+      },
+      segmentScope: DEFAULT_SEGMENT_SCOPE,
+    },
+    {
+      segmentationProfile: "visible-long-silence",
+    }
+  );
+
+  assert.equal(payload.success, true);
+  assert.deepEqual(payload.data.changes, [
+    {
+      sourceUniqueId: "segment-1",
+      sourceSegmentNumber: 1,
+      originalStartMs: 4000,
+      originalEndMs: 7000,
+      reason: "silence>=400ms",
+      suggestedSegments: [
+        { startMs: 4000, endMs: 5240 },
+        { startMs: 5560, endMs: 7000 },
+      ],
+    },
+  ]);
+  assert.equal(payload.meta.previewMode, PREVIEW_MODE_INCREMENTAL);
+  assert.equal(payload.meta.applyAllowed, true);
+});
+
 test("segment preview reports insufficient-split when internal silence leaves no usable child segments", async function () {
   const payload = await buildSegmentPreview({
     audioUrl: "https://example.com/a.mp3",

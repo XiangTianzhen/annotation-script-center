@@ -158,7 +158,7 @@ test("AIDP segmentation controller surfaces backend preview errors", async funct
   }
 });
 
-test("AIDP segmentation controller defaults context padding to 500ms", async function () {
+test("AIDP segmentation controller defaults context padding to 500ms and silence threshold to -31 dBFS", async function () {
   const moduleApi = loadModule();
   const harness = installFetchHarness({
     success: true,
@@ -182,6 +182,7 @@ test("AIDP segmentation controller defaults context padding to 500ms", async fun
 
     const body = JSON.parse(harness.requests[0].body);
 
+    assert.equal(body.rules.silenceThresholdDbfs, -31);
     assert.equal(body.rules.contextPaddingMs, 500);
   } finally {
     harness.restore();

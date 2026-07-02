@@ -147,6 +147,13 @@ class FakeElement {
     this._listeners.set(String(type || ""), listener);
   }
 
+  focus() {
+    this._focused = true;
+    if (this.ownerDocument) {
+      this.ownerDocument.activeElement = this;
+    }
+  }
+
   click() {
     const listener = this._listeners.get("click");
     if (typeof listener === "function") {
@@ -548,15 +555,23 @@ test("ByteDance AIDP content resolves helper config with custom padding playback
   assert.equal(config.fixedWaveZoom, 2);
 });
 
-test("ByteDance AIDP content applies playback rate and fixed zoom to wave controls", function () {
+test("ByteDance AIDP content confirms playback rate through enter fallback when option click alone does not update the label", async function () {
   const contentModule = loadContentModule();
-  let clickedLabel = "";
+  let optionClickCount = 0;
+  let enterConfirmCount = 0;
+  const setPlaybackLabel = function (label) {
+    const inputNode = playbackSelect.querySelector(".arco-select-view-input");
+    const valueNode = playbackSelect.querySelector(".arco-select-view-value");
+    inputNode.value = label;
+    valueNode.textContent = label;
+  };
   const playbackOption = new FakeElement({
     className: "arco-select-option",
     text: "1.50倍速",
   });
   playbackOption.addEventListener("click", function () {
-    clickedLabel = "1.50倍速";
+    optionClickCount += 1;
+    playbackSelect._pendingPlaybackLabel = "1.50倍速";
   });
   const playbackSelect = new FakeElement({
     className: "arco-select arco-select-single arco-select-size-default",
@@ -583,12 +598,12 @@ test("ByteDance AIDP content applies playback rate and fixed zoom to wave contro
       }),
     ],
   });
-  const zoomInput = new FakeElement({
-    tagName: "input",
-    attributes: {
-      role: "spinbutton",
-    },
-    value: "1",
+  playbackSelect.addEventListener("keydown", function (event) {
+    if (event?.key === "Enter" && this._pendingPlaybackLabel) {
+      enterConfirmCount += 1;
+      setPlaybackLabel(this._pendingPlaybackLabel);
+      this._pendingPlaybackLabel = "";
+    }
   });
   const waveRoot = new FakeElement({
     className: "neeko-wavesurfer-warper neeko-wavesurfer",
@@ -599,7 +614,6 @@ test("ByteDance AIDP content applies playback rate and fixed zoom to wave contro
           new FakeElement({ tagName: "span", text: "播放速度" }),
           playbackSelect,
           new FakeElement({ tagName: "span", text: "总时长" }),
-          zoomInput,
           playbackOption,
         ],
       }),
@@ -607,14 +621,15 @@ test("ByteDance AIDP content applies playback rate and fixed zoom to wave contro
   });
   const root = createFakeDocument([waveRoot]);
 
-  const changed = contentModule.__testOnly.applyWaveToolSettings(root, {
-    defaultPlaybackRate: 1.5,
-    fixedWaveZoom: 2,
+  const result = await contentModule.__testOnly.syncPlaybackRateControl(root, 1.5, {
+    scopeKey: "detail-1",
   });
 
-  assert.equal(changed, true);
-  assert.equal(clickedLabel, "1.50倍速");
-  assert.equal(zoomInput.value, "2");
+  assert.equal(result.changed, true);
+  assert.equal(result.confirmed, true);
+  assert.equal(optionClickCount, 1);
+  assert.equal(enterConfirmCount, 1);
+  assert.equal(contentModule.__testOnly.getPlaybackComboboxLabel(playbackSelect), "1.50倍速");
 });
 
 test("ByteDance AIDP content applies fixed zoom by clicking platform zoom-in button until target is reached", async function () {
@@ -775,6 +790,100 @@ test("ByteDance AIDP content only auto-syncs fixed zoom once per page for the sa
   assert.equal(firstChanged, true);
   assert.equal(secondChanged, false);
   assert.equal(zoomInClicks, clickCountAfterFirstSync);
+});
+
+test("ByteDance AIDP content only auto-syncs playback rate once per page scope", async function () {
+  const contentModule = loadContentModule();
+  let optionClickCount = 0;
+  const playbackOption = new FakeElement({
+    className: "arco-select-option",
+    text: "1.50倍速",
+  });
+  const playbackSelect = new FakeElement({
+    className: "arco-select arco-select-single arco-select-size-default",
+    attributes: {
+      role: "combobox",
+      "aria-haspopup": "listbox",
+      "aria-expanded": "false",
+    },
+    children: [
+      new FakeElement({
+        className: "arco-select-view",
+        children: [
+          new FakeElement({
+            tagName: "input",
+            className: "arco-select-view-input arco-select-hidden",
+            value: "1.00倍速",
+          }),
+          new FakeElement({
+            tagName: "span",
+            className: "arco-select-view-value",
+            text: "1.00倍速",
+          }),
+        ],
+      }),
+    ],
+  });
+  const setPlaybackLabel = function (label) {
+    playbackSelect.querySelector(".arco-select-view-input").value = label;
+    playbackSelect.querySelector(".arco-select-view-value").textContent = label;
+  };
+  playbackOption.addEventListener("click", function () {
+    optionClickCount += 1;
+    setPlaybackLabel("1.50倍速");
+  });
+  const root = createFakeDocument([
+    new FakeElement({
+      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      children: [
+        new FakeElement({
+          className: "wave-toolbar",
+          children: [
+            new FakeElement({ tagName: "span", text: "播放速度" }),
+            playbackSelect,
+            new FakeElement({ tagName: "span", text: "总时长" }),
+            playbackOption,
+          ],
+        }),
+      ],
+    }),
+  ]);
+
+  const firstChanged = contentModule.__testOnly.applyWaveToolSettings(root, {
+    defaultPlaybackRate: 1.5,
+    fixedWaveZoom: 2,
+    playbackScopeKey: "detail-1",
+  });
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 60);
+  });
+
+  setPlaybackLabel("1.00倍速");
+  const clickCountAfterFirstSync = optionClickCount;
+
+  const secondChanged = contentModule.__testOnly.applyWaveToolSettings(root, {
+    defaultPlaybackRate: 1.5,
+    fixedWaveZoom: 2,
+    playbackScopeKey: "detail-1",
+  });
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 40);
+  });
+
+  const thirdChanged = contentModule.__testOnly.applyWaveToolSettings(root, {
+    defaultPlaybackRate: 1.5,
+    fixedWaveZoom: 2,
+    playbackScopeKey: "detail-2",
+  });
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 60);
+  });
+
+  assert.equal(firstChanged, true);
+  assert.equal(secondChanged, false);
+  assert.equal(optionClickCount, clickCountAfterFirstSync + 1);
+  assert.equal(thirdChanged, true);
+  assert.equal(contentModule.__testOnly.getPlaybackComboboxLabel(playbackSelect), "1.50倍速");
 });
 
 test("ByteDance AIDP content injects clear-segments button into play toolbar", function () {

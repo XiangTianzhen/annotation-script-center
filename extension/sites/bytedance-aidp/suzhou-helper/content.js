@@ -16,7 +16,7 @@
   const SEGMENT_PREVIEW_PATH = "/api/bytedance-aidp/suzhou-helper/segment/preview";
   const PLAYBACK_RATE_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
   const FIXED_WAVE_ZOOM_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-  const DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS = -27;
+  const DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS = -31;
   const DEFAULT_SEGMENT_CONTEXT_PADDING_MS = 500;
   const DEFAULT_PLAYBACK_RATE = 1;
   const DEFAULT_FIXED_WAVE_ZOOM = 2;
@@ -52,6 +52,12 @@
   let routeTimer = null;
   let domSyncTimer = null;
   let helperSyncTimer = null;
+  let playbackRateSyncToken = 0;
+  let playbackRateAutoSyncState = {
+    target: null,
+    scopeKey: "",
+    status: "idle",
+  };
   let waveZoomSyncToken = 0;
   let waveZoomAutoSyncState = {
     target: null,
@@ -111,6 +117,12 @@
 
   function formatPlaybackRateLabel(value) {
     return Number(value).toFixed(2) + "倍速";
+  }
+
+  function getCurrentPlaybackScopeKey() {
+    const pathname = normalizeText(globalThis.location?.pathname || "");
+    const search = normalizeText(globalThis.location?.search || "");
+    return pathname + search;
   }
 
   function isDetailPagePathname(pathname) {
@@ -376,6 +388,32 @@
     node.dispatchEvent({ type: type, bubbles: true });
   }
 
+  function dispatchKeyboardEvent(node, type, key) {
+    if (!node || typeof node.dispatchEvent !== "function") {
+      return;
+    }
+    try {
+      if (typeof KeyboardEvent === "function") {
+        node.dispatchEvent(
+          new KeyboardEvent(type, {
+            bubbles: true,
+            key: key,
+            code: key,
+          })
+        );
+        return;
+      }
+    } catch (_error) {
+      // Fall through to plain event object.
+    }
+    node.dispatchEvent({
+      type: type,
+      bubbles: true,
+      key: key,
+      code: key,
+    });
+  }
+
   function setControlValue(node, nextValue) {
     if (!node || nextValue === undefined || nextValue === null) {
       return false;
@@ -411,6 +449,14 @@
     }
     dispatchControlEvent(node, "click");
     return true;
+  }
+
+  function focusControl(node) {
+    if (node && typeof node.focus === "function") {
+      node.focus();
+      return true;
+    }
+    return false;
   }
 
   function getStylePropertyValue(node, propertyName) {
@@ -901,6 +947,179 @@
     };
   }
 
+  function getPlaybackComboboxLabel(node) {
+    if (!node) {
+      return "";
+    }
+    const viewValueNode =
+      typeof node.querySelector === "function"
+        ? node.querySelector(".arco-select-view-value")
+        : null;
+    const inputNode =
+      typeof node.querySelector === "function"
+        ? node.querySelector(".arco-select-view-input")
+        : null;
+    return (
+      normalizeText(viewValueNode?.textContent) ||
+      normalizeText(inputNode?.value) ||
+      normalizeText(node.getAttribute?.("title")) ||
+      normalizeText(node.textContent)
+    );
+  }
+
+  function getPlaybackRateConfirmTarget(node) {
+    if (!node) {
+      return null;
+    }
+    return (
+      (typeof node.querySelector === "function"
+        ? node.querySelector(".arco-select-view-input")
+        : null) || node
+    );
+  }
+
+  async function syncPlaybackRateControl(root, targetPlaybackRate, options) {
+    const source = options && typeof options === "object" ? options : {};
+    const stepDelayMs = Number.isFinite(Number(source.stepDelayMs))
+      ? Number(source.stepDelayMs)
+      : 24;
+    const requestToken = source.requestToken;
+    const playbackNode = findPlaybackRateControl(root);
+    const normalizedTargetPlaybackRate = normalizePlaybackRate(
+      targetPlaybackRate,
+      DEFAULT_PLAYBACK_RATE
+    );
+    const targetLabel = formatPlaybackRateLabel(normalizedTargetPlaybackRate);
+    if (!playbackNode) {
+      return {
+        changed: false,
+        confirmed: false,
+        attempts: 0,
+        reason: "missing-control",
+      };
+    }
+    if (getPlaybackComboboxLabel(playbackNode) === targetLabel) {
+      return {
+        changed: false,
+        confirmed: true,
+        attempts: 0,
+        reason: "already-matched",
+      };
+    }
+    let changed = false;
+    let attempts = 0;
+    let selectedOptionBeforeOpen = false;
+
+    function isSuperseded() {
+      return (
+        requestToken !== undefined &&
+        requestToken !== null &&
+        requestToken !== playbackRateSyncToken
+      );
+    }
+
+    const optionBeforeOpen = findPlaybackRateOption(root, targetLabel);
+    if (optionBeforeOpen) {
+      invokeClick(optionBeforeOpen);
+      changed = true;
+      attempts += 1;
+      selectedOptionBeforeOpen = true;
+      await waitFor(stepDelayMs);
+    }
+    if (isSuperseded()) {
+      return {
+        changed: changed,
+        confirmed: false,
+        attempts: attempts,
+        reason: "superseded",
+      };
+    }
+    if (getPlaybackComboboxLabel(playbackNode) === targetLabel) {
+      return {
+        changed: changed,
+        confirmed: true,
+        attempts: attempts,
+        reason: "option-before-open",
+      };
+    }
+
+    if (!selectedOptionBeforeOpen) {
+      invokeClick(playbackNode);
+      changed = true;
+      attempts += 1;
+      await waitFor(stepDelayMs);
+      if (isSuperseded()) {
+        return {
+          changed: changed,
+          confirmed: false,
+          attempts: attempts,
+          reason: "superseded",
+        };
+      }
+
+      const optionAfterOpen = findPlaybackRateOption(root, targetLabel);
+      if (optionAfterOpen) {
+        invokeClick(optionAfterOpen);
+        changed = true;
+        attempts += 1;
+        await waitFor(stepDelayMs);
+      }
+      if (getPlaybackComboboxLabel(playbackNode) === targetLabel) {
+        return {
+          changed: changed,
+          confirmed: true,
+          attempts: attempts,
+          reason: "option-after-open",
+        };
+      }
+    }
+
+    const confirmTarget = getPlaybackRateConfirmTarget(playbackNode) || playbackNode;
+    focusControl(playbackNode);
+    if (confirmTarget !== playbackNode) {
+      focusControl(confirmTarget);
+    }
+    dispatchKeyboardEvent(confirmTarget, "keydown", "Enter");
+    dispatchKeyboardEvent(confirmTarget, "keypress", "Enter");
+    dispatchKeyboardEvent(confirmTarget, "keyup", "Enter");
+    if (confirmTarget !== playbackNode) {
+      dispatchKeyboardEvent(playbackNode, "keydown", "Enter");
+      dispatchKeyboardEvent(playbackNode, "keypress", "Enter");
+      dispatchKeyboardEvent(playbackNode, "keyup", "Enter");
+    }
+    dispatchControlEvent(confirmTarget, "change");
+    dispatchControlEvent(playbackNode, "change");
+    dispatchControlEvent(confirmTarget, "blur");
+    await waitFor(stepDelayMs);
+    return {
+      changed: changed,
+      confirmed: getPlaybackComboboxLabel(playbackNode) === targetLabel,
+      attempts: attempts,
+      reason: getPlaybackComboboxLabel(playbackNode) === targetLabel
+        ? "enter-confirmed"
+        : "confirmation-missed",
+    };
+  }
+
+  function schedulePlaybackRateSync(root, targetPlaybackRate, scopeKey) {
+    const requestToken = playbackRateSyncToken + 1;
+    playbackRateSyncToken = requestToken;
+    void syncPlaybackRateControl(root, targetPlaybackRate, {
+      requestToken: requestToken,
+      scopeKey: scopeKey,
+    }).then(function (result) {
+      if (
+        requestToken !== playbackRateSyncToken ||
+        playbackRateAutoSyncState.target !== targetPlaybackRate ||
+        playbackRateAutoSyncState.scopeKey !== scopeKey
+      ) {
+        return;
+      }
+      playbackRateAutoSyncState.status = result?.confirmed ? "completed" : "attempted";
+    });
+    return requestToken;
+  }
+
   function scheduleWaveZoomSync(root, targetZoom) {
     const requestToken = waveZoomSyncToken + 1;
     waveZoomSyncToken = requestToken;
@@ -924,11 +1143,29 @@
         source.defaultPlaybackRate,
         DEFAULT_PLAYBACK_RATE
       );
+      const playbackScopeKey =
+        normalizeText(source.playbackScopeKey) || getCurrentPlaybackScopeKey();
+      if (
+        playbackRateAutoSyncState.target !== targetPlaybackRate ||
+        playbackRateAutoSyncState.scopeKey !== playbackScopeKey
+      ) {
+        playbackRateAutoSyncState.target = targetPlaybackRate;
+        playbackRateAutoSyncState.scopeKey = playbackScopeKey;
+        playbackRateAutoSyncState.status = "idle";
+      }
       if (normalizeText(playbackNode.getAttribute?.("role")) === "combobox") {
-        changed =
-          selectPlaybackRateComboboxOption(root, playbackNode, targetPlaybackRate) || changed;
+        if (getPlaybackComboboxLabel(playbackNode) === formatPlaybackRateLabel(targetPlaybackRate)) {
+          playbackRateAutoSyncState.status = "completed";
+        } else if (playbackRateAutoSyncState.status === "idle") {
+          playbackRateAutoSyncState.status = "pending";
+          schedulePlaybackRateSync(root, targetPlaybackRate, playbackScopeKey);
+          changed = true;
+        }
       } else {
         changed = setControlValue(playbackNode, targetPlaybackRate) || changed;
+        if (changed || Number(playbackNode.value) === targetPlaybackRate) {
+          playbackRateAutoSyncState.status = "completed";
+        }
       }
     }
     if (zoomNode) {
@@ -950,26 +1187,6 @@
       }
     }
     return changed;
-  }
-
-  function getPlaybackComboboxLabel(node) {
-    if (!node) {
-      return "";
-    }
-    const viewValueNode =
-      typeof node.querySelector === "function"
-        ? node.querySelector(".arco-select-view-value")
-        : null;
-    const inputNode =
-      typeof node.querySelector === "function"
-        ? node.querySelector(".arco-select-view-input")
-        : null;
-    return (
-      normalizeText(viewValueNode?.textContent) ||
-      normalizeText(inputNode?.value) ||
-      normalizeText(node.getAttribute?.("title")) ||
-      normalizeText(node.textContent)
-    );
   }
 
   function findPlaybackRateOption(root, label) {
@@ -1091,6 +1308,12 @@
 
   function destroyHelperRuntime() {
     clearHelperSyncTimer();
+    playbackRateSyncToken = 0;
+    playbackRateAutoSyncState = {
+      target: null,
+      scopeKey: "",
+      status: "idle",
+    };
     waveZoomSyncToken = 0;
     waveZoomAutoSyncState = {
       target: null,
@@ -1116,11 +1339,30 @@
       }
       try {
         helperRuntime.ui.mount();
-        applyWaveToolSettings(document, helperRuntime.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS));
+        applyWaveToolSettings(
+          document,
+          Object.assign(
+            {},
+            helperRuntime.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS),
+            {
+              playbackScopeKey: helperRuntime.playbackScopeKey,
+            }
+          )
+        );
         ensureClearSegmentsButton(document, function () {
           void handleClearSegmentsAction();
         });
         const context = await helperRuntime.dataApi.getCurrentContext();
+        helperRuntime.playbackScopeKey =
+          normalizeText(context?.selectionKey) ||
+          helperRuntime.playbackScopeKey ||
+          getCurrentPlaybackScopeKey();
+        applyWaveToolSettings(
+          document,
+          Object.assign({}, helperRuntime.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS), {
+            playbackScopeKey: helperRuntime.playbackScopeKey,
+          })
+        );
         helperRuntime.ui.renderAudioContext(context);
         if (!normalizeText(context?.audioUrl)) {
           helperRuntime.ui.setStatus("正在等待页面返回当前音频与分段上下文...", "");
@@ -1249,7 +1491,12 @@
     });
     if (helperRuntime && helperRuntime.configSignature === configSignature) {
       helperRuntime.ui.mount();
-      applyWaveToolSettings(document, helperConfig);
+      applyWaveToolSettings(
+        document,
+        Object.assign({}, helperConfig, {
+          playbackScopeKey: helperRuntime.playbackScopeKey,
+        })
+      );
       ensureClearSegmentsButton(document, function () {
         void handleClearSegmentsAction();
       });
@@ -1282,9 +1529,15 @@
       endpoint: endpoint,
       config: helperConfig,
       configSignature: configSignature,
+      playbackScopeKey: getCurrentPlaybackScopeKey(),
     };
     ui.mount();
-    applyWaveToolSettings(document, helperConfig);
+    applyWaveToolSettings(
+      document,
+      Object.assign({}, helperConfig, {
+        playbackScopeKey: helperRuntime.playbackScopeKey,
+      })
+    );
     ensureClearSegmentsButton(document, function () {
       void handleClearSegmentsAction();
     });
@@ -1298,7 +1551,12 @@
     if (typeof document !== "undefined") {
       syncPlatformAiVisibility(document, runtimePolicy.shouldHidePlatformAi);
       if (runtimePolicy.runtimeAccessible) {
-        applyWaveToolSettings(document, resolveHelperConfig(settings));
+        applyWaveToolSettings(
+          document,
+          Object.assign({}, resolveHelperConfig(settings), {
+            playbackScopeKey: helperRuntime?.playbackScopeKey || getCurrentPlaybackScopeKey(),
+          })
+        );
         ensureClearSegmentsButton(document, function () {
           void handleClearSegmentsAction();
         });
@@ -1326,7 +1584,13 @@
       if (runtimePolicy.runtimeAccessible) {
         applyWaveToolSettings(
           document,
-          helperRuntime?.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS || {})
+          Object.assign(
+            {},
+            helperRuntime?.config || resolveHelperConfig(CONSTANTS.DEFAULT_SETTINGS || {}),
+            {
+              playbackScopeKey: helperRuntime?.playbackScopeKey || getCurrentPlaybackScopeKey(),
+            }
+          )
         );
         ensureClearSegmentsButton(document, function () {
           void handleClearSegmentsAction();
@@ -1469,7 +1733,9 @@
       getFloatingAssistantScore: getFloatingAssistantScore,
       resolveHelperConfig: resolveHelperConfig,
       applyWaveToolSettings: applyWaveToolSettings,
+      syncPlaybackRateControl: syncPlaybackRateControl,
       syncWaveZoomControl: syncWaveZoomControl,
+      getPlaybackComboboxLabel: getPlaybackComboboxLabel,
       ensureClearSegmentsButton: ensureClearSegmentsButton,
     },
   };

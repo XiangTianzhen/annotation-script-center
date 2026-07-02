@@ -1,6 +1,6 @@
 (function () {
   const DEFAULT_PATH = "/api/bytedance-aidp/suzhou-helper/segment/preview";
-  const DEFAULT_SILENCE_THRESHOLD_DBFS = -27;
+  const DEFAULT_SILENCE_THRESHOLD_DBFS = -31;
   const DEFAULT_SILENCE_THRESHOLD_UNIT = "db";
   const MIN_SILENCE_MS = 400;
   const DEFAULT_CONTEXT_PADDING_MS = 500;

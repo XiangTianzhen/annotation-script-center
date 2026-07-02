@@ -24,9 +24,11 @@
 ## 实现说明
 
 - 当前直接复用 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/segment-service.js`
-- 差异只放在路由命名空间：
+- 当前差异不仅是路由命名空间，还包括 AIDP 专用默认规则：
   - CVPC：`/api/data-baker-cvpc/liuzhou-helper/segment/*`
   - AIDP：`/api/bytedance-aidp/suzhou-helper/segment/*`
+  - AIDP 默认静音阈值：`-31 dBFS`
+  - AIDP 额外启用“明显长静音保留静音核心”的内部后处理，用于避免 `0.5s` 前后补偿把可视静音区完全吞回语音段里
 
 ## 当前边界
 

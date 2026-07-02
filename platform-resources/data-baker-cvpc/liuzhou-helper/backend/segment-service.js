@@ -7,12 +7,17 @@ const DEFAULT_MIN_SILENCE_MS = 400;
 const DEFAULT_CONTEXT_PADDING_MS = 200;
 const DEFAULT_SEGMENT_SCOPE = "existing-segments-incremental";
 const WHOLE_AUDIO_REBUILD_SCOPE = "whole-audio-rebuild-preview";
+const SEGMENTATION_PROFILE_DEFAULT = "default";
+const SEGMENTATION_PROFILE_VISIBLE_LONG_SILENCE = "visible-long-silence";
 const MIN_SEGMENT_MS = 100;
 const PREVIEW_MODE_INCREMENTAL = "incremental";
 const PREVIEW_MODE_WHOLE_AUDIO_FALLBACK = "whole-audio-fallback";
 const ANALYSIS_WINDOW_MS = 30;
 const ANALYSIS_SMOOTHING_FRAME_RADIUS = 1;
 const ANALYSIS_MAX_SPEECH_BRIDGE_MS = 180;
+const VISIBLE_LONG_SILENCE_MIN_MS = 500;
+const VISIBLE_LONG_SILENCE_CORE_MIN_MS = 200;
+const VISIBLE_LONG_SILENCE_CORE_MAX_MS = 320;
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -55,6 +60,21 @@ function normalizeSegmentScope(value) {
     return WHOLE_AUDIO_REBUILD_SCOPE;
   }
   return DEFAULT_SEGMENT_SCOPE;
+}
+
+function normalizeBuildOptions(options) {
+  const source = options && typeof options === "object" ? options : {};
+  return {
+    route: normalizeText(source.route) || "data-baker-cvpc/liuzhou-helper/segment/preview",
+    segmentationProfile:
+      normalizeText(source.segmentationProfile) === SEGMENTATION_PROFILE_VISIBLE_LONG_SILENCE
+        ? SEGMENTATION_PROFILE_VISIBLE_LONG_SILENCE
+        : SEGMENTATION_PROFILE_DEFAULT,
+    defaultSilenceThresholdDbfs: normalizeDbfsThreshold(
+      source.defaultSilenceThresholdDbfs,
+      DEFAULT_SILENCE_THRESHOLD_DBFS
+    ),
+  };
 }
 
 function normalizeRangeItem(item) {
@@ -134,12 +154,13 @@ function normalizeExistingSegments(value) {
     });
 }
 
-function normalizeRules(source, segmentScope) {
+function normalizeRules(source, segmentScope, options) {
   const input = source && typeof source === "object" ? source : {};
+  const buildOptions = normalizeBuildOptions(options);
   return {
     silenceThresholdDbfs: normalizeDbfsThreshold(
       input.silenceThresholdDbfs,
-      DEFAULT_SILENCE_THRESHOLD_DBFS
+      buildOptions.defaultSilenceThresholdDbfs
     ),
     minSilenceMs: Math.max(
       DEFAULT_MIN_SILENCE_MS,
@@ -158,7 +179,7 @@ function normalizeRules(source, segmentScope) {
   };
 }
 
-function normalizeSegmentPreviewRequest(body) {
+function normalizeSegmentPreviewRequest(body, options) {
   const source = body && typeof body === "object" ? body : {};
   const audioUrl = normalizeText(source.audioUrl);
   const audioDurationMs = Math.max(
@@ -192,7 +213,7 @@ function normalizeSegmentPreviewRequest(body) {
       : {},
     silentRanges: normalizeSilentRanges(source.silentRanges),
     existingSegments: existingSegments,
-    rules: normalizeRules(source.rules, segmentScope),
+    rules: normalizeRules(source.rules, segmentScope, options),
     segmentScope: segmentScope,
   };
 }
@@ -369,12 +390,46 @@ function buildSpeechRanges(segment, silences) {
   return result;
 }
 
-function padSpeechRanges(segment, speechRanges, rules) {
+function resolveProtectedSilencePaddingAllowance(silence, rules, options) {
+  const desiredPaddingMs = Math.max(0, Math.round(Number(rules?.contextPaddingMs || 0)) || 0);
+  if (!silence) {
+    return desiredPaddingMs;
+  }
+  const buildOptions = normalizeBuildOptions(options);
+  if (
+    buildOptions.segmentationProfile !== SEGMENTATION_PROFILE_VISIBLE_LONG_SILENCE ||
+    silence.durationMs < VISIBLE_LONG_SILENCE_MIN_MS
+  ) {
+    return desiredPaddingMs;
+  }
+  const retainedSilenceCoreMs = clamp(
+    Math.round(silence.durationMs * 0.4),
+    VISIBLE_LONG_SILENCE_CORE_MIN_MS,
+    VISIBLE_LONG_SILENCE_CORE_MAX_MS
+  );
+  const availablePaddingPerSideMs = Math.max(
+    0,
+    Math.floor((silence.durationMs - retainedSilenceCoreMs) / 2)
+  );
+  return Math.min(desiredPaddingMs, availablePaddingPerSideMs);
+}
+
+function padSpeechRanges(segment, speechRanges, silences, rules, options) {
   const padded = speechRanges
-    .map(function (range) {
+    .map(function (range, index) {
+      const previousSilence = index > 0 ? silences[index - 1] : null;
+      const nextSilence = index < silences.length ? silences[index] : null;
       return {
-        startMs: clamp(range.startMs - rules.contextPaddingMs, segment.startMs, segment.endMs),
-        endMs: clamp(range.endMs + rules.contextPaddingMs, segment.startMs, segment.endMs),
+        startMs: clamp(
+          range.startMs - resolveProtectedSilencePaddingAllowance(previousSilence, rules, options),
+          segment.startMs,
+          segment.endMs
+        ),
+        endMs: clamp(
+          range.endMs + resolveProtectedSilencePaddingAllowance(nextSilence, rules, options),
+          segment.startMs,
+          segment.endMs
+        ),
       };
     })
     .filter(function (range) {
@@ -397,7 +452,7 @@ function padSpeechRanges(segment, speechRanges, rules) {
   });
 }
 
-function buildSegmentChange(segment, silentRanges, rules) {
+function buildSegmentChange(segment, silentRanges, rules, options) {
   const internalSilences = buildInternalSilences(segment, silentRanges, rules);
   if (internalSilences.length === 0) {
     return {
@@ -421,7 +476,13 @@ function buildSegmentChange(segment, silentRanges, rules) {
   }
 
   const speechRanges = buildSpeechRanges(segment, internalSilences);
-  const suggestedSegments = padSpeechRanges(segment, speechRanges, rules);
+  const suggestedSegments = padSpeechRanges(
+    segment,
+    speechRanges,
+    internalSilences,
+    rules,
+    options
+  );
   if (suggestedSegments.length <= 1) {
     return {
       proposedSegments: [
@@ -500,7 +561,8 @@ function resolveEmptyReason(request, summary) {
 }
 
 async function buildSegmentPreview(input, options) {
-  const request = normalizeSegmentPreviewRequest(input);
+  const buildOptions = normalizeBuildOptions(options);
+  const request = normalizeSegmentPreviewRequest(input, buildOptions);
   const resolvedAnalysis = await resolveSilentRangesFromBackend(request, options);
   const resolvedRequest = Object.assign({}, request, {
     audioDurationMs: resolvedAnalysis.audioDurationMs,
@@ -513,7 +575,12 @@ async function buildSegmentPreview(input, options) {
   let splitSuppressed = false;
 
   effectiveSegments.forEach(function (segment) {
-    const result = buildSegmentChange(segment, resolvedRequest.silentRanges, resolvedRequest.rules);
+    const result = buildSegmentChange(
+      segment,
+      resolvedRequest.silentRanges,
+      resolvedRequest.rules,
+      buildOptions
+    );
     proposedSegments.push.apply(proposedSegments, result.proposedSegments);
     if (result.change) {
       changes.push(result.change);
@@ -563,12 +630,13 @@ async function buildSegmentPreview(input, options) {
   };
 }
 
-function createSegmentHealthPayload() {
+function createSegmentHealthPayload(options) {
+  const buildOptions = normalizeBuildOptions(options);
   return {
     success: true,
-    route: "data-baker-cvpc/liuzhou-helper/segment/preview",
+    route: buildOptions.route,
     rules: {
-      silenceThresholdDbfs: DEFAULT_SILENCE_THRESHOLD_DBFS,
+      silenceThresholdDbfs: buildOptions.defaultSilenceThresholdDbfs,
       minSilenceMs: DEFAULT_MIN_SILENCE_MS,
       contextPaddingMs: DEFAULT_CONTEXT_PADDING_MS,
       segmentScope: DEFAULT_SEGMENT_SCOPE,
@@ -598,6 +666,7 @@ module.exports = {
   MIN_SEGMENT_MS,
   PREVIEW_MODE_INCREMENTAL,
   PREVIEW_MODE_WHOLE_AUDIO_FALLBACK,
+  SEGMENTATION_PROFILE_VISIBLE_LONG_SILENCE,
   WHOLE_AUDIO_REBUILD_SCOPE,
   buildSegmentPreview,
   createHttpError,
