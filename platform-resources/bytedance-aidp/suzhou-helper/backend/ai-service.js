@@ -30,6 +30,28 @@ const DEFAULT_STAGE_PARAMS = {
   seed: "",
   stop: "",
 };
+const ARABIC_DIGIT_TO_CHINESE = Object.freeze({
+  "0": "零",
+  "1": "一",
+  "2": "二",
+  "3": "三",
+  "4": "四",
+  "5": "五",
+  "6": "六",
+  "7": "七",
+  "8": "八",
+  "9": "九",
+  "０": "零",
+  "１": "一",
+  "２": "二",
+  "３": "三",
+  "４": "四",
+  "５": "五",
+  "６": "六",
+  "７": "七",
+  "８": "八",
+  "９": "九",
+});
 const EMPTY_RESULT_PATTERN =
   /^(纯静音|静音|完全听不清|听不清|听不出来|无法听清|无法识别|无内容|无语音|没有声音)([，。？！；,.!?;:]*)$/;
 const DEFAULT_LISTEN_PROMPT = [
@@ -37,7 +59,10 @@ const DEFAULT_LISTEN_PROMPT = [
   "最终目标不是苏州话原文稿，而是给下一阶段一个保守的听音结果。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
   "JSON 字段固定为：listenText, needHumanReview, notes。",
-  "listenText 只写你听到的大致文本，不做润色，不做语义扩写。",
+  "listenText 只写你听到的大致文本，不做润色，不做语义扩写，也不要截取成局部短句。",
+  "不知名人名、地名、公司名或其他无法精准锁定的事物，用 ##名称## 包起来。",
+  "抖音音效不截取；主说话人如果在唱歌，也不截取这部分内容。",
+  "标点只允许使用 ，。？！；不允许其他标点；句末只允许使用 。？！；不要使用阿拉伯数字。",
   "听不清时必须保守；纯静音或完全听不清时，listenText 返回空字符串。",
 ].join("\n");
 const DEFAULT_REFINE_PROMPT = [
@@ -45,8 +70,12 @@ const DEFAULT_REFINE_PROMPT = [
   "最终输出不是苏州话原文稿，也不是润色后的书面语。",
   "只输出 JSON，不要输出 Markdown、解释或多余文字。",
   "JSON 字段固定为：finalMandarinText, needHumanReview, notes。",
-  "以听音为主，写成普通话写法；不要自由改写，不要补充没听到的信息。",
-  "语气词、笑声等按听到的普通话写法保留。",
+  "以听音为主，写成普通话写法；不要自由改写，不要补充没听到的信息，也不要截取成局部短句。",
+  "标点只允许使用 ，。？！；不允许其他标点；句末只允许使用 。？！。",
+  "不知名人名、地名、公司名或其他无法精准锁定的事物，用 ##名称## 包起来。",
+  "抖音音效不截取；主说话人如果在唱歌，也不截取这部分内容。",
+  "语气词等按听到的普通话写法保留。",
+  "不要使用阿拉伯数字，统一改写为汉字数字。",
   "明显的口吃式同字或同音节连续重复，最多保留 3 次；有语义的正常重复不要误删。",
   "纯静音或完全听不清时，finalMandarinText 返回空字符串。",
 ].join("\n");
@@ -86,17 +115,22 @@ function normalizeList(value, limit) {
 }
 
 function normalizeLineText(value) {
-  return String(value || "")
+  return stripUnsupportedMandarinSymbols(
+    convertArabicDigitsToChinese(
+      String(value || "")
     .replace(/[\r\n]+/g, " ")
     .replace(/[《》]/g, "")
     .replace(/[“”"「」『』（）()[\]{}]/g, "")
+    .replace(/[、]/g, "，")
     .replace(/,/g, "，")
     .replace(/\?/g, "？")
     .replace(/!/g, "！")
     .replace(/\./g, "。")
+    .replace(/[…]/g, "。")
     .replace(/[；;：:]/g, "，")
     .replace(/\s+/g, " ")
-    .trim();
+    )
+  ).trim();
 }
 
 function normalizeMandarinResultText(value) {
@@ -107,20 +141,51 @@ function normalizeMandarinResultText(value) {
   if (EMPTY_RESULT_PATTERN.test(text)) {
     return "";
   }
-  return compressObviousStutters(
-    ensureChineseSentencePunctuation(text)
-      .replace(/[…]/g, "。")
+  const normalized = ensureChineseSentencePunctuation(
+    text
       .replace(/，+/g, "，")
       .replace(/。+/g, "。")
       .replace(/？+/g, "？")
       .replace(/！+/g, "！")
-  );
+      .replace(/[，]+([。？！])/g, "$1")
+      .replace(/([。？！])[，]+/g, "$1")
+      .replace(/^[，。？！]+/g, "")
+      .trim()
+  )
+    .replace(/[，]+([。？！])/g, "$1")
+    .replace(/([。？！])[，]+/g, "$1")
+    .trim();
+  return compressObviousStutters(normalized);
 }
 
 function compressObviousStutters(text) {
   return String(text || "").replace(/([\u3400-\u9fffA-Za-z])\1{3,}/g, function (_all, char) {
     return char + char + char;
   });
+}
+
+function convertArabicDigitsToChinese(value) {
+  return String(value || "").replace(/[0-9０-９]/g, function (digit) {
+    return ARABIC_DIGIT_TO_CHINESE[digit] || digit;
+  });
+}
+
+function stripUnsupportedMandarinSymbols(value) {
+  let result = "";
+  for (const char of String(value || "")) {
+    if (
+      /\s/u.test(char) ||
+      /[\p{L}\p{N}]/u.test(char) ||
+      char === "，" ||
+      char === "。" ||
+      char === "？" ||
+      char === "！" ||
+      char === "#"
+    ) {
+      result += char;
+    }
+  }
+  return result;
 }
 
 function normalizeNotes(value) {
@@ -312,6 +377,9 @@ function buildListenPrompt(request, assetsContext) {
       request.aiStages?.listen?.prompt || DEFAULT_LISTEN_PROMPT,
       [
         "listenText 只保留听到的文本，不要润色成自然书面语。",
+        "普通话不要截取，听到多少写多少；不知名实体用 ##名称## 包起来。",
+        "抖音音效不截取；主说话人如果在唱歌，也不截取这部分内容。",
+        "标点只允许使用 ，。？！；不允许其他标点；句末只允许使用 。？！；不要使用阿拉伯数字。",
         "纯静音或完全听不清时，listenText 返回空字符串。",
       ]
     ),
@@ -344,7 +412,10 @@ function buildRefinePrompt(request, assetsContext, listenResult) {
       request.aiStages?.refine?.prompt || DEFAULT_REFINE_PROMPT,
       [
         "finalMandarinText 必须是普通话听写稿，不是苏州话原文稿，不是润色稿。",
-        "语气词和笑声保留；口吃式连续重复最多保留 3 次。",
+        "普通话不要截取，听到多少写多少；不知名实体用 ##名称## 包起来。",
+        "抖音音效不截取；主说话人如果在唱歌，也不截取这部分内容。",
+        "标点只允许使用 ，。？！；不允许其他标点；句末只允许使用 。？！；不要使用阿拉伯数字。",
+        "语气词保留；口吃式连续重复最多保留 3 次。",
         "纯静音或完全听不清时，finalMandarinText 返回空字符串。",
       ]
     ),

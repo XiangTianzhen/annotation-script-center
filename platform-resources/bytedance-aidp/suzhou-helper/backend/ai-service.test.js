@@ -40,3 +40,19 @@ test("Suzhou ai service returns empty string for silence or completely unintelli
   assert.equal(silent.finalMandarinText, "");
   assert.equal(unclear.finalMandarinText, "");
 });
+
+test("Suzhou ai service converts Arabic digits to Chinese numerals and keeps only allowed punctuation", function () {
+  const result = aiService.__testOnly.normalizeRefineStageOutput({
+    finalMandarinText: "他说：今天有3个问题；先看1、2、3!",
+  });
+
+  assert.equal(result.finalMandarinText, "他说，今天有三个问题，先看一，二，三！");
+});
+
+test("Suzhou ai service preserves unknown-entity wrappers with Chinese punctuation", function () {
+  const result = aiService.__testOnly.normalizeRefineStageOutput({
+    finalMandarinText: "##阿布公司##?",
+  });
+
+  assert.equal(result.finalMandarinText, "##阿布公司##？");
+});

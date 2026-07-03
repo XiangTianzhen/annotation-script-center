@@ -1,3 +1,15 @@
+## 2026-07-03（收口 ByteDance AIDP 苏州话普通话听写规则）
+- 更新 `platform-resources/bytedance-aidp/suzhou-helper/backend/ai-service.js`
+  - 补齐苏州话普通话听写默认 Prompt 规则：普通话不截取、未知实体用 `##`、抖音音效/唱歌不截取、仅允许 `，。？！`、禁用阿拉伯数字
+  - 新增后处理收口：阿拉伯数字转汉字数字、压掉不允许的标点并继续保留 `##名称##` 包裹
+- 更新 `platform-resources/bytedance-aidp/suzhou-helper/ai/assets/suzhou-rules.md`
+  - 同步这轮新的普通话听写标准与分段留白 `<=500ms` 约束
+- 更新 `platform-resources/bytedance-aidp/suzhou-helper/backend/ai-service.test.js`
+  - 新增数字转汉字和 `##` 未知实体包裹回归测试
+- 更新文档：
+  - `platform-resources/bytedance-aidp/suzhou-helper/backend/README.md`
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+
 ## 2026-07-03（补齐 ByteDance AIDP 苏州话 AI 识别、批量识别与调用记录）
 - 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
   - 接入当前段普通话听写识别、批量识别、AI 信息展示与自动填入开关
