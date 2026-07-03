@@ -87,7 +87,22 @@ class FakeNode {
   }
 
   addEventListener(type, listener) {
-    this.eventListeners[String(type || "")] = listener;
+    const key = String(type || "");
+    const existing = this.eventListeners[key];
+    if (typeof existing === "function" && Array.isArray(existing._handlers)) {
+      existing._handlers.push(listener);
+      return;
+    }
+    const handlers = [listener];
+    const dispatcher = (event) => {
+      handlers.slice().forEach((handler) => {
+        if (typeof handler === "function") {
+          handler.call(this, event);
+        }
+      });
+    };
+    dispatcher._handlers = handlers;
+    this.eventListeners[key] = dispatcher;
   }
 
   click() {
@@ -292,11 +307,10 @@ test("AIDP suzhou ui panel keeps current-audio section collapsed by default and 
   }
 });
 
-test("AIDP suzhou ui panel exposes auto-fill and auto-apply toggles and keeps them in sync", function () {
+test("AIDP suzhou ui panel keeps only preview auto-apply toggle in the Beta panel", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
-  const autoFillValues = [];
   const autoApplyValues = [];
   globalThis.document = harness.document;
   globalThis.HTMLElement = FakeNode;
@@ -304,11 +318,7 @@ test("AIDP suzhou ui panel exposes auto-fill and auto-apply toggles and keeps th
   try {
     const module = loadUiPanelModule();
     const runtime = module.createRuntime({
-      aiRecommendAutoFillEnabled: true,
       segmentPreviewAutoApplyEnabled: true,
-      onToggleAiRecommendAutoFill(nextEnabled) {
-        autoFillValues.push(nextEnabled);
-      },
       onToggleSegmentPreviewAutoApply(nextEnabled) {
         autoApplyValues.push(nextEnabled);
       },
@@ -319,27 +329,18 @@ test("AIDP suzhou ui panel exposes auto-fill and auto-apply toggles and keeps th
     const checkboxes = collectDescendants(panelRoot).filter(function (node) {
       return node.tagName === "INPUT" && node.type === "checkbox";
     });
-    const autoFillCheckbox = checkboxes[0];
-    const autoApplyCheckbox = checkboxes[1];
+    const autoApplyCheckbox = checkboxes[0];
 
-    assert.equal(checkboxes.length >= 2, true);
-    assert.ok(autoFillCheckbox);
+    assert.equal(checkboxes.length, 1);
     assert.ok(autoApplyCheckbox);
-    assert.equal(autoFillCheckbox.checked, true);
     assert.equal(autoApplyCheckbox.checked, true);
-    assert.match(panelRoot.textContent, /识别完成后自动填入/);
+    assert.doesNotMatch(panelRoot.textContent, /识别完成后自动填入/);
     assert.match(panelRoot.textContent, /生成后立即应用当前建议/);
-
-    autoFillCheckbox.checked = false;
-    autoFillCheckbox.eventListeners.change();
-    assert.deepEqual(autoFillValues, [false]);
 
     autoApplyCheckbox.checked = false;
     autoApplyCheckbox.eventListeners.change();
     assert.deepEqual(autoApplyValues, [false]);
 
-    runtime.setAiRecommendAutoFillEnabled(true);
-    assert.equal(autoFillCheckbox.checked, true);
     runtime.setSegmentPreviewAutoApplyEnabled(true);
     assert.equal(autoApplyCheckbox.checked, true);
   } finally {
@@ -405,6 +406,86 @@ test("AIDP suzhou ui panel renders recommendation and AI meta with Mandarin tran
     assert.match(panelRoot.textContent, /收口预估人民币/);
     assert.match(panelRoot.textContent, /总预估人民币/);
     assert.match(panelRoot.textContent, /raw\.listen/);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("AIDP suzhou ui panel removes current-segment section and keeps preview-batch above audio-meta", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({});
+    assert.equal(runtime.mount(), true);
+
+    const panelRoot = harness.waveAnchor.nextSibling;
+    const panelText = panelRoot.textContent;
+    const buttons = collectDescendants(panelRoot).filter(function (node) {
+      return node.tagName === "BUTTON";
+    });
+
+    assert.doesNotMatch(panelText, /当前段识别/);
+    assert.doesNotMatch(panelText, /写回当前段/);
+    assert.equal(
+      buttons.some(function (node) {
+        return node.textContent.includes("当前段识别");
+      }),
+      false
+    );
+
+    assert.match(panelText, /分段建议/);
+    assert.match(panelText, /批量识别/);
+    assert.match(panelText, /当前音频/);
+    assert.match(panelText, /AI信息/);
+
+    assert.ok(panelText.indexOf("分段建议") < panelText.indexOf("当前音频"));
+    assert.ok(panelText.indexOf("批量识别") < panelText.indexOf("当前音频"));
+    assert.ok(panelText.indexOf("当前音频") < panelText.indexOf("AI信息"));
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("AIDP suzhou ui panel toggles batch selection with a normal click without reverting on the trailing click event", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({});
+    assert.equal(runtime.mount(), true);
+
+    const panelRoot = harness.waveAnchor.nextSibling;
+    runtime.renderBatchSelection({
+      totalSegments: 3,
+      resetSelection: true,
+    });
+
+    const batchButtonTwo = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.getAttribute("data-segment-number") === "2";
+    });
+    const batchSummary = findNode(panelRoot, function (node) {
+      return String(node.className || "").split(/\s+/).includes("batch-selector-summary");
+    });
+
+    assert.ok(batchButtonTwo);
+    assert.ok(batchSummary);
+    assert.match(batchSummary.textContent, /全部 3 段/);
+
+    batchButtonTwo.eventListeners.mousedown({ type: "mousedown", bubbles: true });
+    batchButtonTwo.click();
+
+    assert.equal(batchSummary.textContent, "当前选择：1、3");
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

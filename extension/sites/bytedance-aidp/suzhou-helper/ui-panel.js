@@ -84,6 +84,9 @@
       "[" + ROOT_ATTR + "] .status[data-tone='success'] { color: #1d7a36; }",
       "[" + ROOT_ATTR + "] .status[data-tone='warning'] { color: #b54708; }",
       "[" + ROOT_ATTR + "] .section { margin-top: 12px; }",
+      "[" + ROOT_ATTR + "] .panel-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }",
+      "[" + ROOT_ATTR + "] .panel-grid .section { margin-top: 0; }",
+      "[" + ROOT_ATTR + "] .section[data-span='full'] { grid-column: 1 / -1; }",
       "[" + ROOT_ATTR + "] .section-title { font-weight: 600; color: #26418b; }",
       "[" + ROOT_ATTR + "] .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .section-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }",
@@ -126,6 +129,10 @@
       "[" + ROOT_ATTR + "] .preview-list { display: grid; gap: 8px; }",
       "[" + ROOT_ATTR + "] .preview-meta { color: #6f7b94; }",
       "[" + ROOT_ATTR + "] .preview-unsafe { margin-top: 8px; color: #c2410c; }",
+      "@media (max-width: 1120px) {",
+      "  [" + ROOT_ATTR + "] .panel-grid { grid-template-columns: minmax(0, 1fr); }",
+      "  [" + ROOT_ATTR + "] .section[data-span='full'] { grid-column: auto; }",
+      "}",
     ].join("");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -204,20 +211,20 @@
     let statusNode = null;
     let summaryNode = null;
     let summaryCollapseButtonNode = null;
-    let currentRecommendationNode = null;
     let previewNode = null;
     let aiMetaNode = null;
     let batchStateNode = null;
     let batchSelectionSummaryNode = null;
     let batchSelectionGridNode = null;
     let previewAutoApplyToggleNode = null;
-    let aiRecommendAutoFillToggleNode = null;
     let currentAudioCollapsed = true;
+    let latestRecommendation = null;
     let batchSelectionState = {
       totalSegments: 0,
       selectedNumbers: [],
       dragging: false,
       dragNextSelected: true,
+      mouseDownHandledSegmentNumber: 0,
     };
 
     function syncCurrentAudioSectionState() {
@@ -234,6 +241,13 @@
 
     function stopBatchSelectionDrag() {
       batchSelectionState.dragging = false;
+      if (typeof setTimeout === "function") {
+        setTimeout(function () {
+          batchSelectionState.mouseDownHandledSegmentNumber = 0;
+        }, 0);
+      } else {
+        batchSelectionState.mouseDownHandledSegmentNumber = 0;
+      }
     }
 
     function updateBatchSelectionValue(segmentNumber, nextSelected) {
@@ -309,6 +323,10 @@
           const button = createButton(String(number), false, null);
           button.setAttribute("data-segment-number", String(number));
           button.addEventListener("click", function () {
+            if (batchSelectionState.mouseDownHandledSegmentNumber === number) {
+              batchSelectionState.mouseDownHandledSegmentNumber = 0;
+              return;
+            }
             const currentlySelected =
               batchSelectionState.selectedNumbers.indexOf(number) >= 0;
             updateBatchSelectionValue(number, !currentlySelected);
@@ -318,6 +336,7 @@
               batchSelectionState.selectedNumbers.indexOf(number) >= 0;
             batchSelectionState.dragging = true;
             batchSelectionState.dragNextSelected = !currentlySelected;
+            batchSelectionState.mouseDownHandledSegmentNumber = number;
             updateBatchSelectionValue(number, !currentlySelected);
           });
           button.addEventListener("mouseenter", function () {
@@ -350,111 +369,15 @@
       rootNode.setAttribute(ROOT_ATTR, "");
       rootNode.innerHTML =
         '<div class="panel-title">苏州话脚本 Beta</div>' +
-        '<div class="panel-note">当前支持普通话听写稿 AI、批量识别、分段建议和平台暂存直写。</div>';
+        '<div class="panel-note">当前支持普通话听写稿 AI、批量识别、分段建议和平台暂存直写；单段识别已收口到分段表格行内按钮。</div>';
 
       statusNode = document.createElement("div");
       statusNode.className = "status";
       statusNode.textContent = "正在读取当前详情上下文...";
       rootNode.appendChild(statusNode);
 
-      const summarySection = document.createElement("div");
-      summarySection.className = "section";
-      const summaryHead = document.createElement("div");
-      summaryHead.className = "section-head";
-      const summaryTitle = document.createElement("div");
-      summaryTitle.className = "section-title";
-      summaryTitle.textContent = "当前音频";
-      summaryHead.appendChild(summaryTitle);
-      const summaryActions = document.createElement("div");
-      summaryActions.className = "section-actions";
-      summaryCollapseButtonNode = createButton("展开当前音频", false, function () {
-        currentAudioCollapsed = !currentAudioCollapsed;
-        syncCurrentAudioSectionState();
-      });
-      summaryActions.appendChild(summaryCollapseButtonNode);
-      summaryHead.appendChild(summaryActions);
-      summarySection.appendChild(summaryHead);
-      summaryNode = document.createElement("div");
-      summaryNode.className = "summary-card";
-      summaryNode.textContent = "等待页面返回当前条目与分段上下文...";
-      summarySection.appendChild(summaryNode);
-      rootNode.appendChild(summarySection);
-      syncCurrentAudioSectionState();
-
-      const currentSection = document.createElement("div");
-      currentSection.className = "section";
-      currentSection.innerHTML =
-        '<div class="section-title">当前段识别</div><div class="panel-note">只对当前激活的 region 生效，最终写回 `regions[*].txt`。</div>';
-      const currentToggleRow = document.createElement("label");
-      currentToggleRow.className = "inline-toggle";
-      aiRecommendAutoFillToggleNode = document.createElement("input");
-      aiRecommendAutoFillToggleNode.type = "checkbox";
-      aiRecommendAutoFillToggleNode.checked = deps.aiRecommendAutoFillEnabled !== false;
-      aiRecommendAutoFillToggleNode.addEventListener("change", function () {
-        if (typeof deps.onToggleAiRecommendAutoFill === "function") {
-          deps.onToggleAiRecommendAutoFill(aiRecommendAutoFillToggleNode.checked === true);
-        }
-      });
-      const currentToggleText = document.createElement("span");
-      currentToggleText.textContent = "识别完成后自动填入";
-      currentToggleRow.appendChild(aiRecommendAutoFillToggleNode);
-      currentToggleRow.appendChild(currentToggleText);
-      currentSection.appendChild(currentToggleRow);
-      const currentActionRow = document.createElement("div");
-      currentActionRow.className = "action-row";
-      currentActionRow.appendChild(
-        createButton("当前段识别", true, function () {
-          deps.onRecommend?.();
-        })
-      );
-      currentActionRow.appendChild(
-        createButton("写回当前段", false, function () {
-          deps.onWriteCurrentRecommend?.();
-        })
-      );
-      currentSection.appendChild(currentActionRow);
-      currentRecommendationNode = document.createElement("div");
-      currentRecommendationNode.className = "info-card";
-      currentRecommendationNode.textContent = "当前还没有识别结果。";
-      currentSection.appendChild(currentRecommendationNode);
-      rootNode.appendChild(currentSection);
-
-      const batchSection = document.createElement("div");
-      batchSection.className = "section";
-      batchSection.innerHTML =
-        '<div class="section-title">批量识别</div><div class="panel-note">只处理当前题当前页 regions；默认全选，支持段号点选和拖选，停止后不再继续发新请求。</div>';
-      const batchSelectorHead = document.createElement("div");
-      batchSelectorHead.className = "batch-selector-head";
-      batchSelectionSummaryNode = document.createElement("div");
-      batchSelectionSummaryNode.className = "batch-selector-summary";
-      batchSelectionSummaryNode.textContent = "当前选择：正在读取段落...";
-      batchSelectorHead.appendChild(batchSelectionSummaryNode);
-      batchSection.appendChild(batchSelectorHead);
-      batchSelectionGridNode = document.createElement("div");
-      batchSelectionGridNode.className = "batch-selector-grid";
-      batchSection.appendChild(batchSelectionGridNode);
-      const batchHelp = document.createElement("div");
-      batchHelp.className = "batch-help";
-      batchHelp.textContent = "只更新目标段的 txt，不改 ms，不自动提交、不自动切题。";
-      batchSection.appendChild(batchHelp);
-      const batchActionRow = document.createElement("div");
-      batchActionRow.className = "batch-action-row";
-      batchActionRow.appendChild(
-        createButton("批量识别并填入", true, function () {
-          deps.onBatchRecommend?.(getSelectedBatchSegmentNumbers());
-        })
-      );
-      batchActionRow.appendChild(
-        createButton("停止批量", false, function () {
-          deps.onBatchStop?.();
-        })
-      );
-      batchSection.appendChild(batchActionRow);
-      batchStateNode = document.createElement("div");
-      batchStateNode.className = "batch-state-list";
-      batchStateNode.textContent = "当前没有批量任务。";
-      batchSection.appendChild(batchStateNode);
-      rootNode.appendChild(batchSection);
+      const grid = document.createElement("div");
+      grid.className = "panel-grid";
 
       const previewSection = document.createElement("div");
       previewSection.className = "section";
@@ -492,12 +415,75 @@
       previewNode.className = "preview-list";
       previewNode.innerHTML = '<div class="preview-card">当前还没有分段建议。</div>';
       previewSection.appendChild(previewNode);
-      rootNode.appendChild(previewSection);
+      grid.appendChild(previewSection);
+
+      const batchSection = document.createElement("div");
+      batchSection.className = "section";
+      batchSection.innerHTML =
+        '<div class="section-title">批量识别</div><div class="panel-note">只处理当前题当前页 regions；默认全选，支持段号点选和拖选，停止后不再继续发新请求。</div>';
+      const batchSelectorHead = document.createElement("div");
+      batchSelectorHead.className = "batch-selector-head";
+      batchSelectionSummaryNode = document.createElement("div");
+      batchSelectionSummaryNode.className = "batch-selector-summary";
+      batchSelectionSummaryNode.textContent = "当前选择：正在读取段落...";
+      batchSelectorHead.appendChild(batchSelectionSummaryNode);
+      batchSection.appendChild(batchSelectorHead);
+      batchSelectionGridNode = document.createElement("div");
+      batchSelectionGridNode.className = "batch-selector-grid";
+      batchSection.appendChild(batchSelectionGridNode);
+      const batchHelp = document.createElement("div");
+      batchHelp.className = "batch-help";
+      batchHelp.textContent = "只更新目标段的 txt，不改 ms，不自动提交、不自动切题。";
+      batchSection.appendChild(batchHelp);
+      const batchActionRow = document.createElement("div");
+      batchActionRow.className = "batch-action-row";
+      batchActionRow.appendChild(
+        createButton("批量识别并填入", true, function () {
+          deps.onBatchRecommend?.(getSelectedBatchSegmentNumbers());
+        })
+      );
+      batchActionRow.appendChild(
+        createButton("停止批量", false, function () {
+          deps.onBatchStop?.();
+        })
+      );
+      batchSection.appendChild(batchActionRow);
+      batchStateNode = document.createElement("div");
+      batchStateNode.className = "batch-state-list";
+      batchStateNode.textContent = "当前没有批量任务。";
+      batchSection.appendChild(batchStateNode);
+      grid.appendChild(batchSection);
+
+      const summarySection = document.createElement("div");
+      summarySection.className = "section";
+      summarySection.setAttribute("data-span", "full");
+      const summaryHead = document.createElement("div");
+      summaryHead.className = "section-head";
+      const summaryTitle = document.createElement("div");
+      summaryTitle.className = "section-title";
+      summaryTitle.textContent = "当前音频";
+      summaryHead.appendChild(summaryTitle);
+      const summaryActions = document.createElement("div");
+      summaryActions.className = "section-actions";
+      summaryCollapseButtonNode = createButton("展开当前音频", false, function () {
+        currentAudioCollapsed = !currentAudioCollapsed;
+        syncCurrentAudioSectionState();
+      });
+      summaryActions.appendChild(summaryCollapseButtonNode);
+      summaryHead.appendChild(summaryActions);
+      summarySection.appendChild(summaryHead);
+      summaryNode = document.createElement("div");
+      summaryNode.className = "summary-card";
+      summaryNode.textContent = "等待页面返回当前条目与分段上下文...";
+      summarySection.appendChild(summaryNode);
+      grid.appendChild(summarySection);
+      syncCurrentAudioSectionState();
 
       const metaSection = document.createElement("div");
       metaSection.className = "section";
+      metaSection.setAttribute("data-span", "full");
       metaSection.innerHTML =
-        '<div class="section-title">AI信息</div><div class="panel-note">保留两阶段结果、usage/cost 与原始返回，默认折叠显示。</div>';
+        '<div class="section-title">AI信息</div><div class="panel-note">展示当前行识别结果、两阶段 usage/cost 与原始返回，默认折叠显示。</div>';
       const metaDetails = document.createElement("details");
       metaDetails.className = "meta-details";
       const metaSummary = document.createElement("summary");
@@ -508,7 +494,9 @@
       aiMetaNode.textContent = "当前还没有 AI 信息。";
       metaDetails.appendChild(aiMetaNode);
       metaSection.appendChild(metaDetails);
-      rootNode.appendChild(metaSection);
+      grid.appendChild(metaSection);
+
+      rootNode.appendChild(grid);
 
       const windowLike = globalThis.window || null;
       if (windowLike && typeof windowLike.addEventListener === "function") {
@@ -597,52 +585,7 @@
     }
 
     function renderCurrentRecommendation(result) {
-      if (!currentRecommendationNode) {
-        return;
-      }
-      const source = result && typeof result === "object" ? result : {};
-      const finalMandarinText = normalizeText(source.finalMandarinText);
-      const listenText = normalizeText(source.listenText);
-      currentRecommendationNode.innerHTML = "";
-      if (!finalMandarinText && !listenText) {
-        currentRecommendationNode.textContent = "当前还没有识别结果。";
-        return;
-      }
-      const grid = document.createElement("div");
-      grid.className = "info-grid";
-      [
-        ["最终普通话听写稿", finalMandarinText || "空"],
-        ["听音阶段结果", listenText || "空"],
-        ["当前段", Number(source.segmentNumber) > 0 ? "第 " + String(source.segmentNumber) + " 段" : ""],
-        [
-          "听音总Token",
-          pickUsageValue(source.usage?.listen, ["total_tokens", "totalTokens"]),
-        ],
-        [
-          "收口总Token",
-          pickUsageValue(source.usage?.refine, ["total_tokens", "totalTokens"]),
-        ],
-        [
-          "总预估人民币",
-          pickCostValue(source.cost, ["totalEstimatedCostCny", "totalCny", "total_cost_cny"]),
-        ],
-      ]
-        .filter(function (item) {
-          return normalizeText(item[0]) && normalizeText(item[1]);
-        })
-        .forEach(function (item) {
-          const line = document.createElement("div");
-          line.className = "info-line";
-          const labelNode = document.createElement("span");
-          labelNode.className = "info-label";
-          labelNode.textContent = String(item[0]) + "：";
-          const valueNode = document.createElement("span");
-          valueNode.textContent = String(item[1]);
-          line.appendChild(labelNode);
-          line.appendChild(valueNode);
-          grid.appendChild(line);
-        });
-      currentRecommendationNode.appendChild(grid);
+      latestRecommendation = result && typeof result === "object" ? Object.assign({}, result) : null;
     }
 
     function renderBatchState(snapshot) {
@@ -729,7 +672,11 @@
       if (!aiMetaNode) {
         return;
       }
-      const source = result && typeof result === "object" ? result : {};
+      const source = Object.assign(
+        {},
+        latestRecommendation && typeof latestRecommendation === "object" ? latestRecommendation : {},
+        result && typeof result === "object" ? result : {}
+      );
       const listenUsage = source.usage?.listen || {};
       const refineUsage = source.usage?.refine || {};
       const listenCost = source.cost?.listen || {};
@@ -742,6 +689,9 @@
       const grid = document.createElement("div");
       grid.className = "info-grid";
       [
+        ["最终普通话听写稿", normalizeText(source.finalMandarinText)],
+        ["听音阶段结果", normalizeText(source.listenText)],
+        ["当前段", Number(source.segmentNumber) > 0 ? "第 " + String(source.segmentNumber) + " 段" : ""],
         ["听音模型", source.models?.listenModel || ""],
         ["收口模型", source.models?.refineModel || ""],
         ["听音输入Token", pickUsageValue(listenUsage, ["input_tokens", "prompt_tokens"])],
@@ -799,9 +749,7 @@
     }
 
     function setAiRecommendAutoFillEnabled(enabled) {
-      if (aiRecommendAutoFillToggleNode) {
-        aiRecommendAutoFillToggleNode.checked = enabled !== false;
-      }
+      void enabled;
     }
 
     function destroy() {
@@ -812,14 +760,13 @@
       statusNode = null;
       summaryNode = null;
       summaryCollapseButtonNode = null;
-      currentRecommendationNode = null;
       previewNode = null;
       aiMetaNode = null;
       batchStateNode = null;
       batchSelectionSummaryNode = null;
       batchSelectionGridNode = null;
       previewAutoApplyToggleNode = null;
-      aiRecommendAutoFillToggleNode = null;
+      latestRecommendation = null;
       batchSelectionState = {
         totalSegments: 0,
         selectedNumbers: [],

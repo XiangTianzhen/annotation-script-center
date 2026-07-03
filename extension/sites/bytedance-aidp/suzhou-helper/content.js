@@ -29,6 +29,9 @@
   const DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED = true;
   const CLEAR_SEGMENTS_BUTTON_ATTR = "data-asc-clear-segments-button";
   const FILL_LANGUAGE_KIND_BUTTON_ATTR = "data-asc-fill-language-kind-button";
+  const SEGMENT_RECOGNIZE_HEADER_ATTR = "data-asc-segment-recognize-header";
+  const SEGMENT_RECOGNIZE_CELL_ATTR = "data-asc-segment-recognize-cell";
+  const SEGMENT_RECOGNIZE_BUTTON_ATTR = "data-asc-segment-recognize-button";
   const HIDDEN_ATTR = "data-asc-platform-ai-hidden";
   const EXACT_PLATFORM_AI_SELECTORS = {
     insight: ".insight-container-Hn0Gna",
@@ -1499,6 +1502,228 @@
     );
   }
 
+  function findSegmentRowsTableRoot(root) {
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const descendants = collectDescendantElements(searchRoots[index]);
+      const virtualTable = descendants.find(function (node) {
+        const className = getClassName(node);
+        const text = normalizeText(node?.textContent || node?.innerText || "");
+        if (!className.includes("arco-table")) {
+          return false;
+        }
+        if (
+          !text.includes("序号") ||
+          !text.includes("区间") ||
+          !text.includes("转写文本") ||
+          (!text.includes("语音种类") && !text.includes("语言种类"))
+        ) {
+          return false;
+        }
+        return collectDescendantElements(node).some(function (child) {
+          return getClassName(child).includes("arco-table-tr");
+        });
+      });
+      if (virtualTable) {
+        return virtualTable;
+      }
+      const tables = safeQuerySelectorAll(searchRoots[index], "table");
+      for (let tableIndex = 0; tableIndex < tables.length; tableIndex += 1) {
+        const text = normalizeText(tables[tableIndex]?.textContent || tables[tableIndex]?.innerText || "");
+        if (
+          text.includes("序号") &&
+          text.includes("区间") &&
+          text.includes("转写文本") &&
+          (text.includes("语音种类") || text.includes("语言种类"))
+        ) {
+          return tables[tableIndex];
+        }
+      }
+    }
+    return null;
+  }
+
+  function getSegmentRowCells(rowNode, type) {
+    const directChildren = getChildElements(rowNode);
+    const expectHeader = type === "header";
+    return directChildren.filter(function (node) {
+      const tagName = String(node?.tagName || "").toUpperCase();
+      const className = getClassName(node);
+      if (expectHeader) {
+        return tagName === "TH" || className.includes("arco-table-th");
+      }
+      return tagName === "TD" || className.includes("arco-table-td");
+    });
+  }
+
+  function getSegmentTableHeaderRow(tableRoot) {
+    if (String(tableRoot?.tagName || "").toUpperCase() === "TABLE") {
+      return safeQuerySelectorAll(tableRoot, "tr").find(function (node) {
+        return safeQuerySelectorAll(node, "th").length > 0;
+      }) || null;
+    }
+    return collectDescendantElements(tableRoot).find(function (node) {
+      return getSegmentRowCells(node, "header").length > 0;
+    }) || null;
+  }
+
+  function getSegmentTableRows(tableRoot) {
+    if (String(tableRoot?.tagName || "").toUpperCase() === "TABLE") {
+      return safeQuerySelectorAll(tableRoot, "tr").filter(function (node) {
+        return safeQuerySelectorAll(node, "td").length > 0;
+      });
+    }
+    return collectDescendantElements(tableRoot).filter(function (node) {
+      return getSegmentRowCells(node, "body").length > 0;
+    });
+  }
+
+  function getSegmentNumberFromRow(rowNode, fallbackNumber) {
+    const cells = getSegmentRowCells(rowNode, "body");
+    const firstCellText = normalizeText(cells[0]?.textContent || cells[0]?.innerText || "");
+    const matched = firstCellText.match(/\d+/);
+    if (matched) {
+      const segmentNumber = Math.max(0, Math.round(Number(matched[0])) || 0);
+      if (segmentNumber > 0) {
+        return segmentNumber;
+      }
+    }
+    return Math.max(1, Math.round(Number(fallbackNumber || 0)) || 1);
+  }
+
+  function createSegmentRecognizeButton(documentLike, segmentNumber, onRecognize) {
+    if (!documentLike || typeof documentLike.createElement !== "function") {
+      return null;
+    }
+    const button = documentLike.createElement("button");
+    button.type = "button";
+    button.setAttribute(SEGMENT_RECOGNIZE_BUTTON_ATTR, "true");
+    button.setAttribute("data-segment-number", String(segmentNumber));
+    button.textContent = "识别音频";
+    button.style.padding = "0 8px";
+    button.style.height = "24px";
+    button.style.border = "1px solid #d7dce5";
+    button.style.borderRadius = "6px";
+    button.style.background = "#fff";
+    button.style.color = "#39424e";
+    button.style.cursor = "pointer";
+    button.style.fontSize = "12px";
+    button.style.whiteSpace = "nowrap";
+    button.addEventListener("click", function () {
+      if (typeof onRecognize === "function") {
+        onRecognize(segmentNumber);
+      }
+    });
+    return button;
+  }
+
+  function createSegmentRecognizeHeaderCell(documentLike, headerRow) {
+    if (!documentLike || typeof documentLike.createElement !== "function") {
+      return null;
+    }
+    const headerCells = getSegmentRowCells(headerRow, "header");
+    const useArcoLayout =
+      String(headerRow?.tagName || "").toUpperCase() !== "TR" ||
+      headerCells.some(function (node) {
+        return getClassName(node).includes("arco-table-th");
+      });
+    const headerCell = documentLike.createElement("th");
+    headerCell.setAttribute(SEGMENT_RECOGNIZE_HEADER_ATTR, "true");
+    if (useArcoLayout) {
+      headerCell.setAttribute("class", "arco-table-th");
+      headerCell.style.textAlign = "center";
+      headerCell.style.width = "100px";
+      headerCell.style.minWidth = "100px";
+      headerCell.style.maxWidth = "100px";
+      const item = documentLike.createElement("div");
+      item.setAttribute("class", "arco-table-th-item");
+      const title = documentLike.createElement("span");
+      title.setAttribute("class", "arco-table-th-item-title");
+      title.textContent = "识别音频";
+      item.appendChild(title);
+      headerCell.appendChild(item);
+      return headerCell;
+    }
+    headerCell.textContent = "识别音频";
+    return headerCell;
+  }
+
+  function createSegmentRecognizeCell(documentLike, rowNode, button) {
+    if (!documentLike || typeof documentLike.createElement !== "function" || !button) {
+      return null;
+    }
+    const bodyCells = getSegmentRowCells(rowNode, "body");
+    const useArcoLayout =
+      String(rowNode?.tagName || "").toUpperCase() !== "TR" ||
+      bodyCells.some(function (node) {
+        return getClassName(node).includes("arco-table-td");
+      });
+    if (useArcoLayout) {
+      const cell = documentLike.createElement("div");
+      cell.setAttribute("class", "arco-table-td");
+      cell.setAttribute(SEGMENT_RECOGNIZE_CELL_ATTR, "true");
+      cell.style.textAlign = "center";
+      cell.style.width = "100px";
+      cell.style.minWidth = "100px";
+      cell.style.maxWidth = "100px";
+      const wrapper = documentLike.createElement("div");
+      wrapper.setAttribute("class", "arco-table-cell");
+      wrapper.appendChild(button);
+      cell.appendChild(wrapper);
+      return cell;
+    }
+    const cell = documentLike.createElement("td");
+    cell.setAttribute(SEGMENT_RECOGNIZE_CELL_ATTR, "true");
+    cell.appendChild(button);
+    return cell;
+  }
+
+  function ensureSegmentRecognizeButtons(root, onRecognize) {
+    const tableRoot = findSegmentRowsTableRoot(root);
+    if (!tableRoot) {
+      return false;
+    }
+    const documentLike = tableRoot.ownerDocument || globalThis.document;
+    if (!documentLike || typeof documentLike.createElement !== "function") {
+      return false;
+    }
+    let inserted = false;
+    const headerRow = getSegmentTableHeaderRow(tableRoot);
+    if (
+      headerRow &&
+      safeQuerySelectorAll(headerRow, "[" + SEGMENT_RECOGNIZE_HEADER_ATTR + "='true']").length <= 0
+    ) {
+      const headerCell = createSegmentRecognizeHeaderCell(documentLike, headerRow);
+      if (headerCell) {
+        headerRow.appendChild(headerCell);
+        inserted = true;
+      }
+    }
+    const rows = getSegmentTableRows(tableRoot);
+    rows.forEach(function (rowNode, index) {
+      if (
+        safeQuerySelectorAll(rowNode, "[" + SEGMENT_RECOGNIZE_BUTTON_ATTR + "='true']").length > 0
+      ) {
+        return;
+      }
+      const button = createSegmentRecognizeButton(
+        documentLike,
+        getSegmentNumberFromRow(rowNode, index + 1),
+        onRecognize
+      );
+      if (!button) {
+        return;
+      }
+      const actionCell = createSegmentRecognizeCell(documentLike, rowNode, button);
+      if (!actionCell) {
+        return;
+      }
+      rowNode.appendChild(actionCell);
+      inserted = true;
+    });
+    return inserted;
+  }
+
   function scheduleRuntimeReload(runtimeContext) {
     if (typeof setTimeout !== "function") {
       return;
@@ -1614,20 +1839,41 @@
     if (!activeSegment) {
       throw new Error("请先在当前题里点击要识别的段。");
     }
+    return buildSegmentRequestContext(source, Number(activeSegment.segmentNumber || 0) || 0);
+  }
+
+  function buildSegmentRequestContext(context, segmentNumber) {
+    const source = context && typeof context === "object" ? context : {};
+    const targetSegmentNumber = Math.max(0, Math.round(Number(segmentNumber || 0)) || 0);
+    const targetSegment =
+      (Array.isArray(source.currentSegments) ? source.currentSegments : []).find(function (item) {
+        return Number(item?.segmentNumber || 0) === targetSegmentNumber;
+      }) || null;
+    if (!targetSegment) {
+      throw new Error("当前题里没有找到目标段，请刷新页面后重试。");
+    }
     return {
       audioUrl: normalizeText(source.audioUrl),
       selectionKey: normalizeText(source.selectionKey),
-      segmentNumber: Number(activeSegment.segmentNumber || 0) || 0,
+      segmentNumber: Number(targetSegment.segmentNumber || 0) || 0,
       selectedRange: {
-        startMs: Number(activeSegment.startMs || 0) || 0,
-        endMs: Number(activeSegment.endMs || 0) || 0,
+        startMs: Number(targetSegment.startMs || 0) || 0,
+        endMs: Number(targetSegment.endMs || 0) || 0,
         durationMs:
-          Math.max(0, Number(activeSegment.endMs || 0) - Number(activeSegment.startMs || 0)) || 0,
+          Math.max(0, Number(targetSegment.endMs || 0) - Number(targetSegment.startMs || 0)) || 0,
+      },
+      selection: {
+        startMs: Number(targetSegment.startMs || 0) || 0,
+        endMs: Number(targetSegment.endMs || 0) || 0,
+        durationMs:
+          Math.max(0, Number(targetSegment.endMs || 0) - Number(targetSegment.startMs || 0)) || 0,
       },
       fieldContext: {
-        text: normalizeText(activeSegment.text),
-        language: normalizeText(activeSegment.language),
+        text: normalizeText(targetSegment.text),
+        language: normalizeText(targetSegment.language),
       },
+      currentText: normalizeText(targetSegment.text),
+      currentLanguage: normalizeText(targetSegment.language),
       editorContext: {
         query: {
           taskId: normalizeText(source.taskId),
@@ -1953,13 +2199,17 @@
     return text || getNodeText(node);
   }
 
-  function findSegmentTableRoot(root) {
+  function findSegmentLanguageTableRoot(root) {
     const searchRoots = getSearchRoots(root);
     for (let index = 0; index < searchRoots.length; index += 1) {
       const tables = Array.from(searchRoots[index].querySelectorAll?.("table, div") || []);
       const matched = tables.find(function (node) {
         const text = getNodeText(node);
-        return text.includes("语言种类") && text.includes("转写文本") && text.includes("区间");
+        return (
+          (text.includes("语言种类") || text.includes("语音种类")) &&
+          text.includes("转写文本") &&
+          text.includes("区间")
+        );
       });
       if (matched) {
         return matched;
@@ -1969,7 +2219,7 @@
   }
 
   function findEmptyLanguageKindComboboxes(root) {
-    const tableRoot = findSegmentTableRoot(root);
+    const tableRoot = findSegmentLanguageTableRoot(root);
     if (!tableRoot || typeof tableRoot.querySelectorAll !== "function") {
       return [];
     }
@@ -2223,6 +2473,9 @@
         ensureFillLanguageKindsButton(document, function () {
           void handleFillLanguageKindsAction();
         });
+        ensureSegmentRecognizeButtons(document, function (segmentNumber) {
+          void handleRowRecommendAction(segmentNumber);
+        });
         const context = await helperRuntime.dataApi.getCurrentContext();
         helperRuntime.playbackScopeKey =
           normalizeText(context?.selectionKey) ||
@@ -2362,6 +2615,77 @@
         "当前段识别失败：" + (error && error.message ? error.message : String(error)),
         "error"
       );
+    }
+  }
+
+  async function handleRowRecommendAction(segmentNumber) {
+    if (!helperRuntime || !helperRuntime.ai) {
+      return;
+    }
+    if (helperRuntime.config?.aiRecommendEnabled === false) {
+      helperRuntime.ui?.setStatus?.("当前已关闭苏州话 AI 识别功能。", "error");
+      return;
+    }
+    if (helperRuntime.rowRecommendInFlight === true) {
+      helperRuntime.ui?.setStatus?.("当前已有正在运行的行内识别，请等待当前段完成后重试。", "error");
+      return;
+    }
+    const targetSegmentNumber = Math.max(0, Math.round(Number(segmentNumber || 0)) || 0);
+    if (targetSegmentNumber <= 0) {
+      helperRuntime.ui?.setStatus?.("当前没有找到可识别的目标段，请刷新页面后重试。", "error");
+      return;
+    }
+    helperRuntime.rowRecommendInFlight = true;
+    helperRuntime.rowRecommendSegmentNumber = targetSegmentNumber;
+    helperRuntime.ui.mount();
+    helperRuntime.ui.setStatus("正在识别第 " + String(targetSegmentNumber) + " 段普通话听写稿...", "");
+    try {
+      const context = await helperRuntime.dataApi.getCurrentContext();
+      helperRuntime.ui.renderAudioContext(context);
+      if (!normalizeText(context?.audioUrl)) {
+        helperRuntime.ui.setStatus(
+          "当前还没拿到音频地址，请等待页面初始化完成，或刷新当前详情页后重试。",
+          "error"
+        );
+        return;
+      }
+      const requestContext = buildSegmentRequestContext(context, targetSegmentNumber);
+      const recommendation = await helperRuntime.ai.recommend(requestContext);
+      helperRuntime.lastRecommendation = buildRecommendationDisplayPayload(recommendation);
+      helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
+      helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
+      const result = await helperRuntime.dataApi.writeCurrentRegionText({
+        selectionKey: helperRuntime.lastRecommendation.selectionKey,
+        segmentNumber: helperRuntime.lastRecommendation.segmentNumber,
+        finalMandarinText: helperRuntime.lastRecommendation.finalMandarinText,
+      });
+      if (!result.ok) {
+        helperRuntime.ui.setStatus(
+          "第 " +
+            String(targetSegmentNumber) +
+            " 段识别已生成，但写回失败：" +
+            normalizeText(result.message || "未知错误"),
+          "error"
+        );
+        return;
+      }
+      helperRuntime.ui.setStatus(result.message, result.writtenCount > 0 ? "success" : "warning");
+      if (result.writtenCount > 0) {
+        scheduleRuntimeReload(helperRuntime);
+      }
+    } catch (error) {
+      helperRuntime.ui.setStatus(
+        "第 " +
+          String(targetSegmentNumber) +
+          " 段识别失败：" +
+          (error && error.message ? error.message : String(error)),
+        "error"
+      );
+    } finally {
+      if (helperRuntime) {
+        helperRuntime.rowRecommendInFlight = false;
+        helperRuntime.rowRecommendSegmentNumber = 0;
+      }
     }
   }
 
@@ -2542,6 +2866,9 @@
       ensureFillLanguageKindsButton(document, function () {
         void handleFillLanguageKindsAction();
       });
+      ensureSegmentRecognizeButtons(document, function (segmentNumber) {
+        void handleRowRecommendAction(segmentNumber);
+      });
       scheduleHelperContextRefresh(0);
       return;
     }
@@ -2651,6 +2978,8 @@
       configSignature: configSignature,
       playbackScopeKey: getCurrentPlaybackScopeKey(),
       batchSelectionKey: "",
+      rowRecommendInFlight: false,
+      rowRecommendSegmentNumber: 0,
       scheduleReload: function () {
         scheduleRuntimeReload(helperRuntime);
       },
@@ -2668,6 +2997,9 @@
     });
     ensureFillLanguageKindsButton(document, function () {
       void handleFillLanguageKindsAction();
+    });
+    ensureSegmentRecognizeButtons(document, function (segmentNumber) {
+      void handleRowRecommendAction(segmentNumber);
     });
     ui.renderCurrentRecommendation(null);
     ui.renderAiMeta(null);
@@ -2699,6 +3031,9 @@
         });
         ensureFillLanguageKindsButton(document, function () {
           void handleFillLanguageKindsAction();
+        });
+        ensureSegmentRecognizeButtons(document, function (segmentNumber) {
+          void handleRowRecommendAction(segmentNumber);
         });
       }
       if (runtimePolicy.shouldHidePlatformAi) {
@@ -2737,6 +3072,9 @@
         });
         ensureFillLanguageKindsButton(document, function () {
           void handleFillLanguageKindsAction();
+        });
+        ensureSegmentRecognizeButtons(document, function (segmentNumber) {
+          void handleRowRecommendAction(segmentNumber);
         });
       }
       if (runtimePolicy.shouldHidePlatformAi) {
@@ -2881,9 +3219,11 @@
       getPlaybackComboboxLabel: getPlaybackComboboxLabel,
       ensureClearSegmentsButton: ensureClearSegmentsButton,
       ensureFillLanguageKindsButton: ensureFillLanguageKindsButton,
+      ensureSegmentRecognizeButtons: ensureSegmentRecognizeButtons,
       maybeAutoApplyPreview: maybeAutoApplyPreview,
       createShortcutActions: createShortcutActions,
       fillEmptyLanguageKinds: fillEmptyLanguageKinds,
+      buildSegmentRequestContext: buildSegmentRequestContext,
     },
   };
 

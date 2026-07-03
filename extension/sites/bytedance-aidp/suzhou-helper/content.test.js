@@ -290,6 +290,155 @@ function createFakeIframe(contentChildren) {
   return iframe;
 }
 
+function createAidpSegmentTableRow(segmentNumber) {
+  const pauseButton = new FakeElement({
+    tagName: "button",
+    text: "暂停",
+  });
+  return new FakeElement({
+    tagName: "tr",
+    children: [
+      new FakeElement({
+        tagName: "td",
+        text: String(segmentNumber),
+      }),
+      new FakeElement({
+        tagName: "td",
+        text: "起：0:0" + String(segmentNumber) + ".000 终：0:0" + String(segmentNumber) + ".500",
+      }),
+      new FakeElement({
+        tagName: "td",
+        children: [
+          new FakeElement({
+            tagName: "textarea",
+            value: "",
+          }),
+        ],
+      }),
+      new FakeElement({
+        tagName: "td",
+        children: [
+          new FakeElement({
+            tagName: "select",
+          }),
+        ],
+      }),
+      new FakeElement({
+        tagName: "td",
+        text: "播放选段",
+      }),
+      new FakeElement({
+        tagName: "td",
+        children: [pauseButton],
+      }),
+    ],
+  });
+}
+
+function createAidpVirtualSegmentTableRow(segmentNumber) {
+  return new FakeElement({
+    className: "arco-table-tr",
+    children: [
+      new FakeElement({
+        className: "arco-table-td",
+        children: [new FakeElement({ className: "arco-table-cell", text: String(segmentNumber) })],
+      }),
+      new FakeElement({
+        className: "arco-table-td",
+        children: [
+          new FakeElement({
+            className: "arco-table-cell",
+            text: "起：0:0" + String(segmentNumber) + ".000 终：0:0" + String(segmentNumber) + ".500",
+          }),
+        ],
+      }),
+      new FakeElement({
+        className: "arco-table-td",
+        children: [
+          new FakeElement({
+            className: "arco-table-cell",
+            children: [new FakeElement({ tagName: "textarea", value: "" })],
+          }),
+        ],
+      }),
+      new FakeElement({
+        className: "arco-table-td",
+        children: [
+          new FakeElement({
+            className: "arco-table-cell",
+            children: [
+              new FakeElement({
+                tagName: "div",
+                attributes: {
+                  role: "combobox",
+                },
+                text: "目标方言",
+              }),
+            ],
+          }),
+        ],
+      }),
+      new FakeElement({
+        className: "arco-table-td",
+        children: [
+          new FakeElement({
+            className: "arco-table-cell",
+            children: [new FakeElement({ tagName: "button", text: "播放选段" })],
+          }),
+        ],
+      }),
+      new FakeElement({
+        className: "arco-table-td",
+        children: [
+          new FakeElement({
+            className: "arco-table-cell",
+            children: [new FakeElement({ tagName: "button", text: "暂停" })],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+function createAidpVirtualSegmentTable(rows) {
+  return new FakeElement({
+    className: "arco-table arco-table-virtualized",
+    children: [
+      new FakeElement({
+        className: "arco-table-header",
+        children: [
+          new FakeElement({
+            tagName: "table",
+            children: [
+              new FakeElement({
+                tagName: "tr",
+                className: "arco-table-tr",
+                children: [
+                  new FakeElement({ tagName: "th", className: "arco-table-th", text: "序号" }),
+                  new FakeElement({ tagName: "th", className: "arco-table-th", text: "区间" }),
+                  new FakeElement({ tagName: "th", className: "arco-table-th", text: "转写文本" }),
+                  new FakeElement({ tagName: "th", className: "arco-table-th", text: "语言种类" }),
+                  new FakeElement({ tagName: "th", className: "arco-table-th", text: "音频段" }),
+                  new FakeElement({ tagName: "th", className: "arco-table-th", text: "操作" }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+      new FakeElement({
+        className: "arco-table-body",
+        children: [
+          new FakeElement({
+            className: "arco-table-body-inner",
+            children: Array.isArray(rows) ? rows : [],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
 test("ByteDance AIDP content derives hide policy from script settings", function () {
   const contentModule = loadContentModule();
   const policy = contentModule.__testOnly.resolveRuntimePolicy({
@@ -1000,6 +1149,149 @@ test("ByteDance AIDP content injects fill-language-kind button next to clear but
   assert.equal(fillButton.textContent, "填充语言种类");
   fillButton.click();
   assert.equal(filled, 1);
+});
+
+test("ByteDance AIDP content injects per-row recognize buttons once and keeps a single recognize header", function () {
+  const contentModule = loadContentModule();
+  const rowOne = createAidpSegmentTableRow(1);
+  const rowTwo = createAidpSegmentTableRow(2);
+  const table = new FakeElement({
+    tagName: "table",
+    children: [
+      new FakeElement({
+        tagName: "tr",
+        children: [
+          new FakeElement({ tagName: "th", text: "序号" }),
+          new FakeElement({ tagName: "th", text: "区间" }),
+          new FakeElement({ tagName: "th", text: "转写文本" }),
+          new FakeElement({ tagName: "th", text: "语音种类" }),
+          new FakeElement({ tagName: "th", text: "音频段" }),
+          new FakeElement({ tagName: "th", text: "操作" }),
+        ],
+      }),
+      rowOne,
+      rowTwo,
+    ],
+  });
+  const root = createFakeDocument([table]);
+
+  const firstInserted = contentModule.__testOnly.ensureSegmentRecognizeButtons(
+    root,
+    function () {}
+  );
+  const secondInserted = contentModule.__testOnly.ensureSegmentRecognizeButtons(
+    root,
+    function () {}
+  );
+  const recognizeButtons = root.querySelectorAll("[data-asc-segment-recognize-button='true']");
+
+  assert.equal(firstInserted, true);
+  assert.equal(secondInserted, false);
+  assert.equal(root.querySelectorAll("[data-asc-segment-recognize-header='true']").length, 1);
+  assert.equal(recognizeButtons.length, 2);
+  assert.equal(recognizeButtons[0].textContent, "识别音频");
+  assert.equal(recognizeButtons[1].textContent, "识别音频");
+});
+
+test("ByteDance AIDP content row recognize button dispatches the matching segment number", function () {
+  const contentModule = loadContentModule();
+  const clickedSegments = [];
+  const rowOne = createAidpSegmentTableRow(1);
+  const rowTwo = createAidpSegmentTableRow(2);
+  const table = new FakeElement({
+    tagName: "table",
+    children: [
+      new FakeElement({
+        tagName: "tr",
+        children: [
+          new FakeElement({ tagName: "th", text: "序号" }),
+          new FakeElement({ tagName: "th", text: "区间" }),
+          new FakeElement({ tagName: "th", text: "转写文本" }),
+          new FakeElement({ tagName: "th", text: "语音种类" }),
+          new FakeElement({ tagName: "th", text: "音频段" }),
+          new FakeElement({ tagName: "th", text: "操作" }),
+        ],
+      }),
+      rowOne,
+      rowTwo,
+    ],
+  });
+  const root = createFakeDocument([table]);
+
+  contentModule.__testOnly.ensureSegmentRecognizeButtons(root, function (segmentNumber) {
+    clickedSegments.push(segmentNumber);
+  });
+  const recognizeButtons = root.querySelectorAll("[data-asc-segment-recognize-button='true']");
+
+  recognizeButtons[1].click();
+
+  assert.deepEqual(clickedSegments, [2]);
+});
+
+test("ByteDance AIDP content injects per-row recognize buttons into Arco virtualized segment rows", function () {
+  const contentModule = loadContentModule();
+  const clickedSegments = [];
+  const root = createFakeDocument([
+    createAidpVirtualSegmentTable([
+      createAidpVirtualSegmentTableRow(1),
+      createAidpVirtualSegmentTableRow(2),
+    ]),
+  ]);
+
+  const firstInserted = contentModule.__testOnly.ensureSegmentRecognizeButtons(
+    root,
+    function (segmentNumber) {
+      clickedSegments.push(segmentNumber);
+    }
+  );
+  const secondInserted = contentModule.__testOnly.ensureSegmentRecognizeButtons(
+    root,
+    function () {}
+  );
+  const recognizeButtons = root.querySelectorAll("[data-asc-segment-recognize-button='true']");
+
+  recognizeButtons[1].click();
+
+  assert.equal(firstInserted, true);
+  assert.equal(secondInserted, false);
+  assert.equal(root.querySelectorAll("[data-asc-segment-recognize-header='true']").length, 1);
+  assert.equal(recognizeButtons.length, 2);
+  assert.deepEqual(clickedSegments, [2]);
+});
+
+test("ByteDance AIDP content builds request context from the specified segment number", function () {
+  const contentModule = loadContentModule();
+  const requestContext = contentModule.__testOnly.buildSegmentRequestContext(
+    {
+      selectionKey: "item-1",
+      audioUrl: "https://audio.example.test/demo.mp3",
+      activeSegmentNumber: 1,
+      currentSegments: [
+        {
+          segmentNumber: 1,
+          startMs: 0,
+          endMs: 1200,
+          text: "",
+          language: "目标方言",
+        },
+        {
+          segmentNumber: 2,
+          startMs: 1300,
+          endMs: 2200,
+          text: "原文本",
+          language: "目标方言",
+        },
+      ],
+    },
+    2
+  );
+
+  assert.equal(requestContext.segmentNumber, 2);
+  assert.equal(requestContext.selection.startMs, 1300);
+  assert.equal(requestContext.selection.endMs, 2200);
+  assert.equal(requestContext.selection.durationMs, 900);
+  assert.equal(requestContext.currentText, "原文本");
+  assert.equal(requestContext.currentLanguage, "目标方言");
 });
 
 test("ByteDance AIDP content fills only empty language-kind comboboxes with target dialect", async function () {
