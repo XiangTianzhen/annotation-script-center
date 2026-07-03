@@ -2514,6 +2514,39 @@
       rawSource.segmentPreviewAutoApplyEnabled === false
         ? false
         : defaultConfig.segmentPreviewAutoApplyEnabled !== false;
+    result.aiRecommendEnabled = result.aiRecommendEnabled !== false;
+    result.aiRecommendAutoFillEnabled =
+      rawSource.aiRecommendAutoFillEnabled === false
+        ? false
+        : defaultConfig.aiRecommendAutoFillEnabled !== false;
+    result.aiRecommendEndpoint = normalizeHttpEndpoint(
+      result.aiRecommendEndpoint,
+      defaultConfig.aiRecommendEndpoint ||
+        constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT
+    );
+    result.aiRecommendRequestTimeoutMs = normalizeAiRequestTimeoutValue(
+      result.aiRecommendRequestTimeoutMs,
+      defaultConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
+    );
+    result.aiRecommendRequestTimeoutMs = Math.max(
+      1000,
+      Math.min(DEFAULT_AI_REQUEST_TIMEOUT_MS, result.aiRecommendRequestTimeoutMs)
+    );
+    result.aiRecommendListenModel = normalizeDataBakerListenModel(
+      rawSource.aiRecommendListenModel || rawSource.aiRecommendModel || result.aiRecommendListenModel,
+      defaultConfig.aiRecommendListenModel || defaultConfig.aiRecommendModel || "qwen3.5-omni-flash",
+      constants
+    );
+    result.aiRecommendListenPrompt = normalizeJudgementAiPrompt(result.aiRecommendListenPrompt);
+    normalizeAishellTechStageParams(result, "aiRecommendListen");
+    result.aiRecommendRefineModel = normalizeDataBakerCompareModel(
+      rawSource.aiRecommendRefineModel || result.aiRecommendRefineModel,
+      defaultConfig.aiRecommendRefineModel || "qwen3.5-plus",
+      constants
+    );
+    result.aiRecommendRefinePrompt = normalizeJudgementAiPrompt(result.aiRecommendRefinePrompt);
+    normalizeAishellTechStageParams(result, "aiRecommendRefine");
+    delete result.aiRecommendModel;
     result.defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
       rawSource.defaultPlaybackRate,
       defaultConfig.defaultPlaybackRate
@@ -2556,6 +2589,32 @@
             segmentSilenceThresholdDbfs: -31,
             mergeContiguousSuggestedSegmentsEnabled: true,
             segmentPreviewAutoApplyEnabled: true,
+            aiRecommendEnabled: true,
+            aiRecommendAutoFillEnabled: true,
+            aiRecommendEndpoint:
+              constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT ||
+              "http://127.0.0.1:3333/api/bytedance-aidp/suzhou-helper/ai/recommend",
+            aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendListenPrompt: "",
+            aiRecommendListenTemperature: "",
+            aiRecommendListenTopP: "",
+            aiRecommendListenMaxTokens: "",
+            aiRecommendListenMaxCompletionTokens: "",
+            aiRecommendListenPresencePenalty: "",
+            aiRecommendListenFrequencyPenalty: "",
+            aiRecommendListenSeed: "",
+            aiRecommendListenStopSequences: "",
+            aiRecommendRefineModel: "qwen3.5-plus",
+            aiRecommendRefinePrompt: "",
+            aiRecommendRefineTemperature: "",
+            aiRecommendRefineTopP: "",
+            aiRecommendRefineMaxTokens: "",
+            aiRecommendRefineMaxCompletionTokens: "",
+            aiRecommendRefinePresencePenalty: "",
+            aiRecommendRefineFrequencyPenalty: "",
+            aiRecommendRefineSeed: "",
+            aiRecommendRefineStopSequences: "",
             defaultPlaybackRate: 1,
             fixedWaveZoom: 2,
             contractMode: "dom-guarded",
@@ -4453,6 +4512,39 @@
                   currentConfig.mergeContiguousSuggestedSegmentsEnabled !== false,
                 segmentPreviewAutoApplyEnabled:
                   currentConfig.segmentPreviewAutoApplyEnabled !== false,
+                aiRecommendEnabled: currentConfig.aiRecommendEnabled !== false,
+                aiRecommendAutoFillEnabled:
+                  currentConfig.aiRecommendAutoFillEnabled !== false,
+                aiRecommendEndpoint: currentConfig.aiRecommendEndpoint,
+                aiRecommendRequestTimeoutMs: currentConfig.aiRecommendRequestTimeoutMs,
+                aiRecommendListenModel: currentConfig.aiRecommendListenModel,
+                aiRecommendListenPrompt: currentConfig.aiRecommendListenPrompt,
+                aiRecommendListenTemperature: currentConfig.aiRecommendListenTemperature,
+                aiRecommendListenTopP: currentConfig.aiRecommendListenTopP,
+                aiRecommendListenMaxTokens: currentConfig.aiRecommendListenMaxTokens,
+                aiRecommendListenMaxCompletionTokens:
+                  currentConfig.aiRecommendListenMaxCompletionTokens,
+                aiRecommendListenPresencePenalty:
+                  currentConfig.aiRecommendListenPresencePenalty,
+                aiRecommendListenFrequencyPenalty:
+                  currentConfig.aiRecommendListenFrequencyPenalty,
+                aiRecommendListenSeed: currentConfig.aiRecommendListenSeed,
+                aiRecommendListenStopSequences:
+                  currentConfig.aiRecommendListenStopSequences,
+                aiRecommendRefineModel: currentConfig.aiRecommendRefineModel,
+                aiRecommendRefinePrompt: currentConfig.aiRecommendRefinePrompt,
+                aiRecommendRefineTemperature: currentConfig.aiRecommendRefineTemperature,
+                aiRecommendRefineTopP: currentConfig.aiRecommendRefineTopP,
+                aiRecommendRefineMaxTokens: currentConfig.aiRecommendRefineMaxTokens,
+                aiRecommendRefineMaxCompletionTokens:
+                  currentConfig.aiRecommendRefineMaxCompletionTokens,
+                aiRecommendRefinePresencePenalty:
+                  currentConfig.aiRecommendRefinePresencePenalty,
+                aiRecommendRefineFrequencyPenalty:
+                  currentConfig.aiRecommendRefineFrequencyPenalty,
+                aiRecommendRefineSeed: currentConfig.aiRecommendRefineSeed,
+                aiRecommendRefineStopSequences:
+                  currentConfig.aiRecommendRefineStopSequences,
                 defaultPlaybackRate: currentConfig.defaultPlaybackRate,
                 fixedWaveZoom: currentConfig.fixedWaveZoom,
                 shortcuts: currentConfig.shortcuts,

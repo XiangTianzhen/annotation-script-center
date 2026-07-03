@@ -4,7 +4,9 @@
 
 - 目录：`platform-resources/bytedance-aidp/suzhou-helper/backend`
 - 类型：脚本级统一后端路由
-- 当前只承载 `mark-v3` 详情页分段建议预览，不承载平台提交、领取或批量流转
+- 当前承载两组能力：
+  - 分段建议预览
+  - 苏州话普通话听写 AI 推荐
 
 ## 当前文件
 
@@ -12,29 +14,54 @@
 | --- | --- |
 | `index.js` | 注册苏州话脚本后端路由 |
 | `segment-routes.js` | 暴露分段建议健康检查与预览接口 |
+| `ai-routes.js` | 暴露苏州话 AI 推荐 `health / defaults / recommend` 接口 |
+| `ai-service.js` | 两阶段听音与普通话听写收口、usage/cost 汇总、响应结构收口 |
+| `ai-call-log.js` | 苏州话脚本 AI 调用日志写入器 |
 
 ## 当前接口
 
-- `GET /api/bytedance-aidp/suzhou-helper/segment/health`
-  - 健康检查与规则摘要
-- `POST /api/bytedance-aidp/suzhou-helper/segment/preview`
-  - 输入当前音频 URL、时长、现有分段和静音参数
-  - 输出建议分段与变化摘要
+- 分段建议：
+  - `GET /api/bytedance-aidp/suzhou-helper/segment/health`
+  - `POST /api/bytedance-aidp/suzhou-helper/segment/preview`
+- AI 推荐：
+  - `GET /api/bytedance-aidp/suzhou-helper/ai/recommend/health`
+  - `GET /api/bytedance-aidp/suzhou-helper/ai/recommend/defaults`
+  - `POST /api/bytedance-aidp/suzhou-helper/ai/recommend`
 
-## 实现说明
+## AI 返回结构
 
-- 当前直接复用 `platform-resources/data-baker-cvpc/liuzhou-helper/backend/segment-service.js`
-- 当前差异不仅是路由命名空间，还包括 AIDP 专用默认规则：
-  - CVPC：`/api/data-baker-cvpc/liuzhou-helper/segment/*`
-  - AIDP：`/api/bytedance-aidp/suzhou-helper/segment/*`
-  - AIDP 默认静音阈值：`-31 dBFS`
-  - AIDP 前后静音补偿默认 `300ms`，允许 `0 ~ 500ms`
-  - AIDP 额外启用“明显长静音保留静音核心”的内部后处理，用于避免前后补偿把可视静音区完全吞回语音段里
-  - AIDP 默认开启“连续相接自动合并”，会把同一原始段内首尾实际相接或只差 `10ms` 内显示误差的建议段并回一段
-- 当前预览请求除 `rules.silenceThresholdDbfs / rules.contextPaddingMs` 外，还允许通过 `editorContext.mergeContiguousSuggestedSegmentsEnabled` 关闭连续并段；该字段只用于脚本级内部行为，不改变对外接口路径
+- 成功响应固定返回：
+  - `listenText`
+  - `finalMandarinText`
+  - `usage`
+  - `cost`
+  - `timing`
+  - `models`
+  - `raw`
+  - `debug`
+- 最终可写回字段固定只有：
+  - `finalMandarinText`
+
+## AI 规则
+
+- 两阶段固定为：
+  - `listen`：原始听音草稿
+  - `refine`：普通话听写收口
+- 最终输出规则固定为：
+  - 最终输出是“普通话听写稿”，不是苏州话原文稿
+  - 不是润色稿，不做语义扩写
+  - 语气词、笑声等按听到的普通话写法保留
+  - 明显口吃式连续重复最多保留 `3` 次
+  - 正常有语义的重复内容不压缩
+  - 纯静音或完全听不清时返回空字符串
+
+## 日志与导出
+
+- 苏州话脚本独立 AI 调用日志当前已接入后台 `AI 调用记录` 数据集选项
+- 导出 CSV 时保留阶段级 token 与人民币列
 
 ## 当前边界
 
 - 当前不接平台鉴权字段、签名地址持久化
 - 当前不直接调用 AIDP 保存、提交或切题接口
-- 当前只提供“生成分段建议”的后端分析能力；真正写回平台仍由浏览器扩展使用页面内捕获的暂存契约完成
+- 当前只提供分析能力；真正写回平台仍由浏览器扩展使用页面内捕获的 `SubmitTempItemAnswer` 契约完成

@@ -124,6 +124,8 @@
   const AISHELL_TECH_AI_RECOMMEND_PATH = "/api/aishell-tech/minnan-helper/ai/recommend";
   const AISHELL_TECH_VIETNAMESE_AI_RECOMMEND_PATH =
     "/api/aishell-tech/vietnamese-helper/ai/recommend";
+  const BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH =
+    "/api/bytedance-aidp/suzhou-helper/ai/recommend";
   const TRANSCRIPTION_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
   const TRANSCRIPTION_STATS_DOWNLOAD_PATH =
     "/api/alibaba-labelx/asr-transcription/statistics/download";
@@ -145,6 +147,10 @@
     BACKEND_ENDPOINTS.server + DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH;
   const DATA_BAKER_CVPC_SEGMENT_PREVIEW_LOCAL_ENDPOINT =
     BACKEND_ENDPOINTS.local + DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH;
+  const BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT =
+    BACKEND_ENDPOINTS.server + BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH;
+  const BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_LOCAL_ENDPOINT =
+    BACKEND_ENDPOINTS.local + BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH;
   const DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT =
     BACKEND_ENDPOINTS.server + DATABAKER_EXPORT_UPLOAD_PATH;
   const DATABAKER_EXPORT_UPLOAD_LOCAL_ENDPOINT =
@@ -1381,10 +1387,10 @@
       label: "苏州话脚本",
       shortLabel: "苏州话脚本",
       description:
-        "AIDP mark-v3 详情页苏州话辅助：平台 AI 显隐、分段建议、快捷键与语言种类补齐。",
+        "AIDP mark-v3 详情页苏州话辅助：普通话听写稿 AI、批量识别、分段建议、快捷键与语言种类补齐。",
       note:
-        "当前支持分段建议生成与平台暂存写回，可选生成后立即应用；不自动提交、不自动切题，应用建议时默认带“目标方言”，手动画段可手动填充空语言种类。",
-      capabilityScope: "aidp-segmentation-and-shortcuts-beta",
+        "当前支持当前段 / 批量普通话听写稿识别与平台暂存直写，可选识别完成后自动填入；不自动提交、不自动切题，不改动 `ms` 或提交链路。",
+      capabilityScope: "aidp-ai-transcription-and-segmentation-beta",
       statusLabel: "苏州话脚本 Beta",
       detailView: "bytedance-aidp-suzhou-helper",
       host: BYTEDANCE_AIDP_PLATFORM.host,
@@ -1986,6 +1992,30 @@
           segmentSilenceThresholdDbfs: -31,
           mergeContiguousSuggestedSegmentsEnabled: true,
           segmentPreviewAutoApplyEnabled: true,
+          aiRecommendEnabled: true,
+          aiRecommendAutoFillEnabled: true,
+          aiRecommendEndpoint: BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT,
+          aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+          aiRecommendListenModel: "qwen3.5-omni-flash",
+          aiRecommendListenPrompt: "",
+          aiRecommendListenTemperature: "",
+          aiRecommendListenTopP: "",
+          aiRecommendListenMaxTokens: "",
+          aiRecommendListenMaxCompletionTokens: "",
+          aiRecommendListenPresencePenalty: "",
+          aiRecommendListenFrequencyPenalty: "",
+          aiRecommendListenSeed: "",
+          aiRecommendListenStopSequences: "",
+          aiRecommendRefineModel: "qwen3.5-plus",
+          aiRecommendRefinePrompt: "",
+          aiRecommendRefineTemperature: "",
+          aiRecommendRefineTopP: "",
+          aiRecommendRefineMaxTokens: "",
+          aiRecommendRefineMaxCompletionTokens: "",
+          aiRecommendRefinePresencePenalty: "",
+          aiRecommendRefineFrequencyPenalty: "",
+          aiRecommendRefineSeed: "",
+          aiRecommendRefineStopSequences: "",
           defaultPlaybackRate: 1,
           fixedWaveZoom: 2,
           contractMode: "dom-guarded",
@@ -2319,6 +2349,11 @@
     DATA_BAKER_CVPC_SEGMENT_PREVIEW_LOCAL_ENDPOINT:
       DATA_BAKER_CVPC_SEGMENT_PREVIEW_LOCAL_ENDPOINT,
     DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH: DATA_BAKER_CVPC_SEGMENT_PREVIEW_PATH,
+    BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT:
+      BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT,
+    BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_LOCAL_ENDPOINT:
+      BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_LOCAL_ENDPOINT,
+    BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH: BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH,
     DATABAKER_EXPORT_UPLOAD_PATH: DATABAKER_EXPORT_UPLOAD_PATH,
     DATABAKER_EXPORT_DOWNLOAD_PATH: DATABAKER_EXPORT_DOWNLOAD_PATH,
     DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT: DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT,

@@ -1,3 +1,56 @@
+## 2026-07-03（补齐 ByteDance AIDP 苏州话 AI 识别、批量识别与调用记录）
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - 接入当前段普通话听写识别、批量识别、AI 信息展示与自动填入开关
+  - 批量识别固定只处理当前题当前页 `regions`，默认并发 `5`
+  - 修正两阶段参数映射，确保前端传给后端的是 `top_p / max_tokens / max_completion_tokens` 等真实字段名
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/data-api.js`
+  - 新增当前段 `txt` 写回与批量 `txt` 合并写回
+  - 空结果不覆盖已有非空 `txt`
+  - 批量结束后只发一次 `SubmitTempItemAnswer`
+- 新增 `extension/sites/bytedance-aidp/suzhou-helper/ai-recommendation.js`
+  - 接入苏州话脚本 AI 客户端
+  - 支持裁当前段音频并调用统一后端推荐接口
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.js`
+  - 面板扩成 `当前段识别 / 批量识别 / 分段建议 / AI信息` 四块
+  - AI 信息改为展示两阶段 token、预估人民币、raw、debug
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - 文档口径改为“普通话听写稿”
+  - 明确最终只写 `regions[*].txt`，不改 `ms`
+- 更新 `extension/options/options.js`
+  - 苏州话详情页接入 AI 设置面板
+  - 新增 AI 开关、自动填入、超时、听音 / 普通话听写收口两阶段模型与参数读写
+  - 接入后端 defaults 拉取与回填
+- 更新 `extension/options/options.html`
+  - 苏州话基础设置说明改为与 AI 设置面板配套的新口径
+- 更新 `extension/options/options-bytedance-aidp-ui.test.js`
+  - 回归校验苏州话 options 源码已包含 AI 设置与新的写回边界说明
+- 更新 `extension/shared/constants.js`
+  - 为苏州话脚本补齐 AI endpoint 与默认 AI 配置
+- 更新 `extension/shared/storage.js`
+  - 为苏州话脚本补齐 AI 配置归一化与默认值
+- 更新 `extension/shared/storage.bytedance-aidp.test.js`
+  - 回归校验苏州话 AI 默认配置与 timeout/model 归一化
+- 更新 `extension/manifest.json`
+  - 为 ByteDance AIDP 注入 `shared/ai-usage-meta.js` 与 `ai-recommendation.js`
+- 新增后端 AI 能力：
+  - `platform-resources/bytedance-aidp/suzhou-helper/backend/ai-service.js`
+  - `platform-resources/bytedance-aidp/suzhou-helper/backend/ai-routes.js`
+  - `platform-resources/bytedance-aidp/suzhou-helper/backend/ai-call-log.js`
+  - `platform-resources/bytedance-aidp/suzhou-helper/ai/adapter.js`
+  - `platform-resources/bytedance-aidp/suzhou-helper/ai/assets/suzhou-rules.md`
+- 更新 `platform-resources/bytedance-aidp/suzhou-helper/backend/index.js`
+  - 注册苏州话 AI 推荐路由
+- 更新 `platform-resources/backend/ai-call-log-download/routes.js`
+  - 新增 `ByteDance AIDP 苏州话脚本 AI 调用记录` 数据集
+- 更新文档：
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/backend/README.md`
+- 更新测试：
+  - `extension/sites/bytedance-aidp/suzhou-helper/data-api.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+  - `platform-resources/bytedance-aidp/suzhou-helper/backend/ai-service.test.js`
+
 ## 2026-07-03（切换 ByteDance AIDP 填充语言种类为暂存直写）
 - 更新 `extension/sites/bytedance-aidp/suzhou-helper/data-api.js`
   - 新增 `fillEmptyRegionLanguages`，复用已捕获的 `SubmitTempItemAnswer` 契约直写当前题空 `regions[*].ms`

@@ -691,7 +691,7 @@
             <div class="detail-section-head">
               <div>
                 <strong>基础设置</strong>
-                <span>当前支持平台 AI 显隐、分段建议写回、快捷键和应用时语言补齐；不自动提交、不自动切题。</span>
+                <span>当前支持普通话听写稿 AI、批量识别、分段建议写回、快捷键和语言补齐；不自动提交、不自动切题。</span>
               </div>
             </div>
             <div class="detail-grid two">
@@ -708,6 +708,12 @@
                 <strong>当前隐藏目标</strong>
                 <span>当前只处理 `.insight-container-Hn0Gna` 与 `.trigger-wrapper-RlG7Dx` 两类平台 AI 板块。</span>
                 <span>页面重渲染后会继续按当前开关补做显隐，不处理其他未确认模块。</span>
+              </div>
+
+              <div class="field-card">
+                <strong>AI 设置说明</strong>
+                <span>普通话听写识别的开关、自动填入、超时、听音模型和普通话听写收口模型已移动到右侧共享 `AI 设置` 面板。</span>
+                <span>这里继续只保留平台 AI 显隐、分段建议、波形控件和当前边界说明。</span>
               </div>
             </div>
 
@@ -810,7 +816,7 @@
               <div class="field-card">
                 <strong>写入契约状态</strong>
                 <span id="bytedance-aidp-contract-mode">
-                  仅允许 DOM 显隐控制；不写入平台字段，不触发保存、提交或 AI 请求。
+                  仅允许 DOM 显隐、普通话听写稿写回 `txt`、波形控件回填和显式分段建议写回；不触发提交或下一题。
                 </span>
               </div>
             </div>
@@ -818,7 +824,7 @@
             <div class="field-card">
               <strong>当前边界</strong>
               <span>快捷键只绑定详情页安全动作；按钮缺失或 disabled 时不会绕过平台限制。</span>
-              <span>详情页仍不自动提交、不自动切题；只调用现有暂存写回链路，不新增平台提交接口。</span>
+              <span>详情页仍不自动提交、不自动切题；AI 最终只写 `regions[*].txt`，不改 `ms`，只调用现有暂存写回链路。</span>
             </div>
 
             <div class="field-actions">

@@ -5,12 +5,20 @@
   const APPLY_SUCCESS_MESSAGE = "已通过平台暂存接口应用分段建议，请刷新页面复核。";
   const FILL_LANGUAGE_SUCCESS_MESSAGE = "已通过平台暂存接口填充空语言种类，请刷新页面复核。";
   const FILL_LANGUAGE_EMPTY_MESSAGE = "当前没有空的语言种类需要填充。";
+  const WRITE_CURRENT_TEXT_SUCCESS_MESSAGE =
+    "已通过平台暂存接口写回当前段普通话听写稿，请刷新页面复核。";
+  const WRITE_BATCH_TEXT_SUCCESS_MESSAGE =
+    "已通过平台暂存接口批量写回普通话听写稿，请刷新页面复核。";
+  const WRITE_CURRENT_TEXT_SKIP_EXISTING_MESSAGE = "当前段 AI 结果为空，已保留原有文本。";
+  const WRITE_CURRENT_TEXT_SKIP_EMPTY_MESSAGE = "当前段 AI 结果为空，未写入任何文本。";
+  const WRITE_BATCH_TEXT_EMPTY_MESSAGE = "当前没有可写回的普通话听写稿。";
   const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的分段建议。";
   const PREVIEW_STALE_MESSAGE = "当前页面分段状态已变化，旧分段建议已失效，请重新生成。";
   const UNSAFE_TABLE_MESSAGE = "当前分段表里已有文本或语音种类，自动应用可能覆盖现有标注。";
   const SUBMIT_AUTH_MISSING_MESSAGE =
     "未获取到平台暂存请求的访问凭据，请刷新页面或手动暂存一次后重试。";
   const DETAIL_CONTEXT_MISSING_MESSAGE = "当前页详情上下文尚未就绪，请刷新后重试。";
+  const ACTIVE_SEGMENT_MISSING_MESSAGE = "请先在当前题里激活要识别的段。";
   const KNOWN_REGION_FIELDS = new Set(["no", "id", "start", "end", "disabled", "txt", "ms"]);
 
   function normalizeText(value) {
@@ -254,6 +262,7 @@
     if (!tableRoot) {
       return {
         rows: [],
+        activeSegmentNumber: 0,
         hasUnsafeData: false,
         unsafeReason: "",
       };
@@ -274,9 +283,45 @@
     });
     return {
       rows: rows,
+      activeSegmentNumber: resolveActiveSegmentNumber(tableRoot, rows, documentLike),
       hasUnsafeData: hasUnsafeData,
       unsafeReason: hasUnsafeData ? UNSAFE_TABLE_MESSAGE : "",
     };
+  }
+
+  function resolveActiveSegmentNumber(tableRoot, rows, documentLike) {
+    const tableRows = queryAll(tableRoot, "tr");
+    const activeElement = documentLike?.activeElement || null;
+    const activeRow =
+      activeElement && typeof activeElement.closest === "function"
+        ? activeElement.closest("tr")
+        : null;
+    if (activeRow) {
+      const rowIndex = tableRows.indexOf(activeRow);
+      if (rowIndex >= 0 && rows[rowIndex]) {
+        return Number(rows[rowIndex].segmentNumber || rowIndex + 1) || 0;
+      }
+    }
+    const selectedRow = tableRows.find(function (node) {
+      const className = normalizeText(node?.className || "").toLowerCase();
+      return (
+        normalizeText(node?.getAttribute?.("aria-selected")).toLowerCase() === "true" ||
+        normalizeText(node?.getAttribute?.("data-selected")).toLowerCase() === "true" ||
+        className.includes("active") ||
+        className.includes("selected") ||
+        className.includes("current")
+      );
+    });
+    if (selectedRow) {
+      const rowIndex = tableRows.indexOf(selectedRow);
+      if (rowIndex >= 0 && rows[rowIndex]) {
+        return Number(rows[rowIndex].segmentNumber || rowIndex + 1) || 0;
+      }
+    }
+    if (rows.length === 1) {
+      return Number(rows[0].segmentNumber || 1) || 1;
+    }
+    return Math.max(0, Math.round(Number(documentLike?.activeSegmentNumber || 0)) || 0);
   }
 
   function hasMeaningfulRegionExtras(region) {
@@ -367,6 +412,14 @@
       currentAnswer?.data?.duration,
       toFiniteNumber(currentAnswer?.dataMap?.duration, 0)
     );
+    const activeSegmentNumber = Math.max(
+      0,
+      Math.round(Number(tableState?.activeSegmentNumber || 0)) || 0
+    );
+    const activeSegment =
+      currentSegments.find(function (item) {
+        return Number(item.segmentNumber || 0) === activeSegmentNumber;
+      }) || null;
     return {
       taskId: normalizeText(submitSnapshot?.body?.TaskID || route?.taskId),
       nodeId: normalizeText(submitSnapshot?.body?.NodeID || route?.markIndex || "1"),
@@ -389,6 +442,8 @@
       ),
       currentSegments: currentSegments,
       currentSignature: buildRegionSignature(currentSegments),
+      activeSegmentNumber: activeSegmentNumber,
+      activeSegment: activeSegment,
       selectionKey: normalizeText(
         submitSnapshot?.itemId || receiveSnapshot?.itemId || currentAnswer?.itemID
       ),
@@ -589,6 +644,111 @@
     baseBody.StagingTime = normalizeText(baseBody.StagingTime || context.stagingTime || "604800");
     baseBody.TaskID = normalizeText(baseBody.TaskID || context.taskId);
     return baseBody;
+  }
+
+  function normalizeRegionTextUpdates(value) {
+    const updates = Array.isArray(value) ? value : [value];
+    const seen = new Set();
+    return updates
+      .map(function (item) {
+        const source = item && typeof item === "object" ? item : {};
+        const segmentNumber = Math.max(0, Math.round(Number(source.segmentNumber || 0)) || 0);
+        const regionId = normalizeText(source.regionId || source.id);
+        const key = regionId || String(segmentNumber || "");
+        if (!key || seen.has(key)) {
+          return null;
+        }
+        seen.add(key);
+        return {
+          segmentNumber: segmentNumber,
+          regionId: regionId,
+          finalMandarinText: normalizeText(source.finalMandarinText || source.text),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function matchRegionUpdate(region, update) {
+    if (!region || !update) {
+      return false;
+    }
+    if (update.regionId && normalizeText(region.id) === update.regionId) {
+      return true;
+    }
+    return Number(region.no || 0) === Number(update.segmentNumber || 0);
+  }
+
+  function applyRegionTextUpdates(regions, updates) {
+    const source = Array.isArray(regions) ? regions : [];
+    const normalizedUpdates = normalizeRegionTextUpdates(updates);
+    let writtenCount = 0;
+    let skippedCount = 0;
+    const nextRegions = source.map(function (item) {
+      const region = item && typeof item === "object" ? clone(item) || {} : {};
+      const matchedUpdate = normalizedUpdates.find(function (update) {
+        return matchRegionUpdate(region, update);
+      });
+      if (!matchedUpdate) {
+        return region;
+      }
+      const nextText = normalizeText(matchedUpdate.finalMandarinText);
+      if (!nextText) {
+        skippedCount += 1;
+        return region;
+      }
+      region.txt = nextText;
+      writtenCount += 1;
+      return region;
+    });
+    return {
+      regions: nextRegions,
+      writtenCount: writtenCount,
+      skippedCount: skippedCount,
+    };
+  }
+
+  function updateTempAnswerWithRegionTexts(answer, context, updates) {
+    const nextAnswer = clone(answer && typeof answer === "object" ? answer : {}) || {};
+    if (!nextAnswer.data || typeof nextAnswer.data !== "object") {
+      nextAnswer.data = {};
+    }
+    if (!nextAnswer.dataMap || typeof nextAnswer.dataMap !== "object") {
+      nextAnswer.dataMap = {};
+    }
+    nextAnswer.templateID = normalizeText(nextAnswer.templateID || context.templateID);
+    nextAnswer.itemID = normalizeText(nextAnswer.itemID || context.itemId);
+    nextAnswer.isAbandoned = nextAnswer.isAbandoned === true;
+
+    const baseDataRegions = Array.isArray(nextAnswer.data.regions) ? nextAnswer.data.regions : [];
+    const baseDataMapRegions = Array.isArray(nextAnswer.dataMap.regions)
+      ? nextAnswer.dataMap.regions
+      : [];
+    const primaryRegions = baseDataRegions.length > 0 ? baseDataRegions : baseDataMapRegions;
+    const primaryResult = applyRegionTextUpdates(primaryRegions, updates);
+    const dataResult =
+      baseDataRegions.length > 0
+        ? applyRegionTextUpdates(baseDataRegions, updates)
+        : {
+            regions: clone(primaryResult.regions),
+            writtenCount: primaryResult.writtenCount,
+            skippedCount: primaryResult.skippedCount,
+          };
+    const dataMapResult =
+      baseDataMapRegions.length > 0
+        ? applyRegionTextUpdates(baseDataMapRegions, updates)
+        : {
+            regions: clone(primaryResult.regions),
+            writtenCount: primaryResult.writtenCount,
+            skippedCount: primaryResult.skippedCount,
+          };
+
+    nextAnswer.data.regions = dataResult.regions;
+    nextAnswer.dataMap.regions = dataMapResult.regions;
+    return {
+      nextAnswer: nextAnswer,
+      writtenCount: primaryResult.writtenCount,
+      skippedCount: primaryResult.skippedCount,
+    };
   }
 
   async function postSubmit(fetchImpl, submitSnapshot, requestBody) {
@@ -809,6 +969,163 @@
       };
     }
 
+    async function writeCurrentRegionText(input) {
+      const source = input && typeof input === "object" ? input : {};
+      const context = await getCurrentContext();
+      if (!context.itemId || !context.tempAnswer || Object.keys(context.tempAnswer).length <= 0) {
+        return {
+          ok: false,
+          message: DETAIL_CONTEXT_MISSING_MESSAGE,
+          writtenCount: 0,
+          skippedCount: 0,
+        };
+      }
+      if (normalizeText(source.selectionKey) !== normalizeText(context.selectionKey)) {
+        return {
+          ok: false,
+          message: PREVIEW_STALE_MESSAGE,
+          writtenCount: 0,
+          skippedCount: 0,
+        };
+      }
+      if (!normalizeText(submitSnapshot?.url)) {
+        return {
+          ok: false,
+          message: SUBMIT_AUTH_MISSING_MESSAGE,
+          writtenCount: 0,
+          skippedCount: 0,
+        };
+      }
+      const targetSegmentNumber = Math.max(
+        0,
+        Math.round(Number(source.segmentNumber || context.activeSegmentNumber || 0)) || 0
+      );
+      if (targetSegmentNumber <= 0) {
+        return {
+          ok: false,
+          message: ACTIVE_SEGMENT_MISSING_MESSAGE,
+          writtenCount: 0,
+          skippedCount: 0,
+        };
+      }
+      const updateResult = updateTempAnswerWithRegionTexts(context.tempAnswer, context, {
+        segmentNumber: targetSegmentNumber,
+        finalMandarinText: source.finalMandarinText,
+      });
+      if (updateResult.writtenCount <= 0) {
+        const targetRegion = (Array.isArray(context.tempAnswer?.data?.regions)
+          ? context.tempAnswer.data.regions
+          : []
+        ).find(function (item) {
+          return Number(item?.no || 0) === targetSegmentNumber;
+        }) || null;
+        const existingText = normalizeText(targetRegion?.txt);
+        return {
+          ok: true,
+          message: existingText
+            ? WRITE_CURRENT_TEXT_SKIP_EXISTING_MESSAGE
+            : WRITE_CURRENT_TEXT_SKIP_EMPTY_MESSAGE,
+          writtenCount: 0,
+          skippedCount: updateResult.skippedCount > 0 ? updateResult.skippedCount : 1,
+        };
+      }
+      const requestBody = buildSubmitRequestBody(submitSnapshot, context, updateResult.nextAnswer);
+      const result = await postSubmit(fetchImpl, submitSnapshot, requestBody);
+      if (!result.ok) {
+        return {
+          ok: false,
+          message: result.message,
+          writtenCount: 0,
+          skippedCount: updateResult.skippedCount,
+        };
+      }
+      submitSnapshot = parseSubmitSnapshot({
+        url: submitSnapshot.url,
+        headers: submitSnapshot.headers,
+        body: requestBody,
+      });
+      return {
+        ok: true,
+        message: WRITE_CURRENT_TEXT_SUCCESS_MESSAGE,
+        writtenCount: updateResult.writtenCount,
+        skippedCount: updateResult.skippedCount,
+      };
+    }
+
+    async function writeBatchRegionTexts(input) {
+      const source = input && typeof input === "object" ? input : {};
+      const context = await getCurrentContext();
+      if (!context.itemId || !context.tempAnswer || Object.keys(context.tempAnswer).length <= 0) {
+        return {
+          ok: false,
+          message: DETAIL_CONTEXT_MISSING_MESSAGE,
+          writtenCount: 0,
+          skippedCount: 0,
+        };
+      }
+      if (normalizeText(source.selectionKey) !== normalizeText(context.selectionKey)) {
+        return {
+          ok: false,
+          message: PREVIEW_STALE_MESSAGE,
+          writtenCount: 0,
+          skippedCount: 0,
+        };
+      }
+      if (
+        normalizeText(source.currentSignature) &&
+        normalizeText(source.currentSignature) !== normalizeText(context.currentSignature)
+      ) {
+        return {
+          ok: false,
+          message: PREVIEW_STALE_MESSAGE,
+          writtenCount: 0,
+          skippedCount: 0,
+        };
+      }
+      if (!normalizeText(submitSnapshot?.url)) {
+        return {
+          ok: false,
+          message: SUBMIT_AUTH_MISSING_MESSAGE,
+          writtenCount: 0,
+          skippedCount: 0,
+        };
+      }
+      const updateResult = updateTempAnswerWithRegionTexts(
+        context.tempAnswer,
+        context,
+        source.updates
+      );
+      if (updateResult.writtenCount <= 0) {
+        return {
+          ok: true,
+          message: WRITE_BATCH_TEXT_EMPTY_MESSAGE,
+          writtenCount: 0,
+          skippedCount: updateResult.skippedCount,
+        };
+      }
+      const requestBody = buildSubmitRequestBody(submitSnapshot, context, updateResult.nextAnswer);
+      const result = await postSubmit(fetchImpl, submitSnapshot, requestBody);
+      if (!result.ok) {
+        return {
+          ok: false,
+          message: result.message,
+          writtenCount: 0,
+          skippedCount: updateResult.skippedCount,
+        };
+      }
+      submitSnapshot = parseSubmitSnapshot({
+        url: submitSnapshot.url,
+        headers: submitSnapshot.headers,
+        body: requestBody,
+      });
+      return {
+        ok: true,
+        message: WRITE_BATCH_TEXT_SUCCESS_MESSAGE,
+        writtenCount: updateResult.writtenCount,
+        skippedCount: updateResult.skippedCount,
+      };
+    }
+
     function destroy() {
       if (windowLike && typeof windowLike.removeEventListener === "function") {
         windowLike.removeEventListener("message", handleObserverMessage);
@@ -820,6 +1137,8 @@
       applySegmentPreview,
       clearCurrentSegments,
       fillEmptyRegionLanguages,
+      writeCurrentRegionText,
+      writeBatchRegionTexts,
       destroy,
     };
   }
@@ -832,6 +1151,7 @@
       buildRegionSignature,
       buildUpdatedRegions,
       defaultReadCurrentTableState,
+      updateTempAnswerWithRegionTexts,
     },
   };
 

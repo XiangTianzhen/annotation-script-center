@@ -562,6 +562,48 @@ test("ByteDance AIDP content resolves helper config with custom padding playback
   assert.equal(config.fixedWaveZoom, 2);
 });
 
+test("ByteDance AIDP content resolves Suzhou AI config with normalized stage params", function () {
+  const contentModule = loadContentModule();
+  const config = contentModule.__testOnly.resolveHelperConfig({
+    meta: {
+      aiUsageOperatorName: "张三",
+    },
+    platforms: {
+      bytedanceAidp: {
+        scripts: {
+          suzhouHelper: {
+            aiRecommendEnabled: true,
+            aiRecommendAutoFillEnabled: false,
+            aiRecommendEndpoint: "http://127.0.0.1:3333/api/bytedance-aidp/suzhou-helper/ai/recommend",
+            aiRecommendRequestTimeoutMs: 999999,
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendListenPrompt: "listen prompt",
+            aiRecommendListenTopP: 0.6,
+            aiRecommendListenMaxTokens: 888,
+            aiRecommendRefineModel: "qwen3.5-plus",
+            aiRecommendRefinePrompt: "refine prompt",
+            aiRecommendRefineTemperature: 0.2,
+            aiRecommendRefineStopSequences: "甲\n乙",
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(config.aiRecommendEnabled, true);
+  assert.equal(config.aiRecommendAutoFillEnabled, false);
+  assert.equal(config.aiRecommendRequestTimeoutMs, 60000);
+  assert.equal(config.aiStages.listen.model, "qwen3.5-omni-flash");
+  assert.equal(config.aiStages.listen.prompt, "listen prompt");
+  assert.equal(config.aiStages.listen.params.top_p, 0.6);
+  assert.equal(config.aiStages.listen.params.max_tokens, 888);
+  assert.equal(config.aiStages.refine.model, "qwen3.5-plus");
+  assert.equal(config.aiStages.refine.prompt, "refine prompt");
+  assert.equal(config.aiStages.refine.params.temperature, 0.2);
+  assert.deepEqual(config.aiStages.refine.params.stop, ["甲", "乙"]);
+  assert.equal(config.aiUsageOperatorName, "张三");
+});
+
 test("ByteDance AIDP content confirms playback rate through enter fallback when option click alone does not update the label", async function () {
   const contentModule = loadContentModule();
   let optionClickCount = 0;

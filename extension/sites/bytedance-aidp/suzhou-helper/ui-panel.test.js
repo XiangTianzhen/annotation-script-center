@@ -292,39 +292,119 @@ test("AIDP suzhou ui panel keeps current-audio section collapsed by default and 
   }
 });
 
-test("AIDP suzhou ui panel exposes auto-apply toggle and keeps it in sync", function () {
+test("AIDP suzhou ui panel exposes auto-fill and auto-apply toggles and keeps them in sync", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
-  const toggledValues = [];
+  const autoFillValues = [];
+  const autoApplyValues = [];
   globalThis.document = harness.document;
   globalThis.HTMLElement = FakeNode;
 
   try {
     const module = loadUiPanelModule();
     const runtime = module.createRuntime({
+      aiRecommendAutoFillEnabled: true,
       segmentPreviewAutoApplyEnabled: true,
+      onToggleAiRecommendAutoFill(nextEnabled) {
+        autoFillValues.push(nextEnabled);
+      },
       onToggleSegmentPreviewAutoApply(nextEnabled) {
-        toggledValues.push(nextEnabled);
+        autoApplyValues.push(nextEnabled);
       },
     });
     assert.equal(runtime.mount(), true);
 
     const panelRoot = harness.waveAnchor.nextSibling;
-    const autoApplyCheckbox = findNode(panelRoot, function (node) {
+    const checkboxes = collectDescendants(panelRoot).filter(function (node) {
       return node.tagName === "INPUT" && node.type === "checkbox";
     });
+    const autoFillCheckbox = checkboxes[0];
+    const autoApplyCheckbox = checkboxes[1];
 
+    assert.equal(checkboxes.length >= 2, true);
+    assert.ok(autoFillCheckbox);
     assert.ok(autoApplyCheckbox);
+    assert.equal(autoFillCheckbox.checked, true);
     assert.equal(autoApplyCheckbox.checked, true);
+    assert.match(panelRoot.textContent, /识别完成后自动填入/);
     assert.match(panelRoot.textContent, /生成后立即应用当前建议/);
+
+    autoFillCheckbox.checked = false;
+    autoFillCheckbox.eventListeners.change();
+    assert.deepEqual(autoFillValues, [false]);
 
     autoApplyCheckbox.checked = false;
     autoApplyCheckbox.eventListeners.change();
-    assert.deepEqual(toggledValues, [false]);
+    assert.deepEqual(autoApplyValues, [false]);
 
+    runtime.setAiRecommendAutoFillEnabled(true);
+    assert.equal(autoFillCheckbox.checked, true);
     runtime.setSegmentPreviewAutoApplyEnabled(true);
     assert.equal(autoApplyCheckbox.checked, true);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.HTMLElement = previousHTMLElement;
+  }
+});
+
+test("AIDP suzhou ui panel renders recommendation and AI meta with Mandarin transcript wording", function () {
+  const harness = createHarness();
+  const previousDocument = globalThis.document;
+  const previousHTMLElement = globalThis.HTMLElement;
+  globalThis.document = harness.document;
+  globalThis.HTMLElement = FakeNode;
+
+  try {
+    const module = loadUiPanelModule();
+    const runtime = module.createRuntime({});
+    assert.equal(runtime.mount(), true);
+
+    const panelRoot = harness.waveAnchor.nextSibling;
+    runtime.renderCurrentRecommendation({
+      segmentNumber: 2,
+      listenText: "阿拉等会去吃饭。",
+      finalMandarinText: "我们等会去吃饭。",
+    });
+    runtime.renderAiMeta({
+      models: {
+        listenModel: "qwen3.5-omni-flash",
+        refineModel: "qwen3.5-plus",
+      },
+      usage: {
+        listen: {
+          input_tokens: 11,
+          output_tokens: 22,
+          total_tokens: 33,
+        },
+        refine: {
+          input_tokens: 44,
+          output_tokens: 55,
+          total_tokens: 99,
+        },
+      },
+      cost: {
+        listen: {
+          estimatedCostCny: 0.001,
+        },
+        refine: {
+          estimatedCostCny: 0.002,
+        },
+        totalEstimatedCostCny: 0.003,
+      },
+      raw: {
+        listen: "{\"listenText\":\"阿拉等会去吃饭。\"}",
+        refine: "{\"finalMandarinText\":\"我们等会去吃饭。\"}",
+      },
+    });
+
+    assert.match(panelRoot.textContent, /最终普通话听写稿/);
+    assert.match(panelRoot.textContent, /听音阶段结果/);
+    assert.match(panelRoot.textContent, /第 2 段/);
+    assert.match(panelRoot.textContent, /听音预估人民币/);
+    assert.match(panelRoot.textContent, /收口预估人民币/);
+    assert.match(panelRoot.textContent, /总预估人民币/);
+    assert.match(panelRoot.textContent, /raw\.listen/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

@@ -24,6 +24,10 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(html, /id="detail-bytedance-aidp-shortcuts-panel"/);
   assert.match(html, /id="bytedance-aidp-shortcut-grid"/);
   assert.match(html, /id="bytedance-aidp-recording-status"/);
+  assert.match(html, /普通话听写稿 AI、批量识别、分段建议写回/);
+  assert.match(html, /AI 设置说明/);
+  assert.match(html, /普通话听写识别的开关、自动填入、超时、听音模型和普通话听写收口模型已移动到右侧共享 `AI 设置` 面板/);
+  assert.match(html, /AI 最终只写 `regions\[\*\]\.txt`，不改 `ms`/);
   assert.match(html, /<select\s+id="bytedance-aidp-default-playback-rate"/);
   assert.match(html, /<option value="1">1\.00倍速<\/option>/);
   assert.match(html, /<option value="2">2<\/option>/);
@@ -59,15 +63,29 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /function getBytedanceAidpSuzhouConfig\(/);
   assert.match(script, /function applyBytedanceAidpForm\(/);
   assert.match(script, /async function saveBytedanceAidpSettings\(/);
+  assert.match(script, /function renderBytedanceAidpSuzhouAiSettingsSection\(/);
+  assert.match(script, /function getBytedanceAidpSuzhouStageDefaults\(/);
+  assert.match(script, /function getBytedanceAidpSuzhouSettingsDraftConfig\(/);
   assert.match(script, /function ensureBytedanceAidpShortcutDraft\(/);
   assert.match(script, /function renderBytedanceAidpShortcutGrid\(/);
   assert.match(script, /platformAiEnabled/);
+  assert.match(script, /aiRecommendEnabled/);
+  assert.match(script, /aiRecommendAutoFillEnabled/);
+  assert.match(script, /aiRecommendRequestTimeoutMs/);
+  assert.match(script, /aiRecommendListenModel/);
+  assert.match(script, /aiRecommendRefineModel/);
   assert.match(script, /segmentContextPaddingMs/);
   assert.match(script, /segmentSilenceThresholdDbfs/);
   assert.match(script, /mergeContiguousSuggestedSegmentsEnabled/);
   assert.match(script, /segmentPreviewAutoApplyEnabled/);
   assert.match(script, /defaultPlaybackRate/);
   assert.match(script, /fixedWaveZoom/);
+  assert.match(script, /bytedance-aidp-ai-recommend-enabled/);
+  assert.match(script, /bytedance-aidp-ai-recommend-auto-fill-enabled/);
+  assert.match(script, /bytedance-aidp-ai-timeout/);
+  assert.match(script, /bytedance-aidp-ai-listen-model-select/);
+  assert.match(script, /bytedance-aidp-ai-refine-model-select/);
+  assert.match(script, /普通话听写收口/);
   assert.match(script, /detail-bytedance-aidp-shortcuts-panel/);
   assert.match(script, /bytedance-aidp-shortcut-grid/);
   assert.match(
@@ -87,6 +105,18 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
     script,
     /platformAiEnabled:\s*!getElement\("bytedance-aidp-platform-ai-enabled"\)\.checked/
   );
+  assert.match(
+    script,
+    /aiRecommendAutoFillEnabled:\s*aiRecommendAutoFillEnabled/
+  );
+  assert.match(
+    script,
+    /aiRecommendEnabled:\s*aiRecommendEnabled/
+  );
+  assert.match(
+    script,
+    /aiRecommendRequestTimeoutMs:\s*timeoutMs/
+  );
   assert.match(script, /segmentSilenceThresholdDbfs:\s*segmentSilenceThresholdDbfs/);
   assert.match(
     script,
@@ -97,7 +127,5 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
     /segmentPreviewAutoApplyEnabled:\s*segmentPreviewAutoApplyEnabled/
   );
   assert.match(script, /detail-bytedance-aidp-suzhou-panel/);
-  assert.doesNotMatch(html, /当前不新增快捷键/);
-  assert.doesNotMatch(html, /默认只有“播放\/暂停切换 = Space”/);
-  assert.doesNotMatch(html, /脚本新生成或新出现且仍为空的画段/);
+  assert.doesNotMatch(html, /当前只提供“隐藏平台AI功能”基础开关/);
 });

@@ -9,20 +9,24 @@
   const CONSTANTS = globalThis.ASREdgeConstants || {};
   const STORAGE = globalThis.ASREdgeStorage || null;
   const dataApiFactory = globalThis.ASREdgeBytedanceAidpSuzhouDataApi || null;
+  const aiFactory = globalThis.ASREdgeBytedanceAidpSuzhouAiRecommendation || null;
   const segmentFactory = globalThis.ASREdgeBytedanceAidpSuzhouSegmentation || null;
   const uiFactory = globalThis.ASREdgeBytedanceAidpSuzhouUiPanel || null;
   const shortcutFactory = globalThis.ASREdgeBytedanceAidpSuzhouShortcuts || null;
   const SCRIPT_ID =
     CONSTANTS.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
+  const AI_PATH = "/api/bytedance-aidp/suzhou-helper/ai/recommend";
   const SEGMENT_PREVIEW_PATH = "/api/bytedance-aidp/suzhou-helper/segment/preview";
   const PLAYBACK_RATE_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
   const FIXED_WAVE_ZOOM_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const DEFAULT_TIMEOUT_MS = 60000;
   const DEFAULT_SEGMENT_SILENCE_THRESHOLD_DBFS = -31;
   const DEFAULT_SEGMENT_CONTEXT_PADDING_MS = 300;
   const DEFAULT_PLAYBACK_RATE = 1;
   const DEFAULT_FIXED_WAVE_ZOOM = 2;
   const DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED = true;
   const DEFAULT_SEGMENT_PREVIEW_AUTO_APPLY_ENABLED = true;
+  const DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED = true;
   const CLEAR_SEGMENTS_BUTTON_ATTR = "data-asc-clear-segments-button";
   const FILL_LANGUAGE_KIND_BUTTON_ATTR = "data-asc-fill-language-kind-button";
   const HIDDEN_ATTR = "data-asc-platform-ai-hidden";
@@ -124,6 +128,77 @@
       return fallbackNumber;
     }
     return rounded;
+  }
+
+  function normalizeAiRequestTimeoutMs(value, fallback) {
+    const fallbackNumber = Number.isFinite(Number(fallback)) ? Math.round(Number(fallback)) : DEFAULT_TIMEOUT_MS;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallbackNumber;
+    }
+    return Math.max(1000, Math.min(DEFAULT_TIMEOUT_MS, Math.round(numeric)));
+  }
+
+  function normalizeStageModel(value, fallback) {
+    const model = normalizeText(value);
+    return model || normalizeText(fallback);
+  }
+
+  function normalizeStagePrompt(value) {
+    return String(value || "");
+  }
+
+  function normalizeStageParamValue(value, options) {
+    const source = options && typeof options === "object" ? options : {};
+    if (value === "" || value === null || value === undefined) {
+      return "";
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return "";
+    }
+    const min = Number.isFinite(Number(source.min)) ? Number(source.min) : numeric;
+    const max = Number.isFinite(Number(source.max)) ? Number(source.max) : numeric;
+    const clamped = Math.max(min, Math.min(max, numeric));
+    if (source.integer === true) {
+      return Math.round(clamped);
+    }
+    return Number(clamped.toFixed(3));
+  }
+
+  function buildAiStageParams(source, prefix) {
+    const current = source && typeof source === "object" ? source : {};
+    const result = {};
+    const params = [
+      ["Temperature", "temperature", { min: 0, max: 2 }],
+      ["TopP", "top_p", { min: 0, max: 1 }],
+      ["MaxTokens", "max_tokens", { min: 1, max: 8192, integer: true }],
+      [
+        "MaxCompletionTokens",
+        "max_completion_tokens",
+        { min: 1, max: 8192, integer: true },
+      ],
+      ["PresencePenalty", "presence_penalty", { min: -2, max: 2 }],
+      ["FrequencyPenalty", "frequency_penalty", { min: -2, max: 2 }],
+      ["Seed", "seed", { min: 0, max: 2147483647, integer: true }],
+    ];
+    params.forEach(function (definition) {
+      const value = normalizeStageParamValue(current[prefix + definition[0]], definition[2]);
+      if (value !== "") {
+        result[definition[1]] = value;
+      }
+    });
+    const stopSequences = String(current[prefix + "StopSequences"] || "")
+      .split(/\r?\n|,/)
+      .map(function (item) {
+        return normalizeText(item);
+      })
+      .filter(Boolean)
+      .slice(0, 8);
+    if (stopSequences.length > 0) {
+      result.stop = stopSequences;
+    }
+    return result;
   }
 
   function getShortcutActionDefinitions() {
@@ -234,6 +309,16 @@
         mergeContiguousSuggestedSegmentsEnabled:
           DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED,
         segmentPreviewAutoApplyEnabled: DEFAULT_SEGMENT_PREVIEW_AUTO_APPLY_ENABLED,
+        aiRecommendEnabled: true,
+        aiRecommendAutoFillEnabled: DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED,
+        aiRecommendEndpoint:
+          CONSTANTS.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT ||
+          "https://script.xiangtianzhen.store/api/bytedance-aidp/suzhou-helper/ai/recommend",
+        aiRecommendRequestTimeoutMs: DEFAULT_TIMEOUT_MS,
+        aiRecommendListenModel: "qwen3.5-omni-flash",
+        aiRecommendListenPrompt: "",
+        aiRecommendRefineModel: "qwen3.5-plus",
+        aiRecommendRefinePrompt: "",
         defaultPlaybackRate: DEFAULT_PLAYBACK_RATE,
         fixedWaveZoom: DEFAULT_FIXED_WAVE_ZOOM,
         contractMode: "dom-guarded",
@@ -246,6 +331,12 @@
     const source = settings && typeof settings === "object" ? settings : {};
     const defaults = getDefaultScriptConfig();
     const current = source?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+    const endpointBuilder =
+      typeof CONSTANTS.buildBackendUrl === "function"
+        ? CONSTANTS.buildBackendUrl
+        : function (path) {
+            return "http://127.0.0.1:3333" + String(path || "");
+          };
     return {
       segmentContextPaddingMs: normalizeSegmentContextPaddingMs(
         current.segmentContextPaddingMs,
@@ -263,6 +354,36 @@
         current.segmentPreviewAutoApplyEnabled === false
           ? false
           : defaults.segmentPreviewAutoApplyEnabled !== false,
+      aiRecommendEnabled:
+        (current.aiRecommendEnabled ?? defaults.aiRecommendEnabled) !== false,
+      aiRecommendAutoFillEnabled:
+        current.aiRecommendAutoFillEnabled === false
+          ? false
+          : defaults.aiRecommendAutoFillEnabled !== false,
+      aiRecommendEndpoint:
+        normalizeText(current.aiRecommendEndpoint) || endpointBuilder(AI_PATH, settings),
+      aiRecommendRequestTimeoutMs: normalizeAiRequestTimeoutMs(
+        current.aiRecommendRequestTimeoutMs,
+        defaults.aiRecommendRequestTimeoutMs || DEFAULT_TIMEOUT_MS
+      ),
+      aiStages: {
+        listen: {
+          model: normalizeStageModel(
+            current.aiRecommendListenModel,
+            defaults.aiRecommendListenModel || "qwen3.5-omni-flash"
+          ),
+          prompt: normalizeStagePrompt(current.aiRecommendListenPrompt || defaults.aiRecommendListenPrompt),
+          params: buildAiStageParams(current, "aiRecommendListen"),
+        },
+        refine: {
+          model: normalizeStageModel(
+            current.aiRecommendRefineModel,
+            defaults.aiRecommendRefineModel || "qwen3.5-plus"
+          ),
+          prompt: normalizeStagePrompt(current.aiRecommendRefinePrompt || defaults.aiRecommendRefinePrompt),
+          params: buildAiStageParams(current, "aiRecommendRefine"),
+        },
+      },
       defaultPlaybackRate: normalizePlaybackRate(
         current.defaultPlaybackRate,
         defaults.defaultPlaybackRate
@@ -271,6 +392,8 @@
         current.fixedWaveZoom,
         defaults.fixedWaveZoom
       ),
+      settings: settings,
+      aiUsageOperatorName: normalizeText(settings?.meta?.aiUsageOperatorName || ""),
       shortcuts: normalizeShortcutMap(current.shortcuts, defaults.shortcuts),
     };
   }
@@ -1485,6 +1608,311 @@
     };
   }
 
+  function buildActiveSegmentRequestContext(context) {
+    const source = context && typeof context === "object" ? context : {};
+    const activeSegment = source.activeSegment && typeof source.activeSegment === "object" ? source.activeSegment : null;
+    if (!activeSegment) {
+      throw new Error("请先在当前题里点击要识别的段。");
+    }
+    return {
+      audioUrl: normalizeText(source.audioUrl),
+      selectionKey: normalizeText(source.selectionKey),
+      segmentNumber: Number(activeSegment.segmentNumber || 0) || 0,
+      selectedRange: {
+        startMs: Number(activeSegment.startMs || 0) || 0,
+        endMs: Number(activeSegment.endMs || 0) || 0,
+        durationMs:
+          Math.max(0, Number(activeSegment.endMs || 0) - Number(activeSegment.startMs || 0)) || 0,
+      },
+      fieldContext: {
+        text: normalizeText(activeSegment.text),
+        language: normalizeText(activeSegment.language),
+      },
+      editorContext: {
+        query: {
+          taskId: normalizeText(source.taskId),
+          itemId: normalizeText(source.itemId),
+          entryId: normalizeText(source.entryId),
+          templateID: normalizeText(source.templateID),
+        },
+      },
+    };
+  }
+
+  function buildRecommendationDisplayPayload(result) {
+    const source = result && typeof result === "object" ? result : {};
+    return {
+      selectionKey: normalizeText(source.selectionKey),
+      segmentNumber: Number(source.segmentNumber || 0) || 0,
+      listenText: normalizeText(source.listenText),
+      finalMandarinText: normalizeText(source.finalMandarinText),
+      usage: source.usage && typeof source.usage === "object" ? source.usage : {},
+      cost: source.cost && typeof source.cost === "object" ? source.cost : {},
+      timing: source.timing && typeof source.timing === "object" ? source.timing : {},
+      models: source.models && typeof source.models === "object" ? source.models : {},
+      raw: source.raw && typeof source.raw === "object" ? source.raw : {},
+      debug: source.debug && typeof source.debug === "object" ? source.debug : {},
+      notes: Array.isArray(source.notes) ? source.notes.slice() : [],
+    };
+  }
+
+  async function maybeAutoFillCurrentRecommendation(runtimeContext, recommendation) {
+    if (runtimeContext?.config?.aiRecommendAutoFillEnabled === false) {
+      return {
+        attempted: false,
+        ok: false,
+        reason: "disabled",
+      };
+    }
+    const result = await runtimeContext.dataApi.writeCurrentRegionText({
+      selectionKey: recommendation.selectionKey,
+      segmentNumber: recommendation.segmentNumber,
+      finalMandarinText: recommendation.finalMandarinText,
+    });
+    if (!result.ok) {
+      runtimeContext.ui?.setStatus?.(
+        "当前段识别已生成，但自动填入失败：" + normalizeText(result.message || "未知错误"),
+        "error"
+      );
+      return {
+        attempted: true,
+        ok: false,
+        result: result,
+      };
+    }
+    runtimeContext.ui?.setStatus?.(result.message, result.writtenCount > 0 ? "success" : "warning");
+    if (result.writtenCount > 0) {
+      scheduleRuntimeReload(runtimeContext);
+    }
+    return {
+      attempted: true,
+      ok: true,
+      result: result,
+    };
+  }
+
+  function createConcurrentTaskRunner(tasks, concurrency, runTask, onSettled, shouldStop) {
+    const queue = Array.isArray(tasks) ? tasks.slice() : [];
+    const limit = Math.max(1, Math.round(Number(concurrency || 1)) || 1);
+    return new Promise(function (resolve) {
+      let activeCount = 0;
+      let nextIndex = 0;
+
+      function launchNext() {
+        if ((nextIndex >= queue.length || shouldStop()) && activeCount <= 0) {
+          resolve();
+          return;
+        }
+        while (activeCount < limit && nextIndex < queue.length && !shouldStop()) {
+          const task = queue[nextIndex];
+          nextIndex += 1;
+          activeCount += 1;
+          Promise.resolve()
+            .then(function () {
+              return runTask(task);
+            })
+            .then(function (value) {
+              onSettled({
+                ok: true,
+                task: task,
+                value: value,
+              });
+            })
+            .catch(function (error) {
+              onSettled({
+                ok: false,
+                task: task,
+                error: error,
+              });
+            })
+            .finally(function () {
+              activeCount -= 1;
+              launchNext();
+            });
+        }
+      }
+
+      launchNext();
+    });
+  }
+
+  function createBatchRecommendController(options) {
+    const deps = options && typeof options === "object" ? options : {};
+    const dataApi = deps.dataApi || null;
+    const ai = deps.ai || null;
+    const ui = deps.ui || null;
+    let activeRun = null;
+
+    function render(run, phaseText) {
+      ui?.renderBatchState?.({
+        phaseText: phaseText,
+        totalCount: run.totalCount,
+        concurrency: run.concurrency,
+        succeededCount: run.succeededCount,
+        failedCount: run.failedCount,
+        skippedCount: run.skippedCount,
+        currentSegmentNumber: run.currentSegmentNumber,
+        failures: run.failures.slice(),
+      });
+    }
+
+    async function start(selectedNumbers) {
+      if (activeRun) {
+        ui?.setStatus?.("当前已有正在运行的批量识别，请先等待完成或点击停止批量。", "error");
+        return {
+          ok: false,
+          message: "当前已有正在运行的批量识别，请先等待完成或点击停止批量。",
+        };
+      }
+      if (!dataApi?.getCurrentContext || !dataApi?.writeBatchRegionTexts || !ai?.recommendForSegment || !ai?.createSharedAudioSource) {
+        throw new Error("当前脚本缺少批量识别运行时依赖。");
+      }
+      const lockedContext = await dataApi.getCurrentContext();
+      if (!normalizeText(lockedContext?.audioUrl)) {
+        throw new Error("当前还没拿到音频地址，请等待页面初始化完成后重试。");
+      }
+      const currentSegments = Array.isArray(lockedContext.currentSegments) ? lockedContext.currentSegments : [];
+      const normalizedSelected = Array.isArray(selectedNumbers) && selectedNumbers.length > 0
+        ? selectedNumbers.map(function (value) {
+            return Math.max(1, Math.round(Number(value || 0)) || 0);
+          })
+        : currentSegments.map(function (item) {
+            return Number(item.segmentNumber || 0) || 0;
+          });
+      const tasks = currentSegments.filter(function (segment) {
+        return normalizedSelected.indexOf(Number(segment.segmentNumber || 0) || 0) >= 0;
+      });
+      if (tasks.length <= 0) {
+        throw new Error("当前没有命中可批量处理的段落。");
+      }
+      const sharedAudioSource = ai.createSharedAudioSource(lockedContext.audioUrl);
+      const run = {
+        selectionKey: normalizeText(lockedContext.selectionKey),
+        currentSignature: normalizeText(lockedContext.currentSignature),
+        totalCount: tasks.length,
+        concurrency: 5,
+        currentSegmentNumber: 0,
+        succeededCount: 0,
+        failedCount: 0,
+        skippedCount: 0,
+        failures: [],
+        updates: [],
+        stopRequested: false,
+      };
+      activeRun = run;
+      render(run, "批量识别进行中");
+
+      await createConcurrentTaskRunner(
+        tasks,
+        run.concurrency,
+        function (segment) {
+          run.currentSegmentNumber = Number(segment.segmentNumber || 0) || 0;
+          return ai.recommendForSegment(
+            {
+              audioUrl: lockedContext.audioUrl,
+              selectionKey: lockedContext.selectionKey,
+              segmentNumber: run.currentSegmentNumber,
+              selectedRange: {
+                startMs: Number(segment.startMs || 0) || 0,
+                endMs: Number(segment.endMs || 0) || 0,
+                durationMs:
+                  Math.max(0, Number(segment.endMs || 0) - Number(segment.startMs || 0)) || 0,
+              },
+              fieldContext: {
+                text: normalizeText(segment.text),
+                language: normalizeText(segment.language),
+              },
+              editorContext: {
+                query: {
+                  taskId: normalizeText(lockedContext.taskId),
+                  itemId: normalizeText(lockedContext.itemId),
+                  entryId: normalizeText(lockedContext.entryId),
+                  templateID: normalizeText(lockedContext.templateID),
+                },
+              },
+            },
+            sharedAudioSource
+          );
+        },
+        function (entry) {
+          if (entry.ok) {
+            const payload = buildRecommendationDisplayPayload(entry.value);
+            if (payload.finalMandarinText) {
+              run.updates.push({
+                segmentNumber: payload.segmentNumber,
+                finalMandarinText: payload.finalMandarinText,
+              });
+              run.succeededCount += 1;
+            } else {
+              run.skippedCount += 1;
+            }
+          } else {
+            run.failedCount += 1;
+            run.failures.push({
+              segmentNumber: Number(entry.task?.segmentNumber || 0) || 0,
+              message: entry.error?.message || String(entry.error),
+            });
+          }
+          render(run, run.stopRequested ? "批量识别停止中" : "批量识别进行中");
+        },
+        function () {
+          return run.stopRequested === true;
+        }
+      );
+
+      const liveContext = await dataApi.getCurrentContext();
+      if (
+        normalizeText(liveContext?.selectionKey) !== run.selectionKey ||
+        normalizeText(liveContext?.currentSignature) !== run.currentSignature
+      ) {
+        activeRun = null;
+        render(run, "批量写回已取消");
+        return {
+          ok: false,
+          message: "当前题或分段状态已变化，已取消批量写回，请刷新后重试。",
+        };
+      }
+
+      const saveResult = await dataApi.writeBatchRegionTexts({
+        selectionKey: run.selectionKey,
+        currentSignature: run.currentSignature,
+        updates: run.updates,
+      });
+      activeRun = null;
+      render(run, saveResult.ok ? "批量写回完成" : "批量写回失败");
+      if (saveResult.ok && saveResult.writtenCount > 0) {
+        ui?.setStatus?.(saveResult.message, "success");
+      } else if (saveResult.ok) {
+        ui?.setStatus?.(saveResult.message, "warning");
+      } else {
+        ui?.setStatus?.(saveResult.message, "error");
+      }
+      return Object.assign({}, saveResult, {
+        skippedCount: run.skippedCount + Number(saveResult.skippedCount || 0),
+      });
+    }
+
+    function stop() {
+      if (!activeRun) {
+        return false;
+      }
+      activeRun.stopRequested = true;
+      ui?.setStatus?.("正在停止批量识别，已发出的请求会等待返回。", "warning");
+      render(activeRun, "批量识别停止中");
+      return true;
+    }
+
+    function dispose() {
+      activeRun = null;
+    }
+
+    return {
+      start,
+      stop,
+      dispose,
+    };
+  }
+
   function createShortcutActions(deps) {
     const source = deps && typeof deps === "object" ? deps : {};
     return {
@@ -1756,6 +2184,9 @@
     if (helperRuntime?.ui?.destroy) {
       helperRuntime.ui.destroy();
     }
+    if (helperRuntime?.batchController?.dispose) {
+      helperRuntime.batchController.dispose();
+    }
     if (helperRuntime?.shortcuts?.destroy) {
       helperRuntime.shortcuts.destroy();
     }
@@ -1804,6 +2235,12 @@
           })
         );
         helperRuntime.ui.renderAudioContext(context);
+        helperRuntime.ui.renderBatchSelection?.({
+          totalSegments: Array.isArray(context?.currentSegments) ? context.currentSegments.length : 0,
+          resetSelection:
+            normalizeText(helperRuntime.batchSelectionKey) !== normalizeText(context?.selectionKey),
+        });
+        helperRuntime.batchSelectionKey = normalizeText(context?.selectionKey);
         if (!normalizeText(context?.audioUrl)) {
           helperRuntime.ui.setStatus("正在等待页面返回当前音频与分段上下文...", "");
         }
@@ -1848,6 +2285,112 @@
       helperRuntime.ui?.setSegmentPreviewAutoApplyEnabled?.(previousEnabled);
       helperRuntime.ui?.setStatus?.(
         "保存自动应用开关失败：" + (error && error.message ? error.message : String(error)),
+        "error"
+      );
+    }
+  }
+
+  async function handleAiRecommendAutoFillToggle(nextEnabled) {
+    if (!helperRuntime) {
+      return;
+    }
+    const previousEnabled = helperRuntime.config?.aiRecommendAutoFillEnabled !== false;
+    helperRuntime.config = Object.assign({}, helperRuntime.config || {}, {
+      aiRecommendAutoFillEnabled: nextEnabled !== false,
+    });
+    if (!STORAGE || typeof STORAGE.patchSettings !== "function") {
+      return;
+    }
+    try {
+      const settings = await STORAGE.patchSettings({
+        platforms: {
+          bytedanceAidp: {
+            scripts: {
+              suzhouHelper: {
+                id: SCRIPT_ID,
+                aiRecommendAutoFillEnabled: nextEnabled !== false,
+              },
+            },
+          },
+        },
+      });
+      runtimePolicy = resolveRuntimePolicy(settings);
+      ensureHelperRuntime(settings);
+    } catch (error) {
+      helperRuntime.config = Object.assign({}, helperRuntime.config || {}, {
+        aiRecommendAutoFillEnabled: previousEnabled,
+      });
+      helperRuntime.ui?.setAiRecommendAutoFillEnabled?.(previousEnabled);
+      helperRuntime.ui?.setStatus?.(
+        "保存自动填入开关失败：" + (error && error.message ? error.message : String(error)),
+        "error"
+      );
+    }
+  }
+
+  async function handleRecommendAction() {
+    if (!helperRuntime || !helperRuntime.ai) {
+      return;
+    }
+    helperRuntime.ui.mount();
+    helperRuntime.ui.setStatus("正在识别当前段普通话听写稿...", "");
+    try {
+      const context = await helperRuntime.dataApi.getCurrentContext();
+      helperRuntime.ui.renderAudioContext(context);
+      if (!normalizeText(context?.audioUrl)) {
+        helperRuntime.ui.setStatus(
+          "当前还没拿到音频地址，请等待页面初始化完成，或刷新当前详情页后重试。",
+          "error"
+        );
+        return;
+      }
+      const requestContext = buildActiveSegmentRequestContext(context);
+      const recommendation = await helperRuntime.ai.recommend(requestContext);
+      helperRuntime.lastRecommendation = buildRecommendationDisplayPayload(recommendation);
+      helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
+      helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
+      const autoFillResult = await maybeAutoFillCurrentRecommendation(
+        helperRuntime,
+        helperRuntime.lastRecommendation
+      );
+      if (autoFillResult.attempted) {
+        return;
+      }
+      helperRuntime.ui.setStatus("当前段识别已生成，可手动写回当前段。", "success");
+    } catch (error) {
+      helperRuntime.ui.setStatus(
+        "当前段识别失败：" + (error && error.message ? error.message : String(error)),
+        "error"
+      );
+    }
+  }
+
+  async function handleWriteCurrentRecommendAction() {
+    if (!helperRuntime || !helperRuntime.lastRecommendation) {
+      helperRuntime?.ui?.setStatus?.("请先生成当前段识别结果。", "error");
+      return;
+    }
+    const result = await helperRuntime.dataApi.writeCurrentRegionText(helperRuntime.lastRecommendation);
+    helperRuntime.ui.setStatus(result.message, result.writtenCount > 0 ? "success" : result.ok ? "warning" : "error");
+    if (result.ok && result.writtenCount > 0) {
+      scheduleRuntimeReload(helperRuntime);
+    }
+  }
+
+  async function handleBatchRecommendAction(selectedNumbers) {
+    if (!helperRuntime?.batchController) {
+      return;
+    }
+    helperRuntime.ui.mount();
+    helperRuntime.ui.setStatus("正在准备当前题批量识别...", "");
+    try {
+      const result = await helperRuntime.batchController.start(selectedNumbers);
+      if (result?.ok && result.writtenCount > 0) {
+        scheduleRuntimeReload(helperRuntime);
+      }
+    } catch (error) {
+      helperRuntime.ui.setStatus(
+        "批量识别失败：" + (error && error.message ? error.message : String(error)),
         "error"
       );
     }
@@ -2004,6 +2547,16 @@
     }
     destroyHelperRuntime();
     const dataApi = dataApiFactory.createRuntime();
+    const ai =
+      aiFactory && typeof aiFactory.createRuntime === "function"
+        ? aiFactory.createRuntime({
+            endpoint: helperConfig.aiRecommendEndpoint,
+            timeoutMs: helperConfig.aiRecommendRequestTimeoutMs,
+            settings: helperConfig.settings,
+            aiUsageOperatorName: helperConfig.aiUsageOperatorName,
+            aiStages: helperConfig.aiStages,
+          })
+        : null;
     const segment = segmentFactory.createRuntime({
       endpoint: endpoint,
       silenceThresholdDbfs: helperConfig.segmentSilenceThresholdDbfs,
@@ -2013,8 +2566,32 @@
     });
     const ui = uiFactory.createRuntime({
       segmentPreviewAutoApplyEnabled: helperConfig.segmentPreviewAutoApplyEnabled,
+      aiRecommendAutoFillEnabled: helperConfig.aiRecommendAutoFillEnabled,
       onToggleSegmentPreviewAutoApply: function (nextEnabled) {
         void handleSegmentPreviewAutoApplyToggle(nextEnabled);
+      },
+      onToggleAiRecommendAutoFill: function (nextEnabled) {
+        void handleAiRecommendAutoFillToggle(nextEnabled);
+      },
+      onRecommend: function () {
+        if (helperConfig.aiRecommendEnabled === false) {
+          ui.setStatus("当前已关闭苏州话 AI 识别功能。", "error");
+          return;
+        }
+        void handleRecommendAction();
+      },
+      onWriteCurrentRecommend: function () {
+        void handleWriteCurrentRecommendAction();
+      },
+      onBatchRecommend: function (selectedNumbers) {
+        if (helperConfig.aiRecommendEnabled === false) {
+          ui.setStatus("当前已关闭苏州话 AI 识别功能。", "error");
+          return;
+        }
+        void handleBatchRecommendAction(selectedNumbers);
+      },
+      onBatchStop: function () {
+        helperRuntime?.batchController?.stop?.();
       },
       onPreview: function () {
         void handlePreviewAction();
@@ -2055,16 +2632,25 @@
             }),
           })
         : null;
+    const batchController = createBatchRecommendController({
+      dataApi: dataApi,
+      ai: ai,
+      ui: ui,
+    });
     helperRuntime = {
       dataApi: dataApi,
+      ai: ai,
+      batchController: batchController,
       segment: segment,
       ui: ui,
       shortcuts: shortcuts,
       preview: null,
+      lastRecommendation: null,
       endpoint: endpoint,
       config: helperConfig,
       configSignature: configSignature,
       playbackScopeKey: getCurrentPlaybackScopeKey(),
+      batchSelectionKey: "",
       scheduleReload: function () {
         scheduleRuntimeReload(helperRuntime);
       },
@@ -2083,7 +2669,16 @@
     ensureFillLanguageKindsButton(document, function () {
       void handleFillLanguageKindsAction();
     });
-    ui.setStatus("苏州话脚本已就绪；当前支持分段建议与平台暂存直写。", "success");
+    ui.renderCurrentRecommendation(null);
+    ui.renderAiMeta(null);
+    ui.renderBatchSelection({
+      totalSegments: 0,
+      resetSelection: true,
+    });
+    ui.renderBatchState({
+      phaseText: "",
+    });
+    ui.setStatus("苏州话脚本已就绪；当前支持普通话听写稿识别、批量识别与平台暂存直写。", "success");
     scheduleHelperContextRefresh(0);
   }
 

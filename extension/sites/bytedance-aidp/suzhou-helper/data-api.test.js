@@ -585,3 +585,180 @@ test("AIDP data api still clears current regions when table already contains tex
   assert.equal(answer.dataMap.regions.length, 0);
   assert.equal(answer.data.discard, "保留");
 });
+
+test("AIDP data api writes current segment Mandarin text back to txt only", async function () {
+  const harness = createRuntimeHarness({
+    submitRegions: [
+      {
+        no: 1,
+        id: "region_a",
+        start: 1.263,
+        end: 2.401,
+        disabled: false,
+        ms: "目标方言",
+        txt: "旧文本",
+      },
+      {
+        no: 2,
+        id: "region_b",
+        start: 3.261,
+        end: 4.951,
+        disabled: false,
+        ms: "目标方言",
+      },
+    ],
+    readCurrentTableState: function () {
+      return {
+        rows: [
+          {
+            segmentNumber: 1,
+            text: "旧文本",
+            language: "目标方言",
+          },
+          {
+            segmentNumber: 2,
+            text: "",
+            language: "目标方言",
+          },
+        ],
+        activeSegmentNumber: 2,
+        hasUnsafeData: false,
+        unsafeReason: "",
+      };
+    },
+  });
+
+  const result = await harness.runtime.writeCurrentRegionText({
+    selectionKey: "7656690377962016562",
+    segmentNumber: 2,
+    finalMandarinText: "普通话听写稿",
+  });
+  const request = harness.fetchCalls[0];
+  const body = JSON.parse(request.body);
+  const answer = JSON.parse(body.AuditAnswers[0].Content);
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已通过平台暂存接口写回当前段普通话听写稿，请刷新页面复核。",
+    writtenCount: 1,
+    skippedCount: 0,
+  });
+  assert.equal(answer.data.regions[0].txt, "旧文本");
+  assert.equal(answer.data.regions[0].ms, "目标方言");
+  assert.equal(answer.data.regions[1].txt, "普通话听写稿");
+  assert.equal(answer.data.regions[1].ms, "目标方言");
+  assert.equal(answer.dataMap.regions[1].txt, "普通话听写稿");
+});
+
+test("AIDP data api skips empty current result when target region already has text", async function () {
+  const harness = createRuntimeHarness({
+    submitRegions: [
+      {
+        no: 1,
+        id: "region_a",
+        start: 1.263,
+        end: 2.401,
+        disabled: false,
+        ms: "目标方言",
+        txt: "已有文本",
+      },
+    ],
+    readCurrentTableState: function () {
+      return {
+        rows: [
+          {
+            segmentNumber: 1,
+            text: "已有文本",
+            language: "目标方言",
+          },
+        ],
+        activeSegmentNumber: 1,
+        hasUnsafeData: false,
+        unsafeReason: "",
+      };
+    },
+  });
+
+  const result = await harness.runtime.writeCurrentRegionText({
+    selectionKey: "7656690377962016562",
+    segmentNumber: 1,
+    finalMandarinText: "",
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "当前段 AI 结果为空，已保留原有文本。",
+    writtenCount: 0,
+    skippedCount: 1,
+  });
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api batch write merges successful non-empty txt updates in one submit", async function () {
+  const harness = createRuntimeHarness({
+    submitRegions: [
+      {
+        no: 1,
+        id: "region_a",
+        start: 1.263,
+        end: 2.401,
+        disabled: false,
+        ms: "目标方言",
+      },
+      {
+        no: 2,
+        id: "region_b",
+        start: 3.261,
+        end: 4.951,
+        disabled: false,
+        ms: "目标方言",
+        txt: "保留原文",
+      },
+      {
+        no: 3,
+        id: "region_c",
+        start: 5.673,
+        end: 7.224,
+        disabled: false,
+        ms: "目标方言",
+      },
+    ],
+  });
+  const initialContext = await harness.runtime.getCurrentContext();
+
+  const result = await harness.runtime.writeBatchRegionTexts({
+    selectionKey: initialContext.selectionKey,
+    currentSignature: initialContext.currentSignature,
+    updates: [
+      {
+        segmentNumber: 1,
+        finalMandarinText: "第一段听写",
+      },
+      {
+        segmentNumber: 2,
+        finalMandarinText: "",
+      },
+      {
+        segmentNumber: 3,
+        finalMandarinText: "第三段听写",
+      },
+    ],
+  });
+  const request = harness.fetchCalls[0];
+  const body = JSON.parse(request.body);
+  const answer = JSON.parse(body.AuditAnswers[0].Content);
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已通过平台暂存接口批量写回普通话听写稿，请刷新页面复核。",
+    writtenCount: 2,
+    skippedCount: 1,
+  });
+  assert.equal(harness.fetchCalls.length, 1);
+  assert.equal(answer.data.regions[0].txt, "第一段听写");
+  assert.equal(answer.data.regions[1].txt, "保留原文");
+  assert.equal(answer.data.regions[2].txt, "第三段听写");
+  assert.equal(answer.data.regions[0].ms, "目标方言");
+  assert.equal(answer.data.regions[1].ms, "目标方言");
+  assert.equal(answer.data.regions[2].ms, "目标方言");
+});

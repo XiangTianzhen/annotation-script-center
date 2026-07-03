@@ -901,6 +901,7 @@
     transcription: "/api/alibaba-labelx/asr-transcription/ai/defaults",
     dataBakerRoundOneQuality: "/api/data-baker/round-one-quality/ai/recommend/defaults",
     dataBakerCvpcLiuzhouAssistant: "/api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults",
+    bytedanceAidpSuzhouHelper: "/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults",
     magicDataAnnotatorAiReview: "/api/magic-data/hakka-helper/ai/defaults",
     magicDataMinnanAssistant: "/api/magic-data/minnan-helper/ai/defaults",
     aishellTechMinnanAssistant: "/api/aishell-tech/minnan-helper/ai/recommend/defaults",
@@ -3368,6 +3369,208 @@
     return draft;
   }
 
+  function getBytedanceAidpSuzhouStageDefaults(aiDefaults) {
+    const defaults = aiDefaults && typeof aiDefaults === "object" ? aiDefaults : {};
+    const stages = defaults.stages && typeof defaults.stages === "object" ? defaults.stages : {};
+    const listen = stages.listen && typeof stages.listen === "object" ? stages.listen : {};
+    const refine = stages.refine && typeof stages.refine === "object" ? stages.refine : {};
+    return {
+      listen: {
+        model: normalizeDataBakerCvpcListenModel(
+          listen.model || defaults.listenModel,
+          defaults.omniModel || "qwen3.5-omni-flash"
+        ),
+        modelOptions: buildMergedModelOptions(
+          listen.modelOptions,
+          defaults.listenModelOptions || dataBakerCvpcListenModelOptions,
+          [listen.model, defaults.listenModel, defaults.omniModel]
+        ),
+        prompt: String(listen.prompt || defaults.listenPrompt || ""),
+        temperature: listen.temperature ?? defaults.temperature ?? "",
+        top_p: listen.top_p ?? defaults.top_p ?? "",
+        max_tokens: listen.max_tokens ?? defaults.max_tokens ?? "",
+        max_completion_tokens:
+          listen.max_completion_tokens ?? defaults.max_completion_tokens ?? "",
+        presence_penalty: listen.presence_penalty ?? defaults.presence_penalty ?? "",
+        frequency_penalty: listen.frequency_penalty ?? defaults.frequency_penalty ?? "",
+        seed: listen.seed ?? defaults.seed ?? "",
+        stop: listen.stop ?? listen.stopSequences ?? defaults.stop ?? "",
+      },
+      refine: {
+        model: normalizeDataBakerCompareModel(
+          refine.model || defaults.refineModel || defaults.compareModel,
+          "qwen3.5-plus"
+        ),
+        modelOptions: buildMergedModelOptions(
+          refine.modelOptions,
+          defaults.refineModelOptions || defaults.compareModelOptions || dataBakerCompareModelOptions,
+          [refine.model, defaults.refineModel, defaults.compareModel]
+        ),
+        prompt: String(refine.prompt || defaults.refinePrompt || defaults.comparePrompt || ""),
+        temperature: refine.temperature ?? defaults.temperature ?? "",
+        top_p: refine.top_p ?? defaults.top_p ?? "",
+        max_tokens: refine.max_tokens ?? defaults.max_tokens ?? "",
+        max_completion_tokens:
+          refine.max_completion_tokens ?? defaults.max_completion_tokens ?? "",
+        presence_penalty: refine.presence_penalty ?? defaults.presence_penalty ?? "",
+        frequency_penalty: refine.frequency_penalty ?? defaults.frequency_penalty ?? "",
+        seed: refine.seed ?? defaults.seed ?? "",
+        stop: refine.stop ?? refine.stopSequences ?? defaults.stop ?? "",
+      },
+    };
+  }
+
+  function getBytedanceAidpSuzhouStageParamElementId(stagePrefix, definition) {
+    return (
+      "bytedance-aidp-ai-" +
+      String(stagePrefix || "").trim() +
+      "-" +
+      String(definition?.domSuffix || "").trim()
+    );
+  }
+
+  function applyBytedanceAidpSuzhouStageParamValues(stagePrefix, configPrefix, config, stageDefaults) {
+    aishellTechStageParamDefinitions.forEach(function (definition) {
+      const node = getElement(
+        getBytedanceAidpSuzhouStageParamElementId(stagePrefix, definition)
+      );
+      if (!(node instanceof HTMLInputElement) && !(node instanceof HTMLTextAreaElement)) {
+        return;
+      }
+      node.value = String(
+        getAsrVoiceAiEffectiveText(
+          config?.[configPrefix + definition.suffix],
+          stageDefaults?.[definition.apiKey]
+        )
+      );
+    });
+  }
+
+  function readBytedanceAidpSuzhouStageParamDraft(target, configPrefix, stagePrefix) {
+    const draft = target && typeof target === "object" ? target : {};
+    aishellTechStageParamDefinitions.forEach(function (definition) {
+      const node = getElement(
+        getBytedanceAidpSuzhouStageParamElementId(stagePrefix, definition)
+      );
+      const rawValue =
+        node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement ? node.value : "";
+      if (definition.type === "number") {
+        draft[configPrefix + definition.suffix] = normalizeOptionalNumberText(
+          rawValue,
+          definition.min,
+          definition.max,
+          definition.precision
+        );
+        return;
+      }
+      if (definition.type === "integer") {
+        draft[configPrefix + definition.suffix] = normalizeOptionalIntegerText(
+          rawValue,
+          definition.min,
+          definition.max
+        );
+        return;
+      }
+      draft[configPrefix + definition.suffix] = normalizeStopSequencesText(rawValue || "");
+    });
+    return draft;
+  }
+
+  function applyBytedanceAidpSuzhouListenModelFields(listenModel, aiDefaults) {
+    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
+    const currentListenModel = normalizeDataBakerCvpcListenModel(
+      listenModel,
+      stageDefaults.listen.model
+    );
+    renderFixedModelOptions(
+      "bytedance-aidp-ai-listen-model-select",
+      stageDefaults.listen.modelOptions,
+      currentListenModel
+    );
+    const listenHelpNode = getElement("bytedance-aidp-ai-listen-model-help");
+    if (listenHelpNode instanceof HTMLElement) {
+      listenHelpNode.textContent =
+        "听音阶段只根据当前段音频生成保守的原始听写草稿，不做普通话收口。";
+    }
+  }
+
+  function applyBytedanceAidpSuzhouStageFields(config, aiDefaults) {
+    const currentConfig = Object.assign({}, config || {});
+    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
+    applyBytedanceAidpSuzhouListenModelFields(
+      currentConfig.aiRecommendListenModel,
+      aiDefaults
+    );
+    const listenPromptNode = getElement("bytedance-aidp-ai-listen-prompt");
+    if (listenPromptNode instanceof HTMLTextAreaElement) {
+      listenPromptNode.value = String(
+        getAsrVoiceAiEffectiveText(
+          currentConfig.aiRecommendListenPrompt,
+          stageDefaults.listen.prompt
+        )
+      );
+    }
+    applyBytedanceAidpSuzhouStageParamValues(
+      "listen",
+      "aiRecommendListen",
+      currentConfig,
+      stageDefaults.listen
+    );
+
+    renderFixedModelOptions(
+      "bytedance-aidp-ai-refine-model-select",
+      stageDefaults.refine.modelOptions,
+      normalizeDataBakerCompareModel(
+        currentConfig.aiRecommendRefineModel,
+        stageDefaults.refine.model
+      )
+    );
+    const refinePromptNode = getElement("bytedance-aidp-ai-refine-prompt");
+    if (refinePromptNode instanceof HTMLTextAreaElement) {
+      refinePromptNode.value = String(
+        getAsrVoiceAiEffectiveText(
+          currentConfig.aiRecommendRefinePrompt,
+          stageDefaults.refine.prompt
+        )
+      );
+    }
+    applyBytedanceAidpSuzhouStageParamValues(
+      "refine",
+      "aiRecommendRefine",
+      currentConfig,
+      stageDefaults.refine
+    );
+  }
+
+  function getBytedanceAidpSuzhouSettingsDraftConfig(aiDefaults) {
+    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
+    const listenModelNode = getElement("bytedance-aidp-ai-listen-model-select");
+    const listenPromptNode = getElement("bytedance-aidp-ai-listen-prompt");
+    const refineModelNode = getElement("bytedance-aidp-ai-refine-model-select");
+    const refinePromptNode = getElement("bytedance-aidp-ai-refine-prompt");
+    const draft = {
+      aiRecommendListenModel:
+        listenModelNode instanceof HTMLSelectElement
+          ? normalizeDataBakerCvpcListenModel(listenModelNode.value, stageDefaults.listen.model)
+          : stageDefaults.listen.model,
+      aiRecommendListenPrompt:
+        listenPromptNode instanceof HTMLTextAreaElement
+          ? normalizePromptText(listenPromptNode.value)
+          : "",
+      aiRecommendRefineModel:
+        refineModelNode instanceof HTMLSelectElement
+          ? normalizeDataBakerCompareModel(refineModelNode.value, stageDefaults.refine.model)
+          : stageDefaults.refine.model,
+      aiRecommendRefinePrompt:
+        refinePromptNode instanceof HTMLTextAreaElement
+          ? normalizePromptText(refinePromptNode.value)
+          : "",
+    };
+    readBytedanceAidpSuzhouStageParamDraft(draft, "aiRecommendListen", "listen");
+    readBytedanceAidpSuzhouStageParamDraft(draft, "aiRecommendRefine", "refine");
+    return draft;
+  }
+
   function updateAishellTechListenModelFields(listenModel) {
     const aiDefaults = getAsrVoiceAiDefaultsCached(aishellTechMinnanScriptId).defaults || {};
     const draftConfig = getAishellTechSettingsDraftConfig(aiDefaults);
@@ -4019,6 +4222,7 @@
       scriptId === transcriptionProjectId ||
       scriptId === dataBakerRoundOneQualityScriptId ||
       scriptId === dataBakerCvpcLiuzhouScriptId ||
+      scriptId === bytedanceAidpSuzhouScriptId ||
       isMagicDataScript(scriptId) ||
       isAishellTechScript(scriptId)
     );
@@ -4036,6 +4240,9 @@
     }
     if (scriptId === dataBakerCvpcLiuzhouScriptId) {
       return "data-baker-cvpc-status";
+    }
+    if (scriptId === bytedanceAidpSuzhouScriptId) {
+      return "bytedance-aidp-status";
     }
     if (isMagicDataScript(scriptId)) {
       return "magic-data-status";
@@ -4098,6 +4305,9 @@
     if (scriptId === dataBakerCvpcLiuzhouScriptId) {
       return asrVoiceAiDefaultsPaths.dataBakerCvpcLiuzhouAssistant;
     }
+    if (scriptId === bytedanceAidpSuzhouScriptId) {
+      return asrVoiceAiDefaultsPaths.bytedanceAidpSuzhouHelper;
+    }
     if (scriptId === magicDataAnnotatorScriptId) {
       return asrVoiceAiDefaultsPaths.magicDataAnnotatorAiReview;
     }
@@ -4117,6 +4327,7 @@
     const useDataBakerStyleDefaults =
       scriptId === dataBakerRoundOneQualityScriptId ||
       scriptId === dataBakerCvpcLiuzhouScriptId ||
+      scriptId === bytedanceAidpSuzhouScriptId ||
       isMagicDataScript(scriptId) ||
       isAishellTechScript(scriptId);
     const useDataBakerPromptDefaults =
@@ -4284,6 +4495,37 @@
         },
       };
     }
+    if (scriptId === bytedanceAidpSuzhouScriptId) {
+      baseDefaults.listenModelOptions = clone(dataBakerCvpcListenModelOptions);
+      baseDefaults.stages = {
+        listen: {
+          model: "qwen3.5-omni-flash",
+          modelOptions: clone(dataBakerCvpcListenModelOptions),
+          prompt: String(defaults.listenPrompt || ""),
+          temperature: 0.1,
+          top_p: 0.8,
+          max_tokens: 1200,
+          max_completion_tokens: "",
+          presence_penalty: 0,
+          frequency_penalty: 0,
+          seed: "",
+          stop: "",
+        },
+        refine: {
+          model: "qwen3.5-plus",
+          modelOptions: clone(dataBakerCompareModelOptions),
+          prompt: String(defaults.comparePrompt || ""),
+          temperature: 0.1,
+          top_p: 0.8,
+          max_tokens: 1200,
+          max_completion_tokens: "",
+          presence_penalty: 0,
+          frequency_penalty: 0,
+          seed: "",
+          stop: "",
+        },
+      };
+    }
     return {
       defaults: baseDefaults,
       supportedParams: supportedParams,
@@ -4328,6 +4570,18 @@
         defaults.stages?.compare || {}
       );
     } else if (isDataBakerCvpcScript(scriptId)) {
+      normalizedDefaults.stages = Object.assign({}, fallback.defaults.stages || {}, defaults.stages || {});
+      normalizedDefaults.stages.listen = Object.assign(
+        {},
+        fallback.defaults.stages?.listen || {},
+        defaults.stages?.listen || {}
+      );
+      normalizedDefaults.stages.refine = Object.assign(
+        {},
+        fallback.defaults.stages?.refine || {},
+        defaults.stages?.refine || {}
+      );
+    } else if (scriptId === bytedanceAidpSuzhouScriptId) {
       normalizedDefaults.stages = Object.assign({}, fallback.defaults.stages || {}, defaults.stages || {});
       normalizedDefaults.stages.listen = Object.assign(
         {},
@@ -4392,9 +4646,11 @@
           ? "Aishell 越南语后端默认配置读取失败，已回退到本地单阶段默认值。"
           : isAishellTechScript(scriptId)
             ? "Aishell 后端默认配置读取失败，已回退到本地三板块默认值。"
-          : isDataBakerCvpcScript(scriptId)
-            ? "CVPC 柳州话后端默认配置读取失败，已回退到本地两阶段默认值。"
-            : "后端默认配置读取失败，已使用本地默认值。";
+            : isDataBakerCvpcScript(scriptId)
+              ? "CVPC 柳州话后端默认配置读取失败，已回退到本地两阶段默认值。"
+              : scriptId === bytedanceAidpSuzhouScriptId
+                ? "ByteDance AIDP 苏州话后端默认配置读取失败，已回退到本地两阶段默认值。"
+              : "后端默认配置读取失败，已使用本地默认值。";
         asrVoiceAiDefaultsCache[key] = fallback;
         return fallback;
       } finally {
@@ -4433,6 +4689,11 @@
     }
     if (scriptId === dataBakerCvpcLiuzhouScriptId) {
       node.textContent = "已读取后端默认配置。柳州话脚本当前固定为两阶段：听音 + 文本修正。";
+      return;
+    }
+    if (scriptId === bytedanceAidpSuzhouScriptId) {
+      node.textContent =
+        "已读取后端默认配置。苏州话脚本当前固定为两阶段：听音 + 普通话听写收口。";
       return;
     }
     node.textContent = "已读取后端默认配置；未单独覆盖的字段将沿用后端默认。";
@@ -5433,6 +5694,34 @@
         segmentSilenceThresholdDbfs: -31,
         mergeContiguousSuggestedSegmentsEnabled: true,
         segmentPreviewAutoApplyEnabled: true,
+        aiRecommendEnabled: true,
+        aiRecommendAutoFillEnabled: true,
+        aiRecommendEndpoint: buildBackendUrl(
+          constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH ||
+            "/api/bytedance-aidp/suzhou-helper/ai/recommend",
+          currentSettings || settings || {}
+        ),
+        aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+        aiRecommendListenModel: "qwen3.5-omni-flash",
+        aiRecommendListenPrompt: "",
+        aiRecommendListenTemperature: "",
+        aiRecommendListenTopP: "",
+        aiRecommendListenMaxTokens: "",
+        aiRecommendListenMaxCompletionTokens: "",
+        aiRecommendListenPresencePenalty: "",
+        aiRecommendListenFrequencyPenalty: "",
+        aiRecommendListenSeed: "",
+        aiRecommendListenStopSequences: "",
+        aiRecommendRefineModel: "qwen3.5-plus",
+        aiRecommendRefinePrompt: "",
+        aiRecommendRefineTemperature: "",
+        aiRecommendRefineTopP: "",
+        aiRecommendRefineMaxTokens: "",
+        aiRecommendRefineMaxCompletionTokens: "",
+        aiRecommendRefinePresencePenalty: "",
+        aiRecommendRefineFrequencyPenalty: "",
+        aiRecommendRefineSeed: "",
+        aiRecommendRefineStopSequences: "",
         defaultPlaybackRate: 1,
         fixedWaveZoom: 2,
         contractMode: "dom-guarded",
@@ -5457,6 +5746,29 @@
       config.mergeContiguousSuggestedSegmentsEnabled === false ? false : true;
     config.segmentPreviewAutoApplyEnabled =
       config.segmentPreviewAutoApplyEnabled === false ? false : true;
+    config.aiRecommendEnabled = config.aiRecommendEnabled !== false;
+    config.aiRecommendAutoFillEnabled =
+      config.aiRecommendAutoFillEnabled === false ? false : true;
+    config.aiRecommendEndpoint = normalizeText(config.aiRecommendEndpoint);
+    config.aiRecommendRequestTimeoutMs = Math.min(
+      DEFAULT_AI_REQUEST_TIMEOUT_MS,
+      normalizeDataBakerTimeoutMs(
+        config.aiRecommendRequestTimeoutMs,
+        defaults.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
+      )
+    );
+    config.aiRecommendListenModel = normalizeDataBakerCvpcListenModel(
+      config.aiRecommendListenModel,
+      defaults.aiRecommendListenModel || "qwen3.5-omni-flash"
+    );
+    config.aiRecommendListenPrompt = normalizePromptText(config.aiRecommendListenPrompt || "");
+    normalizeAishellTechStageParamFields(config, "aiRecommendListen");
+    config.aiRecommendRefineModel = normalizeDataBakerCompareModel(
+      config.aiRecommendRefineModel,
+      defaults.aiRecommendRefineModel || "qwen3.5-plus"
+    );
+    config.aiRecommendRefinePrompt = normalizePromptText(config.aiRecommendRefinePrompt || "");
+    normalizeAishellTechStageParamFields(config, "aiRecommendRefine");
     config.defaultPlaybackRate = normalizeBytedanceAidpPlaybackRate(
       config.defaultPlaybackRate,
       defaults.defaultPlaybackRate
@@ -5949,6 +6261,48 @@
     panel.classList.remove("hidden");
   }
 
+  function renderBytedanceAidpSuzhouAiSettingsSection(panel, headerHtml, defaultsTipId) {
+    panel.innerHTML = [
+      '<div class="asr-ai-panel">',
+      headerHtml,
+      '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
+      '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>启用普通话听写识别</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示当前段识别与批量识别面板</span></label></label>',
+      '<label class="asr-ai-field"><span>识别完成后自动填入</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-auto-fill-enabled" type="checkbox" /><span>默认开启。当前段识别成功后自动写回 `regions[*].txt`。</span></label></label>',
+      '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="bytedance-aidp-ai-timeout" type="number" min="1000" max="60000" step="1000" /></label>',
+      '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
+      "</div></div>",
+      '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>听音模型</span><select id="bytedance-aidp-ai-listen-model-select"></select><span class="asr-ai-help" id="bytedance-aidp-ai-listen-model-help"></span></label>',
+      '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+      '</div><div class="asr-ai-grid three">' +
+        buildDataBakerCvpcStageParamFieldsMarkup("listen").replace(/data-baker-cvpc-ai-/g, "bytedance-aidp-ai-") +
+        "</div></div>",
+      '<div class="asr-ai-block"><strong>普通话听写收口</strong><div class="asr-ai-grid two">',
+      '<label class="asr-ai-field"><span>收口模型</span><select id="bytedance-aidp-ai-refine-model-select"></select><span class="asr-ai-help">把听音草稿收口成普通话听写稿，不做语义润色。</span></label>',
+      '<label class="asr-ai-field"><span>收口 Prompt（可选）</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+      '</div><div class="asr-ai-grid three">' +
+        buildDataBakerCvpcStageParamFieldsMarkup("refine").replace(/data-baker-cvpc-ai-/g, "bytedance-aidp-ai-") +
+        "</div></div>",
+      "</div>",
+    ].join("");
+
+    const listenNode = getElement("bytedance-aidp-ai-listen-model-select");
+    if (listenNode instanceof HTMLSelectElement) {
+      listenNode.addEventListener("change", function (event) {
+        const aiDefaults = getAsrVoiceAiDefaultsCached(bytedanceAidpSuzhouScriptId).defaults || {};
+        const draftConfig = getBytedanceAidpSuzhouSettingsDraftConfig(aiDefaults);
+        draftConfig.aiRecommendListenModel = normalizeDataBakerCvpcListenModel(
+          event?.target?.value,
+          getBytedanceAidpSuzhouStageDefaults(aiDefaults).listen.model
+        );
+        applyBytedanceAidpSuzhouStageFields(draftConfig, aiDefaults);
+      });
+    }
+
+    panel.classList.remove("hidden");
+  }
+
   function renderAsrVoiceAiSettingsSection(settings, scriptId) {
     const panel = getElement("detail-shared-asr-ai-panel");
     if (!panel) {
@@ -6010,6 +6364,11 @@
 
     if (isDataBakerCvpcScript(scriptId)) {
       renderDataBakerCvpcAiSettingsSection(panel, headerHtml, defaultsTipId);
+      return;
+    }
+
+    if (scriptId === bytedanceAidpSuzhouScriptId) {
+      renderBytedanceAidpSuzhouAiSettingsSection(panel, headerHtml, defaultsTipId);
       return;
     }
 
@@ -11106,7 +11465,7 @@
       applyBytedanceAidpForm(settings);
       setStatus(
         "bytedance-aidp-status",
-        "当前只提供“隐藏平台AI功能”基础开关：默认勾选后隐藏平台原生 AI 洞察面板与猫形浮动入口，取消勾选后才显示；不处理 AI 请求、保存、提交或分段表格写入。"
+        "当前支持普通话听写稿 AI、批量识别、分段建议与平台暂存直写；只更新 `regions[*].txt`，不自动提交、不自动切题。"
       );
       return;
     }
@@ -11303,6 +11662,8 @@
 
   function applyBytedanceAidpForm(settings) {
     const config = getBytedanceAidpSuzhouConfig(settings);
+    const defaultsPayload = getAsrVoiceAiDefaultsCached(bytedanceAidpSuzhouScriptId);
+    const aiDefaults = defaultsPayload.defaults || {};
     bytedanceAidpShortcutsDraft = clone(config.shortcuts) || {};
     const platformAiNode = getElement("bytedance-aidp-platform-ai-enabled");
     const segmentPreviewAutoApplyNode = getElement(
@@ -11318,6 +11679,9 @@
     const defaultPlaybackRateNode = getElement("bytedance-aidp-default-playback-rate");
     const fixedWaveZoomNode = getElement("bytedance-aidp-fixed-wave-zoom");
     const contractNode = getElement("bytedance-aidp-contract-mode");
+    const aiRecommendAutoFillNode = getElement("bytedance-aidp-ai-recommend-auto-fill-enabled");
+    const aiRecommendNode = getElement("bytedance-aidp-ai-recommend-enabled");
+    const timeoutNode = getElement("bytedance-aidp-ai-timeout");
 
     if (platformAiNode) {
       platformAiNode.checked = config.platformAiEnabled === false;
@@ -11367,6 +11731,24 @@
         config.contractMode === "dom-guarded"
           ? "仅允许 DOM 显隐、波形控件回填、快捷键触发页面真实按钮和显式分段建议写回；不触发提交或下一题。"
           : String(config.contractMode || "dom-guarded");
+    }
+    if (aiRecommendAutoFillNode instanceof HTMLInputElement) {
+      aiRecommendAutoFillNode.checked = config.aiRecommendAutoFillEnabled !== false;
+    }
+    if (aiRecommendNode instanceof HTMLInputElement) {
+      aiRecommendNode.checked = config.aiRecommendEnabled !== false;
+    }
+    if (timeoutNode instanceof HTMLInputElement) {
+      timeoutNode.value = String(
+        Number(config.aiRecommendRequestTimeoutMs || aiDefaults.timeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS)
+      );
+    }
+    if (getElement("bytedance-aidp-ai-listen-model-select")) {
+      applyBytedanceAidpSuzhouStageFields(config, aiDefaults);
+      applyForcedThinkingToggle(
+        "bytedance-aidp-ai-enable-thinking",
+        "thinking 已全局固定关闭；苏州话脚本不允许开启 Omni 思考模式。"
+      );
     }
     stopBytedanceAidpShortcutRecording("");
     renderBytedanceAidpShortcutGrid();
@@ -11871,6 +12253,9 @@
     }
 
     const currentConfig = getBytedanceAidpSuzhouConfig(currentSettings || {});
+    const aiDefaults = getAsrVoiceAiDefaultsCached(bytedanceAidpSuzhouScriptId).defaults || {};
+    const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
+    const hasAiSettingsPanel = Boolean(getElement("bytedance-aidp-ai-timeout"));
     ensureBytedanceAidpShortcutDraft();
     const shortcuts = {};
     bytedanceAidpShortcutActions.forEach(function (action) {
@@ -11896,6 +12281,97 @@
       getElement("bytedance-aidp-fixed-wave-zoom")?.value,
       currentConfig.fixedWaveZoom
     );
+    const aiRecommendAutoFillEnabled = hasAiSettingsPanel
+      ? getElement("bytedance-aidp-ai-recommend-auto-fill-enabled")?.checked !== false
+      : currentConfig.aiRecommendAutoFillEnabled !== false;
+    const aiRecommendEnabled = hasAiSettingsPanel
+      ? getElement("bytedance-aidp-ai-recommend-enabled")?.checked !== false
+      : currentConfig.aiRecommendEnabled !== false;
+    const timeoutInput = hasAiSettingsPanel
+      ? getElement("bytedance-aidp-ai-timeout")?.value
+      : String(currentConfig.aiRecommendRequestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS);
+    const timeoutMs = Math.min(
+      DEFAULT_AI_REQUEST_TIMEOUT_MS,
+      normalizeDataBakerTimeoutMs(timeoutInput)
+    );
+    const draftConfig = hasAiSettingsPanel
+      ? getBytedanceAidpSuzhouSettingsDraftConfig(aiDefaults)
+      : {
+          aiRecommendListenModel: currentConfig.aiRecommendListenModel,
+          aiRecommendListenPrompt: currentConfig.aiRecommendListenPrompt,
+          aiRecommendRefineModel: currentConfig.aiRecommendRefineModel,
+          aiRecommendRefinePrompt: currentConfig.aiRecommendRefinePrompt,
+          aiRecommendListenTemperature: currentConfig.aiRecommendListenTemperature,
+          aiRecommendListenTopP: currentConfig.aiRecommendListenTopP,
+          aiRecommendListenMaxTokens: currentConfig.aiRecommendListenMaxTokens,
+          aiRecommendListenMaxCompletionTokens:
+            currentConfig.aiRecommendListenMaxCompletionTokens,
+          aiRecommendListenPresencePenalty: currentConfig.aiRecommendListenPresencePenalty,
+          aiRecommendListenFrequencyPenalty: currentConfig.aiRecommendListenFrequencyPenalty,
+          aiRecommendListenSeed: currentConfig.aiRecommendListenSeed,
+          aiRecommendListenStopSequences: currentConfig.aiRecommendListenStopSequences,
+          aiRecommendRefineTemperature: currentConfig.aiRecommendRefineTemperature,
+          aiRecommendRefineTopP: currentConfig.aiRecommendRefineTopP,
+          aiRecommendRefineMaxTokens: currentConfig.aiRecommendRefineMaxTokens,
+          aiRecommendRefineMaxCompletionTokens:
+            currentConfig.aiRecommendRefineMaxCompletionTokens,
+          aiRecommendRefinePresencePenalty: currentConfig.aiRecommendRefinePresencePenalty,
+          aiRecommendRefineFrequencyPenalty: currentConfig.aiRecommendRefineFrequencyPenalty,
+          aiRecommendRefineSeed: currentConfig.aiRecommendRefineSeed,
+          aiRecommendRefineStopSequences: currentConfig.aiRecommendRefineStopSequences,
+        };
+    const normalizeOverridePrompt = function (value, defaultValue) {
+      const normalizedValue = normalizePromptText(value || "");
+      const normalizedDefault = normalizePromptText(defaultValue || "");
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const normalizeOverrideNumber = function (value, defaultValue, min, max, precision) {
+      const normalizedValue = normalizeOptionalNumberText(value, min, max, precision);
+      const normalizedDefault = normalizeOptionalNumberText(defaultValue, min, max, precision);
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const normalizeOverrideInteger = function (value, defaultValue, min, max) {
+      const normalizedValue = normalizeOptionalIntegerText(value, min, max);
+      const normalizedDefault = normalizeOptionalIntegerText(defaultValue, min, max);
+      return normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+    };
+    const readStageOverrides = function (configPrefix, stageKey) {
+      const stageDefault = stageDefaults[stageKey] || {};
+      const overrides = {};
+      aishellTechStageParamDefinitions.forEach(function (definition) {
+        const fieldName = configPrefix + definition.suffix;
+        const defaultValue = stageDefault[definition.apiKey];
+        if (definition.type === "number") {
+          overrides[fieldName] = normalizeOverrideNumber(
+            draftConfig[fieldName],
+            defaultValue,
+            definition.min,
+            definition.max,
+            definition.precision
+          );
+          return;
+        }
+        if (definition.type === "integer") {
+          overrides[fieldName] = normalizeOverrideInteger(
+            draftConfig[fieldName],
+            defaultValue,
+            definition.min,
+            definition.max
+          );
+          return;
+        }
+        const normalizedValue = normalizeStopSequencesText(draftConfig[fieldName] || "");
+        const normalizedDefault = normalizeStopSequencesText(defaultValue || "");
+        overrides[fieldName] =
+          normalizedValue && normalizedValue !== normalizedDefault ? normalizedValue : "";
+      });
+      return overrides;
+    };
+    const listenOverrides = readStageOverrides("aiRecommendListen", "listen");
+    const refineOverrides = readStageOverrides("aiRecommendRefine", "refine");
+    const aiRecommendPath =
+      constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH ||
+      "/api/bytedance-aidp/suzhou-helper/ai/recommend";
 
     setStatus("bytedance-aidp-status", "正在保存 ByteDance AIDP 设置...");
 
@@ -11913,6 +12389,42 @@
                 mergeContiguousSuggestedSegmentsEnabled:
                   mergeContiguousSuggestedSegmentsEnabled,
                 segmentPreviewAutoApplyEnabled: segmentPreviewAutoApplyEnabled,
+                aiRecommendAutoFillEnabled: aiRecommendAutoFillEnabled,
+                aiRecommendEnabled: aiRecommendEnabled,
+                aiRecommendEndpoint: buildBackendUrl(aiRecommendPath, currentSettings || {}),
+                aiRecommendRequestTimeoutMs: timeoutMs,
+                aiRecommendListenModel: draftConfig.aiRecommendListenModel,
+                aiRecommendListenPrompt: normalizeOverridePrompt(
+                  draftConfig.aiRecommendListenPrompt,
+                  stageDefaults.listen.prompt
+                ),
+                aiRecommendListenTemperature: listenOverrides.aiRecommendListenTemperature,
+                aiRecommendListenTopP: listenOverrides.aiRecommendListenTopP,
+                aiRecommendListenMaxTokens: listenOverrides.aiRecommendListenMaxTokens,
+                aiRecommendListenMaxCompletionTokens:
+                  listenOverrides.aiRecommendListenMaxCompletionTokens,
+                aiRecommendListenPresencePenalty:
+                  listenOverrides.aiRecommendListenPresencePenalty,
+                aiRecommendListenFrequencyPenalty:
+                  listenOverrides.aiRecommendListenFrequencyPenalty,
+                aiRecommendListenSeed: listenOverrides.aiRecommendListenSeed,
+                aiRecommendListenStopSequences: listenOverrides.aiRecommendListenStopSequences,
+                aiRecommendRefineModel: draftConfig.aiRecommendRefineModel,
+                aiRecommendRefinePrompt: normalizeOverridePrompt(
+                  draftConfig.aiRecommendRefinePrompt,
+                  stageDefaults.refine.prompt
+                ),
+                aiRecommendRefineTemperature: refineOverrides.aiRecommendRefineTemperature,
+                aiRecommendRefineTopP: refineOverrides.aiRecommendRefineTopP,
+                aiRecommendRefineMaxTokens: refineOverrides.aiRecommendRefineMaxTokens,
+                aiRecommendRefineMaxCompletionTokens:
+                  refineOverrides.aiRecommendRefineMaxCompletionTokens,
+                aiRecommendRefinePresencePenalty:
+                  refineOverrides.aiRecommendRefinePresencePenalty,
+                aiRecommendRefineFrequencyPenalty:
+                  refineOverrides.aiRecommendRefineFrequencyPenalty,
+                aiRecommendRefineSeed: refineOverrides.aiRecommendRefineSeed,
+                aiRecommendRefineStopSequences: refineOverrides.aiRecommendRefineStopSequences,
                 defaultPlaybackRate: defaultPlaybackRate,
                 fixedWaveZoom: fixedWaveZoom,
                 contractMode: "dom-guarded",

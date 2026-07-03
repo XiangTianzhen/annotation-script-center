@@ -73,6 +73,17 @@ test("ByteDance AIDP storage defaults expose beta suzhou helper settings", async
     assert.equal(script.segmentSilenceThresholdDbfs, -31);
     assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, true);
     assert.equal(script.segmentPreviewAutoApplyEnabled, true);
+    assert.equal(script.aiRecommendEnabled, true);
+    assert.equal(script.aiRecommendAutoFillEnabled, true);
+    assert.equal(
+      script.aiRecommendEndpoint,
+      harness.constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT
+    );
+    assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
+    assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
+    assert.equal(script.aiRecommendListenPrompt, "");
+    assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
+    assert.equal(script.aiRecommendRefinePrompt, "");
     assert.equal(script.defaultPlaybackRate, 1);
     assert.equal(script.fixedWaveZoom, 2);
     assert.equal(script.contractMode, "dom-guarded");
@@ -100,6 +111,11 @@ test("ByteDance AIDP storage clamps suzhou helper segment padding threshold play
             segmentContextPaddingMs: 999,
             segmentSilenceThresholdDbfs: -100,
             mergeContiguousSuggestedSegmentsEnabled: false,
+            aiRecommendEnabled: false,
+            aiRecommendAutoFillEnabled: false,
+            aiRecommendRequestTimeoutMs: 999999,
+            aiRecommendListenModel: "invalid-listen-model",
+            aiRecommendRefineModel: "invalid-refine-model",
             defaultPlaybackRate: 1.1,
             fixedWaveZoom: 2.5,
           },
@@ -116,6 +132,11 @@ test("ByteDance AIDP storage clamps suzhou helper segment padding threshold play
     assert.equal(script.segmentSilenceThresholdDbfs, -31);
     assert.equal(script.mergeContiguousSuggestedSegmentsEnabled, false);
     assert.equal(script.segmentPreviewAutoApplyEnabled, true);
+    assert.equal(script.aiRecommendEnabled, false);
+    assert.equal(script.aiRecommendAutoFillEnabled, false);
+    assert.equal(script.aiRecommendRequestTimeoutMs, 60000);
+    assert.equal(script.aiRecommendListenModel, "qwen3.5-omni-flash");
+    assert.equal(script.aiRecommendRefineModel, "qwen3.5-plus");
     assert.equal(script.defaultPlaybackRate, 1);
     assert.equal(script.fixedWaveZoom, 2);
   } finally {
