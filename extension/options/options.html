@@ -713,6 +713,7 @@
               <div class="field-card">
                 <strong>AI 设置说明</strong>
                 <span>普通话听写识别的开关、自动填入、超时、听音模型和普通话听写收口模型已移动到右侧共享 `AI 设置` 面板。</span>
+                <span>默认规则已收口为：普通话不截取、仅允许 `，。？！`、不知名实体用 `##名称##` 包裹、阿拉伯数字改写为汉字数字。</span>
                 <span>这里继续只保留平台 AI 显隐、分段建议、波形控件和当前边界说明。</span>
               </div>
             </div>
@@ -741,6 +742,7 @@
               <label class="field-card">
                 <strong>前后静音时长</strong>
                 <span>用于画段建议的前后静音补偿。默认 `0.3s`，可配置范围 `0s ~ 0.5s`。</span>
+                <span>截取区间开头和结尾的无人声留白都不能超过 `500ms`。</span>
                 <input
                   id="bytedance-aidp-segment-context-padding-seconds"
                   type="number"

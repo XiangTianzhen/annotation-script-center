@@ -1,3 +1,12 @@
+## 2026-07-03（同步 ByteDance AIDP options 里的苏州话规则说明）
+- 更新 `extension/options/options.html`
+  - 为 AIDP 苏州话详情页补充普通话听写规则摘要
+  - 明确分段留白开头和结尾都不能超过 `500ms`
+- 更新 `extension/options/options.js`
+  - 为苏州话 `听音 / 收口 Prompt` 的默认说明补充 `##`、数字转汉字、音效/唱歌不截取等规则提示
+- 更新 `extension/options/options-bytedance-aidp-ui.test.js`
+  - 回归校验新的 AIDP 规则说明文案已出现在 options 源码里
+
 ## 2026-07-03（收口 ByteDance AIDP 苏州话普通话听写规则）
 - 更新 `platform-resources/bytedance-aidp/suzhou-helper/backend/ai-service.js`
   - 补齐苏州话普通话听写默认 Prompt 规则：普通话不截取、未知实体用 `##`、抖音音效/唱歌不截取、仅允许 `，。？！`、禁用阿拉伯数字

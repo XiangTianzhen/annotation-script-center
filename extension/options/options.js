@@ -6274,13 +6274,13 @@
       "</div></div>",
       '<div class="asr-ai-block"><strong>听音</strong><div class="asr-ai-grid two">',
       '<label class="asr-ai-field"><span>听音模型</span><select id="bytedance-aidp-ai-listen-model-select"></select><span class="asr-ai-help" id="bytedance-aidp-ai-listen-model-help"></span></label>',
-      '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+      '<label class="asr-ai-field"><span>听音 Prompt（可选）</span><textarea id="bytedance-aidp-ai-listen-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt；默认会要求普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取。</span></label>',
       '</div><div class="asr-ai-grid three">' +
         buildDataBakerCvpcStageParamFieldsMarkup("listen").replace(/data-baker-cvpc-ai-/g, "bytedance-aidp-ai-") +
         "</div></div>",
       '<div class="asr-ai-block"><strong>普通话听写收口</strong><div class="asr-ai-grid two">',
       '<label class="asr-ai-field"><span>收口模型</span><select id="bytedance-aidp-ai-refine-model-select"></select><span class="asr-ai-help">把听音草稿收口成普通话听写稿，不做语义润色。</span></label>',
-      '<label class="asr-ai-field"><span>收口 Prompt（可选）</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt。</span></label>',
+      '<label class="asr-ai-field"><span>收口 Prompt（可选）</span><textarea id="bytedance-aidp-ai-refine-prompt" maxlength="8000"></textarea><span class="asr-ai-help">留空或恢复默认时，使用后端默认 Prompt；默认会限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字。</span></label>',
       '</div><div class="asr-ai-grid three">' +
         buildDataBakerCvpcStageParamFieldsMarkup("refine").replace(/data-baker-cvpc-ai-/g, "bytedance-aidp-ai-") +
         "</div></div>",
