@@ -4501,7 +4501,7 @@
         listen: {
           model: "qwen3.5-omni-flash",
           modelOptions: clone(dataBakerCvpcListenModelOptions),
-          prompt: String(defaults.listenPrompt || ""),
+          prompt: baseDefaults.listenPrompt,
           temperature: 0.1,
           top_p: 0.8,
           max_tokens: 1200,
@@ -4514,7 +4514,7 @@
         refine: {
           model: "qwen3.5-plus",
           modelOptions: clone(dataBakerCompareModelOptions),
-          prompt: String(defaults.comparePrompt || ""),
+          prompt: baseDefaults.comparePrompt,
           temperature: 0.1,
           top_p: 0.8,
           max_tokens: 1200,

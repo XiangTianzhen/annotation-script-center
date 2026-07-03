@@ -1,3 +1,10 @@
+## 2026-07-04（修复 ByteDance AIDP 苏州话设置页 AI 面板与快捷键空白）
+- 更新 `extension/options/options.js`
+  - 修复 AIDP 苏州话本地 fallback defaults 分支里的未定义变量引用
+  - 避免详情页读取 AI 默认配置缓存时抛异常，确保 AI 面板与快捷键区继续完成渲染
+- 新增 `extension/options/options-bytedance-aidp-defaults.test.js`
+  - 回归校验 AIDP fallback defaults 不抛错，并固定包含 `listen / refine` 两阶段结构
+
 ## 2026-07-03（同步 ByteDance AIDP options 里的苏州话规则说明）
 - 更新 `extension/options/options.html`
   - 为 AIDP 苏州话详情页补充普通话听写规则摘要
