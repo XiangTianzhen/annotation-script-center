@@ -1389,9 +1389,9 @@
       description:
         "AIDP mark-v3 详情页苏州话辅助：普通话听写稿 AI、批量识别、分段建议、快捷键与语言种类补齐。",
       note:
-        "当前支持当前段 / 批量普通话听写稿识别与平台暂存直写，可选识别完成后自动填入；不自动提交、不自动切题，不改动 `ms` 或提交链路。",
+        "当前支持单段普通话听写稿直填输入框、批量识别与分段建议暂存写回；不自动提交、不自动切题，不改动 `ms` 或提交链路。",
       capabilityScope: "aidp-ai-transcription-and-segmentation-beta",
-      statusLabel: "苏州话脚本 Beta",
+      statusLabel: "苏州话脚本",
       detailView: "bytedance-aidp-suzhou-helper",
       host: BYTEDANCE_AIDP_PLATFORM.host,
       matchUrl:

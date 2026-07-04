@@ -5,6 +5,35 @@
 - 新增 `extension/options/options-bytedance-aidp-defaults.test.js`
   - 回归校验 AIDP fallback defaults 不抛错，并固定包含 `listen / refine` 两阶段结构
 
+## 2026-07-04（统一 ByteDance AIDP 苏州话脚本交互与启停状态）
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.js`
+  - 去掉可见 `Beta` 文案，统一为 `苏州话脚本`
+  - 将 `当前音频信息`、`AI信息`、分段建议结果区收口为同款折叠模块，默认折叠
+  - 分段建议运行时不再显示自动应用开关，改为只读设置页配置，并按配置动态显示 `生成分段并应用` 或 `生成分段建议 / 应用分段建议`
+  - 将面板内长说明改为小圆点悬浮提示
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - 分段表空态时不再注入 `识别音频` 列和按钮
+  - `清空画段`、`填充语言种类` 按钮强制单行显示
+  - 单段 `识别音频` 改为直填对应行输入框，不再主动走平台暂存写回
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/data-api.js`
+  - 新增按段号定位 textarea 的 DOM 直填能力，并补齐原生输入事件链
+- 更新设置与状态展示：
+  - `extension/options/options.html`
+  - `extension/options/options.js`
+  - `extension/shared/constants.js`
+  - `extension/popup/popup.html`
+  - `extension/popup/popup.js`
+  - 统一苏州话脚本设置页和 popup 的文案口径，启停状态改为直接切换脚本开关
+- 更新测试：
+  - `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/data-api.test.js`
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - `extension/popup/popup.test.js`
+- 更新文档：
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+
 ## 2026-07-03（同步 ByteDance AIDP options 里的苏州话规则说明）
 - 更新 `extension/options/options.html`
   - 为 AIDP 苏州话详情页补充普通话听写规则摘要

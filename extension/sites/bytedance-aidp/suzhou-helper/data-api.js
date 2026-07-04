@@ -6,12 +6,13 @@
   const FILL_LANGUAGE_SUCCESS_MESSAGE = "已通过平台暂存接口填充空语言种类，请刷新页面复核。";
   const FILL_LANGUAGE_EMPTY_MESSAGE = "当前没有空的语言种类需要填充。";
   const WRITE_CURRENT_TEXT_SUCCESS_MESSAGE =
-    "已通过平台暂存接口写回当前段普通话听写稿，请刷新页面复核。";
+    "已通过平台暂存接口写回普通话听写稿，请刷新页面复核。";
   const WRITE_BATCH_TEXT_SUCCESS_MESSAGE =
     "已通过平台暂存接口批量写回普通话听写稿，请刷新页面复核。";
   const WRITE_CURRENT_TEXT_SKIP_EXISTING_MESSAGE = "当前段 AI 结果为空，已保留原有文本。";
   const WRITE_CURRENT_TEXT_SKIP_EMPTY_MESSAGE = "当前段 AI 结果为空，未写入任何文本。";
   const WRITE_BATCH_TEXT_EMPTY_MESSAGE = "当前没有可写回的普通话听写稿。";
+  const WRITE_CURRENT_TEXT_DOM_SKIP_EMPTY_MESSAGE = "当前段 AI 结果为空，未填入任何文本。";
   const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的分段建议。";
   const PREVIEW_STALE_MESSAGE = "当前页面分段状态已变化，旧分段建议已失效，请重新生成。";
   const UNSAFE_TABLE_MESSAGE = "当前分段表里已有文本或语音种类，自动应用可能覆盖现有标注。";
@@ -287,6 +288,157 @@
       hasUnsafeData: hasUnsafeData,
       unsafeReason: hasUnsafeData ? UNSAFE_TABLE_MESSAGE : "",
     };
+  }
+
+  function getSegmentInputRows(documentLike) {
+    const tableRoot = findSegmentTableRoot(documentLike);
+    if (!tableRoot) {
+      return [];
+    }
+    const tableRows = queryAll(tableRoot, "tr").filter(function (node) {
+      return queryAll(node, "textarea").length > 0;
+    });
+    if (tableRows.length > 0) {
+      return tableRows;
+    }
+    return queryAll(tableRoot, "div,section,article").filter(function (node) {
+      if (queryAll(node, "textarea").length <= 0) {
+        return false;
+      }
+      const parentNode = node.parentElement || node.parentNode || null;
+      return !parentNode || queryAll(parentNode, "textarea").length <= 0;
+    });
+  }
+
+  function getSegmentNumberFromInputRow(rowNode, fallbackNumber) {
+    const firstCellText = normalizeText(
+      queryAll(rowNode, "td,th,div,span")[0]?.textContent ||
+        queryAll(rowNode, "td,th,div,span")[0]?.innerText ||
+        ""
+    );
+    const matched = firstCellText.match(/\d+/);
+    if (matched) {
+      const segmentNumber = Math.max(0, Math.round(Number(matched[0])) || 0);
+      if (segmentNumber > 0) {
+        return segmentNumber;
+      }
+    }
+    return Math.max(1, Math.round(Number(fallbackNumber || 0)) || 1);
+  }
+
+  function findSegmentTextarea(documentLike, segmentNumber) {
+    const targetNumber = Math.max(0, Math.round(Number(segmentNumber || 0)) || 0);
+    if (targetNumber <= 0) {
+      return null;
+    }
+    const rows = getSegmentInputRows(documentLike);
+    for (let index = 0; index < rows.length; index += 1) {
+      const currentNumber = getSegmentNumberFromInputRow(rows[index], index + 1);
+      if (currentNumber === targetNumber) {
+        return queryAll(rows[index], "textarea")[0] || null;
+      }
+    }
+    return null;
+  }
+
+  function createSyntheticEvent(windowLike, type, init) {
+    const source = init && typeof init === "object" ? init : {};
+    const baseInit = Object.assign(
+      {
+        bubbles: true,
+        cancelable: type === "beforeinput",
+      },
+      source
+    );
+    const inputCtor =
+      windowLike && typeof windowLike.InputEvent === "function"
+        ? windowLike.InputEvent
+        : typeof globalThis.InputEvent === "function"
+          ? globalThis.InputEvent
+          : null;
+    if ((type === "beforeinput" || type === "input") && inputCtor) {
+      try {
+        return new inputCtor(type, baseInit);
+      } catch (_error) {
+        // Fall through to plain event-like object.
+      }
+    }
+    const eventCtor =
+      windowLike && typeof windowLike.Event === "function"
+        ? windowLike.Event
+        : typeof globalThis.Event === "function"
+          ? globalThis.Event
+          : null;
+    if (eventCtor) {
+      try {
+        const event = new eventCtor(type, baseInit);
+        Object.keys(source).forEach(function (key) {
+          if (!(key in event)) {
+            event[key] = source[key];
+          }
+        });
+        return event;
+      } catch (_error) {
+        // Fall through to plain event-like object.
+      }
+    }
+    return Object.assign(
+      {
+        type: type,
+      },
+      baseInit
+    );
+  }
+
+  function dispatchSyntheticControlEvent(node, windowLike, type, init) {
+    if (!node || typeof node.dispatchEvent !== "function") {
+      return false;
+    }
+    try {
+      return node.dispatchEvent(createSyntheticEvent(windowLike, type, init));
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function focusControl(node) {
+    if (!node || typeof node.focus !== "function") {
+      return false;
+    }
+    try {
+      node.focus();
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function setFormControlValue(node, nextValue) {
+    if (!node) {
+      return false;
+    }
+    const value = String(nextValue || "");
+    const prototypes = [
+      Object.getPrototypeOf(node),
+      typeof globalThis.HTMLTextAreaElement === "function" ? globalThis.HTMLTextAreaElement.prototype : null,
+      typeof globalThis.HTMLInputElement === "function" ? globalThis.HTMLInputElement.prototype : null,
+    ].filter(Boolean);
+    for (let index = 0; index < prototypes.length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(prototypes[index], "value");
+      if (typeof descriptor?.set === "function") {
+        descriptor.set.call(node, value);
+        return true;
+      }
+    }
+    if ("value" in node) {
+      node.value = value;
+      return true;
+    }
+    if ("textContent" in node) {
+      node.textContent = value;
+      return true;
+    }
+    return false;
   }
 
   function resolveActiveSegmentNumber(tableRoot, rows, documentLike) {
@@ -796,13 +948,16 @@
   function createRuntime(options) {
     const env = options && typeof options === "object" ? options : {};
     const windowLike = env.window || globalThis.window || null;
+    const documentLike = env.document || windowLike?.document || globalThis.document || null;
     const locationLike = env.location || globalThis.location || {};
     const fetchImpl = typeof env.fetch === "function" ? env.fetch : globalThis.fetch;
     const readCurrentTableState =
       typeof env.readCurrentTableState === "function"
-        ? env.readCurrentTableState
+        ? function () {
+            return env.readCurrentTableState(documentLike);
+          }
         : function () {
-            return defaultReadCurrentTableState(env.document || globalThis.document || null);
+            return defaultReadCurrentTableState(documentLike);
           };
     let receiveSnapshot = null;
     let submitSnapshot = null;
@@ -1052,6 +1207,58 @@
       };
     }
 
+    async function fillCurrentRegionTextIntoDom(input) {
+      const source = input && typeof input === "object" ? input : {};
+      const targetSegmentNumber = Math.max(0, Math.round(Number(source.segmentNumber || 0)) || 0);
+      if (targetSegmentNumber <= 0) {
+        return {
+          ok: false,
+          message: ACTIVE_SEGMENT_MISSING_MESSAGE,
+          filledCount: 0,
+          skippedCount: 0,
+        };
+      }
+      const nextText = normalizeText(source.finalMandarinText);
+      if (!nextText) {
+        return {
+          ok: true,
+          message: WRITE_CURRENT_TEXT_DOM_SKIP_EMPTY_MESSAGE,
+          filledCount: 0,
+          skippedCount: 1,
+        };
+      }
+      const textarea = findSegmentTextarea(documentLike, targetSegmentNumber);
+      if (!textarea) {
+        return {
+          ok: false,
+          message: "当前没有找到第 " + String(targetSegmentNumber) + " 段输入框，请重新画段后再试。",
+          filledCount: 0,
+          skippedCount: 0,
+        };
+      }
+      focusControl(textarea);
+      dispatchSyntheticControlEvent(textarea, windowLike, "beforeinput", {
+        data: nextText,
+        inputType: "insertReplacementText",
+      });
+      setFormControlValue(textarea, nextText);
+      dispatchSyntheticControlEvent(textarea, windowLike, "input", {
+        data: nextText,
+        inputType: "insertReplacementText",
+      });
+      dispatchSyntheticControlEvent(textarea, windowLike, "change");
+      dispatchSyntheticControlEvent(textarea, windowLike, "compositionend", {
+        data: nextText,
+      });
+      return {
+        ok: true,
+        message:
+          "已填入第 " + String(targetSegmentNumber) + " 段输入框，请继续复核或暂存。",
+        filledCount: 1,
+        skippedCount: 0,
+      };
+    }
+
     async function writeBatchRegionTexts(input) {
       const source = input && typeof input === "object" ? input : {};
       const context = await getCurrentContext();
@@ -1138,6 +1345,7 @@
       clearCurrentSegments,
       fillEmptyRegionLanguages,
       writeCurrentRegionText,
+      fillCurrentRegionTextIntoDom,
       writeBatchRegionTexts,
       destroy,
     };
@@ -1151,6 +1359,8 @@
       buildRegionSignature,
       buildUpdatedRegions,
       defaultReadCurrentTableState,
+      findSegmentTextarea,
+      setFormControlValue,
       updateTempAnswerWithRegionTexts,
     },
   };

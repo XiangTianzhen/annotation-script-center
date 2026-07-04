@@ -40,6 +40,175 @@ function createFakeWindow() {
   };
 }
 
+class FakeElement {
+  constructor(options) {
+    const source = options || {};
+    this.nodeType = 1;
+    this.tagName = String(source.tagName || "div").toUpperCase();
+    this.className = String(source.className || "");
+    this.children = [];
+    this.parentElement = null;
+    this.parentNode = null;
+    this.ownerDocument = null;
+    this.value = source.value !== undefined ? String(source.value) : "";
+    this._listeners = new Map();
+    this._attrs = new Map();
+    this._text = String(source.text || "");
+    Object.entries(source.attributes || {}).forEach(([name, value]) => {
+      this.setAttribute(name, value);
+    });
+    (source.children || []).forEach((child) => {
+      this.appendChild(child);
+    });
+  }
+
+  appendChild(child) {
+    child.parentElement = this;
+    child.parentNode = this;
+    child.ownerDocument = this.ownerDocument;
+    this.children.push(child);
+    return child;
+  }
+
+  removeChild(child) {
+    const index = this.children.indexOf(child);
+    if (index >= 0) {
+      this.children.splice(index, 1);
+    }
+    child.parentElement = null;
+    child.parentNode = null;
+    return child;
+  }
+
+  addEventListener(type, listener) {
+    this._listeners.set(String(type || ""), listener);
+  }
+
+  dispatchEvent(event) {
+    const listener = this._listeners.get(String(event?.type || ""));
+    if (typeof listener === "function") {
+      listener.call(this, event);
+    }
+    return true;
+  }
+
+  focus() {
+    if (this.ownerDocument) {
+      this.ownerDocument.activeElement = this;
+    }
+  }
+
+  setAttribute(name, value) {
+    const key = String(name);
+    const text = String(value);
+    if (key === "class") {
+      this.className = text;
+    }
+    this._attrs.set(key, text);
+  }
+
+  getAttribute(name) {
+    const key = String(name);
+    if (key === "class") {
+      return this.className || null;
+    }
+    return this._attrs.has(key) ? this._attrs.get(key) : null;
+  }
+
+  matches(selector) {
+    return String(selector || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .some((item) => {
+        if (item.startsWith(".")) {
+          return String(this.className || "")
+            .split(/\s+/)
+            .filter(Boolean)
+            .includes(item.slice(1));
+        }
+        const attrMatch = item.match(/^\[([^=\]]+)=['"](.+)['"]\]$/);
+        if (attrMatch) {
+          return String(this.getAttribute(attrMatch[1]) || "") === attrMatch[2];
+        }
+        return String(this.tagName || "").toLowerCase() === item.toLowerCase();
+      });
+  }
+
+  querySelector(selector) {
+    return this.querySelectorAll(selector)[0] || null;
+  }
+
+  querySelectorAll(selector) {
+    const results = [];
+    const visit = (node) => {
+      node.children.forEach((child) => {
+        if (child.matches(selector)) {
+          results.push(child);
+        }
+        visit(child);
+      });
+    };
+    visit(this);
+    return results;
+  }
+
+  get textContent() {
+    return this._text + this.children.map((child) => child.textContent).join("");
+  }
+
+  set textContent(value) {
+    this._text = String(value || "");
+  }
+}
+
+function createFakeDocument(children) {
+  const documentNode = new FakeElement({
+    tagName: "document",
+    children: Array.isArray(children) ? children : [],
+  });
+  documentNode.ownerDocument = documentNode;
+  (function assignOwner(node) {
+    node.ownerDocument = documentNode;
+    node.children.forEach(assignOwner);
+  })(documentNode);
+  documentNode.createElement = function (tagName) {
+    const element = new FakeElement({ tagName: tagName });
+    element.ownerDocument = documentNode;
+    return element;
+  };
+  return documentNode;
+}
+
+function createAidpSegmentTableRow(segmentNumber, value) {
+  return new FakeElement({
+    tagName: "tr",
+    children: [
+      new FakeElement({
+        tagName: "td",
+        text: String(segmentNumber),
+      }),
+      new FakeElement({
+        tagName: "td",
+        text: "起：0:0" + String(segmentNumber) + ".000 终：0:0" + String(segmentNumber) + ".500",
+      }),
+      new FakeElement({
+        tagName: "td",
+        children: [
+          new FakeElement({
+            tagName: "textarea",
+            value: value || "",
+          }),
+        ],
+      }),
+      new FakeElement({
+        tagName: "td",
+        children: [new FakeElement({ tagName: "select" })],
+      }),
+    ],
+  });
+}
+
 function createBaseReceivePayload(regionOverrides) {
   const regions = Array.isArray(regionOverrides)
     ? regionOverrides
@@ -197,6 +366,7 @@ function createRuntimeHarness(options) {
   const fetchCalls = [];
   const runtime = moduleApi.createRuntime({
     window: windowLike,
+    document: settings.document,
     location: {
       origin: "https://aidp.bytedance.com",
       href:
@@ -639,7 +809,7 @@ test("AIDP data api writes current segment Mandarin text back to txt only", asyn
 
   assert.deepEqual(result, {
     ok: true,
-    message: "已通过平台暂存接口写回当前段普通话听写稿，请刷新页面复核。",
+    message: "已通过平台暂存接口写回普通话听写稿，请刷新页面复核。",
     writtenCount: 1,
     skippedCount: 0,
   });
@@ -690,6 +860,102 @@ test("AIDP data api skips empty current result when target region already has te
     message: "当前段 AI 结果为空，已保留原有文本。",
     writtenCount: 0,
     skippedCount: 1,
+  });
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api fills the target segment textarea through DOM events without fetch", async function () {
+  const rowOne = createAidpSegmentTableRow(1, "旧内容一");
+  const rowTwo = createAidpSegmentTableRow(2, "");
+  const documentLike = createFakeDocument([
+    new FakeElement({
+      tagName: "table",
+      children: [
+        new FakeElement({
+          tagName: "tr",
+          children: [
+            new FakeElement({ tagName: "th", text: "序号" }),
+            new FakeElement({ tagName: "th", text: "区间" }),
+            new FakeElement({ tagName: "th", text: "转写文本" }),
+            new FakeElement({ tagName: "th", text: "语音种类" }),
+          ],
+        }),
+        rowOne,
+        rowTwo,
+      ],
+    }),
+  ]);
+  const textarea = rowTwo.querySelector("textarea");
+  const eventTypes = [];
+  ["beforeinput", "input", "change", "compositionend"].forEach(function (type) {
+    textarea.addEventListener(type, function (event) {
+      eventTypes.push(String(event?.type || ""));
+    });
+  });
+  const harness = createRuntimeHarness({
+    document: documentLike,
+  });
+
+  const result = await harness.runtime.fillCurrentRegionTextIntoDom({
+    segmentNumber: 2,
+    finalMandarinText: "普通话听写稿",
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "已填入第 2 段输入框，请继续复核或暂存。",
+    filledCount: 1,
+    skippedCount: 0,
+  });
+  assert.equal(textarea.value, "普通话听写稿");
+  assert.deepEqual(eventTypes, ["beforeinput", "input", "change", "compositionend"]);
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api skips DOM fill when the generated text is empty", async function () {
+  const harness = createRuntimeHarness({
+    document: createFakeDocument([
+      new FakeElement({
+        tagName: "table",
+        children: [createAidpSegmentTableRow(1, "")],
+      }),
+    ]),
+  });
+
+  const result = await harness.runtime.fillCurrentRegionTextIntoDom({
+    segmentNumber: 1,
+    finalMandarinText: "",
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    message: "当前段 AI 结果为空，未填入任何文本。",
+    filledCount: 0,
+    skippedCount: 1,
+  });
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api fails DOM fill when the target textarea is missing", async function () {
+  const harness = createRuntimeHarness({
+    document: createFakeDocument([
+      new FakeElement({
+        tagName: "table",
+        children: [createAidpSegmentTableRow(1, "")],
+      }),
+    ]),
+  });
+
+  const result = await harness.runtime.fillCurrentRegionTextIntoDom({
+    segmentNumber: 3,
+    finalMandarinText: "不会写入",
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: "当前没有找到第 3 段输入框，请重新画段后再试。",
+    filledCount: 0,
+    skippedCount: 0,
   });
   assert.equal(harness.fetchCalls.length, 0);
 });

@@ -237,7 +237,7 @@ function findNode(root, predicate) {
   return collectDescendants(root).find(predicate) || null;
 }
 
-test("AIDP suzhou ui panel keeps current-audio section collapsed by default and supports single expand-collapse toggle", function () {
+test("AIDP suzhou ui panel keeps current-audio and AI sections collapsed by default and supports shared toggles", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
@@ -253,7 +253,10 @@ test("AIDP suzhou ui panel keeps current-audio section collapsed by default and 
     assert.ok(panelRoot);
 
     const collapseButton = findNode(panelRoot, function (node) {
-      return node.tagName === "BUTTON" && node.textContent.includes("展开当前音频");
+      return node.tagName === "BUTTON" && node.textContent.includes("展开当前音频信息");
+    });
+    const aiCollapseButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.textContent.includes("展开AI信息");
     });
     const allButtons = collectDescendants(panelRoot).filter(function (node) {
       return node.tagName === "BUTTON";
@@ -261,13 +264,20 @@ test("AIDP suzhou ui panel keeps current-audio section collapsed by default and 
     const summaryCard = findNode(panelRoot, function (node) {
       return String(node.className || "").split(/\s+/).includes("summary-card");
     });
+    const aiInfoCard = findNode(panelRoot, function (node) {
+      return String(node.className || "").split(/\s+/).includes("info-card");
+    });
 
     assert.ok(collapseButton);
+    assert.ok(aiCollapseButton);
     assert.ok(summaryCard);
+    assert.ok(aiInfoCard);
     assert.equal(allButtons.filter(function (node) {
-      return /当前音频/.test(node.textContent);
+      return /当前音频信息/.test(node.textContent);
     }).length, 1);
     assert.equal(summaryCard.style.display, "none");
+    assert.equal(aiInfoCard.style.display, "none");
+    assert.equal(panelRoot.textContent.includes("Beta"), false);
 
     runtime.renderAudioContext({
       entryId: "7656690377962016562",
@@ -279,14 +289,18 @@ test("AIDP suzhou ui panel keeps current-audio section collapsed by default and 
 
     collapseButton.click();
     assert.notEqual(summaryCard.style.display, "none");
-    assert.match(collapseButton.textContent, /折叠当前音频/);
+    assert.match(collapseButton.textContent, /折叠当前音频信息/);
     assert.match(summaryCard.textContent, /7656690377962016562/);
     assert.match(summaryCard.textContent, /7628929157338042146/);
     assert.match(summaryCard.textContent, /https:\/\/example\.test\/audio\.m4a/);
 
+    aiCollapseButton.click();
+    assert.notEqual(aiInfoCard.style.display, "none");
+    assert.match(aiCollapseButton.textContent, /折叠AI信息/);
+
     collapseButton.click();
     assert.equal(summaryCard.style.display, "none");
-    assert.match(collapseButton.textContent, /展开当前音频/);
+    assert.match(collapseButton.textContent, /展开当前音频信息/);
 
     runtime.renderAudioContext({
       entryId: "44696080",
@@ -307,11 +321,10 @@ test("AIDP suzhou ui panel keeps current-audio section collapsed by default and 
   }
 });
 
-test("AIDP suzhou ui panel keeps only preview auto-apply toggle in the Beta panel", function () {
+test("AIDP suzhou ui panel switches preview buttons from settings-only auto-apply state", function () {
   const harness = createHarness();
   const previousDocument = globalThis.document;
   const previousHTMLElement = globalThis.HTMLElement;
-  const autoApplyValues = [];
   globalThis.document = harness.document;
   globalThis.HTMLElement = FakeNode;
 
@@ -319,30 +332,44 @@ test("AIDP suzhou ui panel keeps only preview auto-apply toggle in the Beta pane
     const module = loadUiPanelModule();
     const runtime = module.createRuntime({
       segmentPreviewAutoApplyEnabled: true,
-      onToggleSegmentPreviewAutoApply(nextEnabled) {
-        autoApplyValues.push(nextEnabled);
-      },
     });
     assert.equal(runtime.mount(), true);
 
     const panelRoot = harness.waveAnchor.nextSibling;
-    const checkboxes = collectDescendants(panelRoot).filter(function (node) {
-      return node.tagName === "INPUT" && node.type === "checkbox";
+    const allButtons = collectDescendants(panelRoot).filter(function (node) {
+      return node.tagName === "BUTTON";
     });
-    const autoApplyCheckbox = checkboxes[0];
+    const previewCollapseButton = findNode(panelRoot, function (node) {
+      return node.tagName === "BUTTON" && node.textContent.includes("展开分段建议");
+    });
+    const previewList = findNode(panelRoot, function (node) {
+      return String(node.className || "").split(/\s+/).includes("preview-list");
+    });
 
-    assert.equal(checkboxes.length, 1);
-    assert.ok(autoApplyCheckbox);
-    assert.equal(autoApplyCheckbox.checked, true);
-    assert.doesNotMatch(panelRoot.textContent, /识别完成后自动填入/);
-    assert.match(panelRoot.textContent, /生成后立即应用当前建议/);
+    assert.ok(previewCollapseButton);
+    assert.ok(previewList);
+    assert.equal(previewList.style.display, "none");
+    assert.equal(
+      allButtons.some(function (node) {
+        return node.textContent.includes("生成分段并应用");
+      }),
+      true
+    );
+    assert.equal(
+      allButtons.some(function (node) {
+        return node.textContent.includes("应用分段建议");
+      }),
+      false
+    );
 
-    autoApplyCheckbox.checked = false;
-    autoApplyCheckbox.eventListeners.change();
-    assert.deepEqual(autoApplyValues, [false]);
+    runtime.setSegmentPreviewAutoApplyEnabled(false);
+    assert.equal(panelRoot.textContent.includes("生成分段并应用"), false);
+    assert.match(panelRoot.textContent, /生成分段建议/);
+    assert.match(panelRoot.textContent, /应用分段建议/);
 
-    runtime.setSegmentPreviewAutoApplyEnabled(true);
-    assert.equal(autoApplyCheckbox.checked, true);
+    previewCollapseButton.click();
+    assert.notEqual(previewList.style.display, "none");
+    assert.match(previewCollapseButton.textContent, /折叠分段建议/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;
@@ -441,12 +468,13 @@ test("AIDP suzhou ui panel removes current-segment section and keeps preview-bat
 
     assert.match(panelText, /分段建议/);
     assert.match(panelText, /批量识别/);
-    assert.match(panelText, /当前音频/);
+    assert.match(panelText, /当前音频信息/);
     assert.match(panelText, /AI信息/);
+    assert.doesNotMatch(panelText, /Beta/);
 
-    assert.ok(panelText.indexOf("分段建议") < panelText.indexOf("当前音频"));
-    assert.ok(panelText.indexOf("批量识别") < panelText.indexOf("当前音频"));
-    assert.ok(panelText.indexOf("当前音频") < panelText.indexOf("AI信息"));
+    assert.ok(panelText.indexOf("分段建议") < panelText.indexOf("当前音频信息"));
+    assert.ok(panelText.indexOf("批量识别") < panelText.indexOf("当前音频信息"));
+    assert.ok(panelText.indexOf("当前音频信息") < panelText.indexOf("AI信息"));
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

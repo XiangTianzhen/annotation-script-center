@@ -146,6 +146,30 @@
         color: #0f5bd8;
       }
 
+      .pill-toggle {
+        width: auto;
+        min-width: 86px;
+        min-height: 36px;
+        padding: 0 14px;
+        border-radius: 14px;
+        border: 1px solid transparent;
+      }
+
+      .pill-toggle.enabled {
+        background: rgba(245, 158, 11, 0.18);
+        color: #b45309;
+      }
+
+      .pill-toggle.disabled {
+        background: rgba(239, 68, 68, 0.12);
+        color: #b91c1c;
+      }
+
+      .pill-toggle.pending {
+        background: rgba(148, 163, 184, 0.16);
+        color: #475569;
+      }
+
       .status-meta {
         display: flex;
         flex-wrap: wrap;
@@ -205,7 +229,7 @@
               <img class="brand-logo" src="../assets/brand/asc-logo.svg" alt="标注脚本中心" />
               <h1 id="extension-name">标注脚本中心</h1>
             </div>
-            <p class="copy">外层面板只检测当前页面命中了哪个平台、哪个脚本会生效，以及当前是否成功注入。</p>
+            <p class="copy">外层面板会显示当前命中的脚本、运行状态说明，并支持直接切换当前脚本启停。</p>
           </div>
           <div id="stage-label" class="stage">脚本中心</div>
         </div>
@@ -216,7 +240,7 @@
               <strong id="detected-title">正在检测当前页面...</strong>
               <span id="detected-description">请稍候。</span>
             </div>
-            <span id="detected-status-pill" class="pill pending">检测中</span>
+            <button id="detected-status-pill" class="pill-toggle pending" type="button" disabled>检测中</button>
           </div>
           <div class="status-meta">
             <span id="detected-platform-pill" class="pill info">平台</span>

@@ -31,6 +31,9 @@
   const abakaAiScriptId =
     constants.ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID || "abakaAiTaskPageCapture";
   let currentDetectedScriptId = null;
+  let toggleInFlight = false;
+  let lastRenderedSettings = null;
+  let lastRenderedContext = null;
 
   function queryTabs(queryInfo) {
     return new Promise(function (resolve) {
@@ -69,6 +72,98 @@
     const node = getElement(id);
     node.textContent = text;
     node.className = "pill " + tone;
+  }
+
+  function setTogglePill(text, tone, disabled) {
+    const node = getElement("detected-status-pill");
+    if (!node) {
+      return;
+    }
+    node.textContent = text;
+    node.className = "pill-toggle " + tone;
+    node.disabled = disabled === true;
+  }
+
+  function isScriptEnabled(settings, scriptId) {
+    switch (scriptId) {
+      case transcriptionProjectId:
+      case judgementProjectId:
+        return (
+          settings?.platforms?.alibabaLabelx?.enabled === true &&
+          settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId === scriptId
+        );
+      case lightwheelScriptId:
+        return Boolean(
+          settings?.platforms?.lightwheel?.enabled &&
+            settings?.platforms?.lightwheel?.scripts?.viewPanel?.enabled
+        );
+      case dataBakerRoundOneQualityScriptId:
+        return (
+          settings?.platforms?.dataBaker?.enabled !== false &&
+          settings?.platforms?.dataBaker?.scripts?.roundOneQuality?.enabled !== false
+        );
+      case dataBakerCvpcLiuzhouScriptId:
+        return (
+          settings?.platforms?.dataBakerCvpc?.enabled !== false &&
+          settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant?.enabled !== false
+        );
+      case bytedanceAidpSuzhouScriptId:
+        return (
+          settings?.platforms?.bytedanceAidp?.enabled !== false &&
+          settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper?.enabled !== false
+        );
+      case magicDataHakkaScriptId:
+        return (
+          settings?.platforms?.magicData?.enabled !== false &&
+          settings?.platforms?.magicData?.scripts?.hakkaHelper?.enabled !== false
+        );
+      case magicDataMinnanScriptId:
+        return (
+          settings?.platforms?.magicData?.enabled !== false &&
+          settings?.platforms?.magicData?.scripts?.minnanHelper?.enabled !== false
+        );
+      case aishellTechMinnanScriptId:
+        return (
+          settings?.platforms?.aishellTech?.enabled !== false &&
+          settings?.platforms?.aishellTech?.scripts?.minnanHelper?.enabled !== false
+        );
+      case aishellTechVietnameseScriptId:
+        return (
+          settings?.platforms?.aishellTech?.enabled !== false &&
+          settings?.platforms?.aishellTech?.scripts?.vietnameseHelper?.enabled !== false
+        );
+      case abakaAiScriptId:
+        return (
+          settings?.platforms?.abakaAi?.enabled !== false &&
+          settings?.platforms?.abakaAi?.scripts?.taskPageCapture?.enabled !== false
+        );
+      default:
+        return false;
+    }
+  }
+
+  function getResolvedScriptLabel(context) {
+    const script = context?.scriptId ? scriptLibrary[context.scriptId] || {} : {};
+    return context?.scriptId
+      ? String(context.scriptLabel || script.label || script.shortLabel || context.scriptId)
+      : "";
+  }
+
+  function buildRuntimeDescription(context) {
+    const parts = [];
+    const statusText = String(context?.statusText || "").trim();
+    const title = String(context?.title || "").trim();
+    const description = String(context?.description || "").trim();
+    if (statusText) {
+      parts.push("运行状态：" + statusText);
+    }
+    if (title) {
+      parts.push(title);
+    }
+    if (description) {
+      parts.push(description);
+    }
+    return parts.join(" ");
   }
 
   function getLabelxActiveScriptId(settings) {
@@ -348,7 +443,7 @@
           statusText: "未触发",
           statusTone: "pending",
           title: "当前页面未命中已启用脚本",
-          description: "当前 beta 平台或脚本尚未解锁。",
+          description: "当前平台或脚本尚未解锁。",
         };
       }
       const pathname = String(url.pathname || "").toLowerCase();
@@ -425,15 +520,15 @@
           statusText: !enabled
             ? "未启用"
             : platformAiEnabled
-              ? "已支持 Beta"
-              : "已支持 Beta（平台 AI 已隐藏）",
+              ? "详情页命中"
+              : "详情页命中（平台 AI 已隐藏）",
           statusTone: !enabled ? "disabled" : platformAiEnabled ? "success" : "pending",
           title: "当前页面命中 ByteDance AIDP mark-v3 详情页",
           description: enabled
             ? platformAiEnabled
               ? "当前页会按设置显示平台原生 AI 板块；勾选“隐藏平台AI功能”后会隐藏 AI 洞察与猫形浮动入口，不改任务列表、波形区、保留/丢弃和分段表格。"
               : "当前页会按设置隐藏平台原生 AI 洞察与猫形浮动入口；取消勾选“隐藏平台AI功能”后会恢复显示，不调用 AI、不自动保存、不自动提交。"
-            : "当前 URL 已命中 mark-v3 详情页，但平台脚本未启用或尚未解锁 beta。",
+            : "当前 URL 已命中 mark-v3 详情页，但平台脚本未启用或尚未解锁。",
         };
       }
 
@@ -449,7 +544,7 @@
           statusTone: enabled ? "pending" : "disabled",
           title: "当前页面属于 ByteDance AIDP 任务页",
           description:
-            "进入 /management/task-v2/{taskId}/mark-v3/{index} 后，才会触发苏州话脚本 beta 运行时。",
+            "进入 /management/task-v2/{taskId}/mark-v3/{index} 后，才会触发苏州话脚本运行时。",
         };
       }
     }
@@ -687,13 +782,20 @@
 
   function renderContext(context) {
     currentDetectedScriptId = context.scriptId || null;
-
-    getElement("detected-title").textContent = context.title || "当前页面检测完成";
-    getElement("detected-description").textContent = context.description || "";
-    setPill("detected-status-pill", context.statusText || "检测完成", context.statusTone || "pending");
+    lastRenderedContext = context;
 
     const platform = context.platformId ? platformLibrary[context.platformId] || {} : {};
     const script = context.scriptId ? scriptLibrary[context.scriptId] || {} : {};
+    const scriptLabel = getResolvedScriptLabel(context);
+    const runtimeDescription = buildRuntimeDescription(context);
+
+    if (context.scriptId) {
+      getElement("detected-title").textContent = scriptLabel;
+      getElement("detected-description").textContent = runtimeDescription;
+    } else {
+      getElement("detected-title").textContent = context.title || "当前页面检测完成";
+      getElement("detected-description").textContent = context.description || "";
+    }
 
     setPill(
       "detected-platform-pill",
@@ -704,12 +806,18 @@
     );
     setPill(
       "detected-script-pill",
-      context.scriptId ? String(context.scriptLabel || script.label || context.scriptId) : "无脚本触发",
+      context.scriptId ? scriptLabel : "无脚本触发",
       context.scriptId ? "info" : "pending"
     );
 
     const openScriptSettingsButton = getElement("open-script-settings");
     openScriptSettingsButton.disabled = !context.scriptId || context.openScriptSettings === false;
+    const scriptEnabled = context.scriptId ? isScriptEnabled(lastRenderedSettings || {}, context.scriptId) : false;
+    setTogglePill(
+      toggleInFlight ? "切换中..." : context.scriptId ? (scriptEnabled ? "已启用" : "未启用") : "未命中脚本",
+      toggleInFlight ? "pending" : scriptEnabled ? "enabled" : "disabled",
+      toggleInFlight || !context.scriptId
+    );
 
     if (!context.scriptId) {
       setPopupStatus("你可以直接打开脚本中心查看所有脚本。");
@@ -718,18 +826,22 @@
 
     setPopupStatus(
       "当前页面对应脚本：" +
-        String(context.scriptLabel || script.label || context.scriptId) +
+        String(scriptLabel || script.label || context.scriptId) +
         "。需要调整配置时，请进入该脚本详情页。"
     );
   }
 
-  async function render() {
+  async function render(settingsOverride) {
     if (!storage || typeof storage.getSettings !== "function") {
       setPopupStatus("扩展存储不可用，无法读取脚本中心。");
       return;
     }
 
-    const settings = await storage.getSettings();
+    const settings =
+      settingsOverride && typeof settingsOverride === "object"
+        ? settingsOverride
+        : await storage.getSettings();
+    lastRenderedSettings = settings;
     const activeTab = await getActiveTab();
 
     document.title = constants.EXTENSION_NAME || "标注脚本中心";
@@ -742,7 +854,32 @@
         ? await enrichRuntimeStatus(activeTab, baseContext)
         : baseContext;
 
-    renderContext(context);
+    renderContext(context, settings);
+  }
+
+  async function handleToggleCurrentScript() {
+    if (toggleInFlight || !currentDetectedScriptId) {
+      return;
+    }
+    if (!storage || typeof storage.setScriptEnabled !== "function") {
+      setPopupStatus("当前扩展版本不支持直接切换脚本启停。");
+      return;
+    }
+    const settings = lastRenderedSettings || (await storage.getSettings());
+    const nextEnabled = !isScriptEnabled(settings, currentDetectedScriptId);
+    toggleInFlight = true;
+    if (lastRenderedContext) {
+      renderContext(lastRenderedContext, settings);
+    }
+    try {
+      const nextSettings = await storage.setScriptEnabled(currentDetectedScriptId, nextEnabled);
+      toggleInFlight = false;
+      await render(nextSettings);
+    } catch (error) {
+      toggleInFlight = false;
+      await render();
+      setPopupStatus("切换脚本状态失败：" + (error && error.message ? error.message : String(error)));
+    }
   }
 
   document.addEventListener("DOMContentLoaded", async function () {
@@ -754,6 +891,10 @@
 
     getElement("open-options").addEventListener("click", function () {
       openScriptCenter(null);
+    });
+
+    getElement("detected-status-pill").addEventListener("click", function () {
+      void handleToggleCurrentScript();
     });
 
     await render();

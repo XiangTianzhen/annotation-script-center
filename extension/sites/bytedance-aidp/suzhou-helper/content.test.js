@@ -169,9 +169,31 @@ class FakeElement {
   }
 
   appendChild(child) {
+    if (!child) {
+      return child;
+    }
+    if (child.parentElement && child.parentElement !== this) {
+      if (typeof child.parentElement.removeChild === "function") {
+        child.parentElement.removeChild(child);
+      }
+    }
     child.parentElement = this;
+    child.parentNode = this;
     child.ownerDocument = this.ownerDocument || (this.tagName === "DOCUMENT" ? this : null);
     this.children.push(child);
+    return child;
+  }
+
+  removeChild(child) {
+    const index = this.children.indexOf(child);
+    if (index < 0) {
+      return child;
+    }
+    this.children.splice(index, 1);
+    if (child) {
+      child.parentElement = null;
+      child.parentNode = null;
+    }
     return child;
   }
 
@@ -330,6 +352,21 @@ function createAidpSegmentTableRow(segmentNumber) {
       new FakeElement({
         tagName: "td",
         children: [pauseButton],
+      }),
+    ],
+  });
+}
+
+function createAidpEmptyStateRow() {
+  return new FakeElement({
+    tagName: "tr",
+    children: [
+      new FakeElement({
+        tagName: "td",
+        attributes: {
+          colspan: "6",
+        },
+        text: "暂无数据",
       }),
     ],
   });
@@ -1193,6 +1230,66 @@ test("ByteDance AIDP content injects per-row recognize buttons once and keeps a 
   assert.equal(recognizeButtons[1].textContent, "识别音频");
 });
 
+test("ByteDance AIDP content does not inject recognize header or buttons for empty segment tables", function () {
+  const contentModule = loadContentModule();
+  const table = new FakeElement({
+    tagName: "table",
+    children: [
+      new FakeElement({
+        tagName: "tr",
+        children: [
+          new FakeElement({ tagName: "th", text: "序号" }),
+          new FakeElement({ tagName: "th", text: "区间" }),
+          new FakeElement({ tagName: "th", text: "转写文本" }),
+          new FakeElement({ tagName: "th", text: "语音种类" }),
+          new FakeElement({ tagName: "th", text: "音频段" }),
+          new FakeElement({ tagName: "th", text: "操作" }),
+        ],
+      }),
+      createAidpEmptyStateRow(),
+    ],
+  });
+  const root = createFakeDocument([table]);
+
+  const inserted = contentModule.__testOnly.ensureSegmentRecognizeButtons(root, function () {});
+
+  assert.equal(inserted, false);
+  assert.equal(root.querySelectorAll("[data-asc-segment-recognize-header='true']").length, 0);
+  assert.equal(root.querySelectorAll("[data-asc-segment-recognize-button='true']").length, 0);
+});
+
+test("ByteDance AIDP content removes recognize header after segment table returns to empty state", function () {
+  const contentModule = loadContentModule();
+  const headerRow = new FakeElement({
+    tagName: "tr",
+    children: [
+      new FakeElement({ tagName: "th", text: "序号" }),
+      new FakeElement({ tagName: "th", text: "区间" }),
+      new FakeElement({ tagName: "th", text: "转写文本" }),
+      new FakeElement({ tagName: "th", text: "语音种类" }),
+      new FakeElement({ tagName: "th", text: "音频段" }),
+      new FakeElement({ tagName: "th", text: "操作" }),
+    ],
+  });
+  const table = new FakeElement({
+    tagName: "table",
+    children: [headerRow, createAidpSegmentTableRow(1)],
+  });
+  const root = createFakeDocument([table]);
+
+  contentModule.__testOnly.ensureSegmentRecognizeButtons(root, function () {});
+  table.children = [headerRow, createAidpEmptyStateRow()];
+  table.children.forEach(function (child) {
+    child.parentElement = table;
+    child.ownerDocument = root;
+  });
+
+  contentModule.__testOnly.ensureSegmentRecognizeButtons(root, function () {});
+
+  assert.equal(root.querySelectorAll("[data-asc-segment-recognize-header='true']").length, 0);
+  assert.equal(root.querySelectorAll("[data-asc-segment-recognize-button='true']").length, 0);
+});
+
 test("ByteDance AIDP content row recognize button dispatches the matching segment number", function () {
   const contentModule = loadContentModule();
   const clickedSegments = [];
@@ -1677,6 +1774,34 @@ test("ByteDance AIDP content exposes exactly the expected shortcut action handle
     "previewSegments",
     "applyPreviewSegments",
   ]);
+});
+
+test("ByteDance AIDP content keeps toolbar helper buttons on a single line", function () {
+  const contentModule = loadContentModule();
+  const playToolbar = new FakeElement({
+    className: "btns-play",
+    children: [new FakeElement({ tagName: "svg" })],
+  });
+  const waveRoot = createFakeDocument([
+    new FakeElement({
+      className: "neeko-wavesurfer-warper neeko-wavesurfer",
+      children: [
+        new FakeElement({
+          className: "wave-toolbar",
+          children: [playToolbar],
+        }),
+      ],
+    }),
+  ]);
+
+  contentModule.__testOnly.ensureClearSegmentsButton(waveRoot, function () {});
+  contentModule.__testOnly.ensureFillLanguageKindsButton(waveRoot, function () {});
+
+  const clearButton = playToolbar.children[playToolbar.children.length - 2];
+  const fillButton = playToolbar.children[playToolbar.children.length - 1];
+
+  assert.equal(clearButton.style.getPropertyValue("white-space") || clearButton.style.whiteSpace, "nowrap");
+  assert.equal(fillButton.style.getPropertyValue("white-space") || fillButton.style.whiteSpace, "nowrap");
 });
 
 test("ByteDance AIDP shortcuts runtime ignores editable targets and triggers Space play-pause toggle", function () {

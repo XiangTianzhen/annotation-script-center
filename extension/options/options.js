@@ -6267,8 +6267,8 @@
       headerHtml,
       '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
       '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid two">',
-      '<label class="asr-ai-field"><span>启用普通话听写识别</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示当前段识别与批量识别面板</span></label></label>',
-      '<label class="asr-ai-field"><span>识别完成后自动填入</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-auto-fill-enabled" type="checkbox" /><span>默认开启。当前段识别成功后自动写回 `regions[*].txt`。</span></label></label>',
+      '<label class="asr-ai-field"><span>启用普通话听写识别</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-enabled" type="checkbox" /><span>关闭后不显示单段识别与批量识别能力。</span></label></label>',
+      '<label class="asr-ai-field"><span>识别完成后自动填入</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-auto-fill-enabled" type="checkbox" /><span>默认开启。单段识别成功后直接填入对应输入框，不主动走平台暂存请求。</span></label></label>',
       '<label class="asr-ai-field"><span>请求超时时间（ms）</span><input id="bytedance-aidp-ai-timeout" type="number" min="1000" max="60000" step="1000" /></label>',
       '<label class="asr-ai-field"><span>思考开关</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-enable-thinking" type="checkbox" /><span>thinking 已全局固定关闭，以避免请求链路拖慢。</span></label></label>',
       "</div></div>",
@@ -11465,7 +11465,7 @@
       applyBytedanceAidpForm(settings);
       setStatus(
         "bytedance-aidp-status",
-        "当前支持普通话听写稿 AI、批量识别、分段建议与平台暂存直写；只更新 `regions[*].txt`，不自动提交、不自动切题。"
+        "当前支持普通话听写稿 AI、单段识别直填输入框、批量识别与分段建议暂存写回；只更新 `txt`，不自动提交、不自动切题。"
       );
       return;
     }

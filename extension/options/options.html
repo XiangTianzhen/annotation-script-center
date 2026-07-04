@@ -691,7 +691,7 @@
             <div class="detail-section-head">
               <div>
                 <strong>基础设置</strong>
-                <span>当前支持普通话听写稿 AI、批量识别、分段建议写回、快捷键和语言补齐；不自动提交、不自动切题。</span>
+                <span>当前支持普通话听写稿 AI、批量识别、分段建议写回、快捷键和语言补齐；单段识别直填输入框，不自动提交、不自动切题。</span>
               </div>
             </div>
             <div class="detail-grid two">
@@ -714,20 +714,20 @@
                 <strong>AI 设置说明</strong>
                 <span>普通话听写识别的开关、自动填入、超时、听音模型和普通话听写收口模型已移动到右侧共享 `AI 设置` 面板。</span>
                 <span>默认规则已收口为：普通话不截取、仅允许 `，。？！`、不知名实体用 `##名称##` 包裹、阿拉伯数字改写为汉字数字。</span>
-                <span>这里继续只保留平台 AI 显隐、分段建议、波形控件和当前边界说明。</span>
+                <span>这里继续只保留平台 AI 显隐、画段后自动应用建议、波形控件和当前边界说明。</span>
               </div>
             </div>
 
             <div class="detail-grid two">
               <label class="field-card">
-                <strong>生成后自动应用</strong>
+                <strong>画段后自动应用建议</strong>
                 <span>默认开启。仅在你手动点击“生成分段建议”后，立即把当前建议写回平台暂存答案。</span>
                 <span class="field-toggle">
                   <input
                     id="bytedance-aidp-segment-preview-auto-apply-enabled"
                     type="checkbox"
                   />
-                  生成后自动应用当前建议
+                  画段后自动应用建议
                 </span>
               </label>
 
@@ -826,7 +826,7 @@
             <div class="field-card">
               <strong>当前边界</strong>
               <span>快捷键只绑定详情页安全动作；按钮缺失或 disabled 时不会绕过平台限制。</span>
-              <span>详情页仍不自动提交、不自动切题；AI 最终只写 `regions[*].txt`，不改 `ms`，只调用现有暂存写回链路。</span>
+              <span>详情页仍不自动提交、不自动切题；单段识别直填输入框，批量识别和分段建议只调用现有暂存写回链路，不改 `ms`。</span>
             </div>
 
             <div class="field-actions">

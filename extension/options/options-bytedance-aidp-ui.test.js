@@ -25,10 +25,11 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(html, /id="bytedance-aidp-shortcut-grid"/);
   assert.match(html, /id="bytedance-aidp-recording-status"/);
   assert.match(html, /普通话听写稿 AI、批量识别、分段建议写回/);
+  assert.match(html, /单段识别直填输入框/);
   assert.match(html, /AI 设置说明/);
   assert.match(html, /普通话听写识别的开关、自动填入、超时、听音模型和普通话听写收口模型已移动到右侧共享 `AI 设置` 面板/);
   assert.match(html, /普通话不截取、仅允许 `，。？！`、不知名实体用 `##名称##` 包裹、阿拉伯数字改写为汉字数字/);
-  assert.match(html, /AI 最终只写 `regions\[\*\]\.txt`，不改 `ms`/);
+  assert.match(html, /单段识别直填输入框，批量识别和分段建议只调用现有暂存写回链路，不改 `ms`/);
   assert.match(html, /<select\s+id="bytedance-aidp-default-playback-rate"/);
   assert.match(html, /<option value="1">1\.00倍速<\/option>/);
   assert.match(html, /<option value="2">2<\/option>/);
@@ -45,7 +46,7 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(html, /前后静音时长/);
   assert.match(html, /静音阈值/);
   assert.match(html, /连续相接自动合并/);
-  assert.match(html, /生成后自动应用当前建议/);
+  assert.match(html, /画段后自动应用建议/);
   assert.match(html, /默认播放倍数/);
   assert.match(html, /固定缩放倍数/);
   assert.match(combinedSource, /播放\/暂停切换/);
@@ -87,6 +88,7 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /bytedance-aidp-ai-timeout/);
   assert.match(script, /bytedance-aidp-ai-listen-model-select/);
   assert.match(script, /bytedance-aidp-ai-refine-model-select/);
+  assert.match(script, /单段识别成功后直接填入对应输入框，不主动走平台暂存请求/);
   assert.match(script, /普通话不截取、未知实体用 `##名称##`、抖音音效和唱歌不截取/);
   assert.match(script, /限制为 `，。？！`、未知实体用 `##名称##`、阿拉伯数字转汉字数字/);
   assert.match(script, /普通话听写收口/);

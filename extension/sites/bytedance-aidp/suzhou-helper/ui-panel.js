@@ -77,8 +77,10 @@
       "  box-shadow: 0 10px 24px rgba(65, 110, 206, 0.08);",
       "}",
       "[" + ROOT_ATTR + "] * { box-sizing: border-box; }",
+      "[" + ROOT_ATTR + "] .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
+      "[" + ROOT_ATTR + "] .panel-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .panel-title { font-size: 14px; font-weight: 700; color: #26418b; }",
-      "[" + ROOT_ATTR + "] .panel-note { margin-top: 4px; color: #6f7b94; }",
+      "[" + ROOT_ATTR + "] .tooltip-dot { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; border: 1px solid #c9d8ff; background: #fff; color: #5f6f90; font-size: 11px; font-weight: 700; cursor: help; }",
       "[" + ROOT_ATTR + "] .status { margin-top: 10px; color: #4f5d78; white-space: pre-wrap; }",
       "[" + ROOT_ATTR + "] .status[data-tone='error'] { color: #c2410c; }",
       "[" + ROOT_ATTR + "] .status[data-tone='success'] { color: #1d7a36; }",
@@ -88,9 +90,9 @@
       "[" + ROOT_ATTR + "] .panel-grid .section { margin-top: 0; }",
       "[" + ROOT_ATTR + "] .section[data-span='full'] { grid-column: 1 / -1; }",
       "[" + ROOT_ATTR + "] .section-title { font-weight: 600; color: #26418b; }",
+      "[" + ROOT_ATTR + "] .section-title-row { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .section-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }",
-      "[" + ROOT_ATTR + "] .inline-toggle { margin-top: 8px; display: inline-flex; align-items: center; gap: 8px; color: #4f5d78; }",
       "[" + ROOT_ATTR + "] .summary-card, [" + ROOT_ATTR + "] .preview-card, [" + ROOT_ATTR + "] .info-card {",
       "  margin-top: 8px;",
       "  padding: 10px 12px;",
@@ -108,11 +110,8 @@
       "[" + ROOT_ATTR + "] .batch-selector-grid button { min-width: 44px; justify-content: center; }",
       "[" + ROOT_ATTR + "] .batch-selector-grid button[data-selected='true'] { background: #e8f0ff; border-color: #2f57c5; color: #26418b; }",
       "[" + ROOT_ATTR + "] .batch-selector-grid button[data-batch-all='true'] { min-width: 56px; font-weight: 600; }",
-      "[" + ROOT_ATTR + "] .batch-help { color: #6f7b94; margin-top: 8px; }",
       "[" + ROOT_ATTR + "] .batch-state-item { padding: 10px 12px; border: 1px solid #e4ebfb; border-radius: 8px; background: #fff; color: #42506a; }",
       "[" + ROOT_ATTR + "] .batch-failure-list { margin: 6px 0 0; padding-left: 18px; color: #b42318; }",
-      "[" + ROOT_ATTR + "] .meta-details { margin-top: 8px; }",
-      "[" + ROOT_ATTR + "] .meta-details summary { cursor: pointer; color: #2f57c5; font-weight: 600; }",
       "[" + ROOT_ATTR + "] button {",
       "  min-height: 32px;",
       "  padding: 8px 14px;",
@@ -123,9 +122,13 @@
       "  font-size: 12px;",
       "  font-weight: 600;",
       "  cursor: pointer;",
+      "  white-space: nowrap;",
       "}",
       "[" + ROOT_ATTR + "] button:hover { background: #edf3ff; }",
       "[" + ROOT_ATTR + "] button[data-primary='true'] { border-color: #2f57c5; background: #2f57c5; color: #fff; }",
+      "[" + ROOT_ATTR + "] button.collapse-toggle { min-height: auto; padding: 0; border: none; border-radius: 0; background: transparent; color: #2f57c5; }",
+      "[" + ROOT_ATTR + "] button.collapse-toggle:hover { background: transparent; text-decoration: underline; }",
+      "[" + ROOT_ATTR + "] .collapsible-body { margin-top: 8px; }",
       "[" + ROOT_ATTR + "] .preview-list { display: grid; gap: 8px; }",
       "[" + ROOT_ATTR + "] .preview-meta { color: #6f7b94; }",
       "[" + ROOT_ATTR + "] .preview-unsafe { margin-top: 8px; color: #c2410c; }",
@@ -181,6 +184,62 @@
     return button;
   }
 
+  function clearNode(node) {
+    if (!node) {
+      return;
+    }
+    while (true) {
+      const nextChild =
+        (node.children && typeof node.children.length === "number" && node.children[0]) ||
+        node.firstChild ||
+        null;
+      if (!nextChild || typeof node.removeChild !== "function") {
+        break;
+      }
+      node.removeChild(nextChild);
+    }
+    node.textContent = "";
+  }
+
+  function createTooltipDot(text) {
+    const dot = document.createElement("span");
+    dot.className = "tooltip-dot";
+    dot.textContent = "i";
+    dot.setAttribute("title", normalizeText(text));
+    dot.setAttribute("aria-label", normalizeText(text));
+    return dot;
+  }
+
+  function createSectionTitleRow(title, helpText) {
+    const row = document.createElement("div");
+    row.className = "section-title-row";
+    const titleNode = document.createElement("div");
+    titleNode.className = "section-title";
+    titleNode.textContent = title;
+    row.appendChild(titleNode);
+    if (normalizeText(helpText)) {
+      row.appendChild(createTooltipDot(helpText));
+    }
+    return row;
+  }
+
+  function createCollapseToggle(sectionLabel, collapsed, onClick) {
+    const button = createButton("", false, onClick);
+    button.className = "collapse-toggle";
+    setCollapseToggleText(button, sectionLabel, collapsed);
+    return button;
+  }
+
+  function setCollapseToggleText(button, sectionLabel, collapsed) {
+    if (!button) {
+      return;
+    }
+    button.textContent =
+      (collapsed ? "▶ " : "▼ ") +
+      (collapsed ? "展开" : "折叠") +
+      normalizeText(sectionLabel);
+  }
+
   function normalizeBatchSelectionNumbers(total, selectedNumbers) {
     const result = Array.from(new Set((Array.isArray(selectedNumbers) ? selectedNumbers : []).map(function (value) {
       return Math.max(1, Math.round(Number(value || 0)) || 0);
@@ -212,12 +271,17 @@
     let summaryNode = null;
     let summaryCollapseButtonNode = null;
     let previewNode = null;
+    let previewActionRowNode = null;
+    let previewCollapseButtonNode = null;
     let aiMetaNode = null;
+    let aiMetaCollapseButtonNode = null;
     let batchStateNode = null;
     let batchSelectionSummaryNode = null;
     let batchSelectionGridNode = null;
-    let previewAutoApplyToggleNode = null;
+    let segmentPreviewAutoApplyEnabled = deps.segmentPreviewAutoApplyEnabled !== false;
     let currentAudioCollapsed = true;
+    let previewCollapsed = true;
+    let aiMetaCollapsed = true;
     let latestRecommendation = null;
     let batchSelectionState = {
       totalSegments: 0,
@@ -233,10 +297,53 @@
       }
       summaryNode.style.display = currentAudioCollapsed ? "none" : "";
       if (summaryCollapseButtonNode) {
-        summaryCollapseButtonNode.textContent = currentAudioCollapsed
-          ? "展开当前音频"
-          : "折叠当前音频";
+        setCollapseToggleText(summaryCollapseButtonNode, "当前音频信息", currentAudioCollapsed);
       }
+    }
+
+    function syncPreviewSectionState() {
+      if (!previewNode) {
+        return;
+      }
+      previewNode.style.display = previewCollapsed ? "none" : "";
+      if (previewCollapseButtonNode) {
+        setCollapseToggleText(previewCollapseButtonNode, "分段建议", previewCollapsed);
+      }
+    }
+
+    function syncAiMetaSectionState() {
+      if (!aiMetaNode) {
+        return;
+      }
+      aiMetaNode.style.display = aiMetaCollapsed ? "none" : "";
+      if (aiMetaCollapseButtonNode) {
+        setCollapseToggleText(aiMetaCollapseButtonNode, "AI信息", aiMetaCollapsed);
+      }
+    }
+
+    function renderPreviewActionButtons() {
+      if (!previewActionRowNode) {
+        return;
+      }
+      clearNode(previewActionRowNode);
+      if (segmentPreviewAutoApplyEnabled) {
+        previewActionRowNode.appendChild(
+          createButton("生成分段并应用", true, function () {
+            deps.onPreview?.();
+          })
+        );
+        return;
+      }
+      previewActionRowNode.appendChild(
+        createButton("生成分段建议", true, function () {
+          deps.onPreview?.();
+        })
+      );
+      previewActionRowNode.appendChild(
+        createButton("应用分段建议", false, function () {
+          deps.onApplyPreview?.();
+        })
+      );
     }
 
     function stopBatchSelectionDrag() {
@@ -286,10 +393,7 @@
       const total = Math.max(0, Math.round(Number(source.totalSegments || 0)) || 0);
       batchSelectionState.totalSegments = total;
       if (batchSelectionGridNode) {
-        batchSelectionGridNode.children.slice?.();
-      }
-      if (batchSelectionGridNode) {
-        batchSelectionGridNode.innerHTML = "";
+        clearNode(batchSelectionGridNode);
       }
       if (total <= 0) {
         batchSelectionState.selectedNumbers = [];
@@ -367,9 +471,21 @@
       }
       rootNode = document.createElement("section");
       rootNode.setAttribute(ROOT_ATTR, "");
-      rootNode.innerHTML =
-        '<div class="panel-title">苏州话脚本 Beta</div>' +
-        '<div class="panel-note">当前支持普通话听写稿 AI、批量识别、分段建议和平台暂存直写；单段识别已收口到分段表格行内按钮。</div>';
+      const panelHead = document.createElement("div");
+      panelHead.className = "panel-head";
+      const panelTitleRow = document.createElement("div");
+      panelTitleRow.className = "panel-title-row";
+      const panelTitle = document.createElement("div");
+      panelTitle.className = "panel-title";
+      panelTitle.textContent = "苏州话脚本";
+      panelTitleRow.appendChild(panelTitle);
+      panelTitleRow.appendChild(
+        createTooltipDot(
+          "当前支持普通话听写稿 AI、批量识别、分段建议和平台暂存写回；单段识别只直填当前输入框，批量识别和分段建议继续走平台暂存写回。"
+        )
+      );
+      panelHead.appendChild(panelTitleRow);
+      rootNode.appendChild(panelHead);
 
       statusNode = document.createElement("div");
       statusNode.className = "status";
@@ -381,46 +497,46 @@
 
       const previewSection = document.createElement("div");
       previewSection.className = "section";
-      previewSection.innerHTML =
-        '<div class="section-title">分段建议</div><div class="panel-note">建议只会作用于当前音频的分段状态；应用后仍需你手动复核。</div>';
-      const previewToggleRow = document.createElement("label");
-      previewToggleRow.className = "inline-toggle";
-      previewAutoApplyToggleNode = document.createElement("input");
-      previewAutoApplyToggleNode.type = "checkbox";
-      previewAutoApplyToggleNode.checked = deps.segmentPreviewAutoApplyEnabled !== false;
-      previewAutoApplyToggleNode.addEventListener("change", function () {
-        if (typeof deps.onToggleSegmentPreviewAutoApply === "function") {
-          deps.onToggleSegmentPreviewAutoApply(previewAutoApplyToggleNode.checked === true);
-        }
+      const previewHead = document.createElement("div");
+      previewHead.className = "section-head";
+      previewHead.appendChild(
+        createSectionTitleRow(
+          "分段建议",
+          "建议只会作用于当前音频的分段状态；应用后仍需你手动复核。若设置页开启“画段后自动应用建议”，这里会直接显示“生成分段并应用”。"
+        )
+      );
+      const previewActions = document.createElement("div");
+      previewActions.className = "section-actions";
+      previewCollapseButtonNode = createCollapseToggle("分段建议", previewCollapsed, function () {
+        previewCollapsed = !previewCollapsed;
+        syncPreviewSectionState();
       });
-      const previewToggleText = document.createElement("span");
-      previewToggleText.textContent = "生成后立即应用当前建议";
-      previewToggleRow.appendChild(previewAutoApplyToggleNode);
-      previewToggleRow.appendChild(previewToggleText);
-      previewSection.appendChild(previewToggleRow);
-      const previewActionRow = document.createElement("div");
-      previewActionRow.className = "action-row";
-      previewActionRow.appendChild(
-        createButton("生成分段建议", true, function () {
-          deps.onPreview?.();
-        })
-      );
-      previewActionRow.appendChild(
-        createButton("应用分段建议", false, function () {
-          deps.onApplyPreview?.();
-        })
-      );
-      previewSection.appendChild(previewActionRow);
+      previewActions.appendChild(previewCollapseButtonNode);
+      previewHead.appendChild(previewActions);
+      previewSection.appendChild(previewHead);
+      previewActionRowNode = document.createElement("div");
+      previewActionRowNode.className = "action-row";
+      previewSection.appendChild(previewActionRowNode);
+      renderPreviewActionButtons();
       previewNode = document.createElement("div");
-      previewNode.className = "preview-list";
-      previewNode.innerHTML = '<div class="preview-card">当前还没有分段建议。</div>';
+      previewNode.className = "preview-list collapsible-body";
+      previewNode.appendChild(document.createElement("div")).className = "preview-card";
+      previewNode.children[0].textContent = "当前还没有分段建议。";
       previewSection.appendChild(previewNode);
       grid.appendChild(previewSection);
+      syncPreviewSectionState();
 
       const batchSection = document.createElement("div");
       batchSection.className = "section";
-      batchSection.innerHTML =
-        '<div class="section-title">批量识别</div><div class="panel-note">只处理当前题当前页 regions；默认全选，支持段号点选和拖选，停止后不再继续发新请求。</div>';
+      const batchHead = document.createElement("div");
+      batchHead.className = "section-head";
+      batchHead.appendChild(
+        createSectionTitleRow(
+          "批量识别",
+          "只处理当前题当前页 regions；默认全选，支持段号点选和拖选，停止后不再继续发新请求；只更新目标段的 txt，不改 ms，不自动提交、不自动切题。"
+        )
+      );
+      batchSection.appendChild(batchHead);
       const batchSelectorHead = document.createElement("div");
       batchSelectorHead.className = "batch-selector-head";
       batchSelectionSummaryNode = document.createElement("div");
@@ -431,10 +547,6 @@
       batchSelectionGridNode = document.createElement("div");
       batchSelectionGridNode.className = "batch-selector-grid";
       batchSection.appendChild(batchSelectionGridNode);
-      const batchHelp = document.createElement("div");
-      batchHelp.className = "batch-help";
-      batchHelp.textContent = "只更新目标段的 txt，不改 ms，不自动提交、不自动切题。";
-      batchSection.appendChild(batchHelp);
       const batchActionRow = document.createElement("div");
       batchActionRow.className = "batch-action-row";
       batchActionRow.appendChild(
@@ -459,13 +571,15 @@
       summarySection.setAttribute("data-span", "full");
       const summaryHead = document.createElement("div");
       summaryHead.className = "section-head";
-      const summaryTitle = document.createElement("div");
-      summaryTitle.className = "section-title";
-      summaryTitle.textContent = "当前音频";
-      summaryHead.appendChild(summaryTitle);
+      summaryHead.appendChild(
+        createSectionTitleRow(
+          "当前音频信息",
+          "展示当前题号、模板、总时长、当前段和音频地址，默认折叠。"
+        )
+      );
       const summaryActions = document.createElement("div");
       summaryActions.className = "section-actions";
-      summaryCollapseButtonNode = createButton("展开当前音频", false, function () {
+      summaryCollapseButtonNode = createCollapseToggle("当前音频信息", currentAudioCollapsed, function () {
         currentAudioCollapsed = !currentAudioCollapsed;
         syncCurrentAudioSectionState();
       });
@@ -473,7 +587,7 @@
       summaryHead.appendChild(summaryActions);
       summarySection.appendChild(summaryHead);
       summaryNode = document.createElement("div");
-      summaryNode.className = "summary-card";
+      summaryNode.className = "summary-card collapsible-body";
       summaryNode.textContent = "等待页面返回当前条目与分段上下文...";
       summarySection.appendChild(summaryNode);
       grid.appendChild(summarySection);
@@ -482,19 +596,29 @@
       const metaSection = document.createElement("div");
       metaSection.className = "section";
       metaSection.setAttribute("data-span", "full");
-      metaSection.innerHTML =
-        '<div class="section-title">AI信息</div><div class="panel-note">展示当前行识别结果、两阶段 usage/cost 与原始返回，默认折叠显示。</div>';
-      const metaDetails = document.createElement("details");
-      metaDetails.className = "meta-details";
-      const metaSummary = document.createElement("summary");
-      metaSummary.textContent = "展开查看 AI 信息";
-      metaDetails.appendChild(metaSummary);
+      const metaHead = document.createElement("div");
+      metaHead.className = "section-head";
+      metaHead.appendChild(
+        createSectionTitleRow(
+          "AI信息",
+          "展示最近一次识别结果、两阶段 usage/cost 和原始返回，默认折叠显示。"
+        )
+      );
+      const metaActions = document.createElement("div");
+      metaActions.className = "section-actions";
+      aiMetaCollapseButtonNode = createCollapseToggle("AI信息", aiMetaCollapsed, function () {
+        aiMetaCollapsed = !aiMetaCollapsed;
+        syncAiMetaSectionState();
+      });
+      metaActions.appendChild(aiMetaCollapseButtonNode);
+      metaHead.appendChild(metaActions);
+      metaSection.appendChild(metaHead);
       aiMetaNode = document.createElement("div");
-      aiMetaNode.className = "info-card";
+      aiMetaNode.className = "info-card collapsible-body";
       aiMetaNode.textContent = "当前还没有 AI 信息。";
-      metaDetails.appendChild(aiMetaNode);
-      metaSection.appendChild(metaDetails);
+      metaSection.appendChild(aiMetaNode);
       grid.appendChild(metaSection);
+      syncAiMetaSectionState();
 
       rootNode.appendChild(grid);
 
@@ -541,7 +665,7 @@
       }
       const source = context && typeof context === "object" ? context : {};
       const currentSegments = Array.isArray(source.currentSegments) ? source.currentSegments : [];
-      summaryNode.innerHTML = "";
+      clearNode(summaryNode);
       const lines = [
         ["题目", source.itemId || source.entryId || ""],
         ["模板", source.templateID || ""],
@@ -593,7 +717,7 @@
         return;
       }
       const source = snapshot && typeof snapshot === "object" ? snapshot : {};
-      batchStateNode.innerHTML = "";
+      clearNode(batchStateNode);
       const summary = document.createElement("div");
       summary.className = "batch-state-item";
       summary.textContent =
@@ -641,10 +765,14 @@
       }
       const source = preview && typeof preview === "object" ? preview : null;
       if (!source || !Array.isArray(source.proposedSegments) || source.proposedSegments.length <= 0) {
-        previewNode.innerHTML = '<div class="preview-card">当前还没有分段建议。</div>';
+        clearNode(previewNode);
+        const emptyCard = document.createElement("div");
+        emptyCard.className = "preview-card";
+        emptyCard.textContent = "当前还没有分段建议。";
+        previewNode.appendChild(emptyCard);
         return;
       }
-      previewNode.innerHTML = "";
+      clearNode(previewNode);
       source.proposedSegments.forEach(function (item, index) {
         const card = document.createElement("div");
         card.className = "preview-card";
@@ -681,7 +809,7 @@
       const refineUsage = source.usage?.refine || {};
       const listenCost = source.cost?.listen || {};
       const refineCost = source.cost?.refine || {};
-      aiMetaNode.innerHTML = "";
+      clearNode(aiMetaNode);
       if (Object.keys(source).length <= 0) {
         aiMetaNode.textContent = "当前还没有 AI 信息。";
         return;
@@ -743,9 +871,8 @@
     }
 
     function setSegmentPreviewAutoApplyEnabled(enabled) {
-      if (previewAutoApplyToggleNode) {
-        previewAutoApplyToggleNode.checked = enabled !== false;
-      }
+      segmentPreviewAutoApplyEnabled = enabled !== false;
+      renderPreviewActionButtons();
     }
 
     function setAiRecommendAutoFillEnabled(enabled) {
@@ -765,14 +892,20 @@
       batchStateNode = null;
       batchSelectionSummaryNode = null;
       batchSelectionGridNode = null;
-      previewAutoApplyToggleNode = null;
+      previewActionRowNode = null;
+      previewCollapseButtonNode = null;
+      aiMetaCollapseButtonNode = null;
       latestRecommendation = null;
       batchSelectionState = {
         totalSegments: 0,
         selectedNumbers: [],
         dragging: false,
         dragNextSelected: true,
+        mouseDownHandledSegmentNumber: 0,
       };
+      segmentPreviewAutoApplyEnabled = deps.segmentPreviewAutoApplyEnabled !== false;
+      previewCollapsed = true;
+      aiMetaCollapsed = true;
     }
 
     return {

@@ -1480,6 +1480,7 @@
     button.style.color = "#39424e";
     button.style.cursor = "pointer";
     button.style.fontSize = "12px";
+    button.style.whiteSpace = "nowrap";
     button.addEventListener("click", function () {
       if (typeof onClick === "function") {
         onClick();
@@ -1678,6 +1679,49 @@
     return cell;
   }
 
+  function removeElement(node) {
+    if (!node) {
+      return false;
+    }
+    const parentNode = node.parentNode || node.parentElement || null;
+    if (!parentNode || typeof parentNode.removeChild !== "function") {
+      return false;
+    }
+    parentNode.removeChild(node);
+    return true;
+  }
+
+  function isSegmentRecognizeDataRow(rowNode) {
+    return safeQuerySelectorAll(rowNode, "textarea").length > 0;
+  }
+
+  function cleanupSegmentRecognizeNodes(tableRoot, realRows) {
+    const rowSet = new Set(Array.isArray(realRows) ? realRows : []);
+    let changed = false;
+    getSegmentTableRows(tableRoot).forEach(function (rowNode) {
+      if (rowSet.has(rowNode)) {
+        return;
+      }
+      safeQuerySelectorAll(rowNode, "[" + SEGMENT_RECOGNIZE_CELL_ATTR + "='true']").forEach(function (node) {
+        changed = removeElement(node) || changed;
+      });
+    });
+    if (rowSet.size <= 0) {
+      const headerRow = getSegmentTableHeaderRow(tableRoot);
+      if (headerRow) {
+        getSegmentRowCells(headerRow, "header").forEach(function (node) {
+          if (normalizeText(node?.getAttribute?.(SEGMENT_RECOGNIZE_HEADER_ATTR)) === "true") {
+            changed = removeElement(node) || changed;
+          }
+        });
+      }
+      safeQuerySelectorAll(tableRoot, "[" + SEGMENT_RECOGNIZE_HEADER_ATTR + "='true']").forEach(function (node) {
+        changed = removeElement(node) || changed;
+      });
+    }
+    return changed;
+  }
+
   function ensureSegmentRecognizeButtons(root, onRecognize) {
     const tableRoot = findSegmentRowsTableRoot(root);
     if (!tableRoot) {
@@ -1687,7 +1731,11 @@
     if (!documentLike || typeof documentLike.createElement !== "function") {
       return false;
     }
-    let inserted = false;
+    const realRows = getSegmentTableRows(tableRoot).filter(isSegmentRecognizeDataRow);
+    let inserted = cleanupSegmentRecognizeNodes(tableRoot, realRows);
+    if (realRows.length <= 0) {
+      return inserted;
+    }
     const headerRow = getSegmentTableHeaderRow(tableRoot);
     if (
       headerRow &&
@@ -1699,8 +1747,7 @@
         inserted = true;
       }
     }
-    const rows = getSegmentTableRows(tableRoot);
-    rows.forEach(function (rowNode, index) {
+    realRows.forEach(function (rowNode, index) {
       if (
         safeQuerySelectorAll(rowNode, "[" + SEGMENT_RECOGNIZE_BUTTON_ATTR + "='true']").length > 0
       ) {
@@ -1917,7 +1964,7 @@
     });
     if (!result.ok) {
       runtimeContext.ui?.setStatus?.(
-        "当前段识别已生成，但自动填入失败：" + normalizeText(result.message || "未知错误"),
+        "识别结果已生成，但自动填入失败：" + normalizeText(result.message || "未知错误"),
         "error"
       );
       return {
@@ -2609,10 +2656,10 @@
       if (autoFillResult.attempted) {
         return;
       }
-      helperRuntime.ui.setStatus("当前段识别已生成，可手动写回当前段。", "success");
+      helperRuntime.ui.setStatus("识别结果已生成，可继续复核或暂存。", "success");
     } catch (error) {
       helperRuntime.ui.setStatus(
-        "当前段识别失败：" + (error && error.message ? error.message : String(error)),
+        "识别失败：" + (error && error.message ? error.message : String(error)),
         "error"
       );
     }
@@ -2654,8 +2701,11 @@
       helperRuntime.lastRecommendation = buildRecommendationDisplayPayload(recommendation);
       helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
       helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
-      const result = await helperRuntime.dataApi.writeCurrentRegionText({
-        selectionKey: helperRuntime.lastRecommendation.selectionKey,
+      if (!helperRuntime.dataApi?.fillCurrentRegionTextIntoDom) {
+        helperRuntime.ui.setStatus("当前版本缺少单段直填能力，请刷新扩展后重试。", "error");
+        return;
+      }
+      const result = await helperRuntime.dataApi.fillCurrentRegionTextIntoDom({
         segmentNumber: helperRuntime.lastRecommendation.segmentNumber,
         finalMandarinText: helperRuntime.lastRecommendation.finalMandarinText,
       });
@@ -2669,10 +2719,7 @@
         );
         return;
       }
-      helperRuntime.ui.setStatus(result.message, result.writtenCount > 0 ? "success" : "warning");
-      if (result.writtenCount > 0) {
-        scheduleRuntimeReload(helperRuntime);
-      }
+      helperRuntime.ui.setStatus(result.message, result.filledCount > 0 ? "success" : "warning");
     } catch (error) {
       helperRuntime.ui.setStatus(
         "第 " +
@@ -2691,7 +2738,7 @@
 
   async function handleWriteCurrentRecommendAction() {
     if (!helperRuntime || !helperRuntime.lastRecommendation) {
-      helperRuntime?.ui?.setStatus?.("请先生成当前段识别结果。", "error");
+      helperRuntime?.ui?.setStatus?.("请先生成识别结果。", "error");
       return;
     }
     const result = await helperRuntime.dataApi.writeCurrentRegionText(helperRuntime.lastRecommendation);
@@ -2748,10 +2795,10 @@
         return;
       }
       if (normalizeText(preview?.meta?.previewMode) === "whole-audio-fallback") {
-        helperRuntime.ui.setStatus("已生成整条音频分段预览，可直接应用到当前暂存答案。", "success");
+        helperRuntime.ui.setStatus("已生成整条音频分段建议，可展开分段建议复核。", "success");
         return;
       }
-      helperRuntime.ui.setStatus("分段建议已生成，请先复核后再应用。", "success");
+      helperRuntime.ui.setStatus("分段建议已生成，可展开分段建议复核。", "success");
     } catch (error) {
       helperRuntime.ui.setStatus(
         "生成分段建议失败：" + (error && error.message ? error.message : String(error)),
@@ -2894,9 +2941,6 @@
     const ui = uiFactory.createRuntime({
       segmentPreviewAutoApplyEnabled: helperConfig.segmentPreviewAutoApplyEnabled,
       aiRecommendAutoFillEnabled: helperConfig.aiRecommendAutoFillEnabled,
-      onToggleSegmentPreviewAutoApply: function (nextEnabled) {
-        void handleSegmentPreviewAutoApplyToggle(nextEnabled);
-      },
       onToggleAiRecommendAutoFill: function (nextEnabled) {
         void handleAiRecommendAutoFillToggle(nextEnabled);
       },
@@ -3010,7 +3054,10 @@
     ui.renderBatchState({
       phaseText: "",
     });
-    ui.setStatus("苏州话脚本已就绪；当前支持普通话听写稿识别、批量识别与平台暂存直写。", "success");
+    ui.setStatus(
+      "苏州话脚本已就绪；当前支持单段识别直填输入框、批量识别和分段建议暂存写回。",
+      "success"
+    );
     scheduleHelperContextRefresh(0);
   }
 
