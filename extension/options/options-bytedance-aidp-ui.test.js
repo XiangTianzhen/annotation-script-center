@@ -42,6 +42,9 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
     /<input[^>]*id="bytedance-aidp-fixed-wave-zoom"[^>]*type="number"/
   );
   assert.match(html, /id="save-bytedance-aidp-settings"/);
+  assert.match(html, /id="detail-toggle-button"/);
+  assert.match(html, />\s*保存设置\s*</);
+  assert.doesNotMatch(html, /保存 ByteDance AIDP 设置/);
   assert.match(html, /隐藏平台AI功能/);
   assert.match(html, /前后静音时长/);
   assert.match(html, /静音阈值/);
@@ -66,6 +69,9 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /function getBytedanceAidpSuzhouConfig\(/);
   assert.match(script, /function applyBytedanceAidpForm\(/);
   assert.match(script, /async function saveBytedanceAidpSettings\(/);
+  assert.match(script, /toggleButton\.textContent = enabled \? "关闭脚本" : "启用脚本"/);
+  assert.match(script, /setStatus\("bytedance-aidp-status", "正在保存设置\.\.\."\)/);
+  assert.match(script, /设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。/);
   assert.match(script, /function renderBytedanceAidpSuzhouAiSettingsSection\(/);
   assert.match(script, /function getBytedanceAidpSuzhouStageDefaults\(/);
   assert.match(script, /function getBytedanceAidpSuzhouSettingsDraftConfig\(/);

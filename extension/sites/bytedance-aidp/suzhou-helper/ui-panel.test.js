@@ -86,6 +86,17 @@ class FakeNode {
     return this.attributes[key] || "";
   }
 
+  removeAttribute(name) {
+    const key = String(name);
+    delete this.attributes[key];
+    if (key === "class") {
+      this.className = "";
+    }
+    if (key === "id") {
+      this.id = "";
+    }
+  }
+
   addEventListener(type, listener) {
     const key = String(type || "");
     const existing = this.eventListeners[key];
@@ -108,7 +119,12 @@ class FakeNode {
   click() {
     const listener = this.eventListeners.click;
     if (typeof listener === "function") {
-      listener.call(this, { type: "click", bubbles: true });
+      listener.call(this, {
+        type: "click",
+        bubbles: true,
+        target: this,
+        stopPropagation() {},
+      });
     }
   }
 
@@ -199,6 +215,7 @@ function createHarness() {
   waveAnchor.className = "neeko-wavesurfer-warper neeko-wavesurfer";
   body.appendChild(waveAnchor);
 
+  const documentListeners = {};
   const document = {
     body,
     head,
@@ -222,6 +239,15 @@ function createHarness() {
         return collectDescendants(body);
       }
       return body.querySelectorAll(selector);
+    },
+    addEventListener(type, listener) {
+      documentListeners[String(type || "")] = listener;
+    },
+    dispatch(type, event) {
+      const listener = documentListeners[String(type || "")];
+      if (typeof listener === "function") {
+        listener.call(this, event || { type });
+      }
     },
   };
 
@@ -267,17 +293,37 @@ test("AIDP suzhou ui panel keeps current-audio and AI sections collapsed by defa
     const aiInfoCard = findNode(panelRoot, function (node) {
       return String(node.className || "").split(/\s+/).includes("info-card");
     });
+    const tooltipButton = findNode(panelRoot, function (node) {
+      return String(node.className || "").split(/\s+/).includes("tooltip-dot");
+    });
+    const tooltipAnchor = findNode(panelRoot, function (node) {
+      return String(node.className || "").split(/\s+/).includes("tooltip-anchor");
+    });
 
     assert.ok(collapseButton);
     assert.ok(aiCollapseButton);
     assert.ok(summaryCard);
     assert.ok(aiInfoCard);
+    assert.ok(tooltipButton);
+    assert.ok(tooltipAnchor);
     assert.equal(allButtons.filter(function (node) {
       return /当前音频信息/.test(node.textContent);
     }).length, 1);
+    assert.equal(collapseButton.className, "collapse-toggle");
+    assert.equal(aiCollapseButton.className, "collapse-toggle");
     assert.equal(summaryCard.style.display, "none");
     assert.equal(aiInfoCard.style.display, "none");
     assert.equal(panelRoot.textContent.includes("Beta"), false);
+    assert.equal(tooltipButton.textContent, "™");
+
+    tooltipAnchor.eventListeners.mouseenter({ type: "mouseenter", target: tooltipAnchor });
+    assert.equal(tooltipAnchor.getAttribute("data-hover"), "true");
+    tooltipAnchor.eventListeners.mouseleave({ type: "mouseleave", target: tooltipAnchor });
+    assert.equal(tooltipAnchor.getAttribute("data-hover"), "");
+    tooltipButton.click();
+    assert.equal(tooltipAnchor.getAttribute("data-open"), "true");
+    harness.document.dispatch("click", { type: "click", target: harness.body });
+    assert.equal(tooltipAnchor.getAttribute("data-open"), "");
 
     runtime.renderAudioContext({
       entryId: "7656690377962016562",
@@ -297,6 +343,12 @@ test("AIDP suzhou ui panel keeps current-audio and AI sections collapsed by defa
     aiCollapseButton.click();
     assert.notEqual(aiInfoCard.style.display, "none");
     assert.match(aiCollapseButton.textContent, /折叠AI信息/);
+    runtime.setStatus("已就绪", "success");
+    const statusNode = findNode(panelRoot, function (node) {
+      return String(node.className || "").split(/\s+/).includes("status");
+    });
+    assert.ok(statusNode);
+    assert.equal(statusNode.getAttribute("data-tone"), "success");
 
     collapseButton.click();
     assert.equal(summaryCard.style.display, "none");
@@ -363,9 +415,27 @@ test("AIDP suzhou ui panel switches preview buttons from settings-only auto-appl
     );
 
     runtime.setSegmentPreviewAutoApplyEnabled(false);
-    assert.equal(panelRoot.textContent.includes("生成分段并应用"), false);
-    assert.match(panelRoot.textContent, /生成分段建议/);
-    assert.match(panelRoot.textContent, /应用分段建议/);
+    const updatedButtons = collectDescendants(panelRoot).filter(function (node) {
+      return node.tagName === "BUTTON";
+    });
+    assert.equal(
+      updatedButtons.some(function (node) {
+        return node.textContent.includes("生成分段并应用");
+      }),
+      false
+    );
+    assert.equal(
+      updatedButtons.some(function (node) {
+        return node.textContent.includes("生成分段建议");
+      }),
+      true
+    );
+    assert.equal(
+      updatedButtons.some(function (node) {
+        return node.textContent.includes("应用分段建议");
+      }),
+      true
+    );
 
     previewCollapseButton.click();
     assert.notEqual(previewList.style.display, "none");
@@ -424,6 +494,9 @@ test("AIDP suzhou ui panel renders recommendation and AI meta with Mandarin tran
         listen: "{\"listenText\":\"阿拉等会去吃饭。\"}",
         refine: "{\"finalMandarinText\":\"我们等会去吃饭。\"}",
       },
+      debug: {
+        reason: "unit-test",
+      },
     });
 
     assert.match(panelRoot.textContent, /最终普通话听写稿/);
@@ -432,7 +505,9 @@ test("AIDP suzhou ui panel renders recommendation and AI meta with Mandarin tran
     assert.match(panelRoot.textContent, /听音预估人民币/);
     assert.match(panelRoot.textContent, /收口预估人民币/);
     assert.match(panelRoot.textContent, /总预估人民币/);
-    assert.match(panelRoot.textContent, /raw\.listen/);
+    assert.match(panelRoot.textContent, /debug/);
+    assert.match(panelRoot.textContent, /unit-test/);
+    assert.doesNotMatch(panelRoot.textContent, /raw\.listen/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.HTMLElement = previousHTMLElement;

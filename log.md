@@ -1,3 +1,28 @@
+## 2026-07-04（收口 ByteDance AIDP 苏州话前端样式与行内识别交互）
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.js`
+  - 将提示图标改成上标式 `™` 风格，支持 hover 预览、click 固定展开和点击外部关闭
+  - 将 `当前音频信息`、`AI信息`、`分段建议` 折叠入口统一为白底描边胶囊按钮
+  - 将顶部运行状态改成卡片式状态展示
+  - `AI信息` 改成左右双栏：左侧保留普通话结果与 usage/cost，右侧只展示 `debug`
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - 为行内 `识别音频` 增加“先识别后填入”运行时状态机
+  - 当设置页关闭 `识别完成后立即填入` 时，按钮可在 `识别音频 / 填入` 之间切换
+  - 将波形工具栏辅助按钮收口到独立 action group，避免压缩平台原有播放 / 缩放图标
+- 更新设置与 popup：
+  - `extension/options/options.html`
+  - `extension/options/options.js`
+  - `extension/popup/popup.html`
+  - `extension/popup/popup.js`
+  - AIDP 苏州话详情页头部改为单个启停切换按钮 + `保存设置`
+  - popup 删除平台 / 脚本 pill 与第二个“打开脚本中心”入口，仅保留脚本名、运行状态、启停切换和右上角脚本中心入口
+- 更新测试与文档：
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - `extension/popup/popup.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+
 ## 2026-07-04（修复 ByteDance AIDP 苏州话设置页 AI 面板与快捷键空白）
 - 更新 `extension/options/options.js`
   - 修复 AIDP 苏州话本地 fallback defaults 分支里的未定义变量引用

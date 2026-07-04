@@ -65,13 +65,6 @@
         line-height: 1.2;
       }
 
-      .copy {
-        margin: 8px 0 0;
-        color: #475569;
-        font-size: 12px;
-        line-height: 1.6;
-      }
-
       .stage {
         display: inline-flex;
         align-items: center;
@@ -82,11 +75,17 @@
         color: #0f5bd8;
         font-size: 12px;
         font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .stage-link {
+        border: none;
+        cursor: pointer;
       }
 
       .status-card {
         display: grid;
-        gap: 12px;
+        gap: 10px;
         padding: 14px;
         border-radius: 16px;
         background: rgba(241, 245, 249, 0.9);
@@ -170,14 +169,8 @@
         color: #475569;
       }
 
-      .status-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-
       .helper {
-        min-height: 20px;
+        min-height: 0;
         color: #475569;
         font-size: 12px;
         line-height: 1.5;
@@ -229,9 +222,8 @@
               <img class="brand-logo" src="../assets/brand/asc-logo.svg" alt="标注脚本中心" />
               <h1 id="extension-name">标注脚本中心</h1>
             </div>
-            <p class="copy">外层面板会显示当前命中的脚本、运行状态说明，并支持直接切换当前脚本启停。</p>
           </div>
-          <div id="stage-label" class="stage">脚本中心</div>
+          <button id="stage-label" class="stage stage-link" type="button">脚本中心</button>
         </div>
 
         <section class="status-card">
@@ -242,15 +234,10 @@
             </div>
             <button id="detected-status-pill" class="pill-toggle pending" type="button" disabled>检测中</button>
           </div>
-          <div class="status-meta">
-            <span id="detected-platform-pill" class="pill info">平台</span>
-            <span id="detected-script-pill" class="pill pending">脚本</span>
-          </div>
         </section>
 
         <div class="actions">
           <button id="open-script-settings" class="primary-button" type="button" disabled>打开当前脚本设置</button>
-          <button id="open-options" class="secondary-button" type="button">打开脚本中心</button>
         </div>
 
         <div id="popup-status" class="helper" aria-live="polite"></div>

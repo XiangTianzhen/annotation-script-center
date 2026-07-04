@@ -232,8 +232,12 @@
 
         <section id="detail-actions-panel" class="detail-panel detail-actions-panel">
           <div class="detail-actions">
+            <button id="detail-toggle-button" class="primary-button hidden" type="button">启用脚本</button>
             <button id="detail-enable-button" class="primary-button" type="button">启用脚本</button>
             <button id="detail-disable-button" class="danger-button" type="button">关闭脚本</button>
+            <button id="save-bytedance-aidp-settings" class="secondary-button hidden" type="button">
+              保存设置
+            </button>
           </div>
           <p id="detail-script-note" class="detail-note"></p>
         </section>
@@ -829,11 +833,6 @@
               <span>详情页仍不自动提交、不自动切题；单段识别直填输入框，批量识别和分段建议只调用现有暂存写回链路，不改 `ms`。</span>
             </div>
 
-            <div class="field-actions">
-              <button id="save-bytedance-aidp-settings" class="primary-button" type="button">
-                保存 ByteDance AIDP 设置
-              </button>
-            </div>
             <div id="bytedance-aidp-status" class="status-text"></div>
           </section>
 

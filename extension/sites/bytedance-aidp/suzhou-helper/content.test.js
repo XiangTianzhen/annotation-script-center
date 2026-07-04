@@ -1143,9 +1143,11 @@ test("ByteDance AIDP content injects clear-segments button into play toolbar", f
   const inserted = contentModule.__testOnly.ensureClearSegmentsButton(waveRoot, function () {
     clicked += 1;
   });
-  const button = playToolbar.children[playToolbar.children.length - 1];
+  const actionGroup = playToolbar.querySelector("[data-asc-toolbar-action-group='true']");
+  const button = actionGroup?.querySelector("[data-asc-clear-segments-button='true']");
 
   assert.equal(inserted, true);
+  assert.ok(actionGroup);
   assert.equal(button.getAttribute("data-asc-clear-segments-button"), "true");
   button.click();
   assert.equal(clicked, 1);
@@ -1177,10 +1179,12 @@ test("ByteDance AIDP content injects fill-language-kind button next to clear but
       filled += 1;
     }
   );
-  const clearButton = playToolbar.children[playToolbar.children.length - 2];
-  const fillButton = playToolbar.children[playToolbar.children.length - 1];
+  const actionGroup = playToolbar.querySelector("[data-asc-toolbar-action-group='true']");
+  const clearButton = actionGroup?.querySelector("[data-asc-clear-segments-button='true']");
+  const fillButton = actionGroup?.querySelector("[data-asc-fill-language-kind-button='true']");
 
   assert.equal(inserted, true);
+  assert.ok(actionGroup);
   assert.equal(clearButton.getAttribute("data-asc-clear-segments-button"), "true");
   assert.equal(fillButton.getAttribute("data-asc-fill-language-kind-button"), "true");
   assert.equal(fillButton.textContent, "填充语言种类");
@@ -1323,6 +1327,54 @@ test("ByteDance AIDP content row recognize button dispatches the matching segmen
   recognizeButtons[1].click();
 
   assert.deepEqual(clickedSegments, [2]);
+});
+
+test("ByteDance AIDP content switches row recognize button into fill mode when cached text is pending", function () {
+  const contentModule = loadContentModule();
+  const recognizeSegments = [];
+  const fillSegments = [];
+  const rowOne = createAidpSegmentTableRow(1);
+  const rowTwo = createAidpSegmentTableRow(2);
+  const table = new FakeElement({
+    tagName: "table",
+    children: [
+      new FakeElement({
+        tagName: "tr",
+        children: [
+          new FakeElement({ tagName: "th", text: "序号" }),
+          new FakeElement({ tagName: "th", text: "区间" }),
+          new FakeElement({ tagName: "th", text: "转写文本" }),
+          new FakeElement({ tagName: "th", text: "语音种类" }),
+          new FakeElement({ tagName: "th", text: "音频段" }),
+          new FakeElement({ tagName: "th", text: "操作" }),
+        ],
+      }),
+      rowOne,
+      rowTwo,
+    ],
+  });
+  const root = createFakeDocument([table]);
+
+  contentModule.__testOnly.ensureSegmentRecognizeButtons(root, {
+    onRecognize(segmentNumber) {
+      recognizeSegments.push(segmentNumber);
+    },
+    onFill(segmentNumber) {
+      fillSegments.push(segmentNumber);
+    },
+    getActionState(segmentNumber) {
+      return segmentNumber === 2 ? { mode: "fill" } : { mode: "recognize" };
+    },
+  });
+  const recognizeButtons = root.querySelectorAll("[data-asc-segment-recognize-button='true']");
+
+  assert.equal(recognizeButtons[0].textContent, "识别音频");
+  assert.equal(recognizeButtons[1].textContent, "填入");
+  recognizeButtons[1].click();
+  recognizeButtons[0].click();
+
+  assert.deepEqual(fillSegments, [2]);
+  assert.deepEqual(recognizeSegments, [1]);
 });
 
 test("ByteDance AIDP content injects per-row recognize buttons into Arco virtualized segment rows", function () {
@@ -1797,9 +1849,14 @@ test("ByteDance AIDP content keeps toolbar helper buttons on a single line", fun
   contentModule.__testOnly.ensureClearSegmentsButton(waveRoot, function () {});
   contentModule.__testOnly.ensureFillLanguageKindsButton(waveRoot, function () {});
 
-  const clearButton = playToolbar.children[playToolbar.children.length - 2];
-  const fillButton = playToolbar.children[playToolbar.children.length - 1];
+  const actionGroup = playToolbar.querySelector("[data-asc-toolbar-action-group='true']");
+  const clearButton = actionGroup?.querySelector("[data-asc-clear-segments-button='true']");
+  const fillButton = actionGroup?.querySelector("[data-asc-fill-language-kind-button='true']");
 
+  assert.ok(actionGroup);
+  assert.equal(playToolbar.children[0].tagName, "SVG");
+  assert.equal(actionGroup.style.display, "inline-flex");
+  assert.equal(actionGroup.style.flex, "0 0 auto");
   assert.equal(clearButton.style.getPropertyValue("white-space") || clearButton.style.whiteSpace, "nowrap");
   assert.equal(fillButton.style.getPropertyValue("white-space") || fillButton.style.whiteSpace, "nowrap");
 });

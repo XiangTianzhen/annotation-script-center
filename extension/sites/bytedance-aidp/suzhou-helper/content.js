@@ -27,11 +27,13 @@
   const DEFAULT_MERGE_CONTIGUOUS_SUGGESTED_SEGMENTS_ENABLED = true;
   const DEFAULT_SEGMENT_PREVIEW_AUTO_APPLY_ENABLED = true;
   const DEFAULT_AI_RECOMMEND_AUTO_FILL_ENABLED = true;
+  const TOOLBAR_ACTION_GROUP_ATTR = "data-asc-toolbar-action-group";
   const CLEAR_SEGMENTS_BUTTON_ATTR = "data-asc-clear-segments-button";
   const FILL_LANGUAGE_KIND_BUTTON_ATTR = "data-asc-fill-language-kind-button";
   const SEGMENT_RECOGNIZE_HEADER_ATTR = "data-asc-segment-recognize-header";
   const SEGMENT_RECOGNIZE_CELL_ATTR = "data-asc-segment-recognize-cell";
   const SEGMENT_RECOGNIZE_BUTTON_ATTR = "data-asc-segment-recognize-button";
+  const SEGMENT_RECOGNIZE_ACTION_ATTR = "data-asc-segment-recognize-action";
   const HIDDEN_ATTR = "data-asc-platform-ai-hidden";
   const EXACT_PLATFORM_AI_SELECTORS = {
     insight: ".insight-container-Hn0Gna",
@@ -1451,19 +1453,48 @@
     return safeQuerySelectorAll(workbench, ".btns-play")[0] || null;
   }
 
+  function getToolbarActionGroup(toolbar, documentLike) {
+    if (!toolbar || typeof toolbar.querySelector === "undefined") {
+      return null;
+    }
+    const existing =
+      typeof toolbar.querySelector === "function"
+        ? toolbar.querySelector("[" + TOOLBAR_ACTION_GROUP_ATTR + "='true']")
+        : null;
+    if (existing) {
+      return existing;
+    }
+    if (!documentLike || typeof documentLike.createElement !== "function") {
+      return null;
+    }
+    const group = documentLike.createElement("div");
+    group.setAttribute(TOOLBAR_ACTION_GROUP_ATTR, "true");
+    group.style.display = "inline-flex";
+    group.style.alignItems = "center";
+    group.style.gap = "8px";
+    group.style.marginLeft = "8px";
+    group.style.flex = "0 0 auto";
+    toolbar.appendChild(group);
+    return group;
+  }
+
   function ensureToolbarActionButton(root, attrName, label, onClick) {
     const toolbar = findPlayToolbarRoot(root);
     if (!toolbar || typeof toolbar.querySelector === "undefined") {
       return false;
     }
+    const documentLike = toolbar.ownerDocument || globalThis.document;
+    const actionGroup = getToolbarActionGroup(toolbar, documentLike);
+    if (!actionGroup) {
+      return false;
+    }
     const existing =
-      typeof toolbar.querySelector === "function"
-        ? toolbar.querySelector("[" + attrName + "='true']")
+      typeof actionGroup.querySelector === "function"
+        ? actionGroup.querySelector("[" + attrName + "='true']")
         : null;
     if (existing) {
       return false;
     }
-    const documentLike = toolbar.ownerDocument || globalThis.document;
     if (!documentLike || typeof documentLike.createElement !== "function") {
       return false;
     }
@@ -1471,7 +1502,6 @@
     button.type = "button";
     button.setAttribute(attrName, "true");
     button.textContent = label;
-    button.style.marginLeft = "8px";
     button.style.padding = "0 8px";
     button.style.height = "24px";
     button.style.border = "1px solid #d7dce5";
@@ -1486,7 +1516,7 @@
         onClick();
       }
     });
-    toolbar.appendChild(button);
+    actionGroup.appendChild(button);
     return true;
   }
 
@@ -1592,15 +1622,47 @@
     return Math.max(1, Math.round(Number(fallbackNumber || 0)) || 1);
   }
 
+  function normalizeSegmentRecognizeOptions(value) {
+    if (typeof value === "function") {
+      return {
+        onRecognize: value,
+      };
+    }
+    return value && typeof value === "object" ? value : {};
+  }
+
+  function getSegmentRecognizeActionState(options, segmentNumber) {
+    const normalizedOptions = normalizeSegmentRecognizeOptions(options);
+    if (typeof normalizedOptions.getActionState === "function") {
+      const state = normalizedOptions.getActionState(segmentNumber);
+      if (state && typeof state === "object") {
+        return state;
+      }
+    }
+    return {
+      mode: "recognize",
+    };
+  }
+
+  function updateSegmentRecognizeButton(button, segmentNumber, options) {
+    if (!button) {
+      return;
+    }
+    const state = getSegmentRecognizeActionState(options, segmentNumber);
+    const mode = normalizeText(state.mode) === "fill" ? "fill" : "recognize";
+    button.textContent = mode === "fill" ? "填入" : "识别音频";
+    button.setAttribute(SEGMENT_RECOGNIZE_ACTION_ATTR, mode);
+  }
+
   function createSegmentRecognizeButton(documentLike, segmentNumber, onRecognize) {
     if (!documentLike || typeof documentLike.createElement !== "function") {
       return null;
     }
+    const recognizeOptions = normalizeSegmentRecognizeOptions(onRecognize);
     const button = documentLike.createElement("button");
     button.type = "button";
     button.setAttribute(SEGMENT_RECOGNIZE_BUTTON_ATTR, "true");
     button.setAttribute("data-segment-number", String(segmentNumber));
-    button.textContent = "识别音频";
     button.style.padding = "0 8px";
     button.style.height = "24px";
     button.style.border = "1px solid #d7dce5";
@@ -1611,10 +1673,17 @@
     button.style.fontSize = "12px";
     button.style.whiteSpace = "nowrap";
     button.addEventListener("click", function () {
-      if (typeof onRecognize === "function") {
-        onRecognize(segmentNumber);
+      const state = getSegmentRecognizeActionState(recognizeOptions, segmentNumber);
+      const mode = normalizeText(state.mode) === "fill" ? "fill" : "recognize";
+      if (mode === "fill" && typeof recognizeOptions.onFill === "function") {
+        recognizeOptions.onFill(segmentNumber);
+        return;
+      }
+      if (typeof recognizeOptions.onRecognize === "function") {
+        recognizeOptions.onRecognize(segmentNumber);
       }
     });
+    updateSegmentRecognizeButton(button, segmentNumber, recognizeOptions);
     return button;
   }
 
@@ -1731,6 +1800,7 @@
     if (!documentLike || typeof documentLike.createElement !== "function") {
       return false;
     }
+    const recognizeOptions = normalizeSegmentRecognizeOptions(onRecognize);
     const realRows = getSegmentTableRows(tableRoot).filter(isSegmentRecognizeDataRow);
     let inserted = cleanupSegmentRecognizeNodes(tableRoot, realRows);
     if (realRows.length <= 0) {
@@ -1748,15 +1818,17 @@
       }
     }
     realRows.forEach(function (rowNode, index) {
-      if (
-        safeQuerySelectorAll(rowNode, "[" + SEGMENT_RECOGNIZE_BUTTON_ATTR + "='true']").length > 0
-      ) {
+      const segmentNumber = getSegmentNumberFromRow(rowNode, index + 1);
+      const existingButton =
+        safeQuerySelectorAll(rowNode, "[" + SEGMENT_RECOGNIZE_BUTTON_ATTR + "='true']")[0] || null;
+      if (existingButton) {
+        updateSegmentRecognizeButton(existingButton, segmentNumber, recognizeOptions);
         return;
       }
       const button = createSegmentRecognizeButton(
         documentLike,
-        getSegmentNumberFromRow(rowNode, index + 1),
-        onRecognize
+        segmentNumber,
+        recognizeOptions
       );
       if (!button) {
         return;
@@ -1957,8 +2029,17 @@
         reason: "disabled",
       };
     }
-    const result = await runtimeContext.dataApi.writeCurrentRegionText({
-      selectionKey: recommendation.selectionKey,
+    if (!runtimeContext?.dataApi?.fillCurrentRegionTextIntoDom) {
+      return {
+        attempted: true,
+        ok: false,
+        result: {
+          ok: false,
+          message: "当前版本缺少单段直填能力，请刷新扩展后重试。",
+        },
+      };
+    }
+    const result = await runtimeContext.dataApi.fillCurrentRegionTextIntoDom({
       segmentNumber: recommendation.segmentNumber,
       finalMandarinText: recommendation.finalMandarinText,
     });
@@ -1973,15 +2054,120 @@
         result: result,
       };
     }
-    runtimeContext.ui?.setStatus?.(result.message, result.writtenCount > 0 ? "success" : "warning");
-    if (result.writtenCount > 0) {
-      scheduleRuntimeReload(runtimeContext);
-    }
+    runtimeContext.ui?.setStatus?.(result.message, result.filledCount > 0 ? "success" : "warning");
     return {
       attempted: true,
       ok: true,
       result: result,
     };
+  }
+
+  function buildRowRecommendCacheKey(selectionKey, segmentNumber) {
+    return normalizeText(selectionKey) + "::" + String(Math.max(1, Math.round(Number(segmentNumber || 0)) || 1));
+  }
+
+  function buildSegmentsSignature(segments) {
+    return (Array.isArray(segments) ? segments : [])
+      .map(function (item) {
+        return [
+          Math.max(1, Math.round(Number(item?.segmentNumber || 0)) || 1),
+          Math.max(0, Math.round(Number(item?.startMs || 0)) || 0),
+          Math.max(0, Math.round(Number(item?.endMs || 0)) || 0),
+        ].join(":");
+      })
+      .join("|");
+  }
+
+  function clearRowRecommendCache(runtimeContext) {
+    if (runtimeContext?.rowRecommendCache && typeof runtimeContext.rowRecommendCache.clear === "function") {
+      runtimeContext.rowRecommendCache.clear();
+    }
+  }
+
+  function syncRowRecommendCacheContext(runtimeContext, context) {
+    if (!runtimeContext) {
+      return false;
+    }
+    const nextSelectionKey = normalizeText(context?.selectionKey);
+    const nextSegmentsSignature = buildSegmentsSignature(context?.currentSegments);
+    const changed =
+      normalizeText(runtimeContext.rowRecommendScopeKey) !== nextSelectionKey ||
+      normalizeText(runtimeContext.rowRecommendSegmentsSignature) !== nextSegmentsSignature;
+    runtimeContext.rowRecommendScopeKey = nextSelectionKey;
+    runtimeContext.rowRecommendSegmentsSignature = nextSegmentsSignature;
+    if (changed) {
+      clearRowRecommendCache(runtimeContext);
+    }
+    return changed;
+  }
+
+  function getCachedRowRecommendation(runtimeContext, selectionKey, segmentNumber) {
+    if (!runtimeContext?.rowRecommendCache || typeof runtimeContext.rowRecommendCache.get !== "function") {
+      return null;
+    }
+    return runtimeContext.rowRecommendCache.get(
+      buildRowRecommendCacheKey(selectionKey, segmentNumber)
+    ) || null;
+  }
+
+  function cacheRowRecommendation(runtimeContext, selectionKey, recommendation) {
+    if (!runtimeContext?.rowRecommendCache || typeof runtimeContext.rowRecommendCache.set !== "function") {
+      return;
+    }
+    runtimeContext.rowRecommendCache.set(
+      buildRowRecommendCacheKey(selectionKey, recommendation.segmentNumber),
+      {
+        selectionKey: selectionKey,
+        segmentNumber: recommendation.segmentNumber,
+        finalMandarinText: recommendation.finalMandarinText,
+        displayPayload: Object.assign({}, recommendation),
+      }
+    );
+  }
+
+  function deleteCachedRowRecommendation(runtimeContext, selectionKey, segmentNumber) {
+    if (!runtimeContext?.rowRecommendCache || typeof runtimeContext.rowRecommendCache.delete !== "function") {
+      return;
+    }
+    runtimeContext.rowRecommendCache.delete(
+      buildRowRecommendCacheKey(selectionKey, segmentNumber)
+    );
+  }
+
+  function buildSegmentRecognizeButtonOptions() {
+    return {
+      onRecognize: function (segmentNumber) {
+        void handleRowRecommendAction(segmentNumber);
+      },
+      onFill: function (segmentNumber) {
+        void handleFillRowRecommendAction(segmentNumber);
+      },
+      getActionState: function (segmentNumber) {
+        if (!helperRuntime || helperRuntime.config?.aiRecommendAutoFillEnabled !== false) {
+          return {
+            mode: "recognize",
+          };
+        }
+        return getCachedRowRecommendation(
+          helperRuntime,
+          helperRuntime.rowRecommendScopeKey,
+          segmentNumber
+        )
+          ? {
+              mode: "fill",
+            }
+          : {
+              mode: "recognize",
+            };
+      },
+    };
+  }
+
+  function syncRowRecognizeButtons() {
+    if (typeof document === "undefined") {
+      return false;
+    }
+    return ensureSegmentRecognizeButtons(document, buildSegmentRecognizeButtonOptions());
   }
 
   function createConcurrentTaskRunner(tasks, concurrency, runTask, onSettled, shouldStop) {
@@ -2520,10 +2706,9 @@
         ensureFillLanguageKindsButton(document, function () {
           void handleFillLanguageKindsAction();
         });
-        ensureSegmentRecognizeButtons(document, function (segmentNumber) {
-          void handleRowRecommendAction(segmentNumber);
-        });
+        syncRowRecognizeButtons();
         const context = await helperRuntime.dataApi.getCurrentContext();
+        syncRowRecommendCacheContext(helperRuntime, context);
         helperRuntime.playbackScopeKey =
           normalizeText(context?.selectionKey) ||
           helperRuntime.playbackScopeKey ||
@@ -2541,6 +2726,7 @@
             normalizeText(helperRuntime.batchSelectionKey) !== normalizeText(context?.selectionKey),
         });
         helperRuntime.batchSelectionKey = normalizeText(context?.selectionKey);
+        syncRowRecognizeButtons();
         if (!normalizeText(context?.audioUrl)) {
           helperRuntime.ui.setStatus("正在等待页面返回当前音频与分段上下文...", "");
         }
@@ -2688,7 +2874,11 @@
     helperRuntime.ui.setStatus("正在识别第 " + String(targetSegmentNumber) + " 段普通话听写稿...", "");
     try {
       const context = await helperRuntime.dataApi.getCurrentContext();
+      const cacheContextChanged = syncRowRecommendCacheContext(helperRuntime, context);
       helperRuntime.ui.renderAudioContext(context);
+      if (cacheContextChanged) {
+        syncRowRecognizeButtons();
+      }
       if (!normalizeText(context?.audioUrl)) {
         helperRuntime.ui.setStatus(
           "当前还没拿到音频地址，请等待页面初始化完成，或刷新当前详情页后重试。",
@@ -2701,6 +2891,25 @@
       helperRuntime.lastRecommendation = buildRecommendationDisplayPayload(recommendation);
       helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
       helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
+      const selectionKey = normalizeText(context?.selectionKey);
+      if (helperRuntime.config?.aiRecommendAutoFillEnabled === false) {
+        if (!normalizeText(helperRuntime.lastRecommendation.finalMandarinText)) {
+          deleteCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
+          syncRowRecognizeButtons();
+          helperRuntime.ui.setStatus(
+            "第 " + String(targetSegmentNumber) + " 段识别结果为空，当前没有可填入的文本。",
+            "warning"
+          );
+          return;
+        }
+        cacheRowRecommendation(helperRuntime, selectionKey, helperRuntime.lastRecommendation);
+        syncRowRecognizeButtons();
+        helperRuntime.ui.setStatus(
+          "已生成第 " + String(targetSegmentNumber) + " 段识别结果，点击“填入”可写入输入框。",
+          "success"
+        );
+        return;
+      }
       if (!helperRuntime.dataApi?.fillCurrentRegionTextIntoDom) {
         helperRuntime.ui.setStatus("当前版本缺少单段直填能力，请刷新扩展后重试。", "error");
         return;
@@ -2719,6 +2928,8 @@
         );
         return;
       }
+      deleteCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
+      syncRowRecognizeButtons();
       helperRuntime.ui.setStatus(result.message, result.filledCount > 0 ? "success" : "warning");
     } catch (error) {
       helperRuntime.ui.setStatus(
@@ -2733,6 +2944,61 @@
         helperRuntime.rowRecommendInFlight = false;
         helperRuntime.rowRecommendSegmentNumber = 0;
       }
+    }
+  }
+
+  async function handleFillRowRecommendAction(segmentNumber) {
+    if (!helperRuntime?.dataApi?.fillCurrentRegionTextIntoDom) {
+      helperRuntime?.ui?.setStatus?.("当前版本缺少单段直填能力，请刷新扩展后重试。", "error");
+      return;
+    }
+    const targetSegmentNumber = Math.max(0, Math.round(Number(segmentNumber || 0)) || 0);
+    if (targetSegmentNumber <= 0) {
+      helperRuntime?.ui?.setStatus?.("当前没有可填入的目标段，请刷新页面后重试。", "error");
+      return;
+    }
+    try {
+      const context = await helperRuntime.dataApi.getCurrentContext();
+      const cacheContextChanged = syncRowRecommendCacheContext(helperRuntime, context);
+      helperRuntime.ui.renderAudioContext(context);
+      if (cacheContextChanged) {
+        syncRowRecognizeButtons();
+      }
+      const selectionKey = normalizeText(context?.selectionKey);
+      const cached = getCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
+      if (!cached) {
+        helperRuntime.ui.setStatus(
+          "请先完成第 " + String(targetSegmentNumber) + " 段识别，再点击“填入”。",
+          "error"
+        );
+        syncRowRecognizeButtons();
+        return;
+      }
+      if (cached.displayPayload) {
+        helperRuntime.lastRecommendation = Object.assign({}, cached.displayPayload);
+        helperRuntime.ui.renderCurrentRecommendation(helperRuntime.lastRecommendation);
+        helperRuntime.ui.renderAiMeta(helperRuntime.lastRecommendation);
+      }
+      const result = await helperRuntime.dataApi.fillCurrentRegionTextIntoDom({
+        segmentNumber: targetSegmentNumber,
+        finalMandarinText: cached.finalMandarinText,
+      });
+      if (result.ok) {
+        deleteCachedRowRecommendation(helperRuntime, selectionKey, targetSegmentNumber);
+        syncRowRecognizeButtons();
+      }
+      helperRuntime.ui.setStatus(
+        result.message,
+        result.filledCount > 0 ? "success" : result.ok ? "warning" : "error"
+      );
+    } catch (error) {
+      helperRuntime.ui.setStatus(
+        "第 " +
+          String(targetSegmentNumber) +
+          " 段填入失败：" +
+          (error && error.message ? error.message : String(error)),
+        "error"
+      );
     }
   }
 
@@ -2897,10 +3163,13 @@
       helperConfig: helperConfig,
     });
     if (helperRuntime && helperRuntime.configSignature === configSignature) {
+      helperRuntime.config = helperConfig;
+      helperRuntime.endpoint = endpoint;
       helperRuntime.ui.mount();
       helperRuntime.ui.setSegmentPreviewAutoApplyEnabled?.(
         helperConfig.segmentPreviewAutoApplyEnabled
       );
+      helperRuntime.ui.setAiRecommendAutoFillEnabled?.(helperConfig.aiRecommendAutoFillEnabled);
       applyWaveToolSettings(
         document,
         Object.assign({}, helperConfig, {
@@ -2913,9 +3182,7 @@
       ensureFillLanguageKindsButton(document, function () {
         void handleFillLanguageKindsAction();
       });
-      ensureSegmentRecognizeButtons(document, function (segmentNumber) {
-        void handleRowRecommendAction(segmentNumber);
-      });
+      syncRowRecognizeButtons();
       scheduleHelperContextRefresh(0);
       return;
     }
@@ -3024,6 +3291,9 @@
       batchSelectionKey: "",
       rowRecommendInFlight: false,
       rowRecommendSegmentNumber: 0,
+      rowRecommendScopeKey: "",
+      rowRecommendSegmentsSignature: "",
+      rowRecommendCache: new Map(),
       scheduleReload: function () {
         scheduleRuntimeReload(helperRuntime);
       },
@@ -3042,9 +3312,7 @@
     ensureFillLanguageKindsButton(document, function () {
       void handleFillLanguageKindsAction();
     });
-    ensureSegmentRecognizeButtons(document, function (segmentNumber) {
-      void handleRowRecommendAction(segmentNumber);
-    });
+    syncRowRecognizeButtons();
     ui.renderCurrentRecommendation(null);
     ui.renderAiMeta(null);
     ui.renderBatchSelection({
@@ -3079,9 +3347,7 @@
         ensureFillLanguageKindsButton(document, function () {
           void handleFillLanguageKindsAction();
         });
-        ensureSegmentRecognizeButtons(document, function (segmentNumber) {
-          void handleRowRecommendAction(segmentNumber);
-        });
+        syncRowRecognizeButtons();
       }
       if (runtimePolicy.shouldHidePlatformAi) {
         ensureMutationObserver();
@@ -3120,9 +3386,7 @@
         ensureFillLanguageKindsButton(document, function () {
           void handleFillLanguageKindsAction();
         });
-        ensureSegmentRecognizeButtons(document, function (segmentNumber) {
-          void handleRowRecommendAction(segmentNumber);
-        });
+        syncRowRecognizeButtons();
       }
       if (runtimePolicy.shouldHidePlatformAi) {
         ensureMutationObserver();

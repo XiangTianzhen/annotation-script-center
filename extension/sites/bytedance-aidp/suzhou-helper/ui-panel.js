@@ -1,6 +1,8 @@
 (function () {
   const ROOT_ATTR = "data-asc-bytedance-aidp-suzhou-panel";
   const STYLE_ID = "asc-bytedance-aidp-suzhou-panel-style";
+  let activeTooltipAnchor = null;
+  let tooltipListenersBound = false;
 
   function normalizeText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -80,11 +82,15 @@
       "[" + ROOT_ATTR + "] .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .panel-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }",
       "[" + ROOT_ATTR + "] .panel-title { font-size: 14px; font-weight: 700; color: #26418b; }",
-      "[" + ROOT_ATTR + "] .tooltip-dot { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; border: 1px solid #c9d8ff; background: #fff; color: #5f6f90; font-size: 11px; font-weight: 700; cursor: help; }",
-      "[" + ROOT_ATTR + "] .status { margin-top: 10px; color: #4f5d78; white-space: pre-wrap; }",
-      "[" + ROOT_ATTR + "] .status[data-tone='error'] { color: #c2410c; }",
-      "[" + ROOT_ATTR + "] .status[data-tone='success'] { color: #1d7a36; }",
-      "[" + ROOT_ATTR + "] .status[data-tone='warning'] { color: #b54708; }",
+      "[" + ROOT_ATTR + "] .tooltip-anchor { position: relative; display: inline-flex; align-items: flex-start; line-height: 1; }",
+      "[" + ROOT_ATTR + "] .tooltip-dot { min-height: auto; width: auto; padding: 0; border: none; border-radius: 0; background: transparent; color: #5f6f90; font-size: 12px; font-weight: 700; line-height: 1; vertical-align: super; transform: translateY(-0.18em); cursor: pointer; }",
+      "[" + ROOT_ATTR + "] .tooltip-dot:hover { background: transparent; color: #26418b; text-decoration: none; }",
+      "[" + ROOT_ATTR + "] .tooltip-anchor[data-hover='true'] .tooltip-popover, [" + ROOT_ATTR + "] .tooltip-anchor[data-open='true'] .tooltip-popover { display: block; }",
+      "[" + ROOT_ATTR + "] .tooltip-popover { display: none; position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; min-width: 220px; max-width: 320px; padding: 10px 12px; border: 1px solid #d6e4ff; border-radius: 10px; background: #fff; color: #4f5d78; box-shadow: 0 12px 24px rgba(38, 65, 139, 0.14); white-space: normal; line-height: 1.6; }",
+      "[" + ROOT_ATTR + "] .status { margin-top: 10px; padding: 10px 12px; border: 1px solid #e4ebfb; border-radius: 10px; background: #fff; color: #4f5d78; white-space: pre-wrap; }",
+      "[" + ROOT_ATTR + "] .status[data-tone='error'] { border-color: rgba(194, 65, 12, 0.22); color: #c2410c; }",
+      "[" + ROOT_ATTR + "] .status[data-tone='success'] { border-color: rgba(29, 122, 54, 0.24); color: #1d7a36; }",
+      "[" + ROOT_ATTR + "] .status[data-tone='warning'] { border-color: rgba(181, 71, 8, 0.22); color: #b54708; }",
       "[" + ROOT_ATTR + "] .section { margin-top: 12px; }",
       "[" + ROOT_ATTR + "] .panel-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }",
       "[" + ROOT_ATTR + "] .panel-grid .section { margin-top: 0; }",
@@ -126,15 +132,20 @@
       "}",
       "[" + ROOT_ATTR + "] button:hover { background: #edf3ff; }",
       "[" + ROOT_ATTR + "] button[data-primary='true'] { border-color: #2f57c5; background: #2f57c5; color: #fff; }",
-      "[" + ROOT_ATTR + "] button.collapse-toggle { min-height: auto; padding: 0; border: none; border-radius: 0; background: transparent; color: #2f57c5; }",
-      "[" + ROOT_ATTR + "] button.collapse-toggle:hover { background: transparent; text-decoration: underline; }",
+      "[" + ROOT_ATTR + "] button.collapse-toggle { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid #d9e6ff; background: #fff; color: #2f57c5; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3); }",
+      "[" + ROOT_ATTR + "] button.collapse-toggle:hover { background: #f7faff; text-decoration: none; }",
       "[" + ROOT_ATTR + "] .collapsible-body { margin-top: 8px; }",
       "[" + ROOT_ATTR + "] .preview-list { display: grid; gap: 8px; }",
       "[" + ROOT_ATTR + "] .preview-meta { color: #6f7b94; }",
       "[" + ROOT_ATTR + "] .preview-unsafe { margin-top: 8px; color: #c2410c; }",
+      "[" + ROOT_ATTR + "] .info-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(240px, 0.9fr); gap: 12px; align-items: start; }",
+      "[" + ROOT_ATTR + "] .info-pane, [" + ROOT_ATTR + "] .debug-pane { display: grid; gap: 10px; min-width: 0; }",
+      "[" + ROOT_ATTR + "] .debug-title { font-weight: 600; color: #26418b; }",
+      "[" + ROOT_ATTR + "] .debug-card { margin: 0; padding: 10px 12px; border: 1px solid #e4ebfb; border-radius: 10px; background: #f8fbff; color: #334155; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }",
       "@media (max-width: 1120px) {",
       "  [" + ROOT_ATTR + "] .panel-grid { grid-template-columns: minmax(0, 1fr); }",
       "  [" + ROOT_ATTR + "] .section[data-span='full'] { grid-column: auto; }",
+      "  [" + ROOT_ATTR + "] .info-layout { grid-template-columns: minmax(0, 1fr); }",
       "}",
     ].join("");
     (document.head || document.documentElement).appendChild(style);
@@ -201,13 +212,108 @@
     node.textContent = "";
   }
 
+  function isNodeInsideContainer(node, container) {
+    let current = node || null;
+    while (current) {
+      if (current === container) {
+        return true;
+      }
+      current = current.parentNode || current.parentElement || null;
+    }
+    return false;
+  }
+
+  function getTooltipButton(anchor) {
+    if (!anchor || typeof anchor.querySelector !== "function") {
+      return null;
+    }
+    return anchor.querySelector(".tooltip-dot");
+  }
+
+  function setTooltipOpen(anchor, open) {
+    if (!anchor || typeof anchor.setAttribute !== "function") {
+      return;
+    }
+    if (open) {
+      anchor.setAttribute("data-open", "true");
+      activeTooltipAnchor = anchor;
+    } else {
+      anchor.removeAttribute("data-open");
+      if (activeTooltipAnchor === anchor) {
+        activeTooltipAnchor = null;
+      }
+    }
+    const button = getTooltipButton(anchor);
+    if (button && typeof button.setAttribute === "function") {
+      button.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+  }
+
+  function setTooltipHover(anchor, hovered) {
+    if (!anchor || typeof anchor.setAttribute !== "function") {
+      return;
+    }
+    if (hovered) {
+      anchor.setAttribute("data-hover", "true");
+      return;
+    }
+    anchor.removeAttribute("data-hover");
+  }
+
+  function bindTooltipDocumentListeners(documentLike) {
+    if (
+      tooltipListenersBound ||
+      !documentLike ||
+      typeof documentLike.addEventListener !== "function"
+    ) {
+      return;
+    }
+    documentLike.addEventListener("click", function (event) {
+      if (!activeTooltipAnchor) {
+        return;
+      }
+      if (isNodeInsideContainer(event?.target || null, activeTooltipAnchor)) {
+        return;
+      }
+      setTooltipOpen(activeTooltipAnchor, false);
+    });
+    documentLike.addEventListener("keydown", function (event) {
+      if (String(event?.key || "") !== "Escape" || !activeTooltipAnchor) {
+        return;
+      }
+      setTooltipOpen(activeTooltipAnchor, false);
+    });
+    tooltipListenersBound = true;
+  }
+
   function createTooltipDot(text) {
-    const dot = document.createElement("span");
-    dot.className = "tooltip-dot";
-    dot.textContent = "i";
-    dot.setAttribute("title", normalizeText(text));
-    dot.setAttribute("aria-label", normalizeText(text));
-    return dot;
+    const anchor = document.createElement("span");
+    anchor.className = "tooltip-anchor";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tooltip-dot";
+    button.textContent = "™";
+    button.setAttribute("aria-label", normalizeText(text));
+    button.setAttribute("aria-expanded", "false");
+    const popover = document.createElement("div");
+    popover.className = "tooltip-popover";
+    popover.textContent = normalizeText(text);
+    anchor.appendChild(button);
+    anchor.appendChild(popover);
+    bindTooltipDocumentListeners(document);
+    anchor.addEventListener("mouseenter", function () {
+      setTooltipHover(anchor, true);
+    });
+    anchor.addEventListener("mouseleave", function () {
+      setTooltipHover(anchor, false);
+    });
+    button.addEventListener("click", function (event) {
+      if (event && typeof event.stopPropagation === "function") {
+        event.stopPropagation();
+      }
+      setTooltipOpen(anchor, anchor.getAttribute("data-open") !== "true");
+    });
+    return anchor;
   }
 
   function createSectionTitleRow(title, helpText) {
@@ -601,7 +707,7 @@
       metaHead.appendChild(
         createSectionTitleRow(
           "AI信息",
-          "展示最近一次识别结果、两阶段 usage/cost 和原始返回，默认折叠显示。"
+          "展示最近一次识别结果、两阶段 usage/cost 和 debug，默认折叠显示。"
         )
       );
       const metaActions = document.createElement("div");
@@ -814,6 +920,10 @@
         aiMetaNode.textContent = "当前还没有 AI 信息。";
         return;
       }
+      const layout = document.createElement("div");
+      layout.className = "info-layout";
+      const infoPane = document.createElement("div");
+      infoPane.className = "info-pane";
       const grid = document.createElement("div");
       grid.className = "info-grid";
       [
@@ -847,27 +957,24 @@
           line.appendChild(valueNode);
           grid.appendChild(line);
         });
-      aiMetaNode.appendChild(grid);
+      infoPane.appendChild(grid);
+      layout.appendChild(infoPane);
 
-      const rawListen = normalizeText(source.raw?.listen);
-      const rawRefine = normalizeText(source.raw?.refine);
-      if (rawListen || rawRefine) {
-        const rawCard = document.createElement("div");
-        rawCard.className = "info-card";
-        rawCard.textContent =
-          "raw.listen: " +
-          (rawListen || "空") +
-          " | raw.refine: " +
-          (rawRefine || "空");
-        aiMetaNode.appendChild(rawCard);
-      }
-
-      if (source.debug && typeof source.debug === "object" && Object.keys(source.debug).length > 0) {
-        const debugCard = document.createElement("div");
-        debugCard.className = "info-card";
-        debugCard.textContent = "debug: " + JSON.stringify(source.debug);
-        aiMetaNode.appendChild(debugCard);
-      }
+      const debugPane = document.createElement("div");
+      debugPane.className = "debug-pane";
+      const debugTitle = document.createElement("div");
+      debugTitle.className = "debug-title";
+      debugTitle.textContent = "debug";
+      debugPane.appendChild(debugTitle);
+      const debugCard = document.createElement("pre");
+      debugCard.className = "debug-card";
+      debugCard.textContent =
+        source.debug && typeof source.debug === "object" && Object.keys(source.debug).length > 0
+          ? JSON.stringify(source.debug, null, 2)
+          : "当前还没有 debug 信息。";
+      debugPane.appendChild(debugCard);
+      layout.appendChild(debugPane);
+      aiMetaNode.appendChild(layout);
     }
 
     function setSegmentPreviewAutoApplyEnabled(enabled) {

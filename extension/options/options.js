@@ -11191,10 +11191,32 @@
 
     const enableButton = getElement("detail-enable-button");
     const disableButton = getElement("detail-disable-button");
+    const toggleButton = getElement("detail-toggle-button");
+    const saveButton = getElement("save-bytedance-aidp-settings");
     const enabled = isScriptEnabled(settings, scriptId);
+    const isBytedanceAidpSuzhouDetail = scriptId === bytedanceAidpSuzhouScriptId;
 
     enableButton.disabled = enabled;
     disableButton.disabled = !enabled;
+    enableButton.classList.toggle("hidden", isBytedanceAidpSuzhouDetail);
+    disableButton.classList.toggle("hidden", isBytedanceAidpSuzhouDetail);
+    if (toggleButton instanceof HTMLButtonElement) {
+      toggleButton.classList.toggle("hidden", !isBytedanceAidpSuzhouDetail);
+      if (isBytedanceAidpSuzhouDetail) {
+        toggleButton.disabled = false;
+        toggleButton.textContent = enabled ? "关闭脚本" : "启用脚本";
+        toggleButton.classList.remove("primary-button", "danger-button");
+        toggleButton.classList.add(enabled ? "danger-button" : "primary-button");
+      } else {
+        toggleButton.disabled = true;
+        toggleButton.textContent = "启用脚本";
+        toggleButton.classList.remove("danger-button");
+        toggleButton.classList.add("primary-button");
+      }
+    }
+    if (saveButton instanceof HTMLButtonElement) {
+      saveButton.classList.toggle("hidden", !isBytedanceAidpSuzhouDetail);
+    }
   }
 
   function renderDetailSupportPanel(settings, scriptId) {
@@ -12248,7 +12270,7 @@
 
   async function saveBytedanceAidpSettings() {
     if (!storage || typeof storage.patchSettings !== "function") {
-      setStatus("bytedance-aidp-status", "当前扩展版本不支持保存 ByteDance AIDP 设置。");
+      setStatus("bytedance-aidp-status", "当前扩展版本不支持保存设置。");
       return false;
     }
 
@@ -12373,7 +12395,7 @@
       constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH ||
       "/api/bytedance-aidp/suzhou-helper/ai/recommend";
 
-    setStatus("bytedance-aidp-status", "正在保存 ByteDance AIDP 设置...");
+    setStatus("bytedance-aidp-status", "正在保存设置...");
 
     try {
       currentSettings = await storage.patchSettings({
@@ -12437,7 +12459,7 @@
       applyBytedanceAidpForm(currentSettings);
       setStatus(
         "bytedance-aidp-status",
-        "ByteDance AIDP 设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。"
+        "设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。"
       );
       return true;
     } catch (error) {
@@ -13327,6 +13349,17 @@
         void toggleScript(scriptId, false);
       }
     });
+
+    const detailToggleButton = getElement("detail-toggle-button");
+    if (detailToggleButton instanceof HTMLButtonElement) {
+      detailToggleButton.addEventListener("click", function () {
+        const scriptId = getCurrentDetailScriptId();
+        if (!scriptId) {
+          return;
+        }
+        void toggleScript(scriptId, !isScriptEnabled(currentSettings || {}, scriptId));
+      });
+    }
 
     getElement("save-judgement-settings").addEventListener("click", function () {
       void saveJudgementSettings();

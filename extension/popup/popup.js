@@ -68,12 +68,6 @@
     getElement("popup-status").textContent = text || "";
   }
 
-  function setPill(id, text, tone) {
-    const node = getElement(id);
-    node.textContent = text;
-    node.className = "pill " + tone;
-  }
-
   function setTogglePill(text, tone, disabled) {
     const node = getElement("detected-status-pill");
     if (!node) {
@@ -152,13 +146,9 @@
   function buildRuntimeDescription(context) {
     const parts = [];
     const statusText = String(context?.statusText || "").trim();
-    const title = String(context?.title || "").trim();
     const description = String(context?.description || "").trim();
     if (statusText) {
       parts.push("运行状态：" + statusText);
-    }
-    if (title) {
-      parts.push(title);
     }
     if (description) {
       parts.push(description);
@@ -784,31 +774,16 @@
     currentDetectedScriptId = context.scriptId || null;
     lastRenderedContext = context;
 
-    const platform = context.platformId ? platformLibrary[context.platformId] || {} : {};
-    const script = context.scriptId ? scriptLibrary[context.scriptId] || {} : {};
     const scriptLabel = getResolvedScriptLabel(context);
-    const runtimeDescription = buildRuntimeDescription(context);
+    const runtimeDescription = buildRuntimeDescription(context) || context.description || "";
 
     if (context.scriptId) {
       getElement("detected-title").textContent = scriptLabel;
       getElement("detected-description").textContent = runtimeDescription;
     } else {
       getElement("detected-title").textContent = context.title || "当前页面检测完成";
-      getElement("detected-description").textContent = context.description || "";
+      getElement("detected-description").textContent = runtimeDescription || context.description || "";
     }
-
-    setPill(
-      "detected-platform-pill",
-      context.platformId
-        ? String(context.platformLabel || platform.label || context.platformId)
-        : "未命中平台",
-      context.platformId ? "info" : "pending"
-    );
-    setPill(
-      "detected-script-pill",
-      context.scriptId ? scriptLabel : "无脚本触发",
-      context.scriptId ? "info" : "pending"
-    );
 
     const openScriptSettingsButton = getElement("open-script-settings");
     openScriptSettingsButton.disabled = !context.scriptId || context.openScriptSettings === false;
@@ -820,15 +795,11 @@
     );
 
     if (!context.scriptId) {
-      setPopupStatus("你可以直接打开脚本中心查看所有脚本。");
+      setPopupStatus("");
       return;
     }
 
-    setPopupStatus(
-      "当前页面对应脚本：" +
-        String(scriptLabel || script.label || context.scriptId) +
-        "。需要调整配置时，请进入该脚本详情页。"
-    );
+    setPopupStatus("");
   }
 
   async function render(settingsOverride) {
@@ -883,14 +854,14 @@
   }
 
   document.addEventListener("DOMContentLoaded", async function () {
+    getElement("stage-label").addEventListener("click", function () {
+      openScriptCenter(null);
+    });
+
     getElement("open-script-settings").addEventListener("click", function () {
       if (currentDetectedScriptId) {
         openScriptCenter(currentDetectedScriptId);
       }
-    });
-
-    getElement("open-options").addEventListener("click", function () {
-      openScriptCenter(null);
     });
 
     getElement("detected-status-pill").addEventListener("click", function () {

@@ -34,10 +34,7 @@ function createDocument() {
     "detected-title",
     "detected-description",
     "detected-status-pill",
-    "detected-platform-pill",
-    "detected-script-pill",
     "open-script-settings",
-    "open-options",
     "popup-status",
   ];
   const elements = new Map(
@@ -65,7 +62,9 @@ function createDocument() {
 }
 
 function createChrome(activeUrl) {
+  const createdUrls = [];
   return {
+    createdUrls,
     tabs: {
       query(_queryInfo, callback) {
         callback([
@@ -75,7 +74,9 @@ function createChrome(activeUrl) {
           },
         ]);
       },
-      create() {},
+      create(input) {
+        createdUrls.push(String(input?.url || ""));
+      },
       sendMessage(_tabId, _message, callback) {
         callback({ ok: false, error: "not-needed" });
       },
@@ -136,6 +137,9 @@ function loadPopup(documentLike, chromeLike, storageLike) {
 test("popup shows the detected Suzhou script and toggles enable state via setScriptEnabled", async function () {
   const documentLike = createDocument();
   const toggleCalls = [];
+  const chromeLike = createChrome(
+    "https://aidp.bytedance.com/management/task-v2/7632228385175129882/mark-v3/1?from_pathname=%2Ftask-v2%3Fpage%3D1"
+  );
   let settings = {
     platforms: {
       bytedanceAidp: {
@@ -179,9 +183,7 @@ test("popup shows the detected Suzhou script and toggles enable state via setScr
 
   loadPopup(
     documentLike,
-    createChrome(
-      "https://aidp.bytedance.com/management/task-v2/7632228385175129882/mark-v3/1?from_pathname=%2Ftask-v2%3Fpage%3D1"
-    ),
+    chromeLike,
     storageLike
   );
 
@@ -191,7 +193,7 @@ test("popup shows the detected Suzhou script and toggles enable state via setScr
   assert.equal(documentLike.getElementById("detected-title").textContent, "苏州话脚本");
   assert.match(documentLike.getElementById("detected-description").textContent, /运行状态：未启用/);
   assert.equal(documentLike.getElementById("detected-status-pill").textContent, "未启用");
-  assert.equal(documentLike.getElementById("detected-script-pill").textContent, "苏州话脚本");
+  assert.equal(documentLike.getElementById("popup-status").textContent, "");
 
   documentLike.getElementById("detected-status-pill").click();
   await flushTasks();
@@ -203,5 +205,12 @@ test("popup shows the detected Suzhou script and toggles enable state via setScr
     },
   ]);
   assert.equal(documentLike.getElementById("detected-status-pill").textContent, "已启用");
-  assert.match(documentLike.getElementById("popup-status").textContent, /当前页面对应脚本：苏州话脚本/);
+
+  documentLike.getElementById("stage-label").click();
+  documentLike.getElementById("open-script-settings").click();
+
+  assert.deepEqual(chromeLike.createdUrls, [
+    "chrome-extension://test/options/options.html",
+    "chrome-extension://test/options/options.html?view=script&script=bytedanceAidpSuzhouHelper",
+  ]);
 });
