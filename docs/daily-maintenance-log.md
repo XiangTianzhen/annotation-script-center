@@ -19,3 +19,10 @@
 - 本次未修改业务代码说明：仅维护 docs/daily-maintenance-log.md，不改动业务代码、接口、页面、数据库、依赖、配置文件或环境变量
 - 后续待办：持续关注自动化巡检、AI 调用链路与文档同步边界的新增变更，保持日志与 log.md 边界一致
 - 自动维护记录说明：本次为日常例行维护追加记录并执行标准提交流程，记录目的在于形成可回溯的自动化执行链路
+## 2026-07-05
+- 日期：2026-07-05
+- 项目：标注脚本中心（annotation-script-center）
+- 检查范围：已阅读 AGENTS.md、README.md、log.md、docs/README.md、docs/platforms-index.md、extension/README.md、platform-resources/README.md、platform-resources/backend/README.md，并核对当前仓库 `git status --short`
+- 本次未修改业务代码说明：本次仅追加 docs/daily-maintenance-log.md 维护记录，未修改业务代码、接口、页面、数据库、依赖、配置文件或环境变量
+- 后续待办：继续关注 ByteDance AIDP 等近期活跃模块的文档边界与工作区状态，后续维护仍需先确认工作树干净再执行日志追加
+- 自动维护记录说明：本条为 automation-3 的日常巡检留痕，用于记录本次只做文档级维护且按固定提交流程执行
