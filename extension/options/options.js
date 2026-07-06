@@ -14,6 +14,8 @@
     constants.DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID || "dataBakerCvpcLiuzhouAssistant";
   const bytedanceAidpSuzhouScriptId =
     constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
+  const bytedanceAidpJinhuaScriptId =
+    constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID || "bytedanceAidpJinhuaHelper";
   const bytedanceAidpPlaybackRatePresets = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
   const bytedanceAidpFixedWaveZoomPresets = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   const magicDataAnnotatorScriptId =
@@ -904,6 +906,7 @@
     dataBakerRoundOneQuality: "/api/data-baker/round-one-quality/ai/recommend/defaults",
     dataBakerCvpcLiuzhouAssistant: "/api/data-baker-cvpc/liuzhou-helper/ai/recommend/defaults",
     bytedanceAidpSuzhouHelper: "/api/bytedance-aidp/suzhou-helper/ai/recommend/defaults",
+    bytedanceAidpJinhuaHelper: "/api/bytedance-aidp/jinhua-helper/ai/recommend/defaults",
     magicDataAnnotatorAiReview: "/api/magic-data/hakka-helper/ai/defaults",
     magicDataMinnanAssistant: "/api/magic-data/minnan-helper/ai/defaults",
     aishellTechMinnanAssistant: "/api/aishell-tech/minnan-helper/ai/recommend/defaults",
@@ -4243,7 +4246,9 @@
   }
 
   function isBytedanceAidpScript(scriptId) {
-    return scriptId === bytedanceAidpSuzhouScriptId;
+    return (
+      scriptId === bytedanceAidpSuzhouScriptId || scriptId === bytedanceAidpJinhuaScriptId
+    );
   }
 
   function isMagicDataScript(scriptId) {
@@ -4295,7 +4300,7 @@
       scriptId === transcriptionProjectId ||
       scriptId === dataBakerRoundOneQualityScriptId ||
       scriptId === dataBakerCvpcLiuzhouScriptId ||
-      scriptId === bytedanceAidpSuzhouScriptId ||
+      isBytedanceAidpScript(scriptId) ||
       isMagicDataScript(scriptId) ||
       isAishellTechScript(scriptId)
     );
@@ -4314,7 +4319,7 @@
     if (scriptId === dataBakerCvpcLiuzhouScriptId) {
       return "data-baker-cvpc-status";
     }
-    if (scriptId === bytedanceAidpSuzhouScriptId) {
+    if (isBytedanceAidpScript(scriptId)) {
       return "bytedance-aidp-status";
     }
     if (isMagicDataScript(scriptId)) {
@@ -4381,6 +4386,9 @@
     if (scriptId === bytedanceAidpSuzhouScriptId) {
       return asrVoiceAiDefaultsPaths.bytedanceAidpSuzhouHelper;
     }
+    if (scriptId === bytedanceAidpJinhuaScriptId) {
+      return asrVoiceAiDefaultsPaths.bytedanceAidpJinhuaHelper;
+    }
     if (scriptId === magicDataAnnotatorScriptId) {
       return asrVoiceAiDefaultsPaths.magicDataAnnotatorAiReview;
     }
@@ -4397,10 +4405,16 @@
   }
 
   function buildFallbackAsrVoiceAiDefaults(scriptId) {
+    const isBytedanceAidpJinhua =
+      scriptId ===
+      (typeof bytedanceAidpJinhuaScriptId === "undefined"
+        ? "bytedanceAidpJinhuaHelper"
+        : bytedanceAidpJinhuaScriptId);
     const useDataBakerStyleDefaults =
       scriptId === dataBakerRoundOneQualityScriptId ||
       scriptId === dataBakerCvpcLiuzhouScriptId ||
       scriptId === bytedanceAidpSuzhouScriptId ||
+      isBytedanceAidpJinhua ||
       isMagicDataScript(scriptId) ||
       isAishellTechScript(scriptId);
     const useDataBakerPromptDefaults =
@@ -4568,7 +4582,7 @@
         },
       };
     }
-    if (scriptId === bytedanceAidpSuzhouScriptId) {
+    if (scriptId === bytedanceAidpSuzhouScriptId || isBytedanceAidpJinhua) {
       baseDefaults.listenModelOptions = clone(dataBakerCvpcListenModelOptions);
       baseDefaults.stages = {
         listen: {
@@ -4654,7 +4668,7 @@
         fallback.defaults.stages?.refine || {},
         defaults.stages?.refine || {}
       );
-    } else if (scriptId === bytedanceAidpSuzhouScriptId) {
+    } else if (isBytedanceAidpScript(scriptId)) {
       normalizedDefaults.stages = Object.assign({}, fallback.defaults.stages || {}, defaults.stages || {});
       normalizedDefaults.stages.listen = Object.assign(
         {},
@@ -4721,8 +4735,10 @@
             ? "Aishell 后端默认配置读取失败，已回退到本地三板块默认值。"
             : isDataBakerCvpcScript(scriptId)
               ? "CVPC 柳州话后端默认配置读取失败，已回退到本地两阶段默认值。"
-              : scriptId === bytedanceAidpSuzhouScriptId
-                ? "ByteDance AIDP 苏州话后端默认配置读取失败，已回退到本地两阶段默认值。"
+              : isBytedanceAidpScript(scriptId)
+                ? scriptId === bytedanceAidpJinhuaScriptId
+                  ? "ByteDance AIDP 金华话后端默认配置读取失败，已回退到本地两阶段默认值。"
+                  : "ByteDance AIDP 苏州话后端默认配置读取失败，已回退到本地两阶段默认值。"
               : "后端默认配置读取失败，已使用本地默认值。";
         asrVoiceAiDefaultsCache[key] = fallback;
         return fallback;
@@ -4764,9 +4780,11 @@
       node.textContent = "已读取后端默认配置。柳州话脚本当前固定为两阶段：听音 + 文本修正。";
       return;
     }
-    if (scriptId === bytedanceAidpSuzhouScriptId) {
+    if (isBytedanceAidpScript(scriptId)) {
       node.textContent =
-        "已读取后端默认配置。苏州话脚本当前固定为两阶段：听音 + 普通话听写收口。";
+        scriptId === bytedanceAidpJinhuaScriptId
+          ? "已读取后端默认配置。金华话脚本当前固定为两阶段：听音 + 普通话翻译收口。"
+          : "已读取后端默认配置。苏州话脚本当前固定为两阶段：听音 + 普通话听写收口。";
       return;
     }
     node.textContent = "已读取后端默认配置；未单独覆盖的字段将沿用后端默认。";
@@ -5752,26 +5770,46 @@
     return config;
   }
 
-  function getBytedanceAidpSuzhouConfig(settings) {
+  function getBytedanceAidpConfigMeta(scriptId) {
+    if (scriptId === bytedanceAidpJinhuaScriptId) {
+      return {
+        scriptId: bytedanceAidpJinhuaScriptId,
+        scriptKey: "jinhuaHelper",
+        aiRecommendPath:
+          constants.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH ||
+          "/api/bytedance-aidp/jinhua-helper/ai/recommend",
+        defaultAiEnabled: false,
+      };
+    }
+    return {
+      scriptId: bytedanceAidpSuzhouScriptId,
+      scriptKey: "suzhouHelper",
+      aiRecommendPath:
+        constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH ||
+        "/api/bytedance-aidp/suzhou-helper/ai/recommend",
+      defaultAiEnabled: true,
+    };
+  }
+
+  function getBytedanceAidpConfig(settings, scriptId) {
+    const meta = getBytedanceAidpConfigMeta(scriptId);
     const defaults =
-      constants.DEFAULT_SETTINGS?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
-    const current =
-      settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+      constants.DEFAULT_SETTINGS?.platforms?.bytedanceAidp?.scripts?.[meta.scriptKey] || {};
+    const current = settings?.platforms?.bytedanceAidp?.scripts?.[meta.scriptKey] || {};
 
     const config = Object.assign(
       {
-        id: bytedanceAidpSuzhouScriptId,
-        enabled: true,
+        id: meta.scriptId,
+        enabled: meta.scriptId === bytedanceAidpJinhuaScriptId ? false : true,
         platformAiEnabled: false,
         segmentContextPaddingMs: 300,
         segmentSilenceThresholdDbfs: -31,
         mergeContiguousSuggestedSegmentsEnabled: true,
         segmentPreviewAutoApplyEnabled: true,
-        aiRecommendEnabled: true,
+        aiRecommendEnabled: meta.defaultAiEnabled,
         aiRecommendAutoFillEnabled: true,
         aiRecommendEndpoint: buildBackendUrl(
-          constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH ||
-            "/api/bytedance-aidp/suzhou-helper/ai/recommend",
+          meta.aiRecommendPath,
           currentSettings || settings || {}
         ),
         aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
@@ -5804,7 +5842,7 @@
       clone(current)
     );
 
-    config.id = bytedanceAidpSuzhouScriptId;
+    config.id = meta.scriptId;
     config.enabled = config.enabled !== false;
     config.platformAiEnabled = config.platformAiEnabled !== false;
     config.segmentContextPaddingMs = normalizeBytedanceAidpSegmentContextPaddingMs(
@@ -5853,6 +5891,14 @@
     config.contractMode = normalizeText(config.contractMode || "dom-guarded") || "dom-guarded";
     config.shortcuts = normalizeBytedanceAidpShortcuts(config.shortcuts, defaults.shortcuts);
     return config;
+  }
+
+  function getBytedanceAidpSuzhouConfig(settings) {
+    return getBytedanceAidpConfig(settings, bytedanceAidpSuzhouScriptId);
+  }
+
+  function getBytedanceAidpJinhuaConfig(settings) {
+    return getBytedanceAidpConfig(settings, bytedanceAidpJinhuaScriptId);
   }
 
   function getAishellTechMinnanConfig(settings) {
@@ -6147,7 +6193,7 @@
   function buildAsrVoiceAiHeader(scriptId) {
     const scriptLabel = scriptLibrary[scriptId]?.label || scriptId;
     const headerCopy =
-      scriptId === bytedanceAidpSuzhouScriptId
+      isBytedanceAidpScript(scriptId)
         ? ""
         : '<p class="asr-ai-copy">这些设置仅影响当前脚本的 AI 辅助能力。普通用户无需修改；后端地址仍由首页顶部“后端接口地址”统一控制。</p>';
     return [
@@ -6564,14 +6610,34 @@
     panel.classList.remove("hidden");
   }
 
-  function renderBytedanceAidpSuzhouAiSettingsSection(panel, headerHtml, defaultsTipId) {
+  function renderBytedanceAidpSuzhouAiSettingsSection(
+    panel,
+    headerHtml,
+    defaultsTipId,
+    scriptId
+  ) {
+    const activeScriptId =
+      scriptId === bytedanceAidpJinhuaScriptId
+        ? bytedanceAidpJinhuaScriptId
+        : bytedanceAidpSuzhouScriptId;
+    const resultLabel =
+      activeScriptId === bytedanceAidpJinhuaScriptId ? "普通话翻译" : "普通话听写";
+    const resultHelpText =
+      activeScriptId === bytedanceAidpJinhuaScriptId
+        ? "把听音草稿收口成普通话翻译，不做语义润色。"
+        : "把听音草稿收口成普通话听写稿，不做语义润色。";
     panel.innerHTML = [
       '<div class="asr-ai-panel">',
       headerHtml,
       '<div class="asr-ai-note" id="' + defaultsTipId + '"></div>',
       '<div class="asr-ai-block"><strong>基础设置</strong><div class="asr-ai-grid two">',
       '<label class="asr-ai-field"><span>' +
-        buildAsrAiLabelMarkup("启用普通话听写识别", "关闭后不显示单段识别与批量识别能力。") +
+        buildAsrAiLabelMarkup(
+          activeScriptId === bytedanceAidpJinhuaScriptId
+            ? "启用普通话翻译识别"
+            : "启用普通话听写识别",
+          "关闭后不显示单段识别与批量识别能力。"
+        ) +
         '</span><label class="asr-ai-boolean"><input id="bytedance-aidp-ai-recommend-enabled" type="checkbox" /><span>开启</span></label></label>',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
@@ -6588,7 +6654,9 @@
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
           "听音模型",
-          "听音阶段只根据当前段音频生成保守的原始听写草稿，不做普通话收口。"
+          "听音阶段只根据当前段音频生成保守的原始听写草稿，不做" +
+            resultLabel +
+            "收口。"
         ) +
         '</span><select id="bytedance-aidp-ai-listen-model-select"></select></label>',
       '<label class="asr-ai-field"><span>' +
@@ -6600,9 +6668,11 @@
       '</div><div class="asr-ai-grid three">' +
         buildBytedanceAidpSuzhouStageParamFieldsMarkup("listen") +
         "</div></div>",
-      '<div class="asr-ai-block"><strong>普通话听写收口</strong><div class="asr-ai-grid two">',
+      '<div class="asr-ai-block"><strong>' +
+        resultLabel +
+        '收口</strong><div class="asr-ai-grid two">',
       '<label class="asr-ai-field"><span>' +
-        buildAsrAiLabelMarkup("收口模型", "把听音草稿收口成普通话听写稿，不做语义润色。") +
+        buildAsrAiLabelMarkup("收口模型", resultHelpText) +
         '</span><select id="bytedance-aidp-ai-refine-model-select"></select></label>',
       '<label class="asr-ai-field"><span>' +
         buildAsrAiLabelMarkup(
@@ -6616,7 +6686,7 @@
       "</div>",
     ].join("");
 
-    const aiDefaults = getAsrVoiceAiDefaultsCached(bytedanceAidpSuzhouScriptId).defaults || {};
+    const aiDefaults = getAsrVoiceAiDefaultsCached(activeScriptId).defaults || {};
     const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
     bindBytedanceAidpSuzhouStageParamHelp("listen", stageDefaults.listen);
     bindBytedanceAidpSuzhouStageParamHelp("refine", stageDefaults.refine);
@@ -6624,7 +6694,7 @@
     const listenNode = getElement("bytedance-aidp-ai-listen-model-select");
     if (listenNode instanceof HTMLSelectElement) {
       listenNode.addEventListener("change", function (event) {
-        const aiDefaults = getAsrVoiceAiDefaultsCached(bytedanceAidpSuzhouScriptId).defaults || {};
+        const aiDefaults = getAsrVoiceAiDefaultsCached(activeScriptId).defaults || {};
         const draftConfig = getBytedanceAidpSuzhouSettingsDraftConfig(aiDefaults);
         draftConfig.aiRecommendListenModel = normalizeDataBakerCvpcListenModel(
           event?.target?.value,
@@ -6701,8 +6771,8 @@
       return;
     }
 
-    if (scriptId === bytedanceAidpSuzhouScriptId) {
-      renderBytedanceAidpSuzhouAiSettingsSection(panel, headerHtml, defaultsTipId);
+    if (isBytedanceAidpScript(scriptId)) {
+      renderBytedanceAidpSuzhouAiSettingsSection(panel, headerHtml, defaultsTipId, scriptId);
       return;
     }
 
@@ -11528,15 +11598,15 @@
     const toggleButton = getElement("detail-toggle-button");
     const saveButton = getElement("save-bytedance-aidp-settings");
     const enabled = isScriptEnabled(settings, scriptId);
-    const isBytedanceAidpSuzhouDetail = scriptId === bytedanceAidpSuzhouScriptId;
+    const isBytedanceAidpDetail = isBytedanceAidpScript(scriptId);
 
     enableButton.disabled = enabled;
     disableButton.disabled = !enabled;
-    enableButton.classList.toggle("hidden", isBytedanceAidpSuzhouDetail);
-    disableButton.classList.toggle("hidden", isBytedanceAidpSuzhouDetail);
+    enableButton.classList.toggle("hidden", isBytedanceAidpDetail);
+    disableButton.classList.toggle("hidden", isBytedanceAidpDetail);
     if (toggleButton instanceof HTMLButtonElement) {
-      toggleButton.classList.toggle("hidden", !isBytedanceAidpSuzhouDetail);
-      if (isBytedanceAidpSuzhouDetail) {
+      toggleButton.classList.toggle("hidden", !isBytedanceAidpDetail);
+      if (isBytedanceAidpDetail) {
         toggleButton.disabled = false;
         toggleButton.textContent = enabled ? "关闭脚本" : "启用脚本";
         toggleButton.classList.remove("primary-button", "danger-button");
@@ -11549,7 +11619,7 @@
       }
     }
     if (saveButton instanceof HTMLButtonElement) {
-      saveButton.classList.toggle("hidden", !isBytedanceAidpSuzhouDetail);
+      saveButton.classList.toggle("hidden", !isBytedanceAidpDetail);
     }
   }
 
@@ -11576,7 +11646,7 @@
     if (scriptId === dataBakerCvpcLiuzhouScriptId) {
       return "detail-data-baker-cvpc-shortcuts-panel";
     }
-    if (scriptId === bytedanceAidpSuzhouScriptId) {
+    if (isBytedanceAidpScript(scriptId)) {
       return "detail-bytedance-aidp-shortcuts-panel";
     }
     if (isAishellTechScript(scriptId)) {
@@ -11725,7 +11795,11 @@
     );
     getElement("detail-bytedance-aidp-suzhou-panel").classList.toggle(
       "hidden",
-      scriptId !== bytedanceAidpSuzhouScriptId
+      !isBytedanceAidpScript(scriptId)
+    );
+    getElement("detail-bytedance-aidp-jinhua-panel").classList.toggle(
+      "hidden",
+      scriptId !== bytedanceAidpJinhuaScriptId
     );
     getElement("detail-aishell-tech-minnan-helper-panel").classList.toggle(
       "hidden",
@@ -11764,8 +11838,8 @@
           applyDataBakerForm(currentSettings || settings || {});
         } else if (scriptId === dataBakerCvpcLiuzhouScriptId) {
           applyDataBakerCvpcForm(currentSettings || settings || {});
-        } else if (scriptId === bytedanceAidpSuzhouScriptId) {
-          applyBytedanceAidpForm(currentSettings || settings || {});
+        } else if (isBytedanceAidpScript(scriptId)) {
+          applyBytedanceAidpForm(currentSettings || settings || {}, scriptId);
         } else if (isAishellTechScript(scriptId)) {
           applyAishellTechForm(currentSettings || settings || {}, scriptId);
         } else if (isMagicDataScript(scriptId)) {
@@ -11819,11 +11893,13 @@
       return;
     }
 
-    if (scriptId === bytedanceAidpSuzhouScriptId) {
-      applyBytedanceAidpForm(settings);
+    if (isBytedanceAidpScript(scriptId)) {
+      applyBytedanceAidpForm(settings, scriptId);
       setStatus(
         "bytedance-aidp-status",
-        "当前支持普通话听写稿 AI、单段识别直填输入框、批量识别与分段建议暂存写回；只更新 `txt`，不自动提交、不自动切题。"
+        scriptId === bytedanceAidpJinhuaScriptId
+          ? "当前支持普通话翻译 AI、单段识别直填输入框、批量识别与分段建议暂存写回；只更新 `txt`，不自动提交、不自动切题。"
+          : "当前支持普通话听写稿 AI、单段识别直填输入框、批量识别与分段建议暂存写回；只更新 `txt`，不自动提交、不自动切题。"
       );
       return;
     }
@@ -12018,9 +12094,16 @@
     renderDataBakerCvpcShortcutGrid();
   }
 
-  function applyBytedanceAidpForm(settings) {
-    const config = getBytedanceAidpSuzhouConfig(settings);
-    const defaultsPayload = getAsrVoiceAiDefaultsCached(bytedanceAidpSuzhouScriptId);
+  function applyBytedanceAidpForm(settings, scriptId) {
+    const activeScriptId =
+      scriptId === bytedanceAidpJinhuaScriptId
+        ? bytedanceAidpJinhuaScriptId
+        : bytedanceAidpSuzhouScriptId;
+    const config =
+      activeScriptId === bytedanceAidpJinhuaScriptId
+        ? getBytedanceAidpJinhuaConfig(settings)
+        : getBytedanceAidpSuzhouConfig(settings);
+    const defaultsPayload = getAsrVoiceAiDefaultsCached(activeScriptId);
     const aiDefaults = defaultsPayload.defaults || {};
     bytedanceAidpShortcutsDraft = clone(config.shortcuts) || {};
     const platformAiNode = getElement("bytedance-aidp-platform-ai-enabled");
@@ -12105,11 +12188,17 @@
       applyBytedanceAidpSuzhouStageFields(config, aiDefaults);
       applyForcedThinkingToggle(
         "bytedance-aidp-ai-enable-thinking",
-        "thinking 已全局固定关闭；苏州话脚本不允许开启 Omni 思考模式。"
+        activeScriptId === bytedanceAidpJinhuaScriptId
+          ? "thinking 已全局固定关闭；金华话脚本不允许开启 Omni 思考模式。"
+          : "thinking 已全局固定关闭；苏州话脚本不允许开启 Omni 思考模式。"
       );
     }
     stopBytedanceAidpShortcutRecording("");
     renderBytedanceAidpShortcutGrid();
+  }
+
+  function applyBytedanceAidpJinhuaForm(settings) {
+    applyBytedanceAidpForm(settings, bytedanceAidpJinhuaScriptId);
   }
 
   function applyAishellTechMinnanForm(settings) {
@@ -12604,14 +12693,22 @@
     }
   }
 
-  async function saveBytedanceAidpSettings() {
+  async function saveBytedanceAidpSettings(scriptId) {
     if (!storage || typeof storage.patchSettings !== "function") {
       setStatus("bytedance-aidp-status", "当前扩展版本不支持保存设置。");
       return false;
     }
 
-    const currentConfig = getBytedanceAidpSuzhouConfig(currentSettings || {});
-    const aiDefaults = getAsrVoiceAiDefaultsCached(bytedanceAidpSuzhouScriptId).defaults || {};
+    const activeScriptId =
+      scriptId === bytedanceAidpJinhuaScriptId
+        ? bytedanceAidpJinhuaScriptId
+        : bytedanceAidpSuzhouScriptId;
+    const meta = getBytedanceAidpConfigMeta(activeScriptId);
+    const currentConfig =
+      activeScriptId === bytedanceAidpJinhuaScriptId
+        ? getBytedanceAidpJinhuaConfig(currentSettings || {})
+        : getBytedanceAidpSuzhouConfig(currentSettings || {});
+    const aiDefaults = getAsrVoiceAiDefaultsCached(activeScriptId).defaults || {};
     const stageDefaults = getBytedanceAidpSuzhouStageDefaults(aiDefaults);
     const hasAiSettingsPanel = Boolean(getElement("bytedance-aidp-ai-timeout"));
     ensureBytedanceAidpShortcutDraft();
@@ -12727,72 +12824,70 @@
     };
     const listenOverrides = readStageOverrides("aiRecommendListen", "listen");
     const refineOverrides = readStageOverrides("aiRecommendRefine", "refine");
-    const aiRecommendPath =
-      constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH ||
-      "/api/bytedance-aidp/suzhou-helper/ai/recommend";
+    const aiRecommendPath = meta.aiRecommendPath;
 
     setStatus("bytedance-aidp-status", "正在保存设置...");
 
     try {
+      const nextScriptPatch = {};
+      nextScriptPatch[meta.scriptKey] = {
+        id: activeScriptId,
+        platformAiEnabled:
+          !getElement("bytedance-aidp-platform-ai-enabled").checked,
+        segmentContextPaddingMs: segmentContextPaddingMs,
+        segmentSilenceThresholdDbfs: segmentSilenceThresholdDbfs,
+        mergeContiguousSuggestedSegmentsEnabled:
+          mergeContiguousSuggestedSegmentsEnabled,
+        segmentPreviewAutoApplyEnabled: segmentPreviewAutoApplyEnabled,
+        aiRecommendAutoFillEnabled: aiRecommendAutoFillEnabled,
+        aiRecommendEnabled: aiRecommendEnabled,
+        aiRecommendEndpoint: buildBackendUrl(aiRecommendPath, currentSettings || {}),
+        aiRecommendRequestTimeoutMs: timeoutMs,
+        aiRecommendListenModel: draftConfig.aiRecommendListenModel,
+        aiRecommendListenPrompt: normalizeOverridePrompt(
+          draftConfig.aiRecommendListenPrompt,
+          stageDefaults.listen.prompt
+        ),
+        aiRecommendListenTemperature: listenOverrides.aiRecommendListenTemperature,
+        aiRecommendListenTopP: listenOverrides.aiRecommendListenTopP,
+        aiRecommendListenMaxTokens: listenOverrides.aiRecommendListenMaxTokens,
+        aiRecommendListenMaxCompletionTokens:
+          listenOverrides.aiRecommendListenMaxCompletionTokens,
+        aiRecommendListenPresencePenalty:
+          listenOverrides.aiRecommendListenPresencePenalty,
+        aiRecommendListenFrequencyPenalty:
+          listenOverrides.aiRecommendListenFrequencyPenalty,
+        aiRecommendListenSeed: listenOverrides.aiRecommendListenSeed,
+        aiRecommendListenStopSequences: listenOverrides.aiRecommendListenStopSequences,
+        aiRecommendRefineModel: draftConfig.aiRecommendRefineModel,
+        aiRecommendRefinePrompt: normalizeOverridePrompt(
+          draftConfig.aiRecommendRefinePrompt,
+          stageDefaults.refine.prompt
+        ),
+        aiRecommendRefineTemperature: refineOverrides.aiRecommendRefineTemperature,
+        aiRecommendRefineTopP: refineOverrides.aiRecommendRefineTopP,
+        aiRecommendRefineMaxTokens: refineOverrides.aiRecommendRefineMaxTokens,
+        aiRecommendRefineMaxCompletionTokens:
+          refineOverrides.aiRecommendRefineMaxCompletionTokens,
+        aiRecommendRefinePresencePenalty:
+          refineOverrides.aiRecommendRefinePresencePenalty,
+        aiRecommendRefineFrequencyPenalty:
+          refineOverrides.aiRecommendRefineFrequencyPenalty,
+        aiRecommendRefineSeed: refineOverrides.aiRecommendRefineSeed,
+        aiRecommendRefineStopSequences: refineOverrides.aiRecommendRefineStopSequences,
+        defaultPlaybackRate: defaultPlaybackRate,
+        fixedWaveZoom: fixedWaveZoom,
+        contractMode: "dom-guarded",
+        shortcuts: shortcuts,
+      };
       currentSettings = await storage.patchSettings({
         platforms: {
           bytedanceAidp: {
-            scripts: {
-              suzhouHelper: {
-                id: bytedanceAidpSuzhouScriptId,
-                platformAiEnabled:
-                  !getElement("bytedance-aidp-platform-ai-enabled").checked,
-                segmentContextPaddingMs: segmentContextPaddingMs,
-                segmentSilenceThresholdDbfs: segmentSilenceThresholdDbfs,
-                mergeContiguousSuggestedSegmentsEnabled:
-                  mergeContiguousSuggestedSegmentsEnabled,
-                segmentPreviewAutoApplyEnabled: segmentPreviewAutoApplyEnabled,
-                aiRecommendAutoFillEnabled: aiRecommendAutoFillEnabled,
-                aiRecommendEnabled: aiRecommendEnabled,
-                aiRecommendEndpoint: buildBackendUrl(aiRecommendPath, currentSettings || {}),
-                aiRecommendRequestTimeoutMs: timeoutMs,
-                aiRecommendListenModel: draftConfig.aiRecommendListenModel,
-                aiRecommendListenPrompt: normalizeOverridePrompt(
-                  draftConfig.aiRecommendListenPrompt,
-                  stageDefaults.listen.prompt
-                ),
-                aiRecommendListenTemperature: listenOverrides.aiRecommendListenTemperature,
-                aiRecommendListenTopP: listenOverrides.aiRecommendListenTopP,
-                aiRecommendListenMaxTokens: listenOverrides.aiRecommendListenMaxTokens,
-                aiRecommendListenMaxCompletionTokens:
-                  listenOverrides.aiRecommendListenMaxCompletionTokens,
-                aiRecommendListenPresencePenalty:
-                  listenOverrides.aiRecommendListenPresencePenalty,
-                aiRecommendListenFrequencyPenalty:
-                  listenOverrides.aiRecommendListenFrequencyPenalty,
-                aiRecommendListenSeed: listenOverrides.aiRecommendListenSeed,
-                aiRecommendListenStopSequences: listenOverrides.aiRecommendListenStopSequences,
-                aiRecommendRefineModel: draftConfig.aiRecommendRefineModel,
-                aiRecommendRefinePrompt: normalizeOverridePrompt(
-                  draftConfig.aiRecommendRefinePrompt,
-                  stageDefaults.refine.prompt
-                ),
-                aiRecommendRefineTemperature: refineOverrides.aiRecommendRefineTemperature,
-                aiRecommendRefineTopP: refineOverrides.aiRecommendRefineTopP,
-                aiRecommendRefineMaxTokens: refineOverrides.aiRecommendRefineMaxTokens,
-                aiRecommendRefineMaxCompletionTokens:
-                  refineOverrides.aiRecommendRefineMaxCompletionTokens,
-                aiRecommendRefinePresencePenalty:
-                  refineOverrides.aiRecommendRefinePresencePenalty,
-                aiRecommendRefineFrequencyPenalty:
-                  refineOverrides.aiRecommendRefineFrequencyPenalty,
-                aiRecommendRefineSeed: refineOverrides.aiRecommendRefineSeed,
-                aiRecommendRefineStopSequences: refineOverrides.aiRecommendRefineStopSequences,
-                defaultPlaybackRate: defaultPlaybackRate,
-                fixedWaveZoom: fixedWaveZoom,
-                contractMode: "dom-guarded",
-                shortcuts: shortcuts,
-              },
-            },
+            scripts: nextScriptPatch,
           },
         },
       });
-      applyBytedanceAidpForm(currentSettings);
+      applyBytedanceAidpForm(currentSettings, activeScriptId);
       setStatus("bytedance-aidp-status", "");
       showTopToast(
         "设置已保存；已打开的 mark-v3 页面如未同步，请刷新业务页。",
@@ -12807,6 +12902,10 @@
       );
       return false;
     }
+  }
+
+  async function saveBytedanceAidpJinhuaSettings() {
+    return saveBytedanceAidpSettings(bytedanceAidpJinhuaScriptId);
   }
 
   async function saveAishellTechMinnanSettings() {
@@ -13757,6 +13856,11 @@
     const saveBytedanceAidpSettingsButton = getElement("save-bytedance-aidp-settings");
     if (saveBytedanceAidpSettingsButton) {
       saveBytedanceAidpSettingsButton.addEventListener("click", function () {
+        const activeScriptId = getCurrentDetailScriptId();
+        if (activeScriptId === bytedanceAidpJinhuaScriptId) {
+          void saveBytedanceAidpJinhuaSettings();
+          return;
+        }
         void saveBytedanceAidpSettings();
       });
     }

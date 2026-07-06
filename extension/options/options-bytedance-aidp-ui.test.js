@@ -17,6 +17,12 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
       : html;
 
   assert.match(html, /id="detail-bytedance-aidp-suzhou-panel"/);
+  assert.match(html, /id="detail-bytedance-aidp-jinhua-panel"/);
+  assert.match(html, /金华话脚本/);
+  assert.match(html, /普通话翻译/);
+  assert.match(script, /function getBytedanceAidpJinhuaConfig\(/);
+  assert.match(script, /function applyBytedanceAidpJinhuaForm\(/);
+  assert.match(script, /async function saveBytedanceAidpJinhuaSettings\(/);
   assert.match(html, /id="bytedance-aidp-platform-ai-enabled"/);
   assert.match(html, /id="bytedance-aidp-segment-context-padding-seconds"/);
   assert.match(html, /id="bytedance-aidp-segment-silence-threshold-dbfs"/);

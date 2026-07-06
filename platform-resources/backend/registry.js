@@ -12,6 +12,9 @@ const {
 const {
   registerRoutes: registerBytedanceAidpSuzhouRoutes,
 } = require("../bytedance-aidp/suzhou-helper/backend");
+const {
+  registerRoutes: registerBytedanceAidpJinhuaRoutes,
+} = require("../bytedance-aidp/jinhua-helper/backend");
 const { registerRoutes: registerMagicDataHakkaRoutes } = require("../magic-data/hakka-helper/backend");
 const { registerRoutes: registerMagicDataMinnanRoutes } = require("../magic-data/minnan-helper/backend");
 const { registerRoutes: registerAbakaTask21AiRoutes } = require("../abaka-ai/task21/backend");
@@ -61,6 +64,7 @@ function registerProjectRoutes(router, options) {
   registerDataBakerRoundOneRoutes(router, config.dataBakerRoundOneQuality || {});
   registerDataBakerCvpcLiuzhouRoutes(router, config.dataBakerCvpcLiuzhouHelper || {});
   registerBytedanceAidpSuzhouRoutes(router, config.bytedanceAidpSuzhouHelper || {});
+  registerBytedanceAidpJinhuaRoutes(router, config.bytedanceAidpJinhuaHelper || {});
   registerMagicDataHakkaRoutes(
     router,
     config.magicDataHakkaHelper || config.magicDataAnnotator || {}

@@ -1,3 +1,48 @@
+## 2026-07-06（新增 ByteDance AIDP 金华话脚本并升级双脚本互斥模型）
+- 更新 `extension/shared/constants.js`
+  - 新增 `bytedanceAidpJinhuaHelper` 常量、Jinhua AI endpoint 和脚本库定义
+  - 为 AIDP 双脚本补齐共享快捷键常量导出
+- 更新 `extension/shared/storage.js`
+  - 为 ByteDance AIDP 新增 `activeScriptId + scripts.jinhuaHelper` 存储契约
+  - 迁移旧配置时默认保留苏州话为当前激活脚本，并确保同平台脚本互斥
+- 更新 `extension/manifest.json`
+  - AIDP 主世界 observer 改为共享 `shared/page-world/network-observer.js`
+  - 在同一站点同时注入苏州话和金华话两套 isolated runtime，由 `activeScriptId` 决定哪套真正挂载
+- 更新 `extension/options/options.js`
+  - 让 AIDP 详情页支持 `苏州话脚本 / 金华话脚本` 两套设置回显与保存
+  - 金华话详情页口径改为“普通话翻译”，并复用共享 AIDP 基础设置、AI 设置和快捷键面板
+- 更新 `extension/options/options.html`
+  - 新增 `detail-bytedance-aidp-jinhua-panel`，补充金华话写回字段与共用面板说明
+- 新增 `extension/sites/bytedance-aidp/shared/page-world/network-observer.js`
+  - 抽出 AIDP 平台共享主世界 observer，避免双脚本重复 hook `Receive / SubmitTempItemAnswer`
+- 新增 `extension/sites/bytedance-aidp/jinhua-helper/`
+  - 补齐金华话运行时：详情页面板、单段识别、批量识别、分段建议、快捷键、管理区切换账号与暂存写回
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/data-api.js`
+  - 改用共享 observer 消息常量，与平台共享主世界 observer 对齐
+- 更新 `platform-resources/bytedance-aidp/jinhua-helper/`
+  - 新增金华话脚本资料、后端路由、AI 规则与页面/Network 参考
+  - 规则资产切换为 `ai/assets/jinhua-rules.md`
+- 更新 `platform-resources/backend/registry.js`
+  - 注册 `jinhua-helper` 的分段建议与 AI 推荐路由
+- 更新 `platform-resources/backend/ai-call-log-download/routes.js`
+  - 新增 `bytedance-aidp-jinhua-helper-ai` 导出数据集
+- 更新文档：
+  - `docs/platforms-index.md`
+  - `extension/README.md`
+  - `platform-resources/README.md`
+  - `platform-resources/bytedance-aidp/README.md`
+  - `extension/sites/bytedance-aidp/jinhua-helper/README.md`
+  - `platform-resources/bytedance-aidp/jinhua-helper/README.md`
+  - `platform-resources/bytedance-aidp/jinhua-helper/backend/README.md`
+- 更新测试：
+  - `extension/shared/storage.bytedance-aidp.test.js`
+  - `extension/popup/popup.test.js`
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - `extension/options/options-bytedance-aidp-defaults.test.js`
+  - `extension/sites/bytedance-aidp/shared/page-world/network-observer.test.js`
+  - `extension/sites/bytedance-aidp/jinhua-helper/ui-panel.test.js`
+  - `platform-resources/bytedance-aidp/jinhua-helper/backend/ai-service.test.js`
+
 ## 2026-07-06（补齐 ByteDance AIDP 苏州话设置问号说明并迭代管理区切换账号）
 - 更新 `extension/options/options.html`
   - 将苏州话基础设置里 `画段后自动应用建议`、`前后静音时长`、`静音阈值`、`默认播放倍数`、`固定缩放倍数`、`连续相接自动合并` 的长说明统一收进可点击 `?`

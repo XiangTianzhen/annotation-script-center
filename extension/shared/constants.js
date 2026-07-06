@@ -41,7 +41,7 @@
   const DATABAKER_AI_REQUEST_STAGGER_MS = 50;
   const STAGE_ID = "labelx-script-center";
   const STAGE_LABEL = "脚本中心";
-  const SCHEMA_VERSION = 28;
+  const SCHEMA_VERSION = 29;
   const RELEASE_CHANNEL_PUBLIC = "public";
   const RELEASE_CHANNEL_BETA = "beta";
   const RELEASE_VISIBILITY_PUBLIC = "public";
@@ -60,6 +60,7 @@
   const DATA_BAKER_ROUND_ONE_QUALITY_SCRIPT_ID = "dataBakerRoundOneQuality";
   const DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID = "dataBakerCvpcLiuzhouAssistant";
   const BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID = "bytedanceAidpSuzhouHelper";
+  const BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID = "bytedanceAidpJinhuaHelper";
   const MAGIC_DATA_ANNOTATOR_SCRIPT_ID = "magicDataAnnotatorAiReview";
   const MAGIC_DATA_MINNAN_SCRIPT_ID = "magicDataMinnanAssistant";
   const ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID = "abakaAiTaskPageCapture";
@@ -126,6 +127,8 @@
     "/api/aishell-tech/vietnamese-helper/ai/recommend";
   const BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH =
     "/api/bytedance-aidp/suzhou-helper/ai/recommend";
+  const BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH =
+    "/api/bytedance-aidp/jinhua-helper/ai/recommend";
   const TRANSCRIPTION_STATS_UPLOAD_PATH = "/api/alibaba-labelx/asr-transcription/statistics/upload";
   const TRANSCRIPTION_STATS_DOWNLOAD_PATH =
     "/api/alibaba-labelx/asr-transcription/statistics/download";
@@ -151,6 +154,10 @@
     BACKEND_ENDPOINTS.server + BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH;
   const BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_LOCAL_ENDPOINT =
     BACKEND_ENDPOINTS.local + BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH;
+  const BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT =
+    BACKEND_ENDPOINTS.server + BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH;
+  const BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_LOCAL_ENDPOINT =
+    BACKEND_ENDPOINTS.local + BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH;
   const DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT =
     BACKEND_ENDPOINTS.server + DATABAKER_EXPORT_UPLOAD_PATH;
   const DATABAKER_EXPORT_UPLOAD_LOCAL_ENDPOINT =
@@ -339,6 +346,11 @@
     { key: "previewSegments", label: "生成分段建议" },
     { key: "applyPreviewSegments", label: "应用分段建议" },
   ];
+  const BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS = BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS.map(
+    function (item) {
+      return clone(item);
+    }
+  );
   const AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS = [
     { key: "aiRecommendCurrentItem", label: "AI 识别当前条" },
     { key: "autoFillQualifiedItem", label: "批量识别并保存" },
@@ -1277,8 +1289,8 @@
       entryUrl: BYTEDANCE_AIDP_PLATFORM.entryUrl,
       matches: clone(BYTEDANCE_AIDP_PLATFORM.matches),
       visibility: RELEASE_VISIBILITY_BETA,
-      runtimeBridge: "bytedance-aidp-suzhou-helper",
-      description: "ByteDance AIDP 苏州话详情页平台 AI 板块控制 beta 平台。",
+      runtimeBridge: "bytedance-aidp-helpers",
+      description: "ByteDance AIDP 方言详情页辅助 beta 平台（苏州话 / 金华话）。",
     },
     magicData: {
       id: MAGIC_DATA_PLATFORM_ID,
@@ -1393,6 +1405,23 @@
       capabilityScope: "aidp-ai-transcription-and-segmentation-beta",
       statusLabel: "苏州话脚本",
       detailView: "bytedance-aidp-suzhou-helper",
+      host: BYTEDANCE_AIDP_PLATFORM.host,
+      matchUrl:
+        "https://aidp.bytedance.com/management/task-v2/{taskId}/mark-v3/{index}?from_pathname=...&fs=...&templateID=...&templateType=...",
+    },
+    bytedanceAidpJinhuaHelper: {
+      id: BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID,
+      platformId: BYTEDANCE_AIDP_PLATFORM_ID,
+      visibility: RELEASE_VISIBILITY_BETA,
+      label: "金华话脚本",
+      shortLabel: "金华话脚本",
+      description:
+        "AIDP mark-v3 详情页金华话辅助：普通话翻译 AI、批量识别、分段建议、快捷键与语言种类补齐。",
+      note:
+        "当前支持单段普通话翻译直填输入框、批量识别与分段建议暂存写回；不自动提交、不自动切题，不改动 `ms` 或提交链路。",
+      capabilityScope: "aidp-ai-translation-and-segmentation-beta",
+      statusLabel: "金华话脚本",
+      detailView: "bytedance-aidp-jinhua-helper",
       host: BYTEDANCE_AIDP_PLATFORM.host,
       matchUrl:
         "https://aidp.bytedance.com/management/task-v2/{taskId}/mark-v3/{index}?from_pathname=...&fs=...&templateID=...&templateType=...",
@@ -1983,6 +2012,7 @@
     const shortcuts = createEmptyShortcutMap(BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS);
     return {
       enabled: true,
+      activeScriptId: BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID,
       scripts: {
         suzhouHelper: {
           id: BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID,
@@ -2020,6 +2050,43 @@
           fixedWaveZoom: 2,
           contractMode: "dom-guarded",
           shortcuts: shortcuts,
+        },
+        jinhuaHelper: {
+          id: BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID,
+          enabled: false,
+          platformAiEnabled: false,
+          segmentContextPaddingMs: 300,
+          segmentSilenceThresholdDbfs: -31,
+          mergeContiguousSuggestedSegmentsEnabled: true,
+          segmentPreviewAutoApplyEnabled: true,
+          aiRecommendEnabled: false,
+          aiRecommendAutoFillEnabled: true,
+          aiRecommendEndpoint: BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT,
+          aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+          aiRecommendListenModel: "qwen3.5-omni-flash",
+          aiRecommendListenPrompt: "",
+          aiRecommendListenTemperature: "",
+          aiRecommendListenTopP: "",
+          aiRecommendListenMaxTokens: "",
+          aiRecommendListenMaxCompletionTokens: "",
+          aiRecommendListenPresencePenalty: "",
+          aiRecommendListenFrequencyPenalty: "",
+          aiRecommendListenSeed: "",
+          aiRecommendListenStopSequences: "",
+          aiRecommendRefineModel: "qwen3.5-plus",
+          aiRecommendRefinePrompt: "",
+          aiRecommendRefineTemperature: "",
+          aiRecommendRefineTopP: "",
+          aiRecommendRefineMaxTokens: "",
+          aiRecommendRefineMaxCompletionTokens: "",
+          aiRecommendRefinePresencePenalty: "",
+          aiRecommendRefineFrequencyPenalty: "",
+          aiRecommendRefineSeed: "",
+          aiRecommendRefineStopSequences: "",
+          defaultPlaybackRate: 1,
+          fixedWaveZoom: 2,
+          contractMode: "dom-guarded",
+          shortcuts: clone(shortcuts),
         },
       },
     };
@@ -2236,9 +2303,14 @@
     }
 
     if (script.platformId === BYTEDANCE_AIDP_PLATFORM_ID) {
+      const activeScriptId = String(settings?.platforms?.bytedanceAidp?.activeScriptId || "").trim();
+      const scriptKey =
+        scriptId === BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID ? "jinhuaHelper" : "suzhouHelper";
+      const scriptSettings = settings?.platforms?.bytedanceAidp?.scripts?.[scriptKey] || {};
       return Boolean(
         settings?.platforms?.bytedanceAidp?.enabled !== false &&
-          settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper?.enabled !== false
+          scriptSettings.enabled !== false &&
+          (!activeScriptId || activeScriptId === scriptId)
       );
     }
 
@@ -2331,6 +2403,7 @@
     DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID:
       DATA_BAKER_CVPC_LIUZHOU_ASSISTANT_SCRIPT_ID,
     BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID: BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID,
+    BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID: BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID,
     MAGIC_DATA_ANNOTATOR_SCRIPT_ID: MAGIC_DATA_ANNOTATOR_SCRIPT_ID,
     MAGIC_DATA_MINNAN_SCRIPT_ID: MAGIC_DATA_MINNAN_SCRIPT_ID,
     ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID: ABAKA_AI_TASK_PAGE_CAPTURE_SCRIPT_ID,
@@ -2354,6 +2427,11 @@
     BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_LOCAL_ENDPOINT:
       BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_LOCAL_ENDPOINT,
     BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH: BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_PATH,
+    BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT:
+      BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT,
+    BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_LOCAL_ENDPOINT:
+      BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_LOCAL_ENDPOINT,
+    BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH: BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_PATH,
     DATABAKER_EXPORT_UPLOAD_PATH: DATABAKER_EXPORT_UPLOAD_PATH,
     DATABAKER_EXPORT_DOWNLOAD_PATH: DATABAKER_EXPORT_DOWNLOAD_PATH,
     DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT: DATABAKER_EXPORT_UPLOAD_SERVER_ENDPOINT,
@@ -2428,6 +2506,7 @@
     DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS: clone(DATABAKER_ROUND_ONE_SHORTCUT_ACTIONS),
     AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS: clone(AISHELL_TECH_MINNAN_SHORTCUT_ACTIONS),
     BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS: clone(BYTEDANCE_AIDP_SUZHOU_SHORTCUT_ACTIONS),
+    BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS: clone(BYTEDANCE_AIDP_JINHUA_SHORTCUT_ACTIONS),
     AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS: clone(AISHELL_TECH_VIETNAMESE_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_SHORTCUT_ACTIONS: clone(ABAKA_AI_TASK21_SHORTCUT_ACTIONS),
     ABAKA_AI_TASK21_AI_ANALYSIS_MODES: clone(ABAKA_AI_TASK21_AI_ANALYSIS_MODES),

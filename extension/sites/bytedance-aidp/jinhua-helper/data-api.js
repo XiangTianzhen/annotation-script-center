@@ -1,17 +1,17 @@
 (function () {
-  const OBSERVER_SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_OBSERVER";
-  const RECEIVE_TYPE = "BYTEDANCE_AIDP_RECEIVE_SNAPSHOT";
-  const SUBMIT_TYPE = "BYTEDANCE_AIDP_SUBMIT_SNAPSHOT";
+  const OBSERVER_SOURCE = "ASR_EDGE_BYTEDANCE_AIDP_JINHUA_OBSERVER";
+  const RECEIVE_TYPE = "BYTEDANCE_AIDP_JINHUA_RECEIVE_SNAPSHOT";
+  const SUBMIT_TYPE = "BYTEDANCE_AIDP_JINHUA_SUBMIT_SNAPSHOT";
   const APPLY_SUCCESS_MESSAGE = "已通过平台暂存接口应用分段建议，请刷新页面复核。";
   const FILL_LANGUAGE_SUCCESS_MESSAGE = "已通过平台暂存接口填充空语言种类，请刷新页面复核。";
   const FILL_LANGUAGE_EMPTY_MESSAGE = "当前没有空的语言种类需要填充。";
   const WRITE_CURRENT_TEXT_SUCCESS_MESSAGE =
-    "已通过平台暂存接口写回普通话听写稿，请刷新页面复核。";
+    "已通过平台暂存接口写回普通话翻译，请刷新页面复核。";
   const WRITE_BATCH_TEXT_SUCCESS_MESSAGE =
-    "已通过平台暂存接口批量写回普通话听写稿，请刷新页面复核。";
+    "已通过平台暂存接口批量写回普通话翻译，请刷新页面复核。";
   const WRITE_CURRENT_TEXT_SKIP_EXISTING_MESSAGE = "当前段 AI 结果为空，已保留原有文本。";
   const WRITE_CURRENT_TEXT_SKIP_EMPTY_MESSAGE = "当前段 AI 结果为空，未写入任何文本。";
-  const WRITE_BATCH_TEXT_EMPTY_MESSAGE = "当前没有可写回的普通话听写稿。";
+  const WRITE_BATCH_TEXT_EMPTY_MESSAGE = "当前没有可写回的普通话翻译。";
   const WRITE_CURRENT_TEXT_DOM_SKIP_EMPTY_MESSAGE = "当前段 AI 结果为空，未填入任何文本。";
   const PREVIEW_EMPTY_MESSAGE = "当前还没有可应用的分段建议。";
   const PREVIEW_STALE_MESSAGE = "当前页面分段状态已变化，旧分段建议已失效，请重新生成。";
@@ -1470,9 +1470,10 @@
     },
   };
 
-  globalThis.ASREdgeBytedanceAidpSuzhouDataApi = api;
+  globalThis.ASREdgeBytedanceAidpJinhuaDataApi = api;
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;
   }
 })();
+

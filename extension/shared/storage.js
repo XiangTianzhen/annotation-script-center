@@ -120,6 +120,7 @@
           },
           bytedanceAidp: {
             enabled: true,
+            activeScriptId: "bytedanceAidpSuzhouHelper",
             scripts: {
               suzhouHelper: {
                 id: "bytedanceAidpSuzhouHelper",
@@ -128,9 +129,42 @@
                 segmentContextPaddingMs: 300,
                 segmentSilenceThresholdDbfs: -31,
                 mergeContiguousSuggestedSegmentsEnabled: true,
+                segmentPreviewAutoApplyEnabled: true,
+                aiRecommendEnabled: true,
+                aiRecommendAutoFillEnabled: true,
+                aiRecommendEndpoint:
+                  "https://script.xiangtianzhen.store/api/bytedance-aidp/suzhou-helper/ai/recommend",
+                aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+                aiRecommendListenModel: "qwen3.5-omni-flash",
+                aiRecommendListenPrompt: "",
+                aiRecommendRefineModel: "qwen3.5-plus",
+                aiRecommendRefinePrompt: "",
                 defaultPlaybackRate: 1,
                 fixedWaveZoom: 2,
                 contractMode: "dom-guarded",
+                shortcuts: {},
+              },
+              jinhuaHelper: {
+                id: "bytedanceAidpJinhuaHelper",
+                enabled: false,
+                platformAiEnabled: false,
+                segmentContextPaddingMs: 300,
+                segmentSilenceThresholdDbfs: -31,
+                mergeContiguousSuggestedSegmentsEnabled: true,
+                segmentPreviewAutoApplyEnabled: true,
+                aiRecommendEnabled: false,
+                aiRecommendAutoFillEnabled: true,
+                aiRecommendEndpoint:
+                  "https://script.xiangtianzhen.store/api/bytedance-aidp/jinhua-helper/ai/recommend",
+                aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+                aiRecommendListenModel: "qwen3.5-omni-flash",
+                aiRecommendListenPrompt: "",
+                aiRecommendRefineModel: "qwen3.5-plus",
+                aiRecommendRefinePrompt: "",
+                defaultPlaybackRate: 1,
+                fixedWaveZoom: 2,
+                contractMode: "dom-guarded",
+                shortcuts: {},
               },
             },
           },
@@ -2482,15 +2516,16 @@
     return result;
   }
 
-  function normalizeBytedanceAidpSuzhouConfig(config, defaults, rawConfig) {
+  function normalizeBytedanceAidpHelperConfig(config, defaults, rawConfig, options) {
     const source = isPlainObject(config) ? config : {};
     const rawSource = isPlainObject(rawConfig) ? rawConfig : source;
     const defaultConfig = isPlainObject(defaults) ? defaults : {};
     const constants = getConstants();
+    const normalizedOptions = isPlainObject(options) ? options : {};
     const result = deepMerge(defaultConfig, source);
 
     result.id =
-      constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID ||
+      normalizedOptions.scriptId ||
       result.id ||
       "bytedanceAidpSuzhouHelper";
     result.enabled = result.enabled !== false;
@@ -2521,8 +2556,7 @@
         : defaultConfig.aiRecommendAutoFillEnabled !== false;
     result.aiRecommendEndpoint = normalizeHttpEndpoint(
       result.aiRecommendEndpoint,
-      defaultConfig.aiRecommendEndpoint ||
-        constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT
+      defaultConfig.aiRecommendEndpoint || normalizedOptions.endpoint
     );
     result.aiRecommendRequestTimeoutMs = normalizeAiRequestTimeoutValue(
       result.aiRecommendRequestTimeoutMs,
@@ -2565,6 +2599,41 @@
     return result;
   }
 
+  function normalizeBytedanceAidpSuzhouConfig(config, defaults, rawConfig) {
+    const constants = getConstants();
+    return normalizeBytedanceAidpHelperConfig(config, defaults, rawConfig, {
+      scriptId:
+        constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper",
+      endpoint:
+        constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT ||
+        "http://127.0.0.1:3333/api/bytedance-aidp/suzhou-helper/ai/recommend",
+    });
+  }
+
+  function normalizeBytedanceAidpJinhuaConfig(config, defaults, rawConfig) {
+    const constants = getConstants();
+    return normalizeBytedanceAidpHelperConfig(config, defaults, rawConfig, {
+      scriptId:
+        constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID || "bytedanceAidpJinhuaHelper",
+      endpoint:
+        constants.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT ||
+        "http://127.0.0.1:3333/api/bytedance-aidp/jinhua-helper/ai/recommend",
+    });
+  }
+
+  function normalizeBytedanceAidpActiveScriptId(value) {
+    const constants = getConstants();
+    const suzhouId =
+      constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
+    const jinhuaId =
+      constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID || "bytedanceAidpJinhuaHelper";
+    const text = String(value || "").trim();
+    if (text === suzhouId || text === jinhuaId) {
+      return text;
+    }
+    return "";
+  }
+
   function ensureBytedanceAidpRoot(settings, input) {
     const constants = getConstants();
     const defaults = clone(constants.DEFAULT_SETTINGS || {});
@@ -2576,10 +2645,15 @@
     const rawSuzhouHelper = isPlainObject(rawScripts.suzhouHelper)
       ? clone(rawScripts.suzhouHelper)
       : {};
+    const rawJinhuaHelper = isPlainObject(rawScripts.jinhuaHelper)
+      ? clone(rawScripts.jinhuaHelper)
+      : {};
     const defaultPlatform =
       defaults?.platforms?.bytedanceAidp ||
       constants.DEFAULT_BYTEDANCE_AIDP_PLATFORM_SETTINGS || {
         enabled: true,
+        activeScriptId:
+          constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper",
         scripts: {
           suzhouHelper: {
             id: constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper",
@@ -2594,6 +2668,45 @@
             aiRecommendEndpoint:
               constants.BYTEDANCE_AIDP_SUZHOU_AI_RECOMMEND_SERVER_ENDPOINT ||
               "http://127.0.0.1:3333/api/bytedance-aidp/suzhou-helper/ai/recommend",
+            aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
+            aiRecommendListenModel: "qwen3.5-omni-flash",
+            aiRecommendListenPrompt: "",
+            aiRecommendListenTemperature: "",
+            aiRecommendListenTopP: "",
+            aiRecommendListenMaxTokens: "",
+            aiRecommendListenMaxCompletionTokens: "",
+            aiRecommendListenPresencePenalty: "",
+            aiRecommendListenFrequencyPenalty: "",
+            aiRecommendListenSeed: "",
+            aiRecommendListenStopSequences: "",
+            aiRecommendRefineModel: "qwen3.5-plus",
+            aiRecommendRefinePrompt: "",
+            aiRecommendRefineTemperature: "",
+            aiRecommendRefineTopP: "",
+            aiRecommendRefineMaxTokens: "",
+            aiRecommendRefineMaxCompletionTokens: "",
+            aiRecommendRefinePresencePenalty: "",
+            aiRecommendRefineFrequencyPenalty: "",
+            aiRecommendRefineSeed: "",
+            aiRecommendRefineStopSequences: "",
+            defaultPlaybackRate: 1,
+            fixedWaveZoom: 2,
+            contractMode: "dom-guarded",
+            shortcuts: {},
+          },
+          jinhuaHelper: {
+            id: constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID || "bytedanceAidpJinhuaHelper",
+            enabled: false,
+            platformAiEnabled: false,
+            segmentContextPaddingMs: 300,
+            segmentSilenceThresholdDbfs: -31,
+            mergeContiguousSuggestedSegmentsEnabled: true,
+            segmentPreviewAutoApplyEnabled: true,
+            aiRecommendEnabled: false,
+            aiRecommendAutoFillEnabled: true,
+            aiRecommendEndpoint:
+              constants.BYTEDANCE_AIDP_JINHUA_AI_RECOMMEND_SERVER_ENDPOINT ||
+              "http://127.0.0.1:3333/api/bytedance-aidp/jinhua-helper/ai/recommend",
             aiRecommendRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
             aiRecommendListenModel: "qwen3.5-omni-flash",
             aiRecommendListenPrompt: "",
@@ -2686,6 +2799,12 @@
           return migratedRawSuzhouHelper;
         })()
       );
+    settings.platforms.bytedanceAidp.scripts.jinhuaHelper =
+      normalizeBytedanceAidpJinhuaConfig(
+        settings.platforms.bytedanceAidp.scripts.jinhuaHelper,
+        defaultPlatform.scripts?.jinhuaHelper || {},
+        rawJinhuaHelper
+      );
 
     // Legacy beta builds seeded this toggle as visible-by-default. Migrate old
     // settings to the new hide-by-default behavior once, while allowing newer
@@ -2693,6 +2812,49 @@
     if (currentSchemaVersion < 25) {
       settings.platforms.bytedanceAidp.scripts.suzhouHelper.platformAiEnabled = false;
     }
+
+    let suzhouEnabled = settings.platforms.bytedanceAidp.scripts.suzhouHelper.enabled !== false;
+    let jinhuaEnabled = settings.platforms.bytedanceAidp.scripts.jinhuaHelper.enabled !== false;
+    let activeScriptId = normalizeBytedanceAidpActiveScriptId(
+      settings.platforms.bytedanceAidp.activeScriptId
+    );
+    const suzhouId =
+      constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
+    const jinhuaId =
+      constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID || "bytedanceAidpJinhuaHelper";
+
+    if (activeScriptId === suzhouId && !suzhouEnabled) {
+      activeScriptId = "";
+    } else if (activeScriptId === jinhuaId && !jinhuaEnabled) {
+      activeScriptId = "";
+    }
+
+    if (!activeScriptId) {
+      if (suzhouEnabled && !jinhuaEnabled) {
+        activeScriptId = suzhouId;
+      } else if (!suzhouEnabled && jinhuaEnabled) {
+        activeScriptId = jinhuaId;
+      } else if (suzhouEnabled && jinhuaEnabled) {
+        activeScriptId =
+          normalizeBytedanceAidpActiveScriptId(defaultPlatform.activeScriptId) || suzhouId;
+      }
+    }
+
+    if (activeScriptId === suzhouId) {
+      suzhouEnabled = true;
+      jinhuaEnabled = false;
+    } else if (activeScriptId === jinhuaId) {
+      suzhouEnabled = false;
+      jinhuaEnabled = true;
+    } else if (suzhouEnabled && jinhuaEnabled) {
+      activeScriptId = suzhouId;
+      suzhouEnabled = true;
+      jinhuaEnabled = false;
+    }
+
+    settings.platforms.bytedanceAidp.scripts.suzhouHelper.enabled = suzhouEnabled;
+    settings.platforms.bytedanceAidp.scripts.jinhuaHelper.enabled = jinhuaEnabled;
+    settings.platforms.bytedanceAidp.activeScriptId = activeScriptId || "";
 
     return settings.platforms.bytedanceAidp;
   }
@@ -4491,64 +4653,89 @@
       });
     }
 
-    if (scriptId === constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID) {
+    if (
+      scriptId === constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID ||
+      scriptId === constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID
+    ) {
       const currentSettings = await getSettings();
-      const currentConfig =
+      const suzhouId =
+        constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
+      const jinhuaId =
+        constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID || "bytedanceAidpJinhuaHelper";
+      const currentSuzhouConfig =
         currentSettings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
+      const currentJinhuaConfig =
+        currentSettings?.platforms?.bytedanceAidp?.scripts?.jinhuaHelper || {};
+      const isJinhua = scriptId === jinhuaId;
+
+      function buildAidpScriptPatch(id, currentConfig, enabledValue) {
+        return {
+          id: id,
+          enabled: enabledValue,
+          platformAiEnabled: currentConfig.platformAiEnabled !== false,
+          segmentContextPaddingMs: currentConfig.segmentContextPaddingMs,
+          segmentSilenceThresholdDbfs: currentConfig.segmentSilenceThresholdDbfs,
+          mergeContiguousSuggestedSegmentsEnabled:
+            currentConfig.mergeContiguousSuggestedSegmentsEnabled !== false,
+          segmentPreviewAutoApplyEnabled:
+            currentConfig.segmentPreviewAutoApplyEnabled !== false,
+          aiRecommendEnabled: enabledValue === true ? true : false,
+          aiRecommendAutoFillEnabled:
+            currentConfig.aiRecommendAutoFillEnabled !== false,
+          aiRecommendEndpoint: currentConfig.aiRecommendEndpoint,
+          aiRecommendRequestTimeoutMs: currentConfig.aiRecommendRequestTimeoutMs,
+          aiRecommendListenModel: currentConfig.aiRecommendListenModel,
+          aiRecommendListenPrompt: currentConfig.aiRecommendListenPrompt,
+          aiRecommendListenTemperature: currentConfig.aiRecommendListenTemperature,
+          aiRecommendListenTopP: currentConfig.aiRecommendListenTopP,
+          aiRecommendListenMaxTokens: currentConfig.aiRecommendListenMaxTokens,
+          aiRecommendListenMaxCompletionTokens:
+            currentConfig.aiRecommendListenMaxCompletionTokens,
+          aiRecommendListenPresencePenalty:
+            currentConfig.aiRecommendListenPresencePenalty,
+          aiRecommendListenFrequencyPenalty:
+            currentConfig.aiRecommendListenFrequencyPenalty,
+          aiRecommendListenSeed: currentConfig.aiRecommendListenSeed,
+          aiRecommendListenStopSequences:
+            currentConfig.aiRecommendListenStopSequences,
+          aiRecommendRefineModel: currentConfig.aiRecommendRefineModel,
+          aiRecommendRefinePrompt: currentConfig.aiRecommendRefinePrompt,
+          aiRecommendRefineTemperature: currentConfig.aiRecommendRefineTemperature,
+          aiRecommendRefineTopP: currentConfig.aiRecommendRefineTopP,
+          aiRecommendRefineMaxTokens: currentConfig.aiRecommendRefineMaxTokens,
+          aiRecommendRefineMaxCompletionTokens:
+            currentConfig.aiRecommendRefineMaxCompletionTokens,
+          aiRecommendRefinePresencePenalty:
+            currentConfig.aiRecommendRefinePresencePenalty,
+          aiRecommendRefineFrequencyPenalty:
+            currentConfig.aiRecommendRefineFrequencyPenalty,
+          aiRecommendRefineSeed: currentConfig.aiRecommendRefineSeed,
+          aiRecommendRefineStopSequences:
+            currentConfig.aiRecommendRefineStopSequences,
+          defaultPlaybackRate: currentConfig.defaultPlaybackRate,
+          fixedWaveZoom: currentConfig.fixedWaveZoom,
+          shortcuts: currentConfig.shortcuts,
+        };
+      }
+
+      const suzhouEnabled = nextEnabled && !isJinhua;
+      const jinhuaEnabled = nextEnabled && isJinhua;
       return patchSettings({
         platforms: {
           bytedanceAidp: {
             enabled: nextEnabled,
+            activeScriptId: nextEnabled ? scriptId : "",
             scripts: {
-              suzhouHelper: {
-                id:
-                  constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID ||
-                  "bytedanceAidpSuzhouHelper",
-                enabled: nextEnabled,
-                platformAiEnabled: currentConfig.platformAiEnabled !== false,
-                segmentContextPaddingMs: currentConfig.segmentContextPaddingMs,
-                segmentSilenceThresholdDbfs: currentConfig.segmentSilenceThresholdDbfs,
-                mergeContiguousSuggestedSegmentsEnabled:
-                  currentConfig.mergeContiguousSuggestedSegmentsEnabled !== false,
-                segmentPreviewAutoApplyEnabled:
-                  currentConfig.segmentPreviewAutoApplyEnabled !== false,
-                aiRecommendEnabled: currentConfig.aiRecommendEnabled !== false,
-                aiRecommendAutoFillEnabled:
-                  currentConfig.aiRecommendAutoFillEnabled !== false,
-                aiRecommendEndpoint: currentConfig.aiRecommendEndpoint,
-                aiRecommendRequestTimeoutMs: currentConfig.aiRecommendRequestTimeoutMs,
-                aiRecommendListenModel: currentConfig.aiRecommendListenModel,
-                aiRecommendListenPrompt: currentConfig.aiRecommendListenPrompt,
-                aiRecommendListenTemperature: currentConfig.aiRecommendListenTemperature,
-                aiRecommendListenTopP: currentConfig.aiRecommendListenTopP,
-                aiRecommendListenMaxTokens: currentConfig.aiRecommendListenMaxTokens,
-                aiRecommendListenMaxCompletionTokens:
-                  currentConfig.aiRecommendListenMaxCompletionTokens,
-                aiRecommendListenPresencePenalty:
-                  currentConfig.aiRecommendListenPresencePenalty,
-                aiRecommendListenFrequencyPenalty:
-                  currentConfig.aiRecommendListenFrequencyPenalty,
-                aiRecommendListenSeed: currentConfig.aiRecommendListenSeed,
-                aiRecommendListenStopSequences:
-                  currentConfig.aiRecommendListenStopSequences,
-                aiRecommendRefineModel: currentConfig.aiRecommendRefineModel,
-                aiRecommendRefinePrompt: currentConfig.aiRecommendRefinePrompt,
-                aiRecommendRefineTemperature: currentConfig.aiRecommendRefineTemperature,
-                aiRecommendRefineTopP: currentConfig.aiRecommendRefineTopP,
-                aiRecommendRefineMaxTokens: currentConfig.aiRecommendRefineMaxTokens,
-                aiRecommendRefineMaxCompletionTokens:
-                  currentConfig.aiRecommendRefineMaxCompletionTokens,
-                aiRecommendRefinePresencePenalty:
-                  currentConfig.aiRecommendRefinePresencePenalty,
-                aiRecommendRefineFrequencyPenalty:
-                  currentConfig.aiRecommendRefineFrequencyPenalty,
-                aiRecommendRefineSeed: currentConfig.aiRecommendRefineSeed,
-                aiRecommendRefineStopSequences:
-                  currentConfig.aiRecommendRefineStopSequences,
-                defaultPlaybackRate: currentConfig.defaultPlaybackRate,
-                fixedWaveZoom: currentConfig.fixedWaveZoom,
-                shortcuts: currentConfig.shortcuts,
-              },
+              suzhouHelper: buildAidpScriptPatch(
+                suzhouId,
+                currentSuzhouConfig,
+                suzhouEnabled
+              ),
+              jinhuaHelper: buildAidpScriptPatch(
+                jinhuaId,
+                currentJinhuaConfig,
+                jinhuaEnabled
+              ),
             },
           },
         },

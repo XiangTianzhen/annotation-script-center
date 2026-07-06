@@ -284,14 +284,14 @@
     },
   };
 
-  globalThis.ASREdgeBytedanceAidpSuzhouNetworkObserverPage = api;
+  globalThis.ASREdgeBytedanceAidpNetworkObserverPage = api;
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;
   }
 
   if (typeof window !== "undefined") {
-    const flag = "__ASREdgeBytedanceAidpSuzhouNetworkObserverInstalled";
+    const flag = "__ASREdgeBytedanceAidpNetworkObserverInstalled";
     if (!window[flag]) {
       window[flag] = true;
       createObserver({ window, location: window.location }).install();

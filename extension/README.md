@@ -68,6 +68,8 @@ sites/
   data-baker-cvpc/
     liuzhou-helper/
   bytedance-aidp/
+    shared/
+    jinhua-helper/
     suzhou-helper/
   magic-data/
     shared/
@@ -88,6 +90,8 @@ sites/
   - 标贝易采闽南语助手
 - `data-baker-cvpc/liuzhou-helper/`
   - CVPC 柳州话助手
+- `bytedance-aidp/jinhua-helper/`
+  - ByteDance AIDP 金华话脚本
 - `bytedance-aidp/suzhou-helper/`
   - ByteDance AIDP 苏州话脚本
 - `magic-data/hakka-helper/`

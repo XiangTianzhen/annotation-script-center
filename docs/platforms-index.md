@@ -73,6 +73,10 @@
 ## ByteDance AIDP
 
 - 平台资料总览：`platform-resources/bytedance-aidp/README.md`
+- 共享 observer：`extension/sites/bytedance-aidp/shared/page-world/network-observer.js`
+- 金华话运行时代码：`extension/sites/bytedance-aidp/jinhua-helper/`
+- 金华话运行时 README：`extension/sites/bytedance-aidp/jinhua-helper/README.md`
+- 金华话脚本资料：`platform-resources/bytedance-aidp/jinhua-helper/README.md`
 - 运行时代码：`extension/sites/bytedance-aidp/suzhou-helper/`
 - 运行时 README：`extension/sites/bytedance-aidp/suzhou-helper/README.md`
 - 苏州话脚本资料：`platform-resources/bytedance-aidp/suzhou-helper/README.md`

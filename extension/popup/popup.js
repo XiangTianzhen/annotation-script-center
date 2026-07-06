@@ -17,6 +17,8 @@
     (constants.BYTEDANCE_AIDP_PLATFORM || {}).host || "aidp.bytedance.com";
   const bytedanceAidpSuzhouScriptId =
     constants.BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID || "bytedanceAidpSuzhouHelper";
+  const bytedanceAidpJinhuaScriptId =
+    constants.BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID || "bytedanceAidpJinhuaHelper";
   const magicDataHost = "work.magicdatatech.com";
   const magicDataHakkaScriptId =
     constants.MAGIC_DATA_ANNOTATOR_SCRIPT_ID || "magicDataAnnotatorAiReview";
@@ -102,10 +104,8 @@
           settings?.platforms?.dataBakerCvpc?.scripts?.liuzhouAssistant?.enabled !== false
         );
       case bytedanceAidpSuzhouScriptId:
-        return (
-          settings?.platforms?.bytedanceAidp?.enabled !== false &&
-          settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper?.enabled !== false
-        );
+      case bytedanceAidpJinhuaScriptId:
+        return getBytedanceAidpScriptState(settings, scriptId).enabled;
       case magicDataHakkaScriptId:
         return (
           settings?.platforms?.magicData?.enabled !== false &&
@@ -150,6 +150,46 @@
 
   function getLabelxActiveScriptId(settings) {
     return settings?.platforms?.alibabaLabelx?.scriptCenter?.activeProjectId || transcriptionProjectId;
+  }
+
+  function getBytedanceAidpActiveScriptId(settings) {
+    const configured = String(settings?.platforms?.bytedanceAidp?.activeScriptId || "").trim();
+    const suzhouConfig = settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || null;
+    const jinhuaConfig = settings?.platforms?.bytedanceAidp?.scripts?.jinhuaHelper || null;
+    const suzhouEnabled = Boolean(suzhouConfig && suzhouConfig.enabled !== false);
+    const jinhuaEnabled = Boolean(jinhuaConfig && jinhuaConfig.enabled !== false);
+    if (configured === bytedanceAidpSuzhouScriptId && suzhouEnabled) {
+      return bytedanceAidpSuzhouScriptId;
+    }
+    if (configured === bytedanceAidpJinhuaScriptId && jinhuaEnabled) {
+      return bytedanceAidpJinhuaScriptId;
+    }
+    if (suzhouEnabled && !jinhuaEnabled) {
+      return bytedanceAidpSuzhouScriptId;
+    }
+    if (jinhuaEnabled && !suzhouEnabled) {
+      return bytedanceAidpJinhuaScriptId;
+    }
+    return "";
+  }
+
+  function getBytedanceAidpScriptState(settings, preferredScriptId) {
+    const activeScriptId = getBytedanceAidpActiveScriptId(settings);
+    const resolvedScriptId = preferredScriptId || activeScriptId || bytedanceAidpSuzhouScriptId;
+    const isJinhua = resolvedScriptId === bytedanceAidpJinhuaScriptId;
+    const scriptKey = isJinhua ? "jinhuaHelper" : "suzhouHelper";
+    const scriptConfig = settings?.platforms?.bytedanceAidp?.scripts?.[scriptKey] || {};
+    return {
+      activeScriptId: activeScriptId,
+      scriptId: resolvedScriptId,
+      scriptKey: scriptKey,
+      enabled:
+        settings?.platforms?.bytedanceAidp?.enabled !== false &&
+        scriptConfig.enabled !== false &&
+        (!activeScriptId || activeScriptId === resolvedScriptId),
+      platformAiEnabled: scriptConfig.platformAiEnabled !== false,
+      scriptConfig: scriptConfig,
+    };
   }
 
   function isLightwheelEnabled(settings) {
@@ -464,13 +504,15 @@
     }
 
     if (url.hostname === bytedanceAidpHost) {
+      const aidpState = getBytedanceAidpScriptState(settings);
+      const targetScriptId = aidpState.activeScriptId || aidpState.scriptId;
       const scriptVisible =
         typeof constants.isScriptVisible === "function"
-          ? constants.isScriptVisible(bytedanceAidpSuzhouScriptId, settings || {})
+          ? constants.isScriptVisible(targetScriptId, settings || {})
           : true;
       const scriptRuntimeAccessible =
         typeof constants.isScriptRuntimeAccessible === "function"
-          ? constants.isScriptRuntimeAccessible(bytedanceAidpSuzhouScriptId, settings || {})
+          ? constants.isScriptRuntimeAccessible(targetScriptId, settings || {})
           : true;
       if (!scriptVisible) {
         return {
@@ -486,47 +528,48 @@
       const pathname = String(url.pathname || "").toLowerCase();
       const isDetailPage = /^\/management\/task-v2\/[^/]+\/mark-v3\/[^/]+\/?$/.test(pathname);
       const platformEnabled = settings?.platforms?.bytedanceAidp?.enabled !== false;
-      const scriptConfig = settings?.platforms?.bytedanceAidp?.scripts?.suzhouHelper || {};
-      const scriptEnabled = scriptConfig.enabled !== false;
-      const platformAiEnabled = scriptConfig.platformAiEnabled !== false;
-      const enabled = platformEnabled && scriptEnabled && scriptRuntimeAccessible;
+      const enabled = aidpState.enabled && scriptRuntimeAccessible;
+      const scriptLabel =
+        scriptLibrary[targetScriptId]?.label || (targetScriptId === bytedanceAidpJinhuaScriptId ? "金华话脚本" : "苏州话脚本");
 
       if (isDetailPage) {
         return {
-          scriptId: bytedanceAidpSuzhouScriptId,
+          scriptId: targetScriptId,
           platformId: "bytedanceAidp",
           platformLabel: "ByteDance AIDP",
           url: url,
           platformEnabled: platformEnabled,
-          scriptEnabled: scriptEnabled,
+          scriptEnabled: aidpState.scriptConfig.enabled !== false,
           statusText: !enabled
             ? "未启用"
-            : platformAiEnabled
+            : aidpState.platformAiEnabled
               ? "详情页命中"
               : "详情页命中（平台 AI 已隐藏）",
-          statusTone: !enabled ? "disabled" : platformAiEnabled ? "success" : "pending",
+          statusTone: !enabled ? "disabled" : aidpState.platformAiEnabled ? "success" : "pending",
           title: "当前页面命中 ByteDance AIDP mark-v3 详情页",
           description: enabled
-            ? platformAiEnabled
-              ? "当前页会按设置显示平台原生 AI 板块；勾选“隐藏平台AI功能”后会隐藏 AI 洞察与猫形浮动入口，不改任务列表、波形区、保留/丢弃和分段表格。"
-              : "当前页会按设置隐藏平台原生 AI 洞察与猫形浮动入口；取消勾选“隐藏平台AI功能”后会恢复显示，不调用 AI、不自动保存、不自动提交。"
-            : "当前 URL 已命中 mark-v3 详情页，但平台脚本未启用或尚未解锁。",
+            ? aidpState.platformAiEnabled
+              ? "当前页会尝试触发“" + scriptLabel + "”，并按设置显示平台原生 AI 板块。"
+              : "当前页会尝试触发“" + scriptLabel + "”，并按设置隐藏平台原生 AI 洞察与猫形浮动入口。"
+            : "当前 URL 已命中 mark-v3 详情页，但 AIDP 当前激活脚本未启用或尚未解锁。",
         };
       }
 
       if (pathname.indexOf("/management/task-v2") === 0) {
         return {
-          scriptId: bytedanceAidpSuzhouScriptId,
+          scriptId: targetScriptId,
           platformId: "bytedanceAidp",
           platformLabel: "ByteDance AIDP",
           url: url,
           platformEnabled: platformEnabled,
-          scriptEnabled: scriptEnabled,
+          scriptEnabled: aidpState.scriptConfig.enabled !== false,
           statusText: enabled ? "待进入详情页" : "未启用",
           statusTone: enabled ? "pending" : "disabled",
           title: "当前页面属于 ByteDance AIDP 任务页",
           description:
-            "进入 /management/task-v2/{taskId}/mark-v3/{index} 后，才会触发苏州话脚本运行时。",
+            "进入 /management/task-v2/{taskId}/mark-v3/{index} 后，才会触发“" +
+            scriptLabel +
+            "”运行时。",
         };
       }
     }

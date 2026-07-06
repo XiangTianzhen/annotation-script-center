@@ -150,6 +150,7 @@
   - `network/README.md`
   - `page-structure/README.md`
 - 脚本：
+  - `jinhua-helper/`
   - `suzhou-helper/`
 
 ### Aishell Tech

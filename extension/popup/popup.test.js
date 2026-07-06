@@ -113,9 +113,13 @@ function loadPopup(documentLike, chromeLike, storageLike) {
       host: "aidp.bytedance.com",
     },
     BYTEDANCE_AIDP_SUZHOU_HELPER_SCRIPT_ID: "bytedanceAidpSuzhouHelper",
+    BYTEDANCE_AIDP_JINHUA_HELPER_SCRIPT_ID: "bytedanceAidpJinhuaHelper",
     SCRIPT_LIBRARY: {
       bytedanceAidpSuzhouHelper: {
         label: "苏州话脚本",
+      },
+      bytedanceAidpJinhuaHelper: {
+        label: "金华话脚本",
       },
     },
     PLATFORM_LIBRARY: {
@@ -212,5 +216,81 @@ test("popup shows the detected Suzhou script and toggles enable state via setScr
   assert.deepEqual(chromeLike.createdUrls, [
     "chrome-extension://test/options/options.html",
     "chrome-extension://test/options/options.html?view=script&script=bytedanceAidpSuzhouHelper",
+  ]);
+});
+
+test("popup shows the detected Jinhua script when AIDP activeScriptId switches to jinhua", async function () {
+  const documentLike = createDocument();
+  const toggleCalls = [];
+  const chromeLike = createChrome(
+    "https://aidp.bytedance.com/management/task-v2/7632228385175129882/mark-v3/1?from_pathname=%2Ftask-v2%3Fpage%3D1"
+  );
+  let settings = {
+    platforms: {
+      bytedanceAidp: {
+        enabled: true,
+        activeScriptId: "bytedanceAidpJinhuaHelper",
+        scripts: {
+          suzhouHelper: {
+            enabled: false,
+            aiRecommendEnabled: false,
+          },
+          jinhuaHelper: {
+            enabled: true,
+            aiRecommendEnabled: true,
+            platformAiEnabled: false,
+            segmentPreviewAutoApplyEnabled: true,
+          },
+        },
+      },
+    },
+  };
+  const storageLike = {
+    async getSettings() {
+      return settings;
+    },
+    async setScriptEnabled(scriptId, enabled) {
+      toggleCalls.push({
+        scriptId,
+        enabled,
+      });
+      settings = {
+        platforms: {
+          bytedanceAidp: {
+            enabled: enabled,
+            activeScriptId: enabled ? "bytedanceAidpJinhuaHelper" : "",
+            scripts: {
+              suzhouHelper: {
+                enabled: false,
+                aiRecommendEnabled: false,
+              },
+              jinhuaHelper: {
+                enabled: enabled,
+                aiRecommendEnabled: enabled,
+                platformAiEnabled: false,
+                segmentPreviewAutoApplyEnabled: true,
+              },
+            },
+          },
+        },
+      };
+      return settings;
+    },
+  };
+
+  loadPopup(documentLike, chromeLike, storageLike);
+
+  await documentLike.dispatchDOMContentLoaded();
+  await flushTasks();
+
+  assert.equal(documentLike.getElementById("detected-title").textContent, "金华话脚本");
+  assert.equal(documentLike.getElementById("detected-description").textContent, "运行状态：详情页命中（平台 AI 已隐藏）");
+  assert.equal(documentLike.getElementById("detected-status-pill").textContent, "已启用");
+
+  documentLike.getElementById("open-script-settings").click();
+
+  assert.deepEqual(toggleCalls, []);
+  assert.deepEqual(chromeLike.createdUrls, [
+    "chrome-extension://test/options/options.html?view=script&script=bytedanceAidpJinhuaHelper",
   ]);
 });

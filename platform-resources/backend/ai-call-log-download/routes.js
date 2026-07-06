@@ -22,6 +22,9 @@ const { aiCallLogger: dataBakerCvpcLiuzhouLogger } = require("../../data-baker-c
 const {
   aiCallLogger: bytedanceAidpSuzhouLogger,
 } = require("../../bytedance-aidp/suzhou-helper/backend/ai-call-log");
+const {
+  aiCallLogger: bytedanceAidpJinhuaLogger,
+} = require("../../bytedance-aidp/jinhua-helper/backend/ai-call-log");
 const { aiCallLogger: aishellLogger } = require("../../aishell-tech/minnan-helper/data/ai-call-log");
 const {
   aiCallLogger: aishellVietnameseLogger,
@@ -138,6 +141,15 @@ function createDatasetRegistry(config) {
       visibility: "beta",
       getLogger: function () {
         return bytedanceAidpSuzhouLogger;
+      },
+    },
+    {
+      id: "bytedance-aidp-jinhua-helper-ai",
+      label: "ByteDance AIDP 金华话脚本 AI 调用记录",
+      defaultFileName: "bytedance-aidp-jinhua-helper-ai-calls.csv",
+      visibility: "beta",
+      getLogger: function () {
+        return bytedanceAidpJinhuaLogger;
       },
     },
     {

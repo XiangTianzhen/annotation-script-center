@@ -264,7 +264,7 @@
         "https://aidp.bytedance.com/*"
       ],
       "js": [
-        "sites/bytedance-aidp/suzhou-helper/page-world/network-observer.js"
+        "sites/bytedance-aidp/shared/page-world/network-observer.js"
       ],
       "all_frames": false,
       "run_at": "document_start",
@@ -284,7 +284,13 @@
         "sites/bytedance-aidp/suzhou-helper/segmentation-controller.js",
         "sites/bytedance-aidp/suzhou-helper/ui-panel.js",
         "sites/bytedance-aidp/suzhou-helper/shortcuts.js",
-        "sites/bytedance-aidp/suzhou-helper/content.js"
+        "sites/bytedance-aidp/suzhou-helper/content.js",
+        "sites/bytedance-aidp/jinhua-helper/data-api.js",
+        "sites/bytedance-aidp/jinhua-helper/ai-recommendation.js",
+        "sites/bytedance-aidp/jinhua-helper/segmentation-controller.js",
+        "sites/bytedance-aidp/jinhua-helper/ui-panel.js",
+        "sites/bytedance-aidp/jinhua-helper/shortcuts.js",
+        "sites/bytedance-aidp/jinhua-helper/content.js"
       ],
       "all_frames": false,
       "run_at": "document_start",
