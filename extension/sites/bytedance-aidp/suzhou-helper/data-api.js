@@ -489,6 +489,34 @@
     }
   }
 
+  function blurControl(node, documentLike) {
+    if (node && typeof node.blur === "function") {
+      try {
+        node.blur();
+      } catch (_error) {
+        // Fall through to the document-level fallback below.
+      }
+    }
+    if (documentLike?.activeElement === node) {
+      const fallbackNode = documentLike.body || documentLike.documentElement || null;
+      if (fallbackNode && fallbackNode !== node && typeof fallbackNode.focus === "function") {
+        try {
+          fallbackNode.focus();
+        } catch (_error) {
+          // Ignore and continue to the final activeElement reset.
+        }
+      }
+    }
+    if (documentLike?.activeElement === node) {
+      try {
+        documentLike.activeElement = null;
+      } catch (_error) {
+        return false;
+      }
+    }
+    return documentLike?.activeElement !== node;
+  }
+
   function setFormControlValue(node, nextValue) {
     if (!node) {
       return false;
@@ -1326,6 +1354,7 @@
       dispatchSyntheticControlEvent(textarea, windowLike, "compositionend", {
         data: nextText,
       });
+      blurControl(textarea, documentLike);
       return {
         ok: true,
         message:

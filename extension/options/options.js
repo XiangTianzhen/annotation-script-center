@@ -79,6 +79,8 @@
   )
     .trim()
     .toLowerCase();
+  let activeInlineHelpAnchor = null;
+  let inlineHelpListenersBound = false;
   const betaFeaturesVisibleByDefault = constants.BETA_FEATURES_VISIBLE_BY_DEFAULT === true;
   const getBackendModeFromSettings =
     typeof constants.getBackendEndpointModeFromSettings === "function"
@@ -3457,18 +3459,23 @@
       return;
     }
     const rawValue = definition?.type === "stop" ? normalizeStopSequencesText(fieldNode.value || "") : normalizeText(fieldNode.value);
+    const baseHelpText = getBytedanceAidpSuzhouStageParamExplanation(definition);
     if (rawValue) {
-      helpNode.textContent = "";
-      helpNode.setAttribute("data-visible", "false");
+      setInlineHelpText(helpNode, baseHelpText);
+      helpNode.setAttribute("data-empty-default-visible", "false");
       return;
     }
     const defaultValue = formatBytedanceAidpSuzhouStageParamDefaultText(
       definition,
       stageDefaults?.[definition.apiKey]
     );
-    helpNode.textContent =
-      "当前为空，将使用后端默认值：" + (normalizeText(defaultValue) || "空");
-    helpNode.setAttribute("data-visible", "true");
+    setInlineHelpText(
+      helpNode,
+      [baseHelpText, "当前为空，将使用后端默认值：" + (normalizeText(defaultValue) || "空")]
+        .filter(Boolean)
+        .join(" ")
+    );
+    helpNode.setAttribute("data-empty-default-visible", "true");
   }
 
   function bindBytedanceAidpSuzhouStageParamHelp(stagePrefix, stageDefaults) {
@@ -6154,26 +6161,157 @@
     ].join("");
   }
 
-  function buildInlineHelpDotMarkup(text) {
+  function buildInlineHelpDotMarkup(text, dotId) {
     const normalized = normalizeText(text);
     if (!normalized) {
       return "";
     }
-    return (
-      '<span class="inline-help-dot" tabindex="0" title="' +
-      escapeHtml(normalized) +
-      '">?</span>'
-    );
+    const idMarkup = normalizeText(dotId) ? ' id="' + escapeHtml(dotId) + '"' : "";
+    return [
+      '<span class="inline-help-dot"',
+      idMarkup,
+      ' tabindex="0" data-help-text="',
+      escapeHtml(normalized),
+      '">?</span>',
+    ].join("");
   }
 
-  function buildAsrAiLabelMarkup(label, helpText) {
+  function buildAsrAiLabelMarkup(label, helpText, dotId) {
     return (
       '<span class="asr-ai-label-row"><span>' +
       escapeHtml(label) +
       "</span>" +
-      buildInlineHelpDotMarkup(helpText) +
+      buildInlineHelpDotMarkup(helpText, dotId) +
       "</span>"
     );
+  }
+
+  function getInlineHelpText(node) {
+    return normalizeText(
+      node?.getAttribute?.("data-help-text") || node?.getAttribute?.("title") || ""
+    );
+  }
+
+  function closeInlineHelpAnchor(anchor) {
+    if (!(anchor instanceof HTMLElement)) {
+      return;
+    }
+    anchor.setAttribute("data-hover", "");
+    anchor.setAttribute("data-open", "");
+    if (activeInlineHelpAnchor === anchor) {
+      activeInlineHelpAnchor = null;
+    }
+  }
+
+  function setInlineHelpText(node, text) {
+    if (!(node instanceof HTMLElement)) {
+      return;
+    }
+    const normalized = normalizeText(text);
+    node.setAttribute("data-help-text", normalized);
+    if (node.hasAttribute("title")) {
+      node.removeAttribute("title");
+    }
+    const anchor = node.parentElement;
+    const popover =
+      anchor instanceof HTMLElement ? anchor.querySelector(".inline-help-popover") : null;
+    if (popover instanceof HTMLElement) {
+      popover.textContent = normalized;
+    }
+    node.classList.toggle("hidden", !normalized);
+  }
+
+  function ensureInlineHelpDots(scope) {
+    const root =
+      scope instanceof HTMLElement ||
+      (typeof Document === "function" && scope instanceof Document)
+        ? scope
+        : document;
+    const dots = Array.from(root.querySelectorAll(".inline-help-dot"));
+    if (!dots.length) {
+      return;
+    }
+    if (!inlineHelpListenersBound) {
+      document.addEventListener("click", function (event) {
+        if (!(activeInlineHelpAnchor instanceof HTMLElement)) {
+          return;
+        }
+        if (activeInlineHelpAnchor.contains(event.target)) {
+          return;
+        }
+        closeInlineHelpAnchor(activeInlineHelpAnchor);
+      });
+      inlineHelpListenersBound = true;
+    }
+    dots.forEach(function (dot) {
+      if (!(dot instanceof HTMLElement)) {
+        return;
+      }
+      const helpText = getInlineHelpText(dot);
+      if (!helpText) {
+        dot.classList.add("hidden");
+        return;
+      }
+      dot.classList.remove("hidden");
+      if (dot.hasAttribute("title")) {
+        dot.removeAttribute("title");
+      }
+      if (
+        dot.parentElement instanceof HTMLElement &&
+        dot.parentElement.classList.contains("inline-help-anchor")
+      ) {
+        setInlineHelpText(dot, helpText);
+        return;
+      }
+      const parent = dot.parentElement;
+      if (!(parent instanceof HTMLElement)) {
+        return;
+      }
+      const anchor = document.createElement("span");
+      anchor.className = "inline-help-anchor";
+      anchor.setAttribute("data-hover", "");
+      anchor.setAttribute("data-open", "");
+      const popover = document.createElement("div");
+      popover.className = "inline-help-popover";
+      popover.textContent = helpText;
+      parent.insertBefore(anchor, dot);
+      anchor.appendChild(dot);
+      anchor.appendChild(popover);
+      anchor.addEventListener("mouseenter", function () {
+        anchor.setAttribute("data-hover", "true");
+      });
+      anchor.addEventListener("mouseleave", function () {
+        anchor.setAttribute("data-hover", "");
+      });
+      dot.addEventListener("click", function (event) {
+        if (event && typeof event.preventDefault === "function") {
+          event.preventDefault();
+        }
+        if (event && typeof event.stopPropagation === "function") {
+          event.stopPropagation();
+        }
+        const isOpen = anchor.getAttribute("data-open") === "true";
+        if (activeInlineHelpAnchor && activeInlineHelpAnchor !== anchor) {
+          closeInlineHelpAnchor(activeInlineHelpAnchor);
+        }
+        if (isOpen) {
+          closeInlineHelpAnchor(anchor);
+          return;
+        }
+        anchor.setAttribute("data-open", "true");
+        activeInlineHelpAnchor = anchor;
+      });
+      dot.addEventListener("keydown", function (event) {
+        const key = normalizeText(event?.key);
+        if (key !== "Enter" && key !== " ") {
+          return;
+        }
+        if (typeof event.preventDefault === "function") {
+          event.preventDefault();
+        }
+        dot.click();
+      });
+    });
   }
 
   function getBytedanceAidpSuzhouStageParamHelpElementId(stagePrefix, definition) {
@@ -6215,7 +6353,8 @@
         const helpId = getBytedanceAidpSuzhouStageParamHelpElementId(stagePrefix, definition);
         const labelMarkup = buildAsrAiLabelMarkup(
           getBytedanceAidpSuzhouStageParamLabel(definition),
-          getBytedanceAidpSuzhouStageParamExplanation(definition)
+          getBytedanceAidpSuzhouStageParamExplanation(definition),
+          helpId
         );
         const controlMarkup =
           definition.type === "stop"
@@ -6242,9 +6381,7 @@
           labelMarkup +
           '</span>' +
           controlMarkup +
-          '<span class="asr-ai-help is-empty-default" data-visible="false" id="' +
-          helpId +
-          '"></span></label>'
+          "</label>"
         );
       })
       .join("");
@@ -11611,6 +11748,7 @@
     renderAsrVoiceAiSettingsSection(settings, scriptId);
     renderDetailSupportPanel(settings, scriptId);
     updateDetailLayout(scriptId);
+    ensureInlineHelpDots(getElement("detail-view"));
     updateAsrVoiceAiDefaultsTip(scriptId, getAsrVoiceAiDefaultsCached(scriptId));
     if (supportsAsrVoiceAiSettings(scriptId)) {
       void loadAsrVoiceAiDefaults(scriptId, settings).then(function (payload) {
@@ -11633,6 +11771,7 @@
         } else if (isMagicDataScript(scriptId)) {
           applyMagicDataSettingsForm(currentSettings || settings || {}, scriptId);
         }
+        ensureInlineHelpDots(getElement("detail-view"));
       });
     }
     setStatus("detail-status", "");

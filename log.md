@@ -1074,6 +1074,8 @@
 - 修复 ByteDance AIDP 单段普通话听写稿直填时对 Arco 虚拟表格行的定位，优先按真实 `.arco-table-tr[data-neeko-table-row-key]` 与行内 `textarea.arco-textarea.neeko-input-textarea` 写入
 - 收口 ByteDance AIDP 苏州话设置页文案：移除可见的“写入契约状态 / 当前边界”，并将 AIDP 参数默认值提示改为空值时按字段动态展示
 - 收口 popup：苏州话脚本卡片只展示脚本名、启停状态和单行运行状态
+- 补充 ByteDance AIDP 单段直填后的失焦处理，避免填入后焦点继续停留在当前输入框
+- 将设置页 `?` 帮助提示升级为与标注平台一致的可点击固定浮层，并把 AIDP 参数“当前为空，将使用后端默认值：...”提示并入问号说明
 
 ## 2026-04-25（历史记录重建摘要）
 - 拆分快判统计本地服务

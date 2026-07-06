@@ -98,6 +98,12 @@ class FakeElement {
     }
   }
 
+  blur() {
+    if (this.ownerDocument && this.ownerDocument.activeElement === this) {
+      this.ownerDocument.activeElement = null;
+    }
+  }
+
   setAttribute(name, value) {
     const key = String(name);
     const text = String(value);
@@ -991,6 +997,36 @@ test("AIDP data api fills the target textarea inside Arco virtual table rows", a
   });
   assert.equal(textarea.value, "普通话听写稿二");
   assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("AIDP data api blurs the textarea after a successful DOM fill", async function () {
+  const rowOne = createAidpArcoVirtualRow(1, "");
+  const documentLike = createFakeDocument([
+    new FakeElement({
+      tagName: "div",
+      className: "arco-table",
+      children: [
+        new FakeElement({
+          tagName: "div",
+          className: "arco-table-body",
+          children: [rowOne],
+        }),
+      ],
+    }),
+  ]);
+  const textarea = rowOne.querySelector("textarea");
+  const harness = createRuntimeHarness({
+    document: documentLike,
+  });
+
+  const result = await harness.runtime.fillCurrentRegionTextIntoDom({
+    segmentNumber: 1,
+    finalMandarinText: "填入后失焦",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(textarea.value, "填入后失焦");
+  assert.equal(documentLike.activeElement, null);
 });
 
 test("AIDP data api skips DOM fill when the generated text is empty", async function () {

@@ -83,7 +83,12 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(script, /function renderBytedanceAidpSuzhouAiSettingsSection\(/);
   assert.match(script, /function getBytedanceAidpSuzhouStageDefaults\(/);
   assert.match(script, /function refreshBytedanceAidpSuzhouStageParamHelpText\(/);
+  assert.match(script, /function ensureInlineHelpDots\(/);
+  assert.match(script, /function setInlineHelpText\(/);
   assert.match(script, /当前为空，将使用后端默认值：/);
+  assert.match(script, /data-help-text/);
+  assert.match(script, /data-open/);
+  assert.match(script, /inline-help-popover/);
   assert.match(script, /function getBytedanceAidpSuzhouSettingsDraftConfig\(/);
   assert.match(script, /function ensureBytedanceAidpShortcutDraft\(/);
   assert.match(script, /function renderBytedanceAidpShortcutGrid\(/);
