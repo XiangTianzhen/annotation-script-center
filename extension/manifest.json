@@ -6,7 +6,8 @@
   "update_url": "https://script.xiangtianzhen.store/downloads/annotation-script-center-update.xml",
   "permissions": [
     "storage",
-    "tabs"
+    "tabs",
+    "cookies"
   ],
   "host_permissions": [
     "http://*/*",

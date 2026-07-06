@@ -13,6 +13,7 @@ importScripts(sharedConstantsUrl, sharedStorageUrl);
 const constants = globalThis.ASREdgeConstants;
 const storage = globalThis.ASREdgeStorage;
 const LOG_PREFIX = "[ASR Edge][background]";
+const AIDP_COOKIE_CLEAR_MESSAGE_TYPE = "ASR_EDGE_CLEAR_AIDP_COOKIES";
 
 async function bootstrap(reason) {
   const nextSettings = await storage.patchSettings({
@@ -131,6 +132,92 @@ async function performVersionCheck() {
   };
 }
 
+function normalizeAidpCookieScopeUrl(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  try {
+    const url = new URL(text);
+    if (String(url.protocol || "").toLowerCase() !== "https:") {
+      return "";
+    }
+    if (String(url.hostname || "").toLowerCase() !== "aidp.bytedance.com") {
+      return "";
+    }
+    return url.origin + "/";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function buildCookieRemovalDetails(cookie) {
+  if (!cookie || typeof cookie !== "object") {
+    return null;
+  }
+  const name = String(cookie.name || "").trim();
+  const domain = String(cookie.domain || "").trim().replace(/^\./, "");
+  if (!name || !domain) {
+    return null;
+  }
+  const path = String(cookie.path || "/").trim() || "/";
+  const details = {
+    url: (cookie.secure === false ? "http://" : "https://") + domain + (path.charAt(0) === "/" ? path : "/" + path),
+    name: name,
+  };
+  if (String(cookie.storeId || "").trim()) {
+    details.storeId = String(cookie.storeId || "").trim();
+  }
+  if (cookie.partitionKey && typeof cookie.partitionKey === "object") {
+    details.partitionKey = cookie.partitionKey;
+  }
+  return details;
+}
+
+async function clearCookiesForUrl(url, cookieApi) {
+  const targetUrl = normalizeAidpCookieScopeUrl(url);
+  if (!targetUrl) {
+    return {
+      ok: false,
+      reason: "invalid-aidp-url",
+      message: "仅支持清理 aidp.bytedance.com 的登录 Cookie。",
+      clearedCount: 0,
+    };
+  }
+  const api = cookieApi || chrome.cookies;
+  if (!api || typeof api.getAll !== "function" || typeof api.remove !== "function") {
+    return {
+      ok: false,
+      reason: "cookies-api-unavailable",
+      message: "扩展当前没有可用的 Cookie 清理能力。",
+      clearedCount: 0,
+    };
+  }
+
+  const cookies = await api.getAll({ url: targetUrl });
+  let clearedCount = 0;
+  for (const cookie of Array.isArray(cookies) ? cookies : []) {
+    const details = buildCookieRemovalDetails(cookie);
+    if (!details) {
+      continue;
+    }
+    const removed = await api.remove(details);
+    if (removed) {
+      clearedCount += 1;
+    }
+  }
+
+  return {
+    ok: true,
+    message:
+      clearedCount > 0
+        ? "已清除当前账号登录 Cookie。"
+        : "当前未找到可清除的登录 Cookie。",
+    clearedCount: clearedCount,
+    url: targetUrl,
+  };
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   void bootstrap("onInstalled:" + details.reason);
 });
@@ -176,7 +263,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === AIDP_COOKIE_CLEAR_MESSAGE_TYPE) {
+    clearCookiesForUrl(message.url)
+      .then(function (result) {
+        sendResponse({ ok: true, result: result });
+      })
+      .catch(function (error) {
+        sendResponse({
+          ok: false,
+          error: error && error.message ? error.message : String(error),
+        });
+      });
+    return true;
+  }
+
   return undefined;
 });
 
 console.info(LOG_PREFIX, "Service worker loaded for", constants.EXTENSION_NAME);
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    __testOnly: {
+      normalizeAidpCookieScopeUrl: normalizeAidpCookieScopeUrl,
+      buildCookieRemovalDetails: buildCookieRemovalDetails,
+      clearCookiesForUrl: clearCookiesForUrl,
+      AIDP_COOKIE_CLEAR_MESSAGE_TYPE: AIDP_COOKIE_CLEAR_MESSAGE_TYPE,
+    },
+  };
+}

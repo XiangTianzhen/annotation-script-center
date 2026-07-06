@@ -54,6 +54,10 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(html, /画段后自动应用建议/);
   assert.match(html, /默认播放倍数/);
   assert.match(html, /固定缩放倍数/);
+  assert.match(
+    aidpPanelHtml,
+    /<div class="detail-grid two">[\s\S]*id="bytedance-aidp-platform-ai-enabled"[\s\S]*id="bytedance-aidp-segment-preview-auto-apply-enabled"[\s\S]*<\/div>/
+  );
   assert.doesNotMatch(aidpPanelHtml, /当前隐藏目标/);
   assert.doesNotMatch(aidpPanelHtml, /语言种类补齐/);
   assert.doesNotMatch(

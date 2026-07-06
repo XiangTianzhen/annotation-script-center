@@ -1314,6 +1314,57 @@
     };
   }
 
+  function sendRuntimeMessage(message) {
+    return new Promise(function (resolve, reject) {
+      const runtime = globalThis.chrome?.runtime;
+      if (!runtime || typeof runtime.sendMessage !== "function") {
+        reject(new Error("扩展后台不可用，无法清理登录 Cookie。"));
+        return;
+      }
+      try {
+        runtime.sendMessage(message, function (response) {
+          const runtimeError = globalThis.chrome?.runtime?.lastError;
+          if (runtimeError) {
+            reject(new Error(runtimeError.message || String(runtimeError)));
+            return;
+          }
+          resolve(response);
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  function getAidpCookieClearUrl(value) {
+    const source = normalizeText(value || globalThis.location?.href || "");
+    if (source) {
+      return source;
+    }
+    return "https://aidp.bytedance.com/";
+  }
+
+  async function requestAidpLoginCookieClear(payload) {
+    const source = payload && typeof payload === "object" ? payload : {};
+    const response = await sendRuntimeMessage({
+      type: "ASR_EDGE_CLEAR_AIDP_COOKIES",
+      url: getAidpCookieClearUrl(source.url),
+    });
+    if (!response || response.ok !== true || !response.result) {
+      return {
+        ok: false,
+        message:
+          normalizeText(response?.error || response?.result?.message || "") ||
+          "清理登录 Cookie 失败。",
+      };
+    }
+    return response.result;
+  }
+
+  function reloadCurrentPage() {
+    globalThis.location?.reload?.();
+  }
+
   async function runAccountSwitchFlow(root, options) {
     const source = options && typeof options === "object" ? options : {};
     const confirmFn =
@@ -1322,17 +1373,17 @@
         : typeof globalThis.confirm === "function"
           ? globalThis.confirm
           : null;
-    const waitForFn = typeof source.waitFor === "function" ? source.waitFor : waitFor;
-    const isLoggedIn =
-      typeof source.isLoggedIn === "function"
-        ? source.isLoggedIn
-        : function (searchRoot) {
-            return Boolean(findAccountAvatarTrigger(searchRoot));
-          };
+    const clearLoginCookies =
+      typeof source.clearLoginCookies === "function"
+        ? source.clearLoginCookies
+        : requestAidpLoginCookieClear;
+    const reloadPage =
+      typeof source.reloadPage === "function" ? source.reloadPage : reloadCurrentPage;
+    const pageUrl = getAidpCookieClearUrl(source.url);
 
     if (
       confirmFn &&
-      confirmFn("确认先清除缓存，再退出登录以切换账号吗？") === false
+      confirmFn("确认清除当前账号登录 Cookie 并刷新页面吗？") === false
     ) {
       return {
         ok: false,
@@ -1341,55 +1392,21 @@
       };
     }
 
-    const openClearMenuResult = await openAccountMenu(root, waitForFn);
-    if (!openClearMenuResult.ok) {
+    const clearResult = await clearLoginCookies({
+      url: pageUrl,
+    });
+    if (!clearResult || clearResult.ok !== true) {
       return {
         ok: false,
-        reason: openClearMenuResult.reason,
-        message: "未找到账号头像入口，无法执行切换账号。",
+        reason: normalizeText(clearResult?.reason || "") || "clear-cookie-failed",
+        message: normalizeText(clearResult?.message || "") || "清理登录 Cookie 失败。",
       };
     }
 
-    const clearAction = findAccountMenuAction(root, "清除缓存");
-    if (!clearAction.ok || !clearAction.node) {
-      return {
-        ok: false,
-        reason: "missing-clear-action",
-        message: "未找到“清除缓存”入口，已停止执行。",
-      };
-    }
-    invokeClick(clearAction.node);
-    await waitForFn(80);
-
-    if (!isLoggedIn(root)) {
-      return {
-        ok: true,
-        message: "已执行清除缓存；当前已退出登录，可直接重新登录其他账号。",
-      };
-    }
-
-    const openLogoutMenuResult = await openAccountMenu(root, waitForFn);
-    if (!openLogoutMenuResult.ok) {
-      return {
-        ok: false,
-        reason: openLogoutMenuResult.reason,
-        message: "已执行清除缓存，但未能再次打开账号菜单。",
-      };
-    }
-
-    const logoutAction = findAccountMenuAction(root, "退出登录");
-    if (!logoutAction.ok || !logoutAction.node) {
-      return {
-        ok: false,
-        reason: "missing-logout-action",
-        message: "已执行清除缓存，但未找到“退出登录”入口，已停止执行。",
-      };
-    }
-    invokeClick(logoutAction.node);
-    await waitForFn(80);
+    reloadPage();
     return {
       ok: true,
-      message: "已依次执行清除缓存和退出登录，请重新登录目标账号。",
+      message: "已清除登录 Cookie，正在刷新页面。",
     };
   }
 

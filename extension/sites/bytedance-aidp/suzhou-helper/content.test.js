@@ -844,206 +844,95 @@ test("ByteDance AIDP content does not mount the task-v2 account switch control w
   assert.equal(root.querySelectorAll("[data-asc-aidp-account-switch-bar='true']").length, 0);
 });
 
-test("ByteDance AIDP content switches account by clearing cache before logout", async function () {
+test("ByteDance AIDP content switches account by clearing login cookies and reloading the page", async function () {
   const contentModule = loadContentModule();
   const calls = [];
-  let triggerClickCount = 0;
-  let currentPopover = null;
-  let loggedIn = true;
-  const pageRoot = new FakeElement({
-    className: "page-root",
-  });
-  const avatarTrigger = new FakeElement({
-    tagName: "button",
-    className: "aidp-avatar-trigger",
-    text: "头像",
-  });
 
-  avatarTrigger.addEventListener("click", function () {
-    triggerClickCount += 1;
-    if (currentPopover?.parentElement) {
-      currentPopover.parentElement.removeChild(currentPopover);
-    }
-    const clearItem = new FakeElement({
-      tagName: "button",
-      className: "operation-item-HUrjDW",
-      text: "清除缓存",
-    });
-    const logoutItem = new FakeElement({
-      tagName: "button",
-      className: "operation-item-HUrjDW user-exit-Aet6BL",
-      text: "退出登录",
-    });
-    clearItem.addEventListener("click", function () {
-      calls.push("clear");
-      if (currentPopover?.parentElement) {
-        currentPopover.parentElement.removeChild(currentPopover);
-      }
-      currentPopover = null;
-    });
-    logoutItem.addEventListener("click", function () {
-      calls.push("logout");
-      loggedIn = false;
-      if (currentPopover?.parentElement) {
-        currentPopover.parentElement.removeChild(currentPopover);
-      }
-      currentPopover = null;
-    });
-    currentPopover = new FakeElement({
-      className:
-        "aidp-foundation-trigger aidp-foundation-popover avatar-popover-LItfYv zoomInFadeOut-enter-done",
-      children: [clearItem, logoutItem],
-    });
-    pageRoot.appendChild(currentPopover);
-  });
-
-  pageRoot.appendChild(avatarTrigger);
-  const root = createFakeDocument([pageRoot]);
-
-  const result = await contentModule.__testOnly.runAccountSwitchFlow(root, {
+  const result = await contentModule.__testOnly.runAccountSwitchFlow(null, {
     confirm: function () {
       return true;
     },
-    isLoggedIn: function () {
-      return loggedIn;
+    clearLoginCookies: async function (payload) {
+      calls.push({
+        type: "clear",
+        payload: payload,
+      });
+      return {
+        ok: true,
+        clearedCount: 3,
+      };
     },
-    waitFor: async function () {},
+    reloadPage: function () {
+      calls.push({
+        type: "reload",
+      });
+    },
+    url: "https://aidp.bytedance.com/management/task-v2?page=1",
   });
 
-  assert.equal(triggerClickCount, 2);
-  assert.deepEqual(calls, ["clear", "logout"]);
+  assert.deepEqual(calls, [
+    {
+      type: "clear",
+      payload: {
+        url: "https://aidp.bytedance.com/management/task-v2?page=1",
+      },
+    },
+    {
+      type: "reload",
+    },
+  ]);
   assert.equal(result.ok, true);
-  assert.equal(loggedIn, false);
+  assert.match(result.message, /已清除登录 Cookie/);
 });
 
-test("ByteDance AIDP content treats clear-cache logout as a successful account switch", async function () {
+test("ByteDance AIDP content does not reload the page when clearing login cookies fails", async function () {
   const contentModule = loadContentModule();
   const calls = [];
-  let triggerClickCount = 0;
-  let currentPopover = null;
-  let loggedIn = true;
-  const pageRoot = new FakeElement({
-    className: "page-root",
-  });
-  const avatarTrigger = new FakeElement({
-    tagName: "button",
-    className: "aidp-avatar-trigger",
-    text: "头像",
-  });
 
-  avatarTrigger.addEventListener("click", function () {
-    triggerClickCount += 1;
-    if (currentPopover?.parentElement) {
-      currentPopover.parentElement.removeChild(currentPopover);
-    }
-    const clearItem = new FakeElement({
-      tagName: "button",
-      className: "operation-item-HUrjDW",
-      text: "清除缓存",
-    });
-    const logoutItem = new FakeElement({
-      tagName: "button",
-      className: "operation-item-HUrjDW user-exit-Aet6BL",
-      text: "退出登录",
-    });
-    clearItem.addEventListener("click", function () {
-      calls.push("clear");
-      loggedIn = false;
-      if (currentPopover?.parentElement) {
-        currentPopover.parentElement.removeChild(currentPopover);
-      }
-      currentPopover = null;
-    });
-    logoutItem.addEventListener("click", function () {
-      calls.push("logout");
-      if (currentPopover?.parentElement) {
-        currentPopover.parentElement.removeChild(currentPopover);
-      }
-      currentPopover = null;
-    });
-    currentPopover = new FakeElement({
-      className:
-        "aidp-foundation-trigger aidp-foundation-popover avatar-popover-LItfYv zoomInFadeOut-enter-done",
-      children: [clearItem, logoutItem],
-    });
-    pageRoot.appendChild(currentPopover);
-  });
-
-  pageRoot.appendChild(avatarTrigger);
-  const root = createFakeDocument([pageRoot]);
-
-  const result = await contentModule.__testOnly.runAccountSwitchFlow(root, {
+  const result = await contentModule.__testOnly.runAccountSwitchFlow(null, {
     confirm: function () {
       return true;
     },
-    isLoggedIn: function () {
-      return loggedIn;
-    },
-    waitFor: async function () {},
-  });
-
-  assert.equal(triggerClickCount, 1);
-  assert.deepEqual(calls, ["clear"]);
-  assert.equal(result.ok, true);
-  assert.match(result.message, /已执行清除缓存/);
-});
-
-test("ByteDance AIDP content fails closed when logout action cannot be found after cache clear", async function () {
-  const contentModule = loadContentModule();
-  const calls = [];
-  let triggerClickCount = 0;
-  let currentPopover = null;
-  const pageRoot = new FakeElement({
-    className: "page-root",
-  });
-  const avatarTrigger = new FakeElement({
-    tagName: "button",
-    className: "aidp-avatar-trigger",
-    text: "头像",
-  });
-
-  avatarTrigger.addEventListener("click", function () {
-    triggerClickCount += 1;
-    if (currentPopover?.parentElement) {
-      currentPopover.parentElement.removeChild(currentPopover);
-    }
-    const clearItem = new FakeElement({
-      tagName: "button",
-      className: "operation-item-HUrjDW",
-      text: "清除缓存",
-    });
-    clearItem.addEventListener("click", function () {
+    clearLoginCookies: async function () {
       calls.push("clear");
-      if (currentPopover?.parentElement) {
-        currentPopover.parentElement.removeChild(currentPopover);
-      }
-      currentPopover = null;
-    });
-    currentPopover = new FakeElement({
-      className:
-        "aidp-foundation-trigger aidp-foundation-popover avatar-popover-LItfYv zoomInFadeOut-enter-done",
-      children: triggerClickCount === 1 ? [clearItem] : [],
-    });
-    pageRoot.appendChild(currentPopover);
+      return {
+        ok: false,
+        message: "没有权限删除 Cookie。",
+      };
+    },
+    reloadPage: function () {
+      calls.push("reload");
+    },
+    url: "https://aidp.bytedance.com/management/task-v2?page=1",
   });
 
-  pageRoot.appendChild(avatarTrigger);
-  const root = createFakeDocument([pageRoot]);
-
-  const result = await contentModule.__testOnly.runAccountSwitchFlow(root, {
-    confirm: function () {
-      return true;
-    },
-    isLoggedIn: function () {
-      return true;
-    },
-    waitFor: async function () {},
-  });
-
-  assert.equal(triggerClickCount, 2);
   assert.deepEqual(calls, ["clear"]);
   assert.equal(result.ok, false);
-  assert.equal(result.reason, "missing-logout-action");
+  assert.equal(result.message, "没有权限删除 Cookie。");
+});
+
+test("ByteDance AIDP content cancels account switch before clearing login cookies", async function () {
+  const contentModule = loadContentModule();
+  const calls = [];
+
+  const result = await contentModule.__testOnly.runAccountSwitchFlow(null, {
+    confirm: function () {
+      return false;
+    },
+    clearLoginCookies: async function () {
+      calls.push("clear");
+      return {
+        ok: true,
+      };
+    },
+    reloadPage: function () {
+      calls.push("reload");
+    },
+  });
+
+  assert.deepEqual(calls, []);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "cancelled");
 });
 
 test("ByteDance AIDP content resolves helper config with custom padding playback rate and wave zoom", function () {

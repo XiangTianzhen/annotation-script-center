@@ -1097,6 +1097,9 @@
 - 收口 ByteDance AIDP 苏州话基础设置：删除 `当前隐藏目标`、`语言种类补齐` 两张说明卡，并把说明并回对应 `?` 浮层
 - 调整 ByteDance AIDP 列表页 `切换账号` 从主内容区独立助手条改为顶部 header 右侧账号区按钮，固定插在头像左侧
 - 补充 ByteDance AIDP 列表页 header 挂载与清缓存即退出登录的回归测试
+- 调整 ByteDance AIDP 基础设置首排布局，将 `隐藏平台AI功能` 与 `画段后自动应用建议` 收口到同一排
+- 为扩展新增 `cookies` 权限，并将 ByteDance AIDP `切换账号` 改为直接清理 `aidp.bytedance.com` 登录 Cookie 后刷新页面
+- 新增 background service worker 的 AIDP Cookie 清理回归测试
 
 ## 2026-04-25（历史记录重建摘要）
 - 拆分快判统计本地服务
