@@ -54,6 +54,42 @@ test("ByteDance AIDP options source exposes the suzhou helper base panel", funct
   assert.match(html, /画段后自动应用建议/);
   assert.match(html, /默认播放倍数/);
   assert.match(html, /固定缩放倍数/);
+  assert.match(
+    aidpPanelHtml,
+    /<strong class="field-title-row">\s*<span>画段后自动应用建议<\/span>\s*<span\s+class="inline-help-dot"/
+  );
+  assert.match(
+    aidpPanelHtml,
+    /<strong class="field-title-row">\s*<span>前后静音时长<\/span>\s*<span\s+class="inline-help-dot"/
+  );
+  assert.match(
+    aidpPanelHtml,
+    /<strong class="field-title-row">\s*<span>静音阈值<\/span>\s*<span\s+class="inline-help-dot"/
+  );
+  assert.match(
+    aidpPanelHtml,
+    /<strong class="field-title-row">\s*<span>默认播放倍数<\/span>\s*<span\s+class="inline-help-dot"/
+  );
+  assert.match(
+    aidpPanelHtml,
+    /<strong class="field-title-row">\s*<span>固定缩放倍数<\/span>\s*<span\s+class="inline-help-dot"/
+  );
+  assert.match(
+    aidpPanelHtml,
+    /<strong class="field-title-row">\s*<span>连续相接自动合并<\/span>\s*<span\s+class="inline-help-dot"/
+  );
+  assert.doesNotMatch(
+    aidpPanelHtml,
+    /<label class="field-card">\s*<strong>画段后自动应用建议<\/strong>\s*<span>默认开启/
+  );
+  assert.doesNotMatch(
+    aidpPanelHtml,
+    /<label class="field-card">\s*<strong>前后静音时长<\/strong>\s*<span>用于画段建议的前后静音补偿/
+  );
+  assert.doesNotMatch(
+    aidpPanelHtml,
+    /<label class="field-card">\s*<strong>静音阈值<\/strong>\s*<span>仅按 dBFS 数字配置分段静音阈值/
+  );
   assert.match(combinedSource, /播放\/暂停切换/);
   assert.match(combinedSource, /区间播放/);
   assert.match(combinedSource, /回到首帧/);

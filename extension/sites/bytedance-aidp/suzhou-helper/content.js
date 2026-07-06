@@ -30,6 +30,9 @@
   const TOOLBAR_ACTION_GROUP_ATTR = "data-asc-toolbar-action-group";
   const CLEAR_SEGMENTS_BUTTON_ATTR = "data-asc-clear-segments-button";
   const FILL_LANGUAGE_KIND_BUTTON_ATTR = "data-asc-fill-language-kind-button";
+  const ACCOUNT_SWITCH_BAR_ATTR = "data-asc-aidp-account-switch-bar";
+  const ACCOUNT_SWITCH_BUTTON_ATTR = "data-asc-aidp-account-switch-button";
+  const ACCOUNT_SWITCH_STATUS_ATTR = "data-asc-aidp-account-switch-status";
   const SEGMENT_RECOGNIZE_HEADER_ATTR = "data-asc-segment-recognize-header";
   const SEGMENT_RECOGNIZE_CELL_ATTR = "data-asc-segment-recognize-cell";
   const SEGMENT_RECOGNIZE_BUTTON_ATTR = "data-asc-segment-recognize-button";
@@ -78,6 +81,7 @@
   };
   let storageListenerBound = false;
   let helperRuntime = null;
+  let taskListUiActive = false;
 
   function normalizeText(value) {
     return String(value || "").trim();
@@ -281,9 +285,22 @@
     return /^\/management\/task-v2\/[^/]+\/mark-v3\/[^/]+$/i.test(text);
   }
 
+  function isTaskListPagePathname(pathname) {
+    const text = normalizeText(pathname).replace(/\?.*$/, "").replace(/\/+$/, "");
+    return /^\/management\/task-v2$/i.test(text);
+  }
+
   function isDetailPage() {
     try {
       return isDetailPagePathname(globalThis.location?.pathname || "");
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function isTaskListPage() {
+    try {
+      return isTaskListPagePathname(globalThis.location?.pathname || "");
     } catch (_error) {
       return false;
     }
@@ -969,6 +986,368 @@
       pushUniqueNode(results, seen, node);
     });
     return results;
+  }
+
+  function isNodeVisible(node) {
+    if (!isHideableNode(node)) {
+      return false;
+    }
+    if (node.hasAttribute?.("hidden")) {
+      return false;
+    }
+    const ariaHidden = normalizeText(node.getAttribute?.("aria-hidden") || "").toLowerCase();
+    if (ariaHidden === "true") {
+      return false;
+    }
+    const display = normalizeText(getStylePropertyValue(node, "display")).toLowerCase();
+    if (display === "none") {
+      return false;
+    }
+    const visibility = normalizeText(getStylePropertyValue(node, "visibility")).toLowerCase();
+    if (visibility === "hidden") {
+      return false;
+    }
+    return true;
+  }
+
+  function findTaskListMountAnchor(root) {
+    const searchRoots = getSearchRoots(root);
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const mainNode = safeQuerySelectorAll(searchRoots[index], "main,[role='main']")[0];
+      if (mainNode) {
+        return mainNode;
+      }
+    }
+    for (let index = 0; index < searchRoots.length; index += 1) {
+      const descendants = collectDescendantElements(searchRoots[index]);
+      if (descendants.length > 0) {
+        return descendants[0];
+      }
+    }
+    return null;
+  }
+
+  function findAccountSwitchBar(root) {
+    return safeQuerySelectorAll(root, "[" + ACCOUNT_SWITCH_BAR_ATTR + "='true']")[0] || null;
+  }
+
+  function findAccountSwitchButton(root) {
+    return safeQuerySelectorAll(root, "[" + ACCOUNT_SWITCH_BUTTON_ATTR + "='true']")[0] || null;
+  }
+
+  function findAccountSwitchStatusNode(root) {
+    return safeQuerySelectorAll(root, "[" + ACCOUNT_SWITCH_STATUS_ATTR + "='true']")[0] || null;
+  }
+
+  function setAccountSwitchStatus(message, tone) {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const node = findAccountSwitchStatusNode(document);
+    if (!node) {
+      return;
+    }
+    node.textContent = normalizeText(message);
+    const normalizedTone = normalizeText(tone).toLowerCase();
+    node.style.color =
+      normalizedTone === "error"
+        ? "#c73932"
+        : normalizedTone === "success"
+          ? "#1f7a45"
+          : "#5f6f90";
+  }
+
+  function setAccountSwitchBusy(busy) {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const button = findAccountSwitchButton(document);
+    if (!button) {
+      return;
+    }
+    button.disabled = busy === true;
+    button.style.opacity = busy === true ? "0.7" : "1";
+    button.style.cursor = busy === true ? "wait" : "pointer";
+  }
+
+  function destroyAccountSwitchBar(root) {
+    safeQuerySelectorAll(root, "[" + ACCOUNT_SWITCH_BAR_ATTR + "='true']").forEach(function (node) {
+      if (node?.parentNode && typeof node.parentNode.removeChild === "function") {
+        node.parentNode.removeChild(node);
+      }
+    });
+  }
+
+  function ensureAccountSwitchBar(root, onClick) {
+    const existing = findAccountSwitchBar(root);
+    if (existing) {
+      return {
+        node: existing,
+        created: false,
+      };
+    }
+    const anchor = findTaskListMountAnchor(root);
+    const host = anchor?.parentElement || anchor;
+    const documentLike = host?.ownerDocument || globalThis.document;
+    if (!host || !documentLike || typeof documentLike.createElement !== "function") {
+      return {
+        node: null,
+        created: false,
+      };
+    }
+
+    const bar = documentLike.createElement("div");
+    bar.setAttribute(ACCOUNT_SWITCH_BAR_ATTR, "true");
+    bar.style.display = "flex";
+    bar.style.alignItems = "center";
+    bar.style.justifyContent = "space-between";
+    bar.style.gap = "12px";
+    bar.style.padding = "12px 14px";
+    bar.style.margin = "0 0 12px";
+    bar.style.border = "1px solid #d6e4ff";
+    bar.style.borderRadius = "10px";
+    bar.style.background = "#f7faff";
+
+    const copy = documentLike.createElement("div");
+    copy.style.display = "flex";
+    copy.style.flexDirection = "column";
+    copy.style.gap = "4px";
+
+    const title = documentLike.createElement("strong");
+    title.textContent = "苏州话脚本";
+    copy.appendChild(title);
+
+    const hint = documentLike.createElement("span");
+    hint.textContent = "需要切换账号时，可先清除平台缓存，再退出登录。";
+    hint.style.color = "#5f6f90";
+    hint.style.fontSize = "12px";
+    copy.appendChild(hint);
+
+    const actionWrap = documentLike.createElement("div");
+    actionWrap.style.display = "flex";
+    actionWrap.style.alignItems = "center";
+    actionWrap.style.gap = "10px";
+
+    const status = documentLike.createElement("span");
+    status.setAttribute(ACCOUNT_SWITCH_STATUS_ATTR, "true");
+    status.style.color = "#5f6f90";
+    status.style.fontSize = "12px";
+    actionWrap.appendChild(status);
+
+    const button = documentLike.createElement("button");
+    button.type = "button";
+    button.setAttribute(ACCOUNT_SWITCH_BUTTON_ATTR, "true");
+    button.textContent = "切换账号";
+    button.style.padding = "0 12px";
+    button.style.height = "32px";
+    button.style.border = "1px solid #26418b";
+    button.style.borderRadius = "8px";
+    button.style.background = "#26418b";
+    button.style.color = "#fff";
+    button.style.cursor = "pointer";
+    button.style.whiteSpace = "nowrap";
+    button.addEventListener("click", function () {
+      if (typeof onClick === "function") {
+        onClick();
+      }
+    });
+    actionWrap.appendChild(button);
+
+    bar.appendChild(copy);
+    bar.appendChild(actionWrap);
+
+    if (host !== anchor && typeof host.insertBefore === "function") {
+      host.insertBefore(bar, anchor);
+    } else {
+      host.appendChild(bar);
+    }
+    return {
+      node: bar,
+      created: true,
+    };
+  }
+
+  function getAccountAvatarTriggerScore(node) {
+    if (!isNodeVisible(node)) {
+      return -1;
+    }
+    const className = getClassName(node).toLowerCase();
+    if (className.includes("popover")) {
+      return -1;
+    }
+    let score = 0;
+    if (className.includes("avatar")) {
+      score += 3;
+    }
+    if (className.includes("user") || className.includes("account")) {
+      score += 1;
+    }
+    if (
+      String(node?.tagName || "").toUpperCase() === "BUTTON" ||
+      normalizeText(node?.getAttribute?.("role") || "").toLowerCase() === "button"
+    ) {
+      score += 1;
+    }
+    if (hasMediaDescendant(node)) {
+      score += 1;
+    }
+    if (getNodeText(node).length <= 16) {
+      score += 1;
+    }
+    return score;
+  }
+
+  function findAccountAvatarTrigger(root) {
+    let bestNode = null;
+    let bestScore = -1;
+    getSearchRoots(root).forEach(function (searchRoot) {
+      collectDescendantElements(searchRoot).forEach(function (node) {
+        const score = getAccountAvatarTriggerScore(node);
+        if (score > bestScore) {
+          bestNode = node;
+          bestScore = score;
+        }
+      });
+    });
+    return bestScore >= 3 ? bestNode : null;
+  }
+
+  function findAccountPopoverRoots(root) {
+    const results = [];
+    getSearchRoots(root).forEach(function (searchRoot) {
+      collectDescendantElements(searchRoot).forEach(function (node) {
+        if (!isNodeVisible(node)) {
+          return;
+        }
+        const className = getClassName(node).toLowerCase();
+        if (!className.includes("popover")) {
+          return;
+        }
+        results.push(node);
+      });
+    });
+    return results;
+  }
+
+  function findAccountMenuAction(root, label) {
+    const targetLabel = normalizeText(label);
+    const matches = [];
+    findAccountPopoverRoots(root).forEach(function (popoverRoot) {
+      collectDescendantElements(popoverRoot).forEach(function (node) {
+        if (!isNodeVisible(node)) {
+          return;
+        }
+        if (normalizeText(getNodeText(node)) !== targetLabel) {
+          return;
+        }
+        matches.push(node);
+      });
+    });
+    if (matches.length !== 1) {
+      return {
+        ok: false,
+        reason: matches.length > 1 ? "ambiguous-action" : "missing-action",
+        node: null,
+      };
+    }
+    return {
+      ok: true,
+      node: matches[0],
+    };
+  }
+
+  async function openAccountMenu(root, waitForFn) {
+    const trigger = findAccountAvatarTrigger(root);
+    if (!trigger) {
+      return {
+        ok: false,
+        reason: "missing-avatar-trigger",
+      };
+    }
+    invokeClick(trigger);
+    await waitForFn(80);
+    return {
+      ok: true,
+    };
+  }
+
+  async function runAccountSwitchFlow(root, options) {
+    const source = options && typeof options === "object" ? options : {};
+    const confirmFn =
+      typeof source.confirm === "function"
+        ? source.confirm
+        : typeof globalThis.confirm === "function"
+          ? globalThis.confirm
+          : null;
+    const waitForFn = typeof source.waitFor === "function" ? source.waitFor : waitFor;
+    const isLoggedIn =
+      typeof source.isLoggedIn === "function"
+        ? source.isLoggedIn
+        : function (searchRoot) {
+            return Boolean(findAccountAvatarTrigger(searchRoot));
+          };
+
+    if (
+      confirmFn &&
+      confirmFn("确认先清除缓存，再退出登录以切换账号吗？") === false
+    ) {
+      return {
+        ok: false,
+        reason: "cancelled",
+        message: "已取消切换账号。",
+      };
+    }
+
+    const openClearMenuResult = await openAccountMenu(root, waitForFn);
+    if (!openClearMenuResult.ok) {
+      return {
+        ok: false,
+        reason: openClearMenuResult.reason,
+        message: "未找到账号头像入口，无法执行切换账号。",
+      };
+    }
+
+    const clearAction = findAccountMenuAction(root, "清除缓存");
+    if (!clearAction.ok || !clearAction.node) {
+      return {
+        ok: false,
+        reason: "missing-clear-action",
+        message: "未找到“清除缓存”入口，已停止执行。",
+      };
+    }
+    invokeClick(clearAction.node);
+    await waitForFn(80);
+
+    if (!isLoggedIn(root)) {
+      return {
+        ok: true,
+        message: "已执行清除缓存；当前已退出登录，可直接重新登录其他账号。",
+      };
+    }
+
+    const openLogoutMenuResult = await openAccountMenu(root, waitForFn);
+    if (!openLogoutMenuResult.ok) {
+      return {
+        ok: false,
+        reason: openLogoutMenuResult.reason,
+        message: "已执行清除缓存，但未能再次打开账号菜单。",
+      };
+    }
+
+    const logoutAction = findAccountMenuAction(root, "退出登录");
+    if (!logoutAction.ok || !logoutAction.node) {
+      return {
+        ok: false,
+        reason: "missing-logout-action",
+        message: "已执行清除缓存，但未找到“退出登录”入口，已停止执行。",
+      };
+    }
+    invokeClick(logoutAction.node);
+    await waitForFn(80);
+    return {
+      ok: true,
+      message: "已依次执行清除缓存和退出登录，请重新登录目标账号。",
+    };
   }
 
   function findWaveWorkbench(root) {
@@ -3410,6 +3789,72 @@
     scheduleRuntimeReload(helperRuntime);
   }
 
+  async function handleTaskListAccountSwitchAction() {
+    if (typeof document === "undefined") {
+      return;
+    }
+    setAccountSwitchBusy(true);
+    setAccountSwitchStatus("正在切换账号...", "");
+    try {
+      const result = await runAccountSwitchFlow(document);
+      if (result.ok) {
+        setAccountSwitchStatus(result.message, "success");
+        return;
+      }
+      if (result.reason === "cancelled") {
+        setAccountSwitchStatus(result.message, "");
+        return;
+      }
+      setAccountSwitchStatus(result.message || "切换账号失败。", "error");
+    } catch (error) {
+      setAccountSwitchStatus(
+        "切换账号失败：" + (error && error.message ? error.message : String(error)),
+        "error"
+      );
+    } finally {
+      setAccountSwitchBusy(false);
+    }
+  }
+
+  function syncTaskListAccountSwitchBar(root) {
+    if (!root || !isTaskListPage()) {
+      destroyAccountSwitchBar(root);
+      return;
+    }
+    if (runtimePolicy.runtimeAccessible !== true) {
+      destroyAccountSwitchBar(root);
+      return;
+    }
+    ensureAccountSwitchBar(root, function () {
+      void handleTaskListAccountSwitchAction();
+    });
+  }
+
+  function destroyTaskListUi() {
+    taskListUiActive = false;
+    if (typeof document !== "undefined") {
+      destroyAccountSwitchBar(document);
+    }
+    if (!runtimeActive) {
+      unbindStorageListener();
+    }
+  }
+
+  async function installTaskListUi() {
+    if (!isTaskListPage()) {
+      destroyTaskListUi();
+      return runtimePolicy;
+    }
+    taskListUiActive = true;
+    bindStorageListener();
+    const settings = await loadSettings();
+    runtimePolicy = resolveRuntimePolicy(settings);
+    if (typeof document !== "undefined") {
+      syncTaskListAccountSwitchBar(document);
+    }
+    return runtimePolicy;
+  }
+
   function ensureHelperRuntime(settings) {
     if (!runtimePolicy.runtimeAccessible || !isDetailPage()) {
       destroyHelperRuntime();
@@ -3698,10 +4143,13 @@
     if (areaName && areaName !== "local") {
       return;
     }
-    if (!runtimeActive || !isDetailPage()) {
+    if (runtimeActive && isDetailPage()) {
+      void refreshRuntimePolicy();
       return;
     }
-    void refreshRuntimePolicy();
+    if (taskListUiActive && isTaskListPage()) {
+      void installTaskListUi();
+    }
   }
 
   function bindStorageListener() {
@@ -3738,7 +4186,9 @@
     runtimeActive = false;
     disconnectMutationObserver();
     destroyHelperRuntime();
-    unbindStorageListener();
+    if (!taskListUiActive) {
+      unbindStorageListener();
+    }
     if (typeof document !== "undefined") {
       syncPlatformAiVisibility(document, false);
     }
@@ -3761,25 +4211,44 @@
       return;
     }
     routeTimer = window.setInterval(function () {
-      if (!isDetailPage()) {
-        if (runtimeActive) {
-          destroyRuntime();
+      if (isDetailPage()) {
+        if (taskListUiActive) {
+          destroyTaskListUi();
+        }
+        if (!runtimeActive) {
+          void installRuntime();
+          return;
+        }
+        scheduleDomSync();
+        if (helperRuntime) {
+          helperRuntime.ui.mount();
+          scheduleHelperContextRefresh(0);
+        } else if (runtimePolicy.runtimeAccessible && dataApiFactory && segmentFactory && uiFactory) {
+          void refreshRuntimePolicy();
+        }
+        if (runtimePolicy.shouldHidePlatformAi) {
+          ensureMutationObserver();
         }
         return;
       }
-      if (!runtimeActive) {
-        void installRuntime();
+
+      if (isTaskListPage()) {
+        if (runtimeActive) {
+          destroyRuntime();
+        }
+        if (!taskListUiActive) {
+          void installTaskListUi();
+          return;
+        }
+        syncTaskListAccountSwitchBar(document);
         return;
       }
-      scheduleDomSync();
-      if (helperRuntime) {
-        helperRuntime.ui.mount();
-        scheduleHelperContextRefresh(0);
-      } else if (runtimePolicy.runtimeAccessible && dataApiFactory && segmentFactory && uiFactory) {
-        void refreshRuntimePolicy();
+
+      if (runtimeActive) {
+        destroyRuntime();
       }
-      if (runtimePolicy.shouldHidePlatformAi) {
-        ensureMutationObserver();
+      if (taskListUiActive) {
+        destroyTaskListUi();
       }
     }, 1200);
   }
@@ -3791,10 +4260,13 @@
       findPlatformAiTargets: findPlatformAiTargets,
       syncPlatformAiVisibility: syncPlatformAiVisibility,
       isDetailPagePathname: isDetailPagePathname,
+      isTaskListPagePathname: isTaskListPagePathname,
       normalizeInsightTarget: normalizeInsightTarget,
       normalizeFloatingTarget: normalizeFloatingTarget,
       getInsightCandidateScore: getInsightCandidateScore,
       getFloatingAssistantScore: getFloatingAssistantScore,
+      ensureAccountSwitchBar: ensureAccountSwitchBar,
+      runAccountSwitchFlow: runAccountSwitchFlow,
       resolveHelperConfig: resolveHelperConfig,
       applyWaveToolSettings: applyWaveToolSettings,
       syncPlaybackRateControl: syncPlaybackRateControl,

@@ -1,3 +1,21 @@
+## 2026-07-06（补齐 ByteDance AIDP 苏州话设置问号说明与列表页切换账号）
+- 更新 `extension/options/options.html`
+  - 将苏州话基础设置里 `画段后自动应用建议`、`前后静音时长`、`静音阈值`、`默认播放倍数`、`固定缩放倍数`、`连续相接自动合并` 的长说明统一收进可点击 `?`
+  - 保留控件本体与必要状态文案，不再把整段说明直接放在卡片正文
+- 更新 `extension/sites/bytedance-aidp/suzhou-helper/content.js`
+  - 新增 `/management/task-v2` 列表页识别与独立助手条挂载
+  - 新增 `切换账号` 按钮，点击后先确认，再按顺序尝试平台原生 `清除缓存` 与 `退出登录`
+  - 账号切换流程按可见弹层精确匹配 `清除缓存` / `退出登录` 文案；找不到目标入口时 fail closed 停止执行
+  - 路由监听改为区分列表页助手条和 `mark-v3` 详情页运行时，离开列表页后自动卸载
+- 更新测试：
+  - `extension/options/options-bytedance-aidp-ui.test.js`
+  - `extension/sites/bytedance-aidp/suzhou-helper/content.test.js`
+  - 回归覆盖设置页问号收口、列表页路由识别、助手条单实例挂载、`清除缓存 -> 退出登录` 顺序执行和缺少退出入口时安全失败
+- 更新文档：
+  - `extension/sites/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/suzhou-helper/README.md`
+  - `platform-resources/bytedance-aidp/page-structure/01-task-v2-home.md`
+
 ## 2026-07-04（收口 ByteDance AIDP 苏州话前端样式与行内识别交互）
 - 更新 `extension/sites/bytedance-aidp/suzhou-helper/ui-panel.js`
   - 将提示图标改成上标式 `™` 风格，支持 hover 预览、click 固定展开和点击外部关闭

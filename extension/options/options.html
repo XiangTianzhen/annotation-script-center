@@ -731,8 +731,15 @@
 
             <div class="detail-grid two">
               <label class="field-card">
-                <strong>画段后自动应用建议</strong>
-                <span>默认开启。仅在你手动点击“生成分段建议”后，立即把当前建议写回平台暂存答案。</span>
+                <strong class="field-title-row">
+                  <span>画段后自动应用建议</span>
+                  <span
+                    class="inline-help-dot"
+                    tabindex="0"
+                    title="默认开启。仅在你手动点击“生成分段建议”后，立即把当前建议写回平台暂存答案。"
+                    >?</span
+                  >
+                </strong>
                 <span class="field-toggle">
                   <input
                     id="bytedance-aidp-segment-preview-auto-apply-enabled"
@@ -758,9 +765,15 @@
 
             <div class="detail-grid two">
               <label class="field-card">
-                <strong>前后静音时长</strong>
-                <span>用于画段建议的前后静音补偿。默认 `0.3s`，可配置范围 `0s ~ 0.5s`。</span>
-                <span>截取区间开头和结尾的无人声留白都不能超过 `500ms`。</span>
+                <strong class="field-title-row">
+                  <span>前后静音时长</span>
+                  <span
+                    class="inline-help-dot"
+                    tabindex="0"
+                    title="用于画段建议的前后静音补偿。默认 `0.3s`，可配置范围 `0s ~ 0.5s`。截取区间开头和结尾的无人声留白都不能超过 `500ms`。"
+                    >?</span
+                  >
+                </strong>
                 <input
                   id="bytedance-aidp-segment-context-padding-seconds"
                   type="number"
@@ -771,8 +784,15 @@
               </label>
 
               <label class="field-card">
-                <strong>静音阈值</strong>
-                <span>仅按 dBFS 数字配置分段静音阈值。默认 `-31 dBFS`，范围 `-80 ~ -5`。</span>
+                <strong class="field-title-row">
+                  <span>静音阈值</span>
+                  <span
+                    class="inline-help-dot"
+                    tabindex="0"
+                    title="仅按 dBFS 数字配置分段静音阈值。默认 `-31 dBFS`，范围 `-80 ~ -5`。"
+                    >?</span
+                  >
+                </strong>
                 <input
                   id="bytedance-aidp-segment-silence-threshold-dbfs"
                   type="number"
@@ -785,8 +805,15 @@
 
             <div class="detail-grid three">
               <label class="field-card">
-                <strong>默认播放倍数</strong>
-                <span>详情页进入和波形区重渲染后，只会对齐到平台系统自带倍速选项。</span>
+                <strong class="field-title-row">
+                  <span>默认播放倍数</span>
+                  <span
+                    class="inline-help-dot"
+                    tabindex="0"
+                    title="详情页进入和波形区重渲染后，只会对齐到平台系统自带倍速选项。"
+                    >?</span
+                  >
+                </strong>
                 <select
                   id="bytedance-aidp-default-playback-rate"
                 >
@@ -801,8 +828,15 @@
               </label>
 
               <label class="field-card">
-                <strong>固定缩放倍数</strong>
-                <span>详情页进入和波形区重渲染后，自动回填到平台缩放控件；只允许整数 `1~10`。</span>
+                <strong class="field-title-row">
+                  <span>固定缩放倍数</span>
+                  <span
+                    class="inline-help-dot"
+                    tabindex="0"
+                    title="详情页进入和波形区重渲染后，自动回填到平台缩放控件；只允许整数 `1~10`。"
+                    >?</span
+                  >
+                </strong>
                 <select
                   id="bytedance-aidp-fixed-wave-zoom"
                 >
@@ -820,8 +854,15 @@
               </label>
 
               <label class="field-card">
-                <strong>连续相接自动合并</strong>
-                <span>默认开启。若相邻建议段首尾实际相接，或只差极小显示误差，会自动并回一整段。</span>
+                <strong class="field-title-row">
+                  <span>连续相接自动合并</span>
+                  <span
+                    class="inline-help-dot"
+                    tabindex="0"
+                    title="默认开启。若相邻建议段首尾实际相接，或只差极小显示误差，会自动并回一整段。"
+                    >?</span
+                  >
+                </strong>
                 <span class="field-toggle">
                   <input
                     id="bytedance-aidp-merge-contiguous-suggested-segments-enabled"
